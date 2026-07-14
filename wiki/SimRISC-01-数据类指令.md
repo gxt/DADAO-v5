@@ -220,13 +220,13 @@ divs rdha, rdhb, rdhc, rdhd
 
 ### Logic operators：逻辑运算
 
-逻辑运算指令需要两个源操作数，一个目的操作数。操作数类型为 `orrr`。
+逻辑运算指令需要两个源操作数，一个目的操作数。操作数类型为 `brrr`。
 
 ```simrisc
-and     rdhb, rdhc, rdhd
-orr     rdhb, rdhc, rdhd
-xor     rdhb, rdhc, rdhd
-xnor    rdhb, rdhc, rdhd
+and     bmN, rdhb, rdhc, rdhd
+orr     bmN, rdhb, rdhc, rdhd
+xor     bmN, rdhb, rdhc, rdhd
+xnor    bmN, rdhb, rdhc, rdhd
 ```
 
 and指令为逻辑与运算，运算规则：全一为一，有零为零。即只有两个操作数都为1时，结果才为1，其他情况均为0；也可以说，只要有0，结果就为0。
