@@ -208,6 +208,13 @@ divs rdha, rdhb, rdhc, rdhd
 
 `rdha` 和 `rdhb` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
+操作数类型 `brrr` 的 `muls`/`mulu` 提供带位掩码的乘法运算。`bmN` 指定有效位数，结果仅保留 bits[N:0]，高位按有符号（muls，符号扩展）或无符号（mulu，零扩展）填充。`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+
+```simrisc
+muls    bmN, rdhb, rdhc, rdhd
+mulu    bmN, rdhb, rdhc, rdhd
+```
+
 除法指令附加规则：
 
 - **除数为零**：触发 ILLI 异常。
