@@ -1,1 +1,1 @@
-# DADAO-v5
+# DADAO for SimRISC 0.5.x
