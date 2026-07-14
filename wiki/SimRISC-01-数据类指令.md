@@ -146,11 +146,11 @@ sub     rdha, rdhb, rdhc, rdhd
 
 `rdha` 和 `rdhb` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
-操作数类型 `brrr` 的 `add`/`sub` 提供带位掩码的加减运算。`bN` 指定有效位数，仅 bits[N:0] 参与运算，目的寄存器高位符号扩展。若结果溢出（超出 bits[N:0] 表示范围），溢出部分静默丢弃。`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+操作数类型 `brrr` 的 `add`/`sub` 提供带位掩码的加减运算。`bmN` 指定有效位数，仅 bits[N:0] 参与运算，目的寄存器高位符号扩展。若结果溢出（超出 bits[N:0] 表示范围），溢出部分静默丢弃。`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
 
 ```simrisc
-add     bN, rdhb, rdhc, rdhd
-sub     bN, rdhb, rdhc, rdhd
+add     bmN, rdhb, rdhc, rdhd
+sub     bmN, rdhb, rdhc, rdhd
 ```
 
 ### 自增自减
@@ -181,14 +181,14 @@ cmps    rdha, rdhb, imms12
 cmpu    rdha, rdhb, immu12
 ```
 
-另一种操作数类型为 `brrr`，增加位掩码参数 `bN`（N=0..63），表示 bits[N:0] 参与比较。源操作数按 bN 截断后比较，结果（-1/0/1）写入目的寄存器 bits[N:0]，高位符号扩展。`b63` 表示全 64 位。`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+另一种操作数类型为 `brrr`，增加位掩码参数 `bmN`（N=0..63），表示 bits[N:0] 参与比较。源操作数按 bmN 截断后比较，结果（-1/0/1）写入目的寄存器 bits[N:0]，高位符号扩展。`bm63` 表示全 64 位。`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
 
 ```simrisc
-cmps    bN, rdhb, rdhc, rdhd
-cmpu    bN, rdhb, rdhc, rdhd
+cmps    bmN, rdhb, rdhc, rdhd
+cmpu    bmN, rdhb, rdhc, rdhd
 ```
 
-例如 `cmps b7, rd1, rd2, rd3` 将 rd2 和 rd3 的低 8 位按有符号比较，结果写入 rd1 的低 8 位，rd1[63:8] 按符号扩展。
+例如 `cmps bm7, rd1, rd2, rd3` 将 rd2 和 rd3 的低 8 位按有符号比较，结果写入 rd1 的低 8 位，rd1[63:8] 按符号扩展。
 
 ### 乘除操作
 
