@@ -16,7 +16,7 @@ Swym一词参考Knuth的MMIX中的定义，含义为：sympathize with your mach
 此外，还有一些情况，是不希望指令流运行到这部分空白指令处，此时，需要的是能够引发异常的未定义指令。
 SimRISC中，采用了unimp助记符作为未实现指令，即unimplemented instructions。
 
-swym指令和unimp指令的操作数类型为 `oiii`：
+swym指令的操作数类型为 `iiii`，unimp指令的操作数类型为 `oiii`：
 
 ```simrisc
 swym    0
@@ -26,9 +26,10 @@ unimp   0
 
 说明如下：
 
-- swym和unimp指令的后18位立即数并无特殊含义，用户可自行定义以用于语义的区分
+- swym指令的后24位立即数并无特殊含义，用户可自行定义以用于语义的区分
+- unimp指令的后18位立即数并无特殊含义
 - swym 除 PC 自增外无任何架构副作用，等同于其他指令系统中的 nop 指令（汇编器提供 `nop` 伪指令，等价于 `swym 0`）
-- unimp指令会引发非法指令异常
+- unimp指令会引发非法指令异常。unimp 的 opcode 为 MISC-Norm 000-000，编码为全零时即为 32 位全零指令字。因此未初始化的指令内存（全零）将触发 ILLI 异常，便于在程序跑飞时快速捕获错误。
 
 ## 特权指令
 
