@@ -196,32 +196,40 @@ cmpu    bmN, rdhb, rdhc, rdhd
 
 无符号数的乘法mulu和有符号数的乘法muls，rdhc和rdhd为源操作数，形成16字节的运算结果，分别写入rdha和rdhb中，rdha存放结果的高64位，rdhb存放结果的低64位。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
-无符号数的除法divu指令和有符号数的divs指令，被除数、除数、商和余数分别占用一个寄存器。
-其中，rdhc为被除数，rdhd为除数，rdha为余数，rdhb为商。
-
 ```simrisc
 muls rdha, rdhb, rdhc, rdhd
 mulu rdha, rdhb, rdhc, rdhd
-divu rdha, rdhb, rdhc, rdhd
-divs rdha, rdhb, rdhc, rdhd
 ```
 
 `rdha` 和 `rdhb` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
-操作数类型 `brrr` 的 `muls`/`mulu` 提供带位掩码的乘法运算。`bmN` 指定有效位数，结果仅保留 bits[N:0]，高位按有符号（muls，符号扩展）或无符号（mulu，零扩展）填充。`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+操作数类型 `brrr` 的 `muls`/`mulu` 提供带位掩码的乘法运算。`bmN` 指定有效位数，源操作数只取 bits[N:0]，结果仅保留 bits[N:0]，高位按有符号（muls，符号扩展）或无符号（mulu，零扩展）填充。`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
 
 ```simrisc
 muls    bmN, rdhb, rdhc, rdhd
 mulu    bmN, rdhb, rdhc, rdhd
 ```
 
-除法指令附加规则：
+操作数类型 `brrr` 的 `divs`/`divu` 提供带位掩码的除法运算。`bmN` 指定有效位宽，源操作数只取 bits[N:0]，结果仅保留 bits[N:0] 的商，高位符号扩展（divs）或零扩展（divu），余数被抛弃。`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+
+```simrisc
+divs    bmN, rdhb, rdhc, rdhd
+divu    bmN, rdhb, rdhc, rdhd
+```
+
+操作数类型 `brrr` 的 `rems`/`remu` 提供只返回余数的除法。`bmN` 指定有效位宽，源操作数只取 bits[N:0]，结果仅保留 bits[N:0] 的余数，高位符号扩展（rems）或零扩展（remu），商被抛弃。`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+
+```simrisc
+rems    bmN, rdhb, rdhc, rdhd
+remu    bmN, rdhb, rdhc, rdhd
+```
+
+除法指令附加规则（适用于 `divs`/`divu`/`rems`/`remu` 全部格式）：
 
 - **除数为零**：触发 ILLI 异常。
-- **截断方向**：`divs` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号，即 `remainder = dividend − trunc(dividend / divisor) × divisor`。
-- **溢出**：`divs` 中 INT64_MIN ÷ −1 触发 ILLI 异常（唯一溢出情况，结果超出 int64_t 范围）。`divu` 不存在溢出。
-- **fault 时寄存器**：精确异常，`rdha`/`rdhb` 未写入（无副作用）。
-- **操作数重叠**：rrrr 格式先读全部源操作数（`rdhc`/`rdhd`）再写结果（`rdha`/`rdhb`），源值在覆盖前已捕获，行为确定。
+- **截断方向**：`divs`/`rems` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
+- **溢出**：`divs` 中 INT64_MIN ÷ −1 触发 ILLI 异常。`divu`/`remu` 不存在溢出。
+- **fault 时寄存器**：精确异常，目的寄存器未写入（无副作用）。
 
 ## 逻辑运算类指令
 
