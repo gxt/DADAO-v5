@@ -2,34 +2,37 @@
 
 > **版本：0.4.1**（与 SimRISC-00 一致）
 
-## 空指令
+## 占位指令
 
-当指令地址需要对齐或特意留出空白时，需要使用到空指令。
-
-通常需要填空的是no-operation指令；虽然很多指令也具有no-operation的效果，但是一条专门的指令在编码和语义上更为直观。
-SimRISC中，借鉴Knuth的创意，采用了swym助记符作为“划水”指令。
-
-Swym一词参考Knuth的MMIX中的定义，含义为：sympathize with your machinery，Knuth是这样描述的：
+当指令地址需要对齐或特意留出空白时，需要使用到占位指令。通常需要的占位指令是 no-operation 指令。SimRISC借鉴Knuth的创意，采用了 swym 助记符作为占位指令，可称之为"划水"指令。Swym一词参考Knuth的MMIX中的定义，含义为 sympathize with your machinery，Knuth是这样描述的：
 
 > It does, however, keep the machine runnning smoothly, just as real-world swimming helps to keep programmers healthy.
 
-此外，还有一些情况，是不希望指令流运行到这部分空白指令处，此时，需要的是能够引发异常的未定义指令。
-SimRISC中，采用了unimp助记符作为未实现指令，即unimplemented instructions。
-
-swym指令的操作数类型为 `iiii`，unimp指令的操作数类型为 `oiii`：
+操作数类型为 `iiii`：
 
 ```simrisc
 swym    0
-
-unimp   0
 ```
 
-说明如下：
+- `swym 0` 除 PC 自增外无任何架构副作用，等同于其它指令系统中的 nop 指令（汇编器提供 `nop` 伪指令，等价于 `swym 0`）
+- `swym N` 可作为硬件时延指令，后24位立即数为时延参数：具体时延由硬件实现确定，其时延约为 `swym 0` 的 N+1 倍。
+  - 硬件可设时延上限，N 超过阈值后时延不再增加。
+  - 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。
 
-- swym指令的后24位立即数并无特殊含义，用户可自行定义以用于语义的区分
-- unimp指令的后18位立即数并无特殊含义
-- swym 除 PC 自增外无任何架构副作用，等同于其他指令系统中的 nop 指令（汇编器提供 `nop` 伪指令，等价于 `swym 0`）
-- unimp指令会引发非法指令异常。unimp 的 opcode 为 MISC-Norm 000-000，编码为全零时即为 32 位全零指令字。因此未初始化的指令内存（全零）将触发 ILLI 异常，便于在程序跑飞时快速捕获错误。
+## 非法指令
+
+SimRISC 采用 illi 助记符作为专门的非法指令，即 illegal instruction。
+
+操作数类型为 `oiii`：
+
+```simrisc
+illi    0
+```
+
+- illi指令会引发 ILLI 异常，即非法指令异常。
+- illi指令的后18位立即数并无特殊含义，完全由用户或软件自行定义，用户可通过操作系统的相关机制捕获该异常，并进行功能扩展。
+  - 不建议用户或软件捕获并使用其它指令产生的非法指令异常做功能扩展，例如很多指令不允许目的操作数为 rd0，否则就会引发非法指令异常。
+- illi 的 opcode 和 minor-opcode 均为全0，当参数也为0时，即为 32 位全零指令字。因此未初始化的指令内存（全零）将触发 ILLI 异常，便于在程序跑飞时快速捕获错误。
 
 ## 特权指令
 
