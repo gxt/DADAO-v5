@@ -97,20 +97,20 @@ SimRISC 0.4.1版本的指令opcode布局如下。空白单元格表示 reserved�
 
 |               | xxxx-x000     | xxxx-x001     | xxxx-x010     | xxxx-x011     | xxxx-x100     | xxxx-x101     | xxxx-x110     | xxxx-x111     |
 | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
-| 0000-0xxx     | exts-brrr     | extz-brrr     | cmps-brrr     | cmpu-brrr     | and-brrr      | orr-brrr      | xor-brrr      | xnor-brrr     |
-| 0000-1xxx     | exts-brri     | extz-brri     | add-brrr      | sub-brrr      | muls-brrr     | mulu-brrr     | divs-brrr     | divu-brrr     |
-| 0001-0xxx     | MISC-Norm     |               | cmps-rrii     | cmpu-rrii     | orw-rwii      | andnw-rwii    | setzw-rwii    | setow-rwii    |
-| 0001-1xxx     |               | addi-rrii     | add-rrrr      | sub-rrrr      | muls-rrrr     | mulu-rrrr     | rems-brrr     | remu-brrr     |
+| 0000-0xxx     | MISC-Norm     |               | cmps-brrr     | cmpu-brrr     | and-brrr      | orr-brrr      | xor-brrr      | xnor-brrr     |
+| 0000-1xxx     |               | addi-rrii     | add-brrr      | sub-brrr      | muls-brrr     | mulu-brrr     | divs-brrr     | divu-brrr     |
+| 0001-0xxx     | exts-brrr     | extz-brrr     | cmps-rrii     | cmpu-rrii     | orw-rwii      | andnw-rwii    | setzw-rwii    | setow-rwii    |
+| 0001-1xxx     | exts-brri     | extz-brri     | add-rrrr      | sub-rrrr      | muls-rrrr     | mulu-rrrr     | rems-brrr     | remu-brrr     |
 | 0010-0xxx     | csn-rrrr      | csn-rf-rrrr   | csz-rrrr      | csz-rf-rrrr   | csp-rrrr      | csp-rf-rrrr   | cseq-rrrr     | csne-rrrr     |
 | 0010-1xxx     | brn-riii      | brnn-riii     | brz-riii      | brnz-riii     | brp-riii      | brnp-riii     | breq-rrii     | brne-rrii     |
 | 0011-0xxx     | ldbs-rrii     | ldws-rrii     | ldts-rrii     | ldo-rrii      | ldmbs-rrri    | ldmws-rrri    | ldmts-rrri    | ldmo-rrri     |
 | 0011-1xxx     | stb-rrii      | stw-rrii      | stt-rrii      | sto-rrii      | stmb-rrri     | stmw-rrri     | stmt-rrri     | stmo-rrri     |
 | 0100-0xxx     | ldbu-rrii     | ldwu-rrii     | ldtu-rrii     | ldo-rb-rrii   | ldmbu-rrri    | ldmwu-rrri    | ldmtu-rrri    | ldmo-rb-rrri  |
-| 0100-1xxx     | rela-riii     | addi-rb-rrii  |               | sto-rb-rrii   | orw-rb-rwii   | andnw-rb-rwii | setzw-rb-rwii | stmo-rb-rrri  |
+| 0100-1xxx     |               | addi-rb-rrii  | rela-riii     | sto-rb-rrii   | orw-rb-rwii   | andnw-rb-rwii | setzw-rb-rwii | stmo-rb-rrri  |
 | 0101-0xxx     | MISC-RF       |               | ldt-rf-rrii   | ldo-rf-rrii   | setw-rwii     |               | ldmt-rf-rrri  | ldmo-rf-rrri  |
 | 0101-1xxx     | ftmadd-rrrr   | fomadd-rrrr   | stt-rf-rrii   | sto-rf-rrii   |               |               | stmt-rf-rrri  | stmo-rf-rrri  |
-| 0110-0xxx     | shlu-brrr     | shrs-brrr     | shru-brrr     |               | jump-iiii     | jump-rrii     |               | ldmo-ra-rrri  |
-| 0110-1xxx     | shlu-brri     | shrs-brri     | shru-brri     |               | call-iiii     | call-rrii     | ret-riii      | stmo-ra-rrri  |
+| 0110-0xxx     |               | shlu-brrr     | shrs-brrr     | shru-brrr     | jump-iiii     | jump-rrii     |               | ldmo-ra-rrri  |
+| 0110-1xxx     |               | shlu-brri     | shrs-brri     | shru-brri     | call-iiii     | call-rrii     | ret-riii      | stmo-ra-rrri  |
 | 0111-0xxx     | MISC-AMO      |               | cfx2rd-crrr   | cfx2rc-crrr   | cfxld-crii    | cfxst-crii    | trap-ciii     | escape-ciii   |
 | 0111-1xxx     |               |               |               |               |               |               |               |               |
 
