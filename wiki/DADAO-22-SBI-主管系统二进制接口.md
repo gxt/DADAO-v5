@@ -822,7 +822,7 @@ cfx_umon_user_excp_handler:
     breq    rd2, rd3, syscall_handler               ; CFXTRAP (1<<0)
     setrd   rd3, 256
     breq    rd2, rd3, illi_handler                  ; ILLI (1<<8)
-    setzw   rd3, w2, 1                              ; rd3 = 1<<32
+    setzw   rd3, wp2, 1                             ; rd3 = 1<<32
     breq    rd2, rd3, fpexcp_handler                ; FPEXCP (1<<32)
     ; 默认：未处理异常
     escape cfx_umon, 1
