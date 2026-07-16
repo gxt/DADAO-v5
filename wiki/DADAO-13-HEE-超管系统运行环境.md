@@ -19,11 +19,13 @@
 | 3 | 7 | hypv escape cfx mask | cfx_⟨cfxname⟩_hypv_escape_cfx_mask | 全1 | RW | escape 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxcode 对应位硬件忽略 |
 | 3 | 8 | hypv switch run mode | cfx_⟨cfxname⟩_hypv_switch_run_mode | 3 (hypv) | RW | 从hypv陷入时切换的运行模式 |
 | 3 | 9 | hypv switch cfx mask | cfx_⟨cfxname⟩_hypv_switch_cfx_mask | 全1 | RW | 从hypv陷入时采用的异常掩码，0=可触发，1=屏蔽 |
-| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | cfxcode<<42 + 0x3ff_ffff_0000 | RW | 从hypv陷入时的异常向量入口地址。cfx_power（cfxcode=63）例外，复位值为 `0xFFFF_FFFF_0000`（见 SEE §2.1） |
+| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | cfxcode<<42 + 0x3ff_ffff_0000 | RW | 从hypv陷入时的异常向量入口地址 |
 | 3 | 11 | hypv excp mask | cfx_⟨cfxname⟩_hypv_excp_cause_mask | 全1 | RW | 异常原因掩码，0=可触发，1=屏蔽 |
 | 3 | 12 | hypv cg reg delegation | cfx_⟨cfxname⟩_hypv_cg_reg_deleg | 全1 | RW | cg访问授权，bit=0时允许supv访问。bit3固定为1 |
 
 `hypv global` 开头的寄存器为全局寄存器，即所有核芯功能扩展共享同一个寄存器。
+
+> **cfx_power 例外**：复位时 cfx_power 的 `hypv_cfx2rc_cfx_mask` 和 `hypv_cfx2rd_cfx_mask` 初始值为全 0（允许任意 cfxcode），确保引导序列中的跨 cfx 寄存器访问不被屏蔽。其余 cfx 和相关 mask 保持全 1。
 
 ## 2. cfx_hmon - hypervisor monitor
 

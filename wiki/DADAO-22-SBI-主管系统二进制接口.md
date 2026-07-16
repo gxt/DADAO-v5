@@ -198,7 +198,8 @@ cfx_ptw_set_ptbr:
     shlu    bp63, rd16, rd16, 3                          ; idx × 8（每路 2 条指令 = 8 字节）
     setrd   rd3, cfx_ptw_ptbr_table
     add     rd0, rd3, rd3, rd16
-    jump    rb0, rd3, 0
+    setrb   rb3, rd3                      ; rd→rb 中转
+    jump    rb3, rd0, 0
 cfx_ptw_ptbr_table:
     cfx2rc  cfx_ptw, 9, 0,  rd17 ; PTBR[0]
     escape cfx_ptw, 1
@@ -213,7 +214,8 @@ cfx_ptw_get_ptbr:
     shlu    bp63, rd16, rd16, 3
     setrd   rd3, cfx_ptw_get_ptbr_table
     add     rd0, rd3, rd3, rd16
-    jump    rb0, rd3, 0
+    setrb   rb3, rd3                      ; rd→rb 中转
+    jump    rb3, rd0, 0
 cfx_ptw_get_ptbr_table:
     cfx2rd  cfx_ptw, 9, 0,  rd31 ; PTBR[0]
     escape cfx_ptw, 1
@@ -229,7 +231,8 @@ cfx_ptw_set_ptbr_perm:
     shlu    bp63, rd16, rd16, 3                          ; mode × 8（跳转表偏移，每路 2 条指令）
     setrd   rd3, cfx_ptw_perm_table
     add     rd0, rd3, rd3, rd16
-    jump    rb0, rd3, 0
+    setrb   rb3, rd3                      ; rd→rb 中转
+    jump    rb3, rd0, 0
 cfx_ptw_perm_table:
     cfx2rc  cfx_ptw_user_perm, rd17               ; U-mode (0)
     escape cfx_ptw, 1
@@ -261,7 +264,8 @@ cfx_ptw_set_pthi:
     shlu    bp63, rd16, rd16, 3
     setrd   rd3, cfx_ptw_set_pthi_table
     add     rd0, rd3, rd3, rd16
-    jump    rb0, rd3, 0
+    setrb   rb3, rd3                      ; rd→rb 中转
+    jump    rb3, rd0, 0
 cfx_ptw_set_pthi_table:
     cfx2rc  cfx_ptw, 10, 0,  rd17 ; pthi[0]
     escape cfx_ptw, 1
@@ -277,7 +281,8 @@ cfx_ptw_set_pahi:
     shlu    bp63, rd16, rd16, 3
     setrd   rd3, cfx_ptw_set_pahi_table
     add     rd0, rd3, rd3, rd16
-    jump    rb0, rd3, 0
+    setrb   rb3, rd3                      ; rd→rb 中转
+    jump    rb3, rd0, 0
 cfx_ptw_set_pahi_table:
     cfx2rc  cfx_ptw, 11, 0,  rd17 ; pahi[0]
     escape cfx_ptw, 1
@@ -499,7 +504,7 @@ cfx_pmem_get_pm_attr:
 
 cfx_pmem_alloc_page:
     ; rd16 = size_hint（0 = 自动选择最小的可用区域）
-    ; 返回 rd31 = ppn（物理页号）或 0（失败）
+    ; 返回 rd31 = ppn（物理页号）或 -1（失败）
     ; TODO: 遍历 PM 区域，维护自由页链表，分配并返回 PPN
     escape cfx_pmem, 1
 
@@ -516,7 +521,7 @@ cfx_timer 为定时器/计数器，提供定时器服务。
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_TIMER_SET_TIMER | rd16 = timeout | — | 设置定时器在 timeout（周期计数值）时触发中断 |
-| 1 | SBI_TIMER_GET_TIME | — | rd31 = cycles | 返回当前周期计数值 |
+| 1 | SBI_TIMER_GET_TIME | — | rd31 = value | 返回定时器当前计数值 |
 
 ### 初始化
 
@@ -572,7 +577,7 @@ cfx_timer_set_timer:
     escape cfx_timer, 1
 
 cfx_timer_get_time:
-    cfx2rd  cfx_timer_regs[0], rd31                    ; 返回值在 rd31，读取定时器自身计数器
+    cfx2rd  cfx_timer_regs[0], rd31                    ; 返回值在 rd31，读取定时器当前计数值
     escape cfx_timer, 1
 
 cfx_timer_int:

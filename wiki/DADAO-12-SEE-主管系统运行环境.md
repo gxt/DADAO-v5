@@ -350,7 +350,7 @@ H-mode 寄存器（cg=3）定义见 HEE 文档 §1。
 
 ### cg5 - 异常现场寄存器
 
-每个核芯功能扩展都有以下6个异常寄存器（cg=5）：
+每个核芯功能扩展都有以下7个异常寄存器（cg=5）：
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
@@ -586,7 +586,6 @@ cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 10 | 1 | timer mask | cfx_timer_mask | 全1 | RW | 定时器掩码，0=可触发，1=屏蔽 |
 | 10 | 7 | timer ctrl | cfx_timer_ctrl | 0 | RW | bit0=enable(1=启动)，bit1=mode(0=one-shot,1=periodic)，bit2=dir(0=decrement,1=increment)，bits[63:3]保留 |
 | 10 | 8-15 | timer regs | cfx_timer_regs[0..7] | 0 | RW | 定时器计数器 |
 

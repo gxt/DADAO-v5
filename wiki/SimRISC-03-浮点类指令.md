@@ -185,7 +185,7 @@ ftsgnn和fosgnn指令是读取rfhc的除符号位之外的所有位数，和rfhd
 
 ## 浮点比较指令
 
-浮点比较运算，参与比较运算的两个浮点数存放在rfhc和rfhd中，比较结果存放在rdhb中：
+浮点比较运算，参与比较运算的两个浮点数存放在rfhc和rfhd中，比较结果存放在rdhb中。操作数类型为 `orrr`。
 
 ```simrisc
 ftqcmp  rdhb, rfhc, rfhd

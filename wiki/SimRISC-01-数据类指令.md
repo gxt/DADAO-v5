@@ -63,7 +63,7 @@ stmo    rdha, rbhb, rdhc, immu6
 - `rdha` 为 `rd0` 时触发 ILLI 异常
 - `immu6` = 0 时触发 ILLI 异常
 - `rdha + immu6 > 64`（超出 rd63）时触发 ILLI 异常，不环绕、不截断
-- `ldmo`/`stmo`（64-bit）需 8 字节地址对齐；`ldmts`/`stmt`（32-bit）需 4 字节对齐；`ldmws`/`stmw`（16-bit）需 2 字节对齐；`ldmb`/`stmb`（8-bit）无对齐要求。未对齐将触发 MALIGN 异常
+- `ldmo`/`stmo`（64-bit）需 8 字节地址对齐；`ldmts`/`stmt`/`ldmtu`（32-bit）需 4 字节对齐；`ldmws`/`stmw`/`ldmwu`（16-bit）需 2 字节对齐；`ldmbs`/`stmb`/`ldmbu`（8-bit）无对齐要求。未对齐将触发 MALIGN 异常
 - 当多寄存器读写的范围包括`rdhc`时，地址计算仍然按照原始的`rdhc`中的数据进行
 - 装入类指令的源寄存器范围与目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中
 
