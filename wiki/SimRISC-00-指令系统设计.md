@@ -97,22 +97,22 @@ SimRISC 0.5.0版本的指令opcode布局如下。空白单元格表示 reserved�
 
 |               | xxxx-x000     | xxxx-x001     | xxxx-x010     | xxxx-x011     | xxxx-x100     | xxxx-x101     | xxxx-x110     | xxxx-x111     |
 | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
-| 0000-0xxx     | MISC-Norm     | swym-iiii     | cmps-brrr     | cmpu-brrr     | and-brrr      | orr-brrr      | xor-brrr      | xnor-brrr     |
-| 0000-1xxx     |               | addi-rrii     | add-brrr      | sub-brrr      | muls-brrr     | mulu-brrr     | divs-brrr     | divu-brrr     |
-| 0001-0xxx     | exts-brrr     | extz-brrr     | cmps-rrii     | cmpu-rrii     | orw-rwii      | andnw-rwii    | setzw-rwii    | setow-rwii    |
-| 0001-1xxx     | exts-brri     | extz-brri     | add-rrrr      | sub-rrrr      | muls-rrrr     | mulu-rrrr     | rems-brrr     | remu-brrr     |
-| 0010-0xxx     | csn-rrrr      | csn-rf-rrrr   | csz-rrrr      | csz-rf-rrrr   | csp-rrrr      | csp-rf-rrrr   | cseq-rrrr     | csne-rrrr     |
-| 0010-1xxx     | brn-riii      | brnn-riii     | brz-riii      | brnz-riii     | brp-riii      | brnp-riii     | breq-rrii     | brne-rrii     |
-| 0011-0xxx     | ldbs-rrii     | ldws-rrii     | ldts-rrii     | ldo-rrii      | ldmbs-rrri    | ldmws-rrri    | ldmts-rrri    | ldmo-rrri     |
-| 0011-1xxx     | stb-rrii      | stw-rrii      | stt-rrii      | sto-rrii      | stmb-rrri     | stmw-rrri     | stmt-rrri     | stmo-rrri     |
-| 0100-0xxx     | ldbu-rrii     | ldwu-rrii     | ldtu-rrii     | ldo-rb-rrii   | ldmbu-rrri    | ldmwu-rrri    | ldmtu-rrri    | ldmo-rb-rrri  |
-| 0100-1xxx     |               | addi-rb-rrii  | rela-riii     | sto-rb-rrii   | orw-rb-rwii   | andnw-rb-rwii | setzw-rb-rwii | stmo-rb-rrri  |
-| 0101-0xxx     | MISC-RF       |               | ldt-rf-rrii   | ldo-rf-rrii   | setw-rwii     |               | ldmt-rf-rrri  | ldmo-rf-rrri  |
-| 0101-1xxx     | ftmadd-rrrr   | fomadd-rrrr   | stt-rf-rrii   | sto-rf-rrii   |               |               | stmt-rf-rrri  | stmo-rf-rrri  |
-| 0110-0xxx     |               | shlu-brrr     | shrs-brrr     | shru-brrr     | jump-iiii     | jump-rrii     |               | ldmo-ra-rrri  |
-| 0110-1xxx     |               | shlu-brri     | shrs-brri     | shru-brri     | call-iiii     | call-rrii     | ret-riii      | stmo-ra-rrri  |
-| 0111-0xxx     | MISC-AMO      |               | cfx2rd-crrr   | cfx2rc-crrr   | cfxld-crii    | cfxst-crii    | trap-ciii     | escape-ciii   |
-| 0111-1xxx     |               |               |               |               |               |               |               |               |
+| 0000-0xxx     | MISC-Norm     | MISC-RF       | extz-brrr     | exts-brrr     | shlu-brrr     | shrs-brrr     | shru-brrr     |               |
+| 0000-1xxx     | ftmadd-rrrr   | fomadd-rrrr   | extz-brri     | exts-brri     | shlu-brri     | shrs-brri     | shru-brri     |               |
+| 0001-0xxx     | orw-rd-rwii   | andnw-rd-rwii | setzw-rd-rwii | setow-rd-rwii | orw-rb-rwii   | andnw-rb-rwii | setzw-rb-rwii | setw-rf-rwii  |
+| 0001-1xxx     | and-rd-brrr   | orr-rd-brrr   | xor-rd-brrr   | xnor-rd-brrr  | addi-rd-rrii  | addi-rb-rrii  | rela-rb-riii  |               |
+| 0010-0xxx     | add-rd-brrr   | sub-rd-brrr   | add-rd-rrrr   | sub-rd-rrrr   | cmpu-rd-brrr  | cmps-rd-brrr  | cmpu-rd-rrii  | cmps-rd-rrii  |
+| 0010-1xxx     | mulu-rd-brrr  | muls-rd-brrr  | mulu-rd-rrrr  | muls-rd-rrrr  | divu-rd-brrr  | divs-rd-brrr  | remu-rd-brrr  | rems-rd-brrr  |
+| 0011-0xxx     | csn-rd-rrrr   | csn-rf-rrrr   | csz-rd-rrrr   | csz-rf-rrrr   | csp-rd-rrrr   | csp-rf-rrrr   | cseq-rd-rrrr  | csne-rd-rrrr  |
+| 0011-1xxx     | brn-riii      | brnn-riii     | brz-riii      | brnz-riii     | brp-riii      | brnp-riii     | breq-rrii     | brne-rrii     |
+| 0100-0xxx     | ldbu-rd-rrii  | ldbs-rd-rrii  | ldwu-rd-rrii  | ldws-rd-rrii  | ldtu-rd-rrii  | ldts-rd-rrii  |               |               |
+| 0100-1xxx     |               | stb-rd-rrii   |               | stw-rd-rrii   |               | stt-rd-rrii   |               |               |
+| 0101-0xxx     | ldo-rd-rrii   | sto-rd-rrii   | ldo-rb-rrii   | sto-rb-rrii   | ldo-rf-rrii   | sto-rf-rrii   | ldt-rf-rrii   | stt-rf-rrii   |
+| 0101-1xxx     | ldmbu-rd-rrri | ldmbs-rd-rrri | ldmwu-rd-rrri | ldmws-rd-rrri | ldmtu-rd-rrri | ldmts-rd-rrri | ldmt-rf-rrri  | stmt-rf-rrri  |
+| 0110-0xxx     |               | stmb-rd-rrri  |               | stmw-rd-rrri  |               | stmt-rd-rrri  |               |               |
+| 0110-1xxx     | ldmo-rd-rrri  | stmo-rd-rrri  | ldmo-rb-rrri  | stmo-rb-rrri  | ldmo-rf-rrri  | stmo-rf-rrri  | ldmo-ra-rrri  | stmo-ra-rrri  |
+| 0111-0xxx     | jump-iiii     | jump-rrii     |               |               | call-iiii     | call-rrii     | ret-riii      |               |
+| 0111-1xxx     | MISC-AMO      | swym-iiii     | cfx2rd-crrr   | cfx2rc-crrr   | cfxld-crii    | cfxst-crii    | trap-ciii     | escape-ciii   |
 
 ### MISC-Norm指令编码
 
