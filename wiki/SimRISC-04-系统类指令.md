@@ -47,7 +47,7 @@ illi    0
 
 汇编器对两种写法等价处理，均编码为 6 位的 cfxcode。
 
-除trap指令外，用户模式或监狱模式下执行其它特权指令，都会触发非法指令异常。
+trap/escape/cfx2rd/cfx2rc/cfxld/cfxst 指令可以在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。
 
 ### 陷入指令
 
