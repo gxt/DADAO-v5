@@ -105,13 +105,13 @@ SimRISC 0.5.0版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0010-1xxx     | mulu-rd-brrr  | muls-rd-brrr  | mulu-rd-rrrr  | muls-rd-rrrr  | divu-rd-brrr  | divs-rd-brrr  | remu-rd-brrr  | rems-rd-brrr  |
 | 0011-0xxx     | csn-rd-rrrr   | csn-rf-rrrr   | csz-rd-rrrr   | csz-rf-rrrr   | csp-rd-rrrr   | csp-rf-rrrr   | cseq-rd-rrrr  | csne-rd-rrrr  |
 | 0011-1xxx     | brn-riii      | brnn-riii     | brz-riii      | brnz-riii     | brp-riii      | brnp-riii     | breq-rrii     | brne-rrii     |
-| 0100-0xxx     | ldbu-rd-rrii  | ldbs-rd-rrii  | ldwu-rd-rrii  | ldws-rd-rrii  | ldtu-rd-rrii  | ldts-rd-rrii  |               |               |
-| 0100-1xxx     |               | stb-rd-rrii   |               | stw-rd-rrii   |               | stt-rd-rrii   |               |               |
-| 0101-0xxx     | ldo-rd-rrii   | sto-rd-rrii   | ldo-rb-rrii   | sto-rb-rrii   | ldo-rf-rrii   | sto-rf-rrii   | ldt-rf-rrii   | stt-rf-rrii   |
-| 0101-1xxx     | ldmbu-rd-rrri | ldmbs-rd-rrri | ldmwu-rd-rrri | ldmws-rd-rrri | ldmtu-rd-rrri | ldmts-rd-rrri | ldmt-rf-rrri  | stmt-rf-rrri  |
-| 0110-0xxx     |               | stmb-rd-rrri  |               | stmw-rd-rrri  |               | stmt-rd-rrri  |               |               |
-| 0110-1xxx     | ldmo-rd-rrri  | stmo-rd-rrri  | ldmo-rb-rrri  | stmo-rb-rrri  | ldmo-rf-rrri  | stmo-rf-rrri  | ldmo-ra-rrri  | stmo-ra-rrri  |
-| 0111-0xxx     | jump-iiii     | jump-rrii     |               |               | call-iiii     | call-rrii     | ret-riii      |               |
+| 0100-0xxx     | ldbu-rd-rrii  | ldwu-rd-rrii  | ldtu-rd-rrii  | ldbs-rd-rrii  | ldws-rd-rrii  | ldts-rd-rrii  | ldt-rf-rrii   | stt-rf-rrii   |
+| 0100-1xxx     | stb-rd-rrii   | stw-rd-rrii   | stt-rd-rrii   |               |               |               |               |               |
+| 0101-0xxx     | ldo-rd-rrii   | sto-rd-rrii   | ldo-rb-rrii   | sto-rb-rrii   |               |               | ldo-rf-rrii   | sto-rf-rrii   |
+| 0101-1xxx     | ldmbu-rd-rrri | ldmwu-rd-rrri | ldmtu-rd-rrri | ldmbs-rd-rrri | ldmws-rd-rrri | ldmts-rd-rrri | ldmt-rf-rrri  | stmt-rf-rrri  |
+| 0110-0xxx     | stmb-rd-rrri  | stmw-rd-rrri  | stmt-rd-rrri  |               |               |               |               |               |
+| 0110-1xxx     | ldmo-rd-rrri  | stmo-rd-rrri  | ldmo-rb-rrri  | stmo-rb-rrri  | ldmo-ra-rrri  | stmo-ra-rrri  | ldmo-rf-rrri  | stmo-rf-rrri  |
+| 0111-0xxx     | jump-iiii     | jump-rrii     | call-iiii     | call-rrii     | ret-riii      |               |               |               |
 | 0111-1xxx     | MISC-AMO      | swym-iiii     | cfx2rd-crrr   | cfx2rc-crrr   | cfxld-crii    | cfxst-crii    | trap-ciii     | escape-ciii   |
 
 ### MISC-Norm指令编码
