@@ -426,7 +426,7 @@ setrf rfxx, rdyy
 setrf rfxx, rfyy
 ```
 
-rf寄存器的设置采用setw指令，双精度浮点需要四条setw指令；由于单精度浮点数采用寄存器中的低32位，因此只需要w0和w1两条setw指令。
+rf寄存器的设置采用setw指令，双精度浮点需要四条setw指令；由于单精度浮点数采用寄存器中的低32位，因此只需要wp0和wp1两条setw指令。
 
 ### 指导符（directives）
 

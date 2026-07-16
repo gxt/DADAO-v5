@@ -143,7 +143,7 @@ DADAO采用64位地址空间，有效虚拟地址为48位。高16位（bits[63:4
 - [15..5]：SBZ（Should Be Zero）
 - [4..0]：异常状态（Accured exception）
 
-舍入模式定义如下：（舍入模式的设置单独放在w1中，程序可以直接用setw指令进行设置）
+舍入模式定义如下：（舍入模式的设置单独放在wp1中，程序可以直接用setw指令进行设置）
 
 | Rounding Mode | Mnemonic  | Meaning                           |
 | :---:         | :---:     | ---                               |
