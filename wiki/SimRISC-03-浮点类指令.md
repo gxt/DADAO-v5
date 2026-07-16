@@ -73,20 +73,20 @@ ft2io   rdhb, rfhc, immu6
 ft2ut   rdhb, rfhc, immu6
 ft2uo   rdhb, rfhc, immu6
 
-it2ft   rdhb, rfhc, immu6
-io2ft   rdhb, rfhc, immu6
-ut2ft   rdhb, rfhc, immu6
-uo2ft   rdhb, rfhc, immu6
+it2ft   rfhb, rdhc, immu6
+io2ft   rfhb, rdhc, immu6
+ut2ft   rfhb, rdhc, immu6
+uo2ft   rfhb, rdhc, immu6
 
 fo2it   rdhb, rfhc, immu6
 fo2io   rdhb, rfhc, immu6
 fo2ut   rdhb, rfhc, immu6
 fo2uo   rdhb, rfhc, immu6
 
-it2fo   rdhb, rfhc, immu6
-io2fo   rdhb, rfhc, immu6
-ut2fo   rdhb, rfhc, immu6
-uo2fo   rdhb, rfhc, immu6
+it2fo   rfhb, rdhc, immu6
+io2fo   rfhb, rdhc, immu6
+ut2fo   rfhb, rdhc, immu6
+uo2fo   rfhb, rdhc, immu6
 ```
 
 其中it表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。immu6 指定连续转换的寄存器数量（1-63）。例如 `ft2fo rf4, rf8, 3` 将 rf8→rf4、rf9→rf5、rf10→rf6。源和目的寄存器范围可以重叠，转换按序号递增逐对进行，先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中。

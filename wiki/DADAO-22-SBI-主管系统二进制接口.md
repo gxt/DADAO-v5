@@ -78,7 +78,7 @@ cfx2rc  cfx_smon_supv_excp_vector, rd2
 ; 允许 cfx_smon 从 supv 触发
 cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
 setrd   rd3, ~(1<<2)
-and     rd2, rd2, rd3
+and     bp63, rd2, rd2, rd3
 cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
 ```
 
@@ -92,7 +92,7 @@ cfx_smon_supv_excp_handler:
 
     cfx2rd  cfx_smon_excp_cause_info, rd2
     setrd   rd3, 0x3FFFF
-    and     rd2, rd2, rd3
+    and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
     breq    rd2, rd3, cfx_smon_get_version              ; func 0
     setrd   rd3, 1
@@ -172,7 +172,7 @@ cfx_ptw_unknown:
 cfx_ptw_trap_dispatch:
     cfx2rd  cfx_ptw_excp_cause_info, rd2
     setrd   rd3, 0x3FFFF
-    and     rd2, rd2, rd3
+    and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
     breq    rd2, rd3, cfx_ptw_set_ptbr              ; func 0
     setrd   rd3, 1
@@ -195,7 +195,7 @@ cfx_ptw_set_ptbr:
     ; rd16 = idx, rb16 = base（页表基地址高 48 位，低 16 位强制为 0）
     ; 调用前须已通过 cfx2rc 写入 cfx_ptw_pthi[idx] 和 cfx_ptw_pahi[idx]
     setrd   rd17, rb16                              ; rb→rd 中转（cfx2rc 源操作数须为 rd）
-    shlu    rd16, rd16, 3                          ; idx × 8（每路 2 条指令 = 8 字节）
+    shlu    bp63, rd16, rd16, 3                          ; idx × 8（每路 2 条指令 = 8 字节）
     setrd   rd3, cfx_ptw_ptbr_table
     add     rd0, rd3, rd3, rd16
     jump    rb0, rd3, 0
@@ -210,7 +210,7 @@ cfx_ptw_ptbr_table:
 
 cfx_ptw_get_ptbr:
     ; rd16 = idx，返回 rd31 = base
-    shlu    rd16, rd16, 3
+    shlu    bp63, rd16, rd16, 3
     setrd   rd3, cfx_ptw_get_ptbr_table
     add     rd0, rd3, rd3, rd16
     jump    rb0, rd3, 0
@@ -226,7 +226,7 @@ cfx_ptw_get_ptbr_table:
 cfx_ptw_set_ptbr_perm:
     ; rd16 = mode（0=U/1=J/2=S/3=H）, rd17 = perm（64 位权限位图）
     ; 通过跳转表将 rd17 写入对应 mode 的 cfx_ptw_*_perm 寄存器
-    shlu    rd16, rd16, 3                          ; mode × 8（跳转表偏移，每路 2 条指令）
+    shlu    bp63, rd16, rd16, 3                          ; mode × 8（跳转表偏移，每路 2 条指令）
     setrd   rd3, cfx_ptw_perm_table
     add     rd0, rd3, rd3, rd16
     jump    rb0, rd3, 0
@@ -258,7 +258,7 @@ cfx_ptw_handle_fault:
 cfx_ptw_set_pthi:
     ; rd16 = idx, rb16 = pthi（PA[63:48] 用于页表步进）
     setrd   rd17, rb16                              ; rb→rd 中转
-    shlu    rd16, rd16, 3
+    shlu    bp63, rd16, rd16, 3
     setrd   rd3, cfx_ptw_set_pthi_table
     add     rd0, rd3, rd3, rd16
     jump    rb0, rd3, 0
@@ -274,7 +274,7 @@ cfx_ptw_set_pthi_table:
 cfx_ptw_set_pahi:
     ; rd16 = idx, rb16 = pahi（PA[63:48] 用于最终转换结果）
     setrd   rd17, rb16                              ; rb→rd 中转
-    shlu    rd16, rd16, 3
+    shlu    bp63, rd16, rd16, 3
     setrd   rd3, cfx_ptw_set_pahi_table
     add     rd0, rd3, rd3, rd16
     jump    rb0, rd3, 0
@@ -309,7 +309,7 @@ cfx2rc  cfx_tlb_supv_excp_vector, rd2
 ; 注：global_cfx_mask 是全局共享寄存器（此处通过 cfx_smon 访问），所有 cfx 的委托掩码集中于此
 cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
 setrd   rd3, ~(1<<5)
-and     rd2, rd2, rd3
+and     bp63, rd2, rd2, rd3
 cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
 ```
 
@@ -345,7 +345,7 @@ cfx_tlb_unknown:
 cfx_tlb_trap_dispatch:
     cfx2rd  cfx_tlb_excp_cause_info, rd2
     setrd   rd3, 0x3FFFF
-    and     rd2, rd2, rd3
+    and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
     breq    rd2, rd3, cfx_tlb_invalidate              ; func 0
     escape cfx_tlb, 1
@@ -360,7 +360,7 @@ cfx_tlb_ptw_delegate:
     setrd   rd3, 0
     breq    rd31, rd3, cfx_tlb_ptw_fail              ; 修复失败 → 跳过
     ; 修复成功 → invalid 对应 TLB 表项，按实际页大小
-    and     rd40, rd40, rd31                          ; 按掩码对齐至页面起始
+    and     bp63, rd40, rd40, rd31                          ; 按掩码对齐至页面起始
     cfx2rc  cfx_tlb_addr_start, rd40
     not     rd16, rd31
     addi    rd16, rd16, 1                             ; addr_size = ~mask + 1
@@ -461,7 +461,7 @@ cfx_pmem_supv_excp_handler:
     brne    rd2, rd3, cfx_pmem_unknown
     cfx2rd  cfx_pmem_excp_cause_info, rd2         ; func dispatch
     setrd   rd3, 0x3FFFF
-    and     rd2, rd2, rd3
+    and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
     breq    rd2, rd3, cfx_pmem_get_pm_count        ; func 0
     setrd   rd3, 1
@@ -528,7 +528,7 @@ cfx2rc  cfx_timer_supv_excp_vector, rd2
 ; 允许 cfx_timer 从 supv 触发
 cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
 setrd   rd3, ~(1<<18)                                ; cfx_timer = cfx18
-and     rd2, rd2, rd3
+and     bp63, rd2, rd2, rd3
 cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
 ```
 
@@ -552,7 +552,7 @@ cfx_timer_unknown:
 cfx_timer_trap_dispatch:
     cfx2rd  cfx_timer_excp_cause_info, rd2
     setrd   rd3, 0x3FFFF                            ; 掩码提取 immu18
-    and     rd2, rd2, rd3
+    and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
     breq    rd2, rd3, cfx_timer_set_timer               ; func 0
     setrd   rd3, 1
@@ -616,7 +616,7 @@ cfx2rc  cfx_uart_supv_excp_vector, rd2
 ; 允许 cfx_uart 从 supv 触发
 cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
 setrd   rd3, ~(1<<62)
-and     rd2, rd2, rd3
+and     bp63, rd2, rd2, rd3
 cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
 ```
 
@@ -639,7 +639,7 @@ cfx_uart_supv_excp_handler:
 cfx_uart_trap_dispatch:
     cfx2rd  cfx_uart_excp_cause_info, rd2
     setrd   rd3, 0x3FFFF
-    and     rd2, rd2, rd3
+    and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
     breq    rd2, rd3, cfx_uart_putchar                 ; func 0
     setrd   rd3, 1
@@ -716,7 +716,7 @@ cfx2rc  cfx_power_supv_excp_vector, rd2
 ; 允许 cfx_power 从 supv 触发（清除 global_cfx_mask 对应位）
 cfx2rd  cfx_smon_supv_global_cfx_mask, rd2
 setrd   rd3, ~(1<<63)
-and     rd2, rd2, rd3
+and     bp63, rd2, rd2, rd3
 cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
 ```
 
@@ -748,7 +748,7 @@ cfx_power_unknown:
 cfx_power_trap_dispatch:
     cfx2rd  cfx_power_excp_cause_info, rd2
     setrd   rd3, 0x3FFFF                            ; 掩码提取 immu18
-    and     rd2, rd2, rd3
+    and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
     breq    rd2, rd3, cfx_power_shutdown                ; func 0
     setrd   rd3, 1
@@ -807,7 +807,7 @@ os_init:
     ; 允许 U-mode 同步异常进入 cfx_umon（清除 global_cfx_mask bit 0）
     cfx2rd  cfx_smon_user_global_cfx_mask, rd2
     setrd   rd3, ~(1<<0)
-    and     rd2, rd2, rd3
+    and     bp63, rd2, rd2, rd3
     cfx2rc  cfx_smon_user_global_cfx_mask, rd2
 ```
 
