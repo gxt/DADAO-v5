@@ -34,10 +34,9 @@ ldmo    rbha, rbhb, rdhc, immu6
 stmo    rbha, rbhb, rdhc, immu6
 ```
 
-`ldo`/`sto` 和 `ldmo`/`stmo` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常。
-
 限制如下：
 
+- `ldo`/`sto` 和 `ldmo`/`stmo` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常
 - `rbha` 为 `rb0` 时触发 ILLI 异常
 - `immu6` = 0 时触发 ILLI 异常
 - `rbha + immu6 > 64`（超出 rb63）时触发 ILLI 异常
@@ -56,10 +55,10 @@ ldmo    raha, rbhb, rdhc, immu6
 stmo    raha, rbhb, rdhc, immu6
 ```
 
-`ldo`/`sto` 和 `ldmo`/`stmo` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常。`raha` 为 `ra0` 时不触发异常（ra0 可读写）。
-
 限制如下：
 
+- `ldo`/`sto` 和 `ldmo`/`stmo` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常
+- `raha` 为 `ra0` 时不触发异常（ra0 可读写）
 - `immu6` = 0 时触发 ILLI 异常
 - `raha + immu6 > 64` 时触发 ILLI 异常（超出 ra63）
 
