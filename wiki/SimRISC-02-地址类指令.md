@@ -46,20 +46,22 @@ stmo    rbha, rbhb, rdhc, immu6
 
 ### 存取RA寄存器
 
-RA寄存器都是64位，共有2条指令如下：
+RA寄存器都是64位，共有4条指令如下：
 
 ```simrisc
+ldo     raha, rbhb, imms12
+sto     raha, rbhb, imms12
+
 ldmo    raha, rbhb, rdhc, immu6
 stmo    raha, rbhb, rdhc, immu6
 ```
 
-需 8 字节地址对齐，未对齐触发 MALIGN 异常。
+`ldo`/`sto` 和 `ldmo`/`stmo` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常。`raha` 为 `ra0` 时不触发异常（ra0 可读写）。
 
 限制如下：
 
 - `immu6` = 0 时触发 ILLI 异常
 - `raha + immu6 > 64` 时触发 ILLI 异常（超出 ra63）
-- 源和目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中
 
 ## 赋值类指令
 
