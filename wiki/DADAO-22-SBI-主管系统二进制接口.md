@@ -631,8 +631,8 @@ cfx_uart_supv_excp_handler:
     breq    rd2, rd3, cfx_uart_trap_dispatch
 
     ; UART 中断（1<<32..63）
-    ; 通过 uart_pending 寄存器判断具体中断源并处理
-    cfx2rd  cfx_uart_pending, rd3
+    ; 通过 excp_pending 寄存器判断具体中断源并处理
+    cfx2rd  cfx_uart_excp_pending, rd3
     ; 此处根据 pending 位处理对应 UART
     escape cfx_uart, 0
 
