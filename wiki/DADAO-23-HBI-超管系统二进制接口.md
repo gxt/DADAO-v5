@@ -23,7 +23,7 @@ cfx_hmon 为 hypv 的 monitor，提供 HBI 版本查询和硬件信息。
 硬件复位后：
 
 1. 运行模式初始化为 hypv，`inner_cfx_code` 初始化为 cfx_power，`inner_cfx_mask` 初始化为全 1（当前运行掩码屏蔽所有核芯功能扩展；可通过 trap 或 escape 流程更新）
-2. 所有 `global_cfx_mask` 初始化为全 1（所有核芯功能扩展被屏蔽，无法触发异常）
+2. user/jail/supv 的 `global_cfx_mask` 初始化为全 1；hypv 的 `global_cfx_mask` 初始化为全 0（引导序列中 hypv 访问不受限）
 3. `inner_inst_pointer` 跳转到 `cfx_power_hypv_excp_vector` 指示的地址（初始值为 `0xffff_ffff_0000`，为 DDR 未初始化前硬件可直接执行指令的一段地址空间）
 
 hypv 引导代码完成最小初始化后，按以下流程将控制权移交 supv 内核：
