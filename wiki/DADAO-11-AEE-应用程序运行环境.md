@@ -1,6 +1,6 @@
 # DADAO Application Execution Environment
 
-> **版本：0.9.2**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.0 指令系统设计）
+> **版本：0.9.2**（与 ABI 版本号一致，同步更新。基于 SimRISC 0.5.1 指令系统设计）
 
 应用程序运行环境：Application Execution Environment
 
