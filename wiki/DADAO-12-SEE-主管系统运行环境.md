@@ -765,15 +765,27 @@ if (cfx_⟨cfxname⟩_excp_cause_nonmaskable & cause) == 0:
     if temp_cfx_code != inner_cfx_code
        and (inner_cfx_mask & (1 << temp_cfx_code)) != 0:
         if sync:  cause ← ILLI                      // 同步异常被 inner mask 屏蔽 → ILLI
+                  case inner_run_mode of            // 重定向到当前模式 monitor
+                      U-mode: temp_cfx_code <= 0
+                      J-mode: temp_cfx_code <= 1
+                      S-mode: temp_cfx_code <= 2
+                      H-mode: temp_cfx_code <= 3
+                  goto check_nonmaskable            // 继续异常进入流程
         else:     cfx_⟨cfxname⟩_excp_pending ← cfx_⟨cfxname⟩_excp_pending | cause
-        return
+                  return
 
     // 4. 判断 global_cfx_mask 是否屏蔽（自身 cfxcode 不检查）
     if temp_cfx_code != inner_cfx_code
        and (cfx_⟨cfxname⟩_<mode>_global_cfx_mask & (1 << temp_cfx_code)) != 0:
         if sync:  cause ← ILLI                      // 同步异常被 global mask 屏蔽 → ILLI
+                  case inner_run_mode of            // 重定向到当前模式 monitor
+                      U-mode: temp_cfx_code <= 0
+                      J-mode: temp_cfx_code <= 1
+                      S-mode: temp_cfx_code <= 2
+                      H-mode: temp_cfx_code <= 3
+                  goto check_nonmaskable            // 继续异常进入流程
         else:     cfx_⟨cfxname⟩_excp_pending ← cfx_⟨cfxname⟩_excp_pending | cause
-        return
+                  return
 
     // 5. 判断异常原因是否被屏蔽
     //    同步异常中仅 FPEXCP 可被屏蔽，被屏蔽时目的寄存器已写入正常结果

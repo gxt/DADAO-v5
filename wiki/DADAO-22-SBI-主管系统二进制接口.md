@@ -50,7 +50,7 @@ umon（cfx0）为 user 模式的异常入口，处理用户态系统调用。系
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_UMON_SYSCALL | rd15 = nr | rd31 = result | 用户态系统调用分发 |
-| 1 | SBI_UMON_GET_VERSION | — | rd31 = version | 返回 umon 版本号：当前 0.7.1 = `0x00070001`（`(major<<32)|(minor<<16)|patch`） |
+| 1 | SBI_UMON_GET_VERSION | — | rd31 = version | 返回 umon 版本号：当前 0.7.1 = `0x00070001`（`(major<<32)\|(minor<<16)\|patch`） |
 
 jmon（cfx1）为 jail 模式的异常入口，处理受限用户态系统调用。jmon 与 umon 为独立上下文，immu18 各自编号互不冲突。
 
