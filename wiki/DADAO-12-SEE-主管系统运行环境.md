@@ -1,6 +1,6 @@
 # DADAO Supervisor Execution Environment（SEE）
 
-> **版本：0.7.1**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.1 指令系统设计）
+> **版本：0.7.1**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.2 指令系统设计）
 
 本文档定义DADAO主管系统运行环境（Supervisor Execution Environment, SEE）的体系结构规范，涵盖地址空间组织、处理器资源管理、核芯功能扩展设计、外设资源抽象及运行模式定义等内容。
 
