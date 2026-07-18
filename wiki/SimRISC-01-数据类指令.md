@@ -4,7 +4,7 @@
 
 用户态指令
 
-> **rd0 为目的寄存器约定**：仅双目的指令（add/sub/mul 的 rrrr 格式）允许其中一个为 rd0（丢弃对应半结果，但不能同时为 rd0）。其余所有指令的目的为 rd0 时触发 **ILLI** 异常（单目的指令丢弃唯一结果无语义）。访存类指令（ld/st）同理触发 ILLI。
+> **rd0 为目的寄存器约定**：仅双目的指令（add.uo/add.so/sub.uo/sub.so/mulu/muls 的 rrrr 格式）允许其中一个为 rd0（丢弃对应半结果，但不能同时为 rd0）。其余所有指令的目的为 rd0 时触发 **ILLI** 异常（单目的指令丢弃唯一结果无语义）。访存类指令（ld/st）同理触发 ILLI。
 
 ## 存取类指令
 
@@ -135,13 +135,18 @@ csne    rdha, rdhb, rdhc, rdhd
 操作数类型为 `rrrr`。
 两个源操作数寄存器为`rdhc`和`rdhd`。
 目的操作数可能超出64位，故采用两个寄存器存放目的操作数，即`rdha`和`rdhb`，`rdha`存放结果的高64位，`rdhb`存放结果的低64位。
-计算过程将首先按照补码方式扩展两个源操作数为128位，然后进行加减操作，计算结果放入`rdha`和`rdhb`中。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
+硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
-具体指令如下：
+根据操作数的符号类型，`add`/`sub` 分为两个变体：
+
+- **`add.uo`/`sub.uo`**（无符号）：源操作数按**零扩展**（ZX）至 128 位，适合无符号多字加法链，`rdha` 为进位/借位（0 或 1）。
+- **`add.so`/`sub.so`**（有符号，默认）：源操作数按**符号扩展**（SX）至 128 位，适合有符号 128 位运算。
 
 ```simrisc
-add     rdha, rdhb, rdhc, rdhd
-sub     rdha, rdhb, rdhc, rdhd
+add.uo  rdha, rdhb, rdhc, rdhd    ; ZX，rdha = 进位
+add.so  rdha, rdhb, rdhc, rdhd    ; SX，rdha = 高64位
+sub.uo  rdha, rdhb, rdhc, rdhd    ; ZX，rdha = 借位
+sub.so  rdha, rdhb, rdhc, rdhd    ; SX，rdha = 高64位
 ```
 
 `rdha` 和 `rdhb` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
