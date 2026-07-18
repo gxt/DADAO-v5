@@ -735,21 +735,22 @@ cfx_power_supv_excp_handler:
     setrd   rd3, 1
     br.eq    rd2, rd3, cfx_power_trap_dispatch
 
-    ; POWEROFF (1<<8) → 硬件关机
+    ; POWEROFF (1<<8)
     setrd   rd3, 256
     br.eq    rd2, rd3, cfx_power_shutdown
 
-    ; HARD RESET (1<<9) → 硬件硬复位
+    ; HARD RESET (1<<9)
     setrd   rd3, 512
     br.eq    rd2, rd3, cfx_power_hard_reset
 
-    ; SOFT RESET (1<<10) → 软复位
+    ; SOFT RESET (1<<10)
     setrd   rd3, 1024
     br.eq    rd2, rd3, cfx_power_soft_reset
 
 cfx_power_unknown:
     escape cfx_power, 1
 
+; ─── SBI 功能调用 dispatch（基于 excp_cause_info 中的 immu18）───
 cfx_power_trap_dispatch:
     cfx2rd  cfx_power_excp_cause_info, rd2
     setrd   rd3, 0x3FFFF                            ; 掩码提取 immu18
