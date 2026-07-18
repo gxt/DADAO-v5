@@ -18,52 +18,52 @@
 单load/store类指令如下：
 
 ```simrisc
-ldbs    rdha, rbhb, imms12
-ldbu    rdha, rbhb, imms12
-ldws    rdha, rbhb, imms12
-ldwu    rdha, rbhb, imms12
-ldts    rdha, rbhb, imms12
-ldtu    rdha, rbhb, imms12
-ldo     rdha, rbhb, imms12
+ld.sb    rdha, rbhb, imms12
+ld.ub    rdha, rbhb, imms12
+ld.sw    rdha, rbhb, imms12
+ld.uw    rdha, rbhb, imms12
+ld.st    rdha, rbhb, imms12
+ld.ut    rdha, rbhb, imms12
+ld.o     rdha, rbhb, imms12
 
-stb     rdha, rbhb, imms12
-stw     rdha, rbhb, imms12
-stt     rdha, rbhb, imms12
-sto     rdha, rbhb, imms12
+st.b     rdha, rbhb, imms12
+st.w     rdha, rbhb, imms12
+st.t     rdha, rbhb, imms12
+st.o     rdha, rbhb, imms12
 ```
 
-对齐要求：`ldo`/`sto` 需 8 字节对齐，`ldts`/`stt`/`ldtu` 需 4 字节对齐，`ldws`/`stw`/`ldwu` 需 2 字节对齐，`ldbs`/`stb`/`ldbu` 无对齐要求。未对齐触发 MALIGN 异常。
+对齐要求：`ld.o`/`st.o` 需 8 字节对齐，`ld.st`/`st.t`/`ld.ut` 需 4 字节对齐，`ld.sw`/`st.w`/`ld.uw` 需 2 字节对齐，`ld.sb`/`st.b`/`ld.ub` 无对齐要求。未对齐触发 MALIGN 异常。
 
 限制：`rdha` 为 `rd0` 时触发 ILLI 异常。
 
 多load/store类指令如下：
 
 ```simrisc
-ldmbs   rdha, rbhb, rdhc, immu6
-ldmbu   rdha, rbhb, rdhc, immu6
-ldmws   rdha, rbhb, rdhc, immu6
-ldmwu   rdha, rbhb, rdhc, immu6
-ldmts   rdha, rbhb, rdhc, immu6
-ldmtu   rdha, rbhb, rdhc, immu6
-ldmo    rdha, rbhb, rdhc, immu6
+ldm.sb   rdha, rbhb, rdhc, immu6
+ldm.ub   rdha, rbhb, rdhc, immu6
+ldm.sw   rdha, rbhb, rdhc, immu6
+ldm.uw   rdha, rbhb, rdhc, immu6
+ldm.st   rdha, rbhb, rdhc, immu6
+ldm.ut   rdha, rbhb, rdhc, immu6
+ldm.o    rdha, rbhb, rdhc, immu6
 
-stmb    rdha, rbhb, rdhc, immu6
-stmw    rdha, rbhb, rdhc, immu6
-stmt    rdha, rbhb, rdhc, immu6
-stmo    rdha, rbhb, rdhc, immu6
+stm.b    rdha, rbhb, rdhc, immu6
+stm.w    rdha, rbhb, rdhc, immu6
+stm.t    rdha, rbhb, rdhc, immu6
+stm.o    rdha, rbhb, rdhc, immu6
 ```
 
 `ldm/stm`指令处理多个寄存器的读写操作。
 `rdha`用来指定第一个寄存器，`rbhb+rdhc`用来指定地址，`immu6`为立即数，存在hd位域中，用来指定寄存器的个数，有效范围为1~63。
 `ldm/stm`指令存取8位/16位/32位的数据时，每个寄存器只存放一个数据，多个数据分别使用多个连续的寄存器。
-例如：`stmb rd16, rb2, rd0, 8` 是将`rd16 - rd23`这8个连续寄存器中的低8位数据，分别存放到以rb2为基址的8字节连续地址中。
+例如：`stm.b rd16, rb2, rd0, 8` 是将`rd16 - rd23`这8个连续寄存器中的低8位数据，分别存放到以rb2为基址的8字节连续地址中。
 
 限制如下：
 
 - `rdha` 为 `rd0` 时触发 ILLI 异常
 - `immu6` = 0 时触发 ILLI 异常
 - `rdha + immu6 > 64`（超出 rd63）时触发 ILLI 异常，不环绕、不截断
-- `ldmo`/`stmo`（64-bit）需 8 字节地址对齐；`ldmts`/`stmt`/`ldmtu`（32-bit）需 4 字节对齐；`ldmws`/`stmw`/`ldmwu`（16-bit）需 2 字节对齐；`ldmbs`/`stmb`/`ldmbu`（8-bit）无对齐要求。未对齐将触发 MALIGN 异常
+- `ldm.o`/`stm.o`（64-bit）需 8 字节地址对齐；`ldm.st`/`stm.t`/`ldm.ut`（32-bit）需 4 字节对齐；`ldm.sw`/`stm.w`/`ldm.uw`（16-bit）需 2 字节对齐；`ldm.sb`/`stm.b`/`ldm.ub`（8-bit）无对齐要求。未对齐将触发 MALIGN 异常
 - 当多寄存器读写的范围包括`rdhc`时，地址计算仍然按照原始的`rdhc`中的数据进行
 - 装入类指令的源寄存器范围与目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中
 

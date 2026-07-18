@@ -11,18 +11,18 @@
 RF寄存器分为tetra和octa两种情况，tetra为32位，octa为64位，对应单精和双精两种情况，共有8条指令如下：
 
 ```simrisc
-ldt    rfha, rbhb, imms12
-stt    rfha, rbhb, imms12
-ldo    rfha, rbhb, imms12
-sto    rfha, rbhb, imms12
+ld.t    rfha, rbhb, imms12
+st.t    rfha, rbhb, imms12
+ld.o    rfha, rbhb, imms12
+st.o    rfha, rbhb, imms12
 
-ldmt   rfha, rbhb, rdhc, immu6
-stmt   rfha, rbhb, rdhc, immu6
-ldmo   rfha, rbhb, rdhc, immu6
-stmo   rfha, rbhb, rdhc, immu6
+ldm.t   rfha, rbhb, rdhc, immu6
+stm.t   rfha, rbhb, rdhc, immu6
+ldm.o   rfha, rbhb, rdhc, immu6
+stm.o   rfha, rbhb, rdhc, immu6
 ```
 
-对齐要求：`ldo`/`sto`/`ldmo`/`stmo` 需 8 字节对齐，`ldt`/`stt`/`ldmt`/`stmt` 需 4 字节对齐。未对齐触发 MALIGN 异常。
+对齐要求：`ld.o`/`st.o`/`ldm.o`/`stm.o` 需 8 字节对齐，`ld.t`/`st.t`/`ldm.t`/`stm.t` 需 4 字节对齐。未对齐触发 MALIGN 异常。
 
 限制如下：
 

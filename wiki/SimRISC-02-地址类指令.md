@@ -10,7 +10,7 @@
 
 | 操作类别 | 指令 | 高 16 位行为 |
 |---------|------|-------------|
-| 存取类指令 | `ldo`/`ldmo`/`sto`/`stmo`（内存→RB） | **全 64 位覆盖，bits[63:48] 正常读写** |
+| 存取类指令 | `ld.o`/`ldm.o`/`st.o`/`stm.o`（内存→RB） | **全 64 位覆盖，bits[63:48] 正常读写** |
 | 赋值类指令-寄存器 | `rd2rb`/`rb2rb`/`ra2rd`/`rd2ra` | **全 64 位覆盖，bits[63:48] 正常读写** |
 | 赋值类指令-立即数 | `setzw-rb`/`orw-rb`/`andnw-rb` | **全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3** |
 | 算术运算类指令-加减 | `add-rb`/`sub-rb`/`addi-rb`/`rela` | 地址计算仅在低 48 位进行，溢出丢弃；**bits[63:48] 保持不变**； |
@@ -27,16 +27,16 @@ RB 的高 16 位尚未定义用途，初始值为全 0。软件不应依赖高 1
 RB寄存器都是64位，因此不需要指定数据长度，共有4条指令如下：
 
 ```simrisc
-ldo     rbha, rbhb, imms12
-sto     rbha, rbhb, imms12
+ld.o     rbha, rbhb, imms12
+st.o     rbha, rbhb, imms12
 
-ldmo    rbha, rbhb, rdhc, immu6
-stmo    rbha, rbhb, rdhc, immu6
+ldm.o    rbha, rbhb, rdhc, immu6
+stm.o    rbha, rbhb, rdhc, immu6
 ```
 
 限制如下：
 
-- `ldo`/`sto` 和 `ldmo`/`stmo` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常
+- `ld.o`/`st.o` 和 `ldm.o`/`stm.o` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常
 - `rbha` 为 `rb0` 时触发 ILLI 异常
 - `immu6` = 0 时触发 ILLI 异常
 - `rbha + immu6 > 64`（超出 rb63）时触发 ILLI 异常
@@ -48,16 +48,16 @@ stmo    rbha, rbhb, rdhc, immu6
 RA寄存器都是64位，共有4条指令如下：
 
 ```simrisc
-ldo     raha, rbhb, imms12
-sto     raha, rbhb, imms12
+ld.o     raha, rbhb, imms12
+st.o     raha, rbhb, imms12
 
-ldmo    raha, rbhb, rdhc, immu6
-stmo    raha, rbhb, rdhc, immu6
+ldm.o    raha, rbhb, rdhc, immu6
+stm.o    raha, rbhb, rdhc, immu6
 ```
 
 限制如下：
 
-- `ldo`/`sto` 和 `ldmo`/`stmo` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常
+- `ld.o`/`st.o` 和 `ldm.o`/`stm.o` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常
 - `raha` 为 `ra0` 时不触发异常（ra0 可读写）
 - `immu6` = 0 时触发 ILLI 异常
 - `raha + immu6 > 64` 时触发 ILLI 异常（超出 ra63）
