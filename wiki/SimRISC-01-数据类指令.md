@@ -151,14 +151,18 @@ sub.so  rdha, rdhb, rdhc, rdhd    ; SX，rdha = 高64位
 
 `rdha` 和 `rdhb` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
-MISC-byte/wyde/tetra/octa 子表中的 `add`/`sub`（后缀 `.b`/`.w`/`.t`/`.o`）提供四种固定位宽的加减运算。仅 size 范围内的低位参与运算，目的寄存器高位符号扩展。若结果溢出，溢出部分静默丢弃。操作数格式为 `orrr`，`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+MISC-byte/wyde/tetra 子表中的 `add`/`sub` 提供三种固定位宽的加减运算，按符号类型分为两个变体：
 
-| 指令 | 位宽 | 汇编语法 | 位约束 |
-|------|------|---------|--------|
-| `add.b`/`sub.b` | 8 位 | `add.b rdhb, rdhc, rdhd` | bits[7:0] 参与运算 |
-| `add.w`/`sub.w` | 16 位 | `add.w rdhb, rdhc, rdhd` | bits[15:0] 参与运算 |
-| `add.t`/`sub.t` | 32 位 | `add.t rdhb, rdhc, rdhd` | bits[31:0] 参与运算 |
-| `add.o`/`sub.o` | 64 位 | `add.o rdhb, rdhc, rdhd` | bits[63:0] 全 64 位 |
+- **`add.u*`/`sub.u*`**（无符号）：结果零扩展至 64 位，适合无符号运算。
+- **`add.s*`/`sub.s*`**（有符号，默认）：结果符号扩展至 64 位，适合有符号运算。
+
+仅 size 范围内的低位参与运算，溢出部分静默丢弃。操作数格式为 `orrr`，`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+
+| 指令 | 位宽 | 汇编语法 | 高位填充 |
+|------|------|---------|---------|
+| `add.ub`/`sub.ub` / `add.sb`/`sub.sb` | 8 位 | `add.ub rdhb, rdhc, rdhd` | 零扩展 / 符号扩展 |
+| `add.uw`/`sub.uw` / `add.sw`/`sub.sw` | 16 位 | `add.uw rdhb, rdhc, rdhd` | 零扩展 / 符号扩展 |
+| `add.ut`/`sub.ut` / `add.st`/`sub.st` | 32 位 | `add.ut rdhb, rdhc, rdhd` | 零扩展 / 符号扩展 |
 
 ### 自增自减
 
@@ -212,14 +216,14 @@ mul.uo  rdha, rdhb, rdhc, rdhd
 
 `rdha` 和 `rdhb` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
-MISC-byte/wyde/tetra/octa 子表中的 `mul`/`div`/`rem` 提供四种固定位宽的乘除余运算。`mul` 后缀为 `.ub`/`.sb`/`.uw`/`.sw`/`.ut`/`.st`/`.o`（octa 乘法低 64 位与符号无关，无需区分 s/u）；`div`/`rem` 后缀为 `.ub`/`.sb`/`.uw`/`.sw`/`.ut`/`.st`/`.uo`/`.so`。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+MISC-byte/wyde/tetra/octa 子表中的 `mul`/`div`/`rem` 提供多种固定位宽的乘除余运算。`mul` 后缀为 `.ub`/`.sb`/`.uw`/`.sw`/`.ut`/`.st`（byte/wyde/tetra，octa 乘法由 rrrr 格式 `mul.uo`/`mul.so` 覆盖）；`div`/`rem` 后缀为 `.ub`/`.sb`/`.uw`/`.sw`/`.ut`/`.st`/`.uo`/`.so`。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
 
 | 指令 | 位宽 | 汇编语法 |
 |------|------|---------|
 | `mul.ub`/`mul.sb`/`div.ub`/`div.sb`/`rem.ub`/`rem.sb` | 8 位 | `mul.ub rdhb, rdhc, rdhd` |
 | `mul.uw`/`mul.sw`/`div.uw`/`div.sw`/`rem.uw`/`rem.sw` | 16 位 | `mul.uw rdhb, rdhc, rdhd` |
 | `mul.ut`/`mul.st`/`div.ut`/`div.st`/`rem.ut`/`rem.st` | 32 位 | `mul.ut rdhb, rdhc, rdhd` |
-| `mul.o`/`div.uo`/`div.so`/`rem.uo`/`rem.so` | 64 位 | `mul.o rdhb, rdhc, rdhd` |
+| `div.uo`/`div.so`/`rem.uo`/`rem.so` | 64 位 | `div.uo rdhb, rdhc, rdhd` |
 
 除法指令附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：
 
