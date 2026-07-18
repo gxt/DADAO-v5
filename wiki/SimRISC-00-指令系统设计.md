@@ -156,7 +156,7 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               | shl.ub-orrr   | shr.sb-orrr   | shr.ub-orrr   |               |
 | 001-xxx   |               |               |               |               | shl.ub-orri   | shr.sb-orri   | shr.ub-orri   |               |
-| 010-xxx   | ext.ub-orrr   | ext.sb-orrr   | ext.ub-orri   | ext.sb-orri   | and.b-orrr    | orr.b-orrr    | xor.b-orrr    | xnor.b-orrr   |
+| 010-xxx   | ext.ub-orrr   | ext.sb-orrr   | ext.ub-orri   | ext.sb-orri   | and.b-orrr    | or.b-orrr    | xor.b-orrr    | xnor.b-orrr   |
 | 011-xxx   |               |               |               |               |               |               |               |               |
 | 100-xxx   | add.b-orrr    | sub.b-orrr    |               |               | cmp.ub-orrr   | cmp.sb-orrr   |               |               |
 | 101-xxx   | mul.ub-orrr   | mul.sb-orrr   |               |               | div.ub-orrr   | div.sb-orrr   | rem.ub-orrr   | rem.sb-orrr   |
@@ -172,7 +172,7 @@ wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               | shl.uw-orrr   | shr.sw-orrr   | shr.uw-orrr   |               |
 | 001-xxx   |               |               |               |               | shl.uw-orri   | shr.sw-orri   | shr.uw-orri   |               |
-| 010-xxx   | ext.uw-orrr   | ext.sw-orrr   | ext.uw-orri   | ext.sw-orri   | and.w-orrr    | orr.w-orrr    | xor.w-orrr    | xnor.w-orrr   |
+| 010-xxx   | ext.uw-orrr   | ext.sw-orrr   | ext.uw-orri   | ext.sw-orri   | and.w-orrr    | or.w-orrr    | xor.w-orrr    | xnor.w-orrr   |
 | 011-xxx   |               |               |               |               |               |               |               |               |
 | 100-xxx   | add.w-orrr    | sub.w-orrr    |               |               | cmp.uw-orrr   | cmp.sw-orrr   |               |               |
 | 101-xxx   | mul.uw-orrr   | mul.sw-orrr   |               |               | div.uw-orrr   | div.sw-orrr   | rem.uw-orrr   | rem.sw-orrr   |
@@ -188,7 +188,7 @@ tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               | shl.ut-orrr   | shr.st-orrr   | shr.ut-orrr   |               |
 | 001-xxx   |               |               |               |               | shl.ut-orri   | shr.st-orri   | shr.ut-orri   |               |
-| 010-xxx   | ext.ut-orrr   | ext.st-orrr   | ext.ut-orri   | ext.st-orri   | and.t-orrr    | orr.t-orrr    | xor.t-orrr    | xnor.t-orrr   |
+| 010-xxx   | ext.ut-orrr   | ext.st-orrr   | ext.ut-orri   | ext.st-orri   | and.t-orrr    | or.t-orrr    | xor.t-orrr    | xnor.t-orrr   |
 | 011-xxx   |               |               |               |               |               |               |               |               |
 | 100-xxx   | add.t-orrr    | sub.t-orrr    |               |               | cmp.ut-orrr   | cmp.st-orrr   |               |               |
 | 101-xxx   | mul.ut-orrr   | mul.st-orrr   |               |               | div.ut-orrr   | div.st-orrr   | rem.ut-orrr   | rem.st-orrr   |
@@ -204,7 +204,7 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               | shl.uo-orrr   | shr.so-orrr   | shr.uo-orrr   |               |
 | 001-xxx   |               |               |               |               | shl.uo-orri   | shr.so-orri   | shr.uo-orri   |               |
-| 010-xxx   | ext.uo-orrr   | ext.so-orrr   | ext.uo-orri   | ext.so-orri   | and.o-orrr    | orr.o-orrr    | xor.o-orrr    | xnor.o-orrr   |
+| 010-xxx   | ext.uo-orrr   | ext.so-orrr   | ext.uo-orri   | ext.so-orri   | and.o-orrr    | or.o-orrr    | xor.o-orrr    | xnor.o-orrr   |
 | 011-xxx   |               |               |               |               |               |               |               |               |
 | 100-xxx   | add.o-orrr    | sub.o-orrr    |               |               | cmp.uo-orrr   | cmp.so-orrr   |               |               |
 | 101-xxx   | mul.o-orrr    |               |               |               | div.uo-orrr   | div.so-orrr   | rem.uo-orrr   | rem.so-orrr   |
