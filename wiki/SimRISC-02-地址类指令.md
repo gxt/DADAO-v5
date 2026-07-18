@@ -102,6 +102,25 @@ or.w    rbha, wpN, immu16
 andn.w  rbha, wpN, immu16
 ```
 
+### setrb 伪指令
+
+`setrb` 是汇编器提供的伪指令，用于将立即数加载到 rb 寄存器，展开为 `set.zw-rb`、`or.w-rb`、`andn.w-rb` 的组合（rb 无 `set.ow` 变体）。
+
+> **重要**：`set.zw` 会清零其余所有位，因此不能连续使用多条 `set.zw`。只能使用**一条** `set.zw` 作为第一条指令，后续用 `or.w`（设 1）或 `andn.w`（清 0）逐 wyde 修正。
+
+```simrisc
+; 加载零
+setrb   rb1, 0                      ; 展开为 set.zw rb1, wp0, 0
+
+; 加载 48 位地址
+setrb   rb1, 0x123456789ABC         ; 展开为：
+                                      ;   set.zw rb1, wp2, 0x1234
+                                      ;   or.w  rb1, wp1, 0x5678
+                                      ;   or.w  rb1, wp0, 0x9ABC
+```
+
+**注**：rb 高 16 位（bits[63:48]）可用于地址溢出检测。汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。
+
 ## 算术运算类指令
 
 ### 加减操作

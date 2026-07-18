@@ -114,7 +114,9 @@ andn.w   rdha, wpN, immu16
 
 `setrd` 不是硬件指令，而是汇编器提供的伪指令，用于将任意 64 位立即数加载到 rd 寄存器。汇编器将 `setrd` 展开为 1~4 条 rwii 格式指令。
 
-**策略**：先通过 `set.ow` 或 `set.zw` 设置初始值，再用 `or.w` 和 `andn.w` 修正剩余位。
+**策略**：先通过 `set.ow` 或 `set.zw` 设置一个 wyde 的初始值（同时确定其余位的状态：`set.ow` 置 1、`set.zw` 清 0），再用 `or.w` 和 `andn.w` 修正剩余 wyde。
+
+> **重要**：`set.zw`/`set.ow` 会改变所有 64 位，不能连续使用多条来设置不同 wyde——后一条会覆盖前一条的结果。只能使用**一条** `set.zw` 或 `set.ow` 作为第一条指令，后续必须用 `or.w`（设 1）或 `andn.w`（清 0）逐 wyde 修正。
 
 **常用模式示例**：
 
@@ -161,36 +163,6 @@ setrd   rd5, rb3       ; 展开为 rb2rd rd5, rb3, 1
 setrd   rd2, rf7       ; 展开为 rf2rd rd2, rf7, 1
 setrd   rd8, rd3       ; 展开为 rd2rd rd8, rd3, 1
 ```
-
-### setrb 伪指令
-
-`setrb` 用于将立即数加载到 rb 寄存器，展开方式与 `setrd` 类似。rb 寄存器提供 `set.zw-rb`、`or.w-rb`、`andn.w-rb` 三种 rwii 格式指令（无 `set.ow` 变体）。
-
-```simrisc
-; 加载零
-setrb   rb1, 0                      ; 展开为 set.zw rb1, wp0, 0
-
-; 加载 48 位地址（高 16 位自动为 0）
-setrb   rb1, 0x123456789ABC         ; 展开为：
-                                      ;   set.zw rb1, wp2, 0x1234
-                                      ;   or.w  rb1, wp1, 0x5678
-                                      ;   or.w  rb1, wp0, 0x9ABC
-```
-
-**注**：rb 寄存器高 16 位（bits[63:48]）用于地址溢出检测，`setrb` 加载地址时高 16 位自动为零。汇编器应优先通过 `set.zw` 加载地址值，避免意外设置高 16 位。
-
-### setrf 伪指令
-
-`setrf` 用于将立即数加载到 rf 寄存器。rf 寄存器的 `set.w` 仅设置指定 wyde，其余位保持不变，无法直接清零。因此 `setrf` 通过 rd 寄存器中转实现：
-
-```simrisc
-; 加载单精度浮点 1.0（0x3F800000）
-setrf   rf1, 0x3F800000             ; 展开为：
-                                      ;   setrd rd31, 0x3F800000  ; 使用 rd31 作为临时寄存器
-                                      ;   rd2rf rf1, rd31, 1
-```
-
-汇编器需选择一个临时 rd 寄存器（通常为 rd31）。若临时寄存器与源寄存器相同，可省略拷贝步骤。
 
 ### 条件赋值：Conditional Assignment
 
