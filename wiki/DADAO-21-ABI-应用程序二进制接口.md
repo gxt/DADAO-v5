@@ -472,7 +472,7 @@ cfx_tlb_inv_loop:
     add.si    rd2, rd2, 1
     setrd   rd3, 16
     cmps    bp63, rd5, rd2, rd3          ; rd5 = rd2 < rd3 ?
-    brn     rd5, cfx_tlb_inv_loop
+    br.n     rd5, cfx_tlb_inv_loop
 ```
 
 ## 系统调用规范

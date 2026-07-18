@@ -88,15 +88,15 @@ cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
 cfx_smon_supv_excp_handler:
     cfx2rd  cfx_smon_excp_cause_id, rd2
     setrd   rd3, 1                                 ; CFXTRAP (1<<0)
-    brne    rd2, rd3, cfx_smon_unknown
+    br.ne    rd2, rd3, cfx_smon_unknown
 
     cfx2rd  cfx_smon_excp_cause_info, rd2
     setrd   rd3, 0x3FFFF
     and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
-    breq    rd2, rd3, cfx_smon_get_version              ; func 0
+    br.eq    rd2, rd3, cfx_smon_get_version              ; func 0
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_smon_probe_cfx                ; func 1
+    br.eq    rd2, rd3, cfx_smon_probe_cfx                ; func 1
 
 cfx_smon_unknown:
     escape cfx_smon, 1
@@ -161,7 +161,7 @@ cfx_ptw_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用分发
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_ptw_trap_dispatch
+    br.eq    rd2, rd3, cfx_ptw_trap_dispatch
 
     ; 页缺失异常 → 委托 cfx_pmem 分配物理页，修复 PTE
     ; 具体处理根据 cause_id 分发
@@ -174,21 +174,21 @@ cfx_ptw_trap_dispatch:
     setrd   rd3, 0x3FFFF
     and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
-    breq    rd2, rd3, cfx_ptw_set_ptbr              ; func 0
+    br.eq    rd2, rd3, cfx_ptw_set_ptbr              ; func 0
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_ptw_get_ptbr              ; func 1
+    br.eq    rd2, rd3, cfx_ptw_get_ptbr              ; func 1
     setrd   rd3, 2
-    breq    rd2, rd3, cfx_ptw_set_ptbr_perm         ; func 2
+    br.eq    rd2, rd3, cfx_ptw_set_ptbr_perm         ; func 2
     setrd   rd3, 3
-    breq    rd2, rd3, cfx_ptw_enable_ptbr           ; func 3
+    br.eq    rd2, rd3, cfx_ptw_enable_ptbr           ; func 3
     setrd   rd3, 4
-    breq    rd2, rd3, cfx_ptw_set_pte               ; func 4
+    br.eq    rd2, rd3, cfx_ptw_set_pte               ; func 4
     setrd   rd3, 5
-    breq    rd2, rd3, cfx_ptw_handle_fault           ; func 5
+    br.eq    rd2, rd3, cfx_ptw_handle_fault           ; func 5
     setrd   rd3, 6
-    breq    rd2, rd3, cfx_ptw_set_pthi               ; func 6
+    br.eq    rd2, rd3, cfx_ptw_set_pthi               ; func 6
     setrd   rd3, 7
-    breq    rd2, rd3, cfx_ptw_set_pahi               ; func 7
+    br.eq    rd2, rd3, cfx_ptw_set_pahi               ; func 7
     escape cfx_ptw, 1
 
 cfx_ptw_set_ptbr:
@@ -326,23 +326,23 @@ cfx_tlb_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_tlb_trap_dispatch
+    br.eq    rd2, rd3, cfx_tlb_trap_dispatch
 
     ; 页表相关异常（TLB 命中时产生）→ 委托 cfx_ptw 处理
     setrd   rd3, 1<<12                               ; NXPERM
-    breq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
     setrd   rd3, 1<<13                               ; NWPERM
-    breq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
     setrd   rd3, 1<<14                               ; NRPERM
-    breq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
     setrd   rd3, 1<<18                               ; IGPFTRAP
-    breq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
     setrd   rd3, 1<<19                               ; ISPFTRAP
-    breq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
     setrd   rd3, 1<<22                               ; DGPFTRAP
-    breq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
     setrd   rd3, 1<<23                               ; DSPFTRAP
-    breq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
 
 cfx_tlb_unknown:
     escape cfx_tlb, 1
@@ -352,7 +352,7 @@ cfx_tlb_trap_dispatch:
     setrd   rd3, 0x3FFFF
     and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
-    breq    rd2, rd3, cfx_tlb_invalidate              ; func 0
+    br.eq    rd2, rd3, cfx_tlb_invalidate              ; func 0
     escape cfx_tlb, 1
 
 cfx_tlb_ptw_delegate:
@@ -363,7 +363,7 @@ cfx_tlb_ptw_delegate:
     trap    cfx_ptw, SBI_PTW_HANDLE_FAULT
     ; 返回 rd31 = page_mask（成功：0xFFFF...掩码；失败：0）
     setrd   rd3, 0
-    breq    rd31, rd3, cfx_tlb_ptw_fail              ; 修复失败 → 跳过
+    br.eq    rd31, rd3, cfx_tlb_ptw_fail              ; 修复失败 → 跳过
     ; 修复成功 → invalid 对应 TLB 表项，按实际页大小
     and     bp63, rd40, rd40, rd31                          ; 按掩码对齐至页面起始
     cfx2rc  cfx_tlb_addr_start, rd40
@@ -463,22 +463,22 @@ cfx_pmem 的异常入口处理：
 cfx_pmem_supv_excp_handler:
     cfx2rd  cfx_pmem_excp_cause_id, rd2
     setrd   rd3, 1                                 ; CFXTRAP (1<<0)
-    brne    rd2, rd3, cfx_pmem_unknown
+    br.ne    rd2, rd3, cfx_pmem_unknown
     cfx2rd  cfx_pmem_excp_cause_info, rd2         ; func dispatch
     setrd   rd3, 0x3FFFF
     and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
-    breq    rd2, rd3, cfx_pmem_get_pm_count        ; func 0
+    br.eq    rd2, rd3, cfx_pmem_get_pm_count        ; func 0
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_pmem_get_pm_start        ; func 1
+    br.eq    rd2, rd3, cfx_pmem_get_pm_start        ; func 1
     setrd   rd3, 2
-    breq    rd2, rd3, cfx_pmem_get_pm_size         ; func 2
+    br.eq    rd2, rd3, cfx_pmem_get_pm_size         ; func 2
     setrd   rd3, 3
-    breq    rd2, rd3, cfx_pmem_get_pm_attr         ; func 3
+    br.eq    rd2, rd3, cfx_pmem_get_pm_attr         ; func 3
     setrd   rd3, 4
-    breq    rd2, rd3, cfx_pmem_alloc_page          ; func 4
+    br.eq    rd2, rd3, cfx_pmem_alloc_page          ; func 4
     setrd   rd3, 5
-    breq    rd2, rd3, cfx_pmem_free_page           ; func 5
+    br.eq    rd2, rd3, cfx_pmem_free_page           ; func 5
 cfx_pmem_unknown:
     escape cfx_pmem, 1
 
@@ -545,11 +545,11 @@ cfx_timer_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_timer_trap_dispatch
+    br.eq    rd2, rd3, cfx_timer_trap_dispatch
 
     ; TIMER (1<<10) → 定时器中断
     setrd   rd3, 1024
-    breq    rd2, rd3, cfx_timer_int
+    br.eq    rd2, rd3, cfx_timer_int
 
 cfx_timer_unknown:
     escape cfx_timer, 1
@@ -559,9 +559,9 @@ cfx_timer_trap_dispatch:
     setrd   rd3, 0x3FFFF                            ; 掩码提取 immu18
     and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
-    breq    rd2, rd3, cfx_timer_set_timer               ; func 0
+    br.eq    rd2, rd3, cfx_timer_set_timer               ; func 0
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_timer_get_time                ; func 1
+    br.eq    rd2, rd3, cfx_timer_get_time                ; func 1
     escape cfx_timer, 1
 ```
 
@@ -633,7 +633,7 @@ cfx_uart_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_uart_trap_dispatch
+    br.eq    rd2, rd3, cfx_uart_trap_dispatch
 
     ; UART 中断（1<<32..63）
     ; 通过 excp_pending 寄存器判断具体中断源并处理
@@ -646,13 +646,13 @@ cfx_uart_trap_dispatch:
     setrd   rd3, 0x3FFFF
     and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
-    breq    rd2, rd3, cfx_uart_putchar                 ; func 0
+    br.eq    rd2, rd3, cfx_uart_putchar                 ; func 0
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_uart_getchar                 ; func 1
+    br.eq    rd2, rd3, cfx_uart_getchar                 ; func 1
     setrd   rd3, 2
-    breq    rd2, rd3, cfx_uart_write                   ; func 2
+    br.eq    rd2, rd3, cfx_uart_write                   ; func 2
     setrd   rd3, 3
-    breq    rd2, rd3, cfx_uart_read                    ; func 3
+    br.eq    rd2, rd3, cfx_uart_read                    ; func 3
 
 cfx_uart_unknown:
     escape cfx_uart, 1
@@ -733,19 +733,19 @@ cfx_power_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_power_trap_dispatch
+    br.eq    rd2, rd3, cfx_power_trap_dispatch
 
     ; POWEROFF (1<<8) → 硬件关机
     setrd   rd3, 256
-    breq    rd2, rd3, cfx_power_shutdown
+    br.eq    rd2, rd3, cfx_power_shutdown
 
     ; HARD RESET (1<<9) → 硬件硬复位
     setrd   rd3, 512
-    breq    rd2, rd3, cfx_power_hard_reset
+    br.eq    rd2, rd3, cfx_power_hard_reset
 
     ; SOFT RESET (1<<10) → 软复位
     setrd   rd3, 1024
-    breq    rd2, rd3, cfx_power_soft_reset
+    br.eq    rd2, rd3, cfx_power_soft_reset
 
 cfx_power_unknown:
     escape cfx_power, 1
@@ -755,11 +755,11 @@ cfx_power_trap_dispatch:
     setrd   rd3, 0x3FFFF                            ; 掩码提取 immu18
     and     bp63, rd2, rd2, rd3
     setrd   rd3, 0
-    breq    rd2, rd3, cfx_power_shutdown                ; func 0
+    br.eq    rd2, rd3, cfx_power_shutdown                ; func 0
     setrd   rd3, 1
-    breq    rd2, rd3, cfx_power_hard_reset              ; func 1
+    br.eq    rd2, rd3, cfx_power_hard_reset              ; func 1
     setrd   rd3, 2
-    breq    rd2, rd3, cfx_power_soft_reset              ; func 2
+    br.eq    rd2, rd3, cfx_power_soft_reset              ; func 2
     escape cfx_power, 1
 ```
 
@@ -824,11 +824,11 @@ cfx_umon_user_excp_handler:
 
     ; 判断异常类型并分发
     setrd   rd3, 1
-    breq    rd2, rd3, syscall_handler               ; CFXTRAP (1<<0)
+    br.eq    rd2, rd3, syscall_handler               ; CFXTRAP (1<<0)
     setrd   rd3, 256
-    breq    rd2, rd3, illi_handler                  ; ILLI (1<<8)
+    br.eq    rd2, rd3, illi_handler                  ; ILLI (1<<8)
     setzw   rd3, wp2, 1                             ; rd3 = 1<<32
-    breq    rd2, rd3, fpexcp_handler                ; FPEXCP (1<<32)
+    br.eq    rd2, rd3, fpexcp_handler                ; FPEXCP (1<<32)
     ; 默认：未处理异常
     escape cfx_umon, 1
 ```

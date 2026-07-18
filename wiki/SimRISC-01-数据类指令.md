@@ -4,7 +4,7 @@
 
 用户态指令
 
-> **rd0 为目的寄存器约定**：仅双目的指令（add.uo/add.so/sub.uo/sub.so/mulu/muls 的 rrrr 格式）允许其中一个为 rd0（丢弃对应半结果，但不能同时为 rd0）。其余所有指令的目的为 rd0 时触发 **ILLI** 异常（单目的指令丢弃唯一结果无语义）。访存类指令（ld/st）同理触发 ILLI。
+> **rd0 为目的寄存器约定**：仅双目的指令（add.uo/add.so/sub.uo/sub.so/mul.uo/mul.so 的 rrrr 格式）允许其中一个为 rd0（丢弃对应半结果，但不能同时为 rd0）。其余所有指令的目的为 rd0 时触发 **ILLI** 异常（单目的指令丢弃唯一结果无语义）。访存类指令（ld/st）同理触发 ILLI。
 
 ## 存取类指令
 
@@ -114,17 +114,17 @@ andn.w   rdha, wpN, immu16
 操作数类型为 `rrrr`，指令如下：
 
 ```simrisc
-csn     rdha, rdhb, rdhc, rdhd
-csz     rdha, rdhb, rdhc, rdhd
-csp     rdha, rdhb, rdhc, rdhd
+cs.n    rdha, rdhb, rdhc, rdhd
+cs.z    rdha, rdhb, rdhc, rdhd
+cs.p    rdha, rdhb, rdhc, rdhd
 ```
 
 第二类条件赋值指令需要先根据`rdha`与`rdhb`是否相等进行条件判断，如果条件成立则将`rdhd`的值赋值给`rdhc`，即 `if (rdha ==/!= rdhb) rdhc = rdhd`。
 操作数类型为 `rrrr`，指令如下：
 
 ```simrisc
-cseq    rdha, rdhb, rdhc, rdhd
-csne    rdha, rdhb, rdhc, rdhd
+cs.eq   rdha, rdhb, rdhc, rdhd
+cs.ne   rdha, rdhb, rdhc, rdhd
 ```
 
 ### 算术运算类指令
@@ -203,11 +203,11 @@ MISC-byte/wyde/tetra/octa 子表中的 `cmp.s`/`cmp.u`（后缀 `.sb`/`.ub`/`.sw
 
 乘除运算都是四个操作数，操作数类型为 `rrrr`。
 
-无符号数的乘法mulu和有符号数的乘法muls，rdhc和rdhd为源操作数，形成16字节的运算结果，分别写入rdha和rdhb中，rdha存放结果的高64位，rdhb存放结果的低64位。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
+无符号数的乘法 `mul.uo` 和有符号数的乘法 `mul.so`，rdhc和rdhd为源操作数，形成16字节的运算结果，分别写入rdha和rdhb中，rdha存放结果的高64位，rdhb存放结果的低64位。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
 ```simrisc
-muls rdha, rdhb, rdhc, rdhd
-mulu rdha, rdhb, rdhc, rdhd
+mul.so  rdha, rdhb, rdhc, rdhd
+mul.uo  rdha, rdhb, rdhc, rdhd
 ```
 
 `rdha` 和 `rdhb` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。

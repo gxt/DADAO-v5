@@ -210,17 +210,17 @@ rdhb中的比较结果有四种情况：
 操作数类型为 `rrrr`，指令如下：
 
 ```simrisc
-csn     rdha, rfhb, rfhc, rfhd
-csz     rdha, rfhb, rfhc, rfhd
-csp     rdha, rfhb, rfhc, rfhd
+cs.n    rdha, rfhb, rfhc, rfhd
+cs.z    rdha, rfhb, rfhc, rfhd
+cs.p    rdha, rfhb, rfhc, rfhd
 ```
 
 第二类浮点条件赋值指令需要先判断`rdhb`的内容是否为`1`，如果条件成立则将`rfhd`的值赋值给`rfhc`，即 `if (rdhb ==/!= 1) rfhc = rfhd`。
 操作数类型为 `orrr`，指令如下：
 
 ```simrisc
-csp1    rdhb, rfhc, rfhd
-csnp1   rdhb, rfhc, rfhd
+cs.p1   rdhb, rfhc, rfhd
+cs.np1  rdhb, rfhc, rfhd
 ```
 
 注意：第二类浮点条件赋值指令中判断的是否为正数1，需要判断其余63位是否为0，对应了浮点比较指令中`rfhc > rfhd`的比较结果。

@@ -56,7 +56,7 @@ st.t     rd4, rbsp, z_offset
 ; 有符号 32-bit 乘法
 ld.st    rd2, rbsp, x_offset
 ld.st    rd3, rbsp, y_offset
-muls    rd0, rd4, rd2, rd3           ; rd0丢弃高64位，rd4=低64位
+mul.so    rd0, rd4, rd2, rd3           ; rd0丢弃高64位，rd4=低64位
 st.t     rd4, rbsp, z_offset
 
 ; 有符号 32-bit 除法
@@ -90,7 +90,7 @@ shrs    bp63, rd2, rd2, 3
 add     rd0, rd3, rd4, rd5           ; rd3 = rd4 + rd5（低 64 位）
 exts    bp63, rd2, rd3, 31           ; rd2 = rd3 按 32-bit 符号扩展
 cmps    bp63, rd2, rd2, rd3          ; 比较扩展值与原值
-brnz    rd2, overflow_handler        ; 不相等 → 32-bit 溢出
+br.nz    rd2, overflow_handler        ; 不相等 → 32-bit 溢出
 ```
 
 ## 存储模型
