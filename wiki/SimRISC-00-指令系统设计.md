@@ -61,7 +61,7 @@ SimRISC 提供四种固定数据位宽，通过指令名后缀 `.b`/`.w`/`.t`/`.
 - `MISC-tetra`：tetra 位宽指令
 - `MISC-octa`：octa 位宽指令
 
-各子表内使用 `orrr`/`orri`/`oiii` 操作数格式。指令名后缀 `.b`/`.w`/`.t`/`.o` 与已有的存取指令后缀（`ldb`/`ldw`/`ldt`/`ldo`）一致。
+各子表内使用 `orrr`/`orri`/`oiii` 操作数格式。指令名后缀 `.b`/`.w`/`.t`/`.o` 与已有的存取指令后缀（`ldb`/`ldw`/`ldt`/`ldo`）一致。对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shl/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。
 
 以下三种格式含 `c`（cfxcode，6 位核芯功能扩展编码），cfxcode 始终在 `ha[5:0]`：
 
@@ -154,12 +154,12 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
-| 000-xxx   |               |               |               |               | shlu.b-orrr   | shrs.b-orrr   | shru.b-orrr   |               |
-| 001-xxx   |               |               |               |               | shlu.b-orri   | shrs.b-orri   | shru.b-orri   |               |
-| 010-xxx   | extz.b-orrr   | exts.b-orrr   | extz.b-orri   | exts.b-orri   | and.b-orrr    | orr.b-orrr    | xor.b-orrr    | xnor.b-orrr   |
+| 000-xxx   |               |               |               |               | shl.ub-orrr   | shr.sb-orrr   | shr.ub-orrr   |               |
+| 001-xxx   |               |               |               |               | shl.ub-orri   | shr.sb-orri   | shr.ub-orri   |               |
+| 010-xxx   | ext.ub-orrr   | ext.sb-orrr   | ext.ub-orri   | ext.sb-orri   | and.b-orrr    | orr.b-orrr    | xor.b-orrr    | xnor.b-orrr   |
 | 011-xxx   |               |               |               |               |               |               |               |               |
-| 100-xxx   | add.b-orrr    | sub.b-orrr    |               |               | cmpu.b-orrr   | cmps.b-orrr   |               |               |
-| 101-xxx   | mulu.b-orrr   | muls.b-orrr   |               |               | divu.b-orrr   | divs.b-orrr   | remu.b-orrr   | rems.b-orrr   |
+| 100-xxx   | add.b-orrr    | sub.b-orrr    |               |               | cmp.ub-orrr   | cmp.sb-orrr   |               |               |
+| 101-xxx   | mul.ub-orrr   | mul.sb-orrr   |               |               | div.ub-orrr   | div.sb-orrr   | rem.ub-orrr   | rem.sb-orrr   |
 | 110-xxx   |               |               |               |               |               |               |               |               |
 | 111-xxx   |               |               |               |               |               |               |               |               |
 
@@ -170,12 +170,12 @@ wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
 
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
-| 000-xxx   |               |               |               |               | shlu.w-orrr   | shrs.w-orrr   | shru.w-orrr   |               |
-| 001-xxx   |               |               |               |               | shlu.w-orri   | shrs.w-orri   | shru.w-orri   |               |
-| 010-xxx   | extz.w-orrr   | exts.w-orrr   | extz.w-orri   | exts.w-orri   | and.w-orrr    | orr.w-orrr    | xor.w-orrr    | xnor.w-orrr   |
+| 000-xxx   |               |               |               |               | shl.uw-orrr   | shr.sw-orrr   | shr.uw-orrr   |               |
+| 001-xxx   |               |               |               |               | shl.uw-orri   | shr.sw-orri   | shr.uw-orri   |               |
+| 010-xxx   | ext.uw-orrr   | ext.sw-orrr   | ext.uw-orri   | ext.sw-orri   | and.w-orrr    | orr.w-orrr    | xor.w-orrr    | xnor.w-orrr   |
 | 011-xxx   |               |               |               |               |               |               |               |               |
-| 100-xxx   | add.w-orrr    | sub.w-orrr    |               |               | cmpu.w-orrr   | cmps.w-orrr   |               |               |
-| 101-xxx   | mulu.w-orrr   | muls.w-orrr   |               |               | divu.w-orrr   | divs.w-orrr   | remu.w-orrr   | rems.w-orrr   |
+| 100-xxx   | add.w-orrr    | sub.w-orrr    |               |               | cmp.uw-orrr   | cmp.sw-orrr   |               |               |
+| 101-xxx   | mul.uw-orrr   | mul.sw-orrr   |               |               | div.uw-orrr   | div.sw-orrr   | rem.uw-orrr   | rem.sw-orrr   |
 | 110-xxx   |               |               |               |               |               |               |               |               |
 | 111-xxx   |               |               |               |               |               |               |               |               |
 
@@ -186,12 +186,12 @@ tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
 
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
-| 000-xxx   |               |               |               |               | shlu.t-orrr   | shrs.t-orrr   | shru.t-orrr   |               |
-| 001-xxx   |               |               |               |               | shlu.t-orri   | shrs.t-orri   | shru.t-orri   |               |
-| 010-xxx   | extz.t-orrr   | exts.t-orrr   | extz.t-orri   | exts.t-orri   | and.t-orrr    | orr.t-orrr    | xor.t-orrr    | xnor.t-orrr   |
+| 000-xxx   |               |               |               |               | shl.ut-orrr   | shr.st-orrr   | shr.ut-orrr   |               |
+| 001-xxx   |               |               |               |               | shl.ut-orri   | shr.st-orri   | shr.ut-orri   |               |
+| 010-xxx   | ext.ut-orrr   | ext.st-orrr   | ext.ut-orri   | ext.st-orri   | and.t-orrr    | orr.t-orrr    | xor.t-orrr    | xnor.t-orrr   |
 | 011-xxx   |               |               |               |               |               |               |               |               |
-| 100-xxx   | add.t-orrr    | sub.t-orrr    |               |               | cmpu.t-orrr   | cmps.t-orrr   |               |               |
-| 101-xxx   | mulu.t-orrr   | muls.t-orrr   |               |               | divu.t-orrr   | divs.t-orrr   | remu.t-orrr   | rems.t-orrr   |
+| 100-xxx   | add.t-orrr    | sub.t-orrr    |               |               | cmp.ut-orrr   | cmp.st-orrr   |               |               |
+| 101-xxx   | mul.ut-orrr   | mul.st-orrr   |               |               | div.ut-orrr   | div.st-orrr   | rem.ut-orrr   | rem.st-orrr   |
 | 110-xxx   |               |               |               |               |               |               |               |               |
 | 111-xxx   |               |               |               |               |               |               |               |               |
 
@@ -202,11 +202,11 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
-| 000-xxx   |               |               |               |               | shlu.o-orrr   | shrs.o-orrr   | shru.o-orrr   |               |
-| 001-xxx   |               |               |               |               | shlu.o-orri   | shrs.o-orri   | shru.o-orri   |               |
-| 010-xxx   | extz.o-orrr   | exts.o-orrr   | extz.o-orri   | exts.o-orri   | and.o-orrr    | orr.o-orrr    | xor.o-orrr    | xnor.o-orrr   |
+| 000-xxx   |               |               |               |               | shl.uo-orrr   | shr.so-orrr   | shr.uo-orrr   |               |
+| 001-xxx   |               |               |               |               | shl.uo-orri   | shr.so-orri   | shr.uo-orri   |               |
+| 010-xxx   | ext.uo-orrr   | ext.so-orrr   | ext.uo-orri   | ext.so-orri   | and.o-orrr    | orr.o-orrr    | xor.o-orrr    | xnor.o-orrr   |
 | 011-xxx   |               |               |               |               |               |               |               |               |
-| 100-xxx   | add.o-orrr    | sub.o-orrr    |               |               | cmpu.o-orrr   | cmps.o-orrr   |               |               |
-| 101-xxx   | mulu.o-orrr   | muls.o-orrr   |               |               | divu.o-orrr   | divs.o-orrr   | remu.o-orrr   | rems.o-orrr   |
+| 100-xxx   | add.o-orrr    | sub.o-orrr    |               |               | cmp.uo-orrr   | cmp.so-orrr   |               |               |
+| 101-xxx   | mul.o-orrr    |               |               |               | div.uo-orrr   | div.so-orrr   | rem.uo-orrr   | rem.so-orrr   |
 | 110-xxx   |               |               |               |               |               |               |               |               |
 | 111-xxx   |               |               |               |               |               |               |               |               |
