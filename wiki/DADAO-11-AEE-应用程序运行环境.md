@@ -62,22 +62,22 @@ st.t     rd4, rbsp, z_offset
 ; 有符号 32-bit 除法
 ld.st    rd2, rbsp, x_offset
 ld.st    rd3, rbsp, y_offset
-divs    bp31, rd4, rd2, rd3           ; 商写入目的寄存器 rd4
+div.st  rd4, rd2, rd3           ; 商写入目的寄存器 rd4
 st.t     rd4, rbsp, z_offset
 ```
 
-> 若操作数经过加减乘等运算后高位被污染，除法和乘法前需 `exts` 重新扩展。
+> 若操作数经过加减乘等运算后高位被污染，除法和乘法前需 `ext.s` 重新扩展。
 
-**移位**：`shru` 逻辑右移高位补 0，`shrs` 算数右移高位补符号位。
+**移位**：`shr.u` 逻辑右移高位补 0，`shr.s` 算数右移高位补符号位。
 
 ```simrisc
 ; 无符号 32-bit 右移 3 位
 ld.ut    rd2, rbsp, x_offset          ; 零扩展加载
-shru    bp63, rd2, rd2, 3
+shr.uo  rd2, rd2, 3
 
 ; 有符号 32-bit 右移 3 位
 ld.st    rd2, rbsp, x_offset          ; 符号扩展加载
-shrs    bp63, rd2, rd2, 3
+shr.so  rd2, rd2, 3
 ```
 
 **溢出**：
@@ -87,9 +87,9 @@ shrs    bp63, rd2, rd2, 3
 
 ```simrisc
 ; 有符号 32-bit 加法，检测溢出
-add     rd0, rd3, rd4, rd5           ; rd3 = rd4 + rd5（低 64 位）
-exts    bp63, rd2, rd3, 31           ; rd2 = rd3 按 32-bit 符号扩展
-cmps    bp63, rd2, rd2, rd3          ; 比较扩展值与原值
+add.so  rd0, rd3, rd4, rd5           ; rd3 = rd4 + rd5（低 64 位）
+ext.so  rd2, rd3, 31           ; rd2 = rd3 按 32-bit 符号扩展
+cmp.so  rd2, rd2, rd3          ; 比较扩展值与原值
 br.nz    rd2, overflow_handler        ; 不相等 → 32-bit 溢出
 ```
 
