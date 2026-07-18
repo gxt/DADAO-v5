@@ -334,11 +334,11 @@ rdhb[63:N+1] = rdhb[63:N+1]                               // 高位不变
 
 `shamt > N` 触发 ILLI。
 
-`ext.s` 是符号扩展，`ext.u` 是零扩展。MISC-byte/wyde/tetra/octa 子表中的 `ext.s`/`ext.u`（后缀 `.sb`/`.ub`/`.sw`/`.uw`/`.st`/`.ut`/`.so`/`.uo`）提供四种固定位宽的扩展操作。操作数格式为 `orrr`（寄存器形式，hd=扩展起始位）和 `orri`（立即数形式，hd=immu6 扩展起始位）。语义与之前一致：
+`ext.s` 是符号扩展，`ext.u` 是零扩展。MISC-byte/wyde/tetra/octa 子表中的 `ext.s`/`ext.u`（后缀 `.sb`/`.ub`/`.sw`/`.uw`/`.st`/`.ut`/`.so`/`.uo`）提供四种固定位宽的扩展操作。操作数格式为 `orrr`（寄存器形式，hd=扩展起始位）和 `orri`（立即数形式，hd=immu6 扩展起始位）。语义如下：
 
 ```
 rdhb[hd:0]   = rdhc[hd:0]                               // 复制源低位
-rdhb[N:hd+1] = sign/zero_extend(rdhc[hd])                // 符号/零扩展
+rdhb[N:hd+1] = sign/zero_extend(rdhc[hd])                // 符号/零扩展（N=7/15/31/63）
 rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 ```
 
