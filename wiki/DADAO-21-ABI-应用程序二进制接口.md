@@ -469,7 +469,7 @@ cfx_tlb_inv_loop:
     cfx2rc  cfx_tlb_addr_size, rd3
     setrd   rd4, 2                 ; bit1 = invalid by addr range
     cfx2rc  cfx_tlb_control, rd4
-    addi    rd2, rd2, 1
+    add.si    rd2, rd2, 1
     setrd   rd3, 16
     cmps    bp63, rd5, rd2, rd3          ; rd5 = rd2 < rd3 ?
     brn     rd5, cfx_tlb_inv_loop

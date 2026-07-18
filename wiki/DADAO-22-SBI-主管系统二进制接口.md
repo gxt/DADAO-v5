@@ -368,7 +368,7 @@ cfx_tlb_ptw_delegate:
     and     bp63, rd40, rd40, rd31                          ; 按掩码对齐至页面起始
     cfx2rc  cfx_tlb_addr_start, rd40
     not     rd16, rd31
-    addi    rd16, rd16, 1                             ; addr_size = ~mask + 1
+    add.si    rd16, rd16, 1                             ; addr_size = ~mask + 1
     cfx2rc  cfx_tlb_addr_size, rd16
     setrd   rd2, 2
     cfx2rc  cfx_tlb_control, rd2                      ; bit1 = invalid by addr
