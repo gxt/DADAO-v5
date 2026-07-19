@@ -104,7 +104,7 @@ ciii / crrr / crii                        ← c=cfxcode
 - `c`：六位 cfxcode（在 `ha[5:0]`）
 - `r`：寄存器编号（6 位，编码 0-63）
 - `i`：立即数（有符号或无符号，长度由格式决定）
-- `w`：头两位 wyde-position + 后四位立即数
+- `w`：wyde-position（hb[5:4]，指定 16 位立即数写入 64 位寄存器的哪个 wyde）+ 16 位立即数（hb[3:0] 为高 4 位，hc[5:0] 为中 6 位，hd[5:0] 为低 6 位）
 - `z`：SBZ（Should Be Zero）
 
 ## MISC 子表体系
@@ -128,7 +128,7 @@ SimRISC 0.5.3 将操作按位宽组织为多个 MISC 子表，每个子表对应
 |------|-----------|------|
 | RD | rd0=zero, rd1=rderrno | rd2-7 reserved, rd8-15 temp, rd16-31 参数, rd32-63 callee-saved |
 | RB | rb0=rbip, rb1=rbsp, rb2=rbfp, rb3=rbgp, rb4=rbtp | rb5-7 reserved, rb8-15 temp, rb16-31 参数, rb32-63 callee-saved |
-| RF | rf0=FCSR | rf1-7 temp, rf8-15 temp, rf16-31 参数, rf32-63 callee-saved |
+| RF | rf0=FCSR | rf1-15 temp, rf16-31 参数, rf32-63 callee-saved |
 | RA | ra0=RAS控制, ra63=RAS栈顶 | ra1-62 返回地址 slot |
 
 ## 文档对应关系
