@@ -1,6 +1,6 @@
 # DADAO Hypervisor Execution Environment
 
-> **版本：0.1.2**（与 HBI 版本号一致，同步更新。基于 SimRISC 0.5.2 指令系统设计）
+> **版本：0.1.2**（与 HBI 版本号一致，同步更新。基于 SimRISC 0.5.3 指令系统设计）
 
 本文档定义 DADAO 超管系统运行环境（Hypervisor Execution Environment, HEE）的体系结构规范。
 
