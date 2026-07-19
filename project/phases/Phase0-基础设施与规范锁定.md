@@ -162,7 +162,7 @@ DADAO-v5/
    - name = "DADAO-v5 wiki"
    - status = "frozen" 
    - 获取 DADAO-v5 仓库当前 git commit 作为锁定的 commit（git rev-parse HEAD）
-   - 从 README.md 读取各版本号（SimRISC 0.5.1, AEE/ABI 0.9.2, SEE/SBI 0.7.1, HEE/HBI 0.1.2）
+   - 从 README.md 读取各版本号（SimRISC 0.5.3, AEE/ABI 0.9.2, SEE/SBI 0.7.1, HEE/HBI 0.1.2）
    - foundation_included 清单列出当前 wiki 覆盖的范围
    - foundation_excluded 列出尚未覆盖的范围（参考已有的 11 份文档边界）
 
@@ -187,7 +187,7 @@ DADAO-v5/
 
 6. 创建空目录：`verif/`、`tests/`、`components/`、`project/reviews/`
 
-参考 DADAO-0628 的对应文件格式和结构，但所有内容基于 DADAO-v5 规范（SimRISC 0.5.1）重新编写。
+参考 DADAO-0628 的对应文件格式和结构，但所有内容基于 DADAO-v5 规范（SimRISC 0.5.3）重新编写。
 
 完成后返回创建的文件列表和关键决策。
 ```
