@@ -6,10 +6,11 @@
 
 ## 1. cg3 - hypv mode 寄存器
 
-每个核芯功能扩展中针对超管模式（hypv）有以下 12 个寄存器（cg=3）。这部分寄存器的读写，只有当前运行环境是 hypv 时才能进行，否则触发 CFXREG 异常。
+每个核芯功能扩展中针对超管模式（hypv）有以下 13 个寄存器（cg=3）。这部分寄存器的读写，只有当前运行环境是 hypv 时才能进行，否则触发 CFXREG 异常。
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
+| 3 | 0 | hypv global version | cfx_⟨cfxname⟩_hypv_global_version | 0x00010002 | RO | HEE 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.1.2。全局寄存器 |
 | 3 | 1 | hypv global cfx mask | cfx_⟨cfxname⟩_hypv_global_cfx_mask | 全0 | RW | 全局核芯功能扩展掩码，0=可触发，1=屏蔽。自身 cfxcode 对应位硬件忽略 |
 | 3 | 2 | hypv cfx2rd cfx mask | cfx_⟨cfxname⟩_hypv_cfx2rd_cfx_mask | 全0 | RW | cfx2rd 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxcode 对应位硬件忽略 |
 | 3 | 3 | hypv cfx2rc cfx mask | cfx_⟨cfxname⟩_hypv_cfx2rc_cfx_mask | 全0 | RW | cfx2rc 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxcode 对应位硬件忽略 |
