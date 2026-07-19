@@ -100,7 +100,7 @@ SimRISC 0.5.2版本的指令opcode布局如下。空白单元格表示 reserved�
 
 |           | xxxx-x000       | xxxx-x001       | xxxx-x010       | xxxx-x011       | xxxx-x100       | xxxx-x101       | xxxx-x110       | xxxx-x111     |
 | ---       | ---             | ---             | ---             | ---             | ---             | ---             | ---             | ---           |
-| 0000-0xxx | MISC-octa       |                 |                 | MISC-RF         | MISC-byte       | MISC-wyde       | MISC-tetra      | MISC-Norm      |
+| 0000-0xxx | MISC-octa       | MISC-tetra      | MISC-wyde       | MISC-byte       | MISC-AMO        | MISC-RF         |                 |               |
 | 0000-1xxx |                 |                 |                 |                 |                 |                 |                 |               |
 | 0001-0xxx |                 |                 |                 |                 |                 |                 |                 |               |
 | 0001-1xxx | or.w-rd-rwii    | andn.w-rd-rwii  | set.zw-rd-rwii  | set.ow-rd-rwii  | or.w-rb-rwii    | andn.w-rb-rwii  | set.zw-rb-rwii  | set.w-rf-rwii |
@@ -122,18 +122,18 @@ SimRISC 0.5.2版本的指令opcode布局如下。空白单元格表示 reserved�
 octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 
-|           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
-| ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
-| 000-xxx   | illi-oiii    |               |               |               |               |               |               |               |
-| 001-xxx   | and.o-orrr    | or.o-orrr     | xor.o-orrr    | xnor.o-orrr   |               |               |               |               |
-| 010-xxx   | ext.uo-orrr   | ext.so-orrr   | shr.uo-orrr   | shr.so-orrr   | shl.uo-orrr   |               |               |               |
-| 011-xxx   | ext.uo-orri   | ext.so-orri   | shr.uo-orri   | shr.so-orri   | shl.uo-orri   |               |               |               |
-| 100-xxx   |               |               |               |               |               |               |               |               |
-| 101-xxx   |               |               | cmp.uo-orrr   | cmp.so-orrr   |               |               |               |               |
-| 110-xxx   |               |               |               |               |               |               |               |               |
-| 111-xxx   | div.uo-orrr   | div.so-orrr   | rem.uo-orrr   | rem.so-orrr   |               |               |               |               |
+|           | xxx-000         | xxx-001         | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
+| ---       | ---             | ---             | ---           | ---           | ---           | ---           | ---           | ---           |
+| 000-xxx   | illi-oiii       |                 |               |               |               |               |               |               |
+| 001-xxx   | and.o-orrr      | or.o-orrr       | xor.o-orrr    | xnor.o-orrr   |               |               |               |               |
+| 010-xxx   | ext.uo-orrr     | ext.so-orrr     | shr.uo-orrr   | shr.so-orrr   | shl.uo-orrr   |               |               |               |
+| 011-xxx   | ext.uo-orri     | ext.so-orri     | shr.uo-orri   | shr.so-orri   | shl.uo-orri   |               |               |               |
+| 100-xxx   | add.so-rb-orrr  |                 |               |               |               |               |               |               |
+| 101-xxx   | sub.so-rb-orrr  | cmp.uo-rb-orrr  | cmp.uo-orrr   | cmp.so-orrr   | rd2rd-orri    | rd2rb-orri    | rb2rd-orri    | rb2rb-orri    |
+| 110-xxx   |                 |                 |               |               |               | rd2ra-orri    | ra2rd-orri    |               |
+| 111-xxx   | div.uo-orrr     | div.so-orrr     | rem.uo-orrr   | rem.so-orrr   |               | rd2rf-orri    | rf2rd-orri    |               |
 
-### MISC-Norm指令编码
+### MISC-AMO 指令编码
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 
@@ -144,24 +144,9 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | 010-xxx   | lr_nn.o-orrr | lr_nr.o-orrr | lr_an.o-orrr | lr_ar.o-orrr |             |             |             |             |
 | 011-xxx   | sc_nn.o-orrr | sc_nr.o-orrr | sc_an.o-orrr | sc_ar.o-orrr |             |             |             |             |
 | 100-xxx   |             |             |             |             |             |             |             |             |
-| 101-xxx   | rd2rd-orri  | rd2rb-orri  | rb2rd-orri  | rb2rb-orri  |             | cmp.uo-rb-orrr | add.so-rb-orrr | sub.so-rb-orrr |
-| 110-xxx   |             | rd2rf-orri  | rf2rd-orri  | rf2rf-orri  |             |             | cs.p1-orrr   | cs.np1-orrr  |
-| 111-xxx   |             | rd2ra-orri  | ra2rd-orri  |             |             |             |             |             |
-
-### MISC-RF指令编码
-
-空白单元格为 reserved，执行保留编码触发 UNDI 异常。
-
-|           | xxx-000     | xxx-001     | xxx-010     | xxx-011     | xxx-100     | xxx-101     | xxx-110     | xxx-111     |
-| ---       | ---         | ---         | ---         | ---         | ---         | ---         | ---         | ---         |
-| 000-xxx   | ftcls-orri  | ft2fo-orri  |             |             |             |             | ftroot-orri | ftlog-orri  |
-| 001-xxx   | focls-orri  | fo2ft-orri  |             |             |             |             | foroot-orri | folog-orri  |
-| 010-xxx   | ftadd-orrr  | ftsub-orrr  | ftmul-orrr  | ftdiv-orrr  | ftrem-orrr  | ftsclb-orrr | ftsgnn-orrr | ftsgnj-orrr |
-| 011-xxx   | foadd-orrr  | fosub-orrr  | fomul-orrr  | fodiv-orrr  | forem-orrr  | fosclb-orrr | fosgnn-orrr | fosgnj-orrr |
-| 100-xxx   | ftqcmp-orrr | ftscmp-orrr |             |             |             |             |             |             |
-| 101-xxx   | foqcmp-orrr | foscmp-orrr |             |             |             |             |             |             |
-| 110-xxx   | ft2it-orri  | ft2io-orri  | ft2ut-orri  | ft2uo-orri  | it2ft-orri  | io2ft-orri  | ut2ft-orri  | uo2ft-orri  |
-| 111-xxx   | fo2it-orri  | fo2io-orri  | fo2ut-orri  | fo2uo-orri  | it2fo-orri  | io2fo-orri  | ut2fo-orri  | uo2fo-orri  |
+| 101-xxx   |               |               |               |               |             |               |               |               |
+| 110-xxx   |             |               |               | rf2rf-orri  |             |             | cs.p1-orrr   | cs.np1-orrr  |
+| 111-xxx   |             |               |               |             |             |             |             |             |
 
 ### MISC-tetra指令编码
 
@@ -210,3 +195,18 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 | 101-xxx   | sub.ub-orrr   | sub.sb-orrr   | cmp.ub-orrr   | cmp.sb-orrr   |               |               |               |               |
 | 110-xxx   | mul.ub-orrr   | mul.sb-orrr   |               |               |               |               |               |               |
 | 111-xxx   | div.ub-orrr   | div.sb-orrr   | rem.ub-orrr   | rem.sb-orrr   |               |               |               |               |
+
+### MISC-RF指令编码
+
+空白单元格为 reserved，执行保留编码触发 UNDI 异常。
+
+|           | xxx-000     | xxx-001     | xxx-010     | xxx-011     | xxx-100     | xxx-101     | xxx-110     | xxx-111     |
+| ---       | ---         | ---         | ---         | ---         | ---         | ---         | ---         | ---         |
+| 000-xxx   | ftcls-orri  | ft2fo-orri  |             |             |             |             | ftroot-orri | ftlog-orri  |
+| 001-xxx   | focls-orri  | fo2ft-orri  |             |             |             |             | foroot-orri | folog-orri  |
+| 010-xxx   | ftadd-orrr  | ftsub-orrr  | ftmul-orrr  | ftdiv-orrr  | ftrem-orrr  | ftsclb-orrr | ftsgnn-orrr | ftsgnj-orrr |
+| 011-xxx   | foadd-orrr  | fosub-orrr  | fomul-orrr  | fodiv-orrr  | forem-orrr  | fosclb-orrr | fosgnn-orrr | fosgnj-orrr |
+| 100-xxx   | ftqcmp-orrr | ftscmp-orrr |             |             |             |             |             |             |
+| 101-xxx   | foqcmp-orrr | foscmp-orrr |             |             |             |             |             |             |
+| 110-xxx   | ft2it-orri  | ft2io-orri  | ft2ut-orri  | ft2uo-orri  | it2ft-orri  | io2ft-orri  | ut2ft-orri  | uo2ft-orri  |
+| 111-xxx   | fo2it-orri  | fo2io-orri  | fo2ut-orri  | fo2uo-orri  | it2fo-orri  | io2fo-orri  | ut2fo-orri  | uo2fo-orri  |
