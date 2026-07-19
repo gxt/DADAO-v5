@@ -129,7 +129,7 @@ let Predicates = [IsDadao] in {
 - 解析 DADAO 汇编语法
 - 处理所有指令格式（rrrr/rrri/rrii/riii/iiii/rwii/orrr/...）
 - 处理特殊操作数（, wpN, cfxcode）
-- 处理伪指令（nop, not, ret, setrd, setrb, setrf）
+- 处理伪指令（nop, not.b/w/t/o, ret, setrd, setrb, setrf）
 - 操作数验证（寄存器范围、立即数范围）
 
 **补丁 0006：反汇编器（MCDisassembler）**
@@ -146,7 +146,7 @@ let Predicates = [IsDadao] in {
 - 分支目标计算
 - 重定位支持（R_DADAO_24, R_DADAO_PC_24）
 
-参考 DADAO-0628 的对应补丁，但基于 SimRISC 0.5.1 的新编码表。
+参考 DADAO-0628 的对应补丁，但基于 SimRISC 0.5.3 的新编码表。
 关键差异：
 -brri 格式的  操作数（DADAO-0628 没有）
 - 更多浮点指令
@@ -174,7 +174,7 @@ let Predicates = [IsDadao] in {
 7. `orrr.s`  `orri.s`  `oiii.s`：minor-opcode 格式
 8. `brrr.s`  `brri.s`： 格式（新增）
 9. `ciii.s`  `crrr.s`  `crii.s`：cfx 格式（新增）
-10. `pseudo.s`：伪指令（nop, not, ret, setrd, setrb）
+10. `pseudo.s`：伪指令（nop, not.b/w/t/o, ret, setrd, setrb）
 11. `illegal.s`：非法编码和操作数
 
 每个测试文件使用：
