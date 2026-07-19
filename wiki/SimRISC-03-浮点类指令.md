@@ -240,15 +240,17 @@ cs.z    rdha, rfhb, rfhc, rfhd
 cs.p    rdha, rfhb, rfhc, rfhd
 ```
 
-第二类浮点条件赋值指令需要先判断`rdhb`的内容是否为`1`，如果条件成立则将`rfhd`的值赋值给`rfhc`，即 `if (rdhb ==/!= 1) rfhc = rfhd`。
-操作数类型为 `orrr`，指令如下：
+第二类浮点条件赋值指令需要先判断`rdha`与`rdhb`是否相等，如果条件成立则将`rfhd`的值赋值给`rfhc`，即 `if (rdha ==/!= rdhb) rfhc = rfhd`。
+操作数类型为 `rrrr`，指令如下：
 
 ```simrisc
-cs.p1   rdhb, rfhc, rfhd
-cs.np1  rdhb, rfhc, rfhd
+cs.eq   rdha, rdhb, rfhc, rfhd
+cs.ne   rdha, rdhb, rfhc, rfhd
 ```
 
-注意：第二类浮点条件赋值指令中判断的是否为正数1，需要判断其余63位是否为0，对应了浮点比较指令中`rfhc > rfhd`的比较结果。
+此类指令与浮点比较指令配合使用。浮点比较结果存放在 rd 寄存器中：`1`（大于）、`0`（等于）、`-1`（小于）、NaN（unordered）。当比较结果为 NaN 时，`cs.eq` 和 `cs.ne` 均执行 else 分支（NaN ≠ 1 且 NaN ≠ 0）。
+
+若要检测比较结果是否为 1（大于），先将 1 加载到某个 rd 寄存器，再与比较结果做 `cs.eq`；若要检测是否不为 0（不相等），用 `cs.ne` 判断即可。若在已确认结果为正数（通过 `cs.p` 排除 0 和 -1）的前提下需进一步区分正数 1 与 NaN，检查结果是否为 1（bits[63:1]=0 且 bit0=1），否则为 NaN。
 
 ## 浮点分类指令
 
