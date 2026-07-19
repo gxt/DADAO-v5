@@ -98,15 +98,15 @@ SimRISC 0.5.2版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0001-0xxx |                 |                 |                 |                 |                 |                 |                 |               |
 | 0001-1xxx | or.w-rd-rwii    | andn.w-rd-rwii  | set.zw-rd-rwii  | set.ow-rd-rwii  | or.w-rb-rwii    | andn.w-rb-rwii  | set.zw-rb-rwii  | set.w-rf-rwii |
 | 0010-0xxx | add.uo-rd-rrrr  | add.so-rd-rrrr  | sub.uo-rd-rrrr  | sub.so-rd-rrrr  | mul.uo-rd-rrrr  | mul.so-rd-rrrr  | ftmadd-rrrr     | fomadd-rrrr   |
-| 0010-1xxx | add.si-rd-rrii  | add.si-rb-rrii  | cmp.ui-rd-rrii  | cmp.si-rd-rrii  | rela.si-rb-riii |                 | cs.eq-rf-rrrr   | cs.ne-rf-rrrr  |
+| 0010-1xxx |                 | add.si-rd-rrii  | cmp.ui-rd-rrii  | cmp.si-rd-rrii  | rela.si-rb-riii | add.si-rb-rrii  | cs.eq-rf-rrrr   | cs.ne-rf-rrrr  |
 | 0011-0xxx | cs.n-rd-rrrr    | cs.n-rf-rrrr    | cs.z-rd-rrrr    | cs.z-rf-rrrr    | cs.p-rd-rrrr    | cs.p-rf-rrrr    | cs.eq-rd-rrrr   | cs.ne-rd-rrrr |
 | 0011-1xxx | br.n-riii       | br.nn-riii      | br.z-riii       | br.nz-riii      | br.p-riii       | br.np-riii      | br.eq-rrii      | br.ne-rrii    |
 | 0100-0xxx | ld.ub-rd-rrii   | ld.uw-rd-rrii   | ld.ut-rd-rrii   | ld.sb-rd-rrii   | ld.sw-rd-rrii   | ld.st-rd-rrii   | ld.t-rf-rrii    | st.t-rf-rrii  |
 | 0100-1xxx | st.b-rd-rrii    | st.w-rd-rrii    | st.t-rd-rrii    |                 |                 |                 |                 |               |
-| 0101-0xxx | ld.o-rd-rrii    | st.o-rd-rrii    | ld.o-rb-rrii    | st.o-rb-rrii    | ld.o-ra-rrii    | st.o-ra-rrii    | ld.o-rf-rrii    | st.o-rf-rrii  |
+| 0101-0xxx | ld.o-rd-rrii    | st.o-rd-rrii    | ld.o-ra-rrii    | st.o-ra-rrii    | ld.o-rb-rrii    | st.o-rb-rrii    | ld.o-rf-rrii    | st.o-rf-rrii  |
 | 0101-1xxx | ldm.ub-rd-rrri  | ldm.uw-rd-rrri  | ldm.ut-rd-rrri  | ldm.sb-rd-rrri  | ldm.sw-rd-rrri  | ldm.st-rd-rrri  | ldm.t-rf-rrri   | stm.t-rf-rrri |
 | 0110-0xxx | stm.b-rd-rrri   | stm.w-rd-rrri   | stm.t-rd-rrri   |                 |                 |                 |                 |               |
-| 0110-1xxx | ldm.o-rd-rrri   | stm.o-rd-rrri   | ldm.o-rb-rrri   | stm.o-rb-rrri   | ldm.o-ra-rrri   | stm.o-ra-rrri   | ldm.o-rf-rrri   | stm.o-rf-rrri |
+| 0110-1xxx | ldm.o-rd-rrri   | stm.o-rd-rrri   | ldm.o-ra-rrri   | stm.o-ra-rrri   | ldm.o-rb-rrri   | stm.o-rb-rrri   | ldm.o-rf-rrri   | stm.o-rf-rrri |
 | 0111-0xxx |                 |                 | jump-iiii       | jump-rrii       | call-iiii       | call-rrii       | ret-riii        | swym-iiii     |
 | 0111-1xxx |                 |                 | cfx2rd-crrr     | cfx2rc-crrr     | cfxld-crii      | cfxst-crii      | escape-ciii     | trap-ciii     |
 
@@ -122,8 +122,8 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | 010-xxx   | ext.uo-orrr     | ext.so-orrr     | shr.uo-orrr   | shr.so-orrr   | shl.uo-orrr   |               |               |               |
 | 011-xxx   | ext.uo-orri     | ext.so-orri     | shr.uo-orri   | shr.so-orri   | shl.uo-orri   |               |               |               |
 | 100-xxx   | add.so-rb-orrr  |                 |               |               |               |               |               |               |
-| 101-xxx   | sub.so-rb-orrr  | cmp.uo-rb-orrr  | cmp.uo-orrr   | cmp.so-orrr   | rd2rd-orri    | rd2rb-orri    | rb2rd-orri    | rb2rb-orri    |
-| 110-xxx   |                 |                 |               |               |               | rd2ra-orri    | ra2rd-orri    |               |
+| 101-xxx   | sub.so-rb-orrr  | cmp.uo-rb-orrr  | cmp.uo-orrr   | cmp.so-orrr   | rd2rd-orri    | rd2ra-orri    | ra2rd-orri    |               |
+| 110-xxx   |                 |                 |               |               | rb2rb-orri    | rd2rb-orri    | rb2rd-orri    |               |
 | 111-xxx   | div.uo-orrr     | div.so-orrr     | rem.uo-orrr   | rem.so-orrr   |               | rd2rf-orri    | rf2rd-orri    |               |
 
 ### MISC-tetra指令编码

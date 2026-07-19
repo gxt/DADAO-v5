@@ -102,7 +102,7 @@ or.w    rbha, wpN, immu16
 andn.w  rbha, wpN, immu16
 ```
 
-### setrb 伪指令
+#### setrb 伪指令
 
 `setrb` 是汇编器提供的伪指令，用于将立即数加载到 rb 寄存器，展开为 `set.zw-rb`、`or.w-rb`、`andn.w-rb` 的组合（rb 无 `set.ow` 变体）。
 
