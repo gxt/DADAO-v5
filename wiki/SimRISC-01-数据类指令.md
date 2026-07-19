@@ -110,7 +110,7 @@ andn.w   rdha, wpN, immu16
 > **注意**：`or.w` 同时是 MISC-wyde 表的三寄存器逻辑 OR 指令（`or.w rdhb, rdhc, rdhd`），汇编器按操作数格式区分。
 `andn.w` 指令：将 `rdha` 中由 `wpN` 指定的 wyde 替换为 `(rdha[wyde] & ~immu16)`，其余 wyde 保持不变。
 
-### setrd 伪指令
+#### setrd 伪指令
 
 `setrd` 不是硬件指令，而是汇编器提供的伪指令，用于将任意 64 位立即数加载到 rd 寄存器。汇编器将 `setrd` 展开为 1~4 条 rwii 格式指令。
 
