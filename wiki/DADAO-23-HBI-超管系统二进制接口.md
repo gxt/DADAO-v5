@@ -30,7 +30,7 @@ hypv 引导代码完成最小初始化后，按以下流程将控制权移交 su
 
 ```simrisc
 ; 清除各 cfx 的 cg reg delegation，允许 supv 访问所有 cg（cg3 固定禁止，bit3 硬件忽略写入）
-setrd   rd2, 0
+set.rd   rd2, 0
 cfx2rc  cfx_umon_hypv_cg_reg_deleg, rd2
 cfx2rc  cfx_jmon_hypv_cg_reg_deleg, rd2
 cfx2rc  cfx_smon_hypv_cg_reg_deleg, rd2
@@ -45,19 +45,19 @@ cfx2rc  cfx_uart_hypv_cg_reg_deleg, rd2
 cfx2rc  cfx_power_hypv_cg_reg_deleg, rd2
 
 ; 设置 cfx_power 的 excp_prev_run_mode 为 supv（值 2）
-setrd   rd2, 2
+set.rd   rd2, 2
 cfx2rc  cfx_power_excp_prev_run_mode, rd2
 
 ; 设置 excp_prev_cfx_mask 为全 1（不允许任何核芯功能扩展发生异常）
-setrd   rd2, -1
+set.rd   rd2, -1
 cfx2rc  cfx_power_excp_prev_cfx_mask, rd2
 
 ; 设置 excp_cause_ip 为 supv 入口物理地址（尚未开启 ptbr，应为物理地址）
-setrd   rd2, target_addr
+set.rd   rd2, target_addr
 cfx2rc  cfx_power_excp_cause_ip, rd2
 
 ; 传递设备树或硬件信息指针（0 表示无）
-setrb   rb16, fdt_addr
+set.rb   rb16, fdt_addr
 
 ; 执行 escape 跳转到 supv 入口
 escape cfx_power, 0

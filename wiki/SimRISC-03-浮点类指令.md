@@ -59,25 +59,25 @@ set.w    rfha, wpN, immu16
 `set.w` 指令只设置相应的16位，其余48位不变。
 因此，32位单精浮点（tetra）需要两条指令设置立即数的值，64位双精浮点（octa）则需要四条指令。
 
-### setrf 伪指令
+### set.rf 伪指令
 
-`setrf` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，直接展开为 `set.w` 的组合。
+`set.rf` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，直接展开为 `set.w` 的组合。
 
 ```simrisc
 ; 加载单精浮点 1.0（0x3F800000）→ 只需设置低 32 位
-setrf   rf1, 0x3F800000             ; 展开为：
+set.rf   rf1, 0x3F800000             ; 展开为：
                                       ;   set.w rf1, wp1, 0x3F80
                                       ;   set.w rf1, wp0, 0x0000
 
 ; 加载双精浮点 1.0（0x3FF0000000000000）
-setrf   rf1, 0x3FF0000000000000     ; 展开为：
+set.rf   rf1, 0x3FF0000000000000     ; 展开为：
                                       ;   set.w rf1, wp3, 0x3FF0
                                       ;   set.w rf1, wp2, 0x0000
                                       ;   set.w rf1, wp1, 0x0000
                                       ;   set.w rf1, wp0, 0x0000
 
 ; 加载零 → 将 rd0（恒为 0）赋值给 rf
-setrf   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
+set.rf   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
 ```
 
 **注**：加载全零时汇编器自动使用 `rd2rf` 从 `rd0` 拷贝。

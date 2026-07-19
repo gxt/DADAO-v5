@@ -110,9 +110,9 @@ andn.w   rdha, wpN, immu16
 > **注意**：`or.w` 同时是 MISC-wyde 表的三寄存器逻辑 OR 指令（`or.w rdhb, rdhc, rdhd`），汇编器按操作数格式区分。
 `andn.w` 指令：将 `rdha` 中由 `wpN` 指定的 wyde 替换为 `(rdha[wyde] & ~immu16)`，其余 wyde 保持不变。
 
-#### setrd 伪指令
+#### set.rd 伪指令
 
-`setrd` 不是硬件指令，而是汇编器提供的伪指令，用于将任意 64 位立即数加载到 rd 寄存器。汇编器将 `setrd` 展开为 1~4 条 rwii 格式指令。
+`set.rd` 不是硬件指令，而是汇编器提供的伪指令，用于将任意 64 位立即数加载到 rd 寄存器。汇编器将 `set.rd` 展开为 1~4 条 rwii 格式指令。
 
 **策略**：先通过 `set.ow` 或 `set.zw` 设置一个 wyde 的初始值（同时确定其余位的状态：`set.ow` 置 1、`set.zw` 清 0），再用 `or.w` 和 `andn.w` 修正剩余 wyde。
 
@@ -122,28 +122,28 @@ andn.w   rdha, wpN, immu16
 
 ```simrisc
 ; 加载零 → set.zw 即可覆盖全 64 位
-setrd   rd1, 0                     ; 展开为 set.zw rd1, wp0, 0
+set.rd   rd1, 0                     ; 展开为 set.zw rd1, wp0, 0
 
 ; 加载全 1（-1）→ set.ow 一条指令全 64 位置 1
-setrd   rd1, -1                    ; 展开为 set.ow rd1, wp0, 0xFFFF
+set.rd   rd1, -1                    ; 展开为 set.ow rd1, wp0, 0xFFFF
 
 ; 加载负数（利用 set.ow 将其余 48 位置 1 的特性，自动完成符号扩展）
-setrd   rd1, -42                   ; 展开为 set.ow rd1, wp0, 0xFFD6  (-42 的低 16 位)
+set.rd   rd1, -42                   ; 展开为 set.ow rd1, wp0, 0xFFD6  (-42 的低 16 位)
 
 ; 加载位掩码（高位全 1 的低 16 位掩码）
-setrd   rd1, 0xFFFFFFFFFFFFFFF0    ; 展开为 set.ow rd1, wp0, 0xFFF0
+set.rd   rd1, 0xFFFFFFFFFFFFFFF0    ; 展开为 set.ow rd1, wp0, 0xFFF0
 
 ; 加载 ~(1<<n) → set.ow 一条指令
-setrd   rd1, ~(1<<5)              ; 展开为 set.ow rd1, wp0, 0xFFDF
+set.rd   rd1, ~(1<<5)              ; 展开为 set.ow rd1, wp0, 0xFFDF
 
 ; 加载小正数（16 位以内）→ wp0 一条指令
-setrd   rd1, 42                    ; 展开为 set.zw rd1, wp0, 42
-setrd   rd1, 0x1234ABCD            ; 展开为：
+set.rd   rd1, 42                    ; 展开为 set.zw rd1, wp0, 42
+set.rd   rd1, 0x1234ABCD            ; 展开为：
                                     ;   set.zw rd1, wp1, 0x1234
                                     ;   or.w   rd1, wp0, 0xABCD
 
 ; 加载 64 位常数 → 分 4 个 wyde 依次设置
-setrd   rd1, 0xDEADBEEF_CAFEBABE  ; 展开为：
+set.rd   rd1, 0xDEADBEEF_CAFEBABE  ; 展开为：
                                     ;   set.zw rd1, wp3, 0xDEAD
                                     ;   or.w   rd1, wp2, 0xBEEF
                                     ;   or.w   rd1, wp1, 0xCAFE
@@ -156,12 +156,12 @@ setrd   rd1, 0xDEADBEEF_CAFEBABE  ; 展开为：
 2. 若连续 wyde 值相同（如高 48 位全 0），填充初始 wyde 后 `or.w` 补充剩余差异。
 3. 一般情况：`set.zw`/`set.ow` 设置一个基数 wyde，其余 wyde 用 `or.w` 设 1、`andn.w` 清 0。
 
-**寄存器传值**：`setrd rd, rs` 也可用于从 rb、rf 寄存器传值至 rd，汇编器根据源寄存器类型展开为单条块赋值指令：
+**寄存器传值**：`set.rd rd, rs` 也可用于从 rb、rf 寄存器传值至 rd，汇编器根据源寄存器类型展开为单条块赋值指令：
 
 ```simrisc
-setrd   rd5, rb3       ; 展开为 rb2rd rd5, rb3, 1
-setrd   rd2, rf7       ; 展开为 rf2rd rd2, rf7, 1
-setrd   rd8, rd3       ; 展开为 rd2rd rd8, rd3, 1
+set.rd   rd5, rb3       ; 展开为 rb2rd rd5, rb3, 1
+set.rd   rd2, rf7       ; 展开为 rf2rd rd2, rf7, 1
+set.rd   rd8, rd3       ; 展开为 rd2rd rd8, rd3, 1
 ```
 
 ### 条件赋值：Conditional Assignment
