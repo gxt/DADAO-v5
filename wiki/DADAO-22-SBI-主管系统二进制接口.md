@@ -368,7 +368,7 @@ cfx_tlb_ptw_delegate:
     and.o   rd40, rd40, rd31                          ; 按掩码对齐至页面起始
     cfx2rc  cfx_tlb_addr_start, rd40
     not     rd16, rd31
-    add.si    rd16, rd16, 1                             ; addr_size = ~mask + 1
+    add.si    rd16, 1                             ; addr_size = ~mask + 1
     cfx2rc  cfx_tlb_addr_size, rd16
     setrd   rd2, 2
     cfx2rc  cfx_tlb_control, rd2                      ; bit1 = invalid by addr
@@ -828,7 +828,7 @@ cfx_umon_user_excp_handler:
     br.eq    rd2, rd3, syscall_handler               ; CFXTRAP (1<<0)
     setrd   rd3, 256
     br.eq    rd2, rd3, illi_handler                  ; ILLI (1<<8)
-    setzw   rd3, wp2, 1                             ; rd3 = 1<<32
+    set.zw   rd3, wp2, 1                             ; rd3 = 1<<32
     br.eq    rd2, rd3, fpexcp_handler                ; FPEXCP (1<<32)
     ; 默认：未处理异常
     escape cfx_umon, 1

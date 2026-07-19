@@ -396,7 +396,7 @@ setrd rdxx, rfyy
 setrd rdxx, rayy
 ```
 
-一个64位立即数由4个wyde组成，因此，64位立即数的设置通常会先用setzw/setow设置其中一个wyde，然后orw/andnw进行其它wyde的改动。
+一个64位立即数由4个wyde组成，因此，64位立即数的设置通常会先用 `set.zw`/`set.ow` 设置其中一个wyde，然后 `or.w`/`andn.w` 进行其它wyde的改动。详细展开规则见 SimRISC-01 § setrd 伪指令。
 对于16位的short类型，可以转换为一条指令完成；对于32位的int类型，也只需要两条指令。
 
 `setrb`伪指令将64位立即数、symbol的绝对地址或另一个rd或rb寄存器的值赋给`rbxx`寄存器。
@@ -463,7 +463,7 @@ cfx_tlb_inv_loop:
     cfx2rc  cfx_tlb_addr_size, rd3
     setrd   rd4, 2                 ; bit1 = invalid by addr range
     cfx2rc  cfx_tlb_control, rd4
-    add.si    rd2, rd2, 1
+    add.si    rd2, 1
     setrd   rd3, 16
     cmp.so  rd5, rd2, rd3          ; rd5 = rd2 < rd3 ?
     br.n     rd5, cfx_tlb_inv_loop
