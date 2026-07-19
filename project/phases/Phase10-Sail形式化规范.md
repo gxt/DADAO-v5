@@ -48,19 +48,19 @@ DADAO-v5/sail/
 
 2. 创建 `dadao_types.sail`：
 ```sail
-// DADAO 基本类型
-type word = bits(32)    // 指令字
-type xlen = bits(64)    // 64 位架构
-type address = bits(48) // 有效地址
+/ DADAO 基本类型
+type word = bits(32)    / 指令字
+type xlen = bits(64)    / 64 位架构
+type address = bits(48) / 有效地址
 
-// 异常类型
+/ 异常类型
 union clause ast = Fault : {
     ILLI, UNDI, MALIGN, IALIGN,
     RASOF, RASUF, FPEXCP,
     CFXTRAP, CFXMEM, CFXREG
 }
 
-// 条件标志
+/ 条件标志
 union clause ast = Condition : {
     N, NN, Z, NZ, P, NP, EQ, NE
 }
@@ -68,20 +68,20 @@ union clause ast = Condition : {
 
 3. 创建 `dadao_state.sail`：
 ```sail
-// 寄存器状态
-register rd : vector(64, dec, xlen)  // 数据寄存器
-register rb : vector(64, dec, xlen)  // 基址寄存器
-register rf : vector(64, dec, xlen)  // 浮点寄存器
-register ra : vector(64, dec, xlen)  // 返回地址栈
-register PC : xlen                    // 程序计数器
+/ 寄存器状态
+register rd : vector(64, dec, xlen)  / 数据寄存器
+register rb : vector(64, dec, xlen)  / 基址寄存器
+register rf : vector(64, dec, xlen)  / 浮点寄存器
+register ra : vector(64, dec, xlen)  / 返回地址栈
+register PC : xlen                    / 程序计数器
 
-// rd0 硬连线为零
+/ rd0 硬连线为零
 function rd0() -> xlen = ZERO
 
-// rb0 = PC + 4
+/ rb0 = PC + 4
 function rb0() -> xlen = PC + 4
 
-// 异常状态寄存器
+/ 异常状态寄存器
 register cur_excp : option(Fault)
 ```
 
@@ -95,7 +95,7 @@ module dadao_main
 
 5. 创建 `build.sh`：sail -c → gcc → 生成 `dadao_sail_sim`
 
-参考 DADAO-0628/sail/ 的文件结构，但基于 SimRISC 0.5.1 规范重写。
+参考 DADAO-0628/sail 的文件结构，但基于 SimRISC 0.5.1 规范重写。
 ```
 
 ### Agent K2：Sail 指令语义
@@ -114,21 +114,21 @@ module dadao_main
 
 架构模式（以 add-rd-rrrr 为例）：
 ```sail
-// 从 opcodes.yaml 生成编码子句
+/ 从 opcodes.yaml 生成编码子句
 mapping clause encdec = (0x1A @ 0x0C @ 0x40 @ 0x42) <-> add_rd_rrrr(rdha, rdhb, rdhc, rdhd)
-    if { /* 编码约束 */ }
+    if { /* 编码约束 * }
 
-// 指令语义
+/ 指令语义
 function clause execute(add_rd_rrrr(rdha, rdhb, rdhc, rdhd)) = {
-    // ILLI 检查：rdha == rd0 且 rdhb == rd0 → ILLI
-    // ILLI 检查：rdha == rdhb 且 rdha != rd0 → ILLI
+    / ILLI 检查：rdha == rd0 且 rdhb == rd0 → ILLI
+    / ILLI 检查：rdha == rdhb 且 rdha != rd0 → ILLI
     let val_rdhc = Rd(rdhc);
     let val_rdhd = Rd(rdhd);
     let result_128 = EXTEND128(val_rdhc, signed) + EXTEND128(val_rdhd, signed);
     
-    // 写结果（先读再写）
-    if rdha != 0 then Rd(rdha) = result_128[127..64];  // 高 64 位
-    if rdhb != 0 then Rd(rdhb) = result_128[63..0];    // 低 64 位
+    / 写结果（先读再写）
+    if rdha != 0 then Rd(rdha) = result_128[127..64];  / 高 64 位
+    if rdhb != 0 then Rd(rdhb) = result_128[63..0];    / 低 64 位
 }
 ```
 
@@ -182,7 +182,7 @@ function clause execute(add_rd_rrrr(rdha, rdhb, rdhc, rdhd)) = {
 总计: 198/200 AGREE, 0 DIVERGE, 2 SKIP
 ```
 
-参考 DADAO-0628/sail/c_harness/ 和 run_sail_test.py。
+参考 DADAO-0628/sail/c_harness 和 run_sail_test.py。
 ```
 
 ## 阶段验证

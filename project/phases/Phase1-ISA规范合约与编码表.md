@@ -11,12 +11,12 @@
 | 文件 | 用途 | 关键内容 |
 |------|------|---------|
 | `SimRISC-00-指令系统设计.md` | 指令编码设计、指令格式、QFC 编码表 | 所有 13 种操作数格式、opcode 布局、MISC-Norm/MISC-RF 子编码表、标识位定义 |
-| `SimRISC-01-数据类指令.md` | RD 寄存器组的所有指令语义 | 存取（单/多）、赋值（块/立即数/条件）、算术（add/sub/mul/div/cmp）、逻辑（and/or/xor/xnor）、移位（shl/shr/ext）、wyde 块操作、brrr/brri 格式的 bpN 参数 |
+| `SimRISC-01-数据类指令.md` | RD 寄存器组的所有指令语义 | 存取（单/多）、赋值（块/立即数/条件）、算术（add/sub/mul/div/cmp）、逻辑（and/or/xor/xnor）、移位（shl/shr/ext）、wyde 块操作、brrr 格式的  参数 |
 | `SimRISC-02-地址类指令.md` | RB/RA 寄存器组指令、控制流 | RB 存取、RA 存取、块赋值（rb2rd/rd2rb/rb2rb/ra2rd/rd2ra）、RB 算术（add/sub/addi/rela/cmp）、控制流（br/jump/call/ret）、48 位地址语义 |
 | `SimRISC-03-浮点类指令.md` | RF 寄存器组指令 | RF 存取（单精/双精）、块赋值、转换指令、浮点运算（fadd/fsub/fmul/fdiv...）、IEEE 754 支持 |
 | `SimRISC-04-系统类指令.md` | 系统指令 | swym、illi、fence、lro/sco（原子操作）、cfx 特权指令（trap/escape/cfx2rd/cfx2rc/cfxld/cfxst） |
 | `DADAO-11-AEE-应用程序运行环境.md` | 寄存器模型 | rd0 硬连线零、rb0=PC、rf0=FCSR、RA 栈（RegRAS + MemRAS）、RASOF/RASUF |
-| `AGENTS.md` | 命名约定 | bpN/wpN/pmem/illi 等命名规则、指令格式后缀 |
+| `AGENTS.md` | 命名约定 | /wpN/pmem/illi 等命名规则、指令格式后缀 |
 
 ## 参考文件（DADAO-0628）
 
@@ -50,7 +50,7 @@ DADAO-v5/
 
 **提示词**：
 ```
-你是 DADAO-v5 的 ISA 规范工程师。从 DADAO-v5/wiki/ 下的 wiki 规范文档提取并创建合约文件。
+你是 DADAO-v5 的 ISA 规范工程师。从 DADAO-v5/wiki 下的 wiki 规范文档提取并创建合约文件。
 
 请读取以下输入文件并创建 `contracts/isa/spec.md`：
 
@@ -80,15 +80,15 @@ spec.md 的要求：
    - 附录 B：条件标志参考
    - 附录 C：未解决/开放问题
 4. **重要差异**（对比 DADAO-0628 的 SimRISC 0.4.1）：
-   - brrr/brri 格式新增（bpN 参数，bit position）
+   -brri 格式新增（ 参数，）
    - divs/divu 新增 brrr 格式变体
    - rems/remu 新增（除法取余）
    - cmps/cmpu 新增 brrr 格式变体
    - muls/mulu 新增 brrr 格式变体
    - add/sub 新增 brrr 格式变体
    - and/or/xor/xnor 由 rrrr 改为 brrr 格式
-   - shlu/shrs/shru 新增 brrr/brri 格式
-   - exts/extz 新增 brrr/brri 格式
+   - shlu/shrs/shru 新增brri 格式
+   - exts/extz 新增brri 格式
    - 浮点指令完整表（SimRISC-03）
    - LR-SC 指令（SimRISC-04）
    - fence 指令
@@ -131,7 +131,7 @@ spec.md 的要求：
   ha: "xxx000"            # 当 ha 有固定值时标注
   mask: "0x00000000"      # 编码 mask（1=相关位）
   value: "0x00000000"     # 编码 value
-  fields: ["bpN", "rdhb", "rdhc", "rdhd"]  # 操作数字段
+  fields: ["", "rdhb", "rdhc", "rdhd"]  # 操作数字段
   legality:               # 合法性约束
     - rule: rd_dest_rd0
       msg: "rdhb cannot be rd0"
@@ -143,14 +143,14 @@ spec.md 的要求：
    - MISC-Norm 子编码表所有非空条目
    - MISC-RF 子编码表所有非空条目
    - 主 QFC 表所有非空条目
-2. **指令命名**：用 `-rd`/`-rb`/`-rf`/`-ra` 后缀区分同一助记符不同 bank 版本（如 `add-rd-brrr`、`add-rb-orrr`、`addi-rd-rrii`、`addi-rb-rrii`）
+2. **指令命名**：用 `-rd`/`-rb`/`-rf`/`-ra` 后缀区分同一助记符不同 bank 版本（如 `add-rd-orrr`、`add-rb-orrr`、`addi-rd-rrii`、`addi-rb-rrii`）
 3. **格式后缀**：遵循 AGENTS.md 的指令格式后缀规范
 4. **mask/value 计算**：严格按照指令的 op 位和 ha/hb 固定值计算，参考 DADAO-0628/opcodes.yaml 的格式
 5. **legality 清单**：每条指令标注适用的合法性规则
 6. **field 描述**：按 ha/hb/hc/hd 的顺序标注字段类型
 
 注意：DADAO-v5 的 SimRISC 0.5.1 比 0.4.1 新增了以下指令族：
-- brrr/brri 格式变体（add/sub/cmps/cmpu/muls/mulu/divs/divu/rems/remu/and/or/xor/xnor/shl/shr/ext）
+-brri 格式变体（add/sub/cmps/cmpu/muls/mulu/divs/divu/rems/remu/and/or/xor/xnor/shl/shr/ext）
 - 完整 RF 指令（浮点运算、转换）
 - LR-SC 原子指令
 - fence 指令
@@ -198,16 +198,16 @@ rules:
 - rb0 写检查（所有指令）
 - rf0 操作检查（作为操作数参与运算）
 - store_src_rd0 检查
-- dual_dest 检查（同时为 rd0 / 同一非零寄存器）
+- dual_dest 检查（同时为 rd0  同一非零寄存器）
 - rb_base_rb0_store 检查
 - multi_immu6_zero 检查
 - multi_range_overflow 检查（first + count > 64）
 - data_malign（各宽度对齐要求）
 - imm_range 检查（各格式立即数范围）
-- shamt_overflow（shamt > bpN）
-- ext_bit_overflow（hd > bpN）
+- shamt_overflow（shamt > ）
+- ext_bit_overflow（hd > ）
 - div_by_zero（除法/取余除数为零）
-- div_overflow（INT64_MIN / -1）
+- div_overflow（INT64_MIN  -1）
 - reserved_undi（保留编码）
 - instruction_align（IALIGN）
 - sbz_nonzero（SBZ 域非零，deferred）
@@ -225,7 +225,7 @@ rules:
 - 检查每条指令的 mask/value 是否合法（无重叠冲突）
 - 检查保留编码是否被意外分配
 - 检查没有两条指令共享相同的 mask/value
-- 输出检查结果（PASS / FAIL + 详情）
+- 输出检查结果（PASS  FAIL + 详情）
 
 参考 DADAO-0628/tools/validate_encoding.py 的实现风格。
 ```

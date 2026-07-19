@@ -57,7 +57,7 @@ DADAO-v5/
 ```
 你是 DADAO-v5 的测试基础设施工程师。创建测试向量的 schema 定义和框架文件。
 
-基于 DADAO-0628/tests/vectors/ 的类似文件，但针对 SimRISC 0.5.1 更新。
+基于 DADAO-0628/tests/vectors 的类似文件，但针对 SimRISC 0.5.1 更新。
 
 1. 创建 `tests/vectors/README.md`：
    - 说明向量来源（wiki 规范，非 LLVM/QEMU）
@@ -80,10 +80,10 @@ DADAO-v5/
    - 对比 DADAO-0628 （87 条）扩展到 ~150+ 条
    - 标注新增加指令
 
-4. 创建空的 YAML 文件占位（在 tests/vectors/isa/ 下）
+4. 创建空的 YAML 文件占位（在 tests/vectors/isa 下）
 
 参考 DADAO-0628 对应文件，但 schema 要适应 SimRISC 0.5.1 新增特性：
-- brrr/brri 格式的 bpN 参数
+-brri 格式的  参数
 - 浮点寄存器状态（rf[64]）
 - 返回地址栈（ra[64]）
 - 系统指令的 cfxcode 字段
@@ -123,22 +123,22 @@ DADAO-v5/
 ### 必须覆盖的指令列表（按文件分）
 
 **rd-arith.yaml**（RD 算术）：
-add-rd-brrr, sub-rd-brrr, add-rd-rrrr, sub-rd-rrrr,
+add-rd-orrr, sub-rd-orrr, add-rd-rrrr, sub-rd-rrrr,
 addi-rd-rrii,
-mulu-rd-brrr, muls-rd-brrr, mulu-rd-rrrr, muls-rd-rrrr,
-divu-rd-brrr, divs-rd-brrr, remu-rd-brrr, rems-rd-brrr,
+mulu-rd-orrr, muls-rd-orrr, mulu-rd-rrrr, muls-rd-rrrr,
+divu-rd-orrr, divs-rd-orrr, remu-rd-orrr, rems-rd-orrr,
 
 **rd-compare.yaml** 扩展（RD 比较）：
-cmpu-rd-brrr, cmps-rd-brrr, cmpu-rd-rrii, cmps-rd-rrii
+cmpu-rd-orrr, cmps-rd-orrr, cmpu-rd-rrii, cmps-rd-rrii
 
 **rd-logic.yaml**（RD 逻辑，注意格式改为 brrr）：
-and-rd-brrr, orr-rd-brrr, xor-rd-brrr, xnor-rd-brrr
+and-rd-orrr, orr-rd-orrr, xor-rd-orrr, xnor-rd-orrr
 
 **rd-shift-extend.yaml**（RD 移位/扩展）：
-shlu-rd-brrr, shrs-rd-brrr, shru-rd-brrr,
-shlu-rd-brri, shrs-rd-brri, shru-rd-brri,
-exts-rd-brrr, extz-rd-brrr,
-exts-rd-brri, extz-rd-brri
+shlu-rd-orrr, shrs-rd-orrr, shru-rd-orrr,
+shlu-rd-orri, shrs-rd-orri, shru-rd-orri,
+exts-rd-orrr, extz-rd-orrr,
+exts-rd-orri, extz-rd-orri
 
 **rd-cond-assign.yaml**（条件赋值）：
 csn-rd-rrrr, csz-rd-rrrr, csp-rd-rrrr, cseq-rd-rrrr, csne-rd-rrrr

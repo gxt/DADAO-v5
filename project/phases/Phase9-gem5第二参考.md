@@ -80,7 +80,7 @@ DADAO-v5/components/gem5/patches/
 
 **补丁 0004：ALU 指令**
 - RD 算术（add/sub/mul/div/rem + 各种格式）
-- RD 逻辑（and/or/xor/xnor，brrr 格式的 bpN）
+- RD 逻辑（and/or/xor/xnor，brrr 格式的 ）
 - RD 移位（shlu/shrs/shru）
 - RD 扩展（exts/extz）
 - RD 比较（cmps/cmpu）

@@ -42,7 +42,7 @@ DADAO-v5/
 │   │   └── smoke_ras.s            # RAS 栈测试
 │   ├── lit/
 │   │   ├── MC/
-│   │   │   └── Dadao/             # LLVM MC 测试（来自 Phase 6）
+│   │   │   └── Dadao             # LLVM MC 测试（来自 Phase 6）
 │   │   └── E2E/
 │   │       ├── lit.cfg            # LIT 配置
 │   │       └── *.test             # E2E LIT 测试
@@ -179,7 +179,7 @@ SECTIONS {
 
 2. 创建 `scripts/check_codegen_abi.py`：
    - 读取 `verif/abi.yaml`（ABI 事实）
-   - 读取 LLVM 后端生成的 CallingConv.td / RegisterInfo.td
+   - 读取 LLVM 后端生成的 CallingConv.td  RegisterInfo.td
    - 比对：参数寄存器集、callee-saved 寄存器集、DataLayout
    - 输出比对结果（匹配/不匹配）
 

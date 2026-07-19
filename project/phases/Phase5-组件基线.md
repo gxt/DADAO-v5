@@ -99,11 +99,11 @@ DADAO-v5/
    - `make fetch`：获取所有 enabled 组件到 .work/
    - `make apply-series`：应用补丁
    - `make prepare`：fetch + apply-series
-   - `make build-llvm` / `make build-qemu`（骨架）
+   - `make build-llvm`  `make build-qemu`（骨架）
 
 6. 创建补丁生成指南补丁：
    在 `scripts/` 下创建 `make_patch.py`：
-   - 在 .work/source/<name>/ 中修改文件后生成 unified diff
+   - 在 .work/source/<name> 中修改文件后生成 unified diff
    - 自动编号并添加到 patches/series
 ```
 
@@ -126,7 +126,7 @@ DADAO-v5/
 2. 添加 Makefile target：
    - `make docker-image`：构建开发镜像
    - `make docker-shell`：在容器中启动 shell
-   - 将 .work/ 目录映射到容器外（保持可复现）
+   - 将 .work 目录映射到容器外（保持可复现）
 
 3. 创建 `scripts/doctor.py` 更新：
    - 检查 cmake, ninja 是否安装

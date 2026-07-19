@@ -85,63 +85,63 @@ DADAO-v5/verif/
    **RD 算术**（6 条）：
    - `add-rd-rrrr`：128 位加法，双目标（rdha=高64，rdhb=低64）
    - `sub-rd-rrrr`：128 位减法，双目标
-   - `muls-rd-rrrr` / `mulu-rd-rrrr`：128 位乘法
-   - `divs-rd-rrrr` / `divu-rd-rrrr`：64 位除法，双目标（rdha=余数，rdhb=商）
+   - `muls-rd-rrrr`  `mulu-rd-rrrr`：128 位乘法
+   - `divs-rd-rrrr`  `divu-rd-rrrr`：64 位除法，双目标（rdha=余数，rdhb=商）
    - `addi-rd-rrii`：64 位加立即数（符号扩展 12 位）
-   - `add-rd-brrr` / `sub-rd-brrr`：带 bit position 的加减
-   - `muls-rd-brrr` / `mulu-rd-brrr`：带 bit position 的乘
-   - `divs-rd-brrr` / `divu-rd-brrr`：带 bit position 的除
-   - `rems-rd-brrr` / `remu-rd-brrr`：带 bit position 的取余
+   - `add-rd-orrr`  `sub-rd-orrr`：带  的加减
+   - `muls-rd-orrr`  `mulu-rd-orrr`：带  的乘
+   - `divs-rd-orrr`  `divu-rd-orrr`：带  的除
+   - `rems-rd-orrr`  `remu-rd-orrr`：带  的取余
 
    **RD 比较**（4 条）：
-   - `cmps-rd-rrii` / `cmpu-rd-rrii`：比较，结果 -1/0/1
-   - `cmps-rd-brrr` / `cmpu-rd-brrr`：带 bit position 的比较
+   - `cmps-rd-rrii`  `cmpu-rd-rrii`：比较，结果 -1/0/1
+   - `cmps-rd-orrr`  `cmpu-rd-orrr`：带  的比较
 
    **RD 逻辑**（4 条）：
-   - `and-rd-brrr` / `orr-rd-brrr` / `xor-rd-brrr` / `xnor-rd-brrr`：按 bpN 操作，高位不变
+   - `and-rd-orrr`  `orr-rd-orrr`  `xor-rd-orrr`  `xnor-rd-orrr`：按  操作，高位不变
 
    **RD 移位**（6 条）：
-   - `shlu-rd-brrr` / `shrs-rd-brrr` / `shru-rd-brrr`：寄存器移位量
-   - `shlu-rd-brri` / `shrs-rd-brri` / `shru-rd-brri`：立即数移位量
+   - `shlu-rd-orrr`  `shrs-rd-orrr`  `shru-rd-orrr`：寄存器移位量
+   - `shlu-rd-orri`  `shrs-rd-orri`  `shru-rd-orri`：立即数移位量
 
    **RD 扩展**（4 条）：
-   - `exts-rd-brrr` / `extz-rd-brrr`：寄存器指定最高位
-   - `exts-rd-brri` / `extz-rd-brri`：立即数指定最高位
+   - `exts-rd-orrr`  `extz-rd-orrr`：寄存器指定最高位
+   - `exts-rd-orri`  `extz-rd-orri`：立即数指定最高位
 
    **RD 条件赋值**（5 条）：
-   - `csn-rd-rrrr` / `csz-rd-rrrr` / `csp-rd-rrrr`：if (rdha N/Z/P) rdhb=rdhc else rdhb=rdhd
-   - `cseq-rd-rrrr` / `csne-rd-rrrr`：if (rdha==/!=rdhb) rdhc=rdhd
+   - `csn-rd-rrrr`  `csz-rd-rrrr`  `csp-rd-rrrr`：if (rdha N/Z/P) rdhb=rdhc else rdhb=rdhd
+   - `cseq-rd-rrrr`  `csne-rd-rrrr`：if (rdha==/!=rdhb) rdhc=rdhd
 
    **RD 加载/存储**（12+12 条）：
-   - `ldbs` / `ldbu` / `ldws` / `ldwu` / `ldts` / `ldtu` / `ldo`：单 load
-   - `stb` / `stw` / `stt` / `sto`：单 store
+   - `ldbs`  `ldbu`  `ldws`  `ldwu`  `ldts`  `ldtu`  `ldo`：单 load
+   - `stb`  `stw`  `stt`  `sto`：单 store
    - `ldmbs`~`ldmo`、`stmb`~`stmo`：多 load/store
 
    **RB 操作**（12 条）：
-   - `add-rb-orrr` / `sub-rb-orrr`：48 位加法，高 16 位不变
+   - `add-rb-orrr`  `sub-rb-orrr`：48 位加法，高 16 位不变
    - `addi-rb-rrii`：48 位加立即数
    - `cmp-rb-orrr`：48 位无符号比较
    - `rela-rb-riii`：PC 相对寻址（imms18 << 12 + PC[47:12]<<12）
-   - `ldo-rb-rrii` / `sto-rb-rrii`：RB 存取
-   - `ldmo-rb-rrri` / `stmo-rb-rrri`：RB 多存取
-   - `setzw-rb-rwii` / `orw-rb-rwii` / `andnw-rb-rwii`：RB wyde 立即数
+   - `ldo-rb-rrii`  `sto-rb-rrii`：RB 存取
+   - `ldmo-rb-rrri`  `stmo-rb-rrri`：RB 多存取
+   - `setzw-rb-rwii`  `orw-rb-rwii`  `andnw-rb-rwii`：RB wyde 立即数
 
    **RA 操作**（6 条）：
-   - `ldo-ra-rrii` / `sto-ra-rrii` / `ldmo-ra-rrri` / `stmo-ra-rrri`
-   - `rd2ra-orri` / `ra2rd-orri`
+   - `ldo-ra-rrii`  `sto-ra-rrii`  `ldmo-ra-rrri`  `stmo-ra-rrri`
+   - `rd2ra-orri`  `ra2rd-orri`
 
    **RF 操作**（4 条）：
-   - `ldt-rf-rrii` / `stt-rf-rrii`（单精 32 位）
-   - `ldo-rf-rrii` / `sto-rf-rrii`（双精 64 位）
-   - `ldmt-rf-rrri` / `stmt-rf-rrri`（多单精）
-   - `ldmo-rf-rrri` / `stmo-rf-rrri`（多双精）
-   - `rf2rd-orri` / `rd2rf-orri` / `rf2rf-orri`
+   - `ldt-rf-rrii`  `stt-rf-rrii`（单精 32 位）
+   - `ldo-rf-rrii`  `sto-rf-rrii`（双精 64 位）
+   - `ldmt-rf-rrri`  `stmt-rf-rrri`（多单精）
+   - `ldmo-rf-rrri`  `stmo-rf-rrri`（多双精）
+   - `rf2rd-orri`  `rd2rf-orri`  `rf2rf-orri`
 
    **控制流**（10 条）：
-   - `brn` / `brnn` / `brz` / `brnz` / `brp` / `brnp`：单寄存器分支（riii）
-   - `breq` / `brne`：双寄存器分支（rrii）
-   - `jump-iiii` / `jump-rrii`：无条件跳转
-   - `call-iiii` / `call-rrii`：函数调用 + RAS push
+   - `brn`  `brnn`  `brz`  `brnz`  `brp`  `brnp`：单寄存器分支（riii）
+   - `breq`  `brne`：双寄存器分支（rrii）
+   - `jump-iiii`  `jump-rrii`：无条件跳转
+   - `call-iiii`  `call-rrii`：函数调用 + RAS push
    - `ret-riii`：函数返回 + RAS pop + 返回值赋值
 
    **浮点转换**（20 条，先 skeleton，M3 填充语义）：
@@ -154,8 +154,8 @@ DADAO-v5/verif/
    - `swym-iiii`：NOP
    - `illi-oiii`：触发 ILLI
    - `fence-oiii`：NOP（无模型需要）
-   - `lro_*` / `sco_*`：LR-SC（skeleton）
-   - `cfx2rd` / `cfx2rc` / `cfxld` / `cfxst` / `trap` / `escape`：skeleton
+   - `lro_*`  `sco_*`：LR-SC（skeleton）
+   - `cfx2rd`  `cfx2rc`  `cfxld`  `cfxst`  `trap`  `escape`：skeleton
 
 6. **RAS 实现**（关键——这是 DADAO 最重要最复杂的特性之一）：
    - push（call 时）：检查 ra63 引用计数，决定直接压栈/递归递增/移位压栈/MemRAS
@@ -175,7 +175,7 @@ DADAO-v5/verif/
    - ldws/stw/ldwu：2 字节对齐
    - ldbs/stb/ldbu：无要求
 
-9. **step() / run()** 接口：
+9. **step()  run()** 接口：
    - step()：取指 → 解码 → 合法性检查 → 执行 → 更新 PC
    - run(nsteps=1)：连续执行 N 步
    - run_until(addr)：执行到指定地址
@@ -248,7 +248,7 @@ TOTAL:                320/350 PASS, 0 MISMATCH, 30 SKIP-unsupported, 0 SKIP-harn
 2. 读取 tests/vectors/isa/*.yaml 测试向量
 3. 对每个向量，用 golden model 运行并记录结果
 4. 结果格式标准化（JSON 序列化），便于后续 QEMU/gem5 列加入
-5. 输出表格：AGREE / DIVERGE / SKIP
+5. 输出表格：AGREE  DIVERGE  SKIP
 
 初始版本只有 golden model 一列，但数据结构设计为可扩展：
 ```python

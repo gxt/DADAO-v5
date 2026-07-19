@@ -1,3 +1,68 @@
+# DADAO-v5 全流程复现计划
+
+本计划参照 DADAO-0628 的完整实现流程，基于 DADAO-v5/wiki 的 11 份规范文档（SimRISC 0.5.3），规划从零开始的完整全栈实现。
+
+## 项目定位
+
+**DADAO-v5** 基于更新版本的规范文档（SimRISC 0.5.3 vs 0.4.1），相比 DADAO-0628 新增了：
+- **完整浮点支持**：SimRISC-03 定义了 ~60 条浮点指令（运算、转换、块操作）
+- **系统指令扩展**：fence、LR-SC 原子操作、cfx 特权指令族
+- **RA 寄存器操作**：ldo-ra/sto-ra、rd2ra/ra2rd
+- **RF 寄存器操作**：ldt/stt/ldmt/stmt、ldmo/stmo-rf
+
+## 11 阶段总览
+
+| 阶段 | 名称 | 对应 DADAO-0628 | 关键交付物 | 估算 |
+|------|------|----------------|-----------|------|
+| **Phase 0** | 基础设施与规范锁定 | M0 + ADR-0001/0002 | 锁文件、Makefile、ADRs、目录结构 | ~3 个 agent |
+| **Phase 1** | ISA 规范合约与编码表 | Phase 0.5A + DL-001a/b | spec.md、opcodes.yaml、legality_rules.yaml | ~3 个 agent |
+| **Phase 2** | 测试向量基础设施 | DL-001c/019a/020a | schema、inventory、YAML 向量文件 | ~3 个 agent |
+| **Phase 3** | Python Golden Model | ADR-0009 M2a + DL-040b | dadao_interp.py、validate_interp.py | ~3 个 agent |
+| **Phase 4** | ABI 合约与架构决策 | DL-002a/003a/004a | abi/elf/sbi spec、ADRs | ~3 个 agent |
+| **Phase 5** | 组件基线 | DL-005a/006a | 组件锁、补丁目录、Docker | ~2 个 agent |
+| **Phase 6** | LLVM MC 后端 | DL-007a~012a | LLVM MC 补丁 | ~3 个 agent |
+| **Phase 7** | QEMU 模拟器 | DL-013a~018a + 023a~030a | QEMU 补丁 | ~3 个 agent |
+| **Phase 8** | 集成测试与差分验证 | Phase 4 (MC↔QEMU) | 差分运行器、E2E 测试 | ~3 个 agent |
+| **Phase 9** | gem5 第二参考 | DG-001a~005a | gem5 补丁 | ~3 个 agent |
+| **Phase 10** | Sail 形式化规范 | SL-001a~003a | sail 模块、Sail C 模拟器 | ~3 个 agent |
+| **Phase 11** | LLVM CodeGen | Phase 5 (Basic CodeGen) | CodeGen 补丁、E2E 测试 | ~4 个 agent |
+
+## 依赖关系图
+
+```
+Phase 0 (Foundation)
+  ├──→ Phase 1 (ISA Contract + Encoding)
+  │     ├──→ Phase 2 (Test Vectors)
+  │     │     └──→ Phase 3 (Golden Model)
+  │     │           ├──→ Phase 8 (Integration & Differential) ←─── Phase 7 (QEMU)
+  │     │           │     ├──→ Phase 9 (gem5) ──→ Phase 10 (Sail)
+  │     │           │     └──→ Phase 11 (CodeGen) ←── Phase 6 (LLVM MC)
+  │     │           │
+  │     └──→ Phase 6 (LLVM MC) ──→ Phase 11 (CodeGen)
+  │
+  ├──→ Phase 4 (ABI/ELF/SBI Contract)
+  │     ├──→ Phase 6 (LLVM MC)
+  │     └──→ Phase 11 (CodeGen)
+  │
+  └──→ Phase 5 (Component Baseline)
+        ├──→ Phase 6 (LLVM MC)
+        ├──→ Phase 7 (QEMU)
+        ├──→ Phase 9 (gem5)
+        └──→ Phase 11 (CodeGen)
+```
+
+## 关键原则（来自 DADAO-0628 经验）
+
+| 原则 | 说明 |
+|------|------|
+| **Spec-first** | 所有编码/语义期望值来自 contracts/，不从实现反推 |
+| **Independent oracle** | 测试向量不能从 LLVM 或 QEMU 生成，必须独立派生自 wiki |
+| **四路差分** | interp/QEMU/gem5/Sail 四路一致才算语义正确 |
+| **非复用** | 不复制 DADAO-0628 的实现代码，只参考工程经验 |
+| **精确异常** | fault 触发时无副作用，PC 停在触发指令 |
+| **编译器产物原则** | CodeGen 测试必须使用 llc 产物，禁止手写汇编替代 |
+| **subagent 自审** | 所有改动必须经过 subagent code review |
+
 # Phase 0：基础设施与规范锁定
 
 > 对应 DADAO-0628 的 M0（Reproducible Foundation）+ ADR-0001/0002
@@ -62,10 +127,10 @@ DADAO-v5/
 │   ├── greenfield-charter.md
 │   ├── development-roadmap.md
 │   ├── test-strategy.md
-│   ├── designs/                 # 设计文档目录（空）
+│   ├── designs                 # 设计文档目录（空）
 │   │   └── 0001-foundation-scope.md
-│   ├── tasks/                   # 任务文件目录（空）
-│   └── knowledge/               # 知识库目录（空）
+│   ├── tasks                   # 任务文件目录（空）
+│   └── knowledge               # 知识库目录（空）
 ├── verif/README.md             # 验证工具目录占位
 ├── tests/README.md             # 测试目录占位
 ├── components/README.md        # 组件目录占位
@@ -84,7 +149,7 @@ DADAO-v5/
 
 ### Agent A1：仓库骨架与锁文件
 
-**职责**：创建 manifests/ 目录结构、锁文件、Makefile
+**职责**：创建 manifests 目录结构、锁文件、Makefile
 
 **提示词**：
 ```
@@ -107,7 +172,7 @@ DADAO-v5/
    - 添加 chipyard 组件（DADAO-v5 新增目标）
 
 3. 创建 `Makefile`：
-   - manifest-check → 验证 manifests/ 格式
+   - manifest-check → 验证 manifests 格式
    - doctor → 检查 Python3, git 等依赖
    - status → 显示锁定版本
    - fetch → 获取组件（骨架，实际组件 disabled 时不执行）
@@ -139,11 +204,11 @@ DADAO-v5/
 
 1. **重写 `AGENTS.md`**（根目录）：
    - 精简为所有角色共享的通用规则
-   - 命名约定（bpN/wpN/pmem/illi 等）
-   - 指令格式后缀（rrrr/rrri/brrr/brri 等）
+   - 命名约定（/wpN/pmem/illi 等）
+   - 指令格式后缀（rrrr/rrri/brrr 等）
    - 异常路由规则（IALIGN > ILLI > MALIGN > 页表 > FPEXCP）
    - 仓库结构概述
-   - 引用 project/ 下的三个角色规则文件
+   - 引用 project 下的三个角色规则文件
 
 2. 创建 `project/rule-architect.md`：
    - 架构师角色的职责定义
@@ -178,7 +243,7 @@ DADAO-v5/
 
 7. 创建 `project/adr/0002-build-orchestration.md`：
    - 决策：Make + Python 标准库脚本
-   - 生成内容放 .work/ 目录
+   - 生成内容放 .work 目录
 
 8. 创建 `project/designs/0001-foundation-scope.md`：
    - 定义 Phase 0-11 的完整 scope
@@ -187,7 +252,7 @@ DADAO-v5/
 9. 创建 `project/repository-layout.md`：
    - 基于 DADAO-0628 修改
    - 目录结构说明（参考当前 README.md 末尾的映射表）
-   - 新增 chipyard/ 目录说明（DADAO-v5 新增硬件目标）
+   - 新增 chipyard 目录说明（DADAO-v5 新增硬件目标）
 
 10. 创建 `project/definition-of-done.md`：
     - 7 条完成标准（同 DADAO-0628）
@@ -222,7 +287,7 @@ DADAO-v5/
 
 ### Agent A3：工具脚本与规范
 
-**职责**：创建 scripts/ 下的工具脚本
+**职责**：创建 scripts 下的工具脚本
 
 **提示词**：
 ```

@@ -17,7 +17,7 @@
 | Phase 4 | `contracts/elf/spec.md` | ELF 规范 |
 | Phase 5 | `manifests/components.lock.toml` | LLVM commit |
 | Phase 5 | `.work/source/llvm/` | 已获取的 LLVM 源码 |
-| DADAO-v5/wiki | `AGENTS.md` | 命名约定（bpN/wpN/格式） |
+| DADAO-v5/wiki | `AGENTS.md` | 命名约定（/wpN/格式） |
 | DADAO-0628 | `components/llvm/patches/` | 22 个参考补丁 |
 | DADAO-0628 | `tests/lit/MC/Dadao/` | LIT 测试参考 |
 
@@ -90,8 +90,8 @@ EM_DADAO = 0x0DA0（参考 DADAO-0628/DL-001a）
 - 寄存器别名
 
 在 `DadaoInstrFormats.td` 中：
-- 定义所有 13 种指令格式（rrrr/rrri/rrii/riii/iiii/rwii/orrr/orri/oiii/ciii/crrr/crii/brrr/brri）
-- 定义操作数字段（bpN, cfxcode, wyde_pos, imm等）
+- 定义所有 12 种指令格式（rrrr/rrri/rrii/riii/iiii/rwii/orrr/orri/oiii/ciii/crrr/crii）
+- 定义操作数字段（, cfxcode, wyde_pos, imm等）
 
 参考 DADAO-0628 的 0003-dadao-register-info.patch 和 0004-dadao-instrinfo.patch。
 ```
@@ -115,20 +115,20 @@ class DadaoInst<dag outs, dag ins, string asmstr, list<dag> pattern>
     : Instruction;
 
 let Predicates = [IsDadao] in {
-  // add-rd-brrr: add bpN, rdhb, rdhc, rdhd
+  / add-rd-orrr: add , rdhb, rdhc, rdhd
   def ADD_RD_BRRR : DadaoInst<
     (outs GPRD:$rdhb),
-    (ins bpN:$bpN, GPRD:$rdhc, GPRD:$rdhd),
-    "add\t$bpN, $rdhb, $rdhc, $rdhd",
+    (ins :$, GPRD:$rdhc, GPRD:$rdhd),
+    "add\t$, $rdhb, $rdhc, $rdhd",
     []>;
-  // ... 全部 ~150+ 条指令
+  / ... 全部 ~150+ 条指令
 }
 ```
 
 **补丁 0005：AsmParser**
 - 解析 DADAO 汇编语法
 - 处理所有指令格式（rrrr/rrri/rrii/riii/iiii/rwii/orrr/...）
-- 处理特殊操作数（bpN, wpN, cfxcode）
+- 处理特殊操作数（, wpN, cfxcode）
 - 处理伪指令（nop, not, ret, setrd, setrb, setrf）
 - 操作数验证（寄存器范围、立即数范围）
 
@@ -148,7 +148,7 @@ let Predicates = [IsDadao] in {
 
 参考 DADAO-0628 的对应补丁，但基于 SimRISC 0.5.1 的新编码表。
 关键差异：
-- brrr/brri 格式的 bpN 操作数（DADAO-0628 没有）
+-brri 格式的  操作数（DADAO-0628 没有）
 - 更多浮点指令
 - cfx 指令族
 - 地址类指令的格式变化
@@ -171,9 +171,9 @@ let Predicates = [IsDadao] in {
 4. `riii.s`：一寄存器+18位立即数
 5. `iiii.s`：24位立即数格式
 6. `rwii.s`：wyde-position 格式
-7. `orrr.s` / `orri.s` / `oiii.s`：minor-opcode 格式
-8. `brrr.s` / `brri.s`：bit position 格式（新增）
-9. `ciii.s` / `crrr.s` / `crii.s`：cfx 格式（新增）
+7. `orrr.s`  `orri.s`  `oiii.s`：minor-opcode 格式
+8. `brrr.s`  `brri.s`： 格式（新增）
+9. `ciii.s`  `crrr.s`  `crii.s`：cfx 格式（新增）
 10. `pseudo.s`：伪指令（nop, not, ret, setrd, setrb）
 11. `illegal.s`：非法编码和操作数
 
@@ -182,7 +182,7 @@ let Predicates = [IsDadao] in {
 # RUN: llvm-mc --triple=dadao-unknown-elf %s | FileCheck %s
 ```
 
-参考 DADAO-0628/tests/lit/MC/Dadao/ 的测试结构和格式。
+参考 DADAO-0628/tests/lit/MC/Dadao 的测试结构和格式。
 注意 DADAO-v5 特有指令的测试。
 ```
 

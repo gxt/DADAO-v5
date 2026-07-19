@@ -117,7 +117,7 @@ DADAO-v5/components/llvm/patches/
 **补丁 0020：移位和扩展**
 - SHL/SRL/SRA → shlu/shru/shrs（选择 brrr 或 brri 格式）
 - SIGN_EXTEND/ZERO_EXTEND → exts/extz
-- 按 bit position 选择合适的 bpN
+- 按  选择合适的 
 
 **补丁 0021：条件赋值**
 - SELECT/SELECT_CC → csn/csz/csp/cseq/csne
@@ -155,7 +155,7 @@ DADAO-v5/components/llvm/patches/
 - Triple 支持：dadao-unknown-elf
 
 参考 DADAO-0628 的 0013~0022 补丁系列，特别是 0020（clang）和 0022（MC call reloc）。
-适配 DADAO-v5 的 SimRISC 0.5.1 特性（如 brrr 格式的 bpN 对指令选择的影响）。
+适配 DADAO-v5 的 SimRISC 0.5.1 特性（如 brrr 格式的  对指令选择的影响）。
 ```
 
 ### Agent L4：CodeGen E2E 测试
@@ -197,7 +197,7 @@ DADAO-v5/components/llvm/patches/
    - 测试必须是完整的端到端流程：IR → llc → .s → llvm-mc → .o → ld.lld → .elf → QEMU 执行
    - 验证退出码正确
 
-参考 DADAO-0628/tests/lit/E2E/ 的 Inputs/ 和 *.test 文件结构。
+参考 DADAO-0628/tests/lit/E2E 的 Inputs 和 *.test 文件结构。
 ```
 
 ## 阶段验证

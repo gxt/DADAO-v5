@@ -75,12 +75,12 @@ DADAO-v5/components/qemu/patches/
 从 opcodes.yaml 生成 decodetree 文件 (.dec)：
 每条指令一个 pattern，格式：
 ```
-# add-rd-brrr
+# add-rd-orrr
 {op[8], ha[6], hb[6], hc[6], hd[6]} 0010-0xxx-... -> trans_add_rd_brrr
 ```
 
 注意 DADAO-v5 相比 DADAO-0628 的新格式：
-- brrr/brri 格式需要 bpN 字段提取
+-brri 格式需要  字段提取
 - brrr 在 ha[5:0]
 - ciii/crrr/crii 格式需要 cfxcode 字段提取
 - rwii 格式需要 wpN 字段提取
@@ -103,10 +103,10 @@ DADAO-v5/components/qemu/patches/
 - sub-rd-rrrr
 - muls/mulu-rd-rrrr：64×64→128 位乘法，helper
 - divs/divu-rd-rrrr：64 位除法，helper
-- add-rd-brrr/sub-rd-brrr：带 bpN 的加减
-- muls-rd-brrr/mulu-rd-brrr：带 bpN 的乘
-- divs-rd-brrr/divu-rd-brrr：带 bpN 的除
-- rems-rd-brrr/remu-rd-brrr：带 bpN 的取余
+- add-rd-orrr/sub-rd-orrr：带  的加减
+- muls-rd-orrr/mulu-rd-orrr：带  的乘
+- divs-rd-orrr/divu-rd-orrr：带  的除
+- rems-rd-orrr/remu-rd-orrr：带  的取余
 - rd0 特殊处理：写入 rd0 时丢弃结果（合法）或触发 ILLI（非法）
 
 **补丁 0005：加载/存储（translate_ldst.c）**
@@ -158,7 +158,7 @@ DADAO-v5/components/qemu/patches/
 
 参考 DADAO-0628 的对应补丁，但适配 SimRISC 0.5.1 的新指令集。
 关键差异：
-- 更多 brrr/brri 格式指令需要 bpN 处理
+- 更多brri 格式指令需要  处理
 - 浮点寄存器和指令基础支持（即使不实现完整浮点执行）
 - cfx 指令 skeleton（未实现详细功能时不触发异常即可）
 - RA 寄存器存取（ldo-ra/sto-ra）
