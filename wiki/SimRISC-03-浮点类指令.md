@@ -38,7 +38,6 @@ stm.o   rfha, rbhb, rdhc, immu6
 ```simrisc
 rf2rd   rdhb, rfhc, immu6
 rd2rf   rfhb, rdhc, immu6
-rf2rf   rfhb, rfhc, immu6
 ```
 
 指令语义为，将hc开始的immu6个寄存器复制到hb开始的immu6个寄存器中。
@@ -85,11 +84,14 @@ setrf   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
 
 ## 格式转换指令
 
-格式转换指令是不同格式的数据之间的转换，操作数类型为 `orri`，指令如下：
+格式转换指令包括不同格式之间以及同格式之间的数据转换，操作数类型为 `orri`，指令如下：
 
 ```simrisc
 ft2fo   rfhb, rfhc, immu6
 fo2ft   rfhb, rfhc, immu6
+
+ft2ft   rfhb, rfhc, immu6          ; 浮点寄存器间搬移
+fo2fo   rfhb, rfhc, immu6          ; 浮点寄存器间搬移
 
 ft2it   rdhb, rfhc, immu6
 ft2io   rdhb, rfhc, immu6
