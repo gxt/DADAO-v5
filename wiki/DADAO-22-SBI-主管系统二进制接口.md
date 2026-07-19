@@ -201,12 +201,12 @@ cfx_ptw_set_ptbr:
     set.rb   rb3, rd3                      ; rd→rb 中转
     jump    rb3, rd0, 0
 cfx_ptw_ptbr_table:
-    cfx2rc  cfx_ptw, 9, 0,  rd17 ; PTBR[0]
+    cfx2rc  cfx_ptw_ptbr[0], rd17 ; PTBR[0]
     escape cfx_ptw, 1
-    cfx2rc  cfx_ptw, 9, 1,  rd17 ; PTBR[1]
+    cfx2rc  cfx_ptw_ptbr[1], rd17 ; PTBR[1]
     escape cfx_ptw, 1
     ; ... 共 64 路，rc 0-63 ...
-    cfx2rc  cfx_ptw, 9, 63, rd17 ; PTBR[63]
+    cfx2rc  cfx_ptw_ptbr[63], rd17 ; PTBR[63]
     escape cfx_ptw, 1
 
 cfx_ptw_get_ptbr:
@@ -217,12 +217,12 @@ cfx_ptw_get_ptbr:
     set.rb   rb3, rd3                      ; rd→rb 中转
     jump    rb3, rd0, 0
 cfx_ptw_get_ptbr_table:
-    cfx2rd  cfx_ptw, 9, 0,  rd31 ; PTBR[0]
+    cfx2rd  cfx_ptw_ptbr[0], rd31 ; PTBR[0]
     escape cfx_ptw, 1
-    cfx2rd  cfx_ptw, 9, 1,  rd31 ; PTBR[1]
+    cfx2rd  cfx_ptw_ptbr[1], rd31 ; PTBR[1]
     escape cfx_ptw, 1
     ; ... 共 64 路，rc 0-63 ...
-    cfx2rd  cfx_ptw, 9, 63, rd31 ; PTBR[63]
+    cfx2rd  cfx_ptw_ptbr[63], rd31 ; PTBR[63]
     escape cfx_ptw, 1
 
 cfx_ptw_set_ptbr_perm:
@@ -267,12 +267,12 @@ cfx_ptw_set_pthi:
     set.rb   rb3, rd3                      ; rd→rb 中转
     jump    rb3, rd0, 0
 cfx_ptw_set_pthi_table:
-    cfx2rc  cfx_ptw, 10, 0,  rd17 ; pthi[0]
+    cfx2rc  cfx_ptw_pthi[0], rd17 ; pthi[0]
     escape cfx_ptw, 1
-    cfx2rc  cfx_ptw, 10, 1,  rd17 ; pthi[1]
+    cfx2rc  cfx_ptw_pthi[1], rd17 ; pthi[1]
     escape cfx_ptw, 1
     ; ... 共 64 路 ...
-    cfx2rc  cfx_ptw, 10, 63, rd17 ; pthi[63]
+    cfx2rc  cfx_ptw_pthi[63], rd17 ; pthi[63]
     escape cfx_ptw, 1
 
 cfx_ptw_set_pahi:
@@ -284,12 +284,12 @@ cfx_ptw_set_pahi:
     set.rb   rb3, rd3                      ; rd→rb 中转
     jump    rb3, rd0, 0
 cfx_ptw_set_pahi_table:
-    cfx2rc  cfx_ptw, 11, 0,  rd17 ; pahi[0]
+    cfx2rc  cfx_ptw_pahi[0], rd17 ; pahi[0]
     escape cfx_ptw, 1
-    cfx2rc  cfx_ptw, 11, 1,  rd17 ; pahi[1]
+    cfx2rc  cfx_ptw_pahi[1], rd17 ; pahi[1]
     escape cfx_ptw, 1
     ; ... 共 64 路 ...
-    cfx2rc  cfx_ptw, 11, 63, rd17 ; pahi[63]
+    cfx2rc  cfx_ptw_pahi[63], rd17 ; pahi[63]
     escape cfx_ptw, 1
 ```
 
