@@ -409,7 +409,7 @@ setrb rbxx, rdyy
 setrb rbxx, rbyy
 ```
 
-rb寄存器的设置通常会先用setzw设置wyde 0，然后orw进行其它wyde的改动；或者先用setzw设置wyde 1或wyde 2，然后用addi指令进行加减操作。
+rb寄存器的设置通常会先用 `set.zw` 设置wyde 0，然后 `or.w` 进行其它wyde的改动；或者先用 `set.zw` 设置wyde 1或wyde 2，然后用 `add.si` 指令进行加减操作。
 
 `setrf`伪指令将64位立即数或另一个rd或rf寄存器的值赋给`rfxx`寄存器。
 
