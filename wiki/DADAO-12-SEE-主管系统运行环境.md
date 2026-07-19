@@ -343,13 +343,13 @@ H-mode 寄存器（cg=3）定义见 HEE 文档 §1。
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 4 | 0 | cfx cfx_id | cfx_⟨cfxname⟩_cfx_id | — | RO | 核芯功能扩展标识符 |
-| 4 | 1 | cfx version | cfx_⟨cfxname⟩_version | — | RO | 版本号 |
+| 4 | 0 | cfx cfx_id | cfx_⟨cfxname⟩_cfx_id | HW | RO | 核芯功能扩展标识符 |
+| 4 | 1 | cfx version | cfx_⟨cfxname⟩_version | HW | RO | 版本号 |
 | 4 | 2 | cfx trap num | cfx_⟨cfxname⟩_trap_num | 0 | HW | trap指令陷入该核芯功能扩展的次数 |
 | 4 | 3 | cfx excp sync num | cfx_⟨cfxname⟩_excp_sync_num | 0 | HW | 除trap外同步异常陷入该核芯功能扩展的次数 |
 | 4 | 4 | cfx excp async num | cfx_⟨cfxname⟩_excp_async_num | 0 | HW | 异步中断陷入该核芯功能扩展的次数 |
 | 4 | 5 | cfx escape num | cfx_⟨cfxname⟩_escape_num | 0 | HW | escape退出该核芯功能扩展的次数 |
-| 4 | 6 | cfx scratch regs num | cfx_⟨cfxname⟩_scratch_regs_num | — | RO | 暂存寄存器数量，至少2，最多64 |
+| 4 | 6 | cfx scratch regs num | cfx_⟨cfxname⟩_scratch_regs_num | HW | RO | 暂存寄存器数量，至少2，最多64 |
 
 ### cg5 - 异常现场寄存器
 
@@ -363,7 +363,7 @@ H-mode 寄存器（cg=3）定义见 HEE 文档 §1。
 | 5 | 3 | excp cause ip | cfx_⟨cfxname⟩_excp_cause_ip | 0 | RW | 异常发生前的指令指针，硬件陷入时保存，软件可写 |
 | 5 | 4 | excp cause info | cfx_⟨cfxname⟩_excp_cause_info | 0 | HW | 发生异常的辅助信息 |
 | 5 | 5 | excp pending | cfx_⟨cfxname⟩_excp_pending | 0 | RW | 待处理异常/中断位图（one-hot，OR语义），写0清位 |
-| 5 | 63 | excp cause nonmaskable | cfx_⟨cfxname⟩_excp_cause_nonmaskable | — | RO | 不可屏蔽异常掩码，硬件根据异常原因表静态设置 |
+| 5 | 63 | excp cause nonmaskable | cfx_⟨cfxname⟩_excp_cause_nonmaskable | HW | RO | 不可屏蔽异常掩码，硬件根据异常原因表静态设置 |
 
 所有异常原因编码为 one-hot（64 位），各核芯功能扩展的异常原因表定义该核芯功能扩展可处理的异常位。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 至 `1 << 7` 保留用于未来扩展（debug 异常等）。
 
