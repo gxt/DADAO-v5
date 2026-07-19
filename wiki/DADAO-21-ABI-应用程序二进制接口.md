@@ -382,8 +382,6 @@ void make_big(struct Big* sret_ptr, int a)
 
 `ret`伪指令，等价于`ret rd0, 0`。
 
-`not`伪指令，等价于 `xnor.o rdhb, rdhc, rd0` 或 `xnor.o rdhb, rd0, rdhc`（源和目的可同可异，将 `rd0` 作为 `rdhd` 操作数实现对另一操作数的 64 位取反）。详细规则见 SimRISC-01 § 逻辑运算。
-
 `set.rd`伪指令将64位立即数、symbol的绝对地址或另一个寄存器的值赋给`rdxx`寄存器。
 
 ```simrisc
