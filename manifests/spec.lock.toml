@@ -4,7 +4,7 @@
 format = 1
 name = "DADAO-v5 wiki"
 status = "frozen"
-commit = "fc557257a363acb0b31c9317e0dd31b94e437c6d"
+commit = "9e69b55d393388100910eb9f66e94e5b8809a2cc"
 
 [versions]
 simrisc = "0.5.3"
