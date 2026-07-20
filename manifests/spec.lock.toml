@@ -1,0 +1,40 @@
+# 规范锁定文件
+# 锁定当前 wiki 状态，确保可复现
+
+format = 1
+name = "DADAO-v5 wiki"
+status = "frozen"
+commit = "fc557257a363acb0b31c9317e0dd31b94e437c6d"
+
+[versions]
+simrisc = "0.5.3"
+aee = "0.9.2"
+abi = "0.9.2"
+see = "0.7.1"
+sbi = "0.7.1"
+hee = "0.1.2"
+hbi = "0.1.2"
+
+[foundation_included]
+# 当前 wiki 覆盖的范围
+files = [
+    "SimRISC-00-指令系统设计.md",
+    "SimRISC-01-数据类指令.md",
+    "SimRISC-02-地址类指令.md",
+    "SimRISC-03-浮点类指令.md",
+    "SimRISC-04-系统类指令.md",
+    "DADAO-11-AEE-应用程序运行环境.md",
+    "DADAO-12-SEE-主管系统运行环境.md",
+    "DADAO-13-HEE-超管系统运行环境.md",
+    "DADAO-21-ABI-应用程序二进制接口.md",
+    "DADAO-22-SBI-主管系统二进制接口.md",
+    "DADAO-23-HBI-超管系统二进制接口.md",
+]
+
+[foundation_excluded]
+# 尚未覆盖的范围
+items = [
+    "Linux 内核移植",
+    "完整运行时库",
+    "多核 SMP 支持",
+]
