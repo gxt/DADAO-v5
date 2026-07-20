@@ -1,6 +1,16 @@
 # AGENTS.md — DADAO-v5 通用规则
 
-所有角色（架构师、子代理、审查者）共同遵守的规则。角色特定规则见 `project/rule-*.md`。
+## 作用域（必须遵守）
+
+- **本文件只约束 DADAO-v5/ 目录内的工作。** 禁止读取、修改、创建该目录之外的任何文件。
+- git 操作只涉及 DADAO-v5 子模块，不得对父仓库（gxtao）或其他子模块做任何操作。
+- 如需父仓库配合（如更新子模块指针），应明确提示用户，由用户在父仓库 session 中处理。
+- 不要读取 `~/.claude/CLAUDE.md`、`~/.config/opencode/AGENTS.md` 等家目录配置文件，只遵守本文件及 `project/rule-*.md` 的规则。
+- **参考目录**：`DADAO-0628` 作为工程经验参考，不复制其代码。
+
+## 进入项目
+
+首次进入先读 `project/MEMORY.md` 了解当前状态，再读 `project/rule-*.md` 了解角色规则。
 
 ## 仓库结构速览
 
@@ -145,7 +155,6 @@ SimRISC 0.5.3 将操作按位宽组织为多个 MISC 子表，每个子表对应
 - **Spec-first**：所有编码/语义期望值来自 `project/contracts/`，不从实现反推
 - **Independent oracle**：测试向量不能从 LLVM 或 QEMU 生成，必须独立派生自 wiki
 - **Component lock**：LLVM/QEMU/gem5 以精确 commit hash 锁定，不用 tag/branch
-- **非复用**：不复制 DADAO-0628 的实现代码，只参考工程经验
 
 ## 角色规则引用
 

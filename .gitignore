@@ -1,0 +1,19 @@
+# 构建产物
+.work/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# 编辑器
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# 系统
+.DS_Store
+Thumbs.db
