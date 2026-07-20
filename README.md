@@ -11,6 +11,8 @@
 | SEE / SBI | 0.7.1 |
 | HEE / HBI | 0.1.2 |
 
+版本同步要求：AEE ↔ ABI、SEE ↔ SBI、HEE ↔ HBI 必须一致，全部基于同一 SimRISC 版本号。
+
 ## 11 阶段总览
 
 | 阶段 | 名称 | 对应 DADAO-0628 | 关键交付物 | 估算 |
