@@ -52,7 +52,7 @@ DADAO-v5 基于 11 份 wiki 规范文档（SimRISC 0.5.3），从零构建 LLVM/
 
 ## 关键差异提示（相比 DADAO-0628）
 
-DADAO-v5 经历了从 0.4.1 → 0.5.1 → 0.5.3 的演进，与 DADAO-0628（锁定在 SimRISC 0.4.1）相比有以下关键差异：
+DADAO-v5 基于 SimRISC 0.5.3 规范，与 DADAO-0628（锁定在 SimRISC 0.4.1）相比有以下关键差异：
 
 ### 0.5.3 vs 0.4.1 的变化
 
