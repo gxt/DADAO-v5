@@ -234,6 +234,23 @@ add.si  rdha, imms18
 
 `add.si` 为全 64 位运算，无法单独通过结果判断溢出，用户可结合 `add.uo`/`add.so` 的 rrrr 形式获取进位/符号信息。
 
+#### neg 伪指令
+
+`neg.b`/`neg.w`/`neg.t`/`neg.o` 是汇编器提供的伪指令，用于对操作数进行指定位宽的取负操作（二进制补码）。伪指令必须指定数据宽度后缀。
+
+| 伪指令 | 展开形式 | 语义 |
+|--------|----------|------|
+| `neg.b rdhb, rdhc` | `sub.sb rdhb, rd0, rdhc` | 8 位取负，符号扩展至 64 位 |
+| `neg.w rdhb, rdhc` | `sub.sw rdhb, rd0, rdhc` | 16 位取负，符号扩展至 64 位 |
+| `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展至 64 位 |
+| `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 |
+
+示例：
+```simrisc
+neg.b   rd1, rd2        ; rd1 = -rd2（低 8 位取负，符号扩展）
+neg.o   rd3, rd4        ; rd3 = -rd4（64 位取负）
+```
+
 ### 比较操作
 
 比较操作需要通过指令编码区分数据类型，对于整型，主要区分的是有符号数和无符号数。
