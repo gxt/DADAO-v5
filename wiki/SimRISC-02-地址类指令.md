@@ -104,7 +104,7 @@ andn.w  rbha, wpN, immu16
 
 #### set.rb 伪指令
 
-`set.rb` 是汇编器提供的伪指令，用于将立即数加载到 rb 寄存器，展开为 `set.zw-rb`、`or.w-rb`、`andn.w-rb` 的组合（rb 无 `set.ow` 变体）。
+`set.rb` 是汇编器提供的伪指令，用于将立即数加载到 rb 寄存器，展开为 `set.zw-rb` 和 `or.w-rb` 的组合（rb 无 `set.ow` 变体，无需 `andn.w`）。
 
 > **重要**：`set.zw` 会清零其余所有位，因此不能连续使用多条 `set.zw`。只能使用**一条** `set.zw` 作为第一条指令，后续用 `or.w`（设 1）或 `andn.w`（清 0）逐 wyde 修正。
 
