@@ -95,7 +95,7 @@ module dadao_main
 
 5. 创建 `build.sh`：sail -c → gcc → 生成 `dadao_sail_sim`
 
-参考 DADAO-0628/sail 的文件结构，但基于 SimRISC 0.5.1 规范重写。
+参考 DADAO-0628/sail 的文件结构，但基于 SimRISC 0.5.3 规范重写。
 ```
 
 ### Agent K2：Sail 指令语义

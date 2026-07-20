@@ -156,7 +156,7 @@ DADAO-v5/components/qemu/patches/
 - RASOF/RASUF 检测
 - 注意：MemRAS 可以在 M4（系统阶段）实现，M1 只需 RegRAS
 
-参考 DADAO-0628 的对应补丁，但适配 SimRISC 0.5.1 的新指令集。
+参考 DADAO-0628 的对应补丁，但适配 SimRISC 0.5.3 的新指令集。
 关键差异：
 - 更多brri 格式指令需要  处理
 - 浮点寄存器和指令基础支持（即使不实现完整浮点执行）

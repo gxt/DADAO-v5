@@ -57,7 +57,7 @@ DADAO-v5/
 ```
 你是 DADAO-v5 的测试基础设施工程师。创建测试向量的 schema 定义和框架文件。
 
-基于 DADAO-0628/tests/vectors 的类似文件，但针对 SimRISC 0.5.1 更新。
+基于 DADAO-0628/tests/vectors 的类似文件，但针对 SimRISC 0.5.3 更新。
 
 1. 创建 `tests/vectors/README.md`：
    - 说明向量来源（wiki 规范，非 LLVM/QEMU）
@@ -82,7 +82,7 @@ DADAO-v5/
 
 4. 创建空的 YAML 文件占位（在 tests/vectors/isa 下）
 
-参考 DADAO-0628 对应文件，但 schema 要适应 SimRISC 0.5.1 新增特性：
+参考 DADAO-0628 对应文件，但 schema 要适应 SimRISC 0.5.3 新增特性：
 -brri 格式的  参数
 - 浮点寄存器状态（rf[64]）
 - 返回地址栈（ra[64]）
@@ -142,7 +142,7 @@ exts-rd-orri, extz-rd-orri
 
 **rd-cond-assign.yaml**（条件赋值）：
 csn-rd-rrrr, csz-rd-rrrr, csp-rd-rrrr, cseq-rd-rrrr, csne-rd-rrrr
-注意：按照 SimRISC 0.5.1，第一类 csn/csz/csp 的语义为：if (rdha is N/Z/P) rdhb = rdhc; else rdhb = rdhd
+注意：按照 SimRISC 0.5.3，第一类 csn/csz/csp 的语义为：if (rdha is N/Z/P) rdhb = rdhc; else rdhb = rdhd
 
 **rd-load-store.yaml**（加载/存储）：
 ldbs/lbu/ldws/ldwu/ldts/ldtu/ldo-rd-rrii,
@@ -193,7 +193,7 @@ illi-oiii, swym-iiii
 
 ### 必须覆盖的指令列表
 
-**rf-ops.yaml**（RF 存取 - 新增到 SimRISC 0.5.1）：
+**rf-ops.yaml**（RF 存取 - 新增到 SimRISC 0.5.3）：
 ldt-rf-rrii, stt-rf-rrii, ldo-rf-rrii, sto-rf-rrii,
 ldmt-rf-rrri, stmt-rf-rrri, ldmo-rf-rrri, stmo-rf-rrri
 注意：单精（ft）使用 ldt/stt，双精使用 ldo/sto

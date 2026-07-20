@@ -186,7 +186,7 @@ DADAO-v5/verif/
 - 先读全部源操作数，再写结果（确定性行为）
 - 所有 ILLI/MALIGN 检查在修改状态前完成（精确异常）
 
-参考 DADAO-0628 的 dadao_interp.py 的架构风格但基于 SimRISC 0.5.1 重新实现。
+参考 DADAO-0628 的 dadao_interp.py 的架构风格但基于 SimRISC 0.5.3 重新实现。
 ```
 
 ### Agent D2：向量验证器

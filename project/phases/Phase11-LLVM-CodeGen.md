@@ -155,7 +155,7 @@ DADAO-v5/components/llvm/patches/
 - Triple 支持：dadao-unknown-elf
 
 参考 DADAO-0628 的 0013~0022 补丁系列，特别是 0020（clang）和 0022（MC call reloc）。
-适配 DADAO-v5 的 SimRISC 0.5.1 特性（如 brrr 格式的  对指令选择的影响）。
+适配 DADAO-v5 的 SimRISC 0.5.3 特性（如 brrr 格式的  对指令选择的影响）。
 ```
 
 ### Agent L4：CodeGen E2E 测试

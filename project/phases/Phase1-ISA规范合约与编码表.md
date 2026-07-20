@@ -22,7 +22,7 @@
 
 | 文件 | 用途 |
 |------|------|
-| `contracts/isa/spec.md` | ISA 规范合约模板（注意是 SimRISC 0.4.1，需升级到 0.5.1） |
+| `contracts/isa/spec.md` | ISA 规范合约模板（注意是 SimRISC 0.4.1，需升级到 0.5.3） |
 | `verif/opcodes.yaml` | 编码表模板（1288 行，87 条指令） |
 | `verif/legality_rules.yaml` | 合法性规则模板 |
 | `code-agent/knowledge/02-isa-encoding-rules.md` | ISA 编码规则知识 |
@@ -64,8 +64,8 @@ DADAO-v5/
 - DADAO-v5/AGENTS.md（命名约定）
 
 spec.md 的要求：
-1. **版本号**：SimRISC 0.5.1（与 wiki 一致）
-2. **结构**：参照 DADAO-0628/contracts/isa/spec.md 的格式，但基于 SimRISC 0.5.1 内容重写
+1. **版本号**：SimRISC 0.5.3（与 wiki 一致）
+2. **结构**：参照 DADAO-0628/contracts/isa/spec.md 的格式，但基于 SimRISC 0.5.3 内容重写
 3. **必须包含的章节**：
    - §1 寄存器模型（rd/rb/rf/ra 四组 + rd0/rb0/rf0/ra0 特殊行为）
    - §2 指令编码（8/6/6/6/6 布局、13 种格式、QFC 编码表）
@@ -149,7 +149,7 @@ spec.md 的要求：
 5. **legality 清单**：每条指令标注适用的合法性规则
 6. **field 描述**：按 ha/hb/hc/hd 的顺序标注字段类型
 
-注意：DADAO-v5 的 SimRISC 0.5.1 比 0.4.1 新增了以下指令族：
+注意：DADAO-v5 的 SimRISC 0.5.3 比 0.4.1 新增了以下指令族：
 -brri 格式变体（add/sub/cmps/cmpu/muls/mulu/divs/divu/rems/remu/and/or/xor/xnor/shl/shr/ext）
 - 完整 RF 指令（浮点运算、转换）
 - LR-SC 原子指令
