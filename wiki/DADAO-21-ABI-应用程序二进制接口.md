@@ -374,52 +374,6 @@ void make_big(struct Big* sret_ptr, int a)
 
 汇编器应提供以下兼容性支持：
 
-### 伪指令（pseudo instructions）
-
-汇编器需要提供以下伪指令的支持：
-
-`nop`伪指令，含义为no operation，等价于`swym 0`。
-
-`ret`伪指令，等价于`ret rd0, 0`。
-
-`set.rd`伪指令将64位立即数、symbol的绝对地址或另一个寄存器的值赋给`rdxx`寄存器。
-
-```simrisc
-set.rd rdxx, imms64
-set.rd rdxx, symbol
-
-set.rd rdxx, rdyy
-set.rd rdxx, rbyy
-set.rd rdxx, rfyy
-set.rd rdxx, rayy
-```
-
-一个64位立即数由4个wyde组成，因此，64位立即数的设置通常会先用 `set.zw`/`set.ow` 设置其中一个wyde，然后 `or.w`/`andn.w` 进行其它wyde的改动。详细展开规则见 SimRISC-01 § set.rd 伪指令。
-对于16位的short类型，可以转换为一条指令完成；对于32位的int类型，也只需要两条指令。
-
-`set.rb`伪指令将64位立即数、symbol的绝对地址或另一个rd或rb寄存器的值赋给`rbxx`寄存器。
-
-```simrisc
-set.rb rbxx, immu64
-set.rb rbxx, symbol
-
-set.rb rbxx, rdyy
-set.rb rbxx, rbyy
-```
-
-rb寄存器的设置通常会先用 `set.zw` 设置wyde 0，然后 `or.w` 进行其它wyde的改动；或者先用 `set.zw` 设置wyde 1或wyde 2，然后用 `add.si` 指令进行加减操作。
-
-`set.rf`伪指令将64位立即数或另一个rd或rf寄存器的值赋给`rfxx`寄存器。
-
-```simrisc
-set.rf rfxx, immu64
-
-set.rf rfxx, rdyy
-set.rf rfxx, rfyy
-```
-
-rf寄存器的设置采用setw指令，双精度浮点需要四条setw指令；由于单精度浮点数采用寄存器中的低32位，因此只需要wp0和wp1两条setw指令。
-
 ### 指导符（directives）
 
 由于历史原因，汇编器中的word的定义并不一致，因此，Dadao采用了Knuth的MMIX中的数据长度定义，并在汇编器中额外定义了4个指导符：

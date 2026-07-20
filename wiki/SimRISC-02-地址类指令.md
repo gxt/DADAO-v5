@@ -119,6 +119,13 @@ set.rb   rb1, 0x123456789ABC         ; 展开为：
                                       ;   or.w  rb1, wp0, 0x9ABC
 ```
 
+**寄存器传值**：`set.rb rb, rs` 也可用于从 rd 或 rb 寄存器传值至 rb，汇编器根据源寄存器类型展开为单条块赋值指令：
+
+```simrisc
+set.rb   rb5, rd3       ; 展开为 rd2rb rb5, rd3, 1
+set.rb   rb2, rb7       ; 展开为 rb2rb rb2, rb7, 1
+```
+
 **注**：rb 高 16 位（bits[63:48]）可用于地址溢出检测。汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。
 
 ## 算术运算类指令
@@ -283,4 +290,12 @@ ret指令增加了返回值的赋值功能，操作数类型为 `riii` ，即在
 
 ```simrisc
 ret     rdha, imms18
+```
+
+#### return 伪指令
+
+`return` 是汇编器提供的伪指令，用于无需设置返回值的函数返回，等价于 `ret rd0, 0`。
+
+```simrisc
+return                  ; 展开为 ret rd0, 0
 ```

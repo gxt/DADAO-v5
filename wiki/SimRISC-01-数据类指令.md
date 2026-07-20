@@ -156,12 +156,13 @@ set.rd   rd1, 0xDEADBEEF_CAFEBABE  ; 展开为：
 2. 若连续 wyde 值相同（如高 48 位全 0），填充初始 wyde 后 `or.w` 补充剩余差异。
 3. 一般情况：`set.zw`/`set.ow` 设置一个基数 wyde，其余 wyde 用 `or.w` 设 1、`andn.w` 清 0。
 
-**寄存器传值**：`set.rd rd, rs` 也可用于从 rb、rf 寄存器传值至 rd，汇编器根据源寄存器类型展开为单条块赋值指令：
+**寄存器传值**：`set.rd rd, rs` 也可用于从 rb、rf、ra 寄存器传值至 rd，汇编器根据源寄存器类型展开为单条块赋值指令：
 
 ```simrisc
 set.rd   rd5, rb3       ; 展开为 rb2rd rd5, rb3, 1
 set.rd   rd2, rf7       ; 展开为 rf2rd rd2, rf7, 1
 set.rd   rd8, rd3       ; 展开为 rd2rd rd8, rd3, 1
+set.rd   rd4, ra10      ; 展开为 ra2rd rd4, ra10, 1
 ```
 
 ### 条件赋值：Conditional Assignment

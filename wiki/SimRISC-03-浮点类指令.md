@@ -59,25 +59,34 @@ set.w    rfha, wpN, immu16
 `set.w` 指令只设置相应的16位，其余48位不变。
 因此，32位单精浮点（tetra）需要两条指令设置立即数的值，64位双精浮点（octa）则需要四条指令。
 
-### set.rf 伪指令
+### set.ft / set.fo 伪指令
 
-`set.rf` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，直接展开为 `set.w` 的组合。
+`set.ft` 和 `set.fo` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，分别对应单精（tetra，32 位）和双精（octa，64 位）浮点格式。伪指令展开为 `set.w` 的组合。
 
 ```simrisc
 ; 加载单精浮点 1.0（0x3F800000）→ 只需设置低 32 位
-set.rf   rf1, 0x3F800000             ; 展开为：
+set.ft   rf1, 0x3F800000             ; 展开为：
                                       ;   set.w rf1, wp1, 0x3F80
                                       ;   set.w rf1, wp0, 0x0000
 
 ; 加载双精浮点 1.0（0x3FF0000000000000）
-set.rf   rf1, 0x3FF0000000000000     ; 展开为：
+set.fo   rf1, 0x3FF0000000000000     ; 展开为：
                                       ;   set.w rf1, wp3, 0x3FF0
                                       ;   set.w rf1, wp2, 0x0000
                                       ;   set.w rf1, wp1, 0x0000
                                       ;   set.w rf1, wp0, 0x0000
 
 ; 加载零 → 将 rd0（恒为 0）赋值给 rf
-set.rf   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
+set.ft   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
+set.fo   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
+```
+
+**寄存器传值**：`set.ft`/`set.fo` 也可用于从 rd 或 rf 寄存器传值至 rf，汇编器展开为 `rd2rf` 或 `ft2ft`/`fo2fo`：
+
+```simrisc
+set.ft   rf1, rd5       ; 展开为 rd2rf rf1, rd5, 1
+set.ft   rf1, rf2       ; 展开为 ft2ft rf1, rf2, 1
+set.fo   rf2, rf7       ; 展开为 fo2fo rf2, rf7, 1
 ```
 
 **注**：加载全零时汇编器自动使用 `rd2rf` 从 `rd0` 拷贝。
