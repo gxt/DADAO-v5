@@ -217,8 +217,8 @@ rules:
   - id: ras_of
     fault: RASOF
     kind: dynamic
-    spec_cite: "DADAO-11-AEE §返回地址栈"
-    wiki_cite: "DADAO-11-AEE §返回地址栈 (L204)"
+    spec_cite: "SimRISC-00 §压栈流程"
+    wiki_cite: "SimRISC-00 §压栈流程"
     status: active
     description: >
       返回地址栈上溢触发 RASOF 异常。
@@ -227,8 +227,8 @@ rules:
   - id: ras_uf
     fault: RASUF
     kind: dynamic
-    spec_cite: "DADAO-11-AEE §返回地址栈"
-    wiki_cite: "DADAO-11-AEE §返回地址栈 (L216)"
+    spec_cite: "SimRISC-00 §弹栈流程"
+    wiki_cite: "SimRISC-00 §弹栈流程"
     status: active
     description: >
       返回地址栈下溢触发 RASUF 异常。

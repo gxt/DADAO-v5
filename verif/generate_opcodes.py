@@ -16,12 +16,17 @@ def get_bank_from_field_name(field_name):
     else:
         return "imm"
 
-def create_record(mnemonic, fmt, op, ha=None, fields=None, legality=None, wiki_cite=""):
+def create_record(insn, fmt, op, ha=None, fields=None, legality=None, wiki_cite=""):
     """创建一条指令记录"""
     if fields is None:
         fields = []
     if legality is None:
         legality = []
+    
+    # 从 insn 中提取真实助记符（去掉 bank 后缀和 format 后缀）
+    # insn 格式：mnemonic-bank-format 或 mnemonic-bank 或 mnemonic-format 或 mnemonic
+    parts = insn.split("-")
+    mnemonic = parts[0]
     
     # 计算 mask 和 value
     if ha is not None:
@@ -34,6 +39,7 @@ def create_record(mnemonic, fmt, op, ha=None, fields=None, legality=None, wiki_c
         value = (op << 24)
     
     record = {
+        "insn": insn,
         "mnemonic": mnemonic,
         "format": fmt,
         "op": f"0x{op:02X}",

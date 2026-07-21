@@ -86,11 +86,14 @@ def check_fields_non_overlapping(fields):
 
 def check_bank_consistency(rec):
     """检查字段 bank 标记与指令名称是否一致"""
-    mnem = rec.get("mnemonic", "?")
+    insn = rec.get("insn", "?")
+    mnemonic = rec.get("mnemonic", "?")
     fields = rec.get("fields", [])
     errors = []
     
-    expected_bank = get_expected_bank_from_mnemonic(mnem)
+    # 从 insn 中提取期望的 bank
+    parts = insn.split("-")
+    expected_bank = parts[-1] if len(parts) >= 2 and parts[-1] in ["rd", "rb", "rf", "ra"] else None
     
     for f in fields:
         field_name = f.get("name", "")
@@ -100,15 +103,15 @@ def check_bank_consistency(rec):
         if field_bank == "imm":
             continue
         
-        # 检查寄存器字段的 bank 是否与指令名称一致
+        # 检查寄存器字段的 bank 是否与字段名称一致
         if field_name.startswith("rd") and field_bank != "rd":
-            errors.append(f"{mnem}: 字段 {field_name} 的 bank 应为 rd，实际为 {field_bank}")
+            errors.append(f"{insn}: 字段 {field_name} 的 bank 应为 rd，实际为 {field_bank}")
         elif field_name.startswith("rb") and field_bank != "rb":
-            errors.append(f"{mnem}: 字段 {field_name} 的 bank 应为 rb，实际为 {field_bank}")
+            errors.append(f"{insn}: 字段 {field_name} 的 bank 应为 rb，实际为 {field_bank}")
         elif field_name.startswith("rf") and field_bank != "rf":
-            errors.append(f"{mnem}: 字段 {field_name} 的 bank 应为 rf，实际为 {field_bank}")
+            errors.append(f"{insn}: 字段 {field_name} 的 bank 应为 rf，实际为 {field_bank}")
         elif field_name.startswith("ra") and field_bank != "ra":
-            errors.append(f"{mnem}: 字段 {field_name} 的 bank 应为 ra，实际为 {field_bank}")
+            errors.append(f"{insn}: 字段 {field_name} 的 bank 应为 ra，实际为 {field_bank}")
     
     return errors
 
@@ -154,7 +157,7 @@ def main():
             errors.append(f"ERROR: {tag}: 记录不是字典")
             continue
 
-        required_keys = {"mnemonic", "format", "op", "mask", "value", "fields"}
+        required_keys = {"insn", "mnemonic", "format", "op", "mask", "value", "fields"}
         missing = required_keys - set(rec.keys())
         if missing:
             errors.append(f"ERROR: {tag} {mnem}({fmt}): "
