@@ -18,7 +18,7 @@
 | 阶段 | 名称 | 对应 DADAO-0628 | 关键交付物 | 估算 |
 |------|------|----------------|-----------|------|
 | **Phase 0** | 基础设施与规范锁定 | M0 | spec.lock.toml、AGENTS.md、角色规则、阶段计划 | ✅ 已完成 |
-| **Phase 1** | ISA 规范合约与编码表 | Phase 0.5A + DL-001a/b | spec.md、opcodes.yaml、legality_rules.yaml | ~3 个 agent |
+| **Phase 1** | ISA 规范合约与编码表 | Phase 0.5A + DL-001a/b | spec.md、opcodes.yaml、legality_rules.yaml | ✅ 已完成 |
 | **Phase 2** | 测试向量基础设施 | DL-001c/019a/020a | schema、inventory、YAML 向量文件 | ~3 个 agent |
 | **Phase 3** | Python Golden Model | ADR-0009 M2a + DL-040b | dadao_interp.py、validate_interp.py | ~3 个 agent |
 | **Phase 4** | ABI 合约与架构决策 | DL-002a/003a/004a | abi/elf/sbi spec、ADRs | ~3 个 agent |
