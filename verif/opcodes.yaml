@@ -1,0 +1,7704 @@
+# SimRISC 0.5.3 指令编码表
+# 自动生成自 wiki 规范文档
+# 共 256 条指令
+
+- mnemonic: ld.ub-rd
+  format: rrii
+  op: '0x10'
+  mask: '0xFF000000'
+  value: '0x10000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ld.uw-rd
+  format: rrii
+  op: '0x11'
+  mask: '0xFF000000'
+  value: '0x11000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ld.ut-rd
+  format: rrii
+  op: '0x12'
+  mask: '0xFF000000'
+  value: '0x12000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ld.sb-rd
+  format: rrii
+  op: '0x13'
+  mask: '0xFF000000'
+  value: '0x13000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ld.sw-rd
+  format: rrii
+  op: '0x14'
+  mask: '0xFF000000'
+  value: '0x14000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ld.st-rd
+  format: rrii
+  op: '0x15'
+  mask: '0xFF000000'
+  value: '0x15000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ld.t-rf
+  format: rrii
+  op: '0x16'
+  mask: '0xFF000000'
+  value: '0x16000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-03 §存取RF寄存器
+- mnemonic: st.t-rf
+  format: rrii
+  op: '0x17'
+  mask: '0xFF000000'
+  value: '0x17000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-03 §存取RF寄存器
+- mnemonic: st.b-rd
+  format: rrii
+  op: '0x18'
+  mask: '0xFF000000'
+  value: '0x18000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: st.w-rd
+  format: rrii
+  op: '0x19'
+  mask: '0xFF000000'
+  value: '0x19000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: st.t-rd
+  format: rrii
+  op: '0x1A'
+  mask: '0xFF000000'
+  value: '0x1A000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ld.o-rd
+  format: rrii
+  op: '0x20'
+  mask: '0xFF000000'
+  value: '0x20000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: st.o-rd
+  format: rrii
+  op: '0x21'
+  mask: '0xFF000000'
+  value: '0x21000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ld.o-rb
+  format: rrii
+  op: '0x22'
+  mask: '0xFF000000'
+  value: '0x22000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rbha != rb0
+  wiki_cite: SimRISC-02 §存取RB寄存器
+- mnemonic: st.o-rb
+  format: rrii
+  op: '0x23'
+  mask: '0xFF000000'
+  value: '0x23000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rbha != rb0
+  wiki_cite: SimRISC-02 §存取RB寄存器
+- mnemonic: ld.o-ra
+  format: rrii
+  op: '0x24'
+  mask: '0xFF000000'
+  value: '0x24000000'
+  fields:
+  - name: raha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §存取RA寄存器
+- mnemonic: st.o-ra
+  format: rrii
+  op: '0x25'
+  mask: '0xFF000000'
+  value: '0x25000000'
+  fields:
+  - name: raha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §存取RA寄存器
+- mnemonic: ld.o-rf
+  format: rrii
+  op: '0x26'
+  mask: '0xFF000000'
+  value: '0x26000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-03 §存取RF寄存器
+- mnemonic: st.o-rf
+  format: rrii
+  op: '0x27'
+  mask: '0xFF000000'
+  value: '0x27000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-03 §存取RF寄存器
+- mnemonic: ldm.ub-rd
+  format: rrri
+  op: '0x28'
+  mask: '0xFF000000'
+  value: '0x28000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ldm.uw-rd
+  format: rrri
+  op: '0x29'
+  mask: '0xFF000000'
+  value: '0x29000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ldm.ut-rd
+  format: rrri
+  op: '0x2A'
+  mask: '0xFF000000'
+  value: '0x2A000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ldm.sb-rd
+  format: rrri
+  op: '0x2B'
+  mask: '0xFF000000'
+  value: '0x2B000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ldm.sw-rd
+  format: rrri
+  op: '0x2C'
+  mask: '0xFF000000'
+  value: '0x2C000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ldm.st-rd
+  format: rrri
+  op: '0x2D'
+  mask: '0xFF000000'
+  value: '0x2D000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ldm.t-rf
+  format: rrri
+  op: '0x2E'
+  mask: '0xFF000000'
+  value: '0x2E000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - immu6 != 0
+  - rfha + immu6 <= 64
+  wiki_cite: SimRISC-03 §存取RF寄存器
+- mnemonic: stm.t-rf
+  format: rrri
+  op: '0x2F'
+  mask: '0xFF000000'
+  value: '0x2F000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - immu6 != 0
+  - rfha + immu6 <= 64
+  wiki_cite: SimRISC-03 §存取RF寄存器
+- mnemonic: stm.b-rd
+  format: rrri
+  op: '0x30'
+  mask: '0xFF000000'
+  value: '0x30000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: stm.w-rd
+  format: rrri
+  op: '0x31'
+  mask: '0xFF000000'
+  value: '0x31000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: stm.t-rd
+  format: rrri
+  op: '0x32'
+  mask: '0xFF000000'
+  value: '0x32000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ldm.o-rd
+  format: rrri
+  op: '0x38'
+  mask: '0xFF000000'
+  value: '0x38000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: stm.o-rd
+  format: rrri
+  op: '0x39'
+  mask: '0xFF000000'
+  value: '0x39000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdha != rd0
+  - immu6 != 0
+  - rdha + immu6 <= 64
+  wiki_cite: SimRISC-01 §存取RD寄存器
+- mnemonic: ldm.o-rb
+  format: rrri
+  op: '0x3A'
+  mask: '0xFF000000'
+  value: '0x3A000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rb
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rbha != rb0
+  - immu6 != 0
+  - rbha + immu6 <= 64
+  wiki_cite: SimRISC-02 §存取RB寄存器
+- mnemonic: stm.o-rb
+  format: rrri
+  op: '0x3B'
+  mask: '0xFF000000'
+  value: '0x3B000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rbha != rb0
+  - immu6 != 0
+  - rbha + immu6 <= 64
+  wiki_cite: SimRISC-02 §存取RB寄存器
+- mnemonic: ldm.o-ra
+  format: rrri
+  op: '0x3C'
+  mask: '0xFF000000'
+  value: '0x3C000000'
+  fields:
+  - name: raha
+    bits: '[23:18]'
+    role: dst
+    bank: ra
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - immu6 != 0
+  - raha + immu6 <= 64
+  wiki_cite: SimRISC-02 §存取RA寄存器
+- mnemonic: stm.o-ra
+  format: rrri
+  op: '0x3D'
+  mask: '0xFF000000'
+  value: '0x3D000000'
+  fields:
+  - name: raha
+    bits: '[23:18]'
+    role: src
+    bank: ra
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - immu6 != 0
+  - raha + immu6 <= 64
+  wiki_cite: SimRISC-02 §存取RA寄存器
+- mnemonic: ldm.o-rf
+  format: rrri
+  op: '0x3E'
+  mask: '0xFF000000'
+  value: '0x3E000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - immu6 != 0
+  - rfha + immu6 <= 64
+  wiki_cite: SimRISC-03 §存取RF寄存器
+- mnemonic: stm.o-rf
+  format: rrri
+  op: '0x3F'
+  mask: '0xFF000000'
+  value: '0x3F000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - immu6 != 0
+  - rfha + immu6 <= 64
+  wiki_cite: SimRISC-03 §存取RF寄存器
+- mnemonic: or.w-rd
+  format: rwii
+  op: '0x48'
+  mask: '0xFF000000'
+  value: '0x48000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: wpN
+    bits: '[17:16]'
+    role: wyde_pos
+    bank: imm
+    signed: null
+  - name: immu16_hi
+    bits: '[15:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-01 §立即数常数赋值
+- mnemonic: andn.w-rd
+  format: rwii
+  op: '0x49'
+  mask: '0xFF000000'
+  value: '0x49000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: wpN
+    bits: '[17:16]'
+    role: wyde_pos
+    bank: imm
+    signed: null
+  - name: immu16_hi
+    bits: '[15:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-01 §立即数常数赋值
+- mnemonic: or.w-rb
+  format: rwii
+  op: '0x4A'
+  mask: '0xFF000000'
+  value: '0x4A000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: wpN
+    bits: '[17:16]'
+    role: wyde_pos
+    bank: imm
+    signed: null
+  - name: immu16_hi
+    bits: '[15:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §立即数常数赋值
+- mnemonic: andn.w-rb
+  format: rwii
+  op: '0x4B'
+  mask: '0xFF000000'
+  value: '0x4B000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: wpN
+    bits: '[17:16]'
+    role: wyde_pos
+    bank: imm
+    signed: null
+  - name: immu16_hi
+    bits: '[15:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §立即数常数赋值
+- mnemonic: set.zw-rd
+  format: rwii
+  op: '0x4C'
+  mask: '0xFF000000'
+  value: '0x4C000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: wpN
+    bits: '[17:16]'
+    role: wyde_pos
+    bank: imm
+    signed: null
+  - name: immu16_hi
+    bits: '[15:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-01 §立即数常数赋值
+- mnemonic: set.ow-rd
+  format: rwii
+  op: '0x4D'
+  mask: '0xFF000000'
+  value: '0x4D000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: wpN
+    bits: '[17:16]'
+    role: wyde_pos
+    bank: imm
+    signed: null
+  - name: immu16_hi
+    bits: '[15:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-01 §立即数常数赋值
+- mnemonic: set.zw-rb
+  format: rwii
+  op: '0x4E'
+  mask: '0xFF000000'
+  value: '0x4E000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: wpN
+    bits: '[17:16]'
+    role: wyde_pos
+    bank: imm
+    signed: null
+  - name: immu16_hi
+    bits: '[15:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §立即数常数赋值
+- mnemonic: set.w-rf
+  format: rwii
+  op: '0x4F'
+  mask: '0xFF000000'
+  value: '0x4F000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: wpN
+    bits: '[17:16]'
+    role: wyde_pos
+    bank: imm
+    signed: null
+  - name: immu16_hi
+    bits: '[15:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu16_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-03 §立即数常数赋值
+- mnemonic: add.uo-rd
+  format: rrrr
+  op: '0x50'
+  mask: '0xFF000000'
+  value: '0x50000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - '!(rdha == rd0 && rdhb == rd0)'
+  wiki_cite: SimRISC-01 §加减操作
+- mnemonic: add.so-rd
+  format: rrrr
+  op: '0x51'
+  mask: '0xFF000000'
+  value: '0x51000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - '!(rdha == rd0 && rdhb == rd0)'
+  wiki_cite: SimRISC-01 §加减操作
+- mnemonic: sub.uo-rd
+  format: rrrr
+  op: '0x52'
+  mask: '0xFF000000'
+  value: '0x52000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - '!(rdha == rd0 && rdhb == rd0)'
+  wiki_cite: SimRISC-01 §加减操作
+- mnemonic: sub.so-rd
+  format: rrrr
+  op: '0x53'
+  mask: '0xFF000000'
+  value: '0x53000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - '!(rdha == rd0 && rdhb == rd0)'
+  wiki_cite: SimRISC-01 §加减操作
+- mnemonic: mul.uo-rd
+  format: rrrr
+  op: '0x54'
+  mask: '0xFF000000'
+  value: '0x54000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - '!(rdha == rd0 && rdhb == rd0)'
+  wiki_cite: SimRISC-01 §乘除操作
+- mnemonic: mul.so-rd
+  format: rrrr
+  op: '0x55'
+  mask: '0xFF000000'
+  value: '0x55000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - '!(rdha == rd0 && rdhb == rd0)'
+  wiki_cite: SimRISC-01 §乘除操作
+- mnemonic: ftmadd
+  format: rrrr
+  op: '0x56'
+  mask: '0xFF000000'
+  value: '0x56000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rfha != rf0
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S3D1
+- mnemonic: fomadd
+  format: rrrr
+  op: '0x57'
+  mask: '0xFF000000'
+  value: '0x57000000'
+  fields:
+  - name: rfha
+    bits: '[23:18]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rfha != rf0
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S3D1
+- mnemonic: add.si-rd
+  format: riii
+  op: '0x59'
+  mask: '0xFF000000'
+  value: '0x59000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-01 §自增自减
+- mnemonic: rela.si-rb
+  format: riii
+  op: '0x5A'
+  mask: '0xFF000000'
+  value: '0x5A000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §PC相对寻址
+- mnemonic: add.si-rb
+  format: riii
+  op: '0x5B'
+  mask: '0xFF000000'
+  value: '0x5B000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §自增自减
+- mnemonic: cmp.ui-rd
+  format: rrii
+  op: '0x5C'
+  mask: '0xFF000000'
+  value: '0x5C000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: immu12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §比较操作
+- mnemonic: cmp.si-rd
+  format: rrii
+  op: '0x5D'
+  mask: '0xFF000000'
+  value: '0x5D000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality:
+  - rdha != rd0
+  wiki_cite: SimRISC-01 §比较操作
+- mnemonic: cs.eq-rf
+  format: rrrr
+  op: '0x5E'
+  mask: '0xFF000000'
+  value: '0x5E000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §浮点条件赋值指令
+- mnemonic: cs.ne-rf
+  format: rrrr
+  op: '0x5F'
+  mask: '0xFF000000'
+  value: '0x5F000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §浮点条件赋值指令
+- mnemonic: cs.n-rd
+  format: rrrr
+  op: '0x60'
+  mask: '0xFF000000'
+  value: '0x60000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §条件赋值
+- mnemonic: cs.n-rf
+  format: rrrr
+  op: '0x61'
+  mask: '0xFF000000'
+  value: '0x61000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §浮点条件赋值指令
+- mnemonic: cs.z-rd
+  format: rrrr
+  op: '0x62'
+  mask: '0xFF000000'
+  value: '0x62000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §条件赋值
+- mnemonic: cs.z-rf
+  format: rrrr
+  op: '0x63'
+  mask: '0xFF000000'
+  value: '0x63000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §浮点条件赋值指令
+- mnemonic: cs.p-rd
+  format: rrrr
+  op: '0x64'
+  mask: '0xFF000000'
+  value: '0x64000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §条件赋值
+- mnemonic: cs.p-rf
+  format: rrrr
+  op: '0x65'
+  mask: '0xFF000000'
+  value: '0x65000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §浮点条件赋值指令
+- mnemonic: cs.eq-rd
+  format: rrrr
+  op: '0x66'
+  mask: '0xFF000000'
+  value: '0x66000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhc != rd0
+  wiki_cite: SimRISC-01 §条件赋值
+- mnemonic: cs.ne-rd
+  format: rrrr
+  op: '0x67'
+  mask: '0xFF000000'
+  value: '0x67000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhc != rd0
+  wiki_cite: SimRISC-01 §条件赋值
+- mnemonic: br.n-rd
+  format: riii
+  op: '0x68'
+  mask: '0xFF000000'
+  value: '0x68000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: br.nn-rd
+  format: riii
+  op: '0x69'
+  mask: '0xFF000000'
+  value: '0x69000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: br.z-rd
+  format: riii
+  op: '0x6A'
+  mask: '0xFF000000'
+  value: '0x6A000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: br.nz-rd
+  format: riii
+  op: '0x6B'
+  mask: '0xFF000000'
+  value: '0x6B000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: br.p-rd
+  format: riii
+  op: '0x6C'
+  mask: '0xFF000000'
+  value: '0x6C000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: br.np-rd
+  format: riii
+  op: '0x6D'
+  mask: '0xFF000000'
+  value: '0x6D000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: br.eq-rd
+  format: rrii
+  op: '0x6E'
+  mask: '0xFF000000'
+  value: '0x6E000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: br.ne-rd
+  format: rrii
+  op: '0x6F'
+  mask: '0xFF000000'
+  value: '0x6F000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: jump-iiii
+  format: iiii
+  op: '0x70'
+  mask: '0xFF000000'
+  value: '0x70000000'
+  fields:
+  - name: imms24_b23_18
+    bits: '[23:18]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms24_b17_12
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms24_b11_6
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms24_b5_0
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §无条件跳转指令
+- mnemonic: jump-rrii
+  format: rrii
+  op: '0x71'
+  mask: '0xFF000000'
+  value: '0x71000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §无条件跳转指令
+- mnemonic: br.z-rb
+  format: riii
+  op: '0x72'
+  mask: '0xFF000000'
+  value: '0x72000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: br.nz-rb
+  format: riii
+  op: '0x73'
+  mask: '0xFF000000'
+  value: '0x73000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §条件跳转指令
+- mnemonic: call-iiii
+  format: iiii
+  op: '0x74'
+  mask: '0xFF000000'
+  value: '0x74000000'
+  fields:
+  - name: imms24_b23_18
+    bits: '[23:18]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms24_b17_12
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms24_b11_6
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms24_b5_0
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §函数调用
+- mnemonic: call-rrii
+  format: rrii
+  op: '0x75'
+  mask: '0xFF000000'
+  value: '0x75000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: imms12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §函数调用
+- mnemonic: ret-riii
+  format: riii
+  op: '0x76'
+  mask: '0xFF000000'
+  value: '0x76000000'
+  fields:
+  - name: rdha
+    bits: '[23:18]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-02 §函数返回
+- mnemonic: swym-iiii
+  format: iiii
+  op: '0x77'
+  mask: '0xFF000000'
+  value: '0x77000000'
+  fields:
+  - name: immu24_b23_18
+    bits: '[23:18]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu24_b17_12
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu24_b11_6
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu24_b5_0
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §占位指令
+- mnemonic: cfx2rd-crrr
+  format: crrr
+  op: '0x7A'
+  mask: '0xFF000000'
+  value: '0x7A000000'
+  fields:
+  - name: cfxcode
+    bits: '[23:18]'
+    role: cfxcode
+    bank: imm
+    signed: null
+  - name: cghb
+    bits: '[17:12]'
+    role: cfx_cg
+    bank: imm
+    signed: null
+  - name: rchc
+    bits: '[11:6]'
+    role: cfx_rc
+    bank: imm
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: dst
+    bank: rd
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §寄存器传输指令
+- mnemonic: cfx2rc-crrr
+  format: crrr
+  op: '0x7B'
+  mask: '0xFF000000'
+  value: '0x7B000000'
+  fields:
+  - name: cfxcode
+    bits: '[23:18]'
+    role: cfxcode
+    bank: imm
+    signed: null
+  - name: cghb
+    bits: '[17:12]'
+    role: cfx_cg
+    bank: imm
+    signed: null
+  - name: rchc
+    bits: '[11:6]'
+    role: cfx_rc
+    bank: imm
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: dst
+    bank: rd
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §寄存器传输指令
+- mnemonic: cfxld-crii
+  format: crii
+  op: '0x7C'
+  mask: '0xFF000000'
+  value: '0x7C000000'
+  fields:
+  - name: cfxcode
+    bits: '[23:18]'
+    role: cfxcode
+    bank: imm
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: immu12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §SRAM块传输指令
+- mnemonic: cfxst-crii
+  format: crii
+  op: '0x7D'
+  mask: '0xFF000000'
+  value: '0x7D000000'
+  fields:
+  - name: cfxcode
+    bits: '[23:18]'
+    role: cfxcode
+    bank: imm
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: src
+    bank: rb
+    signed: null
+  - name: immu12_hi
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu12_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §SRAM块传输指令
+- mnemonic: escape-ciii
+  format: ciii
+  op: '0x7E'
+  mask: '0xFF000000'
+  value: '0x7E000000'
+  fields:
+  - name: cfxcode
+    bits: '[23:18]'
+    role: cfxcode
+    bank: imm
+    signed: null
+  - name: imms18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: imms18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §退出指令
+- mnemonic: trap-ciii
+  format: ciii
+  op: '0x7F'
+  mask: '0xFF000000'
+  value: '0x7F000000'
+  fields:
+  - name: cfxcode
+    bits: '[23:18]'
+    role: cfxcode
+    bank: imm
+    signed: null
+  - name: immu18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §陷入指令
+- mnemonic: illi
+  format: oiii
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x00000000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: immu18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §非法指令
+  ha: '0x00'
+- mnemonic: fence
+  format: oiii
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x00040000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: immu18_hi
+    bits: '[17:12]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu18_mid
+    bits: '[11:6]'
+    role: imm
+    bank: imm
+    signed: null
+  - name: immu18_lo
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §fence指令
+  ha: '0x01'
+- mnemonic: lr_nn.o
+  format: orrr
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x00800000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+    signed: null
+  legality:
+  - rdhb == rd0
+  wiki_cite: SimRISC-04 §LR-SC指令
+  ha: '0x20'
+- mnemonic: lr_nr.o
+  format: orrr
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x00840000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+    signed: null
+  legality:
+  - rdhb == rd0
+  wiki_cite: SimRISC-04 §LR-SC指令
+  ha: '0x21'
+- mnemonic: lr_an.o
+  format: orrr
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x00880000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+    signed: null
+  legality:
+  - rdhb == rd0
+  wiki_cite: SimRISC-04 §LR-SC指令
+  ha: '0x22'
+- mnemonic: lr_ar.o
+  format: orrr
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x008C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+    signed: null
+  legality:
+  - rdhb == rd0
+  wiki_cite: SimRISC-04 §LR-SC指令
+  ha: '0x23'
+- mnemonic: sc_nn.o
+  format: orrr
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x00C00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §LR-SC指令
+  ha: '0x30'
+- mnemonic: sc_nr.o
+  format: orrr
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x00C40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §LR-SC指令
+  ha: '0x31'
+- mnemonic: sc_an.o
+  format: orrr
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x00C80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §LR-SC指令
+  ha: '0x32'
+- mnemonic: sc_ar.o
+  format: orrr
+  op: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x00CC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+    signed: null
+  legality: []
+  wiki_cite: SimRISC-04 §LR-SC指令
+  ha: '0x33'
+- mnemonic: and.o
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40200000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x08'
+- mnemonic: or.o
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40240000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x09'
+- mnemonic: xor.o
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40280000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x0A'
+- mnemonic: xnor.o
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x402C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x0B'
+- mnemonic: ext.uo
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40400000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x10'
+- mnemonic: ext.so
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40440000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x11'
+- mnemonic: shr.uo
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40480000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x12'
+- mnemonic: shr.so
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x404C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x13'
+- mnemonic: shl.uo
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40500000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x14'
+- mnemonic: ext.uo
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40600000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x18'
+- mnemonic: ext.so
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40640000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x19'
+- mnemonic: shr.uo
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40680000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1A'
+- mnemonic: shr.so
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x406C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1B'
+- mnemonic: shl.uo
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40700000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1C'
+- mnemonic: add.so-rb
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40800000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: dst
+    bank: rb
+    signed: null
+  - name: rbhc
+    bits: '[11:6]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rbhb != rb0
+  wiki_cite: SimRISC-02 §加减操作
+  ha: '0x20'
+- mnemonic: sub.so-rb
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40A00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: dst
+    bank: rb
+    signed: null
+  - name: rbhc
+    bits: '[11:6]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rbhb != rb0
+  wiki_cite: SimRISC-02 §加减操作
+  ha: '0x28'
+- mnemonic: cmp.uo-rb
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40A40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhc
+    bits: '[11:6]'
+    role: src
+    bank: rb
+    signed: null
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-02 §比较操作
+  ha: '0x29'
+- mnemonic: cmp.uo
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40A80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §比较操作
+  ha: '0x2A'
+- mnemonic: cmp.so
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40AC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §比较操作
+  ha: '0x2B'
+- mnemonic: rd2rd
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40B00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - immu6 != 0
+  - rdhb + immu6 <= 64
+  - rdhc + immu6 <= 64
+  wiki_cite: SimRISC-01 §寄存器组之间块赋值
+  ha: '0x2C'
+- mnemonic: rd2ra
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40B40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rahb
+    bits: '[17:12]'
+    role: dst
+    bank: ra
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - immu6 != 0
+  - rahb + immu6 <= 64
+  - rdhc + immu6 <= 64
+  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  ha: '0x2D'
+- mnemonic: ra2rd
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40B80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rahc
+    bits: '[11:6]'
+    role: src
+    bank: ra
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - immu6 != 0
+  - rdhb + immu6 <= 64
+  - rahc + immu6 <= 64
+  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  ha: '0x2E'
+- mnemonic: rb2rb
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40D00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: dst
+    bank: rb
+    signed: null
+  - name: rbhc
+    bits: '[11:6]'
+    role: src
+    bank: rb
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rbhb != rb0
+  - immu6 != 0
+  - rbhb + immu6 <= 64
+  - rbhc + immu6 <= 64
+  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  ha: '0x34'
+- mnemonic: rd2rb
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40D40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rbhb
+    bits: '[17:12]'
+    role: dst
+    bank: rb
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rbhb != rb0
+  - immu6 != 0
+  - rbhb + immu6 <= 64
+  - rdhc + immu6 <= 64
+  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  ha: '0x35'
+- mnemonic: rb2rd
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40D80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rbhc
+    bits: '[11:6]'
+    role: src
+    bank: rb
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - immu6 != 0
+  - rdhb + immu6 <= 64
+  - rbhc + immu6 <= 64
+  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  ha: '0x36'
+- mnemonic: div.uo
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40E00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x38'
+- mnemonic: div.so
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40E40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x39'
+- mnemonic: rem.uo
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40E80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x3A'
+- mnemonic: rem.so
+  format: orrr
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40EC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x3B'
+- mnemonic: rd2rf
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40F80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rf
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - immu6 != 0
+  - rfhb + immu6 <= 64
+  - rdhc + immu6 <= 64
+  wiki_cite: SimRISC-03 §寄存器组之间块赋值
+  ha: '0x3E'
+- mnemonic: rf2rd
+  format: orri
+  op: '0x40'
+  mask: '0xFFFC0000'
+  value: '0x40FC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - immu6 != 0
+  - rdhb + immu6 <= 64
+  - rfhc + immu6 <= 64
+  wiki_cite: SimRISC-03 §寄存器组之间块赋值
+  ha: '0x3F'
+- mnemonic: and.t
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41200000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x08'
+- mnemonic: or.t
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41240000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x09'
+- mnemonic: xor.t
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41280000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x0A'
+- mnemonic: xnor.t
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x412C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x0B'
+- mnemonic: ext.ut
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41400000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x10'
+- mnemonic: ext.st
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41440000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x11'
+- mnemonic: shr.ut
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41480000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x12'
+- mnemonic: shr.st
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x414C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x13'
+- mnemonic: shl.ut
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41500000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x14'
+- mnemonic: ext.ut
+  format: orri
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41600000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x18'
+- mnemonic: ext.st
+  format: orri
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41640000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x19'
+- mnemonic: shr.ut
+  format: orri
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41680000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1A'
+- mnemonic: shr.st
+  format: orri
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x416C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1B'
+- mnemonic: shl.ut
+  format: orri
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41700000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1C'
+- mnemonic: add.ut
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41800000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x20'
+- mnemonic: add.st
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41840000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x21'
+- mnemonic: sub.ut
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41A00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x28'
+- mnemonic: sub.st
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41A40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x29'
+- mnemonic: cmp.ut
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41A80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §比较操作
+  ha: '0x2A'
+- mnemonic: cmp.st
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41AC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §比较操作
+  ha: '0x2B'
+- mnemonic: mul.ut
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41C00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x30'
+- mnemonic: mul.st
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41C40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x31'
+- mnemonic: div.ut
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41E00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x38'
+- mnemonic: div.st
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41E40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x39'
+- mnemonic: rem.ut
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41E80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x3A'
+- mnemonic: rem.st
+  format: orrr
+  op: '0x41'
+  mask: '0xFFFC0000'
+  value: '0x41EC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x3B'
+- mnemonic: and.w
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42200000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x08'
+- mnemonic: or.w
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42240000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x09'
+- mnemonic: xor.w
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42280000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x0A'
+- mnemonic: xnor.w
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x422C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x0B'
+- mnemonic: ext.uw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42400000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x10'
+- mnemonic: ext.sw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42440000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x11'
+- mnemonic: shr.uw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42480000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x12'
+- mnemonic: shr.sw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x424C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x13'
+- mnemonic: shl.uw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42500000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x14'
+- mnemonic: ext.uw
+  format: orri
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42600000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x18'
+- mnemonic: ext.sw
+  format: orri
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42640000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x19'
+- mnemonic: shr.uw
+  format: orri
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42680000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1A'
+- mnemonic: shr.sw
+  format: orri
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x426C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1B'
+- mnemonic: shl.uw
+  format: orri
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42700000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1C'
+- mnemonic: add.uw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42800000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x20'
+- mnemonic: add.sw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42840000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x21'
+- mnemonic: sub.uw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42A00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x28'
+- mnemonic: sub.sw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42A40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x29'
+- mnemonic: cmp.uw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42A80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §比较操作
+  ha: '0x2A'
+- mnemonic: cmp.sw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42AC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §比较操作
+  ha: '0x2B'
+- mnemonic: mul.uw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42C00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x30'
+- mnemonic: mul.sw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42C40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x31'
+- mnemonic: div.uw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42E00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x38'
+- mnemonic: div.sw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42E40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x39'
+- mnemonic: rem.uw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42E80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x3A'
+- mnemonic: rem.sw
+  format: orrr
+  op: '0x42'
+  mask: '0xFFFC0000'
+  value: '0x42EC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x3B'
+- mnemonic: and.b
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43200000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x08'
+- mnemonic: or.b
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43240000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x09'
+- mnemonic: xor.b
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43280000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x0A'
+- mnemonic: xnor.b
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x432C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §逻辑运算
+  ha: '0x0B'
+- mnemonic: ext.ub
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43400000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x10'
+- mnemonic: ext.sb
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43440000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x11'
+- mnemonic: shr.ub
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43480000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x12'
+- mnemonic: shr.sb
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x434C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x13'
+- mnemonic: shl.ub
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43500000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x14'
+- mnemonic: ext.ub
+  format: orri
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43600000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x18'
+- mnemonic: ext.sb
+  format: orri
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43640000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x19'
+- mnemonic: shr.ub
+  format: orri
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43680000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1A'
+- mnemonic: shr.sb
+  format: orri
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x436C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1B'
+- mnemonic: shl.ub
+  format: orri
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43700000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §位操作
+  ha: '0x1C'
+- mnemonic: add.ub
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43800000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x20'
+- mnemonic: add.sb
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43840000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x21'
+- mnemonic: sub.ub
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43A00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x28'
+- mnemonic: sub.sb
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43A40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §加减操作
+  ha: '0x29'
+- mnemonic: cmp.ub
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43A80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §比较操作
+  ha: '0x2A'
+- mnemonic: cmp.sb
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43AC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §比较操作
+  ha: '0x2B'
+- mnemonic: mul.ub
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43C00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x30'
+- mnemonic: mul.sb
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43C40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x31'
+- mnemonic: div.ub
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43E00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x38'
+- mnemonic: div.sb
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43E40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x39'
+- mnemonic: rem.ub
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43E80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x3A'
+- mnemonic: rem.sb
+  format: orrr
+  op: '0x43'
+  mask: '0xFFFC0000'
+  value: '0x43EC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rdhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rdhd != rd0
+  wiki_cite: SimRISC-01 §乘除操作
+  ha: '0x3B'
+- mnemonic: ftcls
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44000000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-03 §浮点分类指令
+  ha: '0x00'
+- mnemonic: ft2fo
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44040000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality: []
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x01'
+- mnemonic: ft2ft
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44080000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality: []
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x02'
+- mnemonic: ftroot
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44180000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality: []
+  wiki_cite: SimRISC-03 §S1D1
+  ha: '0x06'
+- mnemonic: ftlog
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x441C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality: []
+  wiki_cite: SimRISC-03 §S1D1
+  ha: '0x07'
+- mnemonic: focls
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44200000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  wiki_cite: SimRISC-03 §浮点分类指令
+  ha: '0x08'
+- mnemonic: fo2ft
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44240000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality: []
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x09'
+- mnemonic: fo2fo
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44280000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality: []
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x0A'
+- mnemonic: foroot
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44380000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality: []
+  wiki_cite: SimRISC-03 §S1D1
+  ha: '0x0E'
+- mnemonic: folog
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x443C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality: []
+  wiki_cite: SimRISC-03 §S1D1
+  ha: '0x0F'
+- mnemonic: ftadd
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44400000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x10'
+- mnemonic: ftsub
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44440000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x11'
+- mnemonic: ftmul
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44480000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x12'
+- mnemonic: ftdiv
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x444C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x13'
+- mnemonic: ftrem
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44500000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x14'
+- mnemonic: ftsclb
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44540000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x15'
+- mnemonic: ftsgnn
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44580000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §浮点符号位操作指令
+  ha: '0x16'
+- mnemonic: ftsgnj
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x445C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §浮点符号位操作指令
+  ha: '0x17'
+- mnemonic: foadd
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44600000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x18'
+- mnemonic: fosub
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44640000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x19'
+- mnemonic: fomul
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44680000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x1A'
+- mnemonic: fodiv
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x446C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x1B'
+- mnemonic: forem
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44700000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x1C'
+- mnemonic: fosclb
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44740000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §S2D1
+  ha: '0x1D'
+- mnemonic: fosgnn
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44780000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §浮点符号位操作指令
+  ha: '0x1E'
+- mnemonic: fosgnj
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x447C0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rd
+    signed: null
+  legality:
+  - rfhb != rf0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §浮点符号位操作指令
+  ha: '0x1F'
+- mnemonic: ftqcmp
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44800000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §浮点比较指令
+  ha: '0x20'
+- mnemonic: ftscmp
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44840000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §浮点比较指令
+  ha: '0x21'
+- mnemonic: foqcmp
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44A00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §浮点比较指令
+  ha: '0x28'
+- mnemonic: foscmp
+  format: orrr
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44A40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+    signed: null
+  - name: rfhd
+    bits: '[5:0]'
+    role: src
+    bank: rf
+    signed: null
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  - rfhd != rf0
+  wiki_cite: SimRISC-03 §浮点比较指令
+  ha: '0x29'
+- mnemonic: ft2it
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44C00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x30'
+- mnemonic: ft2io
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44C40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x31'
+- mnemonic: ft2ut
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44C80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x32'
+- mnemonic: ft2uo
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44CC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x33'
+- mnemonic: it2ft
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44D00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x34'
+- mnemonic: io2ft
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44D40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x35'
+- mnemonic: ut2ft
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44D80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x36'
+- mnemonic: uo2ft
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44DC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x37'
+- mnemonic: fo2it
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44E00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x38'
+- mnemonic: fo2io
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44E40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x39'
+- mnemonic: fo2ut
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44E80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x3A'
+- mnemonic: fo2uo
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44EC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - rfhc != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x3B'
+- mnemonic: it2fo
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44F00000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x3C'
+- mnemonic: io2fo
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44F40000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x3D'
+- mnemonic: ut2fo
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44F80000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x3E'
+- mnemonic: uo2fo
+  format: orri
+  op: '0x44'
+  mask: '0xFFFC0000'
+  value: '0x44FC0000'
+  fields:
+  - name: ha
+    bits: '[23:18]'
+    role: minor_op
+    bank: imm
+    signed: null
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+    signed: null
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+    signed: null
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  wiki_cite: SimRISC-03 §格式转换指令
+  ha: '0x3F'

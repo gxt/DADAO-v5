@@ -1,0 +1,288 @@
+# DADAO SimRISC 0.5.3 — 合法性规则目录
+#
+# 来源：wiki 规范文档（SimRISC-01~04 + DADAO-11-AEE）
+# 每条规则：
+#   id: 稳定标识符
+#   fault: 异常类型（ILLI/UNDI/MALIGN/IALIGN）
+#   kind: 检查类型（static/dynamic）
+#   spec_cite: 规范引用
+#   wiki_cite: wiki 引用
+#   status: active/deferred
+#   description: 规则描述
+
+rules:
+  # ── RD 目的寄存器规则 ────────────────────────────────────────────────────────
+  - id: rd_dest_rd0
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01 §rd0 为目的寄存器约定"
+    wiki_cite: "SimRISC-01 §rd0 为目的寄存器约定 (L7)"
+    status: active
+    description: >
+      写 rd0 为目的寄存器时触发 ILLI 异常。
+      单目的指令不允许（丢弃唯一结果无语义）。
+      双目的 add/sub/mul 的 rrrr 格式允许其中一个为 rd0（丢弃对应半结果），
+      但不能同时为 rd0，也不能为同一非 rd0 寄存器。
+      访存类指令（ld/st）同理触发 ILLI。
+      ret rd0, 0 允许（无需设置返回值）。
+
+  - id: store_src_rd0
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01 §rd0 为目的寄存器约定"
+    wiki_cite: "SimRISC-01 §rd0 为目的寄存器约定 (L37)"
+    status: active
+    description: >
+      st*/stm* 指令中 rdha 字段是数据源，存储 rd0 触发 ILLI 异常。
+
+  - id: dual_dest_both_rd0
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01 §加减操作"
+    wiki_cite: "SimRISC-01 §加减操作 (L209)"
+    status: active
+    description: >
+      add/sub/mul 的 rrrr 格式有两个目的寄存器（rdha, rdhb）。
+      不能同时为 rd0，也不能为同一非 rd0 寄存器。
+
+  - id: dual_dest_same_reg
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01 §加减操作"
+    wiki_cite: "SimRISC-01 §加减操作 (L209)"
+    status: active
+    description: >
+      add/sub/mul 的 rrrr 格式中 rdha 和 rdhb 不能为同一非 rd0 寄存器。
+
+  # ── RB 目的寄存器规则 ────────────────────────────────────────────────────────
+  - id: rb_dest_rb0
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-02 §rb0 为目的寄存器约定"
+    wiki_cite: "SimRISC-02 §rb0 为目的寄存器约定 (L5)"
+    status: active
+    description: >
+      rb0 = PC（只读），任何指令以 rb0 为显式目的时触发 ILLI 异常。
+
+  - id: rb_base_rb0_store
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-02 §存取RB寄存器"
+    wiki_cite: "SimRISC-02 §存取RB寄存器 (L40)"
+    status: active
+    description: >
+      RB 存储指令（st.o-rb, stm.o-rb）中 rbha 为 rb0 时触发 ILLI 异常。
+
+  # ── RF 操作规则 ──────────────────────────────────────────────────────────────
+  - id: rf0_as_operand
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-03 §rf0 为目的寄存器约定"
+    wiki_cite: "SimRISC-03 §rf0 为目的寄存器约定 (L7)"
+    status: active
+    description: >
+      浮点运算指令的目的或任一源操作数为 rf0 时触发 ILLI 异常。
+      rf0 为控制和状态寄存器，不可作为普通浮点操作数参与运算。
+      rf ld/st 中 rf0 为目的时允许，写只读位时静默忽略，rw 位正常写入。
+
+  # ── 多寄存器范围规则 ─────────────────────────────────────────────────────────
+  - id: multi_immu6_zero
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01 §存取RD寄存器"
+    wiki_cite: "SimRISC-01 §存取RD寄存器 (L64)"
+    status: active
+    description: >
+      多寄存器指令（ldm/stm/rd2rd/rb2rd/rd2rb/rb2rb/ra2rd/rd2ra）
+      immu6=0 时触发 ILLI 异常。
+      不适用于移位/扩展指令的立即数形式（immu6=0 是合法的移位量）。
+
+  - id: multi_range_overflow
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01 §存取RD寄存器"
+    wiki_cite: "SimRISC-01 §存取RD寄存器 (L65)"
+    status: active
+    description: >
+      多寄存器指令中 first_reg + immu6 > 64 时触发 ILLI 异常。
+      不环绕、不截断。适用于所有多寄存器指令。
+
+  # ── 数据对齐规则 ─────────────────────────────────────────────────────────────
+  - id: data_malign
+    fault: MALIGN
+    kind: dynamic
+    spec_cite: "SimRISC-01 §对齐要求"
+    wiki_cite: "SimRISC-01 §对齐要求 (L35)"
+    status: active
+    description: >
+      数据访问未对齐触发 MALIGN 异常。
+      ld.o/st.o 需 8 字节对齐，ld.st/st.t/ld.ut 需 4 字节对齐，
+      ld.sw/st.w/ld.uw 需 2 字节对齐，ld.sb/st.b/ld.ub 无对齐要求。
+      多寄存器指令同样适用。
+
+  # ── 立即数范围规则 ───────────────────────────────────────────────────────────
+  - id: imm_range
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-00 §指令域说明"
+    wiki_cite: "SimRISC-00 §指令域说明 (L41-L50)"
+    status: active
+    description: >
+      立即数超出格式定义的范围时触发 ILLI 异常。
+      各格式立即数范围：iiii(24位), riii(18位), rrii(12位), rrri(6位), rwii(16位)。
+
+  # ── 移位量溢出规则 ───────────────────────────────────────────────────────────
+  - id: shamt_overflow
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01 §位操作指令"
+    wiki_cite: "SimRISC-01 §位操作指令 (L365)"
+    status: active
+    description: >
+      移位量超过位宽限制时触发 ILLI 异常。
+      shl.ub/shr.sb/shr.ub: shamt > 7
+      shl.uw/shr.sw/shr.uw: shamt > 15
+      shl.ut/shr.st/shr.ut: shamt > 31
+      shl.uo/shr.so/shr.uo: shamt > 63
+
+  # ── 扩展位溢出规则 ───────────────────────────────────────────────────────────
+  - id: ext_bit_overflow
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01 §位操作指令"
+    wiki_cite: "SimRISC-01 §位操作指令 (L375)"
+    status: active
+    description: >
+      扩展起始位超过位宽限制时触发 ILLI 异常。
+      ext.ub/ext.sb: hd > 7
+      ext.uw/ext.sw: hd > 15
+      ext.ut/ext.st: hd > 31
+      ext.uo/ext.so: hd > 63
+
+  # ── 除法规则 ─────────────────────────────────────────────────────────────────
+  - id: div_by_zero
+    fault: ILLI
+    kind: dynamic
+    spec_cite: "SimRISC-01 §乘除操作"
+    wiki_cite: "SimRISC-01 §乘除操作 (L303)"
+    status: active
+    description: >
+      除法/取余指令除数为零时触发 ILLI 异常。
+      适用于 div.s/div.u/rem.s/rem.u 全部格式。
+
+  - id: div_overflow
+    fault: ILLI
+    kind: dynamic
+    spec_cite: "SimRISC-01 §乘除操作"
+    wiki_cite: "SimRISC-01 §乘除操作 (L305)"
+    status: active
+    description: >
+      有符号除法溢出（INT_MIN ÷ -1）时触发 ILLI 异常。
+      byte: -128 ÷ -1, wyde: -32768 ÷ -1, tetra: -2147483648 ÷ -1, octa: -9223372036854775808 ÷ -1。
+
+  # ── 保留编码规则 ─────────────────────────────────────────────────────────────
+  - id: reserved_undi
+    fault: UNDI
+    kind: static
+    spec_cite: "SimRISC-00 §SimRISC QFC"
+    wiki_cite: "SimRISC-00 §SimRISC QFC (L92)"
+    status: active
+    description: >
+      执行保留编码（QFC 表中空白单元格）触发 UNDI 异常。
+      包括保留的 MISC-Norm ha minor-opcode。
+
+  # ── 指令对齐规则 ─────────────────────────────────────────────────────────────
+  - id: instruction_align
+    fault: IALIGN
+    kind: dynamic
+    spec_cite: "SimRISC-00 §指令设计"
+    wiki_cite: "SimRISC-00 §指令设计 (L13)"
+    status: active
+    description: >
+      取指时若 PC[1:0] ≠ 00，触发 IALIGN 异常。
+      所有指令必须 4 字节对齐。
+
+  # ── SBZ 域规则 ───────────────────────────────────────────────────────────────
+  - id: sbz_nonzero
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-00 §标识位说明"
+    wiki_cite: "SimRISC-00 §标识位说明 (L35)"
+    status: deferred
+    description: >
+      SBZ（Should Be Zero）域非零时触发 ILLI 异常。
+      当前阶段无适用指令，推迟到后续阶段。
+
+  # ── RAS 规则 ─────────────────────────────────────────────────────────────────
+  - id: ras_of
+    fault: RASOF
+    kind: dynamic
+    spec_cite: "DADAO-11-AEE §返回地址栈"
+    wiki_cite: "DADAO-11-AEE §返回地址栈 (L204)"
+    status: active
+    description: >
+      返回地址栈上溢触发 RASOF 异常。
+      RegRAS 满且 MemRAS 不可用或 MemRAS 引用计数溢出时触发。
+
+  - id: ras_uf
+    fault: RASUF
+    kind: dynamic
+    spec_cite: "DADAO-11-AEE §返回地址栈"
+    wiki_cite: "DADAO-11-AEE §返回地址栈 (L216)"
+    status: active
+    description: >
+      返回地址栈下溢触发 RASUF 异常。
+      RegRAS 空且 MemRAS 不可用或 MemRAS 引用计数下溢时触发。
+
+  # ── LR 指令规则 ─────────────────────────────────────────────────────────────
+  - id: lr_hb_not_zero
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-04 §LR-SC指令"
+    wiki_cite: "SimRISC-04 §LR-SC指令 (L72)"
+    status: active
+    description: >
+      lr 指令的 hb（rdhb）固定为 rd0，汇编代码仅需两个操作数。
+      若手工编码时 hb ≠ 0，触发 ILLI 异常。
+
+  # ── CFX 保留规则 ─────────────────────────────────────────────────────────────
+  - id: cfx_reserved
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-04 §寄存器传输指令"
+    wiki_cite: "SimRISC-04 §寄存器传输指令 (L152)"
+    status: active
+    description: >
+      cfxcode 为 reserved 核芯功能扩展（7-14、19-61）时触发 ILLI 异常。
+
+  # ── 浮点异常规则 ─────────────────────────────────────────────────────────────
+  - id: fpexcp
+    fault: FPEXCP
+    kind: dynamic
+    spec_cite: "DADAO-11-AEE §浮点状态寄存器"
+    wiki_cite: "DADAO-11-AEE §浮点状态寄存器 (L166)"
+    status: active
+    description: >
+      浮点指令执行后，若 rf0[4:0] 中任意异常状态位变为 1，硬件触发 FPEXCP 异常。
+      FPEXCP 可通过 excp_cause_mask 屏蔽。
+
+  # ── 浮点 root/log 规则 ──────────────────────────────────────────────────────
+  - id: fp_root_invalid_n
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-03 §S1D1"
+    wiki_cite: "SimRISC-03 §S1D1 (L188)"
+    status: active
+    description: >
+      ftroot/foroot 指令不支持的 n 值触发 ILLI 异常。
+      仅支持 n=2（平方根）和 n=3（立方根）。
+
+  - id: fp_log_invalid_base
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-03 §S1D1"
+    wiki_cite: "SimRISC-03 §S1D1 (L192)"
+    status: active
+    description: >
+      ftlog/folog 指令不支持的底值触发 ILLI 异常。
+      仅支持 2（log2）、1（自然对数）、10（log10）。
