@@ -370,57 +370,6 @@ void make_big(struct Big* sret_ptr, int a)
 
 长度 ≤ 64 位的聚合类型，使用标量返回值规则（通过 RD31 返回）。
 
-## 汇编兼容性
-
-汇编器应提供以下兼容性支持：
-
-### 指导符（directives）
-
-由于历史原因，汇编器中的word的定义并不一致，因此，Dadao采用了Knuth的MMIX中的数据长度定义，并在汇编器中额外定义了4个指导符：
-
-- `.dd.b08`：8位数据，1个字节
-- `.dd.w16`：16位数据，2个字节
-- `.dd.t32`：32位数据，4个字节
-- `.dd.o64`：64位数据，8个字节
-
-注意：Dadao中的octa含义和gas中的.octa定义不一致。
-Dadao中的octa是64位，即8字节，而gas中的.octa定义的数据是16字节（octa-word，而每个word是2字节）。
-因此，不建议使用gas中的.octa。
-
-### 汇编器选项
-
-除了通用的选项之外，Dadao添加了以下选项：
-
-- -multiple-to-single：将多寄存器指令转换为一系列的单寄存器指令；转换过程保持助记符（即opcode）不变
-
-## 地址空间布局
-
-应用程序建议使用不超过 32 个 PTBR，按需申请而非一次性分配。各 PTBR 按用途划分独立的虚拟地址空间区域：
-
-| PTBR | 用途 | TLB 切换行为 |
-|------|------|:--:|
-| 0-15 | 进程私有：代码、数据、栈、堆、备用 | invalid |
-| 16-31 | 共享库、动态链接、内核映射、共享内存 | **保留** |
-
-进程切换时，仅 invalid 进程私有的 PTBR 对应的 TLB 集合。标记为"保留"的 PTBR 对应的 TLB 集合不做无效化处理，从而避免共享代码和内核映射的 TLB 抖动。
-
-```simrisc
-; 进程切换示例：invalid 已申请的私有 PTBR（最多 16 个）
-set.rd   rd2, 0                     ; 循环变量
-cfx_tlb_inv_loop:
-    ; 仅 invalid PTBR 0-15
-    shl.uo  rd3, rd2, 42              ; rd3 = PTBR 索引 << 42（构造 addr_start，VA[47:42]=PTBR 编号）
-    cfx2rc  cfx_tlb_addr_start, rd3
-    set.rd   rd3, 0x40000000000     ; 0x40000000000（2^42） = 集合内全部 VA 空间
-    cfx2rc  cfx_tlb_addr_size, rd3
-    set.rd   rd4, 2                 ; bit1 = invalid by addr range
-    cfx2rc  cfx_tlb_control, rd4
-    add.si    rd2, 1
-    set.rd   rd3, 16
-    cmp.so  rd5, rd2, rd3          ; rd5 = rd2 < rd3 ?
-    br.n     rd5, cfx_tlb_inv_loop
-```
-
 ## 系统调用规范
 
 系统调用通过 `trap cfxcode, immu18` 指令发起，其中 `cfxcode` 指定目标核芯功能扩展，`immu18` 为硬件事务编号（功能编号）。
