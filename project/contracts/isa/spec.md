@@ -979,115 +979,115 @@ ILLI 触发场景汇总：[SimRISC-01, SimRISC-02, SimRISC-03, SimRISC-04]
 
 ### A.1 QFC 主表（op[7:0]）
 
-| op | 格式 | 助记符 |
+| op | 格式 | insn | 助记符 |
 |------|------|--------|
-| 0000-0000 | oiii | illi |
-| 0000-0001 | oiii | fence |
-| 0000-0100 | orrr | lr_nn.o |
-| 0000-0101 | orrr | lr_nr.o |
-| 0000-0110 | orrr | lr_an.o |
-| 0000-0111 | orrr | lr_ar.o |
-| 0000-1100 | orrr | sc_nn.o |
-| 0000-1101 | orrr | sc_nr.o |
-| 0000-1110 | orrr | sc_an.o |
-| 0000-1111 | orrr | sc_ar.o |
-| 0001-0000 | rrii | ld.ub-rd |
-| 0001-0001 | rrii | ld.uw-rd |
-| 0001-0010 | rrii | ld.ut-rd |
-| 0001-0011 | rrii | ld.sb-rd |
-| 0001-0100 | rrii | ld.sw-rd |
-| 0001-0101 | rrii | ld.st-rd |
-| 0001-0110 | rrii | ld.t-rf |
-| 0001-0111 | rrii | st.t-rf |
-| 0001-1000 | rrii | st.b-rd |
-| 0001-1001 | rrii | st.w-rd |
-| 0001-1010 | rrii | st.t-rd |
-| 0010-0000 | rrii | ld.o-rd |
-| 0010-0001 | rrii | st.o-rd |
-| 0010-0010 | rrii | ld.o-rb |
-| 0010-0011 | rrii | st.o-rb |
-| 0010-0100 | rrii | ld.o-ra |
-| 0010-0101 | rrii | st.o-ra |
-| 0010-0110 | rrii | ld.o-rf |
-| 0010-0111 | rrii | st.o-rf |
-| 0010-1000 | rrri | ldm.ub-rd |
-| 0010-1001 | rrri | ldm.uw-rd |
-| 0010-1010 | rrri | ldm.ut-rd |
-| 0010-1011 | rrri | ldm.sb-rd |
-| 0010-1100 | rrri | ldm.sw-rd |
-| 0010-1101 | rrri | ldm.st-rd |
-| 0010-1110 | rrri | ldm.t-rf |
-| 0010-1111 | rrri | stm.t-rf |
-| 0011-0000 | rrri | stm.b-rd |
-| 0011-0001 | rrri | stm.w-rd |
-| 0011-0010 | rrri | stm.t-rd |
-| 0011-1000 | rrri | ldm.o-rd |
-| 0011-1001 | rrri | stm.o-rd |
-| 0011-1010 | rrri | ldm.o-rb |
-| 0011-1011 | rrri | stm.o-rb |
-| 0011-1100 | rrri | ldm.o-ra |
-| 0011-1101 | rrri | stm.o-ra |
-| 0011-1110 | rrri | ldm.o-rf |
-| 0011-1111 | rrri | stm.o-rf |
+| 0000-0000 | oiii | illi | illi |
+| 0000-0001 | oiii | fence | fence |
+| 0000-0100 | orrr | lr_nn.o | lr_nn.o |
+| 0000-0101 | orrr | lr_nr.o | lr_nr.o |
+| 0000-0110 | orrr | lr_an.o | lr_an.o |
+| 0000-0111 | orrr | lr_ar.o | lr_ar.o |
+| 0000-1100 | orrr | sc_nn.o | sc_nn.o |
+| 0000-1101 | orrr | sc_nr.o | sc_nr.o |
+| 0000-1110 | orrr | sc_an.o | sc_an.o |
+| 0000-1111 | orrr | sc_ar.o | sc_ar.o |
+| 0001-0000 | rrii | ld.ub-rd | ld.ub |
+| 0001-0001 | rrii | ld.uw-rd | ld.uw |
+| 0001-0010 | rrii | ld.ut-rd | ld.ut |
+| 0001-0011 | rrii | ld.sb-rd | ld.sb |
+| 0001-0100 | rrii | ld.sw-rd | ld.sw |
+| 0001-0101 | rrii | ld.st-rd | ld.st |
+| 0001-0110 | rrii | ld.t-rf | ld.t |
+| 0001-0111 | rrii | st.t-rf | st.t |
+| 0001-1000 | rrii | st.b-rd | st.b |
+| 0001-1001 | rrii | st.w-rd | st.w |
+| 0001-1010 | rrii | st.t-rd | st.t |
+| 0010-0000 | rrii | ld.o-rd | ld.o |
+| 0010-0001 | rrii | st.o-rd | st.o |
+| 0010-0010 | rrii | ld.o-rb | ld.o |
+| 0010-0011 | rrii | st.o-rb | st.o |
+| 0010-0100 | rrii | ld.o-ra | ld.o |
+| 0010-0101 | rrii | st.o-ra | st.o |
+| 0010-0110 | rrii | ld.o-rf | ld.o |
+| 0010-0111 | rrii | st.o-rf | st.o |
+| 0010-1000 | rrri | ldm.ub-rd | ldm.ub |
+| 0010-1001 | rrri | ldm.uw-rd | ldm.uw |
+| 0010-1010 | rrri | ldm.ut-rd | ldm.ut |
+| 0010-1011 | rrri | ldm.sb-rd | ldm.sb |
+| 0010-1100 | rrri | ldm.sw-rd | ldm.sw |
+| 0010-1101 | rrri | ldm.st-rd | ldm.st |
+| 0010-1110 | rrri | ldm.t-rf | ldm.t |
+| 0010-1111 | rrri | stm.t-rf | stm.t |
+| 0011-0000 | rrri | stm.b-rd | stm.b |
+| 0011-0001 | rrri | stm.w-rd | stm.w |
+| 0011-0010 | rrri | stm.t-rd | stm.t |
+| 0011-1000 | rrri | ldm.o-rd | ldm.o |
+| 0011-1001 | rrri | stm.o-rd | stm.o |
+| 0011-1010 | rrri | ldm.o-rb | ldm.o |
+| 0011-1011 | rrri | stm.o-rb | stm.o |
+| 0011-1100 | rrri | ldm.o-ra | ldm.o |
+| 0011-1101 | rrri | stm.o-ra | stm.o |
+| 0011-1110 | rrri | ldm.o-rf | ldm.o |
+| 0011-1111 | rrri | stm.o-rf | stm.o |
 | 0100-0000 | — | MISC-AMO 子表 |
 | 0100-0001 | — | MISC-octa 子表 |
 | 0100-0010 | — | MISC-tetra 子表 |
 | 0100-0011 | — | MISC-wyde 子表 |
 | 0100-0100 | — | MISC-byte 子表 |
 | 0100-0101 | — | MISC-RF 子表 |
-| 0100-1000 | rwii | or.w-rd |
-| 0100-1001 | rwii | andn.w-rd |
-| 0100-1010 | rwii | or.w-rb |
-| 0100-1011 | rwii | andn.w-rb |
-| 0100-1100 | rwii | set.zw-rd |
-| 0100-1101 | rwii | set.ow-rd |
-| 0100-1110 | rwii | set.zw-rb |
-| 0100-1111 | rwii | set.w-rf |
-| 0101-0000 | rrrr | add.uo-rd |
-| 0101-0001 | rrrr | add.so-rd |
-| 0101-0010 | rrrr | sub.uo-rd |
-| 0101-0011 | rrrr | sub.so-rd |
-| 0101-0100 | rrrr | mul.uo-rd |
-| 0101-0101 | rrrr | mul.so-rd |
-| 0101-0110 | rrrr | ftmadd |
-| 0101-0111 | rrrr | fomadd |
-| 0101-1001 | riii | add.si-rd |
-| 0101-1010 | riii | rela.si-rb |
-| 0101-1011 | riii | add.si-rb |
-| 0101-1100 | rrii | cmp.ui-rd |
-| 0101-1101 | rrii | cmp.si-rd |
-| 0101-1110 | rrrr | cs.eq-rf |
-| 0101-1111 | rrrr | cs.ne-rf |
-| 0110-0000 | rrrr | cs.n-rd |
-| 0110-0001 | rrrr | cs.n-rf |
-| 0110-0010 | rrrr | cs.z-rd |
-| 0110-0011 | rrrr | cs.z-rf |
-| 0110-0100 | rrrr | cs.p-rd |
-| 0110-0101 | rrrr | cs.p-rf |
-| 0110-0110 | rrrr | cs.eq-rd |
-| 0110-0111 | rrrr | cs.ne-rd |
-| 0110-1000 | riii | br.n-rd |
-| 0110-1001 | riii | br.nn-rd |
-| 0110-1010 | riii | br.z-rd |
-| 0110-1011 | riii | br.nz-rd |
-| 0110-1100 | riii | br.p-rd |
-| 0110-1101 | riii | br.np-rd |
-| 0110-1110 | rrii | br.eq-rd |
-| 0110-1111 | rrii | br.ne-rd |
-| 0111-0000 | iiii | jump-iiii |
-| 0111-0001 | rrii | jump-rrii |
-| 0111-0010 | riii | br.z-rb |
-| 0111-0011 | riii | br.nz-rb |
-| 0111-0100 | iiii | call-iiii |
-| 0111-0101 | rrii | call-rrii |
-| 0111-0110 | riii | ret |
-| 0111-0111 | iiii | swym |
-| 0111-1010 | crrr | cfx2rd |
-| 0111-1011 | crrr | cfx2rc |
-| 0111-1100 | crii | cfxld |
-| 0111-1101 | crii | cfxst |
-| 0111-1110 | ciii | escape |
-| 0111-1111 | ciii | trap |
+| 0100-1000 | rwii | or.w-rd | or.w |
+| 0100-1001 | rwii | andn.w-rd | andn.w |
+| 0100-1010 | rwii | or.w-rb | or.w |
+| 0100-1011 | rwii | andn.w-rb | andn.w |
+| 0100-1100 | rwii | set.zw-rd | set.zw |
+| 0100-1101 | rwii | set.ow-rd | set.ow |
+| 0100-1110 | rwii | set.zw-rb | set.zw |
+| 0100-1111 | rwii | set.w-rf | set.w |
+| 0101-0000 | rrrr | add.uo-rd | add.uo |
+| 0101-0001 | rrrr | add.so-rd | add.so |
+| 0101-0010 | rrrr | sub.uo-rd | sub.uo |
+| 0101-0011 | rrrr | sub.so-rd | sub.so |
+| 0101-0100 | rrrr | mul.uo-rd | mul.uo |
+| 0101-0101 | rrrr | mul.so-rd | mul.so |
+| 0101-0110 | rrrr | ftmadd | ftmadd |
+| 0101-0111 | rrrr | fomadd | fomadd |
+| 0101-1001 | riii | add.si-rd | add.si |
+| 0101-1010 | riii | rela.si-rb | rela.si |
+| 0101-1011 | riii | add.si-rb | add.si |
+| 0101-1100 | rrii | cmp.ui-rd | cmp.ui |
+| 0101-1101 | rrii | cmp.si-rd | cmp.si |
+| 0101-1110 | rrrr | cs.eq-rf | cs.eq |
+| 0101-1111 | rrrr | cs.ne-rf | cs.ne |
+| 0110-0000 | rrrr | cs.n-rd | cs.n |
+| 0110-0001 | rrrr | cs.n-rf | cs.n |
+| 0110-0010 | rrrr | cs.z-rd | cs.z |
+| 0110-0011 | rrrr | cs.z-rf | cs.z |
+| 0110-0100 | rrrr | cs.p-rd | cs.p |
+| 0110-0101 | rrrr | cs.p-rf | cs.p |
+| 0110-0110 | rrrr | cs.eq-rd | cs.eq |
+| 0110-0111 | rrrr | cs.ne-rd | cs.ne |
+| 0110-1000 | riii | br.n-rd | br.n |
+| 0110-1001 | riii | br.nn-rd | br.nn |
+| 0110-1010 | riii | br.z-rd | br.z |
+| 0110-1011 | riii | br.nz-rd | br.nz |
+| 0110-1100 | riii | br.p-rd | br.p |
+| 0110-1101 | riii | br.np-rd | br.np |
+| 0110-1110 | rrii | br.eq-rd | br.eq |
+| 0110-1111 | rrii | br.ne-rd | br.ne |
+| 0111-0000 | iiii | jump-iiii | jump-iiii |
+| 0111-0001 | rrii | jump-rrii | jump-rrii |
+| 0111-0010 | riii | br.z-rb | br.z |
+| 0111-0011 | riii | br.nz-rb | br.nz |
+| 0111-0100 | iiii | call-iiii | call-iiii |
+| 0111-0101 | rrii | call-rrii | call-rrii |
+| 0111-0110 | riii | ret | ret |
+| 0111-0111 | iiii | swym | swym |
+| 0111-1010 | crrr | cfx2rd | cfx2rd |
+| 0111-1011 | crrr | cfx2rc | cfx2rc |
+| 0111-1100 | crii | cfxld | cfxld |
+| 0111-1101 | crii | cfxst | cfxst |
+| 0111-1110 | ciii | escape | escape |
+| 0111-1111 | ciii | trap | trap |
 
 ### A.2 MISC-octa 子表
 
@@ -1222,36 +1222,36 @@ ILLI 触发场景汇总：[SimRISC-01, SimRISC-02, SimRISC-03, SimRISC-04]
 
 | minor-opcode | 助记符 | 格式 |
 |-------------|--------|------|
-| 000-000 | ftcls | orri |
+| 000-000 | ftcls | orri | orri |
 | 000-001 | ft2fo | orri |
 | 000-010 | ft2ft | orri |
-| 000-110 | ftroot | orri |
-| 000-111 | ftlog | orri |
-| 001-000 | focls | orri |
+| 000-110 | ftroot | orri | orri |
+| 000-111 | ftlog | orri | orri |
+| 001-000 | focls | orri | orri |
 | 001-001 | fo2ft | orri |
 | 001-010 | fo2fo | orri |
-| 001-110 | foroot | orri |
-| 001-111 | folog | orri |
-| 010-000 | ftadd | orrr |
-| 010-001 | ftsub | orrr |
-| 010-010 | ftmul | orrr |
-| 010-011 | ftdiv | orrr |
-| 010-100 | ftrem | orrr |
-| 010-101 | ftsclb | orrr |
-| 010-110 | ftsgnn | orrr |
-| 010-111 | ftsgnj | orrr |
-| 011-000 | foadd | orrr |
-| 011-001 | fosub | orrr |
-| 011-010 | fomul | orrr |
-| 011-011 | fodiv | orrr |
-| 011-100 | forem | orrr |
-| 011-101 | fosclb | orrr |
-| 011-110 | fosgnn | orrr |
-| 011-111 | fosgnj | orrr |
-| 100-000 | ftqcmp | orrr |
-| 100-001 | ftscmp | orrr |
-| 101-000 | foqcmp | orrr |
-| 101-001 | foscmp | orrr |
+| 001-110 | foroot | orri | orri |
+| 001-111 | folog | orri | orri |
+| 010-000 | ftadd | orrr | orrr |
+| 010-001 | ftsub | orrr | orrr |
+| 010-010 | ftmul | orrr | orrr |
+| 010-011 | ftdiv | orrr | orrr |
+| 010-100 | ftrem | orrr | orrr |
+| 010-101 | ftsclb | orrr | orrr |
+| 010-110 | ftsgnn | orrr | orrr |
+| 010-111 | ftsgnj | orrr | orrr |
+| 011-000 | foadd | orrr | orrr |
+| 011-001 | fosub | orrr | orrr |
+| 011-010 | fomul | orrr | orrr |
+| 011-011 | fodiv | orrr | orrr |
+| 011-100 | forem | orrr | orrr |
+| 011-101 | fosclb | orrr | orrr |
+| 011-110 | fosgnn | orrr | orrr |
+| 011-111 | fosgnj | orrr | orrr |
+| 100-000 | ftqcmp | orrr | orrr |
+| 100-001 | ftscmp | orrr | orrr |
+| 101-000 | foqcmp | orrr | orrr |
+| 101-001 | foscmp | orrr | orrr |
 | 110-000 | ft2it | orri |
 | 110-001 | ft2io | orri |
 | 110-010 | ft2ut | orri |
@@ -1273,8 +1273,8 @@ ILLI 触发场景汇总：[SimRISC-01, SimRISC-02, SimRISC-03, SimRISC-04]
 
 | minor-opcode | 助记符 | 格式 |
 |-------------|--------|------|
-| 000-000 | illi | oiii |
-| 000-001 | fence | oiii |
+| 000-000 | illi | oiii | oiii |
+| 000-001 | fence | oiii | oiii |
 | 010-000 | lr_nn.o | orrr |
 | 010-001 | lr_nr.o | orrr |
 | 010-010 | lr_an.o | orrr |
