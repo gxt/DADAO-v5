@@ -56,7 +56,7 @@ type address = bits(48) / 有效地址
 / 异常类型
 union clause ast = Fault : {
     ILLI, UNDI, MALIGN, IALIGN,
-    RASOF, RASUF, FPEXCP,
+    RASOF, RASUF,
     CFXTRAP, CFXMEM, CFXREG
 }
 

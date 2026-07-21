@@ -255,17 +255,6 @@ rules:
     description: >
       cfxcode 为 reserved 核芯功能扩展（7-14、19-61）时触发 ILLI 异常。
 
-  # ── 浮点异常规则 ─────────────────────────────────────────────────────────────
-  - id: fpexcp
-    fault: FPEXCP
-    kind: dynamic
-    spec_cite: "DADAO-11-AEE §浮点状态寄存器"
-    wiki_cite: "DADAO-11-AEE §浮点状态寄存器 (L166)"
-    status: active
-    description: >
-      浮点指令执行后，若 rf0[4:0] 中任意异常状态位变为 1，硬件触发 FPEXCP 异常。
-      FPEXCP 可通过 excp_cause_mask 屏蔽。
-
   # ── 浮点 root/log 规则 ──────────────────────────────────────────────────────
   - id: fp_root_invalid_n
     fault: ILLI

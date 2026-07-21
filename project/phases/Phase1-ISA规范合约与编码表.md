@@ -75,7 +75,7 @@ spec.md 的要求：
    - §6 浮点指令（RF 加载/存储、块复制、转换、算术运算）
    - §7 系统指令（swym/illi/fence/lr/sc/cfx 特权指令）
    - §8 NOP 与保留编码
-   - §9 异常总结（ILLI/UNDI/MALIGN/IALIGN/RASOF/RASUF/FPEXCP/CFXREG）
+   - §9 异常总结（ILLI/UNDI/MALIGN/IALIGN/RASOF/RASUF/CFXREG）
    - 附录 A：完整编码清单（与 QFC 表一致）
    - 附录 B：条件标志参考
    - 附录 C：未解决/开放问题

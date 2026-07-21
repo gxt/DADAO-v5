@@ -55,7 +55,6 @@ DADAO-v5/verif/
    - IALIGN（取指未对齐）
    - RASOF（RAS 上溢）
    - RASUF（RAS 下溢）
-   - FPEXCP（浮点异常，预留）
    - CFXREG（核芯功能扩展寄存器异常，预留）
 
 2. **State 类**：架构状态

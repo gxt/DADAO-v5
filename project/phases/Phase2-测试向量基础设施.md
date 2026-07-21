@@ -234,7 +234,7 @@ escape-ciii（退出）
 - rf0 = FCSR，初始值包含 QuietNaN 模式位 + 舍入模式
 - 单精数据只使用 rf 寄存器的低 32 位
 - IEEE 754 标准浮点值使用 hex 表示（如 0x3FF0000000000000 = 1.0 double）
-- 浮点运算触发 FPEXCP 异常时需标注 expected_fault: FPEXCP
+- 浮点指令不触发异常，异常状态记录在 rf0[4:0] 中
 
 对于所有浮点指令，先创建 encoding 类向量确认编码正确。semantic 类向量可以留到 M3（浮点支持阶段）补充。
 ```

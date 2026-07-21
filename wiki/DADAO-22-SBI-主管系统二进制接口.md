@@ -817,13 +817,11 @@ cfx_umon_user_excp_handler:
     br.eq    rd2, rd3, syscall_handler               ; CFXTRAP (1<<0)
     set.rd   rd3, 256
     br.eq    rd2, rd3, illi_handler                  ; ILLI (1<<8)
-    set.zw   rd3, wp2, 1                             ; rd3 = 1<<32
-    br.eq    rd2, rd3, fpexcp_handler                ; FPEXCP (1<<32)
     ; 默认：未处理异常
     escape cfx_umon, 1
 ```
 
-syscall_handler、illi_handler、fpexcp_handler 等具体处理函数由操作系统实现。
+syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 
 ## 14. 扩展
 
