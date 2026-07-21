@@ -10,7 +10,8 @@
 
 | 来源 | 文件 | 用途 |
 |------|------|------|
-| DADAO-v5/wiki | `DADAO-11-AEE-应用程序运行环境.md` | 数据表示、寄存器模型、存储模型 |
+| DADAO-v5/wiki | `SimRISC-00-指令系统设计.md` | 数据表示、寄存器模型、存储模型 |
+| DADAO-v5/wiki | `DADAO-11-AEE-应用程序运行环境.md` | 不同宽度数据的运算处理、地址空间布局、汇编兼容性 |
 | DADAO-v5/wiki | `DADAO-21-ABI-应用程序二进制接口.md` | 寄存器规范、传参规则、栈布局、返回值 |
 | DADAO-v5/wiki | `DADAO-22-SBI-主管系统二进制接口.md` | 系统调用约定 |
 | DADAO-v5/wiki | `DADAO-23-HBI-超管系统二进制接口.md` | HBI 调用约定 |

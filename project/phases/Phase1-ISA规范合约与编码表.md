@@ -4,18 +4,17 @@
 
 ## 目标
 
-从 DADAO-v5/wiki 的 SimRISC 四份规范文档和 AEE（寄存器模型部分）中提取核心 ISA 规范，创建机器可读的编码表（opcodes.yaml）和合法性规则（legality_rules.yaml）。这是所有后续实现（golden model、LLVM、QEMU）的单一事实来源。
+从 DADAO-v5/wiki 的 SimRISC 规范文档中提取核心 ISA 规范，创建机器可读的编码表（opcodes.yaml）和合法性规则（legality_rules.yaml）。这是所有后续实现（golden model、LLVM、QEMU）的单一事实来源。
 
 ## 输入文件（DADAO-v5/wiki）
 
 | 文件 | 用途 | 关键内容 |
 |------|------|---------|
-| `SimRISC-00-指令系统设计.md` | 指令编码设计、指令格式、QFC 编码表 | 所有 12 种操作数格式、opcode 布局、MISC-AMO/MISC-octa/MISC-tetra/MISC-wyde/MISC-byte/MISC-RF 子编码表、标识位定义 |
+| `SimRISC-00-指令系统设计.md` | 指令编码设计、指令格式、QFC 编码表、数据表示、寄存器模型 | 所有 12 种操作数格式、opcode 布局、MISC-AMO/MISC-octa/MISC-tetra/MISC-wyde/MISC-byte/MISC-RF 子编码表、标识位定义、数据表示、寄存器模型、浮点状态寄存器、返回地址栈 |
 | `SimRISC-01-数据类指令.md` | RD 寄存器组的所有指令语义 | 存取（单/多）、赋值（块/立即数/条件）、算术（add/sub/mul/div/cmp）、逻辑（and/or/xor/xnor）、移位（shl/shr/ext）、wyde 块操作 |
 | `SimRISC-02-地址类指令.md` | RB/RA 寄存器组指令、控制流 | RB 存取、RA 存取、块赋值（rb2rd/rd2rb/rb2rb/ra2rd/rd2ra）、RB 算术（add/sub/add.si/rela.si/cmp）、控制流（br/jump/call/ret）、48 位地址语义 |
 | `SimRISC-03-浮点类指令.md` | RF 寄存器组指令 | RF 存取（单精/双精）、块赋值、转换指令、浮点运算（ftadd/ftsub/ftmul/ftdiv...）、IEEE 754 支持 |
 | `SimRISC-04-系统类指令.md` | 系统指令 | swym、illi、fence、lr/sc（原子操作）、cfx 特权指令（trap/escape/cfx2rd/cfx2rc/cfxld/cfxst） |
-| `DADAO-11-AEE-应用程序运行环境.md` | 寄存器模型 | rd0 硬连线零、rb0=PC、rf0=FCSR、RA 栈（RegRAS + MemRAS）、RASOF/RASUF |
 | `AGENTS.md` | 命名约定 | /wpN/pmem/illi 等命名规则、指令格式后缀 |
 
 ## 参考文件（DADAO-0628）
