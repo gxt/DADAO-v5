@@ -22,7 +22,7 @@ SimRISC 提供 8/16/32/64-bit 四种位宽的运算指令（如 add.ub/add.uw/ad
 ; 有符号 32-bit 加法
 ld.st    rd2, rbsp, x_offset          ; 符号扩展加载
 ld.st    rd3, rbsp, y_offset
-add     rd0, rd4, rd2, rd3           ; rd4 = 低64位；rd0丢弃高64位
+add.so  rd0, rd4, rd2, rd3           ; rd4 = 低64位；rd0丢弃高64位
 st.t     rd4, rbsp, z_offset
 ```
 
