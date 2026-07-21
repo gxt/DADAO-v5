@@ -3,6 +3,19 @@
 
 import yaml
 
+def get_bank_from_field_name(field_name):
+    """根据字段名称推断寄存器 bank"""
+    if field_name.startswith("rd"):
+        return "rd"
+    elif field_name.startswith("rb"):
+        return "rb"
+    elif field_name.startswith("rf"):
+        return "rf"
+    elif field_name.startswith("ra"):
+        return "ra"
+    else:
+        return "imm"
+
 def create_record(mnemonic, fmt, op, ha=None, fields=None, legality=None, wiki_cite=""):
     """创建一条指令记录"""
     if fields is None:
@@ -49,35 +62,35 @@ def create_field(name, bits, role, bank, signed=None):
 def generate_rrrr_fields(dst_name="rdha", src1_name="rdhb", src2_name="rdhc", src3_name="rdhd"):
     """生成 rrrr 格式的字段"""
     return [
-        create_field(dst_name, "[23:18]", "dst", "rd"),
-        create_field(src1_name, "[17:12]", "src", "rd"),
-        create_field(src2_name, "[11:6]", "src", "rd"),
-        create_field(src3_name, "[5:0]", "src", "rd")
+        create_field(dst_name, "[23:18]", "dst", get_bank_from_field_name(dst_name)),
+        create_field(src1_name, "[17:12]", "src", get_bank_from_field_name(src1_name)),
+        create_field(src2_name, "[11:6]", "src", get_bank_from_field_name(src2_name)),
+        create_field(src3_name, "[5:0]", "src", get_bank_from_field_name(src3_name))
     ]
 
 def generate_orrr_fields(dst_name="rdhb", src1_name="rdhc", src2_name="rdhd"):
     """生成 orrr 格式的字段"""
     return [
         create_field("ha", "[23:18]", "minor_op", "imm"),
-        create_field(dst_name, "[17:12]", "dst", "rd"),
-        create_field(src1_name, "[11:6]", "src", "rd"),
-        create_field(src2_name, "[5:0]", "src", "rd")
+        create_field(dst_name, "[17:12]", "dst", get_bank_from_field_name(dst_name)),
+        create_field(src1_name, "[11:6]", "src", get_bank_from_field_name(src1_name)),
+        create_field(src2_name, "[5:0]", "src", get_bank_from_field_name(src2_name))
     ]
 
 def generate_orri_fields(dst_name="rdhb", src_name="rdhc", imm_name="immu6"):
     """生成 orri 格式的字段"""
     return [
         create_field("ha", "[23:18]", "minor_op", "imm"),
-        create_field(dst_name, "[17:12]", "dst", "rd"),
-        create_field(src_name, "[11:6]", "src", "rd"),
+        create_field(dst_name, "[17:12]", "dst", get_bank_from_field_name(dst_name)),
+        create_field(src_name, "[11:6]", "src", get_bank_from_field_name(src_name)),
         create_field(imm_name, "[5:0]", "imm", "imm", signed=False)
     ]
 
 def generate_rrii_fields(dst_name="rdha", src_name="rbhb", imm_name="imms12"):
     """生成 rrii 格式的字段"""
     return [
-        create_field(dst_name, "[23:18]", "dst", "rd"),
-        create_field(src_name, "[17:12]", "src", "rb"),
+        create_field(dst_name, "[23:18]", "dst", get_bank_from_field_name(dst_name)),
+        create_field(src_name, "[17:12]", "src", get_bank_from_field_name(src_name)),
         create_field(f"{imm_name}_hi", "[11:6]", "imm", "imm"),
         create_field(f"{imm_name}_lo", "[5:0]", "imm", "imm")
     ]
@@ -85,7 +98,7 @@ def generate_rrii_fields(dst_name="rdha", src_name="rbhb", imm_name="imms12"):
 def generate_riii_fields(dst_name="rdha", imm_name="imms18"):
     """生成 riii 格式的字段"""
     return [
-        create_field(dst_name, "[23:18]", "dst", "rd"),
+        create_field(dst_name, "[23:18]", "dst", get_bank_from_field_name(dst_name)),
         create_field(f"{imm_name}_hi", "[17:12]", "imm", "imm"),
         create_field(f"{imm_name}_mid", "[11:6]", "imm", "imm"),
         create_field(f"{imm_name}_lo", "[5:0]", "imm", "imm")
@@ -103,7 +116,7 @@ def generate_iiii_fields(imm_name="imms24"):
 def generate_rwii_fields(dst_name="rdha", wp_name="wpN", imm_name="immu16"):
     """生成 rwii 格式的字段"""
     return [
-        create_field(dst_name, "[23:18]", "dst", "rd"),
+        create_field(dst_name, "[23:18]", "dst", get_bank_from_field_name(dst_name)),
         create_field(wp_name, "[17:16]", "wyde_pos", "imm"),
         create_field(f"{imm_name}_hi", "[15:12]", "imm", "imm"),
         create_field(f"{imm_name}_mid", "[11:6]", "imm", "imm"),
@@ -125,14 +138,14 @@ def generate_crrr_fields(cfx_name="cfxcode", cg_name="cghb", rc_name="rchc", rd_
         create_field(cfx_name, "[23:18]", "cfxcode", "imm"),
         create_field(cg_name, "[17:12]", "cfx_cg", "imm"),
         create_field(rc_name, "[11:6]", "cfx_rc", "imm"),
-        create_field(rd_name, "[5:0]", "dst", "rd")
+        create_field(rd_name, "[5:0]", "dst", get_bank_from_field_name(rd_name))
     ]
 
 def generate_crii_fields(rb_name="rbhb", imm_name="immu12"):
     """生成 crii 格式的字段"""
     return [
         create_field("cfxcode", "[23:18]", "cfxcode", "imm"),
-        create_field(rb_name, "[17:12]", "src", "rb"),
+        create_field(rb_name, "[17:12]", "src", get_bank_from_field_name(rb_name)),
         create_field(f"{imm_name}_hi", "[11:6]", "imm", "imm"),
         create_field(f"{imm_name}_lo", "[5:0]", "imm", "imm")
     ]

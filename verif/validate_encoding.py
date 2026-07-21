@@ -8,6 +8,7 @@
   2. 记录内的字段不重叠且覆盖 [mask] 中所有为 1 的位
   3. 没有两条指令共享相同的 (mask, value) 编码空间
   4. 保留编码（reserved）未被意外分配
+  5. 字段 bank 标记与指令名称一致
 """
 
 import sys
@@ -45,6 +46,18 @@ def parse_bitrange(s):
     return high, low
 
 
+def get_expected_bank_from_mnemonic(mnemonic):
+    """从指令名称中提取期望的 bank"""
+    # 指令名称格式：op.suffix-bank 或 op-bank
+    parts = mnemonic.split("-")
+    if len(parts) >= 2:
+        suffix = parts[-1]
+        if suffix in ["rd", "rb", "rf", "ra"]:
+            return suffix
+    # 默认返回 rd（对于没有明确 bank 后缀的指令）
+    return "rd"
+
+
 def check_value_mask(rec):
     mnem = rec.get("mnemonic", "?")
     fmt = rec.get("format", "?")
@@ -69,6 +82,35 @@ def check_fields_non_overlapping(fields):
                         f"{occupied[b]} 冲突")
             occupied[b] = f"{f['name']} ({f['bits']})"
     return (True, "")
+
+
+def check_bank_consistency(rec):
+    """检查字段 bank 标记与指令名称是否一致"""
+    mnem = rec.get("mnemonic", "?")
+    fields = rec.get("fields", [])
+    errors = []
+    
+    expected_bank = get_expected_bank_from_mnemonic(mnem)
+    
+    for f in fields:
+        field_name = f.get("name", "")
+        field_bank = f.get("bank", "")
+        
+        # 跳过立即数字段
+        if field_bank == "imm":
+            continue
+        
+        # 检查寄存器字段的 bank 是否与指令名称一致
+        if field_name.startswith("rd") and field_bank != "rd":
+            errors.append(f"{mnem}: 字段 {field_name} 的 bank 应为 rd，实际为 {field_bank}")
+        elif field_name.startswith("rb") and field_bank != "rb":
+            errors.append(f"{mnem}: 字段 {field_name} 的 bank 应为 rb，实际为 {field_bank}")
+        elif field_name.startswith("rf") and field_bank != "rf":
+            errors.append(f"{mnem}: 字段 {field_name} 的 bank 应为 rf，实际为 {field_bank}")
+        elif field_name.startswith("ra") and field_bank != "ra":
+            errors.append(f"{mnem}: 字段 {field_name} 的 bank 应为 ra，实际为 {field_bank}")
+    
+    return errors
 
 
 def check_decode_conflict(records):
@@ -157,6 +199,10 @@ def main():
             except (ValueError, KeyError) as e:
                 errors.append(f"ERROR: {tag} {mnem}({fmt}): 字段 "
                               f"{f.get('name', '?')}: {e}")
+
+        # 检查 bank 一致性
+        bank_errors = check_bank_consistency(rec)
+        errors.extend([f"ERROR: {e}" for e in bank_errors])
 
     # 检查解码冲突
     ok, msg = check_decode_conflict(records)

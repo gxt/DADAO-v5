@@ -185,7 +185,7 @@
   - name: rfha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rbhb
     bits: '[17:12]'
@@ -213,7 +213,7 @@
   - name: rfha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rbhb
     bits: '[17:12]'
@@ -386,7 +386,7 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: rbhb
     bits: '[17:12]'
@@ -415,7 +415,7 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: rbhb
     bits: '[17:12]'
@@ -444,7 +444,7 @@
   - name: raha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: ra
     signed: null
   - name: rbhb
     bits: '[17:12]'
@@ -472,7 +472,7 @@
   - name: raha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: ra
     signed: null
   - name: rbhb
     bits: '[17:12]'
@@ -500,7 +500,7 @@
   - name: rfha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rbhb
     bits: '[17:12]'
@@ -528,7 +528,7 @@
   - name: rfha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rbhb
     bits: '[17:12]'
@@ -1205,7 +1205,7 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: wpN
     bits: '[17:16]'
@@ -1238,7 +1238,7 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: wpN
     bits: '[17:16]'
@@ -1337,7 +1337,7 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: wpN
     bits: '[17:16]'
@@ -1370,7 +1370,7 @@
   - name: rfha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: wpN
     bits: '[17:16]'
@@ -1669,7 +1669,7 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: imms18_hi
     bits: '[17:12]'
@@ -1697,7 +1697,7 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: imms18_hi
     bits: '[17:12]'
@@ -1730,7 +1730,7 @@
   - name: rdhb
     bits: '[17:12]'
     role: src
-    bank: rb
+    bank: rd
     signed: null
   - name: immu12_hi
     bits: '[11:6]'
@@ -1759,7 +1759,7 @@
   - name: rdhb
     bits: '[17:12]'
     role: src
-    bank: rb
+    bank: rd
     signed: null
   - name: imms12_hi
     bits: '[11:6]'
@@ -2246,7 +2246,7 @@
   - name: rdhb
     bits: '[17:12]'
     role: src
-    bank: rb
+    bank: rd
     signed: null
   - name: imms12_hi
     bits: '[11:6]'
@@ -2274,7 +2274,7 @@
   - name: rdhb
     bits: '[17:12]'
     role: src
-    bank: rb
+    bank: rd
     signed: null
   - name: imms12_hi
     bits: '[11:6]'
@@ -2325,12 +2325,12 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: rdhb
     bits: '[17:12]'
     role: src
-    bank: rb
+    bank: rd
     signed: null
   - name: imms12_hi
     bits: '[11:6]'
@@ -2353,7 +2353,7 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: imms18_hi
     bits: '[17:12]'
@@ -2381,7 +2381,7 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: imms18_hi
     bits: '[17:12]'
@@ -2437,12 +2437,12 @@
   - name: rbha
     bits: '[23:18]'
     role: dst
-    bank: rd
+    bank: rb
     signed: null
   - name: rdhb
     bits: '[17:12]'
     role: src
-    bank: rb
+    bank: rd
     signed: null
   - name: imms12_hi
     bits: '[11:6]'
@@ -6301,7 +6301,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6326,12 +6326,12 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6355,12 +6355,12 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6384,12 +6384,12 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6413,12 +6413,12 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6447,7 +6447,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6472,12 +6472,12 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6501,12 +6501,12 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6530,12 +6530,12 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6559,12 +6559,12 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -6588,17 +6588,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6620,17 +6620,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6652,17 +6652,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6684,17 +6684,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6716,17 +6716,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6748,17 +6748,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6780,17 +6780,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6812,17 +6812,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6844,17 +6844,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6876,17 +6876,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6908,17 +6908,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6940,17 +6940,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -6972,17 +6972,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -7004,17 +7004,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -7036,17 +7036,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -7068,17 +7068,17 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: rfhd
     bits: '[5:0]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   legality:
   - rfhb != rf0
@@ -7233,7 +7233,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -7264,7 +7264,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -7295,7 +7295,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -7326,7 +7326,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -7352,7 +7352,7 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rdhc
     bits: '[11:6]'
@@ -7382,7 +7382,7 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rdhc
     bits: '[11:6]'
@@ -7412,7 +7412,7 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rdhc
     bits: '[11:6]'
@@ -7442,7 +7442,7 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rdhc
     bits: '[11:6]'
@@ -7477,7 +7477,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -7508,7 +7508,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -7539,7 +7539,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -7570,7 +7570,7 @@
   - name: rfhc
     bits: '[11:6]'
     role: src
-    bank: rd
+    bank: rf
     signed: null
   - name: immu6
     bits: '[5:0]'
@@ -7596,7 +7596,7 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rdhc
     bits: '[11:6]'
@@ -7626,7 +7626,7 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rdhc
     bits: '[11:6]'
@@ -7656,7 +7656,7 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rdhc
     bits: '[11:6]'
@@ -7686,7 +7686,7 @@
   - name: rfhb
     bits: '[17:12]'
     role: dst
-    bank: rd
+    bank: rf
     signed: null
   - name: rdhc
     bits: '[11:6]'

@@ -219,6 +219,7 @@ rules:
    - 指令命名是否符合 SimRISC 0.5.3 规范
    - 格式后缀是否正确（rrrr/orrr/rrii 等）
    - legality 约束是否完整
+   - 字段 bank 标记是否与指令名称一致（如 `ld.o-rb` 的 `rbha` 字段应为 `bank: rb`）
 2. 检查 `legality_rules.yaml`：
    - 是否覆盖所有 ILLI/UNDI/MALIGN/IALIGN 条件
    - 规则描述是否准确
@@ -227,6 +228,7 @@ rules:
    - 实现逻辑是否正确
    - 是否检查 mask/value 冲突
    - 是否检查保留编码
+   - 是否检查 bank 一致性
 4. 检查 `contracts/isa/spec.md`：
    - Wiki 引用是否可定位
    - 指令语义描述是否准确
