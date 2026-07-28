@@ -17,6 +17,7 @@
 | DADAO-0628 | `tests/vectors/schema.md` | 向量 schema 模板 |
 | DADAO-0628 | `tests/vectors/inventory.md` | 覆盖矩阵模板 |
 | DADAO-0628 | `tests/vectors/isa/*.yaml` | 测试向量示例 |
+| DADAO | `DADAO-testset/isa/` | ISA 测试用例参考 |
 
 ## 输出文件
 

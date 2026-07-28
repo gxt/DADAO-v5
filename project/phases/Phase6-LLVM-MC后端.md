@@ -20,6 +20,7 @@
 | DADAO-v5/wiki | `AGENTS.md` | 命名约定（/wpN/格式） |
 | DADAO-0628 | `components/llvm/patches/` | 22 个参考补丁 |
 | DADAO-0628 | `tests/lit/MC/Dadao/` | LIT 测试参考 |
+| DADAO | `TCH-llvm/` | LLVM 早期实现参考 |
 
 ## 输出文件
 

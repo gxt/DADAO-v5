@@ -17,14 +17,15 @@
 | `SimRISC-04-系统类指令.md` | 系统指令 | swym、illi、fence、lr/sc（原子操作）、cfx 特权指令（trap/escape/cfx2rd/cfx2rc/cfxld/cfxst） |
 | `AGENTS.md` | 命名约定 | /wpN/pmem/illi 等命名规则、指令格式后缀 |
 
-## 参考文件（DADAO-0628）
+## 参考文件
 
-| 文件 | 用途 |
-|------|------|
-| `contracts/isa/spec.md` | ISA 规范合约模板（SimRISC 0.5.3） |
-| `verif/opcodes.yaml` | 编码表模板（1288 行，87 条指令） |
-| `verif/legality_rules.yaml` | 合法性规则模板 |
-| `code-agent/knowledge/02-isa-encoding-rules.md` | ISA 编码规则知识 |
+| 来源 | 文件 | 用途 |
+|------|------|------|
+| DADAO-0628 | `contracts/isa/spec.md` | ISA 规范合约模板（SimRISC 0.5.3） |
+| DADAO-0628 | `verif/opcodes.yaml` | 编码表模板（1288 行，87 条指令） |
+| DADAO-0628 | `verif/legality_rules.yaml` | 合法性规则模板 |
+| DADAO-0628 | `code-agent/knowledge/02-isa-encoding-rules.md` | ISA 编码规则知识 |
+| DADAO | `DADAO-opcodes/` | 操作码定义参考 |
 
 ## 输出文件
 

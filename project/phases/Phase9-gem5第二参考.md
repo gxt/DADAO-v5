@@ -17,6 +17,7 @@
 | Phase 7 | `components/qemu/patches/` | QEMU 实现参考 |
 | Phase 5 | `.work/source/gem5/` | gem5 源码 |
 | DADAO-0628 | `components/gem5/patches/` | 9 个参考补丁 |
+| DADAO | `SOC-chipyard/` | Chipyard 早期实现参考 |
 
 ## 输出文件
 

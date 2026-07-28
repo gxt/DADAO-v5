@@ -20,6 +20,7 @@
 | DADAO-0628 | `contracts/elf/spec.md` | ELF 合约模板 |
 | DADAO-0628 | `verif/abi.yaml` | ABI 事实模板 |
 | DADAO-0628 | `docs/adr/0003-object-abi.md` | 对象 ABI ADR |
+| DADAO | `DADAO-runtime/` | 运行时代码参考 |
 
 ## 输出文件
 

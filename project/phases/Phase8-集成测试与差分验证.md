@@ -18,6 +18,7 @@
 | Phase 7 | `verif/qemu-system-dadao` | QEMU 执行结果 |
 | Phase 4 | `project/adr/0004-test-machine.md` | 测试机定义 |
 | DADAO-0628 | `docs/adr/0007-testing-methodology.md` | 测试方法论 |
+| DADAO | `DADAO-testset/` | 基准测试参考（Dhrystone、Embench-IoT 等） |
 
 ## 输出文件
 

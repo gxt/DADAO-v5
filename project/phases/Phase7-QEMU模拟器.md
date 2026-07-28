@@ -17,6 +17,7 @@
 | Phase 4 | `project/adr/0004-test-machine.md` | 测试机定义 |
 | Phase 5 | `.work/source/qemu/` | QEMU 源码 |
 | DADAO-0628 | `components/qemu/patches/` | 12 个参考补丁 |
+| DADAO | `SIM-qemu/` | QEMU 早期实现参考 |
 
 ## 输出文件
 
