@@ -4,7 +4,7 @@
 
 ## 目标
 
-创建从 wiki 规范直接派生的 Python ISA 模拟器（golden model），作为所有其他实现的独立 oracle。模型必须从 `.tao/knowledge/contract-isa.md` + `opcodes.yaml` 派生语义，不复制 QEMU 或 LLVM 的实现逻辑。
+创建从 spec/ 规范直接派生的 Python ISA 模拟器（golden model），作为所有其他实现的独立 oracle。模型必须从 `.tao/knowledge/contract-isa.md` + `opcodes.yaml` 派生语义，不复制 QEMU 或 LLVM 的实现逻辑。
 
 ## 输入文件
 
@@ -15,7 +15,7 @@
 | Phase 1 | `verif/legality_rules.yaml` | 合法性规则 |
 | Phase 2 | `tests/vectors/schema.md` | 向量格式 |
 | Phase 2 | `tests/vectors/isa/*.yaml` | 验证输入 |
-| DADAO-v5/wiki | `DADAO-11-AEE-应用程序运行环境.md` | RAS 行为、r0 特殊语义 |
+| DADAO-v5/spec | `DADAO-11-AEE-应用程序运行环境.md` | RAS 行为、r0 特殊语义 |
 | DADAO-0628 | `verif/dadao_interp.py` | 参考实现（注意是 SimRISC 0.4.1） |
 | DADAO-0628 | `verif/validate_interp.py` | 验证器参考 |
 | DADAO-0628 | `code-agent/knowledge/05-harness-binary-protocol.md` | 测试协议 |
@@ -37,13 +37,13 @@ DADAO-v5/verif/
 
 **提示词**：
 ```
-你是 DADAO-v5 的黄金模型工程师。从 wiki 规范创建 Python ISA 模拟器。
+你是 DADAO-v5 的黄金模型工程师。从 spec/ 规范创建 Python ISA 模拟器。
 
 读取输入文件：
 - DADAO-v5/.tao/knowledge/contract-isa.md（ISA 语义）
 - DADAO-v5/verif/opcodes.yaml（编码表）
 - DADAO-v5/verif/legality_rules.yaml（合法性规则）
-- DADAO-v5/wiki/DADAO-11-AEE-应用程序运行环境.md（RAS 行为）
+- DADAO-v5/spec/DADAO-11-AEE-应用程序运行环境.md（RAS 行为）
 - DADAO-0628/tools/dadao_interp.py（参考，不复制代码）
 
 创建 `verif/dadao_interp.py`，包含：

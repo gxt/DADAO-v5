@@ -52,7 +52,7 @@ DADAO-v5/
 └── scripts/
     ├── check_codegen_abi.py       # CodeGen↔ABI 一致性检查
     ├── check_legality_matrix.py   # 合法性矩阵检查（骨架）
-    └── check_wiki_refs.py         # Wiki 引用检查
+    └── check_spec_refs.py         # spec/ 引用检查
 ```
 
 ## 子代理分解
@@ -172,10 +172,10 @@ SECTIONS {
 ```
 你是 DADAO-v5 的验证工程师。创建系列一致性检查脚本。
 
-1. 创建 `scripts/check_wiki_refs.py`：
+1. 创建 `scripts/check_spec_refs.py`：
    - 读取 `.tao/knowledge/contract-isa.md`
-   - 提取所有 `[wiki §N]` 引用
-   - 验证对应的 wiki 文档中存在该章节
+   - 提取所有 `[spec §N]` 引用
+   - 验证对应的 spec/ 文档中存在该章节
    - 输出缺失引用的列表
 
 2. 创建 `scripts/check_codegen_abi.py`：
@@ -191,7 +191,7 @@ SECTIONS {
 
 4. 更新 Makefile，添加 check target 系列：
    - `make check` → 运行所有检查
-   - `make check-wiki-refs`
+   - `make check-spec-refs`
    - `make check-codegen-abi`
    - `make check-legality`
    - `make check-differential` → 运行差分验证

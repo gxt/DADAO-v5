@@ -51,7 +51,7 @@ DADAO-v5/components/qemu/patches/
 读取：
 - DADAO-v5/.tao/knowledge/contract-isa.md
 - DADAO-v5/verif/opcodes.yaml
-- DADAO-v5/wiki/AGENTS.md
+- DADAO-v5/AGENTS.md
 - DADAO-0628/components/qemu/patches/0001~0003（参考）
 
 创建补丁 0001-0003：

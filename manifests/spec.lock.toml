@@ -1,8 +1,8 @@
 # 规范锁定文件
-# 锁定当前 wiki 状态，确保可复现
+# 锁定当前 spec 状态，确保可复现
 
 format = 1
-name = "DADAO-v5 wiki"
+name = "DADAO-v5 spec"
 status = "frozen"
 commit = "9e69b55d393388100910eb9f66e94e5b8809a2cc"
 
@@ -16,7 +16,7 @@ hee = "0.1.2"
 hbi = "0.1.2"
 
 [foundation_included]
-# 当前 wiki 覆盖的范围
+# 当前 spec 覆盖的范围
 files = [
     "SimRISC-00-指令系统设计.md",
     "SimRISC-01-数据类指令.md",

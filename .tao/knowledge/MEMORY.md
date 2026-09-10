@@ -2,7 +2,7 @@
 
 ## 这是什么
 
-DADAO-v5 基于 11 份 wiki 规范文档（SimRISC 0.5.3），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见全局 `AGENTS.md` 与 `.tao/README.md`。
+DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见全局 `AGENTS.md` 与 `.tao/README.md`。
 
 ## 当前进度
 
@@ -17,7 +17,7 @@ DADAO-v5 基于 11 份 wiki 规范文档（SimRISC 0.5.3），从零构建 LLVM/
 
 | 路径 | 用途 |
 |------|------|
-| `wiki/` | 11 份原始规范文档 |
+| `spec/` | 11 份原始规范文档 |
 | `manifests/` | 锁文件（规范/参考组件） |
 | `docs/phases/` | 阶段执行计划 |
 | `.tao/knowledge/contract-isa.md` | ISA 归一化合约 |
@@ -82,9 +82,9 @@ DADAO-v5 基于 SimRISC 0.5.3 规范，与 DADAO-0628（锁定在 SimRISC 0.4.1�
 - 命名规范：wpN（非 ww）、pmem（非 phymem）、illi（非 unimp）
 - Scope 更广（含浮点/系统），实现优先级可先聚焦标量核心
 
-## 文件映射：wiki → contracts
+## 文件映射：spec → contracts
 
-| wiki 文件 | 对应 contract（在 `.tao/knowledge/` 下） | 主要消费者 |
+| spec/ 文件 | 对应 contract（在 `.tao/knowledge/` 下） | 主要消费者 |
 |-----------|------------------------------------------|-----------|
 | SimRISC-00 ~ 04 | `contract-isa.md` | golden model, LLVM, QEMU, gem5, Sail |
 | DADAO-11 AEE | `contract-abi.md` | LLVM CodeGen |

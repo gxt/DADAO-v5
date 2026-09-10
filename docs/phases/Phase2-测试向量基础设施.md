@@ -4,13 +4,13 @@
 
 ## 目标
 
-创建独立于任何实现的测试向量系统。向量直接从 wiki 规范派生，不从 LLVM 或 QEMU 生成。这是实现独立 oracle（independent oracle）原则的基础。
+创建独立于任何实现的测试向量系统。向量直接从 spec/ 规范派生，不从 LLVM 或 QEMU 生成。这是实现独立 oracle（independent oracle）原则的基础。
 
 ## 输入文件
 
 | 来源 | 文件 | 用途 |
 |------|------|------|
-| DADAO-v5/wiki | 全部 11 份文档 | 测试预期的规范来源 |
+| DADAO-v5/spec | 全部 11 份文档 | 测试预期的规范来源 |
 | Phase 1 输出 | `.tao/knowledge/contract-isa.md` | 归一化后的 ISA 规范 |
 | Phase 1 输出 | `verif/opcodes.yaml` | 编码 mask/value |
 | Phase 1 输出 | `verif/legality_rules.yaml` | 合法性规则 |
@@ -61,7 +61,7 @@ DADAO-v5/
 基于 DADAO-0628/tests/vectors 的类似文件，但针对 SimRISC 0.5.3 更新。
 
 1. 创建 `tests/vectors/README.md`：
-   - 说明向量来源（wiki 规范，非 LLVM/QEMU）
+   - 说明向量来源（spec/ 规范，非 LLVM/QEMU）
    - 5 类 class 定义（encoding/legality/semantic/boundary/overlap）
    - 文件组织说明
    - 新增：branch_behavior 标记（taken/not_taken），用于控制流测试

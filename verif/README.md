@@ -16,5 +16,5 @@
 ## 验证原则
 
 - `opcodes.yaml` 须自检：每条指令的 mask & value 唯一、同 mnemonic 的变体共享基名、无编码空间重叠
-- 黄金模型必须从 Wiki 直接派生、由不同于 QEMU 作者的人写
+- 黄金模型必须从 spec/ 直接派生、由不同于 QEMU 作者的人写
 - encoding layer 从 `opcodes.yaml` 生成/交叉校验（不造第三套编码真相）

@@ -17,7 +17,7 @@
 ## 核心原则
 
 - **Spec-first**：所有编码/语义期望值来自 `.tao/knowledge/contract-*.md`，不从实现反推
-- **Independent oracle**：测试向量不能从 LLVM 或 QEMU 生成，必须独立派生自 `wiki/`
+- **Independent oracle**：测试向量不能从 LLVM 或 QEMU 生成，必须独立派生自 `spec/`
 - **Component lock**：LLVM/QEMU/gem5 以 `manifests/` 中的精确 commit hash 锁定，不用 tag/branch
 
 ## 目录结构
@@ -31,7 +31,7 @@ DADAO-v5/
 │   └── knowledge/         # MEMORY.md、contract-*.md、adr-*.md
 ├── docs/phases/           # 阶段执行计划
 ├── manifests/             # 锁文件（规范/参考组件）
-├── wiki/                  # 原始规范文档（只读）
+├── spec/                  # 原始规范文档（只读）
 └── verif/                 # 验证工具（金模型、编码表）
 ```
 

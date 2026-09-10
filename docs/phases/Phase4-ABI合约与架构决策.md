@@ -4,17 +4,17 @@
 
 ## 目标
 
-从 DADAO-v5/wiki 的 ABI、AEE、SBI 规范文档中提取并创建机器可读的 ABI 合约、ELF 合约和关键的架构决策记录（ADR）。这是 LLVM CodeGen 和工具链的基础。
+从 DADAO-v5/spec 的 ABI、AEE、SBI 规范文档中提取并创建机器可读的 ABI 合约、ELF 合约和关键的架构决策记录（ADR）。这是 LLVM CodeGen 和工具链的基础。
 
 ## 输入文件
 
 | 来源 | 文件 | 用途 |
 |------|------|------|
-| DADAO-v5/wiki | `SimRISC-00-指令系统设计.md` | 数据表示、寄存器模型、存储模型 |
-| DADAO-v5/wiki | `DADAO-11-AEE-应用程序运行环境.md` | 不同宽度数据的运算处理、地址空间布局、汇编兼容性 |
-| DADAO-v5/wiki | `DADAO-21-ABI-应用程序二进制接口.md` | 寄存器规范、传参规则、栈布局、返回值 |
-| DADAO-v5/wiki | `DADAO-22-SBI-主管系统二进制接口.md` | 系统调用约定 |
-| DADAO-v5/wiki | `DADAO-23-HBI-超管系统二进制接口.md` | HBI 调用约定 |
+| DADAO-v5/spec | `SimRISC-00-指令系统设计.md` | 数据表示、寄存器模型、存储模型 |
+| DADAO-v5/spec | `DADAO-11-AEE-应用程序运行环境.md` | 不同宽度数据的运算处理、地址空间布局、汇编兼容性 |
+| DADAO-v5/spec | `DADAO-21-ABI-应用程序二进制接口.md` | 寄存器规范、传参规则、栈布局、返回值 |
+| DADAO-v5/spec | `DADAO-22-SBI-主管系统二进制接口.md` | 系统调用约定 |
+| DADAO-v5/spec | `DADAO-23-HBI-超管系统二进制接口.md` | HBI 调用约定 |
 | DADAO-0628 | `contracts/abi/spec.md` | ABI 合约模板（注意是 0.1.0，需升级到 0.9.2） |
 | DADAO-0628 | `contracts/abi/README.md` | ABI 说明 |
 | DADAO-0628 | `contracts/elf/spec.md` | ELF 合约模板 |
@@ -45,17 +45,17 @@ DADAO-v5/
 
 **提示词**：
 ```
-你是 DADAO-v5 的 ABI 工程师。从 wiki 的 ABI 和 AEE 规范创建 ABI 合约。
+你是 DADAO-v5 的 ABI 工程师。从 spec/ 的 ABI 和 AEE 规范创建 ABI 合约。
 
 读取输入文件：
-- DADAO-v5/wiki/DADAO-11-AEE-应用程序运行环境.md
-- DADAO-v5/wiki/DADAO-21-ABI-应用程序二进制接口.md
+- DADAO-v5/spec/DADAO-11-AEE-应用程序运行环境.md
+- DADAO-v5/spec/DADAO-21-ABI-应用程序二进制接口.md
 - DADAO-0628/contracts/abi/spec.md（参考，注意版本差异）
 - DADAO-0628/tools/abi.yaml（参考）
 
 1. 创建 `.tao/knowledge/contract-abi.md`：
 
-基于 DADAO-v5/wiki/DADAO-21-ABI 的内容，创建结构清晰的规范合约：
+基于 DADAO-v5/spec/DADAO-21-ABI 的内容，创建结构清晰的规范合约：
 
 §1 寄存器角色与约定
 - RD bank：rd0=zero, rd1=rderrno, rd2-7=reserved, rd8-15=temp, rd16-31=参数, rd32-63=callee-saved
@@ -95,7 +95,7 @@ DADAO-v5/
 - 动态链接 TLS
 - 帧指针省略规则
 
-版本号：0.9.2（与 wiki ABI 版本一致）
+版本号：0.9.2（与 spec/ ABI 版本一致）
 
 2. 创建 `verif/abi.yaml`：
 
@@ -150,7 +150,7 @@ reserved_registers:
 
 2. 创建 `.tao/knowledge/contract-sbi.md`：
 
-基于 DADAO-v5/wiki/DADAO-22-SBI 和 DADAO-23-HBI：
+基于 DADAO-v5/spec/DADAO-22-SBI 和 DADAO-23-HBI：
 
 §1 调用约定
 - trap/escape 流程
@@ -209,7 +209,7 @@ reserved_registers:
   - ROM: 0x0010_0000（64KB）
   - RAM: 0x8000_0000（128MB）
   - Exit port MMIO: 0x1000_0000（8B）
-- 复位向量：0x0010_0000（注意：DADAO-v5 wiki 中 cfx_power_hypv_excp_vector 在 0xFFFF_FFFF_0000）
+- 复位向量：0x0010_0000（注意：DADAO-v5 spec/ 中 cfx_power_hypv_excp_vector 在 0xFFFF_FFFF_0000）
 - 测试入口：0x8000_0000
 - 退出协议：sto 到 exit port，低 8 位为退出码
 - 异常可观测性协议
@@ -217,7 +217,7 @@ reserved_registers:
 
 ## 阶段验证
 
-- `.tao/knowledge/contract-abi.md` 中每个 [引用] 对应 wiki 中实际存在的章节
+- `.tao/knowledge/contract-abi.md` 中每个 [引用] 对应 spec/ 中实际存在的章节
 - `verif/abi.yaml` 与 `.tao/knowledge/contract-abi.md` 内容一致
 - `verif/sbi.yaml` 与 `DADAO-22-SBI.md` 的函数表一致
 

@@ -11,14 +11,14 @@
 | `AGENTS.md` | 通用规则（作用域、命名约定、指令格式、核心原则） |
 | `README.md` | 项目概览、版本号、11 阶段总览、依赖关系图 |
 | `.gitignore` | 忽略 `.work/`、`__pycache__/` 等 |
-| `manifests/spec.lock.toml` | 规范锁定（锁定 wiki commit 和版本号） |
+| `manifests/spec.lock.toml` | 规范锁定（锁定 spec commit 和版本号） |
 | `.tao/knowledge/MEMORY.md` | 跨会话快速定位、关键差异提示 |
 | 全局 `opencode/agent/architect.md` | 架构师角色规范 |
 | 全局 `opencode/agent/engineer.md` | 工程师角色规范 |
 | 全局 `opencode/agent/reviewer.md` | 审查者角色规范 |
 | `.tao/knowledge/contract-authoring.md` | 合约编写规范 |
 | `docs/phases/*.md` | 12 个阶段执行计划 |
-| `wiki/*.md` | 11 份原始规范文档（只读） |
+| `spec/*.md` | 11 份原始规范文档（只读） |
 
 ## 延后项
 

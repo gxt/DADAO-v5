@@ -6,7 +6,7 @@
 ## 核心原则
 
 - **Spec-first**：所有编码/语义期望值来自 `.tao/knowledge/` 中的合约（`contract-*.md`），不从实现反推
-- **Independent oracle**：测试向量不能从 LLVM 或 QEMU 生成，必须独立派生自 wiki
+- **Independent oracle**：测试向量不能从 LLVM 或 QEMU 生成，必须独立派生自 `spec/`
 - **Component lock**：LLVM/QEMU/gem5 以精确 commit hash 锁定，不用 tag/branch
 - **工作流**：冻结规范基线 → 提取合约 → 生成机器可读数据 → 锁定组件版本 → 逐任务推进实现 → 差分验证 → 沉淀知识库
 
@@ -45,7 +45,7 @@
 
 | 路径 | 用途 |
 | --- | --- |
-| `wiki/` | 11 份原始规范文档（只读参考） |
+| `spec/` | 11 份原始规范文档（只读参考） |
 | `manifests/` | 锁文件（规范/参考组件，精确 commit） |
 | `docs/phases/` | 阶段执行计划（12 份） |
 | `verif/` | 验证工具（金模型、编码表） |

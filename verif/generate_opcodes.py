@@ -1333,7 +1333,7 @@ def main():
     # 输出 YAML
     with open("verif/opcodes.yaml", "w", encoding="utf-8") as f:
         f.write("# SimRISC 0.5.3 指令编码表\n")
-        f.write("# 自动生成自 wiki 规范文档\n")
+        f.write("# 自动生成自 spec/ 规范文档\n")
         f.write(f"# 共 {len(records)} 条指令\n\n")
         yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
     

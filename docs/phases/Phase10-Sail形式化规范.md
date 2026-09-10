@@ -4,7 +4,7 @@
 
 ## 目标
 
-创建 DADAO 的 Sail 形式化可执行规范。Sail 模型从 wiki 规范直接派生，作为第四路验证支线和未来的权威可执行 spec。这是四路差分（interp/QEMU/gem5/Sail）的最终拼图。
+创建 DADAO 的 Sail 形式化可执行规范。Sail 模型从 spec/ 规范直接派生，作为第四路验证支线和未来的权威可执行 spec。这是四路差分（interp/QEMU/gem5/Sail）的最终拼图。
 
 ## 输入文件
 
@@ -15,7 +15,7 @@
 | Phase 3 | `verif/dadao_interp.py` | Golden model（作为语义参考，不复制代码） |
 | Phase 8 | `tests/vectors/isa/*.yaml` | 验证向量 |
 | Phase 8 | `verif/run_differential.py` | 差分框架 |
-| DADAO-v5/wiki | 11 份文档 | 规范 ground truth |
+| DADAO-v5/spec | 11 份文档 | 规范 ground truth |
 | DADAO-0628 | `sail/` | Sail 参考实现 |
 
 ## 输出文件
@@ -107,7 +107,7 @@ module dadao_main
 读取：
 - DADAO-v5/.tao/knowledge/contract-isa.md
 - DADAO-v5/verif/opcodes.yaml
-- DADAO-v5/wiki/SimRISC-01~04
+- DADAO-v5/spec/SimRISC-01~04
 - DADAO-0628/sail/dadao_insts.sail（参考）
 
 创建 `dadao_insts.sail`，实现核心指令的语义。

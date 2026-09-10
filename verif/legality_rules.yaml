@@ -1,12 +1,12 @@
 # DADAO SimRISC 0.5.3 — 合法性规则目录
 #
-# 来源：wiki 规范文档（SimRISC-01~04 + DADAO-11-AEE）
+# 来源：spec/ 规范文档（SimRISC-01~04 + DADAO-11-AEE）
 # 每条规则：
 #   id: 稳定标识符
 #   fault: 异常类型（ILLI/UNDI/MALIGN/IALIGN）
 #   kind: 检查类型（static/dynamic）
 #   spec_cite: 规范引用
-#   wiki_cite: wiki 引用
+#   wiki_cite: spec/ 引用
 #   status: active/deferred
 #   description: 规则描述
 
