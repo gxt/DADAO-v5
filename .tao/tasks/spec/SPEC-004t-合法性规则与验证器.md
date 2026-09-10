@@ -1,4 +1,4 @@
-# SPEC-003: 合法性规则与验证器
+# SPEC-004t: 合法性规则与验证器
 
 **模块**：spec
 **阶段**：1
@@ -14,7 +14,7 @@
   - `verif/legality_rules.yaml`
   - `verif/validate_encoding.py`
 - 约束：基于 SimRISC 0.5.3，覆盖所有 ILLI/UNDI/MALIGN/IALIGN 条件
-- 依赖：SPEC-002 创建的 `verif/opcodes.yaml`
+- 依赖：SPEC-003t 创建的 `verif/opcodes.yaml`
 
 ## 输入文件清单
 
@@ -108,7 +108,7 @@ rules:
 ### 验收结论
 
 1. **legality_rules.yaml**：覆盖全部 19 类规则（rd0/rb0/rf0/store_src_rd0/dual_dest/multi_immu6_zero/multi_range_overflow/data_malign/imm_range/shamt_overflow/ext_bit_overflow/div_by_zero/div_overflow/reserved_undi/instruction_align/sbz_nonzero/ras_of/ras_uf/lr_hb_not_zero/cfx_reserved），每条规则包含 id/fault/kind/spec_cite/wiki_cite/status/description
-2. **validate_encoding.py**：使用 SPEC-002 的 opcodes.yaml（256 条指令）验证通过，输出 `validate_encoding: 256 条记录 OK`
+2. **validate_encoding.py**：使用 SPEC-003t 的 opcodes.yaml（256 条指令）验证通过，输出 `validate_encoding: 256 条记录 OK`
 3. 验证器检查项：mask/value 合法性、字段不重叠、无解码冲突、必填字段完整性
 
 ---

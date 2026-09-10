@@ -33,7 +33,7 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 
 - `verif/` 替代 `tools/` 作为验证工具目录
 - `.tao/` 集中存放所有 agent 中间文件（对齐 t.a.o 全局约定）
-- 任务编号 `<PREFIX>-nnn`，模块内递增，按模块分 `.tao/tasks/<module>/` 子目录
+- 任务编号 `<PREFIX>-nnn<suffix>`，模块内递增，按模块分 `.tao/tasks/<module>/` 子目录
 - 角色规则由全局 `opencode/agent/` 提供，工作仓库不含 agent 文件
 
 ## 如何参考 DADAO-0628 和 DADAO
