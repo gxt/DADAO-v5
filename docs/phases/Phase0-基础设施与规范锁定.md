@@ -30,7 +30,7 @@
 | `manifests/components.lock.toml` | Phase 5 组件基线时 |
 | `.tao/knowledge/adr-*.md` | 有跨组件合约变更时 |
 | `.tao/knowledge/project_*.md` | 有设计决策需要记录时 |
-| `.tao/tasks/PhaseN/` | 各阶段开始时 |
+| `.tao/tasks/<module>/` | 各模块开始时 |
 | `.tao/knowledge/` | 有验证结论需要沉淀时 |
 | `scripts/*.py` | 需要自动化工具时 |
 

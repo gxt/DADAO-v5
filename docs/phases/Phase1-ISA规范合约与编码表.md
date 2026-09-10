@@ -43,7 +43,7 @@ DADAO-v5/
 
 ## 子代理分解
 
-### T001：ISA 规范合约提取
+### SPEC-001：ISA 规范合约提取
 
 **职责**：从 6 份 spec/ 文档创建 `.tao/knowledge/contract-isa.md`
 
@@ -85,7 +85,7 @@ spec.md 的要求：
 注意：这是纯文本规范，不包含任何实现代码。规范是"什么"，不是"怎么做"。
 ```
 
-### T002：机器可读编码表
+### SPEC-002：机器可读编码表
 
 **职责**：创建 `verif/opcodes.yaml`
 
@@ -134,7 +134,7 @@ spec.md 的要求：
 
 完成后进行自检：随机抽取 50 条指令的编码与 QFC 表交叉核对。
 
-### T003：合法性规则与验证器
+### SPEC-003：合法性规则与验证器
 
 **职责**：创建 `verif/legality_rules.yaml` + `verif/validate_encoding.py`
 

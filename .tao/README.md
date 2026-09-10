@@ -37,9 +37,23 @@
 
 ## 目录
 
-- `tasks/` — 任务文件 `Tnnn-描述.md`（按 Phase 分子目录），状态机：`待开始` → `待验收` → `已验证`，审查失败 `待返工`
+- `tasks/<module>/` — 任务文件 `<PREFIX>-nnn-描述.md`（按模块分子目录），状态机：`待开始` → `待验收` → `已验证`，审查失败 `待返工`
 - `knowledge/` — 知识库：`MEMORY.md`（状态摘要）、`registry.md`（机器路由）、`changelog.md`（变更记录）、`contract-*.md`（归一化合约）、`adr-*.md`（架构决策）、`project_*.md`、`feedback_*.md`
 - `logs/` — 命令输出日志（已被 `.tao/.gitignore` 忽略）
+
+## 模块与任务编号
+
+任务按模块组织：`tasks/<module>/<PREFIX>-nnn-描述.md`，`nnn` 为模块内三位递增序号（前缀保证全局唯一）。任务文件以 `**模块**` / `**阶段**` 字段标注归属。
+
+| 模块 | 前缀 | 覆盖 Phase | 交付物 |
+| --- | --- | --- | --- |
+| `spec` | `SPEC` | 0,1,4 | 规范锁定、ISA 合约、编码表、ABI/ELF/SBI 合约 |
+| `llvm` | `LLVM` | 6,11 | LLVM MC + CodeGen |
+| `qemu` | `QEMU` | 7 | QEMU |
+| `gem5` | `GEM5` | 9 | gem5 |
+| `sail` | `SAIL` | 10 | Sail |
+
+> 基础设施模块（测试向量 Phase 2、黄金模型 Phase 3、组件基线 Phase 5、集成验证 Phase 8）名称待定。
 
 ## 项目结构（DADAO-v5 特有）
 

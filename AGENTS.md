@@ -12,7 +12,7 @@
 
 ## 进入项目
 
-首次进入先读 `.tao/README.md`（角色/命令/流程/项目结构）与 `.tao/knowledge/MEMORY.md`（当前状态），再读 `.tao/tasks/` 下当前阶段任务。
+首次进入先读 `.tao/README.md`（角色/命令/流程/项目结构）与 `.tao/knowledge/MEMORY.md`（当前状态），再读 `.tao/tasks/` 下当前模块任务。
 
 ## 核心原则
 
@@ -27,7 +27,7 @@ DADAO-v5/
 ├── AGENTS.md              # 本文件
 ├── README.md              # 项目总览与阶段计划
 ├── .tao/                  # 交互目录（任务/知识/日志）
-│   ├── tasks/PhaseN/      # 任务文件 Tnnn-描述.md
+│   ├── tasks/<module>/    # 任务文件 <PREFIX>-nnn-描述.md
 │   └── knowledge/         # MEMORY.md、contract-*.md、adr-*.md
 ├── docs/phases/           # 阶段执行计划
 ├── manifests/             # 锁文件（规范/参考组件）
@@ -45,4 +45,4 @@ DADAO-v5/
 
 ## 角色与流程
 
-角色规则、任务编号（`Tnnn` 全局递增）、四态状态机与命令（`/plan` `/dispatch` `/complete` `/status`）见全局 `~/.config/opencode/` 与 `.tao/README.md`。工作仓库不含 agent 文件。
+角色规则、任务编号（`<PREFIX>-nnn`，模块内递增）、四态状态机与命令（`/plan` `/dispatch` `/complete` `/status`）见全局 `~/.config/opencode/` 与 `.tao/README.md`。工作仓库不含 agent 文件。
