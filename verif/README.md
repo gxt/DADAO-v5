@@ -6,10 +6,10 @@
 
 | 文件 | 内容 | 来源 |
 |------|------|------|
-| `opcodes.yaml` | 每条指令的编码字段、mask、value、变体 | 从 isa-spec.md 逐条提取 |
-| `abi.yaml` | 参数寄存器编号、callee-saved 列表、DataLayout | 从 abi-spec.md 转写 |
-| `legality_rules.yaml` | 非法编码组合、非对齐访问规则 | 从 isa-spec.md 异常条款提取 |
-| `dadao_interp.py` | Python 黄金模型（独立 oracle） | 从 isa-spec.md 派生意 |
+| `opcodes.yaml` | 每条指令的编码字段、mask、value、变体 | 从 contract-isa.md 逐条提取 |
+| `abi.yaml` | 参数寄存器编号、callee-saved 列表、DataLayout | 从 contract-abi.md 转写 |
+| `legality_rules.yaml` | 非法编码组合、非对齐访问规则 | 从 contract-isa.md 异常条款提取 |
+| `dadao_interp.py` | Python 黄金模型（独立 oracle） | 从 contract-isa.md 派生意 |
 | `validate_interp.py` | 在测试向量上运行黄金模型并比对结果 | |
 | `run_differential.py` | 四路差分（interp/QEMU/gem5/Sail） | |
 

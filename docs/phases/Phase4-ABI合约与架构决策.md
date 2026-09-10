@@ -26,29 +26,22 @@
 
 ```
 DADAO-v5/
-├── contracts/
-│   ├── abi/
-│   │   ├── spec.md              # ABI 规范合约（版本 0.9.2）
-│   │   └── README.md            # ABI 说明
-│   ├── elf/
-│   │   ├── spec.md              # ELF/对象 ABI 合约（EM_DADAO=0x0DA0）
-│   │   └── README.md            # ELF 说明
-│   ├── sbi/
-│   │   ├── spec.md              # SBI 规范合约（版本 0.7.1）
-│   │   └── README.md            # SBI 说明
+├── .tao/knowledge/
+│   ├── contract-abi.md          # ABI 规范合约（版本 0.9.2）
+│   ├── contract-elf.md          # ELF/对象 ABI 合约（EM_DADAO=0x0DA0）
+│   ├── contract-sbi.md          # SBI 规范合约（版本 0.7.1）
+│   ├── adr-0003-object-abi.md   # 对象/ELF ABI 决策记录
+│   └── adr-0004-test-machine.md # M1 裸机测试机决策记录
 ├── verif/
 │   ├── abi.yaml                 # 机器可读 ABI 事实
 │   └── sbi.yaml                 # 机器可读 SBI 函数表
-├── docs/adr/
-│   ├── 0003-object-abi.md       # 对象/ELF ABI 决策记录
-│   └── 0004-test-machine.md     # M1 裸机测试机决策记录
 ```
 
 ## 子代理分解
 
 ### Agent E1：ABI 规范合约
 
-**职责**：创建 `contracts/abi/spec.md` + `verif/abi.yaml`
+**职责**：创建 `.tao/knowledge/contract-abi.md` + `verif/abi.yaml`
 
 **提示词**：
 ```
@@ -60,7 +53,7 @@ DADAO-v5/
 - DADAO-0628/contracts/abi/spec.md（参考，注意版本差异）
 - DADAO-0628/tools/abi.yaml（参考）
 
-1. 创建 `contracts/abi/spec.md`：
+1. 创建 `.tao/knowledge/contract-abi.md`：
 
 基于 DADAO-v5/wiki/DADAO-21-ABI 的内容，创建结构清晰的规范合约：
 
@@ -143,7 +136,7 @@ reserved_registers:
 ```
 你是 DADAO-v5 的 ELF 和系统接口工程师。创建 ELF/对象 ABI 合约和 SBI 规范合约。
 
-1. 创建 `contracts/elf/spec.md`：
+1. 创建 `.tao/knowledge/contract-elf.md`：
 
 基于 DADAO-0628/contracts/elf/spec.md 的格式，但根据 DADAO-v5 规范更新：
 
@@ -155,7 +148,7 @@ reserved_registers:
 - Symbol table 条目格式
 - ABI 特定的 section 属性
 
-2. 创建 `contracts/sbi/spec.md`：
+2. 创建 `.tao/knowledge/contract-sbi.md`：
 
 基于 DADAO-v5/wiki/DADAO-22-SBI 和 DADAO-23-HBI：
 
@@ -197,7 +190,7 @@ reserved_registers:
 ```
 你是 DADAO-v5 的架构师。创建关键的架构决策记录。
 
-1. 创建 `project/adr/0003-object-abi.md`：
+1. 创建 `.tao/knowledge/adr-0003-object-abi.md`：
 
 基于 DADAO-0628/docs/adr/0003-object-abi.md，针对 DADAO-v5 更新：
 
@@ -207,7 +200,7 @@ reserved_registers:
 - CodeModel 选择（small/medium/large）
 - 与 LLVM MC 后端的接口
 
-2. 创建 `project/adr/0004-test-machine.md`：
+2. 创建 `.tao/knowledge/adr-0004-test-machine.md`：
 
 基于 DADAO-0628/docs/adr/0004-test-machine.md，针对 DADAO-v5 更新：
 
@@ -224,8 +217,8 @@ reserved_registers:
 
 ## 阶段验证
 
-- `contracts/abi/spec.md` 中每个 [引用] 对应 wiki 中实际存在的章节
-- `verif/abi.yaml` 与 `contracts/abi/spec.md` 内容一致
+- `.tao/knowledge/contract-abi.md` 中每个 [引用] 对应 wiki 中实际存在的章节
+- `verif/abi.yaml` 与 `.tao/knowledge/contract-abi.md` 内容一致
 - `verif/sbi.yaml` 与 `DADAO-22-SBI.md` 的函数表一致
 
 ## 依赖关系

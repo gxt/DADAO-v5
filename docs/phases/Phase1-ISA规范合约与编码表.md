@@ -31,10 +31,9 @@
 
 ```
 DADAO-v5/
-├── contracts/
-│   └── isa/
-│       ├── spec.md              # ISA 规范合约（从 wiki 提取 + 归一化）
-│       └── README.md            # 更新（版本号、来源声明）
+├── .tao/knowledge/
+│   ├── contract-isa.md          # ISA 规范合约（从 wiki 提取 + 归一化）
+│   └── contract-authoring.md    # 合约编写规范
 ├── verif/
 │   ├── opcodes.yaml             # 机器可读编码表
 │   ├── legality_rules.yaml      # 合法性规则目录
@@ -44,15 +43,15 @@ DADAO-v5/
 
 ## 子代理分解
 
-### P1-1：ISA 规范合约提取
+### T001：ISA 规范合约提取
 
-**职责**：从 6 份 wiki 文档创建 `contracts/isa/spec.md`
+**职责**：从 6 份 wiki 文档创建 `.tao/knowledge/contract-isa.md`
 
 **提示词**：
 ```
 你是 DADAO-v5 的 ISA 规范工程师。从 DADAO-v5/wiki 下的 wiki 规范文档提取并创建合约文件。
 
-请读取以下输入文件并创建 `contracts/isa/spec.md`：
+请读取以下输入文件并创建 `.tao/knowledge/contract-isa.md`：
 
 输入文件：
 - DADAO-v5/wiki/SimRISC-00-指令系统设计.md（编码设计、QFC 表）
@@ -86,7 +85,7 @@ spec.md 的要求：
 注意：这是纯文本规范，不包含任何实现代码。规范是"什么"，不是"怎么做"。
 ```
 
-### P1-2：机器可读编码表
+### T002：机器可读编码表
 
 **职责**：创建 `verif/opcodes.yaml`
 
@@ -135,7 +134,7 @@ spec.md 的要求：
 
 完成后进行自检：随机抽取 50 条指令的编码与 QFC 表交叉核对。
 
-### P1-3：合法性规则与验证器
+### T003：合法性规则与验证器
 
 **职责**：创建 `verif/legality_rules.yaml` + `verif/validate_encoding.py`
 
@@ -200,7 +199,7 @@ rules:
 - `opcodes.yaml` 中每条指令的编码与 QFC 表手动交叉核对 20 条
 - `validate_encoding.py` 对 opcodes.yaml 运行无冲突
 - `legality_rules.yaml` 中每条 active 规则对应 opcodes.yaml 中至少一条指令的 legality 标注
-- `contracts/isa/spec.md` 通过 Wiki 引用检查：每条 `[SimRISC-XX §N]` 引用在 wiki 源文件中可定位
+- `.tao/knowledge/contract-isa.md` 通过 Wiki 引用检查：每条 `[SimRISC-XX §N]` 引用在 wiki 源文件中可定位
 
 ## 审核流程
 
@@ -230,7 +229,7 @@ rules:
    - 是否检查 mask/value 冲突
    - 是否检查保留编码
    - 是否检查 bank 一致性
-4. 检查 `contracts/isa/spec.md`：
+4. 检查 `.tao/knowledge/contract-isa.md`：
    - Wiki 引用是否可定位
    - 指令语义描述是否准确
 

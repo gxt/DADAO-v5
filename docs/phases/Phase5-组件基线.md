@@ -13,9 +13,9 @@
 | Phase 0 | `manifests/components.lock.toml` | 组件锁定（需更新 commit hash） |
 | Phase 0 | `scripts/fetch.py` | 组件获取脚本 |
 | Phase 0 | `scripts/apply_series.py` | 补丁应用脚本 |
-| Phase 1 | `contracts/isa/spec.md` | ISA 规范 |
-| Phase 4 | `contracts/abi/spec.md` | ABI 规范 |
-| Phase 4 | `contracts/elf/spec.md` | ELF 规范 |
+| Phase 1 | `.tao/knowledge/contract-isa.md` | ISA 规范 |
+| Phase 4 | `.tao/knowledge/contract-abi.md` | ABI 规范 |
+| Phase 4 | `.tao/knowledge/contract-elf.md` | ELF 规范 |
 | DADAO-0628 | `components/llvm/patches/series` | 补丁系列顺序参考 |
 | DADAO-0628 | `components/qemu/patches/series` | 补丁系列顺序参考 |
 | DADAO-0628 | `components/gem5/patches/series` | 补丁系列顺序参考 |

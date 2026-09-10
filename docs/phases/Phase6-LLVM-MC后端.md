@@ -10,11 +10,11 @@
 
 | 来源 | 文件 | 用途 |
 |------|------|------|
-| Phase 1 | `contracts/isa/spec.md` | ISA 规范 |
+| Phase 1 | `.tao/knowledge/contract-isa.md` | ISA 规范 |
 | Phase 1 | `verif/opcodes.yaml` | 编码表 |
 | Phase 1 | `verif/legality_rules.yaml` | 合法性规则 |
-| Phase 4 | `contracts/abi/spec.md` | ABI 规范 |
-| Phase 4 | `contracts/elf/spec.md` | ELF 规范 |
+| Phase 4 | `.tao/knowledge/contract-abi.md` | ABI 规范 |
+| Phase 4 | `.tao/knowledge/contract-elf.md` | ELF 规范 |
 | Phase 5 | `manifests/components.lock.toml` | LLVM commit |
 | Phase 5 | `.work/source/llvm/` | 已获取的 LLVM 源码 |
 | DADAO-v5/wiki | `AGENTS.md` | 命名约定（/wpN/格式） |
@@ -105,7 +105,7 @@ EM_DADAO = 0x0DA0（参考 DADAO-0628/DL-001a）
 ```
 你是 DADAO-v5 的 LLVM MC 工程师。创建指令描述、汇编器和反汇编器。
 
-读取：project/contracts/isa-spec.md, verif/opcodes.yaml, AGENTS.md
+读取：.tao/knowledge/contract-isa.md, verif/opcodes.yaml, AGENTS.md
 
 创建补丁 0004-0008：
 

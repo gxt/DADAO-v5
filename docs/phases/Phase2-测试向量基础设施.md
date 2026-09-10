@@ -11,7 +11,7 @@
 | 来源 | 文件 | 用途 |
 |------|------|------|
 | DADAO-v5/wiki | 全部 11 份文档 | 测试预期的规范来源 |
-| Phase 1 输出 | `contracts/isa/spec.md` | 归一化后的 ISA 规范 |
+| Phase 1 输出 | `.tao/knowledge/contract-isa.md` | 归一化后的 ISA 规范 |
 | Phase 1 输出 | `verif/opcodes.yaml` | 编码 mask/value |
 | Phase 1 输出 | `verif/legality_rules.yaml` | 合法性规则 |
 | DADAO-0628 | `tests/vectors/schema.md` | 向量 schema 模板 |
@@ -96,7 +96,7 @@ DADAO-v5/
 
 **提示词**：
 ```
-你是 DADAO-v5 的测试向量工程师。基于 SimRISC-01/02 和 contracts/isa/spec.md 创建核心指令的测试向量。
+你是 DADAO-v5 的测试向量工程师。基于 SimRISC-01/02 和 .tao/knowledge/contract-isa.md 创建核心指令的测试向量。
 
 按以下模式为每条指令创建测试向量：
 
@@ -190,7 +190,7 @@ illi-oiii, swym-iiii
 
 **提示词**：
 ```
-你是 DADAO-v5 的测试向量工程师。基于 SimRISC-03/04 和 contracts/isa/spec.md 创建浮点和系统指令的测试向量。
+你是 DADAO-v5 的测试向量工程师。基于 SimRISC-03/04 和 .tao/knowledge/contract-isa.md 创建浮点和系统指令的测试向量。
 
 ### 必须覆盖的指令列表
 

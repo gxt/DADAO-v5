@@ -10,11 +10,11 @@
 
 | 来源 | 文件 | 用途 |
 |------|------|------|
-| Phase 1 | `contracts/isa/spec.md` | ISA 语义规范 |
+| Phase 1 | `.tao/knowledge/contract-isa.md` | ISA 语义规范 |
 | Phase 1 | `verif/opcodes.yaml` | 编码表 |
 | Phase 1 | `verif/legality_rules.yaml` | 合法性规则 |
 | Phase 3 | `verif/dadao_interp.py` | Golden model 参考实现 |
-| Phase 4 | `project/adr/0004-test-machine.md` | 测试机定义 |
+| Phase 4 | `.tao/knowledge/adr-0004-test-machine.md` | 测试机定义 |
 | Phase 5 | `.work/source/qemu/` | QEMU 源码 |
 | DADAO-0628 | `components/qemu/patches/` | 12 个参考补丁 |
 | DADAO | `SIM-qemu/` | QEMU 早期实现参考 |
@@ -49,7 +49,7 @@ DADAO-v5/components/qemu/patches/
 你是 DADAO-v5 的 QEMU 工程师。创建 QEMU DADAO 目标骨架和译码器。
 
 读取：
-- DADAO-v5/contracts/isa/spec.md
+- DADAO-v5/.tao/knowledge/contract-isa.md
 - DADAO-v5/verif/opcodes.yaml
 - DADAO-v5/wiki/AGENTS.md
 - DADAO-0628/components/qemu/patches/0001~0003（参考）

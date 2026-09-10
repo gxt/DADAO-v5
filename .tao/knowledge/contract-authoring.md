@@ -6,12 +6,12 @@ Agent 不能直接读 Wiki——Wiki 是给人看的，有歧义。需要把 Wik
 
 | 文件 | 内容 |
 |------|------|
-| `isa-spec.md` | 每条指令的编码、语义、异常，用 § 编号引用 Wiki |
-| `abi-spec.md` | 调用约定：参数寄存器、返回值、栈对齐 |
-| `elf-spec.md` | ELF 格式：machine ID、重定位类型、endian |
-| `sbi-spec.md` | 系统二进制接口功能表 |
-| `exception-contract.md` | 系统态异常模型（可标记 deferred） |
-| `mmu-contract.md` | 地址转换模型（可标记 deferred） |
+| `contract-isa.md` | 每条指令的编码、语义、异常，用 § 编号引用 Wiki |
+| `contract-abi.md` | 调用约定：参数寄存器、返回值、栈对齐 |
+| `contract-elf.md` | ELF 格式：machine ID、重定位类型、endian |
+| `contract-sbi.md` | 系统二进制接口功能表 |
+| `contract-exception.md` | 系统态异常模型（可标记 deferred） |
+| `contract-mmu.md` | 地址转换模型（可标记 deferred） |
 
 ## 合约写法要点
 

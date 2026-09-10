@@ -2,7 +2,7 @@
 
 ## 这是什么
 
-DADAO-v5 基于 11 份 wiki 规范文档（SimRISC 0.5.3），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见 AGENTS.md。
+DADAO-v5 基于 11 份 wiki 规范文档（SimRISC 0.5.3），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见全局 `AGENTS.md` 与 `.tao/README.md`。
 
 ## 当前进度
 
@@ -18,13 +18,11 @@ DADAO-v5 基于 11 份 wiki 规范文档（SimRISC 0.5.3），从零构建 LLVM/
 | 路径 | 用途 |
 |------|------|
 | `wiki/` | 11 份原始规范文档 |
-| `manifests/` | 锁文件（规范/组件/参考） |
-| `project/phases/` | 阶段执行计划 |
-| `project/contracts/` | 归一化合约（待各阶段填充） |
-| `project/tasks/` | 按阶段分的任务文件 |
-| `project/knowledge/` | 已验证的知识沉淀 |
-| `project/adr/` | 架构决策记录 |
-| `project/reviews/` | 审阅记录 |
+| `manifests/` | 锁文件（规范/参考组件） |
+| `docs/phases/` | 阶段执行计划 |
+| `.tao/knowledge/contract-isa.md` | ISA 归一化合约 |
+| `.tao/tasks/PhaseN/` | 按阶段分的任务文件 |
+| `.tao/knowledge/` | 知识沉淀（MEMORY/ADR/contract） |
 | `verif/` | 验证工具（金模型、编码表） |
 | `tests/` | 测试向量 |
 | `components/` | 组件补丁 |
@@ -34,9 +32,9 @@ DADAO-v5 基于 11 份 wiki 规范文档（SimRISC 0.5.3），从零构建 LLVM/
 ## 重要决策
 
 - `verif/` 替代 `tools/` 作为验证工具目录
-- `project/` 集中存放所有 agent 中间文件
-- 任务编号 `Dnnn`，按阶段分 `project/tasks/PhaseN/` 子目录
-- 三条角色规则文件（架构师/子代理/审查者），放在 `project/` 下
+- `.tao/` 集中存放所有 agent 中间文件（对齐 t.a.o 全局约定）
+- 任务编号 `Tnnn`，全局唯一递增，按阶段分 `.tao/tasks/PhaseN/` 子目录
+- 角色规则由全局 `opencode/agent/` 提供，工作仓库不含 agent 文件
 
 ## 如何参考 DADAO-0628 和 DADAO
 
@@ -86,15 +84,15 @@ DADAO-v5 基于 SimRISC 0.5.3 规范，与 DADAO-0628（锁定在 SimRISC 0.4.1�
 
 ## 文件映射：wiki → contracts
 
-| wiki 文件 | 对应 contract（在 project/contracts/ 下） | 主要消费者 |
+| wiki 文件 | 对应 contract（在 `.tao/knowledge/` 下） | 主要消费者 |
 |-----------|------------------------------------------|-----------|
-| SimRISC-00 ~ 04 | `isa-spec.md` | golden model, LLVM, QEMU, gem5, Sail |
-| DADAO-11 AEE | `abi-spec.md` | LLVM CodeGen |
-| DADAO-12 SEE | `exception-contract.md`（推迟）+ `sbi-spec.md` | QEMU, Linux |
-| DADAO-13 HEE | `exception-contract.md`（推迟） | Chipyard |
-| DADAO-21 ABI | `abi-spec.md` | LLVM CodeGen |
-| DADAO-22 SBI | `sbi-spec.md` | QEMU, Linux |
-| DADAO-23 HBI | `sbi-spec.md` | Chipyard, Linux |
+| SimRISC-00 ~ 04 | `contract-isa.md` | golden model, LLVM, QEMU, gem5, Sail |
+| DADAO-11 AEE | `contract-abi.md` | LLVM CodeGen |
+| DADAO-12 SEE | `contract-exception.md`（推迟）+ `contract-sbi.md` | QEMU, Linux |
+| DADAO-13 HEE | `contract-exception.md`（推迟） | Chipyard |
+| DADAO-21 ABI | `contract-abi.md` | LLVM CodeGen |
+| DADAO-22 SBI | `contract-sbi.md` | QEMU, Linux |
+| DADAO-23 HBI | `contract-sbi.md` | Chipyard, Linux |
 
 ## 职责边界
 

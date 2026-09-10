@@ -4,13 +4,13 @@
 
 ## 目标
 
-创建从 wiki 规范直接派生的 Python ISA 模拟器（golden model），作为所有其他实现的独立 oracle。模型必须从 `contracts/isa/spec.md` + `opcodes.yaml` 派生语义，不复制 QEMU 或 LLVM 的实现逻辑。
+创建从 wiki 规范直接派生的 Python ISA 模拟器（golden model），作为所有其他实现的独立 oracle。模型必须从 `.tao/knowledge/contract-isa.md` + `opcodes.yaml` 派生语义，不复制 QEMU 或 LLVM 的实现逻辑。
 
 ## 输入文件
 
 | 来源 | 文件 | 用途 |
 |------|------|------|
-| Phase 1 | `contracts/isa/spec.md` | ISA 语义规范 |
+| Phase 1 | `.tao/knowledge/contract-isa.md` | ISA 语义规范 |
 | Phase 1 | `verif/opcodes.yaml` | 编码表 |
 | Phase 1 | `verif/legality_rules.yaml` | 合法性规则 |
 | Phase 2 | `tests/vectors/schema.md` | 向量格式 |
@@ -40,7 +40,7 @@ DADAO-v5/verif/
 你是 DADAO-v5 的黄金模型工程师。从 wiki 规范创建 Python ISA 模拟器。
 
 读取输入文件：
-- DADAO-v5/contracts/isa/spec.md（ISA 语义）
+- DADAO-v5/.tao/knowledge/contract-isa.md（ISA 语义）
 - DADAO-v5/verif/opcodes.yaml（编码表）
 - DADAO-v5/verif/legality_rules.yaml（合法性规则）
 - DADAO-v5/wiki/DADAO-11-AEE-应用程序运行环境.md（RAS 行为）

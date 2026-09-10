@@ -10,9 +10,9 @@
 
 | 来源 | 文件 | 用途 |
 |------|------|------|
-| Phase 1 | `contracts/isa/spec.md` | ISA 规范 |
+| Phase 1 | `.tao/knowledge/contract-isa.md` | ISA 规范 |
 | Phase 1 | `verif/opcodes.yaml` | 编码表 |
-| Phase 4 | `contracts/abi/spec.md` | ABI 规范 |
+| Phase 4 | `.tao/knowledge/contract-abi.md` | ABI 规范 |
 | Phase 4 | `verif/abi.yaml` | ABI 事实 |
 | Phase 6 | `components/llvm/patches/` | LLVM MC 补丁 |
 | Phase 8 | `tests/lit/E2E/` | E2E 测试参考 |
@@ -47,7 +47,7 @@ DADAO-v5/components/llvm/patches/
 你是 DADAO-v5 的 LLVM CodeGen 工程师。创建 CodeGen 基础骨架和调用约定。
 
 读取：
-- DADAO-v5/contracts/abi/spec.md
+- DADAO-v5/.tao/knowledge/contract-abi.md
 - DADAO-v5/verif/abi.yaml
 - DADAO-0628/components/llvm/patches/0013~0015（参考）
 

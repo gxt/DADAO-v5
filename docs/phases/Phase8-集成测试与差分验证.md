@@ -16,7 +16,7 @@
 | Phase 3 | `verif/run_differential.py` | 差分运行器骨架 |
 | Phase 6 | `verif/llvm-mc` | LLVM MC 汇编结果 |
 | Phase 7 | `verif/qemu-system-dadao` | QEMU 执行结果 |
-| Phase 4 | `project/adr/0004-test-machine.md` | 测试机定义 |
+| Phase 4 | `.tao/knowledge/adr-0004-test-machine.md` | 测试机定义 |
 | DADAO-0628 | `docs/adr/0007-testing-methodology.md` | 测试方法论 |
 | DADAO | `DADAO-testset/` | 基准测试参考（Dhrystone、Embench-IoT 等） |
 
@@ -173,7 +173,7 @@ SECTIONS {
 你是 DADAO-v5 的验证工程师。创建系列一致性检查脚本。
 
 1. 创建 `scripts/check_wiki_refs.py`：
-   - 读取 `contracts/isa/spec.md`
+   - 读取 `.tao/knowledge/contract-isa.md`
    - 提取所有 `[wiki §N]` 引用
    - 验证对应的 wiki 文档中存在该章节
    - 输出缺失引用的列表

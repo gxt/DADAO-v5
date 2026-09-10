@@ -10,7 +10,7 @@
 
 | 来源 | 文件 | 用途 |
 |------|------|------|
-| Phase 1 | `contracts/isa/spec.md` | ISA 规范 |
+| Phase 1 | `.tao/knowledge/contract-isa.md` | ISA 规范 |
 | Phase 1 | `verif/opcodes.yaml` | 编码表 |
 | Phase 1 | `verif/legality_rules.yaml` | 合法性规则 |
 | Phase 3 | `verif/dadao_interp.py` | Golden model 参考 |
@@ -44,7 +44,7 @@ DADAO-v5/components/gem5/patches/
 你是 DADAO-v5 的 gem5 工程师。为 gem5 创建 DADAO 架构目标。
 
 读取：
-- DADAO-v5/contracts/isa/spec.md
+- DADAO-v5/.tao/knowledge/contract-isa.md
 - DADAO-v5/verif/opcodes.yaml
 - DADAO-0628/components/gem5/patches/0001~0002（参考）
 
@@ -69,7 +69,7 @@ DADAO-v5/components/gem5/patches/
 你是 DADAO-v5 的 gem5 指令实现工程师。实现 DADAO 指令的 gem5 执行。
 
 参考：
-- DADAO-v5/contracts/isa/spec.md
+- DADAO-v5/.tao/knowledge/contract-isa.md
 - DADAO-0628/components/gem5/patches/0003~0009
 
 创建补丁 0003-0009：
