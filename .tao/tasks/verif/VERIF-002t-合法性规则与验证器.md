@@ -118,14 +118,14 @@ rules:
 ### 重跑记录
 
 ```bash
-$ cd /home/ubuntu/gxtao/DADAO-v5 && python3 verif/validate_encoding.py verif/opcodes.yaml
+$ cd DADAO-v5 && python3 verif/validate_encoding.py verif/opcodes.yaml
 validate_encoding: 256 条记录 OK
 $ echo $?
 0
 ```
 
 ```bash
-$ cd /home/ubuntu/gxtao/DADAO-v5 && python3 -c "import yaml; data = yaml.safe_load(open('verif/legality_rules.yaml')); print(f'规则数量: {len(data[\"rules\"])}')"
+$ cd DADAO-v5 && python3 -c "import yaml; data = yaml.safe_load(open('verif/legality_rules.yaml')); print(f'规则数量: {len(data[\"rules\"])}')"
 规则数量: 25
 ```
 

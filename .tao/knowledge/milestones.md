@@ -14,5 +14,5 @@
 
 | 项目里程碑 | infra | spec | testsuite | golden | llvm | qemu | verif | gem5 | sail | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M1 | `INFRA-008m` | `SPEC-011m` | `TESTSUITE-010m` | — | 待规划 | 待规划 | 待规划 | — | — | 待开始 |
+| M1 | `INFRA-008m` | `SPEC-011m` | `TESTSUITE-010m` | — | `LLVM-011m` | `QEMU-013m` | `VERIF-012m` | — | — | 待开始 |
 | M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
