@@ -37,7 +37,7 @@
 
 ## 目录
 
-- `tasks/<module>/` — 任务文件 `<PREFIX>-nnn<suffix>-描述.md`（按模块分子目录），状态机：`待开始` → `待验收` → `已验证`，审查失败 `待返工`
+- `tasks/<module>/` — 任务文件 `<PREFIX>-nnn<suffix>-描述.md`（按模块分子目录），状态机按后缀：`k` 待开始→已验证；`t` 待开始→待验收→已验证（`待返工` 回退）；`m` 待开始→里程碑
 - `knowledge/` — 知识库：`MEMORY.md`（状态摘要）、`registry.md`（机器路由）、`changelog.md`（变更记录）、`contract-*.md`（归一化合约）、`adr-*.md`（架构决策）、`project_*.md`、`feedback_*.md`
 - `logs/` — 命令输出日志（已被 `.tao/.gitignore` 忽略）
 
@@ -45,18 +45,25 @@
 
 任务按模块组织：`tasks/<module>/<PREFIX>-nnn<suffix>-描述.md`，`nnn` 为模块内三位递增序号（跨后缀共享，前缀保证全局唯一）。
 
-- `<suffix>`：`k`=启动（澄清目标+分解任务）、`t`=普通任务、`m`=里程碑标记（轻量文件，不走四态状态机，`**状态**` 固定写 `里程碑`）
-- 任务文件以 `**模块**` / `**阶段**` 字段标注归属；`m` 文件以 `**目标**` / `**关联任务**` 标注
+- `<suffix>`（谋事有因 / 做事有据 / 了事有果）：
+  - `k`=启动（澄清目标+分解任务），状态 `待开始` → `已验证`（/plan 审查通过后，不单独验收）
+  - `t`=普通任务，四态 `待开始` → `待验收` → `已验证`（`待返工` 回退）
+  - `m`=里程碑标记（轻量），两态 `待开始` → `里程碑`
+- 任务文件头部含 `**模块**` / `**阶段**` / `**依赖**`；`k` 状态置顶，`m` 以 `**目标**` / `**关联任务**` 标注
 
 | 模块 | 前缀 | 覆盖 Phase | 交付物 |
 | --- | --- | --- | --- |
+| `infra` | `INFRA` | 0,5 | 构建基础设施（组件锁、fetch/apply、Makefile、容器） |
 | `spec` | `SPEC` | 0,1,4 | 规范锁定、ISA 合约、编码表、ABI/ELF/SBI 合约 |
+| `testsuite` | `TESTSUITE` | 2 | 测试向量 + benchmark + 套件 |
+| `golden` | `GOLDEN` | 3 | Python 黄金模型 |
 | `llvm` | `LLVM` | 6,11 | LLVM MC + CodeGen |
 | `qemu` | `QEMU` | 7 | QEMU |
+| `verif` | `VERIF` | 8 | 集成/差分验证、合法性矩阵、检查工具 |
 | `gem5` | `GEM5` | 9 | gem5 |
 | `sail` | `SAIL` | 10 | Sail |
 
-> 基础设施模块（测试向量 Phase 2、黄金模型 Phase 3、组件基线 Phase 5、集成验证 Phase 8）名称待定。
+> `verif/` 目录同时存放 spec 派生的机器可读数据（`opcodes.yaml`/`legality_rules.yaml`/`abi.yaml`）与验证工具。
 
 ## 项目结构（DADAO-v5 特有）
 

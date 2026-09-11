@@ -134,7 +134,7 @@ spec.md 的要求：
 
 完成后进行自检：随机抽取 50 条指令的编码与 QFC 表交叉核对。
 
-### SPEC-004t：合法性规则与验证器
+### SPEC-004t：合法性规则与验证器（已迁至 verif 模块 `VERIF-002t`）
 
 **职责**：创建 `verif/legality_rules.yaml` + `verif/validate_encoding.py`
 
