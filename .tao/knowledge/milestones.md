@@ -1,8 +1,13 @@
 # 项目里程碑路线图
 
-项目级里程碑（跨模块），由各模块的里程碑支撑（模块里程碑见 `.tao/tasks/<module>/` 的 `m` 文件）。主会话在依赖的模块里程碑均达成为 `里程碑` 后，将本项目里程碑置为 `达成`。
+项目级里程碑（跨模块），由各模块的里程碑支撑（模块里程碑见 `.tao/tasks/<module>/` 的 `m` 文件）。主会话在依赖的模块里程碑均达成为 `里程碑` 后，将本项目里程碑置为 `达成`。路线参考 DADAO-0628（`.work/DADAO-0628`）。
 
-路线参考 DADAO-0628（`.work/DADAO-0628`）。
+| 项目里程碑 | infra | spec | testsuite | golden | llvm | qemu | verif | gem5 | sail | 状态 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| M1 | `INFRA-008m` | `SPEC-011m` | `TESTSUITE-010m` | — | `LLVM-011m` | `QEMU-013m` | `VERIF-012m` | — | — | 待开始 |
+| M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
+
+## 里程碑说明
 
 **M1 — MC + QEMU 标量核心 + MC↔QEMU 集成**
 
@@ -12,7 +17,49 @@
 
 目的：`llc` 将标量整数/指针函数（LLVM IR）编译为 DADAO 汇编，经 MC → obj → 链接 → QEMU 执行结果正确（freestanding、same-TU，不含变参/聚合）。门槛：`make test-codegen` 全绿，至少一个算术/访存/分支/调用函数端到端在 QEMU 得到期望结果。
 
-| 项目里程碑 | infra | spec | testsuite | golden | llvm | qemu | verif | gem5 | sail | 状态 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M1 | `INFRA-008m` | `SPEC-011m` | `TESTSUITE-010m` | — | `LLVM-011m` | `QEMU-013m` | `VERIF-012m` | — | — | 待开始 |
-| M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
+## M1 模块依赖关系
+
+```
+infra ───────────────┐
+                     ├──→ llvm ───┐
+spec ──→ testsuite ──┤           ├──→ verif ──→ M1
+                     └──→ qemu ───┘
+```
+
+| 依赖边 | 内容 |
+| --- | --- |
+| `infra` → `llvm`、`qemu` | `build-mc` / `build-qemu` 依赖 infra 的 Makefile、fetch/apply、组件锁、容器 |
+| `spec` → `testsuite`、`llvm`、`qemu` | ISA 合约、编码表、ABI/ELF 合约、ADR-0003/0004（Test Machine） |
+| `testsuite` → `llvm`、`qemu`、`verif` | 独立测试向量（encoding/legality/semantic/boundary/overlap）供 MC/QEMU/差分验证 |
+| `llvm` ∥ `qemu` | 两者仅依赖 `infra`+`spec`，**可并行**（MC 与 CPU 核心无相互依赖） |
+| `llvm` + `qemu` + `testsuite` → `verif` | 集成验证（harness、QFC/lit/issue/trans/spec-refs 检查、MC↔QEMU E2E） |
+| `verif` → `M1` | 集成闭环达成，M1 置为 `达成` |
+
+关键路径：`infra` + `spec` → `qemu`（或 `llvm`）→ `verif` → M1。
+
+## M1 建议执行顺序
+
+按依赖分层，同层可并行：
+
+**第 1 层 — 基础设施 + 规范基线**（无前置或已部分完成）
+- `infra`：`INFRA-002t` → `003t` → {`004t`、`005t`} → `006t` → `007t`
+- `spec`：`SPEC-006t` → {`007t`、`008t`} → `009t` → `010t`（`SPEC-002t`/`003t` 已完成）
+- 说明：先建 `Makefile`/fetch/锁（infra）与 `ADR-0004`/ELF 合约（spec），解除对下游的阻塞。
+
+**第 2 层 — 测试向量 + 组件基线/骨架**（依赖第 1 层）
+- `testsuite`：`TESTSUITE-002t` → `003t` → `004t` → {`005t`、`007t`、`008t`}；`006t`、`009t`
+- `llvm`：`LLVM-002t` → `003t`（Triple + 最小 build）
+- `qemu`：`QEMU-002t` → `003t`（骨架 + `hw/dadao/`）
+- 说明：向量层尽早建立，供第 3 层验证；`llvm`/`qemu` 各自先打通「能 build」。
+
+**第 3 层 — MC 后端 + QEMU 核心**（依赖第 2 层，两条线并行）
+- `llvm`：`LLVM-004t` → `005t` → `006t` → `007t` → `008t` → `009t` → `010t`
+- `qemu`：`QEMU-004t` → `005t` → `006t` → `007t` → `008t` → `009t` → `010t` → `011t` → `012t`
+
+**第 4 层 — 集成验证**（依赖第 3 层）
+- `verif`：`VERIF-002t` → `003t` → `004t` → {`006t`、`008t` → `009t`}；`005t`/`007t`/`011t` 可并行；`010t` 待 `LLVM-011m`+`QEMU-013m`
+
+**第 5 层 — 里程碑收敛**
+- 各模块 `m` 核验通过后置 `里程碑` → `M1` 置 `达成`
+
+> 建议：第 1、2 层先行（打通构建与向量），第 3 层的 `llvm` 与 `qemu` 并行推进，第 4 层紧随其后。
