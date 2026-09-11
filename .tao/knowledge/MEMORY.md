@@ -8,23 +8,23 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 
 | 项目 | 状态 |
 |------|------|
-| SimRISC 规范 | ✅ 0.5.3，已更新 |
-| spec 模块（ISA 合约 + 编码表） | ✅ 已完成 |
-| 构建基础设施（infra 模块） | ⏳ 已规划，待实现 |
-| 后续模块 | 待推进（路线参考 DADAO-0628） |
+| SimRISC 规范 | ✅ 0.5.3 |
+| spec 模块（ISA 合约 + 编码表 + 合法性规则） | ✅ 已完成 |
+| M1 任务规划（infra/spec/testsuite/llvm/qemu/verif） | ✅ 已生成（参考 DADAO-0628，未逐任务审核） |
+| M1 实现 | ⏳ 待开始（执行前须与用户确认任务书） |
 
 ## 关键目录速查
 
 | 路径 | 用途 |
 |------|------|
-| `spec/` | 11 份原始规范文档 |
+| `spec/` | 11 份原始规范文档（只读） |
 | `manifests/` | 锁文件（规范/参考组件） |
-| `.tao/knowledge/contract-isa.md` | ISA 归一化合约 |
-| `.tao/tasks/<module>/` | 按模块分的任务文件 |
-| `.tao/knowledge/` | 知识沉淀（MEMORY/ADR/contract） |
-| `verif/` | 验证工具（金模型、编码表） |
-| `tests/` | 测试向量 |
-| `components/` | 组件补丁 |
+| `.tao/tasks/<module>/` | 按模块分的任务文件（`<PREFIX>-nnn<suffix>`） |
+| `.tao/knowledge/` | 知识沉淀（MEMORY/milestones/contract/adr） |
+| `.tao/knowledge/milestones.md` | 项目里程碑路线图（M1/M2） |
+| `verif/` | 验证工具（编码表、合法性规则、检查脚本） |
+| `tests/` | 测试向量（`tests/vectors/`） |
+| `components/` | 组件补丁（llvm/qemu/gem5） |
 | `scripts/` | 工具脚本 |
 | `sail/` | Sail 形式化规范 |
 
@@ -32,7 +32,12 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 
 - `verif/` 替代 `tools/` 作为验证工具目录
 - `.tao/` 集中存放所有 agent 中间文件（对齐 t.a.o 全局约定）
-- 任务编号 `<PREFIX>-nnn<suffix>`，模块内递增，按模块分 `.tao/tasks/<module>/` 子目录
+- **模块清单**：`infra`/`spec`/`testsuite`/`golden`/`llvm`/`qemu`/`verif`/`gem5`/`sail`（`abi` 并入 `spec`）
+- **任务编号**：`<PREFIX>-nnn<suffix>`，suffix `k`=启动/`t`=普通/`m`=里程碑；模块内递增
+- **项目里程碑**：M1/M2，见 `.tao/knowledge/milestones.md`
+- **去阶段化**：任务不按 Phase 组织，直接参考 DADAO-0628；已删除 `docs/phases/`
+- **执行前确认**：任务分解参考 DADAO-0628 生成、未逐一审核，执行前须与用户确认任务书（见 `AGENTS.md`）
+- **跨模块交互**：里程碑核验须考虑其它模块影响；需修复时里程碑后移或增加交互任务（见 `AGENTS.md`）
 - 角色规则由全局 `opencode/agent/` 提供，工作仓库不含 agent 文件
 
 ## 如何参考 DADAO-0628 和 DADAO
