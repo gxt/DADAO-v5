@@ -1,7 +1,6 @@
 # SPEC-002t: ISA 规范合约提取
 
 **模块**：spec
-**阶段**：1
 **依赖**：无
 
 ## 执行环境
@@ -44,7 +43,7 @@
 
 ## 参考
 
-- Phase1 详细要求：`docs/phases/Phase1-ISA规范合约与编码表.md`
+- DADAO-0628：`code-agent/tasks/DL-001a-isa-contract.md`、`DL-001b-spec-revision.md`
 - 合约编写规范：`.tao/knowledge/contract-authoring.md`
 
 ---

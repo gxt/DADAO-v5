@@ -49,19 +49,19 @@
   - `k`=启动（澄清目标+分解任务），状态 `待开始` → `已验证`（/plan 审查通过后，不单独验收）
   - `t`=普通任务，四态 `待开始` → `待验收` → `已验证`（`待返工` 回退）
   - `m`=里程碑标记（轻量），两态 `待开始` → `里程碑`
-- 任务文件头部含 `**模块**` / `**阶段**` / `**依赖**`；`k` 状态置顶，`m` 以 `**目标**` / `**关联任务**` 标注
+- 任务文件头部含 `**模块**` / `**依赖**`；`k` 状态置顶，`m` 以 `**目标**` / `**关联任务**` 标注
 
-| 模块 | 前缀 | 覆盖 Phase | 交付物 |
-| --- | --- | --- | --- |
-| `infra` | `INFRA` | 0,5 | 构建基础设施（组件锁、fetch/apply、Makefile、容器） |
-| `spec` | `SPEC` | 0,1,4 | 规范锁定、ISA 合约、编码表、ABI/ELF/SBI 合约 |
-| `testsuite` | `TESTSUITE` | 2 | 测试向量 + benchmark + 套件 |
-| `golden` | `GOLDEN` | 3 | Python 黄金模型 |
-| `llvm` | `LLVM` | 6,11 | LLVM MC + CodeGen |
-| `qemu` | `QEMU` | 7 | QEMU |
-| `verif` | `VERIF` | 8 | 集成/差分验证、合法性矩阵、检查工具 |
-| `gem5` | `GEM5` | 9 | gem5 |
-| `sail` | `SAIL` | 10 | Sail |
+| 模块 | 前缀 | 交付物 |
+| --- | --- | --- |
+| `infra` | `INFRA` | 构建基础设施（组件锁、fetch/apply、Makefile、容器） |
+| `spec` | `SPEC` | 规范锁定、ISA 合约、编码表、ABI/ELF/SBI 合约 |
+| `testsuite` | `TESTSUITE` | 测试向量 + benchmark + 套件 |
+| `golden` | `GOLDEN` | Python 黄金模型 |
+| `llvm` | `LLVM` | LLVM MC + CodeGen |
+| `qemu` | `QEMU` | QEMU |
+| `verif` | `VERIF` | 集成/差分验证、合法性矩阵、检查工具 |
+| `gem5` | `GEM5` | gem5 |
+| `sail` | `SAIL` | Sail |
 
 > `verif/` 目录同时存放 spec 派生的机器可读数据（`opcodes.yaml`/`legality_rules.yaml`/`abi.yaml`）与验证工具。
 
@@ -71,11 +71,10 @@
 | --- | --- |
 | `spec/` | 11 份原始规范文档（只读参考） |
 | `manifests/` | 锁文件（规范/参考组件，精确 commit） |
-| `docs/phases/` | 阶段执行计划（12 份） |
 | `verif/` | 验证工具（金模型、编码表） |
 | `.tao/knowledge/contract-isa.md` | ISA 归一化合约（SimRISC 0.5.3） |
 | `.tao/knowledge/contract-authoring.md` | 合约编写规范 |
-| `components/` `tests/` `scripts/` `sail/` | 后续阶段交付物（按需创建） |
+| `components/` `tests/` `scripts/` `sail/` | 后续交付物（按需创建） |
 
 ## model
 

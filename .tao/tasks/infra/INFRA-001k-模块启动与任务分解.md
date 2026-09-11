@@ -1,13 +1,12 @@
 # INFRA-001k: infra 模块启动
 
 **模块**：infra
-**阶段**：0
 **依赖**：无
 **状态**：已验证
 
 ## 问题根源
 
-DADAO-v5 要从上游组件（LLVM/QEMU/gem5）的可复现基线构建全栈，但当前仓库缺少：组件锁、获取/打补丁工具、构建编排、开发容器。缺少这层基础设施，后续 llvm/qemu/gem5 模块的补丁无法可复现地应用到固定上游 commit，构建产物不可复现。DADAO-0628 的 Phase 0（Foundation）正是为此。
+DADAO-v5 要从上游组件（LLVM/QEMU/gem5）的可复现基线构建全栈，但当前仓库缺少：组件锁、获取/打补丁工具、构建编排、开发容器。缺少这层基础设施，后续 llvm/qemu/gem5 模块的补丁无法可复现地应用到固定上游 commit，构建产物不可复现。DADAO-0628 的 Foundation（M0）正是为此。
 
 ## 阶段目的
 
@@ -15,7 +14,7 @@ DADAO-v5 要从上游组件（LLVM/QEMU/gem5）的可复现基线构建全栈，
 
 ## 对照关系
 
-- **借鉴**：DADAO-0628 Phase 0（Foundation）与 ADR-0001（greenfield 重建）、ADR-0002（manifest 驱动编排）。
+- **借鉴**：DADAO-0628 Foundation（M0）与 ADR-0001（greenfield 重建）、ADR-0002（manifest 驱动编排）。
 - **差异**：v5 的 agent 中间文件集中 `.tao/`（0628 用 `code-agent/`），任务在 `.tao/tasks/<module>/`；组件 commit 待后续模块 ADR 确定（本阶段占位/禁用）；`spec.lock.toml` 用 `[versions]`/`[foundation_included]` 表（0628 扁平字段）。
 - **拒绝的 legacy 行为**：环境相关 Git URL 重写、仅用可变分支选版本、未审查的 fixups 层、把上游仓库拷进元仓库、把脏的生成源码树当权威实现。
 

@@ -9,9 +9,9 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 | 项目 | 状态 |
 |------|------|
 | SimRISC 规范 | ✅ 0.5.3，已更新 |
-| 基础设施（Phase 0） | ✅ 已完成 |
-| ISA 规范合约（Phase 1） | ✅ 已完成 |
-| 后续阶段 | 待 Phase 1 完成后推进 |
+| spec 模块（ISA 合约 + 编码表） | ✅ 已完成 |
+| 构建基础设施（infra 模块） | ⏳ 已规划，待实现 |
+| 后续模块 | 待推进（路线参考 DADAO-0628） |
 
 ## 关键目录速查
 
@@ -19,7 +19,6 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 |------|------|
 | `spec/` | 11 份原始规范文档 |
 | `manifests/` | 锁文件（规范/参考组件） |
-| `docs/phases/` | 阶段执行计划 |
 | `.tao/knowledge/contract-isa.md` | ISA 归一化合约 |
 | `.tao/tasks/<module>/` | 按模块分的任务文件 |
 | `.tao/knowledge/` | 知识沉淀（MEMORY/ADR/contract） |
@@ -40,8 +39,8 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 
 - `DADAO-0628`：基于 SimRISC 0.4.1 的完整实现，包含补丁集和任务文件
 - `DADAO`：各阶段早期的代码实现（已不再更新），包含 LLVM/QEMU/Chipyard 等组件的具体实现
-- 两者的 commit hash 已锁定在 `manifests/` 目录
-- 各阶段文件开头的"参考文件"表格列出了该阶段需要的来源文件对应关系
+- 两者 commit 锁定于 `manifests/references.lock.toml`（由 `INFRA-003t` 建立）
+- 路线图与任务拆解直接参考 DADAO-0628：`docs/development-roadmap.md`（M0/M1/M2/M2.5）、`code-agent/designs/0002-detailed-roadmap.md`、`code-agent/tasks/`
 
 ## 规范版本对应
 

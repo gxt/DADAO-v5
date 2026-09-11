@@ -1,7 +1,6 @@
 # INFRA-006t: Makefile 编排
 
 **模块**：infra
-**阶段**：0
 **依赖**：`INFRA-004t`、`INFRA-005t`
 
 ## 执行环境

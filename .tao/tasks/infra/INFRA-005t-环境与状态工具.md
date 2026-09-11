@@ -1,7 +1,6 @@
 # INFRA-005t: 环境与状态工具
 
 **模块**：infra
-**阶段**：0
 **依赖**：`INFRA-003t`
 
 ## 执行环境
@@ -43,7 +42,7 @@
 - DADAO-0628 `scripts/status.py`（完整转述见上）。
 - DADAO-0628 `scripts/clean_work.py`（完整转述见上）。
 - DADAO-0628 `docs/repository-layout.md`：`.work/` 为一次性工作区，可整体清理。
-- DADAO-0628 `code-agent/designs/0002-detailed-roadmap.md`：Phase 0 交付要求 `make doctor` / `make status` 可用。
+- DADAO-0628 `code-agent/designs/0002-detailed-roadmap.md`：M0 交付要求 `make doctor` / `make status` 可用。
 
 ## 交付物
 

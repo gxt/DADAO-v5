@@ -1,7 +1,6 @@
 # SPEC-009t: ELF 合约（归一化自 ADR-0003）
 
 **模块**：spec
-**阶段**：4（对应 DADAO-0628 的 Phase 0.5C）
 **依赖**：`SPEC-007t`、`SPEC-002t`
 
 ## 执行环境
@@ -69,7 +68,7 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 - DADAO-0628：`contracts/elf/spec.md`（合约模板与最终 Accepted 内容）
 - DADAO-0628：`contracts/elf/README.md`
 - DADAO-0628：`docs/adr/0003-object-abi.md`（归一化来源）
-- DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Phase 0.5C 段）
+- DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）
 
 ## 交付物
 
@@ -116,9 +115,9 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 - DADAO-0628：`.work/DADAO-0628/contracts/elf/spec.md`
 - DADAO-0628：`.work/DADAO-0628/contracts/elf/README.md`
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Phase 0.5C 段）
+- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）
 - 本项目：`.tao/knowledge/adr-0003-object-abi.md`（SPEC-007t 产出）、`.tao/knowledge/contract-isa.md`
-- 本项目：`docs/phases/Phase4-ABI合约与架构决策.md`
+- DADAO-0628：`code-agent/tasks/DL-004a-elf-contract.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准

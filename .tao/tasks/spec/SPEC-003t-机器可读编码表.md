@@ -1,7 +1,6 @@
 # SPEC-003t: 机器可读编码表
 
 **模块**：spec
-**阶段**：1
 **依赖**：`SPEC-002t`
 
 ## 执行环境
@@ -58,7 +57,7 @@
 
 ## 参考
 
-- Phase1 详细要求：`docs/phases/Phase1-ISA规范合约与编码表.md`
+- DADAO-0628：`code-agent/tasks/DL-001c-encoding-validator.md`
 - 编码表模板：DADAO-0628/verif/opcodes.yaml
 
 ## 完成区

@@ -1,7 +1,6 @@
 # VERIF-002t: 合法性规则与验证器
 
 **模块**：verif
-**阶段**：8
 **依赖**：`SPEC-003t`
 
 ## 执行环境
@@ -11,9 +10,7 @@
 ## 接口规范
 
 - 输入：spec/ 规范文档（见下方清单）
-- 输出：
-  - `verif/legality_rules.yaml`
-  - `verif/validate_encoding.py`
+- 输出：`verif/legality_rules.yaml`
 - 约束：基于 SimRISC 0.5.3，覆盖所有 ILLI/UNDI/MALIGN/IALIGN 条件
 - 依赖：SPEC-003t 创建的 `verif/opcodes.yaml`
 
@@ -60,13 +57,10 @@
    - status：active/deferred
    - description：规则描述
 
-### validate_encoding.py
+### 验证器（复用 SPEC-003t 的 `verif/validate_encoding.py`）
 
-1. 读取 `opcodes.yaml`
-2. 检查 mask/value 是否合法（无重叠冲突）
-3. 检查保留编码是否被意外分配
-4. 检查没有两条指令共享相同的 mask/value
-5. 输出检查结果（PASS/FAIL + 详情）
+1. 读取 `opcodes.yaml`，检查 mask/value 合法性、保留编码、解码冲突
+2. 该验证器由 `SPEC-003t` 交付；本任务只**复用**它验证合法性规则所依赖的编码，不重复拥有
 
 ## 输出格式示例
 
@@ -85,7 +79,7 @@ rules:
 
 ## 参考
 
-- Phase1 详细要求：`docs/phases/Phase1-ISA规范合约与编码表.md`
+- DADAO-0628：`code-agent/tasks/DL-043a-legality-matrix.md`
 - 合法性规则模板：DADAO-0628/tools/legality_rules.yaml
 - 验证器模板：DADAO-0628/scripts/validate_encoding.py
 
@@ -94,7 +88,7 @@ rules:
 **状态**：已验证
 **Commit**：无（历史任务）
 **测试结果**：`validate_encoding.py` 256 条记录 OK（exit 0）；规则数 25
-**修改文件**：`verif/legality_rules.yaml`、`verif/validate_encoding.py`
+**修改文件**：`verif/legality_rules.yaml`
 **验收结果**：见下方「验收结论」
 **新发现/坑**：无
 **遗留问题**：无
@@ -104,7 +98,6 @@ rules:
 | 文件 | 说明 |
 |------|------|
 | `verif/legality_rules.yaml` | 合法性规则目录，25 条规则覆盖全部 19 类要求 |
-| `verif/validate_encoding.py` | 编码验证器脚本，检查 mask/value 合法性、字段重叠、解码冲突 |
 
 ### 验收结论
 

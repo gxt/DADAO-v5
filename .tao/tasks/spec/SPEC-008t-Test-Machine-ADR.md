@@ -1,7 +1,6 @@
 # SPEC-008t: Test Machine ADR（复位/内存图/exit port/MALIGN 可观测）
 
 **模块**：spec
-**阶段**：4（对应 DADAO-0628 的 Phase 0.5B）
 **依赖**：`SPEC-002t`、`SPEC-006t`、`VERIF-002t`
 
 ## 执行环境
@@ -72,7 +71,7 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
   ILLI/UNDI/MALIGN）、§5.6（RegRAS RASOF/RASUF）、§1.3（rb0 复位值、rf0）
 - DADAO-0628：`code-agent/tasks/DL-003b-test-machine-adr.md`（完整转述；含 3 轮 Architecture Review）
 - DADAO-0628：`docs/adr/0004-test-machine.md`（ADR 模板与最终 Accepted 决策）
-- DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Phase 0.5B 段）
+- DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
 - 本项目：`.tao/knowledge/contract-abi.md`（SP=rb1）、`verif/legality_rules.yaml`
 
 ## 交付物
@@ -121,9 +120,9 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-003b-test-machine-adr.md`（完整转述）
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0004-test-machine.md`
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0001-greenfield-rebuild.md`（ADR 格式模板）
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Phase 0.5B 段）
+- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-003a-elf-object-abi-adr.md`（加载协议需统一）
-- 本项目：`.tao/knowledge/contract-isa.md`、`verif/legality_rules.yaml`、`docs/phases/Phase4-ABI合约与架构决策.md`
+- 本项目：`.tao/knowledge/contract-isa.md`、`verif/legality_rules.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准

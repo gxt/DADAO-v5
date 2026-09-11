@@ -1,7 +1,6 @@
 # SPEC-007t: Object ABI ADR（ELF/重定位决策）
 
 **模块**：spec
-**阶段**：4（对应 DADAO-0628 的 Phase 0.5B）
 **依赖**：`SPEC-002t`、`SPEC-006t`
 
 ## 执行环境
@@ -67,7 +66,7 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
 - DADAO-0628：`code-agent/tasks/DL-003a-elf-object-abi-adr.md`（完整转述；含 3 轮 Architecture Review）
 - DADAO-0628：`docs/adr/0003-object-abi.md`（ADR 模板与最终 Accepted 决策）
 - DADAO-0628：`contracts/elf/spec.md`（下游 SPEC-009t 的规范化目标）、`contracts/elf/README.md`
-- DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Phase 0.5B 段）
+- DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
 
 ## 交付物
 
@@ -122,8 +121,8 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
 - DADAO-0628：`.work/DADAO-0628/contracts/elf/spec.md`
 - DADAO-0628：`.work/DADAO-0628/contracts/elf/README.md`
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0001-greenfield-rebuild.md`（ADR 格式模板）
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Phase 0.5B 段）
-- 本项目：`.tao/knowledge/contract-isa.md`、`docs/phases/Phase4-ABI合约与架构决策.md`
+- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
+- 本项目：`.tao/knowledge/contract-isa.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准

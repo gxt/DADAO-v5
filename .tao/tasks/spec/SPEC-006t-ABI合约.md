@@ -1,7 +1,6 @@
 # SPEC-006t: ABI 合约（非变参标量调用约定）
 
 **模块**：spec
-**阶段**：4（对应 DADAO-0628 的 Phase 0.5A）
 **依赖**：`SPEC-002t`
 
 ## 执行环境
@@ -182,9 +181,9 @@ M1 scope 限定：**非变参函数**（no varargs）、**标量整数/指针参
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-069a-rb-bank-pointer-calling-convention.md`
 - DADAO-0628：`.work/DADAO-0628/contracts/abi/spec.md`
 - DADAO-0628：`.work/DADAO-0628/contracts/abi/README.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Phase 0.5A 段）
+- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Normalization 段）
 - 本项目：`spec/DADAO-21-ABI-应用程序二进制接口.md`、`spec/DADAO-11-AEE-应用程序运行环境.md`
-- 本项目：`docs/phases/Phase4-ABI合约与架构决策.md`
+- DADAO-0628：`code-agent/tasks/DL-002a-abi-contract.md`
 - 知识库：`.tao/knowledge/MEMORY.md`、`.tao/knowledge/contract-authoring.md`、`.tao/knowledge/contract-isa.md`
 
 ## 验收标准

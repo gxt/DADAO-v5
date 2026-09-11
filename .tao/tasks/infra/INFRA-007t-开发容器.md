@@ -1,7 +1,6 @@
 # INFRA-007t: 开发容器
 
 **模块**：infra
-**阶段**：0
 **依赖**：`INFRA-006t`
 
 ## 执行环境
@@ -22,7 +21,7 @@
 
 ### 设计理由
 
-- 0628 `code-agent/designs/0002-detailed-roadmap.md`：Phase 0 交付含"Development container skeleton"。
+- 0628 `code-agent/designs/0002-detailed-roadmap.md`：M0 交付含"Development container skeleton"。
 - `doctor.py` 的判定逻辑：原生缺 `ninja`/`clang` 时，只要 docker 可用即视为 `container` 构建路径可用。
 - 容器把构建依赖与宿主隔离，保证干净环境可复现。
 

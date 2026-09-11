@@ -25,11 +25,10 @@
 ```
 DADAO-v5/
 ├── AGENTS.md              # 本文件
-├── README.md              # 项目总览与阶段计划
+├── README.md              # 项目总览
 ├── .tao/                  # 交互目录（任务/知识/日志）
 │   ├── tasks/<module>/    # 任务文件 <PREFIX>-nnn<suffix>-描述.md
 │   └── knowledge/         # MEMORY.md、contract-*.md、adr-*.md
-├── docs/phases/           # 阶段执行计划
 ├── manifests/             # 锁文件（规范/参考组件）
 ├── spec/                  # 原始规范文档（只读）
 └── verif/                 # 验证工具（金模型、编码表）
