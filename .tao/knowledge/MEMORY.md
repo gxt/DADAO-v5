@@ -49,12 +49,7 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 
 ## 规范版本对应
 
-| 配对 | 版本 |
-|------|------|
-| SimRISC | 0.5.3 |
-| AEE ↔ ABI | 0.9.2 |
-| SEE ↔ SBI | 0.7.1 |
-| HEE ↔ HBI | 0.1.2 |
+规范版本与冻结状态的**唯一来源**是 `README.md`「当前版本号」表（SimRISC 0.5.3 / AEE·ABI 0.9.2 / SEE·SBI 0.7.1 / HEE·HBI 0.1.2）。v5 不使用 `manifests/spec.lock.toml`。
 
 ## 关键差异提示（相比 DADAO-0628）
 

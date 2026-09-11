@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：DADAO-v5 现有 `manifests/spec.lock.toml`、`manifests/dadao.lock.toml`
+- 输入：DADAO-v5 现有 `manifests/dadao.lock.toml`、`README.md`（规范版本表）
 - 输出：`manifests/components.lock.toml`、`manifests/references.lock.toml`、`scripts/manifest_check.py`
 - 约束：组件锁只需占位/待定 commit（LLVM/QEMU/gem5 的精确 commit 在后续 llvm/qemu/gem5 模块确定）；reference 锁 DADAO-0628 `2d270604b778d609e1a09b4047271b5309005ffc`；不得复制 0.4.1 的补丁/代码正文
 
@@ -32,7 +32,7 @@
 - `components.lock.toml` schema（0628）：`format = 1`、`work_root = ".work"`，`[[component]]` 数组，字段 `name` / `enabled` / `repository` / `commit` / `patch_series` / `role`。
 - `references.toml` schema（0628）：`format`、`captured_on`、`policy`，`[[reference]]` 数组，字段 `id` / `path` / `repository` / `head` / `dirty` / `purpose` / `reuse` / `selected_paths`。
 - `manifest_check.py` 校验规则（0628）：
-  - spec lock：`commit` 为 40 位 SHA-1；`status` ∈ {candidate, frozen}；`foundation_included` 非空。
+  - spec lock（0628 有、v5 无）：`commit` 为 40 位 SHA-1；`status` ∈ {candidate, frozen}；`foundation_included` 非空。
   - component：`name` 非空且不重复；**enabled 组件必须有完整 40 位 commit**；`patch_series` 文件必须存在。
   - reference：`id` 非空；`head` 为完整 commit；`path` 为绝对路径。
   - 全部通过后打印 spec / enabled components / reference 数量，退出码 0。
@@ -57,7 +57,7 @@
   - `[[reference]]` id `dadao-0628`：repository `https://github.com/holight1/DADAO-0628.git`、`head = "2d270604b778d609e1a09b4047271b5309005ffc"`、`path` 指向 `.work/DADAO-0628`、`reuse = "架构与工程教训，不复制实现"`。
   - `[[reference]]` id `dadao`：`head = "f9bde0481668ffab325db8d8c5d8c4cc791c6232"`（取自现有 `manifests/dadao.lock.toml`）；其 checkout（`.work/DADAO`）由 `INFRA-004t` 的 `fetch_refs.py` 获取。
   - `path` 字段按 v5 实际位置填写（`.work/DADAO-0628` 等）。v5 简化 schema，省略 0628 的 `dirty`（执行时计算）、`purpose`（并入 `reuse`）、`selected_paths`（本阶段不需要）字段。
-- `scripts/manifest_check.py`：实现上述校验，**适配 v5 的 `spec.lock.toml` schema**（`[versions]` 表 + `[foundation_included]` 表，而非 0628 的扁平 `commit` / `status` / `foundation_included`），并对 disabled 组件的待定 commit 放行。
+- `scripts/manifest_check.py`：实现 component/reference 锁校验；**v5 无 spec lock 文件**（规范版本表在 `README.md`，脚本不校验 spec 锁），并对 disabled 组件的待定 commit 放行。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 

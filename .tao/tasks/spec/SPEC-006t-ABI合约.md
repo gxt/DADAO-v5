@@ -134,7 +134,7 @@ M1 scope 限定：**非变参函数**（no varargs）、**标量整数/指针参
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **版本与来源**：合约版本 0.1.0（Source: Wiki commit `13a414d`，SimRISC 0.4.1）→ **0.9.2**
-   （Source: `spec/DADAO-21-ABI` 0.9.2，`spec.lock.toml` 锁定 `9e69b55d…`）。
+   （Source: `spec/DADAO-21-ABI` 0.9.2，版本表见 `README.md`）。
 2. **RB bank 指针调用约定**：0.4.1 合约初版只定义「整数/标量统一走 RD bank」，指针参数/返回值
    未走 RB；后端实现与文档分歧直到 DL-069a 才修复（指针参数 rb16–rb31、指针返回 rb31）。
    v5 的 0.9.2 `spec/DADAO-21-ABI §参数寄存器` **已原生**规定指针走 RB bank（并给出

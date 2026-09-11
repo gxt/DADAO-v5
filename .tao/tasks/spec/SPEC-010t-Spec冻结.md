@@ -12,13 +12,13 @@
 ## 接口规范
 
 - 输入：
-  - `manifests/spec.lock.toml`（当前 status/commit/versions/foundation_included）
+  - `README.md`（当前版本号表：规范版本 + 冻结状态）
   - 已 Accepted 的 `.tao/knowledge/contract-*.md`、`adr-*.md`
   - `.tao/knowledge/contract-isa.md`（版本头格式示例）
 - 输出：
   - `docs/impact-matrix.md`（规格来源 → 合约/文件 → 下游实现目标）
   - `scripts/check_spec_drift.py`（fail-closed 的规格漂移检查）
-  - `manifests/spec.lock.toml`（`status = "frozen"`；`foundation_included` 补入本轮合约）
+  - `README.md`（冻结状态标注为 `已冻结`）
 - 约束：
   - 冻结前所有 authority artifact（SPEC-002t/003t/006t/007t/008t/009t）必须 Accepted
   - `check_spec_drift.py` 不联网，只读本地文件
@@ -32,10 +32,9 @@
 ### 目标
 
 执行规格冻结动作：
-1. 确认 `manifests/spec.lock.toml` 的 `status = "frozen"`（v5 该文件已为 frozen，须核对并补齐
-   `foundation_included`/versions）
+1. 核对 `README.md` 的规范版本表与已 Accepted 合约一致，并把冻结状态标注为 `已冻结`
 2. 新建 `docs/impact-matrix.md`，记录 spec/ADR/合约章节与下游实现的依赖映射
-3. 新建 `scripts/check_spec_drift.py`，fail-closed 校验所有合约的来源与 `spec.lock.toml` 一致；
+3. 新建 `scripts/check_spec_drift.py`，fail-closed 校验所有合约的来源与 `README.md` 版本表一致；
    并在可用的构建入口中调用（v5 尚无 Makefile，见差异）
 
 ### 设计理由
@@ -59,7 +58,7 @@
 **check_spec_drift.py 行为规则（fail-closed）**：
 
 - 枚举 `.tao/knowledge/contract-*.md`，每个文件必须被分类为以下之一，否则 ERROR：
-  - **spec-sourced**：含 `> **版本：X.Y.Z**` 头 → 版本须与 `spec.lock.toml [versions]` 对应项一致；
+  - **spec-sourced**：含 `> **版本：X.Y.Z**` 头 → 版本须与 `README.md` 版本表对应项一致；
     且引用的 `spec/` 文件须真实存在
   - **ADR-sourced**：来源标注引用 `adr-000N-*.md` → 该 ADR 文件须存在且 `Status: Accepted`
 - 缺来源、来源格式损坏、未知 ADR 来源 → ERROR 并非零退出
@@ -80,17 +79,16 @@
 |------|------|
 | `docs/impact-matrix.md` | 规格来源 → 合约/文件 → 下游实现目标的三列矩阵，逐节覆盖 |
 | `scripts/check_spec_drift.py` | fail-closed 规格漂移检查（版本/ADR 分类、负测试） |
-| `manifests/spec.lock.toml` | `status = "frozen"`；`foundation_included` 补入本轮冻结合约范围 |
+| `README.md` | 规范版本表核对无误，冻结状态标注为 `已冻结` |
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **来源标识**：DADAO-0628 用 Wiki commit SHA（`**Source**: Wiki commit <sha>`）；v5 的合约以
-   `spec/` 文档版本号（SimRISC 0.5.3 / ABI 0.9.2 等）与文件存在性为 provenance，
-   `spec.lock.toml` 记录 `commit = 9e69b55d…` 与 `[versions]`。drift checker 须据此改造，
-   不能照抄 SHA 匹配逻辑。
-2. **spec.lock 状态**：v5 的 `manifests/spec.lock.toml` 当前已为 `status = "frozen"`；
-   本任务的冻结动作是**核对**其 status/versions/foundation_included 与已 Accepted 合约一致，
-   并在合约全部 Accepted 后确认冻结边界，而非从 candidate 翻转。
+   `spec/` 文档版本号（SimRISC 0.5.3 / ABI 0.9.2 等）与文件存在性为 provenance，版本表在
+   `README.md`。drift checker 须据此改造，不能照抄 SHA 匹配逻辑。
+2. **冻结状态**：v5 不使用 `manifests/spec.lock.toml`（其 commit 锁随仓库更新而失效）；
+   本任务的冻结动作是**核对** `README.md` 版本表与已 Accepted 合约一致，
+   并在合约全部 Accepted 后把冻结状态标注为 `已冻结`。
 3. **构建入口**：v5 尚无 `Makefile`/CI（构建编排由 infra 模块负责）。
    本任务交付独立可运行的 `scripts/check_spec_drift.py` 并给出 gate 命令；
    待 infra 模块引入构建编排时再接入 `make check`，不在本任务新建 Makefile。
@@ -110,8 +108,8 @@
    必须枚举每个 `contracts/*/spec.md` 并强制分类，未知/缺失来源必须失败，且加负测试。
 4. **P1 manifest 与冻结范围元数据不自洽**：`name`/`foundation_included` 须与 status/冻结范围一致，
    使用者能据此判断冻结边界。
-5. **最终结论**：第三轮 Accepted（freeze gate 暂挂起，待 spec.lock.toml 最终 frozen 提交）；
-   实质工作完成，所有 authority artifacts 均 Accepted 后再最终提交 frozen。
+5. **最终结论**：第三轮 Accepted（freeze gate 暂挂起，待所有 authority artifacts 均 Accepted 后把 `README.md` 冻结状态标注为 `已冻结`）；
+   实质工作完成。
 
 ## 参考
 
@@ -119,8 +117,7 @@
 - DADAO-0628：`.work/DADAO-0628/scripts/check_wiki_drift.py`
 - DADAO-0628：`.work/DADAO-0628/manifests/spec.lock.toml`
 - DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）
-- 本项目：`manifests/spec.lock.toml`、`.tao/knowledge/contract-isa.md`（版本头示例）
-- 本项目：`manifests/spec.lock.toml`
+- 本项目：`README.md`（规范版本表）、`.tao/knowledge/contract-isa.md`（版本头示例）
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -130,8 +127,7 @@
 2. `scripts/check_spec_drift.py` 存在，fail-closed：枚举所有 `.tao/knowledge/contract-*.md` 并强制分类
 3. 脚本对「版本不匹配 / 来源缺失 / 来源格式错误 / 未知 ADR」四类均非零退出（负测试齐全）
 4. 脚本正常运行输出 `spec drift check: PASS` 并返回 0；`python3 -m compileall -q scripts` 通过
-5. `manifests/spec.lock.toml` `status = "frozen"`，`versions`/`foundation_included` 与已 Accepted
-   合约范围一致（补入 contract-abi/contract-elf/adr-0003/adr-0004 等）
+5. `README.md` 规范版本表与已 Accepted 合约一致，冻结状态标注为 `已冻结`
 6. 冻结前所有 authority artifact 均 Accepted（SPEC-002t/003t/006t/007t/008t/009t）
 7. 给出 gate 命令；若未接入 Makefile，须在完成区说明接入时机（infra 模块）
 8. 不照抄 0.4.1 的章节号/矩阵行；无行号引用
