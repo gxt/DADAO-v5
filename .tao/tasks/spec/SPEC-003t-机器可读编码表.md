@@ -3,6 +3,7 @@
 **模块**：spec
 **项目里程碑**：M1
 **依赖**：`SPEC-002t`
+**状态**：已验证
 
 ## 执行环境
 
@@ -64,8 +65,6 @@
 
 ## 完成区
 
-**状态**：已验证
-**Commit**：无（历史任务）
 **测试结果**：`validate_encoding.py` 256 条记录 OK（exit 0）
 **修改文件**：`verif/opcodes.yaml`、`verif/validate_encoding.py`、`verif/generate_opcodes.py`
 **验收结果**：见下方「自检结果」与「指令分布」
