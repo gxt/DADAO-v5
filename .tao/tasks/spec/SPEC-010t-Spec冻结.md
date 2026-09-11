@@ -1,6 +1,7 @@
 # SPEC-010t: Spec 冻结（status/impact-matrix/CI 检查）
 
 **模块**：spec
+**项目里程碑**：M1
 **依赖**：`SPEC-006t`、`SPEC-007t`、`SPEC-008t`、`SPEC-009t`（间接依赖 `SPEC-002t`/`SPEC-003t` 均须 Accepted）
 
 ## 执行环境

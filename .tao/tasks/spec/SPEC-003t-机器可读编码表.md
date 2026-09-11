@@ -1,6 +1,7 @@
 # SPEC-003t: 机器可读编码表
 
 **模块**：spec
+**项目里程碑**：M1
 **依赖**：`SPEC-002t`
 
 ## 执行环境
@@ -40,7 +41,8 @@
 ## 输出格式示例
 
 ```yaml
-- mnemonic: ld.o-rd
+- insn: ld.o-rd
+  mnemonic: ld.o
   format: rrii
   op: "0x20"
   mask: "0xFF000000"

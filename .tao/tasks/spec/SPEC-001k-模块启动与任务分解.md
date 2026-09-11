@@ -1,6 +1,7 @@
 # SPEC-001k: spec 模块启动
 
 **模块**：spec
+**项目里程碑**：M1
 **依赖**：无
 **状态**：已验证
 
@@ -8,7 +9,7 @@
 
 Agent 不能直接读 `spec/` 的 11 份原始规范（面向人类、存在歧义）。需要把规范归一化投影成精确的合约与机器可读数据，作为所有下游实现（LLVM/QEMU/golden/gem5/Sail）的单一事实来源。
 
-## 阶段目的
+## 目的
 
 从 `spec/`（SimRISC 0.5.3）提取：ISA 规范化合约（`.tao/knowledge/contract-isa.md`）、机器可读编码表（`verif/opcodes.yaml`），为后续 ABI/ELF 合约与 M1 实现提供 oracle。
 

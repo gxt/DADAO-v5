@@ -1,6 +1,7 @@
 # SPEC-008t: Test Machine ADR（复位/内存图/exit port/MALIGN 可观测）
 
 **模块**：spec
+**项目里程碑**：M1
 **依赖**：`SPEC-002t`、`SPEC-006t`、`VERIF-002t`
 
 ## 执行环境

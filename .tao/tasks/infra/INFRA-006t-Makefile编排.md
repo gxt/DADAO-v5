@@ -1,6 +1,7 @@
 # INFRA-006t: Makefile 编排
 
 **模块**：infra
+**项目里程碑**：M1
 **依赖**：`INFRA-004t`、`INFRA-005t`
 
 ## 执行环境

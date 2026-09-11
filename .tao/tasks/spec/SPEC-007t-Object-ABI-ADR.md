@@ -1,6 +1,7 @@
 # SPEC-007t: Object ABI ADR（ELF/重定位决策）
 
 **模块**：spec
+**项目里程碑**：M1
 **依赖**：`SPEC-002t`、`SPEC-006t`
 
 ## 执行环境
