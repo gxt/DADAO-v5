@@ -67,7 +67,7 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 ### 上游引用
 
 - DADAO-0628：`code-agent/tasks/DL-004a-elf-contract.md`（完整转述；含 3 轮 Architecture Review）
-- DADAO-0628：`contracts/elf/spec.md`（合约模板与最终 Accepted 内容）
+- DADAO-0628：`contracts/elf/spec.md`（内容溯源：最终 Accepted 内容；合约格式见 v5 `.tao/knowledge/contract-authoring.md`）
 - DADAO-0628：`contracts/elf/README.md`
 - DADAO-0628：`docs/adr/0003-object-abi.md`（归一化来源）
 - DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）

@@ -33,7 +33,7 @@
 
 ### 关键概念 / 数据
 
-- ADR 格式（参考 0628 `docs/adr/0003-object-abi.md`）：`Status` / `Context` / `Decision` / `Rationale` / `Consequences`。
+- ADR 格式：见 v5 `.tao/knowledge/adr-authoring.md`（`Status` / `Context` / `Decision` / `Rationale` / `Consequences`）。
 - **Decision 必含字段**：选定的 QEMU 版本（如 `QEMU x.y.z`）、完整 40 字符 commit SHA、`qemu/qemu` GitHub commit URL（仅供人类参考）。
 - **Rationale 至少 3 点**：稳定性、TCG API 可用性、构建验证。
 - **Consequences**：M1 所有补丁针对此 commit；不整体 bump。
@@ -74,7 +74,7 @@
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0006-qemu-baseline.md`
 - DADAO-0628：`.work/DADAO-0628/manifests/components.lock.toml`
 - DADAO-0628：`.work/DADAO-0628/Makefile`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`（ADR 模板）
+- v5：`.tao/knowledge/adr-authoring.md`（ADR 格式与模板）
 - 知识库：`.tao/knowledge/MEMORY.md`
 - 本项目：`.tao/tasks/infra/INFRA-003t-manifest与锁系统.md`、`.tao/tasks/infra/INFRA-004t-组件获取与打补丁工具.md`、`.tao/tasks/infra/INFRA-006t-Makefile编排.md`
 

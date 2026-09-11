@@ -66,7 +66,7 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
 - `.tao/knowledge/contract-isa.md` §2（编码）、附录 A（mask/value/格式）、§4.6/§4.8（RB rwii/rela.si）、
   §5（分支/call/jump）— 主要 oracle
 - DADAO-0628：`code-agent/tasks/DL-003a-elf-object-abi-adr.md`（完整转述；含 3 轮 Architecture Review）
-- DADAO-0628：`docs/adr/0003-object-abi.md`（ADR 模板与最终 Accepted 决策）
+- DADAO-0628：`docs/adr/0003-object-abi.md`（内容溯源：最终 Accepted 决策；ADR 格式见 v5 `.tao/knowledge/adr-authoring.md`）
 - DADAO-0628：`contracts/elf/spec.md`（下游 SPEC-009t 的规范化目标）、`contracts/elf/README.md`
 - DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
 
@@ -122,7 +122,7 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`
 - DADAO-0628：`.work/DADAO-0628/contracts/elf/spec.md`
 - DADAO-0628：`.work/DADAO-0628/contracts/elf/README.md`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0001-greenfield-rebuild.md`（ADR 格式模板）
+- v5：`.tao/knowledge/adr-authoring.md`（ADR 格式与模板）
 - DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
 - 本项目：`.tao/knowledge/contract-isa.md`
 - 知识库：`.tao/knowledge/MEMORY.md`

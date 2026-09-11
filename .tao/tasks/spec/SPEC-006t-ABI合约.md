@@ -119,7 +119,7 @@ M1 scope 限定：**非变参函数**（no varargs）、**标量整数/指针参
 - `.tao/knowledge/contract-isa.md` §1（寄存器模型）、§4（地址/内存）、§5（控制流：call/ret/RegRAS）
 - DADAO-0628：`code-agent/tasks/DL-002a-abi-contract.md`（完整转述；含 6 轮 Architecture Review
   的全部 P0/P1/结论）
-- DADAO-0628：`contracts/abi/spec.md`（ABI 合约模板，注意其 Version 仍写 0.1.0）、
+- DADAO-0628：`contracts/abi/spec.md`（内容溯源，注意其 Version 仍写 0.1.0；合约格式见 v5 `.tao/knowledge/contract-authoring.md`）、
   `contracts/abi/README.md`
 - DADAO-0628：`code-agent/tasks/DL-069a-rb-bank-pointer-calling-convention.md`（RB bank 指针
   调用约定的演进说明）

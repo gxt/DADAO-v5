@@ -20,6 +20,13 @@
 - **Independent oracle**：测试向量不能从 LLVM 或 QEMU 生成，必须独立派生自 `spec/`
 - **Component lock**：LLVM/QEMU/gem5 以 `manifests/` 中的精确 commit hash 锁定，不用 tag/branch
 
+## 参考来源与任务自包含
+
+- 任务书必须**自包含**：执行所需的事实/格式/模板写入任务书或 v5 自身知识（`.tao/knowledge/`），不依赖外部仓库内容。
+- **模板/格式**以 v5 自身知识为准（如 `.tao/knowledge/adr-authoring.md`、`contract-authoring.md`），不引用外部仓库的模板文件。
+- DADAO-0628 / DADAO 等参考仓库**仅作只读溯源/对照**，其文件**不得作为任务的执行依赖**；引用时标注「内容溯源，非执行必需」。
+- 参考仓库按 commit 锁定（`manifests/`）；如需核对内容，按锁定 commit 从外部获取，不 vendor 进仓库。
+
 ## 目录结构
 
 ```

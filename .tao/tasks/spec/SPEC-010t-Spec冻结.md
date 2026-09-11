@@ -70,7 +70,7 @@
 ### 上游引用
 
 - DADAO-0628：`code-agent/tasks/DL-004b-spec-freeze.md`（完整转述；含 3 轮 Architecture Review）
-- DADAO-0628：`scripts/check_wiki_drift.py`（drift checker 模板）
+- DADAO-0628：`scripts/check_wiki_drift.py`（逻辑参考，v5 自实现）
 - DADAO-0628：`manifests/spec.lock.toml`（status 字段冻结示例）
 - DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）
 

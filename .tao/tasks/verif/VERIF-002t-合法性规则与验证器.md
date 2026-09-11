@@ -82,8 +82,8 @@ rules:
 ## 参考
 
 - DADAO-0628：`code-agent/tasks/DL-043a-legality-matrix.md`
-- 合法性规则模板：DADAO-0628/tools/legality_rules.yaml
-- 验证器模板：DADAO-0628/scripts/validate_encoding.py
+- DADAO-0628：`tools/legality_rules.yaml`（schema 溯源，非执行必需）
+- DADAO-0628：`scripts/validate_encoding.py`（逻辑参考，v5 自实现）
 
 ## 完成区
 

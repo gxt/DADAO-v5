@@ -32,7 +32,7 @@
 
 ### 关键概念 / 数据
 
-- ADR 格式（参考 0628 `docs/adr/0003-object-abi.md`）：`Status` / `Context` / `Decision` / `Rationale` / `Consequences`。
+- ADR 格式：见 v5 `.tao/knowledge/adr-authoring.md`（`Status` / `Context` / `Decision` / `Rationale` / `Consequences`）。
 - **Decision 必含字段**：选定的 LLVM 版本（major.minor）、完整 40 字符 commit SHA（不得用 tag/branch）、`llvm-project` GitHub commit URL（仅供人类参考，不做 lock 用途）。
 - **Rationale 至少 3 点**：稳定性、MC 框架可用性、构建验证。
 - **Consequences**：M1 所有 patch 针对此 commit 开发，commit 在 M1 期间不 bump；若发现严重 MC 框架 bug，通过 cherry-pick 处理并记录新 ADR，不整体 bump。
@@ -42,7 +42,7 @@
 ### 上游引用
 
 - DADAO-0628：`code-agent/tasks/DL-005a-llvm-baseline.md`（完整转述：目标、三份交付物、约束、验收门、两轮 Architecture Review）。
-- DADAO-0628：`docs/adr/0005-llvm-baseline.md`（ADR 模板与内容：Context/Decision/Rationale/Consequences）。
+- DADAO-0628：`docs/adr/0005-llvm-baseline.md`（内容溯源：Context/Decision/Rationale/Consequences；ADR 格式见 v5 `.tao/knowledge/adr-authoring.md`）。
 - DADAO-0628：`manifests/components.lock.toml`、`Makefile`、`scripts/manifest_check.py`。
 
 ## 交付物

@@ -61,7 +61,7 @@
 ## 参考
 
 - DADAO-0628：`code-agent/tasks/DL-001c-encoding-validator.md`
-- 编码表模板：DADAO-0628/verif/opcodes.yaml
+- DADAO-0628：`tools/opcodes.yaml`（schema 溯源，内容溯源，非执行必需）
 
 ## 完成区
 
