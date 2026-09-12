@@ -22,7 +22,7 @@
 | 目录 | 说明 |
 |------|------|
 | `.work/DADAO-0628` | 基于 SimRISC 0.4.1 的完整实现（工程参考，commit 锁定于 `manifests/references.lock.toml`） |
-| `DADAO` | 各阶段早期的代码实现（已不再更新） |
+| `.work/DADAO` | 各阶段早期的代码实现（已不再更新；`https://github.com/gxt/DADAO.git`） |
 
 ## 路线图
 

@@ -51,7 +51,7 @@
 - `scripts/fetch.py`：按 commit 获取 enabled 组件到 `.work/source/<name>`。
 - `scripts/apply_series.py`：将有序补丁序列 `git am` 到 checkout。
 - `scripts/make_patch.py`：从工作树生成/维护补丁序列（v5 新增）。
-- `scripts/fetch_refs.py`：按 `references.lock.toml` 获取只读参考仓库（DADAO-0628 等）到其 `path`（`.work/DADAO-0628`），供任务 `## 参考` 定位；已存在且 commit 匹配则跳过。
+- `scripts/fetch_refs.py`：按 `references.lock.toml` 获取只读参考仓库到其 `path`，供任务 `## 参考` 定位；DADAO-0628 直接用已有 `.work/DADAO-0628`（只做 commit 检查，不重新拉取），DADAO 从 `https://github.com/gxt/DADAO.git` 取到 `.work/DADAO`；已存在且 commit 匹配则跳过。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
