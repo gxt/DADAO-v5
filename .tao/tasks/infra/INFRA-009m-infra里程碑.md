@@ -9,4 +9,5 @@
 ## 核验
 - 关联任务是否均已 `已验证`
 - 各任务产出的文件是否都存在：`Makefile`、`scripts/{manifest_check,fetch,apply_series,make_patch,fetch_refs,doctor,status,clean_work}.py`、`manifests/{components,references}.lock.toml`、`containers/dev/Dockerfile`、`.tao/knowledge/adr-0001-greenfield-rebuild.md`、`.tao/knowledge/adr-0002-build-orchestration.md`
+- **跨模块前置**：`INFRA-007t` 的 gem5 构建依赖清单标注 `[OPEN]`（待 gem5 模块确认）；在 gem5 模块确认前不得置 `里程碑`（见 `INFRA-007t` 审阅记录 → 交叉复核）。
 （核验通过后，主会话将 `**状态**` 置为 `里程碑`）
