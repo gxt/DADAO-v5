@@ -1,6 +1,6 @@
 # DADAO-v5 top-level orchestration.
 #
-# Make is the stable user interface (ADR-0002); the actual manifest/fetch/patch
+# Make is the stable user interface (ADR-0002: .tao/knowledge/adr-0002-build-orchestration.md); the actual manifest/fetch/patch
 # logic is delegated to Python standard-library scripts under scripts/. All
 # disposable data lives under .work/ (gitignored); persistent upstream mirrors
 # live under .cache/ and are never touched by clean-work.

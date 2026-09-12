@@ -15,7 +15,7 @@ DADAO-v5 要从上游组件（LLVM/QEMU/gem5）的可复现基线构建全栈，
 
 ## 对照关系
 
-- **借鉴**：DADAO-0628 Foundation（M0）与 ADR-0001（greenfield 重建）、ADR-0002（manifest 驱动编排）。
+- **借鉴**：DADAO-0628 Foundation（M0）与 ADR-0001（greenfield 重建）、ADR-0002（manifest 驱动编排）；v5 已采纳为自身 ADR（`.tao/knowledge/adr-0001-greenfield-rebuild.md`、`.tao/knowledge/adr-0002-build-orchestration.md`）。
 - **差异**：v5 的 agent 中间文件集中 `.tao/`（0628 用 `code-agent/`），任务在 `.tao/tasks/<module>/`；组件 commit 待后续模块 ADR 确定（本阶段占位/禁用）；v5 **不使用 spec lock 文件**，规范版本表在 `README.md`。
 - **拒绝的 legacy 行为**：环境相关 Git URL 重写、仅用可变分支选版本、未审查的 fixups 层、把上游仓库拷进元仓库、把脏的生成源码树当权威实现。
 
