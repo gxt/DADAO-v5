@@ -15,6 +15,7 @@
 - 输出：
   - `.tao/knowledge/adr-0006-qemu-baseline.md`（ADR-0006，Status 先 Candidate）
   - `manifests/components.lock.toml` 中 `qemu` 条目 `enabled = true` + 完整 40 字符 commit
+  - `components/qemu/patches/series`（占位空文件；`manifest_check.py` 要求 enabled 组件的 `patch_series` 存在）
   - `Makefile` 的 `build-qemu` 从 stub 替换为真实 `configure` + `make` 构建
 - 约束：commit 必须为完整 40 字符十六进制 SHA，不接受 tag/branch/短 SHA；ADR 先于 manifest；只改 `qemu` 条目，不动 llvm/gem5；`make manifest-check` 必须 PASS；ADR 内部引用用章节名（§Context 等），不写行号
 
@@ -51,6 +52,7 @@
 - `.tao/knowledge/adr-0006-qemu-baseline.md`：ADR-0006，覆盖 Context/Decision/Rationale/Consequences，含完整 40 字符 SHA 与至少 3 条 rationale；Status 先 Candidate，review 通过后 Accepted。
 - `manifests/components.lock.toml`：`qemu` 条目 `enabled = true`、`commit = "<40 字符 SHA>"`；其他字段（repository/patch_series/role）不变；llvm/gem5 条目不变。
 - `Makefile`：`build-qemu` 由 stub 替换为真实 `configure` + `make`（并加入 `.PHONY` 与 `help`）。
+- `components/qemu/patches/series`：占位空文件（`components/qemu/patches/` 目录 + 空 `series`）；`manifest_check.py` 对 enabled 组件强制要求 `patch_series` 存在，补丁正文由后续任务（`QEMU-003t` 起）追加。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -64,6 +66,7 @@
 
 - **configure 未验证是 0628 的遗留**：0628 完成区记录了 `./configure --target-list=riscv64-softmmu --enable-tcg` 通过；v5 仍须在 `make fetch` 后真实执行 configure，并把输出（≥3 行）写入完成区。
 - **tag/branch 不作为可复现基线**：enabled 组件必须有完整 40 位 commit，否则 `make manifest-check` 失败。
+- **enabled 必须伴随 `patch_series`**：`manifest_check.py` 对 `enabled = true` 的组件强制要求 `components/<name>/patches/series` 存在；翻转 `enabled` 时必须同时创建占位空 `series`，否则 `make manifest-check` 失败。
 - **ADR 先于 manifest**：ADR Status 先 Candidate 即可提交，架构师 review 后升 Accepted。
 - **路径一致性**：`build-qemu` 的 `QEMU_SRC` 必须指向 `.work/source/qemu`（`INFRA-004t` 的 fetch 落点），避免与 `INFRA-006t` 的默认值不一致。
 - **不改其他组件条目**：只改 `qemu`。
@@ -86,6 +89,7 @@
 4. `make manifest-check` PASS
 5. 完成区含真实 `git checkout <SHA>` 与 `./configure` 输出（≥3 行）
 6. `Makefile` 的 `build-qemu` 中 `QEMU_SRC` 指向 `.work/source/qemu`（与 `INFRA-004t` 的 fetch 落点一致）
+7. `components/qemu/patches/series` 存在（占位空文件）
 
 ## 完成区
 

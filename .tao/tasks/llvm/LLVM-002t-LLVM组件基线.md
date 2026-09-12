@@ -15,6 +15,7 @@
 - 输出：
   - `.tao/knowledge/adr-0005-llvm-baseline.md`（ADR-0005，Status 先 Candidate）
   - `manifests/components.lock.toml` 中 `llvm` 条目 `enabled = true` + 完整 40 字符 commit
+  - `components/llvm/patches/series`（占位空文件；`manifest_check.py` 要求 enabled 组件的 `patch_series` 存在）
   - `Makefile` 的 `build-mc` 从 stub 替换为真实 `cmake` + `ninja` 构建
 - 约束：commit 必须为完整 40 字符十六进制 SHA，不接受 tag/branch/短 SHA；ADR 先于 manifest；只改 `llvm` 条目，不动 qemu/gem5；`make manifest-check` 必须 PASS；ADR 内部引用用章节名（§Context 等），不写行号
 
@@ -50,6 +51,7 @@
 - `.tao/knowledge/adr-0005-llvm-baseline.md`：ADR-0005，覆盖 Context/Decision/Rationale/Consequences，含完整 40 字符 SHA 与至少 3 条 rationale；Status 先 Candidate，review 通过后 Accepted。
 - `manifests/components.lock.toml`：`llvm` 条目 `enabled = true`、`commit = "<40 字符 SHA>"`；其他字段（repository/patch_series/role）不变；qemu/gem5 条目不变。
 - `Makefile`：`build-mc` 由 stub 替换为真实 `cmake`+`ninja`（并加入 `.PHONY` 与 `help`）。
+- `components/llvm/patches/series`：占位空文件（`components/llvm/patches/` 目录 + 空 `series`）；`manifest_check.py` 对 enabled 组件强制要求 `patch_series` 存在，补丁正文由后续任务（`LLVM-003t` 起）追加。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -63,6 +65,7 @@
 
 - **cmake configure 未验证是 0628 的遗留（N1）**：0628 完成区仅做 `git ls-remote`，未真实 configure。v5 本任务须在 `make fetch` 后真实执行 configure，并把输出（≥3 行）写入完成区。
 - **tag/branch 不作为可复现基线**：enabled 组件必须有完整 40 位 commit，否则 `make manifest-check` 失败。
+- **enabled 必须伴随 `patch_series`**：`manifest_check.py` 对 `enabled = true` 的组件强制要求 `components/<name>/patches/series` 存在；翻转 `enabled` 时必须同时创建占位空 `series`，否则 `make manifest-check` 失败。
 - **ADR 先于 manifest**：ADR Status 先 Candidate 即可提交，架构师 review 后升 Accepted。
 - **路径一致性**：`INFRA-006t` 的 `LLVM_SRC` 默认值写的是 `.work/llvm/llvm`，而 `INFRA-004t` 的 fetch 落点是 `.work/source/llvm`；本任务须将 `build-mc` 的 `LLVM_SRC` 统一为 `.work/source/llvm/llvm`，或与 infra 侧对齐后记录。
 - **不改其他组件条目**：只改 `llvm`。
@@ -85,6 +88,7 @@
 4. `make manifest-check` PASS
 5. 完成区含真实 `git checkout <SHA>` 与 `cmake` configure 输出（≥3 行）
 6. `Makefile` 的 `build-mc` 中 `LLVM_SRC` 指向 `.work/source/llvm/llvm`（与 `INFRA-004t` 的 fetch 落点一致）
+7. `components/llvm/patches/series` 存在（占位空文件）
 
 ## 完成区
 

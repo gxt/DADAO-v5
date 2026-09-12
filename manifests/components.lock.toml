@@ -1,0 +1,31 @@
+format = 1
+work_root = ".work"
+
+# Components stay disabled until an ADR records the upstream selection and
+# exact commit. Tags and branches are not accepted as reproducible baselines.
+# commit is pending: the llvm/qemu/gem5 modules fill in the full 40-character
+# commit and flip enabled = true once their ADR records the upstream choice.
+
+[[component]]
+name = "llvm"
+enabled = false
+repository = "https://github.com/llvm/llvm-project.git"
+commit = ""
+patch_series = "components/llvm/patches/series"
+role = "LLVM MC + CodeGen"
+
+[[component]]
+name = "qemu"
+enabled = false
+repository = "https://github.com/qemu/qemu.git"
+commit = ""
+patch_series = "components/qemu/patches/series"
+role = "CPU core / decode / scalar execution / bare-metal machine"
+
+[[component]]
+name = "gem5"
+enabled = false
+repository = "https://github.com/gem5/gem5.git"
+commit = ""
+patch_series = "components/gem5/patches/series"
+role = "functional second reference"
