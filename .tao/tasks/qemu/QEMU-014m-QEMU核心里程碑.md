@@ -1,10 +1,10 @@
-# QEMU-013m: QEMU 核心里程碑
+# QEMU-014m: QEMU 核心里程碑
 
 **模块**：qemu
 **项目里程碑**：M1
 **状态**：待开始
-**目标**：DADAO-v5 的 QEMU 标量核心完成——`qemu-system-dadao` 在 MMU-off 裸机模式执行 M1 标量程序；RD 整数语义、RD load/store（含 MALIGN 精确异常）、控制流与 RB 指令（含 RegRAS）按 `.tao/knowledge/contract-isa.md` 与 `verif/opcodes.yaml` 独立 oracle 实现；语义/合法性/边界向量经「MC 汇编 → QEMU 执行 → 结果比对」一致；`make build-qemu` 全绿。
-**关联任务**：`QEMU-002t`、`QEMU-003t`、`QEMU-004t`、`QEMU-005t`、`QEMU-006t`、`QEMU-007t`、`QEMU-008t`、`QEMU-009t`、`QEMU-010t`、`QEMU-011t`、`QEMU-012t`
+**目标**：DADAO-v5 的 QEMU 标量核心完成——`qemu-system-dadao` 在 MMU-off 裸机模式执行 M1 标量程序；RD 整数语义、RD load/store（含 MALIGN 精确异常）、控制流与 RB/RA 指令（含 RegRAS/MemRAS）按 `.tao/knowledge/contract-isa.md` 与 `verif/opcodes.yaml` 独立 oracle 实现；语义/合法性/边界向量经「MC 汇编 → QEMU 执行 → 结果比对」一致；`make build-qemu` 全绿。
+**关联任务**：`QEMU-002t`、`QEMU-003t`、`QEMU-004t`、`QEMU-005t`、`QEMU-006t`、`QEMU-007t`、`QEMU-008t`、`QEMU-009t`、`QEMU-010t`、`QEMU-011t`、`QEMU-012t`、`QEMU-013t`
 
 ## 核验
 - 关联任务是否均已 `已验证`

@@ -38,9 +38,10 @@ DADAO-v5 基于 SimRISC 0.5.3，需要从零为 `dadao-unknown-elf` 目标构建
 | `LLVM-008t` | 反汇编器 | `components/llvm/patches/0006-dadao-disassembler.patch` | `LLVM-007t` |
 | `LLVM-009t` | lit 字节级 CHECK | 13+ 个 `tests/lit/MC/Dadao/*.s` 的 OBJ/ASM 前缀 | `LLVM-008t` |
 | `LLVM-010t` | halt 助记符 + smoke `.s` 修正 | 系统指令助记符定义 + smoke `.s` 修正 | `LLVM-009t`、`SPEC-006t` |
-| `LLVM-011m` | LLVM MC 里程碑 | 里程碑标记 | `LLVM-002t`~`LLVM-010t` |
+| `LLVM-011t` | RA 指令 MC 支持 | RA 指令 TableGen def + AsmParser/CodeEmitter/反汇编 + lit | `LLVM-009t`、`SPEC-002t`、`SPEC-003t` |
+| `LLVM-012m` | LLVM MC 里程碑 | 里程碑标记 | `LLVM-002t`~`LLVM-011t` |
 
-- **依赖关系**：`002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010t`；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排），`003t` 依赖 `SPEC-007t`（ELF 合约），`004t` 依赖 `SPEC-004t`（ABI 合约），`010t` 依赖 `SPEC-006t`（Test Machine ADR）；`011m` 汇总全部。
+- **依赖关系**：`002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010t`；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排），`003t` 依赖 `SPEC-007t`（ELF 合约），`004t` 依赖 `SPEC-004t`（ABI 合约），`010t` 依赖 `SPEC-006t`（Test Machine ADR）；`011t`（RA 指令）依赖 `009t` 与 spec；`012m` 汇总全部。
 - **分解理由**：按「基线 → 骨架 → 寄存器 → 指令格式 → 汇编/编码 → 修复+测试 → 反汇编 → 字节级测试 → 系统指令/冒烟」逐层推进，每层可独立 `git am` 一个补丁并独立验收（`make build-mc` + lit）；补丁序号与 0628 `series` 前 6 项对齐（0001–0006），后续按 0.5.3 需要重新生成。
 
 ## 说明

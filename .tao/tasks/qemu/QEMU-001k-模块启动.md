@@ -44,9 +44,10 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
 | `QEMU-010t` | ldmo_rb 实现 | 修订 `0005-dadao-ctrl-flow.patch` | `QEMU-009t` |
 | `QEMU-011t` | divs/divu TCG label 修复 | `components/qemu/patches/0006-dadao-div-label-fix.patch` | `QEMU-010t` |
 | `QEMU-012t` | branch PC 公式 + call RA 修复 | `components/qemu/patches/0007-dadao-branch-call-fix.patch` | `QEMU-011t`、`TESTSUITE-008t` |
-| `QEMU-013m` | QEMU 核心里程碑 | 里程碑标记 | `QEMU-002t`~`QEMU-012t` |
+| `QEMU-013t` | RA 指令语义 | `components/qemu/patches/` 中 RA 补丁 + RA 向量 | `QEMU-008t`、`SPEC-002t`、`SPEC-003t` |
+| `QEMU-014m` | QEMU 核心里程碑 | 里程碑标记 | `QEMU-002t`~`QEMU-013t` |
 
-- **依赖关系**：`002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010t → 011t → 012t`；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排）；`003t` 依赖 `SPEC-006t`（Test Machine ADR，提供内存图/复位值/exit 协议）；`004t` 依赖 `SPEC-003t`（编码表）与 `VERIF-002t`（合法性规则）；`008t` 依赖 `SPEC-006t`（fault/exit 可观测）；`012t` 依赖 `TESTSUITE-008t`（控制流向量）；`013m` 汇总全部。
+- **依赖关系**：`002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010t → 011t → 012t`；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排）；`003t` 依赖 `SPEC-006t`（Test Machine ADR，提供内存图/复位值/exit 协议）；`004t` 依赖 `SPEC-003t`（编码表）与 `VERIF-002t`（合法性规则）；`008t` 依赖 `SPEC-006t`（fault/exit 可观测）；`012t` 依赖 `TESTSUITE-008t`（控制流向量）；`013t`（RA 指令）依赖 `008t` 与 spec；`014m` 汇总全部。
 - **分解理由**：按「基线 → 骨架 → 解码 → RD 语义 → load/store → 精确异常 → 控制流/RB → 修复 → 里程碑」逐层推进，每层可独立 `git am` 一个补丁并独立验收（`make build-qemu` + 向量运行）；补丁命名/顺序以 0628 `series` 前段为参考，但 v5 按 0.5.3 重新生成（0628 的 `0002-dadao-hw-meson-subdir.patch` 独立修复在 v5 应并入 `0001` 骨架，见 `QEMU-003t`）。
 
 ## 说明

@@ -2,7 +2,7 @@
 
 **模块**：verif
 **项目里程碑**：M1
-**依赖**：`QEMU-013m`、`TESTSUITE-003t`、`SPEC-006t`
+**依赖**：`QEMU-014m`、`TESTSUITE-003t`、`SPEC-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -13,7 +13,7 @@
 
 - 输入：
   - `tests/vectors/isa/*.yaml`（含 `class`、`encoding.word`、`input_state`、`expected_state`、`expected_fault`、`status` 字段）
-  - `QEMU-013m` 交付的 `qemu-system-dadao`（构建路径以 `INFRA-006t` Makefile 为准）
+  - `QEMU-014m` 交付的 `qemu-system-dadao`（构建路径以 `INFRA-006t` Makefile 为准）
   - `SPEC-006t` 的 Test Machine ADR（`.tao/knowledge/adr-0004-test-machine.md`）：ROM/RAM 地址、exit port、exit code 协议
   - `verif/opcodes.yaml`（trusted 指令集编码真相）
 - 输出：

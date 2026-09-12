@@ -2,7 +2,7 @@
 
 **模块**：verif
 **项目里程碑**：M1
-**依赖**：`LLVM-011m`、`QEMU-013m`、`SPEC-006t`
+**依赖**：`LLVM-012m`、`QEMU-014m`、`SPEC-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -12,8 +12,8 @@
 ## 接口规范
 
 - 输入：
-  - `LLVM-011m` 交付的 `llvm-mc`（DADAO target，能汇编 M1 指令）
-  - `QEMU-013m` 交付的 `qemu-system-dadao`
+  - `LLVM-012m` 交付的 `llvm-mc`（DADAO target，能汇编 M1 指令）
+  - `QEMU-014m` 交付的 `qemu-system-dadao`
   - `VERIF-003t` 的 ROM trampoline
   - `SPEC-006t` 的 Test Machine ADR（机器名、BINARY_BASE、exit port）
 - 输出：
@@ -82,10 +82,10 @@ echo "exit: $?"
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-1. **核心差异 — 必须真正走 MC 路径**：0.4.1 完成区遗留「`llvm-mc` DADAO skeleton 无 `halt`/`add`/`addi`/`jump_i` 定义，绕道 `gen_e2e_binary.py` 手编 raw binary」；v5 依赖 `LLVM-011m` 已交付可汇编 M1 指令的 `llvm-mc`，**本任务以 .s→.o→.bin→QEMU 真实链路为验收**，raw 生成器仅可作过渡并在完成区标注。
+1. **核心差异 — 必须真正走 MC 路径**：0.4.1 完成区遗留「`llvm-mc` DADAO skeleton 无 `halt`/`add`/`addi`/`jump_i` 定义，绕道 `gen_e2e_binary.py` 手编 raw binary」；v5 依赖 `LLVM-012m` 已交付可汇编 M1 指令的 `llvm-mc`，**本任务以 .s→.o→.bin→QEMU 真实链路为验收**，raw 生成器仅可作过渡并在完成区标注。
 2. **助记符**：`addi`→`add.si`（0.5.3 立即数自增/设置语义变化）、`add`→`add.uo`/`add.so`（rrrr）、`jump_i`→`jump-iiii`、`halt`→退出/停机指令按 `contract-isa.md` §7.5 确定。
 3. **编码**：0.4.1 手推 `0x1904002A` 等；v5 全部由 `llvm-mc` 产生，不手编、不复制。
-4. **机器名/路径**：`-M dadao-m1` 等以 `SPEC-006t` ADR 与 `QEMU-013m` 实际为准；QEMU 路径 `.work/qemu/build/`。
+4. **机器名/路径**：`-M dadao-m1` 等以 `SPEC-006t` ADR 与 `QEMU-014m` 实际为准；QEMU 路径 `.work/qemu/build/`。
 5. **lit 变量**：`%qemu`/`%trampoline`/`%objcopy` 以 v5 `INFRA`/`LLVM` 的构建布局配置。
 6. **退出码**：以 `SPEC-006t` ADR 的 exit port 协议为准。
 
@@ -93,7 +93,7 @@ echo "exit: $?"
 
 摘自 DADAO-0628 DL-033a 完成区与代码级 Architecture Review：
 
-1. **0.4.1 绕道 raw binary**：因 llvm-mc skeleton 无指令定义，用 `gen_e2e_binary.py` 手编。v5 若 `LLVM-011m` 就绪应走真实 MC 路径；若仍不能汇编，须显式记录为遗留，不能假装走了 MC。
+1. **0.4.1 绕道 raw binary**：因 llvm-mc skeleton 无指令定义，用 `gen_e2e_binary.py` 手编。v5 若 `LLVM-012m` 就绪应走真实 MC 路径；若仍不能汇编，须显式记录为遗留，不能假装走了 MC。
 2. **逐指令编码验证**：0.4.1 审查手推 addi/add/halt/jump 编码；v5 这些由 `llvm-mc` 产生，验证方式改为「objdump 反汇编回助记符 + QEMU 退出码」。
 3. **`jump-iiii` offset 单位**：word（4 bytes），跳转目标 = 下一条 + imm*4（v5 以 `contract-isa.md` §5.2 为准）。
 4. **调试指引**：llvm-mc 报 unknown target → 确认 LLVM build 含 DADAO target；QEMU 得 0x82（ILLI）→ 编码与解码不匹配，用 `llvm-objdump -d` 核对；无输出/hang → trampoline 未跳转或 binary 格式不对，用 `-d in_asm` 看 TCG trace。

@@ -2,7 +2,7 @@
 
 **模块**：verif
 **项目里程碑**：M1
-**依赖**：`SPEC-003t`、`QEMU-013m`
+**依赖**：`SPEC-003t`、`QEMU-014m`
 **状态**：待开始
 
 ## 执行环境
@@ -82,7 +82,7 @@
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **MISC 映射表重建**：0.4.1 的 `check_qemu_trans.py` 硬编码 `_MISC_HA`（25 项，op=0x10 MISC-Norm）、`_RB_BANK`（8 项）、`_CMP_IMM`、`_CTL_FORMAT`；0.5.3 没有 `MISC-Norm`，改为主表 + octa/tetra/wyde/byte/RF/AMO 子表体系，映射表必须按 v5 结构重建。
-2. **助记符全面变化**：`unimp`→`illi`、`setzw`→`set.zw`、`orw`→`or.w`、`brn`→`br.n`、`muls`→`mul.so` 等；trans 函数命名需以 `QEMU-013m` 实际实现为准核对。
+2. **助记符全面变化**：`unimp`→`illi`、`setzw`→`set.zw`、`orw`→`or.w`、`brn`→`br.n`、`muls`→`mul.so` 等；trans 函数命名需以 `QEMU-014m` 实际实现为准核对。
 3. **trans 源码路径**：0.4.1 查 `.work/qemu/target/dadao/translate.c` 或 patch；v5 以 `components/qemu/patches/*.patch` 与 `.work/` 构建树为准。
 4. **issue 清单内容**：v5 的开放问题来自自身 spec/合约与 `SPEC`/`TESTSUITE` 模块记录，不照抄 0.4.1 的 C-xx 条目。
 5. **脚本目录**：0.4.1 放 `scripts/`；v5 放 `verif/`（与 `validate_encoding.py` 一致）。
@@ -96,7 +96,7 @@
 2. **P1 — M1-gate blocker 必须 `exit(1)`**：仅 print 到 stderr 不算阻断；须在 M1-gate blocking 分支内 `sys.exit(1)`。
 3. **trans lint 非阻断**：默认 exit 0，仅 lint 警告；`--strict` 才 exit 1。MISC 特殊指令（`swym`/`illi` 等）可能无独立 trans，属预期缺失。
 4. **mnemonic 标准化**：`-`→`_`；同 mnemonic 多 opcode（如 `add.si` 的 RD/RB 变体）只需一个 trans 匹配。
-5. **硬编码映射表易漂移**：0.4.1 的 `_MISC_HA`/`_RB_BANK` 等表与 `translate.c` 实际函数名需对齐；v5 重建时须以 `QEMU-013m` 实际函数名为准，并考虑直接从 `opcodes.yaml` + 命名约定推导以减少硬编码。
+5. **硬编码映射表易漂移**：0.4.1 的 `_MISC_HA`/`_RB_BANK` 等表与 `translate.c` 实际函数名需对齐；v5 重建时须以 `QEMU-014m` 实际函数名为准，并考虑直接从 `opcodes.yaml` + 命名约定推导以减少硬编码。
 6. **`resolved_by` 校验**：closed 必须填、open 必须 null，否则 registry 失去审计意义。
 7. **`docs/issues.yaml` 与人类可读视图并存**：保留 Markdown 视图（若有），yaml 作为机械源。
 
