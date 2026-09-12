@@ -1,6 +1,14 @@
-# SimRISC ISA 规范合约
+# SimRISC ISA 规范合约（M1 范围）
 
 > **版本：0.5.3** [SimRISC-00 §版本]
+>
+> **范围**：M1——标量整数 + 地址/内存 RD/RB + 控制流（`call`/`ret`、RegRAS）+ 测试机所需系统/异常。
+>
+> **M1 范围外**（标 `Excluded from M1`，不提取其规范内容）：浮点指令（SimRISC-03 §6）、特权 cfx 系统指令（trap/escape/cfx2rd/cfx2rc/cfxld/cfxst）、LR-SC 原子指令、RA 寄存器存取与 RA 块赋值。
+>
+> **来源标注**：每条规范性断言在句末以 `[SimRISC-0X §章节名]` 标注来源 spec/ 章节，不写行号。SimRISC-03 仅用于确认浮点边界。
+>
+> **说明**：本合约由 spec/ 归一化投影而来，面向实现；与 spec/ 冲突时阻断实现，走变更流程（见 `.tao/knowledge/contract-authoring.md`）。
 
 ---
 
@@ -8,51 +16,48 @@
 
 ### §1.1 寄存器组
 
-DADAO 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 位（机器字长）。[SimRISC-00 §寄存器]
+SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 位（即机器字长）。[SimRISC-00 §寄存器]
 
-| 组名 | 范围 | 用途 |
-|------|------|------|
-| 数据寄存器 (RD) | rd0–rd63 | 通用运算 |
-| 基址寄存器 (RB) | rb0–rb63 | 地址计算 |
-| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 |
-| 返回地址栈 (RA) | ra0–ra63 | 函数调用/返回 |
+| 组名 | 范围 | 用途 | M1 范围 |
+|------|------|------|---------|
+| 数据寄存器 (RD) | rd0–rd63 | 通用运算 | 是 |
+| 基址寄存器 (RB) | rb0–rb63 | 地址计算 | 是 |
+| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | 仅 rf0（FCSR）定义；RF 运算与存取 Excluded from M1 |
+| 返回地址栈 (RA) | ra0–ra63 | 函数调用/返回 | 是（RegRAS/MemRAS 模型；RA 存取 Excluded from M1） |
 
 ### §1.2 寄存器编号编码
 
-每组寄存器需 6 位编码（ha/hb/hc/hd[5:0]）。[SimRISC-00 §指令域说明]
+每组寄存器需 6 位编码，位于 ha/hb/hc/hd 的 `[5:0]`。[SimRISC-00 §指令域说明]
 
 ### §1.3 特殊寄存器
 
 #### §1.3.1 rd0
 
-`rd0` 固定为 0，只读。[SimRISC-00 §数据寄存器]
-
-- 作为目的寄存器时行为取决于指令格式：
-  - rrrr 双目指令（add.uo/add.so/sub.uo/sub.so/mul.uo/mul.so）允许其中一个为 rd0（丢弃对应半结果），但不能同时为 rd0，也不能为同一非 rd0 寄存器 [SimRISC-01 §rd0 为目的寄存器约定]
-  - `ret rd0, 0` 允许（无需设置返回值）[SimRISC-02 §函数返回]
-  - 其余指令目的为 rd0 时触发 ILLI 异常 [SimRISC-01 §rd0 为目的寄存器约定]
+- `rd0` 固定为 0，只读。[SimRISC-00 §数据寄存器]
+- 作为目的寄存器时行为取决于指令格式：[SimRISC-00 §数据寄存器]
+  - rrrr 双目的指令（`add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so`）允许其中一个目的为 rd0（丢弃对应半结果），但不能**同时**为 rd0，也不能为同一非 rd0 寄存器。[SimRISC-00 §数据寄存器][SimRISC-01 §rd0 为目的寄存器约定]
+  - `ret rd0, 0` 允许（无需设置返回值）。[SimRISC-00 §数据寄存器][SimRISC-02 §函数返回]
+  - 其余指令目的为 rd0 时触发 **ILLI** 异常。[SimRISC-01 §rd0 为目的寄存器约定]
 
 #### §1.3.2 rb0
 
-`rb0` 为程序计数器（PC），只读。任何指令以 rb0 为显式目的时触发 ILLI 异常。[SimRISC-02 §rb0 为目的寄存器约定]
+- `rb0` 为程序计数器（PC），只读。任何指令以 rb0 为显式目的时触发 **ILLI** 异常。[SimRISC-00 §基址寄存器][SimRISC-02 §rb0 为目的寄存器约定]
+- `rb0[63:48]` 恒为 0。[SimRISC-00 §基址寄存器]
+- 硬件复位后 `rb0` 初值为 `cfx_power_hypv_excp_vector`（见 SEE §2.1）。[SimRISC-00 §基址寄存器]
 
-- `rb0[63:48]` 恒为 0 [SimRISC-00 §基址寄存器]
-- 硬件复位后 rb0 初值为 `cfx_power_hypv_excp_vector` [SimRISC-00 §基址寄存器]
+#### §1.3.3 rf0（浮点状态寄存器，FCSR）
 
-#### §1.3.3 rf0
+rf0 为浮点状态寄存器；浮点指令本身 Excluded from M1，但 rf0 的**寄存器模型/位布局**属 §1，M1 测试机复位值需要（SPEC-006t）。[SimRISC-00 §浮点状态寄存器]
 
-`rf0` 为浮点状态寄存器（FCSR）。[SimRISC-00 §浮点状态寄存器]
+- `rf0` 不应作为普通浮点寄存器参与运算。[SimRISC-00 §浮点寄存器]
 
-- 浮点运算指令的目的或任一源操作数为 rf0 时触发 ILLI 异常 [SimRISC-03 §rf0 为目的寄存器约定]
-- rf ld/st 中 rf0 为目的时允许，写只读位时静默忽略，rw 位正常写入 [SimRISC-03 §rf0 为目的寄存器约定]
-
-rf0 字段定义：[SimRISC-00 §浮点状态寄存器]
+rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 
 | 位域 | 属性 | 含义 |
 |------|------|------|
-| [63:51] | 只读 | fo 格式 Quiet NaN（0x7FF8_0000_0000_0000 的高 13 位） |
+| [63:51] | 只读 | fo 格式 Quiet NaN（符号位 0，E 全 1，尾数最高位 1） |
 | [50:32] | SBZ | 应为零 |
-| [31:22] | 只读 | ft 格式 Quiet NaN（0x7FC0_0000 的高 10 位） |
+| [31:22] | 只读 | ft 格式 Quiet NaN（符号位 0，E 全 1，尾数最高位 1） |
 | [21:18] | SBZ | 应为零 |
 | [17:16] | R/W | 舍入模式（Rounding Mode） |
 | [15:5] | SBZ | 应为零 |
@@ -62,10 +67,10 @@ rf0 字段定义：[SimRISC-00 §浮点状态寄存器]
 
 | 编码 | 助记符 | 含义 |
 |------|--------|------|
-| 00 | RNE | 向最近舍入，平局取偶 |
-| 01 | RTZ | 向零舍入 |
-| 10 | RDN | 向负无穷舍入 |
-| 11 | RUP | 向正无穷舍入 |
+| 00 | RNE | Round to Nearest, ties to Even |
+| 01 | RTZ | Round towards Zero |
+| 10 | RDN | Round Down (towards −inf) |
+| 11 | RUP | Round Up (towards +inf) |
 
 异常状态位：[SimRISC-00 §浮点状态寄存器]
 
@@ -77,21 +82,25 @@ rf0 字段定义：[SimRISC-00 §浮点状态寄存器]
 | 3 | UF | Underflow |
 | 4 | NX | Inexact |
 
-浮点指令执行后，异常状态位（NV/DZ/OF/UF/NX）由硬件按 IEEE 754 标准设置到 rf0[4:0]。软件可通过读取 rf0 检查异常状态，并根据需要进行后续处理。浮点指令不会触发异常，始终按 IEEE 754 标准返回结果（如 NaN、Inf 等）。[SimRISC-00 §浮点状态寄存器]
+> 浮点指令的 rf0 作为操作数等约定见 §6（Excluded from M1）。
 
-#### §1.3.4 ra0–ra63
+#### §1.3.4 ra0–ra63（返回地址栈）
 
-返回地址栈（Return Address Stack），后入先出。[SimRISC-00 §返回地址栈]
+返回地址栈（Return Address Stack）后入先出，将函数返回地址存放在单独可寻址的栈上。[SimRISC-00 §返回地址栈]
 
 | 寄存器 | 高 16 位 | 低 48 位 |
 |--------|----------|----------|
-| ra0 | MemRAS 引用计数（压栈 +1，弹栈 -1，初始 0） | MemRAS 指针（0 = 仅 RegRAS） |
-| ra1–ra62 | 返回地址引用计数（>0 有效，=0 无效） | 返回地址 |
-| ra63 | 返回地址引用计数（>0 有效，=0 无效） | 当前返回地址（RegRAS 栈顶） |
+| ra0 | MemRAS 引用计数（压栈 +1，弹栈 −1，初始 0） | MemRAS 指针（0 = 仅 RegRAS） |
+| ra1–ra62 | 返回地址引用计数（>0 为有效，=0 为无效） | 返回地址 |
+| ra63 | 返回地址引用计数（>0 为有效，=0 为无效） | 当前返回地址（RegRAS 栈顶） |
 
-- ra1–ra63 构成 RegRAS，ra63 为栈顶 [SimRISC-00 §返回地址栈]
-- ra0 低 48 位为 0 时仅 RegRAS，最多 63 个返回地址；非 0 时存在 MemRAS [SimRISC-00 §返回地址栈]
-- 异常进入和退出不改变 ra0–ra63 的内容 [SimRISC-00 §返回地址栈]
+- `ra1–ra63` 构成 RegRAS，`ra63` 为 RegRAS 栈顶。[SimRISC-00 §返回地址栈]
+- `ra0` 低 48 位为 0 时只有一个 RAS（RegRAS），最多存放 63 个返回地址；非 0 时有两个 RAS（RegRAS 与 MemRAS），`ra0` 为 MemRAS 栈顶。[SimRISC-00 §返回地址栈]
+- MemRAS 的访存遵循地址转换和存储访问规则；若访存触发页缺失等异常，硬件保证精确异常（压栈/弹栈未执行，PC 指向 call/ret 指令），异常处理后可重新执行。[SimRISC-00 §返回地址栈]
+- RASOF/RASUF 均为精确异常：触发时 RA 寄存器保持异常前状态（push/pop 未提交），PC 指向触发异常的 call/ret 指令。[SimRISC-00 §返回地址栈]
+- 一个用户进程开始执行时，RegRAS 全部初始化为全零（`ra[63:48]=0`，所有条目无效），MemRAS 应做好分配并设置 `ra0`；fork 子进程应复制父进程的全部 ra 寄存器。[SimRISC-00 §返回地址栈]
+- 进程切换时操作系统须保存和恢复全部 ra0–ra63。[SimRISC-00 §返回地址栈]
+- 异常进入和退出不改变 ra0–ra63 的内容；异常 handler 中可正常使用 call/ret。[SimRISC-00 §返回地址栈]
 
 ### §1.4 数据表示
 
@@ -99,18 +108,23 @@ rf0 字段定义：[SimRISC-00 §浮点状态寄存器]
 
 | 术语 | 缩写 | 位数 | 字节数 |
 |------|------|------|--------|
-| byte | b | 8 | 1 |
-| wyde | w | 16 | 2 |
-| tetra | t | 32 | 4 |
-| octa | o | 64 | 8 |
+| byte | b | 8-bit | 1-byte |
+| wyde | w | 16-bit | 2-byte |
+| tetra | t | 32-bit | 4-byte |
+| octa | o | 64-bit | 8-byte |
 
-浮点格式符合 IEEE 754 标准。[SimRISC-00 §原始数据类型]
+- 四种定点类型（8/16/32/64 bit）与两种浮点类型（32/64 bit，IEEE 754）。[SimRISC-00 §原始数据类型]
 
 ### §1.5 存储模型
 
-- 64 位地址空间，有效虚拟地址为 48 位 [SimRISC-00 §存储模型]
-- 高 16 位（bits[63:48]）在地址计算时被硬件忽略 [SimRISC-00 §存储模型]
-- 指令和数据均采用大端序 [SimRISC-00 §指令设计]
+- SimRISC 采用 64 位地址空间，有效虚拟地址为 48 位。[SimRISC-00 §基址寄存器]
+- 高 16 位（bits[63:48]）在地址计算时被硬件忽略，寄存器存取时保持高 16 位原值不变。[SimRISC-00 §基址寄存器]
+- 实际实现需保证 48 位地址空间。[SimRISC-00 §基址寄存器]
+- PC 的有效位宽为 48 位，`rb0[63:48]` 恒为 0。[SimRISC-02 §控制流指令]
+
+### §1.6 端序
+
+指令字采用大端序存储：bits[31:24] 在最低地址，bits[7:0] 在最高地址；数据端序同样为大端序。[SimRISC-00 §指令设计]
 
 ---
 
@@ -118,38 +132,59 @@ rf0 字段定义：[SimRISC-00 §浮点状态寄存器]
 
 ### §2.1 指令格式
 
-所有指令均为 32 位（4 字节），必须 4 字节对齐。取指时若 PC[1:0] ≠ 00，触发 IALIGN 异常。[SimRISC-00 §指令设计]
+- 每条指令均为 4 字节（32 位），所有指令必须 4 字节对齐。[SimRISC-00 §指令设计]
+- 取指时若 `PC[1:0] ≠ 00`，触发 **IALIGN** 异常。[SimRISC-00 §指令设计]
+- 指令字采用大端序存储（见 §1.6）。[SimRISC-00 §指令设计]
 
-指令字采用大端序存储：bits[31:24] 在最低地址，bits[7:0] 在最高地址。[SimRISC-00 §指令设计]
+### §2.2 指令域
 
-指令分解为 5 个域：op[7:0] / ha[5:0] / hb[5:0] / hc[5:0] / hd[5:0]。[SimRISC-00 §指令域说明]
+一个 32 位指令分解为 5 个部分：8/6/6/6/6，即 op / ha / hb / hc / hd。[SimRISC-00 §指令域说明]
 
-- op：操作码（major-opcode），指明指令功能和分类 [SimRISC-00 §指令域说明]
-- ha/hb/hc/hd：操作数，通过不同寻址方式组合 [SimRISC-00 §指令域说明]
-- 某些情况下 ha 或 ha+hb 作为 minor-opcode [SimRISC-00 §指令域说明]
+- `op`：操作码（major-opcode），头 8 位，指明指令功能并隐含指令分类。[SimRISC-00 §指令域说明]
+- `ha/hb/hc/hd`：各 6 位（hexagram），指明操作数（格式与内容）。[SimRISC-00 §指令域说明]
+- 某些情况下 `ha` 或 `ha+hb` 也可作为 opcode（minor-opcode）。[SimRISC-00 §指令域说明]
+- 后 16 位作为立即数时，`hb` 头两位用来指定 wyde 在 64 位数据中的位置。[SimRISC-00 §指令域说明]
 
-### §2.2 操作数格式
+操作数寻址方式字母：[SimRISC-00 §指令域说明]
 
-操作数类型用 4 个字母表示：[SimRISC-00 §指令域说明]
+- `o`：六位的 minor-opcode
+- `c`：六位的 cfxcode
+- `r`：寄存器
+- `i`：立即数（立即数域需要区分有符号数和无符号数）
+- `w`：头两位为 wyde-position，后四位为立即数
+- `z`：未使用，应为零（SBZ）
+
+### §2.3 操作数格式
+
+操作数类型用 4 个字母表示，隐含操作数位置和个数。[SimRISC-00 §指令域说明]
 
 | 格式 | 含义 | 立即数位置 |
 |------|------|-----------|
-| rrrr | 四个寄存器 | 无 |
-| rrri | 三寄存器 + 6 位立即数 | hd[5:0] |
-| rrii | 两寄存器 + 12 位立即数 | hc[5:0]+hd[5:0]（hc=高, hd=低） |
-| riii | 一寄存器 + 18 位立即数 | hb[5:0]+hc[5:0]+hd[5:0]（hb=高, hc=中, hd=低） |
-| iiii | 24 位立即数 | ha[5:0]+hb[5:0]+hc[5:0]+hd[5:0] |
-| rwii | 一寄存器 + wyde-position + 16 位无符号立即数 | hb[5:4]=wp, hb[3:0]+hc[5:0]+hd[5:0]=immu16 |
-| orrr | minor-opcode + 三寄存器 | ha[5:0]=minor-opcode |
-| orri | minor-opcode + 两寄存器 + 6 位立即数 | ha[5:0]=minor-opcode, hd[5:0]=immu6 |
-| oiii | minor-opcode + 18 位立即数 | ha[5:0]=minor-opcode, hb+hc+hd=immu18 |
-| crrr | cfxcode + 三寄存器 | ha[5:0]=cfxcode |
-| crii | cfxcode + 一寄存器 + 12 位立即数 | ha[5:0]=cfxcode, hb[5:0]=rb, hc+hd=immu12 |
-| ciii | cfxcode + 18 位立即数 | ha[5:0]=cfxcode, hb+hc+hd=immu18 |
+| `rrrr` | 四个操作数，都是寄存器 | 无 |
+| `rrri` | 三个寄存器 + 6 位立即数 | `hd[5:0]` |
+| `rrii` | 两个寄存器 + 12 位立即数 | `hc[5:0]`（高 6 位）+ `hd[5:0]`（低 6 位） |
+| `riii` | 一个寄存器 + 18 位立即数 | `hb[5:0]`（高）+ `hc[5:0]`（中）+ `hd[5:0]`（低） |
+| `iiii` | 一个操作数，24 位立即数 | `ha[5:0]`+`hb[5:0]`+`hc[5:0]`+`hd[5:0]` |
 
-### §2.3 Wyde-Position 编码
+含 wyde-position 的特殊格式：[SimRISC-00 §指令域说明]
 
-rwii 格式中 hb[5:4] 指定 wyde 在 64 位数据中的位置：[SimRISC-00 §指令域说明]
+| 格式 | 含义 | 编码 |
+|------|------|------|
+| `rwii` | 一个寄存器 + wyde-position + 拆分为两段的 16 位无符号立即数 | wyde-position 在 `hb[5:4]`；immu16 高 4 位在 `hb[3:0]`、中 6 位在 `hc[5:0]`、低 6 位在 `hd[5:0]`（hb→hc→hd 高到低） |
+
+含 minor-opcode（`o`，6 位，在 `ha[5:0]`）的格式：[SimRISC-00 §指令域说明]
+
+| 格式 | 含义 |
+|------|------|
+| `orrr` | minor-opcode + 三个寄存器 |
+| `orri` | minor-opcode + 两个寄存器 + 6 位立即数在 `hd[5:0]` |
+| `oiii` | minor-opcode + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]` |
+
+> cfxcode（`c`）相关格式 `crrr`/`crii`/`ciii` 属特权 cfx 指令，Excluded from M1（见 §7.5）。
+
+### §2.4 Wyde-Position 编码
+
+`rwii` 格式中 `hb[5:4]` 指定 wyde 在 64 位数据中的位置：[SimRISC-00 §指令域说明]
 
 | 编码 | 位置 | 对应位域 |
 |------|------|---------|
@@ -158,108 +193,155 @@ rwii 格式中 hb[5:4] 指定 wyde 在 64 位数据中的位置：[SimRISC-00 §
 | 10 | wp2 | bits[47:32] |
 | 11 | wp3 | bits[63:48]（MSW） |
 
-### §2.4 数据位宽后缀
+### §2.5 数据位宽后缀
 
-四种固定数据位宽通过指令名后缀区分：[SimRISC-00 §指令域说明]
+SimRISC 提供四种固定数据位宽，通过指令名后缀 `.b`/`.w`/`.t`/`.o` 区分，分别对应 byte/wyde/tetra/octa。[SimRISC-00 §指令域说明]
 
 | 后缀 | 位宽 |
 |------|------|
-| .b | byte（8 位） |
-| .w | wyde（16 位） |
-| .t | tetra（32 位） |
-| .o | octa（64 位） |
+| `.b` | byte（8 位） |
+| `.w` | wyde（16 位） |
+| `.t` | tetra（32 位） |
+| `.o` | octa（64 位） |
 
-有符号/无符号区分的指令后缀扩展为 .ub/.sb、.uw/.sw、.ut/.st、.uo/.so。[SimRISC-00 §指令域说明]
+对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shl/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。[SimRISC-00 §指令域说明]
 
-### §2.5 操作数顺序约定
+### §2.6 操作数顺序约定
 
-SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数，立即数放在最后。[SimRISC-00 §指令域说明]
+SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数，立即数通常为最后一个源操作数。[SimRISC-00 §指令域说明]
+
+### §2.7 QFC 主表（op[7:0]，M1 视图）
+
+空白单元格表示 reserved（保留未分配），执行保留编码触发 **UNDI** 异常。[SimRISC-00 §SimRISC QFC]
+
+| op[7:3]\op[2:0] | xxxx-x000 | xxxx-x001 | xxxx-x010 | xxxx-x011 | xxxx-x100 | xxxx-x101 | xxxx-x110 | xxxx-x111 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0000-0xxx | MISC-AMO | — | — | — | — | — | — | — |
+| 0000-1xxx | — | — | — | — | — | — | — | — |
+| 0001-0xxx | ld.ub-rd | ld.uw-rd | ld.ut-rd | ld.sb-rd | ld.sw-rd | ld.st-rd | ld.t-rf Excl. | st.t-rf Excl. |
+| 0001-1xxx | st.b-rd | st.w-rd | st.t-rd | — | — | — | — | — |
+| 0010-0xxx | ld.o-rd | st.o-rd | ld.o-rb | st.o-rb | ld.o-ra Excl. | st.o-ra Excl. | ld.o-rf Excl. | st.o-rf Excl. |
+| 0010-1xxx | ldm.ub-rd | ldm.uw-rd | ldm.ut-rd | ldm.sb-rd | ldm.sw-rd | ldm.st-rd | ldm.t-rf Excl. | stm.t-rf Excl. |
+| 0011-0xxx | stm.b-rd | stm.w-rd | stm.t-rd | — | — | — | — | — |
+| 0011-1xxx | ldm.o-rd | stm.o-rd | ldm.o-rb | stm.o-rb | ldm.o-ra Excl. | stm.o-ra Excl. | ldm.o-rf Excl. | stm.o-rf Excl. |
+| 0100-0xxx | MISC-octa | MISC-tetra | MISC-wyde | MISC-byte | MISC-RF Excl. | — | — | — |
+| 0100-1xxx | or.w-rd | andn.w-rd | or.w-rb | andn.w-rb | set.zw-rd | set.ow-rd | set.zw-rb | set.w-rf Excl. |
+| 0101-0xxx | add.uo-rd | add.so-rd | sub.uo-rd | sub.so-rd | mul.uo-rd | mul.so-rd | ftmadd Excl. | fomadd Excl. |
+| 0101-1xxx | — | add.si-rd | rela.si-rb | add.si-rb | cmp.ui-rd | cmp.si-rd | cs.eq-rf Excl. | cs.ne-rf Excl. |
+| 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
+| 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
+| 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | swym |
+| 0111-1xxx | — | — | cfx2rd Excl. | cfx2rc Excl. | cfxld Excl. | cfxst Excl. | escape Excl. | trap Excl. |
+
+> Excl. = `Excluded from M1`。`MISC-AMO` 子表中的 LR-SC 条目同属 Excluded from M1（见 §7.4）。[SimRISC-00 §SimRISC QFC]
+
+### §2.8 MISC 子表机制
+
+四种固定数据位宽指令分布在四个 minor-opcode 子表中，各子表内使用 `orrr`/`orri`/`oiii` 操作数格式：[SimRISC-00 §指令域说明]
+
+| 子表 | op | 位宽 |
+|------|-----|------|
+| `MISC-byte` | 0100-0011 | byte |
+| `MISC-wyde` | 0100-0010 | wyde |
+| `MISC-tetra` | 0100-0001 | tetra |
+| `MISC-octa` | 0100-0000 | octa |
+
+- 各子表指令的 minor-opcode 在 `ha[5:0]`，与 op 共同确定指令。[SimRISC-00 §指令域说明]
+- `MISC-AMO`（op = 0000-0000）承载 illi/fence 与 LR-SC 原子指令。[SimRISC-00 §MISC-AMO 指令编码]
+- `MISC-RF`（op = 0100-0100）承载浮点指令，Excluded from M1。[SimRISC-00 §MISC-RF指令编码]
+
+### §2.9 保留编码
+
+- QFC 主表与各 MISC 子表的空白单元格为 reserved（保留未分配），执行保留编码触发 **UNDI** 异常。[SimRISC-00 §SimRISC QFC]
+- 32 位全零指令字（0x00000000）是 `illi 0`（opcode 与 minor-opcode 均为全 0），触发 **ILLI** 异常（不是 UNDI）。[SimRISC-04 §非法指令]
 
 ---
 
 ## §3 标量整数指令
 
+> 全部为 RD 寄存器组指令；目的为 rd0 的通用约束见 §1.3.1。
+
 ### §3.1 算术运算
 
 #### §3.1.1 加减法（128 位结果，rrrr 格式）
 
+加减操作两个源操作数为 `rdhc`/`rdhd`，目的为 `rdha`（结果高 64 位）与 `rdhb`（结果低 64 位）。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。[SimRISC-01 §加减操作]
+
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| add.uo rdha, rdhb, rdhc, rdhd | ZX 至 128 位，rdha:rdhb = rdhc + rdhd，rdha 为进位 | [SimRISC-01 §加减操作] |
-| add.so rdha, rdhb, rdhc, rdhd | SX 至 128 位，rdha:rdhb = rdhc + rdhd，rdha 为高 64 位 | [SimRISC-01 §加减操作] |
-| sub.uo rdha, rdhb, rdhc, rdhd | ZX 至 128 位，rdha:rdhb = rdhc - rdhd，rdha 为借位 | [SimRISC-01 §加减操作] |
-| sub.so rdha, rdhb, rdhc, rdhd | SX 至 128 位，rdha:rdhb = rdhc - rdhd，rdha 为高 64 位 | [SimRISC-01 §加减操作] |
+| `add.uo rdha, rdhb, rdhc, rdhd` | 源零扩展（ZX）至 128 位，`rdha:rdhb = rdhc + rdhd`，`rdha` 为进位（0 或 1） | [SimRISC-01 §加减操作] |
+| `add.so rdha, rdhb, rdhc, rdhd` | 源符号扩展（SX）至 128 位，`rdha:rdhb = rdhc + rdhd`，`rdha` 为高 64 位 | [SimRISC-01 §加减操作] |
+| `sub.uo rdha, rdhb, rdhc, rdhd` | 源零扩展（ZX）至 128 位，`rdha:rdhb = rdhc − rdhd`，`rdha` 为借位（0 或 1） | [SimRISC-01 §加减操作] |
+| `sub.so rdha, rdhb, rdhc, rdhd` | 源符号扩展（SX）至 128 位，`rdha:rdhb = rdhc − rdhd`，`rdha` 为高 64 位 | [SimRISC-01 §加减操作] |
 
 异常条件：[SimRISC-01 §加减操作]
-- rdha 和 rdhb 同时为 rd0 → ILLI
-- rdha = rdhb 且非 rd0 → ILLI
-- 硬件先读全部源操作数再写结果，源被覆盖前其值已捕获
+- `rdha` 与 `rdhb` 同时为 `rd0` → **ILLI**
+- `rdha` 与 `rdhb` 为同一非 `rd0` 寄存器 → **ILLI**
 
 #### §3.1.2 加减法（固定位宽，orrr 格式）
 
-结果仅保留 size 位宽，高位按符号类型填充。[SimRISC-01 §加减操作]
+`MISC-byte`/`wyde`/`tetra` 子表中的 `add`/`sub` 提供三种固定位宽加减运算，仅 size 范围内的低位参与运算，溢出部分静默丢弃，结果按符号类型扩展至 64 位。[SimRISC-01 §加减操作]
 
-| 指令 | 位宽 | 高位填充 |
-|------|------|---------|
-| add.ub/sub.ub | 8 位 | 零扩展 |
-| add.sb/sub.sb | 8 位 | 符号扩展 |
-| add.uw/sub.uw | 16 位 | 零扩展 |
-| add.sw/sub.sw | 16 位 | 符号扩展 |
-| add.ut/sub.ut | 32 位 | 零扩展 |
-| add.st/sub.st | 32 位 | 符号扩展 |
+| 指令 | 位宽 | 汇编语法 | 高位填充 |
+|------|------|---------|---------|
+| `add.ub`/`sub.ub` | 8 位 | `add.ub rdhb, rdhc, rdhd` | 零扩展 |
+| `add.sb`/`sub.sb` | 8 位 | `add.sb rdhb, rdhc, rdhd` | 符号扩展 |
+| `add.uw`/`sub.uw` | 16 位 | `add.uw rdhb, rdhc, rdhd` | 零扩展 |
+| `add.sw`/`sub.sw` | 16 位 | `add.sw rdhb, rdhc, rdhd` | 符号扩展 |
+| `add.ut`/`sub.ut` | 32 位 | `add.ut rdhb, rdhc, rdhd` | 零扩展 |
+| `add.st`/`sub.st` | 32 位 | `add.st rdhb, rdhc, rdhd` | 符号扩展 |
 
-异常条件：rdhb 为 rd0 → ILLI。[SimRISC-01 §加减操作]
+异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-01 §加减操作]
 
 #### §3.1.3 自增自减（riii 格式）
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| add.si rdha, imms18 | rdha = rdha + sign_extend(imms18)，全 64 位运算 | [SimRISC-01 §自增自减] |
+| `add.si rdha, imms18` | `rdha = rdha + sign_extend(imms18)`，全 64 位运算 | [SimRISC-01 §自增自减] |
 
-立即数为 18 位有符号数，符号扩展后与寄存器执行加法，结果写回同一寄存器。[SimRISC-01 §自增自减]
+- 立即数为 18 位有符号数，采用补码编码，无需区分加减操作。[SimRISC-01 §自增自减]
+- 无法单独通过结果判断溢出；用户可结合 `add.uo`/`add.so` 的 rrrr 形式获取进位/符号信息。[SimRISC-01 §自增自减]
 
 #### §3.1.4 乘法（rrrr 格式）
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| mul.uo rdha, rdhb, rdhc, rdhd | 无符号乘法，rdha:rdhb = rdhc × rdhd（128 位结果） | [SimRISC-01 §乘除操作] |
-| mul.so rdha, rdhb, rdhc, rdhd | 有符号乘法，rdha:rdhb = rdhc × rdhd（128 位结果） | [SimRISC-01 §乘除操作] |
+| `mul.uo rdha, rdhb, rdhc, rdhd` | 无符号乘法，`rdha:rdhb = rdhc × rdhd`（128 位结果） | [SimRISC-01 §乘除操作] |
+| `mul.so rdha, rdhb, rdhc, rdhd` | 有符号乘法，`rdha:rdhb = rdhc × rdhd`（128 位结果） | [SimRISC-01 §乘除操作] |
 
-异常条件：同 add/sub（rdha/rdhb 不能同时为 rd0，不能为同一非 rd0 寄存器）。[SimRISC-01 §乘除操作]
+- `rdha` 存放结果高 64 位，`rdhb` 存放结果低 64 位；硬件先读全部源操作数再写结果。[SimRISC-01 §乘除操作]
+- 异常条件：`rdha` 与 `rdhb` 同时为 `rd0` → **ILLI**；`rdha` 与 `rdhb` 为同一非 `rd0` 寄存器 → **ILLI**。[SimRISC-01 §乘除操作]
 
 #### §3.1.5 乘除余（固定位宽，orrr 格式）
 
-| 指令 | 位宽 | 来源 |
-|------|------|------|
-| mul.ub/mul.sb | 8 位 | [SimRISC-01 §乘除操作] |
-| mul.uw/mul.sw | 16 位 | [SimRISC-01 §乘除操作] |
-| mul.ut/mul.st | 32 位 | [SimRISC-01 §乘除操作] |
-| div.ub/div.sb | 8 位 | [SimRISC-01 §乘除操作] |
-| div.uw/div.sw | 16 位 | [SimRISC-01 §乘除操作] |
-| div.ut/div.st | 32 位 | [SimRISC-01 §乘除操作] |
-| div.uo/div.so | 64 位 | [SimRISC-01 §乘除操作] |
-| rem.ub/rem.sb | 8 位 | [SimRISC-01 §乘除操作] |
-| rem.uw/rem.sw | 16 位 | [SimRISC-01 §乘除操作] |
-| rem.ut/rem.st | 32 位 | [SimRISC-01 §乘除操作] |
-| rem.uo/rem.so | 64 位 | [SimRISC-01 §乘除操作] |
+`MISC-byte`/`wyde`/`tetra`/`octa` 子表中的 `mul`/`div`/`rem` 提供固定位宽运算。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。[SimRISC-01 §乘除操作]
 
-异常条件：[SimRISC-01 §乘除操作]
-- rdhb 为 rd0 → ILLI
-- 除数为零 → ILLI
-- div.s 中 INT_MIN ÷ −1（各 size 对应值）→ ILLI
-- 截断方向：div.s/rem.s 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号
-- fault 时目的寄存器未写入（精确异常）
+| 指令 | 位宽 | 汇编语法 |
+|------|------|---------|
+| `mul.ub`/`mul.sb`/`div.ub`/`div.sb`/`rem.ub`/`rem.sb` | 8 位 | `mul.ub rdhb, rdhc, rdhd` |
+| `mul.uw`/`mul.sw`/`div.uw`/`div.sw`/`rem.uw`/`rem.sw` | 16 位 | `mul.uw rdhb, rdhc, rdhd` |
+| `mul.ut`/`mul.st`/`div.ut`/`div.st`/`rem.ut`/`rem.st` | 32 位 | `mul.ut rdhb, rdhc, rdhd` |
+| `div.uo`/`div.so`/`rem.uo`/`rem.so` | 64 位 | `div.uo rdhb, rdhc, rdhd` |
+
+- octa 乘法由 rrrr 格式 `mul.uo`/`mul.so` 覆盖；`mul` 后缀为 `.ub`/`.sb`/`.uw`/`.sw`/`.ut`/`.st`，`div`/`rem` 后缀为 `.ub`/`.sb`/`.uw`/`.sw`/`.ut`/`.st`/`.uo`/`.so`。[SimRISC-01 §乘除操作]
+- 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-01 §乘除操作]
+
+除法附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：[SimRISC-01 §乘除操作]
+- **除数为零**：触发 **ILLI** 异常。
+- **截断方向**：`div.s`/`rem.s` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
+- **溢出**：`div.s` 中各 size 对应的 INT_MIN ÷ −1 触发 **ILLI**（byte: −128÷−1，wyde: −32768÷−1，tetra: −2147483648÷−1，octa: −9223372036854775808÷−1）；`div.u`/`rem.u` 不存在溢出。
+- **fault 时寄存器**：精确异常，目的寄存器未写入（无副作用）。
 
 ### §3.2 比较操作
 
 #### §3.2.1 立即数比较（rrii 格式）
 
+比较结果按小于/等于/大于分别设置目的寄存器为 −1/0/1，写入全 64 位。[SimRISC-01 §比较操作]
+
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| cmp.si rdha, rdhb, imms12 | 有符号比较，rdha = sign(cmp(rdhb, sign_extend(imms12))) | [SimRISC-01 §比较操作] |
-| cmp.ui rdha, rdhb, immu12 | 无符号比较，rdha = sign(cmp(rdhb, zero_extend(immu12))) | [SimRISC-01 §比较操作] |
-
-比较结果：小于 → −1，等于 → 0，大于 → 1，写入目的寄存器全 64 位。[SimRISC-01 §比较操作]
+| `cmp.si rdha, rdhb, imms12` | 有符号比较，`rdha = cmp(rdhb, sign_extend(imms12))` | [SimRISC-01 §比较操作] |
+| `cmp.ui rdha, rdhb, immu12` | 无符号比较，`rdha = cmp(rdhb, zero_extend(immu12))` | [SimRISC-01 §比较操作] |
 
 #### §3.2.2 寄存器比较（固定位宽，orrr 格式）
 
@@ -267,588 +349,482 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 
 | 指令 | 位宽 | 比较范围 |
 |------|------|---------|
-| cmp.ub/cmp.sb | 8 位 | bits[7:0] |
-| cmp.uw/cmp.sw | 16 位 | bits[15:0] |
-| cmp.ut/cmp.st | 32 位 | bits[31:0] |
-| cmp.uo/cmp.so | 64 位 | bits[63:0] |
+| `cmp.ub`/`cmp.sb` | 8 位 | bits[7:0] |
+| `cmp.uw`/`cmp.sw` | 16 位 | bits[15:0] |
+| `cmp.ut`/`cmp.st` | 32 位 | bits[31:0] |
+| `cmp.uo`/`cmp.so` | 64 位 | bits[63:0] 全 64 位 |
 
-异常条件：rdhb 为 rd0 → ILLI。[SimRISC-01 §比较操作]
+- 汇编语法：`cmp.ub rdhb, rdhc, rdhd`。[SimRISC-01 §比较操作]
+- 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-01 §比较操作]
 
 ### §3.3 逻辑运算（固定位宽，orrr 格式）
 
-仅 size 范围内的低位参与运算，高位保持目的寄存器原有值不变。[SimRISC-01 §逻辑运算]
+`MISC-byte`/`wyde`/`tetra`/`octa` 子表中的 `and`/`or`/`xor`/`xnor` 提供固定位宽逻辑运算，size 范围外的高位保持目的寄存器原有值不变。[SimRISC-01 §Logic operators：逻辑运算]
 
-| 指令 | 位宽 | 运算范围 |
+| 指令 | 位宽 | 操作范围 |
 |------|------|---------|
-| and.b/or.b/xor.b/xnor.b | 8 位 | bits[7:0]，bits[63:8] 不变 |
-| and.w/or.w/xor.w/xnor.w | 16 位 | bits[15:0]，bits[63:16] 不变 |
-| and.t/or.t/xor.t/xnor.t | 32 位 | bits[31:0]，bits[63:32] 不变 |
-| and.o/or.o/xor.o/xnor.o | 64 位 | bits[63:0] 全部参与 |
+| `and.b`/`or.b`/`xor.b`/`xnor.b` | 8 位 | bits[7:0] 参与，bits[63:8] 不变 |
+| `and.w`/`or.w`/`xor.w`/`xnor.w` | 16 位 | bits[15:0] 参与，bits[63:16] 不变 |
+| `and.t`/`or.t`/`xor.t`/`xnor.t` | 32 位 | bits[31:0] 参与，bits[63:32] 不变 |
+| `and.o`/`or.o`/`xor.o`/`xnor.o` | 64 位 | bits[63:0] 全 64 位参与 |
 
-运算规则：[SimRISC-01 §逻辑运算]
-- and：全一为一，有零为零
-- or：全零为零，有一为一
-- xor：相异为一，相同为零
-- xnor：相同为一，相异为零
+运算规则：[SimRISC-01 §Logic operators：逻辑运算]
+- `and`：全一为一，有零为零
+- `or`：全零为零，有一为一
+- `xor`：相异为一，相同为零
+- `xnor`：相同为一，相异为零
+
+> 无专门 not 指令；当 `rdhc` 或 `rdhd` 为 `rd0` 时，`xnor` 实现另一操作数取反。[SimRISC-01 §Logic operators：逻辑运算]
 
 ### §3.4 位操作
 
-#### §3.4.1 移位（orrr/orri 格式）
+#### §3.4.1 移位（orrr / orri 格式）
 
-shl 为左移，shr 为右移。u=逻辑（零扩展），s=算术（符号扩展）。[SimRISC-01 §位操作指令]
+`shl` 为左移，`shr` 为右移；后缀 `u` 表示逻辑移位（零扩展），`s` 表示算术移位（符号扩展）。移位量（shamt）取 `rdhd` 的低位（orrr）或 `immu6` 的低位（orri）。[SimRISC-01 §Bit manipulating：位操作指令]
 
-| 指令 | N | 有效 shamt 范围 |
-|------|---|----------------|
-| shl.ub/shr.ub/shr.sb | 7 | 0–7 |
-| shl.uw/shr.uw/shr.sw | 15 | 0–15 |
-| shl.ut/shr.ut/shr.st | 31 | 0–31 |
-| shl.uo/shr.uo/shr.so | 63 | 0–63 |
+```
+shl.u: rdhb[N:0]   = (rdhc[N:0] << shamt)                // 左移，低位补零
+shr.u: rdhb[N:0]   = (rdhc[N:0] >> shamt)                // 逻辑右移，高位补零
+shr.s: rdhb[N:0]   = (rdhc[N:0] >> shamt) with sign(N)   // 算术右移，高位补 rdhc[N]
+rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
+```
+[SimRISC-01 §Bit manipulating：位操作指令]
 
-- shl.u: rdhb[N:0] = (rdhc[N:0] << shamt)，低位补零 [SimRISC-01 §位操作指令]
-- shr.u: rdhb[N:0] = (rdhc[N:0] >> shamt)，高位补零 [SimRISC-01 §位操作指令]
-- shr.s: rdhb[N:0] = (rdhc[N:0] >> shamt) with sign(N)，高位补符号位 [SimRISC-01 §位操作指令]
-- rdhb[63:N+1] = rdhb[63:N+1]，高位不变 [SimRISC-01 §位操作指令]
+| 指令 | N | 有效 shamt 范围 | shamt 位域 |
+|------|---|----------------|-----------|
+| `shl.ub`/`shr.ub`/`shr.sb` | 7 | 0–7 | `hd[2:0]`，`hd[5:3]` 应为零 |
+| `shl.uw`/`shr.uw`/`shr.sw` | 15 | 0–15 | `hd[3:0]`，`hd[5:4]` 应为零 |
+| `shl.ut`/`shr.ut`/`shr.st` | 31 | 0–31 | `hd[4:0]`，`hd[5]` 应为零 |
+| `shl.uo`/`shr.uo`/`shr.so` | 63 | 0–63 | `hd[5:0]` 全有效 |
+[SimRISC-01 §Bit manipulating：位操作指令]
 
-立即数形式（orri）：shamt 取 immu6 的低位。[SimRISC-01 §位操作指令]
+异常条件：`shamt > N` → **ILLI**。[SimRISC-01 §Bit manipulating：位操作指令]
 
-异常条件：shamt > N → ILLI。[SimRISC-01 §位操作指令]
+#### §3.4.2 符号/零扩展（orrr / orri 格式）
 
-#### §3.4.2 符号/零扩展（orrr/orri 格式）
+`ext.s` 为符号扩展，`ext.u` 为零扩展；`hd`（orrr）或 `immu6`（orri）为扩展起始位。[SimRISC-01 §Bit manipulating：位操作指令]
 
-| 指令 | N | 约束 | 来源 |
-|------|---|------|------|
-| ext.ub/ext.sb | 7 | hd ≤ 7 | [SimRISC-01 §位操作指令] |
-| ext.uw/ext.sw | 15 | hd ≤ 15 | [SimRISC-01 §位操作指令] |
-| ext.ut/ext.st | 31 | hd ≤ 31 | [SimRISC-01 §位操作指令] |
-| ext.uo/ext.so | 63 | hd ≤ 63 | [SimRISC-01 §位操作指令] |
+```
+rdhb[hd:0]   = rdhc[hd:0]                               // 复制源低位
+rdhb[N:hd+1] = sign/zero_extend(rdhc[hd])                // 符号/零扩展（N=7/15/31/63）
+rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
+```
+[SimRISC-01 §Bit manipulating：位操作指令]
 
-语义：[SimRISC-01 §位操作指令]
-- rdhb[hd:0] = rdhc[hd:0]（复制源低位）
-- rdhb[N:hd+1] = sign/zero_extend(rdhc[hd])（扩展）
-- rdhb[63:N+1] = rdhb[63:N+1]（高位不变）
+| 指令 | N | 汇编语法 | 约束 |
+|------|---|---------|------|
+| `ext.ub`/`ext.sb` | 7 | `ext.ub rdhb, rdhc, rdhd` 或 `ext.ub rdhb, rdhc, immu6` | hd ≤ 7 |
+| `ext.uw`/`ext.sw` | 15 | `ext.uw rdhb, rdhc, rdhd` 或 `ext.uw rdhb, rdhc, immu6` | hd ≤ 15 |
+| `ext.ut`/`ext.st` | 31 | `ext.ut rdhb, rdhc, rdhd` 或 `ext.ut rdhb, rdhc, immu6` | hd ≤ 31 |
+| `ext.uo`/`ext.so` | 63 | `ext.uo rdhb, rdhc, rdhd` 或 `ext.uo rdhb, rdhc, immu6` | hd ≤ 63 |
+[SimRISC-01 §Bit manipulating：位操作指令]
 
-异常条件：hd > N → ILLI。[SimRISC-01 §位操作指令]
+异常条件：`hd > N` → **ILLI**。[SimRISC-01 §Bit manipulating：位操作指令]
 
-### §3.5 条件赋值
+### §3.5 条件赋值（rrrr 格式）
 
-#### §3.5.1 单值条件赋值（rrrr 格式）
+第一类根据 `rdha` 的值判断，将 `rdhc` 或 `rdhd` 赋给 `rdhb`：[SimRISC-01 §条件赋值：Conditional Assignment]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| cs.n rdha, rdhb, rdhc, rdhd | if (rdha < 0) rdhb = rdhc else rdhb = rdhd | [SimRISC-01 §条件赋值] |
-| cs.z rdha, rdhb, rdhc, rdhd | if (rdha == 0) rdhb = rdhc else rdhb = rdhd | [SimRISC-01 §条件赋值] |
-| cs.p rdha, rdhb, rdhc, rdhd | if (rdha > 0) rdhb = rdhc else rdhb = rdhd | [SimRISC-01 §条件赋值] |
+| `cs.n rdha, rdhb, rdhc, rdhd` | `if (rdha < 0) rdhb = rdhc; else rdhb = rdhd` | [SimRISC-01 §条件赋值：Conditional Assignment] |
+| `cs.z rdha, rdhb, rdhc, rdhd` | `if (rdha == 0) rdhb = rdhc; else rdhb = rdhd` | [SimRISC-01 §条件赋值：Conditional Assignment] |
+| `cs.p rdha, rdhb, rdhc, rdhd` | `if (rdha > 0) rdhb = rdhc; else rdhb = rdhd` | [SimRISC-01 §条件赋值：Conditional Assignment] |
 
-#### §3.5.2 双值条件赋值（rrrr 格式）
+第二类根据 `rdha` 与 `rdhb` 是否相等判断，条件成立时将 `rdhd` 赋给 `rdhc`：[SimRISC-01 §条件赋值：Conditional Assignment]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| cs.eq rdha, rdhb, rdhc, rdhd | if (rdha == rdhb) rdhc = rdhd | [SimRISC-01 §条件赋值] |
-| cs.ne rdha, rdhb, rdhc, rdhd | if (rdha != rdhb) rdhc = rdhd | [SimRISC-01 §条件赋值] |
+| `cs.eq rdha, rdhb, rdhc, rdhd` | `if (rdha == rdhb) rdhc = rdhd` | [SimRISC-01 §条件赋值：Conditional Assignment] |
+| `cs.ne rdha, rdhb, rdhc, rdhd` | `if (rdha != rdhb) rdhc = rdhd` | [SimRISC-01 §条件赋值：Conditional Assignment] |
 
 ### §3.6 立即数设置（rwii 格式）
 
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| set.ow rdha, wpN, immu16 | rdha[wyde(wpN)] = immu16，其余 48 位置 1 | [SimRISC-01 §立即数常数赋值] |
-| set.zw rdha, wpN, immu16 | rdha[wyde(wpN)] = immu16，其余 48 位清 0 | [SimRISC-01 §立即数常数赋值] |
-| or.w rdha, wpN, immu16 | rdha[wyde(wpN)] = rdha[wyde(wpN)] \| immu16，其余不变 | [SimRISC-01 §立即数常数赋值] |
-| andn.w rdha, wpN, immu16 | rdha[wyde(wpN)] = rdha[wyde(wpN)] & ~immu16，其余不变 | [SimRISC-01 §立即数常数赋值] |
-
-注意：`or.w` 同时是 MISC-wyde 表的三寄存器逻辑 OR 指令，汇编器按操作数格式区分。[SimRISC-01 §立即数常数赋值]
-
-### §3.7 块赋值（orri 格式）
+立即数设置类指令用 16 位立即数对寄存器内指定 wyde 赋值/或/与非；`wpN` 指定 wyde 位置（见 §2.4）。[SimRISC-01 §立即数常数赋值：Immediate constant]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| rd2rd rdhb, rdhc, immu6 | 将 rdhc 开始的 immu6 个寄存器复制到 rdhb 开始的 immu6 个寄存器 | [SimRISC-01 §寄存器组之间块赋值] |
+| `set.ow rdha, wpN, immu16` | `rdha[wyde(wpN)] = immu16`，其余 48 位置 1 | [SimRISC-01 §立即数常数赋值：Immediate constant] |
+| `set.zw rdha, wpN, immu16` | `rdha[wyde(wpN)] = immu16`，其余 48 位清 0 | [SimRISC-01 §立即数常数赋值：Immediate constant] |
+| `or.w rdha, wpN, immu16` | `rdha[wyde(wpN)] = rdha[wyde(wpN)] \| immu16`，其余 wyde 不变 | [SimRISC-01 §立即数常数赋值：Immediate constant] |
+| `andn.w rdha, wpN, immu16` | `rdha[wyde(wpN)] = rdha[wyde(wpN)] & ~immu16`，其余 wyde 不变 | [SimRISC-01 §立即数常数赋值：Immediate constant] |
 
-异常条件：[SimRISC-01 §寄存器组之间块赋值]
-- immu6 = 0 → ILLI
-- rdhb 为 rd0 → ILLI
-- rdhb + immu6 > 64 → ILLI
-- rdhc + immu6 > 64 → ILLI
-- 源和目的可重叠，硬件按序号递增逐对处理，每对先读后写
+- `set.zw`/`set.ow` 会改变所有 64 位，不能连续使用多条来设置不同 wyde；只能使用一条 `set.zw`/`set.ow` 作为第一条，后续用 `or.w`/`andn.w` 逐 wyde 修正。[SimRISC-01 §set.rd 伪指令]
+- 注意：`or.w` 同时是 MISC-wyde 表的三寄存器逻辑 OR 指令（`or.w rdhb, rdhc, rdhd`），汇编器按操作数格式区分。[SimRISC-01 §立即数常数赋值：Immediate constant]
+
+### §3.7 块赋值 rd2rd（orri 格式）
+
+| 指令 | 语义 | 来源 |
+|------|------|------|
+| `rd2rd rdhb, rdhc, immu6` | 将 `rdhc` 开始的 immu6 个寄存器复制到 `rdhb` 开始的 immu6 个寄存器，保持 64 位二进制不变 | [SimRISC-01 §寄存器组之间块赋值] |
+
+- `immu6` 存在 `hd` 位域，指定寄存器个数，有效范围 1–63。[SimRISC-01 §寄存器组之间块赋值]
+- 异常条件：[SimRISC-01 §寄存器组之间块赋值]
+  - `immu6 = 0` → **ILLI**
+  - `rdhb` 为 `rd0` → **ILLI**（目的不可为 rd0）
+  - `rdhb + immu6 > 64` → **ILLI**（超出 rd63）
+  - `rdhc + immu6 > 64` → **ILLI**（源超出 rd63）
+- 源和目的范围可以重叠；硬件按序号递增逐对处理，每对先读后写。[SimRISC-01 §寄存器组之间块赋值]
 
 ### §3.8 伪指令（标量整数）
 
-| 伪指令 | 展开形式 | 来源 |
-|--------|----------|------|
-| not.b rdhb, rdhc | xnor.b rdhb, rdhc, rd0 | [SimRISC-01 §not 伪指令] |
-| not.w rdhb, rdhc | xnor.w rdhb, rdhc, rd0 | [SimRISC-01 §not 伪指令] |
-| not.t rdhb, rdhc | xnor.t rdhb, rdhc, rd0 | [SimRISC-01 §not 伪指令] |
-| not.o rdhb, rdhc | xnor.o rdhb, rdhc, rd0 | [SimRISC-01 §not 伪指令] |
-| neg.b rdhb, rdhc | sub.sb rdhb, rd0, rdhc | [SimRISC-01 §neg 伪指令] |
-| neg.w rdhb, rdhc | sub.sw rdhb, rd0, rdhc | [SimRISC-01 §neg 伪指令] |
-| neg.t rdhb, rdhc | sub.st rdhb, rd0, rdhc | [SimRISC-01 §neg 伪指令] |
-| neg.o rdhb, rdhc | sub.so rd0, rdhb, rd0, rdhc | [SimRISC-01 §neg 伪指令] |
-| set.rd rdxx, imm64 | set.zw/set.ow + or.w/andn.w（1–4 条） | [SimRISC-01 §set.rd 伪指令] |
-| set.rd rdxx, rs | rb2rd/rf2rd/ra2rd/rd2rd | [SimRISC-01 §set.rd 伪指令] |
+伪指令不是硬件指令，汇编器将其展开为一条或多条硬件指令。[SimRISC-00 §伪指令]
+
+| 伪指令 | 展开形式 | 说明 | 来源 |
+|--------|----------|------|------|
+| `not.b rdhb, rdhc` | `xnor.b rdhb, rdhc, rd0` | 8 位按位取反 | [SimRISC-01 §not 伪指令] |
+| `not.w rdhb, rdhc` | `xnor.w rdhb, rdhc, rd0` | 16 位按位取反 | [SimRISC-01 §not 伪指令] |
+| `not.t rdhb, rdhc` | `xnor.t rdhb, rdhc, rd0` | 32 位按位取反 | [SimRISC-01 §not 伪指令] |
+| `not.o rdhb, rdhc` | `xnor.o rdhb, rdhc, rd0` | 64 位按位取反 | [SimRISC-01 §not 伪指令] |
+| `neg.b rdhb, rdhc` | `sub.sb rdhb, rd0, rdhc` | 8 位取负，符号扩展 | [SimRISC-01 §neg 伪指令] |
+| `neg.w rdhb, rdhc` | `sub.sw rdhb, rd0, rdhc` | 16 位取负，符号扩展 | [SimRISC-01 §neg 伪指令] |
+| `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展 | [SimRISC-01 §neg 伪指令] |
+| `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 | [SimRISC-01 §neg 伪指令] |
+| `set.rd rdxx, imm64` | `set.zw`/`set.ow` + `or.w`/`andn.w`（1–4 条） | 加载 64 位立即数到 rd | [SimRISC-01 §set.rd 伪指令] |
+| `set.rd rdxx, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 从其他寄存器传值到 rd；M1 仅 `rb`/`rd` 源（`rf`/`ra` 源 Excluded） | [SimRISC-01 §set.rd 伪指令] |
+
+`set.rd` 展开规则（汇编器应优先选择指令数最少的方案）：[SimRISC-01 §set.rd 伪指令]
+1. 若 64 位全同（全 0 或全 1），1 条 `set.zw`/`set.ow`。
+2. 若连续 wyde 值相同（如高 48 位全 0），填充初始 wyde 后 `or.w` 补充剩余差异。
+3. 一般情况：`set.zw`/`set.ow` 设置一个基数 wyde，其余 wyde 用 `or.w` 设 1、`andn.w` 清 0。
+
+> `set.rd rdxx, rs` 中源为 `rb` 时展开为 `rb2rd`（M1）、源为 `rd` 时展开为 `rd2rd`（M1）；源为 `ra` 展开 `ra2rd`、源为 `rf` 展开 `rf2rd`，均属 Excluded from M1（见 §4.9、§6）。[SimRISC-01 §set.rd 伪指令]
 
 ---
 
-## §4 地址/内存指令
+## §4 地址/内存指令（RD/RB）
+
+> 范围：RD 与 RB 寄存器组的存取/赋值/算术；RA 寄存器存取与 RA 块赋值标 `Excluded from M1`（§4.9）。
 
 ### §4.1 存取 RD 寄存器
 
 #### §4.1.1 单 load/store（rrii 格式）
 
+地址计算公式为基址寄存器 + 立即数。[SimRISC-01 §存取类指令]
+
 | 指令 | 语义 | 对齐要求 | 来源 |
 |------|------|---------|------|
-| ld.sb rdha, rbhb, imms12 | rdha = sign_extend(mem8[rbhb + imms12]) | 无 | [SimRISC-01 §存取RD寄存器] |
-| ld.ub rdha, rbhb, imms12 | rdha = zero_extend(mem8[rbhb + imms12]) | 无 | [SimRISC-01 §存取RD寄存器] |
-| ld.sw rdha, rbhb, imms12 | rdha = sign_extend(mem16[rbhb + imms12]) | 2 字节 | [SimRISC-01 §存取RD寄存器] |
-| ld.uw rdha, rbhb, imms12 | rdha = zero_extend(mem16[rbhb + imms12]) | 2 字节 | [SimRISC-01 §存取RD寄存器] |
-| ld.st rdha, rbhb, imms12 | rdha = sign_extend(mem32[rbhb + imms12]) | 4 字节 | [SimRISC-01 §存取RD寄存器] |
-| ld.ut rdha, rbhb, imms12 | rdha = zero_extend(mem32[rbhb + imms12]) | 4 字节 | [SimRISC-01 §存取RD寄存器] |
-| ld.o rdha, rbhb, imms12 | rdha = mem64[rbhb + imms12] | 8 字节 | [SimRISC-01 §存取RD寄存器] |
-| st.b rdha, rbhb, imms12 | mem8[rbhb + imms12] = rdha[7:0] | 无 | [SimRISC-01 §存取RD寄存器] |
-| st.w rdha, rbhb, imms12 | mem16[rbhb + imms12] = rdha[15:0] | 2 字节 | [SimRISC-01 §存取RD寄存器] |
-| st.t rdha, rbhb, imms12 | mem32[rbhb + imms12] = rdha[31:0] | 4 字节 | [SimRISC-01 §存取RD寄存器] |
-| st.o rdha, rbhb, imms12 | mem64[rbhb + imms12] = rdha[63:0] | 8 字节 | [SimRISC-01 §存取RD寄存器] |
+| `ld.sb rdha, rbhb, imms12` | `rdha = sign_extend(mem8[rbhb + imms12])` | 无 | [SimRISC-01 §存取RD寄存器] |
+| `ld.ub rdha, rbhb, imms12` | `rdha = zero_extend(mem8[rbhb + imms12])` | 无 | [SimRISC-01 §存取RD寄存器] |
+| `ld.sw rdha, rbhb, imms12` | `rdha = sign_extend(mem16[rbhb + imms12])` | 2 字节 | [SimRISC-01 §存取RD寄存器] |
+| `ld.uw rdha, rbhb, imms12` | `rdha = zero_extend(mem16[rbhb + imms12])` | 2 字节 | [SimRISC-01 §存取RD寄存器] |
+| `ld.st rdha, rbhb, imms12` | `rdha = sign_extend(mem32[rbhb + imms12])` | 4 字节 | [SimRISC-01 §存取RD寄存器] |
+| `ld.ut rdha, rbhb, imms12` | `rdha = zero_extend(mem32[rbhb + imms12])` | 4 字节 | [SimRISC-01 §存取RD寄存器] |
+| `ld.o rdha, rbhb, imms12` | `rdha = mem64[rbhb + imms12]` | 8 字节 | [SimRISC-01 §存取RD寄存器] |
+| `st.b rdha, rbhb, imms12` | `mem8[rbhb + imms12] = rdha[7:0]` | 无 | [SimRISC-01 §存取RD寄存器] |
+| `st.w rdha, rbhb, imms12` | `mem16[rbhb + imms12] = rdha[15:0]` | 2 字节 | [SimRISC-01 §存取RD寄存器] |
+| `st.t rdha, rbhb, imms12` | `mem32[rbhb + imms12] = rdha[31:0]` | 4 字节 | [SimRISC-01 §存取RD寄存器] |
+| `st.o rdha, rbhb, imms12` | `mem64[rbhb + imms12] = rdha[63:0]` | 8 字节 | [SimRISC-01 §存取RD寄存器] |
 
 异常条件：[SimRISC-01 §存取RD寄存器]
-- rdha 为 rd0 → ILLI
-- 未对齐 → MALIGN
+- `rdha` 为 `rd0` → **ILLI**
+- 未对齐 → **MALIGN**
 
 #### §4.1.2 多 load/store（rrri 格式）
 
+多 load/store 类指令地址计算公式为基址寄存器 + 数据寄存器。[SimRISC-01 §存取类指令]
+
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| ldm.sb/ldm.ub/ldm.sw/ldm.uw/ldm.st/ldm.ut/ldm.o rdha, rbhb, rdhc, immu6 | 从 rbhb+rdhc 地址加载 immu6 个连续寄存器 | [SimRISC-01 §存取RD寄存器] |
-| stm.b/stm.w/stm.t/stm.o rdha, rbhb, rdhc, immu6 | 将 immu6 个连续寄存器存储到 rbhb+rdhc 地址 | [SimRISC-01 §存取RD寄存器] |
+| `ldm.sb`/`ldm.ub`/`ldm.sw`/`ldm.uw`/`ldm.st`/`ldm.ut`/`ldm.o rdha, rbhb, rdhc, immu6` | 从 `rbhb + rdhc` 地址加载 immu6 个连续寄存器 | [SimRISC-01 §存取RD寄存器] |
+| `stm.b`/`stm.w`/`stm.t`/`stm.o rdha, rbhb, rdhc, immu6` | 将 immu6 个连续寄存器存储到 `rbhb + rdhc` 地址 | [SimRISC-01 §存取RD寄存器] |
 
-- rdha 指定第一个寄存器，immu6 指定寄存器个数（1–63） [SimRISC-01 §存取RD寄存器]
-- 对齐要求同单 load/store [SimRISC-01 §存取RD寄存器]
-- 当多寄存器读写的范围包括 rdhc 时，地址计算仍按原始 rdhc 值进行 [SimRISC-01 §存取RD寄存器]
-- 硬件按序号递增逐对处理，每对先读后写 [SimRISC-01 §存取RD寄存器]
+- `rdha` 指定第一个寄存器，`rbhb + rdhc` 指定地址，`immu6` 指定寄存器个数，有效范围 1–63。[SimRISC-01 §存取RD寄存器]
+- 存取 8/16/32 位数据时，每个寄存器只存放一个数据，多个数据使用多个连续的寄存器。[SimRISC-01 §存取RD寄存器]
+- 对齐要求同 §4.1.1（`ldm.o`/`stm.o` 8 字节，`ldm.st`/`stm.t`/`ldm.ut` 4 字节，`ldm.sw`/`stm.w`/`ldm.uw` 2 字节，`ldm.sb`/`stm.b`/`ldm.ub` 无）。[SimRISC-01 §存取RD寄存器]
+- 当多寄存器读写范围包括 `rdhc` 时，地址计算仍按原始 `rdhc` 中的数据进行。[SimRISC-01 §存取RD寄存器]
+- 装入类指令的源寄存器范围与目的寄存器范围可以重叠；硬件按序号递增逐对处理，每对先读后写。[SimRISC-01 §存取RD寄存器]
 
 异常条件：[SimRISC-01 §存取RD寄存器]
-- rdha 为 rd0 → ILLI
-- immu6 = 0 → ILLI
-- rdha + immu6 > 64 → ILLI
-- 未对齐 → MALIGN
+- `rdha` 为 `rd0` → **ILLI**
+- `immu6 = 0` → **ILLI**
+- `rdha + immu6 > 64`（超出 rd63）→ **ILLI**，不环绕、不截断
+- 未对齐 → **MALIGN**
 
 ### §4.2 存取 RB 寄存器
 
+RB 寄存器都是 64 位，不需指定数据长度。[SimRISC-02 §存取RB寄存器]
+
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| ld.o rbha, rbhb, imms12 | rbha = mem64[rbhb + imms12]，全 64 位覆盖 | [SimRISC-02 §存取RB寄存器] |
-| st.o rbha, rbhb, imms12 | mem64[rbhb + imms12] = rbha | [SimRISC-02 §存取RB寄存器] |
-| ldm.o rbha, rbhb, rdhc, immu6 | 多寄存器加载 | [SimRISC-02 §存取RB寄存器] |
-| stm.o rbha, rbhb, rdhc, immu6 | 多寄存器存储 | [SimRISC-02 §存取RB寄存器] |
+| `ld.o rbha, rbhb, imms12` | `rbha = mem64[rbhb + imms12]`，全 64 位覆盖 | [SimRISC-02 §存取RB寄存器] |
+| `st.o rbha, rbhb, imms12` | `mem64[rbhb + imms12] = rbha` | [SimRISC-02 §存取RB寄存器] |
+| `ldm.o rbha, rbhb, rdhc, immu6` | 多寄存器加载（连续 RB） | [SimRISC-02 §存取RB寄存器] |
+| `stm.o rbha, rbhb, rdhc, immu6` | 多寄存器存储（连续 RB） | [SimRISC-02 §存取RB寄存器] |
 
 异常条件：[SimRISC-02 §存取RB寄存器]
-- 需 8 字节对齐，未对齐 → MALIGN
-- rbha 为 rb0 → ILLI
-- immu6 = 0 → ILLI
-- rbha + immu6 > 64 → ILLI
+- 需 8 字节地址对齐，未对齐 → **MALIGN**
+- `rbha` 为 `rb0` → **ILLI**
+- `immu6 = 0` → **ILLI**
+- `rbha + immu6 > 64`（超出 rb63）→ **ILLI**
+- 当多寄存器读写范围包括 `rbhb` 时，地址计算仍按原始 `rbhb` 中的数据进行。[SimRISC-02 §存取RB寄存器]
 
-### §4.3 存取 RA 寄存器
+### §4.3 块赋值（orri 格式）
 
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| ld.o raha, rbhb, imms12 | raha = mem64[rbhb + imms12] | [SimRISC-02 §存取RA寄存器] |
-| st.o raha, rbhb, imms12 | mem64[rbhb + imms12] = raha | [SimRISC-02 §存取RA寄存器] |
-| ldm.o raha, rbhb, rdhc, immu6 | 多寄存器加载 | [SimRISC-02 §存取RA寄存器] |
-| stm.o raha, rbhb, rdhc, immu6 | 多寄存器存储 | [SimRISC-02 §存取RA寄存器] |
-
-异常条件：[SimRISC-02 §存取RA寄存器]
-- 需 8 字节对齐，未对齐 → MALIGN
-- raha 为 ra0 时不触发异常（ra0 可读写）
-- immu6 = 0 → ILLI
-- raha + immu6 > 64 → ILLI
-
-### §4.4 存取 RF 寄存器
-
-| 指令 | 语义 | 对齐要求 | 来源 |
-|------|------|---------|------|
-| ld.t rfha, rbhb, imms12 | rfha[31:0] = mem32[rbhb + imms12] | 4 字节 | [SimRISC-03 §存取RF寄存器] |
-| st.t rfha, rbhb, imms12 | mem32[rbhb + imms12] = rfha[31:0] | 4 字节 | [SimRISC-03 §存取RF寄存器] |
-| ld.o rfha, rbhb, imms12 | rfha = mem64[rbhb + imms12] | 8 字节 | [SimRISC-03 §存取RF寄存器] |
-| st.o rfha, rbhb, imms12 | mem64[rbhb + imms12] = rfha | 8 字节 | [SimRISC-03 §存取RF寄存器] |
-| ldm.t/stm.t rfha, rbhb, rdhc, immu6 | 多寄存器 32 位存取 | 4 字节 | [SimRISC-03 §存取RF寄存器] |
-| ldm.o/stm.o rfha, rbhb, rdhc, immu6 | 多寄存器 64 位存取 | 8 字节 | [SimRISC-03 §存取RF寄存器] |
-
-异常条件：[SimRISC-03 §存取RF寄存器]
-- immu6 = 0 → ILLI
-- rfha + immu6 > 64 → ILLI
-- 未对齐 → MALIGN
-
-### §4.5 RB 块赋值（orri 格式）
+不同/相同寄存器组之间可进行块传输，保持 64 位二进制不变，必须是多个连续寄存器。[SimRISC-02 §寄存器组之间块赋值]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| rb2rd rdhb, rbhc, immu6 | RB→RD 块复制 | [SimRISC-02 §寄存器组之间块赋值] |
-| rd2rb rbhb, rdhc, immu6 | RD→RB 块复制 | [SimRISC-02 §寄存器组之间块赋值] |
-| rb2rb rbhb, rbhc, immu6 | RB→RB 块复制 | [SimRISC-02 §寄存器组之间块赋值] |
-| ra2rd rdhb, rahc, immu6 | RA→RD 块复制 | [SimRISC-02 §寄存器组之间块赋值] |
-| rd2ra rahb, rdhc, immu6 | RD→RA 块复制 | [SimRISC-02 §寄存器组之间块赋值] |
+| `rb2rd rdhb, rbhc, immu6` | 将 `rbhc` 开始的 immu6 个 RB 复制到 `rdhb` 开始的 immu6 个 RD | [SimRISC-02 §寄存器组之间块赋值] |
+| `rd2rb rbhb, rdhc, immu6` | 将 `rdhc` 开始的 immu6 个 RD 复制到 `rbhb` 开始的 immu6 个 RB | [SimRISC-02 §寄存器组之间块赋值] |
+| `rb2rb rbhb, rbhc, immu6` | RB→RB 块复制 | [SimRISC-02 §寄存器组之间块赋值] |
 
-限制：rb/rf/ra 之间不能直接赋值，ra 与 ra 之间不能相互赋值。[SimRISC-02 §寄存器组之间块赋值]
+- `immu6` 存在 `hd` 位域，有效范围 1–63。[SimRISC-02 §寄存器组之间块赋值]
+- 根据语义，rb/rf/ra 之间不能进行直接赋值，ra 与 ra 之间不能相互赋值。[SimRISC-02 §寄存器组之间块赋值]
+- 异常条件：[SimRISC-02 §寄存器组之间块赋值]
+  - `immu6 = 0` → **ILLI**
+  - `rbhb` 为 `rb0` → **ILLI**（目的不可为 rb0）
+  - 任一起始寄存器 + immu6 > 64 → **ILLI**
+- 源和目的范围可以重叠；硬件按序号递增逐对处理，每对先读后写。[SimRISC-02 §寄存器组之间块赋值]
 
-异常条件：[SimRISC-02 §寄存器组之间块赋值]
-- immu6 = 0 → ILLI
-- rbhb 为 rb0 → ILLI（目的）
-- 任一起始寄存器 + immu6 > 64 → ILLI
+### §4.4 RB 立即数设置（rwii 格式）
 
-### §4.6 RF 块赋值（orri 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| rf2rd rdhb, rfhc, immu6 | RF→RD 块复制 | [SimRISC-03 §寄存器组之间块赋值] |
-| rd2rf rfhb, rdhc, immu6 | RD→RF 块复制 | [SimRISC-03 §寄存器组之间块赋值] |
-
-异常条件：[SimRISC-03 §寄存器组之间块赋值]
-- immu6 = 0 → ILLI
-- 任一起始寄存器 + immu6 > 64 → ILLI
-
-### §4.7 RB 立即数设置（rwii 格式）
+针对 RB 寄存器提供 `set.zw`/`or.w`/`andn.w`，操作数类型 `rwii`。[SimRISC-02 §立即数常数赋值：Immediate constant]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| set.zw rbha, wpN, immu16 | rbha[wyde(wpN)] = immu16，其余 48 位清 0 | [SimRISC-02 §立即数常数赋值] |
-| or.w rbha, wpN, immu16 | rbha[wyde(wpN)] \|= immu16，其余不变 | [SimRISC-02 §立即数常数赋值] |
-| andn.w rbha, wpN, immu16 | rbha[wyde(wpN)] &= ~immu16，其余不变 | [SimRISC-02 §立即数常数赋值] |
+| `set.zw rbha, wpN, immu16` | `rbha[wyde(wpN)] = immu16`，其余 48 位清 0 | [SimRISC-02 §立即数常数赋值：Immediate constant] |
+| `or.w rbha, wpN, immu16` | `rbha[wyde(wpN)] = rbha[wyde(wpN)] \| immu16`，其余不变 | [SimRISC-02 §立即数常数赋值：Immediate constant] |
+| `andn.w rbha, wpN, immu16` | `rbha[wyde(wpN)] = rbha[wyde(wpN)] & ~immu16`，其余不变 | [SimRISC-02 §立即数常数赋值：Immediate constant] |
 
-注意：rb 无 `set.ow` 变体。[SimRISC-02 §set.rb 伪指令]
+- RB 无 `set.ow` 变体。[SimRISC-02 §set.rb 伪指令]
+- `set.zw` 会清零其余所有位，不能连续使用多条；只能一条 `set.zw` 作为第一条，后续用 `or.w`/`andn.w` 逐 wyde 修正。[SimRISC-02 §set.rb 伪指令]
+- RB 立即数设置全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3。[SimRISC-02 §各类操作对高 16 位的处理规则]
 
-### §4.8 RB 算术运算（orrr 格式）
+### §4.5 RB 算术运算
 
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| add.so rbhb, rbhc, rdhd | rbhb = rbhc + rdhd，二进制补码 64 位加法 | [SimRISC-02 §加减操作] |
-| sub.so rbhb, rbhc, rdhd | rbhb = rbhc - rdhd，二进制补码 64 位减法 | [SimRISC-02 §加减操作] |
+#### §4.5.1 加减（orrr 格式）
 
-地址计算仅在低 48 位有效，溢出丢弃。高 16 位（bits[63:48]）为运算结果，可用于溢出检测。[SimRISC-02 §加减操作]
-
-### §4.9 RB 自增自减（riii 格式）
+针对 RB 的加减运算，操作数类型 `orrr`；两个源为 `rbhc` 和 `rdhd`，目的为 `rbhb`。[SimRISC-02 §加减操作]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| add.si rbha, imms18 | rbha = rbha + sign_extend(imms18)，全 64 位运算 | [SimRISC-02 §自增自减] |
+| `add.so rbhb, rbhc, rdhd` | 二进制补码 64 位加法，全 64 位参与运算 | [SimRISC-02 §加减操作] |
+| `sub.so rbhb, rbhc, rdhd` | 二进制补码 64 位减法，全 64 位参与运算 | [SimRISC-02 §加减操作] |
 
-用户可通过 rbha 的高 16 位判断地址溢出。[SimRISC-02 §自增自减]
+- 地址计算仅在低 48 位有效，溢出丢弃；用户可通过 `rbhb` 的高 16 位（bits[63:48]）判断是否发生地址溢出。[SimRISC-02 §加减操作]
 
-### §4.10 RB 比较（orrr 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| cmp.uo rdhb, rbhc, rbhd | 无符号 64 位比较，rdhb = sign(cmp(rbhc, rbhd)) | [SimRISC-02 §比较操作] |
-
-bits[63:48] 不影响比较运算。[SimRISC-02 §比较操作]
-
-### §4.11 PC 相对寻址（riii 格式）
+#### §4.5.2 自增自减（riii 格式）
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| rela.si rbha, imms18 | rbha = (PC & ~0xFFF) + sign_extend(imms18 << 12)，高 16 位保持不变 | [SimRISC-02 §PC相对寻址] |
+| `add.si rbha, imms18` | `rbha = rbha + sign_extend(imms18)`，全 64 位运算 | [SimRISC-02 §自增自减] |
 
-- imms18 左移 12 位得到 30 位有符号数 [SimRISC-02 §PC相对寻址]
-- PC 低 12 位清零得到 4KB 对齐基地址 [SimRISC-02 §PC相对寻址]
-- 可处理偏移地址在 512MB 以内的 PC 相对寻址 [SimRISC-02 §PC相对寻址]
+- 立即数 18 位有符号，补码编码，无需区分加减。[SimRISC-02 §自增自减]
+- 用户可通过 `rbha` 的高 16 位判断地址溢出。[SimRISC-02 §自增自减]
+- 对栈指针的操作很重要；在没有专门 push/pop 指令的情况下，栈指针需通过显式加减移动。[SimRISC-02 §自增自减]
 
-### §4.12 伪指令（地址/内存）
+### §4.6 RB 比较（orrr 格式）
 
-| 伪指令 | 展开形式 | 来源 |
-|--------|----------|------|
-| set.rb rbxx, imm64 | set.zw-rb + or.w-rb | [SimRISC-02 §set.rb 伪指令] |
-| set.rb rbxx, rs | rd2rb/rb2rb | [SimRISC-02 §set.rb 伪指令] |
+| 指令 | 语义 | 来源 |
+|------|------|------|
+| `cmp.uo rdhb, rbhc, rbhd` | 无符号 64 位比较，结果 −1/0/1 对应小于/等于/大于，写入 `rdhb` | [SimRISC-02 §比较操作] |
+
+- bits[63:48] 不影响比较运算。[SimRISC-02 §各类操作对高 16 位的处理规则]
+- 后续指令可根据负数/非负数/零/非零/正数/非正数做出组合判断。[SimRISC-02 §比较操作]
+
+### §4.7 PC 相对寻址（riii 格式）
+
+| 指令 | 语义 | 来源 |
+|------|------|------|
+| `rela.si rbha, imms18` | 将一个 18 位有符号立即数左移 12 位得 30 位有符号数；PC 低 12 位清零得 4KB 对齐基地址；两者相加得目标地址，写入 `rbha`；`rbha` 高 16 位保持不变 | [SimRISC-02 §PC相对寻址] |
+
+- 该加法指令无法判断是否溢出；由于 imms18 为有符号数，隐含实现减法。[SimRISC-02 §PC相对寻址]
+- 可处理偏移地址在 512MB 以内的 PC 相对寻址；更大范围需采用显式 rb0 参与寻址。[SimRISC-02 §PC相对寻址]
+
+### §4.8 伪指令（地址/内存）
+
+| 伪指令 | 展开形式 | 说明 | 来源 |
+|--------|----------|------|------|
+| `set.rb rbxx, imm64` | `set.zw-rb` + `or.w-rb` | 加载立即数到 rb | [SimRISC-02 §set.rb 伪指令] |
+| `set.rb rbxx, rs` | `rd2rb`/`rb2rb` | 从其他寄存器传值到 rb | [SimRISC-02 §set.rb 伪指令] |
+
+- `set.rb` 展开为 `set.zw` 与 `or.w` 的组合（rb 无 `set.ow` 变体，无需 `andn.w`）。[SimRISC-02 §set.rb 伪指令]
+- 汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。[SimRISC-02 §set.rb 伪指令]
+
+### §4.9 RA 寄存器存取与块赋值 — Excluded from M1
+
+以下指令涉及 RA 寄存器，M1 不提取其规范内容，标 `Excluded from M1`：[SimRISC-02 §存取RA寄存器][SimRISC-02 §寄存器组之间块赋值]
+
+| 指令 | 说明 | 来源 |
+|------|------|------|
+| `ld.o raha, rbhb, imms12` / `st.o raha, rbhb, imms12` | RA 单存取（Excluded from M1） | [SimRISC-02 §存取RA寄存器] |
+| `ldm.o raha, rbhb, rdhc, immu6` / `stm.o raha, rbhb, rdhc, immu6` | RA 多存取（Excluded from M1） | [SimRISC-02 §存取RA寄存器] |
+| `ra2rd rdhb, rahc, immu6` / `rd2ra rahb, rdhc, immu6` | RA↔RD 块赋值（Excluded from M1） | [SimRISC-02 §寄存器组之间块赋值] |
 
 ---
 
 ## §5 控制流
 
-### §5.1 条件跳转
+### §5.1 通用约定
 
-所有条件跳转使用相对地址，地址位宽为 48 位，不产生溢出。[SimRISC-02 §控制流指令]
+- SimRISC 指令都是 4 字节且 4 字节对齐；采用立即数作为偏移地址参与计算时，均将其左移 2 位以增大跳转范围。[SimRISC-02 §控制流指令]
+- PC 的有效位宽为 48 位，`rb0[63:48]` 恒为 0。[SimRISC-02 §控制流指令]
+- 条件跳转均采用相对地址。[SimRISC-02 §条件跳转指令]
+- 跳转/调用地址计算仅在低 48 位进行，溢出丢弃；bits[63:48] 保持不变。[SimRISC-02 §各类操作对高 16 位的处理规则]
 
-#### §5.1.1 双寄存器比较跳转（rrii 格式）
+### §5.2 条件跳转指令
 
-| 指令 | 语义 | 地址计算 | 来源 |
+#### §5.2.1 双寄存器比较跳转（rrii 格式）
+
+前两个操作数为 rd 寄存器，根据两者是否相等选择是否跳转。[SimRISC-02 §条件跳转指令]
+
+| 指令 | 条件 | 地址计算 | 来源 |
 |------|------|---------|------|
-| br.eq rdha, rdhb, imms12 | if (rdha == rdhb) PC = rb0 + (imms12 << 2) | rb0 + sign_extend(imms12 << 2) | [SimRISC-02 §条件跳转指令] |
-| br.ne rdha, rdhb, imms12 | if (rdha != rdhb) PC = rb0 + (imms12 << 2) | rb0 + sign_extend(imms12 << 2) | [SimRISC-02 §条件跳转指令] |
+| `br.eq rdha, rdhb, imms12` | `rdha == rdhb` | `Addr = rb0 + (imms12 << 2)` | [SimRISC-02 §条件跳转指令] |
+| `br.ne rdha, rdhb, imms12` | `rdha != rdhb` | `Addr = rb0 + (imms12 << 2)` | [SimRISC-02 §条件跳转指令] |
 
-#### §5.1.2 单寄存器条件跳转（riii 格式）
+- 地址位宽为 48 位，不产生溢出。[SimRISC-02 §条件跳转指令]
 
-| 指令 | 语义 | 地址计算 | 来源 |
+#### §5.2.2 单寄存器条件跳转（riii 格式）
+
+一个操作数为 rd 寄存器，根据该寄存器的值判断是否跳转。[SimRISC-02 §条件跳转指令]
+
+| 指令 | 条件 | 地址计算 | 来源 |
 |------|------|---------|------|
-| br.n rdha, imms18 | if (rdha < 0) PC = rb0 + (imms18 << 2) | rb0 + sign_extend(imms18 << 2) | [SimRISC-02 §条件跳转指令] |
-| br.nn rdha, imms18 | if (rdha >= 0) PC = rb0 + (imms18 << 2) | rb0 + sign_extend(imms18 << 2) | [SimRISC-02 §条件跳转指令] |
-| br.z rdha, imms18 | if (rdha == 0) PC = rb0 + (imms18 << 2) | rb0 + sign_extend(imms18 << 2) | [SimRISC-02 §条件跳转指令] |
-| br.nz rdha, imms18 | if (rdha != 0) PC = rb0 + (imms18 << 2) | rb0 + sign_extend(imms18 << 2) | [SimRISC-02 §条件跳转指令] |
-| br.p rdha, imms18 | if (rdha > 0) PC = rb0 + (imms18 << 2) | rb0 + sign_extend(imms18 << 2) | [SimRISC-02 §条件跳转指令] |
-| br.np rdha, imms18 | if (rdha <= 0) PC = rb0 + (imms18 << 2) | rb0 + sign_extend(imms18 << 2) | [SimRISC-02 §条件跳转指令] |
+| `br.n rdha, imms18` | `rdha < 0` | `Addr = rb0 + (imms18 << 2)` | [SimRISC-02 §条件跳转指令] |
+| `br.nn rdha, imms18` | `rdha >= 0` | `Addr = rb0 + (imms18 << 2)` | [SimRISC-02 §条件跳转指令] |
+| `br.z rdha, imms18` | `rdha == 0` | `Addr = rb0 + (imms18 << 2)` | [SimRISC-02 §条件跳转指令] |
+| `br.nz rdha, imms18` | `rdha != 0` | `Addr = rb0 + (imms18 << 2)` | [SimRISC-02 §条件跳转指令] |
+| `br.p rdha, imms18` | `rdha > 0` | `Addr = rb0 + (imms18 << 2)` | [SimRISC-02 §条件跳转指令] |
+| `br.np rdha, imms18` | `rdha <= 0` | `Addr = rb0 + (imms18 << 2)` | [SimRISC-02 §条件跳转指令] |
 
-特例：rdha 为 rd0 时，br.z 条件必为真，br.nz 条件必为假。[SimRISC-02 §条件跳转指令]
+- 特例：`rdha` 为 `rd0` 时，`br.z` 条件必为真，`br.nz` 条件必为假。[SimRISC-02 §条件跳转指令]
 
-#### §5.1.3 RB 条件跳转（riii 格式）
+#### §5.2.3 RB 条件跳转（riii 格式）
+
+操作数为 rb 寄存器，根据 `rbha` 是否为 0 判断。[SimRISC-02 §条件跳转指令]
+
+| 指令 | 条件 | 地址计算 | 来源 |
+|------|------|---------|------|
+| `br.z rbha, imms18` | `rbha == 0` | `Addr = rb0 + (imms18 << 2)` | [SimRISC-02 §条件跳转指令] |
+| `br.nz rbha, imms18` | `rbha != 0` | `Addr = rb0 + (imms18 << 2)` | [SimRISC-02 §条件跳转指令] |
+
+- 跳转地址计算方式与 §5.2.2 一致。[SimRISC-02 §条件跳转指令]
+
+### §5.3 无条件跳转指令
+
+既支持相对地址，也支持绝对地址。[SimRISC-02 §无条件跳转指令]
+
+| 指令 | 格式 | 地址计算 | 来源 |
+|------|------|---------|------|
+| `jump imms24` | iiii | `Addr = rb0 + (imms24 << 2)` | [SimRISC-02 §无条件跳转指令] |
+| `jump rbha, rdhb, imms12` | rrii | `Addr = rbha + rdhb + (imms12 << 2)` | [SimRISC-02 §无条件跳转指令] |
+
+- 绝对跳转地址位宽为 48 位，不产生溢出。[SimRISC-02 §无条件跳转指令]
+- `ha` 为基址寄存器（rb），`hb` 为偏移地址（rd）；当 `ha` 为 `rb0` 时，`rdhb + (imms12 << 2)` 仍是相对地址跳转。[SimRISC-02 §无条件跳转指令]
+
+### §5.4 函数调用
+
+函数调用与无条件跳转类似，但会计算返回地址并压入 `ra63`（RegRAS 栈顶）；高 16 位为引用计数（首次压栈设为 1，递归调用递增），低 48 位为返回地址。压栈流程见 §5.6。[SimRISC-02 §函数调用]
+
+| 指令 | 格式 | 地址计算 | 来源 |
+|------|------|---------|------|
+| `call imms24` | iiii | `Addr = rb0 + (imms24 << 2)` | [SimRISC-02 §函数调用] |
+| `call rbha, rdhb, imms12` | rrii | `Addr = rbha + rdhb + (imms12 << 2)` | [SimRISC-02 §函数调用] |
+
+- 地址位宽为 48 位，不产生溢出。[SimRISC-02 §函数调用]
+- `ha` 为基址寄存器（rb），`hb` 为偏移地址（rd）；当 `ha` 为 `rb0` 时，`rdhb + (imms12 << 2)` 实际上也是相对地址跳转。[SimRISC-02 §函数调用]
+
+### §5.5 函数返回
+
+`ret` 从 `ra63`（RegRAS 栈顶）弹出返回地址（低 48 位为返回地址，高 16 位为引用计数）并跳转过去。[SimRISC-02 §函数返回]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| br.z rbha, imms18 | if (rbha == 0) PC = rb0 + (imms18 << 2) | [SimRISC-02 §条件跳转指令] |
-| br.nz rbha, imms18 | if (rbha != 0) PC = rb0 + (imms18 << 2) | [SimRISC-02 §条件跳转指令] |
+| `ret rdha, imms18` | 在返回的同时，修改 `rdha` 为 18 位立即数（符号扩展至 64 位），PC = 弹出的返回地址 | [SimRISC-02 §函数返回] |
 
-### §5.2 无条件跳转
+- 通常该寄存器为返回值寄存器，可用一条 `ret` 实现 C 语言的 `return 0` 或 `return -1`。[SimRISC-02 §函数返回]
+- 无需设置返回值寄存器时，采用 `ret rd0, 0` 实现普通 ret（`rdha` 为 rd0 允许）。[SimRISC-02 §函数返回]
+- 弹栈流程见 §5.6。[SimRISC-00 §弹栈流程（ret 指令）]
 
-#### §5.2.1 相对跳转（iiii 格式）
+### §5.6 压栈 / 弹栈流程（RegRAS / MemRAS）
 
-| 指令 | 地址计算 | 来源 |
-|------|---------|------|
-| jump imms24 | PC = rb0 + (imms24 << 2) | [SimRISC-02 §无条件跳转指令] |
+以 `ra63` 为 RegRAS 栈顶，高 16 位为返回地址的引用计数（0 表示无效），低 48 位为返回地址。[SimRISC-00 §压栈流程（call 指令）]
 
-#### §5.2.2 绝对跳转（rrii 格式）
+#### §5.6.1 压栈流程（call 指令）
 
-| 指令 | 地址计算 | 来源 |
-|------|---------|------|
-| jump rbha, rdhb, imms12 | PC = rbha + rdhb + (imms12 << 2) | [SimRISC-02 §无条件跳转指令] |
+压栈分三种情况：[SimRISC-00 §压栈流程（call 指令）]
 
-地址位宽为 48 位，不产生溢出。当 ha 为 rb0 时，为相对地址跳转。[SimRISC-02 §无条件跳转指令]
+1. 若 `ra63` 高 16 位全为 0（无效返回地址），则新返回地址压入 `ra63`，高 16 位设为 0x0001。
+2. 若 `ra63` 高 16 位既不全为 0 且不全为 1，且新返回地址与 `ra63` 低 48 位相等（递归调用），则 `ra63` 高 16 位 + 1。
+3. 否则（新返回地址与 `ra63` 低 48 位不相等，或 `ra63` 高 16 位全为 1），需要移位压栈：
+   - 新返回地址压入 `ra63`，高 16 位设为 0x0001；
+   - 原 `ra63` 压入 `ra62`，原 `ra62` 如为有效地址则压入 `ra61`，依次向下，直至原 `ra2` 如为有效地址则压入 `ra1`；
+   - 原 `ra1` 如为有效地址：
+     - 当 `ra0` 低 48 位为 0 时，只有一个 RAS（RegRAS），触发 **RASOF** 异常；
+     - 当 `ra0` 低 48 位不为 0 时，有两个 RAS，将 `ra1` 压入 MemRAS（`ra0` 低 48 位减 8，将 `ra1` 存入 `ra0` 地址；`ra0` 高 16 位为 16 位无符号计数，若当前计数为 0xFFFF 再加 1 则溢出，触发 **RASOF** 异常）。
 
-### §5.3 函数调用
+#### §5.6.2 弹栈流程（ret 指令）
 
-函数调用指令会计算返回地址，并压入 ra63（RegRAS 栈顶）。高 16 位为引用计数（首次压栈设为 1，递归调用递增），低 48 位为返回地址。[SimRISC-02 §函数调用]
+弹栈分三种情况：[SimRISC-00 §弹栈流程（ret 指令）]
 
-#### §5.3.1 相对调用（iiii 格式）
+1. 若 `ra63` 高 16 位 > 0x0001，则 `ra63` 高 16 位 − 1，`ra63` 低 48 位内容作为返回地址。
+2. 若 `ra63` 高 16 位 = 0x0001，则弹出 `ra63` 低 48 位内容作为返回地址，并进行移位弹栈：
+   - 原 `ra62` 如为有效地址则存入 `ra63`，原 `ra61` 如为有效地址则存入 `ra62`，依次向下，直至原 `ra1` 如为有效地址则存入 `ra2`，`ra1` 清 0。
+3. 若 `ra63` 高 16 位全为 0（无效返回地址）：
+   - 当 `ra0` 低 48 位为 0 时，只有一个 RAS（RegRAS），触发 **RASUF** 异常；
+   - 当 `ra0` 低 48 位不为 0 时，从 MemRAS 弹栈（读取 `ra0` 低 48 位地址的内容，`ra0` 低 48 位加 8；`ra0` 高 16 位为 16 位无符号计数，若当前计数为 0 再减 1 则溢出，触发 **RASUF** 异常）：
+     - 弹出的内容若高 16 位为 0（无效返回地址），则触发 **RASUF** 异常；
+     - 弹出的内容若高 16 位为 0x0001，则其低 48 位为返回地址；
+     - 弹出的内容若高 16 位 > 0x0001，则将其存入 `ra63`，且高 16 位 − 1，低 48 位为返回地址。
 
-| 指令 | 地址计算 | 来源 |
-|------|---------|------|
-| call imms24 | PC = rb0 + (imms24 << 2) | [SimRISC-02 §函数调用] |
+### §5.7 伪指令（控制流）
 
-#### §5.3.2 绝对调用（rrii 格式）
-
-| 指令 | 地址计算 | 来源 |
-|------|---------|------|
-| call rbha, rdhb, imms12 | PC = rbha + rdhb + (imms12 << 2) | [SimRISC-02 §函数调用] |
-
-地址位宽为 48 位，不产生溢出。[SimRISC-02 §函数调用]
-
-#### §5.3.3 压栈流程
-
-以 ra63 为 RegRAS 栈顶。[SimRISC-00 §压栈流程]
-
-1. 若 ra63 高 16 位全为 0（无效），新返回地址压入 ra63，高 16 位设为 0x0001
-2. 若 ra63 高 16 位非全 0 且非全 1，且新返回地址与 ra63 低 48 位相等（递归调用），则 ra63 高 16 位 + 1
-3. 否则移位压栈：
-   - 新返回地址压入 ra63，高 16 位设为 0x0001
-   - 原 ra63→ra62，原 ra62→ra61，……，原 ra2→ra1
-   - 原 ra1 若有效：ra0 低 48 位为 0 时触发 RASOF；非 0 时压入 MemRAS
-
-### §5.4 函数返回
-
-ret 指令从 ra63 弹出返回地址（低 48 位），并跳转。[SimRISC-02 §函数返回]
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| ret rdha, imms18 | rdha = sign_extend(imms18)，PC = ra63 低 48 位 | [SimRISC-02 §函数返回] |
-
-#### §5.4.1 弹栈流程
-
-[SimRISC-00 §弹栈流程]
-
-1. 若 ra63 高 16 位 > 0x0001，则高 16 位 − 1，低 48 位为返回地址
-2. 若 ra63 高 16 位 = 0x0001，弹出低 48 位为返回地址，移位弹栈：
-   - ra62→ra63，ra61→ra62，……，ra1→ra2，ra1 清 0
-3. 若 ra63 高 16 位全为 0（无效）：
-   - ra0 低 48 位为 0 → RASUF
-   - ra0 低 48 位非 0 → 从 MemRAS 弹栈
-     - 弹出内容高 16 位为 0 → RASUF
-     - 高 16 位为 0x0001 → 低 48 位为返回地址
-     - 高 16 位 > 0x0001 → 存入 ra63，高 16 位 − 1，低 48 位为返回地址
-
-### §5.5 伪指令（控制流）
-
-| 伪指令 | 展开形式 | 来源 |
-|--------|----------|------|
-| return | ret rd0, 0 | [SimRISC-02 §return 伪指令] |
+| 伪指令 | 展开形式 | 说明 | 来源 |
+|--------|----------|------|------|
+| `return` | `ret rd0, 0` | 无返回值的函数返回 | [SimRISC-02 §return 伪指令] |
 
 ---
 
-## §6 浮点指令
+## §6 浮点指令 — Excluded from M1
 
-浮点格式符合 IEEE 754 标准。舍入模式由 rf0[17:16] 控制，异常标志在 rf0[4:0]。[SimRISC-03 §版本]
+浮点类指令（SimRISC-03）整体 **Excluded from M1**，本合约不提取其规范内容。[SimRISC-03 §版本]
 
-### §6.1 浮点算术运算
-
-#### §6.1.1 双源单目运算（orrr 格式）
-
-硬件先读全部源操作数再写结果。[SimRISC-03 §S2D1]
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| ftadd rfhb, rfhc, rfhd | rfhb = rfhc + rfhd（单精） | [SimRISC-03 §S2D1] |
-| ftsub rfhb, rfhc, rfhd | rfhb = rfhc - rfhd（单精） | [SimRISC-03 §S2D1] |
-| ftmul rfhb, rfhc, rfhd | rfhb = rfhc × rfhd（单精） | [SimRISC-03 §S2D1] |
-| ftdiv rfhb, rfhc, rfhd | rfhb = rfhc / rfhd（单精） | [SimRISC-03 §S2D1] |
-| ftrem rfhb, rfhc, rfhd | rfhb = IEEE754 remainder(rfhc, rfhd)（单精） | [SimRISC-03 §S2D1] |
-| ftsclb rfhb, rfhc, rfhd | rfhb = rfhc × 2^rfhd（单精，scaleB） | [SimRISC-03 §S2D1] |
-| foadd rfhb, rfhc, rfhd | rfhb = rfhc + rfhd（双精） | [SimRISC-03 §S2D1] |
-| fosub rfhb, rfhc, rfhd | rfhb = rfhc - rfhd（双精） | [SimRISC-03 §S2D1] |
-| fomul rfhb, rfhc, rfhd | rfhb = rfhc × rfhd（双精） | [SimRISC-03 §S2D1] |
-| fodiv rfhb, rfhc, rfhd | rfhb = rfhc / rfhd（双精） | [SimRISC-03 §S2D1] |
-| forem rfhb, rfhc, rfhd | rfhb = IEEE754 remainder(rfhc, rfhd)（双精） | [SimRISC-03 §S2D1] |
-| fosclb rfhb, rfhc, rfhd | rfhb = rfhc × 2^rfhd（双精，scaleB） | [SimRISC-03 §S2D1] |
-
-异常条件：目的或任一源操作数为 rf0 → ILLI。[SimRISC-03 §rf0 为目的寄存器约定]
-
-#### §6.1.2 融合乘加（rrrr 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| ftmadd rfha, rfhb, rfhc, rfhd | rfha = rfhb × rfhc + rfhd（单精 FMA） | [SimRISC-03 §S3D1] |
-| fomadd rfha, rfhb, rfhc, rfhd | rfha = rfhb × rfhc + rfhd（双精 FMA） | [SimRISC-03 §S3D1] |
-
-融合乘加为单次舍入（标准 FMA）。硬件先读全部源操作数再写结果。[SimRISC-03 §S3D1]
-
-#### §6.1.3 单源单目运算（orri 格式）
-
-| 指令 | 语义 | immu6 支持值 | 来源 |
-|------|------|-------------|------|
-| ftroot rfhb, rfhc, immu6 | rfhb = rootn(rfhc, immu6)（单精） | 2（平方根）、3（立方根） | [SimRISC-03 §S1D1] |
-| foroot rfhb, rfhc, immu6 | rfhb = rootn(rfhc, immu6)（双精） | 2（平方根）、3（立方根） | [SimRISC-03 §S1D1] |
-| ftlog rfhb, rfhc, immu6 | rfhb = log_base(rfhc)，base=immu6（单精） | 2（log2）、1（自然对数）、0（log10） | [SimRISC-03 §S1D1] |
-| folog rfhb, rfhc, immu6 | rfhb = log_base(rfhc)，base=immu6（双精） | 2（log2）、1（自然对数）、0（log10） | [SimRISC-03 §S1D1] |
-
-不支持的 immu6 值触发 ILLI 异常。[SimRISC-03 §S1D1]
-
-### §6.2 浮点符号位操作（orrr 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| ftsgnj rfhb, rfhc, rfhd | rfhb = copySign(rfhc, rfhd)（单精） | [SimRISC-03 §浮点符号位操作指令] |
-| fosgnj rfhb, rfhc, rfhd | rfhb = copySign(rfhc, rfhd)（双精） | [SimRISC-03 §浮点符号位操作指令] |
-| ftsgnn rfhb, rfhc, rfhd | rfhb = copySign(rfhc, negate(rfhd))（单精） | [SimRISC-03 §浮点符号位操作指令] |
-| fosgnn rfhb, rfhc, rfhd | rfhb = copySign(rfhc, negate(rfhd))（双精） | [SimRISC-03 §浮点符号位操作指令] |
-
-特例：[SimRISC-03 §浮点符号位操作指令]
-- rfhd = rf0 时：ftsgnj/fosgnj 实现 abs(rfhc)，ftsgnn/fosgnn 实现 −abs(rfhc)
-- rfhc = rfhd 时：ftsgnj/fosgnj 实现 copy(rfhc)，ftsgnn/fosgnn 实现 negate(rfhc)
-
-### §6.3 浮点比较（orrr 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| ftqcmp rdhb, rfhc, rfhd | 单精 Quiet Compare | [SimRISC-03 §浮点比较指令] |
-| ftscmp rdhb, rfhc, rfhd | 单精 Signaling Compare | [SimRISC-03 §浮点比较指令] |
-| foqcmp rdhb, rfhc, rfhd | 双精 Quiet Compare | [SimRISC-03 §浮点比较指令] |
-| foscmp rdhb, rfhc, rfhd | 双精 Signaling Compare | [SimRISC-03 §浮点比较指令] |
-
-比较结果（写入 rdhb）：[SimRISC-03 §浮点比较指令]
-- 1：rfhc > rfhd
-- 0：rfhc = rfhd
-- −1：rfhc < rfhd
-- NaN：unordered（Quiet Compare 为 qNaN，Signaling Compare 为 sNaN，符号位均为 0）
-
-### §6.4 浮点条件赋值（rrrr 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| cs.n rdha, rfhb, rfhc, rfhd | if (rdha < 0) rfhb = rfhc else rfhb = rfhd | [SimRISC-03 §浮点条件赋值指令] |
-| cs.z rdha, rfhb, rfhc, rfhd | if (rdha == 0) rfhb = rfhc else rfhb = rfhd | [SimRISC-03 §浮点条件赋值指令] |
-| cs.p rdha, rfhb, rfhc, rfhd | if (rdha > 0) rfhb = rfhc else rfhb = rfhd | [SimRISC-03 §浮点条件赋值指令] |
-| cs.eq rdha, rdhb, rfhc, rfhd | if (rdha == rdhb) rfhc = rfhd | [SimRISC-03 §浮点条件赋值指令] |
-| cs.ne rdha, rdhb, rfhc, rfhd | if (rdha != rdhb) rfhc = rfhd | [SimRISC-03 §浮点条件赋值指令] |
-
-当比较结果为 NaN 时，cs.eq 和 cs.ne 均执行 else 分支。[SimRISC-03 §浮点条件赋值指令]
-
-### §6.5 浮点分类（orri 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| ftcls rdhb, rfhc, 1 | 单精浮点分类 | [SimRISC-03 §浮点分类指令] |
-| focls rdhb, rfhc, 1 | 双精浮点分类 | [SimRISC-03 §浮点分类指令] |
-
-分类结果位（rdhb[9:0]，其余位清零）：[SimRISC-03 §浮点分类指令]
-
-| 位 | 含义 |
-|----|------|
-| 0 | negativeInfinity |
-| 1 | negativeNormal |
-| 2 | negativeSubnormal |
-| 3 | negativeZero |
-| 4 | positiveZero |
-| 5 | positiveSubnormal |
-| 6 | positiveNormal |
-| 7 | positiveInfinity |
-| 8 | signalingNaN |
-| 9 | quietNaN |
-
-### §6.6 浮点格式转换（orri 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| ft2fo rfhb, rfhc, immu6 | 单精→双精 | [SimRISC-03 §格式转换指令] |
-| fo2ft rfhb, rfhc, immu6 | 双精→单精 | [SimRISC-03 §格式转换指令] |
-| ft2ft rfhb, rfhc, immu6 | 单精寄存器间搬移 | [SimRISC-03 §格式转换指令] |
-| fo2fo rfhb, rfhc, immu6 | 双精寄存器间搬移 | [SimRISC-03 §格式转换指令] |
-| ft2it/ft2io/ft2ut/ft2uo rdhb, rfhc, immu6 | 浮点→整数 | [SimRISC-03 §格式转换指令] |
-| it2ft/io2ft/ut2ft/uo2ft rfhb, rdhc, immu6 | 整数→浮点 | [SimRISC-03 §格式转换指令] |
-| fo2it/fo2io/fo2ut/fo2uo rdhb, rfhc, immu6 | 浮点→整数 | [SimRISC-03 §格式转换指令] |
-| it2fo/io2fo/ut2fo/uo2fo rfhb, rdhc, immu6 | 整数→浮点 | [SimRISC-03 §格式转换指令] |
-
-其中 it=32 位有符号整数，io=64 位有符号整数，ut=32 位无符号整数，uo=64 位无符号整数，ft=32 位单精浮点，fo=64 位双精浮点。[SimRISC-03 §格式转换指令]
-
-- immu6 指定连续转换的寄存器数量（1–63） [SimRISC-03 §格式转换指令]
-- 源和目的可重叠，按序号递增逐对进行，先读后写 [SimRISC-03 §格式转换指令]
-
-浮点格式转换遵循 IEEE 754 标准：[SimRISC-03 §格式转换指令]
-- 浮点→浮点溢出返回 ±Inf（设置 OF），下溢按舍入模式处理（设置 UF），NaN 传播 payload
-- 整数→浮点转换可能 inexact（精度损失）
-- 浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值，设置 NV 标志
-- sNaN 作为算术输入时设置 NV 并返回 qNaN
-
-异常条件：[SimRISC-03 §格式转换指令]
-- immu6 = 0 → ILLI
-- 任一起始寄存器 + immu6 > 64 → ILLI
-
-### §6.7 RF 立即数设置（rwii 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| set.w rfha, wpN, immu16 | rfha[wyde(wpN)] = immu16，其余 48 位不变 | [SimRISC-03 §立即数常数赋值] |
-
-### §6.8 伪指令（浮点）
-
-| 伪指令 | 展开形式 | 来源 |
-|--------|----------|------|
-| set.ft rfxx, imm32 | set.w（2 条） | [SimRISC-03 §set.ft / set.fo 伪指令] |
-| set.fo rfxx, imm64 | set.w（4 条） | [SimRISC-03 §set.ft / set.fo 伪指令] |
-| set.ft rfxx, rs | rd2rf/ft2ft | [SimRISC-03 §set.ft / set.fo 伪指令] |
-| set.fo rfxx, rs | rd2rf/fo2fo | [SimRISC-03 §set.ft / set.fo 伪指令] |
+- 范围：`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o`（RF 存取）、`rf2rd`/`rd2rf`、`set.w`、格式转换、浮点算术/符号位/比较/条件赋值/分类指令、`set.ft`/`set.fo` 伪指令。
+- 唯一例外：`rf0`（FCSR）的寄存器模型/位布局属 §1.3.3，M1 测试机复位值需要，已在 §1.3.3 提取。
+- 浮点指令的 rf0 操作数约定（目的或任一源为 rf0 → ILLI）等属浮点内容，M1 不提取。[SimRISC-03 §rf0 为目的寄存器约定]
+- 完整浮点规范与编码留后续阶段（见 `.tao/knowledge/deferred.md`）。
 
 ---
 
-## §7 系统指令
+## §7 系统指令（M1 所需）
 
-### §7.1 占位指令（iiii 格式）
+> M1 仅提取测试机所需系统指令：占位 `swym`、非法 `illi`、`fence`。特权 cfx 系统指令与 LR-SC 原子指令标 `Excluded from M1`。
 
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| swym 0 | 除 PC 自增外无任何架构副作用（等同于 nop） | [SimRISC-04 §占位指令] |
-| swym N | 硬件时延指令，时延约为 swym 0 的 N+1 倍 | [SimRISC-04 §占位指令] |
+### §7.1 占位指令 swym（iiii 格式）
 
-- swym N 的后 24 位立即数为时延参数 [SimRISC-04 §占位指令]
-- 硬件可设时延上限，N 超过阈值后时延不再增加 [SimRISC-04 §占位指令]
-- 无论 N 取何值，指令仍为单条 32 位指令 [SimRISC-04 §占位指令]
-
-### §7.2 非法指令（oiii 格式）
+当指令地址需要对齐或特意留出空白时使用占位指令；SimRISC 采用 `swym`（参考 Knuth 的 MMIX）。[SimRISC-04 §占位指令]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| illi 0 | 触发 ILLI 异常 | [SimRISC-04 §非法指令] |
+| `swym 0` | 除 PC 自增外无任何架构副作用（等同于 nop） | [SimRISC-04 §占位指令] |
+| `swym N` | 硬件时延指令，后 24 位立即数为时延参数，时延约为 `swym 0` 的 N+1 倍 | [SimRISC-04 §占位指令] |
 
-- illi 的后 18 位立即数无特殊含义，由用户自行定义 [SimRISC-04 §非法指令]
-- illi 的 opcode 和 minor-opcode 均为全 0，当参数也为 0 时即为 32 位全零指令字 [SimRISC-04 §非法指令]
-- 未初始化的指令内存（全零）将触发 ILLI 异常 [SimRISC-04 §非法指令]
+- 硬件可设时延上限，N 超过阈值后时延不再增加。[SimRISC-04 §占位指令]
+- 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。[SimRISC-04 §占位指令]
+
+### §7.2 非法指令 illi（oiii 格式）
+
+SimRISC 采用 `illi` 作为专门的非法指令（illegal instruction）。[SimRISC-04 §非法指令]
+
+| 指令 | 语义 | 来源 |
+|------|------|------|
+| `illi 0` | 引发 **ILLI** 异常 | [SimRISC-04 §非法指令] |
+
+- `illi` 的后 18 位立即数无特殊含义，完全由用户/软件自定义，用户可通过操作系统机制捕获该异常并做功能扩展。[SimRISC-04 §非法指令]
+- 不建议捕获其它指令产生的非法指令异常做功能扩展（例如很多指令不允许目的为 rd0，否则引发非法指令异常）。[SimRISC-04 §非法指令]
+- `illi` 的 opcode 和 minor-opcode 均为全 0，当参数也为 0 时即为 32 位全零指令字；未初始化的指令内存（全零）将触发 **ILLI** 异常。[SimRISC-04 §非法指令]
 
 ### §7.3 fence 指令（oiii 格式）
 
+`fence` 指令对外部可见的访存请求（如设备 I/O 和内存访问）进行串行化。[SimRISC-04 §fence指令]
+
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| fence immu18 | 内存序屏障 | [SimRISC-04 §fence指令] |
+| `fence immu18` | 内存序屏障，低 4 位编码屏障类型 | [SimRISC-04 §fence指令] |
 
-低 4 位编码定义屏障类型：[SimRISC-04 §fence指令]
+低 4 位屏障类型编码：[SimRISC-04 §fence指令]
 
 | 位 | 含义 | 说明 |
 |----|------|------|
@@ -857,75 +833,34 @@ ret 指令从 ra63 弹出返回地址（低 48 位），并跳转。[SimRISC-02 
 | bit2 | R | 读屏障：前序读对后序读/写可见 |
 | bit3 | RW | 读写屏障：前序读写对后序读写可见（全屏障） |
 
-bits[17:4] 应为零（SBZ），非零值行为保留。[SimRISC-04 §fence指令]
+- bits[17:4] 应为零（SBZ），非零值行为保留。[SimRISC-04 §fence指令]
 
-### §7.4 LR-SC 指令（orrr 格式）
+### §7.4 LR-SC 原子指令 — Excluded from M1
 
-| 指令 | 语义 | 来源 |
+`lr`/`sc` 原子指令（`lr_nn.o`/`lr_nr.o`/`lr_an.o`/`lr_ar.o`、`sc_nn.o`/`sc_nr.o`/`sc_an.o`/`sc_ar.o`）**Excluded from M1**，本合约不提取其规范内容。[SimRISC-04 §LR-SC指令]
+
+- 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/deferred.md`）。
+- 编码位置：`MISC-AMO` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §MISC-AMO 指令编码]
+
+### §7.5 特权 cfx 系统指令 — Excluded from M1
+
+以下特权态指令 **Excluded from M1**，本合约不提取其规范内容：[SimRISC-04 §特权指令]
+
+| 指令 | 格式 | 来源 |
 |------|------|------|
-| lr_nn.o rdhc, rbhd | Load Reserved（无顺序限制） | [SimRISC-04 §LR-SC指令] |
-| lr_an.o rdhc, rbhd | Load Reserved（acquire） | [SimRISC-04 §LR-SC指令] |
-| lr_nr.o rdhc, rbhd | Load Reserved（无顺序限制） | [SimRISC-04 §LR-SC指令] |
-| lr_ar.o rdhc, rbhd | Load Reserved（acquire + release） | [SimRISC-04 §LR-SC指令] |
-| sc_nn.o rdhb, rdhc, rbhd | Store Conditional（无顺序限制） | [SimRISC-04 §LR-SC指令] |
-| sc_an.o rdhb, rdhc, rbhd | Store Conditional（acquire） | [SimRISC-04 §LR-SC指令] |
-| sc_nr.o rdhb, rdhc, rbhd | Store Conditional（无顺序限制） | [SimRISC-04 §LR-SC指令] |
-| sc_ar.o rdhb, rdhc, rbhd | Store Conditional（acquire + release） | [SimRISC-04 §LR-SC指令] |
+| `trap cfx_<cfxname>, immu18` | ciii | [SimRISC-04 §陷入指令] |
+| `escape cfx_<cfxname>, imms18` | ciii | [SimRISC-04 §退出指令] |
+| `cfx2rd`/`cfx2rc cfx_<cfxname>, cghb, rchc, rdhd` | crrr | [SimRISC-04 §寄存器传输指令] |
+| `cfxld`/`cfxst cfx_<cfxname>, rbhb, immu12` | crii | [SimRISC-04 §SRAM块传输指令] |
 
-- a=acquire，r=release，n=无顺序限制 [SimRISC-04 §LR-SC指令]
-- o=octa（64 位数据） [SimRISC-04 §LR-SC指令]
-- lr 的 hb（rdhb）固定为 rd0，汇编代码仅需两个操作数；若 hb ≠ 0 → ILLI [SimRISC-04 §LR-SC指令]
-- lr 从 rbhd 地址加载到 rdhc，并设置保留标记 [SimRISC-04 §LR-SC指令]
-- sc 在保留标记仍在时写入 rdhc 到 rbhd 地址，rdhb 设为 0（成功）；否则不写入，rdhb 设为 1（失败） [SimRISC-04 §LR-SC指令]
-- sc 总是清除当前 hart 上所有保留标记 [SimRISC-04 §LR-SC指令]
-- 要求 rbhd 中地址 8 字节对齐，否则 → MALIGN [SimRISC-04 §LR-SC指令]
+- 涉及异常 **CFXREG**、cfx reserved 编号（7–14、19–61）等均属特权内容，M1 不提取。[SimRISC-04 §寄存器传输指令]
+- 编码位置：op = 0111-1010 ~ 0111-1111（cfx2rd/cfx2rc/cfxld/cfxst/escape/trap）。[SimRISC-00 §SimRISC QFC]
 
-保留机制：[SimRISC-04 §LR-SC指令]
-- 一条 lr 在 hart 上设置保留标记
-- sc 可能偶发性失败（spurious failure），软件应在循环中重试
-- 以下事件清除保留标记：另一 hart 对保留地址的 store、当前 hart 执行另一条 lr、异常或中断进入
+### §7.6 伪指令 nop
 
-### §7.5 特权指令（crrr/crii/ciii 格式）
-
-#### §7.5.1 陷入指令
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| trap cfxname, immu18 | 将控制权转移到 cfxname 的异常向量地址 | [SimRISC-04 §陷入指令] |
-
-#### §7.5.2 退出指令
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| escape cfxname, imms18 | 退出当前特权态，目标地址 = excp_cause_ip + (imms18 << 2) | [SimRISC-04 §退出指令] |
-
-#### §7.5.3 寄存器传输指令
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| cfx2rd cfxname, cghb, rchc, rdhd | 读 cfx 寄存器到 rdhd | [SimRISC-04 §寄存器传输指令] |
-| cfx2rc cfxname, cghb, rchc, rdhd | 写 rdhd 到 cfx 寄存器 | [SimRISC-04 §寄存器传输指令] |
-
-异常条件：[SimRISC-04 §寄存器传输指令]
-- 读写不存在的 cfx 寄存器组合 → CFXREG
-- cfxname 为 reserved（7–14、19–61）→ ILLI
-- 读写权限不匹配 → CFXREG
-
-#### §7.5.4 SRAM 块传输指令
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| cfxld cfxname, rbhb, immu12 | 内存→cfx 内部存储 | [SimRISC-04 §SRAM块传输指令] |
-| cfxst cfxname, rbhb, immu12 | cfx 内部存储→内存 | [SimRISC-04 §SRAM块传输指令] |
-
-- 要求 64 字节对齐，传输长度 = immu12 × 64 字节 [SimRISC-04 §SRAM块传输指令]
-- cfxname 为 reserved（7–14、19–61）→ ILLI [SimRISC-04 §SRAM块传输指令]
-
-### §7.6 伪指令（系统）
-
-| 伪指令 | 展开形式 | 来源 |
-|--------|----------|------|
-| nop | swym 0 | [SimRISC-04 §nop 伪指令] |
+| 伪指令 | 展开形式 | 说明 | 来源 |
+|--------|----------|------|------|
+| `nop` | `swym 0` | 空操作，占位或对齐 | [SimRISC-04 §nop 伪指令] |
 
 ---
 
@@ -935,354 +870,305 @@ bits[17:4] 应为零（SBZ），非零值行为保留。[SimRISC-04 §fence指�
 
 `nop` 是汇编器伪指令，等价于 `swym 0`。[SimRISC-04 §nop 伪指令]
 
-### §8.2 保留编码
+### §8.2 保留编码（UNDI）
 
-QFC 表中空白单元格为 reserved（保留未分配）。执行保留编码触发 UNDI 异常。[SimRISC-00 §SimRISC QFC]
+QFC 主表与各 MISC 子表的空白单元格为 reserved（保留未分配）；执行保留编码触发 **UNDI** 异常。[SimRISC-00 §SimRISC QFC]
 
-### §8.3 全零指令
+### §8.3 全零指令（ILLI）
 
-32 位全零指令字（0x00000000）是 `illi 0`（opcode 和 minor-opcode 均为全 0），触发 ILLI 异常。[SimRISC-04 §非法指令]
+32 位全零指令字（0x00000000）是 `illi 0`（opcode 与 minor-opcode 均为全 0），触发 **ILLI** 异常；未初始化的指令内存（全零）将触发 ILLI。[SimRISC-04 §非法指令]
+
+> 注意：全零字触发 ILLI（§8.3），而保留编码触发 UNDI（§8.2），二者不同。[SimRISC-04 §非法指令][SimRISC-00 §SimRISC QFC]
 
 ---
 
 ## §9 异常总结
 
+M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（call 指令）][SimRISC-00 §弹栈流程（ret 指令）][SimRISC-01 §存取RD寄存器][SimRISC-04 §非法指令]
+
 | 异常 | 触发条件 | 来源 |
 |------|---------|------|
-| ILLI | 非法指令、非法操作数约束违反 | [SimRISC-04 §非法指令] |
-| MALIGN | 内存访问未对齐 | [SimRISC-01 §存取RD寄存器] |
-| UNDI | 执行保留编码 | [SimRISC-00 §SimRISC QFC] |
-| IALIGN | 取指时 PC[1:0] ≠ 00 | [SimRISC-00 §指令设计] |
-| RASOF | RegRAS 压栈溢出（调用深度超过 63） | [SimRISC-00 §压栈流程] |
-| RASUF | RegRAS 弹栈下溢（栈空时 ret） | [SimRISC-00 §弹栈流程] |
-| CFXREG | 读写不存在的 cfx 寄存器或权限不匹配 | [SimRISC-04 §寄存器传输指令] |
+| **ILLI** | 非法指令/非法操作数约束违反（详见下方清单） | [SimRISC-04 §非法指令] |
+| **MALIGN** | 内存访问未对齐（load/store、多 load/store、RB 存取） | [SimRISC-01 §存取RD寄存器][SimRISC-02 §存取RB寄存器] |
+| **UNDI** | 执行保留编码（QFC 主表 / MISC 子表空白单元格） | [SimRISC-00 §SimRISC QFC] |
+| **IALIGN** | 取指时 `PC[1:0] ≠ 00` | [SimRISC-00 §指令设计] |
+| **RASOF** | RegRAS 压栈溢出（调用深度超过 63），或 MemRAS 引用计数溢出 | [SimRISC-00 §压栈流程（call 指令）] |
+| **RASUF** | RegRAS 弹栈下溢（栈空时 ret），或 MemRAS 引用计数/内容无效 | [SimRISC-00 §弹栈流程（ret 指令）] |
 
-ILLI 触发场景汇总：[SimRISC-01, SimRISC-02, SimRISC-03, SimRISC-04]
-- 目的寄存器为 rd0（除 rrrr 双目指令允许一个为 rd0、ret rd0 0 允许外）
-- 目的寄存器为 rb0
-- 浮点运算指令的目的或任一源操作数为 rf0
-- ldm/stm 的 rdha 为 rd0 或 immu6 = 0 或 rdha + immu6 > 64
-- 块赋值的 immu6 = 0 或目的为 rd0/rb0 或起始 + immu6 > 64
-- 移位量 shamt > N
-- 扩展的 hd > N
-- 除数为零
-- div.s 中 INT_MIN ÷ −1
-- add/sub rrrr 中 rdha 和 rdhb 同时为 rd0 或为同一非 rd0 寄存器
-- illi 指令本身
-- cfxname 为 reserved（7–14、19–61）
-- lr 的 hb ≠ 0
-- 不支持的 ftroot/foroot/ftlog/folog 的 immu6 值
+> CFXREG 异常仅由特权 cfx 指令产生，Excluded from M1，不列入本表。[SimRISC-04 §寄存器传输指令]
+
+### §9.1 ILLI 触发场景（M1 汇总）
+
+- 目的寄存器为 `rd0`（除 rrrr 双目的指令允许一个为 rd0、`ret rd0, 0` 允许外）。[SimRISC-01 §rd0 为目的寄存器约定]
+- 目的寄存器为 `rb0`。[SimRISC-02 §rb0 为目的寄存器约定]
+- `ld`/`st`（RD）目的 `rdha` 为 `rd0`。[SimRISC-01 §存取RD寄存器]
+- `ldm`/`stm`（RD）`rdha` 为 `rd0`、`immu6 = 0`、或 `rdha + immu6 > 64`。[SimRISC-01 §存取RD寄存器]
+- 块赋值（`rd2rd`/`rb2rd`/`rd2rb`/`rb2rb`）`immu6 = 0`、目的为 `rd0`/`rb0`、或起始寄存器 + immu6 > 64。[SimRISC-01 §寄存器组之间块赋值][SimRISC-02 §寄存器组之间块赋值]
+- `ld.o`/`st.o`/`ldm.o`/`stm.o`（RB）`rbha` 为 `rb0`、`immu6 = 0`、或 `rbha + immu6 > 64`。[SimRISC-02 §存取RB寄存器]
+- 移位量 `shamt > N`。[SimRISC-01 §Bit manipulating：位操作指令]
+- 扩展起始位 `hd > N`。[SimRISC-01 §Bit manipulating：位操作指令]
+- 除法除数为零。[SimRISC-01 §乘除操作]
+- `div.s` 中 INT_MIN ÷ −1（各 size 对应值）。[SimRISC-01 §乘除操作]
+- `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-01 §加减操作][SimRISC-01 §乘除操作]
+- 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-01 §加减操作][SimRISC-01 §比较操作][SimRISC-01 §乘除操作]
+- `illi` 指令本身（含全零指令字）。[SimRISC-04 §非法指令]
+
+### §9.2 精确异常承诺
+
+- `div`/`rem` fault 时目的寄存器未写入（无副作用）。[SimRISC-01 §乘除操作]
+- RASOF/RASUF 触发时 RA 寄存器保持异常前状态（push/pop 未提交），PC 指向触发异常的 call/ret 指令。[SimRISC-00 §返回地址栈]
+- MemRAS 访存异常时硬件保证精确异常（压栈/弹栈未执行，PC 指向 call/ret 指令），异常处理后可重新执行。[SimRISC-00 §返回地址栈]
 
 ---
 
-## 附录 A：完整编码清单
+## 附录 A：M1 指令编码清单
 
-### A.1 QFC 主表（op[7:0]）
+### A.1 QFC 主表（op[7:0]，M1 指令）
 
-| op | 格式 | insn | 助记符 |
-|------|------|--------|
-| 0000-0000 | oiii | illi | illi |
-| 0000-0001 | oiii | fence | fence |
-| 0000-0100 | orrr | lr_nn.o | lr_nn.o |
-| 0000-0101 | orrr | lr_nr.o | lr_nr.o |
-| 0000-0110 | orrr | lr_an.o | lr_an.o |
-| 0000-0111 | orrr | lr_ar.o | lr_ar.o |
-| 0000-1100 | orrr | sc_nn.o | sc_nn.o |
-| 0000-1101 | orrr | sc_nr.o | sc_nr.o |
-| 0000-1110 | orrr | sc_an.o | sc_an.o |
-| 0000-1111 | orrr | sc_ar.o | sc_ar.o |
-| 0001-0000 | rrii | ld.ub-rd | ld.ub |
-| 0001-0001 | rrii | ld.uw-rd | ld.uw |
-| 0001-0010 | rrii | ld.ut-rd | ld.ut |
-| 0001-0011 | rrii | ld.sb-rd | ld.sb |
-| 0001-0100 | rrii | ld.sw-rd | ld.sw |
-| 0001-0101 | rrii | ld.st-rd | ld.st |
-| 0001-0110 | rrii | ld.t-rf | ld.t |
-| 0001-0111 | rrii | st.t-rf | st.t |
-| 0001-1000 | rrii | st.b-rd | st.b |
-| 0001-1001 | rrii | st.w-rd | st.w |
-| 0001-1010 | rrii | st.t-rd | st.t |
-| 0010-0000 | rrii | ld.o-rd | ld.o |
-| 0010-0001 | rrii | st.o-rd | st.o |
-| 0010-0010 | rrii | ld.o-rb | ld.o |
-| 0010-0011 | rrii | st.o-rb | st.o |
-| 0010-0100 | rrii | ld.o-ra | ld.o |
-| 0010-0101 | rrii | st.o-ra | st.o |
-| 0010-0110 | rrii | ld.o-rf | ld.o |
-| 0010-0111 | rrii | st.o-rf | st.o |
-| 0010-1000 | rrri | ldm.ub-rd | ldm.ub |
-| 0010-1001 | rrri | ldm.uw-rd | ldm.uw |
-| 0010-1010 | rrri | ldm.ut-rd | ldm.ut |
-| 0010-1011 | rrri | ldm.sb-rd | ldm.sb |
-| 0010-1100 | rrri | ldm.sw-rd | ldm.sw |
-| 0010-1101 | rrri | ldm.st-rd | ldm.st |
-| 0010-1110 | rrri | ldm.t-rf | ldm.t |
-| 0010-1111 | rrri | stm.t-rf | stm.t |
-| 0011-0000 | rrri | stm.b-rd | stm.b |
-| 0011-0001 | rrri | stm.w-rd | stm.w |
-| 0011-0010 | rrri | stm.t-rd | stm.t |
-| 0011-1000 | rrri | ldm.o-rd | ldm.o |
-| 0011-1001 | rrri | stm.o-rd | stm.o |
-| 0011-1010 | rrri | ldm.o-rb | ldm.o |
-| 0011-1011 | rrri | stm.o-rb | stm.o |
-| 0011-1100 | rrri | ldm.o-ra | ldm.o |
-| 0011-1101 | rrri | stm.o-ra | stm.o |
-| 0011-1110 | rrri | ldm.o-rf | ldm.o |
-| 0011-1111 | rrri | stm.o-rf | stm.o |
-| 0100-0000 | — | MISC-AMO 子表 |
-| 0100-0001 | — | MISC-octa 子表 |
-| 0100-0010 | — | MISC-tetra 子表 |
-| 0100-0011 | — | MISC-wyde 子表 |
-| 0100-0100 | — | MISC-byte 子表 |
-| 0100-0101 | — | MISC-RF 子表 |
-| 0100-1000 | rwii | or.w-rd | or.w |
-| 0100-1001 | rwii | andn.w-rd | andn.w |
-| 0100-1010 | rwii | or.w-rb | or.w |
-| 0100-1011 | rwii | andn.w-rb | andn.w |
-| 0100-1100 | rwii | set.zw-rd | set.zw |
-| 0100-1101 | rwii | set.ow-rd | set.ow |
-| 0100-1110 | rwii | set.zw-rb | set.zw |
-| 0100-1111 | rwii | set.w-rf | set.w |
-| 0101-0000 | rrrr | add.uo-rd | add.uo |
-| 0101-0001 | rrrr | add.so-rd | add.so |
-| 0101-0010 | rrrr | sub.uo-rd | sub.uo |
-| 0101-0011 | rrrr | sub.so-rd | sub.so |
-| 0101-0100 | rrrr | mul.uo-rd | mul.uo |
-| 0101-0101 | rrrr | mul.so-rd | mul.so |
-| 0101-0110 | rrrr | ftmadd | ftmadd |
-| 0101-0111 | rrrr | fomadd | fomadd |
-| 0101-1001 | riii | add.si-rd | add.si |
-| 0101-1010 | riii | rela.si-rb | rela.si |
-| 0101-1011 | riii | add.si-rb | add.si |
-| 0101-1100 | rrii | cmp.ui-rd | cmp.ui |
-| 0101-1101 | rrii | cmp.si-rd | cmp.si |
-| 0101-1110 | rrrr | cs.eq-rf | cs.eq |
-| 0101-1111 | rrrr | cs.ne-rf | cs.ne |
-| 0110-0000 | rrrr | cs.n-rd | cs.n |
-| 0110-0001 | rrrr | cs.n-rf | cs.n |
-| 0110-0010 | rrrr | cs.z-rd | cs.z |
-| 0110-0011 | rrrr | cs.z-rf | cs.z |
-| 0110-0100 | rrrr | cs.p-rd | cs.p |
-| 0110-0101 | rrrr | cs.p-rf | cs.p |
-| 0110-0110 | rrrr | cs.eq-rd | cs.eq |
-| 0110-0111 | rrrr | cs.ne-rd | cs.ne |
-| 0110-1000 | riii | br.n-rd | br.n |
-| 0110-1001 | riii | br.nn-rd | br.nn |
-| 0110-1010 | riii | br.z-rd | br.z |
-| 0110-1011 | riii | br.nz-rd | br.nz |
-| 0110-1100 | riii | br.p-rd | br.p |
-| 0110-1101 | riii | br.np-rd | br.np |
-| 0110-1110 | rrii | br.eq-rd | br.eq |
-| 0110-1111 | rrii | br.ne-rd | br.ne |
-| 0111-0000 | iiii | jump-iiii | jump-iiii |
-| 0111-0001 | rrii | jump-rrii | jump-rrii |
-| 0111-0010 | riii | br.z-rb | br.z |
-| 0111-0011 | riii | br.nz-rb | br.nz |
-| 0111-0100 | iiii | call-iiii | call-iiii |
-| 0111-0101 | rrii | call-rrii | call-rrii |
-| 0111-0110 | riii | ret | ret |
-| 0111-0111 | iiii | swym | swym |
-| 0111-1010 | crrr | cfx2rd | cfx2rd |
-| 0111-1011 | crrr | cfx2rc | cfx2rc |
-| 0111-1100 | crii | cfxld | cfxld |
-| 0111-1101 | crii | cfxst | cfxst |
-| 0111-1110 | ciii | escape | escape |
-| 0111-1111 | ciii | trap | trap |
+| op (hex) | op (bits) | 格式 | insn | 助记符 | 来源 |
+|----------|-----------|------|------|--------|------|
+| 0x00 | 0000-0000 | — | MISC-AMO | （见 A.6） | [SimRISC-00 §SimRISC QFC] |
+| 0x10 | 0001-0000 | rrii | ld.ub-rd | `ld.ub` | [SimRISC-00 §SimRISC QFC] |
+| 0x11 | 0001-0001 | rrii | ld.uw-rd | `ld.uw` | [SimRISC-00 §SimRISC QFC] |
+| 0x12 | 0001-0010 | rrii | ld.ut-rd | `ld.ut` | [SimRISC-00 §SimRISC QFC] |
+| 0x13 | 0001-0011 | rrii | ld.sb-rd | `ld.sb` | [SimRISC-00 §SimRISC QFC] |
+| 0x14 | 0001-0100 | rrii | ld.sw-rd | `ld.sw` | [SimRISC-00 §SimRISC QFC] |
+| 0x15 | 0001-0101 | rrii | ld.st-rd | `ld.st` | [SimRISC-00 §SimRISC QFC] |
+| 0x18 | 0001-1000 | rrii | st.b-rd | `st.b` | [SimRISC-00 §SimRISC QFC] |
+| 0x19 | 0001-1001 | rrii | st.w-rd | `st.w` | [SimRISC-00 §SimRISC QFC] |
+| 0x1A | 0001-1010 | rrii | st.t-rd | `st.t` | [SimRISC-00 §SimRISC QFC] |
+| 0x20 | 0010-0000 | rrii | ld.o-rd | `ld.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x21 | 0010-0001 | rrii | st.o-rd | `st.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x22 | 0010-0010 | rrii | ld.o-rb | `ld.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x23 | 0010-0011 | rrii | st.o-rb | `st.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x28 | 0010-1000 | rrri | ldm.ub-rd | `ldm.ub` | [SimRISC-00 §SimRISC QFC] |
+| 0x29 | 0010-1001 | rrri | ldm.uw-rd | `ldm.uw` | [SimRISC-00 §SimRISC QFC] |
+| 0x2A | 0010-1010 | rrri | ldm.ut-rd | `ldm.ut` | [SimRISC-00 §SimRISC QFC] |
+| 0x2B | 0010-1011 | rrri | ldm.sb-rd | `ldm.sb` | [SimRISC-00 §SimRISC QFC] |
+| 0x2C | 0010-1100 | rrri | ldm.sw-rd | `ldm.sw` | [SimRISC-00 §SimRISC QFC] |
+| 0x2D | 0010-1101 | rrri | ldm.st-rd | `ldm.st` | [SimRISC-00 §SimRISC QFC] |
+| 0x30 | 0011-0000 | rrri | stm.b-rd | `stm.b` | [SimRISC-00 §SimRISC QFC] |
+| 0x31 | 0011-0001 | rrri | stm.w-rd | `stm.w` | [SimRISC-00 §SimRISC QFC] |
+| 0x32 | 0011-0010 | rrri | stm.t-rd | `stm.t` | [SimRISC-00 §SimRISC QFC] |
+| 0x38 | 0011-1000 | rrri | ldm.o-rd | `ldm.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x39 | 0011-1001 | rrri | stm.o-rd | `stm.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x3A | 0011-1010 | rrri | ldm.o-rb | `ldm.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x3B | 0011-1011 | rrri | stm.o-rb | `stm.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x40 | 0100-0000 | — | MISC-octa | （见 A.2） | [SimRISC-00 §SimRISC QFC] |
+| 0x41 | 0100-0001 | — | MISC-tetra | （见 A.3） | [SimRISC-00 §SimRISC QFC] |
+| 0x42 | 0100-0010 | — | MISC-wyde | （见 A.4） | [SimRISC-00 §SimRISC QFC] |
+| 0x43 | 0100-0011 | — | MISC-byte | （见 A.5） | [SimRISC-00 §SimRISC QFC] |
+| 0x48 | 0100-1000 | rwii | or.w-rd | `or.w` | [SimRISC-00 §SimRISC QFC] |
+| 0x49 | 0100-1001 | rwii | andn.w-rd | `andn.w` | [SimRISC-00 §SimRISC QFC] |
+| 0x4A | 0100-1010 | rwii | or.w-rb | `or.w` | [SimRISC-00 §SimRISC QFC] |
+| 0x4B | 0100-1011 | rwii | andn.w-rb | `andn.w` | [SimRISC-00 §SimRISC QFC] |
+| 0x4C | 0100-1100 | rwii | set.zw-rd | `set.zw` | [SimRISC-00 §SimRISC QFC] |
+| 0x4D | 0100-1101 | rwii | set.ow-rd | `set.ow` | [SimRISC-00 §SimRISC QFC] |
+| 0x4E | 0100-1110 | rwii | set.zw-rb | `set.zw` | [SimRISC-00 §SimRISC QFC] |
+| 0x50 | 0101-0000 | rrrr | add.uo-rd | `add.uo` | [SimRISC-00 §SimRISC QFC] |
+| 0x51 | 0101-0001 | rrrr | add.so-rd | `add.so` | [SimRISC-00 §SimRISC QFC] |
+| 0x52 | 0101-0010 | rrrr | sub.uo-rd | `sub.uo` | [SimRISC-00 §SimRISC QFC] |
+| 0x53 | 0101-0011 | rrrr | sub.so-rd | `sub.so` | [SimRISC-00 §SimRISC QFC] |
+| 0x54 | 0101-0100 | rrrr | mul.uo-rd | `mul.uo` | [SimRISC-00 §SimRISC QFC] |
+| 0x55 | 0101-0101 | rrrr | mul.so-rd | `mul.so` | [SimRISC-00 §SimRISC QFC] |
+| 0x59 | 0101-1001 | riii | add.si-rd | `add.si` | [SimRISC-00 §SimRISC QFC] |
+| 0x5A | 0101-1010 | riii | rela.si-rb | `rela.si` | [SimRISC-00 §SimRISC QFC] |
+| 0x5B | 0101-1011 | riii | add.si-rb | `add.si` | [SimRISC-00 §SimRISC QFC] |
+| 0x5C | 0101-1100 | rrii | cmp.ui-rd | `cmp.ui` | [SimRISC-00 §SimRISC QFC] |
+| 0x5D | 0101-1101 | rrii | cmp.si-rd | `cmp.si` | [SimRISC-00 §SimRISC QFC] |
+| 0x60 | 0110-0000 | rrrr | cs.n-rd | `cs.n` | [SimRISC-00 §SimRISC QFC] |
+| 0x62 | 0110-0010 | rrrr | cs.z-rd | `cs.z` | [SimRISC-00 §SimRISC QFC] |
+| 0x64 | 0110-0100 | rrrr | cs.p-rd | `cs.p` | [SimRISC-00 §SimRISC QFC] |
+| 0x66 | 0110-0110 | rrrr | cs.eq-rd | `cs.eq` | [SimRISC-00 §SimRISC QFC] |
+| 0x67 | 0110-0111 | rrrr | cs.ne-rd | `cs.ne` | [SimRISC-00 §SimRISC QFC] |
+| 0x68 | 0110-1000 | riii | br.n-rd | `br.n` | [SimRISC-00 §SimRISC QFC] |
+| 0x69 | 0110-1001 | riii | br.nn-rd | `br.nn` | [SimRISC-00 §SimRISC QFC] |
+| 0x6A | 0110-1010 | riii | br.z-rd | `br.z` | [SimRISC-00 §SimRISC QFC] |
+| 0x6B | 0110-1011 | riii | br.nz-rd | `br.nz` | [SimRISC-00 §SimRISC QFC] |
+| 0x6C | 0110-1100 | riii | br.p-rd | `br.p` | [SimRISC-00 §SimRISC QFC] |
+| 0x6D | 0110-1101 | riii | br.np-rd | `br.np` | [SimRISC-00 §SimRISC QFC] |
+| 0x6E | 0110-1110 | rrii | br.eq-rd | `br.eq` | [SimRISC-00 §SimRISC QFC] |
+| 0x6F | 0110-1111 | rrii | br.ne-rd | `br.ne` | [SimRISC-00 §SimRISC QFC] |
+| 0x70 | 0111-0000 | iiii | jump-iiii | `jump` | [SimRISC-00 §SimRISC QFC] |
+| 0x71 | 0111-0001 | rrii | jump-rrii | `jump` | [SimRISC-00 §SimRISC QFC] |
+| 0x72 | 0111-0010 | riii | br.z-rb | `br.z` | [SimRISC-00 §SimRISC QFC] |
+| 0x73 | 0111-0011 | riii | br.nz-rb | `br.nz` | [SimRISC-00 §SimRISC QFC] |
+| 0x74 | 0111-0100 | iiii | call-iiii | `call` | [SimRISC-00 §SimRISC QFC] |
+| 0x75 | 0111-0101 | rrii | call-rrii | `call` | [SimRISC-00 §SimRISC QFC] |
+| 0x76 | 0111-0110 | riii | ret | `ret` | [SimRISC-00 §SimRISC QFC] |
+| 0x77 | 0111-0111 | iiii | swym | `swym` | [SimRISC-00 §SimRISC QFC] |
 
-### A.2 MISC-octa 子表
+### A.2 MISC-octa 子表（op = 0x40，minor-opcode 在 ha[5:0]）
 
-| minor-opcode | 助记符 | 格式 |
-|-------------|--------|------|
-| 001-000 | and.o | orrr |
-| 001-001 | or.o | orrr |
-| 001-010 | xor.o | orrr |
-| 001-011 | xnor.o | orrr |
-| 010-000 | ext.uo | orrr |
-| 010-001 | ext.so | orrr |
-| 010-010 | shr.uo | orrr |
-| 010-011 | shr.so | orrr |
-| 010-100 | shl.uo | orrr |
-| 011-000 | ext.uo | orri |
-| 011-001 | ext.so | orri |
-| 011-010 | shr.uo | orri |
-| 011-011 | shr.so | orri |
-| 011-100 | shl.uo | orri |
-| 100-000 | add.so-rb | orrr |
-| 101-000 | sub.so-rb | orrr |
-| 101-001 | cmp.uo-rb | orrr |
-| 101-010 | cmp.uo | orrr |
-| 101-011 | cmp.so | orrr |
-| 101-100 | rd2rd | orri |
-| 101-101 | rd2ra | orri |
-| 101-110 | ra2rd | orri |
-| 110-100 | rb2rb | orri |
-| 110-101 | rd2rb | orri |
-| 110-110 | rb2rd | orri |
-| 111-000 | div.uo | orrr |
-| 111-001 | div.so | orrr |
-| 111-010 | rem.uo | orrr |
-| 111-011 | rem.so | orrr |
-| 111-101 | rd2rf | orri |
-| 111-110 | rf2rd | orri |
+| minor-opcode | 助记符 | 格式 | 来源 |
+|-------------|--------|------|------|
+| 001-000 | `and.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 001-001 | `or.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 001-010 | `xor.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 001-011 | `xnor.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 010-000 | `ext.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 010-001 | `ext.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 010-010 | `shr.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 010-011 | `shr.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 010-100 | `shl.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 011-000 | `ext.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 011-001 | `ext.so` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 011-010 | `shr.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 011-011 | `shr.so` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 011-100 | `shl.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 100-000 | `add.so-rb` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 101-000 | `sub.so-rb` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 101-001 | `cmp.uo-rb` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 101-010 | `cmp.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 101-011 | `cmp.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 101-100 | `rd2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 110-100 | `rb2rb` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 110-101 | `rd2rb` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 110-110 | `rb2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 111-000 | `div.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 111-001 | `div.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 111-010 | `rem.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 111-011 | `rem.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 
-### A.3 MISC-tetra 子表
+### A.3 MISC-tetra 子表（op = 0x41）
 
-| minor-opcode | 助记符 | 格式 |
-|-------------|--------|------|
-| 001-000 | and.t | orrr |
-| 001-001 | or.t | orrr |
-| 001-010 | xor.t | orrr |
-| 001-011 | xnor.t | orrr |
-| 010-000 | ext.ut | orrr |
-| 010-001 | ext.st | orrr |
-| 010-010 | shr.ut | orrr |
-| 010-011 | shr.st | orrr |
-| 010-100 | shl.ut | orrr |
-| 011-000 | ext.ut | orri |
-| 011-001 | ext.st | orri |
-| 011-010 | shr.ut | orri |
-| 011-011 | shr.st | orri |
-| 011-100 | shl.ut | orri |
-| 100-000 | add.ut | orrr |
-| 100-001 | add.st | orrr |
-| 101-000 | sub.ut | orrr |
-| 101-001 | sub.st | orrr |
-| 101-010 | cmp.ut | orrr |
-| 101-011 | cmp.st | orrr |
-| 110-000 | mul.ut | orrr |
-| 110-001 | mul.st | orrr |
-| 111-000 | div.ut | orrr |
-| 111-001 | div.st | orrr |
-| 111-010 | rem.ut | orrr |
-| 111-011 | rem.st | orrr |
+| minor-opcode | 助记符 | 格式 | 来源 |
+|-------------|--------|------|------|
+| 001-000 | `and.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 001-001 | `or.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 001-010 | `xor.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 001-011 | `xnor.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 010-000 | `ext.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 010-001 | `ext.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 010-010 | `shr.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 010-011 | `shr.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 010-100 | `shl.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 011-000 | `ext.ut` | orri | [SimRISC-00 §MISC-tetra指令编码] |
+| 011-001 | `ext.st` | orri | [SimRISC-00 §MISC-tetra指令编码] |
+| 011-010 | `shr.ut` | orri | [SimRISC-00 §MISC-tetra指令编码] |
+| 011-011 | `shr.st` | orri | [SimRISC-00 §MISC-tetra指令编码] |
+| 011-100 | `shl.ut` | orri | [SimRISC-00 §MISC-tetra指令编码] |
+| 100-000 | `add.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 100-001 | `add.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 101-000 | `sub.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 101-001 | `sub.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 101-010 | `cmp.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 101-011 | `cmp.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 110-000 | `mul.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 110-001 | `mul.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 111-000 | `div.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 111-001 | `div.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 111-010 | `rem.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 111-011 | `rem.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 
-### A.4 MISC-wyde 子表
+### A.4 MISC-wyde 子表（op = 0x42）
 
-| minor-opcode | 助记符 | 格式 |
-|-------------|--------|------|
-| 001-000 | and.w | orrr |
-| 001-001 | or.w | orrr |
-| 001-010 | xor.w | orrr |
-| 001-011 | xnor.w | orrr |
-| 010-000 | ext.uw | orrr |
-| 010-001 | ext.sw | orrr |
-| 010-010 | shr.uw | orrr |
-| 010-011 | shr.sw | orrr |
-| 010-100 | shl.uw | orrr |
-| 011-000 | ext.uw | orri |
-| 011-001 | ext.sw | orri |
-| 011-010 | shr.uw | orri |
-| 011-011 | shr.sw | orri |
-| 011-100 | shl.uw | orri |
-| 100-000 | add.uw | orrr |
-| 100-001 | add.sw | orrr |
-| 101-000 | sub.uw | orrr |
-| 101-001 | sub.sw | orrr |
-| 101-010 | cmp.uw | orrr |
-| 101-011 | cmp.sw | orrr |
-| 110-000 | mul.uw | orrr |
-| 110-001 | mul.sw | orrr |
-| 111-000 | div.uw | orrr |
-| 111-001 | div.sw | orrr |
-| 111-010 | rem.uw | orrr |
-| 111-011 | rem.sw | orrr |
+| minor-opcode | 助记符 | 格式 | 来源 |
+|-------------|--------|------|------|
+| 001-000 | `and.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 001-001 | `or.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 001-010 | `xor.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 001-011 | `xnor.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 010-000 | `ext.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 010-001 | `ext.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 010-010 | `shr.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 010-011 | `shr.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 010-100 | `shl.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 011-000 | `ext.uw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
+| 011-001 | `ext.sw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
+| 011-010 | `shr.uw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
+| 011-011 | `shr.sw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
+| 011-100 | `shl.uw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
+| 100-000 | `add.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 100-001 | `add.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 101-000 | `sub.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 101-001 | `sub.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 101-010 | `cmp.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 101-011 | `cmp.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 110-000 | `mul.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 110-001 | `mul.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 111-000 | `div.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 111-001 | `div.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 111-010 | `rem.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 111-011 | `rem.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 
-### A.5 MISC-byte 子表
+### A.5 MISC-byte 子表（op = 0x43）
 
-| minor-opcode | 助记符 | 格式 |
-|-------------|--------|------|
-| 001-000 | and.b | orrr |
-| 001-001 | or.b | orrr |
-| 001-010 | xor.b | orrr |
-| 001-011 | xnor.b | orrr |
-| 010-000 | ext.ub | orrr |
-| 010-001 | ext.sb | orrr |
-| 010-010 | shr.ub | orrr |
-| 010-011 | shr.sb | orrr |
-| 010-100 | shl.ub | orrr |
-| 011-000 | ext.ub | orri |
-| 011-001 | ext.sb | orri |
-| 011-010 | shr.ub | orri |
-| 011-011 | shr.sb | orri |
-| 011-100 | shl.ub | orri |
-| 100-000 | add.ub | orrr |
-| 100-001 | add.sb | orrr |
-| 101-000 | sub.ub | orrr |
-| 101-001 | sub.sb | orrr |
-| 101-010 | cmp.ub | orrr |
-| 101-011 | cmp.sb | orrr |
-| 110-000 | mul.ub | orrr |
-| 110-001 | mul.sb | orrr |
-| 111-000 | div.ub | orrr |
-| 111-001 | div.sb | orrr |
-| 111-010 | rem.ub | orrr |
-| 111-011 | rem.sb | orrr |
+| minor-opcode | 助记符 | 格式 | 来源 |
+|-------------|--------|------|------|
+| 001-000 | `and.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 001-001 | `or.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 001-010 | `xor.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 001-011 | `xnor.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 010-000 | `ext.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 010-001 | `ext.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 010-010 | `shr.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 010-011 | `shr.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 010-100 | `shl.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 011-000 | `ext.ub` | orri | [SimRISC-00 §MISC-byte指令编码] |
+| 011-001 | `ext.sb` | orri | [SimRISC-00 §MISC-byte指令编码] |
+| 011-010 | `shr.ub` | orri | [SimRISC-00 §MISC-byte指令编码] |
+| 011-011 | `shr.sb` | orri | [SimRISC-00 §MISC-byte指令编码] |
+| 011-100 | `shl.ub` | orri | [SimRISC-00 §MISC-byte指令编码] |
+| 100-000 | `add.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 100-001 | `add.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 101-000 | `sub.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 101-001 | `sub.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 101-010 | `cmp.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 101-011 | `cmp.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 110-000 | `mul.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 110-001 | `mul.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 111-000 | `div.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 111-001 | `div.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 111-010 | `rem.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 111-011 | `rem.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 
-### A.6 MISC-RF 子表
+### A.6 MISC-AMO 子表（op = 0x00，M1 条目）
 
-| minor-opcode | 助记符 | 格式 |
-|-------------|--------|------|
-| 000-000 | ftcls | orri | orri |
-| 000-001 | ft2fo | orri |
-| 000-010 | ft2ft | orri |
-| 000-110 | ftroot | orri | orri |
-| 000-111 | ftlog | orri | orri |
-| 001-000 | focls | orri | orri |
-| 001-001 | fo2ft | orri |
-| 001-010 | fo2fo | orri |
-| 001-110 | foroot | orri | orri |
-| 001-111 | folog | orri | orri |
-| 010-000 | ftadd | orrr | orrr |
-| 010-001 | ftsub | orrr | orrr |
-| 010-010 | ftmul | orrr | orrr |
-| 010-011 | ftdiv | orrr | orrr |
-| 010-100 | ftrem | orrr | orrr |
-| 010-101 | ftsclb | orrr | orrr |
-| 010-110 | ftsgnn | orrr | orrr |
-| 010-111 | ftsgnj | orrr | orrr |
-| 011-000 | foadd | orrr | orrr |
-| 011-001 | fosub | orrr | orrr |
-| 011-010 | fomul | orrr | orrr |
-| 011-011 | fodiv | orrr | orrr |
-| 011-100 | forem | orrr | orrr |
-| 011-101 | fosclb | orrr | orrr |
-| 011-110 | fosgnn | orrr | orrr |
-| 011-111 | fosgnj | orrr | orrr |
-| 100-000 | ftqcmp | orrr | orrr |
-| 100-001 | ftscmp | orrr | orrr |
-| 101-000 | foqcmp | orrr | orrr |
-| 101-001 | foscmp | orrr | orrr |
-| 110-000 | ft2it | orri |
-| 110-001 | ft2io | orri |
-| 110-010 | ft2ut | orri |
-| 110-011 | ft2uo | orri |
-| 110-100 | it2ft | orri |
-| 110-101 | io2ft | orri |
-| 110-110 | ut2ft | orri |
-| 110-111 | uo2ft | orri |
-| 111-000 | fo2it | orri |
-| 111-001 | fo2io | orri |
-| 111-010 | fo2ut | orri |
-| 111-011 | fo2uo | orri |
-| 111-100 | it2fo | orri |
-| 111-101 | io2fo | orri |
-| 111-110 | ut2fo | orri |
-| 111-111 | uo2fo | orri |
+| minor-opcode | 助记符 | 格式 | 来源 |
+|-------------|--------|------|------|
+| 000-000 | `illi` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
+| 000-001 | `fence` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
 
-### A.7 MISC-AMO 子表
+> LR-SC 条目（010-xxx / 011-xxx）Excluded from M1，见 A.7。[SimRISC-00 §MISC-AMO 指令编码]
 
-| minor-opcode | 助记符 | 格式 |
-|-------------|--------|------|
-| 000-000 | illi | oiii | oiii |
-| 000-001 | fence | oiii | oiii |
-| 010-000 | lr_nn.o | orrr |
-| 010-001 | lr_nr.o | orrr |
-| 010-010 | lr_an.o | orrr |
-| 010-011 | lr_ar.o | orrr |
-| 011-000 | sc_nn.o | orrr |
-| 011-001 | sc_nr.o | orrr |
-| 011-010 | sc_an.o | orrr |
-| 011-011 | sc_ar.o | orrr |
+### A.7 Excluded from M1 编码清单
+
+| op (hex) / 位置 | insn | 助记符 | 类别 | 来源 |
+|-----------------|------|--------|------|------|
+| 0x16 | ld.t-rf | `ld.t` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x17 | st.t-rf | `st.t` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x24 | ld.o-ra | `ld.o` | RA 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x25 | st.o-ra | `st.o` | RA 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x26 | ld.o-rf | `ld.o` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x27 | st.o-rf | `st.o` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x2E | ldm.t-rf | `ldm.t` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x2F | stm.t-rf | `stm.t` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x3C | ldm.o-ra | `ldm.o` | RA 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x3D | stm.o-ra | `stm.o` | RA 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x3E | ldm.o-rf | `ldm.o` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x3F | stm.o-rf | `stm.o` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
+| 0x44 | MISC-RF | （浮点子表） | 浮点 | [SimRISC-00 §MISC-RF指令编码] |
+| 0x4F | set.w-rf | `set.w` | RF 立即数 | [SimRISC-00 §SimRISC QFC] |
+| 0x56 | ftmadd | `ftmadd` | 浮点 FMA | [SimRISC-00 §SimRISC QFC] |
+| 0x57 | fomadd | `fomadd` | 浮点 FMA | [SimRISC-00 §SimRISC QFC] |
+| 0x5E | cs.eq-rf | `cs.eq` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
+| 0x5F | cs.ne-rf | `cs.ne` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
+| 0x61 | cs.n-rf | `cs.n` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
+| 0x63 | cs.z-rf | `cs.z` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
+| 0x65 | cs.p-rf | `cs.p` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
+| 0x7A | cfx2rd | `cfx2rd` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
+| 0x7B | cfx2rc | `cfx2rc` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
+| 0x7C | cfxld | `cfxld` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
+| 0x7D | cfxst | `cfxst` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
+| 0x7E | escape | `escape` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
+| 0x7F | trap | `trap` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
+| MISC-octa 101-101 | rd2ra | `rd2ra` | RA 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
+| MISC-octa 101-110 | ra2rd | `ra2rd` | RA 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
+| MISC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
+| MISC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
+| MISC-AMO 010-xxx | lr_nn/lr_nr/lr_an/lr_ar | `lr_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
+| MISC-AMO 011-xxx | sc_nn/sc_nr/sc_an/sc_ar | `sc_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
 
 ---
 
@@ -1290,45 +1176,37 @@ ILLI 触发场景汇总：[SimRISC-01, SimRISC-02, SimRISC-03, SimRISC-04]
 
 ### B.1 条件判断方法
 
-SimRISC 不提供专门的标识位寄存器，根据数据寄存器所存放的数值来判断条件。[SimRISC-00 §标识位说明]
+SimRISC 不提供专门的标识位寄存器，而是根据数据寄存器所存放的数值来判断是否满足条件，共有 8 种条件判断。[SimRISC-00 §标识位说明]
 
 | 助记符 | 条件 | 操作数个数 | 判断方法 |
 |--------|------|-----------|---------|
-| N | 负数 | 1 | 第 63 位为 1 |
-| NN | 非负数 | 1 | 第 63 位为 0 |
-| Z | 零 | 1 | [63:0] 全为 0 |
-| NZ | 非零 | 1 | [63:0] 不全为 0 |
-| P | 正数 | 1 | 第 63 位为 0，且 [62:0] 不全为 0 |
-| NP | 非正数 | 1 | 第 63 位为 1，或 [63:0] 全为 0 |
-| EQ | 相等 | 2 | 所有位相等 |
-| NE | 不相等 | 2 | 至少有一位不相等 |
+| `N` | 负数 | 一个操作数 | 第 63 位为 1 |
+| `NN` | 非负数 | 一个操作数 | 第 63 位为 0 |
+| `Z` | 零 | 一个操作数 | [63..0] 全为 0 |
+| `NZ` | 非零 | 一个操作数 | [63..0] 不全为 0 |
+| `P` | 正数 | 一个操作数 | 第 63 位为 0，且 [62..0] 不全为 0 |
+| `NP` | 非正数 | 一个操作数 | 第 63 位为 1，或 [63..0] 全为 0 |
+| `EQ` | 相等 | 两个操作数 | 所有位数相等 |
+| `NE` | 不相等 | 两个操作数 | 至少有一位不相等 |
+[SimRISC-00 §标识位说明]
 
 ### B.2 条件赋值与条件跳转对应关系
 
-| 条件 | 条件赋值指令 | 条件跳转指令（rd） | 条件跳转指令（rb） |
-|------|------------|-------------------|-------------------|
-| 负数 (N) | cs.n | br.n | — |
-| 非负数 (NN) | — | br.nn | — |
-| 零 (Z) | cs.z | br.z | br.z |
-| 非零 (NZ) | — | br.nz | br.nz |
-| 正数 (P) | cs.p | br.p | — |
-| 非正数 (NP) | — | br.np | — |
-| 相等 (EQ) | cs.eq | br.eq | — |
-| 不相等 (NE) | cs.ne | br.ne | — |
+| 条件 | 条件赋值指令（RD） | 条件跳转指令（rd） | 条件跳转指令（rb） |
+|------|-------------------|-------------------|-------------------|
+| 负数 (N) | `cs.n` | `br.n` | — |
+| 非负数 (NN) | — | `br.nn` | — |
+| 零 (Z) | `cs.z` | `br.z` | `br.z` |
+| 非零 (NZ) | — | `br.nz` | `br.nz` |
+| 正数 (P) | `cs.p` | `br.p` | — |
+| 非正数 (NP) | — | `br.np` | — |
+| 相等 (EQ) | `cs.eq` | `br.eq` | — |
+| 不相等 (NE) | `cs.ne` | `br.ne` | — |
+[SimRISC-00 §标识位说明][SimRISC-01 §条件赋值：Conditional Assignment][SimRISC-02 §条件跳转指令]
 
-### B.3 浮点比较结果解读
+### B.3 条件跳转特例
 
-浮点比较结果写入 rd 寄存器：[SimRISC-03 §浮点比较指令]
+- `rdha` 为 `rd0` 时，`br.z` 条件必为真，`br.nz` 条件必为假。[SimRISC-02 §条件跳转指令]
+- `br.z-rb`/`br.nz-rb` 依据 `rbha` 是否为 0 判断（rb 无对应的条件赋值指令）。[SimRISC-02 §条件跳转指令]
 
-| 结果值 | 含义 | 条件判断 |
-|--------|------|---------|
-| 1 | rfhc > rfhd | cs.p 为真，进一步 cs.eq 与 1 比较确认 |
-| 0 | rfhc = rfhd | cs.z 为真 |
-| −1 | rfhc < rfhd | cs.n 为真 |
-| NaN | unordered | cs.p 为真（NaN 按整型为正数），但不等于 1 |
-
-要检测大于：先加载 1 到 rd，再与比较结果做 cs.eq。[SimRISC-03 §浮点条件赋值指令]
-
-要检测不相等：直接用 cs.ne。[SimRISC-03 §浮点条件赋值指令]
-
-要区分正数 1 与 NaN：确认 cs.p 为真后，检查结果是否为 1（bits[63:1]=0 且 bit0=1），否则为 NaN。[SimRISC-03 §浮点条件赋值指令]
+> 浮点比较结果的条件解读属浮点内容，Excluded from M1。[SimRISC-03 §浮点比较指令]
