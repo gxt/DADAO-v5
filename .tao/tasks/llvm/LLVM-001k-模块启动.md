@@ -46,7 +46,7 @@ DADAO-v5 基于 SimRISC 0.5.3，需要从零为 `dadao-unknown-elf` 目标构建
 ## 说明
 
 - 只规划不实现；本模块任务文件由工程师按 `## 交付物` 生成补丁与测试，架构师不写补丁正文。
-- M1 范围为标量核心（`contract-isa.md` §3 标量整数、§4 地址/内存、§5 控制流、§7 系统指令中测试机所需部分）；浮点 §6 按 M1 范围排除。
+- M1 范围为标量核心（`contract-isa.md` §3 标量整数、§4 地址/内存（RD/RB/**RA**）、§5 控制流、§7 系统指令中测试机所需部分）；浮点 RF 全部按 M1 范围排除。
 - 0628 的 ELF relocation 完善任务（其 `DL-012a`）在本任务集中未单列；本任务集只到反汇编/字节级 lit 与系统指令冒烟。若 M1 需要完整 ELF relocation，另立 `LLVM-012t`（待用户确认）。
 - `LLVM-010t` 标题沿用 0628 的 `halt` 命名，但 v5（0.5.3）`contract-isa.md` 无 `halt` 助记符，等价机制为 §7 的 `escape`/`trap` 与 ADR-0004 的 exit port；差异详见该任务。
 - 参考：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`、`.work/DADAO-0628/docs/development-roadmap.md`、`.work/DADAO-0628/components/llvm/patches/series`。

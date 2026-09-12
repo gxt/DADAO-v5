@@ -8,7 +8,7 @@
 
 - **ISA 归一化完成里程碑（原 `SPEC-005m`，已移除）**：曾用独立 `m` 标记 `SPEC-002t`+`003t` 完成。因 `k`↔`m` 一一对应规则移除；其意义由 `SPEC-002t`/`003t` 的完成 + `SPEC-009m`（M1 spec 里程碑）覆盖。
 - **`SPEC-002t`/`003t` 产出需重新生成**：`contract-isa.md`、`verif/opcodes.yaml` 在 spec 重排后**重新生成**；旧文件暂作参考。
-- **完整 ISA（浮点 §6 / 特权 cfx 系统 / LR-SC 原子）推迟**：M1 只提取标量核心 + `call`/`ret` + 测试机所需系统/异常；浮点、特权系统、原子的完整规范与编码留后续（`SPEC-002t`/`003t` 标 `Excluded from M1`）。
+- **M1 范围外（推迟）**：浮点（**RF 全部**：存取与运算）、特权 cfx 系统指令、LR-SC 原子。M1 提取：标量整数 + 地址/内存（RD/RB/**RA**）+ 控制流（`call`/`ret`/RegRAS）+ 测试机所需系统/异常。推迟项的完整规范与编码留后续（`SPEC-002t`/`003t` 标 `Excluded from M1`）。
 - **浮点支持（M1 明确不含，但后续必做）**：M1 **不引入任何浮点内容**（`SimRISC-03` §6 / MISC-RF 运算、FCSR 语义、FP 寄存器类）。浮点支持**后续必须提供**，路线参考 0628：以 **soft-float libcall** 接入——LLVM 把 f32/f64 软化，走 `__adddf3`/`__divsc3` 等 GNU 软浮点（**不注册 FP 寄存器类**），真正运算实现在 libc 的 soft-float shim；**0628 的 QEMU 全程无浮点指令**（其在 M2.5/M2.6 才以 soft-float 接入）。若将来要**原生**浮点（MISC-RF 48 条 + FCSR），属新决策。
 - **ABI 合约（`SPEC-004t`）的 M2 / CodeGen 内容**：完整调用约定（参数寄存器分配、栈帧、prologue/epilogue）服务 **M2 BasicCodeGen**，非 M1；M1 只需 test machine 所需的最小 ABI 事实（SP=rb1 等）。→ 待定：`SPEC-004t` 是否收窄到 M1 最小事实、把完整 ABI 后移。
 - **ABI `[OPEN]` 项**：`rd1`/`rb3`/`rb4` 的 callee-saved 分类（spec 为 `-`）、窄返回值扩展规则、多返回值（spec 自相冲突）——不得当规范性要求。

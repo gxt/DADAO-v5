@@ -15,7 +15,7 @@
 
 - 输入：spec/ 规范文档（见下方清单）
 - 输出：`verif/opcodes.yaml`
-- 约束：基于 SimRISC 0.5.3，**M1 范围**（标量整数 + 地址/内存 RD/RB + 控制流 + 测试机所需系统）；M1 范围外（浮点 / 特权 cfx / LR-SC 原子）记 reserved 或标 `excluded_m1`（解码 → UNDI/ILLI）
+- 约束：基于 SimRISC 0.5.3，**M1 范围**（标量整数 + 地址/内存 RD/RB/**RA** + 控制流 + 测试机所需系统）；M1 范围外（浮点 RF 全部 / 特权 cfx / LR-SC 原子）记 reserved 或标 `excluded_m1`（解码 → UNDI/ILLI）
 
 ## 输入文件清单
 
@@ -29,7 +29,7 @@
 
 ## 验收标准
 
-1. 覆盖 **M1 所需指令**（标量整数 + 地址/内存 RD/RB + 控制流 + 测试机所需系统）；M1 范围外指令记 reserved 或标 `excluded_m1`（不要求完整语义/legality）
+1. 覆盖 **M1 所需指令**（标量整数 + 地址/内存 RD/RB/**RA** + 控制流 + 测试机所需系统）；M1 范围外指令记 reserved 或标 `excluded_m1`（不要求完整语义/legality）
 2. 每条指令包含：
    - mnemonic：指令助记符
    - format：指令格式（rrrr/orrr/rrii 等）

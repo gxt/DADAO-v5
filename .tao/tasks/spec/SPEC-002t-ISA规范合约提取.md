@@ -3,9 +3,10 @@
 **模块**：spec
 **项目里程碑**：M1
 **依赖**：无
-**状态**：已验证
+**状态**：待返工
 
 > **重排说明（2026-09-12）**：spec 重排后本任务状态重置；产出 `contract-isa.md` 需**重新生成**，旧文件暂作参考（见 `.tao/knowledge/deferred.md`）。
+> **范围变更（2026-09-12）**：M1 **加入 RA 相关指令**（§4.9 RA 存取/块赋值不再 `Excluded`）；**RF 全部（含存取与运算）仍 `Excluded`**。需重新生成 `contract-isa.md`，把 RA 提取进来。
 
 ## 执行环境
 
@@ -15,7 +16,7 @@
 
 - 输入：spec/ 规范文档（见下方清单）
 - 输出：`.tao/knowledge/contract-isa.md`
-- 约束：基于 SimRISC 0.5.3，**M1 范围**（标量整数 + 地址/内存 RD/RB + 控制流 + 测试机所需系统/异常）；每条断言标注来源；M1 范围外（浮点 / 特权 cfx / LR-SC 原子等）标 `Excluded from M1`
+- 约束：基于 SimRISC 0.5.3，**M1 范围**（标量整数 + 地址/内存 RD/RB/**RA** + 控制流 + 测试机所需系统/异常）；每条断言标注来源；M1 范围外（浮点 RF 全部 / 特权 cfx / LR-SC 原子等）标 `Excluded from M1`
 
 ## 输入文件清单
 
@@ -35,14 +36,14 @@
    - §1 寄存器模型
    - §2 指令编码
    - §3 标量整数指令
-   - §4 地址/内存指令（RD/RB）
+   - §4 地址/内存指令（RD/RB/**RA**）
    - §5 控制流（含 `call`/`ret`、RegRAS）
    - §7 系统指令中 **M1 所需**（测试机所需 `swym`/`illi`/`fence` 等；**不含**特权 cfx 系统指令）
    - §8 NOP 与保留编码
    - §9 异常总结（MALIGN/ILLI/UNDI/IALIGN/RASOF/RASUF）
    - 附录 A：M1 指令编码清单
    - 附录 B：条件标志参考
-3. **M1 范围外**（浮点 §6、特权 cfx 系统指令、LR-SC 原子等）标 `Excluded from M1`，不提取其规范内容
+3. **M1 范围外**（浮点 RF 全部、特权 cfx 系统指令、LR-SC 原子等）标 `Excluded from M1`，不提取其规范内容
 4. 每条规范性断言标注来源 spec/ 章节（如 `[SimRISC-01 §3.5]`）
 
 ## 参考

@@ -22,7 +22,7 @@
   - 有效地址 = `(rbhb + sext12(imms12)) mod 2^48`（高 16 位截断）
   - 多 load/store 在循环前快照 `rdhc`（地址基址），循环内不重新 load
   - ILLI 先于任何寄存器/内存写
-  - 本任务不含 RB/RA/RF 存取（RB 属 `QEMU-008t`；RA/RF 按 M1 范围排除）
+  - 本任务不含 RB/RA/RF 存取（RB/**RA** 属 `QEMU-008t`；RF 按 M1 范围排除）
   - 完成后不自行 commit
 
 ## 背景（完整）
