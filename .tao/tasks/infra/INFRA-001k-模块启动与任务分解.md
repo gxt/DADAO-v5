@@ -29,9 +29,10 @@ DADAO-v5 要从上游组件（LLVM/QEMU/gem5）的可复现基线构建全栈，
 | `INFRA-005t` | 环境与状态工具 | `doctor.py`、`status.py`、`clean_work.py` | `INFRA-003t` |
 | `INFRA-006t` | Makefile 编排 | `Makefile` | `INFRA-004t`、`INFRA-005t` |
 | `INFRA-007t` | 开发容器 | `containers/dev/Dockerfile` + docker targets | `INFRA-006t` |
-| `INFRA-008m` | infra 里程碑 | 里程碑标记 | `INFRA-002t`~`INFRA-007t` |
+| `INFRA-008t` | 补 v5 自身 ADR（0001 greenfield / 0002 构建编排） | `.tao/knowledge/adr-0001-greenfield-rebuild.md`、`adr-0002-build-orchestration.md` | 无 |
+| `INFRA-009m` | infra 里程碑 | 里程碑标记 | `INFRA-002t`~`INFRA-008t` |
 
-- **依赖关系**：`002t → 003t → {004t, 005t} → 006t → 007t`；`008m` 汇总全部。
+- **依赖关系**：`002t → 003t → {004t, 005t} → 006t → 007t`；`008t`（补 v5 自身 ADR，独立）→ `009m` 汇总全部。
 - **分解理由**：按「骨架 → 锁 → 工具 → 编排 → 容器」分层，每层可独立验收；共享工具（锁/获取/状态）无法拆到单个上游组件，故独立成 infra 模块。
 
 ## 说明
