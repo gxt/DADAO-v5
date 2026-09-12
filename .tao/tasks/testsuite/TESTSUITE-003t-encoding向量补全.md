@@ -51,7 +51,7 @@
   expected_state: null
   expected_fault: null
   status: active
-  wiki_cite: "SimRISC-00 §指令域说明"
+  spec_cite: "SimRISC-00 §指令域说明"
   notes: "<可选>"
 ```
 

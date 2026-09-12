@@ -6,7 +6,7 @@
 #   fault: 异常类型（ILLI/UNDI/MALIGN/IALIGN）
 #   kind: 检查类型（static/dynamic）
 #   spec_cite: 规范引用
-#   wiki_cite: spec/ 引用
+#   spec_cite: spec/ 引用
 #   status: active/deferred
 #   description: 规则描述
 
@@ -16,7 +16,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §rd0 为目的寄存器约定"
-    wiki_cite: "SimRISC-01 §rd0 为目的寄存器约定 (L7)"
+    spec_cite: "SimRISC-01 §rd0 为目的寄存器约定 (L7)"
     status: active
     description: >
       写 rd0 为目的寄存器时触发 ILLI 异常。
@@ -30,7 +30,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §rd0 为目的寄存器约定"
-    wiki_cite: "SimRISC-01 §rd0 为目的寄存器约定 (L37)"
+    spec_cite: "SimRISC-01 §rd0 为目的寄存器约定 (L37)"
     status: active
     description: >
       st*/stm* 指令中 rdha 字段是数据源，存储 rd0 触发 ILLI 异常。
@@ -39,7 +39,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §加减操作"
-    wiki_cite: "SimRISC-01 §加减操作 (L209)"
+    spec_cite: "SimRISC-01 §加减操作 (L209)"
     status: active
     description: >
       add/sub/mul 的 rrrr 格式有两个目的寄存器（rdha, rdhb）。
@@ -49,7 +49,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §加减操作"
-    wiki_cite: "SimRISC-01 §加减操作 (L209)"
+    spec_cite: "SimRISC-01 §加减操作 (L209)"
     status: active
     description: >
       add/sub/mul 的 rrrr 格式中 rdha 和 rdhb 不能为同一非 rd0 寄存器。
@@ -59,7 +59,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-02 §rb0 为目的寄存器约定"
-    wiki_cite: "SimRISC-02 §rb0 为目的寄存器约定 (L5)"
+    spec_cite: "SimRISC-02 §rb0 为目的寄存器约定 (L5)"
     status: active
     description: >
       rb0 = PC（只读），任何指令以 rb0 为显式目的时触发 ILLI 异常。
@@ -68,7 +68,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-02 §存取RB寄存器"
-    wiki_cite: "SimRISC-02 §存取RB寄存器 (L40)"
+    spec_cite: "SimRISC-02 §存取RB寄存器 (L40)"
     status: active
     description: >
       RB 存储指令（st.o-rb, stm.o-rb）中 rbha 为 rb0 时触发 ILLI 异常。
@@ -78,7 +78,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-03 §rf0 为目的寄存器约定"
-    wiki_cite: "SimRISC-03 §rf0 为目的寄存器约定 (L7)"
+    spec_cite: "SimRISC-03 §rf0 为目的寄存器约定 (L7)"
     status: active
     description: >
       浮点运算指令的目的或任一源操作数为 rf0 时触发 ILLI 异常。
@@ -90,7 +90,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §存取RD寄存器"
-    wiki_cite: "SimRISC-01 §存取RD寄存器 (L64)"
+    spec_cite: "SimRISC-01 §存取RD寄存器 (L64)"
     status: active
     description: >
       多寄存器指令（ldm/stm/rd2rd/rb2rd/rd2rb/rb2rb/ra2rd/rd2ra）
@@ -101,7 +101,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §存取RD寄存器"
-    wiki_cite: "SimRISC-01 §存取RD寄存器 (L65)"
+    spec_cite: "SimRISC-01 §存取RD寄存器 (L65)"
     status: active
     description: >
       多寄存器指令中 first_reg + immu6 > 64 时触发 ILLI 异常。
@@ -112,7 +112,7 @@ rules:
     fault: MALIGN
     kind: dynamic
     spec_cite: "SimRISC-01 §对齐要求"
-    wiki_cite: "SimRISC-01 §对齐要求 (L35)"
+    spec_cite: "SimRISC-01 §对齐要求 (L35)"
     status: active
     description: >
       数据访问未对齐触发 MALIGN 异常。
@@ -125,7 +125,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-00 §指令域说明"
-    wiki_cite: "SimRISC-00 §指令域说明 (L41-L50)"
+    spec_cite: "SimRISC-00 §指令域说明 (L41-L50)"
     status: active
     description: >
       立即数超出格式定义的范围时触发 ILLI 异常。
@@ -136,7 +136,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §位操作指令"
-    wiki_cite: "SimRISC-01 §位操作指令 (L365)"
+    spec_cite: "SimRISC-01 §位操作指令 (L365)"
     status: active
     description: >
       移位量超过位宽限制时触发 ILLI 异常。
@@ -150,7 +150,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §位操作指令"
-    wiki_cite: "SimRISC-01 §位操作指令 (L375)"
+    spec_cite: "SimRISC-01 §位操作指令 (L375)"
     status: active
     description: >
       扩展起始位超过位宽限制时触发 ILLI 异常。
@@ -164,7 +164,7 @@ rules:
     fault: ILLI
     kind: dynamic
     spec_cite: "SimRISC-01 §乘除操作"
-    wiki_cite: "SimRISC-01 §乘除操作 (L303)"
+    spec_cite: "SimRISC-01 §乘除操作 (L303)"
     status: active
     description: >
       除法/取余指令除数为零时触发 ILLI 异常。
@@ -174,7 +174,7 @@ rules:
     fault: ILLI
     kind: dynamic
     spec_cite: "SimRISC-01 §乘除操作"
-    wiki_cite: "SimRISC-01 §乘除操作 (L305)"
+    spec_cite: "SimRISC-01 §乘除操作 (L305)"
     status: active
     description: >
       有符号除法溢出（INT_MIN ÷ -1）时触发 ILLI 异常。
@@ -185,7 +185,7 @@ rules:
     fault: UNDI
     kind: static
     spec_cite: "SimRISC-00 §SimRISC QFC"
-    wiki_cite: "SimRISC-00 §SimRISC QFC (L92)"
+    spec_cite: "SimRISC-00 §SimRISC QFC (L92)"
     status: active
     description: >
       执行保留编码（QFC 表中空白单元格）触发 UNDI 异常。
@@ -196,7 +196,7 @@ rules:
     fault: IALIGN
     kind: dynamic
     spec_cite: "SimRISC-00 §指令设计"
-    wiki_cite: "SimRISC-00 §指令设计 (L13)"
+    spec_cite: "SimRISC-00 §指令设计 (L13)"
     status: active
     description: >
       取指时若 PC[1:0] ≠ 00，触发 IALIGN 异常。
@@ -207,7 +207,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-00 §标识位说明"
-    wiki_cite: "SimRISC-00 §标识位说明 (L35)"
+    spec_cite: "SimRISC-00 §标识位说明 (L35)"
     status: deferred
     description: >
       SBZ（Should Be Zero）域非零时触发 ILLI 异常。
@@ -218,7 +218,7 @@ rules:
     fault: RASOF
     kind: dynamic
     spec_cite: "SimRISC-00 §压栈流程"
-    wiki_cite: "SimRISC-00 §压栈流程"
+    spec_cite: "SimRISC-00 §压栈流程"
     status: active
     description: >
       返回地址栈上溢触发 RASOF 异常。
@@ -228,7 +228,7 @@ rules:
     fault: RASUF
     kind: dynamic
     spec_cite: "SimRISC-00 §弹栈流程"
-    wiki_cite: "SimRISC-00 §弹栈流程"
+    spec_cite: "SimRISC-00 §弹栈流程"
     status: active
     description: >
       返回地址栈下溢触发 RASUF 异常。
@@ -239,7 +239,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-04 §LR-SC指令"
-    wiki_cite: "SimRISC-04 §LR-SC指令 (L72)"
+    spec_cite: "SimRISC-04 §LR-SC指令 (L72)"
     status: active
     description: >
       lr 指令的 hb（rdhb）固定为 rd0，汇编代码仅需两个操作数。
@@ -250,7 +250,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-04 §寄存器传输指令"
-    wiki_cite: "SimRISC-04 §寄存器传输指令 (L152)"
+    spec_cite: "SimRISC-04 §寄存器传输指令 (L152)"
     status: active
     description: >
       cfxcode 为 reserved 核芯功能扩展（7-14、19-61）时触发 ILLI 异常。
@@ -260,7 +260,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-03 §S1D1"
-    wiki_cite: "SimRISC-03 §S1D1 (L188)"
+    spec_cite: "SimRISC-03 §S1D1 (L188)"
     status: active
     description: >
       ftroot/foroot 指令不支持的 n 值触发 ILLI 异常。
@@ -270,7 +270,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-03 §S1D1"
-    wiki_cite: "SimRISC-03 §S1D1 (L192)"
+    spec_cite: "SimRISC-03 §S1D1 (L192)"
     status: active
     description: >
       ftlog/folog 指令不支持的底值触发 ILLI 异常。

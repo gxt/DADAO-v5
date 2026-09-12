@@ -65,7 +65,7 @@
   expected_fault: null     # null / ILLI / UNDI / MALIGN / IALIGN / RASOF / RASUF
   status: active           # active / deferred
   deferred_reason: null    # status=deferred 时必填（如 "C-27"）
-  wiki_cite: "SimRISC-01 §存取RD寄存器"  # 必填：语义来源
+  spec_cite: "SimRISC-01 §存取RD寄存器"  # 必填：语义来源
   notes: ""                # 可选
 ```
 
@@ -103,7 +103,7 @@ tests/vectors/isa/
 
 **`verif/validate_vectors.py` 校验内容**（须含但不少于）：
 
-1. 必填字段存在（`mnemonic/insn/format/class/encoding/input_state/wiki_cite`）
+1. 必填字段存在（`mnemonic/insn/format/class/encoding/input_state/spec_cite`）
 2. `class` ∈ {encoding, legality, semantic, boundary, overlap}
 3. `status` ∈ {active, deferred}
 4. deferred 一致性（`expected_state=null` 且 `deferred_reason` 非空）

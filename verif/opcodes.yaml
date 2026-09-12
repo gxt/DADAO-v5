@@ -31,7 +31,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ld.uw-rd
   mnemonic: ld.uw
   format: rrii
@@ -61,7 +61,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ld.ut-rd
   mnemonic: ld.ut
   format: rrii
@@ -91,7 +91,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ld.sb-rd
   mnemonic: ld.sb
   format: rrii
@@ -121,7 +121,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ld.sw-rd
   mnemonic: ld.sw
   format: rrii
@@ -151,7 +151,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ld.st-rd
   mnemonic: ld.st
   format: rrii
@@ -181,7 +181,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ld.t-rf
   mnemonic: ld.t
   format: rrii
@@ -210,7 +210,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-03 §存取RF寄存器
+  spec_cite: SimRISC-03 §存取RF寄存器
 - insn: st.t-rf
   mnemonic: st.t
   format: rrii
@@ -239,7 +239,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-03 §存取RF寄存器
+  spec_cite: SimRISC-03 §存取RF寄存器
 - insn: st.b-rd
   mnemonic: st.b
   format: rrii
@@ -269,7 +269,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: st.w-rd
   mnemonic: st.w
   format: rrii
@@ -299,7 +299,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: st.t-rd
   mnemonic: st.t
   format: rrii
@@ -329,7 +329,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ld.o-rd
   mnemonic: ld.o
   format: rrii
@@ -359,7 +359,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: st.o-rd
   mnemonic: st.o
   format: rrii
@@ -389,7 +389,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ld.o-rb
   mnemonic: ld.o
   format: rrii
@@ -419,7 +419,7 @@
     signed: null
   legality:
   - rbha != rb0
-  wiki_cite: SimRISC-02 §存取RB寄存器
+  spec_cite: SimRISC-02 §存取RB寄存器
 - insn: st.o-rb
   mnemonic: st.o
   format: rrii
@@ -449,7 +449,7 @@
     signed: null
   legality:
   - rbha != rb0
-  wiki_cite: SimRISC-02 §存取RB寄存器
+  spec_cite: SimRISC-02 §存取RB寄存器
 - insn: ld.o-ra
   mnemonic: ld.o
   format: rrii
@@ -478,7 +478,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §存取RA寄存器
+  spec_cite: SimRISC-02 §存取RA寄存器
 - insn: st.o-ra
   mnemonic: st.o
   format: rrii
@@ -507,7 +507,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §存取RA寄存器
+  spec_cite: SimRISC-02 §存取RA寄存器
 - insn: ld.o-rf
   mnemonic: ld.o
   format: rrii
@@ -536,7 +536,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-03 §存取RF寄存器
+  spec_cite: SimRISC-03 §存取RF寄存器
 - insn: st.o-rf
   mnemonic: st.o
   format: rrii
@@ -565,7 +565,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-03 §存取RF寄存器
+  spec_cite: SimRISC-03 §存取RF寄存器
 - insn: ldm.ub-rd
   mnemonic: ldm.ub
   format: rrri
@@ -597,7 +597,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ldm.uw-rd
   mnemonic: ldm.uw
   format: rrri
@@ -629,7 +629,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ldm.ut-rd
   mnemonic: ldm.ut
   format: rrri
@@ -661,7 +661,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ldm.sb-rd
   mnemonic: ldm.sb
   format: rrri
@@ -693,7 +693,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ldm.sw-rd
   mnemonic: ldm.sw
   format: rrri
@@ -725,7 +725,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ldm.st-rd
   mnemonic: ldm.st
   format: rrri
@@ -757,7 +757,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ldm.t-rf
   mnemonic: ldm.t
   format: rrri
@@ -788,7 +788,7 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
-  wiki_cite: SimRISC-03 §存取RF寄存器
+  spec_cite: SimRISC-03 §存取RF寄存器
 - insn: stm.t-rf
   mnemonic: stm.t
   format: rrri
@@ -819,7 +819,7 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
-  wiki_cite: SimRISC-03 §存取RF寄存器
+  spec_cite: SimRISC-03 §存取RF寄存器
 - insn: stm.b-rd
   mnemonic: stm.b
   format: rrri
@@ -851,7 +851,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: stm.w-rd
   mnemonic: stm.w
   format: rrri
@@ -883,7 +883,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: stm.t-rd
   mnemonic: stm.t
   format: rrri
@@ -915,7 +915,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ldm.o-rd
   mnemonic: ldm.o
   format: rrri
@@ -947,7 +947,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: stm.o-rd
   mnemonic: stm.o
   format: rrri
@@ -979,7 +979,7 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
-  wiki_cite: SimRISC-01 §存取RD寄存器
+  spec_cite: SimRISC-01 §存取RD寄存器
 - insn: ldm.o-rb
   mnemonic: ldm.o
   format: rrri
@@ -1011,7 +1011,7 @@
   - rbha != rb0
   - immu6 != 0
   - rbha + immu6 <= 64
-  wiki_cite: SimRISC-02 §存取RB寄存器
+  spec_cite: SimRISC-02 §存取RB寄存器
 - insn: stm.o-rb
   mnemonic: stm.o
   format: rrri
@@ -1043,7 +1043,7 @@
   - rbha != rb0
   - immu6 != 0
   - rbha + immu6 <= 64
-  wiki_cite: SimRISC-02 §存取RB寄存器
+  spec_cite: SimRISC-02 §存取RB寄存器
 - insn: ldm.o-ra
   mnemonic: ldm.o
   format: rrri
@@ -1074,7 +1074,7 @@
   legality:
   - immu6 != 0
   - raha + immu6 <= 64
-  wiki_cite: SimRISC-02 §存取RA寄存器
+  spec_cite: SimRISC-02 §存取RA寄存器
 - insn: stm.o-ra
   mnemonic: stm.o
   format: rrri
@@ -1105,7 +1105,7 @@
   legality:
   - immu6 != 0
   - raha + immu6 <= 64
-  wiki_cite: SimRISC-02 §存取RA寄存器
+  spec_cite: SimRISC-02 §存取RA寄存器
 - insn: ldm.o-rf
   mnemonic: ldm.o
   format: rrri
@@ -1136,7 +1136,7 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
-  wiki_cite: SimRISC-03 §存取RF寄存器
+  spec_cite: SimRISC-03 §存取RF寄存器
 - insn: stm.o-rf
   mnemonic: stm.o
   format: rrri
@@ -1167,7 +1167,7 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
-  wiki_cite: SimRISC-03 §存取RF寄存器
+  spec_cite: SimRISC-03 §存取RF寄存器
 - insn: or.w-rd
   mnemonic: or.w
   format: rwii
@@ -1201,7 +1201,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-01 §立即数常数赋值
+  spec_cite: SimRISC-01 §立即数常数赋值
 - insn: andn.w-rd
   mnemonic: andn.w
   format: rwii
@@ -1235,7 +1235,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-01 §立即数常数赋值
+  spec_cite: SimRISC-01 §立即数常数赋值
 - insn: or.w-rb
   mnemonic: or.w
   format: rwii
@@ -1269,7 +1269,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §立即数常数赋值
+  spec_cite: SimRISC-02 §立即数常数赋值
 - insn: andn.w-rb
   mnemonic: andn.w
   format: rwii
@@ -1303,7 +1303,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §立即数常数赋值
+  spec_cite: SimRISC-02 §立即数常数赋值
 - insn: set.zw-rd
   mnemonic: set.zw
   format: rwii
@@ -1337,7 +1337,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-01 §立即数常数赋值
+  spec_cite: SimRISC-01 §立即数常数赋值
 - insn: set.ow-rd
   mnemonic: set.ow
   format: rwii
@@ -1371,7 +1371,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-01 §立即数常数赋值
+  spec_cite: SimRISC-01 §立即数常数赋值
 - insn: set.zw-rb
   mnemonic: set.zw
   format: rwii
@@ -1405,7 +1405,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §立即数常数赋值
+  spec_cite: SimRISC-02 §立即数常数赋值
 - insn: set.w-rf
   mnemonic: set.w
   format: rwii
@@ -1439,7 +1439,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-03 §立即数常数赋值
+  spec_cite: SimRISC-03 §立即数常数赋值
 - insn: add.uo-rd
   mnemonic: add.uo
   format: rrrr
@@ -1469,7 +1469,7 @@
     signed: null
   legality:
   - '!(rdha == rd0 && rdhb == rd0)'
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
 - insn: add.so-rd
   mnemonic: add.so
   format: rrrr
@@ -1499,7 +1499,7 @@
     signed: null
   legality:
   - '!(rdha == rd0 && rdhb == rd0)'
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
 - insn: sub.uo-rd
   mnemonic: sub.uo
   format: rrrr
@@ -1529,7 +1529,7 @@
     signed: null
   legality:
   - '!(rdha == rd0 && rdhb == rd0)'
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
 - insn: sub.so-rd
   mnemonic: sub.so
   format: rrrr
@@ -1559,7 +1559,7 @@
     signed: null
   legality:
   - '!(rdha == rd0 && rdhb == rd0)'
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
 - insn: mul.uo-rd
   mnemonic: mul.uo
   format: rrrr
@@ -1589,7 +1589,7 @@
     signed: null
   legality:
   - '!(rdha == rd0 && rdhb == rd0)'
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
 - insn: mul.so-rd
   mnemonic: mul.so
   format: rrrr
@@ -1619,7 +1619,7 @@
     signed: null
   legality:
   - '!(rdha == rd0 && rdhb == rd0)'
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
 - insn: ftmadd
   mnemonic: ftmadd
   format: rrrr
@@ -1652,7 +1652,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S3D1
+  spec_cite: SimRISC-03 §S3D1
 - insn: fomadd
   mnemonic: fomadd
   format: rrrr
@@ -1685,7 +1685,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S3D1
+  spec_cite: SimRISC-03 §S3D1
 - insn: add.si-rd
   mnemonic: add.si
   format: riii
@@ -1714,7 +1714,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-01 §自增自减
+  spec_cite: SimRISC-01 §自增自减
 - insn: rela.si-rb
   mnemonic: rela.si
   format: riii
@@ -1743,7 +1743,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §PC相对寻址
+  spec_cite: SimRISC-02 §PC相对寻址
 - insn: add.si-rb
   mnemonic: add.si
   format: riii
@@ -1772,7 +1772,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §自增自减
+  spec_cite: SimRISC-02 §自增自减
 - insn: cmp.ui-rd
   mnemonic: cmp.ui
   format: rrii
@@ -1802,7 +1802,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
 - insn: cmp.si-rd
   mnemonic: cmp.si
   format: rrii
@@ -1832,7 +1832,7 @@
     signed: null
   legality:
   - rdha != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
 - insn: cs.eq-rf
   mnemonic: cs.eq
   format: rrrr
@@ -1862,7 +1862,7 @@
     signed: null
   legality:
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §浮点条件赋值指令
+  spec_cite: SimRISC-03 §浮点条件赋值指令
 - insn: cs.ne-rf
   mnemonic: cs.ne
   format: rrrr
@@ -1892,7 +1892,7 @@
     signed: null
   legality:
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §浮点条件赋值指令
+  spec_cite: SimRISC-03 §浮点条件赋值指令
 - insn: cs.n-rd
   mnemonic: cs.n
   format: rrrr
@@ -1922,7 +1922,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §条件赋值
+  spec_cite: SimRISC-01 §条件赋值
 - insn: cs.n-rf
   mnemonic: cs.n
   format: rrrr
@@ -1952,7 +1952,7 @@
     signed: null
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §浮点条件赋值指令
+  spec_cite: SimRISC-03 §浮点条件赋值指令
 - insn: cs.z-rd
   mnemonic: cs.z
   format: rrrr
@@ -1982,7 +1982,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §条件赋值
+  spec_cite: SimRISC-01 §条件赋值
 - insn: cs.z-rf
   mnemonic: cs.z
   format: rrrr
@@ -2012,7 +2012,7 @@
     signed: null
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §浮点条件赋值指令
+  spec_cite: SimRISC-03 §浮点条件赋值指令
 - insn: cs.p-rd
   mnemonic: cs.p
   format: rrrr
@@ -2042,7 +2042,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §条件赋值
+  spec_cite: SimRISC-01 §条件赋值
 - insn: cs.p-rf
   mnemonic: cs.p
   format: rrrr
@@ -2072,7 +2072,7 @@
     signed: null
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §浮点条件赋值指令
+  spec_cite: SimRISC-03 §浮点条件赋值指令
 - insn: cs.eq-rd
   mnemonic: cs.eq
   format: rrrr
@@ -2102,7 +2102,7 @@
     signed: null
   legality:
   - rdhc != rd0
-  wiki_cite: SimRISC-01 §条件赋值
+  spec_cite: SimRISC-01 §条件赋值
 - insn: cs.ne-rd
   mnemonic: cs.ne
   format: rrrr
@@ -2132,7 +2132,7 @@
     signed: null
   legality:
   - rdhc != rd0
-  wiki_cite: SimRISC-01 §条件赋值
+  spec_cite: SimRISC-01 §条件赋值
 - insn: br.n-rd
   mnemonic: br.n
   format: riii
@@ -2161,7 +2161,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: br.nn-rd
   mnemonic: br.nn
   format: riii
@@ -2190,7 +2190,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: br.z-rd
   mnemonic: br.z
   format: riii
@@ -2219,7 +2219,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: br.nz-rd
   mnemonic: br.nz
   format: riii
@@ -2248,7 +2248,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: br.p-rd
   mnemonic: br.p
   format: riii
@@ -2277,7 +2277,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: br.np-rd
   mnemonic: br.np
   format: riii
@@ -2306,7 +2306,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: br.eq-rd
   mnemonic: br.eq
   format: rrii
@@ -2335,7 +2335,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: br.ne-rd
   mnemonic: br.ne
   format: rrii
@@ -2364,7 +2364,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: jump-iiii
   mnemonic: jump
   format: iiii
@@ -2393,7 +2393,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §无条件跳转指令
+  spec_cite: SimRISC-02 §无条件跳转指令
 - insn: jump-rrii
   mnemonic: jump
   format: rrii
@@ -2422,7 +2422,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §无条件跳转指令
+  spec_cite: SimRISC-02 §无条件跳转指令
 - insn: br.z-rb
   mnemonic: br.z
   format: riii
@@ -2451,7 +2451,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: br.nz-rb
   mnemonic: br.nz
   format: riii
@@ -2480,7 +2480,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §条件跳转指令
+  spec_cite: SimRISC-02 §条件跳转指令
 - insn: call-iiii
   mnemonic: call
   format: iiii
@@ -2509,7 +2509,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §函数调用
+  spec_cite: SimRISC-02 §函数调用
 - insn: call-rrii
   mnemonic: call
   format: rrii
@@ -2538,7 +2538,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §函数调用
+  spec_cite: SimRISC-02 §函数调用
 - insn: ret-riii
   mnemonic: ret
   format: riii
@@ -2567,7 +2567,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-02 §函数返回
+  spec_cite: SimRISC-02 §函数返回
 - insn: swym-iiii
   mnemonic: swym
   format: iiii
@@ -2596,7 +2596,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §占位指令
+  spec_cite: SimRISC-04 §占位指令
 - insn: cfx2rd-crrr
   mnemonic: cfx2rd
   format: crrr
@@ -2625,7 +2625,7 @@
     bank: rd
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §寄存器传输指令
+  spec_cite: SimRISC-04 §寄存器传输指令
 - insn: cfx2rc-crrr
   mnemonic: cfx2rc
   format: crrr
@@ -2654,7 +2654,7 @@
     bank: rd
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §寄存器传输指令
+  spec_cite: SimRISC-04 §寄存器传输指令
 - insn: cfxld-crii
   mnemonic: cfxld
   format: crii
@@ -2683,7 +2683,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §SRAM块传输指令
+  spec_cite: SimRISC-04 §SRAM块传输指令
 - insn: cfxst-crii
   mnemonic: cfxst
   format: crii
@@ -2712,7 +2712,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §SRAM块传输指令
+  spec_cite: SimRISC-04 §SRAM块传输指令
 - insn: escape-ciii
   mnemonic: escape
   format: ciii
@@ -2741,7 +2741,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §退出指令
+  spec_cite: SimRISC-04 §退出指令
 - insn: trap-ciii
   mnemonic: trap
   format: ciii
@@ -2770,7 +2770,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §陷入指令
+  spec_cite: SimRISC-04 §陷入指令
 - insn: illi
   mnemonic: illi
   format: oiii
@@ -2799,7 +2799,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §非法指令
+  spec_cite: SimRISC-04 §非法指令
   ha: '0x00'
 - insn: fence
   mnemonic: fence
@@ -2829,7 +2829,7 @@
     bank: imm
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §fence指令
+  spec_cite: SimRISC-04 §fence指令
   ha: '0x01'
 - insn: lr_nn.o
   mnemonic: lr_nn.o
@@ -2860,7 +2860,7 @@
     signed: null
   legality:
   - rdhb == rd0
-  wiki_cite: SimRISC-04 §LR-SC指令
+  spec_cite: SimRISC-04 §LR-SC指令
   ha: '0x20'
 - insn: lr_nr.o
   mnemonic: lr_nr.o
@@ -2891,7 +2891,7 @@
     signed: null
   legality:
   - rdhb == rd0
-  wiki_cite: SimRISC-04 §LR-SC指令
+  spec_cite: SimRISC-04 §LR-SC指令
   ha: '0x21'
 - insn: lr_an.o
   mnemonic: lr_an.o
@@ -2922,7 +2922,7 @@
     signed: null
   legality:
   - rdhb == rd0
-  wiki_cite: SimRISC-04 §LR-SC指令
+  spec_cite: SimRISC-04 §LR-SC指令
   ha: '0x22'
 - insn: lr_ar.o
   mnemonic: lr_ar.o
@@ -2953,7 +2953,7 @@
     signed: null
   legality:
   - rdhb == rd0
-  wiki_cite: SimRISC-04 §LR-SC指令
+  spec_cite: SimRISC-04 §LR-SC指令
   ha: '0x23'
 - insn: sc_nn.o
   mnemonic: sc_nn.o
@@ -2983,7 +2983,7 @@
     bank: rb
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §LR-SC指令
+  spec_cite: SimRISC-04 §LR-SC指令
   ha: '0x30'
 - insn: sc_nr.o
   mnemonic: sc_nr.o
@@ -3013,7 +3013,7 @@
     bank: rb
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §LR-SC指令
+  spec_cite: SimRISC-04 §LR-SC指令
   ha: '0x31'
 - insn: sc_an.o
   mnemonic: sc_an.o
@@ -3043,7 +3043,7 @@
     bank: rb
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §LR-SC指令
+  spec_cite: SimRISC-04 §LR-SC指令
   ha: '0x32'
 - insn: sc_ar.o
   mnemonic: sc_ar.o
@@ -3073,7 +3073,7 @@
     bank: rb
     signed: null
   legality: []
-  wiki_cite: SimRISC-04 §LR-SC指令
+  spec_cite: SimRISC-04 §LR-SC指令
   ha: '0x33'
 - insn: and.o
   mnemonic: and.o
@@ -3104,7 +3104,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x08'
 - insn: or.o
   mnemonic: or.o
@@ -3135,7 +3135,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x09'
 - insn: xor.o
   mnemonic: xor.o
@@ -3166,7 +3166,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x0A'
 - insn: xnor.o
   mnemonic: xnor.o
@@ -3197,7 +3197,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x0B'
 - insn: ext.uo
   mnemonic: ext.uo
@@ -3228,7 +3228,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x10'
 - insn: ext.so
   mnemonic: ext.so
@@ -3259,7 +3259,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x11'
 - insn: shr.uo
   mnemonic: shr.uo
@@ -3290,7 +3290,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x12'
 - insn: shr.so
   mnemonic: shr.so
@@ -3321,7 +3321,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x13'
 - insn: shl.uo
   mnemonic: shl.uo
@@ -3352,7 +3352,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x14'
 - insn: ext.uo
   mnemonic: ext.uo
@@ -3383,7 +3383,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x18'
 - insn: ext.so
   mnemonic: ext.so
@@ -3414,7 +3414,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x19'
 - insn: shr.uo
   mnemonic: shr.uo
@@ -3445,7 +3445,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1A'
 - insn: shr.so
   mnemonic: shr.so
@@ -3476,7 +3476,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1B'
 - insn: shl.uo
   mnemonic: shl.uo
@@ -3507,7 +3507,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1C'
 - insn: add.so-rb
   mnemonic: add.so
@@ -3538,7 +3538,7 @@
     signed: null
   legality:
   - rbhb != rb0
-  wiki_cite: SimRISC-02 §加减操作
+  spec_cite: SimRISC-02 §加减操作
   ha: '0x20'
 - insn: sub.so-rb
   mnemonic: sub.so
@@ -3569,7 +3569,7 @@
     signed: null
   legality:
   - rbhb != rb0
-  wiki_cite: SimRISC-02 §加减操作
+  spec_cite: SimRISC-02 §加减操作
   ha: '0x28'
 - insn: cmp.uo-rb
   mnemonic: cmp.uo
@@ -3600,7 +3600,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-02 §比较操作
+  spec_cite: SimRISC-02 §比较操作
   ha: '0x29'
 - insn: cmp.uo
   mnemonic: cmp.uo
@@ -3631,7 +3631,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
   ha: '0x2A'
 - insn: cmp.so
   mnemonic: cmp.so
@@ -3662,7 +3662,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
   ha: '0x2B'
 - insn: rd2rd
   mnemonic: rd2rd
@@ -3696,7 +3696,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rdhc + immu6 <= 64
-  wiki_cite: SimRISC-01 §寄存器组之间块赋值
+  spec_cite: SimRISC-01 §寄存器组之间块赋值
   ha: '0x2C'
 - insn: rd2ra
   mnemonic: rd2ra
@@ -3729,7 +3729,7 @@
   - immu6 != 0
   - rahb + immu6 <= 64
   - rdhc + immu6 <= 64
-  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
   ha: '0x2D'
 - insn: ra2rd
   mnemonic: ra2rd
@@ -3763,7 +3763,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rahc + immu6 <= 64
-  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
   ha: '0x2E'
 - insn: rb2rb
   mnemonic: rb2rb
@@ -3797,7 +3797,7 @@
   - immu6 != 0
   - rbhb + immu6 <= 64
   - rbhc + immu6 <= 64
-  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
   ha: '0x34'
 - insn: rd2rb
   mnemonic: rd2rb
@@ -3831,7 +3831,7 @@
   - immu6 != 0
   - rbhb + immu6 <= 64
   - rdhc + immu6 <= 64
-  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
   ha: '0x35'
 - insn: rb2rd
   mnemonic: rb2rd
@@ -3865,7 +3865,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rbhc + immu6 <= 64
-  wiki_cite: SimRISC-02 §寄存器组之间块赋值
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
   ha: '0x36'
 - insn: div.uo
   mnemonic: div.uo
@@ -3897,7 +3897,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x38'
 - insn: div.so
   mnemonic: div.so
@@ -3929,7 +3929,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x39'
 - insn: rem.uo
   mnemonic: rem.uo
@@ -3961,7 +3961,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x3A'
 - insn: rem.so
   mnemonic: rem.so
@@ -3993,7 +3993,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x3B'
 - insn: rd2rf
   mnemonic: rd2rf
@@ -4026,7 +4026,7 @@
   - immu6 != 0
   - rfhb + immu6 <= 64
   - rdhc + immu6 <= 64
-  wiki_cite: SimRISC-03 §寄存器组之间块赋值
+  spec_cite: SimRISC-03 §寄存器组之间块赋值
   ha: '0x3E'
 - insn: rf2rd
   mnemonic: rf2rd
@@ -4060,7 +4060,7 @@
   - immu6 != 0
   - rdhb + immu6 <= 64
   - rfhc + immu6 <= 64
-  wiki_cite: SimRISC-03 §寄存器组之间块赋值
+  spec_cite: SimRISC-03 §寄存器组之间块赋值
   ha: '0x3F'
 - insn: and.t
   mnemonic: and.t
@@ -4091,7 +4091,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x08'
 - insn: or.t
   mnemonic: or.t
@@ -4122,7 +4122,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x09'
 - insn: xor.t
   mnemonic: xor.t
@@ -4153,7 +4153,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x0A'
 - insn: xnor.t
   mnemonic: xnor.t
@@ -4184,7 +4184,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x0B'
 - insn: ext.ut
   mnemonic: ext.ut
@@ -4215,7 +4215,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x10'
 - insn: ext.st
   mnemonic: ext.st
@@ -4246,7 +4246,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x11'
 - insn: shr.ut
   mnemonic: shr.ut
@@ -4277,7 +4277,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x12'
 - insn: shr.st
   mnemonic: shr.st
@@ -4308,7 +4308,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x13'
 - insn: shl.ut
   mnemonic: shl.ut
@@ -4339,7 +4339,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x14'
 - insn: ext.ut
   mnemonic: ext.ut
@@ -4370,7 +4370,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x18'
 - insn: ext.st
   mnemonic: ext.st
@@ -4401,7 +4401,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x19'
 - insn: shr.ut
   mnemonic: shr.ut
@@ -4432,7 +4432,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1A'
 - insn: shr.st
   mnemonic: shr.st
@@ -4463,7 +4463,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1B'
 - insn: shl.ut
   mnemonic: shl.ut
@@ -4494,7 +4494,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1C'
 - insn: add.ut
   mnemonic: add.ut
@@ -4525,7 +4525,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x20'
 - insn: add.st
   mnemonic: add.st
@@ -4556,7 +4556,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x21'
 - insn: sub.ut
   mnemonic: sub.ut
@@ -4587,7 +4587,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x28'
 - insn: sub.st
   mnemonic: sub.st
@@ -4618,7 +4618,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x29'
 - insn: cmp.ut
   mnemonic: cmp.ut
@@ -4649,7 +4649,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
   ha: '0x2A'
 - insn: cmp.st
   mnemonic: cmp.st
@@ -4680,7 +4680,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
   ha: '0x2B'
 - insn: mul.ut
   mnemonic: mul.ut
@@ -4711,7 +4711,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x30'
 - insn: mul.st
   mnemonic: mul.st
@@ -4742,7 +4742,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x31'
 - insn: div.ut
   mnemonic: div.ut
@@ -4774,7 +4774,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x38'
 - insn: div.st
   mnemonic: div.st
@@ -4806,7 +4806,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x39'
 - insn: rem.ut
   mnemonic: rem.ut
@@ -4838,7 +4838,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x3A'
 - insn: rem.st
   mnemonic: rem.st
@@ -4870,7 +4870,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x3B'
 - insn: and.w
   mnemonic: and.w
@@ -4901,7 +4901,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x08'
 - insn: or.w
   mnemonic: or.w
@@ -4932,7 +4932,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x09'
 - insn: xor.w
   mnemonic: xor.w
@@ -4963,7 +4963,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x0A'
 - insn: xnor.w
   mnemonic: xnor.w
@@ -4994,7 +4994,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x0B'
 - insn: ext.uw
   mnemonic: ext.uw
@@ -5025,7 +5025,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x10'
 - insn: ext.sw
   mnemonic: ext.sw
@@ -5056,7 +5056,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x11'
 - insn: shr.uw
   mnemonic: shr.uw
@@ -5087,7 +5087,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x12'
 - insn: shr.sw
   mnemonic: shr.sw
@@ -5118,7 +5118,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x13'
 - insn: shl.uw
   mnemonic: shl.uw
@@ -5149,7 +5149,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x14'
 - insn: ext.uw
   mnemonic: ext.uw
@@ -5180,7 +5180,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x18'
 - insn: ext.sw
   mnemonic: ext.sw
@@ -5211,7 +5211,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x19'
 - insn: shr.uw
   mnemonic: shr.uw
@@ -5242,7 +5242,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1A'
 - insn: shr.sw
   mnemonic: shr.sw
@@ -5273,7 +5273,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1B'
 - insn: shl.uw
   mnemonic: shl.uw
@@ -5304,7 +5304,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1C'
 - insn: add.uw
   mnemonic: add.uw
@@ -5335,7 +5335,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x20'
 - insn: add.sw
   mnemonic: add.sw
@@ -5366,7 +5366,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x21'
 - insn: sub.uw
   mnemonic: sub.uw
@@ -5397,7 +5397,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x28'
 - insn: sub.sw
   mnemonic: sub.sw
@@ -5428,7 +5428,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x29'
 - insn: cmp.uw
   mnemonic: cmp.uw
@@ -5459,7 +5459,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
   ha: '0x2A'
 - insn: cmp.sw
   mnemonic: cmp.sw
@@ -5490,7 +5490,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
   ha: '0x2B'
 - insn: mul.uw
   mnemonic: mul.uw
@@ -5521,7 +5521,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x30'
 - insn: mul.sw
   mnemonic: mul.sw
@@ -5552,7 +5552,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x31'
 - insn: div.uw
   mnemonic: div.uw
@@ -5584,7 +5584,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x38'
 - insn: div.sw
   mnemonic: div.sw
@@ -5616,7 +5616,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x39'
 - insn: rem.uw
   mnemonic: rem.uw
@@ -5648,7 +5648,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x3A'
 - insn: rem.sw
   mnemonic: rem.sw
@@ -5680,7 +5680,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x3B'
 - insn: and.b
   mnemonic: and.b
@@ -5711,7 +5711,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x08'
 - insn: or.b
   mnemonic: or.b
@@ -5742,7 +5742,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x09'
 - insn: xor.b
   mnemonic: xor.b
@@ -5773,7 +5773,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x0A'
 - insn: xnor.b
   mnemonic: xnor.b
@@ -5804,7 +5804,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §逻辑运算
+  spec_cite: SimRISC-01 §逻辑运算
   ha: '0x0B'
 - insn: ext.ub
   mnemonic: ext.ub
@@ -5835,7 +5835,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x10'
 - insn: ext.sb
   mnemonic: ext.sb
@@ -5866,7 +5866,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x11'
 - insn: shr.ub
   mnemonic: shr.ub
@@ -5897,7 +5897,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x12'
 - insn: shr.sb
   mnemonic: shr.sb
@@ -5928,7 +5928,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x13'
 - insn: shl.ub
   mnemonic: shl.ub
@@ -5959,7 +5959,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x14'
 - insn: ext.ub
   mnemonic: ext.ub
@@ -5990,7 +5990,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x18'
 - insn: ext.sb
   mnemonic: ext.sb
@@ -6021,7 +6021,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x19'
 - insn: shr.ub
   mnemonic: shr.ub
@@ -6052,7 +6052,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1A'
 - insn: shr.sb
   mnemonic: shr.sb
@@ -6083,7 +6083,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1B'
 - insn: shl.ub
   mnemonic: shl.ub
@@ -6114,7 +6114,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §位操作
+  spec_cite: SimRISC-01 §位操作
   ha: '0x1C'
 - insn: add.ub
   mnemonic: add.ub
@@ -6145,7 +6145,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x20'
 - insn: add.sb
   mnemonic: add.sb
@@ -6176,7 +6176,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x21'
 - insn: sub.ub
   mnemonic: sub.ub
@@ -6207,7 +6207,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x28'
 - insn: sub.sb
   mnemonic: sub.sb
@@ -6238,7 +6238,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-01 §加减操作
   ha: '0x29'
 - insn: cmp.ub
   mnemonic: cmp.ub
@@ -6269,7 +6269,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
   ha: '0x2A'
 - insn: cmp.sb
   mnemonic: cmp.sb
@@ -6300,7 +6300,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §比较操作
+  spec_cite: SimRISC-01 §比较操作
   ha: '0x2B'
 - insn: mul.ub
   mnemonic: mul.ub
@@ -6331,7 +6331,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x30'
 - insn: mul.sb
   mnemonic: mul.sb
@@ -6362,7 +6362,7 @@
     signed: null
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x31'
 - insn: div.ub
   mnemonic: div.ub
@@ -6394,7 +6394,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x38'
 - insn: div.sb
   mnemonic: div.sb
@@ -6426,7 +6426,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x39'
 - insn: rem.ub
   mnemonic: rem.ub
@@ -6458,7 +6458,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x3A'
 - insn: rem.sb
   mnemonic: rem.sb
@@ -6490,7 +6490,7 @@
   legality:
   - rdhb != rd0
   - rdhd != rd0
-  wiki_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-01 §乘除操作
   ha: '0x3B'
 - insn: ftcls
   mnemonic: ftcls
@@ -6521,7 +6521,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-03 §浮点分类指令
+  spec_cite: SimRISC-03 §浮点分类指令
   ha: '0x00'
 - insn: ft2fo
   mnemonic: ft2fo
@@ -6551,7 +6551,7 @@
     bank: imm
     signed: false
   legality: []
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x01'
 - insn: ft2ft
   mnemonic: ft2ft
@@ -6581,7 +6581,7 @@
     bank: imm
     signed: false
   legality: []
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x02'
 - insn: ftroot
   mnemonic: ftroot
@@ -6611,7 +6611,7 @@
     bank: imm
     signed: false
   legality: []
-  wiki_cite: SimRISC-03 §S1D1
+  spec_cite: SimRISC-03 §S1D1
   ha: '0x06'
 - insn: ftlog
   mnemonic: ftlog
@@ -6641,7 +6641,7 @@
     bank: imm
     signed: false
   legality: []
-  wiki_cite: SimRISC-03 §S1D1
+  spec_cite: SimRISC-03 §S1D1
   ha: '0x07'
 - insn: focls
   mnemonic: focls
@@ -6672,7 +6672,7 @@
     signed: false
   legality:
   - rdhb != rd0
-  wiki_cite: SimRISC-03 §浮点分类指令
+  spec_cite: SimRISC-03 §浮点分类指令
   ha: '0x08'
 - insn: fo2ft
   mnemonic: fo2ft
@@ -6702,7 +6702,7 @@
     bank: imm
     signed: false
   legality: []
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x09'
 - insn: fo2fo
   mnemonic: fo2fo
@@ -6732,7 +6732,7 @@
     bank: imm
     signed: false
   legality: []
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x0A'
 - insn: foroot
   mnemonic: foroot
@@ -6762,7 +6762,7 @@
     bank: imm
     signed: false
   legality: []
-  wiki_cite: SimRISC-03 §S1D1
+  spec_cite: SimRISC-03 §S1D1
   ha: '0x0E'
 - insn: folog
   mnemonic: folog
@@ -6792,7 +6792,7 @@
     bank: imm
     signed: false
   legality: []
-  wiki_cite: SimRISC-03 §S1D1
+  spec_cite: SimRISC-03 §S1D1
   ha: '0x0F'
 - insn: ftadd
   mnemonic: ftadd
@@ -6825,7 +6825,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x10'
 - insn: ftsub
   mnemonic: ftsub
@@ -6858,7 +6858,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x11'
 - insn: ftmul
   mnemonic: ftmul
@@ -6891,7 +6891,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x12'
 - insn: ftdiv
   mnemonic: ftdiv
@@ -6924,7 +6924,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x13'
 - insn: ftrem
   mnemonic: ftrem
@@ -6957,7 +6957,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x14'
 - insn: ftsclb
   mnemonic: ftsclb
@@ -6990,7 +6990,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x15'
 - insn: ftsgnn
   mnemonic: ftsgnn
@@ -7023,7 +7023,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §浮点符号位操作指令
+  spec_cite: SimRISC-03 §浮点符号位操作指令
   ha: '0x16'
 - insn: ftsgnj
   mnemonic: ftsgnj
@@ -7056,7 +7056,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §浮点符号位操作指令
+  spec_cite: SimRISC-03 §浮点符号位操作指令
   ha: '0x17'
 - insn: foadd
   mnemonic: foadd
@@ -7089,7 +7089,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x18'
 - insn: fosub
   mnemonic: fosub
@@ -7122,7 +7122,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x19'
 - insn: fomul
   mnemonic: fomul
@@ -7155,7 +7155,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x1A'
 - insn: fodiv
   mnemonic: fodiv
@@ -7188,7 +7188,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x1B'
 - insn: forem
   mnemonic: forem
@@ -7221,7 +7221,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x1C'
 - insn: fosclb
   mnemonic: fosclb
@@ -7254,7 +7254,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §S2D1
+  spec_cite: SimRISC-03 §S2D1
   ha: '0x1D'
 - insn: fosgnn
   mnemonic: fosgnn
@@ -7287,7 +7287,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §浮点符号位操作指令
+  spec_cite: SimRISC-03 §浮点符号位操作指令
   ha: '0x1E'
 - insn: fosgnj
   mnemonic: fosgnj
@@ -7320,7 +7320,7 @@
   - rfhb != rf0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §浮点符号位操作指令
+  spec_cite: SimRISC-03 §浮点符号位操作指令
   ha: '0x1F'
 - insn: ftqcmp
   mnemonic: ftqcmp
@@ -7353,7 +7353,7 @@
   - rdhb != rd0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §浮点比较指令
+  spec_cite: SimRISC-03 §浮点比较指令
   ha: '0x20'
 - insn: ftscmp
   mnemonic: ftscmp
@@ -7386,7 +7386,7 @@
   - rdhb != rd0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §浮点比较指令
+  spec_cite: SimRISC-03 §浮点比较指令
   ha: '0x21'
 - insn: foqcmp
   mnemonic: foqcmp
@@ -7419,7 +7419,7 @@
   - rdhb != rd0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §浮点比较指令
+  spec_cite: SimRISC-03 §浮点比较指令
   ha: '0x28'
 - insn: foscmp
   mnemonic: foscmp
@@ -7452,7 +7452,7 @@
   - rdhb != rd0
   - rfhc != rf0
   - rfhd != rf0
-  wiki_cite: SimRISC-03 §浮点比较指令
+  spec_cite: SimRISC-03 §浮点比较指令
   ha: '0x29'
 - insn: ft2it
   mnemonic: ft2it
@@ -7484,7 +7484,7 @@
   legality:
   - rdhb != rd0
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x30'
 - insn: ft2io
   mnemonic: ft2io
@@ -7516,7 +7516,7 @@
   legality:
   - rdhb != rd0
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x31'
 - insn: ft2ut
   mnemonic: ft2ut
@@ -7548,7 +7548,7 @@
   legality:
   - rdhb != rd0
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x32'
 - insn: ft2uo
   mnemonic: ft2uo
@@ -7580,7 +7580,7 @@
   legality:
   - rdhb != rd0
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x33'
 - insn: it2ft
   mnemonic: it2ft
@@ -7611,7 +7611,7 @@
     signed: false
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x34'
 - insn: io2ft
   mnemonic: io2ft
@@ -7642,7 +7642,7 @@
     signed: false
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x35'
 - insn: ut2ft
   mnemonic: ut2ft
@@ -7673,7 +7673,7 @@
     signed: false
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x36'
 - insn: uo2ft
   mnemonic: uo2ft
@@ -7704,7 +7704,7 @@
     signed: false
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x37'
 - insn: fo2it
   mnemonic: fo2it
@@ -7736,7 +7736,7 @@
   legality:
   - rdhb != rd0
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x38'
 - insn: fo2io
   mnemonic: fo2io
@@ -7768,7 +7768,7 @@
   legality:
   - rdhb != rd0
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x39'
 - insn: fo2ut
   mnemonic: fo2ut
@@ -7800,7 +7800,7 @@
   legality:
   - rdhb != rd0
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x3A'
 - insn: fo2uo
   mnemonic: fo2uo
@@ -7832,7 +7832,7 @@
   legality:
   - rdhb != rd0
   - rfhc != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x3B'
 - insn: it2fo
   mnemonic: it2fo
@@ -7863,7 +7863,7 @@
     signed: false
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x3C'
 - insn: io2fo
   mnemonic: io2fo
@@ -7894,7 +7894,7 @@
     signed: false
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x3D'
 - insn: ut2fo
   mnemonic: ut2fo
@@ -7925,7 +7925,7 @@
     signed: false
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x3E'
 - insn: uo2fo
   mnemonic: uo2fo
@@ -7956,5 +7956,5 @@
     signed: false
   legality:
   - rfhb != rf0
-  wiki_cite: SimRISC-03 §格式转换指令
+  spec_cite: SimRISC-03 §格式转换指令
   ha: '0x3F'

@@ -74,7 +74,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §存取类指令"
-    wiki_cite: "SimRISC-01 §rd0 为目的寄存器约定"
+    spec_cite: "SimRISC-01 §rd0 为目的寄存器约定"
     status: active
     description: "写 rd0 为目的寄存器时触发 ILLI（单目的指令不允许，双目的 add/sub/mul 的 rrrr 格式允许其中一个为 rd0）"
 ```
@@ -101,7 +101,7 @@ rules:
 
 ### 验收结论
 
-1. **legality_rules.yaml**：覆盖全部 19 类规则（rd0/rb0/rf0/store_src_rd0/dual_dest/multi_immu6_zero/multi_range_overflow/data_malign/imm_range/shamt_overflow/ext_bit_overflow/div_by_zero/div_overflow/reserved_undi/instruction_align/sbz_nonzero/ras_of/ras_uf/lr_hb_not_zero/cfx_reserved），每条规则包含 id/fault/kind/spec_cite/wiki_cite/status/description
+1. **legality_rules.yaml**：覆盖全部 19 类规则（rd0/rb0/rf0/store_src_rd0/dual_dest/multi_immu6_zero/multi_range_overflow/data_malign/imm_range/shamt_overflow/ext_bit_overflow/div_by_zero/div_overflow/reserved_undi/instruction_align/sbz_nonzero/ras_of/ras_uf/lr_hb_not_zero/cfx_reserved），每条规则包含 id/fault/kind/spec_cite/spec_cite/status/description
 2. **validate_encoding.py**：使用 SPEC-003t 的 opcodes.yaml（256 条指令）验证通过，输出 `validate_encoding: 256 条记录 OK`
 3. 验证器检查项：mask/value 合法性、字段不重叠、无解码冲突、必填字段完整性
 
@@ -133,7 +133,7 @@ $ cd DADAO-v5 && python3 -c "import yaml; data = yaml.safe_load(open('verif/lega
 | 约束 | 结果 | 说明 |
 |------|------|------|
 | 覆盖全部 19 类规则 | ✅ 通过 | 19/19 类全部覆盖 |
-| 每条规则包含必填字段 | ✅ 通过 | 所有规则包含 id/fault/kind/spec_cite/wiki_cite/status/description |
+| 每条规则包含必填字段 | ✅ 通过 | 所有规则包含 id/fault/kind/spec_cite/spec_cite/status/description |
 | 规则数量准确性 | ✅ 通过 | 25 条规则 |
 | validate_encoding.py 运行无冲突 | ✅ 通过 | 256 条记录全部 OK |
 | 无 DADAO-11 引用 | ✅ 通过 | ras_of/ras_uf 已改为 SimRISC-00 |

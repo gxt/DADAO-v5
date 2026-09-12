@@ -37,7 +37,7 @@
    - mask/value：编码 mask 和 value
    - fields：操作数字段
    - legality：合法性约束
-   - wiki_cite：来源引用
+   - spec_cite：来源引用
 3. 指令命名遵循 SimRISC 0.5.3 规范
 4. 运行 `validate_encoding.py` 无冲突
 
@@ -57,7 +57,7 @@
     - {name: imms12_lo, bits: "[5:0]", role: imm, bank: imm}
   legality:
     - "rdha != rd0"
-  wiki_cite: "SimRISC-01 §存取RD寄存器"
+  spec_cite: "SimRISC-01 §存取RD寄存器"
 ```
 
 ## 参考
@@ -82,7 +82,7 @@
 ### 自检结果
 
 1. **指令覆盖**：从 QFC 表和六个 MISC 子表中提取了所有非空条目，共 256 条指令。
-2. **格式验证**：所有指令包含 mnemonic、format、op、ha(可选)、mask、value、fields、legality、wiki_cite 字段。
+2. **格式验证**：所有指令包含 mnemonic、format、op、ha(可选)、mask、value、fields、legality、spec_cite 字段。
 3. **编码计算**：mask/value 根据 op 和 ha 字段计算，MISC 子表指令 mask=0xFFFC0000，其他 mask=0xFF000000。
 4. **合法性约束**：根据 spec/ 中的约束添加了合法性规则（rd_dest_rd0、range_check、immu6_not_zero 等）。
 5. **验证器**：`validate_encoding.py` 运行无冲突，256 条记录全部 OK。
@@ -147,7 +147,7 @@ $ cd /home/ubuntu/gxtao/DADAO-v5 && python3 -c "import yaml; data = yaml.safe_lo
 | 约束 | 结果 | 说明 |
 |------|------|------|
 | 完整覆盖所有指令（约 200+ 条） | ✅ 通过 | 256 条指令，满足要求 |
-| 每条指令包含必填字段 | ✅ 通过 | 随机抽取10条验证均包含 mnemonic/format/op/mask/value/fields/legality/wiki_cite |
+| 每条指令包含必填字段 | ✅ 通过 | 随机抽取10条验证均包含 mnemonic/format/op/mask/value/fields/legality/spec_cite |
 | 指令命名遵循 SimRISC 0.5.3 规范 | ✅ 通过 | 使用 `.b/.w/.t/.o` 后缀区分位宽 |
 | 运行 `validate_encoding.py` 无冲突 | ✅ 通过 | 256 条记录全部 OK |
 

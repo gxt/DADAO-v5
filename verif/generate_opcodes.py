@@ -16,7 +16,7 @@ def get_bank_from_field_name(field_name):
     else:
         return "imm"
 
-def create_record(insn, fmt, op, ha=None, fields=None, legality=None, wiki_cite=""):
+def create_record(insn, fmt, op, ha=None, fields=None, legality=None, spec_cite=""):
     """创建一条指令记录"""
     if fields is None:
         fields = []
@@ -47,7 +47,7 @@ def create_record(insn, fmt, op, ha=None, fields=None, legality=None, wiki_cite=
         "value": f"0x{value:08X}",
         "fields": fields,
         "legality": legality,
-        "wiki_cite": wiki_cite
+        "spec_cite": spec_cite
     }
     
     if ha is not None:
@@ -181,19 +181,19 @@ def main():
             mnem, "rrii", op + i,
             fields=generate_rrii_fields("rdha", "rbhb", "imms12"),
             legality=["rdha != rd0"],
-            wiki_cite="SimRISC-01 §存取RD寄存器"
+            spec_cite="SimRISC-01 §存取RD寄存器"
         ))
     
     # ld.t-rf-rrii, st.t-rf-rrii
     records.append(create_record("ld.t-rf", "rrii", 0x16,
         fields=generate_rrii_fields("rfha", "rbhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-03 §存取RF寄存器"
+        spec_cite="SimRISC-03 §存取RF寄存器"
     ))
     records.append(create_record("st.t-rf", "rrii", 0x17,
         fields=generate_rrii_fields("rfha", "rbhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-03 §存取RF寄存器"
+        spec_cite="SimRISC-03 §存取RF寄存器"
     ))
     
     # 0001-1xxx: st.b-rd-rrii, st.w-rd-rrii, st.t-rd-rrii
@@ -203,49 +203,49 @@ def main():
             mnem, "rrii", 0x18 + i,
             fields=generate_rrii_fields("rdha", "rbhb", "imms12"),
             legality=["rdha != rd0"],
-            wiki_cite="SimRISC-01 §存取RD寄存器"
+            spec_cite="SimRISC-01 §存取RD寄存器"
         ))
     
     # 0010-0xxx: ld.o-rd-rrii, st.o-rd-rrii, ld.o-rb-rrii, st.o-rb-rrii, ld.o-ra-rrii, st.o-ra-rrii, ld.o-rf-rrii, st.o-rf-rrii
     records.append(create_record("ld.o-rd", "rrii", 0x20,
         fields=generate_rrii_fields("rdha", "rbhb", "imms12"),
         legality=["rdha != rd0"],
-        wiki_cite="SimRISC-01 §存取RD寄存器"
+        spec_cite="SimRISC-01 §存取RD寄存器"
     ))
     records.append(create_record("st.o-rd", "rrii", 0x21,
         fields=generate_rrii_fields("rdha", "rbhb", "imms12"),
         legality=["rdha != rd0"],
-        wiki_cite="SimRISC-01 §存取RD寄存器"
+        spec_cite="SimRISC-01 §存取RD寄存器"
     ))
     records.append(create_record("ld.o-rb", "rrii", 0x22,
         fields=generate_rrii_fields("rbha", "rbhb", "imms12"),
         legality=["rbha != rb0"],
-        wiki_cite="SimRISC-02 §存取RB寄存器"
+        spec_cite="SimRISC-02 §存取RB寄存器"
     ))
     records.append(create_record("st.o-rb", "rrii", 0x23,
         fields=generate_rrii_fields("rbha", "rbhb", "imms12"),
         legality=["rbha != rb0"],
-        wiki_cite="SimRISC-02 §存取RB寄存器"
+        spec_cite="SimRISC-02 §存取RB寄存器"
     ))
     records.append(create_record("ld.o-ra", "rrii", 0x24,
         fields=generate_rrii_fields("raha", "rbhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-02 §存取RA寄存器"
+        spec_cite="SimRISC-02 §存取RA寄存器"
     ))
     records.append(create_record("st.o-ra", "rrii", 0x25,
         fields=generate_rrii_fields("raha", "rbhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-02 §存取RA寄存器"
+        spec_cite="SimRISC-02 §存取RA寄存器"
     ))
     records.append(create_record("ld.o-rf", "rrii", 0x26,
         fields=generate_rrii_fields("rfha", "rbhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-03 §存取RF寄存器"
+        spec_cite="SimRISC-03 §存取RF寄存器"
     ))
     records.append(create_record("st.o-rf", "rrii", 0x27,
         fields=generate_rrii_fields("rfha", "rbhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-03 §存取RF寄存器"
+        spec_cite="SimRISC-03 §存取RF寄存器"
     ))
     
     # 0010-1xxx: ldm.ub-rd-rrri, ldm.uw-rd-rrri, ldm.ut-rd-rrri, ldm.sb-rd-rrri, ldm.sw-rd-rrri, ldm.st-rd-rrri, ldm.t-rf-rrri, stm.t-rf-rrri
@@ -260,7 +260,7 @@ def main():
                 create_field("immu6", "[5:0]", "imm", "imm", signed=False)
             ],
             legality=["rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"],
-            wiki_cite="SimRISC-01 §存取RD寄存器"
+            spec_cite="SimRISC-01 §存取RD寄存器"
         ))
     
     records.append(create_record("ldm.t-rf", "rrri", 0x2E,
@@ -271,7 +271,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["immu6 != 0", "rfha + immu6 <= 64"],
-        wiki_cite="SimRISC-03 §存取RF寄存器"
+        spec_cite="SimRISC-03 §存取RF寄存器"
     ))
     records.append(create_record("stm.t-rf", "rrri", 0x2F,
         fields=[
@@ -281,7 +281,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["immu6 != 0", "rfha + immu6 <= 64"],
-        wiki_cite="SimRISC-03 §存取RF寄存器"
+        spec_cite="SimRISC-03 §存取RF寄存器"
     ))
     
     # 0011-0xxx: stm.b-rd-rrri, stm.w-rd-rrri, stm.t-rd-rrri
@@ -296,7 +296,7 @@ def main():
                 create_field("immu6", "[5:0]", "imm", "imm", signed=False)
             ],
             legality=["rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"],
-            wiki_cite="SimRISC-01 §存取RD寄存器"
+            spec_cite="SimRISC-01 §存取RD寄存器"
         ))
     
     # 0011-1xxx: ldm.o-rd-rrri, stm.o-rd-rrri, ldm.o-rb-rrri, stm.o-rb-rrri, ldm.o-ra-rrri, stm.o-ra-rrri, ldm.o-rf-rrri, stm.o-rf-rrri
@@ -308,7 +308,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"],
-        wiki_cite="SimRISC-01 §存取RD寄存器"
+        spec_cite="SimRISC-01 §存取RD寄存器"
     ))
     records.append(create_record("stm.o-rd", "rrri", 0x39,
         fields=[
@@ -318,7 +318,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"],
-        wiki_cite="SimRISC-01 §存取RD寄存器"
+        spec_cite="SimRISC-01 §存取RD寄存器"
     ))
     records.append(create_record("ldm.o-rb", "rrri", 0x3A,
         fields=[
@@ -328,7 +328,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["rbha != rb0", "immu6 != 0", "rbha + immu6 <= 64"],
-        wiki_cite="SimRISC-02 §存取RB寄存器"
+        spec_cite="SimRISC-02 §存取RB寄存器"
     ))
     records.append(create_record("stm.o-rb", "rrri", 0x3B,
         fields=[
@@ -338,7 +338,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["rbha != rb0", "immu6 != 0", "rbha + immu6 <= 64"],
-        wiki_cite="SimRISC-02 §存取RB寄存器"
+        spec_cite="SimRISC-02 §存取RB寄存器"
     ))
     records.append(create_record("ldm.o-ra", "rrri", 0x3C,
         fields=[
@@ -348,7 +348,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["immu6 != 0", "raha + immu6 <= 64"],
-        wiki_cite="SimRISC-02 §存取RA寄存器"
+        spec_cite="SimRISC-02 §存取RA寄存器"
     ))
     records.append(create_record("stm.o-ra", "rrri", 0x3D,
         fields=[
@@ -358,7 +358,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["immu6 != 0", "raha + immu6 <= 64"],
-        wiki_cite="SimRISC-02 §存取RA寄存器"
+        spec_cite="SimRISC-02 §存取RA寄存器"
     ))
     records.append(create_record("ldm.o-rf", "rrri", 0x3E,
         fields=[
@@ -368,7 +368,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["immu6 != 0", "rfha + immu6 <= 64"],
-        wiki_cite="SimRISC-03 §存取RF寄存器"
+        spec_cite="SimRISC-03 §存取RF寄存器"
     ))
     records.append(create_record("stm.o-rf", "rrri", 0x3F,
         fields=[
@@ -378,7 +378,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["immu6 != 0", "rfha + immu6 <= 64"],
-        wiki_cite="SimRISC-03 §存取RF寄存器"
+        spec_cite="SimRISC-03 §存取RF寄存器"
     ))
     
     # 0100-0xxx: MISC-octa, MISC-tetra, MISC-wyde, MISC-byte, MISC-RF
@@ -388,74 +388,74 @@ def main():
     records.append(create_record("or.w-rd", "rwii", 0x48,
         fields=generate_rwii_fields("rdha", "wpN", "immu16"),
         legality=[],
-        wiki_cite="SimRISC-01 §立即数常数赋值"
+        spec_cite="SimRISC-01 §立即数常数赋值"
     ))
     records.append(create_record("andn.w-rd", "rwii", 0x49,
         fields=generate_rwii_fields("rdha", "wpN", "immu16"),
         legality=[],
-        wiki_cite="SimRISC-01 §立即数常数赋值"
+        spec_cite="SimRISC-01 §立即数常数赋值"
     ))
     records.append(create_record("or.w-rb", "rwii", 0x4A,
         fields=generate_rwii_fields("rbha", "wpN", "immu16"),
         legality=[],
-        wiki_cite="SimRISC-02 §立即数常数赋值"
+        spec_cite="SimRISC-02 §立即数常数赋值"
     ))
     records.append(create_record("andn.w-rb", "rwii", 0x4B,
         fields=generate_rwii_fields("rbha", "wpN", "immu16"),
         legality=[],
-        wiki_cite="SimRISC-02 §立即数常数赋值"
+        spec_cite="SimRISC-02 §立即数常数赋值"
     ))
     records.append(create_record("set.zw-rd", "rwii", 0x4C,
         fields=generate_rwii_fields("rdha", "wpN", "immu16"),
         legality=[],
-        wiki_cite="SimRISC-01 §立即数常数赋值"
+        spec_cite="SimRISC-01 §立即数常数赋值"
     ))
     records.append(create_record("set.ow-rd", "rwii", 0x4D,
         fields=generate_rwii_fields("rdha", "wpN", "immu16"),
         legality=[],
-        wiki_cite="SimRISC-01 §立即数常数赋值"
+        spec_cite="SimRISC-01 §立即数常数赋值"
     ))
     records.append(create_record("set.zw-rb", "rwii", 0x4E,
         fields=generate_rwii_fields("rbha", "wpN", "immu16"),
         legality=[],
-        wiki_cite="SimRISC-02 §立即数常数赋值"
+        spec_cite="SimRISC-02 §立即数常数赋值"
     ))
     records.append(create_record("set.w-rf", "rwii", 0x4F,
         fields=generate_rwii_fields("rfha", "wpN", "immu16"),
         legality=[],
-        wiki_cite="SimRISC-03 §立即数常数赋值"
+        spec_cite="SimRISC-03 §立即数常数赋值"
     ))
     
     # 0101-0xxx: 算术运算指令
     records.append(create_record("add.uo-rd", "rrrr", 0x50,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["!(rdha == rd0 && rdhb == rd0)"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("add.so-rd", "rrrr", 0x51,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["!(rdha == rd0 && rdhb == rd0)"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("sub.uo-rd", "rrrr", 0x52,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["!(rdha == rd0 && rdhb == rd0)"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("sub.so-rd", "rrrr", 0x53,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["!(rdha == rd0 && rdhb == rd0)"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("mul.uo-rd", "rrrr", 0x54,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["!(rdha == rd0 && rdhb == rd0)"],
-        wiki_cite="SimRISC-01 §乘除操作"
+        spec_cite="SimRISC-01 §乘除操作"
     ))
     records.append(create_record("mul.so-rd", "rrrr", 0x55,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["!(rdha == rd0 && rdhb == rd0)"],
-        wiki_cite="SimRISC-01 §乘除操作"
+        spec_cite="SimRISC-01 §乘除操作"
     ))
     records.append(create_record("ftmadd", "rrrr", 0x56,
         fields=[
@@ -465,7 +465,7 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rfha != rf0", "rfhb != rf0", "rfhc != rf0", "rfhd != rf0"],
-        wiki_cite="SimRISC-03 §S3D1"
+        spec_cite="SimRISC-03 §S3D1"
     ))
     records.append(create_record("fomadd", "rrrr", 0x57,
         fields=[
@@ -475,7 +475,7 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rfha != rf0", "rfhb != rf0", "rfhc != rf0", "rfhd != rf0"],
-        wiki_cite="SimRISC-03 §S3D1"
+        spec_cite="SimRISC-03 §S3D1"
     ))
     
     # 0101-1xxx: 立即数加法、比较等
@@ -483,27 +483,27 @@ def main():
     records.append(create_record("add.si-rd", "riii", 0x59,
         fields=generate_riii_fields("rdha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-01 §自增自减"
+        spec_cite="SimRISC-01 §自增自减"
     ))
     records.append(create_record("rela.si-rb", "riii", 0x5A,
         fields=generate_riii_fields("rbha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §PC相对寻址"
+        spec_cite="SimRISC-02 §PC相对寻址"
     ))
     records.append(create_record("add.si-rb", "riii", 0x5B,
         fields=generate_riii_fields("rbha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §自增自减"
+        spec_cite="SimRISC-02 §自增自减"
     ))
     records.append(create_record("cmp.ui-rd", "rrii", 0x5C,
         fields=generate_rrii_fields("rdha", "rdhb", "immu12"),
         legality=["rdha != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     records.append(create_record("cmp.si-rd", "rrii", 0x5D,
         fields=generate_rrii_fields("rdha", "rdhb", "imms12"),
         legality=["rdha != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     records.append(create_record("cs.eq-rf", "rrrr", 0x5E,
         fields=[
@@ -513,7 +513,7 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rfhc != rf0"],
-        wiki_cite="SimRISC-03 §浮点条件赋值指令"
+        spec_cite="SimRISC-03 §浮点条件赋值指令"
     ))
     records.append(create_record("cs.ne-rf", "rrrr", 0x5F,
         fields=[
@@ -523,14 +523,14 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rfhc != rf0"],
-        wiki_cite="SimRISC-03 §浮点条件赋值指令"
+        spec_cite="SimRISC-03 §浮点条件赋值指令"
     ))
     
     # 0110-0xxx: 条件赋值指令
     records.append(create_record("cs.n-rd", "rrrr", 0x60,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §条件赋值"
+        spec_cite="SimRISC-01 §条件赋值"
     ))
     records.append(create_record("cs.n-rf", "rrrr", 0x61,
         fields=[
@@ -540,12 +540,12 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rfhb != rf0"],
-        wiki_cite="SimRISC-03 §浮点条件赋值指令"
+        spec_cite="SimRISC-03 §浮点条件赋值指令"
     ))
     records.append(create_record("cs.z-rd", "rrrr", 0x62,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §条件赋值"
+        spec_cite="SimRISC-01 §条件赋值"
     ))
     records.append(create_record("cs.z-rf", "rrrr", 0x63,
         fields=[
@@ -555,12 +555,12 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rfhb != rf0"],
-        wiki_cite="SimRISC-03 §浮点条件赋值指令"
+        spec_cite="SimRISC-03 §浮点条件赋值指令"
     ))
     records.append(create_record("cs.p-rd", "rrrr", 0x64,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §条件赋值"
+        spec_cite="SimRISC-01 §条件赋值"
     ))
     records.append(create_record("cs.p-rf", "rrrr", 0x65,
         fields=[
@@ -570,133 +570,133 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rfhb != rf0"],
-        wiki_cite="SimRISC-03 §浮点条件赋值指令"
+        spec_cite="SimRISC-03 §浮点条件赋值指令"
     ))
     records.append(create_record("cs.eq-rd", "rrrr", 0x66,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["rdhc != rd0"],
-        wiki_cite="SimRISC-01 §条件赋值"
+        spec_cite="SimRISC-01 §条件赋值"
     ))
     records.append(create_record("cs.ne-rd", "rrrr", 0x67,
         fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
         legality=["rdhc != rd0"],
-        wiki_cite="SimRISC-01 §条件赋值"
+        spec_cite="SimRISC-01 §条件赋值"
     ))
     
     # 0110-1xxx: 条件跳转指令
     records.append(create_record("br.n-rd", "riii", 0x68,
         fields=generate_riii_fields("rdha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     records.append(create_record("br.nn-rd", "riii", 0x69,
         fields=generate_riii_fields("rdha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     records.append(create_record("br.z-rd", "riii", 0x6A,
         fields=generate_riii_fields("rdha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     records.append(create_record("br.nz-rd", "riii", 0x6B,
         fields=generate_riii_fields("rdha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     records.append(create_record("br.p-rd", "riii", 0x6C,
         fields=generate_riii_fields("rdha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     records.append(create_record("br.np-rd", "riii", 0x6D,
         fields=generate_riii_fields("rdha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     records.append(create_record("br.eq-rd", "rrii", 0x6E,
         fields=generate_rrii_fields("rdha", "rdhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     records.append(create_record("br.ne-rd", "rrii", 0x6F,
         fields=generate_rrii_fields("rdha", "rdhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     
     # 0111-0xxx: 无条件跳转、函数调用等
     records.append(create_record("jump-iiii", "iiii", 0x70,
         fields=generate_iiii_fields("imms24"),
         legality=[],
-        wiki_cite="SimRISC-02 §无条件跳转指令"
+        spec_cite="SimRISC-02 §无条件跳转指令"
     ))
     records.append(create_record("jump-rrii", "rrii", 0x71,
         fields=generate_rrii_fields("rbha", "rdhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-02 §无条件跳转指令"
+        spec_cite="SimRISC-02 §无条件跳转指令"
     ))
     records.append(create_record("br.z-rb", "riii", 0x72,
         fields=generate_riii_fields("rbha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     records.append(create_record("br.nz-rb", "riii", 0x73,
         fields=generate_riii_fields("rbha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §条件跳转指令"
+        spec_cite="SimRISC-02 §条件跳转指令"
     ))
     records.append(create_record("call-iiii", "iiii", 0x74,
         fields=generate_iiii_fields("imms24"),
         legality=[],
-        wiki_cite="SimRISC-02 §函数调用"
+        spec_cite="SimRISC-02 §函数调用"
     ))
     records.append(create_record("call-rrii", "rrii", 0x75,
         fields=generate_rrii_fields("rbha", "rdhb", "imms12"),
         legality=[],
-        wiki_cite="SimRISC-02 §函数调用"
+        spec_cite="SimRISC-02 §函数调用"
     ))
     records.append(create_record("ret-riii", "riii", 0x76,
         fields=generate_riii_fields("rdha", "imms18"),
         legality=[],
-        wiki_cite="SimRISC-02 §函数返回"
+        spec_cite="SimRISC-02 §函数返回"
     ))
     records.append(create_record("swym-iiii", "iiii", 0x77,
         fields=generate_iiii_fields("immu24"),
         legality=[],
-        wiki_cite="SimRISC-04 §占位指令"
+        spec_cite="SimRISC-04 §占位指令"
     ))
     
     # 0111-1xxx: 特权指令
     records.append(create_record("cfx2rd-crrr", "crrr", 0x7A,
         fields=generate_crrr_fields(),
         legality=[],
-        wiki_cite="SimRISC-04 §寄存器传输指令"
+        spec_cite="SimRISC-04 §寄存器传输指令"
     ))
     records.append(create_record("cfx2rc-crrr", "crrr", 0x7B,
         fields=generate_crrr_fields(),
         legality=[],
-        wiki_cite="SimRISC-04 §寄存器传输指令"
+        spec_cite="SimRISC-04 §寄存器传输指令"
     ))
     records.append(create_record("cfxld-crii", "crii", 0x7C,
         fields=generate_crii_fields(),
         legality=[],
-        wiki_cite="SimRISC-04 §SRAM块传输指令"
+        spec_cite="SimRISC-04 §SRAM块传输指令"
     ))
     records.append(create_record("cfxst-crii", "crii", 0x7D,
         fields=generate_crii_fields(),
         legality=[],
-        wiki_cite="SimRISC-04 §SRAM块传输指令"
+        spec_cite="SimRISC-04 §SRAM块传输指令"
     ))
     records.append(create_record("escape-ciii", "ciii", 0x7E,
         fields=generate_ciii_fields("imms18"),
         legality=[],
-        wiki_cite="SimRISC-04 §退出指令"
+        spec_cite="SimRISC-04 §退出指令"
     ))
     records.append(create_record("trap-ciii", "ciii", 0x7F,
         fields=generate_ciii_fields("immu18"),
         legality=[],
-        wiki_cite="SimRISC-04 §陷入指令"
+        spec_cite="SimRISC-04 §陷入指令"
     ))
     
     # ======================================================================
@@ -708,14 +708,14 @@ def main():
     records.append(create_record("illi", "oiii", misc_amo_op, ha=0x00,
         fields=generate_oiii_fields("immu18"),
         legality=[],
-        wiki_cite="SimRISC-04 §非法指令"
+        spec_cite="SimRISC-04 §非法指令"
     ))
     
     # fence-oiii
     records.append(create_record("fence", "oiii", misc_amo_op, ha=0x01,
         fields=generate_oiii_fields("immu18"),
         legality=[],
-        wiki_cite="SimRISC-04 §fence指令"
+        spec_cite="SimRISC-04 §fence指令"
     ))
     
     # lr_nn.o-orrr, lr_nr.o-orrr, lr_an.o-orrr, lr_ar.o-orrr
@@ -729,7 +729,7 @@ def main():
                 create_field("rbhd", "[5:0]", "src", "rb")
             ],
             legality=["rdhb == rd0"],
-            wiki_cite="SimRISC-04 §LR-SC指令"
+            spec_cite="SimRISC-04 §LR-SC指令"
         ))
     
     # sc_nn.o-orrr, sc_nr.o-orrr, sc_an.o-orrr, sc_ar.o-orrr
@@ -743,7 +743,7 @@ def main():
                 create_field("rbhd", "[5:0]", "src", "rb")
             ],
             legality=[],
-            wiki_cite="SimRISC-04 §LR-SC指令"
+            spec_cite="SimRISC-04 §LR-SC指令"
         ))
     
     # ======================================================================
@@ -757,7 +757,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_octa_op, ha=0x08 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §逻辑运算"
+            spec_cite="SimRISC-01 §逻辑运算"
         ))
     
     # ext.uo-orrr, ext.so-orrr, shr.uo-orrr, shr.so-orrr, shl.uo-orrr
@@ -766,7 +766,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_octa_op, ha=0x10 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §位操作"
+            spec_cite="SimRISC-01 §位操作"
         ))
     
     # ext.uo-orri, ext.so-orri, shr.uo-orri, shr.so-orri, shl.uo-orri
@@ -774,7 +774,7 @@ def main():
         records.append(create_record(mnem, "orri", misc_octa_op, ha=0x18 + i,
             fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §位操作"
+            spec_cite="SimRISC-01 §位操作"
         ))
     
     # add.so-rb-orrr
@@ -786,7 +786,7 @@ def main():
             create_field("rdhd", "[5:0]", "src", "rd")
         ],
         legality=["rbhb != rb0"],
-        wiki_cite="SimRISC-02 §加减操作"
+        spec_cite="SimRISC-02 §加减操作"
     ))
     
     # sub.so-rb-orrr, cmp.uo-rb-orrr, cmp.uo-orrr, cmp.so-orrr
@@ -798,7 +798,7 @@ def main():
             create_field("rdhd", "[5:0]", "src", "rd")
         ],
         legality=["rbhb != rb0"],
-        wiki_cite="SimRISC-02 §加减操作"
+        spec_cite="SimRISC-02 §加减操作"
     ))
     records.append(create_record("cmp.uo-rb", "orrr", misc_octa_op, ha=0x29,
         fields=[
@@ -808,24 +808,24 @@ def main():
             create_field("rbhd", "[5:0]", "src", "rb")
         ],
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-02 §比较操作"
+        spec_cite="SimRISC-02 §比较操作"
     ))
     records.append(create_record("cmp.uo", "orrr", misc_octa_op, ha=0x2A,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     records.append(create_record("cmp.so", "orrr", misc_octa_op, ha=0x2B,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     
     # rd2rd-orri, rd2ra-orri, ra2rd-orri
     records.append(create_record("rd2rd", "orri", misc_octa_op, ha=0x2C,
         fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
         legality=["rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rdhc + immu6 <= 64"],
-        wiki_cite="SimRISC-01 §寄存器组之间块赋值"
+        spec_cite="SimRISC-01 §寄存器组之间块赋值"
     ))
     records.append(create_record("rd2ra", "orri", misc_octa_op, ha=0x2D,
         fields=[
@@ -835,7 +835,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["immu6 != 0", "rahb + immu6 <= 64", "rdhc + immu6 <= 64"],
-        wiki_cite="SimRISC-02 §寄存器组之间块赋值"
+        spec_cite="SimRISC-02 §寄存器组之间块赋值"
     ))
     records.append(create_record("ra2rd", "orri", misc_octa_op, ha=0x2E,
         fields=[
@@ -845,7 +845,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rahc + immu6 <= 64"],
-        wiki_cite="SimRISC-02 §寄存器组之间块赋值"
+        spec_cite="SimRISC-02 §寄存器组之间块赋值"
     ))
     
     # rb2rb-orri, rd2rb-orri, rb2rd-orri
@@ -857,7 +857,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["rbhb != rb0", "immu6 != 0", "rbhb + immu6 <= 64", "rbhc + immu6 <= 64"],
-        wiki_cite="SimRISC-02 §寄存器组之间块赋值"
+        spec_cite="SimRISC-02 §寄存器组之间块赋值"
     ))
     records.append(create_record("rd2rb", "orri", misc_octa_op, ha=0x35,
         fields=[
@@ -867,7 +867,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["rbhb != rb0", "immu6 != 0", "rbhb + immu6 <= 64", "rdhc + immu6 <= 64"],
-        wiki_cite="SimRISC-02 §寄存器组之间块赋值"
+        spec_cite="SimRISC-02 §寄存器组之间块赋值"
     ))
     records.append(create_record("rb2rd", "orri", misc_octa_op, ha=0x36,
         fields=[
@@ -877,7 +877,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rbhc + immu6 <= 64"],
-        wiki_cite="SimRISC-02 §寄存器组之间块赋值"
+        spec_cite="SimRISC-02 §寄存器组之间块赋值"
     ))
     
     # div.uo-orrr, div.so-orrr, rem.uo-orrr, rem.so-orrr
@@ -886,7 +886,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_octa_op, ha=0x38 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0", "rdhd != rd0"],
-            wiki_cite="SimRISC-01 §乘除操作"
+            spec_cite="SimRISC-01 §乘除操作"
         ))
     
     # rd2rf-orri, rf2rd-orri
@@ -898,7 +898,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"],
-        wiki_cite="SimRISC-03 §寄存器组之间块赋值"
+        spec_cite="SimRISC-03 §寄存器组之间块赋值"
     ))
     records.append(create_record("rf2rd", "orri", misc_octa_op, ha=0x3F,
         fields=[
@@ -908,7 +908,7 @@ def main():
             create_field("immu6", "[5:0]", "imm", "imm", signed=False)
         ],
         legality=["rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"],
-        wiki_cite="SimRISC-03 §寄存器组之间块赋值"
+        spec_cite="SimRISC-03 §寄存器组之间块赋值"
     ))
     
     # ======================================================================
@@ -922,7 +922,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_tetra_op, ha=0x08 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §逻辑运算"
+            spec_cite="SimRISC-01 §逻辑运算"
         ))
     
     # ext.ut-orrr, ext.st-orrr, shr.ut-orrr, shr.st-orrr, shl.ut-orrr
@@ -931,7 +931,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_tetra_op, ha=0x10 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §位操作"
+            spec_cite="SimRISC-01 §位操作"
         ))
     
     # ext.ut-orri, ext.st-orri, shr.ut-orri, shr.st-orri, shl.ut-orri
@@ -939,53 +939,53 @@ def main():
         records.append(create_record(mnem, "orri", misc_tetra_op, ha=0x18 + i,
             fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §位操作"
+            spec_cite="SimRISC-01 §位操作"
         ))
     
     # add.ut-orrr, add.st-orrr
     records.append(create_record("add.ut", "orrr", misc_tetra_op, ha=0x20,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("add.st", "orrr", misc_tetra_op, ha=0x21,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     
     # sub.ut-orrr, sub.st-orrr, cmp.ut-orrr, cmp.st-orrr
     records.append(create_record("sub.ut", "orrr", misc_tetra_op, ha=0x28,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("sub.st", "orrr", misc_tetra_op, ha=0x29,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("cmp.ut", "orrr", misc_tetra_op, ha=0x2A,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     records.append(create_record("cmp.st", "orrr", misc_tetra_op, ha=0x2B,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     
     # mul.ut-orrr, mul.st-orrr
     records.append(create_record("mul.ut", "orrr", misc_tetra_op, ha=0x30,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §乘除操作"
+        spec_cite="SimRISC-01 §乘除操作"
     ))
     records.append(create_record("mul.st", "orrr", misc_tetra_op, ha=0x31,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §乘除操作"
+        spec_cite="SimRISC-01 §乘除操作"
     ))
     
     # div.ut-orrr, div.st-orrr, rem.ut-orrr, rem.st-orrr
@@ -994,7 +994,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_tetra_op, ha=0x38 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0", "rdhd != rd0"],
-            wiki_cite="SimRISC-01 §乘除操作"
+            spec_cite="SimRISC-01 §乘除操作"
         ))
     
     # ======================================================================
@@ -1008,7 +1008,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_wyde_op, ha=0x08 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §逻辑运算"
+            spec_cite="SimRISC-01 §逻辑运算"
         ))
     
     # ext.uw-orrr, ext.sw-orrr, shr.uw-orrr, shr.sw-orrr, shl.uw-orrr
@@ -1017,7 +1017,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_wyde_op, ha=0x10 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §位操作"
+            spec_cite="SimRISC-01 §位操作"
         ))
     
     # ext.uw-orri, ext.sw-orri, shr.uw-orri, shr.sw-orri, shl.uw-orri
@@ -1025,53 +1025,53 @@ def main():
         records.append(create_record(mnem, "orri", misc_wyde_op, ha=0x18 + i,
             fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §位操作"
+            spec_cite="SimRISC-01 §位操作"
         ))
     
     # add.uw-orrr, add.sw-orrr
     records.append(create_record("add.uw", "orrr", misc_wyde_op, ha=0x20,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("add.sw", "orrr", misc_wyde_op, ha=0x21,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     
     # sub.uw-orrr, sub.sw-orrr, cmp.uw-orrr, cmp.sw-orrr
     records.append(create_record("sub.uw", "orrr", misc_wyde_op, ha=0x28,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("sub.sw", "orrr", misc_wyde_op, ha=0x29,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("cmp.uw", "orrr", misc_wyde_op, ha=0x2A,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     records.append(create_record("cmp.sw", "orrr", misc_wyde_op, ha=0x2B,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     
     # mul.uw-orrr, mul.sw-orrr
     records.append(create_record("mul.uw", "orrr", misc_wyde_op, ha=0x30,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §乘除操作"
+        spec_cite="SimRISC-01 §乘除操作"
     ))
     records.append(create_record("mul.sw", "orrr", misc_wyde_op, ha=0x31,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §乘除操作"
+        spec_cite="SimRISC-01 §乘除操作"
     ))
     
     # div.uw-orrr, div.sw-orrr, rem.uw-orrr, rem.sw-orrr
@@ -1080,7 +1080,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_wyde_op, ha=0x38 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0", "rdhd != rd0"],
-            wiki_cite="SimRISC-01 §乘除操作"
+            spec_cite="SimRISC-01 §乘除操作"
         ))
     
     # ======================================================================
@@ -1094,7 +1094,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_byte_op, ha=0x08 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §逻辑运算"
+            spec_cite="SimRISC-01 §逻辑运算"
         ))
     
     # ext.ub-orrr, ext.sb-orrr, shr.ub-orrr, shr.sb-orrr, shl.ub-orrr
@@ -1103,7 +1103,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_byte_op, ha=0x10 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §位操作"
+            spec_cite="SimRISC-01 §位操作"
         ))
     
     # ext.ub-orri, ext.sb-orri, shr.ub-orri, shr.sb-orri, shl.ub-orri
@@ -1111,53 +1111,53 @@ def main():
         records.append(create_record(mnem, "orri", misc_byte_op, ha=0x18 + i,
             fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
             legality=["rdhb != rd0"],
-            wiki_cite="SimRISC-01 §位操作"
+            spec_cite="SimRISC-01 §位操作"
         ))
     
     # add.ub-orrr, add.sb-orrr
     records.append(create_record("add.ub", "orrr", misc_byte_op, ha=0x20,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("add.sb", "orrr", misc_byte_op, ha=0x21,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     
     # sub.ub-orrr, sub.sb-orrr, cmp.ub-orrr, cmp.sb-orrr
     records.append(create_record("sub.ub", "orrr", misc_byte_op, ha=0x28,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("sub.sb", "orrr", misc_byte_op, ha=0x29,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §加减操作"
+        spec_cite="SimRISC-01 §加减操作"
     ))
     records.append(create_record("cmp.ub", "orrr", misc_byte_op, ha=0x2A,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     records.append(create_record("cmp.sb", "orrr", misc_byte_op, ha=0x2B,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §比较操作"
+        spec_cite="SimRISC-01 §比较操作"
     ))
     
     # mul.ub-orrr, mul.sb-orrr
     records.append(create_record("mul.ub", "orrr", misc_byte_op, ha=0x30,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §乘除操作"
+        spec_cite="SimRISC-01 §乘除操作"
     ))
     records.append(create_record("mul.sb", "orrr", misc_byte_op, ha=0x31,
         fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-01 §乘除操作"
+        spec_cite="SimRISC-01 §乘除操作"
     ))
     
     # div.ub-orrr, div.sb-orrr, rem.ub-orrr, rem.sb-orrr
@@ -1166,7 +1166,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_byte_op, ha=0x38 + i,
             fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
             legality=["rdhb != rd0", "rdhd != rd0"],
-            wiki_cite="SimRISC-01 §乘除操作"
+            spec_cite="SimRISC-01 §乘除操作"
         ))
     
     # ======================================================================
@@ -1178,58 +1178,58 @@ def main():
     records.append(create_record("ftcls", "orri", misc_rf_op, ha=0x00,
         fields=generate_orri_fields("rdhb", "rfhc", "immu6"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-03 §浮点分类指令"
+        spec_cite="SimRISC-03 §浮点分类指令"
     ))
     records.append(create_record("ft2fo", "orri", misc_rf_op, ha=0x01,
         fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
         legality=[],
-        wiki_cite="SimRISC-03 §格式转换指令"
+        spec_cite="SimRISC-03 §格式转换指令"
     ))
     records.append(create_record("ft2ft", "orri", misc_rf_op, ha=0x02,
         fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
         legality=[],
-        wiki_cite="SimRISC-03 §格式转换指令"
+        spec_cite="SimRISC-03 §格式转换指令"
     ))
     
     # ftroot-orri, ftlog-orri
     records.append(create_record("ftroot", "orri", misc_rf_op, ha=0x06,
         fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
         legality=[],
-        wiki_cite="SimRISC-03 §S1D1"
+        spec_cite="SimRISC-03 §S1D1"
     ))
     records.append(create_record("ftlog", "orri", misc_rf_op, ha=0x07,
         fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
         legality=[],
-        wiki_cite="SimRISC-03 §S1D1"
+        spec_cite="SimRISC-03 §S1D1"
     ))
     
     # focls-orri, fo2ft-orri, fo2fo-orri
     records.append(create_record("focls", "orri", misc_rf_op, ha=0x08,
         fields=generate_orri_fields("rdhb", "rfhc", "immu6"),
         legality=["rdhb != rd0"],
-        wiki_cite="SimRISC-03 §浮点分类指令"
+        spec_cite="SimRISC-03 §浮点分类指令"
     ))
     records.append(create_record("fo2ft", "orri", misc_rf_op, ha=0x09,
         fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
         legality=[],
-        wiki_cite="SimRISC-03 §格式转换指令"
+        spec_cite="SimRISC-03 §格式转换指令"
     ))
     records.append(create_record("fo2fo", "orri", misc_rf_op, ha=0x0A,
         fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
         legality=[],
-        wiki_cite="SimRISC-03 §格式转换指令"
+        spec_cite="SimRISC-03 §格式转换指令"
     ))
     
     # foroot-orri, folog-orri
     records.append(create_record("foroot", "orri", misc_rf_op, ha=0x0E,
         fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
         legality=[],
-        wiki_cite="SimRISC-03 §S1D1"
+        spec_cite="SimRISC-03 §S1D1"
     ))
     records.append(create_record("folog", "orri", misc_rf_op, ha=0x0F,
         fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
         legality=[],
-        wiki_cite="SimRISC-03 §S1D1"
+        spec_cite="SimRISC-03 §S1D1"
     ))
     
     # ftadd-orrr, ftsub-orrr, ftmul-orrr, ftdiv-orrr, ftrem-orrr, ftsclb-orrr, ftsgnn-orrr, ftsgnj-orrr
@@ -1238,7 +1238,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_rf_op, ha=0x10 + i,
             fields=generate_orrr_fields("rfhb", "rfhc", "rfhd"),
             legality=["rfhb != rf0", "rfhc != rf0", "rfhd != rf0"],
-            wiki_cite="SimRISC-03 §S2D1" if i < 6 else "SimRISC-03 §浮点符号位操作指令"
+            spec_cite="SimRISC-03 §S2D1" if i < 6 else "SimRISC-03 §浮点符号位操作指令"
         ))
     
     # foadd-orrr, fosub-orrr, fomul-orrr, fodiv-orrr, forem-orrr, fosclb-orrr, fosgnn-orrr, fosgnj-orrr
@@ -1247,7 +1247,7 @@ def main():
         records.append(create_record(mnem, "orrr", misc_rf_op, ha=0x18 + i,
             fields=generate_orrr_fields("rfhb", "rfhc", "rfhd"),
             legality=["rfhb != rf0", "rfhc != rf0", "rfhd != rf0"],
-            wiki_cite="SimRISC-03 §S2D1" if i < 6 else "SimRISC-03 §浮点符号位操作指令"
+            spec_cite="SimRISC-03 §S2D1" if i < 6 else "SimRISC-03 §浮点符号位操作指令"
         ))
     
     # ftqcmp-orrr, ftscmp-orrr
@@ -1259,7 +1259,7 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rdhb != rd0", "rfhc != rf0", "rfhd != rf0"],
-        wiki_cite="SimRISC-03 §浮点比较指令"
+        spec_cite="SimRISC-03 §浮点比较指令"
     ))
     records.append(create_record("ftscmp", "orrr", misc_rf_op, ha=0x21,
         fields=[
@@ -1269,7 +1269,7 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rdhb != rd0", "rfhc != rf0", "rfhd != rf0"],
-        wiki_cite="SimRISC-03 §浮点比较指令"
+        spec_cite="SimRISC-03 §浮点比较指令"
     ))
     
     # foqcmp-orrr, foscmp-orrr
@@ -1281,7 +1281,7 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rdhb != rd0", "rfhc != rf0", "rfhd != rf0"],
-        wiki_cite="SimRISC-03 §浮点比较指令"
+        spec_cite="SimRISC-03 §浮点比较指令"
     ))
     records.append(create_record("foscmp", "orrr", misc_rf_op, ha=0x29,
         fields=[
@@ -1291,7 +1291,7 @@ def main():
             create_field("rfhd", "[5:0]", "src", "rf")
         ],
         legality=["rdhb != rd0", "rfhc != rf0", "rfhd != rf0"],
-        wiki_cite="SimRISC-03 §浮点比较指令"
+        spec_cite="SimRISC-03 §浮点比较指令"
     ))
     
     # ft2it-orri, ft2io-orri, ft2ut-orri, ft2uo-orri, it2ft-orri, io2ft-orri, ut2ft-orri, uo2ft-orri
@@ -1302,14 +1302,14 @@ def main():
             records.append(create_record(mnem, "orri", misc_rf_op, ha=0x30 + i,
                 fields=generate_orri_fields("rdhb", "rfhc", "immu6"),
                 legality=["rdhb != rd0", "rfhc != rf0"],
-                wiki_cite="SimRISC-03 §格式转换指令"
+                spec_cite="SimRISC-03 §格式转换指令"
             ))
         else:
             # xx2ft: rd -> rf
             records.append(create_record(mnem, "orri", misc_rf_op, ha=0x30 + i,
                 fields=generate_orri_fields("rfhb", "rdhc", "immu6"),
                 legality=["rfhb != rf0"],
-                wiki_cite="SimRISC-03 §格式转换指令"
+                spec_cite="SimRISC-03 §格式转换指令"
             ))
     
     # fo2it-orri, fo2io-orri, fo2ut-orri, fo2uo-orri, it2fo-orri, io2fo-orri, ut2fo-orri, uo2fo-orri
@@ -1320,14 +1320,14 @@ def main():
             records.append(create_record(mnem, "orri", misc_rf_op, ha=0x38 + i,
                 fields=generate_orri_fields("rdhb", "rfhc", "immu6"),
                 legality=["rdhb != rd0", "rfhc != rf0"],
-                wiki_cite="SimRISC-03 §格式转换指令"
+                spec_cite="SimRISC-03 §格式转换指令"
             ))
         else:
             # xx2fo: rd -> rf
             records.append(create_record(mnem, "orri", misc_rf_op, ha=0x38 + i,
                 fields=generate_orri_fields("rfhb", "rdhc", "immu6"),
                 legality=["rfhb != rf0"],
-                wiki_cite="SimRISC-03 §格式转换指令"
+                spec_cite="SimRISC-03 §格式转换指令"
             ))
     
     # 输出 YAML

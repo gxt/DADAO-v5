@@ -41,7 +41,7 @@
 **引用格式（v5 `contract-isa.md` 实际形态）**：
 
 - 文件前缀 + 节标题：`[SimRISC-00 §版本]`、`[SimRISC-01 §rd0 为目的寄存器约定]`、`[SimRISC-02 §函数返回]`
-- 行号（部分 `wiki_cite` 字段含）：`SimRISC-01 §rd0 为目的寄存器约定 (L7)`、`(L37)`
+- 行号（部分 `spec_cite` 字段含）：`SimRISC-01 §rd0 为目的寄存器约定 (L7)`、`(L37)`
 - 文件名多为**前缀**（`SimRISC-01` → `spec/SimRISC-01-数据类指令.md`），需前缀匹配到真实文件
 - **排除**：裸 `§1.3`/`§5.1` 等是合约内部引用，不在审计范围
 
@@ -64,7 +64,7 @@
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **wiki → spec**：0.4.1 审计对象是 `contracts/isa/spec.md`，引用目标是 DADAO-0628 的 wiki 参考（外部，`[wiki §…]`）；v5 **无 wiki**，审计对象是 `.tao/knowledge/contract-*.md`，引用目标是 `spec/*.md`（`[SimRISC-XX §…]`）。
-2. **引用标记**：`[wiki §SimRISC-01 L87]` → `[SimRISC-01 §rd0 为目的寄存器约定]`（v5 用节标题为主，行号出现在部分 `wiki_cite` 字段的 `(Lnn)`）。
+2. **引用标记**：`[wiki §SimRISC-01 L87]` → `[SimRISC-01 §rd0 为目的寄存器约定]`（v5 用节标题为主，行号出现在部分 `spec_cite` 字段的 `(Lnn)`）。
 3. **文件前缀解析**：`SimRISC-01` → `spec/SimRISC-01-数据类指令.md`（前缀匹配），与 0.4.1 的 wiki 文件名前缀匹配同理但目标目录不同。
 4. **审计对象范围**：v5 审计全部 `contract-*.md`（当前含 `contract-isa.md`；后续 ABI/ELF/SBI 合约加入后自动纳入）。
 5. **脚本路径**：`scripts/check_wiki_refs.py` → `verif/check_spec_refs.py`；make 目标 `check-wiki-refs` → `check-spec-refs`。

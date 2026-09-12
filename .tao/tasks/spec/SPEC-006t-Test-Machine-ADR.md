@@ -110,7 +110,7 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
    rrii 跳转；入口状态须区分 power-on reset / ROM 第一条 / RAM `_start` 三个时刻。
 3. **P0 启动模型未冻结**：必须冻结唯一可自动化的启动协议（ROM 是内建 `-bios` blob 还是 loader
    直接设 PC 到 RAM），给出唯一命令行、镜像格式、ROM blob 布局、oversize/error 行为与 RAM entry。
-4. **P1 rf0 常量不匹配位布局**：须从 spec 推导并给位段推导，不能声称错误常量「matching the wiki layout」。
+4. **P1 rf0 常量不匹配位布局**：须从 spec 推导并给位段推导，不能声称错误常量「matching the spec layout」。
 5. **P1 MMIO/fault 矩阵未定义**：须为每个 memory-region × access-kind/width 组合给出确定结果；
    非 8-byte exit port 访问归 ILLI（合法 opcode + 非法操作数），不归 UNDI；为所有保留 fault code
    给出精确状态规则，或从 M1 表中删除未定义 fault。

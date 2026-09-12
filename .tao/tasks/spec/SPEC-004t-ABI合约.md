@@ -61,7 +61,7 @@ M1 scope 限定：**非变参函数**（no varargs）、**标量整数/指针参
 - RF（rf0–rf63）：rf0=FCSR；M1 **Excluded**（不使用）
 - RA（ra0–ra63）：由 `call`/`ret` 自动压/弹（ra63=RegRAS 栈顶），不属 caller/callee-saved 框架；
   压栈溢出 RASOF、弹栈下溢 RASUF（详见 AEE）
-- M1 可分配集与 non-allocatable 集合须明确（rd1/rb3/rb4 在 wiki 中 callee-saved 栏为 `-`，
+- M1 可分配集与 non-allocatable 集合须明确（rd1/rb3/rb4 在 spec 中 callee-saved 栏为 `-`，
   须冻结 M1 的保守策略并标 `[OPEN]`）
 
 **§2 参数传递（来源 `spec/DADAO-21-ABI §传参`）**
@@ -78,7 +78,7 @@ M1 scope 限定：**非变参函数**（no varargs）、**标量整数/指针参
 - 标量整数→rd31；指针/地址→rb31；浮点→rf31（Excluded）
 - 窄返回值扩展规则须冻结（callee 扩展 / caller 不截断，或明确 OPEN），不得含糊
 - 聚合 >64B → hidden sret，指针经 **rb16** 传入（M1 可标 Excluded/Informative）
-- 多返回值：wiki 声明顺序与示例存在内部冲突，M1 标 Excluded/Informative
+- 多返回值：spec 声明顺序与示例存在内部冲突，M1 标 Excluded/Informative
 
 **§4 栈帧布局（来源 `spec/DADAO-21-ABI §函数调用规范 §The Stack Frame`）**
 
@@ -168,7 +168,7 @@ M1 scope 限定：**非变参函数**（no varargs）、**标量整数/指针参
    窄返回值扩展规则不得同时是 `[OPEN]` 又是规范性要求，必须二选一冻结。
 4. **P1 三 bank 共享溢出区**：所有已溢出 RD/RB/RF 参数共享同一区域、按全局声明顺序排列，
    不是每 bank 各自排序；须给出 call 时 `sp+0` 基址公式与交错溢出示例。
-5. **P1 rd1/rb3/rb4 的 `-` 不能生成保存掩码**：wiki 未分类，须冻结 M1 的 fixed/allocatable 属性
+5. **P1 rd1/rb3/rb4 的 `-` 不能生成保存掩码**：spec 未分类，须冻结 M1 的 fixed/allocatable 属性
    （保守做法：不分配，保存语义标 OPEN），不能自行假定 caller-saved。
 6. **P1 M1 scope 矛盾**：multiple-return 与 aggregate 必须明确移入 Post-M1/Informative 并标 Excluded，
    不能让未冻结语义进入规范性 contract。

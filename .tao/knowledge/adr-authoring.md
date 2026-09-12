@@ -9,7 +9,7 @@ ADR（Architecture Decision Record）记录影响架构、难以逆转的决策�
 1. **不可逆 / 高代价**：改起来贵——选上游 commit、定 ABI/ELF、定工具链/构建编排。
 2. **跨模块 / 需一致**：影响多个模块或多人协作（test machine、object ABI、接口）。
 3. **有多方案且需记录取舍**：留下「为什么这么选、否决了什么」。
-4. **外部依赖 / 契约**：与上游（LLVM/QEMU commit）、wiki/spec 团队、外部系统的约定。
+4. **外部依赖 / 契约**：与上游（LLVM/QEMU commit）、spec 团队、外部系统的约定。
 5. **把结论固化为约束**：spike / 调研 / 事故后的结论，需成为后续长期遵循的约束。
 6. **定位 / 方向**：项目或阶段的方向性选择（greenfield、charter）。
 
