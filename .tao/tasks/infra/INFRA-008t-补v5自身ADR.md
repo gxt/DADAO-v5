@@ -26,13 +26,15 @@ v5 多处文档（`INFRA-002t`/`003t`/`004t`/`006t`、`docs/repository-layout.md
 - **任务自包含**（项目 `AGENTS.md`「参考来源与任务自包含」）：v5 文档不得把 0628 的 ADR 当权威；模板/格式以 v5 自身知识为准。
 - ADR-0002 的决策（Make 用户接口 + Python 标准库处理 manifest、一次性数据在 `.work/`、按完整 commit 获取 + 单一有序补丁序列）已在 v5 infra 任务中落地（`INFRA-003t`~`006t`），需固化为 v5 的 ADR。
 - ADR-0001（greenfield 重建）是项目定位决策，v5 沿用。
+- **v5 新增**：`INFRA-004t` 引入 `.cache/` 持久 bare mirror + `.work/` 可再生工作树，避免重下大仓库（LLVM/QEMU/gem5）；这是对 0628 构建编排的扩展，须写入 v5 的 ADR-0002。
 
 ### 关键概念 / 数据
 
 - ADR 格式：见 `.tao/knowledge/adr-authoring.md`。
 - 0628 `docs/adr/0002-build-orchestration.md` 决策：Make 稳定接口 + Python 标准库；一次性数据在 `.work/`；每组件按完整 commit + 单一有序补丁序列；否决环境相关 URL 重写、按可变分支选版本、未审查 fixups、把上游仓库拷进 meta-repo、把脏生成树当权威实现。
 - 0628 `docs/adr/0001-greenfield-rebuild.md`：greenfield 重建定位（内容溯源）。
-- v5 约定：`.work/`（一次性工作区）、`.cache/`（持久 bare mirror）、`manifests/`（锁）、`components/`（有序补丁序列）。
+- v5 约定：`.work/`（一次性工作区，可整体清理）、`.cache/`（持久 bare mirror：组件 `.cache/<name>.git`、参考 `.cache/refs/<id>.git`）、`manifests/`（锁）、`components/`（有序补丁序列）。
+- **v5 新增决策（须写入 adr-0002）**：**持久 mirror + 可再生工作树**——上游组件/参考仓库先做 bare mirror 到 `.cache/`（只增量 `fetch`），工作树从本地 mirror 建到 `.work/`（硬链接，可随 `.work` 清空重建、**不重下大仓库**）；`clean_work` 只清 `.work/`、不碰 `.cache/`。
 
 ### 上游引用
 
@@ -42,13 +44,13 @@ v5 多处文档（`INFRA-002t`/`003t`/`004t`/`006t`、`docs/repository-layout.md
 ## 交付物
 
 - `.tao/knowledge/adr-0001-greenfield-rebuild.md`：v5 greenfield 重建定位（Status 先 Candidate）。
-- `.tao/knowledge/adr-0002-build-orchestration.md`：v5 构建编排决策（Make + Python 标准库、`.work/` 一次性数据、`.cache/` 持久 mirror、按完整 commit + 单一有序补丁序列、否决项）。
+- `.tao/knowledge/adr-0002-build-orchestration.md`：v5 构建编排决策（Make + Python 标准库、`.work/` 一次性数据、按完整 commit + 单一有序补丁序列、否决项），**并记录 v5 新增的 `.cache/` 持久 bare mirror + `.work/` 可再生工作树决策**（避免重下大仓库）。
 - **引用更新**：把 `INFRA-002t`/`003t`/`004t`/`006t` 与 `docs/repository-layout.md` 中对「ADR-0002」的引用指向 v5 `.tao/knowledge/adr-0002-build-orchestration.md`（原文只写 "ADR-0002" 处补明 v5 路径）。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 - 无 ISA 相关差异。
-- v5 新增 `.cache/`（持久 bare mirror）约定，ADR-0002 须体现（0628 无）。
+- v5 新增 `.cache/`（持久 bare mirror）+ `.work/` 可再生工作树，ADR-0002 须体现（0628 无；0628 直接 clone 到 `.work/source`，无持久 mirror）。
 - ADR 落点：v5 在 `.tao/knowledge/`（0628 在 `docs/adr/`）。
 
 ## 已知坑 / 结论
@@ -66,7 +68,7 @@ v5 多处文档（`INFRA-002t`/`003t`/`004t`/`006t`、`docs/repository-layout.md
 ## 验收标准
 
 1. `.tao/knowledge/adr-0001-greenfield-rebuild.md`、`adr-0002-build-orchestration.md` 存在，按 `adr-authoring.md` 格式（含 Status/Context/Decision/Rationale/Consequences），Status 先 `Candidate`
-2. `adr-0002` 含 v5 决策：Make + Python 标准库、`.work/` 一次性数据、`.cache/` 持久 mirror、按完整 commit + 单一有序补丁序列、否决项
+2. `adr-0002` 含 v5 决策：Make + Python 标准库、`.work/` 一次性数据、按完整 commit + 单一有序补丁序列、否决项，以及 v5 新增的 `.cache/` 持久 bare mirror + `.work/` 可再生工作树
 3. `INFRA-002t`/`003t`/`004t`/`006t`、`docs/repository-layout.md` 的 ADR-0002 引用指向 v5 `.tao/knowledge/adr-0002-build-orchestration.md`
 4. 未照抄 0628 ADR 正文（内容溯源）
 
