@@ -2,9 +2,9 @@
 
 > **版本：0.5.3** [SimRISC-00 §版本]
 >
-> **范围**：M1——标量整数 + 地址/内存 RD/RB + 控制流（`call`/`ret`、RegRAS）+ 测试机所需系统/异常。
+> **范围**：M1——标量整数 + 地址/内存 RD/RB/**RA** + 控制流（`call`/`ret`、RegRAS）+ 测试机所需系统/异常。
 >
-> **M1 范围外**（标 `Excluded from M1`，不提取其规范内容）：浮点指令（SimRISC-03 §6）、特权 cfx 系统指令（trap/escape/cfx2rd/cfx2rc/cfxld/cfxst）、LR-SC 原子指令、RA 寄存器存取与 RA 块赋值。
+> **M1 范围外**（标 `Excluded from M1`，不提取其规范内容）：浮点（**RF 全部**：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）、特权 cfx 系统指令（trap/escape/cfx2rd/cfx2rc/cfxld/cfxst）、LR-SC 原子指令。
 >
 > **来源标注**：每条规范性断言在句末以 `[SimRISC-0X §章节名]` 标注来源 spec/ 章节，不写行号。SimRISC-03 仅用于确认浮点边界。
 >
@@ -22,8 +22,8 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 |------|------|------|---------|
 | 数据寄存器 (RD) | rd0–rd63 | 通用运算 | 是 |
 | 基址寄存器 (RB) | rb0–rb63 | 地址计算 | 是 |
-| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | 仅 rf0（FCSR）定义；RF 运算与存取 Excluded from M1 |
-| 返回地址栈 (RA) | ra0–ra63 | 函数调用/返回 | 是（RegRAS/MemRAS 模型；RA 存取 Excluded from M1） |
+| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | RF 存取与运算 Excluded from M1；仅 rf0（FCSR）寄存器模型/复位值保留（供 SPEC-006t，指令语义 Excluded） |
+| 返回地址栈 (RA) | ra0–ra63 | 函数调用/返回 | 是（RegRAS/MemRAS 模型 + RA 存取/块赋值） |
 
 ### §1.2 寄存器编号编码
 
@@ -47,7 +47,7 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 
 #### §1.3.3 rf0（浮点状态寄存器，FCSR）
 
-rf0 为浮点状态寄存器；浮点指令本身 Excluded from M1，但 rf0 的**寄存器模型/位布局**属 §1，M1 测试机复位值需要（SPEC-006t）。[SimRISC-00 §浮点状态寄存器]
+rf0 为浮点状态寄存器（FCSR）。**FCSR 的指令语义（作为浮点操作数、读写约定）Excluded from M1**；此处仅保留 rf0 的**寄存器模型/位布局/复位值**（属 §1 寄存器模型，供 M1 测试机复位值 `SPEC-006t`）。[SimRISC-00 §浮点状态寄存器]
 
 - `rf0` 不应作为普通浮点寄存器参与运算。[SimRISC-00 §浮点寄存器]
 
@@ -220,10 +220,10 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0000-1xxx | — | — | — | — | — | — | — | — |
 | 0001-0xxx | ld.ub-rd | ld.uw-rd | ld.ut-rd | ld.sb-rd | ld.sw-rd | ld.st-rd | ld.t-rf Excl. | st.t-rf Excl. |
 | 0001-1xxx | st.b-rd | st.w-rd | st.t-rd | — | — | — | — | — |
-| 0010-0xxx | ld.o-rd | st.o-rd | ld.o-rb | st.o-rb | ld.o-ra Excl. | st.o-ra Excl. | ld.o-rf Excl. | st.o-rf Excl. |
+| 0010-0xxx | ld.o-rd | st.o-rd | ld.o-rb | st.o-rb | ld.o-ra | st.o-ra | ld.o-rf Excl. | st.o-rf Excl. |
 | 0010-1xxx | ldm.ub-rd | ldm.uw-rd | ldm.ut-rd | ldm.sb-rd | ldm.sw-rd | ldm.st-rd | ldm.t-rf Excl. | stm.t-rf Excl. |
 | 0011-0xxx | stm.b-rd | stm.w-rd | stm.t-rd | — | — | — | — | — |
-| 0011-1xxx | ldm.o-rd | stm.o-rd | ldm.o-rb | stm.o-rb | ldm.o-ra Excl. | stm.o-ra Excl. | ldm.o-rf Excl. | stm.o-rf Excl. |
+| 0011-1xxx | ldm.o-rd | stm.o-rd | ldm.o-rb | stm.o-rb | ldm.o-ra | stm.o-ra | ldm.o-rf Excl. | stm.o-rf Excl. |
 | 0100-0xxx | MISC-octa | MISC-tetra | MISC-wyde | MISC-byte | MISC-RF Excl. | — | — | — |
 | 0100-1xxx | or.w-rd | andn.w-rd | or.w-rb | andn.w-rb | set.zw-rd | set.ow-rd | set.zw-rb | set.w-rf Excl. |
 | 0101-0xxx | add.uo-rd | add.so-rd | sub.uo-rd | sub.so-rd | mul.uo-rd | mul.so-rd | ftmadd Excl. | fomadd Excl. |
@@ -481,20 +481,20 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 | `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展 | [SimRISC-01 §neg 伪指令] |
 | `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 | [SimRISC-01 §neg 伪指令] |
 | `set.rd rdxx, imm64` | `set.zw`/`set.ow` + `or.w`/`andn.w`（1–4 条） | 加载 64 位立即数到 rd | [SimRISC-01 §set.rd 伪指令] |
-| `set.rd rdxx, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 从其他寄存器传值到 rd；M1 仅 `rb`/`rd` 源（`rf`/`ra` 源 Excluded） | [SimRISC-01 §set.rd 伪指令] |
+| `set.rd rdxx, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 从其他寄存器传值到 rd；M1 支持 `rb`/`rd`/`ra` 源（`rf` 源 Excluded） | [SimRISC-01 §set.rd 伪指令] |
 
 `set.rd` 展开规则（汇编器应优先选择指令数最少的方案）：[SimRISC-01 §set.rd 伪指令]
 1. 若 64 位全同（全 0 或全 1），1 条 `set.zw`/`set.ow`。
 2. 若连续 wyde 值相同（如高 48 位全 0），填充初始 wyde 后 `or.w` 补充剩余差异。
 3. 一般情况：`set.zw`/`set.ow` 设置一个基数 wyde，其余 wyde 用 `or.w` 设 1、`andn.w` 清 0。
 
-> `set.rd rdxx, rs` 中源为 `rb` 时展开为 `rb2rd`（M1）、源为 `rd` 时展开为 `rd2rd`（M1）；源为 `ra` 展开 `ra2rd`、源为 `rf` 展开 `rf2rd`，均属 Excluded from M1（见 §4.9、§6）。[SimRISC-01 §set.rd 伪指令]
+> `set.rd rdxx, rs` 中源为 `rb` 时展开为 `rb2rd`（M1）、源为 `rd` 时展开为 `rd2rd`（M1）、源为 `ra` 时展开为 `ra2rd`（M1，见 §4.9）；源为 `rf` 展开 `rf2rd`，属 Excluded from M1（见 §6）。[SimRISC-01 §set.rd 伪指令]
 
 ---
 
-## §4 地址/内存指令（RD/RB）
+## §4 地址/内存指令（RD/RB/RA）
 
-> 范围：RD 与 RB 寄存器组的存取/赋值/算术；RA 寄存器存取与 RA 块赋值标 `Excluded from M1`（§4.9）。
+> 范围：RD、RB、RA 寄存器组的存取/赋值/算术。RA 寄存器模型见 §1.3.4，RA 存取与块赋值见 §4.9。
 
 ### §4.1 存取 RD 寄存器
 
@@ -589,7 +589,7 @@ RB 寄存器都是 64 位，不需指定数据长度。[SimRISC-02 §存取RB寄
 
 - RB 无 `set.ow` 变体。[SimRISC-02 §set.rb 伪指令]
 - `set.zw` 会清零其余所有位，不能连续使用多条；只能一条 `set.zw` 作为第一条，后续用 `or.w`/`andn.w` 逐 wyde 修正。[SimRISC-02 §set.rb 伪指令]
-- RB 立即数设置全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3。[SimRISC-02 §各类操作对高 16 位的处理规则]
+- RB 立即数设置全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3。[SimRISC-02 §各类操作对高 16 位（bits[63:48]）的处理规则]
 
 ### §4.5 RB 算术运算
 
@@ -620,7 +620,7 @@ RB 寄存器都是 64 位，不需指定数据长度。[SimRISC-02 §存取RB寄
 |------|------|------|
 | `cmp.uo rdhb, rbhc, rbhd` | 无符号 64 位比较，结果 −1/0/1 对应小于/等于/大于，写入 `rdhb` | [SimRISC-02 §比较操作] |
 
-- bits[63:48] 不影响比较运算。[SimRISC-02 §各类操作对高 16 位的处理规则]
+- bits[63:48] 不影响比较运算。[SimRISC-02 §各类操作对高 16 位（bits[63:48]）的处理规则]
 - 后续指令可根据负数/非负数/零/非零/正数/非正数做出组合判断。[SimRISC-02 §比较操作]
 
 ### §4.7 PC 相对寻址（riii 格式）
@@ -642,15 +642,48 @@ RB 寄存器都是 64 位，不需指定数据长度。[SimRISC-02 §存取RB寄
 - `set.rb` 展开为 `set.zw` 与 `or.w` 的组合（rb 无 `set.ow` 变体，无需 `andn.w`）。[SimRISC-02 §set.rb 伪指令]
 - 汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。[SimRISC-02 §set.rb 伪指令]
 
-### §4.9 RA 寄存器存取与块赋值 — Excluded from M1
+### §4.9 RA 寄存器存取与块赋值
 
-以下指令涉及 RA 寄存器，M1 不提取其规范内容，标 `Excluded from M1`：[SimRISC-02 §存取RA寄存器][SimRISC-02 §寄存器组之间块赋值]
+RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0–ra63、RegRAS/MemRAS）见 §1.3.4。[SimRISC-02 §存取RA寄存器]
 
-| 指令 | 说明 | 来源 |
+#### §4.9.1 单 load/store（rrii 格式）
+
+| 指令 | 语义 | 来源 |
 |------|------|------|
-| `ld.o raha, rbhb, imms12` / `st.o raha, rbhb, imms12` | RA 单存取（Excluded from M1） | [SimRISC-02 §存取RA寄存器] |
-| `ldm.o raha, rbhb, rdhc, immu6` / `stm.o raha, rbhb, rdhc, immu6` | RA 多存取（Excluded from M1） | [SimRISC-02 §存取RA寄存器] |
-| `ra2rd rdhb, rahc, immu6` / `rd2ra rahb, rdhc, immu6` | RA↔RD 块赋值（Excluded from M1） | [SimRISC-02 §寄存器组之间块赋值] |
+| `ld.o raha, rbhb, imms12` | `raha = mem64[rbhb + imms12]`，全 64 位覆盖 | [SimRISC-02 §存取RA寄存器] |
+| `st.o raha, rbhb, imms12` | `mem64[rbhb + imms12] = raha` | [SimRISC-02 §存取RA寄存器] |
+
+异常条件：[SimRISC-02 §存取RA寄存器]
+- 需 8 字节地址对齐，未对齐 → **MALIGN**
+- `raha` 为 `ra0` 时不触发异常（ra0 可读写）
+
+#### §4.9.2 多 load/store（rrri 格式）
+
+| 指令 | 语义 | 来源 |
+|------|------|------|
+| `ldm.o raha, rbhb, rdhc, immu6` | 多寄存器加载（连续 RA） | [SimRISC-02 §存取RA寄存器] |
+| `stm.o raha, rbhb, rdhc, immu6` | 多寄存器存储（连续 RA） | [SimRISC-02 §存取RA寄存器] |
+
+异常条件：[SimRISC-02 §存取RA寄存器]
+- 需 8 字节地址对齐，未对齐 → **MALIGN**
+- `raha` 为 `ra0` 时不触发异常（ra0 可读写）
+- `immu6 = 0` → **ILLI**
+- `raha + immu6 > 64`（超出 ra63）→ **ILLI**
+
+#### §4.9.3 RA↔RD 块赋值（orri 格式）
+
+| 指令 | 语义 | 来源 |
+|------|------|------|
+| `ra2rd rdhb, rahc, immu6` | 将 `rahc` 开始的 immu6 个 RA 复制到 `rdhb` 开始的 immu6 个 RD | [SimRISC-02 §寄存器组之间块赋值] |
+| `rd2ra rahb, rdhc, immu6` | 将 `rdhc` 开始的 immu6 个 RD 复制到 `rahb` 开始的 immu6 个 RA | [SimRISC-02 §寄存器组之间块赋值] |
+
+- `immu6` 存在 `hd` 位域，有效范围 1–63。[SimRISC-02 §寄存器组之间块赋值]
+- 根据语义，rb/rf/ra 之间不能进行直接赋值，ra 与 ra 之间不能相互赋值（故仅有 `ra2rd`/`rd2ra`，无 `ra2ra`）。[SimRISC-02 §寄存器组之间块赋值]
+- 异常条件：[SimRISC-02 §寄存器组之间块赋值]
+  - `immu6 = 0` → **ILLI**
+  - 任一起始寄存器 + immu6 > 64 → **ILLI**
+  - `ra2rd` 的目的 `rdhb` 为 `rd0` → **ILLI**（目的不可为 rd0）。[SimRISC-00 §数据寄存器][SimRISC-01 §rd0 为目的寄存器约定]
+- 源和目的范围可以重叠；硬件按序号递增逐对处理，每对先读后写。[SimRISC-02 §寄存器组之间块赋值]
 
 ---
 
@@ -661,7 +694,7 @@ RB 寄存器都是 64 位，不需指定数据长度。[SimRISC-02 §存取RB寄
 - SimRISC 指令都是 4 字节且 4 字节对齐；采用立即数作为偏移地址参与计算时，均将其左移 2 位以增大跳转范围。[SimRISC-02 §控制流指令]
 - PC 的有效位宽为 48 位，`rb0[63:48]` 恒为 0。[SimRISC-02 §控制流指令]
 - 条件跳转均采用相对地址。[SimRISC-02 §条件跳转指令]
-- 跳转/调用地址计算仅在低 48 位进行，溢出丢弃；bits[63:48] 保持不变。[SimRISC-02 §各类操作对高 16 位的处理规则]
+- 跳转/调用地址计算仅在低 48 位进行，溢出丢弃；bits[63:48] 保持不变。[SimRISC-02 §各类操作对高 16 位（bits[63:48]）的处理规则]
 
 ### §5.2 条件跳转指令
 
@@ -889,7 +922,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 异常 | 触发条件 | 来源 |
 |------|---------|------|
 | **ILLI** | 非法指令/非法操作数约束违反（详见下方清单） | [SimRISC-04 §非法指令] |
-| **MALIGN** | 内存访问未对齐（load/store、多 load/store、RB 存取） | [SimRISC-01 §存取RD寄存器][SimRISC-02 §存取RB寄存器] |
+| **MALIGN** | 内存访问未对齐（load/store、多 load/store、RB 存取、RA 存取） | [SimRISC-01 §存取RD寄存器][SimRISC-02 §存取RB寄存器][SimRISC-02 §存取RA寄存器] |
 | **UNDI** | 执行保留编码（QFC 主表 / MISC 子表空白单元格） | [SimRISC-00 §SimRISC QFC] |
 | **IALIGN** | 取指时 `PC[1:0] ≠ 00` | [SimRISC-00 §指令设计] |
 | **RASOF** | RegRAS 压栈溢出（调用深度超过 63），或 MemRAS 引用计数溢出 | [SimRISC-00 §压栈流程（call 指令）] |
@@ -905,6 +938,8 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - `ldm`/`stm`（RD）`rdha` 为 `rd0`、`immu6 = 0`、或 `rdha + immu6 > 64`。[SimRISC-01 §存取RD寄存器]
 - 块赋值（`rd2rd`/`rb2rd`/`rd2rb`/`rb2rb`）`immu6 = 0`、目的为 `rd0`/`rb0`、或起始寄存器 + immu6 > 64。[SimRISC-01 §寄存器组之间块赋值][SimRISC-02 §寄存器组之间块赋值]
 - `ld.o`/`st.o`/`ldm.o`/`stm.o`（RB）`rbha` 为 `rb0`、`immu6 = 0`、或 `rbha + immu6 > 64`。[SimRISC-02 §存取RB寄存器]
+- `ldm.o`/`stm.o`（RA）`immu6 = 0`、或 `raha + immu6 > 64`（超出 ra63）。[SimRISC-02 §存取RA寄存器]
+- 块赋值（`ra2rd`/`rd2ra`）`immu6 = 0`、任一起始寄存器 + immu6 > 64、或 `ra2rd` 目的 `rdhb` 为 `rd0`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-01 §rd0 为目的寄存器约定]
 - 移位量 `shamt > N`。[SimRISC-01 §Bit manipulating：位操作指令]
 - 扩展起始位 `hd > N`。[SimRISC-01 §Bit manipulating：位操作指令]
 - 除法除数为零。[SimRISC-01 §乘除操作]
@@ -941,6 +976,8 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x21 | 0010-0001 | rrii | st.o-rd | `st.o` | [SimRISC-00 §SimRISC QFC] |
 | 0x22 | 0010-0010 | rrii | ld.o-rb | `ld.o` | [SimRISC-00 §SimRISC QFC] |
 | 0x23 | 0010-0011 | rrii | st.o-rb | `st.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x24 | 0010-0100 | rrii | ld.o-ra | `ld.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x25 | 0010-0101 | rrii | st.o-ra | `st.o` | [SimRISC-00 §SimRISC QFC] |
 | 0x28 | 0010-1000 | rrri | ldm.ub-rd | `ldm.ub` | [SimRISC-00 §SimRISC QFC] |
 | 0x29 | 0010-1001 | rrri | ldm.uw-rd | `ldm.uw` | [SimRISC-00 §SimRISC QFC] |
 | 0x2A | 0010-1010 | rrri | ldm.ut-rd | `ldm.ut` | [SimRISC-00 §SimRISC QFC] |
@@ -954,6 +991,8 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x39 | 0011-1001 | rrri | stm.o-rd | `stm.o` | [SimRISC-00 §SimRISC QFC] |
 | 0x3A | 0011-1010 | rrri | ldm.o-rb | `ldm.o` | [SimRISC-00 §SimRISC QFC] |
 | 0x3B | 0011-1011 | rrri | stm.o-rb | `stm.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x3C | 0011-1100 | rrri | ldm.o-ra | `ldm.o` | [SimRISC-00 §SimRISC QFC] |
+| 0x3D | 0011-1101 | rrri | stm.o-ra | `stm.o` | [SimRISC-00 §SimRISC QFC] |
 | 0x40 | 0100-0000 | — | MISC-octa | （见 A.2） | [SimRISC-00 §SimRISC QFC] |
 | 0x41 | 0100-0001 | — | MISC-tetra | （见 A.3） | [SimRISC-00 §SimRISC QFC] |
 | 0x42 | 0100-0010 | — | MISC-wyde | （见 A.4） | [SimRISC-00 §SimRISC QFC] |
@@ -1022,6 +1061,8 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 101-010 | `cmp.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 101-011 | `cmp.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 101-100 | `rd2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 101-101 | `rd2ra` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 101-110 | `ra2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 110-100 | `rb2rb` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 110-101 | `rd2rb` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 110-110 | `rb2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |
@@ -1138,14 +1179,10 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 |-----------------|------|--------|------|------|
 | 0x16 | ld.t-rf | `ld.t` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
 | 0x17 | st.t-rf | `st.t` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
-| 0x24 | ld.o-ra | `ld.o` | RA 存取 | [SimRISC-00 §SimRISC QFC] |
-| 0x25 | st.o-ra | `st.o` | RA 存取 | [SimRISC-00 §SimRISC QFC] |
 | 0x26 | ld.o-rf | `ld.o` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
 | 0x27 | st.o-rf | `st.o` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
 | 0x2E | ldm.t-rf | `ldm.t` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
 | 0x2F | stm.t-rf | `stm.t` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
-| 0x3C | ldm.o-ra | `ldm.o` | RA 存取 | [SimRISC-00 §SimRISC QFC] |
-| 0x3D | stm.o-ra | `stm.o` | RA 存取 | [SimRISC-00 §SimRISC QFC] |
 | 0x3E | ldm.o-rf | `ldm.o` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
 | 0x3F | stm.o-rf | `stm.o` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
 | 0x44 | MISC-RF | （浮点子表） | 浮点 | [SimRISC-00 §MISC-RF指令编码] |
@@ -1163,8 +1200,6 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x7D | cfxst | `cfxst` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | 0x7E | escape | `escape` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | 0x7F | trap | `trap` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
-| MISC-octa 101-101 | rd2ra | `rd2ra` | RA 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
-| MISC-octa 101-110 | ra2rd | `ra2rd` | RA 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
 | MISC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
 | MISC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
 | MISC-AMO 010-xxx | lr_nn/lr_nr/lr_an/lr_ar | `lr_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
