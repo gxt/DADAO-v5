@@ -20,7 +20,7 @@
   - `scripts/check_spec_drift.py`（fail-closed 的规格漂移检查）
   - `README.md`（冻结状态标注为 `已冻结`）
 - 约束：
-  - 冻结前所有 authority artifact（SPEC-002t/003t/006t/007t/008t/009t）必须 Accepted
+  - 冻结前所有 authority artifact（SPEC-002t/003t/004t/005t/006t/007t）必须 Accepted
   - `check_spec_drift.py` 不联网，只读本地文件
   - 脚本须通过 `python3 -m compileall -q scripts`
   - impact matrix 覆盖「每个 spec 章节」，实现目标须区分 LLVM MC / LLVM CodeGen / QEMU CPU /
@@ -128,7 +128,7 @@
 3. 脚本对「版本不匹配 / 来源缺失 / 来源格式错误 / 未知 ADR」四类均非零退出（负测试齐全）
 4. 脚本正常运行输出 `spec drift check: PASS` 并返回 0；`python3 -m compileall -q scripts` 通过
 5. `README.md` 规范版本表与已 Accepted 合约一致，冻结状态标注为 `已冻结`
-6. 冻结前所有 authority artifact 均 Accepted（SPEC-002t/003t/006t/007t/008t/009t）
+6. 冻结前所有 authority artifact 均 Accepted（SPEC-002t/003t/004t/005t/006t/007t）
 7. 给出 gate 命令；若未接入 Makefile，须在完成区说明接入时机（infra 模块）
 8. 不照抄 0.4.1 的章节号/矩阵行；无行号引用
 
