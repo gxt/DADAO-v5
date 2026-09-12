@@ -23,7 +23,7 @@
 
 ### 设计理由
 
-- ADR-0002：每个组件按完整 commit 获取；tag/branch 不作为可复现基线；环境相关 Git URL 重写、仅按可变分支选版本、未审查的 `fixups` 层均被拒绝。
+- ADR-0002（v5：`.tao/knowledge/adr-0002-build-orchestration.md`）：每个组件按完整 commit 获取；tag/branch 不作为可复现基线；环境相关 Git URL 重写、仅按可变分支选版本、未审查的 `fixups` 层均被拒绝。
 - 0628 `components.lock.toml` 头注释明确：component 在 ADR 记录上游选择与精确 commit 之前保持 disabled；tag/branch 不被接受为可复现基线。
 - reference 采用 `policy = "reference-only"`：只复用规范文本 / 架构与教训，不复制实现。
 

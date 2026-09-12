@@ -3,7 +3,7 @@
 DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 
 仓库**永不跟踪**上游源码树或构建产物；源码 checkout 由组件锁文件（`manifests/`）
-加有序补丁序列完全复现（参考 ADR-0002：一次性数据集中在 `.work/`）。
+加有序补丁序列完全复现（参考 v5 ADR-0002 `.tao/knowledge/adr-0002-build-orchestration.md`：一次性数据集中在 `.work/`）。
 
 ## 纳入版本控制的目录
 

@@ -24,7 +24,7 @@
 ### 设计理由
 
 - 0628 `docs/repository-layout.md` 明确：仓库永不跟踪上游源码树或构建产物；源码 checkout 由 `components.lock.toml` + 有序补丁序列完全复现。
-- ADR-0002 要求所有一次性数据放在 `.work/` 下。
+- ADR-0002（v5：`.tao/knowledge/adr-0002-build-orchestration.md`）要求所有一次性数据放在 `.work/` 下。
 - 工程规则（`docs/greenfield-charter.md`）：保持生成的产物在仓库历史之外。
 
 ### 关键概念 / 数据

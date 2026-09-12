@@ -23,7 +23,7 @@
 
 ### 设计理由
 
-- ADR-0002：每个组件按完整 commit 获取并应用**单一有序补丁序列**；`git am` 是唯一打补丁路径。
+- ADR-0002（v5：`.tao/knowledge/adr-0002-build-orchestration.md`）：每个组件按完整 commit 获取并应用**单一有序补丁序列**；`git am` 是唯一打补丁路径。
 - 可复现性：`.work/source/<name>` 完全可由 `components.lock.toml` + 补丁序列重建，不把上游源码树或产物纳入仓库。
 - **避免重下大仓库**：LLVM/QEMU/gem5 与参考仓库体量大。用**持久 bare mirror**（组件 `.cache/<name>.git`、参考 `.cache/refs/<id>.git`）作本地对象库，工作树从 mirror 建（本地硬链接，不额外占盘）；`clean_work` 只清 `.work/`、不动 `.cache/` → 清空 `.work` 后重建工作树无需网络。
 

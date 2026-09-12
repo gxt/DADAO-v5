@@ -23,7 +23,7 @@
 
 ### 设计理由
 
-- ADR-0002：**Use Make as the stable user interface and Python standard-library scripts for manifest processing.**
+- ADR-0002（v5：`.tao/knowledge/adr-0002-build-orchestration.md`）：**Use Make as the stable user interface and Python standard-library scripts for manifest processing.**
 - 每个构建目标先依赖 `manifest-check`，保证只在锁有效时构建。
 - 构建产物落在 `.work/` 下（`QEMU_BUILD` / `LLVM_BUILD` 等变量可覆盖）。
 
@@ -567,7 +567,7 @@ $ python3 -c "import tomllib,sys;m=tomllib.load(open('manifests/components.lock.
 **非阻塞观察（无需返工，后续落地时顺带处置）**：
 
 1. `QEMU_BUILD` 声明未使用（QEMU 沿用 in-tree 构建，产物在 `.work/source/qemu`；若需 out-of-tree 由 `QEMU-002t` 处理）。
-2. `component-enabled` 内联 Python 谓词，与 ADR-0002「manifest 处理交 Python 脚本」边界略模糊（一行谓词，可接受）。
+2. `component-enabled` 内联 Python 谓词，与 ADR-0002（v5：`.tao/knowledge/adr-0002-build-orchestration.md`）「manifest 处理交 Python 脚本」边界略模糊（一行谓词，可接受）。
 3. `make -j prepare` 不保证 `fetch`→`apply-series` 顺序（默认串行下成立）。
 4. `make -n build-qemu` 非纯 dry-run（GNU Make `-n` 对含 `$(MAKE)` 的递归行仍执行）。
 5. 完成区记录的 `Makefile` 行号（71/83/98）因加注释位移，与实际（73/86/101）不符（文档小瑕疵）。
