@@ -34,6 +34,6 @@ DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 
 ## 持久对象库 `.cache/`（整体忽略，不入库）
 
-`.cache/<name>.git` 存放上游组件的 **bare mirror（本地对象库）**，由 `scripts/fetch.py`
-首次 `git clone --mirror` 下载一次、以后只增量 `git fetch`。它**持久保留**（`clean_work`
-不删除），使 `.work/source/<name>` 工作树即使被清空也能从本地 mirror 重建、无需重新下载大仓库。
+`.cache/<name>.git` 存放上游组件的 **bare mirror（本地对象库）**，`.cache/refs/<id>.git` 存放参考仓库的 bare mirror，分别由 `scripts/fetch.py` / `scripts/fetch_refs.py`
+首次 `git clone --mirror` 下载一次、以后只增量 `git fetch`。`.cache/` **持久保留**（`clean_work`
+不删除），使 `.work/` 下的工作树即使被清空也能从本地 mirror 重建、无需重新下载大仓库。

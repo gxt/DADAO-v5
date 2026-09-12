@@ -25,7 +25,7 @@
 
 - ADR-0002：每个组件按完整 commit 获取并应用**单一有序补丁序列**；`git am` 是唯一打补丁路径。
 - 可复现性：`.work/source/<name>` 完全可由 `components.lock.toml` + 补丁序列重建，不把上游源码树或产物纳入仓库。
-- **避免重下大仓库**：LLVM/QEMU/gem5 体量大。用**持久 bare mirror**（`.cache/<name>.git`）作本地对象库，工作树从 mirror 建（本地硬链接，不额外占盘）；`clean_work` 只清 `.work/`、不动 `.cache/` → 清空 `.work` 后重建工作树无需网络。
+- **避免重下大仓库**：LLVM/QEMU/gem5 与参考仓库体量大。用**持久 bare mirror**（组件 `.cache/<name>.git`、参考 `.cache/refs/<id>.git`）作本地对象库，工作树从 mirror 建（本地硬链接，不额外占盘）；`clean_work` 只清 `.work/`、不动 `.cache/` → 清空 `.work` 后重建工作树无需网络。
 
 ### 关键概念 / 数据
 
@@ -54,7 +54,7 @@
 - `scripts/fetch.py`：维护 `.cache/<name>.git` 持久 mirror（增量 fetch），并从 mirror 建/刷新 `.work/source/<name>` 工作树到 pin commit。
 - `scripts/apply_series.py`：将有序补丁序列 `git am` 到 checkout。
 - `scripts/make_patch.py`：从工作树生成/维护补丁序列（v5 新增）。
-- `scripts/fetch_refs.py`：按 `references.lock.toml` 获取只读参考仓库到其 `path`，供任务 `## 参考` 定位；DADAO-0628 直接用已有 `.work/DADAO-0628`（只做 commit 检查，不重新拉取），DADAO 从 `https://github.com/gxt/DADAO.git` 取到 `.work/DADAO`；已存在且 commit 匹配则跳过。
+- `scripts/fetch_refs.py`：按 `references.lock.toml` 维护参考仓库的**持久 mirror**（`.cache/refs/<id>.git`，首次 `git clone --mirror`、以后增量 `fetch`），并从中建/刷新只读工作树到其 `path`（`.work/DADAO-0628`、`.work/DADAO`），供任务 `## 参考` 定位；已存在且 commit 匹配则跳过；`.work` 清空后可从 mirror 重建、无需重下。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -69,7 +69,7 @@
 - 脏工作树必须拒绝覆盖，避免丢失未提交改动。
 - `apply_series.py` 严格要求 `HEAD == base commit`，防止在错误基线上叠补丁。
 - 补丁应用统一用 `git am`（保留作者/提交信息），不用 `patch`/`git apply`。
-- **避免重下大仓库**：`.work/` 可被 `clean_work` 清空，但 `.cache/<name>.git` 持久保留；工作树从本地 mirror 重建（硬链接），不触发网络。对已存在 mirror 只做增量 `git fetch --prune`。
+- **避免重下大仓库**：`.work/` 可被 `clean_work` 清空，但 `.cache/`（组件 `.cache/<name>.git`、参考 `.cache/refs/<id>.git`）持久保留；工作树从本地 mirror 重建（硬链接），不触发网络。对已存在 mirror 只做增量 `git fetch --prune`。
 
 ## 参考
 
@@ -87,7 +87,7 @@
 2. `apply_series.py` 能按 `series` 顺序 `git am` 应用补丁，并在 HEAD 非 base commit 时明确报错
 3. `make_patch.py` 能从工作树生成补丁并维护 `series`（新工具，含基本自测）
 4. 三脚本通过 `python3 -m compileall scripts`（`make fetch`/`make apply-series` 的集成由 `INFRA-006t` 验收）
-5. `fetch_refs.py` 能按 `references.lock.toml` 将参考仓库取到 `path`；已存在且 commit 匹配时跳过
+5. `fetch_refs.py` 维护 `.cache/refs/<id>.git` 持久 mirror 并从中建参考工作树到 `path`；已存在且 commit 匹配时跳过；删除 `path` 后能从 mirror 重建、不联网
 6. `.cache/<name>.git` 为持久 mirror；删除 `.work/source/<name>` 后 `fetch.py` 能从 mirror 重建工作树且不联网；`clean_work.py` 不删除 `.cache/`
 
 ## 完成区

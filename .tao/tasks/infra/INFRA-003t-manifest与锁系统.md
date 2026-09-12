@@ -56,7 +56,7 @@
   - `format = 1`、`policy = "reference-only"`。
   - `[[reference]]` id `dadao-0628`：repository `https://github.com/holight1/DADAO-0628.git`、`head = "2d270604b778d609e1a09b4047271b5309005ffc"`、`path` 指向 `.work/DADAO-0628`、`reuse = "架构与工程教训，不复制实现"`。
   - `[[reference]]` id `dadao`：repository `https://github.com/gxt/DADAO.git`、`head = "f9bde0481668ffab325db8d8c5d8c4cc791c6232"`、`path` 指向 `.work/DADAO`；其 checkout 由 `INFRA-004t` 的 `fetch_refs.py` 获取。
-  - DADAO 与 DADAO-0628 是两套互不相关的仓库（均已不再更新）；DADAO-0628 直接使用已有 `.work/DADAO-0628` clone，`fetch_refs.py` 只做 commit 检查、不重新拉取。
+  - DADAO 与 DADAO-0628 是两套互不相关的仓库（均已不再更新）；`fetch_refs.py`（`INFRA-004t`）为两者维护持久 mirror（`.cache/refs/<id>.git`）并从中建只读工作树到各自 `path`（`.work/DADAO-0628`、`.work/DADAO`），`.work` 清空后可重建、无需重下。
   - `path` 字段按 v5 实际位置填写（`.work/DADAO-0628` 等）。v5 简化 schema，省略 0628 的 `dirty`（执行时计算）、`purpose`（并入 `reuse`）、`selected_paths`（本阶段不需要）字段。
 - `scripts/manifest_check.py`：实现 component/reference 锁校验；**v5 无 spec lock 文件**（规范版本表在 `README.md`，脚本不校验 spec 锁），并对 disabled 组件的待定 commit 放行。
 
