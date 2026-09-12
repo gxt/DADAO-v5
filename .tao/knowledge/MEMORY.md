@@ -11,7 +11,7 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 | SimRISC 规范 | ✅ 0.5.3 |
 | spec 模块（ISA 合约 + 编码表 + 合法性规则） | ✅ 已完成 |
 | M1 任务规划（infra/spec/testsuite/llvm/qemu/verif） | ✅ 已生成（参考 DADAO-0628，未逐任务审核） |
-| M1 实现 | 🔄 进行中（infra：`INFRA-002t`~`008t` 已验证；`INFRA-009m` 待核验） |
+| M1 实现 | 🔄 进行中（infra 模块 M1 已完成：`INFRA-009m` 里程碑；其余模块待推进） |
 
 ## 关键目录速查
 
