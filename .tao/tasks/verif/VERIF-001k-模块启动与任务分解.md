@@ -23,15 +23,15 @@
 | 编号 | 任务 | 交付物 | 依赖 |
 |------|------|--------|------|
 | `VERIF-002t` | 合法性规则与验证器 | `verif/legality_rules.yaml` | `SPEC-003t` |
-| `VERIF-003t` | QEMU 语义测试 harness | `tests/scripts/build_test_binary.py`、`run_qemu_test.py`、`gen_trampoline.py`、`trampoline.bin`、`README.md` | `QEMU-013m`、`TESTSUITE-003t`、`SPEC-008t` |
+| `VERIF-003t` | QEMU 语义测试 harness | `tests/scripts/build_test_binary.py`、`run_qemu_test.py`、`gen_trampoline.py`、`trampoline.bin`、`README.md` | `QEMU-013m`、`TESTSUITE-003t`、`SPEC-006t` |
 | `VERIF-004t` | harness 语义验证修复 | `build_test_binary.py`（`emit_state_compare`）、`run_qemu_test.py`（fault 路由 + fail-closed） | `VERIF-003t` |
 | `VERIF-005t` | QFC 覆盖校验 + lit 字节 oracle | `verif/check_qfc_coverage.py`、`verif/check_lit_bytes.py` | `SPEC-003t`、`LLVM-009t` |
 | `VERIF-006t` | harness `expected_state.memory` 验证 | `build_test_binary.py`（memory 比对路径） | `VERIF-004t`、`TESTSUITE-006t` |
 | `VERIF-007t` | issue registry + QEMU trans lint | `docs/issues.yaml`、`verif/check_issues.py`、`verif/check_qemu_trans.py` | `SPEC-003t`、`QEMU-013m` |
 | `VERIF-008t` | 分支语义 harness 扩展 | `build_test_binary.py`（`build_branch_test_binary`）、`control-flow.yaml` semantic 激活 | `VERIF-004t`、`TESTSUITE-008t` |
 | `VERIF-009t` | call/ret 语义 + RA stack | `build_test_binary.py`（`emit_call_ret_pattern`）、call/ret 语义测试 | `VERIF-008t`、`QEMU-012t` |
-| `VERIF-010t` | MC↔QEMU 端到端冒烟 | `tests/e2e/*.s`、`tests/lit/E2E/*` | `LLVM-011m`、`QEMU-013m`、`SPEC-008t` |
-| `VERIF-011t` | spec 引用审计器 | `verif/check_spec_refs.py` + 首轮审计报告 | `SPEC-002t`、`SPEC-010t` |
+| `VERIF-010t` | MC↔QEMU 端到端冒烟 | `tests/e2e/*.s`、`tests/lit/E2E/*` | `LLVM-011m`、`QEMU-013m`、`SPEC-006t` |
+| `VERIF-011t` | spec 引用审计器 | `verif/check_spec_refs.py` + 首轮审计报告 | `SPEC-002t`、`SPEC-008t` |
 | `VERIF-012m` | M1 集成里程碑 | 模块里程碑标记（核验各任务） | `VERIF-002t`~`VERIF-011t` |
 
 - **依赖关系**：`VERIF-002t` 依赖 `spec/SPEC-003t`（编码表）；harness 链为 `VERIF-003t` → `VERIF-004t` → {`VERIF-006t`、`VERIF-008t` → `VERIF-009t`}；`VERIF-005t`/`VERIF-007t`/`VERIF-011t` 为独立检查工具；`VERIF-010t` 依赖 LLVM/QEMU 里程碑；`VERIF-012m` 收敛全部。

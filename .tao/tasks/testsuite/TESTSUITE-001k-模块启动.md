@@ -34,13 +34,13 @@ DADAO-v5 的 TDD 合约要求：在任何 LLVM/QEMU 实现字节被写入之前�
 | `TESTSUITE-003t` | encoding class 向量补全 | 各 `tests/vectors/isa/*.yaml` 追加 encoding 向量 | `TESTSUITE-002t` |
 | `TESTSUITE-004t` | 向量覆盖率修复（opcode identity + encoding.word） | `verif/validate_vectors.py`、缺漏向量补全 | `TESTSUITE-003t` |
 | `TESTSUITE-005t` | validator 身份唯一性修复 | `verif/validate_vectors.py` | `TESTSUITE-004t` |
-| `TESTSUITE-006t` | 语义向量内存地址 ROM→RAM | `tests/vectors/isa/rd-load-store.yaml`、`rb-ops.yaml` | `TESTSUITE-002t`、`SPEC-008t` |
+| `TESTSUITE-006t` | 语义向量内存地址 ROM→RAM | `tests/vectors/isa/rd-load-store.yaml`、`rb-ops.yaml` | `TESTSUITE-002t`、`SPEC-006t` |
 | `TESTSUITE-007t` | ISA 向量文件修复（5 文件） | 5 个 `tests/vectors/isa/*.yaml` | `TESTSUITE-004t` |
 | `TESTSUITE-008t` | control-flow 向量修复 + TDD 补全 | `tests/vectors/isa/control-flow.yaml` | `TESTSUITE-004t` |
 | `TESTSUITE-009t` | load encoding deferred 重设计 | `tests/vectors/isa/rd-load-store.yaml` | `TESTSUITE-006t` |
 | `TESTSUITE-010m` | testsuite 里程碑 | 里程碑标记 | `TESTSUITE-002t`~`TESTSUITE-009t` |
 
-- **依赖关系**：`002t → 003t → 004t → 005t`；`004t → {007t, 008t}`；`002t + SPEC-008t → 006t → 009t`；`010m` 汇总全部。
+- **依赖关系**：`002t → 003t → 004t → 005t`；`004t → {007t, 008t}`；`002t + SPEC-006t → 006t → 009t`；`010m` 汇总全部。
 - **分解理由**：先建「schema + 数据 + 校验器」基座（002t），再补 encoding 层（003t），再修覆盖率身份与 encoding.word（004t/005t），随后按文件修数据（006t/007t/008t/009t）。每步可独立用 `verif/validate_vectors.py` + `make check` 验收。
 
 ## 说明

@@ -4,7 +4,7 @@
 
 | 项目里程碑 | infra | spec | testsuite | golden | llvm | qemu | verif | gem5 | sail | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M1 | `INFRA-009m` | `SPEC-011m` | `TESTSUITE-010m` | — | `LLVM-011m` | `QEMU-013m` | `VERIF-012m` | — | — | 待开始 |
+| M1 | `INFRA-009m` | `SPEC-009m` | `TESTSUITE-010m` | — | `LLVM-011m` | `QEMU-013m` | `VERIF-012m` | — | — | 待开始 |
 | M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
 
 ## 里程碑说明
@@ -43,7 +43,7 @@ spec ──→ testsuite ──┤           ├──→ verif ──→ M1
 
 **第 1 层 — 基础设施 + 规范基线**（无前置或已部分完成）
 - `infra`：`INFRA-002t` → `003t` → {`004t`、`005t`} → `006t` → `007t`
-- `spec`：`SPEC-006t` → {`007t`、`008t`} → `009t` → `010t`（`SPEC-002t`/`003t` 已完成）
+- `spec`：`SPEC-004t` → {`007t`、`008t`} → `009t` → `010t`（`SPEC-002t`/`003t` 已完成）
 - 说明：先建 `Makefile`/fetch/锁（infra）与 `ADR-0004`/ELF 合约（spec），解除对下游的阻塞。
 
 **第 2 层 — 测试向量 + 组件基线/骨架**（依赖第 1 层）

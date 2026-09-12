@@ -1,8 +1,8 @@
-# SPEC-007t: Object ABI ADR（ELF/重定位决策）
+# SPEC-005t: Object ABI ADR（ELF/重定位决策）
 
 **模块**：spec
 **项目里程碑**：M1
-**依赖**：`SPEC-002t`、`SPEC-006t`
+**依赖**：`SPEC-002t`、`SPEC-004t`
 **状态**：待开始
 
 ## 执行环境
@@ -13,14 +13,14 @@
 
 - 输入：
   - `.tao/knowledge/contract-isa.md`（0.5.3，指令格式/字段宽度/重定位公式的唯一 oracle）
-  - `.tao/knowledge/contract-abi.md`（SPEC-006t，指针/地址模型）
+  - `.tao/knowledge/contract-abi.md`（SPEC-004t，指针/地址模型）
 - 输出：`.tao/knowledge/adr-0003-object-abi.md`
 - 约束：
   - Greenfield 原则：不 cherry-pick 遗留实现，遗留只读参考，结论须独立给出
   - Spec-first：所有 S/A/P 公式和字段宽度从 0.5.3 `contract-isa.md` 推导，引用章节号（§N），不用行号
   - M1 scope：只定义 M1 实际需要的重定位类型；未用类型不列入
   - ELF 内容 `spec/` 无依据 → 本 ADR 即原始决策，须标「无 spec 依据，架构自定义」并给出理由
-  - 格式：Context / Decision / Consequences 三段；决策表可被 SPEC-009t 直接引用
+  - 格式：Context / Decision / Consequences 三段；决策表可被 SPEC-007t 直接引用
   - 完成后不自行 commit
 
 ## 背景（完整）
@@ -28,7 +28,7 @@
 ### 目标
 
 产出 `.tao/knowledge/adr-0003-object-abi.md`（ADR-0003），冻结 DADAO-v5 SimRISC M1 所需的
-ELF object ABI 字段。本 ADR 是 SPEC-009t（ELF 合约）的**唯一决策依据**。
+ELF object ABI 字段。本 ADR 是 SPEC-007t（ELF 合约）的**唯一决策依据**。
 
 ### 设计理由
 
@@ -67,7 +67,7 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
   §5（分支/call/jump）— 主要 oracle
 - DADAO-0628：`code-agent/tasks/DL-003a-elf-object-abi-adr.md`（完整转述；含 3 轮 Architecture Review）
 - DADAO-0628：`docs/adr/0003-object-abi.md`（内容溯源：最终 Accepted 决策；ADR 格式见 v5 `.tao/knowledge/adr-authoring.md`）
-- DADAO-0628：`contracts/elf/spec.md`（下游 SPEC-009t 的规范化目标）、`contracts/elf/README.md`
+- DADAO-0628：`contracts/elf/spec.md`（下游 SPEC-007t 的规范化目标）、`contracts/elf/README.md`
 - DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
 
 ## 交付物
@@ -92,7 +92,7 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
    最终以 `e_flags = 0x1`（M1 ABI version）区分。v5 须冻结同一 `EM_DADAO=0x0DA0` 下的命名空间策略，
    并说明 `EM_DADAO` 的注册状态（project-custom，非 IANA/SysV/upstream LLVM 注册）。
 5. **artifact pipeline**：0.4.1 第三轮冻结 `ET_REL → static link → ET_EXEC → objcopy flat → QEMU -kernel`，
-   并删除「test machine jumps to e_entry」表述。v5 须与 ADR-0004（SPEC-008t）统一端到端路径。
+   并删除「test machine jumps to e_entry」表述。v5 须与 ADR-0004（SPEC-006t）统一端到端路径。
 6. **LLD scope**：0.4.1 DL-004a 曾把 Post-M2 的 LLD 变成 M1 必需依赖。v5 须明确 M1 是否需要
    target linker，或采用 raw/section extraction 路径；不得默认 M1 已获得 DADAO LLD backend。
 7. **地址模型**：0.5.3 有效地址为 48 位（高 16 位在地址计算时被忽略）；RB `add.si` 为全 64 位运算。
@@ -136,7 +136,7 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
    wyde 构造、PCREL18、PCREL12（`br.eq`/`br.ne`）、PCREL24、RELA（`rela.si`）
 4. 所有 S/A/P 公式与字段宽度可从 0.5.3 `contract-isa.md` 独立验证；不引用行号
 5. D3 溢出策略明确（有界类型 link-time error），D4 明确 M1 是否禁止 relaxation
-6. D5 给出段对齐、VA=PA 及唯一端到端 artifact pipeline，与 ADR-0004（SPEC-008t）一致
+6. D5 给出段对齐、VA=PA 及唯一端到端 artifact pipeline，与 ADR-0004（SPEC-006t）一致
 7. 重定位编号/命名空间策略明确且无静默冲突（版本位或兼容策略已冻结）
 8. 不依赖遗留 `Dadao.def` 的数字/公式；遗留仅作对比且已在文档中说明
 9. 无未决的「待定」字段；未用重定位类型不列入（后续 ADR 追加）

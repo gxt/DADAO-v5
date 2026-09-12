@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M1
-**依赖**：`QEMU-002t`、`SPEC-008t`
+**依赖**：`QEMU-002t`、`SPEC-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -13,7 +13,7 @@
 
 - 输入：
   - `QEMU-002t` 选定的 QEMU 上游 commit（`manifests/components.lock.toml` 中 qemu 条目）
-  - `.tao/knowledge/adr-0004-test-machine.md`（`SPEC-008t` 产出：内存图、复位值、exit port 协议、MALIGN/ILLI/UNDI 可观测行为）
+  - `.tao/knowledge/adr-0004-test-machine.md`（`SPEC-006t` 产出：内存图、复位值、exit port 协议、MALIGN/ILLI/UNDI 可观测行为）
   - `.tao/knowledge/contract-isa.md` §1（寄存器模型：rd/rb/rf/ra 各 64×64、rd0=0、rb0=PC、rf0=FCSR、ra0–ra63 RegRAS）、§2（32 位大端、4 字节对齐、5 域编码）
   - `verif/opcodes.yaml`、`verif/legality_rules.yaml`（`SPEC-003t`/`VERIF-002t`）
 - 输出：`components/qemu/patches/0001-dadao-target-skeleton.patch`、`components/qemu/patches/series`、最小冒烟脚本
@@ -81,7 +81,7 @@
 摘自 0628 `DL-013a` 两轮 Architecture Review：
 
 1. **`hw/meson.build` 缺 `subdir('dadao')`（P0）**：仅改 `hw/Kconfig` 不够，`hw/dadao/meson.build` 不会执行、机器不编译、`qemu-system-dadao -M ?` 不显示机器。v5 必须在 `0001` 骨架内按字母序加入 `subdir('dadao')`（0628 的独立 `0002-dadao-hw-meson-subdir.patch` 在 v5 应并入骨架补丁）。
-2. **rf0 复位值遗漏（P0）**：0628 初版把 rf0 全置 0，评审要求改为从 spec 位布局推导的常量；v5 须从 0.5.3 位布局独立推导（`SPEC-008t`/ADR-0004 冻结）。
+2. **rf0 复位值遗漏（P0）**：0628 初版把 rf0 全置 0，评审要求改为从 spec 位布局推导的常量；v5 须从 0.5.3 位布局独立推导（`SPEC-006t`/ADR-0004 冻结）。
 3. **机器名偏差可接受**：0628 用 `dadao-m1`（与里程碑一致），非 spec 的 `dadao-baremetal`；v5 沿用项目约定并记录。
 4. **exit port 宽度违规归 ILLI**：非协议宽度的访问必须触发 ILLI，不得静默忽略（ADR-0004 §D5）。
 5. **`make prepare` 前置**：完成区须注明已 fetch 源码并应用补丁序列。
@@ -92,7 +92,7 @@
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-013a-qemu-skeleton.md`
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0004-test-machine.md`
 - DADAO-0628：`.work/DADAO-0628/components/qemu/patches/0001-dadao-target-skeleton.patch`（仅参考文件组织，不复制正文）
-- 本项目：`.tao/knowledge/contract-isa.md` §1、§2、§9；`.tao/knowledge/adr-0004-test-machine.md`（待 `SPEC-008t` 产出）
+- 本项目：`.tao/knowledge/contract-isa.md` §1、§2、§9；`.tao/knowledge/adr-0004-test-machine.md`（待 `SPEC-006t` 产出）
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准

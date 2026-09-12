@@ -2,7 +2,7 @@
 
 **模块**：verif
 **项目里程碑**：M1
-**依赖**：`QEMU-013m`、`TESTSUITE-003t`、`SPEC-008t`
+**依赖**：`QEMU-013m`、`TESTSUITE-003t`、`SPEC-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -14,7 +14,7 @@
 - 输入：
   - `tests/vectors/isa/*.yaml`（含 `class`、`encoding.word`、`input_state`、`expected_state`、`expected_fault`、`status` 字段）
   - `QEMU-013m` 交付的 `qemu-system-dadao`（构建路径以 `INFRA-006t` Makefile 为准）
-  - `SPEC-008t` 的 Test Machine ADR（`.tao/knowledge/adr-0004-test-machine.md`）：ROM/RAM 地址、exit port、exit code 协议
+  - `SPEC-006t` 的 Test Machine ADR（`.tao/knowledge/adr-0004-test-machine.md`）：ROM/RAM 地址、exit port、exit code 协议
   - `verif/opcodes.yaml`（trusted 指令集编码真相）
 - 输出：
   - `tests/scripts/build_test_binary.py`
@@ -112,7 +112,7 @@ instr_bytes = struct.pack('>I', instr_word)
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符与编码**：trusted 指令集（`set.zw`/`or.w`/`st.o`/`ld.o`/`add.si` 等）按 0.5.3 命名与 `verif/opcodes.yaml` 的 mask/value 生成，**不复制 0.4.1 的 `setzw`/`orw`/`sto` 编码与手写字节**。
-2. **地址布局以 v5 ADR 为准**：BINARY_BASE / exit port / state-dump / ROM 地址从 `SPEC-008t` 的 `.tao/knowledge/adr-0004-test-machine.md` 读取，若与 0.4.1 数值有出入，以 v5 ADR 为准。
+2. **地址布局以 v5 ADR 为准**：BINARY_BASE / exit port / state-dump / ROM 地址从 `SPEC-006t` 的 `.tao/knowledge/adr-0004-test-machine.md` 读取，若与 0.4.1 数值有出入，以 v5 ADR 为准。
 3. **halt 语义**：0.5.3 的退出/停机指令与 `halt` 助记符按 `contract-isa.md` §7.5 与 `verif/opcodes.yaml` 确定；exit port 写协议以 v5 ADR 为准。
 4. **QEMU 构建路径**：v5 为 `.work/qemu/build/...`（以 `INFRA-006t` Makefile 为准），非 0628 的 `.work/source/qemu/build/`。
 5. **state-dump 读取机制**：0.4.1 未定稿（在 README 里二选一），v5 实现时选最简可行方案（serial 输出 hex / QMP memory dump / 退出后读文件），并把选择记录进 README。

@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-009t`、`SPEC-008t`
+**依赖**：`LLVM-009t`、`SPEC-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`LLVM-009t` 的 MC 闭环、`.tao/knowledge/contract-isa.md` §7（系统指令）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-008t，exit port/复位/加载协议）、`verif/opcodes.yaml`
+- 输入：`LLVM-009t` 的 MC 闭环、`.tao/knowledge/contract-isa.md` §7（系统指令）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t，exit port/复位/加载协议）、`verif/opcodes.yaml`
 - 输出：系统/退出相关指令助记符定义（若 `LLVM-005t` 未覆盖则补齐）、修正后的 smoke `.s`（`tests/e2e/` 或 `tests/lit/` 对应位置）、lit E2E 用例
 - 约束：只改 LLVM 端与 smoke 汇编；不改 QEMU 文件；助记符与 ISA 1:1（不加 alias）；`make build-mc` PASS；`.s → .o` 字节与独立 golden 一致
 
@@ -33,7 +33,7 @@
 - **0.4.1 的 `halt`**（0628 约定）：op=0x00、format riii、ha=rd 源寄存器（exit code）、imm18=0；编码 `(0x00 << 24) | (ha << 18)`；作为测试机退出/观测约定，非 SimRISC 规范指令。
 - **v5（0.5.3）的对应机制**：
   - `contract-isa.md` §7 系统指令的退出/陷入为 `escape cfxname, imms18`（ciii，退出当前特权态）与 `trap cfxname, immu18`（ciii）；占位为 `swym N`（iiii）；非法为 `illi immu18`（oiii）。
-  - 测试机 pass/fail 由 `adr-0004-test-machine.md`（SPEC-008t）冻结的 **exit port MMIO**（8B 对齐，用 `st.o` 写）承载，而非 `halt`。
+  - 测试机 pass/fail 由 `adr-0004-test-machine.md`（SPEC-006t）冻结的 **exit port MMIO**（8B 对齐，用 `st.o` 写）承载，而非 `halt`。
 - **smoke `.s` 助记符映射**（0.4.1 → 0.5.3，按需修正）：`jump_i`→`jump`、`call_i`→`call`、`setzw`→`set.zw`、`sto`→`st.o`、`ldo`→`ld.o`、`brnz`→`br.nz`、`unimp`→`illi`、`addi`→`add.si`。
 - **验证**：`llvm-mc -filetype=obj` → `llvm-objcopy -O binary --only-section=.text` → 与独立 golden 字节 `diff`。
 
@@ -73,7 +73,7 @@
 - DADAO-0628：`.work/DADAO-0628/components/gem5/patches/0003-dadao-halt-regdump.patch`
 - DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-isa.md`（§7）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-008t 产出后）、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md`（§7）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t 产出后）、`verif/opcodes.yaml`
 
 ## 验收标准
 

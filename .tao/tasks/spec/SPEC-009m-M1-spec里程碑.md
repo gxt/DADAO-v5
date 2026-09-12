@@ -1,10 +1,10 @@
-# SPEC-011m: M1 spec 里程碑
+# SPEC-009m: M1 spec 里程碑
 
 **模块**：spec
 **项目里程碑**：M1
 **状态**：待开始
 **目标**：DADAO-v5 的 M1 规格基线完成——SimRISC 0.5.3 的 ISA 合约/编码表之上，ABI 合约、Object ABI ADR、Test Machine ADR、ELF 合约均已创建并 Accepted，规格冻结动作（impact matrix + drift 检查）完成，spec 基线冻结
-**关联任务**：`SPEC-002t`、`SPEC-003t`、`SPEC-006t`、`SPEC-007t`、`SPEC-008t`、`SPEC-009t`、`SPEC-010t`
+**关联任务**：`SPEC-002t`、`SPEC-003t`、`SPEC-004t`、`SPEC-005t`、`SPEC-006t`、`SPEC-007t`、`SPEC-008t`
 
 ## 核验
 - 关联任务是否均已 `已验证`

@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-002t`、`SPEC-009t`
+**依赖**：`LLVM-002t`、`SPEC-007t`
 **状态**：待开始
 
 ## 执行环境
@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`.work/source/llvm`（`make fetch` 后按 ADR-0005 commit 的干净 checkout）、`components/llvm/patches/series`、`.tao/knowledge/contract-elf.md`（SPEC-009t，ELF header/大端/e_machine/e_flags）
+- 输入：`.work/source/llvm`（`make fetch` 后按 ADR-0005 commit 的干净 checkout）、`components/llvm/patches/series`、`.tao/knowledge/contract-elf.md`（SPEC-007t，ELF header/大端/e_machine/e_flags）
 - 输出：
   - `components/llvm/patches/0001-dadao-triple-registration.patch`
   - `components/llvm/patches/0002-dadao-target-skeleton.patch`
@@ -67,7 +67,7 @@
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-- **ELF 常量来源**：`e_machine`/`e_flags`/EI_DATA 以 v5 `.tao/knowledge/contract-elf.md`（SPEC-009t，归一化自 ADR-0003）为准，不照抄 0628 的 `0x0DA0`/`e_flags=0x1` 数值表述；若 v5 沿用同一 `EM_DADAO`，须由 ADR-0003/合约明确，不得在代码里硬编码无来源数字。
+- **ELF 常量来源**：`e_machine`/`e_flags`/EI_DATA 以 v5 `.tao/knowledge/contract-elf.md`（SPEC-007t，归一化自 ADR-0003）为准，不照抄 0628 的 `0x0DA0`/`e_flags=0x1` 数值表述；若 v5 沿用同一 `EM_DADAO`，须由 ADR-0003/合约明确，不得在代码里硬编码无来源数字。
 - **上游路径**：v5 `.work/source/llvm/llvm`（`INFRA-004t`），构建 `.work/build/llvm`。
 - **大端**：0.5.3 指令与数据均大端（`contract-isa.md` §1.5、§2.1），AsmInfo 必须 `IsLittleEndian = false`。
 - **triple 名**：v5 同为 `dadao-unknown-elf`，但注册与验证须在 0.5.3 的 AsmInfo/DataLayout 下完成。
@@ -88,7 +88,7 @@
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`
 - DADAO-0628：`.work/DADAO-0628/Makefile`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-elf.md`（SPEC-009t 产出后）、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-elf.md`（SPEC-007t 产出后）、`verif/opcodes.yaml`
 
 ## 验收标准
 

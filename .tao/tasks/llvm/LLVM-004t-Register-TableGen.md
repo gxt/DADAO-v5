@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-003t`、`SPEC-006t`
+**依赖**：`LLVM-003t`、`SPEC-004t`
 **状态**：待开始
 
 ## 执行环境
@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`LLVM-003t` 的 target 骨架、`.tao/knowledge/contract-isa.md` §1（寄存器模型）、`.tao/knowledge/contract-abi.md`（SPEC-006t，可分配集合/保留寄存器/SP/FP 角色）
+- 输入：`LLVM-003t` 的 target 骨架、`.tao/knowledge/contract-isa.md` §1（寄存器模型）、`.tao/knowledge/contract-abi.md`（SPEC-004t，可分配集合/保留寄存器/SP/FP 角色）
 - 输出：`components/llvm/patches/0003-dadao-register-info.patch`、更新后的 `components/llvm/patches/series`
 - 约束：4 bank × 64 = 256 个 RegisterDef；只定义寄存器，不写指令；RF/RA 全部 non-allocatable（M1 范围外）；可分配集合精确取自 `contract-abi.md`，不自行扩展/缩减；合约引用用章节号
 
@@ -56,7 +56,7 @@
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-- **可分配集合来源**：v5 以 `.tao/knowledge/contract-abi.md`（SPEC-006t）为准，不照抄 0628 的 rd8–rd63 / rb8–rb63 表；若 v5 ABI 集合不同，以合约为准。
+- **可分配集合来源**：v5 以 `.tao/knowledge/contract-abi.md`（SPEC-004t）为准，不照抄 0628 的 rd8–rd63 / rb8–rb63 表；若 v5 ABI 集合不同，以合约为准。
 - **保留寄存器**：`rd0` 只读零、`rb0` 为 PC、`rf0` 为 FCSR、`ra0` 为 RAS 计数，均来自 0.5.3 `contract-isa.md §1.3`，与 0.4.1 表述可能有别。
 - **RF/RA 处理**：M1 不含浮点，RF 全部 non-allocatable；RA 由 call/ret 隐式管理，全部 non-allocatable。是否定义 RF/RA 全部 64 个 def 按 256 def 约束执行。
 - **补丁命名**：沿用 `0003-dadao-register-info.patch`（series 顺序 0001→0002→0003），但内容按 0.5.3 重新生成。
@@ -77,7 +77,7 @@
 - DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`
 - DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-isa.md`（§1）、`.tao/knowledge/contract-abi.md`（SPEC-006t 产出后）
+- 本项目：`.tao/knowledge/contract-isa.md`（§1）、`.tao/knowledge/contract-abi.md`（SPEC-004t 产出后）
 
 ## 验收标准
 

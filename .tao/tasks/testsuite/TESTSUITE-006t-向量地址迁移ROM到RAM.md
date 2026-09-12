@@ -2,7 +2,7 @@
 
 **模块**：testsuite
 **项目里程碑**：M1
-**依赖**：`TESTSUITE-002t`、`SPEC-008t`
+**依赖**：`TESTSUITE-002t`、`SPEC-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -13,7 +13,7 @@
 
 - 输入：
   - `tests/vectors/isa/rd-load-store.yaml`、`tests/vectors/isa/rb-ops.yaml`（TESTSUITE-002t 向量）
-  - `.tao/knowledge/adr-0004-test-machine.md`（SPEC-008t：内存映射 ROM/RAM/exit port）
+  - `.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t：内存映射 ROM/RAM/exit port）
   - `.tao/knowledge/contract-isa.md` §4（访存语义、有效地址计算）
 - 输出：上述文件中所有 `class: semantic` 向量的 `rb2`（及 `rb0`）寄存器值、`input_state.memory[*].address`、`expected_state.memory[*].address` 由 ROM 地址迁移到 RAM scratch 区
 - 约束：
@@ -86,7 +86,7 @@ EA:   0x0000000000100FFC → 0x0000000087FEFFFC   （= 0x87FF0000 - 4）
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符**：`ldo`→`ld.o`、`sto`→`st.o`、`stb`→`st.b`、`ldmo`→`ldm.o`、`stmo`→`stm.o` 等。
-2. **内存映射来源**：以 v5 `adr-0004-test-machine.md`（SPEC-008t）为准——ROM `0x0010_0000`(64KB)、RAM `0x8000_0000`(128MB)、exit port `0x1000_0000`(8B)。RAM 范围 `[0x80000000, 0x87FFFFFF]`，故新 base `0x87FF0000` 仍合法；若 ADR-0004 最终取值不同，以 ADR 为准并同步更新映射。
+2. **内存映射来源**：以 v5 `adr-0004-test-machine.md`（SPEC-006t）为准——ROM `0x0010_0000`(64KB)、RAM `0x8000_0000`(128MB)、exit port `0x1000_0000`(8B)。RAM 范围 `[0x80000000, 0x87FFFFFF]`，故新 base `0x87FF0000` 仍合法；若 ADR-0004 最终取值不同，以 ADR 为准并同步更新映射。
 3. **RB 语义**：0.5.3 有效地址为低 48 位，高 16 位在地址计算时忽略；地址值须为 48-bit 有效地址。
 4. **向量条数/序号**：0628 的 26 条（23+3）与逐条索引表**不照搬**；v5 按实际 `class: semantic` case 重新枚举。
 5. **例外通用化**：任何 `EA = base + offset`（含负偏移）都按公式计算，不限于 `stb`。
@@ -106,7 +106,7 @@ EA:   0x0000000000100FFC → 0x0000000087FEFFFC   （= 0x87FF0000 - 4）
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-022c-vector-ram-addresses.md`（完整转述）
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0004-test-machine.md`
-- 本项目：`.tao/knowledge/adr-0004-test-machine.md`（SPEC-008t）、`.tao/knowledge/contract-isa.md` §4
+- 本项目：`.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t）、`.tao/knowledge/contract-isa.md` §4
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准

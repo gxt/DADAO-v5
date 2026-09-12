@@ -1,8 +1,8 @@
-# SPEC-009t: ELF 合约（归一化自 ADR-0003）
+# SPEC-007t: ELF 合约（归一化自 ADR-0003）
 
 **模块**：spec
 **项目里程碑**：M1
-**依赖**：`SPEC-007t`、`SPEC-002t`
+**依赖**：`SPEC-005t`、`SPEC-002t`
 **状态**：待开始
 
 ## 执行环境
@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：
-  - `.tao/knowledge/adr-0003-object-abi.md`（SPEC-007t，**唯一决策来源**）
+  - `.tao/knowledge/adr-0003-object-abi.md`（SPEC-005t，**唯一决策来源**）
   - `.tao/knowledge/contract-isa.md`（0.5.3，指令格式/字段宽度的 oracle）
 - 输出：`.tao/knowledge/contract-elf.md`
 - 约束：
@@ -62,7 +62,7 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 **§5 Section Alignment**：`.text`/`.rodata`/`.data`/`.bss` 最小对齐、VA=PA 规则。
 
 **§6 Artifact Pipeline**：M1 端到端 artifact 路径（ET_REL → ET_EXEC → flat binary → QEMU），
-与 ADR-0004（SPEC-008t）的加载模型一致。
+与 ADR-0004（SPEC-006t）的加载模型一致。
 
 ### 上游引用
 
@@ -80,13 +80,13 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-1. **来源版本**：ADR-0003 从 0.4.1 决策改为 v5（SPEC-007t）的 0.5.3 决策；合约版本应与 v5 一致。
+1. **来源版本**：ADR-0003 从 0.4.1 决策改为 v5（SPEC-005t）的 0.5.3 决策；合约版本应与 v5 一致。
 2. **指令助记符**：`setzw`/`orw` → `set.zw`/`or.w`；`brn/brz/…` → `br.n/br.z/…`；
    `breq/brne` → `br.eq`/`br.ne`；`rela` → `rela.si`；`call`/`jump` iiii 形式不变。
 3. **重定位集**：0.4.1 初版 9 型、后补 PCREL12 为 10 型；v5 应从一开始就含 `R_DADAO_PCREL12`
    （对应 0.5.3 `br.eq`/`br.ne`）。
 4. **e_flags**：0.4.1 曾出现 contract `e_flags=1` 与 ADR `e_flags=0` 的冲突，须先改 ADR 再改合约；
-   v5 以 SPEC-007t 冻结值为准（`e_flags=0x1`）。
+   v5 以 SPEC-005t 冻结值为准（`e_flags=0x1`）。
 5. **e_machine 说明**：不得声称 `EM_DADAO` 已注册 upstream LLVM；应为 project-custom。
 6. **LLD scope**：0.4.1 曾把 Post-M2 的 LLD 写成 M1 必需依赖；v5 须区分 object ABI 与
    test-machine load contract，明确 M1 是否使用 target linker。
@@ -99,7 +99,7 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 
 1. **P0 e_flags 值与 ADR 冲突**：合约不得在 ADR 之外单向改变决策；若需修订，先更新 ADR 再同步合约。
 2. **P0 前置 ADR 未 Accepted**：004a 不能把 Candidate 且内部不一致的 ADR 规范化为唯一 oracle；
-   须先完成 SPEC-007t/SPEC-008t review 并升级 ADR 状态。
+   须先完成 SPEC-005t/SPEC-006t review 并升级 ADR 状态。
 3. **P0 §6 把 Post-M2 LLD 变成 M1 必需依赖**：须二选一——保持 roadmap（raw/section extraction）
    或扩展 M1 scope 新增 DADAO LLD backend 任务；不能只改合约。
 4. **P0 §6 与 ADR-0004 启动命令不一致**：须引用唯一完整命令/镜像对，并区分 object ABI 与
@@ -118,19 +118,19 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 - DADAO-0628：`.work/DADAO-0628/contracts/elf/README.md`
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）
-- 本项目：`.tao/knowledge/adr-0003-object-abi.md`（SPEC-007t 产出）、`.tao/knowledge/contract-isa.md`
+- 本项目：`.tao/knowledge/adr-0003-object-abi.md`（SPEC-005t 产出）、`.tao/knowledge/contract-isa.md`
 - DADAO-0628：`code-agent/tasks/DL-004a-elf-contract.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
 
-1. `.tao/knowledge/contract-elf.md` 存在，Status 先 Candidate，来源指向 ADR-0003（SPEC-007t 产出）（前提：SPEC-007t/SPEC-008t review 已通过、ADR-0003/0004 Status=Accepted）
+1. `.tao/knowledge/contract-elf.md` 存在，Status 先 Candidate，来源指向 ADR-0003（SPEC-005t 产出）（前提：SPEC-005t/SPEC-006t review 已通过、ADR-0003/0004 Status=Accepted）
 2. §1–§6 全部覆盖，无空白或「见 ADR」占位；§1 冻结 5 个 ELF 头字段
 3. §2 每条重定位含完整：编号、名称、字段宽度/位置、S/A/P 公式、适用 0.5.3 指令、溢出策略
 4. §2 含 `R_DADAO_PCREL12`（`br.eq`/`br.ne`）且 §3 溢出策略同步覆盖
 5. §4 明确 M1 禁止 relaxation；§5 给出各段最小对齐与 VA=PA
-6. §6 artifact pipeline 与 ADR-0004（SPEC-008t）冻结的启动命令/镜像对一致；不把 QEMU flat
-   loader 称为 ELF loader（前提：SPEC-008t review 已通过、ADR-0004 Status=Accepted）
+6. §6 artifact pipeline 与 ADR-0004（SPEC-006t）冻结的启动命令/镜像对一致；不把 QEMU flat
+   loader 称为 ELF loader（前提：SPEC-006t review 已通过、ADR-0004 Status=Accepted）
 7. 每章节有 `[ADR-0003 §DN]` 来源标注；不引用行号
 8. 合约可独立阅读：不出现「见 ADR」式的内联空引用
 9. 不声明 `EM_DADAO` 已注册 upstream；命名空间/版本策略与 ADR 一致

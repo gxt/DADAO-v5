@@ -69,7 +69,7 @@
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符**：`ldbs`/`ldbu`/`ldws`/`ldwu`/`ldts`/`ldtu`/`ldo`/`ldmbs`/… → `ld.sb`/`ld.ub`/`ld.sw`/`ld.uw`/`ld.st`/`ld.ut`/`ld.o`/`ldm.sb`/…（`insn` 带 `-rd` 后缀）。
-2. **内存映射**：以 v5 `adr-0004-test-machine.md`（SPEC-008t）为准——RAM `0x8000_0000`、ROM `0x0010_0000`、exit port `0x1000_0000`；`BINARY_BASE` 取 RAM 起始（如 `0x80000000`）。addr=0 未映射的结论不变。
+2. **内存映射**：以 v5 `adr-0004-test-machine.md`（SPEC-006t）为准——RAM `0x8000_0000`、ROM `0x0010_0000`、exit port `0x1000_0000`；`BINARY_BASE` 取 RAM 起始（如 `0x80000000`）。addr=0 未映射的结论不变。
 3. **编码字段**：以 v5 `contract-isa.md` §2.2 与 `verif/opcodes.yaml` 的 `fields` 为准；load 的 base/dest 字段位置须独立核对，不从 0628 反推。
 4. **RB 语义**：0.5.3 有效地址低 48 位。
 5. **多寄存器**：`immu6`（count）仍须 ≥1。

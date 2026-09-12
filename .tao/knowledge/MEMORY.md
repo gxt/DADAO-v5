@@ -9,7 +9,7 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 | 项目 | 状态 |
 |------|------|
 | SimRISC 规范 | ✅ 0.5.3 |
-| spec 模块（ISA 合约 + 编码表 + 合法性规则） | ✅ 已完成 |
+| spec 模块 | 🔄 已重排（`002t`~`008t` + `009m`）；产出待重新生成 |
 | M1 任务规划（infra/spec/testsuite/llvm/qemu/verif） | ✅ 已生成（参考 DADAO-0628，未逐任务审核） |
 | M1 实现 | 🔄 进行中（infra 模块 M1 已完成：`INFRA-009m` 里程碑；其余模块待推进） |
 
@@ -22,6 +22,7 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 | `.tao/tasks/<module>/` | 按模块分的任务文件（`<PREFIX>-nnn<suffix>`） |
 | `.tao/knowledge/` | 知识沉淀（MEMORY/milestones/contract/adr） |
 | `.tao/knowledge/milestones.md` | 项目里程碑路线图（M1/M2） |
+| `.tao/knowledge/deferred.md` | 各模块暂缓/备忘（避免遗忘） |
 | `verif/` | 验证工具（编码表、合法性规则、检查脚本） |
 | `tests/` | 测试向量（`tests/vectors/`） |
 | `components/` | 组件补丁（llvm/qemu/gem5） |

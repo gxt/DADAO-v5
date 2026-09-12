@@ -1,8 +1,8 @@
-# SPEC-008t: Test Machine ADR（复位/内存图/exit port/MALIGN 可观测）
+# SPEC-006t: Test Machine ADR（复位/内存图/exit port/MALIGN 可观测）
 
 **模块**：spec
 **项目里程碑**：M1
-**依赖**：`SPEC-002t`、`SPEC-006t`、`VERIF-002t`
+**依赖**：`SPEC-002t`、`SPEC-004t`、`VERIF-002t`
 **状态**：待开始
 
 ## 执行环境
@@ -14,7 +14,7 @@
 - 输入：
   - `.tao/knowledge/contract-isa.md`（0.5.3，MALIGN/ILLI/UNDI/IALIGN/RASOF/RASUF 语义、复位值、对齐要求）
   - `verif/legality_rules.yaml`、`verif/opcodes.yaml`（SPEC-003t/VERIF-002t，异常触发条件）
-  - `.tao/knowledge/contract-abi.md`（SPEC-006t，SP=rb1、栈/帧约定）
+  - `.tao/knowledge/contract-abi.md`（SPEC-004t，SP=rb1、栈/帧约定）
 - 输出：`.tao/knowledge/adr-0004-test-machine.md`
 - 约束：
   - **零 host 依赖**：所有可观测结果来自 QEMU exit code 或 guest 寄存器状态，不依赖 host log/stderr/超时
@@ -96,7 +96,7 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
    地址构造伪码须与此一致。
 6. **异常命名/编号**：`unimp` 在 0.5.3 为 `illi`；exit code 数值 `spec/` 无依据，属机器约定。
 7. **启动模型**：0.4.1 最终冻结「`-bios` trampoline + `-kernel` test binary 双镜像」；v5 须与
-   ADR-0003（SPEC-007t）的 artifact pipeline 统一为唯一路径。
+   ADR-0003（SPEC-005t）的 artifact pipeline 统一为唯一路径。
 
 ## 已知坑 / 结论
 
@@ -136,7 +136,7 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
 5. ILLI/UNDI/SBZ/IALIGN/RASOF/RASUF 行为给出完整决策；SBZ 选 ILLI 或 UNDI 须有理由
 6. 所有硬件复位值（RD/RB/RA/RF）给出完整冻结值；rf0 常量从 0.5.3 `SimRISC-00` 位布局推导
 7. D6 示例使用 0.5.3 助记符且逐条手算地址；入口状态区分 power-on reset / ROM / `_start`
-8. 唯一端到端启动协议（命令行、镜像格式、ROM 布局、RAM entry）与 ADR-0003（SPEC-007t）一致
+8. 唯一端到端启动协议（命令行、镜像格式、ROM 布局、RAM entry）与 ADR-0003（SPEC-005t）一致
 9. MMIO × access-width 组合行为有确定结果；非 8B exit port 访问归 ILLI 并说明理由
 10. 零 host 依赖约束可满足：所有 pass/fail/fault 均可由 `$?` 或 guest 寄存器断言
 

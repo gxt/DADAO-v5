@@ -14,7 +14,7 @@
 - 输入：
   - `VERIF-003t` 交付的 `tests/scripts/build_test_binary.py`、`tests/scripts/run_qemu_test.py`
   - `tests/vectors/isa/*.yaml`（`class`、`expected_state`、`expected_fault`、`status`）
-  - `SPEC-008t` 的 Test Machine ADR（exit code 协议）
+  - `SPEC-006t` 的 Test Machine ADR（exit code 协议）
   - `verif/opcodes.yaml`（比较引擎所用 `xor`/`or`/`cs.z`/`br.*` 等指令的 0.5.3 编码）
 - 输出：修改后的 `tests/scripts/build_test_binary.py`（新增/实现 `emit_state_compare()`）、`tests/scripts/run_qemu_test.py`（fault 路由 + CLI fail-closed）
 - 约束：
@@ -105,7 +105,7 @@ sys.exit(0)
 1. **比较引擎指令编码**：0.4.1 硬编码 `xor`=`0x10280000`、`or`=`0x10240000`、`csz`=`0x22` 等；v5 必须从 `verif/opcodes.yaml` 取 0.5.3 的 `xor.o`/`or.o`（固定位宽 orrr）与 `cs.z`（rrrr）等编码，**禁止沿用 0.4.1 硬编码值**。
 2. **分支指令**：`breq/brne` → 0.5.3 `br.eq`/`br.ne`（rrii），比较引擎/跳转偏移按 v5 格式重算。
 3. **`unimp` → `illi`**：0.4.1 用 `unimp` 触发 ILLI 的路径，v5 对应 `illi`（`contract-isa.md` §7.2）。
-4. **退出码精确值**：以 `SPEC-008t` 的 Test Machine ADR 为准，若 v5 修订了 fault code，遵循 v5 ADR。
+4. **退出码精确值**：以 `SPEC-006t` 的 Test Machine ADR 为准，若 v5 修订了 fault code，遵循 v5 ADR。
 5. **保留寄存器编号**：0.4.1 用 rd29/30/31 与 rd58/59/rb59；v5 需扫描 `tests/vectors/isa/*.yaml` 的实际占用后选定，并把约定写入 `tests/scripts/README.md`，避免与向量冲突。
 6. **自修改 guard**：0.4.1 用跨页 store 触发 TB flush + 指令 patch，`n_patch` 硬编码脆弱；v5 可选择更稳的等价机制（如直接分支到写 exit 段），但必须保持「guest 原地比较」语义。
 

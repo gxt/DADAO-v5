@@ -179,11 +179,11 @@ PIPELINE_EXIT=0
 - **v5 与 0628 的实质差异**：0628 无持久 mirror（直接 clone 到 `.work/source`）；v5 新增 `.cache/` 持久 bare mirror + 可再生工作树，已在 ADR-0002 D5 单列。
 - **`INFRA-006t` 历史审阅记录（第 570 行附近）也含 1 处 ADR-0002 引用**，本次一并补明 v5 路径（仅引用措辞，未改实质内容），故该文件 `ADR-0002` 出现 2 次。
 - **越界引用（未处置，非本任务范围）**：`INFRA-001k-模块启动与任务分解.md` 第 18 行仍有裸引用「ADR-0001（greenfield 重建）、ADR-0002（manifest 驱动编排）」。该文件不在任务「交付物/引用更新」列出的文件内，按约束「不得修改任务文档未列出的文件」**未改动**；如需补明可另开任务。
-- **`SPEC-008t` 引用 `adr-0001` 风格**：`SPEC-008t-Test-Machine-ADR.md` 第 25 行有「格式遵循 `adr-0001` 风格」，同样不在本任务范围内，未改动。
+- **`SPEC-006t` 引用 `adr-0001` 风格**：`SPEC-006t-Test-Machine-ADR.md` 第 25 行有「格式遵循 `adr-0001` 风格」，同样不在本任务范围内，未改动。
 - **`.cache/` 与 `.work/` 清理职责**是易错点，ADR-0002 在 D5 与 Consequences 两处强调 `clean_work` 不碰 `.cache/`，避免误删导致重下大仓库。
 - 两个 ADR 的 Status 仍为 `Candidate`，需评审后由主会话置 `Accepted`（`adr-authoring.md` 流程）。
 
-**遗留问题**：无（`INFRA-001k`/`SPEC-008t` 的裸引用属任务明确范围之外，已在「新发现/坑」记录）。
+**遗留问题**：无（`INFRA-001k`/`SPEC-006t` 的裸引用属任务明确范围之外，已在「新发现/坑」记录）。
 
 ## 审阅记录
 
@@ -343,7 +343,7 @@ $ rg -rn 'ADR-0002' .tao/tasks/ --no-heading | grep -v '\.tao/knowledge/adr-0002
 | `Makefile` 第 3 行 | `ADR-0002`（代码注释） | 未列出 | 超出范围 |
 | `INFRA-001k` 第 18 行 | `ADR-0002（manifest 驱动编排）` | 未列出 | 超出范围 |
 
-**SPEC-008t** 第 25 行有 `adr-0001` 引用（小写，格式风格引用），与 ADR-0002 无关。
+**SPEC-006t** 第 25 行有 `adr-0001` 引用（小写，格式风格引用），与 ADR-0002 无关。
 
 **reviewer 意见**：
 
@@ -373,7 +373,7 @@ $ rg -rn 'ADR-0002' .tao/tasks/ --no-heading | grep -v '\.tao/knowledge/adr-0002
 - 未执行 git commit ✅
 - 改动范围仅限列出文件 ✅
 
-**与 engineer 自审结论的差异**：无实质性差异。engineer 的 verify.sh 输出与 reviewer 独立验证结果一致。engineer 正确识别了 INFRA-001k/SPEC-008t 的范围外裸引用。
+**与 engineer 自审结论的差异**：无实质性差异。engineer 的 verify.sh 输出与 reviewer 独立验证结果一致。engineer 正确识别了 INFRA-001k/SPEC-006t 的范围外裸引用。
 
 **建议项**（非阻塞）：
 - `INFRA-001k` 第 18 行和 `Makefile` 第 3 行有裸 ADR-0002 引用未补明 v5 路径，建议后续开轻量任务统一清理。
@@ -390,12 +390,12 @@ $ rg -rn 'ADR-0002' .tao/tasks/ --no-heading | grep -v '\.tao/knowledge/adr-0002
 
 1. reviewer 的范围外发现不完整：`INFRA-001k:18` 同时含 **ADR-0001** 裸引用（reviewer 只点了 ADR-0002）。
 2. reviewer 证据命令 `rg -rn` 的 `-r` 在 ripgrep 是**替换**语义（证据保真瑕疵；结论经复核仍成立）——后续审阅记录避免 `-r`。
-3. `SPEC-008t`「格式遵循 `adr-0001` 风格」在新 ADR 引入后有**指向歧义**（v5 已有自己的 `adr-0001`；格式依据实为 `adr-authoring.md`）——属 spec 模块，不在本任务范围。
+3. `SPEC-006t`「格式遵循 `adr-0001` 风格」在新 ADR 引入后有**指向歧义**（v5 已有自己的 `adr-0001`；格式依据实为 `adr-authoring.md`）——属 spec 模块，不在本任务范围。
 
 **范围外裸引用处置建议**：
 
 - `INFRA-001k` 第 18 行（ADR-0001+0002 双裸引用）：**须在 `INFRA-009m` 置 `里程碑` 前处置**（新开轻量 infra 任务，或并入 `INFRA-009m` 核验前检查项）。
 - `Makefile` 第 3 行（注释）：并入同一轻量任务，优先级最低。
-- `SPEC-008t`：spec 模块后续任务澄清（改指 `adr-authoring.md`），infra 不跨界改。
+- `SPEC-006t`：spec 模块后续任务澄清（改指 `adr-authoring.md`），infra 不跨界改。
 
 **统一判决**：**Accepted**。
