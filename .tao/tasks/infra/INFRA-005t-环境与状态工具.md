@@ -13,7 +13,7 @@
 
 - 输入：`manifests/components.lock.toml`、`manifests/references.lock.toml`（`INFRA-003t` 产出）、宿主环境
 - 输出：`scripts/doctor.py`、`scripts/status.py`、`scripts/clean_work.py`
-- 约束：脚本只用 Python 标准库（`shutil` / `subprocess` / `tomllib` / `pathlib`）；`clean_work.py` 只删 `.work/`
+- 约束：脚本只用 Python 标准库（`shutil` / `subprocess` / `tomllib` / `pathlib`）；`clean_work.py` 只删 `.work/`，**不碰 `.cache/`**（持久对象库）
 
 ## 背景（完整）
 
@@ -64,6 +64,7 @@
 - `doctor.py` 在原生缺 `ninja`/`clang` 时仍可通过，前提是有 docker（走容器构建路径）。
 - `status.py` 对 reference 的 `path` 做 git 查询；路径错误会显示 `missing`（0628 指向其原作者的本地绝对路径，v5 必须改指向本项目内的真实位置）。
 - `clean_work.py` 的路径断言（父目录 + 名称）是防误删的关键，不可省略。
+- **`clean_work.py` 不得删除 `.cache/`**：`.cache/<name>.git` 是持久对象库（`INFRA-004t`），删除它会导致重新下载大仓库；`clean_work` 只清 `.work/`。
 - 三个脚本均须在 `python3 -m compileall scripts` 下无语法错误。
 
 ## 参考
@@ -79,7 +80,7 @@
 
 1. `doctor.py` 正确判定 required/native 工具并报告可用的构建路径，退出码语义正确
 2. `status.py` 输出 component 锁定状态与 reference 的 `MATCH`/`DRIFT`，无异常退出
-3. `clean_work.py` 只删除 `.work/`，对异常路径拒绝执行
+3. `clean_work.py` 只删除 `.work/`（不删除 `.cache/`），对异常路径拒绝执行
 4. 三脚本通过 `python3 -m compileall scripts`
 
 ## 完成区

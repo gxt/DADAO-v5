@@ -27,6 +27,7 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 | `components/` | 组件补丁（llvm/qemu/gem5） |
 | `scripts/` | 工具脚本 |
 | `sail/` | Sail 形式化规范 |
+| `.cache/<name>.git` | 上游组件持久 bare mirror（gitignored；避免重下大仓库） |
 
 ## 重要决策
 

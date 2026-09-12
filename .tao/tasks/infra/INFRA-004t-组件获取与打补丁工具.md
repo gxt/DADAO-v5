@@ -13,7 +13,7 @@
 
 - 输入：`manifests/components.lock.toml` 与 `manifests/references.lock.toml`（`INFRA-003t` 产出）、`components/<name>/patches/series` 与补丁本体
 - 输出：`scripts/fetch.py`、`scripts/apply_series.py`、`scripts/make_patch.py`、`scripts/fetch_refs.py`
-- 约束：所有上游 checkout 落在 `.work/source/<name>/`；补丁只从 `components/<name>/patches/` 读取；不复制 0.4.1 的补丁正文
+- 约束：上游**对象库（bare mirror）**落在仓库内 gitignored 的 `.cache/<name>.git`（持久，只增量 `fetch`）；工作树落在 `.work/source/<name>/`（可随 `.work` 重建，无需重新下载）；补丁只从 `components/<name>/patches/` 读取；不复制 0.4.1 的补丁正文
 
 ## 背景（完整）
 
@@ -25,14 +25,17 @@
 
 - ADR-0002：每个组件按完整 commit 获取并应用**单一有序补丁序列**；`git am` 是唯一打补丁路径。
 - 可复现性：`.work/source/<name>` 完全可由 `components.lock.toml` + 补丁序列重建，不把上游源码树或产物纳入仓库。
+- **避免重下大仓库**：LLVM/QEMU/gem5 体量大。用**持久 bare mirror**（`.cache/<name>.git`）作本地对象库，工作树从 mirror 建（本地硬链接，不额外占盘）；`clean_work` 只清 `.work/`、不动 `.cache/` → 清空 `.work` 后重建工作树无需网络。
 
 ### 关键概念 / 数据
 
-- `fetch.py`（0628 逻辑，完整转述）：
+- `fetch.py`（v5：mirror + worktree 两层；逻辑基于 0628 并增加持久对象库）：
   - 读取 `components.lock.toml`，取 `enabled` 组件；无 enabled 组件时打印提示并退出 0。
-  - `source_root = .work/source`；目标 `source_root/<name>`。
-  - **全新 clone**：`git clone --filter=blob:none --no-checkout <repo> <target>`，随后 `git fetch --no-tags origin <commit>` + `git checkout --detach <commit>`。
-  - **已存在**：先 `git status --porcelain`，脏则报错拒覆盖；`git fetch --no-tags origin <commit>`；若 `HEAD == commit` 跳过；若 commit 是 HEAD 的祖先（说明已打过补丁）则**保持不动**；否则 `git checkout --detach <commit>`。
+  - `mirror_dir = .cache`（仓库内、gitignored）；`source_root = .work/source`。
+  - **对象库（mirror）** `.cache/<name>.git`：不存在则 `git clone --mirror <repo> .cache/<name>.git`（首次下载）；已存在则 `git -C .cache/<name>.git fetch --prune`（增量，不重下）。
+  - **工作树** `.work/source/<name>`，从本地 mirror 建：不存在则 `git clone --no-checkout .cache/<name>.git .work/source/<name>`（本地硬链接），随后 `git fetch --no-tags origin <commit>` + `git checkout --detach <commit>`。
+  - **已存在工作树**：先 `git status --porcelain`，脏则报错拒覆盖；若 `HEAD == commit` 跳过；若 commit 是 HEAD 的祖先（已打过补丁）则**保持不动**；否则 `git checkout --detach <commit>`。
+  - **恢复**：`.work/source/<name>` 丢失时，从 `.cache/<name>.git` 重建，无需网络。
 - `apply_series.py`（0628 逻辑，完整转述）：
   - 对每个 enabled 组件，要求 `source/.git` 存在（否则提示先 `make fetch`）；要求 `HEAD == component["commit"]`（否则报错）。
   - 读取 `components/<name>/patches/series`，逐行（跳过空行与 `#` 注释）用 `git -C <source> am <patch>` 应用；空序列打印提示。
@@ -48,7 +51,7 @@
 
 ## 交付物
 
-- `scripts/fetch.py`：按 commit 获取 enabled 组件到 `.work/source/<name>`。
+- `scripts/fetch.py`：维护 `.cache/<name>.git` 持久 mirror（增量 fetch），并从 mirror 建/刷新 `.work/source/<name>` 工作树到 pin commit。
 - `scripts/apply_series.py`：将有序补丁序列 `git am` 到 checkout。
 - `scripts/make_patch.py`：从工作树生成/维护补丁序列（v5 新增）。
 - `scripts/fetch_refs.py`：按 `references.lock.toml` 获取只读参考仓库到其 `path`，供任务 `## 参考` 定位；DADAO-0628 直接用已有 `.work/DADAO-0628`（只做 commit 检查，不重新拉取），DADAO 从 `https://github.com/gxt/DADAO.git` 取到 `.work/DADAO`；已存在且 commit 匹配则跳过。
@@ -66,6 +69,7 @@
 - 脏工作树必须拒绝覆盖，避免丢失未提交改动。
 - `apply_series.py` 严格要求 `HEAD == base commit`，防止在错误基线上叠补丁。
 - 补丁应用统一用 `git am`（保留作者/提交信息），不用 `patch`/`git apply`。
+- **避免重下大仓库**：`.work/` 可被 `clean_work` 清空，但 `.cache/<name>.git` 持久保留；工作树从本地 mirror 重建（硬链接），不触发网络。对已存在 mirror 只做增量 `git fetch --prune`。
 
 ## 参考
 
@@ -84,6 +88,7 @@
 3. `make_patch.py` 能从工作树生成补丁并维护 `series`（新工具，含基本自测）
 4. 三脚本通过 `python3 -m compileall scripts`（`make fetch`/`make apply-series` 的集成由 `INFRA-006t` 验收）
 5. `fetch_refs.py` 能按 `references.lock.toml` 将参考仓库取到 `path`；已存在且 commit 匹配时跳过
+6. `.cache/<name>.git` 为持久 mirror；删除 `.work/source/<name>` 后 `fetch.py` 能从 mirror 重建工作树且不联网；`clean_work.py` 不删除 `.cache/`
 
 ## 完成区
 

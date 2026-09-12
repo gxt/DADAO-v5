@@ -1,5 +1,8 @@
-# 构建产物
+# 工作区（一次性）
 .work/
+
+# 持久对象库（上游 bare mirror）
+.cache/
 
 # Python
 __pycache__/
