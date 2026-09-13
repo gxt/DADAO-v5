@@ -1,0 +1,140 @@
+# DADAO SimRISC ABI — M1 最小 ABI 事实（机器可读）
+#
+# 来源：
+#   spec/DADAO-21-ABI-应用程序二进制接口.md  (0.9.2)
+#   spec/DADAO-11-AEE-应用程序运行环境.md    (0.9.2)
+# 归一化合约：.tao/knowledge/contract-abi.md (0.9.2)
+#
+# 范围：M1 最小 ABI 事实 —— 寄存器角色 + SP + 栈方向/对齐 + call/ret 与 RegRAS。
+# 完整调用约定（参数寄存器分配 / 返回值 / 栈帧布局 / 三 bank 共享溢出区 /
+# prologue-epilogue）见 deferred_to_m2，M1 不作为规范性事实；
+# 高级 ABI（varargs / HFA / HPA / 聚合 / 多返回值）见 excluded_from_m1。
+
+format: dadao-abi
+version: "0.9.2"
+source:
+  - spec/DADAO-21-ABI-应用程序二进制接口.md
+  - spec/DADAO-11-AEE-应用程序运行环境.md
+contract: .tao/knowledge/contract-abi.md
+
+# ── DataLayout（M1 基础事实）────────────────────────────────────────────────
+data_layout:
+  endianness: big
+  pointer_size: 8          # 指针 = unsigned octa（8 字节）
+  octa_size: 8
+  spec_cite: "DADAO-21 §数据表示"
+
+# ── 栈（M1 事实）─────────────────────────────────────────────────────────────
+stack:
+  stack_pointer: rb1
+  stack_pointer_abi_name: rbsp
+  frame_pointer: rb2
+  frame_pointer_abi_name: rbfp
+  frame_pointer_optional: true
+  growth_direction: downward
+  stack_alignment: 8       # call 执行时 SP 必须 8 字节对齐
+  spec_cite: "DADAO-21 §函数调用规范 §The Stack Frame; §传参 §栈溢出规则"
+
+# ── call/ret 与 RegRAS（M1 事实）─────────────────────────────────────────────
+call_ret:
+  ras_top: ra63
+  push_on_call: true
+  pop_on_ret: true
+  overflow_exception: RASOF
+  underflow_exception: RASUF
+  detail_contract: ".tao/knowledge/contract-isa.md §5.4-§5.6"
+  spec_cite: "SimRISC-02 §函数调用; SimRISC-02 §函数返回"
+
+# ── 寄存器角色（M1 事实）─────────────────────────────────────────────────────
+# 每条：range=[lo,hi]；abi_name 为区间时写作 [首,末]；callee_saved 为
+# true/false/null/immutable（null = spec 栏为 '-'，未分类）。
+registers:
+  rd:
+    - {range: [0, 0],   abi_name: rdzero, role: zero,            callee_saved: immutable}
+    - {range: [1, 1],   abi_name: rderrno, role: error_number,   callee_saved: null}
+    - {range: [2, 7],                      role: reserved,       callee_saved: null}
+    - {range: [8, 15],  abi_name: [rdt0, rdt7],  role: temporary, callee_saved: false}
+    - {range: [16, 31], abi_name: [rda0, rda15], role: temporary, callee_saved: false}
+    - {range: [32, 63],                    role: callee_saved,   callee_saved: true}
+  rb:
+    - {range: [0, 0],   abi_name: rbip,   role: instruction_pointer, callee_saved: null}
+    - {range: [1, 1],   abi_name: rbsp,   role: stack_pointer,       callee_saved: true}
+    - {range: [2, 2],   abi_name: rbfp,   role: frame_pointer,       callee_saved: true}
+    - {range: [3, 3],   abi_name: rbgp,   role: global_pointer,      callee_saved: null}
+    - {range: [4, 4],   abi_name: rbtp,   role: thread_pointer,      callee_saved: null}
+    - {range: [5, 7],                     role: reserved,            callee_saved: null}
+    - {range: [8, 15],  abi_name: [rbt0, rbt7],  role: temporary,    callee_saved: false}
+    - {range: [16, 31], abi_name: [rba0, rba15], role: temporary,    callee_saved: false}
+    - {range: [32, 63],                   role: callee_saved,        callee_saved: true}
+  rf:
+    - {range: [0, 0],   role: fp_status,  callee_saved: null}    # rf0 = FCSR
+    - {range: [1, 7],   role: temporary,  callee_saved: false}
+    - {range: [8, 15],  abi_name: [rft0, rft7],  role: temporary, callee_saved: false}
+    - {range: [16, 31], abi_name: [rfa0, rfa15], role: temporary, callee_saved: false}
+    - {range: [32, 63], role: callee_saved,      callee_saved: true}
+  ra:
+    - {range: [0, 0],   role: ras_control,       callee_saved: null}
+    - {range: [1, 62],  role: return_address_slot, callee_saved: null}
+    - {range: [63, 63], abi_name: rasp, role: regras_top, callee_saved: null}
+
+# ── M1 可分配 / 不可分配集合（保守策略）─────────────────────────────────────
+allocatable:
+  rd: [[8, 15], [16, 31], [32, 63]]
+  rb: [[8, 15], [16, 31], [32, 63]]
+  rf: []
+
+non_allocatable:
+  - {reg: rd0,        reason: hardwired_zero}
+  - {reg: rd1,        reason: "callee-saved undefined (spec '-'); M1 保守不分配", status: OPEN}
+  - {reg: "rd2-rd7",  reason: reserved}
+  - {reg: rb0,        reason: pc}
+  - {reg: rb1,        reason: stack_pointer}
+  - {reg: rb2,        reason: frame_pointer}
+  - {reg: rb3,        reason: "callee-saved undefined (spec '-'); M1 保守不分配", status: OPEN}
+  - {reg: rb4,        reason: "callee-saved undefined (spec '-'); M1 保守不分配", status: OPEN}
+  - {reg: "rb5-rb7",  reason: reserved}
+  - {reg: "ra0-ra63", reason: managed_by_call_ret}
+  - {reg: "rf0-rf63", reason: excluded_from_m1}
+
+# ── 分类索引（便于消费者直接读取的派生视图）────────────────────────────────
+# 语义：`callee_saved` 给出「各 bank 的通用 callee-saved 块（32–63）」。
+# 对 rd/rb，该块即编译器可分配的 callee-saved 区间（与上方 `allocatable` 的 [32, 63] 一致）；
+# **RF 整体 `Excluded from M1`（`allocatable.rf` 为空）**，其 32–63 仅作 spec 事实登记，M1 不可分配。
+# 它**不含** SP(rb1)/FP(rb2) 等由帧管理专用的 callee-saved 寄存器
+# （这些见 `non_allocatable`）；逐寄存器的权威分类以上方 `registers` 表为准
+# （rb1/rb2 在表中标 `callee_saved: true`）。
+callee_saved:
+  rd: [32, 63]
+  rb: [32, 63]   # 通用块；SP=rb1 / FP=rb2 见 registers 表（callee_saved: true）
+  rf: [32, 63]
+reserved_registers:
+  rd: [2, 7]
+  rb: [5, 7]
+
+# ── Deferred to M2：完整调用约定（M1 不作为规范性事实）──────────────────────
+deferred_to_m2:
+  parameter_registers:
+    rd: [16, 31]
+    rb: [16, 31]
+    rf: [16, 31]        # RF Excluded from M1
+    note: "三 bank 独立计数、从 16 开始、不共享槽位"
+  return_registers:
+    rd: 31
+    rb: 31
+    rf: 31              # RF Excluded from M1
+  stack_frame_layout: deferred
+  shared_overflow_area: deferred
+  prologue_epilogue: deferred
+  scalar_argument_promotion: deferred
+  system_call_convention: deferred
+  spec_cite: "DADAO-21 §传参 / §返回值 / §函数调用规范 §The Stack Frame / §栈溢出规则 / §系统调用规范"
+
+# ── Excluded from M1：高级 ABI ───────────────────────────────────────────────
+excluded_from_m1:
+  - rf_all
+  - varargs
+  - hfa
+  - hpa
+  - aggregate_arguments
+  - aggregate_return_sret
+  - multiple_return_values
