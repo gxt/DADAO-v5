@@ -31,6 +31,13 @@
 
 - 讨论 / 任务涉及 ADR 判据（不可逆、跨模块、多方案、外部契约、结论固化、定位）时，**必须主动提醒用户是否生成 ADR**，不擅自决定、不静默略过。判据与格式见 `.tao/knowledge/adr-authoring.md`。
 
+## ADR decision 逐条确认
+
+- **写入 ADR 的每个 decision（D1、D2…）都必须逐条与用户确认**；**不得**因任务书 / 参考文档 / 子代理产出里已写有该决策，就默认其通过。
+- 任务书里的 decision 只是**提案**。固化进 ADR 之前，须由用户逐条判定（保留 / 修改 / 否决），确认后方可写入。
+- 主会话与子代理（architect / engineer / reviewer）均不得擅自把**未经用户逐条确认**的 decision 写为 `Accepted`。
+- 已 `Accepted` 的 ADR 若要改动其 decision，仍须逐条经用户确认（按 `adr-authoring.md`：新增 ADR / 标注 `Superseded` / 经授权的就地修订）。
+
 ## 目录结构
 
 ```
