@@ -58,14 +58,15 @@
 | `R_DADAO_PCREL24` | `call imms24`/`jump imms24`（iiii） | imms24 @ bits[23:0] |
 | `R_DADAO_RELA` | `rela.si`（riii） | imms18 @ bits[17:0] |
 
+> 上表 `R_DADAO_*` 为 **legacy（0628）命名，仅作对照**；M1 **不冻结**重定位编号/公式，完整命名/编号留 `LLVM-012t`（M2），不得据本表臆造。
+
 **§3（`Deferred to M2`）Overflow Policy**：两级策略表（`R_DADAO_64`/`ABS_W*` 无溢出；有界类型 link-time error）。
 
 **§4（`Deferred to M2`）Relaxation**：M1 禁止 relaxation 的正式声明及约束。
 
 **§5 Section Alignment**：`.text`/`.rodata`/`.data`/`.bss` 最小对齐、VA=PA 规则。
 
-**§6 Artifact Pipeline**：M1 端到端 artifact 路径（ET_REL → ET_EXEC → flat binary → QEMU），
-与 ADR-0004（SPEC-006t）的加载模型一致。
+**§6 Artifact Pipeline**：M1 端到端 artifact 路径（ET_REL `.o` → `llvm-objcopy --only-section=.text -O binary` → flat binary → QEMU），**无静态链接、无 ET_EXEC、无 LLD**；与 ADR-0004（SPEC-006t）的加载模型一致。
 
 ### 上游引用
 

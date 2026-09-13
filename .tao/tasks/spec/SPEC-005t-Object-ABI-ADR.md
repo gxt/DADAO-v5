@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M1
 **依赖**：`SPEC-002t`、`SPEC-004t`
-**状态**：待开始
+**状态**：已验证
 
 ## 范围（2026-09-12 变更）
 
@@ -142,18 +142,163 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
 
 ## 完成区
 
-**测试结果**：
+**测试结果**：通过 39/39；失败原因：无。验收自检脚本 `/tmp/opencode/SPEC-005t/check-adr0003.sh`（存在/格式/D1 5 字段/D5 段对齐+VA=PA+pipeline/D2-D3-D4 Deferred/来源标注/无行号/无照抄/无未决占位），退出码 0。完整输出存 `.tao/logs/SPEC-005t-verify.log`。
+
 **修改文件**：
+- `.tao/knowledge/adr-0003-object-abi.md`（新增，ADR-0003，Status=Candidate）
+- `.tao/tasks/spec/SPEC-005t-Object-ABI-ADR.md`（状态 `待开始`→`待验收`；填完成区/自审）
+
 **验收结果**：
+- 产出文件存在（10848→~11KB，117 行）；格式 `# ADR-0003:` + `**状态**`/`**日期**`/`**关联**` + Context/Decision/Rationale/Consequences/状态说明，符合 `.tao/knowledge/adr-authoring.md` 模板。
+- **D1** 冻结 5 字段：`EI_CLASS=ELFCLASS64(2)`、`EI_DATA=ELFDATA2MSB(2)`、`e_machine=EM_DADAO(0x0DA0)`、`e_flags=0x00000001`、`EI_OSABI=ELFOSABI_NONE(0)`；逐项理由引用 `contract-isa §1.1/§1.5/§1.6/§2.1`、`contract-abi §1.7`；`EM_DADAO` 明标 **project-custom、未注册 IANA/SysV/LLVM 主线、仅存在于 legacy fork**，`e_flags` 位定义（bit0=M1 ABI version，bits1–31 reserved）与版本拒绝规则齐备。
+- **D5** 段对齐（`.text` 4B / `.rodata`/`.data`/`.bss` 8B，含理由）+ VA=PA（freestanding 无 MMU）+ 唯一 pipeline：`ET_REL .o → objcopy --only-section=.text -O binary → flat binary → QEMU`，明标 raw/section extraction、无 LLD/无 `ET_EXEC`、`e_entry` 不被 test machine 消费；flat→QEMU 的机器名/地址/命令行/trampoline 交由 ADR-0004（`SPEC-006t`）冻结，二者职责不重叠。
+- **D2/D3/D4** 独立小节 `### D2/D3/D4 — Deferred to M2（登记，不冻结）`：D2 只登记场景→0.5.3 格式（不冻结编号/公式），D3 溢出策略、D4 松弛策略均标 `Deferred to M2`，与 M1 内容不混排。
+- 来源：`spec/` 无 ELF 内容（`grep -ril elf|e_machine|EI_CLASS|e_flags spec/` 退出码 1，无匹配），ADR 已标「无 spec 依据，架构自定义」；无行号引用；无 `R_DADAO_*`/legacy 编号/公式；`Dadao.def` 仅作只读对照说明。
+
 **新发现/坑**：
-**遗留问题**：
+1. **下游 `SPEC-007t` §6 措辞需对齐**：`SPEC-007t` 背景写「ET_REL → ET_EXEC → flat binary → QEMU」，与本 ADR 冻结的 raw/section extraction 路径（**无静态链接、无 `ET_EXEC`、无 LLD**）不一致；`SPEC-007t` 已知坑 #3 亦要求二选一。执行 `SPEC-007t` 时应以 ADR-0003 §D5 为准，写成 `.o → objcopy --only-section=.text → flat → QEMU`。
+2. **pipeline 与既有 verif/llvm 任务一致**：`VERIF-010t`（`llvm-objcopy -O binary --only-section=.text smoke.o smoke.bin`）与 `LLVM-010t` 已采用同一 section-extraction 路径，本 ADR 冻结后可作为其上游依据。
+3. **ADR-0004（`SPEC-006t`）尚未产出**：本 ADR 的 flat→QEMU 入口协议留待 ADR-0004；`SPEC-006t` 核验时须回指 ADR-0003 §D5 以保持唯一端到端路径（避免「跳到 `e_entry`」类互斥表述）。
+4. **`EM_DADAO` 命名空间策略**：M1 沿用 `0x0DA0` + `e_flags=0x1` 与 legacy `e_flags=0` 机器可识别区分；M2 冻结重定位编号须在 M1 namespace 内独立编号，不得沿用 legacy `Dadao.def`。
+
+**遗留问题**：无（D2/D3/D4 属任务明确的 `Deferred to M2`，非本任务遗留）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
 
-（待填写）
+**判决**：可交付（`待验收`）。自审脚本 39/39 通过，退出码 0。
+
+逐行审查要点与 finding 处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1：D2 登记表缺 `contract-isa` 来源标注，与「取值可从 0.5.3 独立验证」要求有落差 | ✅已修 | D2 行补 `[contract-isa §2.3–§2.4]`（格式/字段位置）与 `[contract-isa §4.7][§5.2–§5.4]`（分支/call/jump/rela 语义） | 自检 [6] `引用 contract-isa §` PASS；总 39/39 |
+| F2：确认未照抄 0628 的 `Dadao.def` 编号/公式（greenfield 约束） | ✅不修（已满足） | 全文无 `R_DADAO_*` 名、无重定位编号/公式；`Dadao.def` 仅作「只读对照、不采用」说明 | 自检 [7] `无 R_DADAO_* 名` PASS、`Dadao.def 仅作对照说明` PASS |
+| F3：`.rodata/.data/.bss` 8B 对齐是否可从 0.5.3 独立推导 | ✅不修（已满足） | 依据 `contract-isa §4.1.1`（`ld.o`/`st.o` 8B 对齐）+ `contract-abi §1.7`（指针 8B）；8B 为满足性最小值（更严但安全） | 自检 [4] 各段 PASS |
+| F4：pipeline 是否与任务给定 `.o → objcopy --only-section=.text → flat → QEMU` 及 ADR-0004 分工一致 | ✅不修（已满足） | 三步 pipeline 逐字对齐；object→flat 归 ADR-0003，flat→QEMU 入口归 ADR-0004；无 `ET_EXEC`/LLD/`e_entry` 加载语义 | 自检 [4] pipeline 各项 PASS |
+| F5：是否存在未决「待定」字段（验收 #7） | ✅不修（已满足） | D2/D3/D4 为任务明确 `Deferred to M2`（确定状态，非待定） | 自检 [8] 无未决占位 PASS |
+
+**边界/防造假核对**：`spec/` 无 ELF 依据已用 `grep`（退出码 1）实测；D1/D5 数值逐条回链 `contract-isa`/`contract-abi` 章节号；无行号引用。审查未发现逻辑/设计缺陷。
 
 #### 第 1 轮 reviewer 验收
 
-（待填写）
+**判决**：**Accepted**。所有验收标准通过，无阻塞缺陷。
+
+##### 重跑记录
+
+```bash
+# 1. 文件存在性与行数
+$ wc -l .tao/knowledge/adr-0003-object-abi.md
+117 .tao/knowledge/adr-0003-object-abi.md
+# 退出码 0
+
+# 2. ADR 格式结构
+$ grep -n '# ADR-0003\|^\*\*状态\*\*\|^\*\*日期\*\*\|^\*\*关联\*\*\|^## Context\|^## Decision\|^## Rationale\|^## Consequences\|^## 状态说明' .tao/knowledge/adr-0003-object-abi.md
+1:# ADR-0003: SimRISC M1 Object ABI（ELF 头字段与段/流水线）
+3:**状态**：Candidate
+4:**日期**：2026-09-13
+5:**关联**：ADR-0001（greenfield 重建）、ADR-0002（构建编排）、ADR-0004（test machine，`SPEC-006t`）、`SPEC-005t`（本 ADR 任务）、`SPEC-007t`（ELF 合约，下游规范化）、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.3）、`.tao/knowledge/contract-abi.md`（0.9.2）
+7:## Context（背景）
+20:## Decision（决策）
+98:## Rationale（理由）
+106:## Consequences（影响）
+115:## 状态说明
+# 退出码 0 — 格式完整
+
+# 3. spec/ 无 ELF 依据
+$ grep -ril 'elf\|e_machine\|EI_CLASS\|e_flags\|EI_OSABI\|EM_DADAO' spec/
+# 无输出，退出码 1 — 确认 spec/ 无 ELF 内容
+
+# 4. 无 R_DADAO_* 名
+$ grep -c 'R_DADAO_' .tao/knowledge/adr-0003-object-abi.md
+0
+# 退出码 0
+
+# 5. Dadao.def 仅作对照说明
+$ grep -n 'Dadao\.def' .tao/knowledge/adr-0003-object-abi.md
+18:遗留 DADAO toolchain（`Dadao.def`/`ELF.h`）仅作**只读对照**，本 ADR **不采用**其重定位编号或公式
+94:> M2 冻结重定位编号时，须在 `e_flags = 0x1` 的 M1 namespace 内独立编号，不得沿用 legacy `Dadao.def` 的编号或公式。
+113:遗留 `Dadao.def`/`ELF.h` 仅作只读对照，不作为编号/公式来源
+# 全部为「不采用/只读对照」语境
+
+# 6. Deferred to M2 标注
+$ grep -n 'Deferred to M2' .tao/knowledge/adr-0003-object-abi.md
+16:**`Deferred to M2`**：重定位类型表（D2）、重定位溢出策略（D3）、重定位松弛策略（D4）
+79:### D2/D3/D4 — `Deferred to M2`（登记，不冻结）
+83:- **D2 重定位类型表（`Deferred to M2`）**
+95:- **D3 重定位溢出策略（`Deferred to M2`）**
+96:- **D4 重定位松弛策略（`Deferred to M2`）**
+112:- **下游**：...D2/D3/D4 在合约中标 `Deferred to M2`...
+# D2/D3/D4 独立小节，不与 M1 混排
+
+# 7. 无 ET_EXEC/LLD 作为 M1 依赖
+$ grep -n 'ET_EXEC\|LLD' .tao/knowledge/adr-0003-object-abi.md
+11:M1 范围为单翻译单元（single TU）、freestanding、自包含：无跨 object 链接、无动态链接、无 TLS、无 target linker（LLD）
+66:M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD）**、不产生 `ET_EXEC**、不做跨 object 链接
+75:...不经过静态链接；这是 M1 不依赖 LLD 的关键
+103:...也不产生 M1 无法解析的 `ET_EXEC`/重定位残留
+109:不引入 LLD：M1 pipeline 不依赖 target linker
+# 全部为「不引入/不产生」语境 — M1 pipeline 不含 ET_EXEC/LLD
+
+# 8. 无未决占位（TBD/FIXME/TODO/待定）
+$ grep -c '待定\|TBD\|FIXME\|TODO' .tao/knowledge/adr-0003-object-abi.md
+0
+# 退出码 1（grep 无匹配）— 无未决字段
+
+# 9. git status
+$ git status --short
+ M .tao/tasks/spec/SPEC-005t-Object-ABI-ADR.md
+?? .tao/knowledge/adr-0003-object-abi.md
+# 与完成区声称的修改文件一致
+
+# 10. 无行号引用
+$ grep -n '行\|line [0-9]\|Line [0-9]' .tao/knowledge/adr-0003-object-abi.md
+76:...因此本 ADR 不出现「test machine 跳到 `e_entry`」的表述
+# 仅 line 76 包含「表述」一词，非行号引用
+```
+
+##### 约束核验
+
+| 约束 | 结果 | 证据 |
+|------|------|------|
+| ADR 格式合规（`# ADR-0003` + 状态/日期/关联 + Context/Decision/Rationale/Consequences/状态说明） | ✅ | 标题、状态=Candidate、日期、关联、5 个 section 全部存在 |
+| **D1** 冻结 5 字段（`EI_CLASS`/`EI_DATA`/`e_machine`/`e_flags`/`EI_OSABI`） | ✅ | 逐项有值、有理由、有 `contract-isa`/`contract-abi` 章节引用 |
+| `EM_DADAO` 注册状态（未注册 upstream） | ✅ | 明标「project-custom」「未注册于 IANA/SysV 公共 ELF registry」「不存在于 LLVM 主线」 |
+| D1 取值可从 `contract-isa.md`/`contract-abi.md` 独立验证 | ✅ | §1.1→ELFCLASS64, §1.6→ELFDATA2MSB, §1.5→48-bit addr, §2.1→4B align, §4.1.1→8B align, contract-abi §1.7→8B ptr |
+| **D5** 段对齐 + VA=PA + pipeline（`.o → objcopy .text → flat → QEMU`） | ✅ | .text=4B, .rodata/.data/.bss=8B; VA=PA (freestanding no-MMU); 三步 pipeline 明确 |
+| D5 pipeline 无 ET_EXEC / 无 LLD | ✅ | 明标「raw / section extraction」「不引入 target linker（LLD）」「不产生 ET_EXEC」 |
+| **D2/D3/D4 标 `Deferred to M2`**，不与 M1 混排 | ✅ | 独立小节 `### D2/D3/D4 — Deferred to M2（登记，不冻结）`，M1 内容不混入重定位编号 |
+| 未照抄 0628（无 `R_DADAO_*` 编号/公式） | ✅ | `grep -c 'R_DADAO_'` = 0；`Dadao.def` 仅作「只读对照、不采用」说明 |
+| 无行号引用 | ✅ | 无 `line N` 或 `行N` 格式引用 |
+| 无未决「待定」字段 | ✅ | `grep` 无匹配 |
+
+##### 与工程师自审结论的差异
+
+**无差异**。工程师自审 39/39 通过、5 个 finding 均为已满足或已修复；独立重跑全部通过，结论一致。
+
+##### 关于 SPEC-007t §6 措辞冲突的判断
+
+工程师在完成区发现的问题 **准确但不构成 ADR-0003 的阻塞缺陷**：
+
+- **事实**：SPEC-007t §6（line67）写「ET_REL → ET_EXEC → flat binary → QEMU」，包含 ET_EXEC（静态链接产出的可执行文件）；ADR-0003 §D5 冻结的 M1 pipeline 为「`.o → objcopy --only-section=.text -O binary → flat binary → QEMU`」，**无 ET_EXEC、无 LLD**。
+- **根因**：SPEC-007t 的已知坑 #3（line106）已将此标注为 P0：「§6 把 Post-M2 LLD 变成 M1 必需依赖：须二选一——保持 roadmap（raw/section extraction）或扩展 M1 scope」。
+- **判断**：ADR-0003 §D5 正确冻结了 M1 的唯一 pipeline（raw/section extraction），SPEC-007t 的 §6 措辞是**下游任务需修正的内容**，不是 ADR-0003 的缺陷。执行 SPEC-007t 时应以 ADR-0003 §D5 为准。
+- **建议**：SPEC-007t 任务书 §6 应预先修正为「`.o → objcopy --only-section=.text → flat → QEMU`」，与 ADR-0003 对齐后再开始执行。
+
+### 交叉复核（architect）
+
+**复核者**：architect
+**时间**：2026-09-12
+**结论**：确认 reviewer 的 **Accepted**；D1/D5 事实经独立回溯 0.5.3 合约可验证，D2/D3/D4 确标 `Deferred to M2`，格式合规、无照抄。
+
+**独立核对**：D1 5 字段逐项回链 `contract-isa`/`contract-abi`；`.text` 4B、`.rodata/.data/.bss` 8B 对齐有据（`§2.1`/`§4.1.1`）；`EM_DADAO` 注册状态经抓取 LLVM 主线 `ELF.h`（无 `EM_DADAO`）与 legacy fork（`EM_DADAO=0x0DA0`）独立证实；D5 pipeline 无 ET_EXEC/LLD；无 `R_DADAO_*`、无行号、无 `Dadao.def` 数字。
+
+**补充发现（非阻塞，已处置）**：
+
+- **F1**：`SPEC-007t §6` 的「ET_REL → ET_EXEC → flat」与本 ADR 冲突 → 已在 `SPEC-007t` 预修正为「`.o → objcopy .text → flat → QEMU`（无 ET_EXEC/LLD）」。
+- **F2**：`SPEC-007t §2` 预列 legacy `R_DADAO_*` 名称 → 已加注「legacy 对照、M1 不冻结，完整命名留 `LLVM-012t`（M2）」。
+- F3/F4：reviewer 转录笔误、措辞小瑕（不影响判决）。
+
+**统一判决**：**Accepted**。
+
