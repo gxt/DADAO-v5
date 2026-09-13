@@ -644,3 +644,7 @@ architect 交叉复核的 6 项返工（5 条块赋值 legality + fence 规整�
 - 工程师「293 处」与 reviewer「484 处」是同一事实的两种口径（字段引用 vs 全部标识符）。
 
 **统一判决**：**Accepted**。
+
+### 后续增强（2026-09-12）
+
+`verif/validate_encoding.py` 增加 **`legality` 字段引用校验**（`check_legality_refs`）：`legality` 中引用的每个标识符必须是该记录 `fields[].name`，或允许的常量/函数（`rd0`/`rb0`/`ra0`/`rf0`/`aligned`）；否则报错、非零退出。用于机械拦截「把 opcode 位 `ha` 误写成寄存器 `rdha`」这类**悬空引用**（即本次返工根因）。实测：正常 `opcodes.yaml` PASS；注入 `rdha` 的副本被报错（exit 1）。`make check` 会一并执行。

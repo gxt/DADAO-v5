@@ -7,8 +7,9 @@
   1. (value & mask) == value 对每条记录
   2. 记录内的字段不重叠且覆盖 [mask] 中所有为 1 的位
   3. 没有两条指令共享相同的 (mask, value) 编码空间
-  4. 保留编码（reserved）未被意外分配
-  5. 字段 bank 标记与指令名称一致
+   4. 保留编码（reserved）未被意外分配
+   5. 字段 bank 标记与指令名称一致
+   6. legality 引用的标识符都是该记录的字段名（或允许的常量/函数）
 """
 
 import sys
@@ -116,6 +117,28 @@ def check_bank_consistency(rec):
     return errors
 
 
+# legality 中允许出现的非字段标识符（常量/函数）
+ALLOWED_NON_FIELD = {"rd0", "rb0", "ra0", "rf0", "aligned"}
+
+
+def check_legality_refs(rec):
+    """检查 legality 引用的标识符是否都是该记录的字段名或允许的常量/函数。
+
+    防止 legality 引用不存在的字段（如块赋值把 opcode 位 ha 误写成 rdha）。
+    """
+    insn = rec.get("insn", "?")
+    field_names = {f.get("name") for f in rec.get("fields", [])
+                   if isinstance(f, dict)}
+    errs = []
+    for expr in rec.get("legality", []) or []:
+        for tok in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", str(expr)):
+            if tok in field_names or tok in ALLOWED_NON_FIELD:
+                continue
+            errs.append(f"{insn}: legality {expr!r} 引用了不存在的字段/标识符 "
+                        f"{tok!r}（该记录字段: {sorted(field_names)}）")
+    return errs
+
+
 def check_decode_conflict(records):
     """检查任意两条指令的解码空间是否冲突。"""
     for i, a in enumerate(records):
@@ -206,6 +229,9 @@ def main():
         # 检查 bank 一致性
         bank_errors = check_bank_consistency(rec)
         errors.extend([f"ERROR: {e}" for e in bank_errors])
+
+        # 检查 legality 引用的字段是否真实存在
+        errors.extend([f"ERROR: {e}" for e in check_legality_refs(rec)])
 
     # 检查解码冲突
     ok, msg = check_decode_conflict(records)
