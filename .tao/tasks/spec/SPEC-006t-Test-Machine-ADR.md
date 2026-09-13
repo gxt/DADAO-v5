@@ -22,7 +22,7 @@
   - **精确异常承诺**：MALIGN/ILLI/UNDI 等为精确异常，须明确「无 commit = 哪些状态不变」
   - 对齐约束：exit port 写用 `st.o`（8B 对齐）；exit port 地址 8B 对齐
   - 复位值/exit port/内存映射 `spec/` 无依据 → 标「无 spec 依据，架构自定义」并给理由
-  - 指令助记符用 0.5.3 命名；格式遵循 `adr-0001` 风格
+  - 指令助记符用 0.5.3 命名；格式遵循 `.tao/knowledge/adr-authoring.md`
   - 完成后不自行 commit
 
 ## 背景（完整）
@@ -49,7 +49,7 @@
 
 **D2 复位向量与入口点**：硬件复位后 PC（rb0）初值（`spec/` 为 `cfx_power_hypv_excp_vector`，
 M1 bare-metal 下的等价值？）、测试程序加载地址、加载方法（flat binary 还是 ELF）、
-RD/RB/RA/RF 硬件复位值（须从 0.5.3 `SimRISC-00` 推导 rf0/FCSR 位布局）。
+RD/RB/RA/RF 硬件复位值（须从 0.5.3 `SimRISC-00` 推导 rf0/FCSR 位布局）。**RF 边界**：M1 排除 RF 指令，但测试机须确定性复位 `rf0`（按 spec 位布局）；**不实现任何 RF 指令语义**（RF 指令走 ILLI/UNDI 桩）。
 
 **D3 Exit Port 协议**：字节宽度（建议 8B，与 `st.o` 对齐）、写入值语义（0=PASS，非零=FAIL）、
 是否多字段编码、QEMU 行为（读 8B 值→取低字节→传播到 host `$?`）。须冻结带退出码的 QEMU API/机制。
