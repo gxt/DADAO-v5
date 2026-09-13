@@ -1,6 +1,6 @@
 # ADR-0003: SimRISC M1 Object ABI（ELF 头字段与段/流水线）
 
-**状态**：Accepted
+**状态**：Accepted（rev. 2026-09-13: `e_flags` 版本字段，见 `## 修订`）
 **日期**：2026-09-13
 **关联**：ADR-0001（greenfield 重建）、ADR-0002（构建编排）、ADR-0004（test machine，`SPEC-006t`）、`SPEC-005t`（本 ADR 任务）、`SPEC-007t`（ELF 合约，下游规范化）、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.3）、`.tao/knowledge/contract-abi.md`（0.9.2）
 
@@ -26,22 +26,31 @@ M1 范围为单翻译单元（single TU）、freestanding、自包含：无跨 o
 | `EI_CLASS` | `ELFCLASS64 = 2` | 64 位 ELF |
 | `EI_DATA` | `ELFDATA2MSB = 2` | 大端 |
 | `e_machine` | `EM_DADAO = 0x0DA0` | project-custom machine id |
-| `e_flags` | `0x00000001` | M1 ABI version |
+| `e_flags` | `0x00000001` | 对象/ABI 格式版本 = 1（bits 0–7）；bits 8–31 保留为 0 |
 | `EI_OSABI` | `ELFOSABI_NONE = 0` | freestanding，无 OS 专用 ABI |
 
 逐项理由：
 
 - **`EI_CLASS = ELFCLASS64 (2)`**：SimRISC 每个用户寄存器 64 位、机器字长 64 位 [contract-isa §1.1]；存储模型为 64 位地址空间（有效虚拟地址 48 位）[contract-isa §1.5]。指令字为 32 位 [contract-isa §2.1]，但寄存器/地址模型为 64 位，故使用 `Elf64_*` 结构（`Elf64_Ehdr` 等）。
 - **`EI_DATA = ELFDATA2MSB (2)`**：SimRISC 指令字与数据均为大端序，多字节数据的最高有效字节存放在最低地址 [contract-isa §1.6][contract-isa §2.1]；ABI 基础数据布局亦为大端序 [contract-abi §1.7]。
-- **`e_machine = EM_DADAO (0x0DA0)`**：**project-custom**。该值**未注册**于 IANA/SysV 公共 ELF registry，也**不存在于 LLVM 主线**；它仅存在于遗留 DADAO toolchain fork。M1 沿用该命名以保持项目生态内 machine identity 的连续，但**不声称已注册 upstream**。未正式注册带来的碰撞风险由 `e_flags` 版本位缓解（见下）。
-- **`e_flags = 0x00000001`**：bit 0 为 **M1 ABI version 标志**，M1 object 恒置 1；bits 1–31 保留，必须为 0。
+- **`e_machine = EM_DADAO (0x0DA0)`**：**project-custom**。该值**未注册**于 IANA/SysV 公共 ELF registry，也**不存在于 LLVM 主线**；它仅存在于遗留 DADAO toolchain fork。M1 沿用该命名以保持项目生态内 machine identity 的连续，但**不声称已注册 upstream**。未正式注册带来的碰撞风险由 `e_flags` 版本字段缓解（见下）。
+- **`e_flags = 0x00000001`**：**bits 0–7 为对象/ABI 格式版本号**（`e_flags[7:0]`），M1 取值为 **1**；后续每当对象/ABI 格式发生不兼容变化时递增。**bits 8–31 保留**，必须为 0。
 
   | 位 | 含义 |
   |----|------|
-  | 0 | ABI version（M1 = 1） |
-  | 1–31 | Reserved（必须为 0） |
+  | 0–7 | 对象/ABI 格式版本号（M1 = 1） |
+  | 8–31 | Reserved（必须为 0） |
 
-  同一 `e_machine = 0x0DA0` 下，遗留 object 的 `e_flags = 0`。M1 consumer 遇到 `e_machine = 0x0DA0` 且 `e_flags = 0` 时**必须拒绝**该 object；遇到未识别或不匹配的 flag 位必须报错，以避免同一 machine id 下对 object 语义的静默误解释。该字段是 M1 namespace 与 legacy namespace 的机器可识别分界。
+  consumer 必须按版本号与保留位决定是否接受 object：
+
+  | `e_flags[7:0]` | 含义 | consumer 行为 |
+  |---------------|------|--------------|
+  | 0 | legacy DADAO object（无版本字段） | **拒绝**（非 M1） |
+  | 1 | M1 对象/ABI 格式 | 接受 |
+  | 2–255 | 未知/未来版本 | **拒绝**（consumer 无法解释） |
+  | 任意（bits 8–31 ≠ 0） | 违反保留位约束 | **拒绝** |
+
+  即 consumer 只接受 `e_machine = 0x0DA0` 且 `e_flags = 0x00000001`（版本 1、保留位全 0）的 object；遇到版本不匹配、未知版本或保留位非 0 一律报错。该字段既是 M1 namespace 与 legacy namespace 的机器可识别分界，又预留了后续 milestone/ABI 版本的编码空间（8 位版本字段的既有实践如 ARM EABI `EF_ARM_EABIMASK`、LoongArch ABI version）。
 - **`EI_OSABI = ELFOSABI_NONE (0)`**：M1 为 freestanding 裸机测试环境，无 OS 专用 ABI 扩展，采用通用 System V 值。
 
 ### D5 段对齐、VA=PA 与端到端 artifact pipeline
@@ -91,7 +100,7 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
   | PC 相对 call/jump（中程） | `call imms24`/`jump imms24`（iiii） | 24-bit 有符号字偏移 |
   | PC 相对地址加载 | `rela.si`（riii，imms18 << 12） | 30-bit 有效偏移，页号差 |
 
-  > M2 冻结重定位编号时，须在 `e_flags = 0x1` 的 M1 namespace 内独立编号，不得沿用 legacy `Dadao.def` 的编号或公式。
+  > M2 冻结重定位编号时，须在 `e_flags[7:0] = 1`（M1 对象/ABI 格式版本）的 namespace 内独立编号，不得沿用 legacy `Dadao.def` 的编号或公式。
 - **D3 重定位溢出策略（`Deferred to M2`）**：有界重定位溢出时报错（link-time error）还是截断/wrap，及各类型分别的策略，留 M2 冻结。
 - **D4 重定位松弛策略（`Deferred to M2`）**：M1 无 link 步骤，松弛（relaxation）不适用；M1 是否/如何禁止 relaxation 的正式策略，留 M2 在引入 relocation 时冻结。
 
@@ -99,13 +108,14 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 
 - **只冻结 M1 需要的最小集合**：M1 是单 TU、freestanding、自包含，既不产生重定位也不需要链接；冻结 D2/D3/D4 会引入没有消费者的规范，且过早固化难以随 M2 CodeGen 调整。因此 M1 只冻结 object 头字段（D1）与段/流水线（D5）。
 - **64 位大端 ELF 由 ISA/ABI 决定，而非习惯**：`EI_CLASS`/`EI_DATA` 直接来自 64 位寄存器/地址模型与大端序规定 [contract-isa §1.1/§1.5/§1.6][contract-abi §1.7]。
-- **沿用 `EM_DADAO` 但显式声明注册状态**：沿用可保持项目生态 machine identity 连续；但必须如实说明其未注册 upstream，并以 `e_flags = 0x1` 作为 M1 namespace 的机器可识别分界，避免同一 machine id 下新/旧 consumer 对 object 的静默误解释。
+- **沿用 `EM_DADAO` 但显式声明注册状态**：沿用可保持项目生态 machine identity 连续；但必须如实说明其未注册 upstream，并以 `e_flags[7:0] = 1`（8 位对象/ABI 格式版本字段）作为 M1 namespace 的机器可识别分界，避免同一 machine id 下新/旧 consumer 对 object 的静默误解释。
+- **`e_flags` 用 8 位版本字段而非 1 位标志**：1 位标志只能区分「M1 vs legacy」二态，无法表达后续 milestone/ABI 格式的不兼容变化，会使后续版本被迫另择字段或产生静默误解释。采用 bits 0–7 版本号（M1 = 1，变化时递增）+ bits 8–31 保留，可在同一 `e_machine` 下表达版本演进，并让 consumer 以「未知版本即拒绝」的前向兼容规则处理未来对象；此做法与 ARM EABI（8 位版本掩码）、LoongArch（多位 ABI/对象版本）一致。
 - **raw / section extraction 而非 LLD**：M1 没有 DADAO target linker，且单 TU 自包含；`objcopy --only-section=.text -O binary` 足以把 `.o` 转成 QEMU 可加载的 flat binary。此路径不把 Post-M2 的 LLD 变成 M1 必需依赖，也不产生 M1 无法解析的 `ET_EXEC`/重定位残留。
 - **删除 `e_entry` 加载语义**：test machine 消费 flat binary 并从固定基址进入，`e_entry` 对 M1 加载无作用；保留「跳到 `e_entry`」表述会与 ADR-0004 的加载模型互斥。
 
 ## Consequences（影响）
 
-- **命名空间**：`EM_DADAO = 0x0DA0` 为 project-custom（未在 IANA/SysV/LLVM 主线注册），存在与其它使用该值的私有工具链碰撞的风险；`e_flags = 0x1` 使 M1 object 可被机器识别，consumer 必须拒绝 `e_flags` 不匹配或含未识别保留位的 object。
+- **命名空间**：`EM_DADAO = 0x0DA0` 为 project-custom（未在 IANA/SysV/LLVM 主线注册），存在与其它使用该值的私有工具链碰撞的风险；`e_flags[7:0]`（对象/ABI 格式版本）使 M1 object 可被机器识别，consumer 必须拒绝版本号 ≠ 1、版本未知或含非 0 保留位（bits 8–31）的 object。
 - **不引入 LLD**：M1 pipeline 不依赖 target linker；不得默认 M1 已获得 DADAO LLD backend。M2 若需要多 object/重定位，再决策 linker 与 D2/D3/D4。
 - **`e_entry` 仅作信息**：不被 M1 test machine 消费；入口由 ADR-0004 的加载模型冻结。
 - **`.text` 自包含约束**：M1 的 `.text` 必须单 TU 自包含（段内标签就地解析、不产生重定位）；若使用绝对地址构造，其地址须与 ADR-0004 冻结的加载基址一致。
@@ -115,3 +125,13 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 ## 状态说明
 
 Candidate：待评审。评审通过后由主会话置 `Accepted`；决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。
+
+## 修订
+
+**rev. 2026-09-13（用户决定）**：D1 的 `e_flags` 由「bit 0 = M1 ABI version 标志（1 位）」修订为「**bits 0–7 = 对象/ABI 格式版本号（M1 = 1）；bits 8–31 保留（必须为 0）**」。
+
+- **动机**：原 1 位标志只能区分 M1 vs legacy（`e_flags = 0`）二态，**无法编码后续 milestone/ABI 版本**，前瞻性不足。
+- **变更范围**：仅 `e_flags` 的语义及引用它的表述（D1 表/理由、D2 namespace 说明、Rationale、Consequences）；`EI_CLASS`/`EI_DATA`/`e_machine`/`EI_OSABI` 与 D5 均**不变**。
+- **consumer 规则**：由「`e_flags = 0` 拒绝」扩展为「版本号（bits 0–7）≠ 1、版本未知，或保留位（bits 8–31）非 0 时拒绝」。
+- **兼容性**：M1 的 `e_flags` 数值仍为 `0x00000001`（版本 1），已按原设计产出的 M1 object 无需改动。
+- **流程说明**：本 ADR 于 2026-09-13 刚 `Accepted` 且尚无实现依赖，按用户明确决定**就地修订并加本修订说明**（`adr-authoring.md` 的一般规则为「不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-09-13`）。

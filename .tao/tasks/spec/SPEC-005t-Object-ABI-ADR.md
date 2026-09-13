@@ -142,26 +142,28 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
 
 ## 完成区
 
-**测试结果**：通过 39/39；失败原因：无。验收自检脚本 `/tmp/opencode/SPEC-005t/check-adr0003.sh`（存在/格式/D1 5 字段/D5 段对齐+VA=PA+pipeline/D2-D3-D4 Deferred/来源标注/无行号/无照抄/无未决占位），退出码 0。完整输出存 `.tao/logs/SPEC-005t-verify.log`。
+**测试结果**：返工自检 **通过 49/49**（`bash /tmp/opencode/SPEC-005t/check-adr0003-rework.sh`，退出码 0）；失败原因：无。完整输出存 `.tao/logs/SPEC-005t-rework-verify.log`，`git diff` 存 `.tao/logs/SPEC-005t-rework-diff.log`。
 
 **修改文件**：
-- `.tao/knowledge/adr-0003-object-abi.md`（新增，ADR-0003，Status=Candidate）
-- `.tao/tasks/spec/SPEC-005t-Object-ABI-ADR.md`（状态 `待开始`→`待验收`；填完成区/自审）
+- `.tao/knowledge/adr-0003-object-abi.md`（D1 `e_flags` 由 1 位标志改为 8 位版本字段；加 `## 修订` 与状态 rev 标注；共 +30/-10 行，见 diff）
+- `.tao/tasks/spec/SPEC-005t-Object-ABI-ADR.md`（状态 `待返工`→`待验收`；更新完成区、追加第 2 轮自审）
 
-**验收结果**：
-- 产出文件存在（10848→~11KB，117 行）；格式 `# ADR-0003:` + `**状态**`/`**日期**`/`**关联**` + Context/Decision/Rationale/Consequences/状态说明，符合 `.tao/knowledge/adr-authoring.md` 模板。
-- **D1** 冻结 5 字段：`EI_CLASS=ELFCLASS64(2)`、`EI_DATA=ELFDATA2MSB(2)`、`e_machine=EM_DADAO(0x0DA0)`、`e_flags=0x00000001`、`EI_OSABI=ELFOSABI_NONE(0)`；逐项理由引用 `contract-isa §1.1/§1.5/§1.6/§2.1`、`contract-abi §1.7`；`EM_DADAO` 明标 **project-custom、未注册 IANA/SysV/LLVM 主线、仅存在于 legacy fork**，`e_flags` 位定义（bit0=M1 ABI version，bits1–31 reserved）与版本拒绝规则齐备。
-- **D5** 段对齐（`.text` 4B / `.rodata`/`.data`/`.bss` 8B，含理由）+ VA=PA（freestanding 无 MMU）+ 唯一 pipeline：`ET_REL .o → objcopy --only-section=.text -O binary → flat binary → QEMU`，明标 raw/section extraction、无 LLD/无 `ET_EXEC`、`e_entry` 不被 test machine 消费；flat→QEMU 的机器名/地址/命令行/trampoline 交由 ADR-0004（`SPEC-006t`）冻结，二者职责不重叠。
-- **D2/D3/D4** 独立小节 `### D2/D3/D4 — Deferred to M2（登记，不冻结）`：D2 只登记场景→0.5.3 格式（不冻结编号/公式），D3 溢出策略、D4 松弛策略均标 `Deferred to M2`，与 M1 内容不混排。
-- 来源：`spec/` 无 ELF 内容（`grep -ril elf|e_machine|EI_CLASS|e_flags spec/` 退出码 1，无匹配），ADR 已标「无 spec 依据，架构自定义」；无行号引用；无 `R_DADAO_*`/legacy 编号/公式；`Dadao.def` 仅作只读对照说明。
+**验收结果**（返工项逐条核对）：
+- **`e_flags` = bits 0–7 版本号（M1 = 1）、bits 8–31 保留**：D1 表含义列与逐项理由均改为「对象/ABI 格式版本 = 1（bits 0–7）；bits 8–31 保留为 0」；位表为 `0–7 = 对象/ABI 格式版本号（M1 = 1）`、`8–31 = Reserved（必须为 0）`；并写明「后续每当对象/ABI 格式发生不兼容变化时递增」。
+- **consumer 拒绝规则齐全**：新增 4 行判定表——版本 `0`（legacy）拒绝、版本 `1`（M1）接受、版本 `2–255`（未知/未来）拒绝、bits 8–31 ≠ 0（保留位）拒绝；正文明确「只接受 `e_machine = 0x0DA0` 且 `e_flags = 0x00000001`；遇到版本不匹配、未知版本或保留位非 0 一律报错」。
+- **保持与 legacy 区分**：legacy `e_flags = 0` = 版本 0 → 拒绝，规则保留。
+- **修订标注存在**：`**状态**：Accepted（rev. 2026-09-13: e_flags 版本字段，见 ## 修订）` + 独立 `## 修订` 小节（记录 1 位标志 → 8 位版本字段、动机、变更范围、consumer 规则、兼容性、流程说明）。
+- **其它 D1 字段与 D5 未变**：`EI_CLASS=ELFCLASS64(2)`、`EI_DATA=ELFDATA2MSB(2)`、`e_machine=EM_DADAO(0x0DA0)`、`EI_OSABI=ELFOSABI_NONE(0)` 与 D5（段对齐/VA=PA/pipeline）在 `git diff` 中**无改动**；D2/D3/D4 仍标 `Deferred to M2`。
+- **ADR 格式合规**：标题 + `**状态**`/`**日期**`/`**关联**` + Context/Decision/Rationale/Consequences/状态说明/修订，符合 `.tao/knowledge/adr-authoring.md`。
+- 引用同步：D2 namespace 注、Rationale、Consequences 中的 `e_flags = 0x1` 均改为 `e_flags[7:0] = 1`（8 位版本字段语义）；新增 Rationale 条目说明「8 位版本字段而非 1 位标志」的理由（参照 ARM EABI/LoongArch）。
 
 **新发现/坑**：
-1. **下游 `SPEC-007t` §6 措辞需对齐**：`SPEC-007t` 背景写「ET_REL → ET_EXEC → flat binary → QEMU」，与本 ADR 冻结的 raw/section extraction 路径（**无静态链接、无 `ET_EXEC`、无 LLD**）不一致；`SPEC-007t` 已知坑 #3 亦要求二选一。执行 `SPEC-007t` 时应以 ADR-0003 §D5 为准，写成 `.o → objcopy --only-section=.text → flat → QEMU`。
-2. **pipeline 与既有 verif/llvm 任务一致**：`VERIF-010t`（`llvm-objcopy -O binary --only-section=.text smoke.o smoke.bin`）与 `LLVM-010t` 已采用同一 section-extraction 路径，本 ADR 冻结后可作为其上游依据。
-3. **ADR-0004（`SPEC-006t`）尚未产出**：本 ADR 的 flat→QEMU 入口协议留待 ADR-0004；`SPEC-006t` 核验时须回指 ADR-0003 §D5 以保持唯一端到端路径（避免「跳到 `e_entry`」类互斥表述）。
-4. **`EM_DADAO` 命名空间策略**：M1 沿用 `0x0DA0` + `e_flags=0x1` 与 legacy `e_flags=0` 机器可识别区分；M2 冻结重定位编号须在 M1 namespace 内独立编号，不得沿用 legacy `Dadao.def`。
+1. **`e_flags` 数值不变、语义变宽**：M1 仍为 `0x00000001`，故按原 ADR 产出的 M1 object 不受影响；但 consumer 实现（LLVM/QEMU 侧）应按「bits 0–7 版本号 == 1 且 bits 8–31 == 0」校验，而非仅比较 `e_flags == 1`。
+2. **下游 `SPEC-007t` 需同步**：`SPEC-007t` 任务书多处写 `e_flags=0x1`（§2/§4/已知坑 #4/#6），执行时应规范化为「bits 0–7 版本号 = 1（M1），bits 8–31 保留为 0；consumer 拒绝未知版本/保留位非 0」，以 ADR-0003 修订版为准。
+3. **`LLVM-003t` 常量来源**：其任务书写「不照抄 0628 的 `e_flags=0x1` 数值表述」，与本修订一致——应从 `contract-elf.md`（由 SPEC-007t 归一化自本 ADR）取版本字段定义，不硬编码。
+4. **修订流程例外已记录**：`adr-authoring.md` 一般规则为「不直接改写已 Accepted 的决策」；本次因 Accepted 不久且无实现依赖、经用户明确决定，就地修订并在 `## 修订` 中说明例外。
 
-**遗留问题**：无（D2/D3/D4 属任务明确的 `Deferred to M2`，非本任务遗留）。
+**遗留问题**：无（D2/D3/D4 属任务明确的 `Deferred to M2`，非本任务遗留；下游 `SPEC-007t` 的 `e_flags` 措辞对齐见「新发现/坑」#2，属下游任务范围）。
 
 ## 审阅记录
 
@@ -299,6 +301,146 @@ $ grep -n '行\|line [0-9]\|Line [0-9]' .tao/knowledge/adr-0003-object-abi.md
 - **F1**：`SPEC-007t §6` 的「ET_REL → ET_EXEC → flat」与本 ADR 冲突 → 已在 `SPEC-007t` 预修正为「`.o → objcopy .text → flat → QEMU`（无 ET_EXEC/LLD）」。
 - **F2**：`SPEC-007t §2` 预列 legacy `R_DADAO_*` 名称 → 已加注「legacy 对照、M1 不冻结，完整命名留 `LLVM-012t`（M2）」。
 - F3/F4：reviewer 转录笔误、措辞小瑕（不影响判决）。
+
+**统一判决**：**Accepted**。
+
+### 后续修订（2026-09-13，用户决定）
+
+**问题**：`e_flags` 原设计「bit0 = M1 ABI version」是**1 位标志**，只能区分 M1 vs legacy，**无法编码后续 milestone/ABI 版本**（前瞻性不足）。
+
+**修订**：改为**多位版本字段**——`e_flags` **bits 0–7 = 对象/ABI 格式版本号**（M1 = 1；后续在对象/ABI 格式变化时递增），**bits 8–31 保留（必须 0）**；consumer 拒绝未知版本或不匹配。参照 ARM（EABI 版本 8 位）/LoongArch（ABI 版本 3 位 + 对象 ABI 2 位）。
+
+**处置**：**返工修订 ADR-0003**（标注为 revision；因其 Accepted 不久且未实现，就地修订并加修订说明）。
+
+#### 第 2 轮 engineer 自审（返工）
+
+**判决**：可交付（`待验收`）。返工自检 49/49 通过，退出码 0。
+
+**返工项 → 处置**：
+
+| 返工要求 | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| `e_flags` bits 0–7 = 对象/ABI 格式版本号（M1 = 1），后续变化时递增 | ✅已修 | D1 表含义列、逐项理由、位表（`0–7` 版本号 / `8–31` Reserved） | 自检 [4] 6 项全 PASS |
+| bits 8–31 保留（必须为 0） | ✅已修 | 逐项理由 + 位表 + consumer 判定表 | 自检 [4] `bits 8–31 保留必须为 0` PASS |
+| consumer 遇未知版本/不匹配必须拒绝 | ✅已修 | 新增判定表：版本 0 拒绝 / 1 接受 / 2–255 拒绝 / 保留位非 0 拒绝；正文补「一律报错」 | 自检 [5] 5 项全 PASS |
+| 保持与 legacy 区分（`e_flags = 0` = 版本 0 → 拒绝） | ✅已修 | 判定表首行「legacy DADAO object（无版本字段）→ 拒绝」 | 自检 [5] `版本 0 = legacy 拒绝` PASS |
+| 同步更新 D1 表格/理由、Rationale、Consequences | ✅已修 | D1 表/理由、D2 namespace 注、Rationale（含新增「8 位版本字段」条目）、Consequences 均同步 | 自检 [4][6] PASS；diff 显示相关行全改 |
+| 标注为 revision（加修订说明，记录 1 位标志 → 8 位版本字段） | ✅已修 | `**状态**：Accepted（rev. 2026-09-13: ...）` + 独立 `## 修订` 小节 | 自检 [2] `状态 Accepted + rev 标注`、`## 修订` PASS；[6] 4 项 PASS |
+| 不改其它 D1 字段与 D5 | ✅不修（已满足） | `EI_CLASS`/`EI_DATA`/`e_machine`/`EI_OSABI` 与 D5 全文未动 | 自检 [3][7] PASS；`git diff` 确认这些行零改动 |
+
+**逐行审查要点**：
+- 版本字段与保留位的位宽自洽：`0–7`（8 位，覆盖 0–255）+ `8–31`（24 位）恰好覆盖 32 位 `e_flags`，无重叠/空洞。
+- consumer 判定表四行穷尽所有输入：版本 0 / 1 / 2–255（8 位全域）与保留位非 0，无未覆盖分支；与正文「只接受 `0x00000001`」一致。
+- 兼容性：M1 数值仍为 `0x00000001`，未破坏已产出 object；改动仅为语义放宽 + 校验规则细化。
+- 未引入新的外部依赖、未改函数签名（本任务为文档）、无 `[OPEN]`/待定占位、无行号引用。
+- 引用一致性：全文旧表述 `e_flags = 0x1` 已全部改为 `e_flags[7:0] = 1`（D2 namespace 注、Rationale、Consequences），无残留不一致。
+
+**边界/防造假核对**：自检脚本真实执行（49 项 PASS、退出码 0，日志落盘）；`git diff` 真实显示 40 行变更且仅限 `e_flags` 相关；未执行任何 git commit。
+
+**自审结论**：返工项全部处置，无未修 finding；状态置 `待验收`。
+
+#### 第 2 轮 reviewer 验收
+
+**判决**：**Accepted**。返工项全部通过独立验证，无阻塞缺陷。
+
+##### 重跑记录
+
+```bash
+# 综合验证脚本（58/59 PASS，1 项为脚本 grep 模式缺陷非内容缺陷）
+$ bash /tmp/opencode/SPEC-005t-review2/verify.sh 2>&1
+# ... (58 PASS, 1 FAIL — FAIL 原因为脚本 grep 未匹配 backtick 包裹的 `ET_EXEC`，手动确认内容正确)
+# SCRIPT_EXIT: 0
+
+# 手动确认 ET_EXEC 出现（修正脚本 backtick 问题）
+$ grep -c '不产生.*ET_EXEC' .tao/knowledge/adr-0003-object-abi.md
+2
+# 退出码 0 — D5 明确「不产生 ET_EXEC」，内容正确
+
+# git status
+$ git status --short .tao/knowledge/adr-0003-object-abi.md .tao/tasks/spec/SPEC-005t-Object-ABI-ADR.md
+   M .tao/knowledge/adr-0003-object-abi.md
+ M .tao/tasks/spec/SPEC-005t-Object-ABI-ADR.md
+# 退出码 0 — 与完成区声称的修改文件一致
+
+# git diff --numstat（精确行数）
+$ git diff --numstat .tao/knowledge/adr-0003-object-abi.md
+30	10	.tao/knowledge/adr-0003-object-abi.md
+# 实际 +30/-10 行（完成区声称 +40/-11，40 为 stat 总变更行数 30+10=40 的误读）
+
+# D1 非 e_flags 字段 diff（确认无变更）
+$ git diff .tao/knowledge/adr-0003-object-abi.md | grep '^[-+]' | grep -v '^[-+][-+][-+]' | grep -E 'EI_CLASS.*=.*[0-9]|EI_DATA.*=.*[0-9]|EI_OSABI.*=.*[0-9]|e_machine.*0x0DA0' | grep -v 'e_flags'
+# 无输出 — EI_CLASS/EI_DATA/e_machine/EI_OSABI 冻结值未变
+
+# D5 diff（确认无变更）
+$ git diff .tao/knowledge/adr-0003-object-abi.md | grep '^[-+]' | grep -v '^[-+][-+][-+]' | grep -E '段对齐|VA=PA|pipeline|\.text.*4B|\.rodata|objcopy|flat.*binary'
+# 无输出 — D5 内容未变
+
+# spec/ 无 ELF 依据
+$ grep -ril 'elf\|e_machine\|EI_CLASS\|e_flags\|EI_OSABI\|EM_DADAO' spec/
+# 无输出，退出码 1 — 确认 spec/ 无 ELF 内容
+
+# 无残留 e_flags = 0x1 旧表述（排除 e_flags = 0x00000001）
+$ grep -c 'e_flags = 0x1[^0]' .tao/knowledge/adr-0003-object-abi.md; grep -c 'e_flags = 0x1$' .tao/knowledge/adr-0003-object-abi.md
+0
+0
+# 退出码 0 — 无残留旧表述
+
+# 无行号引用
+$ grep -cE 'line [0-9]|行[0-9]' .tao/knowledge/adr-0003-object-abi.md
+0
+# 退出码 1（grep 无匹配）— 无行号引用
+
+# 无未决占位
+$ grep -c '待定\|TBD\|FIXME\|TODO' .tao/knowledge/adr-0003-object-abi.md
+0
+# 退出码 1 — 无未决字段
+```
+
+##### 约束核验
+
+| 约束 | 结果 | 证据 |
+|------|------|------|
+| `e_flags` = bits 0–7 版本号（M1 = 1）、bits 8–31 保留（必须 0） | ✅ | D1 表「对象/ABI 格式版本 = 1（bits 0–7）；bits 8–31 保留为 0」；位表 `0–7` / `8–31`；逐项理由含 `bits 0–7 为对象/ABI 格式版本号` + `bits 8–31 保留` |
+| 位宽自洽（8+24=32） | ✅ | bits 0–7（8 位）+ bits 8–31（24 位）= 32 位，覆盖 e_flags 全域 |
+| consumer 判定：版本 0 拒绝 / 1 接受 / 未知版本拒绝 / 保留位非 0 拒绝 | ✅ | 判定表 4 行穷尽；正文「只接受 `e_flags = 0x00000001`；遇到版本不匹配、未知版本或保留位非 0 一律报错」 |
+| 修订标注存在（状态行 rev + `## 修订` 小节） | ✅ | 状态行 `Accepted（rev. 2026-09-13: ...）`；`## 修订` 含动机/变更范围/consumer 规则/兼容性/流程说明 |
+| 其它 D1 字段未变 | ✅ | diff 无 `EI_CLASS`/`EI_DATA`/`e_machine`/`EI_OSABI` 冻结值变更 |
+| D5 未变 | ✅ | diff 无段对齐/VA=PA/pipeline 内容变更 |
+| D2/D3/D4 仍标 `Deferred to M2` | ✅ | `D2 重定位类型表（Deferred to M2）`、`D3 重定位溢出策略（Deferred to M2）`、`D4 重定位松弛策略（Deferred to M2）` 全部存在 |
+| ADR 格式合规 | ✅ | 标题 + 状态/日期/关联 + Context/Decision/Rationale/Consequences/状态说明/修订 |
+| 无行号引用 | ✅ | `grep` 无匹配 |
+| 无外部依赖 | ✅ | `spec/` 无 ELF 内容（`grep` 退出码 1）；`R_DADAO_*` 计数为 0；`Dadao.def` 仅作只读对照 |
+| 引用同步（`e_flags = 0x1` → `e_flags[7:0] = 1`） | ✅ | 旧表述计数 0；新表述存在于 D2 namespace 注、Rationale、Consequences |
+| git status 与修改文件一致 | ✅ | `adr-0003-object-abi.md` + `SPEC-005t-Object-ABI-ADR.md` 均为已修改状态 |
+
+##### 小瑕疵（非阻塞）
+
+1. **diff 行数计数偏差**：完成区声称「+40/-11 行」，实际 `git diff --numstat` 为 `+30/-10`。40 是 `git diff --stat` 的总变更行数（30+10=40），非净新增行数。不影响内容正确性。
+
+##### 下游同步建议（非阻塞，供架构师参考）
+
+- **`SPEC-007t` 任务书**：多处仍写 `e_flags=0x1`（§2 line93、已知坑 #4/#6 line104/113），执行时应以 ADR-0003 修订版为准，规范化为「bits 0–7 版本号 = 1（M1），bits 8–31 保留为 0；consumer 拒绝未知版本/保留位非 0」。**建议在 SPEC-007t 开始前预先修正任务书措辞**，避免实现者照抄旧表述。
+- **`LLVM-003t` 任务书**：已正确说明「不照抄 0628 的 `e_flags=0x1` 数值表述，从 `contract-elf.md`（SPEC-007t，归一化自 ADR-0003）取版本字段定义」，无需修正。但 SPEC-007t 的 `contract-elf.md` 产出时须确保 `e_flags` 版本字段语义已归一化。
+
+##### 与工程师自审结论的差异
+
+**无实质性差异**。工程师自审 49/49 通过；独立重跑 59 项中 58 项 PASS、1 项为脚本 grep 模式缺陷（backtick 包裹 `ET_EXEC` 导致模式不匹配），手动确认内容正确。结论一致。
+
+### 交叉复核（architect，返工后）
+
+**复核者**：architect
+**时间**：2026-09-13
+**结论**：确认 reviewer 第 2 轮的 **Accepted**；返工要求全部落实、自洽、格式合规。
+
+**独立核对**：bits 0–7 版本号（M1=1，三处一致）+ bits 8–31 保留；consumer 判定穷尽（0 拒 / 1 收 / 2–255 拒 / 保留位非 0 拒）；位宽自洽（8+24=32）；其它 D1 字段与 D5 `git diff` 零改动；D2/D3/D4 仍 Deferred；无行号、无残留旧表述（`e_flags = 0x1` 计数 0）。
+
+**就地修订的合理性**：用户明确决定 + ADR 刚 Accepted 且无实现依赖 + `## 修订` 完整留痕 + 数值兼容（仍 `0x00000001`）→ 属经授权的就地修订，未抹除历史，与 `adr-authoring.md` 相容。
+
+**补充观察（非阻塞，已处置）**：
+
+- O1：完成区 diff 计数 `+40/-11` → 已订正为 `+30/-10`。
+- O2：`## 状态说明` 模板句与就地修订的字面张力（`## 修订` 已声明例外，可接受）。
+- 下游归一化：`SPEC-007t`（L93/L113）的 `e_flags=0x1` 已归一化为 `e_flags[7:0]=1`（bits 8–31 保留）；`LLVM-003t` 无需改（依赖 `contract-elf.md`）。
 
 **统一判决**：**Accepted**。
 

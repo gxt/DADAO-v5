@@ -90,7 +90,7 @@
 3. **重定位集**：0.4.1 初版 9 型、后补 PCREL12 为 10 型；v5 应从一开始就含 `R_DADAO_PCREL12`
    （对应 0.5.3 `br.eq`/`br.ne`）。
 4. **e_flags**：0.4.1 曾出现 contract `e_flags=1` 与 ADR `e_flags=0` 的冲突，须先改 ADR 再改合约；
-   v5 以 SPEC-005t 冻结值为准（`e_flags=0x1`）。
+   v5 以 SPEC-005t 冻结值为准：`e_flags[7:0] = 1`（M1 对象/ABI 格式版本），bits 8–31 保留为 0；consumer 拒绝版本未知/不匹配或保留位非 0。
 5. **e_machine 说明**：不得声称 `EM_DADAO` 已注册 upstream LLVM；应为 project-custom。
 6. **LLD scope**：0.4.1 曾把 Post-M2 的 LLD 写成 M1 必需依赖；v5 须区分 object ABI 与
    test-machine load contract，明确 M1 是否使用 target linker。
@@ -110,7 +110,7 @@
    test-machine load contract。
 5. **P1 PCREL12 的 §3 来源不成立**：合约 §3 自行补的 PCREL12 overflow 行须先在 ADR §D3 补齐，
    保持合约 §3 为机械规范化结果。
-6. **P1 e_machine 错误声明传播**：`e_flags=1` 只供更新的 consumer 区分 namespace，不保证旧
+6. **P1 e_machine 错误声明传播**：`e_flags[7:0]=1` 只供更新的 consumer 区分 namespace，不保证旧
    consumer 检查并拒绝。
 7. **最终结论**：第三轮 Accepted（ADR-0003/0004 Status 升级、e_machine 说明修正、补 PCREL12
    overflow 行、§6 补 `-bios`、PCREL12 标 ADR extension）。
