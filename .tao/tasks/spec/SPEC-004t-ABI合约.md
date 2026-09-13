@@ -1,9 +1,14 @@
-# SPEC-004t: ABI 合约（非变参标量调用约定）
+# SPEC-004t: ABI 合约（M1 最小 ABI 事实）
 
 **模块**：spec
 **项目里程碑**：M1
 **依赖**：`SPEC-002t`
 **状态**：待开始
+
+## 范围（2026-09-12 变更）
+
+- **M1 = 最小 ABI 事实**：寄存器角色 + `SP=rb1` + 栈向下增长 / `call` 时 8B 对齐 + `call`/`ret` 与 RegRAS 的关系。供 test machine（`SPEC-006t`）与 M1 集成使用。
+- **完整调用约定**（参数寄存器分配、返回值、栈帧布局、三 bank 共享溢出区、prologue/epilogue）服务 **M2 BasicCodeGen**，标 `Deferred to M2`（见 `.tao/knowledge/deferred.md`）；本任务**不提取**，下方 §2–§6 内容仅作 M2 参考。
 
 ## 执行环境
 
@@ -22,7 +27,7 @@
   - Spec-first：每条规范性断言标注 `spec/` 章节来源，无来源的推论标 `[OPEN]`
   - 版本号 0.9.2，与 `spec/DADAO-21-ABI` 一致
   - **不照抄 0.4.1 的数据/编码**（寄存器编号/编码必须来自 0.5.3 `contract-isa.md`）
-  - 高级 ABI（varargs / HFA / HPA / 聚合传参 / 多返回值）标 `Excluded from M1` 或 `Informative`，不得混入 M1 规范性内容
+  - 完整调用约定（参数寄存器/返回值/栈帧/溢出区/prologue-epilogue）标 `Deferred to M2`；高级 ABI（varargs / HFA / HPA / 聚合传参 / 多返回值）标 `Excluded from M1`；均不得混入 M1 事实
   - 指令助记符用 0.5.3 命名（见「关键概念」映射表），不得沿用 0.4.1 的 `addi`/`sto`/`setzw` 等
   - 完成后不自行 commit
 
@@ -30,13 +35,9 @@
 
 ### 目标
 
-从 DADAO-v5 `spec/` 的 ABI/AEE 文档撰写 `.tao/knowledge/contract-abi.md`，覆盖 M1 BasicCodeGen
-所需的**非变参标量调用约定**：寄存器角色与调用者/被调用者分类、参数传递、返回值、栈帧布局、
-调用序列（prologue/epilogue）、未决问题。ABI 合约须足以让后续 LLVM CodeGen 实现正确的参数传递、
-返回值处理和栈帧布局，不需要涵盖浮点 HFA/HPA 或复杂聚合的 M1 实现。
+从 DADAO-v5 `spec/` 的 ABI/AEE 文档提取 **M1 所需的最小 ABI 事实**：寄存器角色（`rd0`=zero、`rb0`=PC、`rb1`=SP、`rb2`=FP、`ra`=RegRAS/MemRAS、`rf0`=FCSR 等）、`SP=rb1`、栈向下增长、`call` 时 SP 8B 对齐、`call`/`ret` 与 RegRAS 的关系。供 test machine（`SPEC-006t`）与 M1 集成使用。
 
-M1 scope 限定：**非变参函数**（no varargs）、**标量整数/指针参数和返回值**。
-`verif/abi.yaml` 提供机器可读的参数/返回/保留寄存器集合，供 LLVM CallingConv/RegisterInfo 消费。
+`verif/abi.yaml` 提供机器可读的 **M1 ABI 事实**（寄存器角色、SP、栈对齐）。完整调用约定标 `Deferred to M2`（见「范围」）。
 
 > DADAO-0628 对应任务 DL-002a 的原始目标即为此。v5 的差异是：规范版本从 SimRISC 0.4.1
 > 升级到 0.5.3、ABI 从 0.1.0 升到 0.9.2，且 **RB bank 指针调用约定在 0.9.2 中已原生规定**
@@ -128,8 +129,8 @@ M1 scope 限定：**非变参函数**（no varargs）、**标量整数/指针参
 
 | 文件 | 说明 |
 |------|------|
-| `.tao/knowledge/contract-abi.md` | 非变参标量 ABI 合约，版本 0.9.2；§1–§6 + 附录（spec 引用表） |
-| `verif/abi.yaml` | 机器可读 ABI 事实：参数/返回/callee-saved/reserved 寄存器集合、数据布局、栈对齐 |
+| `.tao/knowledge/contract-abi.md` | M1 最小 ABI 事实（寄存器角色 + SP/栈对齐 + call/ret 引用），版本 0.9.2；完整调用约定标 `Deferred to M2` |
+| `verif/abi.yaml` | 机器可读 M1 ABI 事实：寄存器角色、SP、栈对齐（M1 部分） |
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -191,16 +192,11 @@ M1 scope 限定：**非变参函数**（no varargs）、**标量整数/指针参
 ## 验收标准
 
 1. `.tao/knowledge/contract-abi.md` 存在，头部版本标注 **0.9.2**，来源指向 `spec/DADAO-21-ABI`（0.9.2）
-2. 覆盖 §1 寄存器角色、§2 参数传递、§3 返回值、§4 栈帧布局、§5 调用序列、§6 未决问题
-3. §2 明确三 bank 独立计数、指针参数走 **rb16–rb31**；§3 明确指针返回 **rb31**
-4. 每条规范性断言标注 `spec/` 章节来源；无来源的推论标 `[OPEN]`，不猜测
-5. 窄标量参数/返回扩展规则按源类型逐类冻结（或明确决策/OPEN），无自相矛盾
-6. 三 bank 共享溢出区规则与至少一个跨 bank 交错示例齐全
-7. prologue/epilogue 使用 0.5.3 助记符（`add.si`/`st.o`/`ld.o`/`set.zw` 等），给出 SP-only 与 FP
-   两套对称序列，且偏移公式可汇编
-8. varargs / HFA / HPA / 聚合 / 多返回值明确标 `Excluded from M1`（或 Informative），不与 M1 规范性内容混排
-9. `verif/abi.yaml` 可被 `python3` 解析（YAML 合法），且与合约的寄存器集合一致
-10. 无 0.4.1 的指令编码/数据被照抄（助记符、字段、编码值均来自 0.5.3）
+2. 覆盖 **M1 最小 ABI 事实**：寄存器角色（`rd0`/`rb0`/`rb1`/`rb2`/`ra`/`rf0`）、`SP=rb1`、栈向下增长、`call` 时 SP 8B 对齐、`call`/`ret` 与 RegRAS 的关系
+3. 每条规范性断言标注 `spec/` 章节来源；无来源的推论标 `[OPEN]`，不猜测
+4. **完整调用约定**（参数寄存器/返回值/栈帧/三 bank 共享溢出区/prologue-epilogue）明确标 `Deferred to M2`，不与 M1 事实混排
+5. `verif/abi.yaml` 可被 `python3` 解析（YAML 合法），含 M1 ABI 事实
+6. 无 0.4.1 的指令编码/数据被照抄（助记符、字段、编码值均来自 0.5.3）
 
 ## 完成区
 
