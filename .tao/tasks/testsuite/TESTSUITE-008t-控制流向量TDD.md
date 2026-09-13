@@ -35,8 +35,8 @@
 | 故障类型 | 原因 | 受影响测试 |
 |---------|------|-----------|
 | timeout | 条件分支 imm=0 → 跳自身 → 无限循环 | brnn/brz/brnp/jump_i/call_i 等 encoding 测试 |
-| exit=0x82 | 无条件跳转 rb0=0 → 跳到 addr=0 → halt rd0 → ILLI | jump_r/call_r/ret encoding 测试 |
-| exit=0x82 | semantic imm=256 → binary 只有 ~40 指令，跳出范围 | 所有 semantic 测试 |
+| exit=0x88 | 无条件跳转 rb0=0 → 跳到 addr=0 → halt rd0 → ILLI | jump_r/call_r/ret encoding 测试 |
+| exit=0x88 | semantic imm=256 → binary 只有 ~40 指令，跳出范围 | 所有 semantic 测试 |
 
 核心规则：**encoding 测试只验证指令能被解码执行，不依赖跳转目标的有效性**。
 

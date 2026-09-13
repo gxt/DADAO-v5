@@ -142,6 +142,8 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
 
 ## 完成区
 
+> **注（2026-09-13 修订）**：本任务完成后，ADR-0004 经用户决定重判修订——D1 内存映射改为**核内地址空间模型**（ROM `0xffff_ffff_0000` / RAM `0xffff_0000_0000` 16MiB / Exit `0xffff_8000_0000`）、D5 fault 码改为 **spec cause 派生**（ILLI `0x88`…IALIGN `0x8D`，unmapped `0x87`）、D3 增加 harness 超时兜底。下方完成区与审阅记录中的地址/fault 码为**完成时的历史值**；当前值一律以 `.tao/knowledge/adr-0004-test-machine.md` 为准。
+
 **测试结果**：通过 **89/89**（`bash /tmp/opencode/SPEC-006t/check-adr0004.sh`，退出码 0）；失败原因：无。完整输出存 `.tao/logs/SPEC-006t-verify.log`（112 行）。自检覆盖：ADR 格式/状态、D1–D6 覆盖、内存映射值与 48-bit、exit 协议（地址/宽度/编码/带码 API/进程级验收）、复位值（含 rf0 位段推导）、fault 码 `0x81`–`0x86`/`0x8F`、MMIO×宽度矩阵、0.5.3 助记符（含禁用旧助记符扫描）、无未决占位、ADR-0003 一致性、三入口时刻、零 host 依赖、地址算术独立复算（python）。
 
 **修改文件**：

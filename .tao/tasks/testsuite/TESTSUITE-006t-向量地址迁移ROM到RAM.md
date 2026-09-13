@@ -45,31 +45,31 @@
 **地址映射规则**：
 
 ```
-旧 base（ROM）：0x0000000000100000
-新 base（RAM）：0x0000000087FF0000   （RAM 顶部 scratch 区）
-old_addr = 0x100000 + offset  →  new_addr = 0x87FF0000 + offset
+旧 base（ROM）：0xffff_ffff_0000
+新 base（RAM）：0xffff_00ff_0000   （RAM 顶部 scratch 区）
+old_addr = 0xffff_ffff_0000 + offset  →  new_addr = 0xffff_00ff_0000 + offset
 ```
 
 | 旧地址 | 新地址 | offset |
 |--------|--------|--------|
-| `0x0000000000100000` | `0x0000000087FF0000` | +0 |
-| `0x0000000000100001` | `0x0000000087FF0001` | +1 |
-| `0x0000000000100002` | `0x0000000087FF0002` | +2 |
-| `0x0000000000100004` | `0x0000000087FF0004` | +4 |
-| `0x0000000000100008` | `0x0000000087FF0008` | +8 |
-| `0x00000000001000FF` | `0x0000000087FF00FF` | +255 |
-| `0x0000000000100FFF` | `0x0000000087FF0FFF` | +4095 |
+| `0xffff_ffff_0000` | `0xffff_00ff_0000` | +0 |
+| `0xffff_ffff_0001` | `0xffff_00ff_0001` | +1 |
+| `0xffff_ffff_0002` | `0xffff_00ff_0002` | +2 |
+| `0xffff_ffff_0004` | `0xffff_00ff_0004` | +4 |
+| `0xffff_ffff_0008` | `0xffff_00ff_0008` | +8 |
+| `0xffff_ffff_00FF` | `0xffff_00ff_00FF` | +255 |
+| `0xffff_ffff_0FFF` | `0xffff_00ff_0FFF` | +4095 |
 
 **例外：带负偏移的 store（如 `st.b`）**：若向量 `expected_state.memory.address` 原值等于 `base + offset`，迁移后必须等于 `new_base + offset`，而不是 naive 映射。
 
-0628 实例：`stb rd1, rb2, -4`，EA = rb2 + (-4)。原 YAML 写 `0x100FFC`（= base + 0xFFC）与 EA 语义不一致（正确应为 `0x0FFFFC`）。迁移后：
+0628 实例：`st.b rd1, rb2, -4`，EA = rb2 + (-4)。原 YAML 写 `0x100FFC`（= base + 0xFFC）与 EA 语义不一致（正确应为 `0x0FFFFC`）。迁移后：
 
 ```
-rb2:  0x0000000000100000 → 0x0000000087FF0000
-EA:   0x0000000000100FFC → 0x0000000087FEFFFC   （= 0x87FF0000 - 4）
+rb2:  0xffff_ffff_0000 → 0xffff_00ff_0000
+EA:   0xffff_ffff_0FFC → 0xffff_00fe_fffc   （= 0xffff_00ff_0000 - 4）
 ```
 
-不得用 naive 映射（`0x87FF0FFC`），必须用 `new_base + (-4)`。
+不得用 naive 映射（`0xffff_00ff_0FFC`），必须用 `new_base + (-4)`。
 
 ### 上游引用
 
@@ -86,7 +86,7 @@ EA:   0x0000000000100FFC → 0x0000000087FEFFFC   （= 0x87FF0000 - 4）
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符**：`ldo`→`ld.o`、`sto`→`st.o`、`stb`→`st.b`、`ldmo`→`ldm.o`、`stmo`→`stm.o` 等。
-2. **内存映射来源**：以 v5 `adr-0004-test-machine.md`（SPEC-006t）为准——ROM `0x0010_0000`(64KB)、RAM `0x8000_0000`(128MB)、exit port `0x1000_0000`(8B)。RAM 范围 `[0x80000000, 0x87FFFFFF]`，故新 base `0x87FF0000` 仍合法；若 ADR-0004 最终取值不同，以 ADR 为准并同步更新映射。
+2. **内存映射来源**：以 v5 `adr-0004-test-machine.md`（SPEC-006t）为准——核内地址空间模型 cfxcode 63：boot ROM `0xffff_ffff_0000`(64KB)、RAM `0xffff_0000_0000`(16MB)、exit port `0xffff_8000_0000`(8B)。RAM 范围 `[0xffff_0000_0000, 0xffff_00ff_ffff]`，故新 base `0xffff_00ff_0000` 合法；若 ADR-0004 最终取值不同，以 ADR 为准并同步更新映射。
 3. **RB 语义**：0.5.3 有效地址为低 48 位，高 16 位在地址计算时忽略；地址值须为 48-bit 有效地址。
 4. **向量条数/序号**：0628 的 26 条（23+3）与逐条索引表**不照搬**；v5 按实际 `class: semantic` case 重新枚举。
 5. **例外通用化**：任何 `EA = base + offset`（含负偏移）都按公式计算，不限于 `stb`。
@@ -96,11 +96,11 @@ EA:   0x0000000000100FFC → 0x0000000087FEFFFC   （= 0x87FF0000 - 4）
 摘自 DADAO-0628 DL-022c 代码级 Architecture Review：
 
 1. **ROM 只读 → 写入静默丢弃**：语义向量绝不能用 ROM 地址。
-2. **新地址必须在 RAM**：`[0x80000000, 0x87FFFFFF]`；零地址（未映射）也不可。
+2. **新地址必须在 RAM**：`[0xffff_0000_0000, 0xffff_00ff_ffff]`；零地址（未映射）也不可。
 3. **带偏移的期望地址必须按 EA 公式**：naive 线性映射会掩盖/引入 bug；0628 的 `stb` 例外即为此。
 4. **只动 semantic**：`legality`/`boundary`/`encoding` 即使引用旧地址也不改。
 5. **`encoding.word` 不变**：迁移只改寄存器/内存值，不触碰指令编码。
-6. **`rela` 的 rb0=0x100000 是算术输入**（不做访存），不迁移。
+6. **`rela` 的 rb0=0xffff_ffff_0000 是算术输入**（不做访存），不迁移。
 
 ## 参考
 
@@ -111,8 +111,8 @@ EA:   0x0000000000100FFC → 0x0000000087FEFFFC   （= 0x87FF0000 - 4）
 
 ## 验收标准
 
-1. `class: semantic` 向量中不再出现 ROM 范围地址（`[0x100000, 0x10FFFF]`）
-2. 所有迁移后地址落在 RAM 范围 `[0x80000000, 0x87FFFFFF]`
+1. `class: semantic` 向量中不再出现 ROM 范围地址（`[0xffff_ffff_0000, 0xffff_ffff_ffff]`）
+2. 所有迁移后地址落在 RAM 范围 `[0xffff_0000_0000, 0xffff_00ff_ffff]`
 3. 带偏移的期望地址按 `EA = new_base + offset` 计算（含负偏移例外）
 4. `encoding.word` 与 `expected_state.rd/rb` 未被改动
 5. `legality`/`boundary`/`encoding` 类向量未被改动

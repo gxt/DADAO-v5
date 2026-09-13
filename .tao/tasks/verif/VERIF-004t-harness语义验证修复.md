@@ -46,15 +46,17 @@
 |------|---------------|
 | 正常 PASS（guest 写 0 到 exit port） | 0 |
 | guest 内检测到比较失败（写非 0） | 1 |
-| ILLI（精确异常） | 0x82 |
-| MALIGN（精确异常） | 0x81 |
-| UNDI（精确异常） | 0x83 |
-| 未映射访问 | 0x8F |
+| ILLI（精确异常） | 0x88 |
+| MALIGN（精确异常） | 0x8C |
+| UNDI（精确异常） | 0x89 |
+| 未映射访问 | 0x87 |
+
+> 机器 fault 退出码 = `0x80 | spec_cause_bit`（ADR-0004 D5.8）；精确值以 v5 ADR 为准。
 
 **`_classify(exit_code, case)` 路由**
 
 ```python
-FAULT_CODES = {'ILLI': 0x82, 'MALIGN': 0x81, 'UNDI': 0x83}
+FAULT_CODES = {'ILLI': 0x88, 'MALIGN': 0x8C, 'UNDI': 0x89}
 expected_fault = case.get('expected_fault')      # None / 'ILLI' / 'MALIGN' / 'UNDI'
 if expected_fault is None:
     if exit_code == 0: return ('PASS', 'exit=0')

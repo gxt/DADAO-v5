@@ -40,7 +40,7 @@
 
 **CPU 状态（`target/dadao/cpu.h`）**：按 `contract-isa.md` §1：
 - `uint64_t rd[64]`（rd0 恒 0）、`uint64_t rb[64]`（rb0=PC）、`uint64_t rf[64]`（rf0=FCSR）、`uint64_t ra[64]`（ra0–ra63 RegRAS）、`uint64_t pc`
-- 复位值以 `adr-0004-test-machine.md` D2 冻结值为准：rd/rb/ra 复位（rd0、rb0 的高 16 位按 spec）、rf0 复位常量须从 0.5.3 `SimRISC-00 §浮点状态寄存器` 位布局独立推导（**不得照抄 0.4.1 常量**），pc 复位到 ADR-0004 冻结的 ROM 入口。
+- 复位值以 `adr-0004-test-machine.md` D2 冻结值为准：rd/rb/ra 复位（rd0=0、`rb0=0xffff_ffff_0000` = spec 的 `cfx_power_hypv_excp_vector`）、rf0 复位常量须从 0.5.3 `SimRISC-00 §浮点状态寄存器` 位布局独立推导（**不得照抄 0.4.1 常量**），pc 复位到 ADR-0004 冻结的 ROM 入口 `0xffff_ffff_0000`。
 
 **QOM/CPU 注册（`cpu.c`）**：`TypeInfo.name = DADAO_CPU_TYPE_NAME("any")`；实现 `dadao_cpu_do_interrupt()`（存根）；实现 `dadao_cpu_tlb_fill()`（M1 仅物理地址）；`disas_set_info` 可暂缺。
 
@@ -48,7 +48,7 @@
 
 **Helper 骨架（`helper.c`/`helper.h`）**：`raise_exception`、`illegal`；异常编号在 `cpu.h` 定义（ILLI/UNDI/MALIGN/IALIGN，编号以 ADR-0004 D5 与所选 QEMU 版本约定为准，不与 guest exit signature 混用）。
 
-**裸机机器（`hw/dadao/`）**：按 ADR-0004 D1 内存图（参考布局 ROM `0x0010_0000` 64KB / Exit port `0x1000_0000` 8B / RAM `0x8000_0000` 128MB，最终以 ADR-0004 冻结值为准）：
+**裸机机器（`hw/dadao/`）**：按 ADR-0004 D1 内存图（**核内地址空间模型** cfxcode 63/power：boot ROM `0xffff_ffff_0000` 64KB / Exit port `0xffff_8000_0000` 8B / RAM `0xffff_0000_0000` 16MB；以 ADR-0004 冻结值为准）：
 - loader：ROM 镜像与测试镜像的加载路径、`-bios`/`-kernel` 行为、缺参报错，均以 ADR-0004 唯一启动协议为准。
 - Exit port MMIO：按 ADR-0004 D3 实现「写入 → 退出码传播到 host `$?`」的带退出码机制（注意 0628 ADR 的 P0 结论：普通 `qemu_system_shutdown_request()` 不传播 guest 退出码）；非协议宽度访问归 ILLI（ADR-0004 D5）。
 - 机器名以 ADR-0004/项目约定为准（0628 用 `dadao-m1`）。
