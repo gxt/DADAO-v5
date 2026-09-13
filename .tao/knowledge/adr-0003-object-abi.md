@@ -126,7 +126,7 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 
 ## 状态说明
 
-Candidate：待评审。评审通过后由主会话置 `Accepted`；决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。
+**Accepted（仅 D1/D5）**（2026-09-13；rev. 2026-09-13 `e_flags` 版本字段，见 `## 修订`）。**D2/D3/D4（重定位类型表/溢出策略/松弛策略）标 `Deferred to M2`，尚未决策**——M2 引入 relocation 时，另行经用户逐条确认后再冻结。决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。评审确认项：D1 五字段冻结、D5 段/流水线与 ADR-0004 一致。
 
 ## 修订
 

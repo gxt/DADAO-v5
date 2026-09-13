@@ -1,6 +1,6 @@
 # ADR-0002: Manifest 驱动的构建编排
 
-**状态**：Candidate
+**状态**：Accepted
 **日期**：2026-09-12
 **关联**：ADR-0001（greenfield 重建）；`manifests/components.lock.toml`、`manifests/references.lock.toml`；`docs/repository-layout.md`；任务 `INFRA-002t`~`006t`、`INFRA-008t`
 
@@ -42,4 +42,8 @@ DADAO-v5 需要从锁定的上游组件（LLVM/QEMU/gem5）与参考仓库复现
 
 ## 状态说明
 
-Candidate：待评审。评审通过后由主会话置 `Accepted`；决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。
+**Accepted**（2026-09-13；rev. 2026-09-13 D2 措辞澄清，见 `## 修订`）。决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。评审确认项：D1–D6（Make+Python 标准库、`.work/` 一次性数据、完整 commit 锁定、单一有序补丁序列、`.cache/` 持久 mirror+可再生工作树、否决 5 条历史做法）经用户逐条确认。
+
+## 修订
+
+**rev. 2026-09-13（用户决定）**：D2 措辞澄清——「日志」改为「构建/组件日志」；agent 任务中间文件（含验证日志）按 `.tao/` 约定放 `.tao/logs/`（同样 gitignore）。D1、D3–D6 不变。

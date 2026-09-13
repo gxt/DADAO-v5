@@ -1,6 +1,6 @@
 # ADR-0001: Greenfield 重建
 
-**状态**：Candidate
+**状态**：Accepted
 **日期**：2026-09-12
 **关联**：ADR-0002（构建编排）；`README.md`（规范版本表，SimRISC 0.5.3）；`AGENTS.md`（核心原则）；任务 `INFRA-008t`
 
@@ -29,4 +29,8 @@ DADAO 的历史实现（`DADAO` 参考仓库的各阶段代码）建立在更早
 
 ## 状态说明
 
-Candidate：待评审。评审通过后由主会话置 `Accepted`；决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。
+**Accepted**（2026-09-13；rev. 2026-09-13 D3 补边界说明，见 `## 修订`）。决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。评审确认项：D1–D3（不回植历史实现、参考仓库 reference-only、期望来自 spec/合约）经用户逐条确认。
+
+## 修订
+
+**rev. 2026-09-13（用户决定）**：D3 补边界说明——`spec/` 无依据的机器/ABI 约定（如 ELF `e_flags`、测试机内存映射/exit 码）**不属「行为期望」**，须由对应 ADR 显式冻结并标注「无 spec 依据，架构自定义」。D1/D2 不变。

@@ -74,6 +74,8 @@ v5 多处文档（`INFRA-002t`/`003t`/`004t`/`006t`、`docs/repository-layout.md
 
 ## 完成区
 
+> **注（2026-09-13 修订）**：ADR-0001/0002 后续经用户重判修订并置 `Accepted`——ADR-0001 D3 补边界说明（spec 无依据的机器/ABI 约定不属「行为期望」）；ADR-0002 D2 措辞澄清（「日志」→「构建/组件日志」+ agent 日志在 `.tao/logs/`）。二者均为追加/澄清，未推翻既有决策，本任务验收结论不受影响；当前值以 `.tao/knowledge/adr-0001-greenfield-rebuild.md`、`.tao/knowledge/adr-0002-build-orchestration.md` 为准。
+
 **测试结果**：通过 4/4（对应「验收标准」1–4）；失败原因：无。验证脚本 `/tmp/opencode/INFRA-008t/verify.sh`，完整输出 `.tao/logs/INFRA-008t-verify.log`，`RESULT=PASS`、`PIPELINE_EXIT=0`。
 
 **修改文件**：
