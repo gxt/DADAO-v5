@@ -138,39 +138,61 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
 7. D6 示例使用 0.5.3 助记符且逐条手算地址；入口状态区分 power-on reset / ROM / `_start`
 8. 唯一端到端启动协议（命令行、镜像格式、ROM 布局、RAM entry）与 ADR-0003（SPEC-005t）一致
 9. MMIO × access-width 组合行为有确定结果；非 8B exit port 访问归 ILLI 并说明理由
-10. 零 host 依赖约束可满足：所有 pass/fail/fault 均可由 `$?` 或 guest 寄存器断言
+10. 零 host 依赖约束可满足：所有 pass/fail/fault 均可由 `$?` 或 guest 寄存器断言（harness 墙钟超时仅作兜底，不作为 pass/fail 判定）
+
+## 返工要求（2026-09-13，用户决定）
+
+ADR-0004 在本任务验收后经用户逐条重判修订（详见 ADR `## 修订`）：
+
+- **D1**：内存映射改为**核内地址空间模型**（cfxcode 63/power）——boot ROM `0xffff_ffff_0000`(64KiB) / RAM `0xffff_0000_0000`(16MiB) / Exit port `0xffff_8000_0000`(8B)；`rb0` 复位 `0xffff_ffff_0000`（= spec 的 `cfx_power_hypv_excp_vector`）。
+- **D3**：新增 harness **墙钟超时兜底**（默认 9s、可环境变量覆盖；超时记 harness 错误，不参与 pass/fail）。
+- **D5**：机器 fault 退出码改为 **`0x80 | spec_cause_bit`**——ILLI `0x88`、UNDI `0x89`、RASOF `0x8A`、RASUF `0x8B`、MALIGN `0x8C`、IALIGN `0x8D`；unmapped `0x87`（测试机约定）。
+- **D6**：示例地址/助记符修正（`set.zw rbha, wp2, 0xffff` 构造高位地址、`cmp.so` 寄存器比较消费 `rd17`、`st.o rd0` 写 PASS）。
+
+**engineer 返工内容**：
+
+1. **不得修改 ADR-0004 的决策内容**（已由用户决定）。
+2. **更新验收脚本** `/tmp/opencode/SPEC-006t/check-adr0004.sh`：改为校验**修订后**的 ADR——新地址、新 fault 码（`0x87`–`0x8D`）、`Status=Accepted（rev…）`、超时兜底条款、`set.zw wp2`/`cmp.so`/`st.o rd0` 等；删除/替换所有旧值检查。
+3. 重跑脚本至全 PASS（`EXIT=0`），记录输出。
+4. 更新**完成区**（修改文件、验收结果、新发现）以反映修订后 ADR 与脚本。
+5. 在**审阅记录**追加「返工轮」engineer 自审。
+6. 不自行 commit。
 
 ## 完成区
 
-> **注（2026-09-13 修订）**：本任务完成后，ADR-0004 经用户决定重判修订——D1 内存映射改为**核内地址空间模型**（ROM `0xffff_ffff_0000` / RAM `0xffff_0000_0000` 16MiB / Exit `0xffff_8000_0000`）、D5 fault 码改为 **spec cause 派生**（ILLI `0x88`…IALIGN `0x8D`，unmapped `0x87`）、D3 增加 harness 超时兜底。下方完成区与审阅记录中的地址/fault 码为**完成时的历史值**；当前值一律以 `.tao/knowledge/adr-0004-test-machine.md` 为准。
+> **返工更新（2026-09-13）**：ADR-0004 经用户逐条重判修订后，本完成区已整体刷新为**修订后**的验证结果；首次完成区的历史值（旧地址 / 旧 fault 码 / `Status=Candidate`）已被下方内容取代。ADR 决策内容由用户决定，本次返工仅更新验收脚本与任务文件，**未改动 ADR 任何决策内容**。
 
-**测试结果**：通过 **89/89**（`bash /tmp/opencode/SPEC-006t/check-adr0004.sh`，退出码 0）；失败原因：无。完整输出存 `.tao/logs/SPEC-006t-verify.log`（112 行）。自检覆盖：ADR 格式/状态、D1–D6 覆盖、内存映射值与 48-bit、exit 协议（地址/宽度/编码/带码 API/进程级验收）、复位值（含 rf0 位段推导）、fault 码 `0x81`–`0x86`/`0x8F`、MMIO×宽度矩阵、0.5.3 助记符（含禁用旧助记符扫描）、无未决占位、ADR-0003 一致性、三入口时刻、零 host 依赖、地址算术独立复算（python）。
+**测试结果**：通过 **109/109**（`bash /tmp/opencode/SPEC-006t/check-adr0004.sh`，`EXIT_CODE=0`）；失败原因：无。完整输出存 `.tao/logs/SPEC-006t-rework-verify.log`（138 行）。脚本覆盖：ADR 格式/状态（`Accepted（rev. 2026-09-13…）` + `## 修订` 段）、D1–D6 覆盖、**修订后内存映射**（boot ROM `0xffff_ffff_0000`/64 KiB、RAM `0xffff_0000_0000`/16 MiB、Exit `0xffff_8000_0000`/8 B、cfxcode 63、48-bit 核内有效地址）、exit 协议（地址/宽度/编码/带码 API/进程级验收）、复位值（含 rf0 位段推导、`rb0=0xffff_ffff_0000`）、**新 fault 码 `0x87`–`0x8D`**（unmapped/ILLI/UNDI/RASOF/RASUF/MALIGN/IALIGN）与 `0x80 | spec_cause_bit_index` 派生规则、旧映射（`0x81.*MALIGN`/`0x86.*RASUF`）已消失、MMIO×宽度矩阵、0.5.3 助记符（`set.zw`/`st.o`/`ld.o`/`br.nz`/`add.si`/`cmp.so`/`or.w`/`jump`/`illi`，含禁用旧助记符与 `wp3` 扫描）、**harness 墙钟超时兜底**（默认 `9 s`、环境变量覆盖、harness 错误、不参与 pass/fail）、无未决占位、ADR-0003 一致性、三入口时刻、零 host 依赖、地址算术独立复算（python，含 `set.zw wp2` 地址构造）。
 
 **修改文件**：
-- `.tao/knowledge/adr-0004-test-machine.md`（新增，335 行，Status = Candidate）
-- `.tao/tasks/spec/SPEC-006t-Test-Machine-ADR.md`（状态 `待开始`→`待验收`；填写完成区、追加第 1 轮自审）
+- `/tmp/opencode/SPEC-006t/check-adr0004.sh`（验收脚本更新为校验修订后 ADR；旧地址/旧 fault 码/`Status=Candidate` 检查全部删除或替换，新增旧映射消失负向断言与 `set.zw wp2`/`cmp.so`/`st.o rd0` 校验）
+- `.tao/tasks/spec/SPEC-006t-Test-Machine-ADR.md`（状态 `待返工`→`待验收`；完成区刷新；追加返工轮自审）
+- `.tao/logs/SPEC-006t-rework-verify.log`（新增，脚本完整输出 + `EXIT_CODE=0`）
+- **未改动**：`.tao/knowledge/adr-0004-test-machine.md`（用户既定决策；engineer 返工期间 `git diff` 为空；其后主会话修正 D6.4 距离与 `## 状态说明` 两处，见审阅记录）
 
-**验收结果**（逐条对照验收标准）：
-1. 文件存在、Status = Candidate（review 通过后 Accepted）：✅
-2. D1–D6 全覆盖、无未决项；D1 含地址/大小/属性且为 48-bit 有效地址：✅（ROM `0x0010_0000`(64KiB) / Exit `0x1000_0000`(8B) / RAM `0x8000_0000`(128MiB)，均 `bits[63:48]=0`）
-3. exit port 协议完整：地址 + 8B 宽度 + 编码（0=PASS、`0x01`–`0x7F`=FAIL）+ QEMU 行为（读 8B→取低字节→`$?`；带退出码 API/机制 + 进程级验收测试）：✅
-4. MALIGN 完整 guest-visible 状态：异常类型（exit `0x81`）、faulting PC（`rb0`=faulting 指令地址）、不提交（目的寄存器/内存）：✅
-5. ILLI/UNDI/SBZ/IALIGN/RASOF/RASUF 完整决策；SBZ→ILLI 给出理由（已识别 opcode 内字段约束，类比非法操作数）：✅
-6. 全部复位值（RD/RB/RA/RF）冻结；rf0 `0x7FF8_0000_7FC0_0000` 从 0.5.3 `SimRISC-00 §浮点状态寄存器` 位段独立推导（`(0xFFF<<51)|(0x1FF<<22)`）：✅
-7. D6 示例用 0.5.3 助记符（`set.zw`/`st.o`/`ld.o`/`add.si`/`cmp.si`/`br.nz`/`jump rrii`/`illi`）且逐条手算地址；三入口时刻（power-on reset / ROM 第一条 / RAM `_start`）区分：✅
+**验收结果**（逐条对照验收标准，均针对修订后 ADR）：
+1. 文件存在、`**状态**：Accepted（rev. 2026-09-13: …）`（review 通过后由主会话置 Accepted；本次为用户授权就地修订）：✅
+2. D1–D6 全覆盖、无未决项；D1 含地址/大小/属性且为 48-bit 核内有效地址：✅（RAM `0xffff_0000_0000`–`0xffff_00ff_ffff` 16 MiB / Exit `0xffff_8000_0000`–`0xffff_8000_0007` 8 B / boot ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff` 64 KiB，均 `bits[63:48]=0`）
+3. exit port 协议完整：地址 `0xffff_8000_0000` + 8 B 宽度 + 编码（0=PASS、`0x01`–`0x7F`=FAIL、`0x80`–`0xFF`=Reserved）+ QEMU 行为（读 8 B→取低字节→`$?`；带退出码 API + 进程级验收测试）：✅
+4. MALIGN 完整 guest-visible 状态：异常类型（退出码 `0x8C`）、faulting PC（`rb0`=faulting 指令地址）、不提交（目的寄存器/内存）：✅
+5. ILLI/UNDI/SBZ/IALIGN/RASOF/RASUF 完整决策；SBZ→ILLI 给出理由；退出码 ILLI `0x88`/UNDI `0x89`/RASOF `0x8A`/RASUF `0x8B`/IALIGN `0x8D`：✅
+6. 全部复位值（RD/RB/RA/RF）冻结；rf0 `0x7FF8_0000_7FC0_0000` 从 0.5.3 `SimRISC-00 §浮点状态寄存器` 位段独立推导；`rb0=0xffff_ffff_0000`：✅
+7. D6 示例用 0.5.3 助记符（`set.zw rb16, wp2, 0xffff`/`or.w`/`add.si`/`cmp.so`/`br.nz`/`st.o rd0`/`ld.o`/`jump rrii`/`illi`）且逐条手算地址；三入口时刻（power-on reset / ROM 第一条 / RAM `_start`）区分：✅
 8. 唯一端到端启动协议（命令行、flat 镜像、ROM blob 布局、oversize/error、RAM entry）与 ADR-0003 一致：✅
-9. MMIO×access-width 矩阵对每个组合给出确定结果；非 8B exit port 访问归 ILLI 并说明理由：✅
-10. 零 host 依赖：pass/fail/fault 由 `$?`；精确异常状态由 GDB/QMP guest 寄存器读取路径：✅
+9. MMIO×access-width 矩阵对每个组合给出确定结果；非 8B exit port 访问归 ILLI（`0x88`）并说明理由：✅
+10. 零 host 依赖：pass/fail/fault 由 `$?`；精确异常状态由 GDB/QMP guest 寄存器读取路径；**harness 墙钟超时（默认 9 s，可环境变量覆盖）仅作兜底、记 harness 错误、不参与 pass/fail**：✅
 
 **新发现/坑**：
-1. **rf0 常量独立推导结果与 0628 最终值一致（`0x7FF800007FC00000`）**：因 0.5.3 与 0.4.1 的 rf0 位布局未变。v5 按位段独立推导并给出推导表，非照抄。
-2. **0628 ADR-0004 内部不一致**：其 D5 正文写「RASOF/RASUF = `0x84`/`0x85`」，Summary 表写「`0x84` IALIGN / `0x85` RASOF / `0x86` RASUF」。v5 统一采用 Summary 口径（IALIGN=`0x84`、RASOF=`0x85`、RASUF=`0x86`）并在正文一致化。
-3. **启动协议选择**：v5 冻结「外部 `-bios` ROM trampoline blob + `-kernel` test flat binary」双镜像（与 0628 最终一致），并明确与 ADR-0003 的 `.o→objcopy .text→flat` 流水线统一；测试二进制入口固定 RAM 基址、`e_entry` 不参与。
-4. **M1 排除但已定义的编码归 ILLI**：RF/LR-SC/特权 cfx 编码在 0.5.3 中已定义（非留空），M1 不实现→ILLI；UNDI 仅用于空白单元格。此为 v5 明确化的边界（0628 未细化）。
-5. **ROM store → ILLI、exit port load → ILLI**：`spec/` 不定义物理区域访问种类，属架构自定义；已用「映射→对齐→访问种类」三级优先级消解跨边界/未映射歧义。
-6. **精确异常状态需机器可读寄存器路径**：仅 `$?` 只能验证 fault 类别，不能验证 `rb0`=faulting PC / no-commit；v5 冻结 QEMU GDB stub / QMP `info registers` 作为结构化 guest 寄存器读取路径（非 host 日志/stderr/超时）。
+1. **验收脚本须随 ADR 修订同步**：原脚本硬编码旧值（旧地址、旧 fault 码 `0x81`–`0x86`/`0x8F`、`Status=Candidate`），ADR 修订后为 72/89、17 FAIL（`EXIT=1`）。本次把全部旧值检查删除/替换为修订后值，并新增「旧映射已消失」负向断言（`0x81.*MALIGN`/`0x86.*RASUF`）。
+2. **`set.zw` wyde 编号**：地址构造用 `set.zw wp2`（wyde2 = `bits[47:32]`），非 `wp3`；脚本新增 `\bwp3\b` 负向扫描防回归，并独立复算 `setzw(2,0xffff)=0xffff_0000_0000`。
+3. **`0x81`–`0x86` 仍以 Reserved 行保留**：ADR D5.8 表保留 `0x81`–`0x86` 为 Reserved（对应 spec cause 位 1–6，M1 未用），故脚本不能整体禁用这些字符串，只能负向断言「不再映射到 MALIGN/RASUF」等。
+4. **ADR D6.4 ROM→RAM 距离注释与算术不符（超范围观察，未改）**：D6.4 注释写「ROM→RAM 相距 `0x00ff_0000_0000`（≈1 TiB）」，独立复算 `0xffff_ffff_0000 − 0xffff_0000_0000 = 0x0000_ffff_0000`（≈4 GiB）。**结论不受影响**（两者均远超 `jump imms24` 的 ±32 MiB，仍须用 rrii 绝对跳转）。该值属 ADR 决策内容、本次返工硬约束禁改，已记入「遗留问题」待用户决定。
+5. **ADR `## 状态说明` 仍为 `Candidate：待评审…` 模板措辞**，与状态行 `Accepted` 不一致；`## 修订` 已说明「用户授权就地修订」。属超范围观察，未改。
 
-**遗留问题**：无。D1–D6 均给出冻结决策，无未决项。
+**遗留问题**：
+1. **ADR D6.4 ROM→RAM 距离数值待用户裁定**：注释 `0x00ff_0000_0000（≈1 TiB）` 与独立复算 `0x0000_ffff_0000`（≈4 GiB）不一致。因 ADR 为既定输入、本次硬约束禁改，未修改；不影响「须用 rrii 绝对跳转」的结论。建议用户决定是否在后续 ADR 修订中更正。
+2. **ADR `## 状态说明` 模板措辞**（`Candidate：待评审…`）与状态行 `Accepted` 不一致，同样属超范围、待用户决定是否刷新。
+3. 除上述两项超范围观察外无遗留：返工内容 1–6 全部完成，D1–D6 均给出冻结决策，无未决项。
 
 ## 审阅记录
 
@@ -285,3 +307,122 @@ EXIT_CODE=0
 5. reviewer 观察 #1 对 spec 的转述不准确：`spec/DADAO-12 §2.1` 本就写「cfx_power_hypv_excp_vector 为硬件复位后启动地址，可由 CPU 直接取指」，ADR 表述准确，reviewer 的「描述精确度」观察本身略偏。
 
 **统一验收报告**：reviewer 与 architect 独立意见**一致判 Accepted**，无分歧；上述 5 条为非阻断观察，留待后续 ADR 修订时可选处理。
+
+#### 返工轮 engineer 自审（2026-09-13）
+
+**判决**：可交付（`待验收`）。返工内容 1–6 全部完成；脚本 **109/109 PASS、`EXIT_CODE=0`**；改动仅限验证脚本 + 任务文件 + 日志，未触碰 ADR 决策内容（`git diff -- .tao/knowledge/adr-0004-test-machine.md` 为空）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| R1：脚本校验旧值（旧地址、旧 fault 码 `0x81`–`0x86`/`0x8F`、`Status=Candidate`），ADR 修订后 72/89、17 FAIL、`EXIT=1` | ✅已修 | 重写 `check-adr0004.sh` 全部旧值检查为修订后值（新地址/新 fault 码/`Accepted（rev…）`/超时兜底/`set.zw wp2`/`cmp.so`/`st.o rd0`），并加旧映射消失负向断言 | 复跑 `RESULT: PASS=109 FAIL=0`、`EXIT_CODE=0`；见 `.tao/logs/SPEC-006t-rework-verify.log`（138 行） |
+| R2：地址构造须用 `set.zw wp2`（wyde2=`bits[47:32]`）而非 `wp3` | ✅已修 | 新增 `set\.zw +rb16, wp2, 0xffff` 正向断言 + `\bwp3\b` 负向扫描；[14] 独立复算 `setzw(2,0xffff)==0xffff_0000_0000` | [9]/[14] PASS；`rg wp3` 全文无命中 |
+| R3：D3 新增 harness 超时兜底（默认 9 s、不参与 pass/fail） | ✅已修 | [13] 删除原「no timeout」检查，改为校验 `墙钟超时兜底`/`9 s`/`环境变量`/`harness 错误`/`不.*参与 guest pass/fail` | [13] 7/7 PASS |
+| R4：D5 fault 码改 spec cause 派生（`0x87`–`0x8D`） | ✅已修 | [7] 逐码映射校验（`0x87.*Unmapped`…`0x8D.*IALIGN`）+ 派生规则 `spec_cause_bit_index`；删除旧码检查 | [7] 16/16 PASS |
+| R5：D6 示例修正（`set.zw wp2` 构造高位地址、`cmp.so` 消费 `rd17`、`st.o rd0` 写 PASS） | ✅已修 | [9]/[15] 校验 `cmp\.so`、`st\.o +rd0, rb16, 0`、`set\.zw +rb16, wp2, 0xffff`；删除旧 `cmp.si` 检查 | [9]/[15] PASS |
+
+**超范围观察（非本次返工 finding；ADR 为用户既定输入、硬约束禁改，转用户/主会话裁定）**：
+
+1. **ADR D6.4 ROM→RAM 距离数值**：注释写 `0x00ff_0000_0000（≈1 TiB）`，独立复算 `0xffff_ffff_0000 − 0xffff_0000_0000 = 0x0000_ffff_0000`（≈4 GiB）。两者均远超 `jump imms24` 的 ±32 MiB，**结论（须用 rrii 绝对跳转）不受影响**。已在完成区「遗留问题」记录，未改 ADR。
+2. **ADR `## 状态说明` 仍为 `Candidate：待评审…` 模板措辞**，与状态行 `Accepted（rev…）` 不一致；`## 修订` 已说明用户授权就地修订。未改 ADR。
+
+**边界/防造假核对**：
+- `git status --short` 仅 `.tao/tasks/spec/SPEC-006t-Test-Machine-ADR.md` 变更；ADR 文件 `git diff` 为空 → 未触碰既定输入。（注：主会话在本记录之后修正 ADR 两处——D6.4 距离、`## 状态说明`；见审阅记录）
+- 脚本非文本存在性堆砌：`[14]` 用 python 独立复算地址构造（`set.zw wp2`）、复位值、区域起始/大小 8 B 对齐、48-bit（`bits[63:48]=0`）；`[7]`/`[9]` 含旧映射与 `wp3` 负向断言。
+- 脚本真实执行，`EXIT_CODE=0` 由 `PIPESTATUS[0]` 捕获并写入日志，避免 `tee` 掩盖退出码。
+
+#### 返工轮 reviewer 验收（2026-09-13）
+
+**判决**：**Accepted**。验收标准 1–10 全部通过，无阻断问题。
+
+##### 重跑记录
+
+独立执行 `bash /tmp/opencode/SPEC-006t/check-adr0004.sh`（完整输出存 `.tao/logs/SPEC-006t-review-r2-check.log`）：
+
+```
+== [1] file & status ==
+PASS: ADR-0004 exists
+PASS: Status = Accepted (rev. 2026-09-13)
+...
+== [15] stated values / example fixes appear in text ==
+PASS: D6.2 set.zw rb16, wp2, 0xffff
+PASS: D6.2 cmp.so consumes rd17
+PASS: D6.2 st.o rd0 writes PASS
+
+RESULT: PASS=109 FAIL=0
+EXIT_CODE=0
+```
+
+全部 109 项检查通过，退出码 0。
+
+##### 独立复算验证（reviewer 自行执行）
+
+1. **ROM/RAM/Exit 地址**：
+   - ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff` = 64 KiB ✓
+   - RAM `0xffff_0000_0000`–`0xffff_00ff_ffff` = 16 MiB ✓
+   - Exit `0xffff_8000_0000`–`0xffff_8000_0007` = 8 B ✓
+   - 三者均位于 cfxcode 63（`bits[47:42]=63`）、48-bit 有效（`bits[63:48]=0`）、8B 对齐 ✓
+
+2. **ROM→RAM 距离**：`0xffff_ffff_0000 − 0xffff_0000_0000 = 0x0000_ffff_0000` = 4,294,901,760 ≈ 4 GiB ✓（主会话修正后的值，正确；远超 `jump imms24` ±32 MiB，须用 rrii 绝对跳转）
+
+3. **fault 码 `0x80 | spec_cause_bit_index`**（从 `spec/DADAO-12` §cfx_umon 异常原因表 lines 403-413 独立核对）：
+   - ILLI: `1<<8` → `0x80|8=0x88` ✓
+   - UNDI: `1<<9` → `0x80|9=0x89` ✓
+   - RASOF: `1<<10` → `0x80|10=0x8A` ✓
+   - RASUF: `1<<11` → `0x80|11=0x8B` ✓
+   - MALIGN: `1<<12` → `0x80|12=0x8C` ✓
+   - IALIGN: `1<<13` → `0x80|13=0x8D` ✓
+   - unmapped: `0x87`（测试机约定，非 spec cause 派生）✓
+
+4. **rf0 常量**：`(0xFFF << 51) | (0x1FF << 22) = 0x7FF8_0000_7FC0_0000` ✓（与 ADR 一致）
+
+5. **`set.zw wp2` 地址构造**：`setzw(2, 0xffff) = 0xffff << 32 = 0xffff_0000_0000` → `or.w wp1, 0x8000` → `0xffff_8000_0000` ✓（若误用 wp3 则超出 48-bit）
+
+6. **`0xffff_ffff_0000 − 0xffff_0000_0000` 独立计算**：`0x0000_ffff_0000` = 4 GiB ✓（与 ADR D6.4 修正后一致）
+
+##### 逐条验收标准核验
+
+| # | 标准 | 判定 | 依据 |
+|---|------|------|------|
+| 1 | 文件存在，Status=Accepted | ✅ | `adr-0004-test-machine.md` 存在，`**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型…）`；`## 状态说明` 已改为 Accepted（主会话修正 #2） |
+| 2 | D1–D6 全覆盖，无待定；D1 地址 48-bit 有效 | ✅ | 6 个 section 标题均在；无「待定」/「TBD」/「OPEN」；ROM/RAM/Exit 均 `bits[63:48]=0` |
+| 3 | exit port 协议完整 | ✅ | 地址 `0xffff_8000_0000`、宽度 8B `st.o`、编码 0=PASS/`0x01`–`0x7F`=FAIL/`0x80`–`0xFF`=Reserved、带退出码 API + 进程级验收测试 |
+| 4 | MALIGN 可观测行为完整 | ✅ | 退出码 `0x8C`（`0x80|12`）、faulting PC = `rb0`、目的寄存器不提交、内存不提交 |
+| 5 | ILLI/UNDI/SBZ/IALIGN/RASOF/RASUF 完整决策 | ✅ | ILLI `0x88`、UNDI `0x89`、SBZ→ILLI `0x88`（理由：已识别 opcode 内字段约束）、IALIGN `0x8D`、RASOF `0x8A`、RASUF `0x8B`；全部由 spec cause 位派生 |
+| 6 | 硬件复位值完整；rf0 从 spec 推导 | ✅ | RD=0、RB rb0=`0xffff_ffff_0000`/rb1–63=0、RA=0、RF rf0=`0x7FF8_0000_7FC0_0000`（独立推导验证）、rf1–63=0 |
+| 7 | D6 用 0.5.3 助记符且逐条手算地址；三入口时刻区分 | ✅ | `set.zw wp2`/`st.o`/`ld.o`/`add.si`/`cmp.so`/`br.nz`/`jump`/`illi`/`or.w` 全在；`cmp.so rd18,rd16,rd17` 消费 rd17；`st.o rd0` 写 PASS；三入口时刻明确 |
+| 8 | 唯一启动协议与 ADR-0003 一致 | ✅ | 双镜像 `-bios rom.bin -kernel test.bin`、flat binary、`e_entry` 不参与、`objcopy --only-section=.text` |
+| 9 | MMIO×宽度矩阵确定；非 8B exit port 访问归 ILLI | ✅ | D5.6 矩阵覆盖 ROM/Exit/RAM/unmapped × 四类访问；非 8B exit port 归 ILLI `0x88` |
+| 10 | 零 host 依赖可满足 | ✅ | pass/fail/fault 由 `$?` 判定；精确状态验证用 GDB/QMP；harness 墙钟超时兜底（默认 9s、环境变量覆盖、记 harness 错误、不参与 pass/fail） |
+
+##### 主会话两处修正核验
+
+| 修正 | git diff 行号 | reviewer 独立验证 | 判定 |
+|------|-------------|------------------|------|
+| D6.4 ROM→RAM 距离 `0x00ff_0000_0000`→`0x0000_ffff_0000`（≈1 TiB→≈4 GiB） | L301 | `0xffff_ffff_0000 − 0xffff_0000_0000 = 0x0000_ffff_0000` = 4,294,901,760 ≈ 4 GiB ✓ | ✅ 正确 |
+| `## 状态说明` Candidate→Accepted | L344 | 状态行 `Accepted（rev. 2026-09-13…）` 与状态说明 `Accepted（2026-09-13…）` 一致 ✓ | ✅ 正确 |
+
+##### ADR 未被 engineer 改动验证
+
+`git diff -- .tao/knowledge/adr-0004-test-machine.md` 显示 2 insertions / 2 deletions，均为上述主会话修正。engineer 返工内容仅涉及验收脚本（`/tmp/opencode/SPEC-006t/check-adr0004.sh`）和任务文件，**未触碰 ADR 决策内容**。✅
+
+##### 约束核验
+
+| 约束 | 判定 | 说明 |
+|------|------|------|
+| 零 host 依赖 | ✅ | `$?` + GDB/QMP 寄存器路径；harness 超时仅兜底不参与 pass/fail |
+| 可实现性 | ✅ | 内存映射/复位值/exit port/fault→退出码/双镜像加载均在标准 QEMU 机器模型内 |
+| 精确异常承诺 | ✅ | 所有 fault 均明确「目的寄存器不提交、内存不提交、rb0=faulting PC」 |
+| exit port 写用 `st.o`（8B 对齐） | ✅ | D3 明确「由一条 st.o 写入」 |
+| exit port 地址 8B 对齐 | ✅ | `0xffff_8000_0000`，8B 对齐 |
+| 复位值/exit port/内存映射标「无 spec 依据」 | ✅ | D1/D2/D3/D5 均显式标注「无 spec 依据，架构自定义」 |
+| 指令助记符用 0.5.3 命名 | ✅ | 全文用 `set.zw`/`st.o`/`ld.o`/`cmp.so` 等，无旧助记符（脚本负向扫描均 PASS） |
+| 格式遵循 `adr-authoring.md` | ✅ | Context/Decision/Rationale/Consequences/状态说明 五段完整 + 修订段 |
+| 完成后不自行 commit | ✅ | `git diff` 仅含主会话修正，无 engineer 新 commit |
+
+##### ADR 自洽性核验
+
+- 地址图（D1）与示例（D6）地址一致 ✓
+- fault 码（D5.8）与示例（D6）中的退出码一致 ✓
+- 修订段（`## 修订`）完整记录了 D1/D3/D4-D5 三次修订及其变更范围 ✓
+- 状态行 `Accepted（rev. 2026-09-13…）` 与状态说明 `**Accepted**（2026-09-13…）` 一致 ✓（主会话修正 #2）
+- D6.4 ROM→RAM 距离 `0x0000_ffff_0000（≈4 GiB）` 与独立复算一致 ✓（主会话修正 #1）

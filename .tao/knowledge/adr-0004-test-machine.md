@@ -298,7 +298,7 @@ or.w    rb1, wp1, 0x00ff       ; rb1 = 0xffff_00ff_0000（RAM 顶部 0xffff_00ff
 set.zw  rb2, wp2, 0xffff       ; rb2 = 0xffff_0000_0000
 
 ; 3. 绝对跳转（rrii）：Addr = rbha + rdhb + (imms12<<2) = rb2 + rd0 + 0 = 0xffff_0000_0000
-;    ROM→RAM 相距 0x00ff_0000_0000（≈1 TiB），远超 jump imms24（PC 相对 ±32 MiB）范围，
+;    ROM→RAM 相距 0x0000_ffff_0000（≈4 GiB），远超 jump imms24（PC 相对 ±32 MiB）范围，
 ;    故必须先构造绝对 RB 地址再用 rrii jump。
 jump    rb2, rd0, 0            ; PC ← 0xffff_0000_0000
 ```
@@ -341,7 +341,7 @@ jump    rb2, rd0, 0            ; PC ← 0xffff_0000_0000
 
 ## 状态说明
 
-Candidate：待评审。评审通过后由主会话置 `Accepted`；决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。评审须确认：D1–D6 全覆盖且无未决项、fault/exit 码分区无歧义、rf0 常量位段推导可独立复核、双镜像启动协议与 ADR-0003 一致、MMIO × 访问矩阵对每个组合给出确定结果。
+**Accepted**（2026-09-13 首次评审通过；rev. 2026-09-13 经用户授权就地修订，见 `## 修订`）。决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。评审确认项：D1–D6 全覆盖且无未决项、fault/exit 码分区无歧义、rf0 常量位段推导可独立复核、双镜像启动协议与 ADR-0003 一致、MMIO × 访问矩阵对每个组合给出确定结果。
 
 ## 修订
 
