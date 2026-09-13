@@ -1,1343 +1,630 @@
 #!/usr/bin/env python3
-"""从 SimRISC 0.5.3 规范生成 opcodes.yaml"""
+"""从 SimRISC 0.5.3 规范生成 M1 范围机器可读编码表 verif/opcodes.yaml。
 
+M1 范围：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统。
+M1 范围外（浮点 RF 全部 / 特权 cfx / LR-SC 原子）保留其编码条目并标
+`excluded_m1: true`，解码时按 reserved 处理（`decode: UNDI`），不提取完整语义/legality。
+
+来源：
+  - spec/SimRISC-00-指令系统设计.md  （QFC 主表 + 6 个 MISC 子表：编码权威）
+  - .tao/knowledge/contract-isa.md   （M1 范围与字段/legality 语义）
+"""
+
+import os
 import yaml
 
-def get_bank_from_field_name(field_name):
-    """根据字段名称推断寄存器 bank"""
-    if field_name.startswith("rd"):
-        return "rd"
-    elif field_name.startswith("rb"):
-        return "rb"
-    elif field_name.startswith("rf"):
-        return "rf"
-    elif field_name.startswith("ra"):
-        return "ra"
+OUT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "opcodes.yaml")
+
+
+# ────────────────────────────── 字段构造 ──────────────────────────────
+
+def _bank_of(name):
+    for prefix in ("rd", "rb", "rf", "ra"):
+        if name.startswith(prefix):
+            return prefix
+    return "imm"
+
+
+def _field(name, bits, role, bank, signed=None):
+    d = {"name": name, "bits": bits, "role": role, "bank": bank}
+    if signed is not None:
+        d["signed"] = signed
+    return d
+
+
+def R(name, bits, role):
+    """寄存器字段。"""
+    return _field(name, bits, role, _bank_of(name))
+
+
+def I(name, bits):
+    """立即数字段（signed 由 imms*/immu* 前缀决定）。"""
+    return _field(name, bits, "imm", "imm", signed=name.startswith("imms"))
+
+
+def F_ha():
+    return _field("ha", "[23:18]", "minor_op", "imm")
+
+
+def F_wp():
+    return _field("wpN", "[17:16]", "wyde_pos", "imm")
+
+
+def f_rrrr(a, b, c, d, roles=("dst", "src", "src", "src")):
+    return [R(a, "[23:18]", roles[0]), R(b, "[17:12]", roles[1]),
+            R(c, "[11:6]", roles[2]), R(d, "[5:0]", roles[3])]
+
+
+def f_rrii(a, b, imm, roles=("dst", "src")):
+    return [R(a, "[23:18]", roles[0]), R(b, "[17:12]", roles[1]),
+            I(imm + "_hi", "[11:6]"), I(imm + "_lo", "[5:0]")]
+
+
+def f_rrri(a, b, c, imm, roles=("dst", "src", "src")):
+    return [R(a, "[23:18]", roles[0]), R(b, "[17:12]", roles[1]),
+            R(c, "[11:6]", roles[2]), I(imm, "[5:0]")]
+
+
+def f_riii(a, imm, role="dst"):
+    return [R(a, "[23:18]", role), I(imm + "_hi", "[17:12]"),
+            I(imm + "_mid", "[11:6]"), I(imm + "_lo", "[5:0]")]
+
+
+def f_iiii(imm):
+    return [I(imm + "_b23_18", "[23:18]"), I(imm + "_b17_12", "[17:12]"),
+            I(imm + "_b11_6", "[11:6]"), I(imm + "_b5_0", "[5:0]")]
+
+
+def f_rwii(a, imm, role="dst"):
+    return [R(a, "[23:18]", role), F_wp(), I(imm + "_hi", "[15:12]"),
+            I(imm + "_mid", "[11:6]"), I(imm + "_lo", "[5:0]")]
+
+
+def f_orrr(a, b, c, roles=("dst", "src", "src")):
+    return [F_ha(), R(a, "[17:12]", roles[0]), R(b, "[11:6]", roles[1]),
+            R(c, "[5:0]", roles[2])]
+
+
+def f_orri(a, b, imm, roles=("dst", "src")):
+    return [F_ha(), R(a, "[17:12]", roles[0]), R(b, "[11:6]", roles[1]),
+            I(imm, "[5:0]")]
+
+
+def f_oiii(imm):
+    return [F_ha(), I(imm + "_hi", "[17:12]"), I(imm + "_mid", "[11:6]"),
+            I(imm + "_lo", "[5:0]")]
+
+
+def f_crrr():
+    return [_field("cfxcode", "[23:18]", "cfxcode", "imm"),
+            _field("cghb", "[17:12]", "cfx_cg", "imm"),
+            _field("rchc", "[11:6]", "cfx_rc", "imm"),
+            R("rdhd", "[5:0]", "dst")]
+
+
+def f_crii(imm="immu12"):
+    return [_field("cfxcode", "[23:18]", "cfxcode", "imm"),
+            R("rbhb", "[17:12]", "src"),
+            I(imm + "_hi", "[11:6]"), I(imm + "_lo", "[5:0]")]
+
+
+def f_ciii(imm):
+    return [_field("cfxcode", "[23:18]", "cfxcode", "imm"),
+            I(imm + "_hi", "[17:12]"), I(imm + "_mid", "[11:6]"),
+            I(imm + "_lo", "[5:0]")]
+
+
+# ────────────────────────────── 记录构造 ──────────────────────────────
+
+def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, excluded=False):
+    """构造一条编码记录。ha 为 None 时为主表指令，否则为 MISC 子表指令。"""
+    if ha is None:
+        mask, value = 0xFF000000, op << 24
     else:
-        return "imm"
-
-def create_record(insn, fmt, op, ha=None, fields=None, legality=None, spec_cite=""):
-    """创建一条指令记录"""
-    if fields is None:
-        fields = []
-    if legality is None:
-        legality = []
-    
-    # 从 insn 中提取真实助记符（去掉 bank 后缀和 format 后缀）
-    # insn 格式：mnemonic-bank-format 或 mnemonic-bank 或 mnemonic-format 或 mnemonic
-    parts = insn.split("-")
-    mnemonic = parts[0]
-    
-    # 计算 mask 和 value
+        mask, value = 0xFFFC0000, (op << 24) | (ha << 18)
+    r = {"insn": insn, "mnemonic": mnemonic, "format": fmt, "op": f"0x{op:02X}"}
     if ha is not None:
-        # MISC 子表指令：op[7:0] + ha[5:0] + 18位
-        mask = 0xFFFC0000
-        value = (op << 24) | (ha << 18)
-    else:
-        # 主表指令：op[7:0] + 24位
-        mask = 0xFF000000
-        value = (op << 24)
-    
-    record = {
-        "insn": insn,
-        "mnemonic": mnemonic,
-        "format": fmt,
-        "op": f"0x{op:02X}",
-        "mask": f"0x{mask:08X}",
-        "value": f"0x{value:08X}",
-        "fields": fields,
-        "legality": legality,
-        "spec_cite": spec_cite
-    }
-    
-    if ha is not None:
-        record["ha"] = f"0x{ha:02X}"
-    
-    return record
+        r["ha"] = f"0x{ha:02X}"
+    r["mask"] = f"0x{mask:08X}"
+    r["value"] = f"0x{value:08X}"
+    r["fields"] = fields
+    r["legality"] = legality
+    r["spec_cite"] = spec_cite
+    if excluded:
+        r["excluded_m1"] = True
+        r["decode"] = "UNDI"
+    return r
 
-def create_field(name, bits, role, bank, signed=None):
-    """创建一个字段定义"""
-    return {
-        "name": name,
-        "bits": bits,
-        "role": role,
-        "bank": bank,
-        "signed": signed
-    }
 
-def generate_rrrr_fields(dst_name="rdha", src1_name="rdhb", src2_name="rdhc", src3_name="rdhd"):
-    """生成 rrrr 格式的字段"""
-    return [
-        create_field(dst_name, "[23:18]", "dst", get_bank_from_field_name(dst_name)),
-        create_field(src1_name, "[17:12]", "src", get_bank_from_field_name(src1_name)),
-        create_field(src2_name, "[11:6]", "src", get_bank_from_field_name(src2_name)),
-        create_field(src3_name, "[5:0]", "src", get_bank_from_field_name(src3_name))
+# ────────────────────────────── spec 引用 ──────────────────────────────
+
+S01_LD = "SimRISC-01 §存取RD寄存器"
+S01_BLK = "SimRISC-01 §寄存器组之间块赋值"
+S01_IMM = "SimRISC-01 §立即数常数赋值：Immediate constant"
+S01_CS = "SimRISC-01 §条件赋值：Conditional Assignment"
+S01_ADD = "SimRISC-01 §加减操作"
+S01_INC = "SimRISC-01 §自增自减"
+S01_CMP = "SimRISC-01 §比较操作"
+S01_MUL = "SimRISC-01 §乘除操作"
+S01_LOG = "SimRISC-01 §Logic operators：逻辑运算"
+S01_BIT = "SimRISC-01 §Bit manipulating：位操作指令"
+
+S02_LD = "SimRISC-02 §存取RB寄存器"
+S02_RA = "SimRISC-02 §存取RA寄存器"
+S02_BLK = "SimRISC-02 §寄存器组之间块赋值"
+S02_IMM = "SimRISC-02 §立即数常数赋值：Immediate constant"
+S02_ADD = "SimRISC-02 §加减操作"
+S02_INC = "SimRISC-02 §自增自减"
+S02_CMP = "SimRISC-02 §比较操作"
+S02_RELA = "SimRISC-02 §PC相对寻址"
+S02_BR = "SimRISC-02 §条件跳转指令"
+S02_JMP = "SimRISC-02 §无条件跳转指令"
+S02_CALL = "SimRISC-02 §函数调用"
+S02_RET = "SimRISC-02 §函数返回"
+
+S04_SWYM = "SimRISC-04 §占位指令"
+S04_ILLI = "SimRISC-04 §非法指令"
+S04_FENCE = "SimRISC-04 §fence指令"
+S04_LRSC = "SimRISC-04 §LR-SC指令"
+
+S00_QFC = "SimRISC-00 §SimRISC QFC"
+S00_MISCRF = "SimRISC-00 §MISC-RF指令编码"
+
+# 常见 legality 片段
+LEG_RD_DST = "rdha != rd0"
+LEG_RB_DST = "rbha != rb0"
+LEG_IMMU6 = "immu6 != 0"
+
+
+def aligned(n):
+    return f"aligned({n})"
+
+
+# ────────────────────────────── 主表指令 ──────────────────────────────
+
+def build_main_table(records):
+    # ── 0001-0xxx：RD 单 load（rrii）──
+    for op, mnem, align in [
+        (0x10, "ld.ub", None), (0x11, "ld.uw", 2), (0x12, "ld.ut", 4),
+        (0x13, "ld.sb", None), (0x14, "ld.sw", 2), (0x15, "ld.st", 4),
+    ]:
+        leg = [LEG_RD_DST]
+        if align:
+            leg.append(aligned(align))
+        records.append(rec(f"{mnem}-rd", mnem, "rrii", op,
+                           f_rrii("rdha", "rbhb", "imms12"), leg, S01_LD))
+
+    # ── 0001-0xxx 末：RF load/store（excluded）──
+    records.append(rec("ld.t-rf", "ld.t", "rrii", 0x16,
+                       f_rrii("rfha", "rbhb", "imms12"), [], S00_QFC, excluded=True))
+    records.append(rec("st.t-rf", "st.t", "rrii", 0x17,
+                       f_rrii("rfha", "rbhb", "imms12", roles=("src", "src")), [],
+                       S00_QFC, excluded=True))
+
+    # ── 0001-1xxx：RD 单 store（rrii）──
+    for op, mnem, align in [(0x18, "st.b", None), (0x19, "st.w", 2), (0x1A, "st.t", 4)]:
+        leg = [LEG_RD_DST]
+        if align:
+            leg.append(aligned(align))
+        records.append(rec(f"{mnem}-rd", mnem, "rrii", op,
+                           f_rrii("rdha", "rbhb", "imms12", roles=("src", "src")),
+                           leg, S01_LD))
+
+    # ── 0010-0xxx：o load/store RD/RB/RA + RF（excluded）──
+    records.append(rec("ld.o-rd", "ld.o", "rrii", 0x20,
+                       f_rrii("rdha", "rbhb", "imms12"),
+                       [LEG_RD_DST, aligned(8)], S01_LD))
+    records.append(rec("st.o-rd", "st.o", "rrii", 0x21,
+                       f_rrii("rdha", "rbhb", "imms12", roles=("src", "src")),
+                       [LEG_RD_DST, aligned(8)], S01_LD))
+    records.append(rec("ld.o-rb", "ld.o", "rrii", 0x22,
+                       f_rrii("rbha", "rbhb", "imms12"),
+                       [LEG_RB_DST, aligned(8)], S02_LD))
+    records.append(rec("st.o-rb", "st.o", "rrii", 0x23,
+                       f_rrii("rbha", "rbhb", "imms12", roles=("src", "src")),
+                       [LEG_RB_DST, aligned(8)], S02_LD))
+    records.append(rec("ld.o-ra", "ld.o", "rrii", 0x24,
+                       f_rrii("raha", "rbhb", "imms12"),
+                       [aligned(8)], S02_RA))
+    records.append(rec("st.o-ra", "st.o", "rrii", 0x25,
+                       f_rrii("raha", "rbhb", "imms12", roles=("src", "src")),
+                       [aligned(8)], S02_RA))
+    records.append(rec("ld.o-rf", "ld.o", "rrii", 0x26,
+                       f_rrii("rfha", "rbhb", "imms12"), [], S00_QFC, excluded=True))
+    records.append(rec("st.o-rf", "st.o", "rrii", 0x27,
+                       f_rrii("rfha", "rbhb", "imms12", roles=("src", "src")), [],
+                       S00_QFC, excluded=True))
+
+    # ── 0010-1xxx：RD 多 load（rrri）──
+    for op, mnem, align in [
+        (0x28, "ldm.ub", None), (0x29, "ldm.uw", 2), (0x2A, "ldm.ut", 4),
+        (0x2B, "ldm.sb", None), (0x2C, "ldm.sw", 2), (0x2D, "ldm.st", 4),
+    ]:
+        leg = [LEG_RD_DST, LEG_IMMU6, "rdha + immu6 <= 64"]
+        if align:
+            leg.append(aligned(align))
+        records.append(rec(f"{mnem}-rd", mnem, "rrri", op,
+                           f_rrri("rdha", "rbhb", "rdhc", "immu6"), leg, S01_LD))
+    records.append(rec("ldm.t-rf", "ldm.t", "rrri", 0x2E,
+                       f_rrri("rfha", "rbhb", "rdhc", "immu6"), [],
+                       S00_QFC, excluded=True))
+    records.append(rec("stm.t-rf", "stm.t", "rrri", 0x2F,
+                       f_rrri("rfha", "rbhb", "rdhc", "immu6", roles=("src", "src", "src")),
+                       [], S00_QFC, excluded=True))
+
+    # ── 0011-0xxx：RD 多 store（rrri）──
+    for op, mnem, align in [(0x30, "stm.b", None), (0x31, "stm.w", 2), (0x32, "stm.t", 4)]:
+        leg = [LEG_RD_DST, LEG_IMMU6, "rdha + immu6 <= 64"]
+        if align:
+            leg.append(aligned(align))
+        records.append(rec(f"{mnem}-rd", mnem, "rrri", op,
+                           f_rrri("rdha", "rbhb", "rdhc", "immu6",
+                                  roles=("src", "src", "src")), leg, S01_LD))
+
+    # ── 0011-1xxx：o 多 load/store RD/RB/RA + RF（excluded）──
+    records.append(rec("ldm.o-rd", "ldm.o", "rrri", 0x38,
+                       f_rrri("rdha", "rbhb", "rdhc", "immu6"),
+                       [LEG_RD_DST, LEG_IMMU6, "rdha + immu6 <= 64", aligned(8)], S01_LD))
+    records.append(rec("stm.o-rd", "stm.o", "rrri", 0x39,
+                       f_rrri("rdha", "rbhb", "rdhc", "immu6",
+                              roles=("src", "src", "src")),
+                       [LEG_RD_DST, LEG_IMMU6, "rdha + immu6 <= 64", aligned(8)], S01_LD))
+    records.append(rec("ldm.o-rb", "ldm.o", "rrri", 0x3A,
+                       f_rrri("rbha", "rbhb", "rdhc", "immu6"),
+                       [LEG_RB_DST, LEG_IMMU6, "rbha + immu6 <= 64", aligned(8)], S02_LD))
+    records.append(rec("stm.o-rb", "stm.o", "rrri", 0x3B,
+                       f_rrri("rbha", "rbhb", "rdhc", "immu6",
+                              roles=("src", "src", "src")),
+                       [LEG_RB_DST, LEG_IMMU6, "rbha + immu6 <= 64", aligned(8)], S02_LD))
+    records.append(rec("ldm.o-ra", "ldm.o", "rrri", 0x3C,
+                       f_rrri("raha", "rbhb", "rdhc", "immu6"),
+                       [LEG_IMMU6, "raha + immu6 <= 64", aligned(8)], S02_RA))
+    records.append(rec("stm.o-ra", "stm.o", "rrri", 0x3D,
+                       f_rrri("raha", "rbhb", "rdhc", "immu6",
+                              roles=("src", "src", "src")),
+                       [LEG_IMMU6, "raha + immu6 <= 64", aligned(8)], S02_RA))
+    records.append(rec("ldm.o-rf", "ldm.o", "rrri", 0x3E,
+                       f_rrri("rfha", "rbhb", "rdhc", "immu6"), [],
+                       S00_QFC, excluded=True))
+    records.append(rec("stm.o-rf", "stm.o", "rrri", 0x3F,
+                       f_rrri("rfha", "rbhb", "rdhc", "immu6", roles=("src", "src", "src")),
+                       [], S00_QFC, excluded=True))
+
+    # ── 0100-1xxx：立即数赋值（rwii）──
+    records.append(rec("or.w-rd", "or.w", "rwii", 0x48,
+                       f_rwii("rdha", "immu16"), [LEG_RD_DST], S01_IMM))
+    records.append(rec("andn.w-rd", "andn.w", "rwii", 0x49,
+                       f_rwii("rdha", "immu16"), [LEG_RD_DST], S01_IMM))
+    records.append(rec("or.w-rb", "or.w", "rwii", 0x4A,
+                       f_rwii("rbha", "immu16"), [LEG_RB_DST], S02_IMM))
+    records.append(rec("andn.w-rb", "andn.w", "rwii", 0x4B,
+                       f_rwii("rbha", "immu16"), [LEG_RB_DST], S02_IMM))
+    records.append(rec("set.zw-rd", "set.zw", "rwii", 0x4C,
+                       f_rwii("rdha", "immu16"), [LEG_RD_DST], S01_IMM))
+    records.append(rec("set.ow-rd", "set.ow", "rwii", 0x4D,
+                       f_rwii("rdha", "immu16"), [LEG_RD_DST], S01_IMM))
+    records.append(rec("set.zw-rb", "set.zw", "rwii", 0x4E,
+                       f_rwii("rbha", "immu16"), [LEG_RB_DST], S02_IMM))
+    records.append(rec("set.w-rf", "set.w", "rwii", 0x4F,
+                       f_rwii("rfha", "immu16"), [], S00_QFC, excluded=True))
+
+    # ── 0101-0xxx：加减乘（rrrr，双目的）──
+    dual_leg = ["!(rdha == rd0 && rdhb == rd0)", "!(rdha == rdhb && rdha != rd0)"]
+    for op, mnem, cite in [
+        (0x50, "add.uo", S01_ADD), (0x51, "add.so", S01_ADD),
+        (0x52, "sub.uo", S01_ADD), (0x53, "sub.so", S01_ADD),
+        (0x54, "mul.uo", S01_MUL), (0x55, "mul.so", S01_MUL),
+    ]:
+        records.append(rec(f"{mnem}-rd", mnem, "rrrr", op,
+                           f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
+                                  roles=("dst", "dst", "src", "src")),
+                           dual_leg, cite))
+    records.append(rec("ftmadd", "ftmadd", "rrrr", 0x56,
+                       f_rrrr("rfha", "rfhb", "rfhc", "rfhd"), [],
+                       S00_QFC, excluded=True))
+    records.append(rec("fomadd", "fomadd", "rrrr", 0x57,
+                       f_rrrr("rfha", "rfhb", "rfhc", "rfhd"), [],
+                       S00_QFC, excluded=True))
+
+    # ── 0101-1xxx：自增/相对/比较 ──
+    records.append(rec("add.si-rd", "add.si", "riii", 0x59,
+                       f_riii("rdha", "imms18"), [LEG_RD_DST], S01_INC))
+    records.append(rec("rela.si-rb", "rela.si", "riii", 0x5A,
+                       f_riii("rbha", "imms18"), [LEG_RB_DST], S02_RELA))
+    records.append(rec("add.si-rb", "add.si", "riii", 0x5B,
+                       f_riii("rbha", "imms18"), [LEG_RB_DST], S02_INC))
+    records.append(rec("cmp.ui-rd", "cmp.ui", "rrii", 0x5C,
+                       f_rrii("rdha", "rdhb", "immu12"), [LEG_RD_DST], S01_CMP))
+    records.append(rec("cmp.si-rd", "cmp.si", "rrii", 0x5D,
+                       f_rrii("rdha", "rdhb", "imms12"), [LEG_RD_DST], S01_CMP))
+    records.append(rec("cs.eq-rf", "cs.eq", "rrrr", 0x5E,
+                       f_rrrr("rdha", "rdhb", "rfhc", "rfhd",
+                              roles=("src", "src", "dst", "src")), [],
+                       S00_QFC, excluded=True))
+    records.append(rec("cs.ne-rf", "cs.ne", "rrrr", 0x5F,
+                       f_rrrr("rdha", "rdhb", "rfhc", "rfhd",
+                              roles=("src", "src", "dst", "src")), [],
+                       S00_QFC, excluded=True))
+
+    # ── 0110-0xxx：条件赋值（rrrr）──
+    records.append(rec("cs.n-rd", "cs.n", "rrrr", 0x60,
+                       f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
+                              roles=("src", "dst", "src", "src")),
+                       ["rdhb != rd0"], S01_CS))
+    records.append(rec("cs.n-rf", "cs.n", "rrrr", 0x61,
+                       f_rrrr("rdha", "rfhb", "rfhc", "rfhd",
+                              roles=("src", "dst", "src", "src")), [],
+                       S00_QFC, excluded=True))
+    records.append(rec("cs.z-rd", "cs.z", "rrrr", 0x62,
+                       f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
+                              roles=("src", "dst", "src", "src")),
+                       ["rdhb != rd0"], S01_CS))
+    records.append(rec("cs.z-rf", "cs.z", "rrrr", 0x63,
+                       f_rrrr("rdha", "rfhb", "rfhc", "rfhd",
+                              roles=("src", "dst", "src", "src")), [],
+                       S00_QFC, excluded=True))
+    records.append(rec("cs.p-rd", "cs.p", "rrrr", 0x64,
+                       f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
+                              roles=("src", "dst", "src", "src")),
+                       ["rdhb != rd0"], S01_CS))
+    records.append(rec("cs.p-rf", "cs.p", "rrrr", 0x65,
+                       f_rrrr("rdha", "rfhb", "rfhc", "rfhd",
+                              roles=("src", "dst", "src", "src")), [],
+                       S00_QFC, excluded=True))
+    records.append(rec("cs.eq-rd", "cs.eq", "rrrr", 0x66,
+                       f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
+                              roles=("src", "src", "dst", "src")),
+                       ["rdhc != rd0"], S01_CS))
+    records.append(rec("cs.ne-rd", "cs.ne", "rrrr", 0x67,
+                       f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
+                              roles=("src", "src", "dst", "src")),
+                       ["rdhc != rd0"], S01_CS))
+
+    # ── 0110-1xxx：条件跳转（rd）──
+    for op, mnem in [(0x68, "br.n"), (0x69, "br.nn"), (0x6A, "br.z"),
+                     (0x6B, "br.nz"), (0x6C, "br.p"), (0x6D, "br.np")]:
+        records.append(rec(f"{mnem}-rd", mnem, "riii", op,
+                           f_riii("rdha", "imms18", role="src"), [], S02_BR))
+    for op, mnem in [(0x6E, "br.eq"), (0x6F, "br.ne")]:
+        records.append(rec(f"{mnem}-rd", mnem, "rrii", op,
+                           f_rrii("rdha", "rdhb", "imms12", roles=("src", "src")),
+                           [], S02_BR))
+
+    # ── 0111-0xxx：无条件跳转 / 调用 / 返回 / 占位 ──
+    records.append(rec("jump-iiii", "jump", "iiii", 0x70,
+                       f_iiii("imms24"), [], S02_JMP))
+    records.append(rec("jump-rrii", "jump", "rrii", 0x71,
+                       f_rrii("rbha", "rdhb", "imms12", roles=("src", "src")),
+                       [], S02_JMP))
+    records.append(rec("br.z-rb", "br.z", "riii", 0x72,
+                       f_riii("rbha", "imms18", role="src"), [], S02_BR))
+    records.append(rec("br.nz-rb", "br.nz", "riii", 0x73,
+                       f_riii("rbha", "imms18", role="src"), [], S02_BR))
+    records.append(rec("call-iiii", "call", "iiii", 0x74,
+                       f_iiii("imms24"), [], S02_CALL))
+    records.append(rec("call-rrii", "call", "rrii", 0x75,
+                       f_rrii("rbha", "rdhb", "imms12", roles=("src", "src")),
+                       [], S02_CALL))
+    records.append(rec("ret-riii", "ret", "riii", 0x76,
+                       f_riii("rdha", "imms18"), [], S02_RET))
+    records.append(rec("swym-iiii", "swym", "iiii", 0x77,
+                       f_iiii("immu24"), [], S04_SWYM))
+
+    # ── 0111-1xxx：特权 cfx（excluded）──
+    records.append(rec("cfx2rd-crrr", "cfx2rd", "crrr", 0x7A,
+                       f_crrr(), [], S00_QFC, excluded=True))
+    records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
+                       f_crrr(), [], S00_QFC, excluded=True))
+    records.append(rec("cfxld-crii", "cfxld", "crii", 0x7C,
+                       f_crii("immu12"), [], S00_QFC, excluded=True))
+    records.append(rec("cfxst-crii", "cfxst", "crii", 0x7D,
+                       f_crii("immu12"), [], S00_QFC, excluded=True))
+    records.append(rec("escape-ciii", "escape", "ciii", 0x7E,
+                       f_ciii("imms18"), [], S00_QFC, excluded=True))
+    records.append(rec("trap-ciii", "trap", "ciii", 0x7F,
+                       f_ciii("immu18"), [], S00_QFC, excluded=True))
+
+
+# ────────────────────────────── MISC-AMO ──────────────────────────────
+
+def build_misc_amo(records):
+    op = 0x00
+    records.append(rec("illi", "illi", "oiii", op, f_oiii("immu18"),
+                       [], S04_ILLI, ha=0x00))
+    records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
+                       ["immu18_hi == 0", "immu18_mid == 0", "immu18_lo[5:4] == 0"],
+                       S04_FENCE, ha=0x01))
+    # spec MISC-AMO 表：行 010-xxx（lr）/ 011-xxx（sc）→ ha 0x10-0x13 / 0x18-0x1B
+    for i, mnem in enumerate(["lr_nn.o", "lr_nr.o", "lr_an.o", "lr_ar.o"]):
+        records.append(rec(mnem, mnem, "orrr", op,
+                           f_orrr("rdhb", "rdhc", "rbhd"), [],
+                           S04_LRSC, ha=0x10 + i, excluded=True))
+    for i, mnem in enumerate(["sc_nn.o", "sc_nr.o", "sc_an.o", "sc_ar.o"]):
+        records.append(rec(mnem, mnem, "orrr", op,
+                           f_orrr("rdhb", "rdhc", "rbhd"), [],
+                           S04_LRSC, ha=0x18 + i, excluded=True))
+
+
+# ────────────────────────────── MISC-octa ──────────────────────────────
+
+def build_misc_octa(records):
+    op = 0x40
+    for i, mnem in enumerate(["and.o", "or.o", "xor.o", "xnor.o"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S01_LOG, ha=0x08 + i))
+    for i, mnem in enumerate(["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S01_BIT, ha=0x10 + i))
+    for i, mnem in enumerate(["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]):
+        records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                           ["rdhb != rd0", "immu6 <= 63"], S01_BIT, ha=0x18 + i))
+    records.append(rec("add.so-rb", "add.so", "orrr", op,
+                       f_orrr("rbhb", "rbhc", "rdhd"), ["rbhb != rb0"],
+                       S02_ADD, ha=0x20))
+    records.append(rec("sub.so-rb", "sub.so", "orrr", op,
+                       f_orrr("rbhb", "rbhc", "rdhd"), ["rbhb != rb0"],
+                       S02_ADD, ha=0x28))
+    records.append(rec("cmp.uo-rb", "cmp.uo", "orrr", op,
+                       f_orrr("rdhb", "rbhc", "rbhd"), ["rdhb != rd0"],
+                       S02_CMP, ha=0x29))
+    records.append(rec("cmp.uo", "cmp.uo", "orrr", op,
+                       f_orrr("rdhb", "rdhc", "rdhd"), ["rdhb != rd0"],
+                       S01_CMP, ha=0x2A))
+    records.append(rec("cmp.so", "cmp.so", "orrr", op,
+                       f_orrr("rdhb", "rdhc", "rdhd"), ["rdhb != rd0"],
+                       S01_CMP, ha=0x2B))
+    records.append(rec("rd2rd", "rd2rd", "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                       ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64", "rdhc + immu6 <= 64"],
+                       S01_BLK, ha=0x2C))
+    records.append(rec("rd2ra", "rd2ra", "orri", op, f_orri("rahb", "rdhc", "immu6"),
+                       [LEG_IMMU6, "rahb + immu6 <= 64", "rdhc + immu6 <= 64"],
+                       S02_BLK, ha=0x2D))
+    records.append(rec("ra2rd", "ra2rd", "orri", op, f_orri("rdhb", "rahc", "immu6"),
+                       ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64", "rahc + immu6 <= 64"],
+                       S02_BLK, ha=0x2E))
+    records.append(rec("rb2rb", "rb2rb", "orri", op, f_orri("rbhb", "rbhc", "immu6"),
+                       ["rbhb != rb0", LEG_IMMU6, "rbhb + immu6 <= 64", "rbhc + immu6 <= 64"],
+                       S02_BLK, ha=0x34))
+    records.append(rec("rd2rb", "rd2rb", "orri", op, f_orri("rbhb", "rdhc", "immu6"),
+                       ["rbhb != rb0", LEG_IMMU6, "rbhb + immu6 <= 64", "rdhc + immu6 <= 64"],
+                       S02_BLK, ha=0x35))
+    records.append(rec("rb2rd", "rb2rd", "orri", op, f_orri("rdhb", "rbhc", "immu6"),
+                       ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64", "rbhc + immu6 <= 64"],
+                       S02_BLK, ha=0x36))
+    for i, mnem in enumerate(["div.uo", "div.so", "rem.uo", "rem.so"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0", "rdhd != 0"], S01_MUL, ha=0x38 + i))
+    # RF 块赋值（excluded）
+    records.append(rec("rd2rf", "rd2rf", "orri", op, f_orri("rfhb", "rdhc", "immu6"),
+                       [], S00_MISCRF, ha=0x3D, excluded=True))
+    records.append(rec("rf2rd", "rf2rd", "orri", op, f_orri("rdhb", "rfhc", "immu6"),
+                       [], S00_MISCRF, ha=0x3E, excluded=True))
+
+
+# ────────────────────────────── MISC 固定位宽子表 ──────────────────────────────
+
+def build_misc_fixed_width(records, op, suffix, nbits):
+    """suffix: 't'/'w'/'b'；nbits: 31/15/7。"""
+    # 逻辑运算 orrr（ha 0x08-0x0B）
+    for i, base in enumerate(["and", "or", "xor", "xnor"]):
+        mnem = f"{base}.{suffix}"
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S01_LOG, ha=0x08 + i))
+    # ext/shr/shl orrr（ha 0x10-0x14）
+    for i, mnem in enumerate([f"ext.u{suffix}", f"ext.s{suffix}",
+                              f"shr.u{suffix}", f"shr.s{suffix}",
+                              f"shl.u{suffix}"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S01_BIT, ha=0x10 + i))
+    # ext/shr/shl orri（ha 0x18-0x1C）
+    for i, mnem in enumerate([f"ext.u{suffix}", f"ext.s{suffix}",
+                              f"shr.u{suffix}", f"shr.s{suffix}",
+                              f"shl.u{suffix}"]):
+        records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                           ["rdhb != rd0", f"immu6 <= {nbits}"], S01_BIT, ha=0x18 + i))
+    # add（ha 0x20-0x21）
+    for i, mnem in enumerate([f"add.u{suffix}", f"add.s{suffix}"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S01_ADD, ha=0x20 + i))
+    # sub（ha 0x28-0x29）
+    for i, mnem in enumerate([f"sub.u{suffix}", f"sub.s{suffix}"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S01_ADD, ha=0x28 + i))
+    # cmp（ha 0x2A-0x2B）
+    for i, mnem in enumerate([f"cmp.u{suffix}", f"cmp.s{suffix}"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S01_CMP, ha=0x2A + i))
+    # mul（ha 0x30-0x31）
+    for i, mnem in enumerate([f"mul.u{suffix}", f"mul.s{suffix}"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S01_MUL, ha=0x30 + i))
+    # div/rem（ha 0x38-0x3B）
+    for i, mnem in enumerate([f"div.u{suffix}", f"div.s{suffix}",
+                              f"rem.u{suffix}", f"rem.s{suffix}"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0", "rdhd != 0"], S01_MUL, ha=0x38 + i))
+
+
+# ────────────────────────────── MISC-RF（全 excluded）──────────────────────────────
+
+def build_misc_rf(records):
+    op = 0x44
+    # orri 单目/格式转换类（rf -> rd 或 rd -> rf）
+    orri_entries = [
+        (0x00, "ftcls", "rdhb", "rfhc"),
+        (0x01, "ft2fo", "rfhb", "rfhc"),
+        (0x02, "ft2ft", "rfhb", "rfhc"),
+        (0x06, "ftroot", "rfhb", "rfhc"),
+        (0x07, "ftlog", "rfhb", "rfhc"),
+        (0x08, "focls", "rdhb", "rfhc"),
+        (0x09, "fo2ft", "rfhb", "rfhc"),
+        (0x0A, "fo2fo", "rfhb", "rfhc"),
+        (0x0E, "foroot", "rfhb", "rfhc"),
+        (0x0F, "folog", "rfhb", "rfhc"),
+        (0x30, "ft2it", "rdhb", "rfhc"),
+        (0x31, "ft2io", "rdhb", "rfhc"),
+        (0x32, "ft2ut", "rdhb", "rfhc"),
+        (0x33, "ft2uo", "rdhb", "rfhc"),
+        (0x34, "it2ft", "rfhb", "rdhc"),
+        (0x35, "io2ft", "rfhb", "rdhc"),
+        (0x36, "ut2ft", "rfhb", "rdhc"),
+        (0x37, "uo2ft", "rfhb", "rdhc"),
+        (0x38, "fo2it", "rdhb", "rfhc"),
+        (0x39, "fo2io", "rdhb", "rfhc"),
+        (0x3A, "fo2ut", "rdhb", "rfhc"),
+        (0x3B, "fo2uo", "rdhb", "rfhc"),
+        (0x3C, "it2fo", "rfhb", "rdhc"),
+        (0x3D, "io2fo", "rfhb", "rdhc"),
+        (0x3E, "ut2fo", "rfhb", "rdhc"),
+        (0x3F, "uo2fo", "rfhb", "rdhc"),
     ]
-
-def generate_orrr_fields(dst_name="rdhb", src1_name="rdhc", src2_name="rdhd"):
-    """生成 orrr 格式的字段"""
-    return [
-        create_field("ha", "[23:18]", "minor_op", "imm"),
-        create_field(dst_name, "[17:12]", "dst", get_bank_from_field_name(dst_name)),
-        create_field(src1_name, "[11:6]", "src", get_bank_from_field_name(src1_name)),
-        create_field(src2_name, "[5:0]", "src", get_bank_from_field_name(src2_name))
+    for ha, mnem, dst, src in orri_entries:
+        records.append(rec(mnem, mnem, "orri", op, f_orri(dst, src, "immu6"),
+                           [], S00_MISCRF, ha=ha, excluded=True))
+    # orrr 双目运算/比较类
+    orrr_entries = [
+        (0x10, "ftadd"), (0x11, "ftsub"), (0x12, "ftmul"), (0x13, "ftdiv"),
+        (0x14, "ftrem"), (0x15, "ftsclb"), (0x16, "ftsgnn"), (0x17, "ftsgnj"),
+        (0x18, "foadd"), (0x19, "fosub"), (0x1A, "fomul"), (0x1B, "fodiv"),
+        (0x1C, "forem"), (0x1D, "fosclb"), (0x1E, "fosgnn"), (0x1F, "fosgnj"),
     ]
+    for ha, mnem in orrr_entries:
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rfhb", "rfhc", "rfhd"),
+                           [], S00_MISCRF, ha=ha, excluded=True))
+    # 比较类：目的为 rd
+    cmp_entries = [(0x20, "ftqcmp"), (0x21, "ftscmp"), (0x28, "foqcmp"), (0x29, "foscmp")]
+    for ha, mnem in cmp_entries:
+        records.append(rec(mnem, mnem, "orrr", op,
+                           f_orrr("rdhb", "rfhc", "rfhd"), [],
+                           S00_MISCRF, ha=ha, excluded=True))
 
-def generate_orri_fields(dst_name="rdhb", src_name="rdhc", imm_name="immu6"):
-    """生成 orri 格式的字段"""
-    return [
-        create_field("ha", "[23:18]", "minor_op", "imm"),
-        create_field(dst_name, "[17:12]", "dst", get_bank_from_field_name(dst_name)),
-        create_field(src_name, "[11:6]", "src", get_bank_from_field_name(src_name)),
-        create_field(imm_name, "[5:0]", "imm", "imm", signed=False)
-    ]
 
-def generate_rrii_fields(dst_name="rdha", src_name="rbhb", imm_name="imms12"):
-    """生成 rrii 格式的字段"""
-    return [
-        create_field(dst_name, "[23:18]", "dst", get_bank_from_field_name(dst_name)),
-        create_field(src_name, "[17:12]", "src", get_bank_from_field_name(src_name)),
-        create_field(f"{imm_name}_hi", "[11:6]", "imm", "imm"),
-        create_field(f"{imm_name}_lo", "[5:0]", "imm", "imm")
-    ]
-
-def generate_riii_fields(dst_name="rdha", imm_name="imms18"):
-    """生成 riii 格式的字段"""
-    return [
-        create_field(dst_name, "[23:18]", "dst", get_bank_from_field_name(dst_name)),
-        create_field(f"{imm_name}_hi", "[17:12]", "imm", "imm"),
-        create_field(f"{imm_name}_mid", "[11:6]", "imm", "imm"),
-        create_field(f"{imm_name}_lo", "[5:0]", "imm", "imm")
-    ]
-
-def generate_iiii_fields(imm_name="imms24"):
-    """生成 iiii 格式的字段"""
-    return [
-        create_field(f"{imm_name}_b23_18", "[23:18]", "imm", "imm"),
-        create_field(f"{imm_name}_b17_12", "[17:12]", "imm", "imm"),
-        create_field(f"{imm_name}_b11_6", "[11:6]", "imm", "imm"),
-        create_field(f"{imm_name}_b5_0", "[5:0]", "imm", "imm")
-    ]
-
-def generate_rwii_fields(dst_name="rdha", wp_name="wpN", imm_name="immu16"):
-    """生成 rwii 格式的字段"""
-    return [
-        create_field(dst_name, "[23:18]", "dst", get_bank_from_field_name(dst_name)),
-        create_field(wp_name, "[17:16]", "wyde_pos", "imm"),
-        create_field(f"{imm_name}_hi", "[15:12]", "imm", "imm"),
-        create_field(f"{imm_name}_mid", "[11:6]", "imm", "imm"),
-        create_field(f"{imm_name}_lo", "[5:0]", "imm", "imm")
-    ]
-
-def generate_oiii_fields(imm_name="immu18"):
-    """生成 oiii 格式的字段"""
-    return [
-        create_field("ha", "[23:18]", "minor_op", "imm"),
-        create_field(f"{imm_name}_hi", "[17:12]", "imm", "imm"),
-        create_field(f"{imm_name}_mid", "[11:6]", "imm", "imm"),
-        create_field(f"{imm_name}_lo", "[5:0]", "imm", "imm")
-    ]
-
-def generate_crrr_fields(cfx_name="cfxcode", cg_name="cghb", rc_name="rchc", rd_name="rdhd"):
-    """生成 crrr 格式的字段"""
-    return [
-        create_field(cfx_name, "[23:18]", "cfxcode", "imm"),
-        create_field(cg_name, "[17:12]", "cfx_cg", "imm"),
-        create_field(rc_name, "[11:6]", "cfx_rc", "imm"),
-        create_field(rd_name, "[5:0]", "dst", get_bank_from_field_name(rd_name))
-    ]
-
-def generate_crii_fields(rb_name="rbhb", imm_name="immu12"):
-    """生成 crii 格式的字段"""
-    return [
-        create_field("cfxcode", "[23:18]", "cfxcode", "imm"),
-        create_field(rb_name, "[17:12]", "src", get_bank_from_field_name(rb_name)),
-        create_field(f"{imm_name}_hi", "[11:6]", "imm", "imm"),
-        create_field(f"{imm_name}_lo", "[5:0]", "imm", "imm")
-    ]
-
-def generate_ciii_fields(imm_name="immu18"):
-    """生成 ciii 格式的字段"""
-    return [
-        create_field("cfxcode", "[23:18]", "cfxcode", "imm"),
-        create_field(f"{imm_name}_hi", "[17:12]", "imm", "imm"),
-        create_field(f"{imm_name}_mid", "[11:6]", "imm", "imm"),
-        create_field(f"{imm_name}_lo", "[5:0]", "imm", "imm")
-    ]
+# ────────────────────────────── 主流程 ──────────────────────────────
 
 def main():
     records = []
-    
-    # ======================================================================
-    # 主 QFC 表指令
-    # ======================================================================
-    
-    # 0001-0xxx: 存取类指令
-    # ld.ub-rd-rrii, ld.uw-rd-rrii, ld.ut-rd-rrii, ld.sb-rd-rrii, ld.sw-rd-rrii, ld.st-rd-rrii, ld.t-rf-rrii, st.t-rf-rrii
-    op = 0x10
-    ld_rd_mnemonics = ["ld.ub-rd", "ld.uw-rd", "ld.ut-rd", "ld.sb-rd", "ld.sw-rd", "ld.st-rd"]
-    for i, mnem in enumerate(ld_rd_mnemonics):
-        records.append(create_record(
-            mnem, "rrii", op + i,
-            fields=generate_rrii_fields("rdha", "rbhb", "imms12"),
-            legality=["rdha != rd0"],
-            spec_cite="SimRISC-01 §存取RD寄存器"
-        ))
-    
-    # ld.t-rf-rrii, st.t-rf-rrii
-    records.append(create_record("ld.t-rf", "rrii", 0x16,
-        fields=generate_rrii_fields("rfha", "rbhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-03 §存取RF寄存器"
-    ))
-    records.append(create_record("st.t-rf", "rrii", 0x17,
-        fields=generate_rrii_fields("rfha", "rbhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-03 §存取RF寄存器"
-    ))
-    
-    # 0001-1xxx: st.b-rd-rrii, st.w-rd-rrii, st.t-rd-rrii
-    st_rd_mnemonics = ["st.b-rd", "st.w-rd", "st.t-rd"]
-    for i, mnem in enumerate(st_rd_mnemonics):
-        records.append(create_record(
-            mnem, "rrii", 0x18 + i,
-            fields=generate_rrii_fields("rdha", "rbhb", "imms12"),
-            legality=["rdha != rd0"],
-            spec_cite="SimRISC-01 §存取RD寄存器"
-        ))
-    
-    # 0010-0xxx: ld.o-rd-rrii, st.o-rd-rrii, ld.o-rb-rrii, st.o-rb-rrii, ld.o-ra-rrii, st.o-ra-rrii, ld.o-rf-rrii, st.o-rf-rrii
-    records.append(create_record("ld.o-rd", "rrii", 0x20,
-        fields=generate_rrii_fields("rdha", "rbhb", "imms12"),
-        legality=["rdha != rd0"],
-        spec_cite="SimRISC-01 §存取RD寄存器"
-    ))
-    records.append(create_record("st.o-rd", "rrii", 0x21,
-        fields=generate_rrii_fields("rdha", "rbhb", "imms12"),
-        legality=["rdha != rd0"],
-        spec_cite="SimRISC-01 §存取RD寄存器"
-    ))
-    records.append(create_record("ld.o-rb", "rrii", 0x22,
-        fields=generate_rrii_fields("rbha", "rbhb", "imms12"),
-        legality=["rbha != rb0"],
-        spec_cite="SimRISC-02 §存取RB寄存器"
-    ))
-    records.append(create_record("st.o-rb", "rrii", 0x23,
-        fields=generate_rrii_fields("rbha", "rbhb", "imms12"),
-        legality=["rbha != rb0"],
-        spec_cite="SimRISC-02 §存取RB寄存器"
-    ))
-    records.append(create_record("ld.o-ra", "rrii", 0x24,
-        fields=generate_rrii_fields("raha", "rbhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-02 §存取RA寄存器"
-    ))
-    records.append(create_record("st.o-ra", "rrii", 0x25,
-        fields=generate_rrii_fields("raha", "rbhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-02 §存取RA寄存器"
-    ))
-    records.append(create_record("ld.o-rf", "rrii", 0x26,
-        fields=generate_rrii_fields("rfha", "rbhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-03 §存取RF寄存器"
-    ))
-    records.append(create_record("st.o-rf", "rrii", 0x27,
-        fields=generate_rrii_fields("rfha", "rbhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-03 §存取RF寄存器"
-    ))
-    
-    # 0010-1xxx: ldm.ub-rd-rrri, ldm.uw-rd-rrri, ldm.ut-rd-rrri, ldm.sb-rd-rrri, ldm.sw-rd-rrri, ldm.st-rd-rrri, ldm.t-rf-rrri, stm.t-rf-rrri
-    ldm_rd_mnemonics = ["ldm.ub-rd", "ldm.uw-rd", "ldm.ut-rd", "ldm.sb-rd", "ldm.sw-rd", "ldm.st-rd"]
-    for i, mnem in enumerate(ldm_rd_mnemonics):
-        records.append(create_record(
-            mnem, "rrri", 0x28 + i,
-            fields=[
-                create_field("rdha", "[23:18]", "dst", "rd"),
-                create_field("rbhb", "[17:12]", "src", "rb"),
-                create_field("rdhc", "[11:6]", "src", "rd"),
-                create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-            ],
-            legality=["rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"],
-            spec_cite="SimRISC-01 §存取RD寄存器"
-        ))
-    
-    records.append(create_record("ldm.t-rf", "rrri", 0x2E,
-        fields=[
-            create_field("rfha", "[23:18]", "dst", "rf"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["immu6 != 0", "rfha + immu6 <= 64"],
-        spec_cite="SimRISC-03 §存取RF寄存器"
-    ))
-    records.append(create_record("stm.t-rf", "rrri", 0x2F,
-        fields=[
-            create_field("rfha", "[23:18]", "src", "rf"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["immu6 != 0", "rfha + immu6 <= 64"],
-        spec_cite="SimRISC-03 §存取RF寄存器"
-    ))
-    
-    # 0011-0xxx: stm.b-rd-rrri, stm.w-rd-rrri, stm.t-rd-rrri
-    stm_rd_mnemonics = ["stm.b-rd", "stm.w-rd", "stm.t-rd"]
-    for i, mnem in enumerate(stm_rd_mnemonics):
-        records.append(create_record(
-            mnem, "rrri", 0x30 + i,
-            fields=[
-                create_field("rdha", "[23:18]", "src", "rd"),
-                create_field("rbhb", "[17:12]", "src", "rb"),
-                create_field("rdhc", "[11:6]", "src", "rd"),
-                create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-            ],
-            legality=["rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"],
-            spec_cite="SimRISC-01 §存取RD寄存器"
-        ))
-    
-    # 0011-1xxx: ldm.o-rd-rrri, stm.o-rd-rrri, ldm.o-rb-rrri, stm.o-rb-rrri, ldm.o-ra-rrri, stm.o-ra-rrri, ldm.o-rf-rrri, stm.o-rf-rrri
-    records.append(create_record("ldm.o-rd", "rrri", 0x38,
-        fields=[
-            create_field("rdha", "[23:18]", "dst", "rd"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"],
-        spec_cite="SimRISC-01 §存取RD寄存器"
-    ))
-    records.append(create_record("stm.o-rd", "rrri", 0x39,
-        fields=[
-            create_field("rdha", "[23:18]", "src", "rd"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"],
-        spec_cite="SimRISC-01 §存取RD寄存器"
-    ))
-    records.append(create_record("ldm.o-rb", "rrri", 0x3A,
-        fields=[
-            create_field("rbha", "[23:18]", "dst", "rb"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["rbha != rb0", "immu6 != 0", "rbha + immu6 <= 64"],
-        spec_cite="SimRISC-02 §存取RB寄存器"
-    ))
-    records.append(create_record("stm.o-rb", "rrri", 0x3B,
-        fields=[
-            create_field("rbha", "[23:18]", "src", "rb"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["rbha != rb0", "immu6 != 0", "rbha + immu6 <= 64"],
-        spec_cite="SimRISC-02 §存取RB寄存器"
-    ))
-    records.append(create_record("ldm.o-ra", "rrri", 0x3C,
-        fields=[
-            create_field("raha", "[23:18]", "dst", "ra"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["immu6 != 0", "raha + immu6 <= 64"],
-        spec_cite="SimRISC-02 §存取RA寄存器"
-    ))
-    records.append(create_record("stm.o-ra", "rrri", 0x3D,
-        fields=[
-            create_field("raha", "[23:18]", "src", "ra"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["immu6 != 0", "raha + immu6 <= 64"],
-        spec_cite="SimRISC-02 §存取RA寄存器"
-    ))
-    records.append(create_record("ldm.o-rf", "rrri", 0x3E,
-        fields=[
-            create_field("rfha", "[23:18]", "dst", "rf"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["immu6 != 0", "rfha + immu6 <= 64"],
-        spec_cite="SimRISC-03 §存取RF寄存器"
-    ))
-    records.append(create_record("stm.o-rf", "rrri", 0x3F,
-        fields=[
-            create_field("rfha", "[23:18]", "src", "rf"),
-            create_field("rbhb", "[17:12]", "src", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["immu6 != 0", "rfha + immu6 <= 64"],
-        spec_cite="SimRISC-03 §存取RF寄存器"
-    ))
-    
-    # 0100-0xxx: MISC-octa, MISC-tetra, MISC-wyde, MISC-byte, MISC-RF
-    # 这些是子表的入口，不直接生成指令
-    
-    # 0100-1xxx: 立即数赋值指令
-    records.append(create_record("or.w-rd", "rwii", 0x48,
-        fields=generate_rwii_fields("rdha", "wpN", "immu16"),
-        legality=[],
-        spec_cite="SimRISC-01 §立即数常数赋值"
-    ))
-    records.append(create_record("andn.w-rd", "rwii", 0x49,
-        fields=generate_rwii_fields("rdha", "wpN", "immu16"),
-        legality=[],
-        spec_cite="SimRISC-01 §立即数常数赋值"
-    ))
-    records.append(create_record("or.w-rb", "rwii", 0x4A,
-        fields=generate_rwii_fields("rbha", "wpN", "immu16"),
-        legality=[],
-        spec_cite="SimRISC-02 §立即数常数赋值"
-    ))
-    records.append(create_record("andn.w-rb", "rwii", 0x4B,
-        fields=generate_rwii_fields("rbha", "wpN", "immu16"),
-        legality=[],
-        spec_cite="SimRISC-02 §立即数常数赋值"
-    ))
-    records.append(create_record("set.zw-rd", "rwii", 0x4C,
-        fields=generate_rwii_fields("rdha", "wpN", "immu16"),
-        legality=[],
-        spec_cite="SimRISC-01 §立即数常数赋值"
-    ))
-    records.append(create_record("set.ow-rd", "rwii", 0x4D,
-        fields=generate_rwii_fields("rdha", "wpN", "immu16"),
-        legality=[],
-        spec_cite="SimRISC-01 §立即数常数赋值"
-    ))
-    records.append(create_record("set.zw-rb", "rwii", 0x4E,
-        fields=generate_rwii_fields("rbha", "wpN", "immu16"),
-        legality=[],
-        spec_cite="SimRISC-02 §立即数常数赋值"
-    ))
-    records.append(create_record("set.w-rf", "rwii", 0x4F,
-        fields=generate_rwii_fields("rfha", "wpN", "immu16"),
-        legality=[],
-        spec_cite="SimRISC-03 §立即数常数赋值"
-    ))
-    
-    # 0101-0xxx: 算术运算指令
-    records.append(create_record("add.uo-rd", "rrrr", 0x50,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["!(rdha == rd0 && rdhb == rd0)"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("add.so-rd", "rrrr", 0x51,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["!(rdha == rd0 && rdhb == rd0)"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("sub.uo-rd", "rrrr", 0x52,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["!(rdha == rd0 && rdhb == rd0)"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("sub.so-rd", "rrrr", 0x53,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["!(rdha == rd0 && rdhb == rd0)"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("mul.uo-rd", "rrrr", 0x54,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["!(rdha == rd0 && rdhb == rd0)"],
-        spec_cite="SimRISC-01 §乘除操作"
-    ))
-    records.append(create_record("mul.so-rd", "rrrr", 0x55,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["!(rdha == rd0 && rdhb == rd0)"],
-        spec_cite="SimRISC-01 §乘除操作"
-    ))
-    records.append(create_record("ftmadd", "rrrr", 0x56,
-        fields=[
-            create_field("rfha", "[23:18]", "dst", "rf"),
-            create_field("rfhb", "[17:12]", "src", "rf"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rfha != rf0", "rfhb != rf0", "rfhc != rf0", "rfhd != rf0"],
-        spec_cite="SimRISC-03 §S3D1"
-    ))
-    records.append(create_record("fomadd", "rrrr", 0x57,
-        fields=[
-            create_field("rfha", "[23:18]", "dst", "rf"),
-            create_field("rfhb", "[17:12]", "src", "rf"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rfha != rf0", "rfhb != rf0", "rfhc != rf0", "rfhd != rf0"],
-        spec_cite="SimRISC-03 §S3D1"
-    ))
-    
-    # 0101-1xxx: 立即数加法、比较等
-    # 0x58: 空
-    records.append(create_record("add.si-rd", "riii", 0x59,
-        fields=generate_riii_fields("rdha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-01 §自增自减"
-    ))
-    records.append(create_record("rela.si-rb", "riii", 0x5A,
-        fields=generate_riii_fields("rbha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §PC相对寻址"
-    ))
-    records.append(create_record("add.si-rb", "riii", 0x5B,
-        fields=generate_riii_fields("rbha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §自增自减"
-    ))
-    records.append(create_record("cmp.ui-rd", "rrii", 0x5C,
-        fields=generate_rrii_fields("rdha", "rdhb", "immu12"),
-        legality=["rdha != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    records.append(create_record("cmp.si-rd", "rrii", 0x5D,
-        fields=generate_rrii_fields("rdha", "rdhb", "imms12"),
-        legality=["rdha != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    records.append(create_record("cs.eq-rf", "rrrr", 0x5E,
-        fields=[
-            create_field("rdha", "[23:18]", "src", "rd"),
-            create_field("rdhb", "[17:12]", "src", "rd"),
-            create_field("rfhc", "[11:6]", "dst", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rfhc != rf0"],
-        spec_cite="SimRISC-03 §浮点条件赋值指令"
-    ))
-    records.append(create_record("cs.ne-rf", "rrrr", 0x5F,
-        fields=[
-            create_field("rdha", "[23:18]", "src", "rd"),
-            create_field("rdhb", "[17:12]", "src", "rd"),
-            create_field("rfhc", "[11:6]", "dst", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rfhc != rf0"],
-        spec_cite="SimRISC-03 §浮点条件赋值指令"
-    ))
-    
-    # 0110-0xxx: 条件赋值指令
-    records.append(create_record("cs.n-rd", "rrrr", 0x60,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §条件赋值"
-    ))
-    records.append(create_record("cs.n-rf", "rrrr", 0x61,
-        fields=[
-            create_field("rdha", "[23:18]", "src", "rd"),
-            create_field("rfhb", "[17:12]", "dst", "rf"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rfhb != rf0"],
-        spec_cite="SimRISC-03 §浮点条件赋值指令"
-    ))
-    records.append(create_record("cs.z-rd", "rrrr", 0x62,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §条件赋值"
-    ))
-    records.append(create_record("cs.z-rf", "rrrr", 0x63,
-        fields=[
-            create_field("rdha", "[23:18]", "src", "rd"),
-            create_field("rfhb", "[17:12]", "dst", "rf"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rfhb != rf0"],
-        spec_cite="SimRISC-03 §浮点条件赋值指令"
-    ))
-    records.append(create_record("cs.p-rd", "rrrr", 0x64,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §条件赋值"
-    ))
-    records.append(create_record("cs.p-rf", "rrrr", 0x65,
-        fields=[
-            create_field("rdha", "[23:18]", "src", "rd"),
-            create_field("rfhb", "[17:12]", "dst", "rf"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rfhb != rf0"],
-        spec_cite="SimRISC-03 §浮点条件赋值指令"
-    ))
-    records.append(create_record("cs.eq-rd", "rrrr", 0x66,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["rdhc != rd0"],
-        spec_cite="SimRISC-01 §条件赋值"
-    ))
-    records.append(create_record("cs.ne-rd", "rrrr", 0x67,
-        fields=generate_rrrr_fields("rdha", "rdhb", "rdhc", "rdhd"),
-        legality=["rdhc != rd0"],
-        spec_cite="SimRISC-01 §条件赋值"
-    ))
-    
-    # 0110-1xxx: 条件跳转指令
-    records.append(create_record("br.n-rd", "riii", 0x68,
-        fields=generate_riii_fields("rdha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    records.append(create_record("br.nn-rd", "riii", 0x69,
-        fields=generate_riii_fields("rdha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    records.append(create_record("br.z-rd", "riii", 0x6A,
-        fields=generate_riii_fields("rdha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    records.append(create_record("br.nz-rd", "riii", 0x6B,
-        fields=generate_riii_fields("rdha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    records.append(create_record("br.p-rd", "riii", 0x6C,
-        fields=generate_riii_fields("rdha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    records.append(create_record("br.np-rd", "riii", 0x6D,
-        fields=generate_riii_fields("rdha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    records.append(create_record("br.eq-rd", "rrii", 0x6E,
-        fields=generate_rrii_fields("rdha", "rdhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    records.append(create_record("br.ne-rd", "rrii", 0x6F,
-        fields=generate_rrii_fields("rdha", "rdhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    
-    # 0111-0xxx: 无条件跳转、函数调用等
-    records.append(create_record("jump-iiii", "iiii", 0x70,
-        fields=generate_iiii_fields("imms24"),
-        legality=[],
-        spec_cite="SimRISC-02 §无条件跳转指令"
-    ))
-    records.append(create_record("jump-rrii", "rrii", 0x71,
-        fields=generate_rrii_fields("rbha", "rdhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-02 §无条件跳转指令"
-    ))
-    records.append(create_record("br.z-rb", "riii", 0x72,
-        fields=generate_riii_fields("rbha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    records.append(create_record("br.nz-rb", "riii", 0x73,
-        fields=generate_riii_fields("rbha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §条件跳转指令"
-    ))
-    records.append(create_record("call-iiii", "iiii", 0x74,
-        fields=generate_iiii_fields("imms24"),
-        legality=[],
-        spec_cite="SimRISC-02 §函数调用"
-    ))
-    records.append(create_record("call-rrii", "rrii", 0x75,
-        fields=generate_rrii_fields("rbha", "rdhb", "imms12"),
-        legality=[],
-        spec_cite="SimRISC-02 §函数调用"
-    ))
-    records.append(create_record("ret-riii", "riii", 0x76,
-        fields=generate_riii_fields("rdha", "imms18"),
-        legality=[],
-        spec_cite="SimRISC-02 §函数返回"
-    ))
-    records.append(create_record("swym-iiii", "iiii", 0x77,
-        fields=generate_iiii_fields("immu24"),
-        legality=[],
-        spec_cite="SimRISC-04 §占位指令"
-    ))
-    
-    # 0111-1xxx: 特权指令
-    records.append(create_record("cfx2rd-crrr", "crrr", 0x7A,
-        fields=generate_crrr_fields(),
-        legality=[],
-        spec_cite="SimRISC-04 §寄存器传输指令"
-    ))
-    records.append(create_record("cfx2rc-crrr", "crrr", 0x7B,
-        fields=generate_crrr_fields(),
-        legality=[],
-        spec_cite="SimRISC-04 §寄存器传输指令"
-    ))
-    records.append(create_record("cfxld-crii", "crii", 0x7C,
-        fields=generate_crii_fields(),
-        legality=[],
-        spec_cite="SimRISC-04 §SRAM块传输指令"
-    ))
-    records.append(create_record("cfxst-crii", "crii", 0x7D,
-        fields=generate_crii_fields(),
-        legality=[],
-        spec_cite="SimRISC-04 §SRAM块传输指令"
-    ))
-    records.append(create_record("escape-ciii", "ciii", 0x7E,
-        fields=generate_ciii_fields("imms18"),
-        legality=[],
-        spec_cite="SimRISC-04 §退出指令"
-    ))
-    records.append(create_record("trap-ciii", "ciii", 0x7F,
-        fields=generate_ciii_fields("immu18"),
-        legality=[],
-        spec_cite="SimRISC-04 §陷入指令"
-    ))
-    
-    # ======================================================================
-    # MISC-AMO 子表 (op=0x00)
-    # ======================================================================
-    misc_amo_op = 0x00
-    
-    # illi-oiii
-    records.append(create_record("illi", "oiii", misc_amo_op, ha=0x00,
-        fields=generate_oiii_fields("immu18"),
-        legality=[],
-        spec_cite="SimRISC-04 §非法指令"
-    ))
-    
-    # fence-oiii
-    records.append(create_record("fence", "oiii", misc_amo_op, ha=0x01,
-        fields=generate_oiii_fields("immu18"),
-        legality=[],
-        spec_cite="SimRISC-04 §fence指令"
-    ))
-    
-    # lr_nn.o-orrr, lr_nr.o-orrr, lr_an.o-orrr, lr_ar.o-orrr
-    lr_mnemonics = ["lr_nn.o", "lr_nr.o", "lr_an.o", "lr_ar.o"]
-    for i, mnem in enumerate(lr_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_amo_op, ha=0x20 + i,
-            fields=[
-                create_field("ha", "[23:18]", "minor_op", "imm"),
-                create_field("rdhb", "[17:12]", "dst", "rd"),
-                create_field("rdhc", "[11:6]", "src", "rd"),
-                create_field("rbhd", "[5:0]", "src", "rb")
-            ],
-            legality=["rdhb == rd0"],
-            spec_cite="SimRISC-04 §LR-SC指令"
-        ))
-    
-    # sc_nn.o-orrr, sc_nr.o-orrr, sc_an.o-orrr, sc_ar.o-orrr
-    sc_mnemonics = ["sc_nn.o", "sc_nr.o", "sc_an.o", "sc_ar.o"]
-    for i, mnem in enumerate(sc_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_amo_op, ha=0x30 + i,
-            fields=[
-                create_field("ha", "[23:18]", "minor_op", "imm"),
-                create_field("rdhb", "[17:12]", "dst", "rd"),
-                create_field("rdhc", "[11:6]", "src", "rd"),
-                create_field("rbhd", "[5:0]", "src", "rb")
-            ],
-            legality=[],
-            spec_cite="SimRISC-04 §LR-SC指令"
-        ))
-    
-    # ======================================================================
-    # MISC-octa 子表 (op=0x40)
-    # ======================================================================
-    misc_octa_op = 0x40
-    
-    # and.o-orrr, or.o-orrr, xor.o-orrr, xnor.o-orrr
-    logic_octa_mnemonics = ["and.o", "or.o", "xor.o", "xnor.o"]
-    for i, mnem in enumerate(logic_octa_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_octa_op, ha=0x08 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §逻辑运算"
-        ))
-    
-    # ext.uo-orrr, ext.so-orrr, shr.uo-orrr, shr.so-orrr, shl.uo-orrr
-    ext_octa_mnemonics = ["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]
-    for i, mnem in enumerate(ext_octa_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_octa_op, ha=0x10 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §位操作"
-        ))
-    
-    # ext.uo-orri, ext.so-orri, shr.uo-orri, shr.so-orri, shl.uo-orri
-    for i, mnem in enumerate(ext_octa_mnemonics):
-        records.append(create_record(mnem, "orri", misc_octa_op, ha=0x18 + i,
-            fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §位操作"
-        ))
-    
-    # add.so-rb-orrr
-    records.append(create_record("add.so-rb", "orrr", misc_octa_op, ha=0x20,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rbhb", "[17:12]", "dst", "rb"),
-            create_field("rbhc", "[11:6]", "src", "rb"),
-            create_field("rdhd", "[5:0]", "src", "rd")
-        ],
-        legality=["rbhb != rb0"],
-        spec_cite="SimRISC-02 §加减操作"
-    ))
-    
-    # sub.so-rb-orrr, cmp.uo-rb-orrr, cmp.uo-orrr, cmp.so-orrr
-    records.append(create_record("sub.so-rb", "orrr", misc_octa_op, ha=0x28,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rbhb", "[17:12]", "dst", "rb"),
-            create_field("rbhc", "[11:6]", "src", "rb"),
-            create_field("rdhd", "[5:0]", "src", "rd")
-        ],
-        legality=["rbhb != rb0"],
-        spec_cite="SimRISC-02 §加减操作"
-    ))
-    records.append(create_record("cmp.uo-rb", "orrr", misc_octa_op, ha=0x29,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rdhb", "[17:12]", "dst", "rd"),
-            create_field("rbhc", "[11:6]", "src", "rb"),
-            create_field("rbhd", "[5:0]", "src", "rb")
-        ],
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-02 §比较操作"
-    ))
-    records.append(create_record("cmp.uo", "orrr", misc_octa_op, ha=0x2A,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    records.append(create_record("cmp.so", "orrr", misc_octa_op, ha=0x2B,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    
-    # rd2rd-orri, rd2ra-orri, ra2rd-orri
-    records.append(create_record("rd2rd", "orri", misc_octa_op, ha=0x2C,
-        fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
-        legality=["rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rdhc + immu6 <= 64"],
-        spec_cite="SimRISC-01 §寄存器组之间块赋值"
-    ))
-    records.append(create_record("rd2ra", "orri", misc_octa_op, ha=0x2D,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rahb", "[17:12]", "dst", "ra"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["immu6 != 0", "rahb + immu6 <= 64", "rdhc + immu6 <= 64"],
-        spec_cite="SimRISC-02 §寄存器组之间块赋值"
-    ))
-    records.append(create_record("ra2rd", "orri", misc_octa_op, ha=0x2E,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rdhb", "[17:12]", "dst", "rd"),
-            create_field("rahc", "[11:6]", "src", "ra"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rahc + immu6 <= 64"],
-        spec_cite="SimRISC-02 §寄存器组之间块赋值"
-    ))
-    
-    # rb2rb-orri, rd2rb-orri, rb2rd-orri
-    records.append(create_record("rb2rb", "orri", misc_octa_op, ha=0x34,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rbhb", "[17:12]", "dst", "rb"),
-            create_field("rbhc", "[11:6]", "src", "rb"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["rbhb != rb0", "immu6 != 0", "rbhb + immu6 <= 64", "rbhc + immu6 <= 64"],
-        spec_cite="SimRISC-02 §寄存器组之间块赋值"
-    ))
-    records.append(create_record("rd2rb", "orri", misc_octa_op, ha=0x35,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rbhb", "[17:12]", "dst", "rb"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["rbhb != rb0", "immu6 != 0", "rbhb + immu6 <= 64", "rdhc + immu6 <= 64"],
-        spec_cite="SimRISC-02 §寄存器组之间块赋值"
-    ))
-    records.append(create_record("rb2rd", "orri", misc_octa_op, ha=0x36,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rdhb", "[17:12]", "dst", "rd"),
-            create_field("rbhc", "[11:6]", "src", "rb"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rbhc + immu6 <= 64"],
-        spec_cite="SimRISC-02 §寄存器组之间块赋值"
-    ))
-    
-    # div.uo-orrr, div.so-orrr, rem.uo-orrr, rem.so-orrr
-    div_octa_mnemonics = ["div.uo", "div.so", "rem.uo", "rem.so"]
-    for i, mnem in enumerate(div_octa_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_octa_op, ha=0x38 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0", "rdhd != rd0"],
-            spec_cite="SimRISC-01 §乘除操作"
-        ))
-    
-    # rd2rf-orri, rf2rd-orri
-    records.append(create_record("rd2rf", "orri", misc_octa_op, ha=0x3E,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rfhb", "[17:12]", "dst", "rf"),
-            create_field("rdhc", "[11:6]", "src", "rd"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["immu6 != 0", "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"],
-        spec_cite="SimRISC-03 §寄存器组之间块赋值"
-    ))
-    records.append(create_record("rf2rd", "orri", misc_octa_op, ha=0x3F,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rdhb", "[17:12]", "dst", "rd"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("immu6", "[5:0]", "imm", "imm", signed=False)
-        ],
-        legality=["rdhb != rd0", "immu6 != 0", "rdhb + immu6 <= 64", "rfhc + immu6 <= 64"],
-        spec_cite="SimRISC-03 §寄存器组之间块赋值"
-    ))
-    
-    # ======================================================================
-    # MISC-tetra 子表 (op=0x41)
-    # ======================================================================
-    misc_tetra_op = 0x41
-    
-    # and.t-orrr, or.t-orrr, xor.t-orrr, xnor.t-orrr
-    logic_tetra_mnemonics = ["and.t", "or.t", "xor.t", "xnor.t"]
-    for i, mnem in enumerate(logic_tetra_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_tetra_op, ha=0x08 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §逻辑运算"
-        ))
-    
-    # ext.ut-orrr, ext.st-orrr, shr.ut-orrr, shr.st-orrr, shl.ut-orrr
-    ext_tetra_mnemonics = ["ext.ut", "ext.st", "shr.ut", "shr.st", "shl.ut"]
-    for i, mnem in enumerate(ext_tetra_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_tetra_op, ha=0x10 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §位操作"
-        ))
-    
-    # ext.ut-orri, ext.st-orri, shr.ut-orri, shr.st-orri, shl.ut-orri
-    for i, mnem in enumerate(ext_tetra_mnemonics):
-        records.append(create_record(mnem, "orri", misc_tetra_op, ha=0x18 + i,
-            fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §位操作"
-        ))
-    
-    # add.ut-orrr, add.st-orrr
-    records.append(create_record("add.ut", "orrr", misc_tetra_op, ha=0x20,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("add.st", "orrr", misc_tetra_op, ha=0x21,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    
-    # sub.ut-orrr, sub.st-orrr, cmp.ut-orrr, cmp.st-orrr
-    records.append(create_record("sub.ut", "orrr", misc_tetra_op, ha=0x28,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("sub.st", "orrr", misc_tetra_op, ha=0x29,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("cmp.ut", "orrr", misc_tetra_op, ha=0x2A,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    records.append(create_record("cmp.st", "orrr", misc_tetra_op, ha=0x2B,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    
-    # mul.ut-orrr, mul.st-orrr
-    records.append(create_record("mul.ut", "orrr", misc_tetra_op, ha=0x30,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §乘除操作"
-    ))
-    records.append(create_record("mul.st", "orrr", misc_tetra_op, ha=0x31,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §乘除操作"
-    ))
-    
-    # div.ut-orrr, div.st-orrr, rem.ut-orrr, rem.st-orrr
-    div_tetra_mnemonics = ["div.ut", "div.st", "rem.ut", "rem.st"]
-    for i, mnem in enumerate(div_tetra_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_tetra_op, ha=0x38 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0", "rdhd != rd0"],
-            spec_cite="SimRISC-01 §乘除操作"
-        ))
-    
-    # ======================================================================
-    # MISC-wyde 子表 (op=0x42)
-    # ======================================================================
-    misc_wyde_op = 0x42
-    
-    # and.w-orrr, or.w-orrr, xor.w-orrr, xnor.w-orrr
-    logic_wyde_mnemonics = ["and.w", "or.w", "xor.w", "xnor.w"]
-    for i, mnem in enumerate(logic_wyde_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_wyde_op, ha=0x08 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §逻辑运算"
-        ))
-    
-    # ext.uw-orrr, ext.sw-orrr, shr.uw-orrr, shr.sw-orrr, shl.uw-orrr
-    ext_wyde_mnemonics = ["ext.uw", "ext.sw", "shr.uw", "shr.sw", "shl.uw"]
-    for i, mnem in enumerate(ext_wyde_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_wyde_op, ha=0x10 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §位操作"
-        ))
-    
-    # ext.uw-orri, ext.sw-orri, shr.uw-orri, shr.sw-orri, shl.uw-orri
-    for i, mnem in enumerate(ext_wyde_mnemonics):
-        records.append(create_record(mnem, "orri", misc_wyde_op, ha=0x18 + i,
-            fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §位操作"
-        ))
-    
-    # add.uw-orrr, add.sw-orrr
-    records.append(create_record("add.uw", "orrr", misc_wyde_op, ha=0x20,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("add.sw", "orrr", misc_wyde_op, ha=0x21,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    
-    # sub.uw-orrr, sub.sw-orrr, cmp.uw-orrr, cmp.sw-orrr
-    records.append(create_record("sub.uw", "orrr", misc_wyde_op, ha=0x28,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("sub.sw", "orrr", misc_wyde_op, ha=0x29,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("cmp.uw", "orrr", misc_wyde_op, ha=0x2A,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    records.append(create_record("cmp.sw", "orrr", misc_wyde_op, ha=0x2B,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    
-    # mul.uw-orrr, mul.sw-orrr
-    records.append(create_record("mul.uw", "orrr", misc_wyde_op, ha=0x30,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §乘除操作"
-    ))
-    records.append(create_record("mul.sw", "orrr", misc_wyde_op, ha=0x31,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §乘除操作"
-    ))
-    
-    # div.uw-orrr, div.sw-orrr, rem.uw-orrr, rem.sw-orrr
-    div_wyde_mnemonics = ["div.uw", "div.sw", "rem.uw", "rem.sw"]
-    for i, mnem in enumerate(div_wyde_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_wyde_op, ha=0x38 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0", "rdhd != rd0"],
-            spec_cite="SimRISC-01 §乘除操作"
-        ))
-    
-    # ======================================================================
-    # MISC-byte 子表 (op=0x43)
-    # ======================================================================
-    misc_byte_op = 0x43
-    
-    # and.b-orrr, or.b-orrr, xor.b-orrr, xnor.b-orrr
-    logic_byte_mnemonics = ["and.b", "or.b", "xor.b", "xnor.b"]
-    for i, mnem in enumerate(logic_byte_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_byte_op, ha=0x08 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §逻辑运算"
-        ))
-    
-    # ext.ub-orrr, ext.sb-orrr, shr.ub-orrr, shr.sb-orrr, shl.ub-orrr
-    ext_byte_mnemonics = ["ext.ub", "ext.sb", "shr.ub", "shr.sb", "shl.ub"]
-    for i, mnem in enumerate(ext_byte_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_byte_op, ha=0x10 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §位操作"
-        ))
-    
-    # ext.ub-orri, ext.sb-orri, shr.ub-orri, shr.sb-orri, shl.ub-orri
-    for i, mnem in enumerate(ext_byte_mnemonics):
-        records.append(create_record(mnem, "orri", misc_byte_op, ha=0x18 + i,
-            fields=generate_orri_fields("rdhb", "rdhc", "immu6"),
-            legality=["rdhb != rd0"],
-            spec_cite="SimRISC-01 §位操作"
-        ))
-    
-    # add.ub-orrr, add.sb-orrr
-    records.append(create_record("add.ub", "orrr", misc_byte_op, ha=0x20,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("add.sb", "orrr", misc_byte_op, ha=0x21,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    
-    # sub.ub-orrr, sub.sb-orrr, cmp.ub-orrr, cmp.sb-orrr
-    records.append(create_record("sub.ub", "orrr", misc_byte_op, ha=0x28,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("sub.sb", "orrr", misc_byte_op, ha=0x29,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §加减操作"
-    ))
-    records.append(create_record("cmp.ub", "orrr", misc_byte_op, ha=0x2A,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    records.append(create_record("cmp.sb", "orrr", misc_byte_op, ha=0x2B,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §比较操作"
-    ))
-    
-    # mul.ub-orrr, mul.sb-orrr
-    records.append(create_record("mul.ub", "orrr", misc_byte_op, ha=0x30,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §乘除操作"
-    ))
-    records.append(create_record("mul.sb", "orrr", misc_byte_op, ha=0x31,
-        fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-01 §乘除操作"
-    ))
-    
-    # div.ub-orrr, div.sb-orrr, rem.ub-orrr, rem.sb-orrr
-    div_byte_mnemonics = ["div.ub", "div.sb", "rem.ub", "rem.sb"]
-    for i, mnem in enumerate(div_byte_mnemonics):
-        records.append(create_record(mnem, "orrr", misc_byte_op, ha=0x38 + i,
-            fields=generate_orrr_fields("rdhb", "rdhc", "rdhd"),
-            legality=["rdhb != rd0", "rdhd != rd0"],
-            spec_cite="SimRISC-01 §乘除操作"
-        ))
-    
-    # ======================================================================
-    # MISC-RF 子表 (op=0x44)
-    # ======================================================================
-    misc_rf_op = 0x44
-    
-    # ftcls-orri, ft2fo-orri, ft2ft-orri
-    records.append(create_record("ftcls", "orri", misc_rf_op, ha=0x00,
-        fields=generate_orri_fields("rdhb", "rfhc", "immu6"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-03 §浮点分类指令"
-    ))
-    records.append(create_record("ft2fo", "orri", misc_rf_op, ha=0x01,
-        fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
-        legality=[],
-        spec_cite="SimRISC-03 §格式转换指令"
-    ))
-    records.append(create_record("ft2ft", "orri", misc_rf_op, ha=0x02,
-        fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
-        legality=[],
-        spec_cite="SimRISC-03 §格式转换指令"
-    ))
-    
-    # ftroot-orri, ftlog-orri
-    records.append(create_record("ftroot", "orri", misc_rf_op, ha=0x06,
-        fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
-        legality=[],
-        spec_cite="SimRISC-03 §S1D1"
-    ))
-    records.append(create_record("ftlog", "orri", misc_rf_op, ha=0x07,
-        fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
-        legality=[],
-        spec_cite="SimRISC-03 §S1D1"
-    ))
-    
-    # focls-orri, fo2ft-orri, fo2fo-orri
-    records.append(create_record("focls", "orri", misc_rf_op, ha=0x08,
-        fields=generate_orri_fields("rdhb", "rfhc", "immu6"),
-        legality=["rdhb != rd0"],
-        spec_cite="SimRISC-03 §浮点分类指令"
-    ))
-    records.append(create_record("fo2ft", "orri", misc_rf_op, ha=0x09,
-        fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
-        legality=[],
-        spec_cite="SimRISC-03 §格式转换指令"
-    ))
-    records.append(create_record("fo2fo", "orri", misc_rf_op, ha=0x0A,
-        fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
-        legality=[],
-        spec_cite="SimRISC-03 §格式转换指令"
-    ))
-    
-    # foroot-orri, folog-orri
-    records.append(create_record("foroot", "orri", misc_rf_op, ha=0x0E,
-        fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
-        legality=[],
-        spec_cite="SimRISC-03 §S1D1"
-    ))
-    records.append(create_record("folog", "orri", misc_rf_op, ha=0x0F,
-        fields=generate_orri_fields("rfhb", "rfhc", "immu6"),
-        legality=[],
-        spec_cite="SimRISC-03 §S1D1"
-    ))
-    
-    # ftadd-orrr, ftsub-orrr, ftmul-orrr, ftdiv-orrr, ftrem-orrr, ftsclb-orrr, ftsgnn-orrr, ftsgnj-orrr
-    ft_ops = ["ftadd", "ftsub", "ftmul", "ftdiv", "ftrem", "ftsclb", "ftsgnn", "ftsgnj"]
-    for i, mnem in enumerate(ft_ops):
-        records.append(create_record(mnem, "orrr", misc_rf_op, ha=0x10 + i,
-            fields=generate_orrr_fields("rfhb", "rfhc", "rfhd"),
-            legality=["rfhb != rf0", "rfhc != rf0", "rfhd != rf0"],
-            spec_cite="SimRISC-03 §S2D1" if i < 6 else "SimRISC-03 §浮点符号位操作指令"
-        ))
-    
-    # foadd-orrr, fosub-orrr, fomul-orrr, fodiv-orrr, forem-orrr, fosclb-orrr, fosgnn-orrr, fosgnj-orrr
-    fo_ops = ["foadd", "fosub", "fomul", "fodiv", "forem", "fosclb", "fosgnn", "fosgnj"]
-    for i, mnem in enumerate(fo_ops):
-        records.append(create_record(mnem, "orrr", misc_rf_op, ha=0x18 + i,
-            fields=generate_orrr_fields("rfhb", "rfhc", "rfhd"),
-            legality=["rfhb != rf0", "rfhc != rf0", "rfhd != rf0"],
-            spec_cite="SimRISC-03 §S2D1" if i < 6 else "SimRISC-03 §浮点符号位操作指令"
-        ))
-    
-    # ftqcmp-orrr, ftscmp-orrr
-    records.append(create_record("ftqcmp", "orrr", misc_rf_op, ha=0x20,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rdhb", "[17:12]", "dst", "rd"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rdhb != rd0", "rfhc != rf0", "rfhd != rf0"],
-        spec_cite="SimRISC-03 §浮点比较指令"
-    ))
-    records.append(create_record("ftscmp", "orrr", misc_rf_op, ha=0x21,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rdhb", "[17:12]", "dst", "rd"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rdhb != rd0", "rfhc != rf0", "rfhd != rf0"],
-        spec_cite="SimRISC-03 §浮点比较指令"
-    ))
-    
-    # foqcmp-orrr, foscmp-orrr
-    records.append(create_record("foqcmp", "orrr", misc_rf_op, ha=0x28,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rdhb", "[17:12]", "dst", "rd"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rdhb != rd0", "rfhc != rf0", "rfhd != rf0"],
-        spec_cite="SimRISC-03 §浮点比较指令"
-    ))
-    records.append(create_record("foscmp", "orrr", misc_rf_op, ha=0x29,
-        fields=[
-            create_field("ha", "[23:18]", "minor_op", "imm"),
-            create_field("rdhb", "[17:12]", "dst", "rd"),
-            create_field("rfhc", "[11:6]", "src", "rf"),
-            create_field("rfhd", "[5:0]", "src", "rf")
-        ],
-        legality=["rdhb != rd0", "rfhc != rf0", "rfhd != rf0"],
-        spec_cite="SimRISC-03 §浮点比较指令"
-    ))
-    
-    # ft2it-orri, ft2io-orri, ft2ut-orri, ft2uo-orri, it2ft-orri, io2ft-orri, ut2ft-orri, uo2ft-orri
-    ft2it_ops = ["ft2it", "ft2io", "ft2ut", "ft2uo", "it2ft", "io2ft", "ut2ft", "uo2ft"]
-    for i, mnem in enumerate(ft2it_ops):
-        if i < 4:
-            # ft2xx: rf -> rd
-            records.append(create_record(mnem, "orri", misc_rf_op, ha=0x30 + i,
-                fields=generate_orri_fields("rdhb", "rfhc", "immu6"),
-                legality=["rdhb != rd0", "rfhc != rf0"],
-                spec_cite="SimRISC-03 §格式转换指令"
-            ))
-        else:
-            # xx2ft: rd -> rf
-            records.append(create_record(mnem, "orri", misc_rf_op, ha=0x30 + i,
-                fields=generate_orri_fields("rfhb", "rdhc", "immu6"),
-                legality=["rfhb != rf0"],
-                spec_cite="SimRISC-03 §格式转换指令"
-            ))
-    
-    # fo2it-orri, fo2io-orri, fo2ut-orri, fo2uo-orri, it2fo-orri, io2fo-orri, ut2fo-orri, uo2fo-orri
-    fo2it_ops = ["fo2it", "fo2io", "fo2ut", "fo2uo", "it2fo", "io2fo", "ut2fo", "uo2fo"]
-    for i, mnem in enumerate(fo2it_ops):
-        if i < 4:
-            # fo2xx: rf -> rd
-            records.append(create_record(mnem, "orri", misc_rf_op, ha=0x38 + i,
-                fields=generate_orri_fields("rdhb", "rfhc", "immu6"),
-                legality=["rdhb != rd0", "rfhc != rf0"],
-                spec_cite="SimRISC-03 §格式转换指令"
-            ))
-        else:
-            # xx2fo: rd -> rf
-            records.append(create_record(mnem, "orri", misc_rf_op, ha=0x38 + i,
-                fields=generate_orri_fields("rfhb", "rdhc", "immu6"),
-                legality=["rfhb != rf0"],
-                spec_cite="SimRISC-03 §格式转换指令"
-            ))
-    
-    # 输出 YAML
-    with open("verif/opcodes.yaml", "w", encoding="utf-8") as f:
-        f.write("# SimRISC 0.5.3 指令编码表\n")
-        f.write("# 自动生成自 spec/ 规范文档\n")
-        f.write(f"# 共 {len(records)} 条指令\n\n")
+    build_main_table(records)
+    build_misc_amo(records)
+    build_misc_octa(records)
+    build_misc_fixed_width(records, 0x41, "t", 31)
+    build_misc_fixed_width(records, 0x42, "w", 15)
+    build_misc_fixed_width(records, 0x43, "b", 7)
+    build_misc_rf(records)
+
+    n_m1 = sum(1 for r in records if not r.get("excluded_m1"))
+    n_ex = len(records) - n_m1
+
+    with open(OUT_PATH, "w", encoding="utf-8") as f:
+        f.write("# SimRISC 0.5.3 指令编码表（M1 范围）\n")
+        f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/knowledge/contract-isa.md\n")
+        f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
+        f.write("# excluded_m1: true 的条目属 M1 范围外（浮点 RF / 特权 cfx / LR-SC），\n")
+        f.write("#   解码按 reserved 处理（decode: UNDI），不提取完整语义/legality\n")
+        f.write(f"# 共 {len(records)} 条：M1 内 {n_m1} 条，excluded_m1 {n_ex} 条\n\n")
         yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    
-    print(f"生成完成：{len(records)} 条指令")
+
+    print(f"生成完成：{len(records)} 条（M1 内 {n_m1}，excluded_m1 {n_ex}）-> {OUT_PATH}")
+
 
 if __name__ == "__main__":
     main()
