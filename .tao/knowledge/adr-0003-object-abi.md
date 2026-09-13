@@ -8,6 +8,8 @@
 
 DADAO-v5 的 M1 工具链需要产出并加载 ELF object。ELF 文件头中与架构相关的字段（`EI_CLASS`/`EI_DATA`/`e_machine`/`e_flags`/`EI_OSABI`）以及段加载语义在 v5 `spec/` 中**没有任何依据**：`SimRISC-00`~`04` 与 `DADAO-11`~`23` 均不含 ELF/object ABI 内容。因此本 ADR 是这些字段的**原始架构决策**，相关取值标记为「无 spec 依据，架构自定义」。
 
+**术语说明——单翻译单元（TU）自包含**：TU（Translation Unit，翻译单元）是汇编器/编译器的单次输入单位，一个 TU 产出恰好一个 object（`.o`）。「自包含」指该单元内所有符号/标签都在本单元内定义并**就地解析**，不引用任何外部符号。自包含的直接后果是**不产生重定位（relocation）**——汇编器在汇编期即可算出全部标签地址，无需留待链接期回填的占位项；反之，一旦引用外部符号或跨单元/跨段地址，就必须保留重定位项，交由链接器（linker/LLD）在链接期回填。M1 工具链只有 MC（汇编器），既无 DADAO target linker（LLD）也无跨 object 链接步骤，**不消费重定位**，故 M1 要求单 TU 自包含：使 `.o` 可经 `objcopy` 抽段直接转为 flat binary 交给 QEMU，不依赖 linker。
+
 M1 范围为单翻译单元（single TU）、freestanding、自包含：无跨 object 链接、无动态链接、无 TLS、无 target linker（LLD）。据此，本 ADR 只冻结 M1 实际需要的内容：
 
 - **D1**：ELF 文件头固定字段；
@@ -81,7 +83,7 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 ```
 
 - 步骤 1 的 `.o` 为单翻译单元、自包含；段内标签由汇编器就地解析，**不产生重定位**。
-- 步骤 2 使用 `objcopy`（M1 用 `llvm-objcopy`）的**段提取**能力（`--only-section=.text` + `-O binary`），不经过静态链接；这是 M1 不依赖 LLD 的关键。M1 e2e 路径冻结提取 `.text`；其它可分配段（若后续 M1 用例需要）以同一机制提取，其对齐要求见上表。
+- 步骤 2 使用 `objcopy`（M1 用 `llvm-objcopy`）的**段提取**能力（`--only-section=.text` + `-O binary`），不经过静态链接；这是 M1 不依赖 LLD 的关键。M1 e2e 路径冻结提取 `.text`；其它可分配段（若后续 M1 用例需要）以同一机制提取，其对齐要求见上表。若 M1 用例需要 `.rodata`/`.data`，则以同一 `objcopy` 机制提取并按 8B 对齐**连续拼接**为单一 flat 镜像（拼接顺序沿用上表默认布局 `.text → .rodata → .data`）。
 - 步骤 3 的 QEMU 消费的是 **flat binary，不是 ELF**；`e_entry` 不被 test machine 读取，入口固定为 flat binary 的加载基址（机器名、加载地址、命令行与 trampoline 由 ADR-0004（`SPEC-006t`）冻结）。因此本 ADR 不出现「test machine 跳到 `e_entry`」的表述。
 - 本 pipeline 与 ADR-0004（`SPEC-006t`）的加载模型统一：ADR-0003 冻结 object → flat 的转换，ADR-0004 冻结 flat → QEMU 的加载/入口协议。
 
