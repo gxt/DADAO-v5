@@ -1,9 +1,14 @@
-# SPEC-007t: ELF 合约（归一化自 ADR-0003）
+# SPEC-007t: ELF 合约（M1：头 + 段/流水线）
 
 **模块**：spec
 **项目里程碑**：M1
 **依赖**：`SPEC-005t`、`SPEC-002t`
 **状态**：待开始
+
+## 范围（2026-09-12 变更）
+
+- **M1 = §1 + §5 + §6**：ELF 头字段、段对齐/VA=PA、端到端 artifact pipeline。
+- **§2/§3/§4（重定位类型/溢出/relaxation）标 `Deferred to M2`**：与 `SPEC-005t` 同步（M1 单 TU 自包含、不产生重定位、无 LLD）。见 `.tao/knowledge/deferred.md`。
 
 ## 执行环境
 
@@ -27,9 +32,7 @@
 
 ### 目标
 
-产出 `.tao/knowledge/contract-elf.md`，将 `.tao/knowledge/adr-0003-object-abi.md`（ADR-0003）的
-ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一致的合约文件。本合约成为
-后续 LLVM MC ELF emitter 与 QEMU loader 的唯一 oracle。
+产出 `.tao/knowledge/contract-elf.md`，将 `.tao/knowledge/adr-0003-object-abi.md`（ADR-0003）的 **M1 ELF 决策（D1 头字段 + D5 段/流水线）**规范化为与 `contract-isa.md`、`contract-abi.md` 风格一致的合约文件（§1 + §5 + §6）。本合约成为后续 LLVM MC ELF emitter 与 QEMU loader 的 M1 oracle；**重定位（D2/D3/D4）标 `Deferred to M2`**。
 
 ### 设计理由
 
@@ -43,7 +46,7 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 **§1 ELF Header Fields**：`EI_CLASS`、`EI_DATA`、`e_machine`、`e_flags`、`EI_OSABI` 的冻结值及含义
 （来源 ADR-0003 §D1）。
 
-**§2 Relocation Types**：完整重定位表（编号、名称、字段宽度/位置、S/A/P 公式、适用指令、溢出策略）
+**§2（`Deferred to M2`）Relocation Types**：完整重定位表（编号、名称、字段宽度/位置、S/A/P 公式、适用指令、溢出策略）
 + 每类型推导说明（来源 ADR-0003 §D2）。0.5.3 下的适用指令映射：
 
 | 重定位 | 0.5.3 适用指令 | 字段 |
@@ -55,9 +58,9 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 | `R_DADAO_PCREL24` | `call imms24`/`jump imms24`（iiii） | imms24 @ bits[23:0] |
 | `R_DADAO_RELA` | `rela.si`（riii） | imms18 @ bits[17:0] |
 
-**§3 Overflow Policy**：两级策略表（`R_DADAO_64`/`ABS_W*` 无溢出；有界类型 link-time error）。
+**§3（`Deferred to M2`）Overflow Policy**：两级策略表（`R_DADAO_64`/`ABS_W*` 无溢出；有界类型 link-time error）。
 
-**§4 Relaxation**：M1 禁止 relaxation 的正式声明及约束。
+**§4（`Deferred to M2`）Relaxation**：M1 禁止 relaxation 的正式声明及约束。
 
 **§5 Section Alignment**：`.text`/`.rodata`/`.data`/`.bss` 最小对齐、VA=PA 规则。
 
@@ -76,7 +79,7 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 
 | 文件 | 说明 |
 |------|------|
-| `.tao/knowledge/contract-elf.md` | ELF/对象 ABI 合约，归一化自 ADR-0003，覆盖 §1–§6，Status 先 Candidate（review 通过后 Accepted） |
+| `.tao/knowledge/contract-elf.md` | M1 ELF 合约，归一化自 ADR-0003：**§1 头字段 + §5 段对齐 + §6 流水线**；§2/§3/§4 重定位标 `Deferred to M2`。Status 先 Candidate（review 通过后 Accepted） |
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -125,15 +128,13 @@ ELF 架构决策规范化为与 `contract-isa.md`、`contract-abi.md` 风格一�
 ## 验收标准
 
 1. `.tao/knowledge/contract-elf.md` 存在，Status 先 Candidate，来源指向 ADR-0003（SPEC-005t 产出）（前提：SPEC-005t/SPEC-006t review 已通过、ADR-0003/0004 Status=Accepted）
-2. §1–§6 全部覆盖，无空白或「见 ADR」占位；§1 冻结 5 个 ELF 头字段
-3. §2 每条重定位含完整：编号、名称、字段宽度/位置、S/A/P 公式、适用 0.5.3 指令、溢出策略
-4. §2 含 `R_DADAO_PCREL12`（`br.eq`/`br.ne`）且 §3 溢出策略同步覆盖
-5. §4 明确 M1 禁止 relaxation；§5 给出各段最小对齐与 VA=PA
-6. §6 artifact pipeline 与 ADR-0004（SPEC-006t）冻结的启动命令/镜像对一致；不把 QEMU flat
-   loader 称为 ELF loader（前提：SPEC-006t review 已通过、ADR-0004 Status=Accepted）
-7. 每章节有 `[ADR-0003 §DN]` 来源标注；不引用行号
-8. 合约可独立阅读：不出现「见 ADR」式的内联空引用
-9. 不声明 `EM_DADAO` 已注册 upstream；命名空间/版本策略与 ADR 一致
+2. **§1 + §5 + §6 覆盖**（头字段、段对齐/VA=PA、artifact pipeline），无空白或「见 ADR」占位；§1 冻结 5 个 ELF 头字段
+3. **§2/§3/§4（重定位类型/溢出/relaxation）明确标 `Deferred to M2`**，不与 M1 内容混排（可作登记/参考）
+4. §5 给出各段最小对齐与 VA=PA
+5. §6 artifact pipeline 与 ADR-0004（SPEC-006t）冻结的启动命令/镜像对一致；不把 QEMU flat loader 称为 ELF loader（前提：SPEC-006t review 已通过、ADR-0004 Status=Accepted）
+6. 每章节有 `[ADR-0003 §DN]` 来源标注；不引用行号
+7. 合约可独立阅读：不出现「见 ADR」式的内联空引用
+8. 不声明 `EM_DADAO` 已注册 upstream；命名空间/版本策略与 ADR 一致
 
 ## 完成区
 

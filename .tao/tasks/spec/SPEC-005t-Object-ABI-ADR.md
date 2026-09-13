@@ -1,9 +1,14 @@
-# SPEC-005t: Object ABI ADR（ELF/重定位决策）
+# SPEC-005t: Object ABI ADR（M1 ELF 头 + 段/流水线）
 
 **模块**：spec
 **项目里程碑**：M1
 **依赖**：`SPEC-002t`、`SPEC-004t`
 **状态**：待开始
+
+## 范围（2026-09-12 变更）
+
+- **M1 = D1 + D5**：ELF object 文件头字段（`EI_CLASS`/`EI_DATA`/`e_machine`/`e_flags`/`EI_OSABI`）+ 段对齐/VA=PA/端到端 artifact pipeline（`.o → objcopy .text → flat → QEMU`）。M1 单 TU、freestanding、自包含、无 LLD、无跨 object 链接。
+- **D2/D3/D4（重定位类型表/溢出/relaxation）标 `Deferred to M2`**：M1 的 `.s` 标签在同段内由汇编器就地解析、**不产生重定位**；M1 LLVM 任务明确「不实现 ELF relocation」（`LLVM-006t`），完整 relocation 另立 `LLVM-012t`（M2）。见 `.tao/knowledge/deferred.md`。
 
 ## 执行环境
 
@@ -27,8 +32,7 @@
 
 ### 目标
 
-产出 `.tao/knowledge/adr-0003-object-abi.md`（ADR-0003），冻结 DADAO-v5 SimRISC M1 所需的
-ELF object ABI 字段。本 ADR 是 SPEC-007t（ELF 合约）的**唯一决策依据**。
+产出 `.tao/knowledge/adr-0003-object-abi.md`（ADR-0003），冻结 DADAO-v5 SimRISC **M1 所需的 ELF object ABI**：**D1 文件头字段 + D5 段对齐/流水线**（D2/D3/D4 重定位标 `Deferred to M2`）。本 ADR 是 SPEC-007t（ELF 合约）的**唯一决策依据**。
 
 ### 设计理由
 
@@ -42,8 +46,7 @@ ELF object ABI 字段。本 ADR 是 SPEC-007t（ELF 合约）的**唯一决策�
 **D1 ELF 文件头固定字段**：`EI_CLASS`、`EI_DATA`、`e_machine`、`e_flags`、`EI_OSABI` 的冻结值及理由。
 须明确 `EM_DADAO = 0x0DA0` 是沿用、修改还是重新申请；若沿用须说明理由与注册状态。
 
-**D2 M1 重定位类型表**：每条给出名称、编号、字段宽度/位范围、S/A/P 公式、溢出策略、适用指令格式。
-须覆盖 M1 场景（从 0.5.3 `contract-isa.md` 推导）：
+**D2（`Deferred to M2`）重定位类型表**：M1 单 TU 自包含、无跨 object，汇编器就地解析、**不产生重定位**；下表为**重定位类型定义**（M2 CodeGen 需要时启用，本任务仅作登记，不冻结）。
 
 | 场景 | 0.5.3 指令格式 | 字段约束 |
 |------|---------------|----------|
@@ -54,9 +57,9 @@ ELF object ABI 字段。本 ADR 是 SPEC-007t（ELF 合约）的**唯一决策�
 | PC 相对 call/jump（中程） | `call imms24`/`jump imms24`（iiii） | 24-bit 有符号字偏移 |
 | PC 相对地址加载 | `rela.si`（riii，imms18 << 12） | 30-bit 有效偏移，页号差 |
 
-**D3 溢出策略**：有界重定位溢出时报错（link-time error）还是截断/wrap；各类型分别说明。
+**D3（`Deferred to M2`）溢出策略**：有界重定位溢出时报错（link-time error）还是截断/wrap；各类型分别说明。
 
-**D4 重定位松弛策略**：M1 是否支持 relaxation；若不支持，明确写「M1 禁止 relaxation」。
+**D4（`Deferred to M2`）重定位松弛策略**：M1 是否支持 relaxation；若不支持，明确写「M1 禁止 relaxation」。
 
 **D5 段对齐与加载协议**：`.text`/`.data`/`.rodata`/`.bss` 最小对齐（0.5.3 指令对齐 4B、数据对齐）；
 freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR-0004 的加载模型统一）。
@@ -74,7 +77,7 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
 
 | 文件 | 说明 |
 |------|------|
-| `.tao/knowledge/adr-0003-object-abi.md` | ELF object ABI 架构决策记录，覆盖 D1–D5，Status 先 Candidate，review 通过后 Accepted |
+| `.tao/knowledge/adr-0003-object-abi.md` | M1 ELF object ABI 架构决策记录：**D1（ELF 头）+ D5（段/流水线）**；D2/D3/D4 重定位标 `Deferred to M2`。Status 先 Candidate，review 通过后 Accepted |
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -129,17 +132,13 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
 
 ## 验收标准
 
-1. `.tao/knowledge/adr-0003-object-abi.md` 存在，采用 Context / Decision / Consequences 结构，
-   初始 Status = Candidate（review 通过后改 Accepted）
-2. D1 冻结 `EI_CLASS`/`EI_DATA`/`e_machine`/`e_flags`/`EI_OSABI`，含理由与 `EM_DADAO` 注册状态说明
-3. D2 每条重定位含：名称、编号、字段宽度/位置、S/A/P 公式、适用指令、溢出策略；覆盖绝对地址、
-   wyde 构造、PCREL18、PCREL12（`br.eq`/`br.ne`）、PCREL24、RELA（`rela.si`）
-4. 所有 S/A/P 公式与字段宽度可从 0.5.3 `contract-isa.md` 独立验证；不引用行号
-5. D3 溢出策略明确（有界类型 link-time error），D4 明确 M1 是否禁止 relaxation
-6. D5 给出段对齐、VA=PA 及唯一端到端 artifact pipeline，与 ADR-0004（SPEC-006t）一致
-7. 重定位编号/命名空间策略明确且无静默冲突（版本位或兼容策略已冻结）
-8. 不依赖遗留 `Dadao.def` 的数字/公式；遗留仅作对比且已在文档中说明
-9. 无未决的「待定」字段；未用重定位类型不列入（后续 ADR 追加）
+1. `.tao/knowledge/adr-0003-object-abi.md` 存在，采用 Context / Decision / Consequences 结构，初始 Status = Candidate（review 通过后改 Accepted）
+2. **D1** 冻结 `EI_CLASS`/`EI_DATA`/`e_machine`/`e_flags`/`EI_OSABI`，含理由与 `EM_DADAO` 注册状态说明
+3. **D5** 给出段对齐、VA=PA 及唯一端到端 artifact pipeline（`.o → objcopy .text → flat → QEMU`），与 ADR-0004（SPEC-006t）一致
+4. **D2/D3/D4（重定位类型/溢出/relaxation）明确标 `Deferred to M2`**，不与 M1 内容混排（可作登记/参考）
+5. 所有取值可从 0.5.3 `contract-isa.md` 独立验证；不引用行号
+6. 不依赖遗留 `Dadao.def` 的数字/公式；遗留仅作对比且已在文档中说明
+7. 无未决的「待定」字段
 
 ## 完成区
 
