@@ -15,7 +15,7 @@
 
 版本同步要求：AEE ↔ ABI、SEE ↔ SBI、HEE ↔ HBI 必须一致，全部基于同一 SimRISC 版本号。
 
-**冻结状态**：待冻结（由 `SPEC-010t` 核对后标注为 `已冻结`）。
+**冻结状态**：已冻结（`SPEC-010t` 核对：规范版本表与已 Accepted 合约一致；冻结影响矩阵见 `docs/impact-matrix.md`）。
 
 ## 参考目录
 

@@ -1,6 +1,6 @@
 # SimRISC M1 ELF 合约（Object ABI）
 
-> **状态**：Candidate
+> **状态**：Accepted
 >
 > **来源**：`.tao/knowledge/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充）。本合约是 ADR-0003 的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）的归一化投影。
 >
