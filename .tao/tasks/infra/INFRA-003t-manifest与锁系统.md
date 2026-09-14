@@ -14,7 +14,7 @@
 ## 接口规范
 
 - 输入：DADAO-v5 现有 `README.md`（规范版本表）；DADAO 参考仓库 `https://github.com/gxt/DADAO.git`（head `f9bde048…`，见交付物）
-- 输出：`manifests/components.lock.toml`、`manifests/references.lock.toml`、`scripts/manifest_check.py`
+- 输出：`manifests/components.lock.toml`、`manifests/references.lock.toml`、`tools/infra/manifest_check.py`
 - 约束：组件锁只需占位/待定 commit（LLVM/QEMU/gem5 的精确 commit 在后续 llvm/qemu/gem5 模块确定）；reference 锁 DADAO-0628 `2d270604b778d609e1a09b4047271b5309005ffc`；不得复制 0.4.1 的补丁/代码正文
 
 ## 背景（完整）

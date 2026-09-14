@@ -14,7 +14,7 @@
 ## 接口规范
 
 - 输入：`manifests/components.lock.toml` 与 `manifests/references.lock.toml`（`INFRA-003t` 产出）、`components/<name>/patches/series` 与补丁本体
-- 输出：`scripts/fetch.py`、`scripts/apply_series.py`、`scripts/make_patch.py`、`scripts/fetch_refs.py`
+- 输出：`tools/infra/fetch.py`、`tools/infra/apply_series.py`、`tools/infra/make_patch.py`、`tools/infra/fetch_refs.py`
 - 约束：上游**对象库（bare mirror）**落在仓库内 gitignored 的 `.cache/<name>.git`（持久，只增量 `fetch`）；工作树落在 `.work/source/<name>/`（可随 `.work` 重建，无需重新下载）；补丁只从 `components/<name>/patches/` 读取；不复制 0.4.1 的补丁正文
 
 ## 背景（完整）
