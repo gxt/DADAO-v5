@@ -23,8 +23,7 @@
   - 冻结前所有 authority artifact（SPEC-002t/003t/004t/005t/006t/007t）必须 Accepted
   - `check_spec_drift.py` 不联网，只读本地文件
   - 脚本须通过 `python3 -m compileall -q scripts`
-  - impact matrix 覆盖「每个 spec 章节」，实现目标须区分 LLVM MC / LLVM CodeGen / QEMU CPU /
-    QEMU machine / gem5 / Sail / vectors / harness
+  - impact matrix 逐节覆盖 spec 章节；**实现目标只区分 M1 目标**：LLVM MC / QEMU CPU / QEMU machine / vectors / harness。M1 外（LLVM CodeGen、gem5、Sail）**不列为目标**（可汇总为「M1 外」或标 `Deferred`）
   - 完成后不自行 commit
 
 ## 背景（完整）
@@ -53,7 +52,7 @@
 - ABI（DADAO-11 AEE、DADAO-21 ABI）：寄存器角色/数据表示/传参/返回值/栈帧，对应 `contract-abi.md`
 - ELF：`contract-elf.md` §1–§6 对应 ADR-0003 §D1–§D5
 - Test machine：ADR-0004 §D1–§D6 对应 QEMU machine / harness
-- 实现目标区分：LLVM MC、LLVM CodeGen、QEMU CPU、QEMU machine、gem5、Sail、vectors、harness
+- 实现目标区分（**M1**）：LLVM MC、QEMU CPU、QEMU machine、vectors、harness；M1 外（LLVM CodeGen、gem5、Sail）不列为目标（可汇总为「M1 外」或标 `Deferred`）
 
 **check_spec_drift.py 行为规则（fail-closed）**：
 
@@ -122,8 +121,7 @@
 
 ## 验收标准
 
-1. `docs/impact-matrix.md` 存在，逐节覆盖 ISA（SimRISC-00..04）、ABI（DADAO-11/21）、ELF、ADR-0003/0004；
-   实现目标区分 LLVM MC / CodeGen / QEMU CPU / QEMU machine / gem5 / Sail / vectors / harness
+1. `docs/impact-matrix.md` 存在，逐节覆盖 ISA（SimRISC-00..04）、ABI（DADAO-11/21）、ELF、ADR-0003/0004；**实现目标只区分 M1 目标**（LLVM MC / QEMU CPU / QEMU machine / vectors / harness），M1 外（LLVM CodeGen / gem5 / Sail）不列为目标
 2. `scripts/check_spec_drift.py` 存在，fail-closed：枚举所有 `.tao/knowledge/contract-*.md` 并强制分类
 3. 脚本对「版本不匹配 / 来源缺失 / 来源格式错误 / 未知 ADR」四类均非零退出（负测试齐全）
 4. 脚本正常运行输出 `spec drift check: PASS` 并返回 0；`python3 -m compileall -q scripts` 通过
