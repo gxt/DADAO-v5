@@ -2,8 +2,15 @@
 
 **模块**：verif
 **项目里程碑**：M1
-**依赖**：`SPEC-003t`
-**状态**：已验证
+**依赖**：`SPEC-002t`、`SPEC-003t`
+**状态**：待开始
+
+> **重做说明（2026-09-13）**：本任务成稿时 M1 尚未纳入 RA，且 `legality` 字段引用校验尚未引入。现需**重新生成** `verif/legality_rules.yaml`：
+> 1. **增补 RA 相关指令的合法性规则**：RA 存取（`ld.o`/`st.o`/`ldm.o`/`stm.o`-RA）、块赋值（`ra2rd`/`rd2ra`）的异常条件——8B 对齐未对齐 → MALIGN；`immu6 = 0`、`raha + immu6 > 64`、`ra2rd` 目的 `rd0` → ILLI；`ra0` 可读写不触发异常（依据 `contract-isa §4.9`、§1.3.4）。
+> 2. **按 SPEC-003t 新增的 `legality` 字段引用校验（`check_legality_refs`）对齐字段引用**：规则中引用的字段须存在于对应指令记录（`verif/opcodes.yaml`）的 fields；修正块赋值目的字段 `rdha`/`rbha` → `rdhb`/`rbhb` 等。
+> 3. 顺带修正旧版遗留问题：`spec_cite` 重复键（每条写两次）、`spec_cite` 含行号（应只写章节号）、`sbz_nonzero` 状态（ADR-0004 D5.3 已冻结 SBZ 非零 → ILLI，应 `active`）、RF 规则在 M1 排除 RF 下的状态。
+>
+> 旧审阅记录（第 1 轮）针对旧版产出，**已失效**（保留备查）；重做后追加新轮次。
 
 ## 执行环境
 
@@ -50,12 +57,13 @@
    - ras_of/ras_uf 检查
    - lr_hb_not_zero 检查
    - cfx_reserved 检查
+   - **RA 规则（新增）**：ra 多寄存器 `immu6_zero` / `multi_range_overflow`（ra 起始 + immu6 > 64）；`ra2rd` 目的 `rd0` → ILLI；`ra0` 可读写不触发异常；RA 8B 对齐 → MALIGN（并入 data_malign 或单列）
 
 2. 每条规则包含：
    - id：规则标识
    - fault：异常类型（ILLI/UNDI/MALIGN/IALIGN）
    - kind：检查类型（static/dynamic）
-   - spec_cite：规范引用
+   - spec_cite：规范引用（**只写章节号，不写行号**）
    - status：active/deferred
    - description：规则描述
 
@@ -73,7 +81,6 @@ rules:
   - id: rd_dest_rd0
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-01 §存取类指令"
     spec_cite: "SimRISC-01 §rd0 为目的寄存器约定"
     status: active
     description: "写 rd0 为目的寄存器时触发 ILLI（单目的指令不允许，双目的 add/sub/mul 的 rrrr 格式允许其中一个为 rd0）"
@@ -109,7 +116,9 @@ rules:
 
 ## 审阅记录
 
-#### 第 1 轮 reviewer 验收
+> **说明（2026-09-13）**：本任务重做（见顶部「重做说明」），下方「第 1 轮 reviewer 验收」针对旧版产出（未含 RA、未对齐 `legality` 字段校验），**已失效**（保留备查）；重做后追加新轮次。
+
+#### 第 1 轮 reviewer 验收（已失效）
 
 **审查者**：mimo-v2.5-pro（与子代理不同 model）
 **审查日期**：2026-07-21（更新）
