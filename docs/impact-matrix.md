@@ -56,7 +56,7 @@
 | `contract-isa.md §2.6 操作数顺序约定`（SimRISC-00 §指令域说明） | `contracts/opcodes.yaml`（`fields[].role`）；`contract-abi.md §4`（Deferred） | LLVM MC |
 | `contract-isa.md §2.7 QFC 主表`（SimRISC-00 §SimRISC QFC） | `contracts/opcodes.yaml`；`contracts/legality_rules.yaml`（UNDI）；`tools/spec/check_qfc_coverage.py`；`adr-0004 §D5.2` | LLVM MC、QEMU CPU、QEMU machine、vectors |
 | `contract-isa.md §2.8 MISC 子表机制`（SimRISC-00 §指令域说明、各 MISC 子表） | `contracts/opcodes.yaml`；`tools/spec/check_qfc_coverage.py`、`generate_opcodes.py` | LLVM MC、QEMU CPU |
-| `contract-isa.md §2.9 保留编码`（SimRISC-00 §SimRISC QFC；SimRISC-04 §非法指令） | `contracts/legality_rules.yaml`；`adr-0004 §D5.2`、`§D5.3` | LLVM MC、QEMU CPU、vectors |
+| `contract-isa.md §2.9 保留编码`（SimRISC-00 §SimRISC QFC；SimRISC-04 §非法指令） | `contracts/legality_rules.yaml`；`adr-0004 §D5.2`、`§D5.1` | LLVM MC、QEMU CPU、vectors |
 
 ### §3 标量整数指令
 
@@ -75,7 +75,7 @@
 
 | 规格来源 | 依赖此节的合约/文件 | 下游实现目标 |
 |----------|-------------------|-------------|
-| `contract-isa.md §4.1 存取 RD 寄存器`（SimRISC-01 §存取类指令、§存取RD寄存器） | `contracts/opcodes.yaml`；`contracts/legality_rules.yaml`（MALIGN/ILLI）；`contract-elf.md §5.1`（对齐）；`adr-0004 §D4`、`§D5.6` | LLVM MC、QEMU CPU、QEMU machine、vectors |
+| `contract-isa.md §4.1 存取 RD 寄存器`（§4.1.1 单 load/store、§4.1.2 多 load/store；SimRISC-01 §存取类指令、§存取RD寄存器） | `contracts/opcodes.yaml`；`contracts/legality_rules.yaml`（MALIGN/ILLI）；`contract-elf.md §5.1`（对齐）；`adr-0004 §D4`、`§D5.6` | LLVM MC、QEMU CPU、QEMU machine、vectors |
 | `contract-isa.md §4.2 存取 RB 寄存器`（SimRISC-02 §存取RB寄存器） | `contracts/opcodes.yaml`；`contracts/legality_rules.yaml`；`contract-elf.md §5.1`；`adr-0004 §D4`、`§D5.6` | LLVM MC、QEMU CPU、QEMU machine、vectors |
 | `contract-isa.md §4.3 块赋值`（SimRISC-02 §寄存器组之间块赋值） | `contracts/opcodes.yaml`；`contracts/legality_rules.yaml` | LLVM MC、QEMU CPU、vectors |
 | `contract-isa.md §4.4 RB 立即数设置`（SimRISC-02 §立即数常数赋值：Immediate constant） | `contracts/opcodes.yaml`；`contract-isa.md §2.4` | LLVM MC、QEMU CPU、vectors |
@@ -135,7 +135,7 @@
 |----------|-------------------|-------------|
 | `contract-isa.md 附录 A.1–A.6 M1 指令编码清单`（SimRISC-00 §SimRISC QFC、各 MISC 子表） | `contracts/opcodes.yaml`；`tools/spec/validate_encoding.py`、`generate_opcodes.py`、`check_qfc_coverage.py` | LLVM MC、QEMU CPU、vectors |
 | `contract-isa.md 附录 A.7 Excluded from M1 编码清单`（SimRISC-00 §SimRISC QFC、§MISC-AMO 指令编码、§MISC-octa指令编码） | `contracts/opcodes.yaml`（`excluded_m1`）；`contracts/legality_rules.yaml` | QEMU CPU（执行即 ILLI）；完整语义 `Deferred（M1 外）` |
-| `contract-isa.md 附录 B 条件标志参考`（SimRISC-00 §标识位说明；SimRISC-01 §条件赋值；SimRISC-02 §条件跳转指令） | `contracts/opcodes.yaml`；`contracts/legality_rules.yaml`（`br.z-rb`/`br.nz-rb` 特例） | LLVM MC、QEMU CPU、vectors |
+| `contract-isa.md 附录 B 条件标志参考`（SimRISC-00 §标识位说明；SimRISC-01 §条件赋值；SimRISC-02 §条件跳转指令） | `contracts/opcodes.yaml`；`contract-isa.md 附录 B.3`（条件跳转特例） | LLVM MC、QEMU CPU、vectors |
 
 ---
 
@@ -183,7 +183,7 @@
 | `contract-elf.md §3 重定位溢出策略（Deferred to M2）`（ADR-0003 §D3） | —（M1 不产生重定位） | `Deferred（M1 外）` |
 | `contract-elf.md §4 重定位松弛（Deferred to M2）`（ADR-0003 §D4） | —（M1 无 link 步骤） | `Deferred（M1 外）` |
 | `contract-elf.md §5 段对齐与 VA=PA`（ADR-0003 §D5） | `contract-isa.md §2.1`、`§4.1.1`、`§1.5`；`contract-abi.md §1.7`；`adr-0004 §D1`、`§D2.2` | LLVM MC、QEMU machine、harness |
-| `contract-elf.md §6 端到端 artifact pipeline`（ADR-0003 §D5；§6.2 与 ADR-0004 §D2.2/§D2.3 统一） | `adr-0004 §D2.2`、`§D2.3`；`contract-elf.md §6.2` | LLVM MC、QEMU machine、harness |
+| `contract-elf.md §6 端到端 artifact pipeline`（§6.1 唯一路径、§6.2 与 ADR-0004 §D2.2/§D2.3 统一、§6.3 M1 约束；ADR-0003 §D5、§Consequences） | `adr-0004 §D2.2`、`§D2.3`；`adr-0003 §Consequences`；`contract-elf.md §6.2` | LLVM MC、QEMU machine、harness |
 | `contract-elf.md 附录 A 来源对照`（ADR-0003 §D1–§D5） | `contract-elf.md §1`–`§6` | `—（溯源索引，非规范性）` |
 
 > ELF §2–§4（重定位）在 M1 为 `Deferred to M2`，**不得在 M1 实现**；`e_entry` 不被 M1 test machine 消费。
