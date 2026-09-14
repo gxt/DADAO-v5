@@ -88,7 +88,7 @@
 - DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`
 - DADAO-0628：`.work/DADAO-0628/Makefile`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-elf.md`（SPEC-007t 产出后）、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-elf.md`（SPEC-007t 产出后）、`contracts/opcodes.yaml`
 
 ## 验收标准
 

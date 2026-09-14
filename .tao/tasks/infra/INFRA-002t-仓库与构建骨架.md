@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：现有仓库结构（`AGENTS.md`、`README.md`、`.tao/`、`spec/`、`manifests/`、`docs/`、`verif/`）
+- 输入：现有仓库结构（`AGENTS.md`、`README.md`、`.tao/`、`spec/`、`manifests/`、`docs/`、`contracts/`、`tools/`）
 - 输出：补齐的目录骨架、`.gitignore`、`.work/` 目录约定
 - 约束：不写实现代码；只建立骨架与忽略规则；`.work/` 全部内容不入库
 
@@ -36,7 +36,7 @@
   - `.work/sysroot/`：目标 sysroot。
   - `.work/logs/`：构建与测试日志。
 - 0628 顶层骨架：`manifests/`（不可变输入）、`components/`（补丁序列 + 组件文档）、`contracts/`、`tests/`、`scripts/`、`containers/`、`.work/`。
-- DADAO-v5 现状：已有 `.gitignore`（含 `.work/`）、`manifests/`、`spec/`、`docs/`、`verif/`、`.tao/`；`components/`、`scripts/`、`containers/` 尚未建立。
+- DADAO-v5 现状：已有 `.gitignore`（含 `.work/`）、`manifests/`、`spec/`、`docs/`、`contracts/`、`tools/`、`.tao/`；`components/`、`containers/` 尚未建立。（注：`contracts/`/`tools/` 为 2026-09-14 模块重划后的目录，本任务完成时为 `verif/`/`scripts/`。）
 
 ### 上游引用
 
@@ -57,7 +57,7 @@
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 - 无 ISA 相关差异（基础设施，与 ISA 版本无关）。
-- 目录差异：v5 用 `.tao/` 承载 agent 中间文件（0628 用 `code-agent/`）；v5 用 `verif/` 承载验证工具（0628 用 `tools/`）；v5 用 `spec/`（0628 用 wiki/contracts）。骨架任务不复制 0628 的 `contracts/`、`code-agent/` 目录。
+- 目录差异：v5 用 `.tao/` 承载 agent 中间文件（0628 用 `code-agent/`）；v5 用 `contracts/`+`tools/<module>/` 承载机器可读合约数据与工具（0628 用 `tools/`）；v5 用 `spec/`（0628 用 wiki/contracts）。骨架任务不复制 0628 的 `contracts/`、`code-agent/` 目录。
 - `.gitignore` 已存在，本任务为补齐/对齐，而非从零创建。
 
 ## 已知坑 / 结论

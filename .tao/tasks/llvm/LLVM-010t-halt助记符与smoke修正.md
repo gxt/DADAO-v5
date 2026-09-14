@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`LLVM-009t` 的 MC 闭环、`.tao/knowledge/contract-isa.md` §7（系统指令）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t，exit port/复位/加载协议）、`verif/opcodes.yaml`
+- 输入：`LLVM-009t` 的 MC 闭环、`.tao/knowledge/contract-isa.md` §7（系统指令）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t，exit port/复位/加载协议）、`contracts/opcodes.yaml`
 - 输出：系统/退出相关指令助记符定义（若 `LLVM-005t` 未覆盖则补齐）、修正后的 smoke `.s`（`tests/e2e/` 或 `tests/lit/` 对应位置）、lit E2E 用例
 - 约束：只改 LLVM 端与 smoke 汇编；不改 QEMU 文件；助记符与 ISA 1:1（不加 alias）；`make build-mc` PASS；`.s → .o` 字节与独立 golden 一致
 
@@ -61,8 +61,8 @@
 ## 已知坑 / 结论
 
 - **0628 根因**：`halt` 缺失导致 `Unrecognized instruction mnemonic`；v5 须在 `LLVM-005t` 阶段就确认系统指令（`escape`/`trap`/`illi`/`swym`）已在 M1 范围并被定义，避免同类缺口。
-- **smoke 助记符错配**：0628 `jump_i`/`call_i` 与 LLVM AsmString 不符；v5 smoke 必须用 `verif/opcodes.yaml` 中的精确助记符。
-- **字节一致性**：`.s` 汇编字节必须与独立 golden（`verif/opcodes.yaml` 手推）`diff` 一致，不得用 LLVM 输出自举 golden。
+- **smoke 助记符错配**：0628 `jump_i`/`call_i` 与 LLVM AsmString 不符；v5 smoke 必须用 `contracts/opcodes.yaml` 中的精确助记符。
+- **字节一致性**：`.s` 汇编字节必须与独立 golden（`contracts/opcodes.yaml` 手推）`diff` 一致，不得用 LLVM 输出自举 golden。
 - **助记符 1:1**：不加 LLVM alias。
 - **待确认**：若 v5 测试机仍需要一条专用退出助记符（而非纯 MMIO），须由 `adr-0004-test-machine.md` 明确；本任务以 ADR-0004 为准。
 
@@ -73,7 +73,7 @@
 - DADAO-0628：`.work/DADAO-0628/components/gem5/patches/0003-dadao-halt-regdump.patch`
 - DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-isa.md`（§7）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t 产出后）、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md`（§7）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t 产出后）、`contracts/opcodes.yaml`
 
 ## 验收标准
 

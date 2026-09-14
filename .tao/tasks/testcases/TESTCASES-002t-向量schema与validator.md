@@ -2,7 +2,7 @@
 
 **模块**：testcases
 **项目里程碑**：M1
-**依赖**：`SPEC-003t`、`VERIF-002t`
+**依赖**：`SPEC-003t`、`SPEC-008t`
 **状态**：待开始
 
 ## 执行环境
@@ -12,10 +12,10 @@
 ## 接口规范
 
 - 输入：
-  - `verif/opcodes.yaml`（SPEC-003t，256 条记录，唯一 `insn` 身份 + op/ha/mask/value/fields/legality）
+  - `contracts/opcodes.yaml`（SPEC-003t，256 条记录，唯一 `insn` 身份 + op/ha/mask/value/fields/legality）
   - `.tao/knowledge/contract-isa.md`（SimRISC 0.5.3：编码格式、语义、合法性、异常）
-  - `verif/legality_rules.yaml`（VERIF-002t，ILLI/UNDI/MALIGN/IALIGN/RASOF/RASUF 条件）
-- 输出：`tests/vectors/schema.md`、`tests/vectors/inventory.md`、`tests/vectors/README.md`、`tests/vectors/isa/*.yaml`（初始全量向量）、`verif/validate_vectors.py`、`Makefile`（`check` 集成）
+  - `contracts/legality_rules.yaml`（SPEC-008t，ILLI/UNDI/MALIGN/IALIGN/RASOF/RASUF 条件）
+- 输出：`tests/vectors/schema.md`、`tests/vectors/inventory.md`、`tests/vectors/README.md`、`tests/vectors/isa/*.yaml`（初始全量向量）、`tools/testcases/validate_vectors.py`、`Makefile`（`check` 集成）
 - 约束：
   - 期望值**手工派生自合约/spec**，不从 LLVM 输出或 QEMU 运行结果反推
   - 覆盖率主键用 opcode 身份 `insn`（v5 唯一），不用 `(mnemonic, format)`
@@ -101,7 +101,7 @@ tests/vectors/isa/
 
 **inventory.md 格式**：以 opcode 身份 `insn` 为行的覆盖矩阵，列 = `encoding/legality/semantic/boundary/overlap`，deferred 填写 reason（如 `C-27`），缺失必须显式记录（不得静默缺席）。
 
-**`verif/validate_vectors.py` 校验内容**（须含但不少于）：
+**`tools/testcases/validate_vectors.py` 校验内容**（须含但不少于）：
 
 1. 必填字段存在（`mnemonic/insn/format/class/encoding/input_state/spec_cite`）
 2. `class` ∈ {encoding, legality, semantic, boundary, overlap}
@@ -109,12 +109,12 @@ tests/vectors/isa/
 4. deferred 一致性（`expected_state=null` 且 `deferred_reason` 非空）
 5. `expected_fault` ∈ {null, ILLI, UNDI, MALIGN, IALIGN, RASOF, RASUF}
 6. `encoding.word` 合法 hex 且 ≤ 0xFFFFFFFF
-7. `insn` 存在于 `verif/opcodes.yaml`
+7. `insn` 存在于 `contracts/opcodes.yaml`
 8. `encoding.word` 与对应 opcode 的 `(word & mask) == value` 一致
 9. **覆盖率门控**：M1 scope 内每个 `insn` 至少 1 条 active 向量，缺失报 `COVERAGE MISSING`
 10. active semantic/boundary 必须有 `expected_state`
 
-退出码：有错误 exit(1) 并列出文件 + case 序号；无错误 exit(0)。`Makefile` 的 `check` target 追加 `validate-vectors`（依赖 `verif/opcodes.yaml` 存在）。
+退出码：有错误 exit(1) 并列出文件 + case 序号；无错误 exit(0)。`Makefile` 的 `check` target 追加 `validate-vectors`（依赖 `contracts/opcodes.yaml` 存在）。
 
 ### 上游引用
 
@@ -131,15 +131,15 @@ tests/vectors/isa/
 | `tests/vectors/inventory.md` | 以 `insn` 为行的 M1 覆盖矩阵（含 deferred reason） |
 | `tests/vectors/README.md` | 声明向量独立派生自 spec，不从 LLVM/QEMU 生成 |
 | `tests/vectors/isa/*.yaml` | M1 scope 初始全量向量（5 类），每条期望值附手算依据 |
-| `verif/validate_vectors.py` | 向量 schema + 覆盖率校验器，`make check` 门控 |
+| `tools/testcases/validate_vectors.py` | 向量 schema + 覆盖率校验器，`make check` 门控 |
 | `Makefile` | `check` target 追加 `validate-vectors` |
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符**：0.4.1 的 `add`/`muls`/`mulu`/`divs`/`divu`/`cmps`/`cmpu`/`exts`/`extz`/`shrs`/`shru`/`shlu`/`ldo`/`sto`/`setzw`/`setow`/`orw`/`andnw`/`brn`/`brnn`/`brz`/`brnz`/`brp`/`brnp`/`breq`/`brne`/`jump`/`call`/`ret`/`unimp` 等，全部替换为 0.5.3 命名（`.b/.w/.t/.o` + `s/u`；`ld.ub`/`st.o`/`set.zw`/`br.nz`/`illi` 等）。
 2. **覆盖率身份**：0628 用 `(op, ha)`；v5 `opcodes.yaml` 有唯一 `insn` 字段（如 `ld.o-rd`/`ld.o-rb`/`or.w-rd`/`or.w-rb`），覆盖率主键用 `insn` 更精确，schema 必须含 `insn` 字段。
-3. **编码表路径**：0628 `tools/opcodes.yaml`；v5 `verif/opcodes.yaml`（SPEC-003t）。
-4. **validator 路径**：0628 `scripts/validate_vectors.py`；v5 `verif/validate_vectors.py`（与 `verif/validate_encoding.py` 同目录）。
+3. **编码表路径**：0628 `tools/opcodes.yaml`；v5 `contracts/opcodes.yaml`（SPEC-003t）。
+4. **validator 路径**：0628 `scripts/validate_vectors.py`；v5 `tools/testcases/validate_vectors.py`（与 `tools/spec/validate_encoding.py` 同目录）。
 5. **格式体系**：0.5.3 引入 MISC-byte/wyde/tetra/octa 子表（`orrr`/`orri`），向量文件组织与 opcode 分组需按 0.5.3 QFC 表重建。
 6. **M1 scope 门控**：v5 `opcodes.yaml` 含 256 条（含浮点 RF、原子 AMO、系统/特权等），覆盖率门控必须显式限定 M1 scope（排除 RF/AMO/系统/特权/RA 多存取/rd2ra/ra2rd 等），否则会要求为 excluded 指令造向量。
 7. **RB 语义**：0.5.3 RB 算术为全 64 位（无 48-bit 截断/高 16 位保持规则），0.4.1 中相关期望值规则与结论**不适用**。
@@ -167,7 +167,7 @@ tests/vectors/isa/
 - DADAO-0628：`.work/DADAO-0628/tests/vectors/isa/`
 - DADAO-0628：`.work/DADAO-0628/scripts/validate_vectors.py`
 - DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（TDD Contract / Vector Taxonomy 段）
-- 本项目：`verif/opcodes.yaml`、`verif/legality_rules.yaml`、`.tao/knowledge/contract-isa.md`
+- 本项目：`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、`.tao/knowledge/contract-isa.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -175,8 +175,8 @@ tests/vectors/isa/
 1. `tests/vectors/schema.md` 冻结全部字段与 5 类 class 定义、deferred 规则、覆盖要求
 2. `tests/vectors/inventory.md` 以 `insn` 为行、覆盖矩阵完整（含 deferred reason），无静默缺席
 3. `tests/vectors/isa/*.yaml` 存在，M1 scope 每个 `insn` ≥1 active 向量
-4. `verif/validate_vectors.py` 实现上述 10 项校验，错误时 exit(1) 并列出文件+case 序号
-5. `python3 verif/validate_vectors.py` 零错误，输出 `N/N opcodes covered OK`
+4. `tools/testcases/validate_vectors.py` 实现上述 10 项校验，错误时 exit(1) 并列出文件+case 序号
+5. `python3 tools/testcases/validate_vectors.py` 零错误，输出 `N/N opcodes covered OK`
 6. `make check` 包含并执行 `validate-vectors`，PASS
 7. 所有期望值可回溯到 `contract-isa.md`/`spec/`（case 内附推导依据），无 LLVM/QEMU 生成痕迹
 8. C-27 类 overlap case 显式存在且 `status: deferred`

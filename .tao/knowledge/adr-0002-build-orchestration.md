@@ -10,7 +10,7 @@ DADAO-v5 需要从锁定的上游组件（LLVM/QEMU/gem5）与参考仓库复现
 
 ## Decision（决策）
 
-- **D1 稳定用户接口**：以 **Make** 作为统一入口（`fetch` / `fetch-refs` / `apply-series` / `prepare` / `build-*` / `clean-work` 等），实际逻辑委托给 `scripts/` 下的 **Python 标准库**脚本；不引入第三方 Python 依赖。
+- **D1 稳定用户接口**：以 **Make** 作为统一入口（`fetch` / `fetch-refs` / `apply-series` / `prepare` / `build-*` / `clean-work` 等），实际逻辑委托给 `tools/infra/` 下的 **Python 标准库**脚本；不引入第三方 Python 依赖。
 - **D2 一次性数据集中在 `.work/`**：上游工作树、树外构建目录、install、sysroot、构建/组件日志等所有可丢弃数据放在 `.work/` 下，整体由 `.gitignore` 忽略；仓库不预建、不跟踪其内容。agent 任务中间文件（含验证日志）按 `.tao/` 约定放 `.tao/logs/`（同样 gitignore）。
 - **D3 按完整 commit 锁定**：每个组件从 `manifests/components.lock.toml` 读取**完整 40 位 commit** 获取；tag/branch 不作为可复现基线。
 - **D4 单一有序补丁序列**：每个组件的 DADAO 改动以 `components/<name>/patches/series` 定义的**单一有序补丁序列**表达，统一用 `git am` 应用；不叠加多层 fixups。
@@ -37,7 +37,7 @@ DADAO-v5 需要从锁定的上游组件（LLVM/QEMU/gem5）与参考仓库复现
 ## Consequences（影响）
 
 - **正面**：干净 checkout 上可一键准备与构建；版本来源精确、可审计；清空 `.work/` 不损失本地对象库，工作树重建无需网络。
-- **约束**：enabled 组件必须有完整 commit 且补丁序列存在（由 `scripts/manifest_check.py` 校验）；补丁只能经 `git am` 路径应用；`.cache/` 与 `.work/` 均须在 `.gitignore` 中整体忽略。
+- **约束**：enabled 组件必须有完整 commit 且补丁序列存在（由 `tools/infra/manifest_check.py` 校验）；补丁只能经 `git am` 路径应用；`.cache/` 与 `.work/` 均须在 `.gitignore` 中整体忽略。
 - **代价/负面**：`.cache/` 在本地磁盘上保留 bare mirror，占用空间，首次下载成本仍存在；`.work/` 与 `.cache/` 的清理职责必须严格区分（`clean_work` 不碰 `.cache/`）。
 
 ## 状态说明

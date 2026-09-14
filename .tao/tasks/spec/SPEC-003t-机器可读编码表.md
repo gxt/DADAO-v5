@@ -5,7 +5,7 @@
 **依赖**：`SPEC-002t`
 **状态**：已验证
 
-> **重排说明（2026-09-12）**：spec 重排后本任务状态重置；产出 `verif/opcodes.yaml` 需**重新生成**，旧文件暂作参考（见 `.tao/knowledge/deferred.md`）。
+> **重排说明（2026-09-12）**：spec 重排后本任务状态重置；产出 `contracts/opcodes.yaml` 需**重新生成**，旧文件暂作参考（见 `.tao/knowledge/deferred.md`）。
 
 ## 执行环境
 
@@ -14,7 +14,7 @@
 ## 接口规范
 
 - 输入：spec/ 规范文档（见下方清单）
-- 输出：`verif/opcodes.yaml`
+- 输出：`contracts/opcodes.yaml`
 - 约束：基于 SimRISC 0.5.3，**M1 范围**（标量整数 + 地址/内存 RD/RB/**RA** + 控制流 + 测试机所需系统）；M1 范围外（浮点 RF 全部 / 特权 cfx / LR-SC 原子）记 reserved 或标 `excluded_m1`（解码 → UNDI/ILLI）
 
 ## 输入文件清单
@@ -68,7 +68,7 @@
 ## 完成区
 
 **测试结果**：`validate_encoding.py` 256 条记录 OK（exit 0）；全表 legality 字段引用扫描无悬空（293 处引用全部命中本记录 fields）；反向重生成 diff 证明改动精确限于 6 条记录
-**修改文件**：`verif/opcodes.yaml`（重新生成）、`verif/generate_opcodes.py`（修复 5 条块赋值 legality + 规整 fence legality）
+**修改文件**：`contracts/opcodes.yaml`（重新生成）、`tools/spec/generate_opcodes.py`（修复 5 条块赋值 legality + 规整 fence legality）
 **验收结果**：见下方「返工记录（2026-09-13）」与「核对结果」
 **新发现/坑**：见下方「新发现/坑」
 **遗留问题**：见下方「遗留问题」
@@ -77,7 +77,7 @@
 
 **返工项**：修复 5 条 M1 块赋值指令 `legality` 引用不存在字段（`rdha`/`rbha` → 实际目的字段 `rdhb`/`rbhb`），并可选规整 `fence` 的 `immu18` 引用。
 
-**改动（`verif/generate_opcodes.py`）**：
+**改动（`tools/spec/generate_opcodes.py`）**：
 
 | insn | op/ha | 改前 legality[0] | 改后 legality[0] | 目的字段（同记录 fields） |
 | --- | --- | --- | --- | --- |
@@ -91,18 +91,18 @@
 **真实复验命令 + 输出（退出码）**：
 
 ```bash
-$ python3 verif/generate_opcodes.py
-生成完成：256 条（M1 内 178，excluded_m1 78）-> /mnt/tao/DADAO-v5/verif/opcodes.yaml   # exit 0
+$ python3 tools/spec/generate_opcodes.py
+生成完成：256 条（M1 内 178，excluded_m1 78）-> /mnt/tao/DADAO-v5/contracts/opcodes.yaml   # exit 0
 
-$ python3 verif/validate_encoding.py verif/opcodes.yaml
+$ python3 tools/spec/validate_encoding.py contracts/opcodes.yaml
 validate_encoding: 256 条记录 OK                                                       # exit 0
 
-$ python3 /tmp/opencode/SPEC-003t/scan_legality.py verif/opcodes.yaml
+$ python3 /tmp/opencode/SPEC-003t/scan_legality.py contracts/opcodes.yaml
 扫描记录 256 条，legality 字段引用 293 处
 无悬空字段引用：全部 legality 标识符均为该记录 fields 或允许的常量/函数                  # exit 0
 
 # 反向重生成：把 6 处改动还原为改前版本，生成到 /tmp 后 diff（证明改动范围精确）
-$ diff /tmp/opencode/SPEC-003t/opcodes.yaml verif/opcodes.yaml
+$ diff /tmp/opencode/SPEC-003t/opcodes.yaml contracts/opcodes.yaml
 6 处 hunk：fence(1→3 行) + rd2rd/ra2rd/rb2rb/rd2rb/rb2rd 各 1 处 legality[0]；无其它差异   # diff exit 1（有差异，符合预期）
 
 # fence 语义等价独立验证：遍历全部 2^18 个 immu18 取值
@@ -135,10 +135,10 @@ rb2rd  ha=0x36 fields=[ha, rdhb, rbhc, immu6] legality=[rdhb != rd0, immu6 != 0,
 ### 核对结果（真实命令 + 输出）
 
 ```bash
-$ python3 verif/generate_opcodes.py
-生成完成：256 条（M1 内 178，excluded_m1 78）-> .../verif/opcodes.yaml   # exit 0
+$ python3 tools/spec/generate_opcodes.py
+生成完成：256 条（M1 内 178，excluded_m1 78）-> .../contracts/opcodes.yaml   # exit 0
 
-$ python3 verif/validate_encoding.py verif/opcodes.yaml
+$ python3 tools/spec/validate_encoding.py contracts/opcodes.yaml
 validate_encoding: 256 条记录 OK                                        # exit 0
 
 # 独立核对（脚本在 /tmp/opencode/SPEC-003t/，不污染仓库）
@@ -171,8 +171,8 @@ $ python3 <field-layout check>  # /tmp/opencode/SPEC-003t/field_check.log
 
 ### 遗留问题
 
-1. **下游回归**：`verif/opcodes.yaml` 由「256 条完整 ISA（无 M1 标记）」变为「178 M1 + 78 excluded_m1」；`verif/legality_rules.yaml`（VERIF-002t，已 Accepted）及 `VERIF-005t` 等若依赖旧编码（尤其 LR/SC、rd2rf/rf2rd 的 ha）需回归/更新。
-2. `verif/validate_encoding.py` 未改动（本任务输出仅 `opcodes.yaml`；`generate_opcodes.py` 按允许复用/改造重写）。
+1. **下游回归**：`contracts/opcodes.yaml` 由「256 条完整 ISA（无 M1 标记）」变为「178 M1 + 78 excluded_m1」；`contracts/legality_rules.yaml`（SPEC-008t，已 Accepted）及 `SPEC-009t` 等若依赖旧编码（尤其 LR/SC、rd2rf/rf2rd 的 ha）需回归/更新。
+2. `tools/spec/validate_encoding.py` 未改动（本任务输出仅 `opcodes.yaml`；`generate_opcodes.py` 按允许复用/改造重写）。
 3. 全零字 = `illi 0`（ILLI）已由 `illi`(op=0x00,ha=0x00,mask=0xFFFC0000,value=0) 覆盖；reserved 编码不建条目，解码走 UNDI。
 4. `insn` 沿用旧 schema：主表有 bank 后缀的为 `mnemonic-bank`，无 bank 的（`jump`/`call`/`ret`/`swym`/cfx）为 `mnemonic-format`，MISC 为 `mnemonic`；因此 `ext.*`/`shr.*`/`shl.*` 的 `orrr`/`orri` 变体 `insn` 同名，需以 `(op, ha, format)` 唯一区分（全表唯一键 256/256）。
 
@@ -190,14 +190,14 @@ $ python3 <field-layout check>  # /tmp/opencode/SPEC-003t/field_check.log
 ### 重跑记录
 
 ```bash
-$ cd /home/ubuntu/gxtao/DADAO-v5 && python3 verif/validate_encoding.py verif/opcodes.yaml
+$ cd /home/ubuntu/gxtao/DADAO-v5 && python3 tools/spec/validate_encoding.py contracts/opcodes.yaml
 validate_encoding: 256 条记录 OK
 $ echo $?
 0
 ```
 
 ```bash
-$ cd /home/ubuntu/gxtao/DADAO-v5 && python3 -c "import yaml; data = yaml.safe_load(open('verif/opcodes.yaml')); print(f'指令数量: {len(data)}')"
+$ cd /home/ubuntu/gxtao/DADAO-v5 && python3 -c "import yaml; data = yaml.safe_load(open('contracts/opcodes.yaml')); print(f'指令数量: {len(data)}')"
 指令数量: 256
 ```
 
@@ -266,7 +266,7 @@ opcodes.yaml 满足全部验收标准，无阻断问题。
 
 ##### 审查范围与方法
 
-- 逐行读 `verif/generate_opcodes.py` 与生成的 `verif/opcodes.yaml`。
+- 逐行读 `tools/spec/generate_opcodes.py` 与生成的 `contracts/opcodes.yaml`。
 - 独立编写 spec 表解析器 `/tmp/opencode/SPEC-003t/crosscheck_spec.py`，解析 `spec/SimRISC-00` 的 QFC 主表 + 6 个 MISC 子表，逐单元格 `(op,ha)→(insn,format)` 与 yaml 比对。
 - 独立编写 `/tmp/opencode/SPEC-003t/check_m1.py`：M1 集合与 contract 附录 A.1–A.7 期望集比对、RA 在内、excluded 标记、必填字段、mask/value 重算。
 - 字段位域/role/bank/spec_cite 检查脚本。
@@ -302,21 +302,21 @@ opcodes.yaml 满足全部验收标准，无阻断问题。
 ##### 重跑记录
 
 ```bash
-$ cd /mnt/tao/DADAO-v5 && python3 verif/validate_encoding.py verif/opcodes.yaml
+$ cd /mnt/tao/DADAO-v5 && python3 tools/spec/validate_encoding.py contracts/opcodes.yaml
 validate_encoding: 256 条记录 OK
 $ echo $?
 0
 ```
 
 ```bash
-$ cd /mnt/tao/DADAO-v5 && python3 -c "import yaml; data = yaml.safe_load(open('verif/opcodes.yaml')); print(f'总记录数: {len(data)}')"
+$ cd /mnt/tao/DADAO-v5 && python3 -c "import yaml; data = yaml.safe_load(open('contracts/opcodes.yaml')); print(f'总记录数: {len(data)}')"
 总记录数: 256
 ```
 
 ```bash
 $ cd /mnt/tao/DADAO-v5 && python3 -c "
 import yaml
-data = yaml.safe_load(open('verif/opcodes.yaml'))
+data = yaml.safe_load(open('contracts/opcodes.yaml'))
 m1_count = sum(1 for item in data if not item.get('excluded_m1', False))
 excluded_count = sum(1 for item in data if item.get('excluded_m1', False))
 print(f'M1 内: {m1_count}')
@@ -451,8 +451,8 @@ $ echo $?
 | mask/value 与 spec QFC 主表 + MISC 子表逐格一致 | ✅ 通过 | 独立脚本全量核验通过 |
 | rd2rf/rf2rd ha 与 spec 一致 | ✅ 通过 | ha=0x3D/0x3E（spec 111-101/111-110） |
 | lr_*/sc_* ha 与 spec 一致 | ✅ 通过 | ha=0x10-0x13/0x18-0x1B（spec 010-xxx/011-xxx） |
-| python3 verif/validate_encoding.py verif/opcodes.yaml → exit 0 | ✅ 通过 | 256 条记录 OK |
-| 修改文件与 git status 一致 | ✅ 通过 | verif/opcodes.yaml, verif/generate_opcodes.py, 任务文件 |
+| python3 tools/spec/validate_encoding.py contracts/opcodes.yaml → exit 0 | ✅ 通过 | 256 条记录 OK |
+| 修改文件与 git status 一致 | ✅ 通过 | contracts/opcodes.yaml, tools/spec/generate_opcodes.py, 任务文件 |
 
 ##### 工程师声称的 2 处旧错误修正复核
 
@@ -479,7 +479,7 @@ spec MISC-RF 表实际非空单元格：
 
 ##### 下游回归判断
 
-`verif/legality_rules.yaml` 中 `lr_hb_not_zero` 规则引用 lr_* 指令。由于 lr_* 现已标记为 `excluded_m1`，该规则在 M1 验证流程中应跳过或标记为非 M1 规则。建议后续任务（VERIF-002t/VERIF-005t）回归时确认兼容性。
+`contracts/legality_rules.yaml` 中 `lr_hb_not_zero` 规则引用 lr_* 指令。由于 lr_* 现已标记为 `excluded_m1`，该规则在 M1 验证流程中应跳过或标记为非 M1 规则。建议后续任务（SPEC-008t/SPEC-009t）回归时确认兼容性。
 
 ##### 判决
 
@@ -529,7 +529,7 @@ spec MISC-RF 表实际非空单元格：
 
 ##### 审查范围与方法
 
-- 逐行读 `verif/generate_opcodes.py` 本次改动的 6 处（`build_misc_amo` 的 `fence`；`build_misc_octa` 的 `rd2rd`/`ra2rd`/`rb2rb`/`rd2rb`/`rb2rd`）与生成的 `verif/opcodes.yaml` 对应记录。
+- 逐行读 `tools/spec/generate_opcodes.py` 本次改动的 6 处（`build_misc_amo` 的 `fence`；`build_misc_octa` 的 `rd2rd`/`ra2rd`/`rb2rb`/`rd2rb`/`rb2rd`）与生成的 `contracts/opcodes.yaml` 对应记录。
 - 对照 `.tao/knowledge/contract-isa.md` §3.7/§4.3/§4.9.3 与 `spec/SimRISC-04 §fence指令` 核对目的字段与约束语义。
 - 独立脚本 `/tmp/opencode/SPEC-003t/scan_legality.py`：全表 256 条 legality 的标识符逐一比对同记录 `fields`（排除常量 `rd0/rb0/ra0/rf0` 与函数 `aligned`）。
 - **反向重生成**：把 6 处改动在临时副本中还原为改前版本（`/tmp/opencode/SPEC-003t/gen_prefix.py`），生成到 `/tmp` 后与仓库当前 `opcodes.yaml` diff，验证改动范围精确。
@@ -565,17 +565,17 @@ spec MISC-RF 表实际非空单元格：
 ##### 重跑记录
 
 ```bash
-$ python3 verif/validate_encoding.py verif/opcodes.yaml
+$ python3 tools/spec/validate_encoding.py contracts/opcodes.yaml
 validate_encoding: 256 条记录 OK
 EXIT=0
 
-$ python3 -c "import yaml; data = yaml.safe_load(open('verif/opcodes.yaml')); m1=sum(1 for r in data if not r.get('excluded_m1',False)); ex=sum(1 for r in data if r.get('excluded_m1',False)); print(f'总记录数: {len(data)}\nM1 内: {m1}\nexcluded_m1: {ex}\n总和: {m1+ex}')"
+$ python3 -c "import yaml; data = yaml.safe_load(open('contracts/opcodes.yaml')); m1=sum(1 for r in data if not r.get('excluded_m1',False)); ex=sum(1 for r in data if r.get('excluded_m1',False)); print(f'总记录数: {len(data)}\nM1 内: {m1}\nexcluded_m1: {ex}\n总和: {m1+ex}')"
 总记录数: 256
 M1 内: 178
 excluded_m1: 78
 总和: 256
 
-$ python3 /tmp/opencode/SPEC-003t-review2/scan_legality.py verif/opcodes.yaml
+$ python3 /tmp/opencode/SPEC-003t-review2/scan_legality.py contracts/opcodes.yaml
 扫描记录 256 条，legality 字段引用 484 处
 无悬空字段引用：全部 legality 标识符均为该记录 fields 或允许的常量/函数
 EXIT=0
@@ -595,8 +595,8 @@ EXIT=0
 $ git status --short
  M .tao/knowledge/deferred.md
  M ".tao/tasks/spec/SPEC-003t-机器可读编码表.md"
- M verif/generate_opcodes.py
- M verif/opcodes.yaml
+ M tools/spec/generate_opcodes.py
+ M contracts/opcodes.yaml
 ```
 
 日志：`.tao/logs/SPEC-003t-review2-{validate,count,scan-legality,block-assign,fence-equiv,diff-opcodes,diff-gen}.log`
@@ -611,7 +611,7 @@ $ git status --short
 | 记录总数 256（M1 178 + excluded 78） | ✅ 通过 | 独立脚本核验一致 |
 | mask/value 未变 | ✅ 通过 | git diff opcodes.yaml 仅 header 注释与 signed 字段清理，无 mask/value 改动 |
 | validate_encoding.py exit 0 | ✅ 通过 | 256 条记录 OK |
-| 修改文件与 git status 一致 | ✅ 通过 | verif/opcodes.yaml、verif/generate_opcodes.py、deferred.md、任务文件 |
+| 修改文件与 git status 一致 | ✅ 通过 | contracts/opcodes.yaml、tools/spec/generate_opcodes.py、deferred.md、任务文件 |
 | generate_opcodes.py 源码正确性 | ✅ 通过 | 逐行确认 5 条块赋值用字面量 `"rdhb != rd0"`/`"rbhb != rb0"`，fence 用 `immu18_hi/mid/lo` |
 
 ##### 源码级确认（generate_opcodes.py）
@@ -647,6 +647,6 @@ architect 交叉复核的 6 项返工（5 条块赋值 legality + fence 规整�
 
 ### 后续增强（2026-09-12）
 
-`verif/validate_encoding.py` 增加 **`legality` 字段引用校验**（`check_legality_refs`）：`legality` 中引用的每个标识符必须是该记录 `fields[].name`，或允许的常量/函数（`rd0`/`rb0`/`ra0`/`rf0`/`aligned`）；否则报错、非零退出。用于机械拦截「把 opcode 位 `ha` 误写成寄存器 `rdha`」这类**悬空引用**（即本次返工根因）。实测：正常 `opcodes.yaml` PASS；注入 `rdha` 的副本被报错（exit 1）。当前 `make check`（`INFRA-006t`）只跑 `manifest-check` + `compileall`，**不含** `validate_encoding.py`——该校验在 SPEC-003t/testcases/verif 调用 `validate_encoding.py` 时执行（是否并入 `make check` 可后续决定）。
+`tools/spec/validate_encoding.py` 增加 **`legality` 字段引用校验**（`check_legality_refs`）：`legality` 中引用的每个标识符必须是该记录 `fields[].name`，或允许的常量/函数（`rd0`/`rb0`/`ra0`/`rf0`/`aligned`）；否则报错、非零退出。用于机械拦截「把 opcode 位 `ha` 误写成寄存器 `rdha`」这类**悬空引用**（即本次返工根因）。实测：正常 `opcodes.yaml` PASS；注入 `rdha` 的副本被报错（exit 1）。当前 `make check`（`INFRA-006t`）只跑 `manifest-check` + `compileall`，**不含** `validate_encoding.py`——该校验在 SPEC-003t/testcases/verif 调用 `validate_encoding.py` 时执行（是否并入 `make check` 可后续决定）。
 
 **reviewer 独立复核**：**Accepted** —— 正常 PASS；注入 `rdha`/`rbha`/虚构标识符均被抓（exit 1）；白名单完整（全表非字段标识符恰为 `{rd0, rb0, aligned}`，无误拒）；正则/边界正确（不抓数字/运算符；空 legality 不报错）；原有 5 类检查（value/mask、重叠、解码冲突、bank）反例均仍生效。

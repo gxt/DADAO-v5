@@ -15,7 +15,7 @@
   - `QEMU-005t` 产出的 `translate.c`（RD 整数语义已实现，load/store 仍为 ILLI 桩）
   - `.tao/knowledge/contract-isa.md` §1.5（存储模型：有效地址 48 位、高 16 位忽略、大端）、§4.1（存取 RD 寄存器：单/多 load/store、对齐、异常）
   - `.tao/knowledge/adr-0004-test-machine.md`（MALIGN 可观测行为、内存图）
-  - `verif/opcodes.yaml`（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 op/格式/legality）
+  - `contracts/opcodes.yaml`（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 op/格式/legality）
 - 输出：`components/qemu/patches/0004-dadao-load-store.patch`、`components/qemu/patches/series`
 - 约束：
   - 大端访问：全部 MemOp 用 `MO_BE*` 变体
@@ -97,7 +97,7 @@
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-016a-qemu-load-store.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-016b-qemu-malign-temp-fix.md`
 - DADAO-0628：`.work/DADAO-0628/components/qemu/patches/0005-dadao-load-store.patch`（仅参考风格）
-- 本项目：`.tao/knowledge/contract-isa.md` §1.5、§4.1；`verif/opcodes.yaml`；`.tao/knowledge/adr-0004-test-machine.md`
+- 本项目：`.tao/knowledge/contract-isa.md` §1.5、§4.1；`contracts/opcodes.yaml`；`.tao/knowledge/adr-0004-test-machine.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准

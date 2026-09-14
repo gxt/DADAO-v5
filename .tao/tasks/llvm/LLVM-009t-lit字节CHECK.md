@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`LLVM-008t` 的 Disassembler 与含 `llvm-objdump -d` RUN 行的 lit 文件、`.tao/knowledge/contract-isa.md` §2、`verif/opcodes.yaml`
+- 输入：`LLVM-008t` 的 Disassembler 与含 `llvm-objdump -d` RUN 行的 lit 文件、`.tao/knowledge/contract-isa.md` §2、`contracts/opcodes.yaml`
 - 输出：13+ 个 `tests/lit/MC/Dadao/*.s` 的 `OBJ:`/`ASM:` 前缀与字节级 CHECK 行
 - 约束：期望字节手推，禁止从 `llvm-mc`/`llvm-objdump` 输出复制；不改 `.s` 的非注释指令行；`triple-smoke.s` 不改；lit 需 build-llvm 后运行
 
@@ -22,7 +22,7 @@
 对全部含 objdump RUN 行的 lit 文件：
 1. 拆分 CHECK 前缀：`# CHECK:` 拆为 `# OBJ:`（objdump 输出）与 `# ASM:`（asm round-trip 输出）。
 2. 每条指令加字节级 `# OBJ: <hex bytes>{{.*}}<mnemonic>` 验证实际字节。
-3. 字节依据 `contract-isa.md §2.2` 公式 + `verif/opcodes.yaml` 手工计算。
+3. 字节依据 `contract-isa.md §2.2` 公式 + `contracts/opcodes.yaml` 手工计算。
 
 ### 设计理由
 
@@ -58,7 +58,7 @@
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-- **op/字节来源**：`verif/opcodes.yaml`（256 条），不复制 0628 的字节值（0628 部分示例有误）。
+- **op/字节来源**：`contracts/opcodes.yaml`（256 条），不复制 0628 的字节值（0628 部分示例有误）。
 - **助记符**：0.5.3 命名（`.b/.w/.t/.o`、`s`/`u`、MISC 子表），lit 文件内容按 v5 重写。
 - **`{{.*}}` 内建**：0628 N1 指出 OBJ 模式缺 `{{.*}}`，依赖单空格输出会静默 flake；v5 从一开始就带 `{{.*}}`。
 - **不复制 0.4.1 补丁正文/编码数据**。
@@ -78,7 +78,7 @@
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-011a-llvm-disassembler.md`
 - DADAO-0628：`.work/DADAO-0628/tests/lit/MC/Dadao/`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-isa.md`（§2.1/§2.2/§2.3）、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md`（§2.1/§2.2/§2.3）、`contracts/opcodes.yaml`
 
 ## 验收标准
 

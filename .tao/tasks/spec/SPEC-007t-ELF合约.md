@@ -152,7 +152,7 @@
 
 **新发现/坑**：
 1. **任务书 §2 的 legacy `R_DADAO_*` 表不在 ADR-0003 中**：按「ADR-0003 唯一决策来源」，未把该表纳入合约（纳入将违反唯一来源、且任务书自身也标其「仅作对照、不得臆造」）；§2 改用 ADR-0003 §D2 的**场景登记表**（0.5.3 指令格式），并显式声明 M1 不定义/不冻结任何重定位编号/公式。
-2. **SPEC-008t drift checker 的合约分类**：合约分 `spec-sourced`（含 `> **版本：X.Y.Z**` 头）与 `ADR-sourced`（来源标注引用 `adr-000N-*.md`）。`contract-elf.md` 为 ADR-sourced，故**不加** `> **版本：**` 头，避免被误分类为 spec-sourced 并要求 README 版本表匹配。任务书「合约版本应与 v5 一致」在本合约体现为「基线 = ADR-0003 rev. 2026-09-13」。
+2. **`INFRA-012t` drift checker 的合约分类**：合约分 `spec-sourced`（含 `> **版本：X.Y.Z**` 头）与 `ADR-sourced`（来源标注引用 `adr-000N-*.md`）。`contract-elf.md` 为 ADR-sourced，故**不加** `> **版本：**` 头，避免被误分类为 spec-sourced 并要求 README 版本表匹配。任务书「合约版本应与 v5 一致」在本合约体现为「基线 = ADR-0003 rev. 2026-09-13」。
 3. **任务书约束「每条重定位有完整 S/A/P 公式与溢出策略」与 ADR-0003 D2/D3/D4 全 Deferred 冲突**：按 ADR 唯一来源规则，§2–§4 明确声明 M1 无重定位、无公式（非占位）；不自行补 PCREL12 overflow 行（与任务书已知坑 #5「§3 须为机械规范化结果」一致）。
 4. **e_flags 归一化**：用 ADR-0003 修订值 `e_flags[7:0]=1`（数值 `0x00000001`）+ bits 8–31 保留 0；未沿用旧 `e_flags=0x1`（1 位标志）表述。
 5. **EM_DADAO 注册状态**：显式写「未注册 IANA/SysV/LLVM 主线、不声称已注册 upstream、project-custom」，碰撞风险由 `e_flags` 版本字段缓解。

@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`.tao/knowledge/contract-isa.md` §4.9（RA 寄存器存取与块赋值）、§1.3.4（ra0–ra63 MemRAS/RegRAS）；`verif/opcodes.yaml`（RA 指令编码）；`.tao/knowledge/adr-0004-test-machine.md`（fault/exit 可观测）
+- 输入：`.tao/knowledge/contract-isa.md` §4.9（RA 寄存器存取与块赋值）、§1.3.4（ra0–ra63 MemRAS/RegRAS）；`contracts/opcodes.yaml`（RA 指令编码）；`.tao/knowledge/adr-0004-test-machine.md`（fault/exit 可观测）
 - 输出：`components/qemu/patches/` 中 RA 指令补丁（`trans_*`）+ RA 向量补充
 - 约束：Spec-first（语义以 §4.9/§1.3.4 为准，不从实现反推）；异常按 ADR-0004；只处理 RA 指令，不越界改其它指令
 

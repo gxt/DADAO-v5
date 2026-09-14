@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`LLVM-007t` 的 emitter/AsmParser、`.tao/knowledge/contract-isa.md` §2、`verif/opcodes.yaml`
+- 输入：`LLVM-007t` 的 emitter/AsmParser、`.tao/knowledge/contract-isa.md` §2、`contracts/opcodes.yaml`
 - 输出：`components/llvm/patches/0006-dadao-disassembler.patch`、更新后的 `series`、lit 的 `llvm-objdump -d` 路径
 - 约束：`make build-mc` PASS；`llvm-lit tests/lit/MC/Dadao/` 0 failures；`series` 必须包含 0006；lit DISASM 更新必须纳入补丁（可重现）；只涉及 MCDisassembler，不触碰 CodeGen
 
@@ -71,7 +71,7 @@
 - DADAO-0628：`.work/DADAO-0628/tests/lit/MC/Dadao/`
 - DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-isa.md`、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md`、`contracts/opcodes.yaml`
 
 ## 验收标准
 

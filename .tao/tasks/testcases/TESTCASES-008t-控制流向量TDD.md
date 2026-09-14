@@ -15,7 +15,7 @@
   - `tests/vectors/isa/control-flow.yaml`（TESTCASES-002t 向量）
   - `.tao/knowledge/contract-isa.md` §5（条件跳转/无条件跳转/函数调用/函数返回）
   - `.tao/knowledge/adr-0004-test-machine.md`（exit 协议、fault 可观测）
-  - `verif/opcodes.yaml`（branch/jump/call/ret 编码与格式）
+  - `contracts/opcodes.yaml`（branch/jump/call/ret 编码与格式）
 - 输出：修复后的 `tests/vectors/isa/control-flow.yaml`
 - 约束：
   - encoding 类必须使其可被解码执行且不无限循环、不误触发非预期 fault
@@ -121,7 +121,7 @@
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（完整转述）
 - DADAO-0628：`.work/DADAO-0628/tests/vectors/isa/control-flow.yaml`（形态参考，禁止复制数据）
-- 本项目：`.tao/knowledge/contract-isa.md` §5、`verif/opcodes.yaml`、`.tao/knowledge/adr-0004-test-machine.md`
+- 本项目：`.tao/knowledge/contract-isa.md` §5、`contracts/opcodes.yaml`、`.tao/knowledge/adr-0004-test-machine.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -131,7 +131,7 @@
 3. semantic/boundary 均为 `status: deferred` 且 `deferred_reason` 明确，测试桩未被删除
 4. 新增 3 条 legality 桩，`status`/`expected_fault` 自洽
 5. 追加 branch-over-poison TDD 设计注释
-6. `python3 verif/validate_vectors.py` 零错误；`make check` PASS
+6. `python3 tools/testcases/validate_vectors.py` 零错误；`make check` PASS
 7. （下游）QEMU harness 就绪后，active 测试全 PASS；本任务记录该运行验收依赖
 8. 未自行 commit
 

@@ -14,7 +14,7 @@
 - 输入：
   - `QEMU-004t` 产出的 `target/dadao/translate.c`（全部 `trans_*` 存根为 ILLI）与 `insn.decode`
   - `.tao/knowledge/contract-isa.md` §1.3（rd0/rb0/rf0 约定）、§3（标量整数：算术/比较/逻辑/位操作/条件赋值/立即数设置/块赋值）、附录 A.2–A.5（MISC 子表中的整数运算）
-  - `verif/opcodes.yaml`（各指令 `fields`/`legality`）、`verif/legality_rules.yaml`
+  - `contracts/opcodes.yaml`（各指令 `fields`/`legality`）、`contracts/legality_rules.yaml`
 - 输出：`components/qemu/patches/0003-dadao-rd-arith.patch`、`components/qemu/patches/series`
 - 约束：
   - 只实现本任务列出的指令；load/store、branch/call/ret、RB 指令、浮点保持 ILLI 桩
@@ -96,7 +96,7 @@
 ## 参考
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-015a-qemu-rd-arith.md`
-- 本项目：`.tao/knowledge/contract-isa.md` §1.3、§2.3、§3、附录 A.2–A.5；`verif/opcodes.yaml`；`verif/legality_rules.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md` §1.3、§2.3、§3、附录 A.2–A.5；`contracts/opcodes.yaml`；`contracts/legality_rules.yaml`
 - 本项目：`.tao/tasks/qemu/QEMU-004t-Decodetree解码.md`（`trans_*` 签名与 `arg_*` 结构体）
 - 知识库：`.tao/knowledge/MEMORY.md`
 

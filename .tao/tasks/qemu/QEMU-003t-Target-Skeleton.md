@@ -15,7 +15,7 @@
   - `QEMU-002t` 选定的 QEMU 上游 commit（`manifests/components.lock.toml` 中 qemu 条目）
   - `.tao/knowledge/adr-0004-test-machine.md`（`SPEC-006t` 产出：内存图、复位值、exit port 协议、MALIGN/ILLI/UNDI 可观测行为）
   - `.tao/knowledge/contract-isa.md` §1（寄存器模型：rd/rb/rf/ra 各 64×64、rd0=0、rb0=PC、rf0=FCSR、ra0–ra63 RegRAS）、§2（32 位大端、4 字节对齐、5 域编码）
-  - `verif/opcodes.yaml`、`verif/legality_rules.yaml`（`SPEC-003t`/`VERIF-002t`）
+  - `contracts/opcodes.yaml`、`contracts/legality_rules.yaml`（`SPEC-003t`/`SPEC-008t`）
 - 输出：`components/qemu/patches/0001-dadao-target-skeleton.patch`、`components/qemu/patches/series`、最小冒烟脚本
 - 约束：
   - `git am` 到 `.work/source/qemu` 后 `make build-qemu` 成功编译出 `qemu-system-dadao`

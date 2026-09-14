@@ -1,7 +1,7 @@
 # DADAO-v5 top-level orchestration.
 #
 # Make is the stable user interface (ADR-0002: .tao/knowledge/adr-0002-build-orchestration.md); the actual manifest/fetch/patch
-# logic is delegated to Python standard-library scripts under scripts/. All
+# logic is delegated to Python standard-library scripts under tools/infra/. All
 # disposable data lives under .work/ (gitignored); persistent upstream mirrors
 # live under .cache/ and are never touched by clean-work.
 
@@ -48,22 +48,22 @@ help:
 	@echo "  make check           Run repository-level structural checks"
 
 manifest-check:
-	@$(PYTHON) scripts/manifest_check.py
+	@$(PYTHON) tools/infra/manifest_check.py
 
 doctor:
-	@$(PYTHON) scripts/doctor.py
+	@$(PYTHON) tools/infra/doctor.py
 
 status:
-	@$(PYTHON) scripts/status.py
+	@$(PYTHON) tools/infra/status.py
 
 fetch: manifest-check
-	@$(PYTHON) scripts/fetch.py
+	@$(PYTHON) tools/infra/fetch.py
 
 fetch-refs: manifest-check
-	@$(PYTHON) scripts/fetch_refs.py
+	@$(PYTHON) tools/infra/fetch_refs.py
 
 apply-series: manifest-check
-	@$(PYTHON) scripts/apply_series.py
+	@$(PYTHON) tools/infra/apply_series.py
 
 prepare: fetch apply-series
 
@@ -112,8 +112,8 @@ docker-shell:
 	docker run --rm -it -v "$(PWD):/workspace" $(DOCKER_TAG) /bin/bash
 
 clean-work:
-	@$(PYTHON) scripts/clean_work.py
+	@$(PYTHON) tools/infra/clean_work.py
 
 check: manifest-check
-	@$(PYTHON) -m compileall -q scripts
+	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"

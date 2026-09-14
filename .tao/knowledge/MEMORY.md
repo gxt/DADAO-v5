@@ -11,7 +11,7 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 | SimRISC 规范 | ✅ 0.5.3 |
 | spec 模块 | 🔄 进行中（`002t`~`007t` 已验证；`008t`、`009m` 待开始） |
 | M1 任务规划（infra/spec/testcases/llvm/qemu/verif） | ✅ 已生成（参考 DADAO-0628，未逐任务审核） |
-| M1 实现 | 🔄 进行中（infra 模块 M1 已完成：`INFRA-009m` 里程碑；其余模块待推进） |
+| M1 实现 | 🔄 进行中（infra：`002t`~`008t` 已验证，`010t`~`012t` 待开始；其余模块待推进） |
 
 ## 关键目录速查
 
@@ -23,18 +23,19 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 | `.tao/knowledge/` | 知识沉淀（MEMORY/milestones/contract/adr） |
 | `.tao/knowledge/milestones.md` | 项目里程碑路线图（M1/M2） |
 | `.tao/knowledge/deferred.md` | 各模块暂缓/备忘（避免遗忘） |
-| `verif/` | 验证工具（编码表、合法性规则、检查脚本） |
-| `tests/` | 测试向量（`tests/vectors/`） |
+| `contracts/` | 机器可读合约数据（编码表/ABI/合法性规则） |
+| `tools/<module>/` | 各模块工具脚本（infra/spec/llvm/qemu/testcases） |
+| `tests/` | 测试向量（`tests/vectors/`）、harness（`tests/scripts/`）、lit、e2e |
 | `components/` | 组件补丁（llvm/qemu/gem5） |
-| `scripts/` | 工具脚本 |
 | `sail/` | Sail 形式化规范 |
 | `.cache/<name>.git` | 上游组件持久 bare mirror（gitignored；避免重下大仓库） |
 
 ## 重要决策
 
-- `verif/` 替代 `tools/` 作为验证工具目录
+- **数据/工具分离**：机器可读合约数据放 `contracts/`，各模块工具脚本放 `tools/<module>/`（`scripts/` 并入 `tools/infra/`）
+- **模块重划（2026-09-14）**：`verif` 解散——通用 CI 检查→`infra`、领域验证依据→`spec`、组件自测→`llvm`/`qemu`、集成→新模块 `integ`
 - `.tao/` 集中存放所有 agent 中间文件（对齐 t.a.o 全局约定）
-- **模块清单**：`infra`/`spec`/`testcases`/`golden`/`llvm`/`qemu`/`verif`/`gem5`/`sail`（`abi` 并入 `spec`）
+- **模块清单**：`infra`/`spec`/`testcases`/`golden`/`llvm`/`qemu`/`integ`/`gem5`/`sail`（`abi` 并入 `spec`；`verif` 已解散）
 - **任务编号**：`<PREFIX>-nnn<suffix>`，suffix `k`=启动/`t`=普通/`m`=里程碑；模块内递增
 - **项目里程碑**：M1/M2，见 `.tao/knowledge/milestones.md`
 - **去阶段化**：任务不按 Phase 组织，直接参考 DADAO-0628；已删除 `docs/phases/`

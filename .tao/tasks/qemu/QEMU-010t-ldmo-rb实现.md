@@ -15,7 +15,7 @@
   - `QEMU-009t` 产出的 `translate.c`（RB 存取已实现，`ldm.o-rb` 仍为 ILLI 桩）
   - `.tao/knowledge/contract-isa.md` §4.2（存取 RB 寄存器：`ldm.o-rb`/`stm.o-rb`）、§1.5（48 位有效地址）
   - `.tao/knowledge/adr-0004-test-machine.md`（MALIGN 可观测）
-  - `verif/opcodes.yaml`（`ldm.o-rb` 的 op/格式/legality）、`tests/vectors/isa/rb-ops.yaml`
+  - `contracts/opcodes.yaml`（`ldm.o-rb` 的 op/格式/legality）、`tests/vectors/isa/rb-ops.yaml`
 - 输出：修订后的 `components/qemu/patches/0005-dadao-ctrl-flow.patch`、向量状态更新
 - 约束：
   - 参考对称的 `stm.o-rb` 实现
@@ -59,7 +59,7 @@
 
 1. **助记符/格式**：0628 `ldmo_rb`（rrri）→ v5 `ldm.o-rb`（op 0x3A，rrri）；`trans_*` 名按 v5 decodetree。
 2. **源/目标约定**：v5 `ldm.o-rb rbha, rbhb, rdhc, immu6`，目标为 RB bank；`rdhc` 为单一索引寄存器。
-3. **`hc+hd>64` 检查**：0628 任务曾要求但实现未做（N1），因其 `rdhc` 为单一索引而非范围；v5 以 §4.2 与 `verif/legality_rules.yaml` 为准，不盲目照搬。
+3. **`hc+hd>64` 检查**：0628 任务曾要求但实现未做（N1），因其 `rdhc` 为单一索引而非范围；v5 以 §4.2 与 `contracts/legality_rules.yaml` 为准，不盲目照搬。
 4. **对齐/异常**：以 v5 ADR-0004 D4 与 `QEMU-007t` 的 MALIGN 机制为准。
 5. **补丁组织**：0628 将 `ldmo_rb` 改动留在工作树，后并入较大补丁；v5 修订 `0005` 或单独追加。
 
@@ -78,7 +78,7 @@
 ## 参考
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-025a-qemu-ldmo-rb-impl.md`
-- 本项目：`.tao/knowledge/contract-isa.md` §4.2、§1.5；`verif/opcodes.yaml`；`verif/legality_rules.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md` §4.2、§1.5；`contracts/opcodes.yaml`；`contracts/legality_rules.yaml`
 - 本项目：`.tao/tasks/qemu/QEMU-007t-MALIGN精确异常.md`、`.tao/tasks/qemu/QEMU-008t-控制流与RB.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

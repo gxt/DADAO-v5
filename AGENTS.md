@@ -49,7 +49,8 @@ DADAO-v5/
 │   └── knowledge/         # MEMORY.md、contract-*.md、adr-*.md
 ├── manifests/             # 锁文件（规范/参考组件）
 ├── spec/                  # 原始规范文档（只读）
-└── verif/                 # 验证工具（金模型、编码表）
+├── contracts/             # 机器可读合约数据（编码表/ABI/合法性规则）
+└── tools/<module>/        # 各模块工具脚本（infra/spec/llvm/qemu/testcases）
 ```
 
 ## 临时目录
@@ -61,7 +62,7 @@ DADAO-v5/
 
 每个子任务完成后，应立即运行验证：
 1. **检查输出文件是否存在**：确认所有预期的输出文件已创建
-2. **运行验证脚本**：如有验证脚本（如 `verif/validate_encoding.py`），立即运行
+2. **运行验证脚本**：如有验证脚本（如 `tools/spec/validate_encoding.py`），立即运行
 3. **检查引用一致性**：确认所有引用指向正确的文档（如 SimRISC-00/01/02/03/04，而非 DADAO-11）
 4. **填写完成区**：记录验证结果后再提交
 

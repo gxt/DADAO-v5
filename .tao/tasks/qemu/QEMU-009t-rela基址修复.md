@@ -14,7 +14,7 @@
 - 输入：
   - `QEMU-008t` 产出的 `translate.c` 中 `trans_rela`（或对应 `trans_*`）
   - `.tao/knowledge/contract-isa.md` §4.11（PC 相对寻址）、§1.3.2（rb0=PC，只读）
-  - `verif/opcodes.yaml`（`rela.si-rb` 编码与 fields）、`verif/legality_rules.yaml`
+  - `contracts/opcodes.yaml`（`rela.si-rb` 编码与 fields）、`contracts/legality_rules.yaml`
   - `tests/vectors/isa/rb-ops.yaml`（rela semantic/encoding 向量）
 - 输出：修订后的 `components/qemu/patches/0005-dadao-ctrl-flow.patch`（或等价补丁）、向量状态更新
 - 约束：
@@ -69,7 +69,7 @@
 ## 参考
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-024a-qemu-trans-rela-fix.md`
-- 本项目：`.tao/knowledge/contract-isa.md` §4.11、§1.3.2；`verif/opcodes.yaml`；`tests/vectors/isa/rb-ops.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md` §4.11、§1.3.2；`contracts/opcodes.yaml`；`tests/vectors/isa/rb-ops.yaml`
 - 本项目：`.tao/tasks/qemu/QEMU-008t-控制流与RB.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

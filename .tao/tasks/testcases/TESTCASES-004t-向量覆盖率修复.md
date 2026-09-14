@@ -12,14 +12,14 @@
 ## 接口规范
 
 - 输入：
-  - `verif/validate_vectors.py`（TESTCASES-002t，当前实现）
-  - `verif/opcodes.yaml`（唯一 `insn` 身份 + op/ha/mask/value）
+  - `tools/testcases/validate_vectors.py`（TESTCASES-002t，当前实现）
+  - `contracts/opcodes.yaml`（唯一 `insn` 身份 + op/ha/mask/value）
   - `tests/vectors/isa/*.yaml`（TESTCASES-002t/003t 向量）
 - 输出：
-  - `verif/validate_vectors.py`（覆盖率主键改为 opcode 身份 `insn`；新增 `encoding.word` mask/value 校验）
+  - `tools/testcases/validate_vectors.py`（覆盖率主键改为 opcode 身份 `insn`；新增 `encoding.word` mask/value 校验）
   - `tests/vectors/isa/*.yaml`（补全缺漏的向量与空/缺失的 `encoding.word`）
 - 约束：
-  - **不改** `verif/opcodes.yaml`（它是 oracle）
+  - **不改** `contracts/opcodes.yaml`（它是 oracle）
   - **不改** `tests/vectors/schema.md`（除非补字段文档）
   - `make check` 必须通过，覆盖率输出必须列出 M1 scope 全部 `insn`
   - 缺漏身份必须补**真实 active** 向量，不新增 deferred 顶替
@@ -29,7 +29,7 @@
 
 ### 目标
 
-1. 修改 `verif/validate_vectors.py`：以 opcode 身份 `insn` 为覆盖率主键（v5 等价于 0628 的 `(op, ha)`）
+1. 修改 `tools/testcases/validate_vectors.py`：以 opcode 身份 `insn` 为覆盖率主键（v5 等价于 0628 的 `(op, ha)`）
 2. 补全所有向量的 `encoding.word`（semantic/boundary/legality 中可能有缺漏）
 3. 校验 `encoding.word` 符合对应 opcode 的 `mask`/`value` 约束
 4. 使 validator 在任一 M1 scope opcode 身份缺向量时报错
@@ -56,7 +56,7 @@ v5 的 `opcodes.yaml` 有唯一 `insn` 字段（如 `ld.o-rd`/`ld.o-rb`），比
 
 ## 交付物
 
-- `verif/validate_vectors.py`：
+- `tools/testcases/validate_vectors.py`：
   - `insn` 主键索引与覆盖率统计
   - `encoding.word` 的 `(wval & mask) == value` 校验
   - 覆盖率缺失报 `COVERAGE MISSING: <insn>`
@@ -65,7 +65,7 @@ v5 的 `opcodes.yaml` 有唯一 `insn` 字段（如 `ld.o-rd`/`ld.o-rb`），比
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **覆盖率主键**：0628 用 `(op, ha)`；v5 用唯一 `insn`（更精确，天然区分 `ld.o-rd`/`ld.o-rb`/`or.w-rd`/`or.w-rb` 等变体）。
-2. **编码表路径**：`verif/opcodes.yaml`（0628 `tools/opcodes.yaml`）。
+2. **编码表路径**：`contracts/opcodes.yaml`（0628 `tools/opcodes.yaml`）。
 3. **助记符**：0.5.3 命名（`ldmo`→`ldm.o`、`andnw-rb`→`andn.w-rb` 等）。
 4. **M1 scope**：v5 需显式 scope 门控（256 条记录中含大量 excluded），0628 仅排除 `rd2ra`/`ra2rd`。
 5. **encoding.word 公式**同 0628（§2.2），但字段位置以 v5 `contract-isa.md` 为准。
@@ -85,16 +85,16 @@ v5 的 `opcodes.yaml` 有唯一 `insn` 字段（如 `ld.o-rd`/`ld.o-rb`），比
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-017a-vectors-identity-fix.md`（完整转述）
 - DADAO-0628：`.work/DADAO-0628/scripts/validate_vectors.py`
-- 本项目：`verif/validate_vectors.py`、`verif/opcodes.yaml`、`.tao/knowledge/contract-isa.md` §2
+- 本项目：`tools/testcases/validate_vectors.py`、`contracts/opcodes.yaml`、`.tao/knowledge/contract-isa.md` §2
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
 
-1. `verif/validate_vectors.py` 覆盖率主键为 `insn`（grep 可确认索引与统计）
+1. `tools/testcases/validate_vectors.py` 覆盖率主键为 `insn`（grep 可确认索引与统计）
 2. validator 对 `encoding.word` 执行 `(wval & mask) == value` 校验；故意改错一条 word 时 `make check` 报错
 3. M1 scope 内每个 `insn` 均有 ≥1 active 向量，无 `COVERAGE MISSING`
-4. `verif/opcodes.yaml` 未被修改
-5. `python3 verif/validate_vectors.py` 零错误，输出 `N/N opcodes covered OK`
+4. `contracts/opcodes.yaml` 未被修改
+5. `python3 tools/testcases/validate_vectors.py` 零错误，输出 `N/N opcodes covered OK`
 6. `make check` PASS
 7. 未自行 commit
 

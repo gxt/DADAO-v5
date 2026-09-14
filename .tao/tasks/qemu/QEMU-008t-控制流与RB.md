@@ -15,7 +15,7 @@
   - `QEMU-007t` 产出的 `translate.c`（RD 语义与 load/store 已实现）
   - `.tao/knowledge/contract-isa.md` §1.3.2/§1.3.4（rb0=PC、ra0–ra63 RegRAS）、§4.2/§4.5/§4.7/§4.8/§4.9/§4.10/§4.11（RB 存取/块赋值/立即数/算术/自增/比较/PC 相对）、§5（控制流：条件跳转/无条件跳转/函数调用/返回/压弹栈流程）
   - `.tao/knowledge/adr-0004-test-machine.md`（fault/exit 可观测、RASOF/RASUF）
-  - `verif/opcodes.yaml`、`verif/legality_rules.yaml`
+  - `contracts/opcodes.yaml`、`contracts/legality_rules.yaml`
   - `tests/vectors/isa/control-flow.yaml`、`tests/vectors/isa/rb-ops.yaml`（TDD 向量，先于实现）
 - 输出：`components/qemu/patches/0005-dadao-ctrl-flow.patch`、`components/qemu/patches/series`、控制流/RB 向量补充
 - 约束：
@@ -109,7 +109,7 @@
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-018a-qemu-ctrl-flow.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-030a-call-ret-semantic.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`
-- 本项目：`.tao/knowledge/contract-isa.md` §1.3、§4.2–§4.11、§5、附录 B；`verif/opcodes.yaml`；`.tao/knowledge/adr-0004-test-machine.md`
+- 本项目：`.tao/knowledge/contract-isa.md` §1.3、§4.2–§4.11、§5、附录 B；`contracts/opcodes.yaml`；`.tao/knowledge/adr-0004-test-machine.md`
 - 本项目：`.tao/tasks/testcases/TESTCASES-008t-控制流向量TDD.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

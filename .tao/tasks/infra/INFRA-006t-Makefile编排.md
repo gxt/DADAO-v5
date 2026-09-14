@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`scripts/` 下的 manifest/doctor/status/fetch/apply_series/clean_work 工具
+- 输入：`tools/infra/` 下的 manifest/doctor/status/fetch/apply_series/clean_work 工具
 - 输出：顶层 `Makefile`
 - 约束：Make 为稳定用户接口，实际逻辑委托给 Python 标准库脚本；构建目标对未就绪组件以 stub 形式存在；不写死绝对路径
 
@@ -31,16 +31,16 @@
 
 - 0628 `Makefile` 结构：`PYTHON ?= python3`、`.DEFAULT_GOAL := help`、`.PHONY` 列表、`help` 打印所有目标。
 - 关键目标与依赖（0628）：
-  - `manifest-check` → `python3 scripts/manifest_check.py`
-  - `doctor` → `python3 scripts/doctor.py`
-  - `status` → `python3 scripts/status.py`
-  - `fetch: manifest-check` → `python3 scripts/fetch.py`
-  - `apply-series: manifest-check` → `python3 scripts/apply_series.py`
+  - `manifest-check` → `python3 tools/infra/manifest_check.py`
+  - `doctor` → `python3 tools/infra/doctor.py`
+  - `status` → `python3 tools/infra/status.py`
+  - `fetch: manifest-check` → `python3 tools/infra/fetch.py`
+  - `apply-series: manifest-check` → `python3 tools/infra/apply_series.py`
   - `prepare: fetch apply-series`
   - `build-qemu: manifest-check` → `cd .work/qemu && ./configure --target-list=dadao-softmmu --enable-tcg --disable-werror` 后 `make -j$(nproc)`
   - `build-mc: manifest-check` → `cmake -G Ninja -B .work/build/llvm -S .work/llvm/llvm -DLLVM_TARGETS_TO_BUILD=DADAO -DLLVM_ENABLE_PROJECTS="" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON` 后 `ninja llvm-mc llvm-objdump`
   - `docker-image` → `docker build -t <tag> containers/dev`
-  - `clean-work` → `python3 scripts/clean_work.py`
+  - `clean-work` → `python3 tools/infra/clean_work.py`
   - `check: manifest-check ...`（仓库级结构检查）
 - 路径变量（0628）：`QEMU_SRC ?= .work/qemu`、`QEMU_BUILD ?= .work/build/qemu`、`LLVM_BUILD ?= .work/build/llvm`、`LLVM_SRC ?= .work/llvm/llvm`。
 
@@ -492,7 +492,7 @@ exit=2   # docker socket 权限（环境限制）
 ```
 
 **15. `make clean-work`（隔离树验证）— exit=0 ✅**
-隔离树：`/tmp/opencode/INFRA-006t-review/`（含 `.work/`、`.cache/`、`Makefile`、`scripts/`、`manifests/`）
+隔离树：`/tmp/opencode/INFRA-006t-review/`（含 `.work/`、`.cache/`、`Makefile`、`tools/infra/`、`manifests/`）
 ```
 $ cd /tmp/opencode/INFRA-006t-review && make clean-work
 clean-work: removed /tmp/opencode/INFRA-006t-review/.work
@@ -508,7 +508,7 @@ f9bde0481668ffab325db8d8c5d8c4cc791c6232   (=锁)
 
 #### 路径约定核验
 
-`LLVM_SRC = .work/source/llvm/llvm`、`QEMU_SRC = .work/source/qemu` — 与 `scripts/fetch.py` 中 `source_root = work_root / "source"` 的落点一致（`work_root` 默认 `.work`）。不是 0628 的 `.work/llvm/llvm`、`.work/qemu`。✅
+`LLVM_SRC = .work/source/llvm/llvm`、`QEMU_SRC = .work/source/qemu` — 与 `tools/infra/fetch.py` 中 `source_root = work_root / "source"` 的落点一致（`work_root` 默认 `.work`）。不是 0628 的 `.work/llvm/llvm`、`.work/qemu`。✅
 
 #### 回归核验
 
@@ -516,7 +516,7 @@ f9bde0481668ffab325db8d8c5d8c4cc791c6232   (=锁)
 $ python3 -m compileall -q scripts
 exit=0
 
-$ python3 scripts/manifest_check.py
+$ python3 tools/infra/manifest_check.py
 enabled components: none
 references: 2
 manifest validation: PASS
@@ -539,11 +539,11 @@ $ python3 -c "import tomllib,sys;m=tomllib.load(open('manifests/components.lock.
 
 | # | 约束 | 结果 | 证据 |
 |---|------|------|------|
-| C1 | Make 委托 Python 脚本，不做重型逻辑 | ✅ | 每个目标调用 `$(PYTHON) scripts/*.py`；构建目标仅 shell 一行 guard + cmake/make |
+| C1 | Make 委托 Python 脚本，不做重型逻辑 | ✅ | 每个目标调用 `$(PYTHON) tools/infra/*.py`；构建目标仅 shell 一行 guard + cmake/make |
 | C2 | 不写死绝对路径 | ✅ | `grep -nE '/mnt/\|/home/' Makefile` → 无匹配 |
 | C3 | stub 不假装成功 | ✅ | disabled 组件：明确提示 + `exit 1`（make 退出 2）；无 "PASS" 输出 |
 | C4 | `help` 为默认目标 | ✅ | `.DEFAULT_GOAL := help`（第 21 行）；`make` 输出与 `make help` 一致 |
-| C5 | `clean-work` 只删 `.work/`、保留 `.cache/` | ✅ | 隔离树验证；`scripts/clean_work.py` 逻辑确认（shutil.rmtree(work)） |
+| C5 | `clean-work` 只删 `.work/`、保留 `.cache/` | ✅ | 隔离树验证；`tools/infra/clean_work.py` 逻辑确认（shutil.rmtree(work)） |
 | C6 | 构建目标依赖 `manifest-check` | ✅ | `build-mc`/`build-qemu`/`build-gem5` 均声明 `: manifest-check` |
 | C7 | `check` 含 manifest-check + compileall | ✅ | Makefile 第 117-119 行；运行输出先 `manifest validation: PASS` 后 `repository checks: PASS` |
 | C8 | 修改文件仅 Makefile（新增） | ✅ | `git status` → `?? Makefile` + 任务文件状态变更（已完成） |

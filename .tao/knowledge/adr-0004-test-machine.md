@@ -2,7 +2,7 @@
 
 **状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型，见 `## 修订`）
 **日期**：2026-09-13
-**关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.3）、`.tao/knowledge/contract-abi.md`（AEE·ABI 0.9.2）、`verif/legality_rules.yaml`、`verif/opcodes.yaml`
+**关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.3）、`.tao/knowledge/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
 
 ## Context（背景）
 
@@ -12,7 +12,7 @@ M1 的 QEMU 实现必须在**裸机**（bare-metal）环境执行 ISA 语义/合
 
 本 ADR 与 ADR-0003（object ABI / artifact pipeline）配合：ADR-0003 冻结 `.o → objcopy --only-section=.text -O binary → flat binary`，本 ADR 冻结该 flat binary 如何被 QEMU 加载并进入，以及 guest 可见的全部可观测行为。测试机地址图采用 spec 的**核内地址空间模型**（cfxcode），整体占用最高段 cfxcode 63（power）——见 D1。遗留 `dadao-virt` 内存布局（ROM `0x0010_0000` / UART `0x1000_0000` / RAM `0x8000_0000`）仅作**只读对照**，本 ADR 不沿用。
 
-依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.3，异常/对齐/地址模型）、`.tao/knowledge/contract-abi.md`（`SP = rb1`、栈向下增长）、`verif/legality_rules.yaml`（异常触发条件）。指令助记符一律使用 0.5.3 命名。
+依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.3，异常/对齐/地址模型）、`.tao/knowledge/contract-abi.md`（`SP = rb1`、栈向下增长）、`contracts/legality_rules.yaml`（异常触发条件）。指令助记符一律使用 0.5.3 命名。
 
 ## Decision（决策）
 

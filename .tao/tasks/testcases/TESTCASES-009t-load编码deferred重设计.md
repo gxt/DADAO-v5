@@ -15,7 +15,7 @@
   - `tests/vectors/isa/rd-load-store.yaml`（TESTCASES-002t/006t 向量，含 `status: deferred` 的 load encoding）
   - `.tao/knowledge/contract-isa.md` §4.1（load/store 合法性、对齐）、§2.2（格式）
   - `.tao/knowledge/adr-0004-test-machine.md`（内存映射、未映射区行为）
-  - `verif/opcodes.yaml`（load 指令编码字段）
+  - `contracts/opcodes.yaml`（load 指令编码字段）
 - 输出：重设计后的 `tests/vectors/isa/rd-load-store.yaml`（14 条 load encoding 由 deferred → active）
 - 约束：
   - 只修改 `tests/vectors/isa/rd-load-store.yaml`（纯数据任务）
@@ -50,13 +50,13 @@
 - 加载值 = 测试 binary 自身内容（可接受）
 - multi load 的 `immu6` 保持 ≥1（=0 → ILLI）
 
-0628 采用的字段模式（仅描述结构，**不含具体 0.4.1 编码字**；v5 从 `verif/opcodes.yaml` 的 op/字段与 §2.2 公式重新手算）：
+0628 采用的字段模式（仅描述结构，**不含具体 0.4.1 编码字**；v5 从 `contracts/opcodes.yaml` 的 op/字段与 §2.2 公式重新手算）：
 
 - 单 load：`ha(dest)=1(rd1)`、`hb(base)=1(rb1)`、`imms12=0`；
 - 多 load：在单 load 模式上令 `immu6=1`（count=1，源用 rd0）；
 - 所有 load 的 `input_state` 预置 `rb1 = BINARY_BASE`（RAM 起始）。
 
-具体 `encoding.word` 由 `verif/opcodes.yaml` 对应 `insn` 的 op/ha 与 `(op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd` 手算得出。
+具体 `encoding.word` 由 `contracts/opcodes.yaml` 对应 `insn` 的 op/ha 与 `(op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd` 手算得出。
 
 ### 上游引用
 
@@ -70,7 +70,7 @@
 
 1. **助记符**：`ldbs`/`ldbu`/`ldws`/`ldwu`/`ldts`/`ldtu`/`ldo`/`ldmbs`/… → `ld.sb`/`ld.ub`/`ld.sw`/`ld.uw`/`ld.st`/`ld.ut`/`ld.o`/`ldm.sb`/…（`insn` 带 `-rd` 后缀）。
 2. **内存映射**：以 v5 `adr-0004-test-machine.md`（SPEC-006t）为准——RAM `0x8000_0000`、ROM `0x0010_0000`、exit port `0x1000_0000`；`BINARY_BASE` 取 RAM 起始（如 `0x80000000`）。addr=0 未映射的结论不变。
-3. **编码字段**：以 v5 `contract-isa.md` §2.2 与 `verif/opcodes.yaml` 的 `fields` 为准；load 的 base/dest 字段位置须独立核对，不从 0628 反推。
+3. **编码字段**：以 v5 `contract-isa.md` §2.2 与 `contracts/opcodes.yaml` 的 `fields` 为准；load 的 base/dest 字段位置须独立核对，不从 0628 反推。
 4. **RB 语义**：0.5.3 有效地址低 48 位。
 5. **多寄存器**：`immu6`（count）仍须 ≥1。
 
@@ -89,7 +89,7 @@
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-034a-load-encoding-deferred.md`（完整转述）
 - DADAO-0628：`.work/DADAO-0628/tests/vectors/isa/rd-load-store.yaml`（形态参考，禁止复制数据）
-- 本项目：`.tao/knowledge/contract-isa.md` §4.1、`.tao/knowledge/adr-0004-test-machine.md`、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md` §4.1、`.tao/knowledge/adr-0004-test-machine.md`、`contracts/opcodes.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -97,9 +97,9 @@
 1. 原 14 条 load encoding 全部 `status: active`，`expected_fault: null`
 2. 每条 `input_state` 含 RAM 合法基址（rb1 预置），dest 非 rd0、base 非 rb0
 3. multi load 的 `immu6 ≥ 1`
-4. 每条 `encoding.word` 与 `verif/opcodes.yaml` 的 `(word & mask) == value` 一致
+4. 每条 `encoding.word` 与 `contracts/opcodes.yaml` 的 `(word & mask) == value` 一致
 5. 只改 `tests/vectors/isa/rd-load-store.yaml`
-6. `python3 verif/validate_vectors.py` 零错误；`make check` PASS
+6. `python3 tools/testcases/validate_vectors.py` 零错误；`make check` PASS
 7. （下游）QEMU harness 就绪后，该文件全部 active 测试 PASS、0 timeout
 8. 未自行 commit
 

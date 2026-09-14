@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`.tao/knowledge/contract-isa.md` §4.9（RA 寄存器存取与块赋值）、§1.3.4（ra0–ra63）；`verif/opcodes.yaml`（RA 指令编码）
+- 输入：`.tao/knowledge/contract-isa.md` §4.9（RA 寄存器存取与块赋值）、§1.3.4（ra0–ra63）；`contracts/opcodes.yaml`（RA 指令编码）
 - 输出：RA 指令的 TableGen def + AsmParser/CodeEmitter/Disassembler 支持 + lit 字节检查（补丁纳入 `components/llvm/patches/series`）
 - 约束：Spec-first（编码以 `contract-isa.md`/`opcodes.yaml` 为准，不从实现反推）；助记符用 0.5.3 命名；只处理 RA 指令，不越界改其它指令
 
@@ -30,7 +30,7 @@
 ### 关键概念 / 数据
 
 - RA 指令（`contract-isa.md` §4.9）：`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`/`rd2ra`/`ra2rd`。
-- 编码/格式以 `verif/opcodes.yaml` 的 `insn`/`format`/`op`/`mask`/`value`/`fields` 为准（RA 存取 op 0x24–0x25 等）。
+- 编码/格式以 `contracts/opcodes.yaml` 的 `insn`/`format`/`op`/`mask`/`value`/`fields` 为准（RA 存取 op 0x24–0x25 等）。
 - 助记符 0.5.3 命名（`.o` 后缀等）。
 
 ## 交付物
@@ -41,7 +41,7 @@
 
 ## 验收标准
 
-1. `llvm-mc --triple=dadao-unknown-elf` 能汇编全部 RA 指令，字节与 `verif/opcodes.yaml`/`contract-isa.md` 一致
+1. `llvm-mc --triple=dadao-unknown-elf` 能汇编全部 RA 指令，字节与 `contracts/opcodes.yaml`/`contract-isa.md` 一致
 2. `llvm-objdump -d` 能反汇编回规范文本（round-trip）
 3. RA 指令的 lit 字节级 CHECK 0 failures
 4. `make build-mc` 全绿；未越界改动非 RA 指令

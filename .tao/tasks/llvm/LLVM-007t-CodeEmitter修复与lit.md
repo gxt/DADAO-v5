@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`LLVM-006t` 的 `0005-dadao-asmparser.patch`、`.tao/knowledge/contract-isa.md` §2、`verif/opcodes.yaml`
+- 输入：`LLVM-006t` 的 `0005-dadao-asmparser.patch`、`.tao/knowledge/contract-isa.md` §2、`contracts/opcodes.yaml`
 - 输出：修订后的 `components/llvm/patches/0005-dadao-asmparser.patch`（序号不变）、全量 lit 文件 `tests/lit/MC/Dadao/*.s`、更新后的 `series`
 - 约束：`encodeInstruction` 必须调用 `getBinaryCodeForInstr()`，不得保留 stub；期望字节手推；每个 lit 文件同时覆盖 `-filetype=obj` 与 `-filetype=asm`；`make build-mc` PASS；`llvm-lit tests/lit/MC/Dadao/` 0 failures
 
@@ -46,7 +46,7 @@
   # RUN: llvm-mc --triple=dadao-unknown-elf -filetype=asm %s | FileCheck %s --check-prefix=ASM
   ```
 - **lit 文件清单**（0628 命名可参考，内容按 v5 重写）：`rrii_alu.s`、`rrrr.s`、`rrri.s`、`riii_branch.s`、`riii_ret.s`、`rrii_branch.s`、`rrii_load.s`、`rrii_store.s`、`iiii_jump.s`、`orrr.s`、`orri.s`、`rb_ops.s`、`rwii.s`，加 `triple-smoke.s`。
-- **期望字节手推**：`word[31:0] = (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd`，op 查 `verif/opcodes.yaml`。
+- **期望字节手推**：`word[31:0] = (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd`，op 查 `contracts/opcodes.yaml`。
 
 ### 上游引用
 
@@ -62,7 +62,7 @@
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-- **指令集**：v5 M1 指令（`.b/.w/.t/.o`、`s`/`u`、MISC 子表）与 0.4.1 不同；lit 内容与期望字节按 `contract-isa.md` + `verif/opcodes.yaml` 重写。
+- **指令集**：v5 M1 指令（`.b/.w/.t/.o`、`s`/`u`、MISC 子表）与 0.4.1 不同；lit 内容与期望字节按 `contract-isa.md` + `contracts/opcodes.yaml` 重写。
 - **期望字节**：0628 任务示例字节有误（`addi rd8` 写成 `19 40 00 01`，应为 `19 20 00 01`）；v5 全部手推，**不得复制**。
 - **补丁正文**：不复制 0628 的 0005 patch。
 - **lit 命名**：沿用格式类别命名（rrii/rrrr/…）作组织参考，但内容按 0.5.3。
@@ -81,7 +81,7 @@
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-010a-llvm-asmparser.md`
 - DADAO-0628：`.work/DADAO-0628/tests/lit/MC/Dadao/`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-isa.md`、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md`、`contracts/opcodes.yaml`
 
 ## 验收标准
 

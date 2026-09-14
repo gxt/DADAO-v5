@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M1
-**依赖**：`QEMU-003t`、`SPEC-003t`、`VERIF-002t`
+**依赖**：`QEMU-003t`、`SPEC-003t`、`SPEC-008t`
 **状态**：待开始
 
 ## 执行环境
@@ -14,8 +14,8 @@
 - 输入：
   - `QEMU-003t` 产出的 `target/dadao/` 骨架
   - `.tao/knowledge/contract-isa.md` §2（编码）、附录 A（完整编码清单：A.1 QFC 主表 + A.2–A.7 MISC 子表）
-  - `verif/opcodes.yaml`（256 条机器可读编码表，`op`/`mask`/`value`/`fields`/`legality`）
-  - `verif/legality_rules.yaml`（UNDI/ILLI 触发条件）
+  - `contracts/opcodes.yaml`（256 条机器可读编码表，`op`/`mask`/`value`/`fields`/`legality`）
+  - `contracts/legality_rules.yaml`（UNDI/ILLI 触发条件）
 - 输出：`components/qemu/patches/0002-dadao-decodetree.patch`、`components/qemu/patches/series`
 - 约束：
   - decodetree 覆盖 M1 全部 opcode；每条指令有对应 `trans_*` 函数
@@ -49,7 +49,7 @@
 ```
 即 op[31:24]、ha[23:18]、hb[17:12]、hc[11:6]、hd[5:0]。
 
-**主表结构（0.5.3，与 0628 完全不同）**：opcode 分配以 `contract-isa.md` 附录 A.1 与 `verif/opcodes.yaml` 为准，覆盖范围含：
+**主表结构（0.5.3，与 0628 完全不同）**：opcode 分配以 `contract-isa.md` 附录 A.1 与 `contracts/opcodes.yaml` 为准，覆盖范围含：
 - 系统/原子：`illi`(0x00)、`fence`(0x01)、LR/SC（0x04–0x07、0x0C–0x0F）
 - RD 单 load/store（byte/wyde/tetra/octa，0x10–0x1A、0x20–0x21）
 - RB/RA/RF 单 load/store（0x22–0x27）
@@ -85,7 +85,7 @@
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-1. **opcode 映射完全重写**：0628 主表 op 从 0x10 起、MISC-Norm 为 op=0x10；v5 为 0x00 起的全新 QFC 表 + 6 张 MISC 子表（0x40–0x45）。`insn.decode` 必须依据 `contract-isa.md` 附录 A 与 `verif/opcodes.yaml` 重新生成，**不得复制 0628 的 pattern 数据**。
+1. **opcode 映射完全重写**：0628 主表 op 从 0x10 起、MISC-Norm 为 op=0x10；v5 为 0x00 起的全新 QFC 表 + 6 张 MISC 子表（0x40–0x45）。`insn.decode` 必须依据 `contract-isa.md` 附录 A 与 `contracts/opcodes.yaml` 重新生成，**不得复制 0628 的 pattern 数据**。
 2. **指令数量**：v5 `opcodes.yaml` 共 256 条，远超 0628 的 87 条；`trans_*` 存根数量随之增加。
 3. **命名**：全部使用 0.5.3 助记符（`add.uo`/`add.so`、`div.so`/`div.uo`、`cs.n`、`br.n`/`br.nz`、`set.zw`、`ld.o`、`st.o`、`illi`）；decodetree 的 pattern 名与 `trans_*` 名须与之一致。
 4. **MISC 子表结构不同**：0628 的 `MISC-Norm`（op=0x10）在 v5 拆为 byte/wyde/tetra/octa/RF/AMO 六张子表；子表内 minor-opcode 位宽为 `ha[5:0]`（或 `ha[5:3]:ha[2:0]` 三段编码），以附录 A 为准。
@@ -107,13 +107,13 @@
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-014a-qemu-decodetree.md`
 - DADAO-0628：`.work/DADAO-0628/components/qemu/patches/series`
-- 本项目：`.tao/knowledge/contract-isa.md` §2、附录 A；`verif/opcodes.yaml`；`verif/legality_rules.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md` §2、附录 A；`contracts/opcodes.yaml`；`contracts/legality_rules.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
 
 1. `components/qemu/patches/0002-dadao-decodetree.patch` 存在且干净 apply；`series` 已加入
-2. `insn.decode` 字段声明正确；M1 全部 opcode（含 6 张 MISC 子表）均有 pattern，与 `verif/opcodes.yaml` 的 `mask`/`value` 一致
+2. `insn.decode` 字段声明正确；M1 全部 opcode（含 6 张 MISC 子表）均有 pattern，与 `contracts/opcodes.yaml` 的 `mask`/`value` 一致
 3. 每条 pattern 有对应 `trans_*` 函数，无遗漏
 4. 未命中 → UNDI、`trans_*` 拒绝 → ILLI，二者分离
 5. `swym` 为 NOP；其余存根触发 ILLI

@@ -2,7 +2,7 @@
 
 **模块**：spec
 **项目里程碑**：M1
-**依赖**：`SPEC-002t`、`SPEC-004t`、`VERIF-002t`
+**依赖**：`SPEC-002t`、`SPEC-004t`、`SPEC-008t`
 **状态**：已验证
 
 ## 执行环境
@@ -13,7 +13,7 @@
 
 - 输入：
   - `.tao/knowledge/contract-isa.md`（0.5.3，MALIGN/ILLI/UNDI/IALIGN/RASOF/RASUF 语义、复位值、对齐要求）
-  - `verif/legality_rules.yaml`、`verif/opcodes.yaml`（SPEC-003t/VERIF-002t，异常触发条件）
+  - `contracts/legality_rules.yaml`、`contracts/opcodes.yaml`（SPEC-003t/SPEC-008t，异常触发条件）
   - `.tao/knowledge/contract-abi.md`（SPEC-004t，SP=rb1、栈/帧约定）
 - 输出：`.tao/knowledge/adr-0004-test-machine.md`
 - 约束：
@@ -74,7 +74,7 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
 - DADAO-0628：`code-agent/tasks/DL-003b-test-machine-adr.md`（完整转述；含 3 轮 Architecture Review）
 - DADAO-0628：`docs/adr/0004-test-machine.md`（内容溯源：最终 Accepted 决策；ADR 格式见 v5 `.tao/knowledge/adr-authoring.md`）
 - DADAO-0628：`code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
-- 本项目：`.tao/knowledge/contract-abi.md`（SP=rb1）、`verif/legality_rules.yaml`
+- 本项目：`.tao/knowledge/contract-abi.md`（SP=rb1）、`contracts/legality_rules.yaml`
 
 ## 交付物
 
@@ -124,7 +124,7 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
 - v5：`.tao/knowledge/adr-authoring.md`（ADR 格式与模板）
 - DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-003a-elf-object-abi-adr.md`（加载协议需统一）
-- 本项目：`.tao/knowledge/contract-isa.md`、`verif/legality_rules.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md`、`contracts/legality_rules.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准

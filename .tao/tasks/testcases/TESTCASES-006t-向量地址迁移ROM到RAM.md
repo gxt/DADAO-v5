@@ -116,7 +116,7 @@ EA:   0xffff_ffff_0FFC → 0xffff_00fe_fffc   （= 0xffff_00ff_0000 - 4）
 3. 带偏移的期望地址按 `EA = new_base + offset` 计算（含负偏移例外）
 4. `encoding.word` 与 `expected_state.rd/rb` 未被改动
 5. `legality`/`boundary`/`encoding` 类向量未被改动
-6. `python3 verif/validate_vectors.py` 零错误；`make check` PASS
+6. `python3 tools/testcases/validate_vectors.py` 零错误；`make check` PASS
 7. 未自行 commit
 
 ## 完成区

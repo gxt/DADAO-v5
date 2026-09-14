@@ -59,11 +59,11 @@
 | `golden` | `GOLDEN` | Python 黄金模型 |
 | `llvm` | `LLVM` | LLVM MC + CodeGen |
 | `qemu` | `QEMU` | QEMU |
-| `verif` | `VERIF` | 集成/差分验证、合法性矩阵、检查工具 |
+| `integ` | `INTEG` | 集成验证（E2E 套件与回归 + 跨模块接口对齐） |
 | `gem5` | `GEM5` | gem5 |
 | `sail` | `SAIL` | Sail |
 
-> `verif/` 目录同时存放 spec 派生的机器可读数据（`opcodes.yaml`/`legality_rules.yaml`/`abi.yaml`）与验证工具。
+> **数据/工具分离**：机器可读合约数据（`opcodes.yaml`/`legality_rules.yaml`/`abi.yaml`）放 `contracts/`；各模块工具脚本放 `tools/<module>/`。
 
 ## 项目结构（DADAO-v5 特有）
 
@@ -71,10 +71,11 @@
 | --- | --- |
 | `spec/` | 11 份原始规范文档（只读参考） |
 | `manifests/` | 锁文件（规范/参考组件，精确 commit） |
-| `verif/` | 验证工具（金模型、编码表） |
+| `contracts/` | 机器可读合约数据（编码表/ABI/合法性规则） |
+| `tools/<module>/` | 各模块工具脚本（infra/spec/llvm/qemu/testcases） |
 | `.tao/knowledge/contract-isa.md` | ISA 归一化合约（SimRISC 0.5.3） |
 | `.tao/knowledge/contract-authoring.md` | 合约编写规范 |
-| `components/` `tests/` `scripts/` `sail/` | 后续交付物（按需创建） |
+| `components/` `tests/` `sail/` | 后续交付物（按需创建） |
 
 ## model
 

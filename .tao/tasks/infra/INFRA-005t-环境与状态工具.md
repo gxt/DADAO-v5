@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：`manifests/components.lock.toml`、`manifests/references.lock.toml`（`INFRA-003t` 产出）、宿主环境
-- 输出：`scripts/doctor.py`、`scripts/status.py`、`scripts/clean_work.py`
+- 输出：`tools/infra/doctor.py`、`tools/infra/status.py`、`tools/infra/clean_work.py`
 - 约束：脚本只用 Python 标准库（`shutil` / `subprocess` / `tomllib` / `pathlib`）；`clean_work.py` 只删 `.work/`，**不碰 `.cache/`**（持久对象库）
 
 ## 背景（完整）
@@ -48,9 +48,9 @@
 
 ## 交付物
 
-- `scripts/doctor.py`：宿主/容器构建前提自检。
-- `scripts/status.py`：component 与 reference 的锁定/漂移状态。
-- `scripts/clean_work.py`：安全删除 `.work/`。
+- `tools/infra/doctor.py`：宿主/容器构建前提自检。
+- `tools/infra/status.py`：component 与 reference 的锁定/漂移状态。
+- `tools/infra/clean_work.py`：安全删除 `.work/`。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -88,19 +88,19 @@
 **测试结果**：通过 9/9（A–I）；失败原因：无
 
 **修改文件**：
-- `scripts/doctor.py`（新增，可执行）
-- `scripts/status.py`（新增，可执行）
-- `scripts/clean_work.py`（新增，可执行）
+- `tools/infra/doctor.py`（新增，可执行）
+- `tools/infra/status.py`（新增，可执行）
+- `tools/infra/clean_work.py`（新增，可执行）
 
 **验收结果**（真实命令 + 真实退出码；完整输出见 `.tao/logs/INFRA-005t-*.log`）：
 
 1. **`doctor.py` 判定与退出码语义** — 通过
-   - 真实宿主 `python3 scripts/doctor.py` → required 全 OK，native `ninja` MISSING / `clang` OK，`docker` MISSING → `doctor: FAIL; native tools incomplete and Docker unavailable`，**EXIT=1**（本机无 ninja 且无 docker，FAIL 为正确语义）
+   - 真实宿主 `python3 tools/infra/doctor.py` → required 全 OK，native `ninja` MISSING / `clang` OK，`docker` MISSING → `doctor: FAIL; native tools incomplete and Docker unavailable`，**EXIT=1**（本机无 ninja 且无 docker，FAIL 为正确语义）
    - 合成 PATH（required OK + native 缺 + docker OK）→ `doctor: PASS (container build path available)`，**EXIT=0**
    - 合成 PATH（required OK + native OK）→ `doctor: PASS (native build path available)`，**EXIT=0**
    - 合成 PATH（空 PATH）→ `doctor: FAIL; missing required tools: git, make, cmake, python3`，**EXIT=1**
 2. **`status.py` component/reference 状态** — 通过
-   - 真实仓库 `python3 scripts/status.py` → components `llvm/qemu/gem5 disabled UNSET`；references `dadao-0628 MATCH dirty=0 2d2706…`、`dadao MATCH dirty=0 f9bde0…`，**EXIT=0**
+   - 真实仓库 `python3 tools/infra/status.py` → components `llvm/qemu/gem5 disabled UNSET`；references `dadao-0628 MATCH dirty=0 2d2706…`、`dadao MATCH dirty=0 f9bde0…`，**EXIT=0**
    - 合成仓库（good=MATCH / bad=DRIFT dirty=1 / gone=missing）→ 输出 `MATCH`/`DRIFT`/`missing` 正确，**EXIT=0**
 3. **`clean_work.py` 安全删除** — 通过
    - 正常树：`removed …/.work`，`.work` 消失而 `.cache/refs/DADAO-0628.git` 仍在，**EXIT=0**
@@ -114,7 +114,7 @@
 - `status.py` 对路径不存在输出 `missing`（0628 会落成 `DRIFT`），符合 v5 验收标准；`ROOT / <absolute>` 在 pathlib 下仍返回绝对路径，兼容未来绝对 path。
 - `clean_work.py` 的父目录+名称断言在 `.work` 为**符号链接**时真正生效（`resolve()` 后父目录/名称不匹配即拒绝），这是防误删关键，已用合成测试覆盖。
 - 宿主当前缺 `ninja` 与 `docker`，故真实 `doctor` 返回 FAIL/exit 1；这是正确判定，非缺陷。
-- 本任务不创建 Makefile（由 `INFRA-006t` 负责）；脚本路径 `scripts/doctor.py` / `scripts/status.py` / `scripts/clean_work.py` 与 `INFRA-006t` 约定一致。
+- 本任务不创建 Makefile（由 `INFRA-006t` 负责）；脚本路径 `tools/infra/doctor.py` / `tools/infra/status.py` / `tools/infra/clean_work.py` 与 `INFRA-006t` 约定一致。
 - `doctor.py` 版本探测用 `subprocess.check_output(..., stderr=STDOUT)`，非零退出/命令缺失统一返回 `unavailable`，不抛异常。
 
 **遗留问题**：无
@@ -136,7 +136,7 @@
 | clean_work 防误删断言 | ✅ | 测试 C/D 拒绝 EXIT=1；符号链接场景覆盖 |
 | clean_work 不碰 `.cache/` | ✅ | 测试 A 后 `.cache/refs/DADAO-0628.git` 仍存在 |
 | 无破坏性副作用 | ✅ | 唯一删除动作 `shutil.rmtree(work)`，路径经断言且已 `resolve()` |
-| 函数签名/接口一致 | ✅ | 脚本名与 `INFRA-006t` 的 `python3 scripts/<name>.py` 约定一致 |
+| 函数签名/接口一致 | ✅ | 脚本名与 `INFRA-006t` 的 `python3 tools/infra/<name>.py` 约定一致 |
 | 语法编译 | ✅ | `compileall` EXIT=0 |
 
 **判决**：本轮无 finding，所有验收标准通过，状态置「待验收」。
@@ -249,7 +249,7 @@ EXIT=0
 | 只用 Python 标准库 | ✅ doctor: `shutil`/`subprocess`；status: `subprocess`/`tomllib`/`pathlib`；clean_work: `shutil`/`sys`/`pathlib` |
 | `clean_work` 不碰 `.cache/` | ✅ 隔离树 Test A 验证 `.cache` 完好 |
 | reference path 为项目内相对路径 | ✅ lock 文件中 `path = ".work/DADAO-0628"` 等，非绝对路径 |
-| 修改文件清单一致 | ✅ `git status` 显示三个新文件：`scripts/doctor.py` / `scripts/status.py` / `scripts/clean_work.py` |
+| 修改文件清单一致 | ✅ `git status` 显示三个新文件：`tools/infra/doctor.py` / `tools/infra/status.py` / `tools/infra/clean_work.py` |
 | 脚本可执行权限 | ✅ 三个文件均为 `755` |
 
 #### 9. 与完成区自审结论的差异
@@ -271,7 +271,7 @@ EXIT=0
 **补充发现**：
 
 - **F1（中，跨模块规划矛盾，非本任务缺陷）**：`INFRA-007t` 验收标准 4「容器内 `make doctor` 报告 `container` 路径可用」**不可达**——其 Dockerfile 仅装 `build-essential`（gcc，不含 clang）+ `ninja`，容器内无 docker CLI；而 doctor 规则为「native 缺失且无 docker → FAIL」。加 clang → 报 `native`（仍非 container）；不加 → FAIL。建议处置：(a) 改标准 4 为「容器内报告 `native`」并给 Dockerfile 补 clang；(b) 改标准 4 为宿主侧「有 docker、缺 native 的宿主上报 `container`」；(c) 改 doctor native 判据（clang→通用编译器，属改 INFRA-005t spec，另开任务）。
-- F2（低，环境前提）：~~真实宿主缺 `ninja`/`docker`，M1 期间 `make doctor` 将持续 FAIL（正确诊断）。~~ **已解决**：宿主已安装 `ninja`(1.11.1) 与 `docker`(29.1.3)，`python3 scripts/doctor.py` 现输出 `PASS (native build path available)`，exit=0。
+- F2（低，环境前提）：~~真实宿主缺 `ninja`/`docker`，M1 期间 `make doctor` 将持续 FAIL（正确诊断）。~~ **已解决**：宿主已安装 `ninja`(1.11.1) 与 `docker`(29.1.3)，`python3 tools/infra/doctor.py` 现输出 `PASS (native build path available)`，exit=0。
 - F3（低，非阻塞）：`status.py` 对「路径存在但非 git 仓库」输出 `DRIFT dirty=0 unavailable`，`dirty=0` 易被误读。
 
 **统一判决**：**Accepted**（INFRA-005t 自身无缺陷）；F1 作跨模块规划问题另行处置。

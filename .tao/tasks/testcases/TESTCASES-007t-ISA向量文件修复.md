@@ -13,7 +13,7 @@
 
 - 输入：
   - `tests/vectors/isa/` 下 5 个向量文件（算术、立即数/块、load-store、移位扩展、misc）
-  - `verif/opcodes.yaml`（mask/value 与字段位域）
+  - `contracts/opcodes.yaml`（mask/value 与字段位域）
   - `.tao/knowledge/contract-isa.md`（§2 编码、§3 算术/立即数/块、§4 访存、§7 系统）
 - 输出：修复后的 5 个 `tests/vectors/isa/*.yaml`
 - 约束：
@@ -60,7 +60,7 @@
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符与文件组织**：`setzw`→`set.zw`、`setow`→`set.ow`、`rd2rb`/`rb2rd`/`rb2rb` 保留但字段/命名按 0.5.3；wyde 文件在 v5 组织为 `rd-imm-block.yaml`。
-2. **ORRI/ORRR 位域**：以 v5 `contract-isa.md` §2.2 与 `verif/opcodes.yaml` 的 `fields` 为准，不照抄 0628 的位域结论（结论可能一致，但须独立核对）。
+2. **ORRI/ORRR 位域**：以 v5 `contract-isa.md` §2.2 与 `contracts/opcodes.yaml` 的 `fields` 为准，不照抄 0628 的位域结论（结论可能一致，但须独立核对）。
 3. **RB 语义（关键）**：0.5.3 RB 算术为**全 64 位**，无 48-bit 截断；0628 的「load_reg RB 3 wyde / 48-bit 截断」结论**不适用**，v5 期望值按全 64 位手算。
 4. **`divs`/`divu` → `div.so`/`div.uo`**：0628 的 TCG label bug 是 0.4.1 QEMU 实现问题；v5 是否 deferred 须由 qemu 实现与 harness 独立确认，不照搬。
 5. **文件集**：0628 的 5 文件为 rd-arith/rd-wyde-block/rd-load-store/rd-shift-extend/misc；v5 以 TESTCASES-002t 实际文件组织为准。
@@ -80,16 +80,16 @@
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-027a-architect-direct-vector-fixes.md`（完整转述）
 - DADAO-0628：`.work/DADAO-0628/tests/vectors/isa/`（形态参考，禁止复制数据）
-- 本项目：`verif/opcodes.yaml`、`.tao/knowledge/contract-isa.md`、`tests/vectors/schema.md`
+- 本项目：`contracts/opcodes.yaml`、`.tao/knowledge/contract-isa.md`、`tests/vectors/schema.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
 
-1. 5 个文件中的 encoding 位域与 `verif/opcodes.yaml` 的 `(word & mask) == value` 一致
+1. 5 个文件中的 encoding 位域与 `contracts/opcodes.yaml` 的 `(word & mask) == value` 一致
 2. `input_state` 中无 rd0 条目
 3. 期望值按 0.5.3 语义（含 RB 全 64 位）逐条手算且自洽
 4. deferred 向量有明确 `deferred_reason`；无法确定处标 `[OPEN]` 并在完成区列出
-5. `python3 verif/validate_vectors.py` 零错误；`make check` PASS
+5. `python3 tools/testcases/validate_vectors.py` 零错误；`make check` PASS
 6. 每处修正可回溯到合约章节
 7. 未自行 commit
 

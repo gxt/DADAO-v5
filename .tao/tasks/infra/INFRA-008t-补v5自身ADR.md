@@ -396,7 +396,7 @@ $ rg -rn 'ADR-0002' .tao/tasks/ --no-heading | grep -v '\.tao/knowledge/adr-0002
 
 **范围外裸引用处置建议**：
 
-- `INFRA-001k` 第 18 行（ADR-0001+0002 双裸引用）：**须在 `INFRA-009m` 置 `里程碑` 前处置**（新开轻量 infra 任务，或并入 `INFRA-009m` 核验前检查项）。
+- `INFRA-001k` 第 18 行（ADR-0001+0002 双裸引用）：**须在 `INFRA-013m` 置 `里程碑` 前处置**（新开轻量 infra 任务，或并入 `INFRA-013m` 核验前检查项）。
 - `Makefile` 第 3 行（注释）：并入同一轻量任务，优先级最低。
 - `SPEC-006t`：spec 模块后续任务澄清（改指 `adr-authoring.md`），infra 不跨界改。
 

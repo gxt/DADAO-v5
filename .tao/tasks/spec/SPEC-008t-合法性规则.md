@@ -1,0 +1,190 @@
+# SPEC-008t: 合法性规则与验证器
+
+**模块**：spec
+**项目里程碑**：M1
+**依赖**：`SPEC-002t`、`SPEC-003t`
+**状态**：待开始
+
+> **重做说明（2026-09-13）**：本任务成稿时 M1 尚未纳入 RA，且 `legality` 字段引用校验尚未引入。现需**重新生成** `contracts/legality_rules.yaml`：
+> 1. **增补 RA 相关指令的合法性规则**：RA 存取（`ld.o`/`st.o`/`ldm.o`/`stm.o`-RA）、块赋值（`ra2rd`/`rd2ra`）的异常条件——8B 对齐未对齐 → MALIGN；`immu6 = 0`、`raha + immu6 > 64`、`ra2rd` 目的 `rd0` → ILLI；`ra0` 可读写不触发异常（依据 `contract-isa §4.9`、§1.3.4）。
+> 2. **按 SPEC-003t 新增的 `legality` 字段引用校验（`check_legality_refs`）对齐字段引用**：规则中引用的字段须存在于对应指令记录（`contracts/opcodes.yaml`）的 fields；修正块赋值目的字段 `rdha`/`rbha` → `rdhb`/`rbhb` 等。
+> 3. 顺带修正旧版遗留问题：`spec_cite` 重复键（每条写两次）、`spec_cite` 含行号（应只写章节号）、`sbz_nonzero` 状态（ADR-0004 D5.3 已冻结 SBZ 非零 → ILLI，应 `active`）、RF 规则在 M1 排除 RF 下的状态。
+>
+> 旧审阅记录（第 1 轮）针对旧版产出，**已失效**（保留备查）；重做后追加新轮次。
+
+## 执行环境
+
+**执行环境**：本地
+
+## 接口规范
+
+- 输入：spec/ 规范文档（见下方清单）
+- 输出：`contracts/legality_rules.yaml`
+- 约束：基于 SimRISC 0.5.3，覆盖所有 ILLI/UNDI/MALIGN/IALIGN 条件
+- 依赖：SPEC-003t 创建的 `contracts/opcodes.yaml`
+
+## 输入文件清单
+
+| 文件 | 用途 |
+|------|------|
+| `SimRISC-01-数据类指令.md` | RD 指令的合法性约束 |
+| `SimRISC-02-地址类指令.md` | RB/RA 指令的合法性约束 |
+| `SimRISC-03-浮点类指令.md` | RF 指令的合法性约束 |
+| `SimRISC-04-系统类指令.md` | 系统指令的合法性约束 |
+| `SimRISC-00-指令系统设计.md` | RASOF/RASUF 约束（返回地址栈） |
+
+## 验收标准
+
+### legality_rules.yaml
+
+1. 覆盖以下规则类别：
+   - rd0 写检查（单目的 vs 双目的区别）
+   - rb0 写检查
+   - rf0 操作检查
+   - store_src_rd0 检查
+   - dual_dest 检查
+   - multi_immu6_zero 检查
+   - multi_range_overflow 检查
+   - data_malign 检查
+   - imm_range 检查
+   - shamt_overflow 检查
+   - ext_bit_overflow 检查
+   - div_by_zero 检查
+   - div_overflow 检查
+   - reserved_undi 检查
+   - instruction_align 检查
+   - sbz_nonzero 检查
+   - ras_of/ras_uf 检查
+   - lr_hb_not_zero 检查
+   - cfx_reserved 检查
+   - **RA 规则（新增）**：ra 多寄存器 `immu6_zero` / `multi_range_overflow`（ra 起始 + immu6 > 64）；`ra2rd` 目的 `rd0` → ILLI；`ra0` 可读写不触发异常；RA 8B 对齐 → MALIGN（并入 data_malign 或单列）
+
+2. 每条规则包含：
+   - id：规则标识
+   - fault：异常类型（ILLI/UNDI/MALIGN/IALIGN）
+   - kind：检查类型（static/dynamic）
+   - spec_cite：规范引用（**只写章节号，不写行号**）
+   - status：active/deferred
+   - description：规则描述
+
+### 验证器（复用 SPEC-003t 的 `tools/spec/validate_encoding.py`）
+
+1. 读取 `opcodes.yaml`，检查 mask/value 合法性、保留编码、解码冲突
+2. 该验证器由 `SPEC-003t` 交付；本任务只**复用**它验证合法性规则所依赖的编码，不重复拥有
+
+## 输出格式示例
+
+### legality_rules.yaml
+
+```yaml
+rules:
+  - id: rd_dest_rd0
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01 §rd0 为目的寄存器约定"
+    status: active
+    description: "写 rd0 为目的寄存器时触发 ILLI（单目的指令不允许，双目的 add/sub/mul 的 rrrr 格式允许其中一个为 rd0）"
+```
+
+## 参考
+
+- DADAO-0628：`code-agent/tasks/DL-043a-legality-matrix.md`
+- DADAO-0628：`tools/legality_rules.yaml`（schema 溯源，非执行必需）
+- DADAO-0628：`scripts/validate_encoding.py`（逻辑参考，v5 自实现）
+
+## 完成区
+
+**测试结果**：`validate_encoding.py` 256 条记录 OK（exit 0）；规则数 25
+**修改文件**：`contracts/legality_rules.yaml`
+**验收结果**：见下方「验收结论」
+**新发现/坑**：无
+**遗留问题**：无
+
+### 修改文件
+
+| 文件 | 说明 |
+|------|------|
+| `contracts/legality_rules.yaml` | 合法性规则目录，25 条规则覆盖全部 19 类要求 |
+
+### 验收结论
+
+1. **legality_rules.yaml**：覆盖全部 19 类规则（rd0/rb0/rf0/store_src_rd0/dual_dest/multi_immu6_zero/multi_range_overflow/data_malign/imm_range/shamt_overflow/ext_bit_overflow/div_by_zero/div_overflow/reserved_undi/instruction_align/sbz_nonzero/ras_of/ras_uf/lr_hb_not_zero/cfx_reserved），每条规则包含 id/fault/kind/spec_cite/spec_cite/status/description
+2. **validate_encoding.py**：使用 SPEC-003t 的 opcodes.yaml（256 条指令）验证通过，输出 `validate_encoding: 256 条记录 OK`
+3. 验证器检查项：mask/value 合法性、字段不重叠、无解码冲突、必填字段完整性
+
+---
+
+## 审阅记录
+
+> **说明（2026-09-13）**：本任务重做（见顶部「重做说明」），下方「第 1 轮 reviewer 验收」针对旧版产出（未含 RA、未对齐 `legality` 字段校验），**已失效**（保留备查）；重做后追加新轮次。
+
+#### 第 1 轮 reviewer 验收（已失效）
+
+**审查者**：mimo-v2.5-pro（与子代理不同 model）
+**审查日期**：2026-07-21（更新）
+
+### 重跑记录
+
+```bash
+$ cd DADAO-v5 && python3 tools/spec/validate_encoding.py contracts/opcodes.yaml
+validate_encoding: 256 条记录 OK
+$ echo $?
+0
+```
+
+```bash
+$ cd DADAO-v5 && python3 -c "import yaml; data = yaml.safe_load(open('contracts/legality_rules.yaml')); print(f'规则数量: {len(data[\"rules\"])}')"
+规则数量: 25
+```
+
+### 约束核验
+
+| 约束 | 结果 | 说明 |
+|------|------|------|
+| 覆盖全部 19 类规则 | ✅ 通过 | 19/19 类全部覆盖 |
+| 每条规则包含必填字段 | ✅ 通过 | 所有规则包含 id/fault/kind/spec_cite/spec_cite/status/description |
+| 规则数量准确性 | ✅ 通过 | 25 条规则 |
+| validate_encoding.py 运行无冲突 | ✅ 通过 | 256 条记录全部 OK |
+| 无 DADAO-11 引用 | ✅ 通过 | ras_of/ras_uf 已改为 SimRISC-00 |
+| 无 FPEXCP 规则 | ✅ 通过 | grep 确认 0 处 FPEXCP 引用 |
+
+### 规则覆盖验证
+
+| 类别 | 规则 ID | 状态 |
+|------|---------|------|
+| rd0 写检查 | rd_dest_rd0 | ✅ |
+| rb0 写检查 | rb_dest_rb0 | ✅ |
+| rf0 操作检查 | rf0_as_operand | ✅ |
+| store_src_rd0 检查 | store_src_rd0 | ✅ |
+| dual_dest 检查 | dual_dest_both_rd0, dual_dest_same_reg | ✅ |
+| multi_immu6_zero 检查 | multi_immu6_zero | ✅ |
+| multi_range_overflow 检查 | multi_range_overflow | ✅ |
+| data_malign 检查 | data_malign | ✅ |
+| imm_range 检查 | imm_range | ✅ |
+| shamt_overflow 检查 | shamt_overflow | ✅ |
+| ext_bit_overflow 检查 | ext_bit_overflow | ✅ |
+| div_by_zero 检查 | div_by_zero | ✅ |
+| div_overflow 检查 | div_overflow | ✅ |
+| reserved_undi 检查 | reserved_undi | ✅ |
+| instruction_align 检查 | instruction_align | ✅ |
+| sbz_nonzero 检查 | sbz_nonzero | ✅ |
+| ras_of/ras_uf 检查 | ras_of, ras_uf | ✅ |
+| lr_hb_not_zero 检查 | lr_hb_not_zero | ✅ |
+| cfx_reserved 检查 | cfx_reserved | ✅ |
+
+**额外规则（不在19类要求中）**：
+- rb_base_rb0_store: RB 存储指令中 rbha 为 rb0 时触发 ILLI
+- fp_root_invalid_n: ftroot/foroot 不支持的 n 值
+- fp_log_invalid_base: ftlog/folog 不支持的底值
+
+### 判决
+
+**Accepted**
+
+所有验收标准满足：
+- 覆盖全部 19 类规则 ✅
+- 每条规则包含必填字段 ✅
+- 无 DADAO-11 引用 ✅
+- 无 FPEXCP 相关规则 ✅
+- validate_encoding.py 运行无冲突，256 条记录 OK ✅
+- 规则格式正确 ✅

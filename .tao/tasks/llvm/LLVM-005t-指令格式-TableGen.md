@@ -11,9 +11,9 @@
 
 ## 接口规范
 
-- 输入：`LLVM-004t` 的寄存器类（`GPRD`/`GPRB`/`GPRF`/`GPRA`）、`.tao/knowledge/contract-isa.md` §2（编码/格式）、§3–§5（标量指令）、§7（系统指令）、`verif/opcodes.yaml`（机器可读编码表）
+- 输入：`LLVM-004t` 的寄存器类（`GPRD`/`GPRB`/`GPRF`/`GPRA`）、`.tao/knowledge/contract-isa.md` §2（编码/格式）、§3–§5（标量指令）、§7（系统指令）、`contracts/opcodes.yaml`（机器可读编码表）
 - 输出：`components/llvm/patches/0004-dadao-instrinfo.patch`、更新后的 `components/llvm/patches/series`
-- 约束：`make build-mc` 仍 PASS；不实现 AsmParser/Disassembler；pattern list 为空（CodeGen 属 M2）；op/ha 值逐条对照 `verif/opcodes.yaml`，不从 LLVM 输出反推
+- 约束：`make build-mc` 仍 PASS；不实现 AsmParser/Disassembler；pattern list 为空（CodeGen 属 M2）；op/ha 值逐条对照 `contracts/opcodes.yaml`，不从 LLVM 输出反推
 
 ## 背景（完整）
 
@@ -49,7 +49,7 @@
 
 **Wyde-Position**（§2.3）：`00`=wp0 bits[15:0]，`01`=wp1 bits[31:16]，`10`=wp2 bits[47:32]，`11`=wp3 bits[63:48]。
 
-**MISC 子表**：op 为子表操作码（如 `0x00` AMO、`0x40` octa、`0x41` tetra、`0x42` wyde、`0x43` byte、`0x44` RF），ha 为 minor-op，用 `let ha = <minor_op>` 固定；逐条对照 `verif/opcodes.yaml` 的 `mnemonic`/`format`/`op`/`value`。
+**MISC 子表**：op 为子表操作码（如 `0x00` AMO、`0x40` octa、`0x41` tetra、`0x42` wyde、`0x43` byte、`0x44` RF），ha 为 minor-op，用 `let ha = <minor_op>` 固定；逐条对照 `contracts/opcodes.yaml` 的 `mnemonic`/`format`/`op`/`value`。
 
 **指令 def**：继承对应格式类，填 `op`、minor-op（如适用）、占位 asm 字符串、空 pattern；不填 `EncoderMethod`（`LLVM-006t` 添加）。
 
@@ -59,7 +59,7 @@
 
 - DADAO-0628：`code-agent/tasks/DL-009a-llvm-instrinfo.md`（完整转述：目标、编码结构、13 格式类、指令 def、Operand 类、CMakeLists、约束、验收、Architecture Review）。
 - DADAO-0628：`components/llvm/patches/0004-dadao-instrinfo.patch`（**仅参考命名与顺序**，不复制正文）。
-- DADAO-0628：`contracts/isa/spec.md §2`、`components/qemu/patches/0003-dadao-decodetree.patch`（0.4.1 op 值，**不得照抄**，v5 用 `verif/opcodes.yaml`）。
+- DADAO-0628：`contracts/isa/spec.md §2`、`components/qemu/patches/0003-dadao-decodetree.patch`（0.4.1 op 值，**不得照抄**，v5 用 `contracts/opcodes.yaml`）。
 
 ## 交付物
 
@@ -69,11 +69,11 @@
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-- **opcode 来源**：v5 逐条对照 `verif/opcodes.yaml`（256 条），不得使用 0628 任务中的 op 表（0.4.1 QFC，如 `addi=0x19`/`add=0x1A` 等）。
+- **opcode 来源**：v5 逐条对照 `contracts/opcodes.yaml`（256 条），不得使用 0628 任务中的 op 表（0.4.1 QFC，如 `addi=0x19`/`add=0x1A` 等）。
 - **格式类**：v5 按 `contract-isa.md §2.2` 的 12 格式实现（含 `crrr`/`crii`/`ciii` 系统格式）；0628 的 `F_ORII`/`F_RWII` 等命名仅作风格参考。
 - **MISC 子表**：v5 为 MISC-byte/wyde/tetra/octa/RF/AMO，子表操作码与 minor-op 与 0.4.1 不同。
 - **命名**：0.5.3 使用 `.b/.w/.t/.o` 与 `s`/`u` 后缀（如 `add.uo`/`add.so`、`mul.uw`/`mul.sw`、`set.zw`、`br.nz`、`illi`）。
-- **M1 范围**：覆盖 `verif/opcodes.yaml` 中 M1 标量核心（§3 标量整数、§4 地址/内存（RD/RB/**RA**）、§5 控制流、§7 系统指令中测试机所需）的全部指令；浮点 RF 全部按 M1 范围排除（是否定义占位由任务明确，不要求编码正确性）。
+- **M1 范围**：覆盖 `contracts/opcodes.yaml` 中 M1 标量核心（§3 标量整数、§4 地址/内存（RD/RB/**RA**）、§5 控制流、§7 系统指令中测试机所需）的全部指令；浮点 RF 全部按 M1 范围排除（是否定义占位由任务明确，不要求编码正确性）。
 - **不复制 0.4.1 补丁正文/编码数据**。
 
 ## 已知坑 / 结论
@@ -92,14 +92,14 @@
 - DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-008a-llvm-reginfo.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-isa.md`（§2–§5、§7）、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md`（§2–§5、§7）、`contracts/opcodes.yaml`
 
 ## 验收标准
 
 1. `components/llvm/patches/0004-dadao-instrinfo.patch` 存在并追加到 `series`
 2. `make build-mc` PASS，无新增错误
 3. 构建产物含 `DADAOGenInstrInfo.inc`
-4. 12 个格式类齐备；M1 指令 `def` 与 `verif/opcodes.yaml` 的 M1 条目逐条对应（mnemonic/format/op 一致）
+4. 12 个格式类齐备；M1 指令 `def` 与 `contracts/opcodes.yaml` 的 M1 条目逐条对应（mnemonic/format/op 一致）
 5. `rwii` 位域与 §2.3 一致；MISC 子表 minor-op 用字面量固定
 6. 未实现 AsmParser/Disassembler；pattern list 均为 `[]`
 

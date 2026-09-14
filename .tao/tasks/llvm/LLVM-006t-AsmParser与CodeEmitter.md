@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`LLVM-005t` 的指令 `def`/格式类/Operand 类型、`.tao/knowledge/contract-isa.md` §2–§5（字段/立即数/助记符）、`verif/opcodes.yaml`
+- 输入：`LLVM-005t` 的指令 `def`/格式类/Operand 类型、`.tao/knowledge/contract-isa.md` §2–§5（字段/立即数/助记符）、`contracts/opcodes.yaml`
 - 输出：`components/llvm/patches/0005-dadao-asmparser.patch`、更新后的 `series`
 - 约束：`make build-mc` PASS；`encodeInstruction` 必须调用 TableGen 生成的 `getBinaryCodeForInstr()`（不得写 0 stub）；大端输出；期望字节独立手推，不从 LLVM 输出复制；不实现 Disassembler、不实现 ELF relocation
 
@@ -53,7 +53,7 @@
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 - **助记符/操作数**：按 0.5.3 命名与 §2.2 格式（`add.si`、`set.zw`、`br.nz`、`ld.o`、`illi` 等），操作数顺序按 `contract-isa.md` §2.5。
-- **期望字节**：必须从 `contract-isa.md §2.1/§2.2` 公式 + `verif/opcodes.yaml` 独立手推。0628 任务中的示例字节是错的（见「已知坑」），**严禁照抄**。
+- **期望字节**：必须从 `contract-isa.md §2.1/§2.2` 公式 + `contracts/opcodes.yaml` 独立手推。0628 任务中的示例字节是错的（见「已知坑」），**严禁照抄**。
 - **格式类字段名**：`-gen-emitter` 要求格式类 `Inst` 字段与 `def` 的操作数名对齐；v5 按自身 TableGen 结构实现，不照搬 0628 的字段名重写补丁。
 - **不复制 0.4.1 补丁正文/编码数据**。
 
@@ -74,7 +74,7 @@
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-009a-llvm-instrinfo.md`
 - DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/knowledge/contract-isa.md`（§2–§5）、`verif/opcodes.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md`（§2–§5）、`contracts/opcodes.yaml`
 
 ## 验收标准
 

@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：
-  - `verif/opcodes.yaml`（SPEC-003t：op/ha/mask/value 主键来源）
+  - `contracts/opcodes.yaml`（SPEC-003t：op/ha/mask/value 主键来源）
   - `.tao/knowledge/contract-isa.md`（§2 指令编码、§2.5 操作数顺序、§4.1/§4.2 存取合法性）
   - `tests/vectors/schema.md`（TESTCASES-002t，字段规范）
   - `tests/vectors/isa/*.yaml`（TESTCASES-002t 初始向量）
@@ -20,7 +20,7 @@
 - 约束：
   - 只追加，不删改现有向量
   - `input_state: {}`、`expected_state: null`、`expected_fault: null`
-  - `encoding.word` 由 `verif/opcodes.yaml` 的 op/ha + 字段最小合法值手算（公式 `(op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd`）
+  - `encoding.word` 由 `contracts/opcodes.yaml` 的 op/ha + 字段最小合法值手算（公式 `(op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd`）
   - 目标 rd0/rb0 会触发 ILLI 的指令必须填非 0 目标；源 rd0/rb0 合法用 0
   - multi load/store 的 `immu6` 必须 ≥1（=0 → ILLI）
   - 完成后不自行 commit
@@ -61,7 +61,7 @@
 word = (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd
 ```
 
-- `op`、`ha` 从 `verif/opcodes.yaml` 对应记录读取
+- `op`、`ha` 从 `contracts/opcodes.yaml` 对应记录读取
 - 操作数字段（hb/hc/hd）填最小合法值：
   - **目标寄存器**（dest rd/rb）：若 rd0/rb0 为目标会触发 ILLI，用 1；否则用 0
   - **源寄存器**：用 0（rd0/rb0 作为源合法）
@@ -69,7 +69,7 @@ word = (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd
   - **wyde-position**（rwii）：用 0（wp0）
   - **count 字段**（rrri，multi load/store）：用 1（count=0 语义未定义/ILLI）
 
-**目标 rd0/rb0 → ILLI 的指令**（按 `contract-isa.md` §4.1/§4.2 与 `verif/legality_rules.yaml`；v5 助记符）：
+**目标 rd0/rb0 → ILLI 的指令**（按 `contract-isa.md` §4.1/§4.2 与 `contracts/legality_rules.yaml`；v5 助记符）：
 
 | 规则 | 受影响指令 |
 |------|----------|
@@ -99,7 +99,7 @@ word = (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符**：`addi`→`add.si`、`ldo`→`ld.o`、`sto`→`st.o`、`setzw`→`set.zw`、`setow`→`set.ow`、`orw`→`or.w`、`andnw`→`andn.w`、`brz`→`br.z`、`brnz`→`br.nz`、`unimp`→`illi` 等；且同一助记符有 RD/RB 变体（`insn` 后缀 `-rd`/`-rb`）。
-2. **写入位置表**按 0.5.3 QFC 表重建（opcode 分配完全改变），以 `verif/opcodes.yaml` 为准。
+2. **写入位置表**按 0.5.3 QFC 表重建（opcode 分配完全改变），以 `contracts/opcodes.yaml` 为准。
 3. **immu6/count 规则**：`immu6 = 0 → ILLI` 仍成立（0628 P0.1），v5 沿用；multi load/store 必须 count≥1。
 4. **rd0/rb0 dest ILLI 规则**以 0.5.3 `contract-isa.md`/`legality_rules.yaml` 为准（0.4.1 的具体指令清单不照搬）。
 5. **RB 语义**：0.5.3 RB 全 64 位；RB dest 合法性按 0.5.3 判断。
@@ -120,17 +120,17 @@ word = (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-020a-encoding-vectors.md`（完整转述）
 - DADAO-0628：`.work/DADAO-0628/tests/vectors/isa/`（encoding 向量形态参考，禁止复制数据）
-- 本项目：`verif/opcodes.yaml`、`.tao/knowledge/contract-isa.md`、`verif/legality_rules.yaml`、`tests/vectors/schema.md`
+- 本项目：`contracts/opcodes.yaml`、`.tao/knowledge/contract-isa.md`、`contracts/legality_rules.yaml`、`tests/vectors/schema.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
 
 1. M1 scope 内每个 `insn` 至少 1 条 `class: encoding` 向量
 2. 每条 encoding 向量 `input_state: {}`、`expected_state: null`、`expected_fault: null`、`status: active`
-3. 每条 `encoding.word` 与 `verif/opcodes.yaml` 的 `(word & mask) == value` 一致
+3. 每条 `encoding.word` 与 `contracts/opcodes.yaml` 的 `(word & mask) == value` 一致
 4. 目标 rd0/rb0 会触发 ILLI 的指令均用非 0 目标；multi load/store 的 count ≥1
 5. 未删改已有向量
-6. `python3 verif/validate_vectors.py` 零错误，覆盖数提升
+6. `python3 tools/testcases/validate_vectors.py` 零错误，覆盖数提升
 7. `make check` PASS
 8. 未自行 commit
 

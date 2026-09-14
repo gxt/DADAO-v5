@@ -23,17 +23,19 @@ Agent 不能直接读 `spec/` 的 11 份原始规范（面向人类、存在歧�
 | 编号 | 任务 | 交付物 | 依赖 |
 |------|------|--------|------|
 | `SPEC-002t` | ISA 规范合约提取 | `.tao/knowledge/contract-isa.md` | 无 |
-| `SPEC-003t` | 机器可读编码表 | `verif/opcodes.yaml`、`verif/validate_encoding.py` | `SPEC-002t` |
-| `SPEC-004t` | ABI 合约（非变参标量） | `.tao/knowledge/contract-abi.md`、`verif/abi.yaml` | `SPEC-002t` |
+| `SPEC-003t` | 机器可读编码表 | `contracts/opcodes.yaml`、`tools/spec/validate_encoding.py` | `SPEC-002t` |
+| `SPEC-004t` | ABI 合约（非变参标量） | `.tao/knowledge/contract-abi.md`、`contracts/abi.yaml` | `SPEC-002t` |
 | `SPEC-005t` | Object ABI ADR | `.tao/knowledge/adr-0003-object-abi.md` | `SPEC-002t`、`SPEC-004t` |
-| `SPEC-006t` | Test Machine ADR | `.tao/knowledge/adr-0004-test-machine.md` | `SPEC-002t`、`SPEC-004t`、`VERIF-002t` |
+| `SPEC-006t` | Test Machine ADR | `.tao/knowledge/adr-0004-test-machine.md` | `SPEC-002t`、`SPEC-004t`、`SPEC-008t` |
 | `SPEC-007t` | ELF 合约 | `.tao/knowledge/contract-elf.md` | `SPEC-005t`、`SPEC-002t` |
-| `SPEC-008t` | Spec 冻结 | `docs/impact-matrix.md`、`scripts/check_spec_drift.py` | `SPEC-004t`~`SPEC-007t` |
-| `SPEC-009m` | M1 spec 里程碑 | 里程碑标记 | `SPEC-002t`~`SPEC-008t` |
+| `SPEC-008t` | 合法性规则与验证器 | `contracts/legality_rules.yaml` | `SPEC-002t`、`SPEC-003t` |
+| `SPEC-009t` | QFC 覆盖校验 | `tools/spec/check_qfc_coverage.py` | `SPEC-003t` |
+| `SPEC-010t` | Spec 冻结 | `docs/impact-matrix.md`、`README.md`（冻结状态） | `SPEC-004t`~`SPEC-009t` |
+| `SPEC-011m` | M1 spec 里程碑 | 里程碑标记 | `SPEC-002t`~`SPEC-010t` |
 
-- **依赖关系**：`002t → 003t`；`002t → 004t → {005t → 007t, 006t} → 008t`；`009m` 汇总全部。
-- **分解理由**：先归一化语义合约（`002t`）与编码表（`003t`）；再在其上定义 ABI（`004t`）→ Object ABI ADR（`005t`）/ Test Machine ADR（`006t`）→ ELF 合约（`007t`）→ 冻结（`008t`）。每个任务可独立验收。
-- **k↔m**：本模块一个规划 `k`（`001k`）对应一个里程碑 `m`（`009m`）。
+- **依赖关系**：`002t → 003t`；`002t → 004t → {005t → 007t, 006t}`；`003t → {008t, 009t}`；`{004t~009t} → 010t`；`011m` 汇总全部。
+- **分解理由**：先归一化语义合约（`002t`）与编码表（`003t`）；再在其上定义 ABI（`004t`）→ Object ABI ADR（`005t`）/ Test Machine ADR（`006t`）→ ELF 合约（`007t`）；合法性规则（`008t`）与 QFC 覆盖（`009t`）为 spec 派生的验证依据；冻结（`010t`）在全部 Accepted 后执行。每个任务可独立验收。
+- **k↔m**：本模块一个规划 `k`（`001k`）对应一个里程碑 `m`（`011m`）。
 
 ## 说明
 

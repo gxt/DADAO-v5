@@ -22,7 +22,7 @@
   - `.tao/knowledge/contract-isa.md`（0.5.3，指令语义/寄存器模型基础）
 - 输出：
   - `.tao/knowledge/contract-abi.md`（版本 0.9.2）
-  - `verif/abi.yaml`（机器可读 ABI 事实）
+  - `contracts/abi.yaml`（机器可读 ABI 事实）
 - 约束：
   - Spec-first：每条规范性断言标注 `spec/` 章节来源，无来源的推论标 `[OPEN]`
   - 版本号 0.9.2，与 `spec/DADAO-21-ABI` 一致
@@ -37,7 +37,7 @@
 
 从 DADAO-v5 `spec/` 的 ABI/AEE 文档提取 **M1 所需的最小 ABI 事实**：寄存器角色（`rd0`=zero、`rb0`=PC、`rb1`=SP、`rb2`=FP、`ra`=RegRAS/MemRAS、`rf0`=FCSR 等）、`SP=rb1`、栈向下增长、`call` 时 SP 8B 对齐、`call`/`ret` 与 RegRAS 的关系。供 test machine（`SPEC-006t`）与 M1 集成使用。
 
-`verif/abi.yaml` 提供机器可读的 **M1 ABI 事实**（寄存器角色、SP、栈对齐）。完整调用约定标 `Deferred to M2`（见「范围」）。
+`contracts/abi.yaml` 提供机器可读的 **M1 ABI 事实**（寄存器角色、SP、栈对齐）。完整调用约定标 `Deferred to M2`（见「范围」）。
 
 > DADAO-0628 对应任务 DL-002a 的原始目标即为此。v5 的差异是：规范版本从 SimRISC 0.4.1
 > 升级到 0.5.3、ABI 从 0.1.0 升到 0.9.2，且 **RB bank 指针调用约定在 0.9.2 中已原生规定**
@@ -108,7 +108,7 @@
 | `brz` | `br.z` | riii，条件跳转 |
 | `unimp` | `illi` | 非法指令 |
 
-**`verif/abi.yaml` 关键字段（示例，值以 `spec/` 为准）**：`format`、`version: "0.9.2"`、
+**`contracts/abi.yaml` 关键字段（示例，值以 `spec/` 为准）**：`format`、`version: "0.9.2"`、
 `data_layout`、`stack_alignment`、`parameter_registers`（rd/rb/rf 各 [16,31]）、
 `return_registers`（rd/rb/rf 各 31）、`callee_saved`（各 [32,63]）、`reserved_registers`。
 
@@ -130,7 +130,7 @@
 | 文件 | 说明 |
 |------|------|
 | `.tao/knowledge/contract-abi.md` | M1 最小 ABI 事实（寄存器角色 + SP/栈对齐 + call/ret 引用），版本 0.9.2；完整调用约定标 `Deferred to M2` |
-| `verif/abi.yaml` | 机器可读 M1 ABI 事实：寄存器角色、SP、栈对齐（M1 部分） |
+| `contracts/abi.yaml` | 机器可读 M1 ABI 事实：寄存器角色、SP、栈对齐（M1 部分） |
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -195,7 +195,7 @@
 2. 覆盖 **M1 最小 ABI 事实**：寄存器角色（`rd0`/`rb0`/`rb1`/`rb2`/`ra`/`rf0`）、`SP=rb1`、栈向下增长、`call` 时 SP 8B 对齐、`call`/`ret` 与 RegRAS 的关系
 3. 每条规范性断言标注 `spec/` 章节来源；无来源的推论标 `[OPEN]`，不猜测
 4. **完整调用约定**（参数寄存器/返回值/栈帧/三 bank 共享溢出区/prologue-epilogue）明确标 `Deferred to M2`，不与 M1 事实混排
-5. `verif/abi.yaml` 可被 `python3` 解析（YAML 合法），含 M1 ABI 事实
+5. `contracts/abi.yaml` 可被 `python3` 解析（YAML 合法），含 M1 ABI 事实
 6. 无 0.4.1 的指令编码/数据被照抄（助记符、字段、编码值均来自 0.5.3）
 
 ## 完成区
@@ -210,10 +210,10 @@
 日志：`.tao/logs/SPEC-004t-rework-{check-callee-saved,check-abi,check-contract,crosscheck-spec}.log`。
 
 **修改文件**：
-- 修改 `verif/abi.yaml`（`callee_saved` 索引语义注释：改为「各 bank 通用 callee-saved 块 32–63，不含 SP/FP」，删除 `mirror of registers` 声称）
+- 修改 `contracts/abi.yaml`（`callee_saved` 索引语义注释：改为「各 bank 通用 callee-saved 块 32–63，不含 SP/FP」，删除 `mirror of registers` 声称）
 - 修改 `.tao/knowledge/contract-abi.md` §3（措辞：`registers` 为逐寄存器权威来源；`callee_saved` 为派生索引、仅通用块 32–63；删除「一一对应」）
 - 修改 `.tao/tasks/spec/SPEC-004t-ABI合约.md`（状态 + 完成区 + 第 2 轮自审）
-- 初版交付物（第 1 轮）：新增 `.tao/knowledge/contract-abi.md`、`verif/abi.yaml`
+- 初版交付物（第 1 轮）：新增 `.tao/knowledge/contract-abi.md`、`contracts/abi.yaml`
 
 **验收结果**（关键命令与真实输出/退出码）：
 
@@ -267,10 +267,10 @@ PASS RASOF/RASUF / 大端序 / size_t
 PASS Deferred/Excluded 章节出处全部在 spec 中
 RESULT: ALL PASS            # EXIT=0
 
-$ python3 -c "import yaml; yaml.safe_load(open('verif/abi.yaml'))"
+$ python3 -c "import yaml; yaml.safe_load(open('contracts/abi.yaml'))"
 abi.yaml YAML OK, keys= 14  # EXIT=0
 
-$ python3 -c "import yaml; d=yaml.safe_load(open('verif/abi.yaml')); print(d['callee_saved'], d['allocatable']['rb'], d['version'])"
+$ python3 -c "import yaml; d=yaml.safe_load(open('contracts/abi.yaml')); print(d['callee_saved'], d['allocatable']['rb'], d['version'])"
 {'rd': [32, 63], 'rb': [32, 63], 'rf': [32, 63]} [[8, 15], [16, 31], [32, 63]] 0.9.2   # EXIT=0
 ```
 
@@ -290,8 +290,8 @@ $ python3 -c "import yaml; d=yaml.safe_load(open('verif/abi.yaml')); print(d['ca
 1. **v5 spec 无 "red zone 128B"**：任务背景 §4 提到 red zone 128B，但 `spec/DADAO-21-ABI` / `DADAO-11-AEE` 全文均无 "red zone"/128B 相关文字（该说法源自 DADAO-0628 的 0.4.1 合约）。已在 `contract-abi.md §6` 标 `[OPEN]`（无 spec 来源），未混入 M1 事实。建议 M2 前确认是否引入。
 2. **`abi.yaml` 的 `parameter_registers`/`return_registers` 放置**：任务 §「关键字段（示例）」列出这些字段，但「约束」要求参数寄存器/返回值属完整调用约定、标 `Deferred to M2` 且不得混入 M1。故本产出将其放在 `deferred_to_m2` 下（保留字段与值，明确非 M1 规范性），M1 事实只保留寄存器角色/SP/栈。
 3. **rd1/rb3/rb4**：spec Callee-saved 栏为 `-`（未分类），M1 冻结保守策略=不分配，保存语义未冻结，已在 `contract-abi.md §1.6/§6` 与 `abi.yaml non_allocatable[status: OPEN]` 双处标 `[OPEN]`。
-4. **数据布局**：`data_layout`（大端序 + 指针 8B）非任务「M1 范围」逐字列出，但为 `verif/abi.yaml` 示例字段且是 `DADAO-21 §数据表示` 事实；已最小化提取（不含完整标量类型表）。
-5. **（返工新增）分类索引是派生视图，非逐寄存器镜像**：`verif/abi.yaml` 的 `callee_saved`/`reserved_registers` 是便于消费者读取的派生索引；`callee_saved` 只给「通用可分配 callee-saved 块 32–63」（与 `allocatable` 一致），不含 SP/FP 等帧管理专用寄存器。后续消费者做逐寄存器判定应以 `registers` 表为准，索引仅作快速过滤。
+4. **数据布局**：`data_layout`（大端序 + 指针 8B）非任务「M1 范围」逐字列出，但为 `contracts/abi.yaml` 示例字段且是 `DADAO-21 §数据表示` 事实；已最小化提取（不含完整标量类型表）。
+5. **（返工新增）分类索引是派生视图，非逐寄存器镜像**：`contracts/abi.yaml` 的 `callee_saved`/`reserved_registers` 是便于消费者读取的派生索引；`callee_saved` 只给「通用可分配 callee-saved 块 32–63」（与 `allocatable` 一致），不含 SP/FP 等帧管理专用寄存器。后续消费者做逐寄存器判定应以 `registers` 表为准，索引仅作快速过滤。
 
 **遗留问题**：无（4 个核对脚本 ALL PASS；architect 交叉复核的 1 处 finding 已处置）。
 
@@ -302,7 +302,7 @@ $ python3 -c "import yaml; d=yaml.safe_load(open('verif/abi.yaml')); print(d['ca
 **审查者**：engineer（自主逐行审查；全局 `subagent_depth=1`，无法嵌套独立子代理）
 **审查日期**：2026-09-13
 
-**审查范围**：`contract-abi.md`（209 行）、`verif/abi.yaml` 全文逐行；对照 `spec/DADAO-21-ABI`、`spec/DADAO-11-AEE`、`contract-isa.md`。
+**审查范围**：`contract-abi.md`（209 行）、`contracts/abi.yaml` 全文逐行；对照 `spec/DADAO-21-ABI`、`spec/DADAO-11-AEE`、`contract-isa.md`。
 
 **检查项与结论**：
 - 逻辑/事实正确性：寄存器角色表逐条与 `spec/DADAO-21 §寄存器规范` 一致（RD/RB/RF/RA 四表，含 ABI 名与 Callee-saved 栏）；SP=rb1、栈向下增长、`call` 8B 对齐均有 spec 原文；call/ret 与 RegRAS 仅作引用、未重复定义（指向 `contract-isa.md §5.4–§5.6`）。✅
@@ -368,7 +368,7 @@ EXIT=0
 **3. YAML 独立解析**
 
 ```bash
-$ python3 -c "import yaml; d=yaml.safe_load(open('verif/abi.yaml')); print('keys:', sorted(d.keys())); print('version:', d['version'])"
+$ python3 -c "import yaml; d=yaml.safe_load(open('contracts/abi.yaml')); print('keys:', sorted(d.keys())); print('version:', d['version'])"
 YAML OK
 keys: ['allocatable', 'call_ret', 'callee_saved', 'contract', 'data_layout', 'deferred_to_m2', 'excluded_from_m1', 'format', 'non_allocatable', 'registers', 'reserved_registers', 'source', 'stack', 'version']
 version: 0.9.2
@@ -380,7 +380,7 @@ EXIT=0
 ```
 Untracked:
   .tao/knowledge/contract-abi.md   ← 新增（交付物 ✓）
-  verif/abi.yaml                   ← 新增（交付物 ✓）
+  contracts/abi.yaml                   ← 新增（交付物 ✓）
 Modified:
   .tao/tasks/spec/SPEC-004t-ABI合约.md  ← 状态+完成区+审阅记录（预期修改 ✓）
 ```
@@ -397,7 +397,7 @@ Modified:
 | 2 | 覆盖 M1 最小 ABI 事实：寄存器角色（rd0/rb0/rb1/rb2/ra/rf0）、SP=rb1、栈向下增长、call 8B 对齐、call/ret 与 RegRAS | ✅ | §1.1–§1.5 寄存器角色全覆盖；§2.1 SP=rb1/栈向下增长；§2.2 call 8B 对齐；§2.3 call/ret 与 RegRAS；YAML 全部对应 |
 | 3 | 每条规范性断言标注 spec/ 章节来源；无来源推论标 [OPEN] | ✅ | 55 处 `[DADAO-21 §…]`/`[DADAO-11 §…]`/`[SimRISC-0X §…]` 引用，均无行号；5 处 `[OPEN]`（rd1/rb3/rb4 分类、窄返回值、多返回值冲突、red zone、帧指针省略） |
 | 4 | 完整调用约定（参数寄存器/返回值/栈帧/溢出区/prologue-epilogue）标 Deferred to M2，不与 M1 混排 | ✅ | §4 列 7 项 Deferred 主题（含系统调用），仅登记主题+spec出处，**不提取规范内容**；M1 节（§1–§2）不含参数分配/返回值/栈帧布局/prologue-epilogue 详情 |
-| 5 | verif/abi.yaml 可被 python3 解析，含 M1 ABI 事实 | ✅ | `yaml.safe_load` 成功，14 个顶层键；M1 事实（stack/call_ret/registers/allocatable/non_allocatable）均存在且正确 |
+| 5 | contracts/abi.yaml 可被 python3 解析，含 M1 ABI 事实 | ✅ | `yaml.safe_load` 成功，14 个顶层键；M1 事实（stack/call_ret/registers/allocatable/non_allocatable）均存在且正确 |
 | 6 | 无 0.4.1 旧助记符（addi/sto/ldo/setzw/orw/cmps/brnz/unimp） | ✅ | check_contract.py 扫描确认 0 个匹配；contract-abi.md 不含 prologue/epilogue 代码（M1 范围不含），无照抄风险 |
 
 **额外核验项**：
@@ -466,7 +466,7 @@ $ rg "128.*byte|128B" spec/  # 仅匹配 128-bit 运算结果（无关）
 
 **Accepted**
 
-全部验收标准通过，无阻塞缺陷。交付物 `contract-abi.md`（209 行）与 `verif/abi.yaml`（134 行）正确覆盖 M1 最小 ABI 事实，边界分离清晰（Deferred/Excluded），来源标注规范，无 0.4.1 污染。red zone `[OPEN]` 判断正确。
+全部验收标准通过，无阻塞缺陷。交付物 `contract-abi.md`（209 行）与 `contracts/abi.yaml`（134 行）正确覆盖 M1 最小 ABI 事实，边界分离清晰（Deferred/Excluded），来源标注规范，无 0.4.1 污染。red zone `[OPEN]` 判断正确。
 
 ### 交叉复核（architect）
 
@@ -474,7 +474,7 @@ $ rg "128.*byte|128B" spec/  # 仅匹配 128-bit 运算结果（无关）
 **时间**：2026-09-12
 **结论**：**Needs Revision**——M1 事实实质正确、范围落实、事实准确、red zone `[OPEN]` 处置正确；但发现 1 处 reviewer 未覆盖的低危**自洽性缺陷**。
 
-**缺陷（低危）：`verif/abi.yaml` 的 `callee_saved` 索引与 `registers` 表在 RB bank 上不一致**
+**缺陷（低危）：`contracts/abi.yaml` 的 `callee_saved` 索引与 `registers` 表在 RB bank 上不一致**
 
 - `registers.rb` 标 `rb1`(rbsp)/`rb2`(rbfp) 为 `callee_saved: true`（与 spec `DADAO-21 §RB寄存器` 及 `contract-abi.md §1.3` 一致）；
 - 但分类索引 `callee_saved.rb: [32, 63]` **漏 rb1/rb2**，与注释「mirror of registers」及 `contract-abi.md §3`「与 §1 一一对应」的声称不符（`rd`/`rf` 两列确为精确镜像）。
@@ -492,7 +492,7 @@ $ rg "128.*byte|128B" spec/  # 仅匹配 128-bit 运算结果（无关）
 **处置选择**：**（b）澄清索引语义**（理由见完成区「选择 (b) 的理由」）。
 
 **改动逐行审查**：
-- `verif/abi.yaml`（§分类索引）：新增 5 行注释，明确 `callee_saved` = 各 bank 通用 callee-saved 块（32–63），与 `allocatable` 一致；显式声明「不含 SP(rb1)/FP(rb2)」并指向 `non_allocatable` 与 `registers` 表；`rb` 行内注释再点明。索引值未变（`rd/rb/rf: [32,63]`），不改变消费者 schema。✅
+- `contracts/abi.yaml`（§分类索引）：新增 5 行注释，明确 `callee_saved` = 各 bank 通用 callee-saved 块（32–63），与 `allocatable` 一致；显式声明「不含 SP(rb1)/FP(rb2)」并指向 `non_allocatable` 与 `registers` 表；`rb` 行内注释再点明。索引值未变（`rd/rb/rf: [32,63]`），不改变消费者 schema。✅
 - `.tao/knowledge/contract-abi.md §3`：将「其 M1 字段与本节 / §1 **一一对应**」改为「**一致**」，并补「`registers` 表为逐寄存器权威来源（rb1/rb2 依 spec 标 `callee_saved: true`）；`callee_saved`/`reserved_registers` 为派生分类索引，`callee_saved` 仅通用块 32–63」。无其他断言受影响。✅
 - 逻辑/事实正确性：`registers.rb` 的 rb1/rb2 仍为 `callee_saved: true`（未动，spec-faithful）；索引与 `registers` 的差集恰为 `{rb1,rb2}`（帧管理专用，已文档化）；`allocatable.rb` 含 `[32,63]`，索引与之一致。✅
 - 防造假：`check_callee_saved.py` 真实执行、日志留存 `.tao/logs/SPEC-004t-rework-check-callee-saved.log`；`check_abi/check_contract/crosscheck_spec` 回归日志同目录。✅
@@ -571,7 +571,7 @@ RESULT: ALL PASS            # EXIT=0
 **2. YAML 独立解析**
 
 ```bash
-$ python3 -c "import yaml; d=yaml.safe_load(open('verif/abi.yaml')); print('callee_saved:', d['callee_saved']); print('allocatable.rb:', d['allocatable']['rb']); print('registers.rb callee_saved:true:', [r['range'] for r in d['registers']['rb'] if r.get('callee_saved') == True]); print('version:', d['version'])"
+$ python3 -c "import yaml; d=yaml.safe_load(open('contracts/abi.yaml')); print('callee_saved:', d['callee_saved']); print('allocatable.rb:', d['allocatable']['rb']); print('registers.rb callee_saved:true:', [r['range'] for r in d['registers']['rb'] if r.get('callee_saved') == True]); print('version:', d['version'])"
 callee_saved: {'rd': [32, 63], 'rb': [32, 63], 'rf': [32, 63]}
 allocatable.rb: [[8, 15], [16, 31], [32, 63]]
 registers.rb callee_saved:true: [[1, 1], [2, 2], [32, 63]]
@@ -584,7 +584,7 @@ EXIT=0
 ```
 Untracked:
   .tao/knowledge/contract-abi.md   ← 新增（交付物 ✓）
-  verif/abi.yaml                   ← 新增（交付物 ✓）
+  contracts/abi.yaml                   ← 新增（交付物 ✓）
 Modified:
   .tao/tasks/spec/SPEC-004t-ABI合约.md  ← 状态+完成区+审阅记录（预期修改 ✓）
 ```
@@ -597,12 +597,12 @@ Modified:
 
 | # | 核验项 | 判定 | 证据 |
 |---|--------|------|------|
-| 1 | `callee_saved` 索引注释不再声称「mirror of registers」 | ✅ | `grep -n "mirror\|镜像" verif/abi.yaml` 返回 0 匹配；注释（L99–104）改为「派生视图」「通用 callee-saved 块（32–63）」 |
+| 1 | `callee_saved` 索引注释不再声称「mirror of registers」 | ✅ | `grep -n "mirror\|镜像" contracts/abi.yaml` 返回 0 匹配；注释（L99–104）改为「派生视图」「通用 callee-saved 块（32–63）」 |
 | 2 | `registers.rb` 仍按 spec 标 rb1/rb2 `callee_saved: true` | ✅ | YAML L61-62：`{range: [1,1], abi_name: rbsp, callee_saved: true}` / `{range: [2,2], abi_name: rbfp, callee_saved: true}` |
 | 3 | `callee_saved.rb` 索引语义 = 通用块 [32,63]，与 `allocatable` 一致 | ✅ | `callee_saved.rb: [32,63]`；`allocatable.rb` 含 `[32,63]`；差集 `{rb1,rb2}` 恰为帧管理专用 |
 | 4 | `contract-abi.md §3` 不再声称「与 §1 一一对应」 | ✅ | L151：改为「其 M1 字段与本节 / §1 **一致**」；无「一一对应」 |
 | 5 | `contract-abi.md §3` 说明 `callee_saved` 为派生索引 | ✅ | L151：「`callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**——`callee_saved` 索引只给出各 bank 的**通用 callee-saved 块（32–63）**」 |
-| 6 | `verif/abi.yaml` 可被 python3 解析 | ✅ | `yaml.safe_load` 成功，14 个顶层键，version=0.9.2 |
+| 6 | `contracts/abi.yaml` 可被 python3 解析 | ✅ | `yaml.safe_load` 成功，14 个顶层键，version=0.9.2 |
 | 7 | 回归：原 4 个核对脚本 ALL PASS | ✅ | 4/4 ALL PASS，EXIT=0（上方重跑记录） |
 | 8 | `git status` 与修改文件声明一致 | ✅ | 3 个文件：2 untracked + 1 modified，与完成区声明一致 |
 

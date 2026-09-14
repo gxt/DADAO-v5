@@ -148,7 +148,7 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 
 ## §3 M1 机器可读事实
 
-M1 ABI 事实的机器可读形式见 `verif/abi.yaml`（`version: "0.9.2"`），其 M1 字段与本节 / §1 一致。其中 `registers` 表为逐寄存器分类的**权威来源**（`rb1`/`rb2` 依 spec 标 `callee_saved: true`）；`callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**——`callee_saved` 索引只给出各 bank 的**通用 callee-saved 块（32–63）**（对 `rd`/`rb` 与 `allocatable` 一致；**RF 整体 `Excluded from M1`、`allocatable.rf` 为空，其块仅作 spec 事实登记**），不含 SP/FP 等帧管理专用寄存器。`verif/abi.yaml` 中 `deferred_to_m2` / `excluded_from_m1` 节仅为 M2 参考与边界索引，**不属 M1 规范性事实**。
+M1 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2"`），其 M1 字段与本节 / §1 一致。其中 `registers` 表为逐寄存器分类的**权威来源**（`rb1`/`rb2` 依 spec 标 `callee_saved: true`）；`callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**——`callee_saved` 索引只给出各 bank 的**通用 callee-saved 块（32–63）**（对 `rd`/`rb` 与 `allocatable` 一致；**RF 整体 `Excluded from M1`、`allocatable.rf` 为空，其块仅作 spec 事实登记**），不含 SP/FP 等帧管理专用寄存器。`contracts/abi.yaml` 中 `deferred_to_m2` / `excluded_from_m1` 节仅为 M2 参考与边界索引，**不属 M1 规范性事实**。
 
 ---
 
