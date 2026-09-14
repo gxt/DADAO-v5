@@ -142,7 +142,7 @@ freestanding 无 MMU 时 VA=PA；以及 M1 端到端 artifact pipeline（与 ADR
 
 ## 完成区
 
-> **注（2026-09-13 修订）**：ADR-0003 后续经用户重判修订——D5 补「多段（`.rodata`/`.data`）提取按 8B 对齐连续拼接」规则、Context 补「单翻译单元（TU）自包含」术语说明；`## 状态说明` 明确 D2/D3/D4 `Deferred to M2` 尚未决策。上述均为追加/澄清，未推翻 D1/D5，本任务验收结论不受影响；当前值以 `.tao/knowledge/adr-0003-object-abi.md` 为准。
+> **注（2026-09-13 修订）**：ADR-0003 后续经用户重判修订——D5 补「多段（`.rodata`/`.data`）提取按 8B 对齐连续拼接」规则、Context 补「单翻译单元（TU）自包含」术语说明；`## 状态说明` 明确 D2/D3/D4 `Deferred to M2` 尚未决策；**rev. 2026-09-14 D2 登记补充**（绝对地址归入「绝对 64-bit 数据地址」、不单列 wyde 地址构造场景；相对寻址 `<<2`、有效字节范围 = 立即数位宽 + 2 位）。上述均为追加/澄清，未推翻 D1/D5，本任务验收结论不受影响；当前值以 `.tao/knowledge/adr-0003-object-abi.md` 为准。
 
 **测试结果**：返工自检 **通过 49/49**（`bash /tmp/opencode/SPEC-005t/check-adr0003-rework.sh`，退出码 0）；失败原因：无。完整输出存 `.tao/logs/SPEC-005t-rework-verify.log`，`git diff` 存 `.tao/logs/SPEC-005t-rework-diff.log`。
 

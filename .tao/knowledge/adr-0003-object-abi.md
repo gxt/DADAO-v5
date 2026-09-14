@@ -95,13 +95,13 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 
   | 场景 | 0.5.3 指令格式 | 字段约束 |
   |------|---------------|----------|
-  | 绝对 64-bit 数据地址 | 数据节 | 全 64 位 |
-  | 绝对 64-bit 地址构造 | `set.zw` + `or.w`（rwii，wyde 位置选择器在 `hb[5:4]`） | 每次 16 位，位置由 wyde 选择器决定 |
-  | PC 相对短程分支 | `br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np`（riii，imms18） | 18-bit 有符号字偏移 |
-  | PC 相对双寄存器分支 | `br.eq`/`br.ne`（rrii，imms12） | 12-bit 有符号字偏移 |
-  | PC 相对 call/jump（中程） | `call imms24`/`jump imms24`（iiii） | 24-bit 有符号字偏移 |
-  | PC 相对地址加载 | `rela.si`（riii，imms18 << 12） | 30-bit 有效偏移，页号差 |
+  | 绝对 64-bit 数据地址（**含** `set.zw`/`or.w` 构造的地址） | 数据节 / `set.zw`+`or.w`（rwii） | 64 位；数据节全 64 位；`set.zw`/`or.w` 每次 16 位（wyde 选择器在 `hb[5:4]`）。**不为 wyde 类指令单列「地址构造」场景** |
+  | PC 相对短程分支 | `br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np`（riii，imms18） | imms18 **字**偏移，重定位 `<<2`；有效字节范围 = 18+2 → ±2¹⁹（±512 KiB） |
+  | PC 相对双寄存器分支 | `br.eq`/`br.ne`（rrii，imms12） | imms12 字偏移 `<<2`；有效字节范围 = 12+2 → ±2¹³（±8 KiB） |
+  | PC 相对 call/jump（中程） | `call imms24`/`jump imms24`（iiii） | imms24 字偏移 `<<2`；有效字节范围 = 24+2 → ±2²⁵（±32 MiB） |
+  | PC 相对地址加载 | `rela.si`（riii，imms18 << 12） | imms18 **直接 `<< 12`**（12 位偏移，得 30 位有符号数）；PC 低 12 位清零得 **4KB 对齐**（**与页无关**）、无 `<<2` |
 
+  > 约定：绝对地址（含 `set.zw`/`or.w` 构造）统一归入「绝对 64-bit 数据地址」，**不单列 wyde 类指令的地址构造场景**。**相对分支/call/jump** 的立即数均为**字偏移**，重定位须 **`<<2`**（字→字节），故**有效字节范围 = 立即数位宽 + 2 位**；**`rela.si` 例外**——其立即数直接 `<< 12`（12 位偏移），PC 低 12 位清零得 4KB 对齐，**与页无关、无 `<<2`**。
   > M2 冻结重定位编号时，须在 `e_flags[7:0] = 1`（M1 对象/ABI 格式版本）的 namespace 内独立编号，不得沿用 legacy `Dadao.def` 的编号或公式。
 - **D3 重定位溢出策略（`Deferred to M2`）**：有界重定位溢出时报错（link-time error）还是截断/wrap，及各类型分别的策略，留 M2 冻结。
 - **D4 重定位松弛策略（`Deferred to M2`）**：M1 无 link 步骤，松弛（relaxation）不适用；M1 是否/如何禁止 relaxation 的正式策略，留 M2 在引入 relocation 时冻结。
@@ -126,7 +126,7 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 
 ## 状态说明
 
-**Accepted（仅 D1/D5）**（2026-09-13；rev. 2026-09-13 `e_flags` 版本字段，见 `## 修订`）。**D2/D3/D4（重定位类型表/溢出策略/松弛策略）标 `Deferred to M2`，尚未决策**——M2 引入 relocation 时，另行经用户逐条确认后再冻结。决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。评审确认项：D1 五字段冻结、D5 段/流水线与 ADR-0004 一致。
+**Accepted（仅 D1/D5）**（2026-09-13；rev. 2026-09-13 `e_flags` 版本字段、rev. 2026-09-14 D2 登记补充，见 `## 修订`）。**D2/D3/D4（重定位类型表/溢出策略/松弛策略）标 `Deferred to M2`，尚未决策**——M2 引入 relocation 时，另行经用户逐条确认后再冻结。决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。评审确认项：D1 五字段冻结、D5 段/流水线与 ADR-0004 一致。
 
 ## 修订
 
@@ -137,3 +137,8 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 - **consumer 规则**：由「`e_flags = 0` 拒绝」扩展为「版本号（bits 0–7）≠ 1、版本未知，或保留位（bits 8–31）非 0 时拒绝」。
 - **兼容性**：M1 的 `e_flags` 数值仍为 `0x00000001`（版本 1），已按原设计产出的 M1 object 无需改动。
 - **流程说明**：本 ADR 于 2026-09-13 刚 `Accepted` 且尚无实现依赖，按用户明确决定**就地修订并加本修订说明**（`adr-authoring.md` 的一般规则为「不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-09-13`）。
+
+**rev. 2026-09-14（用户决定）**：D2 登记表补充两条 M2 约定（D2/D3/D4 仍 `Deferred to M2`，未冻结编号/公式）：
+
+- **① 绝对地址不单列 wyde 地址构造场景**：`set.zw`/`or.w` 构造的地址统一归入「**绝对 64-bit 数据地址**」（与 `.quad`/指针数据同类），删除原「绝对 64-bit 地址构造」独立场景行。
+- **② 相对寻址 `<<2`**：相对**分支/call/jump** 的立即数均为**字偏移**，重定位须 `<<2`（字→字节），故**有效字节范围 = 立即数位宽 + 2 位**（如 imms18 → ±2¹⁹ = ±512 KiB、imms12 → ±8 KiB、imms24 → ±32 MiB）。**`rela.si` 例外**：其立即数直接 `<< 12`（12 位偏移），**无页概念、无 `<<2`**。
