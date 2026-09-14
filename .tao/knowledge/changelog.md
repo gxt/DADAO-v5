@@ -25,3 +25,4 @@
 | 2026-09-14 | SPEC-008t 重做+返工：`contracts/legality_rules.yaml` 重新生成（增补 RA 规则；删除 `ra0_no_exception`——ra0 可读写无异常；fault 枚举限定 6 值 `ILLI/UNDI/MALIGN/IALIGN/RASOF/RASUF`；对齐 `legality` 字段引用；修正 `spec_cite` 重复键/行号与 RF/LR/CFX 规则状态） | engineer |
 | 2026-09-14 | SPEC-009t：QFC 覆盖校验（`tools/spec/check_qfc_coverage.py`；QFC 表 ↔ `contracts/opcodes.yaml` 双向比对，256/256 差异 0，只读 informational） | engineer |
 | 2026-09-14 | SPEC-010t：Spec 冻结（`docs/impact-matrix.md` 逐节覆盖 + `README.md` 冻结状态标 `已冻结`）；`contract-elf.md` Status → Accepted | engineer |
+| 2026-09-14 | SPEC-011m：M1 spec 里程碑达成（`002t`~`010t` 已验证，合约/编码表/ADR/impact-matrix 齐备） | architect |

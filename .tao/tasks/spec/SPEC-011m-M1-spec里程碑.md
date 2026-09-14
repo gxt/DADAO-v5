@@ -2,7 +2,7 @@
 
 **模块**：spec
 **项目里程碑**：M1
-**状态**：待开始
+**状态**：里程碑
 **目标**：DADAO-v5 的 M1 规格基线完成——SimRISC 0.5.3 的 ISA 合约/编码表之上，ABI 合约、Object ABI ADR、Test Machine ADR、ELF 合约、合法性规则、QFC 覆盖校验均已创建并 Accepted，规格冻结动作（impact matrix + README 冻结状态）完成，spec 基线冻结
 **关联任务**：`SPEC-002t`~`SPEC-010t`
 
