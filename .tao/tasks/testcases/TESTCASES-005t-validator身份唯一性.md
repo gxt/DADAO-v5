@@ -1,8 +1,8 @@
-# TESTSUITE-005t: validate_vectors.py 身份唯一性修复
+# TESTCASES-005t: validate_vectors.py 身份唯一性修复
 
-**模块**：testsuite
+**模块**：testcases
 **项目里程碑**：M1
-**依赖**：`TESTSUITE-004t`
+**依赖**：`TESTCASES-004t`
 **状态**：待开始
 
 ## 执行环境
@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：
-  - `verif/validate_vectors.py`（TESTSUITE-004t：已改 `insn` 主键、已加 `encoding.word` mask/value 校验）
+  - `verif/validate_vectors.py`（TESTCASES-004t：已改 `insn` 主键、已加 `encoding.word` mask/value 校验）
   - `verif/opcodes.yaml`（`insn` 分组与 mask/value 来源）
   - `tests/vectors/isa/*.yaml`（含共享 mnemonic+format 的变体，如 `ld.o-rd`/`ld.o-rb`）
 - 输出：`verif/validate_vectors.py`（覆盖率标记逻辑修复：只标记**实际匹配 encoding.word** 的那条 opcode 记录）

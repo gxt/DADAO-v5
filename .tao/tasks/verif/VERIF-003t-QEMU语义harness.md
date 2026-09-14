@@ -2,7 +2,7 @@
 
 **模块**：verif
 **项目里程碑**：M1
-**依赖**：`QEMU-014m`、`TESTSUITE-003t`、`SPEC-006t`
+**依赖**：`QEMU-014m`、`TESTCASES-003t`、`SPEC-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -26,7 +26,7 @@
   - **不调用 `llvm-mc`**：测试 binary 全部由 Python `struct.pack('>I', word)` 直接生成（QEMU 测试路径与 LLVM 路径完全独立）
   - loader/dumper/exit 只用 trusted 指令集，编码逐条取自 `verif/opcodes.yaml`
   - state-dump region 不与 ROM/RAM/exit port 冲突
-  - 依赖 `TESTSUITE-003t` 已填充的 `encoding.word`
+  - 依赖 `TESTCASES-003t` 已填充的 `encoding.word`
 
 ## 背景（完整）
 
@@ -116,7 +116,7 @@ instr_bytes = struct.pack('>I', instr_word)
 3. **halt 语义**：0.5.3 的退出/停机指令与 `halt` 助记符按 `contract-isa.md` §7.5 与 `verif/opcodes.yaml` 确定；exit port 写协议以 v5 ADR 为准。
 4. **QEMU 构建路径**：v5 为 `.work/qemu/build/...`（以 `INFRA-006t` Makefile 为准），非 0628 的 `.work/source/qemu/build/`。
 5. **state-dump 读取机制**：0.4.1 未定稿（在 README 里二选一），v5 实现时选最简可行方案（serial 输出 hex / QMP memory dump / 退出后读文件），并把选择记录进 README。
-6. **向量来源**：`tests/vectors/` 由 `TESTSUITE` 模块交付，字段 schema 以 `TESTSUITE-002t` 为准，不沿用 0.4.1 向量正文。
+6. **向量来源**：`tests/vectors/` 由 `TESTCASES` 模块交付，字段 schema 以 `TESTCASES-002t` 为准，不沿用 0.4.1 向量正文。
 
 ## 已知坑 / 结论
 

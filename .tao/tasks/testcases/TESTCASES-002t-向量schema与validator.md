@@ -1,6 +1,6 @@
-# TESTSUITE-002t: 向量 schema + inventory + validate_vectors.py
+# TESTCASES-002t: 向量 schema + inventory + validate_vectors.py
 
-**模块**：testsuite
+**模块**：testcases
 **项目里程碑**：M1
 **依赖**：`SPEC-003t`、`VERIF-002t`
 **状态**：待开始

@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M1
-**依赖**：`QEMU-011t`、`TESTSUITE-008t`
+**依赖**：`QEMU-011t`、`TESTCASES-008t`
 **状态**：待开始
 
 ## 执行环境
@@ -14,7 +14,7 @@
 - 输入：
   - `QEMU-011t` 产出的 `.work/source/qemu` 工作树（控制流实现已在，但分支 PC 公式/返回地址需修正）
   - `.tao/knowledge/contract-isa.md` §5.1（条件跳转地址计算）、§5.2（无条件跳转）、§5.3（函数调用与压栈）、§5.4（函数返回）
-  - `tests/vectors/isa/control-flow.yaml`（`TESTSUITE-008t` 产出，独立 oracle）
+  - `tests/vectors/isa/control-flow.yaml`（`TESTCASES-008t` 产出，独立 oracle）
   - `.tao/knowledge/adr-0004-test-machine.md`（fault/exit 可观测）
 - 输出：
   - `.work/source/qemu` 中的修复 commit（branch PC + call 返回地址）
@@ -60,7 +60,7 @@
 - DADAO-0628：`code-agent/tasks/DL-032a-qemu-patch-0007.md`（完整转述：背景、提交/导出/series 步骤、约束、验收、完成区与代码级 Architecture Review）。
 - DADAO-0628：`code-agent/tasks/DL-030a-call-ret-semantic.md`（call/ret 返回地址修正）。
 - DADAO-0628：`code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（分支向量与 PC 公式）。
-- 本项目：`TESTSUITE-008t`（控制流向量，v5 独立 oracle）。
+- 本项目：`TESTCASES-008t`（控制流向量，v5 独立 oracle）。
 
 ## 交付物
 
@@ -70,7 +70,7 @@
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-1. **PC 基准**：0628 经验为 PC+4 基准（`pc_next+4`）；v5 §5 为 `rb0 + imm*4`。v5 须以 §5 与 `TESTSUITE-008t` 向量为准，重新推导并记录。
+1. **PC 基准**：0628 经验为 PC+4 基准（`pc_next+4`）；v5 §5 为 `rb0 + imm*4`。v5 须以 §5 与 `TESTCASES-008t` 向量为准，重新推导并记录。
 2. **助记符**：`brz/brnz/brn/brnn/brp/brnp/breq/brne` → `br.z/br.nz/br.n/br.nn/br.p/br.np/br.eq/br.ne`；新增 `br.z-rb`/`br.nz-rb`。
 3. **call 返回地址与压栈**：v5 §5.3 要求引用计数与移位压栈（`QEMU-008t`），返回地址为 `call` 下一条指令。
 4. **补丁编号**：v5 为 `0007`（0628 的 `0007` 是 div label 修复，`0008` 才是 branch-call fix；v5 序列不同，以本节交付物为准）。
@@ -92,7 +92,7 @@
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-032a-qemu-patch-0007.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-030a-call-ret-semantic.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`
-- 本项目：`.tao/knowledge/contract-isa.md` §5；`tests/vectors/isa/control-flow.yaml`；`.tao/tasks/testsuite/TESTSUITE-008t-控制流向量TDD.md`
+- 本项目：`.tao/knowledge/contract-isa.md` §5；`tests/vectors/isa/control-flow.yaml`；`.tao/tasks/testcases/TESTCASES-008t-控制流向量TDD.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准

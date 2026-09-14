@@ -1,10 +1,10 @@
-# TESTSUITE-010m: testsuite 里程碑
+# TESTCASES-010m: testcases 里程碑
 
-**模块**：testsuite
+**模块**：testcases
 **项目里程碑**：M1
 **状态**：待开始
 **目标**：DADAO-v5 的独立测试向量层完成——M1 scope 内每条指令身份（`insn`）均有 ≥1 条 active 向量，5 类向量（encoding/legality/semantic/boundary/overlap）齐备，期望值全部独立派生自 `spec/` 与 `.tao/knowledge/contract-isa.md`；`verif/validate_vectors.py` 的 schema + 覆盖率 + `encoding.word` mask/value 校验全部接入 `make check` 并通过；语义向量内存地址位于 RAM、control-flow/load 的 deferred 测试已重设计或显式登记
-**关联任务**：`TESTSUITE-002t`、`TESTSUITE-003t`、`TESTSUITE-004t`、`TESTSUITE-005t`、`TESTSUITE-006t`、`TESTSUITE-007t`、`TESTSUITE-008t`、`TESTSUITE-009t`
+**关联任务**：`TESTCASES-002t`、`TESTCASES-003t`、`TESTCASES-004t`、`TESTCASES-005t`、`TESTCASES-006t`、`TESTCASES-007t`、`TESTCASES-008t`、`TESTCASES-009t`
 
 ## 核验
 - 关联任务是否均已 `已验证`

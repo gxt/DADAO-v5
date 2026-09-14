@@ -1,8 +1,8 @@
-# TESTSUITE-008t: control-flow 向量修复 + TDD 补全
+# TESTCASES-008t: control-flow 向量修复 + TDD 补全
 
-**模块**：testsuite
+**模块**：testcases
 **项目里程碑**：M1
-**依赖**：`TESTSUITE-004t`
+**依赖**：`TESTCASES-004t`
 **状态**：待开始
 
 ## 执行环境
@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：
-  - `tests/vectors/isa/control-flow.yaml`（TESTSUITE-002t 向量）
+  - `tests/vectors/isa/control-flow.yaml`（TESTCASES-002t 向量）
   - `.tao/knowledge/contract-isa.md` §5（条件跳转/无条件跳转/函数调用/函数返回）
   - `.tao/knowledge/adr-0004-test-machine.md`（exit 协议、fault 可观测）
   - `verif/opcodes.yaml`（branch/jump/call/ret 编码与格式）

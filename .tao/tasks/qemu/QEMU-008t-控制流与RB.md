@@ -75,7 +75,7 @@
 
 - DADAO-0628：`code-agent/tasks/DL-018a-qemu-ctrl-flow.md`（完整转述：TDD 原则、指令范围、向量补充、trans 实现、lit 测试、约束、完成区与两轮 Architecture Review，含 N1/N2）。
 - DADAO-0628：`code-agent/tasks/DL-030a-call-ret-semantic.md`（call/ret 语义与返回地址修正，v5 对应 `QEMU-012t` 的一部分）。
-- DADAO-0628：`code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（控制流向量 TDD 设计，v5 对应 `TESTSUITE-008t`）。
+- DADAO-0628：`code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（控制流向量 TDD 设计，v5 对应 `TESTCASES-008t`）。
 
 ## 交付物
 
@@ -86,7 +86,7 @@
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符**：`brn/brnn/brz/brnz/brp/brnp/breq/brne` → `br.n/br.nn/br.z/br.nz/br.p/br.np/br.eq/br.ne`；新增 `br.z-rb`/`br.nz-rb`；`unimp`→`illi`；`setzw`→`set.zw`；`sto`→`st.o`；`ldo`→`ld.o`。
-2. **地址公式**：v5 §5 为 `PC = rb0 + (imm << 2)`；0628 经验取「PC+4 基准」（`pc_next+4`），v5 须以 §5 与 `TESTSUITE-008t` 向量为准，不照抄 0628 公式（详见 `QEMU-012t`）。
+2. **地址公式**：v5 §5 为 `PC = rb0 + (imm << 2)`；0628 经验取「PC+4 基准」（`pc_next+4`），v5 须以 §5 与 `TESTCASES-008t` 向量为准，不照抄 0628 公式（详见 `QEMU-012t`）。
 3. **RB 全 64 位**：0628 对 RB 运算结果 `& 0x0000FFFFFFFFFFFF`；v5 的 `add.so-rb`/`sub.so-rb`/`add.si-rb` 为全 64 位，bits[63:48] 为运算结果，**不得截断**。
 4. **RegRAS 完整性**：0628 N1 仅用 `ra[63]` 单槽；v5 按 §5.3/§5.4 实现引用计数与移位压弹栈、RASOF/RASUF。
 5. **rela 语义**：v5 `rela.si rbha, imms18` 为 `(PC & ~0xFFF) + (imms18<<12)`，高 16 位保持；0628 的 rela 公式不同（见 `QEMU-009t`）。
@@ -110,7 +110,7 @@
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-030a-call-ret-semantic.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`
 - 本项目：`.tao/knowledge/contract-isa.md` §1.3、§4.2–§4.11、§5、附录 B；`verif/opcodes.yaml`；`.tao/knowledge/adr-0004-test-machine.md`
-- 本项目：`.tao/tasks/testsuite/TESTSUITE-008t-控制流向量TDD.md`
+- 本项目：`.tao/tasks/testcases/TESTCASES-008t-控制流向量TDD.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -119,7 +119,7 @@
 2. `components/qemu/patches/0005-dadao-ctrl-flow.patch` 存在且干净 apply；`series` 已加入
 3. 控制流全部指令（含 `br.*-rb`、`jump`/`call` 两形式、`ret`、`rela`、`swym`）实现；RegRAS 按 §5.3/§5.4 完整
 4. RB 指令全部实现；RB 算术为全 64 位（无 48 位截断）；rb0 目的 ILLI
-5. 分支地址公式与 §5 及 `TESTSUITE-008t` 向量一致；not-taken 推进到下一指令
+5. 分支地址公式与 §5 及 `TESTCASES-008t` 向量一致；not-taken 推进到下一指令
 6. `make build-qemu` PASS；控制流/RB 向量经「MC 汇编 → QEMU 执行 → 结果比对」与 oracle 一致（若 harness 未就绪，记录依赖并保留可复现命令）
 7. 完成区含真实构建/运行输出；未自行 commit
 

@@ -512,7 +512,7 @@ spec MISC-RF 表实际非空单元格：
 | `rd2rb` | 0x40/0x35 | `rbha != rb0` | `rbhb != rb0` |
 | `rb2rd` | 0x40/0x36 | `rdha != rd0` | `rdhb != rd0` |
 
-对照旧表（`git HEAD`）确认这 5 条原为 `rdhb`/`rbhb`，属**重排回归**；同记录范围检查仍用正确字段，内部自相矛盾。`legality` 是验收标准 2 要求的字段，且下游（`TESTSUITE-002t`、`QEMU-004t/005t/006t`）把 `opcodes.yaml` 的 legality 当 oracle，须修复。
+对照旧表（`git HEAD`）确认这 5 条原为 `rdhb`/`rbhb`，属**重排回归**；同记录范围检查仍用正确字段，内部自相矛盾。`legality` 是验收标准 2 要求的字段，且下游（`TESTCASES-002t`、`QEMU-004t/005t/006t`）把 `opcodes.yaml` 的 legality 当 oracle，须修复。
 
 **另（低危，可选）**：`fence` 的 `immu18[17:4] == 0` 引用的 `immu18` 也非字段名（拆为 `immu18_hi/mid/lo`），可一并规整。
 
@@ -647,6 +647,6 @@ architect 交叉复核的 6 项返工（5 条块赋值 legality + fence 规整�
 
 ### 后续增强（2026-09-12）
 
-`verif/validate_encoding.py` 增加 **`legality` 字段引用校验**（`check_legality_refs`）：`legality` 中引用的每个标识符必须是该记录 `fields[].name`，或允许的常量/函数（`rd0`/`rb0`/`ra0`/`rf0`/`aligned`）；否则报错、非零退出。用于机械拦截「把 opcode 位 `ha` 误写成寄存器 `rdha`」这类**悬空引用**（即本次返工根因）。实测：正常 `opcodes.yaml` PASS；注入 `rdha` 的副本被报错（exit 1）。当前 `make check`（`INFRA-006t`）只跑 `manifest-check` + `compileall`，**不含** `validate_encoding.py`——该校验在 SPEC-003t/testsuite/verif 调用 `validate_encoding.py` 时执行（是否并入 `make check` 可后续决定）。
+`verif/validate_encoding.py` 增加 **`legality` 字段引用校验**（`check_legality_refs`）：`legality` 中引用的每个标识符必须是该记录 `fields[].name`，或允许的常量/函数（`rd0`/`rb0`/`ra0`/`rf0`/`aligned`）；否则报错、非零退出。用于机械拦截「把 opcode 位 `ha` 误写成寄存器 `rdha`」这类**悬空引用**（即本次返工根因）。实测：正常 `opcodes.yaml` PASS；注入 `rdha` 的副本被报错（exit 1）。当前 `make check`（`INFRA-006t`）只跑 `manifest-check` + `compileall`，**不含** `validate_encoding.py`——该校验在 SPEC-003t/testcases/verif 调用 `validate_encoding.py` 时执行（是否并入 `make check` 可后续决定）。
 
 **reviewer 独立复核**：**Accepted** —— 正常 PASS；注入 `rdha`/`rbha`/虚构标识符均被抓（exit 1）；白名单完整（全表非字段标识符恰为 `{rd0, rb0, aligned}`，无误拒）；正则/边界正确（不抓数字/运算符；空 legality 不报错）；原有 5 类检查（value/mask、重叠、解码冲突、bank）反例均仍生效。

@@ -84,7 +84,7 @@
 1. **MISC 映射表重建**：0.4.1 的 `check_qemu_trans.py` 硬编码 `_MISC_HA`（25 项，op=0x10 MISC-Norm）、`_RB_BANK`（8 项）、`_CMP_IMM`、`_CTL_FORMAT`；0.5.3 没有 `MISC-Norm`，改为主表 + octa/tetra/wyde/byte/RF/AMO 子表体系，映射表必须按 v5 结构重建。
 2. **助记符全面变化**：`unimp`→`illi`、`setzw`→`set.zw`、`orw`→`or.w`、`brn`→`br.n`、`muls`→`mul.so` 等；trans 函数命名需以 `QEMU-014m` 实际实现为准核对。
 3. **trans 源码路径**：0.4.1 查 `.work/qemu/target/dadao/translate.c` 或 patch；v5 以 `components/qemu/patches/*.patch` 与 `.work/` 构建树为准。
-4. **issue 清单内容**：v5 的开放问题来自自身 spec/合约与 `SPEC`/`TESTSUITE` 模块记录，不照抄 0.4.1 的 C-xx 条目。
+4. **issue 清单内容**：v5 的开放问题来自自身 spec/合约与 `SPEC`/`TESTCASES` 模块记录，不照抄 0.4.1 的 C-xx 条目。
 5. **脚本目录**：0.4.1 放 `scripts/`；v5 放 `verif/`（与 `validate_encoding.py` 一致）。
 6. **`check` target 接入**：0.4.1 的 P0 是 `check-issues` 被误放 `lint` 未接入 `check`；v5 须从一开始把 issue gate 接入 `check`（Makefile 由 `INFRA-006t` 提供，本任务只提需求）。
 

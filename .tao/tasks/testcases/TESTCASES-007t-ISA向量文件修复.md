@@ -1,8 +1,8 @@
-# TESTSUITE-007t: ISA 向量文件修复（5 文件）
+# TESTCASES-007t: ISA 向量文件修复（5 文件）
 
-**模块**：testsuite
+**模块**：testcases
 **项目里程碑**：M1
-**依赖**：`TESTSUITE-004t`
+**依赖**：`TESTCASES-004t`
 **状态**：待开始
 
 ## 执行环境
@@ -40,7 +40,7 @@
 2. **`input_state` 出现 rd0**：harness 用 `set.zw` 预置寄存器，若 rd=rd0 → `ha=0` → ILLI。→ `input_state` 中**禁止**出现 rd0 条目（rd0 恒零，无需预置）。
 3. **期望值错误**：与修正后的 encoding/语义不一致（如立即数 wyde 位置、块赋值写入宽度）。
 4. **store encoding `ha=0` → ILLI**：store 类目的 rd0 非法，encoding 向量需非 0 目的或改期望为 ILLI。
-5. **load encoding `addr=0` → 访问未映射 → 超时/异常**：需有效 RAM 基址或改期望（详见 TESTSUITE-009t）。
+5. **load encoding `addr=0` → 访问未映射 → 超时/异常**：需有效 RAM 基址或改期望（详见 TESTCASES-009t）。
 6. **deferred 状态**：实现侧 bug 未解决时，相关语义向量标 `status: deferred` 并写明 reason（0628 为 `divs`/`divu` 的 TCG label dead-code bug）。
 
 ### 上游引用
@@ -63,7 +63,7 @@
 2. **ORRI/ORRR 位域**：以 v5 `contract-isa.md` §2.2 与 `verif/opcodes.yaml` 的 `fields` 为准，不照抄 0628 的位域结论（结论可能一致，但须独立核对）。
 3. **RB 语义（关键）**：0.5.3 RB 算术为**全 64 位**，无 48-bit 截断；0628 的「load_reg RB 3 wyde / 48-bit 截断」结论**不适用**，v5 期望值按全 64 位手算。
 4. **`divs`/`divu` → `div.so`/`div.uo`**：0628 的 TCG label bug 是 0.4.1 QEMU 实现问题；v5 是否 deferred 须由 qemu 实现与 harness 独立确认，不照搬。
-5. **文件集**：0628 的 5 文件为 rd-arith/rd-wyde-block/rd-load-store/rd-shift-extend/misc；v5 以 TESTSUITE-002t 实际文件组织为准。
+5. **文件集**：0628 的 5 文件为 rd-arith/rd-wyde-block/rd-load-store/rd-shift-extend/misc；v5 以 TESTCASES-002t 实际文件组织为准。
 
 ## 已知坑 / 结论
 

@@ -1,8 +1,8 @@
-# TESTSUITE-009t: rd-load-store deferred 测试重设计（load encoding）
+# TESTCASES-009t: rd-load-store deferred 测试重设计（load encoding）
 
-**模块**：testsuite
+**模块**：testcases
 **项目里程碑**：M1
-**依赖**：`TESTSUITE-006t`
+**依赖**：`TESTCASES-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：
-  - `tests/vectors/isa/rd-load-store.yaml`（TESTSUITE-002t/006t 向量，含 `status: deferred` 的 load encoding）
+  - `tests/vectors/isa/rd-load-store.yaml`（TESTCASES-002t/006t 向量，含 `status: deferred` 的 load encoding）
   - `.tao/knowledge/contract-isa.md` §4.1（load/store 合法性、对齐）、§2.2（格式）
   - `.tao/knowledge/adr-0004-test-machine.md`（内存映射、未映射区行为）
   - `verif/opcodes.yaml`（load 指令编码字段）

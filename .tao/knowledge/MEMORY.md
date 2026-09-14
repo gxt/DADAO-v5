@@ -10,7 +10,7 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 |------|------|
 | SimRISC 规范 | ✅ 0.5.3 |
 | spec 模块 | 🔄 进行中（`002t`~`007t` 已验证；`008t`、`009m` 待开始） |
-| M1 任务规划（infra/spec/testsuite/llvm/qemu/verif） | ✅ 已生成（参考 DADAO-0628，未逐任务审核） |
+| M1 任务规划（infra/spec/testcases/llvm/qemu/verif） | ✅ 已生成（参考 DADAO-0628，未逐任务审核） |
 | M1 实现 | 🔄 进行中（infra 模块 M1 已完成：`INFRA-009m` 里程碑；其余模块待推进） |
 
 ## 关键目录速查
@@ -34,7 +34,7 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 
 - `verif/` 替代 `tools/` 作为验证工具目录
 - `.tao/` 集中存放所有 agent 中间文件（对齐 t.a.o 全局约定）
-- **模块清单**：`infra`/`spec`/`testsuite`/`golden`/`llvm`/`qemu`/`verif`/`gem5`/`sail`（`abi` 并入 `spec`）
+- **模块清单**：`infra`/`spec`/`testcases`/`golden`/`llvm`/`qemu`/`verif`/`gem5`/`sail`（`abi` 并入 `spec`）
 - **任务编号**：`<PREFIX>-nnn<suffix>`，suffix `k`=启动/`t`=普通/`m`=里程碑；模块内递增
 - **项目里程碑**：M1/M2，见 `.tao/knowledge/milestones.md`
 - **去阶段化**：任务不按 Phase 组织，直接参考 DADAO-0628；已删除 `docs/phases/`

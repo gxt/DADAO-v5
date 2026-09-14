@@ -55,7 +55,7 @@
 | --- | --- | --- |
 | `infra` | `INFRA` | 构建基础设施（组件锁、fetch/apply、Makefile、容器） |
 | `spec` | `SPEC` | 规范锁定、ISA 合约、编码表、ABI/ELF/SBI 合约 |
-| `testsuite` | `TESTSUITE` | 测试向量 + benchmark + 套件 |
+| `testcases` | `TESTCASES` | 测试用例：向量（schema/validator）+ benchmark |
 | `golden` | `GOLDEN` | Python 黄金模型 |
 | `llvm` | `LLVM` | LLVM MC + CodeGen |
 | `qemu` | `QEMU` | QEMU |

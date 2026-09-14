@@ -1,8 +1,8 @@
-# TESTSUITE-004t: 向量覆盖率修复（opcode identity + encoding.word 补全）
+# TESTCASES-004t: 向量覆盖率修复（opcode identity + encoding.word 补全）
 
-**模块**：testsuite
+**模块**：testcases
 **项目里程碑**：M1
-**依赖**：`TESTSUITE-003t`
+**依赖**：`TESTCASES-003t`
 **状态**：待开始
 
 ## 执行环境
@@ -12,9 +12,9 @@
 ## 接口规范
 
 - 输入：
-  - `verif/validate_vectors.py`（TESTSUITE-002t，当前实现）
+  - `verif/validate_vectors.py`（TESTCASES-002t，当前实现）
   - `verif/opcodes.yaml`（唯一 `insn` 身份 + op/ha/mask/value）
-  - `tests/vectors/isa/*.yaml`（TESTSUITE-002t/003t 向量）
+  - `tests/vectors/isa/*.yaml`（TESTCASES-002t/003t 向量）
 - 输出：
   - `verif/validate_vectors.py`（覆盖率主键改为 opcode 身份 `insn`；新增 `encoding.word` mask/value 校验）
   - `tests/vectors/isa/*.yaml`（补全缺漏的向量与空/缺失的 `encoding.word`）

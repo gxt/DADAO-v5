@@ -1,8 +1,8 @@
-# TESTSUITE-006t: 语义向量内存地址迁移 ROM → RAM
+# TESTCASES-006t: 语义向量内存地址迁移 ROM → RAM
 
-**模块**：testsuite
+**模块**：testcases
 **项目里程碑**：M1
-**依赖**：`TESTSUITE-002t`、`SPEC-006t`
+**依赖**：`TESTCASES-002t`、`SPEC-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：
-  - `tests/vectors/isa/rd-load-store.yaml`、`tests/vectors/isa/rb-ops.yaml`（TESTSUITE-002t 向量）
+  - `tests/vectors/isa/rd-load-store.yaml`、`tests/vectors/isa/rb-ops.yaml`（TESTCASES-002t 向量）
   - `.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t：内存映射 ROM/RAM/exit port）
   - `.tao/knowledge/contract-isa.md` §4（访存语义、有效地址计算）
 - 输出：上述文件中所有 `class: semantic` 向量的 `rb2`（及 `rb0`）寄存器值、`input_state.memory[*].address`、`expected_state.memory[*].address` 由 ROM 地址迁移到 RAM scratch 区
@@ -81,7 +81,7 @@ EA:   0xffff_ffff_0FFC → 0xffff_00fe_fffc   （= 0xffff_00ff_0000 - 4）
 - `tests/vectors/isa/rd-load-store.yaml`：`class: semantic` 向量的 rb2/rb0 与 memory 地址迁移
 - `tests/vectors/isa/rb-ops.yaml`：同上
 
-（v5 向量为重新生成，具体条数与 case 序号以 TESTSUITE-002t 实际数据为准；迁移规则不变。）
+（v5 向量为重新生成，具体条数与 case 序号以 TESTCASES-002t 实际数据为准；迁移规则不变。）
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 

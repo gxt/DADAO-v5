@@ -2,7 +2,7 @@
 
 **模块**：verif
 **项目里程碑**：M1
-**依赖**：`VERIF-004t`、`TESTSUITE-006t`
+**依赖**：`VERIF-004t`、`TESTCASES-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -14,7 +14,7 @@
 - 输入：
   - `VERIF-004t` 的 `tests/scripts/build_test_binary.py`（`emit_state_compare()`）
   - `tests/vectors/isa/*.yaml` 中带 `expected_state.memory` 的 store 向量
-  - `TESTSUITE-006t` 迁移后的 RAM 地址向量
+  - `TESTCASES-006t` 迁移后的 RAM 地址向量
   - `verif/opcodes.yaml`（`ld.ub`/`ld.uw`/`ld.ut`/`ld.o` 等 load 指令编码）
 - 输出：修改后的 `tests/scripts/build_test_binary.py`（`emit_state_compare()` 新增 memory 比对路径）
 - 约束：
@@ -80,16 +80,16 @@ or  MISMATCH_ACC, MISMATCH_ACC, TEMP_RD_EXP      # 累加失配
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **load 助记符/编码**：0.4.1 用 `ldbu/ldwu/ldtu/ldo`（op=0x40/0x41/0x42/0x33）；0.5.3 对应 `ld.ub`/`ld.uw`/`ld.ut`/`ld.o`，编码从 `verif/opcodes.yaml` 取，**不复制 0.4.1 op 值**。
-2. **store 助记符**：0.4.1 的 `stb/stw/stt/sto/stmo/stmb/stmw/stmt` → 0.5.3 的 `st.b`/`st.w`/`st.t`/`st.o`/`stm.*`；向量由 `TESTSUITE` 交付。
-3. **地址**：0.4.1 有 P0——10 条 store 向量用 ROM 地址导致写入被静默丢弃；v5 由 `TESTSUITE-006t` 完成 RAM 地址迁移后再验证（本任务依赖它）。
+2. **store 助记符**：0.4.1 的 `stb/stw/stt/sto/stmo/stmb/stmw/stmt` → 0.5.3 的 `st.b`/`st.w`/`st.t`/`st.o`/`stm.*`；向量由 `TESTCASES` 交付。
+3. **地址**：0.4.1 有 P0——10 条 store 向量用 ROM 地址导致写入被静默丢弃；v5 由 `TESTCASES-006t` 完成 RAM 地址迁移后再验证（本任务依赖它）。
 4. **比较引擎**：0.5.3 的 `xor.o`/`or.o` 编码与 0.4.1 不同，从 `verif/opcodes.yaml` 取；保留寄存器编号沿用 `VERIF-004t` 的 v5 约定。
-5. **QEMU 只读 ROM 行为**：v5 需确认 QEMU 对只读区写入的处理与 `TESTSUITE-006t` 的地址迁移一致，避免同类静默丢弃。
+5. **QEMU 只读 ROM 行为**：v5 需确认 QEMU 对只读区写入的处理与 `TESTCASES-006t` 的地址迁移一致，避免同类静默丢弃。
 
 ## 已知坑 / 结论
 
 摘自 DADAO-0628 DL-022b 完成区与代码级 Architecture Review：
 
-1. **P0 — ROM 地址导致误判**：0.4.1 store 向量 `rb_base=0x100000`（ROM 只读），QEMU 静默丢弃写入，readback 得原始 ROM → XOR≠0 → 全 FAIL。修复靠地址迁移（v5 的 `TESTSUITE-006t`），本任务须在迁移完成后才能完整验收。
+1. **P0 — ROM 地址导致误判**：0.4.1 store 向量 `rb_base=0x100000`（ROM 只读），QEMU 静默丢弃写入，readback 得原始 ROM → XOR≠0 → 全 FAIL。修复靠地址迁移（v5 的 `TESTCASES-006t`），本任务须在迁移完成后才能完整验收。
 2. **必须用无符号 load**：`expected_state.memory.value` 是 raw 存储字节，比对时 zero-extend 即可，不能用带符号 load。
 3. **early-return 修正**是防止静默 PASS 的关键：`and not memory`。
 4. **临时寄存器复用**：0.4.1 用 `rb30`/`rd30`/`rd31`，若向量 `expected_state.rb` 含 `rb30` 或 `rd` 含 `rd30`/`rd31` 会误判；v5 须扫描向量占用后选保留寄存器并记入 convention。

@@ -22,6 +22,6 @@
 
 （暂无）
 
-## testsuite / llvm / qemu / verif
+## testcases / llvm / qemu / verif
 
 （待各模块规划时补充）

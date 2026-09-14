@@ -1,8 +1,8 @@
-# TESTSUITE-003t: encoding class 向量补全
+# TESTCASES-003t: encoding class 向量补全
 
-**模块**：testsuite
+**模块**：testcases
 **项目里程碑**：M1
-**依赖**：`TESTSUITE-002t`
+**依赖**：`TESTCASES-002t`
 **状态**：待开始
 
 ## 执行环境
@@ -14,8 +14,8 @@
 - 输入：
   - `verif/opcodes.yaml`（SPEC-003t：op/ha/mask/value 主键来源）
   - `.tao/knowledge/contract-isa.md`（§2 指令编码、§2.5 操作数顺序、§4.1/§4.2 存取合法性）
-  - `tests/vectors/schema.md`（TESTSUITE-002t，字段规范）
-  - `tests/vectors/isa/*.yaml`（TESTSUITE-002t 初始向量）
+  - `tests/vectors/schema.md`（TESTCASES-002t，字段规范）
+  - `tests/vectors/isa/*.yaml`（TESTCASES-002t 初始向量）
 - 输出：向各 `tests/vectors/isa/*.yaml` **追加** `class: encoding` 向量，使每个 M1 scope opcode 身份至少 1 条 encoding 向量
 - 约束：
   - 只追加，不删改现有向量

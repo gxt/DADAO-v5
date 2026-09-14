@@ -2,9 +2,9 @@
 
 项目级里程碑（跨模块），由各模块的里程碑支撑（模块里程碑见 `.tao/tasks/<module>/` 的 `m` 文件）。主会话在依赖的模块里程碑均达成为 `里程碑` 后，将本项目里程碑置为 `达成`。路线参考 DADAO-0628（`.work/DADAO-0628`）。
 
-| 项目里程碑 | infra | spec | testsuite | golden | llvm | qemu | verif | gem5 | sail | 状态 |
+| 项目里程碑 | infra | spec | testcases | golden | llvm | qemu | verif | gem5 | sail | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M1 | `INFRA-009m` | `SPEC-009m` | `TESTSUITE-010m` | — | `LLVM-012m` | `QEMU-014m` | `VERIF-012m` | — | — | 待开始 |
+| M1 | `INFRA-009m` | `SPEC-009m` | `TESTCASES-010m` | — | `LLVM-012m` | `QEMU-014m` | `VERIF-012m` | — | — | 待开始 |
 | M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
 
 ## 里程碑说明
@@ -22,17 +22,17 @@
 ```
 infra ───────────────┐
                      ├──→ llvm ───┐
-spec ──→ testsuite ──┤           ├──→ verif ──→ M1
+spec ──→ testcases ──┤           ├──→ verif ──→ M1
                      └──→ qemu ───┘
 ```
 
 | 依赖边 | 内容 |
 | --- | --- |
 | `infra` → `llvm`、`qemu` | `build-mc` / `build-qemu` 依赖 infra 的 Makefile、fetch/apply、组件锁、容器 |
-| `spec` → `testsuite`、`llvm`、`qemu` | ISA 合约、编码表、ABI/ELF 合约、ADR-0003/0004（Test Machine） |
-| `testsuite` → `llvm`、`qemu`、`verif` | 独立测试向量（encoding/legality/semantic/boundary/overlap）供 MC/QEMU/差分验证 |
+| `spec` → `testcases`、`llvm`、`qemu` | ISA 合约、编码表、ABI/ELF 合约、ADR-0003/0004（Test Machine） |
+| `testcases` → `llvm`、`qemu`、`verif` | 独立测试向量（encoding/legality/semantic/boundary/overlap）供 MC/QEMU/差分验证 |
 | `llvm` ∥ `qemu` | 两者仅依赖 `infra`+`spec`，**可并行**（MC 与 CPU 核心无相互依赖） |
-| `llvm` + `qemu` + `testsuite` → `verif` | 集成验证（harness、QFC/lit/issue/trans/spec-refs 检查、MC↔QEMU E2E） |
+| `llvm` + `qemu` + `testcases` → `verif` | 集成验证（harness、QFC/lit/issue/trans/spec-refs 检查、MC↔QEMU E2E） |
 | `verif` → `M1` | 集成闭环达成，M1 置为 `达成` |
 
 关键路径：`infra` + `spec` → `qemu`（或 `llvm`）→ `verif` → M1。
@@ -47,7 +47,7 @@ spec ──→ testsuite ──┤           ├──→ verif ──→ M1
 - 说明：先建 `Makefile`/fetch/锁（infra）与 `ADR-0004`/ELF 合约（spec），解除对下游的阻塞。
 
 **第 2 层 — 测试向量 + 组件基线/骨架**（依赖第 1 层）
-- `testsuite`：`TESTSUITE-002t` → `003t` → `004t` → {`005t`、`007t`、`008t`}；`006t`、`009t`
+- `testcases`：`TESTCASES-002t` → `003t` → `004t` → {`005t`、`007t`、`008t`}；`006t`、`009t`
 - `llvm`：`LLVM-002t` → `003t`（Triple + 最小 build）
 - `qemu`：`QEMU-002t` → `003t`（骨架 + `hw/dadao/`）
 - 说明：向量层尽早建立，供第 3 层验证；`llvm`/`qemu` 各自先打通「能 build」。

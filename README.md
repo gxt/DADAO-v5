@@ -32,4 +32,4 @@
 - 详细路线：`code-agent/designs/0001-foundation-scope.md`、`0002-detailed-roadmap.md`
 - 任务：`code-agent/tasks/`（`DL`/`ML`/`KL`/`DG`/`SL`/`IN` 等流）
 
-本仓库按**模块**组织任务（见 `.tao/README.md`）：`infra` / `spec` / `testsuite` / `golden` / `llvm` / `qemu` / `verif` / `gem5` / `sail`。
+本仓库按**模块**组织任务（见 `.tao/README.md`）：`infra` / `spec` / `testcases` / `golden` / `llvm` / `qemu` / `verif` / `gem5` / `sail`。

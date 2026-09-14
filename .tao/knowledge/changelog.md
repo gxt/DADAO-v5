@@ -17,7 +17,7 @@
 | 2026-09-12 | SPEC-005t：Object ABI ADR-0003（M1：ELF 头字段 + 段/流水线；重定位 `Deferred to M2`） | engineer |
 | 2026-09-13 | SPEC-005t 修订：ADR-0003 `e_flags` 由 1 位标志改为 bits0–7 版本字段（M1=1，bits8–31 保留） | engineer |
 | 2026-09-13 | SPEC-006t：Test Machine ADR-0004（内存映射/复位值/exit port/异常可观测，D1–D6 冻结；Status=Candidate） | engineer |
-| 2026-09-13 | ADR-0004 重判修订：D1 改核内地址空间模型（ROM `0xffff_ffff_0000`/RAM `0xffff_0000_0000` 16MiB/Exit `0xffff_8000_0000`）、D5 fault 码改 spec cause 派生（ILLI `0x88`…IALIGN `0x8D`，unmapped `0x87`）、D3 harness 超时兜底、D6 示例修正；同步下游任务书 QEMU-003t/VERIF-004t/VERIF-010t/TESTSUITE-006t/008t | architect |
+| 2026-09-13 | ADR-0004 重判修订：D1 改核内地址空间模型（ROM `0xffff_ffff_0000`/RAM `0xffff_0000_0000` 16MiB/Exit `0xffff_8000_0000`）、D5 fault 码改 spec cause 派生（ILLI `0x88`…IALIGN `0x8D`，unmapped `0x87`）、D3 harness 超时兜底、D6 示例修正；同步下游任务书 QEMU-003t/VERIF-004t/VERIF-010t/TESTCASES-006t/008t | architect |
 | 2026-09-13 | SPEC-006t 返工复验：ADR-0004 修订后重开验收（更新验收脚本至 109/109 PASS；reviewer+architect 双模型 Accepted；ADR 修正 D6.4 距离与状态说明两处），任务置 `已验证` | architect |
 | 2026-09-14 | ADR-0003 rev. 2026-09-14：D2 登记补充（绝对地址并入「绝对 64-bit 数据地址」、不单列 wyde 地址构造场景；相对分支/call/jump `<<2`、有效范围=位宽+2；`rela.si` `<<12`、4KB 对齐、与页无关、无 `<<2`） | architect |
 | 2026-09-14 | SPEC-007t：ELF 合约（`.tao/knowledge/contract-elf.md`；§1 头字段 + §5 段对齐/VA=PA + §6 pipeline；§2/§3/§4 重定位 `Deferred to M2`） | engineer |
