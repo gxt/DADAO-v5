@@ -22,6 +22,19 @@
 
 （暂无）
 
-## testcases / llvm / qemu / integ
+## testcases
+
+> **最终裁决（2026-09-15，用户逐条确认）**：任务集二次重排（覆盖上一次重排）。F1 数据修复归 `003t`；F10 分摊到 `003t`~`007t`（不单列 encoding 任务）；F7 采用方案 (i)（schema 扩 `expected_pc`）→ PC-only 全部改 active；F5 归 `008t`（原 `011t` 编号撤销）；文件布局方案 A。旧 `004t`/`005t`/`006t` 属**已达成**（非暂缓），其关闭理由与证据见 `TESTCASES-001k` 任务表重排说明（**不在此登记**）。详见 `.tao/tasks/testcases/TESTCASES-001k-模块启动.md`。
+
+- **F5 — `UNDI`（保留编码）的向量层表达（已改由 `TESTCASES-008t` 承载）**：`UNDI` 触发条件是执行 QFC/子表空白单元格（保留编码），而 `contracts/opcodes.yaml` 只含已定义编码、保留编码无 `(insn, format)` 身份 → 与 validator 检查 7/8 冲突。`008t` 落地**方案 A**（复用 `class: legality` + `encoding.reserved: true`；取舍已记录，不立 ADR）。注意：全零字 `0x00000000` 是 `illi` → **ILLI**，非 UNDI（§8.3）。
+- **F6 — `encoding` 类对恒 fault 指令豁免**：`encoding` 定义为「可解码执行无 fault」，故**恒 fault** 指令不可构造 null-fault 单指令 encoding case——`illi`（恒 ILLI，§9.1）。该指令**豁免** encoding 类，覆盖率由 `legality` active 满足，inventory 显式标注（`002t` schema 澄清、`007t` 复核）。附带：`ret-riii` 亦无 encoding case，但**理由不同**（**非**恒 fault，返回目标依赖 harness 布局），由 `006t` 处理。
+- **F9① 结果级语义期望值重算（deferred → golden model）**：schema validator 只能做「字段引用寄存器必被预置」等**机械不变量**校验；**结果级**语义期望值重算需独立 oracle，属 **golden model** 模块（`golden`），不在 testcases 模块内。（机械守卫本身由 `003t` 与 F1 同任务落地，不属 deferred。）
+- **跨模块影响（待处置）**：本次重排改变了 `TESTCASES-003t`/`006t`/`008t` 的**含义**，`qemu` 模块任务书存在**陈旧引用**，须同步：
+  - `QEMU-012t`（branch PC 公式 + call RA 修复）依赖 `TESTCASES-008t`（旧=控制流向量）→ 现控制流向量在 `005t`/`006t`；
+  - `QEMU-017t`（分支语义 harness）依赖 `TESTCASES-008t`，并引用 `control-flow.yaml` 的 deferred semantic 桩 → 现 `control-flow.yaml` 拆为 `ctrl-br`/`ctrl-jump`/`ctrl-call`/`ctrl-ret`，且 F7 已全部 active（不再有 PC-only deferred 桩）；
+  - `QEMU-001k` 表中 `014t` 依赖 `TESTCASES-003t`、`016t` 依赖 `TESTCASES-006t`、`017t` 依赖 `TESTCASES-008t` —— 依赖编号含义已变，须重核；
+  - 处置二选一：**修改上述 qemu 任务书的依赖/引用**，或**新增跨模块接口对齐任务**（`integ` 或 testcases 交互任务）。处置前 `TESTCASES-010m` 的跨模块影响项不得判为已清。
+
+## llvm / qemu / integ
 
 （待各模块规划时补充）

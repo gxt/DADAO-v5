@@ -28,24 +28,58 @@ DADAO-v5 的 TDD 合约要求：在任何 LLVM/QEMU 实现字节被写入之前�
 
 ## 任务分解
 
-| 编号 | 任务 | 交付物 | 依赖 |
-|------|------|--------|------|
-| `TESTCASES-002t` | 向量 schema + inventory + validator | `tests/vectors/schema.md`、`inventory.md`、`README.md`、`isa/*.yaml`、`tools/testcases/validate_vectors.py`、`Makefile` check 集成 | `SPEC-003t`、`SPEC-008t` |
-| `TESTCASES-003t` | encoding class 向量补全 | 各 `tests/vectors/isa/*.yaml` 追加 encoding 向量 | `TESTCASES-002t` |
-| `TESTCASES-004t` | 向量覆盖率修复（opcode identity + encoding.word） | `tools/testcases/validate_vectors.py`、缺漏向量补全 | `TESTCASES-003t` |
-| `TESTCASES-005t` | validator 身份唯一性修复 | `tools/testcases/validate_vectors.py` | `TESTCASES-004t` |
-| `TESTCASES-006t` | 语义向量内存地址 ROM→RAM | `tests/vectors/isa/rd-load-store.yaml`、`rb-ops.yaml` | `TESTCASES-002t`、`SPEC-006t` |
-| `TESTCASES-007t` | ISA 向量文件修复（5 文件） | 5 个 `tests/vectors/isa/*.yaml` | `TESTCASES-004t`、`TESTCASES-009t` |
-| `TESTCASES-008t` | control-flow 向量修复 + TDD 补全 | `tests/vectors/isa/control-flow.yaml` | `TESTCASES-004t` |
-| `TESTCASES-009t` | load encoding deferred 重设计 | `tests/vectors/isa/rd-load-store.yaml` | `TESTCASES-006t` |
-| `TESTCASES-010m` | testcases 里程碑 | 里程碑标记 | `TESTCASES-002t`~`TESTCASES-009t` |
+> **重排说明（2026-09-15 最终裁决，用户逐条确认）**：`TESTCASES-002t` 交付后经 architect 交叉复核 + 主会话独立复验，判决 `Needs Revision`（F1/F10 系统性数据错误 + F2/F3/F5/F6/F7/F9）。任务集据此**二次重排**（覆盖上一次重排）：`002t` 收窄为**向量基础设施返工**（schema 新增 `expected_pc`、inventory、validator；F2/F3/F6/F9）；F1 数据修复归 `003t`（寄存器间传输与运算）；**F10 分摊**到 `003t`~`007t`（各修本任务文件的 encoding 向量，不单列 encoding 任务）；**F7 采用方案 (i)：schema 扩 `expected_pc`**，`jump`/`call` 的 PC 效果与 `br.*` 的 taken 路径均用 `expected_pc` 表达 → **5 条 PC-only 全部改 active，不再有 PC-only deferred**；F5（保留编码 → UNDI）改由 `008t` 承载（原 `011t` 编号**撤销**——不能排在 `010m` 之后）。文件布局采用**方案 A（按运算族分，bank 混在文件内）**。详见各任务文件与 `.tao/knowledge/deferred.md` `## testcases`。
 
-- **依赖关系**：`002t → 003t → 004t → 005t`；`004t → 008t`；`002t + SPEC-006t → 006t → 009t`；`009t → 007t`；`010m` 汇总全部。
-- **文件级串行约束**：`rd-load-store.yaml` 被 `006t`（语义地址迁移）、`009t`（load encoding 重设计）、`007t`（数据修复）依次修改，故 `007t` 依赖 `009t`，三者不得并行；`rb-ops.yaml` 由 `006t` 修改，不与 `007t` 冲突。`control-flow.yaml` 仅 `008t` 修改。
-- **分解理由**：先建「schema + 数据 + 校验器」基座（002t），再补 encoding 层（003t），再修覆盖率身份与 encoding.word（004t/005t），随后按文件修数据（006t/009t/007t/008t）。每步可独立用 `tools/testcases/validate_vectors.py` + `make check` 验收。
+| 编号 | 任务 | 拥有的文件 | 内容 | 依赖 | 状态 |
+|------|------|-----------|------|------|------|
+| `TESTCASES-002t` | 向量基础设施（**返工**） | `tests/vectors/schema.md`、`inventory.md`、`tools/testcases/validate_vectors.py` | schema（**新增 `expected_pc` 字段**）+ inventory + validator；**F2**（inventory 缺 `format` 列）、**F3**（inventory 无同步校验）、**F6**（encoding 类对恒 fault 指令豁免的澄清）、**F9**（validator 补强） | 无 | 待返工 |
+| `TESTCASES-003t` | 寄存器间传输与运算 | `reg-arith` `reg-logic` `reg-shift-extend` `reg-compare` `reg-cond-assign` `reg-imm-block` | 含 **F1**（`orrr` shamt 应为寄存器形式）修复；`rela.si-rb` 改 active；本任务文件 F10 encoding 修复 | `002t` | 待开始 |
+| `TESTCASES-004t` | load/store（RD/RB/RA 三 bank） | `mem-rd` `mem-rb` `mem-ra` | 访存 encoding 的地址/base/count 语义（F10）；本任务文件修复 | `003t` | 待开始 |
+| `TESTCASES-005t` | 控制转移 `br.*` | `ctrl-br` | taken / not-taken 全测（用 `expected_pc`）；F10 | `002t`（默认串行时排 `004t` 后） | 待开始 |
+| `TESTCASES-006t` | `jump`/`call`/`ret` | `ctrl-jump` `ctrl-call` `ctrl-ret` | 用 `expected_pc` 表达 PC 效果；`call` 的 RA 压栈用 `ra` 表达；F7 全 active；F10 | `005t` | 待开始 |
+| `TESTCASES-007t` | misc | `misc` | `swym`/`illi`/`fence`（`swym` 从 `control-flow.yaml` 移入）；F10 | `006t` | 待开始 |
+| `TESTCASES-008t` | 保留编码 → UNDI（**F5**） | 新文件 + `schema.md`/`validate_vectors.py`/`inventory.md` | 保留编码的向量层表达（**方案 A**：复用 `class: legality` + `encoding.reserved: true`；取舍已记录，**不立 ADR**） | `002t` | 待开始 |
+| `TESTCASES-009t` | ISA 向量全量再审计（兜底） | 全部 `isa/*.yaml` + `inventory.md` | 残留错误 | `003t`~`008t` | 待开始 |
+| `TESTCASES-010m` | 里程碑 | — | 核验门槛含 F1/F5/F6/F7/F10 | 全部 | 待开始 |
+| ~~`TESTCASES-004t`~~ | ~~向量覆盖率修复~~（**旧范围已达成**） | — | 范围已由 `002t` validator 覆盖 | — | 已达成 |
+| ~~`TESTCASES-005t`~~ | ~~validator 身份唯一性修复~~（**旧范围已达成**） | — | 范围已由 `002t` 覆盖 | — | 已达成 |
+| ~~`TESTCASES-006t`~~ | ~~语义向量内存地址 ROM→RAM~~（**旧范围已达成**） | — | 目标已达成 | — | 已达成 |
+| ~~`TESTCASES-011t`~~ | ~~保留编码 UNDI 向量表达~~（**编号撤销**） | — | 改由 `008t` 承载（原编号排在 `010m` 之后，违反 `nnn` 递增） | — | 撤销 |
+
+> **旧任务「已达成」理由与证据（单一出处）**：上表末三行是**旧范围**的记录——它们并非「暂缓/不做」，而是**已由 `TESTCASES-002t` 的交付达成**，故不写入 `deferred.md`（`deferred.md` 只记真正未决项）。证据：
+> - **旧 `TESTCASES-004t`（覆盖率主键 `(insn, format)` + `encoding.word` mask/value 校验）**：已由 `tools/testcases/validate_vectors.py` 实现——身份存在性 + mask/value 校验（`:174–201`）、覆盖率门控（`:272–281`）。
+> - **旧 `TESTCASES-005t`（只标记实际匹配 word 的身份）**：已由 `tools/testcases/validate_vectors.py` 实现——`covered.add(key)` 仅在**精确匹配分支**执行（`:270`）。
+> - **旧 `TESTCASES-006t`（semantic 向量地址 ROM→RAM）**：目标已达成——`002t` 交付的全部 semantic memory 地址 **48/48** 落在 ADR-0004 RAM 窗口 `[0xffff_0000_0000, 0xffff_00ff_ffff]`，无以 `rb0` 为 base 的访存，无 ROM 地址。
+> - 旧任务文件已删除，内容保留于 git 历史。
+>
+> **编号复用说明**：`004t`/`005t`/`006t` 三个编号在本次最终重排中被**复用为新任务**（load/store、`br.*`、`jump`/`call`/`ret`），见上表；不再对应旧范围。
+
+- **文件拆分映射（旧 → 新，`tests/vectors/isa/`）**：
+  | 旧文件 | 去向 |
+  |---|---|
+  | `rd-arith.yaml` | `reg-arith.yaml`（保留 add/sub/mul/div/rem + `add.si-rd/rb` + `rela.si-rb`）；`cmp.*` 移入 `reg-compare.yaml` |
+  | `rb-ops.yaml` | `add.so-rb`/`sub.so-rb` → `reg-arith.yaml`；`ld.o-rb`/`st.o-rb`/`ldm.o-rb`/`stm.o-rb` → `mem-rb.yaml`；**文件消失** |
+  | `ra-ops.yaml` | `ra2rd`/`rd2ra` → `reg-imm-block.yaml`；`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra` → `mem-ra.yaml`；**文件消失** |
+  | `rd-logic.yaml` | `reg-logic.yaml`（改名） |
+  | `rd-shift-extend.yaml` | `reg-shift-extend.yaml`（改名） |
+  | `rd-compare.yaml` | `reg-compare.yaml`（并入 `rd-arith.yaml` 的 `cmp.*`，去重） |
+  | `rd-cond-assign.yaml` | `reg-cond-assign.yaml`（改名） |
+  | `rd-imm-block.yaml` | `reg-imm-block.yaml`（并入 `ra-ops.yaml` 的 `ra2rd`/`rd2ra`） |
+  | `rd-load-store.yaml` | `mem-rd.yaml`（改名） |
+  | `control-flow.yaml` | `br.*` → `ctrl-br.yaml`；`jump-*` → `ctrl-jump.yaml`；`call-*` → `ctrl-call.yaml`；`ret-*` → `ctrl-ret.yaml`；`swym` → `misc.yaml`；**文件消失** |
+  | `misc.yaml` | `misc.yaml`（并入 `swym`，与 `fence`/`illi` 合并） |
+
+  目标文件集（14 个）：`reg-arith` `reg-logic` `reg-shift-extend` `reg-compare` `reg-cond-assign` `reg-imm-block` `mem-rd` `mem-rb` `mem-ra` `ctrl-br` `ctrl-jump` `ctrl-call` `ctrl-ret` `misc`。
+
+- **依赖关系与下发建议**：
+  - 硬串行链（共享**源文件**，必须按序）：`002t → 003t → 004t`（`rb-ops.yaml`/`ra-ops.yaml` 被 `003t` 与 `004t` 先后消费）；`005t → 006t → 007t`（`control-flow.yaml` 被三者先后消费，`007t` 最后删除）。
+  - `002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010m` 为**推荐默认全串行**：除源文件外，`inventory.md`（含 `file` 列）与 `schema.md`/`validate_vectors.py` 亦为多任务共享，串行最稳。
+  - **可并行候选**：`{003t→004t}` 与 `{005t→006t→007t}` 的目标文件集互不相交，**若** `inventory.md` 由 `002t` 提供生成脚本、各任务只重生成不手改，则两链可并行；`008t` 只碰 `schema.md`/`validate_vectors.py`/新文件，亦可与数据链并行。M1 建议先用默认串行，降低冲突风险。
+- **分解理由**：`002t` 先冻结 schema（含 `expected_pc`）、inventory、validator（消除 F2/F3/F6/F9 类错误对 `make check` 的不可见性）；随后按运算族重组并修复数据（F1/F10/F7），最后全量再审计（`009t`）兜底残留。
 
 ## 说明
 
+- **2026-09-15 二次重排**：本 `k` 文件的历史分解（含上一次重排）保留于 git 历史；当前有效任务集以上表为准。关闭任务（旧 `004t`/`005t`/`006t`）的处置与证据、F5/F6/F7/F9 结论记录在 `.tao/knowledge/deferred.md` `## testcases`。
 - 本模块只规划向量层，不实现 LLVM/QEMU/gem5。
 - 期望值必须独立派生自 `spec/` 与 `.tao/knowledge/contract-isa.md`（independent oracle 原则）；禁止从 LLVM/QEMU 生成。
 - `contracts/opcodes.yaml`（SPEC-003t）是唯一编码真相；向量不得另造编码表。覆盖率主键为 `(insn, format)`（`insn` 非唯一，见「对照关系」）。

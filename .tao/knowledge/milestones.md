@@ -47,7 +47,7 @@ spec ──→ testcases ──┤           ├──→ integ ──→ M1
 - 说明：先建 `Makefile`/fetch/锁（infra）与 `ADR-0004`/ELF 合约（spec），解除对下游的阻塞。
 
 **第 2 层 — 测试向量 + 组件基线/骨架**（依赖第 1 层）
-- `testcases`：`TESTCASES-002t` → `003t` → `004t` → {`005t`、`008t`}；`002t` + `SPEC-006t` → `006t` → `009t` → `007t`（`rd-load-store.yaml` 由 `006t`/`009t`/`007t` 依次修改，须串行）
+- `testcases`（2026-09-15 最终重排）：`TESTCASES-002t`（**返工**：schema 新增 `expected_pc` + inventory + validator；F2/F3/F6/F9）→ `003t`（寄存器间传输与运算，含 F1）→ `004t`（load/store 三 bank）→ `005t`（`br.*` taken/not-taken）→ `006t`（`jump`/`call`/`ret`）→ `007t`（misc）→ `008t`（保留编码 → UNDI，F5）→ `009t`（全量再审计兜底）→ `010m`。F10 分摊到 `003t`~`007t`（各修本任务文件 encoding，不单列任务）；F7 用 `expected_pc` 方案全部转 active。**共享源文件**（`rb-ops`/`ra-ops` 被 `003t`/`004t`；`control-flow` 被 `005t`/`006t`/`007t`）与 `inventory.md` 决定以串行最稳；`{003t→004t}` 与 `{005t→006t→007t}` 目标文件集不相交，**若** inventory 由生成器统一重生成则可并行。旧 `004t`/`005t`/`006t`（覆盖率修复/身份唯一性/地址迁移）已关闭，编号已复用为新任务（见 `deferred.md`）
 - `llvm`：`LLVM-002t` → `003t`（Triple + 最小 build）
 - `qemu`：`QEMU-002t` → `003t`（骨架 + `hw/dadao/`）
 - 说明：向量层尽早建立，供第 3 层验证；`llvm`/`qemu` 各自先打通「能 build」。
