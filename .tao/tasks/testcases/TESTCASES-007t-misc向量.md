@@ -12,30 +12,30 @@
 ## 接口规范
 
 - 输入：
-  - `tests/vectors/isa/misc.yaml`（`TESTCASES-002t` 产出：`fence`/`illi`）
-  - `tests/vectors/isa/control-flow.yaml`（`TESTCASES-002t` 产出；`005t`/`006t` 已拆走 `br.*`/`jump`/`call`/`ret`，仅剩 `swym`）
   - `tests/vectors/schema.md`（`TESTCASES-002t` 返工后：含 encoding 恒 fault 豁免）
   - `contracts/opcodes.yaml`（`swym-iiii`/`illi`/`fence` 编码字段；`op=value>>24`、`ha=(value>>18)&0x3f`）
   - `.tao/knowledge/contract-isa.md` §7（系统指令：`swym`/`fence`）、§8.2（保留编码 UNDI）、§8.3（全零字 → ILLI）、§9.1（ILLI）
+- **输入说明（陈旧引用修正）**：仓库内**无任何 `tests/vectors/isa/*.yaml`**——上一版 `002t` 的向量数据已随返工**一并丢弃**。本任务按 `schema.md` **从零生成** `misc.yaml`，**不是**重组/修复既有文件。
 - 输出（**本任务拥有的文件**，`tests/vectors/isa/`）：
-  - `misc.yaml`（并入 `swym`）
+  - `misc.yaml`
 - 约束：
   - 期望值**手工派生自 `contract-isa.md`/`spec/`/ADR-0004**，不得从 LLVM/QEMU 反推
   - 覆盖率主键 `(insn, format)`；M1 scope 以 `excluded_m1 != true` 为准（`swym`/`illi`/`fence` 均属 M1）
-  - **只动 `misc.yaml` 与 `control-flow.yaml` 的 `swym` 拆分**；**不改** `contracts/`；**不改** `ctrl-*`/`reg-*`/`mem-*`
+  - **只生成/修改 `misc.yaml`**；**不改** `contracts/`；**不改** `ctrl-*`/`reg-*`/`mem-*`
+  - 参考仓库（`.work/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
   - 完成后不自行 commit
 
 ## 任务范围
 
-### 1. 文件重组（旧 → 新；只描述目标）
+### 1. 目标文件（从零生成）
 
-| 动作 | 内容 |
+> **数据来源说明**：仓库内**无既有向量数据**（上一版已丢弃），本任务按 `schema.md` 从零生成 `misc.yaml`；不再有「旧文件 → 新文件」的重组动作。
+
+| 目标文件 | 覆盖身份 |
 |---|---|
-| 更新 `misc.yaml` | 并入 `control-flow.yaml` 的 `swym-iiii`，与既有 `fence`/`illi` 合并 |
-| 删除 | `control-flow.yaml`（`br.*`/`jump`/`call`/`ret` 已由 `005t`/`006t` 拆走，`swym` 由本任务移走） |
+| `misc.yaml` | `swym-iiii`/`illi`/`fence`（3 个） |
 
-- **前置**：`005t` 已拆 `br.*`、`006t` 已拆 `jump`/`call`/`ret`；本任务移出 `swym` 后删除 `control-flow.yaml`。
-- **验证**：删除 `control-flow.yaml` 前确认其已空（无遗留身份），否则不得删除。
+- `br.*`/`jump`/`call`/`ret`（`005t`/`006t`）不在本任务。
 
 ### 2. F6：`illi` 的 encoding 豁免（复核）
 
@@ -57,7 +57,7 @@
 ## 验收标准
 
 1. `misc.yaml` 覆盖 `swym-iiii`/`illi`/`fence` 三个 M1 身份
-2. `control-flow.yaml` 已删除；其全部身份已由 `005t`/`006t`/`007t` 承接（无遗漏）
+2. `misc.yaml` 从零生成，覆盖 `swym-iiii`/`illi`/`fence` 3 个 M1 身份（无遗漏）
 3. `illi` 无 encoding case，inventory 显式标注豁免理由（恒 fault）；覆盖率由 `legality` active 满足
 4. `swym`/`fence` 的 encoding 经推演确认可解码执行无 fault（不 ILLI）；字段值 + 依据章节齐备
 5. 未改 `contracts/`；未动 `ctrl-*`/`reg-*`/`mem-*`
@@ -97,7 +97,7 @@
 
 1. **全零字不是 UNDI**：`0x00000000` → ILLI（§8.3）。
 2. **`illi` encoding 不可达**：恒 fault，豁免；覆盖率由 legality 满足。
-3. **删除 `control-flow.yaml` 前须确认已空**。
+3. **`misc.yaml` 从零生成**：不依赖任何既有文件；`swym`/`illi`/`fence` 三个身份一次生成齐备。
 4. **不自行 commit**：完成后等待审查。
 
 ## 参考

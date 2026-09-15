@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M1
 **依赖**：无
-**状态**：待返工
+**状态**：已验证
 
 ## 执行环境
 
@@ -16,7 +16,7 @@
   - `.tao/knowledge/contract-isa.md`（SimRISC 0.5.3：编码格式、语义、合法性、异常）
   - `contracts/legality_rules.yaml`（SPEC-008t，6 个 fault：ILLI/UNDI/MALIGN/IALIGN/RASOF/RASUF）
   - `.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t：内存映射、复位值、exit 协议、fault 退出码含 `0x87` unmapped、D6.5 `rb0`=当前指令地址）
-  - 现有 `tests/vectors/schema.md`、`tests/vectors/inventory.md`、`tools/testcases/validate_vectors.py`（`002t` 上一版产物，本次返工基线）
+  - `002t` 上一版产物（`tests/vectors/schema.md`、`inventory.md`、`README.md`、`tools/testcases/validate_vectors.py`、`Makefile` 集成）已按用户决定**丢弃、不保留**——本任务**从零重新生成**；产物形态可只读参考 DADAO-0628（禁止复制数据正文）
 - 输出（**本任务拥有**）：
   - `tests/vectors/schema.md`（新增 `expected_pc` 字段、encoding 恒 fault 豁免条款）
   - `tests/vectors/inventory.md`（新增 `format` 列 + 与 `opcodes.yaml` 的机械同步）
@@ -107,7 +107,7 @@
 
 在任何实现（LLVM/QEMU）字节被写入之前，生成 M1 scope 全量测试向量数据文件，并实现 schema 级 validator 作为 `make check` 门控。所有期望值（编码字节、寄存器状态、异常类型、测试机 fault 码）必须从 `.tao/knowledge/contract-isa.md`（及 `spec/`、`adr-0004-test-machine.md`）手工推导，**不得**从 LLVM 输出或 QEMU 运行结果反推。
 
-本次为**返工**：在上一版交付（schema/inventory/validator + 全量向量）基础上，按用户裁决补强基础设施（`expected_pc`、inventory `format`/同步、F6 澄清、F9 补强），并把数据修复让渡给 `003t`~`007t`。
+本次为**返工**：上一版交付已**丢弃**，本任务**从零重建**向量基础设施（schema + inventory + validator），并按用户裁决直接纳入 `expected_pc`、inventory `format`/同步、F6 澄清、F9②③④ 补强；向量数据（`isa/*.yaml`）不属本任务，由 `003t`~`007t` 各自生成。
 
 ### 设计理由
 
@@ -270,19 +270,267 @@ tests/vectors/isa/
 
 ## 完成区
 
-**测试结果**：
+**测试结果**：通过 3/3 验证命令 + 20/20 注入用例。
+- `python3 tools/testcases/validate_vectors.py` → `178/178`，exit 0。
+- `make check` → PASS，exit 0。
+- 反造假注入：20/20 捕获（16 负例全部 exit 1 且命中预期错误串；4 正例对照 exit 0，无假阳性）。
+- 失败原因：无。
+
 **修改文件**：
-**验收结果**：
+- 新增 `tests/vectors/schema.md`、`tests/vectors/inventory.md`、`tests/vectors/README.md`
+- 新增 `tools/testcases/validate_vectors.py`
+- 修改 `Makefile`（新增 `validate-vectors` target；`check: manifest-check validate-vectors`；`help`/`.PHONY` 同步）
+- **未**新增/修改 `tests/vectors/isa/*.yaml`；**未**改 `contracts/`
+- 日志（gitignored）：`.tao/logs/TESTCASES-002t-validate_vectors.log`、`-make-check.log`、`-inject.log`
+
+**验收结果**（真实输出）：
+
+```
+$ python3 tools/testcases/validate_vectors.py
+validate_vectors: 178/178 M1 identities covered OK (inventory sync OK; 0 data files, 0 cases)
+exit=0
+
+$ make check
+enabled components: none
+references: 2
+manifest validation: PASS
+validate_vectors: 178/178 M1 identities covered OK (inventory sync OK; 0 data files, 0 cases)
+repository checks: PASS
+exit=0
+
+$ python3 /tmp/opencode/TESTCASES-002t/rework/inject_test.py
+[PASS] baseline(no data)            exit=0 expect=0 substr='178/178'
+[PASS] R2 missing row               exit=1 expect=1 substr='INVENTORY MISSING: M1 identity (fence, oiii)'
+[PASS] R2 extra row                 exit=1 expect=1 substr='INVENTORY EXTRA: inventory.md row (fake, orrr)'
+[PASS] R2 no declaration            exit=1 expect=1 substr='COVERAGE MISSING: (fence, oiii)'
+[PASS] R4 expected_pc bad hex       exit=1 expect=1 substr='expected_pc not valid hex'
+[PASS] R4 expected_pc > 48-bit      exit=1 expect=1 substr='expected_pc is not a 48-bit'
+[PASS] R4 legality+expected_pc      exit=1 expect=1 substr='legality case must not carry non-null expected_pc'
+[PASS] R4 encoding+expected_pc      exit=1 expect=1 substr='encoding case must not carry non-null expected_pc'
+[PASS] R5② legality+state           exit=1 expect=1 substr='legality case must have expected_state == null'
+[PASS] R5③ empty spec_cite          exit=1 expect=1 substr='spec_cite must be a non-empty string'
+[PASS] R5④ semantic mem out of RAM  exit=1 expect=1 substr='outside ADR-0004 RAM window'
+[PASS] word mask/value mismatch     exit=1 expect=1 substr='does not match'
+[PASS] rd0 preset                   exit=1 expect=1 substr='must not preset rd0'
+[PASS] missing required field       exit=1 expect=1 substr="missing required field 'mnemonic'"
+[PASS] deferred non-null state      exit=1 expect=1 substr='status=deferred but expected_state is not null'
+[PASS] invalid fault                exit=1 expect=1 substr='invalid expected_fault'
+[PASS] non-M1 identity              exit=1 expect=1 substr='is not an M1 identity'
+[PASS] positive: semantic+expected_pc exit=0 expect=0 substr='178/178'
+[PASS] positive: encoding           exit=0 expect=0 substr='178/178'
+[PASS] positive: legality unmapped  exit=0 expect=0 substr='178/178'
+
+injection summary: 20/20 captured
+```
+
 **新发现/坑**：
+- **覆盖率门控的「无数据」冲突（重要）**：任务书「校验内容 9」原意是「每个 M1 身份至少 1 条
+  active 向量」，但本任务明确不产出 `isa/*.yaml`（数据归 `003t`~`007t`）。若按数据计覆盖率，
+  空树必然 `0/178` → `make check` 红，与「验收标准 5/6」直接冲突。按用户裁决「以验收标准
+  措辞为准」，本任务将覆盖率门控落到 **`inventory.md` 覆盖矩阵**（R2 方案 A）：validator
+  校验 inventory 的 M1 行集与 `opcodes.yaml` 的 M1 身份集一致（无缺/无多/无重复），且每行
+  至少声明一类覆盖（否则 `COVERAGE MISSING`），故空树输出 `178/178`。数据级逐身份 active
+  覆盖由 `003t`~`007t` 各自验收 + `009t` 兜底；数据一旦出现，其逐 case 校验（检查 1–8、
+  10–14）即生效。
+- **`insn` 非唯一**：`ext.*`/`shr.*`/`shl.*` 的 `orrr`/`orri` 共 20 组共享 `insn`，共 40 条
+  M1 记录；inventory 的 `format` 列是消歧关键（如 `ext.ub` 出现两次，`orrr`/`orri` 各一）。
+- **`opcodes.yaml` 的 M1 身份唯一性**：178 条 `(insn, format)` 实测 178 唯一（脚本内已断言）；
+  `(op, ha)` 为等价机器键。
+- **`illi` 是唯一恒 fault 指令**：其 `encoding`/`semantic` 均不可构造，覆盖率只能由
+  `legality` active 满足（F6）；`ret-riii` 无 encoding 是**布局限制**、非恒 fault，二者不得混同。
+- **`swym` 无任何 fault**（§7 占位指令），故其 `legality` 为 `—`；这是 inventory 中唯一
+  legality 不适用的非 illi 身份。
+- **R5④ 作用域**：`semantic` 类才做 RAM 窗口阻断（`legality` 需能表达 `UNMAPPED` 越界地址，
+  故不受限）；48-bit 地址校验对所有类生效。
+- **0628 参考**：其 `scripts/validate_vectors.py` 以 `(mnemonic, format)` 为主键且仅检查
+  mnemonic 存在、覆盖率从数据计——v5 不沿用（主键 `(insn, format)`、身份存在性 + 覆盖率
+  由 inventory 驱动）。
+
 **遗留问题**：
+- **R3 的 `deferred.md` 同步**：`.tao/knowledge/deferred.md` 的 `## testcases` 节中 F6 条目
+  **已存在且与 R3 要求一致**（「`illi` 豁免 encoding、覆盖率由 legality 满足、`ret-riii`
+  理由不同」），故**未修改**该文件（遵守 engineer 规则「不直接写知识库」）。若主会话需
+  增补措辞，请在 `/complete` 统一处理。
+- **本任务不含**（明确边界，均已在 schema/validator 中留出接入点）：
+  - F9①（active semantic/boundary 的 src 字段寄存器必被预置 + `orrr` shamt 定向守卫）→ `003t`；
+  - `expected_pc` 的**存在性**强制（改变 PC 的 active semantic/boundary 必须给出）→ `005t`/`006t`；
+  - F1/F10 数据修复 → `003t`~`007t`；
+  - F5 保留编码 → UNDI 的向量层表达（`encoding.reserved`）→ `008t`。
+- **`spec` 歧义**：无。本任务全部判定均可回溯 `contracts/opcodes.yaml` / `contract-isa.md` /
+  ADR-0004，无 `[OPEN]`。
 
 ## 审阅记录
 
 ### 第 1 轮 engineer 自审
-（待返工后填写）
+
+**审查范围**：`tools/testcases/validate_vectors.py`（393 行）、`tests/vectors/schema.md`、
+`tests/vectors/inventory.md`（226 行）、`tests/vectors/README.md`、`Makefile` diff。
+
+**逐项审查意见与判决**：
+
+1. **逻辑正确性**
+   - inventory 解析：以「表头含 `insn`+`format`」识别 M1 表，跳过分隔行；`_unquote` 去反引号。
+     实测解析出 178 行、无重复。✅
+   - `(insn, format)` 存在性：`key not in m1_keys` 即报错（含 excluded 身份，正确，向量限 M1）。✅
+   - mask/value：`(wval & mask) == value`，与 `tools/spec/validate_encoding.py` 同式。✅
+   - `expected_pc`：非 null 时才校验；48-bit 上限 `0xffff_ffff_ffff`；`legality`/`encoding`
+     带非 null 即报错；`deferred` 时非 null 亦报错（与 schema 一致）。✅
+   - F9②③④：legality `expected_state==null`；`spec_cite` 非空串；semantic memory RAM 阻断。✅
+   - 边界：空 `isa/` 目录（本任务真实状态）不报错；`expected_state: null` 的
+     `_check_state_banks` 早退；`memory: []` 合法。✅
+2. **设计/惯用法**
+   - PyYAML import 失败显式 `sys.exit`，与 `tools/spec/validate_encoding.py` 风格一致。✅
+   - 未引入新外部依赖（仅标准库 + PyYAML，仓库既有）。✅
+   - 覆盖率门控落在 inventory（R2 方案 A），符合任务裁决；已在 docstring 与 inventory 顶部
+     显式说明，非「静默成功桩」。✅
+   - `Makefile` 用独立 `validate-vectors` target 并以 `contracts/opcodes.yaml` 为前置，符合
+     「依赖存在」要求。✅
+3. **防造假**
+   - 注入测试在 `/tmp/opencode/TESTCASES-002t/rework/inject/` 的 repo 副本执行（不污染真实仓库）；
+     16 负例均 exit 1 且命中预期串，4 正例对照 exit 0。✅
+   - 真实输出逐字贴入完成区，未估算。✅
+
+**自审发现并已修正的问题**：
+- 初版生成器把 `and.o`/`ext.uo` 等按裸助记符分类失败（助记符带位宽后缀）；改用
+  `mnemonic.split('.')[0]` 基名分类后 178 条全分类成功。已复验。
+- 注入脚本初版 `missing_field`/`pc_48bit`/`mem_out` 三处替换串不匹配；修正后 20/20 通过。
+
+**判决**：无未修 finding。代码级自审通过，状态置 `待验收`。
 
 ### 第 1 轮 reviewer 验收
-（待返工后填写）
+
+**审查者**：reviewer agent（mimo-v2.5-pro）
+**审查日期**：2026-09-15
+**审查范围**：`tools/testcases/validate_vectors.py`（393 行）、`tests/vectors/schema.md`（179 行）、`tests/vectors/inventory.md`（226 行）、`tests/vectors/README.md`、`Makefile` diff。
+
+---
+
+#### 一、重跑记录
+
+**命令 1**：`python3 tools/testcases/validate_vectors.py`
+```
+validate_vectors: 178/178 M1 identities covered OK (inventory sync OK; 0 data files, 0 cases)
+EXIT=0
+```
+
+**命令 2**：`make check`
+```
+enabled components: none
+references: 2
+manifest validation: PASS
+validate_vectors: 178/178 M1 identities covered OK (inventory sync OK; 0 data files, 0 cases)
+repository checks: PASS
+EXIT=0
+```
+
+**命令 3**：反造假注入测试（`/tmp/opencode/TESTCASES-002t-review/` 副本）
+```
+[PASS] baseline(no data)                   exit=0 ✓
+[PASS] R2 missing row                      exit=1 ✓
+[PASS] R2 extra row                        exit=1 ✓
+[PASS] R2 no coverage                      exit=1 ✓
+[PASS] R4 expected_pc bad hex              exit=1 ✓
+[PASS] R4 expected_pc > 48-bit            exit=1 ✓
+[PASS] R4 legality+expected_pc            exit=1 ✓
+[PASS] R4 encoding+expected_pc            exit=1 ✓
+[PASS] R5② legality+state                 exit=1 ✓
+[PASS] R5③ empty spec_cite                exit=1 ✓
+[PASS] R5④ semantic mem out of RAM        exit=1 ✓
+[PASS] word mask/value mismatch           exit=1 ✓
+[PASS] rd0 preset                         exit=1 ✓
+[PASS] missing required field             exit=1 ✓
+[PASS] deferred non-null state            exit=1 ✓
+[PASS] invalid fault                      exit=1 ✓
+[PASS] non-M1 identity                    exit=1 ✓
+[PASS] positive: semantic+expected_pc     exit=0 ✓
+[PASS] positive: encoding                 exit=0 ✓
+[PASS] positive: legality unmapped        exit=0 ✓
+
+injection summary: 20/20 captured
+```
+
+---
+
+#### 二、逐条核验 R1–R5
+
+| 要求 | 核验结果 | 证据 |
+|------|---------|------|
+| **R1** inventory 含 `format` 列，20 组 orrr/orri 可辨 | ✅ 通过 | 表头含 `insn`+`format` 两列（line 16）；178 行 `(insn, format)` 全部唯一；20 组共享 `insn` 的 `orrr`/`orri`（如 `ext.ub`/`shr.sb`/`shl.uo`）各占两行，格式列明确区分。 |
+| **R2** validator 校验 inventory M1 行集 == opcodes M1 身份集 | ✅ 通过 | validator 解析 inventory（`parse_inventory`），与 `load_opcodes` 的 M1 集做集合差（line 355-360）；缺失报 `INVENTORY MISSING`、多余报 `INVENTORY EXTRA`；注入删除 `fence/oiii` → exit 1 命中；注入新增 `fake/orrr` → exit 1 命中。 |
+| **R3** schema.md 含 encoding 类对 illi 豁免条款，ret-riii 理由区分 | ✅ 通过 | `schema.md` line 118-131 专节「encoding 类对恒 fault 指令的豁免（F6）」：`illi` 恒 ILLI（§8.2/§9.1），encoding/semantic 豁免，由 legality 满足；`ret-riii` 例外理由明确标注「非恒 fault，返回目标依赖 harness 布局」，归 `006t`。inventory.md line 194 `ret-riii` 行 encoding 列 `—` 并注明理由。`deferred.md` 的 `## testcases` 节 F6 条目已存在且与 R3 一致，engineer 未重复修改（合理）。 |
+| **R4** schema 新增 `expected_pc`；validator 校验出现时的类型/48-bit/class | ✅ 通过 | `schema.md` line 92-106 定义 `expected_pc`：48-bit hex，语义 = retire 后 `rb0`，与 `expected_state` 正交，`legality`/`encoding` 不得非 null，`deferred` 时必须 null。存在性强制明确标注归 `005t`/`006t`。validator line 293-306 实现 R4 校验；4 项注入测试全部捕获。 |
+| **R5②** legality `expected_state == null` | ✅ 通过 | validator line 288-290；注入 `legality + expected_state非null` → exit 1 命中。 |
+| **R5③** `spec_cite` 非空字符串 | ✅ 通过 | validator line 214-216；注入空串 → exit 1 命中。 |
+| **R5④** semantic memory 地址越界阻断 | ✅ 通过 | validator line 143-146（`_check_memory`，`ram_required=True` 仅对 `semantic`）；注入地址 `0x000000000001`（不在 RAM 窗口 `[0xFFFF_0000_0000, 0xFFFF_00FF_FFFF]`）→ exit 1 命中。 |
+| **F9① 不在本任务** | ✅ 确认 | validator 无 src 字段寄存器预置校验、无 `orrr` shamt 守卫；docstring line 29-30 明确标注归 `003t`。 |
+| **`expected_pc` 存在性不在本任务** | ✅ 确认 | validator 仅在 `expected_pc` 出现（非 null）时校验，不强制其存在；schema.md line 101-102 标注归 `005t`/`006t`。 |
+
+---
+
+#### 三、覆盖率门控设计变更独立分析
+
+**变更描述**：门控从「按数据计覆盖率（active case 逐身份）」改为「按 inventory 覆盖矩阵计（inventory 行集同步 + 每行至少声明一类覆盖）」，空树输出 `178/178`。
+
+**独立分析**：
+
+1. **是否弱化门控？** —— **否**。
+   - inventory 是本任务冻结的「覆盖要求声明」，validator 校验：① inventory 的178行与 `opcodes.yaml` 的178个 M1 身份**一一对应**（无缺/无多/无重复）；② 每行**至少声明**一类覆盖（`✓`），否则报 `COVERAGE MISSING`。
+   - 如果 inventory 声明了覆盖但无数据：`178/178` 仅表示「声明完整」，不表示「数据已填充」。数据级覆盖率（每个 `(insn, format)` 至少 1 条 active case）由 `003t`~`007t` 各自验收 + `009t` 兜底。
+   - 反造假验证：将 `fence` 行全部改为 `—`（无覆盖声明）→ validator 报 `COVERAGE MISSING` exit 1。门控对「声明缺失」有效。
+
+2. **是否与验收标准 5/6 意图冲突？** —— **否**。
+   - 验收标准 5 原文：「真实树 `python3 tools/testcases/validate_vectors.py` 零错误、`178/178` 覆盖与既有校验保持通过」。任务书明确本任务**不产出 `isa/*.yaml`**，故「178/178」在空树下只能是 inventory 级门控。
+   - 验收标准 6 原文：「`make check` PASS」。`make check` 包含 `validate-vectors`，空树 PASS 是预期行为。
+   - 若按数据计门控，空树必然 `0/178` → `make check` 红，与验收标准直接矛盾。engineer 的设计是**唯一可行方案**。
+
+3. **是否必须整改？** —— **否，可接受并登记**。
+   - 理由：本任务是**基础设施任务**（schema + inventory + validator），不含向量数据。inventory 覆盖矩阵是**冻结的声明层**，validator 的门控确保声明层不漂移。数据级门控在数据出现后自然生效（validator 的 case-level 校验对每个 YAML 文件立即执行）。
+   - **后续保障**：`003t`~`007t` 各自验收时须确认其文件内每个 `(insn, format)` 至少 1 条 active case；`009t`（集成里程碑）兜底全量数据级 `178/178`。
+
+---
+
+#### 四、约束核查
+
+| 约束 | 核验结果 | 证据 |
+|------|---------|------|
+| 未新增/修改 `tests/vectors/isa/*.yaml` | ✅ | `ls tests/vectors/isa/` → 目录不存在；`git ls-files tests/vectors/isa/` → 空。 |
+| 未改 `contracts/` | ✅ | `git diff HEAD -- contracts/` → 无输出。 |
+| 未从 LLVM/QEMU 反推 | ✅ | 所有期望值依据 `contracts/opcodes.yaml` / `contract-isa.md` / ADR-0004，无反推痕迹。 |
+| 未 commit | ✅ | `git log --oneline -3` → 最新 commit 为任务前的 `8a4cfa9`；`git status` 显示新增文件（`??`）和修改文件（`M` Makefile / 任务文件），但无新 commit。 |
+
+---
+
+#### 五、文件审查
+
+| 文件 | 行数 | 审查意见 |
+|------|------|---------|
+| `tools/testcases/validate_vectors.py` | 393 | 逻辑正确：inventory 解析以 `(insn, format)` 为键、178行唯一；mask/value 校验与 `validate_encoding.py` 同式；R2 集合差精确；R4 的48-bit / class 一致性 / legality+encoding 禁止非 null 均实现；R5②③④ 均实现且作用域正确（R5④ 仅对 `semantic` 类强制 RAM 窗口）；退出码语义正确。 |
+| `tests/vectors/schema.md` | 179 | 冻结完整：5类 class 定义含 `expected_pc` 列、encoding 类 F6 豁免条款、`ret-riii` 例外理由、deferred 规则、`expected_pc` 语义与可选性说明、RAM 窗口定义、文件组织。 |
+| `tests/vectors/inventory.md` | 226 | 178行 M1 覆盖矩阵，含 `format` 列；`illi` encoding/semantic 标 `—`（F6）、`ret-riii` encoding 标 `—`（布局限制）、`swym` legality 标 `—`（占位无 fault）、`cs.*` overlap 标 `deferred C-27`；覆盖豁免与例外节完整。 |
+| `tests/vectors/README.md` | — | 声明向量独立派生自 spec（沿用）。 |
+| `Makefile` | 126 | `validate-vectors` target 以 `contracts/opcodes.yaml` 为前置；`check: manifest-check validate-vectors`；`.PHONY` 同步。 |
+
+---
+
+#### 六、Finding 表
+
+| # | 严重度 | 描述 | 状态 |
+|---|--------|------|------|
+| F-01 | 信息 | 覆盖率门控从数据计改为 inventory 矩阵计 | 可接受（见第三节分析），后续由 `003t`~`007t` + `009t` 兜底数据级门控 |
+| F-02 | 信息 | `deferred.md` 的 F6 条目已存在，engineer 未重复修改 | 合理（遵守 engineer 规则「不直接写知识库」） |
+
+无阻断 finding。无 Needs Revision finding。
+
+---
+
+#### 七、判决
+
+**Accepted**。
+
+验收命令块在 reviewer 独立重跑下全部通过（`validate_vectors` exit 0 → `178/178`；`make check` exit 0 → PASS）；反造假注入 20/20 全部捕获；R1–R5 逐条核验通过；约束全部守住；覆盖率门控设计变更合理且已登记。
+
+主会话可将任务状态改为 `已验证`。
+
 
 ### 第 3 轮 architect 交叉复核 + 主会话统一判决（历史，保留）
 

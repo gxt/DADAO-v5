@@ -12,39 +12,39 @@
 ## 接口规范
 
 - 输入：
-  - `tests/vectors/isa/rd-load-store.yaml`（`TESTCASES-002t` 产出：`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 encoding/semantic/boundary/legality）
-  - `tests/vectors/isa/rb-ops.yaml` 的访存 case（`ld.o-rb`/`st.o-rb`/`ldm.o-rb`/`stm.o-rb`）
-  - `tests/vectors/isa/ra-ops.yaml` 的访存 case（`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`）
-  - `tests/vectors/schema.md`（`TESTCASES-002t` 返工后）
+  - `tests/vectors/schema.md`（`TESTCASES-002t` 返工后：含 `expected_pc`、encoding 豁免）
   - `contracts/opcodes.yaml`（访存指令编码字段 `fields`；`op=value>>24`、`ha=(value>>18)&0x3f`）
   - `contracts/legality_rules.yaml`（`rd_dest_rd0`/`store_src_rd0`/`rb_dest_rb0`/`rb_base_rb0_store`/`multi_immu6_zero`）
   - `.tao/knowledge/contract-isa.md` §4.1/§4.2/§4.9（load/store 合法性、对齐、RA 存取）、§2.2（格式）
   - `.tao/knowledge/adr-0004-test-machine.md`（D1 内存映射、D5.6 访问矩阵、D6.5 入口状态）
+- **输入说明（陈旧引用修正）**：仓库内**无任何 `tests/vectors/isa/*.yaml`**——上一版 `002t` 的向量数据已随返工**一并丢弃**。本任务的向量数据**从零生成**（依据 `schema.md` + `contracts/opcodes.yaml` + `contract-isa.md`/ADR-0004），**不是**重组/修复既有文件。
 - 输出（**本任务拥有的文件**，`tests/vectors/isa/`）：
   - `mem-rd.yaml`、`mem-rb.yaml`、`mem-ra.yaml`
 - 约束：
   - 期望值**手工派生自 `contract-isa.md`/`spec/`/ADR-0004**，不得从 LLVM/QEMU 反推
   - 覆盖率主键 `(insn, format)`；M1 scope 以 `excluded_m1 != true` 为准
-  - **只动本任务拥有的三个目标文件与所涉源文件（`rd-load-store.yaml`/`rb-ops.yaml`/`ra-ops.yaml`）**；**不改** `contracts/`；**不改** `reg-*`/`ctrl-*`/`misc`
+  - **只生成/修改本任务拥有的 3 个目标文件**；**不改** `contracts/`；**不改** `reg-*`/`ctrl-*`/`misc`
+  - 参考仓库（`.work/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
   - 完成后不自行 commit
 
 ## 任务范围
 
-### 1. 文件重组（旧 → 新；只描述目标）
+### 1. 目标文件集（从零生成）
 
-| 动作 | 内容 |
+> **数据来源说明**：仓库内**无既有向量数据**（上一版已丢弃），本任务按 `schema.md` 从零生成下列文件；不再有「旧文件 → 新文件」的重组动作。
+
+| 目标文件 | 覆盖身份 |
 |---|---|
-| 新建 `mem-rd.yaml` | `rd-load-store.yaml` 改名（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 RD 变体） |
-| 新建 `mem-rb.yaml` | 从 `rb-ops.yaml` 拆出 `ld.o-rb`/`st.o-rb`/`ldm.o-rb`/`stm.o-rb` |
-| 新建 `mem-ra.yaml` | 从 `ra-ops.yaml` 拆出 `ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra` |
-| 删除 | `rd-load-store.yaml`、`rb-ops.yaml`、`ra-ops.yaml`（后两者的非访存 case 已由 `003t` 移走） |
+| `mem-rd.yaml` | `ld.*`/`st.*`/`ldm.*`/`stm.*` 的 **RD 变体**（22 个） |
+| `mem-rb.yaml` | `ld.o-rb`/`st.o-rb`/`ldm.o-rb`/`stm.o-rb`（4 个） |
+| `mem-ra.yaml` | `ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`（4 个） |
 
-- **前置**：`003t` 已把 `rb-ops.yaml` 的 `add.so-rb`/`sub.so-rb`、`ra-ops.yaml` 的 `ra2rd`/`rd2ra` 移入 `reg-*`；本任务只处理剩余访存 case，移出后删除空文件。
-- 三个文件合并了三种 bank（RD/RB/RA）的访存指令，但**按目标文件分组**（`mem-rd`/`mem-rb`/`mem-ra`），即「按 bank 分文件」的访存子集。
+- 三个文件按 bank 分组（RD/RB/RA）承载访存子集；`ld.o-rb`/`st.o-rb`/`ldm.o-rb`/`stm.o-rb` 与 `ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra` **不**在 `reg-*`（`003t`）中重复。
+- 本任务只生成上表 3 个文件；`reg-*`（`003t`）与 `ctrl-*`/`misc`（`005t`~`007t`）不在本任务。
 
 ### 2. F10：访存 encoding 向量的内存语义重设计（本任务核心）
 
-- **现状诊断**：`002t` 交付的访存 encoding 向量存在两类缺陷（以 `ld.ub-rd` word=`0x10000000` 为例）：
+- **背景（上一版丢弃数据的教训，本任务生成时须避免）**：上一版访存 encoding 向量存在两类缺陷（以 `ld.ub-rd` word=`0x10000000` 为例）：
   1. **操作数字段全 0**：`rdha`（目的）= `rd0` → **ILLI**（`rd_dest_rd0`）；`st.*` 的 `rdha`（源）= `rd0` → **ILLI**（`store_src_rd0`）；`rbha` base = `rb0` → **ILLI**（`rb_base_rb0_store`）；multi load/store `immu6` = 0 → **ILLI**。
   2. **`input_state: {}`**：即使 base 字段非 `rb0`，未预置基址寄存器 → 地址 0 → **unmapped（`0x87`）**；而 `expected_fault: null`，自相矛盾。
 - **方案 B（采用）：使用有效 RAM 基址**：
@@ -72,7 +72,7 @@
 ## 验收标准
 
 1. `mem-rd.yaml`/`mem-rb.yaml`/`mem-ra.yaml` 存在，覆盖全部访存 M1 身份（含 RA 存取 `ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`）
-2. `rd-load-store.yaml`/`rb-ops.yaml`/`ra-ops.yaml` 已删除；非访存 case 不丢失（由 `003t` 承接）
+2. 3 个目标文件从零生成，覆盖全部访存 M1 身份；无身份遗漏、无与 `reg-*` 重复
 3. 全部访存 encoding 向量 `status: active`、`expected_fault: null`、`expected_pc: null`
 4. 每条访存 encoding 的 `input_state` 含 RAM 合法基址（如 `rb1 = 0x0000ffff00000000`），dest 非 `rd0`、base 非 `rb0`、store 源非 `rd0`
 5. multi load/store 的 `immu6 ≥ 1`
@@ -88,7 +88,7 @@
 
 ### 目标
 
-将访存向量按 RD/RB/RA 三 bank 重组为 `mem-rd`/`mem-rb`/`mem-ra`，并把访存 encoding 从「零地址/未预置基址的 unmapped 访问」重新设计为**合法可执行的 active 测试**。
+按 RD/RB/RA 三 bank 从零生成访存向量 `mem-rd`/`mem-rb`/`mem-ra`，且访存 encoding 一律设计为**合法可执行的 active 测试**（避免上一版「零地址/未预置基址的 unmapped 访问」）。
 
 ### 设计理由
 

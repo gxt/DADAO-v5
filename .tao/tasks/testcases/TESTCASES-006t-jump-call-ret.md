@@ -12,34 +12,38 @@
 ## 接口规范
 
 - 输入：
-  - `tests/vectors/isa/control-flow.yaml`（`TESTCASES-002t` 产出；`005t` 已拆走 `br.*`）
   - `tests/vectors/schema.md`（`TESTCASES-002t` 返工后：含 `expected_pc`）
   - `contracts/opcodes.yaml`（`jump`/`call`/`ret` 编码字段；`op=value>>24`、`ha=(value>>18)&0x3f`）
   - `.tao/knowledge/contract-isa.md` §5.3（无条件跳转）、§5.4（函数调用）、§5.5（函数返回）、§5.6（RegRAS 压栈/弹栈）、§1.3.4（RA 模型）、§9（RASOF/RASUF/IALIGN）
   - `.tao/knowledge/adr-0004-test-machine.md`（D2.1 复位 `ra0`–`ra63 = 0`；D6.5 `rb0` = 当前指令地址；D5.6 访问矩阵；D5.8 `0x87`）
+- **输入说明（陈旧引用修正）**：仓库内**无任何 `tests/vectors/isa/*.yaml`**——上一版 `002t` 的向量数据已随返工**一并丢弃**。本任务按 `schema.md` **从零生成** 3 个目标文件，**不是**重组/修复既有文件。
 - 输出（**本任务拥有的文件**，`tests/vectors/isa/`）：
   - `ctrl-jump.yaml`、`ctrl-call.yaml`、`ctrl-ret.yaml`
 - 约束：
   - 期望值**手工派生自 `contract-isa.md`/`spec/`/ADR-0004**，不得从 LLVM/QEMU 反推
   - 覆盖率主键 `(insn, format)`；M1 scope 以 `excluded_m1 != true` 为准
-  - **只动本任务三个目标文件与 `control-flow.yaml` 的 `jump`/`call`/`ret` 拆分**；**不改** `contracts/`；**不改** `ctrl-br`/`misc`/`reg-*`/`mem-*`
+  - **只生成/修改本任务 3 个目标文件**；**不改** `contracts/`；**不改** `ctrl-br`/`misc`/`reg-*`/`mem-*`
+  - 参考仓库（`.work/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
   - 完成后不自行 commit
 
 ## 任务范围
 
-### 1. 文件重组（旧 → 新；只描述目标）
+### 1. 目标文件集（从零生成）
 
-| 动作 | 内容 |
+> **数据来源说明**：仓库内**无既有向量数据**（上一版已丢弃），本任务按 `schema.md` 从零生成下列文件；不再有「旧文件 → 新文件」的重组动作。
+
+| 目标文件 | 覆盖身份 |
 |---|---|
-| 新建 `ctrl-jump.yaml` | 从 `control-flow.yaml` 拆出 `jump-iiii`/`jump-rrii` |
-| 新建 `ctrl-call.yaml` | 拆出 `call-iiii`/`call-rrii` |
-| 新建 `ctrl-ret.yaml` | 拆出 `ret-riii` |
-| 保留（交 `007t`） | `control-flow.yaml` 中的 `swym` 暂留，由 `007t` 移入 `misc.yaml` 并删除 `control-flow.yaml` |
+| `ctrl-jump.yaml` | `jump-iiii`/`jump-rrii`（2 个） |
+| `ctrl-call.yaml` | `call-iiii`/`call-rrii`（2 个） |
+| `ctrl-ret.yaml` | `ret-riii`（1 个） |
+
+- `br.*`（`005t`）与 `swym`（`007t`）不在本任务。
 
 ### 2. F7 方案 (i)：用 `expected_pc` 表达 PC 效果（本任务核心）
 
-- **事实**：`jump`/`call` 的语义只改 PC（`rb0`），`expected_state` 表达不了；`002t` 把 4 条 semantic（`jump-iiii`/`jump-rrii`/`call-iiii`/`call-rrii`）标为 deferred。
-- **裁决**：ADR-0004 D6.5 冻结 `rb0` = 当前指令地址（非自由变量）→ PC 效果**可算**。schema 新增 `expected_pc`（`002t`）→ **4 条全部改 active**，不再有 PC-only deferred。
+- **背景（上一版丢弃数据的教训）**：`jump`/`call` 的语义只改 PC（`rb0`），`expected_state` 表达不了；上一版把 4 条 semantic（`jump-iiii`/`jump-rrii`/`call-iiii`/`call-rrii`）标为 deferred。本任务从零生成时**直接 active**。
+- **裁决**：ADR-0004 D6.5 冻结 `rb0` = 当前指令地址（非自由变量）→ PC 效果**可算**。schema 新增 `expected_pc`（`002t`）→ **4 条生成即 active**，不再有 PC-only deferred。
 - **要求**：
   - `jump-iiii`：`Addr = rb0 + (imms24<<2)`；`expected_pc = Addr`（`contract-isa.md` §5.3）；
   - `jump-rrii`：`Addr = rbha + rdhb + (imms12<<2)`；`expected_pc = Addr`（`§5.3`）；
@@ -59,9 +63,9 @@
 - **依据**：ADR-0004 D6.5 冻结布局可算 `PC+4`；`ra` 在 `expected_state` 可观测（schema 已支持）。
 - **不得**把 PC 效果塞进 `expected_state`（PC 用 `expected_pc`）。
 
-### 4. `ret` 语义（已 active，复核）
+### 4. `ret` 语义（生成即 active，复核）
 
-- **事实**：`ret` 已 active（写 `rd` + 弹 RA，`contract-isa.md` §5.5/§5.6.2）。
+- **事实**：`ret` 语义可直接 active（写 `rd` + 弹 RA，`contract-isa.md` §5.5/§5.6.2），本任务生成后复核。
 - **要求**：复核 `ret-riii` 的 semantic 是否与 `expected_pc` 一致：
   - `ret rdha, imms18`：`rdha = sign_extend(imms18)`；`PC = ra63` 低 48 位（弹栈后）；`expected_pc = 弹出的返回地址`；
   - 弹栈后 `ra63` 的移位效果按 §5.6.2 推演并写入 `expected_state.ra`；
@@ -86,7 +90,7 @@
 5. `ret` semantic 复核通过：`rdha = sign_extend(imms18)`、`expected_pc` = 弹出返回地址、弹栈移位效果写入 `expected_state.ra`
 6. `jump`/`call` 的 encoding 经推演确认可解码执行无 fault（不 ILLI/不自跳/unmapped）；`ret-riii` 不生成 encoding 且 inventory 标注理由（布局限制）
 7. legality 齐备：`jump-rrii`/`call-rrii` → `UNMAPPED`；`ret-riii` 冷 RA → `RASUF`；`call` 溢出 → `RASOF`（如适用）
-8. 未改 `contracts/`；未动 `ctrl-br`/`misc`/`reg-*`/`mem-*`；`control-flow.yaml` 仅剩 `swym`（交 `007t`）
+8. 未改 `contracts/`；未生成/未改动 `ctrl-br`/`misc`/`reg-*`/`mem-*`
 9. `python3 tools/testcases/validate_vectors.py` 零错误；`make check` PASS
 10. （下游）QEMU harness 就绪后，active 测试全 PASS；记录该运行验收依赖
 11. 未自行 commit
@@ -95,12 +99,12 @@
 
 ### 目标
 
-把无条件跳转/调用/返回独立为 `ctrl-jump`/`ctrl-call`/`ctrl-ret`，并用 `expected_pc` + `expected_state.ra` 把 PC 与 RA 效果都变成可断言的 active 向量，消除 F7 的 PC-only deferred 缺口。
+从零生成 `ctrl-jump`/`ctrl-call`/`ctrl-ret`，并用 `expected_pc` + `expected_state.ra` 把 PC 与 RA 效果都变成可断言的 active 向量，消除 F7 的 PC-only deferred 缺口。
 
 ### 设计理由
 
 - `expected_pc`（F7 方案 (i)）使「只改 PC」的指令可断言；`call` 的 RA 压栈本就可在 `expected_state.ra` 观测，故 F7 的 5 条全部可 active。
-- `ret` 已 active，本任务复核其 `expected_pc`/弹栈效果。
+- `ret` 语义可直接 active，本任务复核其 `expected_pc`/弹栈效果。
 
 ### 关键概念 / 数据
 
@@ -127,7 +131,7 @@
 1. **`imm=1` 避免自跳**；`jump-rrii`/`call-rrii` 用 `rb0` 基址 + `imms12=1`。
 2. **`call` 的返回地址 = PC+4**（`rb0` = 当前指令地址）。
 3. **`ret-riii` 无 encoding**：返回目标依赖布局，单指令不可构造；覆盖率由 semantic/legality 满足（非恒 fault）。
-4. **`ret` 弹栈移位**：§5.6.2 case 2 的 shift-down 语义须逐条推演（002t 曾按 shift-down 推出 `ra63` 变无效）。
+4. **`ret` 弹栈移位**：§5.6.2 case 2 的 shift-down 语义须逐条推演（上一版曾按 shift-down 推出 `ra63` 变无效）。
 5. **不自行 commit**：完成后等待审查。
 
 ## 参考

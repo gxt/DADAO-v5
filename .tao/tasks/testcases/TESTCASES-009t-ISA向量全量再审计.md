@@ -47,7 +47,7 @@
 
 ### 2. 文件布局一致性
 
-- 确认 `tests/vectors/isa/` 只含**目标文件集**，旧文件（`rd-arith`/`rd-logic`/`rd-shift-extend`/`rd-compare`/`rd-cond-assign`/`rd-imm-block`/`rd-load-store`/`rb-ops`/`ra-ops`/`control-flow`）已全部消失。
+- 确认 `tests/vectors/isa/` 只含**目标文件集**（数据从零生成，无任何旧文件/历史文件混入）。
 - 同步 `inventory.md` 的 `file` 列与最终文件布局一致（F2/F3 的 inventory 同步校验须通过）。
 
 ### 3. 问题类别核对（0628 清单，v5 按 0.5.3 重查）
@@ -65,11 +65,12 @@
 2. 全部 `encoding.word` 与 `contracts/opcodes.yaml` 的 `(word & mask) == value` 一致
 3. `input_state` 中无 `rd0`/`rb0` 条目
 4. 期望值按 0.5.3 语义（含 RB 全 64 位、`expected_pc`）逐条手算且自洽；**F1/F10/F7 覆盖项不重复改**
-5. `tests/vectors/isa/` 只含目标文件集；旧文件已全部删除；`inventory.md` `file` 列与之一致
+5. `tests/vectors/isa/` 只含目标文件集（数据从零生成，无旧/历史文件）；`inventory.md` `file` 列与之一致
 6. deferred 向量有明确 `deferred_reason`；无法确定处标 `[OPEN]` 并在完成区列出
-7. `python3 tools/testcases/validate_vectors.py` 零错误、`178/178` 覆盖；`make check` PASS
-8. 每处修正可回溯到合约章节
-9. 未自行 commit
+7. **数据级覆盖率（本任务兜底门控）**：对全部 `isa/*.yaml` 机械核验——M1 scope 内**每个 `(insn, format)` 至少有 1 条 `status: active` 的对应 class case**；缺失须报错/记录。**不得仅以 `validate_vectors.py` 输出的 `178/178` 作为数据覆盖判据**（该数字为 inventory 声明级：inventory 行集 == `opcodes.yaml` M1 身份集，实测零数据/仅 1 条 case 亦输出 `178/178`）。
+8. `python3 tools/testcases/validate_vectors.py` 零错误；`make check` PASS
+9. 每处修正可回溯到合约章节
+10. 未自行 commit
 
 ## 背景（完整）
 
@@ -81,6 +82,7 @@
 
 - 0628 DL-027a 表明：review 通过后仍存在成批数据错误；v5 的 F1（`orrr` 移位/扩展 40 条期望值全错）正是同类问题的再现，且 reviewer 因**抽样偏差**未发现。
 - 因此仅修 F1/F10 不够，须对整个向量集做一次系统性重推导；本任务作为**兜底**，覆盖各数据任务的范围边界之外与跨族交互。
+- **数据级覆盖率兜底（交叉复核补充）**：`002t` 的 `validate_vectors.py` 覆盖率为**声明级**（inventory 行集 == `opcodes.yaml` M1 身份集），**不校验数据**；本任务须补上数据级覆盖的机械核验（见验收标准 7），否则存在「声明完整但数据从未被机械校验」的空档。
 
 ### 上游引用
 

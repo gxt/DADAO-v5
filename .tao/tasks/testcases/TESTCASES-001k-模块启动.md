@@ -37,7 +37,7 @@ DADAO-v5 的 TDD 合约要求：在任何 LLVM/QEMU 实现字节被写入之前�
 | `TESTCASES-004t` | load/store（RD/RB/RA 三 bank） | `mem-rd` `mem-rb` `mem-ra` | 访存 encoding 的地址/base/count 语义（F10）；本任务文件修复 | `003t` | 待开始 |
 | `TESTCASES-005t` | 控制转移 `br.*` | `ctrl-br` | taken / not-taken 全测（用 `expected_pc`）；F10 | `002t`（默认串行时排 `004t` 后） | 待开始 |
 | `TESTCASES-006t` | `jump`/`call`/`ret` | `ctrl-jump` `ctrl-call` `ctrl-ret` | 用 `expected_pc` 表达 PC 效果；`call` 的 RA 压栈用 `ra` 表达；F7 全 active；F10 | `005t` | 待开始 |
-| `TESTCASES-007t` | misc | `misc` | `swym`/`illi`/`fence`（`swym` 从 `control-flow.yaml` 移入）；F10 | `006t` | 待开始 |
+| `TESTCASES-007t` | misc | `misc` | `swym`/`illi`/`fence`（从零生成）；F10 | `006t` | 待开始 |
 | `TESTCASES-008t` | 保留编码 → UNDI（**F5**） | 新文件 + `schema.md`/`validate_vectors.py`/`inventory.md` | 保留编码的向量层表达（**方案 A**：复用 `class: legality` + `encoding.reserved: true`；取舍已记录，**不立 ADR**） | `002t` | 待开始 |
 | `TESTCASES-009t` | ISA 向量全量再审计（兜底） | 全部 `isa/*.yaml` + `inventory.md` | 残留错误 | `003t`~`008t` | 待开始 |
 | `TESTCASES-010m` | 里程碑 | — | 核验门槛含 F1/F5/F6/F7/F10 | 全部 | 待开始 |
@@ -54,7 +54,9 @@ DADAO-v5 的 TDD 合约要求：在任何 LLVM/QEMU 实现字节被写入之前�
 >
 > **编号复用说明**：`004t`/`005t`/`006t` 三个编号在本次最终重排中被**复用为新任务**（load/store、`br.*`、`jump`/`call`/`ret`），见上表；不再对应旧范围。
 
-- **文件拆分映射（旧 → 新，`tests/vectors/isa/`）**：
+- **文件拆分映射（历史：旧 → 新，`tests/vectors/isa/`）**：
+  > **注（2026-09-15 交叉复核）**：下表描述的「旧文件」属**上一版已丢弃**的 `002t` 交付，仓库内**已不存在**（`git ls-files tests/` = 0）。`003t`~`007t` 的向量数据改为**从零生成**（见各任务书「输入说明 / 数据来源说明」）；本表仅保留目标文件集的归口关系，**不再表示实际的重组动作**。
+
   | 旧文件 | 去向 |
   |---|---|
   | `rd-arith.yaml` | `reg-arith.yaml`（保留 add/sub/mul/div/rem + `add.si-rd/rb` + `rela.si-rb`）；`cmp.*` 移入 `reg-compare.yaml` |
@@ -72,10 +74,10 @@ DADAO-v5 的 TDD 合约要求：在任何 LLVM/QEMU 实现字节被写入之前�
   目标文件集（14 个）：`reg-arith` `reg-logic` `reg-shift-extend` `reg-compare` `reg-cond-assign` `reg-imm-block` `mem-rd` `mem-rb` `mem-ra` `ctrl-br` `ctrl-jump` `ctrl-call` `ctrl-ret` `misc`。
 
 - **依赖关系与下发建议**：
-  - 硬串行链（共享**源文件**，必须按序）：`002t → 003t → 004t`（`rb-ops.yaml`/`ra-ops.yaml` 被 `003t` 与 `004t` 先后消费）；`005t → 006t → 007t`（`control-flow.yaml` 被三者先后消费，`007t` 最后删除）。
-  - `002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010m` 为**推荐默认全串行**：除源文件外，`inventory.md`（含 `file` 列）与 `schema.md`/`validate_vectors.py` 亦为多任务共享，串行最稳。
-  - **可并行候选**：`{003t→004t}` 与 `{005t→006t→007t}` 的目标文件集互不相交，**若** `inventory.md` 由 `002t` 提供生成脚本、各任务只重生成不手改，则两链可并行；`008t` 只碰 `schema.md`/`validate_vectors.py`/新文件，亦可与数据链并行。M1 建议先用默认串行，降低冲突风险。
-- **分解理由**：`002t` 先冻结 schema（含 `expected_pc`）、inventory、validator（消除 F2/F3/F6/F9 类错误对 `make check` 的不可见性）；随后按运算族重组并修复数据（F1/F10/F7），最后全量再审计（`009t`）兜底残留。
+  - 串行链（共享 **`inventory.md`**，须按序）：数据从零生成后，各任务**不再共享源文件**，但均需手改 `inventory.md` 的 `file` 列（`002t` 未交付 inventory 生成脚本）→ `002t → 003t → 004t → 005t → 006t → 007t` 依次执行，避免 `inventory.md` 冲突。
+  - `002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010m` 为**推荐默认全串行**：`inventory.md`（含 `file` 列）与 `schema.md`/`validate_vectors.py` 为多任务共享，串行最稳。
+  - **并行前提不成立**：目标文件集互不相交，但 `inventory.md` 无生成脚本、需手改（`002t` 采用 R2 方案 A，`gen_inventory.py` 仅在 `/tmp` 一次性使用、未进仓库）→ 并行前提不成立；M1 采用默认全串行。`008t` 只碰 `schema.md`/`validate_vectors.py`/新文件，本可与数据链并行，但仍受 `inventory.md` 手改约束，建议串行。
+- **分解理由**：`002t` 先冻结 schema（含 `expected_pc`）、inventory、validator（消除 F2/F3/F6/F9 类错误对 `make check` 的不可见性）；随后按运算族**从零生成**数据（F1/F10/F7 为生成时须满足的要求），最后全量再审计（`009t`）兜底残留。
 
 ## 说明
 

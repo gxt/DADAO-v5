@@ -13,10 +13,9 @@
 - 各任务产出的文件是否都存在：
   - `tests/vectors/schema.md`、`tests/vectors/inventory.md`、`tests/vectors/README.md`
   - `tests/vectors/isa/` 目标文件集：`reg-arith`/`reg-logic`/`reg-shift-extend`/`reg-compare`/`reg-cond-assign`/`reg-imm-block`/`mem-rd`/`mem-rb`/`mem-ra`/`ctrl-br`/`ctrl-jump`/`ctrl-call`/`ctrl-ret`/`misc`（+ `008t` 保留编码文件）
-  - 旧文件已全部消失：`rd-arith`/`rd-logic`/`rd-shift-extend`/`rd-compare`/`rd-cond-assign`/`rd-imm-block`/`rd-load-store`/`rb-ops`/`ra-ops`/`control-flow`
+  - 数据从零生成，`tests/vectors/isa/` 只含目标文件集（无任何旧/历史文件混入）
   - `tools/testcases/validate_vectors.py`、`Makefile`（`check` 含 `validate-vectors`）
-- `python3 tools/testcases/validate_vectors.py` 零错误且覆盖率输出为 M1 scope 全覆盖（178/178）
-- `make check` PASS
+- **数据级覆盖（机械可验，缺一不得置 `里程碑`）**：M1 scope 内**每个 `(insn, format)` 在 `tests/vectors/isa/*.yaml` 中至少有 1 条 `status: active` 的对应 class case**（由 `009t` 验收标准 7 核验）；`python3 tools/testcases/validate_vectors.py` 零错误、`make check` PASS。**不得仅以 validator 输出的 `178/178` 作为数据覆盖判据**（该数字为 inventory 声明级：inventory 行集 == `opcodes.yaml` M1 身份集，实测零数据/仅 1 条 case 亦输出 `178/178`）。
 - **覆盖率主键与 scope 自洽**：validator 以 `(insn, format)` 为身份、以 `excluded_m1` 为 scope 判据；M1 内的 RA 存取/块赋值（`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`/`ra2rd`/`rd2ra`）与 `swym`/`illi`/`fence` 均被计入
 - **测试机语义自洽**：`expected_fault` 可表达 ADR-0004 D5.8 的 `UNMAPPED`（`0x87`）；`ret` 冷 RA 的期望为 `RASUF`（非 ILLI）；相对控制流立即数用 `imm=1`（`rb0`=当前指令地址，ADR-0004 D6.5）
 - **inventory 自洽**：inventory 含 `format` 列、M1 行集与 `opcodes.yaml` 一致（F2/F3），`file` 列与最终布局一致
@@ -24,7 +23,7 @@
 ## 【2026-09-15 最终裁决·阻断】F1/F5/F6/F7/F10 处置核验（缺一不得置 `里程碑`）
 
 - **F1**：`orrr` 的 `shl`/`shr`/`ext`（20 身份）semantic/boundary 期望值已按**寄存器形式**重算，`input_state` 预置 shamt 寄存器（`003t`）；validator 的「src 字段寄存器必被预置」守卫（`003t`）生效且零误报。
-- **F10**：全部 encoding 向量经语义推演确认「可解码执行无 fault」（不 ILLI/不自跳/unmapped/RASUF）；访存 encoding 的 base/地址/count 合法（`004t`），其余各文件由 `003t`~`007t` 分别修复。
+- **F10**：全部 encoding 向量经语义推演确认「可解码执行无 fault」（不 ILLI/不自跳/unmapped/RASUF）；访存 encoding 的 base/地址/count 合法（`004t`），其余各文件由 `003t`~`007t` 分别生成时即须满足。
 - **F5**：`UNDI`（保留编码）可在向量层表达并有 ≥1 active 向量 + validator 支持（`008t`，方案 A：复用 `class: legality` + `encoding.reserved: true`；已记录取舍，不立 ADR）。
 - **F6**：`schema.md` 已澄清 encoding 类对**恒 fault 指令**（`illi`）豁免；`ret-riii` 的 encoding 缺省另因「返回目标依赖 harness 布局」（**非**恒 fault），二者在 inventory 均显式标注且理由正确（`002t`/`006t`/`007t`）。
 - **F7**：`rela.si-rb` semantic 已 active（`003t`）；`jump-iiii`/`jump-rrii`/`call-iiii`/`call-rrii` 4 条经 **`expected_pc`** 方案全部改 active（`006t`）；`br.*` taken/not-taken 全覆盖（`005t`）；**无 PC-only deferred 残留**。

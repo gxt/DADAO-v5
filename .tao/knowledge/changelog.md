@@ -26,3 +26,5 @@
 | 2026-09-14 | SPEC-009t：QFC 覆盖校验（`tools/spec/check_qfc_coverage.py`；QFC 表 ↔ `contracts/opcodes.yaml` 双向比对，256/256 差异 0，只读 informational） | engineer |
 | 2026-09-14 | SPEC-010t：Spec 冻结（`docs/impact-matrix.md` 逐节覆盖 + `README.md` 冻结状态标 `已冻结`）；`contract-elf.md` Status → Accepted | engineer |
 | 2026-09-14 | SPEC-011m：M1 spec 里程碑达成（`002t`~`010t` 已验证，合约/编码表/ADR/impact-matrix 齐备） | architect |
+| 2026-09-15 | TESTCASES 任务集二次重排：按运算族/load-store/控制转移/jump-call-ret/misc 分解为 `002t`~`009t`+`010m`；文件布局方案 A（14 个 `isa/*.yaml`）；F1→`003t`、F10 分摊、F5→`008t`、F7 采用 `expected_pc` 方案全 active；旧 `004t`/`005t`/`006t` 已达成关闭（证据见 `001k`） | architect |
+| 2026-09-15 | TESTCASES-002t 返工（从零重建向量基础设施）：`schema.md` 新增可选 `expected_pc` + encoding 类对恒 fault 指令（`illi`）豁免；`inventory.md` 增 `format` 列（178 行唯一可辨）+ 机械同步；`validate_vectors.py` 补 R2/R4/F9②③④；覆盖率门控改为**声明级**（数据级归 `009t`） | engineer |

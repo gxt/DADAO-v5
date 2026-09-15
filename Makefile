@@ -21,7 +21,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
 .DEFAULT_GOAL := help
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
-        clean-work build-mc build-qemu build-gem5 docker-image docker-shell check
+        clean-work build-mc build-qemu build-gem5 docker-image docker-shell check \
+        validate-vectors
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -45,6 +46,7 @@ help:
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
 	@echo "  make clean-work      Remove generated .work content only"
+	@echo "  make validate-vectors  Validate tests/vectors schema/inventory/coverage"
 	@echo "  make check           Run repository-level structural checks"
 
 manifest-check:
@@ -114,6 +116,11 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check
+check: manifest-check validate-vectors
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
+
+# Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1
+# encoding table (contracts/opcodes.yaml) to exist.
+validate-vectors: contracts/opcodes.yaml
+	@$(PYTHON) tools/testcases/validate_vectors.py

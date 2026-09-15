@@ -29,9 +29,12 @@
 - **F5 — `UNDI`（保留编码）的向量层表达（已改由 `TESTCASES-008t` 承载）**：`UNDI` 触发条件是执行 QFC/子表空白单元格（保留编码），而 `contracts/opcodes.yaml` 只含已定义编码、保留编码无 `(insn, format)` 身份 → 与 validator 检查 7/8 冲突。`008t` 落地**方案 A**（复用 `class: legality` + `encoding.reserved: true`；取舍已记录，不立 ADR）。注意：全零字 `0x00000000` 是 `illi` → **ILLI**，非 UNDI（§8.3）。
 - **F6 — `encoding` 类对恒 fault 指令豁免**：`encoding` 定义为「可解码执行无 fault」，故**恒 fault** 指令不可构造 null-fault 单指令 encoding case——`illi`（恒 ILLI，§9.1）。该指令**豁免** encoding 类，覆盖率由 `legality` active 满足，inventory 显式标注（`002t` schema 澄清、`007t` 复核）。附带：`ret-riii` 亦无 encoding case，但**理由不同**（**非**恒 fault，返回目标依赖 harness 布局），由 `006t` 处理。
 - **F9① 结果级语义期望值重算（deferred → golden model）**：schema validator 只能做「字段引用寄存器必被预置」等**机械不变量**校验；**结果级**语义期望值重算需独立 oracle，属 **golden model** 模块（`golden`），不在 testcases 模块内。（机械守卫本身由 `003t` 与 F1 同任务落地，不属 deferred。）
+- **覆盖率门控分层（`002t` 设计变更，2026-09-15 交叉复核登记）**：`002t` 的 `tools/testcases/validate_vectors.py` 覆盖率为**声明级**——校验 `inventory.md` 的 M1 行集与 `contracts/opcodes.yaml` 的 M1 身份集一致（无缺/无多/无重复），且每行至少声明一类覆盖；**空树输出 `178/178`**（实测零数据文件、甚至仅 1 条 case 也输出 `178/178`）。**数据级覆盖率（每个 `(insn, format)` ≥1 条 active case）不在该 validator 内**，归属 `003t`~`007t` 各自验收 + `009t` 兜底（判据见 `TESTCASES-009t` 验收标准 7 与 `TESTCASES-010m` 核验项）。这是为避开「本任务不含数据 vs `make check` 必须全绿」冲突所做的妥协，**非门控取消**；但**不得把 `178/178` 误读为数据已覆盖**。
+- **并行前提不成立（`002t` 未交付 inventory 生成脚本）**：`001k` 的并行化建议以「`002t` 提供 inventory 生成脚本、各任务只重生成不手改」为前提；`002t` 采用 R2 方案 A（validator 校验 inventory），`gen_inventory.py` 仅在 `/tmp` 一次性使用、**未进入仓库**。故各数据任务须手改 `inventory.md` → 下游**默认全串行**（`002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010m`）。
+- **数据已随上一版 `002t` 一并丢弃（陈旧引用修正）**：仓库内**无任何 `tests/vectors/isa/*.yaml`**（`git ls-files tests/` = 0）。`003t`~`007t` 的向量数据须**从零生成**（依据 `002t` 的 `schema.md` + `contracts/opcodes.yaml` + `contract-isa.md`/ADR-0004）；`001k`/`003t`~`007t`/`009t`/`010m` 任务书中的「重组旧文件 / 修复现有向量」引用已同步删除（旧→新映射保留为历史说明）。
 - **跨模块影响（待处置）**：本次重排改变了 `TESTCASES-003t`/`006t`/`008t` 的**含义**，`qemu` 模块任务书存在**陈旧引用**，须同步：
   - `QEMU-012t`（branch PC 公式 + call RA 修复）依赖 `TESTCASES-008t`（旧=控制流向量）→ 现控制流向量在 `005t`/`006t`；
-  - `QEMU-017t`（分支语义 harness）依赖 `TESTCASES-008t`，并引用 `control-flow.yaml` 的 deferred semantic 桩 → 现 `control-flow.yaml` 拆为 `ctrl-br`/`ctrl-jump`/`ctrl-call`/`ctrl-ret`，且 F7 已全部 active（不再有 PC-only deferred 桩）；
+  - `QEMU-017t`（分支语义 harness）依赖 `TESTCASES-008t`，并引用 `control-flow.yaml` 的 deferred semantic 桩 → 现控制流向量**从零生成**于 `ctrl-br`/`ctrl-jump`/`ctrl-call`/`ctrl-ret`（不再有 `control-flow.yaml`），且 F7 已全部 active（不再有 PC-only deferred 桩）；
   - `QEMU-001k` 表中 `014t` 依赖 `TESTCASES-003t`、`016t` 依赖 `TESTCASES-006t`、`017t` 依赖 `TESTCASES-008t` —— 依赖编号含义已变，须重核；
   - 处置二选一：**修改上述 qemu 任务书的依赖/引用**，或**新增跨模块接口对齐任务**（`integ` 或 testcases 交互任务）。处置前 `TESTCASES-010m` 的跨模块影响项不得判为已清。
 

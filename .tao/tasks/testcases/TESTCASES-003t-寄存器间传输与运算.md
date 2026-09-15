@@ -12,43 +12,43 @@
 ## 接口规范
 
 - 输入：
-  - `tests/vectors/isa/rd-arith.yaml`、`rd-logic.yaml`、`rd-shift-extend.yaml`、`rd-compare.yaml`、`rd-cond-assign.yaml`、`rd-imm-block.yaml`（`TESTCASES-002t` 产出的现有向量）
-  - `tests/vectors/isa/rb-ops.yaml` 的 `add.so-rb`/`sub.so-rb`；`ra-ops.yaml` 的 `ra2rd`/`rd2ra`
-  - `tests/vectors/schema.md`（`TESTCASES-002t` 返工后：含 `expected_pc`、encoding 豁免）
+  - `tests/vectors/schema.md`（`TESTCASES-002t` 返工后：含 `expected_pc`、encoding 豁免；向量字段/class/deferred/覆盖规则）
   - `contracts/opcodes.yaml`（`op`/`mask`/`value`/`fields`；无独立 `ha` 字段，`ha=(value>>18)&0x3f`）
   - `contracts/legality_rules.yaml`（`rd_dest_rd0`/`rb_dest_rb0`/`multi_immu6_zero` 等）
   - `.tao/knowledge/contract-isa.md` §3（数据类：算术/逻辑/移位扩展/比较/条件赋值/立即数与块赋值）、§2（编码/字段）、§9.1（ILLI）
   - `.tao/knowledge/adr-0004-test-machine.md`（D6.5 `rb0`=当前指令地址）
+- **输入说明（陈旧引用修正）**：仓库内**无任何 `tests/vectors/isa/*.yaml`**——上一版 `002t` 的向量数据已随返工**一并丢弃**，`002t` 只交付 `schema.md`/`inventory.md`/`validator`。本任务的向量数据**从零生成**（依据 `schema.md` + `contracts/opcodes.yaml` + `contract-isa.md`/ADR-0004），**不是**重组/修复既有文件。
 - 输出（**本任务拥有的文件**，`tests/vectors/isa/`）：
   - `reg-arith.yaml`、`reg-logic.yaml`、`reg-shift-extend.yaml`、`reg-compare.yaml`、`reg-cond-assign.yaml`、`reg-imm-block.yaml`
 - 约束：
   - 期望值**手工派生自 `contract-isa.md`/`spec/`/ADR-0004**，不得从 LLVM/QEMU 反推
   - 覆盖率主键 `(insn, format)`；M1 scope 以 `excluded_m1 != true` 为准
-  - **只动本任务拥有的目标文件与所涉源文件的拆分**；**不改** `contracts/`；**不改** `mem-*`/`ctrl-*`/`misc` 目标文件
+  - **只生成/修改本任务拥有的 6 个目标文件**；**不改** `contracts/`；**不改** `mem-*`/`ctrl-*`/`misc` 目标文件
+  - 参考仓库（`.work/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
   - 完成后不自行 commit
 
 ## 任务范围
 
-### 1. 文件重组（旧 → 新；只描述目标，拆分动作在实现时执行）
+### 1. 目标文件集（从零生成；方案 A 的寄存器族子集）
 
-| 动作 | 内容 |
+> **数据来源说明**：仓库内**无既有向量数据**（上一版已丢弃），本任务按 `schema.md` 从零生成下列文件；不再有「旧文件 → 新文件」的重组动作。
+
+| 目标文件 | 覆盖身份 |
 |---|---|
-| 新建 `reg-arith.yaml` | `rd-arith.yaml` 的 **add/sub/mul/div/rem 全位宽** + `add.si-rd`/`add.si-rb` + `rela.si-rb`；并入 `rb-ops.yaml` 的 `add.so-rb`/`sub.so-rb` |
-| 新建 `reg-logic.yaml` | `rd-logic.yaml` 改名（and/or/xor/xnor） |
-| 新建 `reg-shift-extend.yaml` | `rd-shift-extend.yaml` 改名（shl/shr/ext） |
-| 新建 `reg-compare.yaml` | `rd-compare.yaml` + `rd-arith.yaml` 中的 `cmp.*`（合并去重，见下） |
-| 新建 `reg-cond-assign.yaml` | `rd-cond-assign.yaml` 改名（cs.*） |
-| 新建 `reg-imm-block.yaml` | `rd-imm-block.yaml` + `ra-ops.yaml` 的 `ra2rd`/`rd2ra`（set.zw/set.ow/or.w/andn.w + rd2rd/rb2rb/rb2rd/rd2rb/ra2rd/rd2ra） |
-| 删除 | `rd-arith.yaml`、`rd-logic.yaml`、`rd-shift-extend.yaml`、`rd-compare.yaml`、`rd-cond-assign.yaml`、`rd-imm-block.yaml` |
-| 保留（交 `004t`） | `rb-ops.yaml`（仅剩 `ld.o-rb`/`st.o-rb`/`ldm.o-rb`/`stm.o-rb`）、`ra-ops.yaml`（仅剩 `ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`） |
+| `reg-arith.yaml` | `add`/`sub`/`mul`/`div`/`rem` 全位宽（RD/RB/立即数）+ `add.si-rd`/`add.si-rb`/`rela.si-rb` + `add.so-rb`/`sub.so-rb` |
+| `reg-logic.yaml` | `and`/`or`/`xor`/`xnor` 全位宽（`.b`/`.w`/`.t`/`.o`） |
+| `reg-shift-extend.yaml` | `shl`/`shr`/`ext` 全位宽（`orrr`/`orri`） |
+| `reg-compare.yaml` | `cmp.*`（`cmp.uo`/`cmp.so`/`cmp.ut`/`cmp.st`/`cmp.uw`/`cmp.sw`/`cmp.ub`/`cmp.sb`/`cmp.uo-rb`/`cmp.ui-rd`/`cmp.si-rd`） |
+| `reg-cond-assign.yaml` | `cs.*`（`cs.n-rd`/`cs.z-rd`/`cs.p-rd`/`cs.eq-rd`/`cs.ne-rd`） |
+| `reg-imm-block.yaml` | `set.zw`/`set.ow`/`or.w`/`andn.w`（RD/RB 变体）+ 块赋值 `rd2rd`/`rb2rb`/`rb2rd`/`rd2rb`/`ra2rd`/`rd2ra` |
 
-- **`cmp.*` 去重**：`rd-arith.yaml` 与 `rd-compare.yaml` 均含 `cmp.ub`/`cmp.uo`/`cmp.sw`/`cmp.ut`/`cmp.uw`；并入 `reg-compare.yaml` 时按 `(insn, format, class)` 去重，冲突时以合约手算为准保留其一，不得产生重复身份。
-- **拆分边界**：从 `rb-ops.yaml`/`ra-ops.yaml` 只**移出**本任务归属的 case，不得删除/改动其中的访存 case（归 `004t`）。
+- **`cmp.*` 归口**：全部 `cmp.*` 身份归 `reg-compare.yaml`，**不**在 `reg-arith.yaml` 中重复；按 `(insn, format, class)` 唯一，不得产生重复身份。
+- **文件边界**：本任务只生成上表 6 个文件；访存（`mem-*`，归 `004t`）与 `ctrl-*`/`misc`（归 `005t`~`007t`）不在本任务。
 
 ### 2. F1【阻断】`orrr` 移位/扩展向量修复（本任务核心）
 
-- **现象**：`shl`/`shr`/`ext` 的 `orrr` 形式把 shamt **字面值**写进 `rdhd`。`contracts/opcodes.yaml` 声明该字段 `bank: rd`、`role: src`；`spec/SimRISC-01:347` 明确「移位量（shamt）取 `rdhd` 的低位（**寄存器形式，`orrr`**）」。
-- **影响面**：`(insn, orrr)` 身份 **20 个**——`ext`×8 + `shr`×8 + `shl`×4；带 `expected_state` 的 **40 条**（semantic 20 + boundary 20）期望值**全错**。
+- **背景（上一版丢弃数据的教训，本任务生成时须避免）**：`shl`/`shr`/`ext` 的 `orrr` 形式曾把 shamt **字面值**写进 `rdhd`。`contracts/opcodes.yaml` 声明该字段 `bank: rd`、`role: src`；`spec/SimRISC-01:347` 明确「移位量（shamt）取 `rdhd` 的低位（**寄存器形式，`orrr`**）」。本任务从零生成时**必须**按寄存器形式。
+- **影响面**：`(insn, orrr)` 身份 **20 个**——`ext`×8 + `shr`×8 + `shl`×4；涉及 **40 条**（semantic 20 + boundary 20）期望值。
 - **修复要求**：
   1. `encoding.word` 的 `rdhd`（bits[5:0]）写**寄存器号**（源），并在 `input_state.rd` 预置该寄存器为 shamt 值；
   2. shamt 取值落在该指令 `N` 的有效范围（§3.4.1 表），**且 ≤ N**，使「取低位」与「整值判 `shamt>N`」两种读法结论一致；不得用触发 ILLI 的越界值；
@@ -59,16 +59,16 @@
 - **内容溯源（非执行依赖）**：`.work/DADAO-0628/tests/vectors/isa/rd-shift-extend.yaml` 用寄存器形式（`shlu rd3,rd1,rd2`，预置 `rd2`）。
 - **验收证据**：逐条列出 `input_state` 中 shamt 寄存器值 + 手算结果 + `spec_cite`。
 
-### 3. F7：`rela.si-rb` semantic 改 active
+### 3. F7：`rela.si-rb` semantic 直接 active（从零生成）
 
 - **依据**：`rela.si` 结果 = `(PC & ~0xfff) + (imms18<<12)` 写入 `rbha`，`rbha[63:48]` 保持（`contract-isa.md` §3.7 / `SimRISC-02 §PC相对寻址`）；ADR-0004 D6.5 冻结 `rb0` = **当前指令地址**（非自由变量）→ 期望值可算。
-- **要求**：`reg-arith.yaml` 的 `rela.si-rb` semantic 改 `status: active` + `expected_state`（`rb2` 新值）+ `deferred_reason: null`；`spec_cite` 指 `SimRISC-02 §PC相对寻址`（+ ADR-0004 D6.5）；`notes` 写明所用 PC 地址及其布局来源。**不得猜测**地址。
+- **要求**：`reg-arith.yaml` 的 `rela.si-rb` semantic **生成即** `status: active` + `expected_state`（`rb2` 新值）+ `deferred_reason: null`；`spec_cite` 指 `SimRISC-02 §PC相对寻址`（+ ADR-0004 D6.5）；`notes` 写明所用 PC 地址及其布局来源。**不得猜测**地址。
 - `rela.si` **不写 PC**（PC 由 `rb0` 提供、非本指令改变），故本任务**不使用** `expected_pc`；`expected_pc` 只用于 `005t`/`006t`。
 
-### 4. F10：本任务文件的 encoding 向量修复
+### 4. F10：本任务文件的 encoding 向量（生成时即须可执行无 fault）
 
-- **现象**：现有 `class: encoding` 向量的 `word` 等于 `opcodes.yaml` 的 `value`（操作数字段全 0），对 `encoding` 类定义「可解码执行**无 fault**」而言**不可执行**（如 `add.uo-rd` word=`0x50000000` → `rdha=rdhb=0` → ILLI）。
-- **要求**：逐条修正本任务文件（`reg-*` 六个文件）中的 encoding 向量，使 `word` 满足 `(word & mask) == value` 且操作数字段取**最小合法值**、必要寄存器已预置，从而可解码执行且不触发任何 fault。
+- **背景（上一版丢弃数据的教训）**：上一版 `class: encoding` 向量的 `word` 等于 `opcodes.yaml` 的 `value`（操作数字段全 0），对 `encoding` 类定义「可解码执行**无 fault**」而言**不可执行**（如 `add.uo-rd` word=`0x50000000` → `rdha=rdhb=0` → ILLI）。
+- **要求**：生成本任务文件（`reg-*` 六个文件）的 encoding 向量时，`word` 须满足 `(word & mask) == value` 且操作数字段取**最小合法值**、必要寄存器已预置，从而可解码执行且不触发任何 fault。
 - **字段规则**（依据 `contract-isa.md` §2.1/§2.2、§3、§9.1 与 `legality_rules.yaml`）：
   - `word = (op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd`；`op=value>>24`、`ha=(value>>18)&0x3f`；
   - **写 RD 为目的**用 1（`rd0` 为目的 → ILLI）；**写 RB 为目的**用 1（`rb0` 为目的 → ILLI）；**源寄存器**用 0；**立即数**用 0；**wyde-position** 用 0；**count（rrri）**用 1（=0 → ILLI）；
@@ -80,34 +80,35 @@
 
 ### 5. 机械守卫（F9①，与 F1 同任务落地）
 
-> 说明：F9①（「active semantic/boundary 的 src 字段寄存器必被预置」守卫）与 F1 数据修复同属一处根因。为使其落地后**不产生红树**，将该守卫的实现放入本任务（`002t` 只做 F9②③④ 等基础设施）；本任务在修完 F1 数据后，向 `tools/testcases/validate_vectors.py` 追加该守卫并验证其通过。
+> 说明：F9①（「active semantic/boundary 的 src 字段寄存器必被预置」守卫）与 F1 数据修复同属一处根因。为使其落地后**不产生红树**，将该守卫的实现放入本任务（`002t` 只做 F9②③④ 等基础设施）；本任务在生成 F1 数据后，向 `tools/testcases/validate_vectors.py` 追加该守卫并验证其通过。
 
 - **通用守卫**：解析 `opcodes.yaml` 每条记录的 `fields`；对每条 **active semantic/boundary** case，word 中 `bank ∈ {rd,rb,ra}` 且 `role: src` 的字段所引用的寄存器（`rd0`/`rb0` 除外）必须已在 `input_state` 对应 bank 预置；未预置即报错。
 - **定向守卫**：对 `format: orrr` 的 `shl`/`shr`/`ext`，shamt 寄存器（`word & 0x3f`）必须已预置，且其值 ≤ 该指令 `N`。
-- **反造假**：在 `/tmp/opencode/TESTCASES-003t/` 副本注入错误（如把某 `orrr` 的 shamt 寄存器从 `input_state` 删除），确认 validator 捕获并 exit 1。
+- **class↔fault/state 一致性守卫（交叉复核补充）**：`encoding` 的 `expected_state` 必须为 `null`；`semantic` 的 `expected_fault` 必须为 `null`；`boundary`/`overlap` 的 `expected_fault` ∈ {`null`, `ILLI`}。当前 validator 未校验这些（实测 `encoding`+非 null `expected_state`、`semantic`+非 null `expected_fault`、`boundary`+`UNDI` 均漏过），须在本任务补上。
+- **反造假**：在 `/tmp/opencode/TESTCASES-003t/` 副本注入错误（如把某 `orrr` 的 shamt 寄存器从 `input_state` 删除、把 `semantic` 的 `expected_fault` 设为非 null），确认 validator 捕获并 exit 1。
 
 ## 验收标准
 
-1. `reg-arith.yaml`/`reg-logic.yaml`/`reg-shift-extend.yaml`/`reg-compare.yaml`/`reg-cond-assign.yaml`/`reg-imm-block.yaml` 存在，且覆盖本任务所属全部 M1 身份（含 `add.so-rb`/`sub.so-rb`、`ra2rd`/`rd2ra`）
-2. 旧文件 `rd-arith.yaml`/`rd-logic.yaml`/`rd-shift-extend.yaml`/`rd-compare.yaml`/`rd-cond-assign.yaml`/`rd-imm-block.yaml` 已删除；`rb-ops.yaml`/`ra-ops.yaml` 中本任务归属的 case 已移出，访存 case 原样保留（交 `004t`）
-3. **F1**：20 个 `(insn, orrr)` 的 40 条 semantic/boundary 期望值经独立手算复核，`notes` 无字段/寄存器混淆，shamt 寄存器已预置且值 ≤ N
-4. **`rela.si-rb`** semantic 已 active 且期望值可回溯（`spec_cite` + notes 写明 PC 地址来源）
+1. `reg-arith.yaml`/`reg-logic.yaml`/`reg-shift-extend.yaml`/`reg-compare.yaml`/`reg-cond-assign.yaml`/`reg-imm-block.yaml` 从零生成，且覆盖本任务所属全部 M1 身份（含 `add.so-rb`/`sub.so-rb`、`ra2rd`/`rd2ra`）
+2. 6 个目标文件覆盖本任务所属全部 M1 身份；`cmp.*` 全部归 `reg-compare.yaml`（无重复身份）；未生成/未改动 `mem-*`/`ctrl-*`/`misc`
+3. **F1（生成时即须正确）**：20 个 `(insn, orrr)` 的 semantic/boundary 期望值经独立手算，`notes` 无字段/寄存器混淆，shamt 寄存器已预置且值 ≤ N（不得重现上一版把字面 shamt 写入 `rdhd` 的错误）
+4. **`rela.si-rb`** semantic 生成即 `status: active`，期望值可回溯（`spec_cite` + notes 写明 PC 地址来源）
 5. **F10**：本任务文件内每条 encoding 向量经语义推演确认「可解码执行且不触发任何 fault」（不 ILLI/unmapped），字段值 + 依据章节齐备
-6. **F9①**：validator 新增 src 字段守卫 + `orrr` 定向守卫，注入测试全捕获，真实树零误报
-7. 未删改 semantic/boundary/legality/overlap 向量的正确性（除 F1/F7/F10 明确的修复外）；未改 `contracts/`；未动 `mem-*`/`ctrl-*`/`misc`
-8. `python3 tools/testcases/validate_vectors.py` 零错误，覆盖率输出 `178/178`（覆盖率门控按身份计，不因 encoding 豁免而下降）；`make check` PASS
+6. **F9① + class↔fault/state 一致性**：validator 新增 src 字段守卫、`orrr` 定向守卫、class↔fault/state 一致性守卫（`encoding` 的 `expected_state` 必为 null；`semantic` 的 `expected_fault` 必为 null；`boundary`/`overlap` 的 fault ∈ {null, ILLI}），注入测试全捕获，真实树零误报
+7. semantic/boundary/legality/overlap 向量正确性自洽；未改 `contracts/`；未生成/未改动 `mem-*`/`ctrl-*`/`misc`
+8. `python3 tools/testcases/validate_vectors.py` 零错误，覆盖率输出 `178/178`（覆盖率门控按身份计，不因 encoding 豁免而下降；**数据级覆盖见 `009t`**）；`make check` PASS
 9. 未自行 commit
 
 ## 背景（完整）
 
 ### 目标
 
-按**方案 A（按运算族分，bank 混在文件内）**重组并修复寄存器类向量，使其成为独立 oracle：`(insn, format)` 覆盖完整、期望值可回溯合约、encoding 可执行无 fault、`orrr` 移位语义正确、`rela.si` 语义可算。
+按**方案 A（按运算族分，bank 混在文件内）**从零生成寄存器类向量，使其成为独立 oracle：`(insn, format)` 覆盖完整、期望值可回溯合约、encoding 可执行无 fault、`orrr` 移位语义正确、`rela.si` 语义可算。
 
 ### 设计理由
 
 - `orrr`/`orri` 共享 `insn`，按运算族归档后同族 `rd`/`rb` 变体集中在同一文件，便于逐族重算与审计（`009t` 兜底）。
-- F1 是**确定性错误**（非 spec 歧义）：spec 明确 `orrr` 用寄存器形式；修复方向明确，无需 ADR。
+- F1 是**确定性错误**（非 spec 歧义）：spec 明确 `orrr` 用寄存器形式；生成方向明确，无需 ADR。
 - `rela.si` 的 PC 非自由变量（ADR-0004 D6.5），故 semantic 可 active。
 
 ### 关键概念 / 数据
@@ -143,7 +144,7 @@
 1. **F1 教训**：`notes` 声称的 shamt 必须与 `encoding.word` 的 `rdhd` 解码一致；「字段/寄存器/期望」三重矛盾是最危险的假数据。
 2. **orrr 越界**：orri（immu6 可 >N，且 `hd[5:3]`/`hd[5:4]`/`hd[5]` SBZ）才可构造越界 ILLI；orrr 的 shamt 用合法值。
 3. **rd0 禁止出现在 `input_state`**：预置 rd0 会误触发 ILLI；validator 机械禁止。
-4. **不删改非本任务范围向量**：不得破坏访存/控制流/系统向量。
+4. **不越界**：不得生成/改动访存/控制流/系统向量（归 `004t`~`007t`）。
 5. **不自行 commit**：完成后等待审查。
 
 ## 参考
