@@ -15,13 +15,16 @@
   - `tests/vectors/isa/rd-load-store.yaml`、`tests/vectors/isa/rb-ops.yaml`（TESTCASES-002t 向量）
   - `.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t：内存映射 ROM/RAM/exit port）
   - `.tao/knowledge/contract-isa.md` §4（访存语义、有效地址计算）
-- 输出：上述文件中所有 `class: semantic` 向量的 `rb2`（及 `rb0`）寄存器值、`input_state.memory[*].address`、`expected_state.memory[*].address` 由 ROM 地址迁移到 RAM scratch 区
+- 输出：上述文件中所有 `class: semantic` 向量的 `rb2` 寄存器值、`input_state.memory[*].address`、`expected_state.memory[*].address` 由 ROM 地址迁移到 RAM scratch 区
+  - 以 `rb0` 作 base 的 case 须改用具 RAM 值的基址寄存器（`rb0` 为 PC，不可预置、`input_state` 不得出现 `rb0` 条目）
 - 约束：
   - **只修改** `class: semantic` 向量的地址字段；不改 `encoding.word`
   - **不改** 任何 `legality`/`boundary`/`encoding` 类向量
   - **不改** `expected_state.rd`/`rb` 的寄存器值（值不变，只是地址换了）
-  - 新地址必须落在 ADR-0004 定义的 RAM 范围内
+  - 新地址必须落在 ADR-0004 定义的 RAM 范围内（`[0xffff_0000_0000, 0xffff_00ff_ffff]`）
   - 期望地址必须按**有效地址公式** `EA = base + offset` 计算，不做 naive 线性映射
+  - **不得**使用 addr=0 或任何 unmapped 地址（ADR-0004 D5.6：unmapped → `0x87`）
+  - scratch 区须避开 harness 使用的 SP（`rb1 = 0xffff_00ff_0000`，ADR-0004 D6.5）；若与 SP 重叠，向量须在 `input_state` 显式声明所用地址并说明无栈使用
   - 完成后不自行 commit
 
 ## 背景（完整）

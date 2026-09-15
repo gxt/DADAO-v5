@@ -12,9 +12,9 @@
 ## 接口规范
 
 - 输入：
-  - `tools/testcases/validate_vectors.py`（TESTCASES-004t：已改 `insn` 主键、已加 `encoding.word` mask/value 校验）
-  - `contracts/opcodes.yaml`（`insn` 分组与 mask/value 来源）
-  - `tests/vectors/isa/*.yaml`（含共享 mnemonic+format 的变体，如 `ld.o-rd`/`ld.o-rb`）
+  - `tools/testcases/validate_vectors.py`（TESTCASES-004t：已改 `(insn, format)` 主键、已加 `encoding.word` mask/value 校验）
+  - `contracts/opcodes.yaml`（`(insn, format)` 分组与 mask/value 来源；`ha = (value>>18)&0x3f`）
+  - `tests/vectors/isa/*.yaml`（含共享 mnemonic+format 的变体，如 `ld.o-rd`/`ld.o-rb`；含共享 `insn` 的 `orrr`/`orri` 变体）
 - 输出：`tools/testcases/validate_vectors.py`（覆盖率标记逻辑修复：只标记**实际匹配 encoding.word** 的那条 opcode 记录）
 - 约束：
   - 只改 validator，不改向量数据、不改 opcodes.yaml
@@ -38,7 +38,7 @@ elif status == "active":
         covered_opids.add(opid)            # 全组标为 covered ← BUG
 ```
 
-**影响举例**：`ldo rrii`（v5：`ld.o-rb`/`ld.o-rd`）在 opcodes 中同 mnemonic+format 有多条记录。当只测了 RD 变体时，RB 变体的身份也被标为 covered，即使其向量不存在。当前数据恰好都有向量，故覆盖数看似真实——但若去掉某条变体向量，validator 不会发现。v5 的 `opcodes.yaml` 有 18 组重复 `(mnemonic, format)`，该缺陷影响面更大。
+**影响举例**：`ldo rrii`（v5：`ld.o-rb`/`ld.o-rd`）在 opcodes 中同 mnemonic+format 有多条记录。当只测了 RD 变体时，RB 变体的身份也被标为 covered，即使其向量不存在。v5 的 `opcodes.yaml` 有 18 组重复 `(mnemonic, format)`，该缺陷影响面更大；此外 `insn` 单独也不唯一（20 组 `orrr`/`orri` 共享 `insn`），故身份键必须用 `(insn, format)`。
 
 ### 关键概念 / 数据
 
@@ -46,7 +46,7 @@ elif status == "active":
 
 ```
 if word and mnem != "?" and fmt != "?":
-    recs = opcodes_by_insn / 按 insn 分组
+    recs = opcodes_by_id[(insn, fmt)] / 按 (insn, format) 分组
     if recs:
         wval = int(word, 16)
         matched_rec = None
@@ -57,12 +57,12 @@ if word and mnem != "?" and fmt != "?":
         if matched_rec is None:
             errors.append(f"{tag}: encoding.word {word} does not match ...")
         elif status == "active":
-            covered_insns.add(matched_rec["insn"])   # 只标记匹配的那条
+            covered_ids.add((matched_rec["insn"], matched_rec["format"]))   # 只标记匹配的那条
 ```
 
 - 原有的 mnemonic+format 存在性检查（无 word 时）保留，但**删除**其中的整组 covered 标记。
 - 覆盖率现在**仅由 mask/value 精确匹配驱动**。
-- v5 以 `insn` 为身份，`matched_rec` 直接取其 `insn`。
+- v5 以 `(insn, format)` 为身份，`matched_rec` 直接取 `(insn, format)`。
 
 ### 上游引用
 
@@ -74,9 +74,9 @@ if word and mnem != "?" and fmt != "?":
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-1. **身份键**：0628 的 bug 在 `(op, ha)` 分组上；v5 用唯一 `insn`，修复后只标记匹配的 `insn`。v5 重复 `(mnemonic, format)` 组有 18 组（0628 为 7 对），故该修复更重要。
+1. **身份键**：0628 的 bug 在 `(op, ha)` 分组上；v5 用 `(insn, format)`（`insn` 单独非唯一——20 组 `orrr`/`orri` 共享 `insn`），修复后只标记匹配的 `(insn, format)`。v5 重复 `(mnemonic, format)` 组有 18 组（0628 为 7 对），故该修复更重要。
 2. **助记符**：示例 `ldo rrii` 在 v5 为 `ld.o-rd`/`ld.o-rb`。
-3. **编码表路径**：`contracts/opcodes.yaml`。
+3. **编码表路径**：`contracts/opcodes.yaml`；`ha` 由 `(value>>18)&0x3f` 推导。
 4. 其余修复逻辑与 0628 一致（合并遍历、精确匹配、单点标记）。
 
 ## 已知坑 / 结论
@@ -99,7 +99,7 @@ if word and mnem != "?" and fmt != "?":
 ## 验收标准
 
 1. `make check` PASS，覆盖率数值不低于修复前（真实覆盖不变）
-2. 手动移除一条共享 `(mnemonic, format)` 的变体向量后，validator 报该 `insn` 的 `COVERAGE MISSING`；恢复后 PASS
+2. 手动移除一条共享 `(mnemonic, format)` 的变体向量后，validator 报该 `(insn, format)` 的 `COVERAGE MISSING`；恢复后 PASS
 3. `grep -n` 确认覆盖率标记只发生在精确匹配分支、且只有 1 处
 4. 未改向量数据、未改 `contracts/opcodes.yaml`
 5. 未自行 commit

@@ -47,7 +47,7 @@ spec ──→ testcases ──┤           ├──→ integ ──→ M1
 - 说明：先建 `Makefile`/fetch/锁（infra）与 `ADR-0004`/ELF 合约（spec），解除对下游的阻塞。
 
 **第 2 层 — 测试向量 + 组件基线/骨架**（依赖第 1 层）
-- `testcases`：`TESTCASES-002t` → `003t` → `004t` → {`005t`、`007t`、`008t`}；`006t`、`009t`
+- `testcases`：`TESTCASES-002t` → `003t` → `004t` → {`005t`、`008t`}；`002t` + `SPEC-006t` → `006t` → `009t` → `007t`（`rd-load-store.yaml` 由 `006t`/`009t`/`007t` 依次修改，须串行）
 - `llvm`：`LLVM-002t` → `003t`（Triple + 最小 build）
 - `qemu`：`QEMU-002t` → `003t`（骨架 + `hw/dadao/`）
 - 说明：向量层尽早建立，供第 3 层验证；`llvm`/`qemu` 各自先打通「能 build」。

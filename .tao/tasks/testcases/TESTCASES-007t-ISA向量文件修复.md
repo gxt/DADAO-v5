@@ -2,8 +2,10 @@
 
 **模块**：testcases
 **项目里程碑**：M1
-**依赖**：`TESTCASES-004t`
+**依赖**：`TESTCASES-004t`、`TESTCASES-009t`
 **状态**：待开始
+
+> **串行约束**：本任务与 `TESTCASES-006t`/`TESTCASES-009t` 均修改 `tests/vectors/isa/rd-load-store.yaml`，故必须在 `009t` 完成后执行（`006t → 009t → 007t`），不得并行，避免丢失更新。
 
 ## 执行环境
 
@@ -71,8 +73,8 @@
 
 1. **rd0 禁止出现在 `input_state`**：预置 rd0 会经 `set.zw rd0` → `ha=0` → ILLI。
 2. **ORRI 位域**：`bits[17:12]=dst, bits[11:6]=src, bits[5:0]=count`（hb/hc 易混淆）；v5 须用 opcodes.yaml `fields` 核对。
-3. **load encoding `addr=0`**：identity map 到 host NULL → SIGSEGV/timeout；需有效 RAM 基址或改期望。
-4. **store encoding `ha=0`**：触发 ILLI。
+3. **load encoding `addr=0`**：ADR-0004 D5.6 规定 unmapped 访问 → `0x87`（确定性 fault，非 hang）；向量不得用 addr=0，基址须指向 RAM 合法地址（详见 TESTCASES-009t）。0628 的「identity map → SIGSEGV/timeout」结论在 v5 **不适用**。
+4. **store encoding `ha=0`**：`st.*`/`stm.*` 的 `rdha` 为源，`rd0` → ILLI；encoding 向量须用非 0 源。
 5. **deferred 必须有 reason**：实现 bug 未解时显式 deferred，不静默。
 6. **0628 验收**：92 PASS / 0 FAIL（含 4 deferred）；v5 以自身 harness 为准。
 

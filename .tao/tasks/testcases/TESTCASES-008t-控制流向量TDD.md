@@ -40,40 +40,55 @@
 
 核心规则：**encoding 测试只验证指令能被解码执行，不依赖跳转目标的有效性**。
 
+> 上表为 0628 在其旧内存映射下的现象；v5 的故障期望以 ADR-0004（unmapped `0x87`）与 `contract-isa.md` §5.6.2（RASUF）为准，见下。
+
 ### 关键概念 / 数据
+
+**0. 前置语义（ADR-0004 D6.5 已冻结）**
+
+- `rb0` 在指令执行时等于**当前指令地址**（PC 语义）；`_start` 第一条 retire 后 `rb0` 变为 `0xffff_0000_0004`。
+- 相对控制流地址公式 `Addr = rb0 + (imm << 2)`（`imm` 为**字**偏移，`<<2` 转字节）：
+  - `imm=0` → `Addr = rb0` → 跳到**自身** → 自跳死循环（harness 超时 = inconclusive）；
+  - `imm=1` → `Addr = rb0 + 4` → **下一条指令** → fall-through（等效 NOP）✅；
+  - `imm=-1` → `Addr = rb0 - 4` → 上一条 → 同样死循环。
+
+  故 encoding 向量必须用 **`imm=1`**。
+- 0628 的「`rb0` = 下一条、`imm=0` 等效 NOP」结论**不适用**。
 
 **1. 条件分支 encoding（riii / rrii）**
 
-- 0628 最终保留 `imm=0`：分支目标 = `rb0 + (imm << 2)`；按 harness/实现约定 `rb0` 语义，`imm=0` 时目标为当前指令的下一条 → 等效 NOP → exit=0。
+- 用 `imm=1`（见前置语义）：分支 taken → 下一条；not taken → 下一条。两种情形都推进，不循环。
 - 8 条：`br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np`（riii）+ `br.eq`/`br.ne`（rrii）。
-- v5 编码公式：`word = (op<<24) | (ha<<18) | (hb<<12) | (hc<<6) | hd`；riii 的 imm 在 `hb+hc+hd`，rrii 的 imm 在 `hc+hd`。
+- v5 编码公式：`word = (op<<24) | (ha<<18) | (hb<<12) | (hc<<6) | hd`；riii 的 imm 在 `hb+hc+hd`，rrii 的 imm 在 `hc+hd`。分支的操作数 rd 是**源**（可用 rd0；`br.z rd0` 恒真、`br.nz rd0` 恒假）。
 
 **2. 无条件跳转 encoding（iiii）**
 
-- `jump-iiii`：`PC = rb0 + (imms24 << 2)`；imm=0 → 下一条（等效 NOP）。
-- `call-iiii`：同上。
+- `jump-iiii`：`PC = rb0 + (imms24 << 2)`；用 `imms24 = 1` → 下一条（等效 NOP）。
+- `call-iiii`：同上；同时压入返回地址，随后落到下一条。
 
-**3. 寄存器间接跳转 encoding（rrii）**
+**3. 寄存器间接跳转（rrii，fault 期望）**
 
-- `jump-rrii`：`PC = rbha + rdhb + (imms12 << 2)`；rb0=0、rd0=0 → addr=0 → 执行 `illi 0` → ILLI。
-- 推荐改法：`expected_fault: null → ILLI`，保留原 word，并在 notes 说明（rb0=0 → addr=0 → illi）。
+- `jump-rrii`：`PC = rbha + rdhb + (imms12 << 2)`；`rbha=rb0`、`rdhb=rd0`、`imms12=0` → addr=0。
+- ADR-0004 D5.6：addr=0 不在 ROM/RAM/Exit → **取指 unmapped → `0x87`**；**不是** ILLI（0628 的「addr=0 → `illi 0` → ILLI」在 v5 不适用）。
+- 改法：`expected_fault: null → UNMAPPED`，保留原 word，notes 说明（addr=0 → unmapped `0x87`）。
 - `call-rrii`：同上。
 
-**4. return encoding（riii）**
+**4. return（riii，fault 期望）**
 
-- `ret-riii`：`PC = ra63 低 48 位`；RA 栈冷（0）→ PC=0 → `illi` → ILLI。
-- 改 `expected_fault: null → ILLI`，notes 说明（RA cold = 0）。
+- `ret-riii`：`PC = ra63 低 48 位`；ADR-0004 D2.1 复位 `ra0`–`ra63 = 0`（`ra0=0` → 仅 RegRAS）。
+- contract-isa §5.6.2：`ra63` 高 16 位 = 0 且 `ra0` 低 48 位 = 0 → **RASUF（`0x8B`）**；**不是** PC=0/ILLI。
+- 改法：`expected_fault: null → RASUF`，notes 说明（RA cold → RegRAS 空 → RASUF）。
 
 **5. semantic 测试处理**
 
 - 所有 semantic/boundary 类统一改 `status: deferred`，notes 追加 `— deferred: 需 branch-over-poison harness`。
 - **不删除**，它们是后续 harness 任务的 TDD 桩。
 
-**6. 新增 legality 测试桩（TDD）**
+**6. 新增 legality 测试桩（TDD，fault 期望）**
 
-- `jump-rrii rb0,rd0,0`：addr=0 → ILLI（可 active 验证）
-- `call-rrii rb0,rd0,0`：addr=0 → ILLI
-- `ret-riii rd0,0`：RA=0 → ILLI
+- `jump-rrii rb0, rd0, 0`：addr=0 → 取指 unmapped → `expected_fault: UNMAPPED`（可 active 验证）
+- `call-rrii rb0, rd0, 0`：addr=0 → 取指 unmapped → `expected_fault: UNMAPPED`
+- `ret-riii rd0, 0`（冷 RA）：`expected_fault: RASUF`
 
 **7. TDD 设计注释（branch-over-poison pattern）**
 
@@ -95,27 +110,30 @@
 ## 交付物
 
 - `tests/vectors/isa/control-flow.yaml`：
-  - encoding 向量修复（条件分支/`jump-iiii`/`call-iiii` 免自跳；`jump-rrii`/`call-rrii`/`ret-riii` 期望 ILLI）
+  - encoding 向量修复（条件分支/`jump-iiii`/`call-iiii` 用 `imm=1` 免自跳）
+  - `jump-rrii`/`call-rrii` 的 addr=0 case 改 `expected_fault: UNMAPPED`；`ret-riii` 冷 RA case 改 `expected_fault: RASUF`
   - semantic/boundary 改 `status: deferred`（保留桩）
-  - 新增 3 条 legality 桩
+  - 新增 3 条 legality 桩（`UNMAPPED`/`UNMAPPED`/`RASUF`）
   - 追加 branch-over-poison TDD 设计注释
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符**：`brn`/`brnn`/`brz`/`brnz`/`brp`/`brnp`/`breq`/`brne` → `br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np`/`br.eq`/`br.ne`；`unimp`→`illi`；另有 `br.z-rb`/`br.nz-rb` 变体。
-2. **地址公式**：v5 `contract-isa.md` §5 为 `PC = rb0 + (imm << 2)`；分支/跳转/调用均为相对 `rb0`（48-bit 地址，无溢出）。`rb0` 是当前还是下一条，须与 v5 harness/实现约定核对（0628 取「下一条」，imm=0 → 等效 NOP）。
+2. **地址公式**：v5 `contract-isa.md` §5 为 `PC = rb0 + (imm << 2)`；分支/跳转/调用均为相对 `rb0`（48-bit 地址，无溢出）。ADR-0004 D6.5 已冻结 **`rb0` = 当前指令地址**，故 `imm=0` → 自跳死循环，encoding 用 `imm=1`（目标=下一条）；0628 的「`rb0`=下一条、imm=0 等效 NOP」**不适用**。
 3. **PC 公式修复属实现层**：0628 在 `translate.c` 修 not-taken PC（`pc_next → pc_next+4`）与 branch target（`pc_next-4 → pc_next+4`）；v5 该修复属 qemu 模块任务，**不在本任务**，本任务只保证向量数据正确。
-4. **harness 依赖**：`emit_branch_semantic_test()` / `run_qemu_test.py` 在 v5 属 qemu/verif 模块（待规划），本任务以数据正确性 + validator 为主验收。
+4. **故障语义**：`jump-rrii`/`call-rrii` 的 addr=0 → 取指 unmapped `0x87`（`expected_fault: UNMAPPED`），`ret` 冷 RA → RASUF `0x8B`；0628 的「addr=0 → ILLI」**不适用**（ADR-0004 D5.6/D2.1 + contract-isa §5.6.2）。
+5. **harness 依赖**：`emit_branch_semantic_test()` / `run_qemu_test.py` 在 v5 属 qemu/integ 模块（qemu `QEMU-014t`~`019t`；`verif` 已解散），本任务以数据正确性 + validator 为主验收。
 
 ## 已知坑 / 结论
 
 摘自 DADAO-0628 DL-028a 完成区与代码级 Architecture Review：
 
-1. **imm=0 + branch 等效 NOP**：只要分支目标为下一条，无论 taken 与否都推进，不触发无限循环。
-2. **jump_r/call_r/ret 改 `expected_fault: ILLI`**：rb0=0 / RA cold=0 → addr=0 → `illi 0` → ILLI，使 QEMU 故障码与预期一致。
-3. **semantic 不删除**：改为 deferred 作为后续 harness 的 TDD 桩。
-4. **PC 公式 bug（实现层）**：not-taken 写 `pc_next`（不推进）会循环执行同一条；须写 `pc_next + 4`。
-5. **最终 16/16 active PASS**（0628）；v5 以自身 harness 为准。
+1. **`imm=1` + branch 等效 NOP**：ADR-0004 D6.5 冻结 `rb0`=当前指令地址，`imm=1` → 目标=下一条；无论 taken 与否都推进，不触发无限循环。
+2. **`jump-rrii`/`call-rrii` → `expected_fault: UNMAPPED`**：addr=0 → 取指 unmapped `0x87`（ADR-0004 D5.6），**不是 ILLI**。
+3. **`ret-riii` 冷 RA → `expected_fault: RASUF`**：contract-isa §5.6.2（`ra63` 高 16=0 且 `ra0` 低 48=0 → RegRAS 空 → RASUF `0x8B`），**不是 ILLI**。
+4. **semantic 不删除**：改为 deferred 作为后续 harness 的 TDD 桩。
+5. **PC 公式 bug（实现层）**：not-taken 写 `pc_next`（不推进）会循环执行同一条；须写 `pc_next + 4`。
+6. **最终 16/16 active PASS**（0628）；v5 以自身 harness 为准。
 
 ## 参考
 
@@ -126,10 +144,10 @@
 
 ## 验收标准
 
-1. 所有 active encoding 向量可解码执行且不无限循环、不触发非预期 fault
-2. `jump-rrii`/`call-rrii`/`ret-riii` 的 `expected_fault: ILLI` 且 notes 说明原因
+1. 所有 active encoding 向量可解码执行且不无限循环、不触发非预期 fault；相对控制流立即数用 `imm=1`
+2. `jump-rrii`/`call-rrii` 的 `expected_fault: UNMAPPED`、`ret-riii` 的 `expected_fault: RASUF`，且 notes 说明原因
 3. semantic/boundary 均为 `status: deferred` 且 `deferred_reason` 明确，测试桩未被删除
-4. 新增 3 条 legality 桩，`status`/`expected_fault` 自洽
+4. 新增 3 条 legality 桩（`UNMAPPED`/`UNMAPPED`/`RASUF`），`status`/`expected_fault` 自洽
 5. 追加 branch-over-poison TDD 设计注释
 6. `python3 tools/testcases/validate_vectors.py` 零错误；`make check` PASS
 7. （下游）QEMU harness 就绪后，active 测试全 PASS；本任务记录该运行验收依赖
