@@ -12,9 +12,9 @@ DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 - `manifests/`：不可变输入——规范与参考组件的锁文件（精确 commit）。
 - `spec/`：原始规范文档（只读）。
 - `components/`：有序补丁序列与组件专属文档。
-- `scripts/`：确定性的 fetch / 准备 / 校验 / 状态工具（Python 标准库）。
+- `tools/<module>/`：各模块工具脚本（`tools/infra/` 含 fetch / 准备 / 校验 / 状态等，Python 标准库）。
 - `containers/`：开发容器定义。
-- `verif/`：验证工具与规范派生的机器可读数据（编码表、合法性规则）。
+- `contracts/`：规范派生的机器可读数据（编码表、合法性规则、ABI）。
 - `docs/`：仓库级文档（如本布局说明）。
 - `tests/`：独立于组件单元测试的接口与执行测试（按需创建）。
 - `sail/`：Sail 形式化规范（按需创建）。
@@ -34,6 +34,6 @@ DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 
 ## 持久对象库 `.cache/`（整体忽略，不入库）
 
-`.cache/<name>.git` 存放上游组件的 **bare mirror（本地对象库）**，`.cache/refs/<id>.git` 存放参考仓库的 bare mirror，分别由 `scripts/fetch.py` / `scripts/fetch_refs.py`
+`.cache/<name>.git` 存放上游组件的 **bare mirror（本地对象库）**，`.cache/refs/<id>.git` 存放参考仓库的 bare mirror，分别由 `tools/infra/fetch.py` / `tools/infra/fetch_refs.py`
 首次 `git clone --mirror` 下载一次、以后只增量 `git fetch`。`.cache/` **持久保留**（`clean_work`
 不删除），使 `.work/` 下的工作树即使被清空也能从本地 mirror 重建、无需重新下载大仓库。
