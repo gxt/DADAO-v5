@@ -305,16 +305,33 @@ def validate_file(filepath, by_key, m1_keys, errors):
                                   "address (> 0x%x): %s"
                                   % (tag, ADDR48_MAX, expected_pc))
 
-        # ── F7: expected_pc existence for PC-affecting br.* (TESTCASES-005t) ──
-        # Active semantic cases for br.* (PC-affecting) MUST have expected_pc.
-        # Scope: ctrl-br (br.*). Extensible: add other PC-affecting insn prefixes.
-        if status == "active" and cls == "semantic" and \
-                isinstance(insn, str) and insn.startswith("br."):
-            if expected_pc is None:
-                errors.append(
-                    "%s: active semantic br.* case must have expected_pc "
-                    "(PC-affecting instruction; taken=rb0+(imm<<2), "
-                    "not-taken=rb0+4)" % tag)
+        # ── F7: expected_pc existence for PC-affecting instructions (TESTCASES-005t/006t) ──
+        # Active semantic cases for PC-affecting instructions MUST have expected_pc.
+        # Scope: ctrl-br (br.*), ctrl-jump (jump-*), ctrl-call (call-*), ctrl-ret (ret-*).
+        if status == "active" and cls == "semantic" and isinstance(insn, str):
+            if insn.startswith("br."):
+                if expected_pc is None:
+                    errors.append(
+                        "%s: active semantic br.* case must have expected_pc "
+                        "(PC-affecting instruction; taken=rb0+(imm<<2), "
+                        "not-taken=rb0+4)" % tag)
+            elif insn.startswith("jump"):
+                if expected_pc is None:
+                    errors.append(
+                        "%s: active semantic jump case must have expected_pc "
+                        "(PC-affecting instruction; Addr=rb0+(imms24<<2) or "
+                        "rbha+rdhb+(imms12<<2))" % tag)
+            elif insn.startswith("call"):
+                if expected_pc is None:
+                    errors.append(
+                        "%s: active semantic call case must have expected_pc "
+                        "(PC-affecting instruction; Addr=rb0+(imms24<<2) or "
+                        "rbha+rdhb+(imms12<<2), plus RA push)" % tag)
+            elif insn.startswith("ret"):
+                if expected_pc is None:
+                    errors.append(
+                        "%s: active semantic ret case must have expected_pc "
+                        "(PC-affecting instruction; PC=ra63 low 48 bits)" % tag)
 
         # ── F9 guards (TESTCASES-003t) ──────────────────────────────
         # F9③: class↔fault/state 一致性
