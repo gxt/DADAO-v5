@@ -17,6 +17,7 @@
 - **Spec 冻结（`SPEC-010t`）**：`impact matrix` 是否覆盖 M1 之外的实现目标（CodeGen/gem5/Sail）——M1 只需覆盖 M1 相关。
 - **编码表变更的下游影响（原 verif 模块，已解散）**：`opcodes.yaml` 现为「178 M1 + 78 `excluded_m1`」；`contracts/legality_rules.yaml`（`SPEC-008t` 已 Accepted）中 `lr_hb_not_zero`、`rf0_as_operand`、`fp_root_invalid_n`、`fp_log_invalid_base`、`cfx_reserved` 属 M1 排除项但仍 `active`——需在 `SPEC-009t`/`INFRA-010t` 规划中明确 M1 流程过滤非 M1 规则（`SPEC-008t` 不必返工，登记为跨模块影响）。
 - **编码知识**：0.5.3 MISC 子表 `ha = RRR-CCC` 拼为 6 位；**旧 `tools/opcodes.yaml`（0628）不可作编码权威**（v5 旧版曾有 2 处 ha 错误，已按 spec 修正）。
+- **`opcodes.yaml` L5 注释与 ADR-0004 D5.1 措辞歧义（N-1，`008t` 交叉复核登记）**：`contracts/opcodes.yaml` L5 把 `excluded_m1`（RF/cfx/LR-SC，78 条）标为 `decode: UNDI`，但 ADR-0004 D5.1 明确定义「M1 排除但**已定义**的编码 → **ILLI**；UNDI 专用于**空白单元格**」，`contract-isa.md` §9 亦然。属**注释措辞**问题（"reserved" 被读作"保留不实现"而非"QFC 空白单元格"），**非实质矛盾**、**不需 ADR**（D5.1 已定义，只需注释对齐）。归 **`spec` 模块**修正（建议改为 `decode: ILLI（M1 不实现但编码已定义；UNDI 仅用于空白单元格）`）。不阻塞 `009t`。
 
 ## infra
 
@@ -38,10 +39,11 @@
 - **encoding 的 `imm` 值不在 validator 能力内（`005t` 遗留，F4）**：validator 的 `(word & mask) == value` 中 `mask` 只遮 `op` 字段，**不校验低 12 位的 `imm`**；`imm` 语义正确性（如 `005t` 的 `imm=2` 不自跳、`004t` 的 base 指向）由 **golden model** 脚本守卫，非 validator。优先级低。
 - **`mem-*` 边界覆盖未穷尽所有 format 组合（`004t` 遗留）**：legality 覆盖 ILLI（rd0/rb0/immu6=0）/MALIGN/UNMAPPED，但未覆盖全部 `(insn, format)` 组合（如 rrri 的 MALIGN 因 EA 依赖 `rd2` 寄存器值可对齐而未生成）。属 M1 最小覆盖，由 `009t` 全量再审计兜底。
 - **`br.*` 无 legality/boundary 用例（`005t` 遗留）**：`br.*` 不产生 fault，`005t` 未生成 legality/boundary；由 `009t` 兜底确认。
+- **`schema.md` 新增 `encoding.reserved` 字段的消费者同步义务（`008t` 登记）**：`TESTCASES-008t` 方案 A 在 `tests/vectors/schema.md` 新增 `encoding.reserved: boolean` 字段，用于标记保留编码（QFC/子表空白单元格 → UNDI）。下游消费者（`llvm`/`qemu`/`integ` 模块中消费向量 schema 的工具/harness）须识别该字段：`reserved: true` 的 case 无 `(insn, format)` 身份、不参与覆盖率门控、`expected_fault` 恒为 `UNDI`。消费者解析向量时应跳过 reserved case 的 identity/mask-value 校验，或按自身逻辑处理 UNDI fault 期望。
 - **notes 文本笔误（`006t` 遗留，N-1）**：`ctrl-call.yaml` case[7] 与 `generate_ctrl_jump_call_ret.py` 的 notes 写「low 48=0xAAAA000000000000」（多 4 个 0），实际 `low48 = 0xAAAA00000000`。**数值全部正确**、重算 0 mismatch；纯文本。归 `009t` 或随生成器一并订正后重生成。
 - **`call`/`ret` 覆盖维度未穷尽（`006t` 遗留）**：`call-iiii` 的 §5.6.1 case 3（shift-push）仅有 RASOF legality、无独立 semantic（`call-rrii` case 3 有）；`ret` 仅覆盖单级 pop（count=1 → shift-down），多级 pop（count>1 → decrement）未覆盖。属 M1 最小覆盖，归 `009t`。
 - **F7 守卫基线已完整（参照基准）**：`005t` 建立 `br.*` → `006t` 就地扩展至 `jump`/`call`/`ret`，形成单一 `if/elif` 块（4 分支、错误消息按指令族定制）；`007t` 的 `swym`/`illi`/`fence` 不匹配任何分支，不会误报。后续审计（`009t`）以此为参照。
-- **validator 缺 `legality` 类 `expected_fault` 非 null 守卫（`007t` 遗留）**：`validate_vectors.py` 已强制 `encoding.expected_state==null`、`encoding.expected_fault==null`、`semantic.expected_fault==null`（`003t` F9③），但**未强制 `legality.expected_fault` 非 null** → 注入「`illi` 的 legality `expected_fault→null`」validator `exit=0` 未捕获（独立重算兜底）。属同构的 class↔field 一致性约束，归 `009t` 或后续 validator 增强任务。（「给 `illi` 造 encoding case」亦未捕获，但补它需把指令级语义引入 validator，与定位不符，不补。）
+- **validator 缺 `legality` 类 `expected_fault` 非 null 守卫（`007t` 遗留，已由 `008t` 消解）**：`validate_vectors.py` 已强制 `encoding.expected_state==null`、`encoding.expected_fault==null`、`semantic.expected_fault==null`（`003t` F9③），但**未强制 `legality.expected_fault` 非 null** → 注入「`illi` 的 legality `expected_fault→null`」validator `exit=0` 未捕获（独立重算兜底）。属同构的 class↔field 一致性约束，归 `009t` 或后续 validator 增强任务。（「给 `illi` 造 encoding case」亦未捕获，但补它需把指令级语义引入 validator，与定位不符，不补。）**✅ 已消解（`TESTCASES-008t`）**：`validate_vectors.py` reserved 分支的 legality 守卫（`not is_reserved and fault is None`）已就地实现，`misc.yaml` 注入 `expected_fault→null` → `exit=1` 独立验证生效。
 - **跨模块影响（待处置）**：本次重排改变了 `TESTCASES-003t`/`006t`/`008t` 的**含义**，`qemu` 模块任务书存在**陈旧引用**，须同步：
   - `QEMU-012t`（branch PC 公式 + call RA 修复）依赖 `TESTCASES-008t`（旧=控制流向量）→ 现控制流向量在 `005t`/`006t`；
   - `QEMU-017t`（分支语义 harness）依赖 `TESTCASES-008t`，并引用 `control-flow.yaml` 的 deferred semantic 桩 → 现控制流向量**从零生成**于 `ctrl-br`/`ctrl-jump`/`ctrl-call`/`ctrl-ret`（不再有 `control-flow.yaml`），且 F7 已全部 active（不再有 PC-only deferred 桩）；
