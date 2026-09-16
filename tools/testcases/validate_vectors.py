@@ -305,6 +305,108 @@ def validate_file(filepath, by_key, m1_keys, errors):
                                   "address (> 0x%x): %s"
                                   % (tag, ADDR48_MAX, expected_pc))
 
+        # ── F9 guards (TESTCASES-003t) ──────────────────────────────
+        # F9③: class↔fault/state 一致性
+        if cls == "encoding":
+            if expected_state is not None:
+                errors.append("%s: encoding case must have expected_state == null"
+                              % tag)
+            if fault is not None:
+                errors.append("%s: encoding case must have expected_fault == null"
+                              % tag)
+        if cls == "semantic":
+            if fault is not None:
+                errors.append("%s: semantic case must have expected_fault == null"
+                              % tag)
+        if cls in ("boundary", "overlap"):
+            if fault is not None and fault != "ILLI":
+                errors.append("%s: %s case expected_fault must be null or ILLI, "
+                              "got %r" % (tag, cls, fault))
+
+        # F9①: active semantic/boundary src field register pre-set guard
+        if status == "active" and cls in ("semantic", "boundary") and \
+                isinstance(input_state, dict) and \
+                isinstance(encoding, dict) and "word" in encoding and \
+                isinstance(insn, str) and isinstance(fmt, str):
+            key = (insn, fmt)
+            wval = int(encoding["word"], 16) if isinstance(
+                encoding["word"], str) else encoding["word"]
+            if key in by_key:
+                rec = by_key[key]
+                fields = rec.get("fields", [])
+                # Collect pre-set registers
+                rd_preset = set()
+                rb_preset = set()
+                ra_preset = set()
+                inp_rd = input_state.get("rd", {})
+                inp_rb = input_state.get("rb", {})
+                inp_ra = input_state.get("ra", {})
+                if isinstance(inp_rd, dict):
+                    rd_preset = set(inp_rd.keys())
+                if isinstance(inp_rb, dict):
+                    rb_preset = set(inp_rb.keys())
+                if isinstance(inp_ra, dict):
+                    ra_preset = set(inp_ra.keys())
+
+                # Check each src field (bank ∈ {rd, rb, ra}, role = src)
+                for fld in fields:
+                    if fld.get("role") != "src":
+                        continue
+                    bank = fld.get("bank")
+                    if bank not in ("rd", "rb", "ra"):
+                        continue
+                    # Extract field value from word
+                    bits_str = fld.get("bits", "")
+                    m = re.match(r"\[(\d+):(\d+)\]", bits_str)
+                    if not m:
+                        continue
+                    hi, lo = int(m.group(1)), int(m.group(2))
+                    field_val = (wval >> lo) & ((1 << (hi - lo + 1)) - 1)
+                    reg_name = "%s%d" % (bank, field_val)
+                    # rd0/rb0 are hardwired, don't need preset
+                    if reg_name in ("rd0", "rb0"):
+                        continue
+                    preset = rd_preset if bank == "rd" else (
+                        rb_preset if bank == "rb" else ra_preset)
+                    if reg_name not in preset:
+                        errors.append(
+                            "%s: active %s src field %s = %s not preset "
+                            "in input_state.%s" % (tag, cls, fld["name"],
+                                                   reg_name, bank))
+
+                # F9①定向守卫: orrr shl/shr/ext shamt register
+                mnemonic = case.get("mnemonic", "")
+                if fmt == "orrr" and isinstance(mnemonic, str) and \
+                        any(mnemonic.startswith(p)
+                            for p in ("shl.", "shr.", "ext.")):
+                    # shamt register = word[5:0]
+                    shamt_reg = wval & 0x3F
+                    shamt_name = "rd%d" % shamt_reg
+                    if shamt_name == "rd0":
+                        # rd0 = 0 is valid shamt for any N
+                        shamt_val = 0
+                    elif shamt_name in rd_preset:
+                        shamt_val = int(str(inp_rd[shamt_name]), 0)
+                    else:
+                        errors.append(
+                            "%s: orrr %s shamt register %s not preset "
+                            "in input_state.rd" % (tag, mnemonic, shamt_name))
+                        shamt_val = None
+                    if shamt_val is not None:
+                        # Determine N from mnemonic suffix
+                        if ".ub" in mnemonic or ".sb" in mnemonic:
+                            N = 7
+                        elif ".uw" in mnemonic or ".sw" in mnemonic:
+                            N = 15
+                        elif ".ut" in mnemonic or ".st" in mnemonic:
+                            N = 31
+                        else:
+                            N = 63
+                        if shamt_val > N:
+                            errors.append(
+                                "%s: orrr %s shamt %d > N=%d (from %s)"
+                                % (tag, mnemonic, shamt_val, N, shamt_name))
+
     return len(cases)
 
 
