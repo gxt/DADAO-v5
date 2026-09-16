@@ -28,3 +28,6 @@
 | 2026-09-14 | SPEC-011m：M1 spec 里程碑达成（`002t`~`010t` 已验证，合约/编码表/ADR/impact-matrix 齐备） | architect |
 | 2026-09-15 | TESTCASES 任务集二次重排：按运算族/load-store/控制转移/jump-call-ret/misc 分解为 `002t`~`009t`+`010m`；文件布局方案 A（14 个 `isa/*.yaml`）；F1→`003t`、F10 分摊、F5→`008t`、F7 采用 `expected_pc` 方案全 active；旧 `004t`/`005t`/`006t` 已达成关闭（证据见 `001k`） | architect |
 | 2026-09-15 | TESTCASES-002t 返工（从零重建向量基础设施）：`schema.md` 新增可选 `expected_pc` + encoding 类对恒 fault 指令（`illi`）豁免；`inventory.md` 增 `format` 列（178 行唯一可辨）+ 机械同步；`validate_vectors.py` 补 R2/R4/F9②③④；覆盖率门控改为**声明级**（数据级归 `009t`） | engineer |
+| 2026-09-16 | TESTCASES-003t：寄存器族 ISA 向量从零生成（`reg-arith`/`reg-logic`/`reg-shift-extend`/`reg-compare`/`reg-cond-assign`/`reg-imm-block`，130 身份/366 条）；含 **F1**（`orrr` shamt 取寄存器形式）、**F10**（encoding 可执行无 fault）、`rela.si` 改 active；validator 追加 F9① + class↔fault/state 守卫；生成器提交至 `tools/testcases/generate_isa_vectors.py` | engineer |
+| 2026-09-16 | TESTCASES-003t 两轮返工：R1 定宽有符号运算补符号扩展（`.s*` 符号 / `.u*` 零扩展）；R2 16 条 `div`/`rem` encoding 预置非零除数；R3 `rela.si` notes 补 PC 来源；R4 `rem.s*` 改 truncate-toward-zero 余数。第 2 轮 reviewer 独立全量重算 366 条 **0 mismatch**，判决 Accepted（architect 交叉复核确认） | engineer |
+| 2026-09-16 | 治理规则（用户裁定）：`AGENTS.md`「临时目录」增「生成器/脚本随产物保留」（判据=产物是否入库；"一次性"≠可丢弃）；「中间验证规范」增「数据/期望值类任务附加要求」（size/sign 敏感用例独立全量重算、不得以 validator 绿灯为唯一判据、错值当场修） | architect |
