@@ -37,9 +37,52 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `encoding.word` | string | 完整 32-bit 指令字（hex，`≤ 0xFFFFFFFF`）；须满足 `(word & mask) == value` |
+| `encoding.reserved` | boolean | **仅限保留编码 case**（`class: legality`、`expected_fault: UNDI`）。`true` = 该 word 是 QFC 主表 / MISC 子表的空白单元格（reserved），**无** `(insn, format)` 身份。缺省或 `false` = 正常编码 |
 
-> `TESTCASES-008t` 将新增保留编码（UNDI）的向量层表达（复用 `class: legality` +
-> `encoding.reserved: true`）；本任务不定义该字段。
+#### 保留编码 case（`encoding.reserved: true`）
+
+保留编码（QFC 主表 / MISC 子表空白单元格）**无** `(insn, format)` 身份
+（`contracts/opcodes.yaml` 只含已定义编码），故无法满足检查 7/8。
+方案 A（`TESTCASES-008t`，已裁定）以 `encoding.reserved: true` 显式标记。
+
+```yaml
+- class: legality
+  encoding:
+    word: "0x08040001"       # 非全零；QFC 主表空白单元格
+    reserved: true           # 显式声明：保留编码
+  mnemonic: null             # 无已定义助记符
+  insn: null                 # 无身份
+  format: null               # 无格式
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: UNDI
+  status: active
+  spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9/§8.2"
+  notes: "QFC 主表 op=0x08（0000-1xxx 整行 reserved）"
+```
+
+**字段约束**（`encoding.reserved: true` 时）：
+
+| 约束 | 说明 |
+|------|------|
+| `class` 必须为 `legality` | 保留编码 case 只能是 fault 期望 |
+| `expected_fault` 必须为 `UNDI` | 保留编码触发 UNDI（§8.2），**不是** ILLI |
+| `status` 必须为 `active` | 保留编码 case 不可 deferred |
+| `word` 不得为 `0x00000000` | 全零字 = `illi` → ILLI（§8.3），非 UNDI |
+| `mnemonic` / `insn` 为 `null` | 无已定义身份 |
+| `format` 可为 `null` 或字符串 | 可选，用于定位子表 |
+| `notes` 非空 | 须给出该 word 在 QFC/子表中的具体位置作为 reserved 依据 |
+| `spec_cite` 非空 | 须引用 SimRISC-00 QFC / contract-isa §2.9/§8.2 |
+
+**与 ILLI 的区分**：
+
+| 场景 | fault | 依据 |
+|------|-------|------|
+| QFC/子表空白单元格（reserved 编码） | **UNDI** | §2.9/§8.2 |
+| 全零字 `0x00000000`（`illi 0`） | **ILLI** | §8.3 |
+| 已定义编码 + 非法操作数/SBZ 违规 | **ILLI** | §9.1 |
+| M1 排除但已定义的编码（RF/cfx/LR-SC） | **ILLI** | ADR-0004 D5.1 |
 
 ## 状态字段约定
 

@@ -1,0 +1,35 @@
+# 保留编码 → UNDI 向量（TESTCASES-008t，方案 A）
+# 手写（无生成器）；encoding.reserved: true 标记 QFC/子表空白单元格
+# 不参与 (insn, format) 覆盖率门控（无身份）；UNDI 覆盖由 inventory.md 登记
+
+# ── Case 0: QFC 主表 op=0x08（0000-1xxx 整行 reserved）──
+- class: legality
+  encoding:
+    word: "0x08040001"
+    reserved: true
+  mnemonic: null
+  insn: null
+  format: null
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: UNDI
+  status: active
+  spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9/§8.2"
+  notes: "QFC 主表 op=0x08（0000-1xxx 整行 reserved，8 个单元格均空白）。word=0x08040001: op[7:0]=0x08, ha=0x01, 非全零。"
+
+# ── Case 1: QFC 主表 op=0x1B（0001-1xxx row, column 011 = reserved）──
+- class: legality
+  encoding:
+    word: "0x1B040001"
+    reserved: true
+  mnemonic: null
+  insn: null
+  format: null
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: UNDI
+  status: active
+  spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9/§8.2"
+  notes: "QFC 主表 op=0x1B（0001-1xxx row, column 011）。该行 op=0x18~0x1F: 0x18=st.b-rd, 0x19=st.w-rd, 0x1A=st.t-rd, 0x1B~0x1F 均为 reserved 空白单元格。"

@@ -199,6 +199,12 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `(insn, format)`
 - `illi`（`oiii`，恒 ILLI，`contract-isa.md` §8.2/§9.1）：`encoding` 与
   `semantic` 均不可构造（恒 fault），覆盖率由 `legality` active 满足——见
   `schema.md` 的 encoding 类豁免条款（F6）。
+- **保留编码 → UNDI**（`encoding.reserved: true`）：QFC 主表 / MISC 子表
+  空白单元格**无** `(insn, format)` 身份（`contracts/opcodes.yaml` 只含已定义
+  编码），故**不参与** `(insn, format)` 覆盖率门控。`UNDI` 覆盖由
+  `tests/vectors/isa/reserved.yaml` 中 `class: legality` +
+  `encoding.reserved: true` 的 active case 满足，由 `inventory.md` 显式登记。
+  详见 `schema.md`「保留编码 case」与 `TESTCASES-008t`。
 - `ret-riii`：无 `encoding` case，但**理由不同**（返回目标依赖 harness 布局、
   单指令不可构造），**非**恒 fault；处置见 `TESTCASES-006t`。
 - `cs.*`（条件赋值快照，C-27）：`overlap` 类显式 `deferred`，不得静默缺席。
@@ -223,4 +229,5 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `(insn, format)`
 | `reg-imm-block.yaml` | 13 |
 | `reg-logic.yaml` | 16 |
 | `reg-shift-extend.yaml` | 40 |
+| `reserved.yaml` | 0 |
 
