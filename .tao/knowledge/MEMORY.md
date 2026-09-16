@@ -10,9 +10,9 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 |------|------|
 | SimRISC 规范 | ✅ 0.5.3 |
 | spec 模块 | ✅ M1 完成（`002t`~`010t` 已验证；`011m` 里程碑） |
-| testcases 模块 | 🔄 `002t` 已验证（向量基础设施：schema+`expected_pc`、inventory+`format` 列+机械同步、validator 补强；覆盖率门控为**声明级**，数据级归 `009t`）；`003t` 已验证（寄存器族 6 文件：`reg-arith`/`reg-logic`/`reg-shift-extend`/`reg-compare`/`reg-cond-assign`/`reg-imm-block`，130 身份/366 条；生成器 `tools/testcases/generate_isa_vectors.py` 已入 git）；`004t` 已验证（访存 3 文件：`mem-rd`/`mem-rb`/`mem-ra`，30 身份/172 条；生成器 `tools/testcases/generate_mem_vectors.py` 已入 git；validator 追加 F10 守卫）；`005t`~`009t` 待开始、`010m` 待核验 |
+| testcases 模块 | 🔄 `002t` 已验证（向量基础设施：schema+`expected_pc`、inventory+`format` 列+机械同步、validator 补强；覆盖率门控为**声明级**，数据级归 `009t`）；`003t` 已验证（寄存器族 6 文件：`reg-arith`/`reg-logic`/`reg-shift-extend`/`reg-compare`/`reg-cond-assign`/`reg-imm-block`，130 身份/366 条；生成器 `tools/testcases/generate_isa_vectors.py` 已入 git）；`004t` 已验证（访存 3 文件：`mem-rd`/`mem-rb`/`mem-ra`，30 身份/172 条；生成器 `tools/testcases/generate_mem_vectors.py` 已入 git；validator 追加 F10 守卫）；`005t` 已验证（`ctrl-br.yaml`，10 个 `br.*` 身份/30 条，taken+not-taken 全测；生成器 `tools/testcases/generate_ctrl_br.py` 已入 git；validator 追加 F7 `expected_pc` 存在性规则，作用域 `br.*`）；`006t`~`009t` 待开始、`010m` 待核验 |
 | M1 任务规划（infra/spec/testcases/llvm/qemu/integ） | ✅ 已生成（参考 DADAO-0628；**testcases 已计划级复核**，其余未逐任务审核） |
-| M1 实现 | 🔄 进行中（spec ✅ M1 完成；infra：`002t`~`008t` 已验证，`010t`~`012t` 待开始；testcases：`001k`/`002t`/`003t`/`004t` 已验证；llvm/qemu/integ 待推进） |
+| M1 实现 | 🔄 进行中（spec ✅ M1 完成；infra：`002t`~`008t` 已验证，`010t`~`012t` 待开始；testcases：`001k`/`002t`/`003t`/`004t`/`005t` 已验证；llvm/qemu/integ 待推进） |
 
 ## 关键目录速查
 

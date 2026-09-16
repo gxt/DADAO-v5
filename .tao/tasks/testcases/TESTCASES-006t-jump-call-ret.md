@@ -51,7 +51,7 @@
   - `call-rrii`：`Addr = rbha + rdhb + (imms12<<2)`；`expected_pc = Addr`，压栈同 §3；
   - 地址为 48-bit 有效地址；`expected_pc` 为 48-bit hex。
 - **立即数/寄存器选择**：目标地址须落在可预置/合法的布局（如 `imm=1` → 下一条；`jump-rrii` 用 `ha=rb0`/`hb=rd0`/`imms12=1`）；避免 addr=0（unmapped）与自跳。
-- **validator 存在性规则**：`002t` 只校验 `expected_pc`「出现时」的合法性；本任务在数据补齐后，向 `tools/testcases/validate_vectors.py` 追加「改变 PC 的 active semantic/boundary 必须给出 `expected_pc`」的存在性规则（对 `ctrl-jump`/`ctrl-call`/`ctrl-ret` 生效），并验证真实树零误报。
+- **validator 存在性规则（扩展 `005t` 已建立的 F7 规则，交叉复核 F5）**：`005t` 已向 `tools/testcases/validate_vectors.py` 追加 F7 存在性规则，但**作用域仅 `br.*`**。本任务须**扩展该规则的作用域**以覆盖 `ctrl-jump`/`ctrl-call`/`ctrl-ret`（PC-affecting），错误消息按指令族定制；**不得**另写重复规则；并验证真实树零误报。（若本任务只"新增"而不"扩展"，`jump`/`call`/`ret` 缺 `expected_pc` 时 validator 会**静默通过**。）
 
 ### 3. `call` 的 RA 压栈用 `ra` 表达
 
@@ -91,7 +91,7 @@
 6. `jump`/`call` 的 encoding 经推演确认可解码执行无 fault（不 ILLI/不自跳/unmapped）；`ret-riii` 不生成 encoding 且 inventory 标注理由（布局限制）
 7. legality 齐备：`jump-rrii`/`call-rrii` → `UNMAPPED`；`ret-riii` 冷 RA → `RASUF`；`call` 溢出 → `RASOF`（如适用）
 8. 未改 `contracts/`；未生成/未改动 `ctrl-br`/`misc`/`reg-*`/`mem-*`
-9. `python3 tools/testcases/validate_vectors.py` 零错误；`make check` PASS
+9. `python3 tools/testcases/validate_vectors.py` 零错误；`make check` PASS；**且 F7 存在性规则的作用域已扩展至 `jump`/`call`/`ret`**（注入「删去某 `jump` 的 `expected_pc`」须被捕获 exit 1）
 10. （下游）QEMU harness 就绪后，active 测试全 PASS；记录该运行验收依赖
 11. 未自行 commit
 
