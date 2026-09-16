@@ -41,6 +41,7 @@
 - **notes 文本笔误（`006t` 遗留，N-1）**：`ctrl-call.yaml` case[7] 与 `generate_ctrl_jump_call_ret.py` 的 notes 写「low 48=0xAAAA000000000000」（多 4 个 0），实际 `low48 = 0xAAAA00000000`。**数值全部正确**、重算 0 mismatch；纯文本。归 `009t` 或随生成器一并订正后重生成。
 - **`call`/`ret` 覆盖维度未穷尽（`006t` 遗留）**：`call-iiii` 的 §5.6.1 case 3（shift-push）仅有 RASOF legality、无独立 semantic（`call-rrii` case 3 有）；`ret` 仅覆盖单级 pop（count=1 → shift-down），多级 pop（count>1 → decrement）未覆盖。属 M1 最小覆盖，归 `009t`。
 - **F7 守卫基线已完整（参照基准）**：`005t` 建立 `br.*` → `006t` 就地扩展至 `jump`/`call`/`ret`，形成单一 `if/elif` 块（4 分支、错误消息按指令族定制）；`007t` 的 `swym`/`illi`/`fence` 不匹配任何分支，不会误报。后续审计（`009t`）以此为参照。
+- **validator 缺 `legality` 类 `expected_fault` 非 null 守卫（`007t` 遗留）**：`validate_vectors.py` 已强制 `encoding.expected_state==null`、`encoding.expected_fault==null`、`semantic.expected_fault==null`（`003t` F9③），但**未强制 `legality.expected_fault` 非 null** → 注入「`illi` 的 legality `expected_fault→null`」validator `exit=0` 未捕获（独立重算兜底）。属同构的 class↔field 一致性约束，归 `009t` 或后续 validator 增强任务。（「给 `illi` 造 encoding case」亦未捕获，但补它需把指令级语义引入 validator，与定位不符，不补。）
 - **跨模块影响（待处置）**：本次重排改变了 `TESTCASES-003t`/`006t`/`008t` 的**含义**，`qemu` 模块任务书存在**陈旧引用**，须同步：
   - `QEMU-012t`（branch PC 公式 + call RA 修复）依赖 `TESTCASES-008t`（旧=控制流向量）→ 现控制流向量在 `005t`/`006t`；
   - `QEMU-017t`（分支语义 harness）依赖 `TESTCASES-008t`，并引用 `control-flow.yaml` 的 deferred semantic 桩 → 现控制流向量**从零生成**于 `ctrl-br`/`ctrl-jump`/`ctrl-call`/`ctrl-ret`（不再有 `control-flow.yaml`），且 F7 已全部 active（不再有 PC-only deferred 桩）；
