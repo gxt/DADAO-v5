@@ -407,6 +407,87 @@ def validate_file(filepath, by_key, m1_keys, errors):
                                 "%s: orrr %s shamt %d > N=%d (from %s)"
                                 % (tag, mnemonic, shamt_val, N, shamt_name))
 
+        # ── F10 guards (TESTCASES-004t) ─────────────────────────────
+        # Encoding class: memory instructions must satisfy F10 constraints.
+        # Applies to insn prefix ld./st./ldm./stm. (访存 encoding).
+        if cls == "encoding" and isinstance(insn, str) and \
+                isinstance(fmt, str) and isinstance(encoding, dict) and \
+                "word" in encoding and isinstance(input_state, dict) and \
+                any(insn.startswith(p) for p in ("ld.", "st.", "ldm.", "stm.")):
+            key = (insn, fmt)
+            if key in by_key:
+                wval = int(encoding["word"], 16) if isinstance(
+                    encoding["word"], str) else encoding["word"]
+                rec = by_key[key]
+                fields = rec.get("fields", [])
+
+                # Collect pre-set registers from input_state
+                inp_rb = input_state.get("rb", {})
+                rb_preset = {}
+                if isinstance(inp_rb, dict):
+                    rb_preset = inp_rb
+
+                # Extract field values
+                def _extract_field(fname):
+                    """Return integer value of named field from word, or None."""
+                    for fld in fields:
+                        if fld["name"] == fname:
+                            bits_str = fld.get("bits", "")
+                            m2 = re.match(r"\[(\d+):(\d+)\]", bits_str)
+                            if m2:
+                                hi, lo = int(m2.group(1)), int(m2.group(2))
+                                return (wval >> lo) & ((1 << (hi - lo + 1)) - 1)
+                    return None
+
+                # F10①: base field (rbhb) != rb0, rb1, rb2
+                hb_val = _extract_field("rbhb")
+                if hb_val is not None:
+                    if hb_val == 0:
+                        errors.append(
+                            "%s: F10: encoding base field hb=0 (rb0=PC), "
+                            "must use unused rb register" % tag)
+                    elif hb_val in (1, 2):
+                        errors.append(
+                            "%s: F10: encoding base field hb=%d (rb%d occupied "
+                            "by D6.5 entry state), must use unused rb register"
+                            % (tag, hb_val, hb_val))
+
+                    # F10②: base register must be preset in input_state.rb
+                    # with value in RAM window
+                    base_name = "rb%d" % hb_val
+                    if base_name not in rb_preset:
+                        errors.append(
+                            "%s: F10: encoding base register %s not preset "
+                            "in input_state.rb" % (tag, base_name))
+                    else:
+                        try:
+                            base_val = _to_int(rb_preset[base_name])
+                            if not (RAM_BASE <= base_val <= RAM_END):
+                                errors.append(
+                                    "%s: F10: encoding base %s value 0x%x "
+                                    "outside RAM window [0x%x, 0x%x]"
+                                    % (tag, base_name, base_val,
+                                       RAM_BASE, RAM_END))
+                        except (ValueError, TypeError):
+                            errors.append(
+                                "%s: F10: encoding base %s value not parseable: "
+                                "%r" % (tag, base_name, rb_preset[base_name]))
+
+                # F10③: rrri (multi) immu6 >= 1
+                if fmt == "rrri":
+                    immu6_val = _extract_field("immu6")
+                    if immu6_val is not None and immu6_val < 1:
+                        errors.append(
+                            "%s: F10: rrri encoding immu6=%d, must be >= 1"
+                            % (tag, immu6_val))
+
+                # F10④: dest/src ha != rd0/ra0
+                ha_val = _extract_field("rdha")
+                if ha_val is not None and ha_val == 0:
+                    errors.append(
+                        "%s: F10: encoding dest/src ha=0 (rd0/ra0), "
+                        "must use non-zero register" % tag)
+
     return len(cases)
 
 
