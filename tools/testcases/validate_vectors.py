@@ -76,7 +76,9 @@ def _unquote(cell):
 
 
 def load_opcodes(path):
-    """返回 (m1_records, by_key, duplicate_keys)。M1 判据 excluded_m1 != true。"""
+    """返回 (m1_records, by_key, duplicate_keys, all_records)。
+    M1 判据 excluded_m1 != true；all_records 含全部 256 条（含 excluded_m1）。
+    """
     with open(path) as fh:
         records = _yaml.safe_load(fh)
     if not isinstance(records, list):
@@ -89,7 +91,7 @@ def load_opcodes(path):
         if key in by_key:
             dups.append(key)
         by_key[key] = rec
-    return m1, by_key, dups
+    return m1, by_key, dups, records
 
 
 def parse_inventory(path):
@@ -166,7 +168,7 @@ def _check_state_banks(state, tag, label, errors):
                               % (tag, label, bank, key))
 
 
-def validate_file(filepath, by_key, m1_keys, errors):
+def validate_file(filepath, by_key, m1_keys, all_records, errors):
     """校验单个向量 YAML，返回 case 数。"""
     try:
         with open(filepath) as fh:
@@ -186,6 +188,7 @@ def validate_file(filepath, by_key, m1_keys, errors):
             errors.append("%s: case is not a mapping" % tag)
             continue
 
+        # 1/2/3/4/5. 必填字段、class、status、fault（保留编码仍须有这些字段，值为 null）
         for field in REQUIRED_FIELDS:
             if field not in case:
                 errors.append("%s: missing required field '%s'" % (tag, field))
@@ -215,9 +218,13 @@ def validate_file(filepath, by_key, m1_keys, errors):
                                     or not spec_cite.strip()):
             errors.append("%s: spec_cite must be a non-empty string" % tag)
 
-        # 7. (insn, format) 必须存在于 M1 身份集
+        # 保留编码标志（提前检测，供后续分支使用）
+        is_reserved = isinstance(encoding, dict) and \
+            encoding.get("reserved") is True
+
+        # 7. (insn, format) 必须存在于 M1 身份集（保留编码已豁免）
         key = None
-        if isinstance(insn, str) and isinstance(fmt, str):
+        if not is_reserved and isinstance(insn, str) and isinstance(fmt, str):
             key = (insn, fmt)
             if key not in m1_keys:
                 errors.append("%s: (insn, format) = (%s, %s) is not an M1 "
@@ -253,6 +260,70 @@ def validate_file(filepath, by_key, m1_keys, errors):
                                 "%s: encoding.word %s does not match %s "
                                 "mask/value (expected (word & 0x%08X) == 0x%08X)"
                                 % (tag, word, key, mask, value))
+
+        # ── 保留编码分支（TESTCASES-008t 方案 A）──────────────────
+        # encoding.reserved: true → QFC/子表空白单元格，无 (insn, format) 身份
+        if is_reserved:
+            # R1: class 必须为 legality
+            if cls != "legality":
+                errors.append("%s: reserved encoding must have class='legality', "
+                              "got %r" % (tag, cls))
+            # R2: expected_fault 必须为 UNDI
+            if fault != "UNDI":
+                errors.append("%s: reserved encoding must have "
+                              "expected_fault='UNDI', got %r" % (tag, fault))
+            # R3: status 必须为 active
+            if status != "active":
+                errors.append("%s: reserved encoding must have status='active', "
+                              "got %r" % (tag, status))
+            # R3.5: word 必须存在（保留编码须指定具体 word）
+            if word is None:
+                errors.append("%s: reserved encoding must have encoding.word "
+                              "(non-null)" % tag)
+            # R4: word 不得为 0x00000000（全零字 → illi → ILLI，§8.3）
+            # R8: word 不得匹配 opcodes.yaml 中任何已定义记录（含 excluded_m1）
+            if word is not None:
+                try:
+                    wval_r = int(word, 16) if isinstance(word, str) else word
+                except (ValueError, TypeError):
+                    wval_r = None  # hex 格式错误由后续检查捕获
+                if wval_r is not None:
+                    if wval_r == 0:
+                        errors.append("%s: reserved encoding word must not be "
+                                      "0x00000000 (全零字 → illi → ILLI, §8.3)"
+                                      % tag)
+                    # R8: 遍历 opcodes.yaml 全部记录（含 excluded_m1），
+                    # 若 (word & mask) == value 命中则说明该 word 是已定义编码，
+                    # 不得标 reserved
+                    for rec in all_records:
+                        try:
+                            mask = _to_int(rec["mask"])
+                            value = _to_int(rec["value"])
+                        except (KeyError, ValueError):
+                            continue
+                        if (wval_r & mask) == value:
+                            errors.append(
+                                "%s: reserved encoding word %s matches defined "
+                                "encoding in opcodes.yaml (insn=%s, format=%s, "
+                                "excluded_m1=%s); reserved only for QFC/子表 "
+                                "blank cells"
+                                % (tag, word, rec.get("insn"),
+                                   rec.get("format"),
+                                   rec.get("excluded_m1", False)))
+                            break
+            # R5: notes 必须非空（须给出 reserved 依据）
+            notes_val = case.get("notes")
+            if not isinstance(notes_val, str) or not notes_val.strip():
+                errors.append("%s: reserved encoding must have non-empty 'notes' "
+                              "with QFC/子表 position evidence" % tag)
+            # R6: spec_cite 必须非空（已由通用检查覆盖，此处冗余确认）
+            if not isinstance(spec_cite, str) or not spec_cite.strip():
+                errors.append("%s: reserved encoding must have non-empty "
+                              "'spec_cite'" % tag)
+            # R7: 不得伪造 (insn, format) 身份
+            if isinstance(insn, str) and insn.strip():
+                errors.append("%s: reserved encoding must not have insn identity "
+                              "(got %r); use null" % (tag, insn))
 
         # input_state 必须为 mapping
         if input_state is not None and not isinstance(input_state, dict):
@@ -342,6 +413,11 @@ def validate_file(filepath, by_key, m1_keys, errors):
             if fault is not None:
                 errors.append("%s: encoding case must have expected_fault == null"
                               % tag)
+        if cls == "legality":
+            # 保留编码已由 reserved 分支强制 fault == "UNDI"
+            if not is_reserved and fault is None:
+                errors.append("%s: legality case must have non-null "
+                              "expected_fault" % tag)
         if cls == "semantic":
             if fault is not None:
                 errors.append("%s: semantic case must have expected_fault == null"
@@ -529,7 +605,7 @@ def main():
         sys.exit(1)
 
     try:
-        _m1, by_key, dups = load_opcodes(opcodes_path)
+        _m1, by_key, dups, all_records = load_opcodes(opcodes_path)
     except (ValueError, KeyError) as exc:
         print("ERROR: cannot load contracts/opcodes.yaml: %s" % exc,
               file=sys.stderr)
@@ -585,7 +661,7 @@ def main():
                   if os.path.isdir(isa_dir) else [])
     total_cases = 0
     for fpath in yaml_files:
-        total_cases += validate_file(fpath, by_key, m1_keys, errors)
+        total_cases += validate_file(fpath, by_key, m1_keys, all_records, errors)
 
     if errors:
         for err in errors:
