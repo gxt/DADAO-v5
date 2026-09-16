@@ -32,7 +32,7 @@ DADAO-v5 的 TDD 合约要求：在任何 LLVM/QEMU 实现字节被写入之前�
 
 | 编号 | 任务 | 拥有的文件 | 内容 | 依赖 | 状态 |
 |------|------|-----------|------|------|------|
-| `TESTCASES-002t` | 向量基础设施（**返工**） | `tests/vectors/schema.md`、`inventory.md`、`tools/testcases/validate_vectors.py` | schema（**新增 `expected_pc` 字段**）+ inventory + validator；**F2**（inventory 缺 `format` 列）、**F3**（inventory 无同步校验）、**F6**（encoding 类对恒 fault 指令豁免的澄清）、**F9**（validator 补强） | 无 | 待返工 |
+| `TESTCASES-002t` | 向量基础设施（**返工**） | `tests/vectors/schema.md`、`inventory.md`、`tools/testcases/validate_vectors.py` | schema（**新增 `expected_pc` 字段**）+ inventory + validator；**F2**（inventory 缺 `format` 列）、**F3**（inventory 无同步校验）、**F6**（encoding 类对恒 fault 指令豁免的澄清）、**F9**（validator 补强） | 无 | 已验证 |
 | `TESTCASES-003t` | 寄存器间传输与运算 | `reg-arith` `reg-logic` `reg-shift-extend` `reg-compare` `reg-cond-assign` `reg-imm-block` | 含 **F1**（`orrr` shamt 应为寄存器形式）修复；`rela.si-rb` 改 active；本任务文件 F10 encoding 修复 | `002t` | 待开始 |
 | `TESTCASES-004t` | load/store（RD/RB/RA 三 bank） | `mem-rd` `mem-rb` `mem-ra` | 访存 encoding 的地址/base/count 语义（F10）；本任务文件修复 | `003t` | 待开始 |
 | `TESTCASES-005t` | 控制转移 `br.*` | `ctrl-br` | taken / not-taken 全测（用 `expected_pc`）；F10 | `002t`（默认串行时排 `004t` 后） | 待开始 |
