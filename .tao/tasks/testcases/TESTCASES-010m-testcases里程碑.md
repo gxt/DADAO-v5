@@ -16,6 +16,7 @@
   - 数据从零生成，`tests/vectors/isa/` 只含目标文件集（无任何旧/历史文件混入）
   - `tools/testcases/validate_vectors.py`、`Makefile`（`check` 含 `validate-vectors`）
 - **数据级覆盖（机械可验，缺一不得置 `里程碑`）**：M1 scope 内**每个 `(insn, format)` 在 `tests/vectors/isa/*.yaml` 中至少有 1 条 `status: active` 的对应 class case**（由 `009t` 验收标准 7 核验）；`python3 tools/testcases/validate_vectors.py` 零错误、`make check` PASS。**不得仅以 validator 输出的 `178/178` 作为数据覆盖判据**（该数字为 inventory 声明级：inventory 行集 == `opcodes.yaml` M1 身份集，实测零数据/仅 1 条 case 亦输出 `178/178`）。
+- **【前置阻断·009t 登记】**：当前存在 **154 个数据级覆盖率缺口**（141 legality + 2 boundary + 11 overlap），详见 `.tao/knowledge/deferred.md`「`010m` 阻断（用户裁定 B1）」条目。**154 缺口消解前，本里程碑不得置 `里程碑`**。消解归属后续补数据任务（补 legality/boundary/overlap case，或把无法覆盖的 `✓` 降为 `deferred <reason>`）。
 - **覆盖率主键与 scope 自洽**：validator 以 `(insn, format)` 为身份、以 `excluded_m1` 为 scope 判据；M1 内的 RA 存取/块赋值（`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`/`ra2rd`/`rd2ra`）与 `swym`/`illi`/`fence` 均被计入
 - **测试机语义自洽**：`expected_fault` 可表达 ADR-0004 D5.8 的 `UNMAPPED`（`0x87`）；`ret` 冷 RA 的期望为 `RASUF`（非 ILLI）；相对控制流立即数用 `imm=1`（`rb0`=当前指令地址，ADR-0004 D6.5）
 - **inventory 自洽**：inventory 含 `format` 列、M1 行集与 `opcodes.yaml` 一致（F2/F3），`file` 列与最终布局一致

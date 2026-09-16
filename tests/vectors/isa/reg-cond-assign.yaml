@@ -192,3 +192,98 @@
   notes: 'cs.ne: rd1=0x2a, rd2=0x63 → taken, rd4→rd3'
   spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
   status: active
+- class: overlap
+  deferred_reason: C-27
+  encoding:
+    word: '0x60041084'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state:
+    rd:
+      rd1: '0xFFFFFFFFFFFFFFFF'
+      rd2: '0x0000000000000000'
+      rd3: '0x000000000000AAAA'
+      rd4: '0x000000000000BBBB'
+  insn: cs.n-rd
+  mnemonic: cs.n
+  notes: 'overlap C-27: cs.n snapshot — condition & source register aliasing deferred'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
+  status: deferred
+- class: overlap
+  deferred_reason: C-27
+  encoding:
+    word: '0x62041084'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000000'
+      rd3: '0x000000000000AAAA'
+      rd4: '0x000000000000BBBB'
+  insn: cs.z-rd
+  mnemonic: cs.z
+  notes: 'overlap C-27: cs.z snapshot — condition & source register aliasing deferred'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
+  status: deferred
+- class: overlap
+  deferred_reason: C-27
+  encoding:
+    word: '0x64041084'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000000'
+      rd3: '0x000000000000AAAA'
+      rd4: '0x000000000000BBBB'
+  insn: cs.p-rd
+  mnemonic: cs.p
+  notes: 'overlap C-27: cs.p snapshot — condition & source register aliasing deferred'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
+  status: deferred
+- class: overlap
+  deferred_reason: C-27
+  encoding:
+    word: '0x66041084'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state:
+    rd:
+      rd1: '0x000000000000002A'
+      rd2: '0x000000000000002A'
+      rd3: '0x000000000000AAAA'
+      rd4: '0x000000000000BBBB'
+  insn: cs.eq-rd
+  mnemonic: cs.eq
+  notes: 'overlap C-27: cs.eq snapshot — condition & source register aliasing deferred'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
+  status: deferred
+- class: overlap
+  deferred_reason: C-27
+  encoding:
+    word: '0x67041084'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state:
+    rd:
+      rd1: '0x000000000000002A'
+      rd2: '0x0000000000000063'
+      rd3: '0x000000000000AAAA'
+      rd4: '0x000000000000BBBB'
+  insn: cs.ne-rd
+  mnemonic: cs.ne
+  notes: 'overlap C-27: cs.ne snapshot — condition & source register aliasing deferred'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
+  status: deferred
