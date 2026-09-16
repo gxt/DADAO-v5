@@ -191,7 +191,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `(insn, format)`
 | `br.nz-rb` | `riii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `call-iiii` | `iiii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `call-rrii` | `rrii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ret-riii` | `riii` | `ctrl-ret.yaml` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，归 006t） |
+| `ret-riii` | `riii` | `ctrl-ret.yaml` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`） |
 | `swym-iiii` | `iiii` | `misc.yaml` | ✓ | — | ✓ | — | — | 占位指令（§7），无 fault，legality 不适用 |
 
 ## 覆盖豁免与例外
