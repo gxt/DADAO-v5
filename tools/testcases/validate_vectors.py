@@ -305,6 +305,17 @@ def validate_file(filepath, by_key, m1_keys, errors):
                                   "address (> 0x%x): %s"
                                   % (tag, ADDR48_MAX, expected_pc))
 
+        # ── F7: expected_pc existence for PC-affecting br.* (TESTCASES-005t) ──
+        # Active semantic cases for br.* (PC-affecting) MUST have expected_pc.
+        # Scope: ctrl-br (br.*). Extensible: add other PC-affecting insn prefixes.
+        if status == "active" and cls == "semantic" and \
+                isinstance(insn, str) and insn.startswith("br."):
+            if expected_pc is None:
+                errors.append(
+                    "%s: active semantic br.* case must have expected_pc "
+                    "(PC-affecting instruction; taken=rb0+(imm<<2), "
+                    "not-taken=rb0+4)" % tag)
+
         # ── F9 guards (TESTCASES-003t) ──────────────────────────────
         # F9③: class↔fault/state 一致性
         if cls == "encoding":
