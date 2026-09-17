@@ -14,6 +14,10 @@ commit = ""
 patch_series = "components/llvm/patches/series"
 role = "LLVM MC + CodeGen"
 
+[[component.source]]
+name = "sjtu"
+url = "https://mirror.sjtu.edu.cn/git/llvm-project.git"
+
 [[component]]
 name = "qemu"
 enabled = false

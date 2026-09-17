@@ -14,6 +14,7 @@ network.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import tomllib
 from pathlib import Path
@@ -59,6 +60,39 @@ def sync_mirror(mirror: Path, repository: str, commit: str) -> None:
     print(f"fetch: mirror {mirror.name} updated (incremental)")
 
 
+def select_source(component: dict) -> str:
+    """Resolve the effective Git URL for *component* following ADR-0005 D2.
+
+    Source selection priority:
+    1. Environment variable ``COMPONENT_SOURCE_<NAME>`` (uppercase component
+       name) selects by ``source[].name``.  The reserved name ``canonical``
+       means use ``repository``.
+    2. Otherwise, the first entry in ``source`` (if present).
+    3. Otherwise, ``repository``.
+    """
+    name = component["name"]
+    repository = component["repository"]
+    sources = component.get("source", [])
+    env_key = f"COMPONENT_SOURCE_{name.upper()}"
+    env_val = os.environ.get(env_key)
+
+    if env_val is not None:
+        if env_val == "canonical":
+            return repository
+        for src in sources:
+            if src["name"] == env_val:
+                return src["url"]
+        available = [s["name"] for s in sources]
+        raise SystemExit(
+            f"fetch: {env_key}={env_val!r} does not match any source for "
+            f"component {name!r} (available: {available})"
+        )
+
+    if sources:
+        return sources[0]["url"]
+    return repository
+
+
 def main() -> int:
     with (ROOT / "manifests/components.lock.toml").open("rb") as stream:
         manifest = tomllib.load(stream)
@@ -78,7 +112,20 @@ def main() -> int:
         mirror = mirror_root / f"{name}.git"
         target = source_root / name
 
-        sync_mirror(mirror, component["repository"], commit)
+        source_url = select_source(component)
+        # Show which source was resolved: env override name, source[0].name,
+        # or "canonical" (meaning repository).
+        env_key = f"COMPONENT_SOURCE_{name.upper()}"
+        env_val = os.environ.get(env_key)
+        sources = component.get("source", [])
+        if env_val is not None:
+            src_label = env_val
+        elif sources:
+            src_label = sources[0]["name"]
+        else:
+            src_label = "canonical"
+        print(f"fetch: {name} using source '{src_label}' ({source_url})")
+        sync_mirror(mirror, source_url, commit)
 
         if target.exists() and not (target / ".git").exists():
             raise SystemExit(

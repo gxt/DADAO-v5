@@ -21,7 +21,8 @@
 
 ## infra
 
-（暂无）
+- **`fetch.py` 选源标签逻辑重复（`INFRA-009t` 遗留，DRY）**：`main()` 为打印实际使用的源，重新解析了一遍 `COMPONENT_SOURCE_<NAME>` 与 `source[0]["name"]`，与 `select_source()` 内部逻辑重复。当前行为正确（打印发生在 `sync_mirror` 之前，短路时也能看到实际源），但两处逻辑未来可能不同步。建议 refactor：让 `select_source()` 返回 `(url, label)` 元组，或在 `main()` 复用其解析结果。非阻塞，无功能影响。
+- **ADR-0005 Consequences C2 表述可更精确（`INFRA-009t` 交叉复核登记）**：C2 写「`sync_mirror` 接收解析后的源 URL」，实际是 `select_source()` 完成解析、`sync_mirror` 只接收 `source_url` 参数（本身不解析）。属表述问题、非事实错误；ADR-0005 已 `Accepted`，按 `adr-authoring.md` 不直接改写。
 
 ## testcases
 

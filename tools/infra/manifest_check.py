@@ -22,6 +22,20 @@ def check_components(components: dict, errors: list[str]) -> None:
         if not name or name in seen:
             errors.append(f"components.lock.toml: invalid or duplicate component {name!r}")
         seen.add(name)
+        if not component.get("repository"):
+            errors.append(f"component {name}: repository is required")
+        sources = component.get("source", [])
+        if sources:
+            src_names: set[str] = set()
+            for src in sources:
+                src_name = src.get("name", "")
+                if not src_name:
+                    errors.append(f"component {name}: source name is required")
+                elif src_name in src_names:
+                    errors.append(f"component {name}: duplicate source name {src_name!r}")
+                src_names.add(src_name)
+                if not src.get("url"):
+                    errors.append(f"component {name}: source {src_name!r} url is required")
         if not component.get("enabled"):
             # Placeholder components keep commit = "" until their module ADR
             # records the upstream selection and exact commit.
