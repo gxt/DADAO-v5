@@ -1,6 +1,6 @@
 # ADR-0007: DADAO target 的 CMake 注册通道
 
-**状态**：Candidate
+**状态**：Accepted
 **日期**：2026-09-17
 **关联**：`LLVM-003t`、`LLVM-002t`、`ADR-0001`、`ADR-0002`
 
@@ -44,4 +44,5 @@ LLVM 23.1.1 的 `llvm/CMakeLists.txt` 对 `LLVM_TARGETS_TO_BUILD` 条目有硬�
 
 ## 状态说明
 
-本决策由用户于 2026-09-17 裁定（D1 逐条确认），置为 Candidate。待 `LLVM-003t` 落地后可验证决策有效性，届时由主会话升为 Accepted。
+- **Accepted**（2026-09-17）：D1 由用户于 2026-09-17 逐条确认后固化；其有效性已由 `LLVM-003t` 落地真实验证——0001 补丁在 `llvm/CMakeLists.txt` 的 `LLVM_ALL_TARGETS` 加入 `DADAO`，`make build-mc` 的 `cmake -DLLVM_TARGETS_TO_BUILD=DADAO` configure 成功（`-- Targeting DADAO`）且 `llvm-mc --version` 的 `Registered Targets` 含 `dadao - DADAO SimRISC`；`LLVM-003t` 经 reviewer 验收（Accepted）与 architect 交叉复核确认后由主会话置 `Accepted`。
+- 决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。

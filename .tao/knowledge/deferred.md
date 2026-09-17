@@ -57,4 +57,5 @@
 
 ## llvm / qemu / integ
 
-（待各模块规划时补充）
+- **F3 — ELF writer 存根是死代码（`LLVM-003t` reviewer F3，2026-09-17 登记）**：`DADAOELFObjectWriter.cpp` 定义了 `createDadaoELFObjectWriter`，但 `DADAOMCTargetDesc.cpp` 的 `LLVMInitializeDADAOTargetMC()` 未注册它（`RegisterELFObjectWriter` 未调用）；`createDadaoAsmBackend`/`createDadaoMCCodeEmitter` 只在 `DADAOMCTargetDesc.h` 中声明，无定义、未注册。当前 ELF writer 存根为死代码。归属：后续 ELF/汇编器任务（`LLVM-006t` 起）接线。不阻塞本任务（本任务边界 = triple 注册 + 最小 target 骨架 + `llvm-mc --version` 验证）。
+- **F4 — `e_flags` 未设置（`LLVM-003t` reviewer F4，2026-09-17 登记）**：`contract-elf.md §1.1` 要求 `e_flags = 0x00000001`（对象/ABI 格式版本 = 1）。`DADAOELFObjectWriter` 的构造函数未设置 `e_flags`（LLVM 默认为 0）。当前 ELF writer 存根本身是死代码（F3），`e_flags` 设置属后续 ELF/汇编器任务范围。归属：`LLVM-006t` 起。不阻塞本任务。

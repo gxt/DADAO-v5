@@ -144,6 +144,9 @@
 **补记（2026-09-17，用户裁定 + ADR-0007）**：
 DADAO configure 失败属**预期**——target 尚未注册，LLVM 的 `llvm/CMakeLists.txt` core-tier 校验必然拦截。注册通道已由用户定为「加入 `LLVM_ALL_TARGETS`」并固化于 ADR-0007（否决 `LLVM_EXPERIMENTAL_TARGETS_TO_BUILD` 通道）。`build-mc` 配方不变（仍用 `-DLLVM_TARGETS_TO_BUILD=DADAO`）。待 `LLVM-003t` 落地（补丁包含 `LLVM_ALL_TARGETS` 增项）后可真实构建。
 
+**补记（2026-09-17，用户裁定 + LLVM-003t）**：
+`llvm-lit` **不是** ninja 构建目标——它是 CMake `configure_file` 在 configure 阶段生成的 Python 脚本（`bin/llvm-lit`），无对应 ninja target。任务书第 41、100、116、164、181 行中 `ninja … llvm-lit …` 的表述**有误**，以本补记为准。`Makefile` 的 `build-mc` 已在 `LLVM-003t` 中改为 `ninja -C $(LLVM_BUILD) llvm-mc llvm-objdump FileCheck`（三者均为有效 ninja 目标）。
+
 **返工记录（2026-09-17，第 1 轮 reviewer 验收 Needs Revision）**：
 1. **B1（完成区口径错误）**：已修复。测试结果从 `6/7` 改为 `7/7`，说明 DADAO configure 失败属预期行为（ADR-0007），不属验收标准失败项。
 2. **B2（Makefile 陈旧文案）**：已修复。help 行去掉 stub 措辞；注释改为指向 ADR-0007。
