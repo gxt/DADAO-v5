@@ -511,7 +511,7 @@ containers/dev/Dockerfile
 
 **非阻塞观察**：
 
-1. **gem5 依赖清单 `[OPEN]`（跨模块）**：AC2 的 gem5 部分基于候选清单，尚未由 gem5 模块独立确认；**在 gem5 模块确认前不宜将 `INFRA-013m` 置为 `里程碑`**（按 `AGENTS.md` 跨模块交互规则）。
+1. **gem5 依赖清单 `[OPEN]`（跨模块）**：AC2 的 gem5 部分基于候选清单，尚未由 gem5 模块独立确认；**在 gem5 模块确认前不宜将 `INFRA-013m`（现 `INFRA-014m`）置为 `里程碑`**（按 `AGENTS.md` 跨模块交互规则）。
 2. 基础镜像 `ubuntu:24.04` 为 tag 而非 digest（满足任务契约；强可复现可后续评估 digest pin）。
 3. 文档计数笔误：engineer 第 1 轮称 0628 清单 15 个，实为 14 个（交付物无误）。
 
@@ -665,13 +665,13 @@ Base image ubuntu:24.04 ID: sha256:224a1869083a...
 ```
 $ git status --short
  M ".tao/tasks/infra/INFRA-007t-开发容器.md"   # 本任务文件（审阅记录 + 变更说明）
- M ".tao/tasks/infra/INFRA-013m-infra里程碑.md"  # 跨模块前置说明更新（gem5 gate 移除）
+ M ".tao/tasks/infra/INFRA-013m-infra里程碑.md"（现 `INFRA-014m`）  # 跨模块前置说明更新（gem5 gate 移除）
  M containers/dev/Dockerfile                      # 移除 gem5 依赖
 ```
 
 `git diff containers/dev/Dockerfile` 确认：仅删除 gem5 相关行（`scons m4 python3-dev python3-pip libprotobuf-dev protobuf-compiler libhdf5-dev libpng-dev` 及 gem5 注释），保留全部 M1 依赖 + `clang`，注释更新为 M1 scope 说明。修改范围与任务一致，未越界。
 
-`INFRA-013m` 的改动是同步更新跨模块前置说明（gem5 gate 移除），属合理联动。
+`INFRA-013m`（现 `INFRA-014m`）的改动是同步更新跨模块前置说明（gem5 gate 移除），属合理联动。
 
 #### 4. 约束核验（逐条）
 
@@ -692,7 +692,7 @@ $ git status --short
 | AC4 `make doctor` | PASS (native)，EXIT=0 | PASS (native)，EXIT=0 | **一致** |
 | m4 依赖核实 | `apt-cache depends flex` → `Depends: m4` | 相同 | **一致** |
 | Dockerfile 约束 | 全部满足 | 全部满足 | **一致** |
-| 修改文件清单 | `containers/dev/Dockerfile` + 任务文件 | 同 + `INFRA-013m` 联动更新 | **一致**（reviewer 额外核对了 `INFRA-013m` 的合理联动） |
+| 修改文件清单 | `containers/dev/Dockerfile` + 任务文件 | 同 + `INFRA-013m`（现 `INFRA-014m`）联动更新 | **一致**（reviewer 额外核对了 `INFRA-013m` 的合理联动） |
 
 完成区自审结论与独立验证**完全一致**，无差异。
 
@@ -706,7 +706,7 @@ $ git status --short
 **时间**：2026-09-12
 **结论**：确认 reviewer 第 5 轮的 **Accepted**。
 
-**独立核对**：`git diff` 确认 Dockerfile 仅删 gem5 依赖行；任务书「目标/交付物/差异/已知坑/验收标准 2」已一致收窄；`INFRA-013m` gem5 gate 已移除（与 `milestones.md` 的 M1 = MC+QEMU 一致）。4/4 重跑通过（AC2 正例 M1 依赖齐 + 反例 gem5 全 ABSENT）；`docker history` 反查 apt 层不含 gem5 且层 ID 与旧 gem5 版不同（非缓存假象）；`m4` 经 `apt-cache rdepends` 确认仅为 `flex`/`bison` 的 Depends，非 gem5 泄漏。
+**独立核对**：`git diff` 确认 Dockerfile 仅删 gem5 依赖行；任务书「目标/交付物/差异/已知坑/验收标准 2」已一致收窄；`INFRA-013m`（现 `INFRA-014m`）gem5 gate 已移除（与 `milestones.md` 的 M1 = MC+QEMU 一致）。4/4 重跑通过（AC2 正例 M1 依赖齐 + 反例 gem5 全 ABSENT）；`docker history` 反查 apt 层不含 gem5 且层 ID 与旧 gem5 版不同（非缓存假象）；`m4` 经 `apt-cache rdepends` 确认仅为 `flex`/`bison` 的 Depends，非 gem5 泄漏。
 
 **非阻塞观察**：
 

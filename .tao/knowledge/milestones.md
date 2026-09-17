@@ -4,7 +4,7 @@
 
 | 项目里程碑 | infra | spec | testcases | golden | llvm | qemu | integ | gem5 | sail | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M1 | `INFRA-013m` | `SPEC-011m` | `TESTCASES-010m` | — | `LLVM-013m` | `QEMU-020m` | `INTEG-004m` | — | — | 待开始 |
+| M1 | `INFRA-014m` | `SPEC-011m` | `TESTCASES-010m` | — | `LLVM-013m` | `QEMU-020m` | `INTEG-004m` | — | — | 待开始 |
 | M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
 
 ## 里程碑说明

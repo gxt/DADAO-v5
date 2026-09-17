@@ -34,9 +34,10 @@ DADAO-v5 要从上游组件（LLVM/QEMU/gem5）的可复现基线构建全栈，
 | `INFRA-010t` | issue registry（M1-gate） | `docs/issues.yaml`、`tools/infra/check_issues.py` | 无 |
 | `INFRA-011t` | spec 引用审计器 | `tools/infra/check_spec_refs.py` + 首轮审计报告 | `SPEC-002t`、`SPEC-010t` |
 | `INFRA-012t` | spec drift 检查 | `tools/infra/check_spec_drift.py` | `SPEC-010t` |
-| `INFRA-013m` | infra 里程碑 | 里程碑标记 | `INFRA-002t`~`INFRA-012t` |
+| `INFRA-013t` | 按原始仓库名命名 | 组件/参考标识符 + 缓存/文档路径同步 | `INFRA-003t`、`INFRA-004t` |
+| `INFRA-014m` | infra 里程碑 | 里程碑标记 | `INFRA-002t`~`INFRA-013t` |
 
-- **依赖关系**：`002t → 003t → {004t, 005t} → 006t → 007t`；`008t`（补 v5 自身 ADR，独立）；`009t` 依赖 `003t` + `004t`（组件锁多源字段）；`010t`（独立）、`011t`/`012t` 依赖 `SPEC-010t`；`013m` 汇总全部。
+- **依赖关系**：`002t → 003t → {004t, 005t} → 006t → 007t`；`008t`（补 v5 自身 ADR，独立）；`009t` 依赖 `003t` + `004t`（组件锁多源字段）；`010t`（独立）、`011t`/`012t` 依赖 `SPEC-010t`；`013t` 依赖 `003t` + `004t`（按原始仓库名命名）；`014m` 汇总全部。
 - **分解理由**：按「骨架 → 锁 → 工具 → 编排 → 容器」分层，每层可独立验收；共享工具（锁/获取/状态）无法拆到单个上游组件，故独立成 infra 模块。
 
 ## 说明
