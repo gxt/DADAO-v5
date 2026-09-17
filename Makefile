@@ -40,7 +40,7 @@ help:
 	@echo "  make fetch-refs      Fetch locked reference repositories"
 	@echo "  make apply-series    Apply ordered patch series to fetched sources"
 	@echo "  make prepare         Fetch enabled components and apply their patch series"
-	@echo "  make build-mc        Build LLVM MC tools (stub until llvm commit is locked)"
+	@echo "  make build-mc        Build LLVM MC tools (requires llvm-project enabled)"
 	@echo "  make build-qemu      Configure and compile QEMU (stub until qemu commit is locked)"
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
@@ -69,8 +69,8 @@ apply-series: manifest-check
 
 prepare: fetch apply-series
 
-# -DLLVM_TARGETS_TO_BUILD=DADAO is a placeholder: the exact target name is
-# registered by the llvm module (0.5.3) and must be confirmed there.
+# DADAO is registered by adding it to LLVM_ALL_TARGETS in llvm/CMakeLists.txt
+# (see ADR-0007). Until LLVM-003t lands that patch, cmake configure will fail.
 build-mc: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
@@ -81,7 +81,7 @@ build-mc: manifest-check
 	  -DLLVM_ENABLE_PROJECTS="" \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	  -DLLVM_ENABLE_ASSERTIONS=ON
-	ninja -C $(LLVM_BUILD) llvm-mc llvm-objdump
+	ninja -C $(LLVM_BUILD) llvm-mc llvm-objdump llvm-lit FileCheck
 	@echo "build-mc: PASS"
 
 build-qemu: manifest-check

@@ -8,9 +8,9 @@ work_root = ".work"
 
 [[component]]
 name = "llvm-project"
-enabled = false
+enabled = true
 repository = "https://github.com/llvm/llvm-project.git"
-commit = ""
+commit = "6dfe1677ab8dffbc6ec13d53a1e0215d75147689"
 patch_series = "components/llvm-project/patches/series"
 role = "LLVM MC + CodeGen"
 

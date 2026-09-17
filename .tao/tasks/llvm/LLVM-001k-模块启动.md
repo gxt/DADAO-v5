@@ -29,7 +29,7 @@ DADAO-v5 基于 SimRISC 0.5.3，需要从零为 `dadao-unknown-elf` 目标构建
 
 | 编号 | 任务 | 交付物 | 依赖 |
 |------|------|--------|------|
-| `LLVM-002t` | LLVM 组件基线（commit + ADR-0006 + `build-mc`） | `.tao/knowledge/adr-0006-llvm-baseline.md`、`manifests/components.lock.toml`（llvm enabled+commit）、`Makefile` 真实 `build-mc` | `INFRA-006t` |
+| `LLVM-002t` | LLVM 组件基线（commit + ADR-0006 + `build-mc`） | `.tao/knowledge/adr-0006-llvm-baseline.md`、`manifests/components.lock.toml`（llvm enabled+commit）、`Makefile` 真实 `build-mc` | `INFRA-006t`、`INFRA-009t`、`INFRA-013t` |
 | `LLVM-003t` | Triple 注册 + 最小 build | `components/llvm-project/patches/0001-dadao-triple-registration.patch`、`0002-dadao-target-skeleton.patch`、`series`、最小 lit | `LLVM-002t`、`SPEC-007t` |
 | `LLVM-004t` | Register TableGen | `components/llvm-project/patches/0003-dadao-register-info.patch` | `LLVM-003t`、`SPEC-004t` |
 | `LLVM-005t` | 指令格式 TableGen（9 种 M1 格式，不含 crrr/crii/ciii） | `components/llvm-project/patches/0004-dadao-instrinfo.patch` | `LLVM-004t`、`SPEC-003t` |
