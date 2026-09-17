@@ -39,7 +39,8 @@
 
 - `tasks/<module>/` — 任务文件 `<PREFIX>-nnn<suffix>-描述.md`（按模块分子目录），状态机按后缀：`k` 待开始→已验证；`t` 待开始→待验收→已验证（`待返工` 回退）；`m` 待开始→里程碑
 - `knowledge/` — 知识库：`MEMORY.md`（状态摘要）、`registry.md`（机器路由）、`changelog.md`（变更记录）、`milestones.md`（项目里程碑路线图）、`contract-*.md`（归一化合约）、`adr-*.md`（架构决策）、`project_*.md`、`feedback_*.md`
-- `logs/` — 命令输出日志（已被 `.tao/.gitignore` 忽略）
+- **日志留存** — 复杂验证类命令（build/test/smoke 等）的完整输出留存到 `.work/log/<模块>/<任务ID>-<命令名>.log`（reviewer 重跑加 `-review-`）；命令正常结束时用 `tee` 同时输出到终端和日志
+- `.work/` 由根 `.gitignore` 整体忽略，不进 git
 
 ## 模块与任务编号
 
@@ -80,3 +81,7 @@
 ## model
 
 各角色的 agent 定义与 model 位于全局 opencode 配置（`~/.config/opencode/agent/`），工作仓库不包含 agent 文件。
+
+## 日志目录迁移说明
+
+2026-09-17 起 `.tao/logs/` → `.work/log/<模块>/`；旧路径仅存在于历史记录中（已完成任务文件的「完成区/审阅记录」与 `changelog.md` 历史行**不改写**）。

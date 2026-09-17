@@ -11,7 +11,7 @@ DADAO-v5 需要从锁定的上游组件（LLVM/QEMU/gem5）与参考仓库复现
 ## Decision（决策）
 
 - **D1 稳定用户接口**：以 **Make** 作为统一入口（`fetch` / `fetch-refs` / `apply-series` / `prepare` / `build-*` / `clean-work` 等），实际逻辑委托给 `tools/infra/` 下的 **Python 标准库**脚本；不引入第三方 Python 依赖。
-- **D2 一次性数据集中在 `.work/`**：上游工作树、树外构建目录、install、sysroot、构建/组件日志等所有可丢弃数据放在 `.work/` 下，整体由 `.gitignore` 忽略；仓库不预建、不跟踪其内容。agent 任务中间文件（含验证日志）按 `.tao/` 约定放 `.tao/logs/`（同样 gitignore）。
+- **D2 一次性数据集中在 `.work/`**：上游工作树、树外构建目录、install、sysroot、构建/组件日志等所有可丢弃数据放在 `.work/` 下，整体由 `.gitignore` 忽略；仓库不预建、不跟踪其内容。agent 任务中间文件（含验证日志）按 `.tao/` 约定放 `.work/log/<模块>/`（`.work/` 整体 gitignore）。
 - **D3 按完整 commit 锁定**：每个组件从 `manifests/components.lock.toml` 读取**完整 40 位 commit** 获取；tag/branch 不作为可复现基线。
 - **D4 单一有序补丁序列**：每个组件的 DADAO 改动以 `components/<name>/patches/series` 定义的**单一有序补丁序列**表达，统一用 `git am` 应用；不叠加多层 fixups。
 - **D5 v5 新增：持久 bare mirror + 可再生工作树**（避免重下大仓库）：
@@ -42,8 +42,10 @@ DADAO-v5 需要从锁定的上游组件（LLVM/QEMU/gem5）与参考仓库复现
 
 ## 状态说明
 
-**Accepted**（2026-09-13；rev. 2026-09-13 D2 措辞澄清，见 `## 修订`）。决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。评审确认项：D1–D6（Make+Python 标准库、`.work/` 一次性数据、完整 commit 锁定、单一有序补丁序列、`.cache/` 持久 mirror+可再生工作树、否决 5 条历史做法）经用户逐条确认。
+**Accepted**（2026-09-13；rev. 2026-09-13 D2 措辞澄清、rev. 2026-09-17 日志目录迁至 `.work/log/`，均见 `## 修订`）。决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。评审确认项：D1–D6（Make+Python 标准库、`.work/` 一次性数据、完整 commit 锁定、单一有序补丁序列、`.cache/` 持久 mirror+可再生工作树、否决 5 条历史做法）经用户逐条确认。
 
 ## 修订
 
-**rev. 2026-09-13（用户决定）**：D2 措辞澄清——「日志」改为「构建/组件日志」；agent 任务中间文件（含验证日志）按 `.tao/` 约定放 `.tao/logs/`（同样 gitignore）。D1、D3–D6 不变。
+**rev. 2026-09-13（用户决定）**：D2 措辞澄清——「日志」改为「构建/组件日志」；agent 任务中间文件（含验证日志）按 `.tao/` 约定放 `.work/log/<模块>/`（`.work/` 整体 gitignore）。D1、D3–D6 不变。
+
+**rev. 2026-09-17（用户决定）**：D2 的日志留存位置由 `.tao/logs/` 迁至 **`.work/log/<模块>/<任务ID>-<命令名>.log`**（reviewer 重跑加 `-review-`；命令正常结束时用 `tee` 同时输出到终端和日志）。动机：全局 agent 规则的 `.tao/logs/` 约定已移除，改由本仓库自行规定；`.work/` 已由根 `.gitignore` 整体忽略，新位置天然不进 git，且与 D2「一次性数据集中在 `.work/`」一致。旧 `.tao/logs/` 已迁移（311 文件）并删除 `.tao/.gitignore`；历史记录中的旧路径不改写。D1、D3–D6 不变。
