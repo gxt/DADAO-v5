@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-007t`
+**依赖**：`LLVM-007t`、`LLVM-005t`、`SPEC-003t`
 **状态**：待开始
 
 ## 执行环境
@@ -34,7 +34,7 @@
 - **操作数解码**：`DecodeRDRegisterClass`/`DecodeRBRegisterClass`（RegNo ≥ 64 → Fail，`DADAO::RD0/RB0 + RegNo`）；有符号立即数模板 `DecodeSImm<N>`（`SignExtend64`）；cfxcode 解码。
 - **getInstruction**：`Bytes.size() < 4` → Fail；`Size = 4`；`uint32_t Insn = support::endian::read32be(Bytes.data());`；`decodeInstruction(DecoderTable32, MI, Insn, Address, this, STI)`。
 - **工厂注册**：`createDADAODisassembler` + `LLVMInitializeDADAODisassembler`（`RegisterMCDisassembler`）。
-- **InstrFormats.td 的 DecoderMethod**：每个格式类操作数需 `DecoderMethod` 注解，TableGen 才能生成正确 decoder；有符号立即数（imms12/imms18/imms24）须显式设 `DecodeSImm12/18/24`。
+- **InstrFormats.td 的 DecoderMethod**：`LLVM-005t` 已在 Operand 类上声明 `DecoderMethod` 注解（如 `DecodeSImm12`/`DecodeSImm18`/`DecodeSImm24`），TableGen 据此生成 decoder；本任务实现对应的 C++ 解码函数（`Disassembler/DADAODisassembler.cpp` 内）。若发现遗漏注解，须回补到 `LLVM-005t` 的 .td 文件。
 
 ### 上游引用
 
@@ -62,7 +62,7 @@
 - **P1（0628 DL-011a）**：lit DISASM 更新在 patch 之外，reproducibility 受损。v5 必须把 lit 更新纳入 0006 patch（或独立 0007 patch），使 `git am` 后可重现。
 - **DecoderMethod 缺失**：TableGen 默认 `createImm(bits)`（无符号原值），有符号立即数会解码错误；须显式设置。
 - **注册顺序**：Disassembler 工厂须注册到 `getTheDADAOTarget()`。
-- **不改 InstrInfo.td 已有 instruction 定义**：只加 DecoderMethod 注解。
+- **不改 InstrInfo.td 已有 instruction 定义**：只实现 C++ 解码函数；若发现 `LLVM-005t` 遗漏的 `DecoderMethod` 注解，须回补 .td（属于本任务的边界修复）。
 
 ## 参考
 

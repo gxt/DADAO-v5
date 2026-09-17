@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-006t`
+**依赖**：`LLVM-006t`、`SPEC-003t`
 **状态**：待开始
 
 ## 执行环境
@@ -38,7 +38,7 @@
   #include "DADAOGenMCCodeEmitter.inc"
   ```
   `encodeInstruction` 内 `uint32_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);` 后大端写出。
-- **getMachineOpValue**：寄存器注册值 + 立即数；遇 `MCExpr` 时创建 `MCFixup` 并返回 0（`DADAOFixupKinds.h` 声明 kind，可先用 `FK_PCRel_4` 占位）。
+- **getMachineOpValue**：寄存器注册值 + 立即数；遇 `MCExpr` 时创建 `MCFixup` 并返回 0（`DADAOFixupKinds.h` 声明 kind，须自定义 `DADAO_FK_PCRel_2`，addend=0；**不得用 `FK_PCRel_4`**，DADAO 无 +4 流水线偏移）。
 - **lit 通用 RUN 模板**：
   ```asm
   # RUN: llvm-mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
@@ -72,7 +72,7 @@
 - **P0（0628 DL-010a）**：emitter stub 导致 `-filetype=obj` SEGFAULT；本任务必须确认非 stub。
 - **P1（0628 DL-010b N1）**：0628 的 lit 仅验证 `-filetype=asm` round-trip，未做字节级 `llvm-objdump -d` 校验；本任务按 RUN 模板覆盖两条路径，字节级 OBJ 前缀由 `LLVM-009t` 补齐。
 - **AsmBackend 存根**：缺失导致注册崩溃。
-- **MCFixup**：Branch/Jump 超范围记录 fixup；`rela.si` 本任务作 PCRel 占位，ELF relocation 不在本任务集。
+- **MCFixup**：Branch/Jump 超范围记录 fixup（自定义 `DADAO_FK_PCRel_2`，addend=0，无 +4 偏移）；`rela.si` 本任务作 PCRel 占位，ELF relocation 不在本任务集。
 - **patch 序号保持 0005**：替换原文件，series 不变。
 
 ## 参考

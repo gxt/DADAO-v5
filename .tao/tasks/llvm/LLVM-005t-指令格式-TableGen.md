@@ -30,7 +30,9 @@
 
 **编码结构**（`contract-isa.md` §2.1）：32 位、4 字节对齐、大端；`bits[31:24]=op[7:0]`，`bits[23:18]=ha[5:0]`，`bits[17:12]=hb[5:0]`，`bits[11:6]=hc[5:0]`，`bits[5:0]=hd[5:0]`。TableGen `bits<32> Inst` 中 bit0 为 LSB。
 
-**格式表**（`contract-isa.md` §2.2，v5 共 12 种）：
+**格式表**（`contract-isa.md` §2.3，M1 范围 9 种格式）：
+
+> `crrr`/`crii`/`ciii` 三种格式属特权 cfx 指令（`contract-isa.md` §2.3 注、§7.5），**Excluded from M1**，本任务不实现。
 
 | 格式 | 含义 | 立即数位置 |
 |------|------|-----------|
@@ -43,9 +45,6 @@
 | `orrr` | minor-opcode + 三寄存器 | `ha[5:0]=minor-op` |
 | `orri` | minor-opcode + 两寄存器 + 6 位立即数 | `ha=minor-op`，`hd=immu6` |
 | `oiii` | minor-opcode + 18 位立即数 | `ha=minor-op`，`hb+hc+hd=immu18` |
-| `crrr` | cfxcode + 三寄存器 | `ha=cfxcode` |
-| `crii` | cfxcode + 一寄存器 + 12 位立即数 | `ha=cfxcode`，`hb=rb`，`hc+hd=immu12` |
-| `ciii` | cfxcode + 18 位立即数 | `ha=cfxcode`，`hb+hc+hd=immu18` |
 
 **Wyde-Position**（§2.3）：`00`=wp0 bits[15:0]，`01`=wp1 bits[31:16]，`10`=wp2 bits[47:32]，`11`=wp3 bits[63:48]。
 
@@ -53,7 +52,7 @@
 
 **指令 def**：继承对应格式类，填 `op`、minor-op（如适用）、占位 asm 字符串、空 pattern；不填 `EncoderMethod`（`LLVM-006t` 添加）。
 
-**Operand 类**：`imms12`/`immu12`/`imms18`/`immu16`/`immu6`/`imms24`/`immu18`/`wydepos` 等，声明 `DecoderMethod`（函数体在 `LLVM-008t` 实现）。
+**Operand 类**：`imms12`/`immu12`/`imms18`/`immu16`/`immu6`/`imms24`/`immu18`/`wydepos` 等，**在本任务声明 `DecoderMethod`**（如 `DecodeSImm12`/`DecodeSImm18`/`DecodeSImm24`），C++ 函数体由 `LLVM-008t` 实现。TableGen `-gen-disassembler` 依赖此注解生成正确 decoder，故**注解必须在本任务写入 .td**，不可推迟到 `LLVM-008t`。
 
 ### 上游引用
 
@@ -63,14 +62,14 @@
 
 ## 交付物
 
-- `components/llvm/patches/0004-dadao-instrinfo.patch`：含 `DADAOInstrFormats.td`（格式基类 + 12 格式类）、`DADAOInstrInfo.td`（M1 指令 def + Operand 类）、`DADAO.td`（include）、`CMakeLists.txt`（`tablegen(... -gen-instr-info)`）。
+- `components/llvm/patches/0004-dadao-instrinfo.patch`：含 `DADAOInstrFormats.td`（格式基类 + 9 格式类）、`DADAOInstrInfo.td`（M1 指令 def + Operand 类）、`DADAO.td`（include）、`CMakeLists.txt`（`tablegen(... -gen-instr-info)`）。
 - `components/llvm/patches/series`：追加 `0004-dadao-instrinfo.patch`。
 - 生成的 `DADAOGenInstrInfo.inc`（构建产物）。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 - **opcode 来源**：v5 逐条对照 `contracts/opcodes.yaml`（256 条），不得使用 0628 任务中的 op 表（0.4.1 QFC，如 `addi=0x19`/`add=0x1A` 等）。
-- **格式类**：v5 按 `contract-isa.md §2.2` 的 12 格式实现（含 `crrr`/`crii`/`ciii` 系统格式）；0628 的 `F_ORII`/`F_RWII` 等命名仅作风格参考。
+- **格式类**：v5 按 `contract-isa.md §2.3` 的 9 种 M1 格式实现（`crrr`/`crii`/`ciii` 属特权 cfx，Excluded from M1）；0628 的 `F_ORII`/`F_RWII` 等命名仅作风格参考。
 - **MISC 子表**：v5 为 MISC-byte/wyde/tetra/octa/RF/AMO，子表操作码与 minor-op 与 0.4.1 不同。
 - **命名**：0.5.3 使用 `.b/.w/.t/.o` 与 `s`/`u` 后缀（如 `add.uo`/`add.so`、`mul.uw`/`mul.sw`、`set.zw`、`br.nz`、`illi`）。
 - **M1 范围**：覆盖 `contracts/opcodes.yaml` 中 M1 标量核心（§3 标量整数、§4 地址/内存（RD/RB/**RA**）、§5 控制流、§7 系统指令中测试机所需）的全部指令；浮点 RF 全部按 M1 范围排除（是否定义占位由任务明确，不要求编码正确性）。
@@ -99,7 +98,7 @@
 1. `components/llvm/patches/0004-dadao-instrinfo.patch` 存在并追加到 `series`
 2. `make build-mc` PASS，无新增错误
 3. 构建产物含 `DADAOGenInstrInfo.inc`
-4. 12 个格式类齐备；M1 指令 `def` 与 `contracts/opcodes.yaml` 的 M1 条目逐条对应（mnemonic/format/op 一致）
+4. 9 个格式类齐备（M1 范围，不含 `crrr`/`crii`/`ciii`）；M1 指令 `def` 与 `contracts/opcodes.yaml` 的 M1 条目逐条对应（mnemonic/format/op 一致）
 5. `rwii` 位域与 §2.3 一致；MISC 子表 minor-op 用字面量固定
 6. 未实现 AsmParser/Disassembler；pattern list 均为 `[]`
 

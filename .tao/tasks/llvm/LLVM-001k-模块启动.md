@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M1
 **依赖**：无
-**状态**：待开始
+**状态**：已验证
 
 ## 问题根源
 
@@ -32,23 +32,23 @@ DADAO-v5 基于 SimRISC 0.5.3，需要从零为 `dadao-unknown-elf` 目标构建
 | `LLVM-002t` | LLVM 组件基线（commit + ADR-0005 + `build-mc`） | `.tao/knowledge/adr-0005-llvm-baseline.md`、`manifests/components.lock.toml`（llvm enabled+commit）、`Makefile` 真实 `build-mc` | `INFRA-006t` |
 | `LLVM-003t` | Triple 注册 + 最小 build | `components/llvm/patches/0001-dadao-triple-registration.patch`、`0002-dadao-target-skeleton.patch`、`series`、最小 lit | `LLVM-002t`、`SPEC-007t` |
 | `LLVM-004t` | Register TableGen | `components/llvm/patches/0003-dadao-register-info.patch` | `LLVM-003t`、`SPEC-004t` |
-| `LLVM-005t` | 指令格式 TableGen | `components/llvm/patches/0004-dadao-instrinfo.patch` | `LLVM-004t` |
-| `LLVM-006t` | AsmParser + MCCodeEmitter | `components/llvm/patches/0005-dadao-asmparser.patch` | `LLVM-005t` |
-| `LLVM-007t` | MCCodeEmitter 修复 + 全量 lit | 修订 `0005-dadao-asmparser.patch`、全量 lit 文件 | `LLVM-006t` |
-| `LLVM-008t` | 反汇编器 | `components/llvm/patches/0006-dadao-disassembler.patch` | `LLVM-007t` |
-| `LLVM-009t` | lit 字节级 CHECK | 13+ 个 `tests/lit/MC/Dadao/*.s` 的 OBJ/ASM 前缀 | `LLVM-008t` |
-| `LLVM-010t` | halt 助记符 + smoke `.s` 修正 | 系统指令助记符定义 + smoke `.s` 修正 | `LLVM-009t`、`SPEC-006t` |
-| `LLVM-011t` | RA 指令 MC 支持 | RA 指令 TableGen def + AsmParser/CodeEmitter/反汇编 + lit | `LLVM-009t`、`SPEC-002t`、`SPEC-003t` |
-| `LLVM-012t` | lit 字节 oracle | `tools/llvm/check_lit_bytes.py` | `LLVM-009t`、`SPEC-003t` |
+| `LLVM-005t` | 指令格式 TableGen（9 种 M1 格式，不含 crrr/crii/ciii） | `components/llvm/patches/0004-dadao-instrinfo.patch` | `LLVM-004t`、`SPEC-003t` |
+| `LLVM-006t` | AsmParser + MCCodeEmitter | `components/llvm/patches/0005-dadao-asmparser.patch` | `LLVM-005t`、`SPEC-003t` |
+| `LLVM-007t` | MCCodeEmitter 修复 + 全量 lit | 修订 `0005-dadao-asmparser.patch`、全量 lit 文件 | `LLVM-006t`、`SPEC-003t` |
+| `LLVM-008t` | 反汇编器 | `components/llvm/patches/0006-dadao-disassembler.patch` | `LLVM-007t`、`LLVM-005t`、`SPEC-003t` |
+| `LLVM-009t` | lit 字节级 CHECK | 13+ 个 `tests/lit/MC/Dadao/*.s` 的 OBJ/ASM 前缀 | `LLVM-008t`、`SPEC-003t` |
+| `LLVM-010t` | 系统指令助记符 + smoke `.s` 修正 | M1 系统指令（swym/illi/fence）验证 + smoke `.s` 修正 | `LLVM-009t`、`LLVM-005t`、`SPEC-006t`、`SPEC-003t` |
+| `LLVM-011t` | RA 指令 MC 支持 | RA 指令 TableGen def + AsmParser/CodeEmitter/反汇编 + lit | `LLVM-009t`、`LLVM-005t`、`SPEC-002t`、`SPEC-003t` |
+| `LLVM-012t` | lit 字节 oracle | `tools/llvm/check_lit_bytes.py` | `LLVM-011t`、`LLVM-009t`、`SPEC-003t` |
 | `LLVM-013m` | LLVM MC 里程碑 | 里程碑标记 | `LLVM-002t`~`LLVM-012t` |
 
-- **依赖关系**：`002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010t`；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排），`003t` 依赖 `SPEC-007t`（ELF 合约），`004t` 依赖 `SPEC-004t`（ABI 合约），`010t` 依赖 `SPEC-006t`（Test Machine ADR）；`011t`（RA 指令）依赖 `009t` 与 spec；`012t`（lit 字节 oracle）依赖 `009t` 与 spec；`013m` 汇总全部。
+- **依赖关系**：`002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → {010t, 011t} → 012t → 013m`；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排），`003t` 依赖 `SPEC-007t`（ELF 合约），`004t` 依赖 `SPEC-004t`（ABI 合约），`005t`–`009t`/`011t`/`012t` 依赖 `SPEC-003t`（opcodes.yaml），`008t` 依赖 `LLVM-005t`（DecoderMethod 注解），`010t` 依赖 `SPEC-006t`（Test Machine ADR）+ `LLVM-005t`，`011t`（RA 指令）依赖 `009t` + `LLVM-005t` + spec，`012t`（lit 字节 oracle）依赖 `011t` + `009t` + spec；`013m` 汇总全部。
 - **分解理由**：按「基线 → 骨架 → 寄存器 → 指令格式 → 汇编/编码 → 修复+测试 → 反汇编 → 字节级测试 → 系统指令/冒烟」逐层推进，每层可独立 `git am` 一个补丁并独立验收（`make build-mc` + lit）；补丁序号与 0628 `series` 前 6 项对齐（0001–0006），后续按 0.5.3 需要重新生成。
 
 ## 说明
 
 - 只规划不实现；本模块任务文件由工程师按 `## 交付物` 生成补丁与测试，架构师不写补丁正文。
-- M1 范围为标量核心（`contract-isa.md` §3 标量整数、§4 地址/内存（RD/RB/**RA**）、§5 控制流、§7 系统指令中测试机所需部分）；浮点 RF 全部按 M1 范围排除。
-- 0628 的 ELF relocation 完善任务（其 `DL-012a`）在本任务集中未单列；本任务集只到反汇编/字节级 lit 与系统指令冒烟。若 M1 需要完整 ELF relocation，另立 `LLVM-012t`（待用户确认）。
-- `LLVM-010t` 标题沿用 0628 的 `halt` 命名，但 v5（0.5.3）`contract-isa.md` 无 `halt` 助记符，等价机制为 §7 的 `escape`/`trap` 与 ADR-0004 的 exit port；差异详见该任务。
+- M1 范围为标量核心（`contract-isa.md` §3 标量整数、§4 地址/内存（RD/RB/**RA**）、§5 控制流、§7 系统指令中测试机所需部分：`swym`/`illi`/`fence`）；浮点 RF 全部、特权 cfx 指令（`escape`/`trap`/`cfx*`）按 M1 范围排除。
+- ELF 重定位（`contract-elf.md` §2–§4）在 M1 scope 外（`Deferred to M2`），本任务集不包含；完整 relocation 任务待 M2 规划时创建。
+- `LLVM-010t` 验证 M1 系统指令（`swym`/`illi`/`fence`）可汇编 + smoke `.s` 修正为 0.5.3 命名。v5（0.5.3）无 `halt` 助记符，退出机制为 ADR-0004 exit port MMIO。
 - 参考：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`、`.work/DADAO-0628/docs/development-roadmap.md`、`.work/DADAO-0628/components/llvm/patches/series`。

@@ -67,7 +67,7 @@
 - **tag/branch 不作为可复现基线**：enabled 组件必须有完整 40 位 commit，否则 `make manifest-check` 失败。
 - **enabled 必须伴随 `patch_series`**：`manifest_check.py` 对 `enabled = true` 的组件强制要求 `components/<name>/patches/series` 存在；翻转 `enabled` 时必须同时创建占位空 `series`，否则 `make manifest-check` 失败。
 - **ADR 先于 manifest**：ADR Status 先 Candidate 即可提交，架构师 review 后升 Accepted。
-- **路径一致性**：`INFRA-006t` 的 `LLVM_SRC` 默认值写的是 `.work/llvm/llvm`，而 `INFRA-004t` 的 fetch 落点是 `.work/source/llvm`；本任务须将 `build-mc` 的 `LLVM_SRC` 统一为 `.work/source/llvm/llvm`，或与 infra 侧对齐后记录。
+- **路径一致性**：~~`INFRA-006t` 的 `LLVM_SRC` 默认值写的是 `.work/llvm/llvm`，而 `INFRA-004t` 的 fetch 落点是 `.work/source/llvm`~~ **已解决（2026-09-16）**：`INFRA-006t:265,511` 已统一 `LLVM_SRC=.work/source/llvm/llvm`，与 `INFRA-004t` fetch 落点一致。本任务确认 `build-mc` 使用该路径即可。
 - **不改其他组件条目**：只改 `llvm`。
 
 ## 参考

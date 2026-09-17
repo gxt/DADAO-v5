@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-005t`
+**依赖**：`LLVM-005t`、`SPEC-003t`
 **状态**：待开始
 
 ## 执行环境
@@ -33,7 +33,7 @@
 - **指令解析**：`ParseInstruction` 读助记符 → `MatchInstructionImpl`（TableGen 生成）→ 按格式读操作数序列；报清晰错误（`invalid register`、`immediate out of range`、`expected ','`）。
 - **MISC 同名助记符**：通过操作数数量/类型区分（AsmVariant）。
 - **MCCodeEmitter**：`encodeInstruction()` 调 `getBinaryCodeForInstr(MI, Fixups, STI)`，`support::endian::write<uint32_t>(CB, Bits, llvm::endianness::big)`。需 `#define ENABLE_INSTR_PREDICATE_VERIFIER` + `#include "DADAOGenMCCodeEmitter.inc"`（参考 Lanai）。
-- **Branch/Jump 相对偏移**：`br.n/br.nn/br.z/br.nz/br.p/br.np` 的 imms18 = `(target_pc - (current_pc + 4)) / 4`；`br.eq/br.ne` 的 imms12 同理；`call imms24`/`jump imms24` 的 imms24 同理；超范围用 `MCFixup` 记录。`rela.si` 的 imms18 为重定位，本任务作 PCRel 占位。
+- **Branch/Jump 相对偏移**：DADAO 的 PC 即 `rb0`，地址公式为 `Addr = rb0 + (imm << 2)`（`contract-isa.md` §5.2/§5.3/§5.4），**无 +4 流水线偏移**。编码时 `imms = (target_byte_addr - current_byte_addr) >> 2`（有符号）。`br.n/br.nn/br.z/br.nz/br.p/br.np`（imms18）、`br.eq/br.ne`（imms12）、`call imms24`/`jump imms24`（imms24）同理；超范围用 `MCFixup` 记录。fixup kind 须自定义（如 `DADAO_FK_PCRel_2`，addend=0），**不得用 `FK_PCRel_4`**（该 kind 含 +4 流水线偏移，不适用于 DADAO）。`rela.si` 的 imms18 为重定位（`<<12`，4KB 对齐），本任务作 PCRel 占位。
 - **MCInstPrinter**：寄存器 `DADAO::RD8` → `"rd8"`；立即数有符号十进制；格式 `助记符\t操作数1, 操作数2, ...`。
 - **注册**：`LLVMInitializeDADAOAsmParser()`（`RegisterMCAsmParser`）。
 - **AsmBackend 存根**：`MCTargetDesc/DADAOAsmBackend.cpp`（缺失会导致注册崩溃）。
@@ -52,7 +52,7 @@
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-- **助记符/操作数**：按 0.5.3 命名与 §2.2 格式（`add.si`、`set.zw`、`br.nz`、`ld.o`、`illi` 等），操作数顺序按 `contract-isa.md` §2.5。
+- **助记符/操作数**：按 0.5.3 命名与 §2.3 格式（`add.si`、`set.zw`、`br.nz`、`ld.o`、`illi` 等），操作数顺序按 `contract-isa.md` §2.5。
 - **期望字节**：必须从 `contract-isa.md §2.1/§2.2` 公式 + `contracts/opcodes.yaml` 独立手推。0628 任务中的示例字节是错的（见「已知坑」），**严禁照抄**。
 - **格式类字段名**：`-gen-emitter` 要求格式类 `Inst` 字段与 `def` 的操作数名对齐；v5 按自身 TableGen 结构实现，不照搬 0628 的字段名重写补丁。
 - **不复制 0.4.1 补丁正文/编码数据**。

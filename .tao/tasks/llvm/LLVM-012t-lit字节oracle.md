@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-009t`、`SPEC-003t`
+**依赖**：`LLVM-011t`、`LLVM-009t`、`SPEC-003t`
 **状态**：待开始
 
 ## 执行环境
@@ -33,6 +33,11 @@ lit 文件中 `# OBJ:` 行手写了期望字节，但这些字节是否与 `cont
 ### 关键概念 / 数据
 
 **lit 字节校验**：从每个 `.s` 提取 `# OBJ: AA BB CC DD{{.*}}mnemonic`，`word=int("AABBCCDD",16)`；遍历 `contracts/opcodes.yaml` 找 `(word & mask) == value` 的记录；无匹配 → `WARN`（真错误，exit 1）；全匹配 → `check_lit_bytes: N patterns OK`（exit 0）。
+
+**增强校验**：
+- **mnemonic ↔ 命中记录**：提取 `OBJ:` 行尾的 mnemonic，与命中记录的 `mnemonic` 字段比对。不匹配 → exit 1（字节编码的是另一条指令）。
+- **N ≥ 下限**：脚本须报告匹配的 pattern 总数 N，若 N = 0（即无任何 `OBJ:` 行被提取）→ exit 1（防空绿）。建议下限 = lit 文件中 `# OBJ:` 行总数（可从 `.s` 文件计数）。
+- **mask 覆盖力提示**：多数 `mask = 0xFF000000`（只盖 op 字段），对 hb/hc/hd 字段错无检测力。脚本输出中标注「mask 仅盖 op」作为 informational 提示，不阻断（mask 宽度由 opcodes.yaml 决定，脚本不改 mask）。
 
 ### 上游引用
 
@@ -66,7 +71,7 @@ lit 文件中 `# OBJ:` 行手写了期望字节，但这些字节是否与 `cont
 
 ## 验收标准
 
-1. `python3 tools/llvm/check_lit_bytes.py` 输出 `N patterns OK`、exit 0；若存在无匹配字节则 exit 1
+1. `python3 tools/llvm/check_lit_bytes.py` 输出 `N patterns OK`（N > 0）、exit 0；若存在无匹配字节或 mnemonic 不匹配则 exit 1；若 N = 0（无 `OBJ:` 行）则 exit 1
 2. 脚本不修改任何 yaml/lit 文件（只读）
 3. 不含对 LLVM 工具的调用（grep 确认）
 4. 完成区粘贴真实 stdout，不转述

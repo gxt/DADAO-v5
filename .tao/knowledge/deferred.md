@@ -13,7 +13,7 @@
 - **ABI 合约（`SPEC-004t`）的 M2 / CodeGen 内容**：**已定（2026-09-12）**——`SPEC-004t` **收窄到 M1 最小 ABI 事实**（寄存器角色、`SP=rb1`、栈向下增长/`call` 8B 对齐、`call`/`ret`/RegRAS）；**完整调用约定**（参数寄存器分配、返回值、栈帧布局、三 bank 共享溢出区、prologue/epilogue）**`Deferred to M2`**（M2 BasicCodeGen 的 oracle）。
 - **ABI `[OPEN]` 项**：`rd1`/`rb3`/`rb4` 的 callee-saved 分类（spec 为 `-`）、窄返回值扩展规则、多返回值（spec 自相冲突）——不得当规范性要求。
 - **Object ABI（`SPEC-005t`）**：`EM_DADAO` 注册状态（未注册 upstream，project-custom）、`e_flags` 命名空间策略、**M1 是否用 target linker（LLD）**。
-- **Object ABI / ELF 合约（`SPEC-005t`/`SPEC-007t`）范围**：**已定（2026-09-12）**——M1 = **D1（ELF 头字段）+ D5（段对齐/VA=PA/artifact pipeline）**（`contract-elf.md` §1+§5+§6）；**重定位（D2/D3/D4：类型表/溢出/relaxation）标 `Deferred to M2`**（M1 单 TU 自包含、不产生重定位、无 LLD；完整 relocation 另立 `LLVM-012t`，M2）。
+- **Object ABI / ELF 合约（`SPEC-005t`/`SPEC-007t`）范围**：**已定（2026-09-12）**——M1 = **D1（ELF 头字段）+ D5（段对齐/VA=PA/artifact pipeline）**（`contract-elf.md` §1+§5+§6）；**重定位（D2/D3/D4：类型表/溢出/relaxation）标 `Deferred to M2`**（M1 单 TU 自包含、不产生重定位、无 LLD；完整 relocation 任务待 M2 规划时创建，编号待定——`LLVM-012t` 已分配给「lit 字节 oracle」）。
 - **Spec 冻结（`SPEC-010t`）**：`impact matrix` 是否覆盖 M1 之外的实现目标（CodeGen/gem5/Sail）——M1 只需覆盖 M1 相关。
 - **编码表变更的下游影响（原 verif 模块，已解散）**：`opcodes.yaml` 现为「178 M1 + 78 `excluded_m1`」；`contracts/legality_rules.yaml`（`SPEC-008t` 已 Accepted）中 `lr_hb_not_zero`、`rf0_as_operand`、`fp_root_invalid_n`、`fp_log_invalid_base`、`cfx_reserved` 属 M1 排除项但仍 `active`——需在 `SPEC-009t`/`INFRA-010t` 规划中明确 M1 流程过滤非 M1 规则（`SPEC-008t` 不必返工，登记为跨模块影响）。
 - **编码知识**：0.5.3 MISC 子表 `ha = RRR-CCC` 拼为 6 位；**旧 `tools/opcodes.yaml`（0628）不可作编码权威**（v5 旧版曾有 2 处 ha 错误，已按 spec 修正）。

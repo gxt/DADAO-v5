@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-009t`、`SPEC-002t`、`SPEC-003t`
+**依赖**：`LLVM-009t`、`LLVM-005t`、`SPEC-002t`、`SPEC-003t`
 **状态**：待开始
 
 ## 执行环境
@@ -32,6 +32,13 @@
 - RA 指令（`contract-isa.md` §4.9）：`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`/`rd2ra`/`ra2rd`。
 - 编码/格式以 `contracts/opcodes.yaml` 的 `insn`/`format`/`op`/`mask`/`value`/`fields` 为准（RA 存取 op 0x24–0x25 等）。
 - 助记符 0.5.3 命名（`.o` 后缀等）。
+
+**同名助记符消歧**：`opcodes.yaml` 中 RA 存取指令的 `mnemonic` 字段与 RD/RB 变体相同（如 `ld.o-ra` 的 `mnemonic` = `ld.o`，与 `ld.o-rd`/`ld.o-rb` 同名）。AsmParser 的 `MatchInstructionImpl`（TableGen 生成）依赖 AsmString 区分指令，同名会导致匹配歧义。消歧方案（二选一，工程师实现时确定）：
+
+- **方案 A（推荐）**：TableGen `def` 的 `AsmName` 使用 `insn` 字段全名（如 `ld.o-ra`），使汇编语法为 `ld.o-ra raha, rbhb, imms12`。优点：无歧义、与 opcodes.yaml 的 `insn` 1:1。代价：汇编文本多 `-ra` 后缀。
+- **方案 B**：AsmName 用 `ld.o`（与 RD/RB 相同），在 `MatchInstructionImpl` 后通过 `MCInst` 操作数的寄存器 bank 类型（`GPRA` vs `GPRD`/`GPRB`）消歧。优点：汇编文本更自然。代价：需自定义 `MatchInstruction` 逻辑，复杂度高。
+
+无论选哪种方案，汇编文本与 `llvm-objdump -d` 反汇编输出必须 round-trip 一致。
 
 ## 交付物
 
