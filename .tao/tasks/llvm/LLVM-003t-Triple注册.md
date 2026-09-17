@@ -39,7 +39,7 @@
 |------|------|
 | `llvm/include/llvm/TargetParser/Triple.h` | `ArchType` 枚举加 `dadao` |
 | `llvm/lib/TargetParser/Triple.cpp` | `getArchTypeName`、`parseArch`、`getDefaultFormat` 等补 dadao 条目 |
-| `llvm/lib/Target/CMakeLists.txt` | `LLVM_ALL_TARGETS` 加 `DADAO` |
+| `llvm/CMakeLists.txt` | `LLVM_ALL_TARGETS` 加 `DADAO` |
 
 **最小 Target 目录** `llvm/lib/Target/DADAO/`：`CMakeLists.txt`、`DADAO.h`、`DADAOTargetMachine.{h,cpp}`、`TargetInfo/DADAOTargetInfo.{h,cpp}`（`RegisterTarget`，triple `"dadao"`，desc `"DADAO SimRISC"`）、`MCTargetDesc/CMakeLists.txt`、`MCTargetDesc/DADAOMCTargetDesc.{h,cpp}`。
 
@@ -59,7 +59,7 @@
 
 ## 交付物
 
-- `components/llvm-project/patches/0001-dadao-triple-registration.patch`：Triple 注册（Triple.h/Triple.cpp/CMakeLists.txt）。
+- `components/llvm-project/patches/0001-dadao-triple-registration.patch`：Triple 注册（Triple.h/Triple.cpp/CMakeLists.txt）。**补丁必须包含 `llvm/CMakeLists.txt` 的 `LLVM_ALL_TARGETS` 增项（加入 `DADAO`）**，使 `-DLLVM_TARGETS_TO_BUILD=DADAO` 生效（依据 ADR-0007）。
 - `components/llvm-project/patches/0002-dadao-target-skeleton.patch`：最小 DADAO target 骨架 + AsmInfo + ELF writer 存根。
 - `components/llvm-project/patches/series`：按序写入 0001、0002。
 - `Makefile`：确认 `build-mc` 真实可用（如 `LLVM-002t` 已完成则不重复改动）。
@@ -75,6 +75,7 @@
 
 ## 已知坑 / 结论
 
+- **`LLVM_ALL_TARGETS` 增项必需（ADR-0007）**：DADAO 必须加入 `llvm/CMakeLists.txt` 的 `LLVM_ALL_TARGETS` 列表，否则 `-DLLVM_TARGETS_TO_BUILD=DADAO` 的 cmake configure 报 `FATAL_ERROR`（`The target 'DADAO' is not a core tier target`）。注册通道由用户裁定为加入 `LLVM_ALL_TARGETS`（否决 experimental 通道），见 ADR-0007。0001 补丁须包含此增项。
 - **AsmParser 缺失时 lit 退化为 `--version | grep dadao`**：0628 `DL-007a` 因缺 AsmParser，冒烟测试改为验证 `llvm-mc --version` 输出含 `dadao`；v5 同样处理，待 `LLVM-006t` 引入汇编解析后再补 assembly 测试。
 - **MCInstPrinter 存根必需**：`llvm-mc` 运行期要求非空 printer，否则崩溃。
 - **`EM_DADAO` 命名常量**：0628 第二轮 N1 指出直接硬编码 `0x0DA0`；v5 应引用命名常量或合约值，避免魔数。
@@ -83,12 +84,13 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-007a-llvm-triple.md`
-- DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`
-- DADAO-0628：`.work/DADAO-0628/Makefile`
+- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-007a-llvm-triple.md`（内容溯源，非执行必需）
+- DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`（内容溯源，非执行必需）
+- DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`（内容溯源，非执行必需）
+- DADAO-0628：`.work/DADAO-0628/Makefile`（内容溯源，非执行必需）
 - 知识库：`.tao/knowledge/MEMORY.md`
 - 本项目：`.tao/knowledge/contract-elf.md`（SPEC-007t 产出后）、`contracts/opcodes.yaml`
+- ADR：`.tao/knowledge/adr-0007-dadao-target-registration.md`（DADAO 注册通道决策）
 
 ## 验收标准
 

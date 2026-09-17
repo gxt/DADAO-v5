@@ -1,6 +1,6 @@
 # ADR-0006: LLVM 组件基线选版
 
-**状态**：Candidate
+**状态**：Accepted
 **日期**：2026-09-17
 **关联**：`LLVM-002t`（LLVM 组件基线任务）
 
@@ -24,63 +24,49 @@ DADAO 是全新目标（`ADR-0001`），不复用旧版工具链代码。所有 
 
 ## Decision（决策）
 
-**待用户逐条确认**。以下为候选方案，尚未选定：
+### D1：版本与 lock 值
 
-### 候选 A：LLVM 23.1.1（最新稳定版）
+- **LLVM 基线** = **23.1.1**
+- **lock 值** = commit `6dfe1677ab8dffbc6ec13d53a1e0215d75147689`（完整 40 位十六进制）
+- **附注** tag `llvmorg-23.1.1` 的**对象** SHA = `e7ce3600b55034ddf819638f395e3c475fad5be2`（**仅作溯源记录，不作 lock 值**）
+- **人类参考 URL** = `https://github.com/llvm/llvm-project/commit/6dfe1677ab8dffbc6ec13d53a1e0215d75147689`（仅供人类参考，不做 lock 用途）
 
-| 字段 | 值 |
-|------|-----|
-| LLVM 版本 | 23.1.1 |
-| Commit SHA | `6dfe1677ab8dffbc6ec13d53a1e0215d75147689` |
-| Tag | `llvmorg-23.1.1` |
-| 发布日期 | 2026-09-08 |
+### D2：获取来源与方式，含浅镜像取舍
 
-### 候选 B：LLVM 22.1.8（DADAO-0628 使用版本）
-
-| 字段 | 值 |
-|------|-----|
-| LLVM 版本 | 22.1.8 |
-| Commit SHA | `ca7933e47d3a3451d81e72ac174dcb5aa28b59d1` |
-| Tag | `llvmorg-22.1.8` |
-| 发布日期 | 2026-06-16 |
+- `repository` 保持 `https://github.com/llvm/llvm-project.git`（规范上游身份，不变）
+- `[[component.source]]` = `name = "sjtu"`、`url = "https://mirror.sjtu.edu.cn/git/llvm-project.git"`（ADR-0005 的 schema；`fetch.py` 默认取 `source` 首个）
+- 镜像落点 `.cache/llvm-project.git`（按原始仓库名索引；`INFRA-013t`）为**浅 bare 预填充**：`git clone --bare --depth 1 --branch llvmorg-23.1.1`（实测 43.7 s、376.53 MiB、189,410 objects、180,593 文件；**非 treeless**，worktree 可离线重建）
+- **Consequences 必须写明「浅镜像无完整历史」的边界**：`git describe`、跨 commit diff、完整历史遍历不可用；`sync_mirror` 的增量 `git fetch --prune` 在浅镜像上的语义受限；如需完整历史须 unshallow 或重建镜像
 
 ## Rationale（理由）
 
-### 候选 A：LLVM 23.1.1
+1. **稳定性**：23.1.1 是 LLVM 23.x 系列的首个补丁版本（2026-09-08），包含自 23.1.0（2026-08-25）以来的所有 bugfix。作为最新的正式发布版，经过完整的发布测试流程，API 稳定性有保障。
 
-1. **稳定性**：23.x 是当前主线大版本，23.1.1 是该系列首个补丁版本（2026-09-08），包含自 23.1.0（2026-08-25）以来的所有 bugfix。作为最新的正式发布版，经过完整的发布测试流程。
+2. **MC 框架可用性**：LLVM 23.x 继承了 22.x 的稳定 MC 层 API。自 LLVM 15–17 以来，MC 框架（`MCTargetDesc`、`MCCodeEmitter`、`MCELFObjectTargetWriter`、`ELFObjectWriter`）接口保持稳定，23.x 无破坏性变更，可直接用于 DADAO 目标开发。
 
-2. **MC 框架可用性**：LLVM 23.x 继承了 22.x 的稳定 MC 层 API。自 LLVM 15–17 以来，MC 框架（`MCTargetDesc`、`MCCodeEmitter`、`MCELFObjectTargetWriter`、`ELFObjectWriter`）接口保持稳定，23.x 无破坏性变更。
+3. **构建验证**：该 commit 是 `llvm-project` 仓库的官方发布 commit，**已实际验证**——浅 bare 镜像 `git clone --bare --depth 1 --branch llvmorg-23.1.1` 落地后，`.work/source/llvm-project` 的 `HEAD` 命中该 commit，并以 `cmake` configure 验证宿主工具链可用（DADAO target 待 `LLVM-003t` 注册，见 `ADR-0007`）。
 
-3. **构建验证**：该 commit 是 `llvm-project` 仓库中的官方发布 commit，可通过 `git ls-remote` 验证可达性。
-
-4. **前瞻性**：选择最新稳定版可获得更长的支持窗口和更多上游 bugfix，减少后续 cherry-pick 需求。
-
-5. **取舍**：较新版本可能有未发现的回归问题；但作为正式发布版，风险可控。
-
-### 候选 B：LLVM 22.1.8
-
-1. **稳定性**：22.1.x 是成熟的 LTS 系列，22.1.8（2026-06-16）是该系列最新补丁版本，包含累积的 bugfix。DADAO-0628 已基于此版本完成 MC 框架开发，验证了其稳定性。
-
-2. **MC 框架可用性**：与候选 A 相同，LLVM 22.x 的 MC 层 API 稳定。0628 的实践证明该版本的 MC 框架可正常工作。
-
-3. **构建验证**：该 commit 已在 0628 中通过验证（`git ls-remote` 确认可达）。v5 可复用此验证经验。
-
-4. **兼容性**：与 0628 使用相同版本，便于对比和参考 0628 的补丁实现。
-
-5. **取舍**：版本较旧（3 个月前），可能缺少 23.x 的改进；但 MC 框架差异极小，不影响 M1 目标。
+4. **否决备选 22.1.8 的理由**：
+   - **v5 须独立决定**：不得直接照搬 0628 的 `llvmorg-22.1.8`，需重新验证并写明理由。
+   - **23.1.1 为最新稳定版**：支持窗口更长，包含更多上游 bugfix，减少后续 cherry-pick 需求。
+   - **代价**：缺少与 0628 同版的补丁对照，但 v5 补丁系全新开发，无需直接复用 0628 补丁。
 
 ## Consequences（影响）
 
-1. M1 所有补丁（MC 框架、ELF 输出器、TableGen 定义、lit 测试）均针对此 commit 开发。
-2. M1 期间 commit 不 bump。若发现严重 MC 框架 bug，通过 cherry-pick 处理并记录新 ADR，不整体 bump。
-3. `llvm` 组件在 `manifests/components.lock.toml` 中标记 `enabled = true`，并填入完整 40 字符 commit SHA。
-4. `Makefile` 的 `build-mc` 目标使用此 commit 进行真实 `cmake` + `ninja` 构建。
+1. **M1 期间 commit 不 bump**：若发现严重 MC 框架 bug，通过 cherry-pick 处理并记录新 ADR，不整体 bump。
+2. **组件锁启用**：`llvm-project` 组件在 `manifests/components.lock.toml` 中标记 `enabled = true`，并填入完整 40 字符 commit SHA。
+3. **补丁占位**：`components/llvm-project/patches/series` 作为空占位文件存在，满足 `manifest_check.py` 对 enabled 组件的强制要求。
+4. **构建验证**：`Makefile` 的 `build-mc` 目标使用此 commit 进行真实 `cmake` + `ninja` 构建。
+5. **浅镜像边界**：
+   - `git describe`、跨 commit diff、完整历史遍历不可用。
+   - `sync_mirror` 的增量 `git fetch --prune` 在浅镜像上的语义受限。
+   - 如需完整历史须 `git fetch --unshallow` 或重建镜像。
 
 ## 状态说明
 
-- **Candidate**：本文档为候选方案，待用户逐条确认 decision 后升为 Accepted。
-- **确认流程**：用户对每个候选方案逐条判定（保留/修改/否决），确认后写入最终 Decision 并标注 `Accepted`。
+- **Accepted**（2026-09-17）：D1、D2 经用户逐条确认后固化；`LLVM-002t` 经 reviewer 两轮验收（第 1 轮 Needs Revision → 返工 → 第 2 轮 Accepted，7/7）与 architect 交叉复核确认，条件已满足，由主会话置 `Accepted`。
+- **确认记录**：D1（版本与 lock 值：LLVM 23.1.1、commit `6dfe1677ab8dffbc6ec13d53a1e0215d75147689`）、D2（获取来源与方式：SJTU 镜像、浅 bare 预填充）均由用户判定为「保留」。
+- 决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策。
 
 ---
 
