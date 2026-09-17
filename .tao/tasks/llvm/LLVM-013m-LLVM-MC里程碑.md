@@ -9,7 +9,7 @@
 ## 核验
 - 关联任务是否均已 `已验证`
 - 各任务产出的文件是否都存在：
-  - `.tao/knowledge/adr-0005-llvm-baseline.md`
+  - `.tao/knowledge/adr-0006-llvm-baseline.md`
   - `manifests/components.lock.toml`（llvm `enabled = true` + 完整 commit）
   - `components/llvm/patches/0001-dadao-triple-registration.patch`
   - `components/llvm/patches/0002-dadao-target-skeleton.patch`

@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`.work/source/llvm`（`make fetch` 后按 ADR-0005 commit 的干净 checkout）、`components/llvm/patches/series`、`.tao/knowledge/contract-elf.md`（SPEC-007t，ELF header/大端/e_machine/e_flags）
+- 输入：`.work/source/llvm`（`make fetch` 后按 ADR-0006 commit 的干净 checkout）、`components/llvm/patches/series`、`.tao/knowledge/contract-elf.md`（SPEC-007t，ELF header/大端/e_machine/e_flags）
 - 输出：
   - `components/llvm/patches/0001-dadao-triple-registration.patch`
   - `components/llvm/patches/0002-dadao-target-skeleton.patch`
@@ -24,7 +24,7 @@
 
 ### 目标
 
-在 ADR-0005 基线上注册 DADAO triple，构建出能通过 cmake/ninja 的最小空 target，使 `llvm-mc --triple=dadao-unknown-elf` 不报 "unknown target"，并把 `build-mc` 变为真实构建。后续任务（寄存器/指令格式/汇编器/反汇编器）均在此骨架上叠加，故本任务只做注册与 build，不越界。
+在 ADR-0006 基线上注册 DADAO triple，构建出能通过 cmake/ninja 的最小空 target，使 `llvm-mc --triple=dadao-unknown-elf` 不报 "unknown target"，并把 `build-mc` 变为真实构建。后续任务（寄存器/指令格式/汇编器/反汇编器）均在此骨架上叠加，故本任务只做注册与 build，不越界。
 
 ### 设计理由
 

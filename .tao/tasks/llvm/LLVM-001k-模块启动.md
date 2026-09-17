@@ -22,14 +22,14 @@ DADAO-v5 基于 SimRISC 0.5.3，需要从零为 `dadao-unknown-elf` 目标构建
   - 规范版本 0.4.1 → 0.5.3：指令命名使用 `.b/.w/.t/.o` 与 `s`/`u` 后缀；QFC 编码表重组；格式体系引入 MISC-byte/wyde/tetra/octa 子表；`add.si`/`rela.si` 为 riii；新增 `br.z-rb`/`br.nz-rb`、浮点条件赋值等。补丁正文与编码数据必须按 0.5.3 重新生成。
   - oracle 不同：v5 的编码期望值来自 `.tao/knowledge/contract-isa.md`（§1 寄存器、§2 编码、§3–§5 标量、§7 系统）与 `contracts/opcodes.yaml`（256 条），而非 0628 的 `contracts/isa/spec.md`。
   - 目录/工具不同：v5 任务在 `.tao/tasks/llvm/`；上游 checkout 落在 `.work/source/llvm`（`INFRA-004t` 约定），构建落在 `.work/build/llvm`；参考锁指向 `.work/DADAO-0628`。
-  - 不照抄 0628 的 LLVM commit 作为既定基线；版本由 `LLVM-002t` 的 ADR-0005 独立记录并验证。
+  - 不照抄 0628 的 LLVM commit 作为既定基线；版本由 `LLVM-002t` 的 ADR-0006 独立记录并验证。
   - 路线与参考直接指向 DADAO-0628，不使用任何按“阶段”命名的目录或字段。
 
 ## 任务分解
 
 | 编号 | 任务 | 交付物 | 依赖 |
 |------|------|--------|------|
-| `LLVM-002t` | LLVM 组件基线（commit + ADR-0005 + `build-mc`） | `.tao/knowledge/adr-0005-llvm-baseline.md`、`manifests/components.lock.toml`（llvm enabled+commit）、`Makefile` 真实 `build-mc` | `INFRA-006t` |
+| `LLVM-002t` | LLVM 组件基线（commit + ADR-0006 + `build-mc`） | `.tao/knowledge/adr-0006-llvm-baseline.md`、`manifests/components.lock.toml`（llvm enabled+commit）、`Makefile` 真实 `build-mc` | `INFRA-006t` |
 | `LLVM-003t` | Triple 注册 + 最小 build | `components/llvm/patches/0001-dadao-triple-registration.patch`、`0002-dadao-target-skeleton.patch`、`series`、最小 lit | `LLVM-002t`、`SPEC-007t` |
 | `LLVM-004t` | Register TableGen | `components/llvm/patches/0003-dadao-register-info.patch` | `LLVM-003t`、`SPEC-004t` |
 | `LLVM-005t` | 指令格式 TableGen（9 种 M1 格式，不含 crrr/crii/ciii） | `components/llvm/patches/0004-dadao-instrinfo.patch` | `LLVM-004t`、`SPEC-003t` |

@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`INFRA-006t`
+**依赖**：`INFRA-006t`、`INFRA-009t`
 **状态**：待开始
 
 ## 执行环境
@@ -13,7 +13,7 @@
 
 - 输入：`manifests/components.lock.toml`（`INFRA-003t` 产出，`llvm` 条目 `enabled = false`、`commit = ""`）、`Makefile`（`INFRA-006t` 产出的 `build-mc` stub）、LLVM 上游仓库 `https://github.com/llvm/llvm-project.git`
 - 输出：
-  - `.tao/knowledge/adr-0005-llvm-baseline.md`（ADR-0005，Status 先 Candidate）
+  - `.tao/knowledge/adr-0006-llvm-baseline.md`（ADR-0006，Status 先 Candidate）
   - `manifests/components.lock.toml` 中 `llvm` 条目 `enabled = true` + 完整 40 字符 commit
   - `components/llvm/patches/series`（占位空文件；`manifest_check.py` 要求 enabled 组件的 `patch_series` 存在）
   - `Makefile` 的 `build-mc` 从 stub 替换为真实 `cmake` + `ninja` 构建
@@ -23,7 +23,7 @@
 
 ### 目标
 
-为 v5 的 LLVM MC 开发选定一个可复现的 LLVM 上游 commit，完成：ADR-0005（记录选定理由）、组件锁启用、`build-mc` 真实构建目标。
+为 v5 的 LLVM MC 开发选定一个可复现的 LLVM 上游 commit，完成：ADR-0006（记录选定理由）、组件锁启用、`build-mc` 真实构建目标。
 
 ### 设计理由
 
@@ -37,7 +37,7 @@
 - **Decision 必含字段**：选定的 LLVM 版本（major.minor）、完整 40 字符 commit SHA（不得用 tag/branch）、`llvm-project` GitHub commit URL（仅供人类参考，不做 lock 用途）。
 - **Rationale 至少 3 点**：稳定性、MC 框架可用性、构建验证。
 - **Consequences**：M1 所有 patch 针对此 commit 开发，commit 在 M1 期间不 bump；若发现严重 MC 框架 bug，通过 cherry-pick 处理并记录新 ADR，不整体 bump。
-- `components.lock.toml` schema（`INFRA-003t`）：`format`、`work_root`、`[[component]]` 字段 `name`/`enabled`/`repository`/`commit`/`patch_series`/`role`。
+- `components.lock.toml` schema（`INFRA-003t`）：`format`、`work_root`、`[[component]]` 字段 `name`/`enabled`/`repository`/`commit`/`patch_series`/`role`；`[[component.source]]`（`name`/`url`，由 `INFRA-009t` 引入，见 ADR-0005）。
 - `build-mc`：`cmake -G Ninja -B .work/build/llvm -S .work/source/llvm/llvm -DLLVM_TARGETS_TO_BUILD=DADAO -DLLVM_ENABLE_PROJECTS="" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON`，随后 `ninja llvm-mc llvm-objdump llvm-lit FileCheck`；`LLVM_BUILD`/`LLVM_SRC` 用 `?=` 允许外部覆盖。
 
 ### 上游引用
@@ -48,15 +48,15 @@
 
 ## 交付物
 
-- `.tao/knowledge/adr-0005-llvm-baseline.md`：ADR-0005，覆盖 Context/Decision/Rationale/Consequences，含完整 40 字符 SHA 与至少 3 条 rationale；Status 先 Candidate，review 通过后 Accepted。
-- `manifests/components.lock.toml`：`llvm` 条目 `enabled = true`、`commit = "<40 字符 SHA>"`；其他字段（repository/patch_series/role）不变；qemu/gem5 条目不变。
+- `.tao/knowledge/adr-0006-llvm-baseline.md`：ADR-0006，覆盖 Context/Decision/Rationale/Consequences，含完整 40 字符 SHA 与至少 3 条 rationale；Status 先 Candidate，review 通过后 Accepted。
+- `manifests/components.lock.toml`：`llvm` 条目 `enabled = true`、`commit = "<40 字符 SHA>"`；`repository` 不变；`[[component.source]]` 由 `INFRA-009t` 添加（本任务不重复添加）；`patch_series`/`role` 不变；qemu/gem5 条目不变。
 - `Makefile`：`build-mc` 由 stub 替换为真实 `cmake`+`ninja`（并加入 `.PHONY` 与 `help`）。
 - `components/llvm/patches/series`：占位空文件（`components/llvm/patches/` 目录 + 空 `series`）；`manifest_check.py` 对 enabled 组件强制要求 `patch_series` 存在，补丁正文由后续任务（`LLVM-003t` 起）追加。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-- **基线独立选定**：不得把 0628 的 `llvmorg-22.1.8` / `ca7933e47d3a3451d81e72ac174dcb5aa28b59d1` 直接当作 v5 既定基线。v5 须重新决定版本、重新验证 commit 可达性（`git ls-remote` / fetch 后 `git checkout`）并在 ADR-0005 记录理由；若沿用同一版本，须写明理由并重新验证。
-- **ADR 落点**：v5 在 `.tao/knowledge/adr-0005-llvm-baseline.md`（0628 在 `docs/adr/`）。
+- **基线独立选定**：不得把 0628 的 `llvmorg-22.1.8` / `ca7933e47d3a3451d81e72ac174dcb5aa28b59d1` 直接当作 v5 既定基线。v5 须重新决定版本、重新验证 commit 可达性（`git ls-remote` / fetch 后 `git checkout`）并在 ADR-0006 记录理由；若沿用同一版本，须写明理由并重新验证。
+- **ADR 落点**：v5 在 `.tao/knowledge/adr-0006-llvm-baseline.md`（0628 在 `docs/adr/`）。
 - **构建路径**：v5 上游 checkout 为 `.work/source/llvm/llvm`（`INFRA-004t` 约定），构建为 `.work/build/llvm`；与 `INFRA-006t` 的 `LLVM_SRC` 默认值需统一（见「已知坑」）。
 - **不复制补丁正文/编码数据**：0628 的 `components/llvm/patches/*` 属 0.4.1，本任务只选定上游 commit，不引入任何 0628 补丁。
 - **措辞**：不使用按“阶段”命名的字段/目录；路线指向 DADAO-0628。
@@ -82,7 +82,7 @@
 
 ## 验收标准
 
-1. `.tao/knowledge/adr-0005-llvm-baseline.md` 存在，含完整 40 字符 SHA 与至少 3 条 rationale，Status 为 Candidate（review 后 Accepted）
+1. `.tao/knowledge/adr-0006-llvm-baseline.md` 存在，含完整 40 字符 SHA 与至少 3 条 rationale，Status 为 Candidate（review 后 Accepted）
 2. `manifests/components.lock.toml` 的 `llvm` 条目 `enabled = true`、`commit` 为完整 40 字符十六进制 SHA；qemu/gem5 条目未改
 3. `Makefile` 的 `build-mc` 为真实 `cmake`+`ninja`（含 `.PHONY` 与 `help`）
 4. `make manifest-check` PASS
@@ -92,10 +92,18 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
+**测试结果**：第 1 步完成（选版候选 + ADR 提案）
+**修改文件**：`.tao/knowledge/adr-0006-llvm-baseline.md`（新建）
+**验收结果**：ADR-0006 草案已创建，Status: Candidate，含 2 个候选方案（LLVM 23.1.1 和 22.1.8），各附 5 条理由
 **新发现/坑**：
+1. `git ls-remote --tags` 在当前环境超时（60 秒），改用 GitHub API 获取 tag 信息和 commit SHA
+2. LLVM 22.1.8 的 commit SHA `ca7933e47d3a3451d81e72ac174dcb5aa28b59d1` 与 DADAO-0628 一致（已验证）
+3. LLVM 23.1.1 是最新稳定版（2026-09-08），commit `6dfe1677ab8dffbc6ec13d53a1e0215d75147689`
 **遗留问题**：
+1. 待用户裁决：选择 LLVM 23.1.1 还是 22.1.8 作为基线
+2. 第 2 步未做：`git clone`/`git fetch`（大下载未授权）
+3. 第 3 步未做：修改 `manifests/components.lock.toml`（commit 待定）
+4. 第 4 步未做：创建 `components/llvm/patches/series`
+5. 第 5 步未做：修改 `Makefile` 的 `build-mc`
 
 ## 审阅记录
