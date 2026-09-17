@@ -70,7 +70,7 @@ apply-series: manifest-check
 prepare: fetch apply-series
 
 # DADAO is registered by adding it to LLVM_ALL_TARGETS in llvm/CMakeLists.txt
-# (see ADR-0007). Until LLVM-003t lands that patch, cmake configure will fail.
+# (see ADR-0007).
 build-mc: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
@@ -81,7 +81,7 @@ build-mc: manifest-check
 	  -DLLVM_ENABLE_PROJECTS="" \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	  -DLLVM_ENABLE_ASSERTIONS=ON
-	ninja -C $(LLVM_BUILD) llvm-mc llvm-objdump llvm-lit FileCheck
+	ninja -C $(LLVM_BUILD) llvm-mc llvm-objdump FileCheck
 	@echo "build-mc: PASS"
 
 build-qemu: manifest-check
