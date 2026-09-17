@@ -15,7 +15,7 @@
 - 输出：
   - `.tao/knowledge/adr-0006-llvm-baseline.md`（ADR-0006，Status 先 Candidate）
   - `manifests/components.lock.toml` 中 `llvm` 条目 `enabled = true` + 完整 40 字符 commit
-  - `components/llvm/patches/series`（占位空文件；`manifest_check.py` 要求 enabled 组件的 `patch_series` 存在）
+  - `components/llvm-project/patches/series`（占位空文件；`manifest_check.py` 要求 enabled 组件的 `patch_series` 存在）
   - `Makefile` 的 `build-mc` 从 stub 替换为真实 `cmake` + `ninja` 构建
 - 约束：commit 必须为完整 40 字符十六进制 SHA，不接受 tag/branch/短 SHA；ADR 先于 manifest；只改 `llvm` 条目，不动 qemu/gem5；`make manifest-check` 必须 PASS；ADR 内部引用用章节名（§Context 等），不写行号
 
@@ -38,7 +38,7 @@
 - **Rationale 至少 3 点**：稳定性、MC 框架可用性、构建验证。
 - **Consequences**：M1 所有 patch 针对此 commit 开发，commit 在 M1 期间不 bump；若发现严重 MC 框架 bug，通过 cherry-pick 处理并记录新 ADR，不整体 bump。
 - `components.lock.toml` schema（`INFRA-003t`）：`format`、`work_root`、`[[component]]` 字段 `name`/`enabled`/`repository`/`commit`/`patch_series`/`role`；`[[component.source]]`（`name`/`url`，由 `INFRA-009t` 引入，见 ADR-0005）。
-- `build-mc`：`cmake -G Ninja -B .work/build/llvm -S .work/source/llvm/llvm -DLLVM_TARGETS_TO_BUILD=DADAO -DLLVM_ENABLE_PROJECTS="" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON`，随后 `ninja llvm-mc llvm-objdump llvm-lit FileCheck`；`LLVM_BUILD`/`LLVM_SRC` 用 `?=` 允许外部覆盖。
+- `build-mc`：`cmake -G Ninja -B .work/build/llvm -S .work/source/llvm-project/llvm -DLLVM_TARGETS_TO_BUILD=DADAO -DLLVM_ENABLE_PROJECTS="" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON`，随后 `ninja llvm-mc llvm-objdump llvm-lit FileCheck`；`LLVM_BUILD`/`LLVM_SRC` 用 `?=` 允许外部覆盖。
 
 ### 上游引用
 
@@ -51,14 +51,14 @@
 - `.tao/knowledge/adr-0006-llvm-baseline.md`：ADR-0006，覆盖 Context/Decision/Rationale/Consequences，含完整 40 字符 SHA 与至少 3 条 rationale；Status 先 Candidate，review 通过后 Accepted。
 - `manifests/components.lock.toml`：`llvm` 条目 `enabled = true`、`commit = "<40 字符 SHA>"`；`repository` 不变；`[[component.source]]` 由 `INFRA-009t` 添加（本任务不重复添加）；`patch_series`/`role` 不变；qemu/gem5 条目不变。
 - `Makefile`：`build-mc` 由 stub 替换为真实 `cmake`+`ninja`（并加入 `.PHONY` 与 `help`）。
-- `components/llvm/patches/series`：占位空文件（`components/llvm/patches/` 目录 + 空 `series`）；`manifest_check.py` 对 enabled 组件强制要求 `patch_series` 存在，补丁正文由后续任务（`LLVM-003t` 起）追加。
+- `components/llvm-project/patches/series`：占位空文件（`components/llvm-project/patches/` 目录 + 空 `series`）；`manifest_check.py` 对 enabled 组件强制要求 `patch_series` 存在，补丁正文由后续任务（`LLVM-003t` 起）追加。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 - **基线独立选定**：不得把 0628 的 `llvmorg-22.1.8` / `ca7933e47d3a3451d81e72ac174dcb5aa28b59d1` 直接当作 v5 既定基线。v5 须重新决定版本、重新验证 commit 可达性（`git ls-remote` / fetch 后 `git checkout`）并在 ADR-0006 记录理由；若沿用同一版本，须写明理由并重新验证。
 - **ADR 落点**：v5 在 `.tao/knowledge/adr-0006-llvm-baseline.md`（0628 在 `docs/adr/`）。
-- **构建路径**：v5 上游 checkout 为 `.work/source/llvm/llvm`（`INFRA-004t` 约定），构建为 `.work/build/llvm`；与 `INFRA-006t` 的 `LLVM_SRC` 默认值需统一（见「已知坑」）。
-- **不复制补丁正文/编码数据**：0628 的 `components/llvm/patches/*` 属 0.4.1，本任务只选定上游 commit，不引入任何 0628 补丁。
+- **构建路径**：v5 上游 checkout 为 `.work/source/llvm-project/llvm`（`INFRA-004t` 约定），构建为 `.work/build/llvm`；与 `INFRA-006t` 的 `LLVM_SRC` 默认值需统一（见「已知坑」）。
+- **不复制补丁正文/编码数据**：0628 的 `components/llvm-project/patches/*` 属 0.4.1，本任务只选定上游 commit，不引入任何 0628 补丁。
 - **措辞**：不使用按“阶段”命名的字段/目录；路线指向 DADAO-0628。
 
 ## 已知坑 / 结论
@@ -67,7 +67,7 @@
 - **tag/branch 不作为可复现基线**：enabled 组件必须有完整 40 位 commit，否则 `make manifest-check` 失败。
 - **enabled 必须伴随 `patch_series`**：`manifest_check.py` 对 `enabled = true` 的组件强制要求 `components/<name>/patches/series` 存在；翻转 `enabled` 时必须同时创建占位空 `series`，否则 `make manifest-check` 失败。
 - **ADR 先于 manifest**：ADR Status 先 Candidate 即可提交，架构师 review 后升 Accepted。
-- **路径一致性**：~~`INFRA-006t` 的 `LLVM_SRC` 默认值写的是 `.work/llvm/llvm`，而 `INFRA-004t` 的 fetch 落点是 `.work/source/llvm`~~ **已解决（2026-09-16）**：`INFRA-006t:265,511` 已统一 `LLVM_SRC=.work/source/llvm/llvm`，与 `INFRA-004t` fetch 落点一致。本任务确认 `build-mc` 使用该路径即可。
+- **路径一致性**：~~`INFRA-006t` 的 `LLVM_SRC` 默认值写的是 `.work/llvm/llvm`，而 `INFRA-004t` 的 fetch 落点是 `.work/source/llvm`~~ **已解决（2026-09-16）**：`INFRA-006t:265,511` 已统一 `LLVM_SRC=.work/source/llvm-project/llvm`，与 `INFRA-004t` fetch 落点一致。本任务确认 `build-mc` 使用该路径即可。
 - **不改其他组件条目**：只改 `llvm`。
 
 ## 参考
@@ -87,8 +87,8 @@
 3. `Makefile` 的 `build-mc` 为真实 `cmake`+`ninja`（含 `.PHONY` 与 `help`）
 4. `make manifest-check` PASS
 5. 完成区含真实 `git checkout <SHA>` 与 `cmake` configure 输出（≥3 行）
-6. `Makefile` 的 `build-mc` 中 `LLVM_SRC` 指向 `.work/source/llvm/llvm`（与 `INFRA-004t` 的 fetch 落点一致）
-7. `components/llvm/patches/series` 存在（占位空文件）
+6. `Makefile` 的 `build-mc` 中 `LLVM_SRC` 指向 `.work/source/llvm-project/llvm`（与 `INFRA-004t` 的 fetch 落点一致）
+7. `components/llvm-project/patches/series` 存在（占位空文件）
 
 ## 完成区
 
@@ -103,7 +103,7 @@
 1. 待用户裁决：选择 LLVM 23.1.1 还是 22.1.8 作为基线
 2. 第 2 步未做：`git clone`/`git fetch`（大下载未授权）
 3. 第 3 步未做：修改 `manifests/components.lock.toml`（commit 待定）
-4. 第 4 步未做：创建 `components/llvm/patches/series`
+4. 第 4 步未做：创建 `components/llvm-project/patches/series`
 5. 第 5 步未做：修改 `Makefile` 的 `build-mc`
 
 ## 审阅记录

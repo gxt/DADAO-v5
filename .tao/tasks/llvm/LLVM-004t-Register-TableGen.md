@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：`LLVM-003t` 的 target 骨架、`.tao/knowledge/contract-isa.md` §1（寄存器模型）、`.tao/knowledge/contract-abi.md`（SPEC-004t，可分配集合/保留寄存器/SP/FP 角色）
-- 输出：`components/llvm/patches/0003-dadao-register-info.patch`、更新后的 `components/llvm/patches/series`
+- 输出：`components/llvm-project/patches/0003-dadao-register-info.patch`、更新后的 `components/llvm-project/patches/series`
 - 约束：4 bank × 64 = 256 个 RegisterDef；只定义寄存器，不写指令；RF/RA 全部 non-allocatable（M1 范围外）；可分配集合精确取自 `contract-abi.md`，不自行扩展/缩减；合约引用用章节号
 
 ## 背景（完整）
@@ -50,8 +50,8 @@
 
 ## 交付物
 
-- `components/llvm/patches/0003-dadao-register-info.patch`：包含 `DADAORegisterInfo.td`、`DADAORegisterInfo.{h,cpp}`、`DADAO.td`、`CMakeLists.txt`、注册代码。
-- `components/llvm/patches/series`：追加 `0003-dadao-register-info.patch`。
+- `components/llvm-project/patches/0003-dadao-register-info.patch`：包含 `DADAORegisterInfo.td`、`DADAORegisterInfo.{h,cpp}`、`DADAO.td`、`CMakeLists.txt`、注册代码。
+- `components/llvm-project/patches/series`：追加 `0003-dadao-register-info.patch`。
 - 生成的 `DADAOGenRegisterInfo*.inc`（构建产物，不入 git）。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
@@ -68,7 +68,7 @@
 - 4 bank × 64 = 256 个 RegisterDef，不多不少。
 - 只定义寄存器，不引入 `DADAOInstrInfo.td`（属 `LLVM-005t`）。
 - RF/RA 全部 `isAllocatable = 0`，注释说明 M1 范围 defer 原因。
-- patch 03 紧接 patch 02 apply，确保 `.work/source/llvm` 上 01+02 已应用。
+- patch 03 紧接 patch 02 apply，确保 `.work/source/llvm-project` 上 01+02 已应用。
 - 引用合约用章节号（§1 等），不引用行号。
 
 ## 参考
@@ -81,7 +81,7 @@
 
 ## 验收标准
 
-1. `components/llvm/patches/0003-dadao-register-info.patch` 存在并追加到 `series`
+1. `components/llvm-project/patches/0003-dadao-register-info.patch` 存在并追加到 `series`
 2. `make build-mc` PASS（无新增错误/警告）
 3. 构建产物含 `DADAOGenRegisterInfo*.inc`（含 enums/header/MCDesc）
 4. 256 个 RegisterDef；`GPRD`/`GPRD_Allocatable`/`GPRB`/`GPRB_Allocatable`/`GPRF`/`GPRA` 类均生成

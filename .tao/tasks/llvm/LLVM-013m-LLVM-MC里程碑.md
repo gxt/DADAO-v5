@@ -11,13 +11,13 @@
 - 各任务产出的文件是否都存在：
   - `.tao/knowledge/adr-0006-llvm-baseline.md`
   - `manifests/components.lock.toml`（llvm `enabled = true` + 完整 commit）
-  - `components/llvm/patches/0001-dadao-triple-registration.patch`
-  - `components/llvm/patches/0002-dadao-target-skeleton.patch`
-  - `components/llvm/patches/0003-dadao-register-info.patch`
-  - `components/llvm/patches/0004-dadao-instrinfo.patch`
-  - `components/llvm/patches/0005-dadao-asmparser.patch`
-  - `components/llvm/patches/0006-dadao-disassembler.patch`
-  - `components/llvm/patches/series`
+  - `components/llvm-project/patches/0001-dadao-triple-registration.patch`
+  - `components/llvm-project/patches/0002-dadao-target-skeleton.patch`
+  - `components/llvm-project/patches/0003-dadao-register-info.patch`
+  - `components/llvm-project/patches/0004-dadao-instrinfo.patch`
+  - `components/llvm-project/patches/0005-dadao-asmparser.patch`
+  - `components/llvm-project/patches/0006-dadao-disassembler.patch`
+  - `components/llvm-project/patches/series`
   - `tests/lit/MC/Dadao/lit.cfg.py`（`LLVM-003t` 产出）
   - `tests/lit/MC/Dadao/*.s`（含字节级 OBJ CHECK，`LLVM-007t`/`009t` 产出）
   - smoke `.s` 修正与 E2E lit 用例（`LLVM-010t` 产出）

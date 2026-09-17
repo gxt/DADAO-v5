@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：`LLVM-007t` 的 emitter/AsmParser、`.tao/knowledge/contract-isa.md` §2、`contracts/opcodes.yaml`
-- 输出：`components/llvm/patches/0006-dadao-disassembler.patch`、更新后的 `series`、lit 的 `llvm-objdump -d` 路径
+- 输出：`components/llvm-project/patches/0006-dadao-disassembler.patch`、更新后的 `series`、lit 的 `llvm-objdump -d` 路径
 - 约束：`make build-mc` PASS；`llvm-lit tests/lit/MC/Dadao/` 0 failures；`series` 必须包含 0006；lit DISASM 更新必须纳入补丁（可重现）；只涉及 MCDisassembler，不触碰 CodeGen
 
 ## 背景（完整）
@@ -44,8 +44,8 @@
 
 ## 交付物
 
-- `components/llvm/patches/0006-dadao-disassembler.patch`：Disassembler 组件 + CMakeLists + InstrFormats DecoderMethod + lit DISASM 更新。
-- `components/llvm/patches/series`：追加 `0006-dadao-disassembler.patch`（0001–0006）。
+- `components/llvm-project/patches/0006-dadao-disassembler.patch`：Disassembler 组件 + CMakeLists + InstrFormats DecoderMethod + lit DISASM 更新。
+- `components/llvm-project/patches/series`：追加 `0006-dadao-disassembler.patch`（0001–0006）。
 - 生成的 `DADAOGenDisassemblerTables.inc`（构建产物）。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
@@ -75,7 +75,7 @@
 
 ## 验收标准
 
-1. `components/llvm/patches/0006-dadao-disassembler.patch` 存在，且 `series` 含 0006
+1. `components/llvm-project/patches/0006-dadao-disassembler.patch` 存在，且 `series` 含 0006
 2. `make build-mc` PASS（含 Disassembler 组件）
 3. `llvm-objdump --list-targets` 含 dadao；`llvm-objdump -d` 能反汇编编码字节
 4. `llvm-lit tests/lit/MC/Dadao/` 0 failures

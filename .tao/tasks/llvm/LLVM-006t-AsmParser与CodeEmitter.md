@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：`LLVM-005t` 的指令 `def`/格式类/Operand 类型、`.tao/knowledge/contract-isa.md` §2–§5（字段/立即数/助记符）、`contracts/opcodes.yaml`
-- 输出：`components/llvm/patches/0005-dadao-asmparser.patch`、更新后的 `series`
+- 输出：`components/llvm-project/patches/0005-dadao-asmparser.patch`、更新后的 `series`
 - 约束：`make build-mc` PASS；`encodeInstruction` 必须调用 TableGen 生成的 `getBinaryCodeForInstr()`（不得写 0 stub）；大端输出；期望字节独立手推，不从 LLVM 输出复制；不实现 Disassembler、不实现 ELF relocation
 
 ## 背景（完整）
@@ -46,8 +46,8 @@
 
 ## 交付物
 
-- `components/llvm/patches/0005-dadao-asmparser.patch`：`AsmParser/DADAOAsmParser.cpp`、`AsmParser/CMakeLists.txt`、`MCTargetDesc/DADAOMCCodeEmitter.cpp`、`MCTargetDesc/DADAOMCInstPrinter.cpp`、`MCTargetDesc/DADAOAsmBackend.cpp`、顶层/MCTargetDesc CMakeLists 更新、AsmParser 注册。
-- `components/llvm/patches/series`：追加 `0005-dadao-asmparser.patch`。
+- `components/llvm-project/patches/0005-dadao-asmparser.patch`：`AsmParser/DADAOAsmParser.cpp`、`AsmParser/CMakeLists.txt`、`MCTargetDesc/DADAOMCCodeEmitter.cpp`、`MCTargetDesc/DADAOMCInstPrinter.cpp`、`MCTargetDesc/DADAOAsmBackend.cpp`、顶层/MCTargetDesc CMakeLists 更新、AsmParser 注册。
+- `components/llvm-project/patches/series`：追加 `0005-dadao-asmparser.patch`。
 - lit 覆盖（可与 `LLVM-007t` 合并交付；本任务至少 1 个正面编码用例）。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
@@ -78,7 +78,7 @@
 
 ## 验收标准
 
-1. `components/llvm/patches/0005-dadao-asmparser.patch` 存在并追加到 `series`
+1. `components/llvm-project/patches/0005-dadao-asmparser.patch` 存在并追加到 `series`
 2. `make build-mc` PASS
 3. `echo "add.si rd8, rd0, 1" | llvm-mc --triple=dadao-unknown-elf -filetype=asm -` 正常回显（助记符与操作数）
 4. `encodeInstruction()` 调用 `getBinaryCodeForInstr()`，`-filetype=obj` 不崩溃且首 4 字节等于独立手推值

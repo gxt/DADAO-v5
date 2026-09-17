@@ -11,7 +11,7 @@ PYTHON ?= python3
 # llvm source is the monorepo checkout with its `llvm/` project subdirectory.
 QEMU_SRC   ?= .work/source/qemu
 QEMU_BUILD ?= .work/build/qemu
-LLVM_SRC   ?= .work/source/llvm/llvm
+LLVM_SRC   ?= .work/source/llvm-project/llvm
 LLVM_BUILD ?= .work/build/llvm
 GEM5_SRC   ?= .work/source/gem5
 GEM5_BUILD ?= .work/build/gem5
@@ -72,8 +72,8 @@ prepare: fetch apply-series
 # -DLLVM_TARGETS_TO_BUILD=DADAO is a placeholder: the exact target name is
 # registered by the llvm module (0.5.3) and must be confirmed there.
 build-mc: manifest-check
-	@$(call component-enabled,llvm) || { \
-	  echo "build-mc: component 'llvm' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
+	@$(call component-enabled,llvm-project) || { \
+	  echo "build-mc: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
 	}
 	cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) \

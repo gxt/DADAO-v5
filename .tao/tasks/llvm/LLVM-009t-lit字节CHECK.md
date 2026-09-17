@@ -54,7 +54,7 @@
 ## 交付物
 
 - 13+ 个 `tests/lit/MC/Dadao/*.s`：拆分 `OBJ:`/`ASM:` 前缀，含字节级 OBJ CHECK 行。
-- （可选）若涉及补丁可重现性，更新 `components/llvm/patches/0006-dadao-disassembler.patch` 使 lit 更新纳入。
+- （可选）若涉及补丁可重现性，更新 `components/llvm-project/patches/0006-dadao-disassembler.patch` 使 lit 更新纳入。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 

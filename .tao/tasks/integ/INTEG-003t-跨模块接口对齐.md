@@ -15,7 +15,7 @@
   - `.tao/knowledge/adr-0003-object-abi.md`、`adr-0004-test-machine.md`（跨模块接口契约）
   - `.tao/knowledge/contract-elf.md`、`contract-abi.md`、`contract-isa.md`
   - `contracts/opcodes.yaml`、`tests/vectors/**`（schema）
-  - `components/llvm/patches/*`、`components/qemu/patches/*`（两侧实现）
+  - `components/llvm-project/patches/*`、`components/qemu/patches/*`（两侧实现）
 - 输出：接口对齐核对清单/脚本（落在 `tests/e2e/` 或 `tools/integ/`），逐条给出「一致 / 不一致 + 证据」
 - 约束：
   - **只核对、不修改**两侧实现或合约（发现不一致则报告，走变更流程）

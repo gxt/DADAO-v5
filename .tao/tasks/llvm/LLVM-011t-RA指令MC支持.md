@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：`.tao/knowledge/contract-isa.md` §4.9（RA 寄存器存取与块赋值）、§1.3.4（ra0–ra63）；`contracts/opcodes.yaml`（RA 指令编码）
-- 输出：RA 指令的 TableGen def + AsmParser/CodeEmitter/Disassembler 支持 + lit 字节检查（补丁纳入 `components/llvm/patches/series`）
+- 输出：RA 指令的 TableGen def + AsmParser/CodeEmitter/Disassembler 支持 + lit 字节检查（补丁纳入 `components/llvm-project/patches/series`）
 - 约束：Spec-first（编码以 `contract-isa.md`/`opcodes.yaml` 为准，不从实现反推）；助记符用 0.5.3 命名；只处理 RA 指令，不越界改其它指令
 
 ## 背景（完整）
@@ -42,9 +42,9 @@
 
 ## 交付物
 
-- `components/llvm/patches/` 中 RA 指令补丁：`DADAOInstrInfo.td` 的 RA 指令 def、AsmParser/CodeEmitter/Disassembler 支持。
+- `components/llvm-project/patches/` 中 RA 指令补丁：`DADAOInstrInfo.td` 的 RA 指令 def、AsmParser/CodeEmitter/Disassembler 支持。
 - lit 字节级 CHECK（`llvm-mc` 汇编 → 字节与 `opcodes.yaml` 一致；`llvm-objdump -d` 反汇编 round-trip）。
-- 补丁纳入 `components/llvm/patches/series`。
+- 补丁纳入 `components/llvm-project/patches/series`。
 
 ## 验收标准
 

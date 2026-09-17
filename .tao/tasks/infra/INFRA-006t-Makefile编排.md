@@ -262,8 +262,8 @@ exit=2   # docker daemon socket 权限（环境限制）
 **新发现/坑**：
 - **stub 的退出码语义**：recipe 内 `exit 1` → GNU Make 整体退出 **2**（make 对 recipe 失败的固定退出码）。这是"非静默失败"的正常表现，验收时应按"非零 + 明确提示"判定，勿误认为脚本返回 2。
 - **`make clean-work` 会删除整个 `.work/`，含真实 `.work/DADAO*` 参考工作树**：测试删除行为必须在隔离树进行（本任务如此）；真实参考树可从 `.cache/refs/` 离线重建，但不应无故删除。
-- **v5 与 0628 路径约定不同**：v5 `LLVM_SRC=.work/source/llvm/llvm`、`QEMU_SRC=.work/source/qemu`（0628 为 `.work/llvm/llvm`、`.work/qemu`）；已按 `LLVM-002t`/`QEMU-002t` 与 `INFRA-004t` fetch 落点统一。
-- **`component-enabled` 内联 python 检查**：Make 的 `$(call)` 函数体内逗号不作为参数分隔符，`$(call component-enabled,llvm)` 正常；已用隔离树分别验证 enabled（放行→cmake 执行）与 disabled（拦截）两分支，确认 stub 非永久硬失败。
+- **v5 与 0628 路径约定不同**：v5 `LLVM_SRC=.work/source/llvm-project/llvm`、`QEMU_SRC=.work/source/qemu`（0628 为 `.work/llvm/llvm`、`.work/qemu`）；已按 `LLVM-002t`/`QEMU-002t` 与 `INFRA-004t` fetch 落点统一。
+- **`component-enabled` 内联 python 检查**：Make 的 `$(call)` 函数体内逗号不作为参数分隔符，`$(call component-enabled,llvm-project)` 正常；已用隔离树分别验证 enabled（放行→cmake 执行）与 disabled（拦截）两分支，确认 stub 非永久硬失败。
 - **`PWD` 在 GNU Make 中来自环境变量**，`$(PWD)` 可用；`make -n` 确认展开为仓库绝对路径（0628 同）。
 - **`QEMU_BUILD` 声明但未使用**：QEMU 沿用 0628 的 in-tree 构建（`cd $(QEMU_SRC) && ./configure`），`QEMU_BUILD` 保留为可覆盖变量占位。
 - **`fetch-refs` 依赖 `manifest-check`**：`manifest_check.py` 同时校验 `references.lock.toml`，故该依赖逻辑自洽（任务书未显式要求，属合理增强）。
@@ -508,7 +508,7 @@ f9bde0481668ffab325db8d8c5d8c4cc791c6232   (=锁)
 
 #### 路径约定核验
 
-`LLVM_SRC = .work/source/llvm/llvm`、`QEMU_SRC = .work/source/qemu` — 与 `tools/infra/fetch.py` 中 `source_root = work_root / "source"` 的落点一致（`work_root` 默认 `.work`）。不是 0628 的 `.work/llvm/llvm`、`.work/qemu`。✅
+`LLVM_SRC = .work/source/llvm-project/llvm`、`QEMU_SRC = .work/source/qemu` — 与 `tools/infra/fetch.py` 中 `source_root = work_root / "source"` 的落点一致（`work_root` 默认 `.work`）。不是 0628 的 `.work/llvm/llvm`、`.work/qemu`。✅
 
 #### 回归核验
 

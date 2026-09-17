@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：`LLVM-004t` 的寄存器类（`GPRD`/`GPRB`/`GPRF`/`GPRA`）、`.tao/knowledge/contract-isa.md` §2（编码/格式）、§3–§5（标量指令）、§7（系统指令）、`contracts/opcodes.yaml`（机器可读编码表）
-- 输出：`components/llvm/patches/0004-dadao-instrinfo.patch`、更新后的 `components/llvm/patches/series`
+- 输出：`components/llvm-project/patches/0004-dadao-instrinfo.patch`、更新后的 `components/llvm-project/patches/series`
 - 约束：`make build-mc` 仍 PASS；不实现 AsmParser/Disassembler；pattern list 为空（CodeGen 属 M2）；op/ha 值逐条对照 `contracts/opcodes.yaml`，不从 LLVM 输出反推
 
 ## 背景（完整）
@@ -62,8 +62,8 @@
 
 ## 交付物
 
-- `components/llvm/patches/0004-dadao-instrinfo.patch`：含 `DADAOInstrFormats.td`（格式基类 + 9 格式类）、`DADAOInstrInfo.td`（M1 指令 def + Operand 类）、`DADAO.td`（include）、`CMakeLists.txt`（`tablegen(... -gen-instr-info)`）。
-- `components/llvm/patches/series`：追加 `0004-dadao-instrinfo.patch`。
+- `components/llvm-project/patches/0004-dadao-instrinfo.patch`：含 `DADAOInstrFormats.td`（格式基类 + 9 格式类）、`DADAOInstrInfo.td`（M1 指令 def + Operand 类）、`DADAO.td`（include）、`CMakeLists.txt`（`tablegen(... -gen-instr-info)`）。
+- `components/llvm-project/patches/series`：追加 `0004-dadao-instrinfo.patch`。
 - 生成的 `DADAOGenInstrInfo.inc`（构建产物）。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
@@ -95,7 +95,7 @@
 
 ## 验收标准
 
-1. `components/llvm/patches/0004-dadao-instrinfo.patch` 存在并追加到 `series`
+1. `components/llvm-project/patches/0004-dadao-instrinfo.patch` 存在并追加到 `series`
 2. `make build-mc` PASS，无新增错误
 3. 构建产物含 `DADAOGenInstrInfo.inc`
 4. 9 个格式类齐备（M1 范围，不含 `crrr`/`crii`/`ciii`）；M1 指令 `def` 与 `contracts/opcodes.yaml` 的 M1 条目逐条对应（mnemonic/format/op 一致）

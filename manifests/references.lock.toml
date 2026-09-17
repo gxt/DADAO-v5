@@ -6,14 +6,14 @@ policy = "reference-only"
 # architecture and engineering lessons are reused; no implementation is copied.
 
 [[reference]]
-id = "dadao-0628"
+id = "DADAO-0628"
 path = ".work/DADAO-0628"
 repository = "https://github.com/holight1/DADAO-0628.git"
 head = "2d270604b778d609e1a09b4047271b5309005ffc"
 reuse = "架构与工程教训，不复制实现"
 
 [[reference]]
-id = "dadao"
+id = "DADAO"
 path = ".work/DADAO"
 repository = "https://github.com/gxt/DADAO.git"
 head = "f9bde0481668ffab325db8d8c5d8c4cc791c6232"

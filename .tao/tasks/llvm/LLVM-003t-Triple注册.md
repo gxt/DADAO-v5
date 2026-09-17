@@ -11,14 +11,14 @@
 
 ## 接口规范
 
-- 输入：`.work/source/llvm`（`make fetch` 后按 ADR-0006 commit 的干净 checkout）、`components/llvm/patches/series`、`.tao/knowledge/contract-elf.md`（SPEC-007t，ELF header/大端/e_machine/e_flags）
+- 输入：`.work/source/llvm-project`（`make fetch` 后按 ADR-0006 commit 的干净 checkout）、`components/llvm-project/patches/series`、`.tao/knowledge/contract-elf.md`（SPEC-007t，ELF header/大端/e_machine/e_flags）
 - 输出：
-  - `components/llvm/patches/0001-dadao-triple-registration.patch`
-  - `components/llvm/patches/0002-dadao-target-skeleton.patch`
-  - 更新后的 `components/llvm/patches/series`
+  - `components/llvm-project/patches/0001-dadao-triple-registration.patch`
+  - `components/llvm-project/patches/0002-dadao-target-skeleton.patch`
+  - 更新后的 `components/llvm-project/patches/series`
   - `Makefile` 的真实 `build-mc`（`LLVM-002t` 已建立，本任务确认可用）
   - 最小 lit 冒烟 `tests/lit/MC/Dadao/triple-smoke.s` + `tests/lit/MC/Dadao/lit.cfg.py`
-- 约束：不实现任何指令（不写 `DADAOInstrInfo`/`DADAORegisterInfo`/`.td` 指令）；patch 必须能被 `git am` 干净应用到 `.work/source/llvm`；triple 注册名精确为 `dadao`，full triple `dadao-unknown-elf`；ELF 大端；`e_machine`/`e_flags` 用命名常量或明确取自 `contract-elf.md`，不硬编码无来源数字
+- 约束：不实现任何指令（不写 `DADAOInstrInfo`/`DADAORegisterInfo`/`.td` 指令）；patch 必须能被 `git am` 干净应用到 `.work/source/llvm-project`；triple 注册名精确为 `dadao`，full triple `dadao-unknown-elf`；ELF 大端；`e_machine`/`e_flags` 用命名常量或明确取自 `contract-elf.md`，不硬编码无来源数字
 
 ## 背景（完整）
 
@@ -59,16 +59,16 @@
 
 ## 交付物
 
-- `components/llvm/patches/0001-dadao-triple-registration.patch`：Triple 注册（Triple.h/Triple.cpp/CMakeLists.txt）。
-- `components/llvm/patches/0002-dadao-target-skeleton.patch`：最小 DADAO target 骨架 + AsmInfo + ELF writer 存根。
-- `components/llvm/patches/series`：按序写入 0001、0002。
+- `components/llvm-project/patches/0001-dadao-triple-registration.patch`：Triple 注册（Triple.h/Triple.cpp/CMakeLists.txt）。
+- `components/llvm-project/patches/0002-dadao-target-skeleton.patch`：最小 DADAO target 骨架 + AsmInfo + ELF writer 存根。
+- `components/llvm-project/patches/series`：按序写入 0001、0002。
 - `Makefile`：确认 `build-mc` 真实可用（如 `LLVM-002t` 已完成则不重复改动）。
 - `tests/lit/MC/Dadao/triple-smoke.s`、`tests/lit/MC/Dadao/lit.cfg.py`。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 - **ELF 常量来源**：`e_machine`/`e_flags`/EI_DATA 以 v5 `.tao/knowledge/contract-elf.md`（SPEC-007t，归一化自 ADR-0003）为准，不照抄 0628 的 `0x0DA0`/`e_flags=0x1` 数值表述；若 v5 沿用同一 `EM_DADAO`，须由 ADR-0003/合约明确，不得在代码里硬编码无来源数字。
-- **上游路径**：v5 `.work/source/llvm/llvm`（`INFRA-004t`），构建 `.work/build/llvm`。
+- **上游路径**：v5 `.work/source/llvm-project/llvm`（`INFRA-004t`），构建 `.work/build/llvm`。
 - **大端**：0.5.3 指令与数据均大端（`contract-isa.md` §1.5、§2.1），AsmInfo 必须 `IsLittleEndian = false`。
 - **triple 名**：v5 同为 `dadao-unknown-elf`，但注册与验证须在 0.5.3 的 AsmInfo/DataLayout 下完成。
 - **不复制补丁正文**：0628 的 0001/0002 patch 属 0.4.1 实现，v5 须按 0.5.3 重新生成；只参考其命名与 series 顺序。
@@ -92,7 +92,7 @@
 
 ## 验收标准
 
-1. 0001、0002 两个 patch 存在，且按序写入 `components/llvm/patches/series`
+1. 0001、0002 两个 patch 存在，且按序写入 `components/llvm-project/patches/series`
 2. `make prepare && make build-mc` PASS（cmake configure + ninja llvm-mc）
 3. `llvm-mc --version` 的 Registered Targets 含 `dadao - DADAO`（或不报 unknown target）
 4. 若 AsmParser 尚未实现（本任务边界）：`llvm-mc --version` 的 Registered Targets 含 `dadao`；否则 `llvm-lit tests/lit/MC/Dadao/triple-smoke.s` PASS

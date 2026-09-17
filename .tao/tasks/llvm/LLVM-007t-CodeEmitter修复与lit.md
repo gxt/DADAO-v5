@@ -12,7 +12,7 @@
 ## 接口规范
 
 - 输入：`LLVM-006t` 的 `0005-dadao-asmparser.patch`、`.tao/knowledge/contract-isa.md` §2、`contracts/opcodes.yaml`
-- 输出：修订后的 `components/llvm/patches/0005-dadao-asmparser.patch`（序号不变）、全量 lit 文件 `tests/lit/MC/Dadao/*.s`、更新后的 `series`
+- 输出：修订后的 `components/llvm-project/patches/0005-dadao-asmparser.patch`（序号不变）、全量 lit 文件 `tests/lit/MC/Dadao/*.s`、更新后的 `series`
 - 约束：`encodeInstruction` 必须调用 `getBinaryCodeForInstr()`，不得保留 stub；期望字节手推；每个 lit 文件同时覆盖 `-filetype=obj` 与 `-filetype=asm`；`make build-mc` PASS；`llvm-lit tests/lit/MC/Dadao/` 0 failures
 
 ## 背景（完整）
@@ -56,9 +56,9 @@
 
 ## 交付物
 
-- 修订后的 `components/llvm/patches/0005-dadao-asmparser.patch`：emitter 调用 `getBinaryCodeForInstr()`、格式类字段名与操作数名对齐、AsmBackend 存根、MCFixup 占位。
+- 修订后的 `components/llvm-project/patches/0005-dadao-asmparser.patch`：emitter 调用 `getBinaryCodeForInstr()`、格式类字段名与操作数名对齐、AsmBackend 存根、MCFixup 占位。
 - 全量 lit 文件（13 个编码文件 + `triple-smoke.s`）位于 `tests/lit/MC/Dadao/`。
-- `components/llvm/patches/series` 保持 0001–0005。
+- `components/llvm-project/patches/series` 保持 0001–0005。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 

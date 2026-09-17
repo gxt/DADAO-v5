@@ -67,7 +67,7 @@
 ## 已知坑 / 结论
 
 - **`repository` 字段语义不变**：`repository` 始终是组件的规范上游身份（必填），`source` 是获取途径列表（可选）。两者分离，不互相替代。
-- **mirror 目录按组件名索引**：`.cache/<name>.git` 的目录名与 `source` URL 无关，切换源不会创建新 mirror 目录。首次 clone 时使用的 URL 决定了 mirror 的 origin；后续 `sync_mirror` 的 `fetch --prune` 会从当前 origin 拉取。若需切换到不同源且 mirror 已有旧 origin，用户需手动删除 mirror 目录重建（或直接 `git -C .cache/llvm.git remote set-url origin <new-url>`）。
+- **mirror 目录按组件名索引**：`.cache/<name>.git` 的目录名与 `source` URL 无关，切换源不会创建新 mirror 目录。首次 clone 时使用的 URL 决定了 mirror 的 origin；后续 `sync_mirror` 的 `fetch --prune` 会从当前 origin 拉取。若需切换到不同源且 mirror 已有旧 origin，用户需手动删除 mirror 目录重建（或直接 `git -C .cache/llvm-project.git remote set-url origin <new-url>`）。
 - **环境变量覆盖的 `name` 必须匹配**：`COMPONENT_SOURCE_LLVM=sjtu` 必须精确匹配 `source` 列表中的 `name` 字段。若不匹配则报错退出。
 - **`canonical` 保留名**：`COMPONENT_SOURCE_LLVM=canonical` 表示使用 `repository` 字段作为源 URL（不从 `source` 列表选取）。
 - **`sync_mirror` 短路保留**：当 mirror 已存在且 pinned commit 已在对象库时，`sync_mirror` 跳过网络操作。此行为在多源场景下仍然正确——无论使用哪个源，只要 commit 已在本地对象库，就不需要网络。
@@ -255,7 +255,7 @@ EXIT_CODE=0
 
 1. `fetch.py` 的 `main()` 重复解析 env/`source` 生成 `src_label`，与 `select_source()` 逻辑重复（DRY）——已登记至完成区「遗留问题」与 `deferred.md`。
 2. ADR-0005 Consequences C2 表述可更精确（源 URL 由 `select_source()` 解析后传入 `sync_mirror`，`sync_mirror` 本身不解析）——非错误，不改动已 `Accepted` 的 ADR。
-3. `LLVM-002t` 启用 llvm 后 `make manifest-check` 需 `components/llvm/patches/series` 存在；该坑 `LLVM-002t` 任务书已在「交付物」与「已知坑」登记，无需额外登记。
+3. `LLVM-002t` 启用 llvm 后 `make manifest-check` 需 `components/llvm-project/patches/series` 存在；该坑 `LLVM-002t` 任务书已在「交付物」与「已知坑」登记，无需额外登记。
 
 **统一判决**：**Accepted**。
 
