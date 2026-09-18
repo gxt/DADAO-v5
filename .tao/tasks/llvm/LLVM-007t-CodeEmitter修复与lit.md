@@ -23,6 +23,8 @@
 2. 交付全量 lit 测试文件，`llvm-lit tests/lit/MC/Dadao/` 0 failures。
 3. 为 Branch/Jump 的 PC-relative 操作数补齐 `MCFixup` 占位。
 
+> **补记（2026-09-18，`LLVM-006t` 交叉复核 F2）**：目标 1 与 3 **已在 `LLVM-006t` 完成**——`encodeInstruction()` 已调 `getBinaryCodeForInstr()`（非 stub）、Branch/Jump 的 PC-relative 已用 `MCFixup`（`DADAO_FK_PCRel_12/_18/_24`）+ `applyFixup`（`(target-current)>>2`，无 +4）实现，并有仓库 lit `tests/lit/MC/Dadao/basic-encoding.s` 覆盖非 0 偏移前向与后向分支。故本任务**实际范围收窄为**：目标 2（**全量 lit 覆盖**，逐格式/逐指令族扩充 `tests/lit/MC/Dadao/*.s`，同时覆盖 `-filetype=obj` 与 `-filetype=asm`）。**注意**：`-filetype=obj` 的字节级校验请用**可解析 `.text` 的工具**（如 `readelf -x .text`），**不要**用 `llvm-objdump -d`（Disassembler 属 `LLVM-008t`，此时不存在）。
+
 ### 设计理由
 
 - 0628 `DL-010a` 交付的 emitter 是写 0 stub，`-filetype=obj` 崩溃；`-filetype=asm` 不经过 emitter 所以看似正常。本任务把 emitter 修正确认并补齐测试覆盖。
