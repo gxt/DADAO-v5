@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-009t`、`LLVM-005t`、`SPEC-006t`、`SPEC-003t`
+**依赖**：`LLVM-008t`、`LLVM-005t`、`SPEC-006t`、`SPEC-003t`
 **状态**：待开始
 
 ## 执行环境
@@ -11,7 +11,7 @@
 
 ## 接口规范
 
-- 输入：`LLVM-009t` 的 MC 闭环、`LLVM-005t` 的指令 def（含系统指令）、`.tao/knowledge/contract-isa.md` §7（系统指令）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t，exit port/复位/加载协议）、`contracts/opcodes.yaml`（SPEC-003t）
+- 输入：`LLVM-008t` 的 MC 闭环（全量 lit + 字节级 CHECK）、`LLVM-005t` 的指令 def（含系统指令）、`.tao/knowledge/contract-isa.md` §7（系统指令）、`.tao/knowledge/adr-0004-test-machine.md`（SPEC-006t，exit port/复位/加载协议）、`contracts/opcodes.yaml`（SPEC-003t）
 - 输出：确认 M1 系统指令（`swym`/`illi`/`fence`）已可汇编（若 `LLVM-005t` 未覆盖则补齐 def）、修正后的 smoke `.s`（`tests/e2e/` 或 `tests/lit/` 对应位置）、lit E2E 用例
 - 约束：只改 LLVM 端与 smoke 汇编；不改 QEMU 文件；助记符与 ISA 1:1（不加 alias）；`make build-mc` PASS；`.s → .o` 字节与独立 golden 一致
 

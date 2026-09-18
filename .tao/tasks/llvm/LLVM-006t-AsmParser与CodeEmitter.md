@@ -48,7 +48,7 @@
 
 - `components/llvm-project/patches/0005-dadao-asmparser.patch`：`AsmParser/DADAOAsmParser.cpp`、`AsmParser/CMakeLists.txt`、`MCTargetDesc/DADAOMCCodeEmitter.cpp`、`MCTargetDesc/DADAOMCInstPrinter.cpp`、`MCTargetDesc/DADAOAsmBackend.cpp`、**`MCTargetDesc/DADAOFixupKinds.h`**（`DADAO_FK_PCRel_12/_18/_24`）、`MCTargetDesc/DADAOMCTargetDesc.{h,cpp}` 注册、顶层/MCTargetDesc CMakeLists 更新、`DADAOInstrInfo.td` 的 `ParserMatchClass`/`PrintMethod`。
 - `components/llvm-project/patches/series`：追加 `0005-dadao-asmparser.patch`（顺序 01→05）。
-- **仓库侧 lit**：`tests/lit/MC/Dadao/basic-encoding.s`（覆盖 `add.si` 正面编码 + **非 0 偏移前向分支** + **后向分支**；`llvm-lit tests/lit/MC/Dadao/` 应 2/2 PASS）。**注**：补丁内**不再**携带 `llvm/test/MC/Dadao/` 用例（其 RUN2 依赖 Disassembler，属 `LLVM-008t`；已删，避免提交不可执行的测试）。
+- **仓库侧 lit**：`tests/lit/MC/Dadao/basic-encoding.s`（覆盖 `add.si` 正面编码 + **非 0 偏移前向分支** + **后向分支**；`llvm-lit tests/lit/MC/Dadao/` 应 2/2 PASS）。**注**：补丁内**不再**携带 `llvm/test/MC/Dadao/` 用例（其 RUN2 依赖 Disassembler，属 `LLVM-007t`；已删，避免提交不可执行的测试）。
 - **`tools/llvm/` 入库脚本**：`gen_m1_asm.py`（从 `contracts/opcodes.yaml` 派生 178 条合法汇编行）、`test_m1_asm.py`（178 条全量可汇编）、`test_encoding_oracle.py`（**解析 `.text` 段**、按 `(op, ha, fields)` 独立重算编码并比对）。
 - **不含** `DADAOSubtarget.td`（首轮曾加入，经复核为死文件——无任何 `.td` include 它——已删除）。
 
@@ -339,3 +339,7 @@ $ git diff --stat
 - 任务书「交付物」补入 `DADAOFixupKinds.h`/仓库 lit/`tools/llvm/` 脚本并注明 `DADAOSubtarget.td` 已删；「验收标准」新增 7/8 并订正第 3 条笔误；「已知坑」补 B1/B2 根因。
 - `**状态**` 置 `已验证`（2026-09-18）。
 - `MEMORY.md`（llvm `002t`~`006t`）、`changelog.md` 已同步。
+
+### 补记（2026-09-18 重排）
+
+**CodeEmitter 修复已在本任务完成**：原 `LLVM-007t`（CodeEmitter 修复 + 全量 lit）中的「CodeEmitter 修复」部分——`encodeInstruction()` 调用 `getBinaryCodeForInstr()`（非 stub）、`DADAO_FK_PCRel_12/_18/_24` fixup kind + `applyFixup`（`(target-current)>>2`，无 +4）——**全部在本任务（LLVM-006t）的 0005 补丁中实现并验证**。经 2026-09-18 重排，原 `LLVM-007t` 已拆分：CodeEmitter 修复归入本任务（已完成），全量 lit 归入新 `LLVM-008t`。原 `LLVM-008t`（反汇编器）重编号为 `LLVM-007t`。原 `LLVM-009t`（lit 字节级 CHECK）归并入新 `LLVM-008t`。

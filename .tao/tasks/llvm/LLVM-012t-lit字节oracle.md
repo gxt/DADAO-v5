@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-011t`、`LLVM-009t`、`SPEC-003t`
+**依赖**：`LLVM-011t`、`LLVM-008t`、`SPEC-003t`
 **状态**：待开始
 
 ## 执行环境
@@ -53,7 +53,7 @@ lit 文件中 `# OBJ:` 行手写了期望字节，但这些字节是否与 `cont
 
 1. **编码表路径**：`contracts/opcodes.yaml` → `contracts/opcodes.yaml`。
 2. **脚本目录**：`verif/` → `tools/llvm/`。
-3. **lit 文件形态**：`tests/lit/MC/Dadao/*.s` 由 `LLVM-009t` 按 0.5.3 助记符重写并内建 `{{.*}}`；本任务**只做 oracle 校验，不改 lit 文件**。
+3. **lit 文件形态**：`tests/lit/MC/Dadao/*.s` 由 `LLVM-008t` 按 0.5.3 助记符生成并内建 `OBJ:`/`ASM:` 前缀 + `{{.*}}`；本任务**只做 oracle 校验，不改 lit 文件**。
 
 ## 已知坑 / 结论
 

@@ -4,7 +4,7 @@
 **项目里程碑**：M1
 **状态**：待开始
 **目标**：DADAO-v5 的 LLVM MC 层完成——`dadao-unknown-elf` triple 注册，`llvm-mc` 能汇编全部 M1 指令（含 RA）、`llvm-objdump` 能反汇编回规范文本，编码字节与 `.tao/knowledge/contract-isa.md` / `contracts/opcodes.yaml` 独立推导的期望值一致，lit 字节级检查 0 failures，`make build-mc` 全绿。
-**关联任务**：`LLVM-001k`、`LLVM-002t`、`LLVM-003t`、`LLVM-004t`、`LLVM-005t`、`LLVM-006t`、`LLVM-007t`、`LLVM-008t`、`LLVM-009t`、`LLVM-010t`、`LLVM-011t`、`LLVM-012t`
+**关联任务**：`LLVM-001k`、`LLVM-002t`、`LLVM-003t`、`LLVM-004t`、`LLVM-005t`、`LLVM-006t`、`LLVM-007t`、`LLVM-008t`、`LLVM-010t`、`LLVM-011t`、`LLVM-012t`
 
 ## 核验
 - 关联任务是否均已 `已验证`
@@ -19,7 +19,7 @@
   - `components/llvm-project/patches/0006-dadao-disassembler.patch`
   - `components/llvm-project/patches/series`
   - `tests/lit/MC/Dadao/lit.cfg.py`（`LLVM-003t` 产出）
-  - `tests/lit/MC/Dadao/*.s`（含字节级 OBJ CHECK，`LLVM-007t`/`009t` 产出）
+   - `tests/lit/MC/Dadao/*.s`（含 OBJ/ASM 前缀 + 字节级 OBJ CHECK，`LLVM-008t` 产出）
   - smoke `.s` 修正与 E2E lit 用例（`LLVM-010t` 产出）
   - RA 指令补丁与 lit（`LLVM-011t` 产出）
   - `tools/llvm/check_lit_bytes.py`（`LLVM-012t` 产出）

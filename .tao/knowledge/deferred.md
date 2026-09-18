@@ -64,4 +64,4 @@
 - **`rela.si` 的 fixup 占位语义与 M2 不兼容（`LLVM-006t` 交叉复核 F4，2026-09-18 登记）**：`getFixupKindForInstr` 的 default 分支把 `rela.si` 映射到 `DADAO_FK_PCRel_18`，`applyFixup` 按 `Value >> 2` 计算。但 `rela.si` 的 PC 偏移公式是 **`imms18 << 12`**（4KB 对齐），与 `>>2` 不兼容。M1 无影响（不产生符号操作数 fixup）；**M2 加 ELF relocation 后必须单独处理**（新建 `DADAO_FK_PCRel_12_SHIFT12` 或直接由 relocation 写入）。归属：M2 第一个涉及 `rela.si` 重定位的任务。
 - **越界立即数静默截断（`LLVM-006t` reviewer ②，2026-09-18 登记）**：分支/跳转的 fixup 越界（如 imms12 需 0x2001）被静默截断为低位，**无 `fixup out of range` 诊断**。M1 无链接器/重定位，无实际危害；M2 应加范围检查。归属：M2 AsmParser 增强。
 - **未定义符号静默为 0（`LLVM-006t` reviewer ③，2026-09-18 登记）**：`call ext_sym`（未定义）→ `!IsResolved` 提前 return + `getRelocType` stub → 立即数保持 0、无错误、无重定位段。M1 无 reloc 属已知限制；M2 必须报未定义符号或生成重定位。归属：M2。
-- **`getFixupKindForInstr` 的 default 分支未白名单化（`LLVM-006t` reviewer ④，2026-09-18 登记）**：非分支的符号操作数会落入 default（按 PCRel_18 处理），语义可疑且脆弱。M1 非预期用法；建议后续显式白名单并对其余报错。归属：`LLVM-007t` 或 M2。
+- **`getFixupKindForInstr` 的 default 分支未白名单化（`LLVM-006t` reviewer ④，2026-09-18 登记）**：非分支的符号操作数会落入 default（按 PCRel_18 处理），语义可疑且脆弱。M1 非预期用法；建议后续显式白名单并对其余报错。归属：`LLVM-006t` 补丁修订（若 M1 内修）或 M2。

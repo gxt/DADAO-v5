@@ -52,7 +52,7 @@
 
 **指令 def**：继承对应格式类，填 `op`、minor-op（如适用）、占位 asm 字符串、空 pattern；不填 `EncoderMethod`（`LLVM-006t` 添加）。
 
-**Operand 类**：`imms12`/`immu12`/`imms18`/`immu16`/`immu6`/`imms24`/`immu18`/`wydepos` 等，**在本任务声明 `DecoderMethod`**（如 `DecodeSImm12`/`DecodeSImm18`/`DecodeSImm24`），C++ 函数体由 `LLVM-008t` 实现。TableGen `-gen-disassembler` 依赖此注解生成正确 decoder，故**注解必须在本任务写入 .td**，不可推迟到 `LLVM-008t`。
+**Operand 类**：`imms12`/`immu12`/`imms18`/`immu16`/`immu6`/`imms24`/`immu18`/`wydepos` 等，**在本任务声明 `DecoderMethod`**（如 `DecodeSImm12`/`DecodeSImm18`/`DecodeSImm24`），C++ 函数体由 `LLVM-007t`（反汇编器）实现。TableGen `-gen-disassembler` 依赖此注解生成正确 decoder，故**注解必须在本任务写入 .td**，不可推迟到 `LLVM-007t`。
 
 ### 上游引用
 
@@ -84,7 +84,7 @@
 - **`DADAOInstrInfo.{h,cpp}` 必须建（口径已定，2026-09-18）**：否则生成的 `DADAOGenInstrInfo.inc` 无人 include，不会被编译（同 `LLVM-004t` F3「死代码」教训）。
 - **`build-mc` 门禁已含 `LLVMDADAOCodeGen`（`LLVM-004t` 修复）**：本任务新增的 C++ 会被真实编译，`.td` 的合法性由 TableGen 运行把关。
 - `make build-mc` 必须 PASS：新 TableGen 不引入 undefined symbol 或 build error。
-- 不实现 AsmParser（`LLVM-006t`）、不实现 Disassembler（`LLVM-008t`）。
+- 不实现 AsmParser（`LLVM-006t`）、不实现 Disassembler（`LLVM-007t`）。
 - 所有 `def` 的 pattern list 为 `[]`（CodeGen isel 属 M2）。
 - MISC minor-op 用字面量固定，不用寄存器字段。
 - `rwii` 位域精确：`hb{5:4}=wyde-pos`，`hb{3:0}:hc:hd=immu16`。

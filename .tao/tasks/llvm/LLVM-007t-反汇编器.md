@@ -1,9 +1,11 @@
-# LLVM-008t: 反汇编器
+# LLVM-007t: 反汇编器
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-007t`、`LLVM-005t`、`SPEC-003t`
+**依赖**：`LLVM-006t`、`LLVM-005t`、`SPEC-003t`
 **状态**：待开始
+
+> **重排说明（2026-09-18）**：原 `LLVM-008t`（反汇编器）与原 `LLVM-007t`（全量 lit）交换编号。原因：`LLVM-006t` 已完成 AsmParser/MCCodeEmitter/MCTargetDesc 注册 + CMakeLists 的 `-gen-disassembler`，反汇编器对 `007t` 的依赖已失效；且全量 lit 的 `llvm-objdump -d` 字节校验需要反汇编器，形成循环依赖。新顺序：`006t → 007t（反汇编器）→ 008t（全量 lit）`。
 
 ## 执行环境
 
@@ -11,7 +13,7 @@
 
 ## 接口规范
 
-- 输入：`LLVM-007t` 的 emitter/AsmParser、`.tao/knowledge/contract-isa.md` §2、`contracts/opcodes.yaml`
+- 输入：`LLVM-006t` 的 emitter/AsmParser/MCTargetDesc（`0005-dadao-asmparser.patch`）、`LLVM-005t` 的 `.td` `DecoderMethod` 注解、`.tao/knowledge/contract-isa.md` §2、`contracts/opcodes.yaml`
 - 输出：`components/llvm-project/patches/0006-dadao-disassembler.patch`、更新后的 `series`、lit 的 `llvm-objdump -d` 路径
 - 约束：`make build-mc` PASS；`llvm-lit tests/lit/MC/Dadao/` 0 failures；`series` 必须包含 0006；lit DISASM 更新必须纳入补丁（可重现）；只涉及 MCDisassembler，不触碰 CodeGen
 
