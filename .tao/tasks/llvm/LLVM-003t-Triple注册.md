@@ -330,3 +330,11 @@ EXIT=1
 - `adr-0007-dadao-target-registration.md` 升 **`Accepted`**（2026-09-17）。
 - `**状态**` 置 `已验证`（2026-09-17）。
 - `MEMORY.md`（llvm 行）、`changelog.md` 已同步；F3/F4 已登记 `deferred.md`。
+
+---
+
+### 补记（LLVM-004t 第 2 轮返工发现，2026-09-18）
+
+`LLVM-003t` 交付的 `DADAOTargetMachine.{h,cpp}` 使用 `LLVMTargetMachine` 基类，但 LLVM 23.1.1 已将该类改名为 `CodeGenTargetMachineImpl`。此问题被 `build-mc` 的门禁盲区掩盖：`Makefile` 的 `build-mc` 只构建 `llvm-mc`/`llvm-objdump`/`FileCheck`，从不构建 `LLVMDADAOCodeGen`（含 `DADAOTargetMachine.cpp`），因此 CodeGen C++ 自始未被编译。
+
+基类修复落在 `LLVM-004t` 的 `0003` 补丁中（不改写已交付的 `0002`）。`Makefile` 的 `build-mc` 目标列表已增加 `LLVMDADAOCodeGen`，后续任务的门禁将真实覆盖 CodeGen 编译。
