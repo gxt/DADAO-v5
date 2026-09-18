@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M1
 **依赖**：`LLVM-004t`、`SPEC-003t`
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 
@@ -62,9 +62,10 @@
 
 ## 交付物
 
-- `components/llvm-project/patches/0004-dadao-instrinfo.patch`：含 `DADAOInstrFormats.td`（格式基类 + 9 格式类）、`DADAOInstrInfo.td`（M1 指令 def + Operand 类）、`DADAO.td`（include）、`CMakeLists.txt`（`tablegen(... -gen-instr-info)`）。
+- `components/llvm-project/patches/0004-dadao-instrinfo.patch`：含 `DADAOInstrFormats.td`（格式基类 + 9 格式类）、`DADAOInstrInfo.td`（M1 指令 def + Operand 类）、**`DADAOInstrInfo.{h,cpp}`**（`#include` 生成的 `DADAOGenInstrInfo.inc`，使 `.inc` 真正参与编译；避免「生成物无人 include」的死代码）、`DADAO.td`（include）、`CMakeLists.txt`（`tablegen(... -gen-instr-info)` + 源文件）。
 - `components/llvm-project/patches/series`：追加 `0004-dadao-instrinfo.patch`。
-- 生成的 `DADAOGenInstrInfo.inc`（构建产物）。
+- 生成的 `DADAOGenInstrInfo.inc`（构建产物，不入 git）。
+- **`tools/llvm/` 下的生成器与校验脚本**（口径已定，2026-09-18）：178 个 M1 指令 `def` 由脚本**从 `contracts/opcodes.yaml` 生成**（不手抄、不从 LLVM 输出反推），脚本须入库 `tools/llvm/`（依 `AGENTS.md`「生成器/脚本随产物保留」，不得只放 `/tmp`）；并提供一个**逐条对照 `opcodes.yaml` 的校验脚本**（核验验收标准 4 的 mnemonic/format/op 对应），同样入库。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -77,13 +78,18 @@
 
 ## 已知坑 / 结论
 
+- **`build-mc` 原只跑 `-gen-instr-info`（本任务暴露的根因，2026-09-18 补记）**：该 TableGen 调用**不需要** operand→`Inst` 位域绑定，因此 9 个格式类缺失绑定（`-gen-emitter`/`-gen-disassembler` 会失败）时门禁仍绿。本任务已把这两个 `tablegen()` 调用加入 `CMakeLists.txt`（只生成、不 include）使门禁覆盖。**教训（与 `LLVM-004t` 的 B3 同源）：验收门禁必须覆盖本任务依赖的全部 TableGen 后端**。
+- **`excluded_m1` 78 条不定义（口径已定，2026-09-18）**：只定义 `contracts/opcodes.yaml` 的 **178 条 M1** 条目；`excluded_m1`（浮点 RF / 特权 cfx / LR-SC 共 78 条）**完全不定义 def**（无占位）。
+- **178 个 `def` 由脚本从 `opcodes.yaml` 生成（口径已定，2026-09-18）**：脚本入库 `tools/llvm/`；另需校验脚本逐条核对 mnemonic/format/op。**不得**从 LLVM 输出反推 op/ha。
+- **`DADAOInstrInfo.{h,cpp}` 必须建（口径已定，2026-09-18）**：否则生成的 `DADAOGenInstrInfo.inc` 无人 include，不会被编译（同 `LLVM-004t` F3「死代码」教训）。
+- **`build-mc` 门禁已含 `LLVMDADAOCodeGen`（`LLVM-004t` 修复）**：本任务新增的 C++ 会被真实编译，`.td` 的合法性由 TableGen 运行把关。
 - `make build-mc` 必须 PASS：新 TableGen 不引入 undefined symbol 或 build error。
 - 不实现 AsmParser（`LLVM-006t`）、不实现 Disassembler（`LLVM-008t`）。
 - 所有 `def` 的 pattern list 为 `[]`（CodeGen isel 属 M2）。
 - MISC minor-op 用字面量固定，不用寄存器字段。
 - `rwii` 位域精确：`hb{5:4}=wyde-pos`，`hb{3:0}:hc:hd=immu16`。
 - patch 04 紧接 03：apply 顺序 01→02→03→04。
-- 0628 完成区记录 `def` 总数与 `opcodes.yaml` 条目对齐（v5 以实际 M1 条目数为准）。
+- 0628 完成区记录 `def` 总数与 `opcodes.yaml` 条目对齐（v5 以实际 M1 条目数为准：**178**）。
 
 ## 参考
 
@@ -101,13 +107,112 @@
 4. 9 个格式类齐备（M1 范围，不含 `crrr`/`crii`/`ciii`）；M1 指令 `def` 与 `contracts/opcodes.yaml` 的 M1 条目逐条对应（mnemonic/format/op 一致）
 5. `rwii` 位域与 §2.3 一致；MISC 子表 minor-op 用字面量固定
 6. 未实现 AsmParser/Disassembler；pattern list 均为 `[]`
+7. **`llvm-tblgen -gen-emitter` 与 `-gen-disassembler` 均 exit=0**，且 `CMakeLists.txt` 含这两个 `tablegen()` 调用（只生成 `.inc`、不 include），使 `build-mc` 门禁覆盖它们（防同类盲区复现；2026-09-18 追加）
 
 ## 完成区
 
-**测试结果**：
+**测试结果**：通过 8/8 + 篡改测试5/5
 **修改文件**：
+- `DADAOInstrFormats.td`：头注释修正（描述实际机制）
+- `DADAOInstrInfo.td`：重新生成（注释同步）
+- `generate_instrinfo.py`：注释模板修正
+- `validate_instrinfo.py`：Check8 重写为按格式类分块解析
+- `tools/llvm/__pycache__/`：已删除
+- `0004-dadao-instrinfo.patch`：重新生成
+
 **验收结果**：
+
+1. `make manifest-check` — PASS
+2. 干净重放 4 patch — PASS（reset→am 01-04）
+3. `make build-mc` — **PASS**（719/719，exit=0，含4个tablegen）
+4. 三个 TableGen 均 exit=0：
+   ```
+   -gen-instr-info: exit=0
+   -gen-emitter: exit=0
+   -gen-disassembler: exit=0
+   ```
+5. 生成物：`DADAOGenInstrInfo.inc` / `DADAOGenMCCodeEmitter.inc` / `DADAOGenDisassemblerTables.inc`
+6. validate 0 errors；篡改测试 5/5 CAUGHT：
+   ```
+   Tamper1: ha=rb instead of ha=ra in DADAORrrr: CAUGHT
+   Tamper2: deleted bits<2> wp in DADAORwii: CAUGHT
+   Tamper3: imm16{15-13} instead of {15-12}: CAUGHT
+   Tamper4: deleted hb{5-4}=wp: CAUGHT
+   Tamper5: bits<4> rb instead of bits<6>: CAUGHT
+   ALL TAMPER TESTS PASSED
+   ```
+7. `llvm-mc --version` 含 `dadao - DADAO SimRISC`
+8. `git status --short`：无 `__pycache__`/`Output`/`*.tmp.out`
+
 **新发现/坑**：
+- `__pycache__` 在每次 `python3` 执行后都会重新生成，需在验证完成后手动删除
+
 **遗留问题**：
+- 无
 
 ## 审阅记录
+
+### 第1轮 engineer 自审
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| `ops_str` 变量定义后未使用（死代码） | ✅已修 | 删除 `ops_str` 赋值行和对 `get_operand_types` 的调用 | `grep -n ops_str` 无结果 |
+| `DADAOInstrFormats.td` 中 `let Inst{31-24}` 需 `field bits<32> Inst` 声明 | ✅已修 | 添加 `field bits<32> Inst;` | `make build-mc` PASS |
+| 模板参数中不能用 `outs`/`ins` | ✅已修 | 改为 `let OutOperandList/InOperandList` 在 def body 中 | `make build-mc` PASS |
+| `Target` 需要 `InstructionSet` | ✅已修 | 添加 `def DADAOInstrInfo : InstrInfo` 和 `let InstructionSet = ...` | `make build-mc` PASS |
+| `DADAOGenInstrInfo.inc` 引用 `RegClassID` 枚举 | ✅已修 | `.h` 中 `#define GET_REGINFO_ENUM` 先 include register info | `make build-mc` PASS |
+| `DADAOInstrInfo` 构造函数签名不匹配 | ✅已修 | 更新为 `(const TargetSubtargetInfo&, const TargetRegisterInfo&, ...)` | `make build-mc` PASS |
+| 20个重复 insn 名称导致 def 被覆盖 | ✅已修 | `make_unique_names` 用 `(insn, format)` 元组作键 | validate: 178 defs, 0 errors |
+
+### 第1轮 reviewer 验收（Needs Revision）
+
+reviewer 发现：9个格式类**没有 operand→Inst 位域绑定**。基类有 `bits<6> ha/hb/hc/hd` 但 def 的操作数名（`$rdha`/`$rbhb`/`$wpN`/`$immu16`…）与字段名不同名，bits[23:0] 悬空。`-gen-instr-info` 不需要位域绑定所以 `build-mc` 没抓到。
+
+### 第 1 轮返工（位域绑定 + 门禁）
+
+**返工者**：engineer
+**时间**：2026-09-18
+
+- **9 个格式类补齐 operand→`Inst` 位域绑定**（`rrrr`: ha..hd=ra..rd；`rwii`: `ha=ra`、`hb{5-4}=wp`、`hb{3-0}=imm16{15-12}`、`hc=imm16{11-6}`、`hd=imm16{5-0}`；`oiii`: `hb/hc/hd=imm18{17-12}/{11-6}/{5-0}`，`ha` 为 minor-op 字面量；其余同理）。
+- **`generate_instrinfo.py` 同步**：操作数名改用格式字段名（`$ra`/`$rb`/`$imm12`…），def 与格式类字段一致。
+- **门禁**：`CMakeLists.txt` 新增 `-gen-emitter`/`-gen-disassembler` 两个 `tablegen()`（只生成，不 include）。
+- 重新生成 `0004-dadao-instrinfo.patch`。
+- 复验：`-gen-instr-info`/`-gen-emitter`/`-gen-disassembler` 三者 exit=0；`make build-mc` exit=0（`[1491/1491]`）；178 def 仍与 `opcodes.yaml` 一致。
+
+### 第 2 轮 reviewer 验收
+
+**验收者**：reviewer
+**时间**：2026-09-18
+**判决**：**Accepted**（6/6）
+
+**独立重跑**：`make manifest-check` exit=0；回基线 + `make prepare`（4 patch）；`make build-mc` exit=0（`[1491/1491]`，含 4 个 tablegen）；三者 tblgen exit=0（193549/23473/57774 B）；`DADAOGenMCCodeEmitter.inc`/`DADAOGenDisassemblerTables.inc` 生成。
+
+**独立验证（非采信 engineer）**：自写双脚本解析 9 格式类绑定 vs 从 §2.3 派生的位域模型 → 9/9 PASS；178 条逐条核对「def 操作数列表 == YAML 字段顺序/类型」且「YAML 字段 bit 范围 == 格式类绑定」→ PASS；`-print-records` 抽样（`or_w_rd`/`and_o`/`swym_iiii`/`illi`/`fence`/`ld_ub_rd`）确认字段落在正确 `Inst` 位；emitter 的 `InstBits[178]` 与 YAML `(op<<24)|(ha<<18)` 逐条比对 0 mismatch；**篡改副本法**验证 validator Check 8 有效（改坏绑定/删字段 → exit=1）。
+
+**残余（非阻塞）**：M1 头注释仍描述废弃机制；M2 validator Check 8 为全文件正则（单类篡改不抓）；M3 `tools/llvm/__pycache__/` 未清理。
+
+### 第 3 轮返工（M1 注释 / M2 validator 强化 / M3 清理）
+
+| 项 | 处置 | 复验 |
+|---|---|---|
+| M1 | `DADAOInstrFormats.td` 头注释 + `generate_instrinfo.py` 模板改为如实描述（operand 名即字段名，TableGen 自动绑定） | grep 确认无废弃描述；重生成 `0004` |
+| M2 | Check 8 改为**按格式类分块**解析并断言 `bits<>` 声明与 `let` 绑定（含 `hb{5-4}` 等子位段） | 篡改副本法 **5/5 CAUGHT**（`ha=rb`、删 `bits<2> wp`、`imm16{15-13}`、删 `hb{5-4}=wp`、`bits<4> rb`）；主会话独立复验「改真实绑定 → exit=1」 |
+| M3 | 删除 `tools/llvm/__pycache__/` | `ls tools/llvm/` 仅 2 个 `.py` |
+
+**复验**：`make build-mc` exit=0；三者 tblgen exit=0；validator 0 errors；178 def 一致；无污染。
+
+### 交叉复核（architect）
+
+**复核者**：architect
+**时间**：2026-09-18
+**判决**：**确认 Accepted**；**无需新增/修订 ADR**（门禁扩展属 ADR-0002 覆盖的构建编排实现细节）。
+
+**独立核对**：6 条验收标准逐条通过；`-gen-emitter`/`-gen-disassembler` 可跑且 `.inc` 无人 include（不埋链接雷）；下游 `LLVM-006t`/`007t`/`008t` 引用与实际一致；`.inc` 未被 include、`DecoderMethod` C++ 体由 `008t` 承接（已确认）。
+
+**新发现**：N1 任务书缺第 2 轮审阅记录/状态未置位；N2（=M1）头注释；N3 验收标准应显式加 emitter/disassembler exit=0；N4 已知坑应记门禁盲区根因 → 均已由主会话/engineer 处置。
+
+### 收尾
+
+- N3/N4 由**主会话**补入「验收标准 7」与「已知坑」（2026-09-18）。
+- `**状态**` 置 `已验证`（2026-09-18）。
+- `MEMORY.md`（llvm `002t`~`005t`）、`changelog.md` 已同步。
