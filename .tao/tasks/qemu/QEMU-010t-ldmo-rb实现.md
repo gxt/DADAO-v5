@@ -15,7 +15,7 @@
   - `QEMU-009t` 产出的 `translate.c`（RB 存取已实现，`ldm.o-rb` 仍为 ILLI 桩）
   - `.tao/knowledge/contract-isa.md` §4.2（存取 RB 寄存器：`ldm.o-rb`/`stm.o-rb`）、§1.5（48 位有效地址）
   - `.tao/knowledge/adr-0004-test-machine.md`（MALIGN 可观测）
-  - `contracts/opcodes.yaml`（`ldm.o-rb` 的 op/格式/legality）、`tests/vectors/isa/rb-ops.yaml`
+  - `contracts/opcodes.yaml`（`ldm.o-rb` 的 op/格式/legality）、`tests/vectors/isa/mem-rb.yaml`
 - 输出：修订后的 `components/qemu/patches/0005-dadao-ctrl-flow.patch`、向量状态更新
 - 约束：
   - 参考对称的 `stm.o-rb` 实现
@@ -52,7 +52,7 @@
 ## 交付物
 
 - 修订后的 `components/qemu/patches/0005-dadao-ctrl-flow.patch`：`trans_ldm_o_rb`（v5 名）实现。
-- `tests/vectors/isa/rb-ops.yaml`：`ldm.o-rb` 向量从 `deferred` 改回 `active`（按 v5 向量实际）。
+- `tests/vectors/isa/mem-rb.yaml`：`ldm.o-rb` 向量从 `deferred` 改回 `active`（按 v5 向量实际）。
 - `components/qemu/patches/series`：序号不变或追加（以 v5 实际序列为准）。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
@@ -87,7 +87,7 @@
 1. `trans_ldm_o_rb`（v5 名）由 ILLI 桩替换为完整实现，与 `stm.o-rb` 对称
 2. ILLI 检查（`rbha==rb0`、`immu6==0`、`rbha+immu6>64`）先于写；EA 48 位截断；大端 8 字节 load
 3. 未对齐 → MALIGN 精确
-4. `rb-ops.yaml` 中 `ldm.o-rb` 向量为 `active` 且运行 PASS
+4. `mem-rb.yaml` 中 `ldm.o-rb` 向量为 `active` 且运行 PASS
 5. `make build-qemu` PASS；不引入其他向量回退
 6. 完成区含真实构建/运行输出；未自行 commit
 

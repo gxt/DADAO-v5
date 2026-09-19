@@ -107,7 +107,7 @@
 3. 所有 ILLI 检查先于 TCG 写；rd0 写为 NOP；源在写前快照
 4. 除零与 `INT_MIN ÷ −1` 产生运行时 ILLI（TCG 条件分支），非 build 期 assert
 5. 未覆盖指令仍为 ILLI 桩
-6. `make build-qemu` PASS；相关语义/合法性/边界向量经「MC 汇编 → QEMU 执行 → 结果比对」与 oracle 一致（若 harness 未就绪，记录依赖并保留可复现命令）
+6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/<对应>.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS）
 7. 完成区含真实构建/运行输出；未自行 commit
 
 ## 完成区

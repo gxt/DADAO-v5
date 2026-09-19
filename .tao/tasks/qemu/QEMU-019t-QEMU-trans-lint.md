@@ -17,7 +17,7 @@
 - 输出：`tools/qemu/check_qemu_trans.py`：每个 M1 opcode 是否有 `trans_<mnemonic>`（lint，默认 exit 0）
 - 约束：
   - `check_qemu_trans.py` 是 lint 不是 gate，默认 exit 0；可提供 `--strict` 使其 exit 1
-  - mnemonic 标准化：`-` → `_`、全小写；同 mnemonic 多 opcode 只需一个匹配
+  - mnemonic 标准化：`-` → `_`、`.` → `_`、全小写；同 mnemonic 多 opcode 只需一个匹配（注意：186/256 条 M1 mnemonic 含 `.`，如 `add.uo`/`br.z`/`ld.o`，必须转换为合法 C 标识符 `add_uo`/`br_z`/`ld_o`）
   - 只读 `contracts/opcodes.yaml` 与 patch，不改组件源码
   - 脚本放 `tools/qemu/`
 
@@ -61,7 +61,7 @@
 ## 已知坑 / 结论
 
 1. **trans lint 非阻断**：默认 exit 0，仅 lint 警告；`--strict` 才 exit 1。MISC 特殊指令（`swym`/`illi` 等）可能无独立 trans，属预期缺失。
-2. **mnemonic 标准化**：`-`→`_`；同 mnemonic 多 opcode（如 `add.si` 的 RD/RB 变体）只需一个 trans 匹配。
+2. **mnemonic 标准化**：`-`→`_`、`.`→`_`（`opcodes.yaml` 中 186/256 条 M1 mnemonic 含 `.`，如 `add.uo`→`add_uo`、`br.z`→`br_z`、`ld.o`→`ld_o`、`set.zw`→`set_zw`）；同 mnemonic 多 opcode（如 `add.si` 的 RD/RB 变体）只需一个 trans 匹配。标准化后的名称即为 `QEMU-004t` 产出的 `trans_*` 函数名后缀（`trans_add_uo`、`trans_br_z`、`trans_ld_o` 等），lint 直接在 `components/qemu/patches/*.patch` 中 grep `trans_<normalized>` 进行匹配。
 3. **硬编码映射表易漂移**：v5 重建时须以 `QEMU-013t` 实际函数名为准，并考虑直接从 `opcodes.yaml` + 命名约定推导以减少硬编码。
 
 ## 参考

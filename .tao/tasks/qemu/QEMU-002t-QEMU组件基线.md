@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M1
-**依赖**：`INFRA-006t`
+**依赖**：`INFRA-006t`、`INFRA-009t`、`INFRA-013t`
 **状态**：待开始
 
 ## 执行环境
@@ -13,7 +13,7 @@
 
 - 输入：`manifests/components.lock.toml`（`INFRA-003t` 产出，`qemu` 条目 `enabled = false`、`commit = ""`）、`Makefile`（`INFRA-006t` 产出的 `build-qemu` stub）、QEMU 上游仓库 `https://github.com/qemu/qemu.git`
 - 输出：
-  - `.tao/knowledge/adr-0006-qemu-baseline.md`（ADR-0006，Status 先 Candidate）
+  - `.tao/knowledge/adr-0008-qemu-baseline.md`（ADR-0008，Status 先 Candidate）
   - `manifests/components.lock.toml` 中 `qemu` 条目 `enabled = true` + 完整 40 字符 commit
   - `components/qemu/patches/series`（占位空文件；`manifest_check.py` 要求 enabled 组件的 `patch_series` 存在）
   - `Makefile` 的 `build-qemu` 从 stub 替换为真实 `configure` + `make` 构建
@@ -23,7 +23,7 @@
 
 ### 目标
 
-为 v5 的 QEMU 标量核心开发选定一个可复现的 QEMU 上游 commit，完成：ADR-0006（记录选定理由）、组件锁启用、`build-qemu` 真实构建目标。0628 对应任务 `DL-006a` 在完成区实际选定 QEMU v10.0.0（SHA `385b0a7d9785c8f3ac7b116d7f31d61502b55183`），并经架构评审 Accepted。
+为 v5 的 QEMU 标量核心开发选定一个可复现的 QEMU 上游 commit，完成：ADR-0008（记录选定理由）、组件锁启用、`build-qemu` 真实构建目标。0628 对应任务 `DL-006a` 在完成区实际选定 QEMU v10.0.0（SHA `385b0a7d9785c8f3ac7b116d7f31d61502b55183`），并经架构评审 Accepted。
 
 ### 设计理由
 
@@ -49,15 +49,15 @@
 
 ## 交付物
 
-- `.tao/knowledge/adr-0006-qemu-baseline.md`：ADR-0006，覆盖 Context/Decision/Rationale/Consequences，含完整 40 字符 SHA 与至少 3 条 rationale；Status 先 Candidate，review 通过后 Accepted。
+- `.tao/knowledge/adr-0008-qemu-baseline.md`：ADR-0008，覆盖 Context/Decision/Rationale/Consequences，含完整 40 字符 SHA 与至少 3 条 rationale；Status 先 Candidate，review 通过后 Accepted。
 - `manifests/components.lock.toml`：`qemu` 条目 `enabled = true`、`commit = "<40 字符 SHA>"`；其他字段（repository/patch_series/role）不变；llvm/gem5 条目不变。
 - `Makefile`：`build-qemu` 由 stub 替换为真实 `configure` + `make`（并加入 `.PHONY` 与 `help`）。
 - `components/qemu/patches/series`：占位空文件（`components/qemu/patches/` 目录 + 空 `series`）；`manifest_check.py` 对 enabled 组件强制要求 `patch_series` 存在，补丁正文由后续任务（`QEMU-003t` 起）追加。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
-- **基线独立选定**：不得把 0628 的 QEMU v10.0.0 / `385b0a7d…` 直接当作 v5 既定基线。v5 须重新决定版本、重新验证 commit 可达性（`git ls-remote` / fetch 后 `git checkout`）并在 ADR-0006 记录理由；若沿用同一版本，须写明理由并重新验证。
-- **ADR 落点**：v5 在 `.tao/knowledge/adr-0006-qemu-baseline.md`（0628 在 `docs/adr/`）。
+- **基线独立选定**：不得把 0628 的 QEMU v10.0.0 / `385b0a7d…` 直接当作 v5 既定基线。v5 须重新决定版本、重新验证 commit 可达性（`git ls-remote` / fetch 后 `git checkout`）并在 ADR-0008 记录理由；若沿用同一版本，须写明理由并重新验证。
+- **ADR 落点**：v5 在 `.tao/knowledge/adr-0008-qemu-baseline.md`（0628 在 `docs/adr/`）。
 - **构建路径**：v5 上游 checkout 为 `.work/source/qemu`（`INFRA-004t` 约定），构建为 `.work/build/qemu`；与 `INFRA-006t` 的 `QEMU_SRC` 默认值需统一。
 - **不复制补丁正文/编码数据**：0628 的 `components/qemu/patches/*` 属 0.4.1，本任务只选定上游 commit，不引入任何 0628 补丁。
 - **措辞**：不使用按开发批次命名的字段/目录；路线指向 DADAO-0628。
@@ -70,6 +70,11 @@
 - **ADR 先于 manifest**：ADR Status 先 Candidate 即可提交，架构师 review 后升 Accepted。
 - **路径一致性**：`build-qemu` 的 `QEMU_SRC` 必须指向 `.work/source/qemu`（`INFRA-004t` 的 fetch 落点），避免与 `INFRA-006t` 的默认值不一致。
 - **不改其他组件条目**：只改 `qemu`。
+- **镜像站下载流程（`mirrors.md`）**：QEMU 上游仓库较大，下载须遵守 `.tao/knowledge/mirrors.md` 流程——先查教育网联合镜像站列表、逐个测连通性与速度、给出建议（含直连 GitHub 对照）、由用户裁定。下载选择与裁决记入 `.work/log/qemu/QEMU-002t-mirror.log`。
+- **`[[component.source]]`（`INFRA-009t`）**：`components.lock.toml` 支持多源字段 `[[component.source]]`（`INFRA-009t` 产出），`qemu` 条目须配置 `[[component.source]]` 指向镜像站或 GitHub。
+- **组件名=原始仓库名（`INFRA-013t`）**：`qemu` 组件的 `name` 字段须与原始仓库名一致（`INFRA-013t` 约定）。
+- **构建验证用 riscv64 代理**：`Makefile` 的 `build-qemu` 硬编码 `--target-list=dadao-softmmu`，但 dadao target 到 `QEMU-003t` 才引入。本任务阶段的真实构建验证应使用 `riscv64-softmmu` 作为代理（验证 configure + TCG 框架可用），**不得**写成「要求 dadao-softmmu 构建通过」。`dadao-softmmu` 构建留给 `QEMU-003t`。
+- **ADR-0008 交付物**：`.tao/knowledge/adr-0008-qemu-baseline.md`（ADR 编号 0008，因 ADR-0006 已被 llvm-baseline 占用；Status 先 Candidate）。
 
 ## 参考
 
@@ -79,17 +84,21 @@
 - DADAO-0628：`.work/DADAO-0628/Makefile`
 - v5：`.tao/knowledge/adr-authoring.md`（ADR 格式与模板）
 - 知识库：`.tao/knowledge/MEMORY.md`
-- 本项目：`.tao/tasks/infra/INFRA-003t-manifest与锁系统.md`、`.tao/tasks/infra/INFRA-004t-组件获取与打补丁工具.md`、`.tao/tasks/infra/INFRA-006t-Makefile编排.md`
+- 本项目：`.tao/tasks/infra/INFRA-003t-manifest与锁系统.md`、`.tao/tasks/infra/INFRA-004t-组件获取与打补丁工具.md`、`.tao/tasks/infra/INFRA-006t-Makefile编排.md`、`.tao/tasks/infra/INFRA-009t-组件锁多源字段.md`、`.tao/tasks/infra/INFRA-013t-按原始仓库名命名.md`
+- 本项目：`.tao/knowledge/mirrors.md`（镜像站下载流程）
 
 ## 验收标准
 
-1. `.tao/knowledge/adr-0006-qemu-baseline.md` 存在，含完整 40 字符 SHA 与至少 3 条 rationale，Status 为 Candidate（review 后 Accepted）
+1. `.tao/knowledge/adr-0008-qemu-baseline.md` 存在，含完整 40 字符 SHA 与至少 3 条 rationale，Status 为 Candidate（review 后 Accepted）
 2. `manifests/components.lock.toml` 的 `qemu` 条目 `enabled = true`、`commit` 为完整 40 字符十六进制 SHA；llvm/gem5 条目未改
 3. `Makefile` 的 `build-qemu` 为真实 `configure` + `make`（含 `.PHONY` 与 `help`）
 4. `make manifest-check` PASS
 5. 完成区含真实 `git checkout <SHA>` 与 `./configure` 输出（≥3 行）
 6. `Makefile` 的 `build-qemu` 中 `QEMU_SRC` 指向 `.work/source/qemu`（与 `INFRA-004t` 的 fetch 落点一致）
 7. `components/qemu/patches/series` 存在（占位空文件）
+8. 下载流程遵守 `.tao/knowledge/mirrors.md`，`.work/log/qemu/QEMU-002t-mirror.log` 存在且含镜像站选择/速度/用户裁决记录
+9. `manifests/components.lock.toml` 的 `qemu` 条目含 `[[component.source]]`（`INFRA-009t` 多源字段）
+10. 构建验证使用 `riscv64-softmmu` 代理（非 `dadao-softmmu`），完成区含真实 `./configure --target-list=riscv64-softmmu` 输出
 
 ## 完成区
 

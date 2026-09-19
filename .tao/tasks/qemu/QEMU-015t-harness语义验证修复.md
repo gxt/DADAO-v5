@@ -72,13 +72,16 @@ else:
 
 ```
 mismatch 累加器 = 0
-for each (reg, expected_value) in expected_state.rd / expected_state.rb:
+for each (reg, expected_value) in expected_state.rd / expected_state.rb / expected_state.ra:
     加载 expected 到 temp
     temp = expected XOR actual          # 相等则 0
     mismatch |= temp                    # 任一失配则 mismatch ≠ 0
 if mismatch == 0: 写 exit=0（PASS）
 else:             写 exit=1（FAIL）
 ```
+
+- **RA 比对路径**：对 `expected_state.ra` 中的每个 RA 寄存器，用 `ra2rd` 把实际 RA 值导出到临时 RD，再与期望值 XOR+ORR 累加。`ra2rd` 编码取自 `contracts/opcodes.yaml`。
+- **`encoding.reserved` 义务（M15）**：`reserved: true` 的 case 无 `(insn, format)` 身份，解析时须跳过 identity/mask-value 校验；`expected_fault` 恒为 `UNDI`。harness 在 `_classify` 路由中对 `expected_fault: UNDI` 使用 `FAULT_CODES['UNDI'] = 0x89`。
 
 `expected_state` 为 `null` 的 encoding class 不生成比较，仅执行指令后写 exit=0。`emit_exit()` 的 `load_reg + halt` 方案替换为向 exit port 写 0。
 

@@ -13,12 +13,12 @@
 
 - 输入：
   - `QEMU-017t` 的 `build_branch_test_binary()` 框架
-  - `tests/vectors/isa/control-flow.yaml`
-  - `.tao/knowledge/contract-isa.md` §5.3/§5.4（call 压栈、ret 弹栈）
+  - `tests/vectors/isa/ctrl-call.yaml`、`tests/vectors/isa/ctrl-ret.yaml`
+  - `.tao/knowledge/contract-isa.md` §5.4/§5.5（call 压栈、ret 弹栈）
   - `contracts/opcodes.yaml`（`call-iiii`/`call-rrii`/`ret-riii` 编码）
 - 输出：
-  - `tests/scripts/build_test_binary.py`：新增 `emit_call_ret_pattern()` 与 `call_ret` behavior 分支
-  - `tests/vectors/isa/control-flow.yaml`：新增 call/ret semantic 测试
+  - `tests/scripts/build_test_binary.py`：新增 `emit_call_ret_pattern()` 与 `expected_pc`+`expected_state.ra` behavior 分支
+  - `tests/vectors/isa/ctrl-call.yaml`、`tests/vectors/isa/ctrl-ret.yaml`：新增 call/ret semantic 测试
 - 约束：
   - 不修改现有 `build_test_binary` 主路径
   - `call_r` 的 encoding bits 必须从 `contract-isa.md` §5.3 手推，不能从 QEMU 行为反推
@@ -64,7 +64,7 @@ binary layout:
 
 0.4.1 的具体值（call 在 offset 0、imm=+2 → target=12、`ra[63]=4`）仅作算术形态参考，v5 须按 0.5.3 公式重算。
 
-**builder 改动**：在 `build_branch_test_binary()` 中新增分支：`call` + `taken`（iiii/rrii）走无条件跳转；`ret`（或 `behavior == 'call_ret'`）调用 `emit_call_ret_pattern(buf, case)`。
+**builder 改动**：在 `build_branch_test_binary()` 中新增分支：`call` + `expected_pc` 非 null（iiii/rrii）走无条件跳转；`ret`（或 `expected_state.ra` 非 null）调用 `emit_call_ret_pattern(buf, case)`。`expected_state.ra` 用于断言 call 压栈后 ra63 的值；`expected_pc` 用于断言 ret 弹出的返回地址。
 
 ### 上游引用
 
@@ -74,17 +74,17 @@ binary layout:
 ## 交付物
 
 - `tests/scripts/build_test_binary.py`：`emit_call_ret_pattern()` + call/ret 调度
-- `tests/vectors/isa/control-flow.yaml`：call_i taken、call_r taken、ret 组合 pattern
+- `tests/vectors/isa/ctrl-call.yaml`、`tests/vectors/isa/ctrl-ret.yaml`：call_i taken、call_r taken、ret 组合 pattern
 - 完成区附 PASS 条数与回归结果
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符/格式**：0.4.1 `call_i=0x6C(iiii)`/`call_r=0x6D(rrii)`/`ret=0x6E(riii)`；0.5.3 对应 `call-iiii`/`call-rrii`/`ret-riii`，op/编码从 `contracts/opcodes.yaml` 取，**不复制 0.4.1 编码**。
-2. **返回地址公式**：0.4.1 修复后为 `ra[63] = pc_next + 4`；v5 以 `contract-isa.md` §5.3.3 压栈流程为准（须核对「下一条地址」定义）。
-3. **ret 跳转**：0.4.1 `ret` 跳 `ra[63] + imm*4`；v5 以 `contract-isa.md` §5.4.1 弹栈流程为准。
+2. **返回地址公式**：0.4.1 修复后为 `ra[63] = pc_next + 4`；v5 以 `contract-isa.md` §5.6.1 压栈流程为准（须核对「下一条地址」定义）。
+3. **ret 跳转**：0.4.1 `ret` 跳 `ra[63] + imm*4`；v5 以 `contract-isa.md` §5.6.2 弹栈流程为准。
 4. **`emit_exit` 字节数**：0.4.1 依赖 `load_reg`+`halt` 固定 20B 做 PC 算术；v5 的 exit 段实现（`QEMU-015t` 改为写 exit port）字节数不同，`call_ret` layout 的偏移须按 v5 实际重算，不能照抄 `+5`/`+2`。
 5. **QEMU call/ret 修复**：v5 的 call/ret 实现修复属 `qemu` 模块（`QEMU-012t`），本任务依赖其正确后再验收。
-6. **RA 栈验证深度**：0.4.1 只做「call→ret→landing」往返隐式验证；v5 同样以往返路径隐式验证 RA push/pop，不新增 ra 状态比较（除非 `expected_state` 支持 ra，属后续）。
+6. **RA 栈验证**：`expected_state.ra` 用于断言 call 压栈后 `ra[63]` 的值（返回地址）；`call→ret→landing` 完整往返隐式验证 RA push/pop。若 `expected_state.ra` 非 null，用 `ra2rd` 导出 RA 到 RD 后做 XOR 比对。
 
 ## 已知坑 / 结论
 
@@ -92,7 +92,7 @@ binary layout:
 
 1. **call_ret layout 逐字节对齐**：0.4.1 `[call_i +5][emit_exit(0) 20B][ret][poison]`；PC 算术与 translate.c 一致才 PASS。v5 偏移须按自身 exit 段长度重算。
 2. **`ra[63]` 压栈/弹栈正确性**由 `call→ret→ret_landing` 完整往返隐式验证：ret 能落回 exit 段即证明压栈/弹栈正确。
-3. **call_r encoding 手推**：0.4.1 审查记录 `0x6D042000` 等；v5 必须从 `contract-isa.md` §5.3.2 手推，不能从 QEMU 反推。
+3. **call_r encoding 手推**：0.4.1 审查记录 `0x6D042000` 等；v5 必须从 `contract-isa.md` §5.4 手推，不能从 QEMU 反推。
 4. **不修改主路径**：call/ret 走新增分支，算术/访存路径不动。
 5. **回归基线**：0.4.1 `37/37 control-flow PASS`；v5 以自身 harness 为准，须保持既有 PASS 不退化。
 6. **无条件 call 无 not_taken 变体**：call 无条件执行，不需要 not-taken 测试。
@@ -103,17 +103,17 @@ binary layout:
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-030a-call-ret-semantic.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-029a-control-flow-semantic-harness.md`
 - DADAO-0628：`.work/DADAO-0628/tests/scripts/build_test_binary.py`
-- 本项目：`.tao/knowledge/contract-isa.md` §5.3/§5.4、`contracts/opcodes.yaml`、`tests/vectors/isa/control-flow.yaml`
+- 本项目：`.tao/knowledge/contract-isa.md` §5.4/§5.5、`contracts/opcodes.yaml`、`tests/vectors/isa/ctrl-call.yaml`、`tests/vectors/isa/ctrl-ret.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
 
-1. `emit_call_ret_pattern()` 实现三段 layout，`call_ret` behavior 可触发
+1. `emit_call_ret_pattern()` 实现三段 layout，`expected_pc`+`expected_state.ra` behavior 可触发
 2. call_i taken、call_r taken、ret 组合 pattern 均激活并 PASS
 3. `call→ret→landing` 往返路径 PASS，证明 `ra[63]` 压栈/弹栈正确
-4. `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/control-flow.yaml` 0 FAIL，既有 PASS 基线不退化
-5. call_r encoding 在完成区给出从 `contract-isa.md` §5.3.2 的手推依据
-6. `rd-arith.yaml` 回归不破坏
+4. `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-call.yaml` 0 FAIL，既有 PASS 基线不退化
+5. call_r encoding 在完成区给出从 `contract-isa.md` §5.4 的手推依据
+6. `reg-arith.yaml` 回归不破坏
 
 ## 完成区
 

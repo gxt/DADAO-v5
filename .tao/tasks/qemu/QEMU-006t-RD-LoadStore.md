@@ -107,7 +107,7 @@
 3. 大端 MemOp；48 位 EA 截断；多 load/store `rdhc` 循环前快照
 4. ILLI 检查（`rdha==0`、`immu6==0`、`rdha+immu6>64`）先于写
 5. 未对齐访问触发 MALIGN 且精确（faulting PC 保持、无寄存器/内存提交）
-6. `make build-qemu` PASS；load/store 向量经「MC 汇编 → QEMU 执行 → 结果比对」与 oracle 一致（若 harness 未就绪，记录依赖并保留可复现命令）
+6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/mem-rd.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS）
 7. 完成区含真实构建/运行输出；未自行 commit
 
 ## 完成区

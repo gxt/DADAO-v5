@@ -19,7 +19,7 @@
 
 ### 目标
 
-在 QEMU 中实现 M1 的 **RA 相关指令语义**：`ld.o-ra`、`st.o-ra`（RA 单存取）、`ldm.o-ra`、`stm.o-ra`（RA 多存取）、`rd2ra`、`ra2rd`（RA↔RD 块赋值），含 RA 寄存器模型（MemRAS/RegRAS）。
+在 QEMU 中实现 M1 的 **RA 相关指令语义**：`ld.o-ra`、`st.o-ra`（RA 单存取）、`ldm.o-ra`、`stm.o-ra`（RA 多存取）、`rd2ra`、`ra2rd`（RA↔RD 块赋值），含 RA 寄存器模型（MemRAS/RegRAS）。**本任务拥有 RA 全部指令**（含从 `QEMU-008t` 移出的 `rd2ra`/`ra2rd`）。
 
 ### 设计理由
 
@@ -34,15 +34,17 @@
 
 ## 交付物
 
-- `components/qemu/patches/` 中 RA 指令补丁（`trans_*`），纳入 `series`。
-- RA 向量补充（`tests/vectors/isa/`，含 normal/legality/boundary）。
+- `components/qemu/patches/0008-dadao-ra-semantics.patch`：RA 指令 `trans_*`（`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`/`rd2ra`/`ra2rd`）+ RA 寄存器模型辅助函数。
+- `components/qemu/patches/series`：追加 `0008`。
+- RA 向量补充（`tests/vectors/isa/mem-ra.yaml`，含 normal/legality/boundary）。
 
 ## 验收标准
 
-1. RA 指令语义与 `contract-isa.md` §4.9 一致（含 MemRAS/RegRAS 模型）
-2. 对齐/合法性异常按 ADR-0004 可观测（MALIGN/ILLI，精确、无 commit）
-3. RA 向量经「QEMU 执行 → 结果比对」一致
-4. `make build-qemu` 全绿；未越界改动非 RA 指令
+1. `components/qemu/patches/0008-dadao-ra-semantics.patch` 存在且干净 apply；`series` 已追加 `0008`
+2. RA 指令语义与 `contract-isa.md` §4.9 一致（含 MemRAS/RegRAS 模型；`rd2ra`/`ra2rd` 块赋值含 ILLI 检查）
+3. 对齐/合法性异常按 ADR-0004 可观测（MALIGN/ILLI，精确、无 commit）
+4. 每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：RA 向量经「raw encoding → QEMU 执行 → 结果比对」一致（TDD 式；若 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS）
+5. `make build-qemu` 全绿；未越界改动非 RA 指令
 
 ## 完成区
 

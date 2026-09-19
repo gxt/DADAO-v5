@@ -7,7 +7,7 @@
 
 ## 问题根源
 
-DADAO-v5 基于 SimRISC 0.5.3，需要从零构建 QEMU 的 DADAO CPU target（`target/dadao/`）与裸机测试机器（`hw/dadao/`），使 `qemu-system-dadao` 能在 MMU-off 裸机模式执行 M1 标量程序，并与 LLVM MC 汇编产物、独立测试向量形成「MC 汇编 → QEMU 执行 → 结果比对」闭环。当前仓库尚未规划 qemu 模块任务。
+DADAO-v5 基于 SimRISC 0.5.3，需要从零构建 QEMU 的 DADAO CPU target（`target/dadao/`）与裸机测试机器（`hw/dadao/`），使 `qemu-system-dadao` 能在 MMU-off 裸机模式执行 M1 标量程序，并与独立测试向量形成「raw encoding → QEMU 执行 → 结果比对」闭环。当前仓库尚未规划 qemu 模块任务。
 
 DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub`/`muls`/`mulu`/`divs`/`divu`/`cmps`/`cmpu`/`exts`/`extz`…）、QFC 编码表（opcode 分配）、格式体系（无 MISC-byte/wyde/tetra/octa 子表）、RB 寻址语义（0.4.1 截断到 48 位）与 v5（全 64 位）完全不同，不能照搬其补丁正文、编码数据或 `trans_*` 函数。
 
@@ -15,7 +15,7 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
 
 ## 目的
 
-规划 v5 qemu 模块 M1 任务链：锁定 QEMU 上游基线 → 创建 target 骨架与裸机测试机器 → decodetree 全量解码 → RD 整数语义 → RD load/store + MALIGN 精确异常 → 控制流 + RB 指令 → rela 基址 / ldmo_rb / div-label / 分支调用 四项修复 → 核心里程碑。使 M1 结束时 `qemu-system-dadao` 能执行 M1 标量程序，语义/合法性/边界向量经「MC 汇编 → QEMU 执行 → 结果比对」与独立 oracle（`.tao/knowledge/contract-isa.md`、`contracts/opcodes.yaml`）一致，`make build-qemu` 全绿。
+规划 v5 qemu 模块 M1 任务链：锁定 QEMU 上游基线 → 创建 target 骨架与裸机测试机器 → decodetree 全量解码 → RD 整数语义 → RD load/store + MALIGN 精确异常 → 控制流 + RB 指令 → rela 基址 / ldmo_rb / div-label / 分支调用 四项修复 → 核心里程碑。使 M1 结束时 `qemu-system-dadao` 能执行 M1 标量程序，语义/合法性/边界向量经「raw encoding → QEMU 执行 → 结果比对」与独立 oracle（`.tao/knowledge/contract-isa.md`、`contracts/opcodes.yaml`）一致，`make build-qemu` 全绿。（注：raw encoding 测试路径不依赖 llvm-mc，由 harness 直接从 `encoding.word` 生成 binary；MC↔QEMU 属 `integ` 模块集成验证。）
 
 ## 对照关系
 
@@ -33,27 +33,27 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
 
 | 编号 | 任务 | 交付物 | 依赖 |
 |------|------|--------|------|
-| `QEMU-002t` | QEMU 组件基线（commit + ADR-0006 + `build-qemu`） | `.tao/knowledge/adr-0006-qemu-baseline.md`、`manifests/components.lock.toml`（qemu enabled+commit）、`Makefile` 真实 `build-qemu` | `INFRA-006t` |
+| `QEMU-002t` | QEMU 组件基线（commit + ADR-0008 + `build-qemu`） | `.tao/knowledge/adr-0008-qemu-baseline.md`、`manifests/components.lock.toml`（qemu enabled+commit）、`Makefile` 真实 `build-qemu` | `INFRA-006t`、`INFRA-009t`、`INFRA-013t` |
 | `QEMU-003t` | Target Skeleton | `components/qemu/patches/0001-dadao-target-skeleton.patch`、`series`、最小冒烟 | `QEMU-002t`、`SPEC-006t` |
 | `QEMU-004t` | Decodetree 解码 | `components/qemu/patches/0002-dadao-decodetree.patch` | `QEMU-003t`、`SPEC-003t`、`SPEC-008t` |
 | `QEMU-005t` | RD 整数语义（算术/逻辑/移位/比较/条件赋值） | `components/qemu/patches/0003-dadao-rd-arith.patch` | `QEMU-004t` |
-| `QEMU-006t` | RD Load/Store | `components/qemu/patches/0004-dadao-load-store.patch` | `QEMU-005t` |
-| `QEMU-007t` | MALIGN 精确异常 + TEMP_EBB 修复 | 修订 `0004-dadao-load-store.patch` | `QEMU-006t` |
-| `QEMU-008t` | 控制流 + RB 指令 | `components/qemu/patches/0005-dadao-ctrl-flow.patch`、向量补充 | `QEMU-007t`、`SPEC-006t` |
-| `QEMU-009t` | rela 用 rb[0] 作基址修复 | 修订 `0005-dadao-ctrl-flow.patch` | `QEMU-008t` |
-| `QEMU-010t` | ldmo_rb 实现 | 修订 `0005-dadao-ctrl-flow.patch` | `QEMU-009t` |
-| `QEMU-011t` | divs/divu TCG label 修复 | `components/qemu/patches/0006-dadao-div-label-fix.patch` | `QEMU-010t` |
-| `QEMU-012t` | branch PC 公式 + call RA 修复 | `components/qemu/patches/0007-dadao-branch-call-fix.patch` | `QEMU-011t`、`TESTCASES-008t` |
-| `QEMU-013t` | RA 指令语义 | `components/qemu/patches/` 中 RA 补丁 + RA 向量 | `QEMU-008t`、`SPEC-002t`、`SPEC-003t` |
-| `QEMU-014t` | QEMU 语义 harness | `tests/scripts/build_test_binary.py`、`run_qemu_test.py`、`gen_trampoline.py`、`trampoline.bin`、`README.md` | `QEMU-013t`、`TESTCASES-003t`、`SPEC-006t` |
-| `QEMU-015t` | harness 语义验证修复 | `build_test_binary.py`（`emit_state_compare`）、`run_qemu_test.py` | `QEMU-014t` |
-| `QEMU-016t` | harness memory 检查 | `build_test_binary.py`（memory 比对） | `QEMU-015t`、`TESTCASES-006t` |
-| `QEMU-017t` | 分支语义 harness | `build_test_binary.py`（branch）、`control-flow.yaml` semantic 激活 | `QEMU-015t`、`TESTCASES-008t` |
-| `QEMU-018t` | call/ret 语义 + RA stack | `build_test_binary.py`（call/ret）、call/ret 测试 | `QEMU-017t`、`QEMU-012t` |
-| `QEMU-019t` | QEMU trans lint | `tools/qemu/check_qemu_trans.py` | `SPEC-003t`、`QEMU-013t` |
-| `QEMU-020m` | QEMU 核心里程碑 | 里程碑标记 | `QEMU-002t`~`QEMU-019t` |
+| `QEMU-006t` | RD Load/Store | `components/qemu/patches/0004-dadao-load-store.patch` | `QEMU-005t`、`SPEC-006t` |
+| `QEMU-007t` | MALIGN 精确异常 + TEMP_EBB 修复 | 修订 `0004-dadao-load-store.patch` | `QEMU-006t`、`SPEC-006t` |
+| `QEMU-008t` | 控制流 + RB 指令（不含 ra2rd/rd2ra） | `components/qemu/patches/0005-dadao-ctrl-flow.patch`、向量补充 | `QEMU-007t`、`SPEC-006t` |
+| `QEMU-009t` | rela 基址定向回归验证（**验证任务，不改补丁**） | 验证报告 | `QEMU-008t` |
+| `QEMU-010t` | ldmo_rb 实现 | 修订 `0005-dadao-ctrl-flow.patch` | `QEMU-009t`、`SPEC-006t` |
+| `QEMU-011t` | div/rem label 顺序定向回归验证（**验证任务，不改补丁**） | 验证报告 | `QEMU-010t` |
+| `QEMU-012t` | 分支 PC 公式 + call RA 定向回归验证（**验证任务，不改补丁**） | 验证报告 | `QEMU-011t`、`TESTCASES-005t`、`TESTCASES-006t` |
+| `QEMU-013t` | RA 指令语义（**拥有 RA 全部指令**：ld.o-ra/st.o-ra/ldm.o-ra/stm.o-ra/rd2ra/ra2rd） | `components/qemu/patches/0008-dadao-ra-semantics.patch`、RA 向量 | `QEMU-008t`、`SPEC-002t`、`SPEC-003t` |
+| `QEMU-014t` | QEMU 语义 harness（**并行轨**：骨架+比较逻辑+ADR-0009） | `tests/scripts/build_test_binary.py`、`run_qemu_test.py`、`gen_trampoline.py`、`trampoline.bin`、`README.md`、`.tao/knowledge/adr-0009-qemu-harness-methodology.md` | `QEMU-004t`、`TESTCASES-003t`、`SPEC-006t` |
+| `QEMU-015t` | harness 语义验证修复（含 expected_state.ra + encoding.reserved 义务） | `build_test_binary.py`（`emit_state_compare`）、`run_qemu_test.py` | `QEMU-014t` |
+| `QEMU-016t` | harness memory 检查（按写入指令推导宽度，不扩 schema.width） | `build_test_binary.py`（memory 比对） | `QEMU-015t`、`TESTCASES-004t` |
+| `QEMU-017t` | 分支语义 harness（用 expected_pc，不用 branch_behavior） | `build_test_binary.py`（branch）、`ctrl-br.yaml`/`ctrl-jump.yaml` semantic 激活 | `QEMU-015t`、`TESTCASES-005t` |
+| `QEMU-018t` | call/ret 语义 + RA stack（用 expected_pc/expected_state.ra，不用 call_ret） | `build_test_binary.py`（call/ret）、call/ret 测试 | `QEMU-017t`、`QEMU-012t` |
+| `QEMU-019t` | QEMU trans lint（含 mnemonic `.`→`_` 归一化对齐） | `tools/qemu/check_qemu_trans.py` | `SPEC-003t`、`QEMU-013t` |
+| `QEMU-020m` | QEMU 核心里程碑（**硬性要求：全部 M1 向量经 harness 执行且结果比对一致**） | 里程碑标记 | `QEMU-002t`~`QEMU-019t` |
 
-- **依赖关系**：`002t → 003t → 004t → 005t → 006t → 007t → 008t → 009t → 010t → 011t → 012t`；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排）；`003t` 依赖 `SPEC-006t`（Test Machine ADR，提供内存图/复位值/exit 协议）；`004t` 依赖 `SPEC-003t`（编码表）与 `SPEC-008t`（合法性规则）；`008t` 依赖 `SPEC-006t`（fault/exit 可观测）；`012t` 依赖 `TESTCASES-008t`（控制流向量）；`013t`（RA 指令）依赖 `008t` 与 spec；`014t`~`019t`（QEMU 自测 harness / trans lint）依赖 `013t` 与 testcases；`020m` 汇总全部。
+- **依赖关系**：`002t → 003t → 004t → 005t → 006t → 007t → 008t → {009t（验证）, 013t} → 010t → 011t（验证） → 012t（验证）`；`014t ← 004t`（并行轨，harness 骨架不依赖已实现语义）→ `015t ← 014t` → `{016t ← 015t+TESTCASES-004t, 017t ← 015t+TESTCASES-005t}` → `018t ← 017t+012t`；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排）、`INFRA-009t`（多源 schema）、`INFRA-013t`（组件名=原始仓库名）；`003t` 依赖 `SPEC-006t`（Test Machine ADR，提供内存图/复位值/exit 协议）；`004t` 依赖 `SPEC-003t`（编码表）与 `SPEC-008t`（合法性规则）；`008t` 依赖 `SPEC-006t`（fault/exit 可观测）；`012t` 依赖 `TESTCASES-005t`（br.* 向量）、`TESTCASES-006t`（jump/call/ret 向量）；`013t`（RA 指令）依赖 `008t` 与 spec；`014t`~`019t`（QEMU 自测 harness / trans lint）依赖 `014t`（并行轨起点）与 testcases；`020m` 汇总全部。
 - **分解理由**：按「基线 → 骨架 → 解码 → RD 语义 → load/store → 精确异常 → 控制流/RB → 修复 → 里程碑」逐层推进，每层可独立 `git am` 一个补丁并独立验收（`make build-qemu` + 向量运行）；补丁命名/顺序以 0628 `series` 前段为参考，但 v5 按 0.5.3 重新生成（0628 的 `0002-dadao-hw-meson-subdir.patch` 独立修复在 v5 应并入 `0001` 骨架，见 `QEMU-003t`）。
 
 ## 说明
@@ -68,8 +68,9 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
   | `0002-dadao-decodetree.patch` | `0003` | `QEMU-004t` |
   | `0003-dadao-rd-arith.patch` | `0004` | `QEMU-005t` |
   | `0004-dadao-load-store.patch` | `0005` | `QEMU-006t`、`QEMU-007t` |
-  | `0005-dadao-ctrl-flow.patch` | `0006` | `QEMU-008t`、`QEMU-009t`、`QEMU-010t` |
-  | `0006-dadao-div-label-fix.patch` | `0007` | `QEMU-011t` |
-  | `0007-dadao-branch-call-fix.patch` | `0008` | `QEMU-012t` |
+  | `0005-dadao-ctrl-flow.patch` | `0006` | `QEMU-008t`、`QEMU-009t`（验证）、`QEMU-010t` |
+  | `0006-dadao-div-label-fix.patch` | `0007` | `QEMU-011t`（验证） |
+  | `0007-dadao-branch-call-fix.patch` | `0008` | `QEMU-012t`（验证） |
+  | `0008-dadao-ra-semantics.patch` | — | `QEMU-013t` |
 
 - 参考：`.work/DADAO-0628/components/qemu/patches/series`、`.work/DADAO-0628/components/qemu/README.md`、`.work/DADAO-0628/docs/adr/0006-qemu-baseline.md`。

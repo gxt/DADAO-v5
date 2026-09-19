@@ -13,10 +13,10 @@
 
 - 输入：
   - `QEMU-007t` 产出的 `translate.c`（RD 语义与 load/store 已实现）
-  - `.tao/knowledge/contract-isa.md` §1.3.2/§1.3.4（rb0=PC、ra0–ra63 RegRAS）、§4.2/§4.5/§4.7/§4.8/§4.9/§4.10/§4.11（RB 存取/块赋值/立即数/算术/自增/比较/PC 相对）、§5（控制流：条件跳转/无条件跳转/函数调用/返回/压弹栈流程）
+  - `.tao/knowledge/contract-isa.md` §1.3.2/§1.3.4（rb0=PC、ra0–ra63 RegRAS）、§4.2/§4.5/§4.6/§4.7/§4.9（RB 存取/块赋值/立即数/算术/比较/PC 相对/RA 存取）、§5（控制流：条件跳转/无条件跳转/函数调用/返回/压弹栈流程）
   - `.tao/knowledge/adr-0004-test-machine.md`（fault/exit 可观测、RASOF/RASUF）
   - `contracts/opcodes.yaml`、`contracts/legality_rules.yaml`
-  - `tests/vectors/isa/control-flow.yaml`、`tests/vectors/isa/rb-ops.yaml`（TDD 向量，先于实现）
+  - `tests/vectors/isa/ctrl-br.yaml`、`tests/vectors/isa/ctrl-jump.yaml`、`tests/vectors/isa/ctrl-call.yaml`、`tests/vectors/isa/ctrl-ret.yaml`、`tests/vectors/isa/reg-arith.yaml`、`tests/vectors/isa/reg-imm-block.yaml`、`tests/vectors/isa/mem-rb.yaml`（TDD 向量，先于实现；原 `control-flow.yaml`/`rb-ops.yaml` 已按实际指令拆分为多个文件）
 - 输出：`components/qemu/patches/0005-dadao-ctrl-flow.patch`、`components/qemu/patches/series`、控制流/RB 向量补充
 - 约束：
   - **TDD：先写/补向量，再写 `trans_*` 实现**（两个独立 commit）
@@ -54,8 +54,8 @@
 | `rela.si` | riii | `rbha = (PC & ~0xFFF) + sign_extend(imms18 << 12)`，高 16 位保持 |
 | `swym` | iiii | NOP（`swym 0`） |
 
-- 条件判断按附录 B.1（N/NN/Z/NZ/P/NP/EQ/NE）；`br.z`/`br.nz` 的 rd0 特例见 §5.1.2。
-- **RegRAS**：ra1–ra63 构成栈，ra63 为栈顶，高 16 位为引用计数；压栈/弹栈流程见 §5.3.3/§5.4.1，含首次压栈、递归递增、移位压栈、MemRAS、RASOF/RASUF。
+- 条件判断按附录 B.1（N/NN/Z/NZ/P/NP/EQ/NE）；`br.z`/`br.nz` 的 rd0 特例见 §5.2.2。
+- **RegRAS**：ra1–ra63 构成栈，ra63 为栈顶，高 16 位为引用计数；压栈/弹栈流程见 §5.6.1/§5.6.2，含首次压栈、递归递增、移位压栈、MemRAS、RASOF/RASUF。
 - `call` 返回地址：按 §5.3 压入 ra63（引用计数 + 返回地址），具体地址公式以 §5 与向量为准。
 
 **RB 指令（§4）**：
@@ -63,7 +63,7 @@
 |--------|------|------|
 | `ld.o-rb`/`st.o-rb` | rrii | `rbha = mem64[rbhb+imms12]` / `mem64[...] = rbha` |
 | `ldm.o-rb`/`stm.o-rb` | rrri | RB 多寄存器存取（`QEMU-010t` 补 `ldm.o-rb`） |
-| `rb2rd`/`rd2rb`/`rb2rb`/`ra2rd`/`rd2ra` | orri | 寄存器组块复制 |
+| `rb2rd`/`rd2rb`/`rb2rb` | orri | 寄存器组块复制（RB 侧） |
 | `set.zw-rb`/`or.w-rb`/`andn.w-rb` | rwii | RB 立即数设置（无 `set.ow-rb`） |
 | `add.so-rb`/`sub.so-rb` | orrr | RB 加减，**全 64 位** |
 | `add.si-rb` | riii | `rbha += sign_extend(imms18)`，全 64 位 |
@@ -75,18 +75,18 @@
 
 - DADAO-0628：`code-agent/tasks/DL-018a-qemu-ctrl-flow.md`（完整转述：TDD 原则、指令范围、向量补充、trans 实现、lit 测试、约束、完成区与两轮 Architecture Review，含 N1/N2）。
 - DADAO-0628：`code-agent/tasks/DL-030a-call-ret-semantic.md`（call/ret 语义与返回地址修正，v5 对应 `QEMU-012t` 的一部分）。
-- DADAO-0628：`code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（控制流向量 TDD 设计，v5 对应 `TESTCASES-008t`）。
+- DADAO-0628：`code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（控制流向量 TDD 设计，v5 对应 `TESTCASES-005t`/`TESTCASES-006t`）。
 
 ## 交付物
 
-- 控制流/RB 向量补充（`tests/vectors/isa/control-flow.yaml`、`rb-ops.yaml`，commit A，先于实现）。
+- 控制流/RB 向量补充（`tests/vectors/isa/ctrl-br.yaml`、`ctrl-jump.yaml`、`ctrl-call.yaml`、`ctrl-ret.yaml`、`reg-arith.yaml`、`reg-imm-block.yaml`、`mem-rb.yaml`，commit A，先于实现）。
 - `components/qemu/patches/0005-dadao-ctrl-flow.patch`（commit B）：`target/dadao/translate.c` 中控制流与 RB `trans_*`。
 - `components/qemu/patches/series`：加入 `0005`。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
 1. **助记符**：`brn/brnn/brz/brnz/brp/brnp/breq/brne` → `br.n/br.nn/br.z/br.nz/br.p/br.np/br.eq/br.ne`；新增 `br.z-rb`/`br.nz-rb`；`unimp`→`illi`；`setzw`→`set.zw`；`sto`→`st.o`；`ldo`→`ld.o`。
-2. **地址公式**：v5 §5 为 `PC = rb0 + (imm << 2)`；0628 经验取「PC+4 基准」（`pc_next+4`），v5 须以 §5 与 `TESTCASES-008t` 向量为准，不照抄 0628 公式（详见 `QEMU-012t`）。
+2. **地址公式**：v5 §5 为 `PC = rb0 + (imm << 2)`；0628 经验取「PC+4 基准」（`pc_next+4`），v5 须以 §5 与 `TESTCASES-005t`/`TESTCASES-006t` 向量为准，不照抄 0628 公式（详见 `QEMU-012t`）。
 3. **RB 全 64 位**：0628 对 RB 运算结果 `& 0x0000FFFFFFFFFFFF`；v5 的 `add.so-rb`/`sub.so-rb`/`add.si-rb` 为全 64 位，bits[63:48] 为运算结果，**不得截断**。
 4. **RegRAS 完整性**：0628 N1 仅用 `ra[63]` 单槽；v5 按 §5.3/§5.4 实现引用计数与移位压弹栈、RASOF/RASUF。
 5. **rela 语义**：v5 `rela.si rbha, imms18` 为 `(PC & ~0xFFF) + (imms18<<12)`，高 16 位保持；0628 的 rela 公式不同（见 `QEMU-009t`）。
@@ -97,7 +97,7 @@
 摘自 0628 `DL-018a` 完成区与两轮 Architecture Review：
 
 1. **RegRAS 简化（N1）**：0628 未实现引用计数/移位/RASOF/RASUF；v5 须完整实现，否则递归/深调用行为错误。
-2. **branch rd0 源（N2）**：`br.z rd0` 必真、`br.nz rd0` 必假（§5.1.2），合法行为不触发 ILLI；须显式覆盖。
+2. **branch rd0 源（N2）**：`br.z rd0` 必真、`br.nz rd0` 必假（§5.2.2/§5.2.3），合法行为不触发 ILLI；须显式覆盖。
 3. **TDD 顺序**：向量 commit 必须早于 trans 实现 commit，`git log` 可见两个独立 commit。
 4. **`encoding.word` 手推**：不从 QEMU/LLVM 输出复制。
 5. **分支 target 的 PC 基准**：not-taken 必须推进到下一指令（否则重复执行）；taken 公式以 §5 为准。
@@ -109,8 +109,8 @@
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-018a-qemu-ctrl-flow.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-030a-call-ret-semantic.md`
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`
-- 本项目：`.tao/knowledge/contract-isa.md` §1.3、§4.2–§4.11、§5、附录 B；`contracts/opcodes.yaml`；`.tao/knowledge/adr-0004-test-machine.md`
-- 本项目：`.tao/tasks/testcases/TESTCASES-008t-控制流向量TDD.md`
+- 本项目：`.tao/knowledge/contract-isa.md` §1.3、§4.2–§4.9、§5、附录 B；`contracts/opcodes.yaml`；`.tao/knowledge/adr-0004-test-machine.md`
+- 本项目：`.tao/tasks/testcases/TESTCASES-005t-控制转移br.md`、`.tao/tasks/testcases/TESTCASES-006t-jump-call-ret.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -119,8 +119,8 @@
 2. `components/qemu/patches/0005-dadao-ctrl-flow.patch` 存在且干净 apply；`series` 已加入
 3. 控制流全部指令（含 `br.*-rb`、`jump`/`call` 两形式、`ret`、`rela`、`swym`）实现；RegRAS 按 §5.3/§5.4 完整
 4. RB 指令全部实现；RB 算术为全 64 位（无 48 位截断）；rb0 目的 ILLI
-5. 分支地址公式与 §5 及 `TESTCASES-008t` 向量一致；not-taken 推进到下一指令
-6. `make build-qemu` PASS；控制流/RB 向量经「MC 汇编 → QEMU 执行 → 结果比对」与 oracle 一致（若 harness 未就绪，记录依赖并保留可复现命令）
+5. 分支地址公式与 §5 及 `TESTCASES-005t`/`TESTCASES-006t` 向量一致；not-taken 推进到下一指令
+6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml tests/vectors/isa/ctrl-jump.yaml tests/vectors/isa/mem-rb.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS）
 7. 完成区含真实构建/运行输出；未自行 commit
 
 ## 完成区
