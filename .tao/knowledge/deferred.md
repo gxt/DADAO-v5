@@ -17,7 +17,7 @@
 - **Spec 冻结（`SPEC-010t`）**：`impact matrix` 是否覆盖 M1 之外的实现目标（CodeGen/gem5/Sail）——M1 只需覆盖 M1 相关。
 - **编码表变更的下游影响（原 verif 模块，已解散）**：`opcodes.yaml` 现为「178 M1 + 78 `excluded_m1`」；`contracts/legality_rules.yaml`（`SPEC-008t` 已 Accepted）中 `lr_hb_not_zero`、`rf0_as_operand`、`fp_root_invalid_n`、`fp_log_invalid_base`、`cfx_reserved` 属 M1 排除项但仍 `active`——需在 `SPEC-009t`/`INFRA-010t` 规划中明确 M1 流程过滤非 M1 规则（`SPEC-008t` 不必返工，登记为跨模块影响）。
 - **编码知识**：0.5.3 MISC 子表 `ha = RRR-CCC` 拼为 6 位；**旧 `tools/opcodes.yaml`（0628）不可作编码权威**（v5 旧版曾有 2 处 ha 错误，已按 spec 修正）。
-- **`opcodes.yaml` L5 注释与 ADR-0004 D5.1 措辞歧义（N-1，`008t` 交叉复核登记）**：`contracts/opcodes.yaml` L5 把 `excluded_m1`（RF/cfx/LR-SC，78 条）标为 `decode: UNDI`，但 ADR-0004 D5.1 明确定义「M1 排除但**已定义**的编码 → **ILLI**；UNDI 专用于**空白单元格**」，`contract-isa.md` §9 亦然。属**注释措辞**问题（"reserved" 被读作"保留不实现"而非"QFC 空白单元格"），**非实质矛盾**、**不需 ADR**（D5.1 已定义，只需注释对齐）。归 **`spec` 模块**修正（建议改为 `decode: ILLI（M1 不实现但编码已定义；UNDI 仅用于空白单元格）`）。不阻塞 `009t`。
+- **~~`opcodes.yaml` L5 注释与 ADR-0004 D5.1 措辞歧义（N-1，`008t` 交叉复核登记）~~ ✅ 已消解（`QEMU-004t` N-1 修正，2026-09-19）**：`contracts/opcodes.yaml` 的 78 条 `excluded_m1` 原标 `decode: UNDI`（与 `ADR-0004 D5.1`「M1 排除但**已定义** → **ILLI**；UNDI 专用于**空白单元格**」矛盾）。已由 `QEMU-004t`（用户授权）修正：`tools/spec/generate_opcodes.py` 3 处（`decode` `UNDI`→`ILLI` + 注释/docstring）并重生成 `contracts/opcodes.yaml`（现 `decode: UNDI` 计数 0、78 条为 `ILLI`）；`tools/spec/{validate_encoding,check_qfc_coverage}.py` 均 PASS。**注**：`SPEC-003t` 任务书正文的历史表述（`decode: UNDI`）不改写。
 
 ## infra
 
