@@ -1,7 +1,7 @@
-From 0b9262bbdfbf5d5409b2ddff160b0dbf12926c1d Mon Sep 17 00:00:00 2001
+From 6f507e58dcda0aaf3cc0fc6522864010fbd2f70e Mon Sep 17 00:00:00 2001
 From: Guan Xuetao <gxt@pku.edu.cn>
 Date: Fri, 18 Sep 2026 05:15:19 +0000
-Subject: [PATCH] DADAO: Add AsmParser, CodeEmitter, InstPrinter, and
+Subject: [PATCH 5/6] DADAO: Add AsmParser, CodeEmitter, InstPrinter, and
  AsmBackend
 
 - Implement DADAOAsmParser for assembly parsing
@@ -16,7 +16,7 @@ Subject: [PATCH] DADAO: Add AsmParser, CodeEmitter, InstPrinter, and
  .../lib/Target/DADAO/AsmParser/CMakeLists.txt |  12 +
  .../Target/DADAO/AsmParser/DADAOAsmParser.cpp | 330 ++++++++++++++++++
  llvm/lib/Target/DADAO/CMakeLists.txt          |   6 +-
- llvm/lib/Target/DADAO/DADAOInstrInfo.td       |  56 +-
+ llvm/lib/Target/DADAO/DADAOInstrInfo.td       |  56 ++-
  .../Target/DADAO/MCTargetDesc/CMakeLists.txt  |   3 +
  .../DADAO/MCTargetDesc/DADAOAsmBackend.cpp    | 141 ++++++++
  .../DADAO/MCTargetDesc/DADAOFixupKinds.h      |  50 +++
@@ -411,7 +411,7 @@ index 67097b1b1..46a818728 100644
  add_subdirectory(TargetInfo)
  add_subdirectory(MCTargetDesc)
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-index 455c5da17..fa5bee5a1 100644
+index 455c5da17..e405e17d3 100644
 --- a/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 @@ -17,79 +17,99 @@
@@ -435,8 +435,8 @@ index 455c5da17..fa5bee5a1 100644
  
  // 12-bit signed immediate (rrii: hc[5:0]+hd[5:0])
  def imms12 : Operand<i64> {
-+  let ParserMatchClass = DADAOImmAsmOperand;
 -  let EncoderMethod = "";  // LLVM-006t adds
++  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
    let DecoderMethod = "DecodeSImm12";  // LLVM-008t implements
 -  let PrintMethod = "";
@@ -446,8 +446,8 @@ index 455c5da17..fa5bee5a1 100644
  
  // 12-bit unsigned immediate (rrii)
  def immu12 : Operand<i64> {
-+  let ParserMatchClass = DADAOImmAsmOperand;
 -  let EncoderMethod = "";  // LLVM-006t adds
++  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
    let DecoderMethod = "DecodeUImm12";  // LLVM-008t implements
 -  let PrintMethod = "";
@@ -457,8 +457,8 @@ index 455c5da17..fa5bee5a1 100644
  
  // 18-bit signed immediate (riii: hb[5:0]+hc[5:0]+hd[5:0])
  def imms18 : Operand<i64> {
-+  let ParserMatchClass = DADAOImmAsmOperand;
 -  let EncoderMethod = "";  // LLVM-006t adds
++  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
    let DecoderMethod = "DecodeSImm18";  // LLVM-008t implements
 -  let PrintMethod = "";
@@ -468,8 +468,8 @@ index 455c5da17..fa5bee5a1 100644
  
  // 18-bit unsigned immediate (oiii)
  def immu18 : Operand<i64> {
-+  let ParserMatchClass = DADAOImmAsmOperand;
 -  let EncoderMethod = "";  // LLVM-006t adds
++  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
    let DecoderMethod = "DecodeUImm18";  // LLVM-008t implements
 -  let PrintMethod = "";
@@ -479,8 +479,8 @@ index 455c5da17..fa5bee5a1 100644
  
  // 16-bit unsigned immediate (rwii: hb[3:0]+hc+hd)
  def immu16 : Operand<i64> {
-+  let ParserMatchClass = DADAOImmAsmOperand;
 -  let EncoderMethod = "";  // LLVM-006t adds
++  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
    let DecoderMethod = "DecodeUImm16";  // LLVM-008t implements
 -  let PrintMethod = "";
@@ -490,8 +490,8 @@ index 455c5da17..fa5bee5a1 100644
  
  // 6-bit unsigned immediate (rrri/orri: hd[5:0])
  def immu6 : Operand<i64> {
-+  let ParserMatchClass = DADAOImmAsmOperand;
 -  let EncoderMethod = "";  // LLVM-006t adds
++  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
    let DecoderMethod = "DecodeUImm6";  // LLVM-008t implements
 -  let PrintMethod = "";
@@ -501,8 +501,8 @@ index 455c5da17..fa5bee5a1 100644
  
  // 24-bit signed immediate (iiii: ha+hb+hc+hd)
  def imms24 : Operand<i64> {
-+  let ParserMatchClass = DADAOImmAsmOperand;
 -  let EncoderMethod = "";  // LLVM-006t adds
++  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
    let DecoderMethod = "DecodeSImm24";  // LLVM-008t implements
 -  let PrintMethod = "";
@@ -512,8 +512,8 @@ index 455c5da17..fa5bee5a1 100644
  
  // 24-bit unsigned immediate (iiii, swym)
  def immu24 : Operand<i64> {
-+  let ParserMatchClass = DADAOImmAsmOperand;
 -  let EncoderMethod = "";  // LLVM-006t adds
++  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
    let DecoderMethod = "DecodeUImm24";  // LLVM-008t implements
 -  let PrintMethod = "";
@@ -523,8 +523,8 @@ index 455c5da17..fa5bee5a1 100644
  
  // 2-bit wyde-position (rwii: hb[5:4])
  def wydepos : Operand<i64> {
-+  let ParserMatchClass = DADAOImmAsmOperand;
 -  let EncoderMethod = "";  // LLVM-006t adds
++  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
    let DecoderMethod = "DecodeWydePos";  // LLVM-008t implements
 -  let PrintMethod = "";
@@ -1147,6 +1147,3 @@ index 02d69d9d0..694e274e3 100644
  } // namespace llvm
  
  #endif // LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOMCTARGETDESC_H
--- 
-2.43.0
-

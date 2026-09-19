@@ -1,7 +1,7 @@
-From 83f8caaa1007291d343504dd5071da0d40e9b470 Mon Sep 17 00:00:00 2001
+From be02a2a046a36bd550700c16f99f98dc42debf47 Mon Sep 17 00:00:00 2001
 From: Guan Xuetao <gxt@pku.edu.cn>
 Date: Thu, 17 Sep 2026 13:50:38 +0000
-Subject: [PATCH] DADAO: Add register definitions via TableGen
+Subject: [PATCH 3/6] DADAO: Add register definitions via TableGen
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

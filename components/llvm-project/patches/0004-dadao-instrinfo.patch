@@ -1,8 +1,8 @@
-From e71c7e0d01ec657fe1d48e9b3f169ef8ab10c5ab Mon Sep 17 00:00:00 2001
+From 4fe8d5435d87466dc34281aa34071dd3c5da8c9e Mon Sep 17 00:00:00 2001
 From: Guan Xuetao <gxt@pku.edu.cn>
 Date: Fri, 18 Sep 2026 00:58:26 +0000
-Subject: [PATCH] DADAO: Add instruction format classes and 178 M1 instruction
- defs
+Subject: [PATCH 4/6] DADAO: Add instruction format classes and 178 M1
+ instruction defs
 
 Add DADAOInstrFormats.td with 9 M1 format classes (rrrr/rrri/rrii/riii/iiii/rwii/orrr/orri/oiii).
 Add DADAOInstrInfo.td with 178 M1 instruction defs auto-generated from

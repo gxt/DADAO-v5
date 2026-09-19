@@ -3,3 +3,4 @@
 0003-dadao-register-info.patch
 0004-dadao-instrinfo.patch
 0005-dadao-asmparser.patch
+0006-dadao-disassembler.patch

@@ -1,7 +1,7 @@
-From 6b7ba04d0e34a221d3a70737bee267d6740fc8a3 Mon Sep 17 00:00:00 2001
+From b0f32fd47d2d5043834a9d64a70d1801df04fc16 Mon Sep 17 00:00:00 2001
 From: Guan Xuetao <gxt@pku.edu.cn>
 Date: Thu, 17 Sep 2026 11:29:22 +0000
-Subject: [PATCH 1/2] DADAO: Register dadao triple and add to LLVM_ALL_TARGETS
+Subject: [PATCH 1/6] DADAO: Register dadao triple and add to LLVM_ALL_TARGETS
 
 Register the DADAO target triple in LLVM's Triple infrastructure:
 - Triple.h: Add dadao to ArchType enum, update LastArchType

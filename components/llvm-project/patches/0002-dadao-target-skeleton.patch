@@ -1,7 +1,7 @@
-From d76204f3a0e99ee6b54275ee61daead9e37ffea9 Mon Sep 17 00:00:00 2001
+From e118bb0824bc2d5f6a85f88d51ead1c458c51229 Mon Sep 17 00:00:00 2001
 From: Guan Xuetao <gxt@pku.edu.cn>
 Date: Thu, 17 Sep 2026 11:31:51 +0000
-Subject: [PATCH 2/2] DADAO: Add minimal target skeleton with MC support
+Subject: [PATCH 2/6] DADAO: Add minimal target skeleton with MC support
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
