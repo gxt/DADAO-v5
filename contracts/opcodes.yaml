@@ -2,7 +2,7 @@
 # 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/knowledge/contract-isa.md
 # M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统
 # excluded_m1: true 的条目属 M1 范围外（浮点 RF / 特权 cfx / LR-SC），
-#   解码按 reserved 处理（decode: UNDI），不提取完整语义/legality
+#   M1 不实现但编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # 共 256 条：M1 内 178 条，excluded_m1 78 条
 
 - insn: ld.ub-rd
@@ -205,7 +205,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: st.t-rf
   mnemonic: st.t
   format: rrii
@@ -234,7 +234,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: st.b-rd
   mnemonic: st.b
   format: rrii
@@ -521,7 +521,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: st.o-rf
   mnemonic: st.o
   format: rrii
@@ -550,7 +550,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ldm.ub-rd
   mnemonic: ldm.ub
   format: rrri
@@ -756,7 +756,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: stm.t-rf
   mnemonic: stm.t
   format: rrri
@@ -784,7 +784,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: stm.b-rd
   mnemonic: stm.b
   format: rrri
@@ -1079,7 +1079,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: stm.o-rf
   mnemonic: stm.o
   format: rrri
@@ -1107,7 +1107,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: or.w-rd
   mnemonic: or.w
   format: rwii
@@ -1372,7 +1372,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: add.uo-rd
   mnemonic: add.uo
   format: rrrr
@@ -1551,7 +1551,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fomadd
   mnemonic: fomadd
   format: rrrr
@@ -1578,7 +1578,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: add.si-rd
   mnemonic: add.si
   format: riii
@@ -1748,7 +1748,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: cs.ne-rf
   mnemonic: cs.ne
   format: rrrr
@@ -1775,7 +1775,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: cs.n-rd
   mnemonic: cs.n
   format: rrrr
@@ -1828,7 +1828,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: cs.z-rd
   mnemonic: cs.z
   format: rrrr
@@ -1881,7 +1881,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: cs.p-rd
   mnemonic: cs.p
   format: rrrr
@@ -1934,7 +1934,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: cs.eq-rd
   mnemonic: cs.eq
   format: rrrr
@@ -2460,7 +2460,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: cfx2rc-crrr
   mnemonic: cfx2rc
   format: crrr
@@ -2487,7 +2487,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: cfxld-crii
   mnemonic: cfxld
   format: crii
@@ -2516,7 +2516,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: cfxst-crii
   mnemonic: cfxst
   format: crii
@@ -2545,7 +2545,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: escape-ciii
   mnemonic: escape
   format: ciii
@@ -2575,7 +2575,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: trap-ciii
   mnemonic: trap
   format: ciii
@@ -2605,7 +2605,7 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: illi
   mnemonic: illi
   format: oiii
@@ -2694,7 +2694,7 @@
   legality: []
   spec_cite: SimRISC-04 §LR-SC指令
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: lr_nr.o
   mnemonic: lr_nr.o
   format: orrr
@@ -2722,7 +2722,7 @@
   legality: []
   spec_cite: SimRISC-04 §LR-SC指令
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: lr_an.o
   mnemonic: lr_an.o
   format: orrr
@@ -2750,7 +2750,7 @@
   legality: []
   spec_cite: SimRISC-04 §LR-SC指令
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: lr_ar.o
   mnemonic: lr_ar.o
   format: orrr
@@ -2778,7 +2778,7 @@
   legality: []
   spec_cite: SimRISC-04 §LR-SC指令
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: sc_nn.o
   mnemonic: sc_nn.o
   format: orrr
@@ -2806,7 +2806,7 @@
   legality: []
   spec_cite: SimRISC-04 §LR-SC指令
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: sc_nr.o
   mnemonic: sc_nr.o
   format: orrr
@@ -2834,7 +2834,7 @@
   legality: []
   spec_cite: SimRISC-04 §LR-SC指令
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: sc_an.o
   mnemonic: sc_an.o
   format: orrr
@@ -2862,7 +2862,7 @@
   legality: []
   spec_cite: SimRISC-04 §LR-SC指令
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: sc_ar.o
   mnemonic: sc_ar.o
   format: orrr
@@ -2890,7 +2890,7 @@
   legality: []
   spec_cite: SimRISC-04 §LR-SC指令
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: and.o
   mnemonic: and.o
   format: orrr
@@ -3739,7 +3739,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: rf2rd
   mnemonic: rf2rd
   format: orri
@@ -3768,7 +3768,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: and.t
   mnemonic: and.t
   format: orrr
@@ -5945,7 +5945,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ft2fo
   mnemonic: ft2fo
   format: orri
@@ -5974,7 +5974,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ft2ft
   mnemonic: ft2ft
   format: orri
@@ -6003,7 +6003,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftroot
   mnemonic: ftroot
   format: orri
@@ -6032,7 +6032,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftlog
   mnemonic: ftlog
   format: orri
@@ -6061,7 +6061,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: focls
   mnemonic: focls
   format: orri
@@ -6090,7 +6090,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fo2ft
   mnemonic: fo2ft
   format: orri
@@ -6119,7 +6119,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fo2fo
   mnemonic: fo2fo
   format: orri
@@ -6148,7 +6148,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: foroot
   mnemonic: foroot
   format: orri
@@ -6177,7 +6177,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: folog
   mnemonic: folog
   format: orri
@@ -6206,7 +6206,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ft2it
   mnemonic: ft2it
   format: orri
@@ -6235,7 +6235,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ft2io
   mnemonic: ft2io
   format: orri
@@ -6264,7 +6264,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ft2ut
   mnemonic: ft2ut
   format: orri
@@ -6293,7 +6293,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ft2uo
   mnemonic: ft2uo
   format: orri
@@ -6322,7 +6322,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: it2ft
   mnemonic: it2ft
   format: orri
@@ -6351,7 +6351,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: io2ft
   mnemonic: io2ft
   format: orri
@@ -6380,7 +6380,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ut2ft
   mnemonic: ut2ft
   format: orri
@@ -6409,7 +6409,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: uo2ft
   mnemonic: uo2ft
   format: orri
@@ -6438,7 +6438,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fo2it
   mnemonic: fo2it
   format: orri
@@ -6467,7 +6467,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fo2io
   mnemonic: fo2io
   format: orri
@@ -6496,7 +6496,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fo2ut
   mnemonic: fo2ut
   format: orri
@@ -6525,7 +6525,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fo2uo
   mnemonic: fo2uo
   format: orri
@@ -6554,7 +6554,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: it2fo
   mnemonic: it2fo
   format: orri
@@ -6583,7 +6583,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: io2fo
   mnemonic: io2fo
   format: orri
@@ -6612,7 +6612,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ut2fo
   mnemonic: ut2fo
   format: orri
@@ -6641,7 +6641,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: uo2fo
   mnemonic: uo2fo
   format: orri
@@ -6670,7 +6670,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftadd
   mnemonic: ftadd
   format: orrr
@@ -6698,7 +6698,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftsub
   mnemonic: ftsub
   format: orrr
@@ -6726,7 +6726,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftmul
   mnemonic: ftmul
   format: orrr
@@ -6754,7 +6754,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftdiv
   mnemonic: ftdiv
   format: orrr
@@ -6782,7 +6782,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftrem
   mnemonic: ftrem
   format: orrr
@@ -6810,7 +6810,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftsclb
   mnemonic: ftsclb
   format: orrr
@@ -6838,7 +6838,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftsgnn
   mnemonic: ftsgnn
   format: orrr
@@ -6866,7 +6866,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftsgnj
   mnemonic: ftsgnj
   format: orrr
@@ -6894,7 +6894,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: foadd
   mnemonic: foadd
   format: orrr
@@ -6922,7 +6922,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fosub
   mnemonic: fosub
   format: orrr
@@ -6950,7 +6950,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fomul
   mnemonic: fomul
   format: orrr
@@ -6978,7 +6978,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fodiv
   mnemonic: fodiv
   format: orrr
@@ -7006,7 +7006,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: forem
   mnemonic: forem
   format: orrr
@@ -7034,7 +7034,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fosclb
   mnemonic: fosclb
   format: orrr
@@ -7062,7 +7062,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fosgnn
   mnemonic: fosgnn
   format: orrr
@@ -7090,7 +7090,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: fosgnj
   mnemonic: fosgnj
   format: orrr
@@ -7118,7 +7118,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftqcmp
   mnemonic: ftqcmp
   format: orrr
@@ -7146,7 +7146,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: ftscmp
   mnemonic: ftscmp
   format: orrr
@@ -7174,7 +7174,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: foqcmp
   mnemonic: foqcmp
   format: orrr
@@ -7202,7 +7202,7 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI
 - insn: foscmp
   mnemonic: foscmp
   format: orrr
@@ -7230,4 +7230,4 @@
   legality: []
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
-  decode: UNDI
+  decode: ILLI

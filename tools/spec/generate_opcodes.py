@@ -3,7 +3,8 @@
 
 M1 范围：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统。
 M1 范围外（浮点 RF 全部 / 特权 cfx / LR-SC 原子）保留其编码条目并标
-`excluded_m1: true`，解码时按 reserved 处理（`decode: UNDI`），不提取完整语义/legality。
+`excluded_m1: true`，解码按 ILLI 处理（`decode: ILLI`）——编码已定义但 M1 不实现，
+执行即非法指令；UNDI 仅用于架构显式留空的编码（空白单元格）。
 
 来源：
   - spec/SimRISC-00-指令系统设计.md  （QFC 主表 + 6 个 MISC 子表：编码权威）
@@ -133,7 +134,7 @@ def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, excluded=
     r["spec_cite"] = spec_cite
     if excluded:
         r["excluded_m1"] = True
-        r["decode"] = "UNDI"
+        r["decode"] = "ILLI"
     return r
 
 
@@ -620,7 +621,7 @@ def main():
         f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/knowledge/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# excluded_m1: true 的条目属 M1 范围外（浮点 RF / 特权 cfx / LR-SC），\n")
-        f.write("#   解码按 reserved 处理（decode: UNDI），不提取完整语义/legality\n")
+        f.write("#   M1 不实现但编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write(f"# 共 {len(records)} 条：M1 内 {n_m1} 条，excluded_m1 {n_ex} 条\n\n")
         yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
