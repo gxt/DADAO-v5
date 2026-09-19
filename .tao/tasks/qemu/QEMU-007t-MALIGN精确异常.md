@@ -101,9 +101,10 @@ cpu_loop_exit(cs);
 2. 所有需要对齐的 load/store（单次+多次）补齐 `MO_ALIGN_N`；byte 类不加
 3. MALIGN 精确：faulting PC 保持、无寄存器/内存提交；guest-visible 结果符合 ADR-0004 D4
 4. 多 load/store 循环临时变量按所选 QEMU 版本使用 EBB 或记录安全评估
-5. `0004` 补丁修订后 `series` 顺序 apply 干净；`make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证 MALIGN 向量 PASS（TDD 式；若 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS）
+5. `0004` 补丁修订后 `series` 顺序 apply 干净；`make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证 MALIGN 向量 PASS（TDD 式；若 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS。**已知依赖（2026-09-19 取证）**：harness 端到端需 `QEMU-005t`（loader/比较指令）+ `QEMU-006t`（`st.o`：观测通道）+ `QEMU-008t`（`jump`/`br.nz`：trampoline 与分支）；故本任务级验收以 `make build-qemu` PASS + 代码级逐条核对 `contract-isa` 为主，harness 端到端顺延至 `QEMU-008t` 完成后统一复跑）
 6. `qemu-system-dadao -M ?` 显示约定机器名；`grep` 证据显示 `MO_ALIGN`/`EXCP_MALIGN`/EBB 使用
 7. 完成区含真实构建/运行输出；未自行 commit
+8. **最小 ROM 探针回归**（harness 端到端不可用时的必需运行期证据）：用 `-bios`/`-kernel` 直接运行含本任务指令的最小 ROM（reset PC=ROM base；ILLI→exit `0x88`），验证 MALIGN 精确异常（目的/状态不提交）与各对齐边界的退出码正确
 
 ## 完成区
 

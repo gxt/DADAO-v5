@@ -107,8 +107,9 @@
 3. 大端 MemOp；48 位 EA 截断；多 load/store `rdhc` 循环前快照
 4. ILLI 检查（`rdha==0`、`immu6==0`、`rdha+immu6>64`）先于写
 5. 未对齐访问触发 MALIGN 且精确（faulting PC 保持、无寄存器/内存提交）
-6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/mem-rd.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS）
+6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/mem-rd.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS。**已知依赖（2026-09-19 取证）**：harness 端到端需 `QEMU-005t`（loader/比较指令 `set.zw`/`or.w`/`xor.o`/`or.o`）+ `QEMU-006t`（`st.o`：exit port 与 dumper 的观测通道）+ `QEMU-008t`（`jump`/`br.nz`：ROM trampoline 与分支；loader 读 RB 的 `rb2rd` 按 `contract-isa §4` 亦属本任务，不在 005t 的 §3.7）；故本任务级验收以 `make build-qemu` PASS + 代码级逐条核对 `contract-isa §3` 为主，harness 端到端顺延至 `QEMU-008t` 完成后统一复跑）
 7. 完成区含真实构建/运行输出；未自行 commit
+8. **最小 ROM 探针回归**（harness 端到端不可用时的必需运行期证据）：用 `-bios`/`-kernel` 直接运行含本任务指令的最小 ROM（reset PC=ROM base；ILLI→exit `0x88`），验证**合法 load/store 不崩溃**、MALIGN/ROM store/exit port 非法访问等边界退出码正确
 
 ## 完成区
 

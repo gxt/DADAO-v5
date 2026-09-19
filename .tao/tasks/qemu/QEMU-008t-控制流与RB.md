@@ -120,7 +120,7 @@
 3. 控制流全部指令（含 `br.*-rb`、`jump`/`call` 两形式、`ret`、`rela`、`swym`）实现；RegRAS 按 §5.3/§5.4 完整
 4. RB 指令全部实现；RB 算术为全 64 位（无 48 位截断）；rb0 目的 ILLI
 5. 分支地址公式与 §5 及 `TESTCASES-005t`/`TESTCASES-006t` 向量一致；not-taken 推进到下一指令
-6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml tests/vectors/isa/ctrl-jump.yaml tests/vectors/isa/mem-rb.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS）
+6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml tests/vectors/isa/ctrl-jump.yaml tests/vectors/isa/mem-rb.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS。**已知依赖（2026-09-19 取证）**：harness 端到端需 `QEMU-005t`（loader/比较指令）+ `QEMU-006t`（`st.o`：观测通道）+ `QEMU-008t`（`jump`/`br.nz`：trampoline 与分支）——**本任务完成后三者齐备，harness 端到端应全量复跑**（含 005t–007t 的向量））
 7. 完成区含真实构建/运行输出；未自行 commit
 
 ## 完成区
