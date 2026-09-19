@@ -20,11 +20,15 @@ url = "https://mirror.sjtu.edu.cn/git/llvm-project.git"
 
 [[component]]
 name = "qemu"
-enabled = false
+enabled = true
 repository = "https://github.com/qemu/qemu.git"
-commit = ""
+commit = "c3d48b7d1e89604920e5b81b91140c2ad39a1943"
 patch_series = "components/qemu/patches/series"
 role = "CPU core / decode / scalar execution / bare-metal machine"
+
+[[component.source]]
+name = "sjtu"
+url = "https://mirror.sjtu.edu.cn/git/qemu.git"
 
 [[component]]
 name = "gem5"

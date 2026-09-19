@@ -41,7 +41,7 @@ help:
 	@echo "  make apply-series    Apply ordered patch series to fetched sources"
 	@echo "  make prepare         Fetch enabled components and apply their patch series"
 	@echo "  make build-mc        Build LLVM MC tools (requires llvm-project enabled)"
-	@echo "  make build-qemu      Configure and compile QEMU (stub until qemu commit is locked)"
+	@echo "  make build-qemu      Configure and compile QEMU (requires qemu enabled)"
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
