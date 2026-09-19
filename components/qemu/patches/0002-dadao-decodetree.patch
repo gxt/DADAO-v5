@@ -1,0 +1,2221 @@
+From 39b6905fadd5f21d9ebca07c891bc38a481f708d Mon Sep 17 00:00:00 2001
+From: Guan Xuetao <gxt@pku.edu.cn>
+Date: Sat, 19 Sep 2026 05:00:51 +0000
+Subject: [PATCH] target/dadao: Add decodetree instruction decoding
+
+Replace hand-written instruction dispatch with QEMU decodetree mechanism.
+All 256 M1+excluded_m1 instructions have decodetree patterns with
+corresponding trans_* stubs. Blank cells (no pattern matched) trigger
+UNDI; trans_* stubs trigger ILLI (except swym = NOP).
+
+Two decodetree formats:
+- @main: extracts ha/hb/hc/hd as fields (main table instructions)
+- @misc: extracts hb/hc/hd only (MISC sub-table, ha is opcode part)
+
+Pattern mask/value mechanically generated from contracts/opcodes.yaml.
+---
+ target/dadao/insn.decode |  274 ++++++
+ target/dadao/meson.build |    3 +
+ target/dadao/translate.c | 1851 +++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 2095 insertions(+), 33 deletions(-)
+ create mode 100644 target/dadao/insn.decode
+
+diff --git a/target/dadao/insn.decode b/target/dadao/insn.decode
+new file mode 100644
+index 0000000..8183490
+--- /dev/null
++++ b/target/dadao/insn.decode
+@@ -0,0 +1,274 @@
++# DADAO instruction decoding
++# Auto-generated from contracts/opcodes.yaml
++# 256 patterns; blank cells trigger UNDI
++
++# Field declarations
++%ha       18:6
++%hb       12:6
++%hc        6:6
++%hd        0:6
++
++&main     ha hb hc hd
++&misc     hb hc hd
++
++# @main: main table entries — ha/hb/hc/hd are fields
++@main     ........ ........ ........ ........  &main  %ha %hb %hc %hd
++# @misc: MISC sub-table entries — hb/hc/hd are fields, ha is opcode part
++@misc     ........ ........ ........ ........  &misc  %hb %hc %hd
++
++ld_ub_rd  00010000........................  @main
++ld_uw_rd  00010001........................  @main
++ld_ut_rd  00010010........................  @main
++ld_sb_rd  00010011........................  @main
++ld_sw_rd  00010100........................  @main
++ld_st_rd  00010101........................  @main
++ld_t_rf  00010110........................  @main
++st_t_rf  00010111........................  @main
++st_b_rd  00011000........................  @main
++st_w_rd  00011001........................  @main
++st_t_rd  00011010........................  @main
++ld_o_rd  00100000........................  @main
++st_o_rd  00100001........................  @main
++ld_o_rb  00100010........................  @main
++st_o_rb  00100011........................  @main
++ld_o_ra  00100100........................  @main
++st_o_ra  00100101........................  @main
++ld_o_rf  00100110........................  @main
++st_o_rf  00100111........................  @main
++ldm_ub_rd  00101000........................  @main
++ldm_uw_rd  00101001........................  @main
++ldm_ut_rd  00101010........................  @main
++ldm_sb_rd  00101011........................  @main
++ldm_sw_rd  00101100........................  @main
++ldm_st_rd  00101101........................  @main
++ldm_t_rf  00101110........................  @main
++stm_t_rf  00101111........................  @main
++stm_b_rd  00110000........................  @main
++stm_w_rd  00110001........................  @main
++stm_t_rd  00110010........................  @main
++ldm_o_rd  00111000........................  @main
++stm_o_rd  00111001........................  @main
++ldm_o_rb  00111010........................  @main
++stm_o_rb  00111011........................  @main
++ldm_o_ra  00111100........................  @main
++stm_o_ra  00111101........................  @main
++ldm_o_rf  00111110........................  @main
++stm_o_rf  00111111........................  @main
++or_w_rd  01001000........................  @main
++andn_w_rd  01001001........................  @main
++or_w_rb  01001010........................  @main
++andn_w_rb  01001011........................  @main
++set_zw_rd  01001100........................  @main
++set_ow_rd  01001101........................  @main
++set_zw_rb  01001110........................  @main
++set_w_rf  01001111........................  @main
++add_uo_rd  01010000........................  @main
++add_so_rd  01010001........................  @main
++sub_uo_rd  01010010........................  @main
++sub_so_rd  01010011........................  @main
++mul_uo_rd  01010100........................  @main
++mul_so_rd  01010101........................  @main
++ftmadd  01010110........................  @main
++fomadd  01010111........................  @main
++add_si_rd  01011001........................  @main
++rela_si_rb  01011010........................  @main
++add_si_rb  01011011........................  @main
++cmp_ui_rd  01011100........................  @main
++cmp_si_rd  01011101........................  @main
++cs_eq_rf  01011110........................  @main
++cs_ne_rf  01011111........................  @main
++cs_n_rd  01100000........................  @main
++cs_n_rf  01100001........................  @main
++cs_z_rd  01100010........................  @main
++cs_z_rf  01100011........................  @main
++cs_p_rd  01100100........................  @main
++cs_p_rf  01100101........................  @main
++cs_eq_rd  01100110........................  @main
++cs_ne_rd  01100111........................  @main
++br_n_rd  01101000........................  @main
++br_nn_rd  01101001........................  @main
++br_z_rd  01101010........................  @main
++br_nz_rd  01101011........................  @main
++br_p_rd  01101100........................  @main
++br_np_rd  01101101........................  @main
++br_eq_rd  01101110........................  @main
++br_ne_rd  01101111........................  @main
++jump_iiii  01110000........................  @main
++jump_rrii  01110001........................  @main
++br_z_rb  01110010........................  @main
++br_nz_rb  01110011........................  @main
++call_iiii  01110100........................  @main
++call_rrii  01110101........................  @main
++ret_riii  01110110........................  @main
++swym_iiii  01110111........................  @main
++cfx2rd_crrr  01111010........................  @main
++cfx2rc_crrr  01111011........................  @main
++cfxld_crii  01111100........................  @main
++cfxst_crii  01111101........................  @main
++escape_ciii  01111110........................  @main
++trap_ciii  01111111........................  @main
++illi  00000000000000..................  @misc
++fence  00000000000001..................  @misc
++lr_nn_o  00000000010000..................  @misc
++lr_nr_o  00000000010001..................  @misc
++lr_an_o  00000000010010..................  @misc
++lr_ar_o  00000000010011..................  @misc
++sc_nn_o  00000000011000..................  @misc
++sc_nr_o  00000000011001..................  @misc
++sc_an_o  00000000011010..................  @misc
++sc_ar_o  00000000011011..................  @misc
++and_o  01000000001000..................  @misc
++or_o  01000000001001..................  @misc
++xor_o  01000000001010..................  @misc
++xnor_o  01000000001011..................  @misc
++ext_uo_orrr  01000000010000..................  @misc
++ext_so_orrr  01000000010001..................  @misc
++shr_uo_orrr  01000000010010..................  @misc
++shr_so_orrr  01000000010011..................  @misc
++shl_uo_orrr  01000000010100..................  @misc
++ext_uo_orri  01000000011000..................  @misc
++ext_so_orri  01000000011001..................  @misc
++shr_uo_orri  01000000011010..................  @misc
++shr_so_orri  01000000011011..................  @misc
++shl_uo_orri  01000000011100..................  @misc
++add_so_rb  01000000100000..................  @misc
++sub_so_rb  01000000101000..................  @misc
++cmp_uo_rb  01000000101001..................  @misc
++cmp_uo  01000000101010..................  @misc
++cmp_so  01000000101011..................  @misc
++rd2rd  01000000101100..................  @misc
++rd2ra  01000000101101..................  @misc
++ra2rd  01000000101110..................  @misc
++rb2rb  01000000110100..................  @misc
++rd2rb  01000000110101..................  @misc
++rb2rd  01000000110110..................  @misc
++div_uo  01000000111000..................  @misc
++div_so  01000000111001..................  @misc
++rem_uo  01000000111010..................  @misc
++rem_so  01000000111011..................  @misc
++rd2rf  01000000111101..................  @misc
++rf2rd  01000000111110..................  @misc
++and_t  01000001001000..................  @misc
++or_t  01000001001001..................  @misc
++xor_t  01000001001010..................  @misc
++xnor_t  01000001001011..................  @misc
++ext_ut_orrr  01000001010000..................  @misc
++ext_st_orrr  01000001010001..................  @misc
++shr_ut_orrr  01000001010010..................  @misc
++shr_st_orrr  01000001010011..................  @misc
++shl_ut_orrr  01000001010100..................  @misc
++ext_ut_orri  01000001011000..................  @misc
++ext_st_orri  01000001011001..................  @misc
++shr_ut_orri  01000001011010..................  @misc
++shr_st_orri  01000001011011..................  @misc
++shl_ut_orri  01000001011100..................  @misc
++add_ut  01000001100000..................  @misc
++add_st  01000001100001..................  @misc
++sub_ut  01000001101000..................  @misc
++sub_st  01000001101001..................  @misc
++cmp_ut  01000001101010..................  @misc
++cmp_st  01000001101011..................  @misc
++mul_ut  01000001110000..................  @misc
++mul_st  01000001110001..................  @misc
++div_ut  01000001111000..................  @misc
++div_st  01000001111001..................  @misc
++rem_ut  01000001111010..................  @misc
++rem_st  01000001111011..................  @misc
++and_w  01000010001000..................  @misc
++or_w  01000010001001..................  @misc
++xor_w  01000010001010..................  @misc
++xnor_w  01000010001011..................  @misc
++ext_uw_orrr  01000010010000..................  @misc
++ext_sw_orrr  01000010010001..................  @misc
++shr_uw_orrr  01000010010010..................  @misc
++shr_sw_orrr  01000010010011..................  @misc
++shl_uw_orrr  01000010010100..................  @misc
++ext_uw_orri  01000010011000..................  @misc
++ext_sw_orri  01000010011001..................  @misc
++shr_uw_orri  01000010011010..................  @misc
++shr_sw_orri  01000010011011..................  @misc
++shl_uw_orri  01000010011100..................  @misc
++add_uw  01000010100000..................  @misc
++add_sw  01000010100001..................  @misc
++sub_uw  01000010101000..................  @misc
++sub_sw  01000010101001..................  @misc
++cmp_uw  01000010101010..................  @misc
++cmp_sw  01000010101011..................  @misc
++mul_uw  01000010110000..................  @misc
++mul_sw  01000010110001..................  @misc
++div_uw  01000010111000..................  @misc
++div_sw  01000010111001..................  @misc
++rem_uw  01000010111010..................  @misc
++rem_sw  01000010111011..................  @misc
++and_b  01000011001000..................  @misc
++or_b  01000011001001..................  @misc
++xor_b  01000011001010..................  @misc
++xnor_b  01000011001011..................  @misc
++ext_ub_orrr  01000011010000..................  @misc
++ext_sb_orrr  01000011010001..................  @misc
++shr_ub_orrr  01000011010010..................  @misc
++shr_sb_orrr  01000011010011..................  @misc
++shl_ub_orrr  01000011010100..................  @misc
++ext_ub_orri  01000011011000..................  @misc
++ext_sb_orri  01000011011001..................  @misc
++shr_ub_orri  01000011011010..................  @misc
++shr_sb_orri  01000011011011..................  @misc
++shl_ub_orri  01000011011100..................  @misc
++add_ub  01000011100000..................  @misc
++add_sb  01000011100001..................  @misc
++sub_ub  01000011101000..................  @misc
++sub_sb  01000011101001..................  @misc
++cmp_ub  01000011101010..................  @misc
++cmp_sb  01000011101011..................  @misc
++mul_ub  01000011110000..................  @misc
++mul_sb  01000011110001..................  @misc
++div_ub  01000011111000..................  @misc
++div_sb  01000011111001..................  @misc
++rem_ub  01000011111010..................  @misc
++rem_sb  01000011111011..................  @misc
++ftcls  01000100000000..................  @misc
++ft2fo  01000100000001..................  @misc
++ft2ft  01000100000010..................  @misc
++ftroot  01000100000110..................  @misc
++ftlog  01000100000111..................  @misc
++focls  01000100001000..................  @misc
++fo2ft  01000100001001..................  @misc
++fo2fo  01000100001010..................  @misc
++foroot  01000100001110..................  @misc
++folog  01000100001111..................  @misc
++ft2it  01000100110000..................  @misc
++ft2io  01000100110001..................  @misc
++ft2ut  01000100110010..................  @misc
++ft2uo  01000100110011..................  @misc
++it2ft  01000100110100..................  @misc
++io2ft  01000100110101..................  @misc
++ut2ft  01000100110110..................  @misc
++uo2ft  01000100110111..................  @misc
++fo2it  01000100111000..................  @misc
++fo2io  01000100111001..................  @misc
++fo2ut  01000100111010..................  @misc
++fo2uo  01000100111011..................  @misc
++it2fo  01000100111100..................  @misc
++io2fo  01000100111101..................  @misc
++ut2fo  01000100111110..................  @misc
++uo2fo  01000100111111..................  @misc
++ftadd  01000100010000..................  @misc
++ftsub  01000100010001..................  @misc
++ftmul  01000100010010..................  @misc
++ftdiv  01000100010011..................  @misc
++ftrem  01000100010100..................  @misc
++ftsclb  01000100010101..................  @misc
++ftsgnn  01000100010110..................  @misc
++ftsgnj  01000100010111..................  @misc
++foadd  01000100011000..................  @misc
++fosub  01000100011001..................  @misc
++fomul  01000100011010..................  @misc
++fodiv  01000100011011..................  @misc
++forem  01000100011100..................  @misc
++fosclb  01000100011101..................  @misc
++fosgnn  01000100011110..................  @misc
++fosgnj  01000100011111..................  @misc
++ftqcmp  01000100100000..................  @misc
++ftscmp  01000100100001..................  @misc
++foqcmp  01000100101000..................  @misc
++foscmp  01000100101001..................  @misc
+diff --git a/target/dadao/meson.build b/target/dadao/meson.build
+index e443292..007924e 100644
+--- a/target/dadao/meson.build
++++ b/target/dadao/meson.build
+@@ -1,6 +1,9 @@
+ dadao_ss = ss.source_set()
+ dadao_system_ss = ss.source_set()
+ 
++dadao_ss.add(decodetree.process('insn.decode',
++  extra_args: '--static-decode=decode_insn'))
++
+ dadao_ss.add(files(
+   'translate.c',
+   'helper.c',
+diff --git a/target/dadao/translate.c b/target/dadao/translate.c
+index c83e085..e84a9cb 100644
+--- a/target/dadao/translate.c
++++ b/target/dadao/translate.c
+@@ -1,5 +1,5 @@
+ /*
+- * DADAO translation skeleton for QEMU
++ * DADAO translation routines for QEMU (decodetree version)
+  *
+  * Copyright (c) 2026 DADAO Contributors
+  *
+@@ -44,64 +44,1852 @@ typedef struct DisasContext {
+ static void dadao_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cs)
+ {
+     DisasContext *ctx = container_of(dcbase, DisasContext, base);
++    ctx->cs = cs;
++    ctx->env = cpu_env(cs);
++    ctx->memidx = 0;
++}
++
++static void dadao_tr_tb_start(DisasContextBase *dcbase, CPUState *cs) {}
++
++static void dadao_tr_insn_start(DisasContextBase *dcbase, CPUState *cs)
++{
++    DisasContext *ctx = container_of(dcbase, DisasContext, base);
++    tcg_gen_insn_start(ctx->base.pc_next, 0, 0);
++}
++
++static void gen_exception_illegal(DisasContext *ctx)
++{
++    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI));
++    ctx->base.is_jmp = DISAS_NORETURN;
++}
++
++static void gen_exception_undi(DisasContext *ctx)
++{
++    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_UNDI));
++    ctx->base.is_jmp = DISAS_NORETURN;
++}
++
++#include "decode-insn.c.inc"
++
++/* DADAO decodetree trans_* stubs
++ * Auto-generated from contracts/opcodes.yaml
++ * All stubs trigger ILLI except swym (NOP).
++ */
++
++static bool trans_ld_ub_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ld.ub-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_uw_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ld.uw-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_ut_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ld.ut-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_sb_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ld.sb-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_sw_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ld.sw-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_st_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ld.st-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_t_rf(DisasContext *ctx, arg_main *a)
++{
++    /* ld.t-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_st_t_rf(DisasContext *ctx, arg_main *a)
++{
++    /* st.t-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_st_b_rd(DisasContext *ctx, arg_main *a)
++{
++    /* st.b-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_st_w_rd(DisasContext *ctx, arg_main *a)
++{
++    /* st.w-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_st_t_rd(DisasContext *ctx, arg_main *a)
++{
++    /* st.t-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_o_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ld.o-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_st_o_rd(DisasContext *ctx, arg_main *a)
++{
++    /* st.o-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_o_rb(DisasContext *ctx, arg_main *a)
++{
++    /* ld.o-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_st_o_rb(DisasContext *ctx, arg_main *a)
++{
++    /* st.o-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_o_ra(DisasContext *ctx, arg_main *a)
++{
++    /* ld.o-ra - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_st_o_ra(DisasContext *ctx, arg_main *a)
++{
++    /* st.o-ra - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ld_o_rf(DisasContext *ctx, arg_main *a)
++{
++    /* ld.o-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_st_o_rf(DisasContext *ctx, arg_main *a)
++{
++    /* st.o-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_ub_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.ub-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_uw_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.uw-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_ut_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.ut-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_sb_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.sb-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_sw_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.sw-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_st_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.st-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_t_rf(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.t-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_stm_t_rf(DisasContext *ctx, arg_main *a)
++{
++    /* stm.t-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_stm_b_rd(DisasContext *ctx, arg_main *a)
++{
++    /* stm.b-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_stm_w_rd(DisasContext *ctx, arg_main *a)
++{
++    /* stm.w-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_stm_t_rd(DisasContext *ctx, arg_main *a)
++{
++    /* stm.t-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_o_rd(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.o-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_stm_o_rd(DisasContext *ctx, arg_main *a)
++{
++    /* stm.o-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_o_rb(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.o-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_stm_o_rb(DisasContext *ctx, arg_main *a)
++{
++    /* stm.o-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_o_ra(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.o-ra - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_stm_o_ra(DisasContext *ctx, arg_main *a)
++{
++    /* stm.o-ra - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ldm_o_rf(DisasContext *ctx, arg_main *a)
++{
++    /* ldm.o-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_stm_o_rf(DisasContext *ctx, arg_main *a)
++{
++    /* stm.o-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_or_w_rd(DisasContext *ctx, arg_main *a)
++{
++    /* or.w-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_andn_w_rd(DisasContext *ctx, arg_main *a)
++{
++    /* andn.w-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_or_w_rb(DisasContext *ctx, arg_main *a)
++{
++    /* or.w-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_andn_w_rb(DisasContext *ctx, arg_main *a)
++{
++    /* andn.w-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_set_zw_rd(DisasContext *ctx, arg_main *a)
++{
++    /* set.zw-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_set_ow_rd(DisasContext *ctx, arg_main *a)
++{
++    /* set.ow-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_set_zw_rb(DisasContext *ctx, arg_main *a)
++{
++    /* set.zw-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_set_w_rf(DisasContext *ctx, arg_main *a)
++{
++    /* set.w-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_add_uo_rd(DisasContext *ctx, arg_main *a)
++{
++    /* add.uo-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_add_so_rd(DisasContext *ctx, arg_main *a)
++{
++    /* add.so-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sub_uo_rd(DisasContext *ctx, arg_main *a)
++{
++    /* sub.uo-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sub_so_rd(DisasContext *ctx, arg_main *a)
++{
++    /* sub.so-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_mul_uo_rd(DisasContext *ctx, arg_main *a)
++{
++    /* mul.uo-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_mul_so_rd(DisasContext *ctx, arg_main *a)
++{
++    /* mul.so-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftmadd(DisasContext *ctx, arg_main *a)
++{
++    /* ftmadd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fomadd(DisasContext *ctx, arg_main *a)
++{
++    /* fomadd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_add_si_rd(DisasContext *ctx, arg_main *a)
++{
++    /* add.si-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rela_si_rb(DisasContext *ctx, arg_main *a)
++{
++    /* rela.si-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_add_si_rb(DisasContext *ctx, arg_main *a)
++{
++    /* add.si-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_ui_rd(DisasContext *ctx, arg_main *a)
++{
++    /* cmp.ui-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_si_rd(DisasContext *ctx, arg_main *a)
++{
++    /* cmp.si-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_eq_rf(DisasContext *ctx, arg_main *a)
++{
++    /* cs.eq-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_ne_rf(DisasContext *ctx, arg_main *a)
++{
++    /* cs.ne-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_n_rd(DisasContext *ctx, arg_main *a)
++{
++    /* cs.n-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_n_rf(DisasContext *ctx, arg_main *a)
++{
++    /* cs.n-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_z_rd(DisasContext *ctx, arg_main *a)
++{
++    /* cs.z-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_z_rf(DisasContext *ctx, arg_main *a)
++{
++    /* cs.z-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_p_rd(DisasContext *ctx, arg_main *a)
++{
++    /* cs.p-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_p_rf(DisasContext *ctx, arg_main *a)
++{
++    /* cs.p-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_eq_rd(DisasContext *ctx, arg_main *a)
++{
++    /* cs.eq-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_ne_rd(DisasContext *ctx, arg_main *a)
++{
++    /* cs.ne-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_n_rd(DisasContext *ctx, arg_main *a)
++{
++    /* br.n-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_nn_rd(DisasContext *ctx, arg_main *a)
++{
++    /* br.nn-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_z_rd(DisasContext *ctx, arg_main *a)
++{
++    /* br.z-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_nz_rd(DisasContext *ctx, arg_main *a)
++{
++    /* br.nz-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_p_rd(DisasContext *ctx, arg_main *a)
++{
++    /* br.p-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_np_rd(DisasContext *ctx, arg_main *a)
++{
++    /* br.np-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_eq_rd(DisasContext *ctx, arg_main *a)
++{
++    /* br.eq-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_ne_rd(DisasContext *ctx, arg_main *a)
++{
++    /* br.ne-rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_jump_iiii(DisasContext *ctx, arg_main *a)
++{
++    /* jump-iiii - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_jump_rrii(DisasContext *ctx, arg_main *a)
++{
++    /* jump-rrii - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_z_rb(DisasContext *ctx, arg_main *a)
++{
++    /* br.z-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_br_nz_rb(DisasContext *ctx, arg_main *a)
++{
++    /* br.nz-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_call_iiii(DisasContext *ctx, arg_main *a)
++{
++    /* call-iiii - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_call_rrii(DisasContext *ctx, arg_main *a)
++{
++    /* call-rrii - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ret_riii(DisasContext *ctx, arg_main *a)
++{
++    /* ret-riii - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_swym_iiii(DisasContext *ctx, arg_main *a)
++{
++    /* swym: NOP */
++    return true;
++}
++
++static bool trans_cfx2rd_crrr(DisasContext *ctx, arg_main *a)
++{
++    /* cfx2rd-crrr - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cfx2rc_crrr(DisasContext *ctx, arg_main *a)
++{
++    /* cfx2rc-crrr - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cfxld_crii(DisasContext *ctx, arg_main *a)
++{
++    /* cfxld-crii - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cfxst_crii(DisasContext *ctx, arg_main *a)
++{
++    /* cfxst-crii - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_escape_ciii(DisasContext *ctx, arg_main *a)
++{
++    /* escape-ciii - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_trap_ciii(DisasContext *ctx, arg_main *a)
++{
++    /* trap-ciii - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_illi(DisasContext *ctx, arg_misc *a)
++{
++    /* illi - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fence(DisasContext *ctx, arg_misc *a)
++{
++    /* fence - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_lr_nn_o(DisasContext *ctx, arg_misc *a)
++{
++    /* lr_nn.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_lr_nr_o(DisasContext *ctx, arg_misc *a)
++{
++    /* lr_nr.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_lr_an_o(DisasContext *ctx, arg_misc *a)
++{
++    /* lr_an.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_lr_ar_o(DisasContext *ctx, arg_misc *a)
++{
++    /* lr_ar.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sc_nn_o(DisasContext *ctx, arg_misc *a)
++{
++    /* sc_nn.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sc_nr_o(DisasContext *ctx, arg_misc *a)
++{
++    /* sc_nr.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sc_an_o(DisasContext *ctx, arg_misc *a)
++{
++    /* sc_an.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sc_ar_o(DisasContext *ctx, arg_misc *a)
++{
++    /* sc_ar.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_and_o(DisasContext *ctx, arg_misc *a)
++{
++    /* and.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_or_o(DisasContext *ctx, arg_misc *a)
++{
++    /* or.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_xor_o(DisasContext *ctx, arg_misc *a)
++{
++    /* xor.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_xnor_o(DisasContext *ctx, arg_misc *a)
++{
++    /* xnor.o - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_uo_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_so_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.so - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_uo_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_so_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.so - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shl_uo_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shl.uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_uo_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_so_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.so - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_uo_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_so_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.so - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shl_uo_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shl.uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_add_so_rb(DisasContext *ctx, arg_misc *a)
++{
++    /* add.so-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sub_so_rb(DisasContext *ctx, arg_misc *a)
++{
++    /* sub.so-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_uo_rb(DisasContext *ctx, arg_misc *a)
++{
++    /* cmp.uo-rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_uo(DisasContext *ctx, arg_misc *a)
++{
++    /* cmp.uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_so(DisasContext *ctx, arg_misc *a)
++{
++    /* cmp.so - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rd2rd(DisasContext *ctx, arg_misc *a)
++{
++    /* rd2rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rd2ra(DisasContext *ctx, arg_misc *a)
++{
++    /* rd2ra - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ra2rd(DisasContext *ctx, arg_misc *a)
++{
++    /* ra2rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rb2rb(DisasContext *ctx, arg_misc *a)
++{
++    /* rb2rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rd2rb(DisasContext *ctx, arg_misc *a)
++{
++    /* rd2rb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rb2rd(DisasContext *ctx, arg_misc *a)
++{
++    /* rb2rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_div_uo(DisasContext *ctx, arg_misc *a)
++{
++    /* div.uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_div_so(DisasContext *ctx, arg_misc *a)
++{
++    /* div.so - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rem_uo(DisasContext *ctx, arg_misc *a)
++{
++    /* rem.uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rem_so(DisasContext *ctx, arg_misc *a)
++{
++    /* rem.so - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rd2rf(DisasContext *ctx, arg_misc *a)
++{
++    /* rd2rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rf2rd(DisasContext *ctx, arg_misc *a)
++{
++    /* rf2rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_and_t(DisasContext *ctx, arg_misc *a)
++{
++    /* and.t - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_or_t(DisasContext *ctx, arg_misc *a)
++{
++    /* or.t - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_xor_t(DisasContext *ctx, arg_misc *a)
++{
++    /* xor.t - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_xnor_t(DisasContext *ctx, arg_misc *a)
++{
++    /* xnor.t - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_ut_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_st_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_ut_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_st_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shl_ut_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shl.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_ut_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_st_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_ut_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_st_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shl_ut_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shl.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_add_ut(DisasContext *ctx, arg_misc *a)
++{
++    /* add.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_add_st(DisasContext *ctx, arg_misc *a)
++{
++    /* add.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sub_ut(DisasContext *ctx, arg_misc *a)
++{
++    /* sub.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sub_st(DisasContext *ctx, arg_misc *a)
++{
++    /* sub.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_ut(DisasContext *ctx, arg_misc *a)
++{
++    /* cmp.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_st(DisasContext *ctx, arg_misc *a)
++{
++    /* cmp.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_mul_ut(DisasContext *ctx, arg_misc *a)
++{
++    /* mul.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_mul_st(DisasContext *ctx, arg_misc *a)
++{
++    /* mul.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_div_ut(DisasContext *ctx, arg_misc *a)
++{
++    /* div.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_div_st(DisasContext *ctx, arg_misc *a)
++{
++    /* div.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rem_ut(DisasContext *ctx, arg_misc *a)
++{
++    /* rem.ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rem_st(DisasContext *ctx, arg_misc *a)
++{
++    /* rem.st - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_and_w(DisasContext *ctx, arg_misc *a)
++{
++    /* and.w - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_or_w(DisasContext *ctx, arg_misc *a)
++{
++    /* or.w - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_xor_w(DisasContext *ctx, arg_misc *a)
++{
++    /* xor.w - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_xnor_w(DisasContext *ctx, arg_misc *a)
++{
++    /* xnor.w - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_uw_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_sw_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_uw_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_sw_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shl_uw_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shl.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_uw_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_sw_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_uw_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_sw_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shl_uw_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shl.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_add_uw(DisasContext *ctx, arg_misc *a)
++{
++    /* add.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_add_sw(DisasContext *ctx, arg_misc *a)
++{
++    /* add.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sub_uw(DisasContext *ctx, arg_misc *a)
++{
++    /* sub.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sub_sw(DisasContext *ctx, arg_misc *a)
++{
++    /* sub.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_uw(DisasContext *ctx, arg_misc *a)
++{
++    /* cmp.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_sw(DisasContext *ctx, arg_misc *a)
++{
++    /* cmp.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_mul_uw(DisasContext *ctx, arg_misc *a)
++{
++    /* mul.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_mul_sw(DisasContext *ctx, arg_misc *a)
++{
++    /* mul.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_div_uw(DisasContext *ctx, arg_misc *a)
++{
++    /* div.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_div_sw(DisasContext *ctx, arg_misc *a)
++{
++    /* div.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rem_uw(DisasContext *ctx, arg_misc *a)
++{
++    /* rem.uw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rem_sw(DisasContext *ctx, arg_misc *a)
++{
++    /* rem.sw - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_and_b(DisasContext *ctx, arg_misc *a)
++{
++    /* and.b - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_or_b(DisasContext *ctx, arg_misc *a)
++{
++    /* or.b - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_xor_b(DisasContext *ctx, arg_misc *a)
++{
++    /* xor.b - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_xnor_b(DisasContext *ctx, arg_misc *a)
++{
++    /* xnor.b - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_ub_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ext_sb_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_ub_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shr_sb_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_shl_ub_orrr(DisasContext *ctx, arg_misc *a)
++{
++    /* shl.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
+ 
+-    ctx->cs = cs;
+-    ctx->env = cpu_env(cs);
+-    ctx->memidx = 0; /* M1: single memory index */
++static bool trans_ext_ub_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* ext.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
+ }
+ 
+-static void dadao_tr_tb_start(DisasContextBase *dcbase, CPUState *cs)
++static bool trans_ext_sb_orri(DisasContext *ctx, arg_misc *a)
+ {
++    /* ext.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
+ }
+ 
+-static void dadao_tr_insn_start(DisasContextBase *dcbase, CPUState *cs)
++static bool trans_shr_ub_orri(DisasContext *ctx, arg_misc *a)
+ {
+-    DisasContext *ctx = container_of(dcbase, DisasContext, base);
++    /* shr.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
+ 
+-    tcg_gen_insn_start(ctx->base.pc_next, 0, 0);
++static bool trans_shr_sb_orri(DisasContext *ctx, arg_misc *a)
++{
++    /* shr.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
+ }
+ 
+-/*
+- * Generate an ILLI exception (exit code 0x88).
+- * In the skeleton, ALL instructions trigger ILLI.
+- */
+-static void gen_exception_illegal(DisasContext *ctx)
++static bool trans_shl_ub_orri(DisasContext *ctx, arg_misc *a)
+ {
+-    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI));
+-    ctx->base.is_jmp = DISAS_NORETURN;
++    /* shl.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
+ }
+ 
+-static void dadao_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
++static bool trans_add_ub(DisasContext *ctx, arg_misc *a)
+ {
+-    DisasContext *ctx = container_of(dcbase, DisasContext, base);
+-    uint32_t insn;
++    /* add.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
+ 
+-    /* DADAO is 32-bit big-endian: fetch instruction in big-endian */
+-    insn = translator_ldl_end(ctx->env, &ctx->base, ctx->base.pc_next,
+-                              MO_BE);
+-    ctx->opcode = insn;
++static bool trans_add_sb(DisasContext *ctx, arg_misc *a)
++{
++    /* add.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sub_ub(DisasContext *ctx, arg_misc *a)
++{
++    /* sub.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_sub_sb(DisasContext *ctx, arg_misc *a)
++{
++    /* sub.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_ub(DisasContext *ctx, arg_misc *a)
++{
++    /* cmp.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cmp_sb(DisasContext *ctx, arg_misc *a)
++{
++    /* cmp.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_mul_ub(DisasContext *ctx, arg_misc *a)
++{
++    /* mul.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_mul_sb(DisasContext *ctx, arg_misc *a)
++{
++    /* mul.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_div_ub(DisasContext *ctx, arg_misc *a)
++{
++    /* div.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_div_sb(DisasContext *ctx, arg_misc *a)
++{
++    /* div.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rem_ub(DisasContext *ctx, arg_misc *a)
++{
++    /* rem.ub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rem_sb(DisasContext *ctx, arg_misc *a)
++{
++    /* rem.sb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftcls(DisasContext *ctx, arg_misc *a)
++{
++    /* ftcls - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftroot(DisasContext *ctx, arg_misc *a)
++{
++    /* ftroot - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftlog(DisasContext *ctx, arg_misc *a)
++{
++    /* ftlog - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_focls(DisasContext *ctx, arg_misc *a)
++{
++    /* focls - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_foroot(DisasContext *ctx, arg_misc *a)
++{
++    /* foroot - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_folog(DisasContext *ctx, arg_misc *a)
++{
++    /* folog - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2it(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2it - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2io(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2io - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2ut(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2uo(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_it2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* it2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_io2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* io2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ut2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* ut2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_uo2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* uo2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2it(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2it - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2io(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2io - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2ut(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2uo(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_it2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* it2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_io2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* io2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ut2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* ut2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_uo2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* uo2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftadd(DisasContext *ctx, arg_misc *a)
++{
++    /* ftadd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftsub(DisasContext *ctx, arg_misc *a)
++{
++    /* ftsub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftmul(DisasContext *ctx, arg_misc *a)
++{
++    /* ftmul - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftdiv(DisasContext *ctx, arg_misc *a)
++{
++    /* ftdiv - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftrem(DisasContext *ctx, arg_misc *a)
++{
++    /* ftrem - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftsclb(DisasContext *ctx, arg_misc *a)
++{
++    /* ftsclb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftsgnn(DisasContext *ctx, arg_misc *a)
++{
++    /* ftsgnn - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftsgnj(DisasContext *ctx, arg_misc *a)
++{
++    /* ftsgnj - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_foadd(DisasContext *ctx, arg_misc *a)
++{
++    /* foadd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fosub(DisasContext *ctx, arg_misc *a)
++{
++    /* fosub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fomul(DisasContext *ctx, arg_misc *a)
++{
++    /* fomul - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fodiv(DisasContext *ctx, arg_misc *a)
++{
++    /* fodiv - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_forem(DisasContext *ctx, arg_misc *a)
++{
++    /* forem - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fosclb(DisasContext *ctx, arg_misc *a)
++{
++    /* fosclb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fosgnn(DisasContext *ctx, arg_misc *a)
++{
++    /* fosgnn - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fosgnj(DisasContext *ctx, arg_misc *a)
++{
++    /* fosgnj - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftqcmp(DisasContext *ctx, arg_misc *a)
++{
++    /* ftqcmp - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftscmp(DisasContext *ctx, arg_misc *a)
++{
++    /* ftscmp - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_foqcmp(DisasContext *ctx, arg_misc *a)
++{
++    /* foqcmp - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
+ 
+-    /* Skeleton: every instruction triggers ILLI */
++static bool trans_foscmp(DisasContext *ctx, arg_misc *a)
++{
++    /* foscmp - stub: ILLI */
+     gen_exception_illegal(ctx);
++    return true;
++}
+ 
+-    /* PC advances by 4 (never reached due to DISAS_NORETURN) */
++static void dadao_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
++{
++    DisasContext *ctx = container_of(dcbase, DisasContext, base);
++    uint32_t insn = translator_ldl_end(ctx->env, &ctx->base,
++                                        ctx->base.pc_next, MO_BE);
++    ctx->opcode = insn;
++    if (!decode_insn(ctx, insn)) {
++        gen_exception_undi(ctx);
++    }
+     ctx->base.pc_next += 4;
+ }
+ 
+ static void dadao_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
+ {
+     DisasContext *ctx = container_of(dcbase, DisasContext, base);
+-
+     switch (ctx->base.is_jmp) {
+-    case DISAS_NORETURN:
+-        break;
++    case DISAS_NORETURN: break;
+     case DISAS_TOO_MANY:
+     case DISAS_NEXT:
+         tcg_gen_goto_tb(1);
+         tcg_gen_exit_tb(NULL, 0);
+         break;
+-    default:
+-        g_assert_not_reached();
++    default: g_assert_not_reached();
+     }
+ }
+ 
+@@ -121,7 +1909,4 @@ void dadao_cpu_translate_code(CPUState *cs, TranslationBlock *tb,
+                     TCG_TYPE_I64);
+ }
+ 
+-void dadao_cpu_tcg_init(void)
+-{
+-    /* No per-CPU TCG initialization needed for skeleton */
+-}
+\ No newline at end of file
++void dadao_cpu_tcg_init(void) {}
+-- 
+2.43.0
+
