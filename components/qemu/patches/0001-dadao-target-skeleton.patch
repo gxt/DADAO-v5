@@ -1,0 +1,1173 @@
+From 0caa34568faca7fae3d58a47f19a736d6f53a3b2 Mon Sep 17 00:00:00 2001
+From: Guan Xuetao <gxt@pku.edu.cn>
+Date: Sat, 19 Sep 2026 03:12:35 +0000
+Subject: [PATCH] target/dadao: Add DADAO target skeleton
+
+Add DADAO CPU target skeleton for QEMU. This includes:
+- target/dadao/: CPU state (rd/rb/rf/ra[64], pc), QOM registration,
+  TCG translation skeleton (all instructions trigger ILLI), helpers
+- hw/dadao/: M1 bare-metal machine (RAM 16MiB, ROM 64KiB, exit port
+  with qemu_system_shutdown_request_with_code for exit code propagation)
+- configs/targets/dadao-softmmu.mak: target configuration
+- configs/devices/dadao-softmmu/default.mak: device configuration
+- Build system integration: target/meson.build, target/Kconfig,
+  hw/meson.build (subdir('dadao')), hw/Kconfig, qapi/machine.json
+  (SysEmuTarget), include/qemu/base-arch-defs.h (QEMU_ARCH_DADAO)
+
+Memory map per ADR-0004 D1:
+  RAM:        0xffff_0000_0000 (16 MiB)
+  Exit port:  0xffff_8000_0000 (8 B)
+  Boot ROM:   0xffff_ffff_0000 (64 KiB)
+
+Reset values per ADR-0004 D2:
+  rb0/pc = 0xffff_ffff_0000 (boot ROM base)
+  rf0    = 0x7FF8_0000_7FC0_0000 (FCSR, derived from SimRISC-00)
+
+All instructions default to gen_exception_illegal() (ILLI).
+Big-endian instruction fetch and data access.
+Machine name: dadao-m1
+---
+ configs/devices/dadao-softmmu/default.mak |   1 +
+ configs/targets/dadao-softmmu.mak         |   5 +
+ hw/Kconfig                                |   1 +
+ hw/dadao/Kconfig                          |   4 +
+ hw/dadao/dadao-machine.c                  | 209 ++++++++++++++++++
+ hw/dadao/meson.build                      |   4 +
+ hw/meson.build                            |   1 +
+ include/qemu/base-arch-defs.h             |   1 +
+ qapi/machine.json                         |   2 +-
+ target/Kconfig                            |   1 +
+ target/dadao/Kconfig                      |   2 +
+ target/dadao/cpu-param.h                  |  25 +++
+ target/dadao/cpu-qom.h                    |  31 +++
+ target/dadao/cpu.c                        | 258 ++++++++++++++++++++++
+ target/dadao/cpu.h                        | 122 ++++++++++
+ target/dadao/helper.c                     | 131 +++++++++++
+ target/dadao/helper.h                     |  19 ++
+ target/dadao/meson.build                  |  10 +
+ target/dadao/translate.c                  | 127 +++++++++++
+ target/meson.build                        |   1 +
+ 20 files changed, 954 insertions(+), 1 deletion(-)
+ create mode 100644 configs/devices/dadao-softmmu/default.mak
+ create mode 100644 configs/targets/dadao-softmmu.mak
+ create mode 100644 hw/dadao/Kconfig
+ create mode 100644 hw/dadao/dadao-machine.c
+ create mode 100644 hw/dadao/meson.build
+ create mode 100644 target/dadao/Kconfig
+ create mode 100644 target/dadao/cpu-param.h
+ create mode 100644 target/dadao/cpu-qom.h
+ create mode 100644 target/dadao/cpu.c
+ create mode 100644 target/dadao/cpu.h
+ create mode 100644 target/dadao/helper.c
+ create mode 100644 target/dadao/helper.h
+ create mode 100644 target/dadao/meson.build
+ create mode 100644 target/dadao/translate.c
+
+diff --git a/configs/devices/dadao-softmmu/default.mak b/configs/devices/dadao-softmmu/default.mak
+new file mode 100644
+index 0000000..e9ec307
+--- /dev/null
++++ b/configs/devices/dadao-softmmu/default.mak
+@@ -0,0 +1 @@
++# Default configuration for dadao-softmmu
+diff --git a/configs/targets/dadao-softmmu.mak b/configs/targets/dadao-softmmu.mak
+new file mode 100644
+index 0000000..a99eda2
+--- /dev/null
++++ b/configs/targets/dadao-softmmu.mak
+@@ -0,0 +1,5 @@
++TARGET_ARCH=dadao
++TARGET_LONG_BITS=64
++TARGET_NOT_USING_LEGACY_LDST_PHYS_API=y
++TARGET_NOT_USING_LEGACY_NATIVE_ENDIAN_API=y
++TARGET_BIG_ENDIAN=y
+diff --git a/hw/Kconfig b/hw/Kconfig
+index c92ca2b..d6bc153 100644
+--- a/hw/Kconfig
++++ b/hw/Kconfig
+@@ -53,6 +53,7 @@ source arm/Kconfig
+ source cpu/Kconfig
+ source alpha/Kconfig
+ source avr/Kconfig
++source dadao/Kconfig
+ source hexagon/Kconfig
+ source hppa/Kconfig
+ source i386/Kconfig
+diff --git a/hw/dadao/Kconfig b/hw/dadao/Kconfig
+new file mode 100644
+index 0000000..3ccd665
+--- /dev/null
++++ b/hw/dadao/Kconfig
+@@ -0,0 +1,4 @@
++config DADAO_M1
++    bool
++    default y
++    depends on DADAO
+diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
+new file mode 100644
+index 0000000..eed2647
+--- /dev/null
++++ b/hw/dadao/dadao-machine.c
+@@ -0,0 +1,209 @@
++/*
++ * DADAO M1 bare-metal test machine for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ *
++ * Memory map per ADR-0004 D1:
++ *   RAM:        0xffff_0000_0000 .. 0xffff_00ff_ffff  (16 MiB, RWX)
++ *   Exit port:  0xffff_8000_0000 .. 0xffff_8000_0007  (8 B, MMIO, write-only)
++ *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff  (64 KiB, RO+X)
++ */
++
++#include "qemu/osdep.h"
++#include "qapi/error.h"
++#include "qemu/error-report.h"
++#include "qemu/module.h"
++#include "qemu/datadir.h"
++#include "hw/core/loader.h"
++#include "hw/core/qdev-properties.h"
++#include "hw/core/sysbus.h"
++#include "hw/core/boards.h"
++#include "system/memory.h"
++#include "system/address-spaces.h"
++#include "system/system.h"
++#include "system/runstate.h"
++#include "qom/object.h"
++#include "target/dadao/cpu.h"
++
++/* Exit port MMIO handler */
++typedef struct DadaoExitPort {
++    SysBusDevice parent_obj;
++    MemoryRegion mr;
++} DadaoExitPort;
++
++#define TYPE_DADAO_EXIT_PORT "dadao-exit-port"
++OBJECT_DECLARE_SIMPLE_TYPE(DadaoExitPort, DADAO_EXIT_PORT)
++
++static uint64_t dadao_exit_port_read(void *opaque, hwaddr addr, unsigned size)
++{
++    /* Exit port is write-only; reads trigger ILLI */
++    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
++                                           DADAO_EXIT_ILLI);
++    return 0;
++}
++
++static void dadao_exit_port_write(void *opaque, hwaddr addr,
++                                  uint64_t data, unsigned size)
++{
++    /*
++     * Per ADR-0004 D3:
++     * - Only 8-byte (octa) writes are valid
++     * - Write value & 0xFF = exit code propagated to host $?
++     * - Non-8B writes trigger ILLI (0x88)
++     */
++    if (size != 8) {
++        qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
++                                               DADAO_EXIT_ILLI);
++        return;
++    }
++
++    int exit_code = (int)(data & 0xFF);
++    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_SHUTDOWN,
++                                           exit_code);
++}
++
++static const MemoryRegionOps dadao_exit_port_ops = {
++    .read = dadao_exit_port_read,
++    .write = dadao_exit_port_write,
++    .endianness = DEVICE_BIG_ENDIAN,
++    .valid.min_access_size = 1,
++    .valid.max_access_size = 8,
++};
++
++static void dadao_exit_port_init(Object *obj)
++{
++    DadaoExitPort *s = DADAO_EXIT_PORT(obj);
++    SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
++
++    memory_region_init_io(&s->mr, obj, &dadao_exit_port_ops, s,
++                          "dadao-exit-port", DADAO_EXIT_PORT_SIZE);
++    sysbus_init_mmio(sbd, &s->mr);
++}
++
++static const TypeInfo dadao_exit_port_info = {
++    .name = TYPE_DADAO_EXIT_PORT,
++    .parent = TYPE_SYS_BUS_DEVICE,
++    .instance_size = sizeof(DadaoExitPort),
++    .instance_init = dadao_exit_port_init,
++};
++
++/* DADAO M1 machine */
++typedef struct DadaoMachineState {
++    MachineState parent_obj;
++} DadaoMachineState;
++
++typedef struct DadaoMachineClass {
++    MachineClass parent_class;
++} DadaoMachineClass;
++
++#define TYPE_DADAO_M1_MACHINE MACHINE_TYPE_NAME("dadao-m1")
++OBJECT_DECLARE_SIMPLE_TYPE(DadaoMachineState, DADAO_M1_MACHINE)
++
++static void dadao_m1_init(MachineState *machine)
++{
++    DadaoCPU *cpu;
++    MemoryRegion *ram, *rom, *system_memory;
++    DadaoExitPort *exit_port;
++    Error *err = NULL;
++    ssize_t bios_size, kernel_size;
++
++    /* Validate: both -bios and -kernel are required */
++    if (!machine->firmware) {
++        error_report("dadao-m1: -bios rom.bin is required");
++        exit(1);
++    }
++    if (!machine->kernel_filename) {
++        error_report("dadao-m1: -kernel test.bin is required");
++        exit(1);
++    }
++
++    /* Create CPU */
++    cpu = DADAO_CPU(qdev_new(DADAO_CPU_TYPE_NAME("any")));
++    qdev_realize_and_unref(DEVICE(cpu), NULL, &error_fatal);
++
++    system_memory = get_system_memory();
++
++    /* RAM: 0xffff_0000_0000, 16 MiB */
++    ram = g_new(MemoryRegion, 1);
++    memory_region_init_ram(ram, NULL, "dadao-ram", DADAO_RAM_SIZE, &error_fatal);
++    memory_region_add_subregion(system_memory, DADAO_RAM_BASE, ram);
++
++    /* Boot ROM: 0xffff_ffff_0000, 64 KiB */
++    rom = g_new(MemoryRegion, 1);
++    memory_region_init_rom(rom, NULL, "dadao-rom", DADAO_ROM_SIZE, &error_fatal);
++    memory_region_add_subregion(system_memory, DADAO_ROM_BASE, rom);
++
++    /* Exit port: 0xffff_8000_0000, 8 B */
++    exit_port = DADAO_EXIT_PORT(qdev_new(TYPE_DADAO_EXIT_PORT));
++    sysbus_realize_and_unref(SYS_BUS_DEVICE(exit_port), &error_fatal);
++    sysbus_mmio_map(SYS_BUS_DEVICE(exit_port), 0, DADAO_EXIT_PORT_BASE);
++
++    /* Load BIOS (ROM trampoline) into ROM region */
++    bios_size = load_image_targphys_as(machine->firmware,
++                                       DADAO_ROM_BASE,
++                                       DADAO_ROM_SIZE,
++                                       &address_space_memory,
++                                       &err);
++    if (bios_size < 0) {
++        error_report("dadao-m1: could not load ROM image '%s': %s",
++                     machine->firmware,
++                     err ? error_get_pretty(err) : "unknown error");
++        exit(1);
++    }
++
++    /* Load kernel (test binary) into RAM region */
++    err = NULL;
++    kernel_size = load_image_targphys_as(machine->kernel_filename,
++                                         DADAO_RAM_BASE,
++                                         DADAO_RAM_SIZE,
++                                         &address_space_memory,
++                                         &err);
++    if (kernel_size < 0) {
++        error_report("dadao-m1: could not load kernel image '%s': %s",
++                     machine->kernel_filename,
++                     err ? error_get_pretty(err) : "unknown error");
++        exit(1);
++    }
++}
++
++static void dadao_m1_class_init(ObjectClass *oc, const void *data)
++{
++    MachineClass *mc = MACHINE_CLASS(oc);
++
++    mc->init = dadao_m1_init;
++    mc->desc = "DADAO M1 bare-metal test machine";
++    mc->default_cpus = 1;
++    mc->min_cpus = 1;
++    mc->max_cpus = 1;
++    mc->no_floppy = 1;
++    mc->no_cdrom = 1;
++    mc->default_cpu_type = DADAO_CPU_TYPE_NAME("any");
++}
++
++static const TypeInfo dadao_m1_type = {
++    .name = TYPE_DADAO_M1_MACHINE,
++    .parent = TYPE_MACHINE,
++    .instance_size = sizeof(DadaoMachineState),
++    .class_size = sizeof(DadaoMachineClass),
++    .class_init = dadao_m1_class_init,
++};
++
++static void dadao_m1_machine_init(void)
++{
++    type_register_static(&dadao_exit_port_info);
++    type_register_static(&dadao_m1_type);
++}
++
++type_init(dadao_m1_machine_init);
+diff --git a/hw/dadao/meson.build b/hw/dadao/meson.build
+new file mode 100644
+index 0000000..8ef4150
+--- /dev/null
++++ b/hw/dadao/meson.build
+@@ -0,0 +1,4 @@
++dadao_ss = ss.source_set()
++dadao_ss.add(when: 'CONFIG_DADAO_M1', if_true: files('dadao-machine.c'))
++
++hw_arch += {'dadao': dadao_ss}
+diff --git a/hw/meson.build b/hw/meson.build
+index 7fa81db..4d473e6 100644
+--- a/hw/meson.build
++++ b/hw/meson.build
+@@ -2,6 +2,7 @@
+ subdir('alpha')
+ subdir('arm')
+ subdir('avr')
++subdir('dadao')
+ subdir('hppa')
+ subdir('hexagon')
+ subdir('xenpv') # i386 uses it
+diff --git a/include/qemu/base-arch-defs.h b/include/qemu/base-arch-defs.h
+index f334657..46a75b1 100644
+--- a/include/qemu/base-arch-defs.h
++++ b/include/qemu/base-arch-defs.h
+@@ -37,6 +37,7 @@ enum {
+                             (1UL << SYS_EMU_TARGET_RISCV64),
+     QEMU_ARCH_RX =          (1UL << SYS_EMU_TARGET_RX),
+     QEMU_ARCH_AVR =         (1UL << SYS_EMU_TARGET_AVR),
++    QEMU_ARCH_DADAO =       (1UL << SYS_EMU_TARGET_DADAO),
+     QEMU_ARCH_HEXAGON =     (1UL << SYS_EMU_TARGET_HEXAGON),
+     QEMU_ARCH_LOONGARCH =   (1UL << SYS_EMU_TARGET_LOONGARCH64),
+     QEMU_ARCH_ALL =         UINT32_MAX,
+diff --git a/qapi/machine.json b/qapi/machine.json
+index 9b22480..e4d18be 100644
+--- a/qapi/machine.json
++++ b/qapi/machine.json
+@@ -37,7 +37,7 @@
+ # Since: 3.0
+ ##
+ { 'enum' : 'SysEmuTarget',
+-  'data' : [ 'aarch64', 'alpha', 'arm', 'avr', 'hexagon', 'hppa', 'i386',
++  'data' : [ 'aarch64', 'alpha', 'arm', 'avr', 'dadao', 'hexagon', 'hppa', 'i386',
+              'loongarch64', 'm68k', 'microblaze', 'mips', 'mips64',
+              'mips64el', 'mipsel', 'or1k', 'ppc',
+              'ppc64', 'riscv32', 'riscv64', 'rx', 's390x', 'sh4',
+diff --git a/target/Kconfig b/target/Kconfig
+index 0288a3f..cebaaa4 100644
+--- a/target/Kconfig
++++ b/target/Kconfig
+@@ -1,6 +1,7 @@
+ source alpha/Kconfig
+ source arm/Kconfig
+ source avr/Kconfig
++source dadao/Kconfig
+ source hppa/Kconfig
+ source i386/Kconfig
+ source loongarch/Kconfig
+diff --git a/target/dadao/Kconfig b/target/dadao/Kconfig
+new file mode 100644
+index 0000000..17c07d0
+--- /dev/null
++++ b/target/dadao/Kconfig
+@@ -0,0 +1,2 @@
++config DADAO
++    bool
+diff --git a/target/dadao/cpu-param.h b/target/dadao/cpu-param.h
+new file mode 100644
+index 0000000..732aa8b
+--- /dev/null
++++ b/target/dadao/cpu-param.h
+@@ -0,0 +1,25 @@
++/*
++ * DADAO CPU parameters for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifndef DADAO_CPU_PARAM_H
++#define DADAO_CPU_PARAM_H
++
++#define TARGET_PAGE_BITS 12
++#define TARGET_VIRT_ADDR_SPACE_BITS 48
++
++#endif /* DADAO_CPU_PARAM_H */
+diff --git a/target/dadao/cpu-qom.h b/target/dadao/cpu-qom.h
+new file mode 100644
+index 0000000..099965c
+--- /dev/null
++++ b/target/dadao/cpu-qom.h
+@@ -0,0 +1,31 @@
++/*
++ * DADAO CPU QOM header (target agnostic)
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifndef TARGET_DADAO_CPU_QOM_H
++#define TARGET_DADAO_CPU_QOM_H
++
++#include "hw/core/cpu.h"
++
++#define TYPE_DADAO_CPU "dadao-cpu"
++
++OBJECT_DECLARE_CPU_TYPE(DadaoCPU, DadaoCPUClass, DADAO_CPU)
++
++#define DADAO_CPU_TYPE_SUFFIX "-" TYPE_DADAO_CPU
++#define DADAO_CPU_TYPE_NAME(name) (name DADAO_CPU_TYPE_SUFFIX)
++
++#endif /* TARGET_DADAO_CPU_QOM_H */
+diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
+new file mode 100644
+index 0000000..1b6d4e6
+--- /dev/null
++++ b/target/dadao/cpu.c
+@@ -0,0 +1,258 @@
++/*
++ * DADAO CPU for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "qemu/osdep.h"
++#include "qapi/error.h"
++#include "qemu/qemu-print.h"
++#include "exec/translation-block.h"
++#include "system/address-spaces.h"
++#include "cpu.h"
++#include "tcg/debug-assert.h"
++#include "hw/core/qdev-properties.h"
++#include "accel/tcg/cpu-ops.h"
++
++static void dadao_cpu_set_pc(CPUState *cs, vaddr value)
++{
++    DadaoCPU *cpu = DADAO_CPU(cs);
++
++    cpu->env.pc = value;
++    cpu->env.rb[0] = value;
++}
++
++static vaddr dadao_cpu_get_pc(CPUState *cs)
++{
++    DadaoCPU *cpu = DADAO_CPU(cs);
++
++    return cpu->env.pc;
++}
++
++static bool dadao_cpu_has_work(CPUState *cs)
++{
++    /* M1 always has work (no interrupt model, no WFI) */
++    return true;
++}
++
++static int dadao_cpu_mmu_index(CPUState *cs, bool ifetch)
++{
++    /* M1: no MMU, single index */
++    return 0;
++}
++
++static TCGTBCPUState dadao_get_tb_cpu_state(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    return (TCGTBCPUState){ .pc = env->pc, .flags = 0 };
++}
++
++static void dadao_cpu_synchronize_from_tb(CPUState *cs,
++                                          const TranslationBlock *tb)
++{
++    tcg_debug_assert(!tcg_cflags_has(cs, CF_PCREL));
++    CPUDADAOState *env = cpu_env(cs);
++
++    env->pc = tb->pc;
++    env->rb[0] = tb->pc;
++}
++
++static void dadao_restore_state_to_opc(CPUState *cs,
++                                       const TranslationBlock *tb,
++                                       const uint64_t *data)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    env->pc = data[0];
++    env->rb[0] = data[0];
++}
++
++static void dadao_cpu_reset_hold(Object *obj, ResetType type)
++{
++    CPUState *cs = CPU(obj);
++    DadaoCPU *cpu = DADAO_CPU(cs);
++    DadaoCPUClass *mcc = DADAO_CPU_GET_CLASS(obj);
++    CPUDADAOState *env = &cpu->env;
++
++    if (mcc->parent_phases.hold) {
++        mcc->parent_phases.hold(obj, type);
++    }
++
++    /* Reset all registers to zero */
++    memset(env->rd, 0, sizeof(env->rd));
++    memset(env->rb, 0, sizeof(env->rb));
++    memset(env->rf, 0, sizeof(env->rf));
++    memset(env->ra, 0, sizeof(env->ra));
++
++    /* rd0 hardwired to 0 (already zero from memset) */
++
++    /* rb0 = reset vector = cfx_power_hypv_excp_vector = boot ROM base */
++    env->rb[0] = DADAO_RESET_PC;
++    env->pc = DADAO_RESET_PC;
++
++    /* rf0 = FCSR reset value (per ADR-0004 D2, derived from SimRISC-00 §浮点状态寄存器)
++     * Bits [63:51] = fo format Quiet NaN = 0xFFF (read-only)
++     * Bits [50:32] = SBZ = 0
++     * Bits [31:22] = ft format Quiet NaN = 0x1FF (read-only)
++     * Bits [21:18] = SBZ = 0
++     * Bits [17:16] = rounding mode = 0 (RNE, reset default)
++     * Bits [15:5]  = SBZ = 0
++     * Bits [4:0]   = exception status = 0 (reset)
++     *
++     * rf0 = (0xFFF << 51) | (0x1FF << 22) = 0x7FF8_0000_7FC0_0000
++     */
++    env->rf[0] = DADAO_RESET_RF0;
++
++    /* ra0-ra63 all zero (RegRAS empty at reset) */
++}
++
++static void dadao_cpu_realizefn(DeviceState *dev, Error **errp)
++{
++    CPUState *cs = CPU(dev);
++    DadaoCPUClass *mcc = DADAO_CPU_GET_CLASS(dev);
++    Error *local_err = NULL;
++
++    cpu_exec_realizefn(cs, &local_err);
++    if (local_err != NULL) {
++        error_propagate(errp, local_err);
++        return;
++    }
++    qemu_init_vcpu(cs);
++    cpu_reset(cs);
++
++    mcc->parent_realize(dev, errp);
++}
++
++static void dadao_cpu_initfn(Object *obj)
++{
++    /* No special initialization needed for skeleton */
++}
++
++static ObjectClass *dadao_cpu_class_by_name(const char *cpu_model)
++{
++    return object_class_by_name(cpu_model);
++}
++
++static void dadao_cpu_dump_state(CPUState *cs, FILE *f, int flags)
++{
++    CPUDADAOState *env = cpu_env(cs);
++    int i;
++
++    qemu_fprintf(f, "\n");
++    qemu_fprintf(f, "PC: %016" PRIx64 "\n", env->pc);
++    qemu_fprintf(f, "\n");
++
++    for (i = 0; i < 64; i++) {
++        qemu_fprintf(f, "RD[%02d]: %016" PRIx64 "  ", i, env->rd[i]);
++        if ((i % 4) == 3) {
++            qemu_fprintf(f, "\n");
++        }
++    }
++    qemu_fprintf(f, "\n");
++
++    for (i = 0; i < 64; i++) {
++        qemu_fprintf(f, "RB[%02d]: %016" PRIx64 "  ", i, env->rb[i]);
++        if ((i % 4) == 3) {
++            qemu_fprintf(f, "\n");
++        }
++    }
++    qemu_fprintf(f, "\n");
++
++    for (i = 0; i < 64; i++) {
++        qemu_fprintf(f, "RF[%02d]: %016" PRIx64 "  ", i, env->rf[i]);
++        if ((i % 4) == 3) {
++            qemu_fprintf(f, "\n");
++        }
++    }
++    qemu_fprintf(f, "\n");
++
++    for (i = 0; i < 64; i++) {
++        qemu_fprintf(f, "RA[%02d]: %016" PRIx64 "  ", i, env->ra[i]);
++        if ((i % 4) == 3) {
++            qemu_fprintf(f, "\n");
++        }
++    }
++    qemu_fprintf(f, "\n");
++}
++
++#include "hw/core/sysemu-cpu-ops.h"
++
++static const struct SysemuCPUOps dadao_sysemu_ops = {
++    .has_work = dadao_cpu_has_work,
++};
++
++static bool dadao_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
++{
++    /* M1: no interrupts */
++    return false;
++}
++
++static const TCGCPUOps dadao_tcg_ops = {
++    .guest_default_memory_order = 0,
++    .mttcg_supported = false,
++    .initialize = dadao_cpu_tcg_init,
++    .translate_code = dadao_cpu_translate_code,
++    .get_tb_cpu_state = dadao_get_tb_cpu_state,
++    .synchronize_from_tb = dadao_cpu_synchronize_from_tb,
++    .restore_state_to_opc = dadao_restore_state_to_opc,
++    .mmu_index = dadao_cpu_mmu_index,
++    .cpu_exec_interrupt = dadao_cpu_exec_interrupt,
++    .cpu_exec_halt = dadao_cpu_has_work,
++    .cpu_exec_reset = cpu_reset,
++    .tlb_fill = dadao_cpu_tlb_fill,
++    .do_interrupt = dadao_cpu_do_interrupt,
++    .pointer_wrap = cpu_pointer_wrap_notreached,
++};
++
++static void dadao_cpu_class_init(ObjectClass *oc, const void *data)
++{
++    DeviceClass *dc = DEVICE_CLASS(oc);
++    CPUClass *cc = CPU_CLASS(oc);
++    DadaoCPUClass *mcc = DADAO_CPU_CLASS(oc);
++    ResettableClass *rc = RESETTABLE_CLASS(oc);
++
++    device_class_set_parent_realize(dc, dadao_cpu_realizefn,
++                                    &mcc->parent_realize);
++
++    resettable_class_set_parent_phases(rc, NULL, dadao_cpu_reset_hold, NULL,
++                                       &mcc->parent_phases);
++
++    cc->class_by_name = dadao_cpu_class_by_name;
++    cc->dump_state = dadao_cpu_dump_state;
++    cc->set_pc = dadao_cpu_set_pc;
++    cc->get_pc = dadao_cpu_get_pc;
++    cc->sysemu_ops = &dadao_sysemu_ops;
++    cc->tcg_ops = &dadao_tcg_ops;
++}
++
++static const TypeInfo dadao_cpu_type_info[] = {
++    {
++        .name = TYPE_DADAO_CPU,
++        .parent = TYPE_CPU,
++        .instance_size = sizeof(DadaoCPU),
++        .instance_align = __alignof(DadaoCPU),
++        .instance_init = dadao_cpu_initfn,
++        .class_size = sizeof(DadaoCPUClass),
++        .class_init = dadao_cpu_class_init,
++        .abstract = true,
++    },
++    {
++        .name = DADAO_CPU_TYPE_NAME("any"),
++        .parent = TYPE_DADAO_CPU,
++    },
++};
++
++DEFINE_TYPES(dadao_cpu_type_info)
+diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
+new file mode 100644
+index 0000000..876e569
+--- /dev/null
++++ b/target/dadao/cpu.h
+@@ -0,0 +1,122 @@
++/*
++ * DADAO CPU header for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifndef TARGET_DADAO_CPU_H
++#define TARGET_DADAO_CPU_H
++
++#include "cpu-qom.h"
++#include "exec/cpu-common.h"
++#include "exec/cpu-interrupt.h"
++#include "system/memory.h"
++
++#ifdef CONFIG_USER_ONLY
++#error "DADAO does not support user mode"
++#endif
++
++#define CPU_RESOLVING_TYPE TYPE_DADAO_CPU
++
++/* DADAO exception indices (QEMU-internal, mapped to exit codes in do_interrupt) */
++enum {
++    DADAO_EXCP_ILLI = 1,       /* Illegal instruction */
++    DADAO_EXCP_UNDI = 2,       /* Undefined instruction */
++    DADAO_EXCP_RASOF = 3,      /* RAS overflow */
++    DADAO_EXCP_RASUF = 4,      /* RAS underflow */
++    DADAO_EXCP_MALIGN = 5,     /* Memory alignment fault */
++    DADAO_EXCP_IALIGN = 6,     /* Instruction alignment fault */
++    DADAO_EXCP_UNMAPPED = 7,   /* Unmapped memory access */
++};
++
++/* DADAO exit codes (propagated to host $?, per ADR-0004 D5.8) */
++enum {
++    DADAO_EXIT_PASS = 0x00,
++    DADAO_EXIT_UNMAPPED = 0x87,
++    DADAO_EXIT_ILLI = 0x88,
++    DADAO_EXIT_UNDI = 0x89,
++    DADAO_EXIT_RASOF = 0x8A,
++    DADAO_EXIT_RASUF = 0x8B,
++    DADAO_EXIT_MALIGN = 0x8C,
++    DADAO_EXIT_IALIGN = 0x8D,
++};
++
++/* Memory map constants (per ADR-0004 D1) */
++#define DADAO_RAM_BASE      0xffff00000000ULL
++#define DADAO_RAM_SIZE      (16 * 1024 * 1024)  /* 16 MiB */
++#define DADAO_EXIT_PORT_BASE 0xffff80000000ULL
++#define DADAO_EXIT_PORT_SIZE 8
++#define DADAO_ROM_BASE      0xffffffff0000ULL
++#define DADAO_ROM_SIZE      (64 * 1024)          /* 64 KiB */
++
++/* Reset values (per ADR-0004 D2) */
++#define DADAO_RESET_PC      DADAO_ROM_BASE
++#define DADAO_RESET_RF0     0x7FF800007FC00000ULL
++
++/*
++ * DADAO CPU state.
++ * Register groups: rd[64], rb[64], rf[64], ra[64], pc.
++ * Field names are fixed; subsequent tasks (004t-008t) reference them directly.
++ */
++typedef struct CPUArchState {
++    uint64_t rd[64];    /* Data registers; rd0 hardwired to 0 */
++    uint64_t rb[64];    /* Base registers; rb0 = PC */
++    uint64_t rf[64];    /* Floating-point registers; rf0 = FCSR */
++    uint64_t ra[64];    /* Return address stack */
++    uint64_t pc;        /* Program counter (alias for rb0 read) */
++} CPUDADAOState;
++
++/**
++ * DadaoCPU:
++ * @env: #CPUDADAOState
++ *
++ * A DADAO CPU.
++ */
++struct ArchCPU {
++    CPUState parent_obj;
++
++    CPUDADAOState env;
++};
++
++/**
++ * DadaoCPUClass:
++ * @parent_realize: The parent class' realize handler.
++ * @parent_phases: The parent class' reset phase handlers.
++ *
++ * A DADAO CPU model.
++ */
++struct DadaoCPUClass {
++    CPUClass parent_class;
++
++    DeviceRealize parent_realize;
++    ResettablePhases parent_phases;
++};
++
++void dadao_cpu_do_interrupt(CPUState *cpu);
++bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
++                        MMUAccessType access_type, int mmu_idx,
++                        bool probe, uintptr_t retaddr);
++
++void dadao_cpu_tcg_init(void);
++void dadao_cpu_translate_code(CPUState *cs, TranslationBlock *tb,
++                              int *max_insns, vaddr pc, void *host_pc);
++
++static inline int cpu_interrupts_enabled(CPUDADAOState *env)
++{
++    /* M1 has no interrupt model */
++    return 0;
++}
++
++#endif /* TARGET_DADAO_CPU_H */
+diff --git a/target/dadao/helper.c b/target/dadao/helper.c
+new file mode 100644
+index 0000000..ce06478
+--- /dev/null
++++ b/target/dadao/helper.c
+@@ -0,0 +1,131 @@
++/*
++ * DADAO CPU helpers for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "qemu/osdep.h"
++#include "qemu/log.h"
++#include "qemu/error-report.h"
++#include "cpu.h"
++#include "system/runstate.h"
++#include "accel/tcg/cpu-ops.h"
++#include "accel/tcg/cpu-loop.h"
++#include "exec/cputlb.h"
++#include "exec/page-protection.h"
++#include "exec/target_page.h"
++#include "accel/tcg/cpu-ldst.h"
++#include "exec/helper-proto.h"
++
++/* Map QEMU-internal exception index to ADR-0004 exit code */
++static int dadao_excp_to_exit_code(int excp)
++{
++    switch (excp) {
++    case DADAO_EXCP_ILLI:
++        return DADAO_EXIT_ILLI;       /* 0x88 */
++    case DADAO_EXCP_UNDI:
++        return DADAO_EXIT_UNDI;       /* 0x89 */
++    case DADAO_EXCP_RASOF:
++        return DADAO_EXIT_RASOF;      /* 0x8A */
++    case DADAO_EXCP_RASUF:
++        return DADAO_EXIT_RASUF;      /* 0x8B */
++    case DADAO_EXCP_MALIGN:
++        return DADAO_EXIT_MALIGN;     /* 0x8C */
++    case DADAO_EXCP_IALIGN:
++        return DADAO_EXIT_IALIGN;     /* 0x8D */
++    case DADAO_EXCP_UNMAPPED:
++        return DADAO_EXIT_UNMAPPED;   /* 0x87 */
++    default:
++        return DADAO_EXIT_ILLI;       /* fallback */
++    }
++}
++
++void dadao_cpu_do_interrupt(CPUState *cs)
++{
++    /*
++     * M1: no guest exception handler. QEMU directly maps fault → exit code
++     * and exits. Per ADR-0004 D6.1, this avoids pre-setting future exception
++     * model. The exit code is propagated to host $? via
++     * qemu_system_shutdown_request_with_code().
++     */
++    int exit_code = dadao_excp_to_exit_code(cs->exception_index);
++
++    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
++                                           exit_code);
++}
++
++bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
++                        MMUAccessType access_type, int mmu_idx,
++                        bool probe, uintptr_t retaddr)
++{
++    /*
++     * M1: no MMU, 1:1 virtual-to-physical mapping.
++     * Check if address falls within known regions:
++     *   RAM:  0xffff_0000_0000 .. 0xffff_00ff_ffff (16 MiB)
++     *   Exit: 0xffff_8000_0000 .. 0xffff_8000_0007 (8 B)
++     *   ROM:  0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB)
++     * Unmapped accesses cause UNMAPPED exception.
++     */
++    uint64_t addr = address;
++    int prot;
++    hwaddr paddr;
++
++    if (addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) {
++        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
++        paddr = addr;
++        goto map;
++    }
++
++    if (addr >= DADAO_EXIT_PORT_BASE &&
++        addr < DADAO_EXIT_PORT_BASE + DADAO_EXIT_PORT_SIZE) {
++        prot = PAGE_READ | PAGE_WRITE;
++        paddr = addr;
++        goto map;
++    }
++
++    if (addr >= DADAO_ROM_BASE && addr < DADAO_ROM_BASE + DADAO_ROM_SIZE) {
++        prot = PAGE_READ | PAGE_EXEC;
++        paddr = addr;
++        goto map;
++    }
++
++    /* Unmapped address */
++    if (probe) {
++        return false;
++    }
++
++    /* Trigger unmapped access fault */
++    cs->exception_index = DADAO_EXCP_UNMAPPED;
++    cpu_loop_exit_restore(cs, retaddr);
++    /* not reached */
++    return false;
++
++map:
++    tlb_set_page(cs, address, paddr, prot, mmu_idx, TARGET_PAGE_SIZE);
++    return true;
++}
++
++/*
++ * raise_exception helper: raise a DADAO exception.
++ * env is the implicit first argument passed by TCG.
++ * excp is the DADAO exception index.
++ */
++void helper_raise_exception(CPUDADAOState *env, uint32_t excp)
++{
++    CPUState *cs = env_cpu(env);
++
++    cs->exception_index = excp;
++    cpu_loop_exit(cs);
++}
+\ No newline at end of file
+diff --git a/target/dadao/helper.h b/target/dadao/helper.h
+new file mode 100644
+index 0000000..88504ea
+--- /dev/null
++++ b/target/dadao/helper.h
+@@ -0,0 +1,19 @@
++/*
++ * DADAO CPU helpers for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++DEF_HELPER_2(raise_exception, noreturn, env, i32)
+\ No newline at end of file
+diff --git a/target/dadao/meson.build b/target/dadao/meson.build
+new file mode 100644
+index 0000000..e443292
+--- /dev/null
++++ b/target/dadao/meson.build
+@@ -0,0 +1,10 @@
++dadao_ss = ss.source_set()
++dadao_system_ss = ss.source_set()
++
++dadao_ss.add(files(
++  'translate.c',
++  'helper.c',
++  'cpu.c'))
++
++target_arch += {'dadao': dadao_ss}
++target_system_arch += {'dadao': dadao_system_ss}
+diff --git a/target/dadao/translate.c b/target/dadao/translate.c
+new file mode 100644
+index 0000000..c83e085
+--- /dev/null
++++ b/target/dadao/translate.c
+@@ -0,0 +1,127 @@
++/*
++ * DADAO translation skeleton for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "qemu/osdep.h"
++#include "qemu/qemu-print.h"
++#include "tcg/tcg.h"
++#include "cpu.h"
++#include "exec/translation-block.h"
++#include "tcg/tcg-op.h"
++#include "exec/helper-proto.h"
++#include "exec/helper-gen.h"
++#include "exec/log.h"
++#include "exec/translator.h"
++#include "exec/target_page.h"
++#include "accel/tcg/cpu-ldst.h"
++
++#define HELPER_H "helper.h"
++#include "exec/helper-info.c.inc"
++#undef  HELPER_H
++
++typedef struct DisasContext {
++    DisasContextBase base;
++    CPUDADAOState *env;
++    CPUState *cs;
++    uint32_t opcode;
++    int memidx;
++} DisasContext;
++
++static void dadao_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cs)
++{
++    DisasContext *ctx = container_of(dcbase, DisasContext, base);
++
++    ctx->cs = cs;
++    ctx->env = cpu_env(cs);
++    ctx->memidx = 0; /* M1: single memory index */
++}
++
++static void dadao_tr_tb_start(DisasContextBase *dcbase, CPUState *cs)
++{
++}
++
++static void dadao_tr_insn_start(DisasContextBase *dcbase, CPUState *cs)
++{
++    DisasContext *ctx = container_of(dcbase, DisasContext, base);
++
++    tcg_gen_insn_start(ctx->base.pc_next, 0, 0);
++}
++
++/*
++ * Generate an ILLI exception (exit code 0x88).
++ * In the skeleton, ALL instructions trigger ILLI.
++ */
++static void gen_exception_illegal(DisasContext *ctx)
++{
++    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI));
++    ctx->base.is_jmp = DISAS_NORETURN;
++}
++
++static void dadao_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
++{
++    DisasContext *ctx = container_of(dcbase, DisasContext, base);
++    uint32_t insn;
++
++    /* DADAO is 32-bit big-endian: fetch instruction in big-endian */
++    insn = translator_ldl_end(ctx->env, &ctx->base, ctx->base.pc_next,
++                              MO_BE);
++    ctx->opcode = insn;
++
++    /* Skeleton: every instruction triggers ILLI */
++    gen_exception_illegal(ctx);
++
++    /* PC advances by 4 (never reached due to DISAS_NORETURN) */
++    ctx->base.pc_next += 4;
++}
++
++static void dadao_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
++{
++    DisasContext *ctx = container_of(dcbase, DisasContext, base);
++
++    switch (ctx->base.is_jmp) {
++    case DISAS_NORETURN:
++        break;
++    case DISAS_TOO_MANY:
++    case DISAS_NEXT:
++        tcg_gen_goto_tb(1);
++        tcg_gen_exit_tb(NULL, 0);
++        break;
++    default:
++        g_assert_not_reached();
++    }
++}
++
++static const TranslatorOps dadao_tr_ops = {
++    .init_disas_context = dadao_tr_init_disas_context,
++    .tb_start           = dadao_tr_tb_start,
++    .insn_start         = dadao_tr_insn_start,
++    .translate_insn     = dadao_tr_translate_insn,
++    .tb_stop            = dadao_tr_tb_stop,
++};
++
++void dadao_cpu_translate_code(CPUState *cs, TranslationBlock *tb,
++                              int *max_insns, vaddr pc, void *host_pc)
++{
++    DisasContext dc = { };
++    translator_loop(cs, tb, max_insns, pc, host_pc, &dadao_tr_ops, &dc.base,
++                    TCG_TYPE_I64);
++}
++
++void dadao_cpu_tcg_init(void)
++{
++    /* No per-CPU TCG initialization needed for skeleton */
++}
+\ No newline at end of file
+diff --git a/target/meson.build b/target/meson.build
+index d891ef9..ab78956 100644
+--- a/target/meson.build
++++ b/target/meson.build
+@@ -1,6 +1,7 @@
+ subdir('alpha')
+ subdir('arm')
+ subdir('avr')
++subdir('dadao')
+ subdir('hexagon')
+ subdir('hppa')
+ subdir('i386')

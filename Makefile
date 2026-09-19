@@ -89,11 +89,12 @@ build-qemu: manifest-check
 	  echo "build-qemu: component 'qemu' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
 	}
-	cd $(QEMU_SRC) && ./configure \
+	mkdir -p $(QEMU_BUILD)
+	cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure \
 	  --target-list=dadao-softmmu \
 	  --enable-tcg \
 	  --disable-werror
-	$(MAKE) -C $(QEMU_SRC) -j$$(nproc)
+	$(MAKE) -C $(QEMU_BUILD) -j$$(nproc)
 	@echo "build-qemu: PASS"
 
 # gem5 is a v5 addition and has no build command yet (the gem5 module owns it).
