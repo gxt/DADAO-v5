@@ -126,7 +126,7 @@ instr_bytes = struct.pack('>I', instr_word)
 1. **助记符与编码**：trusted 指令集（`set.zw`/`or.w`/`st.o`/`ld.o`/`add.si` 等）按 0.5.3 命名与 `contracts/opcodes.yaml` 的 mask/value 生成，**不复制 0.4.1 的 `setzw`/`orw`/`sto` 编码与手写字节**。
 2. **地址布局以 v5 ADR 为准**：BINARY_BASE / exit port / state-dump / ROM 地址从 `SPEC-006t` 的 `.tao/knowledge/adr-0004-test-machine.md` 读取，若与 0.4.1 数值有出入，以 v5 ADR 为准。
 3. **退出/停机语义**：M1 **没有** halt/退出指令——程序退出经 **exit port**（`ADR-0004 D3`：地址 `0xffff_8000_0000`、恰好 8 字节 `st.o` 写）；harness 的退出判定以 `ADR-0004 D3` 与机器 fault 码（`D4/D5`）为准。**注意**：`contract-isa.md §7.5` 是**特权 cfx 系统指令（Excluded from M1）**，与退出无关，**不得**引用它解释 halt。
-4. **QEMU 构建路径**：`INFRA-006t` 的 `build-qemu` 为 **in-tree 构建**（`cd $(QEMU_SRC) && ./configure …`），产物实际在 **`.work/source/qemu/build/`**；`QEMU_BUILD ?= .work/build/qemu` 变量当前**未被 recipe 引用**（见 `deferred.md`，`QEMU-003t` 前须确认是否改 out-of-tree）。harness 脚本定位 QEMU 二进制时以**实际产物路径**为准。
+4. **QEMU 构建路径**：`build-qemu` 为 **out-of-tree** 构建（`QEMU-003t` 起：`mkdir -p $(QEMU_BUILD) && cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure …`），产物在 **`.work/build/qemu/qemu-system-dadao`**（`QEMU_BUILD ?= .work/build/qemu` 已被 recipe 引用）。harness 脚本定位 QEMU 二进制时以此为准。
 5. **state-dump 读取机制**：0.4.1 未定稿（在 README 里二选一），v5 实现时选最简可行方案（serial 输出 hex / QMP memory dump / 退出后读文件），并把选择记录进 README。
 6. **向量来源**：`tests/vectors/` 由 `TESTCASES` 模块交付，字段 schema 以 `TESTCASES-002t` 为准，不沿用 0.4.1 向量正文。
 
