@@ -43,7 +43,7 @@
 - **lit RUN 模板**：
   ```asm
   # RUN: llvm-mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
-  # RUN: llvm-objdump -d %t | FileCheck %s --check-prefix=OBJ
+  # RUN: llvm-objdump -d --triple=dadao-unknown-elf %t | FileCheck %s --check-prefix=OBJ
   # RUN: llvm-mc --triple=dadao-unknown-elf -filetype=asm %s | FileCheck %s --check-prefix=ASM
   ```
 - **CHECK 前缀约定**：

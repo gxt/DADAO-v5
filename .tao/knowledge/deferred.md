@@ -65,3 +65,5 @@
 - **越界立即数静默截断（`LLVM-006t` reviewer ②，2026-09-18 登记）**：分支/跳转的 fixup 越界（如 imms12 需 0x2001）被静默截断为低位，**无 `fixup out of range` 诊断**。M1 无链接器/重定位，无实际危害；M2 应加范围检查。归属：M2 AsmParser 增强。
 - **未定义符号静默为 0（`LLVM-006t` reviewer ③，2026-09-18 登记）**：`call ext_sym`（未定义）→ `!IsResolved` 提前 return + `getRelocType` stub → 立即数保持 0、无错误、无重定位段。M1 无 reloc 属已知限制；M2 必须报未定义符号或生成重定位。归属：M2。
 - **`getFixupKindForInstr` 的 default 分支未白名单化（`LLVM-006t` reviewer ④，2026-09-18 登记）**：非分支的符号操作数会落入 default（按 PCRel_18 处理），语义可疑且脆弱。M1 非预期用法；建议后续显式白名单并对其余报错。归属：`LLVM-006t` 补丁修订（若 M1 内修）或 M2。
+- **`DecodeGPRFRegisterClass` 未使用告警（`LLVM-007t` 交叉复核登记，2026-09-18）**：M1 无 RF 指令 → TableGen 生成的 decoder 表不含该函数调用 → `-Wunused-function` 告警（当前未启用 `-Werror`，构建通过）。M2 引入浮点指令后自然消解；如需立即消除可加 `LLVM_ATTRIBUTE_UNUSED`。归属：M2。
+- **`llvm-objdump -d` 需显式 `--triple=dadao-unknown-elf`（`LLVM-007t` 登记，2026-09-18）**：ELF `e_machine` 未映射到 dadao（project-custom，未注册 upstream），故 `llvm-objdump -d <obj>` 不带 `--triple` 会报 `cannot find target ... unknown--`。已写入 `LLVM-008t` 的 RUN 模板；后续 lit/oracle 任务（`008t`/`012t`）须沿用。归属：M2 若注册 `e_machine` 映射可消解。
