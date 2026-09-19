@@ -23,6 +23,7 @@
 
 - **`fetch.py` 选源标签逻辑重复（`INFRA-009t` 遗留，DRY）**：`main()` 为打印实际使用的源，重新解析了一遍 `COMPONENT_SOURCE_<NAME>` 与 `source[0]["name"]`，与 `select_source()` 内部逻辑重复。当前行为正确（打印发生在 `sync_mirror` 之前，短路时也能看到实际源），但两处逻辑未来可能不同步。建议 refactor：让 `select_source()` 返回 `(url, label)` 元组，或在 `main()` 复用其解析结果。非阻塞，无功能影响。
 - **ADR-0005 Consequences C2 表述可更精确（`INFRA-009t` 交叉复核登记）**：C2 写「`sync_mirror` 接收解析后的源 URL」，实际是 `select_source()` 完成解析、`sync_mirror` 只接收 `source_url` 参数（本身不解析）。属表述问题、非事实错误；ADR-0005 已 `Accepted`，按 `adr-authoring.md` 不直接改写。
+- **`make doctor` 不检查 QEMU 构建依赖（`QEMU-002t` 登记，2026-09-18）**：`tools/infra/doctor.py`（`INFRA-005t` 产出）在 native 路径只查 `git/make/cmake/python3/ninja/clang/docker`，**不检查 QEMU 的构建依赖**（`glib-2.0`/`pixman-1`/`libfdt` 等）。现象：`make doctor` PASS 但 `./configure --target-list=riscv64-softmmu --enable-tcg` 因缺 `glib-2.0` 失败（exit 1）。影响：后续 `build-qemu` 目标在 doctor PASS 的环境下仍可能因缺依赖而失败。归属：`infra` 模块后续任务（`doctor.py` 增加 QEMU/LLVM 等组件的构建依赖检查）。
 
 ## testcases
 
@@ -67,3 +68,5 @@
 - **`getFixupKindForInstr` 的 default 分支未白名单化（`LLVM-006t` reviewer ④，2026-09-18 登记）**：非分支的符号操作数会落入 default（按 PCRel_18 处理），语义可疑且脆弱。M1 非预期用法；建议后续显式白名单并对其余报错。归属：`LLVM-006t` 补丁修订（若 M1 内修）或 M2。
 - **`DecodeGPRFRegisterClass` 未使用告警（`LLVM-007t` 交叉复核登记，2026-09-18）**：M1 无 RF 指令 → TableGen 生成的 decoder 表不含该函数调用 → `-Wunused-function` 告警（当前未启用 `-Werror`，构建通过）。M2 引入浮点指令后自然消解；如需立即消除可加 `LLVM_ATTRIBUTE_UNUSED`。归属：M2。
 - **`llvm-objdump -d` 需显式 `--triple=dadao-unknown-elf`（`LLVM-007t` 登记，2026-09-18）**：ELF `e_machine` 未映射到 dadao（project-custom，未注册 upstream），故 `llvm-objdump -d <obj>` 不带 `--triple` 会报 `cannot find target ... unknown--`。已写入 `LLVM-008t` 的 RUN 模板；后续 lit/oracle 任务（`008t`/`012t`）须沿用。归属：M2 若注册 `e_machine` 映射可消解。
+- **`QEMU_BUILD` 未使用 / 构建落点不一致（`QEMU-002t` 登记，2026-09-18）**：Makefile 定义 `QEMU_BUILD ?= .work/build/qemu`，但 `build-qemu` recipe 的 configure 实际写到 `.work/source/qemu/build`（QEMU 默认 in-tree build），`QEMU_BUILD` 变量未被 recipe 引用。构建落点不一致（`.work/build/qemu` vs `.work/source/qemu/build`）。归属：`QEMU-003t` 前须与用户确认是否改为 out-of-tree 构建（`-B $(QEMU_BUILD)`）或移除未使用的 `QEMU_BUILD` 变量。
+- **v11.x 目录结构变更（`QEMU-002t` reviewer 实证，2026-09-18）**：v11.1.1 把 `target/riscv/translate.c` 移到 `target/riscv/tcg/translate.c`（子目录拆分）。`QEMU-003t` 适配 DADAO target 时须注意此结构变更（ADR-0008 C5 已预警 v11.x 可能有需适配的变更）。

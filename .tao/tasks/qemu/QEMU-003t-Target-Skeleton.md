@@ -44,7 +44,7 @@
 
 **QOM/CPU 注册（`cpu.c`）**：`TypeInfo.name = DADAO_CPU_TYPE_NAME("any")`；实现 `dadao_cpu_do_interrupt()`（存根）；实现 `dadao_cpu_tlb_fill()`（M1 仅物理地址）；`disas_set_info` 可暂缺。
 
-**TCG 翻译骨架（`translate.c`）**：`gen_intermediate_code()` 读取 32-bit 大端指令字（`translator_ldl_swap` 等，以所选 QEMU 版本的 `target/riscv/translate.c` 为准）；全部指令分派默认 `gen_exception_illegal()`；fetch 步进 4。
+**TCG 翻译骨架（`translate.c`）**：`gen_intermediate_code()` 读取 32-bit 大端指令字（`translator_ldl_swap` 等，以所选 QEMU 版本的 `target/riscv/translate.c` 为准；**注（2026-09-19）**：v11.1.1 已将该文件移至 **`target/riscv/tcg/translate.c`**——见 `deferred.md`）；全部指令分派默认 `gen_exception_illegal()`；fetch 步进 4。
 
 **Helper 骨架（`helper.c`/`helper.h`）**：`raise_exception`、`illegal`；异常编号在 `cpu.h` 定义（ILLI/UNDI/MALIGN/IALIGN，编号以 ADR-0004 D5 与所选 QEMU 版本约定为准，不与 guest exit signature 混用）。
 

@@ -26,7 +26,7 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
   - RB 语义不同：0.5.3 RB 算术为全 64 位运算，bits[63:48] 为运算结果、可用于溢出检测；0.4.1 截断到 48 位。不得沿用 0628 的 `& 0x0000FFFFFFFFFFFF` 掩码写法作为 RB 结果。
   - 测试机权威不同：exit port 协议、内存图、MALIGN/ILLI/UNDI 可观测行为以 v5 `.tao/knowledge/adr-0004-test-machine.md`（`SPEC-006t` 产出）为准，不照抄 0628 `docs/adr/0004-test-machine.md`。
   - 目录/工具不同：v5 任务在 `.tao/tasks/qemu/`；上游 checkout 落在 `.work/source/qemu`（`INFRA-004t` 约定），构建落在 `.work/build/qemu`；参考锁指向 `.work/DADAO-0628`。
-  - 不照抄 0628 的 QEMU commit 作为既定基线；版本由 `QEMU-002t` 的 ADR-0006 独立记录并验证。
+  - 不照抄 0628 的 QEMU commit 作为既定基线；版本由 `QEMU-002t` 的 ADR-0008 独立记录并验证。
   - 路线与参考直接指向 DADAO-0628，不使用任何按开发批次命名的目录或字段。
 
 ## 任务分解
