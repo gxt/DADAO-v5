@@ -2,8 +2,9 @@
 
 **模块**：qemu
 **项目里程碑**：M1
-**依赖**：`QEMU-004t`、`TESTCASES-003t`、`SPEC-006t`
+**依赖**：`QEMU-004t`、`QEMU-006t`、`SPEC-006t`
 **状态**：已验证
+> **ADR-0010 D1/D3 修订（2026-09-19）**：依赖由 `QEMU-004t, TESTCASES-003t, SPEC-006t` 改为 `QEMU-004t, QEMU-006t`（006t 完成后 harness 可端到端跑 RD-only 向量）。dumper 段行为将由新任务 `QEMU-020t` 改造（D1 修法 a：普通模式不 emit dumper）。完成区/审阅记录保持不变。
 
 ## 执行环境
 

@@ -107,7 +107,7 @@
 3. 所有 ILLI 检查先于 TCG 写；rd0 写为 NOP；源在写前快照
 4. 除零与 `INT_MIN ÷ −1` 产生运行时 ILLI（TCG 条件分支），非 build 期 assert
 5. 未覆盖指令仍为 ILLI 桩
-6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/<对应>.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS。**已知依赖（2026-09-19 取证）**：harness 端到端需 `QEMU-005t`（loader/比较指令 `set.zw`/`or.w`/`xor.o`/`or.o`）+ `QEMU-006t`（`st.o`：exit port 与 dumper 的观测通道）+ `QEMU-008t`（`jump`/`br.nz`：ROM trampoline 与分支；loader 读 RB 的 `rb2rd` 按 `contract-isa §4` 亦属本任务，不在 005t 的 §3.7）；故本任务级验收以 `make build-qemu` PASS + 代码级逐条核对 `contract-isa §3` 为主，harness 端到端顺延至 `QEMU-008t` 完成后统一复跑）
+6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/<对应>.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-021m` 里程碑核验必须全量语义 PASS。**已知依赖（2026-09-19 取证）**：harness 端到端需 `QEMU-005t`（loader/比较指令 `set.zw`/`or.w`/`xor.o`/`or.o`）+ `QEMU-006t`（`st.o`：exit port 与 dumper 的观测通道）+ `QEMU-008t`（`jump`/`br.nz`：ROM trampoline 与分支；loader 读 RB 的 `rb2rd` 按 `contract-isa §4` 亦属本任务，不在 005t 的 §3.7）；故本任务级验收以 `make build-qemu` PASS + 代码级逐条核对 `contract-isa §3` 为主，harness 端到端顺延至 `QEMU-008t` 完成后统一复跑）
 7. 完成区含真实构建/运行输出；未自行 commit
 8. **最小 ROM 探针回归**（harness 端到端不可用时的必需运行期证据）：用 `-bios`/`-kernel` 直接运行含本任务指令的最小 ROM（reset PC=ROM base；ILLI→exit `0x88`），验证**合法指令不崩溃**、非法/边界情形退出码正确——第 1 轮即靠此法抓到 `div` 的 `NORETURN` 崩溃（B1）
 

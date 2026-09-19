@@ -1,9 +1,10 @@
-# QEMU-008t: 控制流 + RB 指令
+# QEMU-008t: 控制流 + RB 指令（范围收窄：jump-rrii/br.nz 已前置到 006t）
 
 **模块**：qemu
 **项目里程碑**：M1
 **依赖**：`QEMU-007t`、`SPEC-006t`
 **状态**：待开始
+**补丁**：`0006-dadao-ctrl-flow.patch`（ADR-0010 D3 重编号）
 
 ## 执行环境
 
@@ -17,7 +18,8 @@
   - `.tao/knowledge/adr-0004-test-machine.md`（fault/exit 可观测、RASOF/RASUF）
   - `contracts/opcodes.yaml`、`contracts/legality_rules.yaml`
   - `tests/vectors/isa/ctrl-br.yaml`、`tests/vectors/isa/ctrl-jump.yaml`、`tests/vectors/isa/ctrl-call.yaml`、`tests/vectors/isa/ctrl-ret.yaml`、`tests/vectors/isa/reg-arith.yaml`、`tests/vectors/isa/reg-imm-block.yaml`、`tests/vectors/isa/mem-rb.yaml`（TDD 向量，先于实现；原 `control-flow.yaml`/`rb-ops.yaml` 已按实际指令拆分为多个文件）
-- 输出：`components/qemu/patches/0005-dadao-ctrl-flow.patch`、`components/qemu/patches/series`、控制流/RB 向量补充
+- 输出：`components/qemu/patches/0006-dadao-ctrl-flow.patch`、`components/qemu/patches/series`、控制流/RB 向量补充
+- **注意（ADR-0010 D1/D3）**：`jump-rrii` 和 `br.nz` 已前置到 `QEMU-006t`（补丁 `0004`），本任务不再包含此二指令
 - 约束：
   - **TDD：先写/补向量，再写 `trans_*` 实现**（两个独立 commit）
   - branch/jump/call 地址公式以 §5 为准（`PC = rb0 + (imm << 2)`，48 位、不溢出）
@@ -47,7 +49,7 @@
 | `br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np` | riii | 单寄存器条件跳转，`PC = rb0 + (imms18 << 2)` |
 | `br.z-rb`/`br.nz-rb` | riii | RB 条件跳转 |
 | `jump-iiii` | iiii | `PC = rb0 + (imms24 << 2)` |
-| `jump-rrii` | rrii | `PC = rbha + rdhb + (imms12 << 2)`（48 位） |
+| ~~`jump-rrii`~~ | ~~rrii~~ | ~~**已前置到 QEMU-006t**（ADR-0010 D1）~~ |
 | `call-iiii` | iiii | 计算返回地址压入 ra63，`PC = rb0 + (imms24 << 2)` |
 | `call-rrii` | rrii | 同上，`PC = rbha + rdhb + (imms12 << 2)` |
 | `ret` | riii | `rdha = sign_extend(imms18)`，`PC = ra63 低 48 位`，弹栈 |
@@ -80,8 +82,8 @@
 ## 交付物
 
 - 控制流/RB 向量补充（`tests/vectors/isa/ctrl-br.yaml`、`ctrl-jump.yaml`、`ctrl-call.yaml`、`ctrl-ret.yaml`、`reg-arith.yaml`、`reg-imm-block.yaml`、`mem-rb.yaml`，commit A，先于实现）。
-- `components/qemu/patches/0005-dadao-ctrl-flow.patch`（commit B）：`target/dadao/translate.c` 中控制流与 RB `trans_*`。
-- `components/qemu/patches/series`：加入 `0005`。
+- `components/qemu/patches/0006-dadao-ctrl-flow.patch`（commit B）：`target/dadao/insn_trans/trans_ctrl.c.inc`（或 `translate.c`，视 `0005` 拆分是否已完成）中控制流与 RB `trans_*`。
+- `components/qemu/patches/series`：加入 `0006`。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -115,13 +117,17 @@
 
 ## 验收标准
 
-1. 控制流/RB 向量补充 commit 早于 `trans_*` 实现 commit（`git log` 证据）
-2. `components/qemu/patches/0005-dadao-ctrl-flow.patch` 存在且干净 apply；`series` 已加入
-3. 控制流全部指令（含 `br.*-rb`、`jump`/`call` 两形式、`ret`、`rela`、`swym`）实现；RegRAS 按 §5.3/§5.4 完整
-4. RB 指令全部实现；RB 算术为全 64 位（无 48 位截断）；rb0 目的 ILLI
-5. 分支地址公式与 §5 及 `TESTCASES-005t`/`TESTCASES-006t` 向量一致；not-taken 推进到下一指令
-6. `make build-qemu` PASS；每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml tests/vectors/isa/ctrl-jump.yaml tests/vectors/isa/mem-rb.yaml` 全量 PASS（TDD 式：harness 骨架与比较逻辑先于或同步于语义实现交付；若特定 `trans_*` 实现时 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS。**已知依赖（2026-09-19 取证）**：harness 端到端需 `QEMU-005t`（loader/比较指令）+ `QEMU-006t`（`st.o`：观测通道）+ `QEMU-008t`（`jump`/`br.nz`：trampoline 与分支）——**本任务完成后三者齐备，harness 端到端应全量复跑**（含 005t–007t 的向量））
-7. 完成区含真实构建/运行输出；未自行 commit
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | 控制流/RB 向量补充 commit 早于 `trans_*` 实现 commit（`git log` 证据） | 现在可跑 | TDD |
+| 2 | `components/qemu/patches/0006-dadao-ctrl-flow.patch` 存在且干净 apply；`series` 已加入 | 现在可跑 | `git am` |
+| 3 | 控制流全部指令（含 `br.*-rb`、`jump-iiii`、`call` 两形式、`ret`、`rela`、`swym`）实现；RegRAS 按 §5.3/§5.4 完整 | 现在可跑 | `make build-qemu` + 代码级审查 |
+| 4 | RB 指令全部实现；RB 算术为全 64 位（无 48 位截断）；rb0 目的 ILLI | 现在可跑 | 代码级审查 |
+| 5 | 分支地址公式与 §5 及 `TESTCASES-005t`/`TESTCASES-006t` 向量一致；not-taken 推进到下一指令 | 现在可跑 | 代码级 + 向量核对 |
+| 6 | `make build-qemu` PASS | 现在可跑 | 构建 |
+| 7 | **harness e2e 控制流向量**：`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml tests/vectors/isa/ctrl-jump.yaml tests/vectors/isa/mem-rb.yaml` 全量 PASS | BLOCKED | 原因：harness 普通模式需 `020t` 完成 dumper 改造（D1 修法 a）。替代：最小 ROM 探针验证分支/jump/br.nz 语义 |
+| 8 | **最小 ROM 探针回归**：构造含条件分支 taken/not-taken 的最小 ROM，验证 exit code 区分正常完成与异常 | 现在可跑 | 手写最小 ROM binary |
+| 9 | 完成区含真实构建/运行输出；未自行 commit | 现在可跑 | |
 
 ## 完成区
 

@@ -34,17 +34,19 @@
 
 ## 交付物
 
-- `components/qemu/patches/0008-dadao-ra-semantics.patch`：RA 指令 `trans_*`（`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`/`rd2ra`/`ra2rd`）+ RA 寄存器模型辅助函数。
-- `components/qemu/patches/series`：追加 `0008`。
+- `components/qemu/patches/0007-dadao-ra-semantics.patch`：RA 指令 `trans_*`（`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`/`rd2ra`/`ra2rd`）+ RA 寄存器模型辅助函数。
+- `components/qemu/patches/series`：追加 `0007`。
 - RA 向量补充（`tests/vectors/isa/mem-ra.yaml`，含 normal/legality/boundary）。
 
 ## 验收标准
 
-1. `components/qemu/patches/0008-dadao-ra-semantics.patch` 存在且干净 apply；`series` 已追加 `0008`
-2. RA 指令语义与 `contract-isa.md` §4.9 一致（含 MemRAS/RegRAS 模型；`rd2ra`/`ra2rd` 块赋值含 ILLI 检查）
-3. 对齐/合法性异常按 ADR-0004 可观测（MALIGN/ILLI，精确、无 commit）
-4. 每完成一个 `trans_*` 即用 `QEMU-014t`/`QEMU-015t` 的 harness 验证：RA 向量经「raw encoding → QEMU 执行 → 结果比对」一致（TDD 式；若 harness 尚未完成，记录依赖并保留可复现命令。该免责仅适用任务级验收；`QEMU-020m` 里程碑核验必须全量语义 PASS）
-5. `make build-qemu` 全绿；未越界改动非 RA 指令
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | `components/qemu/patches/0007-dadao-ra-semantics.patch` 存在且干净 apply；`series` 已追加 `0007` | 现在可跑 | `git am` |
+| 2 | RA 指令语义与 `contract-isa.md` §4.9 一致（含 MemRAS/RegRAS 模型；`rd2ra`/`ra2rd` 块赋值含 ILLI 检查） | 现在可跑 | `make build-qemu` + 代码级逐条核对 |
+| 3 | 对齐/合法性异常按 ADR-0004 可观测（MALIGN/ILLI，精确、无 commit） | 现在可跑 | 最小 ROM 探针 |
+| 4 | harness 端到端验证：RA 向量经「raw encoding → QEMU 执行 → 结果比对」一致 | BLOCKED | 原因：harness 需 `008t`（rb2rd）+ `015t`（emit_state_compare 含 ra2rd）+ `020t`（dumper 改造）。替代：`make build-qemu` PASS + 代码级逐条核对 §4.9 + 最小 ROM 探针 |
+| 5 | `make build-qemu` 全绿；未越界改动非 RA 指令 | 现在可跑 | 构建 + diff |
 
 ## 完成区
 

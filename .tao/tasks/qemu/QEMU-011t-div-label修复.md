@@ -89,11 +89,13 @@ label_ok:
 
 ## 验收标准
 
-1. 运行 `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --filter mnemonic:div` 并记录输出
-2. div/rem semantic 向量全 PASS（exit=0），含除零与 `INT_MIN ÷ −1` 的 ILLI case（exit=0x88）
-3. 正常路径结果符合 §3.1.5（truncate-toward-zero、余数符号 = 被除数符号）
-4. 完成区含真实运行输出与 PASS/FAIL 统计
-5. 若发现 `div.*`/`rem.*` 行为与 §3.1.5 不一致，在完成区登记为遗留
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | 运行 `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --filter mnemonic:div` 并记录输出 | BLOCKED | 原因：需 `QEMU-010t` 实现 + harness 可用（`020t`）。替代：最小 ROM 探针 |
+| 2 | div/rem semantic 向量全 PASS（exit=0），含除零与 `INT_MIN ÷ −1` 的 ILLI case（exit=0x88） | BLOCKED | 同上 |
+| 3 | 正常路径结果符合 §3.1.5（truncate-toward-zero、余数符号 = 被除数符号） | BLOCKED | 同上 |
+| 4 | 完成区含真实运行输出与 PASS/FAIL 统计 | 现在可跑 | |
+| 5 | 若发现 `div.*`/`rem.*` 行为与 §3.1.5 不一致，在完成区登记为遗留 | 现在可跑 | |
 
 ## 完成区
 

@@ -16,7 +16,7 @@
   - `.tao/knowledge/contract-isa.md` §4.2（存取 RB 寄存器：`ldm.o-rb`/`stm.o-rb`）、§1.5（48 位有效地址）
   - `.tao/knowledge/adr-0004-test-machine.md`（MALIGN 可观测）
   - `contracts/opcodes.yaml`（`ldm.o-rb` 的 op/格式/legality）、`tests/vectors/isa/mem-rb.yaml`
-- 输出：修订后的 `components/qemu/patches/0005-dadao-ctrl-flow.patch`、向量状态更新
+- 输出：修订后的 `components/qemu/patches/0006-dadao-ctrl-flow.patch`、向量状态更新
 - 约束：
   - 参考对称的 `stm.o-rb` 实现
   - EA = `(rb[hb] + rd[hc]) mod 2^48`
@@ -51,7 +51,7 @@
 
 ## 交付物
 
-- 修订后的 `components/qemu/patches/0005-dadao-ctrl-flow.patch`：`trans_ldm_o_rb`（v5 名）实现。
+- 修订后的 `components/qemu/patches/0006-dadao-ctrl-flow.patch`：`trans_ldm_o_rb`（v5 名）实现。
 - `tests/vectors/isa/mem-rb.yaml`：`ldm.o-rb` 向量从 `deferred` 改回 `active`（按 v5 向量实际）。
 - `components/qemu/patches/series`：序号不变或追加（以 v5 实际序列为准）。
 
@@ -61,7 +61,7 @@
 2. **源/目标约定**：v5 `ldm.o-rb rbha, rbhb, rdhc, immu6`，目标为 RB bank；`rdhc` 为单一索引寄存器。
 3. **`hc+hd>64` 检查**：0628 任务曾要求但实现未做（N1），因其 `rdhc` 为单一索引而非范围；v5 以 §4.2 与 `contracts/legality_rules.yaml` 为准，不盲目照搬。
 4. **对齐/异常**：以 v5 ADR-0004 D4 与 `QEMU-007t` 的 MALIGN 机制为准。
-5. **补丁组织**：0628 将 `ldmo_rb` 改动留在工作树，后并入较大补丁；v5 修订 `0005` 或单独追加。
+5. **补丁组织**：0628 将 `ldmo_rb` 改动留在工作树，后并入较大补丁；v5 修订 `0006` 或单独追加。
 
 ## 已知坑 / 结论
 
@@ -79,17 +79,19 @@
 
 - DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-025a-qemu-ldmo-rb-impl.md`
 - 本项目：`.tao/knowledge/contract-isa.md` §4.2、§1.5；`contracts/opcodes.yaml`；`contracts/legality_rules.yaml`
-- 本项目：`.tao/tasks/qemu/QEMU-007t-MALIGN精确异常.md`、`.tao/tasks/qemu/QEMU-008t-控制流与RB.md`
+- 本项目：`.tao/tasks/qemu/QEMU-006t-RD存取与MALIGN.md`（MALIGN 精确异常已并入 006t）、`.tao/tasks/qemu/QEMU-008t-控制流与RB.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
 
-1. `trans_ldm_o_rb`（v5 名）由 ILLI 桩替换为完整实现，与 `stm.o-rb` 对称
-2. ILLI 检查（`rbha==rb0`、`immu6==0`、`rbha+immu6>64`）先于写；EA 48 位截断；大端 8 字节 load
-3. 未对齐 → MALIGN 精确
-4. `mem-rb.yaml` 中 `ldm.o-rb` 向量为 `active` 且运行 PASS
-5. `make build-qemu` PASS；不引入其他向量回退
-6. 完成区含真实构建/运行输出；未自行 commit
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | `trans_ldm_o_rb`（v5 名）由 ILLI 桩替换为完整实现，与 `stm.o-rb` 对称 | 现在可跑 | `make build-qemu` + 代码审查 |
+| 2 | ILLI 检查（`rbha==rb0`、`immu6==0`、`rbha+immu6>64`）先于写；EA 48 位截断；大端 8 字节 load | 现在可跑 | 代码审查 |
+| 3 | 未对齐 → MALIGN 精确 | 现在可跑 | 最小 ROM 探针 |
+| 4 | `mem-rb.yaml` 中 `ldm.o-rb` 向量为 `active` 且运行 PASS | BLOCKED | 原因：harness 普通模式需 `020t`。替代：最小 ROM 探针 |
+| 5 | `make build-qemu` PASS；不引入其他向量回退 | 现在可跑 | 构建 |
+| 6 | 完成区含真实构建/运行输出；未自行 commit | 现在可跑 | |
 
 ## 完成区
 

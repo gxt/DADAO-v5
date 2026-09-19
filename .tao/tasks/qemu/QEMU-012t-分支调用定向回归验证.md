@@ -84,13 +84,15 @@
 
 ## 验收标准
 
-1. 运行 `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml tests/vectors/isa/ctrl-jump.yaml tests/vectors/isa/ctrl-call.yaml tests/vectors/isa/ctrl-ret.yaml` 并记录输出
-2. 全量 PASS（encoding + semantic + legality），0 FAIL
-3. taken case 的 `expected_pc` 与 §5 公式一致
-4. not-taken case PC 推进到下一指令（不踩 poison `illi`）
-5. `call→ret→landing` 往返 PASS（证明 RA 压栈/弹栈正确）
-6. 完成区含真实运行输出与 PASS/FAIL 统计
-7. 若发现分支/call 行为与 §5 不一致，在完成区登记为遗留
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | 运行 `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml tests/vectors/isa/ctrl-jump.yaml tests/vectors/isa/ctrl-call.yaml tests/vectors/isa/ctrl-ret.yaml` 并记录输出 | BLOCKED | 原因：需 `QEMU-011t` 完成 + harness 可用（`020t`）。替代：最小 ROM 探针 |
+| 2 | 全量 PASS（encoding + semantic + legality），0 FAIL | BLOCKED | 同上 |
+| 3 | taken case 的 `expected_pc` 与 §5 公式一致 | BLOCKED | 同上 |
+| 4 | not-taken case PC 推进到下一指令（不踩 poison `illi`） | BLOCKED | 同上 |
+| 5 | `call→ret→landing` 往返 PASS（证明 RA 压栈/弹栈正确） | BLOCKED | 同上 |
+| 6 | 完成区含真实运行输出与 PASS/FAIL 统计 | 现在可跑 | |
+| 7 | 若发现分支/call 行为与 §5 不一致，在完成区登记为遗留 | 现在可跑 | |
 
 ## 完成区
 

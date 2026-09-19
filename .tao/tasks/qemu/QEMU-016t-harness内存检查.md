@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M1
-**依赖**：`QEMU-015t`、`TESTCASES-006t`
+**依赖**：`QEMU-015t`、`TESTCASES-004t`
 **状态**：待开始
 
 ## 执行环境
@@ -113,12 +113,14 @@ or  MISMATCH_ACC, MISMATCH_ACC, TEMP_RD_EXP      # 累加失配
 
 ## 验收标准
 
-1. 纯 memory 向量（无 rd/rb 期望）不再静默 PASS，memory 比对路径被激活
-2. 所有 store 语义向量在 RAM 地址迁移完成后 PASS
-3. 篡改一条 `expected_state.memory.value` → FAIL；改回 → PASS
-4. 多 entry 向量（如 `stm.*`）所有 entry 均被比对
-5. `n_patch`/guard patching 节未被修改（diff 确认）
-6. 全量 semantic 向量回归 PASS
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | 纯 memory 向量（无 rd/rb 期望）不再静默 PASS，memory 比对路径被激活 | BLOCKED | 原因：需 `QEMU-015t` 完成 + harness 可用（`020t`）。替代：代码审查 |
+| 2 | 所有 store 语义向量在 RAM 地址迁移完成后 PASS | BLOCKED | 同上 |
+| 3 | 篡改一条 `expected_state.memory.value` → FAIL；改回 → PASS | BLOCKED | 同上 |
+| 4 | 多 entry 向量（如 `stm.*`）所有 entry 均被比对 | BLOCKED | 同上 |
+| 5 | `n_patch`/guard patching 节未被修改（diff 确认） | 现在可跑 | diff |
+| 6 | 全量 semantic 向量回归 PASS | BLOCKED | 需 harness 可用（`020t`） |
 
 ## 完成区
 

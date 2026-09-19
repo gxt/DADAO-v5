@@ -108,12 +108,14 @@ binary layout:
 
 ## 验收标准
 
-1. `emit_call_ret_pattern()` 实现三段 layout，`expected_pc`+`expected_state.ra` behavior 可触发
-2. call_i taken、call_r taken、ret 组合 pattern 均激活并 PASS
-3. `call→ret→landing` 往返路径 PASS，证明 `ra[63]` 压栈/弹栈正确
-4. `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-call.yaml` 0 FAIL，既有 PASS 基线不退化
-5. call_r encoding 在完成区给出从 `contract-isa.md` §5.4 的手推依据
-6. `reg-arith.yaml` 回归不破坏
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | `emit_call_ret_pattern()` 实现三段 layout，`expected_pc`+`expected_state.ra` behavior 可触发 | 现在可跑 | 代码审查 |
+| 2 | call_i taken、call_r taken、ret 组合 pattern 均激活并 PASS | BLOCKED | 原因：需 `QEMU-012t` 完成 + harness 可用（`020t`）。替代：最小 ROM 探针 |
+| 3 | `call→ret→landing` 往返路径 PASS，证明 `ra[63]` 压栈/弹栈正确 | BLOCKED | 同上 |
+| 4 | `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-call.yaml` 0 FAIL，既有 PASS 基线不退化 | BLOCKED | 同上 |
+| 5 | call_r encoding 在完成区给出从 `contract-isa.md` §5.4 的手推依据 | 现在可跑 | |
+| 6 | `reg-arith.yaml` 回归不破坏 | BLOCKED | 需 harness 可用（`020t`） |
 
 ## 完成区
 

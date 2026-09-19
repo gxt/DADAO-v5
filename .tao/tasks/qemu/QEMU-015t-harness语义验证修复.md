@@ -137,12 +137,14 @@ sys.exit(0)
 
 ## 验收标准
 
-1. encoding class 向量仍全 PASS（exit=0）
-2. semantic class 向量按 `expected_state` 判定：正确时 PASS
-3. legality class（`expected_fault: ILLI`）按 fault code 路由 → PASS（修复前为 FAIL）
-4. 临时篡改一条 `expected_state` 后运行 → FAIL 且 CLI `exit=1`；改回后 PASS
-5. 0 case 或全 SKIP → `exit=2`；全 PASS → `exit=0`
-6. `make check` 不被本任务破坏（harness 修改不触碰 `validate_vectors` 路径）
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | encoding class 向量仍全 PASS（exit=0） | BLOCKED | 原因：harness e2e 需 `020t`（dumper 改造）后可跑。替代：代码审查 `emit_state_compare` 逻辑 |
+| 2 | semantic class 向量按 `expected_state` 判定：正确时 PASS | BLOCKED | 同上 |
+| 3 | legality class（`expected_fault: ILLI`）按 fault code 路由 → PASS（修复前为 FAIL） | BLOCKED | 同上 |
+| 4 | 临时篡改一条 `expected_state` 后运行 → FAIL 且 CLI `exit=1`；改回后 PASS | BLOCKED | 同上 |
+| 5 | 0 case 或全 SKIP → `exit=2`；全 PASS → `exit=0` | 现在可跑 | 代码审查 CLI 逻辑 |
+| 6 | `make check` 不被本任务破坏（harness 修改不触碰 `validate_vectors` 路径） | 现在可跑 | |
 
 ## 完成区
 

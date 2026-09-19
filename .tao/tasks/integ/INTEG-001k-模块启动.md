@@ -22,8 +22,8 @@
 
 | 编号 | 任务 | 交付物 | 依赖 |
 |------|------|--------|------|
-| `INTEG-002t` | E2E 套件与回归（最小链路 → 套件 → 可重复重跑） | `tests/e2e/*.s`、`tests/lit/E2E/*` | `LLVM-013m`、`QEMU-020m`、`SPEC-010t` |
-| `INTEG-003t` | 跨模块接口对齐核对 | 接口核对清单/脚本 | `LLVM-013m`、`QEMU-020m`、`SPEC-011m`、`TESTCASES-010m` |
+| `INTEG-002t` | E2E 套件与回归（最小链路 → 套件 → 可重复重跑） | `tests/e2e/*.s`、`tests/lit/E2E/*` | `LLVM-013m`、`QEMU-021m`、`SPEC-010t` |
+| `INTEG-003t` | 跨模块接口对齐核对 | 接口核对清单/脚本 | `LLVM-013m`、`QEMU-021m`、`SPEC-011m`、`TESTCASES-010m` |
 | `INTEG-004m` | M1 集成里程碑 | 里程碑标记 | `INTEG-002t`、`INTEG-003t` |
 
 - **依赖关系**：`002t` 依赖 LLVM/QEMU 里程碑与 spec 冻结；`003t` 依赖两侧里程碑与合约；`004m` 收敛。

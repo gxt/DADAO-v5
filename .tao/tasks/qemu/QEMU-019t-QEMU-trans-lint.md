@@ -4,6 +4,7 @@
 **项目里程碑**：M1
 **依赖**：`SPEC-003t`、`QEMU-013t`
 **状态**：待开始
+> **ADR-0010 D2/D3 修订（2026-09-19）**：本任务需适配 `translate.c` 拆分后的路径——grep `insn_trans/trans_*.c.inc`（而非仅 `translate.c`），对齐 D2 的 10 文件结构。
 
 ## 执行环境
 
@@ -55,7 +56,7 @@
 
 1. **MISC 映射表重建**：0.5.3 没有 `MISC-Norm`，改为主表 + octa/tetra/wyde/byte/RF/AMO 子表体系。
 2. **助记符全面变化**：`unimp`→`illi`、`setzw`→`set.zw`、`orw`→`or.w`、`brn`→`br.n`、`muls`→`mul.so` 等；trans 函数命名以 `QEMU-013t` 实际实现为准核对。
-3. **trans 源码路径**：v5 以 `components/qemu/patches/*.patch` 与 `.work/` 构建树为准。
+3. **trans 源码路径**：v5 以 `components/qemu/patches/*.patch` 与 `.work/` 构建树为准；拆分后 `trans_*` 函数分布在 `insn_trans/trans_*.c.inc` 中（ADR-0010 D2），lint 须同时 grep `translate.c` 和 `insn_trans/trans_*.c.inc`。
 4. **脚本目录**：`scripts/` → `tools/qemu/`。
 
 ## 已知坑 / 结论
@@ -73,10 +74,13 @@
 
 ## 验收标准
 
-1. `python3 tools/qemu/check_qemu_trans.py` 输出 `N/M mnemonics have trans impl` 与 MISSING 明细，默认 exit 0
-2. `--strict` 时缺失项导致 exit 1
-3. 脚本只读 `opcodes.yaml` 与 patch，不改组件源码
-4. 完成区粘贴真实 stdout
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | `python3 tools/qemu/check_qemu_trans.py` 输出 `N/M mnemonics have trans impl` 与 MISSING 明细，默认 exit 0 | 现在可跑 | |
+| 2 | `--strict` 时缺失项导致 exit 1 | 现在可跑 | |
+| 3 | 脚本只读 `opcodes.yaml` 与 patch，不改组件源码 | 现在可跑 | |
+| 4 | 脚本适配 `insn_trans/trans_*.c.inc` 路径（拆分后） | BLOCKED | 原因：需 `007t` 拆分完成后才有 `insn_trans/` 目录。替代：先在 `0004` 补丁（`translate.c` 内联）上验证，拆分后重跑 |
+| 5 | 完成区粘贴真实 stdout | 现在可跑 | |
 
 ## 完成区
 

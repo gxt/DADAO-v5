@@ -4,7 +4,7 @@
 
 | 项目里程碑 | infra | spec | testcases | golden | llvm | qemu | integ | gem5 | sail | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M1 | `INFRA-014m` | `SPEC-011m` | `TESTCASES-010m` | — | `LLVM-013m` | `QEMU-020m` | `INTEG-004m` | — | — | 待开始 |
+| M1 | `INFRA-014m` | `SPEC-011m` | `TESTCASES-010m` | — | `LLVM-013m` | `QEMU-021m` | `INTEG-004m` | — | — | 待开始 |
 | M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
 
 ## 里程碑说明
@@ -54,7 +54,7 @@ spec ──→ testcases ──┤           ├──→ integ ──→ M1
 
 **第 3 层 — MC 后端 + QEMU 核心（+ 各自自测）**（依赖第 2 层，两条线并行）
 - `llvm`：`LLVM-004t` → `005t` → `006t` → `007t`（反汇编器）→ `008t`（全量 lit）→ `010t` → `011t` → `012t`（lit 字节 oracle）
-- `qemu`：`QEMU-004t` → `005t` → `006t` → `007t` → `008t` → `009t` → `010t` → `011t` → `012t` → `013t` → {`014t`~`019t` 自测/trans lint}
+- `qemu`：`QEMU-004t` → `005t` → `006t`(合并) → `007t`(拆分) → `008t` → `009t` → `010t` → `011t` → `012t` → `013t` → {`014t`~`020t` 自测/trans lint/dumper改造}
 
 **第 4 层 — 集成验证**（依赖第 3 层）
 - `integ`：`INTEG-002t`（E2E 套件与回归）、`INTEG-003t`（接口对齐）→ `INTEG-004m`

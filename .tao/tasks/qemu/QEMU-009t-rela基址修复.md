@@ -75,11 +75,13 @@
 
 ## 验收标准
 
-1. 运行 `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --filter mnemonic:rela` 并记录输出
-2. rela semantic/encoding 向量全 PASS（exit=0）
-3. rela legality case（`ha == 0`）返回 ILLI（exit=0x88）
-4. 完成区含真实运行输出与 PASS/FAIL 统计
-5. 若发现 `trans_rela` 行为与 §4.7 不一致，在完成区登记为遗留（含具体偏差描述）
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | 运行 `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --filter mnemonic:rela` 并记录输出 | BLOCKED | 原因：需 `QEMU-008t` 实现 rela 语义 + harness 普通模式可用（`020t`）。替代：最小 ROM 探针验证 rela 基址公式 |
+| 2 | rela semantic/encoding 向量全 PASS（exit=0） | BLOCKED | 同上 |
+| 3 | rela legality case（`ha == 0`）返回 ILLI（exit=0x88） | BLOCKED | 同上 |
+| 4 | 完成区含真实运行输出与 PASS/FAIL 统计 | 现在可跑 | |
+| 5 | 若发现 `trans_rela` 行为与 §4.7 不一致，在完成区登记为遗留（含具体偏差描述） | 现在可跑 | |
 
 ## 完成区
 

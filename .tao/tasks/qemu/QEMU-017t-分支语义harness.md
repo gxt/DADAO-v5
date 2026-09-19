@@ -103,12 +103,14 @@
 
 ## 验收标准
 
-1. `build_branch_test_binary()` 实现 taken/not-taken 两种 layout，poison 用 `illi`
-2. `expected_pc` 调度存在（`expected_pc` 非 null 时走 branch builder），且不改变原有算术/访存路径
-3. ≥16 条 branch/jump semantic 测试激活并 PASS（8 条条件分支各 2 + `jump-iiii`/`jump-rrii`）
-4. `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml`：encoding 测试继续 PASS + semantic 测试 PASS，0 FAIL
-5. offset 计算在完成区给出从 `contract-isa.md` §5 的手推依据
-6. `tests/vectors/isa/reg-arith.yaml` 回归不破坏
+| # | 验收项 | 现在可跑 / BLOCKED | 说明 |
+|---|--------|-------------------|------|
+| 1 | `build_branch_test_binary()` 实现 taken/not-taken 两种 layout，poison 用 `illi` | 现在可跑 | 代码审查 |
+| 2 | `expected_pc` 调度存在（`expected_pc` 非 null 时走 branch builder），且不改变原有算术/访存路径 | 现在可跑 | 代码审查 |
+| 3 | ≥16 条 branch/jump semantic 测试激活并 PASS（8 条条件分支各 2 + `jump-iiii`/`jump-rrii`） | BLOCKED | 原因：需 `QEMU-008t` 实现 + harness 可用（`020t`）。替代：最小 ROM 探针 |
+| 4 | `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml`：encoding 测试继续 PASS + semantic 测试 PASS，0 FAIL | BLOCKED | 同上 |
+| 5 | offset 计算在完成区给出从 `contract-isa.md` §5 的手推依据 | 现在可跑 | |
+| 6 | `tests/vectors/isa/reg-arith.yaml` 回归不破坏 | BLOCKED | 需 harness 可用（`020t`） |
 
 ## 完成区
 

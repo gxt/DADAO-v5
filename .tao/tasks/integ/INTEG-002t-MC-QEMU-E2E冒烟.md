@@ -2,7 +2,7 @@
 
 **模块**：integ
 **项目里程碑**：M1
-**依赖**：`LLVM-013m`、`QEMU-020m`、`SPEC-006t`
+**依赖**：`LLVM-013m`、`QEMU-021m`、`SPEC-006t`
 **状态**：待开始
 
 ## 执行环境
@@ -13,7 +13,7 @@
 
 - 输入：
   - `LLVM-013m` 交付的 `llvm-mc`（DADAO target，能汇编 M1 指令）
-  - `QEMU-020m` 交付的 `qemu-system-dadao`
+  - `QEMU-021m` 交付的 `qemu-system-dadao`
   - `QEMU-014t` 的 ROM trampoline
   - `SPEC-006t` 的 Test Machine ADR（机器名、BINARY_BASE、exit port）
 - 输出：
@@ -85,7 +85,7 @@ echo "exit: $?"
 1. **核心差异 — 必须真正走 MC 路径**：0.4.1 完成区遗留「`llvm-mc` DADAO skeleton 无 `halt`/`add`/`addi`/`jump_i` 定义，绕道 `gen_e2e_binary.py` 手编 raw binary」；v5 依赖 `LLVM-013m` 已交付可汇编 M1 指令的 `llvm-mc`，**本任务以 .s→.o→.bin→QEMU 真实链路为验收**，raw 生成器仅可作过渡并在完成区标注。
 2. **助记符**：`addi`→`add.si`（0.5.3 立即数自增/设置语义变化）、`add`→`add.uo`/`add.so`（rrrr）、`jump_i`→`jump-iiii`、`halt`→退出/停机指令按 `contract-isa.md` §7.5 确定。
 3. **编码**：0.4.1 手推 `0x1904002A` 等；v5 全部由 `llvm-mc` 产生，不手编、不复制。
-4. **机器名/路径**：`-M dadao-m1` 等以 `SPEC-006t` ADR 与 `QEMU-020m` 实际为准；QEMU 路径 `.work/qemu/build/`。
+4. **机器名/路径**：`-M dadao-m1` 等以 `SPEC-006t` ADR 与 `QEMU-021m` 实际为准；QEMU 路径 `.work/qemu/build/`。
 5. **lit 变量**：`%qemu`/`%trampoline`/`%objcopy` 以 v5 `INFRA`/`LLVM` 的构建布局配置。
 6. **退出码**：以 `SPEC-006t` ADR 的 exit port 协议为准。
 
