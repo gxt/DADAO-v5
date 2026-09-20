@@ -121,6 +121,8 @@ DADAO-v5/
 
 **不得自行重试**（避免重复执行/覆盖）。
 
+**连续空返回的处置**：engineer 子代理**连续 ≥3 次**返回空结果且产出未落盘时，主会话**可代行完成修改**，但仍须经 reviewer 独立验收（不得跳过）；该事件须在 `deferred.md` 登记（子代理 task_id、空返回次数、代行内容与验收结果）。
+
 ## 角色与流程
 
 角色规则、任务编号（`<PREFIX>-nnn<suffix>`，模块内递增）、四态状态机与命令（`/plan` `/dispatch` `/complete` `/status`）见全局 `~/.config/opencode/` 与 `.tao/README.md`。工作仓库不含 agent 文件。
