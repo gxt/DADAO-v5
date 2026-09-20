@@ -3,3 +3,4 @@
 0003-dadao-rd-arith.patch
 0004-dadao-load-store.patch
 0005-dadao-translate-split.patch
+0006-dadao-ctrl-flow.patch
