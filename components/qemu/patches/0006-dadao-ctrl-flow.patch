@@ -1,15 +1,16 @@
-From 579d2e4eae0095387b346eb4da00dfd8e24f1447 Mon Sep 17 00:00:00 2001
+From 0d22a295acae1c502595495d09890ba12a54d039 Mon Sep 17 00:00:00 2001
 From: Reviewer <reviewer@example.com>
 Date: Sun, 20 Sep 2026 03:40:19 +0000
-Subject: [PATCH] target/dadao: Implement control flow + RB instructions (008t)
+Subject: [PATCH 6/6] target/dadao: Implement control flow + RB instructions
+ (008t)
 
 ---
  target/dadao/insn_trans/trans_arith.c.inc   |  32 +-
  target/dadao/insn_trans/trans_block.c.inc   |  49 +-
  target/dadao/insn_trans/trans_compare.c.inc |  11 +-
  target/dadao/insn_trans/trans_ctrl.c.inc    | 507 +++++++++++++++++---
- target/dadao/insn_trans/trans_mem.c.inc     |  17 +-
- 5 files changed, 527 insertions(+), 89 deletions(-)
+ target/dadao/insn_trans/trans_mem.c.inc     |  58 ++-
+ 5 files changed, 564 insertions(+), 93 deletions(-)
 
 diff --git a/target/dadao/insn_trans/trans_arith.c.inc b/target/dadao/insn_trans/trans_arith.c.inc
 index 24e7f08..7369a18 100644
@@ -832,7 +833,7 @@ index 0c7cca5..a86512c 100644
      return true;
  }
 diff --git a/target/dadao/insn_trans/trans_mem.c.inc b/target/dadao/insn_trans/trans_mem.c.inc
-index a2c2ea5..51c980f 100644
+index a2c2ea5..29f88e1 100644
 --- a/target/dadao/insn_trans/trans_mem.c.inc
 +++ b/target/dadao/insn_trans/trans_mem.c.inc
 @@ -124,17 +124,26 @@ static bool trans_st_o_rd(DisasContext *ctx, arg_main *a)
@@ -863,6 +864,59 @@ index a2c2ea5..51c980f 100644
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = load_rb(ctx, a->ha);
 +    tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
+     return true;
+ }
+ 
+@@ -410,15 +419,48 @@ static bool trans_stm_o_rd(DisasContext *ctx, arg_main *a)
+ 
+ static bool trans_ldm_o_rb(DisasContext *ctx, arg_main *a)
+ {
+-    /* ldm.o-rb - stub: ILLI */
+-    gen_exception_illegal(ctx);
++    /* S4.2 ldm.o rbha, rbhb, rdhc, immu6 (rrri): multi RB load
++     * ILLI: rbha==rb0, immu6==0, rbha+immu6>64 (before any write)
++     * EA = (rb[hb] + rd[hc]) & 0x0000FFFFFFFFFFFF; stride=8 (octa)
++     * rdhc snapshotted before loop; big-endian 8B aligned load. */
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++        gen_exception_illegal(ctx); return true;
++    }
++    TCGv_i64 base = load_rb(ctx, a->hb);
++    TCGv_i64 offset = load_rd(a->hc);
++    tcg_gen_add_i64(base, base, offset);
++    tcg_gen_andi_i64(base, base, 0x0000FFFFFFFFFFFFULL);
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 ea = tcg_temp_new_i64();
++        tcg_gen_addi_i64(ea, base, i * 8);
++        tcg_gen_andi_i64(ea, ea, 0x0000FFFFFFFFFFFFULL);
++        TCGv_i64 val = tcg_temp_new_i64();
++        tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
++        store_rb(a->ha + i, val);
++    }
+     return true;
+ }
+ 
+ static bool trans_stm_o_rb(DisasContext *ctx, arg_main *a)
+ {
+-    /* stm.o-rb - stub: ILLI */
+-    gen_exception_illegal(ctx);
++    /* S4.2 stm.o rbha, rbhb, rdhc, immu6 (rrri): multi RB store
++     * ILLI: rbha==rb0, immu6==0, rbha+immu6>64 (before any write)
++     * EA = (rb[hb] + rd[hc]) & 0x0000FFFFFFFFFFFF; stride=8 (octa)
++     * rdhc snapshotted before loop; big-endian 8B aligned store. */
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++        gen_exception_illegal(ctx); return true;
++    }
++    TCGv_i64 base = load_rb(ctx, a->hb);
++    TCGv_i64 offset = load_rd(a->hc);
++    tcg_gen_add_i64(base, base, offset);
++    tcg_gen_andi_i64(base, base, 0x0000FFFFFFFFFFFFULL);
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 ea = tcg_temp_new_i64();
++        tcg_gen_addi_i64(ea, base, i * 8);
++        tcg_gen_andi_i64(ea, ea, 0x0000FFFFFFFFFFFFULL);
++        TCGv_i64 val = load_rb(ctx, a->ha + i);
++        tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
++    }
      return true;
  }
  

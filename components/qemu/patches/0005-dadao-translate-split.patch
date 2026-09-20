@@ -1,7 +1,8 @@
 From 99a4ddae98348264309bb348d86981846c6d6acd Mon Sep 17 00:00:00 2001
 From: DADAO-v5 <dadao-v5@example.com>
 Date: Sun, 20 Sep 2026 02:17:18 +0000
-Subject: [PATCH] target/dadao: Split translate.c into insn_trans/ subdirectory
+Subject: [PATCH 5/6] target/dadao: Split translate.c into insn_trans/
+ subdirectory
 
 Pure refactoring: move all 256 trans_* functions from translate.c into
 10 categorized .c.inc files under target/dadao/insn_trans/:

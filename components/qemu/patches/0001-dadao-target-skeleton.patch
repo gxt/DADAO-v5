@@ -1,7 +1,7 @@
-From 0caa34568faca7fae3d58a47f19a736d6f53a3b2 Mon Sep 17 00:00:00 2001
+From cf7a87a72029dba07756c9ae4b56c2b328540c74 Mon Sep 17 00:00:00 2001
 From: Guan Xuetao <gxt@pku.edu.cn>
 Date: Sat, 19 Sep 2026 03:12:35 +0000
-Subject: [PATCH] target/dadao: Add DADAO target skeleton
+Subject: [PATCH 1/6] target/dadao: Add DADAO target skeleton
 
 Add DADAO CPU target skeleton for QEMU. This includes:
 - target/dadao/: CPU state (rd/rb/rf/ra[64], pc), QOM registration,
@@ -1171,3 +1171,6 @@ index d891ef9..ab78956 100644
  subdir('hexagon')
  subdir('hppa')
  subdir('i386')
+-- 
+2.43.0
+

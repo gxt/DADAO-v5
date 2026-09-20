@@ -1,8 +1,8 @@
-From f79b38f15f674830ac48e557cda6b87c3d2589ce Mon Sep 17 00:00:00 2001
+From d4258b7b686bfa7b28357d42f7b6a1f987e6ed9c Mon Sep 17 00:00:00 2001
 From: Guan Xuetao <gxt@pku.edu.cn>
 Date: Sat, 19 Sep 2026 12:09:02 +0000
-Subject: [PATCH] target/dadao: Implement RD integer semantics (12 instruction
- families)
+Subject: [PATCH 3/6] target/dadao: Implement RD integer semantics (12
+ instruction families)
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

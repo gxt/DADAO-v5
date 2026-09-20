@@ -1,7 +1,8 @@
 From d871bb16c31e3e487fb6211e1b573380ab0fef7c Mon Sep 17 00:00:00 2001
 From: Guan Xuetao <gxt@pku.edu.cn>
 Date: Sat, 19 Sep 2026 15:48:23 +0000
-Subject: [PATCH] target/dadao: Implement RD load/store + MALIGN + jump/br.nz
+Subject: [PATCH 4/6] target/dadao: Implement RD load/store + MALIGN +
+ jump/br.nz
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

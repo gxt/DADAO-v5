@@ -1,7 +1,7 @@
-From 39b6905fadd5f21d9ebca07c891bc38a481f708d Mon Sep 17 00:00:00 2001
+From bb7ca13f6d54407833a1ed139c7e1c36e54af539 Mon Sep 17 00:00:00 2001
 From: Guan Xuetao <gxt@pku.edu.cn>
 Date: Sat, 19 Sep 2026 05:00:51 +0000
-Subject: [PATCH] target/dadao: Add decodetree instruction decoding
+Subject: [PATCH 2/6] target/dadao: Add decodetree instruction decoding
 
 Replace hand-written instruction dispatch with QEMU decodetree mechanism.
 All 256 M1+excluded_m1 instructions have decodetree patterns with
