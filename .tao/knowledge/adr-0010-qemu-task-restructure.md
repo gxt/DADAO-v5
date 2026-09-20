@@ -43,7 +43,7 @@ QEMU 模块在 `QEMU-005t`（4 轮返工）和 `QEMU-014t`（5 轮返工）中�
 
 ### D2 `translate.c` 拆分方案
 
-**决策**：在 `006t` 完成后（load/store 已实现、文件约 2500-3000 行），新增 `QEMU-007t`（原 `007t` MALIGN 并入 `006t`），执行 `translate.c` 按指令类别拆分为 **10 个 `.c.inc` 文件**（用户否决了 4 文件方案，要求更细粒度）。
+**决策**：在 `006t` 完成后（load/store 已实现、`translate.c` **实测 3685 行 / 256 个 `trans_*`**），新增 `QEMU-007t`（原 `007t` MALIGN 并入 `006t`），执行 `translate.c` 按指令类别拆分为 **10 个 `.c.inc` 文件**（用户否决了 4 文件方案，要求更细粒度）。
 
 **目录/文件组织**（对齐 v11.1.1 riscv 的 `tcg/` 子目录模式）：
 
@@ -63,6 +63,12 @@ target/dadao/
 │   ├── trans_mem.c.inc          # §3.8/§4/§4.9 存取（ld/st/ldm/stm 含 RD/RB/RA 变体）
 │   └── trans_ctrl.c.inc         # §5/§2.8 控制流（br/jump/call/ret/rela/swym/illi/fence）
 ```
+
+**桩函数归属**（`QEMU-007t` 实施时确定，2026-09-19 补登记；M1 范围外指令的 `trans_*` 桩亦须归类，故上表须补充本映射）：
+- 浮点算术（`fo*`/`ft*` 的 add/sub/mul/div/rem 等）→ `trans_arith.c.inc`；浮点比较（`foscmp`/`ftscmp`）→ `trans_compare.c.inc`
+- 特权/系统（`cfx2rc`/`cfx2rd`/`cfxld`/`cfxst`/`escape`/`trap`）→ `trans_ctrl.c.inc`（与 `swym`/`illi`/`fence` 同属 §7 系统指令）
+- LR-SC 原子（`lr_*`/`sc_*`）→ `trans_mem.c.inc`
+- 寄存器组块传输的 RF 变体（`rd2rf`/`rf2rd`）→ `trans_block.c.inc`
 
 **实施方式**：
 - `translate.c` 保留：decodetree `#include`、helper 函数（`store_rd`/`load_rd`/`gen_exception_illegal`/`gen_raise_exception_illi` 等）、寄存器访问宏
