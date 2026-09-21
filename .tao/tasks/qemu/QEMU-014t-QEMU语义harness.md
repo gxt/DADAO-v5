@@ -1335,6 +1335,6 @@ Results: 30 passed, 0 failed, 30 total
 **结论**：
 1. **loader + test + dumper 三段工作正常**——dump 导出的 rd 值与向量完全吻合，说明 `set.zw`/`or.w`/`rd2ra` 载入、被测指令执行、`st.o-rd`/`st.o-rb`/`rb2rd` dump 链路均可用。
 2. **普通模式仍不能得出 PASS**：即使是最普通的 RD-only 语义向量也 TIMEOUT，**不是**「exit=0 无条件 PASS」那类问题（该问题在 014t 收尾后已不存在——`build_exit_section` 已读 `expected_state`/`expected_fault`，`interpret_exit_code` 已做 fault 路由）。失败点须由 `015t` 定位（属其「把 harness 升级为真正语义验证器」范围）。
-3. **PC dump = 0 疑为独立缺陷**：dumper 用 `rb2rd rd63, rb0, 1` 规避 `st.o-rb` 的 `rbha != rb0` 约束，但读回 0。疑似实现侧 `rb0` 仅在翻译期按 PC 计算（`ctx->base.pc_next`）、未维护 `env.rb[0]`，故经寄存器复制指令读 `rb0` 得 0。**归属待定**（需确认是 `rb2rd` 读取路径还是 `rb0` 维护策略问题）。
+3. **PC dump = 0，且 dump 的 rb 段全 0**（初判「实现侧 `rb0` 未维护」**已排除**）：`load_rb(ctx, 0)` 返回翻译期 PC（`translate.c:325-337`），`trans_rb2rd` 用的正是 `load_rb`（`trans_block.c.inc:117-120`），故 `rb2rd rd63, rb0, 1` 应得 PC。实测 dump 中 `rb[1..63]` **全为 0**——包括 dumper 自己写入的 `rb62=DUMP_BASE`（见二进制 0x000c–0x0014 的 `set.zw/or.w`），且 `rd63` 槽亦为 0，而 `rd1`–`rd4` 正确 ⇒ 更像 **dumper 段未执行完 / QMP `pmemsave` 抓取过早（竞态）**，或 rb dump 段未生效。归属 `015t` 一并定位。
 
 **处置**：以上第 2/3 点登记 `deferred.md`，分别归属 `QEMU-015t`（exit 段/判定）与待定任务（`rb0` 读取路径）。本任务交付物本身不改。
