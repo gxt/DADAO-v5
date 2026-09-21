@@ -51,10 +51,11 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
 | `QEMU-017t` | 分支语义 harness（用 expected_pc，不用 branch_behavior） | `build_test_binary.py`（branch）、`ctrl-br.yaml`/`ctrl-jump.yaml` semantic 激活 | `QEMU-015t`、`TESTCASES-005t` |
 | `QEMU-018t` | call/ret 语义 + RA stack（用 expected_pc/expected_state.ra，不用 call_ret） | `build_test_binary.py`（call/ret）、call/ret 测试 | `QEMU-017t`、`QEMU-012t` |
 | `QEMU-019t` | QEMU trans lint（**路径适配** `insn_trans/trans_*.c.inc`） | `tools/qemu/check_qemu_trans.py` | `SPEC-003t`、`QEMU-013t` |
-| `QEMU-020t` | harness dumper 改造（**新增**，D1 修法 a 落地） | `build_test_binary.py`（dumper 条件化）、`run_qemu_test.py`（模式联动） | `QEMU-014t`、`QEMU-006t` |
-| `QEMU-021m` | QEMU 核心里程碑（**硬性要求：全部 M1 向量经 harness 执行且结果比对一致**） | 里程碑标记 | `QEMU-002t`~`QEMU-020t` |
+| `QEMU-020t` | harness dumper 改造（TB 安全分段 + `--dump` 端到端验收） | `build_test_binary.py`（分段 dumper）、`--dump` 输出验证 | `QEMU-015t`、`QEMU-008t`、`QEMU-022t` |
+| `QEMU-022t` | TB 续接缺陷修复（`dadao_tr_tb_stop` 缺 `gen_update_pc`） | `components/qemu/patches/0008-dadao-tb-chain-fix.patch`、最小 ROM 探针 | `QEMU-007t` |
+| `QEMU-021m` | QEMU 核心里程碑（**硬性要求：全部 M1 向量经 harness 执行且结果比对一致**） | 里程碑标记 | `QEMU-002t`~`QEMU-020t`、`QEMU-022t` |
 
-- **依赖关系**：`002t → 003t → 004t → 005t → 006t(合并) → 007t(拆分) → 008t → {009t（验证）, 013t} → 010t → 011t（验证） → 012t（验证）`；`014t ← 004t+006t`（并行轨，006t 后 harness 可端到端跑 RD-only 向量）→ `015t ← 014t` → `{016t ← 015t+TESTCASES-004t, 017t ← 015t+TESTCASES-005t}` → `018t ← 017t+012t`；`020t ← 014t+006t`（harness dumper 改造）；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排）、`INFRA-009t`（多源 schema）、`INFRA-013t`（组件名=原始仓库名）；`003t` 依赖 `SPEC-006t`（Test Machine ADR，提供内存图/复位值/exit 协议）；`004t` 依赖 `SPEC-003t`（编码表）与 `SPEC-008t`（合法性规则）；`008t` 依赖 `SPEC-006t`（fault/exit 可观测）；`012t` 依赖 `TESTCASES-005t`（br.* 向量）、`TESTCASES-006t`（jump/call/ret 向量）；`013t`（RA 指令）依赖 `008t` 与 spec；`014t`~`020t`（QEMU 自测 harness / trans lint / dumper 改造）依赖 `014t`（并行轨起点）与 testcases；`021m` 汇总全部。
+- **依赖关系**：`002t → 003t → 004t → 005t → 006t(合并) → 007t(拆分) → 008t → {009t（验证）, 013t} → 010t → 011t（验证） → 012t（验证）`；`014t ← 004t+006t`（并行轨，006t 后 harness 可端到端跑 RD-only 向量）→ `015t ← 014t` → `{016t ← 015t+TESTCASES-004t, 017t ← 015t+TESTCASES-005t}` → `018t ← 017t+012t`；`022t ← 007t`（TB 缺陷修复，可与 `008t`~`019t` 并行）；`020t ← 015t+008t+022t`（harness dumper 分段改造）；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排）、`INFRA-009t`（多源 schema）、`INFRA-013t`（组件名=原始仓库名）；`003t` 依赖 `SPEC-006t`（Test Machine ADR，提供内存图/复位值/exit 协议）；`004t` 依赖 `SPEC-003t`（编码表）与 `SPEC-008t`（合法性规则）；`008t` 依赖 `SPEC-006t`（fault/exit 可观测）；`012t` 依赖 `TESTCASES-005t`（br.* 向量）、`TESTCASES-006t`（jump/call/ret 向量）；`013t`（RA 指令）依赖 `008t` 与 spec；`014t`~`020t`（QEMU 自测 harness / trans lint / dumper 改造）依赖 `014t`（并行轨起点）与 testcases；`021m` 汇全部。
 - **分解理由**：按「基线 → 骨架 → 解码 → RD 语义 → load/store → 精确异常 → 控制流/RB → 修复 → 里程碑」逐层推进，每层可独立 `git am` 一个补丁并独立验收（`make build-qemu` + 向量运行）；补丁命名/顺序以 0628 `series` 前段为参考，但 v5 按 0.5.3 重新生成（0628 的 `0002-dadao-hw-meson-subdir.patch` 独立修复在 v5 应并入 `0001` 骨架，见 `QEMU-003t`）。
 
 ## 说明
@@ -72,5 +73,6 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
   | `0005-dadao-translate-split.patch` | — | `QEMU-007t`（纯重构，10 个 .c.inc） |
   | `0006-dadao-ctrl-flow.patch` | `0007` | `QEMU-008t`、`QEMU-009t`（验证）、`QEMU-010t` |
   | `0007-dadao-ra-semantics.patch` | — | `QEMU-013t` |
+  | `0008-dadao-tb-chain-fix.patch` | — | `QEMU-022t`（TB 续接缺陷修复） |
 
 - 参考：`.work/DADAO-0628/components/qemu/patches/series`、`.work/DADAO-0628/components/qemu/README.md`、`.work/DADAO-0628/docs/adr/0006-qemu-baseline.md`。
