@@ -20,7 +20,7 @@
   - `tests/scripts/build_test_binary.py`：新增 `build_branch_test_binary()` 与 `expected_pc` 调度
   - `tests/vectors/isa/ctrl-br.yaml`、`tests/vectors/isa/ctrl-jump.yaml`：激活 ≥16 条 branch/jump semantic 测试（由本任务与 `TESTCASES` 协同，数据修改以 `TESTCASES` 归属为准）
 - 约束：
-  - 只加函数，不改现有 `build_test_binary()` / `emit_state_compare()` 逻辑
+  - 只加函数，不改现有 `build_test_binary()` / `build_exit_section()` 逻辑
   - `run_qemu_test.py` 不改（`branch_behavior` 由 builder 内部处理）
   - **offset 必须从 `contract-isa.md` §5 手推**，不能从 QEMU 行为反推
 
@@ -33,7 +33,7 @@
 
 ### 设计理由
 
-`emit_state_compare` 假设被测指令后顺序执行；分支/跳转 taken 时会跳过后续比较代码，两种场景都需要专用 binary layout。用 **poison pattern** 把「是否跳转」变成「是否踩到 `illi`」的可观测退出码。
+`build_exit_section` 假设被测指令后顺序执行；分支/跳转 taken 时会跳过后续比较代码，两种场景都需要专用 binary layout。用 **poison pattern** 把「是否跳转」变成「是否踩到 `illi`」的可观测退出码。
 
 ### 关键概念 / 数据
 
@@ -50,12 +50,22 @@
 
 ```
 [setup registers]
-[branch instruction, imm=+1]  ← 若 taken，跳到 illi → ILLI → FAIL
+[branch instruction, imm=+2]  ← 若 taken，跳到 illi → ILLI → FAIL
 [emit_exit(0)]                ← not taken 路径正常退出
 [illi]                        ← poison：taken 路径进入 ILLI
 ```
 
-**`expected_pc` 字段**：schema 已支持 `expected_pc`（`tests/vectors/schema.md`），用于断言分支/跳转指令 retire 后 `rb0` 的期望值。`build_test_binary(case)` 检测到 `expected_pc` 非 null 时调用 `build_branch_test_binary(case)`——taken 时验证 PC 落到 `expected_pc`（跳过 poison `illi`），not-taken 时验证 PC 推进到下一指令（不踩 poison）。
+> ⚠️ **not-taken 的偏移必须是 `+2`（不是 0628 的 `+1`）**：v5 基址 = 分支指令**自身**地址（`Addr = rb0 + (imm<<2)`；实测 `translate.c:406` 的 `pc_next += 4` 发生在 `decode_insn` **之后**，故 `trans_br` 期间 `pc_next` 即分支自身地址）。`imm=+1` 会让 taken 落到 `emit_exit(0)` → **假 PASS**。0628 的 `pc_next` 基准下才是 `+1`——**不得沿用**。
+
+**`expected_pc` 字段 —— v5 按「相对 BINARY_BASE 的位移（delta）」消费**（2026-09-21 用户裁定；补注 `ADR-0009 D6`）：
+
+- **不把 `expected_pc` 当绝对地址直接比对**（`ADR-0009 D6` 原文即规定「不直接比对 `rb0`，用 poison 路径间接断言」）
+- 令 `delta = expected_pc - BINARY_BASE`（`BINARY_BASE = 0xFFFF_0000_0000`）。实测向量中 `delta ∈ {4, 8}`：
+  - `delta == 8`（2 words）→ **taken**：用 taken pattern（branch 目标跳过 poison `illi`）
+  - `delta == 4`（1 word）→ **not-taken**：用 not-taken pattern（branch 的 poison 目标是 `illi`，落空则顺序到 `emit_exit(0)`）
+- **为什么必须按 delta**：harness 前置 **loader**（`input_state` 非空时 1–4 words），测试指令实际地址 = `BINARY_BASE + loader_words*4` ≠ `BINARY_BASE`。实测 `ctrl-br[1]`（`br.n` taken）loader=4 words → 测试指令在 `0xffff00000010`，而向量 `expected_pc = 0xFFFF00000008`（按 BINARY_BASE 算）——**绝对比对必然错**
+- **实测反证（改前）**：`ctrl-br` 20 条 semantic 现**全部真空 PASS**——`expected_pc` 被 harness **完全忽略**、`expected_state: {}` 为空 → `ACCUM=0` → 写 `0x00`；`--case 1`（taken）PASS 只因 `br.n` 跳进了 exit 段恰好写 PASS，**分支行为零验证**
+- 调度：`build_test_binary(case)` 检测到 `expected_pc` 非 null 时走 `build_branch_test_binary(case)`；否则原路径不变
 
 **offset 字段**：从 `contract-isa.md` §5 与 `contracts/opcodes.yaml` 的格式字段手推（PC-relative 单位/基准须以 v5 合约与 `TESTCASES-005t` 结论为准）。
 
@@ -69,9 +79,9 @@
 
 ## 交付物
 
-- `tests/scripts/build_test_binary.py`：`build_branch_test_binary()` + `expected_pc` 调度
-- `tests/vectors/isa/ctrl-br.yaml`：激活 ≥16 条 branch/jump semantic 测试（与 `TESTCASES` 协同）
-- 完成区附激活前后 PASS/FAIL 与条数
+- `tests/scripts/build_test_binary.py`：`build_branch_test_binary()` + `expected_pc` 调度（**唯一改动文件**）
+- **不改 vector YAML**：`ctrl-br.yaml`（20 条 semantic）与 `ctrl-jump.yaml`（2 条 semantic）**已 `status: active` 且 `expected_pc` 已填**（`delta ∈ {4,8}`），harness 扩展后即被真正验证——本任务**无数据缺口**（数据归 TESTCASES）
+- 完成区附「激活前后」对比：改前 22 条**真空 PASS** → 改后按 poison pattern **真实判定**（并给真实输出）
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -105,12 +115,13 @@
 
 | # | 验收项 | 现在可跑 / BLOCKED | 说明 |
 |---|--------|-------------------|------|
-| 1 | `build_branch_test_binary()` 实现 taken/not-taken 两种 layout，poison 用 `illi` | 现在可跑 | 代码审查 |
-| 2 | `expected_pc` 调度存在（`expected_pc` 非 null 时走 branch builder），且不改变原有算术/访存路径 | 现在可跑 | 代码审查 |
-| 3 | ≥16 条 branch/jump semantic 测试激活并 PASS（8 条条件分支各 2 + `jump-iiii`/`jump-rrii`） | BLOCKED | 原因：需 `QEMU-008t` 实现 + harness 可用（`020t`）。替代：最小 ROM 探针 |
-| 4 | `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-br.yaml`：encoding 测试继续 PASS + semantic 测试 PASS，0 FAIL | BLOCKED | 同上 |
-| 5 | offset 计算在完成区给出从 `contract-isa.md` §5 的手推依据 | 现在可跑 | |
-| 6 | `tests/vectors/isa/reg-arith.yaml` 回归不破坏 | BLOCKED | 需 harness 可用（`020t`） |
+| 1 | `build_branch_test_binary()` 实现 taken/not-taken 两种 layout，poison 用 `illi`；not-taken 偏移为 **`+2`** | 现在可跑 | 代码审查 + 实测 |
+| 2 | `expected_pc` 调度存在（非 null 时走 branch builder），且不改变原有算术/访存路径 | 现在可跑 | 代码审查 + `reg-arith` 回归 |
+| 3 | 22 条 branch/jump semantic 测试**真实**判定并 PASS（`ctrl-br` 20 + `ctrl-jump` 2） | **现在可跑** | 原归因「需 `QEMU-008t` + harness（`020t`）」**已过时**（`008t` 已完成、`020t` 已关闭）。须给**改前真空 PASS → 改后真实 PASS** 的对比 |
+| 4 | `run_qemu_test.py tests/vectors/isa/ctrl-br.yaml --batch`：encoding 继续 PASS + semantic PASS，0 FAIL | **现在可跑** | 同上 |
+| 5 | offset 计算在完成区给出从 `contract-isa.md` §5 的手推依据（`Addr = rb0 + (imm<<2)`，基址=分支自身） | 现在可跑 | |
+| 6 | `reg-arith.yaml` 回归不破坏 | **现在可跑** | 全量 batch 失败数须回到基线（24 `mem-rd` 窄 load + 3 `ctrl-call` + 2 `misc`；1 error `ctrl-ret`），**零新增** |
+| 7 | **反例门控**：把 taken 向量的 `expected_pc` 由 `+8` 改 `+4`（或反之）→ 必须 FAIL；还原 → PASS | 现在可跑 | 证明 poison pattern 真的判定 taken/not-taken，非恒真 |
 
 ## 完成区
 

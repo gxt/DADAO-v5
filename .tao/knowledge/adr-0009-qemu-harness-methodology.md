@@ -68,7 +68,16 @@ harness 消费 `tests/vectors/isa/*.yaml` 中以下字段：
 - `expected_state.ra`：RA 寄存器执行后期望值，由 `QEMU-018t` 的 call/ret 组合 pattern 消费——通过 `call→ret→landing` 完整往返隐式验证 RA 压栈/弹栈正确性；必要时用 `ra2rd` 导出 RA 到 RD 后做 XOR 比对。
 - `encoding.reserved: true`：保留编码 case（`class: legality`、`expected_fault: UNDI`）无 `(insn, format)` 身份，harness 解析向量时须跳过 identity/mask-value 校验，`expected_fault` 恒 `UNDI`；详见 `QEMU-015t`。
 
-**状态**：Accepted（用户确认 2026-09-19）
+**补注（2026-09-21，用户确认）——`expected_pc` 按「相对 `BINARY_BASE` 的位移（delta）」消费**：
+
+- `expected_pc` 的**绝对值不作比对**（与本 D6 首条「不直接比对 `rb0`」一致）。令 `delta = expected_pc - BINARY_BASE`（`BINARY_BASE = 0xFFFF_0000_0000`）：
+  - `delta == 8`（2 words）→ **taken** → 用 taken poison pattern
+  - `delta == 4`（1 word）→ **not-taken** → 用 not-taken poison pattern
+- **理由**：harness 前置 **loader**（`input_state` 非空时 1–4 words），测试指令实际地址 = `BINARY_BASE + loader_words*4` ≠ `BINARY_BASE`。实测 `ctrl-br[1]`（`br.n` taken）loader=4 words → 测试指令在 `0xffff00000010`，而向量 `expected_pc = 0xFFFF00000008` → 绝对比对必然错。
+- **配套语义**：v5 分支/跳转基址 = **分支指令自身地址**（`Addr = rb0 + (imm<<2)`；`translate.c` 的 `pc_next += 4` 发生在 `decode_insn` **之后**）。故 poison pattern 的 not-taken 偏移为 **`+2`**（0628 的 `pc_next` 基准下为 `+1`，**不得沿用**）。
+- **影响**：`QEMU-017t`（`ctrl-br`/`ctrl-jump`）与 `QEMU-018t`（`ctrl-call`/`ctrl-ret`）的 `build_branch_test_binary()` 按本补注实现；向量数据**无需修改**。
+
+**状态**：Accepted（用户确认 2026-09-19）；D6 补注经用户确认 2026-09-21
 
 ### D7 state-dump 读取机制
 
