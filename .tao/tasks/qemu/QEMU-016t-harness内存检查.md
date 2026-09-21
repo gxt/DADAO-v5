@@ -90,7 +90,7 @@ words.append(encode_or_o(ACCUM_RD, ACCUM_RD, TEMP_RD))           # 累加失配
 
 ## 交付物
 
-- `tests/scripts/build_test_binary.py`：`emit_state_compare()` 的 memory 比对路径
+- `tests/scripts/build_test_binary.py`：`build_exit_section()` 的 memory 比对路径
 - 完成区附「篡改一条 `expected_state.memory.value` → FAIL」的有效性验证记录
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
@@ -105,7 +105,7 @@ words.append(encode_or_o(ACCUM_RD, ACCUM_RD, TEMP_RD))           # 累加失配
 
 摘自 DADAO-0628 DL-022b 完成区与代码级 Architecture Review：
 
-1. **P0 — ROM 地址导致误判**：0.4.1 store 向量 `rb_base=0x100000`（ROM 只读），QEMU 静默丢弃写入，readback 得原始 ROM → XOR≠0 → 全 FAIL。**v5 按 ADR-0004 D5.6：ROM store → ILLI（`0x88`）**，不是静默丢弃。涉及 ROM 地址的 store 向量须期望 `expected_fault: ILLI`。RAM 地址迁移由 `TESTCASES-006t` 完成。
+1. **P0 — ROM 地址导致误判**：0.4.1 store 向量 `rb_base=0x100000`（ROM 只读），QEMU 静默丢弃写入，readback 得原始 ROM → XOR≠0 → 全 FAIL。**v5 按 ADR-0004 D5.6：ROM store → ILLI（`0x88`）**，不是静默丢弃。涉及 ROM 地址的 store 向量须期望 `expected_fault: ILLI`。RAM 地址迁移由 **`TESTCASES-004t`** 完成（方案 B：`rb3 = 0x0000ffff00000000`）。
 2. **必须用无符号 load**：`expected_state.memory.value` 是 raw 存储字节，比对时 zero-extend 即可，不能用带符号 load。
 3. **early-return 修正**是防止静默 PASS 的关键：`and not memory`。
 4. **临时寄存器复用**：0.4.1 用 `rb30`/`rd30`/`rd31`（v5 编号不同，**不得照搬**）。v5 沿用 `ADR-0009 D4` scratch：`MEM_RB`=61（地址）、`TEMP_RD`=60（期望值）、`DUMP_RD`=63（实际值）、`ACCUM_RD`=61。**已全量扫描确认无向量占用 rd60–63 / rb60–63**。⚠️ **不得用 `TEMP_RB`(60) 装内存地址**——它在 `build_exit_section` 开头已装入 exit port 地址。
