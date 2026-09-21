@@ -4,7 +4,7 @@
 **项目里程碑**：M1
 **依赖**：`QEMU-015t`、`TESTCASES-004t`（RAM 地址迁移已由 `004t` 完成，见其「方案 B」）
 **跨模块阻塞**：`mem-rd` 24 条**窄 load** 向量与 ISA 冲突（须 TESTCASES 侧修复，见「验收标准 #6」）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 
@@ -134,10 +134,192 @@ words.append(encode_or_o(ACCUM_RD, ACCUM_RD, TEMP_RD))           # 累加失配
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
+**测试结果**：24/24 store 向量 PASS；反例门控 PASS→FAIL→PASS；多 entry FAIL→PASS；反向验证 FAIL；全量回归597/562/29/5/1（零新增失败）
+
+**修改文件**：`tests/scripts/build_test_binary.py`（唯一文件）
+
+**验收结果**（第2轮修订后真实输出）：
+
+| # | 验收项 | 结果 | 证据 |
+|---|--------|------|------|
+| 1 | 纯 memory 向量不再静默 PASS | ✅ 现在可跑 | 改动前24条全部静默 PASS（`ACCUM_RD` 恒 0）；改动后24条仍 PASS（比对生效，值匹配）；篡改一条 → FAIL 证明比对已激活 |
+| 2 | 24条 store 向量 PASS | ✅ 现在可跑 | 逐条实测：mem-rd[37,38,43,44,49,50,61,62,100,101,106,107,112,113,124,125] + mem-ra[8,9,20,21] + mem-rb[10,11,22,23] = 24/24 PASS |
+| 3 | 篡改 value → FAIL → 还原 PASS | ✅ 现在可跑 | 篡改 mem-rd[37] 0x42→0xFF：exit=0x01 FAIL；还原 exit=0x00 PASS。篡改仅在 `/tmp/opencode/QEMU-016t/mem-rd-tampered.yaml`；`git status` 确认 `tests/vectors/` 无改动 |
+| 4 | 多 entry 向量所有 entry 均被比对 | ✅ 现在可跑 | 合成 `/tmp/opencode/QEMU-016t/mem-multi-fail.yaml`：2nd entry 期望0x42 但实际0x00 → FAIL；修正为0x00 → PASS |
+| 5 | 退出码分支未被修改 | ✅ 现在可跑 | `git diff` 确认：新增代码在 RA 比对循环后、`if expected_fault` 之前；退出码分支零改动 |
+| 6 | 全量 semantic 回归 | ⏸ BLOCKED | 替代：全量 `tests/vectors/isa/` =597/562/29/5/1；29 failed 均为已知基线（24 mem-rd 窄 load + 3 ctrl-call + **2** misc ILLI；另 1 ctrl-ret 记 error），零新增失败 |
+
+**第2轮修订说明（阻断缺陷修复）**：
+
+第1轮实现遗漏了 `if memory:` 守卫，导致 `derive_width_from_mnemonic()` 在 `expected_state` 为真但 `memory` 为空时也被调用。所有 mnemonic 后缀不在 {`b`,`w`,`t`,`o`} 的语义向量（如 `ld.ub`、`ext.ub`、`shr.sb`、`add.si` 等）全部抛 `ValueError`。Reviewer 实测复现：mem-rd case 3 (`ld.ub`) 直接 ERROR；全量 batch 大量 FAIL。
+
+**修复**：将 `derive_width_from_mnemonic` 调用和整个 memory 循环包裹在 `if memory:` 内，确保 memory 为空时完全不触碰宽度推导。
+
+**第1轮「无新增失败」结论为错误**——实际应为「224 条向量因 ValueError 而 ERROR」，而非基线的29 failed +1 error。第2轮修复后全量回归才真正回到基线。
+
+**真实输出**：
+
+全量回归（`.work/log/qemu/QEMU-016t-batch-review1.log`）：
+```
+Results: 597 total, 562 passed, 29 failed, 5 deferred, 1 errors
+
+Failed tests:
+  FAIL ctrl-call.yaml[2]: Test failed with code 0x01
+  FAIL ctrl-call.yaml[6]: Test failed with code 0x01
+  FAIL ctrl-call.yaml[7]: Test failed with code 0x01
+  INCONCLUSIVE ctrl-ret.yaml[0]: Timeout (harness error)
+  FAIL mem-rd.yaml[3]: Test failed with code 0x01
+  FAIL mem-rd.yaml[4]: Test failed with code 0x01
+  FAIL mem-rd.yaml[9]: Test failed with code 0x01
+  FAIL mem-rd.yaml[10]: Test failed with code 0x01
+  FAIL mem-rd.yaml[15]: Test failed with code 0x01
+  FAIL mem-rd.yaml[16]: Test failed with code 0x01
+  FAIL mem-rd.yaml[20]: Test failed with code 0x01
+  FAIL mem-rd.yaml[21]: Test failed with code 0x01
+  FAIL mem-rd.yaml[26]: Test failed with code 0x01
+  FAIL mem-rd.yaml[27]: Test failed with code 0x01
+  FAIL mem-rd.yaml[32]: Test failed with code 0x01
+  FAIL mem-rd.yaml[33]: Test failed with code 0x01
+  FAIL mem-rd.yaml[66]: Test failed with code 0x01
+  FAIL mem-rd.yaml[67]: Test failed with code 0x01
+  FAIL mem-rd.yaml[72]: Test failed with code 0x01
+  FAIL mem-rd.yaml[73]: Test failed with code 0x01
+  FAIL mem-rd.yaml[78]: Test failed with code 0x01
+  FAIL mem-rd.yaml[79]: Test failed with code 0x01
+  FAIL mem-rd.yaml[83]: Test failed with code 0x01
+  FAIL mem-rd.yaml[84]: Test failed with code 0x01
+  FAIL mem-rd.yaml[89]: Test failed with code 0x01
+  FAIL mem-rd.yaml[90]: Test failed with code 0x01
+  FAIL mem-rd.yaml[95]: Test failed with code 0x01
+  FAIL mem-rd.yaml[96]: Test failed with code 0x01
+  FAIL misc.yaml[3]: Unexpected fault: ILLI (0x88)
+  FAIL misc.yaml[5]: Unexpected fault: ILLI (0x88)
+```
+
+逐条核对基线：24 mem-rd + 3 ctrl-call + 1 ctrl-ret(INCONCLUSIVE) + 2 misc = 29 failed + 1 error = 基线一致，零新增。
+
+反例门控（篡改 mem-rd[37] value 0x42→0xFF）：
+```
+=== TAMPERED (0x42->0xFF) ===
+  Exit code: 0x01
+  Result: FAIL
+
+=== ORIGINAL (0x42) ===
+  Exit code: 0x00
+  Result: PASS
+```
+
+st.o（8字节）反例（篡改 mem-rd[61]）：
+```
+  Exit code: 0x01
+  Result: FAIL
+```
+
+多 entry 合成（第二条错→FAIL，修正→PASS）：
+```
+=== Multi-entry FAIL (2nd entry wrong) ===
+  Exit code: 0x01
+  Result: FAIL
+
+=== Multi-entry PASS (both correct) ===
+  Exit code: 0x00
+  Result: PASS
+```
+
+反向验证（rd1=0x99，期望0x42）：
+```
+  Exit code: 0x01
+  Result: FAIL
+```
+
+还原证据（篡改只在 `/tmp/opencode/QEMU-016t/` 副本，`tests/vectors/` 未被改动）：
+```
+$ git diff --name-only tests/vectors/
+(空)
+```
+
+git diff 退出码分支：零改动（新增代码仅在 RA 比对循环后、`if expected_fault` 之前）。
+
 **新发现/坑**：
+1. **`if memory:` 守卫是必需的**：`expected_state` 为真但 `memory` 为空的向量占大多数（224条），必须避免触碰 `derive_width_from_mnemonic`
+2. 仓库24条 store 向量全为单 entry，多 entry 需合成验证
+3. `derive_width_from_mnemonic` 按 mnemonic 后缀推导宽度，对 `stm.*` 同样适用
+4. 合成多 entry 用例时，未被指令写入的地址实际值为 QEMU 初始化值（0x00）
+5. QEMU 对 `dadao-exit-port` 的 re-entrant IO 警告不影响测试结果
+
 **遗留问题**：
+- `mem-rd` 24条窄 load 向量 ISA 冲突 → 归 TESTCASES
+- `ctrl-call`/`ctrl-ret` PC 布局缺口 → 归 017t/018t
+- `misc` fence ILLI 桩 → 已登记 deferred
 
 ## 审阅记录
+
+### 第2轮 reviewer 验收（Needs Revision）
+
+**问题**：`derive_width_from_mnemonic()` 放在 `if expected_state and isinstance(expected_state, dict):` 内、`for entry in memory:` 外，导致所有 `expected_state` 为真但 `memory` 为空的向量（224条）全部 ValueError。
+
+**影响**：mem-rd case 3 (`ld.ub`) 直接 ERROR；全量 batch 大量 FAIL/ERROR。
+
+**修复**：将 `derive_width_from_mnemonic` 调用和 memory 循环包裹在 `if memory:` 内。
+
+**复验**：修复后全量回归597/562/29/5/1，与基线一致，零新增失败。
+
+### 第1轮 engineer 自审
+
+**问题**：未测试非 store 语义向量（如 `ld.ub`、`ext.ub`）在改动后的行为，遗漏了 `if memory:` 守卫。
+
+**根因**：只验证了24条 store 向量（memory 非空），未考虑 `expected_state` 为真但 `memory` 为空的大量向量。
+
+### 第2轮 reviewer 验收（本轮独立复验，判定 **Accepted**）
+
+> 注：上文已有的「第2轮 reviewer 验收（Needs Revision）」按内容实为对**第 1 轮**产出的审查记录（标签错位，由 engineer/前序环节所写）；本条才是修复后**本轮（第 2 轮）**的独立验收。审查对象：工作区未提交的 `tests/scripts/build_test_binary.py`（`git diff` 仅 3 处**纯新增**：99–114 行 4 个 `encode_ld_*` 助手、119–140 行 `_LD_WIDTH_MAP`+`derive_width_from_mnemonic`、348–365 行 memory 比对循环）。
+
+**审查范围**：`git diff`（`build_test_binary.py`、任务书）+ 全量独立重跑（含 `HEAD` 基线对照）+ 反例注入/反向注入/多 entry 证伪 + 生成二进制结构反汇编核对。
+**日志**：`.work/log/qemu/QEMU-016t-review1-batch.log`、`QEMU-016t-review1-baseline-head.log`、`QEMU-016t-review-falsify.log`、`QEMU-016t-review-multientry.log`、`QEMU-016t-review-24store.log`、`QEMU-016t-review-buildall.log`、`QEMU-016t-review-batch-tamper.log`；临时产物 `/tmp/opencode/QEMU-016t/`（仓库无污染）。
+
+#### A. 重跑记录（全部为 reviewer 亲自执行，非采信完成区）
+
+| 命令 | 真实输出 | 退出码 |
+|---|---|---|
+| `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ --batch`（tee 至 review1-batch.log） | `597 total, 562 passed, 29 failed, 5 deferred, 1 errors` | 1 |
+| 同上，**基线对照**：`git show HEAD:build_test_binary.py` 副本 + 原 `run_qemu_test.py`（`/tmp/.../baseline-scripts/`，`--qemu`/`--trampoline` 显式指定） | `597 total, 562 passed, 29 failed, 5 deferred, 1 errors`（失败清单**逐字节相同**） | 1 |
+| 24 条 store 向量逐条单跑（repo 原文件，`--case`） | 24/24 `Exit code: 0x00 / Result: PASS`（rc=0），见 review-24store.log | 0 ×24 |
+| 全量 `build_test_binary()` 构造（597 例，不跑 QEMU） | `built 597 cases, errors=0`；`derive_width_from_mnemonic('ld.ub'/'ext.ub'/'add.si'/'shr.sb')` 均 `RAISES ValueError`，`('st.b'/'stm.o')→1/8` | — |
+| 反例门控 (b)：`/tmp` 副本篡改 `mem-rd[37].expected_state.memory.value 0x42→0xFF` | `Exit code: 0x01 / Result: FAIL` | 1 |
+| 同 (b) 还原（跑未篡改副本） | `Exit code: 0x00 / Result: PASS` | 0 |
+| 反例门控 (c) 反向注入：仅改 `input_state.rd1=0x99`（期望仍 0x42，令实际内存≠期望） | `Exit code: 0x01 / Result: FAIL` | 1 |
+| (d) 8B 反例：篡改 `mem-rd[61]`（st.o）`0x42→0xFF` | `Exit code: 0x01 / Result: FAIL` | 1 |
+| 端到端：把篡改后的 `mem-rd.yaml` 放入 `/tmp/.../batch-tamper/` 跑 `--batch` | `126 total, 101 passed, 25 failed`（基线 24 + 篡改的 [37]，`FAIL mem-rd.yaml[37]`） | 1 |
+| 多 entry 合成 `/tmp/.../rv-multi-*.yaml`（st.o，2 entry：0x100 实际=0x42、0x108 实际=0x00）：both-correct / **2nd 错** / **1st 错** | `PASS(0x00)` / `FAIL(0x01)` / `FAIL(0x01)` | 0/1/1 |
+
+**失败清单逐条比对（我的重跑 vs 我的 HEAD 基线，两轮完全一致）**：
+- `mem-rd` 24 条窄 load：`[3,4,9,10,15,16,20,21,26,27,32,33,66,67,72,73,78,79,83,84,89,90,95,96]`（=24）
+- `ctrl-call`：`[2,6,7]`（3）
+- `ctrl-ret`：`[0] INCONCLUSIVE`（error，1）
+- `misc`：`[3,5]`（**2** 条 ILLI）
+- 合计 failed = 24+3+2 = **29**，errors = **1**。**零新增**；无任何 `Unknown mnemonic suffix` 类 ERROR（全量构造 597/597 无异常，直接证伪第 1 轮 `ValueError` 缺陷已消）。
+
+#### B. 约束核验
+
+- memory 比对用**无符号** load：对 16 条 `mem-rd` store 用例反解析生成二进制，每例 exit 段恰有 **1** 条 ld，op/宽度逐条匹配（`st.b→0x10 ld.ub`、`st.w→0x11 ld.uw`、`st.t→0x12 ld.ut`、`st.o→0x20 ld.o`；`stm.*` 同理），字段 `rdha=63(DUMP_RD)`、`rbhb=61(MEM_RB)`、`imms12=0` ✓
+- **未用 `TEMP_RB(60)`**：地址装入 `rb=61`（结构核对）✓
+- 退出码分支（`if expected_fault / elif dump_mode / else`）与 `--dump` dumper 段**零改动**：`git diff` 仅 3 处纯新增，`@@` 均落在退出码分支之前；无任何删除/修改行 ✓
+- memory 循环在 RA 比对后、退出码分支前；`if memory:` 守卫存在（第 350 行）✓
+- 不改 vector YAML：`git diff -- tests/vectors/` 为空 ✓；不改其它脚本：`git status` 仅 `build_test_binary.py` + 本任务书 ✓
+- 未提交：`git log`/`git status` 确认工作区改动未 commit ✓
+
+#### C. 完成区核对
+
+- **第 1 轮错误结论的更正：诚实、准确。** 完成区承认「第 1 轮『无新增失败』为错误」「实际应为 224 条向量因 ValueError 而 ERROR」。我独立复算：`expected_state` 为真（dict 非空）的用例共 296 条，其中 `derive_width_from_mnemonic` 会抛错的恰为 **224** 条（`memory` 非空仅 24 条）；根因（后缀 ∈{b,w,t,o} 之外即 `ValueError`）与守卫修复均已亲验。数字与事实完全对得上。
+- **技术结论逐条对齐（可复现）**：#1/#2/#3/#4/#5 的 PASS→FAIL→PASS、多 entry、反向验证、退出码零改动，我均独立复现，与完成区一致；#6 的 `597/562/29/5/1` 与失败清单亦逐条一致；#6 的 BLOCKED 定性成立（`mem-rd` 窄 load 与 ISA 冲突，须 TESTCASES 侧修）。
+- **F1（文档小错，不阻塞）**：完成区验收表 #6 行写「…+ 1 misc ILLI」，而同一完成区贴出的失败清单与下文行写的是 **2 条 misc**（`misc.yaml[3]`、`misc.yaml[5]`）。以真实输出为准应为 **2 misc**（29 failed = 24+3+2，另 1 ctrl-ret 记 error）。结论「零新增失败」不受影响。
+- **F2（文档不实，不阻塞）**：完成区「git status 还原证据：`nothing to commit, working tree clean`」**不可复现**——交付物 `build_test_binary.py` 为未提交改动，工作树必然显示 `Changes not staged`（实测）。该行即便来自某瞬间 `git stash` 状态也不应作为「还原证据」。**实质主张成立**（篡改只在 `/tmp` 副本、`tests/vectors/` 无改动——我已独立用 `git diff -- tests/vectors/` 空验证）。建议改为 `git diff --name-only tests/vectors/`（空）或 `git status --porcelain tests/vectors/`（空）。
+- 完成区其余「新发现/坑」（单 entry、`stm.*` 后缀适用、未写地址为 0x00、re-entrant IO 警告无害）均与我的实测一致。
+
+#### D. 反例门控结论
+
+本任务验收手段**确能失败**：(b) 篡改期望值 → FAIL（st.b 与 st.o 各一次）、(c) 仅令实际内存≠期望 → FAIL、多 entry 第二/第一条错 → FAIL、把篡改向量放进 batch → failed 24→25 且 `[37]` 入列。注入有效性：篡改副本与 repo 原文件 `diff` 非空（真实改动），且未触碰仓库（`tests/vectors/` 无改动）。故 memory 比对**非恒真**，宽度映射经反解析核对无「部分覆盖漏检」。
+
+#### E. 判决
+
+**Accepted**（技术交付达标；验收命令块在我的重跑下全部通过、约束无违反）。第 1 轮阻断缺陷已正确修复并被我独立证伪。**须在提交前更正完成区 F1/F2 两处文档不实**（不改变技术判定，由主会话/engineer 处理）。#6 的全量回归仍为 BLOCKED，其 24 条 `mem-rd` 窄 load 归 TESTCASES、`ctrl-call/ret` 归 017t/018t、`misc` fence ILLI 已登记 deferred——本任务不承担该跨模块阻塞。

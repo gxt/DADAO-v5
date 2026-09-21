@@ -96,9 +96,48 @@ def encode_rb2rd(rdhb, rbhc, immu6):
     """rb2rd rd, rb, count (orri, op=0x40, ha=0x36). Block copy RB -> RD."""
     return 0x40D80000 | (rdhb << 12) | (rbhc << 6) | (immu6 & 0x3F)
 
+def encode_ld_ub(rdha, rbhb, imms12):
+    """ld.ub rd, rb, offset (rrii, op=0x10). Load unsigned byte."""
+    return (0x10 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
+
+def encode_ld_uw(rdha, rbhb, imms12):
+    """ld.uw rd, rb, offset (rrii, op=0x11). Load unsigned wyde (2 bytes)."""
+    return (0x11 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
+
+def encode_ld_ut(rdha, rbhb, imms12):
+    """ld.ut rd, rb, offset (rrii, op=0x12). Load unsigned tetra (4 bytes)."""
+    return (0x12 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
+
+def encode_ld_o(rdha, rbhb, imms12):
+    """ld.o rd, rb, offset (rrii, op=0x20). Load octa (8 bytes)."""
+    return (0x20 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
+
 def encode_swym():
     """swym (iiii, op=0x77). No-op / placeholder."""
     return 0x77000000
+
+
+# Width lookup: mnemonic prefix -> (byte_width, encode_fn)
+_LD_WIDTH_MAP = {
+    'b': (1, encode_ld_ub),
+    'w': (2, encode_ld_uw),
+    't': (4, encode_ld_ut),
+    'o': (8, encode_ld_o),
+}
+
+def derive_width_from_mnemonic(mnemonic):
+    """Derive memory access width from store mnemonic.
+
+    st.b / stm.b -> 1 byte, st.w / stm.w -> 2 bytes,
+    st.t / stm.t -> 4 bytes, st.o / stm.o -> 8 bytes.
+
+    Returns (byte_width, encode_ld_fn).
+    """
+    # Extract the last character after the final '.'
+    suffix = mnemonic.rsplit('.', 1)[-1]
+    if suffix not in _LD_WIDTH_MAP:
+        raise ValueError(f"Unknown mnemonic suffix for width derivation: {mnemonic}")
+    return _LD_WIDTH_MAP[suffix]
 
 # ---------------------------------------------------------------------------
 # Emit helpers: load 64-bit value into register
@@ -305,6 +344,25 @@ def build_exit_section(vector_case, dump_mode=False):
             words.append(encode_xor_o(TEMP_RD, TEMP_RD, DUMP_RD))
             # OR into accumulator
             words.append(encode_or_o(ACCUM_RD, ACCUM_RD, TEMP_RD))
+
+        # Compare expected memory entries
+        memory = expected_state.get("memory") or []
+        if memory:
+            # Derive width and load encoding from mnemonic (constant per vector)
+            _, encode_ld_fn = derive_width_from_mnemonic(vector_case["mnemonic"])
+            for entry in memory:
+                addr = int(entry["address"], 16) if isinstance(entry["address"], str) else entry["address"]
+                expected_val = int(entry["value"], 16) if isinstance(entry["value"], str) else entry["value"]
+                # Load address into MEM_RB(61)
+                words.extend(emit_load_imm64_rb(MEM_RB, addr))
+                # Read actual memory into DUMP_RD(63) using unsigned load
+                words.append(encode_ld_fn(DUMP_RD, MEM_RB, 0))
+                # Load expected value into TEMP_RD(60)
+                words.extend(emit_load_imm64_rd(TEMP_RD, expected_val))
+                # XOR actual vs expected
+                words.append(encode_xor_o(TEMP_RD, TEMP_RD, DUMP_RD))
+                # OR into accumulator
+                words.append(encode_or_o(ACCUM_RD, ACCUM_RD, TEMP_RD))
 
     # Write exit code based on comparison result
     if expected_fault:
