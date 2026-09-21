@@ -9,6 +9,40 @@
 
 **执行环境**：本地
 
+## 预检订正（2026-09-21，下发前，含用户裁定）
+
+> 本节为**下发前预检**结论，优先级高于下文旧文本；冲突时以本节为准。
+
+**P1 — `expected_state.ra` 须按 loader 偏移重定位**（与 `expected_pc` 同构，补注 `ADR-0009 D6`）：
+- RA 语义（§5.4/§5.6）：`ra63 = <count:16><返回地址:48>`；返回地址 = **call 自身地址 + 4**（实测 `.work/source/qemu/target/dadao/insn_trans/trans_ctrl.c.inc:607` 的 `pc_next + 4`）
+- 向量按 **test@BINARY_BASE** 填 RA 值；harness 前置 loader（`input_state` 非空时 1–4 words）使 test 实际地址 = `BINARY_BASE + loader_bytes`
+- **规则**：比对 `expected_state.ra` 时，把其**低 48 位**加上 `loader_bytes`（高 16 位 count **不变**）后再与实测比较。`loader_bytes == 0` 时退化为原值
+- **实测根因证据**（3 条 `ctrl-call` FAIL 的**真因**，非 QEMU 缺陷）：
+
+| 向量 | loader | test@ | 向量 RA | 实现实际 RA |
+|---|---|---|---|---|
+| `ctrl-call[1]`/`[5]` | 0w | `0xFFFF00000000` | `<1>…0004` | `<1>…0004` → PASS |
+| `ctrl-call[2]`/`[6]` | 4w | `0xFFFF00000010` | `<2>…0004` | `<2>…0014` → FAIL |
+| `ctrl-call[7]` | 4w | `0xFFFF00000010` | `<1>…0004` | `<1>…0014` → FAIL |
+
+**P2 — `ret` 用 harness 合成的 `call→ret→landing` 往返**（**不改向量**）：
+- 现状 `ctrl-ret[0]` **不可行**：它 preload `ra63 = <1>0xFFFF00000004`（虚构地址），`ret` 跳进去落在 **loader 区** → 执行垃圾 → **TIMEOUT**（基线里那 1 个 error）
+- **合成 layout**（word 索引从 test 段起）：
+  ```
+  w0: call imm=2      → target = w2（ret）；ra63 = <1>(w1 地址)
+  w1: exit 段（= landing，ret 弹回此处）
+  w2: ret             ← **向量被测指令**（ret 弹栈 → 跳 w1 → 写 exit → PASS）
+  ```
+- **ret 用例不加载 `input_state.ra`**（ra63 由合成 call 真实压栈）⇒ loader=0 ⇒ test@BINARY_BASE ⇒ **无需重定位**，且 `expected_pc` 与向量既有值一致（landing = `BINARY_BASE+4`）
+- `expected_state.ra = {ra63: 0}`（弹空）✓ 与向量一致
+
+**P3 — 路由修正**：`QEMU-017t` 的 `expected_pc is not None` 调度**不限助记符**，会把 `ret`（`delta=4`）送进 **not-taken branch layout**（✗ 语义不适配）。本任务须为 **call**（无条件 → taken layout 可用）与 **ret**（→ P2 往返 layout）分别路由，不得复用 not-taken layout。
+
+**P4 — 验收归因过时**：验收 #2/#3/#4/#6 的 BLOCKED 归因「需 `QEMU-012t` + harness（`020t`）」**已过时**——`012t` 已完成、`020t` 已关闭 → 全部**现在可跑**。
+
+**P5 — 范围**：**纯 harness 改动**（`tests/scripts/build_test_binary.py`），**不改 vector YAML**。`ctrl-call` 5 条 semantic 与 `ctrl-ret[0]` **已存在**，经 P1/P2/P3 后即被真实验证。
+
+
 ## 接口规范
 
 - 输入：
@@ -73,9 +107,9 @@ binary layout:
 
 ## 交付物
 
-- `tests/scripts/build_test_binary.py`：`emit_call_ret_pattern()` + call/ret 调度
-- `tests/vectors/isa/ctrl-call.yaml`、`tests/vectors/isa/ctrl-ret.yaml`：call_i taken、call_r taken、ret 组合 pattern
-- 完成区附 PASS 条数与回归结果
+- `tests/scripts/build_test_binary.py`：call/ret 专用 layout + 调度 + `expected_state.ra` 重定位（**唯一改动文件**）
+- **不改 vector YAML**（见 P5）
+- 完成区附：5 条 `ctrl-call` semantic + `ctrl-ret[0]` 逐条 PASS 真实输出；「改前 3 FAIL + 1 error → 改后 0 FAIL」对比；回归结果
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -110,12 +144,14 @@ binary layout:
 
 | # | 验收项 | 现在可跑 / BLOCKED | 说明 |
 |---|--------|-------------------|------|
-| 1 | `emit_call_ret_pattern()` 实现三段 layout，`expected_pc`+`expected_state.ra` behavior 可触发 | 现在可跑 | 代码审查 |
-| 2 | call_i taken、call_r taken、ret 组合 pattern 均激活并 PASS | BLOCKED | 原因：需 `QEMU-012t` 完成 + harness 可用（`020t`）。替代：最小 ROM 探针 |
-| 3 | `call→ret→landing` 往返路径 PASS，证明 `ra[63]` 压栈/弹栈正确 | BLOCKED | 同上 |
-| 4 | `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ctrl-call.yaml` 0 FAIL，既有 PASS 基线不退化 | BLOCKED | 同上 |
+| 1 | call/ret 专用 layout 实现：`call` 无条件跳转 + `ret` 合成 `call→ret→landing` 往返 | **现在可跑** | 代码审查 + 字节级布局核对 |
+| 2 | `expected_state.ra` **按 loader 偏移重定位**（低 48 位 + `loader_bytes`，count 不变）后比对 | **现在可跑** | 原归因已过时（P4）。须给 `ctrl-call[2]/[6]/[7]` 改前 FAIL → 改后 PASS |
+| 3 | 5 条 `ctrl-call` semantic + `ctrl-ret[0]` **逐条** PASS（`call→ret→landing` 往返证明 RA 压/弹正确） | **现在可跑** | 同上；`ctrl-ret[0]` 改前 TIMEOUT → 改后 PASS |
+| 4 | `run_qemu_test.py` 对 `ctrl-call.yaml`/`ctrl-ret.yaml` 0 FAIL（含 encoding/legality） | **现在可跑** | 临时目录 `--batch` |
 | 5 | call_r encoding 在完成区给出从 `contract-isa.md` §5.4 的手推依据 | 现在可跑 | |
-| 6 | `reg-arith.yaml` 回归不破坏 | BLOCKED | 需 harness 可用（`020t`） |
+| 6 | 全量 `tests/vectors/isa/ --batch` 失败数由 29 → 26（消除 3 条 `ctrl-call`；`ctrl-ret` error 消除），**零新增** | **现在可跑** | 逐条核对；余 24 `mem-rd` 窄 load（→TESTCASES-010t）+ 2 `misc`（deferred） |
+| 7 | **反例门控**：任取一条 call 向量，把 `expected_state.ra` 低 48 位改错 → FAIL；还原 → PASS。且把重定位规则关掉（不加 `loader_bytes`）→ `ctrl-call[2]` 必须 FAIL | **现在可跑** | 证明重定位真的生效、非恒真 |
+| 8 | **往返门控**：把合成往返里的 `call` 目标改错（如 `imm=1`）→ `ctrl-ret[0]` 必须 FAIL | **现在可跑** | 证明 ret 往返非恒真 |
 
 ## 完成区
 
