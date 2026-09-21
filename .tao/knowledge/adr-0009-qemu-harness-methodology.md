@@ -77,6 +77,13 @@ harness 消费 `tests/vectors/isa/*.yaml` 中以下字段：
 - **配套语义**：v5 分支/跳转基址 = **分支指令自身地址**（`Addr = rb0 + (imm<<2)`；`translate.c` 的 `pc_next += 4` 发生在 `decode_insn` **之后**）。故 poison pattern 的 not-taken 偏移为 **`+2`**（0628 的 `pc_next` 基准下为 `+1`，**不得沿用**）。
 - **影响**：`QEMU-017t`（`ctrl-br`/`ctrl-jump`）与 `QEMU-018t`（`ctrl-call`/`ctrl-ret`）的 `build_branch_test_binary()` 按本补注实现；向量数据**无需修改**。
 
+**补注续（2026-09-21，用户确认）——`expected_state.ra` 同构重定位**：
+
+- `expected_state.ra` 的**低 48 位**须加 `loader_bytes`（= 测试指令实际地址 − `BINARY_BASE`）后再与实测比对；**高 16 位 count 不变**。`loader_bytes == 0` 时退化为原值。
+- **理由同上**：向量按 test@`BINARY_BASE` 填 RA 值；harness 前置 loader 使 test 实际地址 ≠ `BINARY_BASE`。RA 语义为 `ra63 = <count:16><返回地址:48>`，返回地址 = **call 自身地址 + 4**（`trans_ctrl.c.inc` 的 `pc_next + 4`），故实测 RA 随 test 地址平移。
+- **实测证据**：`ctrl-call[2]`/`[6]`（loader=4w，test@`0xFFFF00000010`）向量写 `<2>…0004`、实测 `<2>…0014` → FAIL；`ctrl-call[1]`/`[5]`（loader=0）→ PASS。
+- **`ret` 的往返验证**：`ret` 无独立语义测试（依赖 RA 栈有值）。`QEMU-018t` 由 harness **合成** `call→ret→landing` 往返（`[call imm=2][landing=exit 段][ret]`），ret 用例**不加载 `input_state.ra`**（ra63 由合成 call 真实压栈）⇒ `loader_bytes == 0` ⇒ 无需重定位。
+
 **状态**：Accepted（用户确认 2026-09-19）；D6 补注经用户确认 2026-09-21
 
 ### D7 state-dump 读取机制
