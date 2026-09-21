@@ -94,6 +94,12 @@
   预置无意义且会误触发 ILLI。
 - `memory`：元素为 `{address, value}`；`address` 为 48-bit 有效地址
   （`≤ 0xffff_ffff_ffff`，即 `bits[63:48]=0`）。
+- **`input_state.memory[].value` 契约**（ADR-0009 补注续二）：`value` 表示
+  「`address` 处存放的 **N 字节值**」，N = 被测向量的**访存宽度**（由 mnemonic
+  推导：`b`→1、`w`→2、`t`→4、`o`→8；`stm.*`/`ldm.*` 按元素宽度）。
+  harness 以宽度 N 的 store（`st.b`/`st.w`/`st.t`/`st.o`）将 `value` 的低 N
+  字节写到 `address`。大端下 `value=0x42` + `st.b` → `address` 处写入 `0x42`；
+  `st.o` 则写入 `00 00 00 00 00 00 00 42`（`0x42` 在 `address+7`）。
 
 ```yaml
 - mnemonic: ld.ub

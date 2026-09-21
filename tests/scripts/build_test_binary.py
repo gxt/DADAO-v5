@@ -64,8 +64,20 @@ def encode_or_w_rb(rbha, wpN, immu16):
     """or.w rb, wpN, imm16 (rwii, op=0x4A). ORs wyde."""
     return (0x4A << 24) | (rbha << 18) | (wpN << 16) | (immu16 & 0xFFFF)
 
+def encode_st_b_rd(rdha, rbhb, imms12):
+    """st.b rd, rb, offset (rrii, op=0x18). Store RD byte to memory."""
+    return (0x18 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
+
+def encode_st_w_rd(rdha, rbhb, imms12):
+    """st.w rd, rb, offset (rrii, op=0x19). Store RD wyde (2 bytes) to memory."""
+    return (0x19 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
+
+def encode_st_t_rd(rdha, rbhb, imms12):
+    """st.t rd, rb, offset (rrii, op=0x1A). Store RD tetra (4 bytes) to memory."""
+    return (0x1A << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
+
 def encode_st_o_rd(rdha, rbhb, imms12):
-    """st.o rd, rb, offset (rrii, op=0x21). Store RD to memory."""
+    """st.o rd, rb, offset (rrii, op=0x21). Store RD octa (8 bytes) to memory."""
     return (0x21 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
 
 def encode_st_o_rb(rbha, rbhb, imms12):
@@ -126,7 +138,7 @@ def encode_jump_iiii(imms24):
     return (0x70 << 24) | (imms24 & 0xFFFFFF)
 
 
-# Width lookup: mnemonic prefix -> (byte_width, encode_fn)
+# Width lookup: mnemonic suffix -> (byte_width, encode_ld_fn)
 _LD_WIDTH_MAP = {
     'b': (1, encode_ld_ub),
     'w': (2, encode_ld_uw),
@@ -134,19 +146,30 @@ _LD_WIDTH_MAP = {
     'o': (8, encode_ld_o),
 }
 
+# Store encoding lookup: mnemonic suffix -> encode_st_fn (rd form)
+_ST_WIDTH_MAP = {
+    'b': encode_st_b_rd,
+    'w': encode_st_w_rd,
+    't': encode_st_t_rd,
+    'o': encode_st_o_rd,
+}
+
 def derive_width_from_mnemonic(mnemonic):
-    """Derive memory access width from store mnemonic.
+    """Derive memory access width from mnemonic (ld/st/ldm/stm).
 
-    st.b / stm.b -> 1 byte, st.w / stm.w -> 2 bytes,
-    st.t / stm.t -> 4 bytes, st.o / stm.o -> 8 bytes.
+    Uses the last character of the mnemonic suffix to determine width:
+    b->1, w->2, t->4, o->8. Handles ld.ub/uw/ut/sb/sw/st, st.b/w/t/o,
+    ldm.ub/uw/ut/sb/sw/st, stm.b/w/t/o.
 
-    Returns (byte_width, encode_ld_fn).
+    Returns (byte_width, encode_ld_fn, encode_st_fn).
     """
-    # Extract the last character after the final '.'
     suffix = mnemonic.rsplit('.', 1)[-1]
-    if suffix not in _LD_WIDTH_MAP:
+    width_char = suffix[-1]  # last char: b/w/t/o
+    if width_char not in _LD_WIDTH_MAP:
         raise ValueError(f"Unknown mnemonic suffix for width derivation: {mnemonic}")
-    return _LD_WIDTH_MAP[suffix]
+    byte_width, encode_ld_fn = _LD_WIDTH_MAP[width_char]
+    encode_st_fn = _ST_WIDTH_MAP[width_char]
+    return byte_width, encode_ld_fn, encode_st_fn
 
 # ---------------------------------------------------------------------------
 # Emit helpers: load 64-bit value into register
@@ -196,7 +219,11 @@ def emit_load_imm64_rb(rb, value):
 # ---------------------------------------------------------------------------
 
 def build_loader(vector_case):
-    """Build loader section: set input_state registers and memory."""
+    """Build loader section: set input_state registers and memory.
+
+    Memory writes use width-appropriate store (st.b/w/t/o) derived from
+    the vector's mnemonic, per ADR-0009 补注续二.
+    """
     words = []
     input_state = vector_case.get("input_state") or {}
 
@@ -227,17 +254,24 @@ def build_loader(vector_case):
         words.extend(emit_load_imm64_rd(TEMP_RD, value))
         words.append(encode_rd2ra(ra_num, TEMP_RD, 1))
 
-    # Write memory
+    # Write memory (width-appropriate store per ADR-0009 补注续二)
     memory = input_state.get("memory") or []
-    for mem_entry in memory:
-        addr = int(mem_entry["address"], 16) if isinstance(mem_entry["address"], str) else mem_entry["address"]
-        val = int(mem_entry["value"], 16) if isinstance(mem_entry["value"], str) else mem_entry["value"]
-        # Load address into MEM_RB
-        words.extend(emit_load_imm64_rb(MEM_RB, addr))
-        # Load value into TEMP_RD
-        words.extend(emit_load_imm64_rd(TEMP_RD, val))
-        # Store: st.o rd, rb, 0
-        words.append(encode_st_o_rd(TEMP_RD, MEM_RB, 0))
+    if memory:
+        # Derive store encoding from mnemonic
+        mnemonic = vector_case.get("mnemonic", "")
+        if mnemonic:
+            _, _, encode_st_fn = derive_width_from_mnemonic(mnemonic)
+        else:
+            encode_st_fn = encode_st_o_rd  # fallback: octa
+        for mem_entry in memory:
+            addr = int(mem_entry["address"], 16) if isinstance(mem_entry["address"], str) else mem_entry["address"]
+            val = int(mem_entry["value"], 16) if isinstance(mem_entry["value"], str) else mem_entry["value"]
+            # Load address into MEM_RB
+            words.extend(emit_load_imm64_rb(MEM_RB, addr))
+            # Load value into TEMP_RD
+            words.extend(emit_load_imm64_rd(TEMP_RD, val))
+            # Store: st.b/w/t/o rd, rb, 0 (width from mnemonic)
+            words.append(encode_st_fn(TEMP_RD, MEM_RB, 0))
 
     return words, len(words)
 
@@ -376,7 +410,7 @@ def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra
         memory = expected_state.get("memory") or []
         if memory:
             # Derive width and load encoding from mnemonic (constant per vector)
-            _, encode_ld_fn = derive_width_from_mnemonic(vector_case["mnemonic"])
+            _, encode_ld_fn, _ = derive_width_from_mnemonic(vector_case["mnemonic"])
             for entry in memory:
                 addr = int(entry["address"], 16) if isinstance(entry["address"], str) else entry["address"]
                 expected_val = int(entry["value"], 16) if isinstance(entry["value"], str) else entry["value"]
