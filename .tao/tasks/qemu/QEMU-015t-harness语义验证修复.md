@@ -5,6 +5,11 @@
 **依赖**：`QEMU-014t`
 **状态**：待开始
 
+> **下发前预检更正（2026-09-21，`005t`–`013t` 完成后）**：本任务书原「目标/设计理由/验收归因」基于 `014t` 收尾返工**之前**的旧状态，已过时。预检实测结论：
+> 1. `014t` 的 harness **已实现** exit 段 state 比较（`build_exit_section` 读 `expected_state`/`expected_fault`）与 fault 路由（`interpret_exit_code`），CLI 在 FAIL 时已 `exit=1`——原「dumper 为空 / 不读 `expected_state` / exit=0 无条件 PASS / legality 反判 FAIL / CLI 遇 FAIL 仍 exit 0」**均不成立**。
+> 2. 实际缺陷是：**普通模式 TIMEOUT**（连最普通 RD-only 语义向量也跑不出 PASS）、**PC dump 恒 0**、**CLI fail-closed 缺失**。
+> 3. 验收 1–4 原归因「需 `020t`」**已更正为「现在可跑」**（`020t` 非前置）。详见「背景 → 目标/设计理由」与「验收标准」。
+
 ## 执行环境
 
 **执行环境**：本地
@@ -28,15 +33,27 @@
 
 ### 目标
 
-把 smoke 级 harness 升级为**真正的语义验证器**：
+把 harness 从「结构正确但跑不出结果」修成**真正可用的语义验证器**（按 2026-09-21 下发前预检后的实际缺陷重定）：
 
-1. `build_test_binary.py`：实现 `emit_state_compare()`，把预期寄存器状态嵌入 guest 代码**原地比较**，向 exit port 写 0（PASS）或非 0（FAIL）。
-2. `run_qemu_test.py`：按 `class` + `expected_fault` 正确路由 pass/fail 判断。
-3. CLI：任意 case FAIL 时 `sys.exit(1)`；0 case 或全 SKIP 时 fail-closed（`sys.exit(2)`）。
+1. **定位并修复普通模式 TIMEOUT**（本任务核心）：当前即使最普通的 RD-only 语义向量（`reg-arith.yaml --case 1`）也返回 `INCONCLUSIVE - Timeout`，无法得出 PASS/FAIL。
+2. **修复 PC dump 恒为 0**：dumper 用 `rb2rd rd63, rb0, 1` 复制 PC，实测读出 0（见 `deferred.md`）。
+3. **核对并补全 state 比较**：`build_exit_section` 已实现 RD/RB/RA 比较与 `expected_fault` 路由，须逐条验证语义正确性并补齐缺失（含 RA 经 `ra2rd` 的比较路径）。
+4. **CLI fail-closed**：0 case 或全 SKIP → `sys.exit(2)`（**当前缺失**：实测 batch 模式 `total==0` 仍 `exit=0`）。
 
 ### 设计理由
 
-`QEMU-014t` 的 harness 是 smoke test，不是语义验证器：`emit_state_dumper()` 为空、runner 完全不读 `expected_state`/`expected_fault`、exit=0 无条件 PASS、`expected_fault: ILLI` 的 legality case 反被判 FAIL、CLI 遇 FAIL 仍以 0 退出、0 case/全 SKIP 不报错。向量里的 `expected_state` 数据当前零验证，必须修。
+**（2026-09-21 下发前预检实测更正）** 原设计理由所述「`QEMU-014t` 的 harness 是 smoke test：`emit_state_dumper()` 为空、runner 完全不读 `expected_state`/`expected_fault`、exit=0 无条件 PASS、`expected_fault: ILLI` 的 legality case 反被判 FAIL、CLI 遇 FAIL 仍以 0 退出」**均已不成立**——那是 `014t` 收尾返工前的旧状态。实测（`005t`–`013t` 完成后）：
+
+- `build_test_binary.py` **已实现** `build_exit_section`（读 `expected_state` 的 rd/rb/ra 并生成 guest 内 `xor.o`/`or.o` 比较 + exit port 写入；读 `expected_fault` 生成安全网）。
+- `run_qemu_test.py` **已实现** `interpret_exit_code` + `FAULT_CODES` 路由（实测 `ctrl-ret.yaml --case 1` 的 legality RASUF → PASS）。
+- CLI 在 `FAIL`/`INCONCLUSIVE` 时**已** `exit=1`。
+
+**当前实际缺陷**（本次预检实测）：
+1. **普通模式 TIMEOUT**：`run_qemu_test.py tests/vectors/isa/reg-arith.yaml --case 1`（RD-only 语义）与 `--case 2` 均 `INCONCLUSIVE - Timeout`。`--dump` 模式导出 `state.bin` 的 rd1=0/rd2=0x82/rd3=0x64/rd4=0x1e **与向量完全一致**，证明 loader/test/dumper 三段正常 ⇒ 故障点在 **exit 段（比较→写 exit port）或其后的控制流**。
+2. **PC dump 恒为 0**（`+0x400`），见 `deferred.md`（疑 `rb0` 读取路径）。
+3. **CLI fail-closed 缺失**：0 case / 全 SKIP 时仍 `exit=0`（应 `exit=2`）。
+
+> 注：向量里的 `expected_state` 数据此前确实**零验证**（因 TIMEOUT 从未走到比较段），这正是本任务要修通的。
 
 ### 关键概念 / 数据
 
@@ -139,12 +156,15 @@ sys.exit(0)
 
 | # | 验收项 | 现在可跑 / BLOCKED | 说明 |
 |---|--------|-------------------|------|
-| 1 | encoding class 向量仍全 PASS（exit=0） | BLOCKED | 原因：harness e2e 需 `020t`（dumper 改造）后可跑。替代：代码审查 `emit_state_compare` 逻辑 |
-| 2 | semantic class 向量按 `expected_state` 判定：正确时 PASS | BLOCKED | 同上 |
-| 3 | legality class（`expected_fault: ILLI`）按 fault code 路由 → PASS（修复前为 FAIL） | BLOCKED | 同上 |
-| 4 | 临时篡改一条 `expected_state` 后运行 → FAIL 且 CLI `exit=1`；改回后 PASS | BLOCKED | 同上 |
-| 5 | 0 case 或全 SKIP → `exit=2`；全 PASS → `exit=0` | 现在可跑 | 代码审查 CLI 逻辑 |
-| 6 | `make check` 不被本任务破坏（harness 修改不触碰 `validate_vectors` 路径） | 现在可跑 | |
+| 1 | 普通模式跑 RD-only 语义向量得出 PASS（当前 TIMEOUT） | 现在可跑 | **原归因 `020t` 已更正**（2026-09-21 预检：harness 已能跑、dumper 已可用，`020t` 非前置）。当前实测 `reg-arith.yaml --case 1/2` → `INCONCLUSIVE - Timeout`，须修 |
+| 2 | encoding class 向量仍全 PASS（exit=0） | 现在可跑 | 同上（原归因 `020t` 已更正） |
+| 3 | semantic class 向量按 `expected_state` 判定：正确时 PASS | 现在可跑 | 同上 |
+| 4 | legality class（`expected_fault: ILLI`）按 fault code 路由 → PASS | 现在可跑 | 同上；实测 `ctrl-ret --case 1`（RASUF）已 PASS，须保持 |
+| 5 | 临时篡改一条 `expected_state` 后运行 → FAIL 且 CLI `exit=1`；改回后 PASS | 现在可跑 | 注入反例门控（须给真实输出） |
+| 6 | PC dump（`+0x400`）反映真实 PC（当前恒 0） | 现在可跑 | 见 `deferred.md`；须先判定是 `rb2rd` 读取路径还是 `rb0` 维护策略问题 |
+| 7 | 0 case 或全 SKIP → `exit=2`；全 PASS → `exit=0` | 现在可跑 | **当前缺失**：实测 batch 模式 `total==0` 仍 `exit=0` |
+| 8 | `make check` 不被本任务破坏（harness 修改不触碰 `validate_vectors` 路径） | 现在可跑 | |
+| 9 | 修改 harness 后，`QEMU-014t` 后续实测的 4 项（语义 PASS/dump 寄存器语义/PC dump）逐条复跑并记录 | 现在可跑 | 完成后回填 `014t` 任务书「后续实测」小节 |
 
 ## 完成区
 

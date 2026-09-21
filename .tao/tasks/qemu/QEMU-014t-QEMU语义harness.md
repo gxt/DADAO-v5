@@ -1318,3 +1318,23 @@ Results: 30 passed, 0 failed, 30 total
 **收尾返工后遗留问题**：
 1. **验收标准 1/3/5(进入 BINARY_BASE)/8/10b**：需 QEMU-005t 实现指令语义后重新验证。
 2. **UNDI vs ILLI 区分**：QEMU stubs 不区分 UNDI/ILLI，reserved.yaml 用例 FAIL。需 QEMU-005t 实现。
+
+## 后续实测（2026-09-21，`QEMU-005t`–`013t` 全部完成后回补）
+
+**背景**：完成区标注为 BLOCKED 的验收项（1/3/7/8/10b）当时均因「QEMU 全指令 ILLI 存根」而无法执行；`005t`–`013t` 已验证后，现环境已具备执行条件，遂实测回补。
+
+**实测结果**（命令与输出均为真实运行）：
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 语义 PASS（验收 1） | `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --case 1` | **TIMEOUT**（`INCONCLUSIVE - Timeout (harness error)`）✗ |
+| boundary（验收 3 同路径） | 同上 `--case 2` | **TIMEOUT** ✗ |
+| `--dump` 寄存器语义（验收 10b） | 同上 `--case 1 --dump` → 读 `state.bin` | **rd1=0、rd2=0x82、rd3=0x64、rd4=0x1e**，与向量 `input_state`/`expected_state` **一致** ✓ |
+| PC dump（`+0x400`） | 同上 dump | **= 0** ✗（应为 ROM 地址） |
+
+**结论**：
+1. **loader + test + dumper 三段工作正常**——dump 导出的 rd 值与向量完全吻合，说明 `set.zw`/`or.w`/`rd2ra` 载入、被测指令执行、`st.o-rd`/`st.o-rb`/`rb2rd` dump 链路均可用。
+2. **普通模式仍不能得出 PASS**：即使是最普通的 RD-only 语义向量也 TIMEOUT，**不是**「exit=0 无条件 PASS」那类问题（该问题在 014t 收尾后已不存在——`build_exit_section` 已读 `expected_state`/`expected_fault`，`interpret_exit_code` 已做 fault 路由）。失败点须由 `015t` 定位（属其「把 harness 升级为真正语义验证器」范围）。
+3. **PC dump = 0 疑为独立缺陷**：dumper 用 `rb2rd rd63, rb0, 1` 规避 `st.o-rb` 的 `rbha != rb0` 约束，但读回 0。疑似实现侧 `rb0` 仅在翻译期按 PC 计算（`ctx->base.pc_next`）、未维护 `env.rb[0]`，故经寄存器复制指令读 `rb0` 得 0。**归属待定**（需确认是 `rb2rd` 读取路径还是 `rb0` 维护策略问题）。
+
+**处置**：以上第 2/3 点登记 `deferred.md`，分别归属 `QEMU-015t`（exit 段/判定）与待定任务（`rb0` 读取路径）。本任务交付物本身不改。
