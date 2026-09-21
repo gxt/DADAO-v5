@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M1
 **依赖**：`QEMU-014t`
-**状态**：待验收
+**状态**：已验证
 
 > **下发前预检更正（2026-09-21，`005t`–`013t` 完成后）**：本任务书原「目标/设计理由/验收归因」基于 `014t` 收尾返工**之前**的旧状态，已过时。预检实测结论：
 > 1. `014t` 的 harness **已实现** exit 段 state 比较（`build_exit_section` 读 `expected_state`/`expected_fault`）与 fault 路由（`interpret_exit_code`），CLI 在 FAIL 时已 `exit=1`——原「dumper 为空 / 不读 `expected_state` / exit=0 无条件 PASS / legality 反判 FAIL / CLI 遇 FAIL 仍 exit 0」**均不成立**。
@@ -392,3 +392,70 @@ sys.exit(0)
 3. `015t:173`：「需 RAS 设置」改为「PC 布局缺口（`ret` 目标落回 loader，见新发现 4）」。
 
 上述 3 处订正后（含必要的 020t 增补与新建 TB 任务），本任务可判 **Accepted**；#1–#5、#7–#9 已由本轮重跑确认。
+
+### 第3轮 reviewer 验收（收口复审，commit `ccff215` + `6caa3c9`）
+
+**审查范围**：3 处文字订正（`ccff215`）+ 新建 `QEMU-022t`/缩窄 `020t`/`021m`/`001k`/`milestones`/fence 登记（`6caa3c9`）+ 基线重跑 + `022t`/`020t` 可执行性核对。
+**日志**：`.work/log/qemu/QEMU-015t-review3-*.log`；工作区 `git status` 空（改动均已提交）。
+
+#### A. 3 处文字订正核对（✅ 与真实一致，无残留矛盾）
+
+| 订正 | 核实 |
+|---|---|
+| `deferred.md:84` / `014t:1353` → 「首个 TB 达 **TCG op buffer** 上限（该 case 在 65 条处被切）；`TCG_MAX_INSNS=512` 为 `set.zw`（N=510）合成触发」 | ✅ 与事实一致（预修复版共 150 条、TB `[4,65]`）；且 `deferred.md:84` 与 `:86`（510→512）**不再自相矛盾** |
+| `015t:204` → 「每段低于 **op-buffer 阈值**（store-heavy ≈40 条安全）+ 段间显式控制流」并附 `124→0` 实验 | ✅ 与 reviewer 第 2 轮实验一致 |
+| `015t:173` → 「**PC 布局缺口**（`ret` 目标落回 loader）」 | ✅ 与「新发现 4」一致，原「需 RAS 设置」已消除 |
+
+`rg` 复核：`131`+`512` 的共现仅存在于 reviewer 审阅记录（历史）与 `022t`/`020t` 的正确表述中；无残留「131>512」「需 RAS」「<512 指令」错误。
+
+#### B. `QEMU-022t` 任务书核对 → **须订正后再下发**
+
+**合格项**：根因/机制/riscv 对照/影响面/证据链完整；补丁归属（新 `0008`，不修订 `0001`~`0007`）正确；`001k`/`milestones`/`021m` 已同步 `022t`+`0008`；验收 #8 反例路径**可达**且写明「还原 → 重 build」（符合 AGENTS.md）。
+
+**缺陷（下发前须订正）**：
+
+| 编号 | 位置 | 问题 | 证据 |
+|---|---|---|---|
+| B1 | 验收 #7 | 「`--dump` 模式**不再 TIMEOUT**」为**不可能判据**：dump 模式设计上自旋（`build_exit_section` dump 分支 `jump rb0,rd0,0`），harness 恒报 `INCONCLUSIVE - Timeout`，修复后亦然。应改为「`state.bin` 的 `rb[1..63]` 非全 0、`pc` 非 0」 | `review3-dump.log`：`Status: INCONCLUSIVE - Timeout`；`build_test_binary.py:314-317` |
+| B2 | 验证方式 1/2 | 最小复现描述错误：`st.o rdN, **rb0**, N*8` 用 `rb0`(=PC) 作 base → 写到 PC 邻域（**ROM**）→ ROM store 触发 ILLI；且 `st.o **rd0**, rb_exit, 0` 命中 `store_src_rd0` → ILLI。正解：先装载 base 寄存器（如 `rb17=DUMP_BASE=0xFFFF_00FE_0000`）再 `st.o rdN, rb17, N*8`；写 exit 用非 rd0（如 `rd1=0`） | `contracts/legality_rules.yaml:39-45`（`store_src_rd0`）；`DUMP_BASE=0xFFFF_00FE_0000`（`build_test_binary.py:32`） |
+| B3 | 验证方式结尾 | 「以 `qemu-system-dadao -bios <rom>` 运行」缺 `-kernel`（机器**强制**两者同时提供）；并引用**不存在**的 `tools/qemu/build_rom.py`。应以现有 `min_rom_probe_*.py` 模式为准：ROM 于 `0xFFFFFFFF0000`（trampoline+test+UNDI）、`-bios`+`-kernel <illi 桩>` | `dadao-machine.c:127-134`；`ls tools/qemu/` 无 `build_rom.py` |
+| B4 | 修复方案代码块（:106-107） | 片段非法：`tcg_gen_movi_i64(tcg_constant_i64(...), tcg_env, offsetof(...))` 为 3 参，实际签名 `void tcg_gen_movi_i64(TCGv_i64 ret, int64_t arg)`（2 参）。:118 注已给正解，但主片段应直接写 `tcg_gen_st_i64(tcg_constant_i64(ctx->base.pc_next), tcg_env, offsetof(CPUDADAOState, pc))` | `tcg-op-common.h:199`、`:300` |
+| B5 | 对照关系 / 注 | `translator_use_goto_tb` 被列「建议/可选」；验收用例均单页，**跨页 TB 的 `goto_tb` 无守卫**可能引入新错且不可被现有验收捕获。应要求按上游模式（`translator_use_goto_tb` 守卫，或 `tcg_gen_lookup_and_goto_ptr`） | riscv `gen_goto_tb` 使用该守卫 |
+| B6 | 影响面 :72 | 「此前所有探针/向量因 TB 短（`<100 条`）而未触发」不准确——触发取决于 **op-count** 而非指令条数（`ctrl-call[3]` normal 二进制 196 条未触发）。:67 表述正确，:72 应删「<100 条」 | reviewer 第 1 轮测 `ctrl-call[3]` PASS（196 条） |
+| B7 | 依赖 / 验收 #1 | 依赖列 `QEMU-007t`，但验收 #1 写「apply 到 **0005** 后的源码」（patch 号与任务号混用）；且 #7 需 `014t`/`008t` 的 harness/`rb2rd`。建议依赖列补 `QEMU-008t`、`QEMU-014t`，并注明 `0008` 基线 = `0001`~`0007` 全应用 | — |
+
+#### C. `QEMU-020t` 修订核对 → **须订正后再下发**
+
+**合格项**：交付物 #1 已删除、范围缩窄为分段 dumper + `--dump` 端到端（重叠已消除）；分段方案（每段 ≤N、段间 `jump`）与 reviewer 实验一致；`已知坑 2` 对 `jump`/`DISAS_NORETURN` 的说明正确。
+
+**缺陷**：
+
+| 编号 | 位置 | 问题 | 证据 |
+|---|---|---|---|
+| C1 | 验收 #2 | 「`--dump` 模式**不再 TIMEOUT**」同上（B1）不可能判据；应改为「`state.bin` 内容正确」 | 同 B1 |
+| C2 | :51 | dump region base 写 `0xFFFF0000_0000 + 0x400`——**错误**（这是 `BINARY_BASE+0x400`=代码区）。实际 `DUMP_BASE=0xFFFF_00FE_0000` | `build_test_binary.py:32` |
+| C3 | :5 vs :45 | 自相矛盾：依赖列 `QEMU-022t`，正文称「两者独立交付，**不存在依赖关系**」 | — |
+| C4 | 验收 #2–#5 | 标「BLOCKED（需 `QEMU-008t`）」**陈旧**：`008t` 已验证（`rb2rd`/`st.o-rb` 已实现），应为「现在可跑」 | `MEMORY.md` |
+| C5 | :73 | 阈值「保守取 32」合理（reviewer 40 条已安全）；建议与 022t 的段长口径统一 | — |
+
+#### D. `015t` / `020t` / `022t` 分工
+
+- `015t`：`if dump_mode:` 条件化（交付物 #1）→ 已落地；`020t` 不再重复该项。✅
+- `020t`：分段 dumper + `--dump` 端到端验收。✅ 无重叠；但 C1/C3 须先订正。
+- `022t`：根治。建议 `020t` 依赖改为 `015t`+`008t`（分段作为防御，与 022t 并行）；若坚持 `022t` 先行，则 `020t` 应明确「022t 已修时分段默认关闭，020t 退化为纯验收」（与 `020t:86` 一致），消除 C3。
+
+#### E. 基线复核（reviewer 亲自重跑，第 3 轮）
+
+| 项 | 输出 | 退出码 |
+|---|---|---|
+| `reg-arith:1` | `0x00 PASS` | 0 ✓ |
+| 反例门控（篡改→还原） | `0x01 FAIL` / `0x00 PASS` | 1 / 0 ✓ |
+| CLI fail-closed（0 case / 全 deferred） | `ERROR: 0 cases executed` | 2 / 2 ✓ |
+| `012t` / `013t` 探针 | `Overall: PASS` | 0 / 0 ✓ |
+| `make check` | `repository checks: PASS` | 0 ✓ |
+
+#### F. 判决：**Accepted**（`QEMU-015t`）
+
+- 5 处更正（含本轮 3 处订正）**均与真实一致、无残留矛盾**；`#1`–`#5`、`#7`–`#9` 重跑确认；约束（不改向量/不改 QEMU 补丁）守住；根因已正确定为 **(b) QEMU TB 续接缺陷**并独立登记。
+- **验收 #6 收口方式**：#6 维持 **BLOCKED**；由 `QEMU-022t` 交付「`--dump` 的 `state.bin` 中 `rb`/`pc` 正确」证据，`QEMU-020t` 交付「分段 dumper + `--dump` 端到端验收」后**回补 #6**。两任务的创建/范围缩减已落盘（`022t`/`020t`/`001k`/`021m`/`milestones`），收口链成立。
+- **附带要求（不阻断 015t 验证，但阻断 #6 收口）**：`022t` 须先订正 B1–B7、`020t` 须先订正 C1–C4；其中 **B1/C1（「不再 TIMEOUT」不可能判据）** 与 **B2/C2（复现描述/地址错误）** 为必改项，否则 `022t` 无法被 Accepted，#6 将无法收口。

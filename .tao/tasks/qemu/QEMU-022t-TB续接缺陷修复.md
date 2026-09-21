@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M1
-**依赖**：`QEMU-007t`
+**依赖**：`QEMU-007t`（`translate.c` 拆分后的最终形态）；验收 #7 另需 `QEMU-014t`、`QEMU-008t`（harness `--dump` 路径）
 **状态**：待开始
 
 ## 执行环境
@@ -69,7 +69,7 @@ static void riscv_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
 - `-d exec` 证据：base TB 6s 内被执行 **46185 次**，PC 恒 `0xFFFF00000000`
 - 直接后果：harness 的 `--dump` 模式（full dumper 131 条指令）触发死循环 → `rb[1..63]` 全 0、`pc=0`
 
-此前所有探针/向量因 TB 短（<100 条）而未触发。
+**为何此前未被发现**：触发取决于 **TCG op-count**（而非 guest 指令条数）——已有探针/向量均未达 op-buffer 上限故未触发；注意 `ctrl-call[3]`（196 条指令）亦未触发，因其 op-count 未满。
 
 ### 目的
 
@@ -85,7 +85,7 @@ static void riscv_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
 | `tb_stop` 更新 PC | `gen_update_pc(ctx, 0)` 写 `env->pc` | ❌ 无 | ✅ 写 `env->pc = ctx->base.pc_next` |
 | `tb_stop` goto_tb | `tcg_gen_goto_tb(n)` + `tcg_gen_exit_tb(tb, n)` | `tcg_gen_goto_tb(1)` + `tcg_gen_exit_tb(NULL, 0)` | `tcg_gen_goto_tb(0)` + `tcg_gen_exit_tb(ctx->base.tb, 0)` |
 | TB 传参 | `exit_tb(ctx->base.tb, n)`（支持 TB 链接） | `exit_tb(NULL, 0)`（不支持链接） | `exit_tb(ctx->base.tb, 0)`（支持链接） |
-| `translator_use_goto_tb` | 使用（检查 dest 是否在同一页） | 不使用 | 建议使用（对齐上游模式） |
+| `translator_use_goto_tb` | 使用（检查 dest 是否在同一页） | 不使用 | **必须按上游模式处理**（守卫 `goto_tb`；跨页 TB 无守卫可能引入新错） |
 
 **关键差异**：dadao 的 `tcg_gen_exit_tb(NULL, 0)` 传 NULL 给第一个参数（`tb`），这意味着不建立 TB 链接——每次 TB 退出都回到主循环重新查找。这本身不是 bug（只是性能差），但结合缺 `gen_update_pc` 就变成死循环。修复时应一并传入 `ctx->base.tb` 以启用 TB 链接优化。
 
@@ -103,8 +103,8 @@ static void dadao_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
     case DISAS_TOO_MANY:
     case DISAS_NEXT:
         /* 新增：更新 env->pc 到下一条指令地址 */
-        tcg_gen_movi_i64(tcg_constant_i64(ctx->base.pc_next),
-                         tcg_env, offsetof(CPUDADAOState, pc));
+        tcg_gen_st_i64(tcg_constant_i64(ctx->base.pc_next),
+                       tcg_env, offsetof(CPUDADAOState, pc));
         tcg_gen_goto_tb(0);
         tcg_gen_exit_tb(ctx->base.tb, 0);
         break;
@@ -115,11 +115,11 @@ static void dadao_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
 ```
 
 **注**：
-- `tcg_gen_movi_i64` 把立即数写入 TCG temp，再 `tcg_gen_st_i64` 写入 `env->pc`。实际需用 `tcg_gen_st_i64(tcg_constant_i64(ctx->base.pc_next), tcg_env, offsetof(CPUDADAOState, pc))`。
+- `tcg_gen_movi_i64` 签名是 **2 参**（`(TCGv, int64_t)`），**不能**用于写内存；必须用 `tcg_gen_st_i64(tcg_constant_i64(ctx->base.pc_next), tcg_env, offsetof(CPUDADAOState, pc))`（见上片段）。
 - riscv 的 `gen_update_pc` 还维护一个 `ctx->pc_save` 缓存，dadao 无此字段可省略。
 - `goto_tb(0)` 替换原来的 `goto_tb(1)`——slot 编号无语义差异，但 riscv 用 0。
 - `exit_tb(ctx->base.tb, 0)` 启用 TB 链接（原来传 NULL 禁用）。
-- 可选：加入 `translator_use_goto_tb` 检查（对齐 riscv 的 `gen_goto_tb` 模式），但 dadao 无 `itrigger`/`CF_PCREL` 复杂性，简化版本即可。
+- **必须**按上游模式处理跨页 TB：用 `translator_use_goto_tb(&ctx->base, dest)` 守卫 `goto_tb`（不满足则退回 `exit_tb`/`lookup_and_goto_ptr`），否则可能引入新的跨页跳转错误（现有单页验收抓不到）。
 
 ### 补丁归属建议
 
@@ -136,12 +136,12 @@ static void dadao_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
 
 **最小可复现测试（合成 ROM）**：
 
-1. **96 条 `st.o-rd`（应 PASS）**：构造 ROM，96 条 `st.o rdN, rb0, N*8`（写 DUMP region）后 `st.o rd0, rb_exit, 0`（写 exit port）。期望 `exit=0`。
+1. **96 条 `st.o-rd`（应 PASS）**：构造 ROM（**沿用 `tools/qemu/min_rom_probe_*.py` 的 `build_rom`/trampoline 模式**，ROM 落 `0xFFFFFFFF0000`）——**先装载 `rb17 = DUMP_BASE`（`0xFFFF_00FE_0000`）**，再 96 条 `st.o rdN, rb17, N*8`；写 exit port 用**非 rd0** 目的（如 `st.o rd18, rb_exit, 0`，rd18 预置 0）。期望 `exit=0`。**注意**：`st.o rdN, rb0, …` 会以 PC 为 base 写 ROM → ILLI；`st.o rd0, …` 命中 `store_src_rd0` 合法性 → ILLI。
 2. **100 条 `st.o-rd`（修复前 TIMEOUT，修复后 PASS）**：同上但 100 条。修复前 `exit=124`（死循环超时），修复后 `exit=0`。
 3. **510 条 `set.zw`（修复前 TIMEOUT，修复后 PASS）**：构造 ROM，510 条 `set.zw rdN, imm` 后写 exit port。修复前 `exit=124`，修复后 `exit=0`。
 4. **`-d exec` 验证**：修复后跑 100 条 `st.o-rd`，`-d exec` 输出应显示 PC 递增（非恒 `0xFFFF00000000`），且 TB 执行次数正常（非 46185 次）。
 
-这些测试独立于 harness，可直接用 `tools/qemu/build_rom.py`（或等价脚本）构造二进制并以 `qemu-system-dadao -bios <rom>` 运行。
+这些测试独立于 harness，**沿用 `tools/qemu/min_rom_probe_*.py` 的模式**（自建 ROM 于 `0xFFFFFFFF0000`）构造二进制；运行须 **`-bios <rom> -kernel <kernel>`**（`dadao-m1` 机器强制两者，见 `hw/dadao/dadao-machine.c`）。注意仓库**无** `tools/qemu/build_rom.py`。
 
 ## 交付物
 
@@ -168,13 +168,13 @@ static void dadao_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
 
 | # | 验收项 | 现在可跑 / BLOCKED | 说明 |
 |---|--------|-------------------|------|
-| 1 | `0008` 补丁存在且干净 apply 到 `0005` 后的 QEMU 源码 | 现在可跑 | `git am` + `make build-qemu` PASS |
+| 1 | `0008` 补丁存在且干净 apply（`0001`–`0008` 全部应用） | 现在可跑 | `git am 0001→0008` + `make build-qemu` PASS |
 | 2 | 96 条 `st.o-rd` 合成 ROM → `exit=0`（基线，修复前后均应 PASS） | 现在可跑 | 探针 `min_rom_probe_022t.py` |
 | 3 | 100 条 `st.o-rd` 合成 ROM → `exit=0`（修复前 TIMEOUT `exit=124`） | 现在可跑 | 同上；修复前行为由 `QEMU-015t` reviewer C.3 证伪实验确认 |
 | 4 | 510 条 `set.zw` 合成 ROM → `exit=0`（修复前 TIMEOUT `exit=124`） | 现在可跑 | 同上 |
 | 5 | `-d exec` 验证：100 条 `st.o-rd` 执行后 PC 递增（非恒 `0xFFFF00000000`） | 现在可跑 | 探针 `min_rom_probe_022t.sh`；grep PC 值确认递增 |
 | 6 | `QEMU-005t`~`QEMU-013t` 全部回归不退化（已有探针重跑） | 现在可跑 | `make build-qemu` + `min_rom_probe_005t.py`~`013t.py` + harness `reg-arith.yaml --case 1` |
-| 7 | harness `--dump` 模式（full dumper）不再 TIMEOUT，`rb[1..63]` 非全 0、`pc` 非 0 | 现在可跑 | `run_qemu_test.py tests/vectors/isa/reg-arith.yaml --dump`；检查 `state.bin` 的 `rb`/`pc` |
+| 7 | harness `--dump` 导出的 `state.bin` 中 `rb[1..63]` 非全 0、`pc` 非 0 | 现在可跑 | `run_qemu_test.py tests/vectors/isa/reg-arith.yaml --dump` 后检查 `state.bin`。**注意**：dump 模式设计上自旋，harness 恒报 `INCONCLUSIVE - Timeout`，**不可**把「不再 TIMEOUT」作判据 |
 | 8 | 反例验证：注释掉 `gen_update_pc` 行后 100 条 `st.o-rd` → `exit=124`（确认修复有效） | 现在可跑 | 注入反例 → 重 build → 验证 TIMEOUT → 还原 → 重 build → 验证 PASS |
 
 ## 完成区

@@ -42,13 +42,13 @@
 **本任务的定位**：
 - **若 `022t` 先完成**：TB 缺陷已修，dumper 不需分段即可工作。本任务简化为「验证 `--dump` 输出正确」。
 - **若本任务先完成**：dumper 采用分段策略（防御性设计），即使 TB 缺陷未修也能正确 dump。`022t` 完成后可移除分段逻辑（简化代码）。
-- **两者独立交付**：分段是 workaround（绕过缺陷），`022t` 是根治。不存在依赖关系。
+- **交付关系**：分段是 workaround（绕过缺陷），`022t` 是根治。**本任务依赖 `022t`**（见文件头 `**依赖**`）——若 `022t` 已修，分段默认关闭、直接验证 `--dump` 输出；若 `022t` 未修（并行场景），分段生效以保证 `--dump` 仍可用。
 
 ### 关键概念 / 数据
 
 **TB 安全分段 dumper 方案**：
 
-dumper 段负责把 `rd[1..63]`、`rb[1..63]`、PC 写入 dump region（`0xFFFF0000_0000 + 0x400` 偏移）。
+dumper 段负责把 `rd[1..63]`、`rb[1..63]`、PC 写入 dump region（基址 `DUMP_BASE = 0xFFFF_00FE_0000`，见 `build_test_binary.py:32`；`rd[i]@+0x008+(i-1)*8`、`rb[i]@+0x208+(i-1)*8`、`pc@+0x400`）。
 
 当前 dumper 为单段 emit：约 131 条 `st.o-rd`/`st.o-rb` + `rb2rd` 指令。在 TB 续接缺陷下，这 131 条被切 → 死循环。
 
@@ -99,10 +99,10 @@ dumper 段负责把 `rd[1..63]`、`rb[1..63]`、PC 写入 dump region（`0xFFFF0
 | # | 验收项 | 现在可跑 / BLOCKED | 说明 |
 |---|--------|-------------------|------|
 | 1 | `build_dumper_section()` 实现分段 emit（diff 确认每段 ≤N 条 store + 段间显式控制流） | 现在可跑 | 代码审查 |
-| 2 | `--dump` 模式 `reg-arith.yaml --case 1` 不再 TIMEOUT | BLOCKED（需 `QEMU-008t`） | `rb2rd`/`st.o-rb` 属 `008t`；替代：最小 ROM 探针（自建 dumper 段） |
-| 3 | `--dump` 的 `state.bin` 中 `rd[1..63]` 非全 0 | BLOCKED（需 `QEMU-008t`） | 同上 |
-| 4 | `--dump` 的 `state.bin` 中 `rb[1..63]` 非全 0 | BLOCKED（需 `QEMU-008t` + `QEMU-022t` 或分段 workaround） | TB 缺陷未修时靠分段绕过；已修时直接可用 |
-| 5 | `--dump` 的 `state.bin` 中 `pc(+0x400)` 反映真实 PC（非 0） | BLOCKED（需 `QEMU-008t` + `QEMU-022t` 或分段 workaround） | 同上 |
+| 2 | `--dump` 模式 `reg-arith.yaml --case 1` 后 `state.bin` 内容正确 | 现在可跑 | `008t` 已验证（`rb2rd`/`st.o-rb` 可用）。**注意**：dump 模式设计上自旋，harness 恒报 `INCONCLUSIVE - Timeout`，**不可**把「不再 TIMEOUT」作判据 |
+| 3 | `--dump` 的 `state.bin` 中 `rd[1..63]` 非全 0 | 现在可跑 | `008t` 已验证；替代：最小 ROM 探针（自建 dumper 段） |
+| 4 | `--dump` 的 `state.bin` 中 `rb[1..63]` 非全 0 | 现在可跑 | `008t` 已验证；TB 缺陷未修时靠分段绕过，已修（`022t`）时直接可用 |
+| 5 | `--dump` 的 `state.bin` 中 `pc(+0x400)` 反映真实 PC（非 0） | 现在可跑 | 同上 |
 | 6 | 普通模式（无 `--dump`）行为不变（不 emit dumper，全量 PASS） | 现在可跑 | `run_qemu_test.py tests/vectors/isa/reg-arith.yaml` exit 0 |
 | 7 | `make build-qemu` 不受影响 | 现在可跑 | |
 | 8 | 完成区含真实运行输出；未自行 commit | 现在可跑 | |
