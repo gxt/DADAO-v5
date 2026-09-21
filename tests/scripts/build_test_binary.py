@@ -116,6 +116,15 @@ def encode_swym():
     """swym (iiii, op=0x77). No-op / placeholder."""
     return 0x77000000
 
+def encode_illi():
+    """illi (oiii, op=0x00, ha=0x00). Illegal instruction → ILLI fault (0x88)."""
+    return 0x00000000
+
+def encode_jump_iiii(imms24):
+    """jump imms24 (iiii, op=0x70). PC = rb0 + (imms24 << 2).
+    Fields: imms24 split into 4 × 6-bit chunks at [23:18],[17:12],[11:6],[5:0]."""
+    return (0x70 << 24) | (imms24 & 0xFFFFFF)
+
 
 # Width lookup: mnemonic prefix -> (byte_width, encode_fn)
 _LD_WIDTH_MAP = {
@@ -400,6 +409,64 @@ def build_exit_section(vector_case, dump_mode=False):
     return words
 
 
+def build_branch_test_binary(vector_case, dump_mode=False):
+    """Build test binary for branch/jump semantic tests (expected_pc != None).
+
+    Uses poison pattern to verify branch/jump behavior.
+    delta = expected_pc - BINARY_BASE (ADR-0009 D6).
+
+    TAKEN layout (delta=8):
+      [loader] [branch] [illi] [exit section]
+      - branch target (imm=2, PC+8) = illi+1 = exit section start → PASS
+      - if branch wrongly NOT taken → falls into illi → ILLI(0x88) → FAIL
+
+    NOT-TAKEN layout (delta=4):
+      [loader] [branch] [trampoline jump→exit] [illi] [exit section]
+      - branch target (imm=2, PC+8) = illi → ILLI(0x88) if wrongly taken
+      - if branch correctly NOT taken → falls through to trampoline → jumps
+        over illi to exit section → PASS
+
+    v5 branch base = instruction's own PC (Addr = rb0 + (imm<<2)).
+    trampoline: jump-iiii with imms24=2 → target = PC + 8 = exit section.
+    """
+    words = []
+    expected_pc = vector_case.get("expected_pc")
+    delta = int(expected_pc, 16) - BINARY_BASE
+
+    # Section 1: loader (set input_state registers)
+    words.extend(build_loader(vector_case))
+
+    # Section 2: test instruction (branch/jump encoding)
+    words.extend(build_test_section(vector_case))
+
+    if delta == 8:
+        # TAKEN: [branch] [illi] [exit section]
+        # branch jumps over illi to exit; not-taken falls into illi
+        words.append(encode_illi())
+    elif delta == 4:
+        # NOT-TAKEN: [branch] [trampoline] [illi] [exit section]
+        # branch target = PC+8 = illi (poison)
+        # falls through → trampoline jumps over illi to exit
+        words.append(encode_jump_iiii(2))  # PC + (2<<2) = PC+8 = exit section
+        words.append(encode_illi())
+    else:
+        raise ValueError(f"Unexpected delta={delta} (expected_pc={expected_pc}, BINARY_BASE=0x{BINARY_BASE:X})")
+
+    # Section 3: dumper (diagnostics only in dump mode)
+    if dump_mode:
+        words.extend(build_dumper_section())
+
+    # Section 4: exit (compare + write exit code)
+    words.extend(build_exit_section(vector_case, dump_mode))
+
+    # Pack as big-endian 32-bit words
+    blob = b""
+    for w in words:
+        blob += struct.pack(">I", w)
+
+    return blob
+
+
 def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
     """Build complete test binary for a vector case.
 
@@ -411,6 +478,10 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
 
     Returns bytes to be loaded at BINARY_BASE.
     """
+    # Branch/jump semantic: dispatch to specialized builder
+    if vector_case.get("expected_pc") is not None:
+        return build_branch_test_binary(vector_case, dump_mode)
+
     words = []
 
     # Section 1: loader
