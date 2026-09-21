@@ -84,6 +84,14 @@ harness 消费 `tests/vectors/isa/*.yaml` 中以下字段：
 - **实测证据**：`ctrl-call[2]`/`[6]`（loader=4w，test@`0xFFFF00000010`）向量写 `<2>…0004`、实测 `<2>…0014` → FAIL；`ctrl-call[1]`/`[5]`（loader=0）→ PASS。
 - **`ret` 的往返验证**：`ret` 无独立语义测试（依赖 RA 栈有值）。`QEMU-018t` 由 harness **合成** `call→ret→landing` 往返（`[call imm=2][landing=exit 段][ret]`），ret 用例**不加载 `input_state.ra`**（ra63 由合成 call 真实压栈）⇒ `loader_bytes == 0` ⇒ 无需重定位。
 
+**补注续二（2026-09-21，用户确认）——`input_state.memory` 的写入契约**：
+
+- `tests/vectors/isa/*.yaml` 的 `input_state.memory[].value` 表示「**`address` 处存放的 N 字节值**」，N = 被测向量的**访存宽度**（由 mnemonic 推导：`b`→1、`w`→2、`t`→4、`o`→8；`stm.*`/`ldm.*` 按元素宽度）。
+- harness 的 loader **须以宽度 N 的 store**（`st.b`/`st.w`/`st.t`/`st.o`）把 `value` 的低 N 字节写到 `address`；**不得**无条件用 `st.o`（8 字节）。
+- **理由**：DADAO 为大端；把 `value=0x42` 作为 8 字节值写到 A 会得到字节序列 `00 00 00 00 00 00 00 42`——`0x42` 落在 `A+7`，而窄 load 从 A 读得 `0x00`。真实大端机器（MIPS/SPARC/PowerPC）下类型化数据按**自然宽度**存放（`char` 占 1 字节）；`spec/DADAO-21-ABI §数据表示` 亦为「多字节数据最高有效字节在最低地址」，其「右对齐」仅适用于 **8 字节参数/varargs slot**，非通用内存。
+- **对称性**：与本 ADR 中 `QEMU-016t` 引入的「按宽度**读**做 memory 比对」互为读写对称（同一 `derive_width_from_mnemonic()`）。
+- **影响**：由 `QEMU-023t` 实现；**向量数据零改动**（使用 `input_state.memory` 的 48 条）。修复后 24 条窄 load 由 FAIL 转 PASS。
+
 **状态**：Accepted（用户确认 2026-09-19）；D6 补注经用户确认 2026-09-21
 
 ### D7 state-dump 读取机制

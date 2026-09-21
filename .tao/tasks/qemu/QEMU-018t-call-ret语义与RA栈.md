@@ -149,7 +149,7 @@ binary layout:
 | 3 | 5 条 `ctrl-call` semantic + `ctrl-ret[0]` **逐条** PASS（`call→ret→landing` 往返证明 RA 压/弹正确） | **现在可跑** | 同上；`ctrl-ret[0]` 改前 TIMEOUT → 改后 PASS |
 | 4 | `run_qemu_test.py` 对 `ctrl-call.yaml`/`ctrl-ret.yaml` 0 FAIL（含 encoding/legality） | **现在可跑** | 临时目录 `--batch` |
 | 5 | call_r encoding 在完成区给出从 `contract-isa.md` §5.4 的手推依据 | 现在可跑 | |
-| 6 | 全量 `tests/vectors/isa/ --batch` 失败数由 29 → 26（消除 3 条 `ctrl-call`；`ctrl-ret` error 消除），**零新增** | **现在可跑** | 逐条核对；余 24 `mem-rd` 窄 load（→TESTCASES-010t）+ 2 `misc`（deferred） |
+| 6 | 全量 `tests/vectors/isa/ --batch` 失败数由 29 → 26（消除 3 条 `ctrl-call`；`ctrl-ret` error 消除），**零新增** | **现在可跑** | 逐条核对；余 24 `mem-rd` 窄 load（→`QEMU-023t`，原归 TESTCASES 已改判）+ 2 `misc`（deferred） |
 | 7 | **反例门控**：任取一条 call 向量，把 `expected_state.ra` 低 48 位改错 → FAIL；还原 → PASS。且把重定位规则关掉（不加 `loader_bytes`）→ `ctrl-call[2]` 必须 FAIL | **现在可跑** | 证明重定位真的生效、非恒真 |
 | 8 | **往返门控**：把合成往返里的 `call` 目标改错（如 `imm=1`）→ `ctrl-ret[0]` 必须 FAIL | **现在可跑** | 证明 ret 往返非恒真 |
 
@@ -161,7 +161,7 @@ binary layout:
   - ERROR: ctrl-ret[0] TIMEOUT（ret 跳入 loader 区执行垃圾）
 - 改后：`11 total / 11 passed / 0 failed / 0 error` ✓
 - 全量回归：`597 total / 566 passed / 26 failed / 5 deferred / 0 error`
-  - 26 failed = 24 mem-rd 窄 load（→TESTCASES-010t）+ 2 misc ILLI（deferred）
+  - 26 failed = 24 mem-rd 窄 load（→`QEMU-023t`，原归 TESTCASES 已改判）+ 2 misc ILLI（deferred）
   - 原 29 failed 减 3 条 ctrl-call；原 1 error ctrl-ret 消除
   - **零新增失败** ✓
 
