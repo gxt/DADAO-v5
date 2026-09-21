@@ -4,7 +4,7 @@
 
 | 项目里程碑 | infra | spec | testcases | golden | llvm | qemu | integ | gem5 | sail | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M1 | `INFRA-014m` | `SPEC-011m` | `TESTCASES-011m` | — | **`LLVM-013m` ✅ 里程碑** | `QEMU-021m`（受阻于 `fence` deferred） | `INTEG-004m` | — | — | 进行中 |
+| M1 | `INFRA-014m` | `SPEC-011m` | `TESTCASES-012m` | — | **`LLVM-013m` ✅ 里程碑** | `QEMU-021m`（受阻于 `fence` deferred） | `INTEG-004m` | — | — | 进行中 |
 | M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
 
 ## 里程碑说明
@@ -47,7 +47,7 @@ spec ──→ testcases ──┤           ├──→ integ ──→ M1
 - 说明：先建 `Makefile`/fetch/锁（infra）与 `ADR-0004`/ELF 合约（spec），解除对下游的阻塞。
 
 **第 2 层 — 测试向量 + 组件基线/骨架**（依赖第 1 层）
-- `testcases`（2026-09-15 最终重排）：`TESTCASES-002t`（**返工**：schema 新增 `expected_pc` + inventory + validator；F2/F3/F6/F9）→ `003t`（寄存器间传输与运算，含 F1）→ `004t`（load/store 三 bank）→ `005t`（`br.*` taken/not-taken）→ `006t`（`jump`/`call`/`ret`）→ `007t`（misc）→ `008t`（保留编码 → UNDI，F5）→ `009t`（全量再审计兜底）→ `010t`（154 缺口消解）→ `011m`。F10 分摊到 `003t`~`007t`（各修本任务文件 encoding，不单列任务）；F7 用 `expected_pc` 方案全部转 active。**共享源文件**（`rb-ops`/`ra-ops` 被 `003t`/`004t`；`control-flow` 被 `005t`/`006t`/`007t`）与 `inventory.md` 决定以串行最稳；`{003t→004t}` 与 `{005t→006t→007t}` 目标文件集不相交，**若** inventory 由生成器统一重生成则可并行。旧 `004t`/`005t`/`006t`（覆盖率修复/身份唯一性/地址迁移）已关闭，编号已复用为新任务（见 `deferred.md`）
+- `testcases`（2026-09-15 最终重排）：`TESTCASES-002t`（**返工**：schema 新增 `expected_pc` + inventory + validator；F2/F3/F6/F9）→ `003t`（寄存器间传输与运算，含 F1）→ `004t`（load/store 三 bank）→ `005t`（`br.*` taken/not-taken）→ `006t`（`jump`/`call`/`ret`）→ `007t`（misc）→ `008t`（保留编码 → UNDI，F5）→ `009t`（全量再审计兜底）→ `010t`（缺口消解第一批：reg-arith/logic/shift-extend/compare）→ `011t`（缺口消解第二批：cond-assign/imm-block/ctrl + 门控转严）→ `012m`。F10 分摊到 `003t`~`007t`（各修本任务文件 encoding，不单列任务）；F7 用 `expected_pc` 方案全部转 active。**共享源文件**（`rb-ops`/`ra-ops` 被 `003t`/`004t`；`control-flow` 被 `005t`/`006t`/`007t`）与 `inventory.md` 决定以串行最稳；`{003t→004t}` 与 `{005t→006t→007t}` 目标文件集不相交，**若** inventory 由生成器统一重生成则可并行。旧 `004t`/`005t`/`006t`（覆盖率修复/身份唯一性/地址迁移）已关闭，编号已复用为新任务（见 `deferred.md`）
 - `llvm`：`LLVM-002t` → `003t`（Triple + 最小 build）
 - `qemu`：`QEMU-002t` → `003t`（骨架 + `hw/dadao/`）
 - 说明：向量层尽早建立，供第 3 层验证；`llvm`/`qemu` 各自先打通「能 build」。
