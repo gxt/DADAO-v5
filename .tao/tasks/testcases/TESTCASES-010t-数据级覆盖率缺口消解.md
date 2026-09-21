@@ -120,6 +120,8 @@
 
 1. **任务书内部一致性**：目标（114 gap 全补 active）与范围（4 文件）、约束（不改其它生成器/validator）、验收（gap=0）一致。✅
 2. **依赖链实际可用性**：依赖 `TESTCASES-009t`（已验证）；`generate_isa_vectors.py` 可运行；`validate_vectors.py` 可运行。✅
+   - ⚠️ **能力缺口（主会话预检发现，须注意）**：`generate_isa_vectors.py` **当前完全没有 legality 支持**（实测 `grep -c legality` = **0**），且 `reg-arith.yaml` 现 **0 条 legality case**。⇒ 本任务须**先给该生成器新增 legality case 生成能力**；可**镜像**已有的实现：`generate_mem_vectors.py`（16 处 legality）、`generate_ctrl_jump_call_ret.py`（16 处）、`generate_misc.py`（11 处）。**不要**重造风格。
+   - ⚠️ 同样注意：`generate_ctrl_br.py` 也 **0 处 legality**（属 `011t` 范围，本任务不碰）。
 3. **验收可执行性**：全部 8 条验收标准「现在可跑」。✅
 4. **与 spec/vectors 一致**：缺口来自 `validate_vectors.py` 实测输出（2026-09-21）；规则来自 `legality_rules.yaml`。✅
 
