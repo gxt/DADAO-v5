@@ -161,7 +161,7 @@ sys.exit(0)
 | 3 | semantic class 向量按 `expected_state` 判定：正确时 PASS | 现在可跑 | 同上 |
 | 4 | legality class（`expected_fault: ILLI`）按 fault code 路由 → PASS | 现在可跑 | 同上；实测 `ctrl-ret --case 1`（RASUF）已 PASS，须保持 |
 | 5 | 临时篡改一条 `expected_state` 后运行 → FAIL 且 CLI `exit=1`；改回后 PASS | 现在可跑 | 注入反例门控（须给真实输出） |
-| 6 | PC dump（`+0x400`）反映真实 PC | 现在可跑 | 见 `deferred.md`；由 `QEMU-022t` 修复 TB 续接缺陷后回补 |
+| 6 | PC dump（`+0x400`）反映真实 PC | 现在可跑 | 见 `deferred.md`；已由 `QEMU-022t` 修复 TB 续接缺陷后**回补完成** |
 | 7 | 0 case 或全 SKIP → `exit=2`；全 PASS → `exit=0` | 现在可跑 | **当前缺失**：实测 batch 模式 `total==0` 仍 `exit=0` |
 | 8 | `make check` 不被本任务破坏（harness 修改不触碰 `validate_vectors` 路径） | 现在可跑 | |
 | 9 | 修改 harness 后，`QEMU-014t` 后续实测的 4 项（语义 PASS/dump 寄存器语义/PC dump）逐条复跑并记录 | 现在可跑 | 完成后回填 `014t` 任务书「后续实测」小节 |
@@ -195,7 +195,7 @@ sys.exit(0)
 | 9 | 014t 后续实测回填 | ✓ | 已回填014t 任务书「后续实测（015t 完成后）」小节 |
 
 **新发现/坑**：
-1. **【根因已更正】QEMU dadao target 的 TB 续接缺陷（真实实现缺陷，非「TCG 代码量」问题）**：原表述「dumper 131 条指令导致 TCG 翻译超时」**错误**。reviewer 以合成程序证伪：96 条 `st.o-rd` → exit 0、**100 条 → timeout(124)**；500 条 `set.zw` → 0、**510 条 → timeout**（恰在 `TCG_MAX_INSNS=512`）；`-d exec` 显示 base TB 在 6s 内被执行 **46185 次**、PC 恒为 `0xFFFF00000000` ⇒ **执行期死循环**，非翻译超时。代码级确认：`target/dadao/translate.c` 的 `dadao_tr_tb_stop` 用 `tcg_gen_goto_tb(1); tcg_gen_exit_tb(NULL, 0);`，**缺 `gen_update_pc`**（对比 riscv `tcg/translate.c`：`gen_update_pc(ctx,0)` → `goto_tb(n)` → `exit_tb(tb,n)`），故 TB 被切后下一 TB 仍从旧 PC 起。**影响面**：任意 TB 超限的 guest 程序（远超 harness）。**归属**：待新建 qemu 任务修复；本任务不改 QEMU 源码。
+1. **【根因已更正】QEMU dadao target 的 TB 续接缺陷（真实实现缺陷，非「TCG 代码量」问题）**：原表述「dumper 131 条指令导致 TCG 翻译超时」**错误**。reviewer 以合成程序证伪：96 条 `st.o-rd` → exit 0、**100 条 → timeout(124)**；500 条 `set.zw` → 0、**510 条 → timeout**（恰在 `TCG_MAX_INSNS=512`）；`-d exec` 显示 base TB 在 6s 内被执行 **46185 次**、PC 恒为 `0xFFFF00000000` ⇒ **执行期死循环**，非翻译超时。代码级确认：`target/dadao/translate.c` 的 `dadao_tr_tb_stop` 用 `tcg_gen_goto_tb(1); tcg_gen_exit_tb(NULL, 0);`，**缺 `gen_update_pc`**（对比 riscv `tcg/translate.c`：`gen_update_pc(ctx,0)` → `goto_tb(n)` → `exit_tb(tb,n)`），故 TB 被切后下一 TB 仍从旧 PC 起。**影响面**：任意 TB 超限的 guest 程序（远超 harness）。**归属**：**已由 `QEMU-022t`（补丁 `0008`，`ADR-0011`）修复**；本任务不改 QEMU 源码。
 2. **emit_load_imm64_rb 生成正确**：EXIT_PORT=0xFFFF_8000_0000 经 set.zw+or.w 序列正确构造为 0x0000FFFF80000000（48-bit 地址等价），48-bit EA truncation 在 gen_ea_rrii 中处理。
 3. **br.nz 偏移计算**：`br.nz rd, N` 的目标 = PC + (N << 2)，其中 PC = br.nz 指令自身地址。exit section 的 br.nz 偏移 4 正确指向 FAIL 段。
 4. **【分类已更正】29+1 条 batch 失败**（reviewer 逐条核）：**24 条 `mem-rd`** = 向量/harness **内存模型不一致**（harness 以 BE-8B `st.o` 写 EA，向量 golden 取低位，与 `ld.o` 期望数学上不可兼得 ⇒ **向量自身不一致**，非 QEMU；原「`expected_state.memory` 未实现」**不成立**，比较的是 `rd1`）；**3 条 `ctrl-call` + 1 条 `ctrl-ret`(error)** = **harness PC 布局缺口**（input 非空使 loader 前置于 test，test PC ≠ base，`call` 压栈 PC+4 偏差；探针已证 `ra63` 装载正确）；**2 条 `misc`** = `trans_fence` 仍为 ILLI 桩（与 `007t`「fence=nop」矛盾，已知 gap）。**无实现缺陷类**（被误归因的 TB 缺陷不在此清单）。`mem-rd` 向量对齐归 TESTCASES 侧。
@@ -203,7 +203,7 @@ sys.exit(0)
 **遗留问题**：
 1. ~~**full dumper 的 rb/PC 段为 0**~~ **【已解决】**：根因是 **QEMU TB 续接缺陷**（见「新发现 1」），已由 **`QEMU-022t`**（`ADR-0011`，补丁 `0008`）根治；`--dump` 的 `rb`/`pc` 已正确（见验收 #6 回补证据）。`QEMU-020t` 的「TB 安全分段 dumper」保留为**防御性措施**（`022t` 已修时可不依赖分段）。
 2. **expected_state.memory 未验证**：harness 不读 `expected_state.memory` 做比较（N3，已知 gap）。属后续任务。
-3. **与 `020t` 的边界：不成立（需 architect 裁决）** —— 本任务对 `build_test_binary.py` 的 `if dump_mode:` 改动**正是 `020t` 交付物 #1**（重叠）；且 `020t` 验收 #4 写「`--dump` 行为不变」、约束「不改 QEMU 补丁」，**无法**修复本任务定位的 TB 缺陷。原「两者无重叠」结论**错误**。需 architect 重划边界并同步 `020t` 任务书。
+3. ~~**与 `020t` 的边界：不成立（需 architect 裁决）**~~ **【已解决】** —— 原「两者无重叠」结论错误；**已由 architect 重划**（提交 `6caa3c9`/`09c262c`）：`020t` 删除交付物 #1（已由本任务落地）、范围缩窄为「TB 安全分段 dumper + `--dump` 端到端验收」、依赖改 `015t,008t,022t`。`QEMU-022t` 完成后，分段进一步降为**防御性措施**（详见第 4 轮审阅记录对 `020t` 定位的评估）。
 
 ## 审阅记录
 
@@ -459,3 +459,50 @@ sys.exit(0)
 - 5 处更正（含本轮 3 处订正）**均与真实一致、无残留矛盾**；`#1`–`#5`、`#7`–`#9` 重跑确认；约束（不改向量/不改 QEMU 补丁）守住；根因已正确定为 **(b) QEMU TB 续接缺陷**并独立登记。
 - **验收 #6 收口方式**：#6 维持 **BLOCKED**；由 `QEMU-022t` 交付「`--dump` 的 `state.bin` 中 `rb`/`pc` 正确」证据，`QEMU-020t` 交付「分段 dumper + `--dump` 端到端验收」后**回补 #6**。两任务的创建/范围缩减已落盘（`022t`/`020t`/`001k`/`021m`/`milestones`），收口链成立。
 - **附带要求（不阻断 015t 验证，但阻断 #6 收口）**：`022t` 须先订正 B1–B7、`020t` 须先订正 C1–C4；其中 **B1/C1（「不再 TIMEOUT」不可能判据）** 与 **B2/C2（复现描述/地址错误）** 为必改项，否则 `022t` 无法被 Accepted，#6 将无法收口。
+
+### 第4轮 reviewer 确认（#6 回补复核，commit `34c0c79`）
+
+**审查范围**：`QEMU-022t`（已 `已验证`，`ADR-0011`，补丁 `0008`）+ 主会话对 `015t` 验收 #6 的回补 + 独立重跑 `--dump`。
+**日志**：`.work/log/qemu/QEMU-015t-review4-*.log`；工作区 `git status` 空（改动均已提交）。
+
+#### A. 独立重跑（reviewer 亲自执行，非采信完成区）
+
+`python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --case 1 --dump` → `INCONCLUSIVE - Timeout`（dump 模式自旋，**预期**），`state.bin`（1032 B）实测：
+
+```
+rd[1..6] = [0x0, 0x82, 0x64, 0x1e, 0x0, 0x0]     # rd2/rd3/rd4 与向量一致
+rb[1..3] = [0xffff00ff0000, 0xffff00000000, 0x0]  # rb1=SP, rb2=RAM
+rb[62]   = 0xffff00fe0000                          # DUMP_BASE（dumper 自写）
+pc(+0x400) = 0xffff00000210                        # 非 0
+```
+- 与完成区/`recover6.log` **逐字一致**（`rd2=0x82/rd3=0x64/rd4=0x1e`、`rb1=0xffff00ff0000`、`rb2=0xffff00000000`、`rb62=0xffff00fe0000`、`pc=0xffff00000210`）。
+- **代码级交叉核对**：`build_test_binary.py --case 1 --dump` 反解，`0xFFFF00000210` = 指令 #132 = `0x40DBF001` = `rb2rd rd63, rb0, 1`（即 dumper 读 PC 的那条），下一指令 #133 为 `st.o rd63, rb62, 0x400`。⇒ `pc` 值确为**真实指令地址**，非巧合非 0。
+- 抽验第二种向量：`mem-rd.yaml --case 3 --dump` → `rd[1..4]=[0,0,0,0]`（ld.ub 因内存字节序 gap 得 0，与第 1 轮分类一致）、`rb3=0xffff00000000`（输入 base，正确）、`pc=0xffff00000224`（非 0）。⇒ dumper 对 `rb`/`pc` 通道已工作。
+
+#### B. #6 回补表述逐条一致
+
+| 位置 | 表述 | 核对 |
+|---|---|---|
+| 完成区「测试结果」PC dump 行 | 已回补，列 `rd2/rd3/rd4`+`rb1/rb2/rb62`+`pc` | ✅ 与 A 节实测逐字一致 |
+| 验收表 #6 | ✅ 已回补；原 BLOCKED 原因由 `022t`（`ADR-0011`）根治 | ✅ `022t` 状态 `已验证`、`ADR-0011` 存在、补丁 `0008` 在列 |
+| 遗留项 1 | full dumper rb/PC 为 0 → **已解决**；`020t` 分段降为**防御性** | ✅ 与实测一致 |
+
+#### C. 残留（非阻塞 #6，但为「无残留矛盾」须订正）
+
+1. **`新发现 1` 归属过时**（`:198` 末）：「**归属：待新建 qemu 任务修复**；本任务不改 QEMU 源码」——`022t` 已建并 `已验证`，与 #6/遗留项 1 的「已由 022t 根治」**矛盾**。应改为「已由 `QEMU-022t`（`0008`）修复」。
+2. **`遗留项 3`（`:206`）整体过时**：仍写「与 `020t` 的边界：**不成立（需 architect 裁决）**……**需 architect 重划边界并同步 `020t` 任务书**」——但 `020t` 已于 `6caa3c9`+`09c262c` 重划（交付物 #1 删除、范围缩窄为分段 dumper + 端到端、依赖改 `015t,008t,022t`），**重叠已消除**。该条与现行 `020t` 任务书冲突，应改为「已由 architect 重划（`020t` 缩窄；重叠消除）」。
+3. （小）顶部「验收标准」表 #6 说明「由 `QEMU-022t` 修复 TB 续接缺陷**后回补**」——回补已完成，措辞可更新为「已回补（`022t` 已修复）」。
+
+#### D. `020t` 定位调整评估（item 3，只报告）
+
+`022t` 完成后，`020t` 的分段确实**降为防御性**；`020t` 任务书已部分适配（`:43/:86` 记「若 022t 先完成，本任务简化为验证 `--dump` 输出正确」）。但仍有需修订处：
+
+- **验收 #1 与定位自相矛盾**：定位允许「`022t` 已修 → 分段默认关闭」，而验收 #1 却要求「`build_dumper_section()` 实现分段 emit（diff 确认每段 ≤N + 段间控制流）」。二者不能同时满足。
+- **现状下 #2–#5 无需任何代码改动即已通过**：当前 `build_test_binary.py` 仍是**单段** dumper，靠 `022t` 修复即可正确导出（A 节实测）。故 `020t` 现实质为**纯验证任务**。
+- **建议（供 architect 定夺，不擅改）**：二选一——(a) 若认定 `022t` 已根治、分段无必要，则**关闭 `020t`**（或并入 `022t` 的回归）；(b) 若保留防御性分段，则把验收 #1 改为**可选/防御性**并注明「单段亦可通过 #2–#5」。另 `020t` 依赖列 `022t` 与正文「若本任务先完成」的并行表述仍有轻微张力，宜统一。
+
+#### E. 判定：**确认 —— `#6` 回补成立**
+
+- `--dump` 的 `state.bin` 中 `rd` 与向量一致、`rb`/`pc` 均非 0，且 `pc` 经指令级反解证明为真实地址；与任务书回补表述**逐条一致**。`#6` 可置 **✅ 已回补**。
+- **随附 2 处须订正**（C.1/C.2，仅文字、非阻塞 #6）：`新发现 1` 归属、`遗留项 3`（020t 边界）均为过时表述；另 C.3、D 为措辞/范围建议。
+- 至此 `015t` 的 `#1`–`#9` 全部具备真实证据（#6 由 `022t` 回补）。
