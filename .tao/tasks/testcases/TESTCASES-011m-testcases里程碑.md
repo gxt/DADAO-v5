@@ -1,10 +1,10 @@
-# TESTCASES-010m: testcases 里程碑
+# TESTCASES-011m: testcases 里程碑
 
 **模块**：testcases
 **项目里程碑**：M1
 **状态**：待开始
 **目标**：DADAO-v5 的独立测试向量层完成——M1 scope（`contracts/opcodes.yaml` 中 `excluded_m1 != true`，178 条）内每条指令身份 `(insn, format)` 均有 ≥1 条 active 向量，5 类向量（encoding/legality/semantic/boundary/overlap）齐备，期望值全部独立派生自 `spec/`、`.tao/knowledge/contract-isa.md` 与 `.tao/knowledge/adr-0004-test-machine.md`；`tools/testcases/validate_vectors.py` 的 schema + 覆盖率 + inventory 同步 + `expected_pc` + `encoding.word` mask/value 校验全部接入 `make check` 并通过；`tests/vectors/isa/` 为方案 A 的目标文件集（14 个 `reg-*`/`mem-*`/`ctrl-*`/`misc` + 保留编码文件）；control-flow/load 的 deferred 已按 `expected_pc` 方案重设计或显式登记
-**关联任务**：`TESTCASES-002t`、`TESTCASES-003t`、`TESTCASES-004t`、`TESTCASES-005t`、`TESTCASES-006t`、`TESTCASES-007t`、`TESTCASES-008t`、`TESTCASES-009t`
+**关联任务**：`TESTCASES-002t`、`TESTCASES-003t`、`TESTCASES-004t`、`TESTCASES-005t`、`TESTCASES-006t`、`TESTCASES-007t`、`TESTCASES-008t`、`TESTCASES-009t`、`TESTCASES-010t`
 
 > **旧 `004t`/`005t`/`006t`（向量覆盖率修复 / validator 身份唯一性 / 语义向量地址迁移）已关闭**——其范围被 `002t` 覆盖或已达成；证据见 `.tao/knowledge/deferred.md` `## testcases`。本次最终重排后，`004t`/`005t`/`006t` 三个编号**复用为新任务**（load/store、`br.*`、`jump`/`call`/`ret`），故上「关联任务」指新任务。
 
@@ -16,7 +16,7 @@
   - 数据从零生成，`tests/vectors/isa/` 只含目标文件集（无任何旧/历史文件混入）
   - `tools/testcases/validate_vectors.py`、`Makefile`（`check` 含 `validate-vectors`）
 - **数据级覆盖（机械可验，缺一不得置 `里程碑`）**：M1 scope 内**每个 `(insn, format)` 在 `tests/vectors/isa/*.yaml` 中至少有 1 条 `status: active` 的对应 class case**（由 `009t` 验收标准 7 核验）；`python3 tools/testcases/validate_vectors.py` 零错误、`make check` PASS。**不得仅以 validator 输出的 `178/178` 作为数据覆盖判据**（该数字为 inventory 声明级：inventory 行集 == `opcodes.yaml` M1 身份集，实测零数据/仅 1 条 case 亦输出 `178/178`）。
-- **【前置阻断·009t 登记】**：当前存在 **154 个数据级覆盖率缺口**（141 legality + 2 boundary + 11 overlap），详见 `.tao/knowledge/deferred.md`「`010m` 阻断（用户裁定 B1）」条目。**154 缺口消解前，本里程碑不得置 `里程碑`**。消解归属后续补数据任务（补 legality/boundary/overlap case，或把无法覆盖的 `✓` 降为 `deferred <reason>`）。
+- **【前置阻断·009t 登记 → 010t 消解】**：`009t` 发现 **154 个数据级覆盖率缺口**（141 legality + 2 boundary + 11 overlap），由 `TESTCASES-010t` 消解（补 active case 或降级 ✓ → `deferred <reason>`）。**`010t` 完成且 `validate_vectors.py` gap = 0 后，本里程碑方可置 `里程碑`**。详见 `.tao/knowledge/deferred.md`「`010m` 阻断（用户裁定 B1）」与 `TESTCASES-010t` 任务书。
 - **覆盖率主键与 scope 自洽**：validator 以 `(insn, format)` 为身份、以 `excluded_m1` 为 scope 判据；M1 内的 RA 存取/块赋值（`ld.o-ra`/`st.o-ra`/`ldm.o-ra`/`stm.o-ra`/`ra2rd`/`rd2ra`）与 `swym`/`illi`/`fence` 均被计入
 - **测试机语义自洽**：`expected_fault` 可表达 ADR-0004 D5.8 的 `UNMAPPED`（`0x87`）；`ret` 冷 RA 的期望为 `RASUF`（非 ILLI）；相对控制流立即数用 `imm=1`（`rb0`=当前指令地址，ADR-0004 D6.5）
 - **inventory 自洽**：inventory 含 `format` 列、M1 行集与 `opcodes.yaml` 一致（F2/F3），`file` 列与最终布局一致
