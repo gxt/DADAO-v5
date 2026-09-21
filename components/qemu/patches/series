@@ -4,3 +4,4 @@
 0004-dadao-load-store.patch
 0005-dadao-translate-split.patch
 0006-dadao-ctrl-flow.patch
+0007-dadao-ra-semantics.patch
