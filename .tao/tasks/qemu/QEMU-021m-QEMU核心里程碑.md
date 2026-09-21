@@ -4,9 +4,9 @@
 **项目里程碑**：M1
 **状态**：待开始
 **目标**：DADAO-v5 的 QEMU 标量核心完成——`qemu-system-dadao` 在 MMU-off 裸机模式执行 M1 标量程序；RD 整数语义、RD load/store（含 MALIGN 精确异常）、控制流与 RB/RA 指令（含 RegRAS/MemRAS）按 `.tao/knowledge/contract-isa.md` 与 `contracts/opcodes.yaml` 独立 oracle 实现；**全部 M1 向量经 harness 执行且结果比对一致**（硬性要求）；`make build-qemu` 全绿。
-**关联任务**：`QEMU-002t`、`QEMU-003t`、`QEMU-004t`、`QEMU-005t`、`QEMU-006t`、`QEMU-007t`、`QEMU-008t`、`QEMU-009t`、`QEMU-010t`、`QEMU-011t`、`QEMU-012t`、`QEMU-013t`、`QEMU-014t`、`QEMU-015t`、`QEMU-016t`、`QEMU-017t`、`QEMU-018t`、`QEMU-019t`、`QEMU-020t`、`QEMU-022t`
+**关联任务**：`QEMU-002t`、`QEMU-003t`、`QEMU-004t`、`QEMU-005t`、`QEMU-006t`、`QEMU-007t`、`QEMU-008t`、`QEMU-009t`、`QEMU-010t`、`QEMU-011t`、`QEMU-012t`、`QEMU-013t`、`QEMU-014t`、`QEMU-015t`、`QEMU-016t`、`QEMU-017t`、`QEMU-018t`、`QEMU-019t`、`QEMU-022t`
 
-> **ADR-0010 D3 修订（2026-09-19）**：补丁清单更新为 0001–0007（合并后）；关联任务新增 `QEMU-020t`（harness dumper 改造）。**2026-09-21 更新**：新增 `0008`（TB 续接缺陷修复）与 `QEMU-022t`；`020t` 范围缩窄为 TB 安全分段 dumper。
+> **ADR-0010 D3 修订（2026-09-19）**：补丁清单更新为 0001–0007（合并后）；关联任务新增 `QEMU-020t`（harness dumper 改造）。**2026-09-21 更新**：新增 `0008`（TB 续接缺陷修复）与 `QEMU-022t`；`020t` 范围缩窄为 TB 安全分段 dumper。**2026-09-21 再更新**：`QEMU-020t` **已关闭**（交付物 #1 由 `015t` 落地；分段 dumper 因 `022t` 根治 TB 缺陷而不再必要），从关联任务移除。
 
 ## 核验
 - 关联任务是否均已 `已验证`

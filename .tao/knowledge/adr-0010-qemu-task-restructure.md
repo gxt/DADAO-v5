@@ -120,7 +120,7 @@ target/dadao/
 | `015t`–`018t` | harness 增强 | 不变 | |
 | `019t` | trans lint | **路径适配**：grep `insn_trans/trans_*.c.inc`（拆分后） | 对齐 D2 拆分后的文件结构 |
 | `021m` | 里程碑 | 补丁清单更新（0001–0007） | 反映合并后的实际补丁结构 |
-| `020t` | (新增) | **harness dumper 改造**：将 `--dump` 的 dumper emit 从 harness 主路径分离，实现普通模式不 emit dumper | D1(a) 的具体实施载体 |
+| `020t` | (新增) | **harness dumper 改造**：将 `--dump` 的 dumper emit 从 harness 主路径分离，实现普通模式不 emit dumper | D1(a) 的具体实施载体。**2026-09-21 补注（用户确认）：该任务已关闭**——交付物 #1（普通模式不 emit dumper）由 `QEMU-015t` 落地；原拟的「TB 安全分段 dumper」因 `QEMU-022t`（`ADR-0011`）根治 TB 续接缺陷而不再必要。本行保留以记录历史。 |
 
 **修订后的补丁序列**：
 
