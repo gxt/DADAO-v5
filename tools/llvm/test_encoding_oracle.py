@@ -193,6 +193,30 @@ TESTS = [
 
     # rwii.s: set.zw rd8, 0, 0x1234 (op=0x4C, ha=8, wp=0, immu16=0x1234)
     ("set.zw rd8, 0, 0x1234", encode_rwii(0x4C, 8, 0, 0x1234)),
+
+    # === RA instructions (LLVM-011t) ===
+    # rrii format: ld.o ra1, rb2, 0 (op=0x24, ha=1, hb=2, imm12=0)
+    ("ld.o ra1, rb2, 0", encode_rrii(0x24, 1, 2, 0)),
+    # rrii format: st.o ra1, rb2, 8 (op=0x25, ha=1, hb=2, imm12=8)
+    ("st.o ra1, rb2, 8", encode_rrii(0x25, 1, 2, 8)),
+    # rrri format: ldm.o ra1, rb2, rd3, 2 (op=0x3C, ha=1, hb=2, hc=3, hd=2)
+    ("ldm.o ra1, rb2, rd3, 2", encode_rrri(0x3C, 1, 2, 3, 2)),
+    # rrri format: stm.o ra1, rb2, rd3, 2 (op=0x3D, ha=1, hb=2, hc=3, hd=2)
+    ("stm.o ra1, rb2, rd3, 2", encode_rrri(0x3D, 1, 2, 3, 2)),
+    # orri format: rd2ra ra1, rd2, 3 (op=0x40, ha=0x2D, hb=1, hc=2, hd=3)
+    ("rd2ra ra1, rd2, 3", encode_orri(0x40, 0x2D, 1, 2, 3)),
+    # orri format: ra2rd rd1, ra2, 3 (op=0x40, ha=0x2E, hb=1, hc=2, hd=3)
+    ("ra2rd rd1, ra2, 3", encode_orri(0x40, 0x2E, 1, 2, 3)),
+    # Boundary: ld.o ra0, rb0, 0 (op=0x24, ha=0, hb=0, imm12=0)
+    ("ld.o ra0, rb0, 0", encode_rrii(0x24, 0, 0, 0)),
+    # Boundary: st.o ra63, rb63, 0 (op=0x25, ha=63, hb=63, imm12=0)
+    ("st.o ra63, rb63, 0", encode_rrii(0x25, 63, 63, 0)),
+    # Boundary: ldm.o ra0, rb0, rd0, 0 (op=0x3C, immu6=0, runtime ILLI but encoding valid)
+    ("ldm.o ra0, rb0, rd0, 0", encode_rrri(0x3C, 0, 0, 0, 0)),
+    # Boundary: rd2ra ra0, rd0, 63 (op=0x40, ha=0x2D, hb=0, hc=0, hd=63)
+    ("rd2ra ra0, rd0, 63", encode_orri(0x40, 0x2D, 0, 0, 63)),
+    # Boundary: ra2rd rd63, ra63, 63 (op=0x40, ha=0x2E, hb=63, hc=63, hd=63)
+    ("ra2rd rd63, ra63, 63", encode_orri(0x40, 0x2E, 63, 63, 63)),
 ]
 
 def parse_elf_text_section(data):
