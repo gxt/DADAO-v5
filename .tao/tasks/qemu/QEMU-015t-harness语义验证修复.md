@@ -161,7 +161,7 @@ sys.exit(0)
 | 3 | semantic class 向量按 `expected_state` 判定：正确时 PASS | 现在可跑 | 同上 |
 | 4 | legality class（`expected_fault: ILLI`）按 fault code 路由 → PASS | 现在可跑 | 同上；实测 `ctrl-ret --case 1`（RASUF）已 PASS，须保持 |
 | 5 | 临时篡改一条 `expected_state` 后运行 → FAIL 且 CLI `exit=1`；改回后 PASS | 现在可跑 | 注入反例门控（须给真实输出） |
-| 6 | PC dump（`+0x400`）反映真实 PC（当前恒 0） | 现在可跑 | 见 `deferred.md`；须先判定是 `rb2rd` 读取路径还是 `rb0` 维护策略问题 |
+| 6 | PC dump（`+0x400`）反映真实 PC | 现在可跑 | 见 `deferred.md`；由 `QEMU-022t` 修复 TB 续接缺陷后回补 |
 | 7 | 0 case 或全 SKIP → `exit=2`；全 PASS → `exit=0` | 现在可跑 | **当前缺失**：实测 batch 模式 `total==0` 仍 `exit=0` |
 | 8 | `make check` 不被本任务破坏（harness 修改不触碰 `validate_vectors` 路径） | 现在可跑 | |
 | 9 | 修改 harness 后，`QEMU-014t` 后续实测的 4 项（语义 PASS/dump 寄存器语义/PC dump）逐条复跑并记录 | 现在可跑 | 完成后回填 `014t` 任务书「后续实测」小节 |
@@ -174,7 +174,7 @@ sys.exit(0)
 - batch 模式全量：**597 total, 562 passed, 29 failed, 5 deferred, 1 error**
 - 反例门控：篡改 expected_state rd2=0x83 → exit 1（FAIL）；原始 rd2=0x82 → exit 0（PASS）✓
 - CLI fail-closed：0 case → exit 2，all deferred → exit 2 ✓
-- PC dump：**未达** —— shipped 的 `--dump` 路径（full dumper）`rb[1..63]` 全 0、`pc=0`；根因是 QEMU TB 续接缺陷（见「新发现 1」），非 harness 可修
+- PC dump：**已回补**（`QEMU-022t` 修复 TB 续接缺陷后）——`--dump` 的 `state.bin`：`rd2=0x82/rd3=0x64/rd4=0x1e`、`rb1=0xffff00ff0000/rb2=0xffff00000000/rb62=0xffff00fe0000`、`pc=0xffff00000210`（均非 0/正确）✓
 
 **修改文件**：
 - `tests/scripts/build_test_binary.py` — 普通模式不 emit dumper（`if dump_mode: words.extend(build_dumper_section())`），5行变更
@@ -189,7 +189,7 @@ sys.exit(0)
 | 3 | semantic class 按 expected_state 判定 | ✓ | `reg-arith.yaml --case 1` → PASS（rd1=0, rd2=0x82 匹配） |
 | 4 | legality class fault 路由 | ✓ | `reg-arith.yaml --case 3` → exit 0x88, PASS（Expected ILLI）；`ctrl-ret.yaml --case 1` → exit 0x8B, PASS（Expected RASUF） |
 | 5 | 反例门控 | ✓ | 篡改 rd2=0x83 → exit 1, FAIL；还原 → exit 0, PASS |
-| 6 | PC dump（`+0x400`）反映真实 PC | **BLOCKED** | 原因：QEMU dadao target **TB 续接缺陷**（见「新发现 1」）——full dumper 超 TB 指令上限后执行期死循环，`--dump` 路径 `rb[1..63]` 全 0、`pc=0`。替代：普通模式语义验证已可用（#1–#5）；缺陷修复后回补 |
+| 6 | PC dump（`+0x400`）反映真实 PC | ✅ **已回补** | 原 BLOCKED 原因（QEMU TB 续接缺陷）已由 **`QEMU-022t`**（`ADR-0011`）根治。回补证据（`/tmp/opencode/QEMU-015t/recover6.log`）：`--dump` 的 `state.bin` 中 `rd2=0x82`、`rd3=0x64`、`rd4=0x1e`；`rb1=0xffff00ff0000`(SP)、`rb2=0xffff00000000`(RAM)、`rb62=0xffff00fe0000`(DUMP_BASE)；`pc=0xffff00000210`（均非 0）✓ |
 | 7 | CLI fail-closed | ✓ | 0 case → exit 2；all deferred → exit 2；有 FAIL → exit 1；全 PASS → exit 0 |
 | 8 | make check 不破坏 | ✓ | 仅改 `tests/scripts/`，不触碰 `validate_vectors` 路径 |
 | 9 | 014t 后续实测回填 | ✓ | 已回填014t 任务书「后续实测（015t 完成后）」小节 |
@@ -201,7 +201,7 @@ sys.exit(0)
 4. **【分类已更正】29+1 条 batch 失败**（reviewer 逐条核）：**24 条 `mem-rd`** = 向量/harness **内存模型不一致**（harness 以 BE-8B `st.o` 写 EA，向量 golden 取低位，与 `ld.o` 期望数学上不可兼得 ⇒ **向量自身不一致**，非 QEMU；原「`expected_state.memory` 未实现」**不成立**，比较的是 `rd1`）；**3 条 `ctrl-call` + 1 条 `ctrl-ret`(error)** = **harness PC 布局缺口**（input 非空使 loader 前置于 test，test PC ≠ base，`call` 压栈 PC+4 偏差；探针已证 `ra63` 装载正确）；**2 条 `misc`** = `trans_fence` 仍为 ILLI 桩（与 `007t`「fence=nop」矛盾，已知 gap）。**无实现缺陷类**（被误归因的 TB 缺陷不在此清单）。`mem-rd` 向量对齐归 TESTCASES 侧。
 
 **遗留问题**：
-1. **full dumper 的 rb/PC 段为 0**：根因是 **QEMU TB 续接缺陷**（见「新发现 1」），**不是** TCG 代码量限制。修复途径二选一：**(a)** 新建 qemu 任务修 `dadao_tr_tb_stop`（根治，同时消除对任意长 TB guest 程序的影响）；**(b)** harness 内把 dumper 拆成多段、每段低于 **op-buffer 阈值**（store-heavy 实测 ≈40 条安全），段间插入显式控制流（如 `jump`，会写 `env->pc`）——reviewer 实验：100 条不分段 → `exit=124`，按 40 条分段 → `exit=0`（仅 workaround，缺陷仍在）。**待 architect 裁决**。
+1. ~~**full dumper 的 rb/PC 段为 0**~~ **【已解决】**：根因是 **QEMU TB 续接缺陷**（见「新发现 1」），已由 **`QEMU-022t`**（`ADR-0011`，补丁 `0008`）根治；`--dump` 的 `rb`/`pc` 已正确（见验收 #6 回补证据）。`QEMU-020t` 的「TB 安全分段 dumper」保留为**防御性措施**（`022t` 已修时可不依赖分段）。
 2. **expected_state.memory 未验证**：harness 不读 `expected_state.memory` 做比较（N3，已知 gap）。属后续任务。
 3. **与 `020t` 的边界：不成立（需 architect 裁决）** —— 本任务对 `build_test_binary.py` 的 `if dump_mode:` 改动**正是 `020t` 交付物 #1**（重叠）；且 `020t` 验收 #4 写「`--dump` 行为不变」、约束「不改 QEMU 补丁」，**无法**修复本任务定位的 TB 缺陷。原「两者无重叠」结论**错误**。需 architect 重划边界并同步 `020t` 任务书。
 
