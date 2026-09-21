@@ -127,6 +127,72 @@ TESTS = [
     ("illi 0", encode_oiii(0x00, 0x00, 0)),
     # oiii format: fence 0xf (op=0x00, ha=0x01)
     ("fence 0xf", encode_oiii(0x00, 0x01, 0xf)),
+
+    # === New tests for LLVM-008t: migrated from disassembly.s + basic-encoding.s ===
+
+    # rrii_load.s: ld.ub rd8, rb0, 1 (op=0x10, ha=8, hb=0, imm12=1)
+    ("ld.ub rd8, rb0, 1", encode_rrii(0x10, 8, 0, 1)),
+    # rrii_load.s: ld.sb rd1, rb2, -1 (op=0x13, ha=1, hb=2, imm12=-1)
+    ("ld.sb rd1, rb2, -1", encode_rrii(0x13, 1, 2, -1)),
+
+    # rrri.s: ldm.ub rd8, rb0, rd1, 2 (op=0x28, ha=8, hb=0, hc=1, hd=2)
+    ("ldm.ub rd8, rb0, rd1, 2", encode_rrri(0x28, 8, 0, 1, 2)),
+
+    # rrrr.s: add.uo rd8, rd9, rd10, rd11 (op=0x50)
+    ("add.uo rd8, rd9, rd10, rd11", encode_rrrr(0x50, 8, 9, 10, 11)),
+    # rrrr.s: add.so rd8, rd9, rd10, rd11 (op=0x51)
+    ("add.so rd8, rd9, rd10, rd11", encode_rrrr(0x51, 8, 9, 10, 11)),
+
+    # riii_branch.s: br.n rd0, 4 (op=0x68)
+    ("br.n rd0, 4", encode_riii(0x68, 0, 4)),
+    # riii_branch.s: br.nn rd0, 4 (op=0x69)
+    ("br.nn rd0, 4", encode_riii(0x69, 0, 4)),
+    # riii_branch.s: br.z rd0, 4 (op=0x6A)
+    ("br.z rd0, 4", encode_riii(0x6A, 0, 4)),
+    # riii_branch.s: br.nz rd0, 4 (op=0x6B)
+    ("br.nz rd0, 4", encode_riii(0x6B, 0, 4)),
+    # riii_branch.s: br.p rd0, 4 (op=0x6C)
+    ("br.p rd0, 4", encode_riii(0x6C, 0, 4)),
+    # riii_branch.s: br.np rd0, 4 (op=0x6D)
+    ("br.np rd0, 4", encode_riii(0x6D, 0, 4)),
+
+    # riii_ret.s: ret rd0, 0 (op=0x76)
+    ("ret rd0, 0", encode_riii(0x76, 0, 0)),
+
+    # rrii_branch.s: br.eq rd8, rd0, 4 (op=0x6E)
+    ("br.eq rd8, rd0, 4", encode_rrii(0x6E, 8, 0, 4)),
+
+    # iiii_jump.s: call 1 (op=0x74)
+    ("call 1", encode_iiii(0x74, 1)),
+    # iiii_jump.s: jump 1 (op=0x70)
+    ("jump 1", encode_iiii(0x70, 1)),
+    # iiii_jump.s: swym 42 (op=0x77)
+    ("swym 42", encode_iiii(0x77, 42)),
+
+    # orrr.s: or.o rd8, rd9, rd10 (op=0x40, ha=0x09)
+    ("or.o rd8, rd9, rd10", encode_orrr(0x40, 0x09, 8, 9, 10)),
+
+    # orri.s: ext.uo rd8, rd0, 1 (op=0x40, ha=0x18)
+    ("ext.uo rd8, rd0, 1", encode_orri(0x40, 0x18, 8, 0, 1)),
+
+    # rb_ops.s: rb2rd rd8, rb9, 2 (op=0x40, ha=0x36)
+    ("rb2rd rd8, rb9, 2", encode_orri(0x40, 0x36, 8, 9, 2)),
+    # rb_ops.s: rd2rd rd8, rd1, 1 (op=0x40, ha=0x2C)
+    ("rd2rd rd8, rd1, 1", encode_orri(0x40, 0x2C, 8, 1, 1)),
+    # oiii.s: illi 0 (op=0x00, ha=0x00)
+    ("illi 0", encode_oiii(0x00, 0x00, 0)),
+
+    # basic-encoding.s: add.si rd8, 1 (op=0x59, ha=8, imm18=1)
+    ("add.si rd8, 1", encode_riii(0x59, 8, 1)),
+    # basic-encoding.s: add.si rb1, 1 (op=0x5B, ha=1, imm18=1)
+    ("add.si rb1, 1", encode_riii(0x5B, 1, 1)),
+    # basic-encoding.s: add.si rd8, -1 (op=0x59, ha=8, imms18=-1)
+    ("add.si rd8, -1", encode_riii(0x59, 8, -1)),
+    # basic-encoding.s: br.n rd0, label (imms18=2, forward fixup)
+    ("br.n rd0, 2", encode_riii(0x68, 0, 2)),
+
+    # rwii.s: set.zw rd8, 0, 0x1234 (op=0x4C, ha=8, wp=0, immu16=0x1234)
+    ("set.zw rd8, 0, 0x1234", encode_rwii(0x4C, 8, 0, 0x1234)),
 ]
 
 def parse_elf_text_section(data):

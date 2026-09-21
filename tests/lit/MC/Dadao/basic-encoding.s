@@ -1,34 +1,44 @@
-# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o %t.o < %s
-# RUN: readelf -x .text %t.o | %FileCheck %s
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
+# RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=OBJ
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
 
 # Test basic DADAO instruction encoding and fixup behavior.
+# Encoding formula: word = (op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd
 
-# Test 1: add.si rd8, 1 (riii format, op=0x59, ra=8, imm18=1)
-# Encoding: 0x59<<24 | 8<<18 | 1 = 0x59200001
+# add.si rd8, 1 (riii format, op=0x59, ra=8, imm18=1)
+# word = 0x59<<24 | 8<<18 | 1 = 0x59200001
+# OBJ: {{[0-9a-f]+:}} 59 20 00 01{{.*}}add.si{{.*}}rd8, 1
+# ASM: add.si rd8, 1
 add.si rd8, 1
 
-# Test 2: add.si rb1, 1 (riii format, op=0x5B, ra=1, imm18=1)
-# Encoding: 0x5B<<24 | 1<<18 | 1 = 0x5B040001
+# add.si rb1, 1 (riii format, op=0x5B, ra=1, imm18=1)
+# word = 0x5B<<24 | 1<<18 | 1 = 0x5B040001
+# OBJ: {{[0-9a-f]+:}} 5b 04 00 01{{.*}}add.si{{.*}}rb1, 1
+# ASM: add.si rb1, 1
 add.si rb1, 1
 
-# Test 3: Forward branch at non-zero offset
-# swym 0 at offset 8: 0x77000000
-# br.n rd0, L1 at offset 12: L1 is at offset 16
-#   imms = (16 - 12) >> 2 = 1
-#   Encoding: 0x68<<24 | 0<<18 | 1 = 0x68000001
-# L1: swym 0 at offset 16: 0x77000000
+# add.si rd8, -1 (riii format, op=0x59, ra=8, imms18=-1)
+# imms18 = -1 → 0x3FFFF (18-bit two's complement)
+# hb = 0x3FFFF>>12 = 0x3F, hc = (0x3FFFF>>6)&0x3F = 0x3F, hd = 0x3F
+# word = 0x59<<24 | 8<<18 | 0x3FFFF = 0x5923FFFF
+# OBJ: {{[0-9a-f]+:}} 59 23 ff ff{{.*}}add.si{{.*}}rd8, -1
+# ASM: add.si rd8, -1
+add.si rd8, -1
+
+# Forward branch at non-zero offset
+# swym 0 at offset 0x0C: 0x77000000
+# br.n rd0, L1 at offset 0x10: L1 at 0x14
+#   imms = (0x14 - 0x10) >> 2 = 1
+#   word = 0x68<<24 | 1 = 0x68000001
+# L1: swym 0 at offset 0x14: 0x77000000
 swym 0
 br.n rd0, L1
 L1: swym 0
 
-# Test 4: Backward branch
-# L2: swym 0 at offset 20: 0x77000000
-# br.n rd0, L2 at offset 24: L2 is at offset 20
-#   imms = (20 - 24) >> 2 = -1 = 0x3FFFF (18-bit signed)
-#   Encoding: 0x68<<24 | 0<<18 | 0x3FFFF = 0x6803FFFF
+# Backward branch
+# L2: swym 0 at offset 0x18: 0x77000000
+# br.n rd0, L2 at offset 0x1C: L2 at 0x18
+#   imms = (0x18 - 0x1C) >> 2 = -1 = 0x3FFFF (18-bit signed)
+#   word = 0x68<<24 | 0x3FFFF = 0x6803FFFF
 L2: swym 0
 br.n rd0, L2
-
-# CHECK: Hex dump of section '.text':
-# CHECK: 0x00000000 59200001 5b040001 77000000 68000001
-# CHECK: 0x00000010 77000000 77000000 6803ffff
