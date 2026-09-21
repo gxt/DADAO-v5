@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M1
 **依赖**：`LLVM-011t`、`LLVM-008t`、`SPEC-003t`
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 
@@ -111,10 +111,152 @@ lit 文件中 `# OBJ:` 行手写了期望字节，但这些字节是否与 `cont
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：通过 5/5；失败 0
+
+**修改文件**：`tools/llvm/check_lit_bytes.py`（新建）
+
 **验收结果**：
+
+1. **默认运行**：
+```
+check_lit_bytes: 41 patterns OK
+  (info: 32/41 masks cover op-field only)
+EXIT_CODE=0
+```
+
+2. **反例门控 (a) — 错字节**（`rrii_load.s` 第一条 `10 20 00 01` → **小写** `ff 20 00 01`；**须小写**——解析正则只收小写 hex，大写会被跳过而仅由「N ≠ 独立计数」兜住）：
+```
+  rrii_load.s:12: word=0xFF200001 — no match in opcodes.yaml
+  N (40) != independent count (41)
+EXIT_CODE=1
+```
+
+3. **反例门控 (b) — 错 mnemonic**（字节正确，`ld.ub` → `ld.uw`）：
+```
+  rrii_load.s:12: mnemonic 'ld.uw' != 'ld.ub' (insn=ld.ub-rd)
+  N (40) != independent count (41)
+EXIT_CODE=1
+```
+
+4. **反例门控 (c) — 空 OBJ 集**（临时目录仅含无 `OBJ:` 行的 dummy.s）：
+```
+check_lit_bytes: ERROR — N == 0 (no patterns extracted)
+EXIT_CODE=1
+```
+
+5. **独立计数一致性**：`Independent count (literal # OBJ:): 41`，`N from script: 41`，`Match: True`
+
+6. **不调用 LLVM 工具**：`grep -n 'llvm\|subprocess\|os\.system\|os\.popen'` → `CLEAN: No LLVM/subprocess calls found`
+
+8. **大写注入的纵深防御**（reviewer 复核补充）：`10 20 00 01` → `FF 20 00 01`（大写）→ 解析器**跳过**该行、**不打印** `no match` 细节，仅 `N (40) != independent count (41)` → `exit 1`（设计内的兜底路径）；还原后 `41 patterns OK`。
+
+7. **只读性**：运行前后 `git status --short` 仅显示 `?? tools/llvm/check_lit_bytes.py`（新增脚本本身），无其他变更
+
 **新发现/坑**：
-**遗留问题**：
+- FileCheck 模式 `{{[0-9a-f]+:}}` 在 Python regex 中需逐字符转义：`\{\{\[0-9a-f\]\+:\}\}`。首次用 `\{\{[0-9a-f]+:\}\}` 导致 `[0-9a-f]` 被解释为字符类、`+` 被解释为量词，正则完全不匹配 → N=0。修复后通过。
+- `{{.*}}` 用 `\{\{.*?\}\}` 即可（lazy 匹配 `.*` 两个字面字符），无需 `\{\{\.\*\}\}`。
+- 32/41 的 mask 为 `0xFF000000`（仅盖 op 字段），9/41 为 `0xFFFC0000`（orri/orrr 盖 op+ha）。因每条指令的 op 值唯一，每条 word 仍唯一命中，「无匹配」检查有效。
+
+**遗留问题**：无
 
 ## 审阅记录
+
+### 第 1 轮 reviewer 验收（2026-09-21，独立复跑）
+
+审查对象：新建 `tools/llvm/check_lit_bytes.py`（未提交，sha256 `fa722692fdc8308d9d40ad25623433d5678f95d3eaaef9da215751a1adbf0a09`）。纯 Python + yaml，**未运行任何 LLVM 工具**。日志：`.work/log/llvm/LLVM-012t-review-*.log`。
+
+#### 1. 默认运行（重跑）
+
+```
+$ python3 tools/llvm/check_lit_bytes.py
+check_lit_bytes: 41 patterns OK
+  (info: 32/41 masks cover op-field only)
+EXIT=0
+```
+（直接 `echo $?` 取真实退出码，非管道码。）与预期 `41 patterns OK` / `exit 0` 一致。
+
+#### 2. 反例门控（三组 + 大写纵深，均就地注入 + `git checkout` 还原）
+
+注入前基线 `tests/lit/MC/Dadao/rrii_load.s` sha256 `d974fd8a045b701fc1d9a79d7b82d79435536fcfa5bb1b1af8e10aec810a4723`。
+
+**(a) 错字节（小写）**：`10 20 00 01` → `ff 20 00 01`（`git diff` 确认目标文件确被改动，非空注入）
+```
+$ python3 tools/llvm/check_lit_bytes.py
+  rrii_load.s:12: word=0xFF200001 — no match in opcodes.yaml
+  N (40) != independent count (41)
+EXIT_A=1
+```
+还原：`sha256sum -c` → `rrii_load.s: OK`；`git diff --name-only -- tests/lit/` 空；复跑 → `41 patterns OK`、`EXIT_RESTORE=0`。
+
+**(b) 错 mnemonic**：字节正确，`ld.ub` → `ld.uw`
+```
+$ python3 tools/llvm/check_lit_bytes.py
+  rrii_load.s:12: mnemonic 'ld.uw' != 'ld.ub' (insn=ld.ub-rd)
+  N (40) != independent count (41)
+EXIT_B=1
+```
+还原：sha256 OK；`git diff --name-only tests/lit/` 空；复跑 → `41 patterns OK`、`EXIT_RESTORE_B=0`。
+
+**(c) 空 `OBJ:` 集**：`/tmp/opencode/LLVM-012t/empty-lit/dummy.s`（无 `OBJ:` 行）。因脚本 `LIT_DIR` 硬编码、无 CLI，用 `importlib` 载入**同一脚本**后仅覆写模块级 `LIT_DIR` 调 `main()`（未改仓库文件）：
+```
+$ python3 <import check_lit_bytes; m.LIT_DIR=<tmp>; m.main()>
+check_lit_bytes: ERROR — N == 0 (no patterns extracted)
+MAIN_RC=1   EXIT_C=1
+```
+附：空目录（无 `.s`）→ `check_lit_bytes: ERROR — no .s files found`，`EXIT_C2=1`。
+
+**(额外) 大写 hex 注入（纵深防御）**：`10 20 00 01` → `FF 20 00 01`（解析正则只收小写 ⇒ 该行被**跳过**）：
+```
+$ python3 tools/llvm/check_lit_bytes.py
+  N (40) != independent count (41)
+EXIT_UPPER=1
+```
+**无** `no match` 细节行（如 P1/主会话所述，大写行由 N≠独立计数兜住）→ 纵深防御成立。还原：sha256 OK；复跑 `41 patterns OK`、`EXIT_RESTORE_UPPER=0`。
+
+#### 3. 独立计数（宽松统计）
+
+```
+$ grep -h -o '#[[:space:]]*OBJ:' tests/lit/MC/Dadao/*.s | wc -l   → 41
+$ grep -c 'OBJ:' tests/lit/MC/Dadao/*.s | awk -F: '{s+=$2} END{print s}' → 41
+```
+脚本的 `N`（匹配数）与独立宽松计数**均为 41**，相等。另用**独立第三方脚本** `/tmp/opencode/LLVM-012t/independent.py`（先将 `{{...}}` 替换为空格再按 token 解析，方法与脚本不同）复算：
+```
+independent literal count : 41
+unique match              : 41
+mnemonic consistent       : 41
+mask==0xFF000000          : 32
+problems                  : []
+```
+⇒ 41/41 唯一匹配、mnemonic 全一致、`32/41` op-only mask 独立复现。
+
+#### 4. 约束核验（逐条）
+
+| 验收标准 | 结果 |
+|---|---|
+| 1. 默认 `41 patterns OK`/`exit 0`；四类错误 `exit 1` | ✓ 逐条重跑（无匹配/错 mnemonic/N==0/N≠独立计数均 exit 1） |
+| 2. 只读（不改 yaml/lit） | ✓ 运行前后 `git status --short` 恒为 `M 任务书` + `?? tools/llvm/check_lit_bytes.py`；`git diff --stat -- tests/lit/` 空；脚本无写模式 `open` |
+| 3. 不调用 LLVM 工具 | ✓ `grep -n 'llvm\|subprocess\|os\.system\|os\.popen'` 无匹配（rc=1）；`grep -ni` 亦无；imports 仅 glob/os/re/sys/yaml |
+| 4. 反例门控三组均 exit 1 + 还原 41 OK | ✓ 见 §2（含大写纵深） |
+| 5. N == 独立计数 | ✓ 41 == 41（§3） |
+| 6. 不重复 `test_encoding_oracle.py` 逻辑 | ✓ 后者用 `subprocess` 跑 `llvm-mc`、按格式公式算期望；本脚本只解析 lit 文本 + 查 `opcodes.yaml`，二者无共享代码/数据流 |
+| 7. 完成区真实 stdout、逐条对齐 | ✓ 见 §5，数字全部对齐（仅 1 处证据标签瑕疵，非阻断） |
+
+#### 5. 完成区核对
+
+- 「41 patterns OK / exit 0」「32/41 masks cover op-field only」✓ 与我重跑逐字一致。
+- (b) 错 mnemonic 输出 `mnemonic 'ld.uw' != 'ld.ub' (insn=ld.ub-rd)` + `N(40)!=41` ✓ 逐字一致。
+- (c) 空 OBJ 集 `ERROR — N == 0` ✓ 一致。
+- 独立计数 41 / N 41 / Match True ✓ 一致（我另用两种宽松方式 + 独立脚本复算）。
+- 「grep CLEAN」✓ 一致（我实测无匹配，rc=1）。
+- 只读性 ✓ 一致。
+- **证据瑕疵（非阻断，供记录）**：完成区 §2(a) 写作注入 `→ FF 20 00 01`（大写），但所贴输出含 `no match` 细节行——**大写注入不会产生该细节行**（解析正则 `[0-9a-f]` 不收大写，该行被静默跳过，仅由 N≠计数兜住）。该输出实为**小写** `ff 20 00 01` 注入的真实结果（我已分别复现两者）。属完成区**注入字面量的笔误/标签错**（疑因消息内 `0xFF200001` 用大写 X 而误植），**非输出造假**、不影响功能结论；建议后续把 §2(a) 的 `FF` 更正为 `ff`，并补记大写注入的 N 计数兜底路径以与实现语义一致。
+
+#### 判决
+
+**Accepted**。验收命令块在本轮**独立重跑**下全部通过：默认 `41 patterns OK`/`exit 0`；三组反例（错字节/错 mnemonic/空 OBJ）均实打实 `exit 1`；大写 hex 注入由 N≠独立计数兜住 `exit 1`；每次注入均 `git checkout` 还原并 `sha256sum -c` 核对；独立宽松计数与独立第三方脚本均复现 41/41、mnemonic 全一致、32/41 op-only mask；脚本只读、无 LLVM/subprocess、逻辑与 `test_encoding_oracle.py` 不重复。完成区数字与真实输出逐条对齐，仅存上述**1 处非阻断的注入字面量笔误**。
+
+#### 非阻断观察
+
+1. 脚本**无 CLI 选项**（`LIT_DIR` 硬编码），故「空 `OBJ:` 集」反例须以 importlib 覆写模块变量验证（我据此完成）。若未来希望在别的 lit 目录/CI 复用，可考虑加可选 `--lit-dir`（非本任务要求，不阻断）。
+2. 独立计数门控能捕获「解析器失配」（防空绿），但**无法捕获整行 `OBJ:` 被删除**（此时 N 与独立计数同时下降仍相等，脚本会报 `40 patterns OK`/exit 0）。此为设计内已知边界（任务 P2 只要求防空绿），如需硬下限可由 `opcodes.yaml` 推导，建议登记为可选增强。
+
