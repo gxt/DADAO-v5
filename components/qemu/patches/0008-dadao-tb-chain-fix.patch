@@ -1,0 +1,135 @@
+From fc743faa3cd202a3679994e2075a8f127f4e3580 Mon Sep 17 00:00:00 2001
+From: Reviewer <reviewer@example.com>
+Date: Mon, 21 Sep 2026 08:44:37 +0000
+Subject: [PATCH] target/dadao: Fix TB continuation - update env->pc in
+ dadao_tr_tb_stop
+
+dadao_tr_tb_stop was missing env->pc update before goto_tb/exit_tb in
+DISAS_NEXT/DISAS_TOO_MANY branches. This caused env->pc to remain stale
+when a TB was cut due to TCG op buffer overflow or max_insns limit,
+resulting in an execution infinite loop (next TB re-executed from old PC).
+
+Fix (translate.c):
+- Add gen_update_pc() helper that writes pc_next to env->pc
+- Use translator_use_goto_tb() to guard goto_tb for cross-page TBs
+  (falls back to lookup_and_goto_ptr when pages differ)
+- Use exit_tb(NULL, 0) to return to main loop without TB chaining,
+  allowing the shutdown request from exit port writes to be processed
+
+Supporting fixes for exit port correctness:
+- dadao-machine.c: Use cpu_loop_exit() in exit port handler (ADR-0011 D1) to stop CPU
+  immediately via longjmp, preventing subsequent instructions
+  from overriding the exit code
+- helper.c: In dadao_cpu_do_interrupt, skip exception handling if a
+  shutdown is already pending, preventing UNDI/ILLI terminators from
+  overriding the exit code set by the exit port handler
+
+Reference: target/riscv/tcg/translate.c gen_goto_tb/riscv_tr_tb_stop
+---
+ hw/dadao/dadao-machine.c |  7 +++++++
+ target/dadao/helper.c    | 11 ++++++++---
+ target/dadao/translate.c | 27 +++++++++++++++++++++++----
+ 3 files changed, 38 insertions(+), 7 deletions(-)
+
+diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
+index 1db9a61..34dfe04 100644
+--- a/hw/dadao/dadao-machine.c
++++ b/hw/dadao/dadao-machine.c
+@@ -36,6 +36,7 @@
+ #include "system/runstate.h"
+ #include "qom/object.h"
+ #include "target/dadao/cpu.h"
++#include "accel/tcg/cpu-loop.h"
+ 
+ /* Exit port MMIO handler */
+ typedef struct DadaoExitPort {
+@@ -70,12 +71,18 @@ static void dadao_exit_port_write(void *opaque, hwaddr addr,
+     if (size != 8) {
+         qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
+                                                DADAO_EXIT_ILLI);
++        cpu_loop_exit(current_cpu);
+         return;
+     }
+ 
+     int exit_code = (int)(data & 0xFF);
+     qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_SHUTDOWN,
+                                            exit_code);
++    /* Per ADR-0011 D1: cpu_loop_exit longjmps back to cpu_exec's setjmp
++     * point, guaranteeing no further guest instructions execute after the
++     * exit port write. This prevents subsequent instructions (e.g. FAIL
++     * stores, UNDI terminators) from overriding the locked exit code. */
++    cpu_loop_exit(current_cpu);
+ }
+ 
+ static const MemoryRegionOps dadao_exit_port_ops = {
+diff --git a/target/dadao/helper.c b/target/dadao/helper.c
+index 6af7283..0dacd5b 100644
+--- a/target/dadao/helper.c
++++ b/target/dadao/helper.c
+@@ -61,10 +61,15 @@ void dadao_cpu_do_interrupt(CPUState *cs)
+      * model. The exit code is propagated to host $? via
+      * qemu_system_shutdown_request_with_code().
+      *
+-     * cpu_exit() is called to immediately stop the CPU, preventing
+-     * further instructions (e.g., UNDI terminator) from overriding
+-     * the exception exit code.
++     * If a clean shutdown (exit port write) is already pending, do not
++     * override it with a panic exit code. This can happen when gen_update_pc
++     * in tb_stop advances env->pc past an exit port write, causing the CPU
++     * to continue into a UNDI terminator.
+      */
++    if (qemu_shutdown_requested_get() != SHUTDOWN_CAUSE_NONE) {
++        return;
++    }
++
+     int exit_code = dadao_excp_to_exit_code(cs->exception_index);
+ 
+     qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
+diff --git a/target/dadao/translate.c b/target/dadao/translate.c
+index d91945e..c42c807 100644
+--- a/target/dadao/translate.c
++++ b/target/dadao/translate.c
+@@ -406,17 +406,36 @@ static void dadao_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
+     ctx->base.pc_next += 4;
+ }
+ 
++/* Update env->pc to the given value. Used before TB exit to ensure
++ * the next TB starts from the correct PC. */
++static void gen_update_pc(DisasContext *ctx, target_ulong dest)
++{
++    tcg_gen_st_i64(tcg_constant_i64(dest),
++                   tcg_env, offsetof(CPUDADAOState, pc));
++}
++
+ static void dadao_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
+ {
+     DisasContext *ctx = container_of(dcbase, DisasContext, base);
++    target_ulong dest;
++
+     switch (ctx->base.is_jmp) {
+-    case DISAS_NORETURN: break;
++    case DISAS_NORETURN:
++        break;
+     case DISAS_TOO_MANY:
+     case DISAS_NEXT:
+-        tcg_gen_goto_tb(1);
+-        tcg_gen_exit_tb(NULL, 0);
++        dest = ctx->base.pc_next;
++        if (translator_use_goto_tb(&ctx->base, dest)) {
++            gen_update_pc(ctx, dest);
++            tcg_gen_goto_tb(0);
++            tcg_gen_exit_tb(NULL, 0);
++        } else {
++            gen_update_pc(ctx, dest);
++            tcg_gen_lookup_and_goto_ptr();
++        }
+         break;
+-    default: g_assert_not_reached();
++    default:
++        g_assert_not_reached();
+     }
+ }
+ 
+-- 
+2.43.0
+
