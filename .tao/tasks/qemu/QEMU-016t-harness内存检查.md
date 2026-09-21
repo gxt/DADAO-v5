@@ -28,7 +28,7 @@
 
 ### 目标
 
-在 `emit_state_compare()` 中新增 memory 验证路径：对 `expected_state.memory` 每条 entry，把目标地址装入临时 RB，用宽度对应的**无符号** load 读实际内存到临时 RD，与期望值 XOR 后 ORR 进 mismatch 累加器。
+在 `build_exit_section()` 中新增 memory 验证路径：对 `expected_state.memory` 每条 entry，把目标地址装入临时 RB，用宽度对应的**无符号** load 读实际内存到临时 RD，与期望值 XOR 后 ORR 进 mismatch 累加器。
 
 ### 设计理由
 
