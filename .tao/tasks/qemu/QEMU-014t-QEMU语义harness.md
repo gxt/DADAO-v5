@@ -1350,7 +1350,7 @@ Results: 30 passed, 0 failed, 30 total
 | 语义 PASS（验收 1） | `python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --case 1` | **PASS**（exit 0x00）✓ |
 | dump 寄存器语义（验收 10b） | 同上 `--case 1 --dump` → 读 `state.bin` | rd2=0x82, rd3=0x64, rd4=0x1e **与向量一致** ✓；rb 段全 0，PC=0（见下） |
 | PC dump（`+0x400`） | 同上 dump | **= 0** ✗（根因 = QEMU TB 续接缺陷，**非**「TCG 代码量」；见 `015t`「新发现 1」） |
-| TIMEOUT（验收 1/3） | 已修复（workaround） | 触发条件：dumper 段无条件 emit（131 insns）使 TB 超 `TCG_MAX_INSNS=512`，**触发 QEMU TB 续接缺陷** → 执行期死循环。修法：普通模式不 emit dumper（ADR-0010 D1 修法 a）。**缺陷本身未修**，待新建 qemu 任务 |
+| TIMEOUT（验收 1/3） | 已修复（workaround） | 触发条件：dumper 段无条件 emit，使**首个 TB 达 TCG op buffer 上限**（该 case 在 65 条处被切；另有 `set.zw` 合成在 `TCG_MAX_INSNS=512` 触发），**触发 QEMU TB 续接缺陷** → 执行期死循环。修法：普通模式不 emit dumper（ADR-0010 D1 修法 a）。**缺陷本身未修**，待新建 qemu 任务 |
 
 **结论**：
 1. **语义 PASS 已打通**：batch 模式 `597 total, 562 passed, 29 failed, 5 deferred, 1 error`。29+1 条失败分类（reviewer 逐条核）：24 `mem-rd` = **向量/harness 内存模型不一致**（非 QEMU；原「`expected_state.memory` 未实现」不成立）、3 `ctrl-call` + 1 `ctrl-ret` = harness PC 布局缺口、2 `misc` = `fence` ILLI 桩。详见 `015t` 完成区「新发现 4」。

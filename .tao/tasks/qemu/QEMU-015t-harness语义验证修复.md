@@ -170,7 +170,7 @@ sys.exit(0)
 
 **测试结果**：
 - reg-arith.yaml 前50条：**50/50 PASS**（encoding/semantic/boundary/overlap 全覆盖）
-- 7 个向量文件各前5条：**34/35 PASS**（ctrl-ret.yaml case0 TIMEOUT，需 RAS 设置，预期）
+- 7 个向量文件各前5条：**34/35 PASS**（`ctrl-ret.yaml` case0 TIMEOUT，根因 = **PC 布局缺口**——`ret` 目标落回 loader，见「新发现 4」；**非**「RAS 未设置」）
 - batch 模式全量：**597 total, 562 passed, 29 failed, 5 deferred, 1 error**
 - 反例门控：篡改 expected_state rd2=0x83 → exit 1（FAIL）；原始 rd2=0x82 → exit 0（PASS）✓
 - CLI fail-closed：0 case → exit 2，all deferred → exit 2 ✓
@@ -201,7 +201,7 @@ sys.exit(0)
 4. **【分类已更正】29+1 条 batch 失败**（reviewer 逐条核）：**24 条 `mem-rd`** = 向量/harness **内存模型不一致**（harness 以 BE-8B `st.o` 写 EA，向量 golden 取低位，与 `ld.o` 期望数学上不可兼得 ⇒ **向量自身不一致**，非 QEMU；原「`expected_state.memory` 未实现」**不成立**，比较的是 `rd1`）；**3 条 `ctrl-call` + 1 条 `ctrl-ret`(error)** = **harness PC 布局缺口**（input 非空使 loader 前置于 test，test PC ≠ base，`call` 压栈 PC+4 偏差；探针已证 `ra63` 装载正确）；**2 条 `misc`** = `trans_fence` 仍为 ILLI 桩（与 `007t`「fence=nop」矛盾，已知 gap）。**无实现缺陷类**（被误归因的 TB 缺陷不在此清单）。`mem-rd` 向量对齐归 TESTCASES 侧。
 
 **遗留问题**：
-1. **full dumper 的 rb/PC 段为 0**：根因是 **QEMU TB 续接缺陷**（见「新发现 1」），**不是** TCG 代码量限制。修复途径二选一：**(a)** 新建 qemu 任务修 `dadao_tr_tb_stop`（根治，同时消除对任意长 TB guest 程序的影响）；**(b)** harness 内把 dumper 拆成多个 <512 指令的 TB（仅 workaround，缺陷仍在）。**待 architect 裁决**。
+1. **full dumper 的 rb/PC 段为 0**：根因是 **QEMU TB 续接缺陷**（见「新发现 1」），**不是** TCG 代码量限制。修复途径二选一：**(a)** 新建 qemu 任务修 `dadao_tr_tb_stop`（根治，同时消除对任意长 TB guest 程序的影响）；**(b)** harness 内把 dumper 拆成多段、每段低于 **op-buffer 阈值**（store-heavy 实测 ≈40 条安全），段间插入显式控制流（如 `jump`，会写 `env->pc`）——reviewer 实验：100 条不分段 → `exit=124`，按 40 条分段 → `exit=0`（仅 workaround，缺陷仍在）。**待 architect 裁决**。
 2. **expected_state.memory 未验证**：harness 不读 `expected_state.memory` 做比较（N3，已知 gap）。属后续任务。
 3. **与 `020t` 的边界：不成立（需 architect 裁决）** —— 本任务对 `build_test_binary.py` 的 `if dump_mode:` 改动**正是 `020t` 交付物 #1**（重叠）；且 `020t` 验收 #4 写「`--dump` 行为不变」、约束「不改 QEMU 补丁」，**无法**修复本任务定位的 TB 缺陷。原「两者无重叠」结论**错误**。需 architect 重划边界并同步 `020t` 任务书。
 
@@ -324,3 +324,71 @@ sys.exit(0)
 - 验收 #6：或在 harness 内把 dumper 拆成 TB 安全片段并给出 `--dump` 下 `pc` 正确、`rb` 非 0 的真实输出；或与 architect 明确把 #6 移出本任务并同步修订 `020t`。
 - 令 `mem-rd` 窄加载向量与 harness 内存模型一致（向量侧修 golden model：按 size 右对齐放置，或 harness 按宽度写内存），归 TESTCASES 侧处理并在本任务记录跨模块影响。
 - 020t 任务书修订见 F 节。
+
+### 第2轮 reviewer 验收（复审主会话「表述更正」，commit `db5fa67`）
+
+**审查范围**：`git show db5fa67`（`015t`/`014t` 任务书 + `deferred.md`；代码改动本身未复改）+ 基线独立重跑 + 3 条分类抽验 + #6 workaround 可行性实验。
+**日志**：`.work/log/qemu/QEMU-015t-review2-*.log`；临时产物 `/tmp/opencode/QEMU-015t/`。工作区 `git status` 空（改动已提交）。
+
+#### A. 五处更正逐条核对
+
+| # | 更正项 | 核对结果 |
+|---|---|---|
+| 1 | 015t 完成区「新发现 1」根因改为 TB 续接缺陷 | ✅ **方向正确**：含合成证据、`-d exec` 46185 次、`dadao_tr_tb_stop` 缺 `gen_update_pc`、riscv 对照。已删「TCG 翻译超时/代码量」。 |
+| 2 | 验收 #6 由「部分」改 **BLOCKED** + 替代证据 | ✅ 格式合规（原因 + 替代 #1–#5）。**但见 E：替代证据的充分性需补做（workaround 可行）**。 |
+| 3 | 29+1 分类按 reviewer 结论重写 | ✅ 24 mem-rd / 4 ctrl / 2 misc 与第 1 轮一致（抽验见 C）。 |
+| 4 | 020t 边界改「不成立，需 architect 裁决」 | ✅ 与 `020t` 任务书一致（重叠成立）。措辞小修见 F。 |
+| 5 | 014t 回填 + `deferred.md` 同步 | ⚠️ **方向正确，但引入/残留 3 处事实错误**（见 D）。 |
+
+#### B. `deferred.md` TB 缺陷条目核对
+
+新增条目（`deferred.md:86`）**证据 / 影响面 / 修法 / 归属四要素齐备且可执行**：合成证据、`-d exec`、代码定位、`gen_update_pc + goto_tb(0) + exit_tb(tb,0)` 修法、归属「待新建 qemu 任务」。✅ 合格。
+
+#### C. 29+1 分类抽验（≥3 条，第 1 轮结论仍成立）
+
+| 抽样 | 命令 | 真实输出 | 结论 |
+|---|---|---|---|
+| `mem-rd:3`（ld.ub semantic） | 探针：`loader+ld.ub` 后 `st.o rd1→exit port` | `exit=0`（rd1≠0x42）；BE 证明：存 `0x4200000000000000` → `ld.ub` 读出 `exit=66(0x42)` | ✅ (a) 向量/harness 内存字节序不一致成立 |
+| `ctrl-call:2` | 探针：`build_loader(case2)+swym` 比对 `ra63==预设` | `exit=0`（**RA 装载正确**） | ✅ (a)「RAS 未设置」被证伪，PC 布局缺口成立 |
+| `misc:3`（fence encoding） | `run_qemu_test.py misc.yaml --case 3` | `exit=0x88 Unexpected fault: ILLI`；`trans_ctrl.c.inc:729` `fence - stub: ILLI` | ✅ (c) fence ILLI 桩成立 |
+
+#### D. 残留错误 / 新自相矛盾（本轮打回主因）
+
+1. **`deferred.md:84` 与 `014t:1353`**：写「dumper 段 **131 条指令使 TB 超 `TCG_MAX_INSNS=512`**」。**事实不符**：预修复版 `reg-arith:1` 二进制总 **150** 条，首个 TB 仅 **65** 条（`-d in_asm` 复跑 `TB sizes = [4, 65]`，见 `QEMU-015t-review2-prefix-insn.log`）——131 < 512，**从未触及 512**；该 case 是被 **TCG op buffer** 在 65 条处切。512 边界来自另一组 `set.zw` 合成（N=510）。`deferred.md:86` 自己写的是「510 条 set.zw→timeout（TCG_MAX_INSNS=512）」，与 `:84` 自相矛盾。
+2. **`015t:204`**：「harness 内把 dumper 拆成多个 **<512 指令**的 TB」——阈值错误。op-buffer 切点 ≈ 100 条 store-heavy 指令，拆成「<512」仍会死循环（见 E 实验：不拆 100 条 → 124；按 40 条分段 → 0）。应写「每段低于 op buffer 阈值（实测 store-heavy ≈ 40 条安全），段间插入显式控制流」。
+3. **`015t:173`（完成区测试结果）**：「ctrl-ret.yaml case0 TIMEOUT，**需 RAS 设置**，预期」——与已更正的「新发现 4」（ctrl-ret[0]=PC 布局缺口，`ra63` 装载正确）**自相矛盾**；本行未随更正同步。
+
+#### E. 验收 #6：BLOCKED 是否可接受 + workaround 可行性
+
+**reviewer 实验（证明 harness workaround 可行）**：
+- 100 条 `st.o-rd` 不分段 → `exit=124`（死循环）；
+- 每 40 条插入一条 `jump rb0, rd0, 1`（显式控制流，强制写 `env->pc`）→ **`exit=0`**；每 20 条 → 亦 `exit=0`。
+
+**建议**：**#6 标 BLOCKED 可接受（作为本任务处置），但须满足两个前置**：
+1. **新建 qemu 任务**登记 TB 续接缺陷（当前 `deferred.md` 仅记「待新建」，无任务文件；#6 不得仅停留在 BLOCKED 而无限期悬空）。
+2. **`020t` 重划范围**，把「TB 安全分段 dumper（段间显式控制流，段长 < op-buffer 阈值）」列为交付物并验证 `--dump` 的 `rb`/`pc` 正确。**不建议由 `015t` 补 workaround**——该改动与 `020t` 的 dumper 改造交付物 #1 高度重叠（本身已是 020t 范围），且 workaround 只是绕过缺陷；缺陷已被独立登记，不存在「掩盖问题」。若 architect 决定本任务即交付 workaround，则可据此把 #6 由 BLOCKED 提升为「可跑」。
+
+#### F. `020t` 重叠判定复核（只报告）
+
+- 第 1 轮「存在重叠」**维持**：`if dump_mode:` 正是 `020t` 交付物 #1。措辞上宜由「重叠」升级为「**交付物 #1 已由 015t 落地，020t 需缩窄或关闭该项**」，并在 020t 增补「TB 安全分段 dumper + `--dump` 端到端验收」；`020t` 验收 #4「`--dump` 行为不变」与该增补冲突，须一并修订。
+
+#### G. 基线复核（全部 reviewer 亲自重跑，第 2 轮）
+
+| 项 | 输出 | 退出码 |
+|---|---|---|
+| `reg-arith:1` | `0x00 PASS` | 0 ✓ |
+| 反例门控（篡改 rd2→0x83 / 还原） | `0x01 FAIL` / `0x00 PASS` | 1 / 0 ✓ |
+| CLI fail-closed（0 case / 全 deferred） | `ERROR: 0 cases executed` | 2 / 2 ✓ |
+| `make check` | `repository checks: PASS`（154 既有覆盖缺口非本任务） | 0 ✓ |
+| `012t` / `013t` 探针 | `Overall: PASS` | 0 / 0 ✓ |
+
+#### H. 判决：**Needs Revision**（机械性文字订正；不涉代码返工）
+
+判据：任务要求「5 处更正后**不得有残留错误或新的自相矛盾**」，但存在 D.1/D.2/D.3 三处（其中 D.1 是**更正时新引入的事实错误**，且直接落在根因叙述上）。
+
+**具体修改建议（逐条）**：
+1. `deferred.md:84`、`014t:1353`：删「131 条指令使 TB 超 `TCG_MAX_INSNS=512`」，改为「dumper 段使**首个 TB 达 TCG op buffer 上限（该 case 在 65 条处被切）**；512 边界为另一组 `set.zw` 合成（N=510）所触发」。
+2. `015t:204`：把「<512 指令的 TB」改为「每段低于 **op-buffer 阈值**（store-heavy 实测 ≈40 条安全），段间插入显式控制流（如 `jump`）以写 `env->pc`」；并附 E 节 `exit=124→0` 的实验作为 workaround 可行性证据。
+3. `015t:173`：「需 RAS 设置」改为「PC 布局缺口（`ret` 目标落回 loader，见新发现 4）」。
+
+上述 3 处订正后（含必要的 020t 增补与新建 TB 任务），本任务可判 **Accepted**；#1–#5、#7–#9 已由本轮重跑确认。
