@@ -101,6 +101,7 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
   1. 检测到对 exit port 的 8 B 对齐 store，读出被写入的 8 B 值；
   2. 取低字节 `value & 0xFF` 作为 QEMU 进程退出状态；
   3. 以 clean shutdown 请求退出，并把该退出码传播到 host `$?`。
+  4. **写入后立即停止 guest 执行**（`ADR-0011` D4 补充）：exit-port handler 必须在写入退出码后**强制 vCPU 返回主循环**（`cpu_loop_exit()`，即 `longjmp` 回 `cpu_exec` 的 `setjmp` 点），**不再执行任何后续 guest 指令**——保证「**首次写入 exit port 即锁定退出码**」为确定性行为。仅置 `exit_request`/`EXCP_INTERRUPT`（`cpu_exit()`）**不足**：外层 `cpu_exec` 循环不会停止，后续指令（FAIL store / UNDI 终止符）仍会覆盖退出码（实测 40 次中 5 次不一致，见 `ADR-0011` Context）。
   实现使用**带退出码**的 API/设备机制（如 `qemu_system_shutdown_request_with_code(reason, code)` 或等价机制），**不使用**不携带退出码的 `qemu_system_shutdown_request()`。最终 API 以锁定的 QEMU baseline 为准（ADR-0002/组件锁）；Phase 3 bringup 必须增加**进程级验收测试**，对 guest 经 exit port 写入 `0x00`/`0x01`/`0x7F`/`0x87`/`0x88` 分别验证 host 观察到**完全相同**的 8-bit status。该 bringup 测试直接验证「读 8 B → 取低字节 → 传播到 `$?`」机制对**任意 8 位值**的忠实传播；它与下述「测试程序不得写 `0x80`–`0xFF`」的**约定**不冲突——约定用于保证常规测试的 `$?` 分区无歧义，bringup 测试在已知写入来源的前提下单独验证机制。
 - **非 8B 访问**：对 exit port 的 `st.b`/`st.w`/`st.t`、多寄存器 store（`stm.*`）、以及任何 load（`ld.*`）→ **ILLI（`0x88`）**。理由：opcode 合法（非保留编码），违反的是 MMIO 区域的访问种类/宽度约束，属**非法操作数/非法访问**（ILLI），而非未识别编码（UNDI 仅用于 ISA 表空白单元格）。
 - **零 host 依赖**：harness 运行 `qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin` 并检查 `$?`；`0x00` = pass，非零 = fail/fault。pass/fail 判定**只依赖 `$?`**，不做日志解析、不读 stderr。harness 另设**墙钟超时兜底**（默认 **9 s**，可经环境变量覆盖）：超时即杀掉 QEMU 并记为 **harness 错误（inconclusive）**，**不**参与 guest pass/fail 判定。该超时仅用于防止死循环/不终止的测试永久挂起 harness，不违反零 host 依赖原则。
