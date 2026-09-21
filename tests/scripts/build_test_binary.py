@@ -239,7 +239,7 @@ def build_loader(vector_case):
         # Store: st.o rd, rb, 0
         words.append(encode_st_o_rd(TEMP_RD, MEM_RB, 0))
 
-    return words
+    return words, len(words)
 
 
 def build_test_section(vector_case):
@@ -290,13 +290,20 @@ def build_dumper_section():
     return words
 
 
-def build_exit_section(vector_case, dump_mode=False):
+def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra=False):
     """Build exit section: compare expected state and write exit code.
 
     For encoding/overlap class: write 0x00 (PASS) directly.
     For semantic/boundary class: compare expected vs actual, write PASS/FAIL.
     For legality class with expected_fault: write safety net FAIL (if fault
     doesn't happen, we want to know).
+
+    Args:
+        loader_words: Number of 32-bit words in the loader section.
+        relocate_ra: If True, adjust expected_state.ra low 48 bits by
+            loader_words*4 (for call push return address relocation).
+            Only enabled for call semantic cases; other RA writes (rd2ra etc.)
+            do not need relocation.
     """
     words = []
     expected_state = vector_case.get("expected_state")
@@ -340,10 +347,21 @@ def build_exit_section(vector_case, dump_mode=False):
             words.append(encode_or_o(ACCUM_RD, ACCUM_RD, TEMP_RD))
 
         # Compare expected RA registers
+        # RA relocation (P1): expected_state.ra low 48 bits are computed
+        # for test@BINARY_BASE; actual test is at BINARY_BASE + loader_bytes.
+        # Adjust: low 48 bits += loader_bytes, high 16 bits (count) unchanged.
+        # Only for call push return addresses (relocate_ra=True); other RA
+        # writes (rd2ra etc.) store raw values that don't need relocation.
         ra_expected = expected_state.get("ra") or {}
+        loader_bytes = loader_words * 4 if relocate_ra else 0
         for reg_name, val_str in sorted(ra_expected.items()):
             ra_num = int(reg_name.replace("ra", ""))
             expected_val = int(val_str, 16) if isinstance(val_str, str) else val_str
+            # Relocate: add loader_bytes to low 48 bits, preserve count (high 16)
+            if loader_bytes > 0:
+                count = expected_val >> 48
+                addr48 = (expected_val & 0xFFFFFFFFFFFF) + loader_bytes
+                expected_val = (count << 48) | (addr48 & 0xFFFFFFFFFFFF)
             # Load expected value into TEMP_RD
             words.extend(emit_load_imm64_rd(TEMP_RD, expected_val))
             # Use ra2rd to read actual RA value
@@ -434,7 +452,29 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     delta = int(expected_pc, 16) - BINARY_BASE
 
     # Section 1: loader (set input_state registers)
-    words.extend(build_loader(vector_case))
+    # For call semantic cases, adjust input_state.ra low48 bits by loader_bytes.
+    # This ensures the loader sets ra63 to the ACTUAL return address
+    # (call_addr + 4 = BINARY_BASE + loader_bytes + 4), so the call's push
+    # matches ra63 low48 → recursive (count++), not shift-push (count=1).
+    # expected_state.ra is adjusted in build_exit_section via loader_words.
+    import copy
+    if delta == 8 and vector_case.get("mnemonic") == "call":
+        adj_case = copy.deepcopy(vector_case)
+        adj_input = adj_case.get("input_state") or {}
+        adj_ra = adj_input.get("ra") or {}
+        # Pre-compute loader_words from original input_state
+        _, pre_loader_words = build_loader(vector_case)
+        loader_bytes = pre_loader_words * 4
+        if loader_bytes > 0:
+            for reg_name, val_str in list(adj_ra.items()):
+                val = int(val_str, 16) if isinstance(val_str, str) else val_str
+                count = val >> 48
+                addr48 = (val & 0xFFFFFFFFFFFF) + loader_bytes
+                adj_ra[reg_name] = hex((count << 48) | (addr48 & 0xFFFFFFFFFFFF))
+        loader_words_list, loader_words = build_loader(adj_case)
+    else:
+        loader_words_list, loader_words = build_loader(vector_case)
+    words.extend(loader_words_list)
 
     # Section 2: test instruction (branch/jump encoding)
     words.extend(build_test_section(vector_case))
@@ -457,7 +497,71 @@ def build_branch_test_binary(vector_case, dump_mode=False):
         words.extend(build_dumper_section())
 
     # Section 4: exit (compare + write exit code)
-    words.extend(build_exit_section(vector_case, dump_mode))
+    # RA relocation only for call semantic cases (unconditional jump with RA push)
+    is_call = delta == 8 and vector_case.get("mnemonic") == "call"
+    words.extend(build_exit_section(vector_case, dump_mode, loader_words=loader_words, relocate_ra=is_call))
+
+    # Pack as big-endian 32-bit words
+    blob = b""
+    for w in words:
+        blob += struct.pack(">I", w)
+
+    return blob
+
+
+def build_call_ret_binary(vector_case, dump_mode=False):
+    """Build test binary for ret semantic tests using synthetic call→ret→landing round-trip.
+
+    Layout (word indices from test section start):
+      w0: call imms24=2   → target = w2（ret）；ra63 = <1>(w1 地址)
+      w1: jump-iiii imms24=2 → target = w3（exit 段）  ← landing 跳板
+      w2: ret             ← 向量被测指令（pops ra63 → jumps to w1）
+      w3..: exit 段       ← 比对 + 写退出码
+
+    Execution flow:
+      1. call at w0: push ra63=<1>(w1_addr), jump to w2
+      2. ret at w2: pop ra63 → return addr = w1 → jump to w1
+      3. jump at w1: jump to w3 (exit section)
+      4. exit section: compare expected_state, write exit port → PASS
+
+    Why this layout:
+      - call pushes return address = call_addr + 4 = w1 (NOT w2, the target).
+      - w1 must be executable code that reaches the exit section → jump-iiii trampoline.
+      - exit section has variable length → jump-iiii with imms24=2 always jumps
+        past the fixed 2-word prefix (call + jump) to w3 = exit section start.
+
+    Notes:
+      - ret case does NOT load input_state.ra (ra63 is set by the synthetic call).
+      - loader_words=0 for expected_state.ra (no relocation needed).
+      - call encoding: call-iiii op=0x74, imms24=2 → 0x74000002.
+      - jump encoding: jump-iiii op=0x70, imms24=2 → 0x70000002.
+    """
+    words = []
+
+    # Section 1: loader (set input_state registers — but NOT ra, since
+    # the synthetic call will set ra63)
+    # Strip ra from input_state to prevent loader from preloading ra63.
+    # (P2: "ret 用例不加载 input_state.ra，ra63 由合成 call 真实压栈")
+    import copy
+    ret_case = copy.deepcopy(vector_case)
+    ret_input = ret_case.get("input_state") or {}
+    ret_input.pop("ra", None)
+    ret_case["input_state"] = ret_input
+    loader_words_list, _ = build_loader(ret_case)
+    words.extend(loader_words_list)
+
+    # Section 2: call imms24=2 → target = PC+8 = w2 (ret)
+    words.append(0x74000002)  # call imms24=2
+
+    # Section 3: jump-iiii trampoline (landing for ret's return)
+    # jump imms24=2 → target = PC+8 = w3 (exit section start)
+    words.append(0x70000002)  # jump imms24=2
+
+    # Section 4: ret (the test instruction from the vector)
+    words.extend(build_test_section(vector_case))
+
+    # Section 5: exit section (landing for trampoline jump)
+    words.extend(build_exit_section(vector_case, dump_mode, loader_words=0))
 
     # Pack as big-endian 32-bit words
     blob = b""
@@ -478,14 +582,22 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
 
     Returns bytes to be loaded at BINARY_BASE.
     """
-    # Branch/jump semantic: dispatch to specialized builder
+    # Routing for control-flow instructions with expected_pc:
+    # - call: unconditional jump → TAKEN layout (via build_branch_test_binary)
+    # - ret: synthetic call→ret→landing round-trip (via build_call_ret_binary)
+    # - others (branch/jump): existing taken/not-taken layout
     if vector_case.get("expected_pc") is not None:
+        mnemonic = vector_case.get("mnemonic", "")
+        if mnemonic == "ret":
+            return build_call_ret_binary(vector_case, dump_mode)
+        # call and other branch/jump → existing branch builder
         return build_branch_test_binary(vector_case, dump_mode)
 
     words = []
 
     # Section 1: loader
-    words.extend(build_loader(vector_case))
+    loader_words_list, loader_words = build_loader(vector_case)
+    words.extend(loader_words_list)
 
     # Section 2: test instruction
     words.extend(build_test_section(vector_case))
@@ -499,7 +611,7 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
         words.extend(build_dumper_section())
 
     # Section 4: exit (compare + write exit code)
-    words.extend(build_exit_section(vector_case, dump_mode))
+    words.extend(build_exit_section(vector_case, dump_mode, loader_words=loader_words))
 
     # Pack as big-endian 32-bit words
     blob = b""
