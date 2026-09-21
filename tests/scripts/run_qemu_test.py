@@ -589,7 +589,14 @@ def main():
             for detail in fail_details:
                 print(detail)
 
-        sys.exit(0 if failed == 0 and errors == 0 else 1)
+        # CLI fail-closed (ADR-0009): 0 cases executed or all skipped → exit 2
+        executed = total - deferred
+        if executed == 0:
+            print("ERROR: 0 cases executed (all deferred or no cases)")
+            sys.exit(2)
+        if failed > 0 or errors > 0:
+            sys.exit(1)
+        sys.exit(0)
 
     else:
         # Single file mode

@@ -361,8 +361,13 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
     # Section 2: test instruction
     words.extend(build_test_section(vector_case))
 
-    # Section 3: dumper (for diagnostics)
-    words.extend(build_dumper_section())
+    # Section 3: dumper (for diagnostics) — ADR-0010 D1 修法 a:
+    # only emit dumper in dump mode. Normal mode doesn't need it
+    # (pass/fail determined by guest comparison in exit section).
+    # Dumper uses st.o-rb + rb2rd which cause TCG code-size timeout
+    # when emitted unconditionally (130+ instructions).
+    if dump_mode:
+        words.extend(build_dumper_section())
 
     # Section 4: exit (compare + write exit code)
     words.extend(build_exit_section(vector_case, dump_mode))
