@@ -5,3 +5,4 @@
 0005-dadao-asmparser.patch
 0006-dadao-disassembler.patch
 0007-wyde-position-operand-parser.patch
+0008-dadao-elf-e_flags.patch

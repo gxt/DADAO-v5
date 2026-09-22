@@ -18,14 +18,16 @@
   - `components/llvm-project/patches/0005-dadao-asmparser.patch`
   - `components/llvm-project/patches/0006-dadao-disassembler.patch`
   - `components/llvm-project/patches/0007-wyde-position-operand-parser.patch`（`LLVM-013t` 产出）
+  - `components/llvm-project/patches/0008-dadao-elf-e_flags.patch`（`LLVM-014t` 产出）
   - `components/llvm-project/patches/series`
   - `tests/lit/MC/Dadao/lit.cfg.py`（`LLVM-003t` 产出）
    - `tests/lit/MC/Dadao/*.s`（含 OBJ/ASM 前缀 + 字节级 OBJ CHECK，`LLVM-008t` 产出；`LLVM-011t`/`LLVM-013t` 增补，现 **21 个**）
    - `tests/lit/MC/Dadao/wpn_operand.s`、`wpn_err_wp4.s`、`wpn_err_foo.s`、`wpn_err_range.s`（`LLVM-013t` 产出）
+   - `tests/lit/MC/Dadao/e_flags.s`（`LLVM-014t` 产出）
   - ~~smoke `.s` 修正与 E2E lit 用例（`LLVM-010t` 产出）~~（`010t` 已关闭；E2E 冒烟归 `INTEG-002t`）
   - RA 指令补丁与 lit（`LLVM-011t` 产出）
   - `tools/llvm/check_lit_bytes.py`（`LLVM-012t` 产出）
-- `make build-mc` PASS（ninja 目标含 `not`，`LLVM-013t` 补）；`llvm-lit tests/lit/MC/Dadao/` 0 failures（**21 个**）
+- `make build-mc` PASS（ninja 目标含 `not`（`013t` 补）与 `llvm-readobj`（`014t` 补））；`llvm-lit tests/lit/MC/Dadao/` 0 failures（**22 个**）
 - `python3 tools/llvm/check_lit_bytes.py` exit 0（N > 0；现 **53 patterns**）
 （核验通过后，主会话将 `**状态**` 置为 `里程碑`）
 
@@ -90,5 +92,42 @@ $ python3 tools/llvm/validate_instrinfo.py
 ```
 
 **跨模块影响核查**：`INTEG-002t` 报告的 `wpN` 缺陷已由 `LLVM-013t` **修复并验收**（reviewer 两轮 Accepted；`wp0`–`wp3` 编码经独立手算 16/16 一致；3 组反例注入均 FAIL + 还原）⇒ **无未处置的跨模块影响**。
+
+**结论**：核验通过，`LLVM-015m` 维持 `里程碑`。
+
+## 核验记录（第 3 轮：2026-09-22，主会话执行；因 `LLVM-014t` 新增而重新核验）
+
+**触发**：`INTEG-003t` 跨模块接口核对发现 **LLVM `.o` 的 `e_flags = 0x0`**（ADR-0003 §D1 要求 `0x00000001`）⇒ 新增修复任务 `LLVM-014t`（用户裁定「增加专门任务」，里程碑不顺延）。该任务已完成并 `已验证`，故重新核验本里程碑。
+
+**关联任务**：`LLVM-001k`~`008t`、`011t`、`012t`、`013t`、**`014t`** 均已 `已验证`；`LLVM-010t` 已关闭（2026-09-21）。
+
+**产出文件**：全部存在；新增 `components/llvm-project/patches/0008-dadao-elf-e_flags.patch` + `tests/lit/MC/Dadao/e_flags.s`；`tests/lit/MC/Dadao/*.s` 由 21 → **22 个**。
+
+**命令核验（真实输出，2026-09-22）**：
+```
+$ make build-mc
+build-mc: PASS
+
+$ .work/build/llvm/bin/llvm-lit tests/lit/MC/Dadao/
+Total Discovered Tests: 22
+  Passed: 22 (100.00%)
+
+$ python3 tools/llvm/check_lit_bytes.py
+check_lit_bytes: 53 patterns OK
+
+$ python3 tools/llvm/test_encoding_oracle.py
+All encoding tests passed!    (68/68)
+
+$ python3 tools/llvm/validate_instrinfo.py
+=== Result: 0 errors, 0 warnings ===
+
+$ readelf -h <(llvm-mc --triple=dadao-unknown-elf -filetype=obj x.s -o -)   # 等价：.o 头
+  Class: ELF64 | Data: big endian | OS/ABI: UNIX - System V | Machine: 0xda0 | Flags: 0x1
+
+$ python3 tools/integ/check_interface_alignment.py   # 跨模块佐证
+80 项 | PASS 80 | FAIL 0 | MANUAL 0   EXIT 0
+```
+
+**跨模块影响核查**：`INTEG-003t` 报告的 `e_flags` 不一致已由 `LLVM-014t` **修复并验收**（reviewer 三轮；`readelf Flags: 0x1`、补丁流程 tree hash 一致、反例门控通过）⇒ **无未处置的跨模块影响**。
 
 **结论**：核验通过，`LLVM-015m` 维持 `里程碑`。

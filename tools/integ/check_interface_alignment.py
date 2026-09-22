@@ -118,28 +118,82 @@ def check_elf_fields():
     # --- e_flags = 0x00000001 (真取值比对) ---
     # Source: ADR-0003 §D1, contract-elf.md §1.3
     # bits 0–7=版本号(M1=1), bits 8–31=0
-    # 解析 getEFlags() override 的返回常量；未 override ⇒ 默认 0 ⇒ FAIL
+    # 两种实现路径均有效：
+    #   (a) getEFlags() override 返回常量
+    #   (b) setELFHeaderEFlags(CONST) 通过 TargetELFStreamer
+    #
+    # 只在 diff 的 '+' 新增非注释代码行里搜索（排除 mail header / commit
+    # message / '+++' 文件头行 / C/C++ 注释行），避免 commit message 或
+    # 注释中的字面量造成假阳性/假阴性。
     EXPECTED_E_FLAGS = 0x00000001
-    # 搜索 getEFlags 函数体中的 return 语句
+    actual = None
+    method = ""
+
+    def _is_comment(s: str) -> bool:
+        """判断一行是否为 C/C++ 注释行（行首去空白后以注释标记开头）。"""
+        s = s.strip()
+        return (s.startswith("//") or s.startswith("/*")
+                or s.startswith("*") or s.startswith("*/"))
+
+    # 提取 diff '+' 非注释代码行（排除 '+++' 文件头行、注释行）
+    # 用于 setELFHeaderEFlags / getEFlags 调用搜索和常量定义回查。
+    code_lines = "\n".join(
+        ln[1:] for ln in patch_content.splitlines()
+        if (ln.startswith("+")
+            and not ln.startswith("+++")
+            and not _is_comment(ln[1:]))
+    )
+
+    # 所有 '+' 行（含注释），仅用于不涉及常量值比对的简单存在性检查
+    # （本函数不使用，保留供未来扩展；当前全部搜索均在 code_lines 中）
+
+    # 路径 (a): 搜索 getEFlags 函数体中的 return 语句（仅在非注释代码行中）
     geteflags_pattern = re.compile(
         r'getEFlags\s*\(\s*\)[^{]*\{[^}]*return\s+(0x[0-9a-fA-F]+|\d+)\s*;',
         re.DOTALL
     )
-    m = geteflags_pattern.search(patch_content)
+    m = geteflags_pattern.search(code_lines)
     if m:
         raw = m.group(1)
         actual = int(raw, 16) if raw.startswith("0x") or raw.startswith("0X") else int(raw)
+        method = f"getEFlags() 返回 {hex(actual)}"
+
+    # 路径 (b): 搜索 setELFHeaderEFlags 调用（仅在非注释代码行中）
+    if actual is None:
+        seteflags_pattern = re.compile(
+            r'setELFHeaderEFlags\s*\(\s*([A-Za-z_]\w*|0x[0-9a-fA-F]+|\d+)\s*\)'
+        )
+        m2 = seteflags_pattern.search(code_lines)
+        if m2:
+            arg = m2.group(1)
+            # 数字字面量直接解析；标识符须回查同一 patch 代码内的常量定义
+            if arg.startswith("0x") or arg.startswith("0X") or arg.isdigit():
+                actual = int(arg, 16) if arg.startswith("0x") or arg.startswith("0X") else int(arg)
+                method = f"setELFHeaderEFlags({hex(actual)})"
+            else:
+                # 标识符：在非注释代码行中查找其常量定义
+                const_pat = re.compile(
+                    rf'\b{re.escape(arg)}\s*=\s*(0x[0-9a-fA-F]+|\d+)\s*;'
+                )
+                m3 = const_pat.search(code_lines)
+                if m3:
+                    raw = m3.group(1)
+                    actual = int(raw, 16) if raw.startswith("0x") or raw.startswith("0X") else int(raw)
+                    method = f"setELFHeaderEFlags({arg}={hex(actual)})"
+                else:
+                    method = f"setELFHeaderEFlags({arg}=未解析)"
+
+    if actual is not None:
         if actual == EXPECTED_E_FLAGS:
-            record(cat, "e_flags=0x00000001", "PASS",
-                   f"getEFlags() 返回 {hex(actual)}")
+            record(cat, "e_flags=0x00000001", "PASS", method)
         else:
             record(cat, "e_flags=0x00000001", "FAIL",
-                   f"getEFlags() 返回 {hex(actual)}，"
-                   f"期望 0x{EXPECTED_E_FLAGS:X}（ADR-0003 §D1）")
+                   f"{method}，期望 0x{EXPECTED_E_FLAGS:X}（ADR-0003 §D1）")
     else:
-        # 未 override ⇒ LLVM 默认 getEFlags() 返回 0
+        # 未设置 ⇒ LLVM 默认 e_flags = 0
         record(cat, "e_flags=0x00000001", "FAIL",
-               "LLVM patch 未 override getEFlags()，e_flags 默认为 0 "
+               "LLVM patch 未设置 e_flags（未找到 getEFlags() 或 "
+               "setELFHeaderEFlags()），默认为 0 "
                "（ADR-0003 §D1 要求 0x00000001）")
 
 

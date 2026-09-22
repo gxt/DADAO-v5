@@ -1,0 +1,106 @@
+From a4bf0a211873b30b93fbc2083f7fe46bdb60b61c Mon Sep 17 00:00:00 2001
+From: Guan Xuetao <gxt@pku.edu.cn>
+Date: Tue, 22 Sep 2026 11:49:57 +0000
+Subject: [PATCH] DADAO: Set e_flags=0x1 in ELF header (M1 object/ABI format
+ version)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Override e_flags via DADAOTargetStreamer::setELFHeaderEFlags(0x1)
+registered through RegisterObjectTargetStreamer. ADR-0003 §D1:
+bits 0-7 = object/ABI format version (M1 = 1); bits 8-31 = 0.
+
+LLVM-014t
+---
+ .../DADAO/MCTargetDesc/DADAOMCTargetDesc.cpp  | 28 +++++++++++++++++++
+ .../DADAO/MCTargetDesc/DADAOTargetStreamer.h  | 24 ++++++++++++++++
+ 2 files changed, 52 insertions(+)
+ create mode 100644 llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h
+
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.cpp
+index d0fc790e6..cb130216c 100644
+--- a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.cpp
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.cpp
+@@ -12,8 +12,12 @@
+ 
+ #include "DADAOMCTargetDesc.h"
+ #include "DADAOMCAsmInfo.h"
++#include "DADAOTargetStreamer.h"
+ #include "TargetInfo/DADAOTargetInfo.h"
++#include "llvm/BinaryFormat/ELF.h"
+ #include "llvm/MC/MCCodeEmitter.h"
++#include "llvm/MC/MCELFObjectWriter.h"
++#include "llvm/MC/MCELFStreamer.h"
+ #include "llvm/MC/MCInstPrinter.h"
+ #include "llvm/MC/MCInstrAnalysis.h"
+ #include "llvm/MC/MCInstrInfo.h"
+@@ -36,6 +40,26 @@
+ 
+ using namespace llvm;
+ 
++// --- Target Streamer (sets e_flags in ELF header) ---
++// ADR-0003 §D1: e_flags = 0x00000001 (M1 object/ABI format version).
++// bits 0–7 = version (M1 = 1); bits 8–31 = reserved (0).
++// Source: contract-elf.md §1.3.
++
++// EF_DADAO_ABIV1: M1 object/ABI format version flag (bits 0–7 = 1).
++static constexpr unsigned EF_DADAO_ABIV1 = 0x00000001;
++
++DADAOTargetStreamer::DADAOTargetStreamer(MCStreamer &S)
++    : MCTargetStreamer(S) {
++  MCELFStreamer &ES = static_cast<MCELFStreamer &>(S);
++  ELFObjectWriter &W = ES.getWriter();
++  W.setELFHeaderEFlags(EF_DADAO_ABIV1);
++}
++
++static MCTargetStreamer *
++createDadaoObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
++  return new DADAOTargetStreamer(S);
++}
++
+ static MCStreamer *createMCStreamer(const Triple &T, MCContext &Context,
+                                    std::unique_ptr<MCAsmBackend> &&MAB,
+                                    std::unique_ptr<MCObjectWriter> &&OW,
+@@ -106,4 +130,8 @@ LLVMInitializeDADAOTargetMC() {
+ 
+   // Register the ELF streamer.
+   TargetRegistry::RegisterELFStreamer(getTheDadaoTarget(), createMCStreamer);
++
++  // Register the ELF target streamer (sets e_flags in ELF header).
++  TargetRegistry::RegisterObjectTargetStreamer(getTheDadaoTarget(),
++                                               createDadaoObjectTargetStreamer);
+ }
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h
+new file mode 100644
+index 000000000..5441bd49e
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h
+@@ -0,0 +1,24 @@
++//===-- DADAOTargetStreamer.h - DADAO Target Streamer ----------*- C++ -*--===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOTARGETSTREAMER_H
++#define LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOTARGETSTREAMER_H
++
++#include "llvm/MC/MCStreamer.h"
++
++namespace llvm {
++
++class DADAOTargetStreamer : public MCTargetStreamer {
++public:
++  DADAOTargetStreamer(MCStreamer &S);
++  ~DADAOTargetStreamer() override = default;
++};
++
++} // end namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOTARGETSTREAMER_H
+-- 
+2.43.0
+

@@ -83,7 +83,7 @@ build-mc: manifest-check
 	  -DLLVM_ENABLE_PROJECTS="" \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	  -DLLVM_ENABLE_ASSERTIONS=ON
-	ninja -C $(LLVM_BUILD) llvm-mc llvm-objdump llvm-objcopy FileCheck not LLVMDADAOCodeGen
+	ninja -C $(LLVM_BUILD) llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen
 	@echo "build-mc: PASS"
 
 build-qemu: manifest-check
