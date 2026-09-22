@@ -158,6 +158,12 @@
 
 **归属**：由本任务（`011t`）一并实现（与 validator 修复同文件）。
 
+## 范围补充（用户裁定，2026-09-21）
+
+> **块赋值 overlap 采 spec/QEMU 的「顺序语义」**（`contract-isa.md:467`/`spec/SimRISC-01:68`「源和目的范围可以重叠；硬件按**序号递增逐对处理，每对先读后写**」；QEMU `trans_rd2rd` 注释 `/* Ascending order: read each source, then write to dest */` 同）。
+> ⇒ **须同步修 `tools/testcases/009t-audit.py` 的块赋值重算**（其现用**快照语义**，与错误向量同源同错，导致其「0 mismatches」**不构成语义证据**）；修后**重跑审计**并给出真实输出。
+> ⇒ **`tools/testcases/009t-audit.py` 纳入本任务可改范围**（唯一例外；其余范围边界见「接口规范」约束）。
+
 ## 实现方式
 
 > ⚠️ **生成器能力缺口（主会话预检发现）**：实测 `generate_ctrl_br.py` 的 legality/boundary 支持均为 **0**；`generate_ctrl_jump_call_ret.py` legality=16 但 **boundary=0**。⇒ 本任务须为这两个生成器**新增 boundary case 生成能力**（`br.*` 10 条 + `jump-iiii` 1 条，均 `expected_fault: UNMAPPED`）。可**镜像** `generate_isa_vectors.py`（boundary=30）或 `generate_mem_vectors.py` 的既有风格；`generate_isa_vectors.py` 已具备 boundary 能力（用于 6 条块赋值 overlap 与 13 条 legality）。
