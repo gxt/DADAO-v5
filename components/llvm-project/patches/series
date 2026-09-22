@@ -4,3 +4,4 @@
 0004-dadao-instrinfo.patch
 0005-dadao-asmparser.patch
 0006-dadao-disassembler.patch
+0007-wyde-position-operand-parser.patch

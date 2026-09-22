@@ -48,10 +48,12 @@ tools_dir = os.path.abspath(tools_dir)
 llvm_mc = os.path.join(tools_dir, "llvm-mc")
 llvm_objdump = os.path.join(tools_dir, "llvm-objdump")
 file_check = os.path.join(tools_dir, "FileCheck")
+not_tool = os.path.join(tools_dir, "not")
 
 config.substitutions.append(("%llvm_mc", llvm_mc))
 config.substitutions.append(("%llvm_objdump", llvm_objdump))
 config.substitutions.append(("%FileCheck", file_check))
+config.substitutions.append(("%not", not_tool))
 
 # test_exec_root: put lit's scratch output in the LLVM build tree so that
 # running tests never pollutes the source / git-tracked tree.
