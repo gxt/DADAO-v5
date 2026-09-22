@@ -4,7 +4,7 @@
 #
 # NOTE: llvm-mc AsmParser bug — wpN named constants (wp0/wp1/wp2/wp3) are
 #       silently ignored, always encoding wp0. Use numeric wyde positions
-#       (0/1/2/3) as workaround. See LLVM-xxx for tracking.
+#       (0/1/2/3) as workaround. See LLVM-013t for tracking.
 #
 # Entry state (ADR-0004 D6.5):
 #   rb0=0xffff_0000_0000 (PC), rb1=0xffff_00ff_0000 (SP), rb2=0xffff_0000_0000

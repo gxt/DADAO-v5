@@ -2,7 +2,7 @@
 
 **模块**：integ
 **项目里程碑**：M1
-**依赖**：`LLVM-013m`、`QEMU-021m`、`SPEC-011m`、`TESTCASES-012m`（原写 `TESTCASES-010m`，该里程碑已更名为 `012m`）
+**依赖**：`LLVM-014m`、`QEMU-021m`、`SPEC-011m`、`TESTCASES-012m`（原写 `TESTCASES-010m`，该里程碑已更名为 `012m`）
 **状态**：待开始
 
 ## 执行环境

@@ -70,6 +70,10 @@ trampoline = os.path.normpath(os.path.join(here, '..', '..', 'scripts',
                                            'trampoline.bin'))
 config.substitutions.append(("%trampoline", trampoline))
 
+# Locate e2e source directory: <repo>/tests/e2e/
+e2e_dir = os.path.normpath(os.path.join(here, '..', '..', 'e2e'))
+config.substitutions.append(("%e2e_dir", e2e_dir))
+
 # test_exec_root: put lit's scratch output in the LLVM build tree so that
 # running tests never pollutes the source / git-tracked tree.
 # tools_dir is <build>/bin, so the build root is its parent.

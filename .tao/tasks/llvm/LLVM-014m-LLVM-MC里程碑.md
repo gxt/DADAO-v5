@@ -1,10 +1,10 @@
-# LLVM-013m: LLVM MC 里程碑
+# LLVM-014m: LLVM MC 里程碑
 
 **模块**：llvm
 **项目里程碑**：M1
 **状态**：里程碑
 **目标**：DADAO-v5 的 LLVM MC 层完成——`dadao-unknown-elf` triple 注册，`llvm-mc` 能汇编全部 M1 指令（含 RA）、`llvm-objdump` 能反汇编回规范文本，编码字节与 `.tao/knowledge/contract-isa.md` / `contracts/opcodes.yaml` 独立推导的期望值一致，lit 字节级检查 0 failures，`make build-mc` 全绿。
-**关联任务**：`LLVM-001k`、`LLVM-002t`、`LLVM-003t`、`LLVM-004t`、`LLVM-005t`、`LLVM-006t`、`LLVM-007t`、`LLVM-008t`、`LLVM-011t`、`LLVM-012t`（`LLVM-010t` 已于 2026-09-21 关闭）
+**关联任务**：`LLVM-001k`、`LLVM-002t`、`LLVM-003t`、`LLVM-004t`、`LLVM-005t`、`LLVM-006t`、`LLVM-007t`、`LLVM-008t`、`LLVM-011t`、`LLVM-012t`、**`LLVM-013t`**（新增：wyde-position 解析修复，2026-09-22；`LLVM-010t` 已于 2026-09-21 关闭）
 
 ## 核验
 - 关联任务是否均已 `已验证`

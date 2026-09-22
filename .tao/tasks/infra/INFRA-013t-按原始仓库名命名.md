@@ -115,7 +115,7 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 | `.tao/tasks/llvm/LLVM-008t-反汇编器.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 42 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 47–48 行 `components/llvm/patches/` → `components/llvm-project/patches/`（2 处）；第 72 行 `.work/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径）；第 78 行 `components/llvm/patches/` → `components/llvm-project/patches/` | v5 任务描述 |
 | `.tao/tasks/llvm/LLVM-011t-RA指令MC支持.md` | 第 15 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 45 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 47 行 `components/llvm/patches/series` → `components/llvm-project/patches/series` | v5 任务描述 |
 | `.tao/tasks/llvm/LLVM-009t-lit字节CHECK.md` | 第 57 行 `components/llvm/patches/` → `components/llvm-project/patches/` | v5 任务描述 |
-| `.tao/tasks/llvm/LLVM-013m-LLVM-MC里程碑.md` | 第 14–20 行 `components/llvm/patches/` → `components/llvm-project/patches/`（补丁清单 7 行，全为 v5 路径） | v5 里程碑清单 |
+| `.tao/tasks/llvm/LLVM-014m-LLVM-MC里程碑.md` | 第 14–20 行 `components/llvm/patches/` → `components/llvm-project/patches/`（补丁清单 7 行，全为 v5 路径） | v5 里程碑清单 |
 | `.tao/tasks/infra/INFRA-006t-Makefile编排.md` | 第 265 行 `.work/source/llvm/llvm` → `.work/source/llvm-project/llvm`；第 266 行 `$(call component-enabled,llvm)` → `$(call component-enabled,llvm-project)`；第 511 行 `LLVM_SRC = .work/source/llvm/llvm` → `LLVM_SRC = .work/source/llvm-project/llvm` | v5 路径/标识符说明（指导性内容） |
 | `.tao/tasks/integ/INTEG-003t-跨模块接口对齐.md` | 第 18 行 `components/llvm/patches/*` → `components/llvm-project/patches/*` | v5 任务描述 |
 | `.tao/tasks/infra/INFRA-009t-组件锁多源字段.md` | 第 70 行 `git -C .cache/llvm.git` → `git -C .cache/llvm-project.git` | **用户裁定 2026-09-17 追加**：示例标识符同步 |
@@ -196,7 +196,7 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 - `.tao/tasks/llvm/LLVM-008t-反汇编器.md`（L15, L47-48, L78）
 - `.tao/tasks/llvm/LLVM-009t-lit字节CHECK.md`（L57）
 - `.tao/tasks/llvm/LLVM-011t-RA指令MC支持.md`（L15, L45, L47）
-- `.tao/tasks/llvm/LLVM-013m-LLVM-MC里程碑.md`（L14-20）
+- `.tao/tasks/llvm/LLVM-014m-LLVM-MC里程碑.md`（L14-20）
 - `.tao/tasks/infra/INFRA-006t-Makefile编排.md`（L265, L266, L511）
 - `.tao/tasks/infra/INFRA-009t-组件锁多源字段.md`（L70）— 用户裁定 2026-09-17 追加
 - `.tao/tasks/infra/INFRA-008t-补v5自身ADR.md`（L399）— 用户裁定 2026-09-17 追加
