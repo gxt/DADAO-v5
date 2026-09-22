@@ -2,7 +2,7 @@
 
 **模块**：testcases
 **项目里程碑**：M1
-**状态**：待开始
+**状态**：里程碑
 **目标**：DADAO-v5 的独立测试向量层完成——M1 scope（`contracts/opcodes.yaml` 中 `excluded_m1 != true`，178 条）内每条指令身份 `(insn, format)` 均有 ≥1 条 active 向量，5 类向量（encoding/legality/semantic/boundary/overlap）齐备，期望值全部独立派生自 `spec/`、`.tao/knowledge/contract-isa.md` 与 `.tao/knowledge/adr-0004-test-machine.md`；`tools/testcases/validate_vectors.py` 的 schema + 覆盖率 + inventory 同步 + `expected_pc` + `encoding.word` mask/value 校验全部接入 `make check` 并通过；`tests/vectors/isa/` 为方案 A 的目标文件集（14 个 `reg-*`/`mem-*`/`ctrl-*`/`misc` + 保留编码文件）；control-flow/load 的 deferred 已按 `expected_pc` 方案重设计或显式登记
 **关联任务**：`TESTCASES-002t`、`TESTCASES-003t`、`TESTCASES-004t`、`TESTCASES-005t`、`TESTCASES-006t`、`TESTCASES-007t`、`TESTCASES-008t`、`TESTCASES-009t`、`TESTCASES-010t`、`TESTCASES-011t`
 
@@ -38,3 +38,26 @@
 - 若 `spec`/`qemu` 模块在本模块执行期间产生合约/接口变更（如 fault 码、地址图），本里程碑须后移或增加交互任务。
 
 （核验通过后，主会话将 `**状态**` 置为 `里程碑`）
+
+## 核验记录（2026-09-21，主会话执行；用户确认置里程碑）
+
+**关联任务**：`TESTCASES-001k`~`011t` 全部 `已验证`。
+
+**产出文件**：`tests/vectors/schema.md`、`inventory.md`、`README.md`；`tests/vectors/isa/` **15 个目标文件**（无历史/杂项混入）；`tools/testcases/validate_vectors.py`；`Makefile` 的 `check` 含 `validate-vectors`。全部存在 ✓。
+
+**数据级覆盖（本里程碑明文阻断项）**：
+```
+$ python3 tools/testcases/validate_vectors.py
+validate_vectors: 178/178 M1 identities covered OK (inventory sync OK; 15 data files, 747 cases; data coverage gaps: 0)
+exit=0
+```
+⇒ **gap = 0** ✓（149 条缺口已由 `010t` 114 条 + `011t` 35 条分两批消解；`011t` 另修 `validate_vectors.py` 的 `deferred` 误计缺陷并**转严为 `sys.exit(1)`**）。
+
+**其余命令核验**：
+```
+$ python3 tools/testcases/009t-audit.py   → Recomputed 326/328 ... 0 mismatches   exit=0
+$ make check                              → repository checks: PASS                exit=0
+```
+**跨模块影响**：`010t`/`011t` 期间修订了 `009t-audit.py` 的块赋值重算（快照 → **顺序语义**，`contract-isa.md:467`/spec/SimQEMU 一致，用户裁定）✓；无未处置的跨模块影响。
+
+**结论**：核验通过，置 `里程碑`。

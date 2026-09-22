@@ -4,7 +4,7 @@
 
 | 项目里程碑 | infra | spec | testcases | golden | llvm | qemu | integ | gem5 | sail | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| M1 | `INFRA-014m` | `SPEC-011m` | `TESTCASES-012m` | — | **`LLVM-013m` ✅ 里程碑** | `QEMU-021m`（受阻于 `fence` deferred） | `INTEG-004m` | — | — | 进行中 |
+| M1 | `INFRA-014m` | `SPEC-011m` | **`TESTCASES-012m` ✅ 里程碑** | — | **`LLVM-013m` ✅ 里程碑** | `QEMU-021m`（受阻于 `fence` deferred） | `INTEG-004m` | — | — | 进行中 |
 | M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
 
 ## 里程碑说明
