@@ -63,7 +63,7 @@ st.o   rdY, rbX, 0          # 写 8B → 立即 halt，退出码 = rdY 低字节
 
 ```bash
 LLVM_MC=.work/build/llvm/bin/llvm-mc
-$LLVM_MC -triple=dadao -filetype=obj -o smoke.o tests/e2e/smoke.s
+$LLVM_MC --triple=dadao-unknown-elf -filetype=obj -o smoke.o tests/e2e/smoke.s
 .work/build/llvm/bin/llvm-objcopy -O binary --only-section=.text smoke.o smoke.bin
 ```
 
