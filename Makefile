@@ -22,7 +22,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-qemu build-gem5 docker-image docker-shell check \
-        validate-vectors
+        validate-vectors check-spec-refs
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -48,6 +48,7 @@ help:
 	@echo "  make clean-work      Remove generated .work content only"
 	@echo "  make validate-vectors  Validate tests/vectors schema/inventory/coverage"
 	@echo "  make check           Run repository-level structural checks"
+	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
 
 manifest-check:
 	@$(PYTHON) tools/infra/manifest_check.py
@@ -126,3 +127,8 @@ check: manifest-check validate-vectors
 # encoding table (contracts/opcodes.yaml) to exist.
 validate-vectors: contracts/opcodes.yaml
 	@$(PYTHON) tools/testcases/validate_vectors.py
+
+# spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
+# Standalone target, not part of `make check`.
+check-spec-refs:
+	@$(PYTHON) tools/infra/check_spec_refs.py
