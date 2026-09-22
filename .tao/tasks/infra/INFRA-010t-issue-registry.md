@@ -187,7 +187,7 @@ exit=2
 **其余里程碑均不被 issue 阻断**：
 - `SPEC-011m`：里程碑 ✓
 - `TESTCASES-012m`：里程碑 ✓（149 缺口已由 010t+011t 消解，gap=0）
-- `LLVM-014m`：里程碑 ✓
+- `LLVM-015m`：里程碑 ✓
 - `INFRA-014m`：待开始（被 INFRA-010t/011t/012t 任务依赖阻塞，非 issue）
 - `INTEG-004m`：待开始（被 QEMU-021m 阻塞，非独立 issue）
 
@@ -216,7 +216,7 @@ exit=2
 | spec（ISS-002~011） | 10 | SPEC-011m 已置里程碑 ✓ | 均不阻断 |
 | infra（ISS-013~016, 065） | 5 | INFRA-014m 被任务依赖阻塞（非 issue） | 均不阻断 |
 | testcases（ISS-017~032, 035, 074） | 18 | TESTCASES-012m 已置里程碑 ✓；C-27 已被 012m 以 deferred 接受 | 均不阻断 |
-| llvm（ISS-038~047, 070~073） | 14 | LLVM-014m 已置里程碑 ✓ | 均不阻断 |
+| llvm（ISS-038~047, 070~073） | 14 | LLVM-015m 已置里程碑 ✓ | 均不阻断 |
 | qemu（ISS-049~058, 060~069） | 18 | QEMU-021m 待开始；**ISS-056 fence 直接阻断**；其余项（TB 缺陷等）有对应修复任务（QEMU-022t 等）已列入 QEMU-021m 关联任务 | **仅 ISS-056 阻断** |
 | M2/post-M1（ISS-003~005, 008, 019, 040, 042） | 7 | 不在 M1 scope | 均不阻断 |
 
@@ -263,7 +263,7 @@ exit=2
 - 仅 ISS-056 有 `blocks: [M1-gate]` ✓
 
 **③ M1-gate 分类审查**：
-- 逐条核对 6 个 M1 里程碑状态：SPEC-011m ✓、TESTCASES-012m ✓、LLVM-014m ✓、INFRA-014m（任务依赖）、QEMU-021m（待开始，被 fence 阻断）、INTEG-004m（被 QEMU-021m 阻塞）
+- 逐条核对 6 个 M1 里程碑状态：SPEC-011m ✓、TESTCASES-012m ✓、LLVM-015m ✓、INFRA-014m（任务依赖）、QEMU-021m（待开始，被 fence 阻断）、INTEG-004m（被 QEMU-021m 阻塞）
 - ISS-056 判据：fence 是 M1 指令（`excluded_m1: False`）→ trans_fence 恒 ILLI → QEMU-021m「全部 M1 向量 PASS」不可达成 → 阻断 ✓
 - ISS-074（C-27）判据：TESTCASES-012m 已置里程碑 → 不阻断 ✓
 - 其余 open 项均不直接阻断任何未置里程碑 ✓
@@ -349,7 +349,7 @@ python3 -m py_compile tools/infra/check_issues.py -> exit=0
 
 #### 3. M1-gate 判据逐条复核（66 条 open）
 
-**里程碑状态（实读 `**状态**` 行）**：`SPEC-011m`=里程碑、`TESTCASES-012m`=里程碑、`LLVM-014m`=里程碑、`QEMU-021m`=待开始、`INFRA-014m`=待开始、`INTEG-004m`=待开始。
+**里程碑状态（实读 `**状态**` 行）**：`SPEC-011m`=里程碑、`TESTCASES-012m`=里程碑、`LLVM-015m`=里程碑、`QEMU-021m`=待开始、`INFRA-014m`=待开始、`INTEG-004m`=待开始。
 **关联任务核验**：qemu 全部关联任务（`002t`–`019t`、`022t`、`023t`）均 `已验证` ⇒ `QEMU-021m` 仅剩「全量 M1 向量 PASS」这一硬性项；`INFRA-014m` 被 `INFRA-010t`(待验收)/`011t`/`012t`(待开始)**任务**阻塞（非 issue）；`INTEG-004m` 被 `INTEG-002t`/`003t` 及 `QEMU-021m` 阻塞（非 issue）。
 
 | 范围 | open 条目 | 逐条判据 | 阻断？ |
@@ -358,7 +358,7 @@ python3 -m py_compile tools/infra/check_issues.py -> exit=0
 | post-M1/M2（ISS-003,004,005,008,040,042） | 6 | 明确 `post-M1`/`M2`，不在 M1 gate | 否 |
 | testcases（ISS-017–032,035,074） | 18 | `TESTCASES-012m` 已置里程碑；`ISS-074`(C-27) 已由 012m 以 deferred 接受 | 否 |
 | infra（ISS-013–016,065） | 5 | `INFRA-014m` 被待办**任务**阻塞，非这些 issue | 否 |
-| llvm（ISS-038–047,070–073） | 14 | `LLVM-014m` 已置里程碑 | 否 |
+| llvm（ISS-038–047,070–073） | 14 | `LLVM-015m` 已置里程碑 | 否 |
 | qemu（ISS-049–058,060–069） | 17 | `QEMU-021m` 待开始；**仅 ISS-056(fence) 使 2 条 M1 向量 FAIL ⇒ 硬性项不可达**；其余：ISS-050/057 M1 不可达、ISS-051/058/067/069 非功能、ISS-052 harness 依赖已全 verified、ISS-053/054/055/066 备忘/流程、ISS-049 换行、ISS-060 缺向量（不产生 FAIL，且 012m 已接受）、ISS-061/062/063/068 已由 verified 任务(015t/022t/023t)根治、ISS-064 功能无害、ISS-065 署名 | **仅 ISS-056** |
 
 - **`ISS-056`（fence）阻断成立** ✓：`contracts/opcodes.yaml` 中 `fence` 在主表（非 `excluded_m1`），mask=`0xFFFC0000`/value=`0x00040000`，legality `immu18_hi/mid==0 && immu18_lo[5:4]==0`（bits[17:4] SBZ）；`deferred.md:89–99` 载明 `trans_fence` 恒 ILLI、`misc.yaml[3]/[5]` 2 条 FAIL、`021m` 继续阻塞（用户裁定「放 deferred，不建任务」）。

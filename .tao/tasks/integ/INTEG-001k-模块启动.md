@@ -22,8 +22,8 @@
 
 | 编号 | 任务 | 交付物 | 依赖 |
 |------|------|--------|------|
-| `INTEG-002t` | E2E 套件与回归（最小链路 → 套件 → 可重复重跑） | `tests/e2e/*.s`、`tests/lit/E2E/*` | `LLVM-014m`、`QEMU-021m`、`SPEC-010t` |
-| `INTEG-003t` | 跨模块接口对齐核对 | 接口核对清单/脚本 | `LLVM-014m`、`QEMU-021m`、`SPEC-011m`、`TESTCASES-012m` |
+| `INTEG-002t` | E2E 套件与回归（最小链路 → 套件 → 可重复重跑） | `tests/e2e/*.s`、`tests/lit/E2E/*` | `LLVM-015m`、`QEMU-021m`、`SPEC-010t` |
+| `INTEG-003t` | 跨模块接口对齐核对 | 接口核对清单/脚本 | `LLVM-015m`、`QEMU-021m`、`SPEC-011m`、`TESTCASES-012m` |
 | `INTEG-004m` | M1 集成里程碑 | 里程碑标记 | `INTEG-002t`、`INTEG-003t` |
 
 - **依赖关系**：`002t` 依赖 LLVM/QEMU 里程碑与 spec 冻结；`003t` 依赖两侧里程碑与合约；`004m` 收敛。
@@ -47,6 +47,6 @@
 2. **`llvm-objcopy` 未构建（E2E 链受阻）⇒ 已解决**：`Makefile` 的 `build-mc` ninja 目标加入 `llvm-objcopy`（用户裁定）✓；构建通过（`build-mc: PASS`）✓
    - **E2E 链实测跑通**：`llvm-mc -filetype=obj` → `llvm-objcopy --only-section=.text -O binary` → flat = `59 20 00 01 77 00 00 00 00 00 00 00`（= `add.si rd8,1` / `swym 0` / `illi 0` 编码）✓
 
-**依赖现状**：`SPEC-010t`/`SPEC-011m`/`LLVM-014m`/`QEMU-021m` 均存在且后两者已是**里程碑** ✓ ⇒ `002t`/`003t` 的前置已就绪 ✓。
+**依赖现状**：`SPEC-010t`/`SPEC-011m`/`LLVM-015m`/`QEMU-021m` 均存在且后两者已是**里程碑** ✓ ⇒ `002t`/`003t` 的前置已就绪 ✓。
 
 **结论**：模块启动完成，置 `已验证`。

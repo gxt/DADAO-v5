@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M1
-**依赖**：`LLVM-005t`（rwii 指令格式 TableGen）、`LLVM-006t`（AsmParser 与 CodeEmitter）、`LLVM-014m`
+**依赖**：`LLVM-005t`（rwii 指令格式 TableGen）、`LLVM-006t`（AsmParser 与 CodeEmitter）、`LLVM-015m`
 **状态**：已验证
 
 ## 执行环境

@@ -1,10 +1,10 @@
-# LLVM-014m: LLVM MC 里程碑
+# LLVM-015m: LLVM MC 里程碑
 
 **模块**：llvm
 **项目里程碑**：M1
 **状态**：里程碑
 **目标**：DADAO-v5 的 LLVM MC 层完成——`dadao-unknown-elf` triple 注册，`llvm-mc` 能汇编全部 M1 指令（含 RA）、`llvm-objdump` 能反汇编回规范文本，编码字节与 `.tao/knowledge/contract-isa.md` / `contracts/opcodes.yaml` 独立推导的期望值一致，lit 字节级检查 0 failures，`make build-mc` 全绿。
-**关联任务**：`LLVM-001k`、`LLVM-002t`、`LLVM-003t`、`LLVM-004t`、`LLVM-005t`、`LLVM-006t`、`LLVM-007t`、`LLVM-008t`、`LLVM-011t`、`LLVM-012t`、**`LLVM-013t`**（新增：wyde-position 解析修复，2026-09-22；`LLVM-010t` 已于 2026-09-21 关闭）
+**关联任务**：`LLVM-001k`、`LLVM-002t`、`LLVM-003t`、`LLVM-004t`、`LLVM-005t`、`LLVM-006t`、`LLVM-007t`、`LLVM-008t`、`LLVM-011t`、`LLVM-012t`、**`LLVM-013t`**（wyde-position 解析修复，2026-09-22）、**`LLVM-014t`**（ELF `e_flags` 修复，2026-09-22；`LLVM-010t` 已于 2026-09-21 关闭）
 
 ## 核验
 - 关联任务是否均已 `已验证`
@@ -91,4 +91,4 @@ $ python3 tools/llvm/validate_instrinfo.py
 
 **跨模块影响核查**：`INTEG-002t` 报告的 `wpN` 缺陷已由 `LLVM-013t` **修复并验收**（reviewer 两轮 Accepted；`wp0`–`wp3` 编码经独立手算 16/16 一致；3 组反例注入均 FAIL + 还原）⇒ **无未处置的跨模块影响**。
 
-**结论**：核验通过，`LLVM-014m` 维持 `里程碑`。
+**结论**：核验通过，`LLVM-015m` 维持 `里程碑`。

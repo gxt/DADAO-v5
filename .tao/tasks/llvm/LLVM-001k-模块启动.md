@@ -38,7 +38,7 @@ DADAO-v5 基于 SimRISC 0.5.3，需要从零为 `dadao-unknown-elf` 目标构建
 | `LLVM-008t` | 全量 lit（含字节级 OBJ CHECK） | 13+ 个 `tests/lit/MC/Dadao/*.s`（OBJ/ASM 前缀 + 字节级 CHECK） | `LLVM-007t`、`SPEC-003t` |
 | `LLVM-011t` | RA 指令 MC 支持 | RA 指令 TableGen def + AsmParser/CodeEmitter/反汇编 + lit | `LLVM-008t`、`LLVM-005t`、`SPEC-002t`、`SPEC-003t` |
 | `LLVM-012t` | lit 字节 oracle | `tools/llvm/check_lit_bytes.py` | `LLVM-011t`、`LLVM-008t`、`SPEC-003t` |
-| `LLVM-014m` | LLVM MC 里程碑 | 里程碑标记 | `LLVM-002t`~`LLVM-012t` |
+| `LLVM-015m` | LLVM MC 里程碑 | 里程碑标记 | `LLVM-002t`~`LLVM-012t` |
 
 - **依赖关系**：`002t → 003t → 004t → 005t → 006t → 007t（反汇编器）→ 008t（全量 lit）→ {011t} → 012t → 013m`（`010t` 已于 2026-09-21 关闭）；`002t` 依赖 infra 的 `INFRA-006t`（Makefile 编排），`003t` 依赖 `SPEC-007t`（ELF 合约），`004t` 依赖 `SPEC-004t`（ABI 合约），`005t`–`008t`/`011t`/`012t` 依赖 `SPEC-003t`（opcodes.yaml），`007t`（反汇编器）依赖 `LLVM-005t`（DecoderMethod 注解）+ `LLVM-006t`（emitter/AsmParser/MCTargetDesc），`011t`（RA 指令）依赖 `008t` + `LLVM-005t` + spec，`012t`（lit 字节 oracle）依赖 `011t` + `008t` + spec；`013m` 汇总全部。**重排说明（2026-09-18）**：原 `007t`（CodeEmitter 修复 + 全量 lit）→ CodeEmitter 修复已在 `006t` 完成；原 `008t`（反汇编器）→ 重编号为 `007t`；原 `007t` 剩余（全量 lit）+ 原 `009t`（字节级 CHECK）→ 合并为新 `008t`；`009t` 已删除。
 - **分解理由**：按「基线 → 骨架 → 寄存器 → 指令格式 → 汇编/编码 → 修复+测试 → 反汇编 → 字节级测试 → 系统指令/冒烟」逐层推进，每层可独立 `git am` 一个补丁并独立验收（`make build-mc` + lit）；补丁序号与 0628 `series` 前 6 项对齐（0001–0006），后续按 0.5.3 需要重新生成。
