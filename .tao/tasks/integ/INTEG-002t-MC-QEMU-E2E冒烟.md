@@ -3,7 +3,7 @@
 **模块**：integ
 **项目里程碑**：M1
 **依赖**：`LLVM-013m`、`QEMU-021m`、`SPEC-006t`
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 
@@ -53,11 +53,13 @@
 
 **退出机制（重要）**：`tests/scripts/trampoline.bin` **只做 SP/RAM 设置 + 跳转**（`gen_trampoline.py`），**不提供退出路径** ⇒ 每条 smoke `.s` **必须自己写 exit port**。可复用序列：
 ```
-set.zw rbX, wp2, 0xffff     # rbX = 0x0000_ffff_0000_0000
-or.w   rbX, wp1, 0x8000     # rbX = 0x0000_ffff_8000_0000（exit port）
+set.zw rbX, 2, 0xffff       # rbX = 0x0000_ffff_0000_0000（wyde 位置用**数字** 0/1/2/3）
+or.w   rbX, 1, 0x8000       # rbX = 0x0000_ffff_8000_0000（exit port）
 st.o   rdY, rbX, 0          # 写 8B → 立即 halt，退出码 = rdY 低字节
 ```
 `rd` 初值**不得假定为 0**（ADR-0009 教训）⇒ 须用 `set.zw` 显式初始化。
+
+⚠️ **`wpN` 记法不是合法汇编语法**：`llvm-mc` 对 `wp2`/`wp1`/`wp3` 这类 token **不报错但静默编码为 `wp0`**（实测 `set.zw rb1, wp2, 0xffff` → `4e04ffff`，正确应为 `4e06ffff`；用数字 `2` 则正确）。**必须用数字 0/1/2/3**。该缺陷已由 engineer 在 `INTEG-002t` 发现并报告（见本任务完成区），影响面为零（现有 lit/生成器均未用 `wpN`），处置待用户裁定。
 
 **llvm-mc 汇编命令**：
 
@@ -132,11 +134,111 @@ echo "exit: $?"
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：3/3 全 PASS（lit），3/3 反例注入全 FAIL
+
+**修改文件**（新建，无修改已有文件）：
+```
+?? tests/e2e/
+?? tests/lit/E2E/
+```
+- `tests/e2e/smoke_arith.s` — 场景 A：add.si 算术
+- `tests/e2e/smoke_add.s` — 场景 B：RD 算术+XOR+ORR 比较
+- `tests/e2e/smoke_jump.s` — 场景 C：jump-iiii 跳过错误路径
+- `tests/lit/E2E/lit.cfg.py` — lit 配置
+- `tests/lit/E2E/smoke_arith.test` — 场景 A lit 测试
+- `tests/lit/E2E/smoke_add.test` — 场景 B lit 测试
+- `tests/lit/E2E/smoke_jump.test` — 场景 C lit 测试
+
 **验收结果**：
+
+1. **场景 A 全链路**（add.si 算术→cmp.so 比较→退出码 0x00）：
+```
+$ .work/build/llvm/bin/llvm-mc --triple=dadao-unknown-elf -filetype=obj tests/e2e/smoke_arith.s -o /tmp/smoke_arith.o
+$ .work/build/llvm/bin/llvm-objcopy -O binary --only-section=.text /tmp/smoke_arith.o /tmp/smoke_arith.bin
+$ .work/build/qemu/qemu-system-dadao -M dadao-m1 -bios tests/scripts/trampoline.bin -kernel /tmp/smoke_arith.bin -display none -nographic
+QEMU 11.1.1 monitor - type 'help' for more information
+(qemu)
+$ echo $?
+0
+```
+
+2. **场景 B 全链路**（set.zw×2 + add.si + xor.o + or.o + br.nz→退出码 0x00）：
+```
+$ .work/build/llvm/bin/llvm-mc --triple=dadao-unknown-elf -filetype=obj tests/e2e/smoke_add.s -o /tmp/smoke_add.o
+$ .work/build/llvm/bin/llvm-objcopy -O binary --only-section=.text /tmp/smoke_add.o /tmp/smoke_add.bin
+$ .work/build/qemu/qemu-system-dadao -M dadao-m1 -bios tests/scripts/trampoline.bin -kernel /tmp/smoke_add.bin -display none -nographic
+QEMU 11.1.1 monitor - type 'help' for more information
+(qemu)
+$ echo $?
+0
+```
+
+3. **场景 C 全链路**（jump-iiii 跳过错误路径→退出码 0x00）：
+```
+$ .work/build/llvm/bin/llvm-mc --triple=dadao-unknown-elf -filetype=obj tests/e2e/smoke_jump.s -o /tmp/smoke_jump.o
+$ .work/build/llvm/bin/llvm-objcopy -O binary --only-section=.text /tmp/smoke_jump.o /tmp/smoke_jump.bin
+$ .work/build/qemu/qemu-system-dadao -M dadao-m1 -bios tests/scripts/trampoline.bin -kernel /tmp/smoke_jump.bin -display none -nographic
+QEMU 11.1.1 monitor - type 'help' for more information
+(qemu)
+$ echo $?
+0
+```
+
+4. **llvm-lit 全 PASS**：
+```
+$ .work/build/llvm/bin/llvm-lit tests/lit/E2E/ -v
+-- Testing: 3 tests, 3 workers --
+PASS: DADAO-E2E :: smoke_jump.test (1 of 3)
+PASS: DADAO-E2E :: smoke_add.test (2 of 3)
+PASS: DADAO-E2E :: smoke_arith.test (3 of 3)
+Testing Time: 0.05s
+Total Discovered Tests: 3
+  Passed: 3 (100.00%)
+```
+
+5. **未修改 `tests/vectors/isa/*.yaml`**（git status 只有新建目录）
+
+6. **反例门控**（3 组注入）：
+
+**CE1**：smoke_arith 期望值49→50（比较失败→退出码 0x01）：
+```
+$ sed 's/set.zw  rd2, 0, 49/set.zw  rd2, 0, 50/' tests/lit/E2E/smoke_arith.test | ...
+$ timeout 5 qemu-system-dadao ... ; echo $?
+1
+```
+
+**CE2**：smoke_jump `jump 2`→`jump 1`（跳转偏移错→落在 Lfail→退出码 0x01）：
+```
+$ sed 's/jump    2/jump    1/' tests/lit/E2E/smoke_jump.test | ...
+$ timeout 5 qemu-system-dadao ... ; echo $?
+1
+```
+
+**CE3**：smoke_add 期望值55→56（XOR 非零→退出码 0x01）：
+```
+$ sed 's/set.zw  rd2, 0, 55/set.zw  rd2, 0, 56/' tests/lit/E2E/smoke_add.test | ...
+$ timeout 5 qemu-system-dadao ... ; echo $?
+1
+```
+
+**还原证据**：反例注入均在 `/tmp/opencode/INTEG-002t/` 临时目录操作，仓库文件未被修改。`git status` 确认：
+```
+$ git status --short tests/
+?? tests/e2e/
+?? tests/lit/E2E/
+```
+
 **新发现/坑**：
+
+1. **`st.o rd0, rbX, 0` 触发 ILLI**：contract-isa §4.1.1 legality 规定 `rdha != rd0`，QEMU `trans_st_o_rd()` 对 ha==0 调用 `gen_exception_illegal()`。**不能用 rd0 作为 st.o 的源寄存器写 0 到 exit port**。必须用其他寄存器（如 cmp/xor 结果寄存器，其值为 0）。
+2. **llvm-mc AsmParser wpN 命名常量 bug**：`set.zw rbX, wp2, imm` 中 `wp2`/`wp1`/`wp3` 均被静默忽略，实际编码为 wp0。必须使用**数字**（`set.zw rb3, 2, 0xffff`）。已发现并记录，不影响本任务（已用数字绕过）。
+3. **jump-iiii 偏移计算**：`jump 2` 从当前指令地址 +8，跳过紧跟1条指令。需仔细计算布局确保跳转目标正确。
+4. **QEMU exit port "Blocked re-entrant IO" 警告**：exit port 写触发 `cpu_loop_exit()` 后 QEMU 输出警告但退出码仍正确（0x00）。不影响功能。
+
 **遗留问题**：
+
+1. **llvm-mc wpN 命名常量 bug**（新发现 #2）：需报告给 LLVM 模块并修复 AsmParser。本任务已用数字值绕过。
+2. 无其他遗留。
 
 ## 审阅记录
 

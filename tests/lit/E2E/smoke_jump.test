@@ -1,0 +1,19 @@
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t.o
+# RUN: %llvm_objcopy -O binary --only-section=.text %t.o %t.bin
+# RUN: %qemu -M dadao-m1 -bios %trampoline -kernel %t.bin -display none -nographic
+
+# smoke_jump: E2E smoke test — jump-iiii skips error path
+# Tests: jump-iiii (iiii unconditional jump)
+# jump 2 at offset 0x10 → lands at offset 0x18 (Lpass), skipping Lfail at 0x14
+
+_start:
+    set.zw  rb3, 2, 0xffff
+    or.w    rb3, 1, 0x8000
+    set.zw  rd5, 0, 0
+    set.zw  rd4, 0, 1
+    jump    2
+Lfail:
+    st.o    rd4, rb3, 0
+Lpass:
+    st.o    rd5, rb3, 0
+    swym    0

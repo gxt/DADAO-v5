@@ -1,0 +1,21 @@
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t.o
+# RUN: %llvm_objcopy -O binary --only-section=.text %t.o %t.bin
+# RUN: %qemu -M dadao-m1 -bios %trampoline -kernel %t.bin -display none -nographic
+
+# smoke_arith: E2E smoke test — add.si arithmetic
+# Tests: set.zw (RD immediate), add.si (riii add-immediate), cmp.so (orrr compare)
+# Exit code: 0x00 = PASS, 0x01 = FAIL
+
+_start:
+    set.zw  rb3, 2, 0xffff
+    or.w    rb3, 1, 0x8000
+    set.zw  rd1, 0, 42
+    add.si  rd1, 7
+    set.zw  rd2, 0, 49
+    cmp.so  rd3, rd1, rd2
+    br.nz   rd3, Lfail
+    st.o    rd3, rb3, 0
+Lfail:
+    set.zw  rd4, 0, 1
+    st.o    rd4, rb3, 0
+    swym    0
