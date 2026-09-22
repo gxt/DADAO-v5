@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M1
 **依赖**：无
-**状态**：待开始
+**状态**：已验证
 
 ## 问题根源
 
@@ -76,3 +76,7 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
   | `0008-dadao-tb-chain-fix.patch` | — | `QEMU-022t`（TB 续接缺陷修复） |
 
 - 参考：`.work/DADAO-0628/components/qemu/patches/series`、`.work/DADAO-0628/components/qemu/README.md`、`.work/DADAO-0628/docs/adr/0006-qemu-baseline.md`。
+
+---
+
+**状态修正（2026-09-21，主会话）**：本模块任务分解已经 `/plan` 审查并由 `ADR-0010`（qemu 任务重构）修订；`QEMU-002t`~`019t`/`022t`/`023t` 全部完成、`QEMU-021m` 置里程碑 ⇒ 按约定（`k`：`待开始` → `已验证`）置 **`已验证`**（与 spec/llvm/testcases/infra 的 `001k` 一致）。
