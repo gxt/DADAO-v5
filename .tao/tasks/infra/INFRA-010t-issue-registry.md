@@ -5,6 +5,29 @@
 **依赖**：无（可与其它 infra 任务并行）
 **状态**：待开始
 
+## 预检订正（2026-09-21，下发前，含用户裁定）
+
+> 本节优先级高于下文旧文本；冲突时以本节为准。
+
+**P1 — 输入源不存在，内容来源改为 `deferred.md`**：
+- 实测 `docs/open-spec-issues.md` **不存在**；`docs/` 无 issue 清单；`spec/` 无 `[OPEN]` 标记 ⇒ **registry 内容须另行编撰**（用户裁定：**从 `.tao/knowledge/deferred.md` 编撰**）
+- `.tao/knowledge/deferred.md` 现有 **40+ 条**待决/遗留项 ⇒ 逐条编为 `docs/issues.yaml` 的 issue（定 `id`/`title`/`status`/`scope`/`blocks`/`resolved_by`）
+- `id` 命名建议沿用既有代号（如 `C-27`）或 `INFRA-<n>`；**须与 `deferred.md` 条目可双向溯源**（每条 issue 的 `title`/`notes` 指向其 `deferred.md` 条目）
+
+**P2 — `M1-gate` 概念须先定义（全仓此前无定义）**：
+- 实测 `.tao/knowledge/`、`docs/`、`ADR-0004` **均无 `M1-gate` 定义** ⇒ 本任务须**显式定义**并写入任务书/`issues.yaml` 头注释
+- **用户裁定口径**：`blocks: [M1-gate]` = **直接阻断「任一模块 M1 里程碑」**的项
+  - 例：**`fence` 实现缺失** → 阻断 `QEMU-021m` ⇒ **`blocks: [M1-gate]`** ✓
+  - 反例：**C-27**（`cs.*` 条件赋值快照）→ 已由 `TESTCASES-012m` 以 `deferred` 处置接受（里程碑已置）⇒ **不阻断 M1-gate** ✗（`blocks: []`，`status: open` 仍可）
+  - 判据须**机械可查**：若某 issue 阻断某模块里程碑（该模块里程碑因它未置），则计入 M1-gate；否则不计。**逐条**给出判据依据（引用对应任务/里程碑）
+
+**P3 — `make check` 允许变红（用户裁定）**：
+- 接入 `make check` 后，若存在 `status: open` + `blocks: [M1-gate]` 的项 ⇒ `check_issues.py` **exit 1** ⇒ **`make check` 会红**。
+- **用户裁定：允许变红**（诚实反映 M1 未完成）。**不得**为保持绿而把阻断项错误分类为不阻断 ✗。
+- 但须在完成区**显式列出**当前「阻断 M1-gate」的 open 项清单与由此导致的 `make check` 状态（红/绿 + 原因），使读者明确这不是回归 ✗。
+
+**P4 — 其余**：`tools/infra/` 存在 ✓；`make check` 现为 `manifest-check validate-vectors` + `compileall` ✓（本任务追加 issue gate）；`check_issues.py` 的 fail-closed（`docs/issues.yaml` 缺失 → exit 1）✓ 保留。
+
 ## 执行环境
 
 **执行环境**：本地
