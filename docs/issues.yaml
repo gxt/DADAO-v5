@@ -1,0 +1,547 @@
+# Issue registry — DADAO-v5
+#
+# M1-gate 定义（2026-09-21 用户裁定）：
+#   blocks: [M1-gate] = 直接阻断「任一模块 M1 里程碑」的 open 项。
+#   判据：某 issue 阻断某模块里程碑（该模块里程碑因它未置）⇒ 计入；否则不计。
+#
+# 当前 M1 里程碑状态：
+#   SPEC-011m: 里程碑 ✓
+#   TESTCASES-012m: 里程碑 ✓（149 缺口已消解）
+#   LLVM-013m: 里程碑 ✓
+#   INFRA-014m: 待开始（被任务依赖阻塞，非 issue）
+#   QEMU-021m: 待开始 ← fence 实现缺失（本 registry ISS-056）
+#   INTEG-004m: 待开始（被 QEMU-021m 阻塞）
+#
+# 字段约束：
+#   status: open | closed
+#   scope: 非空列表 (M1 | post-M1 | M2 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
+#   blocks: 可空列表 (M1-gate 表示直接阻断 M1 里程碑)
+#   resolved_by: closed 时必填, open 时 null
+
+# ── spec ──────────────────────────────────────────────────────────────────────
+
+- id: ISS-001
+  title: "ISA 归一化完成里程碑（原 SPEC-005m）已移除——意义由 SPEC-002t/003t + SPEC-011m 覆盖"
+  status: closed
+  scope: [spec]
+  blocks: []
+  resolved_by: "SPEC-001k 任务重排移除独立 m 标记"
+
+- id: ISS-002
+  title: "SPEC-002t/003t 产出（contract-isa.md、opcodes.yaml）在 spec 重排后需重新生成，旧文件暂作参考"
+  status: open
+  scope: [spec, M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-003
+  title: "M1 范围外（推迟）：浮点 RF、特权 cfx 系统指令、LR-SC 原子——M1 仅含标量整数 + 地址/内存 + 控制流 + 测试机系统/异常"
+  status: open
+  scope: [post-M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-004
+  title: "浮点支持（M1 不含，后续必做）——以 soft-float libcall 接入，不注册 FP 寄存器类"
+  status: open
+  scope: [post-M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-005
+  title: "ABI 合约（SPEC-004t）完整调用约定 Deferred to M2——M1 仅含最小 ABI 事实"
+  status: open
+  scope: [M2]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-006
+  title: "ABI [OPEN] 项：rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值——不得当规范性要求"
+  status: open
+  scope: [M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-007
+  title: "Object ABI（SPEC-005t）：EM_DADAO 注册状态、e_flags 命名空间策略、M1 是否用 target linker"
+  status: open
+  scope: [M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-008
+  title: "Object ABI / ELF 合约重定位（D2/D3/D4）Deferred to M2——M1 单 TU 自包含不产生重定位"
+  status: open
+  scope: [M2]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-009
+  title: "Spec 冻结（SPEC-010t）：impact matrix 是否覆盖 M1 之外的实现目标"
+  status: open
+  scope: [M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-010
+  title: "编码表变更的下游影响：legality_rules.yaml 中 M1 排除项规则仍 active，需在 SPEC-009t/INFRA-010t 明确 M1 流程过滤"
+  status: open
+  scope: [M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-011
+  title: "编码知识：0.5.3 MISC 子表 ha=RRR-CCC 拼为 6 位；旧 tools/opcodes.yaml（0628）不可作编码权威"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-012
+  title: "opcodes.yaml L5 注释与 ADR-0004 D5.1 措辞歧义——已由 QEMU-004t 修正（UNDI→ILLI）"
+  status: closed
+  scope: [spec]
+  blocks: []
+  resolved_by: "QEMU-004t N-1 修正（2026-09-19）"
+
+# ── infra ─────────────────────────────────────────────────────────────────────
+
+- id: ISS-013
+  title: "fetch.py 选源标签逻辑重复（INFRA-009t 遗留，DRY）——select_source() 返回值建议含 label"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-014
+  title: "ADR-0005 Consequences C2 表述可更精确——select_source() 完成解析、sync_mirror 只接收 source_url"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-015
+  title: "make doctor 不检查 QEMU 构建依赖（glib-2.0/pixman-1/libfdt 等）——doctor PASS 但 configure 失败"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-016
+  title: "make prepare 非幂等——apply_series.py 要求 HEAD 等于基线 commit，已 patched 的组件会整体失败"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+
+# ── testcases ─────────────────────────────────────────────────────────────────
+
+- id: ISS-017
+  title: "F5 — UNDI（保留编码）的向量层表达——已改由 TESTCASES-008t 承载（方案 A：class=legality + encoding.reserved=true）"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-018
+  title: "F6 — encoding 类对恒 fault 指令（illi）豁免——schema.md 已澄清，覆盖率由 legality active 满足"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-019
+  title: "F9① 结果级语义期望值重算需独立 oracle——属 golden model 模块，不在 testcases 模块内"
+  status: open
+  scope: [post-M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-020
+  title: "覆盖率门控分层：validate_vectors.py 覆盖率为声明级（178/178），数据级覆盖率不在该 validator 内"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-021
+  title: "并行前提不成立：002t 未交付 inventory 生成脚本，各数据任务须手改 inventory.md → 默认全串行"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-022
+  title: "数据已随上一版 002t 一并丢弃——003t~007t 的向量数据须从零生成（003t/004t/005t 已完成 10 个 isa/*.yaml）"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-023
+  title: "F10④ 守卫的 RB 覆盖缺口：validate_vectors.py 只提取 rdha，未覆盖 rbha——rbha=0 的 ILLI 未被捕获"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-024
+  title: "validate_vectors.py 变更历史（审计追溯）：002t→003t→004t 两次纯新增，未弱化既有断言"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-025
+  title: "br.* 双路径覆盖无结构性守卫：删掉 taken 或 not-taken 整条用例不会被捕获"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-026
+  title: "encoding 的 imm 值不在 validator 能力内——imm 语义正确性由 golden model 脚本守卫"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-027
+  title: "mem-* 边界覆盖未穷尽所有 format 组合——rrri 的 MALIGN 未生成，属 M1 最小覆盖"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-028
+  title: "br.* 无 legality/boundary 用例——br.* 不产生 fault，由 009t 兜底确认"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-029
+  title: "schema.md 新增 encoding.reserved 字段——下游消费者须识别 reserved case 的 UNDI 处理"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-030
+  title: "notes 文本笔误（006t 遗留 N-1）：ctrl-call.yaml case[7] notes 写 'low 48=0xAAAA000000000000'（多 4 个 0）"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-031
+  title: "call/ret 覆盖维度未穷尽：call-iiii shift-push 无独立 semantic，ret 仅覆盖单级 pop"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-032
+  title: "F7 守卫基线已完整（参照基准）：005t→006t→007t 形成单一 if/elif 块"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-033
+  title: "数据级覆盖率缺口 154 项（009t 发现）→ 由 TESTCASES-010t+011t 消解，gap=0 后方可置 012m 里程碑"
+  status: closed
+  scope: [testcases]
+  blocks: []
+  resolved_by: "TESTCASES-010t（114 条）+ TESTCASES-011t（35 条）消解，012m 已置里程碑（2026-09-21）"
+
+- id: ISS-034
+  title: "012m 阻断（用户裁定 B1）：数据级覆盖率缺口未消解前 TESTCASES-012m 不得置里程碑"
+  status: closed
+  scope: [testcases]
+  blocks: []
+  resolved_by: "TESTCASES-010t+011t 消解缺口，012m 已置里程碑（2026-09-21）"
+
+- id: ISS-035
+  title: "教训：工具交付物 vs 数据交付物应分层验收——脚本 bug 不应阻断数据交付"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-036
+  title: "validator 缺 legality 类 expected_fault 非 null 守卫——已由 TESTCASES-008t 消解"
+  status: closed
+  scope: [testcases]
+  blocks: []
+  resolved_by: "TESTCASES-008t（2026-09-18）"
+
+- id: ISS-037
+  title: "跨模块影响（testcases 重排）：QEMU-012t/017t/001k 表中陈旧引用已同步修正"
+  status: closed
+  scope: [testcases, qemu]
+  blocks: []
+  resolved_by: "2026-09-16 规划级复审同步修正"
+
+# ── llvm / qemu / integ ──────────────────────────────────────────────────────
+
+- id: ISS-038
+  title: "F3 — ELF writer 存根是死代码：DADAOMCTargetDesc.cpp 未注册 ELFObjectWriter"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-039
+  title: "F4 — e_flags 未设置：contract-elf.md 要求 e_flags=0x00000001，当前为 0"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-040
+  title: "DADAOFrameLowering 未覆写纯虚 hasFPImpl——M1 安全（无实例化），M2 会阻塞"
+  status: open
+  scope: [llvm, M2]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-041
+  title: "4 个 LLVM 文件缺末尾换行：DADAOFrameLowering.{h,cpp}、DADAORegisterInfo.cpp、DADAOTargetMachine.h"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-042
+  title: "rela.si fixup 占位语义与 M2 不兼容：getFixupKindForInstr 按 >>2 计算，但 rela.si 实际为 imms18<<12"
+  status: open
+  scope: [llvm, M2]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-043
+  title: "越界立即数静默截断（LLVM-006t reviewer ②）：分支/跳转 fixup 越界无诊断"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-044
+  title: "未定义符号静默为 0（LLVM-006t reviewer ③）：call ext_sym 立即数保持 0、无错误"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-045
+  title: "getFixupKindForInstr 的 default 分支未白名单化：非分支符号操作数按 PCRel_18 处理"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-046
+  title: "DecodeGPRFRegisterClass 未使用告警：M1 无 RF 指令 → -Wunused-function"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-047
+  title: "llvm-objdump -d 需显式 --triple=dadao-unknown-elf：e_machine 未映射到 dadao"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-048
+  title: "QEMU_BUILD 未使用 / 构建落点不一致——已消解（QEMU-003t 改 out-of-tree）"
+  status: closed
+  scope: [qemu]
+  blocks: []
+  resolved_by: "QEMU-003t（2026-09-19）"
+
+- id: ISS-049
+  title: "QEMU-003t 补丁 3 个源文件缺末尾换行：helper.c、helper.h、translate.c"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-050
+  title: "dadao_cpu_tlb_fill 未用 access_type / 未做 48 位屏蔽——skeleton 无访存指令故不可达"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-051
+  title: "v11.x 目录结构变更：target/riscv/translate.c 移到 target/riscv/tcg/translate.c"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-052
+  title: "harness 端到端依赖跨任务（QEMU-005t/006t/008t）——ADR-0010 D1 修法 a 使 006t 后可跑 RD-only"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-053
+  title: "andn.w-rb 在 006t 实现（translate.c:906）——名义归 008t，architect 裁定保留在 006t"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-054
+  title: "探针手算分支偏移易错 → 建议标签化框架（tools/qemu/ 基于标签的探针框架）"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-055
+  title: "engineer 子代理连续 3 次空返回（QEMU-009t 返工）——处置规则已入 AGENTS.md"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-056
+  title: "fence 实现缺失（ILLI 桩）——trans_fence 应为 nop（immu18 bits[17:4]=0）或 ILLI（非零），当前恒 ILLI"
+  status: open
+  scope: [qemu, M1]
+  blocks: [M1-gate]
+  resolved_by: null
+
+- id: ISS-057
+  title: "MemRAS 路径（ra0 低 48≠0）未实现——gen_ras_push/pop 硬编码走 ra0==0 分支"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-058
+  title: "scripts/decodetree.py 输出依赖 PYTHONHASHSEED——非 bit-reproducible"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-059
+  title: "QEMU-008t 验收遗漏：stm.o-rb 被误标 PASS——已由 QEMU-010t 补实现+验证"
+  status: closed
+  scope: [qemu]
+  blocks: []
+  resolved_by: "QEMU-010t（2026-09-20）"
+
+- id: ISS-060
+  title: "rd2ra/ra2rd 缺独立测试向量——QEMU-013t 不改向量，归属 TESTCASES 侧补"
+  status: open
+  scope: [qemu, testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-061
+  title: "harness 普通模式 TIMEOUT（QEMU-014t 后续实测）——根因 = TB 续接缺陷，015t 以 workaround 消除"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-062
+  title: "--dump 的 rb[1..63] 全 0、pc=0——根因 = TB 续接缺陷，dumper 超 TB 上限后死循环"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-063
+  title: "QEMU dadao target 的 TB 续接缺陷——tb_stop 缺 gen_update_pc，已由 QEMU-022t 新建补丁 0008"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-064
+  title: "cpu_loop_exit 的 longjmp 泄漏 MMIO re-entrancy 守卫——engaged_in_io 未复位"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-065
+  title: "源树提交作者为 Reviewer <reviewer@example.com>——git config 未设置项目约定身份"
+  status: open
+  scope: [infra, qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-066
+  title: "qemu 模块 engineer 子代理异常事件（2026-09-21 汇总）：016t/017t/018t 完成区与真实输出不符或空返回"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-067
+  title: "check_qemu_trans.py 的 patch 行分类：collect_trans_defs() 对 +/-/上下文行一视同仁，理论上后序删除会误判"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-068
+  title: "24 条 mem-rd 窄 load 向量 FAIL 归因变更：根因 = harness build_loader() 无条件用 st.o（8 字节），归 QEMU-023t"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-069
+  title: "harness 内硬编码 op 常量 ↔ opcodes.yaml 无交叉校验——encode_* helper 硬编码 op 值，存在漂移风险"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-070
+  title: "test_encoding_oracle.py 用例去重：扩展后 TESTS=57 但去重后仅 50 条（7 条旧用例被重复登记）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-071
+  title: "fence 的 LLVM 侧 lit 缺口——fence 无任何 lit 指令行，LLVM 侧实测可汇编且编码正确"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-072
+  title: "LLVM-010t 关闭的理由与去向——已无独立交付物，编号留空；遗留可选项：加 llvm-objcopy 构建目标"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-073
+  title: "check_lit_bytes.py 两项可选增强：无 CLI（LIT_DIR 硬编码）+ 独立计数门控不能捕获整行 # OBJ: 被删除"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+# ── 内联提及项（deferred.md 非独立 bullet，但用户裁定/代码库明确引用）────────
+
+- id: ISS-074
+  title: "C-27 — cs.* 条件赋值快照：5 条 cs.{n,z,p,eq,ne}-rd overlap 因 condition & source register aliasing 语义未指定而 deferred"
+  status: open
+  scope: [testcases, M1]
+  blocks: []
+  resolved_by: null

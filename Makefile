@@ -118,6 +118,7 @@ clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
 check: manifest-check validate-vectors
+	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
 
