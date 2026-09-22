@@ -122,7 +122,7 @@
 3. `tools/testcases/009t-audit.py` — 独立重推导/覆盖统计审计脚本；**[返工2]** 修复 `.sb` 符号扩展判定和 `rwii` 位偏移；**[返工3]** 扩展覆盖 rwii `-rb` 变体和块赋值6类；**[返工4]** 全面修复脚本缺陷（详见下方修复摘要）；**[返工5]** 修复 `cmp.ui`/`cmp.si` 分支 `mnemonic`→`insn`（§3.2.1 符号处理）
 4. `.tao/knowledge/deferred.md` — **[返工修正]** 修正数字（F5：36 active legality / 177 legality ✓ / 154=141+2+11）+ 登记010m阻断（F6）
 5. `.tao/tasks/testcases/TESTCASES-010m-testcases里程碑.md` — **[返工新增]** 注明154缺口前置阻断（F6）
-6. `.tao/knowledge/testcases-009t-audit.md` — **[返工2]** 逐族审计记录；**[返工3]** 删除已失效断言
+6. `docs/testcases-009t-audit.md` — **[返工2]** 逐族审计记录；**[返工3]** 删除已失效断言
 
 **验收结果**：
 - `009t-audit.py`：exit 0，Recomputed 318/320 (skipped: 2 — swym-iiii/fence)，0 mismatches
@@ -132,7 +132,7 @@
 - encoding word 全部通过 `(word & mask) == value` 校验 ✓
 - input_state 无 rd0/rb0 条目 ✓
 - 文件布局：tests/vectors/isa/ 恰含15个目标文件 ✓
-- 审计记录路径：`.tao/knowledge/testcases-009t-audit.md`（`git check-ignore` 返回非忽略 ✓）
+- 审计记录路径：`docs/testcases-009t-audit.md`（`git check-ignore` 返回非忽略 ✓）
 
 **返工4 修复摘要**：
 
@@ -152,7 +152,7 @@
 
 ② **订正返工表第 835 行不实表述**：该行原称「6处条件从 `mnemonic` 改为 `insn`（…cmp.ui…）」，但第 628/636 行实际仍为 `mnemonic`。已如实更正为「5处…（注意：cmp.ui/cmp.si 的第628/636行在返工4时遗漏，于返工5修复）」。
 
-**逐族审计结论**（详见 `.tao/knowledge/testcases-009t-audit.md`）：
+**逐族审计结论**（详见 `docs/testcases-009t-audit.md`）：
 
 | 族 | 文件 | case数 | 编码校验 | 语义期望值 | 修正数 | 结论 |
 |---|---|---|---|---|---|---|
@@ -477,7 +477,7 @@ $ echo $?
 
 | # | finding | 处置 | 改了什么 | 复验证据 |
 |---|---------|------|---------|---------|
-| 1 | 审计记录在 gitignored 的 `.tao/logs/`，不会随提交留存 | ✅已修 | 移至 `.tao/knowledge/testcases-009t-audit.md`，从 `.tao/logs/` 删除 | `git check-ignore -v .tao/knowledge/testcases-009t-audit.md` 返回 exit 1（非忽略） |
+| 1 | 审计记录在 gitignored 的 `.tao/logs/`，不会随提交留存 | ✅已修 | 移至 `docs/testcases-009t-audit.md`，从 `.tao/logs/` 删除 | `git check-ignore -v docs/testcases-009t-audit.md` 返回 exit 1（非忽略） |
 | 2 | `ctrl-ret` encoding case 数应为 0（encoding 豁免） | ✅已修 | 审计记录改为「encoding 0 + legality 1 + semantic 1」 | 文件第 281 行已更新 |
 | 3 | `reserved` active 数应为 2（非 0） | ✅已修 | 审计记录汇总表 reserved active 改为 2 | 文件汇总表已更新 |
 | 4 | `009t-audit.py` `.sb` 符号扩展 bug（`is_signed` 判定错） | ✅已修 | 三处 `is_signed` 改为 `mnemonic.split(".")[-1].startswith("s")` | 脚本 exit 0，Mismatches: 0 |
@@ -536,7 +536,7 @@ $ echo $?
 命令 4（留档 `.tao/logs/TESTCASES-009t-review3-check-ignore.log`）：
 
 ```
-$ cd /mnt/tao/DADAO-v5 && git check-ignore -v .tao/knowledge/testcases-009t-audit.md
+$ cd /mnt/tao/DADAO-v5 && git check-ignore -v docs/testcases-009t-audit.md
 （无输出）
 $ echo $?
 1
@@ -548,7 +548,7 @@ $ echo $?
 
 | 检查 | 本 reviewer 实测 | 结果 |
 |---|---|---|
-| 新路径未被 gitignore | `git check-ignore -v .tao/knowledge/testcases-009t-audit.md` → 无输出，`exit 1`；`git status` 列为 `?? `（untracked，非 ignored） | ✅ 可随提交留存 |
+| 新路径未被 gitignore | `git check-ignore -v docs/testcases-009t-audit.md` → 无输出，`exit 1`；`git status` 列为 `?? `（untracked，非 ignored） | ✅ 可随提交留存 |
 | 旧 `.tao/logs/TESTCASES-009t-audit-records.md` 已删 | `ls` → `No such file or directory` | ✅ 已删 |
 | 逐族（15）「族名 + case 数 + 公式 + 依据章节 + mismatch 结论」 | 文件 356 行，§1–§15 齐备；引用 §号（3.1.1~3.7 / 4.1.1~4.9.3 / 5.2.1~5.6.2 / 7.1~7.3 / 8.2 / 9.1）经 `grep "### §"` **全部存在于 `contract-isa.md`**；逐族 case 数与脚本实测**逐格吻合**（140/48/120/22/15/26/126/24/22/30/5/9/2/6/2 = 597） | ✅ 达标 |
 
@@ -580,7 +580,7 @@ MISMATCH: reg-imm-block.yaml case[9] set.zw rd: rd1 mismatch: expected 0x0000000
 
 #### 4. 返工项③「两处数字订正」核验
 
-| 项 | 应为 | `.tao/knowledge/testcases-009t-audit.md` 实测 | 结果 |
+| 项 | 应为 | `docs/testcases-009t-audit.md` 实测 | 结果 |
 |---|---|---|---|
 | `ctrl-ret` 类分布 | `encoding 0（豁免）+ legality 1 + semantic 1` | 第 284 行同左；`ctrl-ret.yaml` 实测 `Counter({'semantic':1,'legality':1})` | ✅ 已订正 |
 | `reserved` active | 2 | 汇总表第 355 行 `2`；`reserved.yaml` 两条均 `status: active` | ✅ 已订正 |
@@ -615,7 +615,7 @@ MISMATCH: reg-imm-block.yaml case[9] set.zw rd: rd1 mismatch: expected 0x0000000
 | 3 | 返工②两处 bug 真修（非改到通过） | 独立 oracle 手工核 `add.sb`=0xFF..80、`set.zw`=0x1234 与数据一致；注入旧错值 → `Mismatches: 2`/`exit 1` | ✅ 达标 |
 | 4 | 返工③两处数字 | `ctrl-ret` encoding 0；`reserved` active 2 | ✅ 达标 |
 | 5 | 无回归 | 595 encoding / 0 rd0-rb0 / 154=141+2+11 / 15 文件 / 未 commit | ✅ 通过 |
-| 6 | **审计记录含两处已失效的「脚本有 bug」断言** | `.tao/knowledge/testcases-009t-audit.md` 第 **38** 行「审计脚本有 `.sb` 符号扩展误报（脚本 bug…）」、第 **156** 行「审计脚本的 `rwii` 解码有 bug…」——而脚本两处 bug **已修**（命令 3 `Mismatches: 0`）。记录与自身脚本状态**自相矛盾** | ❌ **未达标**（文件内容不正确） |
+| 6 | **审计记录含两处已失效的「脚本有 bug」断言** | `docs/testcases-009t-audit.md` 第 **38** 行「审计脚本有 `.sb` 符号扩展误报（脚本 bug…）」、第 **156** 行「审计脚本的 `rwii` 解码有 bug…」——而脚本两处 bug **已修**（命令 3 `Mismatches: 0`）。记录与自身脚本状态**自相矛盾** | ❌ **未达标**（文件内容不正确） |
 | 7 | **`009t-audit.py` 末行「All 590 … verified」严重高估覆盖** | 末行用 `total_active`(=590，**含 encoding/legality** 全部 active) 冒充「semantic/boundary/overlap」。插桩副本（`/tmp/opencode/TESTCASES-009t-review3/repo4`）实测：处理 320 条，其中产出期望值 **188** 条、**132 条 `has_exp=False`（未比对）**；且在副本（`repo2`）注入 `set.zw-rb[13]`/`or.w-rb[5]`/`andn.w-rb[7]` 三个错误期望 → 脚本仍 `Mismatches: 0`、`exit 0`（RB 分支被 rd 库空值短路，块赋值 `rd2rd` 等 6 条在源码内显式 `pass`，注释「expected_state=null typically」与数据（有值）不符） | ❌ **缺陷**（工具输出以「全量已验」误导） |
 
 #### 8. 判决
@@ -627,7 +627,7 @@ MISMATCH: reg-imm-block.yaml case[9] set.zw rd: rd1 mismatch: expected 0x0000000
 
 **返工清单（可执行）**：
 
-1. **订正审计记录两处失效断言**：`.tao/knowledge/testcases-009t-audit.md` 第 38、156 行改为如实描述——`.sb` 符号扩展与 `rwii` 位偏移两处 bug **已修复**（脚本现 `Mismatches: 0`、`exit 0`）；或删除该两句。
+1. **订正审计记录两处失效断言**：`docs/testcases-009t-audit.md` 第 38、156 行改为如实描述——`.sb` 符号扩展与 `rwii` 位偏移两处 bug **已修复**（脚本现 `Mismatches: 0`、`exit 0`）；或删除该两句。
 2. **订正 `tools/testcases/009t-audit.py` 的覆盖声明**（二选一）：
    - (a) **如实标注**：末行汇总与 docstring 改为「实际重算并比对 M 条（实测 188）；未覆盖 N 条（块赋值 / RB-bank rwii / RB-bank br / 依赖默认 0 输入的用例等）」，**不得**再用 `total_active`(590，含 encoding/legality) 冒充 semantic/boundary/overlap 的「全体 verified」；或
    - (b) **扩展覆盖**：`rwii`/`br` 分支按 `insn` 是否含 `-rb` 读取 `input_state.rb` 并写 `expected_rb`（现用 `get_rd(...) is not None` 短路导致 RB 用例恒被跳过）；块赋值 `rd2rd/rd2ra/ra2rd/rb2rb/rd2rb/rb2rd` 按 §3.7 实际重算（其 `expected_state` **非** null）。
@@ -649,7 +649,7 @@ MISMATCH: reg-imm-block.yaml case[9] set.zw rd: rd1 mismatch: expected 0x0000000
 
 | # | finding | 处置 | 改了什么 | 复验证据 |
 |---|---------|------|---------|---------|
-| 1 | 审计记录 `.tao/knowledge/testcases-009t-audit.md` 第38行仍写「脚本有 `.sb` 符号扩展误报」 | ✅已修 | 改为「`.sb` 符号扩展 bug 已修复（见 `tools/testcases/009t-audit.py`），脚本 exit 0、Mismatches: 0」 | 文件第38行已更新 |
+| 1 | 审计记录 `docs/testcases-009t-audit.md` 第38行仍写「脚本有 `.sb` 符号扩展误报」 | ✅已修 | 改为「`.sb` 符号扩展 bug 已修复（见 `tools/testcases/009t-audit.py`），脚本 exit 0、Mismatches: 0」 | 文件第38行已更新 |
 | 2 | 审计记录第156行仍写「审计脚本的 `rwii` 解码有 bug」 | ✅已修 | 改为「`rwii` 解码 bug 已修复（见 `tools/testcases/009t-audit.py`），脚本 exit 0、Mismatches: 0」 | 文件第156行已更新 |
 | 3 | 脚本末行 `All 590 active semantic/boundary/overlap cases verified` 高估覆盖 | ✅已修 | 改为 `Recomputed 320/320 active semantic/boundary/overlap cases: 0 mismatches`；新增 `sbo_active` 和 `recomputed` 计数器 | 脚本输出确认 |
 | 4 | rwii `-rb` 变体（set.zw-rb/or.w-rb/andn.w-rb）被 `get_rd` 短路跳过 | ✅已修 | 检测 `insn.endswith("-rb")`，使用 `get_rb` 读取源、写入 `expected_rb` | 反造假注入错值 → 检测到3处 mismatch |
@@ -712,7 +712,7 @@ $ echo $?
 
 | 检查 | 本 reviewer 实测 | 结果 |
 |---|---|---|
-| `.tao/knowledge/testcases-009t-audit.md` 第 38 行 | 现为「`.sb` 符号扩展 bug **已修复**（见 `tools/testcases/009t-audit.py`），脚本 exit 0、Mismatches: 0」 | ✅ 已订正 |
+| `docs/testcases-009t-audit.md` 第 38 行 | 现为「`.sb` 符号扩展 bug **已修复**（见 `tools/testcases/009t-audit.py`），脚本 exit 0、Mismatches: 0」 | ✅ 已订正 |
 | 同文件第 156 行 | 现为「`rwii` 解码 bug **已修复**（见 …），脚本 exit 0、Mismatches: 0」 | ✅ 已订正 |
 | 全文件残留失效断言 | `grep -nE "bug\|误报\|false mismatch\|高估"` → 仅命中上述两行（均为「已修复」表述），无「脚本有 bug / 误报」的失效断言 | ✅ 与脚本实际状态（`Mismatches: 0`、`exit 0`）一致 |
 
@@ -1182,7 +1182,7 @@ STEP 2: 注入旧 buggy（无符号掩盖）期望 0x1 -> 脚本报出：
 | `contracts/`、`Makefile` | `git status --porcelain` 未列 | ✅ 未改 |
 | 其它 `tools/` | 仅 `validate_vectors.py` modified（任务允许例外，纯新增数据级门控、未弱化既有校验）；`009t-audit.py` 为新增 | ✅ |
 | 数据改动 | 仅 `reg-cond-assign.yaml`（`git diff` 仅 +5 `status: deferred`/`deferred_reason: C-27` overlap） | ✅ |
-| 审计记录可持久化 | `git check-ignore -v .tao/knowledge/testcases-009t-audit.md` → 无输出，`exit 1`（未忽略）；`git status` 列为 `??` | ✅ |
+| 审计记录可持久化 | `git check-ignore -v docs/testcases-009t-audit.md` → 无输出，`exit 1`（未忽略）；`git status` 列为 `??` | ✅ |
 | 未自行 commit | `HEAD = caa7a10`（008t） | ✅ |
 
 #### 5. Finding 表
@@ -1202,7 +1202,7 @@ STEP 2: 注入旧 buggy（无符号掩盖）期望 0x1 -> 脚本报出：
 | 交付物类别 | 结论 |
 |---|---|
 | **数据**（`tests/vectors/isa/*.yaml`） | ✅ **无遗留准确性问题**：595 encoding 独立 0 mismatch；320 SBO 经独立批量变异证明 318 条真实比对且 0 mismatch；2 条 skip 为 `swym`/`fence`（§7.1/§7.3 nop，无期望状态）。本轮数据未改动。 |
-| **审计记录**（`.tao/knowledge/testcases-009t-audit.md`、完成区、返工表） | ✅ **无遗留准确性问题**：15 族「公式+依据章节+比对结论」齐备，§号全部有效；残留失效断言（第 38/156 行）与返工表不实表述均已订正。仅第 7 项「592 vs 590」为**口径差异**（数据级 vs 脚本级），两数均属实，非错误。 |
+| **审计记录**（`docs/testcases-009t-audit.md`、完成区、返工表） | ✅ **无遗留准确性问题**：15 族「公式+依据章节+比对结论」齐备，§号全部有效；残留失效断言（第 38/156 行）与返工表不实表述均已订正。仅第 7 项「592 vs 590」为**口径差异**（数据级 vs 脚本级），两数均属实，非错误。 |
 | **审计脚本**（`tools/testcases/009t-audit.py`） | ✅ **无遗留准确性问题**：`cmp` 符号处理已修（仅 2 行变化，独立判别性+端到端注入双重验证）；`318/320` 覆盖属实；`rd2ra`/rwii-`rb`/块赋值 6 类等前轮修复未回退。 |
 | **登记**（`deferred.md` + `010m` 前置阻断） | ✅ **完整、未回退**：154=141+2+11 登记，`010m` 第 19 行「154 缺口消解前不得置 `里程碑`」与 `deferred.md` 第 46–47 行互指。 |
 
@@ -1223,3 +1223,7 @@ STEP 2: 注入旧 buggy（无符号掩盖）期望 0x1 -> 脚本报出：
 - 提示（非阻断）：审计记录汇总表 active=592（数据级）与脚本 active=590（脚本级）口径不同，两数均属实。
 
 > 备注：本 reviewer 的独立副本、判别性注入、端到端注入、批量变异与编码重算存于 `/tmp/opencode/TESTCASES-009t-review6/`；验收命令与各日志存于 `.tao/logs/TESTCASES-009t-review6-*.log`（gitignored）。本审查**未改**完成区与既有审阅记录，**未 commit**。
+
+---
+
+**路径变更注记（2026-09-21，主会话；用户裁定）**：审计记录由 `.tao/knowledge/testcases-009t-audit.md` **移至 `docs/testcases-009t-audit.md`**（用户选方案 D：与 `docs/` 下其它证据类文档同处，且符合「`knowledge/` 只收 `MEMORY`/`registry`/`changelog`/`milestones`/`contract-*`/`adr-*`/`project_*`/`feedback_*`」的文档化约定）。**本文件内全部路径引用（含「审阅记录」中的历史记录）已统一更新为现路径 `docs/testcases-009t-audit.md`**；历史记录当时该文件位于 `.tao/knowledge/testcases-009t-audit.md`（路径变更不改动当时的审查事实）。

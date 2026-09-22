@@ -247,7 +247,7 @@
 ## 参考
 
 - 本项目：`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`、`.tao/knowledge/contract-isa.md`、`.tao/knowledge/adr-0004-test-machine.md`
-- 审计记录：`.tao/knowledge/testcases-009t-audit.md`
+- 审计记录：`docs/testcases-009t-audit.md`
 - 工具：`tools/testcases/validate_vectors.py`、`tools/testcases/009t-audit.py`
 - 知识库：`.tao/knowledge/MEMORY.md`、`.tao/knowledge/deferred.md`
 
