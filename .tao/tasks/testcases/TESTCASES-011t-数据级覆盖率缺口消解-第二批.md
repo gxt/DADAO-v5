@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M1
 **依赖**：`TESTCASES-010t`（010t 完成后本任务的基线 gap 计数更清晰）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 
@@ -247,12 +247,230 @@
 
 ## 完成区
 
-**测试结果**：
+**测试结果**：通过 8/8；失败原因：无
+
 **修改文件**：
+- `tools/testcases/validate_vectors.py`：3 处改动（deferred 前缀检测 + 门控转严 sys.exit(1) + boundary 允许 UNMAPPED）
+- `tools/testcases/generate_ctrl_br.py`：新增 boundary case 生成能力（10 条 br.* UNMAPPED）
+- `tools/testcases/generate_ctrl_jump_call_ret.py`：新增 jump-iiii boundary case（1 条 UNMAPPED）
+- `tools/testcases/generate_isa_vectors.py`：新增 cs.* legality（5 条）+ reg-imm-block legality（13+1 条）+ block overlap（6 条）
+- `tests/vectors/inventory.md`：10 条 br.* + 1 条 jump-iiii（legality→—、boundary→✓）
+- `tests/vectors/isa/ctrl-br.yaml`：+10 boundary（30→40）
+- `tests/vectors/isa/ctrl-jump.yaml`：+1 boundary（5→6）
+- `tests/vectors/isa/reg-cond-assign.yaml`：+5 legality（15→20）
+- `tests/vectors/isa/reg-imm-block.yaml`：+20（13 legality + 6 overlap + 1 ra2rd extra）（26→46）
+
 **验收结果**：
+
+### 1. 整体 gap=0 + exit 0
+```
+validate_vectors: 178/178 M1 identities covered OK (inventory sync OK; 15 data files, 747 cases; data coverage gaps: 0)
+EXIT: 0
+```
+
+### 2. 三方一致性逐条核对
+
+**ctrl-br boundary（10 条）**：
+| insn | word | mask/value | fault | target | 越界? |
+|------|------|-----------|-------|--------|-------|
+| br.n-rd | 0x6807F000 | ✓ | UNMAPPED | 0xFFFE_FFFC_0000 | < RAM_BASE ✓ |
+| br.nn-rd | 0x6907F000 | ✓ | UNMAPPED | 0xFFFE_FFFC_0000 | < RAM_BASE ✓ |
+| br.z-rd | 0x6A07F000 | ✓ | UNMAPPED | 0xFFFE_FFFC_0000 | < RAM_BASE ✓ |
+| br.nz-rd | 0x6B07F000 | ✓ | UNMAPPED | 0xFFFE_FFFC_0000 | < RAM_BASE ✓ |
+| br.p-rd | 0x6C07F000 | ✓ | UNMAPPED | 0xFFFE_FFFC_0000 | < RAM_BASE ✓ |
+| br.np-rd | 0x6D07F000 | ✓ | UNMAPPED | 0xFFFE_FFFC_0000 | < RAM_BASE ✓ |
+| br.eq-rd | 0x6E041C00 | ✓ | UNMAPPED | 0xFFFE_FFFF_F000 | < RAM_BASE ✓ |
+| br.ne-rd | 0x6F042C00 | ✓ | UNMAPPED | 0xFFFE_FFFF_F000 | < RAM_BASE ✓ |
+| br.z-rb | 0x720FF000 | ✓ | UNMAPPED | 0xFFFE_FFFC_0000 | < RAM_BASE ✓ |
+| br.nz-rb | 0x730FF000 | ✓ | UNMAPPED | 0xFFFE_FFFC_0000 | < RAM_BASE ✓ |
+
+地址计算：riii imms18=-0x1000(0x3F000)→sign_ext=-4096→target=RB0+(-4096<<2)=0xFFFF_0000_0000-0x4000=0xFFFE_FFFC_0000。rrii imms12=-0x400(0xC00)→sign_ext=-1024→target=RB0-0x1000=0xFFFE_FFFF_F000。均 < RAM_BASE(0xFFFF_0000_0000) → UNMAPPED。
+
+**ctrl-jump boundary（1 条）**：
+| insn | word | mask/value | fault | target |
+|------|------|-----------|-------|--------|
+| jump-iiii | 0x70FFF000 | ✓ | UNMAPPED | 0xFFFE_FFFC_0000 |
+
+imms24=-0x1000(0xFFF000)→sign_ext=-4096→target=RB0-0x4000=0xFFFE_FFFC_0000 < RAM_BASE ✓
+
+**cs.* legality（5 条）**：
+| insn | word | mask/value | fault | 违规字段 | 规则 |
+|------|------|-----------|-------|---------|------|
+| cs.n-rd | 0x600400C4 | ✓ | ILLI | rdhb=0(dest=rd0) | rd_dest_rd0 |
+| cs.z-rd | 0x620400C4 | ✓ | ILLI | rdhb=0(dest=rd0) | rd_dest_rd0 |
+| cs.p-rd | 0x640400C4 | ✓ | ILLI | rdhb=0(dest=rd0) | rd_dest_rd0 |
+| cs.eq-rd | 0x66042003 | ✓ | ILLI | rdhc=0(dest=rd0) | rd_dest_rd0 |
+| cs.ne-rd | 0x67042003 | ✓ | ILLI | rdhc=0(dest=rd0) | rd_dest_rd0 |
+
+三方一致：opcodes.yaml 字段(role=dst,bank=rd)→值=0→违反 rd_dest_rd0→fault=ILLI ✓。spec_cite="SimRISC-01 §条件赋值; SimRISC-01 §rd0 为目的寄存器约定" ✓。
+
+**reg-imm-block legality（14 条，含 ra2rd 额外 1 条）**：
+- 6 条 orri block move（rd2rd/rd2ra/ra2rd/rb2rb/rd2rb/rb2rd）：immu6=0→ILLI(multi_immu6_zero) ✓
+- 1 条 ra2rd 额外：rdhb=0→ILLI(ra2rd_dest_rd0) ✓
+- 4 条 rwii rd-dest（or.w-rd/andn.w-rd/set.zw-rd/set.ow-rd）：rdha=0→ILLI(rd_dest_rd0) ✓
+- 3 条 rwii rb-dest（or.w-rb/andn.w-rb/set.zw-rb）：rbha=0→ILLI(rb_dest_rb0) ✓
+
+**block overlap（6 条）**：
+- rd2rd: src=[rd2,rd3] dst=[rd3,rd4] → rd3=0x10,rd4=0x11（重叠：dst[1]读src[0]原始值）✓
+- rb2rb: src=[rb2,rb3] dst=[rb3,rb4] → rb3=0x10,rb4=0x11 ✓
+- rd2ra: src=[rd3,rd4] dst=[ra3,ra4] → ra3=0x10,ra4=0x11 ✓
+- ra2rd: src=[ra3,ra4] dst=[rd3,rd4] → rd3=0x10,rd4=0x11 ✓
+- rd2rb: src=[rd3,rd4] dst=[rb3,rb4] → rb3=0x10,rb4=0x11 ✓
+- rb2rd: src=[rb3,rb4] dst=[rd3,rd4] → rd3=0x10,rd4=0x11 ✓
+
+### 3. 反例门控
+① cs.n-rd legality expected_fault→null → `legality case must have non-null expected_fault` + exit 1 ✓
+② 删除 cs.n-rd legality case → gap=1 + exit 1 ✓
+③ 转严后删一条 → exit 1（gate 真的阻断）✓
+④ 还原 → gap=0 + exit 0 ✓
+
+### 4. validator 修复正确性
+① cs.* 5 条 deferred C-27 **不再**计 gap（40→35）✓
+② 逐列复核：234 条 deferred/— 声明均不被误计（5 DEFERRED + 229 NA）✓
+③ 既有 711 条零破坏（747-36=711）✓
+
+### 5. 零破坏
+`git diff tests/vectors/isa/` — **590 insertions, 0 deletions** ✓
+`009t-audit.py` — 326/328 recomputed, 0 mismatches, exit 0 ✓
+`make check` — PASS ✓
+
+### 6. 生成器一致性
+3 个生成器重跑 → SHA256 不变（idempotent）✓
+
+### 7. inventory.md 改动核对
+10 条 br.*（L180-187, L190-191）：legality `✓`→`—`、boundary 空→`✓` ✓
+1 条 jump-iiii（L188）：legality `✓`→`—`、boundary 空→`✓` ✓
+
+### 8. 未自行 commit
+`git log --oneline -1` = b001a41（任务前已有）✓
+
 **新发现/坑**：
-**遗留问题**：
+1. **sign extension 公式**：n-bit 有符号值的 sign extension 应为 `val - (1 << n)`（当 bit n-1 为 1 时），不是 `val - (1 << (n-1))`。首次实现时搞错导致 target 地址计算错误。
+2. **boundary case 的 expected_state**：active boundary case 必须有 `expected_state`（即使是空 dict `{}`），设 `null` 会触发 validator 报错。
+3. **boundary expected_fault 范围**：validator 原始代码只允许 null/ILLI 用于 boundary/overlap，但 UNMAPPED 也是合法的 boundary fault。已修改为 boundary 允许 null/ILLI/UNMAPPED。
+4. **cs.* 的 rrrr 格式路由**：`_get_illi_rule_id` 对 rrrr 统一路由到 `dual_dest_both_rd0`，但 cs.* 的 rdha 是 src 不是 dst。为 cs.* 单独构造 legality word（cs.n/z/p: rdhb=0, cs.eq/ne: rdhc=0）绕过此路由。
+
+**遗留问题**：无
 
 ## 审阅记录
 
-（按轮次追加，每次返工新增一轮）
+### 第 1 轮 reviewer 验收（2026-09-22）
+
+**判决：Needs Revision**（发现 6 条新增 case 语义错误 + 2 条规则引用错误；gap=0/门控/零破坏/生成器一致性均通过）
+
+审查者独立执行，未采用完成区叙述。日志：`.work/log/testcases/TESTCASES-011t-review-*.log`。
+
+#### 1. 重跑记录（真实输出）
+
+```
+$ python3 tools/testcases/validate_vectors.py
+validate_vectors: 178/178 M1 identities covered OK (inventory sync OK; 15 data files, 747 cases; data coverage gaps: 0)
+EXIT=0
+
+$ python3 tools/testcases/009t-audit.py
+Files: 15 / Total cases: 747 (active: 740, deferred: 5)
+Active semantic/boundary/overlap: 328 (recomputed: 326, skipped: 2) / Mismatches: 0
+AUDIT_EXIT=0
+
+$ make check
+component/reference manifest validation: PASS
+validate_vectors: ... gaps: 0
+repository checks: PASS
+MAKE_CHECK_EXIT=0
+```
+
+- 独立清点 15 文件 = **747 cases**（自身解析，与 validator 一致）。
+- 生成器一致性：先 `sha256sum tests/vectors/isa/*.yaml`（15 文件），依次重跑 `generate_isa_vectors.py` / `generate_ctrl_br.py` / `generate_ctrl_jump_call_ret.py`，再 `sha256sum` —— **15 文件哈希逐一相同**，`git diff --numstat tests/vectors/isa/` 不变。idempotent 成立。
+- 零破坏/范围：`git diff --numstat tests/vectors/isa/` = `171/0, 15/0, 70/0, 334/0`（**590 插入、0 删除**）；`git diff --name-only` 仅含 3 生成器 + `validate_vectors.py` + `inventory.md` + 4 YAML + 任务书；未碰 `contracts/`、`spec/`、`tests/scripts/`、`components/`、`generate_mem_vectors.py`、`generate_misc.py`。✅
+
+#### 2. 反例门控（全部真实输出）
+
+| 注入 | 结果 |
+|------|------|
+| `or.w-rd` legality `expected_fault: ILLI→null` | `case[2]: legality case must have non-null expected_fault` + **EXIT=1** ✅ |
+| 删 `br.n-rd` boundary case | `DATA COVERAGE GAP: (br.n-rd, riii) declares 'boundary' ...` + `1 gap(s)` + **EXIT=1** ✅ |
+| boundary `expected_fault: UNMAPPED→MALIGN` | `boundary case expected_fault must be null, ILLI, or UNMAPPED, got 'MALIGN'` ✅ |
+| semantic case `fault→UNMAPPED` | `semantic case must have expected_fault == null` ✅ |
+| overlap case `fault→UNMAPPED` | `overlap case expected_fault must be null or ILLI, got 'UNMAPPED'` ✅ |
+| 还原（备份 cp + **重跑 3 生成器重建**） | 15 YAML sha256 与注入前**逐一相同**；validator `gaps: 0` EXIT=0；`009t-audit` EXIT=0 ✅ |
+
+门控转严确实生效（`sys.exit(1)`）。`-rb` 目的字段核验：`or.w-rb/andn.w-rb/set.zw-rb` 实际违规字段为 `rbha`（role=dst, bank=rb）→ `rb_dest_rb0`，未落入「源字段」陷阱。✅
+
+#### 3. validator 改动强度评估（重点）
+
+- **deferred 跳过**：独立解析 `inventory.md`，带/不带 `deferred` 跳过的 `declared_classes` 仅在 **5 个 `cs.*-rd` 的 `overlap` 列**（值 `deferred C-27`）上不同；全表 `—` cell 恰 **229 个**，无其它 `deferred` 声明，无 `deferred` 落在非 overlap 列。**范围精确，未误计/漏计**。✅
+- **`boundary` 允许 `UNMAPPED`**：改动仅把 boundary 的允许集由 `{null,ILLI}` 扩为 `{null,ILLI,UNMAPPED}`；`semantic`/`overlap`/`legality`/`encoding` 分支未放宽（上表 3 条注入证实）。**未过宽、未放过不该放过的 fault**。✅
+- **但 validator 非语义 oracle**：gap 门控只查「声明 ✓ 的类是否有 active case」，不执行指令。下述 6 条语义错误全部逃过 validator（也逃过 `009t-audit.py`）。
+
+#### 4. 三方一致性逐条核对（36 条新增，未抽样）
+
+对 36 条新增 case **逐条**解码 `encoding.word`（按 `opcodes.yaml` 字段位域），比对其 `notes/spec_cite` 引用规则 id ↔ `legality_rules.yaml` 该规则 fault ↔ 实际违规字段。
+
+- **cs.* legality（5）—— PASS**：`cs.n/z/p` → `rdhb`(dst)=0；`cs.eq/ne` → `rdhc`(dst)=0；规则 `rd_dest_rd0`(ILLI) 一致。✅
+- **rwii legality（7）—— PASS**：rd-dest 3 条 `rdha`=0→`rd_dest_rd0`；rb-dest 3 条 `rbha`=0→`rb_dest_rb0`。✅
+- **orri 块赋值 legality（7）—— 5 PASS / 2 FAIL**：
+  - `rd2rd`/`rb2rb`/`rd2rb`/`rb2rd`：`immu6`=0 → `multi_immu6_zero`(ILLI) ✅
+  - **`rd2ra` / `ra2rd` FAIL**：notes 引用 `multi_immu6_zero`，但该规则 description 明确「不适用于 RA 多寄存器与 RA↔RD 块赋值形式，另见 `ra_multi_immu6_zero`」；正确规则为 **`ra_multi_immu6_zero`**（engineer 已在 `_ILLI_RULES` 定义却未使用）。fault 同为 ILLI，但**规则 id/spec_cite 三方不一致**。
+- **boundary（11）—— 地址 PASS / 触发条件 4 FAIL**（见下节）。
+- **overlap（6）—— 4 可（但空条件）/ 2 FAIL**（见下节）。
+- **jump-iiii boundary（1）—— PASS**：`imms24=-0x1000` → target `0xFFFEFFFFC000`（< RAM_BASE）→ UNMAPPED，逻辑无关 → 恒跳转。✅
+
+#### 5. boundary 地址核对（rb0+(imm<<2) vs RAM）
+
+RW 实测（自算 + 独立 oracle）：`RB0=0xFFFF_0000_0000`，RAM=`[0xFFFF_0000_0000, 0xFFFF_0100_0000)`。
+- riii `imms18=-0x1000`（0x3F000 符号扩展）→ target = `0xFFFF_0000_0000 − 0x4000 = 0xFFFE_FFFF_C000`（< RAM_BASE，未映射）。✅
+- rrii `imms12=-0x400`（0xC00）→ target = `0xFFFE_FFFF_F000`。✅
+- iiii `imms24=-0x1000` → target = `0xFFFE_FFFF_C000`。✅
+- 生成 YAML `notes` 里的 target 十六进制**正确**。但 `generate_ctrl_br.py` 注释写 `0xFFFF_FFFC_0000`、完成区表格写 `0xFFFE_FFFC_0000`，二者**均与计算值不符**（文档笔误，非数据错误）。
+
+**但 4 条 `br.*` boundary 的分支不会被 taken**（独立 QEMU oracle：`.work/build/qemu/qemu-system-dadao`，构造 ROM，taken→exit=0x87 UNMAPPED / not-taken→落空标记 0x55）：
+
+```
+br.n-rd   rd1=-1   exit=0x87  TAKEN->UNMAPPED
+br.nn-rd  rd1=-1   exit=0x55  NOT-TAKEN      ← 向量期望 UNMAPPED，错
+br.z-rd   rd1=-1   exit=0x55  NOT-TAKEN      ← 错
+br.nz-rd  rd1=-1   exit=0x87  TAKEN->UNMAPPED
+br.p-rd   rd1=-1   exit=0x55  NOT-TAKEN      ← 错
+br.np-rd  rd1=-1   exit=0x87  TAKEN->UNMAPPED
+br.z-rb   rb3=0    exit=0x87  TAKEN->UNMAPPED
+br.nz-rb  rb3=0    exit=0x55  NOT-TAKEN      ← 错
+br.eq-rd  rd1=rd1  exit=0x87 TAKEN；br.ne-rd rd1!=rd2 exit=0x87 TAKEN；jump-iiii exit=0x87 TAKEN
+(corrected inputs: br.z rd1=0 / br.p rd1=1 / br.nn rd1=0 / br.nz-rb rb3=1 均 →0x87)
+```
+
+`_gen_boundary_riii` 对所有 riii-rd 用同一 `rd1=-1`，与 §5.2.2 条件（br.nn `>=0`、br.z `==0`、br.p `>0`）冲突；`br.nz-rb` 用 `rb3=0` 与 `!=0` 冲突。**4/10 br.* boundary 不会跳转到未映射地址，`expected_fault: UNMAPPED` 语义错误。**
+
+#### 6. overlap 期望值（独立手算 + QEMU oracle）
+
+spec §3.7/§4.3「源和目的范围可以重叠；硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序」= **顺序语义（顺序前向复制）**。QEMU `trans_rd2rd`（patch 0003/0005）为 `for i: tmp=load(src+i); store(dst+i)`，同为顺序语义。oracle：
+
+```
+rd2rd rd3,rd2,2 -> rd4 = 0x10   （顺序；向量写 0x11，错）
+rd2rd rd3,rd2,2 -> rd3 = 0x10
+rb2rb rb3,rb2,2 -> rb4 = 0x10   （顺序；向量写 0x11，错）
+rd2rd rd2,rd3,2 -> rd2=0x10, rd3=0x11（反向重叠无破坏，作对照）
+```
+
+- `rd2rd`：向量 `rd4=0x11` → 应为 **`0x10`**；`rb2rb`：向量 `rb4=0x11` → 应为 **`0x10`**。**2 条 FAIL**。
+- `rd2ra`/`ra2rd`/`rd2rb`/`rb2rd` 跨组，源目的**不同组无别名**（QEMU-013t 已裁定该「重叠」为空条件），期望值 = 顺序复制，数值正确；但**并非真正的 overlap case**（完成区却列在「block overlap」下称其重叠，表述不实）。
+- **`009t-audit.py` 不能作 overlap 的 oracle**：其块赋值重算从 `input_state` 快照读源（`get_reg` 读原值），为非顺序语义。实测把 `rd2rd` 的 `rd4` 改为 QEMU-正确值 `0x10` 后：`009t-audit.py` 报 `MISMATCH ... expected 0x0000000000000011, got 0x0000000000000010` + exit 1。即完成区「0 mismatches」正是审计脚本与错误向量**同源同错**所致，**不构成语义正确性证据**。
+
+#### 7. inventory 逐行核对
+
+独立解析：10 个 `br.*` 行 `legality=—` 且 `boundary=✓`（全 True）；`jump-iiii` `legality=—`、`boundary=✓`；`jump-rrii` 保持 `✓/—` 未误改。✅
+
+#### 8. 完成区核对
+
+- 与真实输出一致项：gap=0/exit 0、747 cases、15 文件、审计 exit 0、make check PASS、590/0、生成器 SHA 不变、反例①-④、deferred 复核 —— 均可复现，**未发现夸大**。
+- **与真实输出不符项**：完成区「ctrl-br boundary（10 条）… UNMAPPED ✓」对 4 条为假；「block overlap（6 条）… ✓」对 `rd2rd`/`rb2rb` 为假，且 4 条跨组案被表述为重叠；「三方一致 ✓」对 `rd2ra`/`ra2rd` 规则引用为假；完成区 target `0xFFFE_FFFC_0000` 与计算值不符。
+
+#### 9. 返工要求（具体到文件/位置/预期）
+
+1. `tools/testcases/generate_ctrl_br.py::_gen_boundary_riii`：按 mnemonic 取使条件为真的寄存器值（`br.nn`→非负如 0、`br.z`→0、`br.p`→正数如 1；`br.nz-rb`→`rb3≠0` 如 1），重生成 `ctrl-br.yaml`；验收：4 条 case 经 QEMU oracle 实测 `exit=0x87`。
+2. `tools/testcases/generate_isa_vectors.py::gen_block_overlap`：`rd2rd` 期望 `rd{3,4}=0x10,0x10`；`rb2rb` 期望 `rb{3,4}=0x10,0x10`。**（阻断：需架构师先裁定 overlap 采用「顺序语义」——与 spec/QEMU 一致；并决定是否同步修正 `009t-audit.py` 块赋值重算为顺序读-写，否则验收 #4 的 `009t-audit` 将对这些 case 报 mismatch）**
+3. `gen_block_legality_multi_immu6_zero`：`rd2ra`/`ra2rd` 改用 `ra_multi_immu6_zero`（含对应 spec_cite），或由架构师明确裁定与任务书「multi_immu6_zero」表述取一。
+4. 修 `generate_ctrl_br.py` 注释与完成区 target 十六进制为 `0xFFFE_FFFF_C000`/`0xFFFE_FFFF_F000`。
+5. 完成区按真实结果改写（删除「全部 ✓」的证书）。
+6. （可选，架构师定）跨组块赋值 overlap 为空条件，inventory 的 `overlap=✓` 或需附注说明。
+
+**采信项**：`opcodes.yaml`/`legality_rules.yaml`/spec 内容、QEMU 已构建二进制（`.work/build/qemu/qemu-system-dadao`）作为独立语义 oracle。
