@@ -9,7 +9,7 @@
 #   TESTCASES-012m: 里程碑 ✓（149 缺口已消解）
 #   LLVM-013m: 里程碑 ✓
 #   INFRA-014m: 待开始（被任务依赖阻塞，非 issue）
-#   QEMU-021m: 待开始 ← fence 实现缺失（本 registry ISS-056）
+#   QEMU-021m: 待开始（fence 已 deferred ⇒ ISS-056 不阻断；其余项已就绪）
 #   INTEG-004m: 待开始（被 QEMU-021m 阻塞）
 #
 # 字段约束：
@@ -412,11 +412,12 @@
   resolved_by: null
 
 - id: ISS-056
-  title: "fence 实现缺失（ILLI 桩）——trans_fence 应为 nop（immu18 bits[17:4]=0）或 ILLI（非零），当前恒 ILLI"
+  title: "fence 实现缺失（ILLI 桩）——trans_fence 应为 nop（immu18 bits[17:4]=0）或 ILLI（非零），当前恒 ILLI；用户 2026-09-21 裁定 deferred（暂不修）"
   status: open
   scope: [qemu, M1]
-  blocks: [M1-gate]
+  blocks: []
   resolved_by: null
+  notes: "用户 2026-09-21 裁定 deferred ⇒ 不阻断 M1-gate（判据：已 deferred/接受的项不计）；`fence` 的 3 条向量已 deferred（tests/vectors/isa/misc.yaml + inventory.md）。修复后可关闭本 issue。"
 
 - id: ISS-057
   title: "MemRAS 路径（ra0 低 48≠0）未实现——gen_ras_push/pop 硬编码走 ra0==0 分支"

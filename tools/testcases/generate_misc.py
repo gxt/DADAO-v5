@@ -62,7 +62,8 @@ _verify(FENCE_SBZ_NONZERO, MASK_OIII, VALUE_FENCE)
 
 
 def _case(mnemonic, insn, fmt, cls, word, input_state, expected_state,
-          expected_fault=None, expected_pc=None, spec_cite="", notes=""):
+          expected_fault=None, expected_pc=None, spec_cite="", notes="",
+          status="active", deferred_reason=None):
     return {
         "mnemonic": mnemonic,
         "insn": insn,
@@ -73,8 +74,8 @@ def _case(mnemonic, insn, fmt, cls, word, input_state, expected_state,
         "expected_state": expected_state,
         "expected_pc": expected_pc,
         "expected_fault": expected_fault,
-        "status": "active",
-        "deferred_reason": None,
+        "status": status,
+        "deferred_reason": deferred_reason,
         "spec_cite": spec_cite,
         "notes": notes,
     }
@@ -149,6 +150,8 @@ def generate():
         expected_state=None,
         expected_fault=None,
         expected_pc=None,
+        status="deferred",
+        deferred_reason="fence 实现缺失（ISS-056）：trans_fence 为 ILLI 桩，nop/SBZ 语义未实现；用户 2026-09-21 裁定 deferred",
         spec_cite="SimRISC-04 §fence指令",
         notes="encoding: fence 0 (barrier type=0, all SBZ bits zero); "
               "opcodes.yaml mask=0xFFFC0000 value=0x00040000; "
@@ -167,6 +170,8 @@ def generate():
         expected_state=None,
         expected_fault="ILLI",
         expected_pc=None,
+        status="deferred",
+        deferred_reason="fence 实现缺失（ISS-056）：trans_fence 为 ILLI 桩，nop/SBZ 语义未实现；用户 2026-09-21 裁定 deferred",
         spec_cite="SimRISC-04 §fence指令; ADR-0004 D5.3",
         notes="fence with SBZ non-zero: immu18_hi=0x01 (bits[17:12]≠0); "
               "legality_rules.yaml rule=sbz_nonzero: "
@@ -183,9 +188,11 @@ def generate():
         cls="semantic",
         word=FENCE_WORD0,
         input_state={},
-        expected_state={},
+        expected_state=None,  # deferred ⇒ 必须 null（validator 规则）
         expected_fault=None,
         expected_pc=None,
+        status="deferred",
+        deferred_reason="fence 实现缺失（ISS-056）：trans_fence 为 ILLI 桩，nop/SBZ 语义未实现；用户 2026-09-21 裁定 deferred",
         spec_cite="SimRISC-04 §fence指令",
         notes="semantic: fence 0 (nop-like in M1); "
               "memory barrier, no register/memory change in M1 context; "

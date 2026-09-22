@@ -16,7 +16,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `(insn, format)`
 | insn | format | file | encoding | legality | semantic | boundary | overlap | notes |
 |---|---|---|---|---|---|---|---|---|
 | `illi` | `oiii` | `misc.yaml` | — | ✓ | — | — | — | 恒 ILLI（§9.1）；encoding/semantic 豁免（F6），覆盖率由 legality 满足 |
-| `fence` | `oiii` | `misc.yaml` | ✓ | ✓ | ✓ | — | — |  |
+| `fence` | `oiii` | `misc.yaml` | deferred fence 实现缺失（ISS-056） | deferred fence 实现缺失（ISS-056） | deferred fence 实现缺失（ISS-056） | — | — | `fence` 属 M1（§7.3）但 QEMU `trans_fence` 仍为 ILLI 桩（`ISS-056`）；用户 2026-09-21 裁定 deferred ⇒ 3 类覆盖均暂缓 |
 | `ld.ub-rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ |  ✓  | — |  |
 | `ld.uw-rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ |  ✓  | — |  |
 | `ld.ut-rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ |  ✓  | — |  |

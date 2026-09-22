@@ -58,8 +58,8 @@
   expected_state: null
   expected_pc: null
   expected_fault: null
-  status: active
-  deferred_reason: null
+  status: deferred
+  deferred_reason: fence 实现缺失（ISS-056）：trans_fence 为 ILLI 桩，nop/SBZ 语义未实现；用户 2026-09-21 裁定 deferred
   spec_cite: SimRISC-04 §fence指令
   notes: 'encoding: fence 0 (barrier type=0, all SBZ bits zero); opcodes.yaml mask=0xFFFC0000 value=0x00040000; immu18=0 →
     bits[17:4] all zero (SBZ satisfied); nop-like, no architectural state change'
@@ -73,8 +73,8 @@
   expected_state: null
   expected_pc: null
   expected_fault: ILLI
-  status: active
-  deferred_reason: null
+  status: deferred
+  deferred_reason: fence 实现缺失（ISS-056）：trans_fence 为 ILLI 桩，nop/SBZ 语义未实现；用户 2026-09-21 裁定 deferred
   spec_cite: SimRISC-04 §fence指令; ADR-0004 D5.3
   notes: 'fence with SBZ non-zero: immu18_hi=0x01 (bits[17:12]≠0); legality_rules.yaml rule=sbz_nonzero: SBZ (Should Be Zero)
     fields non-zero → ILLI; fence bits[17:4] are SBZ per §7.3; this word=0x00050000 has bits[17:4]=0x001≠0'
@@ -85,11 +85,11 @@
   encoding:
     word: '0x00040000'
   input_state: {}
-  expected_state: {}
+  expected_state: null
   expected_pc: null
   expected_fault: null
-  status: active
-  deferred_reason: null
+  status: deferred
+  deferred_reason: fence 实现缺失（ISS-056）：trans_fence 为 ILLI 桩，nop/SBZ 语义未实现；用户 2026-09-21 裁定 deferred
   spec_cite: SimRISC-04 §fence指令
   notes: 'semantic: fence 0 (nop-like in M1); memory barrier, no register/memory change in M1 context; expected_state={}:
     no registers/memory changed; expected_pc=null (PC顺延不算改变PC, schema.md §expected_pc)'
