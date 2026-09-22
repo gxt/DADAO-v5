@@ -4,6 +4,7 @@
 
 | 日期 | 描述 | 执行方 |
 | --- | --- | --- |
+| 2026-09-22 | **M1 达成（用户确认）**。`INTEG-004m` 置里程碑 ⇒ 6/6 模块 M1 完成（`SPEC-011m`/`TESTCASES-012m`/`INFRA-014m`/`LLVM-015m`/`QEMU-021m`/`INTEG-004m`），`milestones.md` M1 = **达成**。核验（真实输出）：`llvm-lit tests/lit/E2E/` **3/3**；`tools/integ/check_interface_alignment.py` **80/80/0 EXIT 0**；`make check` **EXIT 0**。本会话另完成：`INTEG-001k`~`003t`（E2E 冒烟 + 接口对齐）、`LLVM-013t`（`wpN` 静默误编码修复，补丁 `0007`）、`LLVM-014t`（ELF `e_flags` 修复，补丁 `0008`）；里程碑顺延 `LLVM-013m→014m→015m`；`fence` 保持 deferred（`ISS-056` `blocks: []`）。 | 主会话 + 用户 |
 | 2026-09-12 | INFRA-002t：建立仓库骨架（`.gitignore`、`components/`/`scripts/`/`containers/` 骨架、`docs/repository-layout.md`） | engineer |
 | 2026-09-12 | INFRA-003t：manifest 系统（`manifests/components.lock.toml`、`manifests/references.lock.toml`、`scripts/manifest_check.py`） | engineer |
 | 2026-09-12 | INFRA-004t：组件获取与打补丁工具（`scripts/fetch.py`、`apply_series.py`、`make_patch.py`、`fetch_refs.py`；`.cache/` 持久 bare mirror + `.work/` 可再生工作树） | engineer |
