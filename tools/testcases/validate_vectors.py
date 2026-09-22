@@ -423,9 +423,15 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                 errors.append("%s: semantic case must have expected_fault == null"
                               % tag)
         if cls in ("boundary", "overlap"):
-            if fault is not None and fault != "ILLI":
-                errors.append("%s: %s case expected_fault must be null or ILLI, "
-                              "got %r" % (tag, cls, fault))
+            if cls == "boundary":
+                if fault is not None and fault not in ("ILLI", "UNMAPPED"):
+                    errors.append("%s: %s case expected_fault must be null, "
+                                  "ILLI, or UNMAPPED, got %r"
+                                  % (tag, cls, fault))
+            else:  # overlap
+                if fault is not None and fault != "ILLI":
+                    errors.append("%s: %s case expected_fault must be null or "
+                                  "ILLI, got %r" % (tag, cls, fault))
 
         # F9①: active semantic/boundary src field register pre-set guard
         if status == "active" and cls in ("semantic", "boundary") and \
@@ -642,7 +648,10 @@ def main():
         # Track per-class ✓ marks
         cls_set = set()
         for ci, cn in enumerate(class_names):
-            if cells[ci].lower() not in DECL_NA:
+            cell_low = cells[ci].lower()
+            if cell_low.startswith("deferred"):
+                continue  # deferred 声明不计缺口
+            if cell_low not in DECL_NA:
                 cls_set.add(cn)
         declared_classes[key] = cls_set
 
@@ -716,15 +725,14 @@ def main():
                     "inventory.md but no active %s case found in "
                     "tests/vectors/isa/*.yaml"
                     % (inv_insn, inv_fmt, cls_name, cls_name))
-    # Report gaps but do not block validation (historical data gap).
-    # The mechanism is functional: removing an active case for a declared
-    # ✓ class will be caught here. Gaps are documented in task completion.
+    # Report gaps and block validation (TESTCASES-011t: gate tightening)
     if data_coverage_gaps:
         for gap in data_coverage_gaps:
             print(gap, file=sys.stderr)
         print("DATA COVERAGE: %d gap(s) found (inventory declares ✓ but "
               "no active data case); see above for details"
               % len(data_coverage_gaps), file=sys.stderr)
+        sys.exit(1)
 
     if errors:
         for err in errors:

@@ -177,18 +177,18 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `(insn, format)`
 | `cs.p-rd` | `rrrr` | `reg-cond-assign.yaml` | ✓ | ✓ | ✓ | — | deferred C-27 | overlap（C-27 条件赋值快照）deferred |
 | `cs.eq-rd` | `rrrr` | `reg-cond-assign.yaml` | ✓ | ✓ | ✓ | — | deferred C-27 | overlap（C-27 条件赋值快照）deferred |
 | `cs.ne-rd` | `rrrr` | `reg-cond-assign.yaml` | ✓ | ✓ | ✓ | — | deferred C-27 | overlap（C-27 条件赋值快照）deferred |
-| `br.n-rd` | `riii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `br.nn-rd` | `riii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `br.z-rd` | `riii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `br.nz-rd` | `riii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `br.p-rd` | `riii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `br.np-rd` | `riii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `br.eq-rd` | `rrii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `br.ne-rd` | `rrii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `jump-iiii` | `iiii` | `ctrl-jump.yaml` | ✓ | ✓ | ✓ | — | — |  |
+| `br.n-rd` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | legality 不适用：br.* 目标恒 4 对齐（无 IALIGN），无 legality 规则适用；boundary 补 UNMAPPED case |
+| `br.nn-rd` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
+| `br.z-rd` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
+| `br.nz-rd` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
+| `br.p-rd` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
+| `br.np-rd` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
+| `br.eq-rd` | `rrii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
+| `br.ne-rd` | `rrii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
+| `jump-iiii` | `iiii` | `ctrl-jump.yaml` | ✓ | — | ✓ | ✓ | — | legality 不适用：目标恒 4 对齐（无 IALIGN）、48 位不溢出；boundary 补 UNMAPPED case |
 | `jump-rrii` | `rrii` | `ctrl-jump.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `br.z-rb` | `riii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `br.nz-rb` | `riii` | `ctrl-br.yaml` | ✓ | ✓ | ✓ | — | — |  |
+| `br.z-rb` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | legality 不适用：br.* 目标恒 4 对齐（无 IALIGN），无 legality 规则适用；boundary 补 UNMAPPED case |
+| `br.nz-rb` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
 | `call-iiii` | `iiii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `call-rrii` | `rrii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `ret-riii` | `riii` | `ctrl-ret.yaml` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`） |

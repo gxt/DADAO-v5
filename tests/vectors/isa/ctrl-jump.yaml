@@ -33,6 +33,21 @@
     no state change'
   spec_cite: SimRISC-02 §无条件跳转指令; ADR-0004 D6.5
   status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x70FFF000'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: iiii
+  input_state: {}
+  insn: jump-iiii
+  mnemonic: jump
+  notes: 'boundary UNMAPPED: imms24=-0x1000, target=rb0+(imms24<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000 → beyond RAM (0xFFFF_00FF_FFFF)
+    → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §无条件跳转指令; ADR-0004 D5.6
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:

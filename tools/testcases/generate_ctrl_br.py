@@ -37,6 +37,19 @@ IMM_TAKEN = 2                   # imm for taken path (not 0, not 1)
 TARGET_TAKEN = "0x%012X" % (RB0 + (IMM_TAKEN << 2))   # 0xffff00000008
 TARGET_NOT_TAKEN = "0x%012X" % (RB0 + 4)               # 0xffff00000004
 
+# Boundary: negative imm → target = rb0 + (imm << 2) falls outside RAM (0xFFFF_00FF_FFFF)
+# riii: imms18 = -0x1000 (18-bit: 0x3F000) → target = RB0 + (-4096 << 2) = RB0 - 0x4000
+#        = 0xFFFE_FFFF_C000 (48-bit valid, below RAM → UNMAPPED)
+# rrii: imms12 = -0x400 (12-bit: 0xC00) → target = RB0 + (-1024 << 2) = RB0 - 0x1000
+#        = 0xFFFE_FFFF_F000 (48-bit valid, below RAM → UNMAPPED)
+IMM_BOUNDARY_RIII = (-0x1000) & 0x3FFFF   # 0x3F000
+IMM_BOUNDARY_RRII = (-0x400) & 0xFFF      # 0xC00
+# Sign-extend: for n-bit value, if bit (n-1) set → val - (1 << n)
+_imm18_s = IMM_BOUNDARY_RIII - (1 << 18) if IMM_BOUNDARY_RIII & (1 << 17) else IMM_BOUNDARY_RIII
+TARGET_BOUNDARY_RIII = "0x%012X" % ((RB0 + (_imm18_s << 2)) & 0xFFFFFFFFFFFF)
+_imm12_s = IMM_BOUNDARY_RRII - (1 << 12) if IMM_BOUNDARY_RRII & (1 << 11) else IMM_BOUNDARY_RRII
+TARGET_BOUNDARY_RRII = "0x%012X" % ((RB0 + (_imm12_s << 2)) & 0xFFFFFFFFFFFF)
+
 SPEC_CITE_RD = "SimRISC-02 §条件跳转指令; ADR-0004 D6.5"
 SPEC_CITE_RB = "SimRISC-02 §条件跳转指令; ADR-0004 D6.5"
 
@@ -280,16 +293,87 @@ def _gen_rrii(identity, mnem, op):
     return cases
 
 
+def _gen_boundary_riii(identity, mnem, op, is_rb):
+    """Generate boundary case for riii branch: target in unmapped address → UNMAPPED.
+    Condition must be TRUE so the branch is TAKEN and reaches the unmapped target."""
+    cases = []
+    sc = "SimRISC-02 §条件跳转指令; ADR-0004 D5"
+    if is_rb:
+        reg = 3
+        word = _build_word_riii(op, reg, IMM_BOUNDARY_RIII)
+        if identity == "br.z-rb":
+            inp = {"rb": {"rb3": "0x0000000000000000"}}  # rb3=0 → br.z TRUE
+            reg_label = "rb3=0(==0)"
+        else:  # br.nz-rb
+            inp = {"rb": {"rb3": "0x0000000000000001"}}  # rb3=1 → br.nz TRUE
+            reg_label = "rb3=1(!=0)"
+    else:
+        # Per-identity condition-true values:
+        #   br.n:  rdha=1, rd1=-1 (<0)    br.nn: rdha=0, rd0=0 (>=0)
+        #   br.z:  rdha=0, rd0=0 (==0)    br.nz: rdha=1, rd1=1 (!=0)
+        #   br.p:  rdha=1, rd1=1 (>0)     br.np: rdha=0, rd0=0 (<=0)
+        if identity == "br.n-rd":
+            reg = 1
+            inp = {"rd": {"rd1": "0xFFFFFFFFFFFFFFFF"}}
+            reg_label = "rd1=-1(<0)"
+        elif identity in ("br.nn-rd", "br.z-rd", "br.np-rd"):
+            reg = 0  # rdha=0 → uses rd0 (hardwired 0)
+            inp = {}
+            reg_label = "rd0=0(hardwired)"
+        elif identity in ("br.nz-rd", "br.p-rd"):
+            reg = 1
+            inp = {"rd": {"rd1": "0x0000000000000001"}}
+            reg_label = "rd1=1(>0/!=0)"
+        else:
+            reg = 0
+            inp = {}
+            reg_label = "rd0=0"
+        word = _build_word_riii(op, reg, IMM_BOUNDARY_RIII)
+    cases.append(_case(mnem, identity, "riii", "boundary", word, inp,
+                       {}, "UNMAPPED", None, sc,
+                       "boundary UNMAPPED: %s → condition TRUE → TAKEN; "
+                       "imms18=-0x1000 (0x3F000), "
+                       "target=rb0+(imm<<2)=0x%012X+(-0x4000)=0x%012X → "
+                       "below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)"
+                       % (reg_label, RB0, int(TARGET_BOUNDARY_RIII, 16))))
+    return cases
+
+
+def _gen_boundary_rrii(identity, mnem, op):
+    """Generate boundary case for rrii branch: target in unmapped address → UNMAPPED."""
+    cases = []
+    sc = "SimRISC-02 §条件跳转指令; ADR-0004 D5"
+    # br.eq/br.ne: rdha=1, rdhb=1 → br.eq taken (equal), br.ne not-taken
+    # Use rdha=1, rdhb=1 → br.eq always taken, br.ne always not-taken
+    # For boundary, we need taken → use rdha=1, rdhb=1 for br.eq; rdha=1, rdhb=2 for br.ne
+    if "br.eq" in identity:
+        word = _build_word_rrii(op, 1, 1, IMM_BOUNDARY_RRII)
+        inp = {"rd": {"rd1": "0x0000000000000042"}}
+    else:  # br.ne
+        word = _build_word_rrii(op, 1, 2, IMM_BOUNDARY_RRII)
+        inp = {"rd": {"rd1": "0x0000000000000042", "rd2": "0x0000000000000099"}}
+    cases.append(_case(mnem, identity, "rrii", "boundary", word, inp,
+                       {}, "UNMAPPED", None, sc,
+                       "boundary UNMAPPED: imms12=-0x400 (0xC00), "
+                       "target=rb0+(imm<<2)=0x%012X+(-0x1000)=0x%012X → "
+                       "beyond RAM (0xFFFF_00FF_FFFF) → UNMAPPED (0x87)"
+                       % (RB0, int(TARGET_BOUNDARY_RRII, 16))))
+    return cases
+
+
 # ── Main ──────────────────────────────────────────────────────────────
 def main():
     all_cases = []
     for identity, mnem, fmt, op, is_rb in BR_IDENTITIES:
         if fmt == "riii" and not is_rb:
             all_cases.extend(_gen_riii_rd(identity, mnem, op))
+            all_cases.extend(_gen_boundary_riii(identity, mnem, op, is_rb))
         elif fmt == "riii" and is_rb:
             all_cases.extend(_gen_riii_rb(identity, mnem, op))
+            all_cases.extend(_gen_boundary_riii(identity, mnem, op, is_rb))
         elif fmt == "rrii":
             all_cases.extend(_gen_rrii(identity, mnem, op))
+            all_cases.extend(_gen_boundary_rrii(identity, mnem, op))
 
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(OUT_FILE, "w") as f:
@@ -304,9 +388,10 @@ def main():
     # Summary
     n_enc = sum(1 for c in all_cases if c["class"] == "encoding")
     n_sem = sum(1 for c in all_cases if c["class"] == "semantic")
+    n_bnd = sum(1 for c in all_cases if c["class"] == "boundary")
     n_taken = sum(1 for c in all_cases if c["class"] == "semantic" and "taken:" in c.get("notes", "") and "not-taken:" not in c.get("notes", ""))
-    print("Wrote %s: %d cases (%d encoding, %d semantic [taken=%d, not-taken=%d])" % (
-        OUT_FILE, len(all_cases), n_enc, n_sem, n_taken, n_sem - n_taken))
+    print("Wrote %s: %d cases (%d encoding, %d semantic [taken=%d, not-taken=%d], %d boundary)" % (
+        OUT_FILE, len(all_cases), n_enc, n_sem, n_taken, n_sem - n_taken, n_bnd))
     print("Identities covered: %d" % len(BR_IDENTITIES))
     return 0
 

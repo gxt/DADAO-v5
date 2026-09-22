@@ -129,6 +129,12 @@ SC_RET_LEG = "SimRISC-02 §函数返回; §5.6.2; ADR-0004 D5.5"
 def _gen_jump_iiii():
     op = int(BY_KEY[("jump-iiii", "iiii")]["op"], 16)
     word = _build_word_iiii(op, IMM)
+    # Boundary: imms24 = -0x1000 → target = RB0 + (-4096 << 2) = RB0 - 0x4000
+    # = 0xFFFE_FFFF_C000 (48-bit valid, below RAM → UNMAPPED)
+    boundary_imm = (-0x1000) & 0xFFFFFF  # 24-bit signed
+    boundary_word = _build_word_iiii(op, boundary_imm)
+    imm_s = boundary_imm - (1 << 24) if boundary_imm & (1 << 23) else boundary_imm
+    target_boundary = "0x%012X" % ((RB0 + (imm_s << 2)) & 0xFFFFFFFFFFFF)
     return [
         _case("encoding", "jump-iiii", "iiii", word, {}, None,
               None, None, SC_JUMP,
@@ -139,6 +145,12 @@ def _gen_jump_iiii():
               "semantic: rb0=0xFFFF00000000 (RAM entry, ADR-0004 D2.2), "
               "imms24=2, Addr=rb0+(imms24<<2)=0xFFFF00000000+8="
               "0xFFFF00000008; no state change"),
+        _case("boundary", "jump-iiii", "iiii", boundary_word, {}, {},
+              "UNMAPPED", None, SC_JUMP_LEG,
+              "boundary UNMAPPED: imms24=-0x1000, "
+              "target=rb0+(imms24<<2)=0x%012X+(-0x4000)=0x%012X → "
+              "beyond RAM (0xFFFF_00FF_FFFF) → UNMAPPED (0x87)"
+              % (RB0, int(target_boundary, 16))),
     ]
 
 

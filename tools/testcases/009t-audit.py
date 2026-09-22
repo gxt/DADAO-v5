@@ -902,11 +902,13 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
     # ── orri block assignment rd2rd/rd2ra/ra2rd/rb2rb/rd2rb/rb2rd (§3.7/§4.3/§4.9.3) ──
     elif fmt == "orri" and insn in ("rd2rd", "rd2ra", "ra2rd", "rb2rb", "rd2rb", "rb2rd"):
         # Block assignment: copy immu6 registers from src to dst
+        # Sequential semantics (contract-isa.md:467): ascending order,
+        # each pair read-then-write. Overlapping writes are visible to
+        # later reads.
         dst_idx = hb  # bits[17:12]
         src_idx = hc  # bits[11:6]
         immu6 = extract_field(word, fields, "immu6")
         if dst_idx is not None and src_idx is not None and immu6 is not None and immu6 > 0:
-            # Determine source and destination banks
             bank_map = {
                 "rd2rd": ("rd", "rd"),
                 "rd2ra": ("rd", "ra"),
@@ -916,11 +918,25 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
                 "rb2rd": ("rb", "rd"),
             }
             src_bank, dst_bank = bank_map[insn]
-            # Copy each register (sequential read-then-write per contract)
+            # Sequential: read-then-write per pair in ascending order.
+            # Track writes so overlapping reads see updated values.
             for i in range(immu6):
-                src_val = get_reg(src_bank, src_idx + i)
+                # Read source: check expected (already written) first,
+                # then fall back to input_state.
+                src_name = "%s%d" % (src_bank, src_idx + i)
+                if src_bank == "rd":
+                    src_val = expected_rd.get(src_name)
+                elif src_bank == "rb":
+                    src_val = expected_rb.get(src_name)
+                elif src_bank == "ra":
+                    src_val = expected_ra.get(src_name)
+                else:
+                    src_val = None
                 if src_val is None:
-                    break  # Source not available, skip remaining
+                    src_val = get_reg(src_bank, src_idx + i)
+                if src_val is None:
+                    break
+                src_val = _to_int(src_val)
                 dst_name = "%s%d" % (dst_bank, dst_idx + i)
                 if dst_bank == "rd":
                     if dst_idx + i != 0:

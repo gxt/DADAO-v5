@@ -969,6 +969,12 @@ _ILLI_RULES = {
     "dual_dest_both_rd0": "SimRISC-01 §加减操作",
     # orrr rb-dest (rbhb): rb_dest_rb0
     "rb_dest_rb0": "SimRISC-02 §rb0 为目的寄存器约定",
+    # orri block move immu6=0
+    "multi_immu6_zero": "SimRISC-01 §存取RD寄存器",
+    # ra2rd dest rdhb=rd0
+    "ra2rd_dest_rd0": "SimRISC-02 §寄存器组之间块赋值",
+    # ra block immu6=0
+    "ra_multi_immu6_zero": "SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值",
 }
 
 
@@ -1048,6 +1054,149 @@ def gen_riii_boundary_overflow(rec, bank):
     notes = "boundary %s: %s1=INT64_MAX(0x7FFFFFFFFFFFFFFF), imms18=1 → overflow wrap to INT64_MIN(0x8000000000000000)" % (
         mnem, "rd" if bank == "rd" else "rb")
     return _case(mnem, insn, fmt, "boundary", word, inp, out, None,
+                 "active", None, None, sc, notes)
+
+
+# ── Block move legality (TESTCASES-011t) ──────────────────────────────
+def gen_block_legality_multi_immu6_zero(rec):
+    """Legality case for block move (orri): immu6=0 → ILLI.
+    rd2rd/rb2rb/rb2rd/rd2rb: multi_immu6_zero.
+    ra2rd/rd2ra: ra_multi_immu6_zero."""
+    mnem = rec["mnemonic"]
+    insn = rec["insn"]
+    fmt = "orri"
+    if insn in ("ra2rd", "rd2ra"):
+        rule_id = "ra_multi_immu6_zero"
+    else:
+        rule_id = "multi_immu6_zero"
+    rule_cite = _ILLI_RULES[rule_id]
+    sc = rec.get("spec_cite", "")
+    word = _build_word_orri(rec, 1, 3, 0)
+    notes = "legality %s: immu6=0 → ILLI (%s)" % (mnem, rule_id)
+    return _case(mnem, insn, fmt, "legality", word, {}, None, "ILLI",
+                 "active", None, None, "%s; %s" % (sc, rule_cite), notes)
+
+
+def gen_ra2rd_legality_dest_rd0(rec):
+    """Legality case for ra2rd: rdhb=rd0 → ILLI (ra2rd_dest_rd0)."""
+    mnem = rec["mnemonic"]
+    insn = rec["insn"]
+    fmt = "orri"
+    rule_id = "ra2rd_dest_rd0"
+    rule_cite = _ILLI_RULES[rule_id]
+    sc = rec.get("spec_cite", "")
+    word = _build_word_orri(rec, 0, 3, 1)
+    notes = "legality %s: rdhb=rd0 → ILLI (%s)" % (mnem, rule_id)
+    return _case(mnem, insn, fmt, "legality", word, {}, None, "ILLI",
+                 "active", None, None, "%s; %s" % (sc, rule_cite), notes)
+
+
+def gen_rwii_legality_dest_rd0(rec):
+    """Legality case for rwii (rd-dest): rdha=rd0 → ILLI (rd_dest_rd0)."""
+    mnem = rec["mnemonic"]
+    insn = rec["insn"]
+    fmt = "rwii"
+    rule_id = "rd_dest_rd0"
+    rule_cite = _ILLI_RULES[rule_id]
+    sc = rec.get("spec_cite", "")
+    word = _build_word_rwii(rec, 0, 0, 0)
+    notes = "legality %s: rdha=rd0 → ILLI (%s)" % (mnem, rule_id)
+    return _case(mnem, insn, fmt, "legality", word, {}, None, "ILLI",
+                 "active", None, None, "%s; %s" % (sc, rule_cite), notes)
+
+
+def gen_rwii_legality_dest_rb0(rec):
+    """Legality case for rwii (rb-dest): rbha=rb0 → ILLI (rb_dest_rb0)."""
+    mnem = rec["mnemonic"]
+    insn = rec["insn"]
+    fmt = "rwii"
+    rule_id = "rb_dest_rb0"
+    rule_cite = _ILLI_RULES[rule_id]
+    sc = rec.get("spec_cite", "")
+    word = _build_word_rwii(rec, 0, 0, 0)
+    notes = "legality %s: rbha=rb0 → ILLI (%s)" % (mnem, rule_id)
+    return _case(mnem, insn, fmt, "legality", word, {}, None, "ILLI",
+                 "active", None, None, "%s; %s" % (sc, rule_cite), notes)
+
+
+def gen_block_overlap(rec):
+    """Generate overlap case for block move (orri).
+    Sequential semantics (contract-isa.md:467): ascending order, each pair
+    read-then-write. For same-bank overlapping ranges (rd2rd, rb2rb with
+    dst=src+1, count=2), later reads see earlier writes.
+    For cross-bank (rb2rd, rd2rb, ra2rd, rd2ra): no register aliasing,
+    verifies basic block move semantics."""
+    mnem = rec["mnemonic"]
+    insn = rec["insn"]
+    fmt = "orri"
+    sc = rec.get("spec_cite", "")
+
+    count = 2
+    is_same_bank = insn in ("rd2rd", "rb2rb")
+    if insn == "rd2rd":
+        src_bank, dst_bank, src_reg, dst_reg = "rd", "rd", 2, 3
+    elif insn == "rb2rb":
+        src_bank, dst_bank, src_reg, dst_reg = "rb", "rb", 2, 3
+    elif insn == "rb2rd":
+        src_bank, dst_bank, src_reg, dst_reg = "rb", "rd", 3, 3
+    elif insn == "rd2rb":
+        src_bank, dst_bank, src_reg, dst_reg = "rd", "rb", 3, 3
+    elif insn == "ra2rd":
+        src_bank, dst_bank, src_reg, dst_reg = "ra", "rd", 3, 3
+    elif insn == "rd2ra":
+        src_bank, dst_bank, src_reg, dst_reg = "rd", "ra", 3, 3
+    else:
+        return None
+
+    word = _build_word_orri(rec, dst_reg, src_reg, count)
+
+    src_vals = [0x10 + i for i in range(count)]
+    inp = {}
+    if src_bank == "rd":
+        inp["rd"] = {"rd%d" % (src_reg + i): _hex64(src_vals[i]) for i in range(count)}
+    elif src_bank == "rb":
+        inp["rb"] = {"rb%d" % (src_reg + i): _hex64(src_vals[i]) for i in range(count)}
+    elif src_bank == "ra":
+        inp["ra"] = {"ra%d" % (src_reg + i): _hex64(src_vals[i]) for i in range(count)}
+
+    # Sequential semantics: ascending order, read-then-write per pair.
+    # For same-bank overlap (dst=src+1, count=2):
+    #   pair0: read src[0], write dst[0]  → dst[0] = src[0]
+    #   pair1: read src[1] (overlaps dst[0], now has new value), write dst[1]
+    # So dst[1] gets the VALUE JUST WRITTEN to dst[0], not the original src[1].
+    if is_same_bank:
+        # After pair0: dst[0] = original src[0]
+        # pair1: read src[1] which IS dst[0] → reads new value = original src[0]
+        # So dst[1] = original src[0] too
+        final_vals = [src_vals[0], src_vals[0]]  # both get src[0]
+    else:
+        # No aliasing: each dst gets its corresponding src
+        final_vals = list(src_vals)
+
+    out = {"rd": {}, "rb": {}, "ra": {}, "memory": []}
+    if dst_bank == "rd":
+        for i in range(count):
+            out["rd"]["rd%d" % (dst_reg + i)] = _hex64(final_vals[i])
+    elif dst_bank == "rb":
+        for i in range(count):
+            out["rb"]["rb%d" % (dst_reg + i)] = _hex64(final_vals[i])
+    elif dst_bank == "ra":
+        for i in range(count):
+            out["ra"]["ra%d" % (dst_reg + i)] = _hex64(final_vals[i])
+
+    if is_same_bank:
+        notes = ("overlap %s: %s%d..%d → %s%d..%d, count=%d, "
+                 "sequential semantics: dst overlaps src → "
+                 "dst[1] reads dst[0]'s new value" % (
+                     mnem, src_bank, src_reg, src_reg + count - 1,
+                     dst_bank, dst_reg, dst_reg + count - 1, count))
+    else:
+        notes = ("overlap %s: %s%d..%d → %s%d..%d, count=%d, "
+                 "cross-bank no aliasing, verifies basic block move semantics" % (
+                     mnem, src_bank, src_reg, src_reg + count - 1,
+                     dst_bank, dst_reg, dst_reg + count - 1, count))
+
+    return _case(mnem, insn, fmt, "overlap", word, inp, out, None,
                  "active", None, None, sc, notes)
 
 
@@ -1262,6 +1411,40 @@ def generate_file(filename, recs):
         # Only for the 4 target files in this task
         if filename in _TARGET_FILES_010T:
             c = gen_legality_rd0(rec)
+            if c: cases.append(c)
+
+        # ── Legality case (TESTCASES-011t: cs.* rdhb=rd0 → ILLI) ──
+        if is_cond and filename == "reg-cond-assign.yaml":
+            # cs.n/z/p: rdhb is dst → rdhb=0 → ILLI (rd_dest_rd0)
+            # cs.eq/ne: rdhc is dst → rdhc=0 → ILLI (rd_dest_rd0)
+            if "cs.eq" in insn or "cs.ne" in insn:
+                word = _build_word_rrrr(rec, 1, 2, 0, 3)  # rdhc=0 (dst=rd0)
+            else:
+                word = _build_word_rrrr(rec, 1, 0, 3, 4)  # rdhb=0 (dst=rd0)
+            rule_id = "rd_dest_rd0"
+            rule_cite = _ILLI_RULES[rule_id]
+            sc = rec.get("spec_cite", "")
+            notes = "legality %s: dest=rd0 → ILLI (%s)" % (mnem, rule_id)
+            cases.append(_case(mnem, insn, fmt, "legality", word, {}, None, "ILLI",
+                               "active", None, None, "%s; %s" % (sc, rule_cite), notes))
+
+        # ── Legality case (TESTCASES-011t: reg-imm-block) ──
+        if is_block and filename == "reg-imm-block.yaml":
+            # orri block moves: immu6=0 → ILLI
+            cases.append(gen_block_legality_multi_immu6_zero(rec))
+            # ra2rd additional: rdhb=rd0 → ILLI
+            if insn == "ra2rd":
+                cases.append(gen_ra2rd_legality_dest_rd0(rec))
+        if is_imm_block and filename == "reg-imm-block.yaml":
+            # rwii: rd/rb dest = rd0/rb0 → ILLI
+            if "-rd" in insn:
+                cases.append(gen_rwii_legality_dest_rd0(rec))
+            elif "-rb" in insn:
+                cases.append(gen_rwii_legality_dest_rb0(rec))
+
+        # ── Overlap case (TESTCASES-011t: block move overlap) ──
+        if is_block and filename == "reg-imm-block.yaml":
+            c = gen_block_overlap(rec)
             if c: cases.append(c)
 
         # ── Boundary overflow case for add.si-rd / add.si-rb (TESTCASES-010t) ──

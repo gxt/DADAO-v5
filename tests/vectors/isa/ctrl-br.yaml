@@ -51,6 +51,23 @@
   notes: 'not-taken: rd1 = 1 (>= 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
   status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x6807F000'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: riii
+  input_state:
+    rd:
+      rd1: '0xFFFFFFFFFFFFFFFF'
+  insn: br.n-rd
+  mnemonic: br.n
+  notes: 'boundary UNMAPPED: rd1=-1(<0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
+    → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -97,6 +114,21 @@
   notes: 'not-taken: rd1 = -1 (< 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
   status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x6903F000'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: riii
+  input_state: {}
+  insn: br.nn-rd
+  mnemonic: br.nn
+  notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
+    → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -141,6 +173,21 @@
   mnemonic: br.z
   notes: 'not-taken: rd1 = 1 (!= 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x6A03F000'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: riii
+  input_state: {}
+  insn: br.z-rd
+  mnemonic: br.z
+  notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
+    → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
   status: active
 - class: encoding
   deferred_reason: null
@@ -187,6 +234,23 @@
     expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
   status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x6B07F000'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: riii
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+  insn: br.nz-rd
+  mnemonic: br.nz
+  notes: 'boundary UNMAPPED: rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
+    → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -230,6 +294,23 @@
   mnemonic: br.p
   notes: 'not-taken: rd0 = 0 (hardwired, not > 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x6C07F000'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: riii
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+  insn: br.p-rd
+  mnemonic: br.p
+  notes: 'boundary UNMAPPED: rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
+    → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
   status: active
 - class: encoding
   deferred_reason: null
@@ -275,6 +356,21 @@
   mnemonic: br.np
   notes: 'not-taken: rd1 = 1 (> 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x6D03F000'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: riii
+  input_state: {}
+  insn: br.np-rd
+  mnemonic: br.np
+  notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
+    → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
   status: active
 - class: encoding
   deferred_reason: null
@@ -326,6 +422,23 @@
   notes: 'not-taken: rd1=0x42 != rd2=0x99 → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
   status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x6E041C00'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: rrii
+  input_state:
+    rd:
+      rd1: '0x0000000000000042'
+  insn: br.eq-rd
+  mnemonic: br.eq
+  notes: 'boundary UNMAPPED: imms12=-0x400 (0xC00), target=rb0+(imm<<2)=0xFFFF00000000+(-0x1000)=0xFFFEFFFFF000 → beyond RAM
+    (0xFFFF_00FF_FFFF) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -376,6 +489,24 @@
   notes: 'not-taken: rd1 == rd1 (same register, always equal) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
   status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x6F042C00'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: rrii
+  input_state:
+    rd:
+      rd1: '0x0000000000000042'
+      rd2: '0x0000000000000099'
+  insn: br.ne-rd
+  mnemonic: br.ne
+  notes: 'boundary UNMAPPED: imms12=-0x400 (0xC00), target=rb0+(imm<<2)=0xFFFF00000000+(-0x1000)=0xFFFEFFFFF000 → beyond RAM
+    (0xFFFF_00FF_FFFF) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -424,6 +555,23 @@
   notes: 'not-taken: rb3 = 1 (!= 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
   status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x720FF000'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: riii
+  input_state:
+    rb:
+      rb3: '0x0000000000000000'
+  insn: br.z-rb
+  mnemonic: br.z
+  notes: 'boundary UNMAPPED: rb3=0(==0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
+    → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -471,4 +619,21 @@
   mnemonic: br.nz
   notes: 'not-taken: rb3 = 0 → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D6.5
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x730FF000'
+  expected_fault: UNMAPPED
+  expected_pc: null
+  expected_state: {}
+  format: riii
+  input_state:
+    rb:
+      rb3: '0x0000000000000001'
+  insn: br.nz-rb
+  mnemonic: br.nz
+  notes: 'boundary UNMAPPED: rb3=1(!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
+    → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
+  spec_cite: SimRISC-02 §条件跳转指令; ADR-0004 D5
   status: active

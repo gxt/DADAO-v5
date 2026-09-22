@@ -40,6 +40,20 @@
   notes: 'cs.n: rd1=0xffffffffffffffff → taken, rd3/rd4→rd2'
   spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x600400C4'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state: {}
+  insn: cs.n-rd
+  mnemonic: cs.n
+  notes: 'legality cs.n: dest=rd0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -77,6 +91,20 @@
   mnemonic: cs.z
   notes: 'cs.z: rd1=0x0 → taken, rd3/rd4→rd2'
   spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x620400C4'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state: {}
+  insn: cs.z-rd
+  mnemonic: cs.z
+  notes: 'legality cs.z: dest=rd0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -116,6 +144,20 @@
   notes: 'cs.p: rd1=0x1 → taken, rd3/rd4→rd2'
   spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x640400C4'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state: {}
+  insn: cs.p-rd
+  mnemonic: cs.p
+  notes: 'legality cs.p: dest=rd0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -154,6 +196,20 @@
   notes: 'cs.eq: rd1=0x2a, rd2=0x2a → taken, rd4→rd3'
   spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x66042003'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state: {}
+  insn: cs.eq-rd
+  mnemonic: cs.eq
+  notes: 'legality cs.eq: dest=rd0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -191,6 +247,20 @@
   mnemonic: cs.ne
   notes: 'cs.ne: rd1=0x2a, rd2=0x63 → taken, rd4→rd3'
   spec_cite: SimRISC-01 §条件赋值：Conditional Assignment
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x67042003'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rrrr
+  input_state: {}
+  insn: cs.ne-rd
+  mnemonic: cs.ne
+  notes: 'legality cs.ne: dest=rd0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: overlap
   deferred_reason: C-27

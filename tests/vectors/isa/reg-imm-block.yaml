@@ -37,6 +37,20 @@
   notes: 'or.w: wp0, immu16=0xFF00, rd1(old)=0xff00ff00ff00ff'
   spec_cite: SimRISC-01 §立即数常数赋值：Immediate constant
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x48000000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rwii
+  input_state: {}
+  insn: or.w-rd
+  mnemonic: or.w
+  notes: 'legality or.w: rdha=rd0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §立即数常数赋值：Immediate constant; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -71,6 +85,20 @@
   mnemonic: andn.w
   notes: 'andn.w: wp0, immu16=0xFF00, rd1(old)=0xffffffffffffffff'
   spec_cite: SimRISC-01 §立即数常数赋值：Immediate constant
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x49000000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rwii
+  input_state: {}
+  insn: andn.w-rd
+  mnemonic: andn.w
+  notes: 'legality andn.w: rdha=rd0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §立即数常数赋值：Immediate constant; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -107,6 +135,20 @@
   notes: 'or.w: wp0, immu16=0xFF00, rb1(old)=0xff00ff00ff00ff'
   spec_cite: SimRISC-02 §立即数常数赋值：Immediate constant
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x4A000000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rwii
+  input_state: {}
+  insn: or.w-rb
+  mnemonic: or.w
+  notes: 'legality or.w: rbha=rb0 → ILLI (rb_dest_rb0)'
+  spec_cite: SimRISC-02 §立即数常数赋值：Immediate constant; SimRISC-02 §rb0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -141,6 +183,20 @@
   mnemonic: andn.w
   notes: 'andn.w: wp0, immu16=0xFF00, rb1(old)=0xffffffffffffffff'
   spec_cite: SimRISC-02 §立即数常数赋值：Immediate constant
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x4B000000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rwii
+  input_state: {}
+  insn: andn.w-rb
+  mnemonic: andn.w
+  notes: 'legality andn.w: rbha=rb0 → ILLI (rb_dest_rb0)'
+  spec_cite: SimRISC-02 §立即数常数赋值：Immediate constant; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -177,6 +233,20 @@
   notes: 'set.zw: wp0, immu16=0x1234, rd1(old)=0x0'
   spec_cite: SimRISC-01 §立即数常数赋值：Immediate constant
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x4C000000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rwii
+  input_state: {}
+  insn: set.zw-rd
+  mnemonic: set.zw
+  notes: 'legality set.zw: rdha=rd0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §立即数常数赋值：Immediate constant; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -211,6 +281,20 @@
   mnemonic: set.ow
   notes: 'set.ow: wp0, immu16=0x1234, rd1(old)=0x0'
   spec_cite: SimRISC-01 §立即数常数赋值：Immediate constant
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x4D000000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rwii
+  input_state: {}
+  insn: set.ow-rd
+  mnemonic: set.ow
+  notes: 'legality set.ow: rdha=rd0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §立即数常数赋值：Immediate constant; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -247,6 +331,20 @@
   notes: 'set.zw: wp0, immu16=0x1234, rb1(old)=0x0'
   spec_cite: SimRISC-02 §立即数常数赋值：Immediate constant
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x4E000000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rwii
+  input_state: {}
+  insn: set.zw-rb
+  mnemonic: set.zw
+  notes: 'legality set.zw: rbha=rb0 → ILLI (rb_dest_rb0)'
+  spec_cite: SimRISC-02 §立即数常数赋值：Immediate constant; SimRISC-02 §rb0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -280,6 +378,43 @@
   insn: rd2rd
   mnemonic: rd2rd
   notes: 'rd2rd: rd3..3 → rd1..1, count=1'
+  spec_cite: SimRISC-01 §寄存器组之间块赋值
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40B010C0'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: rd2rd
+  mnemonic: rd2rd
+  notes: 'legality rd2rd: immu6=0 → ILLI (multi_immu6_zero)'
+  spec_cite: SimRISC-01 §寄存器组之间块赋值; SimRISC-01 §存取RD寄存器
+  status: active
+- class: overlap
+  deferred_reason: null
+  encoding:
+    word: '0x40B03082'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd3: '0x0000000000000010'
+      rd4: '0x0000000000000010'
+  format: orri
+  input_state:
+    rd:
+      rd2: '0x0000000000000010'
+      rd3: '0x0000000000000011'
+  insn: rd2rd
+  mnemonic: rd2rd
+  notes: 'overlap rd2rd: rd2..3 → rd3..4, count=2, sequential semantics: dst overlaps src → dst[1] reads dst[0]''s new value'
   spec_cite: SimRISC-01 §寄存器组之间块赋值
   status: active
 - class: encoding
@@ -317,6 +452,43 @@
   notes: 'rd2ra: rd3..3 → ra1..1, count=1'
   spec_cite: SimRISC-02 §寄存器组之间块赋值
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40B410C0'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: rd2ra
+  mnemonic: rd2ra
+  notes: 'legality rd2ra: immu6=0 → ILLI (ra_multi_immu6_zero)'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值
+  status: active
+- class: overlap
+  deferred_reason: null
+  encoding:
+    word: '0x40B430C2'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra:
+      ra3: '0x0000000000000010'
+      ra4: '0x0000000000000011'
+    rb: {}
+    rd: {}
+  format: orri
+  input_state:
+    rd:
+      rd3: '0x0000000000000010'
+      rd4: '0x0000000000000011'
+  insn: rd2ra
+  mnemonic: rd2ra
+  notes: 'overlap rd2ra: rd3..4 → ra3..4, count=2, cross-bank no aliasing, verifies basic block move semantics'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -350,6 +522,57 @@
   insn: ra2rd
   mnemonic: ra2rd
   notes: 'ra2rd: ra3..3 → rd1..1, count=1'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40B810C0'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ra2rd
+  mnemonic: ra2rd
+  notes: 'legality ra2rd: immu6=0 → ILLI (ra_multi_immu6_zero)'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40B800C1'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ra2rd
+  mnemonic: ra2rd
+  notes: 'legality ra2rd: rdhb=rd0 → ILLI (ra2rd_dest_rd0)'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §寄存器组之间块赋值
+  status: active
+- class: overlap
+  deferred_reason: null
+  encoding:
+    word: '0x40B830C2'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd3: '0x0000000000000010'
+      rd4: '0x0000000000000011'
+  format: orri
+  input_state:
+    ra:
+      ra3: '0x0000000000000010'
+      ra4: '0x0000000000000011'
+  insn: ra2rd
+  mnemonic: ra2rd
+  notes: 'overlap ra2rd: ra3..4 → rd3..4, count=2, cross-bank no aliasing, verifies basic block move semantics'
   spec_cite: SimRISC-02 §寄存器组之间块赋值
   status: active
 - class: encoding
@@ -387,6 +610,43 @@
   notes: 'rb2rb: rb3..3 → rb1..1, count=1'
   spec_cite: SimRISC-02 §寄存器组之间块赋值
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40D010C0'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: rb2rb
+  mnemonic: rb2rb
+  notes: 'legality rb2rb: immu6=0 → ILLI (multi_immu6_zero)'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-01 §存取RD寄存器
+  status: active
+- class: overlap
+  deferred_reason: null
+  encoding:
+    word: '0x40D03082'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb:
+      rb3: '0x0000000000000010'
+      rb4: '0x0000000000000010'
+    rd: {}
+  format: orri
+  input_state:
+    rb:
+      rb2: '0x0000000000000010'
+      rb3: '0x0000000000000011'
+  insn: rb2rb
+  mnemonic: rb2rb
+  notes: 'overlap rb2rb: rb2..3 → rb3..4, count=2, sequential semantics: dst overlaps src → dst[1] reads dst[0]''s new value'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -422,6 +682,43 @@
   notes: 'rd2rb: rd3..3 → rb1..1, count=1'
   spec_cite: SimRISC-02 §寄存器组之间块赋值
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40D410C0'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: rd2rb
+  mnemonic: rd2rb
+  notes: 'legality rd2rb: immu6=0 → ILLI (multi_immu6_zero)'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-01 §存取RD寄存器
+  status: active
+- class: overlap
+  deferred_reason: null
+  encoding:
+    word: '0x40D430C2'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb:
+      rb3: '0x0000000000000010'
+      rb4: '0x0000000000000011'
+    rd: {}
+  format: orri
+  input_state:
+    rd:
+      rd3: '0x0000000000000010'
+      rd4: '0x0000000000000011'
+  insn: rd2rb
+  mnemonic: rd2rb
+  notes: 'overlap rd2rb: rd3..4 → rb3..4, count=2, cross-bank no aliasing, verifies basic block move semantics'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -455,5 +752,42 @@
   insn: rb2rd
   mnemonic: rb2rd
   notes: 'rb2rd: rb3..3 → rd1..1, count=1'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40D810C0'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: rb2rd
+  mnemonic: rb2rd
+  notes: 'legality rb2rd: immu6=0 → ILLI (multi_immu6_zero)'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-01 §存取RD寄存器
+  status: active
+- class: overlap
+  deferred_reason: null
+  encoding:
+    word: '0x40D830C2'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd3: '0x0000000000000010'
+      rd4: '0x0000000000000011'
+  format: orri
+  input_state:
+    rb:
+      rb3: '0x0000000000000010'
+      rb4: '0x0000000000000011'
+  insn: rb2rd
+  mnemonic: rb2rd
+  notes: 'overlap rb2rd: rb3..4 → rd3..4, count=2, cross-bank no aliasing, verifies basic block move semantics'
   spec_cite: SimRISC-02 §寄存器组之间块赋值
   status: active
