@@ -16,7 +16,7 @@
   - `.tao/knowledge/contract-elf.md`、`contract-abi.md`、`contract-isa.md`
   - `contracts/opcodes.yaml`、`tests/vectors/**`（schema）
   - `components/llvm-project/patches/*`、`components/qemu/patches/*`（两侧实现）
-- 输出：接口对齐核对清单/脚本（落在 `tests/e2e/` 或 `tools/integ/`），逐条给出「一致 / 不一致 + 证据」
+- 输出：接口对齐核对清单（`docs/integ-interface-alignment.md`）+ 可复跑核对脚本（`tools/integ/`，随产物入库）+ 逐条「一致 / 不一致 + 证据」
 - 约束：
   - **只核对、不修改**两侧实现或合约（发现不一致则报告，走变更流程）
   - 核对项须**机械可判定**（字段/格式/取值比对），不靠人眼
@@ -50,8 +50,8 @@
 
 ## 交付物
 
-- 跨模块接口对齐核对清单（含每项的「一致/不一致 + 证据」）
-- 可复跑的核对脚本（对机械可判定项）
+- `docs/integ-interface-alignment.md`：跨模块接口对齐核对清单（每项：接口 / 来源 ADR 或合约 / 两侧取值 / 判定 / 证据）
+- `tools/integ/`：可复跑的核对脚本（对机械可判定项；**随产物入库**，非 `/tmp`）
 - 完成区附真实核对输出
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
@@ -66,6 +66,8 @@
 2. **期望值独立**：接口期望值来自 ADR/合约，不从实现反推。
 3. **机械优先**：能脚本化的项不靠人眼；无法机械化的项须显式说明。
 4. **与 `INTEG-002t` 分工**：本任务做**静态**核对；`INTEG-002t` 做**动态** E2E。
+5. **脚本须能失败**：只报「一致」的脚本不是证据（AGENTS.md 反例门控）；须按验收第 6 条注入反例验证判别力。
+6. **期望值独立**：ELF 字段期望值取自 `adr-0003-object-abi.md` / `contract-elf.md`；schema 字段名取自 `tests/vectors/schema.md`；**不得**从 `llvm-mc`/QEMU 的实际输出反推期望（那会变成同源同错）。
 
 ## 参考
 
@@ -80,6 +82,7 @@
 3. 未修改两侧实现/合约（diff 确认）
 4. 完成区粘贴真实核对输出，数字来自实跑
 5. 未自行 commit
+6. **反例门控（AGENTS.md 强制）**：核对脚本必须**能失败**——至少注入 3 组反例并给出**真实 FAIL 输出**，例如：① 篡改 ELF 头某字段期望值（如把 `e_flags` 期望改为 `0x02`）→ 脚本报不一致；② 在向量 schema 里改/删一个 harness 消费的字段名 → 脚本报不一致；③ 在 `contracts/opcodes.yaml` 与某一侧实现之间制造一处编码/助记符不一致 → 脚本报不一致。反例须在**临时副本**注入，**还原后**复跑全绿，并给出还原证据（`git status`/`git diff` 空）
 
 ## 完成区
 
