@@ -3,7 +3,7 @@
 **模块**：integ
 **项目里程碑**：M1
 **依赖**：`LLVM-014m`、`QEMU-021m`、`SPEC-006t`
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 
@@ -464,3 +464,23 @@ PASS: DADAO-E2E :: smoke_add.test (3 of 3)
 **3. 验收可执行性** — 1–7 条**全部「现在可跑」**，无 BLOCKED。验收 6 为条件性（`llvm-mc` 已可汇编 ⇒ 不需 raw 过渡）。
 
 **4. 与 spec/vectors 一致** — 助记符（`add.si`/`jump`/`st.o`）、§5.3、ADR-0004 D3/D5、ADR-0009 D2/D3 均一致（订正 #2/#3 后）。
+
+---
+
+## 验收结论（2026-09-22，主会话；reviewer 两轮独立验收）
+
+**判决**：**Accepted**（第 1 轮 Accepted 但主会话指出 2 项 → 返工 → 第 2 轮 Accepted）。
+
+**全链路（reviewer 亲自重跑）**：3 场景 `.s` → `llvm-mc --triple=dadao-unknown-elf -filetype=obj` → `llvm-objcopy -O binary --only-section=.text` → `qemu-system-dadao -M dadao-m1 -bios trampoline.bin -kernel <bin>` → 退出码均 **`0x00`** ✓（成功 = `0x00`，按 ADR-0004 D5 分区）。
+
+**返工项（主会话发现）**：
+1. `.test` 原**自行内联汇编**，`tests/e2e/*.s` 未被任何测试引用（死文件）⇒ 改为 RUN 行汇编 `%e2e_dir/smoke_*.s`（`lit.cfg.py` 加 `%e2e_dir`）✓；
+2. RUN 行缺 `timeout` ⇒ 加 `timeout 30`（reviewer 实测死循环 → lit 级 `Exit Code: 124`，30s FAIL 而非挂起）✓。
+
+**反例门控（reviewer 亲自注入 `.s`）**：CE-1（`smoke_arith.s` `add.si 7→8`）/CE-2（`smoke_jump.s` `jump 2→1`）/CE-3（`smoke_add.s` 比较目标 `55→56`）均 `Exit Code: 1`、`lit exit=1`；还原证据（`git status --porcelain` 空 + `md5sum -c`）✓。
+
+**命令核验**：`llvm-lit tests/lit/E2E/` **3/3**；`llvm-lit tests/lit/MC/Dadao/` 17/17（无回归）；`make check` PASS；`tests/vectors/isa/*.yaml` 未改 ✓。
+
+**engineer 发现（另行处置）**：`llvm-mc` 把 `wpN` 静默编码为 `wp0` ⇒ 已新建 **`LLVM-013t`** 修复（已 `已验证`）；`st.o rd0` → ILLI（符合 §4.1.1 legality，预期）。
+
+**结论**：置 `已验证`。
