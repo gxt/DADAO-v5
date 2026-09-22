@@ -5,6 +5,27 @@
 **依赖**：`SPEC-010t`（spec 冻结）
 **状态**：待开始
 
+## 预检订正（2026-09-21，下发前，含用户裁定）
+
+> 本节优先级高于下文旧文本；冲突时以本节为准。
+
+**P1 — 枚举 `contract-*.md` 时排除 `contract-authoring.md`**（用户裁定）：
+- 实测 `contract-*.md` 有 **4 个**，其中 **`contract-authoring.md` 无任何来源头**（它是**合约编写规范/模板**，非合约）⇒ fail-closed 检查器必然对它 ERROR ✗
+- **处置**：脚本内置**显式排除名单**（当前 = `contract-authoring.md`），并在报告中**注明被排除的文件与理由**；其余 **3 个**（`contract-isa.md`/`contract-abi.md`/`contract-elf.md`）**强制分类**，未知/缺失来源 → ERROR
+- **不得**用宽泛模式（如「无 `> **版本**` 就跳过」）替代显式名单 ✗（那会退化为 fail-open）
+
+**P2 — ADR 状态按中文形态解析**（用户裁定）：
+- 实测 12 个 ADR 用 **`**状态**：Accepted`**（中文）✓；**仓库无** `Status: Accepted` 英文形态 ✗ ⇒ 任务书旧文「`Status: Accepted`」不适用
+- **处置**：解析 `**状态**：Accepted`（建议兼容英文 `Status: Accepted` 作防御）；**非 Accepted** → ERROR（实测 12 个中 **11 个** Accepted，1 个非 Accepted ⇒ 若某合约引用该 ADR 则应报错）
+
+**P3 — 版本表映射须显式定义**：
+- README 版本表组件名 = `SimRISC` / `AEE / ABI` / `SEE / SBI` / `HEE / HBI` ✓；合约头引用的 spec 文件名 = `SimRISC-00` / `DADAO-21` / `DADAO-11` … ✗（命名不同）
+- 实测：`contract-isa.md` `> **版本：0.5.3**` ↔ `SimRISC 0.5.3` ✓；`contract-abi.md` `> **版本：0.9.2**` ↔ `AEE / ABI 0.9.2` ✓
+- ⇒ 脚本须**显式定义映射**（如 `SimRISC-0x`→`SimRISC`、`DADAO-11/21`→`AEE / ABI`、`DADAO-12/22`→`SEE / SBI`、`DADAO-13/23`→`HEE / HBI`），并在报告中给出每个合约的映射依据；**不得**靠模糊匹配
+
+**P4 — `make check` 现红（须知悉）**：
+- 当前 `make check` **因 `ISS-056`（`fence`）为红** ✓（见 `docs/issues.yaml`）⇒ 本任务把 `check-spec-drift` 接入 `make check` 后，红因可能**叠加** ⇒ 完成区须**分别说明**「drift check 自身是否 PASS」与「`make check` 整体状态及红因构成」，**不得**把既有红因误记为本任务引入 ✗
+
 ## 执行环境
 
 **执行环境**：本地
