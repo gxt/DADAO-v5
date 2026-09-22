@@ -22,7 +22,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-qemu build-gem5 docker-image docker-shell check \
-        validate-vectors check-spec-refs
+        validate-vectors check-spec-refs check-spec-drift
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -48,6 +48,7 @@ help:
 	@echo "  make clean-work      Remove generated .work content only"
 	@echo "  make validate-vectors  Validate tests/vectors schema/inventory/coverage"
 	@echo "  make check           Run repository-level structural checks"
+	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
 
 manifest-check:
@@ -118,7 +119,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors
+check: manifest-check validate-vectors check-spec-drift
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -127,6 +128,10 @@ check: manifest-check validate-vectors
 # encoding table (contracts/opcodes.yaml) to exist.
 validate-vectors: contracts/opcodes.yaml
 	@$(PYTHON) tools/testcases/validate_vectors.py
+
+# spec drift check (INFRA-012t): fail-closed provenance audit for contract-*.md.
+check-spec-drift:
+	@$(PYTHON) tools/infra/check_spec_drift.py
 
 # spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
 # Standalone target, not part of `make check`.

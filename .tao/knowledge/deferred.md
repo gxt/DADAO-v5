@@ -112,3 +112,4 @@
 - **`check_lit_bytes.py` 的两项可选增强（`LLVM-012t` reviewer 观察，2026-09-21 登记，均非阻断）**：
   1. **无 CLI（`LIT_DIR` 硬编码）**：反例门控只能靠就地注入+还原或模块变量覆写（reviewer 用 `importlib` 覆写 `LIT_DIR` 验证「空 OBJ 集」）。若将来需跨目录/CI 复用，建议加可选 `--lit-dir`（与 `tools/qemu/check_qemu_trans.py` 的 `--src` 一致）。
   2. **独立计数门控的边界**：`N == 独立计数` 能防「解析器失配导致空绿」，但**不能捕获整行 `# OBJ:` 被删除**（N 与计数同降、仍相等）。建议后续加「`# OBJ:` 行数 ≥ 基线下限」或「与 `test_encoding_oracle.py` 用例数交叉核对」。归属：`llvm` 模块。
+- **`check_spec_drift.py` 的 `--test-mode` 自测判别力不足（`INFRA-012t` reviewer 观察，2026-09-21 登记，非阻断）**：4 个 `--test-mode` 负测试中，`source_missing`/`source_bad_format` 在 `classify_contract()` **函数入口无条件 `return ("error", …)`**，与合约内容无关；`version_mismatch`/`unknown_adr` 的注入点也在**真实比对之前** ⇒ 这些自测只证明「脚本能打印 FAIL」，**不证明能识别该 4 类真实缺陷**（完成区「证明脚本能对注入反例失败」对其中 2 条属语义夸大）。**真实 fail-closed 已由 reviewer 的 fixture 独立证明**（无来源头/非 Accepted ADR/未知 ADR/版本不匹配/来源格式错误 → 均 exit 1）⇒ 不影响验收。**建议**：后续改为**基于临时 fixture 的真实负测试**（构造真实缺陷合约而非注入分支）。归属：`infra` 模块。
