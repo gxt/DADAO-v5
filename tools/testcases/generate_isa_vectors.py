@@ -921,7 +921,140 @@ def gen_block_encoding(rec, dst_reg, src_reg, count):
                  "active", None, None, sc,
                  "encoding: dst=%d, src=%d, count=%d, fields legal" % (dst_reg, src_reg, count))
 
+# ── Deferred overlap case for cs.* (C-27, TESTCASES-009t legacy) ─────
+def gen_cs_overlap_deferred(rec):
+    """Generate deferred overlap case for cs.* (rrrr): rdha=rdhb=1 (same register).
+    Deferred C-27: condition & source register aliasing semantics not yet specified."""
+    mnem = rec["mnemonic"]
+    insn = rec["insn"]
+    fmt = rec["format"]
+    sc = rec.get("spec_cite", "")
+
+    # rdha=rdhb=1 → same non-rd0 register (overlap condition)
+    word = _build_word_rrrr(rec, 1, 1, 2, 4)
+
+    # Input values matching the original semantic test values per cs variant
+    # NOTE: check "cs.ne" and "cs.eq" BEFORE "cs.n" (substring match issue)
+    if "cs.ne" in insn:
+        inp = {"rd": {"rd1": _hex64(0x2A), "rd2": _hex64(0x63),
+                       "rd3": _hex64(0xAAAA), "rd4": _hex64(0xBBBB)}}
+    elif "cs.eq" in insn:
+        inp = {"rd": {"rd1": _hex64(0x2A), "rd2": _hex64(0x2A),
+                       "rd3": _hex64(0xAAAA), "rd4": _hex64(0xBBBB)}}
+    elif "cs.n" in insn:
+        inp = {"rd": {"rd1": _hex64(0xFFFFFFFFFFFFFFFF), "rd2": _hex64(0),
+                       "rd3": _hex64(0xAAAA), "rd4": _hex64(0xBBBB)}}
+    elif "cs.z" in insn:
+        inp = {"rd": {"rd1": _hex64(0), "rd2": _hex64(0),
+                       "rd3": _hex64(0xAAAA), "rd4": _hex64(0xBBBB)}}
+    elif "cs.p" in insn:
+        inp = {"rd": {"rd1": _hex64(1), "rd2": _hex64(0),
+                       "rd3": _hex64(0xAAAA), "rd4": _hex64(0xBBBB)}}
+    else:
+        return None
+
+    notes = "overlap C-27: %s snapshot — condition & source register aliasing deferred" % mnem
+    return _case(mnem, insn, fmt, "overlap", word, inp, None, None,
+                 "deferred", "C-27", None, sc, notes)
+
+
+# ── Legality case generation (TESTCASES-010t) ────────────────────────
+# Maps instruction operation to the applicable legality rule for rd0/rb0 dest violations.
+# Rule spec_cite values come from contracts/legality_rules.yaml.
+
+_ILLI_RULES = {
+    # orrr single-dest (rdhb): rd_dest_rd0
+    "rd_dest_rd0": "SimRISC-01 §rd0 为目的寄存器约定",
+    # rrrr dual-dest (rdha, rdhb): dual_dest_both_rd0
+    "dual_dest_both_rd0": "SimRISC-01 §加减操作",
+    # orrr rb-dest (rbhb): rb_dest_rb0
+    "rb_dest_rb0": "SimRISC-02 §rb0 为目的寄存器约定",
+}
+
+
+def _get_illi_rule_id(rec):
+    """Return the legality rule id for rd0/rb0 dest violation.
+    Routes by the destination field's bank in opcodes.yaml, NOT by insn name."""
+    fmt = rec["format"]
+    if fmt == "rrrr":
+        return "dual_dest_both_rd0"
+    # Check destination field bank from opcodes.yaml
+    for field in rec.get("fields", []):
+        if field.get("role") == "dst":
+            if field.get("bank") == "rb":
+                return "rb_dest_rb0"
+            break
+    return "rd_dest_rd0"
+
+
+def gen_legality_rd0(rec):
+    """Generate a legality case where the destination register is rd0 (or rb0 for rb-dest).
+    The encoding word is valid (decodable) but the operand field violates a legality rule."""
+    mnem = rec["mnemonic"]
+    insn = rec["insn"]
+    fmt = rec["format"]
+    rule_id = _get_illi_rule_id(rec)
+    rule_cite = _ILLI_RULES[rule_id]
+    sc = rec.get("spec_cite", "")
+
+    if fmt == "rrrr":
+        # rdha=0, rdhb=0 → both rd0 → ILLI (dual_dest_both_rd0)
+        word = _build_word_rrrr(rec, 0, 0, 0, 0)
+    elif fmt == "orrr":
+        # rdhb=0 → rd0 as dest → ILLI (rd_dest_rd0 or rb_dest_rb0)
+        op_base = _base_mnem(insn)
+        is_divrem = op_base in ("div", "rem")
+        rdhd = 1 if is_divrem else 0  # avoid div-by-zero fault
+        word = _build_word_orrr(rec, 0, 0, rdhd)
+    elif fmt == "orri":
+        # rdhb=0 → rd0 as dest; hd=0 is valid shamt/ext-bit for all sizes
+        word = _build_word_orri(rec, 0, 0, 0)
+    elif fmt == "rrii":
+        # rdha=0 → rd0 as dest
+        word = _build_word_rrii(rec, 0, 0, 0)
+    elif fmt == "riii":
+        # rdha=0 → rd0 as dest
+        word = _build_word_riii(rec, 0, 0)
+    else:
+        return None
+
+    notes = "legality %s: dest=rd0/rb0 → ILLI (%s)" % (mnem, rule_id)
+    return _case(mnem, insn, fmt, "legality", word, {}, None, "ILLI",
+                 "active", None, None, "%s; %s" % (sc, rule_cite), notes)
+
+
+def gen_riii_boundary_overflow(rec, bank):
+    """Boundary case for add.si-rd / add.si-rb: overflow wrap-around.
+    rdha/rbha = INT64_MAX, imms18 = 1 → result = INT64_MIN (wrap-around, no fault)."""
+    mnem = rec["mnemonic"]
+    insn = rec["insn"]
+    fmt = "riii"
+    sc = rec.get("spec_cite", "")
+
+    INT64_MAX = 0x7FFFFFFFFFFFFFFF
+    imm18 = 1  # 18-bit signed = 1
+    word = _build_word_riii(rec, 1, imm18)
+
+    # Expected: (INT64_MAX +1) & 0xFFFFFFFFFFFFFFFF = 0x8000000000000000 = INT64_MIN
+    expected = (INT64_MAX + 1) & 0xFFFFFFFFFFFFFFFF
+
+    if bank == "rd":
+        inp = {"rd": {"rd1": _hex64(INT64_MAX)}}
+        out = {"rd": {"rd1": _hex64(expected)}, "rb": {}, "ra": {}, "memory": []}
+    else:
+        inp = {"rb": {"rb1": _hex64(INT64_MAX)}}
+        out = {"rd": {}, "rb": {"rb1": _hex64(expected)}, "ra": {}, "memory": []}
+
+    notes = "boundary %s: %s1=INT64_MAX(0x7FFFFFFFFFFFFFFF), imms18=1 → overflow wrap to INT64_MIN(0x8000000000000000)" % (
+        mnem, "rd" if bank == "rd" else "rb")
+    return _case(mnem, insn, fmt, "boundary", word, inp, out, None,
+                 "active", None, None, sc, notes)
+
+
 # ── Main generation logic ─────────────────────────────────────────────
+# Files that need legality cases (TESTCASES-010t)
+_TARGET_FILES_010T = {"reg-arith.yaml", "reg-logic.yaml", "reg-shift-extend.yaml", "reg-compare.yaml"}
+
 def _op_from_insn(insn):
     """Get the operation name from insn for matching.
     'and.o' → 'and', 'add.so-rb' → 'add.so', 'rd2rd' → 'rd2rd',
@@ -933,6 +1066,7 @@ def _op_from_insn(insn):
 def generate_file(filename, recs):
     """Generate all cases for a file."""
     cases = []
+    deferred_overlap = []  # collected separately, appended at end (ordering match)
 
     for rec in recs:
         mnem = rec["mnemonic"]
@@ -1119,6 +1253,25 @@ def generate_file(filename, recs):
             c = gen_rrrr_arith_overlap(rec, 100, 30)
             if c: cases.append(c)
 
+        # ── Deferred overlap case for cs.* (C-27) ──
+        if is_cond and filename == "reg-cond-assign.yaml":
+            c = gen_cs_overlap_deferred(rec)
+            if c: deferred_overlap.append(c)
+
+        # ── Legality case (TESTCASES-010t: rd0/rb0 dest → ILLI) ──
+        # Only for the 4 target files in this task
+        if filename in _TARGET_FILES_010T:
+            c = gen_legality_rd0(rec)
+            if c: cases.append(c)
+
+        # ── Boundary overflow case for add.si-rd / add.si-rb (TESTCASES-010t) ──
+        if filename == "reg-arith.yaml" and fmt == "riii" and not is_rela and "add.si" in insn:
+            bank = "rb" if "-rb" in insn else "rd"
+            c = gen_riii_boundary_overflow(rec, bank)
+            if c: cases.append(c)
+
+    # Append deferred overlap cases at end (ordering: encoding/semantic first, then overlap)
+    cases.extend(deferred_overlap)
     return cases
 
 

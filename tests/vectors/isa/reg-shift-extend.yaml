@@ -62,6 +62,20 @@
   notes: 'boundary ext.uo: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40400000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: ext.uo
+  mnemonic: ext.uo
+  notes: 'legality ext.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -121,6 +135,20 @@
   mnemonic: ext.so
   notes: 'boundary ext.so: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40440000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: ext.so
+  mnemonic: ext.so
+  notes: 'legality ext.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -182,6 +210,20 @@
   notes: 'boundary shr.uo: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40480000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shr.uo
+  mnemonic: shr.uo
+  notes: 'legality shr.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -241,6 +283,20 @@
   mnemonic: shr.so
   notes: 'boundary shr.so: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x404C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shr.so
+  mnemonic: shr.so
+  notes: 'legality shr.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -302,6 +358,20 @@
   notes: 'boundary shl.uo: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40500000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shl.uo
+  mnemonic: shl.uo
+  notes: 'legality shl.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -359,6 +429,20 @@
   mnemonic: ext.uo
   notes: 'boundary ext.uo orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40600000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ext.uo
+  mnemonic: ext.uo
+  notes: 'legality ext.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -418,6 +502,20 @@
   notes: 'boundary ext.so orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40640000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ext.so
+  mnemonic: ext.so
+  notes: 'legality ext.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -475,6 +573,20 @@
   mnemonic: shr.uo
   notes: 'boundary shr.uo orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40680000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shr.uo
+  mnemonic: shr.uo
+  notes: 'legality shr.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -534,6 +646,20 @@
   notes: 'boundary shr.so orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x406C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shr.so
+  mnemonic: shr.so
+  notes: 'legality shr.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -591,6 +717,20 @@
   mnemonic: shl.uo
   notes: 'boundary shl.uo orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=63=N, N=63'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40700000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shl.uo
+  mnemonic: shl.uo
+  notes: 'legality shl.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -652,6 +792,20 @@
   notes: 'boundary ext.ut: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41400000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: ext.ut
+  mnemonic: ext.ut
+  notes: 'legality ext.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -711,6 +865,20 @@
   mnemonic: ext.st
   notes: 'boundary ext.st: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41440000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: ext.st
+  mnemonic: ext.st
+  notes: 'legality ext.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -772,6 +940,20 @@
   notes: 'boundary shr.ut: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41480000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shr.ut
+  mnemonic: shr.ut
+  notes: 'legality shr.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -831,6 +1013,20 @@
   mnemonic: shr.st
   notes: 'boundary shr.st: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x414C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shr.st
+  mnemonic: shr.st
+  notes: 'legality shr.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -892,6 +1088,20 @@
   notes: 'boundary shl.ut: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41500000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shl.ut
+  mnemonic: shl.ut
+  notes: 'legality shl.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -949,6 +1159,20 @@
   mnemonic: ext.ut
   notes: 'boundary ext.ut orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41600000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ext.ut
+  mnemonic: ext.ut
+  notes: 'legality ext.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1008,6 +1232,20 @@
   notes: 'boundary ext.st orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41640000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ext.st
+  mnemonic: ext.st
+  notes: 'legality ext.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -1065,6 +1303,20 @@
   mnemonic: shr.ut
   notes: 'boundary shr.ut orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41680000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shr.ut
+  mnemonic: shr.ut
+  notes: 'legality shr.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1124,6 +1376,20 @@
   notes: 'boundary shr.st orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x416C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shr.st
+  mnemonic: shr.st
+  notes: 'legality shr.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -1181,6 +1447,20 @@
   mnemonic: shl.ut
   notes: 'boundary shl.ut orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=31=N, N=31'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41700000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shl.ut
+  mnemonic: shl.ut
+  notes: 'legality shl.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1242,6 +1522,20 @@
   notes: 'boundary ext.uw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42400000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: ext.uw
+  mnemonic: ext.uw
+  notes: 'legality ext.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -1301,6 +1595,20 @@
   mnemonic: ext.sw
   notes: 'boundary ext.sw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42440000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: ext.sw
+  mnemonic: ext.sw
+  notes: 'legality ext.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1362,6 +1670,20 @@
   notes: 'boundary shr.uw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42480000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shr.uw
+  mnemonic: shr.uw
+  notes: 'legality shr.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -1421,6 +1743,20 @@
   mnemonic: shr.sw
   notes: 'boundary shr.sw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x424C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shr.sw
+  mnemonic: shr.sw
+  notes: 'legality shr.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1482,6 +1818,20 @@
   notes: 'boundary shl.uw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42500000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shl.uw
+  mnemonic: shl.uw
+  notes: 'legality shl.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -1539,6 +1889,20 @@
   mnemonic: ext.uw
   notes: 'boundary ext.uw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42600000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ext.uw
+  mnemonic: ext.uw
+  notes: 'legality ext.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1598,6 +1962,20 @@
   notes: 'boundary ext.sw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42640000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ext.sw
+  mnemonic: ext.sw
+  notes: 'legality ext.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -1655,6 +2033,20 @@
   mnemonic: shr.uw
   notes: 'boundary shr.uw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42680000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shr.uw
+  mnemonic: shr.uw
+  notes: 'legality shr.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1714,6 +2106,20 @@
   notes: 'boundary shr.sw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x426C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shr.sw
+  mnemonic: shr.sw
+  notes: 'legality shr.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -1771,6 +2177,20 @@
   mnemonic: shl.uw
   notes: 'boundary shl.uw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42700000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shl.uw
+  mnemonic: shl.uw
+  notes: 'legality shl.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1832,6 +2252,20 @@
   notes: 'boundary ext.ub: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43400000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: ext.ub
+  mnemonic: ext.ub
+  notes: 'legality ext.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -1891,6 +2325,20 @@
   mnemonic: ext.sb
   notes: 'boundary ext.sb: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43440000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: ext.sb
+  mnemonic: ext.sb
+  notes: 'legality ext.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1952,6 +2400,20 @@
   notes: 'boundary shr.ub: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43480000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shr.ub
+  mnemonic: shr.ub
+  notes: 'legality shr.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -2011,6 +2473,20 @@
   mnemonic: shr.sb
   notes: 'boundary shr.sb: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x434C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shr.sb
+  mnemonic: shr.sb
+  notes: 'legality shr.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2072,6 +2548,20 @@
   notes: 'boundary shl.ub: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43500000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: shl.ub
+  mnemonic: shl.ub
+  notes: 'legality shl.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -2129,6 +2619,20 @@
   mnemonic: ext.ub
   notes: 'boundary ext.ub orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43600000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ext.ub
+  mnemonic: ext.ub
+  notes: 'legality ext.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2188,6 +2692,20 @@
   notes: 'boundary ext.sb orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43640000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: ext.sb
+  mnemonic: ext.sb
+  notes: 'legality ext.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -2245,6 +2763,20 @@
   mnemonic: shr.ub
   notes: 'boundary shr.ub orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43680000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shr.ub
+  mnemonic: shr.ub
+  notes: 'legality shr.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2304,6 +2836,20 @@
   notes: 'boundary shr.sb orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x436C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shr.sb
+  mnemonic: shr.sb
+  notes: 'legality shr.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -2361,4 +2907,18 @@
   mnemonic: shl.ub
   notes: 'boundary shl.ub orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=7=N, N=7'
   spec_cite: SimRISC-01 §Bit manipulating：位操作指令
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43700000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  input_state: {}
+  insn: shl.ub
+  mnemonic: shl.ub
+  notes: 'legality shl.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Bit manipulating：位操作指令; SimRISC-01 §rd0 为目的寄存器约定
   status: active

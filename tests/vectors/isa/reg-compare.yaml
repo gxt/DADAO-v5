@@ -37,6 +37,20 @@
   notes: 'cmp.ui: rd2=0xa, imm=5, bits=64, signed=False'
   spec_cite: SimRISC-01 §比较操作
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x5C000000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rrii
+  input_state: {}
+  insn: cmp.ui-rd
+  mnemonic: cmp.ui
+  notes: 'legality cmp.ui: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -71,6 +85,20 @@
   mnemonic: cmp.si
   notes: 'cmp.si: rd2=0xa, imm=5, bits=64, signed=True'
   spec_cite: SimRISC-01 §比较操作
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x5D000000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: rrii
+  input_state: {}
+  insn: cmp.si-rd
+  mnemonic: cmp.si
+  notes: 'legality cmp.si: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -108,6 +136,20 @@
   notes: 'cmp.uo: rb2=0xa, rb3=0x14, bits=64, signed=False'
   spec_cite: SimRISC-02 §比较操作
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40A40000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: cmp.uo-rb
+  mnemonic: cmp.uo
+  notes: 'legality cmp.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-02 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -143,6 +185,20 @@
   mnemonic: cmp.uo
   notes: 'cmp.uo: rd2=0xa, rd3=0x14, bits=64, signed=False'
   spec_cite: SimRISC-01 §比较操作
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40A80000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: cmp.uo
+  mnemonic: cmp.uo
+  notes: 'legality cmp.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -180,6 +236,20 @@
   notes: 'cmp.so: rd2=0xa, rd3=0x14, bits=64, signed=True'
   spec_cite: SimRISC-01 §比较操作
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40AC0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: cmp.so
+  mnemonic: cmp.so
+  notes: 'legality cmp.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -215,6 +285,20 @@
   mnemonic: cmp.ut
   notes: 'cmp.ut: rd2=0xa, rd3=0x14, bits=32, signed=False'
   spec_cite: SimRISC-01 §比较操作
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41A80000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: cmp.ut
+  mnemonic: cmp.ut
+  notes: 'legality cmp.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -252,6 +336,20 @@
   notes: 'cmp.st: rd2=0xa, rd3=0x14, bits=32, signed=True'
   spec_cite: SimRISC-01 §比较操作
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41AC0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: cmp.st
+  mnemonic: cmp.st
+  notes: 'legality cmp.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -287,6 +385,20 @@
   mnemonic: cmp.uw
   notes: 'cmp.uw: rd2=0xa, rd3=0x14, bits=16, signed=False'
   spec_cite: SimRISC-01 §比较操作
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42A80000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: cmp.uw
+  mnemonic: cmp.uw
+  notes: 'legality cmp.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -324,6 +436,20 @@
   notes: 'cmp.sw: rd2=0xa, rd3=0x14, bits=16, signed=True'
   spec_cite: SimRISC-01 §比较操作
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42AC0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: cmp.sw
+  mnemonic: cmp.sw
+  notes: 'legality cmp.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -360,6 +486,20 @@
   notes: 'cmp.ub: rd2=0xa, rd3=0x14, bits=8, signed=False'
   spec_cite: SimRISC-01 §比较操作
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43A80000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: cmp.ub
+  mnemonic: cmp.ub
+  notes: 'legality cmp.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -395,4 +535,18 @@
   mnemonic: cmp.sb
   notes: 'cmp.sb: rd2=0xa, rd3=0x14, bits=8, signed=True'
   spec_cite: SimRISC-01 §比较操作
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43AC0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: cmp.sb
+  mnemonic: cmp.sb
+  notes: 'legality cmp.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active

@@ -62,6 +62,20 @@
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=64'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40200000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: and.o
+  mnemonic: and.o
+  notes: 'legality and.o: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -121,6 +135,20 @@
   mnemonic: or.o
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=64'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40240000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: or.o
+  mnemonic: or.o
+  notes: 'legality or.o: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -182,6 +210,20 @@
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=64'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x40280000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: xor.o
+  mnemonic: xor.o
+  notes: 'legality xor.o: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -241,6 +283,20 @@
   mnemonic: xnor.o
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=64'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x402C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: xnor.o
+  mnemonic: xnor.o
+  notes: 'legality xnor.o: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -302,6 +358,20 @@
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=32'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41200000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: and.t
+  mnemonic: and.t
+  notes: 'legality and.t: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -361,6 +431,20 @@
   mnemonic: or.t
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=32'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41240000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: or.t
+  mnemonic: or.t
+  notes: 'legality or.t: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -422,6 +506,20 @@
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=32'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x41280000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: xor.t
+  mnemonic: xor.t
+  notes: 'legality xor.t: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -481,6 +579,20 @@
   mnemonic: xnor.t
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=32'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x412C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: xnor.t
+  mnemonic: xnor.t
+  notes: 'legality xnor.t: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -542,6 +654,20 @@
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=16'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42200000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: and.w
+  mnemonic: and.w
+  notes: 'legality and.w: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -601,6 +727,20 @@
   mnemonic: or.w
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=16'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42240000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: or.w
+  mnemonic: or.w
+  notes: 'legality or.w: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -662,6 +802,20 @@
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=16'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x42280000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: xor.w
+  mnemonic: xor.w
+  notes: 'legality xor.w: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -721,6 +875,20 @@
   mnemonic: xnor.w
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=16'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x422C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: xnor.w
+  mnemonic: xnor.w
+  notes: 'legality xnor.w: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -782,6 +950,20 @@
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=8'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43200000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: and.b
+  mnemonic: and.b
+  notes: 'legality and.b: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -841,6 +1023,20 @@
   mnemonic: or.b
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=8'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43240000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: or.b
+  mnemonic: or.b
+  notes: 'legality or.b: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -902,6 +1098,20 @@
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=8'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
   status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x43280000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: xor.b
+  mnemonic: xor.b
+  notes: 'legality xor.b: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  status: active
 - class: encoding
   deferred_reason: null
   encoding:
@@ -961,4 +1171,18 @@
   mnemonic: xnor.b
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=8'
   spec_cite: SimRISC-01 §Logic operators：逻辑运算
+  status: active
+- class: legality
+  deferred_reason: null
+  encoding:
+    word: '0x432C0000'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  input_state: {}
+  insn: xnor.b
+  mnemonic: xnor.b
+  notes: 'legality xnor.b: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  spec_cite: SimRISC-01 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
   status: active
