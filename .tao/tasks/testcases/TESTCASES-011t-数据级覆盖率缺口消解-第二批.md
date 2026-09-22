@@ -122,10 +122,11 @@
 - `set.zw-rd`/`set.ow-rd`/`set.zw-rb`/`or.w-rd`/`or.w-rb`/`andn.w-rd`/`andn.w-rb`（rwii）：受 `rd_dest_rd0`/`rb_dest_rb0` 约束
 - **判定：全补 active legality case**
 
-**ctrl-jump（1 条：jump-iiii）**：
-- `jump-iiii`（iiii）目标 = `rb0 + (imms24 << 2)`，低 2 位恒零 → 无 IALIGN
-- 但目标可落在**未映射地址** → UNMAPPED
-- **判定：补 active legality case**（`expected_fault: UNMAPPED`，构造 imm 使目标落在 RAM 之外）
+**ctrl-jump（1 条：jump-iiii）** —— **预检订正（2026-09-21，用户裁定：与 `br.*` 一致归 boundary）**：
+- `jump-iiii`（iiii）目标 = `rb0 + (imms24 << 2)`（`contract-isa.md:744`）⇒ **恒 4 对齐** ⇒ **无 IALIGN**；`:747`「绝对跳转地址位宽为 48 位，不产生溢出」⇒ **无越界**
+- 其**唯一** fault 路径 = 目标落**未映射地址** → **UNMAPPED**（主会话实测：`jump -0x1000` → `Expected UNMAPPED, got UNMAPPED` ✓）
+- ⇒ **判定（与 `br.*` 一致）**：`inventory.md` 中 `jump-iiii` 的 `legality` 列 `✓` → **`—`（不适用）**；**`boundary` 列置 `✓` 并补 1 条 boundary case**（`expected_fault: UNMAPPED`，构造 imm 使目标落在 RAM 之外但在 48 位地址空间内）
+- ⚠️ **不要**与 `jump-rrii` 混同：后者目标含 `+rdhb` ⇒ **可能不对齐** ⇒ 有 `instruction_align`（IALIGN）规则 ✓（其 legality case 已存在，非本任务缺口）
 
 ### 判据 O（overlap 缺口，6 条）
 
@@ -158,6 +159,9 @@
 **归属**：由本任务（`011t`）一并实现（与 validator 修复同文件）。
 
 ## 实现方式
+
+> ⚠️ **生成器能力缺口（主会话预检发现）**：实测 `generate_ctrl_br.py` 的 legality/boundary 支持均为 **0**；`generate_ctrl_jump_call_ret.py` legality=16 但 **boundary=0**。⇒ 本任务须为这两个生成器**新增 boundary case 生成能力**（`br.*` 10 条 + `jump-iiii` 1 条，均 `expected_fault: UNMAPPED`）。可**镜像** `generate_isa_vectors.py`（boundary=30）或 `generate_mem_vectors.py` 的既有风格；`generate_isa_vectors.py` 已具备 boundary 能力（用于 6 条块赋值 overlap 与 13 条 legality）。
+
 
 ### 生成器修改
 
