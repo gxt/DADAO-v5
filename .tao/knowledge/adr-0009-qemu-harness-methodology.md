@@ -1,6 +1,6 @@
 # ADR-0009: QEMU Harness Methodology
 
-**状态**：Candidate
+**状态**：Accepted（用户确认 2026-09-19；头行于 2026-09-22 订正——原误留 `Candidate`，各 decision 小节自始为 `Accepted`）
 **日期**：2026-09-19
 **关联**：ADR-0004（Test Machine）、QEMU-014t（harness 实现）
 
