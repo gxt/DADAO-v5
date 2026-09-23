@@ -110,8 +110,8 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-014a-qemu-decodetree.md`
-- DADAO-0628：`.work/DADAO-0628/components/qemu/patches/series`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-014a-qemu-decodetree.md`
+- DADAO-0628：`.dadao/DADAO-0628/components/qemu/patches/series`
 - 本项目：`.tao/knowledge/contract-isa.md` §2、附录 A；`contracts/opcodes.yaml`；`contracts/legality_rules.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

@@ -78,7 +78,7 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-025a-qemu-ldmo-rb-impl.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-025a-qemu-ldmo-rb-impl.md`
 - 本项目：`.tao/knowledge/contract-isa.md` §4.2、§1.5；`contracts/opcodes.yaml`；`contracts/legality_rules.yaml`
 - 本项目：`.tao/tasks/qemu/QEMU-006t-RD存取与MALIGN.md`（MALIGN 精确异常已并入 006t）、`.tao/tasks/qemu/QEMU-008t-控制流与RB.md`
 - 知识库：`.tao/knowledge/MEMORY.md`

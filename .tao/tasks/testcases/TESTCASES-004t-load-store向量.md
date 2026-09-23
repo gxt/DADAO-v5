@@ -24,7 +24,7 @@
   - 期望值**手工派生自 `contract-isa.md`/`spec/`/ADR-0004**，不得从 LLVM/QEMU 反推
   - 覆盖率主键 `(insn, format)`；M1 scope 以 `excluded_m1 != true` 为准
   - **只生成/修改本任务拥有的 3 个目标文件**；**不改** `contracts/`；**不改** `reg-*`/`ctrl-*`/`misc`
-  - 参考仓库（`.work/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
+  - 参考仓库（`.dadao/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
   - 完成后不自行 commit
 
 ## 任务范围
@@ -104,7 +104,7 @@
 
 ### 上游引用
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-034a-load-encoding-deferred.md`、`DL-022c`（内存地址 ROM→RAM）（内容溯源，非执行依赖）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-034a-load-encoding-deferred.md`、`DL-022c`（内存地址 ROM→RAM）（内容溯源，非执行依赖）
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -126,7 +126,7 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-034a-load-encoding-deferred.md`（内容溯源）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-034a-load-encoding-deferred.md`（内容溯源）
 - 本项目：`.tao/knowledge/contract-isa.md` §4、`.tao/knowledge/adr-0004-test-machine.md`、`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`、`.tao/knowledge/deferred.md`
 

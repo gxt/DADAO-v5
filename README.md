@@ -21,12 +21,12 @@
 
 | 目录 | 说明 |
 |------|------|
-| `.work/DADAO-0628` | 基于 SimRISC 0.4.1 的完整实现（工程参考，commit 锁定于 `manifests/references.lock.toml`） |
-| `.work/DADAO` | 各阶段早期的代码实现（已不再更新；`https://github.com/gxt/DADAO.git`） |
+| `.dadao/DADAO-0628` | 基于 SimRISC 0.4.1 的完整实现（工程参考，commit 锁定于 `manifests/references.lock.toml`） |
+| `.dadao/DADAO` | 各阶段早期的代码实现（已不再更新；`https://github.com/gxt/DADAO.git`） |
 
 ## 路线图
 
-路线图与任务拆解**直接参考 DADAO-0628**（`.work/DADAO-0628`）：
+路线图与任务拆解**直接参考 DADAO-0628**（`.dadao/DADAO-0628`）：
 
 - 里程碑：`docs/development-roadmap.md`（M0 Foundation / M1 MC+CPU Core / M2 Basic CodeGen / M2.5 clang+libc）
 - 详细路线：`code-agent/designs/0001-foundation-scope.md`、`0002-detailed-roadmap.md`

@@ -34,7 +34,7 @@
 - **E2E**：从 `.s` 到 QEMU 退出码的完整链路（`llvm-mc` → `llvm-objcopy --only-section=.text -O binary` → flat → QEMU）。
 - **接口对齐**：核对 LLVM MC ELF emitter ↔ QEMU loader（ELF 头字段、`e_flags`、`.o→flat` 流水线）、ADR-0003 ↔ ADR-0004（flat 格式/入口/加载）、`testcases` 向量 schema ↔ QEMU harness、`contracts/opcodes.yaml` ↔ 两侧实现。
 - **验证依据独立**：E2E 与接口核对不得从被测实现反推期望值（对齐 `AGENTS.md` Independent oracle）。
-- 参考：`.work/DADAO-0628/code-agent/tasks/DL-033a-mc-qemu-e2e-smoke.md`。
+- 参考：`.dadao/DADAO-0628/code-agent/tasks/DL-033a-mc-qemu-e2e-smoke.md`。
 
 ---
 

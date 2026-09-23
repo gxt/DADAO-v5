@@ -78,8 +78,8 @@
 
 - ADR-0005：`.tao/knowledge/adr-0005-component-lock-multi-source.md`
 - 本项目：`.tao/tasks/infra/INFRA-003t-manifest与锁系统.md`、`.tao/tasks/infra/INFRA-004t-组件获取与打补丁工具.md`
-- DADAO-0628：`.work/DADAO-0628/manifests/components.lock.toml`（内容溯源，非执行必需）
-- DADAO-0628：`.work/DADAO-0628/scripts/fetch.py`（内容溯源，非执行必需）
+- DADAO-0628：`.dadao/DADAO-0628/manifests/components.lock.toml`（内容溯源，非执行必需）
+- DADAO-0628：`.dadao/DADAO-0628/scripts/fetch.py`（内容溯源，非执行必需）
 
 ## 验收标准
 

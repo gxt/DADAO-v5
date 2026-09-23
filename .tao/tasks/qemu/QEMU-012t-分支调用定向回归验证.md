@@ -82,8 +82,8 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-032a-qemu-patch-0007.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-030a-call-ret-semantic.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-032a-qemu-patch-0007.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-030a-call-ret-semantic.md`
 - 本项目：`.tao/knowledge/contract-isa.md` §5；`tests/vectors/isa/ctrl-br.yaml`；`tests/vectors/isa/ctrl-jump.yaml`；`tests/vectors/isa/ctrl-call.yaml`；`tests/vectors/isa/ctrl-ret.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

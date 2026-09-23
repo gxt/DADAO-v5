@@ -77,10 +77,10 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/containers/dev/Dockerfile`
-- DADAO-0628：`.work/DADAO-0628/Makefile`
-- DADAO-0628：`.work/DADAO-0628/scripts/doctor.py`
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
+- DADAO-0628：`.dadao/DADAO-0628/containers/dev/Dockerfile`
+- DADAO-0628：`.dadao/DADAO-0628/Makefile`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/doctor.py`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -322,7 +322,7 @@ EXIT=0
 
 | finding | 处置 | 改了什么 | 复验证据 |
 |---------|------|---------|---------|
-| 0628 清单 15 个依赖是否齐全 | ✅无问题 | — | 逐项比对 `.work/DADAO-0628/containers/dev/Dockerfile`：15 项全在（行 21-23） |
+| 0628 清单 15 个依赖是否齐全 | ✅无问题 | — | 逐项比对 `.dadao/DADAO-0628/containers/dev/Dockerfile`：15 项全在（行 21-23） |
 | `clang` 是否补上（native 判据） | ✅无问题 | — | 行 21 含 `clang`；`scripts/doctor.py` 的 `NATIVE={ninja,clang}` 可满足 |
 | gem5 候选依赖是否加入 | ✅无问题 | — | 行 24-25 含 `scons m4 python3-dev python3-pip libprotobuf-dev protobuf-compiler libhdf5-dev libpng-dev`；`zlib1g-dev` 与 LLVM 段共享未重复（行 23） |
 | apt 包名在 Ubuntu 24.04 是否有效 | ✅无问题（未实测） | — | 均为 24.04 有效包名；`pkg-config` 为 pkgconf 过渡包，仍可用。因网络阻塞未能 apt 实测 |

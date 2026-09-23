@@ -56,10 +56,10 @@
   - `patch_series` 指向 `components/<name>/patches/series`。
 - `manifests/references.lock.toml`：
   - `format = 1`、`policy = "reference-only"`。
-  - `[[reference]]` id `dadao-0628`：repository `https://github.com/holight1/DADAO-0628.git`、`head = "2d270604b778d609e1a09b4047271b5309005ffc"`、`path` 指向 `.work/DADAO-0628`、`reuse = "架构与工程教训，不复制实现"`。
-  - `[[reference]]` id `dadao`：repository `https://github.com/gxt/DADAO.git`、`head = "f9bde0481668ffab325db8d8c5d8c4cc791c6232"`、`path` 指向 `.work/DADAO`；其 checkout 由 `INFRA-004t` 的 `fetch_refs.py` 获取。
-  - DADAO 与 DADAO-0628 是两套互不相关的仓库（均已不再更新）；`fetch_refs.py`（`INFRA-004t`）为两者维护持久 mirror（`.cache/refs/<id>.git`）并从中建只读工作树到各自 `path`（`.work/DADAO-0628`、`.work/DADAO`），`.work` 清空后可重建、无需重下。
-  - `path` 字段按 v5 实际位置填写（`.work/DADAO-0628` 等）。v5 简化 schema，省略 0628 的 `dirty`（执行时计算）、`purpose`（并入 `reuse`）、`selected_paths`（本阶段不需要）字段。
+  - `[[reference]]` id `dadao-0628`：repository `https://github.com/holight1/DADAO-0628.git`、`head = "2d270604b778d609e1a09b4047271b5309005ffc"`、`path` 指向 `.dadao/DADAO-0628`、`reuse = "架构与工程教训，不复制实现"`。
+  - `[[reference]]` id `dadao`：repository `https://github.com/gxt/DADAO.git`、`head = "f9bde0481668ffab325db8d8c5d8c4cc791c6232"`、`path` 指向 `.dadao/DADAO`；其 checkout 由 `INFRA-004t` 的 `fetch_refs.py` 获取。
+  - DADAO 与 DADAO-0628 是两套互不相关的仓库（均已不再更新）；`fetch_refs.py`（`INFRA-004t`）为两者维护持久 mirror（`.cache/refs/<id>.git`）并从中建只读工作树到各自 `path`（`.dadao/DADAO-0628`、`.dadao/DADAO`），`.work` 清空后可重建、无需重下。
+  - `path` 字段按 v5 实际位置填写（`.dadao/DADAO-0628` 等）。v5 简化 schema，省略 0628 的 `dirty`（执行时计算）、`purpose`（并入 `reuse`）、`selected_paths`（本阶段不需要）字段。
 - `scripts/manifest_check.py`：实现 component/reference 锁校验；**v5 无 spec lock 文件**（规范版本表在 `README.md`，脚本不校验 spec 锁），并对 disabled 组件的待定 commit 放行。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
@@ -74,16 +74,16 @@
 
 - enabled 组件必须有完整 40 位 commit；占位期应保持 `enabled = false`，否则校验失败。
 - tag/branch 不作为可复现基线。
-- 0628 的 `manifest_check.py` 要求 reference `path` 为绝对路径；v5 若改用项目内相对路径（`.work/DADAO-0628`），需相应调整校验规则并在任务中说明。
-- 0628 references 的 `path` 指向其原作者的本地绝对路径，v5 必须改指向本项目内的真实位置（`.work/DADAO-0628` 等），否则 `make status` 会显示 `missing`。
+- 0628 的 `manifest_check.py` 要求 reference `path` 为绝对路径；v5 若改用项目内相对路径（`.dadao/DADAO-0628`），需相应调整校验规则并在任务中说明。
+- 0628 references 的 `path` 指向其原作者的本地绝对路径，v5 必须改指向本项目内的真实位置（`.dadao/DADAO-0628` 等），否则 `make status` 会显示 `missing`。
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/manifests/components.lock.toml`
-- DADAO-0628：`.work/DADAO-0628/manifests/references.toml`
-- DADAO-0628：`.work/DADAO-0628/manifests/spec.lock.toml`
-- DADAO-0628：`.work/DADAO-0628/scripts/manifest_check.py`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0002-build-orchestration.md`
+- DADAO-0628：`.dadao/DADAO-0628/manifests/components.lock.toml`
+- DADAO-0628：`.dadao/DADAO-0628/manifests/references.toml`
+- DADAO-0628：`.dadao/DADAO-0628/manifests/spec.lock.toml`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/manifest_check.py`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0002-build-orchestration.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -124,8 +124,8 @@ format: 1 work_root: .work
   name=gem5 enabled=False commit='' patch_series=components/gem5/patches/series role='functional second reference'
 ### references.lock.toml parsed fields
 format: 1 captured_on: 2026-09-12 policy: reference-only
-  id=dadao-0628 head=2d270604b778d609e1a09b4047271b5309005ffc path=.work/DADAO-0628 repository=https://github.com/holight1/DADAO-0628.git reuse='架构与工程教训，不复制实现'
-  id=dadao head=f9bde0481668ffab325db8d8c5d8c4cc791c6232 path=.work/DADAO repository=https://github.com/gxt/DADAO.git reuse='各阶段早期实现的架构与工程教训，不复制实现'
+  id=dadao-0628 head=2d270604b778d609e1a09b4047271b5309005ffc path=.dadao/DADAO-0628 repository=https://github.com/holight1/DADAO-0628.git reuse='架构与工程教训，不复制实现'
+  id=dadao head=f9bde0481668ffab325db8d8c5d8c4cc791c6232 path=.dadao/DADAO repository=https://github.com/gxt/DADAO.git reuse='各阶段早期实现的架构与工程教训，不复制实现'
 ```
 
 验收标准 3（错误检出能力，独立临时树 `/tmp/opencode/INFRA-003t-test`，日志 `.tao/logs/INFRA-003t-error-detection.log`）：
@@ -178,7 +178,7 @@ exit=1
 **新发现/坑**：
 - **任务书内部矛盾**：「与 DADAO-0628 的差异」一节（第 66 行）仍写 v5 有 spec lock schema（`[versions]` / `status == "frozen"`），与同任务书「接口规范」「交付物」「验收标准」及 `README.md`/`MEMORY.md` 矛盾——后者一致声明 v5 不使用 `manifests/spec.lock.toml`（commit `ca0c55f` 已删除该文件）。本任务按后者执行：`manifest_check.py` **不校验 spec 锁**。建议后续修订任务书删除该过时段落。
 - **`patch_series` 校验须按 `enabled` 门控**：占位期三组件 `enabled = false`，且 `components/<name>/patches/series` 尚未创建（由 llvm/qemu 后续任务创建）。若照搬 0628 无条件校验 `patch_series` 存在，会令 `python3 scripts/manifest_check.py` 非零退出，违反验收标准 4。故实现为：仅对 enabled 组件要求完整 commit 与 `patch_series` 文件存在；仍满足「能检出 enabled 组件 patch_series 缺失」。
-- **reference `path` 规则**：从 0628 的「必须绝对路径」改为「必须非空且项目相对路径」，对齐任务书已知坑（v5 用 `.work/DADAO-0628` 等相对位置）。
+- **reference `path` 规则**：从 0628 的「必须绝对路径」改为「必须非空且项目相对路径」，对齐任务书已知坑（v5 用 `.dadao/DADAO-0628` 等相对位置）。
 - **`manifests/dadao.lock.toml` 已被取代**：其 DADAO head 已迁入 `references.lock.toml`；按用户决策删除该文件，`references.lock.toml` 成为唯一参考锁来源。
 - **`captured_on` 字段**：0628 schema 含该字段，v5 省略清单只列 `dirty`/`purpose`/`selected_paths`，故保留并填执行日 `2026-09-12`；`manifest_check.py` 不校验该字段。
 
@@ -219,8 +219,8 @@ format: 1, work_root: .work
 **验收标准 1–2：`tomllib` 精确解析 `references.lock.toml`**
 ```
 format: 1, captured_on: 2026-09-12, policy: reference-only
-  id=dadao-0628  head=2d270604b778d609e1a09b4047271b5309005ffc  path=.work/DADAO-0628  repository=https://github.com/holight1/DADAO-0628.git
-  id=dadao       head=f9bde0481668ffab325db8d8c5d8c4cc791c6232  path=.work/DADAO       repository=https://github.com/gxt/DADAO.git
+  id=dadao-0628  head=2d270604b778d609e1a09b4047271b5309005ffc  path=.dadao/DADAO-0628  repository=https://github.com/holight1/DADAO-0628.git
+  id=dadao       head=f9bde0481668ffab325db8d8c5d8c4cc791c6232  path=.dadao/DADAO       repository=https://github.com/gxt/DADAO.git
 ```
 ✅ 两个 reference head 精确匹配任务书要求。
 
@@ -252,7 +252,7 @@ Test 8: reference empty id                  -> exit=1   ✅  "reference id is re
 | 组件 commit 为占位（`enabled=false`、`commit=""`） | ✅ 守住 |
 | 不复制 0.4.1 补丁/代码正文 | ✅ 守住（lock 文件只含路径/URL/commit hash） |
 | v5 不使用 spec lock 文件 | ✅ 守住（`spec.lock.toml` 不存在，脚本不校验 spec） |
-| reference path 为项目相对路径（非绝对路径） | ✅ 守住（`.work/DADAO-0628`、`.work/DADAO`） |
+| reference path 为项目相对路径（非绝对路径） | ✅ 守住（`.dadao/DADAO-0628`、`.dadao/DADAO`） |
 | `patch_series` 仅对 enabled 组件校验存在性 | ✅ 守住（disabled 组件不触发缺失报错） |
 
 ---
@@ -291,6 +291,6 @@ Test 8: reference empty id                  -> exit=1   ✅  "reference id is re
 - **F1（中，跨模块规划不一致）**：`manifest_check.py` 要求 enabled 组件的 `components/<name>/patches/series` 存在，但 `LLVM-002t`/`QEMU-002t` 翻转 `enabled=true` 时并不创建该文件（首次由 `LLVM-003t`/`QEMU-003t` 创建）。按其任务书字面执行，002t 一完成即会让 `make manifest-check` 报 `missing patch series`。建议后续处置：修订 `LLVM-002t`/`QEMU-002t` 交付物要求创建占位 `series`，或新增 infra 任务预创建。**（已处置：按方案 A 修订 `LLVM-002t`/`QEMU-002t` 的交付物、已知坑与验收标准，要求翻转 `enabled` 时创建占位空 `series`。）**
 - **F2（低，流程）**：任务头部状态未推进；主会话收尾置 `已验证`。
 - **F3（低，文档）**：完成区「新发现/坑」关于 spec lock 矛盾的一条已随任务书修订而过时。
-- **F4（低，残余风险）**：DADAO head `f9bde048…` 未做远端可达性核验（`.work/DADAO` 由 INFRA-004t 获取）；建议 INFRA-004t 验收时校验该 commit 可达。
+- **F4（低，残余风险）**：DADAO head `f9bde048…` 未做远端可达性核验（`.dadao/DADAO` 由 INFRA-004t 获取）；建议 INFRA-004t 验收时校验该 commit 可达。
 
 **统一判决**：**Accepted**（reviewer 与 architect 一致）。

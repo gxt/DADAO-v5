@@ -102,8 +102,8 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-023a-issue-registry-trans-lint.md`
-- DADAO-0628：`.work/DADAO-0628/scripts/check_issues.py`、`docs/issues.yaml`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-023a-issue-registry-trans-lint.md`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/check_issues.py`、`docs/issues.yaml`
 - 本项目：`tools/infra/manifest_check.py`、`Makefile`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

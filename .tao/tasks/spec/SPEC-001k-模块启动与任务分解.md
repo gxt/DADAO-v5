@@ -42,4 +42,4 @@ Agent 不能直接读 `spec/` 的 11 份原始规范（面向人类、存在歧�
 - Spec-first：期望值来自 `spec/`，不从实现反推。
 - `SPEC-002t`/`003t` 的产出（`contract-isa.md`/`opcodes.yaml`）在本次重排后需**重新生成**；旧文件暂作参考（见 `.tao/knowledge/deferred.md`）。
 - 暂缓 / 多出的内容（如 ABI 的 M2/CodeGen 部分与 `[OPEN]` 项、`EM_DADAO` 注册状态、LLD scope 等）记入 `.tao/knowledge/deferred.md`，避免遗忘。
-- 参考 `.work/DADAO-0628/code-agent/tasks/DL-001a-isa-contract.md`、`DL-001c-encoding-validator.md`。
+- 参考 `.dadao/DADAO-0628/code-agent/tasks/DL-001a-isa-contract.md`、`DL-001c-encoding-validator.md`。

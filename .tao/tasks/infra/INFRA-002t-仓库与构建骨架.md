@@ -68,10 +68,10 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/docs/repository-layout.md`
-- DADAO-0628：`.work/DADAO-0628/.gitignore`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0002-build-orchestration.md`
-- DADAO-0628：`.work/DADAO-0628/docs/greenfield-charter.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/repository-layout.md`
+- DADAO-0628：`.dadao/DADAO-0628/.gitignore`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0002-build-orchestration.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/greenfield-charter.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -146,7 +146,7 @@ $ grep -nE '\.work/(source|build|install|sysroot|logs)/' docs/repository-layout.
 **新发现/坑**：
 - 任务「现状」称 `docs/` 已存在，实际不存在：`docs/` 历史上只含 `docs/phases/*.md`，已在 commit `390729d`（去阶段化）全部删除。本任务按交付物「如 `docs/repository-layout.md`，若新建」新建 `docs/` 与 `docs/repository-layout.md` 记录 `.work/` 约定。若后续约定不欢迎 `docs/` 目录，可改记录到 `README.md`。
 - 0628 `.gitignore` 的 `*.py[cod]` 是 `*.pyc`/`*.pyo` 的超集（多覆盖 `.pyd`），已据此对齐。
-- `.work/` 目录当前已存在（含 `.work/DADAO-0628`），但整体被忽略；本任务**未**在 `.work/` 下新建任何子目录（遵守「`.work/` 本身不建目录」）。
+- `.work/` 目录当前已存在（含 `.dadao/DADAO-0628`），但整体被忽略；本任务**未**在 `.work/` 下新建任何子目录（遵守「`.work/` 本身不建目录」）。
 - 未改动 `.tao/README.md` 的项目结构表（其中 `components/`/`scripts/` 原标「按需创建」），保持最小修改；如需同步可另开任务。
 - lit（`tests/lit/**/Output/`、`.lit_test_times.txt`）与 gem5（`m5out/`）两条为**前瞻性预留**：v5 当前尚无 `tests/`、`m5out/` 目录，按任务书「按需保留」先登记，待对应目录建立后自然生效（`.tao/README.md` 已将 `tests/` 列为后续交付物）。
 - `*.log` 为全局忽略，未来若要提交 `.log` 测试 fixture 需用 `!` 反选（当前无已跟踪 `.log`，无回归）。

@@ -126,8 +126,8 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-016a-qemu-load-store.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-016b-qemu-malign-temp-fix.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-016a-qemu-load-store.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-016b-qemu-malign-temp-fix.md`
 - 本项目：`.tao/knowledge/contract-isa.md` §1.5、§4.1、§5.2.3、§5.3；`contracts/opcodes.yaml`；`.tao/knowledge/adr-0004-test-machine.md`
 - 本项目：`.tao/knowledge/adr-0010-qemu-task-restructure.md`（D1/D3）
 - 知识库：`.tao/knowledge/MEMORY.md`

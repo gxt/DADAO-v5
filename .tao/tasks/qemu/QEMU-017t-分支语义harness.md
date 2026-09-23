@@ -105,9 +105,9 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-029a-control-flow-semantic-harness.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/build_test_binary.py`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-029a-control-flow-semantic-harness.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/build_test_binary.py`
 - 本项目：`.tao/knowledge/contract-isa.md` §5、`contracts/opcodes.yaml`、`tests/vectors/isa/ctrl-br.yaml`、`tests/vectors/isa/ctrl-jump.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

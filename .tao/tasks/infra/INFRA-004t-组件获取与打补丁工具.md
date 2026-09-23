@@ -56,7 +56,7 @@
 - `scripts/fetch.py`：维护 `.cache/<name>.git` 持久 mirror（增量 fetch），并从 mirror 建/刷新 `.work/source/<name>` 工作树到 pin commit。
 - `scripts/apply_series.py`：将有序补丁序列 `git am` 到 checkout。
 - `scripts/make_patch.py`：从工作树生成/维护补丁序列（v5 新增）。
-- `scripts/fetch_refs.py`：按 `references.lock.toml` 维护参考仓库的**持久 mirror**（`.cache/refs/<id>.git`，首次 `git clone --mirror`、以后增量 `fetch`），并从中建/刷新只读工作树到其 `path`（`.work/DADAO-0628`、`.work/DADAO`），供任务 `## 参考` 定位；已存在且 commit 匹配则跳过；`.work` 清空后可从 mirror 重建、无需重下。
+- `scripts/fetch_refs.py`：按 `references.lock.toml` 维护参考仓库的**持久 mirror**（`.cache/refs/<id>.git`，首次 `git clone --mirror`、以后增量 `fetch`），并从中建/刷新只读工作树到其 `path`（`.dadao/DADAO-0628`、`.dadao/DADAO`），供任务 `## 参考` 定位；已存在且 commit 匹配则跳过；`.work` 清空后可从 mirror 重建、无需重下。
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -75,12 +75,12 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/scripts/fetch.py`
-- DADAO-0628：`.work/DADAO-0628/scripts/apply_series.py`
-- DADAO-0628：`.work/DADAO-0628/components/llvm/README.md`
-- DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`
-- DADAO-0628：`.work/DADAO-0628/docs/development-roadmap.md`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0002-build-orchestration.md`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/fetch.py`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/apply_series.py`
+- DADAO-0628：`.dadao/DADAO-0628/components/llvm/README.md`
+- DADAO-0628：`.dadao/DADAO-0628/components/llvm/patches/series`
+- DADAO-0628：`.dadao/DADAO-0628/docs/development-roadmap.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0002-build-orchestration.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -133,10 +133,10 @@ fetch-refs: dadao already at f9bde0481668; skipping
 exit=0
 ```
 
-3) 真实参考仓库离线重建（删除 `.work/DADAO-0628`，`GIT_ALLOW_PROTOCOL=file` 禁用网络协议）——退出 0，origin 指向本地 mirror：
+3) 真实参考仓库离线重建（删除 `.dadao/DADAO-0628`，`GIT_ALLOW_PROTOCOL=file` 禁用网络协议）——退出 0，origin 指向本地 mirror：
 ```
 $ GIT_ALLOW_PROTOCOL=file python3 scripts/fetch_refs.py
-Cloning into '/mnt/tao/DADAO-v5/.work/DADAO-0628'...
+Cloning into '/mnt/tao/DADAO-v5/.dadao/DADAO-0628'...
 done.
 From /mnt/tao/DADAO-v5/.cache/refs/dadao-0628
  * branch            2d270604b778d609e1a09b4047271b5309005ffc -> FETCH_HEAD
@@ -269,11 +269,11 @@ fetch-refs: dadao already at f9bde0481668; skipping
 EXIT=0
 ```
 
-##### 5. fetch_refs.py 离线重建（删除 `.work/DADAO-0628` 后，`GIT_ALLOW_PROTOCOL=file`）
+##### 5. fetch_refs.py 离线重建（删除 `.dadao/DADAO-0628` 后，`GIT_ALLOW_PROTOCOL=file`）
 ```
-$ rm -rf .work/DADAO-0628
+$ rm -rf .dadao/DADAO-0628
 $ GIT_ALLOW_PROTOCOL=file python3 scripts/fetch_refs.py; echo "EXIT=$?"
-Cloning into '/mnt/tao/DADAO-v5/.work/DADAO-0628'...
+Cloning into '/mnt/tao/DADAO-v5/.dadao/DADAO-0628'...
 done.
 From /mnt/tao/DADAO-v5/.cache/refs/dadao-0628
  * branch            2d270604b778d609e1a09b4047271b5309005ffc -> FETCH_HEAD
@@ -538,11 +538,11 @@ fetch-refs: dadao already at f9bde0481668; skipping
 EXIT=0
 ```
 
-##### 5. fetch_refs.py 离线重建（删除 `.work/DADAO-0628`，`GIT_ALLOW_PROTOCOL=file`）
+##### 5. fetch_refs.py 离线重建（删除 `.dadao/DADAO-0628`，`GIT_ALLOW_PROTOCOL=file`）
 ```
-$ rm -rf .work/DADAO-0628
+$ rm -rf .dadao/DADAO-0628
 $ GIT_ALLOW_PROTOCOL=file python3 scripts/fetch_refs.py 2>&1; echo "EXIT=$?"
-Cloning into '/mnt/tao/DADAO-v5/.work/DADAO-0628'...
+Cloning into '/mnt/tao/DADAO-v5/.dadao/DADAO-0628'...
 done.
 From /mnt/tao/DADAO-v5/.cache/refs/dadao-0628
  * branch            2d270604b778d609e1a09b4047271b5309005ffc -> FETCH_HEAD

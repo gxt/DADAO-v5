@@ -21,7 +21,7 @@ DADAO-v5 基于 SimRISC 0.5.3，需要从零为 `dadao-unknown-elf` 目标构建
 - **差异**：
   - 规范版本 0.4.1 → 0.5.3：指令命名使用 `.b/.w/.t/.o` 与 `s`/`u` 后缀；QFC 编码表重组；格式体系引入 MISC-byte/wyde/tetra/octa 子表；`add.si`/`rela.si` 为 riii；新增 `br.z-rb`/`br.nz-rb`、浮点条件赋值等。补丁正文与编码数据必须按 0.5.3 重新生成。
   - oracle 不同：v5 的编码期望值来自 `.tao/knowledge/contract-isa.md`（§1 寄存器、§2 编码、§3–§5 标量、§7 系统）与 `contracts/opcodes.yaml`（256 条），而非 0628 的 `contracts/isa/spec.md`。
-  - 目录/工具不同：v5 任务在 `.tao/tasks/llvm/`；上游 checkout 落在 `.work/source/llvm-project`（`INFRA-004t` 约定），构建落在 `.work/build/llvm`；参考锁指向 `.work/DADAO-0628`。
+  - 目录/工具不同：v5 任务在 `.tao/tasks/llvm/`；上游 checkout 落在 `.work/source/llvm-project`（`INFRA-004t` 约定），构建落在 `.work/build/llvm`；参考锁指向 `.dadao/DADAO-0628`。
   - 不照抄 0628 的 LLVM commit 作为既定基线；版本由 `LLVM-002t` 的 ADR-0006 独立记录并验证。
   - 路线与参考直接指向 DADAO-0628，不使用任何按“阶段”命名的目录或字段。
 
@@ -49,4 +49,4 @@ DADAO-v5 基于 SimRISC 0.5.3，需要从零为 `dadao-unknown-elf` 目标构建
 - M1 范围为标量核心（`contract-isa.md` §3 标量整数、§4 地址/内存（RD/RB/**RA**）、§5 控制流、§7 系统指令中测试机所需部分：`swym`/`illi`/`fence`）；浮点 RF 全部、特权 cfx 指令（`escape`/`trap`/`cfx*`）按 M1 范围排除。
 - ELF 重定位（`contract-elf.md` §2–§4）在 M1 scope 外（`Deferred to M2`），本任务集不包含；完整 relocation 任务待 M2 规划时创建。
 - ~~`LLVM-010t` 验证 M1 系统指令（`swym`/`illi`/`fence`）可汇编 + smoke `.s` 修正~~ **【2026-09-21 已关闭】**：`swym`/`illi` 已由 `008t` 的 lit 覆盖；`fence`（LLVM 侧 lit 缺口 + QEMU 侧实现缺失）已入 `deferred`；v5 无「待修的 smoke `.s`」（`triple-smoke.s` 是版本注册冒烟），E2E 冒烟归 `INTEG-002t`；`llvm-objcopy` 未构建。详见 `changelog.md` 同日条与 `deferred.md`。
-- 参考：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`、`.work/DADAO-0628/docs/development-roadmap.md`、`.work/DADAO-0628/components/llvm/patches/series`。
+- 参考：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`、`.dadao/DADAO-0628/docs/development-roadmap.md`、`.dadao/DADAO-0628/components/llvm/patches/series`。

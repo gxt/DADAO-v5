@@ -180,11 +180,11 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-002a-abi-contract.md`（完整转述）
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-069a-rb-bank-pointer-calling-convention.md`
-- DADAO-0628：`.work/DADAO-0628/contracts/abi/spec.md`
-- DADAO-0628：`.work/DADAO-0628/contracts/abi/README.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Normalization 段）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-002a-abi-contract.md`（完整转述）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-069a-rb-bank-pointer-calling-convention.md`
+- DADAO-0628：`.dadao/DADAO-0628/contracts/abi/spec.md`
+- DADAO-0628：`.dadao/DADAO-0628/contracts/abi/README.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Normalization 段）
 - 本项目：`spec/DADAO-21-ABI-应用程序二进制接口.md`、`spec/DADAO-11-AEE-应用程序运行环境.md`
 - DADAO-0628：`code-agent/tasks/DL-002a-abi-contract.md`
 - 知识库：`.tao/knowledge/MEMORY.md`、`.tao/knowledge/contract-authoring.md`、`.tao/knowledge/contract-isa.md`

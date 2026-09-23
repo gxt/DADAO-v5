@@ -116,11 +116,11 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-004a-elf-contract.md`（完整转述）
-- DADAO-0628：`.work/DADAO-0628/contracts/elf/spec.md`
-- DADAO-0628：`.work/DADAO-0628/contracts/elf/README.md`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-004a-elf-contract.md`（完整转述）
+- DADAO-0628：`.dadao/DADAO-0628/contracts/elf/spec.md`
+- DADAO-0628：`.dadao/DADAO-0628/contracts/elf/README.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0003-object-abi.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）
 - 本项目：`.tao/knowledge/adr-0003-object-abi.md`（SPEC-005t 产出）、`.tao/knowledge/contract-isa.md`
 - DADAO-0628：`code-agent/tasks/DL-004a-elf-contract.md`
 - 知识库：`.tao/knowledge/MEMORY.md`

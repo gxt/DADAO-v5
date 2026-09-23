@@ -107,9 +107,9 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-018a-qemu-ctrl-flow.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-030a-call-ret-semantic.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-018a-qemu-ctrl-flow.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-030a-call-ret-semantic.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`
 - 本项目：`.tao/knowledge/contract-isa.md` §1.3、§4.2–§4.9、§5、附录 B；`contracts/opcodes.yaml`；`.tao/knowledge/adr-0004-test-machine.md`
 - 本项目：`.tao/tasks/testcases/TESTCASES-005t-控制转移br.md`、`.tao/tasks/testcases/TESTCASES-006t-jump-call-ret.md`
 - 知识库：`.tao/knowledge/MEMORY.md`

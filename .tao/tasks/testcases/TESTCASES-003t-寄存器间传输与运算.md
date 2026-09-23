@@ -24,7 +24,7 @@
   - 期望值**手工派生自 `contract-isa.md`/`spec/`/ADR-0004**，不得从 LLVM/QEMU 反推
   - 覆盖率主键 `(insn, format)`；M1 scope 以 `excluded_m1 != true` 为准
   - **只生成/修改本任务拥有的 6 个目标文件**；**不改** `contracts/`；**不改** `mem-*`/`ctrl-*`/`misc` 目标文件
-  - 参考仓库（`.work/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
+  - 参考仓库（`.dadao/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
   - 完成后不自行 commit
 
 ## 任务范围
@@ -56,7 +56,7 @@
   4. 期望值按 §3.4.1/§3.4.2 重新手算（`rdhb` 低 N+1 位按移位/扩展结果，`rdhb[63:N+1]` 不变）；
   5. `notes` 写清「shamt = rd<k> 的值」，`spec_cite` 指 §3.4.1/§3.4.2；不得再出现「rdN(shamt=v)」式字段/寄存器混淆；
   6. 20 个 `(insn, orrr)` 身份保持 ≥1 active semantic，覆盖率不降。
-- **内容溯源（非执行依赖）**：`.work/DADAO-0628/tests/vectors/isa/rd-shift-extend.yaml` 用寄存器形式（`shlu rd3,rd1,rd2`，预置 `rd2`）。
+- **内容溯源（非执行依赖）**：`.dadao/DADAO-0628/tests/vectors/isa/rd-shift-extend.yaml` 用寄存器形式（`shlu rd3,rd1,rd2`，预置 `rd2`）。
 - **验收证据**：逐条列出 `input_state` 中 shamt 寄存器值 + 手算结果 + `spec_cite`。
 
 ### 3. F7：`rela.si-rb` semantic 直接 active（从零生成）
@@ -125,7 +125,7 @@
 
 ### 上游引用
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-027a-architect-direct-vector-fixes.md`、`DL-020a-encoding-vectors.md`、`DL-001d-vector-data.md`（内容溯源，非执行依赖）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-027a-architect-direct-vector-fixes.md`、`DL-020a-encoding-vectors.md`、`DL-001d-vector-data.md`（内容溯源，非执行依赖）
 - 本项目：`TESTCASES-002t` 的审阅记录（F1/F10 判决）、`contracts/opcodes.yaml`、`.tao/knowledge/contract-isa.md`、`contracts/legality_rules.yaml`、`tests/vectors/schema.md`
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
@@ -149,7 +149,7 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-027a-architect-direct-vector-fixes.md`、`DL-020a-encoding-vectors.md`（内容溯源）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-027a-architect-direct-vector-fixes.md`、`DL-020a-encoding-vectors.md`（内容溯源）
 - 本项目：`contracts/opcodes.yaml`、`.tao/knowledge/contract-isa.md`、`contracts/legality_rules.yaml`、`tests/vectors/schema.md`
 - 知识库：`.tao/knowledge/MEMORY.md`、`.tao/knowledge/deferred.md`
 

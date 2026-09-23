@@ -6,7 +6,7 @@
 
 从**国外站**（GitHub 等）下载**较大**软件（LLVM、QEMU、linux-kernel 等）时，直连常慢或不可达。
 **实测（2026-09-16）**：`git ls-remote https://github.com/llvm/llvm-project.git` → `Failed to connect to github.com port 443 after 133927 ms: Couldn't connect to server`（exit 128）——**直连 GitHub 当时不可达**。
-（对照：`.work/DADAO-0628` 等参考仓库于 2026-09-12 抓取成功，说明可达性**随时间变化**，不可假定。）
+（对照：`.dadao/DADAO-0628` 等参考仓库于 2026-09-12 抓取成功，说明可达性**随时间变化**，不可假定。）
 
 ## 镜像站入口
 

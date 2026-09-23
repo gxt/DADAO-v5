@@ -23,7 +23,7 @@
   - 期望值**手工派生自 `contract-isa.md`/`spec/`/ADR-0004**，不得从 LLVM/QEMU 反推
   - 覆盖率主键 `(insn, format)`；M1 scope 以 `excluded_m1 != true` 为准
   - **只生成/修改本任务 3 个目标文件**；**不改** `contracts/`；**不改** `ctrl-br`/`misc`/`reg-*`/`mem-*`
-  - 参考仓库（`.work/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
+  - 参考仓库（`.dadao/DADAO-0628/`）的向量数据**仅内容溯源，不得作为执行依赖**（禁止复制数据正文）
   - 完成后不自行 commit
 
 ## 任务范围
@@ -116,7 +116,7 @@
 
 ### 上游引用
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（内容溯源，非执行依赖）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（内容溯源，非执行依赖）
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -136,7 +136,7 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（内容溯源）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-028a-control-flow-yaml-tdd.md`（内容溯源）
 - 本项目：`.tao/knowledge/contract-isa.md` §5、`.tao/knowledge/adr-0004-test-machine.md`、`contracts/opcodes.yaml`、`tests/vectors/schema.md`
 - 知识库：`.tao/knowledge/MEMORY.md`、`.tao/knowledge/deferred.md`
 
@@ -201,7 +201,7 @@
 
 ### 第 1 轮 reviewer 验收
 
-**审查范围**（独立执行，不采信完成区叙述）：`tests/vectors/isa/ctrl-jump.yaml`、`ctrl-call.yaml`、`ctrl-ret.yaml`（13 cases）、`tools/testcases/validate_vectors.py`（F7 扩展）、任务书、`contract-isa.md` §5.3–§5.6、`contracts/opcodes.yaml`（jump/call/ret 记录）、`tests/vectors/schema.md`、`.tao/knowledge/adr-0004-test-machine.md`（D1/D2.1/D5.6/D5.8/D6.5）、`tests/vectors/inventory.md`、`.tao/knowledge/deferred.md`、`.work/DADAO-0628/sail/dadao_insts.sail`（仅作歧义对照，非执行依赖）。
+**审查范围**（独立执行，不采信完成区叙述）：`tests/vectors/isa/ctrl-jump.yaml`、`ctrl-call.yaml`、`ctrl-ret.yaml`（13 cases）、`tools/testcases/validate_vectors.py`（F7 扩展）、任务书、`contract-isa.md` §5.3–§5.6、`contracts/opcodes.yaml`（jump/call/ret 记录）、`tests/vectors/schema.md`、`.tao/knowledge/adr-0004-test-machine.md`（D1/D2.1/D5.6/D5.8/D6.5）、`tests/vectors/inventory.md`、`.tao/knowledge/deferred.md`、`.dadao/DADAO-0628/sail/dadao_insts.sail`（仅作歧义对照，非执行依赖）。
 
 #### 重跑记录（命令 + 真实输出/退出码）
 
@@ -255,7 +255,7 @@ EXIT=0
 
 - **F7 逐条（不抽样）**：`jump-iiii`/`call-iiii` = `rb0+(imms24<<2)` = `0xFFFF00000000+8` = `0xFFFF00000008` ✓；`jump-rrii`/`call-rrii` = `rbha+rdhb+(imms12<<2)` = `0xFFFF00000000+0+8` = `0xFFFF00000008` ✓（`ha=rb0` 时按 §5.3 属相对跳转）。5 条 `expected_pc` 全部手算一致。
 - **`call` RA 压栈**：冷 RA（ADR-0004 D2.1）→ §5.6.1 case 1，`ra63 = 0x0001<<48 | (PC+4)` = `0x0001FFFF00000004` ✓（返回地址 = `0xFFFF00000004`）。两份 `call` semantic 均一致。**注**：数据中无递归/移位压栈的 semantic（仅 RASOF legality），§5.6.1 case 2 未在 semantic 层覆盖（属覆盖维度，非错值）。
-- **`ret` 弹栈移位（已知坑）**：`input ra63=0x0001FFFF00000004`（count=1）→ §5.6.2 case 2：返回地址 = 低 48 = `0xFFFF00000004`，shift-down 后 `ra63←原ra62=0`；`ra1` 清 0。`expected_pc=0xFFFF00000004`、`expected_state.ra.ra63=0` **推导正确**。用 `.work/DADAO-0628/sail/dadao_insts.sail` 的 `ras_pop`（`foreach (i from 62 downto 1) write_RA(i+1, read_RA(i)); write_RA(1,0)`，unconditional shift）对照，结果一致（`ra63=0`）。
+- **`ret` 弹栈移位（已知坑）**：`input ra63=0x0001FFFF00000004`（count=1）→ §5.6.2 case 2：返回地址 = 低 48 = `0xFFFF00000004`，shift-down 后 `ra63←原ra62=0`；`ra1` 清 0。`expected_pc=0xFFFF00000004`、`expected_state.ra.ra63=0` **推导正确**。用 `.dadao/DADAO-0628/sail/dadao_insts.sail` 的 `ras_pop`（`foreach (i from 62 downto 1) write_RA(i+1, read_RA(i)); write_RA(1,0)`，unconditional shift）对照，结果一致（`ra63=0`）。
 - **legality**：`jump-rrii`/`call-rrii` word `0x710C0000`/`0x750C0000` 解码 `rbha=rb3=0, rdhb=rd0, imms12=0` → addr=0 → `UNMAPPED` ✓；`ret-riii` 冷 RA → `RASUF` ✓；`call-iiii` 预置 ra1–ra63（count=1）触发移位压栈且 ra0 低 48=0 → `RASOF` ✓（与 Sail `ras_push` 的 `ra1 有效→RASOF` 一致）。
 - **encoding**：4 条 `(word & 0xFF000000)==value`（`0x70/0x71/0x74/0x75`）✓；`imm=2` → 目标 `rb0+8`，**非自跳**（≠`rb0`）、**非顺延同址**（≠`rb0+4`）、落在 RAM 窗口、`expected_pc/expected_fault=null` ✓；`ret-riii` 确无 encoding case ✓。
 

@@ -119,11 +119,11 @@ ROM trampoline），说明无 OS 下如何安装最小异常 handler 或 QEMU �
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-003b-test-machine-adr.md`（完整转述）
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0004-test-machine.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-003b-test-machine-adr.md`（完整转述）
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0004-test-machine.md`
 - v5：`.tao/knowledge/adr-authoring.md`（ADR 格式与模板）
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-003a-elf-object-abi-adr.md`（加载协议需统一）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Architecture Decisions 段）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-003a-elf-object-abi-adr.md`（加载协议需统一）
 - 本项目：`.tao/knowledge/contract-isa.md`、`contracts/legality_rules.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
@@ -297,7 +297,7 @@ EXIT_CODE=0
 **依据**（独立复现）：
 - 独立重跑 `check-adr0004.sh` → `PASS=89 FAIL=0, EXIT=0`；`diff` 自审日志与 reviewer 日志完全相同；`git status` 无 commit；任务状态未被提前置 `已验证`。
 - 逐条标准 1–10 经 `spec/` 与合约原文 + 独立复算核对通过；重点项（48-bit 地址、带码 API + 进程级验收、rf0 独立推导、0.5.3 助记符与地址手算、ADR-0003 一致性、MMIO 矩阵/非 8B→ILLI、零 host 依赖）全部成立。
-- exit port API `qemu_system_shutdown_request_with_code` 在 `.work/DADAO-0628/components/qemu/patches/` 中被实际使用（非杜撰）；因 QEMU baseline 尚未锁定，采「机制级冻结 + 最终 API 以锁定 baseline 为准」。
+- exit port API `qemu_system_shutdown_request_with_code` 在 `.dadao/DADAO-0628/components/qemu/patches/` 中被实际使用（非杜撰）；因 QEMU baseline 尚未锁定，采「机制级冻结 + 最终 API 以锁定 baseline 为准」。
 
 **补充发现（均非阻断，不影响 Accepted）**：
 1. reviewer「约束核验」表称 D3 正文显式标注「无 spec 依据」略有夸大——exit port 的「无依据」标注落在 Context/Rationale，聚合层面已满足。

@@ -145,10 +145,10 @@ sys.exit(0)
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-021a-harness-semantic.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-019a-phase3-harness.md`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/build_test_binary.py`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/run_qemu_test.py`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-021a-harness-semantic.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-019a-phase3-harness.md`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/build_test_binary.py`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/run_qemu_test.py`
 - 本项目：`.tao/knowledge/adr-0004-test-machine.md`、`contracts/opcodes.yaml`、`.tao/knowledge/contract-isa.md` §5
 - 知识库：`.tao/knowledge/MEMORY.md`
 

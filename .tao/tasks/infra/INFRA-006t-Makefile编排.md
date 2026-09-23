@@ -76,10 +76,10 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/Makefile`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0002-build-orchestration.md`
-- DADAO-0628：`.work/DADAO-0628/docs/development-roadmap.md`
-- DADAO-0628：`.work/DADAO-0628/containers/dev/Dockerfile`
+- DADAO-0628：`.dadao/DADAO-0628/Makefile`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0002-build-orchestration.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/development-roadmap.md`
+- DADAO-0628：`.dadao/DADAO-0628/containers/dev/Dockerfile`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -228,7 +228,7 @@ build-qemu: component 'qemu' is not enabled / commit pending ...; refusing to fa
 make: *** [Makefile:83: build-qemu] Error 1
 ```
 
-6. **`make clean-work`**（**隔离树** `/tmp/opencode/INFRA-006t/clean-work-tree`，避免删除真实 `.work/DADAO*`）— 通过，**exit=0**
+6. **`make clean-work`**（**隔离树** `/tmp/opencode/INFRA-006t/clean-work-tree`，避免删除真实 `.dadao/DADAO*`）— 通过，**exit=0**
 ```
 $ make clean-work
 clean-work: removed /tmp/opencode/INFRA-006t/clean-work-tree/.work
@@ -237,7 +237,7 @@ exit=0
 .work exists?  -> REMOVED
 .cache intact? -> .cache/refs/dummy.git/objects.pack 仍在
 ```
-真实参考树未受影响：`git -C .work/DADAO-0628 rev-parse HEAD` = `2d270604b778…`（=锁），`.work/DADAO` = `f9bde0481668…`（=锁）。
+真实参考树未受影响：`git -C .dadao/DADAO-0628 rev-parse HEAD` = `2d270604b778…`（=锁），`.dadao/DADAO` = `f9bde0481668…`（=锁）。
 
 7. **`docker-image` / `docker-shell` 指向正确** — 通过（命令指向经 `make -n` 确认为真；真实运行因外部前提失败）
 ```
@@ -261,7 +261,7 @@ exit=2   # docker daemon socket 权限（环境限制）
 
 **新发现/坑**：
 - **stub 的退出码语义**：recipe 内 `exit 1` → GNU Make 整体退出 **2**（make 对 recipe 失败的固定退出码）。这是"非静默失败"的正常表现，验收时应按"非零 + 明确提示"判定，勿误认为脚本返回 2。
-- **`make clean-work` 会删除整个 `.work/`，含真实 `.work/DADAO*` 参考工作树**：测试删除行为必须在隔离树进行（本任务如此）；真实参考树可从 `.cache/refs/` 离线重建，但不应无故删除。
+- **`make clean-work` 会删除整个 `.work/`，含真实 `.dadao/DADAO*` 参考工作树**：测试删除行为必须在隔离树进行（本任务如此）；真实参考树可从 `.cache/refs/` 离线重建，但不应无故删除。
 - **v5 与 0628 路径约定不同**：v5 `LLVM_SRC=.work/source/llvm-project/llvm`、`QEMU_SRC=.work/source/qemu`（0628 为 `.work/llvm/llvm`、`.work/qemu`）；已按 `LLVM-002t`/`QEMU-002t` 与 `INFRA-004t` fetch 落点统一。
 - **`component-enabled` 内联 python 检查**：Make 的 `$(call)` 函数体内逗号不作为参数分隔符，`$(call component-enabled,llvm-project)` 正常；已用隔离树分别验证 enabled（放行→cmake 执行）与 disabled（拦截）两分支，确认 stub 非永久硬失败。
 - **`PWD` 在 GNU Make 中来自环境变量**，`$(PWD)` 可用；`make -n` 确认展开为仓库绝对路径（0628 同）。
@@ -294,7 +294,7 @@ exit=2   # docker daemon socket 权限（环境限制）
 | E1-6 | stub 退出码是否为"非静默失败"？ | 中 | ✅验证 | `exit 1` → make 退出 2 + `Error 1` + 明确提示，无 "PASS" 输出 |
 | E1-7 | 是否写死绝对路径 / 残留 0628 目标？ | 中 | ✅验证 | `grep -nE "/mnt/\|0628\|picolibc\|musl\|check-wiki\|check-qfc" Makefile` → none |
 | E1-8 | `make check` 是否含 manifest-check + compileall？ | 中 | ✅验证 | 日志：先 `manifest validation: PASS`，后 `repository checks: PASS` |
-| E1-9 | `make clean-work` 测试是否误删真实参考树？ | 高 | ✅验证 | 仅隔离树运行；真实 `.work/DADAO*` HEAD 仍等于锁 |
+| E1-9 | `make clean-work` 测试是否误删真实参考树？ | 高 | ✅验证 | 仅隔离树运行；真实 `.dadao/DADAO*` HEAD 仍等于锁 |
 | E1-10 | `.PHONY` 是否覆盖全部目标？ | 中 | ✅验证 | 15 个目标全部列入 `.PHONY`，与 help 一致 |
 
 #### 防造假核对
@@ -500,9 +500,9 @@ exit=0
 ```
 验证：`.work` 已删除；`.cache/` 完整保留。真实参考树未受影响：
 ```
-$ git -C .work/DADAO-0628 rev-parse HEAD
+$ git -C .dadao/DADAO-0628 rev-parse HEAD
 2d270604b778d609e1a09b4047271b5309005ffc   (=锁)
-$ git -C .work/DADAO rev-parse HEAD
+$ git -C .dadao/DADAO rev-parse HEAD
 f9bde0481668ffab325db8d8c5d8c4cc791c6232   (=锁)
 ```
 
@@ -560,7 +560,7 @@ $ python3 -c "import tomllib,sys;m=tomllib.load(open('manifests/components.lock.
 **时间**：2026-09-12
 **结论**：确认 reviewer 的 **Accepted**；5 条验收标准、4 条约束、交付物清单均独立复现通过，无遗漏。
 
-**独立核对**：程序化核对 `.PHONY` 与 help 目标集合一致（15 个）；合成树塞入语法错误脚本 → `check` exit=2（compileall 真门禁）；`build-mc` enabled 分支 guard 放行、disabled 分支拦截；隔离树 `clean-work` 删 `.work` 保留 `.cache`、真实 `.work/DADAO*` 未动；无 `/mnt/`/`/home/`/0628 后续阶段目标残留。
+**独立核对**：程序化核对 `.PHONY` 与 help 目标集合一致（15 个）；合成树塞入语法错误脚本 → `check` exit=2（compileall 真门禁）；`build-mc` enabled 分支 guard 放行、disabled 分支拦截；隔离树 `clean-work` 删 `.work` 保留 `.cache`、真实 `.dadao/DADAO*` 未动；无 `/mnt/`/`/home/`/0628 后续阶段目标残留。
 
 **接口一致性**：与 `INFRA-004t`（脚本名 + `.work/source` 落点）、`INFRA-005t`（doctor/status/clean_work + `.cache/` 保护）、`INFRA-007t`（tag/context）、`LLVM-002t`/`QEMU-002t`（`build-mc`/`build-qemu` + `LLVM_SRC`/`QEMU_SRC`）均吻合。
 

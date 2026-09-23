@@ -87,7 +87,7 @@
 
 ### 上游引用
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-027a-architect-direct-vector-fixes.md`（内容溯源，非执行依赖）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-027a-architect-direct-vector-fixes.md`（内容溯源，非执行依赖）
 
 ## 与 DADAO-0628 的差异（0.4.1 → 0.5.3）
 
@@ -108,7 +108,7 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-027a-architect-direct-vector-fixes.md`（内容溯源）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-027a-architect-direct-vector-fixes.md`（内容溯源）
 - 本项目：`contracts/opcodes.yaml`、`.tao/knowledge/contract-isa.md`、`contracts/legality_rules.yaml`、`tests/vectors/schema.md`、`tests/vectors/inventory.md`
 - 知识库：`.tao/knowledge/MEMORY.md`、`.tao/knowledge/deferred.md`
 

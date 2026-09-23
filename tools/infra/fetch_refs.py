@@ -2,7 +2,7 @@
 """Fetch reference repositories declared in ``manifests/references.lock.toml``.
 
 Same two-layer scheme as ``fetch.py``, but references are read-only inputs
-whose worktrees live at the manifest ``path`` (e.g. ``.work/DADAO-0628``):
+whose worktrees live at the manifest ``path`` (e.g. ``.dadao/DADAO-0628``):
 
 * ``.cache/refs/<id>.git`` -- persistent bare mirror.
 * ``<path>``               -- disposable worktree, built from the local mirror

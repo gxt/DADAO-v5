@@ -56,7 +56,7 @@
 
 - 无 ISA 相关差异（基础设施，与 ISA 版本无关）。
 - `status.py` 读取 `references.lock.toml`（v5 文件名），而 0628 读取 `references.toml`。
-- reference 集合不同：v5 为 DADAO-0628 / DADAO，`path` 指向 `.work/DADAO-0628` 等实际位置。
+- reference 集合不同：v5 为 DADAO-0628 / DADAO，`path` 指向 `.dadao/DADAO-0628` 等实际位置。
 - `doctor.py` 的工具清单可扩展（如 gem5 需要 `scons`，见 `INFRA-007t`），但保持"required / native / container"三段式判定。
 
 ## 已知坑 / 结论
@@ -69,11 +69,11 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/scripts/doctor.py`
-- DADAO-0628：`.work/DADAO-0628/scripts/status.py`
-- DADAO-0628：`.work/DADAO-0628/scripts/clean_work.py`
-- DADAO-0628：`.work/DADAO-0628/docs/repository-layout.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/doctor.py`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/status.py`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/clean_work.py`
+- DADAO-0628：`.dadao/DADAO-0628/docs/repository-layout.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 
 ## 验收标准
@@ -110,7 +110,7 @@
 4. **`python3 -m compileall scripts`** — 通过，**EXIT=0**（三个脚本均编译成功）
 
 **新发现/坑**：
-- v5 的 reference `path` 是**项目相对路径**（`.work/DADAO-0628`），`status.py` 必须 `ROOT / reference["path"]`；0628 直接 `Path(path)` 因其为绝对路径。已验证真实仓库两 reference 均 MATCH。
+- v5 的 reference `path` 是**项目相对路径**（`.dadao/DADAO-0628`），`status.py` 必须 `ROOT / reference["path"]`；0628 直接 `Path(path)` 因其为绝对路径。已验证真实仓库两 reference 均 MATCH。
 - `status.py` 对路径不存在输出 `missing`（0628 会落成 `DRIFT`），符合 v5 验收标准；`ROOT / <absolute>` 在 pathlib 下仍返回绝对路径，兼容未来绝对 path。
 - `clean_work.py` 的父目录+名称断言在 `.work` 为**符号链接**时真正生效（`resolve()` 后父目录/名称不匹配即拒绝），这是防误删关键，已用合成测试覆盖。
 - 宿主当前缺 `ninja` 与 `docker`，故真实 `doctor` 返回 FAIL/exit 1；这是正确判定，非缺陷。
@@ -202,7 +202,7 @@ EXIT=0
 
 - Components: 三行 `disabled UNSET`（commit 为空字符串，`enabled=false`）。✅
 - References: `dadao-0628` HEAD `2d270604…` 与 lock 文件一致 → MATCH；`dadao` HEAD `f9bde048…` 与 lock 文件一致 → MATCH。✅
-- 独立验证 `git -C .work/DADAO-0628 rev-parse HEAD` 确实返回 `2d270604…`，`git -C .work/DADAO rev-parse HEAD` 确实返回 `f9bde048…`。
+- 独立验证 `git -C .dadao/DADAO-0628 rev-parse HEAD` 确实返回 `2d270604…`，`git -C .dadao/DADAO rev-parse HEAD` 确实返回 `f9bde048…`。
 
 #### 5. status.py — 合成仓库（DRIFT / missing）
 
@@ -248,7 +248,7 @@ EXIT=0
 |------|----------|
 | 只用 Python 标准库 | ✅ doctor: `shutil`/`subprocess`；status: `subprocess`/`tomllib`/`pathlib`；clean_work: `shutil`/`sys`/`pathlib` |
 | `clean_work` 不碰 `.cache/` | ✅ 隔离树 Test A 验证 `.cache` 完好 |
-| reference path 为项目内相对路径 | ✅ lock 文件中 `path = ".work/DADAO-0628"` 等，非绝对路径 |
+| reference path 为项目内相对路径 | ✅ lock 文件中 `path = ".dadao/DADAO-0628"` 等，非绝对路径 |
 | 修改文件清单一致 | ✅ `git status` 显示三个新文件：`tools/infra/doctor.py` / `tools/infra/status.py` / `tools/infra/clean_work.py` |
 | 脚本可执行权限 | ✅ 三个文件均为 `755` |
 

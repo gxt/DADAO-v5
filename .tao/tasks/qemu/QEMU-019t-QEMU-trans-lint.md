@@ -94,8 +94,8 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-023a-issue-registry-trans-lint.md`
-- DADAO-0628：`.work/DADAO-0628/scripts/check_qemu_trans.py`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-023a-issue-registry-trans-lint.md`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/check_qemu_trans.py`
 - 本项目：`contracts/opcodes.yaml`、`components/qemu/patches/`、`.tao/knowledge/contract-isa.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

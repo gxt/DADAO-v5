@@ -88,8 +88,8 @@ drift checker 必须 fail-closed：缺失/格式错误的来源不能静默 PASS
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-004b-spec-freeze.md`
-- DADAO-0628：`.work/DADAO-0628/scripts/check_wiki_drift.py`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-004b-spec-freeze.md`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/check_wiki_drift.py`
 - 本项目：`README.md`（规范版本表）、`.tao/knowledge/contract-isa.md`（版本头示例）、`Makefile`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

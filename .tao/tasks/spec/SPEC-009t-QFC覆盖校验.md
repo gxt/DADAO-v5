@@ -72,8 +72,8 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-022a-qfc-lit-oracle.md`
-- DADAO-0628：`.work/DADAO-0628/scripts/check_qfc_coverage.py`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-022a-qfc-lit-oracle.md`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/check_qfc_coverage.py`
 - 本项目：`spec/SimRISC-00-指令系统设计.md`、`contracts/opcodes.yaml`、`tools/spec/validate_encoding.py`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

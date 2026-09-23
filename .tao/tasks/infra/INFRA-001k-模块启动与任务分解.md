@@ -44,4 +44,4 @@ DADAO-v5 要从上游组件（LLVM/QEMU/gem5）的可复现基线构建全栈，
 
 - 只规划不实现；组件 commit 待后续模块 ADR 确定。
 - `.work/` 永不入 git；排除项必须显式失败，不能静默 no-op。
-- 详细背景与 DADAO-0628 对照见各 `t` 任务文件；参考 `.work/DADAO-0628/code-agent/designs/0001-foundation-scope.md`、`0002-detailed-roadmap.md`、`docs/adr/0001-greenfield-rebuild.md`、`0002-build-orchestration.md`。
+- 详细背景与 DADAO-0628 对照见各 `t` 任务文件；参考 `.dadao/DADAO-0628/code-agent/designs/0001-foundation-scope.md`、`0002-detailed-roadmap.md`、`docs/adr/0001-greenfield-rebuild.md`、`0002-build-orchestration.md`。

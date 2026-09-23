@@ -105,8 +105,8 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-039a-wiki-ref-auditor.md`
-- DADAO-0628：`.work/DADAO-0628/scripts/check_wiki_refs.py`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-039a-wiki-ref-auditor.md`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/check_wiki_refs.py`
 - 本项目：`.tao/knowledge/contract-isa.md`、`spec/SimRISC-00-指令系统设计.md` ~ `spec/SimRISC-04-系统类指令.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

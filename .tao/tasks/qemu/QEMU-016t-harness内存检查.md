@@ -115,9 +115,9 @@ words.append(encode_or_o(ACCUM_RD, ACCUM_RD, TEMP_RD))           # 累加失配
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-022b-harness-memory-check.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-021a-harness-semantic.md`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/build_test_binary.py`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-022b-harness-memory-check.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-021a-harness-semantic.md`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/build_test_binary.py`
 - 本项目：`contracts/opcodes.yaml`、`tests/vectors/isa/`、`.tao/knowledge/adr-0004-test-machine.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

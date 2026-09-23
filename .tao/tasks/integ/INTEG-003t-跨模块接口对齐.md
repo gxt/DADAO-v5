@@ -71,7 +71,7 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-033a-mc-qemu-e2e-smoke.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-033a-mc-qemu-e2e-smoke.md`
 - 本项目：`.tao/knowledge/adr-0003-object-abi.md`、`adr-0004-test-machine.md`、`contract-elf.md`、`contracts/opcodes.yaml`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

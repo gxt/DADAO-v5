@@ -150,12 +150,12 @@ instr_bytes = struct.pack('>I', instr_word)
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-019a-phase3-harness.md`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/build_test_binary.py`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/run_qemu_test.py`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/gen_trampoline.py`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/trampoline.bin`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0004-test-machine.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-019a-phase3-harness.md`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/build_test_binary.py`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/run_qemu_test.py`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/gen_trampoline.py`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/trampoline.bin`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0004-test-machine.md`
 - 本项目：`.tao/knowledge/adr-0004-test-machine.md`、`contracts/opcodes.yaml`、`tests/vectors/isa/`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

@@ -76,9 +76,9 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-008a-llvm-reginfo.md`
-- DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-008a-llvm-reginfo.md`
+- DADAO-0628：`.dadao/DADAO-0628/components/llvm/patches/series`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 - 本项目：`.tao/knowledge/contract-isa.md`（§1）、`.tao/knowledge/contract-abi.md`（SPEC-004t 产出后）
 

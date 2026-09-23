@@ -72,11 +72,11 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-005a-llvm-baseline.md`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0005-llvm-baseline.md`
-- DADAO-0628：`.work/DADAO-0628/manifests/components.lock.toml`
-- DADAO-0628：`.work/DADAO-0628/Makefile`
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-005a-llvm-baseline.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0005-llvm-baseline.md`
+- DADAO-0628：`.dadao/DADAO-0628/manifests/components.lock.toml`
+- DADAO-0628：`.dadao/DADAO-0628/Makefile`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`
 - 知识库：`.tao/knowledge/MEMORY.md`
 - 本项目：`.tao/tasks/infra/INFRA-003t-manifest与锁系统.md`、`.tao/tasks/infra/INFRA-004t-组件获取与打补丁工具.md`、`.tao/tasks/infra/INFRA-006t-Makefile编排.md`
 

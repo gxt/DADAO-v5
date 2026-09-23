@@ -78,10 +78,10 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-006a-qemu-baseline.md`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0006-qemu-baseline.md`
-- DADAO-0628：`.work/DADAO-0628/manifests/components.lock.toml`
-- DADAO-0628：`.work/DADAO-0628/Makefile`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-006a-qemu-baseline.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0006-qemu-baseline.md`
+- DADAO-0628：`.dadao/DADAO-0628/manifests/components.lock.toml`
+- DADAO-0628：`.dadao/DADAO-0628/Makefile`
 - v5：`.tao/knowledge/adr-authoring.md`（ADR 格式与模板）
 - 知识库：`.tao/knowledge/MEMORY.md`
 - 本项目：`.tao/tasks/infra/INFRA-003t-manifest与锁系统.md`、`.tao/tasks/infra/INFRA-004t-组件获取与打补丁工具.md`、`.tao/tasks/infra/INFRA-006t-Makefile编排.md`、`.tao/tasks/infra/INFRA-009t-组件锁多源字段.md`、`.tao/tasks/infra/INFRA-013t-按原始仓库名命名.md`

@@ -218,10 +218,10 @@ tests/vectors/isa/
 
 ### 上游引用
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-001d-vector-data.md`（完整转述：目标、schema 字段规范、5 类 class 与 deferred 规则、每条指令覆盖要求、`isa/` 文件组织、inventory 格式、validator 8 项校验、约束、以及三轮 Architecture Review 的 P0/P1 问题与修正）
-- DADAO-0628：`.work/DADAO-0628/tests/vectors/schema.md`、`inventory.md`、`README.md`、`tests/vectors/isa/`（产物形态参考，禁止复制数据正文）
-- DADAO-0628：`.work/DADAO-0628/scripts/validate_vectors.py`（validator 实现参考，禁止复制）
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（TDD Contract / Vector Taxonomy / Ordering Rule 段）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-001d-vector-data.md`（完整转述：目标、schema 字段规范、5 类 class 与 deferred 规则、每条指令覆盖要求、`isa/` 文件组织、inventory 格式、validator 8 项校验、约束、以及三轮 Architecture Review 的 P0/P1 问题与修正）
+- DADAO-0628：`.dadao/DADAO-0628/tests/vectors/schema.md`、`inventory.md`、`README.md`、`tests/vectors/isa/`（产物形态参考，禁止复制数据正文）
+- DADAO-0628：`.dadao/DADAO-0628/scripts/validate_vectors.py`（validator 实现参考，禁止复制）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（TDD Contract / Vector Taxonomy / Ordering Rule 段）
 
 ## 交付物
 
@@ -262,9 +262,9 @@ tests/vectors/isa/
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-001d-vector-data.md`（完整转述）
-- DADAO-0628：`.work/DADAO-0628/tests/vectors/schema.md`、`inventory.md`、`README.md`、`tests/vectors/isa/`
-- DADAO-0628：`.work/DADAO-0628/scripts/validate_vectors.py`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-001d-vector-data.md`（完整转述）
+- DADAO-0628：`.dadao/DADAO-0628/tests/vectors/schema.md`、`inventory.md`、`README.md`、`tests/vectors/isa/`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/validate_vectors.py`
 - 本项目：`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、`.tao/knowledge/contract-isa.md`、`.tao/knowledge/adr-0004-test-machine.md`
 - 知识库：`.tao/knowledge/MEMORY.md`、`.tao/knowledge/deferred.md`
 

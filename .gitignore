@@ -4,6 +4,9 @@
 # 持久对象库（上游 bare mirror）
 .cache/
 
+# 参考仓库检出（长期只读，不入库）
+.dadao/
+
 # Python
 __pycache__/
 *.py[cod]

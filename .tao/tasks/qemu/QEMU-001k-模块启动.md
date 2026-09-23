@@ -25,7 +25,7 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
   - oracle 不同：v5 语义/合法性期望值来自 `.tao/knowledge/contract-isa.md`（§1 寄存器、§2 编码、§3 标量、§4 地址/内存、§5 控制流、§7 系统、附录 A 编码清单）与 `contracts/opcodes.yaml`（256 条）、`contracts/legality_rules.yaml`，而非 0628 的 `contracts/isa/spec.md`。
   - RB 语义不同：0.5.3 RB 算术为全 64 位运算，bits[63:48] 为运算结果、可用于溢出检测；0.4.1 截断到 48 位。不得沿用 0628 的 `& 0x0000FFFFFFFFFFFF` 掩码写法作为 RB 结果。
   - 测试机权威不同：exit port 协议、内存图、MALIGN/ILLI/UNDI 可观测行为以 v5 `.tao/knowledge/adr-0004-test-machine.md`（`SPEC-006t` 产出）为准，不照抄 0628 `docs/adr/0004-test-machine.md`。
-  - 目录/工具不同：v5 任务在 `.tao/tasks/qemu/`；上游 checkout 落在 `.work/source/qemu`（`INFRA-004t` 约定），构建落在 `.work/build/qemu`；参考锁指向 `.work/DADAO-0628`。
+  - 目录/工具不同：v5 任务在 `.tao/tasks/qemu/`；上游 checkout 落在 `.work/source/qemu`（`INFRA-004t` 约定），构建落在 `.work/build/qemu`；参考锁指向 `.dadao/DADAO-0628`。
   - 不照抄 0628 的 QEMU commit 作为既定基线；版本由 `QEMU-002t` 的 ADR-0008 独立记录并验证。
   - 路线与参考直接指向 DADAO-0628，不使用任何按开发批次命名的目录或字段。
 
@@ -75,7 +75,7 @@ DADAO-0628 的 QEMU 任务链基于 SimRISC 0.4.1，其指令命名（`add`/`sub
   | `0007-dadao-ra-semantics.patch` | — | `QEMU-013t` |
   | `0008-dadao-tb-chain-fix.patch` | — | `QEMU-022t`（TB 续接缺陷修复） |
 
-- 参考：`.work/DADAO-0628/components/qemu/patches/series`、`.work/DADAO-0628/components/qemu/README.md`、`.work/DADAO-0628/docs/adr/0006-qemu-baseline.md`。
+- 参考：`.dadao/DADAO-0628/components/qemu/patches/series`、`.dadao/DADAO-0628/components/qemu/README.md`、`.dadao/DADAO-0628/docs/adr/0006-qemu-baseline.md`。
 
 ---
 

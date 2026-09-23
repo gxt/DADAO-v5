@@ -115,10 +115,10 @@ echo "exit: $?"
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-033a-phase4-e2e-smoke.md`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/gen_e2e_binary.py`
-- DADAO-0628：`.work/DADAO-0628/tests/scripts/run_e2e.py`
-- DADAO-0628：`.work/DADAO-0628/tests/lit/E2E/`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-033a-phase4-e2e-smoke.md`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/gen_e2e_binary.py`
+- DADAO-0628：`.dadao/DADAO-0628/tests/scripts/run_e2e.py`
+- DADAO-0628：`.dadao/DADAO-0628/tests/lit/E2E/`
 - 本项目：`.tao/knowledge/adr-0004-test-machine.md`、`contracts/opcodes.yaml`、`.tao/knowledge/contract-isa.md` §5/§7.5
 - 知识库：`.tao/knowledge/MEMORY.md`
 

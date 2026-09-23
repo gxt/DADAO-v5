@@ -84,10 +84,10 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-007a-llvm-triple.md`（内容溯源，非执行必需）
-- DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`（内容溯源，非执行必需）
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0003-object-abi.md`（内容溯源，非执行必需）
-- DADAO-0628：`.work/DADAO-0628/Makefile`（内容溯源，非执行必需）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-007a-llvm-triple.md`（内容溯源，非执行必需）
+- DADAO-0628：`.dadao/DADAO-0628/components/llvm/patches/series`（内容溯源，非执行必需）
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0003-object-abi.md`（内容溯源，非执行必需）
+- DADAO-0628：`.dadao/DADAO-0628/Makefile`（内容溯源，非执行必需）
 - 知识库：`.tao/knowledge/MEMORY.md`
 - 本项目：`.tao/knowledge/contract-elf.md`（SPEC-007t 产出后）、`contracts/opcodes.yaml`
 - ADR：`.tao/knowledge/adr-0007-dadao-target-registration.md`（DADAO 注册通道决策）

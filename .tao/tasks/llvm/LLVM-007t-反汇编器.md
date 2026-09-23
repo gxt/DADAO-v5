@@ -69,10 +69,10 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-011a-llvm-disassembler.md`
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-010b-llvm-codeemitter-fix.md`
-- DADAO-0628：`.work/DADAO-0628/tests/lit/MC/Dadao/`
-- DADAO-0628：`.work/DADAO-0628/components/llvm/patches/series`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-011a-llvm-disassembler.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-010b-llvm-codeemitter-fix.md`
+- DADAO-0628：`.dadao/DADAO-0628/tests/lit/MC/Dadao/`
+- DADAO-0628：`.dadao/DADAO-0628/components/llvm/patches/series`
 - 知识库：`.tao/knowledge/MEMORY.md`
 - 本项目：`.tao/knowledge/contract-isa.md`、`contracts/opcodes.yaml`
 

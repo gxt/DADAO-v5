@@ -93,9 +93,9 @@ lit 文件中 `# OBJ:` 行手写了期望字节，但这些字节是否与 `cont
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-022a-qfc-lit-oracle.md`
-- DADAO-0628：`.work/DADAO-0628/scripts/check_lit_bytes.py`
-- DADAO-0628：`.work/DADAO-0628/tests/lit/MC/Dadao/`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-022a-qfc-lit-oracle.md`
+- DADAO-0628：`.dadao/DADAO-0628/scripts/check_lit_bytes.py`
+- DADAO-0628：`.dadao/DADAO-0628/tests/lit/MC/Dadao/`
 - 本项目：`contracts/opcodes.yaml`、`tests/lit/MC/Dadao/`
 - 知识库：`.tao/knowledge/MEMORY.md`
 

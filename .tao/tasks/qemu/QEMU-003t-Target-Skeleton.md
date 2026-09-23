@@ -91,9 +91,9 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-013a-qemu-skeleton.md`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0004-test-machine.md`
-- DADAO-0628：`.work/DADAO-0628/components/qemu/patches/0001-dadao-target-skeleton.patch`（仅参考文件组织，不复制正文）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-013a-qemu-skeleton.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0004-test-machine.md`
+- DADAO-0628：`.dadao/DADAO-0628/components/qemu/patches/0001-dadao-target-skeleton.patch`（仅参考文件组织，不复制正文）
 - 本项目：`.tao/knowledge/contract-isa.md` §1、§2、§9；`.tao/knowledge/adr-0004-test-machine.md`（待 `SPEC-006t` 产出）
 - 知识库：`.tao/knowledge/MEMORY.md`
 

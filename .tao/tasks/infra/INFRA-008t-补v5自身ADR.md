@@ -61,8 +61,8 @@ v5 多处文档（`INFRA-002t`/`003t`/`004t`/`006t`、`docs/repository-layout.md
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0001-greenfield-rebuild.md`
-- DADAO-0628：`.work/DADAO-0628/docs/adr/0002-build-orchestration.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0001-greenfield-rebuild.md`
+- DADAO-0628：`.dadao/DADAO-0628/docs/adr/0002-build-orchestration.md`
 - 本项目：`.tao/knowledge/adr-authoring.md`、`docs/repository-layout.md`
 
 ## 验收标准

@@ -79,9 +79,9 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-004b-spec-freeze.md`
-- DADAO-0628：`.work/DADAO-0628/manifests/spec.lock.toml`
-- DADAO-0628：`.work/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-004b-spec-freeze.md`
+- DADAO-0628：`.dadao/DADAO-0628/manifests/spec.lock.toml`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/designs/0002-detailed-roadmap.md`（Spec Freeze 段）
 - 本项目：`README.md`（规范版本表）、`.tao/knowledge/contract-isa.md`（版本头示例）
 - 知识库：`.tao/knowledge/MEMORY.md`
 

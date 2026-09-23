@@ -68,7 +68,7 @@
 
 ## 参考
 
-- DADAO-0628：`.work/DADAO-0628/code-agent/tasks/DL-024a-qemu-trans-rela-fix.md`
+- DADAO-0628：`.dadao/DADAO-0628/code-agent/tasks/DL-024a-qemu-trans-rela-fix.md`
 - 本项目：`.tao/knowledge/contract-isa.md` §4.7、§1.3.2；`contracts/opcodes.yaml`；`tests/vectors/isa/reg-arith.yaml`
 - 本项目：`.tao/tasks/qemu/QEMU-008t-控制流与RB.md`
 - 知识库：`.tao/knowledge/MEMORY.md`

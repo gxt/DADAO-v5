@@ -83,17 +83,17 @@ mv .cache/refs/dadao-0628.git .cache/refs/DADAO-0628.git
 mv .cache/refs/dadao.git .cache/refs/DADAO.git
 ```
 
-**工作树 origin 修正**：`.work/DADAO-0628` 和 `.work/DADAO` 的 `origin` 当前指向旧路径（实测 `origin = /mnt/tao/DADAO-v5/.cache/refs/dadao-0628.git`、`.../dadao.git`）。迁移缓存后需修正：
+**工作树 origin 修正**：`.dadao/DADAO-0628` 和 `.dadao/DADAO` 的 `origin` 当前指向旧路径（实测 `origin = /mnt/tao/DADAO-v5/.cache/refs/dadao-0628.git`、`.../dadao.git`）。迁移缓存后需修正：
 
 ```bash
-# 修正 .work/DADAO-0628 的 origin
-git -C .work/DADAO-0628 remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO-0628.git
+# 修正 .dadao/DADAO-0628 的 origin
+git -C .dadao/DADAO-0628 remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO-0628.git
 
-# 修正 .work/DADAO 的 origin
-git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
+# 修正 .dadao/DADAO 的 origin
+git -C .dadao/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 ```
 
-**验证**：运行 `make fetch-refs` 确认工作树可正常更新（或确认 `git -C .work/DADAO-0628 remote -v` 显示新路径）。
+**验证**：运行 `make fetch-refs` 确认工作树可正常更新（或确认 `git -C .dadao/DADAO-0628 remote -v` 显示新路径）。
 
 **注意**：`.work/source/llvm` 目前不存在（llvm 仍 disabled，未 fetch 过），无需迁移。
 
@@ -105,14 +105,14 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 
 | 文件 | 改动内容 | 理由 |
 |------|---------|------|
-| `.tao/tasks/llvm/LLVM-001k-模块启动.md` | 第 20 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 24 行 `.work/source/llvm` → `.work/source/llvm-project`；第 33–38 行任务表中 `components/llvm/patches/` → `components/llvm-project/patches/`（共 8 处）；第 54 行 `.work/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径） | v5 任务描述，引用 v5 组件路径 |
+| `.tao/tasks/llvm/LLVM-001k-模块启动.md` | 第 20 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 24 行 `.work/source/llvm` → `.work/source/llvm-project`；第 33–38 行任务表中 `components/llvm/patches/` → `components/llvm-project/patches/`（共 8 处）；第 54 行 `.dadao/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径） | v5 任务描述，引用 v5 组件路径 |
 | `.tao/tasks/llvm/LLVM-002t-LLVM组件基线.md` | 第 14 行 `llvm` 条目描述（无需改，指 manifest 的 `name` 值，改 manifest 即可）；第 18 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 41 行 `.work/source/llvm/llvm` → `.work/source/llvm-project/llvm`；第 54 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 60 行 `.work/source/llvm/llvm` → `.work/source/llvm-project/llvm`；第 61 行 `components/llvm/patches/*` → `components/llvm-project/patches/*`；第 68 行 `components/<name>/patches/series`（通用描述，不改）；第 70 行 `LLVM_SRC=.work/source/llvm/llvm` → `.work/source/llvm-project/llvm`（2 处）；第 90 行 `.work/source/llvm/llvm` → `.work/source/llvm-project/llvm`；第 91 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 106 行 `components/llvm/patches/series` → `components/llvm-project/patches/series` | v5 任务描述 |
-| `.tao/tasks/llvm/LLVM-003t-Triple注册.md` | 第 14 行 `.work/source/llvm` → `.work/source/llvm-project`、`components/llvm/patches/series` → `components/llvm-project/patches/series`；第 16–18 行 `components/llvm/patches/` → `components/llvm-project/patches/`（3 处）；第 21 行 `.work/source/llvm` → `.work/source/llvm-project`；第 57 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 62–64 行 `components/llvm/patches/` → `components/llvm-project/patches/`（3 处）；第 71 行 `.work/source/llvm/llvm` → `.work/source/llvm-project/llvm`；第 87 行 `.work/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径）；第 95 行 `components/llvm/patches/series` → `components/llvm-project/patches/series` | v5 任务描述 |
-| `.tao/tasks/llvm/LLVM-004t-Register-TableGen.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`（2 处）；第 48 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 53–54 行 `components/llvm/patches/` → `components/llvm-project/patches/`（2 处）；第 71 行 `.work/source/llvm` → `.work/source/llvm-project`；第 77 行 `.work/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径）；第 84 行 `components/llvm/patches/` → `components/llvm-project/patches/` | v5 任务描述 |
-| `.tao/tasks/llvm/LLVM-005t-指令格式-TableGen.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`（2 处）；第 65 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 66 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 98 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 60 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 91 行 `.work/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径） | v5 任务描述 |
-| `.tao/tasks/llvm/LLVM-006t-AsmParser与CodeEmitter.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 49 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 50 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 81 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 44 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 75 行 `.work/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径） | v5 任务描述 |
+| `.tao/tasks/llvm/LLVM-003t-Triple注册.md` | 第 14 行 `.work/source/llvm` → `.work/source/llvm-project`、`components/llvm/patches/series` → `components/llvm-project/patches/series`；第 16–18 行 `components/llvm/patches/` → `components/llvm-project/patches/`（3 处）；第 21 行 `.work/source/llvm` → `.work/source/llvm-project`；第 57 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 62–64 行 `components/llvm/patches/` → `components/llvm-project/patches/`（3 处）；第 71 行 `.work/source/llvm/llvm` → `.work/source/llvm-project/llvm`；第 87 行 `.dadao/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径）；第 95 行 `components/llvm/patches/series` → `components/llvm-project/patches/series` | v5 任务描述 |
+| `.tao/tasks/llvm/LLVM-004t-Register-TableGen.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`（2 处）；第 48 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 53–54 行 `components/llvm/patches/` → `components/llvm-project/patches/`（2 处）；第 71 行 `.work/source/llvm` → `.work/source/llvm-project`；第 77 行 `.dadao/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径）；第 84 行 `components/llvm/patches/` → `components/llvm-project/patches/` | v5 任务描述 |
+| `.tao/tasks/llvm/LLVM-005t-指令格式-TableGen.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`（2 处）；第 65 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 66 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 98 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 60 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 91 行 `.dadao/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径） | v5 任务描述 |
+| `.tao/tasks/llvm/LLVM-006t-AsmParser与CodeEmitter.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 49 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 50 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 81 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 44 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 75 行 `.dadao/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径） | v5 任务描述 |
 | `.tao/tasks/llvm/LLVM-007t-CodeEmitter修复与lit.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 59 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 61 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 54 行 `components/llvm/patches/` **不改**（0628 自身路径） | v5 任务描述 |
-| `.tao/tasks/llvm/LLVM-008t-反汇编器.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 42 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 47–48 行 `components/llvm/patches/` → `components/llvm-project/patches/`（2 处）；第 72 行 `.work/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径）；第 78 行 `components/llvm/patches/` → `components/llvm-project/patches/` | v5 任务描述 |
+| `.tao/tasks/llvm/LLVM-008t-反汇编器.md` | 第 15 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 42 行 `components/llvm/patches/` **不改**（0628 自身路径）；第 47–48 行 `components/llvm/patches/` → `components/llvm-project/patches/`（2 处）；第 72 行 `.dadao/DADAO-0628/components/llvm/patches/series` **不改**（0628 自身路径）；第 78 行 `components/llvm/patches/` → `components/llvm-project/patches/` | v5 任务描述 |
 | `.tao/tasks/llvm/LLVM-011t-RA指令MC支持.md` | 第 15 行 `components/llvm/patches/series` → `components/llvm-project/patches/series`；第 45 行 `components/llvm/patches/` → `components/llvm-project/patches/`；第 47 行 `components/llvm/patches/series` → `components/llvm-project/patches/series` | v5 任务描述 |
 | `.tao/tasks/llvm/LLVM-009t-lit字节CHECK.md` | 第 57 行 `components/llvm/patches/` → `components/llvm-project/patches/` | v5 任务描述 |
 | `.tao/tasks/llvm/LLVM-015m-LLVM-MC里程碑.md` | 第 14–20 行 `components/llvm/patches/` → `components/llvm-project/patches/`（补丁清单 7 行，全为 v5 路径） | v5 里程碑清单 |
@@ -127,7 +127,7 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 |------|------|
 | `.tao/tasks/infra/INFRA-004t-组件获取与打补丁工具.md` | 含 `.cache/refs/dadao-0628.git` 等**历史验证输出**（记录当时事实，不改写） |
 | `.tao/logs/**` | 日志文件，记录历史事实 |
-| `.work/DADAO-0628/**` | 参考仓库自身内容，不改 |
+| `.dadao/DADAO-0628/**` | 参考仓库自身内容，不改 |
 | `.tao/knowledge/adr-0005-component-lock-multi-source.md` | 含 `.cache/llvm.git` 引用，但为历史决策记录（ADR Accepted 后不回溯改写）；且 ADR 中 `<name>` 占位符本就指原始仓库名 |
 | `.tao/knowledge/changelog.md` | 含 `.cache/llvm.git` 引用（历史行，记录当时事实） |
 
@@ -157,14 +157,14 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 - **标识符 = 原始仓库名**：`ADR-0002` L18 的 `<name>`/`<id>` 占位符指的就是原始仓库名（含大小写），manifest 的值必须与之一致。这是本次任务的核心原则。
 - **`fetch.py`/`fetch_refs.py` 代码不改**：`.cache/<name>.git` 和 `.cache/refs/<id>.git` 的目录名由 manifest 的 `name`/`id` 值决定，改 manifest 即可。
 - **`components/<name>/patches/` 目录**：manifest 的 `patch_series` 字段值随 `name` 变化，但实际目录尚不存在（llvm 仍 disabled），迁移时只需改 manifest 值，无需移动目录。
-- **`.work/DADAO-0628` 和 `.work/DADAO` 的 origin 修正**：缓存目录重命名后，工作树的 origin URL 需同步更新，否则 `git fetch` 会失败。
+- **`.dadao/DADAO-0628` 和 `.dadao/DADAO` 的 origin 修正**：缓存目录重命名后，工作树的 origin URL 需同步更新，否则 `git fetch` 会失败。
 - **历史记录不改写**：changelog 历史行、INFRA-004t/INFRA-009t 的历史验证输出、ADR-0005 中的 `.cache/llvm.git` 引用均保留原文，不改写历史事实。
 
 ## 参考
 
 - ADR-0002：`.tao/knowledge/adr-0002-build-orchestration.md`（L18：`.cache/<name>.git`、`.cache/refs/<id>.git`）
 - 本项目：`.tao/tasks/infra/INFRA-003t-manifest与锁系统.md`、`.tao/tasks/infra/INFRA-004t-组件获取与打补丁工具.md`
-- DADAO-0628：`.work/DADAO-0628/manifests/components.lock.toml`（内容溯源，非执行必需）
+- DADAO-0628：`.dadao/DADAO-0628/manifests/components.lock.toml`（内容溯源，非执行必需）
 
 ## 验收标准
 
@@ -172,7 +172,7 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 2. `manifests/references.lock.toml` 的 `id = "DADAO-0628"`、`id = "DADAO"`；`path`/`head`/`repository`/`reuse` 不变
 3. `Makefile` 的 `LLVM_SRC ?= .work/source/llvm-project/llvm`、`$(call component-enabled,llvm-project)`、报错文案 `'llvm-project'`；`QEMU_SRC`/`LLVM_BUILD` 不变
 4. `.cache/llvm.git` → `.cache/llvm-project.git`、`.cache/refs/dadao-0628.git` → `.cache/refs/DADAO-0628.git`、`.cache/refs/dadao.git` → `.cache/refs/DADAO.git` 均已完成
-5. `.work/DADAO-0628` 和 `.work/DADAO` 的 `origin` 指向新缓存路径（`git -C .work/DADAO-0628 remote -v` 确认）
+5. `.dadao/DADAO-0628` 和 `.dadao/DADAO` 的 `origin` 指向新缓存路径（`git -C .dadao/DADAO-0628 remote -v` 确认）
 6. `make manifest-check` PASS
 7. `make fetch-refs` PASS（验证缓存迁移后工作树可正常更新）
 8. 文档路径同步：全部 15 个文件（LLVM-001k/002t/003t/004t/005t/006t/007t/008t/009t/011t/013m、INFRA-006t、INFRA-009t、INFRA-008t、INTEG-003t；其中 INFRA-009t/008t 为用户裁定 2026-09-17 追加）中 `components/llvm/patches` → `components/llvm-project/patches`、`.work/source/llvm` → `.work/source/llvm-project`、示例标识符已更新；0628 自身路径引用未被误改
@@ -202,7 +202,7 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 - `.tao/tasks/infra/INFRA-008t-补v5自身ADR.md`（L399）— 用户裁定 2026-09-17 追加
 - `.tao/tasks/integ/INTEG-003t-跨模块接口对齐.md`（L18）
 - 缓存迁移：`.cache/llvm.git`→`.cache/llvm-project.git`、`.cache/refs/dadao-0628.git`→`.cache/refs/DADAO-0628.git`、`.cache/refs/dadao.git`→`.cache/refs/DADAO.git`
-- origin 修正：`.work/DADAO-0628` 和 `.work/DADAO` 的 origin URL
+- origin 修正：`.dadao/DADAO-0628` 和 `.dadao/DADAO` 的 origin URL
 
 **git diff 涉及但非本任务 engineer 引入的文件**（规划阶段 architect 产出）：
 - `.tao/knowledge/changelog.md`：INFRA-013t 规划行（architect `/plan` 产出）
@@ -229,10 +229,10 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
    ```
    $ grep -E '^id|^path|^head' manifests/references.lock.toml
    id = "DADAO-0628"
-   path = ".work/DADAO-0628"
+   path = ".dadao/DADAO-0628"
    head = "2d270604b778d609e1a09b4047271b5309005ffc"
    id = "DADAO"
-   path = ".work/DADAO"
+   path = ".dadao/DADAO"
    head = "f9bde0481668ffab325db8d8c5d8c4cc791c6232"
    ```
 
@@ -256,10 +256,10 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 
 5. ✅ 工作树 origin 指向新缓存路径
    ```
-   $ git -C .work/DADAO-0628 remote -v
+   $ git -C .dadao/DADAO-0628 remote -v
    origin	/mnt/tao/DADAO-v5/.cache/refs/DADAO-0628.git (fetch)
    origin	/mnt/tao/DADAO-v5/.cache/refs/DADAO-0628.git (push)
-   $ git -C .work/DADAO remote -v
+   $ git -C .dadao/DADAO remote -v
    origin	/mnt/tao/DADAO-v5/.cache/refs/DADAO.git (fetch)
    origin	/mnt/tao/DADAO-v5/.cache/refs/DADAO.git (push)
    ```
@@ -332,7 +332,7 @@ git -C .work/DADAO remote set-url origin /mnt/tao/DADAO-v5/.cache/refs/DADAO.git
 |---|---------|------|---------|---------|
 | E1-1 | LLVM-007t L54 的 DADAO-0628 保护行被 replaceAll 误改 | ✅已修 | revert 为 `components/llvm/patches/0005-dadao-asmparser.patch` | `sed -n '54p'` 确认含 `components/llvm/patches` |
 | E1-2 | LLVM-008t L42 的 DADAO-0628 保护行被 replaceAll 误改 | ✅已修 | revert 为 `components/llvm/patches/0006-dadao-disassembler.patch` | `sed -n '42p'` 确认含 `components/llvm/patches` |
-| E1-3 | LLVM-008t L72 的 DADAO-0628 保护行被 replaceAll 误改 | ✅已修 | revert 为 `.work/DADAO-0628/components/llvm/patches/series` | `sed -n '72p'` 确认含 `components/llvm/patches` |
+| E1-3 | LLVM-008t L72 的 DADAO-0628 保护行被 replaceAll 误改 | ✅已修 | revert 为 `.dadao/DADAO-0628/components/llvm/patches/series` | `sed -n '72p'` 确认含 `components/llvm/patches` |
 | E1-4 | INFRA-003t/INFRA-009t/INFRA-004t 中残留 `components/llvm/patches` | ❌不修 | 属历史验证输出/引用，任务书明确不改 | 任务书「不修改的文件及理由」表 |
 | E1-5 | `git status` 显示非本任务文件有改动 | ❌不修 | 属规划阶段 architect 产出，非 engineer 引入 | `git diff` 归属分析 |
 

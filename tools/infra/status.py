@@ -3,7 +3,7 @@
 
 Components are read from ``manifests/components.lock.toml`` and references from
 ``manifests/references.lock.toml``. Reference ``path`` entries are project
-relative (e.g. ``.work/DADAO-0628``); each existing worktree is queried with
+relative (e.g. ``.dadao/DADAO-0628``); each existing worktree is queried with
 ``git rev-parse HEAD`` and ``git status --porcelain``.
 """
 from __future__ import annotations
