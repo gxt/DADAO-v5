@@ -14,6 +14,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
+| `spec/assembly-list.md` | **DADAO 汇编指令完整列表**（自动生成，256 条 = M1 178 + excluded 78；含模板/示例/操作数/立即数范围 u·s/编码/lit 覆盖/llvm-mc 验证；生成器 `tools/llvm/gen_asm_list.py`） |
 | `spec/component-patching.md` | **组件补丁组织与构建编排规范**（v5 规范层，2026-09-23 生效）：树形补丁集 + 一文件一补丁 + `git apply`；四断言由 `make check` 的 `check-patch-tree` 校验 |
 | `m2-spec-planning.md` | **M2 规范规划（讨论稿）**：规范判据（RFC 2119 + 业界对标 + 机器可检查）、业界参考、N1–N16 映射、`spec/` 对照结论、三层结构、待裁决项 |
 | `m1-retrospective.md` | **M1 里程碑回顾**：事实快照 / 资产地图 / 过程度量 / 时间线 / 被否决方案 / 死胡同 / 风险台账 / 0628 对照 / M2 交接 / 复现手册 / 术语 / 审计链 |
