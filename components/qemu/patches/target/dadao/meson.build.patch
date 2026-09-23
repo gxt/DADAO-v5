@@ -1,0 +1,19 @@
+diff --git a/target/dadao/meson.build b/target/dadao/meson.build
+new file mode 100644
+index 0000000..007924e
+--- /dev/null
++++ b/target/dadao/meson.build
+@@ -0,0 +1,13 @@
++dadao_ss = ss.source_set()
++dadao_system_ss = ss.source_set()
++
++dadao_ss.add(decodetree.process('insn.decode',
++  extra_args: '--static-decode=decode_insn'))
++
++dadao_ss.add(files(
++  'translate.c',
++  'helper.c',
++  'cpu.c'))
++
++target_arch += {'dadao': dadao_ss}
++target_system_arch += {'dadao': dadao_system_ss}

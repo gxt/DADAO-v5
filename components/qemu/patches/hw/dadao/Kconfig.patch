@@ -1,0 +1,10 @@
+diff --git a/hw/dadao/Kconfig b/hw/dadao/Kconfig
+new file mode 100644
+index 0000000..3ccd665
+--- /dev/null
++++ b/hw/dadao/Kconfig
+@@ -0,0 +1,4 @@
++config DADAO_M1
++    bool
++    default y
++    depends on DADAO

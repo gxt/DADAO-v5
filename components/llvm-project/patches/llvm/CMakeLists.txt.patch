@@ -1,0 +1,12 @@
+diff --git a/llvm/CMakeLists.txt b/llvm/CMakeLists.txt
+index 9340cd6c4..7789dd768 100644
+--- a/llvm/CMakeLists.txt
++++ b/llvm/CMakeLists.txt
+@@ -594,6 +594,7 @@ set(LLVM_ALL_TARGETS
+   ARM
+   AVR
+   BPF
++  DADAO
+   Hexagon
+   Lanai
+   LoongArch

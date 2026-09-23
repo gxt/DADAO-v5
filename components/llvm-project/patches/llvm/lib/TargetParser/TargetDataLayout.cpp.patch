@@ -1,0 +1,14 @@
+diff --git a/llvm/lib/TargetParser/TargetDataLayout.cpp b/llvm/lib/TargetParser/TargetDataLayout.cpp
+index 18f0c1390..720dfa400 100644
+--- a/llvm/lib/TargetParser/TargetDataLayout.cpp
++++ b/llvm/lib/TargetParser/TargetDataLayout.cpp
+@@ -644,6 +644,9 @@ std::string Triple::computeDataLayout(StringRef ABIName) const {
+     return computeSPIRVDataLayout(*this);
+   case Triple::lanai:
+     return computeLanaiDataLayout();
++  case Triple::dadao:
++    // DADAO: big endian, 64-bit pointers, ELF.
++    return "E-m:e-p:64:64-i64:64-i128:128-n32:64-S128";
+   case Triple::wasm32:
+   case Triple::wasm64:
+     return computeWebAssemblyDataLayout(*this);

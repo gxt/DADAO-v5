@@ -1,0 +1,123 @@
+diff --git a/target/dadao/insn_trans/trans_cond_assign.c.inc b/target/dadao/insn_trans/trans_cond_assign.c.inc
+new file mode 100644
+index 0000000..41d01f9
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_cond_assign.c.inc
+@@ -0,0 +1,117 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++static bool trans_cs_n_rf(DisasContext *ctx, arg_main *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_z_rf(DisasContext *ctx, arg_main *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_p_rf(DisasContext *ctx, arg_main *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_eq_rf(DisasContext *ctx, arg_main *a)
++{
++    /* cs.eq-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cs_ne_rf(DisasContext *ctx, arg_main *a)
++{
++    /* cs.ne-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++/* §3.5 cs.n/cs.z/cs.p (rrrr): single-value conditional assign
++ *   cs.n: if (rdha < 0) rdhb = rdhc; else rdhb = rdhd
++ *   cs.z: if (rdha == 0) rdhb = rdhc; else rdhb = rdhd
++ *   cs.p: if (rdha > 0) rdhb = rdhc; else rdhb = rdhd
++ * ILLI: rdhb == 0 */
++static bool trans_cs_n_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 zero = tcg_constant_i64(0);
++    tcg_gen_movcond_i64(TCG_COND_LT, rdhc, rdha, zero, rdhc, rdhd);
++    store_rd(a->hb, rdhc);
++    return true;
++}
++
++static bool trans_cs_z_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 zero = tcg_constant_i64(0);
++    tcg_gen_movcond_i64(TCG_COND_EQ, rdhc, rdha, zero, rdhc, rdhd);
++    store_rd(a->hb, rdhc);
++    return true;
++}
++
++static bool trans_cs_p_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 zero = tcg_constant_i64(0);
++    tcg_gen_movcond_i64(TCG_COND_GT, rdhc, rdha, zero, rdhc, rdhd);
++    store_rd(a->hb, rdhc);
++    return true;
++}
++
++/* §3.5 cs.eq/cs.ne (rrrr): dual-value conditional assign
++ *   cs.eq: if (rdha == rdhb) rdhc = rdhd
++ *   cs.ne: if (rdha != rdhb) rdhc = rdhd
++ * ILLI: rdhc == 0 */
++static bool trans_cs_eq_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->hc == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    tcg_gen_movcond_i64(TCG_COND_EQ, rdhc, rdha, rdhb, rdhd, rdhc);
++    store_rd(a->hc, rdhc);
++    return true;
++}
++
++static bool trans_cs_ne_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->hc == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    tcg_gen_movcond_i64(TCG_COND_NE, rdhc, rdha, rdhb, rdhd, rdhc);
++    store_rd(a->hc, rdhc);
++    return true;
++}

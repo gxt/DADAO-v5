@@ -1,0 +1,227 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOInstrFormats.td b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
+new file mode 100644
+index 000000000..5b951d3a2
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
+@@ -0,0 +1,221 @@
++//===-- DADAOInstrFormats.td - DADAO Instruction Formats ---*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// DADAO instruction format classes for M1 (9 formats).
++// Each format class declares bits<> fields for its operands and binds them
++// to the Inst bit positions (op, ha, hb, hc, hd).
++//
++// Bit encoding (contract-isa.md §2.1):
++//   32-bit instruction, big-endian:
++//     bits[31:24] = op[7:0]    (8 bits, major opcode)
++//     bits[23:18] = ha[5:0]    (6 bits, hexagram a)
++//     bits[17:12] = hb[5:0]    (6 bits, hexagram b)
++//     bits[11:6]  = hc[5:0]    (6 bits, hexagram c)
++//     bits[5:0]   = hd[5:0]    (6 bits, hexagram d)
++//
++//   TableGen bits<32> has bit0 = LSB:
++//     op  = Inst{31-24},  ha = Inst{23-18},  hb = Inst{17-12}
++//     hc  = Inst{11-6},   hd = Inst{5-0}
++//
++// Field naming convention:
++//   Each format class declares bits<> fields with generic positional names
++//   (ra, rb, rc, rd, imm6, imm12, imm18, imm16, imm24, wp) and binds them
++//   to the Inst bit positions via `let` statements (e.g. let ha = ra;).
++//   Instruction defs use these same names as operand names in
++//   OutOperandList/InOperandList (e.g. GPRD:$ra), so TableGen automatically
++//   binds the operand values to the bits<> fields. No explicit
++//   `let ra = rdha;` is needed — the operand name IS the field name.
++//
++// Excluded from M1 (not defined here):
++//   crrr, crii, ciii — privileged cfx formats (contract-isa.md §2.3, §7.5)
++//
++//===----------------------------------------------------------------------===//
++
++//===----------------------------------------------------------------------===//
++// Base class for all DADAO instructions
++//===----------------------------------------------------------------------===//
++
++class DADAOInst<string asmstr> : Instruction {
++  let Namespace = "DADAO";
++  let AsmString = asmstr;
++  let Pattern = [];
++
++  let Size = 4;  // 32-bit instruction
++
++  field bits<32> Inst;  // Instruction encoding.
++
++  // Top-level encoding fields — set by format subclasses.
++  bits<8>  op;
++  bits<6>  ha;
++  bits<6>  hb;
++  bits<6>  hc;
++  bits<6>  hd;
++
++  // Big-endian encoding: op[31:24] ha[23:18] hb[17:12] hc[11:6] hd[5:0]
++  let Inst{31-24} = op;
++  let Inst{23-18} = ha;
++  let Inst{17-12} = hb;
++  let Inst{11-6}  = hc;
++  let Inst{5-0}   = hd;
++}
++
++//===----------------------------------------------------------------------===//
++// Format: rrrr — four registers (contract-isa.md §2.3)
++//
++//   ha = ra (reg a, e.g. rdha), hb = rb, hc = rc, hd = rd
++//   Examples: add.uo, sub.so, mul.uo, cs.n, cs.z, cs.p, cs.eq, cs.ne
++//===----------------------------------------------------------------------===//
++
++class DADAORrrr<string mnemonic> : DADAOInst<mnemonic # "\t$ra, $rb, $rc, $rd"> {
++  bits<6> ra;
++  bits<6> rb;
++  bits<6> rc;
++  bits<6> rd;
++  let ha = ra;
++  let hb = rb;
++  let hc = rc;
++  let hd = rd;
++}
++
++//===----------------------------------------------------------------------===//
++// Format: rrri — three registers + 6-bit unsigned immediate (§2.3)
++//
++//   ha = ra, hb = rb, hc = rc, hd = imm6
++//   Examples: ldm.*, stm.*, rd2rd, rd2ra, ra2rd, rb2rd, rb2rb, rd2rb
++//===----------------------------------------------------------------------===//
++
++class DADAORrri<string mnemonic> : DADAOInst<mnemonic # "\t$ra, $rb, $rc, $imm6"> {
++  bits<6> ra;
++  bits<6> rb;
++  bits<6> rc;
++  bits<6> imm6;
++  let ha = ra;
++  let hb = rb;
++  let hc = rc;
++  let hd = imm6;
++}
++
++//===----------------------------------------------------------------------===//
++// Format: rrii — two registers + 12-bit immediate (§2.3)
++//
++//   ha = ra, hb = rb, hc:hd = imm12 (hc = imm12[11:6], hd = imm12[5:0])
++//   Examples: ld.*, st.*, cmp.ui, cmp.si, br.eq, br.ne, jump-rrii, call-rrii
++//===----------------------------------------------------------------------===//
++
++class DADAORrii<string mnemonic> : DADAOInst<mnemonic # "\t$ra, $rb, $imm12"> {
++  bits<6>  ra;
++  bits<6>  rb;
++  bits<12> imm12;
++  let ha = ra;
++  let hb = rb;
++  let hc = imm12{11-6};
++  let hd = imm12{5-0};
++}
++
++//===----------------------------------------------------------------------===//
++// Format: riii — one register + 18-bit immediate (§2.3)
++//
++//   ha = ra, hb:hc:hd = imm18 (hb = imm18[17:12], hc = [11:6], hd = [5:0])
++//   Examples: add.si, rela.si, br.*, ret
++//===----------------------------------------------------------------------===//
++
++class DADAORiii<string mnemonic> : DADAOInst<mnemonic # "\t$ra, $imm18"> {
++  bits<6>  ra;
++  bits<18> imm18;
++  let ha = ra;
++  let hb = imm18{17-12};
++  let hc = imm18{11-6};
++  let hd = imm18{5-0};
++}
++
++//===----------------------------------------------------------------------===//
++// Format: iiii — 24-bit immediate only (§2.3)
++//
++//   ha:hb:hc:hd = imm24 (ha = imm24[23:18], ... hd = imm24[5:0])
++//   Examples: jump-iiii, call-iiii, swym
++//===----------------------------------------------------------------------===//
++
++class DADAOIiii<string mnemonic> : DADAOInst<mnemonic # "\t$imm24"> {
++  bits<24> imm24;
++  let ha = imm24{23-18};
++  let hb = imm24{17-12};
++  let hc = imm24{11-6};
++  let hd = imm24{5-0};
++}
++
++//===----------------------------------------------------------------------===//
++// Format: rwii — one register + wyde-position + 16-bit unsigned immediate (§2.3)
++//
++//   ha = ra (register), hb{5:4} = wp (wyde-position), hb{3:0}:hc:hd = imm16
++//   rwii bit layout (contract-isa.md §2.3):
++//     hb{5:4} = wyde-position (wp0–wp3)
++//     hb{3:0} = imm16[15:12] (high nibble)
++//     hc{5:0} = imm16[11:6]  (middle)
++//     hd{5:0} = imm16[5:0]   (low)
++//   Examples: or.w, andn.w, set.zw, set.ow (rd and rb variants)
++//===----------------------------------------------------------------------===//
++
++class DADAORwii<string mnemonic> : DADAOInst<mnemonic # "\t$ra, $wp, $imm16"> {
++  bits<6>  ra;
++  bits<2>  wp;
++  bits<16> imm16;
++  let ha = ra;
++  let hb{5-4} = wp;
++  let hb{3-0} = imm16{15-12};
++  let hc = imm16{11-6};
++  let hd = imm16{5-0};
++}
++
++//===----------------------------------------------------------------------===//
++// Format: orrr — minor-opcode + three registers (§2.3)
++//
++//   ha = minor-op (set by 'let ha = 0xNN' in def), hb = rb, hc = rc, hd = rd
++//   Examples: MISC-byte/wyde/tetra/octa logic/shift/add/sub/cmp/div/rem
++//===----------------------------------------------------------------------===//
++
++class DADAOOrrr<string mnemonic> : DADAOInst<mnemonic # "\t$rb, $rc, $rd"> {
++  bits<6> rb;
++  bits<6> rc;
++  bits<6> rd;
++  // ha = minor-opcode (set by `let ha = 0xNN` in each def)
++  let hb = rb;
++  let hc = rc;
++  let hd = rd;
++}
++
++//===----------------------------------------------------------------------===//
++// Format: orri — minor-opcode + two registers + 6-bit unsigned immediate (§2.3)
++//
++//   ha = minor-op, hb = rb, hc = rc, hd = imm6
++//   Examples: ext/shl/shr orri variants, rd2rd, rd2ra, ra2rd, rb2rd, rb2rb, rd2rb
++//===----------------------------------------------------------------------===//
++
++class DADAOOrri<string mnemonic> : DADAOInst<mnemonic # "\t$rb, $rc, $imm6"> {
++  bits<6> rb;
++  bits<6> rc;
++  bits<6> imm6;
++  // ha = minor-opcode (set by `let ha = 0xNN` in each def)
++  let hb = rb;
++  let hc = rc;
++  let hd = imm6;
++}
++
++//===----------------------------------------------------------------------===//
++// Format: oiii — minor-opcode + 18-bit immediate (§2.3)
++//
++//   ha = minor-op, hb:hc:hd = imm18
++//   Examples: illi, fence
++//===----------------------------------------------------------------------===//
++
++class DADAOOiii<string mnemonic> : DADAOInst<mnemonic # "\t$imm18"> {
++  bits<18> imm18;
++  // ha = minor-opcode (set by `let ha = 0xNN` in each def)
++  let hb = imm18{17-12};
++  let hc = imm18{11-6};
++  let hd = imm18{5-0};
++}

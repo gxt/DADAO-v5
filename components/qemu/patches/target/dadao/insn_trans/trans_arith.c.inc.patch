@@ -1,0 +1,961 @@
+diff --git a/target/dadao/insn_trans/trans_arith.c.inc b/target/dadao/insn_trans/trans_arith.c.inc
+new file mode 100644
+index 0000000..7369a18
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_arith.c.inc
+@@ -0,0 +1,955 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++/* §3.1.1 add.uo/add.so/sub.uo/sub.so (rrrr): 128-bit add/sub */
++static bool trans_add_uo_rd(DisasContext *ctx, arg_main *a)
++{
++    if (!check_dual_dest_legal(ctx, a->ha, a->hb)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    TCGv_i64 hi = tcg_temp_new_i64();
++    /* Unsigned: zero-extend to 128, add, hi=carry(0 or 1) */
++    tcg_gen_add_i64(lo, rdhc, rdhd);
++    tcg_gen_setcond_i64(TCG_COND_LTU, hi, lo, rdhc); /* carry */
++    store_rd(a->hb, lo);
++    store_rd(a->ha, hi);
++    return true;
++}
++
++static bool trans_add_so_rd(DisasContext *ctx, arg_main *a)
++{
++    if (!check_dual_dest_legal(ctx, a->ha, a->hb)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    TCGv_i64 hi = tcg_temp_new_i64();
++    /* Signed: sign-extend to 128, add2 */
++    TCGv_i64 hc_hi = tcg_temp_new_i64();
++    TCGv_i64 hd_hi = tcg_temp_new_i64();
++    tcg_gen_sari_i64(hc_hi, rdhc, 63);
++    tcg_gen_sari_i64(hd_hi, rdhd, 63);
++    tcg_gen_add2_i64(lo, hi, rdhc, hc_hi, rdhd, hd_hi);
++    store_rd(a->hb, lo);
++    store_rd(a->ha, hi);
++    return true;
++}
++
++static bool trans_sub_uo_rd(DisasContext *ctx, arg_main *a)
++{
++    if (!check_dual_dest_legal(ctx, a->ha, a->hb)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    TCGv_i64 hi = tcg_temp_new_i64();
++    /* Unsigned: sub, hi=borrow (0 or 1) */
++    tcg_gen_sub_i64(lo, rdhc, rdhd);
++    tcg_gen_setcond_i64(TCG_COND_LTU, hi, rdhc, rdhd); /* borrow */
++    store_rd(a->hb, lo);
++    store_rd(a->ha, hi);
++    return true;
++}
++
++static bool trans_sub_so_rd(DisasContext *ctx, arg_main *a)
++{
++    if (!check_dual_dest_legal(ctx, a->ha, a->hb)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    TCGv_i64 hi = tcg_temp_new_i64();
++    /* Signed: sign-extend to 128, sub2 */
++    TCGv_i64 hc_hi = tcg_temp_new_i64();
++    TCGv_i64 hd_hi = tcg_temp_new_i64();
++    tcg_gen_sari_i64(hc_hi, rdhc, 63);
++    tcg_gen_sari_i64(hd_hi, rdhd, 63);
++    tcg_gen_sub2_i64(lo, hi, rdhc, hc_hi, rdhd, hd_hi);
++    store_rd(a->hb, lo);
++    store_rd(a->ha, hi);
++    return true;
++}
++
++/* §3.1.4 mul.uo/mul.so (rrrr): 128-bit multiply */
++static bool trans_mul_uo_rd(DisasContext *ctx, arg_main *a)
++{
++    if (!check_dual_dest_legal(ctx, a->ha, a->hb)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_mulu2_i64(lo, hi, rdhc, rdhd);
++    store_rd(a->hb, lo);
++    store_rd(a->ha, hi);
++    return true;
++}
++
++static bool trans_mul_so_rd(DisasContext *ctx, arg_main *a)
++{
++    if (!check_dual_dest_legal(ctx, a->ha, a->hb)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_muls2_i64(lo, hi, rdhc, rdhd);
++    store_rd(a->hb, lo);
++    store_rd(a->ha, hi);
++    return true;
++}
++
++static bool trans_ftmadd(DisasContext *ctx, arg_main *a)
++{
++    /* ftmadd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fomadd(DisasContext *ctx, arg_main *a)
++{
++    /* fomadd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++/* §3.1.3 add.si (riii): rdha += sign_extend(imms18) */
++static bool trans_add_si_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    /* Reconstruct 18-bit signed immediate from hb/hc/hd */
++    int32_t imm18 = (int32_t)((a->hb << 12) | (a->hc << 6) | a->hd);
++    /* Sign-extend from 18 bits */
++    if (imm18 & (1 << 17)) {
++        imm18 |= ~((1 << 18) - 1);
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    tcg_gen_addi_i64(rdha, rdha, (int64_t)imm18);
++    store_rd(a->ha, rdha);
++    return true;
++}
++
++/* §4.5.2 add.si rbha, imms18 (riii): rbha = rbha + sign_extend(imms18)
++ * Full 64-bit arithmetic. ILLI: rbha == rb0 */
++static bool trans_add_si_rb(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
++    int32_t imm18 = (int32_t)((a->hb << 12) | (a->hc << 6) | a->hd);
++    if (imm18 & (1 << 17)) {
++        imm18 |= ~((1 << 18) - 1);
++    }
++    TCGv_i64 rbha = load_rb(ctx, a->ha);
++    tcg_gen_addi_i64(rbha, rbha, (int64_t)imm18);
++    store_rb(a->ha, rbha);
++    return true;
++}
++
++/* §4.5.1 add.so rbhb, rbhc, rdhd (orrr): rbhb = rbhc + rdhd (full 64-bit)
++ * ILLI: rbhb == rb0 */
++static bool trans_add_so_rb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rbhc = load_rb(ctx, a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_add_i64(result, rbhc, rdhd);
++    store_rb(a->hb, result);
++    return true;
++}
++
++/* §4.5.1 sub.so rbhb, rbhc, rdhd (orrr): rbhb = rbhc - rdhd (full 64-bit)
++ * ILLI: rbhb == rb0 */
++static bool trans_sub_so_rb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rbhc = load_rb(ctx, a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_sub_i64(result, rbhc, rdhd);
++    store_rb(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 div.uo/div.so/rem.uo/rem.so (orrr, MISC-octa)
++ * ILLI: rdhb==0, divisor==0, signed: INT_MIN÷-1 */
++static bool trans_div_uo(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 63, false, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_div_so(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 63, true, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_rem_uo(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 63, false, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_rem_so(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 63, true, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.2 add.ut/sub.ut (orrr, MISC-tetra): N=31, zero-extend result */
++static bool trans_add_ut(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_add_i64(result, rdhc, rdhd);
++    tcg_gen_ext32u_i64(result, result); /* zero-extend to 32 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.2 add.st (orrr, MISC-tetra): N=31, sign-extend result */
++static bool trans_add_st(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_add_i64(result, rdhc, rdhd);
++    tcg_gen_ext32s_i64(result, result); /* sign-extend from 32 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_sub_ut(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_sub_i64(result, rdhc, rdhd);
++    tcg_gen_ext32u_i64(result, result); /* zero-extend to 32 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_sub_st(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_sub_i64(result, rdhc, rdhd);
++    tcg_gen_ext32s_i64(result, result); /* sign-extend from 32 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 mul.ut (orrr, MISC-tetra): N=31, zero-extend result */
++static bool trans_mul_ut(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_andi_i64(src_a, rdhc, 0xFFFFFFFFULL);
++    tcg_gen_andi_i64(src_b, rdhd, 0xFFFFFFFFULL);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_mul_i64(result, src_a, src_b);
++    tcg_gen_ext32u_i64(result, result); /* zero-extend to 32 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 mul.st (orrr, MISC-tetra): N=31, sign-extend result */
++static bool trans_mul_st(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_ext32s_i64(src_a, rdhc);
++    tcg_gen_ext32s_i64(src_b, rdhd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_mul_i64(result, src_a, src_b);
++    tcg_gen_ext32s_i64(result, result); /* sign-extend from 32 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 div.ut/div.st/rem.ut/rem.st (orrr, MISC-tetra) */
++static bool trans_div_ut(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 31, false, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_div_st(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 31, true, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_rem_ut(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 31, false, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_rem_st(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 31, true, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.2 add.uw/add.sw/sub.uw/sub.sw (orrr, MISC-wyde): N=15 */
++static bool trans_add_uw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_add_i64(result, rdhc, rdhd);
++    tcg_gen_andi_i64(result, result, 0xFFFFULL); /* zero-extend to 16 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_add_sw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_add_i64(result, rdhc, rdhd);
++    tcg_gen_shli_i64(result, result, 48);
++    tcg_gen_sari_i64(result, result, 48); /* sign-extend from 16 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_sub_uw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_sub_i64(result, rdhc, rdhd);
++    tcg_gen_andi_i64(result, result, 0xFFFFULL); /* zero-extend to 16 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_sub_sw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_sub_i64(result, rdhc, rdhd);
++    tcg_gen_shli_i64(result, result, 48);
++    tcg_gen_sari_i64(result, result, 48); /* sign-extend from 16 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 mul.uw (orrr, MISC-wyde): N=15, zero-extend result */
++static bool trans_mul_uw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_andi_i64(src_a, rdhc, 0xFFFFULL);
++    tcg_gen_andi_i64(src_b, rdhd, 0xFFFFULL);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_mul_i64(result, src_a, src_b);
++    tcg_gen_andi_i64(result, result, 0xFFFFULL); /* zero-extend to 16 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 mul.sw (orrr, MISC-wyde): N=15, sign-extend result */
++static bool trans_mul_sw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_andi_i64(src_a, rdhc, 0xFFFFULL);
++    tcg_gen_andi_i64(src_b, rdhd, 0xFFFFULL);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_mul_i64(result, src_a, src_b);
++    tcg_gen_andi_i64(result, result, 0xFFFFULL);
++    tcg_gen_shli_i64(result, result, 48);
++    tcg_gen_sari_i64(result, result, 48); /* sign-extend from 16 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 div.uw/div.sw/rem.uw/rem.sw (orrr, MISC-wyde) */
++static bool trans_div_uw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 15, false, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_div_sw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 15, true, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_rem_uw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 15, false, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_rem_sw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 15, true, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.2 add.ub/sub.ub (orrr, MISC-byte): N=7, zero-extend result */
++static bool trans_add_ub(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_add_i64(result, rdhc, rdhd);
++    tcg_gen_andi_i64(result, result, 0xFFULL); /* zero-extend to 8 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.2 add.sb (orrr, MISC-byte): N=7, sign-extend result */
++static bool trans_add_sb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_add_i64(result, rdhc, rdhd);
++    tcg_gen_shli_i64(result, result, 56);
++    tcg_gen_sari_i64(result, result, 56); /* sign-extend from 8 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.2 sub.ub (orrr, MISC-byte): N=7, zero-extend result */
++static bool trans_sub_ub(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_sub_i64(result, rdhc, rdhd);
++    tcg_gen_andi_i64(result, result, 0xFFULL); /* zero-extend to 8 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.2 sub.sb (orrr, MISC-byte): N=7, sign-extend result */
++static bool trans_sub_sb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_sub_i64(result, rdhc, rdhd);
++    tcg_gen_shli_i64(result, result, 56);
++    tcg_gen_sari_i64(result, result, 56); /* sign-extend from 8 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 mul.ub (orrr, MISC-byte): N=7, zero-extend result */
++static bool trans_mul_ub(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_andi_i64(src_a, rdhc, 0xFFULL);
++    tcg_gen_andi_i64(src_b, rdhd, 0xFFULL);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_mul_i64(result, src_a, src_b);
++    tcg_gen_andi_i64(result, result, 0xFFULL); /* zero-extend to 8 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 mul.sb (orrr, MISC-byte): N=7, sign-extend result */
++static bool trans_mul_sb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_andi_i64(src_a, rdhc, 0xFFULL);
++    tcg_gen_andi_i64(src_b, rdhd, 0xFFULL);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_mul_i64(result, src_a, src_b);
++    tcg_gen_andi_i64(result, result, 0xFFULL);
++    tcg_gen_shli_i64(result, result, 56);
++    tcg_gen_sari_i64(result, result, 56); /* sign-extend from 8 bits */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.1.5 div.ub/div.sb/rem.ub/rem.sb (orrr, MISC-byte) */
++static bool trans_div_ub(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 7, false, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_div_sb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 7, true, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_rem_ub(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 7, false, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_rem_sb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_div_with_checks(ctx, result, rdhc, rdhd, 7, true, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_ftcls(DisasContext *ctx, arg_misc *a)
++{
++    /* ftcls - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftroot(DisasContext *ctx, arg_misc *a)
++{
++    /* ftroot - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftlog(DisasContext *ctx, arg_misc *a)
++{
++    /* ftlog - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_focls(DisasContext *ctx, arg_misc *a)
++{
++    /* focls - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_foroot(DisasContext *ctx, arg_misc *a)
++{
++    /* foroot - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_folog(DisasContext *ctx, arg_misc *a)
++{
++    /* folog - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2it(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2it - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2io(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2io - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2ut(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ft2uo(DisasContext *ctx, arg_misc *a)
++{
++    /* ft2uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_it2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* it2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_io2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* io2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ut2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* ut2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_uo2ft(DisasContext *ctx, arg_misc *a)
++{
++    /* uo2ft - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2it(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2it - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2io(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2io - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2ut(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2ut - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fo2uo(DisasContext *ctx, arg_misc *a)
++{
++    /* fo2uo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_it2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* it2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_io2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* io2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ut2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* ut2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_uo2fo(DisasContext *ctx, arg_misc *a)
++{
++    /* uo2fo - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftadd(DisasContext *ctx, arg_misc *a)
++{
++    /* ftadd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftsub(DisasContext *ctx, arg_misc *a)
++{
++    /* ftsub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftmul(DisasContext *ctx, arg_misc *a)
++{
++    /* ftmul - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftdiv(DisasContext *ctx, arg_misc *a)
++{
++    /* ftdiv - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftrem(DisasContext *ctx, arg_misc *a)
++{
++    /* ftrem - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftsclb(DisasContext *ctx, arg_misc *a)
++{
++    /* ftsclb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftsgnn(DisasContext *ctx, arg_misc *a)
++{
++    /* ftsgnn - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftsgnj(DisasContext *ctx, arg_misc *a)
++{
++    /* ftsgnj - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_foadd(DisasContext *ctx, arg_misc *a)
++{
++    /* foadd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fosub(DisasContext *ctx, arg_misc *a)
++{
++    /* fosub - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fomul(DisasContext *ctx, arg_misc *a)
++{
++    /* fomul - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fodiv(DisasContext *ctx, arg_misc *a)
++{
++    /* fodiv - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_forem(DisasContext *ctx, arg_misc *a)
++{
++    /* forem - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fosclb(DisasContext *ctx, arg_misc *a)
++{
++    /* fosclb - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fosgnn(DisasContext *ctx, arg_misc *a)
++{
++    /* fosgnn - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_fosgnj(DisasContext *ctx, arg_misc *a)
++{
++    /* fosgnj - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_ftqcmp(DisasContext *ctx, arg_misc *a)
++{
++    /* ftqcmp - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_foqcmp(DisasContext *ctx, arg_misc *a)
++{
++    /* foqcmp - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}

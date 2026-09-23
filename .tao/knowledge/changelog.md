@@ -4,6 +4,7 @@
 
 | 日期 | 描述 | 执行方 |
 | --- | --- | --- |
+| 2026-09-23 | **组件补丁集重整 + 规范落地**。①新增 **`docs/spec/component-patching.md`**（v5 规范层首篇）：树形补丁集（`patches/<上游相对路径>.patch`）+ **一文件一补丁**（双向唯一）+ **新增文件补丁必须终态** + `git apply`（弃 `git am`）+ 4 条断言；②`ADR-0002 D4` **就地修订**（rev. 2026-09-23，属决策反转，偏离已记录）；③脚本：`make_patch.py` 重写（逐路径裸 `git diff` 导出）、`apply_series.py` 重写（`git apply --check` + `apply` + **幂等检测**）、新增 `check_patch_tree.py`（4 断言）并接入 `make check`（`check-patch-tree`）；④**M1 补丁集重整**：LLVM 8→**36**（新增 32/修改 4）、QEMU 8→**31**（新增 25/修改 6），**安全网**：重整后 tree hash 逐组件与重整前**完全一致**（`llvm-project` `0e058573…`、`qemu` `4a14d56c…`）；⑤组件新增 `README.md`/`changelog.md`；⑥`deferred.md` 两条消解（`make prepare` 非幂等、源树提交作者不实）。 | 主会话 + 用户 |
 | 2026-09-22 | **M1 达成（用户确认）**。`INTEG-004m` 置里程碑 ⇒ 6/6 模块 M1 完成（`SPEC-011m`/`TESTCASES-012m`/`INFRA-014m`/`LLVM-015m`/`QEMU-021m`/`INTEG-004m`），`milestones.md` M1 = **达成**。核验（真实输出）：`llvm-lit tests/lit/E2E/` **3/3**；`tools/integ/check_interface_alignment.py` **80/80/0 EXIT 0**；`make check` **EXIT 0**。本会话另完成：`INTEG-001k`~`003t`（E2E 冒烟 + 接口对齐）、`LLVM-013t`（`wpN` 静默误编码修复，补丁 `0007`）、`LLVM-014t`（ELF `e_flags` 修复，补丁 `0008`）；里程碑顺延 `LLVM-013m→014m→015m`；`fence` 保持 deferred（`ISS-056` `blocks: []`）。 | 主会话 + 用户 |
 | 2026-09-12 | INFRA-002t：建立仓库骨架（`.gitignore`、`components/`/`scripts/`/`containers/` 骨架、`docs/repository-layout.md`） | engineer |
 | 2026-09-12 | INFRA-003t：manifest 系统（`manifests/components.lock.toml`、`manifests/references.lock.toml`、`scripts/manifest_check.py`） | engineer |

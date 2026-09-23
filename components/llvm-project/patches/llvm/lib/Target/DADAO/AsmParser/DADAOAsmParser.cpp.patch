@@ -1,0 +1,380 @@
+diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
+new file mode 100644
+index 000000000..a382b4fac
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
+@@ -0,0 +1,374 @@
++//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file implements the DADAO MCTargetAsmParser (text → MCInst).
++//
++//===----------------------------------------------------------------------===//
++
++#include "MCTargetDesc/DADAOMCTargetDesc.h"
++#include "MCTargetDesc/DADAOMCAsmInfo.h"
++#include "TargetInfo/DADAOTargetInfo.h"
++#include "llvm/ADT/STLExtras.h"
++#include "llvm/MC/MCAsmInfo.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCExpr.h"
++#include "llvm/MC/MCInst.h"
++#include "llvm/MC/MCInstrInfo.h"
++#include "llvm/MC/MCParser/AsmLexer.h"
++#include "llvm/MC/MCParser/MCAsmParser.h"
++#include "llvm/MC/MCParser/MCParsedAsmOperand.h"
++#include "llvm/MC/MCParser/MCTargetAsmParser.h"
++#include "llvm/MC/MCRegister.h"
++#include "llvm/MC/MCStreamer.h"
++#include "llvm/MC/MCSubtargetInfo.h"
++#include "llvm/MC/MCTargetOptions.h"
++#include "llvm/MC/TargetRegistry.h"
++#include "llvm/Support/raw_ostream.h"
++
++using namespace llvm;
++
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++
++#define GET_REGISTER_INFO_ENUM
++#include "DADAOGenRegisterInfo.inc"
++
++namespace {
++
++// Forward declaration.
++class DADAOAsmParser;
++
++// Represents a parsed assembly operand (token, register, or immediate).
++class DADAOOperand : public MCParsedAsmOperand {
++public:
++  enum KindTy { kToken, kRegister, kImmediate } Kind;
++
++private:
++  SMLoc StartLoc, EndLoc;
++  StringRef Tok;
++  MCRegister RegNo;
++  int64_t ImmVal;
++  const MCExpr *ImmExpr;
++
++public:
++  DADAOOperand(KindTy K)
++      : Kind(K), ImmVal(0), ImmExpr(nullptr) {}
++
++  // Factory methods.
++  static std::unique_ptr<DADAOOperand> createToken(StringRef T, SMLoc L) {
++    auto Op = std::make_unique<DADAOOperand>(kToken);
++    Op->Tok = T;
++    Op->StartLoc = L;
++    Op->EndLoc = SMLoc::getFromPointer(L.getPointer() + T.size());
++    return Op;
++  }
++
++  static std::unique_ptr<DADAOOperand> createReg(MCRegister Reg, SMLoc L) {
++    auto Op = std::make_unique<DADAOOperand>(kRegister);
++    Op->RegNo = Reg;
++    Op->StartLoc = L;
++    Op->EndLoc = L;
++    return Op;
++  }
++
++  static std::unique_ptr<DADAOOperand> createImm(int64_t Val, SMLoc L,
++                                                  SMLoc E) {
++    auto Op = std::make_unique<DADAOOperand>(kImmediate);
++    Op->ImmVal = Val;
++    Op->StartLoc = L;
++    Op->EndLoc = E;
++    return Op;
++  }
++
++  static std::unique_ptr<DADAOOperand> createImmExpr(const MCExpr *E, SMLoc L,
++                                                      SMLoc EL) {
++    auto Op = std::make_unique<DADAOOperand>(kImmediate);
++    Op->ImmExpr = E;
++    Op->ImmVal = 0;
++    Op->StartLoc = L;
++    Op->EndLoc = EL;
++    return Op;
++  }
++
++  // MCParsedAsmOperand interface.
++  bool isToken() const override { return Kind == kToken; }
++  bool isReg() const override { return Kind == kRegister; }
++  bool isImm() const override { return Kind == kImmediate; }
++  bool isMem() const override { return false; }
++
++  SMLoc getStartLoc() const override { return StartLoc; }
++  SMLoc getEndLoc() const override { return EndLoc; }
++
++  StringRef getToken() const { return Tok; }
++  MCRegister getReg() const override { return RegNo; }
++  int64_t getImm() const { return ImmVal; }
++  const MCExpr *getImmExpr() const { return ImmExpr; }
++
++  void addRegOperands(MCInst &Inst, unsigned N) const {
++    assert(N == 1 && "Invalid number of operands!");
++    Inst.addOperand(MCOperand::createReg(getReg()));
++  }
++
++  void addImmOperands(MCInst &Inst, unsigned N) const {
++    assert(N == 1 && "Invalid number of operands!");
++    if (ImmExpr) {
++      Inst.addOperand(MCOperand::createExpr(ImmExpr));
++    } else {
++      Inst.addOperand(MCOperand::createImm(getImm()));
++    }
++  }
++
++  void print(raw_ostream &OS, const MCAsmInfo &) const override {
++    switch (Kind) {
++    case kToken:
++      OS << "Token:" << Tok;
++      break;
++    case kRegister:
++      OS << "Reg:" << RegNo;
++      break;
++    case kImmediate:
++      if (ImmExpr)
++        OS << "ImmExpr";
++      else
++        OS << "Imm:" << ImmVal;
++      break;
++    }
++  }
++
++  // Predicate for wyde-position: immediate in range [0, 3].
++  bool isWydePosImm() const {
++    if (Kind != kImmediate)
++      return false;
++    if (ImmExpr)
++      return false;
++    return ImmVal >= 0 && ImmVal <= 3;
++  }
++};
++
++// The DADAO target assembly parser.
++class DADAOAsmParser : public MCTargetAsmParser {
++public:
++  DADAOAsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
++                 const MCInstrInfo &MII)
++      : MCTargetAsmParser(STI, MII) {
++    setAvailableFeatures(FeatureBitset());
++  }
++
++  // Include auto-generated declarations from DADAOGenAsmMatcher.inc.
++#define GET_ASSEMBLER_HEADER
++#include "DADAOGenAsmMatcher.inc"
++
++  // Include operand diagnostic types.
++  enum {
++#define GET_OPERAND_DIAGNOSTIC_TYPES
++#include "DADAOGenAsmMatcher.inc"
++  };
++
++  // MCTargetAsmParser interface.
++  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc,
++                     SMLoc &EndLoc) override;
++  ParseStatus tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
++                                SMLoc &EndLoc) override;
++
++  bool parseInstruction(ParseInstructionInfo &Info, StringRef Name,
++                        SMLoc NameLoc, OperandVector &Operands) override;
++
++  bool matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
++                                OperandVector &Operands, MCStreamer &Out,
++                                uint64_t &ErrorInfo,
++                                bool MatchingInlineAsm) override;
++
++private:
++  ParseStatus parseRegisterImpl(MCRegister &Reg, SMLoc &StartLoc,
++                                 SMLoc &EndLoc);
++  bool parseOperand(OperandVector &Operands);
++  bool parseImmediate(OperandVector &Operands);
++  bool parseWydePosToken(OperandVector &Operands);
++  static unsigned matchRegisterName(StringRef Name);
++};
++
++// Include the auto-generated AsmMatcher implementation.
++// Must be inside the anonymous namespace so DADAOAsmParser class is visible.
++#define GET_MATCHER_IMPLEMENTATION
++#include "DADAOGenAsmMatcher.inc"
++
++// Parse a register name (rd0-rd63, rb0-rb63, rf0-rf63, ra0-ra63).
++unsigned DADAOAsmParser::matchRegisterName(StringRef Name) {
++  if (Name.starts_with("rd")) {
++    unsigned Num;
++    if (!Name.substr(2).getAsInteger(10, Num) && Num < 64)
++      return DADAO::rd0 + Num;
++  }
++  if (Name.starts_with("rb")) {
++    unsigned Num;
++    if (!Name.substr(2).getAsInteger(10, Num) && Num < 64)
++      return DADAO::rb0 + Num;
++  }
++  if (Name.starts_with("rf")) {
++    unsigned Num;
++    if (!Name.substr(2).getAsInteger(10, Num) && Num < 64)
++      return DADAO::rf0 + Num;
++  }
++  if (Name.starts_with("ra")) {
++    unsigned Num;
++    if (!Name.substr(2).getAsInteger(10, Num) && Num < 64)
++      return DADAO::ra0 + Num;
++  }
++  return 0;
++}
++
++ParseStatus DADAOAsmParser::parseRegisterImpl(MCRegister &Reg, SMLoc &StartLoc,
++                                               SMLoc &EndLoc) {
++  const AsmToken &Tok = getParser().getTok();
++  if (Tok.isNot(AsmToken::Identifier))
++    return ParseStatus::NoMatch;
++
++  StringRef Name = Tok.getString();
++  unsigned RegNo = matchRegisterName(Name);
++  if (RegNo == 0)
++    return ParseStatus::NoMatch;
++
++  Reg = RegNo;
++  StartLoc = Tok.getLoc();
++  EndLoc = Tok.getEndLoc();
++  getParser().Lex();
++  return ParseStatus::Success;
++}
++
++bool DADAOAsmParser::parseRegister(MCRegister &Reg, SMLoc &StartLoc,
++                                    SMLoc &EndLoc) {
++  return parseRegisterImpl(Reg, StartLoc, EndLoc).isFailure();
++}
++
++ParseStatus DADAOAsmParser::tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
++                                              SMLoc &EndLoc) {
++  return parseRegisterImpl(Reg, StartLoc, EndLoc);
++}
++
++bool DADAOAsmParser::parseImmediate(OperandVector &Operands) {
++  const AsmToken &Tok = getParser().getTok();
++  SMLoc StartLoc = Tok.getLoc();
++
++  const MCExpr *Expr;
++  SMLoc EndLoc;
++  if (getParser().parseExpression(Expr, EndLoc))
++    return true;
++
++  int64_t Val;
++  if (Expr->evaluateAsAbsolute(Val)) {
++    Operands.push_back(DADAOOperand::createImm(Val, StartLoc, EndLoc));
++  } else {
++    Operands.push_back(DADAOOperand::createImmExpr(Expr, StartLoc, EndLoc));
++  }
++  return false;
++}
++
++// Try to parse a wyde-position token (wp0/wp1/wp2/wp3).
++// Returns true if the current token is a wp-prefixed identifier (consumed or
++// errored). Returns false if the token is not wp-prefixed (caller continues
++// with normal parse path).
++bool DADAOAsmParser::parseWydePosToken(OperandVector &Operands) {
++  const AsmToken &Tok = getParser().getTok();
++  if (Tok.isNot(AsmToken::Identifier))
++    return false;
++
++  StringRef Name = Tok.getString();
++  if (Name.size() < 3 || !Name.starts_with("wp"))
++    return false;
++
++  // The token starts with "wp". Try to parse the numeric suffix.
++  unsigned N;
++  if (Name.substr(2).getAsInteger(10, N) || N > 3) {
++    // wp4, wpfoo, wp, etc. — invalid wyde-position
++    SMLoc Loc = Tok.getLoc();
++    getParser().Lex();
++    return Error(Loc, "invalid wyde-position; expected wp0, wp1, wp2, or wp3");
++  }
++
++  // Valid wpN (N = 0..3): convert to immediate N.
++  SMLoc StartLoc = Tok.getLoc();
++  SMLoc EndLoc = Tok.getEndLoc();
++  getParser().Lex();
++  Operands.push_back(DADAOOperand::createImm(N, StartLoc, EndLoc));
++  return true;
++}
++
++bool DADAOAsmParser::parseOperand(OperandVector &Operands) {
++  const AsmToken &Tok = getParser().getTok();
++
++  if (Tok.is(AsmToken::Identifier)) {
++    // Try wyde-position token first (wp0/wp1/wp2/wp3).
++    if (parseWydePosToken(Operands))
++      return false;
++
++    unsigned RegNo = matchRegisterName(Tok.getString());
++    if (RegNo) {
++      SMLoc StartLoc = Tok.getLoc();
++      getParser().Lex();
++      Operands.push_back(DADAOOperand::createReg(RegNo, StartLoc));
++      return false;
++    }
++  }
++
++  return parseImmediate(Operands);
++}
++
++bool DADAOAsmParser::parseInstruction(ParseInstructionInfo &Info,
++                                       StringRef Name, SMLoc NameLoc,
++                                       OperandVector &Operands) {
++  Operands.push_back(DADAOOperand::createToken(Name, NameLoc));
++
++  if (getParser().getLexer().isNot(AsmToken::EndOfStatement)) {
++    if (parseOperand(Operands))
++      return true;
++
++    while (getParser().getLexer().is(AsmToken::Comma)) {
++      getParser().Lex();
++      if (parseOperand(Operands))
++        return true;
++    }
++  }
++
++  return false;
++}
++
++bool DADAOAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
++                                              OperandVector &Operands,
++                                              MCStreamer &Out,
++                                              uint64_t &ErrorInfo,
++                                              bool MatchingInlineAsm) {
++  MCInst Inst;
++  unsigned MatchResult =
++      MatchInstructionImpl(Operands, Inst, ErrorInfo, MatchingInlineAsm);
++
++  switch (MatchResult) {
++  case Match_Success:
++    Out.emitInstruction(Inst, getSTI());
++    return false;
++  case Match_MissingFeature:
++    return Error(IDLoc, "instruction requires a CPU feature not present");
++  case Match_MnemonicFail:
++    return Error(IDLoc, "unrecognized instruction mnemonic");
++  case Match_InvalidOperand: {
++    SMLoc ErrorLoc = IDLoc;
++    if (ErrorInfo < Operands.size())
++      ErrorLoc = Operands[ErrorInfo]->getStartLoc();
++    return Error(ErrorLoc, "invalid operand for instruction");
++  }
++  case Match_InvalidTiedOperand:
++    return Error(IDLoc, "invalid tied operand");
++  default:
++    return Error(IDLoc, "unknown assembly matching error");
++  }
++}
++
++} // end anonymous namespace
++
++extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDADAOAsmParser() {
++  RegisterMCAsmParser<DADAOAsmParser> X(getTheDadaoTarget());
++}

@@ -1,0 +1,132 @@
+diff --git a/target/dadao/insn_trans/trans_imm.c.inc b/target/dadao/insn_trans/trans_imm.c.inc
+new file mode 100644
+index 0000000..886416f
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_imm.c.inc
+@@ -0,0 +1,126 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++/* §3.6 set.zw/set.ow/or.w/andn.w (rwii): immediate set
++ * wpN = hb[5:4] (wyde position 0-3)
++ * immu16 = hb[3:0] (hi4) | hc[5:0] (mid6) | hd[5:0] (lo6)
++ * ILLI: rdha == 0 */
++static bool trans_set_zw_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    int wp = a->hb >> 4; /* wyde position */
++    uint64_t immu16 = ((uint64_t)(a->hb & 0xF) << 12) |
++                      ((uint64_t)a->hc << 6) | a->hd;
++    /* set.zw: rdha[wyde(wp)] = immu16, other 48 bits = 0 */
++    TCGv_i64 val = tcg_constant_i64(immu16 << (wp * 16));
++    store_rd(a->ha, val);
++    return true;
++}
++
++static bool trans_set_ow_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    int wp = a->hb >> 4;
++    uint64_t immu16 = ((uint64_t)(a->hb & 0xF) << 12) |
++                      ((uint64_t)a->hc << 6) | a->hd;
++    /* set.ow: rdha[wyde(wp)] = immu16, other 48 bits = 1 */
++    uint64_t mask = ~(0xFFFFULL << (wp * 16));
++    TCGv_i64 val = tcg_constant_i64((immu16 << (wp * 16)) | mask);
++    store_rd(a->ha, val);
++    return true;
++}
++
++static bool trans_or_w_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    int wp = a->hb >> 4;
++    uint64_t immu16 = ((uint64_t)(a->hb & 0xF) << 12) |
++                      ((uint64_t)a->hc << 6) | a->hd;
++    TCGv_i64 rdha = load_rd(a->ha);
++    tcg_gen_ori_i64(rdha, rdha, immu16 << (wp * 16));
++    store_rd(a->ha, rdha);
++    return true;
++}
++
++static bool trans_andn_w_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    int wp = a->hb >> 4;
++    uint64_t immu16 = ((uint64_t)(a->hb & 0xF) << 12) |
++                      ((uint64_t)a->hc << 6) | a->hd;
++    TCGv_i64 rdha = load_rd(a->ha);
++    /* andn: rdha & ~immu16 at wyde position */
++    TCGv_i64 mask = tcg_constant_i64(~(immu16 << (wp * 16)));
++    tcg_gen_and_i64(rdha, rdha, mask);
++    store_rd(a->ha, rdha);
++    return true;
++}
++
++static bool trans_set_w_rf(DisasContext *ctx, arg_main *a)
++{
++    /* set.w-rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++/* §4.4 set.zw rb (rwii): rbha[wyde(wp)] = immu16, other 48 bits = 0
++ * ILLI: rbha == rb0 */
++static bool trans_set_zw_rb(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    int wp = a->hb >> 4;
++    uint64_t immu16 = ((uint64_t)(a->hb & 0xF) << 12) |
++                      ((uint64_t)a->hc << 6) | a->hd;
++    TCGv_i64 val = tcg_constant_i64(immu16 << (wp * 16));
++    store_rb(a->ha, val);
++    return true;
++}
++
++/* §4.4 or.w rb (rwii): rbha[wyde(wp)] |= immu16, other wydes unchanged
++ * ILLI: rbha == rb0 */
++static bool trans_or_w_rb(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    int wp = a->hb >> 4;
++    uint64_t immu16 = ((uint64_t)(a->hb & 0xF) << 12) |
++                      ((uint64_t)a->hc << 6) | a->hd;
++    TCGv_i64 rbha = load_rb(ctx, a->ha);
++    tcg_gen_ori_i64(rbha, rbha, immu16 << (wp * 16));
++    store_rb(a->ha, rbha);
++    return true;
++}
++
++/* §4.4 andn.w rb (rwii): rbha[wyde(wp)] &= ~immu16, other wydes unchanged
++ * ILLI: rbha == rb0 */
++static bool trans_andn_w_rb(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    int wp = a->hb >> 4;
++    uint64_t immu16 = ((uint64_t)(a->hb & 0xF) << 12) |
++                      ((uint64_t)a->hc << 6) | a->hd;
++    TCGv_i64 rbha = load_rb(ctx, a->ha);
++    TCGv_i64 mask = tcg_constant_i64(~(immu16 << (wp * 16)));
++    tcg_gen_and_i64(rbha, rbha, mask);
++    store_rb(a->ha, rbha);
++    return true;
++}

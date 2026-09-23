@@ -1,0 +1,37 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
+new file mode 100644
+index 000000000..4f58d4a99
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
+@@ -0,0 +1,31 @@
++//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// DADAO instruction info implementation. Includes the TableGen-generated
++// instruction info tables (DADAOGenInstrInfo.inc).
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOInstrInfo.h"
++
++// Include the generated instruction info tables.
++#define GET_INSTRINFO_MC_DESC
++#include "DADAOGenInstrInfo.inc"
++
++using namespace llvm;
++
++// Constructor is provided by the generated base class.
++// DADAOInstrInfo is currently a thin wrapper; no custom overrides yet.
++DADAOInstrInfo::DADAOInstrInfo(const TargetSubtargetInfo &STI,
++                               const TargetRegisterInfo &TRI,
++                               unsigned CFSetupOpcode,
++                               unsigned CFDestroyOpcode,
++                               unsigned CatchRetOpcode,
++                               unsigned ReturnOpcode)
++    : DADAOGenInstrInfo(STI, TRI, CFSetupOpcode, CFDestroyOpcode,
++                        CatchRetOpcode, ReturnOpcode) {}

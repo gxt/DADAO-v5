@@ -1,0 +1,62 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.h
+new file mode 100644
+index 000000000..694e274e3
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.h
+@@ -0,0 +1,56 @@
++//===-- DADAOMCTargetDesc.h - DADAO Target Descriptions ---------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file provides DADAO specific target descriptions.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOMCTARGETDESC_H
++#define LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOMCTARGETDESC_H
++
++#include <cstdint>
++#include <memory>
++
++// Register enum: DADAO::NoRegister, DADAO::rd0..rd63, DADAO::rb0..rb63,
++// DADAO::rf0..rf63, DADAO::ra0..ra63, DADAO::RBFP, DADAO::RBSP.
++#define GET_REGINFO_ENUM
++#include "DADAOGenRegisterInfo.inc"
++
++namespace llvm {
++class MCAsmBackend;
++class MCAsmInfo;
++class MCCodeEmitter;
++class MCContext;
++class MCInst;
++class MCInstPrinter;
++class MCInstrInfo;
++class MCObjectTargetWriter;
++class MCRegisterInfo;
++class MCSubtargetInfo;
++class MCTargetOptions;
++class Target;
++class Triple;
++
++MCCodeEmitter *createDadaoMCCodeEmitter(const MCInstrInfo &MCII,
++                                        MCContext &Ctx);
++
++MCAsmBackend *createDadaoAsmBackend(const Target &T, const MCSubtargetInfo &STI,
++                                    const MCRegisterInfo &MRI,
++                                    const MCTargetOptions &Options);
++
++std::unique_ptr<MCObjectTargetWriter> createDadaoELFObjectWriter(uint8_t OSABI);
++
++MCInstPrinter *createDadaoMCInstPrinter(const Triple &T,
++                                        unsigned SyntaxVariant,
++                                        const MCAsmInfo &MAI,
++                                        const MCInstrInfo &MII,
++                                        const MCRegisterInfo &MRI);
++
++} // namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOMCTARGETDESC_H

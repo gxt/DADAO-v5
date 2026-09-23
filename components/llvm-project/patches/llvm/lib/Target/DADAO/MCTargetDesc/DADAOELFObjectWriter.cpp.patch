@@ -1,0 +1,55 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
+new file mode 100644
+index 000000000..b11df2518
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
+@@ -0,0 +1,49 @@
++//===-- DADAOELFObjectWriter.cpp - DADAO ELF Writer -----------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "MCTargetDesc/DADAOMCTargetDesc.h"
++#include "llvm/BinaryFormat/ELF.h"
++#include "llvm/MC/MCELFObjectWriter.h"
++#include "llvm/MC/MCObjectWriter.h"
++
++using namespace llvm;
++
++// EM_DADAO: project-custom machine id.
++// Source: contract-elf.md §1.1 (ADR-0003 §D1).
++// Not registered in IANA/SysV public ELF registry.
++static constexpr unsigned EM_DADAO = 0x0DA0;
++
++namespace {
++
++class DADAOELFObjectWriter : public MCELFObjectTargetWriter {
++public:
++  explicit DADAOELFObjectWriter(uint8_t OSABI)
++      : MCELFObjectTargetWriter(/*Is64Bit_=*/true, OSABI, EM_DADAO,
++                                /*HasRelocationAddend_=*/false) {}
++
++  ~DADAOELFObjectWriter() override = default;
++
++protected:
++  unsigned getRelocType(const MCFixup &Fixup, const MCValue &,
++                        bool IsPCRel) const override {
++    // Stub: M1 does not produce relocations (contract-elf.md §2).
++    // Return 0 (no relocation type defined for M1).
++    return 0;
++  }
++
++  bool needsRelocateWithSymbol(const MCValue &, unsigned Type) const override {
++    return false;
++  }
++};
++
++} // end anonymous namespace
++
++std::unique_ptr<MCObjectTargetWriter>
++llvm::createDadaoELFObjectWriter(uint8_t OSABI) {
++  return std::make_unique<DADAOELFObjectWriter>(OSABI);
++}

@@ -1,0 +1,18 @@
+diff --git a/llvm/lib/Target/DADAO/AsmParser/CMakeLists.txt b/llvm/lib/Target/DADAO/AsmParser/CMakeLists.txt
+new file mode 100644
+index 000000000..0d87b58a7
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/AsmParser/CMakeLists.txt
+@@ -0,0 +1,12 @@
++add_llvm_component_library(LLVMDADAOAsmParser
++  DADAOAsmParser.cpp
++
++  LINK_COMPONENTS
++  DADAOInfo
++  MC
++  MCParser
++  Support
++
++  ADD_TO_COMPONENT
++  DADAO
++)

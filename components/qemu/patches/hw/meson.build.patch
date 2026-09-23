@@ -1,0 +1,12 @@
+diff --git a/hw/meson.build b/hw/meson.build
+index 7fa81db..4d473e6 100644
+--- a/hw/meson.build
++++ b/hw/meson.build
+@@ -2,6 +2,7 @@
+ subdir('alpha')
+ subdir('arm')
+ subdir('avr')
++subdir('dadao')
+ subdir('hppa')
+ subdir('hexagon')
+ subdir('xenpv') # i386 uses it

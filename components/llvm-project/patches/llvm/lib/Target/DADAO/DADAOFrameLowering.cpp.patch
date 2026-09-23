@@ -1,0 +1,21 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
+new file mode 100644
+index 000000000..3931ead2f
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
+@@ -0,0 +1,14 @@
++//===-- DADAOFrameLowering.cpp - DADAO Frame Information --------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Minimal DADAO frame lowering stub for M1.
++// Full prologue/epilogue generation deferred to M2.
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOFrameLowering.h"
+\ No newline at end of file

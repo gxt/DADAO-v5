@@ -1,0 +1,30 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h
+new file mode 100644
+index 000000000..5441bd49e
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h
+@@ -0,0 +1,24 @@
++//===-- DADAOTargetStreamer.h - DADAO Target Streamer ----------*- C++ -*--===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOTARGETSTREAMER_H
++#define LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOTARGETSTREAMER_H
++
++#include "llvm/MC/MCStreamer.h"
++
++namespace llvm {
++
++class DADAOTargetStreamer : public MCTargetStreamer {
++public:
++  DADAOTargetStreamer(MCStreamer &S);
++  ~DADAOTargetStreamer() override = default;
++};
++
++} // end namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOTARGETSTREAMER_H

@@ -1,0 +1,43 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
+new file mode 100644
+index 000000000..dbe4cd5ef
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
+@@ -0,0 +1,37 @@
++//===-- DADAOMCAsmInfo.cpp - DADAO asm properties -----------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the declarations of the DADAOMCAsmInfo properties.
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOMCAsmInfo.h"
++#include "llvm/TargetParser/Triple.h"
++
++using namespace llvm;
++
++void DADAOMCAsmInfo::anchor() {}
++
++DADAOMCAsmInfo::DADAOMCAsmInfo(const Triple & /*TheTriple*/,
++                                const MCTargetOptions &Options)
++    : MCAsmInfoELF(Options) {
++  // DADAO is big endian (contract-elf.md §1.1: EI_DATA = ELFDATA2MSB).
++  IsLittleEndian = false;
++
++  // DADAO uses '#' as the comment character.
++  CommentString = "#";
++
++  // Instruction alignment: 4 bytes (contract-isa.md §2.1: 32-bit instructions).
++  MinInstAlignment = 4;
++
++  // DADAO assembly uses ".section" before ".bss".
++  UsesELFSectionDirectiveForBSS = true;
++
++  // Target supports emission of debugging information.
++  SupportsDebugInformation = true;
++}

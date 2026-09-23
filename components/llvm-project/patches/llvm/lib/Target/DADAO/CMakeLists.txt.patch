@@ -1,0 +1,42 @@
+diff --git a/llvm/lib/Target/DADAO/CMakeLists.txt b/llvm/lib/Target/DADAO/CMakeLists.txt
+new file mode 100644
+index 000000000..cc007518e
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/CMakeLists.txt
+@@ -0,0 +1,36 @@
++add_llvm_component_group(DADAO)
++
++set(LLVM_TARGET_DEFINITIONS DADAO.td)
++
++tablegen(LLVM DADAOGenRegisterInfo.inc -gen-register-info)
++tablegen(LLVM DADAOGenInstrInfo.inc -gen-instr-info)
++tablegen(LLVM DADAOGenMCCodeEmitter.inc -gen-emitter)
++tablegen(LLVM DADAOGenDisassemblerTables.inc -gen-disassembler)
++tablegen(LLVM DADAOGenAsmWriter.inc -gen-asm-writer)
++tablegen(LLVM DADAOGenAsmMatcher.inc -gen-asm-matcher)
++tablegen(LLVM DADAOGenSubtargetInfo.inc -gen-subtarget)
++# DADAOGen*.inc are build artifacts, not committed to git.
++
++add_public_tablegen_target(DADAOCommonTableGen)
++
++add_llvm_target(DADAOCodeGen
++  DADAOFrameLowering.cpp
++  DADAOInstrInfo.cpp
++  DADAORegisterInfo.cpp
++  DADAOTargetMachine.cpp
++
++  LINK_COMPONENTS
++  CodeGen
++  Core
++  MC
++  Support
++  TargetParser
++
++  ADD_TO_COMPONENT
++  DADAO
++  )
++
++add_subdirectory(AsmParser)
++add_subdirectory(Disassembler)
++add_subdirectory(TargetInfo)
++add_subdirectory(MCTargetDesc)

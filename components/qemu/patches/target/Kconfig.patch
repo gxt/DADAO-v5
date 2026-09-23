@@ -1,0 +1,12 @@
+diff --git a/target/Kconfig b/target/Kconfig
+index 0288a3f..cebaaa4 100644
+--- a/target/Kconfig
++++ b/target/Kconfig
+@@ -1,6 +1,7 @@
+ source alpha/Kconfig
+ source arm/Kconfig
+ source avr/Kconfig
++source dadao/Kconfig
+ source hppa/Kconfig
+ source i386/Kconfig
+ source loongarch/Kconfig

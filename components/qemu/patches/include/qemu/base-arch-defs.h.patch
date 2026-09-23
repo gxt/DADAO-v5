@@ -1,0 +1,12 @@
+diff --git a/include/qemu/base-arch-defs.h b/include/qemu/base-arch-defs.h
+index f334657..46a75b1 100644
+--- a/include/qemu/base-arch-defs.h
++++ b/include/qemu/base-arch-defs.h
+@@ -37,6 +37,7 @@ enum {
+                             (1UL << SYS_EMU_TARGET_RISCV64),
+     QEMU_ARCH_RX =          (1UL << SYS_EMU_TARGET_RX),
+     QEMU_ARCH_AVR =         (1UL << SYS_EMU_TARGET_AVR),
++    QEMU_ARCH_DADAO =       (1UL << SYS_EMU_TARGET_DADAO),
+     QEMU_ARCH_HEXAGON =     (1UL << SYS_EMU_TARGET_HEXAGON),
+     QEMU_ARCH_LOONGARCH =   (1UL << SYS_EMU_TARGET_LOONGARCH64),
+     QEMU_ARCH_ALL =         UINT32_MAX,

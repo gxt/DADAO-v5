@@ -1,0 +1,42 @@
+diff --git a/llvm/lib/Target/DADAO/DADAO.td b/llvm/lib/Target/DADAO/DADAO.td
+new file mode 100644
+index 000000000..6e40c1609
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAO.td
+@@ -0,0 +1,36 @@
++//===-- DADAO.td - Top-level TableGen definitions for DADAO -*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This is the top-level TableGen definition file for the DADAO target.
++//
++//===----------------------------------------------------------------------===//
++
++include "llvm/Target/Target.td"
++
++include "DADAORegisterInfo.td"
++include "DADAOInstrInfo.td"
++
++//===----------------------------------------------------------------------===//
++// Instruction set definition
++//===----------------------------------------------------------------------===//
++
++def DADAOInstrInfo : InstrInfo;
++
++//===----------------------------------------------------------------------===//
++// Pointer-like register class for pseudo-instructions
++//===----------------------------------------------------------------------===//
++
++defm : RemapAllTargetPseudoPointerOperands<GPRB>;
++
++//===----------------------------------------------------------------------===//
++// Declare the target which we are implementing
++//===----------------------------------------------------------------------===//
++
++def DADAO : Target {
++  let InstructionSet = DADAOInstrInfo;
++}

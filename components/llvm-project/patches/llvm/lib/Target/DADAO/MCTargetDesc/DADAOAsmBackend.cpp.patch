@@ -1,0 +1,147 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
+new file mode 100644
+index 000000000..2a23a2884
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
+@@ -0,0 +1,141 @@
++//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file implements the DADAO AsmBackend.
++// DADAO branch/jump fixup: imms = (target_byte_addr - current_byte_addr) >> 2
++// No +4 pipeline offset (contract-isa.md §5.1–§5.4).
++//
++//===----------------------------------------------------------------------===//
++
++#include "MCTargetDesc/DADAOMCTargetDesc.h"
++#include "MCTargetDesc/DADAOFixupKinds.h"
++#include "llvm/MC/MCAsmBackend.h"
++#include "llvm/MC/MCAssembler.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCELFObjectWriter.h"
++#include "llvm/MC/MCFixup.h"
++#include "llvm/MC/MCObjectWriter.h"
++#include "llvm/MC/MCSubtargetInfo.h"
++#include "llvm/MC/MCValue.h"
++#include "llvm/Support/Endian.h"
++
++using namespace llvm;
++
++namespace {
++
++class DADAOAsmBackend : public MCAsmBackend {
++public:
++  DADAOAsmBackend() : MCAsmBackend(llvm::endianness::big) {}
++
++  std::unique_ptr<MCObjectTargetWriter>
++  createObjectTargetWriter() const override {
++    return createDadaoELFObjectWriter(ELF::ELFOSABI_NONE);
++  }
++
++  MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override {
++    const static MCFixupKindInfo Infos[] = {
++      // DADAO_FK_PCRel_12: 12-bit signed immediate (rrii: hc+hd)
++      // Used by br.eq/br.ne
++      {"DADAO_FK_PCRel_12", 0, 32, 0},
++      // DADAO_FK_PCRel_18: 18-bit signed immediate (riii: hb+hc+hd)
++      // Used by br.n/br.nn/br.z/br.nz/br.p/br.np/rela.si
++      {"DADAO_FK_PCRel_18", 0, 32, 0},
++      // DADAO_FK_PCRel_24: 24-bit signed immediate (iiii: ha+hb+hc+hd)
++      // Used by call/jump
++      {"DADAO_FK_PCRel_24", 0, 32, 0}
++    };
++
++    if (Kind >= llvm::DADAO::DADAO_FK_PCRel_12 &&
++        Kind <= llvm::DADAO::DADAO_FK_PCRel_24)
++      return Infos[Kind - llvm::DADAO::DADAO_FK_PCRel_12];
++
++    return MCAsmBackend::getFixupKindInfo(Kind);
++  }
++
++  void applyFixup(const MCFragment &F, const MCFixup &Fixup,
++                  const MCValue &Target, uint8_t *Data, uint64_t Value,
++                  bool IsResolved) override {
++    unsigned Kind = Fixup.getKind();
++
++    // Only process our custom fixup kinds.
++    if (Kind < llvm::DADAO::DADAO_FK_PCRel_12 ||
++        Kind > llvm::DADAO::DADAO_FK_PCRel_24)
++      return;
++
++    // B6: If not resolved or value is zero, nothing to patch.
++    // M1 does not produce relocations, so unresolved fixups are an error.
++    if (!IsResolved)
++      return;  // Unresolved: leave as-is (M1 has no reloc support)
++    if (Value == 0)
++      return;  // Zero delta: no change needed
++
++    // B1 fix: MCAssembler passes Data = Contents.data() + Fixup.getOffset(),
++    // so Data already points to the start of this instruction.
++    // We must NOT add Offset again (that was the double-offset bug).
++    // Use Data[0..3] directly (like Lanai backend).
++
++    // Read existing instruction bytes (big-endian).
++    uint32_t Inst =
++        (static_cast<uint32_t>(Data[0]) << 24) |
++        (static_cast<uint32_t>(Data[1]) << 16) |
++        (static_cast<uint32_t>(Data[2]) << 8) |
++        static_cast<uint32_t>(Data[3]);
++
++    // PC-relative fixup: imms = (target - current) >> 2
++    // Value is already (target - current) when PCRel = true.
++    // We need to right-shift by 2 to get the immediate value.
++    uint64_t ImmValue = Value >> 2;
++
++    // B2 fix: Apply the correct bitmask based on the fixup kind.
++    // The immediate field width depends on the instruction format:
++    //   PCRel_12 (rrii): 12-bit signed, mask 0xFFF
++    //   PCRel_18 (riii): 18-bit signed, mask 0x3FFFF
++    //   PCRel_24 (iiii): 24-bit signed, mask 0xFFFFFF
++    uint64_t Mask;
++    switch (Kind) {
++    case llvm::DADAO::DADAO_FK_PCRel_12:
++      Mask = 0xFFF;
++      break;
++    case llvm::DADAO::DADAO_FK_PCRel_18:
++      Mask = 0x3FFFF;
++      break;
++    case llvm::DADAO::DADAO_FK_PCRel_24:
++      Mask = 0xFFFFFF;
++      break;
++    default:
++      return;  // Should not reach here
++    }
++
++    // OR in the immediate value (opcode bits are already set by the emitter).
++    Inst |= (ImmValue & Mask);
++
++    // Write back (big-endian).
++    Data[0] = (Inst >> 24) & 0xFF;
++    Data[1] = (Inst >> 16) & 0xFF;
++    Data[2] = (Inst >> 8) & 0xFF;
++    Data[3] = Inst & 0xFF;
++  }
++
++  bool writeNopData(raw_ostream &OS, uint64_t Count,
++                    const MCSubtargetInfo *STI) const override {
++    // DADAO nop = swym 0 = 0x77000000 (big-endian).
++    for (uint64_t I = 0; I < Count; I += 4) {
++      OS.write("\x77\x00\x00\x00", 4);
++    }
++    return true;
++  }
++};
++
++} // end anonymous namespace
++
++MCAsmBackend *llvm::createDadaoAsmBackend(const Target & /*T*/,
++                                          const MCSubtargetInfo & /*STI*/,
++                                          const MCRegisterInfo & /*MRI*/,
++                                          const MCTargetOptions & /*Options*/) {
++  return new DADAOAsmBackend();
++}

@@ -1,0 +1,56 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
+new file mode 100644
+index 000000000..466ea7d6a
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
+@@ -0,0 +1,50 @@
++//===-- DADAOFixupKinds.h - DADAO Fixup Kind Info ---------------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file defines the DADAO fixup kinds.
++// Each fixup kind corresponds to a specific immediate field width:
++//   DADAO_FK_PCRel_12: 12-bit signed (br.eq/br.ne rrii format)
++//   DADAO_FK_PCRel_18: 18-bit signed (br.n/br.nn/br.z/br.nz/br.p/br.np riii format)
++//   DADAO_FK_PCRel_24: 24-bit signed (call/jump iiii format)
++//
++// All PCRel fixups: imms = (target - current) >> 2 (no +4 pipeline offset).
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOFIXUPKINDS_H
++#define LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOFIXUPKINDS_H
++
++#include "llvm/MC/MCFixup.h"
++
++namespace llvm {
++namespace DADAO {
++  // Fixup kinds for DADAO instructions.
++  enum Fixups {
++    // PC-relative fixup for rrii format branch/jump (12-bit signed immediate).
++    // Encoding: imms = (target - current) >> 2 (no +4 pipeline offset)
++    // Used by: br.eq/br.ne (imms12)
++    DADAO_FK_PCRel_12 = FirstTargetFixupKind,
++
++    // PC-relative fixup for riii format branch (18-bit signed immediate).
++    // Encoding: imms = (target - current) >> 2 (no +4 pipeline offset)
++    // Used by: br.n/br.nn/br.z/br.nz/br.p/br.np (imms18),
++    //          rela.si (imms18, as PCRel placeholder)
++    DADAO_FK_PCRel_18,
++
++    // PC-relative fixup for iiii format call/jump (24-bit signed immediate).
++    // Encoding: imms = (target - current) >> 2 (no +4 pipeline offset)
++    // Used by: call/jump (imms24)
++    DADAO_FK_PCRel_24,
++
++    // Sentinel
++    LastTargetFixupKind = DADAO_FK_PCRel_24
++  };
++} // end namespace DADAO
++} // end namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_MCTARGETDESC_DADAOFIXUPKINDS_H

@@ -1,0 +1,18 @@
+diff --git a/llvm/lib/Target/DADAO/Disassembler/CMakeLists.txt b/llvm/lib/Target/DADAO/Disassembler/CMakeLists.txt
+new file mode 100644
+index 000000000..7a01529a6
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/Disassembler/CMakeLists.txt
+@@ -0,0 +1,12 @@
++add_llvm_component_library(LLVMDADAODisassembler
++  DADAODisassembler.cpp
++
++  LINK_COMPONENTS
++  DADAOInfo
++  MC
++  MCDisassembler
++  Support
++
++  ADD_TO_COMPONENT
++  DADAO
++)

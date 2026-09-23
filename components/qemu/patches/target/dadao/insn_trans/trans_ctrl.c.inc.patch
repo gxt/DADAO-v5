@@ -1,0 +1,738 @@
+diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
+new file mode 100644
+index 0000000..596c7e3
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_ctrl.c.inc
+@@ -0,0 +1,732 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++/* ── Helper: RegRAS/MemRAS push (§5.6.1) ─────────────────────────────── */
++/* Push return_addr onto RAS (ra1-ra63 RegRAS stack, ra63=top).
++ * Three cases:
++ *   1. ra63[63:48]==0 (empty) → write ret_addr, refcount=1
++ *   2. ra63[63:48]!=0 && !overflow && ret_addr==ra63[47:0] → refcount++
++ *   3. Otherwise → shift down, insert new at top.
++ *      If ra[1] valid:
++ *        ra0 low48==0 → RASOF (no MemRAS)
++ *        ra0 low48!=0 → spill ra[1] to MemRAS (ra0 low48 -= 8, store, ra0 hi16++)
++ *                        ra0 hi16 overflow (0xFFFF+1) → RASOF
++ * §9.2: RASOF is precise — no RA registers are modified on overflow.
++ * Implementation: validate all preconditions BEFORE any register/memory writes. */
++static void gen_ras_push(DisasContext *ctx, TCGv_i64 ret_addr)
++{
++    TCGv_i64 ra63_val = tcg_temp_new_i64();
++    tcg_gen_ld_i64(ra63_val, tcg_env, offsetof(CPUDADAOState, ra[63]));
++
++    TCGv_i64 ra63_hi = tcg_temp_new_i64();
++    tcg_gen_shri_i64(ra63_hi, ra63_val, 48);
++
++    /* Case 1: ra63 empty (refcount==0) */
++    TCGLabel *label_empty = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcondi_i64(TCG_COND_EQ, ra63_hi, 0, label_empty);
++
++    /* Case 2: recursive (ret_addr == ra63 low48 && refcount < 0xFFFF) */
++    TCGv_i64 ra63_lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(ra63_lo, ra63_val, 0x0000FFFFFFFFFFFFULL);
++    TCGLabel *label_shift = gen_new_label();
++    tcg_gen_brcond_i64(TCG_COND_NE, ret_addr, ra63_lo, label_shift);
++
++    /* Check refcount not maxed out (0xFFFF) */
++    tcg_gen_brcondi_i64(TCG_COND_GE, ra63_hi, 0xFFFF, label_shift);
++
++    /* Increment refcount */
++    TCGv_i64 new_ra63 = tcg_temp_new_i64();
++    tcg_gen_addi_i64(new_ra63, ra63_hi, 1);
++    tcg_gen_shli_i64(new_ra63, new_ra63, 48);
++    tcg_gen_or_i64(new_ra63, new_ra63, ra63_lo);
++    tcg_gen_st_i64(new_ra63, tcg_env, offsetof(CPUDADAOState, ra[63]));
++    tcg_gen_br(label_done);
++
++    /* Case 1: empty → write new entry, refcount=1 */
++    gen_set_label(label_empty);
++    {
++        TCGv_i64 new_val = tcg_temp_new_i64();
++        TCGv_i64 one_hi = tcg_constant_i64(1ULL << 48);
++        tcg_gen_or_i64(new_val, ret_addr, one_hi);
++        tcg_gen_st_i64(new_val, tcg_env, offsetof(CPUDADAOState, ra[63]));
++    }
++    tcg_gen_br(label_done);
++
++    /* Case 3: shift down, insert new at top.
++     * §5.6.1: ra63→ra62, ra62→ra61, ..., ra2→ra1.
++     * If ra[1] valid: spill to MemRAS or RASOF.
++     * Precise exception: validate BEFORE any writes. */
++    gen_set_label(label_shift);
++    {
++        /* Check if ra[1] is valid */
++        TCGv_i64 ra1_val = tcg_temp_new_i64();
++        tcg_gen_ld_i64(ra1_val, tcg_env, offsetof(CPUDADAOState, ra[1]));
++        TCGv_i64 ra1_hi = tcg_temp_new_i64();
++        tcg_gen_shri_i64(ra1_hi, ra1_val, 48);
++        TCGLabel *label_no_overflow = gen_new_label();
++        tcg_gen_brcondi_i64(TCG_COND_EQ, ra1_hi, 0, label_no_overflow);
++
++        /* ra[1] is valid: check MemRAS availability */
++        {
++            TCGv_i64 ra0_val = tcg_temp_new_i64();
++            tcg_gen_ld_i64(ra0_val, tcg_env, offsetof(CPUDADAOState, ra[0]));
++            TCGv_i64 ra0_lo = tcg_temp_new_i64();
++            tcg_gen_andi_i64(ra0_lo, ra0_val, 0x0000FFFFFFFFFFFFULL);
++            TCGLabel *label_do_spill = gen_new_label();
++            tcg_gen_brcondi_i64(TCG_COND_NE, ra0_lo, 0, label_do_spill);
++
++            /* ra0 low48 == 0: no MemRAS → RASOF */
++            gen_helper_raise_exception(tcg_env,
++                                       tcg_constant_i32(DADAO_EXCP_RASOF));
++
++            /* ra0 low48 != 0: spill ra[1] to MemRAS */
++            gen_set_label(label_do_spill);
++            {
++                TCGv_i64 ra0_hi = tcg_temp_new_i64();
++                tcg_gen_shri_i64(ra0_hi, ra0_val, 48);
++
++                /* Check refcount overflow */
++                TCGLabel *label_refcount_ok = gen_new_label();
++                tcg_gen_brcondi_i64(TCG_COND_LTU, ra0_hi, 0xFFFF,
++                                    label_refcount_ok);
++                gen_helper_raise_exception(tcg_env,
++                                           tcg_constant_i32(DADAO_EXCP_RASOF));
++                gen_set_label(label_refcount_ok);
++
++                /* Spill: store ra[1] to [ra0_lo - 8] */
++                TCGv_i64 spill_addr = tcg_temp_new_i64();
++                tcg_gen_subi_i64(spill_addr, ra0_lo, 8);
++                tcg_gen_andi_i64(spill_addr, spill_addr,
++                                 0x0000FFFFFFFFFFFFULL);
++                tcg_gen_qemu_st_i64(ra1_val, spill_addr, ctx->memidx,
++                                    MO_BEUQ | MO_ALIGN_8);
++
++                /* Update ra0: ptr -= 8, refcount += 1 */
++                TCGv_i64 new_ra0_hi = tcg_temp_new_i64();
++                tcg_gen_addi_i64(new_ra0_hi, ra0_hi, 1);
++                tcg_gen_shli_i64(new_ra0_hi, new_ra0_hi, 48);
++                TCGv_i64 new_ra0 = tcg_temp_new_i64();
++                tcg_gen_or_i64(new_ra0, spill_addr, new_ra0_hi);
++                tcg_gen_st_i64(new_ra0, tcg_env,
++                               offsetof(CPUDADAOState, ra[0]));
++            }
++        }
++        gen_set_label(label_no_overflow);
++
++        /* §5.6.1 shift: ra63→ra62, ra62→ra61, ..., ra2→ra1.
++         * ASCENDING iteration (i=2..63): read ra[i], store ra[i-1].
++         * Since destination (i-1) < source (i), ascending avoids overwriting
++         * unread entries. */
++        for (int i = 2; i <= 63; i++) {
++            TCGv_i64 src_val = tcg_temp_new_i64();
++            tcg_gen_ld_i64(src_val, tcg_env, offsetof(CPUDADAOState, ra[i]));
++            TCGv_i64 src_hi = tcg_temp_new_i64();
++            tcg_gen_shri_i64(src_hi, src_val, 48);
++            TCGLabel *label_skip = gen_new_label();
++            tcg_gen_brcondi_i64(TCG_COND_EQ, src_hi, 0, label_skip);
++            /* Valid entry: move ra[i] → ra[i-1] */
++            tcg_gen_st_i64(src_val, tcg_env,
++                           offsetof(CPUDADAOState, ra[i - 1]));
++            gen_set_label(label_skip);
++        }
++
++        /* Insert new entry at ra63: refcount=1, addr=ret_addr */
++        {
++            TCGv_i64 new_val = tcg_temp_new_i64();
++            TCGv_i64 one_hi = tcg_constant_i64(1ULL << 48);
++            tcg_gen_or_i64(new_val, ret_addr, one_hi);
++            tcg_gen_st_i64(new_val, tcg_env,
++                           offsetof(CPUDADAOState, ra[63]));
++        }
++    }
++
++    gen_set_label(label_done);
++}
++
++/* ── Helper: RegRAS/MemRAS pop (§5.6.2) ──────────────────────────────── */
++/* Pop return address from RAS. Returns the return address (48-bit).
++ * Three cases:
++ *   1. ra63[63:48] > 1 → decrement refcount, return ra63[47:0]
++ *   2. ra63[63:48] == 1 → pop, shift up (ra62→ra63, ra61→ra62, ..., ra1→ra2),
++ *      ra1 cleared, return addr
++ *   3. ra63[63:48] == 0 → empty:
++ *      ra0 low48 == 0 → RASUF (no MemRAS)
++ *      ra0 low48 != 0 → pop from MemRAS:
++ *        - Read 64-bit value from ra0 low48 address (MO_ALIGN_8: may fault → precise)
++ *        - ra0 low48 += 8, ra0 hi16 -= 1; hi16 underflow (0-1) → RASUF
++ *        - Popped value hi16==0 → RASUF (invalid entry)
++ *        - Popped value hi16==0x0001 → return low48 as return address
++ *        - Popped value hi16>0x0001 → store to ra63 with hi16-1, return low48
++ * §9.2: RASUF is precise — no RA registers are modified on underflow. */
++static TCGv_i64 gen_ras_pop(DisasContext *ctx)
++{
++    TCGv_i64 result = tcg_temp_new_i64();
++    TCGv_i64 ra63_val = tcg_temp_new_i64();
++    tcg_gen_ld_i64(ra63_val, tcg_env, offsetof(CPUDADAOState, ra[63]));
++
++    TCGv_i64 ra63_hi = tcg_temp_new_i64();
++    tcg_gen_shri_i64(ra63_hi, ra63_val, 48);
++
++    TCGv_i64 ra63_lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(ra63_lo, ra63_val, 0x0000FFFFFFFFFFFFULL);
++
++    TCGLabel *label_refcount_gt1 = gen_new_label();
++    TCGLabel *label_refcount_eq1 = gen_new_label();
++    TCGLabel *label_rasuf = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++
++    /* Case 1: refcount > 1 → decrement */
++    tcg_gen_brcondi_i64(TCG_COND_GT, ra63_hi, 1, label_refcount_gt1);
++    /* Case 2: refcount == 1 → pop and shift */
++    tcg_gen_brcondi_i64(TCG_COND_EQ, ra63_hi, 1, label_refcount_eq1);
++    /* Case 3: refcount == 0 → check MemRAS or RASUF */
++    tcg_gen_br(label_rasuf);
++
++    /* Case 1: decrement refcount */
++    gen_set_label(label_refcount_gt1);
++    {
++        TCGv_i64 new_hi = tcg_temp_new_i64();
++        tcg_gen_subi_i64(new_hi, ra63_hi, 1);
++        TCGv_i64 new_val = tcg_temp_new_i64();
++        tcg_gen_shli_i64(new_hi, new_hi, 48);
++        tcg_gen_or_i64(new_val, new_hi, ra63_lo);
++        tcg_gen_st_i64(new_val, tcg_env, offsetof(CPUDADAOState, ra[63]));
++        tcg_gen_mov_i64(result, ra63_lo);
++    }
++    tcg_gen_br(label_done);
++
++    /* Case 2: pop and shift up.
++     * §5.6.2: ra62→ra63, ra61→ra62, ..., ra1→ra2, then ra1 cleared.
++     * DESCENDING iteration (i=62..1): read ra[i], store ra[i+1].
++     * Since destination (i+1) > source (i), descending avoids overwriting
++     * unread entries. */
++    gen_set_label(label_refcount_eq1);
++    {
++        tcg_gen_mov_i64(result, ra63_lo);
++        /* Shift: ra[i] → ra[i+1] for i=62..1 (descending) */
++        for (int i = 62; i >= 1; i--) {
++            TCGv_i64 src_val = tcg_temp_new_i64();
++            tcg_gen_ld_i64(src_val, tcg_env, offsetof(CPUDADAOState, ra[i]));
++            TCGv_i64 src_hi = tcg_temp_new_i64();
++            tcg_gen_shri_i64(src_hi, src_val, 48);
++            TCGLabel *label_clear = gen_new_label();
++            TCGLabel *label_store = gen_new_label();
++            tcg_gen_brcondi_i64(TCG_COND_EQ, src_hi, 0, label_clear);
++            /* Valid: store ra[i] → ra[i+1] */
++            tcg_gen_st_i64(src_val, tcg_env, offsetof(CPUDADAOState, ra[i + 1]));
++            tcg_gen_br(label_store);
++            gen_set_label(label_clear);
++            /* Invalid: clear ra[i+1] */
++            TCGv_i64 zero = tcg_constant_i64(0);
++            tcg_gen_st_i64(zero, tcg_env, offsetof(CPUDADAOState, ra[i + 1]));
++            gen_set_label(label_store);
++        }
++        /* Clear ra1 (bottom of stack, shifted out) */
++        {
++            TCGv_i64 zero = tcg_constant_i64(0);
++            tcg_gen_st_i64(zero, tcg_env, offsetof(CPUDADAOState, ra[1]));
++        }
++    }
++    tcg_gen_br(label_done);
++
++    /* Case 3: ra63 empty → check MemRAS or RASUF */
++    gen_set_label(label_rasuf);
++    {
++        TCGv_i64 ra0_val = tcg_temp_new_i64();
++        tcg_gen_ld_i64(ra0_val, tcg_env, offsetof(CPUDADAOState, ra[0]));
++        TCGv_i64 ra0_lo = tcg_temp_new_i64();
++        tcg_gen_andi_i64(ra0_lo, ra0_val, 0x0000FFFFFFFFFFFFULL);
++
++        TCGLabel *label_has_memras = gen_new_label();
++        tcg_gen_brcondi_i64(TCG_COND_NE, ra0_lo, 0, label_has_memras);
++
++        /* ra0 low48 == 0: no MemRAS → RASUF (inline) */
++        gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_RASUF));
++        /* Fallthrough unreachable (noreturn), but label_has_memras follows */
++
++        /* ra0 low48 != 0: pop from MemRAS */
++        gen_set_label(label_has_memras);
++        {
++            TCGv_i64 ra0_hi = tcg_temp_new_i64();
++            tcg_gen_shri_i64(ra0_hi, ra0_val, 48);
++
++            /* Check ra0 hi16 refcount > 0 (no underflow) */
++            TCGLabel *label_refcount_valid = gen_new_label();
++            tcg_gen_brcondi_i64(TCG_COND_GT, ra0_hi, 0, label_refcount_valid);
++            /* ra0 refcount would underflow → RASUF (inline) */
++            gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_RASUF));
++
++            gen_set_label(label_refcount_valid);
++
++            /* Read from MemRAS: mem64[ra0 low48] (MO_ALIGN_8: may fault → precise) */
++            TCGv_i64 mem_val = tcg_temp_new_i64();
++            tcg_gen_qemu_ld_i64(mem_val, ra0_lo, ctx->memidx,
++                                MO_BEUQ | MO_ALIGN_8);
++
++            /* Check popped value validity BEFORE any RA commit (precise exception):
++             * §1.3.4 / ADR-0004 D5.5 — on RASUF the RA registers must be unchanged. */
++            TCGv_i64 mem_hi = tcg_temp_new_i64();
++            tcg_gen_shri_i64(mem_hi, mem_val, 48);
++            TCGv_i64 mem_lo = tcg_temp_new_i64();
++            tcg_gen_andi_i64(mem_lo, mem_val, 0x0000FFFFFFFFFFFFULL);
++
++            TCGLabel *label_mem_gt1 = gen_new_label();
++            TCGLabel *label_mem_eq1 = gen_new_label();
++
++            /* mem_hi > 1 → store to ra63 with hi-1, return lo */
++            tcg_gen_brcondi_i64(TCG_COND_GT, mem_hi, 1, label_mem_gt1);
++            /* mem_hi == 1 → return lo directly */
++            tcg_gen_brcondi_i64(TCG_COND_EQ, mem_hi, 1, label_mem_eq1);
++            /* mem_hi == 0 → invalid entry → RASUF (inline). No ra0/ra63 write yet. */
++            gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_RASUF));
++
++            gen_set_label(label_mem_gt1);
++            {
++                /* Commit ra0: low48 += 8, hi16 -= 1 (after validity confirmed) */
++                TCGv_i64 new_ra0_lo = tcg_temp_new_i64();
++                tcg_gen_addi_i64(new_ra0_lo, ra0_lo, 8);
++                tcg_gen_andi_i64(new_ra0_lo, new_ra0_lo, 0x0000FFFFFFFFFFFFULL);
++                TCGv_i64 new_ra0_hi = tcg_temp_new_i64();
++                tcg_gen_subi_i64(new_ra0_hi, ra0_hi, 1);
++                tcg_gen_shli_i64(new_ra0_hi, new_ra0_hi, 48);
++                TCGv_i64 new_ra0 = tcg_temp_new_i64();
++                tcg_gen_or_i64(new_ra0, new_ra0_lo, new_ra0_hi);
++                tcg_gen_st_i64(new_ra0, tcg_env, offsetof(CPUDADAOState, ra[0]));
++
++                /* Store to ra63 with refcount = mem_hi - 1 */
++                TCGv_i64 new_hi = tcg_temp_new_i64();
++                tcg_gen_subi_i64(new_hi, mem_hi, 1);
++                tcg_gen_shli_i64(new_hi, new_hi, 48);
++                TCGv_i64 new_ra63 = tcg_temp_new_i64();
++                tcg_gen_or_i64(new_ra63, new_hi, mem_lo);
++                tcg_gen_st_i64(new_ra63, tcg_env, offsetof(CPUDADAOState, ra[63]));
++                tcg_gen_mov_i64(result, mem_lo);
++            }
++            tcg_gen_br(label_done);
++
++            gen_set_label(label_mem_eq1);
++            {
++                /* Commit ra0: low48 += 8, hi16 -= 1 (after validity confirmed) */
++                TCGv_i64 new_ra0_lo = tcg_temp_new_i64();
++                tcg_gen_addi_i64(new_ra0_lo, ra0_lo, 8);
++                tcg_gen_andi_i64(new_ra0_lo, new_ra0_lo, 0x0000FFFFFFFFFFFFULL);
++                TCGv_i64 new_ra0_hi = tcg_temp_new_i64();
++                tcg_gen_subi_i64(new_ra0_hi, ra0_hi, 1);
++                tcg_gen_shli_i64(new_ra0_hi, new_ra0_hi, 48);
++                TCGv_i64 new_ra0 = tcg_temp_new_i64();
++                tcg_gen_or_i64(new_ra0, new_ra0_lo, new_ra0_hi);
++                tcg_gen_st_i64(new_ra0, tcg_env, offsetof(CPUDADAOState, ra[0]));
++
++                /* Popped entry has refcount 1: just return low48 */
++                tcg_gen_mov_i64(result, mem_lo);
++            }
++            tcg_gen_br(label_done);
++        }
++    }
++
++    gen_set_label(label_done);
++    return result;
++}
++
++/* ── Helper: branch taken path ──────────────────────────────────────── */
++/* Compute branch target: rb0(PC) + sign_extend(imm18) << 2, mask 48-bit.
++ * Update PC, rb[0], exit TB. */
++static void gen_branch_taken(DisasContext *ctx, int ha, int hb, int hc, int hd)
++{
++    int32_t imm18 = (int32_t)((hb << 12) | (hc << 6) | hd);
++    if (imm18 & (1 << 17)) {
++        imm18 |= ~((1 << 18) - 1);
++    }
++    int64_t offset = (int64_t)imm18 << 2;
++
++    TCGv_i64 rb0 = tcg_constant_i64(ctx->base.pc_next);
++    TCGv_i64 target = tcg_temp_new_i64();
++    tcg_gen_addi_i64(target, rb0, offset);
++    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
++    tcg_gen_exit_tb(NULL, 0);
++}
++
++/* ── Helper: branch taken path for rrii (br.eq/br.ne) ──────────────── */
++static void gen_branch_taken_rrii(DisasContext *ctx, int hc, int hd)
++{
++    int32_t imm12 = (int32_t)((hc << 6) | hd);
++    if (imm12 & (1 << 11)) {
++        imm12 |= ~((1 << 12) - 1);
++    }
++    int64_t offset = (int64_t)imm12 << 2;
++
++    TCGv_i64 rb0 = tcg_constant_i64(ctx->base.pc_next);
++    TCGv_i64 target = tcg_temp_new_i64();
++    tcg_gen_addi_i64(target, rb0, offset);
++    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
++    tcg_gen_exit_tb(NULL, 0);
++}
++
++/* ── §4.7 PC-relative: rela.si rbha, imms18 (riii) ─────────────────── */
++/* rbha = (PC & ~0xFFF) + sign_extend(imms18 << 12), high 16 bits preserved.
++ * ILLI: rbha == rb0 */
++static bool trans_rela_si_rb(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
++
++    int32_t imm18 = (int32_t)((a->hb << 12) | (a->hc << 6) | a->hd);
++    if (imm18 & (1 << 17)) {
++        imm18 |= ~((1 << 18) - 1);
++    }
++    int64_t offset = (int64_t)imm18 << 12;
++
++    TCGv_i64 rbha = load_rb(ctx, a->ha);
++    /* Preserve high 16 bits */
++    TCGv_i64 hi16 = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi16, rbha, 0xFFFF000000000000ULL);
++
++    /* PC & ~0xFFF */
++    uint64_t pc_aligned = ctx->base.pc_next & ~0xFFFULL;
++    TCGv_i64 base = tcg_constant_i64(pc_aligned);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_addi_i64(result, base, offset);
++    /* Mask to 48 bits */
++    tcg_gen_andi_i64(result, result, 0x0000FFFFFFFFFFFFULL);
++    /* Restore high 16 bits */
++    tcg_gen_or_i64(result, result, hi16);
++    store_rb(a->ha, result);
++    return true;
++}
++
++/* ── §5.2.2 Single-register conditional branch helpers (riii) ───────── */
++
++/* br.n rdha, imms18: if (rdha < 0) PC = rb0 + (imms18 << 2) */
++static bool trans_br_n_rd(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcondi_i64(TCG_COND_LT, rdha, 0, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken(ctx, a->ha, a->hb, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* br.nn rdha, imms18: if (rdha >= 0) PC = rb0 + (imms18 << 2) */
++static bool trans_br_nn_rd(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcondi_i64(TCG_COND_GE, rdha, 0, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken(ctx, a->ha, a->hb, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* br.z rdha, imms18: if (rdha == 0) PC = rb0 + (imms18 << 2)
++ * §5.2.2 special: rdha==rd0 → always taken (not ILLI) */
++static bool trans_br_z_rd(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcondi_i64(TCG_COND_EQ, rdha, 0, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken(ctx, a->ha, a->hb, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* br.nz rdha, imms18: if (rdha != 0) PC = rb0 + (imms18 << 2)
++ * §5.2.2 special: rdha==rd0 → never taken (not ILLI)
++ * Already implemented in 006t (patch 0004). Kept here for completeness. */
++static bool trans_br_nz_rd(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcondi_i64(TCG_COND_NE, rdha, 0, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken(ctx, a->ha, a->hb, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* br.p rdha, imms18: if (rdha > 0) PC = rb0 + (imms18 << 2) */
++static bool trans_br_p_rd(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcondi_i64(TCG_COND_GT, rdha, 0, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken(ctx, a->ha, a->hb, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* br.np rdha, imms18: if (rdha <= 0) PC = rb0 + (imms18 << 2) */
++static bool trans_br_np_rd(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcondi_i64(TCG_COND_LE, rdha, 0, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken(ctx, a->ha, a->hb, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* ── §5.2.1 Two-register conditional branch (rrii) ──────────────────── */
++
++/* br.eq rdha, rdhb, imms12: if (rdha == rdhb) PC = rb0 + (imms12 << 2) */
++static bool trans_br_eq_rd(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcond_i64(TCG_COND_EQ, rdha, rdhb, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken_rrii(ctx, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* br.ne rdha, rdhb, imms12: if (rdha != rdhb) PC = rb0 + (imms12 << 2) */
++static bool trans_br_ne_rd(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcond_i64(TCG_COND_NE, rdha, rdhb, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken_rrii(ctx, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* ── §5.3 jump-iiii: PC = rb0 + (imms24 << 2) ──────────────────────── */
++static bool trans_jump_iiii(DisasContext *ctx, arg_main *a)
++{
++    int32_t imm24 = (int32_t)((a->ha << 18) | (a->hb << 12) |
++                               (a->hc << 6) | a->hd);
++    if (imm24 & (1 << 23)) {
++        imm24 |= ~((1 << 24) - 1);
++    }
++    int64_t offset = (int64_t)imm24 << 2;
++
++    TCGv_i64 rb0 = tcg_constant_i64(ctx->base.pc_next);
++    TCGv_i64 target = tcg_temp_new_i64();
++    tcg_gen_addi_i64(target, rb0, offset);
++    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
++    tcg_gen_exit_tb(NULL, 0);
++    ctx->base.is_jmp = DISAS_NORETURN;
++    return true;
++}
++
++/* §5.3 jump-rrii: PC = rbha + rdhb + sign_extend(imms12 << 2)
++ * Already implemented in 006t (patch 0004). Kept here for completeness. */
++static bool trans_jump_rrii(DisasContext *ctx, arg_main *a)
++{
++    int32_t imm12 = (int32_t)((a->hc << 6) | a->hd);
++    if (imm12 & (1 << 11)) {
++        imm12 |= ~((1 << 12) - 1);
++    }
++    int64_t offset = (int64_t)imm12 << 2;
++
++    TCGv_i64 rbha = load_rb(ctx, a->ha);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 target = tcg_temp_new_i64();
++    tcg_gen_add_i64(target, rbha, rdhb);
++    tcg_gen_addi_i64(target, target, offset);
++    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
++    tcg_gen_exit_tb(NULL, 0);
++    ctx->base.is_jmp = DISAS_NORETURN;
++    return true;
++}
++
++/* ── §5.2.3 RB conditional branch (riii) ─────────────────────────────── */
++
++/* br.z rbha, imms18: if (rbha == 0) PC = rb0 + (imms18 << 2)
++ * §5.2.3: rbha==rb0 → check if PC==0 (always false in M1, but legal) */
++static bool trans_br_z_rb(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rbha = load_rb(ctx, a->ha);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcondi_i64(TCG_COND_EQ, rbha, 0, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken(ctx, a->ha, a->hb, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* br.nz rbha, imms18: if (rbha != 0) PC = rb0 + (imms18 << 2) */
++static bool trans_br_nz_rb(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 rbha = load_rb(ctx, a->ha);
++    TCGLabel *label_taken = gen_new_label();
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_brcondi_i64(TCG_COND_NE, rbha, 0, label_taken);
++    tcg_gen_br(label_done);
++    gen_set_label(label_taken);
++    gen_branch_taken(ctx, a->ha, a->hb, a->hc, a->hd);
++    gen_set_label(label_done);
++    return true;
++}
++
++/* ── §5.4 call-iiii: push ret_addr, PC = rb0 + (imms24 << 2) ───────── */
++static bool trans_call_iiii(DisasContext *ctx, arg_main *a)
++{
++    int32_t imm24 = (int32_t)((a->ha << 18) | (a->hb << 12) |
++                               (a->hc << 6) | a->hd);
++    if (imm24 & (1 << 23)) {
++        imm24 |= ~((1 << 24) - 1);
++    }
++    int64_t offset = (int64_t)imm24 << 2;
++
++    /* Push return address (next instruction) onto RegRAS */
++    TCGv_i64 ret_addr = tcg_constant_i64(ctx->base.pc_next + 4);
++    gen_ras_push(ctx, ret_addr);
++
++    /* Compute target and jump */
++    TCGv_i64 rb0 = tcg_constant_i64(ctx->base.pc_next);
++    TCGv_i64 target = tcg_temp_new_i64();
++    tcg_gen_addi_i64(target, rb0, offset);
++    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
++    tcg_gen_exit_tb(NULL, 0);
++    ctx->base.is_jmp = DISAS_NORETURN;
++    return true;
++}
++
++/* ── §5.4 call-rrii: push ret_addr, PC = rbha + rdhb + (imms12 << 2) ─ */
++static bool trans_call_rrii(DisasContext *ctx, arg_main *a)
++{
++    int32_t imm12 = (int32_t)((a->hc << 6) | a->hd);
++    if (imm12 & (1 << 11)) {
++        imm12 |= ~((1 << 12) - 1);
++    }
++    int64_t offset = (int64_t)imm12 << 2;
++
++    /* Push return address (next instruction) onto RegRAS */
++    TCGv_i64 ret_addr = tcg_constant_i64(ctx->base.pc_next + 4);
++    gen_ras_push(ctx, ret_addr);
++
++    /* Compute target and jump */
++    TCGv_i64 rbha = load_rb(ctx, a->ha);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 target = tcg_temp_new_i64();
++    tcg_gen_add_i64(target, rbha, rdhb);
++    tcg_gen_addi_i64(target, target, offset);
++    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
++    tcg_gen_exit_tb(NULL, 0);
++    ctx->base.is_jmp = DISAS_NORETURN;
++    return true;
++}
++
++/* ── §5.5 ret rdha, imms18: rdha = sext(imms18), PC = pop(ra63) ────── */
++/* rdha can be rd0 (allowed by spec for "return without value"). */
++static bool trans_ret_riii(DisasContext *ctx, arg_main *a)
++{
++    /* Set rdha = sign_extend(imms18) */
++    int32_t imm18 = (int32_t)((a->hb << 12) | (a->hc << 6) | a->hd);
++    if (imm18 & (1 << 17)) {
++        imm18 |= ~((1 << 18) - 1);
++    }
++    TCGv_i64 imm_val = tcg_constant_i64((int64_t)imm18);
++    store_rd(a->ha, imm_val);
++
++    /* Pop return address from RegRAS */
++    TCGv_i64 ret_addr = gen_ras_pop(ctx);
++
++    /* Jump to return address */
++    TCGv_i64 target = tcg_temp_new_i64();
++    tcg_gen_andi_i64(target, ret_addr, 0x0000FFFFFFFFFFFFULL);
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
++    tcg_gen_exit_tb(NULL, 0);
++    ctx->base.is_jmp = DISAS_NORETURN;
++    return true;
++}
++
++/* ── §7.1 swym: NOP ─────────────────────────────────────────────────── */
++static bool trans_swym_iiii(DisasContext *ctx, arg_main *a)
++{
++    /* swym: NOP */
++    return true;
++}
++
++/* ── M1 excluded: cfx/trap/escape → ILLI ────────────────────────────── */
++
++static bool trans_cfx2rd_crrr(DisasContext *ctx, arg_main *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cfx2rc_crrr(DisasContext *ctx, arg_main *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cfxld_crii(DisasContext *ctx, arg_main *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_cfxst_crii(DisasContext *ctx, arg_main *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_escape_ciii(DisasContext *ctx, arg_main *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_trap_ciii(DisasContext *ctx, arg_main *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++/* ── §7.2 illi ──────────────────────────────────────────────────────── */
++static bool trans_illi(DisasContext *ctx, arg_misc *a)
++{
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++/* ── §7.3 fence ─────────────────────────────────────────────────────── */
++static bool trans_fence(DisasContext *ctx, arg_misc *a)
++{
++    /* fence - stub: ILLI (M1 fence semantics not implemented) */
++    gen_exception_illegal(ctx);
++    return true;
++}

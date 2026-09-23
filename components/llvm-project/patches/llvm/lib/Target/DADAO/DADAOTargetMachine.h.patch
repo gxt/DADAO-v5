@@ -1,0 +1,35 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.h b/llvm/lib/Target/DADAO/DADAOTargetMachine.h
+new file mode 100644
+index 000000000..7de4b6fcf
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.h
+@@ -0,0 +1,28 @@
++//===-- DADAOTargetMachine.h - Define TargetMachine for DADAO --- C++ ----===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOTARGETMACHINE_H
++#define LLVM_LIB_TARGET_DADAO_DADAOTARGETMACHINE_H
++
++#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
++#include <optional>
++
++namespace llvm {
++
++class DADAOTargetMachine : public CodeGenTargetMachineImpl {
++public:
++  DADAOTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
++                     StringRef FS, const TargetOptions &Options,
++                     std::optional<Reloc::Model> RM,
++                     std::optional<CodeModel::Model> CM,
++                     CodeGenOptLevel OL, bool JIT);
++};
++
++} // namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOTARGETMACHINE_H
+\ No newline at end of file

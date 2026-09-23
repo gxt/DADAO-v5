@@ -1,0 +1,79 @@
+diff --git a/llvm/lib/TargetParser/Triple.cpp b/llvm/lib/TargetParser/Triple.cpp
+index 356782c1f..42077f176 100644
+--- a/llvm/lib/TargetParser/Triple.cpp
++++ b/llvm/lib/TargetParser/Triple.cpp
+@@ -152,6 +152,8 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
+     return "thumbeb";
+   case ve:
+     return "ve";
++  case dadao:
++    return "dadao";
+   case wasm32:
+     return "wasm32";
+   case wasm64:
+@@ -415,6 +417,9 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
+ 
+   case xtensa:
+     return "xtensa";
++
++  case dadao:
++    return "dadao";
+   }
+ }
+ 
+@@ -567,6 +572,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
+       .Case("loongarch64", loongarch64)
+       .Case("dxil", dxil)
+       .Case("xtensa", xtensa)
++      .Case("dadao", dadao)
+       .Default(UnknownArch);
+ }
+ 
+@@ -721,6 +727,7 @@ Triple::ArchType Triple::parseArch(StringRef ArchName) {
+                   "dxilv1.9"},
+                  Triple::dxil)
+           .Case("xtensa", Triple::xtensa)
++          .Case("dadao", Triple::dadao)
+           .Default(Triple::UnknownArch);
+ 
+   // Some architectures require special parsing logic just to compute the
+@@ -1046,6 +1053,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
+   case Triple::ve:
+   case Triple::xcore:
+   case Triple::xtensa:
++  case Triple::dadao:
+     return Triple::ELF;
+ 
+   case Triple::mipsel:
+@@ -1839,6 +1847,7 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
+   case llvm::Triple::ve:
+   case llvm::Triple::wasm64:
+   case llvm::Triple::x86_64:
++  case llvm::Triple::dadao:
+     return 64;
+   }
+   llvm_unreachable("Invalid architecture value");
+@@ -1882,6 +1891,7 @@ Triple Triple::get32BitArchVariant() const {
+   case Triple::avr:
+   case Triple::bpfeb:
+   case Triple::bpfel:
++  case Triple::dadao:
+   case Triple::msp430:
+   case Triple::systemz:
+   case Triple::ve:
+@@ -2016,6 +2026,7 @@ Triple Triple::get64BitArchVariant() const {
+   case Triple::amdil64:
+   case Triple::bpfeb:
+   case Triple::bpfel:
++  case Triple::dadao:
+   case Triple::hsail64:
+   case Triple::loongarch64:
+   case Triple::mips64:
+@@ -2198,6 +2209,7 @@ Triple Triple::getLittleEndianArchVariant() const {
+ 
+   switch (getArch()) {
+   case Triple::UnknownArch:
++  case Triple::dadao:
+   case Triple::lanai:
+   case Triple::sparcv9:
+   case Triple::systemz:

@@ -1,0 +1,38 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.h b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
+new file mode 100644
+index 000000000..0dee36282
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
+@@ -0,0 +1,31 @@
++//===-- DADAOFrameLowering.h - Define frame lowering for DADAO -*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Minimal DADAO frame lowering stub for M1.
++// Full prologue/epilogue generation deferred to M2.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOFRAMELOWERING_H
++#define LLVM_LIB_TARGET_DADAO_DADAOFRAMELOWERING_H
++
++#include "llvm/CodeGen/TargetFrameLowering.h"
++
++namespace llvm {
++
++class DADAOFrameLowering : public TargetFrameLowering {
++public:
++  explicit DADAOFrameLowering()
++      : TargetFrameLowering(StackGrowsDown,
++                            /*StackAlignment=*/Align(8),
++                            /*LocalAreaOffset=*/0) {}
++};
++
++} // namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOFRAMELOWERING_H
+\ No newline at end of file

@@ -1,0 +1,283 @@
+diff --git a/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
+new file mode 100644
+index 000000000..c8e6f7d8a
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
+@@ -0,0 +1,277 @@
++//===-- DADAODisassembler.cpp - DADAO Disassembler ------------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file implements the DADAO MCDisassembler (bytes → MCInst).
++//
++// DADAO is a big-endian 32-bit instruction set (contract-isa.md §2.1).
++// Each instruction is exactly 4 bytes. The instruction word is decoded as:
++//   bits[31:24] = op[7:0]    (8-bit major opcode)
++//   bits[23:18] = ha[5:0]    (6-bit hexagram a)
++//   bits[17:12] = hb[5:0]    (6-bit hexagram b)
++//   bits[11:6]  = hc[5:0]    (6-bit hexagram c)
++//   bits[5:0]   = hd[5:0]    (6-bit hexagram d)
++//
++// Register banks (contract-isa.md §1.1):
++//   RD: rd0–rd63  (hw encoding 0–63)
++//   RB: rb0–rb63  (hw encoding 0–63)
++//   RF: rf0–rf63  (hw encoding 0–63)
++//   RA: ra0–ra63  (hw encoding 0–63)
++//
++//===----------------------------------------------------------------------===//
++
++#include "MCTargetDesc/DADAOMCTargetDesc.h"
++#include "TargetInfo/DADAOTargetInfo.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCDecoder.h"
++#include "llvm/MC/MCDecoderOps.h"
++#include "llvm/MC/MCDisassembler/MCDisassembler.h"
++#include "llvm/MC/MCInst.h"
++#include "llvm/MC/MCInstrInfo.h"
++#include "llvm/MC/MCRegisterInfo.h"
++#include "llvm/MC/MCSubtargetInfo.h"
++#include "llvm/MC/TargetRegistry.h"
++#include "llvm/Support/Compiler.h"
++#include "llvm/Support/Endian.h"
++#include "llvm/Support/MathExtras.h"
++
++using namespace llvm;
++using namespace llvm::MCD;
++
++typedef MCDisassembler::DecodeStatus DecodeStatus;
++
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++
++#define GET_REGISTER_INFO_ENUM
++#include "DADAOGenRegisterInfo.inc"
++
++//===----------------------------------------------------------------------===//
++// Decoder function forward declarations.
++//
++// These must be declared BEFORE including DADAOGenDisassemblerTables.inc
++// because the generated template functions call them.
++//
++// Register class decoders: TableGen generates calls to
++//   DecodeGPRDRegisterClass, DecodeGPRBRegisterClass,
++//   DecodeGPRARegisterClass, DecodeGPRFRegisterClass.
++//
++// Immediate decoders: match DecoderMethod in DADAOInstrInfo.td
++//   DecodeSImm12, DecodeUImm12, DecodeSImm18, DecodeUImm18,
++//   DecodeUImm16, DecodeUImm6, DecodeSImm24, DecodeUImm24, DecodeWydePos
++//===----------------------------------------------------------------------===//
++
++static DecodeStatus DecodeGPRDRegisterClass(MCInst &MI, uint64_t RegNo,
++                                            uint64_t Address,
++                                            const void *Decoder);
++static DecodeStatus DecodeGPRBRegisterClass(MCInst &MI, uint64_t RegNo,
++                                            uint64_t Address,
++                                            const void *Decoder);
++static DecodeStatus DecodeGPRFRegisterClass(MCInst &MI, uint64_t RegNo,
++                                            uint64_t Address,
++                                            const void *Decoder);
++static DecodeStatus DecodeGPRARegisterClass(MCInst &MI, uint64_t RegNo,
++                                            uint64_t Address,
++                                            const void *Decoder);
++
++static DecodeStatus DecodeSImm12(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder);
++static DecodeStatus DecodeUImm12(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder);
++static DecodeStatus DecodeSImm18(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder);
++static DecodeStatus DecodeUImm18(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder);
++static DecodeStatus DecodeUImm16(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder);
++static DecodeStatus DecodeUImm6(MCInst &MI, uint64_t Imm,
++                                uint64_t Address, const void *Decoder);
++static DecodeStatus DecodeSImm24(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder);
++static DecodeStatus DecodeUImm24(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder);
++static DecodeStatus DecodeWydePos(MCInst &MI, uint64_t Imm,
++                                  uint64_t Address, const void *Decoder);
++
++//===----------------------------------------------------------------------===//
++// Include the auto-generated decoder tables from TableGen.
++// This defines decodeInstruction() and DecoderTable32.
++// MUST be included AFTER forward declarations of decoder functions.
++//===----------------------------------------------------------------------===//
++#define DEBUG_TYPE "dadao-disassembler"
++#include "DADAOGenDisassemblerTables.inc"
++
++namespace {
++
++class DADAODisassembler : public MCDisassembler {
++public:
++  DADAODisassembler(const MCSubtargetInfo &STI, MCContext &Ctx)
++      : MCDisassembler(STI, Ctx) {}
++
++  DecodeStatus getInstruction(MCInst &MI, uint64_t &Size,
++                              ArrayRef<uint8_t> Bytes, uint64_t Address,
++                              raw_ostream &CS) const override;
++};
++
++} // end anonymous namespace
++
++//===----------------------------------------------------------------------===//
++// Register class decoder implementations.
++//
++// Register numbering from DADAOMCCodeEmitter.cpp:
++//   RD: DADAO::rd0 + hw (rd0=131, ..., rd63=194)
++//   RB: DADAO::rb0 + hw (rb0=67,  ..., rb63=130)
++//   RF: DADAO::rf0 + hw (rf0=3,   ..., rf63=66)
++//   RA: DADAO::ra0 + hw (ra0=195, ..., ra63=258)
++//===----------------------------------------------------------------------===//
++
++static DecodeStatus DecodeGPRDRegisterClass(MCInst &MI, uint64_t RegNo,
++                                            uint64_t Address,
++                                            const void *Decoder) {
++  if (RegNo > 63)
++    return MCDisassembler::Fail;
++  MI.addOperand(MCOperand::createReg(DADAO::rd0 + RegNo));
++  return MCDisassembler::Success;
++}
++
++static DecodeStatus DecodeGPRBRegisterClass(MCInst &MI, uint64_t RegNo,
++                                            uint64_t Address,
++                                            const void *Decoder) {
++  if (RegNo > 63)
++    return MCDisassembler::Fail;
++  MI.addOperand(MCOperand::createReg(DADAO::rb0 + RegNo));
++  return MCDisassembler::Success;
++}
++
++static DecodeStatus DecodeGPRFRegisterClass(MCInst &MI, uint64_t RegNo,
++                                            uint64_t Address,
++                                            const void *Decoder) {
++  if (RegNo > 63)
++    return MCDisassembler::Fail;
++  MI.addOperand(MCOperand::createReg(DADAO::rf0 + RegNo));
++  return MCDisassembler::Success;
++}
++
++static DecodeStatus DecodeGPRARegisterClass(MCInst &MI, uint64_t RegNo,
++                                            uint64_t Address,
++                                            const void *Decoder) {
++  if (RegNo > 63)
++    return MCDisassembler::Fail;
++  MI.addOperand(MCOperand::createReg(DADAO::ra0 + RegNo));
++  return MCDisassembler::Success;
++}
++
++//===----------------------------------------------------------------------===//
++// Immediate decoder implementations.
++//===----------------------------------------------------------------------===//
++
++// 12-bit signed immediate (rrii format: hc[5:0]+hd[5:0])
++static DecodeStatus DecodeSImm12(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder) {
++  MI.addOperand(MCOperand::createImm(SignExtend64<12>(Imm)));
++  return MCDisassembler::Success;
++}
++
++// 12-bit unsigned immediate (rrii format)
++static DecodeStatus DecodeUImm12(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder) {
++  MI.addOperand(MCOperand::createImm(Imm & 0xFFF));
++  return MCDisassembler::Success;
++}
++
++// 18-bit signed immediate (riii format: hb[5:0]+hc[5:0]+hd[5:0])
++static DecodeStatus DecodeSImm18(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder) {
++  MI.addOperand(MCOperand::createImm(SignExtend64<18>(Imm)));
++  return MCDisassembler::Success;
++}
++
++// 18-bit unsigned immediate (oiii format)
++static DecodeStatus DecodeUImm18(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder) {
++  MI.addOperand(MCOperand::createImm(Imm & 0x3FFFF));
++  return MCDisassembler::Success;
++}
++
++// 16-bit unsigned immediate (rwii format: hb[3:0]+hc[5:0]+hd[5:0])
++static DecodeStatus DecodeUImm16(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder) {
++  MI.addOperand(MCOperand::createImm(Imm & 0xFFFF));
++  return MCDisassembler::Success;
++}
++
++// 6-bit unsigned immediate (rrri/orri format: hd[5:0])
++static DecodeStatus DecodeUImm6(MCInst &MI, uint64_t Imm,
++                                uint64_t Address, const void *Decoder) {
++  MI.addOperand(MCOperand::createImm(Imm & 0x3F));
++  return MCDisassembler::Success;
++}
++
++// 24-bit signed immediate (iiii format: ha[5:0]+hb[5:0]+hc[5:0]+hd[5:0])
++static DecodeStatus DecodeSImm24(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder) {
++  MI.addOperand(MCOperand::createImm(SignExtend64<24>(Imm)));
++  return MCDisassembler::Success;
++}
++
++// 24-bit unsigned immediate (iiii format, swym)
++static DecodeStatus DecodeUImm24(MCInst &MI, uint64_t Imm,
++                                 uint64_t Address, const void *Decoder) {
++  MI.addOperand(MCOperand::createImm(Imm & 0xFFFFFF));
++  return MCDisassembler::Success;
++}
++
++// 2-bit wyde-position (rwii format: hb[5:4])
++// contract-isa.md §2.4: 00=wp0, 01=wp1, 10=wp2, 11=wp3
++static DecodeStatus DecodeWydePos(MCInst &MI, uint64_t Imm,
++                                  uint64_t Address, const void *Decoder) {
++  if (Imm > 3)
++    return MCDisassembler::Fail;
++  MI.addOperand(MCOperand::createImm(Imm));
++  return MCDisassembler::Success;
++}
++
++//===----------------------------------------------------------------------===//
++// getInstruction: main entry point for disassembly.
++//
++// contract-isa.md §2.1: instructions are 4 bytes, big-endian.
++//===----------------------------------------------------------------------===//
++
++DecodeStatus DADAODisassembler::getInstruction(MCInst &MI, uint64_t &Size,
++                                                ArrayRef<uint8_t> Bytes,
++                                                uint64_t Address,
++                                                raw_ostream &CS) const {
++  // DADAO instructions are exactly 4 bytes.
++  if (Bytes.size() < 4) {
++    Size = 0;
++    return MCDisassembler::Fail;
++  }
++  Size = 4;
++
++  // Read the 32-bit instruction word in big-endian order.
++  // contract-isa.md §1.6: bits[31:24] at lowest address, bits[7:0] at highest.
++  uint32_t Insn = support::endian::read32be(Bytes.data());
++
++  // Call the TableGen-generated decoder.
++  return decodeInstruction(DecoderTable32, MI, Insn, Address, this, STI);
++}
++
++//===----------------------------------------------------------------------===//
++// Factory function and registration.
++//===----------------------------------------------------------------------===//
++
++static MCDisassembler *createDADAODisassembler(const Target &T,
++                                                const MCSubtargetInfo &STI,
++                                                MCContext &Ctx) {
++  return new DADAODisassembler(STI, Ctx);
++}
++
++extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDADAODisassembler() {
++  // Register the disassembler.
++  TargetRegistry::RegisterMCDisassembler(getTheDadaoTarget(),
++                                          createDADAODisassembler);
++}

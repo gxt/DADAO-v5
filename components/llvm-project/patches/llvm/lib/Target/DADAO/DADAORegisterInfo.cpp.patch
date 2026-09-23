@@ -1,0 +1,79 @@
+diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
+new file mode 100644
+index 000000000..3c2c46c19
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
+@@ -0,0 +1,72 @@
++//===-- DADAORegisterInfo.cpp - DADAO Register Information -------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAORegisterInfo.h"
++#include "DADAOFrameLowering.h"
++#include "llvm/ADT/BitVector.h"
++#include "llvm/CodeGen/MachineFrameInfo.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/RegisterScavenging.h"
++#include "llvm/CodeGen/TargetFrameLowering.h"
++#include "llvm/Support/ErrorHandling.h"
++
++// Register enum (DADAO::rd0, DADAO::rb1, etc.) is provided by
++// DADAOMCTargetDesc.h via GET_REGINFO_ENUM, already included transitively
++// through DADAORegisterInfo.h -> DADAOMCTargetDesc.h chain.
++// We include DADAOMCTargetDesc.h explicitly to be safe.
++#include "MCTargetDesc/DADAOMCTargetDesc.h"
++
++// TARGET_DESC section: provides DADAOGenRegisterInfo member function
++// definitions (getFrameLowering, getRegClass, etc.).
++#define GET_REGINFO_TARGET_DESC
++#include "DADAOGenRegisterInfo.inc"
++
++using namespace llvm;
++
++DADAORegisterInfo::DADAORegisterInfo()
++    : DADAOGenRegisterInfo(DADAO::RBSP /* RA = SP */) {}
++
++const uint16_t *
++DADAORegisterInfo::getCalleeSavedRegs(const MachineFunction * /*MF*/) const {
++  // Placeholder: M2 will populate the callee-saved list.
++  static const uint16_t CalleeSaved[] = {0};
++  return CalleeSaved;
++}
++
++BitVector
++DADAORegisterInfo::getReservedRegs(const MachineFunction & /*MF*/) const {
++  BitVector Reserved(getNumRegs());
++  // rd0 = hardwired zero (contract-isa.md §1.3.1)
++  Reserved.set(DADAO::rd0);
++  // rb0 = PC (contract-isa.md §1.3.2)
++  Reserved.set(DADAO::rb0);
++  // rb1 = SP (contract-abi.md §2.1)
++  // N2 fix: use actual register enum (68), not DwarfRegAlias RBSP (2).
++  Reserved.set(DADAO::rb1);
++  // rb2 = FP (contract-abi.md §2.1)
++  // N2 fix: use actual register enum (69), not DwarfRegAlias RBFP (1).
++  Reserved.set(DADAO::rb2);
++  // RF and RA are entirely non-allocatable in M1
++  for (unsigned i = DADAO::rf0; i <= DADAO::rf63; ++i)
++    Reserved.set(i);
++  for (unsigned i = DADAO::ra0; i <= DADAO::ra63; ++i)
++    Reserved.set(i);
++  return Reserved;
++}
++
++bool DADAORegisterInfo::eliminateFrameIndex(
++    MachineBasicBlock::iterator /*MI*/, int /*SPAdj*/,
++    unsigned /*FIOperandNum*/, RegScavenger * /*RS*/) const {
++  // Stub: M2 will implement frame index elimination.
++  llvm_unreachable("eliminateFrameIndex not yet implemented for DADAO");
++}
++
++Register
++DADAORegisterInfo::getFrameRegister(const MachineFunction & /*MF*/) const {
++  return DADAO::rb2; // FP = rb2
++}
+\ No newline at end of file

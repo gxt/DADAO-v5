@@ -1,0 +1,128 @@
+diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
+new file mode 100644
+index 0000000..876e569
+--- /dev/null
++++ b/target/dadao/cpu.h
+@@ -0,0 +1,122 @@
++/*
++ * DADAO CPU header for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifndef TARGET_DADAO_CPU_H
++#define TARGET_DADAO_CPU_H
++
++#include "cpu-qom.h"
++#include "exec/cpu-common.h"
++#include "exec/cpu-interrupt.h"
++#include "system/memory.h"
++
++#ifdef CONFIG_USER_ONLY
++#error "DADAO does not support user mode"
++#endif
++
++#define CPU_RESOLVING_TYPE TYPE_DADAO_CPU
++
++/* DADAO exception indices (QEMU-internal, mapped to exit codes in do_interrupt) */
++enum {
++    DADAO_EXCP_ILLI = 1,       /* Illegal instruction */
++    DADAO_EXCP_UNDI = 2,       /* Undefined instruction */
++    DADAO_EXCP_RASOF = 3,      /* RAS overflow */
++    DADAO_EXCP_RASUF = 4,      /* RAS underflow */
++    DADAO_EXCP_MALIGN = 5,     /* Memory alignment fault */
++    DADAO_EXCP_IALIGN = 6,     /* Instruction alignment fault */
++    DADAO_EXCP_UNMAPPED = 7,   /* Unmapped memory access */
++};
++
++/* DADAO exit codes (propagated to host $?, per ADR-0004 D5.8) */
++enum {
++    DADAO_EXIT_PASS = 0x00,
++    DADAO_EXIT_UNMAPPED = 0x87,
++    DADAO_EXIT_ILLI = 0x88,
++    DADAO_EXIT_UNDI = 0x89,
++    DADAO_EXIT_RASOF = 0x8A,
++    DADAO_EXIT_RASUF = 0x8B,
++    DADAO_EXIT_MALIGN = 0x8C,
++    DADAO_EXIT_IALIGN = 0x8D,
++};
++
++/* Memory map constants (per ADR-0004 D1) */
++#define DADAO_RAM_BASE      0xffff00000000ULL
++#define DADAO_RAM_SIZE      (16 * 1024 * 1024)  /* 16 MiB */
++#define DADAO_EXIT_PORT_BASE 0xffff80000000ULL
++#define DADAO_EXIT_PORT_SIZE 8
++#define DADAO_ROM_BASE      0xffffffff0000ULL
++#define DADAO_ROM_SIZE      (64 * 1024)          /* 64 KiB */
++
++/* Reset values (per ADR-0004 D2) */
++#define DADAO_RESET_PC      DADAO_ROM_BASE
++#define DADAO_RESET_RF0     0x7FF800007FC00000ULL
++
++/*
++ * DADAO CPU state.
++ * Register groups: rd[64], rb[64], rf[64], ra[64], pc.
++ * Field names are fixed; subsequent tasks (004t-008t) reference them directly.
++ */
++typedef struct CPUArchState {
++    uint64_t rd[64];    /* Data registers; rd0 hardwired to 0 */
++    uint64_t rb[64];    /* Base registers; rb0 = PC */
++    uint64_t rf[64];    /* Floating-point registers; rf0 = FCSR */
++    uint64_t ra[64];    /* Return address stack */
++    uint64_t pc;        /* Program counter (alias for rb0 read) */
++} CPUDADAOState;
++
++/**
++ * DadaoCPU:
++ * @env: #CPUDADAOState
++ *
++ * A DADAO CPU.
++ */
++struct ArchCPU {
++    CPUState parent_obj;
++
++    CPUDADAOState env;
++};
++
++/**
++ * DadaoCPUClass:
++ * @parent_realize: The parent class' realize handler.
++ * @parent_phases: The parent class' reset phase handlers.
++ *
++ * A DADAO CPU model.
++ */
++struct DadaoCPUClass {
++    CPUClass parent_class;
++
++    DeviceRealize parent_realize;
++    ResettablePhases parent_phases;
++};
++
++void dadao_cpu_do_interrupt(CPUState *cpu);
++bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
++                        MMUAccessType access_type, int mmu_idx,
++                        bool probe, uintptr_t retaddr);
++
++void dadao_cpu_tcg_init(void);
++void dadao_cpu_translate_code(CPUState *cs, TranslationBlock *tb,
++                              int *max_insns, vaddr pc, void *host_pc);
++
++static inline int cpu_interrupts_enabled(CPUDADAOState *env)
++{
++    /* M1 has no interrupt model */
++    return 0;
++}
++
++#endif /* TARGET_DADAO_CPU_H */

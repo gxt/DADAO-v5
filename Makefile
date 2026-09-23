@@ -119,7 +119,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift
+check: manifest-check validate-vectors check-spec-drift check-patch-tree
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -132,6 +132,10 @@ validate-vectors: contracts/opcodes.yaml
 # spec drift check (INFRA-012t): fail-closed provenance audit for contract-*.md.
 check-spec-drift:
 	@$(PYTHON) tools/infra/check_spec_drift.py
+
+# 组件补丁集校验 (2026-09-23): 树形补丁集四断言，见 docs/spec/component-patching.md。
+check-patch-tree:
+	@$(PYTHON) tools/infra/check_patch_tree.py
 
 # spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
 # Standalone target, not part of `make check`.

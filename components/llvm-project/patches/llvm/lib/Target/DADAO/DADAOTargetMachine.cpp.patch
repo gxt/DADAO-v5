@@ -1,0 +1,39 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
+new file mode 100644
+index 000000000..5caedab0f
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
+@@ -0,0 +1,33 @@
++//===-- DADAOTargetMachine.cpp - Define TargetMachine for DADAO ---------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Implements the info about DADAO target spec.
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOTargetMachine.h"
++#include "TargetInfo/DADAOTargetInfo.h"
++#include "llvm/MC/TargetRegistry.h"
++
++using namespace llvm;
++
++extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
++LLVMInitializeDADAOTarget() {
++  // Register the target machine.
++  RegisterTargetMachine<DADAOTargetMachine> X(getTheDadaoTarget());
++}
++
++DADAOTargetMachine::DADAOTargetMachine(
++    const Target &T, const Triple &TT, StringRef CPU, StringRef FS,
++    const TargetOptions &Options, std::optional<Reloc::Model> RM,
++    std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT)
++    : CodeGenTargetMachineImpl(T, TT.computeDataLayout(), TT, CPU, FS, Options,
++                              RM.value_or(Reloc::Static),
++                              CM.value_or(CodeModel::Small), OL) {
++  initAsmInfo();
++}

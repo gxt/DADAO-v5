@@ -1,0 +1,29 @@
+diff --git a/llvm/lib/Target/DADAO/TargetInfo/DADAOTargetInfo.cpp b/llvm/lib/Target/DADAO/TargetInfo/DADAOTargetInfo.cpp
+new file mode 100644
+index 000000000..80fddcafe
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/TargetInfo/DADAOTargetInfo.cpp
+@@ -0,0 +1,23 @@
++//===-- DADAOTargetInfo.cpp - DADAO Target Implementation ----------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "TargetInfo/DADAOTargetInfo.h"
++#include "llvm/MC/TargetRegistry.h"
++
++using namespace llvm;
++
++Target &llvm::getTheDadaoTarget() {
++  static Target TheDadaoTarget;
++  return TheDadaoTarget;
++}
++
++extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
++LLVMInitializeDADAOTargetInfo() {
++  RegisterTarget<Triple::dadao> X(getTheDadaoTarget(), "dadao", "DADAO SimRISC",
++                                  "DADAO");
++}

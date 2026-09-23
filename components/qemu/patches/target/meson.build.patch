@@ -1,0 +1,12 @@
+diff --git a/target/meson.build b/target/meson.build
+index d891ef9..ab78956 100644
+--- a/target/meson.build
++++ b/target/meson.build
+@@ -1,6 +1,7 @@
+ subdir('alpha')
+ subdir('arm')
+ subdir('avr')
++subdir('dadao')
+ subdir('hexagon')
+ subdir('hppa')
+ subdir('i386')

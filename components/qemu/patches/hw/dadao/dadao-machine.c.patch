@@ -1,0 +1,227 @@
+diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
+new file mode 100644
+index 0000000..34dfe04
+--- /dev/null
++++ b/hw/dadao/dadao-machine.c
+@@ -0,0 +1,221 @@
++/*
++ * DADAO M1 bare-metal test machine for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ *
++ * Memory map per ADR-0004 D1:
++ *   RAM:        0xffff_0000_0000 .. 0xffff_00ff_ffff  (16 MiB, RWX)
++ *   Exit port:  0xffff_8000_0000 .. 0xffff_8000_0007  (8 B, MMIO, write-only)
++ *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff  (64 KiB, RO+X)
++ */
++
++#include "qemu/osdep.h"
++#include "qapi/error.h"
++#include "qemu/error-report.h"
++#include "qemu/module.h"
++#include "qemu/datadir.h"
++#include "hw/core/loader.h"
++#include "hw/core/qdev-properties.h"
++#include "hw/core/sysbus.h"
++#include "hw/core/boards.h"
++#include "system/memory.h"
++#include "system/address-spaces.h"
++#include "system/system.h"
++#include "system/runstate.h"
++#include "qom/object.h"
++#include "target/dadao/cpu.h"
++#include "accel/tcg/cpu-loop.h"
++
++/* Exit port MMIO handler */
++typedef struct DadaoExitPort {
++    SysBusDevice parent_obj;
++    MemoryRegion mr;
++} DadaoExitPort;
++
++#define TYPE_DADAO_EXIT_PORT "dadao-exit-port"
++OBJECT_DECLARE_SIMPLE_TYPE(DadaoExitPort, DADAO_EXIT_PORT)
++
++static uint64_t dadao_exit_port_read(void *opaque, hwaddr addr, unsigned size)
++{
++    /* Exit port is write-only; reads trigger ILLI */
++    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
++                                           DADAO_EXIT_ILLI);
++    return 0;
++}
++
++static void dadao_exit_port_write(void *opaque, hwaddr addr,
++                                  uint64_t data, unsigned size)
++{
++    /*
++     * Per ADR-0004 D3:
++     * - Only 8-byte (octa) writes are valid exit port accesses
++     * - Write value & 0xFF = exit code propagated to host $?
++     * - Non-8B writes trigger ILLI (0x88)
++     *
++     * .impl.max_access_size = 8 prevents TCG from splitting 64-bit MMIO
++     * writes into two 32-bit writes. Without this, a guest st.o would be
++     * split into two 4-byte writes, neither of which is a valid exit.
++     */
++    if (size != 8) {
++        qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
++                                               DADAO_EXIT_ILLI);
++        cpu_loop_exit(current_cpu);
++        return;
++    }
++
++    int exit_code = (int)(data & 0xFF);
++    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_SHUTDOWN,
++                                           exit_code);
++    /* Per ADR-0011 D1: cpu_loop_exit longjmps back to cpu_exec's setjmp
++     * point, guaranteeing no further guest instructions execute after the
++     * exit port write. This prevents subsequent instructions (e.g. FAIL
++     * stores, UNDI terminators) from overriding the locked exit code. */
++    cpu_loop_exit(current_cpu);
++}
++
++static const MemoryRegionOps dadao_exit_port_ops = {
++    .read = dadao_exit_port_read,
++    .write = dadao_exit_port_write,
++    .endianness = DEVICE_BIG_ENDIAN,
++    .valid.min_access_size = 1,
++    .valid.max_access_size = 8,
++    .impl.max_access_size = 8,
++};
++
++static void dadao_exit_port_init(Object *obj)
++{
++    DadaoExitPort *s = DADAO_EXIT_PORT(obj);
++    SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
++
++    memory_region_init_io(&s->mr, obj, &dadao_exit_port_ops, s,
++                          "dadao-exit-port", DADAO_EXIT_PORT_SIZE);
++    sysbus_init_mmio(sbd, &s->mr);
++}
++
++static const TypeInfo dadao_exit_port_info = {
++    .name = TYPE_DADAO_EXIT_PORT,
++    .parent = TYPE_SYS_BUS_DEVICE,
++    .instance_size = sizeof(DadaoExitPort),
++    .instance_init = dadao_exit_port_init,
++};
++
++/* DADAO M1 machine */
++typedef struct DadaoMachineState {
++    MachineState parent_obj;
++} DadaoMachineState;
++
++typedef struct DadaoMachineClass {
++    MachineClass parent_class;
++} DadaoMachineClass;
++
++#define TYPE_DADAO_M1_MACHINE MACHINE_TYPE_NAME("dadao-m1")
++OBJECT_DECLARE_SIMPLE_TYPE(DadaoMachineState, DADAO_M1_MACHINE)
++
++static void dadao_m1_init(MachineState *machine)
++{
++    DadaoCPU *cpu;
++    MemoryRegion *ram, *rom, *system_memory;
++    DadaoExitPort *exit_port;
++    Error *err = NULL;
++    ssize_t bios_size, kernel_size;
++
++    /* Validate: both -bios and -kernel are required */
++    if (!machine->firmware) {
++        error_report("dadao-m1: -bios rom.bin is required");
++        exit(1);
++    }
++    if (!machine->kernel_filename) {
++        error_report("dadao-m1: -kernel test.bin is required");
++        exit(1);
++    }
++
++    /* Create CPU */
++    cpu = DADAO_CPU(qdev_new(DADAO_CPU_TYPE_NAME("any")));
++    qdev_realize_and_unref(DEVICE(cpu), NULL, &error_fatal);
++
++    system_memory = get_system_memory();
++
++    /* RAM: 0xffff_0000_0000, 16 MiB */
++    ram = g_new(MemoryRegion, 1);
++    memory_region_init_ram(ram, NULL, "dadao-ram", DADAO_RAM_SIZE, &error_fatal);
++    memory_region_add_subregion(system_memory, DADAO_RAM_BASE, ram);
++
++    /* Boot ROM: 0xffff_ffff_0000, 64 KiB */
++    rom = g_new(MemoryRegion, 1);
++    memory_region_init_rom(rom, NULL, "dadao-rom", DADAO_ROM_SIZE, &error_fatal);
++    memory_region_add_subregion(system_memory, DADAO_ROM_BASE, rom);
++
++    /* Exit port: 0xffff_8000_0000, 8 B */
++    exit_port = DADAO_EXIT_PORT(qdev_new(TYPE_DADAO_EXIT_PORT));
++    sysbus_realize_and_unref(SYS_BUS_DEVICE(exit_port), &error_fatal);
++    sysbus_mmio_map(SYS_BUS_DEVICE(exit_port), 0, DADAO_EXIT_PORT_BASE);
++
++    /* Load BIOS (ROM trampoline) into ROM region */
++    bios_size = load_image_targphys_as(machine->firmware,
++                                       DADAO_ROM_BASE,
++                                       DADAO_ROM_SIZE,
++                                       &address_space_memory,
++                                       &err);
++    if (bios_size < 0) {
++        error_report("dadao-m1: could not load ROM image '%s': %s",
++                     machine->firmware,
++                     err ? error_get_pretty(err) : "unknown error");
++        exit(1);
++    }
++
++    /* Load kernel (test binary) into RAM region */
++    err = NULL;
++    kernel_size = load_image_targphys_as(machine->kernel_filename,
++                                         DADAO_RAM_BASE,
++                                         DADAO_RAM_SIZE,
++                                         &address_space_memory,
++                                         &err);
++    if (kernel_size < 0) {
++        error_report("dadao-m1: could not load kernel image '%s': %s",
++                     machine->kernel_filename,
++                     err ? error_get_pretty(err) : "unknown error");
++        exit(1);
++    }
++}
++
++static void dadao_m1_class_init(ObjectClass *oc, const void *data)
++{
++    MachineClass *mc = MACHINE_CLASS(oc);
++
++    mc->init = dadao_m1_init;
++    mc->desc = "DADAO M1 bare-metal test machine";
++    mc->default_cpus = 1;
++    mc->min_cpus = 1;
++    mc->max_cpus = 1;
++    mc->no_floppy = 1;
++    mc->no_cdrom = 1;
++    mc->default_cpu_type = DADAO_CPU_TYPE_NAME("any");
++}
++
++static const TypeInfo dadao_m1_type = {
++    .name = TYPE_DADAO_M1_MACHINE,
++    .parent = TYPE_MACHINE,
++    .instance_size = sizeof(DadaoMachineState),
++    .class_size = sizeof(DadaoMachineClass),
++    .class_init = dadao_m1_class_init,
++};
++
++static void dadao_m1_machine_init(void)
++{
++    type_register_static(&dadao_exit_port_info);
++    type_register_static(&dadao_m1_type);
++}
++
++type_init(dadao_m1_machine_init);

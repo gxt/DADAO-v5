@@ -1,0 +1,86 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
+new file mode 100644
+index 000000000..2257c9e05
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
+@@ -0,0 +1,80 @@
++//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "MCTargetDesc/DADAOMCTargetDesc.h"
++#include "MCTargetDesc/DADAOMCAsmInfo.h"
++#include "llvm/MC/MCExpr.h"
++#include "llvm/MC/MCInst.h"
++#include "llvm/MC/MCInstPrinter.h"
++#include "llvm/MC/MCInstrInfo.h"
++#include "llvm/MC/MCRegisterInfo.h"
++#include "llvm/Support/raw_ostream.h"
++
++using namespace llvm;
++
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++
++#define GET_REGISTER_INFO_ENUM
++#include "DADAOGenRegisterInfo.inc"
++
++namespace {
++
++class DADAOInstPrinter : public MCInstPrinter {
++public:
++  DADAOInstPrinter(const MCAsmInfo &MAI, const MCInstrInfo &MII,
++                   const MCRegisterInfo &MRI)
++      : MCInstPrinter(MAI, MII, MRI) {}
++
++  void printInst(const MCInst *MI, uint64_t Address, StringRef Annot,
++                 const MCSubtargetInfo &STI, raw_ostream &O) override;
++
++  void printRegName(raw_ostream &OS, MCRegister Reg) override;
++
++  // Auto-generated methods (defined in DADAOGenAsmWriter.inc).
++  void printInstruction(const MCInst *MI, uint64_t Address, raw_ostream &O);
++  void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
++  const char *getRegisterName(MCRegister Reg);
++  std::pair<const char *, uint64_t> getMnemonic(const MCInst &MI) const;
++};
++
++} // end anonymous namespace
++
++// Include auto-generated printInstruction, getMnemonic, getRegisterName.
++#include "DADAOGenAsmWriter.inc"
++
++void DADAOInstPrinter::printInst(const MCInst *MI, uint64_t Address,
++                                  StringRef Annot, const MCSubtargetInfo &STI,
++                                  raw_ostream &O) {
++  printInstruction(MI, Address, O);
++}
++
++void DADAOInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
++                                     raw_ostream &O) {
++  const MCOperand &MO = MI->getOperand(OpNo);
++  if (MO.isReg()) {
++    printRegName(O, MO.getReg());
++  } else if (MO.isImm()) {
++    O << MO.getImm();
++  } else if (MO.isExpr()) {
++    // M1 stub: print expressions as "?".
++    O << "?";
++  }
++}
++
++void DADAOInstPrinter::printRegName(raw_ostream &OS, MCRegister Reg) {
++  OS << getRegisterName(Reg);
++}
++
++MCInstPrinter *llvm::createDadaoMCInstPrinter(const Triple & /*T*/,
++                                               unsigned /*SyntaxVariant*/,
++                                               const MCAsmInfo &MAI,
++                                               const MCInstrInfo &MII,
++                                               const MCRegisterInfo &MRI) {
++  return new DADAOInstPrinter(MAI, MII, MRI);
++}

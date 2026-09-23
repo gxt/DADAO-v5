@@ -1,0 +1,11 @@
+diff --git a/configs/targets/dadao-softmmu.mak b/configs/targets/dadao-softmmu.mak
+new file mode 100644
+index 0000000..a99eda2
+--- /dev/null
++++ b/configs/targets/dadao-softmmu.mak
+@@ -0,0 +1,5 @@
++TARGET_ARCH=dadao
++TARGET_LONG_BITS=64
++TARGET_NOT_USING_LEGACY_LDST_PHYS_API=y
++TARGET_NOT_USING_LEGACY_NATIVE_ENDIAN_API=y
++TARGET_BIG_ENDIAN=y

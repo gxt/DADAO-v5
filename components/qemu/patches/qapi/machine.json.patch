@@ -1,0 +1,13 @@
+diff --git a/qapi/machine.json b/qapi/machine.json
+index 9b22480..e4d18be 100644
+--- a/qapi/machine.json
++++ b/qapi/machine.json
+@@ -37,7 +37,7 @@
+ # Since: 3.0
+ ##
+ { 'enum' : 'SysEmuTarget',
+-  'data' : [ 'aarch64', 'alpha', 'arm', 'avr', 'hexagon', 'hppa', 'i386',
++  'data' : [ 'aarch64', 'alpha', 'arm', 'avr', 'dadao', 'hexagon', 'hppa', 'i386',
+              'loongarch64', 'm68k', 'microblaze', 'mips', 'mips64',
+              'mips64el', 'mipsel', 'or1k', 'ppc',
+              'ppc64', 'riscv32', 'riscv64', 'rx', 's390x', 'sh4',

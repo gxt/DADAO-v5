@@ -1,0 +1,142 @@
+diff --git a/target/dadao/insn_trans/trans_block.c.inc b/target/dadao/insn_trans/trans_block.c.inc
+new file mode 100644
+index 0000000..2310218
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_block.c.inc
+@@ -0,0 +1,136 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++/* §3.7 rd2rd (orri): block copy rd[rdhc..rdhc+immu6) → rd[rdhb..rdhb+immu6)
++ * ILLI: immu6==0, rdhb==0, rdhb+immu6>64, rdhc+immu6>64
++ * Overlap handled by ascending order read-before-write. */
++static bool trans_rd2rd(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hd == 0 || a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    if (a->hb + a->hd > 64 || a->hc + a->hd > 64) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    /* Ascending order: read each source, then write to dest */
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 tmp = load_rd(a->hc + i);
++        store_rd(a->hb + i, tmp);
++    }
++    return true;
++}
++
++/* §4.9.3 rd2ra rahb, rdhc, immu6 (orri): RD→RA block copy
++ * Copy rd[rdhc..rdhc+immu6) → ra[rahb..rahb+immu6)
++ * ILLI: immu6==0, rahb+immu6>64, rdhc+immu6>64
++ * Overlap: ascending order read-before-write per pair. */
++static bool trans_rd2ra(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hd == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    if (a->hb + a->hd > 64 || a->hc + a->hd > 64) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 tmp = load_rd(a->hc + i);
++        store_ra(a->hb + i, tmp);
++    }
++    return true;
++}
++
++/* §4.9.3 ra2rd rdhb, rahc, immu6 (orri): RA→RD block copy
++ * Copy ra[rahc..rahc+immu6) → rd[rdhb..rdhb+immu6)
++ * ILLI: immu6==0, rdhb==0 (dest rd0), rdhb+immu6>64, rahc+immu6>64
++ * Overlap: ascending order read-before-write per pair. */
++static bool trans_ra2rd(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hd == 0 || a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    if (a->hb + a->hd > 64 || a->hc + a->hd > 64) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 tmp = load_ra(a->hc + i);
++        store_rd(a->hb + i, tmp);
++    }
++    return true;
++}
++
++/* §4.3 rb2rb rbhb, rbhc, immu6 (orri): RB→RB block copy
++ * ILLI: immu6==0, rbhb==rb0, rbhb+immu6>64, rbhc+immu6>64
++ * Overlap: ascending order read-before-write. */
++static bool trans_rb2rb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hd == 0 || a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    if (a->hb + a->hd > 64 || a->hc + a->hd > 64) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 tmp = load_rb(ctx, a->hc + i);
++        store_rb(a->hb + i, tmp);
++    }
++    return true;
++}
++
++/* §4.3 rd2rb rbhb, rdhc, immu6 (orri): RD→RB block copy
++ * ILLI: immu6==0, rbhb==rb0, rbhb+immu6>64, rdhc+immu6>64 */
++static bool trans_rd2rb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hd == 0 || a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    if (a->hb + a->hd > 64 || a->hc + a->hd > 64) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 tmp = load_rd(a->hc + i);
++        store_rb(a->hb + i, tmp);
++    }
++    return true;
++}
++
++/* §4.3 rb2rd rdhb, rbhc, immu6 (orri): RB→RD block copy
++ * ILLI: immu6==0, rdhb==rd0, rdhb+immu6>64, rbhc+immu6>64 */
++static bool trans_rb2rd(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hd == 0 || a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    if (a->hb + a->hd > 64 || a->hc + a->hd > 64) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 tmp = load_rb(ctx, a->hc + i);
++        store_rd(a->hb + i, tmp);
++    }
++    return true;
++}
++
++static bool trans_rd2rf(DisasContext *ctx, arg_misc *a)
++{
++    /* rd2rf - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_rf2rd(DisasContext *ctx, arg_misc *a)
++{
++    /* rf2rd - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}

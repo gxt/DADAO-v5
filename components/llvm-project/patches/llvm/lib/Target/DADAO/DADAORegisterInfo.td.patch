@@ -1,0 +1,187 @@
+diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.td b/llvm/lib/Target/DADAO/DADAORegisterInfo.td
+new file mode 100644
+index 000000000..124eef299
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.td
+@@ -0,0 +1,181 @@
++//===-- DADAORegisterInfo.td - DADAO Register defs ----------*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// DADAO register definitions: 4 banks × 64 registers = 256 RegisterDefs.
++//
++// Register banks (contract-isa.md §1.1):
++//   RD  (data)    rd0–rd63   64-bit, general-purpose
++//   RB  (base)    rb0–rb63   64-bit, address/pointer
++//   RF  (float)   rf0–rf63   64-bit, floating-point (Excluded from M1)
++//   RA  (retaddr) ra0–ra63   64-bit, return address stack
++//
++// M1 allocatable sets (contract-abi.md §1.6):
++//   RD: rd8–rd63   (rd0 immutable, rd1 callee-saved undefined, rd2–rd7 reserved)
++//   RB: rb8–rb63   (rb0=PC, rb1=SP, rb2=FP, rb3/rb4 callee-saved undefined,
++//                    rb5–rb7 reserved)
++//   RF: none        (Excluded from M1)
++//   RA: none        (managed by call/ret)
++//
++//===----------------------------------------------------------------------===//
++
++//===----------------------------------------------------------------------===//
++// Register class: 6-bit encoding per bank
++//===----------------------------------------------------------------------===//
++
++class DADAOReg<bits<6> Enc, string n> : Register<n> {
++  let HWEncoding{5-0} = Enc;
++  let Namespace = "DADAO";
++}
++
++//===----------------------------------------------------------------------===//
++// RD bank: rd0–rd63 (data registers)
++//
++// contract-isa.md §1.3.1: rd0 is hardwired zero, read-only.
++// contract-abi.md §1.2: rd0=rdzero(Immutable), rd1=rderrno, rd2–rd7=reserved,
++//                        rd8–rd15=rdt0–rdt7(temp), rd16–rd31=rda0–rda15(temp),
++//                        rd32–rd63=callee-saved.
++//===----------------------------------------------------------------------===//
++
++let isConstant = true in
++  def rd0 : DADAOReg<0, "rd0">;
++
++foreach i = 1-63 in
++  def rd#i : DADAOReg<i, "rd"#i>;
++
++//===----------------------------------------------------------------------===//
++// RB bank: rb0–rb63 (base/address registers)
++//
++// contract-isa.md §1.3.2: rb0 is PC, read-only.
++// contract-abi.md §1.3: rb0=rbip(PC), rb1=rbsp(SP), rb2=rbfp(FP),
++//                        rb3=rbgp(GP), rb4=rbtp(TP), rb5–rb7=reserved,
++//                        rb8–rb15=rbt0–rbt7(temp), rb16–rb31=rba0–rba15(temp),
++//                        rb32–rb63=callee-saved.
++//===----------------------------------------------------------------------===//
++
++foreach i = 0-63 in
++  def rb#i : DADAOReg<i, "rb"#i>;
++
++//===----------------------------------------------------------------------===//
++// RF bank: rf0–rf63 (floating-point registers)
++//
++// contract-isa.md §1.3.3: rf0 is FCSR (floating-point status/control).
++// contract-abi.md §1.4: RF is Excluded from M1 entirely.
++// All RF registers are non-allocatable in M1; defined for completeness.
++//===----------------------------------------------------------------------===//
++
++foreach i = 0-63 in
++  def rf#i : DADAOReg<i, "rf"#i>;
++
++//===----------------------------------------------------------------------===//
++// RA bank: ra0–ra63 (return address stack)
++//
++// contract-isa.md §1.3.4: ra0=RAS control, ra1–ra62=slots, ra63=RegRAS top.
++// contract-abi.md §1.5: RA is managed by call/ret, not general-purpose.
++// All RA registers are non-allocatable in M1.
++//===----------------------------------------------------------------------===//
++
++foreach i = 0-63 in
++  def ra#i : DADAOReg<i, "ra"#i>;
++
++//===----------------------------------------------------------------------===//
++// Register aliases (ABI names)
++//
++// contract-abi.md §1.2/§1.3: rb1=rbsp(SP), rb2=rbfp(FP).
++//===----------------------------------------------------------------------===//
++
++def RBSP : DADAOReg<1, "rbsp">, DwarfRegAlias<rb1>;
++def RBFP : DADAOReg<2, "rbfp">, DwarfRegAlias<rb2>;
++
++//===----------------------------------------------------------------------===//
++// Register classes
++//
++// GPRD              : all 64 RD (for MC encoding/disasm)
++// GPRD_Allocatable  : allocatable subset rd8–rd63 (56 regs)
++// GPRB              : all 64 RB (for MC encoding/disasm)
++// GPRB_Allocatable  : allocatable subset rb8–rb63 (56 regs)
++// GPRF              : all 64 RF (non-allocatable, M1 defer)
++// GPRA              : all 64 RA (non-allocatable, M1 defer)
++//
++// contract-abi.md §1.6: rd1/rb3/rb4 callee-saved spec '-' → M1 不分配.
++//===----------------------------------------------------------------------===//
++
++def GPRD : RegisterClass<"DADAO", [i64], 64,
++    (add rd0, rd1, rd2, rd3, rd4, rd5, rd6, rd7,
++         rd8, rd9, rd10, rd11, rd12, rd13, rd14, rd15,
++         rd16, rd17, rd18, rd19, rd20, rd21, rd22, rd23,
++         rd24, rd25, rd26, rd27, rd28, rd29, rd30, rd31,
++         rd32, rd33, rd34, rd35, rd36, rd37, rd38, rd39,
++         rd40, rd41, rd42, rd43, rd44, rd45, rd46, rd47,
++         rd48, rd49, rd50, rd51, rd52, rd53, rd54, rd55,
++         rd56, rd57, rd58, rd59, rd60, rd61, rd62, rd63
++    )> {
++  let isAllocatable = 0;  // contains non-allocatable regs (rd0–rd7); MC use only
++}
++
++def GPRD_Allocatable : RegisterClass<"DADAO", [i64], 64,
++    (add rd8, rd9, rd10, rd11, rd12, rd13, rd14, rd15,
++         rd16, rd17, rd18, rd19, rd20, rd21, rd22, rd23,
++         rd24, rd25, rd26, rd27, rd28, rd29, rd30, rd31,
++         rd32, rd33, rd34, rd35, rd36, rd37, rd38, rd39,
++         rd40, rd41, rd42, rd43, rd44, rd45, rd46, rd47,
++         rd48, rd49, rd50, rd51, rd52, rd53, rd54, rd55,
++         rd56, rd57, rd58, rd59, rd60, rd61, rd62, rd63
++    )>;
++
++def GPRB : RegisterClass<"DADAO", [i64], 64,
++    (add rb0, rb1, rb2, rb3, rb4, rb5, rb6, rb7,
++         rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15,
++         rb16, rb17, rb18, rb19, rb20, rb21, rb22, rb23,
++         rb24, rb25, rb26, rb27, rb28, rb29, rb30, rb31,
++         rb32, rb33, rb34, rb35, rb36, rb37, rb38, rb39,
++         rb40, rb41, rb42, rb43, rb44, rb45, rb46, rb47,
++         rb48, rb49, rb50, rb51, rb52, rb53, rb54, rb55,
++         rb56, rb57, rb58, rb59, rb60, rb61, rb62, rb63
++    )> {
++  let isAllocatable = 0;  // contains non-allocatable regs (rb0–rb7); MC use only
++}
++
++def GPRB_Allocatable : RegisterClass<"DADAO", [i64], 64,
++    (add rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15,
++         rb16, rb17, rb18, rb19, rb20, rb21, rb22, rb23,
++         rb24, rb25, rb26, rb27, rb28, rb29, rb30, rb31,
++         rb32, rb33, rb34, rb35, rb36, rb37, rb38, rb39,
++         rb40, rb41, rb42, rb43, rb44, rb45, rb46, rb47,
++         rb48, rb49, rb50, rb51, rb52, rb53, rb54, rb55,
++         rb56, rb57, rb58, rb59, rb60, rb61, rb62, rb63
++    )>;
++
++// RF: non-allocatable in M1 (contract-abi.md §1.6, contract-isa.md §6).
++// Defined for completeness; M1 does not allocate/emit RF instructions.
++def GPRF : RegisterClass<"DADAO", [i64], 64,
++    (add rf0, rf1, rf2, rf3, rf4, rf5, rf6, rf7,
++         rf8, rf9, rf10, rf11, rf12, rf13, rf14, rf15,
++         rf16, rf17, rf18, rf19, rf20, rf21, rf22, rf23,
++         rf24, rf25, rf26, rf27, rf28, rf29, rf30, rf31,
++         rf32, rf33, rf34, rf35, rf36, rf37, rf38, rf39,
++         rf40, rf41, rf42, rf43, rf44, rf45, rf46, rf47,
++         rf48, rf49, rf50, rf51, rf52, rf53, rf54, rf55,
++         rf56, rf57, rf58, rf59, rf60, rf61, rf62, rf63
++    )> {
++  let isAllocatable = 0;  // M1 defer: RF Excluded from M1
++}
++
++// RA: non-allocatable in M1 (contract-abi.md §1.6).
++// Managed by call/ret (contract-isa.md §5.4–§5.6); not general-purpose.
++def GPRA : RegisterClass<"DADAO", [i64], 64,
++    (add ra0, ra1, ra2, ra3, ra4, ra5, ra6, ra7,
++         ra8, ra9, ra10, ra11, ra12, ra13, ra14, ra15,
++         ra16, ra17, ra18, ra19, ra20, ra21, ra22, ra23,
++         ra24, ra25, ra26, ra27, ra28, ra29, ra30, ra31,
++         ra32, ra33, ra34, ra35, ra36, ra37, ra38, ra39,
++         ra40, ra41, ra42, ra43, ra44, ra45, ra46, ra47,
++         ra48, ra49, ra50, ra51, ra52, ra53, ra54, ra55,
++         ra56, ra57, ra58, ra59, ra60, ra61, ra62, ra63
++    )> {
++  let isAllocatable = 0;  // M1 defer: RA managed by call/ret
++}

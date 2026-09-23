@@ -1,0 +1,149 @@
+diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
+new file mode 100644
+index 000000000..b2ab01973
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
+@@ -0,0 +1,143 @@
++//===-- DADAOMCCodeEmitter.cpp - DADAO MC Code Emitter --------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file implements the DADAO MCCodeEmitter (MCInst → bytes).
++//
++//===----------------------------------------------------------------------===//
++
++#include "MCTargetDesc/DADAOMCTargetDesc.h"
++#include "MCTargetDesc/DADAOMCAsmInfo.h"
++#include "MCTargetDesc/DADAOFixupKinds.h"
++#include "llvm/MC/MCCodeEmitter.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCInst.h"
++#include "llvm/MC/MCInstrInfo.h"
++#include "llvm/MC/MCFixup.h"
++#include "llvm/MC/MCSubtargetInfo.h"
++#include "llvm/Support/Endian.h"
++
++using namespace llvm;
++
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++
++#define GET_REGISTER_INFO_ENUM
++#include "DADAOGenRegisterInfo.inc"
++
++namespace {
++
++class DADAOMCCodeEmitter : public MCCodeEmitter {
++  const MCInstrInfo &MCII;
++  MCContext &Ctx;
++
++public:
++  DADAOMCCodeEmitter(const MCInstrInfo &mcii, MCContext &ctx)
++      : MCII(mcii), Ctx(ctx) {}
++
++  // Auto-generated encoder: getBinaryCodeForInstr.
++  uint64_t getBinaryCodeForInstr(const MCInst &MI,
++                                 SmallVectorImpl<MCFixup> &Fixups,
++                                 const MCSubtargetInfo &STI) const;
++
++  // Return binary encoding of operand.
++  unsigned getMachineOpValue(const MCInst &Inst, const MCOperand &MCOp,
++                             SmallVectorImpl<MCFixup> &Fixups,
++                             const MCSubtargetInfo &STI) const;
++
++  void encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB,
++                         SmallVectorImpl<MCFixup> &Fixups,
++                         const MCSubtargetInfo &STI) const override;
++
++private:
++  // Determine the fixup kind for a PC-relative branch/jump instruction.
++  MCFixupKind getFixupKindForInstr(const MCInst &MI) const;
++};
++
++} // end anonymous namespace
++
++// Include auto-generated getBinaryCodeForInstr implementation.
++#include "DADAOGenMCCodeEmitter.inc"
++
++MCFixupKind DADAOMCCodeEmitter::getFixupKindForInstr(const MCInst &MI) const {
++  unsigned Opcode = MI.getOpcode();
++
++  // Determine fixup kind based on instruction format:
++  //   rrii format (br.eq/br.ne, jump-rrii, call-rrii): 12-bit → PCRel_12
++  //   riii format (br.n/br.nn/br.z/br.nz/br.p/br.np, br.z-rb/br.nz-rb): 18-bit → PCRel_18
++  //   iiii format (jump-iiii, call-iiii): 24-bit → PCRel_24
++
++  // Check for rrii format branch/jump/call instructions.
++  // br.eq=0x6E, br.ne=0x6F, jump-rrii=0x71, call-rrii=0x75
++  if (Opcode == DADAO::br_eq_rd || Opcode == DADAO::br_ne_rd ||
++      Opcode == DADAO::jump_rrii || Opcode == DADAO::call_rrii)
++    return MCFixupKind(llvm::DADAO::DADAO_FK_PCRel_12);
++
++  // Check for iiii format jump/call instructions.
++  // jump-iiii=0x70, call-iiii=0x74
++  if (Opcode == DADAO::jump_iiii || Opcode == DADAO::call_iiii)
++    return MCFixupKind(llvm::DADAO::DADAO_FK_PCRel_24);
++
++  // Default: riii format branch instructions.
++  // br.n=0x68, br.nn=0x69, br.z=0x6A, br.nz=0x6B, br.p=0x6C, br.np=0x6D
++  // br.z-rb=0x72, br.nz-rb=0x73
++  return MCFixupKind(llvm::DADAO::DADAO_FK_PCRel_18);
++}
++
++unsigned DADAOMCCodeEmitter::getMachineOpValue(
++    const MCInst &Inst, const MCOperand &MCOp,
++    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
++  if (MCOp.isReg()) {
++    // Convert LLVM register enum to 6-bit hardware encoding.
++    // RD bank: rd0=131, rd1=132, ..., rd63=194 → hw 0-63
++    // RB bank: rb0=67, rb1=68, ..., rb63=130 → hw 0-63
++    // RF bank: rf0=3, rf1=4, ..., rf63=66 → hw 0-63
++    // RA bank: ra0=195, ra1=196, ..., ra63=258 → hw 0-63
++    unsigned RegNo = MCOp.getReg().id();
++    if (RegNo >= 131 && RegNo <= 194) // RD
++      return RegNo - 131;
++    if (RegNo >= 67 && RegNo <= 130) // RB
++      return RegNo - 67;
++    if (RegNo >= 3 && RegNo <= 66) // RF
++      return RegNo - 3;
++    if (RegNo >= 195 && RegNo <= 258) // RA
++      return RegNo - 195;
++    return 0;
++  }
++  if (MCOp.isImm())
++    return static_cast<unsigned>(MCOp.getImm());
++
++  // MCOp must be an expression (symbol reference).
++  assert(MCOp.isExpr() && "Unexpected operand type");
++
++  // Create a PC-relative fixup for branch/jump targets.
++  // The fixup kind depends on the instruction format (12/18/24 bit immediate).
++  MCFixupKind FixupKind = getFixupKindForInstr(Inst);
++
++  // PCRel = true tells LLVM to calculate (target - current) automatically.
++  Fixups.push_back(MCFixup::create(0, MCOp.getExpr(), FixupKind,
++                                   /*PCRel=*/true));
++  return 0;
++}
++
++void DADAOMCCodeEmitter::encodeInstruction(
++    const MCInst &MI, SmallVectorImpl<char> &CB,
++    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
++  // Get the binary encoding from TableGen-generated code.
++  uint32_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
++
++  // DADAO is big-endian (contract-isa.md §1.6).
++  // Write 4 bytes in big-endian order.
++  char Bytes[4];
++  support::endian::write32be(Bytes, Bits);
++  CB.append(Bytes, Bytes + 4);
++}
++
++MCCodeEmitter *llvm::createDadaoMCCodeEmitter(const MCInstrInfo &MCII,
++                                               MCContext &Ctx) {
++  return new DADAOMCCodeEmitter(MCII, Ctx);
++}

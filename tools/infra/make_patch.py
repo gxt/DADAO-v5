@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-"""Export a component worktree as an ordered patch series.
+"""Export a component worktree as a tree-shaped patch set.
 
-v5 tooling for what DADAO-0628 produced by hand: given a component worktree
-with commits stacked on top of its pinned base commit, run ``git format-patch``
-over ``<base>..HEAD`` into ``components/<name>/patches/`` and rewrite the
-``series`` manifest with the generated file names in order.
+See ``docs/spec/component-patching.md`` (v5 spec, effective 2026-09-23):
 
-Only the series *format* is shared with DADAO-0628 (an ordered ``series`` list
-of numbered ``.patch`` files); no patch bodies or scripts are copied.
+* one patch per upstream file -- ``patches/<upstream-relative-path>.patch``
+* patch bodies are **raw** ``git diff`` output (no mbox headers, no numbering)
+* ``patches/series`` lists every patch path (relative to ``patches/``), sorted
+  lexicographically
+
+The worktree may be dirty: the export is the *net* difference between the
+pinned base commit and the current working tree (``git diff <base>``), so a
+path that was created and later modified still yields exactly one patch whose
+content is the final state.
 """
 from __future__ import annotations
 
 import argparse
 import re
+import shutil
 import subprocess
-import tempfile
 import tomllib
 from pathlib import Path
 
@@ -27,35 +31,41 @@ def load_manifest() -> dict:
         return tomllib.load(stream)
 
 
-def git(*args: str, cwd: Path) -> str:
+def git(*args: str, cwd: Path, check: bool = True) -> str:
     return subprocess.run(
         ["git", "-C", str(cwd), *args],
         capture_output=True,
         text=True,
-        check=True,
+        check=check,
     ).stdout
 
 
-def format_patch(source: Path, commit: str, out_dir: Path) -> list[str]:
-    return [
-        Path(line).name
-        for line in git(
-            "format-patch", "--no-signature", "-o", str(out_dir), f"{commit}..HEAD",
-            cwd=source,
-        ).splitlines()
-        if line.strip()
-    ]
+def changed_paths(source: Path, commit: str) -> list[str]:
+    # Intent-to-add so newly created (untracked) files show up in `git diff`.
+    subprocess.run(["git", "-C", str(source), "add", "-A", "-N"], check=True)
+    out = git("diff", "--name-only", commit, cwd=source)
+    return [line for line in out.splitlines() if line.strip()]
+
+
+def export(source: Path, commit: str, patches_dir: Path) -> list[str]:
+    paths = changed_paths(source, commit)
+    for rel in paths:
+        body = git("diff", commit, "--", rel, cwd=source)
+        target = patches_dir / f"{rel}.patch"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body)
+    return sorted(f"{rel}.patch" for rel in paths)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate a component's ordered patch series from its worktree."
+        description="Export a component worktree as a tree-shaped patch set."
     )
     parser.add_argument("component", help="component name from components.lock.toml")
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="list the patches that would be generated without writing anything",
+        help="list the patches that would be written, without writing anything",
     )
     args = parser.parse_args()
 
@@ -77,41 +87,39 @@ def main() -> int:
     if not (source / ".git").exists():
         raise SystemExit(f"make-patch: missing source {source}; run make fetch")
 
-    head = git("rev-parse", "HEAD", cwd=source).strip()
-    if head == commit:
-        print(f"make-patch: {args.component} has no commits on top of {commit[:12]}")
-        return 0
     if subprocess.run(
         ["git", "-C", str(source), "merge-base", "--is-ancestor", commit, "HEAD"],
     ).returncode != 0:
         raise SystemExit(
-            f"make-patch: {args.component} HEAD ({head[:12]}) does not descend from "
-            f"pinned commit ({commit[:12]})"
+            f"make-patch: {args.component} HEAD does not descend from pinned commit "
+            f"({commit[:12]})"
         )
 
     series_path = ROOT / component["patch_series"]
-    out_dir = series_path.parent
+    patches_dir = series_path.parent
+
+    paths = changed_paths(source, commit)
+    if not paths:
+        print(f"make-patch: {args.component} has no changes against {commit[:12]}")
+        return 0
 
     if args.dry_run:
-        # Render into a scratch directory so --dry-run leaves no trace; the
-        # patches are only needed to derive their ordered file names.
-        with tempfile.TemporaryDirectory() as scratch:
-            generated = format_patch(source, commit, Path(scratch))
-            if not generated:
-                print(f"make-patch: {args.component} produced no patches")
-                return 0
-            for name in generated:
-                print(f"make-patch: would write {name}")
+        for rel in sorted(paths):
+            print(f"make-patch: would write patches/{rel}.patch")
         return 0
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    generated = format_patch(source, commit, out_dir)
-    if not generated:
-        print(f"make-patch: {args.component} produced no patches")
-        return 0
+    # Replace the previous patch set wholesale: stale patches must not survive.
+    if patches_dir.exists():
+        for entry in patches_dir.iterdir():
+            if entry.is_dir():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+    patches_dir.mkdir(parents=True, exist_ok=True)
 
-    series_path.write_text("\n".join(generated) + "\n")
-    print(f"make-patch: {args.component} wrote {len(generated)} patches to {out_dir}")
+    series = export(source, commit, patches_dir)
+    series_path.write_text("\n".join(series) + "\n")
+    print(f"make-patch: {args.component} wrote {len(series)} patches to {patches_dir}")
     print(f"make-patch: series {series_path}")
     return 0
 

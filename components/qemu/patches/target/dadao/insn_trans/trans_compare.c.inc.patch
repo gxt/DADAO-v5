@@ -1,0 +1,206 @@
+diff --git a/target/dadao/insn_trans/trans_compare.c.inc b/target/dadao/insn_trans/trans_compare.c.inc
+new file mode 100644
+index 0000000..777a2fd
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_compare.c.inc
+@@ -0,0 +1,200 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++/* §3.2.1 cmp.ui/cmp.si (rrii): immediate compare */
++static bool trans_cmp_ui_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhb = load_rd(a->hb);
++    /* Reconstruct 12-bit unsigned immediate from hc/hd */
++    uint64_t immu12 = ((uint64_t)a->hc << 6) | a->hd;
++    TCGv_i64 imm = tcg_constant_i64(immu12);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_cmp_three_way(result, rdhb, imm, false);
++    store_rd(a->ha, result);
++    return true;
++}
++
++static bool trans_cmp_si_rd(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhb = load_rd(a->hb);
++    /* Reconstruct 12-bit signed immediate from hc/hd */
++    int32_t imm12 = (int32_t)((a->hc << 6) | a->hd);
++    if (imm12 & (1 << 11)) {
++        imm12 |= ~((1 << 12) - 1);
++    }
++    TCGv_i64 imm = tcg_constant_i64((int64_t)imm12);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_cmp_three_way(result, rdhb, imm, true);
++    store_rd(a->ha, result);
++    return true;
++}
++
++/* §4.6 cmp.uo rdhb, rbhc, rbhd (orrr): unsigned 64-bit RB compare
++ * result = -1/0/1 for less/equal/greater, written to rdhb (full 64-bit)
++ * bits[63:48] don't affect comparison. ILLI: rdhb == 0 */
++static bool trans_cmp_uo_rb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rbhc = load_rb(ctx, a->hc);
++    TCGv_i64 rbhd = load_rb(ctx, a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_cmp_three_way(result, rbhc, rbhd, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.2.2 cmp.uo/cmp.so (orrr, MISC-octa): 64-bit compare
++ * result = -1/0/1, written to rdhb full 64 bits
++ * ILLI: rdhb == 0 */
++static bool trans_cmp_uo(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_cmp_three_way(result, rdhc, rdhd, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_cmp_so(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_cmp_three_way(result, rdhc, rdhd, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.2.2 cmp.ut/cmp.st (orrr, MISC-tetra): 32-bit compare */
++static bool trans_cmp_ut(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    /* Truncate to 32 bits for comparison */
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_andi_i64(src_a, rdhc, 0xFFFFFFFFULL);
++    tcg_gen_andi_i64(src_b, rdhd, 0xFFFFFFFFULL);
++    gen_cmp_three_way(result, src_a, src_b, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_cmp_st(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_ext32s_i64(src_a, rdhc);
++    tcg_gen_ext32s_i64(src_b, rdhd);
++    gen_cmp_three_way(result, src_a, src_b, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.2.2 cmp.uw/cmp.sw (orrr, MISC-wyde): 16-bit compare */
++static bool trans_cmp_uw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_andi_i64(src_a, rdhc, 0xFFFFULL);
++    tcg_gen_andi_i64(src_b, rdhd, 0xFFFFULL);
++    gen_cmp_three_way(result, src_a, src_b, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_cmp_sw(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_shli_i64(src_a, rdhc, 48);
++    tcg_gen_sari_i64(src_a, src_a, 48);
++    tcg_gen_shli_i64(src_b, rdhd, 48);
++    tcg_gen_sari_i64(src_b, src_b, 48);
++    gen_cmp_three_way(result, src_a, src_b, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.2.2 cmp.ub/cmp.sb (orrr, MISC-byte): 8-bit compare */
++static bool trans_cmp_ub(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_andi_i64(src_a, rdhc, 0xFFULL);
++    tcg_gen_andi_i64(src_b, rdhd, 0xFFULL);
++    gen_cmp_three_way(result, src_a, src_b, false);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_cmp_sb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhd = load_rd(a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    TCGv_i64 src_a = tcg_temp_new_i64();
++    TCGv_i64 src_b = tcg_temp_new_i64();
++    tcg_gen_shli_i64(src_a, rdhc, 56);
++    tcg_gen_sari_i64(src_a, src_a, 56);
++    tcg_gen_shli_i64(src_b, rdhd, 56);
++    tcg_gen_sari_i64(src_b, src_b, 56);
++    gen_cmp_three_way(result, src_a, src_b, true);
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_ftscmp(DisasContext *ctx, arg_misc *a)
++{
++    /* ftscmp - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}
++
++static bool trans_foscmp(DisasContext *ctx, arg_misc *a)
++{
++    /* foscmp - stub: ILLI */
++    gen_exception_illegal(ctx);
++    return true;
++}

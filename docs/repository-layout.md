@@ -11,7 +11,7 @@ DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 - `.tao/`：agent 交互目录（任务 / 知识 / 日志），详见 `.tao/README.md`。
 - `manifests/`：不可变输入——规范与参考组件的锁文件（精确 commit）。
 - `spec/`：原始规范文档（只读）。
-- `components/`：有序补丁序列与组件专属文档。
+- `components/`：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁）+ 组件专属文档（`README.md`/`changelog.md`）。规范见 `docs/spec/component-patching.md`。
 - `tools/<module>/`：各模块工具脚本（`tools/infra/` 含 fetch / 准备 / 校验 / 状态等，Python 标准库）。
 - `containers/`：开发容器定义。
 - `contracts/`：规范派生的机器可读数据（编码表、合法性规则、ABI）。

@@ -1,0 +1,16 @@
+diff --git a/llvm/lib/Target/DADAO/TargetInfo/CMakeLists.txt b/llvm/lib/Target/DADAO/TargetInfo/CMakeLists.txt
+new file mode 100644
+index 000000000..99a0a5ba1
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/TargetInfo/CMakeLists.txt
+@@ -0,0 +1,10 @@
++add_llvm_component_library(LLVMDADAOInfo
++  DADAOTargetInfo.cpp
++
++  LINK_COMPONENTS
++  MC
++  Support
++
++  ADD_TO_COMPONENT
++  DADAO
++  )

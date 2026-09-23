@@ -146,12 +146,6 @@ def main() -> int:
             print(f"fetch: {name} -> {commit}")
             continue
 
-        dirty = subprocess.check_output(
-            ["git", "-C", str(target), "status", "--porcelain=v1"], text=True
-        )
-        if dirty:
-            raise SystemExit(f"fetch: {target} is dirty; refusing to overwrite")
-
         # Fetching first (safe: never touches the working tree/HEAD) makes the
         # pinned commit available locally for the ancestor check below, even
         # on a component that was already fetched+patched in a prior run.
@@ -159,6 +153,10 @@ def main() -> int:
 
         head = head_of(target)
         if head == commit:
+            # With tree-shaped patch sets applied via `git apply` (see
+            # docs/spec/component-patching.md) the worktree is intentionally
+            # dirty while HEAD stays on the pinned commit, so this branch is
+            # the normal "already fetched + patched" case: leave it alone.
             print(f"fetch: {name} already at {commit}")
             continue
         is_patched = subprocess.run(
@@ -177,6 +175,14 @@ def main() -> int:
                 "ancestor (patches applied on top) -- leaving it alone"
             )
             continue
+
+        # Only here is `git checkout --detach` about to discard work, so only
+        # here must a dirty worktree be refused.
+        dirty = subprocess.check_output(
+            ["git", "-C", str(target), "status", "--porcelain=v1"], text=True
+        )
+        if dirty:
+            raise SystemExit(f"fetch: {target} is dirty; refusing to overwrite")
 
         run("git", "checkout", "--detach", commit, cwd=target)
         print(f"fetch: {name} -> {commit}")

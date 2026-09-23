@@ -1,0 +1,372 @@
+diff --git a/target/dadao/insn_trans/trans_extend.c.inc b/target/dadao/insn_trans/trans_extend.c.inc
+new file mode 100644
+index 0000000..a5c5dd0
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_extend.c.inc
+@@ -0,0 +1,366 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++/* §3.4.2 ext.uo/ext.so (orrr, MISC-octa): zero/sign extend
++ * pos = VALUE of rdhd register (masked to 6 bits), not register number
++ * rdhb[63:0] = zero/sign_extend(rdhc[pos:0])  (all 64 bits for octa) */
++static bool trans_ext_uo_orrr(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhd = load_rd(a->hd);
++    /* ILLI check BEFORE mask: hd > N (N=63 for octa) */
++    gen_runtime_illi_check(ctx, rdhd, 63);
++    TCGv_i64 pos = tcg_temp_new_i64();
++    tcg_gen_andi_i64(pos, rdhd, 0x3F); /* mask to 6 bits */
++    TCGv_i64 rdhc = load_rd(a->hc);
++    /* Zero extend: (rdhc << (63-pos)) >> (63-pos) logical */
++    TCGv_i64 shift = tcg_temp_new_i64();
++    TCGv_i64 c63 = tcg_constant_i64(63);
++    tcg_gen_sub_i64(shift, c63, pos);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_shl_i64(result, rdhc, shift);
++    tcg_gen_shr_i64(result, result, shift); /* zero-extended */
++    store_rd(a->hb, result);
++    return true;
++}
++
++static bool trans_ext_so_orrr(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhd = load_rd(a->hd);
++    /* ILLI check BEFORE mask: hd > N (N=63 for octa) */
++    gen_runtime_illi_check(ctx, rdhd, 63);
++    TCGv_i64 pos = tcg_temp_new_i64();
++    tcg_gen_andi_i64(pos, rdhd, 0x3F); /* mask to 6 bits */
++    TCGv_i64 rdhc = load_rd(a->hc);
++    /* Sign extend: (rdhc << (63-pos)) >> (63-pos) arithmetic */
++    TCGv_i64 shift = tcg_temp_new_i64();
++    TCGv_i64 c63 = tcg_constant_i64(63);
++    tcg_gen_sub_i64(shift, c63, pos);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_shl_i64(result, rdhc, shift);
++    tcg_gen_sar_i64(result, result, shift); /* sign-extended */
++    store_rd(a->hb, result);
++    return true;
++}
++
++/* §3.4.2 ext.uo/ext.so (orri, MISC-octa): immediate extend
++ * hd = immu6 (ext bit position), ILLI if immu6 > 63
++ * rdhb[63:0] = zero/sign_extend(rdhc[pos:0])  (all 64 bits for octa) */
++static bool trans_ext_uo_orri(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    if (a->hd > 63) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    int pos = a->hd;
++    int shift = 63 - pos;
++    if (shift == 0) {
++        store_rd(a->hb, rdhc);
++    } else {
++        TCGv_i64 ext = tcg_temp_new_i64();
++        tcg_gen_shli_i64(ext, rdhc, shift);
++        tcg_gen_shri_i64(ext, ext, shift); /* zero-extended */
++        store_rd(a->hb, ext);
++    }
++    return true;
++}
++
++static bool trans_ext_so_orri(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    if (a->hd > 63) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    int pos = a->hd;
++    int shift = 63 - pos;
++    if (shift == 0) {
++        store_rd(a->hb, rdhc);
++    } else {
++        TCGv_i64 ext = tcg_temp_new_i64();
++        tcg_gen_shli_i64(ext, rdhc, shift);
++        tcg_gen_sari_i64(ext, ext, shift); /* sign-extended */
++        store_rd(a->hb, ext);
++    }
++    return true;
++}
++
++/* §3.4.2 ext.ut/ext.st (orrr, MISC-tetra): zero/sign extend
++ * pos = VALUE of rdhd register (masked to 5 bits), not register number
++ * rdhb[31:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:32] unchanged */
++static bool trans_ext_ut_orrr(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhd = load_rd(a->hd);
++    /* ILLI check BEFORE mask: hd > N (N=31 for tetra) */
++    gen_runtime_illi_check(ctx, rdhd, 31);
++    TCGv_i64 pos = tcg_temp_new_i64();
++    tcg_gen_andi_i64(pos, rdhd, 0x1F); /* mask to 5 bits */
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    /* Zero extend: (rdhc << (63-pos)) >> (63-pos) logical */
++    TCGv_i64 shift = tcg_temp_new_i64();
++    TCGv_i64 c63 = tcg_constant_i64(63);
++    tcg_gen_sub_i64(shift, c63, pos);
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shl_i64(ext, rdhc, shift);
++    tcg_gen_shr_i64(ext, ext, shift); /* zero-extended */
++    /* Keep rdhb[63:32], insert ext[31:0] */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFFFFFFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_ext_st_orrr(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhd = load_rd(a->hd);
++    /* ILLI check BEFORE mask: hd > N (N=31 for tetra) */
++    gen_runtime_illi_check(ctx, rdhd, 31);
++    TCGv_i64 pos = tcg_temp_new_i64();
++    tcg_gen_andi_i64(pos, rdhd, 0x1F); /* mask to 5 bits */
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    /* Sign extend: (rdhc << (63-pos)) >> (63-pos) arithmetic */
++    TCGv_i64 shift = tcg_temp_new_i64();
++    TCGv_i64 c63 = tcg_constant_i64(63);
++    tcg_gen_sub_i64(shift, c63, pos);
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shl_i64(ext, rdhc, shift);
++    tcg_gen_sar_i64(ext, ext, shift); /* sign-extended */
++    /* Keep rdhb[63:32], insert ext[31:0] */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFFFFFFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++/* §3.4.2 ext.ut/ext.st (orri, MISC-tetra): immediate extend
++ * rdhb[31:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:32] unchanged */
++static bool trans_ext_ut_orri(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    if (a->hd > 31) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    int shift = 63 - a->hd;
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shli_i64(ext, rdhc, shift);
++    tcg_gen_shri_i64(ext, ext, shift); /* zero-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFFFFFFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_ext_st_orri(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    if (a->hd > 31) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    int shift = 63 - a->hd;
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shli_i64(ext, rdhc, shift);
++    tcg_gen_sari_i64(ext, ext, shift); /* sign-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFFFFFFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++/* §3.4.2 ext.uw/ext.sw (orrr, MISC-wyde): N=15
++ * pos = VALUE of rdhd register (masked to 4 bits), not register number
++ * rdhb[15:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:16] unchanged */
++static bool trans_ext_uw_orrr(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhd = load_rd(a->hd);
++    /* ILLI check BEFORE mask: hd > N (N=15 for wyde) */
++    gen_runtime_illi_check(ctx, rdhd, 15);
++    TCGv_i64 pos = tcg_temp_new_i64();
++    tcg_gen_andi_i64(pos, rdhd, 0xF); /* mask to 4 bits */
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 shift = tcg_temp_new_i64();
++    TCGv_i64 c63 = tcg_constant_i64(63);
++    tcg_gen_sub_i64(shift, c63, pos);
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shl_i64(ext, rdhc, shift);
++    tcg_gen_shr_i64(ext, ext, shift); /* zero-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_ext_sw_orrr(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhd = load_rd(a->hd);
++    /* ILLI check BEFORE mask: hd > N (N=15 for wyde) */
++    gen_runtime_illi_check(ctx, rdhd, 15);
++    TCGv_i64 pos = tcg_temp_new_i64();
++    tcg_gen_andi_i64(pos, rdhd, 0xF); /* mask to 4 bits */
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 shift = tcg_temp_new_i64();
++    TCGv_i64 c63 = tcg_constant_i64(63);
++    tcg_gen_sub_i64(shift, c63, pos);
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shl_i64(ext, rdhc, shift);
++    tcg_gen_sar_i64(ext, ext, shift); /* sign-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++/* §3.4.2 ext.uw/ext.sw (orri): N=15, ILLI: immu6 > 15
++ * rdhb[15:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:16] unchanged */
++static bool trans_ext_uw_orri(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    if (a->hd > 15) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    int shift = 63 - a->hd;
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shli_i64(ext, rdhc, shift);
++    tcg_gen_shri_i64(ext, ext, shift); /* zero-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_ext_sw_orri(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    if (a->hd > 15) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    int shift = 63 - a->hd;
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shli_i64(ext, rdhc, shift);
++    tcg_gen_sari_i64(ext, ext, shift); /* sign-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++/* §3.4.2 ext.ub/ext.sb (orrr, MISC-byte): N=7
++ * pos = VALUE of rdhd register (masked to 3 bits), not register number
++ * rdhb[7:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:8] unchanged */
++static bool trans_ext_ub_orrr(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhd = load_rd(a->hd);
++    /* ILLI check BEFORE mask: hd > N (N=7 for byte) */
++    gen_runtime_illi_check(ctx, rdhd, 7);
++    TCGv_i64 pos = tcg_temp_new_i64();
++    tcg_gen_andi_i64(pos, rdhd, 0x7); /* mask to 3 bits */
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 shift = tcg_temp_new_i64();
++    TCGv_i64 c63 = tcg_constant_i64(63);
++    tcg_gen_sub_i64(shift, c63, pos);
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shl_i64(ext, rdhc, shift);
++    tcg_gen_shr_i64(ext, ext, shift); /* zero-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_ext_sb_orrr(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhd = load_rd(a->hd);
++    /* ILLI check BEFORE mask: hd > N (N=7 for byte) */
++    gen_runtime_illi_check(ctx, rdhd, 7);
++    TCGv_i64 pos = tcg_temp_new_i64();
++    tcg_gen_andi_i64(pos, rdhd, 0x7); /* mask to 3 bits */
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 shift = tcg_temp_new_i64();
++    TCGv_i64 c63 = tcg_constant_i64(63);
++    tcg_gen_sub_i64(shift, c63, pos);
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shl_i64(ext, rdhc, shift);
++    tcg_gen_sar_i64(ext, ext, shift); /* sign-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++/* §3.4.2 ext.ub/ext.sb (orri): N=7, ILLI: immu6 > 7
++ * rdhb[7:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:8] unchanged */
++static bool trans_ext_ub_orri(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    if (a->hd > 7) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    int shift = 63 - a->hd;
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shli_i64(ext, rdhc, shift);
++    tcg_gen_shri_i64(ext, ext, shift); /* zero-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_ext_sb_orri(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    if (a->hd > 7) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    int shift = 63 - a->hd;
++    TCGv_i64 ext = tcg_temp_new_i64();
++    tcg_gen_shli_i64(ext, rdhc, shift);
++    tcg_gen_sari_i64(ext, ext, shift); /* sign-extended */
++    TCGv_i64 hi = tcg_temp_new_i64();
++    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(lo, ext, 0xFFULL);
++    tcg_gen_or_i64(rdhb, hi, lo);
++    store_rd(a->hb, rdhb);
++    return true;
++}

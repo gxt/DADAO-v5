@@ -1,0 +1,14 @@
+diff --git a/llvm/include/llvm/TargetParser/Triple.h b/llvm/include/llvm/TargetParser/Triple.h
+index d819c4975..ad3866972 100644
+--- a/llvm/include/llvm/TargetParser/Triple.h
++++ b/llvm/include/llvm/TargetParser/Triple.h
+@@ -114,7 +114,8 @@ public:
+     renderscript32, // 32-bit RenderScript
+     renderscript64, // 64-bit RenderScript
+     ve,             // NEC SX-Aurora Vector Engine
+-    LastArchType = ve
++    dadao,          // DADAO: SimRISC (big endian)
++    LastArchType = dadao
+   };
+   enum SubArchType {
+     NoSubArch,

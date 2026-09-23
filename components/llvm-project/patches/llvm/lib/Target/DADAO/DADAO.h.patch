@@ -1,0 +1,35 @@
+diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
+new file mode 100644
+index 000000000..ab28c18da
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAO.h
+@@ -0,0 +1,29 @@
++//===-- DADAO.h - Top-level interface for DADAO representation --*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the entry points for global functions defined in the LLVM
++// DADAO back-end.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAO_H
++#define LLVM_LIB_TARGET_DADAO_DADAO_H
++
++namespace llvm {
++
++class FunctionPass;
++class DADAOTargetMachine;
++class PassRegistry;
++
++FunctionPass *createDADAOISelDagLegacyPass(DADAOTargetMachine &TM);
++
++void initializeDADAOISelDAGLegacyPass(PassRegistry &);
++
++} // namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAO_H

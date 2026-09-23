@@ -1,0 +1,47 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.h b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
+new file mode 100644
+index 000000000..a2b115f82
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
+@@ -0,0 +1,41 @@
++//===-- DADAOInstrInfo.h - DADAO Instruction Info ---------------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// DADAO instruction info. Includes the TableGen-generated instruction info
++// table (DADAOGenInstrInfo.inc) so that it participates in compilation.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOINSTRINFO_H
++#define LLVM_LIB_TARGET_DADAO_DADAOINSTRINFO_H
++
++#include "llvm/CodeGen/TargetInstrInfo.h"
++
++// Include register info enums (RegClassIDs) and header so that
++// DADAOGenInstrInfo.inc can reference DADAO::GPRDRegClassID etc.
++#define GET_REGINFO_ENUM
++#include "DADAOGenRegisterInfo.inc"
++
++#define GET_INSTRINFO_HEADER
++#include "DADAOGenInstrInfo.inc"
++
++namespace llvm {
++
++class DADAOInstrInfo : public DADAOGenInstrInfo {
++public:
++  explicit DADAOInstrInfo(const TargetSubtargetInfo &STI,
++                          const TargetRegisterInfo &TRI,
++                          unsigned CFSetupOpcode = ~0u,
++                          unsigned CFDestroyOpcode = ~0u,
++                          unsigned CatchRetOpcode = ~0u,
++                          unsigned ReturnOpcode = ~0u);
++};
++
++} // end namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOINSTRINFO_H

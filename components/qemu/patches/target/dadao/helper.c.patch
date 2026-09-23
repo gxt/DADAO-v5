@@ -1,0 +1,159 @@
+diff --git a/target/dadao/helper.c b/target/dadao/helper.c
+new file mode 100644
+index 0000000..0dacd5b
+--- /dev/null
++++ b/target/dadao/helper.c
+@@ -0,0 +1,152 @@
++/*
++ * DADAO CPU helpers for QEMU
++ *
++ * Copyright (c) 2026 DADAO Contributors
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2 or later, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "qemu/osdep.h"
++#include "qemu/log.h"
++#include "qemu/error-report.h"
++#include "cpu.h"
++#include "system/runstate.h"
++#include "accel/tcg/cpu-ops.h"
++#include "accel/tcg/cpu-loop.h"
++#include "accel/tcg/getpc.h"
++#include "exec/cputlb.h"
++#include "exec/page-protection.h"
++#include "exec/target_page.h"
++#include "accel/tcg/cpu-ldst.h"
++#include "exec/helper-proto.h"
++
++/* Map QEMU-internal exception index to ADR-0004 exit code */
++static int dadao_excp_to_exit_code(int excp)
++{
++    switch (excp) {
++    case DADAO_EXCP_ILLI:
++        return DADAO_EXIT_ILLI;       /* 0x88 */
++    case DADAO_EXCP_UNDI:
++        return DADAO_EXIT_UNDI;       /* 0x89 */
++    case DADAO_EXCP_RASOF:
++        return DADAO_EXIT_RASOF;      /* 0x8A */
++    case DADAO_EXCP_RASUF:
++        return DADAO_EXIT_RASUF;      /* 0x8B */
++    case DADAO_EXCP_MALIGN:
++        return DADAO_EXIT_MALIGN;     /* 0x8C */
++    case DADAO_EXCP_IALIGN:
++        return DADAO_EXIT_IALIGN;     /* 0x8D */
++    case DADAO_EXCP_UNMAPPED:
++        return DADAO_EXIT_UNMAPPED;   /* 0x87 */
++    default:
++        return DADAO_EXIT_ILLI;       /* fallback */
++    }
++}
++
++void dadao_cpu_do_interrupt(CPUState *cs)
++{
++    /*
++     * M1: no guest exception handler. QEMU directly maps fault → exit code
++     * and exits. Per ADR-0004 D6.1, this avoids pre-setting future exception
++     * model. The exit code is propagated to host $? via
++     * qemu_system_shutdown_request_with_code().
++     *
++     * If a clean shutdown (exit port write) is already pending, do not
++     * override it with a panic exit code. This can happen when gen_update_pc
++     * in tb_stop advances env->pc past an exit port write, causing the CPU
++     * to continue into a UNDI terminator.
++     */
++    if (qemu_shutdown_requested_get() != SHUTDOWN_CAUSE_NONE) {
++        return;
++    }
++
++    int exit_code = dadao_excp_to_exit_code(cs->exception_index);
++
++    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
++                                           exit_code);
++    cpu_exit(cs);
++}
++
++bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
++                        MMUAccessType access_type, int mmu_idx,
++                        bool probe, uintptr_t retaddr)
++{
++    /*
++     * M1: no MMU, 1:1 virtual-to-physical mapping.
++     * Check if address falls within known regions:
++     *   RAM:  0xffff_0000_0000 .. 0xffff_00ff_ffff (16 MiB)
++     *   Exit: 0xffff_8000_0000 .. 0xffff_8000_0007 (8 B)
++     *   ROM:  0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB)
++     * Unmapped accesses cause UNMAPPED exception.
++     */
++    uint64_t addr = address;
++    int prot;
++    hwaddr paddr;
++
++    if (addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) {
++        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
++        paddr = addr;
++        goto map;
++    }
++
++    if (addr >= DADAO_EXIT_PORT_BASE &&
++        addr < DADAO_EXIT_PORT_BASE + DADAO_EXIT_PORT_SIZE) {
++        prot = PAGE_READ | PAGE_WRITE;
++        paddr = addr;
++        goto map;
++    }
++
++    if (addr >= DADAO_ROM_BASE && addr < DADAO_ROM_BASE + DADAO_ROM_SIZE) {
++        /* ROM: read+exec allowed. Store to ROM triggers ILLI (ADR-0004 D5.6).
++         * The ROM MemoryRegion is readonly, so stores should not succeed.
++         * However, TCG fast-path stores may not check write permission.
++         * Catch stores here in the TLB fill path to raise ILLI. */
++        if (access_type == MMU_DATA_STORE) {
++            cs->exception_index = DADAO_EXCP_ILLI;
++            cpu_loop_exit_restore(cs, retaddr);
++            /* not reached */
++            return false;
++        }
++        prot = PAGE_READ | PAGE_EXEC;
++        paddr = addr;
++        goto map;
++    }
++
++    /* Unmapped address */
++    if (probe) {
++        return false;
++    }
++
++    /* Trigger unmapped access fault */
++    cs->exception_index = DADAO_EXCP_UNMAPPED;
++    cpu_loop_exit_restore(cs, retaddr);
++    /* not reached */
++    return false;
++
++map:
++    tlb_set_page(cs, address, paddr, prot, mmu_idx, TARGET_PAGE_SIZE);
++    return true;
++}
++
++/*
++ * raise_exception helper: raise a DADAO exception.
++ * env is the implicit first argument passed by TCG.
++ * excp is the DADAO exception index.
++ */
++void helper_raise_exception(CPUDADAOState *env, uint32_t excp)
++{
++    CPUState *cs = env_cpu(env);
++
++    cs->exception_index = excp;
++    cpu_loop_exit_restore(cs, GETPC());
++}
+\ No newline at end of file
