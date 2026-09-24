@@ -3,7 +3,7 @@
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
 > **源**：`contracts/opcodes.yaml`（256 条 = M1 178 + `excluded_m1` 78）
 > **语法**：`docs/spec/assembly-language.md`（**设计定稿、待实现**）
-> **分章**：8位 / 16位 / 32位 / **64位数据运算** / **64位地址运算** / 浮点 / 存储 / 控制流 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **rwii**（格式特殊） / 其它
+> **分章**：**8位数据运算** / **16位数据运算** / **32位数据运算** / **64位数据运算** / **64位地址运算** / 浮点 / 存储 / 控制流 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`/`rela*`/`f*madd`）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 
 ## 立即数范围速查
@@ -20,7 +20,7 @@
 | `immu24` | u24: 0..16777215 |
 | `wpN` | wyde 位置 0..3 |
 
-### 8位（26 条）
+### 8位数据运算（26 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -51,7 +51,7 @@
 | `xnor.b` | `orrr` | `rd` | `xnor.b rdHB, rdHC, rdHD` | `xnor.b_orrr_rd` |
 | `xor.b` | `orrr` | `rd` | `xor.b rdHB, rdHC, rdHD` | `xor.b_orrr_rd` |
 
-### 16位（26 条）
+### 16位数据运算（26 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -82,7 +82,7 @@
 | `xnor.w` | `orrr` | `rd` | `xnor.w rdHB, rdHC, rdHD` | `xnor.w_orrr_rd` |
 | `xor.w` | `orrr` | `rd` | `xor.w rdHB, rdHC, rdHD` | `xor.w_orrr_rd` |
 
-### 32位（26 条）
+### 32位数据运算（26 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -147,17 +147,16 @@
 | `xnor.o` | `orrr` | `rd` | `xnor.o rdHB, rdHC, rdHD` | `xnor.o_orrr_rd` |
 | `xor.o` | `orrr` | `rd` | `xor.o rdHB, rdHC, rdHD` | `xor.o_orrr_rd` |
 
-### 64位地址运算（5 条）
+### 64位地址运算（4 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `add.si` | `riii` | `rb` | `add.si rbHA, imms18` | `add.si_riii_rb` |
 | `add.so` | `orrr` | `rb` | `add.so rbHB, rbHC, rdHD` | `add.so_orrr_rb` |
 | `cmp.uo` | `orrr` | `rb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_rb` |
-| `rela.si` | `riii` | `rb` | `rela.si rbHA, imms18` | `rela.si_riii_rb` |
 | `sub.so` | `orrr` | `rb` | `sub.so rbHB, rbHC, rdHD` | `sub.so_orrr_rb` |
 
-### 浮点（48 条）
+### 浮点（46 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -171,7 +170,6 @@
 | `focls` | `orri` | `rf` | `focls rdHB, rfHC, immu6` | `focls_orri_rf` |
 | `fodiv` | `orrr` | `rf` | `fodiv rfHB, rfHC, rfHD` | `fodiv_orrr_rf` |
 | `folog` | `orri` | `rf` | `folog rfHB, rfHC, immu6` | `folog_orri_rf` |
-| `fomadd` | `rrrr` | `rf` | `fomadd rfHA, rfHB, rfHC, rfHD` | `fomadd_rrrr_rf` |
 | `fomul` | `orrr` | `rf` | `fomul rfHB, rfHC, rfHD` | `fomul_orrr_rf` |
 | `foqcmp` | `orrr` | `rf` | `foqcmp rdHB, rfHC, rfHD` | `foqcmp_orrr_rf` |
 | `forem` | `orrr` | `rf` | `forem rfHB, rfHC, rfHD` | `forem_orrr_rf` |
@@ -191,7 +189,6 @@
 | `ftcls` | `orri` | `rf` | `ftcls rdHB, rfHC, immu6` | `ftcls_orri_rf` |
 | `ftdiv` | `orrr` | `rf` | `ftdiv rfHB, rfHC, rfHD` | `ftdiv_orrr_rf` |
 | `ftlog` | `orri` | `rf` | `ftlog rfHB, rfHC, immu6` | `ftlog_orri_rf` |
-| `ftmadd` | `rrrr` | `rf` | `ftmadd rfHA, rfHB, rfHC, rfHD` | `ftmadd_rrrr_rf` |
 | `ftmul` | `orrr` | `rf` | `ftmul rfHB, rfHC, rfHD` | `ftmul_orrr_rf` |
 | `ftqcmp` | `orrr` | `rf` | `ftqcmp rdHB, rfHC, rfHD` | `ftqcmp_orrr_rf` |
 | `ftrem` | `orrr` | `rf` | `ftrem rfHB, rfHC, rfHD` | `ftrem_orrr_rf` |
@@ -296,7 +293,7 @@
 | `rd2rf` | `orri` | `rf` | `rd2rf rfHB, rdHC, immu6` | `rd2rf_orri_rf` |
 | `rf2rd` | `orri` | `rf` | `rf2rd rdHB, rfHC, immu6` | `rf2rd_orri_rf` |
 
-### rwii（8 条）
+### 16位立即数操作（8 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -309,24 +306,32 @@
 | `set.zw` | `rwii` | `rb` | `set.zw rbHA, wpN, immu16` | `set.zw_rwii_rb` |
 | `set.zw` | `rwii` | `rd` | `set.zw rdHA, wpN, immu16` | `set.zw_rwii_rd` |
 
-### 其它（17 条）
+### 其它（6 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxcode, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
 | `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxcode, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
+| `escape` | `ciii` | `cfx` | `escape cfxcode, [excp_cause_ip, imms18i]` | `escape_ciii_cfx` |
+| `illi` | `oiii` | `imm` | `illi immu18` | `illi_oiii_imm` |
+| `swym` | `iiii` | `imm` | `swym immu24` | `swym_iiii_imm` |
+| `trap` | `ciii` | `cfx` | `trap cfxcode, immu18` | `trap_ciii_cfx` |
+
+### 待定（14 条）
+
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
 | `cfxld` | `crii` | `cfx` | `cfxld cfxcode, [rbHB, immu12]` | `cfxld_crii_cfx` |
 | `cfxst` | `crii` | `cfx` | `cfxst cfxcode, [rbHB, immu12]` | `cfxst_crii_cfx` |
-| `escape` | `ciii` | `cfx` | `escape cfxcode, [excp_cause_ip, imms18i]` | `escape_ciii_cfx` |
 | `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
-| `illi` | `oiii` | `imm` | `illi immu18` | `illi_oiii_imm` |
+| `fomadd` | `rrrr` | `rf` | `fomadd rfHA, rfHB, rfHC, rfHD` | `fomadd_rrrr_rf` |
+| `ftmadd` | `rrrr` | `rf` | `ftmadd rfHA, rfHB, rfHC, rfHD` | `ftmadd_rrrr_rf` |
 | `lr_an.o` | `orrr` | `rd` | `lr_an.o rdHC, [rbHD]` | `lr_an.o_orrr_rd` |
 | `lr_ar.o` | `orrr` | `rd` | `lr_ar.o rdHC, [rbHD]` | `lr_ar.o_orrr_rd` |
 | `lr_nn.o` | `orrr` | `rd` | `lr_nn.o rdHC, [rbHD]` | `lr_nn.o_orrr_rd` |
 | `lr_nr.o` | `orrr` | `rd` | `lr_nr.o rdHC, [rbHD]` | `lr_nr.o_orrr_rd` |
+| `rela.si` | `riii` | `rb` | `rela.si rbHA, imms18` | `rela.si_riii_rb` |
 | `sc_an.o` | `orrr` | `rd` | `sc_an.o rdHB, rdHC, [rbHD]` | `sc_an.o_orrr_rd` |
 | `sc_ar.o` | `orrr` | `rd` | `sc_ar.o rdHB, rdHC, [rbHD]` | `sc_ar.o_orrr_rd` |
 | `sc_nn.o` | `orrr` | `rd` | `sc_nn.o rdHB, rdHC, [rbHD]` | `sc_nn.o_orrr_rd` |
 | `sc_nr.o` | `orrr` | `rd` | `sc_nr.o rdHB, rdHC, [rbHD]` | `sc_nr.o_orrr_rd` |
-| `swym` | `iiii` | `imm` | `swym immu24` | `swym_iiii_imm` |
-| `trap` | `ciii` | `cfx` | `trap cfxcode, immu18` | `trap_ciii_cfx` |

@@ -129,8 +129,12 @@ def primary_feature(entry: dict, ops: list[dict]) -> str:
 def classify(entry: dict) -> str:
     """章节分类（优先级：rwii > 存储 > 控制流 > 寄存器复制 > 浮点 > 位宽 > 64位运算 > 其它）。"""
     m = entry["mnemonic"]
+    # 待定（用户裁定：暂不归类）
+    if m in ("cfxld", "cfxst", "fence", "ftmadd", "fomadd") \
+            or m.startswith(("lr_", "sc_", "rela")):
+        return "待定"
     if entry["format"] == "rwii":
-        return "rwii"
+        return "16位立即数操作"
     if m.startswith(("ld.", "st.", "ldm.", "stm.")):
         return "存储"
     if m.startswith(("br.", "jump", "call", "ret")):
@@ -145,18 +149,18 @@ def classify(entry: dict) -> str:
     if m.startswith(("lr_", "sc_")):
         return "其它"
     if re.search(r"\.(ub|sb|b)$", m):
-        return "8位"
+        return "8位数据运算"
     if re.search(r"\.(uw|sw|w)$", m) or m in ("set.zw", "set.ow"):
-        return "16位"
+        return "16位数据运算"
     if re.search(r"\.(ut|st|t)$", m):
-        return "32位"
+        return "32位数据运算"
     if re.search(r"\.(uo|so|o)$", m) or m in ("add.si", "rela.si") or m.startswith("cmp."):
         # 64 位运算按寄存器组分：rb（地址）→ 地址运算；其余 → 数据运算
         return "64位地址运算" if any(f.get("bank") == "rb" for f in entry["fields"]) else "64位数据运算"
     return "其它"
 
 
-SECTION_ORDER = ["8位", "16位", "32位", "64位数据运算", "64位地址运算", "浮点", "存储", "控制流", "寄存器复制", "rwii", "其它"]
+SECTION_ORDER = ["8位数据运算", "16位数据运算", "32位数据运算", "64位数据运算", "64位地址运算", "浮点", "存储", "控制流", "寄存器复制", "16位立即数操作", "其它", "待定"]
 
 
 def template(entry: dict, ops: list[dict]) -> str:
@@ -409,7 +413,7 @@ def main() -> int:
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
 > **源**：`contracts/opcodes.yaml`（256 条 = M1 178 + `excluded_m1` 78）
 > **语法**：`docs/spec/assembly-language.md`（**设计定稿、待实现**）
-> **分章**：8位 / 16位 / 32位 / **64位数据运算** / **64位地址运算** / 浮点 / 存储 / 控制流 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **rwii**（格式特殊） / 其它
+> **分章**：**8位数据运算** / **16位数据运算** / **32位数据运算** / **64位数据运算** / **64位地址运算** / 浮点 / 存储 / 控制流 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`/`rela*`/`f*madd`）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 
 ## 立即数范围速查
