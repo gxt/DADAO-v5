@@ -34,6 +34,14 @@ def record(category: str, item: str, status: str, detail: str = ""):
     results.append((category, item, status, detail))
 
 
+def iter_patch_files(patches_dir: str) -> list[str]:
+    """递归收集 patches_dir 下所有 .patch 文件，空集时硬错误退出。"""
+    files = sorted(glob.glob(os.path.join(patches_dir, "**", "*.patch"), recursive=True))
+    if not files:
+        raise SystemExit(f"ERROR: {patches_dir} 下未找到任何 .patch 文件（空补丁集，无法校验）")
+    return files
+
+
 def load_file(rel_path: str) -> str:
     path = os.path.join(REPO_ROOT, rel_path)
     if not os.path.isfile(path):
@@ -67,7 +75,7 @@ def check_elf_fields():
 
     patches_dir = os.path.join(REPO_ROOT, "components", "llvm-project", "patches")
     patch_content = ""
-    for pf in sorted(glob.glob(os.path.join(patches_dir, "*.patch"))):
+    for pf in iter_patch_files(patches_dir):
         with open(pf, encoding="utf-8") as f:
             patch_content += f.read()
 
@@ -206,7 +214,7 @@ def check_adr_alignment():
 
     patches_dir = os.path.join(REPO_ROOT, "components", "qemu", "patches")
     patch_content = ""
-    for pf in sorted(glob.glob(os.path.join(patches_dir, "*.patch"))):
+    for pf in iter_patch_files(patches_dir):
         with open(pf, encoding="utf-8") as f:
             patch_content += f.read()
 
@@ -651,7 +659,7 @@ def check_opcodes_cross():
     qemu_patches_dir = os.path.join(REPO_ROOT, "components", "qemu", "patches")
     trans_defs = set()
     if os.path.isdir(qemu_patches_dir):
-        for pf in sorted(glob.glob(os.path.join(qemu_patches_dir, "*.patch"))):
+        for pf in iter_patch_files(qemu_patches_dir):
             with open(pf, encoding="utf-8") as f:
                 for line in f:
                     m = re.search(r'static\s+bool\s+(trans_\w+)\s*\(', line)
