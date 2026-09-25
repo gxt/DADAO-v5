@@ -11,7 +11,8 @@ name = "llvm-project"
 enabled = true
 repository = "https://github.com/llvm/llvm-project.git"
 commit = "6dfe1677ab8dffbc6ec13d53a1e0215d75147689"
-patch_series = "components/llvm-project/patches/series"
+patch_dir = "components/llvm-project/patches"
+patch_series = "components/llvm-project/series"
 role = "LLVM MC + CodeGen"
 
 [[component.source]]
@@ -23,7 +24,8 @@ name = "qemu"
 enabled = true
 repository = "https://github.com/qemu/qemu.git"
 commit = "c3d48b7d1e89604920e5b81b91140c2ad39a1943"
-patch_series = "components/qemu/patches/series"
+patch_dir = "components/qemu/patches"
+patch_series = "components/qemu/series"
 role = "CPU core / decode / scalar execution / bare-metal machine"
 
 [[component.source]]
@@ -35,5 +37,6 @@ name = "gem5"
 enabled = false
 repository = "https://github.com/gem5/gem5.git"
 commit = ""
-patch_series = "components/gem5/patches/series"
+patch_dir = "components/gem5/patches"
+patch_series = "components/gem5/series"
 role = "functional second reference"

@@ -5,8 +5,10 @@ See ``docs/spec/component-patching.md`` (v5 spec, effective 2026-09-23):
 
 * one patch per upstream file -- ``patches/<upstream-relative-path>.patch``
 * patch bodies are **raw** ``git diff`` output (no mbox headers, no numbering)
-* ``patches/series`` lists every patch path (relative to ``patches/``), sorted
-  lexicographically
+* ``components/<name>/series`` lists every patch path (relative to ``patches/``),
+  sorted lexicographically; it lives **outside** ``patches/`` so that the
+  wholesale wipe below cannot destroy it, and so ``patches/`` stays a pure
+  mirror of the upstream tree
 
 The worktree may be dirty: the export is the *net* difference between the
 pinned base commit and the current working tree (``git diff <base>``), so a
@@ -96,7 +98,7 @@ def main() -> int:
         )
 
     series_path = ROOT / component["patch_series"]
-    patches_dir = series_path.parent
+    patches_dir = ROOT / component["patch_dir"]
 
     paths = changed_paths(source, commit)
     if not paths:

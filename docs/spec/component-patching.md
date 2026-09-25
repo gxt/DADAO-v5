@@ -21,13 +21,15 @@
 components/<name>/
 ├── README.md      # 简明扼要，供人查阅（该组件是什么、补丁集概况）
 ├── changelog.md   # 每次改动，简洁（按任务一条，追加式）
-└── patches/       # 路径镜像树
-    ├── series     # 补丁清单：一行一个，路径**相对 patches/**（如 target/dadao/translate.c.patch）
+├── series         # 补丁清单：一行一个，路径**相对 patches/**（如 target/dadao/translate.c.patch）
+└── patches/       # 路径镜像树（**纯镜像**：只含 <上游相对路径>.patch）
     └── <上游相对路径>.patch
 ```
 
 - `patches/` 下的目录结构**必须**镜像上游源码树；补丁文件路径**必须**为 `<上游相对路径>.patch`。
-- **必须**保留 `patches/series`，其内容为补丁相对 `patches/` 的路径，一行一个，**顺序按路径字典序**。
+- `patches/` **必须**为**纯镜像**：其下**只**允许 `<上游相对路径>.patch` 文件；清单等元数据一律置于 `patches/` **之外**。
+- **必须**保留 `components/<name>/series`，其内容为补丁相对 `patches/` 的路径，一行一个，**顺序按路径字典序**。
+- 上述两个路径**必须**在 `manifests/components.lock.toml` 中显式声明：`patch_dir`（镜像树根）与 `patch_series`（清单文件）；脚本**不得**从其一推导其二。
 - **不得**设 `newfiles/`、`fixups/` 等多层目录；新增文件亦以补丁表达（见 §5）。
 
 ## 3. 命名
@@ -53,7 +55,7 @@ components/<name>/
    `git -C .work/source/<name> diff <base_commit> -- <path>`，输出写入 `patches/<path>.patch`。
    - **必须**使用**裸 `git diff`** 输出（非 mbox、无邮件头）。
    - **不得**使用 `git format-patch`（其不支持 pathspec，且会引入 mbox 头与编号）。
-3. 生成 `patches/series`：列出全部补丁相对 `patches/` 的路径，按**路径字典序**排序。
+3. 生成 `series`（`components/<name>/series`）：列出全部补丁相对 `patches/` 的路径，按**路径字典序**排序。
 4. 由 `tools/infra/make_patch.py` 实现。
 
 ## 7. 应用流程（补丁集 → 源树）
@@ -65,7 +67,7 @@ components/<name>/
 5. **不得**使用 `git am`（本规范不保留作者与提交信息）。
 6. 由 `tools/infra/apply_series.py` 实现。
 
-## 8. 机器检查（4 条断言）
+## 8. 机器检查（5 条断言）
 
 `tools/infra/check_patch_tree.py` **必须**对每个 enabled 组件断言：
 
@@ -75,6 +77,7 @@ components/<name>/
 | ② | **目标路径全局唯一** | 覆盖 §4 第二条与 §5（新增文件终态） |
 | ③ | **`series` ↔ `patches/` 树双向一致** | 无遗漏、无多余、顺序为路径字典序 |
 | ④ | **应用后最终 tree 与期望一致** | 见 §9 |
+| ⑤ | **`patches/` 为纯镜像** | 其下每个文件均为 `<上游相对路径>.patch`；覆盖 §2 的纯镜像要求 |
 
 任一断言失败 **必须**以非零退出码终止。
 
@@ -101,4 +104,5 @@ components/<name>/
 ## 12. 迁移与变更记录
 
 - 本规范于 2026-09-23 生效，同时 M1 补丁集由「16 份编号补丁 + `git am`」重整为「树形补丁集（67 份）+ `git apply`」。
+- **rev. 2026-09-25**：补丁清单由 `patches/series` 迁至 `components/<name>/series`，`patches/` 成为**纯镜像**；manifest 新增 `patch_dir` 字段（与 `patch_series` 并列，脚本不再互相推导）；断言由 4 条增至 5 条（新增⑤纯镜像）。动机：①使 §2「镜像上游源码树」成为字面成立且可机械校验的不变量；②`make_patch.py` 导出前整体清空 `patches/`，清单置于其外可避免「先删后建」。属 D4 的派生实现细节，未触及 D4 决策，经用户 2026-09-25 裁定**不需新 ADR**。
 - 相关决策变更记录见 `.tao/knowledge/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。

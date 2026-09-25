@@ -16,7 +16,7 @@
 | --- | --- |
 | `assembly-list.md` | **DADAO 汇编指令表（新语法）**：256 条，按 **8位数据运算/16位数据运算/32位数据运算/64位数据运算/64位地址运算/浮点/存储/控制流/寄存器复制/16位立即数操作/其它/待定** 分章，列为 助记符 / format / feature / 汇编形式（字段名） / id（自动生成） |
 | `spec/assembly-language.md` | **DADAO 汇编语言规范（草案 v1）**：词法/记号/地址表达式 `[]`/寄存器组 `{}` 与条件 `?`/单位后缀 `i`/9 格式类语法/伪指令与指导符/诊断/往返/实现缺口 |
-| `spec/component-patching.md` | **组件补丁组织与构建编排规范**（v5 规范层，2026-09-23 生效）：树形补丁集 + 一文件一补丁 + `git apply`；四断言由 `make check` 的 `check-patch-tree` 校验 |
+| `spec/component-patching.md` | **组件补丁组织与构建编排规范**（v5 规范层，2026-09-23 生效，rev. 2026-09-25）：树形补丁集 + 一文件一补丁 + `git apply`；`patches/` 为纯镜像、清单在 `components/<name>/series`；五断言由 `make check` 的 `check-patch-tree` 校验 |
 | `m2-spec-planning.md` | **M2 规范规划（讨论稿）**：规范判据（RFC 2119 + 业界对标 + 机器可检查）、业界参考、N1–N16 映射、`spec/` 对照结论、三层结构、待裁决项 |
 | `m1-retrospective.md` | **M1 里程碑回顾**：事实快照 / 资产地图 / 过程度量 / 时间线 / 被否决方案 / 死胡同 / 风险台账 / 0628 对照 / M2 交接 / 复现手册 / 术语 / 审计链 |
 | `impact-matrix.md` | Spec 冻结影响矩阵（章节变更 → 下游合约/实现回归定位） |

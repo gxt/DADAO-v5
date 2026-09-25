@@ -7,11 +7,14 @@ Assertions (all fail-closed):
   2. target paths are globally unique across the patch set
      (this is what enforces "one file, one patch" and "a new file's patch is
      its final state")
-  3. ``patches/series`` and the ``patches/`` tree agree in both directions,
+  3. ``series`` and the ``patches/`` tree agree in both directions,
      and the series is sorted lexicographically
   4. the whole set applies cleanly to the pinned base commit (checked against a
      temporary index, so the caller's worktree is not touched); skipped with a
      notice when ``.work/source/<name>`` is absent
+  5. ``patches/`` is a pure mirror of the upstream tree: every file under it is
+     ``<upstream-relative-path>.patch`` (the manifest list lives outside, at
+     ``components/<name>/series``)
 """
 from __future__ import annotations
 
@@ -54,7 +57,7 @@ def patch_targets(patch: Path) -> tuple[int, list[str]]:
 
 def check_component(name: str, component: dict, errors: list[str]) -> None:
     series_path = ROOT / component["patch_series"]
-    patches_dir = series_path.parent
+    patches_dir = ROOT / component["patch_dir"]
     if not series_path.exists():
         errors.append(f"{name}: missing series {series_path.relative_to(ROOT)}")
         return
@@ -77,6 +80,13 @@ def check_component(name: str, component: dict, errors: list[str]) -> None:
     on_disk = {p.resolve() for p in patches_dir.rglob("*.patch")}
     for extra in sorted(on_disk - listed):
         errors.append(f"{name}: patch not listed in series: {extra.relative_to(ROOT)}")
+
+    # assertion 5: patches/ is a pure mirror -- every file is `<upstream>.patch`.
+    for path in sorted(patches_dir.rglob("*")):
+        if path.is_file() and not path.name.endswith(".patch"):
+            errors.append(
+                f"{name}: non-patch file under patches/: {path.relative_to(ROOT)}"
+            )
 
     # assertions 1 & 2.
     seen: dict[str, str] = {}

@@ -42,6 +42,9 @@ def check_components(components: dict, errors: list[str]) -> None:
             continue
         if not SHA1.fullmatch(component.get("commit", "")):
             errors.append(f"component {name}: enabled components require a full commit")
+        patches_dir = ROOT / component.get("patch_dir", "")
+        if not patches_dir.is_dir():
+            errors.append(f"component {name}: missing patch directory {patches_dir}")
         series = ROOT / component.get("patch_series", "")
         if not series.is_file():
             errors.append(f"component {name}: missing patch series {series}")

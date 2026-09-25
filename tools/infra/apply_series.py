@@ -53,9 +53,10 @@ def main() -> int:
                 f"base commit ({component['commit'][:12]}); refusing to apply patches"
             )
 
+        patches_dir = ROOT / component["patch_dir"]
         series_path = ROOT / component["patch_series"]
         patches = [
-            series_path.parent / line.strip()
+            patches_dir / line.strip()
             for line in series_path.read_text().splitlines()
             if line.strip() and not line.lstrip().startswith("#")
         ]

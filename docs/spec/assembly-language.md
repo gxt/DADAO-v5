@@ -207,7 +207,7 @@
 
 ## 12. 机器检查
 
-- `tools/infra/check_patch_tree.py`：组件补丁集四断言（与本文档无关，列出以说明仓库门控现状）。
+- `tools/infra/check_patch_tree.py`：组件补丁集五断言（与本文档无关，列出以说明仓库门控现状）。
 - **本规范的检查（待建）**：
   1. **三方一致性**：本规范的指令语法表 ↔ `DADAOInstrInfo.td` 的 `AsmString` ↔ `contracts/opcodes.yaml` 的 `format`/`insn`；
   2. **示例可汇编**：本规范中每条示例**MUST**能被汇编器接受（新语法实现后启用）；
