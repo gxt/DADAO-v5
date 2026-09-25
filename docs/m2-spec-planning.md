@@ -1,6 +1,7 @@
 # M2 规范规划（讨论稿）
 
 > **状态**：**讨论稿（未定稿）**——记录 2026-09-22 与用户关于「插入新 M2（规范性增强）」的讨论结论，供后续 `/plan` 与任务分解使用。
+> **2026-09-25 用户裁定**：**不采纳「新建规范里程碑」**——里程碑只是大任务的标志，不是推进的阻碍；当前在做的规范制定与 bug 修复都属于「修正上一阶段 + 为下一阶段铺路」，以**过渡期任务 `M1→M2`** 标注（约定见 `.tao/README.md`、`.tao/knowledge/milestones.md`）。因此 **§6 与 §7-8 不采纳**（原文保留供溯源）。
 > **关联**：`docs/m1-retrospective.md`（M1 回顾，遗留/风险来源）、`.tao/knowledge/milestones.md`（里程碑路线）、`spec/`（上游规范，只读）、`.tao/knowledge/contract-*.md`（v5 归一化合约）。
 > **未决事项**见 §7；本文件**不是**任务书。
 
@@ -130,6 +131,8 @@ RISC-V **ISA Manual**（含 Unprivileged / Privileged / **Assembly Programmer's 
 
 ## 6. 对 M2 的定位影响
 
+> **❌ 不采纳（2026-09-25 用户裁定）**：本节 §6.1–§6.3 的「新 M2 重定义为『规范与接口冻结』、Basic CodeGen 顺延为 M3」**不予采纳**。用户裁定：里程碑只是大任务的标志，不是推进的阻碍；当前工作属「修正上一阶段 + 为下一阶段铺路」，以过渡期任务 `M1→M2` 标注即可，**不需要构建所谓的新 M2**。`milestones.md` 的 M2 行保持「Basic CodeGen 待开始」不变。**本节原文保留**，仅供溯源；其下的 ⚠️ ADR 提醒**仍然有效**（汇编语法、测试机平台规范、诊断格式、psABI 升格仍须各自按判据立 ADR）。
+
 1. 现 `milestones.md` 的 **M2「Basic CodeGen」需顺延为 M3**（引用同步：`milestones.md`、`README.md`、`docs/m1-retrospective.md §9` 等）
 2. 新 M2 建议命名：**「M2 — 规范与接口冻结（Normative Freeze）」**
 3. 新 M2 的门槛建议：`make check` 全绿 **且** 新增 checker 全部接入（含反例门控）
@@ -148,3 +151,4 @@ RISC-V **ISA Manual**（含 Unprivileged / Privileged / **Assembly Programmer's 
 6. **命名前缀**：《**DADAO** … 规范》还是《**DADAO-v5** …》？
 7. **对标清单是否逐一实取原文核对**（GitHub 侧本次超时；可换镜像/官方 HTML 版）？
 8. 是否先把本讨论整理为 **`M2` 的 `k`（启动/分解）任务书草案**，走 `/plan` 再定？
+   > **❌ 不采纳（2026-09-25 用户裁定）**：不构建新 M2，故不产出该 `k` 任务书。§7-1~7-7 保留为**候选工作清单**（不再作为里程碑定义）。

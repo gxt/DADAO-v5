@@ -6,8 +6,9 @@
 
 默认：
   - 读 contracts/opcodes.yaml
-  - 搜索 components/qemu/patches/*.patch
+  - 递归搜索 components/qemu/patches/ 下的 **.patch**（树形补丁集：`<上游相对路径>.patch`）
   - 默认 exit 0；--strict 且存在缺失时 exit 1
+  - 扫不到任何补丁文件时**无条件**非零退出（无法校验 ≠ 通过）
 """
 
 import argparse
@@ -30,9 +31,14 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
 
 
 def collect_trans_defs(src_dir):
-    """从 patch 文件中收集所有 trans_* 函数定义名（精确匹配）。"""
+    """从 patch 文件中收集所有 trans_* 函数定义名（精确匹配）。
+
+    补丁集为树形（`patches/<上游相对路径>.patch`），故须**递归**搜索。
+    返回 (定义名集合, 补丁文件数)。
+    """
     trans_defs = set()
-    patch_files = sorted(glob.glob(os.path.join(src_dir, "*.patch")))
+    patch_files = sorted(glob.glob(os.path.join(src_dir, "**", "*.patch"),
+                                   recursive=True))
     pattern = re.compile(r'static\s+bool\s+(trans_\w+)\s*\(')
     for pf in patch_files:
         with open(pf, encoding="utf-8") as f:
@@ -42,7 +48,7 @@ def collect_trans_defs(src_dir):
                 m = pattern.search(line)
                 if m:
                     trans_defs.add(m.group(1))
-    return trans_defs
+    return trans_defs, len(patch_files)
 
 
 def main():
@@ -67,7 +73,10 @@ def main():
     func_names = build_unique_func_names(records)
 
     # 收集源中的 trans 定义
-    trans_defs = collect_trans_defs(args.src)
+    trans_defs, n_patches = collect_trans_defs(args.src)
+    if n_patches == 0:
+        sys.exit(f"ERROR: 在 {args.src} 下未找到任何 .patch 文件；"
+                 "无法校验（补丁集为树形，请检查 --src 是否为 patches/ 根）")
 
     # 比对
     missing = []
