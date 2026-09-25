@@ -1,8 +1,8 @@
 # DADAO 汇编语言规范
 
-> **状态**：**草案 v1**（2026-09-23）——**语法已设计定稿，待实现**（LLVM MC 的 parser/printer/disassembler 改动待任务安排；当前汇编器实现的是旧语法）
-> **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策拟由新 ADR《DADAO 汇编语言语法》冻结（待立，见 §11）
-> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表）、`docs/spec/assembly-list.md`（256 条指令全表，自动生成）
+> **状态**：**生效（v1，2026-09-25，用户审核通过）**——语法已定稿；**实现待安排**（LLVM MC 的 parser/printer/disassembler 改动；当前汇编器实现的是旧语法）
+> **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策**拟由新 ADR《DADAO 汇编语言语法》冻结（待立）**——按 `AGENTS.md` ADR 判据，汇编语法属外部契约 / 不可逆 / 跨模块，建议立 ADR
+> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表）、`docs/assembly-list.md`（256 条指令全表，自动生成；其中**浮点**与**待定**两章整章 deferred）
 > **说明**：本规范**不修改**上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）
 > **关键词**：MUST / SHOULD / MAY 按 RFC 2119 解释
 
@@ -38,7 +38,7 @@
 - **单位后缀 `i`**：紧跟立即数之后，表示该立即数以**指令字（4 字节）**为单位。例：`2i` = 8 字节。
   - **MUST** 仅用于「跳转/分支的目标偏移」（`jump`/`call`/`br.*`）。
   - 其余立即数**MUST NOT** 加后缀；其单位在 §5 逐族说明（访存偏移 = 字节；`rela.si` = 4 KiB）。
-- **取值范围**：各立即数字段的位宽与取值范围见 `docs/spec/assembly-list.md` 的「立即数范围」列（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 §11）。
+- **取值范围**：各立即数字段的位宽与取值范围见 `docs/assembly-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 §11）。
 
 ### 2.5 寄存器名
 - 四组：`rd0`–`rd63`、`rb0`–`rb63`、`ra0`–`ra63`、`rf0`–`rf63`（RF 属 Excluded from M1）。
@@ -53,16 +53,18 @@
 
 ### 3.1 语法
 ```
-地址表达式 ::= "[" 基址 ["," 偏移] "]"
-基址       ::= rb寄存器 | 异常现场基址
+地址表达式   ::= "[" 基址 ["," 寄存器偏移] ["," 立即数偏移[单位后缀]] "]"
+基址         ::= rb寄存器 | 异常现场基址
 异常现场基址 ::= "excp_cause_ip"          // 仅 escape 使用（异常进入时保存的地址）
-偏移       ::= 寄存器 | 立即数[单位后缀]
+寄存器偏移   ::= rd寄存器                  // 仅 jump/call 的 rrii 形式（见 §3.2）
+立即数偏移   ::= 立即数[单位后缀]
 ```
 
-### 3.2 语义
-- **访存**：`ld.ub rd8, [rb2, 1]` 的有效地址 = `rb2 + 1`（**偏移单位为字节**，`imms12`）。
-- **跳转/分支**：目标 = 基址 + 偏移 × 4（**偏移单位为指令字**，`imms24`/`imms12`）⇒ 书写时**MUST** 加单位后缀 `i`。
-- **相对跳转**：基址**MUST**为 `rb0`（当前指令地址）。基址非 `rb0` 而指令为 iiii 形式时**MUST**报错。
+### 3.2 语义（三类，公式不同）
+- **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`/`cfxld`/`cfxst`）：有效地址 = `基址 + 立即数`（**偏移单位为字节**，`imms12`）。例：`ld.ub rd8, [rb2, 1]` ⇒ `rb2 + 1`。
+- **iiii 跳转/分支**（`jump`/`call` 的 iiii 形式、`br.*`）：目标 = `基址 + 立即数 × 4`（**偏移单位为指令字**，`imms24`/`imms18`/`imms12`）⇒ 书写时 **MUST** 加单位后缀 `i`。例：`jump [rb0, 2i]` ⇒ `rb0 + 8`。
+- **rrii 跳转**（`jump`/`call` 的 rrii 形式）：目标 = `基址 + 寄存器偏移 + 立即数 × 4`（**寄存器偏移不加倍**；立即数为 `imms12`，**MUST** 加 `i`）。例：`jump [rb3, rd0, 24i]` ⇒ `rb3 + rd0 + 96`。
+- **相对跳转的基址**：**iiii 形式**的基址 **MUST** 为 `rb0`（当前指令地址）；基址非 `rb0` 而指令为 iiii 形式时 **MUST** 报错。rrii 形式的基址 **MAY** 为任意 RB 寄存器。
 
 ### 3.3 示例
 | 场景 | 写法 |
@@ -115,7 +117,7 @@
 |---|---|---|---|
 | `rrrr` | `助记符 dst, src1, src2, src3` | `add.uo rd8, rd9, rd10, rd11` | — |
 | `rrri` | `助记符 {dst:…}, [base, offset]` | `ldm.ub {rd8:rd10}, [rb0, rd1]` | count 省略 |
-| `rrii` | `助记符 dst, [base, offset]` | `ld.ub rd8, [rb2, 1]` | 偏移 = 字节 |
+| `rrii` | `助记符 dst, [base, offset]`；`jump`/`call` 为 `助记符 [base, reg, offseti]` | `ld.ub rd8, [rb2, 1]`；`jump [rb3, rd0, 24i]` | 访存偏移 = 字节；跳转偏移 = 指令字 |
 | `riii` | `助记符 dst, imm` / `助记符 {dst}?, [rb0, offi]`（分支） | `add.si rd8, 1`；`br.n {rd0}?, [rb0, 4i]` | 分支偏移 = 指令字 |
 | `iiii` | `助记符 [rb0, offi]`（`jump`/`call`）；`swym imm` | `jump [rb0, 2i]`；`swym 0` | 偏移 = 指令字 |
 | `rwii` | `助记符 dst, wpN, immu16` | `set.zw rd8, wp2, 0x1234` | wyde 位置保持 `wpN` |

@@ -2,8 +2,11 @@
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
 > **源**：`contracts/opcodes.yaml`（256 条 = M1 178 + `excluded_m1` 78）
-> **语法**：`docs/spec/assembly-language.md`（**设计定稿、待实现**）
+> **语法**：`docs/spec/assembly-language.md`（**v1 生效，待实现**）
 > **分章**：**8位数据运算** / **16位数据运算** / **32位数据运算** / **64位数据运算** / **64位地址运算** / 浮点 / 存储 / 控制流 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`/`rela*`/`f*madd`）
+> **deferred**（用户裁定 2026-09-25）：**浮点**（46 条，待浮点专门任务）与**待定**（14 条，暂不归类，待必须启用时）**整章 deferred**；其余 196 条为当前有效书写形式
+> **注（非 deferred 的 rf 条目）**：浮点寄存器的**读写**——`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式（8 条）、`cs.*-rf` 与 `rd2rf`/`rf2rd`（7 条）、`set.w-rf`（1 条）——**不**属 deferred：浮点寄存器默认存在，这些只读写寄存器、不涉浮点运算（用户裁定 2026-09-25）
+> **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{rdHA:rdHA+immu6-1}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `docs/spec/assembly-language.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 
 ## 立即数范围速查
@@ -156,7 +159,7 @@
 | `cmp.uo` | `orrr` | `rb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_rb` |
 | `sub.so` | `orrr` | `rb` | `sub.so rbHB, rbHC, rdHD` | `sub.so_orrr_rb` |
 
-### 浮点（46 条）
+### 浮点（46 条）｜ **deferred** — 待浮点专门任务
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -222,17 +225,17 @@
 | `ld.ub` | `rrii` | `rd` | `ld.ub rdHA, [rbHB, imms12]` | `ld.ub_rrii_rd` |
 | `ld.ut` | `rrii` | `rd` | `ld.ut rdHA, [rbHB, imms12]` | `ld.ut_rrii_rd` |
 | `ld.uw` | `rrii` | `rd` | `ld.uw rdHA, [rbHB, imms12]` | `ld.uw_rrii_rd` |
-| `ldm.o` | `rrri` | `ra` | `ldm.o {raHA…}, [rbHB, rdHC]` | `ldm.o_rrri_ra` |
-| `ldm.o` | `rrri` | `rb` | `ldm.o {rbHA…}, [rbHB, rdHC]` | `ldm.o_rrri_rb` |
-| `ldm.o` | `rrri` | `rd` | `ldm.o {rdHA…}, [rbHB, rdHC]` | `ldm.o_rrri_rd` |
-| `ldm.o` | `rrri` | `rf` | `ldm.o {rfHA…}, [rbHB, rdHC]` | `ldm.o_rrri_rf` |
-| `ldm.sb` | `rrri` | `rd` | `ldm.sb {rdHA…}, [rbHB, rdHC]` | `ldm.sb_rrri_rd` |
-| `ldm.st` | `rrri` | `rd` | `ldm.st {rdHA…}, [rbHB, rdHC]` | `ldm.st_rrri_rd` |
-| `ldm.sw` | `rrri` | `rd` | `ldm.sw {rdHA…}, [rbHB, rdHC]` | `ldm.sw_rrri_rd` |
-| `ldm.t` | `rrri` | `rf` | `ldm.t {rfHA…}, [rbHB, rdHC]` | `ldm.t_rrri_rf` |
-| `ldm.ub` | `rrri` | `rd` | `ldm.ub {rdHA…}, [rbHB, rdHC]` | `ldm.ub_rrri_rd` |
-| `ldm.ut` | `rrri` | `rd` | `ldm.ut {rdHA…}, [rbHB, rdHC]` | `ldm.ut_rrri_rd` |
-| `ldm.uw` | `rrri` | `rd` | `ldm.uw {rdHA…}, [rbHB, rdHC]` | `ldm.uw_rrri_rd` |
+| `ldm.o` | `rrri` | `ra` | `ldm.o {raHA:raHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_ra` |
+| `ldm.o` | `rrri` | `rb` | `ldm.o {rbHA:rbHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_rb` |
+| `ldm.o` | `rrri` | `rd` | `ldm.o {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_rd` |
+| `ldm.o` | `rrri` | `rf` | `ldm.o {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `ldm.o_rrri_rf` |
+| `ldm.sb` | `rrri` | `rd` | `ldm.sb {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.sb_rrri_rd` |
+| `ldm.st` | `rrri` | `rd` | `ldm.st {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.st_rrri_rd` |
+| `ldm.sw` | `rrri` | `rd` | `ldm.sw {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.sw_rrri_rd` |
+| `ldm.t` | `rrri` | `rf` | `ldm.t {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `ldm.t_rrri_rf` |
+| `ldm.ub` | `rrri` | `rd` | `ldm.ub {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.ub_rrri_rd` |
+| `ldm.ut` | `rrri` | `rd` | `ldm.ut {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.ut_rrri_rd` |
+| `ldm.uw` | `rrri` | `rd` | `ldm.uw {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `ldm.uw_rrri_rd` |
 | `st.b` | `rrii` | `rd` | `st.b rdHA, [rbHB, imms12]` | `st.b_rrii_rd` |
 | `st.o` | `rrii` | `ra` | `st.o raHA, [rbHB, imms12]` | `st.o_rrii_ra` |
 | `st.o` | `rrii` | `rb` | `st.o rbHA, [rbHB, imms12]` | `st.o_rrii_rb` |
@@ -241,14 +244,14 @@
 | `st.t` | `rrii` | `rd` | `st.t rdHA, [rbHB, imms12]` | `st.t_rrii_rd` |
 | `st.t` | `rrii` | `rf` | `st.t rfHA, [rbHB, imms12]` | `st.t_rrii_rf` |
 | `st.w` | `rrii` | `rd` | `st.w rdHA, [rbHB, imms12]` | `st.w_rrii_rd` |
-| `stm.b` | `rrri` | `rd` | `stm.b {rdHA…}, [rbHB, rdHC]` | `stm.b_rrri_rd` |
-| `stm.o` | `rrri` | `ra` | `stm.o {raHA…}, [rbHB, rdHC]` | `stm.o_rrri_ra` |
-| `stm.o` | `rrri` | `rb` | `stm.o {rbHA…}, [rbHB, rdHC]` | `stm.o_rrri_rb` |
-| `stm.o` | `rrri` | `rd` | `stm.o {rdHA…}, [rbHB, rdHC]` | `stm.o_rrri_rd` |
-| `stm.o` | `rrri` | `rf` | `stm.o {rfHA…}, [rbHB, rdHC]` | `stm.o_rrri_rf` |
-| `stm.t` | `rrri` | `rd` | `stm.t {rdHA…}, [rbHB, rdHC]` | `stm.t_rrri_rd` |
-| `stm.t` | `rrri` | `rf` | `stm.t {rfHA…}, [rbHB, rdHC]` | `stm.t_rrri_rf` |
-| `stm.w` | `rrri` | `rd` | `stm.w {rdHA…}, [rbHB, rdHC]` | `stm.w_rrri_rd` |
+| `stm.b` | `rrri` | `rd` | `stm.b {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.b_rrri_rd` |
+| `stm.o` | `rrri` | `ra` | `stm.o {raHA:raHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_ra` |
+| `stm.o` | `rrri` | `rb` | `stm.o {rbHA:rbHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_rb` |
+| `stm.o` | `rrri` | `rd` | `stm.o {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_rd` |
+| `stm.o` | `rrri` | `rf` | `stm.o {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `stm.o_rrri_rf` |
+| `stm.t` | `rrri` | `rd` | `stm.t {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.t_rrri_rd` |
+| `stm.t` | `rrri` | `rf` | `stm.t {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `stm.t_rrri_rf` |
+| `stm.w` | `rrri` | `rd` | `stm.w {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.w_rrri_rd` |
 
 ### 控制流（15 条）
 
@@ -264,11 +267,11 @@
 | `br.p` | `riii` | `rd` | `br.p {rdHA}?, [rb0, imms18i]` | `br.p_riii_rd` |
 | `br.z` | `riii` | `rb` | `br.z {rbHA}?, [rb0, imms18i]` | `br.z_riii_rb` |
 | `br.z` | `riii` | `rd` | `br.z {rdHA}?, [rb0, imms18i]` | `br.z_riii_rd` |
-| `call` | `iiii` | `rb` | `call [rb0, imms24i]` | `call_iiii_rb` |
-| `call` | `rrii` | `rb` | `call [rbHA, rdHB, imms12i]` | `call_rrii_rb` |
+| `call` | `iiii` | `ra` | `call [rb0, imms24i]` | `call_iiii_ra` |
+| `call` | `rrii` | `ra` | `call [rbHA, rdHB, imms12i]` | `call_rrii_ra` |
 | `jump` | `iiii` | `rb` | `jump [rb0, imms24i]` | `jump_iiii_rb` |
 | `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms12i]` | `jump_rrii_rb` |
-| `ret` | `riii` | `rb` | `ret rdHA, imms18` | `ret_riii_rb` |
+| `ret` | `riii` | `ra` | `ret rdHA, imms18` | `ret_riii_ra` |
 
 ### 寄存器复制（18 条）
 
@@ -317,7 +320,7 @@
 | `swym` | `iiii` | `imm` | `swym immu24` | `swym_iiii_imm` |
 | `trap` | `ciii` | `cfx` | `trap cfxcode, immu18` | `trap_ciii_cfx` |
 
-### 待定（14 条）
+### 待定（14 条）｜ **deferred** — 暂不归类，待必须启用时
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|

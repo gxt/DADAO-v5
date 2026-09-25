@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the complete DADAO assembly-instruction list.
 
-See ``docs/spec/assembly-list.md`` (generated) and
+See ``docs/assembly-list.md`` (generated) and
 ``docs/spec/component-patching.md`` (spec-writing conventions).
 
 Sources
@@ -90,7 +90,9 @@ def field_name(name: str) -> str:
 
 # 无显式寄存器操作数的指令：由用户裁定其 feature
 FEATURE_OVERRIDE = {
-    "jump": "rb", "call": "rb",
+    "jump": "rb",
+    # call 压栈 / ret 弹栈均走 RegRAS（ra）——用户裁定 2026-09-25
+    "call": "ra", "ret": "ra",
     "swym": "imm", "illi": "imm", "fence": "imm",
     "escape": "cfx", "trap": "cfx",
 }
@@ -107,9 +109,6 @@ def primary_feature(entry: dict, ops: list[dict]) -> str:
     # 浮点类指令统一 rf
     if classify(entry) == "浮点":
         return "rf"
-    # ret 弹栈回到 PC（rb0）
-    if mnemonic == "ret":
-        return "rb"
     # 寄存器组块赋值 X2Y：取「非 rd 侧」（两侧都是 rd 时取 rd）
     m2 = re.fullmatch(r"(rd|rb|ra|rf)2(rd|rb|ra|rf)", mnemonic)
     if m2:
@@ -161,6 +160,12 @@ def classify(entry: dict) -> str:
 
 
 SECTION_ORDER = ["8位数据运算", "16位数据运算", "32位数据运算", "64位数据运算", "64位地址运算", "浮点", "存储", "控制流", "寄存器复制", "16位立即数操作", "其它", "待定"]
+
+# 整章 deferred（用户裁定 2026-09-25）：章节名 → 理由
+DEFERRED_SECTIONS = {
+    "浮点": "待浮点专门任务",
+    "待定": "暂不归类，待必须启用时",
+}
 
 
 def template(entry: dict, ops: list[dict]) -> str:
@@ -254,7 +259,14 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
     # ldm.*/stm.* —— 目的寄存器组（count 由组推出）+ 地址
     if mnemonic.startswith(("ldm.", "stm.")):
         dst = R(ops[0])
-        group = f"{{{field_name(ops[0]['name'])}…}}" if field else _range(dst, 3)
+        if field:
+            # 字段名渲染：起点字段 + 个数字段（rrri 的 immu6），显式写出终点
+            start = field_name(ops[0]["name"])
+            cnt = next((field_name(o["name"]) for o in ops if o.get("role") == "imm"),
+                       "immu6")
+            group = f"{{{start}:{start}+{cnt}-1}}"
+        else:
+            group = _range(dst, 3)
         return f"{mnemonic} {group}, [{R(ops[1], 1)}, {R(ops[2], 2)}]"
 
     # ld.*/st.*（rrii）—— 目的 + 地址
@@ -393,7 +405,12 @@ def main() -> int:
     for cls in SECTION_ORDER:
         if cls not in by_class:
             continue
-        rows.append(f"\n### {cls}（{len(by_class[cls])} 条）\n")
+        if cls in DEFERRED_SECTIONS:
+            rows.append(
+                f"\n### {cls}（{len(by_class[cls])} 条）｜ **deferred** — {DEFERRED_SECTIONS[cls]}\n"
+            )
+        else:
+            rows.append(f"\n### {cls}（{len(by_class[cls])} 条）\n")
         rows.append("| 助记符 | format | feature | 汇编形式 | id |")
         rows.append("|---|---|---|---|---|")
         body = []
@@ -412,8 +429,11 @@ def main() -> int:
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
 > **源**：`contracts/opcodes.yaml`（256 条 = M1 178 + `excluded_m1` 78）
-> **语法**：`docs/spec/assembly-language.md`（**设计定稿、待实现**）
+> **语法**：`docs/spec/assembly-language.md`（**v1 生效，待实现**）
 > **分章**：**8位数据运算** / **16位数据运算** / **32位数据运算** / **64位数据运算** / **64位地址运算** / 浮点 / 存储 / 控制流 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`/`rela*`/`f*madd`）
+> **deferred**（用户裁定 2026-09-25）：**浮点**（46 条，待浮点专门任务）与**待定**（14 条，暂不归类，待必须启用时）**整章 deferred**；其余 196 条为当前有效书写形式
+> **注（非 deferred 的 rf 条目）**：浮点寄存器的**读写**——`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式（8 条）、`cs.*-rf` 与 `rd2rf`/`rf2rd`（7 条）、`set.w-rf`（1 条）——**不**属 deferred：浮点寄存器默认存在，这些只读写寄存器、不涉浮点运算（用户裁定 2026-09-25）
+> **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `docs/spec/assembly-language.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 
 ## 立即数范围速查
