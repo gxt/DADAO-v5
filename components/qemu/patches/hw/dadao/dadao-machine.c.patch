@@ -1,6 +1,6 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..34dfe04
+index 0000000000..34dfe04da6
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
 @@ -0,0 +1,221 @@

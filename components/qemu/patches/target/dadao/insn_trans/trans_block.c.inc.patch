@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_block.c.inc b/target/dadao/insn_trans/trans_block.c.inc
 new file mode 100644
-index 0000000..2310218
+index 0000000000..170601ecb2
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_block.c.inc
 @@ -0,0 +1,136 @@
@@ -9,7 +9,7 @@ index 0000000..2310218
 +/* §3.7 rd2rd (orri): block copy rd[rdhc..rdhc+immu6) → rd[rdhb..rdhb+immu6)
 + * ILLI: immu6==0, rdhb==0, rdhb+immu6>64, rdhc+immu6>64
 + * Overlap handled by ascending order read-before-write. */
-+static bool trans_rd2rd(DisasContext *ctx, arg_misc *a)
++static bool trans_rd2rd_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hd == 0 || a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -31,7 +31,7 @@ index 0000000..2310218
 + * Copy rd[rdhc..rdhc+immu6) → ra[rahb..rahb+immu6)
 + * ILLI: immu6==0, rahb+immu6>64, rdhc+immu6>64
 + * Overlap: ascending order read-before-write per pair. */
-+static bool trans_rd2ra(DisasContext *ctx, arg_misc *a)
++static bool trans_rd2ra_orri_ra(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hd == 0) {
 +        gen_exception_illegal(ctx);
@@ -52,7 +52,7 @@ index 0000000..2310218
 + * Copy ra[rahc..rahc+immu6) → rd[rdhb..rdhb+immu6)
 + * ILLI: immu6==0, rdhb==0 (dest rd0), rdhb+immu6>64, rahc+immu6>64
 + * Overlap: ascending order read-before-write per pair. */
-+static bool trans_ra2rd(DisasContext *ctx, arg_misc *a)
++static bool trans_ra2rd_orri_ra(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hd == 0 || a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -72,7 +72,7 @@ index 0000000..2310218
 +/* §4.3 rb2rb rbhb, rbhc, immu6 (orri): RB→RB block copy
 + * ILLI: immu6==0, rbhb==rb0, rbhb+immu6>64, rbhc+immu6>64
 + * Overlap: ascending order read-before-write. */
-+static bool trans_rb2rb(DisasContext *ctx, arg_misc *a)
++static bool trans_rb2rb_orri_rb(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hd == 0 || a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -91,7 +91,7 @@ index 0000000..2310218
 +
 +/* §4.3 rd2rb rbhb, rdhc, immu6 (orri): RD→RB block copy
 + * ILLI: immu6==0, rbhb==rb0, rbhb+immu6>64, rdhc+immu6>64 */
-+static bool trans_rd2rb(DisasContext *ctx, arg_misc *a)
++static bool trans_rd2rb_orri_rb(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hd == 0 || a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -110,7 +110,7 @@ index 0000000..2310218
 +
 +/* §4.3 rb2rd rdhb, rbhc, immu6 (orri): RB→RD block copy
 + * ILLI: immu6==0, rdhb==rd0, rdhb+immu6>64, rbhc+immu6>64 */
-+static bool trans_rb2rd(DisasContext *ctx, arg_misc *a)
++static bool trans_rb2rd_orri_rb(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hd == 0 || a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -127,14 +127,14 @@ index 0000000..2310218
 +    return true;
 +}
 +
-+static bool trans_rd2rf(DisasContext *ctx, arg_misc *a)
++static bool trans_rd2rf_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
 +    /* rd2rf - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_rf2rd(DisasContext *ctx, arg_misc *a)
++static bool trans_rf2rd_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
 +    /* rf2rd - stub: ILLI */
 +    gen_exception_illegal(ctx);

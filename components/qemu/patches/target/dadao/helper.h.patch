@@ -1,6 +1,6 @@
 diff --git a/target/dadao/helper.h b/target/dadao/helper.h
 new file mode 100644
-index 0000000..88504ea
+index 0000000000..88504ea5c9
 --- /dev/null
 +++ b/target/dadao/helper.h
 @@ -0,0 +1,19 @@

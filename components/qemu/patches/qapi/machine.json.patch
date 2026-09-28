@@ -1,5 +1,5 @@
 diff --git a/qapi/machine.json b/qapi/machine.json
-index 9b22480..e4d18be 100644
+index 9b2248038f..e4d18beec3 100644
 --- a/qapi/machine.json
 +++ b/qapi/machine.json
 @@ -37,7 +37,7 @@

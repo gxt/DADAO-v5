@@ -1,5 +1,5 @@
 diff --git a/hw/meson.build b/hw/meson.build
-index 7fa81db..4d473e6 100644
+index 7fa81db453..4d473e69e9 100644
 --- a/hw/meson.build
 +++ b/hw/meson.build
 @@ -2,6 +2,7 @@

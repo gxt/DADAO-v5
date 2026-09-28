@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_shift.c.inc b/target/dadao/insn_trans/trans_shift.c.inc
 new file mode 100644
-index 0000000..4d20cfc
+index 0000000000..4bf3f68981
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_shift.c.inc
 @@ -0,0 +1,461 @@
@@ -10,7 +10,7 @@ index 0000000..4d20cfc
 + * shamt = rdhd[5:0] (mask to 6 bits for octa)
 + * ILLI: rdhb == 0, shamt > 63 (impossible after mask for octa)
 + * rdhb[63:0] = shifted result; high bits unchanged (N=63, all 64 bits) */
-+static bool trans_shr_uo_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_uo_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -26,7 +26,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shr_so_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_so_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -42,7 +42,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shl_uo_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shl_uo_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -60,7 +60,7 @@ index 0000000..4d20cfc
 +
 +/* §3.4.1 shr.uo/shr.so/shl.uo (orri, MISC-octa): immediate shift
 + * shamt = immu6, ILLI if shamt > 63 (impossible: 6-bit field) */
-+static bool trans_shr_uo_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_uo_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -73,7 +73,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shr_so_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_so_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -86,7 +86,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shl_uo_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shl_uo_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -101,7 +101,7 @@ index 0000000..4d20cfc
 +
 +/* §3.4.1 shr.ut/shr.st/shl.ut (orrr, MISC-tetra): shift
 + * shamt = rdhd[4:0] (mask to 5 bits for tetra), ILLI if shamt > 31 */
-+static bool trans_shr_ut_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_ut_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -124,7 +124,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shr_st_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_st_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -149,7 +149,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shl_ut_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shl_ut_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -173,7 +173,7 @@ index 0000000..4d20cfc
 +}
 +
 +/* §3.4.1 shr.ut/shr.st/shl.ut (orri, MISC-tetra): immediate shift */
-+static bool trans_shr_ut_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_ut_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -195,7 +195,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shr_st_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_st_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -219,7 +219,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shl_ut_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shl_ut_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -243,7 +243,7 @@ index 0000000..4d20cfc
 +}
 +
 +/* §3.4.1 shr.uw/shr.sw/shl.uw (orrr, MISC-wyde): N=15, shamt=hd[3:0] */
-+static bool trans_shr_uw_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_uw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -261,7 +261,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shr_sw_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_sw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -282,7 +282,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shl_uw_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shl_uw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -302,7 +302,7 @@ index 0000000..4d20cfc
 +}
 +
 +/* §3.4.1 shr.uw/shr.sw/shl.uw (orri): N=15, ILLI: immu6 > 15 */
-+static bool trans_shr_uw_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_uw_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 15) { gen_exception_illegal(ctx); return true; }
@@ -318,7 +318,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shr_sw_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_sw_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 15) { gen_exception_illegal(ctx); return true; }
@@ -337,7 +337,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shl_uw_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shl_uw_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 15) { gen_exception_illegal(ctx); return true; }
@@ -355,7 +355,7 @@ index 0000000..4d20cfc
 +}
 +
 +/* §3.4.1 shr.ub/shr.sb/shl.ub (orrr, MISC-byte): N=7, shamt=hd[2:0] */
-+static bool trans_shr_ub_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_ub_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -373,7 +373,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shr_sb_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_sb_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -394,7 +394,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shl_ub_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_shl_ub_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -414,7 +414,7 @@ index 0000000..4d20cfc
 +}
 +
 +/* §3.4.1 shr.ub/shr.sb/shl.ub (orri): N=7, ILLI: immu6 > 7 */
-+static bool trans_shr_ub_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_ub_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 7) { gen_exception_illegal(ctx); return true; }
@@ -430,7 +430,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shr_sb_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shr_sb_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 7) { gen_exception_illegal(ctx); return true; }
@@ -449,7 +449,7 @@ index 0000000..4d20cfc
 +    return true;
 +}
 +
-+static bool trans_shl_ub_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_shl_ub_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 7) { gen_exception_illegal(ctx); return true; }

@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000..596c7e3
+index 0000000000..50a2656f48
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
 @@ -0,0 +1,732 @@
@@ -375,7 +375,7 @@ index 0000000..596c7e3
 +/* ── §4.7 PC-relative: rela.si rbha, imms18 (riii) ─────────────────── */
 +/* rbha = (PC & ~0xFFF) + sign_extend(imms18 << 12), high 16 bits preserved.
 + * ILLI: rbha == rb0 */
-+static bool trans_rela_si_rb(DisasContext *ctx, arg_main *a)
++static bool trans_rela_si_riii_rb(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +
@@ -406,7 +406,7 @@ index 0000000..596c7e3
 +/* ── §5.2.2 Single-register conditional branch helpers (riii) ───────── */
 +
 +/* br.n rdha, imms18: if (rdha < 0) PC = rb0 + (imms18 << 2) */
-+static bool trans_br_n_rd(DisasContext *ctx, arg_main *a)
++static bool trans_br_n_riii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rdha = load_rd(a->ha);
 +    TCGLabel *label_taken = gen_new_label();
@@ -420,7 +420,7 @@ index 0000000..596c7e3
 +}
 +
 +/* br.nn rdha, imms18: if (rdha >= 0) PC = rb0 + (imms18 << 2) */
-+static bool trans_br_nn_rd(DisasContext *ctx, arg_main *a)
++static bool trans_br_nn_riii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rdha = load_rd(a->ha);
 +    TCGLabel *label_taken = gen_new_label();
@@ -435,7 +435,7 @@ index 0000000..596c7e3
 +
 +/* br.z rdha, imms18: if (rdha == 0) PC = rb0 + (imms18 << 2)
 + * §5.2.2 special: rdha==rd0 → always taken (not ILLI) */
-+static bool trans_br_z_rd(DisasContext *ctx, arg_main *a)
++static bool trans_br_z_riii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rdha = load_rd(a->ha);
 +    TCGLabel *label_taken = gen_new_label();
@@ -451,7 +451,7 @@ index 0000000..596c7e3
 +/* br.nz rdha, imms18: if (rdha != 0) PC = rb0 + (imms18 << 2)
 + * §5.2.2 special: rdha==rd0 → never taken (not ILLI)
 + * Already implemented in 006t (patch 0004). Kept here for completeness. */
-+static bool trans_br_nz_rd(DisasContext *ctx, arg_main *a)
++static bool trans_br_nz_riii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rdha = load_rd(a->ha);
 +    TCGLabel *label_taken = gen_new_label();
@@ -465,7 +465,7 @@ index 0000000..596c7e3
 +}
 +
 +/* br.p rdha, imms18: if (rdha > 0) PC = rb0 + (imms18 << 2) */
-+static bool trans_br_p_rd(DisasContext *ctx, arg_main *a)
++static bool trans_br_p_riii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rdha = load_rd(a->ha);
 +    TCGLabel *label_taken = gen_new_label();
@@ -479,7 +479,7 @@ index 0000000..596c7e3
 +}
 +
 +/* br.np rdha, imms18: if (rdha <= 0) PC = rb0 + (imms18 << 2) */
-+static bool trans_br_np_rd(DisasContext *ctx, arg_main *a)
++static bool trans_br_np_riii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rdha = load_rd(a->ha);
 +    TCGLabel *label_taken = gen_new_label();
@@ -495,7 +495,7 @@ index 0000000..596c7e3
 +/* ── §5.2.1 Two-register conditional branch (rrii) ──────────────────── */
 +
 +/* br.eq rdha, rdhb, imms12: if (rdha == rdhb) PC = rb0 + (imms12 << 2) */
-+static bool trans_br_eq_rd(DisasContext *ctx, arg_main *a)
++static bool trans_br_eq_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rdha = load_rd(a->ha);
 +    TCGv_i64 rdhb = load_rd(a->hb);
@@ -510,7 +510,7 @@ index 0000000..596c7e3
 +}
 +
 +/* br.ne rdha, rdhb, imms12: if (rdha != rdhb) PC = rb0 + (imms12 << 2) */
-+static bool trans_br_ne_rd(DisasContext *ctx, arg_main *a)
++static bool trans_br_ne_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rdha = load_rd(a->ha);
 +    TCGv_i64 rdhb = load_rd(a->hb);
@@ -525,7 +525,7 @@ index 0000000..596c7e3
 +}
 +
 +/* ── §5.3 jump-iiii: PC = rb0 + (imms24 << 2) ──────────────────────── */
-+static bool trans_jump_iiii(DisasContext *ctx, arg_main *a)
++static bool trans_jump_iiii_rb(DisasContext *ctx, arg_main *a)
 +{
 +    int32_t imm24 = (int32_t)((a->ha << 18) | (a->hb << 12) |
 +                               (a->hc << 6) | a->hd);
@@ -547,7 +547,7 @@ index 0000000..596c7e3
 +
 +/* §5.3 jump-rrii: PC = rbha + rdhb + sign_extend(imms12 << 2)
 + * Already implemented in 006t (patch 0004). Kept here for completeness. */
-+static bool trans_jump_rrii(DisasContext *ctx, arg_main *a)
++static bool trans_jump_rrii_rb(DisasContext *ctx, arg_main *a)
 +{
 +    int32_t imm12 = (int32_t)((a->hc << 6) | a->hd);
 +    if (imm12 & (1 << 11)) {
@@ -572,7 +572,7 @@ index 0000000..596c7e3
 +
 +/* br.z rbha, imms18: if (rbha == 0) PC = rb0 + (imms18 << 2)
 + * §5.2.3: rbha==rb0 → check if PC==0 (always false in M1, but legal) */
-+static bool trans_br_z_rb(DisasContext *ctx, arg_main *a)
++static bool trans_br_z_riii_rb(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rbha = load_rb(ctx, a->ha);
 +    TCGLabel *label_taken = gen_new_label();
@@ -586,7 +586,7 @@ index 0000000..596c7e3
 +}
 +
 +/* br.nz rbha, imms18: if (rbha != 0) PC = rb0 + (imms18 << 2) */
-+static bool trans_br_nz_rb(DisasContext *ctx, arg_main *a)
++static bool trans_br_nz_riii_rb(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 rbha = load_rb(ctx, a->ha);
 +    TCGLabel *label_taken = gen_new_label();
@@ -600,7 +600,7 @@ index 0000000..596c7e3
 +}
 +
 +/* ── §5.4 call-iiii: push ret_addr, PC = rb0 + (imms24 << 2) ───────── */
-+static bool trans_call_iiii(DisasContext *ctx, arg_main *a)
++static bool trans_call_iiii_ra(DisasContext *ctx, arg_main *a)
 +{
 +    int32_t imm24 = (int32_t)((a->ha << 18) | (a->hb << 12) |
 +                               (a->hc << 6) | a->hd);
@@ -626,7 +626,7 @@ index 0000000..596c7e3
 +}
 +
 +/* ── §5.4 call-rrii: push ret_addr, PC = rbha + rdhb + (imms12 << 2) ─ */
-+static bool trans_call_rrii(DisasContext *ctx, arg_main *a)
++static bool trans_call_rrii_ra(DisasContext *ctx, arg_main *a)
 +{
 +    int32_t imm12 = (int32_t)((a->hc << 6) | a->hd);
 +    if (imm12 & (1 << 11)) {
@@ -654,7 +654,7 @@ index 0000000..596c7e3
 +
 +/* ── §5.5 ret rdha, imms18: rdha = sext(imms18), PC = pop(ra63) ────── */
 +/* rdha can be rd0 (allowed by spec for "return without value"). */
-+static bool trans_ret_riii(DisasContext *ctx, arg_main *a)
++static bool trans_ret_riii_ra(DisasContext *ctx, arg_main *a)
 +{
 +    /* Set rdha = sign_extend(imms18) */
 +    int32_t imm18 = (int32_t)((a->hb << 12) | (a->hc << 6) | a->hd);
@@ -678,7 +678,7 @@ index 0000000..596c7e3
 +}
 +
 +/* ── §7.1 swym: NOP ─────────────────────────────────────────────────── */
-+static bool trans_swym_iiii(DisasContext *ctx, arg_main *a)
++static bool trans_swym_oiii_imm(DisasContext *ctx, arg_misc *a)
 +{
 +    /* swym: NOP */
 +    return true;
@@ -686,51 +686,51 @@ index 0000000..596c7e3
 +
 +/* ── M1 excluded: cfx/trap/escape → ILLI ────────────────────────────── */
 +
-+static bool trans_cfx2rd_crrr(DisasContext *ctx, arg_main *a)
++static bool trans_cfx2rd_crrr_cfx(DisasContext *ctx, arg_main *a)
 +{
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_cfx2rc_crrr(DisasContext *ctx, arg_main *a)
++static bool trans_cfx2rc_crrr_cfx(DisasContext *ctx, arg_main *a)
 +{
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_cfxld_crii(DisasContext *ctx, arg_main *a)
++static bool trans_cfxld_crii_cfx(DisasContext *ctx, arg_main *a)
 +{
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_cfxst_crii(DisasContext *ctx, arg_main *a)
++static bool trans_cfxst_crii_cfx(DisasContext *ctx, arg_main *a)
 +{
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_escape_ciii(DisasContext *ctx, arg_main *a)
++static bool trans_escape_ciii_cfx(DisasContext *ctx, arg_main *a)
 +{
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_trap_ciii(DisasContext *ctx, arg_main *a)
++static bool trans_trap_ciii_cfx(DisasContext *ctx, arg_main *a)
 +{
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
 +/* ── §7.2 illi ──────────────────────────────────────────────────────── */
-+static bool trans_illi(DisasContext *ctx, arg_misc *a)
++static bool trans_illi_oiii_imm(DisasContext *ctx, arg_misc *a)
 +{
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
 +/* ── §7.3 fence ─────────────────────────────────────────────────────── */
-+static bool trans_fence(DisasContext *ctx, arg_misc *a)
++static bool trans_fence_oiii_imm(DisasContext *ctx, arg_misc *a)
 +{
 +    /* fence - stub: ILLI (M1 fence semantics not implemented) */
 +    gen_exception_illegal(ctx);

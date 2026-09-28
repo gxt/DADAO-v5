@@ -1,5 +1,5 @@
 diff --git a/include/qemu/base-arch-defs.h b/include/qemu/base-arch-defs.h
-index f334657..46a75b1 100644
+index f33465738c..46a75b13a7 100644
 --- a/include/qemu/base-arch-defs.h
 +++ b/include/qemu/base-arch-defs.h
 @@ -37,6 +37,7 @@ enum {

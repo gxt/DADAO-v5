@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu-param.h b/target/dadao/cpu-param.h
 new file mode 100644
-index 0000000..732aa8b
+index 0000000000..732aa8be5d
 --- /dev/null
 +++ b/target/dadao/cpu-param.h
 @@ -0,0 +1,25 @@

@@ -1,6 +1,6 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..c42c807
+index 0000000000..c42c8075ee
 --- /dev/null
 +++ b/target/dadao/translate.c
 @@ -0,0 +1,458 @@

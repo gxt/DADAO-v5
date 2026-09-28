@@ -653,9 +653,9 @@ def check_opcodes_cross():
         record(cat, "LLVM lit # OBJ: patterns", "FAIL",
                "tests/lit/MC/Dadao/ 目录不存在")
 
-    # --- QEMU trans_* 定义数（真断言：期望 256） ---
+    # --- QEMU trans_* 定义数（真断言：期望与 opcodes.yaml 条目数一致 = 254） ---
     # Source: components/qemu/patches/*.patch 中 trans_* 函数定义数
-    EXPECTED_TRANS = 256
+    EXPECTED_TRANS = 254
     qemu_patches_dir = os.path.join(REPO_ROOT, "components", "qemu", "patches")
     trans_defs = set()
     if os.path.isdir(qemu_patches_dir):

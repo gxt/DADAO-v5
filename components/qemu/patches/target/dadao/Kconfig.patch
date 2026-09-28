@@ -1,6 +1,6 @@
 diff --git a/target/dadao/Kconfig b/target/dadao/Kconfig
 new file mode 100644
-index 0000000..17c07d0
+index 0000000000..17c07d0b14
 --- /dev/null
 +++ b/target/dadao/Kconfig
 @@ -0,0 +1,2 @@

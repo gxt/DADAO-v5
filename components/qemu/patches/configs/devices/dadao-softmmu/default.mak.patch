@@ -1,6 +1,6 @@
 diff --git a/configs/devices/dadao-softmmu/default.mak b/configs/devices/dadao-softmmu/default.mak
 new file mode 100644
-index 0000000..e9ec307
+index 0000000000..e9ec307503
 --- /dev/null
 +++ b/configs/devices/dadao-softmmu/default.mak
 @@ -0,0 +1 @@

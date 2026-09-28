@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_logic.c.inc b/target/dadao/insn_trans/trans_logic.c.inc
 new file mode 100644
-index 0000000..d25c193
+index 0000000000..d11a3e2860
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_logic.c.inc
 @@ -0,0 +1,284 @@
@@ -9,7 +9,7 @@ index 0000000..d25c193
 +/* §3.3 Logic (orrr, MISC-octa): and/or/xor/xnor .o
 + * size=63 (octa, all 64 bits), high bits don't apply
 + * ILLI: rdhb == 0 */
-+static bool trans_and_o(DisasContext *ctx, arg_misc *a)
++static bool trans_and_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -23,7 +23,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_or_o(DisasContext *ctx, arg_misc *a)
++static bool trans_or_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -37,7 +37,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_xor_o(DisasContext *ctx, arg_misc *a)
++static bool trans_xor_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -51,7 +51,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_xnor_o(DisasContext *ctx, arg_misc *a)
++static bool trans_xnor_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -68,7 +68,7 @@ index 0000000..d25c193
 +/* §3.3 Logic (orrr, MISC-tetra): and/or/xor/xnor .t
 + * size=31 (tetra, 32 bits), bits[63:32] stay unchanged
 + * ILLI: rdhb == 0 */
-+static bool trans_and_t(DisasContext *ctx, arg_misc *a)
++static bool trans_and_t_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -89,7 +89,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_or_t(DisasContext *ctx, arg_misc *a)
++static bool trans_or_t_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -109,7 +109,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_xor_t(DisasContext *ctx, arg_misc *a)
++static bool trans_xor_t_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -129,7 +129,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_xnor_t(DisasContext *ctx, arg_misc *a)
++static bool trans_xnor_t_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
 +        gen_exception_illegal(ctx);
@@ -151,7 +151,7 @@ index 0000000..d25c193
 +
 +/* §3.3 Logic (orrr, MISC-wyde): and/or/xor/xnor .w (N=15)
 + * ILLI: rdhb == 0 */
-+static bool trans_and_w(DisasContext *ctx, arg_misc *a)
++static bool trans_and_w_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -168,7 +168,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_or_w(DisasContext *ctx, arg_misc *a)
++static bool trans_or_w_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -185,7 +185,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_xor_w(DisasContext *ctx, arg_misc *a)
++static bool trans_xor_w_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -202,7 +202,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_xnor_w(DisasContext *ctx, arg_misc *a)
++static bool trans_xnor_w_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -221,7 +221,7 @@ index 0000000..d25c193
 +
 +/* §3.3 Logic (orrr, MISC-byte): and/or/xor/xnor .b (N=7)
 + * ILLI: rdhb == 0 */
-+static bool trans_and_b(DisasContext *ctx, arg_misc *a)
++static bool trans_and_b_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -238,7 +238,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_or_b(DisasContext *ctx, arg_misc *a)
++static bool trans_or_b_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -255,7 +255,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_xor_b(DisasContext *ctx, arg_misc *a)
++static bool trans_xor_b_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);
@@ -272,7 +272,7 @@ index 0000000..d25c193
 +    return true;
 +}
 +
-+static bool trans_xnor_b(DisasContext *ctx, arg_misc *a)
++static bool trans_xnor_b_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhc = load_rd(a->hc);

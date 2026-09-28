@@ -1,6 +1,6 @@
 diff --git a/configs/targets/dadao-softmmu.mak b/configs/targets/dadao-softmmu.mak
 new file mode 100644
-index 0000000..a99eda2
+index 0000000000..a99eda246a
 --- /dev/null
 +++ b/configs/targets/dadao-softmmu.mak
 @@ -0,0 +1,5 @@

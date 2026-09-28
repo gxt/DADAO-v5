@@ -1,5 +1,5 @@
 diff --git a/target/Kconfig b/target/Kconfig
-index 0288a3f..cebaaa4 100644
+index 0288a3f416..cebaaa452b 100644
 --- a/target/Kconfig
 +++ b/target/Kconfig
 @@ -1,6 +1,7 @@

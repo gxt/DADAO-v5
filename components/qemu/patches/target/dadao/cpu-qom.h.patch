@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu-qom.h b/target/dadao/cpu-qom.h
 new file mode 100644
-index 0000000..099965c
+index 0000000000..099965c492
 --- /dev/null
 +++ b/target/dadao/cpu-qom.h
 @@ -0,0 +1,31 @@

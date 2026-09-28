@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..a454c5e
+index 0000000000..a454c5effa
 --- /dev/null
 +++ b/target/dadao/cpu.c
 @@ -0,0 +1,270 @@

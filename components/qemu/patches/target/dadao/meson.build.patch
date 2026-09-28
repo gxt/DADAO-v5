@@ -1,6 +1,6 @@
 diff --git a/target/dadao/meson.build b/target/dadao/meson.build
 new file mode 100644
-index 0000000..007924e
+index 0000000000..007924eb35
 --- /dev/null
 +++ b/target/dadao/meson.build
 @@ -0,0 +1,13 @@

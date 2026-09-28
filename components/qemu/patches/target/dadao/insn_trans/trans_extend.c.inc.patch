@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_extend.c.inc b/target/dadao/insn_trans/trans_extend.c.inc
 new file mode 100644
-index 0000000..a5c5dd0
+index 0000000000..0a949140a1
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_extend.c.inc
 @@ -0,0 +1,366 @@
@@ -9,7 +9,7 @@ index 0000000..a5c5dd0
 +/* §3.4.2 ext.uo/ext.so (orrr, MISC-octa): zero/sign extend
 + * pos = VALUE of rdhd register (masked to 6 bits), not register number
 + * rdhb[63:0] = zero/sign_extend(rdhc[pos:0])  (all 64 bits for octa) */
-+static bool trans_ext_uo_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_uo_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhd = load_rd(a->hd);
@@ -29,7 +29,7 @@ index 0000000..a5c5dd0
 +    return true;
 +}
 +
-+static bool trans_ext_so_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_so_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhd = load_rd(a->hd);
@@ -52,7 +52,7 @@ index 0000000..a5c5dd0
 +/* §3.4.2 ext.uo/ext.so (orri, MISC-octa): immediate extend
 + * hd = immu6 (ext bit position), ILLI if immu6 > 63
 + * rdhb[63:0] = zero/sign_extend(rdhc[pos:0])  (all 64 bits for octa) */
-+static bool trans_ext_uo_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_uo_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 63) { gen_exception_illegal(ctx); return true; }
@@ -70,7 +70,7 @@ index 0000000..a5c5dd0
 +    return true;
 +}
 +
-+static bool trans_ext_so_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_so_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 63) { gen_exception_illegal(ctx); return true; }
@@ -91,7 +91,7 @@ index 0000000..a5c5dd0
 +/* §3.4.2 ext.ut/ext.st (orrr, MISC-tetra): zero/sign extend
 + * pos = VALUE of rdhd register (masked to 5 bits), not register number
 + * rdhb[31:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:32] unchanged */
-+static bool trans_ext_ut_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_ut_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhd = load_rd(a->hd);
@@ -118,7 +118,7 @@ index 0000000..a5c5dd0
 +    return true;
 +}
 +
-+static bool trans_ext_st_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_st_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhd = load_rd(a->hd);
@@ -147,7 +147,7 @@ index 0000000..a5c5dd0
 +
 +/* §3.4.2 ext.ut/ext.st (orri, MISC-tetra): immediate extend
 + * rdhb[31:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:32] unchanged */
-+static bool trans_ext_ut_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_ut_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 31) { gen_exception_illegal(ctx); return true; }
@@ -166,7 +166,7 @@ index 0000000..a5c5dd0
 +    return true;
 +}
 +
-+static bool trans_ext_st_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_st_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 31) { gen_exception_illegal(ctx); return true; }
@@ -188,7 +188,7 @@ index 0000000..a5c5dd0
 +/* §3.4.2 ext.uw/ext.sw (orrr, MISC-wyde): N=15
 + * pos = VALUE of rdhd register (masked to 4 bits), not register number
 + * rdhb[15:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:16] unchanged */
-+static bool trans_ext_uw_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_uw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhd = load_rd(a->hd);
@@ -213,7 +213,7 @@ index 0000000..a5c5dd0
 +    return true;
 +}
 +
-+static bool trans_ext_sw_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_sw_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhd = load_rd(a->hd);
@@ -240,7 +240,7 @@ index 0000000..a5c5dd0
 +
 +/* §3.4.2 ext.uw/ext.sw (orri): N=15, ILLI: immu6 > 15
 + * rdhb[15:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:16] unchanged */
-+static bool trans_ext_uw_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_uw_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 15) { gen_exception_illegal(ctx); return true; }
@@ -259,7 +259,7 @@ index 0000000..a5c5dd0
 +    return true;
 +}
 +
-+static bool trans_ext_sw_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_sw_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 15) { gen_exception_illegal(ctx); return true; }
@@ -281,7 +281,7 @@ index 0000000..a5c5dd0
 +/* §3.4.2 ext.ub/ext.sb (orrr, MISC-byte): N=7
 + * pos = VALUE of rdhd register (masked to 3 bits), not register number
 + * rdhb[7:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:8] unchanged */
-+static bool trans_ext_ub_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_ub_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhd = load_rd(a->hd);
@@ -306,7 +306,7 @@ index 0000000..a5c5dd0
 +    return true;
 +}
 +
-+static bool trans_ext_sb_orrr(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_sb_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rdhd = load_rd(a->hd);
@@ -333,7 +333,7 @@ index 0000000..a5c5dd0
 +
 +/* §3.4.2 ext.ub/ext.sb (orri): N=7, ILLI: immu6 > 7
 + * rdhb[7:0] = zero/sign_extend(rdhc[pos:0]), rdhb[63:8] unchanged */
-+static bool trans_ext_ub_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_ub_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 7) { gen_exception_illegal(ctx); return true; }
@@ -352,7 +352,7 @@ index 0000000..a5c5dd0
 +    return true;
 +}
 +
-+static bool trans_ext_sb_orri(DisasContext *ctx, arg_misc *a)
++static bool trans_ext_sb_orri_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    if (a->hd > 7) { gen_exception_illegal(ctx); return true; }

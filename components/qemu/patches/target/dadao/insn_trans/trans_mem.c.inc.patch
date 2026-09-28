@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_mem.c.inc b/target/dadao/insn_trans/trans_mem.c.inc
 new file mode 100644
-index 0000000..72802ed
+index 0000000000..453b438f4f
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_mem.c.inc
 @@ -0,0 +1,591 @@
@@ -8,7 +8,7 @@ index 0000000..72802ed
 +
 +/* §4.1.1 Single RD Load (rrii): ld.sb/ld.ub/ld.sw/ld.uw/ld.st/ld.ut/ld.o
 + * ILLI: rdha == 0 */
-+static bool trans_ld_ub_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ld_ub_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -18,7 +18,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ld_uw_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ld_uw_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -28,7 +28,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ld_ut_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ld_ut_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -38,7 +38,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ld_sb_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ld_sb_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -48,7 +48,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ld_sw_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ld_sw_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -58,7 +58,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ld_st_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ld_st_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -68,14 +68,14 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ld_t_rf(DisasContext *ctx, arg_main *a)
++static bool trans_ld_t_rrii_rf(DisasContext *ctx, arg_main *a)
 +{
 +    /* ld.t-rf - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_st_t_rf(DisasContext *ctx, arg_main *a)
++static bool trans_st_t_rrii_rf(DisasContext *ctx, arg_main *a)
 +{
 +    /* st.t-rf - stub: ILLI */
 +    gen_exception_illegal(ctx);
@@ -84,7 +84,7 @@ index 0000000..72802ed
 +
 +/* §4.1.1 Single RD Store (rrii): st.b/st.w/st.t/st.o
 + * ILLI: rdha == 0 */
-+static bool trans_st_b_rd(DisasContext *ctx, arg_main *a)
++static bool trans_st_b_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -93,7 +93,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_st_w_rd(DisasContext *ctx, arg_main *a)
++static bool trans_st_w_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -102,7 +102,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_st_t_rd(DisasContext *ctx, arg_main *a)
++static bool trans_st_t_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -111,7 +111,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ld_o_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ld_o_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -121,7 +121,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_st_o_rd(DisasContext *ctx, arg_main *a)
++static bool trans_st_o_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -132,7 +132,7 @@ index 0000000..72802ed
 +
 +/* §4.2 ld.o rbha, rbhb, imms12 (rrii): rbha = mem64[rbhb + imms12]
 + * ILLI: rbha == rb0; 8B aligned (MALIGN otherwise) */
-+static bool trans_ld_o_rb(DisasContext *ctx, arg_main *a)
++static bool trans_ld_o_rrii_rb(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -144,7 +144,7 @@ index 0000000..72802ed
 +
 +/* §4.2 st.o rbha, rbhb, imms12 (rrii): mem64[rbhb + imms12] = rbha
 + * ILLI: rbha == rb0; 8B aligned (MALIGN otherwise) */
-+static bool trans_st_o_rb(DisasContext *ctx, arg_main *a)
++static bool trans_st_o_rrii_rb(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
@@ -156,7 +156,7 @@ index 0000000..72802ed
 +/* §4.9.1 Single RA Load (rrii): ld.o raha, rbhb, imms12
 + * raha = mem64[rbhb + imms12], full 64-bit
 + * 8B aligned (MALIGN otherwise); ra0 can be read/written without exception */
-+static bool trans_ld_o_ra(DisasContext *ctx, arg_main *a)
++static bool trans_ld_o_rrii_ra(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = tcg_temp_new_i64();
@@ -168,7 +168,7 @@ index 0000000..72802ed
 +/* §4.9.1 Single RA Store (rrii): st.o raha, rbhb, imms12
 + * mem64[rbhb + imms12] = raha
 + * 8B aligned (MALIGN otherwise); ra0 can be read/written without exception */
-+static bool trans_st_o_ra(DisasContext *ctx, arg_main *a)
++static bool trans_st_o_rrii_ra(DisasContext *ctx, arg_main *a)
 +{
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = load_ra(a->ha);
@@ -176,14 +176,14 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ld_o_rf(DisasContext *ctx, arg_main *a)
++static bool trans_ld_o_rrii_rf(DisasContext *ctx, arg_main *a)
 +{
 +    /* ld.o-rf - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_st_o_rf(DisasContext *ctx, arg_main *a)
++static bool trans_st_o_rrii_rf(DisasContext *ctx, arg_main *a)
 +{
 +    /* st.o-rf - stub: ILLI */
 +    gen_exception_illegal(ctx);
@@ -194,7 +194,7 @@ index 0000000..72802ed
 + * EA_i = (rbhb + rdhc + i*N) mod 2^48, rd(ha)..rd(ha+immu6-1)
 + * ILLI: rdha==0, immu6==0, rdha+immu6>64
 + * rdhc snapshotted before loop. */
-+static bool trans_ldm_ub_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_ub_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -217,7 +217,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ldm_uw_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_uw_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -236,7 +236,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ldm_ut_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_ut_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -255,7 +255,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ldm_sb_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_sb_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -278,7 +278,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ldm_sw_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_sw_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -297,7 +297,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ldm_st_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_st_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -316,14 +316,14 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ldm_t_rf(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_t_rrri_rf(DisasContext *ctx, arg_main *a)
 +{
 +    /* ldm.t-rf - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_stm_t_rf(DisasContext *ctx, arg_main *a)
++static bool trans_stm_t_rrri_rf(DisasContext *ctx, arg_main *a)
 +{
 +    /* stm.t-rf - stub: ILLI */
 +    gen_exception_illegal(ctx);
@@ -333,7 +333,7 @@ index 0000000..72802ed
 +/* §4.1.2 Multi RD Store (rrri): stm.b/stm.w/stm.t/stm.o
 + * ILLI: rdha==0, immu6==0, rdha+immu6>64
 + * rdhc snapshotted before loop. */
-+static bool trans_stm_b_rd(DisasContext *ctx, arg_main *a)
++static bool trans_stm_b_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -356,7 +356,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_stm_w_rd(DisasContext *ctx, arg_main *a)
++static bool trans_stm_w_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -375,7 +375,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_stm_t_rd(DisasContext *ctx, arg_main *a)
++static bool trans_stm_t_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -394,7 +394,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ldm_o_rd(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_o_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -413,7 +413,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_stm_o_rd(DisasContext *ctx, arg_main *a)
++static bool trans_stm_o_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -432,7 +432,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ldm_o_rb(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_o_rrri_rb(DisasContext *ctx, arg_main *a)
 +{
 +    /* S4.2 ldm.o rbha, rbhb, rdhc, immu6 (rrri): multi RB load
 +     * ILLI: rbha==rb0, immu6==0, rbha+immu6>64 (before any write)
@@ -456,7 +456,7 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_stm_o_rb(DisasContext *ctx, arg_main *a)
++static bool trans_stm_o_rrri_rb(DisasContext *ctx, arg_main *a)
 +{
 +    /* S4.2 stm.o rbha, rbhb, rdhc, immu6 (rrri): multi RB store
 +     * ILLI: rbha==rb0, immu6==0, rbha+immu6>64 (before any write)
@@ -484,7 +484,7 @@ index 0000000..72802ed
 + * ILLI: immu6==0, raha+immu6>64; 8B aligned (MALIGN otherwise)
 + * ra0 is a valid target (no exception for ra0 access)
 + * rdhc snapshotted before loop. */
-+static bool trans_ldm_o_ra(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_o_rrri_ra(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -508,7 +508,7 @@ index 0000000..72802ed
 + * ILLI: immu6==0, raha+immu6>64; 8B aligned (MALIGN otherwise)
 + * ra0 is a valid target (no exception for ra0 access)
 + * rdhc snapshotted before loop. */
-+static bool trans_stm_o_ra(DisasContext *ctx, arg_main *a)
++static bool trans_stm_o_rrri_ra(DisasContext *ctx, arg_main *a)
 +{
 +    if (a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
@@ -526,70 +526,70 @@ index 0000000..72802ed
 +    return true;
 +}
 +
-+static bool trans_ldm_o_rf(DisasContext *ctx, arg_main *a)
++static bool trans_ldm_o_rrri_rf(DisasContext *ctx, arg_main *a)
 +{
 +    /* ldm.o-rf - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_stm_o_rf(DisasContext *ctx, arg_main *a)
++static bool trans_stm_o_rrri_rf(DisasContext *ctx, arg_main *a)
 +{
 +    /* stm.o-rf - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_lr_nn_o(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_nn_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    /* lr_nn.o - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_lr_nr_o(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_nr_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    /* lr_nr.o - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_lr_an_o(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_an_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    /* lr_an.o - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_lr_ar_o(DisasContext *ctx, arg_misc *a)
++static bool trans_lr_ar_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    /* lr_ar.o - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_sc_nn_o(DisasContext *ctx, arg_misc *a)
++static bool trans_sc_nn_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    /* sc_nn.o - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_sc_nr_o(DisasContext *ctx, arg_misc *a)
++static bool trans_sc_nr_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    /* sc_nr.o - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_sc_an_o(DisasContext *ctx, arg_misc *a)
++static bool trans_sc_an_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    /* sc_an.o - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}
 +
-+static bool trans_sc_ar_o(DisasContext *ctx, arg_misc *a)
++static bool trans_sc_ar_o_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    /* sc_ar.o - stub: ILLI */
 +    gen_exception_illegal(ctx);
