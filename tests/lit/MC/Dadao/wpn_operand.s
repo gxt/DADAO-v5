@@ -11,54 +11,54 @@
 
 # --- wp0-wp3 with imm16=0xFFFF ---
 
-# OBJ: {{[0-9a-f]+:}} 4e 04 ff ff{{.*}}set.zw{{.*}}rb1, 0, 65535
-# ASM: set.zw rb1, 0, 65535
+# OBJ: {{[0-9a-f]+:}} 4e 04 ff ff{{.*}}set.zw{{.*}}rb1, wp0, 0xffff
+# ASM: set.zw rb1, wp0, 0xffff
 set.zw rb1, wp0, 0xffff
 
-# OBJ: {{[0-9a-f]+:}} 4e 05 ff ff{{.*}}set.zw{{.*}}rb1, 1, 65535
-# ASM: set.zw rb1, 1, 65535
+# OBJ: {{[0-9a-f]+:}} 4e 05 ff ff{{.*}}set.zw{{.*}}rb1, wp1, 0xffff
+# ASM: set.zw rb1, wp1, 0xffff
 set.zw rb1, wp1, 0xffff
 
-# OBJ: {{[0-9a-f]+:}} 4e 06 ff ff{{.*}}set.zw{{.*}}rb1, 2, 65535
-# ASM: set.zw rb1, 2, 65535
+# OBJ: {{[0-9a-f]+:}} 4e 06 ff ff{{.*}}set.zw{{.*}}rb1, wp2, 0xffff
+# ASM: set.zw rb1, wp2, 0xffff
 set.zw rb1, wp2, 0xffff
 
-# OBJ: {{[0-9a-f]+:}} 4e 07 ff ff{{.*}}set.zw{{.*}}rb1, 3, 65535
-# ASM: set.zw rb1, 3, 65535
+# OBJ: {{[0-9a-f]+:}} 4e 07 ff ff{{.*}}set.zw{{.*}}rb1, wp3, 0xffff
+# ASM: set.zw rb1, wp3, 0xffff
 set.zw rb1, wp3, 0xffff
 
 # --- Numeric 0-3 with imm16=0xFFFF (regression guard) ---
 
-# OBJ: {{[0-9a-f]+:}} 4e 04 ff ff{{.*}}set.zw{{.*}}rb1, 0, 65535
-# ASM: set.zw rb1, 0, 65535
+# OBJ: {{[0-9a-f]+:}} 4e 04 ff ff{{.*}}set.zw{{.*}}rb1, wp0, 0xffff
+# ASM: set.zw rb1, wp0, 0xffff
 set.zw rb1, 0, 0xffff
 
-# OBJ: {{[0-9a-f]+:}} 4e 05 ff ff{{.*}}set.zw{{.*}}rb1, 1, 65535
-# ASM: set.zw rb1, 1, 65535
+# OBJ: {{[0-9a-f]+:}} 4e 05 ff ff{{.*}}set.zw{{.*}}rb1, wp1, 0xffff
+# ASM: set.zw rb1, wp1, 0xffff
 set.zw rb1, 1, 0xffff
 
-# OBJ: {{[0-9a-f]+:}} 4e 06 ff ff{{.*}}set.zw{{.*}}rb1, 2, 65535
-# ASM: set.zw rb1, 2, 65535
+# OBJ: {{[0-9a-f]+:}} 4e 06 ff ff{{.*}}set.zw{{.*}}rb1, wp2, 0xffff
+# ASM: set.zw rb1, wp2, 0xffff
 set.zw rb1, 2, 0xffff
 
-# OBJ: {{[0-9a-f]+:}} 4e 07 ff ff{{.*}}set.zw{{.*}}rb1, 3, 65535
-# ASM: set.zw rb1, 3, 65535
+# OBJ: {{[0-9a-f]+:}} 4e 07 ff ff{{.*}}set.zw{{.*}}rb1, wp3, 0xffff
+# ASM: set.zw rb1, wp3, 0xffff
 set.zw rb1, 3, 0xffff
 
 # --- wp0-wp3 with different imm16 (0x00FF = 255) ---
 
-# OBJ: {{[0-9a-f]+:}} 4e 04 00 ff{{.*}}set.zw{{.*}}rb1, 0, 255
-# ASM: set.zw rb1, 0, 255
+# OBJ: {{[0-9a-f]+:}} 4e 04 00 ff{{.*}}set.zw{{.*}}rb1, wp0, 0xff
+# ASM: set.zw rb1, wp0, 0xff
 set.zw rb1, wp0, 0x00ff
 
-# OBJ: {{[0-9a-f]+:}} 4e 05 00 ff{{.*}}set.zw{{.*}}rb1, 1, 255
-# ASM: set.zw rb1, 1, 255
+# OBJ: {{[0-9a-f]+:}} 4e 05 00 ff{{.*}}set.zw{{.*}}rb1, wp1, 0xff
+# ASM: set.zw rb1, wp1, 0xff
 set.zw rb1, wp1, 0x00ff
 
-# OBJ: {{[0-9a-f]+:}} 4e 06 00 ff{{.*}}set.zw{{.*}}rb1, 2, 255
-# ASM: set.zw rb1, 2, 255
+# OBJ: {{[0-9a-f]+:}} 4e 06 00 ff{{.*}}set.zw{{.*}}rb1, wp2, 0xff
+# ASM: set.zw rb1, wp2, 0xff
 set.zw rb1, wp2, 0x00ff
 
-# OBJ: {{[0-9a-f]+:}} 4e 07 00 ff{{.*}}set.zw{{.*}}rb1, 3, 255
-# ASM: set.zw rb1, 3, 255
+# OBJ: {{[0-9a-f]+:}} 4e 07 00 ff{{.*}}set.zw{{.*}}rb1, wp3, 0xff
+# ASM: set.zw rb1, wp3, 0xff
 set.zw rb1, wp3, 0x00ff

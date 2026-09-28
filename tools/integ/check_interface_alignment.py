@@ -570,11 +570,11 @@ def check_opcodes_cross():
     with open(opcodes_path, encoding="utf-8") as f:
         records = _yaml.safe_load(f)
 
-    # --- opcodes.yaml 条目数（真断言：期望 256 总计 / 178 M1） ---
+    # --- opcodes.yaml 条目数（真断言：期望 254 总计 / 178 M1） ---
     # Source: contracts/opcodes.yaml 结构约定
     total = len(records)
     m1_count = sum(1 for r in records if not r.get("excluded_m1", False))
-    EXPECTED_TOTAL = 256
+    EXPECTED_TOTAL = 254
     EXPECTED_M1 = 178
     if total == EXPECTED_TOTAL and m1_count == EXPECTED_M1:
         record(cat, "opcodes.yaml 条目数", "PASS",

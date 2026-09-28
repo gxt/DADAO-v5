@@ -5,9 +5,9 @@
 # rrri format: multiple load/store instructions
 # Encoding: word = (op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd
 
-# ldm.ub rd8, rb0, rd1, 2
+# ldm.ub {rd8:rd9}, [rb0, rd1]
 # op=0x28, ha=8, hb=0, hc=1, hd=2
 # word = (0x28<<24)|(8<<18)|(1<<6)|2 = 0x28200042
-# OBJ: {{[0-9a-f]+:}} 28 20 00 42{{.*}}ldm.ub{{.*}}rd8, rb0, rd1, 2
-# ASM: ldm.ub rd8, rb0, rd1, 2
-ldm.ub rd8, rb0, rd1, 2
+# OBJ: {{[0-9a-f]+:}} 28 20 00 42{{.*}}ldm.ub{{.*}}{rd8:rd9}, [rb0, rd1]
+# ASM: ldm.ub {rd8:rd9}, [rb0, rd1]
+ldm.ub {rd8:rd9}, [rb0, rd1]

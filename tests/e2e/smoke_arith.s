@@ -24,14 +24,14 @@ _start:
 
     # 4. Compare: cmp.so rd3, rd1, rd2 → rd3 = 0 if equal
     cmp.so  rd3, rd1, rd2
-    br.nz   rd3, Lfail
+    br.nz   {rd3}?, [rb0, Lfail]
 
     # 5. PASS: write 0x00 → exit port
     #    rd3 = 0 from cmp.so equality result
-    st.o    rd3, rb3, 0
+    st.o    rd3, [rb3, 0]
 
 Lfail:
     # 6. FAIL: write 0x01 → exit port
     set.zw  rd4, 0, 1
-    st.o    rd4, rb3, 0
+    st.o    rd4, [rb3, 0]
     swym    0

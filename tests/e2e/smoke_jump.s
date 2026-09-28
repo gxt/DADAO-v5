@@ -11,9 +11,9 @@
 #   [0x04] or.w   rb3, 1, 0x8000     ; rb3 = 0xffff_8000_0000
 #   [0x08] set.zw rd5, 0, 0          ; prepare PASS value (0) in rd5
 #   [0x0C] set.zw rd4, 0, 1          ; prepare FAIL value (1) in rd4
-#   [0x10] jump   2                   ; skip 1 instruction → PC = 0x10 + 2*4 = 0x18
-#   [0x14] st.o   rd4, rb3, 0        ; Lfail: write 0x01 (SKIPPED by jump)
-#   [0x18] st.o   rd5, rb3, 0        ; Lpass: write 0x00 (land here)
+#   [0x10] jump   [rb0, 2i]          ; skip 1 instruction → PC = 0x10 + 2*4 = 0x18
+#   [0x14] st.o   rd4, [rb3, 0]     ; Lfail: write 0x01 (SKIPPED by jump)
+#   [0x18] st.o   rd5, [rb3, 0]     ; Lpass: write 0x00 (land here)
 #
 # jump-iiii: Addr = rb0 + (imms24 << 2), rb0 = current instruction address
 #   At 0x10: Addr = 0x10 + (2 << 2) = 0x10 + 8 = 0x18 → Lpass ✓
@@ -31,14 +31,14 @@ _start:
     set.zw  rd5, 0, 0
     set.zw  rd4, 0, 1
 
-    # 3. Jump over error path: jump 2 → skip 1 instruction → land at Lpass
-    jump    2
+    # 3. Jump over error path: jump [rb0, 2i] → skip 1 instruction → land at Lpass
+    jump    [rb0, 2i]
 
 Lfail:
     # 4. Error path (skipped by jump): write 0x01
-    st.o    rd4, rb3, 0
+    st.o    rd4, [rb3, 0]
 
 Lpass:
     # 5. PASS path: write 0x00 → exit port
-    st.o    rd5, rb3, 0
+    st.o    rd5, [rb3, 0]
     swym    0

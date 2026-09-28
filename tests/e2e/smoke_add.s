@@ -30,13 +30,13 @@ _start:
     or.o    rd3, rd3, rd0
 
     # 5. Map XOR result to exit code: 0 → PASS, non-zero → FAIL
-    br.nz   rd3, Lfail
+    br.nz   {rd3}?, [rb0, Lfail]
 
     # 6. PASS: write 0x00 → exit port (rd3 = 0 from XOR equality)
-    st.o    rd3, rb3, 0
+    st.o    rd3, [rb3, 0]
 
 Lfail:
     # 7. FAIL: write 0x01 → exit port
     set.zw  rd4, 0, 1
-    st.o    rd4, rb3, 0
+    st.o    rd4, [rb3, 0]
     swym    0

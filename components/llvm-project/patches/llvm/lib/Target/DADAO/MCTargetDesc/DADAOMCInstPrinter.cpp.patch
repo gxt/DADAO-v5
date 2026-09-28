@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000000..6d0f56379b53
+index 000000000000..2dc784667a0c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,379 @@
+@@ -0,0 +1,391 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -222,14 +222,17 @@ index 000000000000..6d0f56379b53
 +    StringRef MnemStr(Mnem);
 +    if (MnemStr.starts_with("br.")) {
 +      // Branch: {ra, rb}?, [rb0, immi]
-+      // MCInst: operand 0 = ra, 1 = rb, 2 = imm12
++      // MCInst: operand 0 = ra, 1 = rb, 2 = imm12 (or Expr for unresolved label)
 +      if (NumOps == 3) {
 +        O << " {";
 +        printRegName(O, MI->getOperand(0).getReg());
 +        O << ", ";
 +        printRegName(O, MI->getOperand(1).getReg());
 +        O << "}?, [rb0, ";
-+        O << MI->getOperand(2).getImm();
++        if (MI->getOperand(2).isImm())
++          O << MI->getOperand(2).getImm();
++        else if (MI->getOperand(2).isExpr())
++          MAI.printExpr(O, *MI->getOperand(2).getExpr());
 +        O << "i]";
 +      }
 +    } else if (MnemStr == "jump" || MnemStr == "call") {
@@ -273,12 +276,15 @@ index 000000000000..6d0f56379b53
 +    StringRef MnemStr(Mnem);
 +    if (MnemStr.starts_with("br.")) {
 +      // Branch: {ra}?, [rb0, immi]
-+      // MCInst: operand 0 = ra, 1 = imm18
++      // MCInst: operand 0 = ra, 1 = imm18 (or Expr for unresolved label)
 +      if (NumOps == 2) {
 +        O << " {";
 +        printRegName(O, MI->getOperand(0).getReg());
 +        O << "}?, [rb0, ";
-+        O << MI->getOperand(1).getImm();
++        if (MI->getOperand(1).isImm())
++          O << MI->getOperand(1).getImm();
++        else if (MI->getOperand(1).isExpr())
++          MAI.printExpr(O, *MI->getOperand(1).getExpr());
 +        O << "i]";
 +      }
 +    } else {
@@ -286,7 +292,10 @@ index 000000000000..6d0f56379b53
 +      O << " ";
 +      printRegName(O, MI->getOperand(0).getReg());
 +      O << ", ";
-+      O << MI->getOperand(1).getImm();
++      if (MI->getOperand(1).isImm())
++        O << MI->getOperand(1).getImm();
++      else if (MI->getOperand(1).isExpr())
++        MAI.printExpr(O, *MI->getOperand(1).getExpr());
 +    }
 +    break;
 +  }
@@ -294,7 +303,10 @@ index 000000000000..6d0f56379b53
 +  case FK_iiii: {
 +    // iiii: jump/call — [rb0, immi]
 +    O << " [rb0, ";
-+    O << MI->getOperand(0).getImm();
++    if (MI->getOperand(0).isImm())
++      O << MI->getOperand(0).getImm();
++    else if (MI->getOperand(0).isExpr())
++      MAI.printExpr(O, *MI->getOperand(0).getExpr());
 +    O << "i]";
 +    break;
 +  }

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000000..acf93a3e0fd1
+index 000000000000..90db68ae6371
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1062 @@
+@@ -0,0 +1,1084 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -636,10 +636,11 @@ index 000000000000..acf93a3e0fd1
 +        getParser().Lex(); // consume the token
 +        // Skip to ']' check below.
 +      } else {
-+        // Not a valid number+i combo, try as expression.
++        // Not a valid number+i combo — could be a label.
 +        goto parse_offset_expr;
 +      }
 +    } else {
++      // Identifier without 'i' suffix — could be a label.
 +      goto parse_offset_expr;
 +    }
 +  } else {
@@ -659,10 +660,19 @@ index 000000000000..acf93a3e0fd1
 +
 +    // Evaluate the expression.
 +    if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
-+      // Non-constant expression — push as expr.
-+      // (For now, we only support constant offsets.)
-+      return Error(getParser().getTok().getLoc(),
-+                   "non-constant offset in address expression");
++      // Non-constant expression (label reference) — push as expr.
++      // Expect ']'.
++      if (!getParser().getTok().is(AsmToken::RBrac))
++        return Error(getParser().getTok().getLoc(),
++                     "expected ']' to close address expression");
++      getParser().Lex(); // consume ']'
++      EndLoc = getParser().getTok().getLoc();
++      Operands.push_back(DADAOOperand::createReg(Base, RStart));
++      if (HasIndexReg)
++        Operands.push_back(DADAOOperand::createReg(Index, RStart));
++      Operands.push_back(
++          DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLoc));
++      return false; // success
 +    }
 +  }
 +
@@ -787,12 +797,15 @@ index 000000000000..acf93a3e0fd1
 +        EndLoc = OffsetTok.getEndLoc();
 +        Parser.Lex(); // consume the token
 +      } else {
-+        return true; // error: not a valid offset
++        // Not a valid number+i combo — try as label expression.
++        goto parse_branch_expr;
 +      }
 +    } else {
-+      return true; // error: expected offset
++      // Identifier without 'i' suffix — could be a label.
++      goto parse_branch_expr;
 +    }
 +  } else {
++  parse_branch_expr:
 +    const MCExpr *OffsetExpr;
 +    SMLoc ExprEnd;
 +    if (Parser.parseExpression(OffsetExpr, ExprEnd))
@@ -805,8 +818,17 @@ index 000000000000..acf93a3e0fd1
 +      Parser.Lex(); // consume 'i'
 +    }
 +
-+    if (!OffsetExpr->evaluateAsAbsolute(OffsetVal))
-+      return true; // error: non-constant offset
++    if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
++      // Non-constant expression (label reference) — push as expr.
++      // Expect ']'.
++      if (!Parser.getTok().is(AsmToken::RBrac))
++        return true;
++      Parser.Lex(); // consume ']'
++      SMLoc EndLocFinal = Parser.getTok().getLoc();
++      Operands.push_back(
++          DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLocFinal));
++      return false; // success
++    }
 +  }
 +
 +  // Expect ']'.
