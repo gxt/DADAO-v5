@@ -18,12 +18,12 @@
   input_state:
     ra:
       ra63: '0x0001FFFF00000004'
-  insn: ret-riii
+  insn: ret_riii_ra
   mnemonic: ret
   notes: 'semantic: ret rd0, 0; ra63=0x0001FFFF00000004 (high 16=0x0001, low 48=0xFFFF00000004); PC = ra63 low 48 = 0xFFFF00000004;
     rd0 = sign_extend(0) = 0 (rd0恒零); 弹栈: ra63 high 16=0x0001 → case 2: pop, shift-down: ra62→ra63 (ra62=0→ra63=0), ra1→ra2
     (ra1=0→ra2=0), ra1清0 → ra63=0; expected_state.ra.ra63=0'
-  spec_cite: SimRISC-02 §函数返回; §5.6.2; ADR-0004 D6.5
+  spec_cite: SimRISC-06 §函数返回; §5.6.2; ADR-0004 D6.5
   status: active
 - class: legality
   deferred_reason: null
@@ -34,9 +34,9 @@
   expected_state: null
   format: riii
   input_state: {}
-  insn: ret-riii
+  insn: ret_riii_ra
   mnemonic: ret
   notes: 'legality RASUF: cold RA (ra0-ra63=0), ra63 high 16=0 (无效), ra0 low 48=0 (only RegRAS) → pop underflow → RASUF (0x8B),
     contract-isa §5.6.2 case 3'
-  spec_cite: SimRISC-02 §函数返回; §5.6.2; ADR-0004 D5.5
+  spec_cite: SimRISC-06 §函数返回; §5.6.2; ADR-0004 D5.5
   status: active

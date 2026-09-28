@@ -39,7 +39,7 @@ with open(os.path.join(REPO, "contracts", "opcodes.yaml")) as f:
 BY_KEY = {}
 for r in ALL:
     if not r.get("excluded_m1"):
-        BY_KEY[(r["insn"], r["format"])] = r
+        BY_KEY[(r["id"], r["format"])] = r
 
 # ── Constants ─────────────────────────────────────────────────────────
 RB0 = 0xFFFF_0000_0000          # instruction address (ADR-0004 D2.2/D6.5)
@@ -68,6 +68,16 @@ def _hex8(w):
 # ── Case factory ──────────────────────────────────────────────────────
 def _case(cls, insn, fmt, word, inp, out, fault=None,
           expected_pc=None, spec_cite="", notes=""):
+    # Extract mnemonic from new id format: mnemonic_format_bank
+    if '_' in insn:
+        _FORMATS = ('orrr', 'orri', 'rrrr', 'riii', 'rrii', 'rwii', 'iiii', 'rrri', 'oiii')
+        parts = insn.split('_')
+        if len(parts) >= 3 and parts[-2] in _FORMATS:
+            mnem = '_'.join(parts[:-2])
+        else:
+            mnem = parts[0]
+    else:
+        mnem = insn.split("-")[0]
     return {
         "class": cls,
         "deferred_reason": None,
@@ -78,7 +88,7 @@ def _case(cls, insn, fmt, word, inp, out, fault=None,
         "format": fmt,
         "input_state": inp,
         "insn": insn,
-        "mnemonic": insn.split("-")[0],
+        "mnemonic": mnem,
         "notes": notes,
         "spec_cite": spec_cite,
         "status": "active",
@@ -115,19 +125,19 @@ HEADER_RET = """\
 """
 
 # ── Spec cites ────────────────────────────────────────────────────────
-SC_JUMP = "SimRISC-02 §无条件跳转指令; ADR-0004 D6.5"
-SC_JUMP_LEG = "SimRISC-02 §无条件跳转指令; ADR-0004 D5.6"
-SC_CALL = "SimRISC-02 §函数调用; ADR-0004 D6.5"
-SC_CALL_SEM = "SimRISC-02 §函数调用; §5.6.1; ADR-0004 D2.1"
-SC_CALL_RASOF = "SimRISC-02 §函数调用; §5.6.1; ADR-0004 D5.5"
-SC_CALL_LEG = "SimRISC-02 §函数调用; ADR-0004 D5.6"
-SC_RET = "SimRISC-02 §函数返回; §5.6.2; ADR-0004 D6.5"
-SC_RET_LEG = "SimRISC-02 §函数返回; §5.6.2; ADR-0004 D5.5"
+SC_JUMP = "SimRISC-06 §无条件跳转指令; ADR-0004 D6.5"
+SC_JUMP_LEG = "SimRISC-06 §无条件跳转指令; ADR-0004 D5.6"
+SC_CALL = "SimRISC-06 §函数调用; ADR-0004 D6.5"
+SC_CALL_SEM = "SimRISC-06 §函数调用; §5.6.1; ADR-0004 D2.1"
+SC_CALL_RASOF = "SimRISC-06 §函数调用; §5.6.1; ADR-0004 D5.5"
+SC_CALL_LEG = "SimRISC-06 §函数调用; ADR-0004 D5.6"
+SC_RET = "SimRISC-06 §函数返回; §5.6.2; ADR-0004 D6.5"
+SC_RET_LEG = "SimRISC-06 §函数返回; §5.6.2; ADR-0004 D5.5"
 
 
 # ── jump-iiii ─────────────────────────────────────────────────────────
 def _gen_jump_iiii():
-    op = int(BY_KEY[("jump-iiii", "iiii")]["op"], 16)
+    op = int(BY_KEY[("jump_iiii_rb", "iiii")]["op"], 16)
     word = _build_word_iiii(op, IMM)
     # Boundary: imms24 = -0x1000 → target = RB0 + (-4096 << 2) = RB0 - 0x4000
     # = 0xFFFE_FFFF_C000 (48-bit valid, below RAM → UNMAPPED)
@@ -136,16 +146,16 @@ def _gen_jump_iiii():
     imm_s = boundary_imm - (1 << 24) if boundary_imm & (1 << 23) else boundary_imm
     target_boundary = "0x%012X" % ((RB0 + (imm_s << 2)) & 0xFFFFFFFFFFFF)
     return [
-        _case("encoding", "jump-iiii", "iiii", word, {}, None,
+        _case("encoding", "jump_iiii_rb", "iiii", word, {}, None,
               None, None, SC_JUMP,
               "encoding: word matches opcodes.yaml mask/value, imms24=2 "
               "(non-zero, non-self-jump)"),
-        _case("semantic", "jump-iiii", "iiii", word, {}, {},
+        _case("semantic", "jump_iiii_rb", "iiii", word, {}, {},
               None, TARGET, SC_JUMP,
               "semantic: rb0=0xFFFF00000000 (RAM entry, ADR-0004 D2.2), "
               "imms24=2, Addr=rb0+(imms24<<2)=0xFFFF00000000+8="
               "0xFFFF00000008; no state change"),
-        _case("boundary", "jump-iiii", "iiii", boundary_word, {}, {},
+        _case("boundary", "jump_iiii_rb", "iiii", boundary_word, {}, {},
               "UNMAPPED", None, SC_JUMP_LEG,
               "boundary UNMAPPED: imms24=-0x1000, "
               "target=rb0+(imms24<<2)=0x%012X+(-0x4000)=0x%012X → "
@@ -156,20 +166,20 @@ def _gen_jump_iiii():
 
 # ── jump-rrii ─────────────────────────────────────────────────────────
 def _gen_jump_rrii():
-    op = int(BY_KEY[("jump-rrii", "rrii")]["op"], 16)
+    op = int(BY_KEY[("jump_rrii_rb", "rrii")]["op"], 16)
     enc_word = _build_word_rrii(op, 0, 0, IMM)      # ha=rb0, hb=rd0
     unmapped_word = _build_word_rrii(op, 3, 0, 0)    # ha=rb3=0 → addr=0
     return [
-        _case("encoding", "jump-rrii", "rrii", enc_word, {}, None,
+        _case("encoding", "jump_rrii_rb", "rrii", enc_word, {}, None,
               None, None, SC_JUMP,
               "encoding: word matches opcodes.yaml mask/value, rbha=rb0 "
               "(index 0), rdhb=rd0 (index 0), imms12=2"),
-        _case("semantic", "jump-rrii", "rrii", enc_word, {}, {},
+        _case("semantic", "jump_rrii_rb", "rrii", enc_word, {}, {},
               None, TARGET, SC_JUMP,
               "semantic: rb0=0xFFFF00000000, rd0=0, imms12=2, "
               "Addr=rb0+rd0+(imms12<<2)=0xFFFF00000000+0+8="
               "0xFFFF00000008; no state change"),
-        _case("legality", "jump-rrii", "rrii", unmapped_word,
+        _case("legality", "jump_rrii_rb", "rrii", unmapped_word,
               {"rb": {"rb3": "0x0000000000000000"}}, None,
               "UNMAPPED", None, SC_JUMP_LEG,
               "legality UNMAPPED: rbha=rb3=0, rdhb=rd0=0, imms12=0 → "
@@ -179,7 +189,7 @@ def _gen_jump_rrii():
 
 # ── call-iiii ─────────────────────────────────────────────────────────
 def _gen_call_iiii():
-    op = int(BY_KEY[("call-iiii", "iiii")]["op"], 16)
+    op = int(BY_KEY[("call_iiii_ra", "iiii")]["op"], 16)
     word = _build_word_iiii(op, IMM)
 
     # §5.6.1 case 3 input: ra1-ra63 valid (count=1, addr=0)
@@ -190,12 +200,12 @@ def _gen_call_iiii():
         ra_overflow["ra%d" % i] = RA64_FMT % 0x0001_0000_0000_0000
 
     return [
-        _case("encoding", "call-iiii", "iiii", word, {}, None,
+        _case("encoding", "call_iiii_ra", "iiii", word, {}, None,
               None, None, SC_CALL,
               "encoding: word matches opcodes.yaml mask/value, imms24=2 "
               "(non-zero, non-self-call)"),
         # §5.6.1 case 1: cold RA → new address pushed, count=0x0001
-        _case("semantic", "call-iiii", "iiii", word, {},
+        _case("semantic", "call_iiii_ra", "iiii", word, {},
               {"ra": {"ra63": RA64_FMT % ((1 << 48) | (RB0 + 4))}},
               None, TARGET, SC_CALL_SEM,
               "semantic: rb0=0xFFFF00000000, imms24=2, "
@@ -204,7 +214,7 @@ def _gen_call_iiii():
               "high 16=0x0001 (first push), low 48=return address; "
               "cold RA (ra0-ra63=0) per ADR-0004 D2.1"),
         # §5.6.1 case 2: recursive → count +1
-        _case("semantic", "call-iiii", "iiii", word,
+        _case("semantic", "call_iiii_ra", "iiii", word,
               {"ra": {"ra63": RA64_FMT % ((1 << 48) | (RB0 + 4))}},
               {"ra": {"ra63": RA64_FMT % ((2 << 48) | (RB0 + 4))}},
               None, TARGET, SC_CALL_SEM,
@@ -213,7 +223,7 @@ def _gen_call_iiii():
               "(valid), low 48=0xFFFF00000004; PC+4=0xFFFF00000004 == "
               "ra63 low 48 → count +1: ra63 = 0x0002FFFF00000004"),
         # §5.6.1 case 3: shift-push (RASOF legality)
-        _case("legality", "call-iiii", "iiii", word,
+        _case("legality", "call_iiii_ra", "iiii", word,
               {"ra": ra_overflow}, None,
               "RASOF", None, SC_CALL_RASOF,
               "legality RASOF: pre-set ra1-ra63 as valid (high 16=0x0001, "
@@ -224,16 +234,16 @@ def _gen_call_iiii():
 
 # ── call-rrii ─────────────────────────────────────────────────────────
 def _gen_call_rrii():
-    op = int(BY_KEY[("call-rrii", "rrii")]["op"], 16)
+    op = int(BY_KEY[("call_rrii_ra", "rrii")]["op"], 16)
     enc_word = _build_word_rrii(op, 0, 0, IMM)      # ha=rb0, hb=rd0
     unmapped_word = _build_word_rrii(op, 3, 0, 0)    # ha=rb3=0 → addr=0
     return [
-        _case("encoding", "call-rrii", "rrii", enc_word, {}, None,
+        _case("encoding", "call_rrii_ra", "rrii", enc_word, {}, None,
               None, None, SC_CALL,
               "encoding: word matches opcodes.yaml mask/value, rbha=rb0 "
               "(index 0), rdhb=rd0 (index 0), imms12=2"),
         # §5.6.1 case 1: cold RA
-        _case("semantic", "call-rrii", "rrii", enc_word, {},
+        _case("semantic", "call_rrii_ra", "rrii", enc_word, {},
               {"ra": {"ra63": RA64_FMT % ((1 << 48) | (RB0 + 4))}},
               None, TARGET, SC_CALL_SEM,
               "semantic: rb0=0xFFFF00000000, rd0=0, imms12=2, "
@@ -242,7 +252,7 @@ def _gen_call_rrii():
               "PC+4=0xFFFF00000004 into ra63, high 16=0x0001, "
               "low 48=return address; cold RA per ADR-0004 D2.1"),
         # §5.6.1 case 2: recursive → count +1
-        _case("semantic", "call-rrii", "rrii", enc_word,
+        _case("semantic", "call_rrii_ra", "rrii", enc_word,
               {"ra": {"ra63": RA64_FMT % ((1 << 48) | (RB0 + 4))}},
               {"ra": {"ra63": RA64_FMT % ((2 << 48) | (RB0 + 4))}},
               None, TARGET, SC_CALL_SEM,
@@ -252,7 +262,7 @@ def _gen_call_rrii():
               "PC+4=0xFFFF00000004 == ra63 low 48 → count +1: "
               "ra63 = 0x0002FFFF00000004"),
         # §5.6.1 case 3: shift-push (different address)
-        _case("semantic", "call-rrii", "rrii", enc_word,
+        _case("semantic", "call_rrii_ra", "rrii", enc_word,
               {"ra": {"ra63": RA64_FMT % ((1 << 48) | 0xAAAA_0000_0000)}},
               {"ra": {
                   "ra63": RA64_FMT % ((1 << 48) | (RB0 + 4)),
@@ -264,7 +274,7 @@ def _gen_call_rrii():
               "high 16=0x0001 (valid), low 48=0xAAAA000000000000; "
               "PC+4=0xFFFF00000004 ≠ ra63 low 48 → shift-push: "
               "new addr into ra63, old ra63 into ra62"),
-        _case("legality", "call-rrii", "rrii", unmapped_word,
+        _case("legality", "call_rrii_ra", "rrii", unmapped_word,
               {"rb": {"rb3": "0x0000000000000000"}}, None,
               "UNMAPPED", None, SC_CALL_LEG,
               "legality UNMAPPED: rbha=rb3=0, rdhb=rd0=0, imms12=0 → "
@@ -274,11 +284,11 @@ def _gen_call_rrii():
 
 # ── ret-riii ──────────────────────────────────────────────────────────
 def _gen_ret_riii():
-    op = int(BY_KEY[("ret-riii", "riii")]["op"], 16)
+    op = int(BY_KEY[("ret_riii_ra", "riii")]["op"], 16)
     word = _build_word_riii(op, 0, 0)  # rdha=rd0, imms18=0
     return [
         # §5.6.2 case 2: pop (count=1 → shift-down)
-        _case("semantic", "ret-riii", "riii", word,
+        _case("semantic", "ret_riii_ra", "riii", word,
               {"ra": {"ra63": RA64_FMT % ((1 << 48) | (RB0 + 4))}},
               {"ra": {"ra63": RA64_FMT % 0}},
               None, RETURN_ADDR, SC_RET,
@@ -290,7 +300,7 @@ def _gen_ret_riii():
               "ra62→ra63 (ra62=0→ra63=0), ra1→ra2 (ra1=0→ra2=0), "
               "ra1清0 → ra63=0; expected_state.ra.ra63=0"),
         # §5.6.2 case 3: RASUF (cold RA, pop underflow)
-        _case("legality", "ret-riii", "riii", word, {}, None,
+        _case("legality", "ret_riii_ra", "riii", word, {}, None,
               "RASUF", None, SC_RET_LEG,
               "legality RASUF: cold RA (ra0-ra63=0), ra63 high 16=0 "
               "(无效), ra0 low 48=0 (only RegRAS) → pop underflow → "

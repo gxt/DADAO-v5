@@ -2,7 +2,7 @@
 """Generate misc.yaml test vectors for TESTCASES-007t.
 
 Covers 3 M1 identities in tests/vectors/isa/misc.yaml:
-  - swym-iiii (iiii): encoding + semantic (nop-like, no architectural state change)
+  - swym_oiii_imm (oiii): encoding + semantic (nop-like, no architectural state change)
   - illi (oiii): legality only (always ILLI; encoding/semantic exempt per F6)
   - fence (oiii): encoding + legality (SBZ non-zero → ILLI) + semantic
 
@@ -12,8 +12,8 @@ contracts/legality_rules.yaml (sbz_nonzero rule), and
 .tao/knowledge/adr-0004-test-machine.md.
 
 Encoding derivations:
-  - swym 0: op=0x77, immu24=0 → word=0x77000000
-    mask=0xFF000000, value=0x77000000 → (0x77000000 & 0xFF000000)==0x77000000 ✓
+  - swym 0: op=0x00, ha=0x02, immu18=0 → word=0x00080000
+    mask=0xFFFC0000, value=0x00080000 → (0x00080000 & 0xFFFC0000)==0x00080000 ✓
   - illi 0: op=0x00, ha=0x00, immu18=0 → word=0x00000000
     mask=0xFFFC0000, value=0x00000000 → (0x00000000 & 0xFFFC0000)==0x00000000 ✓
   - fence 0: op=0x00, ha=0x01, immu18=0 → word=0x00040000
@@ -33,13 +33,13 @@ OUT_FILE = os.path.join(OUT_DIR, "misc.yaml")
 GENERATOR_PATH = "tools/testcases/generate_misc.py"
 
 # ── Encoding words ────────────────────────────────────────────────────
-SWYM_WORD0 = 0x77000000       # swym 0 (nop)
+SWYM_WORD0 = 0x00080000       # swym 0 (nop)
 ILLI_WORD0 = 0x00000000       # illi 0 (always ILLI; also §8.3 all-zero word)
 FENCE_WORD0 = 0x00040000      # fence 0 (barrier type=0, all SBZ zero)
 FENCE_SBZ_NONZERO = 0x00050000  # fence with immu18_hi=1 (bits[17:12]≠0, SBZ → ILLI)
 
-MASK_SWYM = 0xFF000000
-VALUE_SWYM = 0x77000000
+MASK_SWYM = 0xFFFC0000
+VALUE_SWYM = 0x00080000
 MASK_OIII = 0xFFFC0000
 VALUE_ILLI = 0x00000000
 VALUE_FENCE = 0x00040000
@@ -84,36 +84,36 @@ def _case(mnemonic, insn, fmt, cls, word, input_state, expected_state,
 def generate():
     cases = []
 
-    # ── swym-iiii ─────────────────────────────────────────────────────
+    # ── swym_oiii_imm ─────────────────────────────────────────────────────
     # F10: encoding case — word matches mask/value, decodable, no fault
     cases.append(_case(
         mnemonic="swym",
-        insn="swym-iiii",
-        fmt="iiii",
+        insn="swym_oiii_imm",
+        fmt="oiii",
         cls="encoding",
         word=SWYM_WORD0,
         input_state={},
         expected_state=None,
         expected_fault=None,
         expected_pc=None,
-        spec_cite="SimRISC-04 §占位指令",
-        notes="encoding: swym 0 (nop), word=0x77000000; "
-              "opcodes.yaml mask=0xFF000000 value=0x77000000; "
+        spec_cite="SimRISC-11 §占位指令",
+        notes="encoding: swym 0 (nop), word=0x00080000; "
+              "opcodes.yaml mask=0xFFFC0000 value=0x00080000; "
               "no fault, no architectural state change",
     ))
 
     # F10: semantic case — nop-like, no state change
     cases.append(_case(
         mnemonic="swym",
-        insn="swym-iiii",
-        fmt="iiii",
+        insn="swym_oiii_imm",
+        fmt="oiii",
         cls="semantic",
         word=SWYM_WORD0,
         input_state={},
         expected_state={},
         expected_fault=None,
         expected_pc=None,
-        spec_cite="SimRISC-04 §占位指令",
+        spec_cite="SimRISC-11 §占位指令",
         notes="semantic: swym 0 (nop); "
               "除 PC 自增外无任何架构副作用（§7.1）; "
               "expected_state={}: no registers/memory changed",
@@ -123,7 +123,7 @@ def generate():
     # F6: illi is always ILLI → encoding/semantic exempt; coverage via legality
     cases.append(_case(
         mnemonic="illi",
-        insn="illi",
+        insn="illi_oiii_imm",
         fmt="oiii",
         cls="legality",
         word=ILLI_WORD0,
@@ -131,7 +131,7 @@ def generate():
         expected_state=None,
         expected_fault="ILLI",
         expected_pc=None,
-        spec_cite="SimRISC-04 §非法指令; SimRISC-00 §MISC-AMO 指令编码",
+        spec_cite="SimRISC-11 §非法指令; SimRISC-00 §MISC-AMO 指令编码",
         notes="illi always triggers ILLI (§9.1); "
               "encoding/semantic exempt per F6 (schema.md §encoding 类对恒 fault 指令的豁免); "
               "this word=0x00000000 is also §8.3 all-zero word (illi 0); "
@@ -142,7 +142,7 @@ def generate():
     # F10: encoding case — word matches mask/value, decodable, no fault
     cases.append(_case(
         mnemonic="fence",
-        insn="fence",
+        insn="fence_oiii_imm",
         fmt="oiii",
         cls="encoding",
         word=FENCE_WORD0,
@@ -152,7 +152,7 @@ def generate():
         expected_pc=None,
         status="deferred",
         deferred_reason="fence 实现缺失（ISS-056）：trans_fence 为 ILLI 桩，nop/SBZ 语义未实现；用户 2026-09-21 裁定 deferred",
-        spec_cite="SimRISC-04 §fence指令",
+        spec_cite="SimRISC-12 §fence指令",
         notes="encoding: fence 0 (barrier type=0, all SBZ bits zero); "
               "opcodes.yaml mask=0xFFFC0000 value=0x00040000; "
               "immu18=0 → bits[17:4] all zero (SBZ satisfied); "
@@ -162,7 +162,7 @@ def generate():
     # F10: legality — SBZ non-zero → ILLI
     cases.append(_case(
         mnemonic="fence",
-        insn="fence",
+        insn="fence_oiii_imm",
         fmt="oiii",
         cls="legality",
         word=FENCE_SBZ_NONZERO,
@@ -172,7 +172,7 @@ def generate():
         expected_pc=None,
         status="deferred",
         deferred_reason="fence 实现缺失（ISS-056）：trans_fence 为 ILLI 桩，nop/SBZ 语义未实现；用户 2026-09-21 裁定 deferred",
-        spec_cite="SimRISC-04 §fence指令; ADR-0004 D5.3",
+        spec_cite="SimRISC-12 §fence指令; ADR-0004 D5.3",
         notes="fence with SBZ non-zero: immu18_hi=0x01 (bits[17:12]≠0); "
               "legality_rules.yaml rule=sbz_nonzero: "
               "SBZ (Should Be Zero) fields non-zero → ILLI; "
@@ -183,7 +183,7 @@ def generate():
     # F10: semantic — nop-like, no state change
     cases.append(_case(
         mnemonic="fence",
-        insn="fence",
+        insn="fence_oiii_imm",
         fmt="oiii",
         cls="semantic",
         word=FENCE_WORD0,
@@ -193,7 +193,7 @@ def generate():
         expected_pc=None,
         status="deferred",
         deferred_reason="fence 实现缺失（ISS-056）：trans_fence 为 ILLI 桩，nop/SBZ 语义未实现；用户 2026-09-21 裁定 deferred",
-        spec_cite="SimRISC-04 §fence指令",
+        spec_cite="SimRISC-12 §fence指令",
         notes="semantic: fence 0 (nop-like in M1); "
               "memory barrier, no register/memory change in M1 context; "
               "expected_state={}: no registers/memory changed; "
@@ -212,7 +212,7 @@ def write_yaml(cases):
         "# Source: contracts/opcodes.yaml + contract-isa.md §7/§8/§9 "
         "+ legality_rules.yaml (sbz_nonzero)\n"
         "# Each case has spec_cite and notes for traceability.\n"
-        "# Covers: swym-iiii (iiii), illi (oiii), fence (oiii) — 3 M1 identities\n"
+        "# Covers: swym_oiii_imm (oiii), illi_oiii_imm (oiii), fence_oiii_imm (oiii) — 3 M1 identities\n"
         "# F6: illi encoding/semantic exempt (always ILLI), coverage via legality\n"
         "# F10: swym/fence encoding words verified against opcodes.yaml mask/value\n"
     ) % GENERATOR_PATH

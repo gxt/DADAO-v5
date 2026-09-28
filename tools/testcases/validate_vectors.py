@@ -87,7 +87,7 @@ def load_opcodes(path):
     by_key = {}
     dups = []
     for rec in m1:
-        key = (rec["insn"], rec["format"])
+        key = (rec["id"], rec["format"])
         if key in by_key:
             dups.append(key)
         by_key[key] = rec
@@ -95,7 +95,7 @@ def load_opcodes(path):
 
 
 def parse_inventory(path):
-    """解析 inventory.md 中含 `insn`+`format` 表头的 Markdown 表。"""
+    """解析 inventory.md 中含 `id`+`format` 表头的 Markdown 表。"""
     rows = []
     header = None
     with open(path) as fh:
@@ -106,7 +106,7 @@ def parse_inventory(path):
                 continue
             cells = [c.strip() for c in line.strip("|").split("|")]
             low = [c.lower() for c in cells]
-            if "insn" in low and "format" in low:
+            if ("id" in low or "insn" in low) and "format" in low:
                 header = low
                 continue
             if header is None:
@@ -307,7 +307,7 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                                 "encoding in opcodes.yaml (insn=%s, format=%s, "
                                 "excluded_m1=%s); reserved only for QFC/子表 "
                                 "blank cells"
-                                % (tag, word, rec.get("insn"),
+                                % (tag, word, rec.get("id"),
                                    rec.get("format"),
                                    rec.get("excluded_m1", False)))
                             break
@@ -633,7 +633,7 @@ def main():
     # Data-level coverage: per (insn, format), track which classes are ✓
     declared_classes = {}  # key -> set of class names with ✓
     for row in inv_rows:
-        insn = _unquote(row.get("insn", ""))
+        insn = _unquote(row.get("id", row.get("insn", "")))
         fmt = _unquote(row.get("format", ""))
         if not insn or not fmt:
             continue

@@ -11,10 +11,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: add.uo-rd
+  insn: add.uo_rrrr_rd
   mnemonic: add.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -34,10 +34,10 @@
     rd:
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: add.uo-rd
+  insn: add.uo_rrrr_rd
   mnemonic: add.uo
   notes: 'add.uo: rd3=0x64, rd4=0x1e → rd1(hi)=0x0, rd2(lo)=0x82'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -57,10 +57,10 @@
     rd:
       rd3: '0x8000000000000000'
       rd4: '0x8000000000000000'
-  insn: add.uo-rd
+  insn: add.uo_rrrr_rd
   mnemonic: add.uo
   notes: 'boundary add.uo: rd3=0x8000000000000000, rd4=0x8000000000000000'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: overlap
   deferred_reason: null
@@ -75,10 +75,10 @@
       rd1: '0x0000000000000064'
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: add.uo-rd
+  insn: add.uo_rrrr_rd
   mnemonic: add.uo
   notes: 'overlap: rdha=rdhb=rd1 (same non-rd0 register) → ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -89,10 +89,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: add.uo-rd
+  insn: add.uo_rrrr_rd
   mnemonic: add.uo
   notes: 'legality add.uo: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
   deferred_reason: null
@@ -103,10 +103,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: add.so-rd
+  insn: add.so_rrrr_rd
   mnemonic: add.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -126,10 +126,10 @@
     rd:
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: add.so-rd
+  insn: add.so_rrrr_rd
   mnemonic: add.so
   notes: 'add.so: rd3=0x64, rd4=0x1e → rd1(hi)=0x0, rd2(lo)=0x82'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -149,10 +149,10 @@
     rd:
       rd3: '0x8000000000000000'
       rd4: '0x8000000000000000'
-  insn: add.so-rd
+  insn: add.so_rrrr_rd
   mnemonic: add.so
   notes: 'boundary add.so: rd3=0x8000000000000000, rd4=0x8000000000000000'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: overlap
   deferred_reason: null
@@ -167,10 +167,10 @@
       rd1: '0x0000000000000064'
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: add.so-rd
+  insn: add.so_rrrr_rd
   mnemonic: add.so
   notes: 'overlap: rdha=rdhb=rd1 (same non-rd0 register) → ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -181,10 +181,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: add.so-rd
+  insn: add.so_rrrr_rd
   mnemonic: add.so
   notes: 'legality add.so: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
   deferred_reason: null
@@ -195,10 +195,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: sub.uo-rd
+  insn: sub.uo_rrrr_rd
   mnemonic: sub.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -218,10 +218,10 @@
     rd:
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: sub.uo-rd
+  insn: sub.uo_rrrr_rd
   mnemonic: sub.uo
   notes: 'sub.uo: rd3=0x64, rd4=0x1e → rd1(hi)=0x0, rd2(lo)=0x46'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -241,10 +241,10 @@
     rd:
       rd3: '0x8000000000000000'
       rd4: '0x8000000000000000'
-  insn: sub.uo-rd
+  insn: sub.uo_rrrr_rd
   mnemonic: sub.uo
   notes: 'boundary sub.uo: rd3=0x8000000000000000, rd4=0x8000000000000000'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: overlap
   deferred_reason: null
@@ -259,10 +259,10 @@
       rd1: '0x0000000000000064'
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: sub.uo-rd
+  insn: sub.uo_rrrr_rd
   mnemonic: sub.uo
   notes: 'overlap: rdha=rdhb=rd1 (same non-rd0 register) → ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -273,10 +273,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: sub.uo-rd
+  insn: sub.uo_rrrr_rd
   mnemonic: sub.uo
   notes: 'legality sub.uo: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
   deferred_reason: null
@@ -287,10 +287,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: sub.so-rd
+  insn: sub.so_rrrr_rd
   mnemonic: sub.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -310,10 +310,10 @@
     rd:
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: sub.so-rd
+  insn: sub.so_rrrr_rd
   mnemonic: sub.so
   notes: 'sub.so: rd3=0x64, rd4=0x1e → rd1(hi)=0x0, rd2(lo)=0x46'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -333,10 +333,10 @@
     rd:
       rd3: '0x8000000000000000'
       rd4: '0x8000000000000000'
-  insn: sub.so-rd
+  insn: sub.so_rrrr_rd
   mnemonic: sub.so
   notes: 'boundary sub.so: rd3=0x8000000000000000, rd4=0x8000000000000000'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: overlap
   deferred_reason: null
@@ -351,10 +351,10 @@
       rd1: '0x0000000000000064'
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: sub.so-rd
+  insn: sub.so_rrrr_rd
   mnemonic: sub.so
   notes: 'overlap: rdha=rdhb=rd1 (same non-rd0 register) → ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -365,10 +365,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: sub.so-rd
+  insn: sub.so_rrrr_rd
   mnemonic: sub.so
   notes: 'legality sub.so: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §加减操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
   deferred_reason: null
@@ -379,10 +379,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: mul.uo-rd
+  insn: mul.uo_rrrr_rd
   mnemonic: mul.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -402,10 +402,10 @@
     rd:
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: mul.uo-rd
+  insn: mul.uo_rrrr_rd
   mnemonic: mul.uo
   notes: 'mul.uo: rd3=0x64, rd4=0x1e → rd1(hi)=0x0, rd2(lo)=0xbb8'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -425,10 +425,10 @@
     rd:
       rd3: '0x8000000000000000'
       rd4: '0x8000000000000000'
-  insn: mul.uo-rd
+  insn: mul.uo_rrrr_rd
   mnemonic: mul.uo
   notes: 'boundary mul.uo: rd3=0x8000000000000000, rd4=0x8000000000000000'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: overlap
   deferred_reason: null
@@ -443,10 +443,10 @@
       rd1: '0x0000000000000064'
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: mul.uo-rd
+  insn: mul.uo_rrrr_rd
   mnemonic: mul.uo
   notes: 'overlap: rdha=rdhb=rd1 (same non-rd0 register) → ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -457,10 +457,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: mul.uo-rd
+  insn: mul.uo_rrrr_rd
   mnemonic: mul.uo
   notes: 'legality mul.uo: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
   deferred_reason: null
@@ -471,10 +471,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: mul.so-rd
+  insn: mul.so_rrrr_rd
   mnemonic: mul.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -494,10 +494,10 @@
     rd:
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: mul.so-rd
+  insn: mul.so_rrrr_rd
   mnemonic: mul.so
   notes: 'mul.so: rd3=0x64, rd4=0x1e → rd1(hi)=0x0, rd2(lo)=0xbb8'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -517,10 +517,10 @@
     rd:
       rd3: '0x8000000000000000'
       rd4: '0x8000000000000000'
-  insn: mul.so-rd
+  insn: mul.so_rrrr_rd
   mnemonic: mul.so
   notes: 'boundary mul.so: rd3=0x8000000000000000, rd4=0x8000000000000000'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: overlap
   deferred_reason: null
@@ -535,10 +535,10 @@
       rd1: '0x0000000000000064'
       rd3: '0x0000000000000064'
       rd4: '0x000000000000001E'
-  insn: mul.so-rd
+  insn: mul.so_rrrr_rd
   mnemonic: mul.so
   notes: 'overlap: rdha=rdhb=rd1 (same non-rd0 register) → ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -549,10 +549,10 @@
   expected_state: null
   format: rrrr
   input_state: {}
-  insn: mul.so-rd
+  insn: mul.so_rrrr_rd
   mnemonic: mul.so
   notes: 'legality mul.so: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §加减操作
+  spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
   deferred_reason: null
@@ -563,10 +563,10 @@
   expected_state: null
   format: riii
   input_state: {}
-  insn: add.si-rd
+  insn: add.si_riii_rd
   mnemonic: add.si
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §自增自减
+  spec_cite: SimRISC-04 §自增自减
   status: active
 - class: semantic
   deferred_reason: null
@@ -584,10 +584,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000064'
-  insn: add.si-rd
+  insn: add.si_riii_rd
   mnemonic: add.si
   notes: 'add.si: rd1(old)=0x64, imms18=7 → rd1=0x6b'
-  spec_cite: SimRISC-01 §自增自减
+  spec_cite: SimRISC-04 §自增自减
   status: active
 - class: semantic
   deferred_reason: null
@@ -605,10 +605,10 @@
   input_state:
     rd:
       rd1: '0x7FFFFFFFFFFFFFFF'
-  insn: add.si-rd
+  insn: add.si_riii_rd
   mnemonic: add.si
   notes: 'add.si: rd1(old)=0x7fffffffffffffff, imms18=1 → rd1=0x8000000000000000'
-  spec_cite: SimRISC-01 §自增自减
+  spec_cite: SimRISC-04 §自增自减
   status: active
 - class: legality
   deferred_reason: null
@@ -619,10 +619,10 @@
   expected_state: null
   format: riii
   input_state: {}
-  insn: add.si-rd
+  insn: add.si_riii_rd
   mnemonic: add.si
   notes: 'legality add.si: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §自增自减; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §自增自减; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: boundary
   deferred_reason: null
@@ -640,10 +640,10 @@
   input_state:
     rd:
       rd1: '0x7FFFFFFFFFFFFFFF'
-  insn: add.si-rd
+  insn: add.si_riii_rd
   mnemonic: add.si
   notes: 'boundary add.si: rd1=INT64_MAX(0x7FFFFFFFFFFFFFFF), imms18=1 → overflow wrap to INT64_MIN(0x8000000000000000)'
-  spec_cite: SimRISC-01 §自增自减
+  spec_cite: SimRISC-04 §自增自减
   status: active
 - class: encoding
   deferred_reason: null
@@ -654,10 +654,10 @@
   expected_state: null
   format: riii
   input_state: {}
-  insn: rela.si-rb
+  insn: rela.si_riii_rb
   mnemonic: rela.si
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-02 §PC相对寻址
+  spec_cite: SimRISC-12 §PC相对寻址
   status: active
 - class: semantic
   deferred_reason: null
@@ -675,11 +675,11 @@
   input_state:
     rb:
       rb1: '0x0000000000000000'
-  insn: rela.si-rb
+  insn: rela.si_riii_rb
   mnemonic: rela.si
   notes: 'rela.si: PC=0xFFFF00000000 (RAM entry, ADR-0004 D2.2), imms18=1, (PC&~0xfff)=0xFFFF00000000, (imms18<<12)=0x000000001000,
     result_low48=0xFFFF00001000, rb1[63:48] preserved'
-  spec_cite: SimRISC-02 §PC相对寻址; ADR-0004 D6.5
+  spec_cite: SimRISC-12 §PC相对寻址; ADR-0004 D6.5
   status: active
 - class: legality
   deferred_reason: null
@@ -690,10 +690,10 @@
   expected_state: null
   format: riii
   input_state: {}
-  insn: rela.si-rb
+  insn: rela.si_riii_rb
   mnemonic: rela.si
   notes: 'legality rela.si: dest=rd0/rb0 → ILLI (rb_dest_rb0)'
-  spec_cite: SimRISC-02 §PC相对寻址; SimRISC-02 §rb0 为目的寄存器约定
+  spec_cite: SimRISC-12 §PC相对寻址; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -704,10 +704,10 @@
   expected_state: null
   format: riii
   input_state: {}
-  insn: add.si-rb
+  insn: add.si_riii_rb
   mnemonic: add.si
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-02 §自增自减
+  spec_cite: SimRISC-05 §自增自减
   status: active
 - class: semantic
   deferred_reason: null
@@ -725,10 +725,10 @@
   input_state:
     rb:
       rb1: '0x0000000000010000'
-  insn: add.si-rb
+  insn: add.si_riii_rb
   mnemonic: add.si
   notes: 'add.si: rb1(old)=0x10000, imms18=1 → rb1=0x10001'
-  spec_cite: SimRISC-02 §自增自减
+  spec_cite: SimRISC-05 §自增自减
   status: active
 - class: semantic
   deferred_reason: null
@@ -746,10 +746,10 @@
   input_state:
     rb:
       rb1: '0x7FFFFFFFFFFFFFFF'
-  insn: add.si-rb
+  insn: add.si_riii_rb
   mnemonic: add.si
   notes: 'add.si: rb1(old)=0x7fffffffffffffff, imms18=1 → rb1=0x8000000000000000'
-  spec_cite: SimRISC-02 §自增自减
+  spec_cite: SimRISC-05 §自增自减
   status: active
 - class: legality
   deferred_reason: null
@@ -760,10 +760,10 @@
   expected_state: null
   format: riii
   input_state: {}
-  insn: add.si-rb
+  insn: add.si_riii_rb
   mnemonic: add.si
   notes: 'legality add.si: dest=rd0/rb0 → ILLI (rb_dest_rb0)'
-  spec_cite: SimRISC-02 §自增自减; SimRISC-02 §rb0 为目的寄存器约定
+  spec_cite: SimRISC-05 §自增自减; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: boundary
   deferred_reason: null
@@ -781,10 +781,10 @@
   input_state:
     rb:
       rb1: '0x7FFFFFFFFFFFFFFF'
-  insn: add.si-rb
+  insn: add.si_riii_rb
   mnemonic: add.si
   notes: 'boundary add.si: rb1=INT64_MAX(0x7FFFFFFFFFFFFFFF), imms18=1 → overflow wrap to INT64_MIN(0x8000000000000000)'
-  spec_cite: SimRISC-02 §自增自减
+  spec_cite: SimRISC-05 §自增自减
   status: active
 - class: encoding
   deferred_reason: null
@@ -795,10 +795,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.so-rb
+  insn: add.so_orrr_rb
   mnemonic: add.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-02 §加减操作
+  spec_cite: SimRISC-05 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -819,10 +819,10 @@
       rb2: '0x0000000000000064'
     rd:
       rd3: '0x000000000000001E'
-  insn: add.so-rb
+  insn: add.so_orrr_rb
   mnemonic: add.so
   notes: 'add.so: rb2=0x64, rd3=0x1e, full64-bit'
-  spec_cite: SimRISC-02 §加减操作
+  spec_cite: SimRISC-05 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -843,10 +843,10 @@
       rb2: '0x8000000000000000'
     rd:
       rd3: '0x0000000000000001'
-  insn: add.so-rb
+  insn: add.so_orrr_rb
   mnemonic: add.so
   notes: 'boundary add.so: rb2=0x8000000000000000, rd3=0x1'
-  spec_cite: SimRISC-02 §加减操作
+  spec_cite: SimRISC-05 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -857,10 +857,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.so-rb
+  insn: add.so_orrr_rb
   mnemonic: add.so
   notes: 'legality add.so: dest=rd0/rb0 → ILLI (rb_dest_rb0)'
-  spec_cite: SimRISC-02 §加减操作; SimRISC-02 §rb0 为目的寄存器约定
+  spec_cite: SimRISC-05 §加减操作; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -871,10 +871,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.so-rb
+  insn: sub.so_orrr_rb
   mnemonic: sub.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-02 §加减操作
+  spec_cite: SimRISC-05 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -895,10 +895,10 @@
       rb2: '0x0000000000000064'
     rd:
       rd3: '0x000000000000001E'
-  insn: sub.so-rb
+  insn: sub.so_orrr_rb
   mnemonic: sub.so
   notes: 'sub.so: rb2=0x64, rd3=0x1e, full64-bit'
-  spec_cite: SimRISC-02 §加减操作
+  spec_cite: SimRISC-05 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -919,10 +919,10 @@
       rb2: '0x8000000000000000'
     rd:
       rd3: '0x0000000000000001'
-  insn: sub.so-rb
+  insn: sub.so_orrr_rb
   mnemonic: sub.so
   notes: 'boundary sub.so: rb2=0x8000000000000000, rd3=0x1'
-  spec_cite: SimRISC-02 §加减操作
+  spec_cite: SimRISC-05 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -933,10 +933,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.so-rb
+  insn: sub.so_orrr_rb
   mnemonic: sub.so
   notes: 'legality sub.so: dest=rd0/rb0 → ILLI (rb_dest_rb0)'
-  spec_cite: SimRISC-02 §加减操作; SimRISC-02 §rb0 为目的寄存器约定
+  spec_cite: SimRISC-05 §加减操作; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -949,10 +949,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: div.uo
+  insn: div.uo_orrr_rd
   mnemonic: div.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -972,10 +972,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.uo
+  insn: div.uo_orrr_rd
   mnemonic: div.uo
   notes: 'div.uo: rd2=0x64, rd3=0x7, bits=64'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -995,10 +995,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.uo
+  insn: div.uo_orrr_rd
   mnemonic: div.uo
   notes: 'boundary div.uo: rd2=0x64, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1009,10 +1009,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: div.uo
+  insn: div.uo_orrr_rd
   mnemonic: div.uo
   notes: 'legality div.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1025,10 +1025,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: div.so
+  insn: div.so_orrr_rd
   mnemonic: div.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1048,10 +1048,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.so
+  insn: div.so_orrr_rd
   mnemonic: div.so
   notes: 'div.so: rd2=0x64, rd3=0x7, bits=64'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1071,10 +1071,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000007'
-  insn: div.so
+  insn: div.so_orrr_rd
   mnemonic: div.so
   notes: 'boundary div.so: rd2=0x80, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1085,10 +1085,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: div.so
+  insn: div.so_orrr_rd
   mnemonic: div.so
   notes: 'legality div.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1101,10 +1101,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: rem.uo
+  insn: rem.uo_orrr_rd
   mnemonic: rem.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1124,10 +1124,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.uo
+  insn: rem.uo_orrr_rd
   mnemonic: rem.uo
   notes: 'rem.uo: rd2=0x64, rd3=0x7, bits=64'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1147,10 +1147,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.uo
+  insn: rem.uo_orrr_rd
   mnemonic: rem.uo
   notes: 'boundary rem.uo: rd2=0x64, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1161,10 +1161,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: rem.uo
+  insn: rem.uo_orrr_rd
   mnemonic: rem.uo
   notes: 'legality rem.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1177,10 +1177,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: rem.so
+  insn: rem.so_orrr_rd
   mnemonic: rem.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1200,10 +1200,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.so
+  insn: rem.so_orrr_rd
   mnemonic: rem.so
   notes: 'rem.so: rd2=0x64, rd3=0x7, bits=64'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1223,10 +1223,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000007'
-  insn: rem.so
+  insn: rem.so_orrr_rd
   mnemonic: rem.so
   notes: 'boundary rem.so: rd2=0x80, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-04 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1237,10 +1237,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: rem.so
+  insn: rem.so_orrr_rd
   mnemonic: rem.so
   notes: 'legality rem.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1251,10 +1251,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.ut
+  insn: add.ut_orrr_rd
   mnemonic: add.ut
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1274,10 +1274,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: add.ut
+  insn: add.ut_orrr_rd
   mnemonic: add.ut
   notes: 'add.ut: rd2=0x32, rd3=0x1e, bits=32'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1297,10 +1297,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000080'
-  insn: add.ut
+  insn: add.ut_orrr_rd
   mnemonic: add.ut
   notes: 'boundary add.ut: rd2=0x80, rd3=0x80'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1311,10 +1311,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.ut
+  insn: add.ut_orrr_rd
   mnemonic: add.ut
   notes: 'legality add.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1325,10 +1325,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.st
+  insn: add.st_orrr_rd
   mnemonic: add.st
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1348,10 +1348,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: add.st
+  insn: add.st_orrr_rd
   mnemonic: add.st
   notes: 'add.st: rd2=0x32, rd3=0x1e, bits=32'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1371,10 +1371,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000040'
       rd3: '0x0000000000000040'
-  insn: add.st
+  insn: add.st_orrr_rd
   mnemonic: add.st
   notes: 'boundary add.st: rd2=0x40, rd3=0x40'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1385,10 +1385,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.st
+  insn: add.st_orrr_rd
   mnemonic: add.st
   notes: 'legality add.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1399,10 +1399,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.ut
+  insn: sub.ut_orrr_rd
   mnemonic: sub.ut
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1422,10 +1422,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: sub.ut
+  insn: sub.ut_orrr_rd
   mnemonic: sub.ut
   notes: 'sub.ut: rd2=0x32, rd3=0x1e, bits=32'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1445,10 +1445,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000080'
-  insn: sub.ut
+  insn: sub.ut_orrr_rd
   mnemonic: sub.ut
   notes: 'boundary sub.ut: rd2=0x80, rd3=0x80'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1459,10 +1459,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.ut
+  insn: sub.ut_orrr_rd
   mnemonic: sub.ut
   notes: 'legality sub.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1473,10 +1473,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.st
+  insn: sub.st_orrr_rd
   mnemonic: sub.st
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1496,10 +1496,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: sub.st
+  insn: sub.st_orrr_rd
   mnemonic: sub.st
   notes: 'sub.st: rd2=0x32, rd3=0x1e, bits=32'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1519,10 +1519,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000040'
       rd3: '0x0000000000000040'
-  insn: sub.st
+  insn: sub.st_orrr_rd
   mnemonic: sub.st
   notes: 'boundary sub.st: rd2=0x40, rd3=0x40'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-08 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1533,10 +1533,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.st
+  insn: sub.st_orrr_rd
   mnemonic: sub.st
   notes: 'legality sub.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1547,10 +1547,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.ut
+  insn: mul.ut_orrr_rd
   mnemonic: mul.ut
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1570,10 +1570,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: mul.ut
+  insn: mul.ut_orrr_rd
   mnemonic: mul.ut
   notes: 'mul.ut: rd2=0x32, rd3=0x1e, bits=32'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1593,10 +1593,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000080'
-  insn: mul.ut
+  insn: mul.ut_orrr_rd
   mnemonic: mul.ut
   notes: 'boundary mul.ut: rd2=0x80, rd3=0x80'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1607,10 +1607,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.ut
+  insn: mul.ut_orrr_rd
   mnemonic: mul.ut
   notes: 'legality mul.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1621,10 +1621,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.st
+  insn: mul.st_orrr_rd
   mnemonic: mul.st
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1644,10 +1644,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: mul.st
+  insn: mul.st_orrr_rd
   mnemonic: mul.st
   notes: 'mul.st: rd2=0x32, rd3=0x1e, bits=32'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1667,10 +1667,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000040'
       rd3: '0x0000000000000040'
-  insn: mul.st
+  insn: mul.st_orrr_rd
   mnemonic: mul.st
   notes: 'boundary mul.st: rd2=0x40, rd3=0x40'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1681,10 +1681,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.st
+  insn: mul.st_orrr_rd
   mnemonic: mul.st
   notes: 'legality mul.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1697,10 +1697,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: div.ut
+  insn: div.ut_orrr_rd
   mnemonic: div.ut
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1720,10 +1720,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.ut
+  insn: div.ut_orrr_rd
   mnemonic: div.ut
   notes: 'div.ut: rd2=0x64, rd3=0x7, bits=32'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1743,10 +1743,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.ut
+  insn: div.ut_orrr_rd
   mnemonic: div.ut
   notes: 'boundary div.ut: rd2=0x64, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1757,10 +1757,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: div.ut
+  insn: div.ut_orrr_rd
   mnemonic: div.ut
   notes: 'legality div.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1773,10 +1773,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: div.st
+  insn: div.st_orrr_rd
   mnemonic: div.st
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1796,10 +1796,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.st
+  insn: div.st_orrr_rd
   mnemonic: div.st
   notes: 'div.st: rd2=0x64, rd3=0x7, bits=32'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1819,10 +1819,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000007'
-  insn: div.st
+  insn: div.st_orrr_rd
   mnemonic: div.st
   notes: 'boundary div.st: rd2=0x80, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1833,10 +1833,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: div.st
+  insn: div.st_orrr_rd
   mnemonic: div.st
   notes: 'legality div.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1849,10 +1849,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: rem.ut
+  insn: rem.ut_orrr_rd
   mnemonic: rem.ut
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1872,10 +1872,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.ut
+  insn: rem.ut_orrr_rd
   mnemonic: rem.ut
   notes: 'rem.ut: rd2=0x64, rd3=0x7, bits=32'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1895,10 +1895,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.ut
+  insn: rem.ut_orrr_rd
   mnemonic: rem.ut
   notes: 'boundary rem.ut: rd2=0x64, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1909,10 +1909,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: rem.ut
+  insn: rem.ut_orrr_rd
   mnemonic: rem.ut
   notes: 'legality rem.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1925,10 +1925,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: rem.st
+  insn: rem.st_orrr_rd
   mnemonic: rem.st
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -1948,10 +1948,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.st
+  insn: rem.st_orrr_rd
   mnemonic: rem.st
   notes: 'rem.st: rd2=0x64, rd3=0x7, bits=32'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -1971,10 +1971,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000007'
-  insn: rem.st
+  insn: rem.st_orrr_rd
   mnemonic: rem.st
   notes: 'boundary rem.st: rd2=0x80, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-08 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -1985,10 +1985,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: rem.st
+  insn: rem.st_orrr_rd
   mnemonic: rem.st
   notes: 'legality rem.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -1999,10 +1999,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.uw
+  insn: add.uw_orrr_rd
   mnemonic: add.uw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2022,10 +2022,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: add.uw
+  insn: add.uw_orrr_rd
   mnemonic: add.uw
   notes: 'add.uw: rd2=0x32, rd3=0x1e, bits=16'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2045,10 +2045,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000080'
-  insn: add.uw
+  insn: add.uw_orrr_rd
   mnemonic: add.uw
   notes: 'boundary add.uw: rd2=0x80, rd3=0x80'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2059,10 +2059,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.uw
+  insn: add.uw_orrr_rd
   mnemonic: add.uw
   notes: 'legality add.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2073,10 +2073,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.sw
+  insn: add.sw_orrr_rd
   mnemonic: add.sw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2096,10 +2096,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: add.sw
+  insn: add.sw_orrr_rd
   mnemonic: add.sw
   notes: 'add.sw: rd2=0x32, rd3=0x1e, bits=16'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2119,10 +2119,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000040'
       rd3: '0x0000000000000040'
-  insn: add.sw
+  insn: add.sw_orrr_rd
   mnemonic: add.sw
   notes: 'boundary add.sw: rd2=0x40, rd3=0x40'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2133,10 +2133,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.sw
+  insn: add.sw_orrr_rd
   mnemonic: add.sw
   notes: 'legality add.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2147,10 +2147,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.uw
+  insn: sub.uw_orrr_rd
   mnemonic: sub.uw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2170,10 +2170,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: sub.uw
+  insn: sub.uw_orrr_rd
   mnemonic: sub.uw
   notes: 'sub.uw: rd2=0x32, rd3=0x1e, bits=16'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2193,10 +2193,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000080'
-  insn: sub.uw
+  insn: sub.uw_orrr_rd
   mnemonic: sub.uw
   notes: 'boundary sub.uw: rd2=0x80, rd3=0x80'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2207,10 +2207,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.uw
+  insn: sub.uw_orrr_rd
   mnemonic: sub.uw
   notes: 'legality sub.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2221,10 +2221,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.sw
+  insn: sub.sw_orrr_rd
   mnemonic: sub.sw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2244,10 +2244,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: sub.sw
+  insn: sub.sw_orrr_rd
   mnemonic: sub.sw
   notes: 'sub.sw: rd2=0x32, rd3=0x1e, bits=16'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2267,10 +2267,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000040'
       rd3: '0x0000000000000040'
-  insn: sub.sw
+  insn: sub.sw_orrr_rd
   mnemonic: sub.sw
   notes: 'boundary sub.sw: rd2=0x40, rd3=0x40'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-09 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2281,10 +2281,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.sw
+  insn: sub.sw_orrr_rd
   mnemonic: sub.sw
   notes: 'legality sub.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2295,10 +2295,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.uw
+  insn: mul.uw_orrr_rd
   mnemonic: mul.uw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2318,10 +2318,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: mul.uw
+  insn: mul.uw_orrr_rd
   mnemonic: mul.uw
   notes: 'mul.uw: rd2=0x32, rd3=0x1e, bits=16'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2341,10 +2341,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000080'
-  insn: mul.uw
+  insn: mul.uw_orrr_rd
   mnemonic: mul.uw
   notes: 'boundary mul.uw: rd2=0x80, rd3=0x80'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2355,10 +2355,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.uw
+  insn: mul.uw_orrr_rd
   mnemonic: mul.uw
   notes: 'legality mul.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2369,10 +2369,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.sw
+  insn: mul.sw_orrr_rd
   mnemonic: mul.sw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2392,10 +2392,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: mul.sw
+  insn: mul.sw_orrr_rd
   mnemonic: mul.sw
   notes: 'mul.sw: rd2=0x32, rd3=0x1e, bits=16'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2415,10 +2415,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000040'
       rd3: '0x0000000000000040'
-  insn: mul.sw
+  insn: mul.sw_orrr_rd
   mnemonic: mul.sw
   notes: 'boundary mul.sw: rd2=0x40, rd3=0x40'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2429,10 +2429,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.sw
+  insn: mul.sw_orrr_rd
   mnemonic: mul.sw
   notes: 'legality mul.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2445,10 +2445,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: div.uw
+  insn: div.uw_orrr_rd
   mnemonic: div.uw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2468,10 +2468,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.uw
+  insn: div.uw_orrr_rd
   mnemonic: div.uw
   notes: 'div.uw: rd2=0x64, rd3=0x7, bits=16'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2491,10 +2491,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.uw
+  insn: div.uw_orrr_rd
   mnemonic: div.uw
   notes: 'boundary div.uw: rd2=0x64, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2505,10 +2505,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: div.uw
+  insn: div.uw_orrr_rd
   mnemonic: div.uw
   notes: 'legality div.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2521,10 +2521,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: div.sw
+  insn: div.sw_orrr_rd
   mnemonic: div.sw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2544,10 +2544,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.sw
+  insn: div.sw_orrr_rd
   mnemonic: div.sw
   notes: 'div.sw: rd2=0x64, rd3=0x7, bits=16'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2567,10 +2567,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000007'
-  insn: div.sw
+  insn: div.sw_orrr_rd
   mnemonic: div.sw
   notes: 'boundary div.sw: rd2=0x80, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2581,10 +2581,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: div.sw
+  insn: div.sw_orrr_rd
   mnemonic: div.sw
   notes: 'legality div.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2597,10 +2597,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: rem.uw
+  insn: rem.uw_orrr_rd
   mnemonic: rem.uw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2620,10 +2620,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.uw
+  insn: rem.uw_orrr_rd
   mnemonic: rem.uw
   notes: 'rem.uw: rd2=0x64, rd3=0x7, bits=16'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2643,10 +2643,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.uw
+  insn: rem.uw_orrr_rd
   mnemonic: rem.uw
   notes: 'boundary rem.uw: rd2=0x64, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2657,10 +2657,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: rem.uw
+  insn: rem.uw_orrr_rd
   mnemonic: rem.uw
   notes: 'legality rem.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2673,10 +2673,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: rem.sw
+  insn: rem.sw_orrr_rd
   mnemonic: rem.sw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2696,10 +2696,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.sw
+  insn: rem.sw_orrr_rd
   mnemonic: rem.sw
   notes: 'rem.sw: rd2=0x64, rd3=0x7, bits=16'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2719,10 +2719,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000007'
-  insn: rem.sw
+  insn: rem.sw_orrr_rd
   mnemonic: rem.sw
   notes: 'boundary rem.sw: rd2=0x80, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-09 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2733,10 +2733,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: rem.sw
+  insn: rem.sw_orrr_rd
   mnemonic: rem.sw
   notes: 'legality rem.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2747,10 +2747,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.ub
+  insn: add.ub_orrr_rd
   mnemonic: add.ub
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2770,10 +2770,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: add.ub
+  insn: add.ub_orrr_rd
   mnemonic: add.ub
   notes: 'add.ub: rd2=0x32, rd3=0x1e, bits=8'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2793,10 +2793,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000080'
-  insn: add.ub
+  insn: add.ub_orrr_rd
   mnemonic: add.ub
   notes: 'boundary add.ub: rd2=0x80, rd3=0x80'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2807,10 +2807,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.ub
+  insn: add.ub_orrr_rd
   mnemonic: add.ub
   notes: 'legality add.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2821,10 +2821,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.sb
+  insn: add.sb_orrr_rd
   mnemonic: add.sb
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2844,10 +2844,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: add.sb
+  insn: add.sb_orrr_rd
   mnemonic: add.sb
   notes: 'add.sb: rd2=0x32, rd3=0x1e, bits=8'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2867,10 +2867,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000040'
       rd3: '0x0000000000000040'
-  insn: add.sb
+  insn: add.sb_orrr_rd
   mnemonic: add.sb
   notes: 'boundary add.sb: rd2=0x40, rd3=0x40'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2881,10 +2881,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: add.sb
+  insn: add.sb_orrr_rd
   mnemonic: add.sb
   notes: 'legality add.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2895,10 +2895,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.ub
+  insn: sub.ub_orrr_rd
   mnemonic: sub.ub
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2918,10 +2918,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: sub.ub
+  insn: sub.ub_orrr_rd
   mnemonic: sub.ub
   notes: 'sub.ub: rd2=0x32, rd3=0x1e, bits=8'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -2941,10 +2941,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000080'
-  insn: sub.ub
+  insn: sub.ub_orrr_rd
   mnemonic: sub.ub
   notes: 'boundary sub.ub: rd2=0x80, rd3=0x80'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -2955,10 +2955,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.ub
+  insn: sub.ub_orrr_rd
   mnemonic: sub.ub
   notes: 'legality sub.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -2969,10 +2969,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.sb
+  insn: sub.sb_orrr_rd
   mnemonic: sub.sb
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -2992,10 +2992,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: sub.sb
+  insn: sub.sb_orrr_rd
   mnemonic: sub.sb
   notes: 'sub.sb: rd2=0x32, rd3=0x1e, bits=8'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -3015,10 +3015,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000040'
       rd3: '0x0000000000000040'
-  insn: sub.sb
+  insn: sub.sb_orrr_rd
   mnemonic: sub.sb
   notes: 'boundary sub.sb: rd2=0x40, rd3=0x40'
-  spec_cite: SimRISC-01 §加减操作
+  spec_cite: SimRISC-10 §加减操作
   status: active
 - class: legality
   deferred_reason: null
@@ -3029,10 +3029,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: sub.sb
+  insn: sub.sb_orrr_rd
   mnemonic: sub.sb
   notes: 'legality sub.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -3043,10 +3043,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.ub
+  insn: mul.ub_orrr_rd
   mnemonic: mul.ub
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -3066,10 +3066,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: mul.ub
+  insn: mul.ub_orrr_rd
   mnemonic: mul.ub
   notes: 'mul.ub: rd2=0x32, rd3=0x1e, bits=8'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -3089,10 +3089,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000080'
-  insn: mul.ub
+  insn: mul.ub_orrr_rd
   mnemonic: mul.ub
   notes: 'boundary mul.ub: rd2=0x80, rd3=0x80'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -3103,10 +3103,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.ub
+  insn: mul.ub_orrr_rd
   mnemonic: mul.ub
   notes: 'legality mul.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -3117,10 +3117,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.sb
+  insn: mul.sb_orrr_rd
   mnemonic: mul.sb
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -3140,10 +3140,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000032'
       rd3: '0x000000000000001E'
-  insn: mul.sb
+  insn: mul.sb_orrr_rd
   mnemonic: mul.sb
   notes: 'mul.sb: rd2=0x32, rd3=0x1e, bits=8'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -3163,10 +3163,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000040'
       rd3: '0x0000000000000040'
-  insn: mul.sb
+  insn: mul.sb_orrr_rd
   mnemonic: mul.sb
   notes: 'boundary mul.sb: rd2=0x40, rd3=0x40'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -3177,10 +3177,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: mul.sb
+  insn: mul.sb_orrr_rd
   mnemonic: mul.sb
   notes: 'legality mul.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -3193,10 +3193,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: div.ub
+  insn: div.ub_orrr_rd
   mnemonic: div.ub
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -3216,10 +3216,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.ub
+  insn: div.ub_orrr_rd
   mnemonic: div.ub
   notes: 'div.ub: rd2=0x64, rd3=0x7, bits=8'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -3239,10 +3239,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.ub
+  insn: div.ub_orrr_rd
   mnemonic: div.ub
   notes: 'boundary div.ub: rd2=0x64, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -3253,10 +3253,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: div.ub
+  insn: div.ub_orrr_rd
   mnemonic: div.ub
   notes: 'legality div.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -3269,10 +3269,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: div.sb
+  insn: div.sb_orrr_rd
   mnemonic: div.sb
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -3292,10 +3292,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: div.sb
+  insn: div.sb_orrr_rd
   mnemonic: div.sb
   notes: 'div.sb: rd2=0x64, rd3=0x7, bits=8'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -3315,10 +3315,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000007'
-  insn: div.sb
+  insn: div.sb_orrr_rd
   mnemonic: div.sb
   notes: 'boundary div.sb: rd2=0x80, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -3329,10 +3329,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: div.sb
+  insn: div.sb_orrr_rd
   mnemonic: div.sb
   notes: 'legality div.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -3345,10 +3345,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: rem.ub
+  insn: rem.ub_orrr_rd
   mnemonic: rem.ub
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -3368,10 +3368,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.ub
+  insn: rem.ub_orrr_rd
   mnemonic: rem.ub
   notes: 'rem.ub: rd2=0x64, rd3=0x7, bits=8'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -3391,10 +3391,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.ub
+  insn: rem.ub_orrr_rd
   mnemonic: rem.ub
   notes: 'boundary rem.ub: rd2=0x64, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -3405,10 +3405,10 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: rem.ub
+  insn: rem.ub_orrr_rd
   mnemonic: rem.ub
   notes: 'legality rem.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
   deferred_reason: null
@@ -3421,10 +3421,10 @@
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: rem.sb
+  insn: rem.sb_orrr_rd
   mnemonic: rem.sb
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: semantic
   deferred_reason: null
@@ -3444,10 +3444,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000064'
       rd3: '0x0000000000000007'
-  insn: rem.sb
+  insn: rem.sb_orrr_rd
   mnemonic: rem.sb
   notes: 'rem.sb: rd2=0x64, rd3=0x7, bits=8'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: boundary
   deferred_reason: null
@@ -3467,10 +3467,10 @@
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000080'
       rd3: '0x0000000000000007'
-  insn: rem.sb
+  insn: rem.sb_orrr_rd
   mnemonic: rem.sb
   notes: 'boundary rem.sb: rd2=0x80, rd3=0x7'
-  spec_cite: SimRISC-01 §乘除操作
+  spec_cite: SimRISC-10 §乘除操作
   status: active
 - class: legality
   deferred_reason: null
@@ -3481,8 +3481,8 @@
   expected_state: null
   format: orrr
   input_state: {}
-  insn: rem.sb
+  insn: rem.sb_orrr_rd
   mnemonic: rem.sb
   notes: 'legality rem.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
-  spec_cite: SimRISC-01 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active

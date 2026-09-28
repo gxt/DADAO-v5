@@ -14,10 +14,10 @@
   expected_state: null
   format: iiii
   input_state: {}
-  insn: call-iiii
+  insn: call_iiii_ra
   mnemonic: call
   notes: 'encoding: word matches opcodes.yaml mask/value, imms24=2 (non-zero, non-self-call)'
-  spec_cite: SimRISC-02 §函数调用; ADR-0004 D6.5
+  spec_cite: SimRISC-06 §函数调用; ADR-0004 D6.5
   status: active
 - class: semantic
   deferred_reason: null
@@ -30,12 +30,12 @@
       ra63: '0x0001FFFF00000004'
   format: iiii
   input_state: {}
-  insn: call-iiii
+  insn: call_iiii_ra
   mnemonic: call
   notes: 'semantic: rb0=0xFFFF00000000, imms24=2, Addr=rb0+(imms24<<2)=0xFFFF00000000+8=0xFFFF00000008; call pushes return
     address PC+4=0xFFFF00000004 into ra63, high 16=0x0001 (first push), low 48=return address; cold RA (ra0-ra63=0) per ADR-0004
     D2.1'
-  spec_cite: SimRISC-02 §函数调用; §5.6.1; ADR-0004 D2.1
+  spec_cite: SimRISC-06 §函数调用; §5.6.1; ADR-0004 D2.1
   status: active
 - class: semantic
   deferred_reason: null
@@ -50,11 +50,11 @@
   input_state:
     ra:
       ra63: '0x0001FFFF00000004'
-  insn: call-iiii
+  insn: call_iiii_ra
   mnemonic: call
   notes: 'semantic §5.6.1 case 2 (recursive): rb0=0xFFFF00000000, imms24=2, Addr=0xFFFF00000008; ra63 input high 16=0x0001
     (valid), low 48=0xFFFF00000004; PC+4=0xFFFF00000004 == ra63 low 48 → count +1: ra63 = 0x0002FFFF00000004'
-  spec_cite: SimRISC-02 §函数调用; §5.6.1; ADR-0004 D2.1
+  spec_cite: SimRISC-06 §函数调用; §5.6.1; ADR-0004 D2.1
   status: active
 - class: legality
   deferred_reason: null
@@ -129,11 +129,11 @@
       ra7: '0x0001000000000000'
       ra8: '0x0001000000000000'
       ra9: '0x0001000000000000'
-  insn: call-iiii
+  insn: call_iiii_ra
   mnemonic: call
   notes: 'legality RASOF: pre-set ra1-ra63 as valid (high 16=0x0001, low 48=0), ra0=0 (only RegRAS); call triggers shift-push,
     ra1 valid and ra0 low 48=0 → RASOF (0x8A), contract-isa §5.6.1'
-  spec_cite: SimRISC-02 §函数调用; §5.6.1; ADR-0004 D5.5
+  spec_cite: SimRISC-06 §函数调用; §5.6.1; ADR-0004 D5.5
   status: active
 - class: encoding
   deferred_reason: null
@@ -144,10 +144,10 @@
   expected_state: null
   format: rrii
   input_state: {}
-  insn: call-rrii
+  insn: call_rrii_ra
   mnemonic: call
   notes: 'encoding: word matches opcodes.yaml mask/value, rbha=rb0 (index 0), rdhb=rd0 (index 0), imms12=2'
-  spec_cite: SimRISC-02 §函数调用; ADR-0004 D6.5
+  spec_cite: SimRISC-06 §函数调用; ADR-0004 D6.5
   status: active
 - class: semantic
   deferred_reason: null
@@ -160,11 +160,11 @@
       ra63: '0x0001FFFF00000004'
   format: rrii
   input_state: {}
-  insn: call-rrii
+  insn: call_rrii_ra
   mnemonic: call
   notes: 'semantic: rb0=0xFFFF00000000, rd0=0, imms12=2, Addr=rb0+rd0+(imms12<<2)=0xFFFF00000000+0+8=0xFFFF00000008; call
     pushes return address PC+4=0xFFFF00000004 into ra63, high 16=0x0001, low 48=return address; cold RA per ADR-0004 D2.1'
-  spec_cite: SimRISC-02 §函数调用; §5.6.1; ADR-0004 D2.1
+  spec_cite: SimRISC-06 §函数调用; §5.6.1; ADR-0004 D2.1
   status: active
 - class: semantic
   deferred_reason: null
@@ -179,11 +179,11 @@
   input_state:
     ra:
       ra63: '0x0001FFFF00000004'
-  insn: call-rrii
+  insn: call_rrii_ra
   mnemonic: call
   notes: 'semantic §5.6.1 case 2 (recursive): rb0=0xFFFF00000000, rd0=0, imms12=2, Addr=0xFFFF00000008; ra63 input high 16=0x0001
     (valid), low 48=0xFFFF00000004; PC+4=0xFFFF00000004 == ra63 low 48 → count +1: ra63 = 0x0002FFFF00000004'
-  spec_cite: SimRISC-02 §函数调用; §5.6.1; ADR-0004 D2.1
+  spec_cite: SimRISC-06 §函数调用; §5.6.1; ADR-0004 D2.1
   status: active
 - class: semantic
   deferred_reason: null
@@ -199,12 +199,12 @@
   input_state:
     ra:
       ra63: '0x0001AAAA00000000'
-  insn: call-rrii
+  insn: call_rrii_ra
   mnemonic: call
   notes: 'semantic §5.6.1 case 3 (shift-push): rb0=0xFFFF00000000, rd0=0, imms12=2, Addr=0xFFFF00000008; ra63 input high 16=0x0001
     (valid), low 48=0xAAAA000000000000; PC+4=0xFFFF00000004 ≠ ra63 low 48 → shift-push: new addr into ra63, old ra63 into
     ra62'
-  spec_cite: SimRISC-02 §函数调用; §5.6.1; ADR-0004 D2.1
+  spec_cite: SimRISC-06 §函数调用; §5.6.1; ADR-0004 D2.1
   status: active
 - class: legality
   deferred_reason: null
@@ -217,8 +217,8 @@
   input_state:
     rb:
       rb3: '0x0000000000000000'
-  insn: call-rrii
+  insn: call_rrii_ra
   mnemonic: call
   notes: 'legality UNMAPPED: rbha=rb3=0, rdhb=rd0=0, imms12=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
-  spec_cite: SimRISC-02 §函数调用; ADR-0004 D5.6
+  spec_cite: SimRISC-06 §函数调用; ADR-0004 D5.6
   status: active

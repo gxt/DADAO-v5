@@ -13,7 +13,7 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `mnemonic` | string | 0.5.3 助记符（对应 `contracts/opcodes.yaml` 的 `mnemonic`） |
+| `mnemonic` | string | 0.5.4 助记符（对应 `contracts/opcodes.yaml` 的 `mnemonic`） |
 | `insn` | string | opcode 身份（对应 `contracts/opcodes.yaml` 的 `insn`；**单独不唯一**） |
 | `format` | string | 指令格式；与 `insn` 组成覆盖率主键 `(insn, format)`（唯一） |
 | `class` | string | 向量类别：`encoding` / `legality` / `semantic` / `boundary` / `overlap` |

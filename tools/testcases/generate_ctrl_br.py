@@ -29,7 +29,7 @@ with open(os.path.join(REPO, "contracts", "opcodes.yaml")) as f:
 BY_KEY = {}
 for r in ALL:
     if not r.get("excluded_m1"):
-        BY_KEY[(r["insn"], r["format"])] = r
+        BY_KEY[(r["id"], r["format"])] = r
 
 # ── Constants ─────────────────────────────────────────────────────────
 RB0 = 0xFFFF_0000_0000          # instruction address (ADR-0004 D2.2/D6.5)
@@ -50,8 +50,8 @@ TARGET_BOUNDARY_RIII = "0x%012X" % ((RB0 + (_imm18_s << 2)) & 0xFFFFFFFFFFFF)
 _imm12_s = IMM_BOUNDARY_RRII - (1 << 12) if IMM_BOUNDARY_RRII & (1 << 11) else IMM_BOUNDARY_RRII
 TARGET_BOUNDARY_RRII = "0x%012X" % ((RB0 + (_imm12_s << 2)) & 0xFFFFFFFFFFFF)
 
-SPEC_CITE_RD = "SimRISC-02 §条件跳转指令; ADR-0004 D6.5"
-SPEC_CITE_RB = "SimRISC-02 §条件跳转指令; ADR-0004 D6.5"
+SPEC_CITE_RD = "SimRISC-06 §条件跳转指令; ADR-0004 D6.5"
+SPEC_CITE_RB = "SimRISC-06 §条件跳转指令; ADR-0004 D6.5"
 
 # ── Encoding word builders ────────────────────────────────────────────
 def _build_word_riii(op, ha, imm18):
@@ -85,23 +85,23 @@ def _case(mnem, insn, fmt, cls, word, inp, out, fault=None,
     }
 
 # ── br.* identity definitions ─────────────────────────────────────────
-# (insn, mnemonic, format, op, is_rb)
+# (id, mnemonic, format, op, is_rb)
 # For riii: ha = rdha/rbha register number
 # For rrii: ha = rdha, hb = rdhb
 BR_IDENTITIES = [
     # riii single-register RD branches
-    ("br.n-rd",   "br.n",  "riii", 0x68, False),
-    ("br.nn-rd",  "br.nn", "riii", 0x69, False),
-    ("br.z-rd",   "br.z",  "riii", 0x6A, False),
-    ("br.nz-rd",  "br.nz", "riii", 0x6B, False),
-    ("br.p-rd",   "br.p",  "riii", 0x6C, False),
-    ("br.np-rd",  "br.np", "riii", 0x6D, False),
+    ("br.n_riii_rd",   "br.n",  "riii", 0x68, False),
+    ("br.nn_riii_rd",  "br.nn", "riii", 0x69, False),
+    ("br.z_riii_rd",   "br.z",  "riii", 0x6A, False),
+    ("br.nz_riii_rd",  "br.nz", "riii", 0x6B, False),
+    ("br.p_riii_rd",   "br.p",  "riii", 0x6C, False),
+    ("br.np_riii_rd",  "br.np", "riii", 0x6D, False),
     # rrii dual-register RD branches
-    ("br.eq-rd",  "br.eq", "rrii", 0x6E, False),
-    ("br.ne-rd",  "br.ne", "rrii", 0x6F, False),
+    ("br.eq_rrii_rd",  "br.eq", "rrii", 0x6E, False),
+    ("br.ne_rrii_rd",  "br.ne", "rrii", 0x6F, False),
     # riii single-register RB branches
-    ("br.z-rb",   "br.z",  "riii", 0x72, True),
-    ("br.nz-rb",  "br.nz", "riii", 0x73, True),
+    ("br.z_riii_rb",   "br.z",  "riii", 0x72, True),
+    ("br.nz_riii_rb",  "br.nz", "riii", 0x73, True),
 ]
 
 # ── Condition semantics for taken/not-taken ────────────────────────────
@@ -126,37 +126,37 @@ def _gen_riii_rd(identity, mnem, op):
     sc = SPEC_CITE_RD
 
     # Determine which rdha value gives taken vs not-taken
-    if identity == "br.n-rd":
+    if identity == "br.n_riii_rd":
         # taken: rdha < 0 → use rd1 = -1; not-taken: rdha >= 0 → use rd0 (= 0)
         taken_reg, taken_val = 1, 0xFFFFFFFFFFFFFFFF
         not_taken_reg, not_taken_val = 1, 0x0000000000000001  # positive
         taken_note = "rd1 = -1 (< 0) → condition TRUE, branch taken"
         not_taken_note = "rd1 = 1 (>= 0) → condition FALSE, branch not taken"
-    elif identity == "br.nn-rd":
+    elif identity == "br.nn_riii_rd":
         # taken: rdha >= 0 → use rd0 (= 0) or rd1 = 1; not-taken: rdha < 0 → rd1 = -1
         taken_reg, taken_val = 1, 0x0000000000000001  # positive
         not_taken_reg, not_taken_val = 1, 0xFFFFFFFFFFFFFFFF  # -1
         taken_note = "rd1 = 1 (>= 0) → condition TRUE, branch taken"
         not_taken_note = "rd1 = -1 (< 0) → condition FALSE, branch not taken"
-    elif identity == "br.z-rd":
+    elif identity == "br.z_riii_rd":
         # taken: rdha == 0 → use rd0 (= 0, hardwired); not-taken: rdha != 0 → rd1 = 1
         taken_reg, taken_val = 0, None  # rd0 is hardwired, no preset needed
         not_taken_reg, not_taken_val = 1, 0x0000000000000001
         taken_note = "rd0 = 0 (hardwired) → condition TRUE, branch taken (always-taken with rd0)"
         not_taken_note = "rd1 = 1 (!= 0) → condition FALSE, branch not taken"
-    elif identity == "br.nz-rd":
+    elif identity == "br.nz_riii_rd":
         # taken: rdha != 0 → rd1 = 1; not-taken: rdha == 0 → rd0 (= 0, hardwired)
         taken_reg, taken_val = 1, 0x0000000000000001
         not_taken_reg, not_taken_val = 0, None  # rd0 hardwired
         taken_note = "rd1 = 1 (!= 0) → condition TRUE, branch taken"
         not_taken_note = "rd0 = 0 (hardwired) → condition FALSE, branch not taken (always-not-taken with rd0)"
-    elif identity == "br.p-rd":
+    elif identity == "br.p_riii_rd":
         # taken: rdha > 0 → rd1 = 1; not-taken: rdha <= 0 → rd0 (= 0)
         taken_reg, taken_val = 1, 0x0000000000000001
         not_taken_reg, not_taken_val = 0, None  # rd0 = 0, not > 0
         taken_note = "rd1 = 1 (> 0) → condition TRUE, branch taken"
         not_taken_note = "rd0 = 0 (hardwired, not > 0) → condition FALSE, branch not taken"
-    elif identity == "br.np-rd":
+    elif identity == "br.np_riii_rd":
         # taken: rdha <= 0 → rd0 (= 0); not-taken: rdha > 0 → rd1 = 1
         taken_reg, taken_val = 0, None  # rd0 = 0, <= 0 is true
         not_taken_reg, not_taken_val = 1, 0x0000000000000001
@@ -201,13 +201,13 @@ def _gen_riii_rb(identity, mnem, op):
     rec = BY_KEY[(identity, "riii")]
     sc = SPEC_CITE_RB
 
-    if identity == "br.z-rb":
+    if identity == "br.z_riii_rb":
         # taken: rbha == 0 → use rb3 = 0; not-taken: rbha != 0 → rb3 = 1
         taken_val = 0x0000000000000000
         not_taken_val = 0x0000000000000001
         taken_note = "rb3 = 0 → condition TRUE, branch taken"
         not_taken_note = "rb3 = 1 (!= 0) → condition FALSE, branch not taken"
-    elif identity == "br.nz-rb":
+    elif identity == "br.nz_riii_rb":
         # taken: rbha != 0 → rb3 = 1; not-taken: rbha == 0 → rb3 = 0
         taken_val = 0x0000000000000001
         not_taken_val = 0x0000000000000000
@@ -250,7 +250,7 @@ def _gen_rrii(identity, mnem, op):
     rec = BY_KEY[(identity, "rrii")]
     sc = SPEC_CITE_RD
 
-    if identity == "br.eq-rd":
+    if identity == "br.eq_rrii_rd":
         # taken: rdha == rdhb → rd1 == rd1; not-taken: rd1 != rd2
         taken_ha, taken_hb = 1, 1
         not_taken_ha, not_taken_hb = 1, 2
@@ -258,7 +258,7 @@ def _gen_rrii(identity, mnem, op):
         not_taken_inp = {"rd": {"rd1": "0x0000000000000042", "rd2": "0x0000000000000099"}}
         taken_note = "rd1 == rd1 (same register, always equal) → condition TRUE, branch taken"
         not_taken_note = "rd1=0x42 != rd2=0x99 → condition FALSE, branch not taken"
-    elif identity == "br.ne-rd":
+    elif identity == "br.ne_rrii_rd":
         # taken: rdha != rdhb → rd1 != rd2; not-taken: rd1 == rd1
         taken_ha, taken_hb = 1, 2
         not_taken_ha, not_taken_hb = 1, 1
@@ -297,14 +297,14 @@ def _gen_boundary_riii(identity, mnem, op, is_rb):
     """Generate boundary case for riii branch: target in unmapped address → UNMAPPED.
     Condition must be TRUE so the branch is TAKEN and reaches the unmapped target."""
     cases = []
-    sc = "SimRISC-02 §条件跳转指令; ADR-0004 D5"
+    sc = "SimRISC-06 §条件跳转指令; ADR-0004 D5"
     if is_rb:
         reg = 3
         word = _build_word_riii(op, reg, IMM_BOUNDARY_RIII)
-        if identity == "br.z-rb":
+        if identity == "br.z_riii_rb":
             inp = {"rb": {"rb3": "0x0000000000000000"}}  # rb3=0 → br.z TRUE
             reg_label = "rb3=0(==0)"
-        else:  # br.nz-rb
+        else:  # br.nz_riii_rb
             inp = {"rb": {"rb3": "0x0000000000000001"}}  # rb3=1 → br.nz TRUE
             reg_label = "rb3=1(!=0)"
     else:
@@ -312,15 +312,15 @@ def _gen_boundary_riii(identity, mnem, op, is_rb):
         #   br.n:  rdha=1, rd1=-1 (<0)    br.nn: rdha=0, rd0=0 (>=0)
         #   br.z:  rdha=0, rd0=0 (==0)    br.nz: rdha=1, rd1=1 (!=0)
         #   br.p:  rdha=1, rd1=1 (>0)     br.np: rdha=0, rd0=0 (<=0)
-        if identity == "br.n-rd":
+        if identity == "br.n_riii_rd":
             reg = 1
             inp = {"rd": {"rd1": "0xFFFFFFFFFFFFFFFF"}}
             reg_label = "rd1=-1(<0)"
-        elif identity in ("br.nn-rd", "br.z-rd", "br.np-rd"):
+        elif identity in ("br.nn_riii_rd", "br.z_riii_rd", "br.np_riii_rd"):
             reg = 0  # rdha=0 → uses rd0 (hardwired 0)
             inp = {}
             reg_label = "rd0=0(hardwired)"
-        elif identity in ("br.nz-rd", "br.p-rd"):
+        elif identity in ("br.nz_riii_rd", "br.p_riii_rd"):
             reg = 1
             inp = {"rd": {"rd1": "0x0000000000000001"}}
             reg_label = "rd1=1(>0/!=0)"
@@ -342,7 +342,7 @@ def _gen_boundary_riii(identity, mnem, op, is_rb):
 def _gen_boundary_rrii(identity, mnem, op):
     """Generate boundary case for rrii branch: target in unmapped address → UNMAPPED."""
     cases = []
-    sc = "SimRISC-02 §条件跳转指令; ADR-0004 D5"
+    sc = "SimRISC-06 §条件跳转指令; ADR-0004 D5"
     # br.eq/br.ne: rdha=1, rdhb=1 → br.eq taken (equal), br.ne not-taken
     # Use rdha=1, rdhb=1 → br.eq always taken, br.ne always not-taken
     # For boundary, we need taken → use rdha=1, rdhb=1 for br.eq; rdha=1, rdhb=2 for br.ne

@@ -26,7 +26,7 @@
   - orrr cmp.uo-rb / add.so-rb / sub.so-rb (§4.5.1/§4.6)
 
 跳过（nop 类，不产生期望状态）：
-  - swym-iiii、fence
+  - swym_oiii_imm、fence
 
 使用：
   python3 tools/testcases/009t-audit.py [--verbose]
@@ -87,7 +87,7 @@ def load_opcodes(path):
         records = _yaml.safe_load(fh)
     by_key = {}
     for rec in records:
-        key = (rec["insn"], rec["format"])
+        key = (rec["id"], rec["format"])
         by_key[key] = rec
     return records, by_key
 

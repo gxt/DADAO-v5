@@ -41,7 +41,7 @@ with open(os.path.join(REPO, "contracts", "opcodes.yaml")) as f:
     ALL = yaml.safe_load(f)
 
 M1 = [r for r in ALL if not r.get("excluded_m1")]
-BY_KEY = {(r["insn"], r["format"]): r for r in M1}
+BY_KEY = {(r["id"], r["format"]): r for r in M1}
 
 # ── Constants ─────────────────────────────────────────────────────────
 RAM_BASE = 0x0000FFFF00000000  # rb3 preset value
@@ -57,41 +57,41 @@ IMMU6   = 1   # multi count
 
 # ── Memory instruction identities (M1, excluded_m1 != true) ─────────
 MEM_INSNS = [
-    # (insn, mnemonic, format, op, bank, role_ha, align, is_multi)
+    # (id, mnemonic, format, op, bank, role_ha, align, is_multi)
     # ── RD bank, single load/store (rrii) ──
-    ("ld.ub-rd",  "ld.ub",  "rrii", 0x10, "rd", "dst", 0, False),
-    ("ld.uw-rd",  "ld.uw",  "rrii", 0x11, "rd", "dst", 2, False),
-    ("ld.ut-rd",  "ld.ut",  "rrii", 0x12, "rd", "dst", 4, False),
-    ("ld.sb-rd",  "ld.sb",  "rrii", 0x13, "rd", "dst", 0, False),
-    ("ld.sw-rd",  "ld.sw",  "rrii", 0x14, "rd", "dst", 2, False),
-    ("ld.st-rd",  "ld.st",  "rrii", 0x15, "rd", "dst", 4, False),
-    ("st.b-rd",   "st.b",   "rrii", 0x18, "rd", "src", 0, False),
-    ("st.w-rd",   "st.w",   "rrii", 0x19, "rd", "src", 2, False),
-    ("st.t-rd",   "st.t",   "rrii", 0x1A, "rd", "src", 4, False),
-    ("ld.o-rd",   "ld.o",   "rrii", 0x20, "rd", "dst", 8, False),
-    ("st.o-rd",   "st.o",   "rrii", 0x21, "rd", "src", 8, False),
+    ("ld.ub_rrii_rd",  "ld.ub",  "rrii", 0x10, "rd", "dst", 0, False),
+    ("ld.uw_rrii_rd",  "ld.uw",  "rrii", 0x11, "rd", "dst", 2, False),
+    ("ld.ut_rrii_rd",  "ld.ut",  "rrii", 0x12, "rd", "dst", 4, False),
+    ("ld.sb_rrii_rd",  "ld.sb",  "rrii", 0x13, "rd", "dst", 0, False),
+    ("ld.sw_rrii_rd",  "ld.sw",  "rrii", 0x14, "rd", "dst", 2, False),
+    ("ld.st_rrii_rd",  "ld.st",  "rrii", 0x15, "rd", "dst", 4, False),
+    ("st.b_rrii_rd",   "st.b",   "rrii", 0x18, "rd", "src", 0, False),
+    ("st.w_rrii_rd",   "st.w",   "rrii", 0x19, "rd", "src", 2, False),
+    ("st.t_rrii_rd",   "st.t",   "rrii", 0x1A, "rd", "src", 4, False),
+    ("ld.o_rrii_rd",   "ld.o",   "rrii", 0x20, "rd", "dst", 8, False),
+    ("st.o_rrii_rd",   "st.o",   "rrii", 0x21, "rd", "src", 8, False),
     # ── RD bank, multi load/store (rrri) ──
-    ("ldm.ub-rd", "ldm.ub", "rrri", 0x28, "rd", "dst", 0, True),
-    ("ldm.uw-rd", "ldm.uw", "rrri", 0x29, "rd", "dst", 2, True),
-    ("ldm.ut-rd", "ldm.ut", "rrri", 0x2A, "rd", "dst", 4, True),
-    ("ldm.sb-rd", "ldm.sb", "rrri", 0x2B, "rd", "dst", 0, True),
-    ("ldm.sw-rd", "ldm.sw", "rrri", 0x2C, "rd", "dst", 2, True),
-    ("ldm.st-rd", "ldm.st", "rrri", 0x2D, "rd", "dst", 4, True),
-    ("stm.b-rd",  "stm.b",  "rrri", 0x30, "rd", "src", 0, True),
-    ("stm.w-rd",  "stm.w",  "rrri", 0x31, "rd", "src", 2, True),
-    ("stm.t-rd",  "stm.t",  "rrri", 0x32, "rd", "src", 4, True),
-    ("ldm.o-rd",  "ldm.o",  "rrri", 0x38, "rd", "dst", 8, True),
-    ("stm.o-rd",  "stm.o",  "rrri", 0x39, "rd", "src", 8, True),
+    ("ldm.ub_rrri_rd", "ldm.ub", "rrri", 0x28, "rd", "dst", 0, True),
+    ("ldm.uw_rrri_rd", "ldm.uw", "rrri", 0x29, "rd", "dst", 2, True),
+    ("ldm.ut_rrri_rd", "ldm.ut", "rrri", 0x2A, "rd", "dst", 4, True),
+    ("ldm.sb_rrri_rd", "ldm.sb", "rrri", 0x2B, "rd", "dst", 0, True),
+    ("ldm.sw_rrri_rd", "ldm.sw", "rrri", 0x2C, "rd", "dst", 2, True),
+    ("ldm.st_rrri_rd", "ldm.st", "rrri", 0x2D, "rd", "dst", 4, True),
+    ("stm.b_rrri_rd",  "stm.b",  "rrri", 0x30, "rd", "src", 0, True),
+    ("stm.w_rrri_rd",  "stm.w",  "rrri", 0x31, "rd", "src", 2, True),
+    ("stm.t_rrri_rd",  "stm.t",  "rrri", 0x32, "rd", "src", 4, True),
+    ("ldm.o_rrri_rd",  "ldm.o",  "rrri", 0x38, "rd", "dst", 8, True),
+    ("stm.o_rrri_rd",  "stm.o",  "rrri", 0x39, "rd", "src", 8, True),
     # ── RB bank ──
-    ("ld.o-rb",   "ld.o",   "rrii", 0x22, "rb", "dst", 8, False),
-    ("st.o-rb",   "st.o",   "rrii", 0x23, "rb", "src", 8, False),
-    ("ldm.o-rb",  "ldm.o",  "rrri", 0x3A, "rb", "dst", 8, True),
-    ("stm.o-rb",  "stm.o",  "rrri", 0x3B, "rb", "src", 8, True),
+    ("ld.o_rrii_rb",   "ld.o",   "rrii", 0x22, "rb", "dst", 8, False),
+    ("st.o_rrii_rb",   "st.o",   "rrii", 0x23, "rb", "src", 8, False),
+    ("ldm.o_rrri_rb",  "ldm.o",  "rrri", 0x3A, "rb", "dst", 8, True),
+    ("stm.o_rrri_rb",  "stm.o",  "rrri", 0x3B, "rb", "src", 8, True),
     # ── RA bank ──
-    ("ld.o-ra",   "ld.o",   "rrii", 0x24, "ra", "dst", 8, False),
-    ("st.o-ra",   "st.o",   "rrii", 0x25, "ra", "src", 8, False),
-    ("ldm.o-ra",  "ldm.o",  "rrri", 0x3C, "ra", "dst", 8, True),
-    ("stm.o-ra",  "stm.o",  "rrri", 0x3D, "ra", "src", 8, True),
+    ("ld.o_rrii_ra",   "ld.o",   "rrii", 0x24, "ra", "dst", 8, False),
+    ("st.o_rrii_ra",   "st.o",   "rrii", 0x25, "ra", "src", 8, False),
+    ("ldm.o_rrri_ra",  "ldm.o",  "rrri", 0x3C, "ra", "dst", 8, True),
+    ("stm.o_rrri_ra",  "stm.o",  "rrri", 0x3D, "ra", "src", 8, True),
 ]
 
 # ── Encoding word construction ───────────────────────────────────────
