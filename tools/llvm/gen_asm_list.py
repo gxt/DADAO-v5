@@ -35,6 +35,19 @@ OPCODES = ROOT / "contracts/opcodes.yaml"
 OPERAND_ROLES = {"dst", "src", "imm", "wyde_pos", "cfxcode", "cfx_cg", "cfx_rc"}
 SPLIT_SUFFIX = re.compile(r"^(imms?\d+|immu?\d+)_(?:hi|mid|lo|b\d+_\d+)$")
 
+# 双目的指令（rrrr 格式，rdha/rdhb 均为 dst 的双目标寄存器指令）
+_DUAL_TARGET_MNEMONICS = frozenset({"add.uo", "add.so", "sub.uo", "sub.so", "mul.uo", "mul.so"})
+
+# 多寄存器指令（orri 格式，immu6 = 连续寄存器个数，源和目的都用组记法）
+_MULTI_REG_MNEMONICS = frozenset({
+    # 寄存器复制（8 条）
+    "ra2rd", "rb2rb", "rb2rd", "rd2ra", "rd2rb", "rd2rd", "rd2rf", "rf2rd",
+    # 浮点格式转换（20 条）
+    "ft2fo", "fo2ft", "ft2ft", "fo2fo", "ft2it", "ft2io", "ft2ut", "ft2uo",
+    "fo2it", "fo2io", "fo2ut", "fo2uo", "it2ft", "io2ft", "ut2ft", "uo2ft",
+    "it2fo", "io2fo", "ut2fo", "uo2fo",
+})
+
 # Immediate width/signedness from the field base name (e.g. imms18 -> s18).
 IMM_RE = re.compile(r"^imm([us]?)(\d+)$")
 
@@ -77,7 +90,7 @@ def operands(entry: dict) -> list[dict]:
             kind = "reg"
         if out and out[-1]["kind"] == kind == "imm":
             continue
-        out.append({"kind": kind, "bank": bank, "name": base})
+        out.append({"kind": kind, "bank": bank, "name": base, "role": field.get("role")})
     return out
 
 
@@ -204,6 +217,26 @@ def example_line(entry: dict, ops: list[dict], attempt: int) -> str:
         else:
             pool = EXAMPLES.get(op["bank"], ["rd8"])
             parts.append(pool[(attempt + len(parts)) % len(pool)])
+    # 双目的指令（rrrr 格式，rdha/rdhb 均为 dst）：{rd8, rd9}, rd10, rd11
+    if entry["format"] == "rrrr" and entry["mnemonic"] in _DUAL_TARGET_MNEMONICS:
+        dst_rds = [op for op in ops if op.get("role") == "dst" and op.get("bank") == "rd"]
+        srcs = [op for op in ops if op.get("role") == "src"]
+        if len(dst_rds) >= 2 and len(srcs) >= 2:
+            inner = ", ".join(EXAMPLES["rd"][(attempt + i) % len(EXAMPLES["rd"])] for i in range(2))
+            rest = ", ".join(EXAMPLES["rd"][(attempt + i + 2) % len(EXAMPLES["rd"])] for i in range(2))
+            return f"{entry['mnemonic']} {{{inner}}}, {rest}"
+    # 多寄存器指令（orri 格式，immu6 = 连续寄存器个数）—— 源和目的都用组记法
+    if entry["format"] == "orri" and entry["mnemonic"] in _MULTI_REG_MNEMONICS:
+        reg_ops = [op for op in ops if op["kind"] == "reg"]
+        if len(reg_ops) >= 2:
+            dst_op, src_op = reg_ops[0], reg_ops[1]
+            dst_pool = EXAMPLES.get(dst_op.get("bank") or "rd", ["rd8"])
+            src_pool = EXAMPLES.get(src_op.get("bank") or "rd", ["rd8"])
+            dst_start = dst_pool[(attempt) % len(dst_pool)]
+            src_start = src_pool[(attempt + 1) % len(src_pool)]
+            dst_group = _range(dst_start, 3)
+            src_group = _range(src_start, 3)
+            return f"{entry['mnemonic']} {dst_group}, {src_group}"
     if not parts:
         return entry["mnemonic"]
     return f"{entry['mnemonic']} " + ", ".join(parts)
@@ -271,6 +304,23 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
             group = _range(dst, 3)
         return f"{mnemonic} {group}, [{R(ops[1], 1)}, {R(ops[2], 2)}]"
 
+    # 多寄存器指令（orri 格式，immu6 = 连续寄存器个数）—— 源和目的都用组记法
+    if fmt == "orri" and mnemonic in _MULTI_REG_MNEMONICS:
+        reg_ops = [op for op in ops if op["kind"] == "reg"]
+        if len(reg_ops) >= 2:
+            dst_op, src_op = reg_ops[0], reg_ops[1]
+            if field:
+                # 字段名渲染：{dstHB:dstHB+immu6-1}, {srcHC:srcHC+immu6-1}
+                dst_start = field_name(dst_op["name"])
+                src_start = field_name(src_op["name"])
+                dst_group = f"{{{dst_start}:{dst_start}+immu6-1}}"
+                src_group = f"{{{src_start}:{src_start}+immu6-1}}"
+            else:
+                # 示例渲染：{rd8:rd10}, {ra1:ra3}（count=3）
+                dst_group = _range(R(dst_op, 0), 3)
+                src_group = _range(R(src_op, 1), 3)
+            return f"{mnemonic} {dst_group}, {src_group}"
+
     # ld.*/st.*（rrii）—— 目的 + 地址
     if fmt == "rrii" and mnemonic.startswith(("ld.", "st.")):
         return f"{mnemonic} {R(ops[0])}, [{R(ops[1], 1)}, imms12]"
@@ -299,6 +349,19 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
         return f"{mnemonic} {R(ops[0])}, wpN, immu16"
     if mnemonic in ("swym", "illi", "fence"):
         return f"{mnemonic} {field_name(imm_ops[0]['name']) if (field and imm_ops) else '0'}"
+    # 双目的指令（rrrr 格式，rdha/rdhb 均为 dst）：{rdHA, rdHB}, rdHC, rdHD
+    if fmt == "rrrr" and mnemonic in _DUAL_TARGET_MNEMONICS:
+        dst_rds = [op for op in ops if op.get("role") == "dst" and op.get("bank") == "rd"]
+        srcs = [op for op in ops if op.get("role") == "src"]
+        if len(dst_rds) >= 2 and len(srcs) >= 2:
+            if field:
+                inner = ", ".join(field_name(op["name"]) for op in dst_rds[:2])
+                rest = ", ".join(field_name(op["name"]) for op in srcs[:2])
+            else:
+                inner = ", ".join(R(op, i) for i, op in enumerate(dst_rds[:2]))
+                rest = ", ".join(R(op, i + 2) for i, op in enumerate(srcs[:2]))
+            return f"{mnemonic} {{{inner}}}, {rest}"
+
     if field:
         # 默认：按原顺序渲染（寄存器用字段名、立即数用字段名）
         tokens = [
@@ -310,7 +373,11 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
 
 
 def new_template(entry: dict, ops: list[dict]) -> str:
-    """Generic (placeholder) form in the new syntax, for the table column."""
+    """Generic (placeholder) form in the new syntax, for the table column.
+
+    .. deprecated::
+        Dead code — no call sites remain.  Will be removed in a future cleanup.
+    """
     mnemonic = entry["mnemonic"]
     fmt = entry["format"]
     if mnemonic.startswith("br."):
