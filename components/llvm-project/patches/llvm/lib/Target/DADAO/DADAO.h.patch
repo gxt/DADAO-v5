@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
 new file mode 100644
-index 000000000..ab28c18da
+index 000000000000..2397a2a0eba0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.h
-@@ -0,0 +1,29 @@
+@@ -0,0 +1,55 @@
 +//===-- DADAO.h - Top-level interface for DADAO representation --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -20,6 +20,8 @@ index 000000000..ab28c18da
 +#ifndef LLVM_LIB_TARGET_DADAO_DADAO_H
 +#define LLVM_LIB_TARGET_DADAO_DADAO_H
 +
++#include <cstdint>
++
 +namespace llvm {
 +
 +class FunctionPass;
@@ -30,6 +32,30 @@ index 000000000..ab28c18da
 +
 +void initializeDADAOISelDAGLegacyPass(PassRegistry &);
 +
++} // namespace llvm
++
++//===----------------------------------------------------------------------===//
++// DADAO instruction format kinds.
++// Encoded in TSFlags bits [3:0] of each instruction definition.
++// Used by printer and disassembler to select the correct output syntax.
++//===----------------------------------------------------------------------===//
++
++namespace llvm {
++namespace DADAO {
++
++enum FormatKind : uint8_t {
++  FK_rrrr = 0,  // four registers: add.uo, cs.n, cs.eq, ...
++  FK_rrri = 1,  // three regs + imm6: ldm.*, stm.*
++  FK_rrii = 2,  // two regs + imm12: ld.*, st.*, br.eq, br.ne, jump-rrii
++  FK_riii = 3,  // one reg + imm18: add.si, br.*, ret
++  FK_iiii = 4,  // imm24 only: jump-iiii, call-iiii, swym
++  FK_rwii = 5,  // reg + wydepos + imm16: set.zw, or.w, ...
++  FK_orrr = 6,  // minor-op + three regs: and.o, or.o, ...
++  FK_orri = 7,  // minor-op + two regs + imm6: ext.*, shr.*, ra2rd, ...
++  FK_oiii = 8,  // minor-op + imm18: illi, fence
++};
++
++} // namespace DADAO
 +} // namespace llvm
 +
 +#endif // LLVM_LIB_TARGET_DADAO_DADAO_H

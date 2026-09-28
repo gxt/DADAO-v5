@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000..2257c9e05
+index 000000000000..9d471d5e0c71
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,386 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -11,7 +11,14 @@ index 000000000..2257c9e05
 +// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 +//
 +//===----------------------------------------------------------------------===//
++//
++// Prints MCInst → assembly text using the new syntax:
++//   Register groups: {rd8:rd10}, {rd8, rd9}, {rd8, rd0}?
++//   Address expressions: [rb2, 1], [rb0, 2i]
++//
++//===----------------------------------------------------------------------===//
 +
++#include "DADAO.h"
 +#include "MCTargetDesc/DADAOMCTargetDesc.h"
 +#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +#include "llvm/MC/MCExpr.h"
@@ -22,6 +29,7 @@ index 000000000..2257c9e05
 +#include "llvm/Support/raw_ostream.h"
 +
 +using namespace llvm;
++using namespace llvm::DADAO;
 +
 +#define GET_INSTRINFO_ENUM
 +#include "DADAOGenInstrInfo.inc"
@@ -47,17 +55,316 @@ index 000000000..2257c9e05
 +  void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &O);
 +  const char *getRegisterName(MCRegister Reg);
 +  std::pair<const char *, uint64_t> getMnemonic(const MCInst &MI) const;
++
++private:
++  void printNewSyntax(const MCInst *MI, uint64_t Address, raw_ostream &O);
++  void printRegGroupRange(raw_ostream &O, MCRegister Start, unsigned Count);
 +};
 +
 +} // end anonymous namespace
 +
-+// Include auto-generated printInstruction, getMnemonic, getRegisterName.
 +#include "DADAOGenAsmWriter.inc"
++
++//===----------------------------------------------------------------------===//
++// printInst — main entry point. Dispatches to new-syntax printer.
++//===----------------------------------------------------------------------===//
 +
 +void DADAOInstPrinter::printInst(const MCInst *MI, uint64_t Address,
 +                                  StringRef Annot, const MCSubtargetInfo &STI,
 +                                  raw_ostream &O) {
-+  printInstruction(MI, Address, O);
++  printNewSyntax(MI, Address, O);
++}
++
++//===----------------------------------------------------------------------===//
++// Helpers for register group range notation.
++//===----------------------------------------------------------------------===//
++
++void DADAOInstPrinter::printRegGroupRange(raw_ostream &O, MCRegister Start,
++                                           unsigned Count) {
++  O << "{";
++  printRegName(O, Start);
++  if (Count > 1) {
++    O << ":";
++    printRegName(O, MCRegister(Start.id() + Count - 1));
++  }
++  O << "}";
++}
++
++//===----------------------------------------------------------------------===//
++// printNewSyntax — format-aware assembly output.
++//
++// Reads the FormatKind from TSFlags bits [3:0] and prints accordingly.
++//
++// FormatKind values (DADAO.h):
++//   FK_rrrr=0, FK_rrri=1, FK_rrii=2, FK_riii=3, FK_iiii=4,
++//   FK_rwii=5, FK_orrr=6, FK_orri=7, FK_oiii=8
++//===----------------------------------------------------------------------===//
++
++void DADAOInstPrinter::printNewSyntax(const MCInst *MI, uint64_t Address, raw_ostream &O) {
++  const MCInstrDesc &Desc = MII.get(MI->getOpcode());
++  unsigned FK = Desc.TSFlags & 0xF;
++
++  // Print mnemonic from auto-generated getMnemonic.
++  auto [MnemPtr, _] = getMnemonic(*MI);
++  StringRef Mnem(MnemPtr);
++  Mnem = Mnem.trim();  // strip trailing \t from auto-generated mnemonic
++  O << Mnem;
++
++  // Determine operand counts from OutOperandList + InOperandList.
++  unsigned NumOps = MI->getNumOperands();
++  unsigned NumDefs = Desc.getNumDefs();
++
++  switch (FK) {
++  case FK_rrrr: {
++    // rrrr: check if dual-purpose (2 defs) or conditional (1 def + ra is cond).
++    if (NumDefs == 2) {
++      // Dual-purpose: add.uo {rd8, rd9}, rd10, rd11
++      O << " {";
++      printRegName(O, MI->getOperand(0).getReg());
++      O << ", ";
++      printRegName(O, MI->getOperand(1).getReg());
++      O << "}";
++      for (unsigned I = 2; I < NumOps; ++I) {
++        O << ", ";
++        printOperand(MI, I, O);
++      }
++    } else if (NumDefs == 1 && NumOps >= 3) {
++      // Conditional: check if cs.eq/cs.ne (2 condition regs) or cs.n/z/p (1).
++      // cs.eq/cs.ne: OutOperandList = (outs GPRD:$rc), InOperandList has ra,rb.
++      // cs.n/z/p:    OutOperandList = (outs GPRD:$rb), InOperandList has ra.
++      // Distinguish by checking if operand 0 (ra) and operand 1 (rb) are both
++      // in the InOperandList (i.e., defs count = 1 and first 2 ops are "input").
++      // For cs.eq/cs.ne: ra and rb are conditions, rc is output.
++      //   operand order: ra(cond), rb(cond), rc(out), rd(src)
++      //   But in MCInst, defs come first: rc(out), ra(cond), rb(cond), rd(src)
++      //   Wait no — OutOperandList = (outs GPRD:$rc) → 1 def = rc
++      //   InOperandList = (ins GPRD:$ra, GPRD:$rb, GPRD:$rd) → ra, rb, rd
++      //   MCInst order: rc(def), ra, rb, rd(ins)
++      // For cs.n: OutOperandList = (outs GPRD:$rb) → 1 def = rb
++      //   InOperandList = (ins GPRD:$ra, GPRD:$rc, GPRD:$rd) → ra, rc, rd
++      //   MCInst order: rb(def), ra, rc, rd(ins)
++      //
++      // To distinguish: for cs.eq/cs.ne, the OutOperandList has $rc (3rd position
++      // in AsmString order). The condition registers are $ra and $rb (1st, 2nd).
++      // In MCInst, the condition registers are operand 1 and 2 (after the def).
++      // For cs.n/z/p, condition is $ra (1st in AsmString), def is $rb (2nd).
++      // In MCInst, condition is operand 1, def is operand 0.
++      //
++      // Simple heuristic: if there are 4 operands and the first two non-def
++      // operands (indices 1 and 2) are NOT the same as the def (index 0),
++      // and the mnemonic is cs.eq/cs.ne → 2 condition registers.
++      // Actually, let's just check the mnemonic string.
++      StringRef MnemStr(Mnem);
++      if (MnemStr == "cs.eq" || MnemStr == "cs.ne") {
++        // Two condition registers: {ra, rb}?, rc, rd
++        // MCInst: operand 0 = rc(def), 1 = ra(cond), 2 = rb(cond), 3 = rd(src)
++        O << " {";
++        printRegName(O, MI->getOperand(1).getReg());
++        O << ", ";
++        printRegName(O, MI->getOperand(2).getReg());
++        O << "}?, ";
++        printRegName(O, MI->getOperand(0).getReg());
++        O << ", ";
++        printRegName(O, MI->getOperand(3).getReg());
++      } else if (MnemStr.starts_with("cs.")) {
++        // Single condition register: {ra}?, rb, rc, rd
++        // MCInst: operand 0 = rb(def), 1 = ra(cond), 2 = rc, 3 = rd
++        O << " {";
++        printRegName(O, MI->getOperand(1).getReg());
++        O << "}?, ";
++        printRegName(O, MI->getOperand(0).getReg());
++        for (unsigned I = 2; I < NumOps; ++I) {
++          O << ", ";
++          printRegName(O, MI->getOperand(I).getReg());
++        }
++      } else {
++        // Fallback: print as flat.
++        for (unsigned I = 0; I < NumOps; ++I) {
++          O << (I == 0 ? " " : ", ");
++          printOperand(MI, I, O);
++        }
++      }
++    } else {
++      // Fallback: print as flat.
++      for (unsigned I = 0; I < NumOps; ++I) {
++        O << (I == 0 ? " " : ", ");
++        printOperand(MI, I, O);
++      }
++    }
++    break;
++  }
++
++  case FK_rrri: {
++    // rrri: ldm/stm — {ra:start+count-1}, [rb, rc]
++    // MCInst: operand 0 = ra(def), 1 = rb, 2 = rc, 3 = imm6(count)
++    if (NumOps == 4) {
++      unsigned Count = MI->getOperand(3).getImm();
++      O << " ";
++      printRegGroupRange(O, MI->getOperand(0).getReg(), Count);
++      O << ", [";
++      printRegName(O, MI->getOperand(1).getReg());
++      O << ", ";
++      printRegName(O, MI->getOperand(2).getReg());
++      O << "]";
++    } else {
++      for (unsigned I = 0; I < NumOps; ++I) {
++        O << (I == 0 ? " " : ", ");
++        printOperand(MI, I, O);
++      }
++    }
++    break;
++  }
++
++  case FK_rrii: {
++    // rrii: ld.*, st.* — rd, [rb, imm]
++    //       br.eq, br.ne — {ra, rb}?, [rb0, immi]
++    //       jump/call rrii — [rb, rd, immi]
++    StringRef MnemStr(Mnem);
++    if (MnemStr.starts_with("br.")) {
++      // Branch: {ra, rb}?, [rb0, immi]
++      // MCInst: operand 0 = ra, 1 = rb, 2 = imm12
++      if (NumOps == 3) {
++        O << " {";
++        printRegName(O, MI->getOperand(0).getReg());
++        O << ", ";
++        printRegName(O, MI->getOperand(1).getReg());
++        O << "}?, [rb0, ";
++        O << MI->getOperand(2).getImm();
++        O << "i]";
++      }
++    } else if (MnemStr == "jump" || MnemStr == "call") {
++      // rrii jump/call: [rb, rd, immi]
++      // MCInst: operand 0 = ra(base), 1 = rb(reg offset), 2 = imm12
++      if (NumOps == 3) {
++        O << " [";
++        printRegName(O, MI->getOperand(0).getReg());
++        O << ", ";
++        printRegName(O, MI->getOperand(1).getReg());
++        O << ", ";
++        O << MI->getOperand(2).getImm();
++        O << "i]";
++      }
++    } else if (MnemStr.starts_with("ld.") || MnemStr.starts_with("st.")) {
++      // Memory: ld.* rd, [rb, imm] or st.* rd, [rb, imm]
++      // MCInst: operand 0 = ra(rd), 1 = rb, 2 = imm12
++      if (NumOps == 3) {
++        O << " ";
++        printRegName(O, MI->getOperand(0).getReg());
++        O << ", [";
++        printRegName(O, MI->getOperand(1).getReg());
++        O << ", ";
++        O << MI->getOperand(2).getImm();
++        O << "]";
++      }
++    } else {
++      // Non-memory rrii: cmp.ui, cmp.si — rd, rb, imm12
++      for (unsigned I = 0; I < NumOps; ++I) {
++        O << (I == 0 ? " " : ", ");
++        printOperand(MI, I, O);
++      }
++    }
++    break;
++  }
++
++  case FK_riii: {
++    // riii: add.si/rela.si — rd, imm
++    //       br.* — {ra}?, [rb0, immi]
++    //       ret — rd, imm
++    StringRef MnemStr(Mnem);
++    if (MnemStr.starts_with("br.")) {
++      // Branch: {ra}?, [rb0, immi]
++      // MCInst: operand 0 = ra, 1 = imm18
++      if (NumOps == 2) {
++        O << " {";
++        printRegName(O, MI->getOperand(0).getReg());
++        O << "}?, [rb0, ";
++        O << MI->getOperand(1).getImm();
++        O << "i]";
++      }
++    } else {
++      // add.si, rela.si, ret: rd, imm
++      O << " ";
++      printRegName(O, MI->getOperand(0).getReg());
++      O << ", ";
++      O << MI->getOperand(1).getImm();
++    }
++    break;
++  }
++
++  case FK_iiii: {
++    // iiii: jump/call — [rb0, immi]; swym — imm
++    StringRef MnemStr(Mnem);
++    if (MnemStr == "jump" || MnemStr == "call") {
++      O << " [rb0, ";
++      O << MI->getOperand(0).getImm();
++      O << "i]";
++    } else {
++      // swym: just the immediate
++      O << " ";
++      printOperand(MI, 0, O);
++    }
++    break;
++  }
++
++  case FK_rwii: {
++    // rwii: set.zw/or.w — rd, wpN, imm16
++    // MCInst: operand 0 = ra(rd), 1 = wp(0-3), 2 = imm16
++    if (NumOps == 3) {
++      O << " ";
++      printRegName(O, MI->getOperand(0).getReg());
++      O << ", wp" << MI->getOperand(1).getImm();
++      O << ", 0x";
++      O.write_hex(MI->getOperand(2).getImm());
++    }
++    break;
++  }
++
++  case FK_orrr:
++  case FK_orri: {
++    // orrr: dst, src1, src2
++    // orri: dst, src, imm  OR  {dst:start}, {src:start} (block)
++    if (FK == FK_orri && NumDefs == 1 && NumOps == 3) {
++      // Check if this is a block register copy (ra2rd, rb2rb, etc.)
++      // by checking if all operands are registers.
++      if (MI->getOperand(0).isReg() && MI->getOperand(1).isReg() &&
++          MI->getOperand(2).isImm()) {
++        // Could be ext/shr/shl or block copy.
++        // Block copy: operand 2 is count (small number), operand 1 is register.
++        // ext/shr/shl: operand 2 is shift amount.
++        // Distinguish by mnemonic.
++        StringRef MnemStr(Mnem);
++        if (MnemStr == "ra2rd" || MnemStr == "rb2rb" || MnemStr == "rb2rd" ||
++            MnemStr == "rd2ra" || MnemStr == "rd2rb" || MnemStr == "rd2rd" ||
++            MnemStr == "rd2rf" || MnemStr == "rf2rd") {
++          unsigned Count = MI->getOperand(2).getImm();
++          O << " ";
++          printRegGroupRange(O, MI->getOperand(0).getReg(), Count);
++          O << ", ";
++          printRegGroupRange(O, MI->getOperand(1).getReg(), Count);
++          break;
++        }
++      }
++    }
++    // Default: flat operand printing.
++    for (unsigned I = 0; I < NumOps; ++I) {
++      O << (I == 0 ? " " : ", ");
++      printOperand(MI, I, O);
++    }
++    break;
++  }
++
++  case FK_oiii: {
++    // oiii: illi, fence — imm
++    O << " ";
++    printOperand(MI, 0, O);
++    break;
++  }
++
++  default:
++    // Fallback to auto-generated.
++    printInstruction(MI, Address, O);
++    break;
++  }
 +}
 +
 +void DADAOInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
@@ -68,8 +375,7 @@ index 000000000..2257c9e05
 +  } else if (MO.isImm()) {
 +    O << MO.getImm();
 +  } else if (MO.isExpr()) {
-+    // M1 stub: print expressions as "?".
-+    O << "?";
++    MAI.printExpr(O, *MO.getExpr());
 +  }
 +}
 +

@@ -1,184 +1,200 @@
 #!/usr/bin/env python3
+"""Generate 178 M1 assembly test lines (new syntax) from contracts/opcodes.yaml.
+
+Each line is a valid DADAO new-syntax assembly instruction for llvm-mc.
+Register bank per id is derived from opcodes.yaml field definitions.
+
+Usage:
+    python3 tools/llvm/gen_m1_asm.py                    # print to stdout
+    python3 tools/llvm/gen_m1_asm.py -o /tmp/m1.s       # write to file
 """
-Generate 178 M1 assembly test lines from contracts/opcodes.yaml.
-Each line is a valid DADAO assembly instruction that can be assembled by llvm-mc.
-"""
-import yaml
+import argparse
+import os
 import sys
 
-def generate_operand(field, format_type):
-    """Generate a valid operand value based on field properties."""
-    role = field.get('role', '')
-    bank = field.get('bank', '')
-    bits = field.get('bits', '')
-    signed = field.get('signed', False)
-    
-    if bank == 'rd':
-        # Use rd8 for destination, rd0 for source (except rd0 which is special)
-        if role == 'dst':
-            return 'rd8'
-        else:
-            return 'rd0'
-    elif bank == 'rb':
-        return 'rb1'  # rb1 is stack pointer, valid for most uses
-    elif bank == 'rf':
-        return 'rf0'
-    elif bank == 'ra':
-        return 'ra0'
-    elif bank == 'imm':
-        # Generate a small immediate value
-        if '12' in bits:
-            return '1' if not signed else '1'
-        elif '18' in bits:
-            return '1' if not signed else '1'
-        elif '24' in bits:
-            return '1' if not signed else '1'
-        elif '16' in bits:
-            return '1'
-        elif '6' in bits:
-            return '1'
-        else:
-            return '1'
-    elif role == 'wyde_pos':
-        return '0'  # wp0
-    else:
-        return '0'
+import yaml
 
-def generate_asm_line(insn_data):
-    """Generate a valid assembly line for an instruction."""
-    mnemonic = insn_data['mnemonic']
-    fmt = insn_data.get('format', '')
-    fields = insn_data.get('fields', [])
-    
-    # Generate operands based on format
-    operands = []
-    
-    if fmt == 'rrrr':
-        # 4 registers
-        for f in fields:
-            if f.get('bank') in ['rd', 'rb', 'rf', 'ra']:
-                operands.append(generate_operand(f, fmt))
-    elif fmt == 'rrri':
-        # 3 registers + immediate
-        for f in fields:
-            if f.get('bank') in ['rd', 'rb', 'rf', 'ra']:
-                operands.append(generate_operand(f, fmt))
-        for f in fields:
-            if f.get('bank') == 'imm':
-                operands.append(generate_operand(f, fmt))
-    elif fmt == 'rrii':
-        # 2 registers + 2 immediates (combined as 12-bit)
-        reg_count = 0
-        imm_found = False
-        for f in fields:
-            if f.get('bank') in ['rd', 'rb', 'rf', 'ra'] and reg_count < 2:
-                operands.append(generate_operand(f, fmt))
-                reg_count += 1
-            elif f.get('bank') == 'imm' and not imm_found:
-                operands.append('1')
-                imm_found = True
-    elif fmt == 'riii':
-        # 1 register + immediate
-        for f in fields:
-            if f.get('bank') in ['rd', 'rb', 'rf', 'ra']:
-                operands.append(generate_operand(f, fmt))
-                break
-        for f in fields:
-            if f.get('bank') == 'imm':
-                operands.append('1')
-                break
-    elif fmt == 'iiii':
-        # Just immediate
-        operands.append('1')
-    elif fmt == 'rwii':
-        # 1 register + wyde position + immediate
-        reg_done = False
-        wyde_done = False
-        imm_done = False
-        for f in fields:
-            if f.get('bank') in ['rd', 'rb'] and not reg_done:
-                operands.append(generate_operand(f, fmt))
-                reg_done = True
-            elif f.get('role') == 'wyde_pos' and not wyde_done:
-                operands.append('0')  # wp0
-                wyde_done = True
-            elif f.get('bank') == 'imm' and not imm_done:
-                operands.append('1')
-                imm_done = True
-    elif fmt == 'orrr':
-        # minor-opcode + 3 registers (ha is set by def)
-        for f in fields:
-            if f.get('bank') in ['rd', 'rb', 'rf', 'ra']:
-                operands.append(generate_operand(f, fmt))
-    elif fmt == 'orri':
-        # minor-opcode + 2 registers + immediate
-        # Skip ha (minor_op), then: rdhb (dst), rdhc (src), imm6
-        dst_done = False
-        src_done = False
-        imm_done = False
-        for f in fields:
-            if f.get('role') == 'minor_op':
-                continue  # Skip minor opcode
-            if f.get('role') == 'dst' and not dst_done:
-                operands.append(generate_operand(f, fmt))
-                dst_done = True
-            elif f.get('role') == 'src' and f.get('bank') in ['rd', 'rb', 'rf', 'ra'] and not src_done:
-                operands.append(generate_operand(f, fmt))
-                src_done = True
-            elif f.get('bank') == 'imm' and not imm_done:
-                operands.append('1')
-                imm_done = True
-    elif fmt == 'oiii':
-        # minor-opcode + immediate
-        operands.append('1')
-    else:
-        # Default: just use 1
-        operands.append('1')
-    
-    # Special cases for specific mnemonics
-    if mnemonic == 'illi':
-        return f'{mnemonic} 0'
-    elif mnemonic == 'swym':
-        return f'{mnemonic} 0'
-    elif mnemonic == 'fence':
-        return f'{mnemonic} 0xf'
-    elif mnemonic == 'ret':
-        return f'ret rd0, 0'
-    elif mnemonic.startswith('br.'):
-        # Branch instructions need special handling
-        if fmt == 'riii':
-            # Single register branch
-            return f'{mnemonic} rd0, 1'
-        elif fmt == 'rrii':
-            # Two register branch
-            return f'{mnemonic} rd0, rd0, 1'
-    elif mnemonic == 'call':
-        if fmt == 'iiii':
-            return f'{mnemonic} 1'
-        elif fmt == 'rrii':
-            return f'{mnemonic} rb1, rd0, 1'
-    elif mnemonic == 'jump':
-        if fmt == 'iiii':
-            return f'{mnemonic} 1'
-        elif fmt == 'rrii':
-            return f'{mnemonic} rb1, rd0, 1'
-    
-    return f'{mnemonic} {", ".join(operands)}'
+# ── Register bank helpers ───────────────────────────────────────────
+
+DUAL = {'add.uo', 'add.so', 'sub.uo', 'sub.so', 'mul.uo', 'mul.so'}
+CS_SINGLE = {'cs.n', 'cs.z', 'cs.p'}
+CS_DOUBLE = {'cs.eq', 'cs.ne'}
+BLOCKCOPY = {'rd2rd', 'rd2ra', 'ra2rd', 'rb2rb', 'rd2rb', 'rb2rd',
+             'rd2rf', 'rf2rd'}
+
+
+def _bank(fields, role, default_bank=None):
+    """Return the register bank for the first field matching *role*."""
+    for f in fields:
+        if f.get('role') == role:
+            return f.get('bank', default_bank)
+    return default_bank
+
+
+def _first_reg_bank(fields, default='rd'):
+    """Return the bank of the first register field (by field order)."""
+    for f in fields:
+        if f.get('bank') in ('rd', 'rb', 'rf', 'ra'):
+            return f['bank']
+    return default
+
+
+def _dst_bank(fields):
+    """dst bank; falls back to first register field (for stores)."""
+    b = _bank(fields, 'dst')
+    if b is not None:
+        return b
+    return _first_reg_bank(fields)
+
+
+def _src_bank(fields, n=0):
+    count = 0
+    for f in fields:
+        if f.get('role') == 'src' and f.get('bank') in ('rd', 'rb', 'rf', 'ra'):
+            if count == n:
+                return f['bank']
+            count += 1
+    return 'rd'
+
+
+# ── Per-format generators ───────────────────────────────────────────
+
+def gen_rrii(e):
+    m = e['mnemonic']
+    fs = e['fields']
+    if m in ('jump', 'call'):
+        return f"{m} [rb3, rd0, 24i]"
+    if m.startswith('br.'):
+        # Two-register branch: rdha, rdhb
+        rd_fields = [f for f in fs if f.get('bank') == 'rd']
+        if len(rd_fields) == 1:
+            # Should not happen for rrii, but guard
+            return f"{m} {{rd8}}?, [rb0, 4i]"
+        return f"{m} {{rd8, rd0}}?, [rb0, 4i]"
+    if m.startswith('cmp.'):
+        dst = _dst_bank(fs)
+        src = _src_bank(fs)
+        return f"{m} {dst}8, {src}0, 1"
+    # ld./st. memory (rrii)
+    dst = _dst_bank(fs)
+    return f"{m} {dst}8, [rb0, 1]"
+
+
+def gen_rrri(e):
+    m = e['mnemonic']
+    fs = e['fields']
+    dst = _dst_bank(fs)
+    # base register (rb)
+    rb = 'rb'
+    # offset register (rd)
+    rd = 'rd'
+    return f"{m} {{{dst}8:{dst}10}}, [rb0, rd1]"
+
+
+def gen_riii(e):
+    m = e['mnemonic']
+    fs = e['fields']
+    if m == 'ret':
+        return "ret rd0, 0"
+    r = _dst_bank(fs)
+    if m.startswith('br.'):
+        return f"{m} {{{r}8}}?, [rb0, 4i]"
+    return f"{m} {r}8, 1"
+
+
+def gen_iiii(e):
+    m = e['mnemonic']
+    return f"{m} [rb0, 2i]"
+
+
+def gen_rwii(e):
+    m = e['mnemonic']
+    fs = e['fields']
+    dst = _dst_bank(fs)
+    return f"{m} {dst}8, wp2, 0x1234"
+
+
+def gen_rrrr(e):
+    m = e['mnemonic']
+    if m in DUAL:
+        return f"{m} {{rd8, rd9}}, rd10, rd11"
+    if m in CS_SINGLE:
+        return f"{m} {{rd1}}?, rd2, rd3, rd4"
+    if m in CS_DOUBLE:
+        return f"{m} {{rd8, rd0}}?, rd9, rd10"
+    raise ValueError(f"unexpected rrrr mnemonic: {m}")
+
+
+def gen_orrr(e):
+    m = e['mnemonic']
+    fs = e['fields']
+    dst = _dst_bank(fs)
+    src1 = _src_bank(fs, 0)
+    src2 = _src_bank(fs, 1)
+    return f"{m} {dst}8, {src1}9, {src2}10"
+
+
+def gen_orri(e):
+    m = e['mnemonic']
+    fs = e['fields']
+    dst = _dst_bank(fs)
+    src = _src_bank(fs)
+    if m in BLOCKCOPY:
+        return f"{m} {{{dst}8:{dst}10}}, {{{src}1:{src}3}}"
+    return f"{m} {dst}8, {src}0, 1"
+
+
+def gen_oiii(e):
+    m = e['mnemonic']
+    if m == 'fence':
+        return "fence 0xf"
+    return f"{m} 0"
+
+
+GENERATORS = {
+    'rrii': gen_rrii,
+    'rrri': gen_rrri,
+    'riii': gen_riii,
+    'iiii': gen_iiii,
+    'rwii': gen_rwii,
+    'rrrr': gen_rrrr,
+    'orrr': gen_orrr,
+    'orri': gen_orri,
+    'oiii': gen_oiii,
+}
+
+
+# ── Main ────────────────────────────────────────────────────────────
 
 def main():
-    with open('/mnt/tao/DADAO-v5/contracts/opcodes.yaml', 'r') as f:
-        data = yaml.safe_load(f)
-    
-    count = 0
-    for insn in data:
-        if insn.get('excluded_m1'):
-            continue
-        
-        asm_line = generate_asm_line(insn)
-        print(asm_line)
-        count += 1
-    
-    print(f'# Total: {count} instructions', file=sys.stderr)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-o', '--output', help='Write .s to file instead of stdout')
+    parser.add_argument('opcodes', nargs='?',
+                        default=os.path.join(os.path.dirname(__file__),
+                                             '..', '..', 'contracts', 'opcodes.yaml'),
+                        help='Path to opcodes.yaml (default: contracts/opcodes.yaml)')
+    args = parser.parse_args()
+
+    entries = yaml.safe_load(open(args.opcodes))
+    m1 = [e for e in entries if not e.get('excluded_m1')]
+
+    lines = []
+    for e in m1:
+        fmt = e['format']
+        gen = GENERATORS.get(fmt)
+        if gen is None:
+            raise ValueError(f"no generator for format {fmt} (id={e['id']})")
+        lines.append(gen(e))
+
+    text = '\n'.join(lines) + '\n'
+    if args.output:
+        with open(args.output, 'w') as f:
+            f.write(text)
+        print(f"Wrote {len(lines)} lines to {args.output}", file=sys.stderr)
+    else:
+        sys.stdout.write(text)
+    print(f"M1 count: {len(lines)}", file=sys.stderr)
+
 
 if __name__ == '__main__':
     main()

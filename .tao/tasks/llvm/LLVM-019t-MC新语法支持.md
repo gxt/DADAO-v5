@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M1→M2
 **依赖**：`SPEC-036t`（规范已更新）、`LLVM-017t` + `LLVM-018t`（生成器已更新，可生成新语法示例供参考）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地（`.work/source/llvm-project`，补丁在 `components/llvm-project/patches/`）
@@ -102,19 +102,106 @@ for e in m1:
 - `components/llvm-project/patches/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp.patch`（更新）
 - `components/llvm-project/patches/llvm/lib/Target/DADAO/DADAO.h.patch`（更新）
 - `components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOInstrFormats.td.patch`（更新）
+- `tools/llvm/gen_m1_asm.py`（**新增/重写**：新语法生成器，从 `opcodes.yaml` 枚举 178 条 M1 指令，按 id 的 register bank 生成正确形式）
 
 **验收结果**：
 
-1. **`make build-mc` 成功**：补丁应用 + 编译通过（cmake 4.2.3, ninja 1.13.2, g++ 15.2.0）
-2. **全部 178 条 M1 指令可通过新语法汇编**：生成包含所有指令的 `.s` 文件，`llvm-mc -show-encoding` 全部成功（无 error）
-3. **全部 178 条 M1 指令的反汇编输出使用新语法**：反汇编输出中无旧语法残留（grep 旧语法模式匹配数 = 0）
-4. **往返一致**：汇编 → 反汇编 → 汇编 得到逐字节相同的编码（`diff enc1.txt enc2.txt` = PASS）
-5. **双目的指令**：`echo "add.uo {rd8, rd9}, rd10, rd11" | llvm-mc` → `encoding: [0x50,0x20,0x92,0x8b]` ✓
-6. **多寄存器指令**：`echo "ra2rd rd8, ra1, 3" | llvm-mc` → printer 输出 `ra2rd {rd8:rd10}, {ra1:ra3}` ✓
-7. **条件指令**：`echo "br.eq {rd8, rd0}?, [rb0, 4i]" | llvm-mc` → `encoding: [0x6e,0x20,0x00,0x04]` ✓
-8. **地址表达式**：`ld.ub rd8, [rb2, 1]` → `encoding: [0x10,0x20,0x20,0x01]`；`jump [rb0, 2i]` → `encoding: [0x70,0x00,0x00,0x02]` ✓
-9. **旧语法不再被接受**：`add.uo rd8, rd9, rd10, rd11` → `error: old syntax not accepted; use '{}' for dual-purpose destination registers` ✓
-10. **`make check` 通过**：`repository checks: PASS`
+1. **`make build-mc` 成功**：补丁应用 + 编译通过。
+   ```
+   $ make build-mc; echo EXIT=$?
+   ninja: no work to do.
+   build-mc: PASS
+   EXIT=0
+   ```
+2. **全部 178 条 M1 指令可通过新语法汇编**：用 `tools/llvm/gen_m1_asm.py` 生成 `m1_v2.s`（178 行），`llvm-mc -show-encoding` 全部成功（0 error，178 encoding）。
+   ```
+   $ python3 tools/llvm/gen_m1_asm.py -o /tmp/m1_v2.s 2>&1
+   Wrote 178 lines to /tmp/m1_v2.s
+   M1 count: 178
+   $ .work/build/llvm/bin/llvm-mc --triple=dadao-unknown-elf -show-encoding /tmp/m1_v2.s > enc.txt 2> enc.err; echo EXIT=$?
+   EXIT=0
+   $ grep -c "encoding:" enc.txt
+   178
+   $ wc -l enc.err
+   0 enc.err
+   ```
+   逐行比对生成器输出与 reviewer 独立生成器输出：**`diff m1_v2.s m1_new.s` = 无差异**（178 行逐一匹配，含 7 个 rb/ra 变体的正确形式）。
+3. **全部 178 条 M1 指令的反汇编输出使用新语法**：反汇编 178 条，旧语法模式 grep 全部为 0。
+   ```
+   旧语法模式 grep 结果（v2_disasm.txt）:
+     (ld|st)\.\w+ (rd|rb|ra|rf)\d+, (rb|rd)\d+,      count=0
+     (ldm|stm)\.\w+ (rd|rb|ra|rf)\d+, rb              count=0
+     br\.[a-z]+ (rd|rb)\d+,                           count=0
+     (jump|call) [0-9]                                count=0
+     (add|sub|mul)\.(uo|so) rd\d+, rd\d+, rd\d+, rd   count=0
+   ```
+4. **往返一致**：汇编 → 反汇编 → 汇编，二进制逐字节相同。
+   ```
+   $ llvm-mc -filetype=obj -o o1.o m1_v2.s                     # EXIT=0
+   $ llvm-objdump -d o1.o | awk '/^\s+[0-9a-f]+:/{...}' > rt.s  # 178 行
+   $ llvm-mc -filetype=obj -o o2.o rt.s                         # EXIT=0
+   $ llvm-objcopy -O binary --only-section=.text o1.o t1.bin
+   $ llvm-objcopy -O binary --only-section=.text o2.o t2.bin
+   $ cmp t1.bin t2.bin && echo PASS
+   PASS
+   ```
+5. **双目的指令**：
+   ```
+   $ echo "add.uo {rd8, rd9}, rd10, rd11" | llvm-mc --triple=dadao-unknown-elf -show-encoding -
+   add.uo {rd8, rd9}, rd10, rd11           # encoding: [0x50,0x20,0x92,0x8b]
+   ```
+6. **多寄存器指令**：
+   ```
+   $ echo "ra2rd {rd8:rd10}, {ra1:ra3}" | llvm-mc --triple=dadao-unknown-elf -show-encoding -
+   ra2rd {rd8:rd10}, {ra1:ra3}             # encoding: [0x40,0xb8,0x80,0x43]
+   ```
+7. **条件指令**：
+   ```
+   $ echo "br.eq {rd8, rd0}?, [rb0, 4i]" | llvm-mc --triple=dadao-unknown-elf -show-encoding -
+   br.eq {rd8, rd0}?, [rb0, 4i]            # encoding: [0x6e,0x20,0x00,0x04]
+   ```
+8. **地址表达式**：
+   ```
+   $ echo "ld.ub rd8, [rb2, 1]" | llvm-mc --triple=dadao-unknown-elf -show-encoding -
+   ld.ub rd8, [rb2, 1]                     # encoding: [0x10,0x20,0x20,0x01]
+   $ echo "jump [rb0, 2i]" | llvm-mc --triple=dadao-unknown-elf -show-encoding -
+   jump [rb0, 2i]                          # encoding: [0x70,0x00,0x00,0x02]
+   ```
+9. **旧语法不再被接受**：
+   ```
+   $ echo "add.uo rd8, rd9, rd10, rd11" | llvm-mc --triple=dadao-unknown-elf -show-encoding -; echo EXIT=$?
+   <stdin>:1:8: error: old syntax not accepted; use '{}' for dual-purpose destination registers, e.g., add.uo {rd8, rd9}, rd10, rd11
+   EXIT=1
+   ```
+10. **反例验证（printer 旧语法注入 → 往返失败）**：将 printer 双目的分支改为旧语法扁平打印，重建后反汇编输出变为 `add.uo rd8, rd9, rd10, rd11`，重新汇编该输出被拒绝：
+    ```
+    $ # 注入后重建
+    $ ninja -C .work/build/llvm llvm-mc llvm-objdump 2>&1
+    [1/3] Building CXX object .../DADAOMCInstPrinter.cpp.o
+    [2/3] Linking CXX static library lib/libLLVMDADAODesc.a
+    [3/3] Linking CXX executable bin/llvm-mc
+    $ # 反汇编 → 旧语法出现
+    $ .work/build/llvm/bin/llvm-objdump -d --triple=dadao-unknown-elf o1.o | grep add.uo
+    94: 50 20 92 8b  add.uo rd8, rd9, rd10, rd11
+    $ # 将反汇编输出重新汇编 → 被拒绝
+    $ .work/build/llvm/bin/llvm-mc --triple=dadao-unknown-elf -filetype=obj -o o2_inj.o rt_asm2_injected.s 2> o2_inj.err; echo EXIT=$?
+    EXIT=1
+    $ cat o2_inj.err
+    rt_asm2_injected.s:38:8: error: old syntax not accepted; use '{}' for dual-purpose destination registers, e.g., add.uo {rd8, rd9}, rd10, rd11
+    add.uo rd8, rd9, rd10, rd11
+           ^
+    ...（add.so/sub.uo/sub.so/mul.uo/mul.so 同样 EXIT=1）
+    ```
+    **还原**：`cp` 回备份，`sha256` 与注入前一致，`ninja` 重建，反汇编恢复 `add.uo {rd8, rd9}, rd10, rd11`，源树 `git diff` 与仓库补丁字节一致。**反例使往返失败 → 该验收有可达的 FAIL 路径，非恒绿。**
+11. **`make check` 通过**：
+    ```
+    $ make check; echo EXIT=$?
+    check-patch-tree: 2 component(s), 67 patches OK
+    check-asm-list-consistency: 12 spec files OK
+    check_issues: 66 open, 8 closed (0 blocking M1-gate: 0)
+    repository checks: PASS
+    EXIT=0
+    ```
 
 **新发现/坑**：
 - **`enum FormatKind : uint8_t` 编译失败**：GCC 15 在 `DADAO.h` 中不识别 `uint8_t`（未 include `<cstdint>`），导致 `enum : uint8_t` 被解析为嵌套命名空间分隔符。修复：添加 `#include <cstdint>`。
@@ -129,7 +216,7 @@ for e in m1:
 - **`orrr` 格式同名指令干扰**：`add.so` 同时存在于 `rrrr`（双目的）和 `orrr`（普通三操作数）格式。旧语法拒绝逻辑需检查操作数数量（`Operands.size() == 5`）来区分。
 
 **遗留问题**：
-- 旧语法拒绝仅覆盖了 `rrrr` 双目的指令（add.uo/so, sub.uo/so, mul.uo/so）。其它格式的旧语法（如 `ldm.ub rd8, rb0, rd1, 3`）仍被接受（auto-generated matcher 不区分新旧语法）。完全拒绝旧语法需要在 parser 层做更多校验。
+- 旧语法拒绝仅覆盖了 `rrrr` 双目的指令（add.uo/so, sub.uo/so, mul.uo/so）。其它格式的旧语法（如 `ld.ub rd8, rb0, 1`，缺 `[]`）仍被接受（auto-generated matcher 不区分新旧语法，parser 将其规范化为 `ld.ub rd8, [rb0, 1]`）。完全拒绝旧语法需要在 parser 层做更多校验。
 - 调试输出（`errs()`）已全部移除。
 
 #### LLVM-019t 返工：修正补丁格式（2026-09-28）
@@ -311,3 +398,180 @@ DADAOMCInstPrinter.cpp.patch    BYTE-IDENTICAL
 
 > 附：如架构师裁定「TSFlags 方案可接受、`swym` 另开任务」，则本任务功能面已达标，仅需工程师补齐 #10 反例证据、修正 #2 覆盖（并入 178 身份齐全的 .s）、订正 C/D 表述即可。
 
+#### LLVM-019t 返工：修正 C/D（2026-09-28）
+
+**用户裁定**：A 放宽约束（TSFlags 方案可接受）、B 另立 `LLVM-021t`。本次仅修 C/D。
+
+**修正内容**：
+
+| 项 | 问题 | 修正 |
+|----|------|------|
+| C1 | 178 条 `.s` 中 7 个身份用 rd 形式冒充 rb/ra（ldm.o/stm.o rb×2, ldm.o/stm.o ra×2, or.w rb, andn.w rb, set.zw rb） | 重写 `tools/llvm/gen_m1_asm.py`（新语法生成器），按 `opcodes.yaml` id 的 field bank 逐条生成正确形式；`diff m1_v2.s reviewer/m1_new.s` = 无差异 |
+| C2 | 缺失 #10 反例证据 | 补充：注入旧语法 → 重建 → 反汇编输出 `add.uo rd8, rd9, rd10, rd11` → 重新汇编 EXIT=1（`o2_inj.err` 真实输出）→ 还原后重建，源树 `git diff` 与补丁字节一致 |
+| C3 | 完成区仅列 10 条 | 重写为逐条 11 项，每条附真实命令与输出 |
+| D | 遗留问题举例 `ldm.ub rd8, rb0, rd1, 3` 称「仍被接受」，实测 EXIT=1 被拒 | 改为 `ld.ub rd8, rb0, 1`（缺 `[]`），实测 EXIT=0 被规范化为 `ld.ub rd8, [rb0, 1]` |
+
+**验证**：
+- `python3 tools/llvm/gen_m1_asm.py -o /tmp/m1_v2.s` → 178 行，与 reviewer 独立生成器输出 diff = 无差异
+- `llvm-mc -show-encoding /tmp/m1_v2.s` → 178 encoding, 0 error
+- 往返 cmp t1.bin t2.bin → PASS
+- 补丁格式：每个 `grep -c '^diff --git'` = 1；源树 `git diff` 与仓库补丁 BYTE-IDENTICAL
+- `make check` EXIT=0
+
+
+#### 第 2 轮 reviewer 验收（复验 C/D 返工）
+
+**审查者**：reviewer（独立重跑 + 自建生成器/编码 oracle，**未采信**完成区转述；亲自注入反例并复原）
+
+**审查范围**：`tools/llvm/gen_m1_asm.py`、`contracts/opcodes.yaml`（独立 oracle 源）、`docs/spec/assembly-language.md` §3–§5/§10、4 个补丁（working tree diff）、`.work/source/llvm-project` 源树与 `git diff` 一致性、`.work/build/llvm` 工具、`make check`。
+
+**判定：Accepted**（C1/C2/C3/D 全部修复并经独立验证；#1–#11 验收在本人重跑下全部通过；硬约束无违反。`swym` 编码不符属已登记跨模块项 LLVM-021t，不在本返工范围。）
+
+##### 1. 重跑记录（命令 + 真实输出/退出码）
+
+**(a) C1——178 条覆盖（按 id 逐条核对，独立枚举 + 独立生成器 + 编码 oracle）**
+
+独立枚举（`contracts/opcodes.yaml` 非 `excluded_m1`）：
+```
+$ python3 -c "import yaml; e=yaml.safe_load(open('contracts/opcodes.yaml')); m=[x for x in e if not x.get('excluded_m1')]; print(len(m))"
+178
+```
+自建生成器 `/tmp/opencode/LLVM-019t-recheck/gen_reviewer.py`（仅按 §3–§5 规则 + id 字段 bank 推导，未复用工程师代码）生成 `rev.s`，与工程师 `gen_m1_asm.py` 输出 `eng.s` 比对：
+```
+$ diff eng.s rev.s
+DIFF_EXIT=0        # 178 行逐行一致
+$ diff /tmp/opencode/LLVM-019t/m1_v2.s /tmp/opencode/LLVM-019t-recheck/eng.s
+DIFF_EXIT=0
+$ diff /tmp/opencode/LLVM-019t/m1_v2.s /tmp/opencode/LLVM-019t/m1_new.s
+DIFF2_EXIT=0       # 完成区「diff m1_v2.s m1_new.s = 无差异」属实
+```
+编码 oracle（`(word & mask_id) == value_id`，mask/value 直接取自 opcodes.yaml）：
+```
+$ python3 /tmp/opencode/LLVM-019t-recheck/check.py /tmp/opencode/LLVM-019t-recheck
+ids 178 enc 178 lines 178
+FAIL  71 swym_oiii_imm   word=0x77000000 want&mask=0x00080000 mask=0xfffc0000 :: swym 0
+identity mismatches: 1  ambiguous: 0
+```
+→ **178 条中 177 条编码身份与 id 精确匹配、0 条歧义**；唯一不符为 `swym`（finding B 遗留，已另立 LLVM-021t，状态「待开始」）。**7 个上轮错覆盖的身份现均为正确 rb/ra 形式**（编码 opcode 与 id 的 rb/ra 变体一致）：
+```
+ldm.o_rrri_rb -> ldm.o {rb8:rb10}, [rb0, rd1]
+stm.o_rrri_rb -> stm.o {rb8:rb10}, [rb0, rd1]
+ldm.o_rrri_ra -> ldm.o {ra8:ra10}, [rb0, rd1]
+stm.o_rrri_ra -> stm.o {ra8:ra10}, [rb0, rd1]
+or.w_rwii_rb  -> or.w rb8, wp2, 0x1234
+andn.w_rwii_rb-> andn.w rb8, wp2, 0x1234
+set.zw_rwii_rb-> set.zw rb8, wp2, 0x1234
+```
+（`ldm.o/stm.o` 的 rd/rb/ra 三变体 opcode 各异 0x38/0x3A/0x3C、0x39/0x3B/0x3D，编码匹配即证明 bank 正确。）
+
+**(b) 验收 #2 全 178 条汇编**
+```
+$ .work/build/llvm/bin/llvm-mc --triple=dadao-unknown-elf -show-encoding /tmp/.../eng.s > eng.enc 2> eng.err; echo EXIT=$?
+EXIT=0
+$ grep -c "encoding:" eng.enc    -> 178
+$ wc -l eng.err                  -> 0
+```
+
+**(c) 验收 #3 反汇编无旧语法残留**（对 178 条 obj 反汇编 + 5 模式 grep）
+```
+(ld|st)\.\w+ (rd|rb|ra|rf)\d+, (rb|rd)\d+,   count=0
+(ldm|stm)\.\w+ (rd|rb|ra|rf)\d+, rb          count=0
+br\.[a-z]+ (rd|rb)\d+,                       count=0
+(jump|call) [0-9]                            count=0
+(add|sub|mul)\.(uo|so) rd\d+, rd\d+, rd\d+, rd count=0
+```
+
+**(d) 验收 #4 往返一致**
+```
+$ llvm-mc -filetype=obj -o o1.o eng.s     EXIT=0
+$ llvm-objdump -d --triple=dadao-unknown-elf o1.o  -> 178 行
+$ llvm-mc -filetype=obj -o o2.o rt.s      EXIT=0
+$ cmp t1.bin t2.bin && echo ROUNDTRIP PASS
+ROUNDTRIP PASS      # 两者均 712 字节 = 178×4
+```
+（往返文本仅差 objdump 前导空格与 `fence 0xf`→`fence 15` 规范化，符合 §10，字节一致。）
+
+**(e) 验收 #5–#8 具体编码（与完成区逐字节一致）**
+```
+add.uo {rd8, rd9}, rd10, rd11  -> [0x50,0x20,0x92,0x8b]
+ra2rd {rd8:rd10}, {ra1:ra3}    -> [0x40,0xb8,0x80,0x43]
+br.eq {rd8, rd0}?, [rb0, 4i]   -> [0x6e,0x20,0x00,0x04]
+ld.ub rd8, [rb2, 1]            -> [0x10,0x20,0x20,0x01]
+jump [rb0, 2i]                 -> [0x70,0x00,0x00,0x02]
+```
+（均 EXIT=0；ra2rd 手算 0x40B80000|8<<12|1<<6|3 = 0x40B88043 ✓）
+
+**(f) 验收 #9 旧语法被拒**
+```
+add.uo/add.so/sub.uo/sub.so/mul.uo/mul.so rd8, rd9, rd10, rd11 -> 全部 EXIT=1
+error: old syntax not accepted; use '{}' for dual-purpose destination registers, …
+```
+
+**(g) 验收 #10 反例（本人亲自注入 + 复原）**
+在 `.work/source/llvm-project` 将 printer `FK_rrrr` 双目的分支（`DADAOMCInstPrinter.cpp` 116/120 行）改为旧语法扁平打印 → `git diff` 非空（含 `O << " ";`/`O << "";`）→ `ninja -C .work/build/llvm llvm-mc llvm-objdump` EXIT=0（`Building … DADAOMCInstPrinter.cpp.o`）：
+```
+$ llvm-objdump -d o1.o | grep add.uo
+      94: 50 20 92 8b  add.uo rd8, rd9, rd10, rd11      # 旧语法，注入生效
+$ llvm-mc -filetype=obj -o o2_inj.o rt_inj.s; echo EXIT=$?
+EXIT=1
+rt_inj.s:38:9: error: old syntax not accepted; use '{}' for dual-purpose destination registers, …
+（add.so/sub.uo/sub.so/mul.uo/mul.so 同样报错）
+```
+**还原与重建**：
+```
+$ cp bak 回源文件; sha256sum … = 7486ee26d29bd6df5a1bdcbf5ef26de94bf9baf9ffeb71b3c167e63dcaf49cee（与注入前一致）
+$ git diff -- <printer> | cmp - 仓库补丁  -> BYTE-IDENTICAL
+$ ninja … EXIT=0; llvm-objdump … | grep add.uo -> add.uo {rd8, rd9}, rd10, rd11（恢复）
+```
+→ **反例使往返失败 → 验收 #10 有可达 FAIL 路径，非恒绿；注入可复原（含重建）。**
+
+**(h) 验收 #11 `make check`**
+```
+$ make check; echo EXIT=$?
+… check-patch-tree: 2 component(s), 67 patches OK
+   check-asm-list-consistency: 12 spec files OK
+   check_issues: 66 open, 8 closed (0 blocking M1-gate: 0)
+   repository checks: PASS
+EXIT=0
+```
+（`make build-mc` 亦 EXIT=0 / `build-mc: PASS`。）
+
+**(i) 补丁格式与源树一致性**
+```
+每个补丁 grep -c '^diff --git' = 1（AsmParser.cpp / DADAO.h / DADAOInstrFormats.td / DADAOMCInstPrinter.cpp）
+每个补丁首行为 'diff --git a/… b/…'（裸 git diff）
+源树 git diff -- <path> 与仓库 .patch:
+  AsmParser/DADAOAsmParser.cpp        BYTE-IDENTICAL
+  DADAO.h                             BYTE-IDENTICAL
+  DADAOInstrFormats.td                BYTE-IDENTICAL
+  MCTargetDesc/DADAOMCInstPrinter.cpp BYTE-IDENTICAL
+```
+
+**(j) D——遗留问题举例订正（独立核对）**
+```
+$ echo "ld.ub rd8, rb0, 1" | llvm-mc -show-encoding -
+ld.ub rd8, [rb0, 1]     # encoding: [0x10,0x20,0x00,0x01]   EXIT=0（被规范化接受，符合订正后表述）
+$ echo "ldm.ub rd8, rb0, rd1, 3" | llvm-mc -show-encoding -
+error: invalid operand for instruction   EXIT=1（上轮被误述为「仍被接受」的旧例，实测确实被拒）
+```
+
+##### 2. 约束核验（逐条）
+
+| 约束 | 结果 | 证据 |
+|---|---|---|
+| A：可改 TableGen（用户 2026-09-28 放宽） | ✅ 合规 | 用户已裁定，非缺陷 |
+| B：`swym` 跨模块另立 LLVM-021t | ✅ 已登记 | `.tao/tasks/llvm/LLVM-021t-swym编码同步.md` 存在，状态「待开始」；本任务 oracle 中唯一不符项即 `swym` |
+| C1：178 条覆盖含 7 个身份 | ✅ 已修 | 独立生成器 diff=0；7 身份编码与 id 变体一致；177/178 身份精配、0 歧义 |
+| C2：#10 反例证据 | ✅ 已补 | 完成区 item 10 存在；本人亲注入复现并复原 |
+| C3：完成区 11/11 逐条 | ✅ 已修 | 完成区「验收结果」现列 1–11 共 11 条 |
+| D：遗留举例订正 | ✅ 已修 | `ld.ub rd8, rb0, 1` EXIT=0；旧例 EXIT=1 |
+| 不改契约/spec/测试凑绿 | ✅ | 本返工仅动 4 补丁 + `tools/llvm/gen_m1_asm.py` + 任务书；`contracts/`、`spec/`、`tests/` 未改 |
+| 生成器保留在非易失位置 | ✅ | `tools/llvm/gen_m1_asm.py`（仓库内，非 `/tmp`） |
+| 输出为可复现补丁 | ✅ | 4 补丁与源树 `git diff` 字节一致；`check-patch-tree` 通过 |
+
+##### 3. 结论
+
+- C1/C2/C3/D 四项返工**全部修复**，且经**独立重跑/独立 oracle/亲自注入反例**验证，非采信完成区。
+- 上轮 A（TableGen 约束）已由用户放宽；B（`swym`）已登记 `LLVM-021t`。
+- 遗留（非本任务范围，供架构师终审知悉）：`tools/llvm/check_lit_bytes.py` 仍 **EXIT=1**（`iiii_jump.s` 2 处 `0x77xxxxxx` no match；N=51≠53），根因即 `swym`，随 LLVM-021t 解决；该脚本不在 `make check` 依赖链，故 `make check` 仍绿。
+- **判决：Accepted**（本返工达标）。主会话可将任务状态改为 `已验证`；最终接受与否由架构师终审。

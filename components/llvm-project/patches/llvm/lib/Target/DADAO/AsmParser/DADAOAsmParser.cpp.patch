@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..a382b4fac
+index 000000000000..acf93a3e0fd1
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,374 @@
+@@ -0,0 +1,1062 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,6 +13,12 @@ index 000000000..a382b4fac
 +//===----------------------------------------------------------------------===//
 +//
 +// This file implements the DADAO MCTargetAsmParser (text → MCInst).
++//
++// New assembly syntax (assembly-language.md):
++//   Register groups: {rd8}, {rd8:rd11}, {rd8, rd9}, {rd8, rd0}?
++//   Address expressions: [rb2, 1], [rb0, 2i], [rb3, rd0, 24i]
++//   Unit suffix 'i': instruction-word offset (4 bytes per unit)
++//   Condition marker '?': after }
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -49,10 +55,31 @@ index 000000000..a382b4fac
 +// Forward declaration.
 +class DADAOAsmParser;
 +
-+// Represents a parsed assembly operand (token, register, or immediate).
++//===----------------------------------------------------------------------===//
++// DADAOOperand — represents a parsed assembly operand.
++//
++// In addition to the basic kinds (token, register, immediate), we add:
++//   kRegGroup     — {rd8:rd11} or {rd8} (decomposed to flat operands)
++//   kRegGroupCond — {rd8, rd0}? or {rd3}? (condition marker)
++//   kRegPair      — {rd8, rd9} (dual-purpose, no ?)
++//   kAddress      — [rb2, 1] or [rb0, 2i] or [rb3, rd0, 24i]
++//
++// At matchAndEmitInstruction time, complex operands are decomposed into
++// the flat register/immediate operands expected by the auto-generated
++// AsmMatcher (MatchInstructionImpl).
++//===----------------------------------------------------------------------===//
++
 +class DADAOOperand : public MCParsedAsmOperand {
 +public:
-+  enum KindTy { kToken, kRegister, kImmediate } Kind;
++  enum KindTy {
++    kToken,
++    kRegister,
++    kImmediate,
++    kRegGroup,      // {start:end} or {single}
++    kRegGroupCond,  // {...}?
++    kRegPair,       // {rd, rd} (no ?)
++    kAddress        // [base, offset] or [base, reg, offset]
++  } Kind;
 +
 +private:
 +  SMLoc StartLoc, EndLoc;
@@ -61,11 +88,24 @@ index 000000000..a382b4fac
 +  int64_t ImmVal;
 +  const MCExpr *ImmExpr;
 +
++  // For kRegGroup / kRegGroupCond / kRegPair: list of registers.
++  SmallVector<MCRegister, 4> RegList;
++  // For kRegGroup: count (range size) — computed from start:end.
++  unsigned GroupCount;
++  // For kAddress: base register, optional index register, offset.
++  MCRegister AddrBase;
++  MCRegister AddrIndex; // 0 if not present
++  int64_t AddrOffset;
++  const MCExpr *AddrOffsetExpr;
++  // For kAddress: whether the offset uses 'i' suffix (instruction-word unit).
++  bool AddrIsInsnOffset;
++
 +public:
 +  DADAOOperand(KindTy K)
-+      : Kind(K), ImmVal(0), ImmExpr(nullptr) {}
++      : Kind(K), ImmVal(0), ImmExpr(nullptr), GroupCount(0),
++        AddrOffset(0), AddrOffsetExpr(nullptr), AddrIsInsnOffset(false) {}
 +
-+  // Factory methods.
++  // Factory methods for basic kinds.
 +  static std::unique_ptr<DADAOOperand> createToken(StringRef T, SMLoc L) {
 +    auto Op = std::make_unique<DADAOOperand>(kToken);
 +    Op->Tok = T;
@@ -101,6 +141,81 @@ index 000000000..a382b4fac
 +    return Op;
 +  }
 +
++  // Factory for register group: {start:end} or {single}.
++  static std::unique_ptr<DADAOOperand>
++  createRegGroup(SmallVectorImpl<MCRegister> &Regs, unsigned Count,
++                 SMLoc Start, SMLoc End) {
++    auto Op = std::make_unique<DADAOOperand>(kRegGroup);
++    Op->RegList.assign(Regs.begin(), Regs.end());
++    Op->GroupCount = Count;
++    Op->StartLoc = Start;
++    Op->EndLoc = End;
++    return Op;
++  }
++
++  // Factory for condition register group: {...}?.
++  static std::unique_ptr<DADAOOperand>
++  createRegGroupCond(SmallVectorImpl<MCRegister> &Regs, SMLoc Start,
++                     SMLoc End) {
++    auto Op = std::make_unique<DADAOOperand>(kRegGroupCond);
++    Op->RegList.assign(Regs.begin(), Regs.end());
++    Op->StartLoc = Start;
++    Op->EndLoc = End;
++    return Op;
++  }
++
++  // Factory for register pair: {rd, rd} (no ?).
++  static std::unique_ptr<DADAOOperand>
++  createRegPair(MCRegister R1, MCRegister R2, SMLoc Start, SMLoc End) {
++    auto Op = std::make_unique<DADAOOperand>(kRegPair);
++    Op->RegList.push_back(R1);
++    Op->RegList.push_back(R2);
++    Op->StartLoc = Start;
++    Op->EndLoc = End;
++    return Op;
++  }
++
++  // Factory for address expression: [base, offset] or [base, reg, offset].
++  static std::unique_ptr<DADAOOperand>
++  createAddress(MCRegister Base, MCRegister Index, int64_t Offset,
++                bool IsInsnOffset, SMLoc Start, SMLoc End) {
++    auto Op = std::make_unique<DADAOOperand>(kAddress);
++    Op->AddrBase = Base;
++    Op->AddrIndex = Index;
++    Op->AddrOffset = Offset;
++    Op->AddrIsInsnOffset = IsInsnOffset;
++    Op->StartLoc = Start;
++    Op->EndLoc = End;
++    return Op;
++  }
++
++  static std::unique_ptr<DADAOOperand>
++  createAddress(MCRegister Base, MCRegister Index, const MCExpr *OffsetExpr,
++                bool IsInsnOffset, SMLoc Start, SMLoc End) {
++    auto Op = std::make_unique<DADAOOperand>(kAddress);
++    Op->AddrBase = Base;
++    Op->AddrIndex = Index;
++    Op->AddrOffsetExpr = OffsetExpr;
++    Op->AddrOffset = 0;
++    Op->AddrIsInsnOffset = IsInsnOffset;
++    Op->StartLoc = Start;
++    Op->EndLoc = End;
++    return Op;
++  }
++
++  // Accessors.
++  StringRef getToken() const { return Tok; }
++  MCRegister getReg() const override { return RegNo; }
++  int64_t getImm() const { return ImmVal; }
++  const MCExpr *getImmExpr() const { return ImmExpr; }
++  ArrayRef<MCRegister> getRegList() const { return RegList; }
++  unsigned getGroupCount() const { return GroupCount; }
++  MCRegister getAddrBase() const { return AddrBase; }
++  MCRegister getAddrIndex() const { return AddrIndex; }
++  int64_t getAddrOffset() const { return AddrOffset; }
++  const MCExpr *getAddrOffsetExpr() const { return AddrOffsetExpr; }
++  bool isAddrInsnOffset() const { return AddrIsInsnOffset; }
++
 +  // MCParsedAsmOperand interface.
 +  bool isToken() const override { return Kind == kToken; }
 +  bool isReg() const override { return Kind == kRegister; }
@@ -109,11 +224,6 @@ index 000000000..a382b4fac
 +
 +  SMLoc getStartLoc() const override { return StartLoc; }
 +  SMLoc getEndLoc() const override { return EndLoc; }
-+
-+  StringRef getToken() const { return Tok; }
-+  MCRegister getReg() const override { return RegNo; }
-+  int64_t getImm() const { return ImmVal; }
-+  const MCExpr *getImmExpr() const { return ImmExpr; }
 +
 +  void addRegOperands(MCInst &Inst, unsigned N) const {
 +    assert(N == 1 && "Invalid number of operands!");
@@ -131,18 +241,13 @@ index 000000000..a382b4fac
 +
 +  void print(raw_ostream &OS, const MCAsmInfo &) const override {
 +    switch (Kind) {
-+    case kToken:
-+      OS << "Token:" << Tok;
-+      break;
-+    case kRegister:
-+      OS << "Reg:" << RegNo;
-+      break;
-+    case kImmediate:
-+      if (ImmExpr)
-+        OS << "ImmExpr";
-+      else
-+        OS << "Imm:" << ImmVal;
-+      break;
++    case kToken:       OS << "Token:" << Tok; break;
++    case kRegister:    OS << "Reg:" << RegNo; break;
++    case kImmediate:   if (ImmExpr) OS << "ImmExpr"; else OS << "Imm:" << ImmVal; break;
++    case kRegGroup:    OS << "RegGroup:" << RegList.size(); break;
++    case kRegGroupCond: OS << "RegGroupCond:" << RegList.size(); break;
++    case kRegPair:     OS << "RegPair"; break;
++    case kAddress:     OS << "Address"; break;
 +    }
 +  }
 +
@@ -156,7 +261,10 @@ index 000000000..a382b4fac
 +  }
 +};
 +
-+// The DADAO target assembly parser.
++//===----------------------------------------------------------------------===//
++// DADAOAsmParser
++//===----------------------------------------------------------------------===//
++
 +class DADAOAsmParser : public MCTargetAsmParser {
 +public:
 +  DADAOAsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
@@ -165,11 +273,9 @@ index 000000000..a382b4fac
 +    setAvailableFeatures(FeatureBitset());
 +  }
 +
-+  // Include auto-generated declarations from DADAOGenAsmMatcher.inc.
 +#define GET_ASSEMBLER_HEADER
 +#include "DADAOGenAsmMatcher.inc"
 +
-+  // Include operand diagnostic types.
 +  enum {
 +#define GET_OPERAND_DIAGNOSTIC_TYPES
 +#include "DADAOGenAsmMatcher.inc"
@@ -195,15 +301,20 @@ index 000000000..a382b4fac
 +  bool parseOperand(OperandVector &Operands);
 +  bool parseImmediate(OperandVector &Operands);
 +  bool parseWydePosToken(OperandVector &Operands);
++  bool parseRegGroup(OperandVector &Operands);
++  bool parseAddressExpr(OperandVector &Operands);
 +  static unsigned matchRegisterName(StringRef Name);
++  static bool isRegBankPrefix(StringRef Name);
 +};
 +
 +// Include the auto-generated AsmMatcher implementation.
-+// Must be inside the anonymous namespace so DADAOAsmParser class is visible.
 +#define GET_MATCHER_IMPLEMENTATION
 +#include "DADAOGenAsmMatcher.inc"
 +
-+// Parse a register name (rd0-rd63, rb0-rb63, rf0-rf63, ra0-ra63).
++//===----------------------------------------------------------------------===//
++// Register name matching.
++//===----------------------------------------------------------------------===//
++
 +unsigned DADAOAsmParser::matchRegisterName(StringRef Name) {
 +  if (Name.starts_with("rd")) {
 +    unsigned Num;
@@ -227,6 +338,15 @@ index 000000000..a382b4fac
 +  }
 +  return 0;
 +}
++
++bool DADAOAsmParser::isRegBankPrefix(StringRef Name) {
++  return Name.starts_with("rd") || Name.starts_with("rb") ||
++         Name.starts_with("rf") || Name.starts_with("ra");
++}
++
++//===----------------------------------------------------------------------===//
++// Register parsing.
++//===----------------------------------------------------------------------===//
 +
 +ParseStatus DADAOAsmParser::parseRegisterImpl(MCRegister &Reg, SMLoc &StartLoc,
 +                                               SMLoc &EndLoc) {
@@ -256,6 +376,10 @@ index 000000000..a382b4fac
 +  return parseRegisterImpl(Reg, StartLoc, EndLoc);
 +}
 +
++//===----------------------------------------------------------------------===//
++// Immediate parsing.
++//===----------------------------------------------------------------------===//
++
 +bool DADAOAsmParser::parseImmediate(OperandVector &Operands) {
 +  const AsmToken &Tok = getParser().getTok();
 +  SMLoc StartLoc = Tok.getLoc();
@@ -274,10 +398,10 @@ index 000000000..a382b4fac
 +  return false;
 +}
 +
-+// Try to parse a wyde-position token (wp0/wp1/wp2/wp3).
-+// Returns true if the current token is a wp-prefixed identifier (consumed or
-+// errored). Returns false if the token is not wp-prefixed (caller continues
-+// with normal parse path).
++//===----------------------------------------------------------------------===//
++// Wyde-position token (wp0/wp1/wp2/wp3).
++//===----------------------------------------------------------------------===//
++
 +bool DADAOAsmParser::parseWydePosToken(OperandVector &Operands) {
 +  const AsmToken &Tok = getParser().getTok();
 +  if (Tok.isNot(AsmToken::Identifier))
@@ -287,16 +411,13 @@ index 000000000..a382b4fac
 +  if (Name.size() < 3 || !Name.starts_with("wp"))
 +    return false;
 +
-+  // The token starts with "wp". Try to parse the numeric suffix.
 +  unsigned N;
 +  if (Name.substr(2).getAsInteger(10, N) || N > 3) {
-+    // wp4, wpfoo, wp, etc. — invalid wyde-position
 +    SMLoc Loc = Tok.getLoc();
 +    getParser().Lex();
 +    return Error(Loc, "invalid wyde-position; expected wp0, wp1, wp2, or wp3");
 +  }
 +
-+  // Valid wpN (N = 0..3): convert to immediate N.
 +  SMLoc StartLoc = Tok.getLoc();
 +  SMLoc EndLoc = Tok.getEndLoc();
 +  getParser().Lex();
@@ -304,14 +425,293 @@ index 000000000..a382b4fac
 +  return true;
 +}
 +
++//===----------------------------------------------------------------------===//
++// Register group parsing: {reg}, {r1:r2}, {r1, r2}, {r1, r2}?
++//
++// Syntax (assembly-language.md §4):
++//   {rd8}            — single register (count=1)
++//   {rd8:rd11}       — range (count = end-start+1)
++//   {rd8, rd9}       — register pair (dual-purpose, no ?)
++//   {rd8, rd0}?      — condition group (has ?)
++//   {rd3}?           — single condition (has ?)
++//
++// After parsing, the operand is one of:
++//   kRegGroup      — range or single (decomposed later)
++//   kRegGroupCond  — condition group (decomposed later)
++//   kRegPair       — dual-purpose pair (decomposed later)
++//===----------------------------------------------------------------------===//
++
++bool DADAOAsmParser::parseRegGroup(OperandVector &Operands) {
++  const AsmToken &LBrace = getParser().getTok();
++  SMLoc StartLoc = LBrace.getLoc();
++
++  if (LBrace.isNot(AsmToken::LCurly))
++    return false;
++  getParser().Lex(); // consume '{'
++
++  SmallVector<MCRegister, 4> Regs;
++  bool HasColon = false;
++
++  // Parse first register.
++  MCRegister First;
++  SMLoc RStart, REnd;
++  if (parseRegisterImpl(First, RStart, REnd).isFailure())
++    return Error(getParser().getTok().getLoc(),
++                 "expected register name in register group");
++  Regs.push_back(First);
++
++  // Check what follows: ':', ',', or '}'.
++  const AsmToken &Next = getParser().getTok();
++  if (Next.is(AsmToken::Colon)) {
++    // Range: {start:end}
++    HasColon = true;
++    getParser().Lex(); // consume ':'
++    MCRegister Last;
++    if (parseRegisterImpl(Last, RStart, REnd).isFailure())
++      return Error(getParser().getTok().getLoc(),
++                   "expected register name after ':' in register group");
++    Regs.push_back(Last);
++
++    if (!getParser().getTok().is(AsmToken::RCurly))
++      return Error(getParser().getTok().getLoc(),
++                   "expected '}' to close register group");
++    getParser().Lex(); // consume '}'
++
++    // Compute count from range.
++    unsigned StartIdx = First.id() - DADAO::rd0;
++    unsigned EndIdx = Last.id() - DADAO::rd0;
++    // All register banks are contiguous, so the difference works for any bank.
++    if (EndIdx < StartIdx)
++      return Error(RStart, "invalid register range: end < start");
++    unsigned Count = EndIdx - StartIdx + 1;
++    if (Count > 64)
++      return Error(RStart, "register range too large");
++
++    SMLoc EndLoc = getParser().getTok().getLoc();
++    Operands.push_back(
++        DADAOOperand::createRegGroup(Regs, Count, StartLoc, EndLoc));
++    return false; // success
++  }
++
++  if (Next.is(AsmToken::Comma)) {
++    // Comma-separated: either pair ({r1, r2}) or condition ({r1, r2}? or {r1}?).
++    // Parse additional registers separated by commas.
++    while (getParser().getTok().is(AsmToken::Comma)) {
++      getParser().Lex(); // consume ','
++      MCRegister Reg;
++      if (parseRegisterImpl(Reg, RStart, REnd).isFailure())
++        return Error(getParser().getTok().getLoc(),
++                     "expected register name in register group");
++      Regs.push_back(Reg);
++    }
++  }
++
++  // Expect '}'.
++  if (!getParser().getTok().is(AsmToken::RCurly))
++    return Error(getParser().getTok().getLoc(),
++                 "expected '}' to close register group");
++  getParser().Lex(); // consume '}'
++
++  SMLoc EndLoc = getParser().getTok().getLoc();
++
++  // Check for '?' after '}' (AsmToken::Question).
++  bool HasQuestion = false;
++  if (getParser().getTok().is(AsmToken::Question)) {
++    HasQuestion = true;
++    EndLoc = getParser().getTok().getEndLoc();
++    getParser().Lex(); // consume '?'
++  }
++
++  if (HasQuestion) {
++    // Condition group.
++    Operands.push_back(
++        DADAOOperand::createRegGroupCond(Regs, StartLoc, EndLoc));
++  } else if (Regs.size() == 2 && !HasColon) {
++    // Register pair (dual-purpose): exactly 2 registers, no colon, no ?.
++    Operands.push_back(
++        DADAOOperand::createRegPair(Regs[0], Regs[1], StartLoc, EndLoc));
++  } else if (Regs.size() == 1 && !HasColon) {
++    // Single register group: {rd8} (count=1).
++    SmallVector<MCRegister, 1> SingleReg(Regs.begin(), Regs.end());
++    Operands.push_back(
++        DADAOOperand::createRegGroup(SingleReg, 1, StartLoc, EndLoc));
++  } else {
++    // Multiple registers without colon or ? — not valid.
++    return Error(StartLoc,
++                 "invalid register group: use ':' for range or '?' for condition");
++  }
++
++  return false; // success
++}
++
++//===----------------------------------------------------------------------===//
++// Address expression parsing: [base, offset] or [base, reg, offset]
++//
++// Syntax (assembly-language.md §3):
++//   [rb2, 1]           — memory: base + byte offset
++//   [rb0, 2i]          — iiii jump: base + instruction-word offset
++//   [rb3, rd0, 24i]    — rrii jump: base + reg offset + instruction-word offset
++//
++// The 'i' suffix means the immediate is in instruction-word units (×4 bytes).
++//
++// Pushes as flat operands:
++//   [rb2, 1]        → Reg(rb2), Imm(1)
++//   [rb0, 2i]       → Reg(rb0), Imm(2)
++//   [rb3, rd0, 24i] → Reg(rb3), Reg(rd0), Imm(24)
++//
++// matchAndEmitInstruction handles stripping the base register for iiii jumps.
++//===----------------------------------------------------------------------===//
++
++bool DADAOAsmParser::parseAddressExpr(OperandVector &Operands) {
++  const AsmToken &LBrack = getParser().getTok();
++  SMLoc StartLoc = LBrack.getLoc();
++
++  if (LBrack.isNot(AsmToken::LBrac))
++    return false;
++  getParser().Lex(); // consume '['
++
++  // Parse base register.
++  MCRegister Base;
++  SMLoc RStart, REnd;
++  if (parseRegisterImpl(Base, RStart, REnd).isFailure())
++    return Error(getParser().getTok().getLoc(),
++                 "expected base register in address expression");
++
++  // Expect ','.
++  if (!getParser().getTok().is(AsmToken::Comma))
++    return Error(getParser().getTok().getLoc(),
++                 "expected ',' after base register in address expression");
++  getParser().Lex(); // consume ','
++
++  // Try to parse a register (for [base, reg, offset] form).
++  MCRegister Index;
++  const AsmToken &AfterComma = getParser().getTok();
++  bool HasIndexReg = false;
++
++  if (AfterComma.is(AsmToken::Identifier) &&
++      matchRegisterName(AfterComma.getString()) != 0) {
++    // Could be [base, reg, offset] or [base, reg] (no offset).
++    // Look ahead: if next after reg is ']', it's [base, reg] with no offset.
++    // If next after reg is ',', it's [base, reg, offset].
++    SMLoc IdxStart, IdxEnd;
++    parseRegisterImpl(Index, IdxStart, IdxEnd);
++    HasIndexReg = true;
++
++    if (getParser().getTok().is(AsmToken::Comma)) {
++      // [base, reg, offset]
++      getParser().Lex(); // consume ','
++    } else if (getParser().getTok().is(AsmToken::RBrac)) {
++      // [base, reg] — no offset, offset=0.
++      getParser().Lex(); // consume ']'
++      SMLoc EndLoc = getParser().getTok().getLoc();
++      Operands.push_back(DADAOOperand::createReg(Base, RStart));
++      Operands.push_back(DADAOOperand::createReg(Index, IdxStart));
++      Operands.push_back(DADAOOperand::createImm(0, EndLoc, EndLoc));
++      return false; // success
++    } else {
++      return Error(getParser().getTok().getLoc(),
++                   "expected ',' or ']' after register in address expression");
++    }
++  }
++
++  // Parse offset (immediate expression).
++  // The offset may be a number followed by 'i' suffix (instruction-word unit).
++  // If there's no space between the number and 'i', the lexer produces a
++  // single identifier token like "2i". We handle both cases:
++  //   1. Number and 'i' are separate tokens: parse expression, then check for 'i'
++  //   2. '2i' is a single token: parse as identifier, strip 'i', convert number
++  const AsmToken &OffsetTok = getParser().getTok();
++  int64_t OffsetVal = 0;
++  bool IsInsnOffset = false;
++  SMLoc EndLoc;
++
++  if (OffsetTok.is(AsmToken::Identifier)) {
++    // Case 2: '2i' is a single identifier token.
++    StringRef OffsetStr = OffsetTok.getString();
++    if (OffsetStr.size() > 1 && OffsetStr.back() == 'i') {
++      StringRef NumPart = OffsetStr.drop_back();
++      if (!NumPart.getAsInteger(10, OffsetVal)) {
++        IsInsnOffset = true;
++        EndLoc = OffsetTok.getEndLoc();
++        getParser().Lex(); // consume the token
++        // Skip to ']' check below.
++      } else {
++        // Not a valid number+i combo, try as expression.
++        goto parse_offset_expr;
++      }
++    } else {
++      goto parse_offset_expr;
++    }
++  } else {
++  parse_offset_expr:
++    const MCExpr *OffsetExpr;
++    SMLoc ExprEnd;
++    if (getParser().parseExpression(OffsetExpr, ExprEnd))
++      return true;
++    EndLoc = ExprEnd;
++
++    // Check for 'i' suffix (instruction-word unit) as a separate token.
++    if (getParser().getTok().is(AsmToken::Identifier) &&
++        getParser().getTok().getString() == "i") {
++      IsInsnOffset = true;
++      getParser().Lex(); // consume 'i'
++    }
++
++    // Evaluate the expression.
++    if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
++      // Non-constant expression — push as expr.
++      // (For now, we only support constant offsets.)
++      return Error(getParser().getTok().getLoc(),
++                   "non-constant offset in address expression");
++    }
++  }
++
++  // Expect ']'.
++  if (!getParser().getTok().is(AsmToken::RBrac))
++    return Error(getParser().getTok().getLoc(),
++                 "expected ']' to close address expression");
++  getParser().Lex(); // consume ']'
++  EndLoc = getParser().getTok().getLoc();
++
++  // Push as flat operands: base register, [index register], offset.
++  Operands.push_back(DADAOOperand::createReg(Base, RStart));
++  if (HasIndexReg)
++    Operands.push_back(DADAOOperand::createReg(Index, RStart));
++  Operands.push_back(DADAOOperand::createImm(OffsetVal, StartLoc, EndLoc));
++
++  return false; // success
++}
++
++//===----------------------------------------------------------------------===//
++// Operand parsing.
++//
++// Dispatches to the appropriate parser based on the current token:
++//   '{' → parseRegGroup()
++//   '[' → parseAddressExpr()
++//   wp* → parseWydePosToken()
++//   reg → register operand
++//   otherwise → parseImmediate()
++//===----------------------------------------------------------------------===//
++
 +bool DADAOAsmParser::parseOperand(OperandVector &Operands) {
 +  const AsmToken &Tok = getParser().getTok();
++
++  // Register group: {...}
++  if (Tok.is(AsmToken::LCurly)) {
++    return parseRegGroup(Operands);
++  }
++
++  // Address expression: [...]
++  if (Tok.is(AsmToken::LBrac)) {
++    return parseAddressExpr(Operands);
++  }
 +
 +  if (Tok.is(AsmToken::Identifier)) {
 +    // Try wyde-position token first (wp0/wp1/wp2/wp3).
 +    if (parseWydePosToken(Operands))
 +      return false;
 +
++    // Try register.
 +    unsigned RegNo = matchRegisterName(Tok.getString());
 +    if (RegNo) {
 +      SMLoc StartLoc = Tok.getLoc();
@@ -319,38 +719,326 @@ index 000000000..a382b4fac
 +      Operands.push_back(DADAOOperand::createReg(RegNo, StartLoc));
 +      return false;
 +    }
++
++    // Check for '?' as a standalone token (AsmToken::Question).
++    if (Tok.is(AsmToken::Question)) {
++      return Error(Tok.getLoc(), "unexpected '?' — did you mean '{...}'?");
++    }
 +  }
 +
 +  return parseImmediate(Operands);
 +}
 +
++//===----------------------------------------------------------------------===//
++// Branch-aware operand parsing.
++//
++// For br.* instructions, the address expression is the branch target offset.
++// The base register (always rb0) is implicit — not an MCInst operand.
++// This function parses the address but only pushes the offset, not the base.
++//
++// This is called from parseInstruction when the mnemonic starts with "br."
++// and the current token is '['.
++//===----------------------------------------------------------------------===//
++
++bool parseBranchAddress(OperandVector &Operands, MCAsmParser &Parser) {
++  SMLoc StartLoc = Parser.getTok().getLoc();
++  Parser.Lex(); // consume '['
++
++  // Parse base register (must be rb0 for riii, any rb for rrii).
++  // We skip it — it's implicit in the instruction encoding.
++  const AsmToken &BaseTok = Parser.getTok();
++  if (BaseTok.isNot(AsmToken::Identifier))
++    return true; // error
++  Parser.Lex(); // consume base register
++
++  // Expect ','.
++  if (!Parser.getTok().is(AsmToken::Comma))
++    return true;
++  Parser.Lex(); // consume ','
++
++  // Check for index register (rrii form: [base, reg, offset]).
++  const AsmToken &AfterComma = Parser.getTok();
++  if (AfterComma.is(AsmToken::Identifier)) {
++    StringRef Name = AfterComma.getString();
++    // Quick check: could be a register name.
++    if (Name.starts_with("rd") || Name.starts_with("rb") ||
++        Name.starts_with("rf") || Name.starts_with("ra")) {
++      // Parse as register (we don't push it — it's the condition register
++      // for rrii branches, already handled by the register group).
++      Parser.Lex(); // consume register
++      // Expect ','.
++      if (Parser.getTok().is(AsmToken::Comma))
++        Parser.Lex(); // consume ','
++    }
++  }
++
++  // Parse offset expression.
++  // Handle '2i' as single token (no space between number and 'i').
++  const AsmToken &OffsetTok = Parser.getTok();
++  int64_t OffsetVal = 0;
++  SMLoc EndLoc;
++
++  if (OffsetTok.is(AsmToken::Identifier)) {
++    StringRef OffsetStr = OffsetTok.getString();
++    if (OffsetStr.size() > 1 && OffsetStr.back() == 'i') {
++      StringRef NumPart = OffsetStr.drop_back();
++      if (!NumPart.getAsInteger(10, OffsetVal)) {
++        // '2i' → offset=2, IsInsnOffset=true.
++        EndLoc = OffsetTok.getEndLoc();
++        Parser.Lex(); // consume the token
++      } else {
++        return true; // error: not a valid offset
++      }
++    } else {
++      return true; // error: expected offset
++    }
++  } else {
++    const MCExpr *OffsetExpr;
++    SMLoc ExprEnd;
++    if (Parser.parseExpression(OffsetExpr, ExprEnd))
++      return true;
++    EndLoc = ExprEnd;
++
++    // Check for 'i' suffix as separate token.
++    if (Parser.getTok().is(AsmToken::Identifier) &&
++        Parser.getTok().getString() == "i") {
++      Parser.Lex(); // consume 'i'
++    }
++
++    if (!OffsetExpr->evaluateAsAbsolute(OffsetVal))
++      return true; // error: non-constant offset
++  }
++
++  // Expect ']'.
++  if (!Parser.getTok().is(AsmToken::RBrac))
++    return true;
++  Parser.Lex(); // consume ']'
++  SMLoc EndLocFinal = Parser.getTok().getLoc();
++
++  // Push only the offset (base register is implicit).
++  Operands.push_back(DADAOOperand::createImm(OffsetVal, StartLoc, EndLocFinal));
++
++  return false; // success
++}
++
++//===----------------------------------------------------------------------===//
++// Instruction parsing.
++//
++// Pushes the mnemonic as a token, then parses operands separated by commas.
++//===----------------------------------------------------------------------===//
++
 +bool DADAOAsmParser::parseInstruction(ParseInstructionInfo &Info,
 +                                       StringRef Name, SMLoc NameLoc,
 +                                       OperandVector &Operands) {
 +  Operands.push_back(DADAOOperand::createToken(Name, NameLoc));
-+
-+  if (getParser().getLexer().isNot(AsmToken::EndOfStatement)) {
-+    if (parseOperand(Operands))
-+      return true;
-+
-+    while (getParser().getLexer().is(AsmToken::Comma)) {
-+      getParser().Lex();
++  if (getParser().getTok().isNot(AsmToken::EndOfStatement)) {
++    // For br.* instructions, the second operand is an address expression
++    // that represents the branch target. The base register is implicit,
++    // so we use a special parser that only pushes the offset.
++    if (Name.starts_with("br.")) {
++      // First operand: register group {cond}?.
 +      if (parseOperand(Operands))
 +        return true;
++      // Expect ','.
++      if (getParser().getTok().is(AsmToken::Comma)) {
++        getParser().Lex(); // consume ','
++      }
++      // Second operand: address expression (branch target).
++      if (getParser().getTok().is(AsmToken::LBrac)) {
++        if (parseBranchAddress(Operands, getParser()))
++          return true;
++      } else {
++        // Fallback: parse as regular operand.
++        if (parseOperand(Operands))
++          return true;
++      }
++    } else if (Name.starts_with("ldm.") || Name.starts_with("stm.")) {
++      // ldm/stm: {dst:start}, [rb, rc]
++      // First operand: register group.
++      if (parseOperand(Operands))
++        return true;
++      // Expect ','.
++      if (getParser().getTok().is(AsmToken::Comma))
++        getParser().Lex();
++      // Second operand: [rb, rc] — parse as two registers, NOT as address.
++      if (getParser().getTok().is(AsmToken::LBrac)) {
++        getParser().Lex(); // consume '['
++        // Parse base register (rb).
++        if (parseOperand(Operands))
++          return true;
++        // Expect ','.
++        if (getParser().getTok().is(AsmToken::Comma))
++          getParser().Lex();
++        // Parse index register (rc).
++        if (parseOperand(Operands))
++          return true;
++        // Expect ']'.
++        if (getParser().getTok().is(AsmToken::RBrac))
++          getParser().Lex();
++      }
++    } else {
++      // Normal instruction: parse operands sequentially.
++      if (parseOperand(Operands)) {
++        return true;
++      }
++
++      while (getParser().getTok().is(AsmToken::Comma)) {
++        getParser().Lex();
++        if (parseOperand(Operands))
++          return true;
++      }
 +    }
 +  }
 +
 +  return false;
 +}
 +
++//===----------------------------------------------------------------------===//
++// matchAndEmitInstruction — decompose complex operands and match.
++//
++// Complex operands (register groups, register pairs, addresses) are decomposed
++// into the flat register/immediate operands that the auto-generated
++// MatchInstructionImpl expects.
++//
++// Decomposition rules:
++//   kRegPair      → push both registers as individual operands
++//   kRegGroupCond → push all registers as individual operands
++//   kRegGroup     → push first register, then count (as last operand)
++//   kAddress      → push base register [and index register], then offset.
++//                   For iiii jump/call (mnemonic "jump"/"call" with exactly
++//                   2 address components), strip the base register since
++//                   iiii format only needs the immediate offset.
++//===----------------------------------------------------------------------===//
++
 +bool DADAOAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
 +                                              OperandVector &Operands,
 +                                              MCStreamer &Out,
 +                                              uint64_t &ErrorInfo,
 +                                              bool MatchingInlineAsm) {
++  // Reject old flat syntax for dual-purpose rrrr instructions.
++  // add.uo rd8, rd9, rd10, rd11 → must use add.uo {rd8, rd9}, rd10, rd11
++  // Only applies to rrrr format (4 operands), not orrr format (3 operands).
++  if (Operands.size() >= 2) {
++    auto *FirstOp = static_cast<DADAOOperand *>(Operands[1].get());
++    if (FirstOp && FirstOp->Kind == DADAOOperand::kRegister) {
++      auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
++      if (TokOp && TokOp->isToken()) {
++        StringRef Mnem = TokOp->getToken();
++        // Only reject for rrrr format (5 operands: token + 4 regs)
++        if (Operands.size() == 5 &&
++            (Mnem == "add.uo" || Mnem == "add.so" ||
++             Mnem == "sub.uo" || Mnem == "sub.so" ||
++             Mnem == "mul.uo" || Mnem == "mul.so")) {
++          return Error(Operands[1]->getStartLoc(),
++                       "old syntax not accepted; use '{" "}' for dual-purpose "
++                       "destination registers, e.g., add.uo {rd8, rd9}, rd10, rd11");
++        }
++      }
++    }
++  }
++
++  // Decompose complex operands into flat operands.
++  SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> Flat;
++  StringRef Mnemonic;
++  unsigned SavedGroupCount = 0;  // Saved count from kRegGroup operand.
++  SMLoc GroupLoc;
++
++  for (size_t I = 0; I < Operands.size(); ++I) {
++    auto &Op = Operands[I];
++
++    if (Op->isToken()) {
++      Mnemonic = static_cast<DADAOOperand *>(Op.get())->getToken();
++      Flat.push_back(std::move(Operands[I]));
++      continue;
++    }
++
++    auto *DOp = static_cast<DADAOOperand *>(Op.get());
++    switch (DOp->Kind) {
++      case DADAOOperand::kRegPair:
++        // Dual-purpose: {rd8, rd9} → rd8, rd9
++        for (MCRegister R : DOp->getRegList())
++          Flat.push_back(DADAOOperand::createReg(R, DOp->getStartLoc()));
++        break;
++
++      case DADAOOperand::kRegGroupCond:
++        // Condition: {rd8, rd0}? → rd8, rd0
++        for (MCRegister R : DOp->getRegList())
++          Flat.push_back(DADAOOperand::createReg(R, DOp->getStartLoc()));
++        break;
++
++      case DADAOOperand::kRegGroup: {
++        // Range/single: {rd8:rd10} → rd8 (first reg)
++        // Save count for later use (ldm/stm, ra2rd, etc.)
++        SavedGroupCount = DOp->getGroupCount();
++        GroupLoc = DOp->getStartLoc();
++        ArrayRef<MCRegister> RL = DOp->getRegList();
++        if (!RL.empty())
++          Flat.push_back(DADAOOperand::createReg(RL[0], DOp->getStartLoc()));
++        break;
++      }
++
++      case DADAOOperand::kAddress: {
++        // Address: [base, offset] → base, offset
++        //          [base, index, offset] → base, index, offset
++        MCRegister Base = DOp->getAddrBase();
++        MCRegister Index = DOp->getAddrIndex();
++
++        // Push base register (may be stripped later for iiii jumps).
++        Flat.push_back(DADAOOperand::createReg(Base, DOp->getStartLoc()));
++
++        // Push index register if present.
++        if (Index.isValid())
++          Flat.push_back(DADAOOperand::createReg(Index, DOp->getStartLoc()));
++
++        // Push offset.
++        if (DOp->getAddrOffsetExpr())
++          Flat.push_back(DADAOOperand::createImmExpr(
++              DOp->getAddrOffsetExpr(), DOp->getStartLoc(), DOp->getEndLoc()));
++        else
++          Flat.push_back(DADAOOperand::createImm(
++              DOp->getAddrOffset(), DOp->getStartLoc(), DOp->getEndLoc()));
++        break;
++      }
++
++      default:
++        Flat.push_back(std::move(Operands[I]));
++        break;
++      }
++  }
++
++  // For iiii jump/call: [rb0, imm] → only push imm (strip base register).
++  // The mnemonic is "jump" or "call" and we have exactly 3 flat operands:
++  // Token, Reg(base), Imm(offset). Strip the base register.
++  // Note: br.* instructions are handled separately in parseInstruction.
++  if ((Mnemonic == "jump" || Mnemonic == "call") && Flat.size() == 3 &&
++      Flat[1]->isReg() && Flat[2]->isImm()) {
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> Iiii;
++    Iiii.push_back(std::move(Flat[0])); // Token
++    Iiii.push_back(std::move(Flat[2])); // Imm (offset)
++    Flat = std::move(Iiii);
++  }
++
++  // For rrii jump/call: [rb, rd, imm] → keep all (base is in encoding).
++  // After decomposition: Token, rb(base), rd(offset_reg), imm(offset).
++  // These are already in the correct order for rrii matching.
++
++  // For rrri ldm/stm and orri block (ra2rd, etc.):
++  // Append the saved group count as the last operand.
++  if (SavedGroupCount > 0 &&
++      (Mnemonic.starts_with("ldm.") || Mnemonic.starts_with("stm.") ||
++       Mnemonic == "ra2rd" || Mnemonic == "rb2rb" || Mnemonic == "rb2rd" ||
++       Mnemonic == "rd2ra" || Mnemonic == "rd2rb" || Mnemonic == "rd2rd" ||
++       Mnemonic == "rd2rf" || Mnemonic == "rf2rd")) {
++    Flat.push_back(DADAOOperand::createImm(SavedGroupCount, GroupLoc, GroupLoc));
++  }
++
++  // For rrii memory: ld.ub rd, [rb, imm] → rd, rb, imm (already flat).
++  // For rrii jump: jump [rb, rd, imm] → Token, rb, rd, imm (already flat).
++  // These are handled by the general decomposition above.
++
 +  MCInst Inst;
 +  unsigned MatchResult =
-+      MatchInstructionImpl(Operands, Inst, ErrorInfo, MatchingInlineAsm);
++      MatchInstructionImpl(Flat, Inst, ErrorInfo, MatchingInlineAsm);
 +
 +  switch (MatchResult) {
 +  case Match_Success:
@@ -362,8 +1050,8 @@ index 000000000..a382b4fac
 +    return Error(IDLoc, "unrecognized instruction mnemonic");
 +  case Match_InvalidOperand: {
 +    SMLoc ErrorLoc = IDLoc;
-+    if (ErrorInfo < Operands.size())
-+      ErrorLoc = Operands[ErrorInfo]->getStartLoc();
++    if (ErrorInfo < Flat.size())
++      ErrorLoc = Flat[ErrorInfo]->getStartLoc();
 +    return Error(ErrorLoc, "invalid operand for instruction");
 +  }
 +  case Match_InvalidTiedOperand:

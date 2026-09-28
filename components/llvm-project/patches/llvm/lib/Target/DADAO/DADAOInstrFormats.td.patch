@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrFormats.td b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
 new file mode 100644
-index 000000000..5b951d3a2
+index 000000000000..e82dcf367684
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
-@@ -0,0 +1,221 @@
+@@ -0,0 +1,235 @@
 +//===-- DADAOInstrFormats.td - DADAO Instruction Formats ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -68,6 +68,11 @@ index 000000000..5b951d3a2
 +  let Inst{17-12} = hb;
 +  let Inst{11-6}  = hc;
 +  let Inst{5-0}   = hd;
++
++  // Format kind in TSFlags bits [3:0].
++  // See DADAO.h FormatKind enum. Set by each format subclass.
++  bits<4> FormatKind = 0;
++  let TSFlags{3-0} = FormatKind;
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -86,6 +91,7 @@ index 000000000..5b951d3a2
 +  let hb = rb;
 +  let hc = rc;
 +  let hd = rd;
++  let FormatKind = 0;  // FK_rrrr
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -104,6 +110,7 @@ index 000000000..5b951d3a2
 +  let hb = rb;
 +  let hc = rc;
 +  let hd = imm6;
++  let FormatKind = 1;  // FK_rrri
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -121,6 +128,7 @@ index 000000000..5b951d3a2
 +  let hb = rb;
 +  let hc = imm12{11-6};
 +  let hd = imm12{5-0};
++  let FormatKind = 2;  // FK_rrii
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -137,6 +145,7 @@ index 000000000..5b951d3a2
 +  let hb = imm18{17-12};
 +  let hc = imm18{11-6};
 +  let hd = imm18{5-0};
++  let FormatKind = 3;  // FK_riii
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -152,6 +161,7 @@ index 000000000..5b951d3a2
 +  let hb = imm24{17-12};
 +  let hc = imm24{11-6};
 +  let hd = imm24{5-0};
++  let FormatKind = 4;  // FK_iiii
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -175,6 +185,7 @@ index 000000000..5b951d3a2
 +  let hb{3-0} = imm16{15-12};
 +  let hc = imm16{11-6};
 +  let hd = imm16{5-0};
++  let FormatKind = 5;  // FK_rwii
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -192,6 +203,7 @@ index 000000000..5b951d3a2
 +  let hb = rb;
 +  let hc = rc;
 +  let hd = rd;
++  let FormatKind = 6;  // FK_orrr
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -209,6 +221,7 @@ index 000000000..5b951d3a2
 +  let hb = rb;
 +  let hc = rc;
 +  let hd = imm6;
++  let FormatKind = 7;  // FK_orri
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -224,4 +237,5 @@ index 000000000..5b951d3a2
 +  let hb = imm18{17-12};
 +  let hc = imm18{11-6};
 +  let hd = imm18{5-0};
++  let FormatKind = 8;  // FK_oiii
 +}
