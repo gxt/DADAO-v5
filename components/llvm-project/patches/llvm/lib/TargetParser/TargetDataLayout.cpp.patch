@@ -1,5 +1,5 @@
 diff --git a/llvm/lib/TargetParser/TargetDataLayout.cpp b/llvm/lib/TargetParser/TargetDataLayout.cpp
-index 18f0c1390..720dfa400 100644
+index 18f0c13907e5..720dfa4004ea 100644
 --- a/llvm/lib/TargetParser/TargetDataLayout.cpp
 +++ b/llvm/lib/TargetParser/TargetDataLayout.cpp
 @@ -644,6 +644,9 @@ std::string Triple::computeDataLayout(StringRef ABIName) const {

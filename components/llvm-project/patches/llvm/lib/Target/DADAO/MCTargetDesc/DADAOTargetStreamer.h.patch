@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h
 new file mode 100644
-index 000000000..5441bd49e
+index 000000000000..5441bd49e8c6
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOTargetStreamer.h
 @@ -0,0 +1,24 @@

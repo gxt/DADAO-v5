@@ -97,8 +97,8 @@ TESTS = [
     ("call 1", encode_iiii(0x74, 1)),
     # iiii format: jump 1
     ("jump 1", encode_iiii(0x70, 1)),
-    # iiii format: swym 0
-    ("swym 0", encode_iiii(0x77, 0)),
+    # oiii format: swym 0 (op=0x00, ha=0x02)
+    ("swym 0", encode_oiii(0x00, 0x02, 0)),
     
     # rwii format: set.zw rd8, 0, 1
     ("set.zw rd8, 0, 1", encode_rwii(0x4C, 8, 0, 1)),
@@ -166,8 +166,8 @@ TESTS = [
     ("call 1", encode_iiii(0x74, 1)),
     # iiii_jump.s: jump 1 (op=0x70)
     ("jump 1", encode_iiii(0x70, 1)),
-    # iiii_jump.s: swym 42 (op=0x77)
-    ("swym 42", encode_iiii(0x77, 42)),
+    # oiii.s: swym 42 (op=0x00, ha=0x02)
+    ("swym 42", encode_oiii(0x00, 0x02, 42)),
 
     # orrr.s: or.o rd8, rd9, rd10 (op=0x40, ha=0x09)
     ("or.o rd8, rd9, rd10", encode_orrr(0x40, 0x09, 8, 9, 10)),

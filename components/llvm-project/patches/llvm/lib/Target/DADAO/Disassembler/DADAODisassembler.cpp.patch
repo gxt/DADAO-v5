@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
 new file mode 100644
-index 000000000..c8e6f7d8a
+index 000000000000..b708270f075d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
 @@ -0,0 +1,277 @@
@@ -224,7 +224,7 @@ index 000000000..c8e6f7d8a
 +  return MCDisassembler::Success;
 +}
 +
-+// 24-bit unsigned immediate (iiii format, swym)
++// 24-bit unsigned immediate (iiii format)
 +static DecodeStatus DecodeUImm24(MCInst &MI, uint64_t Imm,
 +                                 uint64_t Address, const void *Decoder) {
 +  MI.addOperand(MCOperand::createImm(Imm & 0xFFFFFF));

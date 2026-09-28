@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
 new file mode 100644
-index 000000000000..2397a2a0eba0
+index 000000000000..a3e9da95dbec
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.h
 @@ -0,0 +1,55 @@
@@ -48,7 +48,7 @@ index 000000000000..2397a2a0eba0
 +  FK_rrri = 1,  // three regs + imm6: ldm.*, stm.*
 +  FK_rrii = 2,  // two regs + imm12: ld.*, st.*, br.eq, br.ne, jump-rrii
 +  FK_riii = 3,  // one reg + imm18: add.si, br.*, ret
-+  FK_iiii = 4,  // imm24 only: jump-iiii, call-iiii, swym
++  FK_iiii = 4,  // imm24 only: jump-iiii, call-iiii
 +  FK_rwii = 5,  // reg + wydepos + imm16: set.zw, or.w, ...
 +  FK_orrr = 6,  // minor-op + three regs: and.o, or.o, ...
 +  FK_orri = 7,  // minor-op + two regs + imm6: ext.*, shr.*, ra2rd, ...

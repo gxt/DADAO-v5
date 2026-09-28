@@ -1,5 +1,5 @@
 diff --git a/llvm/lib/TargetParser/Triple.cpp b/llvm/lib/TargetParser/Triple.cpp
-index 356782c1f..42077f176 100644
+index 356782c1f6ad..42077f176224 100644
 --- a/llvm/lib/TargetParser/Triple.cpp
 +++ b/llvm/lib/TargetParser/Triple.cpp
 @@ -152,6 +152,8 @@ StringRef Triple::getArchTypeName(ArchType Kind) {

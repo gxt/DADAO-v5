@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
 new file mode 100644
-index 000000000..3c2c46c19
+index 000000000000..010db4f8a825
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
 @@ -0,0 +1,72 @@
@@ -76,4 +76,3 @@ index 000000000..3c2c46c19
 +DADAORegisterInfo::getFrameRegister(const MachineFunction & /*MF*/) const {
 +  return DADAO::rb2; // FP = rb2
 +}
-\ No newline at end of file

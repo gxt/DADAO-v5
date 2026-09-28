@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..7c6f302ef
+index 000000000000..8238bd692eec
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1500 @@
+@@ -0,0 +1,1501 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -110,7 +110,7 @@ index 000000000..7c6f302ef
 +  let MIOperandInfo = (ops);
 +}
 +
-+// 24-bit unsigned immediate (iiii, swym)
++// 24-bit unsigned immediate (iiii)
 +def immu24 : Operand<i64> {
 +  let ParserMatchClass = DADAOImmAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
@@ -553,7 +553,7 @@ index 000000000..7c6f302ef
 +  let Pattern = [];
 +}
 +
-+// --- iiii format (3 instructions) ---
++// --- iiii format (2 instructions) ---
 +
 +def jump_iiii : DADAOIiii<"jump"> {
 +  let OutOperandList = (outs );
@@ -566,13 +566,6 @@ index 000000000..7c6f302ef
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins imms24:$imm24);
 +  let op = 0x74;
-+  let Pattern = [];
-+}
-+
-+def swym_iiii : DADAOIiii<"swym"> {
-+  let OutOperandList = (outs );
-+  let InOperandList = (ins immu24:$imm24);
-+  let op = 0x77;
 +  let Pattern = [];
 +}
 +
@@ -1487,7 +1480,7 @@ index 000000000..7c6f302ef
 +  let Pattern = [];
 +}
 +
-+// --- oiii format (2 instructions) ---
++// --- oiii format (3 instructions) ---
 +
 +def illi : DADAOOiii<"illi"> {
 +  let OutOperandList = (outs );
@@ -1502,5 +1495,13 @@ index 000000000..7c6f302ef
 +  let InOperandList = (ins immu18:$imm18);
 +  let op = 0x00;
 +  let ha = 0x01;
++  let Pattern = [];
++}
++
++def swym_oiii : DADAOOiii<"swym"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins immu18:$imm18);
++  let op = 0x00;
++  let ha = 0x02;
 +  let Pattern = [];
 +}

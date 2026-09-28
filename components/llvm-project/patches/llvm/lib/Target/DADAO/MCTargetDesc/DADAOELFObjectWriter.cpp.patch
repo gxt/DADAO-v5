@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
 new file mode 100644
-index 000000000..b11df2518
+index 000000000000..b11df251812e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
 @@ -0,0 +1,49 @@

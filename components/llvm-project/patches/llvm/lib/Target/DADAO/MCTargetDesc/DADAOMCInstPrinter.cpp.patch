@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000000..9d471d5e0c71
+index 000000000000..6d0f56379b53
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,386 @@
+@@ -0,0 +1,379 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -292,17 +292,10 @@ index 000000000000..9d471d5e0c71
 +  }
 +
 +  case FK_iiii: {
-+    // iiii: jump/call — [rb0, immi]; swym — imm
-+    StringRef MnemStr(Mnem);
-+    if (MnemStr == "jump" || MnemStr == "call") {
-+      O << " [rb0, ";
-+      O << MI->getOperand(0).getImm();
-+      O << "i]";
-+    } else {
-+      // swym: just the immediate
-+      O << " ";
-+      printOperand(MI, 0, O);
-+    }
++    // iiii: jump/call — [rb0, immi]
++    O << " [rb0, ";
++    O << MI->getOperand(0).getImm();
++    O << "i]";
 +    break;
 +  }
 +

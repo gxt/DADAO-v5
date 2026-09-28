@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.h b/llvm/lib/Target/DADAO/DADAORegisterInfo.h
 new file mode 100644
-index 000000000..02e91eb91
+index 000000000000..02e91eb91355
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.h
 @@ -0,0 +1,39 @@

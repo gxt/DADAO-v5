@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrFormats.td b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
 new file mode 100644
-index 000000000000..e82dcf367684
+index 000000000000..7012c4fcb2f5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
 @@ -0,0 +1,235 @@
@@ -152,7 +152,7 @@ index 000000000000..e82dcf367684
 +// Format: iiii — 24-bit immediate only (§2.3)
 +//
 +//   ha:hb:hc:hd = imm24 (ha = imm24[23:18], ... hd = imm24[5:0])
-+//   Examples: jump-iiii, call-iiii, swym
++//   Examples: jump-iiii, call-iiii
 +//===----------------------------------------------------------------------===//
 +
 +class DADAOIiii<string mnemonic> : DADAOInst<mnemonic # "\t$imm24"> {
@@ -228,7 +228,7 @@ index 000000000000..e82dcf367684
 +// Format: oiii — minor-opcode + 18-bit immediate (§2.3)
 +//
 +//   ha = minor-op, hb:hc:hd = imm18
-+//   Examples: illi, fence
++//   Examples: illi, fence, swym
 +//===----------------------------------------------------------------------===//
 +
 +class DADAOOiii<string mnemonic> : DADAOInst<mnemonic # "\t$imm18"> {
