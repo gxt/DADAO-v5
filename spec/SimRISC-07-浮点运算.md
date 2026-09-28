@@ -1,95 +1,9 @@
-# SimRISC浮点类指令
+# SimRISC浮点运算指令
 
-> **版本：0.5.3**（与 SimRISC-00 一致）
+> **版本：0.5.4**（与 SimRISC-00 一致）
+> **分类：浮点运算 [deferred]**（46 条）— fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类
 
 浮点格式的定义符合 IEEE754 标准。舍入模式由 rf0[17:16] 控制，异常标志在 rf0[4:0]。浮点指令执行后，异常状态位（NV/DZ/OF/UF/NX）由硬件设置，软件可通过读取 rf0 检查异常状态。
-
-> **rf0 为目的寄存器约定**：rf0 = FCSR。rf ld/st 中 rf0 为目的时允许，写只读位时静默忽略，rw 位正常写入。浮点运算指令的目的或任一源操作数为 rf0 时触发 **ILLI** 异常（rf0 为控制和状态寄存器，不可作为普通浮点操作数参与运算）。
-
-## 存取RF寄存器
-
-RF寄存器分为tetra和octa两种情况，tetra为32位，octa为64位，对应单精和双精两种情况，共有8条指令如下：
-
-```simrisc
-ld.t    rfha, rbhb, imms12
-st.t    rfha, rbhb, imms12
-ld.o    rfha, rbhb, imms12
-st.o    rfha, rbhb, imms12
-
-ldm.t   rfha, rbhb, rdhc, immu6
-stm.t   rfha, rbhb, rdhc, immu6
-ldm.o   rfha, rbhb, rdhc, immu6
-stm.o   rfha, rbhb, rdhc, immu6
-```
-
-对齐要求：`ld.o`/`st.o`/`ldm.o`/`stm.o` 需 8 字节对齐，`ld.t`/`st.t`/`ldm.t`/`stm.t` 需 4 字节对齐。未对齐触发 MALIGN 异常。
-
-限制如下：
-
-- `immu6` = 0 时触发 ILLI 异常
-- 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
-- `rfha + immu6 > 64`（超出 rf63）时触发 ILLI 异常
-
-## 寄存器组之间块赋值
-
-不同寄存器组或相同寄存器组之间，可以互相进行块传输，块传输过程中不进行数据类型的转换，保持64位二进制不变，但是必需是多个连续的寄存器。
-操作数类型为 `orri`，指令如下：
-
-```simrisc
-rf2rd   rdhb, rfhc, immu6
-rd2rf   rfhb, rdhc, immu6
-```
-
-指令语义为，将hc开始的immu6个寄存器复制到hb开始的immu6个寄存器中。
-immu6为立即数，存在hd位域中，用来指定寄存器的个数，有效范围为1~63。
-
-限制如下：
-
-- `immu6` = 0 时触发 ILLI 异常
-- 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
-
-## 立即数常数赋值：Immediate constant
-
-针对rf寄存器，SimRISC提供了set.w指令，操作数类型为 `rwii` ，指令如下：
-
-```simrisc
-set.w    rfha, wpN, immu16
-```
-
-`set.w` 指令只设置相应的16位，其余48位不变。
-因此，32位单精浮点（tetra）需要两条指令设置立即数的值，64位双精浮点（octa）则需要四条指令。
-
-### set.ft / set.fo 伪指令
-
-`set.ft` 和 `set.fo` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，分别对应单精（tetra，32 位）和双精（octa，64 位）浮点格式。伪指令展开为 `set.w` 的组合。
-
-```simrisc
-; 加载单精浮点 1.0（0x3F800000）→ 只需设置低 32 位
-set.ft   rf1, 0x3F800000             ; 展开为：
-                                      ;   set.w rf1, wp1, 0x3F80
-                                      ;   set.w rf1, wp0, 0x0000
-
-; 加载双精浮点 1.0（0x3FF0000000000000）
-set.fo   rf1, 0x3FF0000000000000     ; 展开为：
-                                      ;   set.w rf1, wp3, 0x3FF0
-                                      ;   set.w rf1, wp2, 0x0000
-                                      ;   set.w rf1, wp1, 0x0000
-                                      ;   set.w rf1, wp0, 0x0000
-
-; 加载零 → 将 rd0（恒为 0）赋值给 rf
-set.ft   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
-set.fo   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
-```
-
-**寄存器传值**：`set.ft`/`set.fo` 也可用于从 rd 或 rf 寄存器传值至 rf，汇编器展开为 `rd2rf` 或 `ft2ft`/`fo2fo`：
-
-```simrisc
-set.ft   rf1, rd5       ; 展开为 rd2rf rf1, rd5, 1
-set.ft   rf1, rf2       ; 展开为 ft2ft rf1, rf2, 1
-set.fo   rf2, rf7       ; 展开为 fo2fo rf2, rf7, 1
-```
-
-**注**：加载全零时汇编器自动使用 `rd2rf` 从 `rd0` 拷贝。
 
 ## 格式转换指令
 
@@ -162,17 +76,6 @@ fosclb  rfhb, rfhc, rfhd
 
 `ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfhc × 2^rfhd`（rfhd 取整数值），舍入模式由 rf0 控制。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
 
-### S3D1
-
-第二类浮点运算指令的操作数类型为`rrrr`：
-
-```simrisc
-ftmadd  rfha, rfhb, rfhc, rfhd
-fomadd  rfha, rfhb, rfhc, rfhd
-```
-
-其中，rfha为目的操作数，其余三个为源操作数，实现`fusedMultiplyAdd(rfhb, rfhc, rfhd)`运算，即$rfha = rfhb \times rfhc + rfhd$。融合乘加为单次舍入（标准 FMA）。硬件先读全部源操作数再写结果。
-
 ### S1D1
 
 还有一种是一个源操作数，一个目的操作数，操作数类型为 `orri`。
@@ -238,29 +141,6 @@ rdhb中的比较结果有四种情况：
 
 由于qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdhb的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
 
-## 浮点条件赋值指令
-
-第一类浮点条件赋值指令需要先根据`rdha`的内容进行条件判断，然后分别将`rfhc`或`rfhd`赋值给`rfhb`，即 `if (rdha is negative/zero/positive) rfhb = rfhc; else rfhb = rfhd`。
-操作数类型为 `rrrr`，指令如下：
-
-```simrisc
-cs.n    rdha, rfhb, rfhc, rfhd
-cs.z    rdha, rfhb, rfhc, rfhd
-cs.p    rdha, rfhb, rfhc, rfhd
-```
-
-第二类浮点条件赋值指令需要先判断`rdha`与`rdhb`是否相等，如果条件成立则将`rfhd`的值赋值给`rfhc`，即 `if (rdha ==/!= rdhb) rfhc = rfhd`。
-操作数类型为 `rrrr`，指令如下：
-
-```simrisc
-cs.eq   rdha, rdhb, rfhc, rfhd
-cs.ne   rdha, rdhb, rfhc, rfhd
-```
-
-此类指令与浮点比较指令配合使用。浮点比较结果存放在 rd 寄存器中：`1`（大于）、`0`（等于）、`-1`（小于）、NaN（unordered）。当比较结果为 NaN 时，`cs.eq` 和 `cs.ne` 均执行 else 分支（NaN ≠ 1 且 NaN ≠ 0）。
-
-若要检测比较结果是否为 1（大于），先将 1 加载到某个 rd 寄存器，再与比较结果做 `cs.eq`；若要检测是否不为 0（不相等），用 `cs.ne` 判断即可。若在已确认结果为正数（通过 `cs.p` 排除 0 和 -1）的前提下需进一步区分正数 1 与 NaN，检查结果是否为 1（bits[63:1]=0 且 bit0=1），否则为 NaN。
-
 ## 浮点分类指令
 
 对浮点数进行判断分类，并将分类结果写入数据寄存器。
@@ -285,3 +165,5 @@ focls   rdhb, rfhc, 1
 | 7     | positiveInfinity  |
 | 8     | signalingNaN      |
 | 9     | quietNaN          |
+
+> **注**：rf0 为目的寄存器时的特殊行为见 SimRISC-00。浮点寄存器的读写（ld/st/ldm/stm 的 rf 形式、cs.*-rf、rd2rf/rf2rd、set.w-rf）见 SimRISC-01、SimRISC-02 和 SimRISC-03。

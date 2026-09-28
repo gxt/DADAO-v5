@@ -1,6 +1,6 @@
 # SimRISC指令系统
 
-> **版本：0.5.3**
+> **版本：0.5.4**
 
 SimRISC名称有三重含义：
 
@@ -60,6 +60,22 @@ SimRISC中目前接收如下数据类型：
 
 - 共64个基址寄存器，每个寄存器64位，实际实现需保证48位地址空间
 - `rb0` 为 PC，只读。任何指令以 rb0 为显式目的时触发 ILLI 异常。`rb0[63:48]` 恒为 0。硬件复位后 `rb0` 初值为 `cfx_power_hypv_excp_vector`（见 SEE §2.1）。
+
+基址寄存器（RB）为 64 位，低 48 位（bits[47:0]）为有效地址。
+
+各类操作对高 16 位（bits[63:48]）的处理规则如下：
+
+| 操作类别 | 指令 | 高 16 位行为 |
+|---------|------|-------------|
+| 存取类指令 | `ld.o`/`ldm.o`/`st.o`/`stm.o`（内存→RB） | **全 64 位覆盖，bits[63:48] 正常读写** |
+| 赋值类指令-寄存器 | `rd2rb`/`rb2rb`/`ra2rd`/`rd2ra` | **全 64 位覆盖，bits[63:48] 正常读写** |
+| 赋值类指令-立即数 | `set.zw-rb`/`or.w-rb`/`andn.w-rb` | **全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3** |
+| 算术运算类指令-加减 | `add.so-rb`/`sub.so-rb`/`add.si-rb`/`rela.si` | 二进制补码 64 位全宽加减法，地址仅在低 48 位有效；**bits[63:48]**为运算结果，可用于溢出检测 |
+| 算术运算类指令-比较 | `cmp.uo-rb` | 无符号 64 位比较，结果 -1/0/1 区分小于/等于/大于；**bits[63:48] 不影响比较运算** |
+| 控制流指令-跳转 | `br*`/`jump` | 地址计算仅在低 48 位进行，溢出丢弃；**bits[63:48] 保持不变** |
+| 控制流指令-函数支持 | `call`/`ret` | 地址计算仅在低 48 位进行，溢出丢弃；**bits[63:48] 做为引用计数** |
+
+RB 的高 16 位尚未定义用途，初始值为全 0。软件不应依赖高 16 位的值。RA 寄存器的高 16 位另有定义（见 AEE §返回地址栈：ra0 为 MemRAS 引用计数，ra1–ra63 为返回地址引用计数）。
 
 **存储模型**：SimRISC采用64位地址空间，有效虚拟地址为48位。高16位（bits[63:48]）在地址计算时被硬件忽略，寄存器存取时保持高16位原值不变。
 
@@ -163,6 +179,8 @@ RASOF/RASUF 均为精确异常：触发时 RA 寄存器保持异常前状态（p
 
 SimRISC中的每条指令都是四个字节，即32位。所有指令必须4字节对齐。取指时若 PC[1:0] ≠ 00，触发 IALIGN 异常。
 
+> **通用约束交叉引用**：MALIGN 对齐规则见各存取指令章节（SimRISC-01），除法溢出规则见各数据运算章节（SimRISC-04/08/09/10），`immu6 = 0` 触发 ILLI 见各多寄存器操作章节。
+
 指令字采用**大端序**存储：bits[31:24] 在最低地址，bits[7:0] 在最高地址。数据端序同样为大端序（见 ABI §数据表示）。
 
 ### 指令域说明
@@ -240,26 +258,26 @@ SimRISC不提供专门的标识位寄存器，而是根据数据寄存器所存�
 
 ## SimRISC QFC
 
-SimRISC 0.5.3版本的指令opcode布局如下。空白单元格表示 reserved（保留未分配），执行保留编码触发 UNDI 异常。
+SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved（保留未分配），执行保留编码触发 UNDI 异常。
 
 |               | xxxx-x000            | xxxx-x001            | xxxx-x010            | xxxx-x011            | xxxx-x100            | xxxx-x101            | xxxx-x110            | xxxx-x111        |
 | ---           | ---                  | ---                  | ---                  | ---                  | ---                  | ---                  | ---                  | ---              |
 | 0000-0xxx     | MISC-AMO             |                      |                      |                      |                      |                      |                      |                  |
 | 0000-1xxx     |                      |                      |                      |                      |                      |                      |                      |                  |
-| 0001-0xxx     | ld.ub-rd-rrii        | ld.uw-rd-rrii        | ld.ut-rd-rrii        | ld.sb-rd-rrii        | ld.sw-rd-rrii        | ld.st-rd-rrii        | ld.t-rf-rrii         | st.t-rf-rrii    |
-| 0001-1xxx     | st.b-rd-rrii         | st.w-rd-rrii         | st.t-rd-rrii         |                      |                      |                      |                      |                  |
-| 0010-0xxx     | ld.o-rd-rrii         | st.o-rd-rrii         | ld.o-rb-rrii         | st.o-rb-rrii         | ld.o-ra-rrii         | st.o-ra-rrii         | ld.o-rf-rrii         | st.o-rf-rrii    |
-| 0010-1xxx     | ldm.ub-rd-rrri       | ldm.uw-rd-rrri       | ldm.ut-rd-rrri       | ldm.sb-rd-rrri       | ldm.sw-rd-rrri       | ldm.st-rd-rrri       | ldm.t-rf-rrri        | stm.t-rf-rrri   |
-| 0011-0xxx     | stm.b-rd-rrri        | stm.w-rd-rrri        | stm.t-rd-rrri        |                      |                      |                      |                      |                  |
-| 0011-1xxx     | ldm.o-rd-rrri        | stm.o-rd-rrri        | ldm.o-rb-rrri        | stm.o-rb-rrri        | ldm.o-ra-rrri        | stm.o-ra-rrri        | ldm.o-rf-rrri        | stm.o-rf-rrri   |
+| 0001-0xxx     | ld.ub_rrii_rd        | ld.uw_rrii_rd        | ld.ut_rrii_rd        | ld.sb_rrii_rd        | ld.sw_rrii_rd        | ld.st_rrii_rd        | ld.t_rrii_rf         | st.t_rrii_rf    |
+| 0001-1xxx     | st.b_rrii_rd         | st.w_rrii_rd         | st.t_rrii_rd         |                      |                      |                      |                      |                  |
+| 0010-0xxx     | ld.o_rrii_rd         | st.o_rrii_rd         | ld.o_rrii_rb         | st.o_rrii_rb         | ld.o_rrii_ra         | st.o_rrii_ra         | ld.o_rrii_rf         | st.o_rrii_rf    |
+| 0010-1xxx     | ldm.ub_rrri_rd       | ldm.uw_rrri_rd       | ldm.ut_rrri_rd       | ldm.sb_rrri_rd       | ldm.sw_rrri_rd       | ldm.st_rrri_rd       | ldm.t_rrri_rf        | stm.t_rrri_rf   |
+| 0011-0xxx     | stm.b_rrri_rd        | stm.w_rrri_rd        | stm.t_rrri_rd        |                      |                      |                      |                      |                  |
+| 0011-1xxx     | ldm.o_rrri_rd        | stm.o_rrri_rd        | ldm.o_rrri_rb        | stm.o_rrri_rb        | ldm.o_rrri_ra        | stm.o_rrri_ra        | ldm.o_rrri_rf        | stm.o_rrri_rf   |
 | 0100-0xxx     | MISC-octa            | MISC-tetra           | MISC-wyde            | MISC-byte            | MISC-RF              |                      |                      |                  |
-| 0100-1xxx     | or.w-rd-rwii         | andn.w-rd-rwii       | or.w-rb-rwii         | andn.w-rb-rwii       | set.zw-rd-rwii       | set.ow-rd-rwii       | set.zw-rb-rwii       | set.w-rf-rwii    |
-| 0101-0xxx     | add.uo-rd-rrrr       | add.so-rd-rrrr       | sub.uo-rd-rrrr       | sub.so-rd-rrrr       | mul.uo-rd-rrrr       | mul.so-rd-rrrr       | ftmadd-rrrr          | fomadd-rrrr     |
-| 0101-1xxx     |                      | add.si-rd-riii       | rela.si-rb-riii      | add.si-rb-riii       | cmp.ui-rd-rrii       | cmp.si-rd-rrii       | cs.eq-rf-rrrr        | cs.ne-rf-rrrr   |
-| 0110-0xxx     | cs.n-rd-rrrr         | cs.n-rf-rrrr         | cs.z-rd-rrrr         | cs.z-rf-rrrr         | cs.p-rd-rrrr         | cs.p-rf-rrrr         | cs.eq-rd-rrrr        | cs.ne-rd-rrrr   |
-| 0110-1xxx     | br.n-rd-riii         | br.nn-rd-riii        | br.z-rd-riii         | br.nz-rd-riii        | br.p-rd-riii         | br.np-rd-riii        | br.eq-rd-rrii        | br.ne-rd-rrii   |
-| 0111-0xxx     | jump-iiii            | jump-rrii            | br.z-rb-riii         | br.nz-rb-riii        | call-iiii            | call-rrii            | ret-riii             | swym-iiii       |
-| 0111-1xxx     |                      |                      | cfx2rd-crrr          | cfx2rc-crrr          | cfxld-crii           | cfxst-crii           | escape-ciii          | trap-ciii       |
+| 0100-1xxx     | or.w_rwii_rd         | andn.w_rwii_rd       | or.w_rwii_rb         | andn.w_rwii_rb       | set.zw_rwii_rd       | set.ow_rwii_rd       | set.zw_rwii_rb       | set.w_rwii_rf   |
+| 0101-0xxx     | add.uo_rrrr_rd       | add.so_rrrr_rd       | sub.uo_rrrr_rd       | sub.so_rrrr_rd       | mul.uo_rrrr_rd       | mul.so_rrrr_rd       |                      |                  |
+| 0101-1xxx     |                      | add.si_riii_rd       | rela.si_riii_rb      | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
+| 0110-0xxx     | cs.n_rrrr_rd         | cs.n_rrrr_rf         | cs.z_rrrr_rd         | cs.z_rrrr_rf         | cs.p_rrrr_rd         | cs.p_rrrr_rf         | cs.eq_rrrr_rd        | cs.ne_rrrr_rd   |
+| 0110-1xxx     | br.n_riii_rd         | br.nn_riii_rd        | br.z_riii_rd         | br.nz_riii_rd        | br.p_riii_rd         | br.np_riii_rd        | br.eq_rrii_rd        | br.ne_rrii_rd   |
+| 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          |                  |
+| 0111-1xxx     |                      |                      | cfx2rd_crrr_cfx      | cfx2rc_crrr_cfx      | cfxld_crii_cfx       | cfxst_crii_cfx       | escape_ciii_cfx      | trap_ciii_cfx   |
 
 ### MISC-AMO 指令编码
 
@@ -267,10 +285,10 @@ SimRISC 0.5.3版本的指令opcode布局如下。空白单元格表示 reserved�
 
 |           | xxx-000      | xxx-001      | xxx-010      | xxx-011      | xxx-100      | xxx-101      | xxx-110      | xxx-111      |
 | ---       | ---          | ---          | ---          | ---          | ---          | ---          | ---          | ---          |
-| 000-xxx   | illi-oiii    | fence-oiii   |              |              |              |              |              |              |
+| 000-xxx   | illi_oiii_imm | fence_oiii_imm | swym_oiii_imm |              |              |              |              |              |
 | 001-xxx   |              |              |              |              |              |              |              |              |
-| 010-xxx   | lr_nn.o-orrr | lr_nr.o-orrr | lr_an.o-orrr | lr_ar.o-orrr |              |              |              |              |
-| 011-xxx   | sc_nn.o-orrr | sc_nr.o-orrr | sc_an.o-orrr | sc_ar.o-orrr |              |              |              |              |
+| 010-xxx   | lr_nn.o_orrr_rd | lr_nr.o_orrr_rd | lr_an.o_orrr_rd | lr_ar.o_orrr_rd |              |              |              |              |
+| 011-xxx   | sc_nn.o_orrr_rd | sc_nr.o_orrr_rd | sc_an.o_orrr_rd | sc_ar.o_orrr_rd |              |              |              |              |
 | 100-xxx   |              |              |              |              |              |              |              |              |
 | 101-xxx   |              |              |              |              |              |              |              |              |
 | 110-xxx   |              |              |              |              |              |              |              |              |
@@ -284,13 +302,13 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 |           | xxx-000         | xxx-001         | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---             | ---             | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |                 |                 |               |               |               |               |               |               |
-| 001-xxx   | and.o-orrr      | or.o-orrr       | xor.o-orrr    | xnor.o-orrr   |               |               |               |               |
-| 010-xxx   | ext.uo-orrr     | ext.so-orrr     | shr.uo-orrr   | shr.so-orrr   | shl.uo-orrr   |               |               |               |
-| 011-xxx   | ext.uo-orri     | ext.so-orri     | shr.uo-orri   | shr.so-orri   | shl.uo-orri   |               |               |               |
-| 100-xxx   | add.so-rb-orrr  |                 |               |               |               |               |               |               |
-| 101-xxx   | sub.so-rb-orrr  | cmp.uo-rb-orrr  | cmp.uo-orrr   | cmp.so-orrr   | rd2rd-orri    | rd2ra-orri    | ra2rd-orri    |               |
-| 110-xxx   |                 |                 |               |               | rb2rb-orri    | rd2rb-orri    | rb2rd-orri    |               |
-| 111-xxx   | div.uo-orrr     | div.so-orrr     | rem.uo-orrr   | rem.so-orrr   |               | rd2rf-orri    | rf2rd-orri    |               |
+| 001-xxx   | and.o_orrr_rd      | or.o_orrr_rd       | xor.o_orrr_rd    | xnor.o_orrr_rd   |               |               |               |               |
+| 010-xxx   | ext.uo_orrr_rd     | ext.so_orrr_rd     | shr.uo_orrr_rd   | shr.so_orrr_rd   | shl.uo_orrr_rd   |               |               |               |
+| 011-xxx   | ext.uo_orri_rd     | ext.so_orri_rd     | shr.uo_orri_rd   | shr.so_orri_rd   | shl.uo_orri_rd   |               |               |               |
+| 100-xxx   | add.so_orrr_rb  |                 |               |               |               |               |               |               |
+| 101-xxx   | sub.so_orrr_rb  | cmp.uo_orrr_rb  | cmp.uo_orrr_rd   | cmp.so_orrr_rd   | rd2rd_orri_rd    | rd2ra_orri_ra    | ra2rd_orri_ra    |               |
+| 110-xxx   |                 |                 |               |               | rb2rb_orri_rb    | rd2rb_orri_rb    | rb2rd_orri_rb    |               |
+| 111-xxx   | div.uo_orrr_rd     | div.so_orrr_rd     | rem.uo_orrr_rd   | rem.so_orrr_rd   |               | rd2rf_orri_rf    | rf2rd_orri_rf    |               |
 
 ### MISC-tetra指令编码
 
@@ -300,13 +318,13 @@ tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
-| 001-xxx   | and.t-orrr    | or.t-orrr     | xor.t-orrr    | xnor.t-orrr   |               |               |               |               |
-| 010-xxx   | ext.ut-orrr   | ext.st-orrr   | shr.ut-orrr   | shr.st-orrr   | shl.ut-orrr   |               |               |               |
-| 011-xxx   | ext.ut-orri   | ext.st-orri   | shr.ut-orri   | shr.st-orri   | shl.ut-orri   |               |               |               |
-| 100-xxx   | add.ut-orrr   | add.st-orrr   |               |               |               |               |               |               |
-| 101-xxx   | sub.ut-orrr   | sub.st-orrr   | cmp.ut-orrr   | cmp.st-orrr   |               |               |               |               |
-| 110-xxx   | mul.ut-orrr   | mul.st-orrr   |               |               |               |               |               |               |
-| 111-xxx   | div.ut-orrr   | div.st-orrr   | rem.ut-orrr   | rem.st-orrr   |               |               |               |               |
+| 001-xxx   | and.t_orrr_rd    | or.t_orrr_rd     | xor.t_orrr_rd    | xnor.t_orrr_rd   |               |               |               |               |
+| 010-xxx   | ext.ut_orrr_rd   | ext.st_orrr_rd   | shr.ut_orrr_rd   | shr.st_orrr_rd   | shl.ut_orrr_rd   |               |               |               |
+| 011-xxx   | ext.ut_orri_rd   | ext.st_orri_rd   | shr.ut_orri_rd   | shr.st_orri_rd   | shl.ut_orri_rd   |               |               |               |
+| 100-xxx   | add.ut_orrr_rd   | add.st_orrr_rd   |               |               |               |               |               |               |
+| 101-xxx   | sub.ut_orrr_rd   | sub.st_orrr_rd   | cmp.ut_orrr_rd   | cmp.st_orrr_rd   |               |               |               |               |
+| 110-xxx   | mul.ut_orrr_rd   | mul.st_orrr_rd   |               |               |               |               |               |               |
+| 111-xxx   | div.ut_orrr_rd   | div.st_orrr_rd   | rem.ut_orrr_rd   | rem.st_orrr_rd   |               |               |               |               |
 
 ### MISC-wyde指令编码
 
@@ -316,13 +334,13 @@ wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
-| 001-xxx   | and.w-orrr    | or.w-orrr     | xor.w-orrr    | xnor.w-orrr   |               |               |               |               |
-| 010-xxx   | ext.uw-orrr   | ext.sw-orrr   | shr.uw-orrr   | shr.sw-orrr   | shl.uw-orrr   |               |               |               |
-| 011-xxx   | ext.uw-orri   | ext.sw-orri   | shr.uw-orri   | shr.sw-orri   | shl.uw-orri   |               |               |               |
-| 100-xxx   | add.uw-orrr   | add.sw-orrr   |               |               |               |               |               |               |
-| 101-xxx   | sub.uw-orrr   | sub.sw-orrr   | cmp.uw-orrr   | cmp.sw-orrr   |               |               |               |               |
-| 110-xxx   | mul.uw-orrr   | mul.sw-orrr   |               |               |               |               |               |               |
-| 111-xxx   | div.uw-orrr   | div.sw-orrr   | rem.uw-orrr   | rem.sw-orrr   |               |               |               |               |
+| 001-xxx   | and.w_orrr_rd    | or.w_orrr_rd     | xor.w_orrr_rd    | xnor.w_orrr_rd   |               |               |               |               |
+| 010-xxx   | ext.uw_orrr_rd   | ext.sw_orrr_rd   | shr.uw_orrr_rd   | shr.sw_orrr_rd   | shl.uw_orrr_rd   |               |               |               |
+| 011-xxx   | ext.uw_orri_rd   | ext.sw_orri_rd   | shr.uw_orri_rd   | shr.sw_orri_rd   | shl.uw_orri_rd   |               |               |               |
+| 100-xxx   | add.uw_orrr_rd   | add.sw_orrr_rd   |               |               |               |               |               |               |
+| 101-xxx   | sub.uw_orrr_rd   | sub.sw_orrr_rd   | cmp.uw_orrr_rd   | cmp.sw_orrr_rd   |               |               |               |               |
+| 110-xxx   | mul.uw_orrr_rd   | mul.sw_orrr_rd   |               |               |               |               |               |               |
+| 111-xxx   | div.uw_orrr_rd   | div.sw_orrr_rd   | rem.uw_orrr_rd   | rem.sw_orrr_rd   |               |               |               |               |
 
 ### MISC-byte指令编码
 
@@ -332,13 +350,13 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
-| 001-xxx   | and.b-orrr    | or.b-orrr     | xor.b-orrr    | xnor.b-orrr   |               |               |               |               |
-| 010-xxx   | ext.ub-orrr   | ext.sb-orrr   | shr.ub-orrr   | shr.sb-orrr   | shl.ub-orrr   |               |               |               |
-| 011-xxx   | ext.ub-orri   | ext.sb-orri   | shr.ub-orri   | shr.sb-orri   | shl.ub-orri   |               |               |               |
-| 100-xxx   | add.ub-orrr   | add.sb-orrr   |               |               |               |               |               |               |
-| 101-xxx   | sub.ub-orrr   | sub.sb-orrr   | cmp.ub-orrr   | cmp.sb-orrr   |               |               |               |               |
-| 110-xxx   | mul.ub-orrr   | mul.sb-orrr   |               |               |               |               |               |               |
-| 111-xxx   | div.ub-orrr   | div.sb-orrr   | rem.ub-orrr   | rem.sb-orrr   |               |               |               |               |
+| 001-xxx   | and.b_orrr_rd    | or.b_orrr_rd     | xor.b_orrr_rd    | xnor.b_orrr_rd   |               |               |               |               |
+| 010-xxx   | ext.ub_orrr_rd   | ext.sb_orrr_rd   | shr.ub_orrr_rd   | shr.sb_orrr_rd   | shl.ub_orrr_rd   |               |               |               |
+| 011-xxx   | ext.ub_orri_rd   | ext.sb_orri_rd   | shr.ub_orri_rd   | shr.sb_orri_rd   | shl.ub_orri_rd   |               |               |               |
+| 100-xxx   | add.ub_orrr_rd   | add.sb_orrr_rd   |               |               |               |               |               |               |
+| 101-xxx   | sub.ub_orrr_rd   | sub.sb_orrr_rd   | cmp.ub_orrr_rd   | cmp.sb_orrr_rd   |               |               |               |               |
+| 110-xxx   | mul.ub_orrr_rd   | mul.sb_orrr_rd   |               |               |               |               |               |               |
+| 111-xxx   | div.ub_orrr_rd   | div.sb_orrr_rd   | rem.ub_orrr_rd   | rem.sb_orrr_rd   |               |               |               |               |
 
 ### MISC-RF指令编码
 
@@ -346,14 +364,14 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 |           | xxx-000     | xxx-001     | xxx-010     | xxx-011     | xxx-100     | xxx-101     | xxx-110     | xxx-111     |
 | ---       | ---         | ---         | ---         | ---         | ---         | ---         | ---         | ---         |
-| 000-xxx   | ftcls-orri  | ft2fo-orri  | ft2ft-orri  |             |             |             | ftroot-orri | ftlog-orri  |
-| 001-xxx   | focls-orri  | fo2ft-orri  | fo2fo-orri  |             |             |             | foroot-orri | folog-orri  |
-| 010-xxx   | ftadd-orrr  | ftsub-orrr  | ftmul-orrr  | ftdiv-orrr  | ftrem-orrr  | ftsclb-orrr | ftsgnn-orrr | ftsgnj-orrr |
-| 011-xxx   | foadd-orrr  | fosub-orrr  | fomul-orrr  | fodiv-orrr  | forem-orrr  | fosclb-orrr | fosgnn-orrr | fosgnj-orrr |
-| 100-xxx   | ftqcmp-orrr | ftscmp-orrr |             |             |             |             |             |             |
-| 101-xxx   | foqcmp-orrr | foscmp-orrr |             |             |             |             |             |             |
-| 110-xxx   | ft2it-orri  | ft2io-orri  | ft2ut-orri  | ft2uo-orri  | it2ft-orri  | io2ft-orri  | ut2ft-orri  | uo2ft-orri  |
-| 111-xxx   | fo2it-orri  | fo2io-orri  | fo2ut-orri  | fo2uo-orri  | it2fo-orri  | io2fo-orri  | ut2fo-orri  | uo2fo-orri  |
+| 000-xxx   | ftcls_orri_rf  | ft2fo_orri_rf  | ft2ft_orri_rf  |             |             |             | ftroot_orri_rf | ftlog_orri_rf  |
+| 001-xxx   | focls_orri_rf  | fo2ft_orri_rf  | fo2fo_orri_rf  |             |             |             | foroot_orri_rf | folog_orri_rf  |
+| 010-xxx   | ftadd_orrr_rf  | ftsub_orrr_rf  | ftmul_orrr_rf  | ftdiv_orrr_rf  | ftrem_orrr_rf  | ftsclb_orrr_rf | ftsgnn_orrr_rf | ftsgnj_orrr_rf |
+| 011-xxx   | foadd_orrr_rf  | fosub_orrr_rf  | fomul_orrr_rf  | fodiv_orrr_rf  | forem_orrr_rf  | fosclb_orrr_rf | fosgnn_orrr_rf | fosgnj_orrr_rf |
+| 100-xxx   | ftqcmp_orrr_rf | ftscmp_orrr_rf |             |             |             |             |             |             |
+| 101-xxx   | foqcmp_orrr_rf | foscmp_orrr_rf |             |             |             |             |             |             |
+| 110-xxx   | ft2it_orri_rf  | ft2io_orri_rf  | ft2ut_orri_rf  | ft2uo_orri_rf  | it2ft_orri_rf  | io2ft_orri_rf  | ut2ft_orri_rf  | uo2ft_orri_rf  |
+| 111-xxx   | fo2it_orri_rf  | fo2io_orri_rf  | fo2ut_orri_rf  | fo2uo_orri_rf  | it2fo_orri_rf  | io2fo_orri_rf  | ut2fo_orri_rf  | uo2fo_orri_rf  |
 
 ## 伪指令
 
@@ -361,20 +379,20 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 | 伪指令 | 语法 | 展开形式 | 说明 | 详细定义 |
 |--------|------|----------|------|----------|
-| `nop` | `nop` | `swym 0` | 空操作，占位或对齐 | SimRISC-04 §nop 伪指令 |
-| `return` | `return` | `ret rd0, 0` | 无返回值的函数返回 | SimRISC-02 §return 伪指令 |
-| `not.b` | `not.b rdhb, rdhc` | `xnor.b rdhb, rdhc, rd0` | 8 位按位取反 | SimRISC-01 §not 伪指令 |
-| `not.w` | `not.w rdhb, rdhc` | `xnor.w rdhb, rdhc, rd0` | 16 位按位取反 | SimRISC-01 §not 伪指令 |
-| `not.t` | `not.t rdhb, rdhc` | `xnor.t rdhb, rdhc, rd0` | 32 位按位取反 | SimRISC-01 §not 伪指令 |
-| `not.o` | `not.o rdhb, rdhc` | `xnor.o rdhb, rdhc, rd0` | 64 位按位取反 | SimRISC-01 §not 伪指令 |
-| `neg.b` | `neg.b rdhb, rdhc` | `sub.sb rdhb, rd0, rdhc` | 8 位取负，符号扩展 | SimRISC-01 §neg 伪指令 |
-| `neg.w` | `neg.w rdhb, rdhc` | `sub.sw rdhb, rd0, rdhc` | 16 位取负，符号扩展 | SimRISC-01 §neg 伪指令 |
-| `neg.t` | `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展 | SimRISC-01 §neg 伪指令 |
-| `neg.o` | `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 | SimRISC-01 §neg 伪指令 |
-| `set.rd` | `set.rd rdxx, imm64` | `set.zw`/`set.ow` + `or.w`/`andn.w` | 加载 64 位立即数到 rd | SimRISC-01 §set.rd 伪指令 |
-| `set.rd` | `set.rd rdxx, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 从其他寄存器传值到 rd | SimRISC-01 §set.rd 伪指令 |
-| `set.rb` | `set.rb rbxx, imm64` | `set.zw-rb` + `or.w-rb` | 加载立即数到 rb | SimRISC-02 §set.rb 伪指令 |
-| `set.rb` | `set.rb rbxx, rs` | `rd2rb`/`rb2rb` | 从其他寄存器传值到 rb | SimRISC-02 §set.rb 伪指令 |
+| `nop` | `nop` | `swym 0` | 空操作，占位或对齐 | SimRISC-11 §nop 伪指令 |
+| `return` | `return` | `ret rd0, 0` | 无返回值的函数返回 | SimRISC-06 §return 伪指令 |
+| `not.b` | `not.b rdhb, rdhc` | `xnor.b rdhb, rdhc, rd0` | 8 位按位取反 | SimRISC-10 §not 伪指令 |
+| `not.w` | `not.w rdhb, rdhc` | `xnor.w rdhb, rdhc, rd0` | 16 位按位取反 | SimRISC-09 §not 伪指令 |
+| `not.t` | `not.t rdhb, rdhc` | `xnor.t rdhb, rdhc, rd0` | 32 位按位取反 | SimRISC-08 §not 伪指令 |
+| `not.o` | `not.o rdhb, rdhc` | `xnor.o rdhb, rdhc, rd0` | 64 位按位取反 | SimRISC-04 §not 伪指令 |
+| `neg.b` | `neg.b rdhb, rdhc` | `sub.sb rdhb, rd0, rdhc` | 8 位取负，符号扩展 | SimRISC-10 §neg 伪指令 |
+| `neg.w` | `neg.w rdhb, rdhc` | `sub.sw rdhb, rd0, rdhc` | 16 位取负，符号扩展 | SimRISC-09 §neg 伪指令 |
+| `neg.t` | `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展 | SimRISC-08 §neg 伪指令 |
+| `neg.o` | `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 | SimRISC-04 §neg 伪指令 |
+| `set.rd` | `set.rd rdxx, imm64` | `set.zw`/`set.ow` + `or.w`/`andn.w` | 加载 64 位立即数到 rd | SimRISC-03 §set.rd 伪指令 |
+| `set.rd` | `set.rd rdxx, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 从其他寄存器传值到 rd | SimRISC-03 §set.rd 伪指令 |
+| `set.rb` | `set.rb rbxx, imm64` | `set.zw-rb` + `or.w-rb` | 加载立即数到 rb | SimRISC-03 §set.rb 伪指令 |
+| `set.rb` | `set.rb rbxx, rs` | `rd2rb`/`rb2rb` | 从其他寄存器传值到 rb | SimRISC-03 §set.rb 伪指令 |
 | `set.ft` | `set.ft rfxx, imm32` | `set.w`（2 条） | 加载单精浮点立即数 | SimRISC-03 §set.ft / set.fo 伪指令 |
 | `set.fo` | `set.fo rfxx, imm64` | `set.w`（4 条） | 加载双精浮点立即数 | SimRISC-03 §set.ft / set.fo 伪指令 |
 | `set.ft` | `set.ft rfxx, rs` | `rd2rf`/`ft2ft` | 从其他寄存器传值到 rf | SimRISC-03 §set.ft / set.fo 伪指令 |
