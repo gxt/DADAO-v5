@@ -257,7 +257,7 @@
 | `jump` 基址 | 「下一条 + imm*4」 | **当前指令地址** + imm*4（`contract-isa §5.3`） |
 | 测试机 | 0628 `ADR-0004` | v5 `ADR-0004`（核内地址空间模型、spec cause 派生 fault 码、exit 协议） |
 | 浮点 | 全程无浮点指令（M2.5/M2.6 才 soft-float 接入） | 同（M1 明确不含，后续以 soft-float libcall 接入） |
-| 权威来源 | — | `contracts/opcodes.yaml`（0.5.3）；**0628 旧 `tools/opcodes.yaml` 不可作编码权威** |
+| 权威来源 | — | `contracts/opcodes.yaml`（0.5.4）；**0628 旧 `tools/opcodes.yaml` 不可作编码权威** |
 
 ---
 

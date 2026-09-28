@@ -91,7 +91,7 @@
   resolved_by: null
 
 - id: ISS-011
-  title: "编码知识：0.5.3 MISC 子表 ha=RRR-CCC 拼为 6 位；旧 tools/opcodes.yaml（0628）不可作编码权威"
+  title: "编码知识：0.5.4 MISC 子表 ha=RRR-CCC 拼为 6 位；旧 tools/opcodes.yaml（0628）不可作编码权威"
   status: open
   scope: [spec]
   blocks: []

@@ -66,7 +66,7 @@ RISC-V **ISA Manual**（含 Unprivileged / Privileged / **Assembly Programmer's 
 
 ## 4. 与 `spec/` 已有规范的对照结论
 
-`spec/` 共 **11 份**（均带版本头）：SimRISC-00~04（`0.5.3`）、DADAO-11/21（AEE/ABI `0.9.2`）、DADAO-12/22（SEE/SBI `0.7.1`）、DADAO-13/23（HEE/HBI `0.1.2`）。
+`spec/` 共 **11 份**（均带版本头）：SimRISC-00~04（`0.5.4`）、DADAO-11/21（AEE/ABI `0.9.2`）、DADAO-12/22（SEE/SBI `0.7.1`）、DADAO-13/23（HEE/HBI `0.1.2`）。
 
 ### 4.1 覆盖情况
 
