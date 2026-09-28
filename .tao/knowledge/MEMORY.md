@@ -2,7 +2,7 @@
 
 ## 这是什么
 
-DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.4），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见全局 `AGENTS.md` 与 `.tao/README.md`。
+DADAO-v5 基于 19 份 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，SimRISC 0.5.4），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见全局 `AGENTS.md` 与 `.tao/README.md`。
 
 ## 当前进度
 
@@ -21,13 +21,13 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.4），从零构建 LLVM
 
 | 路径 | 用途 |
 |------|------|
-| `spec/` | 11 份原始规范文档（只读） |
+| `spec/` | 19 份规范文档（SimRISC-00~12 + DADAO-11~23；spec 模块任务可改） |
 | `manifests/` | 锁文件（规范/参考组件） |
 | `.tao/tasks/<module>/` | 按模块分的任务文件（`<PREFIX>-nnn<suffix>`） |
 | `.tao/knowledge/` | 知识沉淀（MEMORY/milestones/contract/adr） |
 | `.tao/knowledge/milestones.md` | 项目里程碑路线图（M1/M2） |
 | `.tao/knowledge/deferred.md` | 各模块暂缓/备忘（避免遗忘） |
-| `docs/spec/` | v5 规范层（`component-patching.md` 等；与只读的上游 `spec/` 区分） |
+| `docs/spec/` | v5 规范层（`component-patching.md` 等；与上游 `spec/` 区分） |
 | `.dadao/<id>/` | 参考仓库只读工作树（`DADAO-0628`/`DADAO`；`make fetch-refs` 重建，不入库） |
 | `contracts/` | 机器可读合约数据（编码表/ABI/合法性规则） |
 | `tools/<module>/` | 各模块工具脚本（infra/spec/llvm/qemu/testcases） |

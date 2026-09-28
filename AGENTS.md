@@ -49,7 +49,7 @@ DADAO-v5/
 │   ├── tasks/<module>/    # 任务文件 <PREFIX>-nnn<suffix>-描述.md
 │   └── knowledge/         # MEMORY.md、contract-*.md、adr-*.md
 ├── manifests/             # 锁文件（规范/参考组件）
-├── spec/                  # 原始规范文档（只读）
+├── spec/                  # 原始规范文档（spec 模块任务可改，见 ADR-0012 D4）
 ├── contracts/             # 机器可读合约数据（编码表/ABI/合法性规则）
 └── tools/<module>/        # 各模块工具脚本（infra/spec/llvm/qemu/testcases）
 ```
