@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..dc0c0a1
+index 0000000..a454c5e
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,269 @@
+@@ -0,0 +1,270 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -31,6 +31,7 @@ index 0000000..dc0c0a1
 +#include "tcg/debug-assert.h"
 +#include "hw/core/qdev-properties.h"
 +#include "accel/tcg/cpu-ops.h"
++#include "accel/tcg/cpu-loop.h"
 +
 +static void dadao_cpu_set_pc(CPUState *cs, vaddr value)
 +{
@@ -200,9 +201,9 @@ index 0000000..dc0c0a1
 +    .has_work = dadao_cpu_has_work,
 +};
 +
-+static void dadao_cpu_do_unaligned_access(CPUState *cs, vaddr addr,
-+                                          MMUAccessType access_type,
-+                                          int mmu_idx, uintptr_t retaddr)
++G_NORETURN static void dadao_cpu_do_unaligned_access(CPUState *cs, vaddr addr,
++                                                      MMUAccessType access_type,
++                                                      int mmu_idx, uintptr_t retaddr)
 +{
 +    /* MALIGN precise exception: faulting PC preserved, no register/memory commit.
 +     * Per ADR-0004 D4: exit code 0x8C. */
