@@ -115,7 +115,7 @@ python3 tools/llvm/gen_asm_list.py -o docs/assembly-list.md
 ## 验收标准
 
 1. **lit 测试通过**：`.work/build/llvm/bin/llvm-lit tests/lit/MC/Dadao/` 全绿
-2. **E2E lit 测试**（**BLOCKED：QEMU 未构建**）：依赖 `qemu-system-dadao`（不存在）。本任务只需保证 `.s` 已迁移 + `llvm-mc` 步骤可跑（前两条 RUN 生成 `.o`/`.bin`）；E2E 全绿待 QEMU 构建后另验。
+2. **E2E lit 测试**（✅ 已解锁：`QEMU-026t` 构建成功后 `llvm-lit tests/lit/E2E/` **3/3 PASS**）
 3. **无旧语法残留**（以下 grep 均返回空）：
    ```bash
    # lit + e2e 的 .s 文件
