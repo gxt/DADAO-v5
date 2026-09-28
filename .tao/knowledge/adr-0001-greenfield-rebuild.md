@@ -2,17 +2,17 @@
 
 **状态**：Accepted
 **日期**：2026-09-12
-**关联**：ADR-0002（构建编排）；`README.md`（规范版本表，SimRISC 0.5.3）；`AGENTS.md`（核心原则）；任务 `INFRA-008t`
+**关联**：ADR-0002（构建编排）；`README.md`（规范版本表，SimRISC 0.5.4）；`AGENTS.md`（核心原则）；任务 `INFRA-008t`
 
 ## Context（背景）
 
-DADAO 的历史实现（`DADAO` 参考仓库的各阶段代码）建立在更早的 ISA、ABI、异常与 MMU 设计之上；其工作树也不是干净、可复现的基线。DADAO-v5 以 SimRISC 0.5.3 规范为唯一权威来源，需要一套来源可追溯、可复现的实现路径，避免把历史假设带入新规范。
+DADAO 的历史实现（`DADAO` 参考仓库的各阶段代码）建立在更早的 ISA、ABI、异常与 MMU 设计之上；其工作树也不是干净、可复现的基线。DADAO-v5 以 SimRISC 0.5.4 规范为唯一权威来源，需要一套来源可追溯、可复现的实现路径，避免把历史假设带入新规范。
 
 ## Decision（决策）
 
 - **D1**：DADAO-v5 从干净的上游组件 commit 出发实现，**不回植（cherry-pick）历史实现代码**。
 - **D2**：只复用历史 meta-repository 的**编排概念**与已文档化的**工程教训**；参考仓库经 `manifests/references.lock.toml` 以 `reference-only` 策略按精确 commit 锁定，仅作只读溯源。
-- **D3**：行为期望一律来自 `spec/` 与 `.tao/knowledge/contract-*.md`（0.5.3），不从任何实现反推。spec 无依据的机器/ABI 约定（如 ELF `e_flags`、测试机内存映射/exit 码）**不属「行为期望」**，须由对应 ADR 显式冻结并标注「无 spec 依据，架构自定义」。
+- **D3**：行为期望一律来自 `spec/` 与 `.tao/knowledge/contract-*.md`（0.5.4），不从任何实现反推。spec 无依据的机器/ABI 约定（如 ELF `e_flags`、测试机内存映射/exit 码）**不属「行为期望」**，须由对应 ADR 显式冻结并标注「无 spec 依据，架构自定义」。
 
 ## Rationale（理由）
 

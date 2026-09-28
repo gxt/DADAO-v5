@@ -2,7 +2,7 @@
 
 **状态**：Accepted（rev. 2026-09-13: `e_flags` 版本字段，见 `## 修订`）
 **日期**：2026-09-13
-**关联**：ADR-0001（greenfield 重建）、ADR-0002（构建编排）、ADR-0004（test machine，`SPEC-006t`）、`SPEC-005t`（本 ADR 任务）、`SPEC-007t`（ELF 合约，下游规范化）、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.3）、`.tao/knowledge/contract-abi.md`（0.9.2）
+**关联**：ADR-0001（greenfield 重建）、ADR-0002（构建编排）、ADR-0004（test machine，`SPEC-006t`）、`SPEC-005t`（本 ADR 任务）、`SPEC-007t`（ELF 合约，下游规范化）、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）、`.tao/knowledge/contract-abi.md`（0.9.2）
 
 ## Context（背景）
 
@@ -17,7 +17,7 @@ M1 范围为单翻译单元（single TU）、freestanding、自包含：无跨 o
 
 **`Deferred to M2`**：重定位类型表（D2）、重定位溢出策略（D3）、重定位松弛策略（D4）。M1 的 `.s` 标签在同一段内由汇编器就地解析，**不产生重定位**；M1 无 link 步骤，故 M1 不冻结任何重定位编号/公式/溢出/松弛策略，完整 relocation 由 M2 决策（另见 `LLVM-012t`）。
 
-依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.3，指令格式/字段宽度/对齐/地址模型）与 `.tao/knowledge/contract-abi.md`（0.9.2，端序/指针宽度）。遗留 DADAO toolchain（`Dadao.def`/`ELF.h`）仅作**只读对照**，本 ADR **不采用**其重定位编号或公式；`EM_DADAO` 的取值沿用 legacy 命名以便生态识别，但其注册状态由本 ADR 明确为 project-custom（见 D1）。
+依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.4，指令格式/字段宽度/对齐/地址模型）与 `.tao/knowledge/contract-abi.md`（0.9.2，端序/指针宽度）。遗留 DADAO toolchain（`Dadao.def`/`ELF.h`）仅作**只读对照**，本 ADR **不采用**其重定位编号或公式；`EM_DADAO` 的取值沿用 legacy 命名以便生态识别，但其注册状态由本 ADR 明确为 project-custom（见 D1）。
 
 ## Decision（决策）
 
@@ -62,7 +62,7 @@ M1 范围为单翻译单元（single TU）、freestanding、自包含：无跨 o
 | 段 | 最小对齐 | 理由 |
 |----|---------|------|
 | `.text` | 4 字节 | 每条指令 4 字节且必须 4 字节对齐 [contract-isa §2.1] |
-| `.rodata` | 8 字节 | 64 位常量/指针的自然对齐；`ld.o`/`st.o` 要求 8 字节对齐 [contract-isa §4.1.1] |
+| `.rodata` | 8 字节 | 64 位常量/指针的自然对齐；`ld.o`/`st.o` 要求 8 字节对齐 [contract-isa §3.1.1] |
 | `.data` | 8 字节 | 同 `.rodata` |
 | `.bss` | 8 字节 | 同 `.rodata` |
 
@@ -91,9 +91,9 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 
 以下内容服务 M2，**不属 M1 规范性决策**。本 ADR 仅登记主题，不冻结编号/公式/策略：
 
-- **D2 重定位类型表（`Deferred to M2`）**：M1 单 TU 自包含、无跨 object、无 link，汇编器就地解析标签，**不产生重定位**，故 M1 不定义任何重定位类型。M2 启用时的场景登记（格式/字段位置见 [contract-isa §2.3–§2.4]，分支/call/jump/rela 语义见 [contract-isa §4.7][contract-isa §5.2–§5.4]；字段宽度以 0.5.3 格式为准，不在本 ADR 冻结）：
+- **D2 重定位类型表（`Deferred to M2`）**：M1 单 TU 自包含、无跨 object、无 link，汇编器就地解析标签，**不产生重定位**，故 M1 不定义任何重定位类型。M2 启用时的场景登记（格式/字段位置见 [contract-isa §2.3–§2.4]，分支/call/jump/rela 语义见 [contract-isa §5.3][contract-isa §8.2–§8.4]；字段宽度以 0.5.4 格式为准，不在本 ADR 冻结）：
 
-  | 场景 | 0.5.3 指令格式 | 字段约束 |
+  | 场景 | 0.5.4 指令格式 | 字段约束 |
   |------|---------------|----------|
   | 绝对 64-bit 数据地址（**含** `set.zw`/`or.w` 构造的地址） | 数据节 / `set.zw`+`or.w`（rwii） | 64 位；数据节全 64 位；`set.zw`/`or.w` 每次 16 位（wyde 选择器在 `hb[5:4]`）。**不为 wyde 类指令单列「地址构造」场景** |
   | PC 相对短程分支 | `br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np`（riii，imms18） | imms18 **字**偏移，重定位 `<<2`；有效字节范围 = 18+2 → ±2¹⁹（±512 KiB） |

@@ -2,13 +2,13 @@
 
 ## 这是什么
 
-DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见全局 `AGENTS.md` 与 `.tao/README.md`。
+DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.4），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见全局 `AGENTS.md` 与 `.tao/README.md`。
 
 ## 当前进度
 
 | 项目 | 状态 |
 |------|------|
-| SimRISC 规范 | ✅ 0.5.3 |
+| SimRISC 规范 | ✅ 0.5.4 |
 | spec 模块 | ✅ M1 完成（`002t`~`010t` 已验证；`011m` 里程碑） |
 | testcases 模块 | 🔄 `002t` 已验证（向量基础设施：schema+`expected_pc`、inventory+`format` 列+机械同步、validator 补强；覆盖率门控为**声明级**，数据级归 `009t`）；`003t` 已验证（寄存器族 6 文件：`reg-arith`/`reg-logic`/`reg-shift-extend`/`reg-compare`/`reg-cond-assign`/`reg-imm-block`，130 身份/366 条；生成器 `tools/testcases/generate_isa_vectors.py` 已入 git）；`004t` 已验证（访存 3 文件：`mem-rd`/`mem-rb`/`mem-ra`，30 身份/172 条；生成器 `tools/testcases/generate_mem_vectors.py` 已入 git；validator 追加 F10 守卫）；`005t` 已验证（`ctrl-br.yaml`，10 个 `br.*` 身份/30 条，taken+not-taken 全测；生成器 `tools/testcases/generate_ctrl_br.py` 已入 git；validator 追加 F7 `expected_pc` 存在性规则，作用域 `br.*`）；`006t` 已验证（`ctrl-jump`/`ctrl-call`/`ctrl-ret`，5 身份/16 条；F7 全 active；生成器 `tools/testcases/generate_ctrl_jump_call_ret.py` 已入 git；validator 的 F7 规则扩展至 `jump`/`call`/`ret`）；`007t` 已验证（`misc.yaml`，3 身份/6 条：`swym`/`illi`/`fence`；**F6** `illi` 恒 ILLI → encoding/semantic 豁免、覆盖率由 legality 满足；`fence` SBZ→ILLI；生成器 `tools/testcases/generate_misc.py` 已入 git）；`008t` 已验证（保留编码 → UNDI 的向量层表达（方案 A：`class: legality` + `encoding.reserved: true`）；`tests/vectors/isa/reserved.yaml` 2 条；validator 加 reserved 分支 + R8 交叉校验（word 不得匹配 opcodes 任何记录，含 `excluded_m1`）；反造假脚本 `tools/testcases/test_anti_forgery_008t.py`）；`009t` 已验证（ISA 向量全量再审计：15 文件/597 条逐族重推导，**0 残留错值**；审计记录 `docs/testcases-009t-audit.md`、脚本 `tools/testcases/009t-audit.py`（318/320, 0 mismatch）；`validate_vectors.py` 加数据级覆盖门控（只报不拦）；**发现 154 缺口**（141 legality+2 boundary+11 overlap））；`010t` **已创建**（缺口消解第一批：reg-arith/logic/shift-extend/compare，114 条）；`011t` **已创建**（缺口消解第二批：cond-assign/imm-block/ctrl + br.* boundary + validator 修复 + 门控转严，35 条）；里程碑顺延 `012m`） |
 | integ 模块 | ✅ M1 完成（`001k`~`003t` 已验证；`004m` 里程碑）：`002t` = E2E 冒烟（`tests/e2e/*.s` + `tests/lit/E2E/`，lit 3/3，`.test` 消费 `.s` + `timeout`，反例门控）；`003t` = 跨模块接口对齐核对（`docs/integ-interface-alignment.md` + `tools/integ/check_interface_alignment.py`，80 项 0 FAIL，4 轮 reviewer）——**发现 ELF `e_flags=0x0` 违约**（另建 `LLVM-014t` 修复）；**2026-09-25 `INTEG-005t`（过渡期任务 `M1→M2`）**：该脚本 3 处非递归 glob 因 2026-09-23 补丁集树形化而扫 0 份补丁（曾 `57 PASS / 23 FAIL`、EXIT 1）→ 提取 `iter_patch_files()`（递归 glob + 空集硬错误）修复，**80/80 EXIT 0 恢复**；reviewer **Accepted** |
@@ -63,13 +63,13 @@ DADAO-v5 基于 11 份 spec/ 规范文档（SimRISC 0.5.3），从零构建 LLVM
 
 ## 规范版本对应
 
-规范版本与冻结状态的**唯一来源**是 `README.md`「当前版本号」表（SimRISC 0.5.3 / AEE·ABI 0.9.2 / SEE·SBI 0.7.1 / HEE·HBI 0.1.2）。v5 不使用 `manifests/spec.lock.toml`。
+规范版本与冻结状态的**唯一来源**是 `README.md`「当前版本号」表（SimRISC 0.5.4 / AEE·ABI 0.9.2 / SEE·SBI 0.7.1 / HEE·HBI 0.1.2）。v5 不使用 `manifests/spec.lock.toml`。
 
 ## 关键差异提示（相比 DADAO-0628）
 
-DADAO-v5 基于 SimRISC 0.5.3 规范，与 DADAO-0628（锁定在 SimRISC 0.4.1）相比有以下关键差异：
+DADAO-v5 基于 SimRISC 0.5.4 规范，与 DADAO-0628（锁定在 SimRISC 0.4.1）相比有以下关键差异：
 
-### 0.5.3 vs 0.4.1 的变化
+### 0.5.4 vs 0.4.1 的变化
 
 1. **指令命名重构**：所有指令使用 `.b`/`.w`/`.t`/`.o` 位宽后缀，有符号/无符号用 `s`/`u` 区分（如 `add.uo`/`add.so`、`mul.uw`/`mul.sw`）。原 0.4.1 的 `add`/`sub`/`muls`/`mulu`/`divs`/`divu`/`cmps`/`cmpu`/`exts`/`extz`/`shrs`/`shru`/`shlu` 等命名已废弃。此外，LR/SC 原子指令使用 `_nn`/`_nr`/`_an`/`_ar` 后缀标记 acquire/release 语义
 

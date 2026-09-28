@@ -75,7 +75,7 @@
 | `manifests/` | 锁文件（规范/参考组件，精确 commit） |
 | `contracts/` | 机器可读合约数据（编码表/ABI/合法性规则） |
 | `tools/<module>/` | 各模块工具脚本（infra/spec/llvm/qemu/testcases） |
-| `.tao/knowledge/contract-isa.md` | ISA 归一化合约（SimRISC 0.5.3） |
+| `.tao/knowledge/contract-isa.md` | ISA 归一化合约（SimRISC 0.5.4） |
 | `.tao/knowledge/contract-authoring.md` | 合约编写规范 |
 | `components/` `tests/` `sail/` | 后续交付物（按需创建） |
 

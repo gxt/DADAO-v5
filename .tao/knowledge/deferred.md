@@ -9,14 +9,14 @@
 - **ISA 归一化完成里程碑（原 `SPEC-005m`，已移除）**：曾用独立 `m` 标记 `SPEC-002t`+`003t` 完成。因 `k`↔`m` 一一对应规则移除；其意义由 `SPEC-002t`/`003t` 的完成 + `SPEC-011m`（M1 spec 里程碑）覆盖。
 - **`SPEC-002t`/`003t` 产出需重新生成**：`contract-isa.md`、`contracts/opcodes.yaml` 在 spec 重排后**重新生成**；旧文件暂作参考。
 - **M1 范围外（推迟）**：浮点（**RF 全部**：存取与运算）、特权 cfx 系统指令、LR-SC 原子。M1 提取：标量整数 + 地址/内存（RD/RB/**RA**）+ 控制流（`call`/`ret`/RegRAS）+ 测试机所需系统/异常。推迟项的完整规范与编码留后续（`SPEC-002t`/`003t` 标 `Excluded from M1`）。
-- **浮点支持（M1 明确不含，但后续必做）**：M1 **不引入任何浮点内容**（`SimRISC-03` §6 / MISC-RF 运算、FCSR 语义、FP 寄存器类）。浮点支持**后续必须提供**，路线参考 0628：以 **soft-float libcall** 接入——LLVM 把 f32/f64 软化，走 `__adddf3`/`__divsc3` 等 GNU 软浮点（**不注册 FP 寄存器类**），真正运算实现在 libc 的 soft-float shim；**0628 的 QEMU 全程无浮点指令**（其在 M2.5/M2.6 才以 soft-float 接入）。若将来要**原生**浮点（MISC-RF 46 条 + FCSR），属新决策。
+- **浮点支持（M1 明确不含，但后续必做）**：M1 **不引入任何浮点内容**（`SimRISC-07` § / MISC-RF 运算、FCSR 语义、FP 寄存器类）。浮点支持**后续必须提供**，路线参考 0628：以 **soft-float libcall** 接入——LLVM 把 f32/f64 软化，走 `__adddf3`/`__divsc3` 等 GNU 软浮点（**不注册 FP 寄存器类**），真正运算实现在 libc 的 soft-float shim；**0628 的 QEMU 全程无浮点指令**（其在 M2.5/M2.6 才以 soft-float 接入）。若将来要**原生**浮点（MISC-RF 46 条 + FCSR），属新决策。
 - **ABI 合约（`SPEC-004t`）的 M2 / CodeGen 内容**：**已定（2026-09-12）**——`SPEC-004t` **收窄到 M1 最小 ABI 事实**（寄存器角色、`SP=rb1`、栈向下增长/`call` 8B 对齐、`call`/`ret`/RegRAS）；**完整调用约定**（参数寄存器分配、返回值、栈帧布局、三 bank 共享溢出区、prologue/epilogue）**`Deferred to M2`**（M2 BasicCodeGen 的 oracle）。
 - **ABI `[OPEN]` 项**：`rd1`/`rb3`/`rb4` 的 callee-saved 分类（spec 为 `-`）、窄返回值扩展规则、多返回值（spec 自相冲突）——不得当规范性要求。
 - **Object ABI（`SPEC-005t`）**：`EM_DADAO` 注册状态（未注册 upstream，project-custom）、`e_flags` 命名空间策略、**M1 是否用 target linker（LLD）**。
 - **Object ABI / ELF 合约（`SPEC-005t`/`SPEC-007t`）范围**：**已定（2026-09-12）**——M1 = **D1（ELF 头字段）+ D5（段对齐/VA=PA/artifact pipeline）**（`contract-elf.md` §1+§5+§6）；**重定位（D2/D3/D4：类型表/溢出/relaxation）标 `Deferred to M2`**（M1 单 TU 自包含、不产生重定位、无 LLD；完整 relocation 任务待 M2 规划时创建，编号待定——`LLVM-012t` 已分配给「lit 字节 oracle」）。
 - **Spec 冻结（`SPEC-010t`）**：`impact matrix` 是否覆盖 M1 之外的实现目标（CodeGen/gem5/Sail）——M1 只需覆盖 M1 相关。
 - **编码表变更的下游影响（原 verif 模块，已解散）**：`opcodes.yaml` 现为「178 M1 + 78 `excluded_m1`」；`contracts/legality_rules.yaml`（`SPEC-008t` 已 Accepted）中 `lr_hb_not_zero`、`rf0_as_operand`、`fp_root_invalid_n`、`fp_log_invalid_base`、`cfx_reserved` 属 M1 排除项但仍 `active`——需在 `SPEC-009t`/`INFRA-010t` 规划中明确 M1 流程过滤非 M1 规则（`SPEC-008t` 不必返工，登记为跨模块影响）。
-- **编码知识**：0.5.3 MISC 子表 `ha = RRR-CCC` 拼为 6 位；**旧 `tools/opcodes.yaml`（0628）不可作编码权威**（v5 旧版曾有 2 处 ha 错误，已按 spec 修正）。
+- **编码知识**：0.5.4 MISC 子表 `ha = RRR-CCC` 拼为 6 位；**旧 `tools/opcodes.yaml`（0628）不可作编码权威**（v5 旧版曾有 2 处 ha 错误，已按 spec 修正）。
 - **~~`opcodes.yaml` L5 注释与 ADR-0004 D5.1 措辞歧义（N-1，`008t` 交叉复核登记）~~ ✅ 已消解（`QEMU-004t` N-1 修正，2026-09-19）**：`contracts/opcodes.yaml` 的 78 条 `excluded_m1` 原标 `decode: UNDI`（与 `ADR-0004 D5.1`「M1 排除但**已定义** → **ILLI**；UNDI 专用于**空白单元格**」矛盾）。已由 `QEMU-004t`（用户授权）修正：`tools/spec/generate_opcodes.py` 3 处（`decode` `UNDI`→`ILLI` + 注释/docstring）并重生成 `contracts/opcodes.yaml`（现 `decode: UNDI` 计数 0、78 条为 `ILLI`）；`tools/spec/{validate_encoding,check_qfc_coverage}.py` 均 PASS。**注**：`SPEC-003t` 任务书正文的历史表述（`decode: UNDI`）不改写。
 
 ## infra
@@ -56,6 +56,7 @@
   - `QEMU-017t`（分支语义 harness）原依赖 `TESTCASES-008t`，并引用 `control-flow.yaml` 的 deferred semantic 桩 → 现控制流向量**从零生成**于 `ctrl-br`/`ctrl-jump`/`ctrl-call`/`ctrl-ret`（不再有 `control-flow.yaml`），且 F7 已全部 active（不再有 PC-only deferred 桩）；**已修正**：任务书依赖已改为 `TESTCASES-005t`
   - `QEMU-001k` 表中 `014t` 依赖 `TESTCASES-003t`（→仍正确，harness 骨架依赖向量 `encoding.word`）、`016t` 依赖 `TESTCASES-004t`（→存疑，`004t` 现为访存向量，`016t` 消费 `expected_state.memory`，依赖应为 `TESTCASES-004t` 或 `TESTCASES-006t` 中的 store 向量）、`017t` 依赖 `TESTCASES-005t`（→已修正）
   - **本次规划级复审已同步修正上述陈旧引用**（机械性修正，不涉及决策变更）。跨模块影响项已清。
+- **~~`SPEC-024t` 暴露的测试向量 src 预置缺口（15 条，2026-09-27 登记）~~ ✅ 误报（2026-09-28 订正，`SPEC-031t`）**：该缺口是误报——`hb` 是目的寄存器（`role=dst`），非源寄存器。根因是 `SPEC-024t` 删除 `role` 字段后 F9① 守卫从 format 推导 role 时把 orrr/orri 的 `hb` 误判为 src。`role` 字段已由 `SPEC-031t` 恢复，该条目已无效。
 
 ## llvm / qemu / integ
 
@@ -91,7 +92,7 @@
   - **根因**：`target/dadao/insn_trans/trans_ctrl.c.inc` 的 `trans_fence` 是 `/* fence - stub: ILLI (M1 fence semantics not implemented) */`（`gen_exception_illegal`）。
   - **spec/合约依据（fence 是有效 M1 指令，非 ILLI）**：
     - `contracts/opcodes.yaml`：`fence` op=`0x00`、mask=`0xFFFC0000`、value=`0x00040000`、`excluded_m1: False`；`ha[23:18]` 为 **minor_op**（fence=`1`，illi=`0`）；legality = `immu18_hi == 0`、`immu18_mid == 0`、`immu18_lo[5:4] == 0` ⇒ **`immu18` 的 bits[17:4] 必须为 0（SBZ）**
-    - `contract-isa.md §7.3` / `spec/SimRISC-04 §fence指令`：`fence immu18` 为内存序屏障，低 4 位为屏障类型（IO/W/R/RW），bits[17:4] SBZ（非零行为保留）
+    - `contract-isa.md §7.3` / `spec/SimRISC-12 §fence指令`：`fence immu18` 为内存序屏障，低 4 位为屏障类型（IO/W/R/RW），bits[17:4] SBZ（非零行为保留）
     - `007t` 的拆分记录亦称 `fence` 为 **NOP**
   - **编码解码实测**：`0x00040000`（ha=1, immu18=0）→ SBZ 合规 → **应为 nop**；`0x00050000`（ha=1, immu18=0x10000, bits[17:4]=0x1000）→ **应为 ILLI**。
   - **建议修法**：`trans_fence` 改为「`immu18` bits[17:4] != 0 → ILLI；否则 **nop**」（单核 M1 下屏障无可观测效果）；或更忠实用 `tcg_gen_mb(TCG_MO_ALL | TCG_BAR_SC)`（需论证 M1 必要性）。修法落地需 **QEMU 补丁 `0009`**。

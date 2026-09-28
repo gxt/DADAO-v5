@@ -4,7 +4,7 @@
 >
 > **来源**：`.tao/knowledge/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充）。本合约是 ADR-0003 的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）的归一化投影。
 >
-> **引用**：指令格式/字段宽度/对齐/地址模型引用 `.tao/knowledge/contract-isa.md`（SimRISC 0.5.3）；端序/指针宽度引用 `.tao/knowledge/contract-abi.md`（0.9.2）。本合约不重复定义这些内容。
+> **引用**：指令格式/字段宽度/对齐/地址模型引用 `.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）；端序/指针宽度引用 `.tao/knowledge/contract-abi.md`（0.9.2）。本合约不重复定义这些内容。
 >
 > **M1 范围**：§1 ELF 文件头字段、§5 段对齐与 VA=PA、§6 端到端 artifact pipeline。
 >
@@ -65,7 +65,7 @@ M1 为单 TU 自包含、无跨 object、无 link：汇编器就地解析段内�
 
 以下仅为 M2 启用时的**场景登记**（非 M1 规范性内容，不冻结编号/公式；格式/字段位置见 [contract-isa.md §2.3–§2.4]，分支/call/jump/rela 语义见 [contract-isa.md §4.7][contract-isa.md §5.2–§5.4]）：[ADR-0003 §D2]
 
-| 场景 | 0.5.3 指令格式 | 字段约束 |
+| 场景 | 0.5.4 指令格式 | 字段约束 |
 |------|---------------|----------|
 | 绝对 64-bit 数据地址（**含** `set.zw`/`or.w` 构造的地址） | 数据节 / `set.zw`+`or.w`（rwii） | 64 位；数据节全 64 位；`set.zw`/`or.w` 每次 16 位（wyde 选择器在 `hb[5:4]`）。**不为 wyde 类指令单列「地址构造」场景** |
 | PC 相对短程分支 | `br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np`（riii，imms18） | imms18 **字**偏移，重定位 `<<2`；有效字节范围 = 18+2 → ±2¹⁹（±512 KiB） |

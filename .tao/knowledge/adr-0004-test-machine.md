@@ -2,17 +2,17 @@
 
 **状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型，见 `## 修订`）
 **日期**：2026-09-13
-**关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.3）、`.tao/knowledge/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
+**关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）、`.tao/knowledge/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
 
 ## Context（背景）
 
 M1 的 QEMU 实现必须在**裸机**（bare-metal）环境执行 ISA 语义/合法性/边界向量：无 OS、无 SEE、无异常向量。测试断言必须完全依赖 **QEMU 进程退出码**或 **guest 可见寄存器状态**，不得依赖 host 日志、QEMU stderr 或超时判定 pass/fail（零 host 依赖约束）。
 
-`spec/`（SimRISC 0.5.3）只定义了部分 ISA 语义：`rb0` 复位值为 `cfx_power_hypv_excp_vector`（SEE 概念，M1 无 SEE）[SimRISC-00 §基址寄存器]、`rf0`（FCSR）位布局 [SimRISC-00 §浮点状态寄存器]、RA 进程入口初值 [SimRISC-00 §返回地址栈]、以及 MALIGN/ILLI/UNDI/IALIGN/RASOF/RASUF 的触发条件与精确异常承诺 [contract-isa §9]。`spec/` **不定义**测试机的内存映射、exit 协议、硬件复位值全集、fault 退出码或启动协议——这些属本 ADR 的**原始架构决策**，均标注「无 spec 依据，架构自定义」。
+`spec/`（SimRISC 0.5.4）只定义了部分 ISA 语义：`rb0` 复位值为 `cfx_power_hypv_excp_vector`（SEE 概念，M1 无 SEE）[SimRISC-00 §基址寄存器]、`rf0`（FCSR）位布局 [SimRISC-00 §浮点状态寄存器]、RA 进程入口初值 [SimRISC-00 §返回地址栈]、以及 MALIGN/ILLI/UNDI/IALIGN/RASOF/RASUF 的触发条件与精确异常承诺 [contract-isa §15]。`spec/` **不定义**测试机的内存映射、exit 协议、硬件复位值全集、fault 退出码或启动协议——这些属本 ADR 的**原始架构决策**，均标注「无 spec 依据，架构自定义」。
 
 本 ADR 与 ADR-0003（object ABI / artifact pipeline）配合：ADR-0003 冻结 `.o → objcopy --only-section=.text -O binary → flat binary`，本 ADR 冻结该 flat binary 如何被 QEMU 加载并进入，以及 guest 可见的全部可观测行为。测试机地址图采用 spec 的**核内地址空间模型**（cfxcode），整体占用最高段 cfxcode 63（power）——见 D1。遗留 `dadao-virt` 内存布局（ROM `0x0010_0000` / UART `0x1000_0000` / RAM `0x8000_0000`）仅作**只读对照**，本 ADR 不沿用。
 
-依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.3，异常/对齐/地址模型）、`.tao/knowledge/contract-abi.md`（`SP = rb1`、栈向下增长）、`contracts/legality_rules.yaml`（异常触发条件）。指令助记符一律使用 0.5.3 命名。
+依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.4，异常/对齐/地址模型）、`.tao/knowledge/contract-abi.md`（`SP = rb1`、栈向下增长）、`contracts/legality_rules.yaml`（异常触发条件）。指令助记符一律使用 0.5.4 命名。
 
 ## Decision（决策）
 
@@ -52,7 +52,7 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
 
 **复位 PC（`rb0`）**：M1 直接取 spec 的 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000` 作为复位值（即 boot ROM 基址，D1）[SimRISC-00 §基址寄存器][DADAO-12 §2.1]。M1 **仅借用该地址**，不复现 spec 的复位运行模式（`inner_run_mode=hypv`、`inner_cfx_code=cfx_power`、`inner_cfx_mask=全 1`）等 HBI/SEE 语义（M1 无 SEE/HBI/hypv）。
 
-**`rf0` 复位常量推导**（从 0.5.3 `SimRISC-00 §浮点状态寄存器` 位布局**独立推导**，不照抄任何旧实现）：
+**`rf0` 复位常量推导**（从 0.5.4 `SimRISC-00 §浮点状态寄存器` 位布局**独立推导**，不照抄任何旧实现）：
 
 | 位域 | 属性 | spec 规定值 | 复位取值 |
 |------|------|------------|---------|
@@ -108,9 +108,9 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
 
 ### D4 MALIGN 可观测行为
 
-MALIGN 为精确异常 [contract-isa §9.2][contract-isa §4.1.1]。M1 无 OS 异常向量，本 ADR 选择 **QEMU 直接把 fault 映射为退出码**（不安装 handler，D6）。
+MALIGN 为精确异常 [contract-isa §15.2][contract-isa §3.1.1]。M1 无 OS 异常向量，本 ADR 选择 **QEMU 直接把 fault 映射为退出码**（不安装 handler，D6）。
 
-- **退出码**：**`0x8C`**（= `0x80 | 12`，对应 spec 的 MALIGN cause 位 `1 << 12` [DADAO-12 §cfx_umon 异常原因表][DADAO-13 §HEE 异常原因表]）。所有 M1 对齐异常（16/32/64 位；byte 天然对齐不触发）统一为 `0x8C`：`ld.sw`/`st.w`/`ld.uw`/`ldm.sw`/`ldm.uw`/`stm.w`（2 B）、`ld.st`/`st.t`/`ld.ut`/`ldm.st`/`ldm.ut`/`stm.t`（4 B）、`ld.o`/`st.o`（RD/RB/RA）、`ldm.o`/`stm.o`（8 B）[contract-isa §4.1.1][contract-isa §4.1.2][contract-isa §4.2][contract-isa §4.9]。
+- **退出码**：**`0x8C`**（= `0x80 | 12`，对应 spec 的 MALIGN cause 位 `1 << 12` [DADAO-12 §cfx_umon 异常原因表][DADAO-13 §HEE 异常原因表]）。所有 M1 对齐异常（16/32/64 位；byte 天然对齐不触发）统一为 `0x8C`：`ld.sw`/`st.w`/`ld.uw`/`ldm.sw`/`ldm.uw`/`stm.w`（2 B）、`ld.st`/`st.t`/`ld.ut`/`ldm.st`/`ldm.ut`/`stm.t`（4 B）、`ld.o`/`st.o`（RD/RB/RA）、`ldm.o`/`stm.o`（8 B）[contract-isa §3.1.1][contract-isa §3.1.2][contract-isa §3.2][contract-isa §3.3]。
 - **退出时 guest 可见状态**（精确异常承诺）：
   - **faulting PC**：`rb0` = 触发异常的指令地址（PC 未前进到下一指令）。
   - **目标寄存器不提交**：目的寄存器（RD/RB/RA）**不被写入**；源操作数可能已被读取，但无任何架构状态提交。
@@ -124,24 +124,24 @@ MALIGN 为精确异常 [contract-isa §9.2][contract-isa §4.1.1]。M1 无 OS �
 
 #### D5.1 ILLI（非法指令，退出码 `0x88`）
 
-触发集合（`spec/` 语义见 [contract-isa §9.1]；机器层附加项标注「架构自定义」）：
+触发集合（`spec/` 语义见 [contract-isa §15.1]；机器层附加项标注「架构自定义」）：
 
 - `rd0` 作为目的（除 rrrr 双目的允许一个为 rd0、`ret rd0, 0` 外）；`rb0` 作为目的 [contract-isa §1.3.1][contract-isa §1.3.2]。
-- 多寄存器指令 `immu6 = 0`、或起始寄存器 + `immu6 > 64`（超出 rd63/rb63/ra63）[contract-isa §4.1.2][contract-isa §4.2][contract-isa §4.3][contract-isa §4.9]。
-- `ld`/`st`（RD）目的 `rdha` 为 `rd0`；`ld.o`/`st.o`/`ldm.o`/`stm.o`（RB）`rbha` 为 `rb0` [contract-isa §4.1.1][contract-isa §4.2]。
-- 移位量 `shamt > N`；扩展起始位 `hd > N` [contract-isa §3.4.1][contract-isa §3.4.2]。
-- 除法除数为零；`div.s` 的 `INT_MIN ÷ −1` [contract-isa §3.1.5]。
-- `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 双目的同时为 `rd0`，或为同一非 `rd0` 寄存器 [contract-isa §3.1.1][contract-isa §3.1.4]。
-- 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0` [contract-isa §3.1.2][contract-isa §3.2.2][contract-isa §3.1.5]。
-- `illi` 指令本身（含 32 位全零指令字 `0x00000000`）[contract-isa §7.2][contract-isa §8.3]。
+- 多寄存器指令 `immu6 = 0`、或起始寄存器 + `immu6 > 64`（超出 rd63/rb63/ra63）[contract-isa §3.1.2][contract-isa §3.2][contract-isa §4.2][contract-isa §3.3]。
+- `ld`/`st`（RD）目的 `rdha` 为 `rd0`；`ld.o`/`st.o`/`ldm.o`/`stm.o`（RB）`rbha` 为 `rb0` [contract-isa §3.1.1][contract-isa §3.2]。
+- 移位量 `shamt > N`；扩展起始位 `hd > N` [contract-isa §6.4.1][contract-isa §6.4.2]。
+- 除法除数为零；`div.s` 的 `INT_MIN ÷ −1` [contract-isa §6.1.5]。
+- `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 双目的同时为 `rd0`，或为同一非 `rd0` 寄存器 [contract-isa §6.1.1][contract-isa §6.1.4]。
+- 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0` [contract-isa §6.1.2][contract-isa §6.2.2][contract-isa §6.1.5]。
+- `illi` 指令本身（含 32 位全零指令字 `0x00000000`）[contract-isa §13.2][contract-isa §13.5]。
 - **SBZ 字段非零**（见 D5.3）。
-- **M1 排除但 0.5.3 已定义的编码**（架构自定义）：RF 指令（RF 存取/运算、`set.w`、`set.ft`/`set.fo`）、LR-SC 原子指令（`lr_*.o`/`sc_*.o`）、特权 cfx 指令（`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst`/`escape`/`trap`）[contract-isa §6][contract-isa §7.4][contract-isa §7.5]。理由：这些编码在 0.5.3 中**已定义**（非保留单元格），但 M1 机器不实现，执行即非法指令（ILLI）；UNDI 专用于架构显式留空的编码。
+- **M1 排除但 0.5.4 已定义的编码**（架构自定义）：RF 指令（RF 存取/运算、`set.w`、`set.ft`/`set.fo`）、LR-SC 原子指令（`lr_*.o`/`sc_*.o`）、特权 cfx 指令（`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst`/`escape`/`trap`）[contract-isa §9][contract-isa §14.2][contract-isa §14.3]。理由：这些编码在 0.5.4 中**已定义**（非保留单元格），但 M1 机器不实现，执行即非法指令（ILLI）；UNDI 专用于架构显式留空的编码。
 - **机器访问约束违反**（架构自定义）：对 exit port 的非 8 B/多寄存器 store 与任何 load、对 ROM 的 store（只读区域）；完整判定见 D5.6 矩阵。
 
 #### D5.2 UNDI（未定义指令，退出码 `0x89`）
 
-- 执行 QFC 主表或 MISC 子表中**空白单元格**（reserved 编码）[contract-isa §2.7][contract-isa §2.9][contract-isa §8.2]。
-- UNDI 与 ILLI 的边界：**编码未定义** → UNDI；**编码已定义但操作数/访问非法** → ILLI [contract-isa §8.3]。
+- 执行 QFC 主表或 MISC 子表中**空白单元格**（reserved 编码）[contract-isa §2.7][contract-isa §2.9][contract-isa §13.4]。
+- UNDI 与 ILLI 的边界：**编码未定义** → UNDI；**编码已定义但操作数/访问非法** → ILLI [contract-isa §13.5]。
 
 #### D5.3 SBZ 字段非零 → ILLI（退出码 `0x88`）
 
@@ -151,7 +151,7 @@ MALIGN 为精确异常 [contract-isa §9.2][contract-isa §4.1.1]。M1 无 OS �
 - 这类比**非法操作数**（ILLI），而非未识别编码（UNDI）。汇编器可静态拒绝 SBZ 违例（如同拒绝 `rd0` 目的）。
 - UNDI 保留给架构**显式留空**的 opcode/minor-opcode 单元格；SBZ 是已定义单元格上的字段约束。
 
-M1 范围内的 SBZ 字段示例：`fence` 的 `immu18 bits[17:4]` [contract-isa §7.3]、移位指令中 shamt 位域之外的高位（如 `shl.ub` 的 `hd[5:3]`、`shl.uw` 的 `hd[5:4]`）[contract-isa §3.4.1]。
+M1 范围内的 SBZ 字段示例：`fence` 的 `immu18 bits[17:4]` [contract-isa §14.1]、移位指令中 shamt 位域之外的高位（如 `shl.ub` 的 `hd[5:3]`、`shl.uw` 的 `hd[5:4]`）[contract-isa §6.4.1]。
 
 #### D5.4 IALIGN（取指未对齐，退出码 `0x8D`）
 
@@ -160,9 +160,9 @@ M1 范围内的 SBZ 字段示例：`fence` 的 `immu18 bits[17:4]` [contract-isa
 
 #### D5.5 RASOF / RASUF（退出码 `0x8A` / `0x8B`）
 
-- **RASOF（`0x8A`）**：RegRAS 压栈溢出（调用深度超过 63），或 MemRAS 引用计数溢出 [contract-isa §5.6.1]。
-- **RASUF（`0x8B`）**：RegRAS 弹栈下溢（栈空时 `ret`），或 MemRAS 引用计数/内容无效 [contract-isa §5.6.2]。
-- 二者均为精确异常：RA 寄存器保持异常前状态（push/pop 未提交），`rb0` = 触发异常的 `call`/`ret` 指令地址 [contract-isa §1.3.4][contract-isa §9.2]。
+- **RASOF（`0x8A`）**：RegRAS 压栈溢出（调用深度超过 63），或 MemRAS 引用计数溢出 [contract-isa §8.6.1]。
+- **RASUF（`0x8B`）**：RegRAS 弹栈下溢（栈空时 `ret`），或 MemRAS 引用计数/内容无效 [contract-isa §8.6.2]。
+- 二者均为精确异常：RA 寄存器保持异常前状态（push/pop 未提交），`rb0` = 触发异常的 `call`/`ret` 指令地址 [contract-isa §1.3.4][contract-isa §15.2]。
 - 退出码由 spec 的 cause 位派生（`0x80 | 10` / `0x80 | 11`，见 D5.8）。
 
 #### D5.6 内存区域 × 访问种类/宽度 矩阵（含 fault 优先级）
@@ -323,10 +323,10 @@ jump    rb2, rd0, 0            ; PC ← 0xffff_0000_0000
 - **fault 码与 guest 码分区**：`0x00`–`0x7F` 为 guest（pass/fail），`0x80`–`0xFF` 为机器 fault；fault 码由 **spec cause 位派生**（`0x80 | cause_bit` → `0x88`–`0x8D`）或测试机约定（`0x87` unmapped），使 `$?` 单值即可无歧义区分 pass/fail/fault，满足零 host 依赖，且可回溯到 spec 的异常原因编码。
 - **fault 码由 spec cause 位派生（`0x80 | cause_bit`）**：`spec/` 定义异常原因 `excp cause id = 1<<n`（ILLI=8、UNDI=9、RASOF=10、RASUF=11、MALIGN=12、IALIGN=13）[DADAO-12 §cfx_umon 异常原因表][DADAO-13 §HEE 异常原因表]。退出码取 `0x80 | n`，使测试机 fault 码**可回溯到 spec**，而非任意编号；unmapped 无对应 spec cause，退出码 `0x87` 为**测试机约定**（与 spec cause 位无关）。
 - **SBZ → ILLI 而非 UNDI**：SBZ 是已识别 opcode 内的字段约束，类比非法操作数；UNDI 专用于架构留空编码。
-- **M1 排除但已定义的编码 → ILLI**：编码在 0.5.3 中已定义（非留空），机器不实现即非法指令；与「UNDI = 空白单元格」的契约定义一致。
+- **M1 排除但已定义的编码 → ILLI**：编码在 0.5.4 中已定义（非留空），机器不实现即非法指令；与「UNDI = 空白单元格」的契约定义一致。
 - **非 8B exit port 访问 → ILLI**：opcode 合法，违反 MMIO 宽度/种类约束属非法操作数，不是未识别编码；修正了将 MMIO 宽度违规误归 UNDI 的旧做法。
 - **RF 仅复位不实现**：M1 排除 RF 指令语义；按 spec 位布局确定性复位 `rf0`，避免未初始化浮点状态导致不确定行为，同时不引入 RF 指令实现。
-- **`rf0` 常量独立推导**：从 0.5.3 `SimRISC-00 §浮点状态寄存器` 的位段直接组合（只读 QNaN 位固定、SBZ 与 R/W 位复位为 0），得到 `0x7FF8_0000_7FC0_0000`，不照抄任何旧实现的常量。
+- **`rf0` 常量独立推导**：从 0.5.4 `SimRISC-00 §浮点状态寄存器` 的位段直接组合（只读 QNaN 位固定、SBZ 与 R/W 位复位为 0），得到 `0x7FF8_0000_7FC0_0000`，不照抄任何旧实现的常量。
 - **保留区显式 fault**：unmapped 访问给出确定退出码 `0x87`，而非静默 no-op/host abort/超时。
 
 ## Consequences（影响）

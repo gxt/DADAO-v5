@@ -2,7 +2,7 @@
 
 > **版本：0.9.2** [DADAO-21 §版本][DADAO-11 §版本]
 >
-> **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/DADAO-11-AEE-应用程序运行环境.md`（0.9.2）；指令语义与寄存器模型基础引用 `.tao/knowledge/contract-isa.md`（0.5.3）。
+> **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/DADAO-11-AEE-应用程序运行环境.md`（0.9.2）；指令语义与寄存器模型基础引用 `.tao/knowledge/contract-isa.md`（0.5.4）。
 >
 > **M1 范围**：最小 ABI 事实——寄存器角色、`SP=rb1`、栈向下增长 / `call` 时 SP 8B 对齐、`call`/`ret` 与 RegRAS 的关系。供 test machine（`SPEC-006t`）与 M1 集成使用。
 >
@@ -139,8 +139,8 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 
 ### §2.3 `call`/`ret` 与 RegRAS
 
-- `call` 计算返回地址并压入 `ra63`（RegRAS 栈顶）；`ret` 从 `ra63` 弹出返回地址并跳转。[SimRISC-02 §函数调用][SimRISC-02 §函数返回]
-- `ra63` 高 16 位为返回地址引用计数（首次压栈设为 1，递归调用递增），低 48 位为返回地址。[SimRISC-02 §函数调用]
+- `call` 计算返回地址并压入 `ra63`（RegRAS 栈顶）；`ret` 从 `ra63` 弹出返回地址并跳转。[SimRISC-06 §函数调用][SimRISC-06 §函数返回]
+- `ra63` 高 16 位为返回地址引用计数（首次压栈设为 1，递归调用递增），低 48 位为返回地址。[SimRISC-06 §函数调用]
 - 正常 leaf / 非 leaf 函数调用**无需软件保存/恢复 RA 寄存器**（由硬件自动压/弹）。[DADAO-21 §寄存器规范 §RA寄存器]
 - 完整压栈/弹栈流程（RegRAS/MemRAS、三分支、RASOF/RASUF 精确异常）见 `contract-isa.md §5.4–§5.6`，本合约不重复定义。[SimRISC-00 §压栈流程（call 指令）][SimRISC-00 §弹栈流程（ret 指令）]
 
@@ -166,7 +166,7 @@ M1 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2"`�
 | prologue/epilogue（SP-only 与 FP 两套对称、可汇编序列） | [DADAO-21 §函数调用规范] | `Deferred to M2` |
 | 系统调用规范（`trap`、RD15 调用号、返回值 RD31） | [DADAO-21 §系统调用规范] | `Deferred to M2`（不属 M1 最小 ABI 事实） |
 
-> 撰写 M2 内容时，指令助记符必须使用 0.5.3 命名（见 `contract-isa.md`），不得沿用 0.4.1 旧助记符。
+> 撰写 M2 内容时，指令助记符必须使用 0.5.4 命名（见 `contract-isa.md`），不得沿用 0.4.1 旧助记符。
 
 ---
 
