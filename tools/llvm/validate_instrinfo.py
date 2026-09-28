@@ -135,23 +135,23 @@ def main() -> int:
         print(f"PASS: 178 instruction defs")
 
     # Check 2: Build lookup from YAML (insn -> op)
-    yaml_by_insn = {op["insn"]: op for op in m1_opcodes}
+    yaml_by_insn = {op["id"]: op for op in m1_opcodes}
 
     # Check 3: Each YAML M1 instruction has a matching def
     # Some insn names appear twice (ext.uo in orrr and orri); disambiguate with format
     name_count: dict[str, int] = {}
     for op in m1_opcodes:
-        base = op["insn"].replace(".", "_").replace("-", "_")
+        base = op["id"].replace(".", "_").replace("-", "_")
         name_count[base] = name_count.get(base, 0) + 1
 
     for op in m1_opcodes:
-        base = op["insn"].replace(".", "_").replace("-", "_")
+        base = op["id"].replace(".", "_").replace("-", "_")
         if name_count[base] > 1:
             defname = f"{base}_{op['format']}"
         else:
             defname = base
         if defname not in defs:
-            print(f"FAIL: Missing def for {op['insn']} (expected {defname})")
+            print(f"FAIL: Missing def for {op['id']} (expected {defname})")
             errors += 1
             continue
 
@@ -184,14 +184,14 @@ def main() -> int:
 
     # Check 4: No excluded instructions are defined
     for op in excluded:
-        base = op["insn"].replace(".", "_").replace("-", "_")
+        base = op["id"].replace(".", "_").replace("-", "_")
         # Check both the base name and format-disambiguated name
         if base in defs:
-            print(f"FAIL: Excluded instruction {op['insn']} has a def ({base})")
+            print(f"FAIL: Excluded instruction {op['id']} has a def ({base})")
             errors += 1
         fmt_name = f"{base}_{op['format']}"
         if fmt_name in defs:
-            print(f"FAIL: Excluded instruction {op['insn']} has a def ({fmt_name})")
+            print(f"FAIL: Excluded instruction {op['id']} has a def ({fmt_name})")
             errors += 1
 
     # Check 5: Format classes used

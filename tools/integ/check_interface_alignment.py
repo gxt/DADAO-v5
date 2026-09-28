@@ -587,9 +587,9 @@ def check_opcodes_cross():
     # --- 结构完整性 ---
     missing = []
     for i, rec in enumerate(records):
-        for key in ("insn", "mnemonic", "format", "op", "mask", "value"):
+        for key in ("id", "mnemonic", "format", "op", "mask", "value"):
             if key not in rec:
-                missing.append(f"  [{i}] {rec.get('insn','?')}: 缺少 {key}")
+                missing.append(f"  [{i}] {rec.get('id','?')}: 缺少 {key}")
     if missing:
         record(cat, "opcodes.yaml 结构完整性", "FAIL", "\n".join(missing[:5]))
     else:
@@ -603,7 +603,7 @@ def check_opcodes_cross():
         value = int(rec["value"], 16)
         if (value & mask) != value:
             mask_errors.append(
-                f"  [{i}] {rec['insn']}: (value & mask) != value "
+                f"  [{i}] {rec['id']}: (value & mask) != value "
                 f"(0x{value:08X} & 0x{mask:08X} = 0x{value & mask:08X})"
             )
     if mask_errors:

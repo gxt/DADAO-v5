@@ -82,11 +82,11 @@ def build_unique_func_names(records):
     大多数记录用 insn 字段即可；当 sanitize(insn) 冲突时（如 ext.uo 同时
     出现在 orrr 和 orri 中），追加 _{format} 后缀。
     """
-    base_counts = Counter(sanitize_name(r["insn"]) for r in records)
+    base_counts = Counter(sanitize_name(r["id"]) for r in records)
 
     func_names = []
     for rec in records:
-        base = sanitize_name(rec["insn"])
+        base = sanitize_name(rec["id"])
         if base_counts[base] > 1:
             func = f"{base}_{rec['format']}"
         else:
@@ -143,7 +143,7 @@ def generate_stubs(records, out_path):
     lines.append("")
 
     for rec, func in zip(records, func_names):
-        mnemonic = rec.get("mnemonic", rec["insn"])
+        mnemonic = rec.get("mnemonic", rec["id"])
         arg_type = "arg_misc" if is_misc_entry(rec) else "arg_main"
 
         if mnemonic == "swym":
@@ -155,7 +155,7 @@ def generate_stubs(records, out_path):
         else:
             lines.append(f"static bool trans_{func}(DisasContext *ctx, {arg_type} *a)")
             lines.append("{")
-            lines.append(f"    /* {rec['insn']} - stub: ILLI */")
+            lines.append(f"    /* {rec['id']} - stub: ILLI */")
             lines.append("    gen_exception_illegal(ctx);")
             lines.append("    return true;")
             lines.append("}")

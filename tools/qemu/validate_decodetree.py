@@ -93,10 +93,10 @@ def is_misc_entry(rec):
 
 
 def build_unique_func_names(records):
-    base_counts = Counter(sanitize_name(r["insn"]) for r in records)
+    base_counts = Counter(sanitize_name(r["id"]) for r in records)
     func_names = []
     for rec in records:
-        base = sanitize_name(rec["insn"])
+        base = sanitize_name(rec["id"])
         if base_counts[base] > 1:
             func_names.append(f"{base}_{rec['format']}")
         else:
@@ -136,7 +136,7 @@ def main():
 
     # 检查1: 每条 yaml 记录在 decode 中有对应 pattern
     for rec, func_base in zip(records, func_names):
-        insn = rec["insn"]
+        insn = rec["id"]
         func = func_base
         mask = _to_int(rec["mask"])
         value = _to_int(rec["value"])

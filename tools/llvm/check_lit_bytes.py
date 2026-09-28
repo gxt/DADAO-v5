@@ -42,7 +42,7 @@ def load_opcodes(path: str) -> list[dict]:
         mask = int(entry["mask"], 16)
         value = int(entry["value"], 16)
         result.append({
-            "insn": entry["insn"],
+            "insn": entry["id"],
             "mnemonic": entry["mnemonic"],
             "mask": mask,
             "value": value,
@@ -93,7 +93,7 @@ def main() -> int:
                     )
                     continue
                 if len(matches) > 1:
-                    insns = [e["insn"] for e in matches]
+                    insns = [e["id"] for e in matches]
                     errors.append(
                         f"  {fname}:{lineno}: word=0x{word:08X} — multiple matches: {insns}"
                     )
@@ -103,7 +103,7 @@ def main() -> int:
                 if mnemonic != hit["mnemonic"]:
                     errors.append(
                         f"  {fname}:{lineno}: mnemonic '{mnemonic}' != "
-                        f"'{hit['mnemonic']}' (insn={hit['insn']})"
+                        f"'{hit['mnemonic']}' (insn={hit['id']})"
                     )
                     continue
 

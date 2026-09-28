@@ -6,8 +6,8 @@ See ``docs/assembly-list.md`` (generated) and
 
 Sources
 -------
-* ``contracts/opcodes.yaml`` -- the authoritative 256-entry encoding table
-  (178 M1 + 78 ``excluded_m1``), with per-field ``role``/``bank``.
+* ``contracts/opcodes.yaml`` -- the authoritative 254-entry encoding table
+  (178 M1 + 76 ``excluded_m1``), with per-field ``role``/``bank``.
 
 Derivation rules (validated against ``tests/lit/MC/Dadao/*.s``)
 ---------------------------------------------------------------
@@ -57,25 +57,27 @@ def base_imm(name: str) -> str:
 
 def operands(entry: dict) -> list[dict]:
     out = []
+    fmt = entry.get("format", "")
     for field in entry.get("fields", []):
-        role = field.get("role")
-        if role not in OPERAND_ROLES:
-            continue
-        name = base_imm(field["name"])
-        if role == "wyde_pos":
+        name = field.get("name", "")
+        base = base_imm(name)
+        # Infer kind from field name and format
+        if name == "wpN":
             kind, bank = "wpN", None
-        elif role == "cfxcode":
+        elif name == "cfxcode":
             kind, bank = "cfxcode", None
-        elif role == "cfx_cg":
+        elif name == "cghb":
             kind, bank = "cfx_cg", None
-        elif role == "cfx_rc":
+        elif name == "rchc":
             kind, bank = "cfx_rc", None
+        elif name.startswith("imm") or name == "imms12" or name == "immu6":
+            kind, bank = "imm", field.get("bank")
         else:
             bank = field.get("bank")
-            kind = "imm" if (bank == "imm" or name.startswith("imm")) else "reg"
+            kind = "reg"
         if out and out[-1]["kind"] == kind == "imm":
             continue
-        out.append({"kind": kind, "bank": bank, "name": name})
+        out.append({"kind": kind, "bank": bank, "name": base})
     return out
 
 
@@ -101,13 +103,13 @@ FEATURE_OVERRIDE = {
 def primary_feature(entry: dict, ops: list[dict]) -> str:
     """指令的 feature：insn 后缀（-rd/-rb/-ra/-rf）优先；否则取 dst 的寄存器组；再否则由 FEATURE_OVERRIDE 指定。"""
     mnemonic = entry["mnemonic"]
-    insn = entry["insn"]
+    insn = entry["id"]
     if mnemonic in FEATURE_OVERRIDE:
         return FEATURE_OVERRIDE[mnemonic]
     if mnemonic.startswith("cfx"):
         return "cfx"
     # 浮点类指令统一 rf
-    if classify(entry) == "浮点":
+    if classify(entry) == "浮点运算":
         return "rf"
     # 寄存器组块赋值 X2Y：取「非 rd 侧」（两侧都是 rd 时取 rd）
     m2 = re.fullmatch(r"(rd|rb|ra|rf)2(rd|rb|ra|rf)", mnemonic)
@@ -126,16 +128,16 @@ def primary_feature(entry: dict, ops: list[dict]) -> str:
 
 
 def classify(entry: dict) -> str:
-    """章节分类（优先级：rwii > 存储 > 控制流 > 寄存器复制 > 浮点 > 位宽 > 64位运算 > 其它）。"""
+    """章节分类（优先级：rwii > 取数存数 > 控制流 > 寄存器复制 > 浮点运算 > 位宽 > 64位运算 > 其它）。"""
     m = entry["mnemonic"]
     # 待定（用户裁定：暂不归类）
-    if m in ("cfxld", "cfxst", "fence", "ftmadd", "fomadd") \
+    if m in ("cfxld", "cfxst", "fence") \
             or m.startswith(("lr_", "sc_", "rela")):
         return "待定"
     if entry["format"] == "rwii":
         return "16位立即数操作"
     if m.startswith(("ld.", "st.", "ldm.", "stm.")):
-        return "存储"
+        return "取数存数"
     if m.startswith(("br.", "jump", "call", "ret")):
         return "控制流"
     if m.startswith("cs.") or re.fullmatch(r"(rd|rb|ra|rf)2(rd|rb|ra|rf)", m):
@@ -144,7 +146,7 @@ def classify(entry: dict) -> str:
     if (any(f.get("bank") == "rf" for f in entry["fields"])
             or m.startswith(("fo", "ft"))
             or re.search(r"2f|2rf", m)):
-        return "浮点"
+        return "浮点运算"
     if m.startswith(("lr_", "sc_")):
         return "其它"
     if re.search(r"\.(ub|sb|b)$", m):
@@ -159,11 +161,11 @@ def classify(entry: dict) -> str:
     return "其它"
 
 
-SECTION_ORDER = ["8位数据运算", "16位数据运算", "32位数据运算", "64位数据运算", "64位地址运算", "浮点", "存储", "控制流", "寄存器复制", "16位立即数操作", "其它", "待定"]
+SECTION_ORDER = ["取数存数", "寄存器复制", "16位立即数操作", "64位数据运算", "64位地址运算", "控制流", "浮点运算", "32位数据运算", "16位数据运算", "8位数据运算", "其它", "待定"]
 
 # 整章 deferred（用户裁定 2026-09-25）：章节名 → 理由
 DEFERRED_SECTIONS = {
-    "浮点": "待浮点专门任务",
+    "浮点运算": "待浮点专门任务",
     "待定": "暂不归类，待必须启用时",
 }
 
@@ -386,7 +388,7 @@ def main() -> int:
         header = (
             f"// DADAO 指令清单（{'新语法（规范草案，待实现）' if args.syntax == 'new' else '旧语法（当前已实现）'}）\n"
             f"// 生成器：tools/llvm/gen_asm_list.py --plain --syntax {args.syntax}\n"
-            f"// 来源：contracts/opcodes.yaml（256 条 = M1 178 + excluded_m1 78）\n"
+            f"// 来源：contracts/opcodes.yaml（254 条 = M1 178 + excluded_m1 76）\n"
             f"// 新语法规范：docs/spec/assembly-language.md\n\n"
         )
         out = Path(args.output)
@@ -416,9 +418,10 @@ def main() -> int:
         body = []
         for entry in by_class[cls]:
             ops = operands(entry)
-            feature = primary_feature(entry, ops)
+            # id 为权威值（opcodes.yaml），feature 由 id 末段取出
+            ident = entry["id"]
+            feature = ident.rsplit("_", 1)[-1]
             form = new_form(entry, ops, 0, field=True)
-            ident = f"{entry['mnemonic']}_{entry['format']}_{feature}"
             body.append((
                 ident,
                 f"| `{entry['mnemonic']}` | `{entry['format']}` | `{feature}` | `{form}` | `{ident}` |",
@@ -428,10 +431,10 @@ def main() -> int:
     header = f"""# DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（256 条 = M1 178 + `excluded_m1` 78）
+> **源**：`contracts/opcodes.yaml`（254 条 = M1 178 + `excluded_m1` 76）
 > **语法**：`docs/spec/assembly-language.md`（**v1 生效，待实现**）
-> **分章**：**8位数据运算** / **16位数据运算** / **32位数据运算** / **64位数据运算** / **64位地址运算** / 浮点 / 存储 / 控制流 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`/`rela*`/`f*madd`）
-> **deferred**（用户裁定 2026-09-25）：**浮点**（46 条，待浮点专门任务）与**待定**（14 条，暂不归类，待必须启用时）**整章 deferred**；其余 196 条为当前有效书写形式
+> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`/`rela*`）
+> **deferred**（用户裁定 2026-09-25）：**浮点运算**（46 条，待浮点专门任务）与**待定**（12 条，暂不归类，待必须启用时）**整章 deferred**；其余 196 条为当前有效书写形式
 > **注（非 deferred 的 rf 条目）**：浮点寄存器的**读写**——`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式（8 条）、`cs.*-rf` 与 `rd2rf`/`rf2rd`（7 条）、`set.w-rf`（1 条）——**不**属 deferred：浮点寄存器默认存在，这些只读写寄存器、不涉浮点运算（用户裁定 2026-09-25）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `docs/spec/assembly-language.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）

@@ -87,7 +87,7 @@ def check_fields_non_overlapping(fields):
 
 def check_bank_consistency(rec):
     """检查字段 bank 标记与指令名称是否一致"""
-    insn = rec.get("insn", "?")
+    insn = rec.get("id", "?")
     mnemonic = rec.get("mnemonic", "?")
     fields = rec.get("fields", [])
     errors = []
@@ -126,7 +126,7 @@ def check_legality_refs(rec):
 
     防止 legality 引用不存在的字段（如块赋值把 opcode 位 ha 误写成 rdha）。
     """
-    insn = rec.get("insn", "?")
+    insn = rec.get("id", "?")
     field_names = {f.get("name") for f in rec.get("fields", [])
                    if isinstance(f, dict)}
     errs = []
@@ -180,7 +180,7 @@ def main():
             errors.append(f"ERROR: {tag}: 记录不是字典")
             continue
 
-        required_keys = {"insn", "mnemonic", "format", "op", "mask", "value", "fields"}
+        required_keys = {"id", "mnemonic", "format", "op", "mask", "value", "fields"}
         missing = required_keys - set(rec.keys())
         if missing:
             errors.append(f"ERROR: {tag} {mnem}({fmt}): "

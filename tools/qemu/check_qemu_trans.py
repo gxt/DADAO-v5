@@ -85,7 +85,7 @@ def main():
         if expected not in trans_defs:
             is_m1 = not rec.get("excluded_m1", False)
             missing.append({
-                "insn": rec["insn"],
+                "insn": rec["id"],
                 "func": expected,
                 "is_m1": is_m1,
             })

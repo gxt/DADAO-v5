@@ -43,17 +43,17 @@ def make_unique_names(m1_opcodes: list) -> dict[tuple[str, str], str]:
     """Generate unique def names for all M1 opcodes."""
     name_count: dict[str, int] = {}
     for op in m1_opcodes:
-        base = sanitize_name(op["insn"])
+        base = sanitize_name(op["id"])
         name_count[base] = name_count.get(base, 0) + 1
 
     result: dict[tuple[str, str], str] = {}
     for op in m1_opcodes:
-        base = sanitize_name(op["insn"])
+        base = sanitize_name(op["id"])
         if name_count[base] > 1:
             unique = f"{base}_{op['format']}"
         else:
             unique = base
-        result[(op["insn"], op["format"])] = unique
+        result[(op["id"], op["format"])] = unique
 
     return result
 
@@ -260,7 +260,7 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
         lines.append(f"// --- {fmt} format ({len(ops)} instructions) ---")
         lines.append("")
         for op in ops:
-            defname = unique_names[(op["insn"], op["format"])]
+            defname = unique_names[(op["id"], op["format"])]
             classname = get_format_class(fmt)
 
             # Get operand info with format field bindings

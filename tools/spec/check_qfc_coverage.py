@@ -350,7 +350,7 @@ def main():
         print(f"  QFC-only  {fmt(op, ha)}  {name or '?'}  → {cat}")
     for op, ha in sorted(yaml_only, key=lambda x: (x[0], -1 if x[1] is None else x[1])):
         rec = yaml_records[(op, ha)]
-        name = rec.get("insn", "?")
+        name = rec.get("id", "?")
         if rec.get("excluded_m1"):
             in_m1, cat = False, "M1 外（yaml excluded_m1）"
         else:

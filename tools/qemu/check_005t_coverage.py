@@ -47,7 +47,7 @@ ILLI_INSTRUCTIONS = {
     # RF immediate set (excluded_m1)
     "set.w-rf",
     # Float
-    "ftmadd", "fomadd", "ftcls", "ft2fo", "ft2ft", "ftroot", "ftlog",
+    "ftcls", "ft2fo", "ft2ft", "ftroot", "ftlog",
     "focls", "fo2ft", "fo2fo", "foroot", "folog",
     "ft2it", "ft2io", "ft2ut", "ft2uo", "it2ft", "io2ft", "ut2ft", "uo2ft",
     "fo2it", "fo2io", "fo2ut", "fo2uo", "it2fo", "io2fo", "ut2fo", "uo2fo",
@@ -107,11 +107,11 @@ def extract_insns_from_vector(filepath):
     if isinstance(data, list):
         for entry in data:
             if isinstance(entry, dict) and "insn" in entry:
-                insns.add(entry["insn"])
+                insns.add(entry["id"])
     elif isinstance(data, dict):
         for entry in data.get("vectors", data.get("tests", [])):
             if isinstance(entry, dict) and "insn" in entry:
-                insns.add(entry["insn"])
+                insns.add(entry["id"])
     return insns
 
 
