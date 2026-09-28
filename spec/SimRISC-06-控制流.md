@@ -3,6 +3,31 @@
 > **版本：0.5.4**（与 SimRISC-00 一致）
 > **分类：控制流**（15 条）— br.*/call/jump/ret
 
+<!-- ASSEMBLY_LIST_START -->
+## 汇编指令速查
+
+### 控制流（15 条）
+
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `br.eq` | `rrii` | `rd` | `br.eq {rdHA, rdHB}?, [rb0, imms12i]` | `br.eq_rrii_rd` |
+| `br.n` | `riii` | `rd` | `br.n {rdHA}?, [rb0, imms18i]` | `br.n_riii_rd` |
+| `br.ne` | `rrii` | `rd` | `br.ne {rdHA, rdHB}?, [rb0, imms12i]` | `br.ne_rrii_rd` |
+| `br.nn` | `riii` | `rd` | `br.nn {rdHA}?, [rb0, imms18i]` | `br.nn_riii_rd` |
+| `br.np` | `riii` | `rd` | `br.np {rdHA}?, [rb0, imms18i]` | `br.np_riii_rd` |
+| `br.nz` | `riii` | `rb` | `br.nz {rbHA}?, [rb0, imms18i]` | `br.nz_riii_rb` |
+| `br.nz` | `riii` | `rd` | `br.nz {rdHA}?, [rb0, imms18i]` | `br.nz_riii_rd` |
+| `br.p` | `riii` | `rd` | `br.p {rdHA}?, [rb0, imms18i]` | `br.p_riii_rd` |
+| `br.z` | `riii` | `rb` | `br.z {rbHA}?, [rb0, imms18i]` | `br.z_riii_rb` |
+| `br.z` | `riii` | `rd` | `br.z {rdHA}?, [rb0, imms18i]` | `br.z_riii_rd` |
+| `call` | `iiii` | `ra` | `call [rb0, imms24i]` | `call_iiii_ra` |
+| `call` | `rrii` | `ra` | `call [rbHA, rdHB, imms12i]` | `call_rrii_ra` |
+| `jump` | `iiii` | `rb` | `jump [rb0, imms24i]` | `jump_iiii_rb` |
+| `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms12i]` | `jump_rrii_rb` |
+| `ret` | `riii` | `ra` | `ret rdHA, imms18` | `ret_riii_ra` |
+
+<!-- ASSEMBLY_LIST_END -->
+
 ## 控制流指令
 
 由于SimRISC的指令都是4字节，并且4字节对齐，因此，当采用立即数作为偏移地址参与计算时，都会将其左移2位，以增大该指令可跳转到的地址范围。PC 的有效位宽为 48 位，rb0[63:48] 恒为 0。

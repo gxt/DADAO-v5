@@ -3,6 +3,22 @@
 > **版本：0.5.4**（与 SimRISC-00 一致）
 > **分类：其它**（6 条）— cfx2rc/cfx2rd/escape/illi/swym/trap
 
+<!-- ASSEMBLY_LIST_START -->
+## 汇编指令速查
+
+### 其它（6 条）
+
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxcode, hb, hc, hd` | `cfx2rc_crrr_cfx` |
+| `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxcode, hb, hc, hd` | `cfx2rd_crrr_cfx` |
+| `escape` | `ciii` | `cfx` | `escape cfxcode, [excp_cause_ip, imms18i]` | `escape_ciii_cfx` |
+| `illi` | `oiii` | `imm` | `illi immu18` | `illi_oiii_imm` |
+| `swym` | `oiii` | `imm` | `swym immu18` | `swym_oiii_imm` |
+| `trap` | `ciii` | `cfx` | `trap cfxcode, immu18` | `trap_ciii_cfx` |
+
+<!-- ASSEMBLY_LIST_END -->
+
 ## 占位指令
 
 当指令地址需要对齐或特意留出空白时，需要使用到占位指令。通常需要的占位指令是 no-operation 指令。SimRISC借鉴Knuth的创意，采用了 swym 助记符作为占位指令，可称之为"划水"指令。Swym一词参考Knuth的MMIX中的定义，含义为 sympathize with your machinery，Knuth是这样描述的：

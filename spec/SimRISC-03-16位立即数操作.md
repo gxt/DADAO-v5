@@ -3,6 +3,24 @@
 > **版本：0.5.4**（与 SimRISC-00 一致）
 > **分类：16位立即数操作**（8 条）— set.zw/set.ow/set.w/or.w/andn.w（rwii 格式）
 
+<!-- ASSEMBLY_LIST_START -->
+## 汇编指令速查
+
+### 16位立即数操作（8 条）
+
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `andn.w` | `rwii` | `rb` | `andn.w rbHA, wpN, immu16` | `andn.w_rwii_rb` |
+| `andn.w` | `rwii` | `rd` | `andn.w rdHA, wpN, immu16` | `andn.w_rwii_rd` |
+| `or.w` | `rwii` | `rb` | `or.w rbHA, wpN, immu16` | `or.w_rwii_rb` |
+| `or.w` | `rwii` | `rd` | `or.w rdHA, wpN, immu16` | `or.w_rwii_rd` |
+| `set.ow` | `rwii` | `rd` | `set.ow rdHA, wpN, immu16` | `set.ow_rwii_rd` |
+| `set.w` | `rwii` | `rf` | `set.w rfHA, wpN, immu16` | `set.w_rwii_rf` |
+| `set.zw` | `rwii` | `rb` | `set.zw rbHA, wpN, immu16` | `set.zw_rwii_rb` |
+| `set.zw` | `rwii` | `rd` | `set.zw rdHA, wpN, immu16` | `set.zw_rwii_rd` |
+
+<!-- ASSEMBLY_LIST_END -->
+
 ## 立即数常数赋值：Immediate constant
 
 立即数设置类指令直接用立即数对寄存器内的不同wyde进行赋值、或、与非、零扩展赋值。

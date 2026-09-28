@@ -3,6 +3,28 @@
 > **版本：0.5.4**（与 SimRISC-00 一致）
 > **分类：待定 [deferred]**（12 条）— cfxld/cfxst/fence/lr_*/sc_*/rela.si
 
+<!-- ASSEMBLY_LIST_START -->
+## 汇编指令速查
+
+### 待定（12 条）｜ **deferred** — 暂不归类，待必须启用时
+
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `cfxld` | `crii` | `cfx` | `cfxld cfxcode, [rbHB, immu12]` | `cfxld_crii_cfx` |
+| `cfxst` | `crii` | `cfx` | `cfxst cfxcode, [rbHB, immu12]` | `cfxst_crii_cfx` |
+| `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
+| `lr_an.o` | `orrr` | `rd` | `lr_an.o rdHC, [rbHD]` | `lr_an.o_orrr_rd` |
+| `lr_ar.o` | `orrr` | `rd` | `lr_ar.o rdHC, [rbHD]` | `lr_ar.o_orrr_rd` |
+| `lr_nn.o` | `orrr` | `rd` | `lr_nn.o rdHC, [rbHD]` | `lr_nn.o_orrr_rd` |
+| `lr_nr.o` | `orrr` | `rd` | `lr_nr.o rdHC, [rbHD]` | `lr_nr.o_orrr_rd` |
+| `rela.si` | `riii` | `rb` | `rela.si rbHA, imms18` | `rela.si_riii_rb` |
+| `sc_an.o` | `orrr` | `rd` | `sc_an.o rdHB, rdHC, [rbHD]` | `sc_an.o_orrr_rd` |
+| `sc_ar.o` | `orrr` | `rd` | `sc_ar.o rdHB, rdHC, [rbHD]` | `sc_ar.o_orrr_rd` |
+| `sc_nn.o` | `orrr` | `rd` | `sc_nn.o rdHB, rdHC, [rbHD]` | `sc_nn.o_orrr_rd` |
+| `sc_nr.o` | `orrr` | `rd` | `sc_nr.o rdHB, rdHC, [rbHD]` | `sc_nr.o_orrr_rd` |
+
+<!-- ASSEMBLY_LIST_END -->
+
 ## 原子指令
 
 ### fence指令

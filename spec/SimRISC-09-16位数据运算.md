@@ -3,6 +3,42 @@
 > **版本：0.5.4**（与 SimRISC-00 一致）
 > **分类：16位数据运算**（26 条）— .sw/.uw 运算
 
+<!-- ASSEMBLY_LIST_START -->
+## 汇编指令速查
+
+### 16位数据运算（26 条）
+
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `add.sw` | `orrr` | `rd` | `add.sw rdHB, rdHC, rdHD` | `add.sw_orrr_rd` |
+| `add.uw` | `orrr` | `rd` | `add.uw rdHB, rdHC, rdHD` | `add.uw_orrr_rd` |
+| `and.w` | `orrr` | `rd` | `and.w rdHB, rdHC, rdHD` | `and.w_orrr_rd` |
+| `cmp.sw` | `orrr` | `rd` | `cmp.sw rdHB, rdHC, rdHD` | `cmp.sw_orrr_rd` |
+| `cmp.uw` | `orrr` | `rd` | `cmp.uw rdHB, rdHC, rdHD` | `cmp.uw_orrr_rd` |
+| `div.sw` | `orrr` | `rd` | `div.sw rdHB, rdHC, rdHD` | `div.sw_orrr_rd` |
+| `div.uw` | `orrr` | `rd` | `div.uw rdHB, rdHC, rdHD` | `div.uw_orrr_rd` |
+| `ext.sw` | `orri` | `rd` | `ext.sw rdHB, rdHC, immu6` | `ext.sw_orri_rd` |
+| `ext.sw` | `orrr` | `rd` | `ext.sw rdHB, rdHC, rdHD` | `ext.sw_orrr_rd` |
+| `ext.uw` | `orri` | `rd` | `ext.uw rdHB, rdHC, immu6` | `ext.uw_orri_rd` |
+| `ext.uw` | `orrr` | `rd` | `ext.uw rdHB, rdHC, rdHD` | `ext.uw_orrr_rd` |
+| `mul.sw` | `orrr` | `rd` | `mul.sw rdHB, rdHC, rdHD` | `mul.sw_orrr_rd` |
+| `mul.uw` | `orrr` | `rd` | `mul.uw rdHB, rdHC, rdHD` | `mul.uw_orrr_rd` |
+| `or.w` | `orrr` | `rd` | `or.w rdHB, rdHC, rdHD` | `or.w_orrr_rd` |
+| `rem.sw` | `orrr` | `rd` | `rem.sw rdHB, rdHC, rdHD` | `rem.sw_orrr_rd` |
+| `rem.uw` | `orrr` | `rd` | `rem.uw rdHB, rdHC, rdHD` | `rem.uw_orrr_rd` |
+| `shl.uw` | `orri` | `rd` | `shl.uw rdHB, rdHC, immu6` | `shl.uw_orri_rd` |
+| `shl.uw` | `orrr` | `rd` | `shl.uw rdHB, rdHC, rdHD` | `shl.uw_orrr_rd` |
+| `shr.sw` | `orri` | `rd` | `shr.sw rdHB, rdHC, immu6` | `shr.sw_orri_rd` |
+| `shr.sw` | `orrr` | `rd` | `shr.sw rdHB, rdHC, rdHD` | `shr.sw_orrr_rd` |
+| `shr.uw` | `orri` | `rd` | `shr.uw rdHB, rdHC, immu6` | `shr.uw_orri_rd` |
+| `shr.uw` | `orrr` | `rd` | `shr.uw rdHB, rdHC, rdHD` | `shr.uw_orrr_rd` |
+| `sub.sw` | `orrr` | `rd` | `sub.sw rdHB, rdHC, rdHD` | `sub.sw_orrr_rd` |
+| `sub.uw` | `orrr` | `rd` | `sub.uw rdHB, rdHC, rdHD` | `sub.uw_orrr_rd` |
+| `xnor.w` | `orrr` | `rd` | `xnor.w rdHB, rdHC, rdHD` | `xnor.w_orrr_rd` |
+| `xor.w` | `orrr` | `rd` | `xor.w rdHB, rdHC, rdHD` | `xor.w_orrr_rd` |
+
+<!-- ASSEMBLY_LIST_END -->
+
 ## 算术运算类指令
 
 ### 加减操作

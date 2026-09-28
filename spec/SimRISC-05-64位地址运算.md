@@ -3,6 +3,20 @@
 > **版本：0.5.4**（与 SimRISC-00 一致）
 > **分类：64位地址运算**（4 条）— add.si-rb/add.so-rb/cmp.uo-rb/sub.so-rb
 
+<!-- ASSEMBLY_LIST_START -->
+## 汇编指令速查
+
+### 64位地址运算（4 条）
+
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `add.si` | `riii` | `rb` | `add.si rbHA, imms18` | `add.si_riii_rb` |
+| `add.so` | `orrr` | `rb` | `add.so rbHB, rbHC, rdHD` | `add.so_orrr_rb` |
+| `cmp.uo` | `orrr` | `rb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_rb` |
+| `sub.so` | `orrr` | `rb` | `sub.so rbHB, rbHC, rdHD` | `sub.so_orrr_rb` |
+
+<!-- ASSEMBLY_LIST_END -->
+
 ## 算术运算类指令
 
 ### 加减操作

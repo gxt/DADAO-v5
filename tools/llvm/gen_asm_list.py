@@ -413,6 +413,119 @@ def new_template(entry: dict, ops: list[dict]) -> str:
     return template(entry, ops)
 
 
+CLASS_TO_SPEC = {
+    "取数存数":     "spec/SimRISC-01-取数存数.md",
+    "寄存器复制":   "spec/SimRISC-02-寄存器复制.md",
+    "16位立即数操作": "spec/SimRISC-03-16位立即数操作.md",
+    "64位数据运算":  "spec/SimRISC-04-64位数据运算.md",
+    "64位地址运算":  "spec/SimRISC-05-64位地址运算.md",
+    "控制流":       "spec/SimRISC-06-控制流.md",
+    "浮点运算":     "spec/SimRISC-07-浮点运算.md",
+    "32位数据运算":  "spec/SimRISC-08-32位数据运算.md",
+    "16位数据运算":  "spec/SimRISC-09-16位数据运算.md",
+    "8位数据运算":   "spec/SimRISC-10-8位数据运算.md",
+    "其它":         "spec/SimRISC-11-其它.md",
+    "待定":         "spec/SimRISC-12-待定.md",
+}
+
+ASSEMBLY_LIST_START = "<!-- ASSEMBLY_LIST_START -->"
+ASSEMBLY_LIST_END = "<!-- ASSEMBLY_LIST_END -->"
+
+
+def _section_content(cls: str, entries: list[dict]) -> str:
+    """Return the markdown table content for one category."""
+    if cls in DEFERRED_SECTIONS:
+        header = f"### {cls}（{len(entries)} 条）｜ **deferred** — {DEFERRED_SECTIONS[cls]}"
+    else:
+        header = f"### {cls}（{len(entries)} 条）"
+    lines = [header, ""]
+    lines.append("| 助记符 | format | feature | 汇编形式 | id |")
+    lines.append("|---|---|---|---|---|")
+    body = []
+    for entry in entries:
+        ops = operands(entry)
+        ident = entry["id"]
+        feature = ident.rsplit("_", 1)[-1]
+        form = new_form(entry, ops, 0, field=True)
+        body.append((
+            ident,
+            f"| `{entry['mnemonic']}` | `{entry['format']}` | `{feature}` | `{form}` | `{ident}` |",
+        ))
+    for _, row in sorted(body):
+        lines.append(row)
+    return "\n".join(lines) + "\n"
+
+
+def embed_spec(entries: list[dict]) -> int:
+    """Embed assembly tables into spec files, one per category."""
+    by_class: dict[str, list[dict]] = {}
+    for entry in entries:
+        by_class.setdefault(classify(entry), []).append(entry)
+
+    section_contents: dict[str, str] = {}
+    for cls in SECTION_ORDER:
+        if cls in by_class:
+            section_contents[cls] = _section_content(cls, by_class[cls])
+
+    for cls in SECTION_ORDER:
+        if cls not in CLASS_TO_SPEC:
+            continue
+        spec_path = ROOT / CLASS_TO_SPEC[cls]
+        if not spec_path.exists():
+            print(f"gen-asm-list: WARNING: {spec_path} not found, skipping", flush=True)
+            continue
+
+        content = spec_path.read_text(encoding="utf-8")
+        lines = content.split("\n")
+
+        # Build the new section block (with surrounding blank lines)
+        section = section_contents.get(cls, "")
+        new_block = (
+            f"{ASSEMBLY_LIST_START}\n"
+            f"## 汇编指令速查\n\n"
+            f"{section}\n"
+            f"{ASSEMBLY_LIST_END}"
+        )
+
+        # If markers already exist, replace the existing block (idempotent)
+        start_idx = None
+        end_idx = None
+        for i, line in enumerate(lines):
+            if line.strip() == ASSEMBLY_LIST_START:
+                start_idx = i
+            if line.strip() == ASSEMBLY_LIST_END:
+                end_idx = i
+                break
+
+        if start_idx is not None and end_idx is not None:
+            # Replace existing block (preserve lines before and after)
+            before_lines = lines[:start_idx]
+            after_lines = lines[end_idx + 1:]
+            new_content = "\n".join(before_lines) + "\n" + new_block + "\n" + "\n".join(after_lines)
+        else:
+            # First insertion: find the end of the header block (consecutive '>' lines
+            # at the top, possibly preceded by title/blank lines).
+            header_end = 0
+            in_header = False
+            for i, line in enumerate(lines):
+                if line.startswith(">"):
+                    header_end = i + 1
+                    in_header = True
+                elif in_header:
+                    # First non-'>' line after a '>' line = end of header block
+                    break
+            # Insert right after the last '>' line, preserving all content
+            before = "\n".join(lines[:header_end])
+            after = "\n".join(lines[header_end:])
+            new_content = before + "\n\n" + new_block + "\n" + after
+
+        spec_path.write_text(new_content, encoding="utf-8")
+        count = len(by_class.get(cls, []))
+        print(f"gen-asm-list: embedded {cls}（{count} 条）-> {spec_path}")
+
+    return 0
+
+
 def plain_lines(entries: list[dict], syntax: str) -> list[str]:
     lines: list[str] = []
     by_format: dict[str, list[dict]] = {}
@@ -447,9 +560,17 @@ def main() -> int:
         help="instruction syntax to render: 'old' (currently implemented) or "
         "'new' (docs/spec/assembly-language.md)",
     )
+    parser.add_argument(
+        "--embed-spec",
+        action="store_true",
+        help="embed assembly tables into spec/SimRISC-XX-*.md files",
+    )
     args = parser.parse_args()
 
     entries = yaml.safe_load(OPCODES.read_text())
+
+    if args.embed_spec:
+        return embed_spec(entries)
 
     if args.plain:
         header = (
