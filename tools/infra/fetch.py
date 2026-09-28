@@ -4,8 +4,11 @@
 Two layers keep large upstream repositories from being re-downloaded:
 
 * ``.cache/<name>.git``  -- persistent bare mirror (the object store).
-  Cloned once with ``git clone --mirror``; afterwards only an incremental
-  ``git fetch --prune`` (and only when the pinned commit is still missing).
+  Cloned with ``git clone --mirror`` (full) or ``git clone --bare --depth 1
+  --branch <ref>`` (shallow, when the component sets ``shallow = true`` and
+  ``shallow_ref`` in ``manifests/components.lock.toml``).  Afterwards only an
+  incremental ``git fetch --prune`` (and only when the pinned commit is still
+  missing).
 * ``.work/source/<name>`` -- disposable worktree built from the *local*
   mirror (hard links, no network), then detached at the pinned commit.
 
@@ -44,11 +47,35 @@ def head_of(repo: Path) -> str:
     ).stdout.strip()
 
 
-def sync_mirror(mirror: Path, repository: str, commit: str) -> None:
-    """Create or incrementally refresh the persistent bare mirror."""
+def sync_mirror(
+    mirror: Path,
+    repository: str,
+    commit: str,
+    shallow: bool = False,
+    shallow_ref: str = "",
+) -> None:
+    """Create or incrementally refresh the persistent bare mirror.
+
+    When *shallow* is True and *shallow_ref* is non-empty, the initial clone
+    uses ``git clone --bare --depth 1 --branch <ref>`` (ADR-0006 D2 shallow
+    bare pre-fill).  This brings only a single commit's worth of objects,
+    cutting clone time from minutes to seconds and size from GiB to MiB.
+
+    Limitations of a shallow bare mirror:
+
+    * ``git fetch --prune`` only retrieves objects reachable from the
+      tracked ref; fetching arbitrary commits is not supported.
+    * Incremental refresh for a *different* pinned commit requires
+      ``git fetch --unshallow`` (full history download).
+    """
     if not mirror.exists():
-        run("git", "clone", "--mirror", repository, str(mirror))
-        print(f"fetch: mirror {mirror.name} cloned")
+        if shallow and shallow_ref:
+            run("git", "clone", "--bare", "--depth", "1",
+                "--branch", shallow_ref, repository, str(mirror))
+            print(f"fetch: mirror {mirror.name} shallow-cloned (ref={shallow_ref})")
+        else:
+            run("git", "clone", "--mirror", repository, str(mirror))
+            print(f"fetch: mirror {mirror.name} cloned")
         return
     if has_commit(mirror, commit):
         # The pinned commit is already in the local object store: nothing to
@@ -113,6 +140,8 @@ def main() -> int:
         target = source_root / name
 
         source_url = select_source(component)
+        shallow = bool(component.get("shallow", False))
+        shallow_ref = component.get("shallow_ref", "")
         # Show which source was resolved: env override name, source[0].name,
         # or "canonical" (meaning repository).
         env_key = f"COMPONENT_SOURCE_{name.upper()}"
@@ -125,7 +154,8 @@ def main() -> int:
         else:
             src_label = "canonical"
         print(f"fetch: {name} using source '{src_label}' ({source_url})")
-        sync_mirror(mirror, source_url, commit)
+        sync_mirror(mirror, source_url, commit,
+                    shallow=shallow, shallow_ref=shallow_ref)
 
         if target.exists() and not (target / ".git").exists():
             raise SystemExit(

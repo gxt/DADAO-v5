@@ -24,7 +24,21 @@
 
 - 目标有**明确的 release 版本或 tag** 时，**默认浅下载**（如 `git clone --depth 1 --branch <tag>`，或只取该 commit 的树），以省时省流量。
 - **仍须先询问用户**再确定：是否浅下载、下载范围（浅/全）、落到哪个目录。
-- **例外/冲突提示**：若流程需要**完整历史**（如 `git describe`、跨 commit diff，或现有 `tools/infra/fetch.py` 的 `git clone --mirror` 语义），则**不能**浅下载——须向用户说明并确认。
+
+### `tools/infra/fetch.py` 浅取支持（INFRA-015t）
+
+`fetch.py` 已支持**组件级浅取**，按 `manifests/components.lock.toml` 中的配置执行：
+
+- `shallow = true` + `shallow_ref = "<tag>"` → `git clone --bare --depth 1 --branch <tag>`
+- 未配置（或 `shallow_ref` 为空）→ 保持原有 `git clone --mirror`（全量）
+
+当前浅取组件：`llvm-project`（`llvmorg-23.1.1`）、`qemu`（`v11.1.1`）。
+
+**浅镜像限制**：
+
+- `git fetch --prune` 只取 ref 可达对象，不支持取任意 commit。
+- 若 pinned commit 变更（换 tag），需 `git fetch --unshallow` 先展开历史，或删除 `.cache/<name>.git` 重新浅取。
+- 参考仓库（`DADAO-0628`、`DADAO`，见 `references.lock.toml`）**不用浅取**（用户裁定 2026-09-28）。
 
 ## 记录（可审计）
 
