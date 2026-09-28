@@ -21,7 +21,7 @@
 
 ## infra
 
-- **LLVM/QEMU 缓存重新浅克隆（2026-09-28 登记，用户要求）**：当前 `.cache/llvm-project.git` 为**全量 mirror**（3.5G，由 `fetch.py` 旧行为产生）。`INFRA-015t` 已让 `fetch.py` 支持浅取（组件 `shallow = true` + `shallow_ref`），但**存量缓存仍是全量**。计划：待 LLVM 相关任务（`LLVM-019t`/`020t`/`021t`）完成后，删除 `.cache/llvm-project.git`（及 `.cache/qemu.git`）并按 ADR-0006/0008 重新**浅取**（LLVM `--depth 1 --branch llvmorg-23.1.1`，~376 MiB；QEMU `v11.1.1`，~52 MiB），随后 `make prepare` 重建源工作树。**时机定于 LLVM 构建任务之后**（避免中途重建打断构建）。
+- **~~LLVM/QEMU 缓存重新浅克隆（2026-09-28 登记）~~ ✅ 已完成（2026-09-29）**：删除全量 mirror 后用 `INFRA-015t` 的浅取重新 fetch——`llvm-project.git` **378M**（shallow）、`qemu.git` **52M**（shallow），耗时 **2m50s**；pinned commit 均存在；`make fetch` 幂等；`llvm-mc`/`make check` 正常。
 
 - **`fetch.py` 选源标签逻辑重复（`INFRA-009t` 遗留，DRY）**：`main()` 为打印实际使用的源，重新解析了一遍 `COMPONENT_SOURCE_<NAME>` 与 `source[0]["name"]`，与 `select_source()` 内部逻辑重复。当前行为正确（打印发生在 `sync_mirror` 之前，短路时也能看到实际源），但两处逻辑未来可能不同步。建议 refactor：让 `select_source()` 返回 `(url, label)` 元组，或在 `main()` 复用其解析结果。非阻塞，无功能影响。
 - **ADR-0005 Consequences C2 表述可更精确（`INFRA-009t` 交叉复核登记）**：C2 写「`sync_mirror` 接收解析后的源 URL」，实际是 `select_source()` 完成解析、`sync_mirror` 只接收 `source_url` 参数（本身不解析）。属表述问题、非事实错误；ADR-0005 已 `Accepted`，按 `adr-authoring.md` 不直接改写。
