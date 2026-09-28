@@ -112,12 +112,12 @@ BR_IDENTITIES = [
 #   not_taken_reg: register to use for not-taken encoding word
 #
 # rd0 = 0 (hardwired), so:
-#   br.n rd0:  0 < 0   → FALSE (not taken)
-#   br.nn rd0: 0 >= 0  → TRUE  (taken)
-#   br.z rd0:  0 == 0  → TRUE  (taken)    ← always-taken with rd0
-#   br.nz rd0: 0 != 0  → FALSE (not taken) ← always-not-taken with rd0
-#   br.p rd0:  0 > 0   → FALSE (not taken)
-#   br.np rd0: 0 <= 0  → TRUE  (taken)
+#   br.n {rd0}?  :  0 < 0   → FALSE (not taken)
+#   br.nn {rd0}? :  0 >= 0  → TRUE  (taken)
+#   br.z {rd0}?  :  0 == 0  → TRUE  (taken)    ← always-taken with rd0
+#   br.nz {rd0}? :  0 != 0  → FALSE (not taken) ← always-not-taken with rd0
+#   br.p {rd0}?  :  0 > 0   → FALSE (not taken)
+#   br.np {rd0}? :  0 <= 0  → TRUE  (taken)
 
 def _gen_riii_rd(identity, mnem, op):
     """Generate encoding + taken + not-taken for riii RD branch."""

@@ -107,7 +107,7 @@
   format: rrii
   class: semantic
   encoding:
-    word: "0x10041000"      # ld.ub rd1, rb1, 0（rdha=1、rbhb=1、imms12=0）
+    word: "0x10041000"      # ld.ub rd1, [rb1, 0]（rdha=1、rbhb=1、imms12=0）
   input_state:
     rd:
       rd1: "0x0000000000000001"
