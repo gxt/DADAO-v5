@@ -66,34 +66,34 @@
 格式转换指令包括不同格式之间以及同格式之间的数据转换，操作数类型为 `orri`，指令如下：
 
 ```simrisc
-ft2fo   rfhb, rfhc, immu6
-fo2ft   rfhb, rfhc, immu6
+ft2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
+fo2ft   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
 
-ft2ft   rfhb, rfhc, immu6          ; 浮点寄存器间搬移
-fo2fo   rfhb, rfhc, immu6          ; 浮点寄存器间搬移
+ft2ft   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}          ; 浮点寄存器间搬移
+fo2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}          ; 浮点寄存器间搬移
 
-ft2it   rdhb, rfhc, immu6
-ft2io   rdhb, rfhc, immu6
-ft2ut   rdhb, rfhc, immu6
-ft2uo   rdhb, rfhc, immu6
+ft2it   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+ft2io   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+ft2ut   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+ft2uo   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 
-it2ft   rfhb, rdhc, immu6
-io2ft   rfhb, rdhc, immu6
-ut2ft   rfhb, rdhc, immu6
-uo2ft   rfhb, rdhc, immu6
+it2ft   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
+io2ft   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
+ut2ft   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
+uo2ft   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
 
-fo2it   rdhb, rfhc, immu6
-fo2io   rdhb, rfhc, immu6
-fo2ut   rdhb, rfhc, immu6
-fo2uo   rdhb, rfhc, immu6
+fo2it   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+fo2io   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+fo2ut   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+fo2uo   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 
-it2fo   rfhb, rdhc, immu6
-io2fo   rfhb, rdhc, immu6
-ut2fo   rfhb, rdhc, immu6
-uo2fo   rfhb, rdhc, immu6
+it2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
+io2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
+ut2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
+uo2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
 ```
 
-其中it表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。immu6 指定连续转换的寄存器数量（1-63）。例如 `ft2fo rf4, rf8, 3` 将 rf8→rf4、rf9→rf5、rf10→rf6。源和目的寄存器范围可以重叠，转换按序号递增逐对进行，先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中。
+其中it表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。immu6 指定连续转换的寄存器数量（1-63）。例如 `ft2fo {rf4:rf6}, {rf8:rf10}` 将 rf8→rf4、rf9→rf5、rf10→rf6。源和目的寄存器范围可以重叠，转换按序号递增逐对进行，先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中。
 
 浮点格式转换遵循 IEEE 754 标准：浮点→浮点（fo2ft/ft2fo）溢出返回 ±Inf（设置 OF），下溢按舍入模式处理（设置 UF），NaN 传播 payload。整数→浮点转换可能 inexact（精度损失）。浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值（最大/最小），设置 NV 标志。sNaN 作为算术输入时设置 NV 并返回 qNaN。舍入模式由 rf0[17:16] 控制，异常标志在 rf0[4:0]。
 
@@ -111,37 +111,37 @@ uo2fo   rfhb, rdhc, immu6
 一种是两个源操作数，一个目的操作数，即操作数类型为 `orrr`：
 
 ```simrisc
-ftadd   rfhb, rfhc, rfhd
-ftsub   rfhb, rfhc, rfhd
-ftmul   rfhb, rfhc, rfhd
-ftdiv   rfhb, rfhc, rfhd
-ftrem   rfhb, rfhc, rfhd
-ftsclb  rfhb, rfhc, rfhd
+ftadd   rfHB, rfHC, rfHD
+ftsub   rfHB, rfHC, rfHD
+ftmul   rfHB, rfHC, rfHD
+ftdiv   rfHB, rfHC, rfHD
+ftrem   rfHB, rfHC, rfHD
+ftsclb  rfHB, rfHC, rfHD
 
-foadd   rfhb, rfhc, rfhd
-fosub   rfhb, rfhc, rfhd
-fomul   rfhb, rfhc, rfhd
-fodiv   rfhb, rfhc, rfhd
-forem   rfhb, rfhc, rfhd
-fosclb  rfhb, rfhc, rfhd
+foadd   rfHB, rfHC, rfHD
+fosub   rfHB, rfHC, rfHD
+fomul   rfHB, rfHC, rfHD
+fodiv   rfHB, rfHC, rfHD
+forem   rfHB, rfHC, rfHD
+fosclb  rfHB, rfHC, rfHD
 ```
 
-其中，rfhb为目的操作数，rfhc和rfhd分别为第一个源操作数和第二个源操作数。硬件先读全部源操作数再写结果，源寄存器被目的覆盖前其值已捕获，行为确定。
+其中，rfHB为目的操作数，rfHC和rfHD分别为第一个源操作数和第二个源操作数。硬件先读全部源操作数再写结果，源寄存器被目的覆盖前其值已捕获，行为确定。
 
-`ftrem`/`forem` 为 IEEE 754 remainder 操作（`rfhc − n × rfhd`，n 为最接近 `rfhc/rfhd` 的整数，平局取偶数）。除数为零、Inf 或 NaN 行为遵循 IEEE 754。
+`ftrem`/`forem` 为 IEEE 754 remainder 操作（`rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数）。除数为零、Inf 或 NaN 行为遵循 IEEE 754。
 
-`ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfhc × 2^rfhd`（rfhd 取整数值），舍入模式由 rf0 控制。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
+`ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfHC × 2^rfHD`（rfHD 取整数值），舍入模式由 rf0 控制。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
 
 ### S1D1
 
 还有一种是一个源操作数，一个目的操作数，操作数类型为 `orri`。
 
 ```simrisc
-ftroot  rfhb, rfhc, immu6
-ftlog   rfhb, rfhc, immu6
+ftroot  rfHB, rfHC, immu6
+ftlog   rfHB, rfHC, immu6
 
-foroot  rfhb, rfhc, immu6
-folog   rfhb, rfhc, immu6
+foroot  rfHB, rfHC, immu6
+folog   rfHB, rfHC, immu6
 ```
 
 ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 immu6 中。支持的 n 值：`2`（平方根）、`3`（立方根）。不支持的 n 值触发 ILLI 异常。
@@ -157,45 +157,45 @@ S1D1 指令硬件先读源操作数再写结果，源被覆盖前其值已捕获
 该类指令实现了浮点sign-injection指令，操作数类型为 `orrr`。
 
 ```simrisc
-ftsgnj  rfhb, rfhc, rfhd
-fosgnj  rfhb, rfhc, rfhd
-ftsgnn  rfhb, rfhc, rfhd
-fosgnn  rfhb, rfhc, rfhd
+ftsgnj  rfHB, rfHC, rfHD
+fosgnj  rfHB, rfHC, rfHD
+ftsgnn  rfHB, rfHC, rfHD
+fosgnn  rfHB, rfHC, rfHD
 ```
 
-其中，rfhb为目的操作数，rfhc和rfhd为源操作数。
-ftsgnj和fosgnj指令实现`copySign(rfhc, rfhd)`运算，即读取rfhc的除符号位之外的所有位数，和rfhd的符号位组合获得结果，写入rfhb。
-ftsgnn和fosgnn指令是读取rfhc的除符号位之外的所有位数，和rfhd的符号位取反，组合获得结果，写入rfhb。
+其中，rfHB为目的操作数，rfHC和rfHD为源操作数。
+ftsgnj和fosgnj指令实现`copySign(rfHC, rfHD)`运算，即读取rfHC的除符号位之外的所有位数，和rfHD的符号位组合获得结果，写入rfHB。
+ftsgnn和fosgnn指令是读取rfHC的除符号位之外的所有位数，和rfHD的符号位取反，组合获得结果，写入rfHB。
 
 硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
 该类指令的几个特例如下：
 
-- 当rfhd为rf0时，ftsgnj和fosgnj实现了`abs(rfhc)`操作
-- 当rfhd为rf0时，ftsgnn和fosgnn实现了`-abs(rfhc)`操作
-- 当rfhc与rfhd相等时，ftsgnj和fosgnj实现了`copy(rfhc)`操作
-- 当rfhc与rfhd相等时，ftsgnn和fosgnn实现了`negate(rfhc)`操作
+- 当rfHD为rf0时，ftsgnj和fosgnj实现了`abs(rfHC)`操作
+- 当rfHD为rf0时，ftsgnn和fosgnn实现了`-abs(rfHC)`操作
+- 当rfHC与rfHD相等时，ftsgnj和fosgnj实现了`copy(rfHC)`操作
+- 当rfHC与rfHD相等时，ftsgnn和fosgnn实现了`negate(rfHC)`操作
 
 ## 浮点比较指令
 
-浮点比较运算，参与比较运算的两个浮点数存放在rfhc和rfhd中，比较结果存放在rdhb中。操作数类型为 `orrr`。
+浮点比较运算，参与比较运算的两个浮点数存放在rfHC和rfHD中，比较结果存放在rdHB中。操作数类型为 `orrr`。
 
 ```simrisc
-ftqcmp  rdhb, rfhc, rfhd
-ftscmp  rdhb, rfhc, rfhd
+ftqcmp  rdHB, rfHC, rfHD
+ftscmp  rdHB, rfHC, rfHD
 
-foqcmp  rdhb, rfhc, rfhd
-foscmp  rdhb, rfhc, rfhd
+foqcmp  rdHB, rfHC, rfHD
+foscmp  rdHB, rfHC, rfHD
 ```
 
-rdhb中的比较结果有四种情况：
+rdHB中的比较结果有四种情况：
 
-- 1：`rfhc > rfhd`
-- 0：`rfhc = rfhd`
-- -1：`rfhc < rfhd`
+- 1：`rfHC > rfHD`
+- 0：`rfHC = rfHD`
+- -1：`rfHC < rfHD`
 - NaN：unordered，Quiet Compare的结果为qNaN（符号位为0），Signaling Compare的结果为sNaN（符号位为0）
 
-由于qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdhb的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
+由于qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdHB的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
 
 ## 浮点分类指令
 
@@ -206,7 +206,7 @@ ftcls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 ```
 
-其中 `immu6` 指定连续分类的寄存器数量（1–63），目的寄存器为 rd，源寄存器为 rf。例如 `focls rd4, rf8, 3` 对 rf8、rf9、rf10 分类，结果分别写入 rd4、rd5、rd6。源和目的寄存器范围可以重叠，分类按序号递增逐对进行，先读后写。
+其中 `immu6` 指定连续分类的寄存器数量（1–63），目的寄存器为 rd，源寄存器为 rf。例如 `focls {rd4:rd6}, {rf8:rf10}` 对 rf8、rf9、rf10 分类，结果分别写入 rd4、rd5、rd6。源和目的寄存器范围可以重叠，分类按序号递增逐对进行，先读后写。
 
 对每个源寄存器的浮点数据，指令设置对应目的寄存器中的相应位，并将其他位清零：[63..10] 全部清零，分类结果仅使用 [9..0]。
 
