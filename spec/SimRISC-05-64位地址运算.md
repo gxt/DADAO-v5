@@ -22,13 +22,13 @@
 ### 加减操作
 
 针对rb寄存器的加减运算，操作数类型为 `orrr`。
-两个源操作数寄存器为`rbhc`和`rdhd`，采用`rbhb`作为目的寄存器。
-`add.so-rb`/`sub.so-rb` 执行二进制补码的 64 位加减法，全 64 位参与运算。地址计算仅在低 48 位有效，溢出丢弃。用户可通过 `rbhb` 的高 16 位（bits[63:48]）判断是否发生地址溢出，从而避免地址计算错误。
+两个源操作数寄存器为`rbHC`和`rdHD`，采用`rbHB`作为目的寄存器。
+`add.so-rb`/`sub.so-rb` 执行二进制补码的 64 位加减法，全 64 位参与运算。地址计算仅在低 48 位有效，溢出丢弃。用户可通过 `rbHB` 的高 16 位（bits[63:48]）判断是否发生地址溢出，从而避免地址计算错误。
 具体指令如下：
 
 ```simrisc
-add.so  rbhb, rbhc, rdhd
-sub.so  rbhb, rbhc, rdhd
+add.so  rbHB, rbHC, rdHD
+sub.so  rbHB, rbHC, rdHD
 ```
 
 ### 自增自减
@@ -38,10 +38,10 @@ sub.so  rbhb, rbhc, rdhd
 具体指令如下：
 
 ```simrisc
-add.si  rbha, imms18
+add.si  rbHA, imms18
 ```
 
-`add.si` 为全 64 位运算，用户可通过 `rbha` 的高 16 位判断地址溢出。
+`add.si` 为全 64 位运算，用户可通过 `rbHA` 的高 16 位判断地址溢出。
 由于imms18为有符号数，该加法指令也隐含实现了减法指令。
 针对rb寄存器的add.si指令的重要性在于对栈指针的操作，在没有提供专门的push/pop类指令的情况下，栈指针需要通过显式的加减移动其位置。
 
@@ -54,7 +54,7 @@ add.si  rbha, imms18
 具体指令如下：
 
 ```simrisc
-cmp.uo  rdhb, rbhc, rbhd
+cmp.uo  rdHB, rbHC, rbHD
 ```
 
 > **注**：rb0 通用约定（rb0 = PC，只读，显式目的触发 ILLI）和 RB 高 16 位行为见 SimRISC-00。
