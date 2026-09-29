@@ -5,6 +5,8 @@ description: Use when reviewing DADAO.wiki or DADAO-v5/wiki specification docume
 
 # DADAO 自洽性审查
 
+> **注（2026-09-29）**：本文件为**早期素材**（0.4.1/0.5.3 时代），其中「11 份 .md」「`DADAO-v5/wiki`」「`SimRISC-01/02/03/04`」等表述已过时（现为 `spec/`、SimRISC-00~12 等）。其**审查方法**（逐文档流水线 + 13 类检查项）仍可参考，具体路径/分类以当前规范为准。
+
 ## Overview
 
 对 DADAO 规范文档（11 份 .md 文件）进行系统性自洽性审查，采用逐文档流水线检查法覆盖四条开发者路径（LLVM→QEMU→Chipyard→Linux），共 13 类检查项。

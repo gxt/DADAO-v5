@@ -76,14 +76,14 @@ QEMU 消费 flat binary（不解析 ELF），ELF 头字段仅由 LLVM MC emitter
 
 | # | 检查项 | 判定 | 证据 |
 |---|--------|------|------|
-| 4.1 | opcodes.yaml 存在 | ✅ | 256 条 |
-| 4.2 | 条目数 | ✅ | 总计 256, M1 内 178 |
-| 4.3 | 结构完整性 | ✅ | 全部 256 条有 insn/mnemonic/format/op/mask/value |
-| 4.4 | mask/value 内部自洽 | ✅ | 全部 256 条 `(value & mask) == value` |
+| 4.1 | opcodes.yaml 存在 | ✅ | 254 条 |
+| 4.2 | 条目数 | ✅ | 总计 254, M1 内 178 |
+| 4.3 | 结构完整性 | ✅ | 全部 254 条有 id/mnemonic/format/op/mask/value |
+| 4.4 | mask/value 内部自洽 | ✅ | 全部 254 条 `(value & mask) == value` |
 | 4.5 | **LLVM lit ↔ opcodes.yaml** | ✅ | `check_lit_bytes.py` 53 patterns OK（**真调用**） |
-| 4.6 | **QEMU trans ↔ opcodes.yaml** | ✅ | `check_qemu_trans.py --strict` 256/256（**真调用**） |
+| 4.6 | **QEMU trans ↔ opcodes.yaml** | ✅ | `check_qemu_trans.py --strict` 254/254（**真调用**） |
 | 4.7 | LLVM lit # OBJ: patterns | ✅ | 53 patterns |
-| 4.8 | QEMU trans_* 定义数 | ✅ | 256 trans_* 函数 |
+| 4.8 | QEMU trans_* 定义数 | ✅ | 254 trans_* 函数 |
 
 ---
 
