@@ -381,14 +381,14 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 |--------|------|----------|------|----------|
 | `nop` | `nop` | `swym 0` | 空操作，占位或对齐 | SimRISC-11 §nop 伪指令 |
 | `return` | `return` | `ret rd0, 0` | 无返回值的函数返回 | SimRISC-06 §return 伪指令 |
-| `not.b` | `not.b rdhb, rdhc` | `xnor.b rdhb, rdhc, rd0` | 8 位按位取反 | SimRISC-10 §not 伪指令 |
-| `not.w` | `not.w rdhb, rdhc` | `xnor.w rdhb, rdhc, rd0` | 16 位按位取反 | SimRISC-09 §not 伪指令 |
-| `not.t` | `not.t rdhb, rdhc` | `xnor.t rdhb, rdhc, rd0` | 32 位按位取反 | SimRISC-08 §not 伪指令 |
-| `not.o` | `not.o rdhb, rdhc` | `xnor.o rdhb, rdhc, rd0` | 64 位按位取反 | SimRISC-04 §not 伪指令 |
-| `neg.b` | `neg.b rdhb, rdhc` | `sub.sb rdhb, rd0, rdhc` | 8 位取负，符号扩展 | SimRISC-10 §neg 伪指令 |
-| `neg.w` | `neg.w rdhb, rdhc` | `sub.sw rdhb, rd0, rdhc` | 16 位取负，符号扩展 | SimRISC-09 §neg 伪指令 |
-| `neg.t` | `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展 | SimRISC-08 §neg 伪指令 |
-| `neg.o` | `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 | SimRISC-04 §neg 伪指令 |
+| `not.b` | `not.b rdHB, rdHC` | `xnor.b rdHB, rdHC, rd0` | 8 位按位取反 | SimRISC-10 §not 伪指令 |
+| `not.w` | `not.w rdHB, rdHC` | `xnor.w rdHB, rdHC, rd0` | 16 位按位取反 | SimRISC-09 §not 伪指令 |
+| `not.t` | `not.t rdHB, rdHC` | `xnor.t rdHB, rdHC, rd0` | 32 位按位取反 | SimRISC-08 §not 伪指令 |
+| `not.o` | `not.o rdHB, rdHC` | `xnor.o rdHB, rdHC, rd0` | 64 位按位取反 | SimRISC-04 §not 伪指令 |
+| `neg.b` | `neg.b rdHB, rdHC` | `sub.sb rdHB, rd0, rdHC` | 8 位取负，符号扩展 | SimRISC-10 §neg 伪指令 |
+| `neg.w` | `neg.w rdHB, rdHC` | `sub.sw rdHB, rd0, rdHC` | 16 位取负，符号扩展 | SimRISC-09 §neg 伪指令 |
+| `neg.t` | `neg.t rdHB, rdHC` | `sub.st rdHB, rd0, rdHC` | 32 位取负，符号扩展 | SimRISC-08 §neg 伪指令 |
+| `neg.o` | `neg.o rdHB, rdHC` | `sub.so {rd0, rdHB}, rd0, rdHC` | 64 位取负 | SimRISC-04 §neg 伪指令 |
 | `set.rd` | `set.rd rdxx, imm64` | `set.zw`/`set.ow` + `or.w`/`andn.w` | 加载 64 位立即数到 rd | SimRISC-03 §set.rd 伪指令 |
 | `set.rd` | `set.rd rdxx, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 从其他寄存器传值到 rd | SimRISC-03 §set.rd 伪指令 |
 | `set.rb` | `set.rb rbxx, imm64` | `set.zw-rb` + `or.w-rb` | 加载立即数到 rb | SimRISC-03 §set.rb 伪指令 |
