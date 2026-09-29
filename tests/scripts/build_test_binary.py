@@ -125,8 +125,8 @@ def encode_ld_o(rdha, rbhb, imms12):
     return (0x20 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
 
 def encode_swym():
-    """swym (iiii, op=0x77). No-op / placeholder."""
-    return 0x77000000
+    """swym (oiii, op=0x00, ha=0x02). No-op / placeholder."""
+    return 0x00080000
 
 def encode_illi():
     """illi (oiii, op=0x00, ha=0x00). Illegal instruction → ILLI fault (0x88)."""

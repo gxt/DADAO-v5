@@ -300,7 +300,7 @@ N = 7(.b) / 15(.w) / 31(.t) / 63(.o)。高位保持 rdhb 初始值不变。
 ## 14. misc（misc.yaml）
 
 **case 数**：6（encoding 2 + legality 2 + semantic 2）
-**涉及指令**：`illi`（oiii）；`fence`（oiii）；`swym`（iiii）
+**涉及指令**：`illi`（oiii）；`fence`（oiii）；`swym`（oiii）
 
 ### 重推导公式
 

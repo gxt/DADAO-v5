@@ -140,12 +140,12 @@
 | `rrri` | `助记符 {dst:…}, [base, offset]` | `ldm.ub {rd8:rd10}, [rb0, rd1]` | count 省略 |
 | `rrii` | `助记符 dst, [base, offset]`；`jump`/`call` 为 `助记符 [base, reg, offseti]` | `ld.ub rd8, [rb2, 1]`；`jump [rb3, rd0, 24i]` | 访存偏移 = 字节；跳转偏移 = 指令字 |
 | `riii` | `助记符 dst, imm` / `助记符 {dst}?, [rb0, offi]`（分支） | `add.si rd8, 1`；`br.n {rd0}?, [rb0, 4i]` | 分支偏移 = 指令字 |
-| `iiii` | `助记符 [rb0, offi]`（`jump`/`call`）；`swym imm` | `jump [rb0, 2i]`；`swym 0` | 偏移 = 指令字 |
+| `iiii` | `助记符 [rb0, offi]`（`jump`/`call`） | `jump [rb0, 2i]` | 偏移 = 指令字 |
 | `rwii` | `助记符 dst, wpN, immu16` | `set.zw rd8, wp2, 0x1234` | wyde 位置保持 `wpN` |
 | `orrr` | `助记符 dst, src1, src2` | `or.o rd8, rd9, rd10` | — |
 | `orri` | `助记符 dst, src, immu6` | `ext.uo rd8, rd0, 1` | — |
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
-| `oiii` | `助记符 immu18` | `illi 0`、`fence 0` | 纯立即数，不加 `[]`/`i` |
+| `oiii` | `助记符 immu18` | `illi 0`、`fence 0`、`swym 0` | 纯立即数，不加 `[]`/`i` |
 
 **Excluded from M1 的格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**）：
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxcode` 写作 `cfxN`（测试机为 `cfx63` = power），末两操作数为**地址**。

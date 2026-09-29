@@ -230,7 +230,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0101-1xxx | — | add.si-rd | rela.si-rb | add.si-rb | cmp.ui-rd | cmp.si-rd | cs.eq-rf Excl. | cs.ne-rf Excl. |
 | 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
 | 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
-| 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | swym |
+| 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | — |
 | 0111-1xxx | — | — | cfx2rd Excl. | cfx2rc Excl. | cfxld Excl. | cfxst Excl. | escape Excl. | trap Excl. |
 
 > Excl. = `Excluded from M1`。`MISC-AMO` 子表中的 LR-SC 条目同属 Excluded from M1（见 §14.2）。[SimRISC-00 §SimRISC QFC]
@@ -1058,14 +1058,14 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 
 > 范围：占位指令 `swym`、非法指令 `illi`、NOP 伪指令、保留编码与全零指令。特权 cfx 指令与 LR-SC 原子指令见 §14（Excluded from M1）。
 
-### §13.1 占位指令 swym（iiii 格式）
+### §13.1 占位指令 swym（oiii 格式）
 
 当指令地址需要对齐或特意留出空白时使用占位指令；SimRISC 采用 `swym`（参考 Knuth 的 MMIX）。[SimRISC-11 §占位指令]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
 | `swym 0` | 除 PC 自增外无任何架构副作用（等同于 nop） | [SimRISC-11 §占位指令] |
-| `swym N` | 硬件时延指令，后 24 位立即数为时延参数，时延约为 `swym 0` 的 N+1 倍 | [SimRISC-11 §占位指令] |
+| `swym N` | 硬件时延指令，后 18 位立即数为时延参数，时延约为 `swym 0` 的 N+1 倍 | [SimRISC-11 §占位指令] |
 
 - 硬件可设时延上限，N 超过阈值后时延不再增加。[SimRISC-11 §占位指令]
 - 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。[SimRISC-11 §占位指令]
@@ -1266,7 +1266,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x74 | 0111-0100 | iiii | call-iiii | `call` | [SimRISC-00 §SimRISC QFC] |
 | 0x75 | 0111-0101 | rrii | call-rrii | `call` | [SimRISC-00 §SimRISC QFC] |
 | 0x76 | 0111-0110 | riii | ret | `ret` | [SimRISC-00 §SimRISC QFC] |
-| 0x77 | 0111-0111 | iiii | swym | `swym` | [SimRISC-00 §SimRISC QFC] |
+| 0x77 | 0111-0111 | — | — | — | reserved |
 
 ### A.2 MISC-octa 子表（op = 0x40，minor-opcode 在 ha[5:0]）
 
@@ -1401,6 +1401,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 |-------------|--------|------|------|
 | 000-000 | `illi` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
 | 000-001 | `fence` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
+| 000-010 | `swym` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
 
 > LR-SC 条目（010-xxx / 011-xxx）Excluded from M1，见 A.7。[SimRISC-00 §MISC-AMO 指令编码]
 

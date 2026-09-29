@@ -389,7 +389,7 @@ def main():
     kernel_bin = "/tmp/opencode/QEMU-014t/misc2.bin"
     if not os.path.exists(kernel_bin):
         with open(kernel_bin, "wb") as f:
-            f.write(struct.pack(">I", 0x77000000))  # swym (NOP)
+            f.write(struct.pack(">I", 0x00080000))  # swym (NOP)
 
     proc_e = subprocess.Popen(
         [QEMU, "-machine", "dadao-m1", "-nographic",

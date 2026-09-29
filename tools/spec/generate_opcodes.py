@@ -147,7 +147,7 @@ def _get_id(mnemonic, fmt, fields):
     if len(parts) == 2:
         base, after = parts[0], parts[1]
         if after in _KNOWN_FMTS:
-            # 格式型后缀（如 swym-iiii、call-iiii）→ 查特例表，否则推断
+            # 格式型后缀（如 swym-oiii、call-iiii）→ 查特例表，否则推断
             feature = _SPECIAL_IDS.get(base, _infer_feature(fields, fmt))
         else:
             feature = after  # 寄存器组后缀（如 ld.ub-rd → rd）

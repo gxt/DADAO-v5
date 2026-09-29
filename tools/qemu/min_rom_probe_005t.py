@@ -6,7 +6,7 @@ Changes from v2:
   so INT_MIN/-1 deterministically exits 136 (no TB replay).
 - div.sb N2 test: use correct div.sb encoding (op=0x43) instead of div_so (op=0x40).
 - mul_sb: opcode fixed from 0x25 to 0x31 (matching opcodes.yaml).
-- swym: opcode fixed from 0x7C to 0x77.
+- swym: opcode fixed to 0x00/ha=0x02 (oiii format, MISC-AMO).
 - CTL self-check: separated from main pass/fail count (self-check FAIL = probe works).
 - Exact value comparison: cmp.uo + div.uo for precise equality checks.
 
@@ -154,8 +154,8 @@ def illi():
     return encode_oiii(0x00, 0x00, 0)
 
 def swym():
-    """swym 0 — NOP (op=0x77)"""
-    return encode_oiii(0x77, 0x00, 0)
+    """swym 0 — NOP (op=0x00, ha=0x02)"""
+    return encode_oiii(0x00, 0x02, 0)
 
 # ── Terminators ───────────────────────────────────────────────────────
 

@@ -225,7 +225,7 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
         ("immu16", "16-bit unsigned immediate (rwii: hb[3:0]+hc+hd)", "DecodeUImm16"),
         ("immu6",  "6-bit unsigned immediate (rrri/orri: hd[5:0])", "DecodeUImm6"),
         ("imms24", "24-bit signed immediate (iiii: ha+hb+hc+hd)", "DecodeSImm24"),
-        ("immu24", "24-bit unsigned immediate (iiii, swym)", "DecodeUImm24"),
+        ("immu24", "24-bit unsigned immediate (iiii)", "DecodeUImm24"),
         ("wydepos", "2-bit wyde-position (rwii: hb[5:4])", "DecodeWydePos"),
     ]
 
