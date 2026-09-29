@@ -1,8 +1,9 @@
 # Test Vector Inventory
 
 
-M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `(id, format)`
-（等价机器键 `(op, ha)`，`op = value>>24`、`ha = (value>>18)&0x3f`）。
+M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
+（对应 `contracts/opcodes.yaml` 的 `id`，**唯一**）。
+`format` 保留为普通字段，不入主键。
 
 > **本表是 `TESTCASES-002t` 冻结的「覆盖要求矩阵」**：`✓` = 该身份须有该类
 > active case；`—` = 该类不适用；`deferred <reason>` = 该类暂缓（须记原因）。

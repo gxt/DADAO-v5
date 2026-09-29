@@ -10,8 +10,8 @@
   expected_pc: null
   expected_state: null
   format: rrii
+  id: cmp.ui_rrii_rd
   input_state: {}
-  insn: cmp.ui_rrii_rd
   mnemonic: cmp.ui
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-04 §比较操作
@@ -29,10 +29,10 @@
     rd:
       rd1: '0x0000000000000001'
   format: rrii
+  id: cmp.ui_rrii_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
-  insn: cmp.ui_rrii_rd
   mnemonic: cmp.ui
   notes: 'cmp.ui: rd2=0xa, imm=5, bits=64, signed=False'
   spec_cite: SimRISC-04 §比较操作
@@ -45,8 +45,8 @@
   expected_pc: null
   expected_state: null
   format: rrii
+  id: cmp.ui_rrii_rd
   input_state: {}
-  insn: cmp.ui_rrii_rd
   mnemonic: cmp.ui
   notes: 'legality cmp.ui: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-04 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -59,8 +59,8 @@
   expected_pc: null
   expected_state: null
   format: rrii
+  id: cmp.si_rrii_rd
   input_state: {}
-  insn: cmp.si_rrii_rd
   mnemonic: cmp.si
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-04 §比较操作
@@ -78,10 +78,10 @@
     rd:
       rd1: '0x0000000000000001'
   format: rrii
+  id: cmp.si_rrii_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
-  insn: cmp.si_rrii_rd
   mnemonic: cmp.si
   notes: 'cmp.si: rd2=0xa, imm=5, bits=64, signed=True'
   spec_cite: SimRISC-04 §比较操作
@@ -94,8 +94,8 @@
   expected_pc: null
   expected_state: null
   format: rrii
+  id: cmp.si_rrii_rd
   input_state: {}
-  insn: cmp.si_rrii_rd
   mnemonic: cmp.si
   notes: 'legality cmp.si: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-04 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -108,8 +108,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.uo_orrr_rb
   input_state: {}
-  insn: cmp.uo_orrr_rb
   mnemonic: cmp.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-05 §比较操作
@@ -127,11 +127,11 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: cmp.uo_orrr_rb
   input_state:
     rb:
       rb2: '0x000000000000000A'
       rb3: '0x0000000000000014'
-  insn: cmp.uo_orrr_rb
   mnemonic: cmp.uo
   notes: 'cmp.uo: rb2=0xa, rb3=0x14, bits=64, signed=False'
   spec_cite: SimRISC-05 §比较操作
@@ -144,8 +144,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.uo_orrr_rb
   input_state: {}
-  insn: cmp.uo_orrr_rb
   mnemonic: cmp.uo
   notes: 'legality cmp.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-05 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -158,8 +158,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.uo_orrr_rd
   input_state: {}
-  insn: cmp.uo_orrr_rd
   mnemonic: cmp.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-04 §比较操作
@@ -177,11 +177,11 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: cmp.uo_orrr_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
       rd3: '0x0000000000000014'
-  insn: cmp.uo_orrr_rd
   mnemonic: cmp.uo
   notes: 'cmp.uo: rd2=0xa, rd3=0x14, bits=64, signed=False'
   spec_cite: SimRISC-04 §比较操作
@@ -194,8 +194,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.uo_orrr_rd
   input_state: {}
-  insn: cmp.uo_orrr_rd
   mnemonic: cmp.uo
   notes: 'legality cmp.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-04 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -208,8 +208,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.so_orrr_rd
   input_state: {}
-  insn: cmp.so_orrr_rd
   mnemonic: cmp.so
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-04 §比较操作
@@ -227,11 +227,11 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: cmp.so_orrr_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
       rd3: '0x0000000000000014'
-  insn: cmp.so_orrr_rd
   mnemonic: cmp.so
   notes: 'cmp.so: rd2=0xa, rd3=0x14, bits=64, signed=True'
   spec_cite: SimRISC-04 §比较操作
@@ -244,8 +244,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.so_orrr_rd
   input_state: {}
-  insn: cmp.so_orrr_rd
   mnemonic: cmp.so
   notes: 'legality cmp.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-04 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -258,8 +258,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.ut_orrr_rd
   input_state: {}
-  insn: cmp.ut_orrr_rd
   mnemonic: cmp.ut
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-08 §比较操作
@@ -277,11 +277,11 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: cmp.ut_orrr_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
       rd3: '0x0000000000000014'
-  insn: cmp.ut_orrr_rd
   mnemonic: cmp.ut
   notes: 'cmp.ut: rd2=0xa, rd3=0x14, bits=32, signed=False'
   spec_cite: SimRISC-08 §比较操作
@@ -294,8 +294,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.ut_orrr_rd
   input_state: {}
-  insn: cmp.ut_orrr_rd
   mnemonic: cmp.ut
   notes: 'legality cmp.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-08 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -308,8 +308,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.st_orrr_rd
   input_state: {}
-  insn: cmp.st_orrr_rd
   mnemonic: cmp.st
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-08 §比较操作
@@ -327,11 +327,11 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: cmp.st_orrr_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
       rd3: '0x0000000000000014'
-  insn: cmp.st_orrr_rd
   mnemonic: cmp.st
   notes: 'cmp.st: rd2=0xa, rd3=0x14, bits=32, signed=True'
   spec_cite: SimRISC-08 §比较操作
@@ -344,8 +344,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.st_orrr_rd
   input_state: {}
-  insn: cmp.st_orrr_rd
   mnemonic: cmp.st
   notes: 'legality cmp.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-08 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -358,8 +358,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.uw_orrr_rd
   input_state: {}
-  insn: cmp.uw_orrr_rd
   mnemonic: cmp.uw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-09 §比较操作
@@ -377,11 +377,11 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: cmp.uw_orrr_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
       rd3: '0x0000000000000014'
-  insn: cmp.uw_orrr_rd
   mnemonic: cmp.uw
   notes: 'cmp.uw: rd2=0xa, rd3=0x14, bits=16, signed=False'
   spec_cite: SimRISC-09 §比较操作
@@ -394,8 +394,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.uw_orrr_rd
   input_state: {}
-  insn: cmp.uw_orrr_rd
   mnemonic: cmp.uw
   notes: 'legality cmp.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-09 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -408,8 +408,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.sw_orrr_rd
   input_state: {}
-  insn: cmp.sw_orrr_rd
   mnemonic: cmp.sw
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-09 §比较操作
@@ -427,11 +427,11 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: cmp.sw_orrr_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
       rd3: '0x0000000000000014'
-  insn: cmp.sw_orrr_rd
   mnemonic: cmp.sw
   notes: 'cmp.sw: rd2=0xa, rd3=0x14, bits=16, signed=True'
   spec_cite: SimRISC-09 §比较操作
@@ -444,8 +444,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.sw_orrr_rd
   input_state: {}
-  insn: cmp.sw_orrr_rd
   mnemonic: cmp.sw
   notes: 'legality cmp.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-09 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -458,8 +458,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.ub_orrr_rd
   input_state: {}
-  insn: cmp.ub_orrr_rd
   mnemonic: cmp.ub
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-10 §比较操作
@@ -477,11 +477,11 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: cmp.ub_orrr_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
       rd3: '0x0000000000000014'
-  insn: cmp.ub_orrr_rd
   mnemonic: cmp.ub
   notes: 'cmp.ub: rd2=0xa, rd3=0x14, bits=8, signed=False'
   spec_cite: SimRISC-10 §比较操作
@@ -494,8 +494,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.ub_orrr_rd
   input_state: {}
-  insn: cmp.ub_orrr_rd
   mnemonic: cmp.ub
   notes: 'legality cmp.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-10 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
@@ -508,8 +508,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.sb_orrr_rd
   input_state: {}
-  insn: cmp.sb_orrr_rd
   mnemonic: cmp.sb
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-10 §比较操作
@@ -527,11 +527,11 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: cmp.sb_orrr_rd
   input_state:
     rd:
       rd2: '0x000000000000000A'
       rd3: '0x0000000000000014'
-  insn: cmp.sb_orrr_rd
   mnemonic: cmp.sb
   notes: 'cmp.sb: rd2=0xa, rd3=0x14, bits=8, signed=True'
   spec_cite: SimRISC-10 §比较操作
@@ -544,8 +544,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: cmp.sb_orrr_rd
   input_state: {}
-  insn: cmp.sb_orrr_rd
   mnemonic: cmp.sb
   notes: 'legality cmp.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-10 §比较操作; SimRISC-01 §rd0 为目的寄存器约定

@@ -14,8 +14,8 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `mnemonic` | string | 0.5.4 助记符（对应 `contracts/opcodes.yaml` 的 `mnemonic`） |
-| `insn` | string | opcode 身份（对应 `contracts/opcodes.yaml` 的 `insn`；**单独不唯一**） |
-| `format` | string | 指令格式；与 `insn` 组成覆盖率主键 `(insn, format)`（唯一） |
+| `id` | string | opcode 身份（对应 `contracts/opcodes.yaml` 的 `id`；**唯一**） |
+| `format` | string | 指令格式（普通字段，不入覆盖率主键） |
 | `class` | string | 向量类别：`encoding` / `legality` / `semantic` / `boundary` / `overlap` |
 | `encoding` | object | 见下「`encoding` 子结构」 |
 | `input_state` | object | 执行前的寄存器/内存状态（仅列相关字段；可为空对象 `{}`） |
@@ -37,11 +37,11 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `encoding.word` | string | 完整 32-bit 指令字（hex，`≤ 0xFFFFFFFF`）；须满足 `(word & mask) == value` |
-| `encoding.reserved` | boolean | **仅限保留编码 case**（`class: legality`、`expected_fault: UNDI`）。`true` = 该 word 是 QFC 主表 / MISC 子表的空白单元格（reserved），**无** `(insn, format)` 身份。缺省或 `false` = 正常编码 |
+| `encoding.reserved` | boolean | **仅限保留编码 case**（`class: legality`、`expected_fault: UNDI`）。`true` = 该 word 是 QFC 主表 / MISC 子表的空白单元格（reserved），**无** `id` 身份。缺省或 `false` = 正常编码 |
 
 #### 保留编码 case（`encoding.reserved: true`）
 
-保留编码（QFC 主表 / MISC 子表空白单元格）**无** `(insn, format)` 身份
+保留编码（QFC 主表 / MISC 子表空白单元格）**无** `id` 身份
 （`contracts/opcodes.yaml` 只含已定义编码），故无法满足检查 7/8。
 方案 A（`TESTCASES-008t`，已裁定）以 `encoding.reserved: true` 显式标记。
 
@@ -51,7 +51,7 @@
     word: "0x08040001"       # 非全零；QFC 主表空白单元格
     reserved: true           # 显式声明：保留编码
   mnemonic: null             # 无已定义助记符
-  insn: null                 # 无身份
+  id: null                   # 无身份
   format: null               # 无格式
   input_state: {}
   expected_state: null
@@ -70,7 +70,7 @@
 | `expected_fault` 必须为 `UNDI` | 保留编码触发 UNDI（§8.2），**不是** ILLI |
 | `status` 必须为 `active` | 保留编码 case 不可 deferred |
 | `word` 不得为 `0x00000000` | 全零字 = `illi` → ILLI（§8.3），非 UNDI |
-| `mnemonic` / `insn` 为 `null` | 无已定义身份 |
+| `mnemonic` / `id` 为 `null` | 无已定义身份 |
 | `format` 可为 `null` 或字符串 | 可选，用于定位子表 |
 | `notes` 非空 | 须给出该 word 在 QFC/子表中的具体位置作为 reserved 依据 |
 | `spec_cite` 非空 | 须引用 SimRISC-00 QFC / contract-isa §2.9/§8.2 |
@@ -103,7 +103,7 @@
 
 ```yaml
 - mnemonic: ld.ub
-  insn: ld.ub-rd
+  id: ld.ub_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -200,10 +200,9 @@
 
 - **M1 scope**：`contracts/opcodes.yaml` 中 `excluded_m1 != true` 的 **178 条**。
   不得排除 RA 存取/块赋值或 `swym`/`illi`/`fence`。
-- **主键 `(insn, format)`**（等价机器键 `(op, ha)`，`op = value>>24`、
-  `ha = (value>>18)&0x3f`）。`insn` 单独不唯一（20 组 `orrr`/`orri` 共享 `insn`），
-  **必须**带 `format`。
-- 每个 M1 身份 `(insn, format)` 至少 1 条对应 class 的 case；算术/移位类还需
+- **主键 `id`**（对应 `contracts/opcodes.yaml` 的 `id`，**唯一**）。
+  `format` 保留为普通字段，不入覆盖率主键。
+- 每个 M1 身份 `id` 至少 1 条对应 class 的 case；算术/移位类还需
   `boundary`；条件赋值 `overlap` 按 C-27 deferred。
 - 覆盖率与 `inventory.md` 机械同步：`inventory.md` 的 M1 行集必须与
   `opcodes.yaml` 的 M1 身份集一致（无缺、无多、无重复）——由
@@ -222,7 +221,7 @@ tests/vectors/isa/
 
 ## 校验
 
-`tools/testcases/validate_vectors.py` 对上述字段、class/fault 取值、`(insn, format)`
+`tools/testcases/validate_vectors.py` 对上述字段、class/fault 取值、`id`
 存在性与 mask/value 一致性、`expected_pc`、`inventory` 同步、覆盖率等做机械校验；
 有错误时 `exit(1)` 并列出文件 + case 序号。完整语义期望值重算属 golden model
 模块（见 `.tao/knowledge/deferred.md`），不在 schema validator 能力内。

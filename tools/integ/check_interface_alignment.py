@@ -444,7 +444,7 @@ def check_schema_harness():
 
     # --- Schema 字段定义 ---
     required_fields = [
-        "mnemonic", "insn", "format", "class", "encoding",
+        "mnemonic", "id", "format", "class", "encoding",
         "input_state", "spec_cite",
     ]
     optional_fields = [
@@ -511,9 +511,9 @@ def check_schema_harness():
             r'''(?:case|vector_case)\.get\(["']class["']''',
             harness_run, "run_qemu_test.py: case.get(\"class\")"
         ),
-        "insn": (
-            r'''(?:case|vector_case)\.get\(["']insn["']''',
-            harness_run, "run_qemu_test.py: case.get(\"insn\")"
+        "id": (
+            r'''(?:case|vector_case)\.get\(["']id["']''',
+            harness_run, "run_qemu_test.py: case.get(\"id\")"
         ),
     }
     for field, (pattern, content, desc) in harness_fields.items():
@@ -594,7 +594,7 @@ def check_opcodes_cross():
         record(cat, "opcodes.yaml 结构完整性", "FAIL", "\n".join(missing[:5]))
     else:
         record(cat, "opcodes.yaml 结构完整性", "PASS",
-               f"全部 {total} 条均有 insn/mnemonic/format/op/mask/value")
+               f"全部 {total} 条均有 id/mnemonic/format/op/mask/value")
 
     # --- 内部 mask/value 自洽 ---
     mask_errors = []

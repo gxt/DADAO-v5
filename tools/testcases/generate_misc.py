@@ -66,7 +66,7 @@ def _case(mnemonic, insn, fmt, cls, word, input_state, expected_state,
           status="active", deferred_reason=None):
     return {
         "mnemonic": mnemonic,
-        "insn": insn,
+        "id": insn,
         "format": fmt,
         "class": cls,
         "encoding": {"word": _hex8(word)},
@@ -228,7 +228,7 @@ def main():
     cases = generate()
     print("Generated %d cases for misc.yaml:" % len(cases))
     for i, c in enumerate(cases):
-        print("  [%d] %s %s %s" % (i, c["insn"], c["format"], c["class"]))
+        print("  [%d] %s %s %s" % (i, c["id"], c["format"], c["class"]))
     write_yaml(cases)
     print("Written to: %s" % OUT_FILE)
 

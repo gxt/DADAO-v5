@@ -25,7 +25,7 @@ PASS_CASES = [
     '    word: "0x08040001"',
     "    reserved: true",
     "  mnemonic: null",
-    "  insn: null",
+    "  id: null",
     "  format: null",
     "  input_state: {}",
     "  expected_state: null",

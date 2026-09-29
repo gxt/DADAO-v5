@@ -10,8 +10,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: and.o_orrr_rd
   input_state: {}
-  insn: and.o_orrr_rd
   mnemonic: and.o
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -29,12 +29,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: and.o_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: and.o_orrr_rd
   mnemonic: and.o
   notes: 'logic and: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=64'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -52,12 +52,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: and.o_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: and.o_orrr_rd
   mnemonic: and.o
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=64'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -70,8 +70,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: and.o_orrr_rd
   input_state: {}
-  insn: and.o_orrr_rd
   mnemonic: and.o
   notes: 'legality and.o: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -84,8 +84,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: or.o_orrr_rd
   input_state: {}
-  insn: or.o_orrr_rd
   mnemonic: or.o
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -103,12 +103,12 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: or.o_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: or.o_orrr_rd
   mnemonic: or.o
   notes: 'logic or: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=64'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -126,12 +126,12 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: or.o_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: or.o_orrr_rd
   mnemonic: or.o
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=64'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -144,8 +144,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: or.o_orrr_rd
   input_state: {}
-  insn: or.o_orrr_rd
   mnemonic: or.o
   notes: 'legality or.o: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -158,8 +158,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xor.o_orrr_rd
   input_state: {}
-  insn: xor.o_orrr_rd
   mnemonic: xor.o
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -177,12 +177,12 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: xor.o_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: xor.o_orrr_rd
   mnemonic: xor.o
   notes: 'logic xor: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=64'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -200,12 +200,12 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
+  id: xor.o_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: xor.o_orrr_rd
   mnemonic: xor.o
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=64'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -218,8 +218,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xor.o_orrr_rd
   input_state: {}
-  insn: xor.o_orrr_rd
   mnemonic: xor.o
   notes: 'legality xor.o: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -232,8 +232,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xnor.o_orrr_rd
   input_state: {}
-  insn: xnor.o_orrr_rd
   mnemonic: xnor.o
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -251,12 +251,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: xnor.o_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: xnor.o_orrr_rd
   mnemonic: xnor.o
   notes: 'logic xnor: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=64'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -274,12 +274,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: xnor.o_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: xnor.o_orrr_rd
   mnemonic: xnor.o
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=64'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
@@ -292,8 +292,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xnor.o_orrr_rd
   input_state: {}
-  insn: xnor.o_orrr_rd
   mnemonic: xnor.o
   notes: 'legality xnor.o: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -306,8 +306,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: and.t_orrr_rd
   input_state: {}
-  insn: and.t_orrr_rd
   mnemonic: and.t
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -325,12 +325,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: and.t_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: and.t_orrr_rd
   mnemonic: and.t
   notes: 'logic and: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=32'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -348,12 +348,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: and.t_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: and.t_orrr_rd
   mnemonic: and.t
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=32'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -366,8 +366,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: and.t_orrr_rd
   input_state: {}
-  insn: and.t_orrr_rd
   mnemonic: and.t
   notes: 'legality and.t: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -380,8 +380,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: or.t_orrr_rd
   input_state: {}
-  insn: or.t_orrr_rd
   mnemonic: or.t
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -399,12 +399,12 @@
     rd:
       rd1: '0x00000000FFFFFFFF'
   format: orrr
+  id: or.t_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: or.t_orrr_rd
   mnemonic: or.t
   notes: 'logic or: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=32'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -422,12 +422,12 @@
     rd:
       rd1: '0x00000000FFFFFFFF'
   format: orrr
+  id: or.t_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: or.t_orrr_rd
   mnemonic: or.t
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=32'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -440,8 +440,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: or.t_orrr_rd
   input_state: {}
-  insn: or.t_orrr_rd
   mnemonic: or.t
   notes: 'legality or.t: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -454,8 +454,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xor.t_orrr_rd
   input_state: {}
-  insn: xor.t_orrr_rd
   mnemonic: xor.t
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -473,12 +473,12 @@
     rd:
       rd1: '0x00000000FFFFFFFF'
   format: orrr
+  id: xor.t_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: xor.t_orrr_rd
   mnemonic: xor.t
   notes: 'logic xor: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=32'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -496,12 +496,12 @@
     rd:
       rd1: '0x00000000FFFFFFFF'
   format: orrr
+  id: xor.t_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: xor.t_orrr_rd
   mnemonic: xor.t
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=32'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -514,8 +514,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xor.t_orrr_rd
   input_state: {}
-  insn: xor.t_orrr_rd
   mnemonic: xor.t
   notes: 'legality xor.t: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -528,8 +528,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xnor.t_orrr_rd
   input_state: {}
-  insn: xnor.t_orrr_rd
   mnemonic: xnor.t
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -547,12 +547,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: xnor.t_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: xnor.t_orrr_rd
   mnemonic: xnor.t
   notes: 'logic xnor: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=32'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -570,12 +570,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: xnor.t_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: xnor.t_orrr_rd
   mnemonic: xnor.t
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=32'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算
@@ -588,8 +588,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xnor.t_orrr_rd
   input_state: {}
-  insn: xnor.t_orrr_rd
   mnemonic: xnor.t
   notes: 'legality xnor.t: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-08 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -602,8 +602,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: and.w_orrr_rd
   input_state: {}
-  insn: and.w_orrr_rd
   mnemonic: and.w
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -621,12 +621,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: and.w_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: and.w_orrr_rd
   mnemonic: and.w
   notes: 'logic and: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=16'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -644,12 +644,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: and.w_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: and.w_orrr_rd
   mnemonic: and.w
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=16'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -662,8 +662,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: and.w_orrr_rd
   input_state: {}
-  insn: and.w_orrr_rd
   mnemonic: and.w
   notes: 'legality and.w: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -676,8 +676,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: or.w_orrr_rd
   input_state: {}
-  insn: or.w_orrr_rd
   mnemonic: or.w
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -695,12 +695,12 @@
     rd:
       rd1: '0x000000000000FFFF'
   format: orrr
+  id: or.w_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: or.w_orrr_rd
   mnemonic: or.w
   notes: 'logic or: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=16'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -718,12 +718,12 @@
     rd:
       rd1: '0x000000000000FFFF'
   format: orrr
+  id: or.w_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: or.w_orrr_rd
   mnemonic: or.w
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=16'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -736,8 +736,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: or.w_orrr_rd
   input_state: {}
-  insn: or.w_orrr_rd
   mnemonic: or.w
   notes: 'legality or.w: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -750,8 +750,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xor.w_orrr_rd
   input_state: {}
-  insn: xor.w_orrr_rd
   mnemonic: xor.w
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -769,12 +769,12 @@
     rd:
       rd1: '0x000000000000FFFF'
   format: orrr
+  id: xor.w_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: xor.w_orrr_rd
   mnemonic: xor.w
   notes: 'logic xor: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=16'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -792,12 +792,12 @@
     rd:
       rd1: '0x000000000000FFFF'
   format: orrr
+  id: xor.w_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: xor.w_orrr_rd
   mnemonic: xor.w
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=16'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -810,8 +810,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xor.w_orrr_rd
   input_state: {}
-  insn: xor.w_orrr_rd
   mnemonic: xor.w
   notes: 'legality xor.w: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -824,8 +824,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xnor.w_orrr_rd
   input_state: {}
-  insn: xnor.w_orrr_rd
   mnemonic: xnor.w
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -843,12 +843,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: xnor.w_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: xnor.w_orrr_rd
   mnemonic: xnor.w
   notes: 'logic xnor: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=16'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -866,12 +866,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: xnor.w_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: xnor.w_orrr_rd
   mnemonic: xnor.w
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=16'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算
@@ -884,8 +884,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xnor.w_orrr_rd
   input_state: {}
-  insn: xnor.w_orrr_rd
   mnemonic: xnor.w
   notes: 'legality xnor.w: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-09 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -898,8 +898,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: and.b_orrr_rd
   input_state: {}
-  insn: and.b_orrr_rd
   mnemonic: and.b
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -917,12 +917,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: and.b_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: and.b_orrr_rd
   mnemonic: and.b
   notes: 'logic and: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=8'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -940,12 +940,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: and.b_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: and.b_orrr_rd
   mnemonic: and.b
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=8'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -958,8 +958,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: and.b_orrr_rd
   input_state: {}
-  insn: and.b_orrr_rd
   mnemonic: and.b
   notes: 'legality and.b: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -972,8 +972,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: or.b_orrr_rd
   input_state: {}
-  insn: or.b_orrr_rd
   mnemonic: or.b
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -991,12 +991,12 @@
     rd:
       rd1: '0x00000000000000FF'
   format: orrr
+  id: or.b_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: or.b_orrr_rd
   mnemonic: or.b
   notes: 'logic or: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=8'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -1014,12 +1014,12 @@
     rd:
       rd1: '0x00000000000000FF'
   format: orrr
+  id: or.b_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: or.b_orrr_rd
   mnemonic: or.b
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=8'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -1032,8 +1032,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: or.b_orrr_rd
   input_state: {}
-  insn: or.b_orrr_rd
   mnemonic: or.b
   notes: 'legality or.b: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -1046,8 +1046,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xor.b_orrr_rd
   input_state: {}
-  insn: xor.b_orrr_rd
   mnemonic: xor.b
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -1065,12 +1065,12 @@
     rd:
       rd1: '0x00000000000000FF'
   format: orrr
+  id: xor.b_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: xor.b_orrr_rd
   mnemonic: xor.b
   notes: 'logic xor: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=8'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -1088,12 +1088,12 @@
     rd:
       rd1: '0x00000000000000FF'
   format: orrr
+  id: xor.b_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: xor.b_orrr_rd
   mnemonic: xor.b
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=8'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -1106,8 +1106,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xor.b_orrr_rd
   input_state: {}
-  insn: xor.b_orrr_rd
   mnemonic: xor.b
   notes: 'legality xor.b: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
@@ -1120,8 +1120,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xnor.b_orrr_rd
   input_state: {}
-  insn: xnor.b_orrr_rd
   mnemonic: xnor.b
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -1139,12 +1139,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: xnor.b_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xAAAAAAAAAAAAAAAA'
       rd3: '0x5555555555555555'
-  insn: xnor.b_orrr_rd
   mnemonic: xnor.b
   notes: 'logic xnor: rd2=0xaaaaaaaaaaaaaaaa, rd3=0x5555555555555555, bits=8'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -1162,12 +1162,12 @@
     rd:
       rd1: '0x0000000000000000'
   format: orrr
+  id: xnor.b_orrr_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0xFFFF0000FFFF0000'
       rd3: '0x0000FFFF0000FFFF'
-  insn: xnor.b_orrr_rd
   mnemonic: xnor.b
   notes: 'boundary logic: rd2=0xffff0000ffff0000, rd3=0xffff0000ffff, bits=8'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算
@@ -1180,8 +1180,8 @@
   expected_pc: null
   expected_state: null
   format: orrr
+  id: xnor.b_orrr_rd
   input_state: {}
-  insn: xnor.b_orrr_rd
   mnemonic: xnor.b
   notes: 'legality xnor.b: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-10 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定

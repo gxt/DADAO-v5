@@ -13,8 +13,8 @@
   expected_pc: null
   expected_state: null
   format: riii
+  id: br.n_riii_rd
   input_state: {}
-  insn: br.n_riii_rd
   mnemonic: br.n
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -27,10 +27,10 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: riii
+  id: br.n_riii_rd
   input_state:
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
-  insn: br.n_riii_rd
   mnemonic: br.n
   notes: 'taken: rd1 = -1 (< 0) → condition TRUE, branch taken; rb0=0xFFFF00000000 (RAM entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFFFF00000008'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -43,10 +43,10 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: riii
+  id: br.n_riii_rd
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: br.n_riii_rd
   mnemonic: br.n
   notes: 'not-taken: rd1 = 1 (>= 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -59,10 +59,10 @@
   expected_pc: null
   expected_state: {}
   format: riii
+  id: br.n_riii_rd
   input_state:
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
-  insn: br.n_riii_rd
   mnemonic: br.n
   notes: 'boundary UNMAPPED: rd1=-1(<0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
     → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
@@ -76,8 +76,8 @@
   expected_pc: null
   expected_state: null
   format: riii
+  id: br.nn_riii_rd
   input_state: {}
-  insn: br.nn_riii_rd
   mnemonic: br.nn
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -90,10 +90,10 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: riii
+  id: br.nn_riii_rd
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: br.nn_riii_rd
   mnemonic: br.nn
   notes: 'taken: rd1 = 1 (>= 0) → condition TRUE, branch taken; rb0=0xFFFF00000000 (RAM entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFFFF00000008'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -106,10 +106,10 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: riii
+  id: br.nn_riii_rd
   input_state:
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
-  insn: br.nn_riii_rd
   mnemonic: br.nn
   notes: 'not-taken: rd1 = -1 (< 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -122,8 +122,8 @@
   expected_pc: null
   expected_state: {}
   format: riii
+  id: br.nn_riii_rd
   input_state: {}
-  insn: br.nn_riii_rd
   mnemonic: br.nn
   notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
     → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
@@ -137,8 +137,8 @@
   expected_pc: null
   expected_state: null
   format: riii
+  id: br.z_riii_rd
   input_state: {}
-  insn: br.z_riii_rd
   mnemonic: br.z
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -151,8 +151,8 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: riii
+  id: br.z_riii_rd
   input_state: {}
-  insn: br.z_riii_rd
   mnemonic: br.z
   notes: 'taken: rd0 = 0 (hardwired) → condition TRUE, branch taken (always-taken with rd0); rb0=0xFFFF00000000 (RAM entry,
     ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFFFF00000008'
@@ -166,10 +166,10 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: riii
+  id: br.z_riii_rd
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: br.z_riii_rd
   mnemonic: br.z
   notes: 'not-taken: rd1 = 1 (!= 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -182,8 +182,8 @@
   expected_pc: null
   expected_state: {}
   format: riii
+  id: br.z_riii_rd
   input_state: {}
-  insn: br.z_riii_rd
   mnemonic: br.z
   notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
     → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
@@ -197,8 +197,8 @@
   expected_pc: null
   expected_state: null
   format: riii
+  id: br.nz_riii_rd
   input_state: {}
-  insn: br.nz_riii_rd
   mnemonic: br.nz
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -211,10 +211,10 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: riii
+  id: br.nz_riii_rd
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: br.nz_riii_rd
   mnemonic: br.nz
   notes: 'taken: rd1 = 1 (!= 0) → condition TRUE, branch taken; rb0=0xFFFF00000000 (RAM entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFFFF00000008'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -227,8 +227,8 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: riii
+  id: br.nz_riii_rd
   input_state: {}
-  insn: br.nz_riii_rd
   mnemonic: br.nz
   notes: 'not-taken: rd0 = 0 (hardwired) → condition FALSE, branch not taken (always-not-taken with rd0); rb0=0xFFFF00000000,
     expected_pc=rb0+4=0xFFFF00000004'
@@ -242,10 +242,10 @@
   expected_pc: null
   expected_state: {}
   format: riii
+  id: br.nz_riii_rd
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: br.nz_riii_rd
   mnemonic: br.nz
   notes: 'boundary UNMAPPED: rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
     → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
@@ -259,8 +259,8 @@
   expected_pc: null
   expected_state: null
   format: riii
+  id: br.p_riii_rd
   input_state: {}
-  insn: br.p_riii_rd
   mnemonic: br.p
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -273,10 +273,10 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: riii
+  id: br.p_riii_rd
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: br.p_riii_rd
   mnemonic: br.p
   notes: 'taken: rd1 = 1 (> 0) → condition TRUE, branch taken; rb0=0xFFFF00000000 (RAM entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFFFF00000008'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -289,8 +289,8 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: riii
+  id: br.p_riii_rd
   input_state: {}
-  insn: br.p_riii_rd
   mnemonic: br.p
   notes: 'not-taken: rd0 = 0 (hardwired, not > 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -303,10 +303,10 @@
   expected_pc: null
   expected_state: {}
   format: riii
+  id: br.p_riii_rd
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: br.p_riii_rd
   mnemonic: br.p
   notes: 'boundary UNMAPPED: rd1=1(>0/!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
     → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
@@ -320,8 +320,8 @@
   expected_pc: null
   expected_state: null
   format: riii
+  id: br.np_riii_rd
   input_state: {}
-  insn: br.np_riii_rd
   mnemonic: br.np
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1 (non-rd0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -334,8 +334,8 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: riii
+  id: br.np_riii_rd
   input_state: {}
-  insn: br.np_riii_rd
   mnemonic: br.np
   notes: 'taken: rd0 = 0 (hardwired, <= 0) → condition TRUE, branch taken (always-taken with rd0); rb0=0xFFFF00000000 (RAM
     entry, ADR-0004 D2.2), imm=2, expected_pc=rb0+8=0xFFFF00000008'
@@ -349,10 +349,10 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: riii
+  id: br.np_riii_rd
   input_state:
     rd:
       rd1: '0x0000000000000001'
-  insn: br.np_riii_rd
   mnemonic: br.np
   notes: 'not-taken: rd1 = 1 (> 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -365,8 +365,8 @@
   expected_pc: null
   expected_state: {}
   format: riii
+  id: br.np_riii_rd
   input_state: {}
-  insn: br.np_riii_rd
   mnemonic: br.np
   notes: 'boundary UNMAPPED: rd0=0(hardwired) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
     → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
@@ -380,11 +380,11 @@
   expected_pc: null
   expected_state: null
   format: rrii
+  id: br.eq_rrii_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000000'
-  insn: br.eq_rrii_rd
   mnemonic: br.eq
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1, rdhb=2 (non-rd0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -397,10 +397,10 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: rrii
+  id: br.eq_rrii_rd
   input_state:
     rd:
       rd1: '0x0000000000000042'
-  insn: br.eq_rrii_rd
   mnemonic: br.eq
   notes: 'taken: rd1 == rd1 (same register, always equal) → condition TRUE, branch taken; rb0=0xFFFF00000000, imm=2, expected_pc=rb0+8=0xFFFF00000008'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -413,11 +413,11 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: rrii
+  id: br.eq_rrii_rd
   input_state:
     rd:
       rd1: '0x0000000000000042'
       rd2: '0x0000000000000099'
-  insn: br.eq_rrii_rd
   mnemonic: br.eq
   notes: 'not-taken: rd1=0x42 != rd2=0x99 → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -430,10 +430,10 @@
   expected_pc: null
   expected_state: {}
   format: rrii
+  id: br.eq_rrii_rd
   input_state:
     rd:
       rd1: '0x0000000000000042'
-  insn: br.eq_rrii_rd
   mnemonic: br.eq
   notes: 'boundary UNMAPPED: imms12=-0x400 (0xC00), target=rb0+(imm<<2)=0xFFFF00000000+(-0x1000)=0xFFFEFFFFF000 → beyond RAM
     (0xFFFF_00FF_FFFF) → UNMAPPED (0x87)'
@@ -447,11 +447,11 @@
   expected_pc: null
   expected_state: null
   format: rrii
+  id: br.ne_rrii_rd
   input_state:
     rd:
       rd1: '0x0000000000000000'
       rd2: '0x0000000000000000'
-  insn: br.ne_rrii_rd
   mnemonic: br.ne
   notes: 'encoding: word matches opcodes.yaml mask/value, rdha=1, rdhb=2 (non-rd0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -464,11 +464,11 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: rrii
+  id: br.ne_rrii_rd
   input_state:
     rd:
       rd1: '0x0000000000000042'
       rd2: '0x0000000000000099'
-  insn: br.ne_rrii_rd
   mnemonic: br.ne
   notes: 'taken: rd1=0x42 != rd2=0x99 → condition TRUE, branch taken; rb0=0xFFFF00000000, imm=2, expected_pc=rb0+8=0xFFFF00000008'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -481,10 +481,10 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: rrii
+  id: br.ne_rrii_rd
   input_state:
     rd:
       rd1: '0x0000000000000042'
-  insn: br.ne_rrii_rd
   mnemonic: br.ne
   notes: 'not-taken: rd1 == rd1 (same register, always equal) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -497,11 +497,11 @@
   expected_pc: null
   expected_state: {}
   format: rrii
+  id: br.ne_rrii_rd
   input_state:
     rd:
       rd1: '0x0000000000000042'
       rd2: '0x0000000000000099'
-  insn: br.ne_rrii_rd
   mnemonic: br.ne
   notes: 'boundary UNMAPPED: imms12=-0x400 (0xC00), target=rb0+(imm<<2)=0xFFFF00000000+(-0x1000)=0xFFFEFFFFF000 → beyond RAM
     (0xFFFF_00FF_FFFF) → UNMAPPED (0x87)'
@@ -515,10 +515,10 @@
   expected_pc: null
   expected_state: null
   format: riii
+  id: br.z_riii_rb
   input_state:
     rb:
       rb3: '0x0000000000000000'
-  insn: br.z_riii_rb
   mnemonic: br.z
   notes: 'encoding: word matches opcodes.yaml mask/value, rbha=rb3 (non-rb0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -531,10 +531,10 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: riii
+  id: br.z_riii_rb
   input_state:
     rb:
       rb3: '0x0000000000000000'
-  insn: br.z_riii_rb
   mnemonic: br.z
   notes: 'taken: rb3 = 0 → condition TRUE, branch taken; rb0=0xFFFF00000000, imm=2, expected_pc=rb0+8=0xFFFF00000008'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -547,10 +547,10 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: riii
+  id: br.z_riii_rb
   input_state:
     rb:
       rb3: '0x0000000000000001'
-  insn: br.z_riii_rb
   mnemonic: br.z
   notes: 'not-taken: rb3 = 1 (!= 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -563,10 +563,10 @@
   expected_pc: null
   expected_state: {}
   format: riii
+  id: br.z_riii_rb
   input_state:
     rb:
       rb3: '0x0000000000000000'
-  insn: br.z_riii_rb
   mnemonic: br.z
   notes: 'boundary UNMAPPED: rb3=0(==0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
     → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'
@@ -580,10 +580,10 @@
   expected_pc: null
   expected_state: null
   format: riii
+  id: br.nz_riii_rb
   input_state:
     rb:
       rb3: '0x0000000000000000'
-  insn: br.nz_riii_rb
   mnemonic: br.nz
   notes: 'encoding: word matches opcodes.yaml mask/value, rbha=rb3 (non-rb0), imm=2'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -596,10 +596,10 @@
   expected_pc: '0xFFFF00000008'
   expected_state: {}
   format: riii
+  id: br.nz_riii_rb
   input_state:
     rb:
       rb3: '0x0000000000000001'
-  insn: br.nz_riii_rb
   mnemonic: br.nz
   notes: 'taken: rb3 = 1 (!= 0) → condition TRUE, branch taken; rb0=0xFFFF00000000, imm=2, expected_pc=rb0+8=0xFFFF00000008'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -612,10 +612,10 @@
   expected_pc: '0xFFFF00000004'
   expected_state: {}
   format: riii
+  id: br.nz_riii_rb
   input_state:
     rb:
       rb3: '0x0000000000000000'
-  insn: br.nz_riii_rb
   mnemonic: br.nz
   notes: 'not-taken: rb3 = 0 → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
@@ -628,10 +628,10 @@
   expected_pc: null
   expected_state: {}
   format: riii
+  id: br.nz_riii_rb
   input_state:
     rb:
       rb3: '0x0000000000000001'
-  insn: br.nz_riii_rb
   mnemonic: br.nz
   notes: 'boundary UNMAPPED: rb3=1(!=0) → condition TRUE → TAKEN; imms18=-0x1000 (0x3F000), target=rb0+(imm<<2)=0xFFFF00000000+(-0x4000)=0xFFFEFFFFC000
     → below RAM (0xFFFF_0000_0000) → UNMAPPED (0x87)'

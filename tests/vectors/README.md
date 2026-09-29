@@ -6,7 +6,7 @@
   `contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、
   `.tao/knowledge/adr-0004-test-machine.md`），**不从 LLVM 汇编输出或 QEMU 运行结果生成**。
 - 每条向量记录输入状态、编码字、期望输出状态/PC/异常，期望值可回溯到 `spec_cite`。
-- 覆盖率主键为 `(insn, format)`（等价机器键 `(op, ha)`）；M1 scope 以
+- 覆盖率主键为 `id`（对应 `contracts/opcodes.yaml` 的 `id`，**唯一**）；`format` 为普通字段，不入主键。M1 scope 以
   `contracts/opcodes.yaml` 的 `excluded_m1 != true` 为唯一判据（178 条）。
 
 ## 文件
@@ -14,7 +14,7 @@
 | 文件 | 说明 |
 |------|------|
 | `schema.md` | 向量 YAML 字段规范（含 `expected_pc`、class 定义、encoding 豁免、deferred 规则） |
-| `inventory.md` | M1 覆盖矩阵（以 `(insn, format)` 为行，含 `format`/`file` 列与 deferred reason） |
+| `inventory.md` | M1 覆盖矩阵（以 `id` 为行，含 `format`/`file` 列与 deferred reason） |
 | `isa/*.yaml` | 向量数据（由 `TESTCASES-003t`~`007t` 生成） |
 
 ## 校验

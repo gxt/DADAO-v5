@@ -113,7 +113,7 @@ def make_case(mnem, insn, fmt, cls, word, input_state, expected_state,
               expected_pc=None, spec_cite="", notes=""):
     return {
         "mnemonic": mnem,
-        "insn": insn,
+        "id": insn,
         "format": fmt,
         "class": cls,
         "encoding": {"word": hex32(word)},

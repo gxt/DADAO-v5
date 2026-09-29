@@ -305,7 +305,7 @@ def _case(mnem, insn, fmt, cls, enc_word, input_state, expected_state,
           expected_pc=None, spec_cite="", notes=""):
     c = {
         "mnemonic": mnem,
-        "insn": insn,
+        "id": insn,
         "format": fmt,
         "class": cls,
         "encoding": {"word": "0x%08X" % enc_word},

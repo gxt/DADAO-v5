@@ -26,73 +26,55 @@ VECTOR_FILES = {
 
 # Instructions that should remain ILLI (not in 005t scope)
 ILLI_INSTRUCTIONS = {
-    # ld/st/ldm/stm
-    "ld.ub", "ld.uw", "ld.ut", "ld.sb", "ld.sw", "ld.st", "ld.t",
-    "st.b", "st.w", "st.t", "st.t", "ld.o", "st.o",
-    "ldm.ub", "ldm.uw", "ldm.ut", "ldm.sb", "ldm.sw", "ldm.st", "ldm.t",
-    "stm.b", "stm.w", "stm.t", "stm.t", "ldm.o", "stm.o",
-    # RB load/store
-    "ld.o-rb", "st.o-rb", "ldm.o-rb", "stm.o-rb",
-    # RA load/store
-    "ld.o-ra", "st.o-ra", "ldm.o-ra", "stm.o-ra",
-    # RF load/store (excluded_m1)
-    "ld.t-rf", "st.t-rf", "ld.o-rf", "st.o-rf", "ldm.t-rf", "stm.t-rf",
-    "ldm.o-rf", "stm.o-rf",
-    # Branch/jump/call/ret
-    "br.n", "br.nn", "br.z", "br.nz", "br.p", "br.np", "br.eq", "br.ne",
-    "br.z-rb", "br.nz-rb",
-    "jump", "call", "ret",
     # RF conditional assign (excluded_m1)
-    "cs.n-rf", "cs.z-rf", "cs.p-rf", "cs.eq-rf", "cs.ne-rf",
+    "cs.n_rrrr_rf", "cs.z_rrrr_rf", "cs.p_rrrr_rf", "cs.eq_rrrr_rf", "cs.ne_rrrr_rf",
     # RF immediate set (excluded_m1)
-    "set.w-rf",
-    # Float
-    "ftcls", "ft2fo", "ft2ft", "ftroot", "ftlog",
-    "focls", "fo2ft", "fo2fo", "foroot", "folog",
-    "ft2it", "ft2io", "ft2ut", "ft2uo", "it2ft", "io2ft", "ut2ft", "uo2ft",
-    "fo2it", "fo2io", "fo2ut", "fo2uo", "it2fo", "io2fo", "ut2fo", "uo2fo",
-    "ftadd", "ftsub", "ftmul", "ftdiv", "ftrem", "ftsclb", "ftsgnn", "ftsgnj",
-    "foadd", "fosub", "fomul", "fodiv", "forem", "fosclb", "fosgnn", "fosgnj",
-    "ftqcmp", "ftscmp", "foqcmp", "foscmp",
-    # LR/SC (excluded_m1)
-    "lr_nn.o", "lr_nr.o", "lr_an.o", "lr_ar.o",
-    "sc_nn.o", "sc_nr.o", "sc_an.o", "sc_ar.o",
-    # Privileged (excluded_m1)
-    "cfx2rd", "cfx2rc", "cfxld", "cfxst", "escape", "trap",
-    # RB ops (not in 005t scope)
-    "add.so-rb", "sub.so-rb", "add.si-rb", "rela.si-rb",
-    "cmp.uo-rb", "or.w-rb", "andn.w-rb", "set.zw-rb",
-    "rb2rb", "rd2rb", "rb2rd", "rd2ra", "ra2rd",
-    # RF block assign (excluded_m1)
-    "rd2rf", "rf2rd",
-    # Misc
-    "illi", "fence", "swym",
+    "set.w_rwii_rf",
 }
 
 # Instructions that should have real TCG (non-ILLI) implementations
 IMPLEMENTED_INSTRUCTIONS = {
-    "add.uo-rd", "add.so-rd", "sub.uo-rd", "sub.so-rd",
-    "add.ub", "add.sb", "add.uw", "add.sw", "add.ut", "add.st",
-    "sub.ub", "sub.sb", "sub.uw", "sub.sw", "sub.ut", "sub.st",
-    "add.si-rd",
-    "mul.uo-rd", "mul.so-rd",
-    "mul.ub", "mul.sb", "mul.uw", "mul.sw", "mul.ut", "mul.st",
-    "div.ub", "div.sb", "div.uw", "div.sw", "div.ut", "div.st", "div.uo", "div.so",
-    "rem.ub", "rem.sb", "rem.uw", "rem.sw", "rem.ut", "rem.st", "rem.uo", "rem.so",
-    "cmp.ui-rd", "cmp.si-rd",
-    "cmp.ub", "cmp.sb", "cmp.uw", "cmp.sw", "cmp.ut", "cmp.st", "cmp.uo", "cmp.so",
-    "and.o", "or.o", "xor.o", "xnor.o",
-    "and.t", "or.t", "xor.t", "xnor.t",
-    "and.w", "or.w", "xor.w", "xnor.w",
-    "and.b", "or.b", "xor.b", "xnor.b",
-    "shl.uo", "shr.uo", "shr.so",
-    "shl.ut", "shr.ut", "shr.st",
-    "shl.uw", "shr.uw", "shr.sw",
-    "shl.ub", "shr.ub", "shr.sb",
-    "ext.uo", "ext.so", "ext.ut", "ext.st", "ext.uw", "ext.sw", "ext.ub", "ext.sb",
-    "cs.n-rd", "cs.z-rd", "cs.p-rd", "cs.eq-rd", "cs.ne-rd",
-    "set.zw-rd", "set.ow-rd", "or.w-rd", "andn.w-rd",
-    "rd2rd",
+    # reg-arith (rd forms)
+    "add.uo_rrrr_rd", "add.so_rrrr_rd", "sub.uo_rrrr_rd", "sub.so_rrrr_rd",
+    "add.ub_orrr_rd", "add.sb_orrr_rd", "add.uw_orrr_rd", "add.sw_orrr_rd",
+    "add.ut_orrr_rd", "add.st_orrr_rd",
+    "sub.ub_orrr_rd", "sub.sb_orrr_rd", "sub.uw_orrr_rd", "sub.sw_orrr_rd",
+    "sub.ut_orrr_rd", "sub.st_orrr_rd",
+    "add.si_riii_rd",
+    "mul.uo_rrrr_rd", "mul.so_rrrr_rd",
+    "mul.ub_orrr_rd", "mul.sb_orrr_rd", "mul.uw_orrr_rd", "mul.sw_orrr_rd",
+    "mul.ut_orrr_rd", "mul.st_orrr_rd",
+    "div.ub_orrr_rd", "div.sb_orrr_rd", "div.uw_orrr_rd", "div.sw_orrr_rd",
+    "div.ut_orrr_rd", "div.st_orrr_rd", "div.uo_orrr_rd", "div.so_orrr_rd",
+    "rem.ub_orrr_rd", "rem.sb_orrr_rd", "rem.uw_orrr_rd", "rem.sw_orrr_rd",
+    "rem.ut_orrr_rd", "rem.st_orrr_rd", "rem.uo_orrr_rd", "rem.so_orrr_rd",
+    # reg-compare
+    "cmp.ui_rrii_rd", "cmp.si_rrii_rd",
+    "cmp.ub_orrr_rd", "cmp.sb_orrr_rd", "cmp.uw_orrr_rd", "cmp.sw_orrr_rd",
+    "cmp.ut_orrr_rd", "cmp.st_orrr_rd", "cmp.uo_orrr_rd", "cmp.so_orrr_rd",
+    # reg-logic
+    "and.o_orrr_rd", "or.o_orrr_rd", "xor.o_orrr_rd", "xnor.o_orrr_rd",
+    "and.t_orrr_rd", "or.t_orrr_rd", "xor.t_orrr_rd", "xnor.t_orrr_rd",
+    "and.w_orrr_rd", "or.w_orrr_rd", "xor.w_orrr_rd", "xnor.w_orrr_rd",
+    "and.b_orrr_rd", "or.b_orrr_rd", "xor.b_orrr_rd", "xnor.b_orrr_rd",
+    # reg-shift-extend
+    "shl.uo_orri_rd", "shl.uo_orrr_rd", "shr.uo_orri_rd", "shr.uo_orrr_rd", "shr.so_orri_rd", "shr.so_orrr_rd",
+    "shl.ut_orri_rd", "shl.ut_orrr_rd", "shr.ut_orri_rd", "shr.ut_orrr_rd", "shr.st_orri_rd", "shr.st_orrr_rd",
+    "shl.uw_orri_rd", "shl.uw_orrr_rd", "shr.uw_orri_rd", "shr.uw_orrr_rd", "shr.sw_orri_rd", "shr.sw_orrr_rd",
+    "shl.ub_orri_rd", "shl.ub_orrr_rd", "shr.ub_orri_rd", "shr.ub_orrr_rd", "shr.sb_orri_rd", "shr.sb_orrr_rd",
+    "ext.uo_orri_rd", "ext.uo_orrr_rd", "ext.so_orri_rd", "ext.so_orrr_rd",
+    "ext.ut_orri_rd", "ext.ut_orrr_rd", "ext.st_orri_rd", "ext.st_orrr_rd",
+    "ext.uw_orri_rd", "ext.uw_orrr_rd", "ext.sw_orri_rd", "ext.sw_orrr_rd",
+    "ext.ub_orri_rd", "ext.ub_orrr_rd", "ext.sb_orri_rd", "ext.sb_orrr_rd",
+    # reg-cond-assign
+    "cs.n_rrrr_rd", "cs.z_rrrr_rd", "cs.p_rrrr_rd", "cs.eq_rrrr_rd", "cs.ne_rrrr_rd",
+    # reg-imm-block (rd forms)
+    "set.zw_rwii_rd", "set.ow_rwii_rd", "or.w_rwii_rd", "andn.w_rwii_rd",
+    "rd2rd_orri_rd",
+    # reg-imm-block (rb/ra forms — real TCG in QEMU)
+    "add.si_riii_rb", "rela.si_riii_rb", "add.so_orrr_rb", "sub.so_orrr_rb",
+    "cmp.uo_orrr_rb", "or.w_rwii_rb", "andn.w_rwii_rb", "set.zw_rwii_rb",
+    "ra2rd_orri_ra", "rb2rb_orri_rb", "rb2rd_orri_rb", "rd2ra_orri_ra", "rd2rb_orri_rb",
 }
 
 
@@ -106,11 +88,11 @@ def extract_insns_from_vector(filepath):
     insns = set()
     if isinstance(data, list):
         for entry in data:
-            if isinstance(entry, dict) and "insn" in entry:
+            if isinstance(entry, dict) and "id" in entry:
                 insns.add(entry["id"])
     elif isinstance(data, dict):
         for entry in data.get("vectors", data.get("tests", [])):
-            if isinstance(entry, dict) and "insn" in entry:
+            if isinstance(entry, dict) and "id" in entry:
                 insns.add(entry["id"])
     return insns
 
@@ -135,10 +117,18 @@ def insn_to_trans_names(insn):
 
 
 def parse_trans_functions(translate_c_path):
-    """Parse translate.c and extract trans_* function bodies.
+    """Parse translate.c and its included .c.inc files to extract trans_* function bodies.
     Returns dict: trans_name -> (body_text, is_illi_stub)"""
+    # Collect all source content: translate.c + insn_trans/*.c.inc
+    insns_trans_dir = os.path.join(os.path.dirname(translate_c_path), "insn_trans")
+    sources = ""
+    if os.path.exists(insns_trans_dir):
+        for fn in sorted(os.listdir(insns_trans_dir)):
+            if fn.endswith(".c.inc"):
+                with open(os.path.join(insns_trans_dir, fn)) as f:
+                    sources += f.read() + "\n"
     with open(translate_c_path) as f:
-        content = f.read()
+        sources += f.read()
 
     # Find all trans_* functions and their bodies
     # Pattern: static bool trans_XXX(...) { ... }
@@ -148,7 +138,7 @@ def parse_trans_functions(translate_c_path):
     )
 
     functions = {}
-    for match in pattern.finditer(content):
+    for match in pattern.finditer(sources):
         full_header = match.group(1)
         trans_name = match.group(2)
         body = match.group(3)

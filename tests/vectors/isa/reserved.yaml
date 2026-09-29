@@ -1,6 +1,6 @@
 # 保留编码 → UNDI 向量（TESTCASES-008t，方案 A）
 # 手写（无生成器）；encoding.reserved: true 标记 QFC/子表空白单元格
-# 不参与 (insn, format) 覆盖率门控（无身份）；UNDI 覆盖由 inventory.md 登记
+# 不参与 id 覆盖率门控（无身份）；UNDI 覆盖由 inventory.md 登记
 
 # ── Case 0: QFC 主表 op=0x08（0000-1xxx 整行 reserved）──
 - class: legality
@@ -8,7 +8,7 @@
     word: "0x08040001"
     reserved: true
   mnemonic: null
-  insn: null
+  id: null
   format: null
   input_state: {}
   expected_state: null
@@ -24,7 +24,7 @@
     word: "0x1B040001"
     reserved: true
   mnemonic: null
-  insn: null
+  id: null
   format: null
   input_state: {}
   expected_state: null

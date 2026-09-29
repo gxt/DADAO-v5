@@ -119,7 +119,7 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
              expected_pc, mismatches).
     Only returns non-None for fields that can be recomputed.
     """
-    insn = case.get("insn", "")
+    insn = case.get("id", "")
     mnemonic = case.get("mnemonic", "")
     fmt = case.get("format", "")
     cls = case.get("class", "")
@@ -1145,7 +1145,7 @@ def audit_file(filepath, by_key, verbose=False):
             continue  # Skip reserved
         status = case.get("status", "active")
         cls = case.get("class", "")
-        insn = case.get("insn", "")
+        insn = case.get("id", "")
         mnemonic = case.get("mnemonic", "")
         fmt = case.get("format", "")
 

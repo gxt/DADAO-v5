@@ -448,7 +448,7 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
 
         if verbose:
             case_class = case.get("class", "?")
-            insn = case.get("insn", "?")
+            insn = case.get("id", "?")
             mnemonic = case.get("mnemonic", "?")
             print(f"  Case: {case_class} {mnemonic} ({insn})")
             print(f"  Exit code: 0x{exit_code:02X}" if exit_code >= 0 else f"  Exit code: TIMEOUT")

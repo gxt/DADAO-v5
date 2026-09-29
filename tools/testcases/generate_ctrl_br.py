@@ -70,7 +70,7 @@ def _case(mnem, insn, fmt, cls, word, inp, out, fault=None,
           expected_pc=None, spec_cite="", notes=""):
     return {
         "mnemonic": mnem,
-        "insn": insn,
+        "id": insn,
         "format": fmt,
         "class": cls,
         "encoding": {"word": _hex8(word)},

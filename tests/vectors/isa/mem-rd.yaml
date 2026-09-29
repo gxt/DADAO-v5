@@ -4,7 +4,7 @@
 # Each case has spec_cite and notes for traceability.
 
 - mnemonic: ld.ub
-  insn: ld.ub_rrii_rd
+  id: ld.ub_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -20,7 +20,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: ld.ub
-  insn: ld.ub_rrii_rd
+  id: ld.ub_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -34,7 +34,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ld.ub
-  insn: ld.ub_rrii_rd
+  id: ld.ub_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -50,7 +50,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ld.ub
-  insn: ld.ub_rrii_rd
+  id: ld.ub_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -77,7 +77,7 @@
   notes: 'ld.ub: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     imms12=0x100'
 - mnemonic: ld.ub
-  insn: ld.ub_rrii_rd
+  id: ld.ub_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -104,7 +104,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0x00000000000000EF,
     imms12=0x0'
 - mnemonic: ld.uw
-  insn: ld.uw_rrii_rd
+  id: ld.uw_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -120,7 +120,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: ld.uw
-  insn: ld.uw_rrii_rd
+  id: ld.uw_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -134,7 +134,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ld.uw
-  insn: ld.uw_rrii_rd
+  id: ld.uw_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -151,7 +151,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000001 (imms12=1), align=2B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ld.uw
-  insn: ld.uw_rrii_rd
+  id: ld.uw_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -167,7 +167,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ld.uw
-  insn: ld.uw_rrii_rd
+  id: ld.uw_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -194,7 +194,7 @@
   notes: 'ld.uw: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     imms12=0x100'
 - mnemonic: ld.uw
-  insn: ld.uw_rrii_rd
+  id: ld.uw_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -221,7 +221,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0x000000000000BEEF,
     imms12=0x0'
 - mnemonic: ld.ut
-  insn: ld.ut_rrii_rd
+  id: ld.ut_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -237,7 +237,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: ld.ut
-  insn: ld.ut_rrii_rd
+  id: ld.ut_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -251,7 +251,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ld.ut
-  insn: ld.ut_rrii_rd
+  id: ld.ut_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -268,7 +268,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000003 (imms12=3), align=4B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ld.ut
-  insn: ld.ut_rrii_rd
+  id: ld.ut_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -284,7 +284,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ld.ut
-  insn: ld.ut_rrii_rd
+  id: ld.ut_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -311,7 +311,7 @@
   notes: 'ld.ut: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     imms12=0x100'
 - mnemonic: ld.ut
-  insn: ld.ut_rrii_rd
+  id: ld.ut_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -338,7 +338,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
     imms12=0x0'
 - mnemonic: ld.sb
-  insn: ld.sb_rrii_rd
+  id: ld.sb_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -354,7 +354,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: ld.sb
-  insn: ld.sb_rrii_rd
+  id: ld.sb_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -368,7 +368,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ld.sb
-  insn: ld.sb_rrii_rd
+  id: ld.sb_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -384,7 +384,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ld.sb
-  insn: ld.sb_rrii_rd
+  id: ld.sb_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -411,7 +411,7 @@
   notes: 'ld.sb: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     imms12=0x100'
 - mnemonic: ld.sb
-  insn: ld.sb_rrii_rd
+  id: ld.sb_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -438,7 +438,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0xFFFFFFFFFFFFFFEF,
     imms12=0x0'
 - mnemonic: ld.sw
-  insn: ld.sw_rrii_rd
+  id: ld.sw_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -454,7 +454,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: ld.sw
-  insn: ld.sw_rrii_rd
+  id: ld.sw_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -468,7 +468,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ld.sw
-  insn: ld.sw_rrii_rd
+  id: ld.sw_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -485,7 +485,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000001 (imms12=1), align=2B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ld.sw
-  insn: ld.sw_rrii_rd
+  id: ld.sw_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -501,7 +501,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ld.sw
-  insn: ld.sw_rrii_rd
+  id: ld.sw_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -528,7 +528,7 @@
   notes: 'ld.sw: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     imms12=0x100'
 - mnemonic: ld.sw
-  insn: ld.sw_rrii_rd
+  id: ld.sw_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -555,7 +555,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0xFFFFFFFFFFFFBEEF,
     imms12=0x0'
 - mnemonic: ld.st
-  insn: ld.st_rrii_rd
+  id: ld.st_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -571,7 +571,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: ld.st
-  insn: ld.st_rrii_rd
+  id: ld.st_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -585,7 +585,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ld.st
-  insn: ld.st_rrii_rd
+  id: ld.st_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -602,7 +602,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000003 (imms12=3), align=4B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ld.st
-  insn: ld.st_rrii_rd
+  id: ld.st_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -618,7 +618,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ld.st
-  insn: ld.st_rrii_rd
+  id: ld.st_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -645,7 +645,7 @@
   notes: 'ld.st: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     imms12=0x100'
 - mnemonic: ld.st
-  insn: ld.st_rrii_rd
+  id: ld.st_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -672,7 +672,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0xFFFFFFFFDEADBEEF,
     imms12=0x0'
 - mnemonic: st.b
-  insn: st.b_rrii_rd
+  id: st.b_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -688,7 +688,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: st.b
-  insn: st.b_rrii_rd
+  id: st.b_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -702,7 +702,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: st.b
-  insn: st.b_rrii_rd
+  id: st.b_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -718,7 +718,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: st.b
-  insn: st.b_rrii_rd
+  id: st.b_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -744,7 +744,7 @@
   notes: 'st.b: mem[0x0000FFFF00000100] <- rd1=0x0000000000000042, stored=0x0000000000000042,
     imms12=0x100'
 - mnemonic: st.b
-  insn: st.b_rrii_rd
+  id: st.b_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -770,7 +770,7 @@
   notes: 'boundary: mem[0x0000FFFF00000000] <- rd1=0x00000000DEADBEEF, stored=0x00000000000000EF,
     imms12=0x0'
 - mnemonic: st.w
-  insn: st.w_rrii_rd
+  id: st.w_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -786,7 +786,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: st.w
-  insn: st.w_rrii_rd
+  id: st.w_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -800,7 +800,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: st.w
-  insn: st.w_rrii_rd
+  id: st.w_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -817,7 +817,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000001 (imms12=1), align=2B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: st.w
-  insn: st.w_rrii_rd
+  id: st.w_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -833,7 +833,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: st.w
-  insn: st.w_rrii_rd
+  id: st.w_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -859,7 +859,7 @@
   notes: 'st.w: mem[0x0000FFFF00000100] <- rd1=0x0000000000000042, stored=0x0000000000000042,
     imms12=0x100'
 - mnemonic: st.w
-  insn: st.w_rrii_rd
+  id: st.w_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -885,7 +885,7 @@
   notes: 'boundary: mem[0x0000FFFF00000000] <- rd1=0x00000000DEADBEEF, stored=0x000000000000BEEF,
     imms12=0x0'
 - mnemonic: st.t
-  insn: st.t_rrii_rd
+  id: st.t_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -901,7 +901,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: st.t
-  insn: st.t_rrii_rd
+  id: st.t_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -915,7 +915,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: st.t
-  insn: st.t_rrii_rd
+  id: st.t_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -932,7 +932,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000003 (imms12=3), align=4B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: st.t
-  insn: st.t_rrii_rd
+  id: st.t_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -948,7 +948,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: st.t
-  insn: st.t_rrii_rd
+  id: st.t_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -974,7 +974,7 @@
   notes: 'st.t: mem[0x0000FFFF00000100] <- rd1=0x0000000000000042, stored=0x0000000000000042,
     imms12=0x100'
 - mnemonic: st.t
-  insn: st.t_rrii_rd
+  id: st.t_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -1000,7 +1000,7 @@
   notes: 'boundary: mem[0x0000FFFF00000000] <- rd1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
     imms12=0x0'
 - mnemonic: ld.o
-  insn: ld.o_rrii_rd
+  id: ld.o_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -1016,7 +1016,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: ld.o
-  insn: ld.o_rrii_rd
+  id: ld.o_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -1030,7 +1030,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ld.o
-  insn: ld.o_rrii_rd
+  id: ld.o_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -1047,7 +1047,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000007 (imms12=7), align=8B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ld.o
-  insn: ld.o_rrii_rd
+  id: ld.o_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -1063,7 +1063,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ld.o
-  insn: ld.o_rrii_rd
+  id: ld.o_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -1090,7 +1090,7 @@
   notes: 'ld.o: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     imms12=0x100'
 - mnemonic: ld.o
-  insn: ld.o_rrii_rd
+  id: ld.o_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -1117,7 +1117,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
     imms12=0x0'
 - mnemonic: st.o
-  insn: st.o_rrii_rd
+  id: st.o_rrii_rd
   format: rrii
   class: encoding
   encoding:
@@ -1133,7 +1133,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
 - mnemonic: st.o
-  insn: st.o_rrii_rd
+  id: st.o_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -1147,7 +1147,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: st.o
-  insn: st.o_rrii_rd
+  id: st.o_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -1164,7 +1164,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000007 (imms12=7), align=8B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: st.o
-  insn: st.o_rrii_rd
+  id: st.o_rrii_rd
   format: rrii
   class: legality
   encoding:
@@ -1180,7 +1180,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: st.o
-  insn: st.o_rrii_rd
+  id: st.o_rrii_rd
   format: rrii
   class: semantic
   encoding:
@@ -1206,7 +1206,7 @@
   notes: 'st.o: mem[0x0000FFFF00000100] <- rd1=0x0000000000000042, stored=0x0000000000000042,
     imms12=0x100'
 - mnemonic: st.o
-  insn: st.o_rrii_rd
+  id: st.o_rrii_rd
   format: rrii
   class: boundary
   encoding:
@@ -1232,7 +1232,7 @@
   notes: 'boundary: mem[0x0000FFFF00000000] <- rd1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
     imms12=0x0'
 - mnemonic: ldm.ub
-  insn: ldm.ub_rrri_rd
+  id: ldm.ub_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -1248,7 +1248,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: ldm.ub
-  insn: ldm.ub_rrri_rd
+  id: ldm.ub_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1262,7 +1262,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ldm.ub
-  insn: ldm.ub_rrri_rd
+  id: ldm.ub_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1278,7 +1278,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ldm.ub
-  insn: ldm.ub_rrri_rd
+  id: ldm.ub_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -1306,7 +1306,7 @@
   notes: 'ldm.ub: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: ldm.ub
-  insn: ldm.ub_rrri_rd
+  id: ldm.ub_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -1334,7 +1334,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0x00000000000000EF,
     zero offset, immu6=1'
 - mnemonic: ldm.uw
-  insn: ldm.uw_rrri_rd
+  id: ldm.uw_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -1350,7 +1350,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: ldm.uw
-  insn: ldm.uw_rrri_rd
+  id: ldm.uw_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1364,7 +1364,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ldm.uw
-  insn: ldm.uw_rrri_rd
+  id: ldm.uw_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1383,7 +1383,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000001 (rd2 offset=1), align=2B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ldm.uw
-  insn: ldm.uw_rrri_rd
+  id: ldm.uw_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1399,7 +1399,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ldm.uw
-  insn: ldm.uw_rrri_rd
+  id: ldm.uw_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -1427,7 +1427,7 @@
   notes: 'ldm.uw: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: ldm.uw
-  insn: ldm.uw_rrri_rd
+  id: ldm.uw_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -1455,7 +1455,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0x000000000000BEEF,
     zero offset, immu6=1'
 - mnemonic: ldm.ut
-  insn: ldm.ut_rrri_rd
+  id: ldm.ut_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -1471,7 +1471,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: ldm.ut
-  insn: ldm.ut_rrri_rd
+  id: ldm.ut_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1485,7 +1485,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ldm.ut
-  insn: ldm.ut_rrri_rd
+  id: ldm.ut_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1504,7 +1504,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000003 (rd2 offset=3), align=4B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ldm.ut
-  insn: ldm.ut_rrri_rd
+  id: ldm.ut_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1520,7 +1520,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ldm.ut
-  insn: ldm.ut_rrri_rd
+  id: ldm.ut_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -1548,7 +1548,7 @@
   notes: 'ldm.ut: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: ldm.ut
-  insn: ldm.ut_rrri_rd
+  id: ldm.ut_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -1576,7 +1576,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
     zero offset, immu6=1'
 - mnemonic: ldm.sb
-  insn: ldm.sb_rrri_rd
+  id: ldm.sb_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -1592,7 +1592,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: ldm.sb
-  insn: ldm.sb_rrri_rd
+  id: ldm.sb_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1606,7 +1606,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ldm.sb
-  insn: ldm.sb_rrri_rd
+  id: ldm.sb_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1622,7 +1622,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ldm.sb
-  insn: ldm.sb_rrri_rd
+  id: ldm.sb_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -1650,7 +1650,7 @@
   notes: 'ldm.sb: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: ldm.sb
-  insn: ldm.sb_rrri_rd
+  id: ldm.sb_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -1678,7 +1678,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0xFFFFFFFFFFFFFFEF,
     zero offset, immu6=1'
 - mnemonic: ldm.sw
-  insn: ldm.sw_rrri_rd
+  id: ldm.sw_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -1694,7 +1694,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: ldm.sw
-  insn: ldm.sw_rrri_rd
+  id: ldm.sw_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1708,7 +1708,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ldm.sw
-  insn: ldm.sw_rrri_rd
+  id: ldm.sw_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1727,7 +1727,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000001 (rd2 offset=1), align=2B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ldm.sw
-  insn: ldm.sw_rrri_rd
+  id: ldm.sw_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1743,7 +1743,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ldm.sw
-  insn: ldm.sw_rrri_rd
+  id: ldm.sw_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -1771,7 +1771,7 @@
   notes: 'ldm.sw: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: ldm.sw
-  insn: ldm.sw_rrri_rd
+  id: ldm.sw_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -1799,7 +1799,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0xFFFFFFFFFFFFBEEF,
     zero offset, immu6=1'
 - mnemonic: ldm.st
-  insn: ldm.st_rrri_rd
+  id: ldm.st_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -1815,7 +1815,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: ldm.st
-  insn: ldm.st_rrri_rd
+  id: ldm.st_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1829,7 +1829,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ldm.st
-  insn: ldm.st_rrri_rd
+  id: ldm.st_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1848,7 +1848,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000003 (rd2 offset=3), align=4B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ldm.st
-  insn: ldm.st_rrri_rd
+  id: ldm.st_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1864,7 +1864,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ldm.st
-  insn: ldm.st_rrri_rd
+  id: ldm.st_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -1892,7 +1892,7 @@
   notes: 'ldm.st: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: ldm.st
-  insn: ldm.st_rrri_rd
+  id: ldm.st_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -1920,7 +1920,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0xFFFFFFFFDEADBEEF,
     zero offset, immu6=1'
 - mnemonic: stm.b
-  insn: stm.b_rrri_rd
+  id: stm.b_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -1936,7 +1936,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: stm.b
-  insn: stm.b_rrri_rd
+  id: stm.b_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1950,7 +1950,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: stm.b
-  insn: stm.b_rrri_rd
+  id: stm.b_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -1966,7 +1966,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: stm.b
-  insn: stm.b_rrri_rd
+  id: stm.b_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -1995,7 +1995,7 @@
   notes: 'stm.b: mem[0x0000FFFF00000100] <- rd1=0x0000000000000042, stored=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: stm.b
-  insn: stm.b_rrri_rd
+  id: stm.b_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -2024,7 +2024,7 @@
   notes: 'boundary: mem[0x0000FFFF00000000] <- rd1=0x00000000DEADBEEF, stored=0x00000000000000EF,
     zero offset, immu6=1'
 - mnemonic: stm.w
-  insn: stm.w_rrri_rd
+  id: stm.w_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -2040,7 +2040,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: stm.w
-  insn: stm.w_rrri_rd
+  id: stm.w_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2054,7 +2054,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: stm.w
-  insn: stm.w_rrri_rd
+  id: stm.w_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2073,7 +2073,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000001 (rd2 offset=1), align=2B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: stm.w
-  insn: stm.w_rrri_rd
+  id: stm.w_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2089,7 +2089,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: stm.w
-  insn: stm.w_rrri_rd
+  id: stm.w_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -2118,7 +2118,7 @@
   notes: 'stm.w: mem[0x0000FFFF00000100] <- rd1=0x0000000000000042, stored=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: stm.w
-  insn: stm.w_rrri_rd
+  id: stm.w_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -2147,7 +2147,7 @@
   notes: 'boundary: mem[0x0000FFFF00000000] <- rd1=0x00000000DEADBEEF, stored=0x000000000000BEEF,
     zero offset, immu6=1'
 - mnemonic: stm.t
-  insn: stm.t_rrri_rd
+  id: stm.t_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -2163,7 +2163,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: stm.t
-  insn: stm.t_rrri_rd
+  id: stm.t_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2177,7 +2177,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: stm.t
-  insn: stm.t_rrri_rd
+  id: stm.t_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2196,7 +2196,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000003 (rd2 offset=3), align=4B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: stm.t
-  insn: stm.t_rrri_rd
+  id: stm.t_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2212,7 +2212,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: stm.t
-  insn: stm.t_rrri_rd
+  id: stm.t_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -2241,7 +2241,7 @@
   notes: 'stm.t: mem[0x0000FFFF00000100] <- rd1=0x0000000000000042, stored=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: stm.t
-  insn: stm.t_rrri_rd
+  id: stm.t_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -2270,7 +2270,7 @@
   notes: 'boundary: mem[0x0000FFFF00000000] <- rd1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
     zero offset, immu6=1'
 - mnemonic: ldm.o
-  insn: ldm.o_rrri_rd
+  id: ldm.o_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -2286,7 +2286,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: ldm.o
-  insn: ldm.o_rrri_rd
+  id: ldm.o_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2300,7 +2300,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: ldm.o
-  insn: ldm.o_rrri_rd
+  id: ldm.o_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2319,7 +2319,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000007 (rd2 offset=7), align=8B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: ldm.o
-  insn: ldm.o_rrri_rd
+  id: ldm.o_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2335,7 +2335,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: ldm.o
-  insn: ldm.o_rrri_rd
+  id: ldm.o_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -2363,7 +2363,7 @@
   notes: 'ldm.o: rd1 <- mem[0x0000FFFF00000100] = 0x0000000000000042, result=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: ldm.o
-  insn: ldm.o_rrri_rd
+  id: ldm.o_rrri_rd
   format: rrri
   class: boundary
   encoding:
@@ -2391,7 +2391,7 @@
   notes: 'boundary: rd1 <- mem[0x0000FFFF00000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
     zero offset, immu6=1'
 - mnemonic: stm.o
-  insn: stm.o_rrri_rd
+  id: stm.o_rrri_rd
   format: rrri
   class: encoding
   encoding:
@@ -2407,7 +2407,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
 - mnemonic: stm.o
-  insn: stm.o_rrri_rd
+  id: stm.o_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2421,7 +2421,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)
 - mnemonic: stm.o
-  insn: stm.o_rrri_rd
+  id: stm.o_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2440,7 +2440,7 @@
   notes: 'legality MALIGN: EA=0x0000FFFF00000007 (rd2 offset=7), align=8B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules data_malign'
 - mnemonic: stm.o
-  insn: stm.o_rrri_rd
+  id: stm.o_rrri_rd
   format: rrri
   class: legality
   encoding:
@@ -2456,7 +2456,7 @@
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
 - mnemonic: stm.o
-  insn: stm.o_rrri_rd
+  id: stm.o_rrri_rd
   format: rrri
   class: semantic
   encoding:
@@ -2485,7 +2485,7 @@
   notes: 'stm.o: mem[0x0000FFFF00000100] <- rd1=0x0000000000000042, stored=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: stm.o
-  insn: stm.o_rrri_rd
+  id: stm.o_rrri_rd
   format: rrri
   class: boundary
   encoding:

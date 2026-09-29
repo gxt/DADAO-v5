@@ -5,7 +5,7 @@
 # F6: illi encoding/semantic exempt (always ILLI), coverage via legality
 # F10: swym/fence encoding words verified against opcodes.yaml mask/value
 - mnemonic: swym
-  insn: swym_oiii_imm
+  id: swym_oiii_imm
   format: oiii
   class: encoding
   encoding:
@@ -20,7 +20,7 @@
   notes: 'encoding: swym 0 (nop), word=0x00080000; opcodes.yaml mask=0xFFFC0000 value=0x00080000; no fault, no architectural
     state change'
 - mnemonic: swym
-  insn: swym_oiii_imm
+  id: swym_oiii_imm
   format: oiii
   class: semantic
   encoding:
@@ -34,7 +34,7 @@
   spec_cite: SimRISC-11 §占位指令
   notes: 'semantic: swym 0 (nop); 除 PC 自增外无任何架构副作用（§7.1）; expected_state={}: no registers/memory changed'
 - mnemonic: illi
-  insn: illi_oiii_imm
+  id: illi_oiii_imm
   format: oiii
   class: legality
   encoding:
@@ -49,7 +49,7 @@
   notes: illi always triggers ILLI (§9.1); encoding/semantic exempt per F6 (schema.md §encoding 类对恒 fault 指令的豁免); this word=0x00000000
     is also §8.3 all-zero word (illi 0); coverage for (illi, oiii) satisfied by this legality case
 - mnemonic: fence
-  insn: fence_oiii_imm
+  id: fence_oiii_imm
   format: oiii
   class: encoding
   encoding:
@@ -64,7 +64,7 @@
   notes: 'encoding: fence 0 (barrier type=0, all SBZ bits zero); opcodes.yaml mask=0xFFFC0000 value=0x00040000; immu18=0 →
     bits[17:4] all zero (SBZ satisfied); nop-like, no architectural state change'
 - mnemonic: fence
-  insn: fence_oiii_imm
+  id: fence_oiii_imm
   format: oiii
   class: legality
   encoding:
@@ -79,7 +79,7 @@
   notes: 'fence with SBZ non-zero: immu18_hi=0x01 (bits[17:12]≠0); legality_rules.yaml rule=sbz_nonzero: SBZ (Should Be Zero)
     fields non-zero → ILLI; fence bits[17:4] are SBZ per §7.3; this word=0x00050000 has bits[17:4]=0x001≠0'
 - mnemonic: fence
-  insn: fence_oiii_imm
+  id: fence_oiii_imm
   format: oiii
   class: semantic
   encoding:

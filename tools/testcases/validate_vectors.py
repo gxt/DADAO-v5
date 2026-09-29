@@ -5,13 +5,13 @@ Spec-first：所有判定依据 `contracts/opcodes.yaml`、`contracts/legality_r
 与 `tests/vectors/schema.md`；**不**读取 LLVM/QEMU 产物，不从实现反推。
 
 检查项（对应 `TESTCASES-002t` 的校验内容 1–14）：
-   1. 必填字段存在（`mnemonic`/`insn`/`format`/`class`/`encoding`/`input_state`/`spec_cite`）
+   1. 必填字段存在（`mnemonic`/`id`/`format`/`class`/`encoding`/`input_state`/`spec_cite`）
    2. `class` ∈ {encoding, legality, semantic, boundary, overlap}
    3. `status` ∈ {active, deferred}
    4. deferred 一致性（`expected_state`/`expected_pc` 为 null，`deferred_reason` 非空）
    5. `expected_fault` ∈ {null, ILLI, UNDI, MALIGN, IALIGN, RASOF, RASUF, UNMAPPED}
    6. `encoding.word` 合法 hex 且 ≤ 0xFFFFFFFF
-   7. `(insn, format)` 存在于 `opcodes.yaml` 的 M1 身份集
+   7. `id` 存在于 `opcodes.yaml` 的 M1 身份集
    8. `encoding.word` 与对应 opcode 的 `(word & mask) == value` 一致
    9. 覆盖率门控（R2：inventory 的 M1 行集 == opcodes M1 身份集，且每行声明覆盖）
   10. active semantic/boundary 必须有 `expected_state`；`rd`/`rb` 不得出现 `rd0`/`rb0`
@@ -46,7 +46,7 @@ ALLOWED_CLASSES = {"encoding", "legality", "semantic", "boundary", "overlap"}
 ALLOWED_STATUS = {"active", "deferred"}
 ALLOWED_FAULTS = {None, "ILLI", "UNDI", "MALIGN", "IALIGN",
                   "RASOF", "RASUF", "UNMAPPED"}
-REQUIRED_FIELDS = ["mnemonic", "insn", "format", "class", "encoding",
+REQUIRED_FIELDS = ["mnemonic", "id", "format", "class", "encoding",
                    "input_state", "spec_cite"]
 
 # ADR-0004 D1：RAM 窗口（16 MiB）与 48-bit 有效地址上限
@@ -76,7 +76,7 @@ def _unquote(cell):
 
 
 def load_opcodes(path):
-    """返回 (m1_records, by_key, duplicate_keys, all_records)。
+    """返回 (m1_records, by_id, duplicate_ids, all_records)。
     M1 判据 excluded_m1 != true；all_records 含全部 256 条（含 excluded_m1）。
     """
     with open(path) as fh:
@@ -84,14 +84,14 @@ def load_opcodes(path):
     if not isinstance(records, list):
         raise ValueError("opcodes.yaml top-level must be a list")
     m1 = [r for r in records if not r.get("excluded_m1")]
-    by_key = {}
+    by_id = {}
     dups = []
     for rec in m1:
-        key = (rec["id"], rec["format"])
-        if key in by_key:
-            dups.append(key)
-        by_key[key] = rec
-    return m1, by_key, dups, records
+        rid = rec["id"]
+        if rid in by_id:
+            dups.append(rid)
+        by_id[rid] = rec
+    return m1, by_id, dups, records
 
 
 def parse_inventory(path):
@@ -106,7 +106,7 @@ def parse_inventory(path):
                 continue
             cells = [c.strip() for c in line.strip("|").split("|")]
             low = [c.lower() for c in cells]
-            if ("id" in low or "insn" in low) and "format" in low:
+            if "id" in low and "format" in low:
                 header = low
                 continue
             if header is None:
@@ -194,7 +194,7 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                 errors.append("%s: missing required field '%s'" % (tag, field))
 
         mnem = case.get("mnemonic")
-        insn = case.get("insn")
+        case_id = case.get("id")
         fmt = case.get("format")
         cls = case.get("class")
         status = case.get("status", "active")
@@ -222,13 +222,13 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
         is_reserved = isinstance(encoding, dict) and \
             encoding.get("reserved") is True
 
-        # 7. (insn, format) 必须存在于 M1 身份集（保留编码已豁免）
+        # 7. id 必须存在于 M1 身份集（保留编码已豁免）
         key = None
-        if not is_reserved and isinstance(insn, str) and isinstance(fmt, str):
-            key = (insn, fmt)
+        if not is_reserved and isinstance(case_id, str):
+            key = case_id
             if key not in m1_keys:
-                errors.append("%s: (insn, format) = (%s, %s) is not an M1 "
-                              "identity in opcodes.yaml" % (tag, insn, fmt))
+                errors.append("%s: id = '%s' is not an M1 identity in "
+                              "opcodes.yaml" % (tag, case_id))
 
         # 6/8. encoding.word 合法 hex、范围、mask/value 一致
         word = None
@@ -262,7 +262,7 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                                 % (tag, word, key, mask, value))
 
         # ── 保留编码分支（TESTCASES-008t 方案 A）──────────────────
-        # encoding.reserved: true → QFC/子表空白单元格，无 (insn, format) 身份
+        # encoding.reserved: true → QFC/子表空白单元格，无 id 身份
         if is_reserved:
             # R1: class 必须为 legality
             if cls != "legality":
@@ -304,7 +304,7 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                         if (wval_r & mask) == value:
                             errors.append(
                                 "%s: reserved encoding word %s matches defined "
-                                "encoding in opcodes.yaml (insn=%s, format=%s, "
+                                "encoding in opcodes.yaml (id=%s, format=%s, "
                                 "excluded_m1=%s); reserved only for QFC/子表 "
                                 "blank cells"
                                 % (tag, word, rec.get("id"),
@@ -320,10 +320,10 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
             if not isinstance(spec_cite, str) or not spec_cite.strip():
                 errors.append("%s: reserved encoding must have non-empty "
                               "'spec_cite'" % tag)
-            # R7: 不得伪造 (insn, format) 身份
-            if isinstance(insn, str) and insn.strip():
-                errors.append("%s: reserved encoding must not have insn identity "
-                              "(got %r); use null" % (tag, insn))
+            # R7: 不得伪造 id 身份
+            if isinstance(case_id, str) and case_id.strip():
+                errors.append("%s: reserved encoding must not have id identity "
+                              "(got %r); use null" % (tag, case_id))
 
         # input_state 必须为 mapping
         if input_state is not None and not isinstance(input_state, dict):
@@ -379,26 +379,26 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
         # ── F7: expected_pc existence for PC-affecting instructions (TESTCASES-005t/006t) ──
         # Active semantic cases for PC-affecting instructions MUST have expected_pc.
         # Scope: ctrl-br (br.*), ctrl-jump (jump-*), ctrl-call (call-*), ctrl-ret (ret-*).
-        if status == "active" and cls == "semantic" and isinstance(insn, str):
-            if insn.startswith("br."):
+        if status == "active" and cls == "semantic" and isinstance(case_id, str):
+            if case_id.startswith("br."):
                 if expected_pc is None:
                     errors.append(
                         "%s: active semantic br.* case must have expected_pc "
                         "(PC-affecting instruction; taken=rb0+(imm<<2), "
                         "not-taken=rb0+4)" % tag)
-            elif insn.startswith("jump"):
+            elif case_id.startswith("jump"):
                 if expected_pc is None:
                     errors.append(
                         "%s: active semantic jump case must have expected_pc "
                         "(PC-affecting instruction; Addr=rb0+(imms24<<2) or "
                         "rbha+rdhb+(imms12<<2))" % tag)
-            elif insn.startswith("call"):
+            elif case_id.startswith("call"):
                 if expected_pc is None:
                     errors.append(
                         "%s: active semantic call case must have expected_pc "
                         "(PC-affecting instruction; Addr=rb0+(imms24<<2) or "
                         "rbha+rdhb+(imms12<<2), plus RA push)" % tag)
-            elif insn.startswith("ret"):
+            elif case_id.startswith("ret"):
                 if expected_pc is None:
                     errors.append(
                         "%s: active semantic ret case must have expected_pc "
@@ -437,8 +437,8 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
         if status == "active" and cls in ("semantic", "boundary") and \
                 isinstance(input_state, dict) and \
                 isinstance(encoding, dict) and "word" in encoding and \
-                isinstance(insn, str) and isinstance(fmt, str):
-            key = (insn, fmt)
+                isinstance(case_id, str) and isinstance(fmt, str):
+            key = case_id
             wval = int(encoding["word"], 16) if isinstance(
                 encoding["word"], str) else encoding["word"]
             if key in by_key:
@@ -519,12 +519,12 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
 
         # ── F10 guards (TESTCASES-004t) ─────────────────────────────
         # Encoding class: memory instructions must satisfy F10 constraints.
-        # Applies to insn prefix ld./st./ldm./stm. (访存 encoding).
-        if cls == "encoding" and isinstance(insn, str) and \
+        # Applies to id prefix ld./st./ldm./stm. (访存 encoding).
+        if cls == "encoding" and isinstance(case_id, str) and \
                 isinstance(fmt, str) and isinstance(encoding, dict) and \
                 "word" in encoding and isinstance(input_state, dict) and \
-                any(insn.startswith(p) for p in ("ld.", "st.", "ldm.", "stm.")):
-            key = (insn, fmt)
+                any(case_id.startswith(p) for p in ("ld.", "st.", "ldm.", "stm.")):
+            key = case_id
             if key in by_key:
                 wval = int(encoding["word"], 16) if isinstance(
                     encoding["word"], str) else encoding["word"]
@@ -611,16 +611,16 @@ def main():
         sys.exit(1)
 
     try:
-        _m1, by_key, dups, all_records = load_opcodes(opcodes_path)
+        _m1, by_id, dups, all_records = load_opcodes(opcodes_path)
     except (ValueError, KeyError) as exc:
         print("ERROR: cannot load contracts/opcodes.yaml: %s" % exc,
               file=sys.stderr)
         sys.exit(1)
 
     errors = []
-    for key in dups:
-        errors.append("opcodes.yaml: duplicate M1 identity (%s, %s)" % key)
-    m1_keys = set(by_key)
+    for rid in dups:
+        errors.append("opcodes.yaml: duplicate M1 id '%s'" % rid)
+    m1_keys = set(by_id)
 
     inventory_path = os.path.join(repo_dir, "tests", "vectors", "inventory.md")
     if not os.path.exists(inventory_path):
@@ -630,21 +630,19 @@ def main():
     inv_rows = parse_inventory(inventory_path)
     inv_keys = set()
     declared = {}
-    # Data-level coverage: per (insn, format), track which classes are ✓
-    declared_classes = {}  # key -> set of class names with ✓
+    # Data-level coverage: per id, track which classes are ✓
+    declared_classes = {}  # id -> set of class names with ✓
     for row in inv_rows:
-        insn = _unquote(row.get("id", row.get("insn", "")))
-        fmt = _unquote(row.get("format", ""))
-        if not insn or not fmt:
+        rid = _unquote(row.get("id", ""))
+        if not rid:
             continue
-        key = (insn, fmt)
-        if key in inv_keys:
-            errors.append("inventory.md: duplicate row (%s, %s)" % key)
+        if rid in inv_keys:
+            errors.append("inventory.md: duplicate row id '%s'" % rid)
             continue
-        inv_keys.add(key)
+        inv_keys.add(rid)
         class_names = ("encoding", "legality", "semantic", "boundary", "overlap")
         cells = [_unquote(row.get(c, "")) for c in class_names]
-        declared[key] = any(c.lower() not in DECL_NA for c in cells)
+        declared[rid] = any(c.lower() not in DECL_NA for c in cells)
         # Track per-class ✓ marks
         cls_set = set()
         for ci, cn in enumerate(class_names):
@@ -653,34 +651,34 @@ def main():
                 continue  # deferred 声明不计缺口
             if cell_low not in DECL_NA:
                 cls_set.add(cn)
-        declared_classes[key] = cls_set
+        declared_classes[rid] = cls_set
 
     # 12. inventory 同步（R2）：M1 行集 == opcodes M1 身份集
-    for key in sorted(m1_keys - inv_keys):
-        errors.append("INVENTORY MISSING: M1 identity (%s, %s) has no "
-                      "inventory.md row" % key)
-    for key in sorted(inv_keys - m1_keys):
-        errors.append("INVENTORY EXTRA: inventory.md row (%s, %s) is not an "
-                      "M1 identity" % key)
+    for rid in sorted(m1_keys - inv_keys):
+        errors.append("INVENTORY MISSING: M1 id '%s' has no inventory.md row"
+                      % rid)
+    for rid in sorted(inv_keys - m1_keys):
+        errors.append("INVENTORY EXTRA: inventory.md row '%s' is not an M1 "
+                      "identity" % rid)
 
     # 9. 覆盖率门控：每个 M1 身份须在 inventory 中声明至少一类覆盖
     covered = 0
-    for key in m1_keys:
-        if key in inv_keys and declared.get(key):
+    for rid in m1_keys:
+        if rid in inv_keys and declared.get(rid):
             covered += 1
-        elif key in inv_keys:
-            errors.append("COVERAGE MISSING: (%s, %s) has no coverage "
-                          "declaration in inventory.md" % key)
+        elif rid in inv_keys:
+            errors.append("COVERAGE MISSING: '%s' has no coverage "
+                          "declaration in inventory.md" % rid)
 
     # 1/2/3/4/5/6/7/8/10/11/13/14. 向量数据逐 case 校验
     isa_dir = os.path.join(repo_dir, "tests", "vectors", "isa")
     yaml_files = (sorted(glob.glob(os.path.join(isa_dir, "*.yaml")))
                   if os.path.isdir(isa_dir) else [])
     total_cases = 0
-    # Data-level coverage map: (insn, format, class) -> count of active cases
+    # Data-level coverage map: (id, class) -> count of active cases
     data_coverage = {}
     for fpath in yaml_files:
-        total_cases += validate_file(fpath, by_key, m1_keys, all_records, errors)
+        total_cases += validate_file(fpath, by_id, m1_keys, all_records, errors)
         # Build data-level coverage from this file
         try:
             with open(fpath) as fh:
@@ -696,35 +694,33 @@ def main():
             enc = c.get("encoding")
             if isinstance(enc, dict) and enc.get("reserved"):
                 continue
-            c_insn = c.get("insn")
-            c_fmt = c.get("format")
+            c_id = c.get("id")
             c_cls = c.get("class")
             c_status = c.get("status", "active")
-            if not c_insn or not c_fmt or not c_cls:
+            if not c_id or not c_cls:
                 continue
             if c_status != "active":
                 continue
-            cov_key = (c_insn, c_fmt, c_cls)
+            cov_key = (c_id, c_cls)
             data_coverage[cov_key] = data_coverage.get(cov_key, 0) + 1
 
     # ── Data-level coverage gate (TESTCASES-009t 验收标准 7) ──────────
-    # For each (insn, format) in inventory with ✓ for some class,
+    # For each id in inventory with ✓ for some class,
     # verify at least 1 active case of that class exists in isa/*.yaml.
-    # reserved.yaml cases (encoding.reserved: true) have no (insn, format)
+    # reserved.yaml cases (encoding.reserved: true) have no id
     # identity and are excluded from this check.
     data_coverage_gaps = []
-    for key in sorted(inv_keys):
-        if key not in declared_classes:
+    for rid in sorted(inv_keys):
+        if rid not in declared_classes:
             continue
-        inv_insn, inv_fmt = key
-        for cls_name in declared_classes[key]:
-            cov_key = (inv_insn, inv_fmt, cls_name)
+        for cls_name in declared_classes[rid]:
+            cov_key = (rid, cls_name)
             if cov_key not in data_coverage:
                 data_coverage_gaps.append(
-                    "DATA COVERAGE GAP: (%s, %s) declares '%s' in "
+                    "DATA COVERAGE GAP: id='%s' declares '%s' in "
                     "inventory.md but no active %s case found in "
                     "tests/vectors/isa/*.yaml"
-                    % (inv_insn, inv_fmt, cls_name, cls_name))
+                    % (rid, cls_name, cls_name))
     # Report gaps and block validation (TESTCASES-011t: gate tightening)
     if data_coverage_gaps:
         for gap in data_coverage_gaps:
