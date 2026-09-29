@@ -2,7 +2,7 @@
 
 **状态**：Accepted
 **日期**：2026-09-28
-**关联**：`SPEC-035t`、`docs/spec/assembly-language.md`（v1，2026-09-25 用户审核通过）、`ADR-0012 D4`（spec/ 只读策略调整）
+**关联**：`SPEC-035t`、`docs/spec/assembly-language.md`（v1，2026-09-25 用户审核通过）、`ADR-0012 D4`（spec/ 只读策略调整）；**2026-09-29 增补 D8**（cfx 系列汇编记法，关联 `SPEC-051t`–`SPEC-054t`）
 
 ## Context（背景）
 
@@ -115,6 +115,21 @@ DADAO M1 的汇编语言语法已在 `docs/spec/assembly-language.md` v1 中定�
 - R1: 表格只放 `docs/assembly-list.md`，spec 文件用链接引用 → 查阅不便，需在两个文件间跳转；且 spec 文件作为独立分发单元时丢失上下文
 - R2: 表格放 `docs/spec/`（v5 规范层）→ 与 `spec/`（原始规范）分离，增加维护成本；且 `docs/spec/` 的定位是 v5 扩展规范，不是原始指令表
 
+### D8：cfx 系列汇编记法（2026-09-29 用户逐条确认，授权就地增补）
+
+**引用**：`docs/spec/assembly-language.md` §151–156、`contracts/opcodes.yaml`（cfx 家族）、`SPEC-052t`–`SPEC-054t`
+
+- **D8.1（cfx 编号占位）**：核芯功能扩展编号字段（`cfxha`，bits[23:18]）在汇编书写中的**字段占位**记法为 **`cfxHA`**（取代 v1.1 的 `cfxN`）；其**具体写法**为编号（如 `cfx63`）或名称别名 `cfx_<cfxname>`。
+- **D8.2（`cfx2rd`/`cfx2rc` 操作数）**：`crrr` 格式 `cfx2rd`/`cfx2rc` 的三个寄存器操作数写作 **`cgHB, rcHC, rdHD`**（对应字段 `cghb`/`rchc`/`rdhd`），取代原 `hb`/`hc`/`hd`。
+- **D8.3（别名）**：`cfx_<cfxname>`（如 `cfx_power`、`cfx_umon`）是 `cfxHA` 位置具体编号的**宏别名**，汇编器等价替换。
+- **D8.4（字段重命名）**：`contracts/opcodes.yaml`（生成源 `tools/spec/generate_opcodes.py`）字段重命名：`cfxcode→cfxha`、`hb→cghb`、`hc→rchc`、`hd→rdhd`。
+- **D8.5（同步）**：`docs/spec/assembly-language.md` §151–156、`docs/assembly-list.md` 及各 `spec/SimRISC-*.md` 内嵌速查表同步修订/重生成。
+
+**备选（否决）**：
+- R1：保留 `cfxN` → 与既有 `<bank>H<slot>` 占位约定（`rdHA`、`rbHB`）不一致；否决。
+- R2：保留 `hb`/`hc`/`hd` 字段名 → 缺寄存器组前缀，占位无法表达 `cg`/`rc` 归属；否决。
+- R3：新建 `ADR-0015` → 用户裁定就地增补（D1–D7 未覆盖 cfx，D8 属新增决策而非改写）；否决。
+
 ## Rationale（理由）
 
 上述 7 条决策的核心权衡原则：
@@ -144,3 +159,4 @@ DADAO M1 的汇编语言语法已在 `docs/spec/assembly-language.md` v1 中定�
 - **决策来源**：
   - **v1 已定**（`assembly-language.md` v1，2026-09-25 用户审核通过）：D2、D3、D4，以及 D1 的条件组/范围组/单寄存器组
   - **本次新增**（2026-09-28 用户确认，由 `SPEC-036t` 落地，v1 尚无）：D1 的双目的用途、D5、D6
+- **2026-09-29 增补 D8**：cfx 系列汇编记法（D8.1–D8.5）经用户逐条确认后**授权就地增补**；D1–D7 未改动。
