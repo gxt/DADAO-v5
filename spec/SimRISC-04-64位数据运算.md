@@ -48,23 +48,23 @@
 
 加减操作需要两个源操作数，一个目的操作数。
 操作数类型为 `rrrr`。
-两个源操作数寄存器为`rdhc`和`rdhd`。
-目的操作数可能超出64位，故采用两个寄存器存放目的操作数，即`rdha`和`rdhb`，`rdha`存放结果的高64位，`rdhb`存放结果的低64位。
+两个源操作数寄存器为`rdHC`和`rdHD`。
+目的操作数可能超出64位，故采用两个寄存器存放目的操作数，即`rdHA`和`rdHB`，`rdHA`存放结果的高64位，`rdHB`存放结果的低64位。
 硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
 根据操作数的符号类型，`add`/`sub` 分为两个变体：
 
-- **`add.uo`/`sub.uo`**（无符号）：源操作数按**零扩展**（ZX）至 128 位，适合无符号多字加法链，`rdha` 为进位/借位（0 或 1）。
+- **`add.uo`/`sub.uo`**（无符号）：源操作数按**零扩展**（ZX）至 128 位，适合无符号多字加法链，`rdHA` 为进位/借位（0 或 1）。
 - **`add.so`/`sub.so`**（有符号，默认）：源操作数按**符号扩展**（SX）至 128 位，适合有符号 128 位运算。
 
 ```simrisc
-add.uo  rdha, rdhb, rdhc, rdhd    ; ZX，rdha = 进位
-add.so  rdha, rdhb, rdhc, rdhd    ; SX，rdha = 高64位
-sub.uo  rdha, rdhb, rdhc, rdhd    ; ZX，rdha = 借位
-sub.so  rdha, rdhb, rdhc, rdhd    ; SX，rdha = 高64位
+add.uo  {rdHA, rdHB}, rdHC, rdHD    ; ZX，rdHA = 进位
+add.so  {rdHA, rdHB}, rdHC, rdHD    ; SX，rdHA = 高64位
+sub.uo  {rdHA, rdHB}, rdHC, rdHD    ; ZX，rdHA = 借位
+sub.so  {rdHA, rdHB}, rdHC, rdHD    ; SX，rdHA = 高64位
 ```
 
-`rdha` 和 `rdhb` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
+`rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
 ### 自增自减
 
@@ -74,7 +74,7 @@ sub.so  rdha, rdhb, rdhc, rdhd    ; SX，rdha = 高64位
 具体指令如下：
 
 ```simrisc
-add.si  rdha, imms18
+add.si  rdHA, imms18
 ```
 
 `add.si` 为全 64 位运算，无法单独通过结果判断溢出，用户可结合 `add.uo`/`add.so` 的 rrrr 形式获取进位/符号信息。
@@ -89,42 +89,42 @@ add.si  rdha, imms18
 具体指令如下：
 
 ```simrisc
-cmp.si  rdha, rdhb, imms12
-cmp.ui  rdha, rdhb, immu12
+cmp.si  rdHA, rdHB, imms12
+cmp.ui  rdHA, rdHB, immu12
 ```
 
 orrr 形式的比较指令（cmp.uo/cmp.so）如下：
 
 ```simrisc
-cmp.uo  rdhb, rdhc, rdhd
-cmp.so  rdhb, rdhc, rdhd
+cmp.uo  rdHB, rdHC, rdHD
+cmp.so  rdHB, rdHC, rdHD
 ```
 
-源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
 ### 乘除操作
 
 乘除运算都是四个操作数，操作数类型为 `rrrr`。
 
-无符号数的乘法 `mul.uo` 和有符号数的乘法 `mul.so`，rdhc和rdhd为源操作数，形成16字节的运算结果，分别写入rdha和rdhb中，rdha存放结果的高64位，rdhb存放结果的低64位。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
+无符号数的乘法 `mul.uo` 和有符号数的乘法 `mul.so`，rdHC和rdHD为源操作数，形成16字节的运算结果，分别写入rdHA和rdHB中，rdHA存放结果的高64位，rdHB存放结果的低64位。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
 ```simrisc
-mul.so  rdha, rdhb, rdhc, rdhd
-mul.uo  rdha, rdhb, rdhc, rdhd
+mul.so  {rdHA, rdHB}, rdHC, rdHD
+mul.uo  {rdHA, rdHB}, rdHC, rdHD
 ```
 
-`rdha` 和 `rdhb` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
+`rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
 64 位除余指令（orrr 格式）如下：
 
 ```simrisc
-div.uo  rdhb, rdhc, rdhd
-div.so  rdhb, rdhc, rdhd
-rem.uo  rdhb, rdhc, rdhd
-rem.so  rdhb, rdhc, rdhd
+div.uo  rdHB, rdHC, rdHD
+div.so  rdHB, rdHC, rdHD
+rem.uo  rdHB, rdHC, rdHD
+rem.so  rdHB, rdHC, rdHD
 ```
 
-源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
 除法指令附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：
 
@@ -141,14 +141,14 @@ rem.so  rdhb, rdhc, rdhd
 
 | 指令 | 位宽 | 汇编语法 | 操作范围 |
 |------|------|---------|---------|
-| `and.o`/`or.o`/`xor.o`/`xnor.o` | 64 位 | `and.o rdhb, rdhc, rdhd` | bits[63:0] 全 64 位参与运算 |
+| `and.o`/`or.o`/`xor.o`/`xnor.o` | 64 位 | `and.o rdHB, rdHC, rdHD` | bits[63:0] 全 64 位参与运算 |
 
 `and` 指令为逻辑与运算，运算规则：全一为一，有零为零。即只有两个操作数都为1时，结果才为1，其他情况均为0；也可以说，只要有0，结果就为0。
 `or` 指令为逻辑或运算，运算规则：全零为零，有一为一。即只有两个操作数都为0时，结果才为0，其他情况均为1；也可以说，只要有1，结果就为1。
 `xor` 指令为逻辑异或运算，运算规则：相异为一，相同为零。即两个操作数不一样时结果为1，两个操作数相同时结果为0。
 `xnor` 指令为逻辑同或运算，运算规则：相同为一，相异为零。与异或运算规则相反。即两个操作数值相同时结果为1，两个操作数不一样时为0。
 
-无需提供专门的not指令，可以采用xnor指令实现相同的功能。当rdhc或rdhd为rd0时，xnor指令实现了另一操作数的取反操作，即逻辑非运算。逻辑非的运算规则：一变零，零变一。即操作数为1时结果为0，操作数为0时结果为1。
+无需提供专门的not指令，可以采用xnor指令实现相同的功能。当rdHC或rdHD为rd0时，xnor指令实现了另一操作数的取反操作，即逻辑非运算。逻辑非的运算规则：一变零，零变一。即操作数为1时结果为0，操作数为0时结果为1。
 
 #### not 伪指令
 
@@ -156,7 +156,7 @@ rem.so  rdhb, rdhc, rdhd
 
 | 伪指令 | 展开形式 | 操作范围 |
 |--------|----------|----------|
-| `not.o rdhb, rdhc` | `xnor.o rdhb, rdhc, rd0` | bits[63:0] 全 64 位取反 |
+| `not.o rdHB, rdHC` | `xnor.o rdHB, rdHC, rd0` | bits[63:0] 全 64 位取反 |
 
 源和目的可为同一寄存器（原地取反）。
 
@@ -166,7 +166,7 @@ rem.so  rdhb, rdhc, rdhd
 
 | 伪指令 | 展开形式 | 语义 |
 |--------|----------|------|
-| `neg.o rdhb, rdhc` | `sub.so rd0, rdhb, rd0, rdhc` | 64 位取负 |
+| `neg.o rdHB, rdHC` | `sub.so {rd0, rdHB}, rd0, rdHC` | 64 位取负 |
 
 示例：
 ```simrisc
@@ -179,13 +179,13 @@ neg.o   rd3, rd4        ; rd3 = -rd4（64 位取负）
 
 位操作指令需要两个源操作数，一个目的操作数。
 
-`shl` 是左移，`shr` 是右移，后缀中的 `s` 表示算术移位（符号扩展）、`u` 表示逻辑移位（零扩展）。MISC-octa 子表中的 `shl`/`shr`（后缀 `.uo`/`.so`）提供 64 位移位操作。移位量（shamt）取 `rdhd` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
+`shl` 是左移，`shr` 是右移，后缀中的 `s` 表示算术移位（符号扩展）、`u` 表示逻辑移位（零扩展）。MISC-octa 子表中的 `shl`/`shr`（后缀 `.uo`/`.so`）提供 64 位移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
 ```
-shl.u: rdhb[N:0]   = (rdhc[N:0] << shamt)                // 左移，低位补零
-shr.u: rdhb[N:0]   = (rdhc[N:0] >> shamt)                // 逻辑右移，高位补零
-shr.s: rdhb[N:0]   = (rdhc[N:0] >> shamt) with sign(N)   // 算术右移，高位补 rdhc[N]
-rdhb[63:N+1] = rdhb[63:N+1]                               // 高位不变
+shl.u: rdHB[N:0]   = (rdHC[N:0] << shamt)                // 左移，低位补零
+shr.u: rdHB[N:0]   = (rdHC[N:0] >> shamt)                // 逻辑右移，高位补零
+shr.s: rdHB[N:0]   = (rdHC[N:0] >> shamt) with sign(N)   // 算术右移，高位补 rdHC[N]
+rdHB[63:N+1] = rdHB[63:N+1]                               // 高位不变
 ```
 
 其中 N 由位宽决定。shamt 和 N 的对应关系如下：
@@ -199,34 +199,34 @@ rdhb[63:N+1] = rdhb[63:N+1]                               // 高位不变
 `ext.s` 是符号扩展，`ext.u` 是零扩展。MISC-octa 子表中的 `ext.s`/`ext.u`（后缀 `.so`/`.uo`）提供 64 位扩展操作。操作数格式为 `orrr`（寄存器形式，hd=扩展起始位）和 `orri`（立即数形式，hd=immu6 扩展起始位）。语义如下：
 
 ```
-rdhb[hd:0]   = rdhc[hd:0]                               // 复制源低位
-rdhb[N:hd+1] = sign/zero_extend(rdhc[hd])                // 符号/零扩展（N=63）
-rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
+rdHB[hd:0]   = rdHC[hd:0]                               // 复制源低位
+rdHB[N:hd+1] = sign/zero_extend(rdHC[hd])                // 符号/零扩展（N=63）
+rdHB[63:N+1] = rdHB[63:N+1]                              // 高位不变
 ```
 
 其中 N 由位宽决定（octa→63），hd 为扩展起始位，须满足 `hd ≤ N`，否则 ILLI。
 
 | 指令 | N | 汇编语法 | 约束 |
 |------|---|---------|------|
-| `ext.uo`/`ext.so` | 63 | `ext.uo rdhb, rdhc, rdhd` 或 `ext.uo rdhb, rdhc, immu6` | hd ≤ 63 |
+| `ext.uo`/`ext.so` | 63 | `ext.uo rdHB, rdHC, rdHD` 或 `ext.uo rdHB, rdHC, immu6` | hd ≤ 63 |
 
 64 位移位/扩展指令如下：
 
 ```simrisc
-shl.uo  rdhb, rdhc, rdhd        ; 左移
-shl.uo  rdhb, rdhc, immu6       ; 左移（立即数）
-shr.uo  rdhb, rdhc, rdhd        ; 逻辑右移
-shr.uo  rdhb, rdhc, immu6       ; 逻辑右移（立即数）
-shr.so  rdhb, rdhc, rdhd        ; 算术右移
-shr.so  rdhb, rdhc, immu6       ; 算术右移（立即数）
+shl.uo  rdHB, rdHC, rdHD        ; 左移
+shl.uo  rdHB, rdHC, immu6       ; 左移（立即数）
+shr.uo  rdHB, rdHC, rdHD        ; 逻辑右移
+shr.uo  rdHB, rdHC, immu6       ; 逻辑右移（立即数）
+shr.so  rdHB, rdHC, rdHD        ; 算术右移
+shr.so  rdHB, rdHC, immu6       ; 算术右移（立即数）
 
-ext.uo  rdhb, rdhc, rdhd        ; 零扩展
-ext.uo  rdhb, rdhc, immu6       ; 零扩展（立即数）
-ext.so  rdhb, rdhc, rdhd        ; 符号扩展
-ext.so  rdhb, rdhc, immu6       ; 符号扩展（立即数）
+ext.uo  rdHB, rdHC, rdHD        ; 零扩展
+ext.uo  rdHB, rdHC, immu6       ; 零扩展（立即数）
+ext.so  rdHB, rdHC, rdHD        ; 符号扩展
+ext.so  rdHB, rdHC, immu6       ; 符号扩展（立即数）
 
-and.o   rdhb, rdhc, rdhd        ; 逻辑与
-or.o    rdhb, rdhc, rdhd        ; 逻辑或
-xor.o   rdhb, rdhc, rdhd        ; 逻辑异或
-xnor.o  rdhb, rdhc, rdhd        ; 逻辑同或
+and.o   rdHB, rdHC, rdHD        ; 逻辑与
+or.o    rdHB, rdHC, rdHD        ; 逻辑或
+xor.o   rdHB, rdHC, rdHD        ; 逻辑异或
+xnor.o  rdHB, rdHC, rdHD        ; 逻辑同或
 ```
