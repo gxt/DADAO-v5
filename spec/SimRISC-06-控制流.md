@@ -39,8 +39,8 @@
 第一类跳转指令的操作数类型为：`rrii`。前两个操作数为rd寄存器，根据两个寄存器的值是否相等进行判断，选择是否跳转。
 
 ```simrisc
-br.eq    rdha, rdhb, imms12
-br.ne    rdha, rdhb, imms12
+br.eq    {rdHA, rdHB}?, [rb0, imms12i]
+br.ne    {rdHA, rdHB}?, [rb0, imms12i]
 ```
 
 跳转地址计算公式：`Addr = rb0 + (imms12 << 2)`。地址位宽为 48 位，不产生溢出。
@@ -50,23 +50,23 @@ br.ne    rdha, rdhb, imms12
 第二类跳转指令的操作数类型为：`riii`。一个操作数为rd寄存器，根据该寄存器的值进行判断，选择是否跳转。
 
 ```simrisc
-br.n     rdha, imms18
-br.nn    rdha, imms18
-br.z     rdha, imms18
-br.nz    rdha, imms18
-br.p     rdha, imms18
-br.np    rdha, imms18
+br.n     {rdHA}?, [rb0, imms18i]
+br.nn    {rdHA}?, [rb0, imms18i]
+br.z     {rdHA}?, [rb0, imms18i]
+br.nz    {rdHA}?, [rb0, imms18i]
+br.p     {rdHA}?, [rb0, imms18i]
+br.np    {rdHA}?, [rb0, imms18i]
 ```
 
 跳转地址计算公式：`Addr = rb0 + (imms18 << 2)`。地址位宽为 48 位，不产生溢出。
 
-一个重要的特例是，当rdha为rd0时，br.z的条件必为真，br.nz的条件必为假。
+一个重要的特例是，当rdHA为rd0时，br.z的条件必为真，br.nz的条件必为假。
 
-第三类跳转指令的操作数类型同样为 `riii`，但操作数为rb寄存器，根据rbha是否为0进行判断：
+第三类跳转指令的操作数类型同样为 `riii`，但操作数为rb寄存器，根据rbHA是否为0进行判断：
 
 ```simrisc
-br.z     rbha, imms18
-br.nz    rbha, imms18
+br.z     {rbHA}?, [rb0, imms18i]
+br.nz    {rbHA}?, [rb0, imms18i]
 ```
 
 跳转地址计算方式与第二类一致。
@@ -78,7 +78,7 @@ br.nz    rbha, imms18
 支持相对地址的操作数类型为：`iiii`。
 
 ```simrisc
-jump    imms24
+jump    [rb0, imms24i]
 ```
 
 跳转地址计算公式：`Addr = rb0 + (imms24 << 2)`。地址位宽为 48 位，不产生溢出。
@@ -86,13 +86,13 @@ jump    imms24
 支持绝对地址的操作数类型为：`rrii`
 
 ```simrisc
-jump    rbha, rdhb, imms12
+jump    [rbHA, rdHB, imms12i]
 ```
 
-跳转地址计算公式：`Addr = rbha + rdhb + (imms12 << 2)`。**地址位宽为 48 位，不产生溢出。**
+跳转地址计算公式：`Addr = rbHA + rdHB + (imms12 << 2)`。**地址位宽为 48 位，不产生溢出。**
 其中，ha为基址寄存器，故为rb寄存器；hb为偏移地址，故为rd寄存器。
 
-一个重要的特例是：当ha为rb0时，rdhb + (imms12 << 2)仍然是相对地址跳转。
+一个重要的特例是：当ha为rb0时，rdHB + (imms12 << 2)仍然是相对地址跳转。
 
 ### 函数调用
 
@@ -101,7 +101,7 @@ jump    rbha, rdhb, imms12
 支持相对地址的操作数类型为： `iiii`。
 
 ```simrisc
-call    imms24
+call    [rb0, imms24i]
 ```
 
 跳转地址计算公式： `Addr = rb0 + (imms24 << 2)`。地址位宽为 48 位，不产生溢出。
@@ -109,13 +109,13 @@ call    imms24
 支持绝对地址的操作数类型为： `rrii`
 
 ```simrisc
-call    rbha, rdhb, imms12
+call    [rbHA, rdHB, imms12i]
 ```
 
-跳转地址计算公式：`Addr = rbha + rdhb + (imms12 << 2)`。**地址位宽为 48 位，不产生溢出。**
+跳转地址计算公式：`Addr = rbHA + rdHB + (imms12 << 2)`。**地址位宽为 48 位，不产生溢出。**
 其中，ha为基址寄存器，故为rb寄存器；hb为偏移地址，故为rd寄存器。
 
-一个重要的特例是：当ha为rb0时，rdhb + (imms12 << 2)实际上也是相对地址跳转。
+一个重要的特例是：当ha为rb0时，rdHB + (imms12 << 2)实际上也是相对地址跳转。
 
 ### 函数返回
 
@@ -128,7 +128,7 @@ ret指令增加了返回值的赋值功能，操作数类型为 `riii` ，即在
 操作数类型为： `riii`
 
 ```simrisc
-ret     rdha, imms18
+ret     rdHA, imms18
 ```
 
 #### return 伪指令
