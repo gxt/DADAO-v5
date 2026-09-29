@@ -501,7 +501,7 @@ def build_misc_amo(records):
                        [], S11_ILLI, ha=0x00))
     records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
                        ["immu18[17:12] == 0", "immu18[11:6] == 0", "immu18[5:4] == 0"],
-                       S12_FENCE, ha=0x01))
+                       S12_FENCE, ha=0x01, excluded=True))
     # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 MISC-AMO 000-010
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
                        [], S11_SWYM, ha=0x02))

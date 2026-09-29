@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate 178 M1 assembly test lines (new syntax) from contracts/opcodes.yaml.
+"""Generate 177 M1 assembly test lines (new syntax) from contracts/opcodes.yaml.
 
 Each line is a valid DADAO new-syntax assembly instruction for llvm-mc.
 Register bank per id is derived from opcodes.yaml field definitions.

@@ -2,7 +2,7 @@
 """Generate DADAOInstrInfo.td from contracts/opcodes.yaml.
 
 Reads the M1 instruction encoding table (opcodes.yaml) and produces:
-  1. DADAOInstrInfo.td — Operand classes + 178 M1 instruction defs
+  1. DADAOInstrInfo.td — Operand classes + 177 M1 instruction defs
 
 Only M1 entries (excluded_m1 absent or false) are emitted. Each instruction
 inherits the appropriate format class from DADAOInstrFormats.td and binds
@@ -198,7 +198,7 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
     lines.append("//")
     lines.append("//===----------------------------------------------------------------------===//")
     lines.append("//")
-    lines.append("// DADAO M1 instruction definitions (178 instructions).")
+    lines.append("// DADAO M1 instruction definitions (177 instructions).")
     lines.append("// Auto-generated from contracts/opcodes.yaml by tools/llvm/generate_instrinfo.py.")
     lines.append("// DO NOT EDIT MANUALLY.")
     lines.append("//")
@@ -240,7 +240,7 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
         lines.append("")
 
     lines.append("//===----------------------------------------------------------------------===//")
-    lines.append("// M1 instruction definitions (178 total)")
+    lines.append("// M1 instruction definitions (177 total)")
     lines.append("//===----------------------------------------------------------------------===//")
     lines.append("")
 

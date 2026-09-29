@@ -3,7 +3,7 @@
 # M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统
 # excluded_m1: true 的条目属 M1 范围外（浮点 RF / 特权 cfx / LR-SC），
 #   M1 不实现但编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
-# 共 254 条：M1 内 178 条，excluded_m1 76 条
+# 共 254 条：M1 内 177 条，excluded_m1 77 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -2161,6 +2161,8 @@
   - immu18[11:6] == 0
   - immu18[5:4] == 0
   spec_cite: SimRISC-12 §fence指令
+  excluded_m1: true
+  decode: ILLI
 - id: swym_oiii_imm
   mnemonic: swym
   format: oiii

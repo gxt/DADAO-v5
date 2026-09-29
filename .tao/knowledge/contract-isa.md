@@ -1400,10 +1400,9 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | minor-opcode | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
 | 000-000 | `illi` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
-| 000-001 | `fence` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
 | 000-010 | `swym` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
 
-> LR-SC 条目（010-xxx / 011-xxx）Excluded from M1，见 A.7。[SimRISC-00 §MISC-AMO 指令编码]
+> `fence`（000-001）与 LR-SC 条目（010-xxx / 011-xxx）Excluded from M1，见 A.7。[SimRISC-00 §MISC-AMO 指令编码]
 
 ### A.7 Excluded from M1 编码清单
 
@@ -1433,6 +1432,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x7F | trap | `trap` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | MISC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
 | MISC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
+| MISC-AMO 000-001 | fence | `fence` | 待定指令 | [SimRISC-00 §MISC-AMO 指令编码] |
 | MISC-AMO 010-xxx | lr_nn/lr_nr/lr_an/lr_ar | `lr_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
 | MISC-AMO 011-xxx | sc_nn/sc_nr/sc_an/sc_ar | `sc_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
 

@@ -15,8 +15,8 @@
 #   fields[].name 一致（例如块赋值目的字段为 rdhb/rbhb/rahb，而非 rdha/rbha）。
 #
 # 范围：
-#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（256 条：
-#     178 条 M1 + 78 条 excluded_m1）
+#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（254 条：
+#     177 条 M1 + 77 条 excluded_m1）
 #   - M1 范围外（deferred）：RF 浮点（SimRISC-03 全部）、LR-SC 原子（SimRISC-12 §LR-SC指令）、
 #     特权 cfx（SimRISC-04 §特权指令）；按 ADR-0004 D5 执行这些编码触发 ILLI
 #   - SBZ 非零 → ILLI 由 ADR-0004 D5.3 冻结（架构自定义；spec 未规定 fault 类型）

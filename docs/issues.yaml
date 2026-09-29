@@ -158,7 +158,7 @@
   resolved_by: null
 
 - id: ISS-020
-  title: "覆盖率门控分层：validate_vectors.py 覆盖率为声明级（178/178），数据级覆盖率不在该 validator 内"
+  title: "覆盖率门控分层：validate_vectors.py 覆盖率为声明级（177/177），数据级覆盖率不在该 validator 内"
   status: open
   scope: [testcases]
   blocks: []
@@ -412,12 +412,12 @@
   resolved_by: null
 
 - id: ISS-056
-  title: "fence 实现缺失（ILLI 桩）——trans_fence 应为 nop（immu18 bits[17:4]=0）或 ILLI（非零），当前恒 ILLI；用户 2026-09-21 裁定 deferred（暂不修）"
-  status: open
-  scope: [qemu, M1]
+  title: "fence 已移出 M1（excluded_m1）——trans_fence 恒 ILLI 现为合规行为（excluded 指令应 ILLI）"
+  status: closed
+  scope: [qemu]
   blocks: []
-  resolved_by: null
-  notes: "用户 2026-09-21 裁定 deferred ⇒ 不阻断 M1-gate（判据：已 deferred/接受的项不计）；`fence` 的 3 条向量已 deferred（tests/vectors/isa/misc.yaml + inventory.md）。修复后可关闭本 issue。"
+  resolved_by: "SPEC-039t"
+  notes: "SPEC-039t：fence 标 `excluded_m1: true`（与浮点/特权 cfx/LR-SC 一致），M1 身份集 178→177。trans_fence 恒 ILLI 对 excluded 指令合规，本 issue 不再是缺陷。"
 
 - id: ISS-057
   title: "MemRAS 路径（ra0 低 48≠0）未实现——gen_ras_push/pop 硬编码走 ra0==0 分支"

@@ -77,7 +77,7 @@ QEMU 消费 flat binary（不解析 ELF），ELF 头字段仅由 LLVM MC emitter
 | # | 检查项 | 判定 | 证据 |
 |---|--------|------|------|
 | 4.1 | opcodes.yaml 存在 | ✅ | 254 条 |
-| 4.2 | 条目数 | ✅ | 总计 254, M1 内 178 |
+| 4.2 | 条目数 | ✅ | 总计 254, M1 内 177 |
 | 4.3 | 结构完整性 | ✅ | 全部 254 条有 id/mnemonic/format/op/mask/value |
 | 4.4 | mask/value 内部自洽 | ✅ | 全部 254 条 `(value & mask) == value` |
 | 4.5 | **LLVM lit ↔ opcodes.yaml** | ✅ | `check_lit_bytes.py` 53 patterns OK（**真调用**） |

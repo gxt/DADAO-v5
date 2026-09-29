@@ -267,6 +267,7 @@ def classify_m1(op, ha, name, misc_name=None):
       - 浮点 RF：MISC-RF 子表，或名称含 -rf / ft*/fo* / rd2rf / rf2rd
       - 特权 cfx：cfx2rd/cfx2rc/cfxld/cfxst/escape/trap
       - LR-SC 原子：MISC-AMO 子表的 lr_*/sc_*
+      - fence：MISC-AMO 子表的 fence（Excluded from M1，SPEC-039t）
 
     misc_name 是该 (op) 对应的 MISC 子表名（由主表指针给出，不硬编码）；
     主表指令为 None。返回 (in_m1: bool, category: str)。
@@ -276,6 +277,8 @@ def classify_m1(op, ha, name, misc_name=None):
         return False, "浮点（MISC-RF）"
     if misc_name == "MISC-AMO" and re.match(r"^(lr_|sc_)", n):
         return False, "LR-SC 原子"
+    if misc_name == "MISC-AMO" and (n == "fence" or n.startswith("fence_")):
+        return False, "待定指令（fence excluded）"
     if (re.match(r"^(ft|fo)", n) or "-rf-" in n or n.endswith("-rf")
             or "2rf" in n or "rf2" in n):
         return False, "浮点（RF）"

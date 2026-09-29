@@ -13,7 +13,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > `validate_vectors.py` 机械校验本表的 M1 行集与 `contracts/opcodes.yaml`
 > 的 M1 身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）。
 
-## M1 覆盖矩阵（178 条）
+## M1 覆盖矩阵（177 条）
 
 | id | format | file | encoding | legality | semantic | boundary | overlap | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -87,7 +87,6 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `ret_riii_ra` | `riii` | `ctrl-ret.yaml` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`） |
 | `swym_oiii_imm` | `oiii` | `misc.yaml` | ✓ | — | ✓ | — | — | 占位指令（§7），无 fault，legality 不适用 |
 | `illi_oiii_imm` | `oiii` | `misc.yaml` | — | ✓ | — | — | — | 恒 ILLI（§9.1）；encoding/semantic 豁免（F6），覆盖率由 legality 满足 |
-| `fence_oiii_imm` | `oiii` | `misc.yaml` | deferred fence 实现缺失（ISS-056） | deferred fence 实现缺失（ISS-056） | deferred fence 实现缺失（ISS-056） | — | — | `fence` 属 M1（§7.3）但 QEMU `trans_fence` 仍为 ILLI 桩（`ISS-056`）；用户 2026-09-21 裁定 deferred ⇒ 3 类覆盖均暂缓 |
 | `and.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `or.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `xor.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |

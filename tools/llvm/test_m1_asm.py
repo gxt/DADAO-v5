@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test all 178 M1 instructions can be assembled by llvm-mc.
+Test all 177 M1 instructions can be assembled by llvm-mc.
 Exit code 0 if all pass, 1 if any fail.
 """
 import subprocess
