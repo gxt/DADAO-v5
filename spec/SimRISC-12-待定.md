@@ -10,8 +10,8 @@
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
-| `cfxld` | `crii` | `cfx` | `cfxld cfxcode, [rbHB, immu12]` | `cfxld_crii_cfx` |
-| `cfxst` | `crii` | `cfx` | `cfxst cfxcode, [rbHB, immu12]` | `cfxst_crii_cfx` |
+| `cfxld` | `crii` | `cfx` | `cfxld cfxHA, [rbHB, immu12]` | `cfxld_crii_cfx` |
+| `cfxst` | `crii` | `cfx` | `cfxst cfxHA, [rbHB, immu12]` | `cfxst_crii_cfx` |
 | `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
 | `lr_an.o` | `orrr` | `rd` | `lr_an.o rdHC, [rbHD]` | `lr_an.o_orrr_rd` |
 | `lr_ar.o` | `orrr` | `rd` | `lr_ar.o rdHC, [rbHD]` | `lr_ar.o_orrr_rd` |

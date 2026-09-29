@@ -92,20 +92,20 @@ def f_oiii(imm):
 
 
 def f_crrr():
-    return [_field("cfxcode", "[23:18]", "cfxcode", "imm"),
-            R("hb", "[17:12]", "cfx_cg", "rb"),
-            R("hc", "[11:6]", "cfx_rc", "rc"),
-            R("hd", "[5:0]", "dst", "rd")]
+    return [_field("cfxha", "[23:18]", "cfxcode", "imm"),
+            R("cghb", "[17:12]", "cfx_cg", "rb"),
+            R("rchc", "[11:6]", "cfx_rc", "rc"),
+            R("rdhd", "[5:0]", "dst", "rd")]
 
 
 def f_crii(imm="immu12"):
-    return [_field("cfxcode", "[23:18]", "cfxcode", "imm"),
+    return [_field("cfxha", "[23:18]", "cfxcode", "imm"),
             R("rbhb", "[17:12]", "src"),
             I(imm, "[11:0]")]
 
 
 def f_ciii(imm):
-    return [_field("cfxcode", "[23:18]", "cfxcode", "imm"),
+    return [_field("cfxha", "[23:18]", "cfxcode", "imm"),
             I(imm, "[17:0]")]
 
 

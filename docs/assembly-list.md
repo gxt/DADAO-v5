@@ -313,19 +313,19 @@
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
-| `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxcode, hb, hc, hd` | `cfx2rc_crrr_cfx` |
-| `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxcode, hb, hc, hd` | `cfx2rd_crrr_cfx` |
-| `escape` | `ciii` | `cfx` | `escape cfxcode, [excp_cause_ip, imms18i]` | `escape_ciii_cfx` |
+| `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
+| `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
+| `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms18i]` | `escape_ciii_cfx` |
 | `illi` | `oiii` | `imm` | `illi immu18` | `illi_oiii_imm` |
 | `swym` | `oiii` | `imm` | `swym immu18` | `swym_oiii_imm` |
-| `trap` | `ciii` | `cfx` | `trap cfxcode, immu18` | `trap_ciii_cfx` |
+| `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 
 ### 待定（12 条）｜ **deferred** — 暂不归类，待必须启用时
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
-| `cfxld` | `crii` | `cfx` | `cfxld cfxcode, [rbHB, immu12]` | `cfxld_crii_cfx` |
-| `cfxst` | `crii` | `cfx` | `cfxst cfxcode, [rbHB, immu12]` | `cfxst_crii_cfx` |
+| `cfxld` | `crii` | `cfx` | `cfxld cfxHA, [rbHB, immu12]` | `cfxld_crii_cfx` |
+| `cfxst` | `crii` | `cfx` | `cfxst cfxHA, [rbHB, immu12]` | `cfxst_crii_cfx` |
 | `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
 | `lr_an.o` | `orrr` | `rd` | `lr_an.o rdHC, [rbHD]` | `lr_an.o_orrr_rd` |
 | `lr_ar.o` | `orrr` | `rd` | `lr_ar.o rdHC, [rbHD]` | `lr_ar.o_orrr_rd` |

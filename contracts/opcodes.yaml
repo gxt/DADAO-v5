@@ -1993,19 +1993,19 @@
   mask: '0xFF000000'
   value: '0x7A000000'
   fields:
-  - name: cfxcode
+  - name: cfxha
     bits: '[23:18]'
     role: cfxcode
     bank: imm
-  - name: hb
+  - name: cghb
     bits: '[17:12]'
     role: cfx_cg
     bank: rb
-  - name: hc
+  - name: rchc
     bits: '[11:6]'
     role: cfx_rc
     bank: rc
-  - name: hd
+  - name: rdhd
     bits: '[5:0]'
     role: dst
     bank: rd
@@ -2020,19 +2020,19 @@
   mask: '0xFF000000'
   value: '0x7B000000'
   fields:
-  - name: cfxcode
+  - name: cfxha
     bits: '[23:18]'
     role: cfxcode
     bank: imm
-  - name: hb
+  - name: cghb
     bits: '[17:12]'
     role: cfx_cg
     bank: rb
-  - name: hc
+  - name: rchc
     bits: '[11:6]'
     role: cfx_rc
     bank: rc
-  - name: hd
+  - name: rdhd
     bits: '[5:0]'
     role: dst
     bank: rd
@@ -2047,7 +2047,7 @@
   mask: '0xFF000000'
   value: '0x7C000000'
   fields:
-  - name: cfxcode
+  - name: cfxha
     bits: '[23:18]'
     role: cfxcode
     bank: imm
@@ -2071,7 +2071,7 @@
   mask: '0xFF000000'
   value: '0x7D000000'
   fields:
-  - name: cfxcode
+  - name: cfxha
     bits: '[23:18]'
     role: cfxcode
     bank: imm
@@ -2095,7 +2095,7 @@
   mask: '0xFF000000'
   value: '0x7E000000'
   fields:
-  - name: cfxcode
+  - name: cfxha
     bits: '[23:18]'
     role: cfxcode
     bank: imm
@@ -2115,7 +2115,7 @@
   mask: '0xFF000000'
   value: '0x7F000000'
   fields:
-  - name: cfxcode
+  - name: cfxha
     bits: '[23:18]'
     role: cfxcode
     bank: imm

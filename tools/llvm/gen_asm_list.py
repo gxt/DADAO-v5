@@ -80,7 +80,7 @@ def operands(entry: dict) -> list[dict]:
         # Infer kind from field name and format
         if name == "wpN":
             kind, bank = "wpN", None
-        elif name == "cfxcode":
+        elif name == "cfxha":
             kind, bank = "cfxcode", None
         elif name == "cghb":
             kind, bank = "cfx_cg", None
@@ -97,11 +97,11 @@ def operands(entry: dict) -> list[dict]:
     return out
 
 
-FIELD_RE = re.compile(r"^(rd|rb|ra|rf|cg|rc)([a-z]{2})$")
+FIELD_RE = re.compile(r"^(rd|rb|ra|rf|cg|rc|cfx)([a-z]{2})$")
 
 
 def field_name(name: str) -> str:
-    """rdha -> rdHA；imms12/wpN/cfxcode 原样。"""
+    """rdha -> rdHA；cfxha -> cfxHA；imms12/wpN 原样。"""
     m = FIELD_RE.match(name)
     return m.group(1) + m.group(2).upper() if m else name
 
@@ -337,9 +337,9 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
             f"{R(ops[1])}, {R(ops[2], 1)}, {R(ops[3], 2)}"
         )
     if mnemonic == "escape":
-        return f"{mnemonic} cfxcode, [excp_cause_ip, imms18i]"
+        return f"{mnemonic} cfxHA, [excp_cause_ip, imms18i]"
     if mnemonic == "trap":
-        return f"{mnemonic} cfxcode, immu18"
+        return f"{mnemonic} cfxHA, immu18"
 
     # LR-SC 家族（lr 的 rdhb 固定 rd0，汇编只写两个操作数）
     if mnemonic.startswith("lr_"):

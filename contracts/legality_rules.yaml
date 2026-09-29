@@ -292,7 +292,7 @@ rules:
     spec_cite: "SimRISC-11 §寄存器传输指令"
     status: deferred
     description: >
-      cfxcode 为 reserved 核芯功能扩展（7–14、19–61）时触发 ILLI 异常。
+      cfxha 为 reserved 核芯功能扩展（7–14、19–61）时触发 ILLI 异常。
       特权 cfx 指令属 M1 范围外（contract-isa.md §7.5），M1 不提取其语义。
 
   # ── 浮点 root/log 规则（M1 范围外）──────────────────────────────────────────
