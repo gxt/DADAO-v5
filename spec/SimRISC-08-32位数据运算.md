@@ -48,39 +48,39 @@ MISC-tetra 子表中的 `add`/`sub` 提供 32 位加减运算，按符号类型�
 - **`add.ut`/`sub.ut`**（无符号）：结果零扩展至 64 位，适合无符号运算。
 - **`add.st`/`sub.st`**（有符号，默认）：结果符号扩展至 64 位，适合有符号运算。
 
-仅 size 范围内的低位参与运算，溢出部分静默丢弃。操作数格式为 `orrr`，`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+仅 size 范围内的低位参与运算，溢出部分静默丢弃。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
 | 指令 | 位宽 | 汇编语法 | 高位填充 |
 |------|------|---------|---------|
-| `add.ut`/`sub.ut` / `add.st`/`sub.st` | 32 位 | `add.ut rdhb, rdhc, rdhd` | 零扩展 / 符号扩展 |
+| `add.ut`/`sub.ut` / `add.st`/`sub.st` | 32 位 | `add.ut rdHB, rdHC, rdHD` | 零扩展 / 符号扩展 |
 
 ```simrisc
-add.ut  rdhb, rdhc, rdhd
-add.st  rdhb, rdhc, rdhd
-sub.ut  rdhb, rdhc, rdhd
-sub.st  rdhb, rdhc, rdhd
-cmp.ut  rdhb, rdhc, rdhd
-cmp.st  rdhb, rdhc, rdhd
-mul.ut  rdhb, rdhc, rdhd
-mul.st  rdhb, rdhc, rdhd
-div.ut  rdhb, rdhc, rdhd
-div.st  rdhb, rdhc, rdhd
-rem.ut  rdhb, rdhc, rdhd
-rem.st  rdhb, rdhc, rdhd
-and.t   rdhb, rdhc, rdhd
-or.t    rdhb, rdhc, rdhd
-xor.t   rdhb, rdhc, rdhd
-xnor.t  rdhb, rdhc, rdhd
-shl.ut  rdhb, rdhc, rdhd
-shl.ut  rdhb, rdhc, immu6
-shr.ut  rdhb, rdhc, rdhd
-shr.ut  rdhb, rdhc, immu6
-shr.st  rdhb, rdhc, rdhd
-shr.st  rdhb, rdhc, immu6
-ext.ut  rdhb, rdhc, rdhd
-ext.ut  rdhb, rdhc, immu6
-ext.st  rdhb, rdhc, rdhd
-ext.st  rdhb, rdhc, immu6
+add.ut  rdHB, rdHC, rdHD
+add.st  rdHB, rdHC, rdHD
+sub.ut  rdHB, rdHC, rdHD
+sub.st  rdHB, rdHC, rdHD
+cmp.ut  rdHB, rdHC, rdHD
+cmp.st  rdHB, rdHC, rdHD
+mul.ut  rdHB, rdHC, rdHD
+mul.st  rdHB, rdHC, rdHD
+div.ut  rdHB, rdHC, rdHD
+div.st  rdHB, rdHC, rdHD
+rem.ut  rdHB, rdHC, rdHD
+rem.st  rdHB, rdHC, rdHD
+and.t   rdHB, rdHC, rdHD
+or.t    rdHB, rdHC, rdHD
+xor.t   rdHB, rdHC, rdHD
+xnor.t  rdHB, rdHC, rdHD
+shl.ut  rdHB, rdHC, rdHD
+shl.ut  rdHB, rdHC, immu6
+shr.ut  rdHB, rdHC, rdHD
+shr.ut  rdHB, rdHC, immu6
+shr.st  rdHB, rdHC, rdHD
+shr.st  rdHB, rdHC, immu6
+ext.ut  rdHB, rdHC, rdHD
+ext.ut  rdHB, rdHC, immu6
+ext.st  rdHB, rdHC, rdHD
+ext.st  rdHB, rdHC, immu6
 ```
 
 #### neg 伪指令
@@ -89,7 +89,7 @@ ext.st  rdhb, rdhc, immu6
 
 | 伪指令 | 展开形式 | 语义 |
 |--------|----------|------|
-| `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展至 64 位 |
+| `neg.t rdHB, rdHC` | `sub.st rdHB, rd0, rdHC` | 32 位取负，符号扩展至 64 位 |
 
 示例：
 ```simrisc
@@ -98,21 +98,21 @@ neg.t   rd1, rd2        ; rd1 = -rd2（低 32 位取负，符号扩展）
 
 ### 比较操作
 
-MISC-tetra 子表中的 `cmp.s`/`cmp.u`（后缀 `.st`/`.ut`）提供 32 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+MISC-tetra 子表中的 `cmp.s`/`cmp.u`（后缀 `.st`/`.ut`）提供 32 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
 | 指令 | 位宽 | 汇编语法 | 比较范围 |
 |------|------|---------|---------|
-| `cmp.ut`/`cmp.st` | 32 位 | `cmp.ut rdhb, rdhc, rdhd` | bits[31:0] |
+| `cmp.ut`/`cmp.st` | 32 位 | `cmp.ut rdHB, rdHC, rdHD` | bits[31:0] |
 
 例如 `cmp.st rd1, rd2, rd3` 将 rd2 和 rd3 的低 32 位按有符号比较，结果写入 rd1。
 
 ### 乘除操作
 
-MISC-tetra 子表中的 `mul`/`div`/`rem` 提供 32 位乘除余运算。`mul` 后缀为 `.ut`/`.st`；`div`/`rem` 后缀为 `.ut`/`.st`。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdhb` 不能为 `rd0`，否则触发 ILLI 异常。
+MISC-tetra 子表中的 `mul`/`div`/`rem` 提供 32 位乘除余运算。`mul` 后缀为 `.ut`/`.st`；`div`/`rem` 后缀为 `.ut`/`.st`。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
 | 指令 | 位宽 | 汇编语法 |
 |------|------|---------|
-| `mul.ut`/`mul.st`/`div.ut`/`div.st`/`rem.ut`/`rem.st` | 32 位 | `mul.ut rdhb, rdhc, rdhd` |
+| `mul.ut`/`mul.st`/`div.ut`/`div.st`/`rem.ut`/`rem.st` | 32 位 | `mul.ut rdHB, rdHC, rdHD` |
 
 除法指令附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：
 
@@ -129,7 +129,7 @@ MISC-tetra 子表中的 `and`/`or`/`xor`/`xnor`（后缀 `.t`）提供 32 位逻
 
 | 指令 | 位宽 | 汇编语法 | 操作范围 |
 |------|------|---------|---------|
-| `and.t`/`or.t`/`xor.t`/`xnor.t` | 32 位 | `and.t rdhb, rdhc, rdhd` | bits[31:0] 参与运算，bits[63:32] 不变 |
+| `and.t`/`or.t`/`xor.t`/`xnor.t` | 32 位 | `and.t rdHB, rdHC, rdHD` | bits[31:0] 参与运算，bits[63:32] 不变 |
 
 逻辑运算规则和逻辑非实现见 SimRISC-04。以上四条逻辑运算指令在 size 范围外的高位（bits[63:32]）保持目的寄存器原有值不变。
 
@@ -137,13 +137,13 @@ MISC-tetra 子表中的 `and`/`or`/`xor`/`xnor`（后缀 `.t`）提供 32 位逻
 
 | 伪指令 | 展开形式 | 操作范围 |
 |--------|----------|----------|
-| `not.t rdhb, rdhc` | `xnor.t rdhb, rdhc, rd0` | bits[31:0] 取反，bits[63:32] 不变 |
+| `not.t rdHB, rdHC` | `xnor.t rdHB, rdHC, rd0` | bits[31:0] 取反，bits[63:32] 不变 |
 
 源和目的可为同一寄存器（原地取反）。
 
 ### Bit manipulating：位操作指令
 
-MISC-tetra 子表中的 `shl`/`shr`（后缀 `.ut`/`.st`）提供 32 位移位操作。移位量（shamt）取 `rdhd` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
+MISC-tetra 子表中的 `shl`/`shr`（后缀 `.ut`/`.st`）提供 32 位移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
 移位语义和扩展语义见 SimRISC-04。其中 N=31。
 
@@ -157,6 +157,6 @@ MISC-tetra 子表中的 `shl`/`shr`（后缀 `.ut`/`.st`）提供 32 位移位�
 
 | 指令 | N | 汇编语法 | 约束 |
 |------|---|---------|------|
-| `ext.ut`/`ext.st` | 31 | `ext.ut rdhb, rdhc, rdhd` 或 `ext.ut rdhb, rdhc, immu6` | hd ≤ 31 |
+| `ext.ut`/`ext.st` | 31 | `ext.ut rdHB, rdHC, rdHD` 或 `ext.ut rdHB, rdHC, immu6` | hd ≤ 31 |
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
