@@ -137,19 +137,68 @@ def check_elf_fields():
     actual = None
     method = ""
 
-    def _is_comment(s: str) -> bool:
-        """判断一行是否为 C/C++ 注释行（行首去空白后以注释标记开头）。"""
+    def _strip_inline_comment(line: str) -> str:
+        """去除 C/C++ 行尾注释，正确处理字符串字面量。
+
+        遍历字符：跟踪 '...' / "..." 状态，遇到未转义且不在字符串中的
+        '//' 则截断；'/*' 同理截断到行尾（块注释跨行时仅去本行尾部，
+        不匹配 '*/' —— 够用且安全）。
+        """
+        result = []
+        i = 0
+        in_single = False  # inside '...'
+        in_double = False  # inside "..."
+        while i < len(line):
+            c = line[i]
+            if in_single:
+                result.append(c)
+                if c == "\\" and i + 1 < len(line):
+                    i += 1
+                    result.append(line[i])
+                elif c == "'":
+                    in_single = False
+            elif in_double:
+                result.append(c)
+                if c == "\\" and i + 1 < len(line):
+                    i += 1
+                    result.append(line[i])
+                elif c == '"':
+                    in_double = False
+            else:
+                if c == "'" and not in_double:
+                    in_single = True
+                    result.append(c)
+                elif c == '"' and not in_single:
+                    in_double = True
+                    result.append(c)
+                elif c == "/" and i + 1 < len(line):
+                    nxt = line[i + 1]
+                    if nxt == "/":
+                        break  # rest is line comment
+                    if nxt == "*":
+                        break  # block comment starts; just cut rest of line
+                    else:
+                        result.append(c)
+                else:
+                    result.append(c)
+            i += 1
+        return "".join(result)
+
+    def _is_comment_line(s: str) -> bool:
+        """判断一行是否为纯注释行（行首去空白后以注释标记开头）。"""
         s = s.strip()
         return (s.startswith("//") or s.startswith("/*")
                 or s.startswith("*") or s.startswith("*/"))
 
-    # 提取 diff '+' 非注释代码行（排除 '+++' 文件头行、注释行）
+    # 提取 diff '+' 非纯注释代码行，去除行尾注释后再保留
+    # （排除 '+++' 文件头行、纯注释行、行尾注释中的误导文本）。
     # 用于 setELFHeaderEFlags / getEFlags 调用搜索和常量定义回查。
     code_lines = "\n".join(
-        ln[1:] for ln in patch_content.splitlines()
+        _strip_inline_comment(ln[1:])
+        for ln in patch_content.splitlines()
         if (ln.startswith("+")
             and not ln.startswith("+++")
-            and not _is_comment(ln[1:]))
+            and not _is_comment_line(ln[1:]))
     )
 
     # 所有 '+' 行（含注释），仅用于不涉及常量值比对的简单存在性检查
@@ -658,13 +707,12 @@ def check_opcodes_cross():
     EXPECTED_TRANS = 254
     qemu_patches_dir = os.path.join(REPO_ROOT, "components", "qemu", "patches")
     trans_defs = set()
-    if os.path.isdir(qemu_patches_dir):
-        for pf in iter_patch_files(qemu_patches_dir):
-            with open(pf, encoding="utf-8") as f:
-                for line in f:
-                    m = re.search(r'static\s+bool\s+(trans_\w+)\s*\(', line)
-                    if m:
-                        trans_defs.add(m.group(1))
+    for pf in iter_patch_files(qemu_patches_dir):
+        with open(pf, encoding="utf-8") as f:
+            for line in f:
+                m = re.search(r'static\s+bool\s+(trans_\w+)\s*\(', line)
+                if m:
+                    trans_defs.add(m.group(1))
     if len(trans_defs) == EXPECTED_TRANS:
         record(cat, "QEMU trans_* 定义数", "PASS",
                f"{len(trans_defs)} trans_* 函数")

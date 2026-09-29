@@ -34,6 +34,8 @@ def collect_trans_defs(src_dir):
     """从 patch 文件中收集所有 trans_* 函数定义名（精确匹配）。
 
     补丁集为树形（`patches/<上游相对路径>.patch`），故须**递归**搜索。
+    只计 '+'（新增行）和 ' '（上下文行），忽略 '-'（已删除行），
+    防止前序 patch 的 '+' 行在后序 patch 删除后仍被误判为存在。
     返回 (定义名集合, 补丁文件数)。
     """
     trans_defs = set()
@@ -43,8 +45,10 @@ def collect_trans_defs(src_dir):
     for pf in patch_files:
         with open(pf, encoding="utf-8") as f:
             for line in f:
-                # patch 格式：+ 前缀表示新增行；匹配定义
-                # 但也搜索上下文行，因为有些定义在旧代码中
+                # 只处理 '+'（新增）和 ' '（上下文）行；
+                # 跳过 '-'（删除）行及 diff 头（'---'/'+++'/'@@'/'\ '）
+                if line.startswith('-'):
+                    continue
                 m = pattern.search(line)
                 if m:
                     trans_defs.add(m.group(1))

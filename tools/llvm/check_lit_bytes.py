@@ -10,6 +10,7 @@ Exit 0: N patterns OK（N > 0 且 N == 独立计数）
 Exit 1: 无匹配 / mnemonic 不匹配 / N == 0 / N != 独立计数
 """
 
+import argparse
 import glob
 import os
 import re
@@ -18,7 +19,7 @@ import sys
 import yaml
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
-LIT_DIR = os.path.join(REPO_ROOT, "tests", "lit", "MC", "Dadao")
+DEFAULT_LIT_DIR = os.path.join(REPO_ROOT, "tests", "lit", "MC", "Dadao")
 OPCODES_YAML = os.path.join(REPO_ROOT, "contracts", "opcodes.yaml")
 
 # P1: mnemonic 提取遇 {{ 即停
@@ -56,9 +57,24 @@ def find_match(word: int, opcodes: list[dict]) -> list[dict]:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--lit-dir",
+        default=DEFAULT_LIT_DIR,
+        help="directory containing lit .s test files (default: tests/lit/MC/DADAO)",
+    )
+    parser.add_argument(
+        "--min-obj",
+        type=int,
+        default=0,
+        help="minimum expected number of # OBJ: lines (fail if below)",
+    )
+    args = parser.parse_args()
+    lit_dir = args.lit_dir
+
     opcodes = load_opcodes(OPCODES_YAML)
 
-    lit_files = sorted(glob.glob(os.path.join(LIT_DIR, "*.s")))
+    lit_files = sorted(glob.glob(os.path.join(lit_dir, "*.s")))
     if not lit_files:
         print("check_lit_bytes: ERROR — no .s files found", file=sys.stderr)
         return 1
@@ -116,6 +132,12 @@ def main() -> int:
     if n_matched != independent_count:
         errors.append(
             f"  N ({n_matched}) != independent count ({independent_count})"
+        )
+
+    # OBJ line count minimum: prevents silent deletion of entire OBJ lines
+    if args.min_obj > 0 and n_matched < args.min_obj:
+        errors.append(
+            f"  N ({n_matched}) < min-obj ({args.min_obj}) — OBJ lines may have been deleted"
         )
 
     if errors:

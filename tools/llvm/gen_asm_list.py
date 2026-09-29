@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -547,7 +548,7 @@ def plain_lines(entries: list[dict], syntax: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("-o", "--output", default=str(ROOT / "docs/assembly-list.md"))
+    parser.add_argument("-o", "--output", default=None)
     parser.add_argument(
         "--plain",
         action="store_true",
@@ -579,9 +580,13 @@ def main() -> int:
             f"// 来源：contracts/opcodes.yaml（254 条 = M1 177 + excluded_m1 77）\n"
             f"// 新语法规范：docs/spec/assembly-language.md\n\n"
         )
-        out = Path(args.output)
-        out.write_text(header + "\n".join(plain_lines(entries, args.syntax)) + "\n", encoding="utf-8")
-        print(f"gen-asm-list: {len(entries)} entries ({args.syntax} syntax) -> {out}")
+        text = header + "\n".join(plain_lines(entries, args.syntax)) + "\n"
+        if args.output is not None:
+            Path(args.output).write_text(text, encoding="utf-8")
+            print(f"gen-asm-list: {len(entries)} entries ({args.syntax} syntax) -> {args.output}")
+        else:
+            sys.stdout.write(text)
+            print(f"gen-asm-list: {len(entries)} entries ({args.syntax} syntax) -> stdout", file=sys.stderr)
         return 0
 
     by_format: dict[str, list[dict]] = {}
@@ -642,7 +647,7 @@ def main() -> int:
 | `wpN` | wyde 位置 0..3 |
 """
 
-    out = Path(args.output)
+    out = Path(args.output) if args.output is not None else ROOT / "docs/assembly-list.md"
     out.write_text(header + "\n".join(rows) + "\n", encoding="utf-8")
     print(f"gen-asm-list: {len(entries)} entries -> {out}")
     return 0

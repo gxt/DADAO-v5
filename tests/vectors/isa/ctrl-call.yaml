@@ -202,8 +202,7 @@
       ra63: '0x0001AAAA00000000'
   mnemonic: call
   notes: 'semantic §5.6.1 case 3 (shift-push): rb0=0xFFFF00000000, rd0=0, imms12=2, Addr=0xFFFF00000008; ra63 input high 16=0x0001
-    (valid), low 48=0xAAAA000000000000; PC+4=0xFFFF00000004 ≠ ra63 low 48 → shift-push: new addr into ra63, old ra63 into
-    ra62'
+    (valid), low 48=0xAAAA00000000; PC+4=0xFFFF00000004 ≠ ra63 low 48 → shift-push: new addr into ra63, old ra63 into ra62'
   spec_cite: SimRISC-06 §函数调用; §5.6.1; ADR-0004 D2.1
   status: active
 - class: legality

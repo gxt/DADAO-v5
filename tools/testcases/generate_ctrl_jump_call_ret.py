@@ -271,7 +271,7 @@ def _gen_call_rrii():
               None, TARGET, SC_CALL_SEM,
               "semantic §5.6.1 case 3 (shift-push): rb0=0xFFFF00000000, "
               "rd0=0, imms12=2, Addr=0xFFFF00000008; ra63 input "
-              "high 16=0x0001 (valid), low 48=0xAAAA000000000000; "
+              "high 16=0x0001 (valid), low 48=0xAAAA00000000; "
               "PC+4=0xFFFF00000004 ≠ ra63 low 48 → shift-push: "
               "new addr into ra63, old ra63 into ra62"),
         _case("legality", "call_rrii_ra", "rrii", unmapped_word,

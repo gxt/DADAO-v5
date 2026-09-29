@@ -1,6 +1,6 @@
 diff --git a/target/dadao/helper.h b/target/dadao/helper.h
 new file mode 100644
-index 0000000000..88504ea5c9
+index 0000000000..9f325738b4
 --- /dev/null
 +++ b/target/dadao/helper.h
 @@ -0,0 +1,19 @@
@@ -23,4 +23,3 @@ index 0000000000..88504ea5c9
 + */
 +
 +DEF_HELPER_2(raise_exception, noreturn, env, i32)
-\ No newline at end of file

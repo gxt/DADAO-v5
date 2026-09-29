@@ -9,6 +9,7 @@ B5 fix: Uses proper .text section parsing instead of searching the whole ELF.
 import subprocess
 import sys
 import struct
+import glob
 import os
 import tempfile
 
@@ -156,36 +157,19 @@ TESTS = [
     # riii_branch.s: br.np {rd0}?, [rb0, 4i] (op=0x6D)
     ("br.np {rd0}?, [rb0, 4i]", encode_riii(0x6D, 0, 4)),
 
-    # riii_ret.s: ret rd0, 0 (op=0x76)
-    ("ret rd0, 0", encode_riii(0x76, 0, 0)),
-
     # rrii_branch.s: br.eq {rd8, rd0}?, [rb0, 4i] (op=0x6E)
     ("br.eq {rd8, rd0}?, [rb0, 4i]", encode_rrii(0x6E, 8, 0, 4)),
 
-    # iiii_jump.s: call [rb0, 1i] (op=0x74)
-    ("call [rb0, 1i]", encode_iiii(0x74, 1)),
-    # iiii_jump.s: jump [rb0, 1i] (op=0x70)
-    ("jump [rb0, 1i]", encode_iiii(0x70, 1)),
     # oiii.s: swym 42 (op=0x00, ha=0x02)
     ("swym 42", encode_oiii(0x00, 0x02, 42)),
 
     # orrr.s: or.o rd8, rd9, rd10 (op=0x40, ha=0x09)
     ("or.o rd8, rd9, rd10", encode_orrr(0x40, 0x09, 8, 9, 10)),
 
-    # orri.s: ext.uo rd8, rd0, 1 (op=0x40, ha=0x18)
-    ("ext.uo rd8, rd0, 1", encode_orri(0x40, 0x18, 8, 0, 1)),
-
     # rb_ops.s: rb2rd {rd8:rd9}, {rb9:rb10} (op=0x40, ha=0x36)
     ("rb2rd {rd8:rd9}, {rb9:rb10}", encode_orri(0x40, 0x36, 8, 9, 2)),
     # rb_ops.s: rd2rd {rd8}, {rd1} (op=0x40, ha=0x2C)
     ("rd2rd {rd8}, {rd1}", encode_orri(0x40, 0x2C, 8, 1, 1)),
-    # oiii.s: illi 0 (op=0x00, ha=0x00)
-    ("illi 0", encode_oiii(0x00, 0x00, 0)),
-
-    # basic-encoding.s: add.si rd8, 1 (op=0x59, ha=8, imm18=1)
-    ("add.si rd8, 1", encode_riii(0x59, 8, 1)),
-    # basic-encoding.s: add.si rb1, 1 (op=0x5B, ha=1, imm18=1)
-    ("add.si rb1, 1", encode_riii(0x5B, 1, 1)),
     # basic-encoding.s: add.si rd8, -1 (op=0x59, ha=8, imms18=-1)
     ("add.si rd8, -1", encode_riii(0x59, 8, -1)),
     # basic-encoding.s: br.n {rd0}?, [rb0, 2i] (imms18=2, forward fixup)
@@ -378,6 +362,22 @@ def main():
         sys.exit(1)
     else:
         print("All encoding tests passed!", file=sys.stderr)
+        # Cross-check: unique oracle test count >= lit OBJ line count
+        lit_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)))), 'tests', 'lit', 'MC', 'Dadao')
+        obj_count = 0
+        for sfile in glob.glob(os.path.join(lit_dir, '*.s')):
+            with open(sfile) as f:
+                for line in f:
+                    if '# OBJ:' in line:
+                        obj_count += 1
+        n_unique = len(set((a, e) for a, e in TESTS))
+        if obj_count > 0 and n_unique < obj_count:
+            print(f"CROSS-CHECK FAIL: oracle tests ({n_unique}) < lit OBJ lines ({obj_count})",
+                  file=sys.stderr)
+            sys.exit(1)
+        print(f"Cross-check OK: oracle tests ({n_unique}) >= lit OBJ lines ({obj_count})",
+              file=sys.stderr)
         sys.exit(0)
 
 if __name__ == '__main__':

@@ -13,8 +13,6 @@ fail-closed: 缺来源 / 来源格式损坏 / 未知 ADR / 版本不匹配 → e
 Usage:
     python3 tools/infra/check_spec_drift.py [--contract-dir DIR] [--knowledge-dir DIR]
                                              [--spec-dir DIR] [--repo-root DIR]
-                                             [--test-mode {version_mismatch,source_missing,
-                                                           source_bad_format,unknown_adr}]
 """
 
 import argparse
@@ -132,7 +130,6 @@ def classify_contract(
     readme_versions: dict[str, str],
     knowledge_dir: Path,
     spec_dir: Path,
-    test_mode: str | None = None,
 ) -> tuple[str, list[str]]:
     """分类单个合约文件. 返回 (status, details).
 
@@ -142,14 +139,6 @@ def classify_contract(
     text = contract_path.read_text(encoding="utf-8")
     details: list[str] = []
     name = contract_path.name
-
-    # ── 负测试注入（前置：在分类逻辑之前强制 ERROR）──────────────────────────
-    if test_mode == "source_missing":
-        details.append("  ERROR: 来源缺失（负测试注入）")
-        return ("error", details)
-    if test_mode == "source_bad_format":
-        details.append("  ERROR: 来源格式错误（负测试注入）")
-        return ("error", details)
 
     # 尝试 spec-sourced: 查找版本头
     version_match = None
@@ -185,13 +174,6 @@ def classify_contract(
                 details.append(f"  ERROR: README 版本表无组件 '{component}'")
                 return ("error", details)
             expected_version = readme_versions[component]
-            if test_mode == "version_mismatch":
-                # 负测试: 注入版本不匹配
-                details.append(
-                    f"  ERROR: 版本不匹配 — {name}: 合约版本 {version} "
-                    f"≠ README '{component}' 版本 {expected_version}（负测试注入）"
-                )
-                return ("error", details)
             if version != expected_version:
                 details.append(
                     f"  ERROR: 版本不匹配 — {name}: 合约版本 {version} "
@@ -214,9 +196,6 @@ def classify_contract(
     # 尝试 ADR-sourced: 查找 ADR 引用
     adr_refs = RE_ADR_REF.findall(text)
     if adr_refs:
-        if test_mode == "unknown_adr":
-            details.append("  ERROR: 未知 ADR（负测试注入）")
-            return ("error", details)
         for adr_num in adr_refs:
             adr_filename = None
             for candidate in knowledge_dir.glob(f"adr-{adr_num}-*.md"):
@@ -258,15 +237,7 @@ def main() -> int:
         "--contract-dir", type=Path, default=None,
         help="合约目录（默认: .tao/knowledge）",
     )
-    parser.add_argument(
-        "--test-mode", type=str, default=None,
-        choices=["version_mismatch", "source_missing", "source_bad_format", "unknown_adr"],
-        help="负测试模式",
-    )
-    parser.add_argument(
-        "--test-contract", type=str, default=None,
-        help="负测试目标合约文件名（配合 --test-mode）",
-    )
+
     args = parser.parse_args()
 
     # 确定路径
@@ -316,12 +287,9 @@ def main() -> int:
             continue
 
         checked += 1
-        test_mode = None
-        if args.test_mode and args.test_contract == name:
-            test_mode = args.test_mode
 
         status, details = classify_contract(
-            contract_path, readme_versions, knowledge_dir, spec_dir, test_mode
+            contract_path, readme_versions, knowledge_dir, spec_dir
         )
 
         if status == "error":

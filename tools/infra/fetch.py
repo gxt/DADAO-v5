@@ -87,8 +87,11 @@ def sync_mirror(
     print(f"fetch: mirror {mirror.name} updated (incremental)")
 
 
-def select_source(component: dict) -> str:
+def select_source(component: dict) -> tuple[str, str]:
     """Resolve the effective Git URL for *component* following ADR-0005 D2.
+
+    Returns ``(url, label)`` where *label* is a human-readable source name
+    (the env-override value, ``source[0]["name"]``, or ``"canonical"``).
 
     Source selection priority:
     1. Environment variable ``COMPONENT_SOURCE_<NAME>`` (uppercase component
@@ -105,10 +108,10 @@ def select_source(component: dict) -> str:
 
     if env_val is not None:
         if env_val == "canonical":
-            return repository
+            return (repository, "canonical")
         for src in sources:
             if src["name"] == env_val:
-                return src["url"]
+                return (src["url"], env_val)
         available = [s["name"] for s in sources]
         raise SystemExit(
             f"fetch: {env_key}={env_val!r} does not match any source for "
@@ -116,8 +119,8 @@ def select_source(component: dict) -> str:
         )
 
     if sources:
-        return sources[0]["url"]
-    return repository
+        return (sources[0]["url"], sources[0]["name"])
+    return (repository, "canonical")
 
 
 def main() -> int:
@@ -139,20 +142,9 @@ def main() -> int:
         mirror = mirror_root / f"{name}.git"
         target = source_root / name
 
-        source_url = select_source(component)
+        source_url, src_label = select_source(component)
         shallow = bool(component.get("shallow", False))
         shallow_ref = component.get("shallow_ref", "")
-        # Show which source was resolved: env override name, source[0].name,
-        # or "canonical" (meaning repository).
-        env_key = f"COMPONENT_SOURCE_{name.upper()}"
-        env_val = os.environ.get(env_key)
-        sources = component.get("source", [])
-        if env_val is not None:
-            src_label = env_val
-        elif sources:
-            src_label = sources[0]["name"]
-        else:
-            src_label = "canonical"
         print(f"fetch: {name} using source '{src_label}' ({source_url})")
         sync_mirror(mirror, source_url, commit,
                     shallow=shallow, shallow_ref=shallow_ref)
