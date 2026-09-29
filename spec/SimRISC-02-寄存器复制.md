@@ -41,68 +41,68 @@
 操作数类型为 `orri`，指令如下：
 
 ```simrisc
-rd2rd   rdhb, rdhc, immu6
+rd2rd   {rdHB:rdHB+immu6-1}, {rdHC:rdHC+immu6-1}
 
-rb2rd   rdhb, rbhc, immu6
-rd2rb   rbhb, rdhc, immu6
-rb2rb   rbhb, rbhc, immu6
+rb2rd   {rdHB:rdHB+immu6-1}, {rbHC:rbHC+immu6-1}
+rd2rb   {rbHB:rbHB+immu6-1}, {rdHC:rdHC+immu6-1}
+rb2rb   {rbHB:rbHB+immu6-1}, {rbHC:rbHC+immu6-1}
 
-ra2rd   rdhb, rahc, immu6
-rd2ra   rahb, rdhc, immu6
+ra2rd   {rdHB:rdHB+immu6-1}, {raHC:raHC+immu6-1}
+rd2ra   {raHB:raHB+immu6-1}, {rdHC:rdHC+immu6-1}
 
-rf2rd   rdhb, rfhc, immu6
-rd2rf   rfhb, rdhc, immu6
+rf2rd   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+rd2rf   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
 ```
 
-以 `rb2rd` 为例，指令语义为，将rbhc开始的immu6个寄存器复制到rdhb开始的immu6个寄存器中。
+以 `rb2rd` 为例，指令语义为，将rbHC开始的immu6个寄存器复制到rdHB开始的immu6个寄存器中。
 immu6为立即数，存在hd位域中，用来指定寄存器的个数，有效范围为1~63。
 
 限制如下：
 
 - 根据语义，rb/rf/ra之间不能进行直接赋值，ra与ra之间不能进行相互赋值
 - `immu6` = 0 时触发 ILLI 异常
-- 目的寄存器不可为 0 号寄存器时触发 ILLI 异常（`rdhb` 不可为 `rd0`，`rbhb` 不可为 `rb0`）
+- 目的寄存器不可为 0 号寄存器时触发 ILLI 异常（`rdHB` 不可为 `rd0`，`rbHB` 不可为 `rb0`）
 - 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
 - 源范围与目的范围有交集时触发 ILLI 异常（即不允许源和目的寄存器范围有任何重叠）
 
 ### 条件赋值：Conditional Assignment
 
-第一类条件赋值指令需要先根据`rdha`的内容进行条件判断，然后分别将`rdhc`或`rdhd`赋值给`rdhb`，即 `if (rdha is negative/zero/positive) rdhb = rdhc; else rdhb = rdhd`。
+第一类条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rdHC`或`rdHD`赋值给`rdHB`，即 `if (rdHA is negative/zero/positive) rdHB = rdHC; else rdHB = rdHD`。
 操作数类型为 `rrrr`，指令如下：
 
 ```simrisc
-cs.n    rdha, rdhb, rdhc, rdhd
-cs.z    rdha, rdhb, rdhc, rdhd
-cs.p    rdha, rdhb, rdhc, rdhd
+cs.n    {rdHA}?, rdHB, rdHC, rdHD
+cs.z    {rdHA}?, rdHB, rdHC, rdHD
+cs.p    {rdHA}?, rdHB, rdHC, rdHD
 ```
 
-第二类条件赋值指令需要先根据`rdha`与`rdhb`是否相等进行条件判断，如果条件成立则将`rdhd`的值赋值给`rdhc`，即 `if (rdha ==/!= rdhb) rdhc = rdhd`。
+第二类条件赋值指令需要先根据`rdHA`与`rdHB`是否相等进行条件判断，如果条件成立则将`rdHD`的值赋值给`rdHC`，即 `if (rdHA ==/!= rdHB) rdHC = rdHD`。
 操作数类型为 `rrrr`，指令如下：
 
 ```simrisc
-cs.eq   rdha, rdhb, rdhc, rdhd
-cs.ne   rdha, rdhb, rdhc, rdhd
+cs.eq   {rdHA, rdHB}?, rdHC, rdHD
+cs.ne   {rdHA, rdHB}?, rdHC, rdHD
 ```
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
 
 ### 浮点条件赋值
 
-第一类浮点条件赋值指令需要先根据`rdha`的内容进行条件判断，然后分别将`rfhc`或`rfhd`赋值给`rfhb`，即 `if (rdha is negative/zero/positive) rfhb = rfhc; else rfhb = rfhd`。
+第一类浮点条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rfHC`或`rfHD`赋值给`rfHB`，即 `if (rdHA is negative/zero/positive) rfHB = rfHC; else rfHB = rfHD`。
 操作数类型为 `rrrr`，指令如下：
 
 ```simrisc
-cs.n    rdha, rfhb, rfhc, rfhd
-cs.z    rdha, rfhb, rfhc, rfhd
-cs.p    rdha, rfhb, rfhc, rfhd
+cs.n    {rdHA}?, rfHB, rfHC, rfHD
+cs.z    {rdHA}?, rfHB, rfHC, rfHD
+cs.p    {rdHA}?, rfHB, rfHC, rfHD
 ```
 
-第二类浮点条件赋值指令需要先判断`rdha`与`rdhb`是否相等，如果条件成立则将`rfhd`的值赋值给`rfhc`，即 `if (rdha ==/!= rdhb) rfhc = rfhd`。
+第二类浮点条件赋值指令需要先判断`rdHA`与`rdHB`是否相等，如果条件成立则将`rfHD`的值赋值给`rfHC`，即 `if (rdHA ==/!= rdHB) rfHC = rfHD`。
 操作数类型为 `rrrr`，指令如下：
 
 ```simrisc
-cs.eq   rdha, rdhb, rfhc, rfhd
-cs.ne   rdha, rdhb, rfhc, rfhd
+cs.eq   {rdHA, rdHB}?, rfHC, rfHD
+cs.ne   {rdHA, rdHB}?, rfHC, rfHD
 ```
 
 此类指令与浮点比较指令配合使用。浮点比较结果存放在 rd 寄存器中：`1`（大于）、`0`（等于）、`-1`（小于）、NaN（unordered）。当比较结果为 NaN 时，`cs.eq` 和 `cs.ne` 均执行 else 分支（NaN ≠ 1 且 NaN ≠ 0）。
