@@ -197,7 +197,7 @@ ha/hb/hc/hd通过不同的寻址方式组合成操作数，h含义为hexagram，
 操作数的寻址方式分别用以下几个字母表示：
 
 - `o`：六位的minor-opcode
-- `c`：六位的cfxcode
+- `c`：六位的cfxha
 - `r`：寄存器
 - `i`：立即数（立即数域需要区分有符号数和无符号数）
 - `w`：头两位为wyde-position，后四位为立即数
@@ -232,11 +232,11 @@ SimRISC 提供四种固定数据位宽，通过指令名后缀 `.b`/`.w`/`.t`/`.
 
 各子表内使用 `orrr`/`orri`/`oiii` 操作数格式。指令名后缀 `.b`/`.w`/`.t`/`.o` 与已有的存取指令后缀（`ldb`/`ldw`/`ld.t`/`ld.o`）一致。对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shl/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。
 
-以下三种格式含 `c`（cfxcode，6 位核芯功能扩展编码），cfxcode 始终在 `ha[5:0]`：
+以下三种格式含 `c`（cfxha，6 位核芯功能扩展编码），cfxha 始终在 `ha[5:0]`：
 
-- `crrr`：cfxcode + 三个 6 位寄存器编号，cg 在 `hb`，rc 在 `hc`，rd 在 `hd`（cfx2rd/cfx2rc）
-- `crii`：cfxcode + 6 位 rb 寄存器在 `hb` + 12 位立即数在 `hc[5:0]`+`hd[5:0]`（hc=高位, hd=低位，cfxld/cfxst）
-- `ciii`：cfxcode + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]`（hb=高位, hc=中位, hd=低位，trap/escape）
+- `crrr`：cfxha + 三个 6 位寄存器编号，cg 在 `hb`，rc 在 `hc`，rd 在 `hd`（cfx2rd/cfx2rc）
+- `crii`：cfxha + 6 位 rb 寄存器在 `hb` + 12 位立即数在 `hc[5:0]`+`hd[5:0]`（hc=高位, hd=低位，cfxld/cfxst）
+- `ciii`：cfxha + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]`（hb=高位, hc=中位, hd=低位，trap/escape）
 
 SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数，从而可以把立即数放在最后，并且立即数通常为最后一个源操作数，可以直观的从二进制上判断出立即数。
 其好处是便于调试，根据二进制可以直观地猜出部分指令内容。

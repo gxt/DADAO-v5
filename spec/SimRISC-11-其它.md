@@ -28,7 +28,7 @@
 操作数类型为 `oiii`：
 
 ```simrisc
-swym    0
+swym    immu18
 ```
 
 - `swym 0` 除 PC 自增外无任何架构副作用，等同于其它指令系统中的 nop 指令（汇编器提供 `nop` 伪指令，等价于 `swym 0`）
@@ -51,7 +51,7 @@ SimRISC 采用 illi 助记符作为专门的非法指令，即 illegal instructi
 操作数类型为 `oiii`：
 
 ```simrisc
-illi    0
+illi    immu18
 ```
 
 - illi指令会引发 ILLI 异常，即非法指令异常。
@@ -70,7 +70,7 @@ illi    0
 - `cfx<cfxcode>`：直接使用编号，如 `cfx63`、`cfx0`
 - `cfx_<cfxname>`：使用名称，如 `cfx_power`、`cfx_umon`
 
-汇编器对两种写法等价处理，均编码为 6 位的 cfxcode。
+汇编器对两种写法等价处理，均编码为 6 位的 cfxha。
 
 trap/escape/cfx2rd/cfx2rc/cfxld/cfxst 指令可以在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。详细异常路由规则见 SEE §5 异常进入流程。
 
@@ -81,10 +81,10 @@ trap/escape/cfx2rd/cfx2rc/cfxld/cfxst 指令可以在任意运行模式下执行
 操作数类型为：`ciii`
 
 ```simrisc
-trap    cfx_<cfxname>, immu18
+trap    cfxHA, immu18
 ```
 
-其中，cfx_<cfxname>指定核芯功能扩展名称；immu18指定具体功能编号。
+其中，cfx_<cfxname> 指定核芯功能扩展名称；immu18指定具体功能编号。
 
 ### 退出指令
 
@@ -93,10 +93,10 @@ trap    cfx_<cfxname>, immu18
 操作数类型为：`ciii`
 
 ```simrisc
-escape  cfx_<cfxname>, imms18
+escape  cfxHA, [excp_cause_ip, imms18i]
 ```
 
-其中，cfx_<cfxname>指定核芯功能扩展名称；imms18指定目标地址偏移（指令字偏移，实际地址 = excp_cause_ip + (imms18 << 2)）。
+其中，cfx_<cfxname> 指定核芯功能扩展名称；imms18指定目标地址偏移（指令字偏移，实际地址 = excp_cause_ip + (imms18 << 2)）。
 
 ### 寄存器传输指令
 
@@ -105,19 +105,19 @@ escape  cfx_<cfxname>, imms18
 操作数类型为：`crrr`
 
 ```simrisc
-cfx2rd    cfx_<cfxname>, cghb, rchc, rdhd
-cfx2rc    cfx_<cfxname>, cghb, rchc, rdhd
+cfx2rd    cfxHA, cgHB, rcHC, rdHD
+cfx2rc    cfxHA, cgHB, rcHC, rdHD
 ```
 
-其中，cfx_<cfxname>指定核芯功能扩展名称，cghb和rchc指定该核芯功能扩展的寄存器组和寄存器号。
-cfx2rc 是将 rdhd 的值设置到 cfx_<cfxname>_cghb_rchc 中。
-cfx2rd 是将 cfx_<cfxname>_cghb_rchc 的值设置到 rdhd 中。
+其中，cfx_<cfxname> 指定核芯功能扩展名称，cgHB和rcHC指定该核芯功能扩展的寄存器组和寄存器号。
+cfx2rc 是将 rdHD 的值设置到 cfx_<cfxname>_cgHB_rcHC 中。
+cfx2rd 是将 cfx_<cfxname>_cgHB_rcHC 的值设置到 rdHD 中。
 
-读写不存在的 cfx_<cfxname>_cghb_rchc 组合时触发 CFXREG 异常；cfx_<cfxname> 为 reserved 核芯功能扩展（7-14、19-61）时触发 ILLI 异常；读写权限不匹配时，触发非法核芯功能扩展寄存器访问异常（CFXREG）。
+读写不存在的 cfx_<cfxname>_cgHB_rcHC 组合时触发 CFXREG 异常；cfx_<cfxname> 为 reserved 核芯功能扩展（7-14、19-61）时触发 ILLI 异常；读写权限不匹配时，触发非法核芯功能扩展寄存器访问异常（CFXREG）。
 
 > **注意**：cfx2rd/cfx2rc 的数据通路仅连接 rd 寄存器组。若需要将 rb 或 rf 寄存器的值写入核芯功能扩展寄存器，须先通过 `rb2rd rd, rb, 1` 或 `rf2rd rd, rf, 1` 中转至 rd 寄存器。汇编器提供 `set.rd rd, rs` 伪指令简化此操作（展开为 `rb2rd`/`rf2rd`/`rd2rd`）。
 
-为简化汇编代码的编写，寄存器传输指令支持一种简化的操作数写法，将 `cfx_<cfxname>, cghb, rchc` 三个参数合并为 `cfx_⟨cfxname⟩_regname` 的形式，其中 `regname` 为寄存器名称（即 SEE 文档 regname 列中的名称）。汇编器会根据寄存器名称自动查找对应的 cg 和 rc 编号，展开为标准的三个操作数格式。
+为简化汇编代码的编写，寄存器传输指令支持一种简化的操作数写法，将 `cfx_<cfxname>, cgHB, rcHC` 三个参数合并为 `cfx_⟨cfxname⟩_regname` 的形式，其中 `regname` 为寄存器名称（即 SEE 文档 regname 列中的名称）。汇编器会根据寄存器名称自动查找对应的 cg 和 rc 编号，展开为标准的三个操作数格式。
 
 ```simrisc
 ; 简化写法（推荐）
@@ -125,8 +125,8 @@ cfx2rd  cfx_umon_excp_cause_ip, rd2    ; 读取 cfx_umon 的 excp_cause_ip
 cfx2rc  cfx_power_ctrl, rd2             ; 写入 cfx_power 的 power_ctrl
 
 ; 等价的标准写法
-cfx2rd  cfx_umon, 5, 3, rd2
-cfx2rc  cfx_power, 8, 1, rd2
+cfx2rd  cfx_umon, cg5, rc3, rd2
+cfx2rc  cfx_power, cg8, rc1, rd2
 ```
 
 这种简化写法使代码更具可读性，程序员无需记忆每个寄存器的cg和rc编号，直接通过寄存器名称即可定位目标寄存器。
