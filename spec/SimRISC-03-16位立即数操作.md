@@ -29,31 +29,31 @@
 操作数类型为 `rwii`，指令如下：
 
 ```simrisc
-set.ow   rdha, wpN, immu16
-set.zw   rdha, wpN, immu16
-or.w     rdha, wpN, immu16
-andn.w   rdha, wpN, immu16
+set.ow   rdHA, wpN, immu16
+set.zw   rdHA, wpN, immu16
+or.w     rdHA, wpN, immu16
+andn.w   rdHA, wpN, immu16
 ```
 
 由于rd寄存器为64位，而set.ow/set.zw指令只设置了其中16位，两者的区别在于set.ow指令则将其余48位置1，set.zw指令将其余48位置0。
 
-`or.w` 指令（rwii 格式）：将 `rdha` 中由 `wpN` 指定的 wyde 替换为 `(rdha[wyde] | immu16)`，其余 wyde 保持不变。
+`or.w` 指令（rwii 格式）：将 `rdHA` 中由 `wpN` 指定的 wyde 替换为 `(rdHA[wyde] | immu16)`，其余 wyde 保持不变。
 
-> **注意**：`or.w` 同时是 MISC-wyde 表的三寄存器逻辑 OR 指令（`or.w rdhb, rdhc, rdhd`），汇编器按操作数格式区分。
-`andn.w` 指令：将 `rdha` 中由 `wpN` 指定的 wyde 替换为 `(rdha[wyde] & ~immu16)`，其余 wyde 保持不变。
+> **注意**：`or.w` 同时是 MISC-wyde 表的三寄存器逻辑 OR 指令（`or.w rdHB, rdHC, rdHD`），汇编器按操作数格式区分。
+`andn.w` 指令：将 `rdHA` 中由 `wpN` 指定的 wyde 替换为 `(rdHA[wyde] & ~immu16)`，其余 wyde 保持不变。
 
 针对rb寄存器，提供了or.w/andn.w/set.zw指令，操作数类型为 `rwii`，指令如下：
 
 ```simrisc
-set.zw  rbha, wpN, immu16
-or.w    rbha, wpN, immu16
-andn.w  rbha, wpN, immu16
+set.zw  rbHA, wpN, immu16
+or.w    rbHA, wpN, immu16
+andn.w  rbHA, wpN, immu16
 ```
 
 针对rf寄存器，SimRISC提供了set.w指令，操作数类型为 `rwii` ，指令如下：
 
 ```simrisc
-set.w    rfha, wpN, immu16
+set.w    rfHA, wpN, immu16
 ```
 
 `set.w` 指令只设置相应的16位，其余48位不变。
@@ -108,10 +108,10 @@ set.rd   rd1, 0xDEADBEEF_CAFEBABE  ; 展开为：
 **寄存器传值**：`set.rd rd, rs` 也可用于从 rb、rf、ra 寄存器传值至 rd，汇编器根据源寄存器类型展开为单条块赋值指令：
 
 ```simrisc
-set.rd   rd5, rb3       ; 展开为 rb2rd rd5, rb3, 1
-set.rd   rd2, rf7       ; 展开为 rf2rd rd2, rf7, 1
-set.rd   rd8, rd3       ; 展开为 rd2rd rd8, rd3, 1
-set.rd   rd4, ra10      ; 展开为 ra2rd rd4, ra10, 1
+set.rd   rd5, rb3       ; 展开为 rb2rd {rd5}, {rb3}
+set.rd   rd2, rf7       ; 展开为 rf2rd {rd2}, {rf7}
+set.rd   rd8, rd3       ; 展开为 rd2rd {rd8}, {rd3}
+set.rd   rd4, ra10      ; 展开为 ra2rd {rd4}, {ra10}
 ```
 
 #### set.rb 伪指令
@@ -134,8 +134,8 @@ set.rb   rb1, 0x123456789ABC         ; 展开为：
 **寄存器传值**：`set.rb rb, rs` 也可用于从 rd 或 rb 寄存器传值至 rb，汇编器根据源寄存器类型展开为单条块赋值指令：
 
 ```simrisc
-set.rb   rb5, rd3       ; 展开为 rd2rb rb5, rd3, 1
-set.rb   rb2, rb7       ; 展开为 rb2rb rb2, rb7, 1
+set.rb   rb5, rd3       ; 展开为 rd2rb {rb5}, {rd3}
+set.rb   rb2, rb7       ; 展开为 rb2rb {rb2}, {rb7}
 ```
 
 **注**：rb 高 16 位（bits[63:48]）可用于地址溢出检测。汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。
@@ -158,16 +158,16 @@ set.fo   rf1, 0x3FF0000000000000     ; 展开为：
                                       ;   set.w rf1, wp0, 0x0000
 
 ; 加载零 → 将 rd0（恒为 0）赋值给 rf
-set.ft   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
-set.fo   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
+set.ft   rf1, 0                       ; 展开为 rd2rf {rf1}, {rd0}
+set.fo   rf1, 0                       ; 展开为 rd2rf {rf1}, {rd0}
 ```
 
 **寄存器传值**：`set.ft`/`set.fo` 也可用于从 rd 或 rf 寄存器传值至 rf，汇编器展开为 `rd2rf` 或 `ft2ft`/`fo2fo`：
 
 ```simrisc
-set.ft   rf1, rd5       ; 展开为 rd2rf rf1, rd5, 1
-set.ft   rf1, rf2       ; 展开为 ft2ft rf1, rf2, 1
-set.fo   rf2, rf7       ; 展开为 fo2fo rf2, rf7, 1
+set.ft   rf1, rd5       ; 展开为 rd2rf {rf1}, {rd5}
+set.ft   rf1, rf2       ; 展开为 ft2ft {rf1}, {rf2}
+set.fo   rf2, rf7       ; 展开为 fo2fo {rf2}, {rf7}
 ```
 
 **注**：加载全零时汇编器自动使用 `rd2rf` 从 `rd0` 拷贝。
