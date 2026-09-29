@@ -47,6 +47,8 @@ _MULTI_REG_MNEMONICS = frozenset({
     "ft2fo", "fo2ft", "ft2ft", "fo2fo", "ft2it", "ft2io", "ft2ut", "ft2uo",
     "fo2it", "fo2io", "fo2ut", "fo2uo", "it2ft", "io2ft", "ut2ft", "uo2ft",
     "it2fo", "io2fo", "ut2fo", "uo2fo",
+    # 浮点分类（2 条）
+    "focls", "ftcls",
 })
 
 # Immediate width/signedness from the field base name (e.g. imms18 -> s18).

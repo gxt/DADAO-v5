@@ -17,7 +17,7 @@
 | `fo2uo` | `orri` | `rf` | `fo2uo {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2uo_orri_rf` |
 | `fo2ut` | `orri` | `rf` | `fo2ut {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2ut_orri_rf` |
 | `foadd` | `orrr` | `rf` | `foadd rfHB, rfHC, rfHD` | `foadd_orrr_rf` |
-| `focls` | `orri` | `rf` | `focls rdHB, rfHC, immu6` | `focls_orri_rf` |
+| `focls` | `orri` | `rf` | `focls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `focls_orri_rf` |
 | `fodiv` | `orrr` | `rf` | `fodiv rfHB, rfHC, rfHD` | `fodiv_orrr_rf` |
 | `folog` | `orri` | `rf` | `folog rfHB, rfHC, immu6` | `folog_orri_rf` |
 | `fomul` | `orrr` | `rf` | `fomul rfHB, rfHC, rfHD` | `fomul_orrr_rf` |
@@ -36,7 +36,7 @@
 | `ft2uo` | `orri` | `rf` | `ft2uo {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2uo_orri_rf` |
 | `ft2ut` | `orri` | `rf` | `ft2ut {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2ut_orri_rf` |
 | `ftadd` | `orrr` | `rf` | `ftadd rfHB, rfHC, rfHD` | `ftadd_orrr_rf` |
-| `ftcls` | `orri` | `rf` | `ftcls rdHB, rfHC, immu6` | `ftcls_orri_rf` |
+| `ftcls` | `orri` | `rf` | `ftcls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ftcls_orri_rf` |
 | `ftdiv` | `orrr` | `rf` | `ftdiv rfHB, rfHC, rfHD` | `ftdiv_orrr_rf` |
 | `ftlog` | `orri` | `rf` | `ftlog rfHB, rfHC, immu6` | `ftlog_orri_rf` |
 | `ftmul` | `orrr` | `rf` | `ftmul rfHB, rfHC, rfHD` | `ftmul_orrr_rf` |
