@@ -199,15 +199,16 @@ rdhb中的比较结果有四种情况：
 
 ## 浮点分类指令
 
-对浮点数进行判断分类，并将分类结果写入数据寄存器。
-操作数类型为`orri`，指令如下：
+浮点分类指令对浮点数进行判断分类，并将分类结果写入数据寄存器，操作数类型为 `orri`，指令如下：
 
 ```simrisc
-ftcls   rdhb, rfhc, 1
-focls   rdhb, rfhc, 1
+ftcls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 ```
 
-根据rfhc的浮点数据分类，该指令设置rdhb中的相应位，并将其他位清零，包括[63..10]全部清零。
+其中 `immu6` 指定连续分类的寄存器数量（1–63），目的寄存器为 rd，源寄存器为 rf。例如 `focls rd4, rf8, 3` 对 rf8、rf9、rf10 分类，结果分别写入 rd4、rd5、rd6。源和目的寄存器范围可以重叠，分类按序号递增逐对进行，先读后写。
+
+对每个源寄存器的浮点数据，指令设置对应目的寄存器中的相应位，并将其他位清零：[63..10] 全部清零，分类结果仅使用 [9..0]。
 
 | 类别位 | 含义 |
 | ---   | ---               |
@@ -221,5 +222,10 @@ focls   rdhb, rfhc, 1
 | 7     | positiveInfinity  |
 | 8     | signalingNaN      |
 | 9     | quietNaN          |
+
+限制如下：
+
+- `immu6` = 0 时触发 ILLI 异常
+- 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
 
 > **注**：rf0 为目的寄存器时的特殊行为见 SimRISC-00。浮点寄存器的读写（ld/st/ldm/stm 的 rf 形式、cs.*-rf、rd2rf/rf2rd、set.w-rf）见 SimRISC-01、SimRISC-02 和 SimRISC-03。
