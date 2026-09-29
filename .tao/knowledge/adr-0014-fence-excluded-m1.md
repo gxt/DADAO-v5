@@ -1,6 +1,6 @@
 # ADR-0014: fence 移出 M1（对齐浮点的 excluded 处理）
 
-**状态**：Candidate
+**状态**：Accepted
 **日期**：2026-09-29
 **关联**：SPEC-039t、contract-isa.md §14.1、opcodes.yaml、ISS-056
 
@@ -39,4 +39,5 @@
 
 ## 状态说明
 
-- **Candidate**：待用户逐条确认 D1/D2/D3 后方可置 `Accepted`。
+- **Accepted（2026-09-29）**：用户逐条确认 D1/D2/D3 **全部保留**。
+- **确认记录**：2026-09-29 主会话向用户呈现 D1–D3，用户判定全部保留后置 `Accepted`。
