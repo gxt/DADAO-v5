@@ -159,8 +159,10 @@ M1 范围内的 SBZ 字段示例：`fence` 的 `immu18 bits[17:4]` [contract-isa
 
 #### D5.5 RASOF / RASUF（退出码 `0x8A` / `0x8B`）
 
-- **RASOF（`0x8A`）**：RegRAS 压栈溢出（调用深度超过 63），或 MemRAS 引用计数溢出 [contract-isa §8.6.1]。
-- **RASUF（`0x8B`）**：RegRAS 弹栈下溢（栈空时 `ret`），或 MemRAS 引用计数/内容无效 [contract-isa §8.6.2]。
+（2026-09-30 就地修订：依据 ADR-0012 D7，取消 MemRAS 引用计数并重定义 RASOF/RASUF 判据）
+
+- **RASOF（`0x8A`）**：压栈**需溢出**（`RACNT == 63`）且 **MemRAS 未启用**（`MRPTR == 0`）。**MemRAS 容量耗尽不由硬件检测**（交 OS）。[contract-isa §8.6.1]
+- **RASUF（`0x8B`）**：弹栈时栈顶无效（`RACNT > 0` 且栈顶递归计数 = 0）；或 RegRAS 与 MemRAS 均空（`RACNT == 0` 且 `MRPTR == 0`）；或 MemRAS 弹出条目无效（递归计数 = 0）。[contract-isa §8.6.2]
 - 二者均为精确异常：RA 寄存器保持异常前状态（push/pop 未提交），`rb0` = 触发异常的 `call`/`ret` 指令地址 [contract-isa §1.3.4][contract-isa §15.2]。
 - 退出码由 spec 的 cause 位派生（`0x80 | 10` / `0x80 | 11`，见 D5.8）。
 
