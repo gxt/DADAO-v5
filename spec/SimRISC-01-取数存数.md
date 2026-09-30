@@ -129,7 +129,7 @@ stm.o    {rbHA:rbHA+immu6-1}, [rbHB, rdHC]
 限制如下：
 
 - `ld.o`/`st.o` 和 `ldm.o`/`stm.o` 均需 8 字节地址对齐，未对齐触发 MALIGN 异常
-- `ld.o`/`ldm.o` 指令的 `rbHA` 为 `rb0` 时触发 ILLI 异常（rb0 通用约定见 SimRISC-00）；`st.o`/`stm.o` 指令允许 `rbHA` 为 `rb0`（rb0 作为源寄存器读出 0）
+- `ld.o`/`ldm.o` 指令的 `rbHA` 为 `rb0` 时触发 ILLI 异常（rb0 通用约定见 SimRISC-00）；`st.o`/`stm.o` 指令允许 `rbHA` 为 `rb0`（rb0 作为源寄存器读出为当前指令的地址）
 - `immu6` = 0 时触发 ILLI 异常
 - `rbHA + immu6 > 64`（超出 rb63）时触发 ILLI 异常
 - 源和目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中

@@ -34,17 +34,7 @@ rules:
       例外：rrrr 双目的 add.uo/add.so/sub.uo/sub.so/mul.uo/mul.so 允许其中一个目的为 rd0
       （丢弃对应半结果），但不能同时为 rd0，也不能为同一非 rd0 寄存器（见 dual_dest_*）。
       例外：ret rd0, 0 允许（无需设置返回值）。
-      访存类指令（ld/st）目的为 rd0 同样触发 ILLI（见 store_src_rd0 与 multi_immu6_zero）。
-
-  - id: store_src_rd0
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-00 §数据寄存器"
-    status: active
-    description: >
-      st*/stm*（RD）指令中 rdha 字段是数据源，存储 rd0 触发 ILLI 异常。
-      对应 contracts/opcodes.yaml 中 st.b-rd/st.w-rd/st.t-rd/st.o-rd 与
-      stm.b-rd/stm.w-rd/stm.t-rd/stm.o-rd 的 rdha（role: src）。
+      st*/stm*（RD）指令中 rdha 字段是数据**源**，rd0 作为源读出 0 合法，不触发 ILLI（见 ADR-0015 D2/D3）。
 
   - id: dual_dest_both_rd0
     fault: ILLI
@@ -71,18 +61,10 @@ rules:
     spec_cite: "SimRISC-00 §基址寄存器"
     status: active
     description: >
-      rb0 = PC（只读），任何指令以 rb0 为显式目的时触发 ILLI 异常。
+      rb0 读出为当前指令的地址（只读），任何指令以 rb0 为**显式目的**时触发 ILLI 异常。
       rrii/riii/rwii/rrri 目的字段为 rbha（含 ldm.o-rb 的 rbha）；
       orrr/orri 目的字段为 rbhb（含块赋值 rb2rb/rd2rb 的目的 rbhb）。
-
-  - id: rb_base_rb0_store
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-01 §存取RB寄存器"
-    status: active
-    description: >
-      RB 存储指令 st.o-rb/stm.o-rb 中 rbha 为 rb0 时触发 ILLI 异常
-      （rbha 在存储形式下不是写目的，但仍受 rb0 约定约束）。
+      rb0 作**源**（含 st.o-rb/stm.o-rb 的 rbha、ld.*-rb/st.*-rb 的基址 rbhb）不触发 ILLI（见 ADR-0015 D1/D3/D4）。
 
   # ── RF 操作规则（M1 范围外）──────────────────────────────────────────────────
   - id: rf0_as_operand

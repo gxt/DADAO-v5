@@ -57,4 +57,4 @@ add.si  rbHA, imms18
 cmp.uo  rdHB, rbHC, rbHD
 ```
 
-> **注**：rb0 通用约定（rb0 = PC，只读，显式目的触发 ILLI）和 RB 高 16 位行为见 SimRISC-00。
+> **注**：rb0 通用约定（rb0 读出为当前指令的地址，只读，显式目的触发 ILLI）和 RB 高 16 位行为见 SimRISC-00。

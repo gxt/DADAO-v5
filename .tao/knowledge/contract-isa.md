@@ -41,7 +41,7 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 
 #### §1.3.2 rb0
 
-- `rb0` 为程序计数器（PC），只读。任何指令以 rb0 为显式目的时触发 **ILLI** 异常。[SimRISC-00 §基址寄存器][SimRISC-00 §基址寄存器]
+- `rb0` 读出为**当前指令的地址**（非下一条），只读。任何指令以 rb0 为显式目的时触发 **ILLI** 异常。[SimRISC-00 §基址寄存器][ADR-0015 D1]
 - `rb0[63:48]` 恒为 0。[SimRISC-00 §基址寄存器]
 - 硬件复位后 `rb0` 初值为 `cfx_power_hypv_excp_vector`（见 SEE §2.1）。[SimRISC-00 §基址寄存器]
 
@@ -120,7 +120,7 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 - SimRISC 采用 64 位地址空间，有效虚拟地址为 48 位。[SimRISC-00 §基址寄存器]
 - 高 16 位（bits[63:48]）在地址计算时被硬件忽略，寄存器存取时保持高 16 位原值不变。[SimRISC-00 §基址寄存器]
 - 实际实现需保证 48 位地址空间。[SimRISC-00 §基址寄存器]
-- PC 的有效位宽为 48 位，`rb0[63:48]` 恒为 0。[SimRISC-06 §控制流指令]
+- `rb0` 读出为当前指令的地址；有效位宽为 48 位，`rb0[63:48]` 恒为 0。[SimRISC-06 §控制流指令][ADR-0015 D1]
 
 ### §1.6 端序
 
@@ -282,7 +282,8 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | `st.o rdha, rbhb, imms12` | `mem64[rbhb + imms12] = rdha[63:0]` | 8 字节 | [SimRISC-01 §存取RD寄存器] |
 
 异常条件：[SimRISC-01 §存取RD寄存器]
-- `rdha` 为 `rd0` → **ILLI**
+- `ld`：`rdha` 为 `rd0` → **ILLI**（目的不可为 rd0）
+- `st`：`rdha` 为 `rd0` **允许**（rd0 作源，读出 0）[ADR-0015 D2/D3]
 - 未对齐 → **MALIGN**
 
 #### §3.1.2 多 load/store（rrri 格式）
@@ -301,7 +302,8 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 - 装入类指令的源寄存器范围与目的寄存器范围可以重叠；硬件按序号递增逐对处理，每对先读后写。[SimRISC-01 §存取RD寄存器]
 
 异常条件：[SimRISC-01 §存取RD寄存器]
-- `rdha` 为 `rd0` → **ILLI**
+- `ldm`：`rdha` 为 `rd0` → **ILLI**（目的不可为 rd0）
+- `stm`：`rdha` 为 `rd0` **允许**（rd0 作源，读出 0）[ADR-0015 D3]
 - `immu6 = 0` → **ILLI**
 - `rdha + immu6 > 64`（超出 rd63）→ **ILLI**，不环绕、不截断
 - 未对齐 → **MALIGN**
@@ -319,7 +321,8 @@ RB 寄存器都是 64 位，不需指定数据长度。[SimRISC-01 §存取RB寄
 
 异常条件：[SimRISC-01 §存取RB寄存器]
 - 需 8 字节地址对齐，未对齐 → **MALIGN**
-- `rbha` 为 `rb0` → **ILLI**
+- `ld.o`/`ldm.o`：`rbha` 为 `rb0` → **ILLI**（目的不可为 rb0）
+- `st.o`/`stm.o`：`rbha` 为 `rb0` **允许**（rb0 作源，读出为当前指令的地址）[ADR-0015 D3]
 - `immu6 = 0` → **ILLI**
 - `rbha + immu6 > 64`（超出 rb63）→ **ILLI**
 - 当多寄存器读写范围包括 `rbhb` 时，地址计算仍按原始 `rbhb` 中的数据进行。[SimRISC-01 §存取RB寄存器]
@@ -691,7 +694,7 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 ### §8.1 通用约定
 
 - SimRISC 指令都是 4 字节且 4 字节对齐；采用立即数作为偏移地址参与计算时，均将其左移 2 位以增大跳转范围。[SimRISC-06 §控制流指令]
-- PC 的有效位宽为 48 位，`rb0[63:48]` 恒为 0。[SimRISC-06 §控制流指令]
+- `rb0` 读出为当前指令的地址；有效位宽为 48 位，`rb0[63:48]` 恒为 0。[SimRISC-06 §控制流指令][ADR-0015 D1]
 - 条件跳转均采用相对地址。[SimRISC-06 §条件跳转指令]
 - 跳转/调用地址计算仅在低 48 位进行，溢出丢弃；bits[63:48] 保持不变。[SimRISC-00 §基址寄存器]
 
@@ -1163,12 +1166,12 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 ### §15.1 ILLI 触发场景（M1 汇总）
 
-- 目的寄存器为 `rd0`（除 rrrr 双目的指令允许一个为 rd0、`ret rd0, 0` 允许外）。[SimRISC-00 §数据寄存器]
-- 目的寄存器为 `rb0`。[SimRISC-00 §基址寄存器]
-- `ld`/`st`（RD）目的 `rdha` 为 `rd0`。[SimRISC-01 §存取RD寄存器]
-- `ldm`/`stm`（RD）`rdha` 为 `rd0`、`immu6 = 0`、或 `rdha + immu6 > 64`。[SimRISC-01 §存取RD寄存器]
+- 目的寄存器为 `rd0`（除 rrrr 双目的指令允许一个为 rd0、`ret rd0, 0` 允许外；`st`/`stm` 的源为 rd0 允许，见 ADR-0015 D2/D3）。[SimRISC-00 §数据寄存器]
+- 目的寄存器为 `rb0`（`st.o`/`stm.o` 的源为 rb0 允许，见 ADR-0015 D1/D3）。[SimRISC-00 §基址寄存器]
+- `ld`（RD）目的 `rdha` 为 `rd0`。[SimRISC-01 §存取RD寄存器]
+- `ldm`（RD）`rdha` 为 `rd0`、`immu6 = 0`、或 `rdha + immu6 > 64`。[SimRISC-01 §存取RD寄存器]
 - 块赋值（`rd2rd`/`rb2rd`/`rd2rb`/`rb2rb`）`immu6 = 0`、目的为 `rd0`/`rb0`、或起始寄存器 + immu6 > 64。[SimRISC-02 §寄存器组之间块赋值][SimRISC-02 §寄存器组之间块赋值]
-- `ld.o`/`st.o`/`ldm.o`/`stm.o`（RB）`rbha` 为 `rb0`、`immu6 = 0`、或 `rbha + immu6 > 64`。[SimRISC-01 §存取RB寄存器]
+- `ld.o`/`ldm.o`（RB）`rbha` 为 `rb0`、`immu6 = 0`、或 `rbha + immu6 > 64`。`st.o`/`stm.o`（RB）`rbha` 为 `rb0` 允许（见 ADR-0015 D1/D3）。[SimRISC-01 §存取RB寄存器]
 - `ldm.o`/`stm.o`（RA）`immu6 = 0`、或 `raha + immu6 > 64`（超出 ra63）。[SimRISC-01 §存取RA寄存器]
 - 块赋值（`ra2rd`/`rd2ra`）`immu6 = 0`、任一起始寄存器 + immu6 > 64、或 `ra2rd` 目的 `rdhb` 为 `rd0`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-00 §数据寄存器]
 - 移位量 `shamt > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]

@@ -57,7 +57,7 @@ registers:
     - {range: [16, 31], abi_name: [rda0, rda15], role: temporary, callee_saved: false}
     - {range: [32, 63],                    role: callee_saved,   callee_saved: true}
   rb:
-    - {range: [0, 0],   abi_name: rbip,   role: instruction_pointer, callee_saved: null}
+    - {range: [0, 0],   abi_name: rbip,   role: current_instruction_address, callee_saved: null}
     - {range: [1, 1],   abi_name: rbsp,   role: stack_pointer,       callee_saved: true}
     - {range: [2, 2],   abi_name: rbfp,   role: frame_pointer,       callee_saved: true}
     - {range: [3, 3],   abi_name: rbgp,   role: global_pointer,      callee_saved: null}

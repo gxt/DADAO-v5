@@ -37,7 +37,7 @@
 | `contract-isa.md §1.1 寄存器组`（SimRISC-00 §寄存器） | `contract-abi.md §1.1`；`contracts/opcodes.yaml`（字段 `bank`）；`contract-elf.md §1.2`（64 位字长依据） | LLVM MC、QEMU CPU |
 | `contract-isa.md §1.2 寄存器编号编码`（SimRISC-00 §指令域说明） | `contracts/opcodes.yaml`（`fields[].bits`）；`tools/spec/validate_encoding.py` | LLVM MC、QEMU CPU |
 | `contract-isa.md §1.3.1 rd0`（SimRISC-00 §数据寄存器；SimRISC-00 §数据寄存器） | `contracts/legality_rules.yaml`（`rd_dest_rd0`、`dual_dest_*`）；`contract-abi.md §1.2`；`adr-0004 §D5.1` | LLVM MC、QEMU CPU、vectors |
-| `contract-isa.md §1.3.2 rb0`（SimRISC-00 §基址寄存器；SimRISC-00 §基址寄存器） | `contracts/legality_rules.yaml`；`contract-abi.md §1.3`；`adr-0004 §D2.1`、`§D5.1` | LLVM MC、QEMU CPU、QEMU machine、vectors |
+| `contract-isa.md §1.3.2 rb0`（SimRISC-00 §基址寄存器；ADR-0015 D1） | `contracts/legality_rules.yaml`（`rb_dest_rb0`）；`contract-abi.md §1.3`；`adr-0004 §D2.1`、`§D5.1`；`adr-0015 D1/D3/D4` | LLVM MC、QEMU CPU、QEMU machine、vectors |
 | `contract-isa.md §1.3.3 rf0（FCSR）`（SimRISC-00 §浮点状态寄存器） | `contract-abi.md §1.4`；`adr-0004 §D2.1`（复位常量） | QEMU machine（复位值）；FCSR 指令语义 `Deferred（M1 外）` |
 | `contract-isa.md §1.3.4 ra0–ra63`（SimRISC-00 §返回地址栈） | `contract-isa.md §8.6`；`contract-abi.md §1.5`、`§2.3`；`contracts/legality_rules.yaml`；`adr-0004 §D2.1`、`§D5.5` | LLVM MC、QEMU CPU、QEMU machine、vectors |
 | `contract-isa.md §1.4 数据表示`（SimRISC-00 §数据表示、§原始数据类型） | `contract-abi.md §1.7`；`contracts/abi.yaml`（`data_layout`）；`contract-elf.md §1.2` | LLVM MC、QEMU CPU |

@@ -48,7 +48,7 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 
 | 寄存器 | ABI 名 | 角色 | Callee-saved |
 |--------|--------|------|--------------|
-| rb0 | rbip | instruction pointer（PC，只读） | `-` |
+| rb0 | rbip | instruction pointer（PC，读出为当前指令的地址，只读） | `-` |
 | rb1 | rbsp | stack pointer（SP） | Yes |
 | rb2 | rbfp | frame pointer（FP） | Yes |
 | rb3 | rbgp | global pointer | `-` |
