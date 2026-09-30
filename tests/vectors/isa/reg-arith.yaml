@@ -648,56 +648,6 @@
 - class: encoding
   deferred_reason: null
   encoding:
-    word: '0x5A040000'
-  expected_fault: null
-  expected_pc: null
-  expected_state: null
-  format: riii
-  id: rela.si_riii_rb
-  input_state: {}
-  mnemonic: rela.si
-  notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
-  spec_cite: SimRISC-12 §PC相对寻址
-  status: active
-- class: semantic
-  deferred_reason: null
-  encoding:
-    word: '0x5A040001'
-  expected_fault: null
-  expected_pc: null
-  expected_state:
-    memory: []
-    ra: {}
-    rb:
-      rb1: '0x0000FFFF00001000'
-    rd: {}
-  format: riii
-  id: rela.si_riii_rb
-  input_state:
-    rb:
-      rb1: '0x0000000000000000'
-  mnemonic: rela.si
-  notes: 'rela.si: PC=0xFFFF00000000 (RAM entry, ADR-0004 D2.2), imms18=1, (PC&~0xfff)=0xFFFF00000000, (imms18<<12)=0x000000001000,
-    result_low48=0xFFFF00001000, rb1[63:48] preserved'
-  spec_cite: SimRISC-12 §PC相对寻址; ADR-0004 D6.5
-  status: active
-- class: legality
-  deferred_reason: null
-  encoding:
-    word: '0x5A000000'
-  expected_fault: ILLI
-  expected_pc: null
-  expected_state: null
-  format: riii
-  id: rela.si_riii_rb
-  input_state: {}
-  mnemonic: rela.si
-  notes: 'legality rela.si: dest=rd0/rb0 → ILLI (rb_dest_rb0)'
-  spec_cite: SimRISC-12 §PC相对寻址; SimRISC-02 §rb0 为目的寄存器约定
-  status: active
-- class: encoding
-  deferred_reason: null
-  encoding:
     word: '0x5B040000'
   expected_fault: null
   expected_pc: null

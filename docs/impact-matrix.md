@@ -79,7 +79,7 @@
 |----------|-------------------|-------------|
 | `contract-isa.md §5.1 RD 立即数设置`（SimRISC-03 §立即数常数赋值：Immediate constant） | `contracts/opcodes.yaml`；`contract-elf.md §2`（Deferred 地址构造登记） | LLVM MC、QEMU CPU、vectors |
 | `contract-isa.md §5.2 RB 立即数设置`（SimRISC-03 §立即数常数赋值：Immediate constant） | `contracts/opcodes.yaml`；`contract-isa.md §2.4` | LLVM MC、QEMU CPU、vectors |
-| `contract-isa.md §5.3 PC 相对寻址`（SimRISC-12 §PC相对寻址） | `contracts/opcodes.yaml`；`contract-elf.md §2`（Deferred `rela.si` 场景登记） | LLVM MC、QEMU CPU、vectors |
+| ~~`contract-isa.md §5.3 PC 相对寻址`~~（已删除：`rela.si` → UNDI，ADR-0012 D5，SPEC-057t） | ~~`contracts/opcodes.yaml`~~；~~`contract-elf.md §2`~~ | — |
 | `contract-isa.md §5.4 伪指令（立即数设置）`（SimRISC-03 §set.rd 伪指令；SimRISC-03 §set.rb 伪指令） | `contracts/opcodes.yaml`（展开形式）；`contract-isa.md §5.1–§5.2` | LLVM MC（汇编器展开）、vectors |
 
 ### §6 64 位数据运算指令

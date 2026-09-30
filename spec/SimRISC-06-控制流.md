@@ -138,5 +138,3 @@ ret     rdHA, imms18
 ```simrisc
 return                  ; 展开为 ret rd0, 0
 ```
-
-> **注**：rela.si 属于待定分类（deferred），详见 SimRISC-12。

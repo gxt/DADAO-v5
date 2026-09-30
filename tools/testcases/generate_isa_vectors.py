@@ -120,13 +120,13 @@ def _classify(insn, fmt):
 
     # Check if this is a QFC main table entry that belongs to reg-* files
     # rrrr: add.uo/so-rd, sub.uo/so-rd, mul.uo/so-rd, cs.n/z/p/eq/ne-rd
-    # riii: add.si-rd, add.si-rb, rela.si-rb
+    # riii: add.si-rd, add.si-rb
     # rrii: cmp.ui/si-rd
     # rwii: or.w/andn.w/set.zw/set.ow -rd/-rb
     is_qfc_reg = False
     if fmt == "rrrr" and op in ("add", "sub", "mul", "cs"):
         is_qfc_reg = True
-    if fmt == "riii" and op in ("add", "rela"):
+    if fmt == "riii" and op in ("add",):
         is_qfc_reg = True
     if fmt == "rrii" and op == "cmp":
         is_qfc_reg = True
@@ -785,32 +785,6 @@ def gen_block_semantic(rec, dst_reg, src_reg, count, src_bank, dst_bank):
     return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
                  "active", None, None, sc, notes)
 
-# ── rela.si-rb special case ───────────────────────────────────────────
-def gen_rela_si_semantic(rec, rbha_old, imm18, pc_addr):
-    """Semantic for rela.si-rb: rbha = (PC & ~0xfff) + (sign_ext(imms18) << 12).
-    rbha[63:48] preserved."""
-    mnem = rec["mnemonic"]
-    insn = rec["id"]
-    fmt = "riii"
-    sc = "SimRISC-12 §PC相对寻址; ADR-0004 D6.5"
-
-    word = _build_word_riii(rec, 1, imm18 & 0x3FFFF)
-
-    # PC = rb0 = current instruction address (ADR-0004 D6.5)
-    pc_base = pc_addr & ~0xFFF
-    imm_s = _sext(imm18, 18)
-    result_low48 = (pc_base + (imm_s << 12)) & 0xFFFFFFFFFFFF
-    # Preserve rbha[63:48]
-    result = (rbha_old & 0xFFFF000000000000) | result_low48
-
-    inp = {"rb": {"rb1": _hex64(rbha_old)}}
-    out = {"rd": {}, "rb": {"rb1": _hex64(result)}, "ra": {}, "memory": []}
-    notes = "rela.si: PC=0x%012X (RAM entry, ADR-0004 D2.2), imms18=%d, (PC&~0xfff)=0x%012X, (imms18<<12)=0x%012X, result_low48=0x%012X, rb1[63:48] preserved" % (
-        pc_addr, imm_s, pc_base, imm_s << 12, result_low48)
-
-    return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
-                 "active", None, None, sc, notes)
-
 # ── rrrr arith (128-bit result) ───────────────────────────────────────
 def gen_rrrr_arith_semantic(rec, a_val, b_val, rdha_old=0, rdhb_old=0):
     """Semantic for add.uo/so, sub.uo/so, mul.uo/so (rrrr)."""
@@ -1277,7 +1251,6 @@ def generate_file(filename, recs):
         is_compare = op.split('.')[0] in COMPARE if '.' in op else op in COMPARE
         is_cond = op.split('.')[0] in COND if '.' in op else op in COND
         is_arith_rb = op in ("add.so", "sub.so") and fmt == "orrr"
-        is_rela = "rela.si" in insn
         is_divrem = op.split('.')[0] in ("div", "rem") if '.' in op else False
         is_mul = op.split('.')[0] == "mul" if '.' in op else False
 
@@ -1372,9 +1345,6 @@ def generate_file(filename, recs):
                 cases.append(gen_block_semantic(rec, 1, 3, 1, "ra", "rd"))
             elif mnem == "rd2ra":
                 cases.append(gen_block_semantic(rec, 1, 3, 1, "rd", "ra"))
-        elif is_rela:
-            c = gen_rela_si_semantic(rec, 0, 1, 0xFFFF00000000)
-            if c: cases.append(c)
         elif is_arith_rb:
             c = gen_semantic_orrr_arith_rb(rec, 100, 30, 0)
             if c: cases.append(c)
@@ -1389,9 +1359,7 @@ def generate_file(filename, recs):
             c = gen_semantic_orrr_arith(rec, 50, 30, 0)
             if c: cases.append(c)
         elif fmt == "riii":
-            if is_rela:
-                pass  # handled above
-            elif _bank_from_id(insn) == "rb":
+            if _bank_from_id(insn) == "rb":
                 c = gen_riii_semantic(rec, 0x10000, 1, "rb")
                 if c: cases.append(c)
             else:
@@ -1411,7 +1379,7 @@ def generate_file(filename, recs):
         elif is_logic:
             c = gen_boundary_orrr_arith(rec, 0xFFFF0000FFFF0000, 0x0000FFFF0000FFFF, 0)
             if c: cases.append(c)
-        elif is_compare or is_cond or is_imm_block or is_block or is_rela:
+        elif is_compare or is_cond or is_imm_block or is_block:
             pass  # boundary not required per inventory for these
         elif is_arith_rb:
             c = gen_boundary_orrr_arith_rb(rec, 0x8000000000000000, 1, 0)
@@ -1436,7 +1404,7 @@ def generate_file(filename, recs):
             else:
                 c = gen_boundary_orrr_arith(rec, 0x80, 0x80, 0)
             if c: cases.append(c)
-        elif fmt == "riii" and not is_rela:
+        elif fmt == "riii":
             bank = _bank_from_id(insn) or "rd"
             c = gen_riii_semantic(rec, 0x7FFFFFFFFFFFFFFF, 1, bank)
             if c: cases.append(c)
@@ -1493,7 +1461,7 @@ def generate_file(filename, recs):
             if c: cases.append(c)
 
         # ── Boundary overflow case for add.si-rd / add.si-rb (TESTCASES-010t) ──
-        if filename == "reg-arith.yaml" and fmt == "riii" and not is_rela and mnem.startswith("add.si"):
+        if filename == "reg-arith.yaml" and fmt == "riii" and mnem.startswith("add.si"):
             bank = _bank_from_id(insn) or "rd"
             c = gen_riii_boundary_overflow(rec, bank)
             if c: cases.append(c)

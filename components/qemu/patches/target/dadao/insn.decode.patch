@@ -75,7 +75,7 @@ index 0000000000..0b1c43bf17
 +mul_uo_rrrr_rd  01010100........................  @main
 +mul_so_rrrr_rd  01010101........................  @main
 +add_si_riii_rd  01011001........................  @main
-+rela_si_riii_rb  01011010........................  @main
++# 0x5A: rela.si deleted (ADR-0012 D5) → reserved → UNDI
 +add_si_riii_rb  01011011........................  @main
 +cmp_ui_rrii_rd  01011100........................  @main
 +cmp_si_rrii_rd  01011101........................  @main

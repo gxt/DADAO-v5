@@ -12,7 +12,7 @@
   - orrr fixed-width add/sub/mul/div/rem/cmp (§3.1.2/§3.1.5/§3.2.2)
   - orrr logic and/or/xor/xnor .b/.w/.t/.o (§3.3)
   - orrr/orri shift/extend .ub/.sb/.uw/.sw/.ut/.st/.uo/.so (§3.4.1/§3.4.2)
-  - riii add.si/rela.si (§3.1.3/§4.7)
+  - riii add.si (§3.1.3)
   - rrii cmp.ui/cmp.si (§3.2.1)
   - rrrr cs.n/z/p/eq/ne (§3.5)
   - rwii set.zw/set.ow/or.w/andn.w -rd/-rb (§3.6)
@@ -589,8 +589,8 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
                     if rdhb != 0:
                         expected_rd["rd%d" % rdhb] = _hex64(result)
 
-    # ── riii add.si / rela.si (§3.1.3/§4.7) ───────────────────────────
-    elif fmt == "riii" and insn in ("add.si-rd", "add.si-rb", "rela.si-rb"):
+    # ── riii add.si (§3.1.3) ────────────────────────────────────────────
+    elif fmt == "riii" and insn in ("add.si-rd", "add.si-rb"):
         # ha = dest register
         # immediate: hb[5:0] + hc[5:0] + hd[5:0] = 18 bits signed
         imm18_raw = ((word >> 12) & 0x3F) << 12 | ((word >> 6) & 0x3F) << 6 | (word & 0x3F)
@@ -608,15 +608,6 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
             src_a = get_rb("rb%d" % rbha) if rbha else None
             if src_a is not None:
                 result = (src_a + imm18) & 0xFFFFFFFFFFFFFFFF
-                expected_rb["rb%d" % rbha] = _hex64(result)
-        elif insn == "rela.si-rb":
-            rbha = ha
-            src_a = get_rb("rb%d" % rbha) if rbha else None
-            if src_a is not None:
-                # rela.si: rbha = rb0 + (imms18 << 12)
-                # PC = rb0 (current instruction address)
-                shifted = imm18 << 12
-                result = (RB0_PC + shifted) & 0xFFFFFFFFFFFFFFFF
                 expected_rb["rb%d" % rbha] = _hex64(result)
 
     # ── rrii cmp.ui/cmp.si (§3.2.1) ────────────────────────────────────

@@ -49,7 +49,7 @@ index 000000000000..34ff0b25afb4
 +      // Used by br.eq/br.ne
 +      {"DADAO_FK_PCRel_12", 0, 32, 0},
 +      // DADAO_FK_PCRel_18: 18-bit signed immediate (riii: hb+hc+hd)
-+      // Used by br.n/br.nn/br.z/br.nz/br.p/br.np/rela.si
++      // Used by br.n/br.nn/br.z/br.nz/br.p/br.np
 +      {"DADAO_FK_PCRel_18", 0, 32, 0},
 +      // DADAO_FK_PCRel_24: 24-bit signed immediate (iiii: ha+hb+hc+hd)
 +      // Used by call/jump

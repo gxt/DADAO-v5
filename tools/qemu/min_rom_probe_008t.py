@@ -11,7 +11,6 @@ Tests cover:
 - br.z rd0 special (always taken), br.nz rd0 special (never taken)
 - jump-iiii: unconditional PC-relative
 - call-iiii/call-rrii + ret: RegRAS push/pop round-trip
-- rela.si rb: PC-relative address calculation
 - ld.o-rb/st.o-rb: RB load/store
 - rb2rd/rd2rb/rb2rb: register block copy
 - add.so-rb/sub.so-rb/add.si-rb: RB arithmetic (full 64-bit)
@@ -173,10 +172,6 @@ def call_rrii(rbha, rdhb, imms12):
 def ret_riii(rdha, imms18):
     """ret rdha, imms18 (op=0x76)"""
     return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
-
-def rela_si_rb(rbha, imms18):
-    """rela.si rbha, imms18 (op=0x5A)"""
-    return encode_riii(0x5A, rbha, imms18 & 0x3FFFF)
 
 def br_n(rdha, imms18):
     """br.n rdha, imms18 (op=0x68)"""
@@ -486,18 +481,6 @@ TESTS = [
       ret_riii(0, 0)],           # func2 return (pops to idx 4)
      PASS_EXIT,
      "Nested call/ret failed"),
-
-    # ── rela.si test ──────────────────────────────────────────────────
-
-    # T17: rela.si rb, imms18 → rb = (PC & ~0xFFF) + (imms18 << 12)
-    # We can't easily verify the exact address, but we can verify it doesn't crash
-    # and the result is usable (store to memory via the computed address)
-    ("T17 rela.si rb (no crash)",
-     [rela_si_rb(19, 0),         # rb19 = (PC & ~0xFFF) + 0
-      set_zw_rd(18, 0x0000),
-      st_o_rd(18, 16, 0)],
-     PASS_EXIT,
-     "rela.si crashed"),
 
     # ── RB load/store tests ───────────────────────────────────────────
 

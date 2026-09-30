@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-009t: rela.si base address verification.
 
+.. OBSOLETE: rela.si has been deleted (ADR-0012 D5, SPEC-057t).
+   op=0x5A is now UNDI. This file is retained as historical artifact
+   of QEMU-009t verification. DO NOT RUN — all tests will fail with UNDI.
+
 Architecture: test code runs from ROM (same as 005t/006t/008t probe pattern).
 Kernel binary provides test data (loaded at RAM base).
 

@@ -3,7 +3,7 @@ new file mode 100644
 index 000000000000..8238bd692eec
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1501 @@
+@@ -0,0 +1,1496 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -476,12 +476,7 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def rela_si_rb : DADAORiii<"rela.si"> {
-+  let OutOperandList = (outs GPRB:$ra);
-+  let InOperandList = (ins imms18:$imm18);
-+  let op = 0x5A;
-+  let Pattern = [];
-+}
++// 0x5A: rela.si deleted (ADR-0012 D5) -> reserved -> UNDI
 +
 +def add_si_rb : DADAORiii<"add.si"> {
 +  let OutOperandList = (outs GPRB:$ra);

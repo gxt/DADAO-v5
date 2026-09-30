@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000000..50a2656f48
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
-@@ -0,0 +1,732 @@
+@@ -0,0 +1,701 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* ── Helper: RegRAS/MemRAS push (§5.6.1) ─────────────────────────────── */
@@ -370,37 +370,6 @@ index 0000000000..50a2656f48
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
 +    tcg_gen_exit_tb(NULL, 0);
-+}
-+
-+/* ── §4.7 PC-relative: rela.si rbha, imms18 (riii) ─────────────────── */
-+/* rbha = (PC & ~0xFFF) + sign_extend(imms18 << 12), high 16 bits preserved.
-+ * ILLI: rbha == rb0 */
-+static bool trans_rela_si_riii_rb(DisasContext *ctx, arg_main *a)
-+{
-+    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
-+
-+    int32_t imm18 = (int32_t)((a->hb << 12) | (a->hc << 6) | a->hd);
-+    if (imm18 & (1 << 17)) {
-+        imm18 |= ~((1 << 18) - 1);
-+    }
-+    int64_t offset = (int64_t)imm18 << 12;
-+
-+    TCGv_i64 rbha = load_rb(ctx, a->ha);
-+    /* Preserve high 16 bits */
-+    TCGv_i64 hi16 = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi16, rbha, 0xFFFF000000000000ULL);
-+
-+    /* PC & ~0xFFF */
-+    uint64_t pc_aligned = ctx->base.pc_next & ~0xFFFULL;
-+    TCGv_i64 base = tcg_constant_i64(pc_aligned);
-+    TCGv_i64 result = tcg_temp_new_i64();
-+    tcg_gen_addi_i64(result, base, offset);
-+    /* Mask to 48 bits */
-+    tcg_gen_andi_i64(result, result, 0x0000FFFFFFFFFFFFULL);
-+    /* Restore high 16 bits */
-+    tcg_gen_or_i64(result, result, hi16);
-+    store_rb(a->ha, result);
-+    return true;
 +}
 +
 +/* ── §5.2.2 Single-register conditional branch helpers (riii) ───────── */

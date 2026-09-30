@@ -135,7 +135,7 @@ index 000000000000..7012c4fcb2f5
 +// Format: riii — one register + 18-bit immediate (§2.3)
 +//
 +//   ha = ra, hb:hc:hd = imm18 (hb = imm18[17:12], hc = [11:6], hd = [5:0])
-+//   Examples: add.si, rela.si, br.*, ret
++//   Examples: add.si, br.*, ret
 +//===----------------------------------------------------------------------===//
 +
 +class DADAORiii<string mnemonic> : DADAOInst<mnemonic # "\t$ra, $imm18"> {

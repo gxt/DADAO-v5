@@ -1,10 +1,10 @@
 # DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（254 条 = M1 177 + `excluded_m1` 77）
+> **源**：`contracts/opcodes.yaml`（253 条 = M1 176 + `excluded_m1` 77）
 > **语法**：`docs/spec/assembly-language.md`（**v1 生效，待实现**）
-> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`/`rela*`）
-> **deferred**（用户裁定 2026-09-25）：**浮点运算**（46 条，待浮点专门任务）与**待定**（12 条，暂不归类，待必须启用时）**整章 deferred**；其余 195 条为当前有效书写形式
+> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
+> **deferred**（用户裁定 2026-09-25）：**浮点运算**（46 条，待浮点专门任务）与**待定**（11 条，暂不归类，待必须启用时）**整章 deferred**；其余 195 条为当前有效书写形式
 > **注（非 deferred 的 rf 条目）**：浮点寄存器的**读写**——`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式（8 条）、`cs.*-rf` 与 `rd2rf`/`rf2rd`（7 条）、`set.w-rf`（1 条）——**不**属 deferred：浮点寄存器默认存在，这些只读写寄存器、不涉浮点运算（用户裁定 2026-09-25）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{rdHA:rdHA+immu6-1}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `docs/spec/assembly-language.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
@@ -320,7 +320,7 @@
 | `swym` | `oiii` | `imm` | `swym immu18` | `swym_oiii_imm` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 
-### 待定（12 条）｜ **deferred** — 暂不归类，待必须启用时
+### 待定（11 条）｜ **deferred** — 暂不归类，待必须启用时
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -331,7 +331,6 @@
 | `lr_ar.o` | `orrr` | `rd` | `lr_ar.o rdHC, [rbHD]` | `lr_ar.o_orrr_rd` |
 | `lr_nn.o` | `orrr` | `rd` | `lr_nn.o rdHC, [rbHD]` | `lr_nn.o_orrr_rd` |
 | `lr_nr.o` | `orrr` | `rd` | `lr_nr.o rdHC, [rbHD]` | `lr_nr.o_orrr_rd` |
-| `rela.si` | `riii` | `rb` | `rela.si rbHA, imms18` | `rela.si_riii_rb` |
 | `sc_an.o` | `orrr` | `rd` | `sc_an.o rdHB, rdHC, [rbHD]` | `sc_an.o_orrr_rd` |
 | `sc_ar.o` | `orrr` | `rd` | `sc_ar.o rdHB, rdHC, [rbHD]` | `sc_ar.o_orrr_rd` |
 | `sc_nn.o` | `orrr` | `rd` | `sc_nn.o rdHB, rdHC, [rbHD]` | `sc_nn.o_orrr_rd` |

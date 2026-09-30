@@ -238,7 +238,6 @@ S11_ILLI = "SimRISC-11 §非法指令"
 # 待定（SimRISC-12）
 S12_FENCE = "SimRISC-12 §fence指令"
 S12_LRSC = "SimRISC-12 §LR-SC指令"
-S12_RELA = "SimRISC-12 §PC相对寻址"
 
 # QFC/MISC-RF（SimRISC-00）
 S00_QFC = "SimRISC-00 §SimRISC QFC"
@@ -399,8 +398,7 @@ def build_main_table(records):
     # ── 0101-1xxx：自增/相对/比较 ──
     records.append(rec("add.si-rd", "add.si", "riii", 0x59,
                        f_riii("rdha", "imms18"), [LEG_RD_DST], S04_INC))
-    records.append(rec("rela.si-rb", "rela.si", "riii", 0x5A,
-                       f_riii("rbha", "imms18"), [LEG_RB_DST], S12_RELA))
+    # 0x5A: rela.si deleted (ADR-0012 D5) → reserved → UNDI
     records.append(rec("add.si-rb", "add.si", "riii", 0x5B,
                        f_riii("rbha", "imms18"), [LEG_RB_DST], S05_INC))
     records.append(rec("cmp.ui-rd", "cmp.ui", "rrii", 0x5C,

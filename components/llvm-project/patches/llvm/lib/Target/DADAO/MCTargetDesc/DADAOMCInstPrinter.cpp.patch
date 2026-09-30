@@ -270,7 +270,7 @@ index 000000000000..2dc784667a0c
 +  }
 +
 +  case FK_riii: {
-+    // riii: add.si/rela.si — rd, imm
++    // riii: add.si — rd, imm
 +    //       br.* — {ra}?, [rb0, immi]
 +    //       ret — rd, imm
 +    StringRef MnemStr(Mnem);
@@ -288,7 +288,7 @@ index 000000000000..2dc784667a0c
 +        O << "i]";
 +      }
 +    } else {
-+      // add.si, rela.si, ret: rd, imm
++      // add.si, ret: rd, imm
 +      O << " ";
 +      printRegName(O, MI->getOperand(0).getReg());
 +      O << ", ";

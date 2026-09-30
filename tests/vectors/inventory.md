@@ -13,7 +13,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > `validate_vectors.py` 机械校验本表的 M1 行集与 `contracts/opcodes.yaml`
 > 的 M1 身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）。
 
-## M1 覆盖矩阵（177 条）
+## M1 覆盖矩阵（176 条）
 
 | id | format | file | encoding | legality | semantic | boundary | overlap | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -61,7 +61,6 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `mul.uo_rrrr_rd` | `rrrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `mul.so_rrrr_rd` | `rrrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `add.si_riii_rd` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `rela.si_riii_rb` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `add.si_riii_rb` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `cmp.ui_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cmp.si_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |

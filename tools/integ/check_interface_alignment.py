@@ -619,12 +619,12 @@ def check_opcodes_cross():
     with open(opcodes_path, encoding="utf-8") as f:
         records = _yaml.safe_load(f)
 
-    # --- opcodes.yaml 条目数（真断言：期望 254 总计 / 177 M1） ---
-    # Source: contracts/opcodes.yaml 结构约定（fence excluded_m1 → M1=177）
+    # --- opcodes.yaml 条目数（真断言：期望 253 总计 / 176 M1） ---
+    # Source: contracts/opcodes.yaml 结构约定（fence excluded_m1 → M1=176；rela.si 删除后 254→253）
     total = len(records)
     m1_count = sum(1 for r in records if not r.get("excluded_m1", False))
-    EXPECTED_TOTAL = 254
-    EXPECTED_M1 = 177
+    EXPECTED_TOTAL = 253
+    EXPECTED_M1 = 176
     if total == EXPECTED_TOTAL and m1_count == EXPECTED_M1:
         record(cat, "opcodes.yaml 条目数", "PASS",
                f"总计 {total}, M1 内 {m1_count}")
@@ -702,9 +702,9 @@ def check_opcodes_cross():
         record(cat, "LLVM lit # OBJ: patterns", "FAIL",
                "tests/lit/MC/Dadao/ 目录不存在")
 
-    # --- QEMU trans_* 定义数（真断言：期望与 opcodes.yaml 条目数一致 = 254） ---
+    # --- QEMU trans_* 定义数（真断言：期望与 opcodes.yaml 条目数一致 = 253） ---
     # Source: components/qemu/patches/*.patch 中 trans_* 函数定义数
-    EXPECTED_TRANS = 254
+    EXPECTED_TRANS = 253
     qemu_patches_dir = os.path.join(REPO_ROOT, "components", "qemu", "patches")
     trans_defs = set()
     for pf in iter_patch_files(qemu_patches_dir):

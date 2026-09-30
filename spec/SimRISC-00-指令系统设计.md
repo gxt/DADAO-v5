@@ -70,7 +70,7 @@ SimRISC中目前接收如下数据类型：
 | 存取类指令 | `ld.o`/`ldm.o`/`st.o`/`stm.o`（内存→RB） | **全 64 位覆盖，bits[63:48] 正常读写** |
 | 赋值类指令-寄存器 | `rd2rb`/`rb2rb`/`ra2rd`/`rd2ra` | **全 64 位覆盖，bits[63:48] 正常读写** |
 | 赋值类指令-立即数 | `set.zw-rb`/`or.w-rb`/`andn.w-rb` | **全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3** |
-| 算术运算类指令-加减 | `add.so-rb`/`sub.so-rb`/`add.si-rb`/`rela.si` | 二进制补码 64 位全宽加减法，地址仅在低 48 位有效；**bits[63:48]**为运算结果，可用于溢出检测 |
+| 算术运算类指令-加减 | `add.so-rb`/`sub.so-rb`/`add.si-rb` | 二进制补码 64 位全宽加减法，地址仅在低 48 位有效；**bits[63:48]**为运算结果，可用于溢出检测 |
 | 算术运算类指令-比较 | `cmp.uo-rb` | 无符号 64 位比较，结果 -1/0/1 区分小于/等于/大于；**bits[63:48] 不影响比较运算** |
 | 控制流指令-跳转 | `br*`/`jump` | 地址计算仅在低 48 位进行，溢出丢弃；**bits[63:48] 保持不变** |
 | 控制流指令-函数支持 | `call`/`ret` | 地址计算仅在低 48 位进行，溢出丢弃；**bits[63:48] 做为引用计数** |
@@ -273,7 +273,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0100-0xxx     | MISC-octa            | MISC-tetra           | MISC-wyde            | MISC-byte            | MISC-RF              |                      |                      |                  |
 | 0100-1xxx     | or.w_rwii_rd         | andn.w_rwii_rd       | or.w_rwii_rb         | andn.w_rwii_rb       | set.zw_rwii_rd       | set.ow_rwii_rd       | set.zw_rwii_rb       | set.w_rwii_rf   |
 | 0101-0xxx     | add.uo_rrrr_rd       | add.so_rrrr_rd       | sub.uo_rrrr_rd       | sub.so_rrrr_rd       | mul.uo_rrrr_rd       | mul.so_rrrr_rd       |                      |                  |
-| 0101-1xxx     |                      | add.si_riii_rd       | rela.si_riii_rb      | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
+| 0101-1xxx     |                      | add.si_riii_rd       |                      | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
 | 0110-0xxx     | cs.n_rrrr_rd         | cs.n_rrrr_rf         | cs.z_rrrr_rd         | cs.z_rrrr_rf         | cs.p_rrrr_rd         | cs.p_rrrr_rf         | cs.eq_rrrr_rd        | cs.ne_rrrr_rd   |
 | 0110-1xxx     | br.n_riii_rd         | br.nn_riii_rd        | br.z_riii_rd         | br.nz_riii_rd        | br.p_riii_rd         | br.np_riii_rd        | br.eq_rrii_rd        | br.ne_rrii_rd   |
 | 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          |                  |
