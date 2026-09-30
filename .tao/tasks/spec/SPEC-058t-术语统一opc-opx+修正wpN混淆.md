@@ -65,10 +65,12 @@ op 是操作码，简称 opc（opcode 的简写），即头 8 位。
 > 全库核查（实测）：`ha+hb` 作为 **opcode** 的表述**仅此两处**；其余 `ha+hb+hc+hd` 命中均指 `iiii` 的 24 位立即数（合法，**不动**）。
 > 相邻的「操作数寻址方式字母」表（`o`/`c`/`r`/`i`/`w`/`z`）**结构不动**，仅 `minor-opcode`→`opx`；如需进一步调整 `w` 的层级，**先问用户**。
 
-## C. 待确认项（**禁止自行处置**）
+## C. 删除死代码 `minor_op` 分支（用户裁定：选项 A）
 
-`tools/llvm/generate_instrinfo.py:99` 的 `if role == "minor_op": continue` —— 经核查 `minor_op` **不是** `contracts/opcodes.yaml` 中的任何 role（已随 `ADR-0012 D2.2` 的「`ha` 并入 `op`」消失），属**死代码**。
-**本任务默认不动该行**；若需改名/删除，**先与用户确认**。
+`tools/llvm/generate_instrinfo.py:99` 的 `if role == "minor_op": continue` —— `minor_op` **不是** `contracts/opcodes.yaml` 中的任何 role（已随 `ADR-0012 D2.2`「`ha` 并入 `op`」消失），属**死代码**。
+**处置（用户 2026-09-30 裁定 A）**：**删除**该 `if` 分支（含其所在判断链的相邻结构调整，使逻辑等价）。
+
+**要求**：删除后 `generate_instrinfo.py` 的输出（`.td`）**逐字不变**（给 `git diff` 或生成物对比证据）；`validate_instrinfo.py` 行为不变（其 179 errors 属 pre-existing，不因本任务增删）。
 
 ## 约束
 
