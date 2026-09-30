@@ -315,10 +315,11 @@
 
 - id: ISS-042
   title: "rela.si fixup 占位语义与 M2 不兼容：getFixupKindForInstr 按 >>2 计算，但 rela.si 实际为 imms18<<12"
-  status: open
+  status: closed
   scope: [llvm, M2]
   blocks: []
-  resolved_by: null
+  resolved_by: "SPEC-056t"
+  notes: "`rela.si` 已删除（ADR-0012 D5，2026-09-30），编码 0x5A → UNDI，问题消失。"
 
 - id: ISS-043
   title: "越界立即数静默截断（LLVM-006t reviewer ②）：分支/跳转 fixup 越界无诊断"

@@ -227,7 +227,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0100-0xxx | MISC-octa | MISC-tetra | MISC-wyde | MISC-byte | MISC-RF Excl. | — | — | — |
 | 0100-1xxx | or.w-rd | andn.w-rd | or.w-rb | andn.w-rb | set.zw-rd | set.ow-rd | set.zw-rb | set.w-rf Excl. |
 | 0101-0xxx | add.uo-rd | add.so-rd | sub.uo-rd | sub.so-rd | mul.uo-rd | mul.so-rd | | |
-| 0101-1xxx | — | add.si-rd | rela.si-rb | add.si-rb | cmp.ui-rd | cmp.si-rd | cs.eq-rf Excl. | cs.ne-rf Excl. |
+| 0101-1xxx | — | add.si-rd | ~~rela.si-rb~~ UNDI | add.si-rb | cmp.ui-rd | cmp.si-rd | cs.eq-rf Excl. | cs.ne-rf Excl. |
 | 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
 | 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
 | 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | — |
@@ -412,7 +412,7 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 
 ## §5 16 位立即数操作
 
-> 范围：16 位立即数设置类指令（`set.zw`/`set.ow`/`or.w`/`andn.w`），支持 RD 和 RB 寄存器组；PC 相对寻址。块赋值见 §4。
+> 范围：16 位立即数设置类指令（`set.zw`/`set.ow`/`or.w`/`andn.w`），支持 RD 和 RB 寄存器组。块赋值见 §4。
 
 ### §5.1 RD 立即数设置（rwii 格式）
 
@@ -441,15 +441,6 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 - RB 无 `set.ow` 变体。[SimRISC-03 §set.rb 伪指令]
 - `set.zw` 会清零其余所有位，不能连续使用多条；只能一条 `set.zw` 作为第一条，后续用 `or.w`/`andn.w` 逐 wyde 修正。[SimRISC-03 §set.rb 伪指令]
 - RB 立即数设置全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3。[SimRISC-00 §基址寄存器]
-
-### §5.3 PC 相对寻址（riii 格式）
-
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| `rela.si rbha, imms18` | 将一个 18 位有符号立即数左移 12 位得 30 位有符号数；PC 低 12 位清零得 4KB 对齐基地址；两者相加得目标地址，写入 `rbha`；`rbha` 高 16 位保持不变 | [SimRISC-12 §PC相对寻址] |
-
-- 该加法指令无法判断是否溢出；由于 imms18 为有符号数，隐含实现减法。[SimRISC-12 §PC相对寻址]
-- 可处理偏移地址在 512MB 以内的 PC 相对寻址；更大范围需采用显式 rb0 参与寻址。[SimRISC-12 §PC相对寻址]
 
 ### §5.4 伪指令（立即数设置）
 
@@ -655,7 +646,7 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 
 ## §7 64 位地址运算指令
 
-> 范围：RB 寄存器组的算术运算和比较操作。RB 存取见 §3.2；RB 立即数设置见 §5.2；PC 相对寻址见 §5.3。
+> 范围：RB 寄存器组的算术运算和比较操作。RB 存取见 §3.2；RB 立即数设置见 §5.2。
 
 ### §7.1 RB 加减（orrr 格式）
 
@@ -1245,7 +1236,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x54 | 0101-0100 | rrrr | mul.uo-rd | `mul.uo` | [SimRISC-00 §SimRISC QFC] |
 | 0x55 | 0101-0101 | rrrr | mul.so-rd | `mul.so` | [SimRISC-00 §SimRISC QFC] |
 | 0x59 | 0101-1001 | riii | add.si-rd | `add.si` | [SimRISC-00 §SimRISC QFC] |
-| 0x5A | 0101-1010 | riii | rela.si-rb | `rela.si` | [SimRISC-00 §SimRISC QFC] |
+| 0x5A | 0101-1010 | riii | ~~rela.si-rb~~ UNDI | ~~`rela.si`~~ | [SimRISC-00 §SimRISC QFC][ADR-0012 D5] |
 | 0x5B | 0101-1011 | riii | add.si-rb | `add.si` | [SimRISC-00 §SimRISC QFC] |
 | 0x5C | 0101-1100 | rrii | cmp.ui-rd | `cmp.ui` | [SimRISC-00 §SimRISC QFC] |
 | 0x5D | 0101-1101 | rrii | cmp.si-rd | `cmp.si` | [SimRISC-00 §SimRISC QFC] |
