@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import Optional
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -48,6 +49,43 @@ def load_file(rel_path: str) -> str:
         return ""
     with open(path, encoding="utf-8") as f:
         return f.read()
+
+
+def count_inventory_m1_rows() -> tuple[Optional[int], Optional[set[str]]]:
+    """解析 tests/vectors/inventory.md 的 M1 覆盖矩阵表。
+
+    返回 (m1_row_count, m1_id_set)。
+    解析失败时返回 (None, None)。
+    """
+    path = os.path.join(REPO_ROOT, "tests", "vectors", "inventory.md")
+    if not os.path.isfile(path):
+        return None, None
+    with open(path, encoding="utf-8") as f:
+        lines = f.readlines()
+    ids: set[str] = set()
+    in_table = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            if in_table:
+                break  # 表结束
+            continue
+        cells = [c.strip() for c in stripped.split("|")]
+        # 去掉首尾空元素（| 分割产生）
+        cells = [c for c in cells if c]
+        if not cells:
+            continue
+        # 跳过表头行和分隔行
+        if cells[0] == "id" or all(c == "---" for c in cells):
+            in_table = True
+            continue
+        if in_table and len(cells) >= 1:
+            row_id = cells[0].strip("`")
+            if row_id:
+                ids.add(row_id)
+    if not ids:
+        return None, None
+    return len(ids), ids
 
 
 def run_tool(rel_path: str, args: list[str] | None = None) -> tuple[int, str]:
@@ -619,19 +657,24 @@ def check_opcodes_cross():
     with open(opcodes_path, encoding="utf-8") as f:
         records = _yaml.safe_load(f)
 
-    # --- opcodes.yaml 条目数（真断言：期望 253 总计 / 176 M1） ---
-    # Source: contracts/opcodes.yaml 结构约定（fence excluded_m1 → M1=176；rela.si 删除后 254→253）
+    # --- opcodes.yaml 条目数（跨载体推导） ---
+    # Source: contracts/opcodes.yaml 条目总数 + M1 身份数
+    # M1 身份数与 inventory.md（独立载体）交叉校验；总计 = len(records)（契约当前值）
     total = len(records)
     m1_count = sum(1 for r in records if not r.get("excluded_m1", False))
-    EXPECTED_TOTAL = 253
-    EXPECTED_M1 = 176
-    if total == EXPECTED_TOTAL and m1_count == EXPECTED_M1:
-        record(cat, "opcodes.yaml 条目数", "PASS",
-               f"总计 {total}, M1 内 {m1_count}")
+
+    inv_m1_count, inv_m1_ids = count_inventory_m1_rows()
+    if inv_m1_count is not None:
+        if m1_count == inv_m1_count:
+            record(cat, "opcodes.yaml 条目数", "PASS",
+                   f"总计 {total}, M1 内 {m1_count}（inventory.md 独立计数 {inv_m1_count} 一致）")
+        else:
+            record(cat, "opcodes.yaml 条目数", "FAIL",
+                   f"opcodes.yaml M1={m1_count}，"
+                   f"inventory.md M1={inv_m1_count}（跨载体不一致）")
     else:
         record(cat, "opcodes.yaml 条目数", "FAIL",
-               f"期望 总计{EXPECTED_TOTAL}/M1{EXPECTED_M1}，"
-               f"实际 总计{total}/M1{m1_count}")
+               "tests/vectors/inventory.md 未找到或解析失败（无法交叉校验 M1 身份数）")
 
     # --- 结构完整性 ---
     missing = []
@@ -683,28 +726,59 @@ def check_opcodes_cross():
     else:
         record(cat, "QEMU trans ↔ opcodes.yaml", "FAIL", out)
 
-    # --- LLVM lit pattern 数量（真断言：期望 53） ---
-    # Source: tests/lit/MC/Dadao/*.s 中 # OBJ: 行数
-    EXPECTED_LIT = 53
+    # --- LLVM lit format 族覆盖（跨载体交叉：opcodes.yaml M1 format 集 ↔ lit patterns） ---
+    # Source: contracts/opcodes.yaml M1 条目的 format 字段（契约）；tests/lit/MC/Dadao/*.s（实现）
+    # 断言：每个 M1 format 族至少有 1 条 lit # OBJ: pattern（其 opcode 匹配该族的 opcodes 条目）
+    # 判定法：提取 # OBJ: 行的 4 字节 opcode word，在 opodes.yaml 中找 (word & mask)==value
+    #         的唯一匹配条目，取其 format 字段作为该 pattern 的族归属
     lit_dir = os.path.join(REPO_ROOT, "tests", "lit", "MC", "Dadao")
-    if os.path.isdir(lit_dir):
-        lit_count = sum(
-            1 for sf in glob.glob(os.path.join(lit_dir, "*.s"))
-            for line in open(sf) if re.search(r"#\s*OBJ:", line)
-        )
-        if lit_count == EXPECTED_LIT:
-            record(cat, "LLVM lit # OBJ: patterns", "PASS",
-                   f"{lit_count} patterns")
-        else:
-            record(cat, "LLVM lit # OBJ: patterns", "FAIL",
-                   f"期望 {EXPECTED_LIT} patterns，实际 {lit_count}")
-    else:
-        record(cat, "LLVM lit # OBJ: patterns", "FAIL",
+    if not os.path.isdir(lit_dir):
+        record(cat, "LLVM lit format 族覆盖", "FAIL",
                "tests/lit/MC/Dadao/ 目录不存在")
+    else:
+        # 收集 M1 format 族（从契约推导）
+        m1_formats = set(
+            r["format"] for r in records if not r.get("excluded_m1", False)
+        )
+        # 提取 lit patterns 的 opcode word 并映射到 format
+        lit_obj_re = re.compile(
+            r"#\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
+            r"([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})"
+        )
+        lit_formats: dict[str, list[str]] = {}  # format → [source files]
+        for sf in sorted(glob.glob(os.path.join(lit_dir, "*.s"))):
+            fname = os.path.basename(sf)
+            with open(sf) as f:
+                for line in f:
+                    m = lit_obj_re.search(line)
+                    if not m:
+                        continue
+                    b0, b1, b2, b3 = m.groups()
+                    word = int(b0 + b1 + b2 + b3, 16)
+                    # 查找匹配的 opodes 条目
+                    matches = [
+                        r for r in records
+                        if (word & int(r["mask"], 16)) == int(r["value"], 16)
+                    ]
+                    if len(matches) == 1:
+                        fmt = matches[0]["format"]
+                        lit_formats.setdefault(fmt, []).append(fname)
+        # 检查覆盖
+        covered = set(lit_formats.keys())
+        missing = m1_formats - covered
+        if not missing:
+            summary = ", ".join(
+                f"{f}({len(lit_formats[f])})" for f in sorted(m1_formats)
+            )
+            record(cat, "LLVM lit format 族覆盖", "PASS",
+                   f"{len(covered)}/{len(m1_formats)} 族有 lit 覆盖（{summary}）")
+        else:
+            record(cat, "LLVM lit format 族覆盖", "FAIL",
+                   f"M1 format 族缺少 lit 覆盖: {sorted(missing)}")
 
-    # --- QEMU trans_* 定义数（真断言：期望与 opcodes.yaml 条目数一致 = 253） ---
+    # --- QEMU trans_* 定义数（跨载体推导：应等于 opcodes.yaml 条目数） ---
     # Source: components/qemu/patches/*.patch 中 trans_* 函数定义数
-    EXPECTED_TRANS = 253
+    # 期望值 = total（从契约 opcodes.yaml 推导），不硬编码
     qemu_patches_dir = os.path.join(REPO_ROOT, "components", "qemu", "patches")
     trans_defs = set()
     for pf in iter_patch_files(qemu_patches_dir):
@@ -713,12 +787,12 @@ def check_opcodes_cross():
                 m = re.search(r'static\s+bool\s+(trans_\w+)\s*\(', line)
                 if m:
                     trans_defs.add(m.group(1))
-    if len(trans_defs) == EXPECTED_TRANS:
+    if len(trans_defs) == total:
         record(cat, "QEMU trans_* 定义数", "PASS",
-               f"{len(trans_defs)} trans_* 函数")
+               f"{len(trans_defs)} trans_* 函数（与 opcodes.yaml 条目数 {total} 一致）")
     else:
         record(cat, "QEMU trans_* 定义数", "FAIL",
-               f"期望 {EXPECTED_TRANS} trans_*，实际 {len(trans_defs)}")
+               f"期望 {total} trans_*（=opcodes.yaml 条目数），实际 {len(trans_defs)}")
 
 
 # ---------------------------------------------------------------------------

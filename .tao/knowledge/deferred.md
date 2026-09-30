@@ -133,3 +133,4 @@
 | 项 | 内容 | 来源 | 状态 |
 |---|---|---|---|
 | `check_interface_alignment.py` 的 `e_flags` 检测：`_is_comment()` 只识别全行注释（`//`/`/*`/`*`/`*/` 开头），**行尾注释 / 块注释中间行**内的误导文本仍可先于真实 call 命中 ⇒ 假绿。本产物无触发（`0008` 的 `+` 行除真实 call 外无 `setELFHeaderEFlags(` token）。零残留正解：改读真实产物（`llvm-mc` + `llvm-readobj` 解析 `Flags`），属设计层改动。 | `LLVM-014t` reviewer 第 3 轮（判为可接受已知限制） | 登记（非阻断） |
+| **lit 覆盖断言的粒度限制（`INTEG-007t`，2026-09-30 登记）**：`check_interface_alignment.py` 的 lit 覆盖断言已改为「**每个 M1 `format` 族 ≥ 1 条 `# OBJ:` pattern**」（族集派生自 `contracts/opcodes.yaml`，语料取自 `tests/lit/MC/Dadao/`，判定法 = 由 `# OBJ:` 的 opcode word 反查 `opcodes.yaml` 得 `format`）。**残余限制**：**同一族内删多条 pattern 之一**（如 `rrrr` 族有 N 条、删 1 条后仍 ≥1）**无法被检出**——无「基线条数」参照，属不可解。若要覆盖，需引入**基线/下限**（如每族最低条数写进契约，但那是硬编码的回归）或**与向量语料交叉**，由后续任务评估。 | `INTEG-007t` reviewer 第 2 轮（判为可接受已知限制，须登记） | 登记（非阻断） |

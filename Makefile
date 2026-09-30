@@ -22,7 +22,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-qemu build-gem5 docker-image docker-shell check \
-        validate-vectors check-spec-refs check-spec-drift check-asm-list
+        validate-vectors check-spec-refs check-spec-drift check-asm-list \
+        check-interface
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -48,6 +49,7 @@ help:
 	@echo "  make clean-work      Remove generated .work content only"
 	@echo "  make validate-vectors  Validate tests/vectors schema/inventory/coverage"
 	@echo "  make check           Run repository-level structural checks"
+	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
@@ -120,7 +122,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-interface
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -146,3 +148,8 @@ check-spec-refs:
 # Spec embedded assembly list consistency (SPEC-037t).
 check-asm-list:
 	@$(PYTHON) tools/spec/check_asm_list_consistency.py
+
+# Interface alignment gate (INTEG-003t / INTEG-007t): cross-module
+# contract↔implementation consistency (LLVM/QEMU/opcodes/inventory).
+check-interface:
+	@$(PYTHON) tools/integ/check_interface_alignment.py
