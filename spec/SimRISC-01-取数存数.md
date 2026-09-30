@@ -178,4 +178,4 @@ stm.o   {rfHA:rfHA+immu6-1}, [rbHB, rdHC]
 - 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
 - `rfHA + immu6 > 64`（超出 rf63）时触发 ILLI 异常
 
-> **注**：rf0 为目的寄存器时的特殊行为见 SimRISC-00（rf0 = FCSR，写只读位时静默忽略，rw 位正常写入）。
+> **注**：`rf0` 作**目的**合法（`ld.o`/`ldm.o`/`ld.t`/`ldm.t`），写入按 SimRISC-00 的写语义（`ld.t`/`ldm.t` 的 `[63:32]` 不变）；`rf0` 作**源**（`st.o`/`st.t`/`stm.o`/`stm.t`）读出完整 64 位。

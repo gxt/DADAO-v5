@@ -15,8 +15,8 @@
 #   fields[].name 一致（例如块赋值目的字段为 rdhb/rbhb/rahb，而非 rdha/rbha）。
 #
 # 范围：
-#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（254 条：
-#     177 条 M1 + 77 条 excluded_m1）
+#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（253 条：
+#     176 条 M1 + 77 条 excluded_m1）
 #   - M1 范围外（deferred）：RF 浮点（SimRISC-03 全部）、LR-SC 原子（SimRISC-12 §LR-SC指令）、
 #     特权 cfx（SimRISC-04 §特权指令）；按 ADR-0004 D5 执行这些编码触发 ILLI
 #   - SBZ 非零 → ILLI 由 ADR-0004 D5.3 冻结（架构自定义；spec 未规定 fault 类型）
@@ -67,14 +67,19 @@ rules:
       rb0 作**源**（含 st.o-rb/stm.o-rb 的 rbha、ld.*-rb/st.*-rb 的基址 rbhb）不触发 ILLI（见 ADR-0015 D1/D3/D4）。
 
   # ── RF 操作规则（M1 范围外）──────────────────────────────────────────────────
-  - id: rf0_as_operand
+  - id: rf0_as_dst
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-00 §浮点寄存器"
     status: deferred
     description: >
-      浮点运算指令的目的或任一源操作数为 rf0 时触发 ILLI 异常
-      （rf0 为控制和状态寄存器 FCSR，不可作为普通浮点操作数）。
+      浮点运算指令的**目的**操作数为 rf0 时触发 ILLI 异常
+      （rf0 为控制和状态寄存器 FCSR，不可作为浮点运算的目的操作数）。
+      rf0 作**源**操作数合法（含 ftsgnj/fosgnj + rfHD=rf0 的 abs() 特例）。
+      适用范围：SimRISC-07 浮点运算指令（家族 46 条；其中带 rf 目的字段者 32 条，加 cs.* 5 条 = 37 条触发 ILLI）。
+      只读类 14 条（ftcls/focls/ft2it 等/fo2it 等/ftqcmp 等）无 rf 目的字段，不涉及。
+      不在禁止清单（rf0 作目的合法）：rd2rf（含 {rf0:rf0+immu6-1}）、
+      ld.o/ldm.o、ld.t/ldm.t、set.w。
       浮点类指令（RF）整体属 M1 范围外；M1 仅保留 rf0 的寄存器模型/复位值。
 
   # ── 多寄存器范围规则 ─────────────────────────────────────────────────────────
