@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_mem.c.inc b/target/dadao/insn_trans/trans_mem.c.inc
 new file mode 100644
-index 0000000000..453b438f4f
+index 0000000000..bce8bbb977
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_mem.c.inc
-@@ -0,0 +1,591 @@
+@@ -0,0 +1,589 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §4.1.1 Single RD Load (rrii): ld.sb/ld.ub/ld.sw/ld.uw/ld.st/ld.ut/ld.o
@@ -83,10 +83,9 @@ index 0000000000..453b438f4f
 +}
 +
 +/* §4.1.1 Single RD Store (rrii): st.b/st.w/st.t/st.o
-+ * ILLI: rdha == 0 */
++ * rdha is source (ADR-0015 D3): rd0 reads as 0, no ILLI. */
 +static bool trans_st_b_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = load_rd(a->ha);
 +    tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_UB);
@@ -95,7 +94,6 @@ index 0000000000..453b438f4f
 +
 +static bool trans_st_w_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = load_rd(a->ha);
 +    tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUW | MO_ALIGN_2);
@@ -104,7 +102,6 @@ index 0000000000..453b438f4f
 +
 +static bool trans_st_t_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = load_rd(a->ha);
 +    tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUL | MO_ALIGN_4);
@@ -123,7 +120,6 @@ index 0000000000..453b438f4f
 +
 +static bool trans_st_o_rrii_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = load_rd(a->ha);
 +    tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
@@ -143,10 +139,10 @@ index 0000000000..453b438f4f
 +}
 +
 +/* §4.2 st.o rbha, rbhb, imms12 (rrii): mem64[rbhb + imms12] = rbha
-+ * ILLI: rbha == rb0; 8B aligned (MALIGN otherwise) */
++ * rbha is source (ADR-0015 D3): rb0 reads as current insn addr, no ILLI.
++ * 8B aligned (MALIGN otherwise). */
 +static bool trans_st_o_rrii_rb(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = load_rb(ctx, a->ha);
 +    tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
@@ -331,11 +327,12 @@ index 0000000000..453b438f4f
 +}
 +
 +/* §4.1.2 Multi RD Store (rrri): stm.b/stm.w/stm.t/stm.o
-+ * ILLI: rdha==0, immu6==0, rdha+immu6>64
++ * rdha is source start (ADR-0015 D3): rd0 reads as 0, no ILLI.
++ * ILLI: immu6==0, rdha+immu6>64
 + * rdhc snapshotted before loop. */
 +static bool trans_stm_b_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -358,7 +355,7 @@ index 0000000000..453b438f4f
 +
 +static bool trans_stm_w_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -377,7 +374,7 @@ index 0000000000..453b438f4f
 +
 +static bool trans_stm_t_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -415,7 +412,7 @@ index 0000000000..453b438f4f
 +
 +static bool trans_stm_o_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -459,10 +456,11 @@ index 0000000000..453b438f4f
 +static bool trans_stm_o_rrri_rb(DisasContext *ctx, arg_main *a)
 +{
 +    /* S4.2 stm.o rbha, rbhb, rdhc, immu6 (rrri): multi RB store
-+     * ILLI: rbha==rb0, immu6==0, rbha+immu6>64 (before any write)
++     * rbha is source start (ADR-0015 D3): rb0 reads as current insn addr, no ILLI.
++     * ILLI: immu6==0, rbha+immu6>64 (before any write)
 +     * EA = (rb[hb] + rd[hc]) & 0x0000FFFFFFFFFFFF; stride=8 (octa)
 +     * rdhc snapshotted before loop; big-endian 8B aligned store. */
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->hd == 0 || a->ha + a->hd > 64) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
