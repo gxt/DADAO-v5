@@ -46,9 +46,11 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
 | RB `rb0` | `0xffff_ffff_0000`（ROM 基址 = `cfx_power_hypv_excp_vector`） | spec：`rb0` 复位初值 = `cfx_power_hypv_excp_vector` [SimRISC-00 §基址寄存器][DADAO-12 §2.1] |
 | RB `rb0[63:48]` | `0` | spec：`rb0[63:48]` 恒为 0 [contract-isa §1.3.2] |
 | RB `rb1`–`rb63` | `0` | 无 spec 依据，架构自定义 |
-| RA `ra0`–`ra63` | `0`（`ra[63:48] = 0`，全部条目无效；`ra0=0` → 仅 RegRAS） | 架构自定义：RegRAS 在进程入口须全零 [contract-isa §1.3.4]；`ra0=0` 表示无 MemRAS，M1 调用深度 ≤ 63（RegRAS 容量）故无需 MemRAS |
+| RA `ra0`–`ra63` | `0`（`RACNT` = 0 ⇒ 无有效条目；条目内容全 0；`MRPTR` = 0 ⇒ 仅 RegRAS） | 架构自定义：RegRAS 在进程入口须全零 [contract-isa §1.3.4]；`MRPTR=0` 表示无 MemRAS，M1 调用深度 ≤ 63（RegRAS 容量）故无需 MemRAS |
 | RF `rf0` | `0x7FF8_0000_7FC0_0000` | 位布局来自 spec [SimRISC-00 §浮点状态寄存器]；R/W 位复位为 0 属架构自定义 |
 | RF `rf1`–`rf63` | `0` | 无 spec 依据，架构自定义 |
+
+（2026-09-30 就地修订：依据 ADR-0012 D7，复位有效性判据表述由「ra[63:48]=0」改为「RACNT = 0」，MemRAS 指针统一称 MRPTR）
 
 **复位 PC（`rb0`）**：M1 直接取 spec 的 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000` 作为复位值（即 boot ROM 基址，D1）[SimRISC-00 §基址寄存器][DADAO-12 §2.1]。M1 **仅借用该地址**，不复现 spec 的复位运行模式（`inner_run_mode=hypv`、`inner_cfx_code=cfx_power`、`inner_cfx_mask=全 1`）等 HBI/SEE 语义（M1 无 SEE/HBI/hypv）。
 
