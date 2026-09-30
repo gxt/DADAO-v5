@@ -96,8 +96,6 @@ def get_operands_and_bindings(op: dict) -> list[dict]:
         role = field["role"]
         bank = field["bank"]
 
-        if role == "minor_op":
-            continue
         if role in ("cfxcode", "cfx_cg", "cfx_rc"):
             continue
 
@@ -138,14 +136,14 @@ def get_operands_and_bindings(op: dict) -> list[dict]:
 def _get_reg_field_name(fmt: str, reg_idx: int) -> str:
     """Get the format field name for the reg_idx-th register operand.
 
-    For formats with minor-op (orrr/orri/oiii), registers start from rb.
+    For formats with opx (orrr/orri/oiii), registers start from rb.
     For other formats, registers start from ra.
     """
     if fmt in ("orrr", "orri"):
-        # minor-op in ha, registers in hb, hc, (hd for orrr)
+        # opx in ha, registers in hb, hc, (hd for orrr)
         return ["rb", "rc", "rd"][reg_idx]
     elif fmt == "oiii":
-        # minor-op in ha, no registers (only imm18)
+        # opx in ha, no registers (only imm18)
         return "rb"  # shouldn't be called for oiii with registers
     else:
         # rrrr/rrri/rrii/riii: registers start from ra
@@ -293,7 +291,7 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
             op_val = int(op["op"], 16)
             lines.append(f"  let op = 0x{op_val:02X};")
 
-            # For MISC sub-table instructions, set ha (minor-op)
+            # For MISC sub-table instructions, set ha (opx)
             if "ha" in op:
                 ha_val = int(op["ha"], 16)
                 lines.append(f"  let ha = 0x{ha_val:02X};")

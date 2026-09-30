@@ -4,7 +4,7 @@
 
 # orri format: MISC-octa register+immediate operations
 # Encoding: word = (op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd
-# ha = minor-opcode
+# ha = opx
 
 # ext.uo rd8, rd0, 1
 # op=0x40, ha=0x18(ext.uo), hb=rd8=8, hc=rd0=0, hd=immu6=1

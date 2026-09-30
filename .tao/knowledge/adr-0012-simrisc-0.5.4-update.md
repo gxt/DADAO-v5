@@ -34,7 +34,7 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 ### D2：opcodes.yaml 字段调整
 
 1. `insn` → `id`，格式 `mnemonic_format_feature`
-2. orrr/orri/oiii 格式的 `ha`（minor-op）并入 `op`（14位）；其余格式 `ha` 保留为操作数
+2. orrr/orri/oiii 格式的 `ha`（opx）并入 `op`（14位）；其余格式 `ha` 保留为操作数
 3. 所有立即数拆分（hi/lo/mid）合并为单个 field
 4. ~~删除 `role` 字段（dst/src/imm）~~（2026-09-28 就地修订：`role` 字段已恢复——SPEC-024t 删除 `role` 导致 `validate_vectors.py` 的 F9① 守卫语义错误，把 orrr/orri 的 `hb` 误判为 src；用户裁定恢复。见 `SPEC-031t`。）
 
@@ -67,3 +67,4 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 
 - 2026-09-27：用户逐条确认 D1–D4 后置 `Accepted`。
 - 2026-09-30：就地修订——D3.1 强化（`rd0`/`rb0` 作 `st`/`stm` 源的语义明确，依据 `SPEC-055t`/`QEMU-028t`/`TESTCASES-019t`）；新增 D5（删除 `rela.si`，编码 `0x5A` → UNDI，254→253，M1 177→176）。`ADR-0015` 退场（`Superseded`），其 D1–D4 并入本 ADR D3.1。
+- 2026-09-30：术语统一（`SPEC-058t`）——D2.2「minor-op」→「opx」（就地措辞修订，decision 语义不变）。

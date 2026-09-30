@@ -18,7 +18,7 @@ index 000000000000..7012c4fcb2f5
 +//
 +// Bit encoding (contract-isa.md §2.1):
 +//   32-bit instruction, big-endian:
-+//     bits[31:24] = op[7:0]    (8 bits, major opcode)
++//     bits[31:24] = op[7:0]    (8 bits, opc)
 +//     bits[23:18] = ha[5:0]    (6 bits, hexagram a)
 +//     bits[17:12] = hb[5:0]    (6 bits, hexagram b)
 +//     bits[11:6]  = hc[5:0]    (6 bits, hexagram c)
@@ -189,9 +189,9 @@ index 000000000000..7012c4fcb2f5
 +}
 +
 +//===----------------------------------------------------------------------===//
-+// Format: orrr — minor-opcode + three registers (§2.3)
++// Format: orrr — opx + three registers (§2.3)
 +//
-+//   ha = minor-op (set by 'let ha = 0xNN' in def), hb = rb, hc = rc, hd = rd
++//   ha = opx (set by 'let ha = 0xNN' in def), hb = rb, hc = rc, hd = rd
 +//   Examples: MISC-byte/wyde/tetra/octa logic/shift/add/sub/cmp/div/rem
 +//===----------------------------------------------------------------------===//
 +
@@ -199,7 +199,7 @@ index 000000000000..7012c4fcb2f5
 +  bits<6> rb;
 +  bits<6> rc;
 +  bits<6> rd;
-+  // ha = minor-opcode (set by `let ha = 0xNN` in each def)
++  // ha = opx (set by `let ha = 0xNN` in each def)
 +  let hb = rb;
 +  let hc = rc;
 +  let hd = rd;
@@ -207,9 +207,9 @@ index 000000000000..7012c4fcb2f5
 +}
 +
 +//===----------------------------------------------------------------------===//
-+// Format: orri — minor-opcode + two registers + 6-bit unsigned immediate (§2.3)
++// Format: orri — opx + two registers + 6-bit unsigned immediate (§2.3)
 +//
-+//   ha = minor-op, hb = rb, hc = rc, hd = imm6
++//   ha = opx, hb = rb, hc = rc, hd = imm6
 +//   Examples: ext/shl/shr orri variants, rd2rd, rd2ra, ra2rd, rb2rd, rb2rb, rd2rb
 +//===----------------------------------------------------------------------===//
 +
@@ -217,7 +217,7 @@ index 000000000000..7012c4fcb2f5
 +  bits<6> rb;
 +  bits<6> rc;
 +  bits<6> imm6;
-+  // ha = minor-opcode (set by `let ha = 0xNN` in each def)
++  // ha = opx (set by `let ha = 0xNN` in each def)
 +  let hb = rb;
 +  let hc = rc;
 +  let hd = imm6;
@@ -225,15 +225,15 @@ index 000000000000..7012c4fcb2f5
 +}
 +
 +//===----------------------------------------------------------------------===//
-+// Format: oiii — minor-opcode + 18-bit immediate (§2.3)
++// Format: oiii — opx + 18-bit immediate (§2.3)
 +//
-+//   ha = minor-op, hb:hc:hd = imm18
++//   ha = opx, hb:hc:hd = imm18
 +//   Examples: illi, fence, swym
 +//===----------------------------------------------------------------------===//
 +
 +class DADAOOiii<string mnemonic> : DADAOInst<mnemonic # "\t$imm18"> {
 +  bits<18> imm18;
-+  // ha = minor-opcode (set by `let ha = 0xNN` in each def)
++  // ha = opx (set by `let ha = 0xNN` in each def)
 +  let hb = imm18{17-12};
 +  let hc = imm18{11-6};
 +  let hd = imm18{5-0};

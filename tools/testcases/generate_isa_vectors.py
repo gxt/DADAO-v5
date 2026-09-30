@@ -747,7 +747,7 @@ def gen_block_semantic(rec, dst_reg, src_reg, count, src_bank, dst_bank):
     fmt = rec["format"]
     sc = rec.get("spec_cite", "")
 
-    # For orri: ha(minor_op)|hb(dst)|hc(src)|hd(immu6)
+    # For orri: ha(opx)|hb(dst)|hc(src)|hd(immu6)
     word = _build_word_orri(rec, dst_reg, src_reg, count)
 
     # Build source values

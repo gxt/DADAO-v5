@@ -12,7 +12,7 @@ Sources
 Derivation rules (validated against ``tests/lit/MC/Dadao/*.s``)
 ---------------------------------------------------------------
 * operands are the fields whose ``role`` is one of dst/src/imm/wyde_pos/
-  cfxcode/cfx_cg/cfx_rc; ``minor_op`` fields are already encoded in the
+  cfxcode/cfx_cg/cfx_rc; ``opx`` fields are already encoded in the
   mnemonic and are **not** operands;
 * split immediate fields (``imms18_hi/_mid/_lo``, ``immu24_b*``, ...) merge
   into one immediate operand;

@@ -149,7 +149,7 @@ MALIGN 为精确异常 [contract-isa §15.2][contract-isa §3.1.1]。M1 无 OS �
 
 - SBZ 出现在**已知合法 opcode** 内部：指令格式已被识别，只是「应为零」的字段非零。
 - 这类比**非法操作数**（ILLI），而非未识别编码（UNDI）。汇编器可静态拒绝 SBZ 违例（如同拒绝 `rd0` 目的）。
-- UNDI 保留给架构**显式留空**的 opcode/minor-opcode 单元格；SBZ 是已定义单元格上的字段约束。
+- UNDI 保留给架构**显式留空**的 opc/opx 单元格；SBZ 是已定义单元格上的字段约束。
 
 M1 范围内的 SBZ 字段示例：`fence` 的 `immu18 bits[17:4]` [contract-isa §14.1]、移位指令中 shamt 位域之外的高位（如 `shl.ub` 的 `hd[5:3]`、`shl.uw` 的 `hd[5:4]`）[contract-isa §6.4.1]。
 
@@ -274,7 +274,7 @@ ILLI 测试 pattern（以 `illi` 指令为例）：
 set.zw  rb16, wp2, 0xffff
 or.w    rb16, wp1, 0x8000      ; rb16 = 0xffff_8000_0000
 
-; 2. 触发 ILLI：illi 0（op=0x00、minor-opcode=0、immu18=0，即 32 位全零字）
+; 2. 触发 ILLI：illi 0（op=0x00、opx=0、immu18=0，即 32 位全零字）
 illi    0                      ; → ILLI → host $? = 0x88
 
 ; 3. 若执行到此，说明 fault 未发生 → FAIL
@@ -358,3 +358,5 @@ jump    rb2, rd0, 0            ; PC ← 0xffff_0000_0000
 **rev. 2026-09-13（用户决定）：D3 零 host 依赖补充「harness 墙钟超时兜底」**：pass/fail 仍只由 `$?` 判定；harness 另设默认 **9 s**（可经环境变量覆盖）的墙钟超时，超时即杀掉 QEMU 并记为 **harness 错误（inconclusive）**，**不**参与 guest pass/fail。原 D3「无超时」措辞改为上述机制（与 Context「不得用超时判定 pass/fail」一致）。
 
 **rev. 2026-09-13（用户决定）：D4/D5 机器 fault 退出码改为由 spec cause 位派生**：机器 fault 退出码改为 **`0x80 | spec_cause_bit_index`**——ILLI=`0x88`、UNDI=`0x89`、RASOF=`0x8A`、RASUF=`0x8B`、MALIGN=`0x8C`、IALIGN=`0x8D`（原为 `0x81`–`0x86`，与 spec 位序无对应）；unmapped=`0x87`（测试机约定，与 spec cause 位无关）。依据 `spec/DADAO-12:408-413`（cfx_umon 异常原因表）/`spec/DADAO-13:38-43`（HEE 表）的 `excp cause id = 1<<n`。D4、D5.1–D5.6、D5.8 码表与 D6 示例同步更新。
+
+**rev. 2026-09-30（术语统一，`SPEC-058t`）**：D5.3「minor-opcode」→「opx」、D6.3「minor-opcode」→「opx」（就地措辞修订，decision 语义不变）。

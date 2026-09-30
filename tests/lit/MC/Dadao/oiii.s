@@ -2,7 +2,7 @@
 # RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=OBJ
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
 
-# oiii format: minor-opcode + immediate instructions (illi, fence, swym)
+# oiii format: opx + immediate instructions (illi, fence, swym)
 # Encoding: word = (op<<24)|(ha<<18)|(imm18 & 0x3FFFF)
 
 # illi 0

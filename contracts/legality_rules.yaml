@@ -210,7 +210,7 @@ rules:
     status: active
     description: >
       执行保留编码触发 UNDI 异常：QFC 主表与各 MISC 子表的空白单元格
-      （未分配编码），以及保留的 minor-opcode。
+      （未分配编码），以及保留的 opx。
       注意：32 位全零指令字是 illi 0，触发 ILLI 而非 UNDI（见 contract-isa.md §2.9）。
 
   # ── 指令对齐规则 ─────────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@
 
 # orri format: register bank operations (rb2rd, rd2rd)
 # Encoding: word = (op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd
-# ha = minor-opcode
+# ha = opx
 
 # rb2rd {rd8:rd9}, {rb9:rb10}
 # op=0x40, ha=0x36(rb2rd), hb=rd8=8, hc=rb9=9, hd=immu6=2

@@ -189,14 +189,13 @@ SimRISC中的每条指令都是四个字节，即32位。所有指令必须4字�
 头8位是op，主要指明指令功能，隐含指令分类。
 后面四个6位记为ha/hb/hc/hd，主要指明具体的操作数，包括格式和内容。
 
-op是操作码，简称为opcode，或者称之为major-opcode。
-某些情况下，ha或ha+hb也可作为opcode，或称为minor-opcode。
-特殊情况下（后16位作为立即数时），hb的头两位用来指定wyde在64位数据中的位置。
+op 是操作码，简称 opc（opcode 的简写），即头 8 位。
+某些情况下，ha（6 位）也参与操作码，称为 opx（opcode-auxiliary 的简写）；opx 只可能是 ha。
 
 ha/hb/hc/hd通过不同的寻址方式组合成操作数，h含义为hexagram，既是六，也是六十四。
 操作数的寻址方式分别用以下几个字母表示：
 
-- `o`：六位的minor-opcode
+- `o`：六位的 opx
 - `c`：六位的cfxha
 - `r`：寄存器
 - `i`：立即数（立即数域需要区分有符号数和无符号数）
@@ -217,13 +216,13 @@ SimRISC没有在编码上进行过多的拆分，操作数类型简单而规整�
   - wyde-position 在 `hb[5:4]`，编码：`00=wp0, 01=wp1, 10=wp2, 11=wp3`
   - immu16 高 4 位在 `hb[3:0]`，中 6 位在 `hc[5:0]`，低 6 位在 `hd[5:0]`（hb→hc→hd 高位到低位）
 
-以下三种格式含 `o`（minor-opcode，6 位辅助操作码），minor-opcode 在 `ha[5:0]`：
+以下三种格式含 `o`（opx，6 位辅助操作码），opx 在 `ha[5:0]`：
 
-- `orrr`：minor-opcode + 三个寄存器
-- `orri`：minor-opcode + 两个寄存器 + 6 位立即数在 `hd[5:0]`
-- `oiii`：minor-opcode + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]`（hb=高位6位, hc=中位6位, hd=低位6位）
+- `orrr`：opx + 三个寄存器
+- `orri`：opx + 两个寄存器 + 6 位立即数在 `hd[5:0]`
+- `oiii`：opx + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]`（hb=高位6位, hc=中位6位, hd=低位6位）
 
-SimRISC 提供四种固定数据位宽，通过指令名后缀 `.b`/`.w`/`.t`/`.o` 区分，分别对应 byte（8 位）、wyde（16 位）、tetra（32 位）、octa（64 位）。这四种位宽的指令分布在以下四个 minor-opcode 子表中：
+SimRISC 提供四种固定数据位宽，通过指令名后缀 `.b`/`.w`/`.t`/`.o` 区分，分别对应 byte（8 位）、wyde（16 位）、tetra（32 位）、octa（64 位）。这四种位宽的指令分布在以下四个 opx 子表中：
 
 - `MISC-byte`：byte 位宽指令
 - `MISC-wyde`：wyde 位宽指令

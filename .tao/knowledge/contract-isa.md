@@ -140,14 +140,14 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 
 一个 32 位指令分解为 5 个部分：8/6/6/6/6，即 op / ha / hb / hc / hd。[SimRISC-00 §指令域说明]
 
-- `op`：操作码（major-opcode），头 8 位，指明指令功能并隐含指令分类。[SimRISC-00 §指令域说明]
+- `op`：操作码（opc），头 8 位，指明指令功能并隐含指令分类。[SimRISC-00 §指令域说明]
 - `ha/hb/hc/hd`：各 6 位（hexagram），指明操作数（格式与内容）。[SimRISC-00 §指令域说明]
-- 某些情况下 `ha` 或 `ha+hb` 也可作为 opcode（minor-opcode）。[SimRISC-00 §指令域说明]
-- 后 16 位作为立即数时，`hb` 头两位用来指定 wyde 在 64 位数据中的位置。[SimRISC-00 §指令域说明]
+- 某些情况下 `ha`（6 位）也参与操作码，称为 `opx`（opcode-auxiliary），**只可能是 ha**。[SimRISC-00 §指令域说明]
+- 后 16 位作为立即数时，`hb` 头两位用来指定 wyde 在 64 位数据中的位置（wyde-position 属操作数域，与操作码无关）。[SimRISC-00 §指令域说明]
 
 操作数寻址方式字母：[SimRISC-00 §指令域说明]
 
-- `o`：六位的 minor-opcode
+- `o`：六位的 opx
 - `c`：六位的 cfxcode
 - `r`：寄存器
 - `i`：立即数（立即数域需要区分有符号数和无符号数）
@@ -172,13 +172,13 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 |------|------|------|
 | `rwii` | 一个寄存器 + wyde-position + 拆分为两段的 16 位无符号立即数 | wyde-position 在 `hb[5:4]`；immu16 高 4 位在 `hb[3:0]`、中 6 位在 `hc[5:0]`、低 6 位在 `hd[5:0]`（hb→hc→hd 高到低） |
 
-含 minor-opcode（`o`，6 位，在 `ha[5:0]`）的格式：[SimRISC-00 §指令域说明]
+含 opx（`o`，6 位，在 `ha[5:0]`）的格式：[SimRISC-00 §指令域说明]
 
 | 格式 | 含义 |
 |------|------|
-| `orrr` | minor-opcode + 三个寄存器 |
-| `orri` | minor-opcode + 两个寄存器 + 6 位立即数在 `hd[5:0]` |
-| `oiii` | minor-opcode + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]` |
+| `orrr` | opx + 三个寄存器 |
+| `orri` | opx + 两个寄存器 + 6 位立即数在 `hd[5:0]` |
+| `oiii` | opx + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]` |
 
 > cfxcode（`c`）相关格式 `crrr`/`crii`/`ciii` 属特权 cfx 指令，Excluded from M1（见 §14.3）。
 
@@ -237,7 +237,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 
 ### §2.8 MISC 子表机制
 
-四种固定数据位宽指令分布在四个 minor-opcode 子表中，各子表内使用 `orrr`/`orri`/`oiii` 操作数格式：[SimRISC-00 §指令域说明]
+四种固定数据位宽指令分布在四个 opx 子表中，各子表内使用 `orrr`/`orri`/`oiii` 操作数格式：[SimRISC-00 §指令域说明]
 
 | 子表 | op | 位宽 |
 |------|-----|------|
@@ -246,14 +246,14 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | `MISC-tetra` | 0100-0001 | tetra |
 | `MISC-octa` | 0100-0000 | octa |
 
-- 各子表指令的 minor-opcode 在 `ha[5:0]`，与 op 共同确定指令。[SimRISC-00 §指令域说明]
+- 各子表指令的 opx 在 `ha[5:0]`，与 op 共同确定指令。[SimRISC-00 §指令域说明]
 - `MISC-AMO`（op = 0000-0000）承载 illi/fence 与 LR-SC 原子指令。[SimRISC-00 §MISC-AMO 指令编码]
 - `MISC-RF`（op = 0100-0100）承载浮点指令，Excluded from M1。[SimRISC-00 §MISC-RF指令编码]
 
 ### §2.9 保留编码
 
 - QFC 主表与各 MISC 子表的空白单元格为 reserved（保留未分配），执行保留编码触发 **UNDI** 异常。[SimRISC-00 §SimRISC QFC]
-- 32 位全零指令字（0x00000000）是 `illi 0`（opcode 与 minor-opcode 均为全 0），触发 **ILLI** 异常（不是 UNDI）。[SimRISC-11 §非法指令]
+- 32 位全零指令字（0x00000000）是 `illi 0`（opc 与 opx 均为全 0），触发 **ILLI** 异常（不是 UNDI）。[SimRISC-11 §非法指令]
 
 ---
 
@@ -1074,7 +1074,7 @@ SimRISC 采用 `illi` 作为专门的非法指令（illegal instruction）。[Si
 
 - `illi` 的后 18 位立即数无特殊含义，完全由用户/软件自定义，用户可通过操作系统机制捕获该异常并做功能扩展。[SimRISC-11 §非法指令]
 - 不建议捕获其它指令产生的非法指令异常做功能扩展（例如很多指令不允许目的为 rd0，否则引发非法指令异常）。[SimRISC-11 §非法指令]
-- `illi` 的 opcode 和 minor-opcode 均为全 0，当参数也为 0 时即为 32 位全零指令字；未初始化的指令内存（全零）将触发 **ILLI** 异常。[SimRISC-11 §非法指令]
+- `illi` 的 opc 和 opx 均为全 0，当参数也为 0 时即为 32 位全零指令字；未初始化的指令内存（全零）将触发 **ILLI** 异常。[SimRISC-11 §非法指令]
 
 ### §13.3 伪指令 nop
 
@@ -1088,7 +1088,7 @@ QFC 主表与各 MISC 子表的空白单元格为 reserved（保留未分配）�
 
 ### §13.5 全零指令（ILLI）
 
-32 位全零指令字（0x00000000）是 `illi 0`（opcode 与 minor-opcode 均为全 0），触发 **ILLI** 异常；未初始化的指令内存（全零）将触发 ILLI。[SimRISC-11 §非法指令]
+32 位全零指令字（0x00000000）是 `illi 0`（opc 与 opx 均为全 0），触发 **ILLI** 异常；未初始化的指令内存（全零）将触发 ILLI。[SimRISC-11 §非法指令]
 
 > 注意：全零字触发 ILLI（§13.5），而保留编码触发 UNDI（§13.4），二者不同。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
 
@@ -1262,9 +1262,9 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x76 | 0111-0110 | riii | ret | `ret` | [SimRISC-00 §SimRISC QFC] |
 | 0x77 | 0111-0111 | — | — | — | reserved |
 
-### A.2 MISC-octa 子表（op = 0x40，minor-opcode 在 ha[5:0]）
+### A.2 MISC-octa 子表（op = 0x40，opx 在 ha[5:0]）
 
-| minor-opcode | 助记符 | 格式 | 来源 |
+| opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
 | 001-000 | `and.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 001-001 | `or.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
@@ -1298,7 +1298,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 ### A.3 MISC-tetra 子表（op = 0x41）
 
-| minor-opcode | 助记符 | 格式 | 来源 |
+| opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
 | 001-000 | `and.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 001-001 | `or.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
@@ -1329,7 +1329,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 ### A.4 MISC-wyde 子表（op = 0x42）
 
-| minor-opcode | 助记符 | 格式 | 来源 |
+| opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
 | 001-000 | `and.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 001-001 | `or.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
@@ -1360,7 +1360,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 ### A.5 MISC-byte 子表（op = 0x43）
 
-| minor-opcode | 助记符 | 格式 | 来源 |
+| opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
 | 001-000 | `and.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 001-001 | `or.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
@@ -1391,7 +1391,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 ### A.6 MISC-AMO 子表（op = 0x00，M1 条目）
 
-| minor-opcode | 助记符 | 格式 | 来源 |
+| opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
 | 000-000 | `illi` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
 | 000-010 | `swym` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |

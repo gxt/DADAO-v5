@@ -4,7 +4,7 @@
 
 # orrr format: MISC-octa register operations
 # Encoding: word = (op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd
-# ha = minor-opcode
+# ha = opx
 
 # or.o rd8, rd9, rd10
 # op=0x40, ha=0x09(or.o), hb=rd8=8, hc=rd9=9, hd=rd10=10

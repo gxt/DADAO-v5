@@ -33,7 +33,7 @@ fi
 
 # Create minimal ROM and kernel binaries (zeroed, 8 bytes each)
 # ROM: all zeros at 0xffff_ffff_0000 → first instruction is 0x00000000
-#      = illi 0 (opcode 0, minor-opcode 0, immu18=0) → ILLI
+#      = illi 0 (opc 0, opx 0, immu18=0) → ILLI
 # Kernel: all zeros at 0xffff_0000_0000 (won't be reached, ROM ILLI happens first)
 dd if=/dev/zero of="$TMPDIR/rom.bin" bs=1 count=8 2>/dev/null
 dd if=/dev/zero of="$TMPDIR/test.bin" bs=1 count=8 2>/dev/null

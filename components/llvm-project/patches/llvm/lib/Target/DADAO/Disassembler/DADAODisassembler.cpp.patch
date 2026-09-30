@@ -16,7 +16,7 @@ index 000000000000..b708270f075d
 +//
 +// DADAO is a big-endian 32-bit instruction set (contract-isa.md §2.1).
 +// Each instruction is exactly 4 bytes. The instruction word is decoded as:
-+//   bits[31:24] = op[7:0]    (8-bit major opcode)
++//   bits[31:24] = op[7:0]    (8-bit opc)
 +//   bits[23:18] = ha[5:0]    (6-bit hexagram a)
 +//   bits[17:12] = hb[5:0]    (6-bit hexagram b)
 +//   bits[11:6]  = hc[5:0]    (6-bit hexagram c)
