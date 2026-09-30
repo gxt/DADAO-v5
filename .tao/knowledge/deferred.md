@@ -64,6 +64,7 @@
   - `QEMU-001k` 表中 `014t` 依赖 `TESTCASES-003t`（→仍正确，harness 骨架依赖向量 `encoding.word`）、`016t` 依赖 `TESTCASES-004t`（→存疑，`004t` 现为访存向量，`016t` 消费 `expected_state.memory`，依赖应为 `TESTCASES-004t` 或 `TESTCASES-006t` 中的 store 向量）、`017t` 依赖 `TESTCASES-005t`（→已修正）
   - **本次规划级复审已同步修正上述陈旧引用**（机械性修正，不涉及决策变更）。跨模块影响项已清。
 - **~~`SPEC-024t` 暴露的测试向量 src 预置缺口（15 条，2026-09-27 登记）~~ ✅ 误报（2026-09-28 订正，`SPEC-031t`）**：该缺口是误报——`hb` 是目的寄存器（`role=dst`），非源寄存器。根因是 `SPEC-024t` 删除 `role` 字段后 F9① 守卫从 format 推导 role 时把 orrr/orri 的 `hb` 误判为 src。`role` 字段已由 `SPEC-031t` 恢复，该条目已无效。
+- **覆盖门控为 `(id,class)` 粒度，删单条 legality 用例不触发报错（`TESTCASES-019t` reviewer 发现，2026-09-30 登记）**：`validate_vectors.py` 的数据级覆盖门控按 `(id, class)` 计数——只要某 `(id, class)` 组合仍有 ≥1 条 active case，删掉同组内的单条用例不会产生缺口。因此「删某条 `ld` 目的 ILLI 用例 → validator 报错」不可达（该 id 通常有 ≥2 条 legality 用例）。该粒度限制使得「dest=0 ILLI 判据必须保留」这类单条约束无法由现有门控守卫。归属：后续 validator 增强（如「某 (id,class) 的全部 legality case 均为 ILLI 时，至少 1 条的 notes 必须包含 dest_rd0 / dest_rb0 标记」），或接受该粒度限制并以 harness 端到端测试兜底。
 
 ## llvm / qemu / integ
 

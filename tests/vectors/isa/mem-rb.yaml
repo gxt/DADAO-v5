@@ -32,7 +32,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: rb0 as dest/src → ILLI (rb_dest_rb0 / rb_base_rb0_store)
+  notes: rb0 as dest → ILLI (rb_dest_rb0)
 - mnemonic: ld.o
   id: ld.o_rrii_rb
   format: rrii
@@ -139,20 +139,6 @@
   format: rrii
   class: legality
   encoding:
-    word: '0x23003000'
-  input_state: {}
-  expected_state: null
-  expected_pc: null
-  expected_fault: ILLI
-  status: active
-  deferred_reason: null
-  spec_cite: SimRISC-01 §存取RB寄存器
-  notes: rb0 as dest/src → ILLI (rb_dest_rb0 / rb_base_rb0_store)
-- mnemonic: st.o
-  id: st.o_rrii_rb
-  format: rrii
-  class: legality
-  encoding:
     word: '0x23043007'
   input_state:
     rb:
@@ -231,6 +217,23 @@
   spec_cite: SimRISC-01 §存取RB寄存器
   notes: 'boundary: mem[0x0000FFFF00000000] <- rb1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
     imms12=0x0'
+- mnemonic: st.o
+  id: st.o_rrii_rb
+  format: rrii
+  class: encoding
+  encoding:
+    word: '0x23003100'
+  input_state:
+    rb:
+      rb3: '0x0000FFFF00000000'
+  expected_state: null
+  expected_pc: null
+  expected_fault: null
+  status: active
+  deferred_reason: null
+  spec_cite: SimRISC-01 §存取RB寄存器
+  notes: 'encoding: st.o rb0(source), [rb3(base), 0x100] — rbha=0 is source (LEGAL
+    per ADR-0015 D3), rbhb=3 is base; mask/value encoding check only'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
   format: rrri
@@ -260,7 +263,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: rb0 as dest/src → ILLI (rb_dest_rb0)
+  notes: rb0 as dest → ILLI (rb_dest_rb0)
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
   format: rrri
@@ -368,20 +371,6 @@
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, immu6=1'
-- mnemonic: stm.o
-  id: stm.o_rrri_rb
-  format: rrri
-  class: legality
-  encoding:
-    word: '0x3B003081'
-  input_state: {}
-  expected_state: null
-  expected_pc: null
-  expected_fault: ILLI
-  status: active
-  deferred_reason: null
-  spec_cite: SimRISC-01 §存取RB寄存器
-  notes: rb0 as dest/src → ILLI (rb_dest_rb0)
 - mnemonic: stm.o
   id: stm.o_rrri_rb
   format: rrri

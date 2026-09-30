@@ -549,13 +549,14 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                                 return (wval >> lo) & ((1 << (hi - lo + 1)) - 1)
                     return None
 
-                # F10①: base field (rbhb) != rb0, rb1, rb2
+                # F10①: base field (rbhb) != rb1, rb2
+                # rb0 allowed as base for ld.*/st.* (PC-relative, ADR-0015 D4)
                 hb_val = _extract_field("rbhb")
                 if hb_val is not None:
                     if hb_val == 0:
-                        errors.append(
-                            "%s: F10: encoding base field hb=0 (rb0=PC), "
-                            "must use unused rb register" % tag)
+                        # rb0 as base is valid for ld/st (PC-relative addressing)
+                        # Per ADR-0015 D4: ld/st may use rb0 as base register
+                        pass  # rb0 allowed; no error
                     elif hb_val in (1, 2):
                         errors.append(
                             "%s: F10: encoding base field hb=%d (rb%d occupied "
@@ -564,8 +565,11 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
 
                     # F10②: base register must be preset in input_state.rb
                     # with value in RAM window
+                    # Skip for rb0 (hardwired to PC, ADR-0015 D1)
                     base_name = "rb%d" % hb_val
-                    if base_name not in rb_preset:
+                    if hb_val == 0:
+                        pass  # rb0 is hardwired; no preset needed
+                    elif base_name not in rb_preset:
                         errors.append(
                             "%s: F10: encoding base register %s not preset "
                             "in input_state.rb" % (tag, base_name))
@@ -591,12 +595,31 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                             "%s: F10: rrri encoding immu6=%d, must be >= 1"
                             % (tag, immu6_val))
 
-                # F10④: dest/src ha != rd0/ra0
-                ha_val = _extract_field("rdha")
-                if ha_val is not None and ha_val == 0:
-                    errors.append(
-                        "%s: F10: encoding dest/src ha=0 (rd0/ra0), "
-                        "must use non-zero register" % tag)
+                # F10④: dest ha != rd0/ra0 (role=dst only; src allowed)
+                # Per ADR-0015 D2/D3: rd0 as source reads 0 (LEGAL for st.*/stm.*)
+                # Check rdha field: only flag if role=dst and value=0
+                for fld in fields:
+                    if fld["name"] == "rdha" and fld.get("role") == "dst":
+                        ha_val = _extract_field("rdha")
+                        if ha_val is not None and ha_val == 0:
+                            errors.append(
+                                "%s: F10: encoding dest rdha=0 (rd0), "
+                                "must use non-zero register for destination"
+                                % tag)
+                        break
+
+                # F10④b: RB variant — rbha as dest must not be rb0
+                # Only for ld.o-rb (rbha=dst) and ldm.o-rb (rbha=dst)
+                # st.o-rb/stm.o-rb have rbha=src, which is LEGAL (ADR-0015 D3)
+                for fld in fields:
+                    if fld["name"] == "rbha" and fld.get("role") == "dst":
+                        rbha_val = _extract_field("rbha")
+                        if rbha_val is not None and rbha_val == 0:
+                            errors.append(
+                                "%s: F10: encoding dest rbha=0 (rb0=PC), "
+                                "must use non-zero register for destination"
+                                % tag)
+                        break
 
     return len(cases)
 
