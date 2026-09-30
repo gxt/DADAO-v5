@@ -174,7 +174,7 @@ $ grep -n "上移\|下移" spec/SimRISC-00*.md spec/SimRISC-06*.md .tao/knowledg
 
 ### 验收 6：反例门控（可复现）
 
-对照器：`tools/spec/check_d7_consistency.py`（提交到仓库，可复用/可审计）。校验 D7 §1–§7 ↔ 三载体（`SimRISC-00`/`06`、`contract-isa.md`）的 9 分支与位域/判据，共约 40 条 needle 断言。
+对照器：`tools/spec/check_d7_consistency.py`（提交到仓库，可复用/可审计）。校验 D7 §1–§7 ↔ 三载体（`SimRISC-00`/`06`、`contract-isa.md`）的 9 分支与位域/判据，共静态 35 条 needle 断言（运行时展开 65 项）。
 
 **基线（仓库干净副本）**：
 ```
@@ -248,7 +248,7 @@ $ git diff --name-only
 ```
 
 - 三载体（`SimRISC-00`/`06`、`contract-isa.md`）在工作树中**无 diff**（自 `dff2381` 起未变），符合预期。
-- `git diff --name-only dff2381^..HEAD` 包含 6 项：三载体 + 本任务书 + `SPEC-061t` 任务书 + `INTEG-008t` 任务书。后两者属独立提交（`dff2381` 自身、`8930aa5`），非本任务越界。
+- `git diff --name-only dff2381^..HEAD` 包含 **7 项**：三载体（`contract-isa.md`、`SimRISC-00`、`SimRISC-06`）+ 本任务书 + `SPEC-061t` 任务书 + `INTEG-008t` 任务书 + `tools/spec/check_d7_consistency.py`。其中 `SPEC-061t`/`INTEG-008t` 任务书属独立提交（`dff2381` 自身、`8930aa5`），非本任务越界。**（2026-09-30 更正：原写「6 项」，漏计本任务新增的对照器；依据 reviewer 第 2 轮复核）**
 - 禁止项（`spec/SimRISC-0.5.3/`、`adr-0004`、`adr-0012`、QEMU、向量、`contracts/opcodes.yaml`、ABI、`docs/`）**0 改动**。
 
 **新发现/坑**：
@@ -532,3 +532,108 @@ $ git status --porcelain
 ```
 
 **遗留问题**：B3（`adr-0004 §D5.5` 旧语义）不在本轮范围，已上报用户待确认。
+
+#### 第 2 轮 reviewer 复核
+
+**审查者**：reviewer 子代理（独立重跑，不采信完成区）
+**审查时间**：2026-09-30
+**范围**：仅 B1/B2 + 三载体未变 + 门控 + 未触其它（B3 不在本轮）
+
+##### 1. B1 可复现（我亲自跑，非转述）
+
+**基线**（仓库根）：
+```
+$ python3 tools/spec/check_d7_consistency.py . ; echo "EXIT=$?"
+PASS: 全部 D7 对照项通过
+EXIT=0
+```
+
+**我自行做的 3 例注入**（各在 `/tmp/opencode/SPEC-062t/r2verify/inj{A,B,C}/` 隔离副本，仅复制三载体）：
+```
+=== injA（判据改回条目自身高16）===
+FAIL: 4 项不符
+  - [s00] 缺少/不符: §2 判据=RACNT  (needle='有效性判据 = RACNT（不看条目自身的值）')
+  - [cis] 缺少/不符: §2 判据=RACNT  (needle='有效性判据 = RACNT（不看条目自身的值）')
+  - [s00] 残留旧语义: 条目自身高16  (found='条目自身高16')
+  - [cis] 残留旧语义: 条目自身高16  (found='条目自身高16')
+EXIT=1
+=== injB（C3b `RACNT 保持 63` → `RACNT -= 1`）===
+FAIL: 2 项不符
+  - [s00] 缺少/不符: C3b RACNT 保持 63  (needle='RACNT 保持 63')
+  - [cis] 缺少/不符: C3b RACNT 保持 63  (needle='RACNT 保持 63')
+EXIT=1
+=== injC（删 D1 行）===
+FAIL: 2 项不符
+  - [s00] 缺少/不符: D1  (needle='D1 RACNT > 0 且 ra63[63:48] == 0 → RASUF')
+  - [cis] 缺少/不符: D1  (needle='D1 RACNT > 0 且 ra63[63:48] == 0 → RASUF')
+EXIT=1
+=== restored（未注入副本）===
+PASS: 全部 D7 对照项通过
+EXIT=0
+```
+
+**零污染**：全部注入仅在 `/tmp` 副本；注入期间与之后 `git status --porcelain` 均为空。
+
+**判别力判定：非恒真，有真实断言。** `need()` 实际断言 `needle ∈ norm(文件文本)`。抽查：needle `'D1 RACNT > 0 且 ra63[63:48] == 0 → RASUF'` 对应 `SimRISC-00` L167 / `contract-isa` L786（我逐字核对原文）；删该行后即 FAIL（例 c 证明 FAIL 路径可达）。故对照器非空断言。**弱项提示（非阻断）**：`need('cis','RASUF',…)` 仅查子串存在，判别力弱（任何含 `RASUF` 的文本都过）；但整体门控可失败。
+
+##### 2. B2 归因与矛盾
+
+- **归因已更正**：完成区 L92/L255/L297 已改为「三载体是 **SPEC-062t** 产物，被 `git add -A` 误扫入 message=SPEC-061t 的 `dff2381`」；不再出现「已由 SPEC-061t 落地」（残留字样仅在「第 1 轮 reviewer」引用旧错误时出现，属正常留档）。✅
+- **「无新增修改」矛盾已消除**：完成区不再声称「无新增修改」，改为如实列出产物（三载体 + 异常表补充 + 对照器）。✅
+- **残留不实（须修）**：完成区 §验收 8（L251）称「`git diff --name-only dff2381^..HEAD` 包含 6 项：三载体 + 本任务书 + SPEC-061t 任务书 + INTEG-008t 任务书」。**我实跑为 7 项**：
+```
+$ git diff --name-only dff2381^..HEAD | wc -l
+7
+（.tao/knowledge/contract-isa.md；INTEG-008t 任务书；SPEC-061t 任务书；SPEC-062t 任务书；
+ spec/SimRISC-00…；spec/SimRISC-06…；tools/spec/check_d7_consistency.py）
+```
+  即遗漏了本 commit `fd51651` **自身新增**的 `tools/spec/check_d7_consistency.py`。该表述与真实输出矛盾（此命令是 HEAD 相对范围，`fd51651` 提交后项数由 6 变 7）。
+- **次要（不作阻断）**：验收 6 称对照器「共静态 35 条 needle 断言（运行时展开 65 项）」；静态调用点实为 35（`need` 32 + `forbid` 3），含 `for` 循环展开的运行时断言为 65。建议可直接写实际条数。
+
+##### 3. 三载体未变
+
+```
+$ git diff --stat fd51651^..fd51651 -- spec/ .tao/knowledge/contract-isa.md
+（空）; RC=0
+```
+三载体在返工 commit 内**零改动**，返工未动三载体。✅
+
+##### 4. 门控（我重跑，真实退出码）
+
+```
+$ make check ; EXIT=0
+  总计: 80 项 | PASS: 80 | FAIL: 0 | MANUAL: 0
+  全部机械可判定项 PASS。
+
+$ python3 tools/integ/check_interface_alignment.py ; EXIT=0
+  总计: 80 项 | PASS: 80 | FAIL: 0 | MANUAL: 0
+
+$ python3 tools/spec/validate_encoding.py contracts/opcodes.yaml ; EXIT=1
+  ERROR: rd2rd_orri_rd: legality 'no_overlap(rdhb, rdhc, immu6)' 引用了不存在的字段/标识符 'no_overlap'
+  ERROR: rb2rb_orri_rb: legality 'no_overlap(rbhb, rbhc, immu6)' 引用了不存在的字段/标识符 'no_overlap'
+  验证失败: 2 个错误
+
+$ git diff --stat HEAD -- contracts/opcodes.yaml
+（空）; RC=0   ← opcodes.yaml 未改，EXIT=1 为 pre-existing
+```
+✅ 与完成区数字一致。
+
+##### 5. 未触其它
+
+```
+$ git diff --name-only fd51651^..fd51651
+".tao/tasks/spec/SPEC-062t-RA语义修订落地.md"
+tools/spec/check_d7_consistency.py
+```
+恰为 2 项（任务书 + 对照器），与要求一致。禁止项（`spec/SimRISC-0.5.3/`、`adr-0004`、`adr-0012`、QEMU、向量、`docs/`、`contracts/opcodes.yaml`、ABI）`git diff` **0 改动**。✅
+
+##### 6. 判决
+
+**Needs Revision**（**仅报告层一处数字不准；三载体内容与 B1 门控均已核实无误**）
+
+- **通过项**：B1 对照器**存在、可运行、非恒真**——基线 PASS EXIT=0，我自行 3 例注入均 FAIL EXIT≠0，复原 PASS EXIT=0，仓库零污染；B2 归因更正与「无新增修改」矛盾消除**均已落实**；三载体未变；门控 `make check`/`align` EXIT=0、`validate_encoding` pre-existing EXIT=1；未触 QEMU/向量/ADR/历史。
+- **须返工项（仅 1 处）**：完成区 §验收 8（L251）「`dff2381^..HEAD` 包含 **6 项**」→ 实为 **7 项**，须补入 `tools/spec/check_d7_consistency.py`（或改写为不含本 commit 的行数并注明口径）。属报告与真实输出不一致，按「完成区结论须与真实输出逐条对齐」须修。
+- **建议（不阻断）**：验收 6 的「约 40 条」宜写实际条数（静态 35 / 运行时 65）。
+- **不在本轮**：B3（`adr-0004 §D5.5`）仍待用户/架构师定夺。
+
+**证据留存**：`/tmp/opencode/SPEC-062t/r2verify/{make_check.log, align.log, valenc.log, injA, injB, injC, restored}`；复核时仓库 `git status --porcelain` 为空。
