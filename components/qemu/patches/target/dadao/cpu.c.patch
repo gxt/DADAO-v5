@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000000..a454c5effa
+index 0000000000..c302f3a985
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,270 @@
+@@ -0,0 +1,269 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -112,11 +112,10 @@ index 0000000000..a454c5effa
 +
 +    /* rf0 = FCSR reset value (per ADR-0004 D2, derived from SimRISC-00 §浮点状态寄存器)
 +     * Bits [63:51] = fo format Quiet NaN = 0xFFF (read-only)
-+     * Bits [50:32] = SBZ = 0
++     * Bits [50:34] = SBZ = 0
++     * Bits [33:32] = rounding mode = 0 (RNE, reset default)
 +     * Bits [31:22] = ft format Quiet NaN = 0x1FF (read-only)
-+     * Bits [21:18] = SBZ = 0
-+     * Bits [17:16] = rounding mode = 0 (RNE, reset default)
-+     * Bits [15:5]  = SBZ = 0
++     * Bits [21:5]  = SBZ = 0
 +     * Bits [4:0]   = exception status = 0 (reset)
 +     *
 +     * rf0 = (0xFFF << 51) | (0x1FF << 22) = 0x7FF8_0000_7FC0_0000
