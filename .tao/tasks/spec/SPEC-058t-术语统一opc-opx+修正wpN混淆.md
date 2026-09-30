@@ -41,7 +41,9 @@
 | `contracts/legality_rules.yaml` | 1 | 描述文本 |
 | `.tao/knowledge/deferred.md` | 1 | **活条目**措辞（历史条目不改） |
 
-## B. 修正 `SimRISC-00:192–194`（wpN 与操作码的混淆）
+## B. 修正 `SimRISC-00:192–194`（opx 只可能是 ha；wyde-position 与操作码无关）
+
+**用户裁定**：**`opx` 只可能是 `ha`（6 位）**；描述操作码时**不涉及 `hb`**，因此**也不涉及 wyde-position**。
 
 **旧**：
 ```
@@ -50,14 +52,18 @@ op是操作码，简称为opcode，或者称之为major-opcode。
 特殊情况下（后16位作为立即数时），hb的头两位用来指定wyde在64位数据中的位置。
 ```
 
-**新**（语义不变，仅消除「`hb`（含 wyde-position）属操作码」的暗示）：
+**新**：
 ```
 op 是操作码，简称 opc（opcode 的简写），即头 8 位。
-某些情况下，ha（6 位）或 ha+hb（12 位）也参与操作码，称为 opx（opcode-auxiliary 的简写）。
-特殊情况下（后 16 位作为立即数时），hb 的头两位用来指定 wyde 在 64 位数据中的位置；**这 2 位属于操作数域，不属于操作码**。
+某些情况下，ha（6 位）也参与操作码，称为 opx（opcode-auxiliary 的简写）；opx 只可能是 ha。
 ```
+（**删除**第 3 句——`hb` 头两位的 wyde-position 属**操作数域**，与操作码无关；该用法已在下文「含 wyde-position 的一种特殊格式」中说明）
 
-> 相邻的「操作数寻址方式字母」表（`o`/`c`/`r`/`i`/`w`/`z`）**保持结构**，仅把 `minor-opcode` → `opx`；如需进一步消歧（把 `w` 移出与 `o`/`c` 并列的层级），**先问用户**。
+**同类必须一并修正**：`.tao/knowledge/contract-isa.md:145`
+`- 某些情况下 \`ha\` 或 \`ha+hb\` 也可作为 opcode（minor-opcode）。` → `- 某些情况下 \`ha\`（6 位）也参与操作码，称为 \`opx\`（opcode-auxiliary），**只可能是 ha**。`
+
+> 全库核查（实测）：`ha+hb` 作为 **opcode** 的表述**仅此两处**；其余 `ha+hb+hc+hd` 命中均指 `iiii` 的 24 位立即数（合法，**不动**）。
+> 相邻的「操作数寻址方式字母」表（`o`/`c`/`r`/`i`/`w`/`z`）**结构不动**，仅 `minor-opcode`→`opx`；如需进一步调整 `w` 的层级，**先问用户**。
 
 ## C. 待确认项（**禁止自行处置**）
 
