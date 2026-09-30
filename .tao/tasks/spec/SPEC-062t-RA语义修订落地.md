@@ -637,3 +637,67 @@ tools/spec/check_d7_consistency.py
 - **不在本轮**：B3（`adr-0004 §D5.5`）仍待用户/架构师定夺。
 
 **证据留存**：`/tmp/opencode/SPEC-062t/r2verify/{make_check.log, align.log, valenc.log, injA, injB, injC, restored}`；复核时仓库 `git status --porcelain` 为空。
+
+#### 第 3 轮 reviewer 复核（最小确认）
+
+**审查者**：reviewer 子代理（独立重跑，不采信完成区）
+**审查时间**：2026-09-30
+**范围**：仅第 2 轮唯一阻断项（L251 计数）+ 非阻断建议（L177 条数）+ 三载体未变 + 门控。
+
+##### (i) L251/L177 与真实一致 —— 通过
+
+```
+$ git diff --name-only dff2381^..HEAD | wc -l
+7
+$ git diff --name-only dff2381^..HEAD
+.tao/knowledge/contract-isa.md
+.tao/tasks/integ/INTEG-008t-....md
+.tao/tasks/spec/SPEC-061t-....md
+.tao/tasks/spec/SPEC-062t-RA语义修订落地.md
+spec/SimRISC-00-指令系统设计.md
+spec/SimRISC-06-控制流.md
+tools/spec/check_d7_consistency.py
+```
+7 项与 L251 所列（三载体 + 本任务书 + SPEC-061t + INTEG-008t + 对照器）**逐项吻合**。✅
+
+L177 条数：脚本静态调用点 `need` 32 + `forbid` 3 = **35**（`grep -c` 得 33/4，各含 1 处 `def`，故实为 32/3）；`for` 循环运行时展开 10+9+16+16+2+6+4+2 = **65 项**。与 L177「静态 35 条（运行时展开 65 项）」一致。✅
+
+##### (ii) 三载体未被本轮改动 —— 通过
+
+```
+$ git diff 90d3b84^..90d3b84 -- spec/ .tao/knowledge/contract-isa.md
+（空）
+$ git diff --name-only 90d3b84^..90d3b84
+".tao/tasks/spec/SPEC-062t-RA语义修订落地.md"
+```
+`90d3b84` 仅改任务书 1 文件（107+/2-），`spec/` 与 `contract-isa.md` **零改动**。✅
+
+##### (iii) 门控 —— 通过
+
+```
+$ make check > /tmp/opencode/SPEC-062t/review3-makecheck.log 2>&1; rc=$?; echo "EXIT=$rc"
+EXIT=0
+总计: 80 项 | PASS: 80 | FAIL: 0 | MANUAL: 0
+check_issues: 63 open, 11 closed (0 blocking M1-gate: 0)
+repository checks: PASS
+$ python3 tools/spec/check_d7_consistency.py . ; echo "EXIT=$?"
+PASS: 全部 D7 对照项通过
+EXIT=0
+```
+（退出码直接取自命令，未经管道。）
+
+##### (iv) 无其它返工项 —— 通过
+
+- 第 2 轮唯一阻断项（L251 6→7）已按实修正并注明口径；非阻断建议（约 40 条 → 静态 35/运行时 65）亦已落实。
+- 三载体工作树无 diff，禁止项（`SimRISC-0.5.3`/`adr-0004`/`adr-0012`/QEMU/向量/`contracts/opcodes.yaml`/ABI/`docs/`）0 改动。
+- **非阻断观察**：完成区 §验收 8 的 `git status --porcelain` 快照（L242–244，显示 `M 任务书` + `?? 对照器`）是 `fd51651` 提交前的返工现场留档，HEAD 现为 clean（我实跑 `git status --porcelain` 0 行）。该块已由「本轮返工修改/本轮新增对照器」注明时点，且最终态结论由 L251/L252 承载，**不构成矛盾，不作返工**。
+
+##### 判决
+
+**Accepted**（第 2 轮阻断项已修复；三载体、门控、条数均经独立重跑核实一致）
+
+- 通过：L251 计数 7（实跑吻合）、L177 静态 35/运行时 65（枚举吻合）、三载体零改动、`make check` EXIT=0、对照器基线 PASS EXIT=0。
+- 未发现其它返工项。
+- 不在本轮：B3（`adr-0004 §D5.5` 旧语义）仍待用户/架构师定夺。
+
+**证据留存**：`/tmp/opencode/SPEC-062t/review3-makecheck.log`。
