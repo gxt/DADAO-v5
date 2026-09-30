@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000000..c302f3a985
+index 0000000000..97825318d90ccc1b317e87e805b1ef695bad1100
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,269 @@
+@@ -0,0 +1,272 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -103,6 +103,7 @@ index 0000000000..c302f3a985
 +    memset(env->rb, 0, sizeof(env->rb));
 +    memset(env->rf, 0, sizeof(env->rf));
 +    memset(env->ra, 0, sizeof(env->ra));
++    env->ras_base = 0;
 +
 +    /* rd0 hardwired to 0 (already zero from memset) */
 +
@@ -186,7 +187,9 @@ index 0000000000..c302f3a985
 +    qemu_fprintf(f, "\n");
 +
 +    for (i = 0; i < 64; i++) {
-+        qemu_fprintf(f, "RA[%02d]: %016" PRIx64 "  ", i, env->ra[i]);
++        /* Ring-buffer view: logical i → physical via ras_base (ADR-0012 D7) */
++        int phys = (i == 0) ? 0 : (1 + (env->ras_base + i) % 63);
++        qemu_fprintf(f, "RA[%02d]: %016" PRIx64 "  ", i, env->ra[phys]);
 +        if ((i % 4) == 3) {
 +            qemu_fprintf(f, "\n");
 +        }

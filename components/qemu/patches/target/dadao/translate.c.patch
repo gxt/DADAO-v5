@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000000..c42c8075ee
+index 0000000000..4c1ad93676d104e94d9fe543a47a5c9ffdd30da6
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,458 @@
+@@ -0,0 +1,461 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -369,22 +369,25 @@ index 0000000000..c42c8075ee
 +    tcg_gen_st_i64(val, tcg_env, offsetof(CPUDADAOState, rb[n]));
 +}
 +
-+/* ── RA register access helpers ──────────────────────────────────────── */
++/* ── RA register access helpers (ring buffer, ADR-0012 D7 §5) ────────── */
++/* Ring-buffer index translation is performed by C helper functions in
++ * helper.c (helper_ra_load, helper_ra_store) to avoid TCG type-safety
++ * issues with tcg_env (TCGv_ptr vs TCGv_i64). */
 +
-+/* Load ra[n] into a TCG temp. All ra registers (including ra0) are
-+ * directly addressable. §4.9.1: ra0 can be read without exception. */
++/* Load ra[logical_n] into a TCG temp (ring-buffer view). */
 +static TCGv_i64 load_ra(int n)
 +{
-+    TCGv_i64 t = tcg_temp_new_i64();
-+    tcg_gen_ld_i64(t, tcg_env, offsetof(CPUDADAOState, ra[n]));
-+    return t;
++    TCGv_i64 idx = tcg_constant_i64(n);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_helper_ra_load(result, tcg_env, idx);
++    return result;
 +}
 +
-+/* Store val into ra[n]. All ra registers (including ra0) are
-+ * directly addressable. §4.9.1: ra0 can be written without exception. */
++/* Store val into ra[logical_n] (ring-buffer view). */
 +static void store_ra(int n, TCGv_i64 val)
 +{
-+    tcg_gen_st_i64(val, tcg_env, offsetof(CPUDADAOState, ra[n]));
++    TCGv_i64 idx = tcg_constant_i64(n);
++    gen_helper_ra_store(tcg_env, idx, val);
 +}
 +
 +

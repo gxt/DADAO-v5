@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000000..bb8f117c4e
+index 0000000000..ec594ddabbbf8c3110ae254c5dcc7b75dea74cae
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,152 @@
+@@ -0,0 +1,314 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -155,4 +155,166 @@ index 0000000000..bb8f117c4e
 +
 +    cs->exception_index = excp;
 +    cpu_loop_exit_restore(cs, GETPC());
++}
++
++/* ── Ring-buffer RA access helpers (ADR-0012 D7) ──────────────────── */
++
++/* Compute physical index for logical RA register n (1..63).
++ * ra0 is always at physical 0 (metadata). */
++static inline int ra_phys(CPUDADAOState *env, int n)
++{
++    if (n == 0) return 0;
++    int r = (env->ras_base + n) % 63;
++    if (r < 0) r += 63;
++    return 1 + r;
++}
++
++/* Store val into ra[logical_n] (ring-buffer view). */
++void helper_ra_store(CPUDADAOState *env, uint64_t logical_idx, uint64_t val)
++{
++    int phys = ra_phys(env, (int)logical_idx);
++    env->ra[phys] = val;
++}
++
++/* Load from ra[logical_n] (ring-buffer view). */
++uint64_t helper_ra_load(CPUDADAOState *env, uint64_t logical_idx)
++{
++    int phys = ra_phys(env, (int)logical_idx);
++    return env->ra[phys];
++}
++
++/* ── RAS push (ADR-0012 D7 §3) ───────────────────────────────────── */
++void helper_ras_push(CPUDADAOState *env, uint64_t ret_addr)
++{
++    uint64_t ra0 = env->ra[0];
++    int racnt = (int)((ra0 >> 48) & 0x3F);
++    uint64_t mrptr = ra0 & 0x0000FFFFFFFFFFFFULL;
++
++    /* Read stack top (logical 63) */
++    int top_phys = ra_phys(env, 63);
++    uint64_t top_val = env->ra[top_phys];
++    uint16_t top_hi = (uint16_t)(top_val >> 48);
++    uint64_t top_lo = top_val & 0x0000FFFFFFFFFFFFULL;
++
++    ret_addr &= 0x0000FFFFFFFFFFFFULL;
++
++    if (racnt == 0) {
++        /* C1: empty stack → push, RACNT = 1 */
++        env->ra[top_phys] = (1ULL << 48) | ret_addr;
++        env->ra[0] = (ra0 & ~0x003F000000000000ULL) | (1ULL << 48);
++        return;
++    }
++
++    if (ret_addr == top_lo && top_hi < 0xFFFF) {
++        /* C2: recursive fold */
++        env->ra[top_phys] = ((uint64_t)(top_hi + 1) << 48) | top_lo;
++        return;
++    }
++
++    if (racnt < 63) {
++        /* C3a: advance ras_base, push new entry, RACNT++ */
++        env->ras_base = (env->ras_base + 1) % 63;
++        int new_top = ra_phys(env, 63);
++        env->ra[new_top] = (1ULL << 48) | ret_addr;
++        env->ra[0] = (ra0 & ~0x003F000000000000ULL) | ((uint64_t)(racnt + 1) << 48);
++        return;
++    }
++
++    /* C3b: RACNT == 63, overflow path */
++    if (mrptr == 0) {
++        /* RASOF: precise — no side effects */
++        CPUState *cs = env_cpu(env);
++        cs->exception_index = DADAO_EXCP_RASOF;
++        cpu_loop_exit_restore(cs, GETPC());
++        return;
++    }
++
++    /* Spill bottom to MemRAS */
++    int bottom_phys = ra_phys(env, 1); /* logical 1 = 64-63 */
++    uint64_t bottom_val = env->ra[bottom_phys];
++    uint64_t new_mrptr = mrptr - 8;
++    /* Write to MemRAS (guest memory, big-endian) */
++    cpu_stq_be_data_ra(env, new_mrptr, bottom_val, GETPC());
++
++    /* Advance ras_base, write new entry */
++    env->ras_base = (env->ras_base + 1) % 63;
++    int new_top = ra_phys(env, 63);
++    env->ra[new_top] = (1ULL << 48) | ret_addr;
++
++    /* Update ra0: new MRPTR, RACNT stays 63 */
++    env->ra[0] = (ra0 & 0x003F000000000000ULL) | (new_mrptr & 0x0000FFFFFFFFFFFFULL);
++}
++
++/* ── RAS pop (ADR-0012 D7 §4) ────────────────────────────────────── */
++/* Pop return address from RAS. Result stored in env->ras_tmp. */
++void helper_ras_pop(CPUDADAOState *env)
++{
++    uint64_t ra0 = env->ra[0];
++    int racnt = (int)((ra0 >> 48) & 0x3F);
++    uint64_t mrptr = ra0 & 0x0000FFFFFFFFFFFFULL;
++
++    int top_phys = ra_phys(env, 63);
++    uint64_t top_val = env->ra[top_phys];
++    uint16_t top_hi = (uint16_t)(top_val >> 48);
++    uint64_t top_lo = top_val & 0x0000FFFFFFFFFFFFULL;
++
++    if (racnt > 0) {
++        if (top_hi == 0) {
++            /* D1: RASUF — precise, no side effects */
++            CPUState *cs = env_cpu(env);
++            cs->exception_index = DADAO_EXCP_RASUF;
++            cpu_loop_exit_restore(cs, GETPC());
++            return;
++        }
++
++        if (top_hi > 1) {
++            /* D2: decrement recursive count */
++            env->ra[top_phys] = ((uint64_t)(top_hi - 1) << 48) | top_lo;
++            env->ras_tmp = top_lo;
++            return;
++        }
++
++        /* D3: top_hi == 1 → pop, rotate ras_base backward */
++        env->ras_tmp = top_lo;
++        env->ras_base = (env->ras_base + 62) % 63;
++        env->ra[0] = (ra0 & ~0x003F000000000000ULL) | ((uint64_t)(racnt - 1) << 48);
++        return;
++    }
++
++    /* D4: RACNT == 0 */
++    if (mrptr == 0) {
++        /* D4a: RASUF */
++        CPUState *cs = env_cpu(env);
++        cs->exception_index = DADAO_EXCP_RASUF;
++        cpu_loop_exit_restore(cs, GETPC());
++        return;
++    }
++
++    /* D4b: read from MemRAS */
++    uint64_t mem_val = cpu_ldq_be_data_ra(env, mrptr, GETPC());
++    uint16_t mem_hi = (uint16_t)(mem_val >> 48);
++    uint64_t mem_lo = mem_val & 0x0000FFFFFFFFFFFFULL;
++
++    if (mem_hi == 0) {
++        /* Invalid entry → RASUF */
++        CPUState *cs = env_cpu(env);
++        cs->exception_index = DADAO_EXCP_RASUF;
++        cpu_loop_exit_restore(cs, GETPC());
++        return;
++    }
++
++    /* Commit: MRPTR += 8 */
++    env->ra[0] = (mrptr + 8) & 0x0000FFFFFFFFFFFFULL;
++
++    if (mem_hi == 1) {
++        /* D4b count==1: return address, RACNT stays 0 */
++        env->ras_tmp = mem_lo;
++        return;
++    }
++
++    /* D4b count>1: decrement, push to RegRAS, RACNT=1 */
++    int top_phys2 = ra_phys(env, 63);
++    env->ra[top_phys2] = ((uint64_t)(mem_hi - 1) << 48) | mem_lo;
++    env->ra[0] = (env->ra[0] & ~0x003F000000000000ULL) | (1ULL << 48);
++    env->ras_tmp = mem_lo;
 +}

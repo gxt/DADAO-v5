@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.h b/target/dadao/helper.h
 new file mode 100644
-index 0000000000..9f325738b4
+index 0000000000..49b764f476fd4c533d97007f6648a84d89ae1c1e
 --- /dev/null
 +++ b/target/dadao/helper.h
-@@ -0,0 +1,19 @@
+@@ -0,0 +1,23 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -23,3 +23,7 @@ index 0000000000..9f325738b4
 + */
 +
 +DEF_HELPER_2(raise_exception, noreturn, env, i32)
++DEF_HELPER_2(ra_load, i64, env, i64)
++DEF_HELPER_3(ra_store, void, env, i64, i64)
++DEF_HELPER_2(ras_push, void, env, i64)
++DEF_HELPER_1(ras_pop, void, env)

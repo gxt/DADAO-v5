@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000000..876e569e87
+index 0000000000..1d6f4c595a58b91d2b45169b9969edc84d25c429
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,124 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -80,7 +80,9 @@ index 0000000000..876e569e87
 +    uint64_t rd[64];    /* Data registers; rd0 hardwired to 0 */
 +    uint64_t rb[64];    /* Base registers; rb0 = PC */
 +    uint64_t rf[64];    /* Floating-point registers; rf0 = FCSR */
-+    uint64_t ra[64];    /* Return address stack */
++    uint64_t ra[64];    /* Return address stack (ring buffer; ra0=metadata) */
++    uint64_t ras_base;  /* Ring-buffer base index (hidden, non-architectural) */
++    uint64_t ras_tmp;   /* Temp storage for ras_pop return value (hidden) */
 +    uint64_t pc;        /* Program counter (alias for rb0 read) */
 +} CPUDADAOState;
 +
