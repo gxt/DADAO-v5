@@ -1264,7 +1264,7 @@ def generate_file(filename, recs):
         elif fmt == "orrr":
             if is_divrem:
                 enc_word = _build_word_orrr(rec, 1, 0, 1)  # rdhd=1 (rd1=divisor)
-                enc_input_state = {"rd": {"rd1": "0x0000000000000001"}}  # non-zero to avoid div_by_zero
+                enc_input_state = {"rd": {"rd1": "0x0000000000000001"}}  # rd1 non-zero (normal case; rdhd=rd0 now legal per SPEC-066t)
             else:
                 enc_word = _build_word_orrr(rec, 1, 0, 0)
         elif fmt == "orri":

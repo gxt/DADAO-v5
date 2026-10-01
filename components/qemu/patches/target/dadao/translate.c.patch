@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000000..4c1ad93676d104e94d9fe543a47a5c9ffdd30da6
+index 0000000..7a3470e
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,461 @@
+@@ -0,0 +1,484 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -235,14 +235,18 @@ index 0000000000..4c1ad93676d104e94d9fe543a47a5c9ffdd30da6
 +    gen_set_label(label_done);
 +}
 +
-+/* ── Division helper (runtime ILLI for div-by-zero / INT_MIN÷-1) ─────── */
++/* ── Division helper (defined-value semantics for div-by-zero / INT_MIN÷-1) ─ */
 +
-+/* Generate division with runtime ILLI checks.
-+ * quotient = a / b (or rem), with checks for:
-+ *   b == 0 → ILLI
-+ *   signed && a == INT_MIN && b == -1 → ILLI
-+ * Returns quotient/remainder via 'result'. Caller must NOT write result
-+ * until after all checks pass (precise exception: no side-effect on fault).
++/* Generate division with defined-value semantics (no ILLI for div-by-zero
++ * or signed overflow).  Replaces the old ILLI-based checks per user ruling
++ * 2026-10-01: div/rem produce defined values instead of raising exceptions
++ * for divide-by-zero and signed overflow (INT_MIN ÷ −1), aligning with
++ * RISC-V DIV/REM/DIVU/REMU conventions.
++ *
++ * Defined values (per operation width, sign-extended or zero-extended to 64b):
++ *   div-by-zero:  signed div → −1, unsigned div → (2^(N+1)−1), rem → dividend
++ *   signed overflow: div → INT_MIN(N), rem → 0
++ *
 + * 'size' = 7/15/31/63 for byte/wyde/tetra/octa.
 + * 'is_signed' = true for signed div.
 + * 'is_rem' = true for remainder instead of quotient. */
@@ -251,14 +255,15 @@ index 0000000000..4c1ad93676d104e94d9fe543a47a5c9ffdd30da6
 +                                TCGv_i64 src_a, TCGv_i64 src_b,
 +                                int size, bool is_signed, bool is_rem)
 +{
++    uint64_t mask = (2ULL << size) - 1;
 +    TCGv_i64 a = tcg_temp_new_i64();
 +    TCGv_i64 b = tcg_temp_new_i64();
 +    TCGv_i64 q = tcg_temp_new_i64();
-+    TCGLabel *label_ok = gen_new_label();
++    TCGLabel *label_normal = gen_new_label();
 +
 +    /* Truncate sources to size bits */
-+    tcg_gen_andi_i64(a, src_a, (2ULL << size) - 1);
-+    tcg_gen_andi_i64(b, src_b, (2ULL << size) - 1);
++    tcg_gen_andi_i64(a, src_a, mask);
++    tcg_gen_andi_i64(b, src_b, mask);
 +
 +    if (is_signed) {
 +        /* Sign-extend truncated values */
@@ -268,33 +273,52 @@ index 0000000000..4c1ad93676d104e94d9fe543a47a5c9ffdd30da6
 +        tcg_gen_sari_i64(b, b, 63 - size);
 +    }
 +
-+    /* Check b == 0 → ILLI */
-+    tcg_gen_brcondi_i64(TCG_COND_NE, b, 0, label_ok);
-+    gen_raise_exception_illi(ctx); /* runtime: don't set is_jmp */
++    /* Check b == 0 → defined value (skip normal division) */
++    tcg_gen_brcondi_i64(TCG_COND_NE, b, 0, label_normal);
 +
-+    gen_set_label(label_ok);
++    /* b == 0: produce defined value */
++    if (is_rem) {
++        /* rem-by-zero → dividend (already sign/zero extended in a) */
++        tcg_gen_mov_i64(result, a);
++    } else {
++        /* div-by-zero: signed → −1, unsigned → (2^(N+1)−1) */
++        if (is_signed) {
++            tcg_gen_movi_i64(result, -1ULL);
++        } else {
++            tcg_gen_movi_i64(result, mask);
++        }
++    }
++    /* Jump to end (skip normal division path) */
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_br(label_done);
++
++    gen_set_label(label_normal);
 +
 +    if (is_signed) {
-+        /* Check INT_MIN ÷ -1 → ILLI
-+         * Combined setcond+brcond for reliable runtime check.
-+         * gen_raise_exception_illi raises the exception at runtime.
-+         * helper_raise_exception uses cpu_loop_exit_restore(GETPC())
-+         * to restore precise exception state (prevents TB replay). */
-+        int64_t int_min = (size >= 63) ? INT64_MIN : -(1LL << size);
++        /* Check INT_MIN ÷ −1 → defined value */
++        int64_t int_min = (size >= 63) ? (int64_t)INT64_MIN : -(1LL << size);
 +        TCGLabel *label_no_overflow = gen_new_label();
 +        TCGv_i64 c1 = tcg_temp_new_i64();
 +        TCGv_i64 c2 = tcg_temp_new_i64();
 +        TCGv_i64 combined = tcg_temp_new_i64();
 +
 +        tcg_gen_setcondi_i64(TCG_COND_EQ, c1, a, int_min);
-+        tcg_gen_setcondi_i64(TCG_COND_EQ, c2, b, -1);
++        tcg_gen_setcondi_i64(TCG_COND_EQ, c2, b, -1LL);
 +        tcg_gen_and_i64(combined, c1, c2);
 +        tcg_gen_brcondi_i64(TCG_COND_EQ, combined, 0, label_no_overflow);
-+        gen_raise_exception_illi(ctx);
++
++        /* Signed overflow: div → INT_MIN(N), rem → 0 */
++        if (is_rem) {
++            tcg_gen_movi_i64(result, 0);
++        } else {
++            /* INT_MIN(N) already sign-extended to 64 bits */
++            tcg_gen_movi_i64(result, int_min);
++        }
++        tcg_gen_br(label_done);
 +
 +        gen_set_label(label_no_overflow);
 +
-+        /* Signed division */
++        /* Signed division (normal path) */
 +        if (is_rem) {
 +            /* remainder = a - (a/b)*b (truncate-toward-zero, per C99) */
 +            TCGv_i64 quot = tcg_temp_new_i64();
@@ -304,23 +328,22 @@ index 0000000000..4c1ad93676d104e94d9fe543a47a5c9ffdd30da6
 +        } else {
 +            tcg_gen_div_i64(q, a, b);
 +        }
++        /* Sign-extend result */
++        TCGv_i64 ext = gen_sign_extend(q, size);
++        tcg_gen_mov_i64(result, ext);
 +    } else {
-+        /* Unsigned division */
++        /* Unsigned division (normal path, no overflow possible) */
 +        if (is_rem) {
 +            tcg_gen_remu_i64(q, a, b);
 +        } else {
 +            tcg_gen_divu_i64(q, a, b);
 +        }
-+    }
-+
-+    /* Truncate result to size bits, then sign/zero extend */
-+    if (is_signed) {
-+        TCGv_i64 ext = gen_sign_extend(q, size);
-+        tcg_gen_mov_i64(result, ext);
-+    } else {
++        /* Zero-extend result */
 +        TCGv_i64 ext = gen_zero_extend(q, size);
 +        tcg_gen_mov_i64(result, ext);
 +    }
++
++    gen_set_label(label_done);
 +}
 +
 +/* ── DADAO decodetree trans_* implementations ────────────────────────── */

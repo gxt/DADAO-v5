@@ -2983,7 +2983,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-04 §乘除操作
 - id: div.so_orrr_rd
   mnemonic: div.so
@@ -3007,7 +3006,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-04 §乘除操作
 - id: rem.uo_orrr_rd
   mnemonic: rem.uo
@@ -3031,7 +3029,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-04 §乘除操作
 - id: rem.so_orrr_rd
   mnemonic: rem.so
@@ -3055,7 +3052,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-04 §乘除操作
 - id: rd2rf_orri_rf
   mnemonic: rd2rf
@@ -3645,7 +3641,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-08 §乘除操作
 - id: div.st_orrr_rd
   mnemonic: div.st
@@ -3669,7 +3664,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-08 §乘除操作
 - id: rem.ut_orrr_rd
   mnemonic: rem.ut
@@ -3693,7 +3687,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-08 §乘除操作
 - id: rem.st_orrr_rd
   mnemonic: rem.st
@@ -3717,7 +3710,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-08 §乘除操作
 - id: and.w_orrr_rd
   mnemonic: and.w
@@ -4257,7 +4249,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-09 §乘除操作
 - id: div.sw_orrr_rd
   mnemonic: div.sw
@@ -4281,7 +4272,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-09 §乘除操作
 - id: rem.uw_orrr_rd
   mnemonic: rem.uw
@@ -4305,7 +4295,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-09 §乘除操作
 - id: rem.sw_orrr_rd
   mnemonic: rem.sw
@@ -4329,7 +4318,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-09 §乘除操作
 - id: and.b_orrr_rd
   mnemonic: and.b
@@ -4869,7 +4857,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-10 §乘除操作
 - id: div.sb_orrr_rd
   mnemonic: div.sb
@@ -4893,7 +4880,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-10 §乘除操作
 - id: rem.ub_orrr_rd
   mnemonic: rem.ub
@@ -4917,7 +4903,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-10 §乘除操作
 - id: rem.sb_orrr_rd
   mnemonic: rem.sb
@@ -4941,7 +4926,6 @@
     bank: rd
   legality:
   - rdhb != rd0
-  - rdhd != 0
   spec_cite: SimRISC-10 §乘除操作
 - id: ftcls_orri_rf
   mnemonic: ftcls

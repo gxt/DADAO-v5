@@ -187,26 +187,6 @@ rules:
       ext.ut/ext.st: hd > 31；
       ext.uo/ext.so: hd > 63。
 
-  # ── 除法规则 ─────────────────────────────────────────────────────────────────
-  - id: div_by_zero
-    fault: ILLI
-    kind: dynamic
-    spec_cite: "SimRISC-04 §乘除操作"
-    status: active
-    description: >
-      除法/取余指令除数为零时触发 ILLI 异常（动态，取决于操作数值）。
-      适用于 div.s/div.u/rem.s/rem.u 全部格式；fault 时目的寄存器未写入（精确异常）。
-
-  - id: div_overflow
-    fault: ILLI
-    kind: dynamic
-    spec_cite: "SimRISC-04 §乘除操作"
-    status: active
-    description: >
-      有符号除法溢出（INT_MIN ÷ −1）时触发 ILLI 异常（动态）：
-      byte: −128 ÷ −1；wyde: −32768 ÷ −1；tetra: −2147483648 ÷ −1；
-      octa: −9223372036854775808 ÷ −1。div.u/rem.u 不存在溢出。
-
   # ── 保留编码规则 ─────────────────────────────────────────────────────────────
   - id: reserved_undi
     fault: UNDI

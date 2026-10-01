@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_arith.c.inc b/target/dadao/insn_trans/trans_arith.c.inc
 new file mode 100644
-index 0000000000..7821ab214b
+index 0000000..8e9894f
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_arith.c.inc
 @@ -0,0 +1,941 @@
@@ -173,7 +173,7 @@ index 0000000000..7821ab214b
 +}
 +
 +/* §3.1.5 div.uo/div.so/rem.uo/rem.so (orrr, MISC-octa)
-+ * ILLI: rdhb==0, divisor==0, signed: INT_MIN÷-1 */
++ * ILLI: rdhb==0. divisor==0 / signed overflow → defined values (no ILLI). */
 +static bool trans_div_uo_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {

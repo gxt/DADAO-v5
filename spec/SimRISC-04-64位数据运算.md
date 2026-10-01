@@ -128,10 +128,23 @@ rem.so  rdHB, rdHC, rdHD
 
 除法指令附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：
 
-- **除数为零**：触发 ILLI 异常。
+- **除数为零 → 定值**（不触发异常）：见下方定值表。
 - **截断方向**：`div.s`/`rem.s` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
-- **溢出**：`div.s` 中各 size 对应的 INT_MIN ÷ −1 触发 ILLI 异常（byte: −128 ÷ −1，wyde: −32768 ÷ −1，tetra: −2147483648 ÷ −1，octa: −9223372036854775808 ÷ −1）。`div.u`/`rem.u` 不存在溢出。
-- **fault 时寄存器**：精确异常，目的寄存器未写入（无副作用）。
+- **溢出 → 定值**（不触发异常）：`div.s` 中各 size 对应的 INT_MIN ÷ −1 见下方定值表；`div.u`/`rem.u` 不存在溢出。
+- **定值表**（按运算宽度取值，有符号变体符号扩展写满 64 位 / 无符号变体零扩展）：
+
+| 指令 | 除零 ⇒ `rdHB` | 有符号溢出（INT_MIN ÷ −1）⇒ `rdHB` |
+|------|---------------|--------------------------------------|
+| `div.sb` | `0xFFFF_FFFF_FFFF_FFFF` | `0xFFFF_FFFF_FFFF_FF80` |
+| `div.ub` | `0x0000_0000_0000_00FF` | 不适用 |
+| `div.sw` | `0xFFFF_FFFF_FFFF_FFFF` | `0xFFFF_FFFF_FFFF_8000` |
+| `div.uw` | `0x0000_0000_0000_FFFF` | 不适用 |
+| `div.st` | `0xFFFF_FFFF_FFFF_FFFF` | `0xFFFF_FFFF_8000_0000` |
+| `div.ut` | `0x0000_0000_FFFF_FFFF` | 不适用 |
+| `div.so` | `0xFFFF_FFFF_FFFF_FFFF` | `0x8000_0000_0000_0000` |
+| `div.uo` | `0xFFFF_FFFF_FFFF_FFFF` | 不适用 |
+| `rem.sb`/`rem.sw`/`rem.st`/`rem.so` | 被除数（符号扩展写满 64 位） | `0` |
+| `rem.ub`/`rem.uw`/`rem.ut`/`rem.uo` | 被除数（零扩展写满 64 位） | 不适用 |
 
 ## 逻辑运算类指令
 

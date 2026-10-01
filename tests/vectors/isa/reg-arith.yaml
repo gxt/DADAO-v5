@@ -3436,3 +3436,837 @@
   notes: 'legality rem.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
   spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
+
+# === SPEC-066t: div/rem defined-value semantics (2026-10-01) ===
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x40E01080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: div.uo_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: div.uo
+  notes: 'encoding div.uo: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x40E41080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: div.so_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: div.so
+  notes: 'encoding div.so: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x40E81080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: rem.uo_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.uo
+  notes: 'encoding rem.uo: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x40EC1080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: rem.so_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.so
+  notes: 'encoding rem.so: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x41E01080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: div.ut_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: div.ut
+  notes: 'encoding div.ut: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x41E41080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: div.st_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: div.st
+  notes: 'encoding div.st: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x41E81080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: rem.ut_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.ut
+  notes: 'encoding rem.ut: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x41EC1080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: rem.st_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.st
+  notes: 'encoding rem.st: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x42E01080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: div.uw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: div.uw
+  notes: 'encoding div.uw: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x42E41080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: div.sw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: div.sw
+  notes: 'encoding div.sw: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x42E81080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: rem.uw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.uw
+  notes: 'encoding rem.uw: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x42EC1080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: rem.sw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.sw
+  notes: 'encoding rem.sw: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x43E01080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: div.ub_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: div.ub
+  notes: 'encoding div.ub: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x43E41080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: div.sb_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: div.sb
+  notes: 'encoding div.sb: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x43E81080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: rem.ub_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.ub
+  notes: 'encoding rem.ub: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x43EC1080'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: rem.sb_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.sb
+  notes: 'encoding rem.sb: rdhd=rd0 (divisor=0) is legal, no ILLI'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x43E41080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0xFFFFFFFFFFFFFFFF'
+  format: orrr
+  id: div.sb_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: div.sb
+  notes: 'div.sb div-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0xFFFFFFFFFFFFFFFF (signed
+    div by zero defined value)'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x42E41080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0xFFFFFFFFFFFFFFFF'
+  format: orrr
+  id: div.sw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: div.sw
+  notes: 'div.sw div-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0xFFFFFFFFFFFFFFFF (signed
+    div by zero defined value)'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x41E41080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0xFFFFFFFFFFFFFFFF'
+  format: orrr
+  id: div.st_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: div.st
+  notes: 'div.st div-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0xFFFFFFFFFFFFFFFF (signed
+    div by zero defined value)'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x40E41080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0xFFFFFFFFFFFFFFFF'
+  format: orrr
+  id: div.so_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: div.so
+  notes: 'div.so div-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0xFFFFFFFFFFFFFFFF (signed
+    div by zero defined value)'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x43E01080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x00000000000000FF'
+  format: orrr
+  id: div.ub_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: div.ub
+  notes: 'div.ub div-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x00000000000000FF (unsigned
+    div by zero defined value)'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x42E01080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x000000000000FFFF'
+  format: orrr
+  id: div.uw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: div.uw
+  notes: 'div.uw div-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x000000000000FFFF (unsigned
+    div by zero defined value)'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x41E01080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x00000000FFFFFFFF'
+  format: orrr
+  id: div.ut_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: div.ut
+  notes: 'div.ut div-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x00000000FFFFFFFF (unsigned
+    div by zero defined value)'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x40E01080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0xFFFFFFFFFFFFFFFF'
+  format: orrr
+  id: div.uo_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: div.uo
+  notes: 'div.uo div-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0xFFFFFFFFFFFFFFFF (unsigned
+    div by zero defined value)'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x43EC1080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000064'
+  format: orrr
+  id: rem.sb_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.sb
+  notes: 'rem.sb rem-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x0000000000000064 (signed
+    rem by zero defined value)'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x42EC1080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000064'
+  format: orrr
+  id: rem.sw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.sw
+  notes: 'rem.sw rem-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x0000000000000064 (signed
+    rem by zero defined value)'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x41EC1080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000064'
+  format: orrr
+  id: rem.st_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.st
+  notes: 'rem.st rem-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x0000000000000064 (signed
+    rem by zero defined value)'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x40EC1080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000064'
+  format: orrr
+  id: rem.so_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.so
+  notes: 'rem.so rem-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x0000000000000064 (signed
+    rem by zero defined value)'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x43E81080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000064'
+  format: orrr
+  id: rem.ub_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.ub
+  notes: 'rem.ub rem-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x0000000000000064 (unsigned
+    rem by zero defined value)'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x42E81080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000064'
+  format: orrr
+  id: rem.uw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.uw
+  notes: 'rem.uw rem-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x0000000000000064 (unsigned
+    rem by zero defined value)'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x41E81080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000064'
+  format: orrr
+  id: rem.ut_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.ut
+  notes: 'rem.ut rem-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x0000000000000064 (unsigned
+    rem by zero defined value)'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x40E81080'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000064'
+  format: orrr
+  id: rem.uo_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x0000000000000064'
+  mnemonic: rem.uo
+  notes: 'rem.uo rem-by-zero: rd2=0x64, rd0(divisor)=0 → rd1=0x0000000000000064 (unsigned
+    rem by zero defined value)'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x43E41083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0xFFFFFFFFFFFFFF80'
+  format: orrr
+  id: div.sb_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0xFFFFFFFFFFFFFF80'
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: div.sb
+  notes: 'div.sb signed overflow: rd2=0xFFFFFFFFFFFFFF80(INT_MIN), rd3=-1 → rd1=0xFFFFFFFFFFFFFF80
+    (defined value)'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x43EC1083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000000'
+  format: orrr
+  id: rem.sb_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0xFFFFFFFFFFFFFF80'
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: rem.sb
+  notes: 'rem.sb signed overflow: rd2=0xFFFFFFFFFFFFFF80(INT_MIN), rd3=-1 → rd1=0x0000000000000000
+    (defined value)'
+  spec_cite: SimRISC-10 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x42E41083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0xFFFFFFFFFFFF8000'
+  format: orrr
+  id: div.sw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0xFFFFFFFFFFFF8000'
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: div.sw
+  notes: 'div.sw signed overflow: rd2=0xFFFFFFFFFFFF8000(INT_MIN), rd3=-1 → rd1=0xFFFFFFFFFFFF8000
+    (defined value)'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x42EC1083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000000'
+  format: orrr
+  id: rem.sw_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0xFFFFFFFFFFFF8000'
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: rem.sw
+  notes: 'rem.sw signed overflow: rd2=0xFFFFFFFFFFFF8000(INT_MIN), rd3=-1 → rd1=0x0000000000000000
+    (defined value)'
+  spec_cite: SimRISC-09 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x41E41083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0xFFFFFFFF80000000'
+  format: orrr
+  id: div.st_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0xFFFFFFFF80000000'
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: div.st
+  notes: 'div.st signed overflow: rd2=0xFFFFFFFF80000000(INT_MIN), rd3=-1 → rd1=0xFFFFFFFF80000000
+    (defined value)'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x41EC1083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000000'
+  format: orrr
+  id: rem.st_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0xFFFFFFFF80000000'
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: rem.st
+  notes: 'rem.st signed overflow: rd2=0xFFFFFFFF80000000(INT_MIN), rd3=-1 → rd1=0x0000000000000000
+    (defined value)'
+  spec_cite: SimRISC-08 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x40E41083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x8000000000000000'
+  format: orrr
+  id: div.so_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x8000000000000000'
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: div.so
+  notes: 'div.so signed overflow: rd2=0x8000000000000000(INT_MIN), rd3=-1 → rd1=0x8000000000000000
+    (defined value)'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x40EC1083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000000'
+  format: orrr
+  id: rem.so_orrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x8000000000000000'
+      rd3: '0xFFFFFFFFFFFFFFFF'
+  mnemonic: rem.so
+  notes: 'rem.so signed overflow: rd2=0x8000000000000000(INT_MIN), rd3=-1 → rd1=0x0000000000000000
+    (defined value)'
+  spec_cite: SimRISC-04 §乘除操作
+  status: active

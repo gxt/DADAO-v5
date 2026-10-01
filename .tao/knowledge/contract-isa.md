@@ -519,22 +519,40 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 - `rdha` 存放结果高 64 位，`rdhb` 存放结果低 64 位；硬件先读全部源操作数再写结果。[SimRISC-04 §乘除操作]
 - 异常条件：`rdha` 与 `rdhb` 同时为 `rd0` → **ILLI**；`rdha` 与 `rdhb` 为同一非 `rd0` 寄存器 → **ILLI**。[SimRISC-04 §乘除操作]
 
-#### §6.1.5 64 位除余（orrr 格式）
+#### §6.1.5 除余运算（orrr 格式）— 定值语义
 
-`MISC-octa` 子表中的 `div`/`rem` 提供 64 位除余运算。[SimRISC-04 §乘除操作]
+`MISC-byte`/`MISC-wyde`/`MISC-tetra`/`MISC-octa` 子表中的 `div`/`rem` 提供 8/16/32/64 位除余运算。[SimRISC-04 §乘除操作]
 
 | 指令 | 位宽 | 汇编语法 |
 |------|------|---------|
+| `div.ub`/`div.sb`/`rem.ub`/`rem.sb` | 8 位 | `div.ub rdhb, rdhc, rdhd` |
+| `div.uw`/`div.sw`/`rem.uw`/`rem.sw` | 16 位 | `div.uw rdhb, rdhc, rdhd` |
+| `div.ut`/`div.st`/`rem.ut`/`rem.st` | 32 位 | `div.ut rdhb, rdhc, rdhd` |
 | `div.uo`/`div.so`/`rem.uo`/`rem.so` | 64 位 | `div.uo rdhb, rdhc, rdhd` |
 
-- octa 乘法由 rrrr 格式 `mul.uo`/`mul.so` 覆盖；`div`/`rem` 后缀为 `.uo`/`.so`。[SimRISC-04 §乘除操作]
 - 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-04 §乘除操作]
+- `rdhd` 可以为 `rd0`（`rd0` 读出 0 ⇒ 除零 ⇒ 走定值语义）。[用户裁定 2026-10-01]
 
 除法附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：[SimRISC-04 §乘除操作]
-- **除数为零**：触发 **ILLI** 异常。
+- **除数为零 → 定值**（不再触发 ILLI）。[用户裁定 2026-10-01]
+- **有符号溢出（INT_MIN ÷ −1）→ 定值**（不再触发 ILLI）。[用户裁定 2026-10-01]
 - **截断方向**：`div.s`/`rem.s` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
-- **溢出**：`div.s` 中各 size 对应的 INT_MIN ÷ −1 触发 **ILLI**（byte: −128÷−1，wyde: −32768÷−1，tetra: −2147483648÷−1，octa: −9223372036854775808÷−1）；`div.u`/`rem.u` 不存在溢出。
-- **fault 时寄存器**：精确异常，目的寄存器未写入（无副作用）。
+- **定值表**（按运算宽度取值，有符号变体符号扩展写满 64 位 / 无符号变体零扩展）：[用户裁定 2026-10-01]
+
+| 指令 | 除零 ⇒ `rdhb` | 有符号溢出（INT_MIN ÷ −1）⇒ `rdhb` |
+|------|---------------|--------------------------------------|
+| `div.sb` | `0xFFFF_FFFF_FFFF_FFFF` | `0xFFFF_FFFF_FFFF_FF80` |
+| `div.ub` | `0x0000_0000_0000_00FF` | 不适用 |
+| `div.sw` | `0xFFFF_FFFF_FFFF_FFFF` | `0xFFFF_FFFF_FFFF_8000` |
+| `div.uw` | `0x0000_0000_0000_FFFF` | 不适用 |
+| `div.st` | `0xFFFF_FFFF_FFFF_FFFF` | `0xFFFF_FFFF_8000_0000` |
+| `div.ut` | `0x0000_0000_FFFF_FFFF` | 不适用 |
+| `div.so` | `0xFFFF_FFFF_FFFF_FFFF` | `0x8000_0000_0000_0000` |
+| `div.uo` | `0xFFFF_FFFF_FFFF_FFFF` | 不适用 |
+| `rem.sb`/`rem.sw`/`rem.st`/`rem.so` | 被除数（符号扩展写满 64 位） | `0` |
+| `rem.ub`/`rem.uw`/`rem.ut`/`rem.uo` | 被除数（零扩展写满 64 位） | 不适用 |
+
+- **扩展规则**：有符号变体（`div.s`/`rem.s`）结果按符号扩展写满 64 位；无符号变体（`div.u`/`rem.u`）结果按零扩展写满 64 位。
 
 ### §6.2 比较操作
 
@@ -1161,15 +1179,13 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - 块赋值（`ra2rd`/`rd2ra`）`immu6 = 0`、任一起始寄存器 + immu6 > 64、或 `ra2rd` 目的 `rdhb` 为 `rd0`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-00 §数据寄存器]
 - 移位量 `shamt > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
-- 除法除数为零。[SimRISC-04/08/09/10 §乘除操作]
-- `div.s` 中 INT_MIN ÷ −1（各 size 对应值）。[SimRISC-04/08/09/10 §乘除操作]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]
 - 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-04/08/09/10 §加减操作][SimRISC-04/08/09/10 §比较操作][SimRISC-04/08/09/10 §乘除操作]
 - `illi` 指令本身（含全零指令字）。[SimRISC-11 §非法指令]
 
 ### §15.2 精确异常承诺
 
-- `div`/`rem` fault 时目的寄存器未写入（无副作用）。[SimRISC-04/08/09/10 §乘除操作]
+- `div`/`rem` 中 `rdhb` 为 `rd0` 触发 ILLI 时目的寄存器未写入（无副作用）。除数为零和有符号溢出（INT_MIN ÷ −1）不再触发异常，改为定值语义（见 §6.1.5）。[SimRISC-04/08/09/10 §乘除操作][用户裁定 2026-10-01]
 - RASOF/RASUF 触发时 RA 寄存器保持异常前状态（push/pop 未提交），PC 指向触发异常的 call/ret 指令。[SimRISC-00 §返回地址栈]
 - MemRAS 访存异常时硬件保证精确异常（压栈/弹栈未执行，PC 指向 call/ret 指令），异常处理后可重新执行。[SimRISC-00 §返回地址栈]
 
