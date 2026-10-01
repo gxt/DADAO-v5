@@ -21,7 +21,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
 .DEFAULT_GOAL := help
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
-        clean-work build-mc build-qemu build-gem5 docker-image docker-shell check \
+        clean-work build-mc build-mc-lite build-mc-reconfig \
+        build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-interface validate-encoding
 
@@ -41,8 +42,11 @@ help:
 	@echo "  make fetch-refs      Fetch locked reference repositories"
 	@echo "  make apply-series    Apply ordered patch series to fetched sources"
 	@echo "  make prepare         Fetch enabled components and apply their patch series"
-	@echo "  make build-mc        Build LLVM MC tools (requires llvm-project enabled)"
-	@echo "  make build-qemu      Configure and compile QEMU (requires qemu enabled)"
+	@echo "  make build-mc        Build LLVM MC tools (skips cmake if build.ninja exists)"
+	@echo "  make build-mc-lite   Build LLVM MC/objdump/FileCheck/not only (no objcopy/readobj/CodeGen)"
+	@echo "  make build-mc-reconfig  Force cmake re-run then build LLVM MC tools"
+	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
+	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
@@ -77,9 +81,46 @@ prepare: fetch apply-series
 
 # DADAO is registered by adding it to LLVM_ALL_TARGETS in llvm/CMakeLists.txt
 # (see ADR-0007).
+#
+# build-mc skips cmake when build.ninja already exists (incremental fast path).
+# Use build-mc-reconfig to force a cmake re-run (e.g. after changing CMakeLists.txt).
+LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen
+LLVM_MC_LITE_TARGETS = llvm-mc llvm-objdump FileCheck not
+
 build-mc: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
+	  exit 1; \
+	}
+	@test -f $(LLVM_BUILD)/build.ninja || \
+	  cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) \
+	    -DLLVM_TARGETS_TO_BUILD=DADAO \
+	    -DLLVM_ENABLE_PROJECTS="" \
+	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+	    -DLLVM_ENABLE_ASSERTIONS=ON
+	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLVM_MC_FULL_TARGETS)
+	@echo "build-mc: PASS"
+
+# build-mc-lite: same as build-mc but omits llvm-objcopy, llvm-readobj, and
+# LLVMDADAOCodeGen.  Sufficient for lit MC tests + encoding oracle + FileCheck.
+build-mc-lite: manifest-check
+	@$(call component-enabled,llvm-project) || { \
+	  echo "build-mc-lite: component 'llvm-project' is not enabled / commit pending; refusing to fake success"; \
+	  exit 1; \
+	}
+	@test -f $(LLVM_BUILD)/build.ninja || \
+	  cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) \
+	    -DLLVM_TARGETS_TO_BUILD=DADAO \
+	    -DLLVM_ENABLE_PROJECTS="" \
+	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+	    -DLLVM_ENABLE_ASSERTIONS=ON
+	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLVM_MC_LITE_TARGETS)
+	@echo "build-mc-lite: PASS"
+
+# build-mc-reconfig: always re-run cmake (for when CMakeLists.txt / patches change).
+build-mc-reconfig: manifest-check
+	@$(call component-enabled,llvm-project) || { \
+	  echo "build-mc-reconfig: component 'llvm-project' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
 	}
 	cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) \
@@ -87,12 +128,35 @@ build-mc: manifest-check
 	  -DLLVM_ENABLE_PROJECTS="" \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	  -DLLVM_ENABLE_ASSERTIONS=ON
-	ninja -j$(JOBS) -C $(LLVM_BUILD) llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen
-	@echo "build-mc: PASS"
+	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLVM_MC_FULL_TARGETS)
+	@echo "build-mc-reconfig: PASS"
 
+# build-qemu skips configure when build.ninja already exists (incremental fast
+# path).  After applying patches that only touch .c/.h files (not meson.build),
+# the incremental path compiles only changed objects (~3s for one file).
+# Use build-qemu-reconfig to force a full configure (e.g. after changing
+# meson.build or configure options).
 build-qemu: manifest-check
 	@$(call component-enabled,qemu) || { \
 	  echo "build-qemu: component 'qemu' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
+	  exit 1; \
+	}
+	@if [ -f $(QEMU_BUILD)/build.ninja ]; then \
+	  echo "build-qemu: build.ninja exists, skipping configure (use build-qemu-reconfig to force)"; \
+	else \
+	  mkdir -p $(QEMU_BUILD) && \
+	  cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure \
+	    --target-list=dadao-softmmu \
+	    --enable-tcg \
+	    --disable-werror; \
+	fi
+	$(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
+	@echo "build-qemu: PASS"
+
+# build-qemu-reconfig: always re-run configure (for when meson.build changes).
+build-qemu-reconfig: manifest-check
+	@$(call component-enabled,qemu) || { \
+	  echo "build-qemu-reconfig: component 'qemu' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
 	}
 	mkdir -p $(QEMU_BUILD)
@@ -101,7 +165,7 @@ build-qemu: manifest-check
 	  --enable-tcg \
 	  --disable-werror
 	$(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
-	@echo "build-qemu: PASS"
+	@echo "build-qemu-reconfig: PASS"
 
 # gem5 is a v5 addition and has no build command yet (the gem5 module owns it).
 # This target is a deliberate skeleton: even once the component is enabled it
