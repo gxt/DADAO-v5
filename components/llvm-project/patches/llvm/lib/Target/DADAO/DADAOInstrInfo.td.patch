@@ -3,7 +3,7 @@ new file mode 100644
 index 000000000000..8238bd692eec
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1496 @@
+@@ -0,0 +1,1304 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -761,54 +761,6 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def and_t : DADAOOrrr<"and.t"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x08;
-+  let Pattern = [];
-+}
-+
-+def or_t : DADAOOrrr<"or.t"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x09;
-+  let Pattern = [];
-+}
-+
-+def xor_t : DADAOOrrr<"xor.t"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x0A;
-+  let Pattern = [];
-+}
-+
-+def xnor_t : DADAOOrrr<"xnor.t"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x0B;
-+  let Pattern = [];
-+}
-+
-+def ext_ut_orrr : DADAOOrrr<"ext.ut"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x10;
-+  let Pattern = [];
-+}
-+
-+def ext_st_orrr : DADAOOrrr<"ext.st"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x11;
-+  let Pattern = [];
-+}
-+
 +def shr_ut_orrr : DADAOOrrr<"shr.ut"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
@@ -929,54 +881,6 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def and_w : DADAOOrrr<"and.w"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x08;
-+  let Pattern = [];
-+}
-+
-+def or_w : DADAOOrrr<"or.w"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x09;
-+  let Pattern = [];
-+}
-+
-+def xor_w : DADAOOrrr<"xor.w"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x0A;
-+  let Pattern = [];
-+}
-+
-+def xnor_w : DADAOOrrr<"xnor.w"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x0B;
-+  let Pattern = [];
-+}
-+
-+def ext_uw_orrr : DADAOOrrr<"ext.uw"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x10;
-+  let Pattern = [];
-+}
-+
-+def ext_sw_orrr : DADAOOrrr<"ext.sw"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x11;
-+  let Pattern = [];
-+}
-+
 +def shr_uw_orrr : DADAOOrrr<"shr.uw"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
@@ -1094,54 +998,6 @@ index 000000000000..8238bd692eec
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x42;
 +  let ha = 0x3B;
-+  let Pattern = [];
-+}
-+
-+def and_b : DADAOOrrr<"and.b"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x08;
-+  let Pattern = [];
-+}
-+
-+def or_b : DADAOOrrr<"or.b"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x09;
-+  let Pattern = [];
-+}
-+
-+def xor_b : DADAOOrrr<"xor.b"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x0A;
-+  let Pattern = [];
-+}
-+
-+def xnor_b : DADAOOrrr<"xnor.b"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x0B;
-+  let Pattern = [];
-+}
-+
-+def ext_ub_orrr : DADAOOrrr<"ext.ub"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x10;
-+  let Pattern = [];
-+}
-+
-+def ext_sb_orrr : DADAOOrrr<"ext.sb"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x11;
 +  let Pattern = [];
 +}
 +
@@ -1355,22 +1211,6 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def ext_ut_orri : DADAOOrri<"ext.ut"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x41;
-+  let ha = 0x18;
-+  let Pattern = [];
-+}
-+
-+def ext_st_orri : DADAOOrri<"ext.st"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x41;
-+  let ha = 0x19;
-+  let Pattern = [];
-+}
-+
 +def shr_ut_orri : DADAOOrri<"shr.ut"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
@@ -1395,22 +1235,6 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def ext_uw_orri : DADAOOrri<"ext.uw"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x42;
-+  let ha = 0x18;
-+  let Pattern = [];
-+}
-+
-+def ext_sw_orri : DADAOOrri<"ext.sw"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x42;
-+  let ha = 0x19;
-+  let Pattern = [];
-+}
-+
 +def shr_uw_orri : DADAOOrri<"shr.uw"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
@@ -1432,22 +1256,6 @@ index 000000000000..8238bd692eec
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x42;
 +  let ha = 0x1C;
-+  let Pattern = [];
-+}
-+
-+def ext_ub_orri : DADAOOrri<"ext.ub"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x43;
-+  let ha = 0x18;
-+  let Pattern = [];
-+}
-+
-+def ext_sb_orri : DADAOOrri<"ext.sb"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x43;
-+  let ha = 0x19;
 +  let Pattern = [];
 +}
 +

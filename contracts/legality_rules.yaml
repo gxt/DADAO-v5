@@ -182,10 +182,8 @@ rules:
     status: active
     description: >
       扩展起始位超过位宽限制时触发 ILLI 异常（静态）：
-      ext.ub/ext.sb: hd > 7；
-      ext.uw/ext.sw: hd > 15；
-      ext.ut/ext.st: hd > 31；
       ext.uo/ext.so: hd > 63。
+      SPEC-069t：ext.ub/ext.sb、ext.uw/ext.sw、ext.ut/ext.st 已删除。
 
   # ── 保留编码规则 ─────────────────────────────────────────────────────────────
   - id: reserved_undi

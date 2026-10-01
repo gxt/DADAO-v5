@@ -54,18 +54,14 @@ IMPLEMENTED_INSTRUCTIONS = {
     "cmp.ut_orrr_rd", "cmp.st_orrr_rd", "cmp.uo_orrr_rd", "cmp.so_orrr_rd",
     # reg-logic
     "and.o_orrr_rd", "or.o_orrr_rd", "xor.o_orrr_rd", "xnor.o_orrr_rd",
-    "and.t_orrr_rd", "or.t_orrr_rd", "xor.t_orrr_rd", "xnor.t_orrr_rd",
-    "and.w_orrr_rd", "or.w_orrr_rd", "xor.w_orrr_rd", "xnor.w_orrr_rd",
-    "and.b_orrr_rd", "or.b_orrr_rd", "xor.b_orrr_rd", "xnor.b_orrr_rd",
+    # SPEC-069t: narrow logic (and/or/xor/xnor .t/.w/.b) deleted
     # reg-shift-extend
     "shl.uo_orri_rd", "shl.uo_orrr_rd", "shr.uo_orri_rd", "shr.uo_orrr_rd", "shr.so_orri_rd", "shr.so_orrr_rd",
     "shl.ut_orri_rd", "shl.ut_orrr_rd", "shr.ut_orri_rd", "shr.ut_orrr_rd", "shr.st_orri_rd", "shr.st_orrr_rd",
     "shl.uw_orri_rd", "shl.uw_orrr_rd", "shr.uw_orri_rd", "shr.uw_orrr_rd", "shr.sw_orri_rd", "shr.sw_orrr_rd",
     "shl.ub_orri_rd", "shl.ub_orrr_rd", "shr.ub_orri_rd", "shr.ub_orrr_rd", "shr.sb_orri_rd", "shr.sb_orrr_rd",
     "ext.uo_orri_rd", "ext.uo_orrr_rd", "ext.so_orri_rd", "ext.so_orrr_rd",
-    "ext.ut_orri_rd", "ext.ut_orrr_rd", "ext.st_orri_rd", "ext.st_orrr_rd",
-    "ext.uw_orri_rd", "ext.uw_orrr_rd", "ext.sw_orri_rd", "ext.sw_orrr_rd",
-    "ext.ub_orri_rd", "ext.ub_orrr_rd", "ext.sb_orri_rd", "ext.sb_orrr_rd",
+    # SPEC-069t: narrow ext (ext.ut/st/uw/sw/ub/sb) deleted
     # reg-cond-assign
     "cs.n_rrrr_rd", "cs.z_rrrr_rd", "cs.p_rrrr_rd", "cs.eq_rrrr_rd", "cs.ne_rrrr_rd",
     # reg-imm-block (rd forms)
@@ -98,8 +94,8 @@ def extract_insns_from_vector(filepath):
 
 
 def insn_to_trans_names(insn):
-    """Convert insn name (e.g. 'ext.ub') to possible trans_* function names.
-    Some insns have both orrr and orri forms (e.g. ext.ub -> trans_ext_ub_orrr, trans_ext_ub_orri).
+    """Convert insn name (e.g. 'ext.uo') to possible trans_* function names.
+    Some insns have both orrr and orri forms (e.g. ext.uo -> trans_ext_uo_orrr, trans_ext_uo_orri).
     Returns list of possible trans_* names."""
     # Replace dots and dashes with underscores
     name = insn.replace(".", "_").replace("-", "_")

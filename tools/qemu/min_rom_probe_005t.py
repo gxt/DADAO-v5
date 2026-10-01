@@ -69,10 +69,21 @@ def rem_uo(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x3A, rdhb, rdhc, rdhd)
 def rem_so(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x3B, rdhb, rdhc, rdhd)
 def cmp_uo(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
-def ext_ub_orri(rdhb, rdhc, immu6): return encode_orri(0x43, 0x18, rdhb, rdhc, immu6)
-def ext_sb_orri(rdhb, rdhc, immu6): return encode_orri(0x43, 0x19, rdhb, rdhc, immu6)
-def ext_ub_orrr(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x10, rdhb, rdhc, rdhd)
-def ext_sb_orrr(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x11, rdhb, rdhc, rdhd)
+# SPEC-069t: ext.ub/ext.sb deleted (narrow ext removed)
+# shr.ub encoding (post-SPEC-069t): op=0x43, ha=0x12 (orrr), ha=0x1A (orri)
+def shr_ub_orri(rdhb, rdhc, immu6): return encode_orri(0x43, 0x1A, rdhb, rdhc, immu6)
+# SPEC-069t: value semantics test helpers
+def shl_ut_orri(rdhb, rdhc, immu6): return encode_orri(0x41, 0x1C, rdhb, rdhc, immu6)
+def shr_ut_orri(rdhb, rdhc, immu6): return encode_orri(0x41, 0x1A, rdhb, rdhc, immu6)
+def cmp_st_orrr(rdhb, rdhc, rdhd): return encode_orrr(0x41, 0x2B, rdhb, rdhc, rdhd)
+def cmp_ut_orrr(rdhb, rdhc, rdhd): return encode_orrr(0x41, 0x2A, rdhb, rdhc, rdhd)
+def or_w_rwii(rdha, wpN, immu16):
+    """or.w rdha, wpN, immu16 — rwii format."""
+    imm_hi4 = (immu16 >> 12) & 0xF
+    imm_mid6 = (immu16 >> 6) & 0x3F
+    imm_lo6 = immu16 & 0x3F
+    return struct.pack('>I', (0x48 << 24) | (rdha << 18) | (wpN << 16) |
+                       (imm_hi4 << 12) | (imm_mid6 << 6) | imm_lo6)
 def ext_so_orri(rdhb, rdhc, immu6): return encode_orri(0x40, 0x19, rdhb, rdhc, immu6)
 
 def add_sb(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x21, rdhb, rdhc, rdhd)
@@ -217,16 +228,7 @@ TESTS = [
      [set_zw(2, 0xFFF2), add_si(2, -14), set_zw(3, 3), div_so(1, 2, 3)],
      "Legal div.so crashed"),
 
-    # ── B2: ext.*_orrr hd>N → ILLI ──
-    ("B2 ext.ub orrr rdhd=8 (>N=7) → ILLI",
-     [set_zw(2, 0xFF), set_zw(3, 8), ext_ub_orrr(1, 2, 3)],
-     "ext.ub orrr hd=8 not caught"),
-    ("B2 ext.ub orri rdhd=8 → ILLI (control)",
-     [set_zw(2, 0xFF), ext_ub_orri(1, 2, 8)],
-     "ext.ub orri hd=8 not caught"),
-    ("B2 ext.ub orrr rdhd=2 (legal) completes",
-     [set_zw(2, 0xFF), set_zw(3, 2), ext_ub_orrr(1, 2, 3)],
-     "ext.ub orrr hd=2 failed"),
+    # ── B2: SPEC-069t — ext.ub/ext.sb deleted, narrow ext tests removed ──
 
     # ── B3: Fixed-width sign/zero extension (exact values) ──
     ("B3 add.sb 0x40+0x40 == -128 (exact)",
@@ -238,13 +240,7 @@ TESTS = [
      "mul.sb 10*-2 != -20"),
 
     # ── B4: ext high-bit fill (exact values) ──
-    ("B4 ext.ub orri pos=2 == 0x7 (exact)",
-     [set_zw(2, 0x00FF), ext_ub_orri(1, 2, 2)],
-     "ext.ub pos=2 != 0x7"),
-
-    ("B4 ext.sb orri pos=2 == -1 (exact)",
-     [set_zw(2, 0x000F), set_zw(1, 0), add_si(1, -1), ext_sb_orri(1, 2, 2)],
-     "ext.sb pos=2 != -1"),
+    # SPEC-069t: ext.ub/ext.sb deleted; ext.so test retained
 
     ("B4 ext.so orri pos=2 == -1 (exact)",
      [set_zw(2, 0x000F), ext_so_orri(1, 2, 2)],
@@ -266,20 +262,41 @@ TESTS = [
     ("div.uo /0 (computed) → -1 (defined value)",
      [set_zw(2, 7), set_zw(3, 0), add_si(3, 0), div_uo(1, 2, 3)],
      "div by zero (computed) result != -1"),
+
+    # ── SPEC-069t: value semantics — high bits must be written (not preserved) ──
+    # 3-tuple format: _append_comparison appends the _exact_cmp sequence.
+    # Pre-set destination register with non-zero high bits (0xDEADBEEF00000000).
+    # NEW semantics: high bits zeroed → result matches expected → UNDI(137).
+    # OLD semantics: high bits preserved → mismatch → ILLI(136).
+    ("V1 shl.ut 0xFF<<4: high bits zeroed (rd1 had 0xDEADBEEF...)",
+     [set_zw(2, 0xFF),
+      set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
+      shl_ut_orri(1, 2, 4)],
+     "shl.ut did not zero high bits"),
+    ("V2 shr.ut 0xFF00>>4: high bits zeroed (rd1 had 0xDEADBEEF...)",
+     [set_zw(2, 0xFF00),
+      set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
+      shr_ut_orri(1, 2, 4)],
+     "shr.ut did not zero high bits"),
+    ("V3 cmp.ut(1, 2) = -1 zero-extended (rd1 had 0xDEADBEEF...)",
+     [set_zw(2, 1), set_zw(3, 2),
+      set_zw(1, 0), or_w_rwii(1, 2, 0xBEEF), or_w_rwii(1, 3, 0xDEAD),
+      cmp_ut_orrr(1, 2, 3)],
+     "cmp.ut did not zero-extend result"),
 ]
 
 # ── CTL self-check ────────────────────────────────────────────────────
 # With br.ne: match→UNDI(137), mismatch→cmp.uo(0,0,0)→ILLI(136).
 # CTL expects ILLI for a MATCH case → should get UNDI → FAIL.
 CTL_CHECKS = [
-    ("CTL: ext.ub=7 but expect ILLI (wrong; match→UNDI=137)",
-     [set_zw(2, 0xFF), ext_ub_orri(1, 2, 2),  # rd1 = 0x7
-      set_zw(6, 7),                              # rd6 = 7 (correct)
+    ("CTL: shr.ub 0xFF>>2=0x3F but expect 7 (wrong; match→UNDI=137)",
+     [set_zw(2, 0xFF), shr_ub_orri(1, 2, 2),  # rd1 = 0x3F (shr.ub 0xFF>>2)
+      set_zw(6, 0x3F),                           # rd6 = 0x3F (correct value)
       cmp_uo(7, 1, 6),                           # rd7 = 0 (match)
       set_zw(1, 0), br_ne(7, 1, 2),              # match → not taken → continue
       set_zw(1, 1), br_ne(1, 0, 2),              # unconditional → skip 2 → UNDI
       cmp_uo(0, 0, 0)],                          # (not reached on match)
-     ILLI_EXIT,  # WRONG: will get UNDI
+     ILLI_EXIT,  # WRONG: will get UNDI (137) because values match
      "Self-check FAILED: probe cannot detect wrong values"),
 ]
 
@@ -339,10 +356,6 @@ def _append_comparison(insns, name):
         _exact_cmp(insns, 5, 6, -128)
     elif "mul.sb 10 * -2 == -20" in name:
         _exact_cmp(insns, 5, 6, -20)
-    elif "ext.ub orri pos=2 == 0x7" in name:
-        _exact_cmp(insns, 1, 6, 7)
-    elif "ext.sb orri pos=2 == -1" in name:
-        _exact_cmp(insns, 1, 6, -1)
     elif "ext.so orri pos=2 == -1" in name:
         _exact_cmp(insns, 1, 6, -1)
     elif "shl.uo 0xF << 4 == 0xF0" in name:
@@ -352,18 +365,32 @@ def _append_comparison(insns, name):
     elif "div.uo /0" in name:
         # div-by-zero → -1 (defined value)
         _exact_cmp(insns, 1, 6, -1)
-    elif "ext.ub orrr rdhd=2" in name:
-        _exact_cmp(insns, 1, 6, 7)  # ext.ub pos=2 → 0x7
     elif "legal div.uo" in name:
         pass  # Just reach UNDI = PASS
     elif "legal rem.uo" in name:
         pass
     elif "legal div.so" in name:
         pass
-    elif "ext.ub orrr rdhd=8" in name:
-        pass  # Should trigger ILLI
-    elif "ext.ub orri rdhd=8" in name:
-        pass  # Should trigger ILLI
+    # SPEC-069t: ext.ub orrr/orri ILLI tests deleted
+    # SPEC-069t: V1/V2/V3 value semantics tests — use _exact_cmp (3-tuple)
+    elif "V1 shl.ut" in name:
+        # shl.ut(0xFF, 4) = 0xFF0, high bits zeroed
+        _exact_cmp(insns, 1, 6, 0xFF0)
+    elif "V2 shr.ut" in name:
+        # shr.ut(0xFF00, 4) = 0x0FF0, high bits zeroed
+        _exact_cmp(insns, 1, 6, 0x0FF0)
+    elif "V3 cmp.ut" in name:
+        # cmp.ut(1, 2): 1<2 unsigned → -1, zero-extended from 32 bits → 0x00000000FFFFFFFF
+        # _set_rd_to_val can't handle this (add.si sign-extends 0xFFFF to -1)
+        # Build rd6 = 0x00000000FFFFFFFF manually: set.zw wp0=0xFFFF + or.w wp1=0xFFFF
+        insns.append(set_zw(6, 0xFFFF))         # rd6 = 0x000000000000FFFF
+        insns.append(or_w_rwii(6, 1, 0xFFFF))   # rd6[31:16] = 0xFFFF → 0x00000000FFFFFFFF
+        insns.append(cmp_uo(7, 1, 6))
+        insns.append(set_zw(1, 0))
+        insns.append(br_ne(7, 1, 2))
+        insns.append(set_zw(1, 1))
+        insns.append(br_ne(1, 0, 2))
+        insns.append(cmp_uo(0, 0, 0))
 
 # ── Main ──────────────────────────────────────────────────────────────
 

@@ -577,29 +577,25 @@ def build_misc_octa(records):
 # ────────────────────────────── MISC 固定位宽子表 ──────────────────────────────
 
 def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
-    """suffix: 't'/'w'/'b'；nbits: 31/15/7；sdoc: 对应 SimRISC 文档（SimRISC-08/09/10）。"""
+    """suffix: 't'/'w'/'b'；nbits: 31/15/7；sdoc: 对应 SimRISC 文档（SimRISC-08/09/10）。
+
+    SPEC-069t：窄位宽逻辑（and/or/xor/xnor）与窄位宽扩展（ext）已删除（24 条），
+    仅保留 shr/shl（位操作）、add/sub（算术）、cmp（比较）、mul/div/rem（乘除余）。
+    """
     cite_add = f"{sdoc} §加减操作"
     cite_cmp = f"{sdoc} §比较操作"
     cite_mul = f"{sdoc} §乘除操作"
-    cite_log = f"{sdoc} §Logic operators：逻辑运算"
     cite_bit = f"{sdoc} §Bit manipulating：位操作指令"
-    # 逻辑运算 orrr（ha 0x08-0x0B）
-    for i, base in enumerate(["and", "or", "xor", "xnor"]):
-        mnem = f"{base}.{suffix}"
-        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0"], cite_log, ha=0x08 + i))
-    # ext/shr/shl orrr（ha 0x10-0x14）
-    for i, mnem in enumerate([f"ext.u{suffix}", f"ext.s{suffix}",
-                              f"shr.u{suffix}", f"shr.s{suffix}",
+    # shr/shl orrr（ha 0x12-0x14）——SPEC-069t：ext 已删除，shr/shl 从 0x12 开始
+    for i, mnem in enumerate([f"shr.u{suffix}", f"shr.s{suffix}",
                               f"shl.u{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0"], cite_bit, ha=0x10 + i))
-    # ext/shr/shl orri（ha 0x18-0x1C）
-    for i, mnem in enumerate([f"ext.u{suffix}", f"ext.s{suffix}",
-                              f"shr.u{suffix}", f"shr.s{suffix}",
+                           ["rdhb != rd0"], cite_bit, ha=0x12 + i))
+    # shr/shl orri（ha 0x1A-0x1C）——SPEC-069t：ext 已删除，shr/shl 从 0x1A 开始
+    for i, mnem in enumerate([f"shr.u{suffix}", f"shr.s{suffix}",
                               f"shl.u{suffix}"]):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0", f"immu6 <= {nbits}"], cite_bit, ha=0x18 + i))
+                           ["rdhb != rd0", f"immu6 <= {nbits}"], cite_bit, ha=0x1A + i))
     # add（ha 0x20-0x21）
     for i, mnem in enumerate([f"add.u{suffix}", f"add.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),

@@ -597,7 +597,7 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 
 ### §6.4 位操作
 
-#### §6.4.1 64 位移位（orrr / orri 格式）
+#### §6.4.1 64 位移位（orrr / orri 格式）— 值语义
 
 `shl` 为左移，`shr` 为右移；后缀 `u` 表示逻辑移位（零扩展），`s` 表示算术移位（符号扩展）。移位量（shamt）取 `rdhd` 的低位（orrr）或 `immu6` 的低位（orri）。[SimRISC-04 §Bit manipulating：位操作指令]
 
@@ -605,9 +605,10 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 shl.u: rdhb[N:0]   = (rdhc[N:0] << shamt)                // 左移，低位补零
 shr.u: rdhb[N:0]   = (rdhc[N:0] >> shamt)                // 逻辑右移，高位补零
 shr.s: rdhb[N:0]   = (rdhc[N:0] >> shamt) with sign(N)   // 算术右移，高位补 rdhc[N]
-rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 ```
 [SimRISC-04 §Bit manipulating：位操作指令]
+
+**SPEC-069t 值语义通则**：所有移位/比较指令的结果均写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。64 位操作 N=63 自然写满；32/16/8 位操作的高位扩展规则见 §10.4.1/§11.4.1/§12.4.1。
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
@@ -624,10 +625,11 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 
 ```
 rdhb[hd:0]   = rdhc[hd:0]                               // 复制源低位
-rdhb[N:hd+1] = sign/zero_extend(rdhc[hd])                // 符号/零扩展（N=63）
-rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
+rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N=63）
 ```
 [SimRISC-04 §Bit manipulating：位操作指令]
+
+> **SPEC-069t**：64位 ext（N=63）自然写满64位；32/16/8 位 ext 已删除（§10.4.2/§11.4.2/§12.4.2）。
 
 | 指令 | N | 汇编语法 | 约束 |
 |------|---|---------|------|
@@ -854,7 +856,7 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 - 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-08 §乘除操作]
 - 除法附加规则见 §6.1.5。
 
-### §10.2 32 位比较（orrr 格式）
+### §10.2 32 位比较（orrr 格式）— 值语义
 
 源操作数按 size 截断后比较，结果（−1/0/1）写入目的寄存器全 64 位。[SimRISC-08 §比较操作]
 
@@ -864,43 +866,44 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 
 - 汇编语法：`cmp.ut rdhb, rdhc, rdhd`。[SimRISC-08 §比较操作]
 - 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-08 §比较操作]
+- **高位规则（SPEC-069t）**：比较结果 −1/0/+1 按后缀扩展写满64位——`.st` ⇒ 符号扩展；`.ut` ⇒ 零扩展。
 
-### §10.3 32 位逻辑运算（orrr 格式）
+### §10.3 32 位逻辑运算 — 已删除
 
-`MISC-tetra` 子表中的 `and`/`or`/`xor`/`xnor` 提供 32 位逻辑运算，bits[31:0] 参与运算，bits[63:32] 保持目的寄存器原有值不变。[SimRISC-08 §Logic operators：逻辑运算]
-
-| 指令 | 位宽 | 操作范围 |
-|------|------|---------|
-| `and.t`/`or.t`/`xor.t`/`xnor.t` | 32 位 | bits[31:0] 参与，bits[63:32] 不变 |
-
-运算规则同 §6.3。[SimRISC-08 §Logic operators：逻辑运算]
+**SPEC-069t**：`and.t`/`or.t`/`xor.t`/`xnor.t` 已从指令集中删除。64 位逻辑运算见 §6.3。
 
 ### §10.4 位操作
 
-#### §10.4.1 32 位移位（orrr / orri 格式）
+#### §10.4.1 32 位移位（orrr / orri 格式）— 值语义
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
 | `shl.ut`/`shr.ut`/`shr.st` | 31 | 0–31 | `hd[4:0]`，`hd[5]` 应为零 |
 [SimRISC-08 §Bit manipulating：位操作指令]
 
+运算公式（**SPEC-069t：值语义，写满64位**）：
+```
+shl.ut:  rdhb[31:0]  = (rdhc[31:0] << shamt)              // 左移，低位补零
+         rdhb[63:32] = 0                                     // 高位零扩展
+shr.ut:  rdhb[31:0]  = (rdhc[31:0] >> shamt)               // 逻辑右移，高位补零
+         rdhb[63:32] = 0                                     // 高位零扩展
+shr.st:  rdhb[31:0]  = (rdhc[31:0] >> shamt) with sign(31) // 算术右移，高位补 rdhc[31]
+         rdhb[63:32] = sign_extend(rdhc[31])                 // 高位符号扩展
+```
+
 异常条件：`shamt > N` → **ILLI**。[SimRISC-08 §Bit manipulating：位操作指令]
 
-#### §10.4.2 32 位符号/零扩展（orrr / orri 格式）
+#### §10.4.2 32 位符号/零扩展 — 已删除
 
-| 指令 | N | 汇编语法 | 约束 |
-|------|---|---------|------|
-| `ext.ut`/`ext.st` | 31 | `ext.ut rdhb, rdhc, rdhd` 或 `ext.ut rdhb, rdhc, immu6` | hd ≤ 31 |
-[SimRISC-08 §Bit manipulating：位操作指令]
-
-异常条件：`hd > N` → **ILLI**。[SimRISC-08 §Bit manipulating：位操作指令]
+**SPEC-069t**：`ext.ut`/`ext.st` 已从指令集中删除。64 位扩展见 §6.4.2。
 
 ### §10.5 伪指令（32 位数据运算）
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `not.t rdhb, rdhc` | `xnor.t rdhb, rdhc, rd0` | 32 位按位取反 | [SimRISC-08 §not 伪指令] |
 | `neg.t rdhb, rdhc` | `sub.st rdhb, rd0, rdhc` | 32 位取负，符号扩展 | [SimRISC-08 §neg 伪指令] |
+
+> **SPEC-069t**：`not.t` 已删除（窄位宽逻辑指令 `xnor.t` 已不存在）；仅保留 `not.o`（§6.6）。
 
 ---
 
@@ -932,7 +935,7 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 - 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-09 §乘除操作]
 - 除法附加规则见 §6.1.5。
 
-### §11.2 16 位比较（orrr 格式）
+### §11.2 16 位比较（orrr 格式）— 值语义
 
 源操作数按 size 截断后比较，结果（−1/0/1）写入目的寄存器全 64 位。[SimRISC-09 §比较操作]
 
@@ -942,43 +945,44 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 
 - 汇编语法：`cmp.uw rdhb, rdhc, rdhd`。[SimRISC-09 §比较操作]
 - 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-09 §比较操作]
+- **高位规则（SPEC-069t）**：比较结果 −1/0/+1 按后缀扩展写满64位——`.sw` ⇒ 符号扩展；`.uw` ⇒ 零扩展。
 
-### §11.3 16 位逻辑运算（orrr 格式）
+### §11.3 16 位逻辑运算 — 已删除
 
-`MISC-wyde` 子表中的 `and`/`or`/`xor`/`xnor` 提供 16 位逻辑运算，bits[15:0] 参与运算，bits[63:16] 保持目的寄存器原有值不变。[SimRISC-09 §Logic operators：逻辑运算]
-
-| 指令 | 位宽 | 操作范围 |
-|------|------|---------|
-| `and.w`/`or.w`/`xor.w`/`xnor.w` | 16 位 | bits[15:0] 参与，bits[63:16] 不变 |
-
-运算规则同 §6.3。[SimRISC-09 §Logic operators：逻辑运算]
+**SPEC-069t**：`and.w`/`or.w`/`xor.w`/`xnor.w` 已从指令集中删除。64 位逻辑运算见 §6.3。
 
 ### §11.4 位操作
 
-#### §11.4.1 16 位移位（orrr / orri 格式）
+#### §11.4.1 16 位移位（orrr / orri 格式）— 值语义
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
 | `shl.uw`/`shr.uw`/`shr.sw` | 15 | 0–15 | `hd[3:0]`，`hd[5:4]` 应为零 |
 [SimRISC-09 §Bit manipulating：位操作指令]
 
+运算公式（**SPEC-069t：值语义，写满64位**）：
+```
+shl.uw:  rdhb[15:0]  = (rdhc[15:0] << shamt)
+         rdhb[63:16] = 0                                     // 高位零扩展
+shr.uw:  rdhb[15:0]  = (rdhc[15:0] >> shamt)
+         rdhb[63:16] = 0                                     // 高位零扩展
+shr.sw:  rdhb[15:0]  = (rdhc[15:0] >> shamt) with sign(15)
+         rdhb[63:16] = sign_extend(rdhc[15])                 // 高位符号扩展
+```
+
 异常条件：`shamt > N` → **ILLI**。[SimRISC-09 §Bit manipulating：位操作指令]
 
-#### §11.4.2 16 位符号/零扩展（orrr / orri 格式）
+#### §11.4.2 16 位符号/零扩展 — 已删除
 
-| 指令 | N | 汇编语法 | 约束 |
-|------|---|---------|------|
-| `ext.uw`/`ext.sw` | 15 | `ext.uw rdhb, rdhc, rdhd` 或 `ext.uw rdhb, rdhc, immu6` | hd ≤ 15 |
-[SimRISC-09 §Bit manipulating：位操作指令]
-
-异常条件：`hd > N` → **ILLI**。[SimRISC-09 §Bit manipulating：位操作指令]
+**SPEC-069t**：`ext.uw`/`ext.sw` 已从指令集中删除。64 位扩展见 §6.4.2。
 
 ### §11.5 伪指令（16 位数据运算）
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `not.w rdhb, rdhc` | `xnor.w rdhb, rdhc, rd0` | 16 位按位取反 | [SimRISC-09 §not 伪指令] |
 | `neg.w rdhb, rdhc` | `sub.sw rdhb, rd0, rdhc` | 16 位取负，符号扩展 | [SimRISC-09 §neg 伪指令] |
+
+> **SPEC-069t**：`not.w` 已删除（窄位宽逻辑指令 `xnor.w` 已不存在）；仅保留 `not.o`（§6.6）。
 
 ---
 
@@ -1010,7 +1014,7 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 - 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-10 §乘除操作]
 - 除法附加规则见 §6.1.5。
 
-### §12.2 8 位比较（orrr 格式）
+### §12.2 8 位比较（orrr 格式）— 值语义
 
 源操作数按 size 截断后比较，结果（−1/0/1）写入目的寄存器全 64 位。[SimRISC-10 §比较操作]
 
@@ -1020,43 +1024,44 @@ rdhb[63:N+1] = rdhb[63:N+1]                              // 高位不变
 
 - 汇编语法：`cmp.ub rdhb, rdhc, rdhd`。[SimRISC-10 §比较操作]
 - 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-10 §比较操作]
+- **高位规则（SPEC-069t）**：比较结果 −1/0/+1 按后缀扩展写满64位——`.sb` ⇒ 符号扩展；`.ub` ⇒ 零扩展。
 
-### §12.3 8 位逻辑运算（orrr 格式）
+### §12.3 8 位逻辑运算 — 已删除
 
-`MISC-byte` 子表中的 `and`/`or`/`xor`/`xnor` 提供 8 位逻辑运算，bits[7:0] 参与运算，bits[63:8] 保持目的寄存器原有值不变。[SimRISC-10 §Logic operators：逻辑运算]
-
-| 指令 | 位宽 | 操作范围 |
-|------|------|---------|
-| `and.b`/`or.b`/`xor.b`/`xnor.b` | 8 位 | bits[7:0] 参与，bits[63:8] 不变 |
-
-运算规则同 §6.3。[SimRISC-10 §Logic operators：逻辑运算]
+**SPEC-069t**：`and.b`/`or.b`/`xor.b`/`xnor.b` 已从指令集中删除。64 位逻辑运算见 §6.3。
 
 ### §12.4 位操作
 
-#### §12.4.1 8 位移位（orrr / orri 格式）
+#### §12.4.1 8 位移位（orrr / orri 格式）— 值语义
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
 | `shl.ub`/`shr.ub`/`shr.sb` | 7 | 0–7 | `hd[2:0]`，`hd[5:3]` 应为零 |
 [SimRISC-10 §Bit manipulating：位操作指令]
 
+运算公式（**SPEC-069t：值语义，写满64位**）：
+```
+shl.ub:  rdhb[7:0]   = (rdhc[7:0] << shamt)
+         rdhb[63:8]  = 0                                     // 高位零扩展
+shr.ub:  rdhb[7:0]   = (rdhc[7:0] >> shamt)
+         rdhb[63:8]  = 0                                     // 高位零扩展
+shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
+         rdhb[63:8]  = sign_extend(rdhc[7])                  // 高位符号扩展
+```
+
 异常条件：`shamt > N` → **ILLI**。[SimRISC-10 §Bit manipulating：位操作指令]
 
-#### §12.4.2 8 位符号/零扩展（orrr / orri 格式）
+#### §12.4.2 8 位符号/零扩展 — 已删除
 
-| 指令 | N | 汇编语法 | 约束 |
-|------|---|---------|------|
-| `ext.ub`/`ext.sb` | 7 | `ext.ub rdhb, rdhc, rdhd` 或 `ext.ub rdhb, rdhc, immu6` | hd ≤ 7 |
-[SimRISC-10 §Bit manipulating：位操作指令]
-
-异常条件：`hd > N` → **ILLI**。[SimRISC-10 §Bit manipulating：位操作指令]
+**SPEC-069t**：`ext.ub`/`ext.sb` 已从指令集中删除。64 位扩展见 §6.4.2。
 
 ### §12.5 伪指令（8 位数据运算）
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `not.b rdhb, rdhc` | `xnor.b rdhb, rdhc, rd0` | 8 位按位取反 | [SimRISC-10 §not 伪指令] |
 | `neg.b rdhb, rdhc` | `sub.sb rdhb, rd0, rdhc` | 8 位取负，符号扩展 | [SimRISC-10 §neg 伪指令] |
+
+> **SPEC-069t**：`not.b` 已删除（窄位宽逻辑指令 `xnor.b` 已不存在）；仅保留 `not.o`（§6.6）。
 
 ---
 
@@ -1309,17 +1314,9 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
-| 001-000 | `and.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
-| 001-001 | `or.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
-| 001-010 | `xor.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
-| 001-011 | `xnor.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
-| 010-000 | `ext.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
-| 010-001 | `ext.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 010-010 | `shr.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 010-011 | `shr.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 010-100 | `shl.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
-| 011-000 | `ext.ut` | orri | [SimRISC-00 §MISC-tetra指令编码] |
-| 011-001 | `ext.st` | orri | [SimRISC-00 §MISC-tetra指令编码] |
 | 011-010 | `shr.ut` | orri | [SimRISC-00 §MISC-tetra指令编码] |
 | 011-011 | `shr.st` | orri | [SimRISC-00 §MISC-tetra指令编码] |
 | 011-100 | `shl.ut` | orri | [SimRISC-00 §MISC-tetra指令编码] |
@@ -1336,21 +1333,15 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 111-010 | `rem.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 111-011 | `rem.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 
+> **SPEC-069t**：已删除 opx 0x08–0x0B（`and.t`/`or.t`/`xor.t`/`xnor.t`）与 0x10–0x11/0x18–0x19（`ext.ut`/`ext.st`），共 8 条。这些 opx 现为 reserved（UNDI）。
+
 ### A.4 MISC-wyde 子表（op = 0x42）
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
-| 001-000 | `and.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
-| 001-001 | `or.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
-| 001-010 | `xor.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
-| 001-011 | `xnor.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
-| 010-000 | `ext.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
-| 010-001 | `ext.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 010-010 | `shr.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 010-011 | `shr.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 010-100 | `shl.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
-| 011-000 | `ext.uw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
-| 011-001 | `ext.sw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
 | 011-010 | `shr.uw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
 | 011-011 | `shr.sw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
 | 011-100 | `shl.uw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
@@ -1367,21 +1358,15 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 111-010 | `rem.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 111-011 | `rem.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 
+> **SPEC-069t**：已删除 opx 0x08–0x0B（`and.w`/`or.w`/`xor.w`/`xnor.w`）与 0x10–0x11/0x18–0x19（`ext.uw`/`ext.sw`），共 8 条。这些 opx 现为 reserved（UNDI）。
+
 ### A.5 MISC-byte 子表（op = 0x43）
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
-| 001-000 | `and.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
-| 001-001 | `or.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
-| 001-010 | `xor.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
-| 001-011 | `xnor.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
-| 010-000 | `ext.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
-| 010-001 | `ext.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 010-010 | `shr.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 010-011 | `shr.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 010-100 | `shl.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
-| 011-000 | `ext.ub` | orri | [SimRISC-00 §MISC-byte指令编码] |
-| 011-001 | `ext.sb` | orri | [SimRISC-00 §MISC-byte指令编码] |
 | 011-010 | `shr.ub` | orri | [SimRISC-00 §MISC-byte指令编码] |
 | 011-011 | `shr.sb` | orri | [SimRISC-00 §MISC-byte指令编码] |
 | 011-100 | `shl.ub` | orri | [SimRISC-00 §MISC-byte指令编码] |
@@ -1397,6 +1382,8 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 111-001 | `div.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 111-010 | `rem.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 111-011 | `rem.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+
+> **SPEC-069t**：已删除 opx 0x08–0x0B（`and.b`/`or.b`/`xor.b`/`xnor.b`）与 0x10–0x11/0x18–0x19（`ext.ub`/`ext.sb`），共 8 条。这些 opx 现为 reserved（UNDI）。
 
 ### A.6 MISC-AMO 子表（op = 0x77，M1 条目）
 

@@ -123,7 +123,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-interface validate-encoding
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-interface validate-encoding check-qemu-semantics
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -159,6 +159,26 @@ check-interface:
 # (value/mask, field overlap, bank, legality refs, decode conflicts).
 validate-encoding: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/validate_encoding.py contracts/opcodes.yaml
+
+# QEMU semantic execution gate (SPEC-069t): runs ISA semantic test vectors
+# through QEMU. Requires 'make build-qemu' to have been run.
+# Runs all semantic/boundary cases in reg-shift-extend + reg-compare (~14s).
+# Uses symlinked temp dir + --batch for full coverage.
+# Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
+QEMU_SEM_DIR = /tmp/opencode/qemu-sem-gate
+check-qemu-semantics:
+	@mkdir -p $(QEMU_SEM_DIR) && \
+	  ln -sf $(CURDIR)/tests/vectors/isa/reg-shift-extend.yaml $(QEMU_SEM_DIR)/ 2>/dev/null; \
+	  ln -sf $(CURDIR)/tests/vectors/isa/reg-compare.yaml $(QEMU_SEM_DIR)/ 2>/dev/null; \
+	  echo "check-qemu-semantics: running shift+compare (all cases)..."; \
+	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) > /tmp/opencode/check-qemu-sem.log 2>&1; \
+	  rc=$$?; \
+	  tail -5 /tmp/opencode/check-qemu-sem.log; \
+	  if [ $$rc -ne 0 ]; then \
+	    echo "check-qemu-semantics: FAIL (rc=$$rc)"; \
+	    exit $$rc; \
+	  fi; \
+	  echo "check-qemu-semantics: PASS"
 
 # 构建并行度（用户裁定 2026-10-01：限制 cc1plus 类进程）
 JOBS ?= 8

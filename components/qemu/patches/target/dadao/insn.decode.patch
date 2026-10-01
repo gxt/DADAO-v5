@@ -3,10 +3,10 @@ new file mode 100644
 index 0000000000..0b1c43bf17
 --- /dev/null
 +++ b/target/dadao/insn.decode
-@@ -0,0 +1,270 @@
+@@ -0,0 +1,246 @@
 +# DADAO instruction decoding
 +# Auto-generated from contracts/opcodes.yaml
-+# 256 patterns; blank cells trigger UNDI
++# 233 patterns; blank cells trigger UNDI
 +
 +# Field declarations
 +%ha       18:6
@@ -152,17 +152,9 @@ index 0000000000..0b1c43bf17
 +rem_so_orrr_rd  01000000111011..................  @misc
 +rd2rf_orri_rf  01000000111101..................  @misc
 +rf2rd_orri_rf  01000000111110..................  @misc
-+and_t_orrr_rd  01000001001000..................  @misc
-+or_t_orrr_rd  01000001001001..................  @misc
-+xor_t_orrr_rd  01000001001010..................  @misc
-+xnor_t_orrr_rd  01000001001011..................  @misc
-+ext_ut_orrr_rd  01000001010000..................  @misc
-+ext_st_orrr_rd  01000001010001..................  @misc
 +shr_ut_orrr_rd  01000001010010..................  @misc
 +shr_st_orrr_rd  01000001010011..................  @misc
 +shl_ut_orrr_rd  01000001010100..................  @misc
-+ext_ut_orri_rd  01000001011000..................  @misc
-+ext_st_orri_rd  01000001011001..................  @misc
 +shr_ut_orri_rd  01000001011010..................  @misc
 +shr_st_orri_rd  01000001011011..................  @misc
 +shl_ut_orri_rd  01000001011100..................  @misc
@@ -178,17 +170,9 @@ index 0000000000..0b1c43bf17
 +div_st_orrr_rd  01000001111001..................  @misc
 +rem_ut_orrr_rd  01000001111010..................  @misc
 +rem_st_orrr_rd  01000001111011..................  @misc
-+and_w_orrr_rd  01000010001000..................  @misc
-+or_w_orrr_rd  01000010001001..................  @misc
-+xor_w_orrr_rd  01000010001010..................  @misc
-+xnor_w_orrr_rd  01000010001011..................  @misc
-+ext_uw_orrr_rd  01000010010000..................  @misc
-+ext_sw_orrr_rd  01000010010001..................  @misc
 +shr_uw_orrr_rd  01000010010010..................  @misc
 +shr_sw_orrr_rd  01000010010011..................  @misc
 +shl_uw_orrr_rd  01000010010100..................  @misc
-+ext_uw_orri_rd  01000010011000..................  @misc
-+ext_sw_orri_rd  01000010011001..................  @misc
 +shr_uw_orri_rd  01000010011010..................  @misc
 +shr_sw_orri_rd  01000010011011..................  @misc
 +shl_uw_orri_rd  01000010011100..................  @misc
@@ -204,17 +188,9 @@ index 0000000000..0b1c43bf17
 +div_sw_orrr_rd  01000010111001..................  @misc
 +rem_uw_orrr_rd  01000010111010..................  @misc
 +rem_sw_orrr_rd  01000010111011..................  @misc
-+and_b_orrr_rd  01000011001000..................  @misc
-+or_b_orrr_rd  01000011001001..................  @misc
-+xor_b_orrr_rd  01000011001010..................  @misc
-+xnor_b_orrr_rd  01000011001011..................  @misc
-+ext_ub_orrr_rd  01000011010000..................  @misc
-+ext_sb_orrr_rd  01000011010001..................  @misc
 +shr_ub_orrr_rd  01000011010010..................  @misc
 +shr_sb_orrr_rd  01000011010011..................  @misc
 +shl_ub_orrr_rd  01000011010100..................  @misc
-+ext_ub_orri_rd  01000011011000..................  @misc
-+ext_sb_orri_rd  01000011011001..................  @misc
 +shr_ub_orri_rd  01000011011010..................  @misc
 +shr_sb_orri_rd  01000011011011..................  @misc
 +shl_ub_orri_rd  01000011011100..................  @misc

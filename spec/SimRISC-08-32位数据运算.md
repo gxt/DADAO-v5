@@ -6,24 +6,18 @@
 <!-- ASSEMBLY_LIST_START -->
 ## 汇编指令速查
 
-### 32位数据运算（26 条）
+### 32位数据运算（18 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `add.st` | `orrr` | `rd` | `add.st rdHB, rdHC, rdHD` | `add.st_orrr_rd` |
 | `add.ut` | `orrr` | `rd` | `add.ut rdHB, rdHC, rdHD` | `add.ut_orrr_rd` |
-| `and.t` | `orrr` | `rd` | `and.t rdHB, rdHC, rdHD` | `and.t_orrr_rd` |
 | `cmp.st` | `orrr` | `rd` | `cmp.st rdHB, rdHC, rdHD` | `cmp.st_orrr_rd` |
 | `cmp.ut` | `orrr` | `rd` | `cmp.ut rdHB, rdHC, rdHD` | `cmp.ut_orrr_rd` |
 | `div.st` | `orrr` | `rd` | `div.st rdHB, rdHC, rdHD` | `div.st_orrr_rd` |
 | `div.ut` | `orrr` | `rd` | `div.ut rdHB, rdHC, rdHD` | `div.ut_orrr_rd` |
-| `ext.st` | `orri` | `rd` | `ext.st rdHB, rdHC, immu6` | `ext.st_orri_rd` |
-| `ext.st` | `orrr` | `rd` | `ext.st rdHB, rdHC, rdHD` | `ext.st_orrr_rd` |
-| `ext.ut` | `orri` | `rd` | `ext.ut rdHB, rdHC, immu6` | `ext.ut_orri_rd` |
-| `ext.ut` | `orrr` | `rd` | `ext.ut rdHB, rdHC, rdHD` | `ext.ut_orrr_rd` |
 | `mul.st` | `orrr` | `rd` | `mul.st rdHB, rdHC, rdHD` | `mul.st_orrr_rd` |
 | `mul.ut` | `orrr` | `rd` | `mul.ut rdHB, rdHC, rdHD` | `mul.ut_orrr_rd` |
-| `or.t` | `orrr` | `rd` | `or.t rdHB, rdHC, rdHD` | `or.t_orrr_rd` |
 | `rem.st` | `orrr` | `rd` | `rem.st rdHB, rdHC, rdHD` | `rem.st_orrr_rd` |
 | `rem.ut` | `orrr` | `rd` | `rem.ut rdHB, rdHC, rdHD` | `rem.ut_orrr_rd` |
 | `shl.ut` | `orri` | `rd` | `shl.ut rdHB, rdHC, immu6` | `shl.ut_orri_rd` |
@@ -34,8 +28,6 @@
 | `shr.ut` | `orrr` | `rd` | `shr.ut rdHB, rdHC, rdHD` | `shr.ut_orrr_rd` |
 | `sub.st` | `orrr` | `rd` | `sub.st rdHB, rdHC, rdHD` | `sub.st_orrr_rd` |
 | `sub.ut` | `orrr` | `rd` | `sub.ut rdHB, rdHC, rdHD` | `sub.ut_orrr_rd` |
-| `xnor.t` | `orrr` | `rd` | `xnor.t rdHB, rdHC, rdHD` | `xnor.t_orrr_rd` |
-| `xor.t` | `orrr` | `rd` | `xor.t rdHB, rdHC, rdHD` | `xor.t_orrr_rd` |
 
 <!-- ASSEMBLY_LIST_END -->
 
@@ -67,20 +59,12 @@ div.ut  rdHB, rdHC, rdHD
 div.st  rdHB, rdHC, rdHD
 rem.ut  rdHB, rdHC, rdHD
 rem.st  rdHB, rdHC, rdHD
-and.t   rdHB, rdHC, rdHD
-or.t    rdHB, rdHC, rdHD
-xor.t   rdHB, rdHC, rdHD
-xnor.t  rdHB, rdHC, rdHD
 shl.ut  rdHB, rdHC, rdHD
 shl.ut  rdHB, rdHC, immu6
 shr.ut  rdHB, rdHC, rdHD
 shr.ut  rdHB, rdHC, immu6
 shr.st  rdHB, rdHC, rdHD
 shr.st  rdHB, rdHC, immu6
-ext.ut  rdHB, rdHC, rdHD
-ext.ut  rdHB, rdHC, immu6
-ext.st  rdHB, rdHC, rdHD
-ext.st  rdHB, rdHC, immu6
 ```
 
 #### neg 伪指令
@@ -96,7 +80,7 @@ ext.st  rdHB, rdHC, immu6
 neg.t   rd1, rd2        ; rd1 = -rd2（低 32 位取负，符号扩展）
 ```
 
-### 比较操作
+### 比较操作 — 值语义
 
 MISC-tetra 子表中的 `cmp.s`/`cmp.u`（后缀 `.st`/`.ut`）提供 32 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
@@ -104,7 +88,9 @@ MISC-tetra 子表中的 `cmp.s`/`cmp.u`（后缀 `.st`/`.ut`）提供 32 位比�
 |------|------|---------|---------|
 | `cmp.ut`/`cmp.st` | 32 位 | `cmp.ut rdHB, rdHC, rdHD` | bits[31:0] |
 
-例如 `cmp.st rd1, rd2, rd3` 将 rd2 和 rd3 的低 32 位按有符号比较，结果写入 rd1。
+**SPEC-069t 高位规则**：比较结果 −1/0/+1 按后缀扩展写满64位——`.st` ⇒ 结果符号扩展；`.ut` ⇒ 结果零扩展。
+
+例如 `cmp.st rd1, rd2, rd3` 将 rd2 和 rd3 的低 32 位按有符号比较，结果符号扩展写入 rd1。
 
 ### 乘除操作
 
@@ -123,40 +109,35 @@ MISC-tetra 子表中的 `mul`/`div`/`rem` 提供 32 位乘除余运算。`mul` �
 
 ## 逻辑运算类指令
 
-### Logic operators：逻辑运算
+### Logic operators：逻辑运算 — 已删除
 
-MISC-tetra 子表中的 `and`/`or`/`xor`/`xnor`（后缀 `.t`）提供 32 位逻辑运算。操作数格式为 `orrr`。
+**SPEC-069t**：`and.t`/`or.t`/`xor.t`/`xnor.t` 已从指令集中删除。64 位逻辑运算见 SimRISC-04。
 
-| 指令 | 位宽 | 汇编语法 | 操作范围 |
-|------|------|---------|---------|
-| `and.t`/`or.t`/`xor.t`/`xnor.t` | 32 位 | `and.t rdHB, rdHC, rdHD` | bits[31:0] 参与运算，bits[63:32] 不变 |
+#### not 伪指令 — 已删除
 
-逻辑运算规则和逻辑非实现见 SimRISC-04。以上四条逻辑运算指令在 size 范围外的高位（bits[63:32]）保持目的寄存器原有值不变。
+**SPEC-069t**：`not.t` 已删除（窄位宽逻辑指令 `xnor.t` 已不存在）；仅保留 `not.o`（见 SimRISC-04）。
 
-#### not 伪指令
-
-| 伪指令 | 展开形式 | 操作范围 |
-|--------|----------|----------|
-| `not.t rdHB, rdHC` | `xnor.t rdHB, rdHC, rd0` | bits[31:0] 取反，bits[63:32] 不变 |
-
-源和目的可为同一寄存器（原地取反）。
-
-### Bit manipulating：位操作指令
+### Bit manipulating：位操作指令 — 值语义
 
 MISC-tetra 子表中的 `shl`/`shr`（后缀 `.ut`/`.st`）提供 32 位移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
-移位语义和扩展语义见 SimRISC-04。其中 N=31。
+**SPEC-069t 值语义**：所有移位结果写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。
+
+移位语义见 SimRISC-04。其中 N=31。
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
 | `shl.ut`/`shr.st`/`shr.ut` | 31 | 0-31 | hd[4:0]，hd[5] 应为零 |
 
+运算公式：
+```
+shl.ut:  rdHB[31:0]  = (rdHC[31:0] << shamt),  rdHB[63:32] = 0
+shr.ut:  rdHB[31:0]  = (rdHC[31:0] >> shamt),  rdHB[63:32] = 0
+shr.st:  rdHB[31:0]  = (rdHC[31:0] >> shamt) with sign(31),  rdHB[63:32] = sign_extend(rdHC[31])
+```
+
 `shamt > N` 触发 ILLI。
 
-`ext.s` 是符号扩展，`ext.u` 是零扩展。操作数格式为 `orrr`（寄存器形式，hd=扩展起始位）和 `orri`（立即数形式，hd=immu6 扩展起始位）。
-
-| 指令 | N | 汇编语法 | 约束 |
-|------|---|---------|------|
-| `ext.ut`/`ext.st` | 31 | `ext.ut rdHB, rdHC, rdHD` 或 `ext.ut rdHB, rdHC, immu6` | hd ≤ 31 |
+**SPEC-069t**：`ext.ut`/`ext.st`（32位符号/零扩展）已从指令集中删除。64位扩展见 SimRISC-04。
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。

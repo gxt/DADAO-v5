@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000000..4bf3f68981
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_shift.c.inc
-@@ -0,0 +1,461 @@
+@@ -0,0 +1,412 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §3.4.1 shr.uo/shr.so/shl.uo (orrr, MISC-octa): shift
@@ -116,11 +116,8 @@ index 0000000000..4bf3f68981
 +    /* Extract 32-bit source */
 +    tcg_gen_andi_i64(val, rdhc, 0xFFFFFFFFULL);
 +    tcg_gen_shr_i64(val, val, shamt);
-+    /* Keep rdhb[63:32], insert shifted result */
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: zero-extend to64 bits (value semantics) */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -139,13 +136,10 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_ext32s_i64(val, rdhc);
 +    tcg_gen_sar_i64(val, val, shamt);
-+    /* Keep rdhb[63:32] */
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
-+    TCGv_i64 lo = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(lo, val, 0xFFFFFFFFULL);
-+    tcg_gen_or_i64(rdhb, hi, lo);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: sign-extend result to64 bits (value semantics)
++     * shr.st: arithmetic right shift of sign-extended32-bit value already produces
++     * correct64-bit sign-extended result */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -163,12 +157,9 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFFFFFFFULL);
 +    tcg_gen_shl_i64(val, val, shamt);
-+    /* Mask result to32 bits */
-+    tcg_gen_andi_i64(val, val, 0xFFFFFFFFULL);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    tcg_gen_andi_i64(val, val, 0xFFFFFFFFULL);  /* truncate to N+1 bits */
++    /* SPEC-069t: zero-extend to64 bits (value semantics) */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -188,10 +179,8 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFFFFFFFULL);
 +    tcg_gen_shri_i64(val, val, a->hd);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -210,12 +199,8 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_ext32s_i64(val, rdhc);
 +    tcg_gen_sari_i64(val, val, a->hd);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
-+    TCGv_i64 lo = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(lo, val, 0xFFFFFFFFULL);
-+    tcg_gen_or_i64(rdhb, hi, lo);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: sign-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -234,11 +219,9 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFFFFFFFULL);
 +    tcg_gen_shli_i64(val, val, a->hd);
-+    tcg_gen_andi_i64(val, val, 0xFFFFFFFFULL);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, 0xFFFFFFFF00000000ULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    tcg_gen_andi_i64(val, val, 0xFFFFFFFFULL);  /* truncate to N+1 bits */
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -254,10 +237,8 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFFFULL);
 +    tcg_gen_shr_i64(val, val, shamt);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -273,12 +254,8 @@ index 0000000000..4bf3f68981
 +    tcg_gen_shli_i64(val, rdhc, 48);
 +    tcg_gen_sari_i64(val, val, 48); /* sign-extend from 16 */
 +    tcg_gen_sar_i64(val, val, shamt);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
-+    TCGv_i64 lo = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(lo, val, 0xFFFFULL);
-+    tcg_gen_or_i64(rdhb, hi, lo);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: sign-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -293,11 +270,9 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFFFULL);
 +    tcg_gen_shl_i64(val, val, shamt);
-+    tcg_gen_andi_i64(val, val, 0xFFFFULL);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    tcg_gen_andi_i64(val, val, 0xFFFFULL);  /* truncate to N+1 bits */
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -311,10 +286,8 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFFFULL);
 +    tcg_gen_shri_i64(val, val, a->hd);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -328,12 +301,8 @@ index 0000000000..4bf3f68981
 +    tcg_gen_shli_i64(val, rdhc, 48);
 +    tcg_gen_sari_i64(val, val, 48);
 +    tcg_gen_sari_i64(val, val, a->hd);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
-+    TCGv_i64 lo = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(lo, val, 0xFFFFULL);
-+    tcg_gen_or_i64(rdhb, hi, lo);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: sign-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -346,11 +315,9 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFFFULL);
 +    tcg_gen_shli_i64(val, val, a->hd);
-+    tcg_gen_andi_i64(val, val, 0xFFFFULL);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFFFULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    tcg_gen_andi_i64(val, val, 0xFFFFULL);  /* truncate to N+1 bits */
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -366,10 +333,8 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFULL);
 +    tcg_gen_shr_i64(val, val, shamt);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -385,12 +350,8 @@ index 0000000000..4bf3f68981
 +    tcg_gen_shli_i64(val, rdhc, 56);
 +    tcg_gen_sari_i64(val, val, 56);
 +    tcg_gen_sar_i64(val, val, shamt);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
-+    TCGv_i64 lo = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(lo, val, 0xFFULL);
-+    tcg_gen_or_i64(rdhb, hi, lo);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: sign-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -405,11 +366,9 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFULL);
 +    tcg_gen_shl_i64(val, val, shamt);
-+    tcg_gen_andi_i64(val, val, 0xFFULL);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    tcg_gen_andi_i64(val, val, 0xFFULL);  /* truncate to N+1 bits */
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -423,10 +382,8 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFULL);
 +    tcg_gen_shri_i64(val, val, a->hd);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -440,12 +397,8 @@ index 0000000000..4bf3f68981
 +    tcg_gen_shli_i64(val, rdhc, 56);
 +    tcg_gen_sari_i64(val, val, 56);
 +    tcg_gen_sari_i64(val, val, a->hd);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
-+    TCGv_i64 lo = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(lo, val, 0xFFULL);
-+    tcg_gen_or_i64(rdhb, hi, lo);
-+    store_rd(a->hb, rdhb);
++    /* SPEC-069t: sign-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}
 +
@@ -458,10 +411,8 @@ index 0000000000..4bf3f68981
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(val, rdhc, 0xFFULL);
 +    tcg_gen_shli_i64(val, val, a->hd);
-+    tcg_gen_andi_i64(val, val, 0xFFULL);
-+    TCGv_i64 hi = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(hi, rdhb, ~0xFFULL);
-+    tcg_gen_or_i64(rdhb, hi, val);
-+    store_rd(a->hb, rdhb);
++    tcg_gen_andi_i64(val, val, 0xFFULL);  /* truncate to N+1 bits */
++    /* SPEC-069t: zero-extend to64 bits */
++    store_rd(a->hb, val);
 +    return true;
 +}

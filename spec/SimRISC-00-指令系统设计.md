@@ -317,13 +317,15 @@ tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
-| 001-xxx   | and.t_orrr_rd    | or.t_orrr_rd     | xor.t_orrr_rd    | xnor.t_orrr_rd   |               |               |               |               |
-| 010-xxx   | ext.ut_orrr_rd   | ext.st_orrr_rd   | shr.ut_orrr_rd   | shr.st_orrr_rd   | shl.ut_orrr_rd   |               |               |               |
-| 011-xxx   | ext.ut_orri_rd   | ext.st_orri_rd   | shr.ut_orri_rd   | shr.st_orri_rd   | shl.ut_orri_rd   |               |               |               |
+| 001-xxx   |               |               |               |               |               |               |               |               |
+| 010-xxx   |               |               | shr.ut_orrr_rd   | shr.st_orrr_rd   | shl.ut_orrr_rd   |               |               |               |
+| 011-xxx   |               |               | shr.ut_orri_rd   | shr.st_orri_rd   | shl.ut_orri_rd   |               |               |               |
 | 100-xxx   | add.ut_orrr_rd   | add.st_orrr_rd   |               |               |               |               |               |               |
 | 101-xxx   | sub.ut_orrr_rd   | sub.st_orrr_rd   | cmp.ut_orrr_rd   | cmp.st_orrr_rd   |               |               |               |               |
 | 110-xxx   | mul.ut_orrr_rd   | mul.st_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.ut_orrr_rd   | div.st_orrr_rd   | rem.ut_orrr_rd   | rem.st_orrr_rd   |               |               |               |               |
+
+> **SPEC-069t**：上表空单元格为已删除条目（共 8 条/子表：4 逻辑 + 2 ext×2 格式），其 opx 现为 reserved（UNDI）。
 
 ### MISC-wyde指令编码
 
@@ -333,13 +335,15 @@ wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
-| 001-xxx   | and.w_orrr_rd    | or.w_orrr_rd     | xor.w_orrr_rd    | xnor.w_orrr_rd   |               |               |               |               |
-| 010-xxx   | ext.uw_orrr_rd   | ext.sw_orrr_rd   | shr.uw_orrr_rd   | shr.sw_orrr_rd   | shl.uw_orrr_rd   |               |               |               |
-| 011-xxx   | ext.uw_orri_rd   | ext.sw_orri_rd   | shr.uw_orri_rd   | shr.sw_orri_rd   | shl.uw_orri_rd   |               |               |               |
+| 001-xxx   |               |               |               |               |               |               |               |               |
+| 010-xxx   |               |               | shr.uw_orrr_rd   | shr.sw_orrr_rd   | shl.uw_orrr_rd   |               |               |               |
+| 011-xxx   |               |               | shr.uw_orri_rd   | shr.sw_orri_rd   | shl.uw_orri_rd   |               |               |               |
 | 100-xxx   | add.uw_orrr_rd   | add.sw_orrr_rd   |               |               |               |               |               |               |
 | 101-xxx   | sub.uw_orrr_rd   | sub.sw_orrr_rd   | cmp.uw_orrr_rd   | cmp.sw_orrr_rd   |               |               |               |               |
 | 110-xxx   | mul.uw_orrr_rd   | mul.sw_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.uw_orrr_rd   | div.sw_orrr_rd   | rem.uw_orrr_rd   | rem.sw_orrr_rd   |               |               |               |               |
+
+> **SPEC-069t**：上表空单元格为已删除条目（共 8 条/子表：4 逻辑 + 2 ext×2 格式），其 opx 现为 reserved（UNDI）。
 
 ### MISC-byte指令编码
 
@@ -349,13 +353,15 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
-| 001-xxx   | and.b_orrr_rd    | or.b_orrr_rd     | xor.b_orrr_rd    | xnor.b_orrr_rd   |               |               |               |               |
-| 010-xxx   | ext.ub_orrr_rd   | ext.sb_orrr_rd   | shr.ub_orrr_rd   | shr.sb_orrr_rd   | shl.ub_orrr_rd   |               |               |               |
-| 011-xxx   | ext.ub_orri_rd   | ext.sb_orri_rd   | shr.ub_orri_rd   | shr.sb_orri_rd   | shl.ub_orri_rd   |               |               |               |
+| 001-xxx   |               |               |               |               |               |               |               |               |
+| 010-xxx   |               |               | shr.ub_orrr_rd   | shr.sb_orrr_rd   | shl.ub_orrr_rd   |               |               |               |
+| 011-xxx   |               |               | shr.ub_orri_rd   | shr.sb_orri_rd   | shl.ub_orri_rd   |               |               |               |
 | 100-xxx   | add.ub_orrr_rd   | add.sb_orrr_rd   |               |               |               |               |               |               |
 | 101-xxx   | sub.ub_orrr_rd   | sub.sb_orrr_rd   | cmp.ub_orrr_rd   | cmp.sb_orrr_rd   |               |               |               |               |
 | 110-xxx   | mul.ub_orrr_rd   | mul.sb_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.ub_orrr_rd   | div.sb_orrr_rd   | rem.ub_orrr_rd   | rem.sb_orrr_rd   |               |               |               |               |
+
+> **SPEC-069t**：上表空单元格为已删除条目（共 8 条/子表：4 逻辑 + 2 ext×2 格式），其 opx 现为 reserved（UNDI）。
 
 ### MISC-RF指令编码
 
@@ -380,9 +386,6 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 |--------|------|----------|------|----------|
 | `nop` | `nop` | `swym 0` | 空操作，占位或对齐 | SimRISC-11 §nop 伪指令 |
 | `return` | `return` | `ret rd0, 0` | 无返回值的函数返回 | SimRISC-06 §return 伪指令 |
-| `not.b` | `not.b rdHB, rdHC` | `xnor.b rdHB, rdHC, rd0` | 8 位按位取反 | SimRISC-10 §not 伪指令 |
-| `not.w` | `not.w rdHB, rdHC` | `xnor.w rdHB, rdHC, rd0` | 16 位按位取反 | SimRISC-09 §not 伪指令 |
-| `not.t` | `not.t rdHB, rdHC` | `xnor.t rdHB, rdHC, rd0` | 32 位按位取反 | SimRISC-08 §not 伪指令 |
 | `not.o` | `not.o rdHB, rdHC` | `xnor.o rdHB, rdHC, rd0` | 64 位按位取反 | SimRISC-04 §not 伪指令 |
 | `neg.b` | `neg.b rdHB, rdHC` | `sub.sb rdHB, rd0, rdHC` | 8 位取负，符号扩展 | SimRISC-10 §neg 伪指令 |
 | `neg.w` | `neg.w rdHB, rdHC` | `sub.sw rdHB, rd0, rdHC` | 16 位取负，符号扩展 | SimRISC-09 §neg 伪指令 |

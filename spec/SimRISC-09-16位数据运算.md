@@ -6,24 +6,18 @@
 <!-- ASSEMBLY_LIST_START -->
 ## 汇编指令速查
 
-### 16位数据运算（26 条）
+### 16位数据运算（18 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `add.sw` | `orrr` | `rd` | `add.sw rdHB, rdHC, rdHD` | `add.sw_orrr_rd` |
 | `add.uw` | `orrr` | `rd` | `add.uw rdHB, rdHC, rdHD` | `add.uw_orrr_rd` |
-| `and.w` | `orrr` | `rd` | `and.w rdHB, rdHC, rdHD` | `and.w_orrr_rd` |
 | `cmp.sw` | `orrr` | `rd` | `cmp.sw rdHB, rdHC, rdHD` | `cmp.sw_orrr_rd` |
 | `cmp.uw` | `orrr` | `rd` | `cmp.uw rdHB, rdHC, rdHD` | `cmp.uw_orrr_rd` |
 | `div.sw` | `orrr` | `rd` | `div.sw rdHB, rdHC, rdHD` | `div.sw_orrr_rd` |
 | `div.uw` | `orrr` | `rd` | `div.uw rdHB, rdHC, rdHD` | `div.uw_orrr_rd` |
-| `ext.sw` | `orri` | `rd` | `ext.sw rdHB, rdHC, immu6` | `ext.sw_orri_rd` |
-| `ext.sw` | `orrr` | `rd` | `ext.sw rdHB, rdHC, rdHD` | `ext.sw_orrr_rd` |
-| `ext.uw` | `orri` | `rd` | `ext.uw rdHB, rdHC, immu6` | `ext.uw_orri_rd` |
-| `ext.uw` | `orrr` | `rd` | `ext.uw rdHB, rdHC, rdHD` | `ext.uw_orrr_rd` |
 | `mul.sw` | `orrr` | `rd` | `mul.sw rdHB, rdHC, rdHD` | `mul.sw_orrr_rd` |
 | `mul.uw` | `orrr` | `rd` | `mul.uw rdHB, rdHC, rdHD` | `mul.uw_orrr_rd` |
-| `or.w` | `orrr` | `rd` | `or.w rdHB, rdHC, rdHD` | `or.w_orrr_rd` |
 | `rem.sw` | `orrr` | `rd` | `rem.sw rdHB, rdHC, rdHD` | `rem.sw_orrr_rd` |
 | `rem.uw` | `orrr` | `rd` | `rem.uw rdHB, rdHC, rdHD` | `rem.uw_orrr_rd` |
 | `shl.uw` | `orri` | `rd` | `shl.uw rdHB, rdHC, immu6` | `shl.uw_orri_rd` |
@@ -34,8 +28,6 @@
 | `shr.uw` | `orrr` | `rd` | `shr.uw rdHB, rdHC, rdHD` | `shr.uw_orrr_rd` |
 | `sub.sw` | `orrr` | `rd` | `sub.sw rdHB, rdHC, rdHD` | `sub.sw_orrr_rd` |
 | `sub.uw` | `orrr` | `rd` | `sub.uw rdHB, rdHC, rdHD` | `sub.uw_orrr_rd` |
-| `xnor.w` | `orrr` | `rd` | `xnor.w rdHB, rdHC, rdHD` | `xnor.w_orrr_rd` |
-| `xor.w` | `orrr` | `rd` | `xor.w rdHB, rdHC, rdHD` | `xor.w_orrr_rd` |
 
 <!-- ASSEMBLY_LIST_END -->
 
@@ -67,20 +59,12 @@ div.uw  rdHB, rdHC, rdHD
 div.sw  rdHB, rdHC, rdHD
 rem.uw  rdHB, rdHC, rdHD
 rem.sw  rdHB, rdHC, rdHD
-and.w   rdHB, rdHC, rdHD
-or.w    rdHB, rdHC, rdHD
-xor.w   rdHB, rdHC, rdHD
-xnor.w  rdHB, rdHC, rdHD
 shl.uw  rdHB, rdHC, rdHD
 shl.uw  rdHB, rdHC, immu6
 shr.uw  rdHB, rdHC, rdHD
 shr.uw  rdHB, rdHC, immu6
 shr.sw  rdHB, rdHC, rdHD
 shr.sw  rdHB, rdHC, immu6
-ext.uw  rdHB, rdHC, rdHD
-ext.uw  rdHB, rdHC, immu6
-ext.sw  rdHB, rdHC, rdHD
-ext.sw  rdHB, rdHC, immu6
 ```
 
 #### neg 伪指令
@@ -96,7 +80,7 @@ ext.sw  rdHB, rdHC, immu6
 neg.w   rd1, rd2        ; rd1 = -rd2（低 16 位取负，符号扩展）
 ```
 
-### 比较操作
+### 比较操作 — 值语义
 
 MISC-wyde 子表中的 `cmp.s`/`cmp.u`（后缀 `.sw`/`.uw`）提供 16 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
@@ -104,7 +88,9 @@ MISC-wyde 子表中的 `cmp.s`/`cmp.u`（后缀 `.sw`/`.uw`）提供 16 位比�
 |------|------|---------|---------|
 | `cmp.uw`/`cmp.sw` | 16 位 | `cmp.uw rdHB, rdHC, rdHD` | bits[15:0] |
 
-例如 `cmp.sw rd1, rd2, rd3` 将 rd2 和 rd3 的低 16 位按有符号比较，结果写入 rd1。
+**SPEC-069t 高位规则**：比较结果 −1/0/+1 按后缀扩展写满64位——`.sw` ⇒ 结果符号扩展；`.uw` ⇒ 结果零扩展。
+
+例如 `cmp.sw rd1, rd2, rd3` 将 rd2 和 rd3 的低 16 位按有符号比较，结果符号扩展写入 rd1。
 
 ### 乘除操作
 
@@ -121,42 +107,37 @@ MISC-wyde 子表中的 `mul`/`div`/`rem` 提供 16 位乘除余运算。`mul` �
 - **溢出 → 定值**（不触发异常）：`div.s` 中 wyde 对应的 −32768 ÷ −1 见定值表。`div.u`/`rem.u` 不存在溢出。
 - **定值表**：详见 SimRISC-04 §乘除操作定值表。
 
-## 逻辑运算类指令
+## 逻辑运算类指令 — 已删除
 
-### Logic operators：逻辑运算
+### Logic operators：逻辑运算 — 已删除
 
-MISC-wyde 子表中的 `and`/`or`/`xor`/`xnor`（后缀 `.w`）提供 16 位逻辑运算。操作数格式为 `orrr`。
+**SPEC-069t**：`and.w`/`or.w`/`xor.w`/`xnor.w` 已从指令集中删除。64 位逻辑运算见 SimRISC-04。
 
-| 指令 | 位宽 | 汇编语法 | 操作范围 |
-|------|------|---------|---------|
-| `and.w`/`or.w`/`xor.w`/`xnor.w` | 16 位 | `and.w rdHB, rdHC, rdHD` | bits[15:0] 参与运算，bits[63:16] 不变 |
+#### not 伪指令 — 已删除
 
-逻辑运算规则和逻辑非实现见 SimRISC-04。以上四条逻辑运算指令在 size 范围外的高位（bits[63:16]）保持目的寄存器原有值不变。
+**SPEC-069t**：`not.w` 已删除（窄位宽逻辑指令 `xnor.w` 已不存在）；仅保留 `not.o`（见 SimRISC-04）。
 
-#### not 伪指令
-
-| 伪指令 | 展开形式 | 操作范围 |
-|--------|----------|----------|
-| `not.w rdHB, rdHC` | `xnor.w rdHB, rdHC, rd0` | bits[15:0] 取反，bits[63:16] 不变 |
-
-源和目的可为同一寄存器（原地取反）。
-
-### Bit manipulating：位操作指令
+### Bit manipulating：位操作指令 — 值语义
 
 MISC-wyde 子表中的 `shl`/`shr`（后缀 `.uw`/`.sw`）提供 16 位移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
-移位语义和扩展语义见 SimRISC-04。其中 N=15。
+**SPEC-069t 值语义**：所有移位结果写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。
+
+移位语义见 SimRISC-04。其中 N=15。
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
 | `shl.uw`/`shr.sw`/`shr.uw` | 15 | 0-15 | hd[3:0]，hd[5:4] 应为零 |
 
+运算公式：
+```
+shl.uw:  rdHB[15:0]  = (rdHC[15:0] << shamt),  rdHB[63:16] = 0
+shr.uw:  rdHB[15:0]  = (rdHC[15:0] >> shamt),  rdHB[63:16] = 0
+shr.sw:  rdHB[15:0]  = (rdHC[15:0] >> shamt) with sign(15),  rdHB[63:16] = sign_extend(rdHC[15])
+```
+
 `shamt > N` 触发 ILLI。
 
-`ext.s` 是符号扩展，`ext.u` 是零扩展。操作数格式为 `orrr`（寄存器形式，hd=扩展起始位）和 `orri`（立即数形式，hd=immu6 扩展起始位）。
-
-| 指令 | N | 汇编语法 | 约束 |
-|------|---|---------|------|
-| `ext.uw`/`ext.sw` | 15 | `ext.uw rdHB, rdHC, rdHD` 或 `ext.uw rdHB, rdHC, immu6` | hd ≤ 15 |
+**SPEC-069t**：`ext.uw`/`ext.sw`（16位符号/零扩展）已从指令集中删除。64位扩展见 SimRISC-04。
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。

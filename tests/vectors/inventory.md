@@ -13,7 +13,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > `validate_vectors.py` 机械校验本表的 M1 行集与 `contracts/opcodes.yaml`
 > 的 M1 身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）。
 
-## M1 覆盖矩阵（176 条）
+## M1 覆盖矩阵（152 条）
 
 | id | format | file | encoding | legality | semantic | boundary | overlap | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -115,17 +115,9 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `div.so_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.uo_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.so_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `and.t_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `or.t_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xor.t_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xnor.t_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ext.ut_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.st_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ut_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.st_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.ut_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.ut_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.st_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ut_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.st_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.ut_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
@@ -141,17 +133,9 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `div.st_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.ut_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.st_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `and.w_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `or.w_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xor.w_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xnor.w_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ext.uw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.sw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.uw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.uw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.uw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.sw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.uw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.uw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
@@ -167,17 +151,9 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `div.sw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.uw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.sw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `and.b_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `or.b_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xor.b_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xnor.b_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ext.ub_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.sb_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ub_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sb_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.ub_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.ub_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.sb_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ub_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sb_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.ub_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |

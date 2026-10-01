@@ -198,8 +198,9 @@ neg.o   rd3, rd4        ; rd3 = -rd4（64 位取负）
 shl.u: rdHB[N:0]   = (rdHC[N:0] << shamt)                // 左移，低位补零
 shr.u: rdHB[N:0]   = (rdHC[N:0] >> shamt)                // 逻辑右移，高位补零
 shr.s: rdHB[N:0]   = (rdHC[N:0] >> shamt) with sign(N)   // 算术右移，高位补 rdHC[N]
-rdHB[63:N+1] = rdHB[63:N+1]                               // 高位不变
 ```
+
+**SPEC-069t 值语义通则**：所有移位/比较指令的结果均写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。64 位操作 N=63 自然写满；32/16/8 位操作的高位扩展规则见 SimRISC-08/09/10。
 
 其中 N 由位宽决定。shamt 和 N 的对应关系如下：
 
@@ -213,9 +214,10 @@ rdHB[63:N+1] = rdHB[63:N+1]                               // 高位不变
 
 ```
 rdHB[hd:0]   = rdHC[hd:0]                               // 复制源低位
-rdHB[N:hd+1] = sign/zero_extend(rdHC[hd])                // 符号/零扩展（N=63）
-rdHB[63:N+1] = rdHB[63:N+1]                              // 高位不变
+rdHB[63:hd+1] = sign/zero_extend(rdHC[hd])               // 符号/零扩展（N=63，自然写满64位）
 ```
+
+> **SPEC-069t**：64位 ext（N=63）自然写满64位；32/16/8 位 ext 已从指令集中删除（见 SimRISC-08/09/10）。
 
 其中 N 由位宽决定（octa→63），hd 为扩展起始位，须满足 `hd ≤ N`，否则 ILLI。
 
