@@ -139,3 +139,20 @@
 | **lit 覆盖断言的粒度限制（`INTEG-007t`，2026-09-30 登记）**：`check_interface_alignment.py` 的 lit 覆盖断言已改为「**每个 M1 `format` 族 ≥ 1 条 `# OBJ:` pattern**」（族集派生自 `contracts/opcodes.yaml`，语料取自 `tests/lit/MC/Dadao/`，判定法 = 由 `# OBJ:` 的 opcode word 反查 `opcodes.yaml` 得 `format`）。**残余限制**：**同一族内删多条 pattern 之一**（如 `rrrr` 族有 N 条、删 1 条后仍 ≥1）**无法被检出**——无「基线条数」参照，属不可解。若要覆盖，需引入**基线/下限**（如每族最低条数写进契约，但那是硬编码的回归）或**与向量语料交叉**，由后续任务评估。 | `INTEG-007t` reviewer 第 2 轮（判为可接受已知限制，须登记） | 登记（非阻断） |
 | **`new file mode` 补丁的 `index` blob hash 失配（9 项，`QEMU-029t` F2 扫描发现，2026-09-30 登记，**pre-existing**）**：对全部 `new file mode` 补丁做「`+` 行（排除 `+++`）重建 blob vs `index <old>..<new>` 的 `<new>`」一致性扫描，发现 9 项失配（`cpu.c.patch` 已由本任务 F1 修复，不计）。LLVM 侧 7 项：`DADAOMCInstPrinter.cpp.patch`（declared=2dc784667a / actual=534e9fede4）、`DADAOFixupKinds.h.patch`（466ea7d6a4 / 7bcd322cf5）、`DADAOAsmBackend.cpp.patch`（34ff0b25af / 00f423f3d0）、`DADAOInstrFormats.td.patch`（7012c4fcb2 / cbc66c39f4）、`DADAO.h.patch`（a3e9da95db / 8f142f3fc5）、`DADAODisassembler.cpp.patch`（b708270f07 / b522e707b6）、`DADAOInstrInfo.td.patch`（8238bd692e / 2d320f6cc6）。QEMU 侧 2 项：`insn.decode.patch`（0b1c43bf17 / 1a30c32490）、`trans_ctrl.c.inc.patch`（50a2656f48 / 7b9ef6bda）。**非本任务引入**（HEAD 版同样失配）。**性质**：`index` hash 不影响 `git apply` 行为（apply 只看 diff 内容，不校验 hash），但与 git 内部语义不自洽。**注意**：修改类（非 `new file mode`）补丁**不能**用此法判定（需 base + 兄弟补丁才能重建，会产生假阳性），本扫描已排除。归属：后续 infra 或各组件模块的补丁卫生任务（低优先级，不阻塞任何门控）。 | `QEMU-029t` F2 扫描 | 登记（非阻断） |
 - **`min_rom_probe_{006t,008t,009t,010t,013t,028t}.py` 群 FAIL 与 `009t-audit` FAIL（`SPEC-068t` 第 3 轮 reviewer 发现，2026-10-01 登记，**pre-existing，与 SPEC-068t 无关**）**：这些探针/审计脚本现 FAIL，但 reviewer 抽查证伪：`min_rom_probe_008t.py` 把 `illi()` op 改 `0x00`→`0x77` 后 T20 **仍 FAIL**（`exit=0x89 expect=0x88`）；`009t` 的 12/12 失败全部因 `rela.si` 已被 `SPEC-057t` 删除（历史漂移）。故判为**先于本任务的既有漂移**，非 SPEC-068t 编码变更所致。归属：后续 qemu 模块任务清理（或逐个评估是否仍需保留）。
+
+## 2026-10-02 本轮登记（`SPEC-069t` 后继：`SPEC-070t`/`071t`/`073t`/`074t`、`INFRA-018t`）
+
+> 本轮在 M2 合法性清单线上发现/留存的遗留。部分历史候选已登记在既有条目，见文末「已登记、勿重复」。
+
+- **`excp_rasof`/`excp_rasuf` 描述仍用已废弃的 MemRAS 引用计数模型（原候选「`legality_rules.yaml:199` 旧口径」；`SPEC-070t` 重写后位于 **L190–203**，仍未消解）**：两条 `description` 写「RegRAS 满且 MemRAS 不可用，或 MemRAS 引用计数溢出/下溢时触发」，与 **`ADR-0012 D7`**（RA = 环形缓冲 + 隐藏基准索引 + `RACNT` 有效判据）不符；`QEMU-030t` 已按 D7 重写实现。归属：spec 模块后续任务（把规则描述同步到 D7 口径）。
+- **`tools/spec/gen_legality_list.py --verify` 检出 MISMATCH 仍 `return 0`（`SPEC-073t`/`074t` reviewer 观察，非阻断）**：退出码不携带信号 + 子串判定。现由 `check-legality-drift`（`SPEC-074t`：真失败、整段精确比对）承担；`--verify` 本身是否顺带修，留后续（可选）。
+- **`tools/spec/check_rule_refs.py` 的 `gate2_fail` 分支不可达（`SPEC-071t` reviewer 观察，非阻断）**：豁免自检先行退出，孤儿情形仍由自检报 `EXIT=1`、无假 PASS。建议后续随 drift 门控一并精简。
+- **`imm_range` 移出 `legality_rules.yaml` 后，规范侧通用说明尚未落位（`SPEC-070t`，用户裁定「汇编器职责」）**：规则条目已删；其「立即数范围属**汇编期**约束」的通用说明未在任何 spec 章节落地。归属：spec 模块后续任务（或随确认门 ② 一并处理）。
+- **生成器↔向量预存漂移（`SPEC-070t` reviewer 第 1 轮发现，**pre-existing**）**：`tools/testcases/generate_isa_vectors.py` 的 `cmp.ut/uw/ub` 生成 `rd1=0xFFFFFFFFFFFFFFFF`，而已提交向量为窄化值（`0x00000000FFFFFFFF` 等）；另有 `reg-arith` 缺 `SPEC-066t` div/rem 定值语义块（WORK 224 vs GEN 184）、`reg-shift-extend` 缺 `shl.ut` 清零高位 case、`reg-imm-block` 若干 `spec_cite` 文本差异、`mem-rb/rd` 仍出 `store_src_rd0`/`rb_base_rb0_store` 旧 id。**凡「向量再生」类任务必须先修生成器**，否则会回退人工修正（`SPEC-073t` 因此未重新生成向量）。归属：testcases 模块后续任务。
+- **合法性清单渲染格式的用户确认门 ② 未显式答复（`SPEC-073t`，2026-10-02，流程）**：12 章 `LEGALITY` 生成区已按现有格式提交（`fe190e2`）；用户选择「迁移环境」，未逐章确认。若迁移后需改格式，属 `gen_legality_list.py` + `check-legality-drift` 的同步改动（成本低）。
+
+**已登记、勿重复**（本轮候选，已在既有条目）：
+- 探针群 FAIL（`min_rom_probe_{006t,008t,009t,010t,013t,028t}` + `009t-audit`）→ 见本文件上一条（`SPEC-068t` 第 3 轮登记）。
+- `new file mode` 补丁 `index` 失配 9 项 → 见上文表格条（`QEMU-029t` F2）。
+- `ftroot`/`foroot` n=2 无门控 → 见 `SPEC-067t` F4 条。
+- 探针「标签化」框架 → 见 `QEMU-010t` 第 5 轮条。
