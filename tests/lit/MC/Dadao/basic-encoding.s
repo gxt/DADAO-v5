@@ -26,17 +26,17 @@ add.si rb1, 1
 add.si rd8, -1
 
 # Forward branch at non-zero offset
-# swym 0 at offset 0x0C: 0x00080000
+# swym 0 at offset 0x0C: 0x77080000
 # br.n {rd0}?, [rb0, L1] at offset 0x10: L1 at 0x14
 #   imms = (0x14 - 0x10) >> 2 = 1
 #   word = 0x68<<24 | 1 = 0x68000001
-# L1: swym 0 at offset 0x14: 0x00080000
+# L1: swym 0 at offset 0x14: 0x77080000
 swym 0
 br.n {rd0}?, [rb0, L1]
 L1: swym 0
 
 # Backward branch
-# L2: swym 0 at offset 0x18: 0x00080000
+# L2: swym 0 at offset 0x18: 0x77080000
 # br.n {rd0}?, [rb0, L2] at offset 0x1C: L2 at 0x18
 #   imms = (0x18 - 0x1C) >> 2 = -1 = 0x3FFFF (18-bit signed)
 #   word = 0x68<<24 | 0x3FFFF = 0x6803FFFF

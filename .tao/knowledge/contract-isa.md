@@ -220,7 +220,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 
 | op[7:3]\op[2:0] | xxxx-x000 | xxxx-x001 | xxxx-x010 | xxxx-x011 | xxxx-x100 | xxxx-x101 | xxxx-x110 | xxxx-x111 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0000-0xxx | MISC-AMO | — | — | — | — | — | — | — |
+| 0000-0xxx | — | — | — | — | — | — | — | — |
 | 0000-1xxx | — | — | — | — | — | — | — | — |
 | 0001-0xxx | ld.ub-rd | ld.uw-rd | ld.ut-rd | ld.sb-rd | ld.sw-rd | ld.st-rd | ld.t-rf Excl. | st.t-rf Excl. |
 | 0001-1xxx | st.b-rd | st.w-rd | st.t-rd | — | — | — | — | — |
@@ -234,7 +234,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0101-1xxx | — | add.si-rd | ~~rela.si-rb~~ UNDI | add.si-rb | cmp.ui-rd | cmp.si-rd | cs.eq-rf Excl. | cs.ne-rf Excl. |
 | 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
 | 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
-| 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | — |
+| 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | MISC-AMO |
 | 0111-1xxx | — | — | cfx2rd Excl. | cfx2rc Excl. | cfxld Excl. | cfxst Excl. | escape Excl. | trap Excl. |
 
 > Excl. = `Excluded from M1`。`MISC-AMO` 子表中的 LR-SC 条目同属 Excluded from M1（见 §14.2）。[SimRISC-00 §SimRISC QFC]
@@ -251,13 +251,13 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | `MISC-octa` | 0100-0000 | octa |
 
 - 各子表指令的 opx 在 `ha[5:0]`，与 op 共同确定指令。[SimRISC-00 §指令域说明]
-- `MISC-AMO`（op = 0000-0000）承载 illi/fence 与 LR-SC 原子指令。[SimRISC-00 §MISC-AMO 指令编码]
+- `MISC-AMO`（op = 0111-0111）承载 illi/fence 与 LR-SC 原子指令。[SimRISC-00 §MISC-AMO 指令编码]
 - `MISC-RF`（op = 0100-0100）承载浮点指令，Excluded from M1。[SimRISC-00 §MISC-RF指令编码]
 
 ### §2.9 保留编码
 
 - QFC 主表与各 MISC 子表的空白单元格为 reserved（保留未分配），执行保留编码触发 **UNDI** 异常。[SimRISC-00 §SimRISC QFC]
-- 32 位全零指令字（0x00000000）是 `illi 0`（opc 与 opx 均为全 0），触发 **ILLI** 异常（不是 UNDI）。[SimRISC-11 §非法指令]
+- 32 位全零指令字（0x00000000）：`MISC-AMO` 编码变更后，op = 0x00 在 QFC 主表为空白单元格（reserved），触发 **UNDI** 异常（不再是 `illi 0`）。`illi 0` 的新编码为 0x77000000。[SimRISC-11 §非法指令]
 
 ---
 
@@ -1086,7 +1086,7 @@ SimRISC 采用 `illi` 作为专门的非法指令（illegal instruction）。[Si
 
 - `illi` 的后 18 位立即数无特殊含义，完全由用户/软件自定义，用户可通过操作系统机制捕获该异常并做功能扩展。[SimRISC-11 §非法指令]
 - 不建议捕获其它指令产生的非法指令异常做功能扩展（例如很多指令不允许目的为 rd0，否则引发非法指令异常）。[SimRISC-11 §非法指令]
-- `illi` 的 opc 和 opx 均为全 0，当参数也为 0 时即为 32 位全零指令字；未初始化的指令内存（全零）将触发 **ILLI** 异常。[SimRISC-11 §非法指令]
+- `illi` 的 op = 0111-0111（0x77），`illi 0` 的编码为 0x77000000。MISC-AMO 编码变更后，32 位全零指令字（0x00000000）不再是 `illi 0`，而是保留编码，触发 **UNDI** 异常（见 §2.9）。[SimRISC-11 §非法指令]
 
 ### §13.3 伪指令 nop
 
@@ -1098,11 +1098,11 @@ SimRISC 采用 `illi` 作为专门的非法指令（illegal instruction）。[Si
 
 QFC 主表与各 MISC 子表的空白单元格为 reserved（保留未分配）；执行保留编码触发 **UNDI** 异常。[SimRISC-00 §SimRISC QFC]
 
-### §13.5 全零指令（ILLI）
+### §13.5 全零指令（UNDI）
 
-32 位全零指令字（0x00000000）是 `illi 0`（opc 与 opx 均为全 0），触发 **ILLI** 异常；未初始化的指令内存（全零）将触发 ILLI。[SimRISC-11 §非法指令]
+MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 在 QFC 主表为空白单元格（reserved），触发 **UNDI** 异常（非 ILLI）。`illi 0` 的编码已变更为 0x77000000（op = 0x77）。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
 
-> 注意：全零字触发 ILLI（§13.5），而保留编码触发 UNDI（§13.4），二者不同。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
+> 注意：`illi` 指令本身（op=0x77）触发 ILLI（§13.2），而全零字（op=0x00，保留编码）触发 UNDI（§13.5/§13.4），二者不同。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
 
 ---
 
@@ -1181,7 +1181,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]
 - 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-04/08/09/10 §加减操作][SimRISC-04/08/09/10 §比较操作][SimRISC-04/08/09/10 §乘除操作]
-- `illi` 指令本身（含全零指令字）。[SimRISC-11 §非法指令]
+- `illi` 指令本身（op=0x77000000）。[SimRISC-11 §非法指令]
 
 ### §15.2 精确异常承诺
 
@@ -1197,7 +1197,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 | op (hex) | op (bits) | 格式 | insn | 助记符 | 来源 |
 |----------|-----------|------|------|--------|------|
-| 0x00 | 0000-0000 | — | MISC-AMO | （见 A.6） | [SimRISC-00 §SimRISC QFC] |
+| 0x77 | 0111-0111 | — | MISC-AMO | （见 A.6） | [SimRISC-00 §SimRISC QFC] |
 | 0x10 | 0001-0000 | rrii | ld.ub-rd | `ld.ub` | [SimRISC-00 §SimRISC QFC] |
 | 0x11 | 0001-0001 | rrii | ld.uw-rd | `ld.uw` | [SimRISC-00 §SimRISC QFC] |
 | 0x12 | 0001-0010 | rrii | ld.ut-rd | `ld.ut` | [SimRISC-00 §SimRISC QFC] |
@@ -1270,7 +1270,6 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x74 | 0111-0100 | iiii | call-iiii | `call` | [SimRISC-00 §SimRISC QFC] |
 | 0x75 | 0111-0101 | rrii | call-rrii | `call` | [SimRISC-00 §SimRISC QFC] |
 | 0x76 | 0111-0110 | riii | ret | `ret` | [SimRISC-00 §SimRISC QFC] |
-| 0x77 | 0111-0111 | — | — | — | reserved |
 
 ### A.2 MISC-octa 子表（op = 0x40，opx 在 ha[5:0]）
 
@@ -1399,7 +1398,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 111-010 | `rem.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 111-011 | `rem.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 
-### A.6 MISC-AMO 子表（op = 0x00，M1 条目）
+### A.6 MISC-AMO 子表（op = 0x77，M1 条目）
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|

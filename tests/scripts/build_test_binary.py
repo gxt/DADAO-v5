@@ -125,12 +125,12 @@ def encode_ld_o(rdha, rbhb, imms12):
     return (0x20 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
 
 def encode_swym():
-    """swym (oiii, op=0x00, ha=0x02). No-op / placeholder."""
-    return 0x00080000
+    """swym (oiii, op=0x77, ha=0x02). No-op / placeholder."""
+    return 0x77080000
 
 def encode_illi():
-    """illi (oiii, op=0x00, ha=0x00). Illegal instruction → ILLI fault (0x88)."""
-    return 0x00000000
+    """illi (oiii, op=0x77, ha=0x00). Illegal instruction → ILLI fault (0x88)."""
+    return 0x77000000
 
 def encode_jump_iiii(imms24):
     """jump imms24 (iiii, op=0x70). PC = rb0 + (imms24 << 2).

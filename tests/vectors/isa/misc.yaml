@@ -10,7 +10,7 @@
   format: oiii
   class: encoding
   encoding:
-    word: '0x00080000'
+    word: '0x77080000'
   input_state: {}
   expected_state: null
   expected_pc: null
@@ -18,14 +18,14 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-11 §占位指令
-  notes: 'encoding: swym 0 (nop), word=0x00080000; opcodes.yaml mask=0xFFFC0000 value=0x00080000; no fault, no architectural
+  notes: 'encoding: swym 0 (nop), word=0x77080000; opcodes.yaml mask=0xFFFC0000 value=0x77080000; no fault, no architectural
     state change'
 - mnemonic: swym
   id: swym_oiii_imm
   format: oiii
   class: semantic
   encoding:
-    word: '0x00080000'
+    word: '0x77080000'
   input_state: {}
   expected_state: {}
   expected_pc: null
@@ -39,7 +39,7 @@
   format: oiii
   class: legality
   encoding:
-    word: '0x00000000'
+    word: '0x77000000'
   input_state: {}
   expected_state: null
   expected_pc: null
@@ -47,5 +47,5 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-11 §非法指令; SimRISC-00 §MISC-AMO 指令编码
-  notes: illi always triggers ILLI (§9.1); encoding/semantic exempt per F6 (schema.md §encoding 类对恒 fault 指令的豁免); this word=0x00000000
-    is also §8.3 all-zero word (illi 0); coverage for (illi, oiii) satisfied by this legality case
+  notes: illi always triggers ILLI (§9.1); encoding/semantic exempt per F6 (schema.md §encoding 类对恒 fault 指令的豁免); this word=0x77000000
+    is illi 0 (op=0x77); coverage for (illi, oiii) satisfied by this legality case

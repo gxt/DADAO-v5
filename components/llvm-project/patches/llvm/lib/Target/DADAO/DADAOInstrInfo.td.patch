@@ -1480,7 +1480,7 @@ index 000000000000..8238bd692eec
 +def illi : DADAOOiii<"illi"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x00;
++  let op = 0x77;
 +  let ha = 0x00;
 +  let Pattern = [];
 +}
@@ -1488,7 +1488,7 @@ index 000000000000..8238bd692eec
 +def fence : DADAOOiii<"fence"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x00;
++  let op = 0x77;
 +  let ha = 0x01;
 +  let Pattern = [];
 +}
@@ -1496,7 +1496,7 @@ index 000000000000..8238bd692eec
 +def swym_oiii : DADAOOiii<"swym"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x00;
++  let op = 0x77;
 +  let ha = 0x02;
 +  let Pattern = [];
 +}

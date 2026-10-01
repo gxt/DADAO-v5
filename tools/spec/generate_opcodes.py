@@ -494,7 +494,7 @@ def build_main_table(records):
 # ────────────────────────────── MISC-AMO ──────────────────────────────
 
 def build_misc_amo(records):
-    op = 0x00
+    op = 0x77
     records.append(rec("illi", "illi", "oiii", op, f_oiii("immu18"),
                        [], S11_ILLI, ha=0x00))
     records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
@@ -566,7 +566,7 @@ def build_misc_octa(records):
                        S02_BLK, ha=0x36))
     for i, mnem in enumerate(["div.uo", "div.so", "rem.uo", "rem.so"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0", "rdhd != 0"], S04_MUL, ha=0x38 + i))
+                           ["rdhb != rd0"], S04_MUL, ha=0x38 + i))
     # RF 块赋值（excluded）
     records.append(rec("rd2rf", "rd2rf", "orri", op, f_orri("rfhb", "rdhc", "immu6"),
                        [], S00_MISCRF, ha=0x3D, excluded=True))
@@ -620,7 +620,7 @@ def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
     for i, mnem in enumerate([f"div.u{suffix}", f"div.s{suffix}",
                               f"rem.u{suffix}", f"rem.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0", "rdhd != 0"], cite_mul, ha=0x38 + i))
+                           ["rdhb != rd0"], cite_mul, ha=0x38 + i))
 
 
 # ────────────────────────────── MISC-RF（全 excluded）──────────────────────────────

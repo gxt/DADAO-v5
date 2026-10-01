@@ -280,7 +280,7 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
             if word is None:
                 errors.append("%s: reserved encoding must have encoding.word "
                               "(non-null)" % tag)
-            # R4: word 不得为 0x00000000（全零字 → illi → ILLI，§8.3）
+            # R4: word 不得为 0x00000000（全零字 = 保留编码，op=0x00 → UNDI，§2.9）
             # R8: word 不得匹配 opcodes.yaml 中任何已定义记录（含 excluded_m1）
             if word is not None:
                 try:
@@ -290,7 +290,7 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                 if wval_r is not None:
                     if wval_r == 0:
                         errors.append("%s: reserved encoding word must not be "
-                                      "0x00000000 (全零字 → illi → ILLI, §8.3)"
+                                      "0x00000000 (全零字 = 保留编码，op=0x00 → UNDI, §2.9)"
                                       % tag)
                     # R8: 遍历 opcodes.yaml 全部记录（含 excluded_m1），
                     # 若 (word & mask) == value 命中则说明该 word 是已定义编码，

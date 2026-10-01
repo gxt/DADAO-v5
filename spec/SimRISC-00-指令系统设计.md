@@ -261,7 +261,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 
 |               | xxxx-x000            | xxxx-x001            | xxxx-x010            | xxxx-x011            | xxxx-x100            | xxxx-x101            | xxxx-x110            | xxxx-x111        |
 | ---           | ---                  | ---                  | ---                  | ---                  | ---                  | ---                  | ---                  | ---              |
-| 0000-0xxx     | MISC-AMO             |                      |                      |                      |                      |                      |                      |                  |
+| 0000-0xxx     |                      |                      |                      |                      |                      |                      |                      |                  |
 | 0000-1xxx     |                      |                      |                      |                      |                      |                      |                      |                  |
 | 0001-0xxx     | ld.ub_rrii_rd        | ld.uw_rrii_rd        | ld.ut_rrii_rd        | ld.sb_rrii_rd        | ld.sw_rrii_rd        | ld.st_rrii_rd        | ld.t_rrii_rf         | st.t_rrii_rf    |
 | 0001-1xxx     | st.b_rrii_rd         | st.w_rrii_rd         | st.t_rrii_rd         |                      |                      |                      |                      |                  |
@@ -275,7 +275,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0101-1xxx     |                      | add.si_riii_rd       |                      | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
 | 0110-0xxx     | cs.n_rrrr_rd         | cs.n_rrrr_rf         | cs.z_rrrr_rd         | cs.z_rrrr_rf         | cs.p_rrrr_rd         | cs.p_rrrr_rf         | cs.eq_rrrr_rd        | cs.ne_rrrr_rd   |
 | 0110-1xxx     | br.n_riii_rd         | br.nn_riii_rd        | br.z_riii_rd         | br.nz_riii_rd        | br.p_riii_rd         | br.np_riii_rd        | br.eq_rrii_rd        | br.ne_rrii_rd   |
-| 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          |                  |
+| 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | MISC-AMO        |
 | 0111-1xxx     |                      |                      | cfx2rd_crrr_cfx      | cfx2rc_crrr_cfx      | cfxld_crii_cfx       | cfxst_crii_cfx       | escape_ciii_cfx      | trap_ciii_cfx   |
 
 ### MISC-AMO 指令编码

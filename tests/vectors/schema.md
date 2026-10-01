@@ -69,7 +69,7 @@
 | `class` 必须为 `legality` | 保留编码 case 只能是 fault 期望 |
 | `expected_fault` 必须为 `UNDI` | 保留编码触发 UNDI（§8.2），**不是** ILLI |
 | `status` 必须为 `active` | 保留编码 case 不可 deferred |
-| `word` 不得为 `0x00000000` | 全零字 = `illi` → ILLI（§8.3），非 UNDI |
+| `word` 不得为 `0x00000000` | 全零字 = 保留编码（op=0x00，MISC-AMO 编码变更后不再是 `illi 0`）→ UNDI（§2.9），非 `illi` 语义 |
 | `mnemonic` / `id` 为 `null` | 无已定义身份 |
 | `format` 可为 `null` 或字符串 | 可选，用于定位子表 |
 | `notes` 非空 | 须给出该 word 在 QFC/子表中的具体位置作为 reserved 依据 |
@@ -80,7 +80,7 @@
 | 场景 | fault | 依据 |
 |------|-------|------|
 | QFC/子表空白单元格（reserved 编码） | **UNDI** | §2.9/§8.2 |
-| 全零字 `0x00000000`（`illi 0`） | **ILLI** | §8.3 |
+| 全零字 `0x00000000`（保留编码） | **UNDI** | §2.9（MISC-AMO 编码变更后，op=0x00 为保留编码） |
 | 已定义编码 + 非法操作数/SBZ 违规 | **ILLI** | §9.1 |
 | M1 排除但已定义的编码（RF/cfx/LR-SC） | **ILLI** | ADR-0004 D5.1 |
 
@@ -169,8 +169,9 @@
 `encoding` 类的定义是「**可解码执行无 fault**」，因此**恒 fault 指令无法构造
 `encoding` case**：
 
-- **`illi`**（`oiii`）：恒触发 ILLI（`contract-isa.md` §8.2/§9.1；全零字
-  `0x00000000` 即 `illi 0` → ILLI，§8.3，**不是** UNDI）。故 `illi` **豁免**
+- **`illi`**（`oiii`）：恒触发 ILLI（`contract-isa.md` §8.2/§9.1）。`illi 0` 的编码为
+  `0x77000000`（op=0x77）；32 位全零字 `0x00000000`（op=0x00）为保留编码 → UNDI
+  （§2.9）。故 `illi` **豁免**
   `encoding`（及 `semantic`）类，其覆盖率由 `legality` active
   （`expected_fault: ILLI`）满足；inventory 显式记 `—`。
 

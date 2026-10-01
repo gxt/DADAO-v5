@@ -10,11 +10,11 @@ contracts/opcodes.yaml, .tao/knowledge/contract-isa.md §7/§8/§9,
 contracts/legality_rules.yaml (sbz_nonzero rule), and
 .tao/knowledge/adr-0004-test-machine.md.
 
-Encoding derivations:
-  - swym 0: op=0x00, ha=0x02, immu18=0 → word=0x00080000
-    mask=0xFFFC0000, value=0x00080000 → (0x00080000 & 0xFFFC0000)==0x00080000 ✓
-  - illi 0: op=0x00, ha=0x00, immu18=0 → word=0x00000000
-    mask=0xFFFC0000, value=0x00000000 → (0x00000000 & 0xFFFC0000)==0x00000000 ✓
+Encoding derivations (SPEC-068t: MISC-AMO op 0x00→0x77):
+  - swym 0: op=0x77, ha=0x02, immu18=0 → word=0x77080000
+    mask=0xFFFC0000, value=0x77080000 → (0x77080000 & 0xFFFC0000)==0x77080000 ✓
+  - illi 0: op=0x77, ha=0x00, immu18=0 → word=0x77000000
+    mask=0xFFFC0000, value=0x77000000 → (0x77000000 & 0xFFFC0000)==0x77000000 ✓
 
 Note: fence (oiii) excluded from M1 per SPEC-039t (excluded_m1: true).
 """
@@ -29,14 +29,14 @@ OUT_FILE = os.path.join(OUT_DIR, "misc.yaml")
 
 GENERATOR_PATH = "tools/testcases/generate_misc.py"
 
-# ── Encoding words ────────────────────────────────────────────────────
-SWYM_WORD0 = 0x00080000       # swym 0 (nop)
-ILLI_WORD0 = 0x00000000       # illi 0 (always ILLI; also §8.3 all-zero word)
+# ── Encoding words (SPEC-068t: MISC-AMO op 0x00→0x77) ────────────────
+SWYM_WORD0 = 0x77080000       # swym 0 (nop): op=0x77, ha=0x02, immu18=0
+ILLI_WORD0 = 0x77000000       # illi 0: op=0x77, ha=0x00, immu18=0 (always ILLI)
 
 MASK_SWYM = 0xFFFC0000
-VALUE_SWYM = 0x00080000
+VALUE_SWYM = 0x77080000
 MASK_OIII = 0xFFFC0000
-VALUE_ILLI = 0x00000000
+VALUE_ILLI = 0x77000000
 
 
 def _hex8(w):
@@ -89,8 +89,8 @@ def generate():
         expected_fault=None,
         expected_pc=None,
         spec_cite="SimRISC-11 §占位指令",
-        notes="encoding: swym 0 (nop), word=0x00080000; "
-              "opcodes.yaml mask=0xFFFC0000 value=0x00080000; "
+        notes="encoding: swym 0 (nop), word=0x77080000; "
+              "opcodes.yaml mask=0xFFFC0000 value=0x77080000; "
               "no fault, no architectural state change",
     ))
 
@@ -126,7 +126,7 @@ def generate():
         spec_cite="SimRISC-11 §非法指令; SimRISC-00 §MISC-AMO 指令编码",
         notes="illi always triggers ILLI (§9.1); "
               "encoding/semantic exempt per F6 (schema.md §encoding 类对恒 fault 指令的豁免); "
-              "this word=0x00000000 is also §8.3 all-zero word (illi 0); "
+              "this word=0x77000000 is illi 0 (op=0x77); "
               "coverage for (illi, oiii) satisfied by this legality case",
     ))
 

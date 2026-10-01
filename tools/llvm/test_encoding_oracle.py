@@ -98,8 +98,8 @@ TESTS = [
     ("call [rb0, 1i]", encode_iiii(0x74, 1)),
     # iiii format: jump [rb0, 1i]
     ("jump [rb0, 1i]", encode_iiii(0x70, 1)),
-    # oiii format: swym 0 (op=0x00, ha=0x02)
-    ("swym 0", encode_oiii(0x00, 0x02, 0)),
+    # oiii format: swym 0 (op=0x77, ha=0x02)
+    ("swym 0", encode_oiii(0x77, 0x02, 0)),
     
     # rwii format: set.zw rd8, wp0, 1
     ("set.zw rd8, wp0, 1", encode_rwii(0x4C, 8, 0, 1)),
@@ -124,10 +124,10 @@ TESTS = [
     # orri format: rd2rd {rd8}, {rd0} (op=0x40, ha=0x2C)
     ("rd2rd {rd8}, {rd0}", encode_orri(0x40, 0x2C, 8, 0, 1)),
     
-    # oiii format: illi 0 (op=0x00, ha=0x00)
-    ("illi 0", encode_oiii(0x00, 0x00, 0)),
-    # oiii format: fence 0xf (op=0x00, ha=0x01)
-    ("fence 0xf", encode_oiii(0x00, 0x01, 0xf)),
+    # oiii format: illi 0 (op=0x77, ha=0x00)
+    ("illi 0", encode_oiii(0x77, 0x00, 0)),
+    # oiii format: fence 0xf (op=0x77, ha=0x01)
+    ("fence 0xf", encode_oiii(0x77, 0x01, 0xf)),
 
     # === New tests for LLVM-008t: migrated from disassembly.s + basic-encoding.s ===
 
@@ -160,8 +160,8 @@ TESTS = [
     # rrii_branch.s: br.eq {rd8, rd0}?, [rb0, 4i] (op=0x6E)
     ("br.eq {rd8, rd0}?, [rb0, 4i]", encode_rrii(0x6E, 8, 0, 4)),
 
-    # oiii.s: swym 42 (op=0x00, ha=0x02)
-    ("swym 42", encode_oiii(0x00, 0x02, 42)),
+    # oiii.s: swym 42 (op=0x77, ha=0x02)
+    ("swym 42", encode_oiii(0x77, 0x02, 42)),
 
     # orrr.s: or.o rd8, rd9, rd10 (op=0x40, ha=0x09)
     ("or.o rd8, rd9, rd10", encode_orrr(0x40, 0x09, 8, 9, 10)),
