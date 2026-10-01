@@ -4,6 +4,7 @@
 # excluded_m1: true 的条目属 M1 范围外（浮点 RF / 特权 cfx / LR-SC），
 #   M1 不实现但编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # 共 227 条：M1 内 152 条，excluded_m1 75 条
+# 有 rule_refs 的指令：134 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -28,6 +29,8 @@
   legality:
   - rdha != rd0
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
 - id: ld.uw_rrii_rd
   mnemonic: ld.uw
   format: rrii
@@ -52,6 +55,9 @@
   - rdha != rd0
   - aligned(2)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - excp_malign
 - id: ld.ut_rrii_rd
   mnemonic: ld.ut
   format: rrii
@@ -76,6 +82,9 @@
   - rdha != rd0
   - aligned(4)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - excp_malign
 - id: ld.sb_rrii_rd
   mnemonic: ld.sb
   format: rrii
@@ -99,6 +108,8 @@
   legality:
   - rdha != rd0
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
 - id: ld.sw_rrii_rd
   mnemonic: ld.sw
   format: rrii
@@ -123,6 +134,9 @@
   - rdha != rd0
   - aligned(2)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - excp_malign
 - id: ld.st_rrii_rd
   mnemonic: ld.st
   format: rrii
@@ -147,6 +161,9 @@
   - rdha != rd0
   - aligned(4)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - excp_malign
 - id: ld.t_rrii_rf
   mnemonic: ld.t
   format: rrii
@@ -171,6 +188,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: st.t_rrii_rf
   mnemonic: st.t
   format: rrii
@@ -195,6 +213,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: st.b_rrii_rd
   mnemonic: st.b
   format: rrii
@@ -217,6 +236,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs: []
 - id: st.w_rrii_rd
   mnemonic: st.w
   format: rrii
@@ -240,6 +260,8 @@
   legality:
   - aligned(2)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - excp_malign
 - id: st.t_rrii_rd
   mnemonic: st.t
   format: rrii
@@ -263,6 +285,8 @@
   legality:
   - aligned(4)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - excp_malign
 - id: ld.o_rrii_rd
   mnemonic: ld.o
   format: rrii
@@ -287,6 +311,9 @@
   - rdha != rd0
   - aligned(8)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - excp_malign
 - id: st.o_rrii_rd
   mnemonic: st.o
   format: rrii
@@ -310,6 +337,8 @@
   legality:
   - aligned(8)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - excp_malign
 - id: ld.o_rrii_rb
   mnemonic: ld.o
   format: rrii
@@ -334,6 +363,9 @@
   - rbha != rb0
   - aligned(8)
   spec_cite: SimRISC-01 §存取RB寄存器
+  rule_refs:
+  - dst_rb0
+  - excp_malign
 - id: st.o_rrii_rb
   mnemonic: st.o
   format: rrii
@@ -357,6 +389,8 @@
   legality:
   - aligned(8)
   spec_cite: SimRISC-01 §存取RB寄存器
+  rule_refs:
+  - excp_malign
 - id: ld.o_rrii_ra
   mnemonic: ld.o
   format: rrii
@@ -380,6 +414,8 @@
   legality:
   - aligned(8)
   spec_cite: SimRISC-01 §存取RA寄存器
+  rule_refs:
+  - excp_malign
 - id: st.o_rrii_ra
   mnemonic: st.o
   format: rrii
@@ -403,6 +439,8 @@
   legality:
   - aligned(8)
   spec_cite: SimRISC-01 §存取RA寄存器
+  rule_refs:
+  - excp_malign
 - id: ld.o_rrii_rf
   mnemonic: ld.o
   format: rrii
@@ -427,6 +465,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: st.o_rrii_rf
   mnemonic: st.o
   format: rrii
@@ -451,6 +490,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ldm.ub_rrri_rd
   mnemonic: ldm.ub
   format: rrri
@@ -480,6 +520,10 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: ldm.uw_rrri_rd
   mnemonic: ldm.uw
   format: rrri
@@ -510,6 +554,11 @@
   - rdha + immu6 <= 64
   - aligned(2)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: ldm.ut_rrri_rd
   mnemonic: ldm.ut
   format: rrri
@@ -540,6 +589,11 @@
   - rdha + immu6 <= 64
   - aligned(4)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: ldm.sb_rrri_rd
   mnemonic: ldm.sb
   format: rrri
@@ -569,6 +623,10 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: ldm.sw_rrri_rd
   mnemonic: ldm.sw
   format: rrri
@@ -599,6 +657,11 @@
   - rdha + immu6 <= 64
   - aligned(2)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: ldm.st_rrri_rd
   mnemonic: ldm.st
   format: rrri
@@ -629,6 +692,11 @@
   - rdha + immu6 <= 64
   - aligned(4)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: ldm.t_rrri_rf
   mnemonic: ldm.t
   format: rrri
@@ -657,6 +725,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: stm.t_rrri_rf
   mnemonic: stm.t
   format: rrri
@@ -685,6 +754,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: stm.b_rrri_rd
   mnemonic: stm.b
   format: rrri
@@ -713,6 +783,9 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
 - id: stm.w_rrri_rd
   mnemonic: stm.w
   format: rrri
@@ -742,6 +815,10 @@
   - rdha + immu6 <= 64
   - aligned(2)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: stm.t_rrri_rd
   mnemonic: stm.t
   format: rrri
@@ -771,6 +848,10 @@
   - rdha + immu6 <= 64
   - aligned(4)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: ldm.o_rrri_rd
   mnemonic: ldm.o
   format: rrri
@@ -801,6 +882,11 @@
   - rdha + immu6 <= 64
   - aligned(8)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: stm.o_rrri_rd
   mnemonic: stm.o
   format: rrri
@@ -830,6 +916,10 @@
   - rdha + immu6 <= 64
   - aligned(8)
   spec_cite: SimRISC-01 §存取RD寄存器
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: ldm.o_rrri_rb
   mnemonic: ldm.o
   format: rrri
@@ -860,6 +950,11 @@
   - rbha + immu6 <= 64
   - aligned(8)
   spec_cite: SimRISC-01 §存取RB寄存器
+  rule_refs:
+  - dst_rb0
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: stm.o_rrri_rb
   mnemonic: stm.o
   format: rrri
@@ -889,6 +984,10 @@
   - rbha + immu6 <= 64
   - aligned(8)
   spec_cite: SimRISC-01 §存取RB寄存器
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: ldm.o_rrri_ra
   mnemonic: ldm.o
   format: rrri
@@ -918,6 +1017,10 @@
   - raha + immu6 <= 64
   - aligned(8)
   spec_cite: SimRISC-01 §存取RA寄存器
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: stm.o_rrri_ra
   mnemonic: stm.o
   format: rrri
@@ -947,6 +1050,10 @@
   - raha + immu6 <= 64
   - aligned(8)
   spec_cite: SimRISC-01 §存取RA寄存器
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
+  - excp_malign
 - id: ldm.o_rrri_rf
   mnemonic: ldm.o
   format: rrri
@@ -975,6 +1082,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: stm.o_rrri_rf
   mnemonic: stm.o
   format: rrri
@@ -1003,6 +1111,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: or.w_rwii_rd
   mnemonic: or.w
   format: rwii
@@ -1026,6 +1135,8 @@
   legality:
   - rdha != rd0
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  rule_refs:
+  - dst_rd0
 - id: andn.w_rwii_rd
   mnemonic: andn.w
   format: rwii
@@ -1049,6 +1160,8 @@
   legality:
   - rdha != rd0
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  rule_refs:
+  - dst_rd0
 - id: or.w_rwii_rb
   mnemonic: or.w
   format: rwii
@@ -1072,6 +1185,8 @@
   legality:
   - rbha != rb0
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  rule_refs:
+  - dst_rb0
 - id: andn.w_rwii_rb
   mnemonic: andn.w
   format: rwii
@@ -1095,6 +1210,8 @@
   legality:
   - rbha != rb0
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  rule_refs:
+  - dst_rb0
 - id: set.zw_rwii_rd
   mnemonic: set.zw
   format: rwii
@@ -1118,6 +1235,8 @@
   legality:
   - rdha != rd0
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  rule_refs:
+  - dst_rd0
 - id: set.ow_rwii_rd
   mnemonic: set.ow
   format: rwii
@@ -1141,6 +1260,8 @@
   legality:
   - rdha != rd0
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  rule_refs:
+  - dst_rd0
 - id: set.zw_rwii_rb
   mnemonic: set.zw
   format: rwii
@@ -1164,6 +1285,8 @@
   legality:
   - rbha != rb0
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant
+  rule_refs:
+  - dst_rb0
 - id: set.w_rwii_rf
   mnemonic: set.w
   format: rwii
@@ -1188,6 +1311,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: add.uo_rrrr_rd
   mnemonic: add.uo
   format: rrrr
@@ -1215,6 +1339,8 @@
   - '!(rdha == rd0 && rdhb == rd0)'
   - '!(rdha == rdhb && rdha != rd0)'
   spec_cite: SimRISC-04 §加减操作
+  rule_refs:
+  - dst_dual_same
 - id: add.so_rrrr_rd
   mnemonic: add.so
   format: rrrr
@@ -1240,6 +1366,8 @@
     bank: rd
   legality: *id001
   spec_cite: SimRISC-04 §加减操作
+  rule_refs:
+  - dst_dual_same
 - id: sub.uo_rrrr_rd
   mnemonic: sub.uo
   format: rrrr
@@ -1265,6 +1393,8 @@
     bank: rd
   legality: *id001
   spec_cite: SimRISC-04 §加减操作
+  rule_refs:
+  - dst_dual_same
 - id: sub.so_rrrr_rd
   mnemonic: sub.so
   format: rrrr
@@ -1290,6 +1420,8 @@
     bank: rd
   legality: *id001
   spec_cite: SimRISC-04 §加减操作
+  rule_refs:
+  - dst_dual_same
 - id: mul.uo_rrrr_rd
   mnemonic: mul.uo
   format: rrrr
@@ -1315,6 +1447,8 @@
     bank: rd
   legality: *id001
   spec_cite: SimRISC-04 §乘除操作
+  rule_refs:
+  - dst_dual_same
 - id: mul.so_rrrr_rd
   mnemonic: mul.so
   format: rrrr
@@ -1340,6 +1474,8 @@
     bank: rd
   legality: *id001
   spec_cite: SimRISC-04 §乘除操作
+  rule_refs:
+  - dst_dual_same
 - id: add.si_riii_rd
   mnemonic: add.si
   format: riii
@@ -1359,6 +1495,8 @@
   legality:
   - rdha != rd0
   spec_cite: SimRISC-04 §自增自减
+  rule_refs:
+  - dst_rd0
 - id: add.si_riii_rb
   mnemonic: add.si
   format: riii
@@ -1378,6 +1516,8 @@
   legality:
   - rbha != rb0
   spec_cite: SimRISC-05 §自增自减
+  rule_refs:
+  - dst_rb0
 - id: cmp.ui_rrii_rd
   mnemonic: cmp.ui
   format: rrii
@@ -1401,6 +1541,8 @@
   legality:
   - rdha != rd0
   spec_cite: SimRISC-04 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: cmp.si_rrii_rd
   mnemonic: cmp.si
   format: rrii
@@ -1424,6 +1566,8 @@
   legality:
   - rdha != rd0
   spec_cite: SimRISC-04 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: cs.eq_rrrr_rf
   mnemonic: cs.eq
   format: rrrr
@@ -1451,6 +1595,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: cs.ne_rrrr_rf
   mnemonic: cs.ne
   format: rrrr
@@ -1478,6 +1623,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: cs.n_rrrr_rd
   mnemonic: cs.n
   format: rrrr
@@ -1504,6 +1650,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  rule_refs:
+  - dst_rd0
 - id: cs.n_rrrr_rf
   mnemonic: cs.n
   format: rrrr
@@ -1531,6 +1679,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: cs.z_rrrr_rd
   mnemonic: cs.z
   format: rrrr
@@ -1557,6 +1706,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  rule_refs:
+  - dst_rd0
 - id: cs.z_rrrr_rf
   mnemonic: cs.z
   format: rrrr
@@ -1584,6 +1735,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: cs.p_rrrr_rd
   mnemonic: cs.p
   format: rrrr
@@ -1610,6 +1762,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  rule_refs:
+  - dst_rd0
 - id: cs.p_rrrr_rf
   mnemonic: cs.p
   format: rrrr
@@ -1637,6 +1791,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: cs.eq_rrrr_rd
   mnemonic: cs.eq
   format: rrrr
@@ -1663,6 +1818,8 @@
   legality:
   - rdhc != rd0
   spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  rule_refs:
+  - dst_rd0
 - id: cs.ne_rrrr_rd
   mnemonic: cs.ne
   format: rrrr
@@ -1689,6 +1846,8 @@
   legality:
   - rdhc != rd0
   spec_cite: SimRISC-02 §条件赋值：Conditional Assignment
+  rule_refs:
+  - dst_rd0
 - id: br.n_riii_rd
   mnemonic: br.n
   format: riii
@@ -1707,6 +1866,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: br.nn_riii_rd
   mnemonic: br.nn
   format: riii
@@ -1725,6 +1885,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: br.z_riii_rd
   mnemonic: br.z
   format: riii
@@ -1743,6 +1904,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: br.nz_riii_rd
   mnemonic: br.nz
   format: riii
@@ -1761,6 +1923,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: br.p_riii_rd
   mnemonic: br.p
   format: riii
@@ -1779,6 +1942,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: br.np_riii_rd
   mnemonic: br.np
   format: riii
@@ -1797,6 +1961,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: br.eq_rrii_rd
   mnemonic: br.eq
   format: rrii
@@ -1819,6 +1984,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: br.ne_rrii_rd
   mnemonic: br.ne
   format: rrii
@@ -1841,6 +2007,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: jump_iiii_rb
   mnemonic: jump
   format: iiii
@@ -1855,6 +2022,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §无条件跳转指令
+  rule_refs: []
 - id: jump_rrii_rb
   mnemonic: jump
   format: rrii
@@ -1877,6 +2045,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §无条件跳转指令
+  rule_refs: []
 - id: br.z_riii_rb
   mnemonic: br.z
   format: riii
@@ -1895,6 +2064,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: br.nz_riii_rb
   mnemonic: br.nz
   format: riii
@@ -1913,6 +2083,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §条件跳转指令
+  rule_refs: []
 - id: call_iiii_ra
   mnemonic: call
   format: iiii
@@ -1927,6 +2098,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §函数调用
+  rule_refs: []
 - id: call_rrii_ra
   mnemonic: call
   format: rrii
@@ -1949,6 +2121,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §函数调用
+  rule_refs: []
 - id: ret_riii_ra
   mnemonic: ret
   format: riii
@@ -1967,6 +2140,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-06 §函数返回
+  rule_refs: []
 - id: cfx2rd_crrr_cfx
   mnemonic: cfx2rd
   format: crrr
@@ -1994,6 +2168,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: cfx2rc_crrr_cfx
   mnemonic: cfx2rc
   format: crrr
@@ -2021,6 +2196,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: cfxld_crii_cfx
   mnemonic: cfxld
   format: crii
@@ -2045,6 +2221,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: cfxst_crii_cfx
   mnemonic: cfxst
   format: crii
@@ -2069,6 +2246,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: escape_ciii_cfx
   mnemonic: escape
   format: ciii
@@ -2089,6 +2267,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: trap_ciii_cfx
   mnemonic: trap
   format: ciii
@@ -2109,6 +2288,7 @@
   spec_cite: SimRISC-00 §SimRISC QFC
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: illi_oiii_imm
   mnemonic: illi
   format: oiii
@@ -2124,6 +2304,7 @@
     signed: false
   legality: []
   spec_cite: SimRISC-11 §非法指令
+  rule_refs: []
 - id: fence_oiii_imm
   mnemonic: fence
   format: oiii
@@ -2144,6 +2325,7 @@
   spec_cite: SimRISC-12 §fence指令
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: swym_oiii_imm
   mnemonic: swym
   format: oiii
@@ -2159,6 +2341,7 @@
     signed: false
   legality: []
   spec_cite: SimRISC-11 §占位指令
+  rule_refs: []
 - id: lr_nn.o_orrr_rd
   mnemonic: lr_nn.o
   format: orrr
@@ -2183,6 +2366,7 @@
   spec_cite: SimRISC-12 §LR-SC指令
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: lr_nr.o_orrr_rd
   mnemonic: lr_nr.o
   format: orrr
@@ -2207,6 +2391,7 @@
   spec_cite: SimRISC-12 §LR-SC指令
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: lr_an.o_orrr_rd
   mnemonic: lr_an.o
   format: orrr
@@ -2231,6 +2416,7 @@
   spec_cite: SimRISC-12 §LR-SC指令
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: lr_ar.o_orrr_rd
   mnemonic: lr_ar.o
   format: orrr
@@ -2255,6 +2441,7 @@
   spec_cite: SimRISC-12 §LR-SC指令
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: sc_nn.o_orrr_rd
   mnemonic: sc_nn.o
   format: orrr
@@ -2279,6 +2466,7 @@
   spec_cite: SimRISC-12 §LR-SC指令
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: sc_nr.o_orrr_rd
   mnemonic: sc_nr.o
   format: orrr
@@ -2303,6 +2491,7 @@
   spec_cite: SimRISC-12 §LR-SC指令
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: sc_an.o_orrr_rd
   mnemonic: sc_an.o
   format: orrr
@@ -2327,6 +2516,7 @@
   spec_cite: SimRISC-12 §LR-SC指令
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: sc_ar.o_orrr_rd
   mnemonic: sc_ar.o
   format: orrr
@@ -2351,6 +2541,7 @@
   spec_cite: SimRISC-12 §LR-SC指令
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: and.o_orrr_rd
   mnemonic: and.o
   format: orrr
@@ -2374,6 +2565,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
+  rule_refs:
+  - dst_rd0
 - id: or.o_orrr_rd
   mnemonic: or.o
   format: orrr
@@ -2397,6 +2590,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
+  rule_refs:
+  - dst_rd0
 - id: xor.o_orrr_rd
   mnemonic: xor.o
   format: orrr
@@ -2420,6 +2615,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
+  rule_refs:
+  - dst_rd0
 - id: xnor.o_orrr_rd
   mnemonic: xnor.o
   format: orrr
@@ -2443,6 +2640,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §Logic operators：逻辑运算
+  rule_refs:
+  - dst_rd0
 - id: ext.uo_orrr_rd
   mnemonic: ext.uo
   format: orrr
@@ -2466,6 +2665,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: ext.so_orrr_rd
   mnemonic: ext.so
   format: orrr
@@ -2489,6 +2690,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shr.uo_orrr_rd
   mnemonic: shr.uo
   format: orrr
@@ -2512,6 +2715,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shr.so_orrr_rd
   mnemonic: shr.so
   format: orrr
@@ -2535,6 +2740,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shl.uo_orrr_rd
   mnemonic: shl.uo
   format: orrr
@@ -2558,6 +2765,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: ext.uo_orri_rd
   mnemonic: ext.uo
   format: orri
@@ -2583,6 +2792,9 @@
   - rdhb != rd0
   - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: ext.so_orri_rd
   mnemonic: ext.so
   format: orri
@@ -2608,6 +2820,9 @@
   - rdhb != rd0
   - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: shr.uo_orri_rd
   mnemonic: shr.uo
   format: orri
@@ -2633,6 +2848,9 @@
   - rdhb != rd0
   - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: shr.so_orri_rd
   mnemonic: shr.so
   format: orri
@@ -2658,6 +2876,9 @@
   - rdhb != rd0
   - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: shl.uo_orri_rd
   mnemonic: shl.uo
   format: orri
@@ -2683,6 +2904,9 @@
   - rdhb != rd0
   - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: add.so_orrr_rb
   mnemonic: add.so
   format: orrr
@@ -2706,6 +2930,8 @@
   legality:
   - rbhb != rb0
   spec_cite: SimRISC-05 §加减操作
+  rule_refs:
+  - dst_rb0
 - id: sub.so_orrr_rb
   mnemonic: sub.so
   format: orrr
@@ -2729,6 +2955,8 @@
   legality:
   - rbhb != rb0
   spec_cite: SimRISC-05 §加减操作
+  rule_refs:
+  - dst_rb0
 - id: cmp.uo_orrr_rb
   mnemonic: cmp.uo
   format: orrr
@@ -2752,6 +2980,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-05 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: cmp.uo_orrr_rd
   mnemonic: cmp.uo
   format: orrr
@@ -2775,6 +3005,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: cmp.so_orrr_rd
   mnemonic: cmp.so
   format: orrr
@@ -2798,6 +3030,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: rd2rd_orri_rd
   mnemonic: rd2rd
   format: orri
@@ -2826,6 +3060,11 @@
   - rdhc + immu6 <= 64
   - no_overlap(rdhb, rdhc, immu6)
   spec_cite: SimRISC-02 §寄存器组之间块赋值
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
+  - mreg_range_overlap
 - id: rd2ra_orri_ra
   mnemonic: rd2ra
   format: orri
@@ -2852,6 +3091,9 @@
   - rahb + immu6 <= 64
   - rdhc + immu6 <= 64
   spec_cite: SimRISC-02 §寄存器组之间块赋值
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
 - id: ra2rd_orri_ra
   mnemonic: ra2rd
   format: orri
@@ -2879,6 +3121,10 @@
   - rdhb + immu6 <= 64
   - rahc + immu6 <= 64
   spec_cite: SimRISC-02 §寄存器组之间块赋值
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: rb2rb_orri_rb
   mnemonic: rb2rb
   format: orri
@@ -2907,6 +3153,11 @@
   - rbhc + immu6 <= 64
   - no_overlap(rbhb, rbhc, immu6)
   spec_cite: SimRISC-02 §寄存器组之间块赋值
+  rule_refs:
+  - dst_rb0
+  - mreg_zero
+  - mreg_range_overflow
+  - mreg_range_overlap
 - id: rd2rb_orri_rb
   mnemonic: rd2rb
   format: orri
@@ -2934,6 +3185,10 @@
   - rbhb + immu6 <= 64
   - rdhc + immu6 <= 64
   spec_cite: SimRISC-02 §寄存器组之间块赋值
+  rule_refs:
+  - dst_rb0
+  - mreg_zero
+  - mreg_range_overflow
 - id: rb2rd_orri_rb
   mnemonic: rb2rd
   format: orri
@@ -2961,6 +3216,10 @@
   - rdhb + immu6 <= 64
   - rbhc + immu6 <= 64
   spec_cite: SimRISC-02 §寄存器组之间块赋值
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: div.uo_orrr_rd
   mnemonic: div.uo
   format: orrr
@@ -2984,6 +3243,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: div.so_orrr_rd
   mnemonic: div.so
   format: orrr
@@ -3007,6 +3268,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: rem.uo_orrr_rd
   mnemonic: rem.uo
   format: orrr
@@ -3030,6 +3293,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: rem.so_orrr_rd
   mnemonic: rem.so
   format: orrr
@@ -3053,6 +3318,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-04 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: rd2rf_orri_rf
   mnemonic: rd2rf
   format: orri
@@ -3078,6 +3345,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: rf2rd_orri_rf
   mnemonic: rf2rd
   format: orri
@@ -3103,6 +3371,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: shr.ut_orrr_rd
   mnemonic: shr.ut
   format: orrr
@@ -3126,6 +3395,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shr.st_orrr_rd
   mnemonic: shr.st
   format: orrr
@@ -3149,6 +3420,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shl.ut_orrr_rd
   mnemonic: shl.ut
   format: orrr
@@ -3172,6 +3445,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shr.ut_orri_rd
   mnemonic: shr.ut
   format: orri
@@ -3197,6 +3472,9 @@
   - rdhb != rd0
   - immu6 <= 31
   spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: shr.st_orri_rd
   mnemonic: shr.st
   format: orri
@@ -3222,6 +3500,9 @@
   - rdhb != rd0
   - immu6 <= 31
   spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: shl.ut_orri_rd
   mnemonic: shl.ut
   format: orri
@@ -3247,6 +3528,9 @@
   - rdhb != rd0
   - immu6 <= 31
   spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: add.ut_orrr_rd
   mnemonic: add.ut
   format: orrr
@@ -3270,6 +3554,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: add.st_orrr_rd
   mnemonic: add.st
   format: orrr
@@ -3293,6 +3579,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: sub.ut_orrr_rd
   mnemonic: sub.ut
   format: orrr
@@ -3316,6 +3604,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: sub.st_orrr_rd
   mnemonic: sub.st
   format: orrr
@@ -3339,6 +3629,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: cmp.ut_orrr_rd
   mnemonic: cmp.ut
   format: orrr
@@ -3362,6 +3654,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: cmp.st_orrr_rd
   mnemonic: cmp.st
   format: orrr
@@ -3385,6 +3679,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: mul.ut_orrr_rd
   mnemonic: mul.ut
   format: orrr
@@ -3408,6 +3704,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: mul.st_orrr_rd
   mnemonic: mul.st
   format: orrr
@@ -3431,6 +3729,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: div.ut_orrr_rd
   mnemonic: div.ut
   format: orrr
@@ -3454,6 +3754,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: div.st_orrr_rd
   mnemonic: div.st
   format: orrr
@@ -3477,6 +3779,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: rem.ut_orrr_rd
   mnemonic: rem.ut
   format: orrr
@@ -3500,6 +3804,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: rem.st_orrr_rd
   mnemonic: rem.st
   format: orrr
@@ -3523,6 +3829,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-08 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: shr.uw_orrr_rd
   mnemonic: shr.uw
   format: orrr
@@ -3546,6 +3854,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shr.sw_orrr_rd
   mnemonic: shr.sw
   format: orrr
@@ -3569,6 +3879,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shl.uw_orrr_rd
   mnemonic: shl.uw
   format: orrr
@@ -3592,6 +3904,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shr.uw_orri_rd
   mnemonic: shr.uw
   format: orri
@@ -3617,6 +3931,9 @@
   - rdhb != rd0
   - immu6 <= 15
   spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: shr.sw_orri_rd
   mnemonic: shr.sw
   format: orri
@@ -3642,6 +3959,9 @@
   - rdhb != rd0
   - immu6 <= 15
   spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: shl.uw_orri_rd
   mnemonic: shl.uw
   format: orri
@@ -3667,6 +3987,9 @@
   - rdhb != rd0
   - immu6 <= 15
   spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: add.uw_orrr_rd
   mnemonic: add.uw
   format: orrr
@@ -3690,6 +4013,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: add.sw_orrr_rd
   mnemonic: add.sw
   format: orrr
@@ -3713,6 +4038,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: sub.uw_orrr_rd
   mnemonic: sub.uw
   format: orrr
@@ -3736,6 +4063,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: sub.sw_orrr_rd
   mnemonic: sub.sw
   format: orrr
@@ -3759,6 +4088,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: cmp.uw_orrr_rd
   mnemonic: cmp.uw
   format: orrr
@@ -3782,6 +4113,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: cmp.sw_orrr_rd
   mnemonic: cmp.sw
   format: orrr
@@ -3805,6 +4138,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: mul.uw_orrr_rd
   mnemonic: mul.uw
   format: orrr
@@ -3828,6 +4163,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: mul.sw_orrr_rd
   mnemonic: mul.sw
   format: orrr
@@ -3851,6 +4188,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: div.uw_orrr_rd
   mnemonic: div.uw
   format: orrr
@@ -3874,6 +4213,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: div.sw_orrr_rd
   mnemonic: div.sw
   format: orrr
@@ -3897,6 +4238,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: rem.uw_orrr_rd
   mnemonic: rem.uw
   format: orrr
@@ -3920,6 +4263,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: rem.sw_orrr_rd
   mnemonic: rem.sw
   format: orrr
@@ -3943,6 +4288,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-09 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: shr.ub_orrr_rd
   mnemonic: shr.ub
   format: orrr
@@ -3966,6 +4313,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shr.sb_orrr_rd
   mnemonic: shr.sb
   format: orrr
@@ -3989,6 +4338,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shl.ub_orrr_rd
   mnemonic: shl.ub
   format: orrr
@@ -4012,6 +4363,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
 - id: shr.ub_orri_rd
   mnemonic: shr.ub
   format: orri
@@ -4037,6 +4390,9 @@
   - rdhb != rd0
   - immu6 <= 7
   spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: shr.sb_orri_rd
   mnemonic: shr.sb
   format: orri
@@ -4062,6 +4418,9 @@
   - rdhb != rd0
   - immu6 <= 7
   spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: shl.ub_orri_rd
   mnemonic: shl.ub
   format: orri
@@ -4087,6 +4446,9 @@
   - rdhb != rd0
   - immu6 <= 7
   spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  rule_refs:
+  - dst_rd0
+  - encode_sbz
 - id: add.ub_orrr_rd
   mnemonic: add.ub
   format: orrr
@@ -4110,6 +4472,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: add.sb_orrr_rd
   mnemonic: add.sb
   format: orrr
@@ -4133,6 +4497,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: sub.ub_orrr_rd
   mnemonic: sub.ub
   format: orrr
@@ -4156,6 +4522,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: sub.sb_orrr_rd
   mnemonic: sub.sb
   format: orrr
@@ -4179,6 +4547,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §加减操作
+  rule_refs:
+  - dst_rd0
 - id: cmp.ub_orrr_rd
   mnemonic: cmp.ub
   format: orrr
@@ -4202,6 +4572,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: cmp.sb_orrr_rd
   mnemonic: cmp.sb
   format: orrr
@@ -4225,6 +4597,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §比较操作
+  rule_refs:
+  - dst_rd0
 - id: mul.ub_orrr_rd
   mnemonic: mul.ub
   format: orrr
@@ -4248,6 +4622,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: mul.sb_orrr_rd
   mnemonic: mul.sb
   format: orrr
@@ -4271,6 +4647,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: div.ub_orrr_rd
   mnemonic: div.ub
   format: orrr
@@ -4294,6 +4672,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: div.sb_orrr_rd
   mnemonic: div.sb
   format: orrr
@@ -4317,6 +4697,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: rem.ub_orrr_rd
   mnemonic: rem.ub
   format: orrr
@@ -4340,6 +4722,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: rem.sb_orrr_rd
   mnemonic: rem.sb
   format: orrr
@@ -4363,6 +4747,8 @@
   legality:
   - rdhb != rd0
   spec_cite: SimRISC-10 §乘除操作
+  rule_refs:
+  - dst_rd0
 - id: ftcls_orri_rf
   mnemonic: ftcls
   format: orri
@@ -4388,6 +4774,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ft2fo_orri_rf
   mnemonic: ft2fo
   format: orri
@@ -4413,6 +4800,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ft2ft_orri_rf
   mnemonic: ft2ft
   format: orri
@@ -4438,6 +4826,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftroot_orri_rf
   mnemonic: ftroot
   format: orri
@@ -4463,6 +4852,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: focls_orri_rf
   mnemonic: focls
   format: orri
@@ -4488,6 +4878,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fo2ft_orri_rf
   mnemonic: fo2ft
   format: orri
@@ -4513,6 +4904,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fo2fo_orri_rf
   mnemonic: fo2fo
   format: orri
@@ -4538,6 +4930,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: foroot_orri_rf
   mnemonic: foroot
   format: orri
@@ -4563,6 +4956,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ft2it_orri_rf
   mnemonic: ft2it
   format: orri
@@ -4588,6 +4982,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ft2io_orri_rf
   mnemonic: ft2io
   format: orri
@@ -4613,6 +5008,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ft2ut_orri_rf
   mnemonic: ft2ut
   format: orri
@@ -4638,6 +5034,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ft2uo_orri_rf
   mnemonic: ft2uo
   format: orri
@@ -4663,6 +5060,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: it2ft_orri_rf
   mnemonic: it2ft
   format: orri
@@ -4688,6 +5086,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: io2ft_orri_rf
   mnemonic: io2ft
   format: orri
@@ -4713,6 +5112,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ut2ft_orri_rf
   mnemonic: ut2ft
   format: orri
@@ -4738,6 +5138,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: uo2ft_orri_rf
   mnemonic: uo2ft
   format: orri
@@ -4763,6 +5164,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fo2it_orri_rf
   mnemonic: fo2it
   format: orri
@@ -4788,6 +5190,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fo2io_orri_rf
   mnemonic: fo2io
   format: orri
@@ -4813,6 +5216,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fo2ut_orri_rf
   mnemonic: fo2ut
   format: orri
@@ -4838,6 +5242,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fo2uo_orri_rf
   mnemonic: fo2uo
   format: orri
@@ -4863,6 +5268,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: it2fo_orri_rf
   mnemonic: it2fo
   format: orri
@@ -4888,6 +5294,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: io2fo_orri_rf
   mnemonic: io2fo
   format: orri
@@ -4913,6 +5320,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ut2fo_orri_rf
   mnemonic: ut2fo
   format: orri
@@ -4938,6 +5346,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: uo2fo_orri_rf
   mnemonic: uo2fo
   format: orri
@@ -4963,6 +5372,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftadd_orrr_rf
   mnemonic: ftadd
   format: orrr
@@ -4987,6 +5397,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftsub_orrr_rf
   mnemonic: ftsub
   format: orrr
@@ -5011,6 +5422,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftmul_orrr_rf
   mnemonic: ftmul
   format: orrr
@@ -5035,6 +5447,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftdiv_orrr_rf
   mnemonic: ftdiv
   format: orrr
@@ -5059,6 +5472,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftrem_orrr_rf
   mnemonic: ftrem
   format: orrr
@@ -5083,6 +5497,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftsclb_orrr_rf
   mnemonic: ftsclb
   format: orrr
@@ -5107,6 +5522,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftsgnn_orrr_rf
   mnemonic: ftsgnn
   format: orrr
@@ -5131,6 +5547,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftsgnj_orrr_rf
   mnemonic: ftsgnj
   format: orrr
@@ -5155,6 +5572,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: foadd_orrr_rf
   mnemonic: foadd
   format: orrr
@@ -5179,6 +5597,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fosub_orrr_rf
   mnemonic: fosub
   format: orrr
@@ -5203,6 +5622,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fomul_orrr_rf
   mnemonic: fomul
   format: orrr
@@ -5227,6 +5647,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fodiv_orrr_rf
   mnemonic: fodiv
   format: orrr
@@ -5251,6 +5672,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: forem_orrr_rf
   mnemonic: forem
   format: orrr
@@ -5275,6 +5697,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fosclb_orrr_rf
   mnemonic: fosclb
   format: orrr
@@ -5299,6 +5722,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fosgnn_orrr_rf
   mnemonic: fosgnn
   format: orrr
@@ -5323,6 +5747,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: fosgnj_orrr_rf
   mnemonic: fosgnj
   format: orrr
@@ -5347,6 +5772,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftqcmp_orrr_rf
   mnemonic: ftqcmp
   format: orrr
@@ -5371,6 +5797,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: ftscmp_orrr_rf
   mnemonic: ftscmp
   format: orrr
@@ -5395,6 +5822,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: foqcmp_orrr_rf
   mnemonic: foqcmp
   format: orrr
@@ -5419,6 +5847,7 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []
 - id: foscmp_orrr_rf
   mnemonic: foscmp
   format: orrr
@@ -5443,3 +5872,4 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
+  rule_refs: []

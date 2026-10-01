@@ -13,6 +13,7 @@ M1 范围外（浮点 RF 全部 / 特权 cfx / LR-SC 原子）保留其编码条
 
 import os
 import yaml
+from collections import OrderedDict
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_PATH = os.path.join(REPO_ROOT, "contracts", "opcodes.yaml")
@@ -671,6 +672,76 @@ def build_misc_rf(records):
                            S00_MISCRF, ha=ha, excluded=True))
 
 
+# ────────────────────────────── rule_refs 映射 ──────────────────────────────
+
+# legality 表达式 → legality_rules.yaml id 的完整映射。
+# 来源：contracts/legality_rules.yaml（SPEC-070t 已定稿，15 条）。
+# 仅映射 opcodes.yaml legality 中实际出现的表达式；
+# 运行时/兜底规则（excp_ialign/excp_rasof/excp_rasuf/excp_undi）不由 legality 表达式触发，
+# 在 check_rule_refs.py 中通过显式豁免清单处理。
+EXPR_TO_RULE = OrderedDict([
+    # ── 目的寄存器 ──
+    ("rdha != rd0",                               "dst_rd0"),
+    ("rdhb != rd0",                               "dst_rd0"),
+    ("rdhc != rd0",                               "dst_rd0"),
+    ("rbha != rb0",                               "dst_rb0"),
+    ("rbhb != rb0",                               "dst_rb0"),
+    # ── 双目的约束 ──
+    ("!(rdha == rd0 && rdhb == rd0)",             "dst_dual_same"),
+    ("!(rdha == rdhb && rdha != rd0)",            "dst_dual_same"),
+    # ── 多寄存器/块赋值范围 ──
+    ("immu6 != 0",                                "mreg_zero"),
+    ("raha + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rahb + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rahc + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rbha + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rbhb + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rbhc + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rdha + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rdhb + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rdhc + immu6 <= 64",                        "mreg_range_overflow"),
+    # ── 块赋值重叠 ──
+    ("no_overlap(rdhb, rdhc, immu6)",             "mreg_range_overlap"),
+    ("no_overlap(rbhb, rbhc, immu6)",             "mreg_range_overlap"),
+    # ── 对齐 ──
+    ("aligned(2)",                                "excp_malign"),
+    ("aligned(4)",                                "excp_malign"),
+    ("aligned(8)",                                "excp_malign"),
+    # ── SBZ / 位域 ──
+    ("immu18[17:12] == 0",                        "encode_sbz"),
+    ("immu18[11:6] == 0",                         "encode_sbz"),
+    ("immu18[5:4] == 0",                          "encode_sbz"),
+    ("immu6 <= 7",                                "encode_sbz"),
+    ("immu6 <= 15",                               "encode_sbz"),
+    ("immu6 <= 31",                               "encode_sbz"),
+    ("immu6 <= 63",                               "encode_sbz"),
+])
+
+def _compute_rule_refs(records):
+    """为每条记录计算 rule_refs 字段（list[str]，去重保序）。
+
+    规则：
+    - excluded_m1: true ⇒ rule_refs: []
+    - legality 为空 ⇒ rule_refs: []
+    - 否则按 EXPR_TO_RULE 映射每条 legality 表达式；未知表达式触发 RuntimeError。
+    """
+    for r in records:
+        if r.get("excluded_m1") or not r.get("legality"):
+            r["rule_refs"] = []
+            continue
+        seen = set()
+        refs = []
+        for expr in r["legality"]:
+            if expr not in EXPR_TO_RULE:
+                raise RuntimeError(
+                    f"指令 {r['id']}：legality 表达式 {expr!r} 无映射（请更新 EXPR_TO_RULE）")
+            rid = EXPR_TO_RULE[expr]
+            if rid not in seen:
+                seen.add(rid)
+                refs.append(rid)
+        r["rule_refs"] = refs
+
+
 # ────────────────────────────── 主流程 ──────────────────────────────
 
 def main():
@@ -683,8 +754,11 @@ def main():
     build_misc_fixed_width(records, 0x43, "b", 7, "SimRISC-10")
     build_misc_rf(records)
 
+    _compute_rule_refs(records)
+
     n_m1 = sum(1 for r in records if not r.get("excluded_m1"))
     n_ex = len(records) - n_m1
+    n_with_refs = sum(1 for r in records if r.get("rule_refs"))
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         f.write("# SimRISC 0.5.4 指令编码表（M1 范围）\n")
@@ -692,10 +766,12 @@ def main():
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# excluded_m1: true 的条目属 M1 范围外（浮点 RF / 特权 cfx / LR-SC），\n")
         f.write("#   M1 不实现但编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
-        f.write(f"# 共 {len(records)} 条：M1 内 {n_m1} 条，excluded_m1 {n_ex} 条\n\n")
+        f.write(f"# 共 {len(records)} 条：M1 内 {n_m1} 条，excluded_m1 {n_ex} 条\n")
+        f.write(f"# 有 rule_refs 的指令：{n_with_refs} 条\n\n")
         yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-    print(f"生成完成：{len(records)} 条（M1 内 {n_m1}，excluded_m1 {n_ex}）-> {OUT_PATH}")
+    print(f"生成完成：{len(records)} 条（M1 内 {n_m1}，excluded_m1 {n_ex}，"
+          f"有 rule_refs {n_with_refs}）-> {OUT_PATH}")
 
 
 if __name__ == "__main__":
