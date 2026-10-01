@@ -24,7 +24,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         clean-work build-mc build-mc-lite build-mc-reconfig \
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
-        check-interface validate-encoding check-rule-refs
+        check-legality-drift check-interface validate-encoding check-rule-refs
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -58,6 +58,7 @@ help:
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
+	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
 
 manifest-check:
@@ -188,7 +189,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-interface validate-encoding check-rule-refs check-qemu-semantics
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -214,6 +215,11 @@ check-spec-refs:
 # Spec embedded assembly list consistency (SPEC-037t).
 check-asm-list:
 	@$(PYTHON) tools/spec/check_asm_list_consistency.py
+
+# Legality drift gate (SPEC-074t): verifies LEGALITY sections in
+# spec/SimRISC-01..12 exactly match content rendered from contracts/.
+check-legality-drift:
+	@$(PYTHON) tools/spec/check_legality_drift.py
 
 # Interface alignment gate (INTEG-003t / INTEG-007t): cross-module
 # contract↔implementation consistency (LLVM/QEMU/opcodes/inventory).
