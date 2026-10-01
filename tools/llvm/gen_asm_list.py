@@ -6,8 +6,8 @@ See ``docs/assembly-list.md`` (generated) and
 
 Sources
 -------
-* ``contracts/opcodes.yaml`` -- the authoritative 253-entry encoding table
-  (176 M1 + 77 ``excluded_m1``), with per-field ``role``/``bank``.
+* ``contracts/opcodes.yaml`` -- the authoritative encoding table
+  (N M1 + M ``excluded_m1``), with per-field ``role``/``bank``.
 
 Derivation rules (validated against ``tests/lit/MC/Dadao/*.s``)
 ---------------------------------------------------------------
@@ -575,11 +575,16 @@ def main() -> int:
     if args.embed_spec:
         return embed_spec(entries)
 
+    # --- 从 entries 推导计数（消除硬编码）---
+    total = len(entries)
+    n_m1 = sum(1 for e in entries if not e.get("excluded_m1"))
+    n_excluded = sum(1 for e in entries if e.get("excluded_m1"))
+
     if args.plain:
         header = (
             f"// DADAO 指令清单（{'新语法（规范草案，待实现）' if args.syntax == 'new' else '旧语法（当前已实现）'}）\n"
             f"// 生成器：tools/llvm/gen_asm_list.py --plain --syntax {args.syntax}\n"
-            f"// 来源：contracts/opcodes.yaml（253 条 = M1 176 + excluded_m1 77）\n"
+            f"// 来源：contracts/opcodes.yaml（{total} 条 = M1 {n_m1} + excluded_m1 {n_excluded}）\n"
             f"// 新语法规范：docs/spec/assembly-language.md\n\n"
         )
         text = header + "\n".join(plain_lines(entries, args.syntax)) + "\n"
@@ -590,6 +595,18 @@ def main() -> int:
             sys.stdout.write(text)
             print(f"gen-asm-list: {len(entries)} entries ({args.syntax} syntax) -> stdout", file=sys.stderr)
         return 0
+
+    # --- deferred 统计（从 entries 推导）---
+    _by_class_tmp: dict[str, list[dict]] = {}
+    for entry in entries:
+        _by_class_tmp.setdefault(classify(entry), []).append(entry)
+    _deferred_parts = []
+    for _sec in DEFERRED_SECTIONS:
+        _cnt = len(_by_class_tmp.get(_sec, []))
+        _deferred_parts.append(f"**{_sec}**（{_cnt} 条，{DEFERRED_SECTIONS[_sec]}）")
+    _deferred_total = sum(len(_by_class_tmp.get(s, [])) for s in DEFERRED_SECTIONS)
+    _n_active = total - _deferred_total
+    _deferred_text = "与".join(_deferred_parts) + f"**整章 deferred**；其余 {_n_active} 条为当前有效书写形式"
 
     by_format: dict[str, list[dict]] = {}
     for entry in entries:
@@ -626,10 +643,10 @@ def main() -> int:
     header = f"""# DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（253 条 = M1 176 + `excluded_m1` 77）
+> **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `excluded_m1` {n_excluded}）
 > **语法**：`docs/spec/assembly-language.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
-> **deferred**（用户裁定 2026-09-25）：**浮点运算**（46 条，待浮点专门任务）与**待定**（11 条，暂不归类，待必须启用时）**整章 deferred**；其余 195 条为当前有效书写形式
+> **deferred**（用户裁定 2026-09-25）：{_deferred_text}
 > **注（非 deferred 的 rf 条目）**：浮点寄存器的**读写**——`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式（8 条）、`cs.*-rf` 与 `rd2rf`/`rf2rd`（7 条）、`set.w-rf`（1 条）——**不**属 deferred：浮点寄存器默认存在，这些只读写寄存器、不涉浮点运算（用户裁定 2026-09-25）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `docs/spec/assembly-language.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）

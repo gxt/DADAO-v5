@@ -1,12 +1,12 @@
 # SimRISC浮点运算指令
 
 > **版本：0.5.4**（与 SimRISC-00 一致）
-> **分类：浮点运算 [deferred]**（46 条）— fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类
+> **分类：浮点运算 [deferred]**（44 条）— fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类
 
 <!-- ASSEMBLY_LIST_START -->
 ## 汇编指令速查
 
-### 浮点运算（46 条）｜ **deferred** — 待浮点专门任务
+### 浮点运算（44 条）｜ **deferred** — 待浮点专门任务
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -19,7 +19,6 @@
 | `foadd` | `orrr` | `rf` | `foadd rfHB, rfHC, rfHD` | `foadd_orrr_rf` |
 | `focls` | `orri` | `rf` | `focls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `focls_orri_rf` |
 | `fodiv` | `orrr` | `rf` | `fodiv rfHB, rfHC, rfHD` | `fodiv_orrr_rf` |
-| `folog` | `orri` | `rf` | `folog rfHB, rfHC, immu6` | `folog_orri_rf` |
 | `fomul` | `orrr` | `rf` | `fomul rfHB, rfHC, rfHD` | `fomul_orrr_rf` |
 | `foqcmp` | `orrr` | `rf` | `foqcmp rdHB, rfHC, rfHD` | `foqcmp_orrr_rf` |
 | `forem` | `orrr` | `rf` | `forem rfHB, rfHC, rfHD` | `forem_orrr_rf` |
@@ -38,7 +37,6 @@
 | `ftadd` | `orrr` | `rf` | `ftadd rfHB, rfHC, rfHD` | `ftadd_orrr_rf` |
 | `ftcls` | `orri` | `rf` | `ftcls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ftcls_orri_rf` |
 | `ftdiv` | `orrr` | `rf` | `ftdiv rfHB, rfHC, rfHD` | `ftdiv_orrr_rf` |
-| `ftlog` | `orri` | `rf` | `ftlog rfHB, rfHC, immu6` | `ftlog_orri_rf` |
 | `ftmul` | `orrr` | `rf` | `ftmul rfHB, rfHC, rfHD` | `ftmul_orrr_rf` |
 | `ftqcmp` | `orrr` | `rf` | `ftqcmp rdHB, rfHC, rfHD` | `ftqcmp_orrr_rf` |
 | `ftrem` | `orrr` | `rf` | `ftrem rfHB, rfHC, rfHD` | `ftrem_orrr_rf` |
@@ -138,17 +136,13 @@ fosclb  rfHB, rfHC, rfHD
 
 ```simrisc
 ftroot  rfHB, rfHC, immu6
-ftlog   rfHB, rfHC, immu6
 
 foroot  rfHB, rfHC, immu6
-folog   rfHB, rfHC, immu6
 ```
 
-ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 immu6 中。支持的 n 值：`2`（平方根）、`3`（立方根）。不支持的 n 值触发 ILLI 异常。
+ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 immu6 中。仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
 
-> 注意：当 n=2 时，`ftroot/foroot` 的运算基本等同于 `ftsqrt/fosqrt`，但是在 IEEE754-2019 中特意指出，`rootn(-0, 2)` 不等于 `squareRoot(-0)`，因此，对于 `rootn(-0, 2)` 的运算结果不做具体要求。
-
-ftlog和folog指令用来实现对数运算，底（base）存放在 immu6 中。支持的底值：`2`（log2）、`e`（自然对数，immu6=1 约定）、`10`（log10，immu6=0 约定）。不支持的底值触发 ILLI 异常。
+> 注意：`ftroot/foroot` 的运算基本等同于 `ftsqrt/fosqrt`，但是在 IEEE754-2019 中特意指出，`rootn(-0, 2)` 不等于 `squareRoot(-0)`，因此，对于 `rootn(-0, 2)` 的运算结果不做具体要求。
 
 S1D1 指令硬件先读源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 

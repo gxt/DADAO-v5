@@ -3,7 +3,7 @@
 # M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统
 # excluded_m1: true 的条目属 M1 范围外（浮点 RF / 特权 cfx / LR-SC），
 #   M1 不实现但编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
-# 共 253 条：M1 内 176 条，excluded_m1 77 条
+# 共 251 条：M1 内 176 条，excluded_m1 75 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -5027,31 +5027,6 @@
   spec_cite: SimRISC-00 §MISC-RF指令编码
   excluded_m1: true
   decode: ILLI
-- id: ftlog_orri_rf
-  mnemonic: ftlog
-  format: orri
-  op: '0x44'
-  ha: '0x07'
-  mask: '0xFFFC0000'
-  value: '0x441C0000'
-  fields:
-  - name: rfhb
-    bits: '[17:12]'
-    role: dst
-    bank: rf
-  - name: rfhc
-    bits: '[11:6]'
-    role: src
-    bank: rf
-  - name: immu6
-    bits: '[5:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality: []
-  spec_cite: SimRISC-00 §MISC-RF指令编码
-  excluded_m1: true
-  decode: ILLI
 - id: focls_orri_rf
   mnemonic: focls
   format: orri
@@ -5134,31 +5109,6 @@
   ha: '0x0E'
   mask: '0xFFFC0000'
   value: '0x44380000'
-  fields:
-  - name: rfhb
-    bits: '[17:12]'
-    role: dst
-    bank: rf
-  - name: rfhc
-    bits: '[11:6]'
-    role: src
-    bank: rf
-  - name: immu6
-    bits: '[5:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality: []
-  spec_cite: SimRISC-00 §MISC-RF指令编码
-  excluded_m1: true
-  decode: ILLI
-- id: folog_orri_rf
-  mnemonic: folog
-  format: orri
-  op: '0x44'
-  ha: '0x0F'
-  mask: '0xFFFC0000'
-  value: '0x443C0000'
   fields:
   - name: rfhb
     bits: '[17:12]'

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_arith.c.inc b/target/dadao/insn_trans/trans_arith.c.inc
 new file mode 100644
-index 0000000..8e9894f
+index 0000000..7acc850
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_arith.c.inc
-@@ -0,0 +1,941 @@
+@@ -0,0 +1,927 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §3.1.1 add.uo/add.so/sub.uo/sub.so (rrrr): 128-bit add/sub */
@@ -666,13 +666,6 @@ index 0000000..8e9894f
 +    return true;
 +}
 +
-+static bool trans_ftlog_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftlog - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
 +static bool trans_focls_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
 +    /* focls - stub: ILLI */
@@ -697,13 +690,6 @@ index 0000000..8e9894f
 +static bool trans_foroot_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
 +    /* foroot - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_folog_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* folog - stub: ILLI */
 +    gen_exception_illegal(ctx);
 +    return true;
 +}

@@ -363,8 +363,8 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 |           | xxx-000     | xxx-001     | xxx-010     | xxx-011     | xxx-100     | xxx-101     | xxx-110     | xxx-111     |
 | ---       | ---         | ---         | ---         | ---         | ---         | ---         | ---         | ---         |
-| 000-xxx   | ftcls_orri_rf  | ft2fo_orri_rf  | ft2ft_orri_rf  |             |             |             | ftroot_orri_rf | ftlog_orri_rf  |
-| 001-xxx   | focls_orri_rf  | fo2ft_orri_rf  | fo2fo_orri_rf  |             |             |             | foroot_orri_rf | folog_orri_rf  |
+| 000-xxx   | ftcls_orri_rf  | ft2fo_orri_rf  | ft2ft_orri_rf  |             |             |             | ftroot_orri_rf |  |
+| 001-xxx   | focls_orri_rf  | fo2ft_orri_rf  | fo2fo_orri_rf  |             |             |             | foroot_orri_rf |  |
 | 010-xxx   | ftadd_orrr_rf  | ftsub_orrr_rf  | ftmul_orrr_rf  | ftdiv_orrr_rf  | ftrem_orrr_rf  | ftsclb_orrr_rf | ftsgnn_orrr_rf | ftsgnj_orrr_rf |
 | 011-xxx   | foadd_orrr_rf  | fosub_orrr_rf  | fomul_orrr_rf  | fodiv_orrr_rf  | forem_orrr_rf  | fosclb_orrr_rf | fosgnn_orrr_rf | fosgnj_orrr_rf |
 | 100-xxx   | ftqcmp_orrr_rf | ftscmp_orrr_rf |             |             |             |             |             |             |

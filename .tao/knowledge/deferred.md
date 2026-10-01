@@ -9,7 +9,7 @@
 - **ISA 归一化完成里程碑（原 `SPEC-005m`，已移除）**：曾用独立 `m` 标记 `SPEC-002t`+`003t` 完成。因 `k`↔`m` 一一对应规则移除；其意义由 `SPEC-002t`/`003t` 的完成 + `SPEC-011m`（M1 spec 里程碑）覆盖。
 - **`SPEC-002t`/`003t` 产出需重新生成**：`contract-isa.md`、`contracts/opcodes.yaml` 在 spec 重排后**重新生成**；旧文件暂作参考。
 - **M1 范围外（推迟）**：浮点（**RF 全部**：存取与运算）、特权 cfx 系统指令、LR-SC 原子。M1 提取：标量整数 + 地址/内存（RD/RB/**RA**）+ 控制流（`call`/`ret`/RegRAS）+ 测试机所需系统/异常。推迟项的完整规范与编码留后续（`SPEC-002t`/`003t` 标 `Excluded from M1`）。
-- **浮点支持（M1 明确不含，但后续必做）**：M1 **不引入任何浮点内容**（`SimRISC-07` § / MISC-RF 运算、FCSR 语义、FP 寄存器类）。浮点支持**后续必须提供**，路线参考 0628：以 **soft-float libcall** 接入——LLVM 把 f32/f64 软化，走 `__adddf3`/`__divsc3` 等 GNU 软浮点（**不注册 FP 寄存器类**），真正运算实现在 libc 的 soft-float shim；**0628 的 QEMU 全程无浮点指令**（其在 M2.5/M2.6 才以 soft-float 接入）。若将来要**原生**浮点（MISC-RF 46 条 + FCSR），属新决策。
+- **浮点支持（M1 明确不含，但后续必做）**：M1 **不引入任何浮点内容**（`SimRISC-07` § / MISC-RF 运算、FCSR 语义、FP 寄存器类）。浮点支持**后续必须提供**，路线参考 0628：以 **soft-float libcall** 接入——LLVM 把 f32/f64 软化，走 `__adddf3`/`__divsc3` 等 GNU 软浮点（**不注册 FP 寄存器类**），真正运算实现在 libc 的 soft-float shim；**0628 的 QEMU 全程无浮点指令**（其在 M2.5/M2.6 才以 soft-float 接入）。若将来要**原生**浮点（MISC-RF 44 条 + FCSR），属新决策。 **（2026-10-01 注：`ftlog`/`folog` 已删除，浮点家族 46→44）**
 - **ABI 合约（`SPEC-004t`）的 M2 / CodeGen 内容**：**已定（2026-09-12）**——`SPEC-004t` **收窄到 M1 最小 ABI 事实**（寄存器角色、`SP=rb1`、栈向下增长/`call` 8B 对齐、`call`/`ret`/RegRAS）；**完整调用约定**（参数寄存器分配、返回值、栈帧布局、三 bank 共享溢出区、prologue/epilogue）**`Deferred to M2`**（M2 BasicCodeGen 的 oracle）。
 - **ABI `[OPEN]` 项**：`rd1`/`rb3`/`rb4` 的 callee-saved 分类（spec 为 `-`）、窄返回值扩展规则、多返回值（spec 自相冲突）——不得当规范性要求。
 - **Object ABI（`SPEC-005t`）**：`EM_DADAO` 注册状态（未注册 upstream，project-custom）、`e_flags` 命名空间策略、**M1 是否用 target linker（LLD）**。
@@ -23,6 +23,8 @@
 - **spec 正文代码块**无永久门控（`SPEC-041t`…`054t` reviewer 多次登记，2026-09-29，非阻断）**：`check-asm-list-consistency.py` 只校验 `<!-- ASSEMBLY_LIST_START/END -->` **生成区**与生成器一致，**不解析正文散文/代码块**。故 12 章正文的新汇编格式正确性目前依赖任务级 reviewer 自写脚本（对照 `docs/assembly-list.md`「汇编形式」列）。若要机制化防回退，需新增检查器（对正文 ` ```simrisc ` 块逐行比对生成表；伪指令行需例外表）并接入 `make check`。归属：spec 模块后续任务。
 - **子代理异常返回事件（`SPEC-049t`，2026-09-29，主会话登记，已处置）**：engineer 子代理第 1 次执行 `SPEC-049t`（SimRISC-09 正文改新汇编格式）时**异常返回**（仅回「接下来需要做什么？」，未填完成区/未自审），但产出**部分落盘**（代码块 26 条已改，**表格行 6 处漏改**）。主会话核对 `git status` 与 `grep` 残留后**未自行重试**，经**用户授权**重新下发补完（`ses_f133fe556ffe…`），再由 reviewer 独立验收（9 项核验 + 3 类反例，未污染工作区）后 Accepted。教训：`check-asm-list-consistency` 绿灯不覆盖正文，子代理异常返回时须**逐项扫描残留**（不能只看「文件已改」）。
 - **`focls`/`ftcls` 之外的浮点指令未复核（`SPEC-047t` 附带观察，2026-09-29，非阻断）**：用户此前指示「先处理 cls」；`SPEC-047t` 已把第 7 章其余代码块改为新格式。若后续发现其它 FP 指令存在同类「语义固定值」（如 `immu6` 被写死）问题，另立任务。
+- **`SPEC-067t` F2 注记：deferred.md:18 含旧规则 id（历史条目，不改写正文）**：line 18 提及 `fp_root_invalid_n`、`fp_log_invalid_base` 及旧计数 `178 M1 + 78`，均为 `SPEC-067t` 前的历史状态。按体例不改写历史正文；已知：`fp_log_invalid_base` 已删除、`fp_root_invalid_n` 已改名 `encode_fp_root_n`、计数已更新为 251/75/176。
+- **`SPEC-067t` F4 门控覆盖缺口：ftroot/foroot n=2 约束与规则改名无机械门控**：(a) `encode_fp_root_n` 的 n=2 约束（SimRISC-07 正文写回「支持 n=2 与 n=3」）与 (b) 规则 id 改名（`fp_root_invalid_n` → `encode_fp_root_n`）均无 `make check` 可 FAIL 的门控。注入 n=3 或反注旧 id 后 `make check` 仍 EXIT=0。归属：待 `SPEC-065t` 的 `rule_refs`/合法性清单门控或其它任务补齐。
 
 ## infra
 

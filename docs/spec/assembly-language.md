@@ -2,7 +2,7 @@
 
 > **状态**：**生效（v1.1，2026-09-25，用户审核通过；修订：双目的/多寄存器语法，2026-09-28）**——语法已定稿；**实现待安排**（LLVM MC 的 parser/printer/disassembler 改动；当前汇编器实现的是旧语法）
 > **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策由 **`ADR-0013`《DADAO 汇编语言语法》冻结（Accepted，2026-09-28）**
-> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表）、`docs/assembly-list.md`（254 条指令全表，自动生成；其中**浮点**与**待定**两章整章 deferred）
+> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表）、`docs/assembly-list.md`（251 条指令全表，自动生成；其中**浮点**与**待定**两章整章 deferred）
 > **说明**：本规范按 ADR-0012 D4 由 spec 模块任务修改上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）
 > **关键词**：MUST / SHOULD / MAY 按 RFC 2119 解释
 

@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000000..0b1c43bf17
 --- /dev/null
 +++ b/target/dadao/insn.decode
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,270 @@
 +# DADAO instruction decoding
 +# Auto-generated from contracts/opcodes.yaml
 +# 256 patterns; blank cells trigger UNDI
@@ -234,12 +234,10 @@ index 0000000000..0b1c43bf17
 +ft2fo_orri_rf  01000100000001..................  @misc
 +ft2ft_orri_rf  01000100000010..................  @misc
 +ftroot_orri_rf  01000100000110..................  @misc
-+ftlog_orri_rf  01000100000111..................  @misc
 +focls_orri_rf  01000100001000..................  @misc
 +fo2ft_orri_rf  01000100001001..................  @misc
 +fo2fo_orri_rf  01000100001010..................  @misc
 +foroot_orri_rf  01000100001110..................  @misc
-+folog_orri_rf  01000100001111..................  @misc
 +ft2it_orri_rf  01000100110000..................  @misc
 +ft2io_orri_rf  01000100110001..................  @misc
 +ft2ut_orri_rf  01000100110010..................  @misc

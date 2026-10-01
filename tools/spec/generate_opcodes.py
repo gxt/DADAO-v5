@@ -123,8 +123,8 @@ _SPECIAL_IDS = {
     # 控制流
     "call": "ra", "jump": "rb", "ret": "ra",
     # 浮点运算/比较（fo*/ft* 前缀 → rf）
-    "ftcls": "rf", "ft2fo": "rf", "ft2ft": "rf", "ftroot": "rf", "ftlog": "rf",
-    "focls": "rf", "fo2ft": "rf", "fo2fo": "rf", "foroot": "rf", "folog": "rf",
+    "ftcls": "rf", "ft2fo": "rf", "ft2ft": "rf", "ftroot": "rf",
+    "focls": "rf", "fo2ft": "rf", "fo2fo": "rf", "foroot": "rf",
     "ft2it": "rf", "ft2io": "rf", "ft2ut": "rf", "ft2uo": "rf",
     "it2ft": "rf", "io2ft": "rf", "ut2ft": "rf", "uo2ft": "rf",
     "fo2it": "rf", "fo2io": "rf", "fo2ut": "rf", "fo2uo": "rf",
@@ -633,12 +633,10 @@ def build_misc_rf(records):
         (0x01, "ft2fo", "rfhb", "rfhc"),
         (0x02, "ft2ft", "rfhb", "rfhc"),
         (0x06, "ftroot", "rfhb", "rfhc"),
-        (0x07, "ftlog", "rfhb", "rfhc"),
         (0x08, "focls", "rdhb", "rfhc"),
         (0x09, "fo2ft", "rfhb", "rfhc"),
         (0x0A, "fo2fo", "rfhb", "rfhc"),
         (0x0E, "foroot", "rfhb", "rfhc"),
-        (0x0F, "folog", "rfhb", "rfhc"),
         (0x30, "ft2it", "rdhb", "rfhc"),
         (0x31, "ft2io", "rdhb", "rfhc"),
         (0x32, "ft2ut", "rdhb", "rfhc"),
