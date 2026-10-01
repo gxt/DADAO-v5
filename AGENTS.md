@@ -130,3 +130,11 @@ DADAO-v5/
 ## 角色与流程
 
 角色规则、任务编号（`<PREFIX>-nnn<suffix>`，模块内递增）、四态状态机与命令（`/plan` `/dispatch` `/complete` `/status`）见全局 `~/.config/opencode/` 与 `.tao/README.md`。工作仓库不含 agent 文件。
+
+## 并行任务上限（用户裁定 2026-10-01）
+
+- **同时在跑的子代理任务 ≤ 8**；达到上限时，等已有任务完成再下发。
+- **同改共享文件**（`contracts/`、`Makefile`、`tests/vectors/`、`spec/SimRISC-0x` 等）的任务**一律串行**，不得并行。
+- 避免在同一工作树上并发执行 `make check` / 构建类长任务（会互相污染证据、且曾导致 shell 被取消/服务器重启级事件）。
+- 长构建（`make build-qemu` 5–20 分钟、LLVM 30–90 分钟）一次只跑一个。
+- **构建并行度**：`make build-mc` / `build-qemu` 一律受 `JOBS`（默认 4）限制；**禁止**全核并行（`-j$(nproc)`）——它会开满 `cc1plus` 拖垮机器（用户裁定 2026-10-01）。

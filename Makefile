@@ -87,7 +87,7 @@ build-mc: manifest-check
 	  -DLLVM_ENABLE_PROJECTS="" \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	  -DLLVM_ENABLE_ASSERTIONS=ON
-	ninja -C $(LLVM_BUILD) llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen
+	ninja -j$(JOBS) -C $(LLVM_BUILD) llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen
 	@echo "build-mc: PASS"
 
 build-qemu: manifest-check
@@ -100,7 +100,7 @@ build-qemu: manifest-check
 	  --target-list=dadao-softmmu \
 	  --enable-tcg \
 	  --disable-werror
-	$(MAKE) -C $(QEMU_BUILD) -j$$(nproc)
+	$(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu: PASS"
 
 # gem5 is a v5 addition and has no build command yet (the gem5 module owns it).
@@ -159,3 +159,6 @@ check-interface:
 # (value/mask, field overlap, bank, legality refs, decode conflicts).
 validate-encoding: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/validate_encoding.py contracts/opcodes.yaml
+
+# 构建并行度（用户裁定 2026-10-01：限制 cc1plus 类进程）
+JOBS ?= 4
