@@ -48,7 +48,7 @@
   id: or.w_rwii_rd
   input_state: {}
   mnemonic: or.w
-  notes: 'legality or.w: rdha=rd0 → ILLI (rd_dest_rd0)'
+  notes: 'legality or.w: rdha=rd0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -97,7 +97,7 @@
   id: andn.w_rwii_rd
   input_state: {}
   mnemonic: andn.w
-  notes: 'legality andn.w: rdha=rd0 → ILLI (rd_dest_rd0)'
+  notes: 'legality andn.w: rdha=rd0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -146,7 +146,7 @@
   id: or.w_rwii_rb
   input_state: {}
   mnemonic: or.w
-  notes: 'legality or.w: rbha=rb0 → ILLI (rb_dest_rb0)'
+  notes: 'legality or.w: rbha=rb0 → ILLI (dst_rb0)'
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: encoding
@@ -195,7 +195,7 @@
   id: andn.w_rwii_rb
   input_state: {}
   mnemonic: andn.w
-  notes: 'legality andn.w: rbha=rb0 → ILLI (rb_dest_rb0)'
+  notes: 'legality andn.w: rbha=rb0 → ILLI (dst_rb0)'
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: encoding
@@ -244,7 +244,7 @@
   id: set.zw_rwii_rd
   input_state: {}
   mnemonic: set.zw
-  notes: 'legality set.zw: rdha=rd0 → ILLI (rd_dest_rd0)'
+  notes: 'legality set.zw: rdha=rd0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -293,7 +293,7 @@
   id: set.ow_rwii_rd
   input_state: {}
   mnemonic: set.ow
-  notes: 'legality set.ow: rdha=rd0 → ILLI (rd_dest_rd0)'
+  notes: 'legality set.ow: rdha=rd0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -342,7 +342,7 @@
   id: set.zw_rwii_rb
   input_state: {}
   mnemonic: set.zw
-  notes: 'legality set.zw: rbha=rb0 → ILLI (rb_dest_rb0)'
+  notes: 'legality set.zw: rbha=rb0 → ILLI (dst_rb0)'
   spec_cite: SimRISC-03 §立即数常数赋值：Immediate constant; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: encoding
@@ -391,7 +391,7 @@
   id: rd2rd_orri_rd
   input_state: {}
   mnemonic: rd2rd
-  notes: 'legality rd2rd: immu6=0 → ILLI (multi_immu6_zero)'
+  notes: 'legality rd2rd: immu6=0 → ILLI (mreg_zero)'
   spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-01 §存取RD寄存器
   status: active
 - class: overlap
@@ -463,7 +463,7 @@
   id: rd2ra_orri_ra
   input_state: {}
   mnemonic: rd2ra
-  notes: 'legality rd2ra: immu6=0 → ILLI (ra_multi_immu6_zero)'
+  notes: 'legality rd2ra: immu6=0 → ILLI (mreg_zero)'
   spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值
   status: active
 - class: overlap
@@ -535,7 +535,7 @@
   id: ra2rd_orri_ra
   input_state: {}
   mnemonic: ra2rd
-  notes: 'legality ra2rd: immu6=0 → ILLI (ra_multi_immu6_zero)'
+  notes: 'legality ra2rd: immu6=0 → ILLI (mreg_zero)'
   spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值
   status: active
 - class: legality
@@ -549,7 +549,7 @@
   id: ra2rd_orri_ra
   input_state: {}
   mnemonic: ra2rd
-  notes: 'legality ra2rd: rdhb=rd0 → ILLI (ra2rd_dest_rd0)'
+  notes: 'legality ra2rd: rdhb=rd0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §寄存器组之间块赋值
   status: active
 - class: overlap
@@ -621,7 +621,7 @@
   id: rb2rb_orri_rb
   input_state: {}
   mnemonic: rb2rb
-  notes: 'legality rb2rb: immu6=0 → ILLI (multi_immu6_zero)'
+  notes: 'legality rb2rb: immu6=0 → ILLI (mreg_zero)'
   spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-01 §存取RD寄存器
   status: active
 - class: overlap
@@ -693,7 +693,7 @@
   id: rd2rb_orri_rb
   input_state: {}
   mnemonic: rd2rb
-  notes: 'legality rd2rb: immu6=0 → ILLI (multi_immu6_zero)'
+  notes: 'legality rd2rb: immu6=0 → ILLI (mreg_zero)'
   spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-01 §存取RD寄存器
   status: active
 - class: overlap
@@ -765,7 +765,7 @@
   id: rb2rd_orri_rb
   input_state: {}
   mnemonic: rb2rd
-  notes: 'legality rb2rd: immu6=0 → ILLI (multi_immu6_zero)'
+  notes: 'legality rb2rd: immu6=0 → ILLI (mreg_zero)'
   spec_cite: SimRISC-02 §寄存器组之间块赋值; SimRISC-01 §存取RD寄存器
   status: active
 - class: overlap

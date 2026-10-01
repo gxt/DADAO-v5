@@ -970,18 +970,14 @@ def gen_cs_overlap_deferred(rec):
 # Rule spec_cite values come from contracts/legality_rules.yaml.
 
 _ILLI_RULES = {
-    # orrr single-dest (rdhb): rd_dest_rd0
-    "rd_dest_rd0": "SimRISC-01 §rd0 为目的寄存器约定",
-    # rrrr dual-dest (rdha, rdhb): dual_dest_both_rd0
-    "dual_dest_both_rd0": "SimRISC-01 §加减操作",
-    # orrr rb-dest (rbhb): rb_dest_rb0
-    "rb_dest_rb0": "SimRISC-02 §rb0 为目的寄存器约定",
-    # orri block move immu6=0
-    "multi_immu6_zero": "SimRISC-01 §存取RD寄存器",
-    # ra2rd dest rdhb=rd0
-    "ra2rd_dest_rd0": "SimRISC-02 §寄存器组之间块赋值",
-    # ra block immu6=0
-    "ra_multi_immu6_zero": "SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值",
+    # orrr single-dest (rdhb) / orri/rrii/riii/rwii rd-dest / ra2rd rdhb=rd0: dst_rd0
+    "dst_rd0": "SimRISC-01 §rd0 为目的寄存器约定",
+    # rrrr dual-dest (rdha, rdhb): dst_dual_same
+    "dst_dual_same": "SimRISC-01 §加减操作",
+    # orrr rb-dest (rbhb): dst_rb0
+    "dst_rb0": "SimRISC-02 §rb0 为目的寄存器约定",
+    # orri block move immu6=0 (RD/RB + RA): mreg_zero
+    "mreg_zero": "SimRISC-01 §存取RD寄存器",
 }
 
 
@@ -990,14 +986,14 @@ def _get_illi_rule_id(rec):
     Routes by the destination field's bank in opcodes.yaml, NOT by insn name."""
     fmt = rec["format"]
     if fmt == "rrrr":
-        return "dual_dest_both_rd0"
+        return "dst_dual_same"
     # Check destination field bank from opcodes.yaml
     for field in rec.get("fields", []):
         if field.get("role") == "dst":
             if field.get("bank") == "rb":
-                return "rb_dest_rb0"
+                return "dst_rb0"
             break
-    return "rd_dest_rd0"
+    return "dst_rd0"
 
 
 def gen_legality_rd0(rec):
@@ -1011,10 +1007,10 @@ def gen_legality_rd0(rec):
     sc = rec.get("spec_cite", "")
 
     if fmt == "rrrr":
-        # rdha=0, rdhb=0 → both rd0 → ILLI (dual_dest_both_rd0)
+        # rdha=0, rdhb=0 → both rd0 → ILLI (dst_dual_same)
         word = _build_word_rrrr(rec, 0, 0, 0, 0)
     elif fmt == "orrr":
-        # rdhb=0 → rd0 as dest → ILLI (rd_dest_rd0 or rb_dest_rb0)
+        # rdhb=0 → rd0 as dest → ILLI (dst_rd0 or dst_rb0)
         op_base = _base_mnem(insn)
         is_divrem = op_base in ("div", "rem")
         rdhd = 1 if is_divrem else 0  # avoid div-by-zero fault
@@ -1065,17 +1061,13 @@ def gen_riii_boundary_overflow(rec, bank):
 
 
 # ── Block move legality (TESTCASES-011t) ──────────────────────────────
-def gen_block_legality_multi_immu6_zero(rec):
-    """Legality case for block move (orri): immu6=0 → ILLI.
-    rd2rd/rb2rb/rb2rd/rd2rb: multi_immu6_zero.
-    ra2rd/rd2ra: ra_multi_immu6_zero."""
+def gen_block_legality_mreg_zero(rec):
+    """Legality case for block move (orri): immu6=0 → ILLI (mreg_zero).
+    rd2rd/rb2rb/rb2rd/rd2rb/ra2rd/rd2ra: mreg_zero."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "orri"
-    if mnem in ("ra2rd", "rd2ra"):
-        rule_id = "ra_multi_immu6_zero"
-    else:
-        rule_id = "multi_immu6_zero"
+    rule_id = "mreg_zero"
     rule_cite = _ILLI_RULES[rule_id]
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 1, 3, 0)
@@ -1085,11 +1077,11 @@ def gen_block_legality_multi_immu6_zero(rec):
 
 
 def gen_ra2rd_legality_dest_rd0(rec):
-    """Legality case for ra2rd: rdhb=rd0 → ILLI (ra2rd_dest_rd0)."""
+    """Legality case for ra2rd: rdhb=rd0 → ILLI (dst_rd0)."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "orri"
-    rule_id = "ra2rd_dest_rd0"
+    rule_id = "dst_rd0"
     rule_cite = _ILLI_RULES[rule_id]
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 0, 3, 1)
@@ -1099,11 +1091,11 @@ def gen_ra2rd_legality_dest_rd0(rec):
 
 
 def gen_rwii_legality_dest_rd0(rec):
-    """Legality case for rwii (rd-dest): rdha=rd0 → ILLI (rd_dest_rd0)."""
+    """Legality case for rwii (rd-dest): rdha=rd0 → ILLI (dst_rd0)."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "rwii"
-    rule_id = "rd_dest_rd0"
+    rule_id = "dst_rd0"
     rule_cite = _ILLI_RULES[rule_id]
     sc = rec.get("spec_cite", "")
     word = _build_word_rwii(rec, 0, 0, 0)
@@ -1113,11 +1105,11 @@ def gen_rwii_legality_dest_rd0(rec):
 
 
 def gen_rwii_legality_dest_rb0(rec):
-    """Legality case for rwii (rb-dest): rbha=rb0 → ILLI (rb_dest_rb0)."""
+    """Legality case for rwii (rb-dest): rbha=rb0 → ILLI (dst_rb0)."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "rwii"
-    rule_id = "rb_dest_rb0"
+    rule_id = "dst_rb0"
     rule_cite = _ILLI_RULES[rule_id]
     sc = rec.get("spec_cite", "")
     word = _build_word_rwii(rec, 0, 0, 0)
@@ -1427,13 +1419,13 @@ def generate_file(filename, recs):
 
         # ── Legality case (TESTCASES-011t: cs.* rdhb=rd0 → ILLI) ──
         if is_cond and filename == "reg-cond-assign.yaml":
-            # cs.n/z/p: rdhb is dst → rdhb=0 → ILLI (rd_dest_rd0)
-            # cs.eq/ne: rdhc is dst → rdhc=0 → ILLI (rd_dest_rd0)
+            # cs.n/z/p: rdhb is dst → rdhb=0 → ILLI (dst_rd0)
+            # cs.eq/ne: rdhc is dst → rdhc=0 → ILLI (dst_rd0)
             if mnem in ("cs.eq", "cs.ne"):
                 word = _build_word_rrrr(rec, 1, 2, 0, 3)  # rdhc=0 (dst=rd0)
             else:
                 word = _build_word_rrrr(rec, 1, 0, 3, 4)  # rdhb=0 (dst=rd0)
-            rule_id = "rd_dest_rd0"
+            rule_id = "dst_rd0"
             rule_cite = _ILLI_RULES[rule_id]
             sc = rec.get("spec_cite", "")
             notes = "legality %s: dest=rd0 → ILLI (%s)" % (mnem, rule_id)
@@ -1443,7 +1435,7 @@ def generate_file(filename, recs):
         # ── Legality case (TESTCASES-011t: reg-imm-block) ──
         if is_block and filename == "reg-imm-block.yaml":
             # orri block moves: immu6=0 → ILLI
-            cases.append(gen_block_legality_multi_immu6_zero(rec))
+            cases.append(gen_block_legality_mreg_zero(rec))
             # ra2rd additional: rdhb=rd0 → ILLI
             if mnem == "ra2rd":
                 cases.append(gen_ra2rd_legality_dest_rd0(rec))

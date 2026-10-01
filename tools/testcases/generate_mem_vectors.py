@@ -218,12 +218,12 @@ def gen_legality_illi(rec):
             ha = 0  # rd0
             hb = RB_BASE
             word = build_word_rrii(op, ha, hb, 0)
-            reason = "rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)"
+            reason = "rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)"
         elif bank == "rb":
             ha = 0  # rb0
             hb = RB_BASE
             word = build_word_rrii(op, ha, hb, 0)
-            reason = "rb0 as dest/src → ILLI (rb_dest_rb0 / rb_base_rb0_store)"
+            reason = "rb0 as dest/src → ILLI (dst_rb0 / rb_base_rb0_store)"
         else:  # ra
             # RA rrii has no rd0/rb0 destination constraint (ra无此约束).
             # rb0=PC≠0 (ADR-0004 D2.1/D6.5), so base=rb0 does NOT give addr=0.
@@ -236,19 +236,19 @@ def gen_legality_illi(rec):
             hb = RB_BASE
             hc = RD_OFF
             word = build_word_rrri(op, ha, hb, hc, IMMU6)
-            reason = "rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)"
+            reason = "rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)"
         elif bank == "rb":
             ha = 0  # rb0
             hb = RB_BASE
             hc = RD_OFF
             word = build_word_rrri(op, ha, hb, hc, IMMU6)
-            reason = "rb0 as dest/src → ILLI (rb_dest_rb0)"
+            reason = "rb0 as dest/src → ILLI (dst_rb0)"
         else:  # ra
             ha = RA_DEST
             hb = RB_BASE
             hc = RD_OFF
             word = build_word_rrri(op, ha, hb, hc, 0)  # immu6=0
-            reason = "immu6=0 → ILLI (ra_multi_immu6_zero)"
+            reason = "immu6=0 → ILLI (mreg_zero)"
             return make_case(mnem, insn, fmt, "legality", word, {}, None,
                              "ILLI", "active", None, None, sc, reason)
 
@@ -276,7 +276,7 @@ def gen_legality_malign(rec):
         inp = {"rb": {f"rb{RB_BASE}": hex64(RAM_BASE)}}
         notes = (f"legality MALIGN: EA={hex64(RAM_BASE + misalign_off)} "
                  f"(imms12={misalign_off}), align={align}B → MALIGN (0x8C), "
-                 f"contract-isa §4.1.1, legality_rules data_malign")
+                 f"contract-isa §4.1.1, legality_rules excp_malign")
     else:
         # rrri: EA = rb3 + rd2; rd2 preset to misalignment offset
         word = _build_encoding_word(rec)
@@ -286,7 +286,7 @@ def gen_legality_malign(rec):
         }
         notes = (f"legality MALIGN: EA={hex64(RAM_BASE + misalign_off)} "
                  f"(rd{RD_OFF} offset={misalign_off}), align={align}B → MALIGN (0x8C), "
-                 f"contract-isa §4.1.1, legality_rules data_malign")
+                 f"contract-isa §4.1.1, legality_rules excp_malign")
     return make_case(mnem, insn, fmt, "legality", word, inp, None,
                      "MALIGN", "active", None, None, sc, notes)
 

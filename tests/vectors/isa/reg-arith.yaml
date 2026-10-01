@@ -91,7 +91,7 @@
   id: add.uo_rrrr_rd
   input_state: {}
   mnemonic: add.uo
-  notes: 'legality add.uo: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
+  notes: 'legality add.uo: dest=rd0/rb0 → ILLI (dst_dual_same)'
   spec_cite: SimRISC-04 §加减操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
@@ -183,7 +183,7 @@
   id: add.so_rrrr_rd
   input_state: {}
   mnemonic: add.so
-  notes: 'legality add.so: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
+  notes: 'legality add.so: dest=rd0/rb0 → ILLI (dst_dual_same)'
   spec_cite: SimRISC-04 §加减操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
@@ -275,7 +275,7 @@
   id: sub.uo_rrrr_rd
   input_state: {}
   mnemonic: sub.uo
-  notes: 'legality sub.uo: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
+  notes: 'legality sub.uo: dest=rd0/rb0 → ILLI (dst_dual_same)'
   spec_cite: SimRISC-04 §加减操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
@@ -367,7 +367,7 @@
   id: sub.so_rrrr_rd
   input_state: {}
   mnemonic: sub.so
-  notes: 'legality sub.so: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
+  notes: 'legality sub.so: dest=rd0/rb0 → ILLI (dst_dual_same)'
   spec_cite: SimRISC-04 §加减操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
@@ -459,7 +459,7 @@
   id: mul.uo_rrrr_rd
   input_state: {}
   mnemonic: mul.uo
-  notes: 'legality mul.uo: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
+  notes: 'legality mul.uo: dest=rd0/rb0 → ILLI (dst_dual_same)'
   spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
@@ -551,7 +551,7 @@
   id: mul.so_rrrr_rd
   input_state: {}
   mnemonic: mul.so
-  notes: 'legality mul.so: dest=rd0/rb0 → ILLI (dual_dest_both_rd0)'
+  notes: 'legality mul.so: dest=rd0/rb0 → ILLI (dst_dual_same)'
   spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §加减操作
   status: active
 - class: encoding
@@ -621,7 +621,7 @@
   id: add.si_riii_rd
   input_state: {}
   mnemonic: add.si
-  notes: 'legality add.si: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality add.si: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-04 §自增自减; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: boundary
@@ -712,7 +712,7 @@
   id: add.si_riii_rb
   input_state: {}
   mnemonic: add.si
-  notes: 'legality add.si: dest=rd0/rb0 → ILLI (rb_dest_rb0)'
+  notes: 'legality add.si: dest=rd0/rb0 → ILLI (dst_rb0)'
   spec_cite: SimRISC-05 §自增自减; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: boundary
@@ -809,7 +809,7 @@
   id: add.so_orrr_rb
   input_state: {}
   mnemonic: add.so
-  notes: 'legality add.so: dest=rd0/rb0 → ILLI (rb_dest_rb0)'
+  notes: 'legality add.so: dest=rd0/rb0 → ILLI (dst_rb0)'
   spec_cite: SimRISC-05 §加减操作; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: encoding
@@ -885,7 +885,7 @@
   id: sub.so_orrr_rb
   input_state: {}
   mnemonic: sub.so
-  notes: 'legality sub.so: dest=rd0/rb0 → ILLI (rb_dest_rb0)'
+  notes: 'legality sub.so: dest=rd0/rb0 → ILLI (dst_rb0)'
   spec_cite: SimRISC-05 §加减操作; SimRISC-02 §rb0 为目的寄存器约定
   status: active
 - class: encoding
@@ -961,7 +961,7 @@
   id: div.uo_orrr_rd
   input_state: {}
   mnemonic: div.uo
-  notes: 'legality div.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality div.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1037,7 +1037,7 @@
   id: div.so_orrr_rd
   input_state: {}
   mnemonic: div.so
-  notes: 'legality div.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality div.so: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1113,7 +1113,7 @@
   id: rem.uo_orrr_rd
   input_state: {}
   mnemonic: rem.uo
-  notes: 'legality rem.uo: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality rem.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1189,7 +1189,7 @@
   id: rem.so_orrr_rd
   input_state: {}
   mnemonic: rem.so
-  notes: 'legality rem.so: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality rem.so: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-04 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1263,7 +1263,7 @@
   id: add.ut_orrr_rd
   input_state: {}
   mnemonic: add.ut
-  notes: 'legality add.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality add.ut: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1337,7 +1337,7 @@
   id: add.st_orrr_rd
   input_state: {}
   mnemonic: add.st
-  notes: 'legality add.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality add.st: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1411,7 +1411,7 @@
   id: sub.ut_orrr_rd
   input_state: {}
   mnemonic: sub.ut
-  notes: 'legality sub.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality sub.ut: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1485,7 +1485,7 @@
   id: sub.st_orrr_rd
   input_state: {}
   mnemonic: sub.st
-  notes: 'legality sub.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality sub.st: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1559,7 +1559,7 @@
   id: mul.ut_orrr_rd
   input_state: {}
   mnemonic: mul.ut
-  notes: 'legality mul.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality mul.ut: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1633,7 +1633,7 @@
   id: mul.st_orrr_rd
   input_state: {}
   mnemonic: mul.st
-  notes: 'legality mul.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality mul.st: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1709,7 +1709,7 @@
   id: div.ut_orrr_rd
   input_state: {}
   mnemonic: div.ut
-  notes: 'legality div.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality div.ut: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1785,7 +1785,7 @@
   id: div.st_orrr_rd
   input_state: {}
   mnemonic: div.st
-  notes: 'legality div.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality div.st: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1861,7 +1861,7 @@
   id: rem.ut_orrr_rd
   input_state: {}
   mnemonic: rem.ut
-  notes: 'legality rem.ut: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality rem.ut: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -1937,7 +1937,7 @@
   id: rem.st_orrr_rd
   input_state: {}
   mnemonic: rem.st
-  notes: 'legality rem.st: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality rem.st: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-08 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2011,7 +2011,7 @@
   id: add.uw_orrr_rd
   input_state: {}
   mnemonic: add.uw
-  notes: 'legality add.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality add.uw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2085,7 +2085,7 @@
   id: add.sw_orrr_rd
   input_state: {}
   mnemonic: add.sw
-  notes: 'legality add.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality add.sw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2159,7 +2159,7 @@
   id: sub.uw_orrr_rd
   input_state: {}
   mnemonic: sub.uw
-  notes: 'legality sub.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality sub.uw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2233,7 +2233,7 @@
   id: sub.sw_orrr_rd
   input_state: {}
   mnemonic: sub.sw
-  notes: 'legality sub.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality sub.sw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2307,7 +2307,7 @@
   id: mul.uw_orrr_rd
   input_state: {}
   mnemonic: mul.uw
-  notes: 'legality mul.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality mul.uw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2381,7 +2381,7 @@
   id: mul.sw_orrr_rd
   input_state: {}
   mnemonic: mul.sw
-  notes: 'legality mul.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality mul.sw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2457,7 +2457,7 @@
   id: div.uw_orrr_rd
   input_state: {}
   mnemonic: div.uw
-  notes: 'legality div.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality div.uw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2533,7 +2533,7 @@
   id: div.sw_orrr_rd
   input_state: {}
   mnemonic: div.sw
-  notes: 'legality div.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality div.sw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2609,7 +2609,7 @@
   id: rem.uw_orrr_rd
   input_state: {}
   mnemonic: rem.uw
-  notes: 'legality rem.uw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality rem.uw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2685,7 +2685,7 @@
   id: rem.sw_orrr_rd
   input_state: {}
   mnemonic: rem.sw
-  notes: 'legality rem.sw: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality rem.sw: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-09 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2759,7 +2759,7 @@
   id: add.ub_orrr_rd
   input_state: {}
   mnemonic: add.ub
-  notes: 'legality add.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality add.ub: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2833,7 +2833,7 @@
   id: add.sb_orrr_rd
   input_state: {}
   mnemonic: add.sb
-  notes: 'legality add.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality add.sb: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2907,7 +2907,7 @@
   id: sub.ub_orrr_rd
   input_state: {}
   mnemonic: sub.ub
-  notes: 'legality sub.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality sub.ub: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -2981,7 +2981,7 @@
   id: sub.sb_orrr_rd
   input_state: {}
   mnemonic: sub.sb
-  notes: 'legality sub.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality sub.sb: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §加减操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -3055,7 +3055,7 @@
   id: mul.ub_orrr_rd
   input_state: {}
   mnemonic: mul.ub
-  notes: 'legality mul.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality mul.ub: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -3129,7 +3129,7 @@
   id: mul.sb_orrr_rd
   input_state: {}
   mnemonic: mul.sb
-  notes: 'legality mul.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality mul.sb: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -3205,7 +3205,7 @@
   id: div.ub_orrr_rd
   input_state: {}
   mnemonic: div.ub
-  notes: 'legality div.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality div.ub: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -3281,7 +3281,7 @@
   id: div.sb_orrr_rd
   input_state: {}
   mnemonic: div.sb
-  notes: 'legality div.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality div.sb: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -3357,7 +3357,7 @@
   id: rem.ub_orrr_rd
   input_state: {}
   mnemonic: rem.ub
-  notes: 'legality rem.ub: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality rem.ub: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 - class: encoding
@@ -3433,7 +3433,7 @@
   id: rem.sb_orrr_rd
   input_state: {}
   mnemonic: rem.sb
-  notes: 'legality rem.sb: dest=rd0/rb0 → ILLI (rd_dest_rd0)'
+  notes: 'legality rem.sb: dest=rd0/rb0 → ILLI (dst_rd0)'
   spec_cite: SimRISC-10 §乘除操作; SimRISC-01 §rd0 为目的寄存器约定
   status: active
 

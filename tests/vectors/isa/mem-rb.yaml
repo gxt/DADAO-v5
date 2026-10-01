@@ -32,7 +32,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: rb0 as dest → ILLI (rb_dest_rb0)
+  notes: rb0 as dest → ILLI (dst_rb0)
 - mnemonic: ld.o
   id: ld.o_rrii_rb
   format: rrii
@@ -49,7 +49,7 @@
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
   notes: 'legality MALIGN: EA=0x0000FFFF00000007 (imms12=7), align=8B → MALIGN (0x8C),
-    contract-isa §4.1.1, legality_rules data_malign'
+    contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ld.o
   id: ld.o_rrii_rb
   format: rrii
@@ -150,7 +150,7 @@
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
   notes: 'legality MALIGN: EA=0x0000FFFF00000007 (imms12=7), align=8B → MALIGN (0x8C),
-    contract-isa §4.1.1, legality_rules data_malign'
+    contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: st.o
   id: st.o_rrii_rb
   format: rrii
@@ -263,7 +263,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: rb0 as dest → ILLI (rb_dest_rb0)
+  notes: rb0 as dest → ILLI (dst_rb0)
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
   format: rrri
@@ -282,7 +282,7 @@
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
   notes: 'legality MALIGN: EA=0x0000FFFF00000007 (rd2 offset=7), align=8B → MALIGN
-    (0x8C), contract-isa §4.1.1, legality_rules data_malign'
+    (0x8C), contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
   format: rrri
@@ -389,7 +389,7 @@
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
   notes: 'legality MALIGN: EA=0x0000FFFF00000007 (rd2 offset=7), align=8B → MALIGN
-    (0x8C), contract-isa §4.1.1, legality_rules data_malign'
+    (0x8C), contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.o
   id: stm.o_rrri_rb
   format: rrri

@@ -15,15 +15,15 @@
 #   fields[].name 一致（例如块赋值目的字段为 rdhb/rbhb/rahb，而非 rdha/rbha）。
 #
 # 范围：
-#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（251 条：
-#     176 条 M1 + 75 条 excluded_m1）
+#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（227 条：
+#     152 条 M1 + 75 条 excluded_m1）
 #   - M1 范围外（deferred）：RF 浮点（SimRISC-03 全部）、LR-SC 原子（SimRISC-12 §LR-SC指令）、
 #     特权 cfx（SimRISC-04 §特权指令）；按 ADR-0004 D5 执行这些编码触发 ILLI
 #   - SBZ 非零 → ILLI 由 ADR-0004 D5.3 冻结（架构自定义；spec 未规定 fault 类型）
 
 rules:
-  # ── RD 目的寄存器规则 ────────────────────────────────────────────────────────
-  - id: rd_dest_rd0
+  # ── 目的寄存器规则 ────────────────────────────────────────────────────────────
+  - id: dst_rd0
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-00 §数据寄存器"
@@ -32,30 +32,23 @@ rules:
       写 rd0 为目的寄存器时触发 ILLI 异常。
       单目的指令不允许（丢弃唯一结果无语义）。
       例外：rrrr 双目的 add.uo/add.so/sub.uo/sub.so/mul.uo/mul.so 允许其中一个目的为 rd0
-      （丢弃对应半结果），但不能同时为 rd0，也不能为同一非 rd0 寄存器（见 dual_dest_*）。
+      （丢弃对应半结果），但不能同时为 rd0，也不能为同一非 rd0 寄存器（见 dst_dual_same）。
       例外：ret rd0, 0 允许（无需设置返回值）。
       st*/stm*（RD）指令中 rdha 字段是数据**源**，rd0 作为源读出 0 合法，不触发 ILLI（见 ADR-0015 D2/D3）。
+      适用于 orrr（单目的 rdhb）、orri/rrii/riii/rwii（目的字段 rdha/rbha）。
+      ra2rd 的目的字段 rdhb 为 rd0 时同样触发 ILLI 异常（目的不可为 rd0）；
+      rd2ra 的目的为 RA 组字段，RA 组无 rd0 约束，不受此约束。
 
-  - id: dual_dest_both_rd0
+  - id: dst_dual_same
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-04 §加减操作"
     status: active
     description: >
       add.uo/add.so/sub.uo/sub.so/mul.uo/mul.so 的 rrrr 格式有两个目的寄存器（rdha, rdhb），
-      不能同时为 rd0。
+      不能同时为 rd0，也不能为同一非 rd0 寄存器。
 
-  - id: dual_dest_same_reg
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-04 §加减操作"
-    status: active
-    description: >
-      add.uo/add.so/sub.uo/sub.so/mul.uo/mul.so 的 rrrr 格式中 rdha 和 rdhb
-      不能为同一非 rd0 寄存器。
-
-  # ── RB 目的寄存器规则 ────────────────────────────────────────────────────────
-  - id: rb_dest_rb0
+  - id: dst_rb0
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-00 §基址寄存器"
@@ -66,8 +59,7 @@ rules:
       orrr/orri 目的字段为 rbhb（含块赋值 rb2rb/rd2rb 的目的 rbhb）。
       rb0 作**源**（含 st.o-rb/stm.o-rb 的 rbha、ld.*-rb/st.*-rb 的基址 rbhb）不触发 ILLI（见 ADR-0015 D1/D3/D4）。
 
-  # ── RF 操作规则（M1 范围外）──────────────────────────────────────────────────
-  - id: rf0_as_dst
+  - id: dst_rf0
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-00 §浮点寄存器"
@@ -83,7 +75,7 @@ rules:
       浮点类指令（RF）整体属 M1 范围外；M1 仅保留 rf0 的寄存器模型/复位值。
 
   # ── 多寄存器范围规则 ─────────────────────────────────────────────────────────
-  - id: multi_immu6_zero
+  - id: mreg_zero
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §存取RD寄存器"
@@ -92,9 +84,11 @@ rules:
       RD/RB 多寄存器与块赋值指令 immu6=0 时触发 ILLI 异常：
       ldm.*/stm.*（RD、RB）、rd2rd/rb2rd/rd2rb/rb2rb。
       不适用于移位/扩展指令的立即数（orri）形式——其 immu6=0 是合法的移位量/起始位。
-      RA 多寄存器形式与 RA↔RD 块赋值形式另见 ra_multi_immu6_zero。
+      RA 多寄存器存取与 RA↔RD 块赋值指令 immu6=0 同样触发 ILLI 异常：
+      ldm.o-ra/stm.o-ra（多寄存器存取，immu6 指定寄存器个数）与
+      ra2rd/rd2ra（RA↔RD 块赋值，immu6 在 hd[5:0]，有效范围 1–63）。
 
-  - id: multi_range_overflow
+  - id: mreg_range_overflow
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-01 §存取RD寄存器"
@@ -103,41 +97,23 @@ rules:
       RD/RB 多寄存器与块赋值指令中起始寄存器 + immu6 > 64 时触发 ILLI 异常，
       不环绕、不截断。起始寄存器为 rrri 形式的 rdha/rbha，或块赋值形式的
       目的 rdhb/rbhb 与源 rdhc/rbhc。
-      RA 多寄存器/块赋值形式另见 ra_multi_range_overflow。
-
-  # ── RA 规则（M1 新增）───────────────────────────────────────────────────────
-  - id: ra_multi_immu6_zero
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-01 §存取RA寄存器、SimRISC-02 §寄存器组之间块赋值"
-    status: active
-    description: >
-      RA 多寄存器存取与 RA↔RD 块赋值指令 immu6=0 时触发 ILLI 异常：
-      ldm.o-ra/stm.o-ra（多寄存器存取，immu6 指定寄存器个数）与
-      ra2rd/rd2ra（RA↔RD 块赋值，immu6 在 hd[5:0]，有效范围 1–63）。
-
-  - id: ra_multi_range_overflow
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-01 §存取RA寄存器、SimRISC-02 §寄存器组之间块赋值"
-    status: active
-    description: >
-      RA 多寄存器/块赋值指令中起始寄存器 + immu6 > 64 时触发 ILLI 异常（超出 ra63）：
+      RA 多寄存器/块赋值指令中起始寄存器 + immu6 > 64 时同样触发 ILLI 异常（超出 ra63）：
       ldm.o-ra/stm.o-ra 检查 raha + immu6 ≤ 64；
       ra2rd 检查目的 rdhb + immu6 ≤ 64 与源 rahc + immu6 ≤ 64；
       rd2ra 检查目的 rahb + immu6 ≤ 64 与源 rdhc + immu6 ≤ 64。
 
-  - id: ra2rd_dest_rd0
+  - id: mreg_range_overlap
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-02 §寄存器组之间块赋值"
     status: active
     description: >
-      ra2rd 的目的字段 rdhb 为 rd0 时触发 ILLI 异常（目的不可为 rd0）。
-      rd2ra 的目的为 RA 组字段，RA 组无 rd0 约定，不受此约束。
+      同寄存器组块赋值指令中，源范围与目的范围有任何交集时触发 ILLI 异常。
+      仅适用于 rd2rd（rdhb↔rdhc）与 rb2rb（rbhb↔rbhc）。
+      跨组指令（ra2rd/rd2ra/rd2rb/rb2rd/rd2rf/rf2rd）不适用——结构性不可能重叠。
 
-  # ── 数据对齐规则 ─────────────────────────────────────────────────────────────
-  - id: data_malign
+  # ── 异常规则 ──────────────────────────────────────────────────────────────────
+  - id: excp_malign
     fault: MALIGN
     kind: dynamic
     spec_cite: "SimRISC-01 §存取RD寄存器"
@@ -150,43 +126,34 @@ rules:
       多寄存器指令同样适用：ldm.o/stm.o（RD/RB/RA）8 字节，ldm.st/stm.t/ldm.ut 4 字节，
       ldm.sw/stm.w/ldm.uw 2 字节，ldm.sb/stm.b/ldm.ub 无。
 
-  # ── 立即数范围规则 ───────────────────────────────────────────────────────────
-  - id: imm_range
+  - id: excp_ialign
+    fault: IALIGN
+    kind: dynamic
+    spec_cite: "SimRISC-00 §指令设计"
+    status: active
+    description: >
+      取指时若 PC[1:0] ≠ 00，触发 IALIGN 异常（动态，取决于控制流目标地址）。
+      所有指令必须 4 字节对齐。
+
+  # ── 编码合法性规则 ────────────────────────────────────────────────────────────
+  - id: encode_sbz
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-00 §指令域说明"
     status: active
     description: >
-      立即数超出操作数格式定义的范围时触发 ILLI 异常（静态）。
-      各格式立即数位宽：iiii 24 位、riii 18 位、rrii 12 位、rrri 6 位、rwii 16 位；
-      超出字面量无法编码，由编码器/汇编器静态拒绝。
+      SBZ（Should Be Zero）字段非零时触发 ILLI 异常（静态）。
+      ADR-0004 D5.3 冻结「SBZ 非零 → ILLI」（架构自定义；spec 未规定 fault 类型）。
+      固定为 0 的位域非零均属此规则，包括但不限于：
+      fence 的 immu18_hi/immu18_mid/immu18_lo bits[17:4]；
+      移位量超过位宽限制（shl.ub/shr.sb/shr.ub: shamt > 7；shl.uw/shr.sw/shr.uw: shamt > 15；
+      shl.ut/shr.st/shr.ut: shamt > 31；shl.uo/shr.so/shr.uo: shamt > 63）；
+      扩展起始位超过位宽限制（ext.uo/ext.so: hd > 63；SPEC-069t: ext.ub/ext.sb、
+      ext.uw/ext.sw、ext.ut/ext.st 已删除）；
+      lr 指令的 hb（rdhb）固定为 rd0，手工编码时 hb ≠ 0（LR-SC 原子指令属 M1 范围外，
+      M1 不提取其语义）。
 
-  # ── 移位量溢出规则 ───────────────────────────────────────────────────────────
-  - id: shamt_overflow
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-04 §Bit manipulating：位操作指令"
-    status: active
-    description: >
-      移位量超过位宽限制时触发 ILLI 异常（静态）：
-      shl.ub/shr.sb/shr.ub: shamt > 7；
-      shl.uw/shr.sw/shr.uw: shamt > 15；
-      shl.ut/shr.st/shr.ut: shamt > 31；
-      shl.uo/shr.so/shr.uo: shamt > 63。
-
-  # ── 扩展位溢出规则 ───────────────────────────────────────────────────────────
-  - id: ext_bit_overflow
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-04 §Bit manipulating：位操作指令"
-    status: active
-    description: >
-      扩展起始位超过位宽限制时触发 ILLI 异常（静态）：
-      ext.uo/ext.so: hd > 63。
-      SPEC-069t：ext.ub/ext.sb、ext.uw/ext.sw、ext.ut/ext.st 已删除。
-
-  # ── 保留编码规则 ─────────────────────────────────────────────────────────────
-  - id: reserved_undi
+  - id: excp_undi
     fault: UNDI
     kind: static
     spec_cite: "SimRISC-00 §SimRISC QFC"
@@ -196,30 +163,26 @@ rules:
       （未分配编码），以及保留的 opx。
       注意：32 位全零指令字是 illi 0，触发 ILLI 而非 UNDI（见 contract-isa.md §2.9）。
 
-  # ── 指令对齐规则 ─────────────────────────────────────────────────────────────
-  - id: instruction_align
-    fault: IALIGN
-    kind: dynamic
-    spec_cite: "SimRISC-00 §指令设计"
-    status: active
-    description: >
-      取指时若 PC[1:0] ≠ 00，触发 IALIGN 异常（动态，取决于控制流目标地址）。
-      所有指令必须 4 字节对齐。
-
-  # ── SBZ 域规则 ───────────────────────────────────────────────────────────────
-  - id: sbz_nonzero
+  - id: encode_cfx
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §指令域说明"
-    status: active
+    spec_cite: "SimRISC-11 §寄存器传输指令"
+    status: deferred
     description: >
-      SBZ（Should Be Zero）字段非零时触发 ILLI 异常（静态）。
-      ADR-0004 D5.3 冻结「SBZ 非零 → ILLI」（架构自定义；spec 未规定 fault 类型）。
-      M1 范围内的 SBZ 字段示例：fence 的 immu18_hi/immu18_mid/immu18_lo bits[17:4]、
-      移位指令 shamt 位域之外的高位（如 shl.ub 的 hd[5:3]、shl.uw 的 hd[5:4]）。
+      cfxha 为 reserved 核芯功能扩展（7–14、19–61）时触发 ILLI 异常。
+      特权 cfx 指令属 M1 范围外（contract-isa.md §7.5），M1 不提取其语义。
+
+  - id: encode_fp_root_n
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-07 §S1D1"
+    status: deferred
+    description: >
+      ftroot/foroot 指令仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
+      浮点类指令（RF）整体属 M1 范围外。
 
   # ── RAS 规则 ─────────────────────────────────────────────────────────────────
-  - id: ras_of
+  - id: excp_rasof
     fault: RASOF
     kind: dynamic
     spec_cite: "SimRISC-00 §压栈流程"
@@ -229,7 +192,7 @@ rules:
       RegRAS 满且 MemRAS 不可用，或 MemRAS 引用计数溢出时触发。
       RASOF 为精确异常：RA 寄存器保持异常前状态，PC 指向 call 指令。
 
-  - id: ras_uf
+  - id: excp_rasuf
     fault: RASUF
     kind: dynamic
     spec_cite: "SimRISC-00 §弹栈流程"
@@ -238,34 +201,3 @@ rules:
       返回地址栈下溢触发 RASUF 异常（动态，取决于调用深度）。
       RegRAS 空且 MemRAS 不可用，或 MemRAS 引用计数下溢/内容无效时触发。
       RASUF 为精确异常：RA 寄存器保持异常前状态，PC 指向 ret 指令。
-
-  # ── LR 指令规则（M1 范围外）─────────────────────────────────────────────────
-  - id: lr_hb_not_zero
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-12 §LR-SC指令"
-    status: deferred
-    description: >
-      lr 指令的 hb（rdhb）固定为 rd0，汇编代码仅需两个操作数；
-      手工编码时 hb ≠ 0 触发 ILLI 异常。
-      LR-SC 原子指令属 M1 范围外（contract-isa.md §7.4），M1 不提取其语义。
-
-  # ── CFX 保留规则（M1 范围外）────────────────────────────────────────────────
-  - id: cfx_reserved
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-11 §寄存器传输指令"
-    status: deferred
-    description: >
-      cfxha 为 reserved 核芯功能扩展（7–14、19–61）时触发 ILLI 异常。
-      特权 cfx 指令属 M1 范围外（contract-isa.md §7.5），M1 不提取其语义。
-
-  # ── 浮点 root 规则（M1 范围外）──────────────────────────────────────────────
-  - id: encode_fp_root_n
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-07 §S1D1"
-    status: deferred
-    description: >
-      ftroot/foroot 指令仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
-      浮点类指令（RF）整体属 M1 范围外。
