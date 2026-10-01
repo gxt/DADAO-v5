@@ -57,6 +57,58 @@
 
 <!-- ASSEMBLY_LIST_END -->
 
+<!-- LEGALITY_START -->
+## 合法性检查
+
+
+**excluded_m1（decode ILLI）：**
+* `fo2fo_orri_rf`：decode ILLI
+* `fo2ft_orri_rf`：decode ILLI
+* `fo2io_orri_rf`：decode ILLI
+* `fo2it_orri_rf`：decode ILLI
+* `fo2uo_orri_rf`：decode ILLI
+* `fo2ut_orri_rf`：decode ILLI
+* `foadd_orrr_rf`：decode ILLI
+* `focls_orri_rf`：decode ILLI
+* `fodiv_orrr_rf`：decode ILLI
+* `fomul_orrr_rf`：decode ILLI
+* `foqcmp_orrr_rf`：decode ILLI
+* `forem_orrr_rf`：decode ILLI
+* `foroot_orri_rf`：decode ILLI
+* `fosclb_orrr_rf`：decode ILLI
+* `foscmp_orrr_rf`：decode ILLI
+* `fosgnj_orrr_rf`：decode ILLI
+* `fosgnn_orrr_rf`：decode ILLI
+* `fosub_orrr_rf`：decode ILLI
+* `ft2fo_orri_rf`：decode ILLI
+* `ft2ft_orri_rf`：decode ILLI
+* `ft2io_orri_rf`：decode ILLI
+* `ft2it_orri_rf`：decode ILLI
+* `ft2uo_orri_rf`：decode ILLI
+* `ft2ut_orri_rf`：decode ILLI
+* `ftadd_orrr_rf`：decode ILLI
+* `ftcls_orri_rf`：decode ILLI
+* `ftdiv_orrr_rf`：decode ILLI
+* `ftmul_orrr_rf`：decode ILLI
+* `ftqcmp_orrr_rf`：decode ILLI
+* `ftrem_orrr_rf`：decode ILLI
+* `ftroot_orri_rf`：decode ILLI
+* `ftsclb_orrr_rf`：decode ILLI
+* `ftscmp_orrr_rf`：decode ILLI
+* `ftsgnj_orrr_rf`：decode ILLI
+* `ftsgnn_orrr_rf`：decode ILLI
+* `ftsub_orrr_rf`：decode ILLI
+* `io2fo_orri_rf`：decode ILLI
+* `io2ft_orri_rf`：decode ILLI
+* `it2fo_orri_rf`：decode ILLI
+* `it2ft_orri_rf`：decode ILLI
+* `uo2fo_orri_rf`：decode ILLI
+* `uo2ft_orri_rf`：decode ILLI
+* `ut2fo_orri_rf`：decode ILLI
+* `ut2ft_orri_rf`：decode ILLI
+<!-- LEGALITY_END -->
+
+
 浮点格式的定义符合 IEEE754 标准。舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。浮点指令执行后，异常状态位（NV/DZ/OF/UF/NX）由硬件设置，软件可通过读取 rf0 检查异常状态。
 
 ## 格式转换指令

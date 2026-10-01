@@ -28,6 +28,15 @@
 
 <!-- ASSEMBLY_LIST_END -->
 
+<!-- LEGALITY_START -->
+## 合法性检查
+
+* `excp_ialign`（动态）：PC[1:0]≠0 → IALIGN
+* `excp_rasof`（动态）：RAS 上溢 → RASOF
+* `excp_rasuf`（动态）：RAS 下溢 → RASUF
+<!-- LEGALITY_END -->
+
+
 ## 控制流指令
 
 由于SimRISC的指令都是4字节，并且4字节对齐，因此，当采用立即数作为偏移地址参与计算时，都会将其左移2位，以增大该指令可跳转到的地址范围。rb0 读出为当前指令的地址，有效位宽为 48 位，rb0[63:48] 恒为 0。

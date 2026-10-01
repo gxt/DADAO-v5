@@ -19,6 +19,18 @@
 
 <!-- ASSEMBLY_LIST_END -->
 
+<!-- LEGALITY_START -->
+## 合法性检查
+
+
+**excluded_m1（decode ILLI）：**
+* `cfx2rc_crrr_cfx`：decode ILLI
+* `cfx2rd_crrr_cfx`：decode ILLI
+* `escape_ciii_cfx`：decode ILLI
+* `trap_ciii_cfx`：decode ILLI
+<!-- LEGALITY_END -->
+
+
 ## 占位指令
 
 当指令地址需要对齐或特意留出空白时，需要使用到占位指令。通常需要的占位指令是 no-operation 指令。SimRISC借鉴Knuth的创意，采用了 swym 助记符作为占位指令，可称之为"划水"指令。Swym一词参考Knuth的MMIX中的定义，含义为 sympathize with your machinery，Knuth是这样描述的：

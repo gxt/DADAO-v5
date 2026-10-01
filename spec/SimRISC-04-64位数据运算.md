@@ -42,6 +42,15 @@
 
 <!-- ASSEMBLY_LIST_END -->
 
+<!-- LEGALITY_START -->
+## 合法性检查
+
+* `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `shl.uo_orri_rd`, `shl.uo_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（23 条）
+* `dst_dual_same`：双目的同为 rd0 或同寄存器 → ILLI — `add.so_rrrr_rd`, `add.uo_rrrr_rd`, `mul.so_rrrr_rd`, `mul.uo_rrrr_rd`, `sub.so_rrrr_rd`, `sub.uo_rrrr_rd`（6 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `ext.so_orri_rd`, `ext.uo_orri_rd`, `shl.uo_orri_rd`, `shr.so_orri_rd`, `shr.uo_orri_rd`（5 条）
+<!-- LEGALITY_END -->
+
+
 ## 算术运算类指令
 
 ### 加减操作

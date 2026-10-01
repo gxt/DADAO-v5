@@ -31,6 +31,26 @@
 
 <!-- ASSEMBLY_LIST_END -->
 
+<!-- LEGALITY_START -->
+## 合法性检查
+
+* `dst_rd0`：目的 rd0 → ILLI — `cs.eq_rrrr_rd`, `cs.n_rrrr_rd`, `cs.ne_rrrr_rd`, `cs.p_rrrr_rd`, `cs.z_rrrr_rd`, `ra2rd_orri_ra`, `rb2rd_orri_rb`, `rd2rd_orri_rd`（8 条）
+* `dst_rb0`：目的 rb0 → ILLI — `rb2rb_orri_rb`, `rd2rb_orri_rb`（2 条）
+* `mreg_zero`：immu6=0 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`（6 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`（6 条）
+* `mreg_range_overlap`：源/目的范围交集 → ILLI — `rb2rb_orri_rb`, `rd2rd_orri_rd`（2 条）
+
+**excluded_m1（decode ILLI）：**
+* `cs.eq_rrrr_rf`：decode ILLI
+* `cs.n_rrrr_rf`：decode ILLI
+* `cs.ne_rrrr_rf`：decode ILLI
+* `cs.p_rrrr_rf`：decode ILLI
+* `cs.z_rrrr_rf`：decode ILLI
+* `rd2rf_orri_rf`：decode ILLI
+* `rf2rd_orri_rf`：decode ILLI
+<!-- LEGALITY_END -->
+
+
 ## 赋值类指令
 
 > **立即数常数赋值**（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式，以及 set.rd/set.rb/set.ft/set.fo 伪指令）详见 SimRISC-03（16位立即数操作）。

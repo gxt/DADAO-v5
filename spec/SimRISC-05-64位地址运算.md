@@ -17,6 +17,14 @@
 
 <!-- ASSEMBLY_LIST_END -->
 
+<!-- LEGALITY_START -->
+## 合法性检查
+
+* `dst_rd0`：目的 rd0 → ILLI — `cmp.uo_orrr_rb`（1 条）
+* `dst_rb0`：目的 rb0 → ILLI — `add.si_riii_rb`, `add.so_orrr_rb`, `sub.so_orrr_rb`（3 条）
+<!-- LEGALITY_END -->
+
+
 ## 算术运算类指令
 
 ### 加减操作

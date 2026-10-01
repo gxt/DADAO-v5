@@ -24,6 +24,25 @@
 
 <!-- ASSEMBLY_LIST_END -->
 
+<!-- LEGALITY_START -->
+## 合法性检查
+
+
+**excluded_m1（decode ILLI）：**
+* `cfxld_crii_cfx`：decode ILLI
+* `cfxst_crii_cfx`：decode ILLI
+* `fence_oiii_imm`：decode ILLI
+* `lr_an.o_orrr_rd`：decode ILLI
+* `lr_ar.o_orrr_rd`：decode ILLI
+* `lr_nn.o_orrr_rd`：decode ILLI
+* `lr_nr.o_orrr_rd`：decode ILLI
+* `sc_an.o_orrr_rd`：decode ILLI
+* `sc_ar.o_orrr_rd`：decode ILLI
+* `sc_nn.o_orrr_rd`：decode ILLI
+* `sc_nr.o_orrr_rd`：decode ILLI
+<!-- LEGALITY_END -->
+
+
 ## 原子指令
 
 ### fence指令

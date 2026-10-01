@@ -31,6 +31,14 @@
 
 <!-- ASSEMBLY_LIST_END -->
 
+<!-- LEGALITY_START -->
+## 合法性检查
+
+* `dst_rd0`：目的 rd0 → ILLI — `add.sb_orrr_rd`, `add.ub_orrr_rd`, `cmp.sb_orrr_rd`, `cmp.ub_orrr_rd`, `div.sb_orrr_rd`, `div.ub_orrr_rd`, `mul.sb_orrr_rd`, `mul.ub_orrr_rd`, `rem.sb_orrr_rd`, `rem.ub_orrr_rd`, `shl.ub_orri_rd`, `shl.ub_orrr_rd`, `shr.sb_orri_rd`, `shr.sb_orrr_rd`, `shr.ub_orri_rd`, `shr.ub_orrr_rd`, `sub.sb_orrr_rd`, `sub.ub_orrr_rd`（18 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `shl.ub_orri_rd`, `shr.sb_orri_rd`, `shr.ub_orri_rd`（3 条）
+<!-- LEGALITY_END -->
+
+
 ## 算术运算类指令
 
 ### 加减操作
