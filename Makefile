@@ -161,4 +161,4 @@ validate-encoding: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/validate_encoding.py contracts/opcodes.yaml
 
 # 构建并行度（用户裁定 2026-10-01：限制 cc1plus 类进程）
-JOBS ?= 4
+JOBS ?= 8

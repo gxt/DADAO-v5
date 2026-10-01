@@ -137,4 +137,4 @@ DADAO-v5/
 - **同改共享文件**（`contracts/`、`Makefile`、`tests/vectors/`、`spec/SimRISC-0x` 等）的任务**一律串行**，不得并行。
 - 避免在同一工作树上并发执行 `make check` / 构建类长任务（会互相污染证据、且曾导致 shell 被取消/服务器重启级事件）。
 - 长构建（`make build-qemu` 5–20 分钟、LLVM 30–90 分钟）一次只跑一个。
-- **构建并行度**：`make build-mc` / `build-qemu` 一律受 `JOBS`（默认 4）限制；**禁止**全核并行（`-j$(nproc)`）——它会开满 `cc1plus` 拖垮机器（用户裁定 2026-10-01）。
+- **构建并行度**：`make build-mc` / `build-qemu` 一律受 `JOBS`（默认 **8**）限制；**禁止**全核并行（`-j$(nproc)`）——它会开满 `cc1plus` 拖垮机器（用户裁定 2026-10-01）。
