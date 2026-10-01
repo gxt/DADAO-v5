@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Min ROM probe for QEMU-005t RD integer semantics (v3).
+"""Min ROM probe for QEMU-005t RD integer semantics (v4).
 
-Changes from v2:
-- N2 fix: helper_raise_exception now uses cpu_loop_exit_restore(GETPC()),
-  so INT_MIN/-1 deterministically exits 136 (no TB replay).
-- div.sb N2 test: use correct div.sb encoding (op=0x43) instead of div_so (op=0x40).
-- mul_sb: opcode fixed from 0x25 to 0x31 (matching opcodes.yaml).
-- swym: opcode fixed to 0x00/ha=0x02 (oiii format, MISC-AMO).
-- CTL self-check: separated from main pass/fail count (self-check FAIL = probe works).
-- Exact value comparison: cmp.uo + div.uo for precise equality checks.
+Changes from v3 (SPEC-066t):
+- Comparison mechanism changed from div-by-zero to br.ne (div-by-zero now
+  produces defined values, not ILLI).
+- N2 tests: INT_MIN/-1 now expects defined value (not ILLI).
+- By-zero tests: now expect defined value (not ILLI).
+- CTL self-check updated for br.ne mechanism.
 
-Value comparison method (exact):
+Value comparison method (br.ne-based, v4):
   1. Compute result
   2. Load expected value
-  3. cmp.uo rdR, result, expected → rdR=0 if equal, ±1 if not
-  4. div.uo rdX, 1, rdR → if rdR==0: divide-by-zero → ILLI(136); else → UNDI(137)
-  So: ILLI(136) = values match, UNDI(137) = values differ.
+  3. cmp.uo rd_cmp, result, expected → rd_cmp=0 if equal, ±1 if not
+  4. set.zw rd_zero, 0
+  5. br.ne rd_cmp, rd_zero, 2 → if mismatch, skip 2 → illi
+  6. set.zw rd1, 1; br.ne rd1, rd0, 2 → unconditional skip illi → UNDI
+  7. illi → exit 136
+  So: UNDI(137) = PASS (match), ILLI(136) = FAIL (mismatch).
 
 Usage: python3 tools/qemu/min_rom_probe_005t.py
 """
@@ -31,24 +32,19 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 # ── Instruction encoding helpers ──────────────────────────────────────
 
 def encode_rrrr(op, rdha, rdhb, rdhc, rdhd):
-    """Encode an rrrr-format instruction: op[31:24] rdha[23:18] rdhb[17:12] rdhc[11:6] rdhd[5:0]"""
     return struct.pack('>I', (op << 24) | (rdha << 18) | (rdhb << 12) | (rdhc << 6) | rdhd)
 
 def encode_orrr(op, ha, hb, hc, hd):
-    """Encode an orrr-format instruction: op[31:24] ha[23:18] hb[17:12] hc[11:6] hd[5:0]"""
     return struct.pack('>I', (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd)
 
 def encode_orri(op, ha, hb, hc, immu6):
-    """Encode an orri-format instruction"""
     return struct.pack('>I', (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | (immu6 & 0x3F))
 
 def encode_riii(op, ha, imms18):
-    """Encode an riii-format instruction (18-bit signed immediate)"""
-    imm = imms18 & 0x3FFFF  # 18 bits
+    imm = imms18 & 0x3FFFF
     return struct.pack('>I', (op << 24) | (ha << 18) | imm)
 
 def encode_rwii(op, ha, wpN, immu16):
-    """Encode an rwii-format instruction"""
     hi4 = (immu16 >> 12) & 0xF
     mid6 = (immu16 >> 6) & 0x3F
     lo6 = immu16 & 0x3F
@@ -56,436 +52,372 @@ def encode_rwii(op, ha, wpN, immu16):
     return struct.pack('>I', (op << 24) | (ha << 18) | (hb << 12) | (mid6 << 6) | lo6)
 
 def encode_oiii(op, ha, immu18):
-    """Encode an oiii-format instruction"""
     return struct.pack('>I', (op << 24) | (ha << 18) | (immu18 & 0x3FFFF))
 
 # ── Instruction mnemonics ─────────────────────────────────────────────
 
 def set_zw(rd, immu16):
-    """set.zw rd, wp0, immu16 — set rd[15:0]=immu16, rest=0"""
     return encode_rwii(0x4C, rd, 0, immu16)
 
 def add_si(rd, imms18):
-    """add.si rd, imms18 — rd += sign_extend(imms18)"""
     return encode_riii(0x59, rd, imms18 & 0x3FFFF)
 
-def div_uo(rdhb, rdhc, rdhd):
-    """div.uo rdhb, rdhc, rdhd — unsigned 64-bit divide (MISC-octa orrr)
-    op=0x40, ha=0x38"""
-    return encode_orrr(0x40, 0x38, rdhb, rdhc, rdhd)
+def div_uo(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x38, rdhb, rdhc, rdhd)
+def div_so(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x39, rdhb, rdhc, rdhd)
+def div_sb(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x39, rdhb, rdhc, rdhd)
+def rem_uo(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x3A, rdhb, rdhc, rdhd)
+def rem_so(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x3B, rdhb, rdhc, rdhd)
+def cmp_uo(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
-def div_so(rdhb, rdhc, rdhd):
-    """div.so rdhb, rdhc, rdhd — signed 64-bit divide (MISC-octa orrr)
-    op=0x40, ha=0x39"""
-    return encode_orrr(0x40, 0x39, rdhb, rdhc, rdhd)
+def ext_ub_orri(rdhb, rdhc, immu6): return encode_orri(0x43, 0x18, rdhb, rdhc, immu6)
+def ext_sb_orri(rdhb, rdhc, immu6): return encode_orri(0x43, 0x19, rdhb, rdhc, immu6)
+def ext_ub_orrr(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x10, rdhb, rdhc, rdhd)
+def ext_sb_orrr(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x11, rdhb, rdhc, rdhd)
+def ext_so_orri(rdhb, rdhc, immu6): return encode_orri(0x40, 0x19, rdhb, rdhc, immu6)
 
-def div_sb(rdhb, rdhc, rdhd):
-    """div.sb rdhb, rdhc, rdhd — signed 8-bit divide (MISC-byte orrr)
-    op=0x43, ha=0x39"""
-    return encode_orrr(0x43, 0x39, rdhb, rdhc, rdhd)
+def add_sb(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x21, rdhb, rdhc, rdhd)
+def add_ub(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x20, rdhb, rdhc, rdhd)
+def mul_sb(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x31, rdhb, rdhc, rdhd)
+def shl_uo_orri(rdhb, rdhc, immu6): return encode_orri(0x40, 0x1C, rdhb, rdhc, immu6)
+def shr_uo_orri(rdhb, rdhc, immu6): return encode_orri(0x40, 0x1A, rdhb, rdhc, immu6)
 
-def rem_uo(rdhb, rdhc, rdhd):
-    """rem.uo rdhb, rdhc, rdhd — unsigned 64-bit remainder (MISC-octa orrr)
-    op=0x40, ha=0x3A"""
-    return encode_orrr(0x40, 0x3A, rdhb, rdhc, rdhd)
+def br_ne(rdha, rdhb, imms12):
+    """br.ne rdha, rdhb, imms12 (op=0x6F, rrii format)"""
+    imm = imms12 & 0xFFF
+    hc = (imm >> 6) & 0x3F
+    hd = imm & 0x3F
+    if imms12 < 0: hc |= 0x20
+    return encode_orrr(0x6F, rdha, rdhb, hc, hd)
 
-def rem_so(rdhb, rdhc, rdhd):
-    """rem.so rdhb, rdhc, rdhd — signed 64-bit remainder (MISC-octa orrr)
-    op=0x40, ha=0x3B"""
-    return encode_orrr(0x40, 0x3B, rdhb, rdhc, rdhd)
+def illi(): return encode_oiii(0x00, 0x00, 0)
+def swym(): return encode_oiii(0x00, 0x02, 0)
 
-def cmp_uo(rdhb, rdhc, rdhd):
-    """cmp.uo rdhb, rdhc, rdhd — unsigned 64-bit compare → -1/0/1
-    op=0x40, ha=0x2A"""
-    return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
+# ── Terminators / ROM ────────────────────────────────────────────────
 
-def ext_ub_orri(rdhb, rdhc, immu6):
-    """ext.ub rdhb, rdhc, immu6 — zero-extend byte from bit immu6 (orri)
-    op=0x43, ha=0x18"""
-    return encode_orri(0x43, 0x18, rdhb, rdhc, immu6)
-
-def ext_sb_orri(rdhb, rdhc, immu6):
-    """ext.sb rdhb, rdhc, immu6 — sign-extend byte from bit immu6 (orri)
-    op=0x43, ha=0x19"""
-    return encode_orri(0x43, 0x19, rdhb, rdhc, immu6)
-
-def ext_ub_orrr(rdhb, rdhc, rdhd):
-    """ext.ub rdhb, rdhc, rdhd — zero-extend byte from bit rdhd (orrr)
-    op=0x43, ha=0x10"""
-    return encode_orrr(0x43, 0x10, rdhb, rdhc, rdhd)
-
-def ext_sb_orrr(rdhb, rdhc, rdhd):
-    """ext.sb rdhb, rdhc, rdhd — sign-extend byte from bit rdhd (orrr)
-    op=0x43, ha=0x11"""
-    return encode_orrr(0x43, 0x11, rdhb, rdhc, rdhd)
-
-def ext_so_orri(rdhb, rdhc, immu6):
-    """ext.so rdhb, rdhc, immu6 — sign-extend octa from bit immu6 (orri)
-    op=0x40, ha=0x19"""
-    return encode_orri(0x40, 0x19, rdhb, rdhc, immu6)
-
-def add_sb(rdhb, rdhc, rdhd):
-    """add.sb rdhb, rdhc, rdhd — signed 8-bit add, sign-extend result
-    MISC-byte orrr: op=0x43, ha=0x21"""
-    return encode_orrr(0x43, 0x21, rdhb, rdhc, rdhd)
-
-def add_ub(rdhb, rdhc, rdhd):
-    """add.ub rdhb, rdhc, rdhd — unsigned 8-bit add, zero-extend result
-    MISC-byte orrr: op=0x43, ha=0x20"""
-    return encode_orrr(0x43, 0x20, rdhb, rdhc, rdhd)
-
-def mul_sb(rdhb, rdhc, rdhd):
-    """mul.sb rdhb, rdhc, rdhd — signed 8-bit multiply, sign-extend result
-    MISC-byte orrr: op=0x43, ha=0x31"""
-    return encode_orrr(0x43, 0x31, rdhb, rdhc, rdhd)
-
-def shl_uo_orri(rdhb, rdhc, immu6):
-    """shl.uo rdhb, rdhc, immu6 — left shift octa by immediate (orri)
-    op=0x40, ha=0x1C"""
-    return encode_orri(0x40, 0x1C, rdhb, rdhc, immu6)
-
-def shr_uo_orri(rdhb, rdhc, immu6):
-    """shr.uo rdhb, rdhc, immu6 — logical right shift octa by immediate (orri)
-    op=0x40, ha=0x1A"""
-    return encode_orri(0x40, 0x1A, rdhb, rdhc, immu6)
-
-def illi():
-    """illi — trigger ILLI exception (exit=136)"""
-    return encode_oiii(0x00, 0x00, 0)
-
-def swym():
-    """swym 0 — NOP (op=0x00, ha=0x02)"""
-    return encode_oiii(0x00, 0x02, 0)
-
-# ── Terminators ───────────────────────────────────────────────────────
-
-# UNDI = undefined instruction exception = exit 137 (0x89)
-# Using reserved encoding 0x08040001 which decodes as UNDI.
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
-# ── ROM builder ───────────────────────────────────────────────────────
-
 def build_rom(instructions):
-    """Build a ROM binary from a list of instruction bytes.
-    Appends UNDI terminator so 'normal completion' = exit 137."""
     rom = b''
-    for insn in instructions:
-        rom += insn
+    for insn in instructions: rom += insn
     rom += UNDI_TERMINATOR
-    while len(rom) < 64:
-        rom += illi()
+    while len(rom) < 64: rom += illi()
     return rom
 
 def run_rom(rom_data, kernel_data=None, timeout=10):
-    """Run a ROM with qemu-system-dadao, return (exit_code, stderr)."""
-    if kernel_data is None:
-        kernel_data = illi() * 4
-
+    if kernel_data is None: kernel_data = illi() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
-        f.write(rom_data)
-        rom_path = f.name
+        f.write(rom_data); rom_path = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
-        f.write(kernel_data)
-        kernel_path = f.name
-
+        f.write(kernel_data); kernel_path = f.name
     try:
         result = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic',
              '-bios', rom_path, '-kernel', kernel_path],
-            capture_output=True, timeout=timeout, text=True
-        )
+            capture_output=True, timeout=timeout, text=True)
         return result.returncode, result.stderr
     except subprocess.TimeoutExpired:
         return -1, "TIMEOUT"
     finally:
-        os.unlink(rom_path)
-        os.unlink(kernel_path)
+        os.unlink(rom_path); os.unlink(kernel_path)
 
-# ── Exit code constants ───────────────────────────────────────────────
+ILLI_EXIT = 136
+UNDI_EXIT = 137
+CRASH_EXIT = 134
 
-ILLI_EXIT = 136   # 0x88 — runtime ILLI exception
-UNDI_EXIT = 137   # 0x89 — reached UNDI terminator (normal completion)
-CRASH_EXIT = 134  # 0x86 — SIGABRT (regression)
+# ── Helper: exact-value comparison (br.ne-based, v4) ─────────────────
+#
+# Sequence appended to insns:
+#   [N]   set.zw rd_expected, ... (construct expected value)
+#   [N+K] cmp.uo rd_cmp, rd_result, rd_expected
+#   [N+K+1] set.zw rd_zero, 0
+#   [N+K+2] br.ne rd_cmp, rd_zero, 2   # mismatch → skip 2 → illi
+#   [N+K+3] set.zw rd1, 1              # match: prep unconditional skip
+#   [N+K+4] br.ne rd1, rd0, 2          # unconditional → skip illi → UNDI
+#   [N+K+5] illi                        # mismatch target
+#
+# Match:   cmp=0 → br.ne NOT taken → set.zw(1,1) → br.ne(1,0,2) TAKEN → UNDI(137)
+# Mismatch: cmp≠0 → br.ne TAKEN → illi(136)
+
+def _set_rd_to_val(insns, rd, val):
+    """Set rd to a 64-bit value. Handles small values via set.zw+add_si."""
+    val64 = val & 0xFFFFFFFFFFFFFFFF
+    if val64 == 0:
+        insns.append(set_zw(rd, 0))
+    elif -0x20000 <= val < 0x20000:
+        insns.append(set_zw(rd, 0))
+        if val64 != 0:
+            insns.append(add_si(rd, val & 0x3FFFF))
+    else:
+        wp0 = val64 & 0xFFFF
+        insns.append(set_zw(rd, wp0))
+        remaining = (val64 - wp0) & 0xFFFFFFFFFFFFFFFF
+        if remaining != 0:
+            insns.append(add_si(rd, remaining & 0x3FFFF))
+
+def _exact_cmp(insns, rd_result, rd_expected, val_expected):
+    """Append comparison + branch sequence. UNDI(137)=PASS, ILLI(136)=FAIL."""
+    _set_rd_to_val(insns, rd_expected, val_expected)
+    insns.append(cmp_uo(7, rd_result, rd_expected))
+    insns.append(set_zw(1, 0))
+    insns.append(br_ne(7, 1, 2))        # mismatch → skip 2 → cmp.uo(0,0,0)
+    insns.append(set_zw(1, 1))          # match: rd1=1
+    insns.append(br_ne(1, 0, 2))        # unconditional → skip 2 → UNDI
+    insns.append(cmp_uo(0, 0, 0))       # mismatch target → rdhb=0 → ILLI
 
 # ── Test cases ────────────────────────────────────────────────────────
-#
-# Exact value comparison (v3):
-#   cmp.uo rdR, result, expected → rdR=0 if equal, ±1 if not
-#   div.uo rdX, 1, rdR → if rdR==0: div-by-zero → ILLI(136); else → UNDI(137)
-#   So: ILLI(136) = exact match, UNDI(137) = mismatch.
-#
-# Exception check: code that should trigger ILLI → expect 136.
-#   If it completes → UNDI(137) = FAIL.
-#
 
 TESTS = [
-    # ── N1: div.uo/rem.uo result correctness (exact values) ──
-    # div.uo 100/7 = 14 (exact check)
+    # ── N1: Exact value checks ──
     ("N1 div.uo 100/7 == 14 (exact)",
-     [set_zw(10, 100), set_zw(11, 7), div_uo(5, 10, 11),   # rd5 = 100/7 = 14
-      set_zw(6, 14),                                          # rd6 = expected 14
-      cmp_uo(7, 5, 6),                                        # rd7 = 0 if equal
-      div_uo(1, 7, 7)],                                       # div-by-zero if rd7==0
-     ILLI_EXIT,
-     "div.uo 100/7 != 14 — N1 bug (gen_zero_extend UB)"),
+     [set_zw(10, 100), set_zw(11, 7), div_uo(5, 10, 11)],
+     "div.uo 100/7 != 14"),
 
-    # rem.uo 100%7 = 2 (exact check)
     ("N1 rem.uo 100%7 == 2 (exact)",
-     [set_zw(10, 100), set_zw(11, 7), rem_uo(5, 10, 11),   # rd5 = 100%7 = 2
-      set_zw(6, 2),                                           # rd6 = expected 2
-      cmp_uo(7, 5, 6),                                        # rd7 = 0 if equal
-      div_uo(1, 7, 7)],
-     ILLI_EXIT,
-     "rem.uo 100%7 != 2 — N1 bug"),
+     [set_zw(10, 100), set_zw(11, 7), rem_uo(5, 10, 11)],
+     "rem.uo 100%7 != 2"),
 
-    # Regression: div.uo 0/7 == 0 (exact check)
     ("N1 div.uo 0/7 == 0 (exact, regression)",
-     [set_zw(10, 0), set_zw(11, 7), div_uo(5, 10, 11),     # rd5 = 0/7 = 0
-      set_zw(6, 0),                                           # rd6 = expected 0
-      cmp_uo(7, 5, 6),                                        # rd7 = 0 if equal
-      div_uo(1, 7, 7)],                                       # div-by-zero if rd7==0
-     ILLI_EXIT,
-     "div.uo 0/7 != 0 (unexpected)"),
+     [set_zw(10, 0), set_zw(11, 7), div_uo(5, 10, 11)],
+     "div.uo 0/7 != 0"),
 
-    # ── N2: INT_MIN ÷ -1 runtime ILLI ──
-    # div.so INT_MIN/-1 (computed divisor) → ILLI
-    # With cpu_loop_exit_restore fix, this should deterministically exit 136.
-    ("N2 div.so INT64_MIN/-1 (computed divisor) → ILLI",
+    # ── N2: INT_MIN ÷ -1 → defined value (SPEC-066t) ──
+    ("N2 div.so INT64_MIN/-1 → INT64_MIN (defined value)",
      [encode_rwii(0x4C, 2, 3, 0x8000),  # set.zw rd2, wp3, 0x8000 → INT64_MIN
-       add_si(3, -1),                      # rd3 = -1 (runtime computed)
-       div_so(1, 2, 3)],
-     ILLI_EXIT,
-     "INT64_MIN/-1 not caught — N2 bug"),
+      add_si(3, -1),                      # rd3 = -1
+      div_so(1, 2, 3),                    # rd1 = INT64_MIN / -1 = INT64_MIN
+      # Compare rd1 with rd2 (both should be INT64_MIN)
+      cmp_uo(7, 1, 2),                    # rd7 = cmp(result, INT64_MIN)
+      set_zw(1, 0),                       # rd1 = 0 (reused as scratch)
+      br_ne(7, 1, 2),                     # mismatch → skip 2 → cmp.uo(0,0,0)
+      set_zw(1, 1), br_ne(1, 0, 2),      # match → skip 2 → UNDI
+      cmp_uo(0, 0, 0)],                   # mismatch target → ILLI
+     "INT64_MIN/-1 not INT64_MIN"),
 
-    # div.sb INT8_MIN/-1 (computed divisor) → ILLI
-    # Uses correct div.sb encoding (op=0x43, ha=0x39), NOT div_so (op=0x40).
-    ("N2 div.sb INT8_MIN/-1 (computed divisor) → ILLI",
-     [set_zw(2, 0x0080),  # rd2 = 128
-      add_si(2, -256),     # rd2 = -128 = INT8_MIN
-      set_zw(3, 0), add_si(3, -1),  # rd3 = -1 (computed)
-      div_sb(1, 2, 3)],    # div.sb: op=0x43, ha=0x39
-     ILLI_EXIT,
-     "INT8_MIN/-1 not caught — N2 bug (div.sb)"),
+    ("N2 div.sb INT8_MIN/-1 → 0xFF...FF80 (defined value)",
+     [set_zw(2, 0x0080), add_si(2, -256),  # rd2 = -128 = INT8_MIN
+      set_zw(3, 0), add_si(3, -1),          # rd3 = -1
+      div_sb(1, 2, 3),                      # rd1 = INT8_MIN / -1 = 0xFF...FF80
+      # Expected: 0xFFFFFFFFFFFFFF80
+      set_zw(6, 0x0080), add_si(6, -256),   # rd6 = -128 (0xFF...FF80)
+      cmp_uo(7, 1, 6),
+      set_zw(1, 0), br_ne(7, 1, 2),
+      set_zw(1, 1), br_ne(1, 0, 2), cmp_uo(0, 0, 0)],
+     "INT8_MIN/-1 not 0xFF...FF80"),
 
-    # ── B1: Legal div/rem regression (must NOT crash) ──
+    # ── B1: Legal div/rem (must NOT crash) ──
     ("B1 legal div.uo completes normally",
      [set_zw(10, 100), set_zw(11, 7), div_uo(5, 10, 11)],
-     UNDI_EXIT,
-     "Legal div.uo crashed (B1 regression: SIGABRT)"),
+     "Legal div.uo crashed"),
 
     ("B1 legal rem.uo completes normally",
      [set_zw(10, 100), set_zw(11, 7), rem_uo(5, 10, 11)],
-     UNDI_EXIT,
-     "Legal rem.uo crashed (B1 regression)"),
+     "Legal rem.uo crashed"),
 
     ("B1 legal div.so completes normally",
-     [set_zw(2, 0xFFF2), add_si(2, -14),  # rd2 = -14
-      set_zw(3, 3), div_so(1, 2, 3)],
-     UNDI_EXIT,
-     "Legal div.so crashed (B1 regression)"),
+     [set_zw(2, 0xFFF2), add_si(2, -14), set_zw(3, 3), div_so(1, 2, 3)],
+     "Legal div.so crashed"),
 
     # ── B2: ext.*_orrr hd>N → ILLI ──
     ("B2 ext.ub orrr rdhd=8 (>N=7) → ILLI",
-     [set_zw(2, 0xFF),    # rd2 = source
-      set_zw(3, 8),       # rd3 = 8 (> N=7)
-      ext_ub_orrr(1, 2, 3)],
-     ILLI_EXIT,
-     "ext.ub orrr hd=8 not caught — B2 bug"),
-
-    ("B2 ext.ub orri rdhd=8 (>N=7) → ILLI (control)",
-     [set_zw(2, 0xFF),
-      ext_ub_orri(1, 2, 8)],
-     ILLI_EXIT,
-     "ext.ub orri hd=8 not caught (unexpected)"),
-
+     [set_zw(2, 0xFF), set_zw(3, 8), ext_ub_orrr(1, 2, 3)],
+     "ext.ub orrr hd=8 not caught"),
+    ("B2 ext.ub orri rdhd=8 → ILLI (control)",
+     [set_zw(2, 0xFF), ext_ub_orri(1, 2, 8)],
+     "ext.ub orri hd=8 not caught"),
     ("B2 ext.ub orrr rdhd=2 (legal) completes",
-     [set_zw(2, 0xFF),
-      set_zw(3, 2),
-      ext_ub_orrr(1, 2, 3)],
-     UNDI_EXIT,
-     "ext.ub orrr hd=2 failed (unexpected)"),
+     [set_zw(2, 0xFF), set_zw(3, 2), ext_ub_orrr(1, 2, 3)],
+     "ext.ub orrr hd=2 failed"),
 
     # ── B3: Fixed-width sign/zero extension (exact values) ──
-    # add.sb 0x40+0x40 = 0x80 → sign-extended = 0xFF...80 = -128
     ("B3 add.sb 0x40+0x40 == -128 (exact)",
-     [set_zw(2, 0x0040), set_zw(3, 0x0040), add_sb(5, 2, 3),  # rd5 = sign_ext(0x80) = -128
-      set_zw(6, 0x0080), add_si(6, -256),                       # rd6 = 128 - 256 = -128
-      cmp_uo(7, 5, 6),                                           # rd7 = 0 if equal
-      div_uo(1, 7, 7)],
-     ILLI_EXIT,
-     "add.sb 0x40+0x40 != -128 (sign-extend wrong)"),
+     [set_zw(2, 0x0040), set_zw(3, 0x0040), add_sb(5, 2, 3)],
+     "add.sb 0x40+0x40 != -128"),
 
-    # mul.sb 0x0A * -2 = -20 → sign-extended = 0xFF...EC
     ("B3 mul.sb 10 * -2 == -20 (exact)",
-     [set_zw(2, 0x000A), set_zw(3, 0), add_si(3, -2), mul_sb(5, 2, 3),  # rd5 = sign_ext(-20)
-      set_zw(6, 0), add_si(6, -20),                                       # rd6 = -20
-      cmp_uo(7, 5, 6),                                                    # rd7 = 0 if equal
-      div_uo(1, 7, 7)],
-     ILLI_EXIT,
-     "mul.sb 10*-2 != -20 (sign-extend wrong)"),
+     [set_zw(2, 0x000A), set_zw(3, 0), add_si(3, -2), mul_sb(5, 2, 3)],
+     "mul.sb 10*-2 != -20"),
 
     # ── B4: ext high-bit fill (exact values) ──
-    # ext.ub pos=2: zero_extend(0xFF[2:0]) = 0x7
     ("B4 ext.ub orri pos=2 == 0x7 (exact)",
-     [set_zw(2, 0x00FF), ext_ub_orri(1, 2, 2),  # rd1 = 0x7
-      set_zw(6, 7),
-      cmp_uo(7, 1, 6),
-      div_uo(1, 7, 7)],
-     ILLI_EXIT,
-     "ext.ub pos=2 != 0x7 (wrong)"),
+     [set_zw(2, 0x00FF), ext_ub_orri(1, 2, 2)],
+     "ext.ub pos=2 != 0x7"),
 
-    # ext.sb pos=2: sign_extend(0xF[2:0]) = sign_ext(0x3)
-    # ext.sb preserves rdhb[63:8], so we must init rd1 with high bits set.
-    # With rd1=-1 first: rd1[7:0]=0xFF, rd1[63:8]=0xFF...FF → rd1=-1
-    ("B4 ext.sb orri pos=2 == -1 (exact, high bits preserved)",
-     [set_zw(2, 0x000F),
-      set_zw(1, 0), add_si(1, -1),                # rd1 = -1 (all ones, sets high bits)
-      ext_sb_orri(1, 2, 2),                       # rd1 = sign_ext(0x3), high bits preserved
-      set_zw(6, 0), add_si(6, -1),               # rd6 = -1
-      cmp_uo(7, 1, 6),
-      div_uo(1, 7, 7)],
-     ILLI_EXIT,
-     "ext.sb pos=2 != -1 (wrong)"),
+    ("B4 ext.sb orri pos=2 == -1 (exact)",
+     [set_zw(2, 0x000F), set_zw(1, 0), add_si(1, -1), ext_sb_orri(1, 2, 2)],
+     "ext.sb pos=2 != -1"),
 
-    # ext.so pos=2: sign_extend(0xF[2:0]) = -1
     ("B4 ext.so orri pos=2 == -1 (exact)",
-     [set_zw(2, 0x000F), ext_so_orri(1, 2, 2),  # rd1 = sign_ext(0x3) = -1
-      set_zw(6, 0), add_si(6, -1),
-      cmp_uo(7, 1, 6),
-      div_uo(1, 7, 7)],
-     ILLI_EXIT,
-     "ext.so pos=2 != -1 (wrong)"),
+     [set_zw(2, 0x000F), ext_so_orri(1, 2, 2)],
+     "ext.so pos=2 != -1"),
 
     # ── Shift (exact values) ──
-    # shl.uo 0xF << 4 = 0xF0
     ("shl.uo 0xF << 4 == 0xF0 (exact)",
-     [set_zw(2, 0x000F), shl_uo_orri(1, 2, 4),  # rd1 = 0xF0
-      set_zw(6, 0x00F0),
-      cmp_uo(7, 1, 6),
-      div_uo(1, 7, 7)],
-     ILLI_EXIT,
-     "shl.uo 0xF<<4 != 0xF0 (wrong)"),
-
-    # shr.uo 0xF0 >> 4 = 0x0F
+     [set_zw(2, 0x000F), shl_uo_orri(1, 2, 4)],
+     "shl.uo 0xF<<4 != 0xF0"),
     ("shr.uo 0xF0 >> 4 == 0x0F (exact)",
-     [set_zw(2, 0x00F0), shr_uo_orri(1, 2, 4),  # rd1 = 0x0F
-      set_zw(6, 0x000F),
-      cmp_uo(7, 1, 6),
-      div_uo(1, 7, 7)],
-     ILLI_EXIT,
-     "shr.uo 0xF0>>4 != 0x0F (wrong)"),
+     [set_zw(2, 0x00F0), shr_uo_orri(1, 2, 4)],
+     "shr.uo 0xF0>>4 != 0x0F"),
 
-    # ── div by zero ──
-    ("div.uo /0 (constant) → ILLI",
+    # ── div by zero → defined value (SPEC-066t) ──
+    ("div.uo /0 (constant) → -1 (defined value)",
      [set_zw(2, 7), set_zw(3, 0), div_uo(1, 2, 3)],
-     ILLI_EXIT,
-     "div by zero not caught (unexpected)"),
+     "div by zero result != -1"),
 
-    ("div.uo /0 (computed) → ILLI",
+    ("div.uo /0 (computed) → -1 (defined value)",
      [set_zw(2, 7), set_zw(3, 0), add_si(3, 0), div_uo(1, 2, 3)],
-     ILLI_EXIT,
-     "div by zero (computed) not caught (unexpected)"),
+     "div by zero (computed) result != -1"),
 ]
 
-# ── CTL self-check (separate from main tests) ────────────────────────
-# These are intentionally wrong expectations. A FAIL here means the probe
-# can detect semantic errors (good). A PASS means the probe can't distinguish
-# (bad — indicates the probe method is broken).
+# ── CTL self-check ────────────────────────────────────────────────────
+# With br.ne: match→UNDI(137), mismatch→cmp.uo(0,0,0)→ILLI(136).
+# CTL expects ILLI for a MATCH case → should get UNDI → FAIL.
 CTL_CHECKS = [
-    # ext.ub pos=2 → 0x7 (≠0). If we expect UNDI(137) but cmp gives ILLI(136),
-    # that means 0x7 == 0x7 (match). So expecting UNDI is WRONG → should FAIL.
-    ("CTL self-check: ext.ub=7 but expect UNDI (wrong, should be ILLI=match)",
-     [set_zw(2, 0xFF), ext_ub_orri(1, 2, 2),   # rd1 = 0x7
-      set_zw(6, 7),                               # rd6 = 7 (expected)
-      cmp_uo(7, 1, 6),                            # rd7 = 0 (match)
-      div_uo(1, 7, 7)],                           # div-by-zero → ILLI(136)
-     UNDI_EXIT,  # WRONG expectation: we expect UNDI but will get ILLI
+    ("CTL: ext.ub=7 but expect ILLI (wrong; match→UNDI=137)",
+     [set_zw(2, 0xFF), ext_ub_orri(1, 2, 2),  # rd1 = 0x7
+      set_zw(6, 7),                              # rd6 = 7 (correct)
+      cmp_uo(7, 1, 6),                           # rd7 = 0 (match)
+      set_zw(1, 0), br_ne(7, 1, 2),              # match → not taken → continue
+      set_zw(1, 1), br_ne(1, 0, 2),              # unconditional → skip 2 → UNDI
+      cmp_uo(0, 0, 0)],                          # (not reached on match)
+     ILLI_EXIT,  # WRONG: will get UNDI
      "Self-check FAILED: probe cannot detect wrong values"),
 ]
 
-# ── Main ──────────────────────────────────────────────────────────────
+# ── Helpers for test execution ────────────────────────────────────────
+
+def _build_exact_test(name, setup_insns, fail_desc):
+    """Wrap setup instructions + comparison into a test tuple.
+    The setup puts the result in rd5 (for div/rem) or rd1 (for others).
+    Appends exact comparison: rd5/rd1 vs expected value."""
+    # Determine which register holds the result based on the last setup instruction
+    # This is a simplified wrapper; actual tests use inline sequences.
+    pass  # Not used directly; tests are built inline.
 
 def run_test_group(tests, group_name):
-    """Run a group of tests, return (passed, failed, fail_details)."""
-    passed = 0
-    failed = 0
+    passed = failed = 0
     fail_details = []
+    for item in tests:
+        if len(item) == 4:
+            name, rom_insns, expected, fail_desc = item
+        else:
+            name, rom_insns, fail_desc = item
+            expected = UNDI_EXIT  # default for simplified format
 
-    for name, rom_insns, expected, fail_desc in tests:
+        # For simplified tests (3-tuple), append comparison sequence
+        if len(item) == 3:
+            # Determine result register and expected value
+            rom_insns = list(rom_insns)
+            _append_comparison(rom_insns, name)
+
         rom = build_rom(rom_insns)
         code, stderr = run_rom(rom)
-
         if code == expected:
-            status = "PASS"
-            passed += 1
+            status = "PASS"; passed += 1
         elif code == CRASH_EXIT:
-            status = "FAIL"
-            failed += 1
-            fail_details.append(f"  [{status}] {name}: exit={code} CRASH (SIGABRT)")
+            status = "FAIL"; failed += 1
+            fail_details.append(f"  [{status}] {name}: exit={code} CRASH")
         elif code == -1:
-            status = "TIMEOUT"
-            failed += 1
+            status = "TIMEOUT"; failed += 1
             fail_details.append(f"  [{status}] {name}: {stderr}")
         else:
-            status = "FAIL"
-            failed += 1
+            status = "FAIL"; failed += 1
             fail_details.append(f"  [{status}] {name}: exit={code} (expected {expected}) — {fail_desc}")
-
         print(f"  [{status}] {name}: exit={code} (expect {expected})")
-
     return passed, failed, fail_details
 
+def _append_comparison(insns, name):
+    """Append exact-value comparison based on test name.
+    Uses rd5 as result register for most tests, rd1 for div/rem results."""
+    # Determine expected value and result register from test name
+    if "div.uo 100/7 == 14" in name:
+        _exact_cmp(insns, 5, 6, 14)
+    elif "rem.uo 100%7 == 2" in name:
+        _exact_cmp(insns, 5, 6, 2)
+    elif "div.uo 0/7 == 0" in name:
+        _exact_cmp(insns, 5, 6, 0)
+    elif "add.sb 0x40+0x40 == -128" in name:
+        _exact_cmp(insns, 5, 6, -128)
+    elif "mul.sb 10 * -2 == -20" in name:
+        _exact_cmp(insns, 5, 6, -20)
+    elif "ext.ub orri pos=2 == 0x7" in name:
+        _exact_cmp(insns, 1, 6, 7)
+    elif "ext.sb orri pos=2 == -1" in name:
+        _exact_cmp(insns, 1, 6, -1)
+    elif "ext.so orri pos=2 == -1" in name:
+        _exact_cmp(insns, 1, 6, -1)
+    elif "shl.uo 0xF << 4 == 0xF0" in name:
+        _exact_cmp(insns, 1, 6, 0xF0)
+    elif "shr.uo 0xF0 >> 4 == 0x0F" in name:
+        _exact_cmp(insns, 1, 6, 0x0F)
+    elif "div.uo /0" in name:
+        # div-by-zero → -1 (defined value)
+        _exact_cmp(insns, 1, 6, -1)
+    elif "ext.ub orrr rdhd=2" in name:
+        _exact_cmp(insns, 1, 6, 7)  # ext.ub pos=2 → 0x7
+    elif "legal div.uo" in name:
+        pass  # Just reach UNDI = PASS
+    elif "legal rem.uo" in name:
+        pass
+    elif "legal div.so" in name:
+        pass
+    elif "ext.ub orrr rdhd=8" in name:
+        pass  # Should trigger ILLI
+    elif "ext.ub orri rdhd=8" in name:
+        pass  # Should trigger ILLI
+
+# ── Main ──────────────────────────────────────────────────────────────
 
 def main():
     os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
     if not os.path.exists(QEMU):
         print(f"ERROR: {QEMU} not found. Run 'make build-qemu' first.")
         return 1
-
     print("=" * 70)
-    print("QEMU-005t Min ROM Probe (v3: exact values + N2 fix + CTL separated)")
+    print("QEMU-005t Min ROM Probe (v4: br.ne-based, SPEC-066t)")
     print("=" * 70)
-    print(f"  Terminators: ILLI={ILLI_EXIT}, UNDI={UNDI_EXIT}, CRASH={CRASH_EXIT}")
-    print(f"  Exact check: cmp.uo + div.uo → ILLI=match, UNDI=mismatch")
+    print(f"  Exit codes: ILLI={ILLI_EXIT}, UNDI={UNDI_EXIT}, CRASH={CRASH_EXIT}")
+    print(f"  Comparison: cmp.uo + br.ne → UNDI=match(137), ILLI=mismatch(136)")
     print()
 
-    # ── Main tests ──
+    # Build tests with comparison sequences
+    built_tests = []
+    for item in TESTS:
+        if len(item) == 3:
+            name, setup_insns, fail_desc = item
+            insns = list(setup_insns)
+            _append_comparison(insns, name)
+            # Determine expected exit
+            if "ILLI" in name or "hd=8" in name:
+                expected = ILLI_EXIT
+            else:
+                expected = UNDI_EXIT
+            built_tests.append((name, insns, expected, fail_desc))
+        else:
+            built_tests.append(item)
+
     print("-" * 70)
     print("Main tests:")
     print("-" * 70)
-    passed, failed, fail_details = run_test_group(TESTS, "main")
-
+    passed, failed, fail_details = run_test_group(built_tests, "main")
     print(f"\nMain results: {passed}/{passed+failed} passed, {failed} failed")
-
     if fail_details:
-        print(f"\nFailed main tests:")
-        for d in fail_details:
-            print(d)
+        print("\nFailed main tests:")
+        for d in fail_details: print(d)
 
-    # ── CTL self-check ──
     print()
     print("-" * 70)
-    print("CTL self-check (intentionally wrong expectations):")
-    print("  FAIL here = probe works correctly (can detect errors)")
-    print("  PASS here = probe broken (cannot distinguish values)")
+    print("CTL self-check:")
+    print("  FAIL = probe works | PASS = probe broken")
     print("-" * 70)
-    ctl_passed, ctl_failed, ctl_fail_details = run_test_group(CTL_CHECKS, "CTL")
+    ctl_passed, ctl_failed, _ = run_test_group(CTL_CHECKS, "CTL")
+    ctl_ok = ctl_failed > 0
+    print(f"\nCTL: {ctl_passed} PASS, {ctl_failed} FAIL → {'OK' if ctl_ok else 'BROKEN'}")
 
-    # For CTL: FAIL is the expected outcome (probe detects the wrong expectation)
-    ctl_probe_ok = ctl_failed > 0
-    print(f"\nCTL self-check: {ctl_passed} PASS, {ctl_failed} FAIL")
-    print(f"  Probe detection: {'OK (can detect errors)' if ctl_probe_ok else 'BROKEN (cannot detect errors)'}")
-
-    # ── Final summary ──
     print(f"\n{'=' * 70}")
-    all_pass = failed == 0 and ctl_probe_ok
+    all_pass = failed == 0 and ctl_ok
     print(f"Overall: {'PASS' if all_pass else 'FAIL'}")
-    print(f"  Main tests: {passed}/{passed+failed}")
-    print(f"  CTL probe: {'OK' if ctl_probe_ok else 'BROKEN'}")
-
+    print(f"  Main: {passed}/{passed+failed} | CTL: {'OK' if ctl_ok else 'BROKEN'}")
     return 0 if all_pass else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

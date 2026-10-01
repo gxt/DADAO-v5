@@ -1,51 +1,33 @@
 #!/usr/bin/env python3
-"""Min ROM probe for QEMU-011t: div/rem label顺序定向回归验证.
+"""Min ROM probe for SPEC-066t: div/rem defined-value semantics (v2).
 
 Covers 16 div.* + 16 rem.* tests across all sizes (byte/wyde/tetra/octa)
-and signedness (u/s). Key semantic checks per contract-isa §3.1.5:
+and signedness (u/s), plus comprehensive div/rem edge cases per SPEC-066t.
 
-  div.* tests (16):
-    N1-N4:  Normal exact value (truncate-toward-zero)
-    N5:     Signed negative dividend (rem sign = dividend sign)
-    D0-D3:  Divide-by-zero → ILLI (0x88)
-    O0-O3:  INT_MIN÷-1 → ILLI (0x88) for signed variants
+Key change from v1: div-by-zero and signed overflow (INT_MIN÷-1) no longer
+trigger ILLI; they produce defined values instead.  The exact-value comparison
+mechanism is updated from div-by-zero-based to br.ne-based.
 
-  rem.* tests (16):
-    R1-R4:  Normal exact value
-    R5:     Signed negative dividend
-    RD0-RD3: Divide-by-zero → ILLI
-    RO0-RO3: INT_MIN%−1 → ILLI (signed overflow)
+Test categories:
+  N1-N6: Normal exact value (truncate-toward-zero) — unchanged
+  D0-D7: Divide-by-zero → defined value (was ILLI, now checks result)
+  O0-O3: INT_MIN÷-1 → defined value (was ILLI, now checks result)
+  R1-R6: Normal exact value for rem — unchanged
+  RD0-RD7: Remainder-by-zero → dividend (extended)
+  RO0-RO3: INT_MIN%-1 → 0
+  E0-E15: Encoding tests (rdhd=rd0, all 16 div/rem variants)
 
 Exit codes: ILLI=136(0x88), UNDI=137(0x89), CRASH=134
 
-Value comparison method (exact):
+Value comparison method (br.ne-based, v2):
   1. Compute result via div/rem
   2. Load expected value
-  3. cmp.uo rdR, result, expected → rdR=0 if equal, ±1 if not
-  4. div.uo rdX, 1, rdR → if rdR==0: div-by-zero → ILLI(136); else → UNDI(137)
-  So: ILLI(136) = exact match, UNDI(137) = mismatch.
-
-Readback verification (O0-O3/RO0-RO3, AGENTS.md: 探针值构造须回读校验):
-  1. Construct rd10 = INT_MIN via _set_rd_to_val
-  2. rd2rb(rb18, rd10, 1) — store rd10 to temporary RB register (true RD→RB copy)
-  3. rb2rd(rd20, rb18, 1) — load rb18 back to rd20 (true readback of rd10)
-  4. Construct rd21 = expected INT_MIN via _set_rd_to_val
-  5. cmp.uo rd22, rd20, rd21 → rd22=0 if match, ±1 if mismatch
-  6. br.ne rd22, 0, 3 → if mismatch, skip real test → UNDI(137) = FAIL
-  7. If match: fall through to real div/rem overflow test → ILLI(136) if caught
-  This ensures: mismatch → FAIL (non-136); match → real test executes (no short-circuit).
-
-Branch verification (AGENTS.md §验证脚本反例门控, 探针分支须双向验证):
-  Exact value tests (N/R/D/RD): no conditional branches — branching is implicit
-  in the div-by-zero behavior (cmp.uo + div.uo).
-  Readback verification (O/RO): one conditional branch (br.ne) for mismatch detection.
-  Every test case has exactly two possible outcomes:
-  - Exact value match → cmp.uo sets rdR=0 → div.uo by 0 → ILLI(136)
-  - Exact value mismatch → cmp.uo sets rdR=±1 → div.uo by non-zero → reaches UNDI → 137
-  Readback verification has three possible outcomes:
-  - Readback match + overflow caught → ILLI(136) = PASS
-  - Readback mismatch → br.ne skips real test → UNDI(137) = FAIL (construction error)
-  - Readback match + overflow not caught → UNDI(137) = FAIL (implementation bug)
+  3. cmp.uo rd_cmp, result, expected → rd_cmp=0 if equal, ±1 if not
+  4. set.zw rd_zero, 0
+  5. br.ne rd_cmp, rd_zero, 2 → if mismatch (rd_cmp!=0), skip 2 → illi → 136
+  6. set.zw rd1, 1; br.ne rd1, rd0, 2 → unconditional: skip illi → UNDI(137)
+  7. illi → exit 136 (mismatch path)
+  So: UNDI(137) = PASS (match), ILLI(136) = FAIL (mismatch).
 
 Usage: python3 tools/qemu/min_rom_probe_011t.py
 """
@@ -61,11 +43,9 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 # ── Instruction encoding helpers ──────────────────────────────────────
 
 def encode_orrr(op, ha, hb, hc, hd):
-    """Encode an orrr-format instruction: op[31:24] ha[23:18] hb[17:12] hc[11:6] hd[5:0]"""
     return struct.pack('>I', (op << 24) | (ha << 18) | (hb << 12) | (hc << 6) | hd)
 
 def encode_rwii(op, ha, wpN, immu16):
-    """Encode an rwii-format instruction"""
     hi4 = (immu16 >> 12) & 0xF
     mid6 = (immu16 >> 6) & 0x3F
     lo6 = immu16 & 0x3F
@@ -73,24 +53,18 @@ def encode_rwii(op, ha, wpN, immu16):
     return struct.pack('>I', (op << 24) | (ha << 18) | (hb << 12) | (mid6 << 6) | lo6)
 
 def encode_riii(op, ha, imms18):
-    """Encode an riii-format instruction (18-bit signed immediate)"""
     imm = imms18 & 0x3FFFF
     return struct.pack('>I', (op << 24) | (ha << 18) | imm)
 
 def encode_oiii(op, ha, immu18):
-    """Encode an oiii-format instruction"""
     return struct.pack('>I', (op << 24) | (ha << 18) | (immu18 & 0x3FFFF))
 
 # ── Instruction mnemonics ─────────────────────────────────────────────
 
 def set_zw(rd, immu16):
-    """set.zw rd, wp0, immu16 — rd[15:0]=immu16, rest=0
-    op=0x4C, ha=rd, hb=0(wp0|hi4=0), hc=mid6, hd=lo6"""
     return encode_rwii(0x4C, rd, 0, immu16)
 
 def set_zw_wp3(rd, immu16):
-    """set.zw rd, wp3, immu16 — rd[63:48]=immu16, rest=0
-    wpN=3 → hb[5:4]=11"""
     hi4 = (immu16 >> 12) & 0xF
     mid6 = (immu16 >> 6) & 0x3F
     lo6 = immu16 & 0x3F
@@ -98,8 +72,6 @@ def set_zw_wp3(rd, immu16):
     return struct.pack('>I', (0x4C << 24) | (rd << 18) | (hb << 12) | (mid6 << 6) | lo6)
 
 def or_w(rd, wpN, immu16):
-    """or.w rd, wpN, immu16 — rd[wyde(wpN)] |= immu16, other wydes unchanged
-    op=0x48, rwii format"""
     hi4 = (immu16 >> 12) & 0xF
     mid6 = (immu16 >> 6) & 0x3F
     lo6 = immu16 & 0x3F
@@ -107,117 +79,41 @@ def or_w(rd, wpN, immu16):
     return struct.pack('>I', (0x48 << 24) | (rd << 18) | (hb << 12) | (mid6 << 6) | lo6)
 
 def add_si(rd, imms18):
-    """add.si rd, imms18 — rd += sign_extend(imms18)
-    op=0x59"""
     return encode_riii(0x59, rd, imms18 & 0x3FFFF)
 
-# ── div/rem encoding (from opcodes.yaml) ─────────────────────────────
-# MISC-octa:  op=0x40
-# MISC-tetra: op=0x41
-# MISC-wyde:  op=0x42
-# MISC-byte:  op=0x43
-#
-# ha values:
-#   div.u: ha=0x38, div.s: ha=0x39
-#   rem.u: ha=0x3A, rem.s: ha=0x3B
+# div/rem encoding (from opcodes.yaml)
+# MISC-octa: op=0x40, MISC-tetra: op=0x41, MISC-wyde: op=0x42, MISC-byte: op=0x43
+# ha: div.u=0x38, div.s=0x39, rem.u=0x3A, rem.s=0x3B
 
-def div_uo(rdhb, rdhc, rdhd):
-    """div.uo rdhb, rdhc, rdhd — unsigned octa divide
-    op=0x40, ha=0x38"""
-    return encode_orrr(0x40, 0x38, rdhb, rdhc, rdhd)
-
-def div_so(rdhb, rdhc, rdhd):
-    """div.so rdhb, rdhc, rdhd — signed octa divide
-    op=0x40, ha=0x39"""
-    return encode_orrr(0x40, 0x39, rdhb, rdhc, rdhd)
-
-def rem_uo(rdhb, rdhc, rdhd):
-    """rem.uo rdhb, rdhc, rdhd — unsigned octa remainder
-    op=0x40, ha=0x3A"""
-    return encode_orrr(0x40, 0x3A, rdhb, rdhc, rdhd)
-
-def rem_so(rdhb, rdhc, rdhd):
-    """rem.so rdhb, rdhc, rdhd — signed octa remainder
-    op=0x40, ha=0x3B"""
-    return encode_orrr(0x40, 0x3B, rdhb, rdhc, rdhd)
-
-def div_ut(rdhb, rdhc, rdhd):
-    """div.ut rdhb, rdhc, rdhd — unsigned tetra divide
-    op=0x41, ha=0x38"""
-    return encode_orrr(0x41, 0x38, rdhb, rdhc, rdhd)
-
-def div_st(rdhb, rdhc, rdhd):
-    """div.st rdhb, rdhc, rdhd — signed tetra divide
-    op=0x41, ha=0x39"""
-    return encode_orrr(0x41, 0x39, rdhb, rdhc, rdhd)
-
-def rem_ut(rdhb, rdhc, rdhd):
-    """rem.ut rdhb, rdhc, rdhd — unsigned tetra remainder
-    op=0x41, ha=0x3A"""
-    return encode_orrr(0x41, 0x3A, rdhb, rdhc, rdhd)
-
-def rem_st(rdhb, rdhc, rdhd):
-    """rem.st rdhb, rdhc, rdhd — signed tetra remainder
-    op=0x41, ha=0x3B"""
-    return encode_orrr(0x41, 0x3B, rdhb, rdhc, rdhd)
-
-def div_uw(rdhb, rdhc, rdhd):
-    """div.uw rdhb, rdhc, rdhd — unsigned wyde divide
-    op=0x42, ha=0x38"""
-    return encode_orrr(0x42, 0x38, rdhb, rdhc, rdhd)
-
-def div_sw(rdhb, rdhc, rdhd):
-    """div.sw rdhb, rdhc, rdhd — signed wyde divide
-    op=0x42, ha=0x39"""
-    return encode_orrr(0x42, 0x39, rdhb, rdhc, rdhd)
-
-def rem_uw(rdhb, rdhc, rdhd):
-    """rem.uw rdhb, rdhc, rdhd — unsigned wyde remainder
-    op=0x42, ha=0x3A"""
-    return encode_orrr(0x42, 0x3A, rdhb, rdhc, rdhd)
-
-def rem_sw(rdhb, rdhc, rdhd):
-    """rem.sw rdhb, rdhc, rdhd — signed wyde remainder
-    op=0x42, ha=0x3B"""
-    return encode_orrr(0x42, 0x3B, rdhb, rdhc, rdhd)
-
-def div_ub(rdhb, rdhc, rdhd):
-    """div.ub rdhb, rdhc, rdhd — unsigned byte divide
-    op=0x43, ha=0x38"""
-    return encode_orrr(0x43, 0x38, rdhb, rdhc, rdhd)
-
-def div_sb(rdhb, rdhc, rdhd):
-    """div.sb rdhb, rdhc, rdhd — signed byte divide
-    op=0x43, ha=0x39"""
-    return encode_orrr(0x43, 0x39, rdhb, rdhc, rdhd)
-
-def rem_ub(rdhb, rdhc, rdhd):
-    """rem.ub rdhb, rdhc, rdhd — unsigned byte remainder
-    op=0x43, ha=0x3A"""
-    return encode_orrr(0x43, 0x3A, rdhb, rdhc, rdhd)
-
-def rem_sb(rdhb, rdhc, rdhd):
-    """rem.sb rdhb, rdhc, rdhd — signed byte remainder
-    op=0x43, ha=0x3B"""
-    return encode_orrr(0x43, 0x3B, rdhb, rdhc, rdhd)
+def div_uo(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x38, rdhb, rdhc, rdhd)
+def div_so(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x39, rdhb, rdhc, rdhd)
+def rem_uo(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x3A, rdhb, rdhc, rdhd)
+def rem_so(rdhb, rdhc, rdhd): return encode_orrr(0x40, 0x3B, rdhb, rdhc, rdhd)
+def div_ut(rdhb, rdhc, rdhd): return encode_orrr(0x41, 0x38, rdhb, rdhc, rdhd)
+def div_st(rdhb, rdhc, rdhd): return encode_orrr(0x41, 0x39, rdhb, rdhc, rdhd)
+def rem_ut(rdhb, rdhc, rdhd): return encode_orrr(0x41, 0x3A, rdhb, rdhc, rdhd)
+def rem_st(rdhb, rdhc, rdhd): return encode_orrr(0x41, 0x3B, rdhb, rdhc, rdhd)
+def div_uw(rdhb, rdhc, rdhd): return encode_orrr(0x42, 0x38, rdhb, rdhc, rdhd)
+def div_sw(rdhb, rdhc, rdhd): return encode_orrr(0x42, 0x39, rdhb, rdhc, rdhd)
+def rem_uw(rdhb, rdhc, rdhd): return encode_orrr(0x42, 0x3A, rdhb, rdhc, rdhd)
+def rem_sw(rdhb, rdhc, rdhd): return encode_orrr(0x42, 0x3B, rdhb, rdhc, rdhd)
+def div_ub(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x38, rdhb, rdhc, rdhd)
+def div_sb(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x39, rdhb, rdhc, rdhd)
+def rem_ub(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x3A, rdhb, rdhc, rdhd)
+def rem_sb(rdhb, rdhc, rdhd): return encode_orrr(0x43, 0x3B, rdhb, rdhc, rdhd)
 
 def cmp_uo(rdhb, rdhc, rdhd):
-    """cmp.uo rdhb, rdhc, rdhd — unsigned octa compare → -1/0/1
-    op=0x40, ha=0x2A"""
     return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
 def rb2rd(rdhb, rbhc, immu6):
-    """rb2rd rdhb, rbhc, immu6 (MISC-octa, ha=0x36)"""
     return encode_orrr(0x40, 0x36, rdhb, rbhc, immu6)
 
 def rd2rb(rbhb, rdhc, immu6):
-    """rd2rb rbhb, rdhc, immu6 (MISC-octa, ha=0x35)
-    Copies from RD bank to RB bank: rb[rbhb..] = rd[rdhc..]"""
     return encode_orrr(0x40, 0x35, rbhb, rdhc, immu6)
 
 def br_ne(rdha, rdhb, imms12):
-    """br.ne rdha, rdhb, imms12 (op=0x6F) — branch if rdha != rdhb
-    Offset imms12 is in units of instructions (4 bytes each)."""
+    """br.ne rdha, rdhb, imms12 (op=0x6F, rrii format)
+    Offset in units of instructions (4 bytes)."""
     imm = imms12 & 0xFFF
     hc = (imm >> 6) & 0x3F
     hd = imm & 0x3F
@@ -226,19 +122,14 @@ def br_ne(rdha, rdhb, imms12):
     return encode_orrr(0x6F, rdha, rdhb, hc, hd)
 
 def illi():
-    """illi — trigger ILLI exception (exit=136)"""
     return encode_oiii(0x00, 0x00, 0)
 
-# ── Terminators ───────────────────────────────────────────────────────
+# ── Terminators / ROM ────────────────────────────────────────────────
 
-# UNDI = undefined instruction exception = exit 137 (0x89)
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
-# ── ROM builder ───────────────────────────────────────────────────────
-
 def build_rom(instructions):
-    """Build a ROM binary from a list of instruction bytes.
-    Appends UNDI terminator so 'normal completion' = exit 137."""
+    """Build ROM: instructions + UNDI + illi padding to 64 bytes."""
     rom = b''
     for insn in instructions:
         rom += insn
@@ -248,23 +139,19 @@ def build_rom(instructions):
     return rom
 
 def run_rom(rom_data, kernel_data=None, timeout=10):
-    """Run a ROM with qemu-system-dadao, return (exit_code, stderr)."""
     if kernel_data is None:
         kernel_data = illi() * 4
-
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
         f.write(rom_data)
         rom_path = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
         f.write(kernel_data)
         kernel_path = f.name
-
     try:
         result = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic',
              '-bios', rom_path, '-kernel', kernel_path],
-            capture_output=True, timeout=timeout, text=True
-        )
+            capture_output=True, timeout=timeout, text=True)
         return result.returncode, result.stderr
     except subprocess.TimeoutExpired:
         return -1, "TIMEOUT"
@@ -272,370 +159,293 @@ def run_rom(rom_data, kernel_data=None, timeout=10):
         os.unlink(rom_path)
         os.unlink(kernel_path)
 
-# ── Exit code constants ───────────────────────────────────────────────
+ILLI_EXIT = 136
+UNDI_EXIT = 137
+CRASH_EXIT = 134
 
-ILLI_EXIT = 136   # 0x88 — ILLI exception
-UNDI_EXIT = 137   # 0x89 — reached UNDI terminator (normal completion)
-CRASH_EXIT = 134  # 0x86 — SIGABRT (regression)
-
-# ── Helper: construct expected value from 64-bit int ──────────────────
-#
-# For exact value comparison:
-#   cmp.uo rdR, result, expected → rdR=0 if equal, ±1 if not
-#   div.uo rdX, 1, rdR → if rdR==0: div-by-zero → ILLI(136); else → UNDI(137)
-#   ILLI(136) = values match, UNDI(137) = values differ.
+# ── Helpers ───────────────────────────────────────────────────────────
 
 def _set_rd_to_val(insns, rd, val):
-    """Generate instructions to set rd to a 64-bit value.
-    Uses set.zw + or.w for correct 64-bit construction.
-    set.zw rd, wp3, hi16 sets bits[63:48], zeros rest.
-    or.w rd, wpN, immu16 sets bits at wyde position wpN without affecting other wydes."""
+    """Set rd to a 64-bit value using set.zw + or.w."""
     val64 = val & 0xFFFFFFFFFFFFFFFF
-    
-    # Extract 16-bit wydes
-    wp0 = val64 & 0xFFFF          # bits[15:0]
-    wp1 = (val64 >> 16) & 0xFFFF  # bits[31:16]
-    wp2 = (val64 >> 32) & 0xFFFF  # bits[47:32]
-    wp3 = (val64 >> 48) & 0xFFFF  # bits[63:48]
-    
-    # Optimization: use fewer instructions when possible
+    wp0 = val64 & 0xFFFF
+    wp1 = (val64 >> 16) & 0xFFFF
+    wp2 = (val64 >> 32) & 0xFFFF
+    wp3 = (val64 >> 48) & 0xFFFF
     if val64 == 0:
-        # All zeros: just set.zw wp0, 0
         insns.append(set_zw(rd, 0))
     elif wp1 == 0 and wp2 == 0 and wp3 == 0:
-        # Only wp0 is non-zero: set.zw wp0, wp0
         insns.append(set_zw(rd, wp0))
     elif wp0 == 0 and wp2 == 0 and wp3 == 0:
-        # Only wp1 is non-zero: set.zw wp1, wp1 (but set.zw clears all, so we need or.w)
         insns.append(set_zw(rd, 0))
         insns.append(or_w(rd, 1, wp1))
     elif wp0 == 0 and wp1 == 0 and wp3 == 0:
-        # Only wp2 is non-zero
         insns.append(set_zw(rd, 0))
         insns.append(or_w(rd, 2, wp2))
     elif wp0 == 0 and wp1 == 0 and wp2 == 0:
-        # Only wp3 is non-zero
         insns.append(set_zw_wp3(rd, wp3))
     else:
-        # General case: set.zw wp3, then or.w for wp2, wp1, wp0
-        insns.append(set_zw_wp3(rd, wp3))  # Sets wp3, zeros wp0-wp2
-        if wp2 != 0:
-            insns.append(or_w(rd, 2, wp2))
-        if wp1 != 0:
-            insns.append(or_w(rd, 1, wp1))
-        if wp0 != 0:
-            insns.append(or_w(rd, 0, wp0))
+        insns.append(set_zw_wp3(rd, wp3))
+        if wp2 != 0: insns.append(or_w(rd, 2, wp2))
+        if wp1 != 0: insns.append(or_w(rd, 1, wp1))
+        if wp0 != 0: insns.append(or_w(rd, 0, wp0))
 
-def _exact_cmp(insns, rd_result, rd_expected, rd_cmp, rd_div, val_expected):
-    """Generate exact-value comparison sequence:
-    1. Set rd_expected to val_expected
-    2. cmp.uo rd_cmp, rd_result, rd_expected
-    3. div.uo rd_div, 1, rd_cmp → ILLI if equal (rd_cmp=0)
-    Appends to insns list."""
+def _exact_cmp(insns, rd_result, rd_expected, val_expected):
+    """Exact-value comparison (br.ne-based). Appends to insns:
+    [..]  set.zw rd_expected, val_expected
+    [K]   cmp.uo rd_cmp, rd_result, rd_expected
+    [K+1] set.zw rd_zero, 0
+    [K+2] br.ne rd_cmp, rd_zero, 2   # mismatch → skip 2 → cmp.uo(0,0,0) → ILLI
+    [K+3] set.zw rd1, 1              # match: prep unconditional skip
+    [K+4] br.ne rd1, rd0, 1          # unconditional → skip 1 → UNDI(137)
+    [K+5] cmp.uo(0, 0, 0)            # mismatch target → rdhb=0 → ILLI(136)
+    → UNDI terminator
+
+    Match:   cmp=0 → br.ne NOT taken → set.zw(1,1) → br.ne TAKEN → UNDI(137)
+    Mismatch: cmp≠0 → br.ne TAKEN → cmp.uo(0,0,0) → ILLI(136)
+
+    Exit: UNDI(137) = PASS, ILLI(136) = FAIL."""
     _set_rd_to_val(insns, rd_expected, val_expected)
-    insns.append(cmp_uo(rd_cmp, rd_result, rd_expected))
-    # We need rd1 set to1 for the divisor
-    insns.append(set_zw(rd_div, 1))  # Use rd1 as scratch; overwritten by div result
-    insns.append(div_uo(rd_div, rd_div, rd_cmp))  # div.uo rd1, rd1, rd_cmp
-    # If rd_cmp=0: div-by-zero → ILLI(136) = match
-    # If rd_cmp≠0: divides normally → reaches UNDI(137) = mismatch
+    insns.append(cmp_uo(7, rd_result, rd_expected))
+    insns.append(set_zw(1, 0))
+    insns.append(br_ne(7, 1, 2))        # mismatch → skip 2 → cmp.uo(0,0,0)
+    insns.append(set_zw(1, 1))          # match: rd1=1
+    insns.append(br_ne(1, 0, 2))        # unconditional → skip 2 → UNDI
+    insns.append(cmp_uo(0, 0, 0))       # mismatch target → rdhb=0 → ILLI
 
-# ── Test cases ────────────────────────────────────────────────────────
-#
-# 32 tests: 16 div.* + 16 rem.*
-#
-# Register allocation:
-#   rd10/rd11: dividend/divisor setup
-#   rd5:       result (from div/rem)
-#   rd6:       expected value
-#   rd7:       cmp result
-#   rd1:       scratch for exact-compare div
-#
-# For exception tests (divide-by-zero, INT_MIN/-1):
-#   rd10: dividend, rd11: divisor
-#   rd1:  result destination
-#   Expected: ILLI exit (136) — exception fires before result is written
-
-def _div_by_zero_test(name, div_fn, size_desc):
-    """Generate a divide-by-zero test case.
-    Dividend=7, divisor=0 → expect ILLI (136)."""
-    return (
-        name,
-        [set_zw(10, 7), set_zw(11, 0), div_fn(1, 10, 11)],
-        ILLI_EXIT,
-        f"{size_desc} div-by-zero not caught",
-    )
-
-def _rem_by_zero_test(name, rem_fn, size_desc):
-    """Generate a remainder-by-zero test case."""
-    return (
-        name,
-        [set_zw(10, 7), set_zw(11, 0), rem_fn(1, 10, 11)],
-        ILLI_EXIT,
-        f"{size_desc} rem-by-zero not caught",
-    )
-
-def _int_min_div_neg1_test(name, div_fn, size_desc, int_min_val):
-    """Generate INT_MIN÷-1 overflow test case.
-    Dividend=INT_MIN (runtime), divisor=-1 (runtime) → expect ILLI (136).
-    Uses runtime-computed values to avoid constant folding.
-
-    Readback verification (AGENTS.md: 探针值构造须回读校验):
-      rd2rb(rb18, rd10, 1) — store rd10 to temporary RB register
-      rb2rd(rd20, rb18, 1) — load back from RB to RD (true readback of rd10)
-      cmp.uo rd22, rd20, rd21 — compare readback with expected
-      br.ne rd22, 0, 3 — if mismatch, skip real test → UNDI(137) = FAIL
-      If match: fall through to real div overflow test → ILLI(136) if caught.
-
-    This ensures:
-      - Mismatch (construction error) → FAIL (137, non-136)
-      - Match → real test executes (no short-circuit)
-      - Old buggy _set_rd_to_val (18-bit truncation) → 24/28 (O0/O1/RO0/RO1=137)
-      - New correct _set_rd_to_val → 28/28"""
-    insns = []
-    _set_rd_to_val(insns, 10, int_min_val)
-
-    # Readback verification: truly read rd10 via rd2rb+rb2rd
-    insns.append(rd2rb(18, 10, 1))     # rb18 = rd10 (store RD to RB)
-    insns.append(rb2rd(20, 18, 1))     # rd20 = rb18 (load back from RB → true readback)
-    _set_rd_to_val(insns, 21, int_min_val)  # rd21 = expected value
-    insns.append(cmp_uo(22, 20, 21))   # rd22 = cmp(rd20, rd21); 0=match, ±1=mismatch
-    # Mismatch → skip real test → UNDI(137) = FAIL
-    # Match → fall through to real test
-    insns.append(set_zw(23, 0))        # rd23 = 0
-    insns.append(br_ne(22, 23, 4))     # if rd22 != 0 (mismatch), skip 4 (real test) → UNDI(137)=FAIL
-
-    # Real overflow test (executed only on readback match)
-    insns.append(set_zw(11, 0))
-    insns.append(add_si(11, -1))
-    insns.append(div_fn(1, 10, 11))
-    # If div_fn triggers ILLI → 136 (PASS)
-    # If div_fn doesn't trigger → continues to UNDI terminator → 137 (FAIL)
-    return (
-        name,
-        insns,
-        ILLI_EXIT,
-        f"{size_desc} INT_MIN/-1 not caught (overflow)",
-    )
-
-def _int_min_rem_neg1_test(name, rem_fn, size_desc, int_min_val):
-    """Generate INT_MIN%-1 overflow test case.
-    Includes readback verification: rd2rb+rb2rd to truly read rd10, then cmp.uo.
-    Mismatch → br_ne skips real test → UNDI(137) = FAIL.
-    Match → falls through to real rem overflow test → ILLI(136) if caught."""
-    insns = []
-    _set_rd_to_val(insns, 10, int_min_val)
-
-    # Readback verification: truly read rd10 via rd2rb+rb2rd
-    insns.append(rd2rb(18, 10, 1))     # rb18 = rd10 (store RD to RB)
-    insns.append(rb2rd(20, 18, 1))     # rd20 = rb18 (load back from RB → true readback)
-    _set_rd_to_val(insns, 21, int_min_val)  # rd21 = expected value
-    insns.append(cmp_uo(22, 20, 21))   # rd22 = cmp(rd20, rd21); 0=match, ±1=mismatch
-    insns.append(set_zw(23, 0))        # rd23 = 0
-    insns.append(br_ne(22, 23, 4))     # if rd22 != 0 (mismatch), skip 4 (real test) → UNDI(137)=FAIL
-
-    # Real overflow test (executed only on readback match)
-    insns.append(set_zw(11, 0))
-    insns.append(add_si(11, -1))
-    insns.append(rem_fn(1, 10, 11))
-    return (
-        name,
-        insns,
-        ILLI_EXIT,
-        f"{size_desc} INT_MIN%-1 not caught (overflow)",
-    )
+# ── Test case constructors ────────────────────────────────────────────
 
 def _exact_div_test(name, div_fn, dividend, divisor, expected, size_desc):
-    """Generate exact-value division test case."""
     insns = []
     _set_rd_to_val(insns, 10, dividend)
     _set_rd_to_val(insns, 11, divisor)
     insns.append(div_fn(5, 10, 11))
-    _exact_cmp(insns, 5, 6, 7, 1, expected)
-    return (
-        name,
-        insns,
-        ILLI_EXIT,
-        f"{size_desc} {dividend}/{divisor} != {expected}",
-    )
+    _exact_cmp(insns, 5, 6, expected)
+    return (name, insns, UNDI_EXIT, f"{size_desc} {dividend}/{divisor} != {expected}")
 
 def _exact_rem_test(name, rem_fn, dividend, divisor, expected, size_desc):
-    """Generate exact-value remainder test case."""
     insns = []
     _set_rd_to_val(insns, 10, dividend)
     _set_rd_to_val(insns, 11, divisor)
     insns.append(rem_fn(5, 10, 11))
-    _exact_cmp(insns, 5, 6, 7, 1, expected)
-    return (
-        name,
-        insns,
-        ILLI_EXIT,
-        f"{size_desc} {dividend}%{divisor} != {expected}",
-    )
+    _exact_cmp(insns, 5, 6, expected)
+    return (name, insns, UNDI_EXIT, f"{size_desc} {dividend}%{divisor} != {expected}")
+
+def _div_by_zero_test(name, div_fn, expected_val, size_desc):
+    insns = []
+    _set_rd_to_val(insns, 10, 0x64)
+    insns.append(set_zw(11, 0))
+    insns.append(div_fn(1, 10, 11))
+    _exact_cmp(insns, 1, 6, expected_val)
+    return (name, insns, UNDI_EXIT, f"{size_desc} div-by-zero != {hex(expected_val)}")
+
+def _rem_by_zero_test(name, rem_fn, expected_val, size_desc):
+    insns = []
+    _set_rd_to_val(insns, 10, 0x64)
+    insns.append(set_zw(11, 0))
+    insns.append(rem_fn(1, 10, 11))
+    _exact_cmp(insns, 1, 6, expected_val)
+    return (name, insns, UNDI_EXIT, f"{size_desc} rem-by-zero != {hex(expected_val)}")
+
+def _int_min_div_neg1_test(name, div_fn, int_min_val, expected_val, size_desc):
+    """INT_MIN÷-1 overflow test with readback verification."""
+    insns = []
+    _set_rd_to_val(insns, 10, int_min_val)
+    # Readback verification
+    insns.append(rd2rb(18, 10, 1))
+    insns.append(rb2rd(20, 18, 1))
+    _set_rd_to_val(insns, 21, int_min_val)
+    insns.append(cmp_uo(22, 20, 21))
+    insns.append(set_zw(23, 0))
+    insns.append(br_ne(22, 23, 2))       # readback mismatch → skip 2 → cmp.uo(0,0,0)
+    insns.append(set_zw(1, 1))           # readback OK
+    insns.append(br_ne(1, 0, 2))         # unconditional skip → UNDI
+    insns.append(cmp_uo(0, 0, 0))        # readback mismatch target → ILLI
+    # Real overflow test
+    insns.append(set_zw(11, 0))
+    insns.append(add_si(11, -1))
+    insns.append(div_fn(1, 10, 11))
+    _exact_cmp(insns, 1, 6, expected_val)
+    return (name, insns, UNDI_EXIT, f"{size_desc} INT_MIN/-1 != {hex(expected_val)}")
+
+def _int_min_rem_neg1_test(name, rem_fn, int_min_val, expected_val, size_desc):
+    """INT_MIN%-1 overflow test with readback verification."""
+    insns = []
+    _set_rd_to_val(insns, 10, int_min_val)
+    insns.append(rd2rb(18, 10, 1))
+    insns.append(rb2rd(20, 18, 1))
+    _set_rd_to_val(insns, 21, int_min_val)
+    insns.append(cmp_uo(22, 20, 21))
+    insns.append(set_zw(23, 0))
+    insns.append(br_ne(22, 23, 2))
+    insns.append(set_zw(1, 1))
+    insns.append(br_ne(1, 0, 2))
+    insns.append(cmp_uo(0, 0, 0))
+    insns.append(set_zw(11, 0))
+    insns.append(add_si(11, -1))
+    insns.append(rem_fn(1, 10, 11))
+    _exact_cmp(insns, 1, 6, expected_val)
+    return (name, insns, UNDI_EXIT, f"{size_desc} INT_MIN/-1 rem != {hex(expected_val)}")
+
+def _encoding_rdhd_rd0_test(name, insn_bytes, size_desc):
+    """Encoding test: rdhd=rd0 should not fault → UNDI(137)."""
+    return (name, list(insn_bytes), UNDI_EXIT,
+            f"{size_desc} rdhd=rd0 encoding rejected")
+
+# ── Test cases ────────────────────────────────────────────────────────
 
 TESTS = [
-    # ================================================================
-    # div.* tests (16)
-    # ================================================================
-
-    # ── N1-N4: Normal exact value (truncate-toward-zero) ──
+    # Normal exact value
     _exact_div_test("N1 div.uo 100/7 == 14", div_uo, 100, 7, 14, "div.uo"),
     _exact_div_test("N2 div.ut 100/7 == 14 (32-bit)", div_ut, 100, 7, 14, "div.ut"),
     _exact_div_test("N3 div.uw 100/7 == 14 (16-bit)", div_uw, 100, 7, 14, "div.uw"),
     _exact_div_test("N4 div.ub 100/7 == 14 (8-bit)", div_ub, 100, 7, 14, "div.ub"),
-
-    # ── N5-N6: Signed negative dividend (truncate-toward-zero) ──
     _exact_div_test("N5 div.so -10/3 == -3", div_so,
                     0xFFFFFFFFFFFFFFF6, 3, 0xFFFFFFFFFFFFFFFD, "div.so"),
     _exact_div_test("N6 div.sb -10/3 == -3 (8-bit)", div_sb,
                     0xFFFFFFFFFFFFFFF6, 3, 0xFFFFFFFFFFFFFFFD, "div.sb"),
 
-    # ── D0-D3: Divide-by-zero → ILLI ──
-    _div_by_zero_test("D0 div.uo /0 → ILLI", div_uo, "div.uo"),
-    _div_by_zero_test("D1 div.so /0 → ILLI", div_so, "div.so"),
-    _div_by_zero_test("D2 div.ut /0 → ILLI", div_ut, "div.ut"),
-    _div_by_zero_test("D3 div.ub /0 → ILLI", div_ub, "div.ub"),
+    # Divide-by-zero → defined value
+    _div_by_zero_test("D0 div.so /0 → -1", div_so, -1, "div.so"),
+    _div_by_zero_test("D1 div.st /0 → -1", div_st, -1, "div.st"),
+    _div_by_zero_test("D2 div.sw /0 → -1", div_sw, -1, "div.sw"),
+    _div_by_zero_test("D3 div.sb /0 → -1", div_sb, -1, "div.sb"),
+    _div_by_zero_test("D4 div.uo /0 → max64", div_uo, 0xFFFFFFFFFFFFFFFF, "div.uo"),
+    _div_by_zero_test("D5 div.ut /0 → max32", div_ut, 0x00000000FFFFFFFF, "div.ut"),
+    _div_by_zero_test("D6 div.uw /0 → max16", div_uw, 0x000000000000FFFF, "div.uw"),
+    _div_by_zero_test("D7 div.ub /0 → max8", div_ub, 0x00000000000000FF, "div.ub"),
 
-    # ── O0-O3: INT_MIN÷-1 → ILLI (signed overflow) ──
-    _int_min_div_neg1_test("O0 div.so INT64_MIN/-1 → ILLI",
-                           div_so, "div.so", 0x8000000000000000),
-    _int_min_div_neg1_test("O1 div.st INT32_MIN/-1 → ILLI",
-                           div_st, "div.st", 0xFFFFFFFF80000000),
-    _int_min_div_neg1_test("O2 div.sw INT16_MIN/-1 → ILLI",
-                           div_sw, "div.sw", 0xFFFFFFFFFFFF8000),
-    _int_min_div_neg1_test("O3 div.sb INT8_MIN/-1 → ILLI",
-                           div_sb, "div.sb", 0xFFFFFFFFFFFFFF80),
+    # INT_MIN÷-1 → defined value
+    _int_min_div_neg1_test("O0 div.so INT64_MIN/-1 → INT64_MIN",
+                           div_so, 0x8000000000000000, 0x8000000000000000, "div.so"),
+    _int_min_div_neg1_test("O1 div.st INT32_MIN/-1 → 0xFFFF_FFFF_8000_0000",
+                           div_st, 0xFFFFFFFF80000000, 0xFFFFFFFF80000000, "div.st"),
+    _int_min_div_neg1_test("O2 div.sw INT16_MIN/-1 → 0xFFFF_FFFF_FFFF_8000",
+                           div_sw, 0xFFFFFFFFFFFF8000, 0xFFFFFFFFFFFF8000, "div.sw"),
+    _int_min_div_neg1_test("O3 div.sb INT8_MIN/-1 → 0xFFFF_FFFF_FFFF_FF80",
+                           div_sb, 0xFFFFFFFFFFFFFF80, 0xFFFFFFFFFFFFFF80, "div.sb"),
 
-    # ================================================================
-    # rem.* tests (16)
-    # ================================================================
-
-    # ── R1-R4: Normal exact value ──
+    # Normal exact value (rem)
     _exact_rem_test("R1 rem.uo 100%7 == 2", rem_uo, 100, 7, 2, "rem.uo"),
     _exact_rem_test("R2 rem.ut 100%7 == 2 (32-bit)", rem_ut, 100, 7, 2, "rem.ut"),
     _exact_rem_test("R3 rem.uw 100%7 == 2 (16-bit)", rem_uw, 100, 7, 2, "rem.uw"),
     _exact_rem_test("R4 rem.ub 100%7 == 2 (8-bit)", rem_ub, 100, 7, 2, "rem.ub"),
-
-    # ── R5-R6: Signed negative dividend (remainder sign = dividend sign) ──
-    # -10 %3 = -1 (not +2; sign follows dividend per §3.1.5)
     _exact_rem_test("R5 rem.so -10%3 == -1", rem_so,
                     0xFFFFFFFFFFFFFFF6, 3, 0xFFFFFFFFFFFFFFFF, "rem.so"),
     _exact_rem_test("R6 rem.sb -10%3 == -1 (8-bit)", rem_sb,
                     0xFFFFFFFFFFFFFFF6, 3, 0xFFFFFFFFFFFFFFFF, "rem.sb"),
 
-    # ── RD0-RD3: Remainder-by-zero → ILLI ──
-    _rem_by_zero_test("RD0 rem.uo %0 → ILLI", rem_uo, "rem.uo"),
-    _rem_by_zero_test("RD1 rem.so %0 → ILLI", rem_so, "rem.so"),
-    _rem_by_zero_test("RD2 rem.ut %0 → ILLI", rem_ut, "rem.ut"),
-    _rem_by_zero_test("RD3 rem.ub %0 → ILLI", rem_ub, "rem.ub"),
+    # Remainder-by-zero → dividend (extended)
+    _rem_by_zero_test("RD0 rem.so %0 → 0x64", rem_so, 0x64, "rem.so"),
+    _rem_by_zero_test("RD1 rem.st %0 → 0x64", rem_st, 0x64, "rem.st"),
+    _rem_by_zero_test("RD2 rem.sw %0 → 0x64", rem_sw, 0x64, "rem.sw"),
+    _rem_by_zero_test("RD3 rem.sb %0 → 0x64", rem_sb, 0x64, "rem.sb"),
+    _rem_by_zero_test("RD4 rem.uo %0 → 0x64", rem_uo, 0x64, "rem.uo"),
+    _rem_by_zero_test("RD5 rem.ut %0 → 0x64", rem_ut, 0x64, "rem.ut"),
+    _rem_by_zero_test("RD6 rem.uw %0 → 0x64", rem_uw, 0x64, "rem.uw"),
+    _rem_by_zero_test("RD7 rem.ub %0 → 0x64", rem_ub, 0x64, "rem.ub"),
 
-    # ── RO0-RO3: INT_MIN%-1 → ILLI (signed overflow) ──
-    _int_min_rem_neg1_test("RO0 rem.so INT64_MIN%-1 → ILLI",
-                           rem_so, "rem.so", 0x8000000000000000),
-    _int_min_rem_neg1_test("RO1 rem.st INT32_MIN%-1 → ILLI",
-                           rem_st, "rem.st", 0xFFFFFFFF80000000),
-    _int_min_rem_neg1_test("RO2 rem.sw INT16_MIN%-1 → ILLI",
-                           rem_sw, "rem.sw", 0xFFFFFFFFFFFF8000),
-    _int_min_rem_neg1_test("RO3 rem.sb INT8_MIN%-1 → ILLI",
-                           rem_sb, "rem.sb", 0xFFFFFFFFFFFFFF80),
+    # INT_MIN%-1 → 0
+    _int_min_rem_neg1_test("RO0 rem.so INT64_MIN%-1 → 0",
+                           rem_so, 0x8000000000000000, 0, "rem.so"),
+    _int_min_rem_neg1_test("RO1 rem.st INT32_MIN%-1 → 0",
+                           rem_st, 0xFFFFFFFF80000000, 0, "rem.st"),
+    _int_min_rem_neg1_test("RO2 rem.sw INT16_MIN%-1 → 0",
+                           rem_sw, 0xFFFFFFFFFFFF8000, 0, "rem.sw"),
+    _int_min_rem_neg1_test("RO3 rem.sb INT8_MIN%-1 → 0",
+                           rem_sb, 0xFFFFFFFFFFFFFF80, 0, "rem.sb"),
+
+    # Encoding tests: rdhd=rd0 accepted
+    _encoding_rdhd_rd0_test("E0 div.uo rdhd=rd0", [set_zw(10, 7), div_uo(5, 10, 0)], "div.uo"),
+    _encoding_rdhd_rd0_test("E1 div.so rdhd=rd0", [set_zw(10, 7), div_so(5, 10, 0)], "div.so"),
+    _encoding_rdhd_rd0_test("E2 div.ut rdhd=rd0", [set_zw(10, 7), div_ut(5, 10, 0)], "div.ut"),
+    _encoding_rdhd_rd0_test("E3 div.st rdhd=rd0", [set_zw(10, 7), div_st(5, 10, 0)], "div.st"),
+    _encoding_rdhd_rd0_test("E4 div.uw rdhd=rd0", [set_zw(10, 7), div_uw(5, 10, 0)], "div.uw"),
+    _encoding_rdhd_rd0_test("E5 div.sw rdhd=rd0", [set_zw(10, 7), div_sw(5, 10, 0)], "div.sw"),
+    _encoding_rdhd_rd0_test("E6 div.ub rdhd=rd0", [set_zw(10, 7), div_ub(5, 10, 0)], "div.ub"),
+    _encoding_rdhd_rd0_test("E7 div.sb rdhd=rd0", [set_zw(10, 7), div_sb(5, 10, 0)], "div.sb"),
+    _encoding_rdhd_rd0_test("E8 rem.uo rdhd=rd0", [set_zw(10, 7), rem_uo(5, 10, 0)], "rem.uo"),
+    _encoding_rdhd_rd0_test("E9 rem.so rdhd=rd0", [set_zw(10, 7), rem_so(5, 10, 0)], "rem.so"),
+    _encoding_rdhd_rd0_test("E10 rem.ut rdhd=rd0", [set_zw(10, 7), rem_ut(5, 10, 0)], "rem.ut"),
+    _encoding_rdhd_rd0_test("E11 rem.st rdhd=rd0", [set_zw(10, 7), rem_st(5, 10, 0)], "rem.st"),
+    _encoding_rdhd_rd0_test("E12 rem.uw rdhd=rd0", [set_zw(10, 7), rem_uw(5, 10, 0)], "rem.uw"),
+    _encoding_rdhd_rd0_test("E13 rem.sw rdhd=rd0", [set_zw(10, 7), rem_sw(5, 10, 0)], "rem.sw"),
+    _encoding_rdhd_rd0_test("E14 rem.ub rdhd=rd0", [set_zw(10, 7), rem_ub(5, 10, 0)], "rem.ub"),
+    _encoding_rdhd_rd0_test("E15 rem.sb rdhd=rd0", [set_zw(10, 7), rem_sb(5, 10, 0)], "rem.sb"),
 ]
 
-# ── CTL self-check (separate from main tests) ────────────────────────
-# Intentionally wrong expectation: expect UNDI(137) for a value that matches.
-# A FAIL here means the probe can detect errors. A PASS means probe is broken.
+# CTL self-check: expect ILLI for a MATCH case → should get UNDI → FAIL.
+# The comparison result MATCHES (correct expected value), so the probe should
+# produce UNDI(137). We expect ILLI(136) instead → FAIL → probe can detect.
 CTL_CHECKS = [
-    ("CTL: div.uo 100/7=14 but expect UNDI (wrong; should be ILLI=match)",
+    ("CTL: div.uo 100/7=14 expect ILLI (wrong; match→UNDI=137)",
      [set_zw(10, 100), set_zw(11, 7), div_uo(5, 10, 11),
-      set_zw(6, 14),                    # expected=14 (correct)
-      cmp_uo(7, 5, 6),                 # rd7=0 (match)
-      set_zw(1, 1), div_uo(1, 1, 7)],  # div 1/0 → ILLI(136)
-     UNDI_EXIT,  # WRONG: we expect UNDI but will get ILLI
+      set_zw(6, 14),                   # expected=14 (CORRECT → match)
+      cmp_uo(7, 5, 6),                 # rd7 = cmp(14, 14) = 0 (match)
+      set_zw(1, 0),                    # rd1 = 0
+      br_ne(7, 1, 2),                  # match → NOT taken → continue
+      set_zw(1, 1),
+      br_ne(1, 0, 2),                  # unconditional → skip 2 → UNDI(137)
+      cmp_uo(0, 0, 0)],               # (not reached on match)
+     ILLI_EXIT,  # WRONG: match gives UNDI(137), not ILLI(136)
      "Self-check FAILED: probe cannot detect wrong values"),
 ]
 
 # ── Main ──────────────────────────────────────────────────────────────
 
 def run_test_group(tests, group_name):
-    """Run a group of tests, return (passed, failed, fail_details)."""
-    passed = 0
-    failed = 0
+    passed = failed = 0
     fail_details = []
-
     for name, rom_insns, expected, fail_desc in tests:
         rom = build_rom(rom_insns)
         code, stderr = run_rom(rom)
-
         if code == expected:
-            status = "PASS"
-            passed += 1
+            status = "PASS"; passed += 1
         elif code == CRASH_EXIT:
-            status = "FAIL"
-            failed += 1
-            fail_details.append(f"  [{status}] {name}: exit={code} CRASH (SIGABRT)")
+            status = "FAIL"; failed += 1
+            fail_details.append(f"  [{status}] {name}: exit={code} CRASH")
         elif code == -1:
-            status = "TIMEOUT"
-            failed += 1
+            status = "TIMEOUT"; failed += 1
             fail_details.append(f"  [{status}] {name}: {stderr}")
         else:
-            status = "FAIL"
-            failed += 1
+            status = "FAIL"; failed += 1
             fail_details.append(f"  [{status}] {name}: exit={code} (expected {expected}) — {fail_desc}")
-
         print(f"  [{status}] {name}: exit={code} (expect {expected})")
-
     return passed, failed, fail_details
-
 
 def main():
     os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
     if not os.path.exists(QEMU):
         print(f"ERROR: {QEMU} not found. Run 'make build-qemu' first.")
         return 1
-
     print("=" * 70)
-    print("QEMU-011t Min ROM Probe: div/rem label顺序定向回归验证")
+    print("SPEC-066t Min ROM Probe: div/rem defined-value semantics (v2)")
     print("=" * 70)
-    print(f"  Terminators: ILLI={ILLI_EXIT}, UNDI={UNDI_EXIT}, CRASH={CRASH_EXIT}")
-    print(f"  Exact check: cmp.uo + div.uo → ILLI=match, UNDI=mismatch")
+    print(f"  Exit codes: ILLI={ILLI_EXIT}, UNDI={UNDI_EXIT}, CRASH={CRASH_EXIT}")
+    print(f"  Comparison: cmp.uo + br.ne → UNDI=match(137), ILLI=mismatch(136)")
     print(f"  Tests: {len(TESTS)} main + {len(CTL_CHECKS)} CTL")
     print()
-
-    # ── Main tests ──
     print("-" * 70)
-    print("Main tests (16 div.* + 16 rem.*):")
+    print(f"Main tests ({len(TESTS)}):")
     print("-" * 70)
     passed, failed, fail_details = run_test_group(TESTS, "main")
-
     print(f"\nMain results: {passed}/{passed+failed} passed, {failed} failed")
-
     if fail_details:
-        print(f"\nFailed main tests:")
-        for d in fail_details:
-            print(d)
-
-    # ── CTL self-check ──
+        print("\nFailed main tests:")
+        for d in fail_details: print(d)
     print()
     print("-" * 70)
-    print("CTL self-check (intentionally wrong expectations):")
-    print("  FAIL here = probe works correctly (can detect errors)")
-    print("  PASS here = probe broken (cannot distinguish values)")
+    print("CTL self-check:")
+    print("  FAIL = probe works | PASS = probe broken")
     print("-" * 70)
-    ctl_passed, ctl_failed, ctl_fail_details = run_test_group(CTL_CHECKS, "CTL")
-
-    ctl_probe_ok = ctl_failed > 0
-    print(f"\nCTL self-check: {ctl_passed} PASS, {ctl_failed} FAIL")
-    print(f"  Probe detection: {'OK (can detect errors)' if ctl_probe_ok else 'BROKEN (cannot detect errors)'}")
-
-    # ── Final summary ──
+    ctl_passed, ctl_failed, _ = run_test_group(CTL_CHECKS, "CTL")
+    ctl_ok = ctl_failed > 0
+    print(f"\nCTL: {ctl_passed} PASS, {ctl_failed} FAIL → {'OK' if ctl_ok else 'BROKEN'}")
     print(f"\n{'=' * 70}")
-    all_pass = failed == 0 and ctl_probe_ok
+    all_pass = failed == 0 and ctl_ok
     print(f"Overall: {'PASS' if all_pass else 'FAIL'}")
-    print(f"  Main tests: {passed}/{passed+failed}")
-    print(f"  CTL probe: {'OK' if ctl_probe_ok else 'BROKEN'}")
-
+    print(f"  Main: {passed}/{passed+failed} | CTL: {'OK' if ctl_ok else 'BROKEN'}")
     return 0 if all_pass else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())
