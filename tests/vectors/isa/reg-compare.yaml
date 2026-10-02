@@ -129,7 +129,7 @@
       rb2: '0x000000000000000A'
       rb3: '0x0000000000000014'
   mnemonic: cmp.uo
-  notes: 'cmp.uo: rb2=0xa, rb3=0x14, bits=48 (D8.2), signed=False'
+  notes: 'cmp.uo: rb2=0xa, rb3=0x14, bits=64 (D8.2 revised), signed=False'
   spec_cite: SimRISC-05 §比较操作
   status: active
 - class: semantic
@@ -143,7 +143,7 @@
     ra: {}
     rb: {}
     rd:
-      rd1: '0xFFFFFFFFFFFFFFFF'
+      rd1: '0x0000000000000001'
   format: orrr
   id: cmp.uo_orrr_rb
   input_state:
@@ -151,31 +151,8 @@
       rb2: '0x0001000000000001'
       rb3: '0x0000000000000002'
   mnemonic: cmp.uo
-  notes: 'cmp.uo-rb 48-bit D8.2 boundary: rb2=0x0001_0000_0000_0001, rb3=0x0002;
-    48-bit view: 0x0001 < 0x0002 → result=-1; 64-bit view would give +1 (0x0001…0001 > 0x0002)'
-  spec_cite: SimRISC-05 §比较操作; ADR-0012 D8.2
-  status: active
-- class: semantic
-  deferred_reason: null
-  encoding:
-    word: '0x40A41083'
-  expected_fault: null
-  expected_pc: null
-  expected_state:
-    memory: []
-    ra: {}
-    rb: {}
-    rd:
-      rd1: '0x0000000000000000'
-  format: orrr
-  id: cmp.uo_orrr_rb
-  input_state:
-    rb:
-      rb2: '0x0001000000000001'
-      rb3: '0x0000000000000001'
-  mnemonic: cmp.uo
-  notes: 'cmp.uo-rb 48-bit D8.2 boundary: rb2=0x0001_0000_0000_0001, rb3=0x0001;
-    48-bit view: 0x0001 == 0x0001 → result=0; 64-bit view would give +1'
+  notes: 'cmp.uo-rb 64-bit D8.2 boundary: rb2=0x0001_0000_0000_0001, rb3=0x0002;
+    64-bit: 0x0001…0001 > 0x0002 → result=+1; bits[63:48] participate'
   spec_cite: SimRISC-05 §比较操作; ADR-0012 D8.2
   status: active
 - class: semantic
@@ -194,11 +171,34 @@
   id: cmp.uo_orrr_rb
   input_state:
     rb:
-      rb2: '0x0000800000000000'
+      rb2: '0x0001000000000001'
       rb3: '0x0000000000000001'
   mnemonic: cmp.uo
-  notes: 'cmp.uo-rb 48-bit D8.2 bit47 boundary: rb2=0x0000_8000_0000_0000 (bit47 set), rb3=0x0001;
-    48-bit view: 0x8000_0000_0000 > 0x0001 → result=1; confirms48-bit mask does not truncate bit47'
+  notes: 'cmp.uo-rb 64-bit D8.2 boundary: rb2=0x0001_0000_0000_0001, rb3=0x0001;
+    64-bit: 0x0001…0001 > 0x0001 → result=+1; bits[63:48] participate'
+  spec_cite: SimRISC-05 §比较操作; ADR-0012 D8.2
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x40A41083'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd1: '0x0000000000000001'
+  format: orrr
+  id: cmp.uo_orrr_rb
+  input_state:
+    rb:
+      rb2: '0x0001000000000000'
+      rb3: '0x0000FFFFFFFFFFFF'
+  mnemonic: cmp.uo
+  notes: 'cmp.uo-rb 64-bit D8.2 bits[63:48] participate: rb2=0x0001_0000_0000_0000, rb3=0x0000_FFFF_FFFF_FFFF;
+    64-bit: 0x0001… > 0x0000_FFFF… → result=+1; 48-bit view would give −1 (0 < 0xFFFF…)'
   spec_cite: SimRISC-05 §比较操作; ADR-0012 D8.2
   status: active
 - class: legality
