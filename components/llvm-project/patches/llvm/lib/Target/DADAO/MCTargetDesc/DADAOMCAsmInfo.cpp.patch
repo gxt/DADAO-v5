@@ -3,7 +3,7 @@ new file mode 100644
 index 000000000000..dbe4cd5ef41f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,40 @@
 +//===-- DADAOMCAsmInfo.cpp - DADAO asm properties -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -31,6 +31,9 @@ index 000000000000..dbe4cd5ef41f
 +
 +  // DADAO uses ';' as the comment character.
 +  CommentString = ";";
++
++  // Disallow '#' as a comment character in any position (ADR-0013 D9).
++  AllowAdditionalComments = false;
 +
 +  // Instruction alignment: 4 bytes (contract-isa.md §2.1: 32-bit instructions).
 +  MinInstAlignment = 4;
