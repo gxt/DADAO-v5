@@ -116,7 +116,7 @@ def _load_opcode_formats() -> dict[str, set[str]]:
 # Build cfx alias set from cfx-aliases.md
 # ---------------------------------------------------------------------------
 
-_CFX_ALIAS_PATTERN = re.compile(r"^\|\s*`(cfx_[\w⟨⟩]+)`\s*\|")
+_CFX_ALIAS_PATTERN = re.compile(r"^\|\s*`(cfx_[\w⟨⟩\[\].−\d]+)`\s*\|")
 
 # All known cfxnames (from the scalar alias table)
 _CFX_NAMES = [
@@ -124,15 +124,18 @@ _CFX_NAMES = [
     "hart", "llc", "pmem", "timer", "uart", "power",
 ]
 
-def _load_cfx_aliases() -> set[str]:
-    """Load cfx alias names from ``docs/spec/cfx-aliases.md``.
+def _load_cfx_aliases() -> tuple[set[str], dict[str, tuple[int, int]]]:
+    """Load cfx alias names and their index ranges from ``docs/spec/cfx-aliases.md``.
 
     Templates with ``⟨cfxname⟩`` are expanded to all known cfx names.
+    Returns ``(aliases, ranges)`` where ``ranges`` maps base name (without
+    ``[lo..hi]``) to ``(lo, hi)`` for range-indexed registers.
     """
     alias_path = ROOT / "docs" / "spec" / "cfx-aliases.md"
     if not alias_path.exists():
-        return set()
+        return set(), {}
     aliases: set[str] = set()
+    ranges: dict[str, tuple[int, int]] = {}
     for line in alias_path.read_text().splitlines():
         m = _CFX_ALIAS_PATTERN.match(line)
         if m:
@@ -140,10 +143,37 @@ def _load_cfx_aliases() -> set[str]:
             if "⟨cfxname⟩" in name:
                 # Expand template for all cfx names
                 for cfxn in _CFX_NAMES:
-                    aliases.add(name.replace("⟨cfxname⟩", cfxn))
+                    expanded = name.replace("⟨cfxname⟩", cfxn)
+                    aliases.add(expanded)
+                    # For range-indexed, also add base name (without [lo..hi])
+                    base = re.sub(r"\[\d+\.\.\d+(?:−\d+)?\]$", "", expanded)
+                    if base != expanded:
+                        aliases.add(base)
             else:
                 aliases.add(name)
-    return aliases
+                # For range-indexed, also add base name
+                base = re.sub(r"\[\d+\.\.\d+(?:−\d+)?\]$", "", name)
+                if base != name:
+                    aliases.add(base)
+        # Parse range-indexed entries: | `cfx_ptw_ptbr[0..63]` | … | … | 0-63 | … |
+        # The [lo..hi] in the name is the array index range.
+        if line.startswith("|") and "[" in line and ".." in line:
+            cells = [c.strip() for c in line.split("|")[1:-1]]
+            if len(cells) >= 2:
+                cell0 = cells[0].strip("`")
+                # Extract base name and range from [lo..hi] in the name
+                bracket_match = re.search(r"\[(\d+)\.\.(\d+)\]", cell0)
+                if bracket_match:
+                    base_name = cell0[:bracket_match.start()]
+                    idx_lo = int(bracket_match.group(1))
+                    idx_hi = int(bracket_match.group(2))
+                    # Expand templates
+                    if "⟨cfxname⟩" in base_name:
+                        for cfxn in _CFX_NAMES:
+                            ranges[base_name.replace("⟨cfxname⟩", cfxn)] = (idx_lo, idx_hi)
+                    else:
+                        ranges[base_name] = (idx_lo, idx_hi)
+    return aliases, ranges
 
 # ---------------------------------------------------------------------------
 # File collection
@@ -365,13 +395,38 @@ def _is_cfx_long_form(operands: str) -> bool:
         return False
     return True
 
-def _is_cfx_alias_form(operands: str, cfx_aliases: set[str]) -> bool:
-    """Check if operands match alias form: <cfxreg>, rdHD (2 operands)."""
+def _is_cfx_alias_form(operands: str, cfx_aliases: set[str], cfx_ranges: dict[str, tuple[int, int]] = {}) -> bool:
+    """Check if operands match alias form: <cfxreg>, rdHD (2 operands).
+
+    Also accepts array-indexed form: <cfxreg>[N], rdHD where N is in the
+    valid range for that register (per ADR-0017 D10).
+    """
     parts = [p.strip() for p in operands.split(",")]
     if len(parts) != 2:
         return False
-    # First must be a cfx alias
-    if parts[0] not in cfx_aliases:
+    # First must be a cfx alias (possibly with [N] subscript)
+    first = parts[0]
+    if first in cfx_aliases:
+        pass  # exact match
+    elif "[" in first and first.endswith("]"):
+        # Array-indexed: name[N]
+        bracket_pos = first.index("[")
+        base_name = first[:bracket_pos]
+        index_str = first[bracket_pos + 1:-1]
+        if base_name not in cfx_aliases:
+            return False
+        try:
+            idx = int(index_str)
+        except ValueError:
+            return False
+        if base_name in cfx_ranges:
+            lo, hi = cfx_ranges[base_name]
+            if not (lo <= idx <= hi):
+                return False
+        else:
+            # Base name has no range → can't use [N]
+            return False
+    else:
         return False
     # Second must be rd register
     if not re.match(r"^rd\d+$", parts[1]):
@@ -384,6 +439,7 @@ def _check_line(
     filepath: Path,
     opcode_formats: dict[str, set[str]],
     cfx_aliases: set[str],
+    cfx_ranges: dict[str, tuple[int, int]] = {},
     is_asm_block: bool = True,
 ) -> list[Violation]:
     """Check a single line for violations.  May return 0, 1, or multiple."""
@@ -468,7 +524,7 @@ def _check_line(
     # R3: cfx2rd/cfx2rc shape
     if mnemonic in ("cfx2rd", "cfx2rc"):
         after_mn = code_part[len(mnemonic):].strip()
-        if not _is_cfx_long_form(after_mn) and not _is_cfx_alias_form(after_mn, cfx_aliases):
+        if not _is_cfx_long_form(after_mn) and not _is_cfx_alias_form(after_mn, cfx_aliases, cfx_ranges):
             violations.append(Violation(filepath, lineno, "R3(cfx操作数形)", stripped))
 
     # R3: escape must be [excp_cause_ip, immi]
@@ -555,6 +611,7 @@ def _check_line(
 def scan(
     opcode_formats: dict[str, set[str]],
     cfx_aliases: set[str],
+    cfx_ranges: dict[str, tuple[int, int]] = {},
 ) -> list[Violation]:
     """Scan all files in scope and return violations."""
     violations: list[Violation] = []
@@ -571,6 +628,7 @@ def scan(
                     filepath,
                     opcode_formats,
                     cfx_aliases,
+                    cfx_ranges,
                     is_asm_block=is_asm_block,
                 )
                 violations.extend(vl)
@@ -632,7 +690,7 @@ def main() -> None:
     args = parser.parse_args()
 
     opcode_formats = _load_opcode_formats()
-    cfx_aliases = _load_cfx_aliases()
+    cfx_aliases, cfx_ranges = _load_cfx_aliases()
 
     if args.files:
         # Filter to specific files
@@ -651,11 +709,12 @@ def main() -> None:
                         filepath,
                         opcode_formats,
                         cfx_aliases,
+                        cfx_ranges,
                         is_asm_block=is_asm_block,
                     )
                     violations.extend(vl)
     else:
-        violations = scan(opcode_formats, cfx_aliases)
+        violations = scan(opcode_formats, cfx_aliases, cfx_ranges)
 
     report(violations)
 

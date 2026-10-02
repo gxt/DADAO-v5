@@ -202,7 +202,7 @@ def render_markdown(
     lines.append("本文档由生成器从 spec 寄存器表机械生成。**禁止手工维护** ✗。")
     lines.append("")
     lines.append("生成来源：")
-    lines.append(f"- `spec/DADAO-12-SEE-主管系统运行环境.md`（cfxcode↔cfxname 表 + cg0-7/cg4-7 寄存器表 + 各 cfx 专有寄存器表）")
+    lines.append(f"- `spec/DADAO-12-SEE-主管系统运行环境.md`（cfxha↔cfxname 表 + cg0-7/cg4-7 寄存器表 + 各 cfx 专有寄存器表）")
     lines.append(f"- `spec/DADAO-13-HEE-超管系统运行环境.md`（cg3 hypv 寄存器表）")
     lines.append(f"- 生成器：`tools/spec/gen_cfx_aliases.py`")
     lines.append("")
@@ -214,7 +214,7 @@ def render_markdown(
     lines.append("")
     lines.append("Per ADR-0017 D3：`cfx_<cfxname>` 是 `cfxHA` 的宏别名。")
     lines.append("")
-    lines.append("| 别名 | cfxcode | cfxname |")
+    lines.append("| 别名 | cfxha | cfxname |")
     lines.append("|------|---------|---------|")
     for alias, code_str, code in scalar_aliases:
         cfxname = alias[4:]  # remove "cfx_" prefix
