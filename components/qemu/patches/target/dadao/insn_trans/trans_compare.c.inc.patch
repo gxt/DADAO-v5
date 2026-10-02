@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_compare.c.inc b/target/dadao/insn_trans/trans_compare.c.inc
 new file mode 100644
-index 0000000000..28726ecc49
+index 0000000..ad09d12
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_compare.c.inc
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,210 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §3.2.1 cmp.ui/cmp.si (rrii): immediate compare */
@@ -42,14 +42,18 @@ index 0000000000..28726ecc49
 +    return true;
 +}
 +
-+/* §4.6 cmp.uo rdhb, rbhc, rbhd (orrr): unsigned 64-bit RB compare
++/* §4.6 cmp.uo rdhb, rbhc, rbhd (orrr): unsigned 48-bit RB compare
++ * ADR-0012 D8.2: compare low 48 bits of rbhc/rbhd (unsigned).
 + * result = -1/0/1 for less/equal/greater, written to rdhb (full 64-bit)
-+ * bits[63:48] don't affect comparison. ILLI: rdhb == 0 */
++ * ILLI: rdhb == 0 */
 +static bool trans_cmp_uo_orrr_rb(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rbhc = load_rb(ctx, a->hc);
 +    TCGv_i64 rbhd = load_rb(ctx, a->hd);
++    /* D8.2: mask to low 48 bits before comparison */
++    tcg_gen_andi_i64(rbhc, rbhc, 0x0000FFFFFFFFFFFFULL);
++    tcg_gen_andi_i64(rbhd, rbhd, 0x0000FFFFFFFFFFFFULL);
 +    TCGv_i64 result = tcg_temp_new_i64();
 +    gen_cmp_three_way(result, rbhc, rbhd, false);
 +    store_rd(a->hb, result);

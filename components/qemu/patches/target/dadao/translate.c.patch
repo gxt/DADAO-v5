@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..7a3470e
+index 0000000..a127f29
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,484 @@
+@@ -0,0 +1,488 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -457,6 +457,10 @@ index 0000000..7a3470e
 +    case DISAS_TOO_MANY:
 +    case DISAS_NEXT:
 +        dest = ctx->base.pc_next;
++        /* ADR-0012 D8.3: sequential/not-taken → rb0 = PC+4 (64-bit).
++         * Store pc_next to rb[0] so next TB sees correct rb0. */
++        tcg_gen_st_i64(tcg_constant_i64(dest),
++                       tcg_env, offsetof(CPUDADAOState, rb[0]));
 +        if (translator_use_goto_tb(&ctx->base, dest)) {
 +            gen_update_pc(ctx, dest);
 +            tcg_gen_goto_tb(0);

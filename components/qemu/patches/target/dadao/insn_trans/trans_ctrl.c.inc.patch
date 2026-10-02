@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
+index 0000000..a708b4a
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
-@@ -0,0 +1,389 @@
+@@ -0,0 +1,398 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* ── Helper: RegRAS/MemRAS push/pop (ADR-0012 D7) ──────────────────── */
@@ -23,8 +23,9 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +}
 +
 +/* ── Helper: branch taken path ──────────────────────────────────────── */
-+/* Compute branch target: rb0(PC) + sign_extend(imm18) << 2, mask 48-bit.
-+ * Update PC, rb[0], exit TB. */
++/* ADR-0012 D8.3 model (乙): PC/rb0 = full 64-bit A (no truncation).
++ * Memory EA still masked to 48 bits elsewhere (trans_mem.c.inc).
++ * QEMU TARGET_VIRT_ADDR_SPACE_BITS=48 ensures fetch/TLB use low 48. */
 +static void gen_branch_taken(DisasContext *ctx, int ha, int hb, int hc, int hd)
 +{
 +    int32_t imm18 = (int32_t)((hb << 12) | (hc << 6) | hd);
@@ -36,13 +37,14 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +    TCGv_i64 rb0 = tcg_constant_i64(ctx->base.pc_next);
 +    TCGv_i64 target = tcg_temp_new_i64();
 +    tcg_gen_addi_i64(target, rb0, offset);
-+    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    /* (乙): PC = full 64-bit A; rb0 = A (via translation-time constant) */
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
 +    tcg_gen_exit_tb(NULL, 0);
 +}
 +
 +/* ── Helper: branch taken path for rrii (br.eq/br.ne) ──────────────── */
++/* ADR-0012 D8.3 model (乙): PC/rb0 = full 64-bit A (no truncation). */
 +static void gen_branch_taken_rrii(DisasContext *ctx, int hc, int hd)
 +{
 +    int32_t imm12 = (int32_t)((hc << 6) | hd);
@@ -54,7 +56,7 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +    TCGv_i64 rb0 = tcg_constant_i64(ctx->base.pc_next);
 +    TCGv_i64 target = tcg_temp_new_i64();
 +    tcg_gen_addi_i64(target, rb0, offset);
-+    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    /* (乙): PC = full 64-bit A; rb0 = A */
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
 +    tcg_gen_exit_tb(NULL, 0);
@@ -182,6 +184,7 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +}
 +
 +/* ── §5.3 jump-iiii: PC = rb0 + (imms24 << 2) ──────────────────────── */
++/* ADR-0012 D8.3 model (乙): PC/rb0 = full 64-bit A (no truncation). */
 +static bool trans_jump_iiii_rb(DisasContext *ctx, arg_main *a)
 +{
 +    int32_t imm24 = (int32_t)((a->ha << 18) | (a->hb << 12) |
@@ -194,7 +197,7 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +    TCGv_i64 rb0 = tcg_constant_i64(ctx->base.pc_next);
 +    TCGv_i64 target = tcg_temp_new_i64();
 +    tcg_gen_addi_i64(target, rb0, offset);
-+    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    /* (乙): PC = full 64-bit A; rb0 = A */
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
 +    tcg_gen_exit_tb(NULL, 0);
@@ -203,7 +206,8 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +}
 +
 +/* §5.3 jump-rrii: PC = rbha + rdhb + sign_extend(imms12 << 2)
-+ * Already implemented in 006t (patch 0004). Kept here for completeness. */
++ * ADR-0012 D8.3 model (乙): PC/rb0 = full 64-bit A (no truncation).
++ * rbHA only read (not modified). */
 +static bool trans_jump_rrii_rb(DisasContext *ctx, arg_main *a)
 +{
 +    int32_t imm12 = (int32_t)((a->hc << 6) | a->hd);
@@ -217,7 +221,7 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +    TCGv_i64 target = tcg_temp_new_i64();
 +    tcg_gen_add_i64(target, rbha, rdhb);
 +    tcg_gen_addi_i64(target, target, offset);
-+    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    /* (乙): PC = full 64-bit A; rb0 = A */
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
 +    tcg_gen_exit_tb(NULL, 0);
@@ -257,6 +261,7 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +}
 +
 +/* ── §5.4 call-iiii: push ret_addr, PC = rb0 + (imms24 << 2) ───────── */
++/* ADR-0012 D8.3 model (乙): PC/rb0 = full 64-bit A (no truncation). */
 +static bool trans_call_iiii_ra(DisasContext *ctx, arg_main *a)
 +{
 +    int32_t imm24 = (int32_t)((a->ha << 18) | (a->hb << 12) |
@@ -270,11 +275,11 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +    TCGv_i64 ret_addr = tcg_constant_i64(ctx->base.pc_next + 4);
 +    gen_ras_push(ctx, ret_addr);
 +
-+    /* Compute target and jump */
++    /* Compute target and jump (64-bit) */
 +    TCGv_i64 rb0 = tcg_constant_i64(ctx->base.pc_next);
 +    TCGv_i64 target = tcg_temp_new_i64();
 +    tcg_gen_addi_i64(target, rb0, offset);
-+    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    /* (乙): PC = full 64-bit A; rb0 = A */
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
 +    tcg_gen_exit_tb(NULL, 0);
@@ -283,6 +288,8 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +}
 +
 +/* ── §5.4 call-rrii: push ret_addr, PC = rbha + rdhb + (imms12 << 2) ─ */
++/* ADR-0012 D8.3 model (乙): PC/rb0 = full 64-bit A (no truncation).
++ * rbHA only read (not modified). */
 +static bool trans_call_rrii_ra(DisasContext *ctx, arg_main *a)
 +{
 +    int32_t imm12 = (int32_t)((a->hc << 6) | a->hd);
@@ -295,13 +302,13 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +    TCGv_i64 ret_addr = tcg_constant_i64(ctx->base.pc_next + 4);
 +    gen_ras_push(ctx, ret_addr);
 +
-+    /* Compute target and jump */
++    /* Compute target and jump (64-bit) */
 +    TCGv_i64 rbha = load_rb(ctx, a->ha);
 +    TCGv_i64 rdhb = load_rd(a->hb);
 +    TCGv_i64 target = tcg_temp_new_i64();
 +    tcg_gen_add_i64(target, rbha, rdhb);
 +    tcg_gen_addi_i64(target, target, offset);
-+    tcg_gen_andi_i64(target, target, 0x0000FFFFFFFFFFFFULL);
++    /* (乙): PC = full 64-bit A; rb0 = A */
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
 +    tcg_gen_exit_tb(NULL, 0);
@@ -311,6 +318,8 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +
 +/* ── §5.5 ret rdha, imms18: rdha = sext(imms18), PC = pop(ra63) ────── */
 +/* rdha can be rd0 (allowed by spec for "return without value"). */
++/* D8: ret → rb0 = zero_extend48(ra63[47:0]); PC = rb0[47:0].
++ * Ret address from RAS is already 48-bit; mask is redundant but safe. */
 +static bool trans_ret_riii_ra(DisasContext *ctx, arg_main *a)
 +{
 +    /* Set rdha = sign_extend(imms18) */
@@ -324,11 +333,11 @@ index 0000000000..777ec66682aa54cfcfbffe91ce2a5037420376e6
 +    /* Pop return address from RegRAS */
 +    TCGv_i64 ret_addr = gen_ras_pop(ctx);
 +
-+    /* Jump to return address */
++    /* D8: rb0 = zero_extend48(ra63[47:0]); high 16 = 0 */
 +    TCGv_i64 target = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(target, ret_addr, 0x0000FFFFFFFFFFFFULL);
-+    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
 +    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, rb[0]));
++    tcg_gen_st_i64(target, tcg_env, offsetof(CPUDADAOState, pc));
 +    tcg_gen_exit_tb(NULL, 0);
 +    ctx->base.is_jmp = DISAS_NORETURN;
 +    return true;

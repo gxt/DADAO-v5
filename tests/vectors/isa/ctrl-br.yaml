@@ -48,7 +48,8 @@
     rd:
       rd1: '0x0000000000000001'
   mnemonic: br.n
-  notes: 'not-taken: rd1 = 1 (>= 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
+  notes: 'not-taken: rd1 = 1 (>= 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004;
+    D8.3: rb0 updated to 0xFFFF00000004 by tb_stop'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
   status: active
 - class: boundary
@@ -111,7 +112,8 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   mnemonic: br.nn
-  notes: 'not-taken: rd1 = -1 (< 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004'
+  notes: 'not-taken: rd1 = -1 (< 0) → condition FALSE, branch not taken; rb0=0xFFFF00000000, expected_pc=rb0+4=0xFFFF00000004;
+    D8.3: rb0 updated to 0xFFFF00000004 by tb_stop'
   spec_cite: SimRISC-06 §条件跳转指令; ADR-0004 D6.5
   status: active
 - class: boundary
