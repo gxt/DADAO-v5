@@ -40,7 +40,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-rule-refs \
-        check-dirs check-cfx-aliases
+        check-dirs check-cfx-aliases check-asm-prose check-lit
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -74,7 +74,8 @@ help:
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
-	@echo "  make check-asm-prose  Check prose assembly format gate (report mode)"
+	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
+	@echo "  make check-lit        Run lit MC + E2E tests (requires build-mc + build-qemu)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
 	@echo "  make check-cfx-aliases  Check cfx alias table drift gate (SPEC-075t)"
@@ -208,7 +209,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-prose check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs check-lit
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -245,9 +246,18 @@ check-asm-list:
 	@$(PYTHON) tools/spec/check_asm_list_consistency.py
 
 # Assembly prose format gate (SPEC-076t): detect old-format assembly
-# in prose fenced-code blocks (report mode; --strict for CI gating).
+# in prose fenced-code blocks.  --strict: exit 1 if any violation (baseline=0).
 check-asm-prose:
-	@$(PYTHON) tools/spec/check_asm_prose.py
+	@$(PYTHON) tools/spec/check_asm_prose.py --strict
+
+# lit gate (INFRA-021t): run llvm-lit on MC (22/22) + E2E (3/3).
+# MC needs llvm-mc/llvm-objdump/FileCheck (build-mc-lite suffices).
+# E2E needs llvm-objcopy (full build-mc) + qemu-system-dadao (build-qemu) + trampoline.
+# llvm-lit missing => explicit error (never silent skip).
+LIT_BIN = $(LLVM_BUILD)/bin/llvm-lit
+check-lit:
+	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make build-mc' first"; exit 1; }
+	$(LIT_BIN) tests/lit/MC/Dadao tests/lit/E2E -v
 
 # Legality drift gate (SPEC-074t): verifies LEGALITY sections in
 # spec/SimRISC-01..12 exactly match content rendered from contracts/.
