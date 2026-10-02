@@ -74,6 +74,7 @@ help:
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
+	@echo "  make check-asm-prose  Check prose assembly format gate (report mode)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
 	@echo "  make check-cfx-aliases  Check cfx alias table drift gate (SPEC-075t)"
@@ -242,6 +243,11 @@ check-dirs:
 # Spec embedded assembly list consistency (SPEC-037t).
 check-asm-list:
 	@$(PYTHON) tools/spec/check_asm_list_consistency.py
+
+# Assembly prose format gate (SPEC-076t): detect old-format assembly
+# in prose fenced-code blocks (report mode; --strict for CI gating).
+check-asm-prose:
+	@$(PYTHON) tools/spec/check_asm_prose.py
 
 # Legality drift gate (SPEC-074t): verifies LEGALITY sections in
 # spec/SimRISC-01..12 exactly match content rendered from contracts/.
