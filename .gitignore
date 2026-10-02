@@ -4,7 +4,7 @@
 # 持久对象库（上游 bare mirror）
 .cache/
 
-# 参考仓库检出（长期只读，不入库）
+# 安装/产物根（SDK install/product root，ADR-0016 D1）
 .dadao/
 
 # Python

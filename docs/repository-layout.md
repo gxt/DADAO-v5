@@ -38,14 +38,15 @@ DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 首次 `git clone --mirror` 下载一次、以后只增量 `git fetch`。`.cache/` **持久保留**（`clean_work`
 不删除），使 `.work/` 下的工作树即使被清空也能从本地 mirror 重建、无需重新下载大仓库。
 
-## 参考仓库检出 `.dadao/`（整体忽略，不入库）
+## 参考仓库工作树 `.cache/refs/`（整体忽略，不入库）
 
-`.dadao/<id>/` 存放**参考仓库的只读工作树**（`DADAO-0628`、`DADAO`），由
+`.cache/refs/<id>/` 存放**参考仓库的只读工作树**（`DADAO-0628`、`DADAO`），由
 `tools/infra/fetch_refs.py` 按 `manifests/references.lock.toml` 的 `path` 从
 `.cache/refs/<id>.git` 本地克隆并 detach 到锁定 `head`；`make fetch-refs` 幂等重建。
 
 - 定位：**长期只读**的工程经验参考（上游已停止更新），**不随 `clean-work` 删除**，与一次性工作区 `.work/` 明确区分。
 - 用途：查阅历史实现、架构与工程教训；**不复制其实现**，任务书引用时标注「内容溯源，非执行必需」。
-- **路径变更记录（2026-09-23）**：参考仓库工作树由 `.work/DADAO-0628` / `.work/DADAO` 迁至
-  `.dadao/DADAO-0628` / `.dadao/DADAO`（`manifests/references.lock.toml` 的 `path` 同步）；
+- **路径变更记录（2026-09-23 / 2026-10-02）**：参考仓库工作树由 `.work/DADAO-0628` / `.work/DADAO` 迁至
+  `.dadao/DADAO-0628` / `.dadao/DADAO`（2026-09-23），再迁至
+  `.cache/refs/DADAO-0628` / `.cache/refs/DADAO`（2026-10-02，`manifests/references.lock.toml` 的 `path` 同步）；
   历史任务书中的旧路径已按新位置更新。

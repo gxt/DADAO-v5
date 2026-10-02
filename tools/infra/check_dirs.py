@@ -19,6 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "manifests" / "install-dirs.lock.toml"
+REFS_MANIFEST = ROOT / "manifests" / "references.lock.toml"
 
 REQUIRED_KEYS = ("sdk_dir", "host_toolchain_dir", "target_sysroot_dir", "test_artifacts_dir")
 CHILD_KEYS = ("host_toolchain_dir", "target_sysroot_dir", "test_artifacts_dir")
@@ -62,6 +63,31 @@ def check_manifest(errors: list[str]) -> None:
                 )
 
 
+def check_ref_paths(errors: list[str]) -> None:
+    """Reference worktree paths must not live under the SDK dir."""
+    if not REFS_MANIFEST.is_file():
+        return
+    if not MANIFEST.is_file():
+        return
+
+    with MANIFEST.open("rb") as f:
+        sdk_dir = tomllib.load(f).get("sdk_dir", "")
+    if not sdk_dir:
+        return
+    sdk_prefix = sdk_dir.rstrip("/") + "/"
+
+    with REFS_MANIFEST.open("rb") as f:
+        refs = tomllib.load(f).get("reference", [])
+
+    for ref in refs:
+        ref_path = ref.get("path", "")
+        if ref_path == sdk_dir or ref_path.startswith(sdk_prefix):
+            errors.append(
+                f"references.lock.toml: {ref['id']} path={ref_path!r} "
+                f"is under sdk_dir={sdk_dir!r} (ref worktrees must not live in SDK dir)"
+            )
+
+
 def check_symlink_prefix(errors: list[str]) -> None:
     """Scan version-controlled files for symlink prefix violations."""
     # Collect files from git to respect .gitignore
@@ -83,7 +109,11 @@ def check_symlink_prefix(errors: list[str]) -> None:
             if str(rel) in tracked and match.is_file():
                 files_to_check.add(match)
 
+    # Exclude this file — it defines SYMLINK_PREFIX as a constant
+    self_path = Path(__file__).resolve()
     for fpath in sorted(files_to_check):
+        if fpath.resolve() == self_path:
+            continue
         try:
             text = fpath.read_text(encoding="utf-8", errors="replace")
         except Exception:
@@ -100,6 +130,7 @@ def main() -> int:
     errors: list[str] = []
 
     check_manifest(errors)
+    check_ref_paths(errors)
     check_symlink_prefix(errors)
 
     if errors:

@@ -28,7 +28,7 @@ DADAO-v5 基于 19 份 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，SimRIS
 | `.tao/knowledge/milestones.md` | 项目里程碑路线图（M1/M2） |
 | `.tao/knowledge/deferred.md` | 各模块暂缓/备忘（避免遗忘） |
 | `docs/spec/` | v5 规范层（`component-patching.md` 等；与上游 `spec/` 区分） |
-| `.dadao/<id>/` | 参考仓库只读工作树（`DADAO-0628`/`DADAO`；`make fetch-refs` 重建，不入库） |
+| `.cache/refs/<id>/` | 参考仓库只读工作树（`DADAO-0628`/`DADAO`；`make fetch-refs` 重建，不入库） |
 | `contracts/` | 机器可读合约数据（编码表/ABI/合法性规则） |
 | `tools/<module>/` | 各模块工具脚本（infra/spec/llvm/qemu/testcases） |
 | `tests/` | 测试向量（`tests/vectors/`）、harness（`tests/scripts/`）、lit、e2e |
