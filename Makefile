@@ -40,7 +40,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-rule-refs \
-        check-dirs
+        check-dirs check-cfx-aliases
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -76,6 +76,7 @@ help:
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
+	@echo "  make check-cfx-aliases  Check cfx alias table drift gate (SPEC-075t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
 
 manifest-check:
@@ -206,7 +207,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-dirs
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -228,6 +229,10 @@ check-patch-tree:
 # Standalone target, not part of `make check`.
 check-spec-refs:
 	@$(PYTHON) tools/infra/check_spec_refs.py
+
+# cfx alias drift gate (SPEC-075t): verify docs/spec/cfx-aliases.md is up-to-date.
+check-cfx-aliases:
+	@$(PYTHON) tools/spec/check_cfx_aliases.py
 
 # Install/product directory path guard (INFRA-019t): validates
 # manifests/install-dirs.lock.toml and scans for symlink prefix violations.
