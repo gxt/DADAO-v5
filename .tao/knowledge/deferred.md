@@ -24,7 +24,7 @@
 - **子代理异常返回事件（`SPEC-049t`，2026-09-29，主会话登记，已处置）**：engineer 子代理第 1 次执行 `SPEC-049t`（SimRISC-09 正文改新汇编格式）时**异常返回**（仅回「接下来需要做什么？」，未填完成区/未自审），但产出**部分落盘**（代码块 26 条已改，**表格行 6 处漏改**）。主会话核对 `git status` 与 `grep` 残留后**未自行重试**，经**用户授权**重新下发补完（`ses_f133fe556ffe…`），再由 reviewer 独立验收（9 项核验 + 3 类反例，未污染工作区）后 Accepted。教训：`check-asm-list-consistency` 绿灯不覆盖正文，子代理异常返回时须**逐项扫描残留**（不能只看「文件已改」）。
 - **`focls`/`ftcls` 之外的浮点指令未复核（`SPEC-047t` 附带观察，2026-09-29，非阻断）**：用户此前指示「先处理 cls」；`SPEC-047t` 已把第 7 章其余代码块改为新格式。若后续发现其它 FP 指令存在同类「语义固定值」（如 `immu6` 被写死）问题，另立任务。
 - **`SPEC-067t` F2 注记：deferred.md:18 含旧规则 id（历史条目，不改写正文）**：line 18 提及 `fp_root_invalid_n`、`fp_log_invalid_base` 及旧计数 `178 M1 + 78`，均为 `SPEC-067t` 前的历史状态。按体例不改写历史正文；已知：`fp_log_invalid_base` 已删除、`fp_root_invalid_n` 已改名 `encode_fp_root_n`、计数已更新为 251/75/176。
-- **`SPEC-067t` F4 门控覆盖缺口：ftroot/foroot n=2 约束与规则改名无机械门控**：(a) `encode_fp_root_n` 的 n=2 约束（SimRISC-07 正文写回「支持 n=2 与 n=3」）与 (b) 规则 id 改名（`fp_root_invalid_n` → `encode_fp_root_n`）均无 `make check` 可 FAIL 的门控。注入 n=3 或反注旧 id 后 `make check` 仍 EXIT=0。归属：待 `SPEC-065t` 的 `rule_refs`/合法性清单门控或其它任务补齐。
+- **`SPEC-067t` F4 门控覆盖缺口：ftroot/foroot n=2 约束与规则改名无机械门控**：(a) `encode_fp_root_n` 的 n=2 约束（SimRISC-07 正文写回「支持 n=2 与 n=3」）与 (b) 规则 id 改名（`fp_root_invalid_n` → `encode_fp_root_n`）均无 `make check` 可 FAIL 的门控。注入 n=3 或反注旧 id 后 `make check` 仍 EXIT=0。归属：`SPEC-065t` 已收口（`rule_refs` + 合法性 drift 门控已落地，见 `SPEC-071t`/`SPEC-074t`），但该门控**不覆盖此散文约束** ⇒ 本项仍为**独立候选**（需专门门控，如检查 SimRISC-07 正文的 n 约束）。
 
 ## infra
 

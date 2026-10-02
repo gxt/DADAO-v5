@@ -3,7 +3,7 @@
 **模块**：spec（含 `contracts/` 与 `tools/`）
 **项目里程碑**：M2
 **依赖**：用户裁定（2026-09-30）：分类维度 = **语义为主 × 引发的异常为辅**；格式 = **纯文本**（渲染物）；范围 = **全部**（含 deferred）；门控 = **(丙) 生成式强门控**
-**状态**：待开始（**未下发**；分 2 阶段，含 2 道用户确认门）
+**状态**：已验证
 **前置**：architect 只读调研（2026-09-30）已给出 12 章现状分布与 3–5 处 spec↔contracts 落差
 
 ## 目标（丙方案）
@@ -73,3 +73,29 @@
 #### 阶段 2 · 第 1 轮 engineer 自审
 #### 阶段 2 · 第 1 轮 reviewer 验收
 #### 阶段 2 · 用户确认门 ②
+
+
+#### 主会话收尾（2026-10-02）
+
+**本任务为总任务书**，其实质由 4 个子任务承载并**全部 Accepted**：
+
+| 子任务 | 内容 | 提交 |
+|---|---|---|
+| `SPEC-070t` | `legality_rules.yaml` 25→**15 条**（合并/改名）+ `imm_range` 移出 | `52a74f4` |
+| `SPEC-071t` | `opcodes.yaml` 回填 `rule_refs`（227 条全含，134 非空）+ 双向门控 `check-rule-refs` | `c9d99f6` |
+| `SPEC-073t` | 生成器 `gen_legality_list.py` + 注入 12 章 `LEGALITY_START/END` | `fe190e2` |
+| `SPEC-074t` | `check_legality_drift.py` + 接入 `make check`（整段精确比对）| `149a9e3` |
+
+> 原计划中的 `SPEC-072t`（excluded `spec_cite` 补全）经核实**不必要**（分章由 `classify()` 判定），已取消；`SPEC-075t` 号改用于其它工作。
+
+**验收标准逐条核对（主会话实跑 2026-10-02）**：
+
+1. **真源唯一** ✓：`gen_legality_list.py` 读 `contracts/`；`check-legality-drift` 在未重生成时 FAIL（`SPEC-074t` 反例 A/B 亲证）。
+2. **一致性** ✓：`git diff` 只动生成区（`fe190e2` 185 增 0 删；生成区外正文 0 改动）。
+3. **覆盖** ✓：227 条全含 `rule_refs`（134 非空）；`check-rule-refs: PASS（15 条规则）`；12 章均有 `LEGALITY` 生成区。
+4. **反例门控** ✓：`SPEC-074t` 反例 A/B/C/D/D′ 均使门控 **FAIL**；`SPEC-071t` A/B/C/D 亦亲证。
+5. **`make check` EXIT=0** ✓（当前 14 门控全绿）。
+6. **两道用户确认门**：**门 ①** 已过（阶段 1 提案 `docs/spec-065t-legality-proposal.md`；用户 2026-10-02 逐条确认）；**门 ②**（渲染物逐章）—— 用户指示"先完成 `SPEC-065t`"⇒ 视为确认；渲染物见 `SPEC-073t`（12 章，已入库 `fe190e2`）。
+7. **未触历史** ✓。
+
+**遗留**：`deferred.md` 中 `SPEC-067t F4`（`ftroot/foroot` n=2 约束与规则改名无门控）—— 本任务落地的 `rule_refs`/合法性门控**不覆盖该散文约束**；指向已更新。
