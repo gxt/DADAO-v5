@@ -7,8 +7,12 @@ messages are deliberately **not** preserved (the patch set carries the change,
 not a history).
 
 The worktree must sit exactly on the component's pinned base commit; applying
-on top of anything else is refused. Application is idempotent: a worktree whose
-content already equals the fully-patched state is skipped.
+on top of anything else is refused.
+
+§7.x (per-patch idempotence): each patch is checked individually with
+``git apply --check --reverse``.  If a patch is already applied, it is
+skipped entirely (no ``git apply``, no mtime change).  Only patches that
+are not yet applied get ``git apply``.
 """
 from __future__ import annotations
 
@@ -64,26 +68,25 @@ def main() -> int:
             print(f"apply-series: {component['name']} has an empty series")
             continue
 
-        # Idempotence: every patch applies in reverse => the worktree already
-        # holds the fully-patched content.
-        if all(
-            git("apply", "--check", "--reverse", str(patch), cwd=source, check=False).returncode
-            == 0
-            for patch in patches
-        ):
-            print(f"apply-series: {component['name']} already applied; skipping")
-            continue
-
+        # §7.x: per-patch idempotence
+        skipped = 0
+        applied = 0
         for patch in patches:
+            # Check if already applied (reverse check)
+            if git("apply", "--check", "--reverse", str(patch), cwd=source, check=False).returncode == 0:
+                skipped += 1
+                continue
+            # Not yet applied: forward check then apply
             result = git("apply", "--check", str(patch), cwd=source, check=False)
             if result.returncode != 0:
                 raise SystemExit(
                     f"apply-series: {component['name']}: patch does not apply cleanly: "
                     f"{patch.relative_to(ROOT)}\n{result.stderr.strip()}"
                 )
-        for patch in patches:
             git("apply", str(patch), cwd=source)
-        print(f"apply-series: {component['name']} applied {len(patches)} patches")
+            applied += 1
+
+        print(f"apply-series: {component['name']} {applied} applied, {skipped} skipped (already applied)")
     return 0
 
 

@@ -14,18 +14,21 @@ The worktree may be dirty: the export is the *net* difference between the
 pinned base commit and the current working tree (``git diff <base>``), so a
 path that was created and later modified still yields exactly one patch whose
 content is the final state.
+
+§6.2 (idempotent write): patches are only rewritten when their content actually
+changes, preserving mtimes and avoiding needless index/header refreshes.
 """
 from __future__ import annotations
 
 import argparse
 import re
-import shutil
 import subprocess
 import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
+INDEX_RE = re.compile(r"^index [0-9a-f]+\.\.[0-9a-f]+.*$", re.MULTILINE)
 
 
 def load_manifest() -> dict:
@@ -42,6 +45,16 @@ def git(*args: str, cwd: Path, check: bool = True) -> str:
     ).stdout
 
 
+def _normalize_index(text: str) -> str:
+    """Strip the ``index`` line for comparison.
+
+    The ``index`` line contains blob hashes whose abbreviation length varies
+    with ``core.abbrev``.  Stripping it lets us compare the actual diff content
+    (headers + hunks) without false negatives from hash abbreviation changes.
+    """
+    return re.sub(r"^index [0-9a-f]+\.\.[0-9a-f]+.*\n", "", text, flags=re.MULTILINE)
+
+
 def changed_paths(source: Path, commit: str) -> list[str]:
     # Intent-to-add so newly created (untracked) files show up in `git diff`.
     subprocess.run(["git", "-C", str(source), "add", "-A", "-N"], check=True)
@@ -49,14 +62,34 @@ def changed_paths(source: Path, commit: str) -> list[str]:
     return [line for line in out.splitlines() if line.strip()]
 
 
-def export(source: Path, commit: str, patches_dir: Path) -> list[str]:
-    paths = changed_paths(source, commit)
-    for rel in paths:
+def export(
+    source: Path,
+    commit: str,
+    rel_paths: list[str],
+    patches_dir: Path,
+) -> tuple[list[str], int]:
+    """Export patches for *rel_paths* into *patches_dir*.
+
+    Returns ``(series_entries, num_skipped_unchanged)``.
+    §6.2: only writes when content differs from the existing file on disk.
+    Comparison normalizes the ``index`` line to handle varying ``core.abbrev``.
+    """
+    skipped = 0
+    written = 0
+    for rel in rel_paths:
         body = git("diff", commit, "--", rel, cwd=source)
         target = patches_dir / f"{rel}.patch"
+        # §6.2 idempotent write: compare before writing
+        # Normalize index line for comparison (core.abbrev varies).
+        if target.is_file() and _normalize_index(target.read_text()) == _normalize_index(body):
+            skipped += 1
+            continue
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(body)
-    return sorted(f"{rel}.patch" for rel in paths)
+        written += 1
+    series = sorted(f"{rel}.patch" for rel in rel_paths)
+    print(f"make-patch: {written} written, {skipped} unchanged (skipped)")
+    return series, skipped
 
 
 def main() -> int:
@@ -110,16 +143,17 @@ def main() -> int:
             print(f"make-patch: would write patches/{rel}.patch")
         return 0
 
-    # Replace the previous patch set wholesale: stale patches must not survive.
+    # Remove stale patches (paths no longer changed).
+    expected_names = {f"{rel}.patch" for rel in paths}
     if patches_dir.exists():
-        for entry in patches_dir.iterdir():
-            if entry.is_dir():
-                shutil.rmtree(entry)
-            else:
+        for entry in sorted(patches_dir.rglob("*.patch")):
+            rel_name = str(entry.relative_to(patches_dir))
+            if rel_name not in expected_names:
                 entry.unlink()
-    patches_dir.mkdir(parents=True, exist_ok=True)
+                print(f"make-patch: removed stale patch {rel_name}")
 
-    series = export(source, commit, patches_dir)
+    patches_dir.mkdir(parents=True, exist_ok=True)
+    series, _skipped = export(source, commit, paths, patches_dir)
     series_path.write_text("\n".join(series) + "\n")
     print(f"make-patch: {args.component} wrote {len(series)} patches to {patches_dir}")
     print(f"make-patch: series {series_path}")

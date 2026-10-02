@@ -50,6 +50,19 @@ components/<name>/
 
 ## 6. 生成流程（源树 → 补丁集）
 
+### 6.1 硬规则：不得手工编辑补丁
+
+- 补丁文件**不得**手工编辑或直接修改。
+- 改组件源码**必须**在 working tree（`.work/source/<name>`）中进行，**验证通过后一次性**用**裸 `git diff <base_commit> -- <path>`** 导出**完整**补丁。
+- 违反此规则会导致 `@@` 头行数错误、尾部截断等不可预见问题。
+
+### 6.2 生成幂等
+
+- 导出时**必须先与现有补丁比较**；**逐字节一致 ⇒ 不替换**（保持原文件与时间戳不变），避免 `index`/头部信息被无谓刷新。
+- 由 `tools/infra/make_patch.py` 实现。
+
+### 6.3 导出步骤
+
 1. 在 `.work/source/<name>` 工作树上直接编辑（**不必**为每个补丁建立 commit；本规范**不保留**作者与提交信息）。
 2. 导出：对**每个相对 base commit 有改动的路径**，执行
    `git -C .work/source/<name> diff <base_commit> -- <path>`，输出写入 `patches/<path>.patch`。
@@ -61,13 +74,14 @@ components/<name>/
 ## 7. 应用流程（补丁集 → 源树）
 
 1. **前置校验**：工作树 HEAD **必须**等于 `manifests/components.lock.toml` 中的 base commit；不等则**必须**拒绝应用。
-2. **已应用检测**：若 `git apply --check --reverse` 对全部补丁成功，视为**已应用**并跳过（幂等）。
-3. **预检**：`git apply --check` 对全部补丁（按 `series` 顺序）**必须**全部通过。
-4. **应用**：`git apply` 逐份应用（按 `series` 顺序）。
-5. **不得**使用 `git am`（本规范不保留作者与提交信息）。
-6. 由 `tools/infra/apply_series.py` 实现。
+2. **逐补丁应用幂等**：按 `series` 顺序**逐补丁**处理：
+   - 先对单份补丁执行 `git apply --check --reverse`：**成功 ⇒ 该补丁已应用，跳过**（不执行 `git apply`，不改 mtime）。
+   - 失败 ⇒ 先 `git apply --check`（预检），再 `git apply`（应用）。
+   - （动机：避免"重放⇒时间戳全变⇒几乎全量重编"，与 `INFRA-018t` 同源。）
+3. **不得**使用 `git am`（本规范不保留作者与提交信息）。
+4. 由 `tools/infra/apply_series.py` 实现。
 
-## 8. 机器检查（5 条断言）
+## 8. 机器检查（6 条断言）
 
 `tools/infra/check_patch_tree.py` **必须**对每个 enabled 组件断言：
 
@@ -78,6 +92,7 @@ components/<name>/
 | ③ | **`series` ↔ `patches/` 树双向一致** | 无遗漏、无多余、顺序为路径字典序 |
 | ④ | **应用后最终 tree 与期望一致** | 见 §9 |
 | ⑤ | **`patches/` 为纯镜像** | 其下每个文件均为 `<上游相对路径>.patch`；覆盖 §2 的纯镜像要求 |
+| ⑥ | **应用产物内容一致性** | 补丁集全量应用到 base 后，各受影响路径 blob **必须** == `.work/source` 对应文件；不一致 ⇒ FAIL |
 
 任一断言失败 **必须**以非零退出码终止。
 
@@ -85,6 +100,7 @@ components/<name>/
 
 - 补丁集全量应用后，工作树的**最终内容**必须与 DADAO 定制状态一致；校验方式为**逐组件比对 tree hash**（`git write-tree` 或等价）与参考值一致。
 - 参考值由 M1 补丁集重整时记录（见 `components/<name>/changelog.md`）。
+- 断言 ⑥（§8）进一步验证：补丁集应用到 base 后各受影响文件的 blob 必须等于 `.work/source/<name>` 中对应文件的 blob（内容一致性，捕获 `@@` 头错误等手工编辑事故）。
 
 ## 10. 文档约定
 

@@ -15,6 +15,10 @@ Assertions (all fail-closed):
   5. ``patches/`` is a pure mirror of the upstream tree: every file under it is
      ``<upstream-relative-path>.patch`` (the manifest list lives outside, at
      ``components/<name>/series``)
+  6. content consistency: after applying the full patch set to the base commit
+     via a scratch index, every affected path's blob must equal the
+     corresponding file in ``.work/source/<name>``; mismatch means the patches
+     do not reproduce the worktree (e.g. hand-edited ``@@`` hunk headers)
 """
 from __future__ import annotations
 
@@ -53,6 +57,16 @@ def patch_targets(patch: Path) -> tuple[int, list[str]]:
             entries += 1
             targets.append(match.group(2))
     return entries, targets
+
+
+def git(*args: str, cwd: Path, env: dict | None = None, check: bool = True) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", "-C", str(cwd), *args],
+        capture_output=True,
+        text=True,
+        check=check,
+        env=env,
+    )
 
 
 def check_component(name: str, component: dict, errors: list[str]) -> None:
@@ -133,6 +147,61 @@ def check_component(name: str, component: dict, errors: list[str]) -> None:
                 f"{name}: patch set does not apply cleanly to base {commit[:12]}: "
                 f"{result.stderr.strip()}"
             )
+            return  # skip assertion 6 if patches don't apply
+
+        # assertion 6: content consistency -- apply patches to scratch index,
+        # then compare each affected path's blob with .work/source.
+        # Re-apply with --cached (not just --check) to actually populate the index.
+        subprocess.run(
+            ["git", "-C", str(source), "read-tree", commit],
+            env=env, check=True, capture_output=True,
+        )
+        apply_args = ["git", "-C", str(source), "apply", "--cached"]
+        apply_args += [str(patches_dir / item) for item in entries]
+        apply_result = subprocess.run(apply_args, env=env, capture_output=True, text=True)
+        if apply_result.returncode != 0:
+            # Should not happen since --check passed above, but be defensive.
+            errors.append(
+                f"{name}: scratch apply failed (assertion 6 skipped): "
+                f"{apply_result.stderr.strip()}"
+            )
+            return
+
+        # Collect all affected target paths from patches.
+        affected_paths: list[str] = []
+        for item in entries:
+            patch = patches_dir / item
+            if not patch.is_file():
+                continue
+            _count, targets = patch_targets(patch)
+            affected_paths.extend(targets)
+
+        for target_path in affected_paths:
+            # Read blob from scratch index.
+            idx_result = subprocess.run(
+                ["git", "-C", str(source), "cat-file", "-p", f":{target_path}"],
+                env=env, capture_output=True, text=True,
+            )
+            work_file = source / target_path
+            if idx_result.returncode != 0:
+                # File exists in scratch index but cat-file failed.
+                errors.append(
+                    f"{name}: assertion ⑥: cannot read :{target_path} from scratch index"
+                )
+                continue
+            if not work_file.exists():
+                errors.append(
+                    f"{name}: assertion ⑥: {target_path} exists in patched index "
+                    f"but missing from .work/source"
+                )
+                continue
+            idx_content = idx_result.stdout
+            work_content = work_file.read_text(encoding="utf-8", errors="replace")
+            if idx_content != work_content:
+                errors.append(
+                    f"{name}: assertion ⑥: {target_path}: patched-index blob "
+                    f"differs from .work/source (patch does not reproduce worktree)"
+                )
 
 
 def main() -> int:
