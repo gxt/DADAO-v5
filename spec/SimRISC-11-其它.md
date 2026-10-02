@@ -79,7 +79,7 @@ illi    immu18
 一个32位的指令会被分解为5个部分：8/6/6/6/6，即op/ha/hb/hc/hd，其中ha专门用来指定核芯功能扩展编号。
 
 指令中核芯功能扩展编号可以有两种写法：
-- `cfx<cfxcode>`：直接使用编号，如 `cfx63`、`cfx0`
+- `cfx<cfxha>`：直接使用编号，如 `cfx63`、`cfx0`
 - `cfx_<cfxname>`：使用名称，如 `cfx_power`、`cfx_umon`
 
 汇编器对两种写法等价处理，均编码为 6 位的 cfxha。

@@ -3,7 +3,7 @@
 
 Sources
 -------
-* ``spec/DADAO-12-SEE-主管系统运行环境.md`` -- cfxcode↔cfxname table + cg0-7 tables
+* ``spec/DADAO-12-SEE-主管系统运行环境.md`` -- cfxha↔cfxname table + cg0-7 tables
 * ``spec/DADAO-13-HEE-超管系统运行环境.md`` -- cg3 (hypv) table
 
 Two alias types per ADR-0017 D3/D4:
@@ -38,7 +38,7 @@ def read_file(path: Path) -> str:
 
 
 def parse_cfxcode_table(text: str) -> dict[str, int]:
-    """Parse cfxcode↔cfxname table → {cfxname: cfxcode} (non-reserved only)."""
+    """Parse cfxha↔cfxname table → {cfxname: cfxha} (non-reserved only)."""
     result: dict[str, int] = {}
     in_table = False
     header_seen = False
@@ -51,7 +51,7 @@ def parse_cfxcode_table(text: str) -> dict[str, int]:
         cells = [c.strip() for c in stripped.split("|")[1:-1]]
         if len(cells) < 2:
             continue
-        if cells[0] == "cfxcode" and cells[1] == "cfxname":
+        if cells[0] in ("cfxcode", "cfxha") and cells[1] == "cfxname":
             in_table = True
             header_seen = True
             continue

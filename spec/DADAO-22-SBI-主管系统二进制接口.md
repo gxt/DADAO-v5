@@ -4,11 +4,11 @@
 
 SBI 定义不同核芯功能扩展之间的功能调用。大部分功能调用在同一运行模式（主管模式）进行，仅少数需要访问特权硬件资源的服务才会提升到 H-mode 执行。
 
-`trap cfxcode, immu18` 中 cfxcode 即为服务提供者，immu18 为功能编号。每个核芯功能扩展独立提供一组功能，按照实际需求进行调用。
+`trap cfxha, immu18` 中 cfxha 即为服务提供者，immu18 为功能编号。每个核芯功能扩展独立提供一组功能，按照实际需求进行调用。
 
 ## 1. 调用约定
 
-**发起与返回**：调用方执行 `trap cfxcode, immu18` 陷入目标核芯功能扩展；被调方通过 `escape cfxcode, 1` 返回，跳转到 trap 指令的下一条指令（`excp_cause_ip + 4`）。
+**发起与返回**：调用方执行 `trap cfxha, immu18` 陷入目标核芯功能扩展；被调方通过 `escape cfxha, [excp_cause_ip, 1i]` 返回，跳转到 trap 指令的下一条指令（`excp_cause_ip + 4`）。
 
 **参数传递**：与 ABI 传参规范一致（参见 `DADAO-21-ABI-应用程序二进制接口`）。
 
@@ -77,18 +77,18 @@ cfx2rc  cfx_smon_supv_global_cfx_mask, rd2
 cfx_smon_supv_excp_handler:
     cfx2rd  cfx_smon_excp_cause_id, rd2
     set.rd   rd3, 1                                 ; CFXTRAP (1<<0)
-    br.ne    rd2, rd3, cfx_smon_unknown
+    br.ne {rd2, rd3}?, [rb0, cfx_smon_unknown]
 
     cfx2rd  cfx_smon_excp_cause_info, rd2
     set.rd   rd3, 0x3FFFF
     and.o   rd2, rd2, rd3
     set.rd   rd3, 0
-    br.eq    rd2, rd3, cfx_smon_get_version              ; func 0
+    br.eq {rd2, rd3}?, [rb0, cfx_smon_get_version] ; func 0
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_smon_probe_cfx                ; func 1
+    br.eq {rd2, rd3}?, [rb0, cfx_smon_probe_cfx] ; func 1
 
 cfx_smon_unknown:
-    escape cfx_smon, 1
+    escape cfx_smon, [excp_cause_ip, 1i]
 ```
 
 ### 内部实现代码
@@ -96,13 +96,13 @@ cfx_smon_unknown:
 ```simrisc
 cfx_smon_get_version:
     set.rd   rd31, 0x00070001                        ; v0.7.1
-    escape cfx_smon, 1
+    escape cfx_smon, [excp_cause_ip, 1i]
 
 cfx_smon_probe_cfx:
     ; rd16 = cfx（调用方传入）
     ; 根据硬件实现返回目标 cfx 的功能位图
     set.rd   rd31, 0                                 ; 占位
-    escape cfx_smon, 1
+    escape cfx_smon, [excp_cause_ip, 1i]
 ```
 
 ### 功能调用示例
@@ -150,35 +150,35 @@ cfx_ptw_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用分发
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_ptw_trap_dispatch
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_trap_dispatch]
 
     ; 页缺失异常 → 委托 cfx_pmem 分配物理页，修复 PTE
     ; 具体处理根据 cause_id 分发
 
 cfx_ptw_unknown:
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
 
 cfx_ptw_trap_dispatch:
     cfx2rd  cfx_ptw_excp_cause_info, rd2
     set.rd   rd3, 0x3FFFF
     and.o   rd2, rd2, rd3
     set.rd   rd3, 0
-    br.eq    rd2, rd3, cfx_ptw_set_ptbr              ; func 0
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_ptbr] ; func 0
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_ptw_get_ptbr              ; func 1
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_get_ptbr] ; func 1
     set.rd   rd3, 2
-    br.eq    rd2, rd3, cfx_ptw_set_ptbr_perm         ; func 2
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_ptbr_perm] ; func 2
     set.rd   rd3, 3
-    br.eq    rd2, rd3, cfx_ptw_enable_ptbr           ; func 3
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_enable_ptbr] ; func 3
     set.rd   rd3, 4
-    br.eq    rd2, rd3, cfx_ptw_set_pte               ; func 4
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pte] ; func 4
     set.rd   rd3, 5
-    br.eq    rd2, rd3, cfx_ptw_handle_fault           ; func 5
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_handle_fault] ; func 5
     set.rd   rd3, 6
-    br.eq    rd2, rd3, cfx_ptw_set_pthi               ; func 6
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pthi] ; func 6
     set.rd   rd3, 7
-    br.eq    rd2, rd3, cfx_ptw_set_pahi               ; func 7
-    escape cfx_ptw, 1
+    br.eq {rd2, rd3}?, [rb0, cfx_ptw_set_pahi] ; func 7
+    escape cfx_ptw, [excp_cause_ip, 1i]
 
 cfx_ptw_set_ptbr:
     ; rd16 = idx, rb16 = base（页表基地址高 48 位，低 16 位强制为 0）
@@ -186,100 +186,100 @@ cfx_ptw_set_ptbr:
     set.rd   rd17, rb16                              ; rb→rd 中转（cfx2rc 源操作数须为 rd）
     shl.uo  rd16, rd16, 3                          ; idx × 8（每路 2 条指令 = 8 字节）
     set.rd   rd3, cfx_ptw_ptbr_table
-    add.so  rd0, rd3, rd3, rd16
+    add.so {rd0, rd3}, rd3, rd16
     set.rb   rb3, rd3                      ; rd→rb 中转
-    jump    rb3, rd0, 0
+    jump [rb3, rd0, 0i]
 cfx_ptw_ptbr_table:
     cfx2rc  cfx_ptw_ptbr[0], rd17 ; PTBR[0]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     cfx2rc  cfx_ptw_ptbr[1], rd17 ; PTBR[1]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     ; ... 共 64 路，rc 0-63 ...
     cfx2rc  cfx_ptw_ptbr[63], rd17 ; PTBR[63]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
 
 cfx_ptw_get_ptbr:
     ; rd16 = idx，返回 rd31 = base
     shl.uo  rd16, rd16, 3
     set.rd   rd3, cfx_ptw_get_ptbr_table
-    add.so  rd0, rd3, rd3, rd16
+    add.so {rd0, rd3}, rd3, rd16
     set.rb   rb3, rd3                      ; rd→rb 中转
-    jump    rb3, rd0, 0
+    jump [rb3, rd0, 0i]
 cfx_ptw_get_ptbr_table:
     cfx2rd  cfx_ptw_ptbr[0], rd31 ; PTBR[0]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     cfx2rd  cfx_ptw_ptbr[1], rd31 ; PTBR[1]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     ; ... 共 64 路，rc 0-63 ...
     cfx2rd  cfx_ptw_ptbr[63], rd31 ; PTBR[63]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
 
 cfx_ptw_set_ptbr_perm:
     ; rd16 = mode（0=U/1=J/2=S/3=H）, rd17 = perm（64 位权限位图）
     ; 通过跳转表将 rd17 写入对应 mode 的 cfx_ptw_*_perm 寄存器
     shl.uo  rd16, rd16, 3                          ; mode × 8（跳转表偏移，每路 2 条指令）
     set.rd   rd3, cfx_ptw_perm_table
-    add.so  rd0, rd3, rd3, rd16
+    add.so {rd0, rd3}, rd3, rd16
     set.rb   rb3, rd3                      ; rd→rb 中转
-    jump    rb3, rd0, 0
+    jump [rb3, rd0, 0i]
 cfx_ptw_perm_table:
     cfx2rc  cfx_ptw_user_perm, rd17               ; U-mode (0)
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     cfx2rc  cfx_ptw_jail_perm, rd17               ; J-mode (1)
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     cfx2rc  cfx_ptw_supv_perm, rd17               ; S-mode (2)
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     cfx2rc  cfx_ptw_hypv_perm, rd17               ; H-mode (3)
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
 
 cfx_ptw_enable_ptbr:
     ; rd16 = mask（64 位使能位图）
     cfx2rc  cfx_ptw_ptbr_enable, rd16
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
 
 cfx_ptw_set_pte:
     ; rd16 = ptbr_code, rd17 = level（1=L1, 2=L2）, rb16 = va, rd18 = pte
     ; TODO: 读取 PTBR[ptbr_code]，按 level 计算 PTE 偏移，通过 OS 映射的虚拟地址写 PTE
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
 
 cfx_ptw_handle_fault:
     ; rd16 = cause, rb16 = fault_addr（由调用方传入）
     ; ... 根据 cause 类型执行页表步进、pmem 分配、PTE 更新 ...
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
 
 cfx_ptw_set_pthi:
     ; rd16 = idx, rb16 = pthi（PA[63:48] 用于页表步进）
     set.rd   rd17, rb16                              ; rb→rd 中转
     shl.uo  rd16, rd16, 3
     set.rd   rd3, cfx_ptw_set_pthi_table
-    add.so  rd0, rd3, rd3, rd16
+    add.so {rd0, rd3}, rd3, rd16
     set.rb   rb3, rd3                      ; rd→rb 中转
-    jump    rb3, rd0, 0
+    jump [rb3, rd0, 0i]
 cfx_ptw_set_pthi_table:
     cfx2rc  cfx_ptw_pthi[0], rd17 ; pthi[0]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     cfx2rc  cfx_ptw_pthi[1], rd17 ; pthi[1]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     ; ... 共 64 路 ...
     cfx2rc  cfx_ptw_pthi[63], rd17 ; pthi[63]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
 
 cfx_ptw_set_pahi:
     ; rd16 = idx, rb16 = pahi（PA[63:48] 用于最终转换结果）
     set.rd   rd17, rb16                              ; rb→rd 中转
     shl.uo  rd16, rd16, 3
     set.rd   rd3, cfx_ptw_set_pahi_table
-    add.so  rd0, rd3, rd3, rd16
+    add.so {rd0, rd3}, rd3, rd16
     set.rb   rb3, rd3                      ; rd→rb 中转
-    jump    rb3, rd0, 0
+    jump [rb3, rd0, 0i]
 cfx_ptw_set_pahi_table:
     cfx2rc  cfx_ptw_pahi[0], rd17 ; pahi[0]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     cfx2rc  cfx_ptw_pahi[1], rd17 ; pahi[1]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
     ; ... 共 64 路 ...
     cfx2rc  cfx_ptw_pahi[63], rd17 ; pahi[63]
-    escape cfx_ptw, 1
+    escape cfx_ptw, [excp_cause_ip, 1i]
 ```
 
 各 cfx 之间的委托关系：cfx_tlb 委托 cfx_ptw 处理页表异常（通过 SBI_PTW_HANDLE_FAULT），cfx_ptw 委托 cfx_pmem 申请物理页。
@@ -315,34 +315,34 @@ cfx_tlb_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_tlb_trap_dispatch
+    br.eq {rd2, rd3}?, [rb0, cfx_tlb_trap_dispatch]
 
     ; 页表相关异常（TLB 命中时产生）→ 委托 cfx_ptw 处理
     set.rd   rd3, 1<<12                               ; NXPERM
-    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
     set.rd   rd3, 1<<13                               ; NWPERM
-    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
     set.rd   rd3, 1<<14                               ; NRPERM
-    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
     set.rd   rd3, 1<<18                               ; IGPFTRAP
-    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
     set.rd   rd3, 1<<19                               ; ISPFTRAP
-    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
     set.rd   rd3, 1<<22                               ; DGPFTRAP
-    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
     set.rd   rd3, 1<<23                               ; DSPFTRAP
-    br.eq    rd2, rd3, cfx_tlb_ptw_delegate
+    br.eq {rd2, rd3}?, [rb0, cfx_tlb_ptw_delegate]
 
 cfx_tlb_unknown:
-    escape cfx_tlb, 1
+    escape cfx_tlb, [excp_cause_ip, 1i]
 
 cfx_tlb_trap_dispatch:
     cfx2rd  cfx_tlb_excp_cause_info, rd2
     set.rd   rd3, 0x3FFFF
     and.o   rd2, rd2, rd3
     set.rd   rd3, 0
-    br.eq    rd2, rd3, cfx_tlb_invalidate              ; func 0
-    escape cfx_tlb, 1
+    br.eq {rd2, rd3}?, [rb0, cfx_tlb_invalidate] ; func 0
+    escape cfx_tlb, [excp_cause_ip, 1i]
 
 cfx_tlb_ptw_delegate:
     ; 委托 cfx_ptw 处理页表异常（通过 SBI_PTW_HANDLE_FAULT）
@@ -352,7 +352,7 @@ cfx_tlb_ptw_delegate:
     trap    cfx_ptw, SBI_PTW_HANDLE_FAULT
     ; 返回 rd31 = page_mask（成功：0xFFFF...掩码；失败：0）
     set.rd   rd3, 0
-    br.eq    rd31, rd3, cfx_tlb_ptw_fail              ; 修复失败 → 跳过
+    br.eq {rd31, rd3}?, [rb0, cfx_tlb_ptw_fail] ; 修复失败 → 跳过
     ; 修复成功 → invalid 对应 TLB 表项，按实际页大小
     and.o   rd40, rd40, rd31                          ; 按掩码对齐至页面起始
     cfx2rc  cfx_tlb_addr_start, rd40
@@ -361,9 +361,9 @@ cfx_tlb_ptw_delegate:
     cfx2rc  cfx_tlb_addr_size, rd16
     set.rd   rd2, 2
     cfx2rc  cfx_tlb_control, rd2                      ; bit1 = invalid by addr
-    escape cfx_tlb, 0                                 ; 重试故障指令
+    escape cfx_tlb, [excp_cause_ip, 0i] ; 重试故障指令
 cfx_tlb_ptw_fail:
-    escape cfx_tlb, 1                                 ; 跳过故障指令
+    escape cfx_tlb, [excp_cause_ip, 1i] ; 跳过故障指令
 ```
 
 ### 内部实现代码
@@ -378,7 +378,7 @@ cfx_tlb_invalidate:
     cfx2rc  cfx_tlb_addr_start, rd2
     set.rd   rd2, 1 << 1                              ; bit1 = invalid tlb by addr range
     cfx2rc  cfx_tlb_control, rd2
-    escape cfx_tlb, 1
+    escape cfx_tlb, [excp_cause_ip, 1i]
 ```
 
 页表异常委托处理（`cfx_tlb_ptw_delegate`）由 cfx_ptw 完成页表步进，cfx_tlb 根据返回结果 invalid 或填充对应 TLB 表项。
@@ -452,55 +452,55 @@ cfx_pmem 的异常入口处理：
 cfx_pmem_supv_excp_handler:
     cfx2rd  cfx_pmem_excp_cause_id, rd2
     set.rd   rd3, 1                                 ; CFXTRAP (1<<0)
-    br.ne    rd2, rd3, cfx_pmem_unknown
+    br.ne {rd2, rd3}?, [rb0, cfx_pmem_unknown]
     cfx2rd  cfx_pmem_excp_cause_info, rd2         ; func dispatch
     set.rd   rd3, 0x3FFFF
     and.o   rd2, rd2, rd3
     set.rd   rd3, 0
-    br.eq    rd2, rd3, cfx_pmem_get_pm_count        ; func 0
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_get_pm_count] ; func 0
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_pmem_get_pm_start        ; func 1
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_get_pm_start] ; func 1
     set.rd   rd3, 2
-    br.eq    rd2, rd3, cfx_pmem_get_pm_size         ; func 2
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_get_pm_size] ; func 2
     set.rd   rd3, 3
-    br.eq    rd2, rd3, cfx_pmem_get_pm_attr         ; func 3
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_get_pm_attr] ; func 3
     set.rd   rd3, 4
-    br.eq    rd2, rd3, cfx_pmem_alloc_page          ; func 4
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_alloc_page] ; func 4
     set.rd   rd3, 5
-    br.eq    rd2, rd3, cfx_pmem_free_page           ; func 5
+    br.eq {rd2, rd3}?, [rb0, cfx_pmem_free_page] ; func 5
 cfx_pmem_unknown:
-    escape cfx_pmem, 1
+    escape cfx_pmem, [excp_cause_ip, 1i]
 
 cfx_pmem_get_pm_count:
     cfx2rd  cfx_pmem_exist, rd31
     ; TODO: 遍历 cfx_pmem_exist 位图，统计置 1 的位数 = PM 区域数
-    escape cfx_pmem, 1
+    escape cfx_pmem, [excp_cause_ip, 1i]
 
 cfx_pmem_get_pm_start:
     ; rd16 = idx, cfx_pmem_start[idx] 为索引数组
     ; TODO: 跳转表或 SRAM 实现动态索引
-    escape cfx_pmem, 1
+    escape cfx_pmem, [excp_cause_ip, 1i]
 
 cfx_pmem_get_pm_size:
     ; rd16 = idx
     ; TODO: 同上
-    escape cfx_pmem, 1
+    escape cfx_pmem, [excp_cause_ip, 1i]
 
 cfx_pmem_get_pm_attr:
     ; rd16 = idx
     ; TODO: 同上
-    escape cfx_pmem, 1
+    escape cfx_pmem, [excp_cause_ip, 1i]
 
 cfx_pmem_alloc_page:
     ; rd16 = size_hint（0 = 自动选择最小的可用区域）
     ; 返回 rd31 = ppn（物理页号）或 -1（失败）
     ; TODO: 遍历 PM 区域，维护自由页链表，分配并返回 PPN
-    escape cfx_pmem, 1
+    escape cfx_pmem, [excp_cause_ip, 1i]
 
 cfx_pmem_free_page:
     ; rd16 = ppn
     ; TODO: 将 PPN 归还到对应 PM 区域的自由页链表
-    escape cfx_pmem, 1
+    escape cfx_pmem, [excp_cause_ip, 1i]
 ```
 
 ## 10. 定时器/计数器（cfx_timer）
@@ -534,24 +534,24 @@ cfx_timer_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_timer_trap_dispatch
+    br.eq {rd2, rd3}?, [rb0, cfx_timer_trap_dispatch]
 
     ; TIMER (1<<10) → 定时器中断
     set.rd   rd3, 1024
-    br.eq    rd2, rd3, cfx_timer_int
+    br.eq {rd2, rd3}?, [rb0, cfx_timer_int]
 
 cfx_timer_unknown:
-    escape cfx_timer, 1
+    escape cfx_timer, [excp_cause_ip, 1i]
 
 cfx_timer_trap_dispatch:
     cfx2rd  cfx_timer_excp_cause_info, rd2
     set.rd   rd3, 0x3FFFF                            ; 掩码提取 immu18
     and.o   rd2, rd2, rd3
     set.rd   rd3, 0
-    br.eq    rd2, rd3, cfx_timer_set_timer               ; func 0
+    br.eq {rd2, rd3}?, [rb0, cfx_timer_set_timer] ; func 0
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_timer_get_time                ; func 1
-    escape cfx_timer, 1
+    br.eq {rd2, rd3}?, [rb0, cfx_timer_get_time] ; func 1
+    escape cfx_timer, [excp_cause_ip, 1i]
 ```
 
 ### 内部实现代码
@@ -563,15 +563,15 @@ cfx_timer_set_timer:
     cfx2rc  cfx_timer_regs[0], rd16
     set.rd   rd2, 1                                      ; bit0=enable, bit1=one-shot, bit2=decrement
     cfx2rc  cfx_timer_ctrl, rd2
-    escape cfx_timer, 1
+    escape cfx_timer, [excp_cause_ip, 1i]
 
 cfx_timer_get_time:
     cfx2rd  cfx_timer_regs[0], rd31                    ; 返回值在 rd31，读取定时器当前计数值
-    escape cfx_timer, 1
+    escape cfx_timer, [excp_cause_ip, 1i]
 
 cfx_timer_int:
     ; 处理定时器中断
-    escape cfx_timer, 0
+    escape cfx_timer, [excp_cause_ip, 0i]
 ```
 
 ### 功能调用示例
@@ -622,29 +622,29 @@ cfx_uart_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_uart_trap_dispatch
+    br.eq {rd2, rd3}?, [rb0, cfx_uart_trap_dispatch]
 
     ; UART 中断（1<<32..63）
     ; 通过 excp_pending 寄存器判断具体中断源并处理
     cfx2rd  cfx_uart_excp_pending, rd3
     ; 此处根据 pending 位处理对应 UART
-    escape cfx_uart, 0
+    escape cfx_uart, [excp_cause_ip, 0i]
 
 cfx_uart_trap_dispatch:
     cfx2rd  cfx_uart_excp_cause_info, rd2
     set.rd   rd3, 0x3FFFF
     and.o   rd2, rd2, rd3
     set.rd   rd3, 0
-    br.eq    rd2, rd3, cfx_uart_putchar                 ; func 0
+    br.eq {rd2, rd3}?, [rb0, cfx_uart_putchar] ; func 0
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_uart_getchar                 ; func 1
+    br.eq {rd2, rd3}?, [rb0, cfx_uart_getchar] ; func 1
     set.rd   rd3, 2
-    br.eq    rd2, rd3, cfx_uart_write                   ; func 2
+    br.eq {rd2, rd3}?, [rb0, cfx_uart_write] ; func 2
     set.rd   rd3, 3
-    br.eq    rd2, rd3, cfx_uart_read                    ; func 3
+    br.eq {rd2, rd3}?, [rb0, cfx_uart_read] ; func 3
 
 cfx_uart_unknown:
-    escape cfx_uart, 1
+    escape cfx_uart, [excp_cause_ip, 1i]
 ```
 
 ### 内部实现代码
@@ -653,24 +653,24 @@ cfx_uart_unknown:
 cfx_uart_putchar:
     ; rd16 = ch（调用方传入）
     cfx2rc  cfx_uart_uart0_regs[0], rd16              ; 写 UART 发送寄存器
-    escape cfx_uart, 1
+    escape cfx_uart, [excp_cause_ip, 1i]
 
 cfx_uart_getchar:
     ; 从 UART 接收寄存器读取字符
     cfx2rd  cfx_uart_uart0_regs[1], rd31
-    escape cfx_uart, 1
+    escape cfx_uart, [excp_cause_ip, 1i]
 
 cfx_uart_write:
     ; rb16 = buf, rd16 = len
     ; 循环写入 len 字节（此处省略循环实现）
     set.rd   rd31, 0
-    escape cfx_uart, 1
+    escape cfx_uart, [excp_cause_ip, 1i]
 
 cfx_uart_read:
     ; rb16 = buf, rd16 = len
     ; 循环读取 len 字节（此处省略循环实现）
     set.rd   rd31, 0
-    escape cfx_uart, 1
+    escape cfx_uart, [excp_cause_ip, 1i]
 ```
 
 ### 功能调用示例
@@ -722,22 +722,22 @@ cfx_power_supv_excp_handler:
 
     ; CFXTRAP (1<<0) → SBI 功能调用
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_power_trap_dispatch
+    br.eq {rd2, rd3}?, [rb0, cfx_power_trap_dispatch]
 
     ; POWEROFF (1<<8)
     set.rd   rd3, 256
-    br.eq    rd2, rd3, cfx_power_shutdown
+    br.eq {rd2, rd3}?, [rb0, cfx_power_shutdown]
 
     ; HARD RESET (1<<9)
     set.rd   rd3, 512
-    br.eq    rd2, rd3, cfx_power_hard_reset
+    br.eq {rd2, rd3}?, [rb0, cfx_power_hard_reset]
 
     ; SOFT RESET (1<<10)
     set.rd   rd3, 1024
-    br.eq    rd2, rd3, cfx_power_soft_reset
+    br.eq {rd2, rd3}?, [rb0, cfx_power_soft_reset]
 
 cfx_power_unknown:
-    escape cfx_power, 1
+    escape cfx_power, [excp_cause_ip, 1i]
 
 ; ─── SBI 功能调用 dispatch（基于 excp_cause_info 中的 immu18）───
 cfx_power_trap_dispatch:
@@ -745,12 +745,12 @@ cfx_power_trap_dispatch:
     set.rd   rd3, 0x3FFFF                            ; 掩码提取 immu18
     and.o   rd2, rd2, rd3
     set.rd   rd3, 0
-    br.eq    rd2, rd3, cfx_power_shutdown                ; func 0
+    br.eq {rd2, rd3}?, [rb0, cfx_power_shutdown] ; func 0
     set.rd   rd3, 1
-    br.eq    rd2, rd3, cfx_power_hard_reset              ; func 1
+    br.eq {rd2, rd3}?, [rb0, cfx_power_hard_reset] ; func 1
     set.rd   rd3, 2
-    br.eq    rd2, rd3, cfx_power_soft_reset              ; func 2
-    escape cfx_power, 1
+    br.eq {rd2, rd3}?, [rb0, cfx_power_soft_reset] ; func 2
+    escape cfx_power, [excp_cause_ip, 1i]
 ```
 
 ### 内部实现代码
@@ -814,15 +814,15 @@ cfx_umon_user_excp_handler:
 
     ; 判断异常类型并分发
     set.rd   rd3, 1
-    br.eq    rd2, rd3, syscall_handler               ; CFXTRAP (1<<0)
+    br.eq {rd2, rd3}?, [rb0, syscall_handler] ; CFXTRAP (1<<0)
     set.rd   rd3, 256
-    br.eq    rd2, rd3, illi_handler                  ; ILLI (1<<8)
+    br.eq {rd2, rd3}?, [rb0, illi_handler] ; ILLI (1<<8)
     ; 默认：未处理异常
-    escape cfx_umon, 1
+    escape cfx_umon, [excp_cause_ip, 1i]
 ```
 
 syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 
 ## 14. 扩展
 
-新增硬件核芯功能扩展时，按其 cfxcode 在本文档中新增对应章节，定义 immu18 功能码表即可。保留 immu18 值 0x3FFFF（最大）用于将来可能的 "SBI 协议版本协商" 功能。
+新增硬件核芯功能扩展时，按其 cfxha 在本文档中新增对应章节，定义 immu18 功能码表即可。保留 immu18 值 0x3FFFF（最大）用于将来可能的 "SBI 协议版本协商" 功能。

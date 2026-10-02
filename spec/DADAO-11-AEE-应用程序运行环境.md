@@ -20,26 +20,26 @@ SimRISC 提供 8/16/32/64-bit 四种位宽的运算指令（如 add.ub/add.uw/ad
 
 ```simrisc
 ; 有符号 32-bit 加法
-ld.st    rd2, rbsp, x_offset          ; 符号扩展加载
-ld.st    rd3, rbsp, y_offset
-add.so  rd0, rd4, rd2, rd3           ; rd4 = 低64位；rd0丢弃高64位
-st.t     rd4, rbsp, z_offset
+ld.st rd2, [rb1, x_offset] ; 符号扩展加载
+ld.st rd3, [rb1, y_offset]
+add.so {rd0, rd4}, rd2, rd3 ; rd4 = 低64位；rd0丢弃高64位
+st.t rd4, [rb1, z_offset]
 ```
 
 **乘除法**：乘法结果为 128-bit（`rdha` = 高 64 位，`rdhb` = 低 64 位）。32-bit 乘积取低 64 位即可。除法前须确保被除数和除数的高位正确扩展。
 
 ```simrisc
 ; 有符号 32-bit 乘法
-ld.st    rd2, rbsp, x_offset
-ld.st    rd3, rbsp, y_offset
-mul.so    rd0, rd4, rd2, rd3           ; rd0丢弃高64位，rd4=低64位
-st.t     rd4, rbsp, z_offset
+ld.st rd2, [rb1, x_offset]
+ld.st rd3, [rb1, y_offset]
+mul.so {rd0, rd4}, rd2, rd3 ; rd0丢弃高64位，rd4=低64位
+st.t rd4, [rb1, z_offset]
 
 ; 有符号 32-bit 除法
-ld.st    rd2, rbsp, x_offset
-ld.st    rd3, rbsp, y_offset
+ld.st rd2, [rb1, x_offset]
+ld.st rd3, [rb1, y_offset]
 div.st  rd4, rd2, rd3           ; 商写入目的寄存器 rd4
-st.t     rd4, rbsp, z_offset
+st.t rd4, [rb1, z_offset]
 ```
 
 > 若操作数经过加减乘等运算后高位被污染，除法和乘法前需 `ext.s` 重新扩展。
@@ -48,11 +48,11 @@ st.t     rd4, rbsp, z_offset
 
 ```simrisc
 ; 无符号 32-bit 右移 3 位
-ld.ut    rd2, rbsp, x_offset          ; 零扩展加载
+ld.ut rd2, [rb1, x_offset] ; 零扩展加载
 shr.uo  rd2, rd2, 3
 
 ; 有符号 32-bit 右移 3 位
-ld.st    rd2, rbsp, x_offset          ; 符号扩展加载
+ld.st rd2, [rb1, x_offset] ; 符号扩展加载
 shr.so  rd2, rd2, 3
 ```
 
@@ -63,10 +63,10 @@ shr.so  rd2, rd2, 3
 
 ```simrisc
 ; 有符号 32-bit 加法，检测溢出
-add.so  rd0, rd3, rd4, rd5           ; rd3 = rd4 + rd5（低 64 位）
+add.so {rd0, rd3}, rd4, rd5 ; rd3 = rd4 + rd5（低 64 位）
 ext.so  rd2, rd3, 31           ; rd2 = rd3 按 32-bit 符号扩展
 cmp.so  rd2, rd2, rd3          ; 比较扩展值与原值
-br.nz    rd2, overflow_handler        ; 不相等 → 32-bit 溢出
+br.nz {rd2}?, [rb0, overflow_handler] ; 不相等 → 32-bit 溢出
 ```
 
 ## 地址空间布局
@@ -94,7 +94,7 @@ cfx_tlb_inv_loop:
     add.si    rd2, 1
     set.rd   rd3, 16
     cmp.so  rd5, rd2, rd3          ; rd5 = rd2 < rd3 ?
-    br.n     rd5, cfx_tlb_inv_loop
+    br.n {rd5}?, [rb0, cfx_tlb_inv_loop]
 ```
 
 ## 汇编兼容性

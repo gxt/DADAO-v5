@@ -10,7 +10,7 @@ M1 的 QEMU 实现必须在**裸机**（bare-metal）环境执行 ISA 语义/合
 
 `spec/`（SimRISC 0.5.4）只定义了部分 ISA 语义：`rb0` 复位值为 `cfx_power_hypv_excp_vector`（SEE 概念，M1 无 SEE）[SimRISC-00 §基址寄存器]、`rf0`（FCSR）位布局 [SimRISC-00 §浮点状态寄存器]、RA 进程入口初值 [SimRISC-00 §返回地址栈]、以及 MALIGN/ILLI/UNDI/IALIGN/RASOF/RASUF 的触发条件与精确异常承诺 [contract-isa §15]。`spec/` **不定义**测试机的内存映射、exit 协议、硬件复位值全集、fault 退出码或启动协议——这些属本 ADR 的**原始架构决策**，均标注「无 spec 依据，架构自定义」。
 
-本 ADR 与 ADR-0003（object ABI / artifact pipeline）配合：ADR-0003 冻结 `.o → objcopy --only-section=.text -O binary → flat binary`，本 ADR 冻结该 flat binary 如何被 QEMU 加载并进入，以及 guest 可见的全部可观测行为。测试机地址图采用 spec 的**核内地址空间模型**（cfxcode），整体占用最高段 cfxcode 63（power）——见 D1。遗留 `dadao-virt` 内存布局（ROM `0x0010_0000` / UART `0x1000_0000` / RAM `0x8000_0000`）仅作**只读对照**，本 ADR 不沿用。
+本 ADR 与 ADR-0003（object ABI / artifact pipeline）配合：ADR-0003 冻结 `.o → objcopy --only-section=.text -O binary → flat binary`，本 ADR 冻结该 flat binary 如何被 QEMU 加载并进入，以及 guest 可见的全部可观测行为。测试机地址图采用 spec 的**核内地址空间模型**（cfxha），整体占用最高段 cfxha 63（power）——见 D1。遗留 `dadao-virt` 内存布局（ROM `0x0010_0000` / UART `0x1000_0000` / RAM `0x8000_0000`）仅作**只读对照**，本 ADR 不沿用。
 
 依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.4，异常/对齐/地址模型）、`.tao/knowledge/contract-abi.md`（`SP = rb1`、栈向下增长）、`contracts/legality_rules.yaml`（异常触发条件）。指令助记符一律使用 0.5.4 命名。
 
@@ -18,7 +18,7 @@ M1 的 QEMU 实现必须在**裸机**（bare-metal）环境执行 ISA 语义/合
 
 ### D1 内存映射
 
-M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**（`spec/DADAO-12 §2.1`）：48 位核内地址的高 6 位 `bits[47:42]` 为核芯功能扩展编号（cfxcode）。M1 无 cfx、无 MMU，测试机整体占用**最高段 cfxcode 63（power）**的核内地址空间 `[0xFC00_0000_0000, 2^48)`——因为硬件复位向量 `cfx_power_hypv_excp_vector` 正位于该段。
+M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**（`spec/DADAO-12 §2.1`）：48 位核内地址的高 6 位 `bits[47:42]` 为核芯功能扩展编号（cfxha）。M1 无 cfx、无 MMU，测试机整体占用**最高段 cfxha 63（power）**的核内地址空间 `[0xFC00_0000_0000, 2^48)`——因为硬件复位向量 `cfx_power_hypv_excp_vector` 正位于该段。
 
 | 区域 | 起始 | 结束 | 大小 | 属性 | 说明 |
 |------|------|------|------|------|------|
@@ -28,12 +28,12 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
 | 其余全部地址 | — | — | — | unmapped | 访问 → 退出码 `0x87`（D5） |
 
 - 所有区域地址均为 48-bit 核内有效地址：`bits[63:48] = 0`，高 16 位在地址计算时被硬件忽略 [contract-isa §1.5]。三个区域与 unmapped 判定均按有效地址低 48 位进行。
-- **boot ROM 起址 `0xffff_ffff_0000` 即 spec 的 `cfx_power_hypv_excp_vector`**（cfxcode 63 / power，64 KiB）[DADAO-12 §2.1][DADAO-23 §3]。M1 **仅借用该复位地址**作为 boot ROM，**不复现** spec 的复位运行模式（`inner_run_mode=hypv`、`inner_cfx_code=cfx_power`、`inner_cfx_mask=全 1`）等 HBI/SEE 语义（M1 无 SEE/HBI/hypv）。
-- RAM 与 Exit port 亦位于 cfxcode 63 段内（`bits[47:42]=63`）。`spec/` 的核内地址空间属 cfx 访问域，而 RAM 属 64-bit 物理地址空间；M1 无 MMU（VA=PA）、无 cfx，故测试机把这些地址统一作裸机地址使用——属**测试机约定**，非 spec 的 cfx 语义。
+- **boot ROM 起址 `0xffff_ffff_0000` 即 spec 的 `cfx_power_hypv_excp_vector`**（cfxha 63 / power，64 KiB）[DADAO-12 §2.1][DADAO-23 §3]。M1 **仅借用该复位地址**作为 boot ROM，**不复现** spec 的复位运行模式（`inner_run_mode=hypv`、`inner_cfx_code=cfx_power`、`inner_cfx_mask=全 1`）等 HBI/SEE 语义（M1 无 SEE/HBI/hypv）。
+- RAM 与 Exit port 亦位于 cfxha 63 段内（`bits[47:42]=63`）。`spec/` 的核内地址空间属 cfx 访问域，而 RAM 属 64-bit 物理地址空间；M1 无 MMU（VA=PA）、无 cfx，故测试机把这些地址统一作裸机地址使用——属**测试机约定**，非 spec 的 cfx 语义。
 - boot ROM 64 KiB 足以容纳最小 trampoline（D6，实际约 5 条指令）；未使用 ROM 读为零（**全零字现为保留编码**：`illi` 的编码已迁至 `0111-0111`（`0x77`）⇒ 全零字若被执行触发 **UNDI**，但 trampoline 会在越过有效代码前跳转离开，见 D6）。（2026-10-01 就地修订：依据 `SPEC-068t`，`MISC-AMO` 编码 `0000-0000`→`0111-0111`；**已经用户逐条确认**）
 - RAM 16 MiB 提供测试程序 + 栈 + scratch 空间；栈位于 RAM 高地址端、向下增长（`SP = rb1`）[contract-abi §2.1]。
 - 所有区域边界均 8 B 对齐，因此**任何自然对齐的访问都不会跨越区域边界**（跨边界只可能发生在未对齐访问上，按 D4 归 MALIGN）。
-- 「无 spec 依据，架构自定义」：RAM/Exit port 的具体地址、以及「测试机整体占用 cfxcode 63 段」均为测试机约定；`spec/` 只规定 cfxcode 63 的复位向量 `0xffff_ffff_0000`。
+- 「无 spec 依据，架构自定义」：RAM/Exit port 的具体地址、以及「测试机整体占用 cfxha 63 段」均为测试机约定；`spec/` 只规定 cfxha 63 的复位向量 `0xffff_ffff_0000`。
 
 ### D2 复位向量与入口点
 
@@ -240,14 +240,14 @@ set.zw  rd17, wp0, 49          ; rd17 = 0x31
 
 ; 4. 比较：cmp.so rd18, rd16, rd17 → rd18 = cmp(rd16, rd17)（-1/0/1，orrr）
 cmp.so  rd18, rd16, rd17       ; 相等时为 0；目的 rd18≠rd0
-br.nz   rd18, fail             ; rd18 != 0 → 跳 fail
+br.nz {rd18}?, [rb0, fail] ; rd18 != 0 → 跳 fail
 
 ; 5. PASS：写 0 到 exit port（rd0 恒为 0，直接作源）
-st.o    rd0, rb16, 0           ; mem64[0xffff_8000_0000] = 0 → host $? = 0x00
+st.o rd0, [rb16, 0] ; mem64[0xffff_8000_0000] = 0 → host $? = 0x00
 
 fail:
 set.zw  rd16, wp0, 1           ; rd16 = 1
-st.o    rd16, rb16, 0          ; mem64[0xffff_8000_0000] = 1 → host $? = 0x01
+st.o rd16, [rb16, 0] ; mem64[0xffff_8000_0000] = 1 → host $? = 0x01
 ```
 
 #### D6.3 异常测试 pattern
@@ -261,11 +261,11 @@ or.w    rb16, wp1, 0x8000      ; rb16 = 0xffff_8000_0000
 set.zw  rb17, wp2, 0xffff      ; rb17 = 0xffff_0000_0000
 
 ; 3. 触发 MALIGN：8B load 到 0xffff_0000_0001（非 8B 对齐）
-ld.o    rd16, rb17, 1          ; 有效地址 = 0xffff_0000_0000 + 1 = 0xffff_0000_0001 → MALIGN → host $? = 0x8C
+ld.o rd16, [rb17, 1] ; 有效地址 = 0xffff_0000_0000 + 1 = 0xffff_0000_0001 → MALIGN → host $? = 0x8C
 
 ; 4. 若执行到此，说明 fault 未发生 → FAIL
 set.zw  rd16, wp0, 1           ; rd16 = 1
-st.o    rd16, rb16, 0          ; host $? = 0x01
+st.o rd16, [rb16, 0] ; host $? = 0x01
 ```
 
 harness 期望 `$? = 0x8C`；得到 `0x00` 或 `0x01`–`0x7F` 表示 fault 未发生。若需验证 `rb0` = faulting PC 与目的寄存器未提交，使用 D4 的 GDB/QMP 寄存器读取路径。
@@ -282,7 +282,7 @@ illi    0                      ; → ILLI → host $? = 0x88
 
 ; 3. 若执行到此，说明 fault 未发生 → FAIL
 set.zw  rd16, wp0, 1
-st.o    rd16, rb16, 0          ; host $? = 0x01
+st.o rd16, [rb16, 0] ; host $? = 0x01
 ```
 
 harness 期望 `$? = 0x88`。RASOF/RASUF（`0x8A`/`0x8B`）、UNDI（`0x89`）、IALIGN（`0x8D`）的测试同构：构造触发条件后断言对应退出码。
@@ -304,7 +304,7 @@ set.zw  rb2, wp2, 0xffff       ; rb2 = 0xffff_0000_0000
 ; 3. 绝对跳转（rrii）：Addr = rbha + rdhb + (imms12<<2) = rb2 + rd0 + 0 = 0xffff_0000_0000
 ;    ROM→RAM 相距 0x0000_ffff_0000（≈4 GiB），远超 jump imms24（PC 相对 ±32 MiB）范围，
 ;    故必须先构造绝对 RB 地址再用 rrii jump。
-jump    rb2, rd0, 0            ; PC ← 0xffff_0000_0000
+jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 ```
 
 #### D6.5 三个入口时刻的状态（冻结）
@@ -320,7 +320,7 @@ jump    rb2, rd0, 0            ; PC ← 0xffff_0000_0000
 
 ## Rationale（理由）
 
-- **内存映射采用核内地址空间模型**：M1 无 cfx、无 MMU，测试机整体占用最高段 cfxcode 63（power）的核内地址空间，使 boot ROM 正好落在 spec 的硬件复位向量 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`，从而 `rb0` 复位值**直接符合 spec**、无需偏离。RAM/Exit port 作为测试机约定放在同一段内的独立地址（`0xffff_0000_0000` / `0xffff_8000_0000`），三者互不重叠且 8 B 对齐。遗留 `dadao-virt`（ROM `0x0010_0000`/UART `0x1000_0000`/RAM `0x8000_0000`）仅作只读对照，v5 不沿用。
+- **内存映射采用核内地址空间模型**：M1 无 cfx、无 MMU，测试机整体占用最高段 cfxha 63（power）的核内地址空间，使 boot ROM 正好落在 spec 的硬件复位向量 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`，从而 `rb0` 复位值**直接符合 spec**、无需偏离。RAM/Exit port 作为测试机约定放在同一段内的独立地址（`0xffff_0000_0000` / `0xffff_8000_0000`），三者互不重叠且 8 B 对齐。遗留 `dadao-virt`（ROM `0x0010_0000`/UART `0x1000_0000`/RAM `0x8000_0000`）仅作只读对照，v5 不沿用。
 - **双镜像启动而非单镜像**：D1 要求 ROM 容纳最小 trampoline、D6 需要 ROM trampoline；由 `-bios` 提供外部 ROM blob 使 QEMU 机器保持简单，且不必把 ISA 二进制内建进 QEMU 源码。与 ADR-0003 一致：测试产物仍是 `.o → objcopy .text → flat`，由 `-kernel` 加载到 RAM 基址、从该基址进入；`e_entry` 不参与。
 - **直接 exit 而非 handler**：无 OS 时 handler 方案需要 handler 地址、fault info 布局与返回机制，依赖 M1 没有的异常 ABI；直接退出更简单、可自动化，且不预设未来异常模型。M1 中 `trap`/`escape` 等特权 cfx 指令**不提供陷入/退出机制**，按 D5.1 归 **ILLI（`0x88`）**，同样走直接退出路径。
 - **fault 码与 guest 码分区**：`0x00`–`0x7F` 为 guest（pass/fail），`0x80`–`0xFF` 为机器 fault；fault 码由 **spec cause 位派生**（`0x80 | cause_bit` → `0x88`–`0x8D`）或测试机约定（`0x87` unmapped），使 `$?` 单值即可无歧义区分 pass/fail/fault，满足零 host 依赖，且可回溯到 spec 的异常原因编码。
@@ -338,7 +338,7 @@ jump    rb2, rd0, 0            ; PC ← 0xffff_0000_0000
 - **下游约束**：QEMU `hw/dadao/` 机器须实现本 ADR 的内存映射、复位值、exit port、fault→退出码映射与双镜像加载；test harness/向量须按 `0x00`/`0x01`–`0x7F`/`0x80`–`0xFF` 分区断言（具体 fault 码见 D5.8）；测试程序不得向 exit port 写 `0x80`–`0xFF`。
 - **诊断局限**：退出码只编码 fault 类别，不编码 faulting 地址/操作数；需要精确 PC/状态验证的测试须使用 D4 冻结的寄存器读取路径。
 - **`rb0` 复位符合 spec**：`rb0` 复位取 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（= boot ROM 基址），与 spec 一致；M1 仅借用该地址，不复现 hypv 复位运行模式等 HBI/SEE 语义。
-- **架构自定义项**：RAM/Exit port 的具体地址、「测试机整体占用 cfxcode 63 段」、复位值（`rd1`–`rd63`/`rb1`–`rb63`/`ra*`/`rf0` 的 R/W 位/`rf1`–`rf63`）、退出码、SBZ→ILLI、MMIO 访问矩阵均无 `spec/` 依据；若未来 `spec/` 给出规定，须修订本 ADR。
+- **架构自定义项**：RAM/Exit port 的具体地址、「测试机整体占用 cfxha 63 段」、复位值（`rd1`–`rd63`/`rb1`–`rb63`/`ra*`/`rf0` 的 R/W 位/`rf1`–`rf63`）、退出码、SBZ→ILLI、MMIO 访问矩阵均无 `spec/` 依据；若未来 `spec/` 给出规定，须修订本 ADR。
 - **SBZ = ILLI 为前瞻性决策**：若 `spec/` 后续规定 SBZ → UNDI，须修订。
 - **与 ADR-0003 一致**：ADR-0003 冻结 object → flat 的转换（无 LLD/`ET_EXEC`/`e_entry` 加载），本 ADR 冻结 flat → QEMU 的加载/入口；两者共同构成唯一端到端路径。
 - **RF 指令不可用**：M1 测试程序不得执行 RF 指令（执行即 ILLI）；RF 支持留后续阶段。
@@ -349,9 +349,9 @@ jump    rb2, rd0, 0            ; PC ← 0xffff_0000_0000
 
 ## 修订
 
-**rev. 2026-09-13（用户决定）**：D1 内存映射由「遗留 `dadao-virt` 布局（ROM `0x0010_0000` / Exit `0x1000_0000` / RAM `0x8000_0000`）」改为「**核内地址空间模型**：测试机整体占用最高段 cfxcode 63（power），RAM `0xffff_0000_0000`（16 MiB）、Exit port `0xffff_8000_0000`（8 B）、boot ROM `0xffff_ffff_0000`（64 KiB，= `cfx_power_hypv_excp_vector`）」。
+**rev. 2026-09-13（用户决定）**：D1 内存映射由「遗留 `dadao-virt` 布局（ROM `0x0010_0000` / Exit `0x1000_0000` / RAM `0x8000_0000`）」改为「**核内地址空间模型**：测试机整体占用最高段 cfxha 63（power），RAM `0xffff_0000_0000`（16 MiB）、Exit port `0xffff_8000_0000`（8 B）、boot ROM `0xffff_ffff_0000`（64 KiB，= `cfx_power_hypv_excp_vector`）」。
 
-- **动机**：与 spec 的核内地址空间模型（`DADAO-12 §2.1`，`bits[47:42]` = cfxcode）一致，并让 boot ROM 落在 spec 的硬件复位向量 `cfx_power_hypv_excp_vector` 上——`rb0` 复位值随之**符合 spec**，消除原「偏离 spec」的架构自定义。
+- **动机**：与 spec 的核内地址空间模型（`DADAO-12 §2.1`，`bits[47:42]` = cfxha）一致，并让 boot ROM 落在 spec 的硬件复位向量 `cfx_power_hypv_excp_vector` 上——`rb0` 复位值随之**符合 spec**，消除原「偏离 spec」的架构自定义。
 - **变更范围**：D1 地址图；D2.1 `rb0` 复位值（`0x0010_0000`→`0xffff_ffff_0000`）及其依据；D2.2 加载地址、D2.3 ROM blob 链接基址/RAM entry；D3 exit port 地址；D5.6 矩阵地址；D6.2–D6.5 示例与入口状态；Rationale/Consequences 相关表述。**D2 其余复位值、D3 协议语义、D4/D5 fault 语义、D6 测试 pattern 结构均不变。**
 - **RAM 容量**：128 MiB → **16 MiB**（M1 单 TU 测试足够）。
 - **exit port 宽度**：仍为**恰好 8 字节**（`st.o`），不变。

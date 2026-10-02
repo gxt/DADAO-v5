@@ -372,7 +372,7 @@ void make_big(struct Big* sret_ptr, int a)
 
 ## 系统调用规范
 
-系统调用通过 `trap cfxcode, immu18` 指令发起，其中 `cfxcode` 指定目标核芯功能扩展，`immu18` 为硬件事务编号（功能编号）。
+系统调用通过 `trap cfxha, immu18` 指令发起，其中 `cfxha` 指定目标核芯功能扩展，`immu18` 为硬件事务编号（功能编号）。
 
 系统调用号存放在 RD15 寄存器中，参数使用 RD16 - RD31、RB16 - RB31 和 RF16 - RF31 传参，返回值放在 RD31 寄存器中。参数按类型分配到对应 寄存器组，三组寄存器各自独立计数。
 

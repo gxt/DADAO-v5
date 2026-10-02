@@ -4,7 +4,7 @@
 
 HBI 定义 H-mode（超管模式）核芯功能扩展提供的功能调用，供 S-mode 内核或其它核芯功能扩展请求需要 H-mode 权限的系统服务。
 
-`trap cfxcode, immu18` 中 cfxcode 即为服务提供者，immu18 为功能编号。每个核芯功能扩展独立提供一组功能，按照实际需求进行调用。
+`trap cfxha, immu18` 中 cfxha 即为服务提供者，immu18 为功能编号。每个核芯功能扩展独立提供一组功能，按照实际需求进行调用。
 
 ## 1. 调用约定
 
@@ -60,7 +60,7 @@ cfx2rc  cfx_power_excp_cause_ip, rd2
 set.rb   rb16, fdt_addr
 
 ; 执行 escape 跳转到 supv 入口
-escape cfx_power, 0
+escape cfx_power, [excp_cause_ip, 0i]
 ```
 
 S-mode 内核入口通过 rb16 获取设备树指针。

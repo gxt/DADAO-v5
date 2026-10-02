@@ -152,7 +152,7 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 操作数寻址方式字母：[SimRISC-00 §指令域说明]
 
 - `o`：六位的 opx
-- `c`：六位的 cfxcode
+- `c`：六位的 cfxha
 - `r`：寄存器
 - `i`：立即数（立即数域需要区分有符号数和无符号数）
 - `w`：头两位为 wyde-position，后四位为立即数
@@ -184,7 +184,7 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 | `orri` | opx + 两个寄存器 + 6 位立即数在 `hd[5:0]` |
 | `oiii` | opx + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]` |
 
-> cfxcode（`c`）相关格式 `crrr`/`crii`/`ciii` 属特权 cfx 指令，Excluded from M1（见 §14.3）。
+> cfxha（`c`）相关格式 `crrr`/`crii`/`ciii` 属特权 cfx 指令，Excluded from M1（见 §14.3）。
 
 ### §2.4 Wyde-Position 编码
 
