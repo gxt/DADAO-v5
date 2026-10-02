@@ -1,27 +1,27 @@
-# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
-# RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=OBJ
-# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
+; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
+; RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=OBJ
+; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
 
-# oiii format: opx + immediate instructions (illi, fence, swym)
-# Encoding: word = (op<<24)|(ha<<18)|(imm18 & 0x3FFFF)
+; oiii format: opx + immediate instructions (illi, fence, swym)
+; Encoding: word = (op<<24)|(ha<<18)|(imm18 & 0x3FFFF)
 
-# illi 0
-# op=0x77, ha=0x00(illi), imm18=0
-# word = (0x77<<24)|(0x00<<18)|0 = 0x77000000
-# OBJ: {{[0-9a-f]+:}} 77 00 00 00{{.*}}illi{{.*}}0
-# ASM: illi 0
+; illi 0
+; op=0x77, ha=0x00(illi), imm18=0
+; word = (0x77<<24)|(0x00<<18)|0 = 0x77000000
+; OBJ: {{[0-9a-f]+:}} 77 00 00 00{{.*}}illi{{.*}}0
+; ASM: illi 0
 illi 0
 
-# swym 0
-# op=0x77, ha=0x02(swym), imm18=0
-# word = (0x77<<24)|(0x02<<18)|0 = 0x77080000
-# OBJ: {{[0-9a-f]+:}} 77 08 00 00{{.*}}swym{{.*}}0
-# ASM: swym 0
+; swym 0
+; op=0x77, ha=0x02(swym), imm18=0
+; word = (0x77<<24)|(0x02<<18)|0 = 0x77080000
+; OBJ: {{[0-9a-f]+:}} 77 08 00 00{{.*}}swym{{.*}}0
+; ASM: swym 0
 swym 0
 
-# swym 42
-# op=0x77, ha=0x02(swym), imm18=42=0x2A
-# word = (0x77<<24)|(0x02<<18)|0x2A = 0x7708002A
-# OBJ: {{[0-9a-f]+:}} 77 08 00 2a{{.*}}swym{{.*}}42
-# ASM: swym 42
+; swym 42
+; op=0x77, ha=0x02(swym), imm18=42=0x2A
+; word = (0x77<<24)|(0x02<<18)|0x2A = 0x7708002A
+; OBJ: {{[0-9a-f]+:}} 77 08 00 2a{{.*}}swym{{.*}}42
+; ASM: swym 42
 swym 42

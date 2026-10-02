@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""check_lit_bytes.py — lit # OBJ: 字节 ↔ contracts/opcodes.yaml 独立校验。
+"""check_lit_bytes.py — lit ; OBJ: 字节 ↔ contracts/opcodes.yaml 独立校验。
 
-遍历 tests/lit/MC/Dadao/*.s，提取 `# OBJ:` 行的 4 字节 + mnemonic，
+遍历 tests/lit/MC/Dadao/*.s，提取 `; OBJ:` 行的 4 字节 + mnemonic，
 在 contracts/opcodes.yaml 中查找 (word & mask) == value 的记录。
 
 纯 Python + yaml；只读；不运行 LLVM 工具。
@@ -25,14 +25,14 @@ OPCODES_YAML = os.path.join(REPO_ROOT, "contracts", "opcodes.yaml")
 # P1: mnemonic 提取遇 {{ 即停
 # FileCheck 模式字面量：{{[0-9a-f]+:}} 和 {{.*}} 需逐字符转义
 OBJ_RE = re.compile(
-    r"#\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
+    r";\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
     r"([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})"
     r"\{\{.*?\}\}"
     r"([A-Za-z][A-Za-z0-9._]*)"
 )
 
-# P2: 独立宽松计数 — 按 `# OBJ:` 字面出现次数
-OBJ_LITERAL_RE = re.compile(r"#\s*OBJ:")
+# P2: 独立宽松计数 — 按 `; OBJ:` 字面出现次数
+OBJ_LITERAL_RE = re.compile(r";\s*OBJ:")
 
 
 def load_opcodes(path: str) -> list[dict]:
@@ -67,7 +67,7 @@ def main() -> int:
         "--min-obj",
         type=int,
         default=0,
-        help="minimum expected number of # OBJ: lines (fail if below)",
+        help="minimum expected number of ; OBJ: lines (fail if below)",
     )
     args = parser.parse_args()
     lit_dir = args.lit_dir

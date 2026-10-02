@@ -156,3 +156,5 @@
 - `new file mode` 补丁 `index` 失配 9 项 → 见上文表格条（`QEMU-029t` F2）。
 - `ftroot`/`foroot` n=2 无门控 → 见 `SPEC-067t` F4 条。
 - 探针「标签化」框架 → 见 `QEMU-010t` 第 5 轮条。
+
+- **`#` 行首仍被静默当注释（`LLVM-024t` reviewer 观察，2026-10-02，非阻断）**：`ADR-0013 D9` 将注释符改为 `;` 并把 `#` 留给 cpp；但 `MCAsmInfo::AllowAdditionalComments` 默认 `true`（`AsmLexer.cpp:821-838`）⇒ **行首 `# ...` 被静默吞掉（EXIT=0）**，仅**行内/操作数位置**的 `#` 报错（实测 `add.si rd8, 1 # trailing` EXIT=1）。与 D9.2 不矛盾（cpp 先行），但"释放 `#`"不彻底。建议：`DADAOMCAsmInfo` 设 `AllowAdditionalComments = false`（使行首 `#` 亦报错），并把 `docs/spec/assembly-language.md:204` 的非法记号示例由 `#` 改为 `@` 或加"行内位置"限定。归属：后续 llvm 小任务。

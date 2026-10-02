@@ -29,8 +29,8 @@ index 000000000000..dbe4cd5ef41f
 +  // DADAO is big endian (contract-elf.md §1.1: EI_DATA = ELFDATA2MSB).
 +  IsLittleEndian = false;
 +
-+  // DADAO uses '#' as the comment character.
-+  CommentString = "#";
++  // DADAO uses ';' as the comment character.
++  CommentString = ";";
 +
 +  // Instruction alignment: 4 bytes (contract-isa.md §2.1: 32-bit instructions).
 +  MinInstAlignment = 4;

@@ -705,7 +705,7 @@ def check_opcodes_cross():
                f"全部 {total} 条 (value & mask) == value")
 
     # --- 真跨模块交叉：LLVM lit 字节 ↔ opcodes.yaml ---
-    # 调用 check_lit_bytes.py，其比对 # OBJ: 字节 ↔ opcodes.yaml mask/value
+    # 调用 check_lit_bytes.py，其比对 ; OBJ: 字节 ↔ opcodes.yaml mask/value
     rc, out = run_tool("tools/llvm/check_lit_bytes.py")
     if rc == 0:
         record(cat, "LLVM lit ↔ opcodes.yaml", "PASS", out.split("\n")[0])
@@ -728,8 +728,8 @@ def check_opcodes_cross():
 
     # --- LLVM lit format 族覆盖（跨载体交叉：opcodes.yaml M1 format 集 ↔ lit patterns） ---
     # Source: contracts/opcodes.yaml M1 条目的 format 字段（契约）；tests/lit/MC/Dadao/*.s（实现）
-    # 断言：每个 M1 format 族至少有 1 条 lit # OBJ: pattern（其 opcode 匹配该族的 opcodes 条目）
-    # 判定法：提取 # OBJ: 行的 4 字节 opcode word，在 opodes.yaml 中找 (word & mask)==value
+    # 断言：每个 M1 format 族至少有 1 条 lit ; OBJ: pattern（其 opcode 匹配该族的 opcodes 条目）
+    # 判定法：提取 ; OBJ: 行的 4 字节 opcode word，在 opodes.yaml 中找 (word & mask)==value
     #         的唯一匹配条目，取其 format 字段作为该 pattern 的族归属
     lit_dir = os.path.join(REPO_ROOT, "tests", "lit", "MC", "Dadao")
     if not os.path.isdir(lit_dir):
@@ -742,7 +742,7 @@ def check_opcodes_cross():
         )
         # 提取 lit patterns 的 opcode word 并映射到 format
         lit_obj_re = re.compile(
-            r"#\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
+            r";\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
             r"([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})"
         )
         lit_formats: dict[str, list[str]] = {}  # format → [source files]

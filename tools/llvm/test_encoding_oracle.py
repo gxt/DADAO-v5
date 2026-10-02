@@ -369,7 +369,7 @@ def main():
         for sfile in glob.glob(os.path.join(lit_dir, '*.s')):
             with open(sfile) as f:
                 for line in f:
-                    if '# OBJ:' in line:
+                    if '; OBJ:' in line:
                         obj_count += 1
         n_unique = len(set((a, e) for a, e in TESTS))
         if obj_count > 0 and n_unique < obj_count:
