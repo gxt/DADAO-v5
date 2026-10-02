@@ -147,7 +147,7 @@ rules:
       固定为 0 的位域非零均属此规则，包括但不限于：
       fence 的 immu18_hi/immu18_mid/immu18_lo bits[17:4]；
       移位量超过位宽限制（shl.ub/shr.sb/shr.ub: shamt > 7；shl.uw/shr.sw/shr.uw: shamt > 15；
-      shl.ut/shr.st/shr.ut: shamt > 31；shl.uo/shr.so/shr.uo: shamt > 63）；
+      shl.ut/shr.st/shr.ut: shamt > 31）；
       扩展起始位超过位宽限制（ext.uo/ext.so: hd > 63；SPEC-069t: ext.ub/ext.sb、
       ext.uw/ext.sw、ext.ut/ext.st 已删除）；
       lr 指令的 hb（rdhb）固定为 rd0，手工编码时 hb ≠ 0（LR-SC 原子指令属 M1 范围外，

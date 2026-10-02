@@ -2790,11 +2790,9 @@
     signed: false
   legality:
   - rdhb != rd0
-  - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
   rule_refs:
   - dst_rd0
-  - encode_sbz
 - id: ext.so_orri_rd
   mnemonic: ext.so
   format: orri
@@ -2818,11 +2816,9 @@
     signed: false
   legality:
   - rdhb != rd0
-  - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
   rule_refs:
   - dst_rd0
-  - encode_sbz
 - id: shr.uo_orri_rd
   mnemonic: shr.uo
   format: orri
@@ -2846,11 +2842,9 @@
     signed: false
   legality:
   - rdhb != rd0
-  - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
   rule_refs:
   - dst_rd0
-  - encode_sbz
 - id: shr.so_orri_rd
   mnemonic: shr.so
   format: orri
@@ -2874,11 +2868,9 @@
     signed: false
   legality:
   - rdhb != rd0
-  - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
   rule_refs:
   - dst_rd0
-  - encode_sbz
 - id: shl.uo_orri_rd
   mnemonic: shl.uo
   format: orri
@@ -2902,11 +2894,9 @@
     signed: false
   legality:
   - rdhb != rd0
-  - immu6 <= 63
   spec_cite: SimRISC-04 §Bit manipulating：位操作指令
   rule_refs:
   - dst_rd0
-  - encode_sbz
 - id: add.so_orrr_rb
   mnemonic: add.so
   format: orrr

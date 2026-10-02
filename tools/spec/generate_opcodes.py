@@ -527,7 +527,7 @@ def build_misc_octa(records):
                            ["rdhb != rd0"], S04_BIT, ha=0x10 + i))
     for i, mnem in enumerate(["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0", "immu6 <= 63"], S04_BIT, ha=0x18 + i))
+                           ["rdhb != rd0"], S04_BIT, ha=0x18 + i))
     records.append(rec("add.so-rb", "add.so", "orrr", op,
                        f_orrr("rbhb", "rbhc", "rdhd"), ["rbhb != rb0"],
                        S05_ADD, ha=0x20))
