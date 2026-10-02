@@ -7,6 +7,21 @@
 
 PYTHON ?= python3
 
+# Install/product directory paths — single source of truth from
+# manifests/install-dirs.lock.toml via tools/infra/paths.py.
+# These are absolute, realpath-resolved paths.  To change them, edit the
+# manifest; do NOT hardcode paths here.
+REPO_ROOT          := $(shell $(PYTHON) tools/infra/paths.py repo_root)
+SDK_DIR            := $(shell $(PYTHON) tools/infra/paths.py sdk_dir)
+HOST_TOOLCHAIN_DIR := $(shell $(PYTHON) tools/infra/paths.py host_toolchain_dir)
+HOST_TOOLCHAIN_BIN := $(shell $(PYTHON) tools/infra/paths.py host_toolchain_bin)
+TARGET_SYSROOT_DIR := $(shell $(PYTHON) tools/infra/paths.py target_sysroot_dir)
+TEST_ARTIFACTS_DIR := $(shell $(PYTHON) tools/infra/paths.py test_artifacts_dir)
+
+# Non-empty guard: abort if any path variable is empty (manifest missing/corrupt).
+_install_dir_vars = REPO_ROOT SDK_DIR HOST_TOOLCHAIN_DIR HOST_TOOLCHAIN_BIN TARGET_SYSROOT_DIR TEST_ARTIFACTS_DIR
+$(foreach v,$(_install_dir_vars),$(if $($v),,$(error $v is empty — check manifests/install-dirs.lock.toml and tools/infra/paths.py)))
+
 # Component source/build trees (all under the disposable .work/ root). The
 # llvm source is the monorepo checkout with its `llvm/` project subdirectory.
 QEMU_SRC   ?= .work/source/qemu
@@ -24,7 +39,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         clean-work build-mc build-mc-lite build-mc-reconfig \
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
-        check-legality-drift check-interface validate-encoding check-rule-refs
+        check-legality-drift check-interface validate-encoding check-rule-refs \
+        check-dirs
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -60,6 +76,7 @@ help:
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
+	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
 
 manifest-check:
 	@$(PYTHON) tools/infra/manifest_check.py
@@ -189,7 +206,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -211,6 +228,11 @@ check-patch-tree:
 # Standalone target, not part of `make check`.
 check-spec-refs:
 	@$(PYTHON) tools/infra/check_spec_refs.py
+
+# Install/product directory path guard (INFRA-019t): validates
+# manifests/install-dirs.lock.toml and scans for symlink prefix violations.
+check-dirs:
+	@$(PYTHON) tools/infra/check_dirs.py
 
 # Spec embedded assembly list consistency (SPEC-037t).
 check-asm-list:

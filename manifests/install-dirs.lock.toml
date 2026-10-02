@@ -1,0 +1,6 @@
+format = 1
+# ADR-0016 安装/产物目录根（唯一真源；改名只改这里）
+sdk_dir            = ".dadao"                    # 安装/产物根
+host_toolchain_dir = ".dadao/cross-toolchain"    # D3/D4：host 工具链（bin 含 qemu-system-dadao）
+target_sysroot_dir = ".dadao/dadao-unknown-elf"  # D5：target sysroot
+test_artifacts_dir = ".dadao/tests"              # D6：测试向量运行产物
