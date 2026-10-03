@@ -28,7 +28,7 @@ with open(os.path.join(REPO, "contracts", "opcodes.yaml")) as f:
 
 BY_KEY = {}
 for r in ALL:
-    if not r.get("excluded_m1"):
+    if r.get("scope") == "m1":
         BY_KEY[(r["id"], r["format"])] = r
 
 # ── Constants ─────────────────────────────────────────────────────────

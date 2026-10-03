@@ -354,8 +354,8 @@ def main():
     for op, ha in sorted(yaml_only, key=lambda x: (x[0], -1 if x[1] is None else x[1])):
         rec = yaml_records[(op, ha)]
         name = rec.get("id", "?")
-        if rec.get("excluded_m1"):
-            in_m1, cat = False, "M1 外（yaml excluded_m1）"
+        if rec.get("scope") != "m1":
+            in_m1, cat = False, f"M1 外（yaml scope: {rec.get('scope')}）"
         else:
             in_m1, cat = classify_m1(op, ha, name,
                                      misc_name=spec["pointers"].get(op))
@@ -372,12 +372,12 @@ def main():
         if not in_m1:
             qfc_m1_out.append((op, ha))
             qfc_cats[cat] = qfc_cats.get(cat, 0) + 1
-    yaml_excl = {k for k, r in yaml_records.items() if r.get("excluded_m1")}
+    yaml_excl = {k for k, r in yaml_records.items() if r.get("scope") != "m1"}
     print("[M1 范围]")
     print(f"  QFC 中 M1 外条目: {len(qfc_m1_out)}"
           + (f"（{', '.join(f'{k}={v}' for k, v in sorted(qfc_cats.items()))}）"
              if qfc_cats else ""))
-    print(f"  yaml 中 excluded_m1 条目: {len(yaml_excl)}")
+    print(f"  yaml 中 scope != m1 条目: {len(yaml_excl)}")
     if set(qfc_m1_out) == yaml_excl:
         print("  → QFC 与 yaml 的 M1 外条目集合一致")
     else:

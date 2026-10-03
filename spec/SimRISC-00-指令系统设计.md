@@ -287,6 +287,8 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | MISC-AMO        |
 | 0111-1xxx     |                      |                      | cfx2rd_crrr_cfx      | cfx2rc_crrr_cfx      | cfxld_crii_cfx       | cfxst_crii_cfx       | escape_ciii_cfx      | trap_ciii_cfx   |
 
+> **`scope` 分区**（用户裁定 2026-10-03）：主表 `MISC-RF` 子表（op=0x44，含 RF 运算/转换/比较/分类）为 `scope: fp`（未实现，decode ILLI）；特权 cfx（cfx2rd/cfx2rc/cfxld/cfxst/escape/trap）为 `scope: excluded`（未实现，decode ILLI）。
+
 ### MISC-AMO 指令编码
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
@@ -373,6 +375,8 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 > **SPEC-069t**：上表空单元格为已删除条目（共 8 条/子表：4 逻辑 + 2 ext×2 格式），其 opx 现为 reserved（UNDI）。
 
 ### MISC-RF指令编码
+
+> 本子表 44 条均为 `scope: fp`（未实现，decode ILLI）。
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 

@@ -199,7 +199,7 @@
 
 ## 覆盖率要求
 
-- **M1 scope**：`contracts/opcodes.yaml` 中 `excluded_m1 != true` 的 **177 条**。
+- **M1 scope**：`contracts/opcodes.yaml` 中 `scope == "m1"` 的 **152 条**。
   不得排除 RA 存取/块赋值或 `swym`/`illi`；`fence` 已排除（ADR-0014 D1）。
 - **主键 `id`**（对应 `contracts/opcodes.yaml` 的 `id`，**唯一**）。
   `format` 保留为普通字段，不入覆盖率主键。

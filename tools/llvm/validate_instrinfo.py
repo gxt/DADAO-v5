@@ -9,7 +9,7 @@ Checks:
   5. rwii wyde-position field is hb[5:4] (bits 17:16 in inst word)
   6. MISC sub-table instructions have 'let ha = 0xNN'
   7. All patterns are []
-  8. excluded_m1 instructions are NOT defined
+  8. non-M1 (scope: fp/excluded) instructions are NOT defined
 """
 from __future__ import annotations
 
@@ -51,13 +51,13 @@ def parse_format_class_blocks(formats_src: str) -> dict[str, str]:
 def load_m1_opcodes():
     with open(YAML_PATH) as f:
         opcodes = yaml.safe_load(f)
-    return [op for op in opcodes if not op.get("excluded_m1", False)]
+    return [op for op in opcodes if op.get("scope") == "m1"]
 
 
 def load_excluded_opcodes():
     with open(YAML_PATH) as f:
         opcodes = yaml.safe_load(f)
-    return [op for op in opcodes if op.get("excluded_m1", False)]
+    return [op for op in opcodes if op.get("scope") != "m1"]
 
 
 def parse_td_defs(td_content: str) -> dict:

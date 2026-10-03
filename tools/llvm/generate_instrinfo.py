@@ -4,7 +4,7 @@
 Reads the M1 instruction encoding table (opcodes.yaml) and produces:
   1. DADAOInstrInfo.td — Operand classes + 177 M1 instruction defs
 
-Only M1 entries (excluded_m1 absent or false) are emitted. Each instruction
+Only M1 entries (scope == "m1") are emitted. Each instruction
 inherits the appropriate format class from DADAOInstrFormats.td and binds
 its operands to the format's bits<> fields via `let` statements.
 
@@ -28,10 +28,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_m1_opcodes():
-    """Load M1 opcodes from contracts/opcodes.yaml, filtering excluded."""
+    """Load M1 opcodes from contracts/opcodes.yaml, filtering non-M1."""
     with open(ROOT / "contracts" / "opcodes.yaml") as f:
         opcodes = yaml.safe_load(f)
-    return [op for op in opcodes if not op.get("excluded_m1", False)]
+    return [op for op in opcodes if op.get("scope") == "m1"]
 
 
 def sanitize_name(insn_name: str) -> str:

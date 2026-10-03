@@ -661,7 +661,7 @@ def check_opcodes_cross():
     # Source: contracts/opcodes.yaml 条目总数 + M1 身份数
     # M1 身份数与 inventory.md（独立载体）交叉校验；总计 = len(records)（契约当前值）
     total = len(records)
-    m1_count = sum(1 for r in records if not r.get("excluded_m1", False))
+    m1_count = sum(1 for r in records if r.get("scope") == "m1")
 
     inv_m1_count, inv_m1_ids = count_inventory_m1_rows()
     if inv_m1_count is not None:
@@ -738,7 +738,7 @@ def check_opcodes_cross():
     else:
         # 收集 M1 format 族（从契约推导）
         m1_formats = set(
-            r["format"] for r in records if not r.get("excluded_m1", False)
+            r["format"] for r in records if r.get("scope") == "m1"
         )
         # 提取 lit patterns 的 opcode word 并映射到 format
         lit_obj_re = re.compile(

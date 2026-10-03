@@ -353,7 +353,7 @@ acc = len(re.findall(r"判决[^\n]{0,40}Accepted", txt))
 | `e_flags` | ELF 对象/ABI 格式版本（bits 0–7 = 1；bits 8–31 = 0） |
 | `wpN` | wyde 位置（0–3），rwii 格式的 `hb[5:4]` |
 | `fence` | 内存序屏障（M1 实现缺失，deferred） |
-| `excluded_m1` | 78 条 M1 排除指令（浮点/特权 cfx/LR-SC） |
+| `scope: fp` / `scope: excluded` | 78 条 M1 范围外指令（浮点/特权 cfx/LR-SC） |
 
 ### 11.2 文件地图
 

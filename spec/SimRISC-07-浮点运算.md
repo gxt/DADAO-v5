@@ -1,12 +1,14 @@
 # SimRISC浮点运算指令
 
 > **版本：0.5.4**（与 SimRISC-00 一致）
-> **分类：浮点运算 [deferred]**（44 条）— fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类
+> **分类：浮点运算 [scope: fp]**（44 条；未实现，decode ILLI）— fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类
+>
+> **FP 范围总账（`scope: fp` 共 60 条）**：本册 44 条（MISC-RF 子表）+ SimRISC-01 取数存数 8 条（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ SimRISC-02 寄存器复制 7 条（`cs.eq`/`cs.ne`/`cs.n`/`cs.z`/`cs.p` 的 `-rf` 与 `rd2rf`/`rf2rd`）+ SimRISC-03 16位立即数操作 1 条（`set.w-rf`）。`scope` 表范围、`deferred` 表状态，二者正交（用户裁定 2026-10-03）。
 
 <!-- ASSEMBLY_LIST_START -->
 ## 汇编指令速查
 
-### 浮点运算（44 条）｜ **deferred** — 待浮点专门任务
+### 浮点运算（44 条）｜ **scope: fp（未实现，decode ILLI）** — 待浮点专门任务
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -61,7 +63,7 @@
 ## 合法性检查
 
 
-**excluded_m1（decode ILLI）：**
+**scope: fp（decode ILLI，未实现）：**
 * `fo2fo_orri_rf`：decode ILLI
 * `fo2ft_orri_rf`：decode ILLI
 * `fo2io_orri_rf`：decode ILLI

@@ -40,7 +40,7 @@
 * `mreg_range_overflow`：起始+immu6>64 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`（6 条）
 * `mreg_range_overlap`：源/目的范围交集 → ILLI — `rb2rb_orri_rb`, `rd2rd_orri_rd`（2 条）
 
-**excluded_m1（decode ILLI）：**
+**scope: fp（decode ILLI，未实现）：**
 * `cs.eq_rrrr_rf`：decode ILLI
 * `cs.n_rrrr_rf`：decode ILLI
 * `cs.ne_rrrr_rf`：decode ILLI

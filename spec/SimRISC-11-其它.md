@@ -23,7 +23,7 @@
 ## 合法性检查
 
 
-**excluded_m1（decode ILLI）：**
+**scope: excluded（decode ILLI）：**
 * `cfx2rc_crrr_cfx`：decode ILLI
 * `cfx2rd_crrr_cfx`：decode ILLI
 * `escape_ciii_cfx`：decode ILLI

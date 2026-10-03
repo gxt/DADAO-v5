@@ -39,7 +39,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         clean-work build-mc build-mc-lite build-mc-reconfig \
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
-        check-legality-drift check-interface validate-encoding check-rule-refs \
+        check-legality-drift check-interface validate-encoding check-scope \
+        check-rule-refs \
         check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
         check-patch-tree check-source-state check-asm-list-drift size-report \
         check-tasks
@@ -74,6 +75,7 @@ help:
 	@echo "  make check           Run repository-level structural checks"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
+	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
@@ -218,7 +220,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-legality-drift check-interface validate-encoding check-scope check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -305,6 +307,12 @@ check-interface:
 # (value/mask, field overlap, bank, legality refs, decode conflicts).
 validate-encoding: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/validate_encoding.py contracts/opcodes.yaml
+
+# Scope partition gate (SPEC-086t): opcodes.yaml scope ∈ {m1,fp,excluded},
+# counts 152/60/15/227, scope != m1 => decode ILLI, fp <=> id endswith _rf,
+# and the old M1-exclusion boolean field has disappeared from live files.
+check-scope:
+	@$(PYTHON) tools/spec/check_scope.py
 
 # Rule references bidirectional gate (SPEC-071t): checks rule_refs in opcodes.yaml
 # against legality_rules.yaml (ID existence + orphan detection with exemptions).

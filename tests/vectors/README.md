@@ -7,7 +7,7 @@
   `.tao/adr/adr-0004-test-machine.md`），**不从 LLVM 汇编输出或 QEMU 运行结果生成**。
 - 每条向量记录输入状态、编码字、期望输出状态/PC/异常，期望值可回溯到 `spec_cite`。
 - 覆盖率主键为 `id`（对应 `contracts/opcodes.yaml` 的 `id`，**唯一**）；`format` 为普通字段，不入主键。M1 scope 以
-  `contracts/opcodes.yaml` 的 `excluded_m1 != true` 为唯一判据（177 条）。
+  `contracts/opcodes.yaml` 中 `scope == "m1"` 为唯一判据（**152 条**）。
 
 ## 文件
 

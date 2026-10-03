@@ -117,7 +117,7 @@
 
 | 规格来源 | 依赖此节的合约/文件 | 下游实现目标 |
 |----------|-------------------|-------------|
-| `contract-isa.md §9 浮点运算指令`（SimRISC-07 全部） | `contract-abi.md §1.4`、`§5`；`contracts/opcodes.yaml`（`excluded_m1`）；`adr-0004 §D5.1` | QEMU CPU（执行 RF 编码触发 ILLI）；浮点语义 `Deferred（M1 外）` |
+| `contract-isa.md §9 浮点运算指令`（SimRISC-07 全部） | `contract-abi.md §1.4`、`§5`；`contracts/opcodes.yaml`（`scope: fp`）；`adr-0004 §D5.1` | QEMU CPU（执行 RF 编码触发 ILLI）；浮点语义 `Deferred（M1 外）` |
 
 ### §10 32 位数据运算指令
 
@@ -152,8 +152,8 @@
 | 规格来源 | 依赖此节的合约/文件 | 下游实现目标 |
 |----------|-------------------|-------------|
 | `contract-isa.md §14.1 fence 指令`（SimRISC-12 §fence指令） | `contracts/opcodes.yaml`；`adr-0004 §D5.3`（SBZ 字段） | LLVM MC、QEMU CPU、vectors |
-| `contract-isa.md §14.2 LR-SC 原子指令 — Excluded`（SimRISC-12 §LR-SC指令） | `contracts/opcodes.yaml`（`excluded_m1`）；`contracts/legality_rules.yaml`；`adr-0004 §D5.1` | QEMU CPU（执行即 ILLI）；原子语义 `Deferred（M1 外）` |
-| `contract-isa.md §14.3 特权 cfx 系统指令 — Excluded`（SimRISC-11 §特权指令：§陷入指令、§退出指令、§寄存器传输指令、SimRISC-12 §SRAM块传输指令） | `contracts/opcodes.yaml`（`excluded_m1`）；`contracts/legality_rules.yaml`；`adr-0004 §D5.1` | QEMU CPU（执行即 ILLI）；特权语义 `Deferred（M1 外）` |
+| `contract-isa.md §14.2 LR-SC 原子指令 — scope: excluded`（SimRISC-12 §LR-SC指令） | `contracts/opcodes.yaml`（`scope: excluded`）；`contracts/legality_rules.yaml`；`adr-0004 §D5.1` | QEMU CPU（执行即 ILLI）；原子语义 `Deferred（M1 外）` |
+| `contract-isa.md §14.3 特权 cfx 系统指令 — scope: excluded`（SimRISC-11 §特权指令：§陷入指令、§退出指令、§寄存器传输指令、SimRISC-12 §SRAM块传输指令） | `contracts/opcodes.yaml`（`scope: excluded`）；`contracts/legality_rules.yaml`；`adr-0004 §D5.1` | QEMU CPU（执行即 ILLI）；特权语义 `Deferred（M1 外）` |
 
 ### §15 异常总结
 
@@ -167,7 +167,7 @@
 | 规格来源 | 依赖此节的合约/文件 | 下游实现目标 |
 |----------|-------------------|-------------|
 | `contract-isa.md 附录 A.1–A.6 M1 指令编码清单`（SimRISC-00 §SimRISC QFC、各 MISC 子表） | `contracts/opcodes.yaml`；`tools/spec/validate_encoding.py`、`generate_opcodes.py`、`check_qfc_coverage.py` | LLVM MC、QEMU CPU、vectors |
-| `contract-isa.md 附录 A.7 Excluded from M1 编码清单`（SimRISC-00 §SimRISC QFC、§MISC-AMO 指令编码、§MISC-octa指令编码） | `contracts/opcodes.yaml`（`excluded_m1`）；`contracts/legality_rules.yaml` | QEMU CPU（执行即 ILLI）；完整语义 `Deferred（M1 外）` |
+| `contract-isa.md 附录 A.7 scope: fp / scope: excluded 编码清单`（SimRISC-00 §SimRISC QFC、§MISC-AMO 指令编码、§MISC-octa指令编码） | `contracts/opcodes.yaml`（`scope: fp`/`scope: excluded`）；`contracts/legality_rules.yaml` | QEMU CPU（执行即 ILLI）；完整语义 `Deferred（M1 外）` |
 | `contract-isa.md 附录 B 条件标志参考`（SimRISC-00 §标识位说明；SimRISC-02 §条件赋值；SimRISC-06 §条件跳转指令） | `contracts/opcodes.yaml`；`contract-isa.md 附录 B.3`（条件跳转特例） | LLVM MC、QEMU CPU、vectors |
 
 ---

@@ -40,7 +40,7 @@ def _int(v):
 with open(os.path.join(REPO, "contracts", "opcodes.yaml")) as f:
     ALL = yaml.safe_load(f)
 
-M1 = [r for r in ALL if not r.get("excluded_m1")]
+M1 = [r for r in ALL if r.get("scope") == "m1"]
 BY_KEY = {(r["id"], r["format"]): r for r in M1}
 
 # ── Constants ─────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ RA_DEST = 1   # ra1 (not ra0)
 RD_OFF  = 2   # rd2 for multi rdhc
 IMMU6   = 1   # multi count
 
-# ── Memory instruction identities (M1, excluded_m1 != true) ─────────
+# ── Memory instruction identities (M1, scope == m1) ──────────────────
 MEM_INSNS = [
     # (id, mnemonic, format, op, bank, role_ha, align, is_multi)
     # ── RD bank, single load/store (rrii) ──

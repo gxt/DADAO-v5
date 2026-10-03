@@ -100,7 +100,7 @@ RISC-V **ISA Manual**（含 Unprivileged / Privileged / **Assembly Programmer's 
 | 5 | **`fence` SBZ 语义**：上游「bits[17:4] 应为零（SBZ），**非零值行为保留**」；v5 定 **ILLI**（`misc[4]` 期望 ILLI） | 上游「保留」vs v5「ILLI」是**决策** | 记入**偏离台账**；亦是 `fence` deferred 的规范侧根因 |
 | 6 | **测试机层整体缺失**：内存映射/复位值全集/exit 协议/启动协议 | ADR-0004 已自定但未升格 | 升格为《测试机平台规范》 |
 | 7 | **ELF/Object ABI 整体缺失**：`spec/` 无 ELF 内容 | ADR-0003 已自定 | 升格为《DADAO psABI/ELF》 |
-| 8 | **M1 排除项**：浮点（SimRISC-03 全篇）、特权 cfx（DADAO-12/13）、LR-SC | M1 不实现但规范仍在 | 统一「Excluded from M1」口径（`opcodes.yaml` 已有 `excluded_m1`） |
+| 8 | **M1 排除项**：浮点（SimRISC-03 全篇）、特权 cfx（DADAO-12/13）、LR-SC | M1 不实现但规范仍在 | 统一范围口径（`opcodes.yaml` 已有 `scope` = m1/fp/excluded） |
 
 ---
 

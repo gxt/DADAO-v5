@@ -82,21 +82,21 @@ def main():
         sys.exit(f"ERROR: 在 {args.src} 下未找到任何 .patch 文件；"
                  "无法校验（补丁集为树形，请检查 --src 是否为 patches/ 根）")
 
-    # 比对
+    # 比对（is_m1 仅用于分类统计；全部 227 条均须有 trans_* 或作为未实现 MISSING）
     missing = []
     for rec, func_name in zip(records, func_names):
         expected = f"trans_{func_name}"
         if expected not in trans_defs:
-            is_m1 = not rec.get("excluded_m1", False)
+            is_m1 = rec.get("scope") == "m1"
             missing.append({
                 "insn": rec["id"],
                 "func": expected,
                 "is_m1": is_m1,
             })
 
-    # 分 M1 / excluded 统计
+    # 分 M1 / 非 M1 统计
     total = len(records)
-    m1_total = sum(1 for r in records if not r.get("excluded_m1", False))
+    m1_total = sum(1 for r in records if r.get("scope") == "m1")
 
     missing_total = len(missing)
     found_total = total - missing_total

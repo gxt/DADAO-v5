@@ -16,7 +16,7 @@ Encoding derivations (SPEC-068t: MISC-AMO op 0x00→0x77):
   - illi 0: op=0x77, ha=0x00, immu18=0 → word=0x77000000
     mask=0xFFFC0000, value=0x77000000 → (0x77000000 & 0xFFFC0000)==0x77000000 ✓
 
-Note: fence (oiii) excluded from M1 per SPEC-039t (excluded_m1: true).
+Note: fence (oiii) is scope: excluded per SPEC-039t (decode: ILLI).
 """
 
 import os
@@ -145,7 +145,7 @@ def write_yaml(cases):
         "# Covers: swym_oiii_imm (oiii), illi_oiii_imm (oiii) — 2 M1 identities\n"
         "# F6: illi encoding/semantic exempt (always ILLI), coverage via legality\n"
         "# F10: swym encoding words verified against opcodes.yaml mask/value\n"
-        "# Note: fence excluded from M1 per SPEC-039t (excluded_m1: true)\n"
+        "# Note: fence is scope: excluded per SPEC-039t (decode: ILLI)\n"
     ) % GENERATOR_PATH
 
     os.makedirs(OUT_DIR, exist_ok=True)

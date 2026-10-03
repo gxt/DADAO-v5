@@ -4,7 +4,7 @@
 >
 > **范围**：M1——标量整数 + 地址/内存 RD/RB/**RA** + 控制流（`call`/`ret`、RegRAS）+ 测试机所需系统/异常。
 >
-> **M1 范围外**（标 `Excluded from M1`，不提取其规范内容）：浮点（**RF 全部**：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）、特权 cfx 系统指令（trap/escape/cfx2rd/cfx2rc/cfxld/cfxst）、LR-SC 原子指令。
+> **M1 范围外**（`scope: fp` / `scope: excluded`，本合约不提取其规范内容）：浮点（**RF 全部**，`scope: fp`：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）、`scope: excluded`（特权 cfx 系统指令 trap/escape/cfx2rd/cfx2rc/cfxld/cfxst、LR-SC 原子指令、fence）。
 >
 > **来源标注**：每条规范性断言在句末以 `[SimRISC-XX §章节名]` 标注来源 spec/ 章节，不写行号。SimRISC-07 仅用于确认浮点边界。
 >
@@ -22,7 +22,7 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 |------|------|------|---------|
 | 数据寄存器 (RD) | rd0–rd63 | 通用运算 | 是 |
 | 基址寄存器 (RB) | rb0–rb63 | 地址计算 | 是 |
-| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | RF 存取与运算 Excluded from M1；仅 rf0（FCSR）寄存器模型/复位值保留（供 SPEC-006t，指令语义 Excluded） |
+| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | RF 存取与运算 `scope: fp`（未实现，decode ILLI）；仅 rf0（FCSR）寄存器模型/复位值保留（供 SPEC-006t，指令语义未提取） |
 | 返回地址栈 (RA) | ra0–ra63 | 函数调用/返回 | 是（RegRAS/MemRAS 模型 + RA 存取/块赋值） |
 
 ### §1.2 寄存器编号编码
@@ -47,7 +47,7 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 
 #### §1.3.3 rf0（浮点状态寄存器，FCSR）
 
-rf0 为浮点状态寄存器（FCSR）。**FCSR 的指令语义（作为浮点操作数、读写约定）Excluded from M1**；此处仅保留 rf0 的**寄存器模型/位布局/复位值**（属 §1 寄存器模型，供 M1 测试机复位值 `SPEC-006t`）。[SimRISC-00 §浮点状态寄存器]
+rf0 为浮点状态寄存器（FCSR）。**FCSR 的指令语义（作为浮点操作数、读写约定）属 `scope: fp`（本合约未提取）**；此处仅保留 rf0 的**寄存器模型/位布局/复位值**（属 §1 寄存器模型，供 M1 测试机复位值 `SPEC-006t`）。[SimRISC-00 §浮点状态寄存器]
 
 - `rf0` 可作浮点运算的**源操作数**（含 `ftsgnj`/`fosgnj` + `rfHD=rf0` 的 `abs()` 特例）；`rf0` **不可作浮点运算的目的操作数**（目的为 rf0 → ILLI）。[SimRISC-00 §浮点寄存器]
 
@@ -83,7 +83,7 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 | 3 | UF | Underflow |
 | 4 | NX | Inexact |
 
-> 浮点指令的 rf0 作为操作数等约定见 §9（Excluded from M1）。
+> 浮点指令的 rf0 作为操作数等约定见 §9（`scope: fp`）。
 
 #### §1.3.4 ra0–ra63（返回地址栈）
 
@@ -818,9 +818,9 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 ---
 
-## §9 浮点运算指令 — Excluded from M1
+## §9 浮点运算指令 — scope: fp（未实现，decode ILLI）[SimRISC-07 §版本]
 
-浮点类指令（SimRISC-07）整体 **Excluded from M1**，本合约不提取其规范内容。[SimRISC-07 §版本]
+浮点类指令（SimRISC-07 + 散见 SimRISC-01/02/03 的 RF 形态，共 60 条）整体为 **`scope: fp`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-07 §版本]
 
 - 范围：`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o`（RF 存取）、`rf2rd`/`rd2rf`、`set.w`、格式转换、浮点算术/符号位/比较/条件赋值/分类指令、`set.ft`/`set.fo` 伪指令。
 - 唯一例外：`rf0`（FCSR）的寄存器模型/位布局属 §1.3.3，M1 测试机复位值需要，已在 §1.3.3 提取。
@@ -1112,9 +1112,9 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 ---
 
-## §14 待定指令 — Excluded from M1
+## §14 待定指令 — scope: excluded
 
-> 范围：fence 指令、LR-SC 原子指令、特权 cfx 系统指令。均 **Excluded from M1**，本合约不提取其完整规范内容。
+> 范围：fence 指令、LR-SC 原子指令、特权 cfx 系统指令。均 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其完整规范内容。[SimRISC-12 §fence指令]
 
 ### §14.1 fence 指令（oiii 格式）
 
@@ -1135,16 +1135,16 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 - bits[17:4] 应为零（SBZ），非零值行为保留。[SimRISC-12 §fence指令]
 
-### §14.2 LR-SC 原子指令 — Excluded from M1
+### §14.2 LR-SC 原子指令 — scope: excluded
 
-`lr`/`sc` 原子指令（`lr_nn.o`/`lr_nr.o`/`lr_an.o`/`lr_ar.o`、`sc_nn.o`/`sc_nr.o`/`sc_an.o`/`sc_ar.o`）**Excluded from M1**，本合约不提取其规范内容。[SimRISC-12 §LR-SC指令]
+`lr`/`sc` 原子指令（`lr_nn.o`/`lr_nr.o`/`lr_an.o`/`lr_ar.o`、`sc_nn.o`/`sc_nr.o`/`sc_an.o`/`sc_ar.o`）**`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-12 §LR-SC指令]
 
 - 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/deferred.md`）。
 - 编码位置：`MISC-AMO` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §MISC-AMO 指令编码]
 
-### §14.3 特权 cfx 系统指令 — Excluded from M1
+### §14.3 特权 cfx 系统指令 — scope: excluded
 
-以下特权态指令 **Excluded from M1**，本合约不提取其规范内容：[SimRISC-11 §特权指令]
+以下特权态指令 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容：[SimRISC-11 §特权指令]
 
 | 指令 | 格式 | 来源 |
 |------|------|------|
@@ -1394,9 +1394,12 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 000-000 | `illi` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
 | 000-010 | `swym` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
 
-> `fence`（000-001）与 LR-SC 条目（010-xxx / 011-xxx）Excluded from M1，见 A.7。[SimRISC-00 §MISC-AMO 指令编码]
+> `fence`（000-001）与 LR-SC 条目（010-xxx / 011-xxx）为 `scope: excluded`，见 A.7。[SimRISC-00 §MISC-AMO 指令编码]
 
-### A.7 Excluded from M1 编码清单
+### A.7 `scope: fp` / `scope: excluded` 编码清单
+
+> `scope: fp`（共 60 条）：RF 存取（8）、`set.w-rf`（1）、`cs.*-rf`（5）、`rd2rf`/`rf2rd`（2）、MISC-RF 子表（44）。
+> `scope: excluded`（共 15 条）：特权 cfx（6）、fence（1）、LR-SC（8）。
 
 | op (hex) / 位置 | insn | 助记符 | 类别 | 来源 |
 |-----------------|------|--------|------|------|

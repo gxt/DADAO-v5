@@ -77,13 +77,13 @@ def _unquote(cell):
 
 def load_opcodes(path):
     """返回 (m1_records, by_id, duplicate_ids, all_records)。
-    M1 判据 excluded_m1 != true；all_records 含全部 256 条（含 excluded_m1）。
+    M1 判据 scope == "m1"；all_records 含全部 227 条（含 scope fp/excluded）。
     """
     with open(path) as fh:
         records = _yaml.safe_load(fh)
     if not isinstance(records, list):
         raise ValueError("opcodes.yaml top-level must be a list")
-    m1 = [r for r in records if not r.get("excluded_m1")]
+    m1 = [r for r in records if r.get("scope") == "m1"]
     by_id = {}
     dups = []
     for rec in m1:
@@ -281,7 +281,7 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                 errors.append("%s: reserved encoding must have encoding.word "
                               "(non-null)" % tag)
             # R4: word 不得为 0x00000000（全零字 = 保留编码，op=0x00 → UNDI，§2.9）
-            # R8: word 不得匹配 opcodes.yaml 中任何已定义记录（含 excluded_m1）
+            # R8: word 不得匹配 opcodes.yaml 中任何已定义记录（含 scope fp/excluded）
             if word is not None:
                 try:
                     wval_r = int(word, 16) if isinstance(word, str) else word
@@ -292,7 +292,7 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                         errors.append("%s: reserved encoding word must not be "
                                       "0x00000000 (全零字 = 保留编码，op=0x00 → UNDI, §2.9)"
                                       % tag)
-                    # R8: 遍历 opcodes.yaml 全部记录（含 excluded_m1），
+                    # R8: 遍历 opcodes.yaml 全部记录（含 scope fp/excluded），
                     # 若 (word & mask) == value 命中则说明该 word 是已定义编码，
                     # 不得标 reserved
                     for rec in all_records:
@@ -305,11 +305,11 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                             errors.append(
                                 "%s: reserved encoding word %s matches defined "
                                 "encoding in opcodes.yaml (id=%s, format=%s, "
-                                "excluded_m1=%s); reserved only for QFC/子表 "
+                                "scope=%s); reserved only for QFC/子表 "
                                 "blank cells"
                                 % (tag, word, rec.get("id"),
                                    rec.get("format"),
-                                   rec.get("excluded_m1", False)))
+                                   rec.get("scope", "?")))
                             break
             # R5: notes 必须非空（须给出 reserved 依据）
             notes_val = case.get("notes")

@@ -152,12 +152,13 @@ def render_chapter_legality(
         if chapter in chapters:
             applicable_rules.append(rule)
 
-    # Find excluded entries in this chapter (not referenced by any rule)
-    excluded_entries = [e for e in chapter_entries if e.get("excluded_m1")]
+    # Find non-M1 entries in this chapter (not referenced by any rule), split by scope
+    fp_entries = [e for e in chapter_entries if e.get("scope") == "fp"]
+    excluded_entries = [e for e in chapter_entries if e.get("scope") == "excluded"]
 
-    # If no rules and no excluded entries, still render an empty area
+    # If no rules and no non-M1 entries, still render an empty area
     # (per task: "该章无任何规则的 M1 指令时，仍渲染空区")
-    if not applicable_rules and not excluded_entries:
+    if not applicable_rules and not fp_entries and not excluded_entries:
         return f"{LEGALITY_START}\n## 合法性检查\n\n（本章无适用规则）\n{LEGALITY_END}"
 
     # Group rules by fault × semantic
@@ -207,10 +208,15 @@ def render_chapter_legality(
                     # Global rule with no per-instruction references
                     lines.append(f"* `{rule_id}`{kind_tag}{status_tag}：{summary}")
 
-    # Add excluded instructions note
+    # Add non-M1 instructions note, split by scope
+    if fp_entries:
+        lines.append("")
+        lines.append("**scope: fp（decode ILLI，未实现）：**")
+        for e in sorted(fp_entries, key=lambda x: x["id"]):
+            lines.append(f"* `{e['id']}`：decode ILLI")
     if excluded_entries:
         lines.append("")
-        lines.append("**excluded_m1（decode ILLI）：**")
+        lines.append("**scope: excluded（decode ILLI）：**")
         for e in sorted(excluded_entries, key=lambda x: x["id"]):
             lines.append(f"* `{e['id']}`：decode ILLI")
 

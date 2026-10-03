@@ -23,7 +23,7 @@ def _int(v):
 with open(os.path.join(REPO, "contracts", "opcodes.yaml")) as f:
     ALL = yaml.safe_load(f)
 
-M1 = [r for r in ALL if not r.get("excluded_m1")]
+M1 = [r for r in ALL if r.get("scope") == "m1"]
 
 # ── Map (insn, format) → file ─────────────────────────────────────────
 FILE_MAP = {

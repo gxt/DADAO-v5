@@ -2,7 +2,7 @@
 
 > **状态**：**生效（v1.1，2026-09-25，用户审核通过；修订：双目的/多寄存器语法，2026-09-28）**——语法已定稿；**实现待安排**（LLVM MC 的 parser/printer/disassembler 改动；当前汇编器实现的是旧语法）
 > **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策由 **`ADR-0013`《DADAO 汇编语言语法》冻结（Accepted，2026-09-28）**
-> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表）、`.tao/knowledge/contract-asm-list.md`（227 条指令全表，自动生成；其中**浮点**与**待定**两章整章 deferred）
+> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表）、`.tao/knowledge/contract-asm-list.md`（227 条指令全表，自动生成；其中**浮点**章为 `scope: fp`（未实现，decode ILLI）、**待定**章为 deferred）
 > **说明**：本规范按 ADR-0012 D4 由 spec 模块任务修改上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）
 > **关键词**：MUST / SHOULD / MAY 按 RFC 2119 解释
 
@@ -12,7 +12,7 @@
 
 - **适用范围**：DADAO M1 的汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。
 - **指令集权威**：编码与身份以 `contracts/opcodes.yaml` 为准；语义以 `contract-isa.md` 为准；本规范**只规定书写形式**。
-- **格式类（format）**：`contract-isa.md §2.3` 定义的 9 种 M1 格式——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii`（`crrr`/`crii`/`ciii` 属特权 cfx，Excluded from M1）。
+- **格式类（format）**：`contract-isa.md §2.3` 定义的 9 种 M1 格式——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii`（`crrr`/`crii`/`ciii` 属特权 cfx，`scope: excluded`）。
 - **术语**：**地址表达式**、**寄存器组**、**条件寄存器**、**地址立即数（字节）**——见 §3/§4/§2.4。
 
 ---
@@ -39,7 +39,7 @@
 - **取值范围**：各立即数字段的位宽与取值范围见 `.tao/knowledge/contract-asm-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 §11）。
 
 ### 2.5 寄存器名
-- 四组：`rd0`–`rd63`、`rb0`–`rb63`、`ra0`–`ra63`、`rf0`–`rf63`（RF 属 Excluded from M1）。
+- 四组：`rd0`–`rd63`、`rb0`–`rb63`、`ra0`–`ra63`、`rf0`–`rf63`（RF 属 `scope: fp`）。
 - 寄存器名**MUST**为「组前缀 + 十进制序号」，序号**MUST**在 0–63。
 - **ABI 别名**（`rdzero`/`rderrno`/`rdt0`–`rdt7`/`rda0`–`rda15` 及 RB/RA/RF 对应，见 `contract-abi.md §1.2`）**MAY**在后续版本支持；**当前 MUST NOT** 使用（未实现，见 §11）。
 
@@ -148,7 +148,7 @@
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
 | `oiii` | `助记符 immu18` | `illi 0`、`fence 0`、`swym 0` | 纯立即数，不加 `[]` |
 
-**Excluded from M1 的格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**）：
+**`scope: excluded` 的格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**）：
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power），末两操作数为**地址**。
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 **`cg` 寄存器**与 **`rc` 寄存器**，各自命名。
 - `lr_nn.o rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
@@ -243,7 +243,7 @@
 
 ## 13. cfx 别名约定
 
-> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/knowledge/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 属 **Excluded from M1**，本节约定随 M2 落地。
+> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/knowledge/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 属 `scope: excluded`，本节约定随 M2 落地。
 
 ### 13.1 归属与形态（D1/D2）
 - cfx 别名属**汇编规范**：由汇编器内置**符号表**解析，**不引入** cpp 头文件/宏。

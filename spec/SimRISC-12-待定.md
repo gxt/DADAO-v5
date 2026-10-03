@@ -28,7 +28,7 @@
 ## 合法性检查
 
 
-**excluded_m1（decode ILLI）：**
+**scope: excluded（decode ILLI）：**
 * `cfxld_crii_cfx`：decode ILLI
 * `cfxst_crii_cfx`：decode ILLI
 * `fence_oiii_imm`：decode ILLI

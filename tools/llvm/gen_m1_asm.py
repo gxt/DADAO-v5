@@ -176,7 +176,7 @@ def main():
     args = parser.parse_args()
 
     entries = yaml.safe_load(open(args.opcodes))
-    m1 = [e for e in entries if not e.get('excluded_m1')]
+    m1 = [e for e in entries if e.get('scope') == 'm1']
 
     lines = []
     for e in m1:
