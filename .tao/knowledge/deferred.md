@@ -50,6 +50,8 @@
 
 ## infra
 
+- **13 个历史任务书「完成区已填但状态仍 `待验收`」（漏 `/complete`，`INFRA-029t` 实测，2026-10-03 登记）**：`INFRA-018t`、`INFRA-019t`、`SPEC-058t`、`SPEC-062t`、`SPEC-063t`、`SPEC-066t`、`SPEC-067t`、`SPEC-068t`、`SPEC-069t`、`SPEC-071t`、`SPEC-073t`、`SPEC-074t`、`TESTCASES-020t`（跨 infra/spec/testcases）。**性质**：历史漏收尾——完成区已填（`测试结果`/`验收结果` 非空）但未走完 `/complete`（状态未置 `已验证`）。**处置**：`make check-tasks`（`INFRA-029t`，报告型，默认不阻断）可随时复查；**是否逐个回填 `/complete`（含知识沉淀/提交）由用户裁定**，本任务**只建门控、不逐个补做**。**注**：若其中若干实为「已下发但 reviewer 未判」的在途任务，需先完成验收再置状态。
+
 - **~~LLVM/QEMU 缓存重新浅克隆（2026-09-28 登记）~~ ✅ 已完成（2026-09-29）**：删除全量 mirror 后用 `INFRA-015t` 的浅取重新 fetch——`llvm-project.git` **378M**（shallow）、`qemu.git` **52M**（shallow），耗时 **2m50s**；pinned commit 均存在；`make fetch` 幂等；`llvm-mc`/`make check` 正常。
 
 - **`fetch.py` 选源标签逻辑重复（`INFRA-009t` 遗留，DRY）**：`main()` 为打印实际使用的源，重新解析了一遍 `COMPONENT_SOURCE_<NAME>` 与 `source[0]["name"]`，与 `select_source()` 内部逻辑重复。当前行为正确（打印发生在 `sync_mirror` 之前，短路时也能看到实际源），但两处逻辑未来可能不同步。建议 refactor：让 `select_source()` 返回 `(url, label)` 元组，或在 `main()` 复用其解析结果。非阻塞，无功能影响。
