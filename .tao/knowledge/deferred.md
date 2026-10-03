@@ -96,6 +96,8 @@
 
 ## llvm / qemu / integ
 
+- **LLVM 侧 2 个新增文件 >1000 行（建议性跟踪，`INFRA-028t` size-report，2026-10-03 登记）**：按 `spec/Process-01 §11` 规模约定（**非强制**），`llvm-project/lib/Target/DADAO/DADAOInstrInfo.td`（**1304 行**）与 `llvm-project/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp`（**1091 行**）已 >1000（未越 2000）；另有 `qemu/target/dadao/insn_trans/trans_arith.c.inc`（**927**，逼近 1000）。**无需立即动作**——拆分是**建议性**、由人决定；如后续出现维护痛点或逼近/越过 2000，再评估拆分（如 TableGen 表项分文件、AsmParser 按指令族拆分）。归属：llvm 模块（`make size-report` 可随时复查）。
+
 - **F3 — ELF writer 存根是死代码（`LLVM-003t` reviewer F3，2026-09-17 登记）**：`DADAOELFObjectWriter.cpp` 定义了 `createDadaoELFObjectWriter`，但 `DADAOMCTargetDesc.cpp` 的 `LLVMInitializeDADAOTargetMC()` 未注册它（`RegisterELFObjectWriter` 未调用）；`createDadaoAsmBackend`/`createDadaoMCCodeEmitter` 只在 `DADAOMCTargetDesc.h` 中声明，无定义、未注册。当前 ELF writer 存根为死代码。归属：后续 ELF/汇编器任务（`LLVM-006t` 起）接线。不阻塞本任务（本任务边界 = triple 注册 + 最小 target 骨架 + `llvm-mc --version` 验证）。
 - **F4 — `e_flags` 未设置（`LLVM-003t` reviewer F4，2026-09-17 登记）**：`contract-elf.md §1.1` 要求 `e_flags = 0x00000001`（对象/ABI 格式版本 = 1）。`DADAOELFObjectWriter` 的构造函数未设置 `e_flags`（LLVM 默认为 0）。当前 ELF writer 存根本身是死代码（F3），`e_flags` 设置属后续 ELF/汇编器任务范围。归属：`LLVM-006t` 起。不阻塞本任务。
 - **`DADAOFrameLowering` 未覆写纯虚 `hasFPImpl`（`LLVM-004t` 交叉复核 F2，2026-09-18 登记）**：`TargetFrameLowering::hasFPImpl` 为纯虚（`= 0`），`DADAOFrameLowering` 未覆写 → 该存根是**抽象类**。M1 安全（无代码实例化，仅被 `DADAORegisterInfo.cpp` include 以满足完整类型）；**M2 会阻塞**（CodeGen 首次实例化 `getFrameLowering()` 时编译失败）。修复：加 `bool hasFPImpl(const MachineFunction &MF) const override { return false; }`（M2 默认无帧指针）。归属：M2 第一个依赖 CodeGen 帧信息的任务。

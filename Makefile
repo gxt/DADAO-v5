@@ -41,7 +41,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-rule-refs \
         check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
-        check-patch-tree check-source-state check-asm-list-drift
+        check-patch-tree check-source-state check-asm-list-drift size-report
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -84,6 +84,7 @@ help:
 	@echo "  make check-asm-list-drift  Check assembly-list drift gate (INFRA-027t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
 	@echo "  make check-no-residue  Detect unexpected untracked temp files"
+	@echo "  make size-report  Report added-component-file sizes (advisory, not a gate)"
 
 manifest-check:
 	@$(PYTHON) tools/infra/manifest_check.py
@@ -236,6 +237,11 @@ check-patch-tree:
 # E7 模块自检 (2026-10-03): 报告每个源树的 E1 状态（worktree 干净 + base+1）。
 check-source-state:
 	@$(PYTHON) tools/infra/check_patch_tree.py --source-state
+
+# 组件源文件规模报告 (INFRA-028t): 仅报告（非强制），不进门控。
+# 规则见 spec/Process-01 §11「组件源文件规模约定」。
+size-report:
+	@$(PYTHON) tools/infra/size_report.py
 
 # spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
 # Standalone target, not part of `make check`.
