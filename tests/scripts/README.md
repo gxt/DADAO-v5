@@ -45,6 +45,18 @@ python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml
 python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ --batch
 ```
 
+Batch mode runs cases serially by default. `--jobs N` runs `N` cases in
+parallel (threads: each case spawns an I/O-bound QEMU subprocess, and the
+parsed vector YAML is cached so the main loop is not GIL-bound); when
+omitted, `N` is taken from `$JOBS`, falling back to `1` (serial):
+
+```bash
+python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ --batch --jobs 8
+```
+
+Parallel execution does not change the summary counts or the `fail_details`
+ordering: results are aggregated in `(file order, case order)`.
+
 ### Run with diagnostics (dump mode)
 
 ```bash

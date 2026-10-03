@@ -313,8 +313,9 @@ check-rule-refs: contracts/opcodes.yaml
 
 # QEMU semantic execution gate (SPEC-069t): runs ISA semantic test vectors
 # through QEMU. Requires 'make build-qemu' to have been run.
-# Runs all semantic/boundary cases in reg-shift-extend + reg-compare (~14s).
-# Uses symlinked temp dir + --batch for full coverage.
+# Runs all semantic/boundary cases in reg-shift-extend + reg-compare.
+# Uses symlinked temp dir + --batch for full coverage; cases run in parallel
+# via --jobs $(JOBS) (JOBS defaults to 8; never nproc/full-core).
 # Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
 # D6 compliance: gate dir under TEST_ARTIFACTS_DIR, log under .work/log/qemu/.
 QEMU_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
@@ -324,7 +325,7 @@ check-qemu-semantics:
 	  ln -sf $(CURDIR)/tests/vectors/isa/reg-shift-extend.yaml $(QEMU_SEM_DIR)/ 2>/dev/null; \
 	  ln -sf $(CURDIR)/tests/vectors/isa/reg-compare.yaml $(QEMU_SEM_DIR)/ 2>/dev/null; \
 	  echo "check-qemu-semantics: running shift+compare (all cases)..."; \
-	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) > $(QEMU_SEM_LOG) 2>&1; \
+	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) --jobs $(JOBS) > $(QEMU_SEM_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -5 $(QEMU_SEM_LOG); \
 	  if [ $$rc -ne 0 ]; then \

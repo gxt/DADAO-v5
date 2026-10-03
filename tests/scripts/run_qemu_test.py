@@ -14,6 +14,7 @@ Exit code protocol (ADR-0004 D3/D5):
 """
 
 import argparse
+import concurrent.futures
 import json
 import os
 import socket
@@ -218,6 +219,34 @@ class QMPClient:
             self.sock = None
 
 
+# Cache of parsed vector YAML: (abspath, mtime_ns, size) -> case list.
+# build_binary() is invoked once per case; without this cache the entire
+# vector file is re-parsed for every case (O(cases) redundant, GIL-bound
+# work that otherwise dominates runtime and defeats parallelism).
+_VECTOR_CACHE = {}
+
+
+def _load_cases(vector_file):
+    """Return the parsed case list for a vector YAML file (memoized).
+
+    The vectors are read-only during a run, so the parsed result is cached
+    keyed by path + mtime + size. Returning the cached list is safe because
+    build_test_binary() deep-copies any case it mutates.
+    """
+    abspath = os.path.abspath(vector_file)
+    st = os.stat(abspath)
+    key = (abspath, st.st_mtime_ns, st.st_size)
+    cases = _VECTOR_CACHE.get(key)
+    if cases is None:
+        with open(abspath, "r") as f:
+            cases = yaml.safe_load(f)
+        # Plain assignment (dict ops are atomic under the GIL). Do NOT clear
+        # the cache here: clearing on every miss causes thrashing when
+        # multiple worker threads race on different files.
+        _VECTOR_CACHE[key] = cases
+    return cases
+
+
 def build_binary(vector_file, case_idx, dump_mode=False):
     """Build test binary for a vector case.
 
@@ -228,8 +257,7 @@ def build_binary(vector_file, case_idx, dump_mode=False):
     sys.path.insert(0, script_dir)
     from build_test_binary import build_test_binary as build_blob
 
-    with open(vector_file, "r") as f:
-        cases = yaml.safe_load(f)
+    cases = _load_cases(vector_file)
 
     if not isinstance(cases, list):
         raise ValueError(f"Vector file {vector_file} does not contain a list")
@@ -483,17 +511,23 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
 
 
 def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
-              dump_mode=False, verbose=False):
+              dump_mode=False, verbose=False, jobs=1):
     """Run all vector files in a directory.
+
+    Cases are executed serially when ``jobs <= 1``. With ``jobs > 1`` the
+    runnable cases are dispatched to a ``ThreadPoolExecutor``: once the
+    parsed-vector cache above removes the otherwise GIL-bound re-parse, the
+    per-case work is dominated by the QEMU subprocess wait (during which the
+    GIL is released), so threads parallelize effectively.
+
+    Result aggregation is always deterministic and ordered by
+    ``(file order, case order)`` — identical to the serial run — so the
+    summary counts and ``fail_details`` are independent of ``jobs``.
 
     Returns (total, passed, failed, deferred, errors, fail_details).
     """
     total = 0
-    passed = 0
-    failed = 0
     deferred = 0
-    errors = 0
-    fail_details = []
 
     vector_files = sorted([
         os.path.join(vector_dir, f)
@@ -501,10 +535,13 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
         if f.endswith(".yaml")
     ])
 
+    # Ordered plan: ("deferred"|"run", vector_file, fname, case_idx, case).
+    # Preserves (file order, case order) so results can be aggregated in
+    # deterministic order regardless of completion order.
+    plan = []
     for vf in vector_files:
         fname = os.path.basename(vf)
-        with open(vf, "r") as f:
-            cases = yaml.safe_load(f)
+        cases = _load_cases(vf)
 
         if not isinstance(cases, list):
             print(f"  SKIP {fname}: not a list")
@@ -512,36 +549,66 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
 
         for i, case in enumerate(cases):
             total += 1
-            status_str = case.get("status", "active")
-
-            # Skip deferred cases
-            if status_str == "deferred":
+            if case.get("status", "active") == "deferred":
                 deferred += 1
-                if verbose:
-                    print(f"  DEFERRED {fname}[{i}]: {case.get('mnemonic', '?')}")
-                continue
-
-            # Skip encoding-only cases (no expected_state, no expected_fault)
-            case_class = case.get("class", "")
-            if case_class == "encoding" and not case.get("expected_fault"):
-                # Encoding cases: just verify no fault
-                pass
-
-            status, desc, _, dump_file = run_single_test(
-                qemu_bin, trampoline_path, vf, i, timeout, dump_mode, verbose=False
-            )
-
-            if status == "PASS":
-                passed += 1
-            elif status in ("FAIL", "ERROR"):
-                failed += 1
-                fail_details.append(f"  FAIL {fname}[{i}]: {desc}")
-            elif status == "INCONCLUSIVE":
-                errors += 1
-                fail_details.append(f"  INCONCLUSIVE {fname}[{i}]: {desc}")
+                plan.append(("deferred", vf, fname, i, case))
             else:
-                failed += 1
-                fail_details.append(f"  {status} {fname}[{i}]: {desc}")
+                plan.append(("run", vf, fname, i, case))
+
+    # Execute runnable cases (parallel when jobs > 1).
+    workers = max(1, jobs)
+    if dump_mode and workers > 1:
+        # Batch dump mode writes diagnostics to a fixed shared path
+        # (<artifact_dir>/harness/dumps/state.bin), which parallel workers
+        # would clobber. Fall back to serial to keep dumps correct.
+        print("  NOTE: dump mode is not parallel-safe; forcing serial execution",
+              file=sys.stderr)
+        workers = 1
+    run_items = [p for p in plan if p[0] == "run"]
+    results = {}
+    if run_items:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [
+                executor.submit(
+                    run_single_test,
+                    qemu_bin, trampoline_path, vf, i, timeout, dump_mode, False,
+                )
+                for (_, vf, _fname, i, _case) in run_items
+            ]
+            for idx, future in enumerate(futures):
+                results[idx] = future.result()
+
+    # Aggregate in plan order (deterministic).
+    passed = 0
+    failed = 0
+    errors = 0
+    fail_details = []
+    run_cursor = 0
+    for kind, vf, fname, i, case in plan:
+        if kind == "deferred":
+            if verbose:
+                print(f"  DEFERRED {fname}[{i}]: {case.get('mnemonic', '?')}")
+            continue
+
+        status, desc, _, _dump_file = results[run_cursor]
+        run_cursor += 1
+
+        if verbose:
+            # Ordered per-case status line (deterministic; enables
+            # machine-readable --jobs equivalence diffs).
+            print(f"  {status} {fname}[{i}]")
+
+        if status == "PASS":
+            passed += 1
+        elif status in ("FAIL", "ERROR"):
+            failed += 1
+            fail_details.append(f"  FAIL {fname}[{i}]: {desc}")
+        elif status == "INCONCLUSIVE":
+            errors += 1
+            fail_details.append(f"  INCONCLUSIVE {fname}[{i}]: {desc}")
+        else:
+            failed += 1
+            fail_details.append(f"  {status} {fname}[{i}]: {desc}")
 
     return total, passed, failed, deferred, errors, fail_details
 
@@ -561,9 +628,28 @@ def main():
                         help="Path to qemu-system-dadao binary")
     parser.add_argument("--trampoline", default=None,
                         help="Path to trampoline.bin")
+    parser.add_argument("--jobs", type=int, default=None,
+                        help="Parallel worker count for batch mode "
+                             "(default: $JOBS or 1)")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Verbose output")
     args = parser.parse_args()
+
+    # Parallelism: explicit --jobs wins; else $JOBS; else 1 (serial semantics).
+    jobs = args.jobs
+    if jobs is None:
+        env_jobs = os.environ.get("JOBS")
+        if env_jobs:
+            try:
+                jobs = int(env_jobs)
+            except ValueError:
+                print(f"Error: invalid JOBS value {env_jobs!r}", file=sys.stderr)
+                sys.exit(2)
+        else:
+            jobs = 1
+    if jobs < 1:
+        print(f"Error: --jobs must be >= 1 (got {jobs})", file=sys.stderr)
+        sys.exit(2)
 
     # Find QEMU binary
     qemu_bin = args.qemu or find_qemu()
@@ -592,7 +678,8 @@ def main():
 
         print(f"Running batch tests from {vector_dir}...")
         total, passed, failed, deferred, errors, fail_details = run_batch(
-            qemu_bin, trampoline_path, vector_dir, args.timeout, args.dump, args.verbose
+            qemu_bin, trampoline_path, vector_dir, args.timeout, args.dump,
+            args.verbose, jobs
         )
 
         print(f"\nResults: {total} total, {passed} passed, {failed} failed, "
