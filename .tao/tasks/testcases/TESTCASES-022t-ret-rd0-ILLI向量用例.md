@@ -56,6 +56,15 @@
 | `tests/scripts/run_qemu_test.py`（harness） | **BLOCKED on QEMU-032t**（需 `ret rd0,1` 触发 ILLI 0x88 的运行期实现） | 0x88 = ILLI machine fault → `expected_fault: ILLI` → PASS |
 | `tests/scripts/build_test_binary.py`（`class: legality` → `illi` 尾部桩） | **现在可跑**（为 legality 用例自动插入 `illi` 安全网） | 不独立执行 |
 
+### ⚠️ 预检发现：harness 对 `ret` 的语义用例**预存在失败**（`QEMU-032t` 验收中披露，pre-existing）
+
+- **现象**：`ctrl-ret.yaml[0..3]`（4 条 semantic）与 `ctrl-call.yaml[5]` 在 harness 下**失败**；`QEMU-032t` 的注入态/实现态**失败集逐条一致** ⇒ 确认为 **pre-existing，与 `ret rd0` 改动无关**。
+- **归因**：`tests/scripts/build_test_binary.py:625` 把 `ret` 路由到**合成 `call→ret→landing`**（按 `QEMU-018t` P2 剥离 `input_state.ra`），而现存 `ctrl-ret.yaml` 语义用例**依赖预置 RA**；`call` 宽度推导另抛 `ValueError`。
+- **对本任务的约束**：
+  1. 本任务 **`ret rd1, 42`（semantic）** 新用例在 harness 下**预计同样失败**——**不得**据此判本任务失败；
+  2. 本任务**验收以 `validate_vectors.py` + 独立编码计算 + 用例结构**为准（验收 1–4、6），harness 端到端**不纳入**本任务验收；
+  3. harness 侧 `ret` 路由/RA 预置问题归**后续 harness 任务**（已登记 `deferred.md`）。
+
 ## 完成区
 **测试结果**：
 **修改文件**：

@@ -51,6 +51,9 @@
 
 ## infra
 
+- **`check-qemu-semantics` 的 gate 目录为瞬态（`QEMU-032t` reviewer 观察，2026-10-03 登记）**：reviewer 独立跑 `make check` 时见 `reg-shift-extend.yaml[108-112]: No such file or directory: '.../harness/gate/reg-shift-extend.yaml'` ⇒ `check-qemu-semantics` FAIL、`make check` EXIT=2；架构师/主会话复跑 `make check` 为 **EXIT=0**（semantics 149/149），判定为**瞬态**——`$(QEMU_SEM_DIR)`（`$(TEST_ARTIFACTS_DIR)/harness/gate`）在并发/异常清理下短暂缺失，`ln -sf ... 2>/dev/null` 静默失败后 `run_qemu_test` 才报缺文件。**建议（非阻断）**：该 target 加「symlink 失败即显式报错 / gate 目录存在性前置校验」，避免瞬态假失败。
+- **`components/qemu/changelog.md` 缺任务级记录（`QEMU-032t` 登记，2026-10-03）**：该组件 changelog 自 2026-09-23 M1 重整后**未再按任务追加**（`spec/Process-01 §10` 要求「按任务一条」）；`QEMU-032t` 任务书「输出」未列该文件，本轮**按规定未改**。**建议**：由协调者/架构师裁定是否统一补记（对照 `components/llvm-project/changelog.md` 已由 `LLVM-027t` 追加）。**仅登记，不动手。**
+
 - **~~13 个历史任务书「完成区已填但状态仍 `待验收`」（漏 `/complete`）~~ ✅ 已消解（2026-10-03，回填台账 + 状态）**：`INFRA-018t`、`INFRA-019t`、`SPEC-058t`、`SPEC-062t`、`SPEC-063t`、`SPEC-066t`、`SPEC-067t`、`SPEC-068t`、`SPEC-069t`、`SPEC-071t`、`SPEC-073t`、`SPEC-074t`、`TESTCASES-020t`（跨 infra/spec/testcases）。**性质**：历史漏收尾——完成区已填、reviewer 各末轮均已 Accepted，仅任务书 `**状态**` 与 `changelog`/`MEMORY` 未同步（bookkeeping 漏项）。**处置（已执行，(c′) 轻量）**：按各任务提交日逐条补 `changelog`（13 条）+ 对应 `MEMORY` 状态行，并把 13 个任务书 `**状态**` 置 `已验证`（未做新验收，以完成区/审阅记录落盘证据为准）；`make check-tasks`（`INFRA-029t`，报告型）现列 0 个。用户 2026-10-03 批准。
 
 - **~~LLVM/QEMU 缓存重新浅克隆（2026-09-28 登记）~~ ✅ 已完成（2026-09-29）**：删除全量 mirror 后用 `INFRA-015t` 的浅取重新 fetch——`llvm-project.git` **378M**（shallow）、`qemu.git` **52M**（shallow），耗时 **2m50s**；pinned commit 均存在；`make fetch` 幂等；`llvm-mc`/`make check` 正常。
@@ -65,6 +68,8 @@
 - **`check_asm_prose.py` 域外场景 stdout 仍打 `PASS`（`INFRA-024t` 第4轮 reviewer N3，2026-10-03 登记，非阻断）**：`--files` 作用域外场景（A/B/E/E2/F/G）在 `report()` 之后才退出，stdout 仍打印 `PASS (0 violations)`（同时 rc=1、stderr 有 ERROR）。rc≠0 非假绿，但 stdout 与 rc 语义不一致。建议：`had_out_of_scope` 时改打 `FAIL (out-of-scope --files)` 而非 `PASS`。归属：`infra` 模块。
 
 ## testcases
+
+- **harness 对 `ret` 语义用例的 pre-existing 失败（`QEMU-032t` reviewer 独立判定，2026-10-03 登记）**：`ctrl-ret.yaml[0..3]` 全 `word=0x76000000`（`imms18=0`，新 ILLI 检查**不可达**）退出 **`0x01`**（mismatch，非 0x88）——根因 `tests/scripts/build_test_binary.py:625` 将 `ret` 路由到 `build_call_ret_binary`（按 `QEMU-018t` P2 **剥离 `input_state.ra`**，改为合成 `call→ret→landing`），而用例依赖**预置 RA** 并断言 `expected_state.ra`；另 `ctrl-call.yaml[5]` 报 `Unknown mnemonic suffix for width derivation: call`（`build_loader` 对 `call` 的 `input_state.memory` 宽度推导 `ValueError`）。**与 `ret rd0` 无关**（实现态 vs 无检查基线失败集逐条一致 `689/679/5/5/0`，零新增）。**建议**：由 `TESTCASES-022t` 或专门 harness 任务处置（`ret` 路由/RA 预置 + loader 宽度推导）。**仅登记，不动手。**
 
 - **新合法性规则 `dst_rd0_nonzero` 无 ISA 合法性向量（`SPEC-083t` 遗留，2026-10-03 登记）**：`tools/testcases/generate_isa_vectors.py::_ILLI_RULES` 只覆盖 `dst_rd0`/`dst_dual_same`/`dst_rb0`/`mreg_zero`，**不枚举全部规则**（故 `validate-vectors` 仍绿）；`ret rd0, imms18!=0` 的运行期 ILLI（0x88）由 **QEMU 侧**承担，汇编期硬报错由 **`LLVM-027t`** 承担。**建议**：如需「规则 ↔ 向量」全覆盖门控，另立 testcases 任务补 `ret rd0, 非0` 的 legality 向量（编号待定）。**仅登记，不动手。**
 

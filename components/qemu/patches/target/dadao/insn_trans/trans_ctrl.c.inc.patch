@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000..a708b4a
+index 0000000..776aadd
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
-@@ -0,0 +1,398 @@
+@@ -0,0 +1,408 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* ── Helper: RegRAS/MemRAS push/pop (ADR-0012 D7) ──────────────────── */
@@ -318,6 +318,9 @@ index 0000000..a708b4a
 +
 +/* ── §5.5 ret rdha, imms18: rdha = sext(imms18), PC = pop(ra63) ────── */
 +/* rdha can be rd0 (allowed by spec for "return without value"). */
++/* ILLI: rdha == rd0 && imms18 != 0 — SimRISC-06 §函数返回, rule
++ * `dst_rd0_nonzero`.  The condition is fixed by the encoding, so it is a
++ * translate-time decision (generate the ILLI exception path). */
 +/* D8: ret → rb0 = zero_extend48(ra63[47:0]); PC = rb0[47:0].
 + * Ret address from RAS is already 48-bit; mask is redundant but safe. */
 +static bool trans_ret_riii_ra(DisasContext *ctx, arg_main *a)
@@ -327,6 +330,13 @@ index 0000000..a708b4a
 +    if (imm18 & (1 << 17)) {
 +        imm18 |= ~((1 << 18) - 1);
 +    }
++
++    /* ILLI: ret rd0, imms18 != 0 (SimRISC-06 §函数返回) */
++    if (a->ha == 0 && imm18 != 0) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++
 +    TCGv_i64 imm_val = tcg_constant_i64((int64_t)imm18);
 +    store_rd(a->ha, imm_val);
 +
