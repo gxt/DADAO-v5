@@ -5,3 +5,4 @@
 | 日期 | 任务 | 变更 |
 |---|---|---|
 | 2026-09-23 | — | **M1 补丁集重整**：由「16 份编号补丁 + `git am`」改为「树形补丁集 + `git apply`」（本组件 8 → **36** 份 = 新增 32 + 修改 4）。应用后最终 tree hash = `0e058573eb70da9e57db6995d6caef6bbe8985da`（与重整前一致，语义未变）。决策见 `ADR-0002 D4`（rev. 2026-09-23）。 |
+| 2026-10-02 | LLVM-026t | **汇编立即数字节化**：AsmParser 去 `i` 后缀、按字节解析、`%4` 校验 + 范围校验 + 编码 `>>2`；MCInstPrinter 反汇编 `<<2`、去 `i` 后缀。符号 fixup 保留（bypass matcher for expr operands）。顺带更新 `tests/lit/MC/Dadao/*.s`（4 文件）与 `tools/llvm/test_encoding_oracle.py`（语法同步，属 TESTCASES-021t 范围重叠）。 |

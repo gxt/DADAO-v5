@@ -79,25 +79,25 @@ TESTS = [
     ("add.si rd8, 1", encode_riii(0x59, 8, 1)),
     # riii format: add.si rb1, 1
     ("add.si rb1, 1", encode_riii(0x5B, 1, 1)),
-    # riii format: br.n {rd0}?, [rb0, 1i]
-    ("br.n {rd0}?, [rb0, 1i]", encode_riii(0x68, 0, 1)),
-    # riii format: br.nn {rd0}?, [rb0, 1i]
-    ("br.nn {rd0}?, [rb0, 1i]", encode_riii(0x69, 0, 1)),
-    # riii format: br.z {rd0}?, [rb0, 1i]
-    ("br.z {rd0}?, [rb0, 1i]", encode_riii(0x6A, 0, 1)),
-    # riii format: br.nz {rd0}?, [rb0, 1i]
-    ("br.nz {rd0}?, [rb0, 1i]", encode_riii(0x6B, 0, 1)),
-    # riii format: br.p {rd0}?, [rb0, 1i]
-    ("br.p {rd0}?, [rb0, 1i]", encode_riii(0x6C, 0, 1)),
-    # riii format: br.np {rd0}?, [rb0, 1i]
-    ("br.np {rd0}?, [rb0, 1i]", encode_riii(0x6D, 0, 1)),
+    # riii format: br.n {rd0}?, [rb0, 4] (4 bytes >> 2 = 1)
+    ("br.n {rd0}?, [rb0, 4]", encode_riii(0x68, 0, 1)),
+    # riii format: br.nn {rd0}?, [rb0, 4] (4 bytes >> 2 = 1)
+    ("br.nn {rd0}?, [rb0, 4]", encode_riii(0x69, 0, 1)),
+    # riii format: br.z {rd0}?, [rb0, 4] (4 bytes >> 2 = 1)
+    ("br.z {rd0}?, [rb0, 4]", encode_riii(0x6A, 0, 1)),
+    # riii format: br.nz {rd0}?, [rb0, 4] (4 bytes >> 2 = 1)
+    ("br.nz {rd0}?, [rb0, 4]", encode_riii(0x6B, 0, 1)),
+    # riii format: br.p {rd0}?, [rb0, 4] (4 bytes >> 2 = 1)
+    ("br.p {rd0}?, [rb0, 4]", encode_riii(0x6C, 0, 1)),
+    # riii format: br.np {rd0}?, [rb0, 4] (4 bytes >> 2 = 1)
+    ("br.np {rd0}?, [rb0, 4]", encode_riii(0x6D, 0, 1)),
     # riii format: ret rd0, 0
     ("ret rd0, 0", encode_riii(0x76, 0, 0)),
     
-    # iiii format: call [rb0, 1i]
-    ("call [rb0, 1i]", encode_iiii(0x74, 1)),
-    # iiii format: jump [rb0, 1i]
-    ("jump [rb0, 1i]", encode_iiii(0x70, 1)),
+    # iiii format: call [rb0, 4] (4 bytes >> 2 = 1)
+    ("call [rb0, 4]", encode_iiii(0x74, 1)),
+    # iiii format: jump [rb0, 4] (4 bytes >> 2 = 1)
+    ("jump [rb0, 4]", encode_iiii(0x70, 1)),
     # oiii format: swym 0 (op=0x77, ha=0x02)
     ("swym 0", encode_oiii(0x77, 0x02, 0)),
     
@@ -144,21 +144,21 @@ TESTS = [
     # rrrr.s: add.so {rd8, rd9}, rd10, rd11 (op=0x51)
     ("add.so {rd8, rd9}, rd10, rd11", encode_rrrr(0x51, 8, 9, 10, 11)),
 
-    # riii_branch.s: br.n {rd0}?, [rb0, 4i] (op=0x68)
-    ("br.n {rd0}?, [rb0, 4i]", encode_riii(0x68, 0, 4)),
-    # riii_branch.s: br.nn {rd0}?, [rb0, 4i] (op=0x69)
-    ("br.nn {rd0}?, [rb0, 4i]", encode_riii(0x69, 0, 4)),
-    # riii_branch.s: br.z {rd0}?, [rb0, 4i] (op=0x6A)
-    ("br.z {rd0}?, [rb0, 4i]", encode_riii(0x6A, 0, 4)),
-    # riii_branch.s: br.nz {rd0}?, [rb0, 4i] (op=0x6B)
-    ("br.nz {rd0}?, [rb0, 4i]", encode_riii(0x6B, 0, 4)),
-    # riii_branch.s: br.p {rd0}?, [rb0, 4i] (op=0x6C)
-    ("br.p {rd0}?, [rb0, 4i]", encode_riii(0x6C, 0, 4)),
-    # riii_branch.s: br.np {rd0}?, [rb0, 4i] (op=0x6D)
-    ("br.np {rd0}?, [rb0, 4i]", encode_riii(0x6D, 0, 4)),
+    # riii_branch.s: br.n {rd0}?, [rb0, 16] (16 bytes >> 2 = 4, op=0x68)
+    ("br.n {rd0}?, [rb0, 16]", encode_riii(0x68, 0, 4)),
+    # riii_branch.s: br.nn {rd0}?, [rb0, 16] (16 bytes >> 2 = 4, op=0x69)
+    ("br.nn {rd0}?, [rb0, 16]", encode_riii(0x69, 0, 4)),
+    # riii_branch.s: br.z {rd0}?, [rb0, 16] (16 bytes >> 2 = 4, op=0x6A)
+    ("br.z {rd0}?, [rb0, 16]", encode_riii(0x6A, 0, 4)),
+    # riii_branch.s: br.nz {rd0}?, [rb0, 16] (16 bytes >> 2 = 4, op=0x6B)
+    ("br.nz {rd0}?, [rb0, 16]", encode_riii(0x6B, 0, 4)),
+    # riii_branch.s: br.p {rd0}?, [rb0, 16] (16 bytes >> 2 = 4, op=0x6C)
+    ("br.p {rd0}?, [rb0, 16]", encode_riii(0x6C, 0, 4)),
+    # riii_branch.s: br.np {rd0}?, [rb0, 16] (16 bytes >> 2 = 4, op=0x6D)
+    ("br.np {rd0}?, [rb0, 16]", encode_riii(0x6D, 0, 4)),
 
-    # rrii_branch.s: br.eq {rd8, rd0}?, [rb0, 4i] (op=0x6E)
-    ("br.eq {rd8, rd0}?, [rb0, 4i]", encode_rrii(0x6E, 8, 0, 4)),
+    # rrii_branch.s: br.eq {rd8, rd0}?, [rb0, 16] (16 bytes >> 2 = 4, op=0x6E)
+    ("br.eq {rd8, rd0}?, [rb0, 16]", encode_rrii(0x6E, 8, 0, 4)),
 
     # oiii.s: swym 42 (op=0x77, ha=0x02)
     ("swym 42", encode_oiii(0x77, 0x02, 42)),
@@ -172,8 +172,8 @@ TESTS = [
     ("rd2rd {rd8}, {rd1}", encode_orri(0x40, 0x2C, 8, 1, 1)),
     # basic-encoding.s: add.si rd8, -1 (op=0x59, ha=8, imms18=-1)
     ("add.si rd8, -1", encode_riii(0x59, 8, -1)),
-    # basic-encoding.s: br.n {rd0}?, [rb0, 2i] (imms18=2, forward fixup)
-    ("br.n {rd0}?, [rb0, 2i]", encode_riii(0x68, 0, 2)),
+    # basic-encoding.s: br.n {rd0}?, [rb0, 8] (8 bytes >> 2 = 2, forward fixup)
+    ("br.n {rd0}?, [rb0, 8]", encode_riii(0x68, 0, 2)),
 
     # rwii.s: set.zw rd8, wp0, 0x1234 (op=0x4C, ha=8, wp=0, immu16=0x1234)
     ("set.zw rd8, wp0, 0x1234", encode_rwii(0x4C, 8, 0, 0x1234)),

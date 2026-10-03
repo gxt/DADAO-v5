@@ -62,8 +62,19 @@ EXAMPLES = {
     "rf": ["rf2", "rf3"],
 }
 IMM_EXAMPLE = {"immu6": "1", "immu12": "1", "immu16": "0x1234", "immu18": "1",
-               "immu24": "1", "imms12": "1", "imms18": "1", "imms24": "1",
-               "wpN": "0"}
+               "immu24": "1", "imms12": "1", "imms14": "8", "imms18": "1",
+               "imms20": "8", "imms24": "1", "imms26": "8", "wpN": "0"}
+
+# ADR-0013 D10: assembly-layer field name mapping for ×4 address fields.
+# Encoding-level names (imms12/18/24) are renamed to byte-domain names
+# (imms14/20/26) in the assembly form column.  Only applies to branch/jump/
+# escape; load/store (imms12) and ret (imms18) keep encoding names.
+_ASM_IMM_RENAME = {"imms12": "imms14", "imms18": "imms20", "imms24": "imms26"}
+
+
+def _asm_imm_name(name: str) -> str:
+    """Map encoding-level immediate field name to assembly-layer name."""
+    return _ASM_IMM_RENAME.get(name, name)
 
 
 def base_imm(name: str) -> str:
@@ -269,14 +280,14 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
     mnemonic = entry["mnemonic"]
     fmt = entry["format"]
     R = lambda op, nth=0: _reg(op, attempt, nth, field)
-    IM = lambda op, lit: f"{op['name']}i" if field else lit
+    IM = lambda op, lit: _asm_imm_name(op['name']) if field else lit
     imm_ops = [op for op in ops if op["kind"] in ("imm", "wpN")]
 
     # br.* —— 条件寄存器 + 目标地址（基址恒为 rb0）
     if mnemonic.startswith("br."):
         conds = ", ".join(R(op, i) for i, op in enumerate(ops) if op["kind"] == "reg")
         off = imm_ops[-1] if imm_ops else None
-        offi = IM(off, "1i") if off else "offi"
+        offi = IM(off, "8") if off else "imms20"
         return f"{mnemonic} {{{conds}}}?, [rb0, {offi}]"
 
     # cs.* —— 条件寄存器在前，其余保持原序
@@ -288,10 +299,10 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
 
     # jump/call
     if mnemonic in ("jump", "call") and fmt == "iiii":
-        off = IM(imm_ops[-1], "1i") if imm_ops else "imms24i"
+        off = IM(imm_ops[-1], "8") if imm_ops else "imms26"
         return f"{mnemonic} [rb0, {off}]"
     if mnemonic in ("jump", "call") and fmt == "rrii":
-        off = IM(imm_ops[-1], "1i") if imm_ops else "imms12i"
+        off = IM(imm_ops[-1], "8") if imm_ops else "imms14"
         return f"{mnemonic} [{R(ops[0])}, {R(ops[1], 1)}, {off}]"
 
     # ldm.*/stm.* —— 目的寄存器组（count 由组推出）+ 地址
@@ -337,7 +348,7 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
             f"{R(ops[1])}, {R(ops[2], 1)}, {R(ops[3], 2)}"
         )
     if mnemonic == "escape":
-        return f"{mnemonic} cfxHA, [excp_cause_ip, imms18i]"
+        return f"{mnemonic} cfxHA, [excp_cause_ip, imms20]"
     if mnemonic == "trap":
         return f"{mnemonic} cfxHA, immu18"
 
@@ -653,17 +664,20 @@ def main() -> int:
 
 ## 立即数范围速查
 
-| 字段 | 范围 |
-|---|---|
-| `imms12` | s12: -2048..2047 |
-| `imms18` | s18: -131072..131071 |
-| `imms24` | s24: -8388608..8388607 |
-| `immu6` | u6: 0..63 |
-| `immu12` | u12: 0..4095 |
-| `immu16` | u16: 0..65535 |
-| `immu18` | u18: 0..262143 |
-| `immu24` | u24: 0..16777215 |
-| `wpN` | wyde 位置 0..3 |
+| 字段 | 范围 | 说明 |
+|---|---|---|
+| `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
+| `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
+| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求） |
+| `imms20` | bytes: [-524288, 524284]，`%4==0` | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
+| `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
+| `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
+| `immu6` | u6: 0..63 | |
+| `immu12` | u12: 0..4095 | |
+| `immu16` | u16: 0..65535 | |
+| `immu18` | u18: 0..262143 | |
+| `immu24` | u24: 0..16777215 | |
+| `wpN` | wyde 位置 0..3 | |
 """
 
     out = Path(args.output) if args.output is not None else ROOT / "docs/assembly-list.md"

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000000..2dc784667a0c
+index 000000000..e09ccbc68
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,391 @@
+@@ -0,0 +1,387 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -14,7 +14,7 @@ index 000000000000..2dc784667a0c
 +//
 +// Prints MCInst → assembly text using the new syntax:
 +//   Register groups: {rd8:rd10}, {rd8, rd9}, {rd8, rd0}?
-+//   Address expressions: [rb2, 1], [rb0, 2i]
++//   Address expressions: [rb2, 1], [rb0, 16]
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -216,13 +216,8 @@ index 000000000000..2dc784667a0c
 +  }
 +
 +  case FK_rrii: {
-+    // rrii: ld.*, st.* — rd, [rb, imm]
-+    //       br.eq, br.ne — {ra, rb}?, [rb0, immi]
-+    //       jump/call rrii — [rb, rd, immi]
 +    StringRef MnemStr(Mnem);
 +    if (MnemStr.starts_with("br.")) {
-+      // Branch: {ra, rb}?, [rb0, immi]
-+      // MCInst: operand 0 = ra, 1 = rb, 2 = imm12 (or Expr for unresolved label)
 +      if (NumOps == 3) {
 +        O << " {";
 +        printRegName(O, MI->getOperand(0).getReg());
@@ -230,26 +225,35 @@ index 000000000000..2dc784667a0c
 +        printRegName(O, MI->getOperand(1).getReg());
 +        O << "}?, [rb0, ";
 +        if (MI->getOperand(2).isImm())
-+          O << MI->getOperand(2).getImm();
++          O << (MI->getOperand(2).getImm() << 2);
 +        else if (MI->getOperand(2).isExpr())
 +          MAI.printExpr(O, *MI->getOperand(2).getExpr());
-+        O << "i]";
++        O << "]";
 +      }
 +    } else if (MnemStr == "jump" || MnemStr == "call") {
-+      // rrii jump/call: [rb, rd, immi]
-+      // MCInst: operand 0 = ra(base), 1 = rb(reg offset), 2 = imm12
 +      if (NumOps == 3) {
 +        O << " [";
 +        printRegName(O, MI->getOperand(0).getReg());
 +        O << ", ";
 +        printRegName(O, MI->getOperand(1).getReg());
 +        O << ", ";
-+        O << MI->getOperand(2).getImm();
-+        O << "i]";
++        if (MI->getOperand(2).isImm())
++          O << (MI->getOperand(2).getImm() << 2);
++        else if (MI->getOperand(2).isExpr())
++          MAI.printExpr(O, *MI->getOperand(2).getExpr());
++        O << "]";
++      }
++    } else if (MnemStr == "escape") {
++      if (NumOps == 3) {
++        O << " ";
++        printOperand(MI, 0, O);
++        O << ", [";
++        printOperand(MI, 1, O);
++        O << ", ";
++        O << (MI->getOperand(2).getImm() << 2);
++        O << "]";
 +      }
 +    } else if (MnemStr.starts_with("ld.") || MnemStr.starts_with("st.")) {
-+      // Memory: ld.* rd, [rb, imm] or st.* rd, [rb, imm]
-+      // MCInst: operand 0 = ra(rd), 1 = rb, 2 = imm12
 +      if (NumOps == 3) {
 +        O << " ";
 +        printRegName(O, MI->getOperand(0).getReg());
@@ -260,7 +264,6 @@ index 000000000000..2dc784667a0c
 +        O << "]";
 +      }
 +    } else {
-+      // Non-memory rrii: cmp.ui, cmp.si — rd, rb, imm12
 +      for (unsigned I = 0; I < NumOps; ++I) {
 +        O << (I == 0 ? " " : ", ");
 +        printOperand(MI, I, O);
@@ -270,25 +273,19 @@ index 000000000000..2dc784667a0c
 +  }
 +
 +  case FK_riii: {
-+    // riii: add.si — rd, imm
-+    //       br.* — {ra}?, [rb0, immi]
-+    //       ret — rd, imm
 +    StringRef MnemStr(Mnem);
 +    if (MnemStr.starts_with("br.")) {
-+      // Branch: {ra}?, [rb0, immi]
-+      // MCInst: operand 0 = ra, 1 = imm18 (or Expr for unresolved label)
 +      if (NumOps == 2) {
 +        O << " {";
 +        printRegName(O, MI->getOperand(0).getReg());
 +        O << "}?, [rb0, ";
 +        if (MI->getOperand(1).isImm())
-+          O << MI->getOperand(1).getImm();
++          O << (MI->getOperand(1).getImm() << 2);
 +        else if (MI->getOperand(1).isExpr())
 +          MAI.printExpr(O, *MI->getOperand(1).getExpr());
-+        O << "i]";
++        O << "]";
 +      }
 +    } else {
-+      // add.si, ret: rd, imm
 +      O << " ";
 +      printRegName(O, MI->getOperand(0).getReg());
 +      O << ", ";
@@ -301,13 +298,12 @@ index 000000000000..2dc784667a0c
 +  }
 +
 +  case FK_iiii: {
-+    // iiii: jump/call — [rb0, immi]
 +    O << " [rb0, ";
 +    if (MI->getOperand(0).isImm())
-+      O << MI->getOperand(0).getImm();
++      O << (MI->getOperand(0).getImm() << 2);
 +    else if (MI->getOperand(0).isExpr())
 +      MAI.printExpr(O, *MI->getOperand(0).getExpr());
-+    O << "i]";
++    O << "]";
 +    break;
 +  }
 +

@@ -15,4 +15,4 @@
 ; CHECK-NEXT:     0x1
 ; CHECK-NEXT:   ]
 
-jump [rb0, 0i]
+jump [rb0, 0]

@@ -11,17 +11,20 @@
 
 ## 立即数范围速查
 
-| 字段 | 范围 |
-|---|---|
-| `imms12` | s12: -2048..2047 |
-| `imms18` | s18: -131072..131071 |
-| `imms24` | s24: -8388608..8388607 |
-| `immu6` | u6: 0..63 |
-| `immu12` | u12: 0..4095 |
-| `immu16` | u16: 0..65535 |
-| `immu18` | u18: 0..262143 |
-| `immu24` | u24: 0..16777215 |
-| `wpN` | wyde 位置 0..3 |
+| 字段 | 范围 | 说明 |
+|---|---|---|
+| `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
+| `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
+| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求） |
+| `imms20` | bytes: [-524288, 524284]，`%4==0` | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
+| `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
+| `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
+| `immu6` | u6: 0..63 | |
+| `immu12` | u12: 0..4095 | |
+| `immu16` | u16: 0..65535 | |
+| `immu18` | u18: 0..262143 | |
+| `immu24` | u24: 0..16777215 | |
+| `wpN` | wyde 位置 0..3 | |
 
 ### 取数存数（38 条）
 
@@ -149,20 +152,20 @@
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
-| `br.eq` | `rrii` | `rd` | `br.eq {rdHA, rdHB}?, [rb0, imms12i]` | `br.eq_rrii_rd` |
-| `br.n` | `riii` | `rd` | `br.n {rdHA}?, [rb0, imms18i]` | `br.n_riii_rd` |
-| `br.ne` | `rrii` | `rd` | `br.ne {rdHA, rdHB}?, [rb0, imms12i]` | `br.ne_rrii_rd` |
-| `br.nn` | `riii` | `rd` | `br.nn {rdHA}?, [rb0, imms18i]` | `br.nn_riii_rd` |
-| `br.np` | `riii` | `rd` | `br.np {rdHA}?, [rb0, imms18i]` | `br.np_riii_rd` |
-| `br.nz` | `riii` | `rb` | `br.nz {rbHA}?, [rb0, imms18i]` | `br.nz_riii_rb` |
-| `br.nz` | `riii` | `rd` | `br.nz {rdHA}?, [rb0, imms18i]` | `br.nz_riii_rd` |
-| `br.p` | `riii` | `rd` | `br.p {rdHA}?, [rb0, imms18i]` | `br.p_riii_rd` |
-| `br.z` | `riii` | `rb` | `br.z {rbHA}?, [rb0, imms18i]` | `br.z_riii_rb` |
-| `br.z` | `riii` | `rd` | `br.z {rdHA}?, [rb0, imms18i]` | `br.z_riii_rd` |
-| `call` | `iiii` | `ra` | `call [rb0, imms24i]` | `call_iiii_ra` |
-| `call` | `rrii` | `ra` | `call [rbHA, rdHB, imms12i]` | `call_rrii_ra` |
-| `jump` | `iiii` | `rb` | `jump [rb0, imms24i]` | `jump_iiii_rb` |
-| `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms12i]` | `jump_rrii_rb` |
+| `br.eq` | `rrii` | `rd` | `br.eq {rdHA, rdHB}?, [rb0, imms14]` | `br.eq_rrii_rd` |
+| `br.n` | `riii` | `rd` | `br.n {rdHA}?, [rb0, imms20]` | `br.n_riii_rd` |
+| `br.ne` | `rrii` | `rd` | `br.ne {rdHA, rdHB}?, [rb0, imms14]` | `br.ne_rrii_rd` |
+| `br.nn` | `riii` | `rd` | `br.nn {rdHA}?, [rb0, imms20]` | `br.nn_riii_rd` |
+| `br.np` | `riii` | `rd` | `br.np {rdHA}?, [rb0, imms20]` | `br.np_riii_rd` |
+| `br.nz` | `riii` | `rb` | `br.nz {rbHA}?, [rb0, imms20]` | `br.nz_riii_rb` |
+| `br.nz` | `riii` | `rd` | `br.nz {rdHA}?, [rb0, imms20]` | `br.nz_riii_rd` |
+| `br.p` | `riii` | `rd` | `br.p {rdHA}?, [rb0, imms20]` | `br.p_riii_rd` |
+| `br.z` | `riii` | `rb` | `br.z {rbHA}?, [rb0, imms20]` | `br.z_riii_rb` |
+| `br.z` | `riii` | `rd` | `br.z {rdHA}?, [rb0, imms20]` | `br.z_riii_rd` |
+| `call` | `iiii` | `ra` | `call [rb0, imms26]` | `call_iiii_ra` |
+| `call` | `rrii` | `ra` | `call [rbHA, rdHB, imms14]` | `call_rrii_ra` |
+| `jump` | `iiii` | `rb` | `jump [rb0, imms26]` | `jump_iiii_rb` |
+| `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms14]` | `jump_rrii_rb` |
 | `ret` | `riii` | `ra` | `ret rdHA, imms18` | `ret_riii_ra` |
 
 ### 浮点运算（44 条）｜ **deferred** — 待浮点专门任务
@@ -289,7 +292,7 @@
 |---|---|---|---|---|
 | `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
 | `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
-| `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms18i]` | `escape_ciii_cfx` |
+| `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
 | `illi` | `oiii` | `imm` | `illi immu18` | `illi_oiii_imm` |
 | `swym` | `oiii` | `imm` | `swym immu18` | `swym_oiii_imm` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |

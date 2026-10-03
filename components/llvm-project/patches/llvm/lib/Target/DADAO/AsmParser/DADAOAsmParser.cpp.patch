@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000000..90db68ae6371
+index 000000000..b37696b2f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1084 @@
+@@ -0,0 +1,1091 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,8 +16,8 @@ index 000000000000..90db68ae6371
 +//
 +// New assembly syntax (assembly-language.md):
 +//   Register groups: {rd8}, {rd8:rd11}, {rd8, rd9}, {rd8, rd0}?
-+//   Address expressions: [rb2, 1], [rb0, 2i], [rb3, rd0, 24i]
-+//   Unit suffix 'i': instruction-word offset (4 bytes per unit)
++//   Address expressions: [rb2, 1], [rb0, 16], [rb3, rd0, 64]
++//   Address immediates are byte offsets (no unit suffix); must be %4==0
 +//   Condition marker '?': after }
 +//
 +//===----------------------------------------------------------------------===//
@@ -62,7 +62,7 @@ index 000000000000..90db68ae6371
 +//   kRegGroup     — {rd8:rd11} or {rd8} (decomposed to flat operands)
 +//   kRegGroupCond — {rd8, rd0}? or {rd3}? (condition marker)
 +//   kRegPair      — {rd8, rd9} (dual-purpose, no ?)
-+//   kAddress      — [rb2, 1] or [rb0, 2i] or [rb3, rd0, 24i]
++//   kAddress      — [rb2, 1] or [rb0, 16] or [rb3, rd0, 64]
 +//
 +// At matchAndEmitInstruction time, complex operands are decomposed into
 +// the flat register/immediate operands expected by the auto-generated
@@ -97,13 +97,11 @@ index 000000000000..90db68ae6371
 +  MCRegister AddrIndex; // 0 if not present
 +  int64_t AddrOffset;
 +  const MCExpr *AddrOffsetExpr;
-+  // For kAddress: whether the offset uses 'i' suffix (instruction-word unit).
-+  bool AddrIsInsnOffset;
 +
 +public:
 +  DADAOOperand(KindTy K)
 +      : Kind(K), ImmVal(0), ImmExpr(nullptr), GroupCount(0),
-+        AddrOffset(0), AddrOffsetExpr(nullptr), AddrIsInsnOffset(false) {}
++        AddrOffset(0), AddrOffsetExpr(nullptr) {}
 +
 +  // Factory methods for basic kinds.
 +  static std::unique_ptr<DADAOOperand> createToken(StringRef T, SMLoc L) {
@@ -178,12 +176,11 @@ index 000000000000..90db68ae6371
 +  // Factory for address expression: [base, offset] or [base, reg, offset].
 +  static std::unique_ptr<DADAOOperand>
 +  createAddress(MCRegister Base, MCRegister Index, int64_t Offset,
-+                bool IsInsnOffset, SMLoc Start, SMLoc End) {
++                SMLoc Start, SMLoc End) {
 +    auto Op = std::make_unique<DADAOOperand>(kAddress);
 +    Op->AddrBase = Base;
 +    Op->AddrIndex = Index;
 +    Op->AddrOffset = Offset;
-+    Op->AddrIsInsnOffset = IsInsnOffset;
 +    Op->StartLoc = Start;
 +    Op->EndLoc = End;
 +    return Op;
@@ -191,13 +188,12 @@ index 000000000000..90db68ae6371
 +
 +  static std::unique_ptr<DADAOOperand>
 +  createAddress(MCRegister Base, MCRegister Index, const MCExpr *OffsetExpr,
-+                bool IsInsnOffset, SMLoc Start, SMLoc End) {
++                SMLoc Start, SMLoc End) {
 +    auto Op = std::make_unique<DADAOOperand>(kAddress);
 +    Op->AddrBase = Base;
 +    Op->AddrIndex = Index;
 +    Op->AddrOffsetExpr = OffsetExpr;
 +    Op->AddrOffset = 0;
-+    Op->AddrIsInsnOffset = IsInsnOffset;
 +    Op->StartLoc = Start;
 +    Op->EndLoc = End;
 +    return Op;
@@ -214,7 +210,6 @@ index 000000000000..90db68ae6371
 +  MCRegister getAddrIndex() const { return AddrIndex; }
 +  int64_t getAddrOffset() const { return AddrOffset; }
 +  const MCExpr *getAddrOffsetExpr() const { return AddrOffsetExpr; }
-+  bool isAddrInsnOffset() const { return AddrIsInsnOffset; }
 +
 +  // MCParsedAsmOperand interface.
 +  bool isToken() const override { return Kind == kToken; }
@@ -549,15 +544,11 @@ index 000000000000..90db68ae6371
 +//
 +// Syntax (assembly-language.md §3):
 +//   [rb2, 1]           — memory: base + byte offset
-+//   [rb0, 2i]          — iiii jump: base + instruction-word offset
-+//   [rb3, rd0, 24i]    — rrii jump: base + reg offset + instruction-word offset
++//   [rb0, 16]          — iiii jump: base + byte offset (%4==0)
++//   [rb3, rd0, 64]     — rrii jump: base + reg offset + byte offset (%4==0)
 +//
-+// The 'i' suffix means the immediate is in instruction-word units (×4 bytes).
-+//
-+// Pushes as flat operands:
-+//   [rb2, 1]        → Reg(rb2), Imm(1)
-+//   [rb0, 2i]       → Reg(rb0), Imm(2)
-+//   [rb3, rd0, 24i] → Reg(rb3), Reg(rd0), Imm(24)
++// Address immediates are byte offsets (no unit suffix).
++// Validation of %4==0 and range + encoding >>2 is done in matchAndEmitInstruction.
 +//
 +// matchAndEmitInstruction handles stripping the base register for iiii jumps.
 +//===----------------------------------------------------------------------===//
@@ -590,90 +581,48 @@ index 000000000000..90db68ae6371
 +
 +  if (AfterComma.is(AsmToken::Identifier) &&
 +      matchRegisterName(AfterComma.getString()) != 0) {
-+    // Could be [base, reg, offset] or [base, reg] (no offset).
-+    // Look ahead: if next after reg is ']', it's [base, reg] with no offset.
-+    // If next after reg is ',', it's [base, reg, offset].
 +    SMLoc IdxStart, IdxEnd;
 +    parseRegisterImpl(Index, IdxStart, IdxEnd);
 +    HasIndexReg = true;
 +
 +    if (getParser().getTok().is(AsmToken::Comma)) {
-+      // [base, reg, offset]
 +      getParser().Lex(); // consume ','
 +    } else if (getParser().getTok().is(AsmToken::RBrac)) {
-+      // [base, reg] — no offset, offset=0.
 +      getParser().Lex(); // consume ']'
 +      SMLoc EndLoc = getParser().getTok().getLoc();
 +      Operands.push_back(DADAOOperand::createReg(Base, RStart));
 +      Operands.push_back(DADAOOperand::createReg(Index, IdxStart));
 +      Operands.push_back(DADAOOperand::createImm(0, EndLoc, EndLoc));
-+      return false; // success
++      return false;
 +    } else {
 +      return Error(getParser().getTok().getLoc(),
 +                   "expected ',' or ']' after register in address expression");
 +    }
 +  }
 +
-+  // Parse offset (immediate expression).
-+  // The offset may be a number followed by 'i' suffix (instruction-word unit).
-+  // If there's no space between the number and 'i', the lexer produces a
-+  // single identifier token like "2i". We handle both cases:
-+  //   1. Number and 'i' are separate tokens: parse expression, then check for 'i'
-+  //   2. '2i' is a single token: parse as identifier, strip 'i', convert number
-+  const AsmToken &OffsetTok = getParser().getTok();
-+  int64_t OffsetVal = 0;
-+  bool IsInsnOffset = false;
-+  SMLoc EndLoc;
++  // Parse offset (immediate expression). Address offsets are byte values.
++  const MCExpr *OffsetExpr;
++  SMLoc ExprEnd;
++  if (getParser().parseExpression(OffsetExpr, ExprEnd))
++    return true;
++  SMLoc EndLoc = ExprEnd;
 +
-+  if (OffsetTok.is(AsmToken::Identifier)) {
-+    // Case 2: '2i' is a single identifier token.
-+    StringRef OffsetStr = OffsetTok.getString();
-+    if (OffsetStr.size() > 1 && OffsetStr.back() == 'i') {
-+      StringRef NumPart = OffsetStr.drop_back();
-+      if (!NumPart.getAsInteger(10, OffsetVal)) {
-+        IsInsnOffset = true;
-+        EndLoc = OffsetTok.getEndLoc();
-+        getParser().Lex(); // consume the token
-+        // Skip to ']' check below.
-+      } else {
-+        // Not a valid number+i combo — could be a label.
-+        goto parse_offset_expr;
-+      }
-+    } else {
-+      // Identifier without 'i' suffix — could be a label.
-+      goto parse_offset_expr;
-+    }
-+  } else {
-+  parse_offset_expr:
-+    const MCExpr *OffsetExpr;
-+    SMLoc ExprEnd;
-+    if (getParser().parseExpression(OffsetExpr, ExprEnd))
-+      return true;
-+    EndLoc = ExprEnd;
-+
-+    // Check for 'i' suffix (instruction-word unit) as a separate token.
-+    if (getParser().getTok().is(AsmToken::Identifier) &&
-+        getParser().getTok().getString() == "i") {
-+      IsInsnOffset = true;
-+      getParser().Lex(); // consume 'i'
-+    }
-+
-+    // Evaluate the expression.
-+    if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
-+      // Non-constant expression (label reference) — push as expr.
-+      // Expect ']'.
-+      if (!getParser().getTok().is(AsmToken::RBrac))
-+        return Error(getParser().getTok().getLoc(),
-+                     "expected ']' to close address expression");
-+      getParser().Lex(); // consume ']'
-+      EndLoc = getParser().getTok().getLoc();
-+      Operands.push_back(DADAOOperand::createReg(Base, RStart));
-+      if (HasIndexReg)
-+        Operands.push_back(DADAOOperand::createReg(Index, RStart));
-+      Operands.push_back(
-+          DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLoc));
-+      return false; // success
-+    }
++  // Evaluate the expression. If non-constant (label/symbol), push as expr
++  // for fixup generation. If constant, validate and encode.
++  int64_t OffsetVal;
++  if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
++    // Non-constant expression — push as expr (fixup).
++    if (!getParser().getTok().is(AsmToken::RBrac))
++      return Error(getParser().getTok().getLoc(),
++                   "expected ']' to close address expression");
++    getParser().Lex(); // consume ']'
++    EndLoc = getParser().getTok().getLoc();
++    Operands.push_back(DADAOOperand::createReg(Base, RStart));
++    if (HasIndexReg)
++      Operands.push_back(DADAOOperand::createReg(Index, RStart));
++    Operands.push_back(
++        DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLoc));
++    return false;
 +  }
 +
 +  // Expect ']'.
@@ -683,13 +632,13 @@ index 000000000000..90db68ae6371
 +  getParser().Lex(); // consume ']'
 +  EndLoc = getParser().getTok().getLoc();
 +
-+  // Push as flat operands: base register, [index register], offset.
++  // Push as flat operands: base register, [index register], byte offset.
 +  Operands.push_back(DADAOOperand::createReg(Base, RStart));
 +  if (HasIndexReg)
 +    Operands.push_back(DADAOOperand::createReg(Index, RStart));
 +  Operands.push_back(DADAOOperand::createImm(OffsetVal, StartLoc, EndLoc));
 +
-+  return false; // success
++  return false;
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -770,65 +719,32 @@ index 000000000000..90db68ae6371
 +  const AsmToken &AfterComma = Parser.getTok();
 +  if (AfterComma.is(AsmToken::Identifier)) {
 +    StringRef Name = AfterComma.getString();
-+    // Quick check: could be a register name.
 +    if (Name.starts_with("rd") || Name.starts_with("rb") ||
 +        Name.starts_with("rf") || Name.starts_with("ra")) {
-+      // Parse as register (we don't push it — it's the condition register
-+      // for rrii branches, already handled by the register group).
 +      Parser.Lex(); // consume register
-+      // Expect ','.
 +      if (Parser.getTok().is(AsmToken::Comma))
 +        Parser.Lex(); // consume ','
 +    }
 +  }
 +
-+  // Parse offset expression.
-+  // Handle '2i' as single token (no space between number and 'i').
-+  const AsmToken &OffsetTok = Parser.getTok();
-+  int64_t OffsetVal = 0;
-+  SMLoc EndLoc;
++  // Parse offset expression. Branch offsets are byte values.
++  const MCExpr *OffsetExpr;
++  SMLoc ExprEnd;
++  if (Parser.parseExpression(OffsetExpr, ExprEnd))
++    return true;
 +
-+  if (OffsetTok.is(AsmToken::Identifier)) {
-+    StringRef OffsetStr = OffsetTok.getString();
-+    if (OffsetStr.size() > 1 && OffsetStr.back() == 'i') {
-+      StringRef NumPart = OffsetStr.drop_back();
-+      if (!NumPart.getAsInteger(10, OffsetVal)) {
-+        // '2i' → offset=2, IsInsnOffset=true.
-+        EndLoc = OffsetTok.getEndLoc();
-+        Parser.Lex(); // consume the token
-+      } else {
-+        // Not a valid number+i combo — try as label expression.
-+        goto parse_branch_expr;
-+      }
-+    } else {
-+      // Identifier without 'i' suffix — could be a label.
-+      goto parse_branch_expr;
-+    }
-+  } else {
-+  parse_branch_expr:
-+    const MCExpr *OffsetExpr;
-+    SMLoc ExprEnd;
-+    if (Parser.parseExpression(OffsetExpr, ExprEnd))
++  // Evaluate the expression. If non-constant (label/symbol), push as expr
++  // for fixup generation. If constant, validate and encode.
++  int64_t OffsetVal;
++  if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
++    // Non-constant expression — push as expr (fixup).
++    if (!Parser.getTok().is(AsmToken::RBrac))
 +      return true;
-+    EndLoc = ExprEnd;
-+
-+    // Check for 'i' suffix as separate token.
-+    if (Parser.getTok().is(AsmToken::Identifier) &&
-+        Parser.getTok().getString() == "i") {
-+      Parser.Lex(); // consume 'i'
-+    }
-+
-+    if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
-+      // Non-constant expression (label reference) — push as expr.
-+      // Expect ']'.
-+      if (!Parser.getTok().is(AsmToken::RBrac))
-+        return true;
-+      Parser.Lex(); // consume ']'
-+      SMLoc EndLocFinal = Parser.getTok().getLoc();
-+      Operands.push_back(
-+          DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLocFinal));
-+      return false; // success
-+    }
++    Parser.Lex(); // consume ']'
++    SMLoc EndLocFinal = Parser.getTok().getLoc();
++    Operands.push_back(
++        DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLocFinal));
++    return false;
 +  }
 +
 +  // Expect ']'.
@@ -840,7 +756,7 @@ index 000000000000..90db68ae6371
 +  // Push only the offset (base register is implicit).
 +  Operands.push_back(DADAOOperand::createImm(OffsetVal, StartLoc, EndLocFinal));
 +
-+  return false; // success
++  return false;
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -1057,6 +973,97 @@ index 000000000000..90db68ae6371
 +  // For rrii memory: ld.ub rd, [rb, imm] → rd, rb, imm (already flat).
 +  // For rrii jump: jump [rb, rd, imm] → Token, rb, rd, imm (already flat).
 +  // These are handled by the general decomposition above.
++
++  // For iiii jump/call with expression offset: bypass auto-generated matcher.
++  // The matcher's converter loses the ImmExpr pointer during operand movement.
++  if ((Mnemonic == "jump" || Mnemonic == "call") && Flat.size() == 2 &&
++      Flat[1]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[1].get());
++    if (DOp->getImmExpr()) {
++      unsigned Opcode = (Mnemonic == "jump") ? DADAO::jump_iiii : DADAO::call_iiii;
++      MCInst Inst;
++      Inst.setOpcode(Opcode);
++      Inst.addOperand(MCOperand::createExpr(DOp->getImmExpr()));
++      Out.emitInstruction(Inst, getSTI());
++      return false;
++    }
++    int64_t ByteOff = DOp->getImm();
++    if (ByteOff % 4 != 0)
++      return Error(Flat[1]->getStartLoc(),
++                   "jump/call offset must be a multiple of 4 bytes");
++    int64_t Encoded = ByteOff >> 2;
++    if (Encoded < -8388608 || Encoded > 8388607)
++      return Error(Flat[1]->getStartLoc(),
++                   "jump/call offset out of range");
++    Flat[1] = DADAOOperand::createImm(Encoded, Flat[1]->getStartLoc(),
++                                       Flat[1]->getEndLoc());
++  }
++
++  // For riii br.* with expression offset: bypass matcher.
++  if (Mnemonic.starts_with("br.") && Flat.size() == 3 && Flat[2]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[2].get());
++    if (DOp->getImmExpr()) {
++      // Map mnemonic to opcode.
++      unsigned Opcode;
++      if (Mnemonic == "br.n") Opcode = DADAO::br_n_rd;
++      else if (Mnemonic == "br.nn") Opcode = DADAO::br_nn_rd;
++      else if (Mnemonic == "br.z") Opcode = DADAO::br_z_rd;
++      else if (Mnemonic == "br.nz") Opcode = DADAO::br_nz_rd;
++      else if (Mnemonic == "br.p") Opcode = DADAO::br_p_rd;
++      else if (Mnemonic == "br.np") Opcode = DADAO::br_np_rd;
++      else return Error(IDLoc, "unrecognized branch mnemonic");
++      MCInst Inst;
++      Inst.setOpcode(Opcode);
++      Inst.addOperand(MCOperand::createReg(
++          static_cast<DADAOOperand *>(Flat[1].get())->getReg()));
++      Inst.addOperand(MCOperand::createExpr(DOp->getImmExpr()));
++      Out.emitInstruction(Inst, getSTI());
++      return false;
++    }
++    int64_t ByteOff = DOp->getImm();
++    if (ByteOff % 4 != 0)
++      return Error(Flat[2]->getStartLoc(),
++                   "branch offset must be a multiple of 4 bytes");
++    int64_t Encoded = ByteOff >> 2;
++    if (Encoded < -131072 || Encoded > 131071)
++      return Error(Flat[2]->getStartLoc(),
++                   "branch offset out of range");
++    Flat[2] = DADAOOperand::createImm(Encoded, Flat[2]->getStartLoc(),
++                                       Flat[2]->getEndLoc());
++  }
++
++  // For rrii br.*/jump/call with expression offset: bypass matcher.
++  if ((Mnemonic == "jump" || Mnemonic == "call" ||
++       Mnemonic.starts_with("br.")) && Flat.size() == 4 && Flat[3]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[3].get());
++    if (DOp->getImmExpr()) {
++      unsigned Opcode;
++      if (Mnemonic == "jump") Opcode = DADAO::jump_rrii;
++      else if (Mnemonic == "call") Opcode = DADAO::call_rrii;
++      else if (Mnemonic == "br.eq") Opcode = DADAO::br_eq_rd;
++      else if (Mnemonic == "br.ne") Opcode = DADAO::br_ne_rd;
++      else return Error(IDLoc, "unrecognized branch/jump mnemonic");
++      MCInst Inst;
++      Inst.setOpcode(Opcode);
++      Inst.addOperand(MCOperand::createReg(
++          static_cast<DADAOOperand *>(Flat[1].get())->getReg()));
++      Inst.addOperand(MCOperand::createReg(
++          static_cast<DADAOOperand *>(Flat[2].get())->getReg()));
++      Inst.addOperand(MCOperand::createExpr(DOp->getImmExpr()));
++      Out.emitInstruction(Inst, getSTI());
++      return false;
++    }
++    int64_t ByteOff = DOp->getImm();
++    if (ByteOff % 4 != 0)
++      return Error(Flat[3]->getStartLoc(),
++                   "branch/jump offset must be a multiple of 4 bytes");
++    int64_t Encoded = ByteOff >> 2;
++    if (Encoded < -2048 || Encoded > 2047)
++      return Error(Flat[3]->getStartLoc(),
++                   "branch/jump offset out of range");
++    Flat[3] = DADAOOperand::createImm(Encoded, Flat[3]->getStartLoc(),
++                                       Flat[3]->getEndLoc());
++  }
 +
 +  MCInst Inst;
 +  unsigned MatchResult =

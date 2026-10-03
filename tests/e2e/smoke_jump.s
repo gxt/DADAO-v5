@@ -11,12 +11,12 @@
 ;   [0x04] or.w   rb3, 1, 0x8000     ; rb3 = 0xffff_8000_0000
 ;   [0x08] set.zw rd5, 0, 0          ; prepare PASS value (0) in rd5
 ;   [0x0C] set.zw rd4, 0, 1          ; prepare FAIL value (1) in rd4
-;   [0x10] jump   [rb0, 2i]          ; skip 1 instruction → PC = 0x10 + 2*4 = 0x18
+;   [0x10] jump   [rb0, 8]           ; skip 1 instruction → PC = 0x10 + 8 = 0x18
 ;   [0x14] st.o   rd4, [rb3, 0]     ; Lfail: write 0x01 (SKIPPED by jump)
 ;   [0x18] st.o   rd5, [rb3, 0]     ; Lpass: write 0x00 (land here)
 ;
 ; jump-iiii: Addr = rb0 + (imms24 << 2), rb0 = current instruction address
-;   At 0x10: Addr = 0x10 + (2 << 2) = 0x10 + 8 = 0x18 → Lpass ✓
+;   At 0x10: Addr = 0x10 + (8 >> 2 << 2) = 0x10 + 8 = 0x18 → Lpass ✓
 ;
 ; Entry state (ADR-0004 D6.5):
 ;   rb0=0xffff_0000_0000 (PC), rb1=0xffff_00ff_0000 (SP), rb2=0xffff_0000_0000
@@ -31,8 +31,8 @@ _start:
     set.zw  rd5, 0, 0
     set.zw  rd4, 0, 1
 
-    ; 3. Jump over error path: jump [rb0, 2i] → skip 1 instruction → land at Lpass
-    jump    [rb0, 2i]
+    ; 3. Jump over error path: jump [rb0, 8] → skip 1 instruction → land at Lpass
+    jump    [rb0, 8]
 
 Lfail:
     ; 4. Error path (skipped by jump): write 0x01
