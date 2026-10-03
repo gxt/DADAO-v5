@@ -7,11 +7,16 @@
 ## spec
 
 - **文档分层改造 T1 的收尾遗留（`SPEC-084t`，2026-10-03 登记）**：
-  1. **⏸ `adr-0017` 指针待 T2**：`.tao/adr/adr-0017-cfx-assembly-aliases.md` 的 L33/L67 仍保留旧路径 `docs/spec/cfx-aliases.md`（本任务按要求不改其正文）；归 `SPEC-085t`（T2）追加指针时一并订正。验收 #3 的活引用 grep 因此以「除 adr-0017 的 2 行外零命中」为准。
-  2. **⏸ `docs/assembly-list.md` 旧路径待 T2**：该文件（生成物）的 L5/L9 仍含 `docs/spec/assembly-language.md`；其搬迁至 `.tao/knowledge/contract-asm-list.md` 与重生成属 `SPEC-085t`（T2）。
-  3. **约定：机械生成投影入 `.tao/knowledge/contract-*.md` 须在两门控显式排除**：`contract-cfx-aliases.md` 已同时加入 `tools/infra/check_spec_drift.py`（`EXCLUDED_CONTRACTS`）与 `tools/infra/check_spec_refs.py`（`_EXCLUDED_CONTRACTS`）；T2 的 `contract-asm-list.md` 须同样加入两处。新增任何生成投影时，务必同步两个排除名单，否则会以「无来源头 / 无 § 引用」误报。
+  1. **~~⏸ `adr-0017` 指针待 T2~~ ✅ 已消解（2026-10-03，`SPEC-085t`/T2）**：`.tao/adr/adr-0017-cfx-assembly-aliases.md` 的 L33/L67 旧路径 `docs/spec/cfx-aliases.md` 已由 T2 追加 `## 修订` 指针订正（+4/0，D1–D10 未动）。
+  2. **~~⏸ `docs/assembly-list.md` 旧路径待 T2~~ ✅ 已消解（2026-10-03，`SPEC-085t`/T2）**：该生成物已搬迁并重生成至 `.tao/knowledge/contract-asm-list.md`（L5/L9 指向 `spec/Toolchain-01-汇编语言.md`）。
+  3. **约定：机械生成投影入 `.tao/knowledge/contract-*.md` 须在两门控显式排除**：`contract-cfx-aliases.md` 已同时加入 `tools/infra/check_spec_drift.py`（`EXCLUDED_CONTRACTS`）与 `tools/infra/check_spec_refs.py`（`_EXCLUDED_CONTRACTS`）；新增任何生成投影时，务必同步两个排除名单，否则会以「无来源头 / 无 § 引用」误报。**（2026-10-03 补注，`SPEC-085t` 返工）** `contract-asm-list.md` **已加入两处**，约定现已满足（`check_spec_refs` 恢复 76）。
   4. **路径 grep 门控的坑**：`tools/**/__pycache__/*.pyc` 会内嵌旧 docstring 字符串，`grep -rn tools` 报 `binary file matches`；路径类 grep 门控应排除 `__pycache__`（或先清理）。本任务验收前已清理，`make check`/门控重生成的新内容不含旧路径。
   5. **历史文档旧路径保留（by design，不回溯更新）**：`docs/m1-retrospective.md` L60/L61、`docs/m2-spec-planning.md` L150、`changelog.md`/`deferred.md` 历史条目、全部已验收任务书、`spec/SimRISC-0.5.3/`；如需全仓一致再另行裁定。
+- **文档分层改造 T2 的收尾遗留（`SPEC-085t`，2026-10-03 登记）**：
+  1. **`contract-asm-list.md` 缺专门漂移门控（补充发现）——① 仍有效保留**：`make check-asm-list` 只校验 `spec/SimRISC-*` 内嵌表 vs 生成器内存输出，**不读** `.tao/knowledge/contract-asm-list.md`；该文件漂移目前只能靠「重跑生成器 + diff」人工核验，与 `contract-cfx-aliases.md`（有 `check-cfx-aliases`）不对称。**建议后续小任务**：① 为 `contract-asm-list.md` 增加生成器-diff 型漂移门控（并入 `make check`）。
+     - **~~② `check_spec_refs.py` 未同步排除~~ ✅ 已消解（2026-10-03，`SPEC-085t` 返工）**：`contract-asm-list.md` 已加入 `tools/infra/check_spec_refs.py` 的 `_EXCLUDED_CONTRACTS`，该 standalone 门控 Check2 由 `78(18+60)` **恢复为 `76(18+58)`**；两处排除名单（`check_spec_drift.py`/`check_spec_refs.py`）已程序化核对一致，`make check` EXIT=0。
+  2. **`spec/Toolchain-01-汇编语言.md` 正文陈旧计数**：§11 表「9 个 M1 格式类与 **177 条** M1 指令」（现算 M1=152）等仍为旧值；T2 仅订正头部依赖行 `251→227`（越界已披露），其余超范围未动。建议后续订正任务统一重算。
+  3. **`docs/README.md` 陈旧措辞**：`spec/Toolchain-01-汇编语言.md` 行仍写「单位后缀 `i`」（`SPEC-082t` 已取消 `i`）；属 T1 未同步的措辞，非 T2 范围，未动。
 - **ISA 归一化完成里程碑（原 `SPEC-005m`，已移除）**：曾用独立 `m` 标记 `SPEC-002t`+`003t` 完成。因 `k`↔`m` 一一对应规则移除；其意义由 `SPEC-002t`/`003t` 的完成 + `SPEC-011m`（M1 spec 里程碑）覆盖。
 - **`SPEC-002t`/`003t` 产出需重新生成**：`contract-isa.md`、`contracts/opcodes.yaml` 在 spec 重排后**重新生成**；旧文件暂作参考。
 - **M1 范围外（推迟）**：浮点（**RF 全部**：存取与运算）、特权 cfx 系统指令、LR-SC 原子。M1 提取：标量整数 + 地址/内存（RD/RB/**RA**）+ 控制流（`call`/`ret`/RegRAS）+ 测试机所需系统/异常。推迟项的完整规范与编码留后续（`SPEC-002t`/`003t` 标 `Excluded from M1`）。

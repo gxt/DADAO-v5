@@ -22,8 +22,11 @@ import sys
 from pathlib import Path
 
 # ── 显式排除名单（机械生成投影，非叙述合约，无来源头/§ 引用）──────────────
+# 与 tools/infra/check_spec_drift.py 的 EXCLUDED_CONTRACTS 同步：
+# 新增任何生成投影务必同步两处排除名单。
 _EXCLUDED_CONTRACTS = frozenset({
     "contract-cfx-aliases.md",  # cfx 别名表（生成物，见 spec/README.md 投影表）
+    "contract-asm-list.md",     # 汇编指令表（生成物，见 spec/README.md 投影表）
 })
 
 # ── prefix → spec file mapping ───────────────────────────────────────────────

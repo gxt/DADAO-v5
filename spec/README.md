@@ -72,17 +72,26 @@
 | `SimRISC-00` | `contract-isa.md` | `contracts/opcodes.yaml`（QFC 主表 + MISC 子表） | `tools/spec/validate_encoding.py`、`check_qfc_coverage.py`、`check_d7_consistency.py`、`check_rule_refs.py` | `tests/vectors/` |
 | `SimRISC-01…12` | `contract-isa.md` | `contracts/opcodes.yaml`、`contracts/legality_rules.yaml` | `tools/spec/check_asm_list_consistency.py`、`check_legality_drift.py`、`check_asm_prose.py` | `tests/vectors/isa/*.yaml`、`tests/lit/MC/Dadao`、`tests/e2e` |
 | `DADAO-11`（AEE） | `contract-abi.md` | `contracts/abi.yaml` | `tools/integ/check_interface_alignment.py` | `tests/`（据实） |
-| `DADAO-12`（SEE） | `缺口`（拟 `contract-sbi.md`） | `缺口`（据实） | `tools/spec/check_cfx_aliases.py` | `缺口`（据实） |
-| `DADAO-13`（HEE） | `缺口`（拟 `contract-exception.md`） | 据实 | `gen_cfx_aliases`（DADAO-13 源） | 据实 |
+| `DADAO-12`（SEE） | `缺口`（`contract-sbi.md`；地址转换 → `contract-mmu.md`） | `缺口`（据实） | `tools/spec/check_cfx_aliases.py` | `缺口`（据实） |
+| `DADAO-13`（HEE） | `缺口`（`contract-exception.md`） | 据实 | `gen_cfx_aliases`（DADAO-13 源） | 据实 |
 | `DADAO-21`（ABI） | `contract-abi.md` | `contracts/abi.yaml` | `check_interface_alignment` | 据实 |
-| `DADAO-22`（SBI） | `缺口`（拟 `contract-sbi.md`） | 据实 | 据实 | 据实 |
-| `DADAO-23`（HBI） | `缺口`（拟 `contract-exception.md` 或 HBI） | 据实 | 据实 | 据实 |
-| `Toolchain-01` | `缺口`（拟 `contract-asm.md`）+ `contract-asm-list.md`（T2 落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py` | `tests/lit/MC` |
+| `DADAO-22`（SBI） | `缺口`（`contract-sbi.md`） | 据实 | 据实 | 据实 |
+| `DADAO-23`（HBI） | `缺口`（`contract-exception.md`） | 据实 | 据实 | 据实 |
+| `Toolchain-01` | `缺口`（`contract-asm.md`）+ `contract-asm-list.md`（生成投影，已落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py` | `tests/lit/MC` |
 | `Process-01` | — | — | `tools/infra/check_patch_tree.py` | 不适用 |
 | `Process-02` | — | — | `tools/infra/check_spec_drift.py`（`check_spec_refs.py` 独立门控） | 不适用 |
 | `Process-03` | — | — | — | 不适用（人工遵守） |
 
-**登记缺口**（决策 8；T2 `SPEC-085t` 定稿并同步 `Process-02` 的合约清单）：`contract-asm.md`、`contract-sbi.md`、`contract-exception.md`、`contract-mmu.md`。
+**登记缺口**（决策 8；T2 `SPEC-085t` 定稿并同步 `Process-02` 的合约清单）：
+
+| 缺口（①叙述合约） | 来源册 | 缺口类型 |
+|-------------------|--------|----------|
+| `contract-asm.md` | `Toolchain-01` | 汇编语言叙述合约缺失 |
+| `contract-sbi.md` | `DADAO-12`（SEE）/ `DADAO-22`（SBI） | SBI 功能表缺失 |
+| `contract-exception.md` | `DADAO-13`（HEE）/ `DADAO-23`（HBI） | 系统态异常模型缺失 |
+| `contract-mmu.md` | `DADAO-12`（SEE，地址转换） | 地址转换模型缺失 |
+
+> 上述四项为**已登记缺口**（决策 8：缺失即登记，不臆造内容）；补齐后按轻量修订流程（见下）更新本表。
 
 ## 规范修订流程
 
@@ -102,6 +111,6 @@
 
 - **为何把 `docs/` 下的 spec 子目录合并进 `spec/`**：消除「原始规范 vs v5 规范层」的二义，使**单一目录＝单一真源**；引用不再需要在两处之间跳转或判断优先级。
 - **为何 `SimRISC-*.md` / `DADAO-*.md` 不搬家**：保持与上游生成流程、以及 `ADR-0012 D4`「spec 模块任务可改上游规范」的名称对应关系；上游按本规定生成新版本文档时，文件名与目录不变。
-- **为何取消 `Toolchain-02`**：cfx 系列别名与 DADAO 汇编同属「汇编语言」这一主题，**不应拆分**；cfx 约定正文并入 `Toolchain-01`，而 cfx **别名表**属**投影层**（`.tao/knowledge/contract-cfx-aliases.md`），不进 `spec/`。
+- **为何取消拆分独立的 cfx 规范分册**：cfx 系列别名与 DADAO 汇编同属「汇编语言」这一主题，**不应拆分**；cfx 约定正文并入 `Toolchain-01`，而 cfx **别名表**属**投影层**（`.tao/knowledge/contract-cfx-aliases.md`），不进 `spec/`。
 - **为何生成物进 `contract-*`（投影层）**：生成的别名表/指令表是**实现的依据**，须与规范正文分离，才能被漂移门控（`make check-cfx-aliases` 等）机械校验；规范正文保持人工可读。
-- **为何不立 ADR**：本改造属**文档组织与流程取向**（目录合并、命名、索引与投影表），不涉及不可逆的架构取舍或多方案外部契约；被否方案（如保留 `docs/` 下的 spec 子目录、拆分 `Toolchain-02`）已记录于本节，故不立 ADR。
+- **为何不立 ADR**：本改造属**文档组织与流程取向**（目录合并、命名、索引与投影表），不涉及不可逆的架构取舍或多方案外部契约；被否方案（如保留 `docs/` 下的 spec 子目录、把 cfx 拆为独立规范分册）已记录于本节，故不立 ADR。

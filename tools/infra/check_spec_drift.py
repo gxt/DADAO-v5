@@ -22,10 +22,11 @@ import sys
 from pathlib import Path
 
 # ── 显式排除名单（P1: 不得用宽泛模式）─────────────────────────────────────────
-EXCLUDED_CONTRACTS = frozenset({
-    "contract-cfx-aliases.md",  # cfx 别名表：机械生成投影，无来源头，非合约
-})
-EXCLUDE_REASON = "cfx 别名表（机械生成投影，无来源头，非合约）"
+# 机械生成的投影合约：无来源头（非 spec-sourced/adr-sourced），不参与漂移审计。
+EXCLUDED_CONTRACTS = {
+    "contract-cfx-aliases.md": "cfx 别名表（机械生成投影，无来源头，非合约）",
+    "contract-asm-list.md":    "汇编指令表（机械生成投影，无来源头，非合约）",
+}
 
 # ── spec 前缀 → README 组件名映射（P3: 显式定义）─────────────────────────────
 SPEC_PREFIX_TO_COMPONENT = {
@@ -273,8 +274,8 @@ def main() -> int:
 
     # 报告排除文件
     print(f"排除文件（显式名单）:")
-    for excluded in sorted(EXCLUDED_CONTRACTS):
-        print(f"  {excluded} — {EXCLUDE_REASON}")
+    for excluded, reason in sorted(EXCLUDED_CONTRACTS.items()):
+        print(f"  {excluded} — {reason}")
     print()
 
     # 枚举 contract-*.md

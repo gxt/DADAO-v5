@@ -68,3 +68,7 @@
 - 落地方向：注释符落地 → cfx 别名实现 → 检测器 → 文档迁移 → 门控收口。
 - 决策变更：新增 ADR 或标 `Superseded`，不直接改写已 `Accepted` 的决策。
 - **2026-10-02（用户授权）D10 措辞就地修订**：澄清 `N` 落在**别名名称列 `[lo..hi]`**、`rc = rc_base + N`（`rc_base` = 该行 `rc` 列下界）；**决策本身不变**（原文误写"`N` 落在 `rc` 列范围"，与 `rc = rc_base + N` 自相矛盾，`SPEC-077t` reviewer 发现）。
+
+## 修订
+
+- 2026-10-03 文档分层改造：D9 落点迁至 `.tao/knowledge/contract-cfx-aliases.md`；汇编书写约定正文并入 `spec/Toolchain-01-汇编语言.md`。决策不变，正文不改（依 adr-authoring 规则）。

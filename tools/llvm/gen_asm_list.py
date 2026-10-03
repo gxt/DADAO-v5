@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the complete DADAO assembly-instruction list.
 
-See ``docs/assembly-list.md`` (generated) and
+See ``.tao/knowledge/contract-asm-list.md`` (generated) and
 ``spec/Process-01-组件补丁组织与构建编排.md`` (spec-writing conventions).
 
 Sources
@@ -680,7 +680,7 @@ def main() -> int:
 | `wpN` | wyde 位置 0..3 | |
 """
 
-    out = Path(args.output) if args.output is not None else ROOT / "docs/assembly-list.md"
+    out = Path(args.output) if args.output is not None else ROOT / ".tao/knowledge/contract-asm-list.md"
     out.write_text(header + "\n".join(rows) + "\n", encoding="utf-8")
     print(f"gen-asm-list: {len(entries)} entries -> {out}")
     return 0

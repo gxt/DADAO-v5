@@ -2,7 +2,7 @@
 
 > **状态**：**生效（v1.1，2026-09-25，用户审核通过；修订：双目的/多寄存器语法，2026-09-28）**——语法已定稿；**实现待安排**（LLVM MC 的 parser/printer/disassembler 改动；当前汇编器实现的是旧语法）
 > **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策由 **`ADR-0013`《DADAO 汇编语言语法》冻结（Accepted，2026-09-28）**
-> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表）、`docs/assembly-list.md`（251 条指令全表，自动生成；其中**浮点**与**待定**两章整章 deferred）
+> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表）、`.tao/knowledge/contract-asm-list.md`（227 条指令全表，自动生成；其中**浮点**与**待定**两章整章 deferred）
 > **说明**：本规范按 ADR-0012 D4 由 spec 模块任务修改上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）
 > **关键词**：MUST / SHOULD / MAY 按 RFC 2119 解释
 
@@ -36,7 +36,7 @@
 - 立即数**MAY**写为十进制、`0x…`（十六进制）、`0b…`（二进制）、负数（前导 `-`）；下划线分隔符**MUST NOT** 使用。
 - 立即数位置接受完整的常量表达式（`+ - * / % & | ^ << >> == != < <= > >= && ||` 与一元 `! ~ - +`、括号分组）。
 - **地址立即数**：跳转/分支目标偏移与 escape 偏移的单位为**字节**，**不含任何单位标记**。装配器将其右移 2 位写入编码字段；汇编器**校验** `%4==0` 与范围。字段名映射见 §3.1。
-- **取值范围**：各立即数字段的位宽与取值范围见 `docs/assembly-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 §11）。
+- **取值范围**：各立即数字段的位宽与取值范围见 `.tao/knowledge/contract-asm-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 §11）。
 
 ### 2.5 寄存器名
 - 四组：`rd0`–`rd63`、`rb0`–`rb63`、`ra0`–`ra63`、`rf0`–`rf63`（RF 属 Excluded from M1）。
@@ -238,6 +238,54 @@
   2. **示例可汇编**：本规范中每条示例**MUST**能被汇编器接受（新语法实现后启用）；
   3. **往返一致**：§10 的两条断言；
   4. **缺口登记**：§11 的缺口项**MUST**在 `docs/issues.yaml` 中有对应条目。
+
+---
+
+## 13. cfx 别名约定
+
+> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/knowledge/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 属 **Excluded from M1**，本节约定随 M2 落地。
+
+### 13.1 归属与形态（D1/D2）
+- cfx 别名属**汇编规范**：由汇编器内置**符号表**解析，**不引入** cpp 头文件/宏。
+- **不引入花括号**：别名靠**符号前缀**（`cfx_`）区分，不新增 `{...}` 的第 5 种用途（`{...}` 的用途见 §4）。
+
+### 13.2 标量别名（D3）
+- `cfx_<cfxname>` ⇔ `cfxHA`（如 `cfx_power` ⇔ `cfx63`）。
+
+### 13.3 寄存器别名（D4）
+- `cfx_<cfxname>_<regname>` ⇔ 三元组 `(cfxha, cg, rc)`。
+- **无固定 `<mode>` 段**：`supv`/`hypv`/`umon` 等只是**某些 `regname` 的一部分**（如 `..._supv_excp_vector`），**不是**独立字段。
+- 映射**查 spec 寄存器表的 `cg`/`rc` 列**得到，**MUST NOT** 从名字字符串解析推断。
+
+### 13.4 两种拼写（D5）
+`cfx2rd`/`cfx2rc` 允许两种等价拼写，解析到**同一操作元组** `(cfxha, cg, rc, rdhd)`：
+- **规范长形**：`cfx2rc cfxHA, cgHB, rcHC, rdHD`（如 `cfx2rc cfx_smon, cg2, rc0, rd2`）；
+- **别名形**：`cfx2rc <cfxreg>, rdHD`（如 `cfx2rc cfx_smon_supv_excp_vector, rd2`）。
+
+操作数个数（4↔2）与逗号数（3↔1）的差异在**指令级 parse** 中处理。
+
+### 13.5 往返（D6）
+**反汇编器 MUST 输出规范长形**（保证往返一致）；别名仅作**输入糖**。
+
+### 13.6 文档示例（D7）
+文档示例**SHOULD**优先使用**别名形**（人读友好，且与既有 `DADAO-11/22/23` 一致）。
+
+### 13.7 数组寄存器单下标（D10）
+数组 cfx 寄存器支持**单下标** `cfx_<cfxname>_<regname>[N]` ⇔ `(cfxha, cg, rc = rc_base + N)`：
+- `N` **MUST** 落在别名表中该寄存器的**名称列范围 `[lo..hi]`**（如 `0..63`、`0..7`）内；
+- `rc_base` 为该行 **`rc` 列的下界**；别名表以 `cfx_<…>[lo..hi]` 记整数组，**单下标是其具体化**；
+- 汇编器/检测器 **MUST 接受**该形（不视为违规）；`N` 越界 **MUST 报错**。
+
+### 13.8 示例
+
+```
+cfx2rc cfx_smon_supv_excp_vector, rd2        ; 别名形
+cfx2rc cfx_smon, cg2, rc0, rd2               ; 规范长形（与上行等价）
+cfx2rd cfx_timer_regs[0], rd2                ; 数组单下标
+escape cfx_smon, [excp_cause_ip, 4]          ; cfxha 写作标量别名
+```
+
+> 别名表投影（`.tao/knowledge/contract-cfx-aliases.md`）随 spec 寄存器表机械重算，**禁止手工维护**；上述示例均由该表展开所得。
 
 ---
 
