@@ -1,42 +1,10 @@
 diff --git a/target/dadao/insn_trans/trans_cond_assign.c.inc b/target/dadao/insn_trans/trans_cond_assign.c.inc
 new file mode 100644
-index 0000000000..7e39b0f2e9
+index 0000000..d209c02
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_cond_assign.c.inc
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,85 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
-+
-+static bool trans_cs_n_rrrr_rf(DisasContext *ctx, arg_main *a)
-+{
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_cs_z_rrrr_rf(DisasContext *ctx, arg_main *a)
-+{
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_cs_p_rrrr_rf(DisasContext *ctx, arg_main *a)
-+{
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_cs_eq_rrrr_rf(DisasContext *ctx, arg_main *a)
-+{
-+    /* cs.eq-rf - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_cs_ne_rrrr_rf(DisasContext *ctx, arg_main *a)
-+{
-+    /* cs.ne-rf - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
 +
 +/* §3.5 cs.n/cs.z/cs.p (rrrr): single-value conditional assign
 + *   cs.n: if (rdha < 0) rdhb = rdhc; else rdhb = rdhd

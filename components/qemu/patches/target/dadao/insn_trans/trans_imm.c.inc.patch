@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_imm.c.inc b/target/dadao/insn_trans/trans_imm.c.inc
 new file mode 100644
-index 0000000000..ceb1835e63
+index 0000000..452e5da
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_imm.c.inc
-@@ -0,0 +1,126 @@
+@@ -0,0 +1,120 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §3.6 set.zw/set.ow/or.w/andn.w (rwii): immediate set
@@ -73,12 +73,6 @@ index 0000000000..ceb1835e63
 +    return true;
 +}
 +
-+static bool trans_set_w_rwii_rf(DisasContext *ctx, arg_main *a)
-+{
-+    /* set.w-rf - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
 +
 +/* §4.4 set.zw rb (rwii): rbha[wyde(wp)] = immu16, other 48 bits = 0
 + * ILLI: rbha == rb0 */

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_compare.c.inc b/target/dadao/insn_trans/trans_compare.c.inc
 new file mode 100644
-index 0000000..33b54c5
+index 0000000..b1c2c87
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_compare.c.inc
-@@ -0,0 +1,207 @@
+@@ -0,0 +1,194 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §3.2.1 cmp.ui/cmp.si (rrii): immediate compare */
@@ -198,16 +198,3 @@ index 0000000..33b54c5
 +    return true;
 +}
 +
-+static bool trans_ftscmp_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftscmp - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_foscmp_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* foscmp - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}

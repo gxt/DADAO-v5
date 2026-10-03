@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..a127f29
+index 0000000..7da3e29
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,488 @@
+@@ -0,0 +1,519 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -413,7 +413,37 @@ index 0000000..a127f29
 +    gen_helper_ra_store(tcg_env, idx, val);
 +}
 +
++/* ── RF register access helpers (rf0 = FCSR) ─────────────────────────── */
++/* FCSR write mask: only [33:32] (rounding mode) and [4:0] (exception status)
++ * are writable; read-only qNaN bits and SBZ fields keep their value.
++ * See SimRISC-00 §浮点状态寄存器 and .tao/knowledge/contract-fp.md §1. */
++#define RF0_WRITE_MASK  0x000000030000001FULL   /* [33:32] + [4:0] */
 +
++/* Load rf[n] into a TCG temp. rf0 reads as the full 64-bit FCSR value. */
++static TCGv_i64 load_rf(int n)
++{
++    TCGv_i64 t = tcg_temp_new_i64();
++    tcg_gen_ld_i64(t, tcg_env, offsetof(CPUDADAOState, rf[n]));
++    return t;
++}
++
++/* Store val into rf[n]. For rf0 the FCSR write mask is applied
++ * (new = (old & ~RF0_WRITE_MASK) | (val & RF0_WRITE_MASK)); other rf
++ * registers are written in full. */
++static void store_rf(int n, TCGv_i64 val)
++{
++    if (n == 0) {
++        TCGv_i64 old = tcg_temp_new_i64();
++        TCGv_i64 masked = tcg_temp_new_i64();
++        tcg_gen_ld_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
++        tcg_gen_andi_i64(old, old, ~RF0_WRITE_MASK);
++        tcg_gen_andi_i64(masked, val, RF0_WRITE_MASK);
++        tcg_gen_or_i64(old, old, masked);
++        tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
++    } else {
++        tcg_gen_st_i64(val, tcg_env, offsetof(CPUDADAOState, rf[n]));
++    }
++}
 +
 +#include "insn_trans/trans_arith.c.inc"
 +#include "insn_trans/trans_compare.c.inc"
@@ -425,6 +455,7 @@ index 0000000..a127f29
 +#include "insn_trans/trans_block.c.inc"
 +#include "insn_trans/trans_mem.c.inc"
 +#include "insn_trans/trans_ctrl.c.inc"
++#include "insn_trans/trans_fp.c.inc"
 +
 +static void dadao_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
 +{

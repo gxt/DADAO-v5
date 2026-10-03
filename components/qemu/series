@@ -22,6 +22,7 @@ target/dadao/insn_trans/trans_compare.c.inc.patch
 target/dadao/insn_trans/trans_cond_assign.c.inc.patch
 target/dadao/insn_trans/trans_ctrl.c.inc.patch
 target/dadao/insn_trans/trans_extend.c.inc.patch
+target/dadao/insn_trans/trans_fp.c.inc.patch
 target/dadao/insn_trans/trans_imm.c.inc.patch
 target/dadao/insn_trans/trans_logic.c.inc.patch
 target/dadao/insn_trans/trans_mem.c.inc.patch
