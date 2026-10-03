@@ -12,7 +12,7 @@ fail-closed: 缺来源 / 来源格式损坏 / 未知 ADR / 版本不匹配 → e
 
 Usage:
     python3 tools/infra/check_spec_drift.py [--contract-dir DIR] [--knowledge-dir DIR]
-                                             [--spec-dir DIR] [--repo-root DIR]
+                                             [--adr-dir DIR] [--spec-dir DIR] [--repo-root DIR]
 """
 
 import argparse
@@ -23,9 +23,9 @@ from pathlib import Path
 
 # ── 显式排除名单（P1: 不得用宽泛模式）─────────────────────────────────────────
 EXCLUDED_CONTRACTS = frozenset({
-    "contract-authoring.md",  # 合约编写规范/模板，无来源头，非合约
+    "contract-cfx-aliases.md",  # cfx 别名表：机械生成投影，无来源头，非合约
 })
-EXCLUDE_REASON = "合约编写规范/模板（非合约，无来源头）"
+EXCLUDE_REASON = "cfx 别名表（机械生成投影，无来源头，非合约）"
 
 # ── spec 前缀 → README 组件名映射（P3: 显式定义）─────────────────────────────
 SPEC_PREFIX_TO_COMPONENT = {
@@ -128,7 +128,7 @@ def check_adr_accepted(adr_path: Path) -> tuple[bool, str]:
 def classify_contract(
     contract_path: Path,
     readme_versions: dict[str, str],
-    knowledge_dir: Path,
+    adr_dir: Path,
     spec_dir: Path,
 ) -> tuple[str, list[str]]:
     """分类单个合约文件. 返回 (status, details).
@@ -198,12 +198,12 @@ def classify_contract(
     if adr_refs:
         for adr_num in adr_refs:
             adr_filename = None
-            for candidate in knowledge_dir.glob(f"adr-{adr_num}-*.md"):
+            for candidate in adr_dir.glob(f"adr-{adr_num}-*.md"):
                 adr_filename = candidate.name
                 adr_path = candidate
                 break
             if adr_filename is None:
-                details.append(f"  ERROR: ADR 文件 adr-{adr_num}-*.md 不存在于 {knowledge_dir}")
+                details.append(f"  ERROR: ADR 文件 adr-{adr_num}-*.md 不存在于 {adr_dir}")
                 return ("error", details)
             accepted, status = check_adr_accepted(adr_path)
             if not accepted:
@@ -234,6 +234,10 @@ def main() -> int:
         help="规范目录（默认: spec/）",
     )
     parser.add_argument(
+        "--adr-dir", type=Path, default=None,
+        help="ADR 目录（默认: .tao/adr）",
+    )
+    parser.add_argument(
         "--contract-dir", type=Path, default=None,
         help="合约目录（默认: .tao/knowledge）",
     )
@@ -248,6 +252,7 @@ def main() -> int:
 
     knowledge_dir = args.knowledge_dir or repo_root / ".tao" / "knowledge"
     spec_dir = args.spec_dir or repo_root / "spec"
+    adr_dir = args.adr_dir or repo_root / ".tao" / "adr"
     contract_dir = args.contract_dir or knowledge_dir
 
     readme_path = repo_root / "README.md"
@@ -289,7 +294,7 @@ def main() -> int:
         checked += 1
 
         status, details = classify_contract(
-            contract_path, readme_versions, knowledge_dir, spec_dir
+            contract_path, readme_versions, adr_dir, spec_dir
         )
 
         if status == "error":

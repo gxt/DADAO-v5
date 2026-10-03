@@ -176,7 +176,7 @@ def main() -> int:
         head = head_of(target)
         if head == commit:
             # With tree-shaped patch sets applied via `git apply` (see
-            # docs/spec/component-patching.md) the worktree is intentionally
+            # spec/Process-01-组件补丁组织与构建编排.md) the worktree is intentionally
             # dirty while HEAD stays on the pinned commit, so this branch is
             # the normal "already fetched + patched" case: leave it alone.
             print(f"fetch: {name} already at {commit}")

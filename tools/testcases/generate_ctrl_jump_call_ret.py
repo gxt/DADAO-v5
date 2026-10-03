@@ -9,7 +9,7 @@ Covers M1 identities (jump-iiii, jump-rrii, call-iiii, call-rrii, ret-riii) with
 Spec-first: all encoding words, expected values, and spec_cite derived from
 contracts/opcodes.yaml, spec/SimRISC-00 §返回地址栈 (D7),
 spec/SimRISC-06 §函数调用|§函数返回, and
-.tao/knowledge/adr-0004-test-machine.md (D2.1, D5.5, D5.6, D6.5).
+.tao/adr/adr-0004-test-machine.md (D2.1, D5.5, D5.6, D6.5).
 
 RA semantics (ADR-0012 D7):
   - ra0[53:48] = RACNT (valid entry count, 0–63); ra0[47:0] = MRPTR (MemRAS top address, 0=no MemRAS)

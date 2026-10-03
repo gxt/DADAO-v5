@@ -7,7 +7,7 @@
 - **工作范围**：仅在 DADAO-v5/ 目录内修改或创建文件，可读取其他目录。
 - **git 操作**：仅涉及 DADAO-v5 子模块，不操作父仓库或其他子模块。如需父仓库配合，提示用户处理。
 - **参考目录**：`DADAO-0628` 和 `DADAO` 作为工程经验参考，不复制其代码。两者 commit 已锁定在 `manifests/`，只读工作树检出在 **`.cache/refs/<id>/`**（`make fetch-refs` 幂等重建）。
-- **组件补丁**：组件补丁集的组织/生成/应用/校验以 **`docs/spec/component-patching.md`** 为准（树形补丁集 + 一文件一补丁 + `git apply`），由 `make check` 的 `check-patch-tree` 机械校验。
+- **组件补丁**：组件补丁集的组织/生成/应用/校验以 **`spec/Process-01-组件补丁组织与构建编排.md`** 为准（树形补丁集 + 一文件一补丁 + `git apply`），由 `make check` 的 `check-patch-tree` 机械校验。
 - **提交确认**：所有提交必须先经用户确认。
 - **操作前提问**：进行实际操作前先向用户提问，一次只问一个问题，根据回答追问直到完全理解需求。
 
@@ -24,20 +24,20 @@
 ## 参考来源与任务自包含
 
 - 任务书必须**自包含**：执行所需的事实/格式/模板写入任务书或 v5 自身知识（`.tao/knowledge/`），不依赖外部仓库内容。
-- **模板/格式**以 v5 自身知识为准（如 `.tao/knowledge/adr-authoring.md`、`contract-authoring.md`），不引用外部仓库的模板文件。
+- **模板/格式**以 v5 自身知识为准（如 `spec/Process-03-ADR编写规范.md`、`spec/Process-02-合约编写规范.md`），不引用外部仓库的模板文件。
 - DADAO-0628 / DADAO 等参考仓库**仅作只读溯源/对照**，其文件**不得作为任务的执行依赖**；引用时标注「内容溯源，非执行必需」。
 - 参考仓库按 commit 锁定（`manifests/`）；如需核对内容，按锁定 commit 从外部获取，不 vendor 进仓库。
 
 ## ADR 提醒
 
-- 讨论 / 任务涉及 ADR 判据（不可逆、跨模块、多方案、外部契约、结论固化、定位）时，**必须主动提醒用户是否生成 ADR**，不擅自决定、不静默略过。判据与格式见 `.tao/knowledge/adr-authoring.md`。
+- 讨论 / 任务涉及 ADR 判据（不可逆、跨模块、多方案、外部契约、结论固化、定位）时，**必须主动提醒用户是否生成 ADR**，不擅自决定、不静默略过。判据与格式见 `spec/Process-03-ADR编写规范.md`。
 
 ## ADR decision 逐条确认
 
 - **写入 ADR 的每个 decision（D1、D2…）都必须逐条与用户确认**；**不得**因任务书 / 参考文档 / 子代理产出里已写有该决策，就默认其通过。
 - 任务书里的 decision 只是**提案**。固化进 ADR 之前，须由用户逐条判定（保留 / 修改 / 否决），确认后方可写入。
 - 主会话与子代理（architect / engineer / reviewer）均不得擅自把**未经用户逐条确认**的 decision 写为 `Accepted`。
-- 已 `Accepted` 的 ADR 若要改动其 decision，仍须逐条经用户确认（按 `adr-authoring.md`：新增 ADR / 标注 `Superseded` / 经授权的就地修订）。
+- 已 `Accepted` 的 ADR 若要改动其 decision，仍须逐条经用户确认（按 `spec/Process-03-ADR编写规范.md`：新增 ADR / 标注 `Superseded` / 经授权的就地修订）。
 
 ## 目录结构
 
@@ -45,11 +45,12 @@
 DADAO-v5/
 ├── AGENTS.md              # 本文件
 ├── README.md              # 项目总览
-├── .tao/                  # 交互目录（任务/知识/日志）
+├── .tao/                  # 交互目录（任务/知识/ADR/日志）
 │   ├── tasks/<module>/    # 任务文件 <PREFIX>-nnn<suffix>-描述.md
-│   └── knowledge/         # MEMORY.md、contract-*.md、adr-*.md
+│   ├── knowledge/         # 合约（contract-*.md）与台账（MEMORY/changelog/deferred/milestones）
+│   └── adr/               # 架构决策记录 adr-<nnnn>-*.md（决策层）
 ├── manifests/             # 锁文件（规范/参考组件）
-├── spec/                  # 原始规范文档（spec 模块任务可改，见 ADR-0012 D4）
+├── spec/                  # 规范：上游 SimRISC/DADAO + v5 自定 Toolchain/Process；索引 spec/README.md（spec 模块任务可改，见 ADR-0012 D4）
 ├── contracts/             # 机器可读合约数据（编码表/ABI/合法性规则）
 └── tools/<module>/        # 各模块工具脚本（infra/spec/llvm/qemu/testcases）
 ```

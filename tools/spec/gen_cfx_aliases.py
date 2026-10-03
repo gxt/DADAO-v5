@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate ``docs/spec/cfx-aliases.md`` from spec cfx tables.
+"""Generate ``.tao/knowledge/contract-cfx-aliases.md`` from spec cfx tables.
 
 Sources
 -------
@@ -30,7 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SPEC_D12 = ROOT / "spec/DADAO-12-SEE-主管系统运行环境.md"
 SPEC_D13 = ROOT / "spec/DADAO-13-HEE-超管系统运行环境.md"
-OUTPUT = ROOT / "docs/spec/cfx-aliases.md"
+OUTPUT = ROOT / ".tao/knowledge/contract-cfx-aliases.md"
 
 
 def read_file(path: Path) -> str:

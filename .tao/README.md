@@ -38,7 +38,8 @@
 ## 目录
 
 - `tasks/<module>/` — 任务文件 `<PREFIX>-nnn<suffix>-描述.md`（按模块分子目录），状态机按后缀：`k` 待开始→已验证；`t` 待开始→待验收→已验证（`待返工` 回退）；`m` 待开始→里程碑
-- `knowledge/` — 知识库：`MEMORY.md`（状态摘要）、`changelog.md`（变更记录）、`milestones.md`（项目里程碑路线图）、`contract-*.md`（归一化合约）、`adr-*.md`（架构决策）、`project_*.md`、`feedback_*.md`
+- `knowledge/` — 知识库：`MEMORY.md`（状态摘要）、`changelog.md`（变更记录）、`milestones.md`（项目里程碑路线图）、`contract-*.md`（归一化合约）、`project_*.md`、`feedback_*.md`
+- `adr/` — 架构决策记录（决策层）：`adr-<nnnn>-<slug>.md`（独立于知识库投影层）
 - **日志留存** — 复杂验证类命令（build/test/smoke 等）的完整输出留存到 `.work/log/<模块>/<任务ID>-<命令名>.log`（reviewer 重跑加 `-review-`）；命令正常结束时用 `tee` 同时输出到终端和日志
 - `.work/` 由根 `.gitignore` 整体忽略，不进 git
 
@@ -71,12 +72,13 @@
 
 | 路径 | 用途 |
 | --- | --- |
-| `spec/` | 11 份原始规范文档（只读参考） |
+| `spec/` | 规范（上游 SimRISC-00~12 + DADAO-11~23 与 v5 自定 Toolchain-01、Process-0x）；总索引 `spec/README.md`（spec 模块任务可改，见 ADR-0012 D4） |
 | `manifests/` | 锁文件（规范/参考组件，精确 commit） |
 | `contracts/` | 机器可读合约数据（编码表/ABI/合法性规则） |
 | `tools/<module>/` | 各模块工具脚本（infra/spec/llvm/qemu/testcases） |
 | `.tao/knowledge/contract-isa.md` | ISA 归一化合约（SimRISC 0.5.4） |
-| `.tao/knowledge/contract-authoring.md` | 合约编写规范 |
+| `spec/Process-02-合约编写规范.md` | 合约编写规范 |
+| `.tao/adr/` | 架构决策记录（ADR） |
 | `components/` `tests/` `sail/` | 后续交付物（按需创建） |
 
 ## model

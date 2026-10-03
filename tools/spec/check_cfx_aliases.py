@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift gate: verify ``docs/spec/cfx-aliases.md`` is up-to-date.
+"""Drift gate: verify ``.tao/knowledge/contract-cfx-aliases.md`` is up-to-date.
 
 Regenerates the alias table from spec sources and compares byte-for-byte
 against the checked-in file.  **Non-zero exit on any mismatch.**

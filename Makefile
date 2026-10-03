@@ -1,6 +1,6 @@
 # DADAO-v5 top-level orchestration.
 #
-# Make is the stable user interface (ADR-0002: .tao/knowledge/adr-0002-build-orchestration.md); the actual manifest/fetch/patch
+# Make is the stable user interface (ADR-0002: .tao/adr/adr-0002-build-orchestration.md); the actual manifest/fetch/patch
 # logic is delegated to Python standard-library scripts under tools/infra/. All
 # disposable data lives under .work/ (gitignored); persistent upstream mirrors
 # live under .cache/ and are never touched by clean-work.
@@ -224,7 +224,7 @@ validate-vectors: contracts/opcodes.yaml
 check-spec-drift:
 	@$(PYTHON) tools/infra/check_spec_drift.py
 
-# 组件补丁集校验 (2026-09-23): 树形补丁集四断言，见 docs/spec/component-patching.md。
+# 组件补丁集校验 (2026-09-23): 树形补丁集四断言，见 spec/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:
 	@$(PYTHON) tools/infra/check_patch_tree.py
 
@@ -233,7 +233,7 @@ check-patch-tree:
 check-spec-refs:
 	@$(PYTHON) tools/infra/check_spec_refs.py
 
-# cfx alias drift gate (SPEC-075t): verify docs/spec/cfx-aliases.md is up-to-date.
+# cfx alias drift gate (SPEC-075t): verify .tao/knowledge/contract-cfx-aliases.md is up-to-date.
 check-cfx-aliases:
 	@$(PYTHON) tools/spec/check_cfx_aliases.py
 

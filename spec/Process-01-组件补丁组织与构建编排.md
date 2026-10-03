@@ -129,4 +129,4 @@ components/<name>/
 
 - 本规范于 2026-09-23 生效，同时 M1 补丁集由「16 份编号补丁 + `git am`」重整为「树形补丁集（67 份）+ `git apply`」。
 - **rev. 2026-09-25**：补丁清单由 `patches/series` 迁至 `components/<name>/series`，`patches/` 成为**纯镜像**；manifest 新增 `patch_dir` 字段（与 `patch_series` 并列，脚本不再互相推导）；断言由 4 条增至 5 条（新增⑤纯镜像）。动机：①使 §2「镜像上游源码树」成为字面成立且可机械校验的不变量；②`make_patch.py` 导出前整体清空 `patches/`，清单置于其外可避免「先删后建」。属 D4 的派生实现细节，未触及 D4 决策，经用户 2026-09-25 裁定**不需新 ADR**。
-- 相关决策变更记录见 `.tao/knowledge/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。
+- 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。

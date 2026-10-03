@@ -2,7 +2,7 @@
 
 `tests/vectors/isa/*.yaml` 的向量 schema。所有字段与语义期望值**独立派生自**锁定的
 规范与合约（`spec/`、`.tao/knowledge/contract-isa.md`、`contracts/opcodes.yaml`、
-`contracts/legality_rules.yaml`、`.tao/knowledge/adr-0004-test-machine.md`），
+`contracts/legality_rules.yaml`、`.tao/adr/adr-0004-test-machine.md`），
 **不得**从 LLVM 汇编输出或 QEMU 运行结果反推。
 
 每个 `isa/*.yaml` 文件是一个 YAML 列表，每个元素是一条 test case。

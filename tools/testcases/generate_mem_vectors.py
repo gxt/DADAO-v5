@@ -8,7 +8,7 @@ Reads contracts/opcodes.yaml and produces:
 
 All encoding words, expected values, and spec_cite are derived from
 contracts/opcodes.yaml, .tao/knowledge/contract-isa.md, and
-.tao/knowledge/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
+.tao/adr/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
 
 F10 design (方案B):
   - encoding class: base=rb3 (unused register), dest=rd1/ra1 (not rd0/ra0),

@@ -23,7 +23,7 @@
      - **反例**：`ret rd0, 1` 必须报错（`# CHECK: error:`）
      - **边界**：`ret rd0, -1` 必须报错
      - **非 rd0 正例**：`ret rd1, 0` 和 `ret rd1, 42` 均成功（无此约束）
-  3. 补丁按"工作树改 → `git diff` 导出"，遵循树形补丁集规范（`docs/spec/component-patching.md`）
+  3. 补丁按"工作树改 → `git diff` 导出"，遵循树形补丁集规范（`spec/Process-01-组件补丁组织与构建编排.md`）
 
 - **约束**：
   - **LLVM-026t 硬约束**：`DADAOAsmParser.cpp.patch` 正被后台的 LLVM-026t 修改。**本任务不得读取或依赖该补丁的当前内容**。任务书写作"在 LLVM-026t 完成后、于其成果之上叠加该检查"，执行时须核对 LLVM-026t 的合并点（查看其完成区确定改了哪些行/函数）

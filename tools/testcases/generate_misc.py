@@ -8,7 +8,7 @@ Covers 2 M1 identities in tests/vectors/isa/misc.yaml:
 Spec-first: all encoding words, expected values, and spec_cite derived from
 contracts/opcodes.yaml, .tao/knowledge/contract-isa.md §7/§8/§9,
 contracts/legality_rules.yaml (encode_sbz rule), and
-.tao/knowledge/adr-0004-test-machine.md.
+.tao/adr/adr-0004-test-machine.md.
 
 Encoding derivations (SPEC-068t: MISC-AMO op 0x00→0x77):
   - swym 0: op=0x77, ha=0x02, immu18=0 → word=0x77080000

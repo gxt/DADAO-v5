@@ -27,7 +27,7 @@
   7. 门控 `make check-legality-drift` + `make check-rule-refs` 通过
 
 - **约束**：
-  - 不改 `.tao/knowledge/adr-0013-assembly-syntax.md`
+  - 不改 `.tao/adr/adr-0013-assembly-syntax.md`
   - 不改 `spec/SimRISC-0.5.3/`
   - 不提交 git
   - 与 `ADR-0013 D3/D10`（汇编立即数字节化）正交，`ret` 的 `imms18` 编码名不变

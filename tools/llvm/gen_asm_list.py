@@ -2,7 +2,7 @@
 """Generate the complete DADAO assembly-instruction list.
 
 See ``docs/assembly-list.md`` (generated) and
-``docs/spec/component-patching.md`` (spec-writing conventions).
+``spec/Process-01-组件补丁组织与构建编排.md`` (spec-writing conventions).
 
 Sources
 -------
@@ -272,7 +272,7 @@ def _reg(op: dict, attempt: int, nth: int = 0, field: bool = False) -> str:
 
 
 def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False) -> str:
-    """按 docs/spec/assembly-language.md 的语法渲染一条指令。
+    """按 spec/Toolchain-01-汇编语言.md 的语法渲染一条指令。
 
     field=True 时，寄存器用字段名（rdHA/rbHB/cgHB…）、立即数用字段名（imms12/wpN/immu16…），
     供表格的「汇编形式」列使用；否则给出具体示例（rd8/rb3/…）。
@@ -572,7 +572,7 @@ def main() -> int:
         choices=("old", "new"),
         default="old",
         help="instruction syntax to render: 'old' (currently implemented) or "
-        "'new' (docs/spec/assembly-language.md)",
+        "'new' (spec/Toolchain-01-汇编语言.md)",
     )
     parser.add_argument(
         "--embed-spec",
@@ -596,7 +596,7 @@ def main() -> int:
             f"// DADAO 指令清单（{'新语法（规范草案，待实现）' if args.syntax == 'new' else '旧语法（当前已实现）'}）\n"
             f"// 生成器：tools/llvm/gen_asm_list.py --plain --syntax {args.syntax}\n"
             f"// 来源：contracts/opcodes.yaml（{total} 条 = M1 {n_m1} + excluded_m1 {n_excluded}）\n"
-            f"// 新语法规范：docs/spec/assembly-language.md\n\n"
+            f"// 新语法规范：spec/Toolchain-01-汇编语言.md\n\n"
         )
         text = header + "\n".join(plain_lines(entries, args.syntax)) + "\n"
         if args.output is not None:
@@ -655,11 +655,11 @@ def main() -> int:
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
 > **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `excluded_m1` {n_excluded}）
-> **语法**：`docs/spec/assembly-language.md`（**v1 生效，待实现**）
+> **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
 > **deferred**（用户裁定 2026-09-25）：{_deferred_text}
 > **注（非 deferred 的 rf 条目）**：浮点寄存器的**读写**——`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式（8 条）、`cs.*-rf` 与 `rd2rf`/`rf2rd`（7 条）、`set.w-rf`（1 条）——**不**属 deferred：浮点寄存器默认存在，这些只读写寄存器、不涉浮点运算（用户裁定 2026-09-25）
-> **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `docs/spec/assembly-language.md` §4.2）
+> **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 
 ## 立即数范围速查

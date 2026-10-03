@@ -3,15 +3,15 @@
 DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 
 仓库**永不跟踪**上游源码树或构建产物；源码 checkout 由组件锁文件（`manifests/`）
-加有序补丁序列完全复现（参考 v5 ADR-0002 `.tao/knowledge/adr-0002-build-orchestration.md`：一次性数据集中在 `.work/`）。
+加有序补丁序列完全复现（参考 v5 ADR-0002 `.tao/adr/adr-0002-build-orchestration.md`：一次性数据集中在 `.work/`）。
 
 ## 纳入版本控制的目录
 
 - `AGENTS.md` / `README.md`：项目规则与总览。
 - `.tao/`：agent 交互目录（任务 / 知识 / 日志），详见 `.tao/README.md`。
 - `manifests/`：不可变输入——规范与参考组件的锁文件（精确 commit）。
-- `spec/`：原始规范文档（只读）。
-- `components/`：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁）+ 组件专属文档（`README.md`/`changelog.md`）。规范见 `docs/spec/component-patching.md`。
+- `spec/`：规范（上游 SimRISC/DADAO + v5 自定 Toolchain/Process）；总索引 `spec/README.md`（spec 模块任务可改，见 ADR-0012 D4）。
+- `components/`：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁）+ 组件专属文档（`README.md`/`changelog.md`）。规范见 `spec/Process-01-组件补丁组织与构建编排.md`。
 - `tools/<module>/`：各模块工具脚本（`tools/infra/` 含 fetch / 准备 / 校验 / 状态等，Python 标准库）。
 - `containers/`：开发容器定义。
 - `contracts/`：规范派生的机器可读数据（编码表、合法性规则、ABI）。

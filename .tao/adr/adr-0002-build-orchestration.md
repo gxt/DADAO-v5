@@ -13,7 +13,7 @@ DADAO-v5 需要从锁定的上游组件（LLVM/QEMU/gem5）与参考仓库复现
 - **D1 稳定用户接口**：以 **Make** 作为统一入口（`fetch` / `fetch-refs` / `apply-series` / `prepare` / `build-*` / `clean-work` 等），实际逻辑委托给 `tools/infra/` 下的 **Python 标准库**脚本；不引入第三方 Python 依赖。
 - **D2 一次性数据集中在 `.work/`**：上游工作树、树外构建目录、install、sysroot、构建/组件日志等所有可丢弃数据放在 `.work/` 下，整体由 `.gitignore` 忽略；仓库不预建、不跟踪其内容。agent 任务中间文件（含验证日志）按 `.tao/` 约定放 `.work/log/<模块>/`（`.work/` 整体 gitignore）。
 - **D3 按完整 commit 锁定**：每个组件从 `manifests/components.lock.toml` 读取**完整 40 位 commit** 获取；tag/branch 不作为可复现基线。
-- **D4 树形补丁集 + 一文件一补丁**（rev. 2026-09-23 改写，原为「单一有序补丁序列 + `git am`」）：每个组件的 DADAO 改动以 `components/<name>/patches/` 的**树形补丁集**表达——目录镜像上游源码树，一份补丁对应一个上游文件（文件名 = `<上游相对路径>.patch`，**无编号前缀**），`series` 为清单（一行一个，顺序按路径字典序）。统一用 **`git apply`** 应用（先 `git apply --check` 全量预检），**不保留作者与提交信息**；**不设** `newfiles/`、`fixups/` 等多层目录。新增文件同样以补丁表达（`new file mode` + 全文 `+` 行），且其补丁**必须是终态**（不得再有第二份补丁触及同一路径）。上述约束由 `tools/infra/check_patch_tree.py` 的断言在 `make check` 中机械校验；条文见 `docs/spec/component-patching.md`。
+- **D4 树形补丁集 + 一文件一补丁**（rev. 2026-09-23 改写，原为「单一有序补丁序列 + `git am`」）：每个组件的 DADAO 改动以 `components/<name>/patches/` 的**树形补丁集**表达——目录镜像上游源码树，一份补丁对应一个上游文件（文件名 = `<上游相对路径>.patch`，**无编号前缀**），`series` 为清单（一行一个，顺序按路径字典序）。统一用 **`git apply`** 应用（先 `git apply --check` 全量预检），**不保留作者与提交信息**；**不设** `newfiles/`、`fixups/` 等多层目录。新增文件同样以补丁表达（`new file mode` + 全文 `+` 行），且其补丁**必须是终态**（不得再有第二份补丁触及同一路径）。上述约束由 `tools/infra/check_patch_tree.py` 的断言在 `make check` 中机械校验；条文见 `spec/Process-01-组件补丁组织与构建编排.md`。
 - **D5 v5 新增：持久 bare mirror + 可再生工作树**（避免重下大仓库）：
   - 上游组件 bare mirror 落在 `.cache/<name>.git`；参考仓库 bare mirror 落在 `.cache/refs/<id>.git`；两者均在 `.cache/` 下且整体 gitignore。
   - 首次 `git clone --mirror` 下载一次；已存在时只做增量 `git fetch --prune`（且当 mirror 已含 pin commit 时跳过 fetch）。

@@ -21,6 +21,11 @@ import re
 import sys
 from pathlib import Path
 
+# ── 显式排除名单（机械生成投影，非叙述合约，无来源头/§ 引用）──────────────
+_EXCLUDED_CONTRACTS = frozenset({
+    "contract-cfx-aliases.md",  # cfx 别名表（生成物，见 spec/README.md 投影表）
+})
+
 # ── prefix → spec file mapping ───────────────────────────────────────────────
 
 SPEC_PREFIX_MAP = {
@@ -276,7 +281,10 @@ def check_line_has_decision(line: str) -> bool:
 
 def audit(contract_dir: Path, spec_dir: Path) -> int:
     """Run both checks. Returns violation count (0 = pass)."""
-    contract_files = sorted(contract_dir.glob("contract-*.md"))
+    contract_files = sorted(
+        p for p in contract_dir.glob("contract-*.md")
+        if p.name not in _EXCLUDED_CONTRACTS
+    )
     if not contract_files:
         print("ERROR: no contract-*.md files found", file=sys.stderr)
         return 1

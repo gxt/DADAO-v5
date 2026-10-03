@@ -75,6 +75,7 @@ def run_checker(repo_root: Path, kd: Path | None = None, sd: Path | None = None)
     cmd = [sys.executable, str(CHECKER), "--repo-root", str(repo_root)]
     contract_dir = repo_root / ".tao" / "knowledge"
     cmd += ["--contract-dir", str(contract_dir)]
+    cmd += ["--adr-dir", str(repo_root / ".tao" / "adr")]
     if kd:
         cmd += ["--knowledge-dir", str(kd)]
     if sd:

@@ -2,7 +2,7 @@
 
 > **状态**：Accepted
 >
-> **来源**：`.tao/knowledge/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充）。本合约是 ADR-0003 的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）的归一化投影。
+> **来源**：`.tao/adr/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充）。本合约是 ADR-0003 的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）的归一化投影。
 >
 > **引用**：指令格式/字段宽度/对齐/地址模型引用 `.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）；端序/指针宽度引用 `.tao/knowledge/contract-abi.md`（0.9.2）。本合约不重复定义这些内容。
 >
@@ -12,7 +12,7 @@
 >
 > **来源标注**：每条规范性断言句末以 `[ADR-0003 §DN]` 标注 ADR-0003 决策点，不写行号；引用合约时用 `contract-isa.md §N` / `contract-abi.md §N`。
 >
-> **说明**：本合约由 ADR-0003 归一化投影而来，面向实现；与 ADR-0003 冲突时阻断实现，走变更流程（见 `.tao/knowledge/contract-authoring.md`）。v5 `spec/` 不含 ELF 内容，D1/D5 属架构自定义（ELF 结构常量取自 ELF 标准，具体取值由 ADR-0003 决策）；遗留 `Dadao.def`/`ELF.h` 仅作只读对照，不作为编号/公式来源。[ADR-0003 §Context]
+> **说明**：本合约由 ADR-0003 归一化投影而来，面向实现；与 ADR-0003 冲突时阻断实现，走变更流程（见 `spec/Process-02-合约编写规范.md`）。v5 `spec/` 不含 ELF 内容，D1/D5 属架构自定义（ELF 结构常量取自 ELF 标准，具体取值由 ADR-0003 决策）；遗留 `Dadao.def`/`ELF.h` 仅作只读对照，不作为编号/公式来源。[ADR-0003 §Context]
 
 ---
 

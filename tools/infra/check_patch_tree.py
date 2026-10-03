@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check a component's tree-shaped patch set against docs/spec/component-patching.md.
+"""Check a component's tree-shaped patch set against spec/Process-01-组件补丁组织与构建编排.md.
 
 Assertions (all fail-closed):
 

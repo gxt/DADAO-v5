@@ -2,11 +2,11 @@
 
 **状态**：Accepted
 **日期**：2026-09-28
-**关联**：`SPEC-035t`、`docs/spec/assembly-language.md`（v1，2026-09-25 用户审核通过）、`ADR-0012 D4`（spec/ 只读策略调整）；**2026-09-29 增补 D8**（cfx 系列汇编记法，关联 `SPEC-051t`–`SPEC-054t`）；**2026-10-02 增补 D9**（注释符 `#`→`;`，`#` 留给 cpp；任务编号待定）；**2026-10-02 就地改写 D3 + 增补 D10**（汇编立即数单位=字节、取消 `i`；字段命名映射；任务编号待定）；关联 `ADR-0017`（cfx 别名）
+**关联**：`SPEC-035t`、`spec/Toolchain-01-汇编语言.md`（v1，2026-09-25 用户审核通过）、`ADR-0012 D4`（spec/ 只读策略调整）；**2026-09-29 增补 D8**（cfx 系列汇编记法，关联 `SPEC-051t`–`SPEC-054t`）；**2026-10-02 增补 D9**（注释符 `#`→`;`，`#` 留给 cpp；任务编号待定）；**2026-10-02 就地改写 D3 + 增补 D10**（汇编立即数单位=字节、取消 `i`；字段命名映射；任务编号待定）；关联 `ADR-0017`（cfx 别名）
 
 ## Context（背景）
 
-DADAO M1 的汇编语言语法已在 `docs/spec/assembly-language.md` v1 中定稿并经用户审核通过。该规范定义了词法、地址表达式、寄存器组、条件标记、指令语法、伪指令、指导符等书写形式，是 LLVM MC parser/printer/disassembler 实现的权威依据。
+DADAO M1 的汇编语言语法已在 `spec/Toolchain-01-汇编语言.md` v1 中定稿并经用户审核通过。该规范定义了词法、地址表达式、寄存器组、条件标记、指令语法、伪指令、指导符等书写形式，是 LLVM MC parser/printer/disassembler 实现的权威依据。
 
 按 `AGENTS.md` ADR 判据，汇编语法属于：
 - **外部契约 / 跨模块**：影响 LLVM MC、QEMU、测试用例等多个模块
@@ -116,17 +116,17 @@ DADAO M1 的汇编语言语法已在 `docs/spec/assembly-language.md` v1 中定�
 
 **已拒绝方案**：
 - R1: 表格只放 `docs/assembly-list.md`，spec 文件用链接引用 → 查阅不便，需在两个文件间跳转；且 spec 文件作为独立分发单元时丢失上下文
-- R2: 表格放 `docs/spec/`（v5 规范层）→ 与 `spec/`（原始规范）分离，增加维护成本；且 `docs/spec/` 的定位是 v5 扩展规范，不是原始指令表
+- R2: 表格放 v5 规范层（`spec/` 的 Toolchain/Process 自定分册）→ 与上游 `spec/`（原始规范）分离，增加维护成本；且该层的定位是 v5 扩展规范，不是原始指令表
 
 ### D8：cfx 系列汇编记法（2026-09-29 用户逐条确认，授权就地增补）
 
-**引用**：`docs/spec/assembly-language.md` §151–156、`contracts/opcodes.yaml`（cfx 家族）、`SPEC-052t`–`SPEC-054t`
+**引用**：`spec/Toolchain-01-汇编语言.md` §151–156、`contracts/opcodes.yaml`（cfx 家族）、`SPEC-052t`–`SPEC-054t`
 
 - **D8.1（cfx 编号占位）**：核芯功能扩展编号字段（`cfxha`，bits[23:18]）在汇编书写中的**字段占位**记法为 **`cfxHA`**（取代 v1.1 的 `cfxN`）；其**具体写法**为编号（如 `cfx63`）或名称别名 `cfx_<cfxname>`。
 - **D8.2（`cfx2rd`/`cfx2rc` 操作数）**：`crrr` 格式 `cfx2rd`/`cfx2rc` 的三个寄存器操作数写作 **`cgHB, rcHC, rdHD`**（对应字段 `cghb`/`rchc`/`rdhd`），取代原 `hb`/`hc`/`hd`。
 - **D8.3（别名）**：`cfx_<cfxname>`（如 `cfx_power`、`cfx_umon`）是 `cfxHA` 位置具体编号的**宏别名**，汇编器等价替换。
 - **D8.4（字段重命名）**：`contracts/opcodes.yaml`（生成源 `tools/spec/generate_opcodes.py`）字段重命名：`cfxcode→cfxha`、`hb→cghb`、`hc→rchc`、`hd→rdhd`。
-- **D8.5（同步）**：`docs/spec/assembly-language.md` §151–156、`docs/assembly-list.md` 及各 `spec/SimRISC-*.md` 内嵌速查表同步修订/重生成。
+- **D8.5（同步）**：`spec/Toolchain-01-汇编语言.md` §151–156、`docs/assembly-list.md` 及各 `spec/SimRISC-*.md` 内嵌速查表同步修订/重生成。
 
 **备选（否决）**：
 - R1：保留 `cfxN` → 与既有 `<bank>H<slot>` 占位约定（`rdHA`、`rbHB`）不一致；否决。
@@ -135,7 +135,7 @@ DADAO M1 的汇编语言语法已在 `docs/spec/assembly-language.md` v1 中定�
 
 ### D9：注释符由 `#` 改为 `;`（2026-10-02 用户逐条确认，授权就地增补；**部分取代 D2**）
 
-**引用**：本 ADR D2（注释）、`docs/spec/assembly-language.md §2.2`、`components/llvm-project/patches/.../DADAOMCAsmInfo.cpp`（`CommentString`）
+**引用**：本 ADR D2（注释）、`spec/Toolchain-01-汇编语言.md §2.2`、`components/llvm-project/patches/.../DADAOMCAsmInfo.cpp`（`CommentString`）
 
 - **D9.1**：DADAO 汇编的**行注释符 = `;`**（`CommentString = ";"`），自 `;` 起至行尾为注释。
 - **D9.2**：**`#` 不再作注释**，保留给 **C 预处理器**（`#include`/`#define`/`#if` 等）；DADAO 汇编不定义 `#` 注释。
@@ -146,7 +146,7 @@ DADAO M1 的汇编语言语法已在 `docs/spec/assembly-language.md` v1 中定�
   - **ARM `@`、AArch64 `;`、AVR `;`、NASM/MASM `;`** ⇒ 无冲突；
   - **RISC-V `#`**（`RISCVMCAsmInfo.cpp`）⇒ 同样冲突，跟随它无益；
   - DADAO 文档示例**本就用 `;`**（与旧 `D2` 自相矛盾 ✗）⇒ 改 `;` **既消解冲突又使示例转正**；`;` 与 `[]`/`{}`/`?` 及表达式运算符集**无冲突**。
-- **D9.5（影响面，须原子落地）**：LLVM 补丁 `DADAOMCAsmInfo.cpp`（`#`→`;`）+ `docs/spec/assembly-language.md §2.2` + 全部 `.s`（`tests/lit/MC/Dadao/*`、`tests/e2e/*`，约 **441 处** `#`⇒`;`）+ 解析 `#` 的工具（`tools/llvm/check_lit_bytes.py` 的 `# OBJ:`⇒`; OBJ:`，任务内全库 grep 穷尽）+ **重建 `llvm-mc`**；**须同一轮完成**，否则 `#` 行会被当代码报错。
+- **D9.5（影响面，须原子落地）**：LLVM 补丁 `DADAOMCAsmInfo.cpp`（`#`→`;`）+ `spec/Toolchain-01-汇编语言.md §2.2` + 全部 `.s`（`tests/lit/MC/Dadao/*`、`tests/e2e/*`，约 **441 处** `#`⇒`;`）+ 解析 `#` 的工具（`tools/llvm/check_lit_bytes.py` 的 `# OBJ:`⇒`; OBJ:`，任务内全库 grep 穷尽）+ **重建 `llvm-mc`**；**须同一轮完成**，否则 `#` 行会被当代码报错。
 - **D9.6**：本 ADR 的 `D2` **仅注释条目**由本节取代，其余内容不动。
 
 **备选（否决）**：

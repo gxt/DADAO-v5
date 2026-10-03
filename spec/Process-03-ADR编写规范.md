@@ -23,7 +23,7 @@ ADR（Architecture Decision Record）记录影响架构、难以逆转的决策�
 
 ## 落点与命名
 
-- 落在 `.tao/knowledge/adr-<nnnn>-<slug>.md`（如 `.tao/knowledge/adr-0004-test-machine.md`）
+- 落在 `.tao/adr/adr-<nnnn>-<slug>.md`（如 `.tao/adr/adr-0004-test-machine.md`）
 - `<nnnn>` 四位递增，与任务编号解耦
 - 关联任务在「关联」字段标注
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Export a component worktree as a tree-shaped patch set.
 
-See ``docs/spec/component-patching.md`` (v5 spec, effective 2026-09-23):
+See ``spec/Process-01-组件补丁组织与构建编排.md`` (v5 spec, effective 2026-09-23):
 
 * one patch per upstream file -- ``patches/<upstream-relative-path>.patch``
 * patch bodies are **raw** ``git diff`` output (no mbox headers, no numbering)

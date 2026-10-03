@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Apply each enabled component's tree-shaped patch set with ``git apply``.
 
-See ``docs/spec/component-patching.md`` (v5 spec, effective 2026-09-23).
+See ``spec/Process-01-组件补丁组织与构建编排.md`` (v5 spec, effective 2026-09-23).
 ``git apply`` is the only supported application path; authorship and commit
 messages are deliberately **not** preserved (the patch set carries the change,
 not a history).

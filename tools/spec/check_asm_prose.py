@@ -34,7 +34,7 @@ Scan scope
 * ``spec/**/*.md``  (excl. ``spec/SimRISC-0.5.3/``)
 * ``docs/**/*.md``  (excl. ``m1-retrospective.md``, ``testcases-009t-audit.md``,
   ``self-consistency.md``)
-* ``.tao/knowledge/{contract-*.md, adr-*.md}``  (excl. ``deferred.md``)
+* ``.tao/knowledge/contract-*.md`` + ``.tao/adr/*.md``  (excl. ``deferred.md``)
 
 Only fenced code blocks (```…```) are inspected; generated regions delimited by
 ``<!-- ASSEMBLY_LIST_* -->`` / ``<!-- LEGALITY_* -->`` are excluded.
@@ -130,13 +130,13 @@ _CFX_NAMES = [
 ]
 
 def _load_cfx_aliases() -> tuple[set[str], dict[str, tuple[int, int]]]:
-    """Load cfx alias names and their index ranges from ``docs/spec/cfx-aliases.md``.
+    """Load cfx alias names and their index ranges from ``.tao/knowledge/contract-cfx-aliases.md``.
 
     Templates with ``⟨cfxname⟩`` are expanded to all known cfx names.
     Returns ``(aliases, ranges)`` where ``ranges`` maps base name (without
     ``[lo..hi]``) to ``(lo, hi)`` for range-indexed registers.
     """
-    alias_path = ROOT / "docs" / "spec" / "cfx-aliases.md"
+    alias_path = ROOT / ".tao" / "knowledge" / "contract-cfx-aliases.md"
     if not alias_path.exists():
         return set(), {}
     aliases: set[str] = set()
@@ -216,7 +216,7 @@ def collect_files(root: Path | None = None) -> list[Path]:
             (ROOT / "spec", "**/*.md"),
             (ROOT / "docs", "**/*.md"),
             (ROOT / ".tao" / "knowledge", "contract-*.md"),
-            (ROOT / ".tao" / "knowledge", "adr-*.md"),
+            (ROOT / ".tao" / "adr", "*.md"),
         ]
         for base, pat in patterns:
             for p in sorted(base.glob(pat)):

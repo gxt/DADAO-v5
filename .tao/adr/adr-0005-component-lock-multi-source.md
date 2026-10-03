@@ -2,7 +2,7 @@
 
 **状态**：Accepted
 **日期**：2026-09-17
-**关联**：`INFRA-009t`、ADR-0002（`.tao/knowledge/adr-0002-build-orchestration.md`）
+**关联**：`INFRA-009t`、ADR-0002（`.tao/adr/adr-0002-build-orchestration.md`）
 
 ## Context（背景）
 

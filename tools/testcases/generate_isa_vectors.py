@@ -7,7 +7,7 @@ Reads contracts/opcodes.yaml and produces:
 
 All encoding words, expected values, and spec_cite are derived from
 contracts/opcodes.yaml, .tao/knowledge/contract-isa.md, and
-.tao/knowledge/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
+.tao/adr/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
 """
 
 import os, sys, yaml, copy

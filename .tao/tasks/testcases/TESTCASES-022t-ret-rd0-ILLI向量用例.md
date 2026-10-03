@@ -30,7 +30,7 @@
   - `ctrl-ret.yaml` 首行 `DO NOT EDIT`，只通过生成器修改，不手改
   - 现有用例**不得改写**（只追加）
   - 期望值来源**独立**：编码从 `opcodes.yaml` 的 `ret_riii_ra`（op=0x76）独立计算，ILLI 规则语义来自 `contracts/legality_rules.yaml` 的 `dst_rd0_nonzero`，**不得**从 LLVM/QEMU 生成
-  - 不改 `.tao/knowledge/adr-0013-assembly-syntax.md`
+  - 不改 `.tao/adr/adr-0013-assembly-syntax.md`
   - 不提交 git
   - 临时目录 `/tmp/opencode/TESTCASES-022t/`
   - 全程中文
