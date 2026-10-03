@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.h b/target/dadao/helper.h
 new file mode 100644
-index 0000000..38a157e
+index 0000000..aad01d1
 --- /dev/null
 +++ b/target/dadao/helper.h
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,32 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -32,3 +32,7 @@ index 0000000..38a157e
 +DEF_HELPER_3(fp_cvt_ff, i64, env, i64, i32)
 +DEF_HELPER_3(fp_cvt_f2i, i64, env, i64, i32)
 +DEF_HELPER_3(fp_cvt_i2f, i64, env, i64, i32)
++/* QEMU-037t: FP arithmetic (S2D1) + root (S1D1) families. `kind`/`isdbl`
++ * select the operation and format; see trans_fp.c.inc. */
++DEF_HELPER_4(fp_arith, i64, env, i64, i64, i32)
++DEF_HELPER_3(fp_root, i64, env, i64, i32)

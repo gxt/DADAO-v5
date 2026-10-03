@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..4281432
+index 0000000..ab1e2cb
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,928 @@
+@@ -0,0 +1,968 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -22,7 +22,10 @@ index 0000000..4281432
 + *       convert_ff (4): ft2ft/ft2fo/fo2ft/fo2fo
 + *       convert_f2i(8): ft2it/ft2io/ft2ut/ft2uo/fo2it/fo2io/fo2ut/fo2uo
 + *       convert_i2f(8): it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo
-+ *   - The remaining 14 trans are ILLI stubs owned by QEMU-037t.
++ *   - QEMU-037t implements the remaining 14 trans (softfloat):
++ *       arith  (12): ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb
++ *                    foadd/fosub/fomul/fodiv/forem/fosclb
++ *       root    (2): ftroot/foroot (rootn(x, 2) == sqrt; other n ⇒ ILLI)
 + *
 + * rf0 is the FCSR: reads expose the full 64 bits, writes go through
 + * store_rf() which applies RF0_WRITE_MASK for rf0.
@@ -694,17 +697,66 @@ index 0000000..4281432
 +    return gen_convert_ff(ctx, a, 0, true);
 +}
 +
++/* ── QEMU-037t: arithmetic (S2D1) + root (S1D1) families ─────────────── */
++/*
++ * Real TCG implementations backed by the upstream softfloat, reusing the
++ * QEMU-036t fp_status_init()/fp_status_commit() rounding+flag plumbing:
++ *   - S2D1 (orrr): add/sub/mul/div/rem/scalb, ft (32) and fo (64) forms.
++ *   - S1D1 (orri): rootn(x, n) with n in immu6; n == 2 only (sqrt).
++ * Sources: spec/SimRISC-07 §S2D1/§S1D1, contract-fp.md §5/§6.
++ */
++
++/* arith kind selectors (helper_fp_arith): 0..5 ft, 6..11 fo. */
++enum {
++    FP_AR_FTADD = 0, FP_AR_FTSUB, FP_AR_FTMUL, FP_AR_FTDIV,
++    FP_AR_FTREM,     FP_AR_FTSCLB,
++    FP_AR_FOADD,     FP_AR_FOSUB, FP_AR_FOMUL, FP_AR_FODIV,
++    FP_AR_FOREM,     FP_AR_FOSCLB,
++};
++
++static bool gen_fp_arith(DisasContext *ctx, arg_misc *a, uint32_t kind)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    /* S2D1: hardware reads both sources before writing the result, so the
++     * destination may alias a source. Both loads are emitted first. */
++    TCGv_i64 src1 = load_rf(a->hc);
++    TCGv_i64 src2 = load_rf(a->hd);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_arith(res, tcg_env, src1, src2, tcg_constant_i32(kind));
++    store_rf(a->hb, res);
++    return true;
++}
++
++static bool gen_fp_root(DisasContext *ctx, arg_misc *a, bool isdbl)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    /* encode_fp_root_n: rootn(x, n) is only defined for n == 2; immu6 holds
++     * n (not a register count), so mreg_zero/mreg_range_* do not apply. */
++    if (a->hd != 2) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    /* S1D1: read the source before writing the result. */
++    TCGv_i64 src = load_rf(a->hc);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_root(res, tcg_env, src, tcg_constant_i32(isdbl ? 1 : 0));
++    store_rf(a->hb, res);
++    return true;
++}
++
 +/* root */
 +static bool trans_ftroot_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_root(ctx, a, false);
 +}
 +
 +static bool trans_foroot_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_root(ctx, a, true);
 +}
 +
 +/* convert_f2i */
@@ -792,74 +844,62 @@ index 0000000..4281432
 +/* arith */
 +static bool trans_ftadd_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FTADD);
 +}
 +
 +static bool trans_ftsub_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FTSUB);
 +}
 +
 +static bool trans_ftmul_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FTMUL);
 +}
 +
 +static bool trans_ftdiv_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FTDIV);
 +}
 +
 +static bool trans_ftrem_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FTREM);
 +}
 +
 +static bool trans_ftsclb_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FTSCLB);
 +}
 +
 +static bool trans_foadd_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FOADD);
 +}
 +
 +static bool trans_fosub_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FOSUB);
 +}
 +
 +static bool trans_fomul_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FOMUL);
 +}
 +
 +static bool trans_fodiv_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FODIV);
 +}
 +
 +static bool trans_forem_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FOREM);
 +}
 +
 +static bool trans_fosclb_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_fp_arith(ctx, a, FP_AR_FOSCLB);
 +}
 +
 +/* sign */

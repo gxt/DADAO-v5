@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..e716e80
+index 0000000..db30d30
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,474 @@
+@@ -0,0 +1,571 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -355,6 +355,12 @@ index 0000000..e716e80
 +    memset(st, 0, sizeof(*st));
 +    set_float_rounding_mode(rf0_round_mode(env->rf[0]), st);
 +    set_float_detect_tininess(float_tininess_after_rounding, st);
++    /* Default generated qNaN = the FCSR qNaN(ft)/qNaN(fo) pattern (mantissa
++     * MSB set, rest zero ⇒ 0x7FC00000 / 0x7FF8000000000000).  memset() alone
++     * leaves default_nan_pattern == 0, which parts64_default_nan() rejects
++     * (the invalid-operation results of add/sub/mul/div/rem/scalb/sqrt would
++     * otherwise be malformed or abort the assert). */
++    set_float_default_nan_pattern(0b01000000, st);
 +}
 +
 +/* Merge the softfloat exception flags into the accrued FCSR status bits.
@@ -474,6 +480,97 @@ index 0000000..e716e80
 +    default: /* uo2fo */
 +        res = (uint64_t)uint64_to_float64(src, &st);
 +        break;
++    }
++    fp_status_commit(env, &st);
++    return res;
++}
++
++/* ── FP softfloat arithmetic + root family (QEMU-037t) ───────────────── */
++/*
++ * S2D1 (addition/subtraction/multiplication/division/remainder/scaleB) and
++ * S1D1 (square root) reused from the upstream softfloat.
++ *
++ * Sources:
++ *   spec/SimRISC-07 §S2D1 / §S1D1
++ *   .tao/knowledge/contract-fp.md §5/§6
++ *   spec/SimRISC-00 §浮点状态寄存器
++ *
++ * kind (helper_fp_arith): 0..5  = ft add/sub/mul/div/rem/scalb
++ *                         6..11 = fo add/sub/mul/div/rem/scalb
++ * The rf0 rounding mode and accrued flags are handled by fp_status_init() /
++ * fp_status_commit() exactly as for the conversion family.
++ */
++
++/* scaleB's second source is an integer-valued floating-point operand; the
++ * exponent n is its rounded integer value (spec §S2D1: "rfHD 取整数值").
++ * Softfloat's float-to-int conversion follows the same status rounding mode,
++ * so an inexact/exotic rfHD is reflected in the accrued flags. */
++uint64_t helper_fp_arith(CPUDADAOState *env, uint64_t a, uint64_t b,
++                         uint32_t kind)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    switch (kind) {
++    case 0:  /* ftadd */
++        res = (uint64_t)(uint32_t)float32_add((float32)a, (float32)b, &st);
++        break;
++    case 1:  /* ftsub */
++        res = (uint64_t)(uint32_t)float32_sub((float32)a, (float32)b, &st);
++        break;
++    case 2:  /* ftmul */
++        res = (uint64_t)(uint32_t)float32_mul((float32)a, (float32)b, &st);
++        break;
++    case 3:  /* ftdiv */
++        res = (uint64_t)(uint32_t)float32_div((float32)a, (float32)b, &st);
++        break;
++    case 4:  /* ftrem: IEEE 754 remainder (nearest quotient, ties to even) */
++        res = (uint64_t)(uint32_t)float32_rem((float32)a, (float32)b, &st);
++        break;
++    case 5:  /* ftsclb: rfHC * 2^rfHD */
++        res = (uint64_t)(uint32_t)float32_scalbn((float32)a,
++                                                 float32_to_int32((float32)b,
++                                                                  &st),
++                                                 &st);
++        break;
++    case 6:  /* foadd */
++        res = (uint64_t)float64_add((float64)a, (float64)b, &st);
++        break;
++    case 7:  /* fosub */
++        res = (uint64_t)float64_sub((float64)a, (float64)b, &st);
++        break;
++    case 8:  /* fomul */
++        res = (uint64_t)float64_mul((float64)a, (float64)b, &st);
++        break;
++    case 9:  /* fodiv */
++        res = (uint64_t)float64_div((float64)a, (float64)b, &st);
++        break;
++    case 10: /* forem */
++        res = (uint64_t)float64_rem((float64)a, (float64)b, &st);
++        break;
++    default: /* 11 fosclb */
++        res = (uint64_t)float64_scalbn((float64)a,
++                                       float64_to_int32((float64)b, &st),
++                                       &st);
++        break;
++    }
++    fp_status_commit(env, &st);
++    return res;
++}
++
++/* rootn(x, 2): the translate layer has already enforced n == 2 and selects
++ * the format via isdbl (0 = ft/float32, 1 = fo/float64). */
++uint64_t helper_fp_root(CPUDADAOState *env, uint64_t x, uint32_t isdbl)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    if (isdbl) {
++        res = (uint64_t)float64_sqrt((float64)x, &st);
++    } else {
++        res = (uint64_t)(uint32_t)float32_sqrt((float32)x, &st);
 +    }
 +    fp_status_commit(env, &st);
 +    return res;
