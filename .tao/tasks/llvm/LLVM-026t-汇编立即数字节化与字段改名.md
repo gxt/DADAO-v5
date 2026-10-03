@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M1→M2
 **依赖**：无
-**状态**：待验收
+**状态**：已验证
 
 ## 目标
 
@@ -80,7 +80,7 @@
 
 ## 验收标准
 
-1. **补丁完整性（防空补丁）**：`git apply --check` 两个补丁文件无错误，**且** 各自 `wc -l` **≥ 300**、内容**不含 `e69de29`（空 blob）**。⚠️ `git apply --check` 对**空补丁恒通过**（2026-10-02 事故），故必须同时核对行数。
+1. **补丁完整性（防空补丁）**：`git apply --check` 两个补丁文件无错误，**且** 各自 `wc -l` **≥ 300**、内容**不含 `e69de29`（空 blob）**。⚠️ `git apply --check` **不能**兜住无效补丁（2026-10-02 事故；2026-10-03 经实测订正）：0 字节/仅头部（无 hunk）会被**拒绝**（rc≠0），但「**新建空文件**」补丁（`new file mode … index 0000000..e69de29`、无 hunk）会**静默通过**（rc=0）。故必须同时核对**行数下限**与**非空 blob**（并以 `check-patch-tree` 断言⑥兜底）。
 2. **gen_asm_list.py 可运行并更新仓库产物**：`python3 tools/llvm/gen_asm_list.py --syntax new`（**默认写 `docs/assembly-list.md`**）无异常退出；随后 `grep -cE '[0-9]+i[][ ,;)]' docs/assembly-list.md` = **0**、`grep -cE 'imms14|imms20|imms26' docs/assembly-list.md` **> 0**（**必须落到仓库文件**，不得只写 `/tmp`）
 3. **无 `i` 残留**：`grep -n 'imms12i\|imms18i\|imms24i\|[0-9]i\]' tools/llvm/gen_asm_list.py docs/assembly-list.md` 退出码 1
 4. **字段改名**：`grep -c 'imms14\|imms20\|imms26' docs/assembly-list.md` 输出 > 0

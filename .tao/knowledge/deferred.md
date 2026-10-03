@@ -37,6 +37,7 @@
 - **行内 code span 检测（`INFRA-021t` 评估，2026-10-02，方案 b）**：`check_asm_prose.py` 当前只扫描围栏代码块（` ```simrisc ` / ` ```asm ` / ` ``` `），**不含行内 code span**（`` `rd8` ``、`` `add.uo` `` 等）。评估结论：**风险高于收益，登记 deferred**。依据：(1) 行内 span 中大量是**寄存器名/格式名/助记符的普通提及**（`` `rd0`–`rd63` ``、`` `rrrr` ``、`` `add.uo` ``），不构成可检测的「旧格式汇编行」；(2) 真正的行内汇编片段（如 `` `lr_nn.o rd9, [rb1]` ``）极少见，且形态多样（单指令/部分操作数/伪指令），误报率高；(3) 保守版需仅匹配「完整指令行」（助记符+操作数），但行内 span 通常不含完整行（换行被吃掉），匹配规则复杂且脆弱；(4) 围栏块已覆盖绝大部分汇编示例（12 章 spec + docs），行内 span 的防回退价值有限。归属：若后续发现行内 span 存在旧格式回退，再评估实现保守版。
 - **`check-lit` 接入 `make check`（`INFRA-021t`，2026-10-02）**：新增 `check-lit` target（`llvm-lit tests/lit/MC/Dadao tests/lit/E2E -v`），依赖 `build-mc`（MC 需 `llvm-mc`/`llvm-objdump`/`FileCheck`；E2E 额外需 `llvm-objcopy` + `qemu-system-dadao` + `trampoline.bin`）。`llvm-lit` 缺失时报明确错误（非静默跳过）。已接入 `check:` 依赖链。基线：MC **22/22** + E2E **3/3** = **25/25**。
 - **`check-asm-prose` 转 `--strict`（`INFRA-021t`，2026-10-02）**：基线 = 0 违规，安全转严（有违规即 exit 1）。已接入 `check:` 依赖链。`SPEC-076t` 原为 report 模式（exit 0），现为 strict 模式。
+- **`check_asm_prose.py` 域外场景 stdout 仍打 `PASS`（`INFRA-024t` 第4轮 reviewer N3，2026-10-03 登记，非阻断）**：`--files` 作用域外场景（A/B/E/E2/F/G）在 `report()` 之后才退出，stdout 仍打印 `PASS (0 violations)`（同时 rc=1、stderr 有 ERROR）。rc≠0 非假绿，但 stdout 与 rc 语义不一致。建议：`had_out_of_scope` 时改打 `FAIL (out-of-scope --files)` 而非 `PASS`。归属：`infra` 模块。
 
 ## testcases
 
