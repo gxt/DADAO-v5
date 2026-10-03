@@ -50,10 +50,18 @@ components/<name>/
 
 ## 6. 生成流程（源树 → 补丁集）
 
-### 6.1 硬规则：不得手工编辑补丁
+### 6.1 提交式流程与不变量（E1 / E8）
+
+- **硬规则**：补丁文件**不得**手工编辑或直接修改（§6.1.1）；改组件源码**必须**在 working tree（`.work/source/<name>`）中进行。
+- **不变量 E1**：`.work/source/<name>` 在**任何时刻**都**必须**满足：
+  1. **worktree 干净**：`git status --porcelain` 输出为空；
+  2. **HEAD = 上游 base commit + 恰好 1 个 commit**：`git rev-list --count <base>..HEAD == 1`。
+- **E8 澄清**：导出的补丁**仍是裸 `git diff <base>`**（**不含**作者/提交信息）；本地 commit **只用于维持干净工作树**，**永不推送上游**。
+- E1 由 §8 断言 ⑦⑧⑨ 机械校验；模块改动前/后可用 §8.1 的 `--source-state` 自检。
+
+#### 6.1.1 硬规则：不得手工编辑补丁
 
 - 补丁文件**不得**手工编辑或直接修改。
-- 改组件源码**必须**在 working tree（`.work/source/<name>`）中进行，**验证通过后一次性**用**裸 `git diff <base_commit> -- <path>`** 导出**完整**补丁。
 - 违反此规则会导致 `@@` 头行数错误、尾部截断等不可预见问题。
 
 ### 6.2 生成幂等
@@ -61,19 +69,26 @@ components/<name>/
 - 导出时**必须先与现有补丁比较**；**逐字节一致 ⇒ 不替换**（保持原文件与时间戳不变），避免 `index`/头部信息被无谓刷新。
 - 由 `tools/infra/make_patch.py` 实现。
 
-### 6.3 导出步骤
+### 6.3 任务起点（E2）与导出步骤（E3）
 
-1. 在 `.work/source/<name>` 工作树上直接编辑（**不必**为每个补丁建立 commit；本规范**不保留**作者与提交信息）。
-2. 导出：对**每个相对 base commit 有改动的路径**，执行
-   `git -C .work/source/<name> diff <base_commit> -- <path>`，输出写入 `patches/<path>.patch`。
-   - **必须**使用**裸 `git diff`** 输出（非 mbox、无邮件头）。
-   - **不得**使用 `git format-patch`（其不支持 pathspec，且会引入 mbox 头与编号）。
-3. 生成 `series`（`components/<name>/series`）：列出全部补丁相对 `patches/` 的路径，按**路径字典序**排序。
-4. 由 `tools/infra/make_patch.py` 实现。
+- **E2 任务起点**：动组件**前**先自检 E1（§8.1）。若 `.work/source/<name>` 不干净，**必须**先把既有改动提交/收敛成「base+1 且干净」（§6.4）；**不干净不得开始新改动**。
+- **导出步骤**：
+  1. **导出前必须校验 E1**，不满足**拒绝导出**（`tools/infra/make_patch.py` 以非零退出码拒绝并打印原因）。
+  2. 对**每个相对 base commit 有改动的路径**，执行
+     `git -C .work/source/<name> diff <base_commit> -- <path>`，输出写入 `patches/<path>.patch`。
+     - **必须**使用**裸 `git diff`** 输出（非 mbox、无邮件头）。
+     - **不得**使用 `git format-patch`（其不支持 pathspec，且会引入 mbox 头与编号）。
+     - 因 E1 要求改动已 commit，新增文件已在 HEAD 中，`git diff <base>` 天然可见；**原 `git add -N`（intent-to-add）技巧作废，不再使用**。
+  3. 生成 `series`（`components/<name>/series`）：列出全部补丁相对 `patches/` 的路径，按**路径字典序**排序。
+  4. 由 `tools/infra/make_patch.py` 实现。
 
-> **补注（2026-10-03，`LLVM-026t` 复核并入）**
->
-> **新增文件的导出**：`git diff <base> -- <path>` **只对已在 index 中登记的路径**输出内容——新增（untracked）文件**须先 `git add -N`（intent-to-add）**才能被 `git diff` 看到。`tools/infra/make_patch.py` 的 `changed_paths()` **已对全树执行 `git add -A -N`**，故**经该工具导出时无需手工处理**；若文件未经 `-N`（`git diff` 输出为空），**等价替代**为 `git diff --no-index /dev/null <relpath>`。
+### 6.4 收敛为 1 个 commit（E4）
+
+- 若在当前 base 之上已累积了本地 commit（不论 1 个还是多个），**必须**把它们收敛为**恰好 1 个**以恢复 E1：
+  `git reset --soft HEAD~` → `git add -A` → `git commit`。
+  - 上面按**最外层恰好 1 个本地 commit** 计；若累积了多个，改为 `git reset --soft <base>` 后重新提交。
+
+> **补注（2026-10-02 事故；2026-10-03 按 E8 改写）**
 >
 > **「补丁可重建源树」的机械核对**：应用产物与 `.work/source/<name>` 内容一致 + `make check-patch-tree` 断言⑥（§8）。这是捕获 `@@` 头行数错误、尾部截断等手工编辑事故的唯一机械手段。
 >
@@ -81,15 +96,21 @@ components/<name>/
 
 ## 7. 应用流程（补丁集 → 源树）
 
-1. **前置校验**：工作树 HEAD **必须**等于 `manifests/components.lock.toml` 中的 base commit；不等则**必须**拒绝应用。
-2. **逐补丁应用幂等**：按 `series` 顺序**逐补丁**处理：
+1. **前置校验（E5 放宽）**：工作树 HEAD **必须**属于 `{base, base+1 且该 commit 内容 == 补丁集}`；其余一律**拒绝应用**。
+2. **已应用幂等（E5）**：若 HEAD == base+1、该 commit 内容 == 补丁集、且 worktree 干净 ⇒ 视为**已应用**，**跳过**（**不产生**第 2 个 commit）。
+3. **逐补丁应用幂等**：按 `series` 顺序**逐补丁**处理：
    - 先对单份补丁执行 `git apply --check --reverse`：**成功 ⇒ 该补丁已应用，跳过**（不执行 `git apply`，不改 mtime）。
    - 失败 ⇒ 先 `git apply --check`（预检），再 `git apply`（应用）。
    - （动机：避免"重放⇒时间戳全变⇒几乎全量重编"，与 `INFRA-018t` 同源。）
-3. **不得**使用 `git am`（本规范不保留作者与提交信息）。
-4. 由 `tools/infra/apply_series.py` 实现。
+4. **应用后自动提交（E5）**：应用完补丁集后，**自动**执行 `git add -A` + `git commit -m "dadao: <component> patch series"`。
+   - **不设** local `user.name`/`user.email`（使用环境/仓库既有身份）。
+   - **不设** `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`。
+   - `<component>` 为组件名，如 `dadao: qemu patch series`。
+   - 提交完成后工作树干净且 HEAD = base+1，恢复 E1。
+5. **不得**使用 `git am`（本规范不保留作者与提交信息）；上述本地 commit **永不推送上游**。
+6. 由 `tools/infra/apply_series.py` 实现。
 
-## 8. 机器检查（6 条断言）
+## 8. 机器检查（9 条断言）
 
 `tools/infra/check_patch_tree.py` **必须**对每个 enabled 组件断言：
 
@@ -101,8 +122,21 @@ components/<name>/
 | ④ | **应用后最终 tree 与期望一致** | 见 §9 |
 | ⑤ | **`patches/` 为纯镜像** | 其下每个文件均为 `<上游相对路径>.patch`；覆盖 §2 的纯镜像要求 |
 | ⑥ | **应用产物内容一致性** | 补丁集全量应用到 base 后，各受影响路径 blob **必须** == `.work/source` 对应文件；不一致 ⇒ FAIL |
+| ⑦ | **worktree 干净（E6）** | `.work/source/<name>` 的 `git status --porcelain` 为空 |
+| ⑧ | **HEAD = base + 恰好 1 个 commit（E6）** | `git rev-list --count <base>..HEAD == 1` |
+| ⑨ | **HEAD 的净 diff == 补丁集（E6）** | `git diff <base> HEAD` 的净 diff（按路径、`index` 行归一化后）与补丁集**逐路径一致** |
 
-任一断言失败 **必须**以非零退出码终止。
+- 断言 ⑥ 与 ⑨ 分工不同：**⑥**＝补丁应用产物 vs **工作树**；**⑨**＝**HEAD commit** vs **补丁集**。
+- 若 `.work/source/<name>` 缺失：沿用既有「跳过 apply 检查」的通知语义，**断言 ⑦⑧⑨ 亦随之明确打印跳过**（不得静默）。
+- 任一断言失败 **必须**以非零退出码终止。
+
+### 8.1 模块自检（E7）
+
+- 修改某组件的模块，**改动前/改动后各查一次** E1：
+  `python3 tools/infra/check_patch_tree.py --source-state`（或 `make check-source-state`）。
+- 输出 HEAD、commit count 与干净状态；E1 成立 ⇒ exit 0，否则 ⇒ exit 非零。
+- 不干净 ⇒ **先排查自身**（本模块改动是否遗留未提交/未收敛），**不得**带脏树继续。
+- `--source-state` **复用断言 ⑦⑧ 的判定逻辑**，不另写一套。
 
 ## 9. 应用后一致性
 
@@ -129,4 +163,5 @@ components/<name>/
 
 - 本规范于 2026-09-23 生效，同时 M1 补丁集由「16 份编号补丁 + `git am`」重整为「树形补丁集（67 份）+ `git apply`」。
 - **rev. 2026-09-25**：补丁清单由 `patches/series` 迁至 `components/<name>/series`，`patches/` 成为**纯镜像**；manifest 新增 `patch_dir` 字段（与 `patch_series` 并列，脚本不再互相推导）；断言由 4 条增至 5 条（新增⑤纯镜像）。动机：①使 §2「镜像上游源码树」成为字面成立且可机械校验的不变量；②`make_patch.py` 导出前整体清空 `patches/`，清单置于其外可避免「先删后建」。属 D4 的派生实现细节，未触及 D4 决策，经用户 2026-09-25 裁定**不需新 ADR**。
+- **rev. 2026-10-03**（E1–E8，T3 文档分层改造）：确立「提交式流程」——E1 不变量（worktree 干净 + HEAD = base + 恰好 1 个 commit）；E2 任务起点；E3 导出前校验 E1、不满足拒绝导出、废止 `git add -N`；E4 收敛为 1 个 commit；E5 应用后自动提交（不固定 author/日期，message 固定 `dadao: <component> patch series`）、重复应用幂等、HEAD 校验放宽为 `{base, base+1 且内容 == 补丁集}`；E6 断言追加 ⑦⑧⑨（不重排 ①–⑥）；E7 模块改动前/后自检 `--source-state`（并入 `check_patch_tree.py`）；E8 澄清补丁仍为裸 `git diff`、本地 commit 永不推送上游。相应改造 `tools/infra/{make_patch,apply_series,check_patch_tree}.py`。**不改 decision 语义**，为 D4 的派生实现细节。
 - 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。

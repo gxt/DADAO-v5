@@ -17,6 +17,17 @@
      - **~~② `check_spec_refs.py` 未同步排除~~ ✅ 已消解（2026-10-03，`SPEC-085t` 返工）**：`contract-asm-list.md` 已加入 `tools/infra/check_spec_refs.py` 的 `_EXCLUDED_CONTRACTS`，该 standalone 门控 Check2 由 `78(18+60)` **恢复为 `76(18+58)`**；两处排除名单（`check_spec_drift.py`/`check_spec_refs.py`）已程序化核对一致，`make check` EXIT=0。
   2. **`spec/Toolchain-01-汇编语言.md` 正文陈旧计数**：§11 表「9 个 M1 格式类与 **177 条** M1 指令」（现算 M1=152）等仍为旧值；T2 仅订正头部依赖行 `251→227`（越界已披露），其余超范围未动。建议后续订正任务统一重算。
   3. **`docs/README.md` 陈旧措辞**：`spec/Toolchain-01-汇编语言.md` 行仍写「单位后缀 `i`」（`SPEC-082t` 已取消 `i`）；属 T1 未同步的措辞，非 T2 范围，未动。
+- **文档分层改造 T3 的收尾遗留（`INFRA-026t`，2026-10-03 登记）**：
+  1. **`tools/infra/fetch.py` 陈旧注释**：L178-181 仍写「worktree is intentionally dirty while HEAD stays on the pinned commit」，与新 E5（应用后 commit、HEAD=base+1）表述不符；**行为仍正确**（`head == commit` 与 `merge-base --is-ancestor` 两分支均 leave it alone，`make prepare` 幂等不受影响）。建议后续小任务顺手更新该注释。
+  2. **E5 边界恢复步骤未展开**：本地 commit 已存在后**再改补丁** ⇒ `apply_series` 拒绝（HEAD 不匹配补丁集）；恢复须先把源树 `reset` 到 base 再重放。属 E1/E5 的直接推论，`Process-01 §7` 未展开；如认为必要可在后续任务补充。
+- **文档分层改造跨任务遗留（T1/T2/T3）建议合并为一个后续小任务（仅登记，本轮未动手）**：
+  - `contract-asm-list.md` 增加生成器-diff 型专门漂移门控（T2-①，**仍有效**）；
+  - `spec/Toolchain-01-汇编语言.md` §11 等正文陈旧计数（T2-②，**仍有效**）；
+  - `docs/README.md` 陈旧措辞「单位后缀 `i`」（T2-③，**仍有效**）；
+  - `tools/infra/fetch.py` 陈旧注释（T3-1，见上）；
+  - E5 恢复步骤补充（T3-2，见上）；
+  - （可选）路径类 grep 门控排除 `__pycache__`（T1-④）；
+  - T1-⑤（历史文档旧路径保留）属 **by design**，**无需动作**。
 - **ISA 归一化完成里程碑（原 `SPEC-005m`，已移除）**：曾用独立 `m` 标记 `SPEC-002t`+`003t` 完成。因 `k`↔`m` 一一对应规则移除；其意义由 `SPEC-002t`/`003t` 的完成 + `SPEC-011m`（M1 spec 里程碑）覆盖。
 - **`SPEC-002t`/`003t` 产出需重新生成**：`contract-isa.md`、`contracts/opcodes.yaml` 在 spec 重排后**重新生成**；旧文件暂作参考。
 - **M1 范围外（推迟）**：浮点（**RF 全部**：存取与运算）、特权 cfx 系统指令、LR-SC 原子。M1 提取：标量整数 + 地址/内存（RD/RB/**RA**）+ 控制流（`call`/`ret`/RegRAS）+ 测试机所需系统/异常。推迟项的完整规范与编码留后续（`SPEC-002t`/`003t` 标 `Excluded from M1`）。

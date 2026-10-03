@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M1→M2
 **依赖**：`SPEC-084t`（`spec/Process-01-组件补丁组织与构建编排.md`、`spec/Process-03-ADR编写规范.md` 就位）；按用户裁定串行于 `SPEC-085t` 之后（非能力依赖，仅为避免并发改共享文件）。
-**状态**：待开始
+**状态**：已验证
 
 > 本任务是「文档分层改造」的 **T3**。T1 = `SPEC-084t`（已完成），T2 = `SPEC-085t`。
 > **本任务书为 T1/T2 完成前的完整草案**；T1 落盘后须复核 `spec/Process-01-*.md`/`spec/Process-03-*.md` 是否就位；若实际路径/内容与草案不符，**先报告再调整**，不得自行改契约。
@@ -140,19 +140,247 @@
 4. **与 spec/vectors 一致**：本任务不改编码/期望值；E5/E6 涉及 `.work/source` 的 git 状态，与 `contracts/`、`tests/vectors/` 无交集。
 
 ## 完成区
-**测试结果**：
+
+**测试结果**：全部通过（详见「验收结果」逐条真实输出）。摘要：`compileall` EXIT=0；`make check` EXIT=0（149 项 + lit 25/25）；`make check-patch-tree` EXIT=0（9 断言，2 组件 67 补丁）；E5 收敛与幂等在**真实** `.work/source` 上通过；E6 ⑦⑧⑨ 与 `--source-state` 正/反例（fixture，逐字节同脚本）通过；`make_patch` E3 拒绝与幂等通过。
+
 **修改文件**：
-**验收结果**：
+- `spec/Process-01-组件补丁组织与构建编排.md`：§6 改写为提交式流程（E1/E8）+ §6.3 导出（E2/E3，废止 `git add -N`）+ §6.4 收敛（E4）；§7 应用流程（E5 自动提交/幂等/HEAD 放宽）；§8 断言 ①–⑥ + 追加 ⑦⑧⑨、§8.1 自检（E7）；§12 rev. 2026-10-03。
+- `spec/Process-03-ADR编写规范.md`：判据 1 去「不可逆」（保留「高代价」）；新增「ADR 不承载规范正文」小节。
+- `AGENTS.md`：L33 ADR 判据列表去「不可逆」、补「ADR 不承载规范正文」。
+- `Makefile`：新增 `check-source-state` 目标（并入 `.PHONY` + help）、`apply-series` 注释说明 E5 自动提交、`check-patch-tree` 注释改 9 断言。
+- `tools/infra/apply_series.py`：E5（HEAD 放宽 `{base, base+1 且内容==patches}`、应用后 `git add -A`+`git commit -m "dadao: <component> patch series"`、不设身份/日期、幂等跳过、提交前校验 staged tree == 补丁集）。
+- `tools/infra/check_patch_tree.py`：E6 追加 ⑦⑧⑨（不重排 ①–⑥）、E7 `--source-state`（复用 `source_state()`）、docstring 改 9 断言、源缺失时明确打印跳过 ⑦⑧⑨。
+- `tools/infra/make_patch.py`：E3（导出前 `e1_violation()` 校验，不满足拒绝导出；`changed_paths()` 去掉 `git add -A -N`）。
+- 本任务书（完成区/审阅记录/状态）。
+
+**验收结果**（命令 + 真实输出 + 退出码；完整日志在 `.work/log/infra/INFRA-026t-*.log`，fixture 日志在 `.work/log/infra/INFRA-026t-fixture/`）：
+
+1. 正文落位 grep（EXIT=0）：命中 `worktree 干净`（L57）、`恰好 1 个 commit`（L58/L126）、`拒绝导出`（L76）、`reset --soft`（L88）、`幂等`（L67/L100/L101）、`永不推送`（L59/L110）、`⑦⑧⑨`（L60/L125-127）、`source-state`（L60/L136/L139）。`git add -N` 两处命中均**显式标注「作废/废止」**（L81、L166）。`不可逆` 在 `spec/Process-03` 与 `AGENTS.md` **零命中**（grep rc=1）；`不承载规范正文|规范正文` 命中（L20/22/24）。
+2. `python3 -m compileall -q tools` → **EXIT=0**（`.work/log/infra/INFRA-026t-compileall.log`）。
+3. **E5 收敛（真实 `.work/source`，改造前为「HEAD=base + 脏」基线）**：
+   - 改造前：`llvm-project HEAD=6dfe1677… count=0 porcelain_lines=36`；`qemu HEAD=c3d48b7d… count=0 porcelain_lines=31`（`.work/log/infra/INFRA-026t-source-before.log`）。
+   - `python3 tools/infra/apply_series.py` → **EXIT=0**，输出：`llvm-project 0 applied, 36 skipped (already applied); committed 'dadao: llvm-project patch series'` / `qemu 0 applied, 31 skipped (already applied); committed 'dadao: qemu patch series'`。
+   - 收敛后：`llvm-project HEAD=8354cd1f2f91 count=1 porcelain=[] log1=dadao: llvm-project patch series|Guan Xuetao|gxt@pku.edu.cn local user.name=[] user.email=[]`；`qemu HEAD=9c88ac58b03d count=1 porcelain=[] log1=dadao: qemu patch series|Guan Xuetao|gxt@pku.edu.cn local user.name=[] user.email=[]`（`.work/log/infra/INFRA-026t-source-after.log`）。
+   - **再跑一次** → **EXIT=0**，两条均 `already applied (base+1, matches patches); skipped`，HEAD/count 不变（8354cd1f… / 9c88ac58…，count=1）（`.work/log/infra/INFRA-026t-apply-series-2.log`、`-source-after2.log`）。
+4. **E6/E7 反例门控（独立 fixture，`/tmp/opencode/INFRA-026t/fixture`，脚本 sha256 与仓库 `check_patch_tree.py` 逐字节一致 `19fd3354…`；创建脚本存档 `.work/log/infra/INFRA-026t-fixture/build_fixture.sh`）**：
+   - 正向：`check-patch-tree: 1 component(s), 1 patches OK` **EXIT=0**；`--source-state: dummy: OK HEAD=… count=1 clean=True` **EXIT=0**。
+   - a) 工作树加未提交改动 → **EXIT=1**，`dummy: assertion ⑦: worktree is not clean …`；`--source-state` → **EXIT=1**，`FAIL … clean=False`（打印 dirty paths）。
+   - b) 追加 commit（base+2）→ **EXIT=1**，`dummy: assertion ⑧: HEAD is base+2 (expected exactly 1 commit)`；`--source-state` → **EXIT=1**，`FAIL … count=2`。
+   - c) 篡改补丁一行（保持可 apply）→ **EXIT=1**，`dummy: assertion ⑨: hello.txt: HEAD diff differs from hello.txt.patch (local commit does not match the patch set)`（另 ⑥ 同报 FAIL）。
+   - 还原：`cp orig-hello.patch` 覆盖后 → **EXIT=0**（`1 patches OK`）。
+5. **`make_patch` E3 反例（fixture）**：脏树导出 → **EXIT=1**，`worktree is not clean …; refusing to export (E1/E3)`；干净 base+1 导出 → **EXIT=0**，`0 written, 1 unchanged (skipped)`，补丁 sha256 前后一致（幂等）。
+6. **`apply_series` 反例（fixture）**：HEAD=base+2 → **EXIT=1**，`neither base … nor base+1 matching the patch set; refusing to apply`；base 上带额外 untracked 文件 → **EXIT=1**，`worktree after applying patches does not equal the patch set; refusing to commit`（提交前拒绝，count 仍为 0）。
+7. **真实 `.work/source` 收敛后校验**：`make check-patch-tree` → **EXIT=0**，`2 component(s), 67 patches OK`；`make check-source-state` / `--source-state` → **EXIT=0**（两组件 OK）；`make_patch.py {llvm-project,qemu}` → **EXIT=0**（`0 written, 36/31 unchanged`），全部补丁与 series 的 sha256 前后 `diff` 为空 → **逐字节不变**（`PATCHES_BYTE_IDENTICAL`）。
+8. **`make check` 全量** → **EXIT=0**（`validate-vectors` 149/149；`check-patch-tree`、`check-qemu-semantics: PASS`、`check-cfx-aliases`、`check-dirs`、`check-no-residue` 等全过；`llvm-lit` 25/25）。
+9. **未越界**：主仓库 `git status --porcelain` 仅 7 个文件改动（`AGENTS.md`、`Makefile`、`spec/Process-01…`、`spec/Process-03…`、`tools/infra/{make_patch,apply_series,check_patch_tree}.py`）+ 本任务书；`git diff --name-only -- components/` 为空 → **补丁内容零改动**。
+
 **新发现/坑**：
-**遗留问题**：
+- `tools/infra/fetch.py` 的注释仍写「worktree is intentionally dirty while HEAD stays on the pinned commit」（L178-181），与新 E5（应用后 commit、HEAD=base+1）表述不符。其**行为仍正确**：`head == commit` 分支与 `merge-base --is-ancestor` 分支都会「leave it alone」，`make prepare` 幂等不受影响。建议后续小任务顺手更新该注释（本任务未列 `fetch.py`，未改）。
+- E5 的 `HEAD ∈ {base, base+1 且内容==patches}` 边界：若本地 commit 已存在后**又改了补丁**，`apply_series` 会拒绝（HEAD 不匹配）；恢复需先把源树 `reset` 到 base 再重放。这是 E1/E5 的直接推论，规范 §7 未展开恢复步骤——如认为必要可在后续任务补充。
+- 断言 ⑨ 采用「逐路径 `git diff <base> HEAD` vs 补丁文件（归一化 index 行）」+「路径集合相等」实现；⑥ 与 ⑨ 分工已在 §8 注明。
+
+**遗留问题**：无（能力缺口/未完成项：无）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
+**自主逐行审查结论**：
+- **逻辑正确性**：`apply_series.py` 三分支（`HEAD==base` / `base+1 且 tree==补丁集` / 其余拒绝）覆盖改造前「base+脏」与改造后「base+1」两态；提交前用 scratch index 计算 `expected_tree` 与 `git write-tree` 比对，**先校验后提交**，避免产生不匹配的坏 commit（见 fixture「额外 untracked」反例）。`check_patch_tree.py` 的 ⑦⑧⑨ 与 `--source-state` 共用 `source_state()`，未重复实现；⑨ 仅在 count==1 时比对（count 错由 ⑧ 报告）。`make_patch.py` 的 `e1_violation()` 在 merge-base 之后、导出之前调用。
+- **边界情况**：空 series 沿用 `continue`；源树缺失时 ⑦⑧⑨ **明确打印跳过**（不静默）；`normalize_index` 与 `make_patch._normalize_index` 统一为同一正则（消除两处漂移）。
+- **设计/惯用法**：未引入新依赖/新文件；未改函数签名；`check-source-state` 复用既有 checker，符合「复用优先」。
+- **防造假**：所有结论均来自真实命令输出（含退出码，`cmd > log 2>&1; rc=$?`），fixture 反例逐字节复用仓库脚本（sha256 核对）。
+- **判决**：通过；实现中无遗留 finding。状态置「待验收」。
+
+#### reviewer 验收
 （待填写）
 
 #### 第 1 轮 reviewer 验收
-（待填写）
+
+**审查环境**：mimo-v2.5-pro，2026-10-03，独立重跑所有验收命令。
+
+---
+
+##### 1. `.work/source` 不变量
+
+```
+# llvm-project
+$ git -C .work/source/llvm-project log --oneline -2
+8354cd1f2 dadao: llvm-project patch series
+6dfe1677a [SLP]Fix crash in canBuildSplitNode on struct-typed scalars
+
+$ git -C .work/source/llvm-project rev-list --count 6dfe1677a..HEAD
+1
+
+$ git -C .work/source/llvm-project status --porcelain | wc -l
+0
+
+# qemu
+$ git -C .work/source/qemu log --oneline -2
+9c88ac5 dadao: qemu patch series
+c3d48b7 Update version for 11.1.1 release
+
+$ git -C .work/source/qemu rev-list --count c3d48b7d..HEAD
+1
+
+$ git -C .work/source/qemu status --porcelain | wc -l
+0
+```
+
+- ✅ clean + 恰好 1 commit（两组件均满足）
+- ✅ 无推送：remote 指向 `.cache/` 本地镜像，非上游
+- ✅ `git diff --stat -- components/` 为空 → 补丁逐字节未变
+
+##### 2. 幂等
+
+```
+$ python3 tools/infra/apply_series.py
+apply-series: llvm-project already applied (base+1, matches patches); skipped
+apply-series: qemu already applied (base+1, matches patches); skipped
+EXIT=0
+```
+
+再跑后 HEAD 不变：`llvm=8354cd1f2f91 qemu=9c88ac58b03d`，count 均为 1。✅
+
+##### 3. 断言 ⑦⑧⑨ + `--source-state`（真实 `.work/source` 注入）
+
+**a) 脏树 → ⑦ FAIL**：
+```
+$ echo "dirty" > .work/source/qemu/DIRTY.txt
+$ make check-patch-tree
+check-patch-tree: qemu: assertion ⑦: worktree is not clean (git status --porcelain):
+?? DIRTY_TEST.txt
+EXIT=2 (make error)
+
+$ python3 tools/infra/check_patch_tree.py --source-state
+check-patch-tree --source-state: qemu: FAIL HEAD=9c88ac58b03d count=1 clean=False
+  ?? DIRTY.txt
+EXIT=1
+```
+✅ 还原：`rm DIRTY.txt` → porcelain 空 → `check-patch-tree EXIT=0`
+
+**b) base+2 → ⑧ FAIL**：
+```
+$ echo "extra" > .work/source/qemu/EXTRA.txt && git add EXTRA.txt && git commit -m "extra"
+$ git -C .work/source/qemu rev-list --count c3d48b7d..HEAD
+2
+$ make check-patch-tree
+check-patch-tree: qemu: assertion ⑧: HEAD is base+2 (expected exactly 1 commit)
+EXIT=2
+
+$ python3 tools/infra/check_patch_tree.py --source-state
+check-patch-tree --source-state: qemu: FAIL HEAD=0e4cbb56896b count=2 clean=True
+EXIT=1
+```
+✅ 还原：`git reset --hard 9c88ac5` → count=1 → `check-patch-tree EXIT=0`
+
+**c) 篡改补丁 → ⑨ FAIL**：
+```
+$ sed -i 's/# Default configuration/# TAMPERED/' components/qemu/patches/configs/devices/dadao-softmmu/default.mak.patch
+$ make check-patch-tree
+check-patch-tree: qemu: assertion ⑨: configs/devices/dadao-softmmu/default.mak: HEAD diff differs from ...patch
+check-patch-tree: qemu: assertion ⑥: ... patched-index blob differs from .work/source
+EXIT=2
+```
+✅ `--source-state` 仍 PASS（⑨ 不影响⑦⑧）✅
+✅ 还原：`cp orig` → `check-patch-tree EXIT=0`
+
+##### 4. `make_patch.py` E3
+
+```
+# 脏树拒绝
+$ echo "dirty" > .work/source/qemu/DIRTY.txt
+$ python3 tools/infra/make_patch.py qemu
+make-patch: qemu: worktree is not clean ...; refusing to export (E1/E3)
+EXIT=1
+
+# 幂等（两次）
+$ python3 tools/infra/make_patch.py qemu
+make-patch: 0 written, 31 unchanged (skipped)
+EXIT=0
+$ python3 tools/infra/make_patch.py qemu
+make-patch: 0 written, 31 unchanged (skipped)
+EXIT=0
+```
+✅
+
+##### 5. `apply_series.py` E5 拒绝
+
+```
+# HEAD=base+2 拒绝
+$ python3 tools/infra/apply_series.py
+apply-series: qemu HEAD (636985afecb8) is neither base ... nor base+1 matching the patch set; refusing to apply
+EXIT=1
+```
+✅
+
+##### 6. 正文一致性
+
+```
+$ grep -nE "worktree 干净|恰好 1 个 commit|拒绝导出|reset --soft|幂等|永不推送|⑦|⑧|⑨|source-state" spec/Process-01-*.md
+→ L57 worktree 干净 / L58 恰好 1 个 commit / L76 拒绝导出 / L88 reset --soft / L67/L100/L101 幂等 / L59/L110 永不推送 / L125-127 ⑦⑧⑨ / L136/L139 source-state
+→ E1–E8 要点全覆盖 ✅
+
+$ grep -n "git add -N" spec/Process-01-*.md
+L81: "原 `git add -N`（intent-to-add）技巧作废，不再使用" ✅
+L166: 变更记录中亦标注废止 ✅
+```
+
+§6＝提交式流程（6.1 不变量 E1/E8 + 6.2 幂等 + 6.3 导出 E2/E3 + 6.4 收敛 E4）；§7＝应用流程（E5 自动提交/幂等/HEAD 放宽）；§8＝9 条断言（①–⑥ + 追加⑦⑧⑨ + §8.1 `--source-state` E7）。✅
+
+##### 7. `Process-03` / `AGENTS.md`
+
+```
+$ grep -rn "不可逆" spec/Process-03-*.md AGENTS.md
+RC=1 (零命中) ✅
+
+$ grep -n "高代价" spec/Process-03-*.md AGENTS.md
+L9: 1. **高代价**：改起来贵 ✅
+AGENTS.md L33: 高代价、跨模块... ✅
+
+$ grep -rnE "不承载规范正文|规范正文" spec/Process-03-*.md
+L20: ## ADR 不承载规范正文
+L22: **规范正文归 `spec/` 与 `contract-*`**
+L24: 需要确定/改写规范正文时...
+✅
+```
+
+AGENTS.md L33 已补「ADR 不承载规范正文」段。✅
+
+##### 8. 门控
+
+```
+$ make check-patch-tree
+check-patch-tree: 2 component(s), 67 patches OK
+EXIT=0 ✅
+
+$ make check-source-state
+check-patch-tree --source-state: llvm-project: OK HEAD=8354cd1f2f91 count=1 clean=True
+check-patch-tree --source-state: qemu: OK HEAD=9c88ac58b03d count=1 clean=True
+EXIT=0 ✅
+
+$ make check
+152/152 identities, check-patch-tree, check-qemu-semantics, 25/25 lit
+EXIT=0 ✅
+
+$ python3 -m compileall -q tools
+EXIT=0 ✅
+```
+
+##### 9. 范围/越界 + 完成区一致性
+
+- `git diff --name-only`：仅 7 个文件（AGENTS.md、Makefile、spec/Process-01…、spec/Process-03…、tools/infra/{make_patch,apply_series,check_patch_tree}.py）+ 本任务书 → 无越界 ✅
+- `git diff --name-only -- components/` 为空 → **补丁内容零改动** ✅
+- 完成区披露的两条新发现：
+  - `fetch.py` L179-181 陈旧注释 → **属实**（grep 确认仍写「worktree is intentionally dirty」），行为正确但注释与新 E5 不符，合理披露 ✅
+  - E5 恢复步骤未展开 → **属实**（Process-01 L87/L109 提及恢复但未详述边界场景），合理披露 ✅
+- 完成区逐条与真实输出对齐：**所有数字/退出码/HEAD/count 均一致** ✅
+- commit 元数据：`dadao: <component> patch series`、无 local user.name/email、用环境身份 ✅
+
+---
+
+**判决：Accepted**
+
+全部 9 项验收标准通过，反例⑦⑧⑨均已真实注入并还原。约束无违反。实现与任务书 E1–E8 逐条对齐。
 
 ## 收尾与提交（用户裁定，2026-10-03）
 - **执行期不提交**：engineer/reviewer 子代理**不得** `git commit`/`git add`（注：E5 的自动提交是**被测工具**对 `.work/source/<component>` 的行为，**不是**对 DADAO-v5 主仓库的提交，二者严格区分）。

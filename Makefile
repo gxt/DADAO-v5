@@ -40,7 +40,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-rule-refs \
-        check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit
+        check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
+        check-patch-tree check-source-state
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -56,8 +57,9 @@ help:
 	@echo "  make status          Show locked components and references"
 	@echo "  make fetch           Fetch enabled components at exact commits"
 	@echo "  make fetch-refs      Fetch locked reference repositories"
-	@echo "  make apply-series    Apply ordered patch series to fetched sources"
+	@echo "  make apply-series    Apply ordered patch series then auto-commit (E5)"
 	@echo "  make prepare         Fetch enabled components and apply their patch series"
+	@echo "  make check-source-state  Report each source tree's E1 state (clean + base+1)"
 	@echo "  make build-mc        Build LLVM MC tools (skips cmake if build.ninja exists)"
 	@echo "  make build-mc-lite   Build LLVM MC/objdump/FileCheck/not only (no objcopy/readobj/CodeGen)"
 	@echo "  make build-mc-reconfig  Force cmake re-run then build LLVM MC tools"
@@ -97,6 +99,8 @@ fetch: manifest-check
 fetch-refs: manifest-check
 	@$(PYTHON) tools/infra/fetch_refs.py
 
+# E5: after applying, apply_series.py commits locally (message
+# "dadao: <component> patch series") so the worktree ends clean at base+1.
 apply-series: manifest-check
 	@$(PYTHON) tools/infra/apply_series.py
 
@@ -224,9 +228,13 @@ validate-vectors: contracts/opcodes.yaml
 check-spec-drift:
 	@$(PYTHON) tools/infra/check_spec_drift.py
 
-# 组件补丁集校验 (2026-09-23): 树形补丁集四断言，见 spec/Process-01-组件补丁组织与构建编排.md。
+# 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 spec/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:
 	@$(PYTHON) tools/infra/check_patch_tree.py
+
+# E7 模块自检 (2026-10-03): 报告每个源树的 E1 状态（worktree 干净 + base+1）。
+check-source-state:
+	@$(PYTHON) tools/infra/check_patch_tree.py --source-state
 
 # spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
 # Standalone target, not part of `make check`.

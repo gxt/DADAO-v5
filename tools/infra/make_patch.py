@@ -10,10 +10,12 @@ See ``spec/Process-01-组件补丁组织与构建编排.md`` (v5 spec, effective
   wholesale wipe below cannot destroy it, and so ``patches/`` stays a pure
   mirror of the upstream tree
 
-The worktree may be dirty: the export is the *net* difference between the
-pinned base commit and the current working tree (``git diff <base>``), so a
-path that was created and later modified still yields exactly one patch whose
-content is the final state.
+E3: the export is the *net* difference between the pinned base commit and the
+worktree (``git diff <base>``).  Before exporting, the E1 invariant is
+validated -- the worktree must be **clean** and HEAD must be ``base + exactly
+one commit``.  If it does not hold the export is refused.  Because the changes
+are committed, ``git diff <base>`` already sees new files; the old
+``git add -N`` (intent-to-add) trick is obsolete and no longer used.
 
 §6.2 (idempotent write): patches are only rewritten when their content actually
 changes, preserving mtimes and avoiding needless index/header refreshes.
@@ -56,10 +58,29 @@ def _normalize_index(text: str) -> str:
 
 
 def changed_paths(source: Path, commit: str) -> list[str]:
-    # Intent-to-add so newly created (untracked) files show up in `git diff`.
-    subprocess.run(["git", "-C", str(source), "add", "-A", "-N"], check=True)
+    # E1 guarantees the worktree is clean and the changes are committed, so a
+    # plain `git diff <base>` (against the worktree, which equals HEAD) already
+    # includes newly created files.  No `git add -N` is needed (nor allowed).
     out = git("diff", "--name-only", commit, cwd=source)
     return [line for line in out.splitlines() if line.strip()]
+
+
+def e1_violation(source: Path, commit: str) -> str | None:
+    """Return a human-readable reason iff the E1 invariant does not hold."""
+    porcelain = git("status", "--porcelain", cwd=source)
+    if porcelain.strip():
+        return "worktree is not clean (git status --porcelain):\n" + porcelain.rstrip()
+    count = subprocess.run(
+        ["git", "-C", str(source), "rev-list", "--count", f"{commit}..HEAD"],
+        capture_output=True,
+        text=True,
+    )
+    if count.returncode != 0:
+        return f"cannot count commits {commit[:12]}..HEAD: {count.stderr.strip()}"
+    value = count.stdout.strip() or "0"
+    if value != "1":
+        return f"HEAD is base+{value} (E1 requires exactly one commit on top of base)"
+    return None
 
 
 def export(
@@ -128,6 +149,14 @@ def main() -> int:
         raise SystemExit(
             f"make-patch: {args.component} HEAD does not descend from pinned commit "
             f"({commit[:12]})"
+        )
+
+    # E3: refuse to export unless the E1 invariant holds (clean worktree,
+    # head == base + exactly one commit).  See spec/Process-01 §6.3.
+    violation = e1_violation(source, commit)
+    if violation is not None:
+        raise SystemExit(
+            f"make-patch: {args.component}: {violation}; refusing to export (E1/E3)"
         )
 
     series_path = ROOT / component["patch_series"]
