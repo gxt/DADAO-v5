@@ -891,11 +891,13 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
                     expected_rd["rd%d" % rdha_idx] = _hex64(imm18 & 0xFFFFFFFFFFFFFFFF)
 
     # ── orri block assignment rd2rd/rd2ra/ra2rd/rb2rb/rd2rb/rb2rd (§3.7/§4.3/§4.9.3) ──
-    elif fmt == "orri" and insn in ("rd2rd", "rd2ra", "ra2rd", "rb2rb", "rd2rb", "rb2rd"):
-        # Block assignment: copy immu6 registers from src to dst
-        # Sequential semantics (contract-isa.md:467): ascending order,
-        # each pair read-then-write. Overlapping writes are visible to
-        # later reads.
+    # Note: `id` is a full identity (e.g. rd2rd_orri_rd); match on `mnemonic`.
+    elif fmt == "orri" and mnemonic in ("rd2rd", "rd2ra", "ra2rd", "rb2rb", "rd2rb", "rb2rd"):
+        # Block assignment: copy immu6 registers from src to dst.
+        # Only non-fault cases reach here (expected_fault cases are skipped).
+        # Same-bank overlapping moves are ILLI (mreg_range_overlap) and are
+        # therefore skipped too; for the remaining legal cases (disjoint
+        # same-bank or cross-bank) ascending read-then-write order is used.
         dst_idx = hb  # bits[17:12]
         src_idx = hc  # bits[11:6]
         immu6 = extract_field(word, fields, "immu6")
@@ -908,7 +910,7 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
                 "rd2rb": ("rd", "rb"),
                 "rb2rd": ("rb", "rd"),
             }
-            src_bank, dst_bank = bank_map[insn]
+            src_bank, dst_bank = bank_map[mnemonic]
             # Sequential: read-then-write per pair in ascending order.
             # Track writes so overlapping reads see updated values.
             for i in range(immu6):

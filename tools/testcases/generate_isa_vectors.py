@@ -1069,6 +1069,10 @@ def gen_block_legality_mreg_zero(rec):
     fmt = "orri"
     rule_id = "mreg_zero"
     rule_cite = _ILLI_RULES[rule_id]
+    # RA-involved block moves cite the RA sections (manual correction tracked
+    # as pre-existing generator↔vector drift, deferred.md; reproduce verbatim).
+    if mnem in ("ra2rd", "rd2ra"):
+        rule_cite = "SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 1, 3, 0)
     notes = "legality %s: immu6=0 → ILLI (%s)" % (mnem, rule_id)
@@ -1082,7 +1086,9 @@ def gen_ra2rd_legality_dest_rd0(rec):
     insn = rec["id"]
     fmt = "orri"
     rule_id = "dst_rd0"
-    rule_cite = _ILLI_RULES[rule_id]
+    # Manual spec_cite correction tracked as pre-existing generator↔vector
+    # drift (deferred.md); reproduce verbatim so regeneration is faithful.
+    rule_cite = "SimRISC-02 §寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 0, 3, 1)
     notes = "legality %s: rdhb=rd0 → ILLI (%s)" % (mnem, rule_id)
@@ -1120,11 +1126,14 @@ def gen_rwii_legality_dest_rb0(rec):
 
 def gen_block_overlap(rec):
     """Generate overlap case for block move (orri).
-    Sequential semantics (contract-isa.md:467): ascending order, each pair
-    read-then-write. For same-bank overlapping ranges (rd2rd, rb2rb with
-    dst=src+1, count=2), later reads see earlier writes.
-    For cross-bank (rb2rd, rd2rb, ra2rd, rd2ra): no register aliasing,
-    verifies basic block move semantics."""
+
+    Same-bank (rd2rd, rb2rb): the source range [src, src+count) and the
+    destination range [dst, dst+count) share at least one register (partial
+    overlap here) ⇒ ILLI (mreg_range_overlap, SimRISC-02 §寄存器组之间块赋值).
+    Cross-bank (rb2rd, rd2rb, ra2rd, rd2ra): source and destination belong to
+    different register banks, so they structurally cannot overlap; the case
+    verifies basic block move semantics (ascending order, read-before-write).
+    """
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "orri"
@@ -1158,19 +1167,19 @@ def gen_block_overlap(rec):
     elif src_bank == "ra":
         inp["ra"] = {"ra%d" % (src_reg + i): _hex64(src_vals[i]) for i in range(count)}
 
-    # Sequential semantics: ascending order, read-then-write per pair.
-    # For same-bank overlap (dst=src+1, count=2):
-    #   pair0: read src[0], write dst[0]  → dst[0] = src[0]
-    #   pair1: read src[1] (overlaps dst[0], now has new value), write dst[1]
-    # So dst[1] gets the VALUE JUST WRITTEN to dst[0], not the original src[1].
     if is_same_bank:
-        # After pair0: dst[0] = original src[0]
-        # pair1: read src[1] which IS dst[0] → reads new value = original src[0]
-        # So dst[1] = original src[0] too
-        final_vals = [src_vals[0], src_vals[0]]  # both get src[0]
-    else:
-        # No aliasing: each dst gets its corresponding src
-        final_vals = list(src_vals)
+        # Partial overlap (dst = src + 1, count = 2): the ranges intersect
+        # ⇒ statically illegal (ILLI). No sequential read-before-write semantics
+        # exist for this encoding (mreg_range_overlap, SPEC-088t).
+        notes = ("overlap %s: %s%d..%d ↔ %s%d..%d, count=%d, "
+                 "范围有交集（含部分/完全重合）→ ILLI (mreg_range_overlap)" % (
+                     mnem, dst_bank, dst_reg, dst_reg + count - 1,
+                     src_bank, src_reg, src_reg + count - 1, count))
+        return _case(mnem, insn, fmt, "overlap", word, inp, None, "ILLI",
+                     "active", None, None, sc, notes)
+
+    # Cross-bank: no register aliasing, each dst gets its corresponding src.
+    final_vals = list(src_vals)
 
     out = {"rd": {}, "rb": {}, "ra": {}, "memory": []}
     if dst_bank == "rd":
@@ -1183,19 +1192,38 @@ def gen_block_overlap(rec):
         for i in range(count):
             out["ra"]["ra%d" % (dst_reg + i)] = _hex64(final_vals[i])
 
-    if is_same_bank:
-        notes = ("overlap %s: %s%d..%d → %s%d..%d, count=%d, "
-                 "sequential semantics: dst overlaps src → "
-                 "dst[1] reads dst[0]'s new value" % (
-                     mnem, src_bank, src_reg, src_reg + count - 1,
-                     dst_bank, dst_reg, dst_reg + count - 1, count))
-    else:
-        notes = ("overlap %s: %s%d..%d → %s%d..%d, count=%d, "
-                 "cross-bank no aliasing, verifies basic block move semantics" % (
-                     mnem, src_bank, src_reg, src_reg + count - 1,
-                     dst_bank, dst_reg, dst_reg + count - 1, count))
+    notes = ("overlap %s: %s%d..%d → %s%d..%d, count=%d, "
+             "cross-bank no aliasing, verifies basic block move semantics" % (
+                 mnem, src_bank, src_reg, src_reg + count - 1,
+                 dst_bank, dst_reg, dst_reg + count - 1, count))
 
     return _case(mnem, insn, fmt, "overlap", word, inp, out, None,
+                 "active", None, None, sc, notes)
+
+
+def gen_block_overlap_complete(rec):
+    """Generate a complete-overlap case for same-bank block move (orri).
+
+    rd2rd/rb2rb with identical single-register source and destination
+    ({rdN:rdN}, {rdN:rdN}, count=1): the two ranges fully coincide
+    ⇒ ILLI (mreg_range_overlap, SimRISC-02 §寄存器组之间块赋值).
+    Cross-bank instructions structurally cannot overlap ⇒ returns None.
+    """
+    mnem = rec["mnemonic"]
+    if mnem not in ("rd2rd", "rb2rb"):
+        return None
+    insn = rec["id"]
+    fmt = "orri"
+    sc = rec.get("spec_cite", "")
+    bank = "rd" if mnem == "rd2rd" else "rb"
+    reg = 3
+    count = 1
+    word = _build_word_orri(rec, reg, reg, count)
+    inp = {bank: {"%s%d" % (bank, reg): _hex64(0x10)}}
+    notes = ("overlap %s: %s%d..%d ↔ %s%d..%d, count=%d, "
+             "范围完全重合 → ILLI (mreg_range_overlap)" % (
+                 mnem, bank, reg, reg, bank, reg, reg, count))
+    return _case(mnem, insn, fmt, "overlap", word, inp, None, "ILLI",
                  "active", None, None, sc, notes)
 
 
@@ -1451,6 +1479,9 @@ def generate_file(filename, recs):
         if is_block and filename == "reg-imm-block.yaml":
             c = gen_block_overlap(rec)
             if c: cases.append(c)
+            # TESTCASES-023t: extra complete-overlap case for same-bank moves
+            c = gen_block_overlap_complete(rec)
+            if c: cases.append(c)
 
         # ── Boundary overflow case for add.si-rd / add.si-rb (TESTCASES-010t) ──
         if filename == "reg-arith.yaml" and fmt == "riii" and mnem.startswith("add.si"):
@@ -1464,10 +1495,17 @@ def generate_file(filename, recs):
 
 
 # ── Generate all files ────────────────────────────────────────────────
+# Optional CLI filter: `generate_isa_vectors.py [file.yaml ...]` regenerates
+# only the named files. Default (no args) regenerates all six. The filter is
+# needed because five of the six committed files carry known pre-existing
+# generator↔vector drift (deferred.md) and must not be overwritten wholesale.
 os.makedirs(OUT, exist_ok=True)
 
+_SELECTED = set(sys.argv[1:])
 for fname, recs in FILE_MAP.items():
     if not recs:
+        continue
+    if _SELECTED and fname not in _SELECTED:
         continue
     cases = generate_file(fname, recs)
     path = os.path.join(OUT, fname)

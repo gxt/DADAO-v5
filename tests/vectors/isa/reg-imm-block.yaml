@@ -398,15 +398,9 @@
   deferred_reason: null
   encoding:
     word: '0x40B03082'
-  expected_fault: null
+  expected_fault: ILLI
   expected_pc: null
-  expected_state:
-    memory: []
-    ra: {}
-    rb: {}
-    rd:
-      rd3: '0x0000000000000010'
-      rd4: '0x0000000000000010'
+  expected_state: null
   format: orri
   id: rd2rd_orri_rd
   input_state:
@@ -414,7 +408,23 @@
       rd2: '0x0000000000000010'
       rd3: '0x0000000000000011'
   mnemonic: rd2rd
-  notes: 'overlap rd2rd: rd2..3 → rd3..4, count=2, sequential semantics: dst overlaps src → dst[1] reads dst[0]''s new value'
+  notes: 'overlap rd2rd: rd3..4 ↔ rd2..3, count=2, 范围有交集（含部分/完全重合）→ ILLI (mreg_range_overlap)'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  status: active
+- class: overlap
+  deferred_reason: null
+  encoding:
+    word: '0x40B030C1'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  id: rd2rd_orri_rd
+  input_state:
+    rd:
+      rd3: '0x0000000000000010'
+  mnemonic: rd2rd
+  notes: 'overlap rd2rd: rd3..3 ↔ rd3..3, count=1, 范围完全重合 → ILLI (mreg_range_overlap)'
   spec_cite: SimRISC-02 §寄存器组之间块赋值
   status: active
 - class: encoding
@@ -628,15 +638,9 @@
   deferred_reason: null
   encoding:
     word: '0x40D03082'
-  expected_fault: null
+  expected_fault: ILLI
   expected_pc: null
-  expected_state:
-    memory: []
-    ra: {}
-    rb:
-      rb3: '0x0000000000000010'
-      rb4: '0x0000000000000010'
-    rd: {}
+  expected_state: null
   format: orri
   id: rb2rb_orri_rb
   input_state:
@@ -644,7 +648,23 @@
       rb2: '0x0000000000000010'
       rb3: '0x0000000000000011'
   mnemonic: rb2rb
-  notes: 'overlap rb2rb: rb2..3 → rb3..4, count=2, sequential semantics: dst overlaps src → dst[1] reads dst[0]''s new value'
+  notes: 'overlap rb2rb: rb3..4 ↔ rb2..3, count=2, 范围有交集（含部分/完全重合）→ ILLI (mreg_range_overlap)'
+  spec_cite: SimRISC-02 §寄存器组之间块赋值
+  status: active
+- class: overlap
+  deferred_reason: null
+  encoding:
+    word: '0x40D030C1'
+  expected_fault: ILLI
+  expected_pc: null
+  expected_state: null
+  format: orri
+  id: rb2rb_orri_rb
+  input_state:
+    rb:
+      rb3: '0x0000000000000010'
+  mnemonic: rb2rb
+  notes: 'overlap rb2rb: rb3..3 ↔ rb3..3, count=1, 范围完全重合 → ILLI (mreg_range_overlap)'
   spec_cite: SimRISC-02 §寄存器组之间块赋值
   status: active
 - class: encoding
