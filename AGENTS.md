@@ -5,7 +5,7 @@
 ## 基本规则（必须遵守）
 
 - **工作范围**：仅在 DADAO-v5/ 目录内修改或创建文件，可读取其他目录。
-- **git 操作**：仅涉及 DADAO-v5 子模块，不操作父仓库或其他子模块。如需父仓库配合，提示用户处理。
+- **git 操作**：DADAO-v5 为**独立仓库**（`.git` 为目录、无 superproject；`origin = git@github.com:gxt/DADAO-v5.git`），所有 git 操作限于本仓库内。
 - **参考目录**：`DADAO-0628` 和 `DADAO` 作为工程经验参考，不复制其代码。两者 commit 已锁定在 `manifests/`，只读工作树检出在 **`.cache/refs/<id>/`**（`make fetch-refs` 幂等重建）。
 - **组件补丁**：组件补丁集的组织/生成/应用/校验以 **`spec/Process-01-组件补丁组织与构建编排.md`** 为准（树形补丁集 + 一文件一补丁 + `git apply`），由 `make check` 的 `check-patch-tree` 机械校验。
 - **提交确认**：所有提交必须先经用户确认。
