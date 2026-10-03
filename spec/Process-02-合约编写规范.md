@@ -7,6 +7,7 @@ Agent 不能直接读 spec/——它面向人类、存在歧义，需要归一�
 | 文件 | 内容 | 状态 |
 |------|------|------|
 | `contract-isa.md` | 每条指令的编码、语义、异常，用 § 编号引用 spec/ | 现行 |
+| `contract-fp.md` | 浮点（`scope: fp`，60 条）语义、FCSR 环境、合法性，引用 SimRISC-00/01/02/03/07 | 现行 |
 | `contract-abi.md` | 调用约定：参数寄存器、返回值、栈对齐 | 现行 |
 | `contract-elf.md` | ELF 格式：machine ID、重定位类型、endian | 现行 |
 | `contract-asm-list.md` | 指令全表（由 `tools/llvm/gen_asm_list.py` 机械生成，无来源头） | 现行（生成投影） |

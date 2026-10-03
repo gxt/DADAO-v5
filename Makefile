@@ -40,7 +40,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
-        check-rule-refs \
+        check-rule-refs check-fp-contract \
         check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
         check-patch-tree check-source-state check-asm-list-drift size-report \
         check-tasks
@@ -83,6 +83,7 @@ help:
 	@echo "  make check-lit        Run lit MC + E2E tests (requires build-mc + build-qemu)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
+	@echo "  make check-fp-contract  Check FP semantics contract completeness (SPEC-087t)"
 	@echo "  make check-cfx-aliases  Check cfx alias table drift gate (SPEC-075t)"
 	@echo "  make check-asm-list-drift  Check assembly-list drift gate (INFRA-027t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
@@ -220,7 +221,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-legality-drift check-interface validate-encoding check-scope check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-legality-drift check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -318,6 +319,11 @@ check-scope:
 # against legality_rules.yaml (ID existence + orphan detection with exemptions).
 check-rule-refs: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/check_rule_refs.py
+
+# FP semantics contract gate (SPEC-087t): scope: fp 60 条语义投影完备性
+# (id 双向覆盖/12 族计数/spec_cite/required_keys/legality 双向/锚点/版本头)。
+check-fp-contract:
+	@$(PYTHON) tools/spec/check_fp_contract.py
 
 # QEMU semantic execution gate (SPEC-069t): runs ISA semantic test vectors
 # through QEMU. Requires 'make build-qemu' to have been run.

@@ -84,6 +84,8 @@ rules:
       只读类 14 条（ftcls/focls/ft2it 等/fo2it 等/ftqcmp 等）无 rf 目的字段，不涉及。
       不在禁止清单（rf0 作目的合法）：rd2rf（含 {rf0:rf0+immu6-1}）、
       ld.o/ldm.o、ld.t/ldm.t、set.w。
+      例外（合法）：rf2rd 的 rf0 作**源**、cs.*-rf 的 rf0 作**源**、st.*/stm.* 的 rf0 作**源**，
+      均读出完整 64 位，不触发 ILLI。
       浮点类指令（RF）整体属 M1 范围外；M1 仅保留 rf0 的寄存器模型/复位值。
 
   # ── 多寄存器范围规则 ─────────────────────────────────────────────────────────
@@ -192,6 +194,35 @@ rules:
     description: >
       ftroot/foroot 指令仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
       浮点类指令（RF）整体属 M1 范围外。
+
+  - id: fp_mreg_zero
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-07 §格式转换指令"
+    status: deferred
+    description: >
+      FP immu6 连续个数形式的指令中 immu6=0 时触发 ILLI 异常：
+      convert_ff（ft2ft/ft2fo/fo2ft/fo2fo）、
+      convert_f2i（ft2it/ft2io/ft2ut/ft2uo/fo2it/fo2io/fo2ut/fo2uo）、
+      convert_i2f（it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo）、
+      classify（ftcls/focls）、RF 多寄存器存取（ldm.t/stm.t/ldm.o/stm.o）、
+      RF↔RD 块赋值（rd2rf/rf2rd），共 28 条。
+      不适用于 root 的 immu6（其含义为 n，见 encode_fp_root_n），
+      也不适用于单寄存器存取（ld.t/st.t/ld.o/st.o）与 set.w。
+      浮点类指令（RF）整体属 scope: fp（未实现）；规则在 FP 未实现期置 deferred。
+
+  - id: fp_mreg_range_overflow
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-07 §格式转换指令"
+    status: deferred
+    description: >
+      FP immu6 连续个数形式的指令中任一起始寄存器 + immu6 > 64 时触发 ILLI 异常，
+      不环绕、不截断。适用范围同 fp_mreg_zero（28 条）：convert_ff/convert_f2i/
+      convert_i2f 的 rfHB 或 rdHB 起始、classify 的 rdHB 起始、ldm.*/stm.* 的 rfHA 起始、
+      rd2rf 的 rfHB 与 rdHC 起始、rf2rd 的 rdHB 与 rfHC 起始。
+      不适用于 root 的 immu6（其含义为 n，且仅 n=2）、单寄存器存取与 set.w。
+      浮点类指令（RF）整体属 scope: fp（未实现）；规则在 FP 未实现期置 deferred。
 
   # ── RAS 规则 ─────────────────────────────────────────────────────────────────
   - id: excp_rasof

@@ -820,7 +820,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 ## §9 浮点运算指令 — scope: fp（未实现，decode ILLI）[SimRISC-07 §版本]
 
-浮点类指令（SimRISC-07 + 散见 SimRISC-01/02/03 的 RF 形态，共 60 条）整体为 **`scope: fp`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-07 §版本]
+浮点类指令（SimRISC-07 + 散见 SimRISC-01/02/03 的 RF 形态，共 60 条）整体为 **`scope: fp`**（未实现，decode ILLI）；其规范内容已提取至独立叙述合约 `.tao/knowledge/contract-fp.md`（机器可读投影 `contracts/fp_semantics.yaml`，合法性规则见 `contracts/legality_rules.yaml`）。[SimRISC-07 §版本]
 
 - 范围：`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o`（RF 存取）、`rf2rd`/`rd2rf`、`set.w`、格式转换、浮点算术/符号位/比较/条件赋值/分类指令、`set.ft`/`set.fo` 伪指令。
 - 唯一例外：`rf0`（FCSR）的寄存器模型/位布局属 §1.3.3，M1 测试机复位值需要，已在 §1.3.3 提取。

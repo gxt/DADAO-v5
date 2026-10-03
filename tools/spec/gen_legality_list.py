@@ -3,7 +3,7 @@
 
 Sources
 -------
-* ``contracts/legality_rules.yaml`` -- 16 rules (active + deferred)
+* ``contracts/legality_rules.yaml`` -- 18 rules (active + deferred)
 * ``contracts/opcodes.yaml`` -- 227 entries, 135 with ``rule_refs``
 
 Reuses ``classify()``, ``SECTION_ORDER``, ``CLASS_TO_SPEC`` from
