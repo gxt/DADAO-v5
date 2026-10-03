@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000000..ec594ddabbbf8c3110ae254c5dcc7b75dea74cae
+index 0000000..e716e80
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,314 @@
+@@ -0,0 +1,474 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -35,6 +35,7 @@ index 0000000000..ec594ddabbbf8c3110ae254c5dcc7b75dea74cae
 +#include "exec/target_page.h"
 +#include "accel/tcg/cpu-ldst.h"
 +#include "exec/helper-proto.h"
++#include "fpu/softfloat.h"
 +
 +/* Map QEMU-internal exception index to ADR-0004 exit code */
 +static int dadao_excp_to_exit_code(int excp)
@@ -317,4 +318,163 @@ index 0000000000..ec594ddabbbf8c3110ae254c5dcc7b75dea74cae
 +    env->ra[top_phys2] = ((uint64_t)(mem_hi - 1) << 48) | mem_lo;
 +    env->ra[0] = (env->ra[0] & ~0x003F000000000000ULL) | (1ULL << 48);
 +    env->ras_tmp = mem_lo;
++}
++
++/* ── FP softfloat conversion family (QEMU-036t) ──────────────────────── */
++/*
++ * First use of the upstream softfloat in the DADAO target.  A local
++ * float_status is built from the FCSR on every call (no CPUArchState field
++ * is added): the rf0[33:32] rounding mode is mapped to a softfloat round
++ * mode and accrued exception flags are merged back into rf0[4:0].
++ *
++ * Sources:
++ *   spec/SimRISC-07 §格式转换指令
++ *   .tao/knowledge/contract-fp.md §1/§2/§3/§4
++ *   spec/SimRISC-00 §浮点状态寄存器
++ */
++
++/* rf0[33:32] → softfloat rounding mode:
++ *   00 RNE, 01 RTZ, 10 RDN, 11 RUP  (SimRISC-00 §浮点状态寄存器) */
++static FloatRoundMode rf0_round_mode(uint64_t rf0)
++{
++    switch ((rf0 >> 32) & 0x3) {
++    case 0:
++        return float_round_nearest_even;
++    case 1:
++        return float_round_to_zero;
++    case 2:
++        return float_round_down;
++    default:
++        return float_round_up;
++    }
++}
++
++/* Build a local softfloat status from the current FCSR value. */
++static void fp_status_init(CPUDADAOState *env, float_status *st)
++{
++    memset(st, 0, sizeof(*st));
++    set_float_rounding_mode(rf0_round_mode(env->rf[0]), st);
++    set_float_detect_tininess(float_tininess_after_rounding, st);
++}
++
++/* Merge the softfloat exception flags into the accrued FCSR status bits.
++ * softfloat's NV/DZ/OF/UF/NX occupy the low 5 bits, bit-for-bit identical to
++ * rf0[4:0], so the merge is a masked OR. */
++static void fp_status_commit(CPUDADAOState *env, float_status *st)
++{
++    env->rf[0] |= (uint64_t)(get_float_exception_flags(st) & 0x1F);
++}
++
++/* Only the IEEE invalid (NV) flag is propagated for float→int conversions.
++ * Per contract-fp.md §16 the spec does not say whether precision loss also
++ * raises NX, so we do not invent one: only the saturation/NV behaviour is
++ * observable. */
++static void fp_status_commit_nv_only(CPUDADAOState *env, float_status *st)
++{
++    env->rf[0] |= (uint64_t)(get_float_exception_flags(st) & float_flag_invalid);
++}
++
++/* convert_ff (float→float):
++ *   kind 0 ft2fo (widening, exact)
++ *   kind 1 fo2ft (narrowing, rf0 rounding mode; result zero-extended to 64b)
++ * ft is held in the low 32 bits of the rf register. */
++uint64_t helper_fp_cvt_ff(CPUDADAOState *env, uint64_t src, uint32_t kind)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    if (kind == 0) {
++        res = (uint64_t)float32_to_float64((float32)src, &st);
++    } else {
++        res = (uint64_t)(uint32_t)float64_to_float32((float64)src, &st);
++    }
++    fp_status_commit(env, &st);
++    return res;
++}
++
++/* convert_f2i (float→int): saturating, round-toward-zero, NV on NaN/Inf/
++ * out-of-range (spec §格式转换指令).  The 32-bit results are sign- or
++ * zero-extended to the 64-bit rd width following the SimRISC convention.
++ *
++ * kind: 0 ft2it, 1 ft2io, 2 ft2ut, 3 ft2uo,
++ *       4 fo2it, 5 fo2io, 6 fo2ut, 7 fo2uo */
++uint64_t helper_fp_cvt_f2i(CPUDADAOState *env, uint64_t src, uint32_t kind)
++{
++    float_status st;
++    uint64_t res;
++    float32 f32 = (float32)src;
++    float64 f64 = (float64)src;
++
++    fp_status_init(env, &st);
++    switch (kind) {
++    case 0:  /* ft2it */
++        res = (uint64_t)(int64_t)float32_to_int32_round_to_zero(f32, &st);
++        break;
++    case 1:  /* ft2io */
++        res = (uint64_t)float32_to_int64_round_to_zero(f32, &st);
++        break;
++    case 2:  /* ft2ut */
++        res = (uint64_t)(uint32_t)float32_to_uint32_round_to_zero(f32, &st);
++        break;
++    case 3:  /* ft2uo */
++        res = (uint64_t)float32_to_uint64_round_to_zero(f32, &st);
++        break;
++    case 4:  /* fo2it */
++        res = (uint64_t)(int64_t)float64_to_int32_round_to_zero(f64, &st);
++        break;
++    case 5:  /* fo2io */
++        res = (uint64_t)float64_to_int64_round_to_zero(f64, &st);
++        break;
++    case 6:  /* fo2ut */
++        res = (uint64_t)(uint32_t)float64_to_uint32_round_to_zero(f64, &st);
++        break;
++    default: /* fo2uo */
++        res = (uint64_t)float64_to_uint64_round_to_zero(f64, &st);
++        break;
++    }
++    fp_status_commit_nv_only(env, &st);
++    return res;
++}
++
++/* convert_i2f (int→float): rf0 rounding mode, IEEE flags (may be inexact).
++ * 32-bit source integers live in the low 32 bits of rd and are sign- or
++ * zero-extended according to signedness; ft results are zero-extended to 64b.
++ *
++ * kind: 0 it2ft, 1 io2ft, 2 ut2ft, 3 uo2ft,
++ *       4 it2fo, 5 io2fo, 6 ut2fo, 7 uo2fo */
++uint64_t helper_fp_cvt_i2f(CPUDADAOState *env, uint64_t src, uint32_t kind)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    switch (kind) {
++    case 0:  /* it2ft: int32 (sign-extend low 32) */
++        res = (uint64_t)(uint32_t)int32_to_float32((int32_t)(uint32_t)src, &st);
++        break;
++    case 1:  /* io2ft: int64 */
++        res = (uint64_t)(uint32_t)int64_to_float32((int64_t)src, &st);
++        break;
++    case 2:  /* ut2ft: uint32 */
++        res = (uint64_t)(uint32_t)uint32_to_float32((uint32_t)src, &st);
++        break;
++    case 3:  /* uo2ft: uint64 */
++        res = (uint64_t)(uint32_t)uint64_to_float32(src, &st);
++        break;
++    case 4:  /* it2fo */
++        res = (uint64_t)int32_to_float64((int32_t)(uint32_t)src, &st);
++        break;
++    case 5:  /* io2fo */
++        res = (uint64_t)int64_to_float64((int64_t)src, &st);
++        break;
++    case 6:  /* ut2fo */
++        res = (uint64_t)uint32_to_float64((uint32_t)src, &st);
++        break;
++    default: /* uo2fo */
++        res = (uint64_t)uint64_to_float64(src, &st);
++        break;
++    }
++    fp_status_commit(env, &st);
++    return res;
 +}

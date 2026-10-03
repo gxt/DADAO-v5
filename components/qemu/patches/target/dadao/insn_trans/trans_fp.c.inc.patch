@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..646901b
+index 0000000..4281432
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,846 @@
+@@ -0,0 +1,928 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -18,7 +18,11 @@ index 0000000..646901b
 + *       sign    (4): ftsgnj/ftsgnn/fosgnj/fosgnn
 + *       classify(2): ftcls/focls
 + *       compare (4): ftqcmp/ftscmp/foqcmp/foscmp
-+ *   - The remaining 34 trans are ILLI stubs owned by QEMU-036t/037t.
++ *   - QEMU-036t implements the conversion family (20, first softfloat use):
++ *       convert_ff (4): ft2ft/ft2fo/fo2ft/fo2fo
++ *       convert_f2i(8): ft2it/ft2io/ft2ut/ft2uo/fo2it/fo2io/fo2ut/fo2uo
++ *       convert_i2f(8): it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo
++ *   - The remaining 14 trans are ILLI stubs owned by QEMU-037t.
 + *
 + * rf0 is the FCSR: reads expose the full 64 bits, writes go through
 + * store_rf() which applies RF0_WRITE_MASK for rf0.
@@ -571,29 +575,123 @@ index 0000000..646901b
 +    return true;
 +}
 +
-+/* convert_ff */
++/* ── QEMU-036t: conversion family (softfloat) ────────────────────────── */
++/*
++ * All convert_* forms are `orri`: a destination start register in a->hb, a
++ * source start register in a->hc and a 1..63 element count in a->hd.  The
++ * per-element conversions themselves live in helper.c (softfloat); the
++ * helpers receive the FCSR-derived rounding mode and merge their flags back
++ * into rf0[4:0].  convert_ff additionally applies the shared
++ * mreg_range_overlap rule (source and destination ranges must be disjoint,
++ * complete coincidence included).
++ */
++
++/* convert_ff kind selectors (helper_fp_cvt_ff). */
++enum {
++    FP_FF_FT2FO = 0,
++    FP_FF_FO2FT = 1,
++};
++
++/* convert_f2i kind selectors (helper_fp_cvt_f2i). */
++enum {
++    FP_F2I_FT2IT = 0, FP_F2I_FT2IO, FP_F2I_FT2UT, FP_F2I_FT2UO,
++    FP_F2I_FO2IT,    FP_F2I_FO2IO, FP_F2I_FO2UT, FP_F2I_FO2UO,
++};
++
++/* convert_i2f kind selectors (helper_fp_cvt_i2f). */
++enum {
++    FP_I2F_IT2FT = 0, FP_I2F_IO2FT, FP_I2F_UT2FT, FP_I2F_UO2FT,
++    FP_I2F_IT2FO,    FP_I2F_IO2FO, FP_I2F_UT2FO, FP_I2F_UO2FO,
++};
++
++/* convert_ff: destination rf (a->hb), source rf (a->hc). `move` selects the
++ * same-format register move (ft2ft/fo2fo), which is a plain 64-bit move. */
++static bool gen_convert_ff(DisasContext *ctx, arg_misc *a,
++                           uint32_t kind, bool move)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    if (!fp_check_mreg_overlap(ctx, a->hb, a->hc, a->hd)) {
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 src = load_rf(a->hc + i);
++        TCGv_i64 res = tcg_temp_new_i64();
++        if (move) {
++            tcg_gen_mov_i64(res, src);
++        } else {
++            gen_helper_fp_cvt_ff(res, tcg_env, src,
++                                 tcg_constant_i32(kind));
++        }
++        store_rf(a->hb + i, res);
++    }
++    return true;
++}
++
++/* convert_f2i: destination rd (a->hb), source rf (a->hc). */
++static bool gen_convert_f2i(DisasContext *ctx, arg_misc *a, uint32_t kind)
++{
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 src = load_rf(a->hc + i);
++        TCGv_i64 res = tcg_temp_new_i64();
++        gen_helper_fp_cvt_f2i(res, tcg_env, src, tcg_constant_i32(kind));
++        store_rd(a->hb + i, res);
++    }
++    return true;
++}
++
++/* convert_i2f: destination rf (a->hb), source rd (a->hc). */
++static bool gen_convert_i2f(DisasContext *ctx, arg_misc *a, uint32_t kind)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rdHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 src = load_rd(a->hc + i);
++        TCGv_i64 res = tcg_temp_new_i64();
++        gen_helper_fp_cvt_i2f(res, tcg_env, src, tcg_constant_i32(kind));
++        store_rf(a->hb + i, res);
++    }
++    return true;
++}
++
 +static bool trans_ft2ft_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_ff(ctx, a, 0, true);
 +}
 +
 +static bool trans_ft2fo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_ff(ctx, a, FP_FF_FT2FO, false);
 +}
 +
 +static bool trans_fo2ft_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_ff(ctx, a, FP_FF_FO2FT, false);
 +}
 +
 +static bool trans_fo2fo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_ff(ctx, a, 0, true);
 +}
 +
 +/* root */
@@ -612,99 +710,83 @@ index 0000000..646901b
 +/* convert_f2i */
 +static bool trans_ft2it_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_f2i(ctx, a, FP_F2I_FT2IT);
 +}
 +
 +static bool trans_ft2io_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_f2i(ctx, a, FP_F2I_FT2IO);
 +}
 +
 +static bool trans_ft2ut_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_f2i(ctx, a, FP_F2I_FT2UT);
 +}
 +
 +static bool trans_ft2uo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_f2i(ctx, a, FP_F2I_FT2UO);
 +}
 +
 +static bool trans_fo2it_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_f2i(ctx, a, FP_F2I_FO2IT);
 +}
 +
 +static bool trans_fo2io_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_f2i(ctx, a, FP_F2I_FO2IO);
 +}
 +
 +static bool trans_fo2ut_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_f2i(ctx, a, FP_F2I_FO2UT);
 +}
 +
 +static bool trans_fo2uo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_f2i(ctx, a, FP_F2I_FO2UO);
 +}
 +
 +/* convert_i2f */
 +static bool trans_it2ft_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_i2f(ctx, a, FP_I2F_IT2FT);
 +}
 +
 +static bool trans_io2ft_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_i2f(ctx, a, FP_I2F_IO2FT);
 +}
 +
 +static bool trans_ut2ft_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_i2f(ctx, a, FP_I2F_UT2FT);
 +}
 +
 +static bool trans_uo2ft_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_i2f(ctx, a, FP_I2F_UO2FT);
 +}
 +
 +static bool trans_it2fo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_i2f(ctx, a, FP_I2F_IT2FO);
 +}
 +
 +static bool trans_io2fo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_i2f(ctx, a, FP_I2F_IO2FO);
 +}
 +
 +static bool trans_ut2fo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_i2f(ctx, a, FP_I2F_UT2FO);
 +}
 +
 +static bool trans_uo2fo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
-+    return true;
++    return gen_convert_i2f(ctx, a, FP_I2F_UO2FO);
 +}
 +
 +/* arith */
