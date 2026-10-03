@@ -6,6 +6,7 @@
 > 仓库布局见 `docs/repository-layout.md`；**经验规则以 `AGENTS.md` 为唯一准绳**。
 >
 > **日期**：2026-09-22 ｜ **范围**：M1（LLVM MC + QEMU 标量核心 + MC↔QEMU 集成）
+> **归档**：2026-10-03 起本文件由 `docs/` 移入 `.tao/archive/M1/`（历史快照，不再更新）；M1 原始任务书/台账明细见同目录。M2 相关引用（`docs/m2-spec-planning.md` 等）已更新为指向本路径。
 
 ---
 
@@ -56,7 +57,7 @@
 
 | 类别 | 数量 | 位置 |
 |---|---|---|
-| 任务文件 | **76**（已验证 70 + 里程碑 6） | `.tao/tasks/<module>/` |
+| 任务文件 | **76**（已验证 70 + 里程碑 6） | `.tao/archive/M1/<module>/`（2026-10-03 归档，原 `.tao/tasks/<module>/`） |
 | ADR | **11**（+ `adr-authoring.md` 规范） | `.tao/knowledge/adr-*.md` |
 | 合约 | `contract-isa` / `-abi` / `-elf`（+ `contract-authoring` 规范） | `.tao/knowledge/` |
 | 机器可读数据 | `opcodes.yaml`（256 = 178 M1 + 78 excluded）/ `legality_rules.yaml` / `abi.yaml` | `contracts/` |

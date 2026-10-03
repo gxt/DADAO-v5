@@ -2,7 +2,7 @@
 
 > **归档日期**：2026-10-03 ｜ **范围**：M1 里程碑（2026-09-22 达成）的全部任务书与相关记录
 > **归档判据**：任务书字段 `**项目里程碑**：M1`（76 个）；`changelog.md` 中 ≤ 2026-09-22 的条目（89 条）；`MEMORY.md` 中纯 M1 行（3 行）。
-> **说明**：本目录是**历史归档**，不再活跃；M1 权威摘要见 `docs/m1-retrospective.md`、路线见 `.tao/knowledge/milestones.md`。
+> **说明**：本目录是**历史归档**，不再活跃；M1 权威摘要见本目录 `m1-retrospective.md`、路线见 `.tao/knowledge/milestones.md`。
 
 ## 1. M1 任务清单（76 个，按模块）
 
@@ -122,7 +122,7 @@
 ## 4. 指针
 
 - 里程碑定义/达成：`.tao/knowledge/milestones.md`（M1 = ✅ 达成）
-- M1 回顾：`docs/m1-retrospective.md`
+- M1 回顾：本目录 `m1-retrospective.md`
 - 遗留台账：`.tao/knowledge/deferred.md`、`docs/issues.yaml`
 - 变更流水（M1 之后）：`.tao/knowledge/changelog.md`
 - **跨文件引用说明**：本归档**未更新**历史引用；凡引用 `changelog.md`/`MEMORY.md` 中 M1 条目者，其内容现位于本 README（历史指针）。
