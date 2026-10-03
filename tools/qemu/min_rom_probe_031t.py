@@ -9,7 +9,17 @@ Creates a standalone binary that:
 
 If rb0 writeback is removed (old 48-bit-only), rb0 will be stale/wrong → FAIL.
 """
-import os, sys, struct, subprocess, tempfile
+import os, sys, struct, subprocess, uuid
+
+# D6 compliance: resolve probe artifact dir via paths.py
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(_REPO_ROOT, 'tools', 'infra'))
+import paths as _paths
+
+def _probe_artifact_dir():
+    d = str(_paths.test_artifacts_dir() / 'probes')
+    os.makedirs(d, exist_ok=True)
+    return d
 
 # ── Instruction encoders (from contracts/opcodes.yaml) ────────────────────
 
@@ -223,10 +233,10 @@ def find_trampoline():
 
 def run_probe(binary_data, label, qemu_bin, trampoline_path, timeout=10):
     """Run a probe binary with QEMU and return exit code."""
-    fd, bin_path = tempfile.mkstemp(suffix='.bin', prefix='dadao-probe-')
+    bin_path = os.path.join(_probe_artifact_dir(), f'dadao-probe-{uuid.uuid4().hex[:8]}.bin')
+    with open(bin_path, 'wb') as f:
+        f.write(binary_data)
     try:
-        os.write(fd, binary_data)
-        os.close(fd)
         cmd = [
             qemu_bin,
             '-machine', 'dadao-m1',

@@ -38,6 +38,16 @@ import sys
 import os
 import tempfile
 
+# D6 compliance: resolve probe artifact dir via paths.py
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(_REPO_ROOT, 'tools', 'infra'))
+import paths as _paths
+
+def _probe_artifact_dir():
+    d = str(_paths.test_artifacts_dir() / 'probes')
+    os.makedirs(d, exist_ok=True)
+    return d
+
 QEMU = ".work/build/qemu/qemu-system-dadao"
 
 # ── Instruction encoding helpers ──────────────────────────────────────
@@ -141,10 +151,10 @@ def build_rom(instructions):
 def run_rom(rom_data, kernel_data=None, timeout=10):
     if kernel_data is None:
         kernel_data = illi() * 4
-    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data)
         rom_path = f.name
-    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(kernel_data)
         kernel_path = f.name
     try:

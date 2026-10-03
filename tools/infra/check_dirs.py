@@ -7,11 +7,14 @@ Checks (all fail-closed):
      all values are relative paths, and child dirs are under ``sdk_dir``.
   2. Scans version-controlled scripts/build files for the symlink prefix
      ``/home/ubuntu/tao`` (must use real path or relative path instead).
+  3. Residue gate (``--residue``): detect unexpected untracked temp files
+     matching ``*_tmp*``/``*_gate*``/``*.orig``/``*.rej`` patterns.
 
 Exit code: non-zero on any violation.
 """
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 import tomllib
@@ -126,19 +129,99 @@ def check_symlink_prefix(errors: list[str]) -> None:
                 )
 
 
+# ---------------------------------------------------------------------------
+# Residue gate
+# ---------------------------------------------------------------------------
+
+# Patterns for unexpected temp/residue files
+_RESIDUE_PATTERNS = ["*_tmp*", "*_gate*", "*.orig", "*.rej"]
+
+# Directories that are allowed to contain untracked files
+_RESIDUE_WHITELIST = [".tao/tasks", ".work"]
+
+
+def check_residue(errors: list[str], root: Path | None = None) -> None:
+    """Detect unexpected untracked temp files matching residue patterns.
+
+    Uses ``git ls-files --others --exclude-standard`` to find untracked
+    files, then matches against ``_RESIDUE_PATTERNS``.  Files under
+    whitelisted directories are ignored.
+    """
+    scan_root = root if root else ROOT
+    result = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        capture_output=True, text=True, cwd=scan_root,
+    )
+    if result.returncode != 0:
+        errors.append(f"git ls-files --others failed: {result.stderr.strip()}")
+        return
+
+    untracked = result.stdout.strip().splitlines()
+    if not untracked:
+        return
+
+    # Build whitelist prefixes relative to scan_root
+    whitelist_prefixes = []
+    for wdir in _RESIDUE_WHITELIST:
+        if root:
+            # In --root mode, no .tao/.work whitelist applies
+            continue
+        whitelist_prefixes.append(wdir + "/")
+
+    for relpath_str in untracked:
+        # Check whitelist
+        is_whitelisted = False
+        for prefix in whitelist_prefixes:
+            if relpath_str.startswith(prefix):
+                is_whitelisted = True
+                break
+        if is_whitelisted:
+            continue
+
+        # Check against residue patterns
+        fname = Path(relpath_str).name
+        for pattern in _RESIDUE_PATTERNS:
+            # Simple glob-style matching using fnmatch
+            import fnmatch
+            if fnmatch.fnmatch(fname, pattern) or fnmatch.fnmatch(relpath_str, pattern):
+                errors.append(f"residue: unexpected untracked file: {relpath_str}")
+                break
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--residue", action="store_true",
+        help="Run residue gate: detect unexpected untracked temp files.",
+    )
+    parser.add_argument(
+        "--root", type=str, default=None,
+        help="Override scan root directory (default: repo root). Only used with --residue.",
+    )
+    args = parser.parse_args()
+
     errors: list[str] = []
 
-    check_manifest(errors)
-    check_ref_paths(errors)
-    check_symlink_prefix(errors)
+    if args.residue:
+        root_override = Path(args.root).resolve() if args.root else None
+        if root_override and not root_override.is_dir():
+            print(f"ERROR: --root directory does not exist: {root_override}", file=sys.stderr)
+            return 1
+        check_residue(errors, root_override)
+    else:
+        check_manifest(errors)
+        check_ref_paths(errors)
+        check_symlink_prefix(errors)
 
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
 
-    print("check-dirs: PASS")
+    if args.residue:
+        print("check-no-residue: PASS")
+    else:
+        print("check-dirs: PASS")
     return 0
 
 

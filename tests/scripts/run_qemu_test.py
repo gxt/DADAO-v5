@@ -19,8 +19,8 @@ import os
 import socket
 import subprocess
 import sys
-import tempfile
 import time
+import uuid
 import yaml
 
 # ---------------------------------------------------------------------------
@@ -56,6 +56,18 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 from build_test_binary import DUMP_BASE, DUMP_SIZE
+
+# D6 compliance: resolve test artifacts dir via paths.py
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "infra"))
+import paths as _paths
+
+
+def _resolve_artifact_dir(subdir: str = "harness") -> str:
+    """Return absolute path to test artifacts subdirectory, creating it if needed."""
+    d = str(_paths.test_artifacts_dir() / subdir)
+    os.makedirs(d, exist_ok=True)
+    return d
 
 
 def find_qemu():
@@ -238,12 +250,11 @@ def build_binary(vector_file, case_idx, dump_mode=False):
 
     blob = build_blob(case, trusted_instrs=None, dump_mode=dump_mode)
 
-    # Write to temp file
-    fd, bin_path = tempfile.mkstemp(suffix=".bin", prefix="dadao-test-")
-    try:
-        os.write(fd, blob)
-    finally:
-        os.close(fd)
+    # Write to file in D6-compliant artifact directory (no tempfile)
+    artifact_dir = _resolve_artifact_dir("harness")
+    bin_path = os.path.join(artifact_dir, f"dadao-test-{uuid.uuid4().hex[:8]}.bin")
+    with open(bin_path, "wb") as f:
+        f.write(blob)
 
     return bin_path, case
 
@@ -271,7 +282,9 @@ def run_qemu(qemu_bin, trampoline_path, test_bin_path, timeout=DEFAULT_TIMEOUT, 
 
     if dump_mode:
         # Use Unix socket for QMP (more reliable than TCP)
-        qmp_socket = tempfile.mktemp(suffix=".sock", prefix="dadao-qmp-")
+        # D6 compliance: socket in test artifacts directory
+        artifact_dir = _resolve_artifact_dir("harness")
+        qmp_socket = os.path.join(artifact_dir, f"dadao-qmp-{uuid.uuid4().hex[:8]}.sock")
         cmd.extend(["-qmp", f"unix:{qmp_socket},server=on,wait=off"])
         # Freeze CPU at start; harness will connect via QMP and send cont
         cmd.append("-S")
@@ -349,8 +362,9 @@ def _attempt_qmp_dump(qmp_socket, timeout=5):
     except Exception as e:
         raise RuntimeError(f"QMP connect failed: {e}") from e
 
-    # Create dump file in /tmp (not repo root)
-    dump_dir = tempfile.mkdtemp(prefix="dadao-dump-", dir="/tmp/opencode/QEMU-014t")
+    # Create dump file in D6-compliant artifact directory
+    dump_dir = os.path.join(_resolve_artifact_dir("harness"), "dumps")
+    os.makedirs(dump_dir, exist_ok=True)
     dump_file = os.path.join(dump_dir, "state.bin")
 
     try:

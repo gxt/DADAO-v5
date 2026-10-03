@@ -40,7 +40,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-rule-refs \
-        check-dirs check-cfx-aliases check-asm-prose check-lit
+        check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -80,6 +80,7 @@ help:
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
 	@echo "  make check-cfx-aliases  Check cfx alias table drift gate (SPEC-075t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
+	@echo "  make check-no-residue  Detect unexpected untracked temp files"
 
 manifest-check:
 	@$(PYTHON) tools/infra/manifest_check.py
@@ -209,7 +210,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-prose check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs check-lit
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-prose check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -240,6 +241,10 @@ check-cfx-aliases:
 # manifests/install-dirs.lock.toml and scans for symlink prefix violations.
 check-dirs:
 	@$(PYTHON) tools/infra/check_dirs.py
+
+# Residue gate (INFRA-025t): detect unexpected untracked temp files.
+check-no-residue:
+	@$(PYTHON) tools/infra/check_dirs.py --residue
 
 # Spec embedded assembly list consistency (SPEC-037t).
 check-asm-list:
@@ -284,19 +289,23 @@ check-rule-refs: contracts/opcodes.yaml
 # Runs all semantic/boundary cases in reg-shift-extend + reg-compare (~14s).
 # Uses symlinked temp dir + --batch for full coverage.
 # Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
-QEMU_SEM_DIR = /tmp/opencode/qemu-sem-gate
+# D6 compliance: gate dir under TEST_ARTIFACTS_DIR, log under .work/log/qemu/.
+QEMU_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
+QEMU_SEM_LOG = .work/log/qemu/check-qemu-semantics.log
 check-qemu-semantics:
-	@mkdir -p $(QEMU_SEM_DIR) && \
+	@mkdir -p $(QEMU_SEM_DIR) .work/log/qemu && \
 	  ln -sf $(CURDIR)/tests/vectors/isa/reg-shift-extend.yaml $(QEMU_SEM_DIR)/ 2>/dev/null; \
 	  ln -sf $(CURDIR)/tests/vectors/isa/reg-compare.yaml $(QEMU_SEM_DIR)/ 2>/dev/null; \
 	  echo "check-qemu-semantics: running shift+compare (all cases)..."; \
-	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) > /tmp/opencode/check-qemu-sem.log 2>&1; \
+	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) > $(QEMU_SEM_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -5 /tmp/opencode/check-qemu-sem.log; \
+	  tail -5 $(QEMU_SEM_LOG); \
 	  if [ $$rc -ne 0 ]; then \
 	    echo "check-qemu-semantics: FAIL (rc=$$rc)"; \
+	    rm -rf $(QEMU_SEM_DIR); \
 	    exit $$rc; \
 	  fi; \
+	  rm -rf $(QEMU_SEM_DIR); \
 	  echo "check-qemu-semantics: PASS"
 
 # 构建并行度（用户裁定 2026-10-01：限制 cc1plus 类进程）

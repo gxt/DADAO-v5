@@ -23,6 +23,16 @@ import os
 import re
 import tempfile
 
+# D6 compliance: resolve probe artifact dir via paths.py
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(_REPO_ROOT, 'tools', 'infra'))
+import paths as _paths
+
+def _probe_artifact_dir():
+    d = str(_paths.test_artifacts_dir() / 'probes')
+    os.makedirs(d, exist_ok=True)
+    return d
+
 QEMU = ".work/build/qemu/qemu-system-dadao"
 
 # ROM base and test base addresses
@@ -137,9 +147,9 @@ def build_rom(test_insns):
 
 def run_test(rom_data, timeout=10):
     kernel_data = illi() * 4
-    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rp = f.name
-    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(kernel_data); kp = f.name
     try:
         r = subprocess.run(
@@ -153,9 +163,9 @@ def run_test(rom_data, timeout=10):
 
 def run_test_dcpu(rom_data, timeout=10):
     kernel_data = illi() * 4
-    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rp = f.name
-    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(kernel_data); kp = f.name
     lp = rp + '.cpu.log'
     try:

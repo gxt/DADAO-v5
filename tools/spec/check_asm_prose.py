@@ -66,6 +66,9 @@ _EXCLUDE_DIRS = {
     ROOT / "spec" / "SimRISC-0.5.3",
 }
 
+# Override root for --root mode (set by CLI before scanning)
+_override_root: Path | None = None
+
 # ---------------------------------------------------------------------------
 # Violation dataclass
 # ---------------------------------------------------------------------------
@@ -192,22 +195,35 @@ def _should_exclude(p: Path) -> bool:
             pass
     return False
 
-def collect_files() -> list[Path]:
-    """Collect markdown files in scope."""
-    patterns = [
-        (ROOT / "spec", "**/*.md"),
-        (ROOT / "docs", "**/*.md"),
-        (ROOT / ".tao" / "knowledge", "contract-*.md"),
-        (ROOT / ".tao" / "knowledge", "adr-*.md"),
-    ]
+def collect_files(root: Path | None = None) -> list[Path]:
+    """Collect markdown files in scope.
+
+    If *root* is given (``--root`` mode), scan all ``*.md`` files under that
+    root recursively.  Otherwise fall back to the default in-repo scan
+    directories (spec/, docs/, .tao/knowledge/).
+    """
     files: list[Path] = []
     seen: set[Path] = set()
-    for base, pat in patterns:
-        for p in sorted(base.glob(pat)):
+    if root is not None:
+        # --root mode: scan all *.md under the given root
+        for p in sorted(root.rglob("*.md")):
             rp = p.resolve()
             if rp not in seen and not _should_exclude(p):
                 seen.add(rp)
                 files.append(p)
+    else:
+        patterns = [
+            (ROOT / "spec", "**/*.md"),
+            (ROOT / "docs", "**/*.md"),
+            (ROOT / ".tao" / "knowledge", "contract-*.md"),
+            (ROOT / ".tao" / "knowledge", "adr-*.md"),
+        ]
+        for base, pat in patterns:
+            for p in sorted(base.glob(pat)):
+                rp = p.resolve()
+                if rp not in seen and not _should_exclude(p):
+                    seen.add(rp)
+                    files.append(p)
     return files
 
 # ---------------------------------------------------------------------------
@@ -620,10 +636,11 @@ def scan(
     opcode_formats: dict[str, set[str]],
     cfx_aliases: set[str],
     cfx_ranges: dict[str, tuple[int, int]] = {},
+    root: Path | None = None,
 ) -> list[Violation]:
     """Scan all files in scope and return violations."""
     violations: list[Violation] = []
-    for filepath in collect_files():
+    for filepath in collect_files(root):
         blocks = extract_code_blocks(filepath)
         for block in blocks:
             # Only check assembly blocks (simrisc, asm, or empty lang)
@@ -647,9 +664,10 @@ def scan(
 # ---------------------------------------------------------------------------
 
 def _relpath(p: Path) -> str:
-    """Relative path from repo root."""
+    """Relative path from effective root (repo root or --root override)."""
+    effective = _override_root if _override_root else ROOT
     try:
-        return str(p.relative_to(ROOT))
+        return str(p.relative_to(effective))
     except ValueError:
         return str(p)
 
@@ -693,23 +711,40 @@ def main() -> None:
     )
     parser.add_argument(
         "--files", nargs="*",
-        help="Only check these files (relative to repo root).",
+        help="Only check these files (relative to repo root or --root).",
+    )
+    parser.add_argument(
+        "--root", type=str, default=None,
+        help="Override scan root directory (default: repo root).",
     )
     args = parser.parse_args()
+
+    root_override: Path | None = None
+    if args.root:
+        root_override = Path(args.root).resolve()
+        if not root_override.is_dir():
+            print(f"ERROR: --root directory does not exist: {root_override}", file=sys.stderr)
+            sys.exit(1)
+        # Set module-level override for _relpath()
+        global _override_root
+        _override_root = root_override
 
     opcode_formats = _load_opcode_formats()
     cfx_aliases, cfx_ranges = _load_cfx_aliases()
     had_out_of_scope = False
 
+    # Effective root for --files resolution
+    effective_root = root_override if root_override else ROOT
+
     if args.files:
         # Filter to specific files — fail-closed
-        target_files = {(ROOT / f).resolve() for f in args.files}
-        in_scope = {fp.resolve() for fp in collect_files()}
+        target_files = {(effective_root / f).resolve() for f in args.files}
+        in_scope = {fp.resolve() for fp in collect_files(root_override)}
         out_of_scope = target_files - in_scope
         for tf in sorted(out_of_scope, key=str):
             print(f"ERROR: --files argument outside scan scope: {tf}", file=sys.stderr)
         violations: list[Violation] = []
-        for filepath in collect_files():
+        for filepath in collect_files(root_override):
             if filepath.resolve() not in target_files:
                 continue
             blocks = extract_code_blocks(filepath)
@@ -728,7 +763,7 @@ def main() -> None:
                     violations.extend(vl)
         had_out_of_scope = bool(out_of_scope)
     else:
-        violations = scan(opcode_formats, cfx_aliases, cfx_ranges)
+        violations = scan(opcode_formats, cfx_aliases, cfx_ranges, root_override)
 
     report(violations)
 
