@@ -3,8 +3,8 @@
 
 Sources
 -------
-* ``contracts/legality_rules.yaml`` -- 15 rules (active + deferred)
-* ``contracts/opcodes.yaml`` -- 227 entries, 134 with ``rule_refs``
+* ``contracts/legality_rules.yaml`` -- 16 rules (active + deferred)
+* ``contracts/opcodes.yaml`` -- 227 entries, 135 with ``rule_refs``
 
 Reuses ``classify()``, ``SECTION_ORDER``, ``CLASS_TO_SPEC`` from
 ``tools/llvm/gen_asm_list.py`` (DRY: no duplicated classification logic).
@@ -37,6 +37,7 @@ LEGALITY_END = "<!-- LEGALITY_END -->"
 # Rule id → semantic group (二级语义)
 SEMANTIC_MAP: dict[str, str] = {
     "dst_rd0":           "目的寄存器约束",
+    "dst_rd0_nonzero":   "目的寄存器约束",
     "dst_dual_same":     "目的寄存器约束",
     "dst_rb0":           "目的寄存器约束",
     "dst_rf0":           "目的寄存器约束",
@@ -65,6 +66,7 @@ GLOBAL_RULE_CHAPTER: dict[str, str] = {
 # Short trigger-condition summaries per rule
 RULE_SUMMARY: dict[str, str] = {
     "dst_rd0":           "目的 rd0 → ILLI",
+    "dst_rd0_nonzero":   "ret 目的 rd0 时 imms18≠0 → ILLI",
     "dst_dual_same":     "双目的同为 rd0 或同寄存器 → ILLI",
     "dst_rb0":           "目的 rb0 → ILLI",
     "dst_rf0":           "浮点目的 rf0 → ILLI（deferred）",

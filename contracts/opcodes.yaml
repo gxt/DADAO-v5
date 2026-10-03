@@ -4,7 +4,7 @@
 # excluded_m1: true 的条目属 M1 范围外（浮点 RF / 特权 cfx / LR-SC），
 #   M1 不实现但编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # 共 227 条：M1 内 152 条，excluded_m1 75 条
-# 有 rule_refs 的指令：134 条
+# 有 rule_refs 的指令：135 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -2138,9 +2138,11 @@
     role: imm
     bank: imm
     signed: true
-  legality: []
+  legality:
+  - '!(rdha == rd0 && imms18 != 0)'
   spec_cite: SimRISC-06 §函数返回
-  rule_refs: []
+  rule_refs:
+  - dst_rd0_nonzero
 - id: cfx2rd_crrr_cfx
   mnemonic: cfx2rd
   format: crrr

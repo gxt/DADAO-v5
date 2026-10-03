@@ -31,6 +31,7 @@
 <!-- LEGALITY_START -->
 ## 合法性检查
 
+* `dst_rd0_nonzero`：ret 目的 rd0 时 imms18≠0 → ILLI — `ret_riii_ra`（1 条）
 * `excp_ialign`（动态）：PC[1:0]≠0 → IALIGN
 * `excp_rasof`（动态）：RAS 上溢 → RASOF
 * `excp_rasuf`（动态）：RAS 下溢 → RASUF
@@ -133,6 +134,8 @@ call    [rbHA, rdHB, imms14]
 ret指令增加了返回值的赋值功能，操作数类型为 `riii` ，即在函数返回的同时，修改一个rd寄存器的值为18位立即数（符号扩展至64位）；
 通常，该寄存器为返回值寄存器，从而可以用一条ret指令实现C语言中的return 0或return -1。
 无需设置返回值寄存器时，可以采用ret rd0, 0实现普通的ret指令。
+
+**（硬约束）**`ret rdHA, imms18` 中，当 `rdHA == rd0` 时，`imms18` **MUST** 为 0；否则该指令**非法**：汇编期须**硬报错**（LLVM，`Error` 级，汇编失败并返回非零退出码，**不得**降为 warning），运行期执行该非法编码触发 **ILLI** 异常（测试机退出码 `0x88`，QEMU）。
 
 操作数类型为： `riii`
 

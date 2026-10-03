@@ -248,6 +248,8 @@ S00_MISCRF = "SimRISC-00 §MISC-RF指令编码"
 LEG_RD_DST = "rdha != rd0"
 LEG_RB_DST = "rbha != rb0"
 LEG_IMMU6 = "immu6 != 0"
+# 仅 ret 适用：rdha == rd0 时 imms18 必须为 0（等价于 !(rdha == rd0 && imms18 != 0)）
+LEG_RET_RD0_IMMS18 = "!(rdha == rd0 && imms18 != 0)"
 
 
 def aligned(n):
@@ -475,7 +477,7 @@ def build_main_table(records):
                        f_rrii("rbha", "rdhb", "imms12", roles=("src", "src")),
                        [], S06_CALL))
     records.append(rec("ret-riii", "ret", "riii", 0x76,
-                       f_riii("rdha", "imms18"), [], S06_RET))
+                       f_riii("rdha", "imms18"), [LEG_RET_RD0_IMMS18], S06_RET))
 
     # ── 0111-1xxx：特权 cfx（excluded）──
     records.append(rec("cfx2rd-crrr", "cfx2rd", "crrr", 0x7A,
@@ -675,7 +677,7 @@ def build_misc_rf(records):
 # ────────────────────────────── rule_refs 映射 ──────────────────────────────
 
 # legality 表达式 → legality_rules.yaml id 的完整映射。
-# 来源：contracts/legality_rules.yaml（SPEC-070t 已定稿，15 条）。
+# 来源：contracts/legality_rules.yaml（SPEC-070t 定稿 15 条 + SPEC-083t 新增 dst_rd0_nonzero = 16 条）。
 # 仅映射 opcodes.yaml legality 中实际出现的表达式；
 # 运行时/兜底规则（excp_ialign/excp_rasof/excp_rasuf/excp_undi）不由 legality 表达式触发，
 # 在 check_rule_refs.py 中通过显式豁免清单处理。
@@ -686,6 +688,8 @@ EXPR_TO_RULE = OrderedDict([
     ("rdhc != rd0",                               "dst_rd0"),
     ("rbha != rb0",                               "dst_rb0"),
     ("rbhb != rb0",                               "dst_rb0"),
+    # ret rdha==rd0 时 imms18 必须为 0（仅 ret 适用）
+    ("!(rdha == rd0 && imms18 != 0)",             "dst_rd0_nonzero"),
     # ── 双目的约束 ──
     ("!(rdha == rd0 && rdhb == rd0)",             "dst_dual_same"),
     ("!(rdha == rdhb && rdha != rd0)",            "dst_dual_same"),

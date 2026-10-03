@@ -36,7 +36,7 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 - `rd0` 固定为 0，只读。[SimRISC-00 §数据寄存器]
 - 作为目的寄存器时行为取决于指令格式：[SimRISC-00 §数据寄存器]
   - rrrr 双目的指令（`add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so`）允许其中一个目的为 rd0（丢弃对应半结果），但不能**同时**为 rd0，也不能为同一非 rd0 寄存器。[SimRISC-00 §数据寄存器][SimRISC-00 §数据寄存器]
-  - `ret rd0, 0` 允许（无需设置返回值）。[SimRISC-00 §数据寄存器][SimRISC-06 §函数返回]
+  - `ret rd0, 0` 允许（无需设置返回值）；但 `rdHA == rd0` 时 `imms18` MUST 为 0，否则非法（ILLI）。[SimRISC-00 §数据寄存器][SimRISC-06 §函数返回]
   - 其余指令目的为 rd0 时触发 **ILLI** 异常。[SimRISC-00 §数据寄存器]
 
 #### §1.3.2 rb0
@@ -786,6 +786,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 - 通常该寄存器为返回值寄存器，可用一条 `ret` 实现 C 语言的 `return 0` 或 `return -1`。[SimRISC-06 §函数返回]
 - 无需设置返回值寄存器时，采用 `ret rd0, 0` 实现普通 ret（`rdha` 为 rd0 允许）。[SimRISC-06 §函数返回]
+- **硬约束**：`ret rdHA, imms18` 中，当 `rdHA == rd0` 时，`imms18` MUST 为 0；否则该指令**非法**——汇编期须**硬报错**（LLVM，`Error` 级，汇编失败并返回非零退出码，不得降为 warning），运行期执行该非法编码触发 **ILLI** 异常（测试机退出码 `0x88`，QEMU）。[SimRISC-06 §函数返回]
 - 弹栈流程见 §8.6。[SimRISC-00 §弹栈流程（ret 指令）]
 
 ### §8.6 压栈 / 弹栈流程（RegRAS / MemRAS）
@@ -1175,6 +1176,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 ### §15.1 ILLI 触发场景（M1 汇总）
 
 - 目的寄存器为 `rd0`（除 rrrr 双目的指令允许一个为 rd0、`ret rd0, 0` 允许外；`st`/`stm` 的源为 rd0 允许，见 ADR-0015 D2/D3）。[SimRISC-00 §数据寄存器]
+- `ret` 的 `rdHA` 为 `rd0` 且 `imms18 != 0`（仅 `ret rd0, 0` 合法，见 §8.5）。[SimRISC-06 §函数返回]
 - 目的寄存器为 `rb0`（`st.o`/`stm.o` 的源为 rb0 允许，见 ADR-0015 D1/D3）。[SimRISC-00 §基址寄存器]
 - `ld`（RD）目的 `rdha` 为 `rd0`。[SimRISC-01 §存取RD寄存器]
 - `ldm`（RD）`rdha` 为 `rd0`、`immu6 = 0`、或 `rdha + immu6 > 64`。[SimRISC-01 §存取RD寄存器]

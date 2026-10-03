@@ -39,6 +39,18 @@ rules:
       ra2rd 的目的字段 rdhb 为 rd0 时同样触发 ILLI 异常（目的不可为 rd0）；
       rd2ra 的目的为 RA 组字段，RA 组无 rd0 约束，不受此约束。
 
+  - id: dst_rd0_nonzero
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-06 §函数返回"
+    status: active
+    description: >
+      仅 ret 适用：ret rdHA, imms18 中 rdha == rd0 且 imms18 != 0 时触发 ILLI 异常。
+      ret 允许目的为 rd0（无需设置返回值），但此时 imms18 MUST 为 0；
+      rdha != rd0 时无此约束（imms18 可为任意 18 位有符号立即数）。
+      汇编期须硬报错（LLVM，Error 级，汇编失败、非零退出码）；
+      运行期执行该非法编码触发 ILLI（测试机退出码 0x88，QEMU）。
+
   - id: dst_dual_same
     fault: ILLI
     kind: static

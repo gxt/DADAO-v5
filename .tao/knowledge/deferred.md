@@ -66,6 +66,8 @@
 
 ## testcases
 
+- **新合法性规则 `dst_rd0_nonzero` 无 ISA 合法性向量（`SPEC-083t` 遗留，2026-10-03 登记）**：`tools/testcases/generate_isa_vectors.py::_ILLI_RULES` 只覆盖 `dst_rd0`/`dst_dual_same`/`dst_rb0`/`mreg_zero`，**不枚举全部规则**（故 `validate-vectors` 仍绿）；`ret rd0, imms18!=0` 的运行期 ILLI（0x88）由 **QEMU 侧**承担，汇编期硬报错由 **`LLVM-027t`** 承担。**建议**：如需「规则 ↔ 向量」全覆盖门控，另立 testcases 任务补 `ret rd0, 非0` 的 legality 向量（编号待定）。**仅登记，不动手。**
+
 > **最终裁决（2026-09-15，用户逐条确认）**：任务集二次重排（覆盖上一次重排）。F1 数据修复归 `003t`；F10 分摊到 `003t`~`007t`（不单列 encoding 任务）；F7 采用方案 (i)（schema 扩 `expected_pc`）→ PC-only 全部改 active；F5 归 `008t`（原 `011t` 编号撤销）；文件布局方案 A。旧 `004t`/`005t`/`006t` 属**已达成**（非暂缓），其关闭理由与证据见 `TESTCASES-001k` 任务表重排说明（**不在此登记**）。详见 `.tao/tasks/testcases/TESTCASES-001k-模块启动.md`。
 
 - **F5 — `UNDI`（保留编码）的向量层表达（已改由 `TESTCASES-008t` 承载）**：`UNDI` 触发条件是执行 QFC/子表空白单元格（保留编码），而 `contracts/opcodes.yaml` 只含已定义编码、保留编码无 `(insn, format)` 身份 → 与 validator 检查 7/8 冲突。`008t` 落地**方案 A**（复用 `class: legality` + `encoding.reserved: true`；取舍已记录，不立 ADR）。注意：全零字 `0x00000000`（op=0x00）为保留编码 → **UNDI**（§2.9），非 `illi`（`illi 0` 编码为 `0x77000000`，op=0x77）。
