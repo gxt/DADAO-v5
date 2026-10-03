@@ -51,6 +51,8 @@
 
 ## infra
 
+- **仓库外全局 agent 规则未同步新验收规程（`INFRA-031t`，2026-10-03 登记）**：本轮仅改仓内 `DADAO-v5/AGENTS.md`（§验证脚本反例门控两条 + 子代理硬约束第 8 条）；仓库外 `~/t.a.o/opencode/agent/reviewer.md`、`engineer.md` **未改**（**用户裁定本轮不动**）。两文件相对新规程**缺项**（同步缺口，非硬冲突）：`reviewer.md` 无「一键证据脚本」概念、无「不另写等价验证脚本」、无「强制独立注入一次反例」；`engineer.md` 完成区规范未含「交付一键证据脚本」。**处置**：后续需专门任务同步（**不得擅动 `~/t.a.o/opencode/**`**，须经用户批准）。**仅登记，不动手。**
+- **旧审查者文本与新规程的表面张力（`INFRA-031t` 交叉复核登记，2026-10-03）**：`~/t.a.o/opencode/agent/reviewer.md` §2 标题「**重跑，不要读**」字面可被误读为「不读脚本、只重跑」，与新规程「reviewer **先审核 engineer 的证据脚本**」存在**字面**张力；因该节正文明确「不要读」指**不看工程师完成区叙述**，且 §1 已要求「脚本文件：检查实现逻辑是否正确/是否覆盖所有检查项」，故**非实质冲突**。另 §2「重跑失败时……**绝不自行修改代码来让命令通过**」字面可被误读为与「独立注入（临时改被测产物）→还原」相抵触；因该条针对「改代码凑绿」，而注入是**令其 FAIL 后还原**（证伪），故**亦非实质冲突**。**结论：新规程与仍生效的旧文本无硬矛盾**，仅需在全局同步时澄清措辞（与上一条合并处置）。**仅登记，不动手。**
 - **`check-qemu-semantics` 的 gate 目录为瞬态（`QEMU-032t` reviewer 观察，2026-10-03 登记）**：reviewer 独立跑 `make check` 时见 `reg-shift-extend.yaml[108-112]: No such file or directory: '.../harness/gate/reg-shift-extend.yaml'` ⇒ `check-qemu-semantics` FAIL、`make check` EXIT=2；架构师/主会话复跑 `make check` 为 **EXIT=0**（semantics 149/149），判定为**瞬态**——`$(QEMU_SEM_DIR)`（`$(TEST_ARTIFACTS_DIR)/harness/gate`）在并发/异常清理下短暂缺失，`ln -sf ... 2>/dev/null` 静默失败后 `run_qemu_test` 才报缺文件。**建议（非阻断）**：该 target 加「symlink 失败即显式报错 / gate 目录存在性前置校验」，避免瞬态假失败。
 - **`components/qemu/changelog.md` 缺任务级记录（`QEMU-032t` 登记，2026-10-03）**：该组件 changelog 自 2026-09-23 M1 重整后**未再按任务追加**（`spec/Process-01 §10` 要求「按任务一条」）；`QEMU-032t` 任务书「输出」未列该文件，本轮**按规定未改**。**建议**：由协调者/架构师裁定是否统一补记（对照 `components/llvm-project/changelog.md` 已由 `LLVM-027t` 追加）。**仅登记，不动手。**
 
