@@ -175,10 +175,12 @@ def main() -> int:
 
         head = head_of(target)
         if head == commit:
-            # With tree-shaped patch sets applied via `git apply` (see
-            # spec/Process-01-组件补丁组织与构建编排.md) the worktree is intentionally
-            # dirty while HEAD stays on the pinned commit, so this branch is
-            # the normal "already fetched + patched" case: leave it alone.
+            # HEAD is exactly the pinned base commit.  Under commit-based patch
+            # application (E5, see spec/Process-01-组件补丁组织与构建编排.md)
+            # applying the series creates a local base+1 commit, so a clean
+            # worktree at base means "already fetched, not yet patched" (this
+            # is also the fresh-clone state).  Either way there is nothing to
+            # do here: leave it alone.
             print(f"fetch: {name} already at {commit}")
             continue
         is_patched = subprocess.run(

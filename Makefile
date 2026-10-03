@@ -41,7 +41,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-rule-refs \
         check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
-        check-patch-tree check-source-state
+        check-patch-tree check-source-state check-asm-list-drift
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -81,6 +81,7 @@ help:
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
 	@echo "  make check-cfx-aliases  Check cfx alias table drift gate (SPEC-075t)"
+	@echo "  make check-asm-list-drift  Check assembly-list drift gate (INFRA-027t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
 	@echo "  make check-no-residue  Detect unexpected untracked temp files"
 
@@ -214,7 +215,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-prose check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-legality-drift check-interface validate-encoding check-rule-refs check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -257,6 +258,11 @@ check-no-residue:
 # Spec embedded assembly list consistency (SPEC-037t).
 check-asm-list:
 	@$(PYTHON) tools/spec/check_asm_list_consistency.py
+
+# Assembly-list drift gate (INFRA-027t): verify .tao/knowledge/contract-asm-list.md
+# is up-to-date (regenerates to a temp file, byte-diff; never overwrites).
+check-asm-list-drift:
+	@$(PYTHON) tools/spec/check_asm_list_drift.py
 
 # Assembly prose format gate (SPEC-076t): detect old-format assembly
 # in prose fenced-code blocks.  --strict: exit 1 if any violation (baseline=0).

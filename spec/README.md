@@ -77,7 +77,7 @@
 | `DADAO-21`（ABI） | `contract-abi.md` | `contracts/abi.yaml` | `check_interface_alignment` | 据实 |
 | `DADAO-22`（SBI） | `缺口`（`contract-sbi.md`） | 据实 | 据实 | 据实 |
 | `DADAO-23`（HBI） | `缺口`（`contract-exception.md`） | 据实 | 据实 | 据实 |
-| `Toolchain-01` | `缺口`（`contract-asm.md`）+ `contract-asm-list.md`（生成投影，已落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py` | `tests/lit/MC` |
+| `Toolchain-01` | `缺口`（`contract-asm.md`）+ `contract-asm-list.md`（生成投影，已落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py` | `tests/lit/MC` |
 | `Process-01` | — | — | `tools/infra/check_patch_tree.py` | 不适用 |
 | `Process-02` | — | — | `tools/infra/check_spec_drift.py`（`check_spec_refs.py` 独立门控） | 不适用 |
 | `Process-03` | — | — | — | 不适用（人工遵守） |

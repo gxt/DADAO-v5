@@ -10,24 +10,24 @@
   1. **~~⏸ `adr-0017` 指针待 T2~~ ✅ 已消解（2026-10-03，`SPEC-085t`/T2）**：`.tao/adr/adr-0017-cfx-assembly-aliases.md` 的 L33/L67 旧路径 `docs/spec/cfx-aliases.md` 已由 T2 追加 `## 修订` 指针订正（+4/0，D1–D10 未动）。
   2. **~~⏸ `docs/assembly-list.md` 旧路径待 T2~~ ✅ 已消解（2026-10-03，`SPEC-085t`/T2）**：该生成物已搬迁并重生成至 `.tao/knowledge/contract-asm-list.md`（L5/L9 指向 `spec/Toolchain-01-汇编语言.md`）。
   3. **约定：机械生成投影入 `.tao/knowledge/contract-*.md` 须在两门控显式排除**：`contract-cfx-aliases.md` 已同时加入 `tools/infra/check_spec_drift.py`（`EXCLUDED_CONTRACTS`）与 `tools/infra/check_spec_refs.py`（`_EXCLUDED_CONTRACTS`）；新增任何生成投影时，务必同步两个排除名单，否则会以「无来源头 / 无 § 引用」误报。**（2026-10-03 补注，`SPEC-085t` 返工）** `contract-asm-list.md` **已加入两处**，约定现已满足（`check_spec_refs` 恢复 76）。
-  4. **路径 grep 门控的坑**：`tools/**/__pycache__/*.pyc` 会内嵌旧 docstring 字符串，`grep -rn tools` 报 `binary file matches`；路径类 grep 门控应排除 `__pycache__`（或先清理）。本任务验收前已清理，`make check`/门控重生成的新内容不含旧路径。
+  4. **~~路径 grep 门控的坑~~ ✅ 已消解（2026-10-03，`INFRA-027t`）**：`spec/Process-01 §8.1` 已补「路径类 grep/遍历检查须排除 `__pycache__`」的实现注意。（原问题：`tools/**/__pycache__/*.pyc` 内嵌旧 docstring 字符串，`grep -rn tools` 报 `binary file matches`。）
   5. **历史文档旧路径保留（by design，不回溯更新）**：`docs/m1-retrospective.md` L60/L61、`docs/m2-spec-planning.md` L150、`changelog.md`/`deferred.md` 历史条目、全部已验收任务书、`spec/SimRISC-0.5.3/`；如需全仓一致再另行裁定。
 - **文档分层改造 T2 的收尾遗留（`SPEC-085t`，2026-10-03 登记）**：
-  1. **`contract-asm-list.md` 缺专门漂移门控（补充发现）——① 仍有效保留**：`make check-asm-list` 只校验 `spec/SimRISC-*` 内嵌表 vs 生成器内存输出，**不读** `.tao/knowledge/contract-asm-list.md`；该文件漂移目前只能靠「重跑生成器 + diff」人工核验，与 `contract-cfx-aliases.md`（有 `check-cfx-aliases`）不对称。**建议后续小任务**：① 为 `contract-asm-list.md` 增加生成器-diff 型漂移门控（并入 `make check`）。
+  1. **~~`contract-asm-list.md` 缺专门漂移门控（补充发现）~~ ✅ 已消解（2026-10-03，`INFRA-027t`）**：新增 `tools/spec/check_asm_list_drift.py`（生成器-diff 型、**逐字节**比较）并并入 `make check`（目标 `check-asm-list-drift`），与 `check-cfx-aliases` 对称。
      - **~~② `check_spec_refs.py` 未同步排除~~ ✅ 已消解（2026-10-03，`SPEC-085t` 返工）**：`contract-asm-list.md` 已加入 `tools/infra/check_spec_refs.py` 的 `_EXCLUDED_CONTRACTS`，该 standalone 门控 Check2 由 `78(18+60)` **恢复为 `76(18+58)`**；两处排除名单（`check_spec_drift.py`/`check_spec_refs.py`）已程序化核对一致，`make check` EXIT=0。
-  2. **`spec/Toolchain-01-汇编语言.md` 正文陈旧计数**：§11 表「9 个 M1 格式类与 **177 条** M1 指令」（现算 M1=152）等仍为旧值；T2 仅订正头部依赖行 `251→227`（越界已披露），其余超范围未动。建议后续订正任务统一重算。
-  3. **`docs/README.md` 陈旧措辞**：`spec/Toolchain-01-汇编语言.md` 行仍写「单位后缀 `i`」（`SPEC-082t` 已取消 `i`）；属 T1 未同步的措辞，非 T2 范围，未动。
+  2. **~~`spec/Toolchain-01-汇编语言.md` 正文陈旧计数~~ ✅ 已消解（2026-10-03，`INFRA-027t`）**：§11 `177 条 M1`→`152 条 M1`、§12 `五断言`→`九断言`（依 `contracts/opcodes.yaml` 实测 `227 = M1 152 + excluded 75`）。
+  3. **~~`docs/README.md` 陈旧措辞~~ ✅ 已消解（2026-10-03，`INFRA-027t`）**：Toolchain-01 行已删除「单位后缀 `i`」。
 - **文档分层改造 T3 的收尾遗留（`INFRA-026t`，2026-10-03 登记）**：
-  1. **`tools/infra/fetch.py` 陈旧注释**：L178-181 仍写「worktree is intentionally dirty while HEAD stays on the pinned commit」，与新 E5（应用后 commit、HEAD=base+1）表述不符；**行为仍正确**（`head == commit` 与 `merge-base --is-ancestor` 两分支均 leave it alone，`make prepare` 幂等不受影响）。建议后续小任务顺手更新该注释。
-  2. **E5 边界恢复步骤未展开**：本地 commit 已存在后**再改补丁** ⇒ `apply_series` 拒绝（HEAD 不匹配补丁集）；恢复须先把源树 `reset` 到 base 再重放。属 E1/E5 的直接推论，`Process-01 §7` 未展开；如认为必要可在后续任务补充。
-- **文档分层改造跨任务遗留（T1/T2/T3）建议合并为一个后续小任务（仅登记，本轮未动手）**：
-  - `contract-asm-list.md` 增加生成器-diff 型专门漂移门控（T2-①，**仍有效**）；
-  - `spec/Toolchain-01-汇编语言.md` §11 等正文陈旧计数（T2-②，**仍有效**）；
-  - `docs/README.md` 陈旧措辞「单位后缀 `i`」（T2-③，**仍有效**）；
-  - `tools/infra/fetch.py` 陈旧注释（T3-1，见上）；
-  - E5 恢复步骤补充（T3-2，见上）；
-  - （可选）路径类 grep 门控排除 `__pycache__`（T1-④）；
-  - T1-⑤（历史文档旧路径保留）属 **by design**，**无需动作**。
+  1. **~~`tools/infra/fetch.py` 陈旧注释~~ ✅ 已消解（2026-10-03，`INFRA-027t`）**：注释已更新为 E5 提交式表述（HEAD==base 为「已 fetch 未打补丁」/fresh；`git diff` **仅注释行**，行为不变）。
+  2. **~~E5 边界恢复步骤未展开~~ ✅ 已消解（2026-10-03，`INFRA-027t`）**：`Process-01 §7` 已补「本地 commit 已存在后再改补丁」的恢复步骤（`reset --hard <base>` → 重放 → `--source-state` 复核 E1），属 E5 推论、**不改决策**。
+- **文档分层改造跨任务遗留（T1/T2/T3）—— ✅ 全部消解（2026-10-03，`INFRA-027t` 收尾）**：
+  - `contract-asm-list.md` 增加生成器-diff 型专门漂移门控（T2-①）→ ✅ 已消解（`check_asm_list_drift.py` + `make check`）；
+  - `spec/Toolchain-01-汇编语言.md` §11 等正文陈旧计数（T2-②）→ ✅ 已消解（`177→152`、`五断言→九断言`）；
+  - `docs/README.md` 陈旧措辞「单位后缀 `i`」（T2-③）→ ✅ 已消解（删除该措辞）；
+  - `tools/infra/fetch.py` 陈旧注释（T3-1）→ ✅ 已消解（改 E5 提交式表述，仅注释）；
+  - E5 恢复步骤补充（T3-2）→ ✅ 已消解（`Process-01 §7` 补恢复步骤）；
+  - （可选）路径类 grep 门控排除 `__pycache__`（T1-④）→ ✅ 已消解（`Process-01 §8.1` 补实现注意）；
+  - T1-⑤（历史文档旧路径保留）属 **by design**，**无需动作**（保持）。
 - **ISA 归一化完成里程碑（原 `SPEC-005m`，已移除）**：曾用独立 `m` 标记 `SPEC-002t`+`003t` 完成。因 `k`↔`m` 一一对应规则移除；其意义由 `SPEC-002t`/`003t` 的完成 + `SPEC-011m`（M1 spec 里程碑）覆盖。
 - **`SPEC-002t`/`003t` 产出需重新生成**：`contract-isa.md`、`contracts/opcodes.yaml` 在 spec 重排后**重新生成**；旧文件暂作参考。
 - **M1 范围外（推迟）**：浮点（**RF 全部**：存取与运算）、特权 cfx 系统指令、LR-SC 原子。M1 提取：标量整数 + 地址/内存（RD/RB/**RA**）+ 控制流（`call`/`ret`/RegRAS）+ 测试机所需系统/异常。推迟项的完整规范与编码留后续（`SPEC-002t`/`003t` 标 `Excluded from M1`）。

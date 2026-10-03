@@ -110,6 +110,16 @@ components/<name>/
 5. **不得**使用 `git am`（本规范不保留作者与提交信息）；上述本地 commit **永不推送上游**。
 6. 由 `tools/infra/apply_series.py` 实现。
 
+> **补注（E5 推论）：本地 commit 已存在后再改补丁时的恢复**
+>
+> 组件已按 E5 收敛（HEAD = base+1）**之后**若又改动了补丁集，`apply_series.py` 的前置校验会因 HEAD（base+1，其内容 ≠ 新补丁集）落在 `{base, base+1 且内容 == 补丁集}` 之外而**拒绝应用**（见步骤 1）。恢复步骤：
+>
+> 1. `git -C .work/source/<component> reset --hard <base>`——丢弃旧本地 commit，回到**纯 base**；
+> 2. `python3 tools/infra/apply_series.py`（或 `make apply-series`）——重放**新**补丁集并自动收敛为新的 base+1（步骤 4）；
+> 3. `python3 tools/infra/check_patch_tree.py --source-state`（或 `make check-source-state`）——确认 E1（worktree 干净 + `base..HEAD` 恰好 1 个 commit）。
+>
+> 属 E5 的**直接推论**（如何回到可应用状态），**不改** E5 决策。
+
 ## 8. 机器检查（9 条断言）
 
 `tools/infra/check_patch_tree.py` **必须**对每个 enabled 组件断言：
@@ -138,6 +148,8 @@ components/<name>/
 - 不干净 ⇒ **先排查自身**（本模块改动是否遗留未提交/未收敛），**不得**带脏树继续。
 - `--source-state` **复用断言 ⑦⑧ 的判定逻辑**，不另写一套。
 
+> **检查器实现注意（路径类 grep）**：**路径类** grep/遍历检查（残留物、路径合规等）须**排除 `__pycache__`**——`tools/**/__pycache__/*.pyc` 会内嵌旧 docstring 字符串，使 `grep -r` 报 `binary file matches` 造成误报；实现时加 `--exclude-dir=__pycache__`（或先清理再扫描）。
+
 ## 9. 应用后一致性
 
 - 补丁集全量应用后，工作树的**最终内容**必须与 DADAO 定制状态一致；校验方式为**逐组件比对 tree hash**（`git write-tree` 或等价）与参考值一致。
@@ -164,4 +176,5 @@ components/<name>/
 - 本规范于 2026-09-23 生效，同时 M1 补丁集由「16 份编号补丁 + `git am`」重整为「树形补丁集（67 份）+ `git apply`」。
 - **rev. 2026-09-25**：补丁清单由 `patches/series` 迁至 `components/<name>/series`，`patches/` 成为**纯镜像**；manifest 新增 `patch_dir` 字段（与 `patch_series` 并列，脚本不再互相推导）；断言由 4 条增至 5 条（新增⑤纯镜像）。动机：①使 §2「镜像上游源码树」成为字面成立且可机械校验的不变量；②`make_patch.py` 导出前整体清空 `patches/`，清单置于其外可避免「先删后建」。属 D4 的派生实现细节，未触及 D4 决策，经用户 2026-09-25 裁定**不需新 ADR**。
 - **rev. 2026-10-03**（E1–E8，T3 文档分层改造）：确立「提交式流程」——E1 不变量（worktree 干净 + HEAD = base + 恰好 1 个 commit）；E2 任务起点；E3 导出前校验 E1、不满足拒绝导出、废止 `git add -N`；E4 收敛为 1 个 commit；E5 应用后自动提交（不固定 author/日期，message 固定 `dadao: <component> patch series`）、重复应用幂等、HEAD 校验放宽为 `{base, base+1 且内容 == 补丁集}`；E6 断言追加 ⑦⑧⑨（不重排 ①–⑥）；E7 模块改动前/后自检 `--source-state`（并入 `check_patch_tree.py`）；E8 澄清补丁仍为裸 `git diff`、本地 commit 永不推送上游。相应改造 `tools/infra/{make_patch,apply_series,check_patch_tree}.py`。**不改 decision 语义**，为 D4 的派生实现细节。
+- **rev. 2026-10-03（INFRA-027t 收尾）**：§7 补「本地 commit 已存在后再改补丁」的**恢复步骤**（`reset --hard <base>` → 重放 → `--source-state` 复核 E1），属 E5 的直接推论、**不改 E5 决策**；§8.1 补「路径类 grep/遍历检查须排除 `__pycache__`」的实现注意。
 - 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。
