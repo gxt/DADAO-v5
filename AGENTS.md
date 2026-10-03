@@ -152,7 +152,7 @@ DADAO-v5/
 
 ### 收尾检查（在知识沉淀**之前**执行；任一不过 ⇒ 停下报告，不继续写 memory）
 
-1. **门控全绿**：`make check` 通过（含 `check-no-residue`、`check-legality-drift`、`check-rule-refs`、`check-patch-tree`、`check-lit` 等）。
+1. **门控全绿（按改动类型）**：改动落在门控覆盖范围（`contracts/`、`spec/` 含生成区、`tests/vectors/`、`tools/**`、`Makefile`、`components/*/patches/**`、生成器产物）时，`make check` 必须通过；**纯文档/台账改动**（`AGENTS.md`、`.tao/**`、`README*`、注释）**不在门控覆盖内，豁免 `make check`**，只需目视 `git status` 干净（或跑 `check-no-residue`）。
 2. **仓库无临时残留**：`git status --untracked-files=all` 干净（除本任务应有改动与新任务书）；禁 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`。
 3. **证据留非易失位置**：复杂验证命令的完整输出在 `.work/log/<模块>/<任务ID>-<命令名>.log`（**不得只留 `/tmp`**）。
 4. **无未提交的任务结果**：`git status` 不遗留本任务的未提交成果；若确需暂缓提交，须在汇报中明确说明原因与后续动作。
