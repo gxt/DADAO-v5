@@ -38,6 +38,7 @@
 ## 目录
 
 - `tasks/<module>/` — 任务文件 `<PREFIX>-nnn<suffix>-描述.md`（按模块分子目录），状态机按后缀：`k` 待开始→已验证；`t` 待开始→待验收→已验证（`待返工` 回退）；`m` 待开始→里程碑
+- `archive/<里程碑>/` — 历史归档（**只读，不再活跃**）：`archive/M1/` 等，按里程碑归档已达成里程碑的任务书（按模块子目录）+ 该时期 changelog/MEMORY 摘录（`README.md`）；判据 = 任务书 `**项目里程碑**` 字段 + 状态终态（`已验证`/`里程碑`）
 - `knowledge/` — 知识库：`MEMORY.md`（状态摘要）、`changelog.md`（变更记录）、`milestones.md`（项目里程碑路线图）、`contract-*.md`（归一化合约）、`project_*.md`、`feedback_*.md`
 - `adr/` — 架构决策记录（决策层）：`adr-<nnnn>-<slug>.md`（独立于知识库投影层）
 - **日志留存** — 复杂验证类命令（build/test/smoke 等）的完整输出留存到 `.work/log/<模块>/<任务ID>-<命令名>.log`（reviewer 重跑加 `-review-`）；命令正常结束时用 `tee` 同时输出到终端和日志
