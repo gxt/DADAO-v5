@@ -47,6 +47,7 @@
 - **`focls`/`ftcls` 之外的浮点指令未复核（`SPEC-047t` 附带观察，2026-09-29，非阻断）**：用户此前指示「先处理 cls」；`SPEC-047t` 已把第 7 章其余代码块改为新格式。若后续发现其它 FP 指令存在同类「语义固定值」（如 `immu6` 被写死）问题，另立任务。
 - **`SPEC-067t` F2 注记：deferred.md:18 含旧规则 id（历史条目，不改写正文）**：line 18 提及 `fp_root_invalid_n`、`fp_log_invalid_base` 及旧计数 `178 M1 + 78`，均为 `SPEC-067t` 前的历史状态。按体例不改写历史正文；已知：`fp_log_invalid_base` 已删除、`fp_root_invalid_n` 已改名 `encode_fp_root_n`、计数已更新为 251/75/176。
 - **`SPEC-067t` F4 门控覆盖缺口：ftroot/foroot n=2 约束与规则改名无机械门控**：(a) `encode_fp_root_n` 的 n=2 约束（SimRISC-07 正文写回「支持 n=2 与 n=3」）与 (b) 规则 id 改名（`fp_root_invalid_n` → `encode_fp_root_n`）均无 `make check` 可 FAIL 的门控。注入 n=3 或反注旧 id 后 `make check` 仍 EXIT=0。归属：`SPEC-065t` 已收口（`rule_refs` + 合法性 drift 门控已落地，见 `SPEC-071t`/`SPEC-074t`），但该门控**不覆盖此散文约束** ⇒ 本项仍为**独立候选**（需专门门控，如检查 SimRISC-07 正文的 n 约束）。
+- **`SPEC-066t`/`SPEC-067t` 完成区「修改文件」字段未逐一提取（2026-10-03 回填台账时发现，非阻断，主会话登记）**：13 任务台账回填（提交 `1ab5168`）只补 `changelog`/`MEMORY` 与任务书 `**状态**`，**未**逐一提取这两份完成区的「修改文件」清单（其余存疑项——提交归属误标 `2e9ded4`、偏简条目、多轮只引末轮 Accepted——均已在 changelog 如实注明）。如需完整台账，后续小任务可据其完成任务书补齐；不影响 `make check` 与门控。
 
 ## infra
 
