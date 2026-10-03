@@ -71,6 +71,14 @@ components/<name>/
 3. 生成 `series`（`components/<name>/series`）：列出全部补丁相对 `patches/` 的路径，按**路径字典序**排序。
 4. 由 `tools/infra/make_patch.py` 实现。
 
+> **补注（2026-10-03，`LLVM-026t` 复核并入）**
+>
+> **新增文件的导出**：`git diff <base> -- <path>` **只对已在 index 中登记的路径**输出内容——新增（untracked）文件**须先 `git add -N`（intent-to-add）**才能被 `git diff` 看到。`tools/infra/make_patch.py` 的 `changed_paths()` **已对全树执行 `git add -A -N`**，故**经该工具导出时无需手工处理**；若文件未经 `-N`（`git diff` 输出为空），**等价替代**为 `git diff --no-index /dev/null <relpath>`。
+>
+> **「补丁可重建源树」的机械核对**：应用产物与 `.work/source/<name>` 内容一致 + `make check-patch-tree` 断言⑥（§8）。这是捕获 `@@` 头行数错误、尾部截断等手工编辑事故的唯一机械手段。
+>
+> **陷阱：含 `new file mode` 且无 hunk 的补丁可绕过 `git apply --check`**（2026-10-02 事故根因之一）。实测（git 2.43.0）：**0 字节文件**、**仅含 `diff --git` 头**（无论是否带 `---`/`+++` 行）但**不含 `new file mode`** ⇒ `git apply --check` **报错 rc=128**。**但**：只要含 `new file mode`（无论 blob 是否为空、无论是否缺 `index`/`---`/`+++` 行），**只要无 hunk** ⇒ `git apply --check` **静默通过**（rc=0）；而断言①（每份补丁恰含一个 `diff --git` 条目）和断言③（`series` ↔ `patches/` 双向一致）均无法捕获此类无 hunk 补丁。此时须靠**断言⑥**（应用产物 blob 一致性）兜底；人工审查时亦应核对补丁**含有效 hunk**。
+
 ## 7. 应用流程（补丁集 → 源树）
 
 1. **前置校验**：工作树 HEAD **必须**等于 `manifests/components.lock.toml` 中的 base commit；不等则**必须**拒绝应用。

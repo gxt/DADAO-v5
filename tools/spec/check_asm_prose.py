@@ -13,10 +13,12 @@ Rules (old-format ⇒ violation)
 R1  Memory access missing ``[...]``  — ``ld.*/st.*/ldm.*/stm.*/cfxld/cfxst`` operands
     must use ``[rbN, …]`` address; bare ``rbN, imm`` ⇒ violation.
 R2  Jump/branch target missing ``[...]`` — ``jump/call/br.*/cs.`` must use ``[...]``;
-    ``jump/call`` immediates must carry ``i`` suffix; ``br.*/cs.`` conditions must
-    use ``{…}?``.
+    ``br.*/cs.`` conditions must use ``{…}?``.
+R2' Byte-offset alignment — numeric byte offsets in ``jump/call/br.*/escape`` operands
+    (``[rb0, N]``, ``[rbN, rdN, N]``, ``[excp_cause_ip, N]``) must be ``%4==0``.
+    Symbolic offsets and ``ld.*/st.*`` memory offsets are **not** checked.
 R3  cfx operand shape — ``cfx2rd/cfx2rc`` must be long form (``cfxHA, cgHB, rcHC, rdHD``)
-    or alias form (``<cfxreg>, rdHD``); ``escape`` must be ``[excp_cause_ip, immi]``.
+    or alias form (``<cfxreg>, rdHD``).
 R4  ``#`` comment — bare ``#`` used as comment inside assembly (not ``#define``/``#include``
     /``#if``…  C-preprocessor directives).
 R5  Multi-register group — ``ldm/stm``/block-copy/format-convert must use ``{start:end}``
@@ -489,21 +491,6 @@ def _check_line(
             violations.append(Violation(filepath, lineno, "R2(跳转缺[])", stripped))
         else:
             # Has [...], check additional constraints
-            # jump/call: immediates must have 'i' suffix
-            if mnemonic in ("jump", "call"):
-                # Check for 'i' suffix on immediates inside [...]
-                bracket_content = re.findall(r"\[([^\]]*)\]", after_mn)
-                for bc in bracket_content:
-                    parts_b = [p.strip() for p in bc.split(",")]
-                    for p in parts_b[1:]:  # skip base register
-                        p = p.strip()
-                        if re.match(r"^-?\d+$", p) or re.match(r"^-?0x[\da-fA-F]+$", p, re.I):
-                            # Bare number without 'i' suffix in jump/call target
-                            violations.append(Violation(
-                                filepath, lineno,
-                                "R2(跳转立即数缺i后缀)", stripped
-                            ))
-                            break
             # br.*: conditions must use {...}?
             if mnemonic.startswith("br."):
                 if "{" not in after_mn or "}?" not in after_mn:
@@ -521,18 +508,39 @@ def _check_line(
                 "R2(条件缺{...}?)", stripped
             ))
 
+    # R2': Byte-offset alignment for jump/call/br.*/escape
+    # Numeric offsets in [...] must be %4==0 (byte-addressed instruction stream).
+    # Symbolic offsets (labels) are NOT checked.
+    # ld.*/st.* offsets are NOT checked (imms12, no alignment requirement).
+    if mnemonic in ("jump", "call", "escape") or mnemonic.startswith("br."):
+        if "[" in code_part:
+            for bracket_match in re.finditer(r"\[([^\]]+)\]", code_part):
+                bracket_content = bracket_match.group(1)
+                parts = [p.strip() for p in bracket_content.split(",")]
+                # Check last part (offset): must be numeric AND %4==0
+                if parts:
+                    offset_val = parts[-1]
+                    num = None
+                    # Decimal integer (explicit base 10 to reject leading zeros like '06')
+                    m_dec = re.match(r"^(-?\d+)$", offset_val)
+                    if m_dec:
+                        num = int(offset_val, 10)
+                    else:
+                        # Hex integer (0x prefix)
+                        m_hex = re.match(r"^(-?0x[\da-fA-F]+)$", offset_val, re.I)
+                        if m_hex:
+                            num = int(offset_val, 16)
+                    if num is not None and num % 4 != 0:
+                        violations.append(Violation(
+                            filepath, lineno,
+                            "R2'(偏移非4倍数)", stripped
+                        ))
+
     # R3: cfx2rd/cfx2rc shape
     if mnemonic in ("cfx2rd", "cfx2rc"):
         after_mn = code_part[len(mnemonic):].strip()
         if not _is_cfx_long_form(after_mn) and not _is_cfx_alias_form(after_mn, cfx_aliases, cfx_ranges):
             violations.append(Violation(filepath, lineno, "R3(cfx操作数形)", stripped))
-
-    # R3: escape must be [excp_cause_ip, immi]
-    if mnemonic == "escape":
-        after_mn = code_part[len("escape"):].strip()
-        # New format: escape cfxN/cfx_<name>, [excp_cause_ip, immi]
-        if "[" not in after_mn:
-            violations.append(Violation(filepath, lineno, "R3(escape缺[])", stripped))
 
     # R5: ldm/stm with old-style count
     if mnemonic.startswith("ldm.") or mnemonic.startswith("stm."):
@@ -691,10 +699,15 @@ def main() -> None:
 
     opcode_formats = _load_opcode_formats()
     cfx_aliases, cfx_ranges = _load_cfx_aliases()
+    had_out_of_scope = False
 
     if args.files:
-        # Filter to specific files
+        # Filter to specific files — fail-closed
         target_files = {(ROOT / f).resolve() for f in args.files}
+        in_scope = {fp.resolve() for fp in collect_files()}
+        out_of_scope = target_files - in_scope
+        for tf in sorted(out_of_scope, key=str):
+            print(f"ERROR: --files argument outside scan scope: {tf}", file=sys.stderr)
         violations: list[Violation] = []
         for filepath in collect_files():
             if filepath.resolve() not in target_files:
@@ -713,12 +726,13 @@ def main() -> None:
                         is_asm_block=is_asm_block,
                     )
                     violations.extend(vl)
+        had_out_of_scope = bool(out_of_scope)
     else:
         violations = scan(opcode_formats, cfx_aliases, cfx_ranges)
 
     report(violations)
 
-    if args.strict and violations:
+    if (args.strict and violations) or had_out_of_scope:
         sys.exit(1)
     sys.exit(0)
 
