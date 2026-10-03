@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..3faa5fb95
+index 000000000..26c49e979
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1177 @@
+@@ -0,0 +1,1342 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -846,6 +846,61 @@ index 000000000..3faa5fb95
 +         Mnem == "focls";
 +}
 +
++// FP instructions subject to the `dst_rf0` rule (SPEC-088t) whose destination
++// operand immediately follows the mnemonic: the 16 scalar orrr arith/sign
++// instructions plus the 14 orri RF-destination convert/root instructions.
++// `rd2rf` and the RF loads/stores (ld.*/ldm.*/stm.*) are intentionally NOT
++// listed: there rf0 as a destination is legal (FCSR write mask).  The
++// convert_f2i / classify / compare groups have an RD destination and are not
++// listed either.
++static bool isFPDstRfMnemonic(StringRef M) {
++  return M == "ftadd" || M == "ftsub" || M == "ftmul" || M == "ftdiv" ||
++         M == "ftrem" || M == "ftsclb" || M == "ftsgnj" || M == "ftsgnn" ||
++         M == "foadd" || M == "fosub" || M == "fomul" || M == "fodiv" ||
++         M == "forem" || M == "fosclb" || M == "fosgnj" || M == "fosgnn" ||
++         M == "ft2fo" || M == "fo2ft" || M == "ft2ft" || M == "fo2fo" ||
++         M == "it2ft" || M == "io2ft" || M == "ut2ft" || M == "uo2ft" ||
++         M == "it2fo" || M == "io2fo" || M == "ut2fo" || M == "uo2fo" ||
++         M == "ftroot" || M == "foroot";
++}
++
++// FP convert_ff instructions (SPEC-088t `mreg_range_overlap`): two same-bank
++// RF `{start:end}` groups that share one immu6 element count and must not
++// overlap (any intersection, including complete coincidence, is illegal).
++static bool isFPConvertFFMnemonic(StringRef M) {
++  return M == "ft2fo" || M == "fo2ft" || M == "ft2ft" || M == "fo2fo";
++}
++
++// FP multi-register instructions subject to `mreg_range_overflow` (SPEC-088t):
++// every `{start:end}` group they carry is checked for an element count > 63.
++// The four FP ldm.*/stm.* forms are handled separately because their mnemonic
++// is shared with the M1 RD forms, which are out of this task's scope.
++static bool isFPMregMnemonic(StringRef M) {
++  return isFPConvertFFMnemonic(M) || M == "ft2it" || M == "ft2io" ||
++         M == "ft2ut" || M == "ft2uo" || M == "fo2it" || M == "fo2io" ||
++         M == "fo2ut" || M == "fo2uo" || M == "it2ft" || M == "io2ft" ||
++         M == "ut2ft" || M == "uo2ft" || M == "it2fo" || M == "io2fo" ||
++         M == "ut2fo" || M == "uo2fo" || M == "ftcls" || M == "focls" ||
++         M == "rd2rf" || M == "rf2rd";
++}
++
++// First register of a flat register operand or of a `{start:end}` group;
++// returns the no-register sentinel (0) for any other operand kind.
++static MCRegister firstRegisterOf(const DADAOOperand *Op) {
++  if (!Op)
++    return MCRegister();
++  if (Op->Kind == DADAOOperand::kRegister)
++    return Op->getReg();
++  if (Op->Kind == DADAOOperand::kRegGroup && !Op->getRegList().empty())
++    return Op->getRegList()[0];
++  return MCRegister();
++}
++
++// True iff the register belongs to the RF bank (rf0..rf63).
++static bool isRFRegister(MCRegister R) {
++  return R.id() >= DADAO::rf0 && R.id() <= DADAO::rf63;
++}
++
 +//===----------------------------------------------------------------------===//
 +// matchAndEmitInstruction — decompose complex operands and match.
 +//
@@ -885,6 +940,41 @@ index 000000000..3faa5fb95
 +          return Error(Operands[1]->getStartLoc(),
 +                       "old syntax not accepted; use '{" "}' for dual-purpose "
 +                       "destination registers, e.g., add.uo {rd8, rd9}, rd10, rd11");
++        }
++      }
++    }
++  }
++
++  // Static legality check for mreg_range_overflow (SPEC-088t; SimRISC-01
++  // §存取RF寄存器 / SimRISC-02 §寄存器组之间块赋值 / SimRISC-07 §格式转换指令):
++  // a `{start:end}` group in an FP multi-register instruction may carry up to 64
++  // elements, but the shared immu6 field is only 6 bits (0..63), so `{rf0:rf63}`
++  // (count 64) would silently truncate to 0 — the illegal `mreg_zero` encoding.
++  // Reject any FP group whose element count exceeds 63.  This runs before the
++  // LLVM-029t "group counts differ" hardening below so that the specific
++  // `mreg_range_overflow` rule is reported when both would apply.  The M1
++  // ldm.*/stm.* RD forms share these mnemonics and are out of this task's
++  // scope, so only their RF groups are checked.
++  if (Operands.size() >= 2) {
++    auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
++    if (TokOp && TokOp->isToken()) {
++      StringRef Mnem = TokOp->getToken();
++      bool CheckAllGroups = isFPMregMnemonic(Mnem);
++      bool CheckRFGroups = Mnem == "ldm.t" || Mnem == "stm.t" ||
++                           Mnem == "ldm.o" || Mnem == "stm.o";
++      if (CheckAllGroups || CheckRFGroups) {
++        for (size_t I = 1; I < Operands.size(); ++I) {
++          auto *G = static_cast<DADAOOperand *>(Operands[I].get());
++          if (!G || G->Kind != DADAOOperand::kRegGroup)
++            continue;
++          if (CheckRFGroups && !isRFRegister(firstRegisterOf(G)))
++            continue;
++          if (G->getGroupCount() > 63)
++            return Error(G->getStartLoc(),
++                         "invalid '" + Mnem.str() +
++                             "': register range too long "
++                             "(mreg_range_overflow); element count must be "
++                             "1..63");
 +        }
 +      }
 +    }
@@ -935,6 +1025,41 @@ index 000000000..3faa5fb95
 +                     "invalid '" + Mnem.str() + "': source and destination "
 +                     "register group counts differ (they share a single immu6 "
 +                     "element count)");
++    }
++  }
++
++  // Static legality checks for FP (scope: fp) instructions (SPEC-088t;
++  // contracts/legality_rules.yaml).  All are hard errors (Error level, never a
++  // warning) and run *before* the decomposition below, which keeps only the
++  // first register of each group and would lose the ranges/counts.
++  if (Operands.size() >= 2) {
++    auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
++    if (TokOp && TokOp->isToken()) {
++      StringRef Mnem = TokOp->getToken();
++
++      // mreg_range_overlap: the two same-bank RF `{start:end}` groups of a
++      // convert_ff instruction share one immu6 element count and must be
++      // disjoint.  Any intersection (including complete coincidence) is
++      // illegal (SimRISC-07 §格式转换指令; same rule as rd2rd/rb2rb).
++      if (isFPConvertFFMnemonic(Mnem) && Operands.size() == 3) {
++        auto *DstOp = static_cast<DADAOOperand *>(Operands[1].get());
++        auto *SrcOp = static_cast<DADAOOperand *>(Operands[2].get());
++        if (DstOp && SrcOp && DstOp->Kind == DADAOOperand::kRegGroup &&
++            SrcOp->Kind == DADAOOperand::kRegGroup) {
++          // {start:end} is contiguous within the bank (see parseRegGroup), so
++          // [start, start+count) intersects [s, s+count2) iff
++          // start < s+count2 && s < start+count.
++          unsigned DstStart = firstRegisterOf(DstOp).id();
++          unsigned SrcStart = firstRegisterOf(SrcOp).id();
++          unsigned DstEnd = DstStart + DstOp->getGroupCount();
++          unsigned SrcEnd = SrcStart + SrcOp->getGroupCount();
++          if (DstStart < SrcEnd && SrcStart < DstEnd)
++            return Error(DstOp->getStartLoc(),
++                         "invalid '" + Mnem.str() + "': source and destination "
++                         "register ranges overlap (mreg_range_overlap); source "
++                         "and destination must be disjoint");
++        }
++      }
 +    }
 +  }
 +
@@ -1127,6 +1252,46 @@ index 000000000..3faa5fb95
 +                   "branch/jump offset out of range");
 +    Flat[3] = DADAOOperand::createImm(Encoded, Flat[3]->getStartLoc(),
 +                                       Flat[3]->getEndLoc());
++  }
++
++  // Static legality checks for FP instructions (SPEC-088t): `dst_rf0` (rf0 is
++  // the FCSR and cannot be an FP destination; rf0 as a source is legal) and
++  // `encode_fp_root_n` (ftroot/foroot only support n == 2).  Operand positions
++  // follow the assembly operand order:
++  //   scalar orrr / orri convert / root : destination = Flat[1];
++  //   cs.n/cs.z/cs.p (one condition reg) : destination = Flat[2];
++  //   cs.eq/cs.ne (two condition regs)   : destination = Flat[3].
++  if (isFPDstRfMnemonic(Mnemonic) && Flat.size() >= 2 && Flat[1]->isReg() &&
++      Flat[1]->getReg() == DADAO::rf0)
++    return Error(Flat[1]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rf0 is the FCSR and cannot be a floating-point "
++                     "destination (dst_rf0)");
++
++  if ((Mnemonic == "cs.n" || Mnemonic == "cs.z" || Mnemonic == "cs.p") &&
++      Flat.size() >= 3 && Flat[2]->isReg() && Flat[2]->getReg() == DADAO::rf0)
++    return Error(Flat[2]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rf0 is the FCSR and cannot be a floating-point "
++                     "destination (dst_rf0)");
++
++  if ((Mnemonic == "cs.eq" || Mnemonic == "cs.ne") && Flat.size() >= 4 &&
++      Flat[3]->isReg() && Flat[3]->getReg() == DADAO::rf0)
++    return Error(Flat[3]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rf0 is the FCSR and cannot be a floating-point "
++                     "destination (dst_rf0)");
++
++  if ((Mnemonic == "ftroot" || Mnemonic == "foroot") && Flat.size() >= 4 &&
++      Flat[3]->isImm()) {
++    // A non-constant operand (symbol/relocation) is also Kind == kImmediate
++    // (see createImmExpr) and cannot be proven to be 2, so it is rejected too.
++    auto *NOp = static_cast<DADAOOperand *>(Flat[3].get());
++    if (NOp->getImmExpr() != nullptr || NOp->getImm() != 2)
++      return Error(Flat[3]->getStartLoc(),
++                   "invalid '" + Mnemonic.str() +
++                       "': root order n must be the constant 2 "
++                       "(encode_fp_root_n)");
 +  }
 +
 +  // Static legality check for `ret` (SPEC-083t; SimRISC-06 §函数返回):
