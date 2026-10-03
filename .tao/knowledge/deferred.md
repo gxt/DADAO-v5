@@ -50,7 +50,7 @@
 
 ## infra
 
-- **13 个历史任务书「完成区已填但状态仍 `待验收`」（漏 `/complete`，`INFRA-029t` 实测，2026-10-03 登记）**：`INFRA-018t`、`INFRA-019t`、`SPEC-058t`、`SPEC-062t`、`SPEC-063t`、`SPEC-066t`、`SPEC-067t`、`SPEC-068t`、`SPEC-069t`、`SPEC-071t`、`SPEC-073t`、`SPEC-074t`、`TESTCASES-020t`（跨 infra/spec/testcases）。**性质**：历史漏收尾——完成区已填（`测试结果`/`验收结果` 非空）但未走完 `/complete`（状态未置 `已验证`）。**处置**：`make check-tasks`（`INFRA-029t`，报告型，默认不阻断）可随时复查；**是否逐个回填 `/complete`（含知识沉淀/提交）由用户裁定**，本任务**只建门控、不逐个补做**。**注**：若其中若干实为「已下发但 reviewer 未判」的在途任务，需先完成验收再置状态。
+- **~~13 个历史任务书「完成区已填但状态仍 `待验收`」（漏 `/complete`）~~ ✅ 已消解（2026-10-03，回填台账 + 状态）**：`INFRA-018t`、`INFRA-019t`、`SPEC-058t`、`SPEC-062t`、`SPEC-063t`、`SPEC-066t`、`SPEC-067t`、`SPEC-068t`、`SPEC-069t`、`SPEC-071t`、`SPEC-073t`、`SPEC-074t`、`TESTCASES-020t`（跨 infra/spec/testcases）。**性质**：历史漏收尾——完成区已填、reviewer 各末轮均已 Accepted，仅任务书 `**状态**` 与 `changelog`/`MEMORY` 未同步（bookkeeping 漏项）。**处置（已执行，(c′) 轻量）**：按各任务提交日逐条补 `changelog`（13 条）+ 对应 `MEMORY` 状态行，并把 13 个任务书 `**状态**` 置 `已验证`（未做新验收，以完成区/审阅记录落盘证据为准）；`make check-tasks`（`INFRA-029t`，报告型）现列 0 个。用户 2026-10-03 批准。
 
 - **~~LLVM/QEMU 缓存重新浅克隆（2026-09-28 登记）~~ ✅ 已完成（2026-09-29）**：删除全量 mirror 后用 `INFRA-015t` 的浅取重新 fetch——`llvm-project.git` **378M**（shallow）、`qemu.git` **52M**（shallow），耗时 **2m50s**；pinned commit 均存在；`make fetch` 幂等；`llvm-mc`/`make check` 正常。
 
