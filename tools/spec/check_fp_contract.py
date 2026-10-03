@@ -9,8 +9,10 @@
   4. 族完备：families 段为每族声明 required_keys（须 == 预期键集）；
      每条记录的族 required_keys 均存在（缺失 ⇒ FAIL）。
   5. legality 双向：每条 legality_refs ∈ legality_rules.yaml 的 id 集合；
-     4 条 FP 规则（dst_rf0/encode_fp_root_n/fp_mreg_zero/fp_mreg_range_overflow）
-     各被 >=1 条 FP id 引用；这些规则不得被 scope != fp 的 opcodes 记录引用。
+     5 条 FP 规则（dst_rf0/encode_fp_root_n/mreg_zero/mreg_range_overflow/
+     mreg_range_overlap）各被**精确条数**条 FP id 引用（28/28/4/35/2，SPEC-088t）；
+     仅 FP 专属规则（dst_rf0/encode_fp_root_n）不得被 scope != fp 的 opcodes 记录引用
+     （mreg_* 同时服务 M1，被非 fp 记录引用是预期）。
   6. 叙述锚点可达：每条 semantics_ref = contract-fp.md#<anchor>，且
      contract-fp.md 含 <a id="<anchor>">。
   7. 合规版本头：contract-fp.md 首个版本头行含 [SimRISC- 引用。
@@ -50,8 +52,25 @@ FAMILY_COUNTS = {
     "set_w_rf": 1,
 }
 
-# FP 相关合法性规则（2 旧 + 2 新），均须被至少 1 条 FP id 引用
-FP_RULES = ("dst_rf0", "encode_fp_root_n", "fp_mreg_zero", "fp_mreg_range_overflow")
+# FP 相关合法性规则（5 条，SPEC-088t §2.5）：各须被精确条数条 FP id 引用。
+# dst_rf0/encode_fp_root_n 为 FP 专属；mreg_zero/mreg_range_overflow/mreg_range_overlap
+# 与 M1 共享（被 M1 的 rule_refs 引用属预期）。
+FP_RULES = ("dst_rf0", "encode_fp_root_n", "mreg_zero",
+            "mreg_range_overflow", "mreg_range_overlap")
+
+# 每条 FP 规则须被 FP id 引用的精确条数（SPEC-088t §2.6；收紧后才可对
+# 「漏一条 / 漏源侧」判 FAIL）。
+FP_RULE_EXACT = {
+    "dst_rf0": 35,
+    "encode_fp_root_n": 2,
+    "mreg_zero": 28,
+    "mreg_range_overflow": 28,
+    "mreg_range_overlap": 4,
+}
+
+# 仅 FP 专属规则不得被 scope != fp 的 opcodes 记录引用
+# （mreg_* 共享给 M1，被非 fp 记录引用是预期）。
+FP_SPECIFIC_RULES = ("dst_rf0", "encode_fp_root_n")
 
 # 每条指令记录必须携带的键（与 families 段的 required_keys 声明一致）
 REQUIRED_KEYS = ["family", "spec_cite", "semantics_ref", "legality_refs"]
@@ -171,14 +190,15 @@ def main() -> int:
     ref_counts = Counter(ref for _, ref in ref_pairs)
     for rule in FP_RULES:
         n = ref_counts.get(rule, 0)
-        if not record(f"FP 规则被引用 {rule}", ">=1", n, ok=(n >= 1)):
-            failures.append(f"FP 规则 {rule} 未被任何 FP id 引用")
+        exp = FP_RULE_EXACT[rule]
+        if not record(f"FP 规则被引用 {rule}", exp, n):
+            failures.append(f"FP 规则 {rule} 引用数: 期望 {exp}，实际 {n}")
 
     nonfp_hits = [f"{o['id']}:{ref}" for o in opcodes
                   if o.get("scope") != "fp"
-                  for ref in (o.get("rule_refs") or []) if ref in FP_RULES]
-    if not record("FP 规则未被非 fp 记录引用", 0, len(nonfp_hits)):
-        failures.append("非 fp 记录引用了 FP 规则: " + ", ".join(nonfp_hits[:10]))
+                  for ref in (o.get("rule_refs") or []) if ref in FP_SPECIFIC_RULES]
+    if not record("FP 专属规则未被非 fp 记录引用", 0, len(nonfp_hits)):
+        failures.append("非 fp 记录引用了 FP 专属规则: " + ", ".join(nonfp_hits[:10]))
 
     # ── 6. 叙述锚点可达 ──────────────────────────────────────────────────
     refs_to_check: list[tuple[str, str]] = []

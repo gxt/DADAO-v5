@@ -74,57 +74,71 @@ rules:
   - id: dst_rf0
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00 §浮点寄存器"
+    spec_cite: "SimRISC-00 §浮点寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §浮点条件赋值; SimRISC-03 §立即数常数赋值：Immediate constant"
     status: deferred
     description: >
       浮点运算指令的**目的**操作数为 rf0 时触发 ILLI 异常
-      （rf0 为控制和状态寄存器 FCSR，不可作为浮点运算的目的操作数）。
-      rf0 作**源**操作数合法（含 ftsgnj/fosgnj + rfHD=rf0 的 abs() 特例）。
-      适用范围：SimRISC-07 浮点运算指令（家族 44 条；其中带 rf 目的字段者 30 条，加 cs.* 5 条 = 35 条触发 ILLI）。
-      只读类 14 条（ftcls/focls/ft2it 等/fo2it 等/ftqcmp 等）无 rf 目的字段，不涉及。
-      不在禁止清单（rf0 作目的合法）：rd2rf（含 {rf0:rf0+immu6-1}）、
-      ld.o/ldm.o、ld.t/ldm.t、set.w。
-      例外（合法）：rf2rd 的 rf0 作**源**、cs.*-rf 的 rf0 作**源**、st.*/stm.* 的 rf0 作**源**，
-      均读出完整 64 位，不触发 ILLI。
+      （rf0 为控制和状态寄存器 FCSR，不可作为浮点运算的目的操作数）；
+      rf0 作**源**操作数合法（读出完整 64 位，含 ftsgnj/fosgnj + rfHD=rf0 的 abs() 特例）。
+      **适用（目的 rf0 → ILLI，共 35 条）**：
+      convert_ff 4（ft2ft/ft2fo/fo2ft/fo2fo）、
+      convert_i2f 8（it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo）、
+      arith 12（ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb/foadd/fosub/fomul/fodiv/forem/fosclb）、
+      root 2（ftroot/foroot）、sign 4（ftsgnj/ftsgnn/fosgnj/fosgnn）、
+      cs_rf 5（cs.n/z/p/eq/ne 的目的 rfHB 或 rfHC）。
+      **不适用（该指令无 rf 目的字段，rf 仅作源）**：rf2rd、st.t/st.o、stm.t/stm.o（-rf）；
+      只读类 14 条（convert_f2i 8、classify 2、compare 4，目的均为 rd）亦无 rf 目的字段，不涉及。
+      **例外（rf0 作目的合法）**：rd2rf（含 {rf0:rf0+immu6-1}，immu6≥2 允许）、
+      ld.t/ld.o/ldm.t/ldm.o（按 FCSR 写掩码）、set.w。
+      **源 rf0 合法（不触发本规则）**：上述各指令及 cs.*-rf 的 rf0-源角色（读出完整 64 位）。
       浮点类指令（RF）整体属 M1 范围外；M1 仅保留 rf0 的寄存器模型/复位值。
 
   # ── 多寄存器范围规则 ─────────────────────────────────────────────────────────
   - id: mreg_zero
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-01 §存取RD寄存器"
+    spec_cite: "SimRISC-01 §存取RD寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-07 §格式转换指令; SimRISC-07 §浮点分类指令"
     status: active
     description: >
-      RD/RB 多寄存器与块赋值指令 immu6=0 时触发 ILLI 异常：
-      ldm.*/stm.*（RD、RB）、rd2rd/rb2rd/rd2rb/rb2rb。
-      不适用于移位/扩展指令的立即数（orri）形式——其 immu6=0 是合法的移位量/起始位。
-      RA 多寄存器存取与 RA↔RD 块赋值指令 immu6=0 同样触发 ILLI 异常：
-      ldm.o-ra/stm.o-ra（多寄存器存取，immu6 指定寄存器个数）与
-      ra2rd/rd2ra（RA↔RD 块赋值，immu6 在 hd[5:0]，有效范围 1–63）。
+      多寄存器与块赋值指令 immu6=0 时触发 ILLI 异常。覆盖寄存器组：
+      RD/RB：ldm.*/stm.*（RD、RB）、rd2rd/rb2rd/rd2rb/rb2rb；
+      RA：ldm.o-ra/stm.o-ra、ra2rd/rd2ra；
+      RF（scope: fp，共 28 条）：convert_ff（ft2ft/ft2fo/fo2ft/fo2fo）、
+      convert_f2i（ft2it/ft2io/ft2ut/ft2uo/fo2it/fo2io/fo2ut/fo2uo）、
+      convert_i2f（it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo）、
+      classify（ftcls/focls）、RF 多寄存器存取（ldm.t/stm.t/ldm.o/stm.o）、
+      RF↔RD 块赋值（rd2rf/rf2rd）。
+      不适用于移位/扩展指令的立即数（orri）形式——其 immu6=0 是合法移位量/起始位；
+      不适用于 root 的 immu6（其含义为 n，见 encode_fp_root_n）；
+      不适用于单寄存器存取（ld.t/st.t/ld.o/st.o）与 set.w。
 
   - id: mreg_range_overflow
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-01 §存取RD寄存器"
+    spec_cite: "SimRISC-01 §存取RD寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-07 §格式转换指令; SimRISC-07 §浮点分类指令"
     status: active
     description: >
-      RD/RB 多寄存器与块赋值指令中起始寄存器 + immu6 > 64 时触发 ILLI 异常，
-      不环绕、不截断。起始寄存器为 rrri 形式的 rdha/rbha，或块赋值形式的
-      目的 rdhb/rbhb 与源 rdhc/rbhc。
-      RA 多寄存器/块赋值指令中起始寄存器 + immu6 > 64 时同样触发 ILLI 异常（超出 ra63）：
-      ldm.o-ra/stm.o-ra 检查 raha + immu6 ≤ 64；
-      ra2rd 检查目的 rdhb + immu6 ≤ 64 与源 rahc + immu6 ≤ 64；
-      rd2ra 检查目的 rahb + immu6 ≤ 64 与源 rdhc + immu6 ≤ 64。
+      多寄存器/块赋值指令中任一起始寄存器 + immu6 > 64 时触发 ILLI 异常，不环绕、不截断；
+      **源与目的起始寄存器均检查**。覆盖寄存器组：
+      RD/RB：ldm.*/stm.*；块赋值目的 rdhb/rbhb 与源 rdhc/rbhc；
+      RA：ldm.o-ra/stm.o-ra 目的/源、ra2rd、rd2ra；
+      RF（scope: fp，共 28 条，清单同 mreg_zero）：目的起始（convert_ff/convert_i2f 的 rfhb、
+      convert_f2i/classify 的 rdhb）与源起始（convert_ff/convert_f2i/classify 的 rfhc、
+      convert_i2f 的 rdhc）**都检查**；ldm.*/stm.* 的 rfha、rd2rf 的 rfhb 与 rdhc、
+      rf2rd 的 rdhb 与 rfhc 同样检查。
+      不适用于 root 的 immu6（其含义为 n，且仅 n=2）、单寄存器存取与 set.w。
 
   - id: mreg_range_overlap
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-02 §寄存器组之间块赋值"
+    spec_cite: "SimRISC-02 §寄存器组之间块赋值; SimRISC-07 §格式转换指令"
     status: active
     description: >
-      同寄存器组块赋值指令中，源范围与目的范围有任何交集时触发 ILLI 异常。
-      仅适用于 rd2rd（rdhb↔rdhc）与 rb2rb（rbhb↔rbhc）。
-      跨组指令（ra2rd/rd2ra/rd2rb/rb2rd/rd2rf/rf2rd）不适用——结构性不可能重叠。
+      同寄存器组块赋值指令中，源范围与目的范围有任何交集（**含完全重合**）时触发 ILLI 异常。
+      覆盖：rd2rd（rdhb↔rdhc）、rb2rb（rbhb↔rbhc）；
+      以及 scope: fp 的 convert_ff 四条（ft2fo/fo2ft/ft2ft/fo2fo，rfhb↔rfhc）。共 6 条。
+      跨组指令（ra2rd/rd2ra/rd2rb/rb2rd、rd2rf/rf2rd、convert_f2i、convert_i2f、classify）
+      不适用——源与目的分属不同寄存器组，结构性不可能重叠。
 
   # ── 异常规则 ──────────────────────────────────────────────────────────────────
   - id: excp_malign
@@ -194,35 +208,6 @@ rules:
     description: >
       ftroot/foroot 指令仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
       浮点类指令（RF）整体属 M1 范围外。
-
-  - id: fp_mreg_zero
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-07 §格式转换指令"
-    status: deferred
-    description: >
-      FP immu6 连续个数形式的指令中 immu6=0 时触发 ILLI 异常：
-      convert_ff（ft2ft/ft2fo/fo2ft/fo2fo）、
-      convert_f2i（ft2it/ft2io/ft2ut/ft2uo/fo2it/fo2io/fo2ut/fo2uo）、
-      convert_i2f（it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo）、
-      classify（ftcls/focls）、RF 多寄存器存取（ldm.t/stm.t/ldm.o/stm.o）、
-      RF↔RD 块赋值（rd2rf/rf2rd），共 28 条。
-      不适用于 root 的 immu6（其含义为 n，见 encode_fp_root_n），
-      也不适用于单寄存器存取（ld.t/st.t/ld.o/st.o）与 set.w。
-      浮点类指令（RF）整体属 scope: fp（未实现）；规则在 FP 未实现期置 deferred。
-
-  - id: fp_mreg_range_overflow
-    fault: ILLI
-    kind: static
-    spec_cite: "SimRISC-07 §格式转换指令"
-    status: deferred
-    description: >
-      FP immu6 连续个数形式的指令中任一起始寄存器 + immu6 > 64 时触发 ILLI 异常，
-      不环绕、不截断。适用范围同 fp_mreg_zero（28 条）：convert_ff/convert_f2i/
-      convert_i2f 的 rfHB 或 rdHB 起始、classify 的 rdHB 起始、ldm.*/stm.* 的 rfHA 起始、
-      rd2rf 的 rfHB 与 rdHC 起始、rf2rd 的 rdHB 与 rfHC 起始。
-      不适用于 root 的 immu6（其含义为 n，且仅 n=2）、单寄存器存取与 set.w。
-      浮点类指令（RF）整体属 scope: fp（未实现）；规则在 FP 未实现期置 deferred。
 
   # ── RAS 规则 ─────────────────────────────────────────────────────────────────
   - id: excp_rasof
