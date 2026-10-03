@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..fcaa9beca
+index 000000000..be307745f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1113 @@
+@@ -0,0 +1,1147 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -871,6 +871,40 @@ index 000000000..fcaa9beca
 +                       "old syntax not accepted; use '{" "}' for dual-purpose "
 +                       "destination registers, e.g., add.uo {rd8, rd9}, rd10, rd11");
 +        }
++      }
++    }
++  }
++
++  // Static legality check for mreg_range_overlap (SPEC-088t;
++  // SimRISC-02 §寄存器组之间块赋值): `rd2rd` and `rb2rb` copy a block of
++  // registers *within the same bank*, so the source range and the destination
++  // range may overlap.  Any intersection (including complete coincidence) makes
++  // the instruction illegal, and the assembler MUST hard-error (Error level,
++  // never a warning).  Cross-bank block moves (ra2rd/rd2ra/rd2rb/rb2rd) and
++  // RD<->RF moves cannot overlap by construction, so they are not checked here.
++  // This runs *before* the complex-operand decomposition below, which keeps
++  // only the first register of each group and would lose the range sizes.
++  if (Operands.size() == 3) {
++    auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
++    auto *DstOp = static_cast<DADAOOperand *>(Operands[1].get());
++    auto *SrcOp = static_cast<DADAOOperand *>(Operands[2].get());
++    if (TokOp && TokOp->isToken() && DstOp && SrcOp &&
++        DstOp->Kind == DADAOOperand::kRegGroup &&
++        SrcOp->Kind == DADAOOperand::kRegGroup) {
++      StringRef Mnem = TokOp->getToken();
++      if (Mnem == "rd2rd" || Mnem == "rb2rb") {
++        // {start:end} is contiguous within the bank (see parseRegGroup), so the
++        // half-open interval [start, start+count) intersects [s, s+count2) iff
++        // start < s+count2 && s < start+count.
++        unsigned DstStart = DstOp->getRegList()[0].id();
++        unsigned SrcStart = SrcOp->getRegList()[0].id();
++        unsigned DstEnd = DstStart + DstOp->getGroupCount();
++        unsigned SrcEnd = SrcStart + SrcOp->getGroupCount();
++        if (DstStart < SrcEnd && SrcStart < DstEnd)
++          return Error(DstOp->getStartLoc(),
++                       "invalid '" + Mnem.str() + "': source and destination "
++                       "register ranges overlap (mreg_range_overlap); source "
++                       "and destination must be disjoint");
 +      }
 +    }
 +  }

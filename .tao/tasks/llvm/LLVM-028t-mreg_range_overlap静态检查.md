@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M1→M2
 **依赖**：`SPEC-088t`（规范/合约层修复，**须先 `已验证`**）。相关：`contracts/legality_rules.yaml`（`mreg_range_overlap`，`active`/`static`）、`components/llvm-project/patches/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp.patch`、`tests/lit/MC/Dadao/ret-rd0-legality.s`（同类先例）。
-**状态**：待开始
+**状态**：已验证
 
 > 本任务书是**架构师规划产物**，尚未经用户确认、未下发。执行前须按 `AGENTS.md`「任务分解与执行确认」由用户逐条确认。
 
@@ -152,14 +152,245 @@
 
 ## 完成区
 
-**测试结果**：
+**测试结果**：通过 15/15（证据脚本默认检查项）；失败原因：无。
+- `make build-mc` EXIT=0（增量重建 18.75s）。
+- `make check-lit` EXIT=0：**27/27 PASS**（26→27，新 `overlap-legality.s` 27/27）。
+- 正例（不重叠，两序）`llvm-mc` rc=0；负例（部分重叠/完全重合，rd/rb 双序）rc=1 且 stderr 含
+  `error: invalid 'rd2rd'|'rb2rb': source and destination register ranges overlap (mreg_range_overlap); ...`。
+- `make check-patch-tree` EXIT=0：`2 component(s), 67 patches OK`。
+- `make check` EXIT=0：`check_issues: ... 0 blocking`、`repository checks: PASS`。
+- 反例注入自检（`.work/evidence/LLVM-028t/run.sh --inject`）EXIT=0：A（移除检查）负例静默汇编 rc=0、lit FAIL；
+  B（只判部分重叠、漏完全重合）完全重合负例 rc=0、部分重叠仍 rc=1；两次还原重建后源/二进制 sha256 与注入前一致
+  （源 `2c403ef6…`、二进制 `a3db9e7e…`）。
+
 **修改文件**：
-**验收结果**：
+1. `components/llvm-project/patches/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp.patch`（M，补丁文件净 **+36/−2**）
+   —— 补丁内 `DADAOAsmParser.cpp` 相对 base 为整文件新增，源码 1113→1147 行（**+34 行**，本任务改动）。
+2. `tests/lit/MC/Dadao/overlap-legality.s`（新增，47 行）。
+3. `.work/evidence/LLVM-028t/run.sh`（新增，一键证据脚本，含 `--inject`）。
+4. `.work/log/llvm/LLVM-028t-*.log`（构建/lit/check/注入完整输出）。
+明确未改：`contracts/**`、`spec/**`、`tools/{spec,qemu,testcases}/**`、`components/qemu/**`、其它 lit、
+`tests/vectors/isa/*.yaml`。
+
+**验收结果**（真实输出见 `.work/log/llvm/`）：
+- `make build-mc` → `build-mc: PASS`，`real 0m18.753s`。
+- 负例实测：
+  ```
+  <stdin>:1:7: error: invalid 'rd2rd': source and destination register ranges overlap (mreg_range_overlap); source and destination must be disjoint
+  rc=1
+  ```
+- `make check-lit`：`Total Discovered Tests: 27  Passed: 27 (100.00%)`，`PASS: DADAO-MC :: overlap-legality.s (27 of 27)`。
+- `make check`：`repository checks: PASS`，EXIT=0。
+- `git status --untracked-files=all`：仅 `M` 补丁 + `M` 本任务书 + `?? tests/lit/.../overlap-legality.s`（`check-no-residue: PASS`）。
+
 **新发现/坑**：
-**遗留问题**：
+- **同一指令的两个 `{start:end}` 组共享单个 immu6**：`parseRegGroup` 的 range 只把 `[start,end]` 存入 `RegList`
+  且 `GroupCount=end-start+1`；展开阶段 `SavedGroupCount` 被**后出现的组覆盖**（rd2rd/rb2rb 中即源组）。
+  故静态检查放在**展开前**直接读 `Operands[]` 的 `kRegGroup` 是正确选择。
+- **不等 count 的畸形输入**：`rd2rd {rd5:rd6}, {rd2:rd6}` 当前会被静默编码为 immu6=**源组 count**（=5），
+  即两范围实际都按 5 展开（`{rd5:rd9}`）。本实现用**各自组 count** 判交集（对合法等 count 输入与任务书公式等价，
+  且对畸形输入更保守），此为有意偏离，已在自审记录说明。
+- 寄存器 id 连续（`parseRegGroup` L472 注释亦确认），故 `start/count` 的整数区间运算成立。
+
+**遗留问题**：无。`scope: fp` 的 `convert_ff`（ft2fo/fo2ft/ft2ft/fo2fo）重叠属 M1 范围外，任务书 §2.1 明确
+本任务只做 `rd2rd`/`rb2rb`，FP 侧未实现（非本任务缺口）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
 
+改动源码自主逐行审查（`DADAOAsmParser.cpp` 插入块 + `overlap-legality.s` + `run.sh`）：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1：实现用**各自组 count** 的半开区间 `[s,s+c)` 判交集，任务书设计稿用单一 `Hd`（默认等 count）。对合法等 count 输入两者等价；对不等 count 畸形输入前者更保守（仍报错） | ❌不修（有意偏离，更正确） | 未改 | 全部验收项 + 注入 B 通过；`run.sh` 断言 `DstStart < SrcEnd && SrcStart < DstEnd` |
+| F2：`scope: fp` 的 convert_ff 重叠未做静态检查 | ⏸延后（任务范围外） | 未改 | 任务书 §2.1/§3 明确只做 rd2rd/rb2rb；FP 属 M1 范围外 |
+| F3：检查置于旧语法拒绝之后、展开之前，仅 `Operands.size()==3` 且两个 `kRegGroup` 时触发 | ✅已修（即本实现） | 插入块 | 负例 rc=1、正例 rc=0、`make check` PASS |
+| F4：报错为 `Error(...)`（非 warning），位置取目的操作数 `getStartLoc()` | ✅已修 | 同上 | 负例 rc=1 且 stderr `error:` 前缀 |
+| F5：`getRegList()[0]` 对 range（`[start,end]`）与 single（`[reg]`）均有效非空 | ✅已证 | — | lit 覆盖 `{rd8}`/`{rb1}` single 用例，rc=0 |
+
+判决：**通过自审**，所有 finding 已处置（F1 为有意且更正确的偏离，F2 属任务范围外），可标「待验收」。
+
 #### 第 1 轮 reviewer 验收
+
+**判决：Accepted**
+
+---
+
+##### 1. 脚本审计（`.work/evidence/LLVM-028t/run.sh`）
+
+| 审计项 | 结论 |
+|--------|------|
+| 恒真断言 | **无**。所有 `check()` 调用的 expected/actual 均可不等（如注入 A 的 `positive rd2rd disjoint rc` expected=rc=0 actual=rc=1） |
+| FAIL 路径 | **存在**。每个 check 失败时调 `bad()` 设 `FAIL=1`，脚本末尾 `exit 1` |
+| 注入 A 非空 | `if (false && DstStart < SrcEnd && ...)` — 确认 `assert s.count(old) == 1` 通过 |
+| 注入 B 非空 | `if (DstStart != SrcStart && DstStart < SrcEnd && ...)` — 同上 |
+| 还原含重建 | `restore_and_rebuild()` 做 `git checkout` + `make build-mc` ✓ |
+| `git diff --name-only` 非空检查 | 注入后均 check `$SRC_REL` = `$changed` ✓ |
+| 退出码 | FAIL→`exit 1`，PASS→`exit 0`，无 `tee` 吞退出码 ✓ |
+
+**结论：脚本合格。**
+
+---
+
+##### 2. 重跑记录
+
+**默认模式**（`bash run.sh`）：
+```
+PASS | positive rd2rd disjoint rc | expected=rc=0 actual=rc=0
+PASS | positive rd2rd singles rc | expected=rc=0 actual=rc=0
+PASS | positive rb2rb disjoint rc | expected=rc=0 actual=rc=0
+PASS | positive rb2rb singles rc | expected=rc=0 actual=rc=0
+PASS | negative rd2rd partial-overlap rc!=0 | expected=rc=1 actual=rc=1
+PASS | negative rd2rd partial-overlap msg | expected=contains 'overlap' actual=contains 'overlap'
+PASS | negative rd2rd partial-overlap (dst first) rc!=0 | expected=rc=1 actual=rc=1
+PASS | negative rd2rd complete-coincidence rc!=0 | expected=rc=1 actual=rc=1
+PASS | negative rb2rb partial-overlap rc!=0 | expected=rc=1 actual=rc=1
+PASS | negative rb2rb partial-overlap (dst first) rc!=0 | expected=rc=1 actual=rc=1
+PASS | negative rb2rb complete-coincidence rc!=0 | expected=rc=1 actual=rc=1
+PASS | lit overlap-legality.s | expected=PASS actual=PASS
+PASS | make check-lit | expected=PASS actual=PASS
+PASS | make check-patch-tree | expected=PASS actual=PASS
+PASS | source tree clean (no injection residue) | expected=clean actual=clean
+source sha256: 2c403ef65f53f140667f2c787b49ad43be9fb97e2218277867d8083bdd4a64f1
+binary sha256: a3db9e7e0ef1a0cd13dc2adad6a7e2d05e76ff7cbb485cd2fb19c46d25d9a6e3
+RESULT: PASS
+EXIT=0
+```
+
+**`--inject` 模式**（`bash run.sh --inject`）：
+```
+=== injection A ===
+PASS | inject A changed source | ... = llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
+PASS | rebuild llvm-mc
+PASS | inject A: partial-overlap now assembles (rc=0)
+PASS | inject A: lit FAILs (check was load-bearing)
+PASS | restore source (git diff empty)
+PASS | rebuild llvm-mc
+PASS | after A restore: partial-overlap errors again (rc=1)
+=== injection B ===
+PASS | inject B changed source | ... = llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
+PASS | rebuild llvm-mc
+PASS | inject B: complete coincidence assembles (rc=0)
+PASS | inject B: rb complete coincidence assembles (rc=0)
+PASS | inject B: partial overlap still errors (rc=1)
+PASS | restore source (git diff empty)
+PASS | rebuild llvm-mc
+PASS | after B restore: complete coincidence errors again (rc=1)
+=== default checks === (15/15 PASS)
+source sha256: 2c403ef65f53f140667f2c787b49ad43be9fb97e2218277867d8083bdd4a64f1
+binary sha256: a3db9e7e0ef1a0cd13dc2adad6a7e2d05e76ff7cbb485cd2fb19c46d25d9a6e3
+RESULT: PASS
+EXIT=0
+```
+
+---
+
+##### 3. 语义验证（reviewer 独立执行）
+
+| 测试 | 指令 | 期望 | 实际 | 结论 |
+|------|------|------|------|------|
+| 不重叠 rd2rd | `{rd4:rd5},{rd2:rd3}` | rc=0 | rc=0 | ✓ |
+| 不重叠 rb2rb | `{rb4:rb5},{rb2:rb3}` | rc=0 | rc=0 | ✓ |
+| 部分重叠 | `{rd3:rd4},{rd2:rd3}` | rc=1 | rc=1 | ✓ |
+| 完全重合 | `{rd3:rd3},{rd3:rd3}` | rc=1 | rc=1 | ✓ |
+| 目的在前 | `{rd2:rd3},{rd3:rd4}` | rc=1 | rc=1 | ✓ |
+| 边界相邻不重叠 | `{rd3:rd4},{rd5:rd6}` | rc=0 | rc=0 | ✓ |
+| 边界相邻反序 | `{rd5:rd6},{rd3:rd4}` | rc=0 | rc=0 | ✓ |
+| 单元素重叠 | `{rd3},{rd3}` | rc=1 | rc=1 | ✓ |
+| 单元素不重叠 | `{rd3},{rd4}` | rc=0 | rc=0 | ✓ |
+| 不等 count 重叠 | `{rd5:rd6},{rd2:rd6}` | rc=1 | rc=1 | ✓ |
+| 等 count 不重叠 | `{rd5:rd6},{rd2:rd3}` | rc=0 | rc=0 | ✓ |
+
+错误信息均含 `overlap (mreg_range_overlap)`。
+
+---
+
+##### 4. lit 回归
+
+- `llvm-lit tests/lit/MC/Dadao/overlap-legality.s`：PASS ✓
+- `make check-lit`：**27/27 PASS**（26→27）✓
+- `make check`：`repository checks: PASS`，EXIT=0 ✓
+- `make check-patch-tree`：`2 component(s), 67 patches OK` ✓
+
+---
+
+##### 5. 补丁与不变量
+
+- 补丁统计：**+36/−2**（`git diff --stat` 确认）✓
+- `git diff --name-only`：仅 `DADAOAsmParser.cpp.patch` + 任务书 ✓
+- `components/qemu/**`、`tests/vectors/**` 未动 ✓
+- `git status --untracked-files=all`：仅预期的 3 项（patch + 任务书 + overlap-legality.s）✓
+
+---
+
+##### 6. 独立注入（reviewer 自选，非脚本 A/B）
+
+**注入策略**：将 `DstStart < SrcEnd && SrcStart < DstEnd` 改为 `DstStart <= SrcEnd && SrcStart <= DstEnd`——对边界相邻不重叠 case 产生假阳性。
+
+```
+# 注入后
+$ git -C .work/source/llvm-project diff --name-only
+llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
+（diff 非空 ✓）
+
+# 重建后测试
+$ printf 'rd2rd {rd3:rd4}, {rd5:rd6}\n' | llvm-mc ...
+error: invalid 'rd2rd': source and destination register ranges overlap ...
+rc=1  ← 假阳性！应为 rc=0
+
+# 脚本重跑
+$ bash .work/evidence/LLVM-028t/run.sh
+FAIL | positive rd2rd disjoint rc | expected=rc=0 actual=rc=1
+...
+RESULT: FAIL
+EXIT=1  ← 脚本正确检测到 FAIL ✓
+
+# 还原 + 重建
+$ git -C .work/source/llvm-project checkout -- llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
+$ make build-mc  → PASS
+
+# SHA 复原
+source sha256: 2c403ef65f53f140667f2c787b49ad43be9fb97e2218277867d8083bdd4a64f1 ✓（与注入前一致）
+binary sha256: a3db9e7e0ef1a0cd13dc2adad6a7e2d05e76ff7cbb485cd2fb19c46d25d9a6e3 ✓（与注入前一致）
+
+# 还原后脚本重跑
+$ bash .work/evidence/LLVM-028t/run.sh
+RESULT: PASS
+EXIT=0  ✓
+```
+
+**结论：独立注入成功证伪，脚本能失败，还原含重建，SHA 一致。**
+
+---
+
+##### 7. 实现偏离核实
+
+任务书设计稿用 `Hb + Hd <= Hc || Hc + Hd <= Hb`（单一 `Hd`），实现用 `DstStart < SrcEnd && SrcStart < DstEnd`（各自组 count 的半开区间交集）。
+
+- **等 count 输入**（合法情况，如 `{rd3:rd4},{rd5:rd6}`）：两者数学等价 ✓
+- **不等 count 畸形输入**（如 `{rd5:rd6},{rd2:rd6}`）：实现仍正确报错（rc=1），因 `[5,7) ∩ [2,7)` 有交集 ✓
+- **结论**：偏离**更正确**且不破坏合法等 count 输入 ✓
+
+---
+
+##### 8. 完成区一致性
+
+| 完成区声明 | reviewer 核验 | 结论 |
+|-----------|--------------|------|
+| `make build-mc` EXIT=0 | 重跑确认 ✓ | 一致 |
+| 27/27 PASS | `make check-lit` 确认 ✓ | 一致 |
+| 负例 rc=1 且 stderr 含 `overlap` | 独立测试确认 ✓ | 一致 |
+| `check-patch-tree` 67 patches OK | 重跑确认 ✓ | 一致 |
+| `make check` EXIT=0 | 重跑确认 ✓ | 一致 |
+| 注入 A/B 通过 + 还原回绿 | 脚本 `--inject` 重跑确认 ✓ | 一致 |
+| 补丁净 +36/−2 | `git diff --stat` 确认 ✓ | 一致 |
+| 源码 sha `2c403ef6…` | 重跑确认 ✓ | 一致 |
+| 二进制 sha `a3db9e7e…` | 重跑确认 ✓ | 一致 |
+| `git status` 仅预期改动 | 重跑确认 ✓ | 一致 |
+
+**无不实/夸大。**
+
+---
+
+**最终判决：Accepted** — 所有验收命令在 reviewer 独立重跑下全部通过，约束无违反，脚本合格且独立注入证伪成功。
