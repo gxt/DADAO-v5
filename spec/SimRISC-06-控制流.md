@@ -10,20 +10,20 @@
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
-| `br.eq` | `rrii` | `rd` | `br.eq {rdHA, rdHB}?, [rb0, imms12i]` | `br.eq_rrii_rd` |
-| `br.n` | `riii` | `rd` | `br.n {rdHA}?, [rb0, imms18i]` | `br.n_riii_rd` |
-| `br.ne` | `rrii` | `rd` | `br.ne {rdHA, rdHB}?, [rb0, imms12i]` | `br.ne_rrii_rd` |
-| `br.nn` | `riii` | `rd` | `br.nn {rdHA}?, [rb0, imms18i]` | `br.nn_riii_rd` |
-| `br.np` | `riii` | `rd` | `br.np {rdHA}?, [rb0, imms18i]` | `br.np_riii_rd` |
-| `br.nz` | `riii` | `rb` | `br.nz {rbHA}?, [rb0, imms18i]` | `br.nz_riii_rb` |
-| `br.nz` | `riii` | `rd` | `br.nz {rdHA}?, [rb0, imms18i]` | `br.nz_riii_rd` |
-| `br.p` | `riii` | `rd` | `br.p {rdHA}?, [rb0, imms18i]` | `br.p_riii_rd` |
-| `br.z` | `riii` | `rb` | `br.z {rbHA}?, [rb0, imms18i]` | `br.z_riii_rb` |
-| `br.z` | `riii` | `rd` | `br.z {rdHA}?, [rb0, imms18i]` | `br.z_riii_rd` |
-| `call` | `iiii` | `ra` | `call [rb0, imms24i]` | `call_iiii_ra` |
-| `call` | `rrii` | `ra` | `call [rbHA, rdHB, imms12i]` | `call_rrii_ra` |
-| `jump` | `iiii` | `rb` | `jump [rb0, imms24i]` | `jump_iiii_rb` |
-| `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms12i]` | `jump_rrii_rb` |
+| `br.eq` | `rrii` | `rd` | `br.eq {rdHA, rdHB}?, [rb0, imms14]` | `br.eq_rrii_rd` |
+| `br.n` | `riii` | `rd` | `br.n {rdHA}?, [rb0, imms20]` | `br.n_riii_rd` |
+| `br.ne` | `rrii` | `rd` | `br.ne {rdHA, rdHB}?, [rb0, imms14]` | `br.ne_rrii_rd` |
+| `br.nn` | `riii` | `rd` | `br.nn {rdHA}?, [rb0, imms20]` | `br.nn_riii_rd` |
+| `br.np` | `riii` | `rd` | `br.np {rdHA}?, [rb0, imms20]` | `br.np_riii_rd` |
+| `br.nz` | `riii` | `rb` | `br.nz {rbHA}?, [rb0, imms20]` | `br.nz_riii_rb` |
+| `br.nz` | `riii` | `rd` | `br.nz {rdHA}?, [rb0, imms20]` | `br.nz_riii_rd` |
+| `br.p` | `riii` | `rd` | `br.p {rdHA}?, [rb0, imms20]` | `br.p_riii_rd` |
+| `br.z` | `riii` | `rb` | `br.z {rbHA}?, [rb0, imms20]` | `br.z_riii_rb` |
+| `br.z` | `riii` | `rd` | `br.z {rdHA}?, [rb0, imms20]` | `br.z_riii_rd` |
+| `call` | `iiii` | `ra` | `call [rb0, imms26]` | `call_iiii_ra` |
+| `call` | `rrii` | `ra` | `call [rbHA, rdHB, imms14]` | `call_rrii_ra` |
+| `jump` | `iiii` | `rb` | `jump [rb0, imms26]` | `jump_iiii_rb` |
+| `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms14]` | `jump_rrii_rb` |
 | `ret` | `riii` | `ra` | `ret rdHA, imms18` | `ret_riii_ra` |
 
 <!-- ASSEMBLY_LIST_END -->
@@ -48,8 +48,8 @@
 第一类跳转指令的操作数类型为：`rrii`。前两个操作数为rd寄存器，根据两个寄存器的值是否相等进行判断，选择是否跳转。
 
 ```simrisc
-br.eq    {rdHA, rdHB}?, [rb0, imms12i]
-br.ne    {rdHA, rdHB}?, [rb0, imms12i]
+br.eq    {rdHA, rdHB}?, [rb0, imms14]
+br.ne    {rdHA, rdHB}?, [rb0, imms14]
 ```
 
 跳转地址计算公式：`Addr = rb0 + (imms12 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。
@@ -59,12 +59,12 @@ br.ne    {rdHA, rdHB}?, [rb0, imms12i]
 第二类跳转指令的操作数类型为：`riii`。一个操作数为rd寄存器，根据该寄存器的值进行判断，选择是否跳转。
 
 ```simrisc
-br.n     {rdHA}?, [rb0, imms18i]
-br.nn    {rdHA}?, [rb0, imms18i]
-br.z     {rdHA}?, [rb0, imms18i]
-br.nz    {rdHA}?, [rb0, imms18i]
-br.p     {rdHA}?, [rb0, imms18i]
-br.np    {rdHA}?, [rb0, imms18i]
+br.n     {rdHA}?, [rb0, imms20]
+br.nn    {rdHA}?, [rb0, imms20]
+br.z     {rdHA}?, [rb0, imms20]
+br.nz    {rdHA}?, [rb0, imms20]
+br.p     {rdHA}?, [rb0, imms20]
+br.np    {rdHA}?, [rb0, imms20]
 ```
 
 跳转地址计算公式：`Addr = rb0 + (imms18 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。
@@ -74,8 +74,8 @@ br.np    {rdHA}?, [rb0, imms18i]
 第三类跳转指令的操作数类型同样为 `riii`，但操作数为rb寄存器，按**整 64 位**判零（与 `-rd` 变体一致；`-rb`/`-rd` 区别仅在寄存器组）：
 
 ```simrisc
-br.z     {rbHA}?, [rb0, imms18i]
-br.nz    {rbHA}?, [rb0, imms18i]
+br.z     {rbHA}?, [rb0, imms20]
+br.nz    {rbHA}?, [rb0, imms20]
 ```
 
 跳转地址计算方式与第二类一致。
@@ -87,7 +87,7 @@ br.nz    {rbHA}?, [rb0, imms18i]
 支持相对地址的操作数类型为：`iiii`。
 
 ```simrisc
-jump    [rb0, imms24i]
+jump    [rb0, imms26]
 ```
 
 跳转地址计算公式：`Addr = rb0 + (imms24 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。
@@ -95,7 +95,7 @@ jump    [rb0, imms24i]
 支持绝对地址的操作数类型为：`rrii`
 
 ```simrisc
-jump    [rbHA, rdHB, imms12i]
+jump    [rbHA, rdHB, imms14]
 ```
 
 跳转地址计算公式：`Addr = rbHA + rdHB + (imms12 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。`rbHA` **仅读**（不修改）。
@@ -110,7 +110,7 @@ jump    [rbHA, rdHB, imms12i]
 支持相对地址的操作数类型为： `iiii`。
 
 ```simrisc
-call    [rb0, imms24i]
+call    [rb0, imms26]
 ```
 
 跳转地址计算公式： `Addr = rb0 + (imms24 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。
@@ -118,7 +118,7 @@ call    [rb0, imms24i]
 支持绝对地址的操作数类型为： `rrii`
 
 ```simrisc
-call    [rbHA, rdHB, imms12i]
+call    [rbHA, rdHB, imms14]
 ```
 
 跳转地址计算公式：`Addr = rbHA + rdHB + (imms12 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。`rbHA` **仅读**（不修改）。

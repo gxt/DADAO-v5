@@ -663,15 +663,15 @@ trap/escape/cfxld/cfxst/cfx2rd/cfx2rc 指令可以在任意运行模式下执行
 
 escape 指令的第一个参数会指定 cfxha，通常该参数应该和当前的核芯功能扩展编号相同，但是硬件实现并不检查其一致性，因此可以采用不同的核芯功能扩展编号，从而可以跳过多层核芯功能扩展的调用，直接跳到需要返回的指令指针。可以通过检查 `cfx_⟨cfxname⟩_trap_num + cfx_⟨cfxname⟩_excp_sync_num + cfx_⟨cfxname⟩_excp_async_num` 是否与 `cfx_⟨cfxname⟩_escape_num` 匹配，来判断是否有此类现象存在。
 
-escape指令的第二个参数，imms18 按指令字偏移（×4 字节），常见用法如下：
+escape指令的第二个参数：**编码层** `imms18`（指令字偏移），`Addr = excp_cause_ip + (imms18 << 2)`；**汇编层** `imms20` 以字节为单位，值须 `%4==0`。常见用法如下：
 
 | 用例 | 指令 | 返回位置 |
 |------|------|---------|
-| 重新执行触发异常的指令 | `escape cfxha, [excp_cause_ip, 0i]` | cause_ip |
-| 跳过触发指令（继续执行） | `escape cfxha, [excp_cause_ip, 1i]` | cause_ip + 4 |
-| 跳过 N 条指令（N 可为负数表示回退） | `escape cfxha, [excp_cause_ip, Ni]` | cause_ip + N×4 |
+| 重新执行触发异常的指令 | `escape cfxha, [excp_cause_ip, 0]` | cause_ip |
+| 跳过触发指令（继续执行） | `escape cfxha, [excp_cause_ip, 4]` | cause_ip + 4 |
+| 跳过 N 条指令（N 可为负数表示回退） | `escape cfxha, [excp_cause_ip, N*4]` | cause_ip + N×4 |
 
-**跨 cfx escape 的安全约束**：escape 指定非当前 cfxha 时，硬件不保存跳过的中间 cfx 现场。`excp_prev_run_mode` 和 `excp_prev_cfx_mask` 恢复的是**最初 trap 进入当前调用链时的值**（非最近一次 trap 的）。调用链 A→B→C 中，若 B 中使用 `escape cfx_A, [excp_cause_ip, Ni]`，硬件直接恢复到 A 的 prev 现场，B 的现场（excp_prev_*/excp_cause_*）被静默丢弃。软件必须保证被跳过的 cfx 不再需要返回（即 B 的调用链已终结，B 不会再次被 escape 回）。
+**跨 cfx escape 的安全约束**：escape 指定非当前 cfxha 时，硬件不保存跳过的中间 cfx 现场。`excp_prev_run_mode` 和 `excp_prev_cfx_mask` 恢复的是**最初 trap 进入当前调用链时的值**（非最近一次 trap 的）。调用链 A→B→C 中，若 B 中使用 `escape cfx_A, [excp_cause_ip, N*4]`，硬件直接恢复到 A 的 prev 现场，B 的现场（excp_prev_*/excp_cause_*）被静默丢弃。软件必须保证被跳过的 cfx 不再需要返回（即 B 的调用链已终结，B 不会再次被 escape 回）。
 
 ### 异常进入流程
 

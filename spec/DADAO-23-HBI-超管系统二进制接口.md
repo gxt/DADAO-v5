@@ -60,7 +60,7 @@ cfx2rc  cfx_power_excp_cause_ip, rd2
 set.rb   rb16, fdt_addr
 
 ; 执行 escape 跳转到 supv 入口
-escape cfx_power, [excp_cause_ip, 0i]
+escape cfx_power, [excp_cause_ip, 0]
 ```
 
 S-mode 内核入口通过 rb16 获取设备树指针。

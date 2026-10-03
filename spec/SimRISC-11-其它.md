@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
 | `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
-| `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms18i]` | `escape_ciii_cfx` |
+| `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
 | `illi` | `oiii` | `imm` | `illi immu18` | `illi_oiii_imm` |
 | `swym` | `oiii` | `imm` | `swym immu18` | `swym_oiii_imm` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
@@ -105,10 +105,10 @@ trap    cfxHA, immu18
 操作数类型为：`ciii`
 
 ```simrisc
-escape  cfxHA, [excp_cause_ip, imms18i]
+escape  cfxHA, [excp_cause_ip, imms20]
 ```
 
-其中，cfx_<cfxname> 指定核芯功能扩展名称；imms18指定目标地址偏移（指令字偏移，实际地址 = excp_cause_ip + (imms18 << 2)）。
+其中，cfx_\<cfxname\> 指定核芯功能扩展名称；imms20 指定目标地址偏移（字节，须 `%4==0`；实际地址 = excp_cause_ip + imms20；编码层 `Addr = excp_cause_ip + (imms18 << 2)`）。
 
 ### 寄存器传输指令
 

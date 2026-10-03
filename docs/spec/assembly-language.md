@@ -13,7 +13,7 @@
 - **适用范围**：DADAO M1 的汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。
 - **指令集权威**：编码与身份以 `contracts/opcodes.yaml` 为准；语义以 `contract-isa.md` 为准；本规范**只规定书写形式**。
 - **格式类（format）**：`contract-isa.md §2.3` 定义的 9 种 M1 格式——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii`（`crrr`/`crii`/`ciii` 属特权 cfx，Excluded from M1）。
-- **术语**：**地址表达式**、**寄存器组**、**条件寄存器**、**单位后缀**——见 §3/§4/§2.4。
+- **术语**：**地址表达式**、**寄存器组**、**条件寄存器**、**地址立即数（字节）**——见 §3/§4/§2.4。
 
 ---
 
@@ -32,12 +32,10 @@
 - 标识符字符集：`[A-Za-z0-9_$.?]`（`.`/`?` 亦属标识符字符，见 §3.3 的注意）。
 - 标签：`name:`、数字标签 `1:`、局部标签 `.Lname:` **MAY** 使用。
 
-### 2.4 数字与单位后缀
+### 2.4 数字与立即数单位
 - 立即数**MAY**写为十进制、`0x…`（十六进制）、`0b…`（二进制）、负数（前导 `-`）；下划线分隔符**MUST NOT** 使用。
 - 立即数位置接受完整的常量表达式（`+ - * / % & | ^ << >> == != < <= > >= && ||` 与一元 `! ~ - +`、括号分组）。
-- **单位后缀 `i`**：紧跟立即数之后，表示该立即数以**指令字（4 字节）**为单位。例：`2i` = 8 字节。
-  - **MUST** 仅用于「跳转/分支的目标偏移」（`jump`/`call`/`br.*`）。
-  - 其余立即数**MUST NOT** 加后缀；其单位在 §5 逐族说明（访存偏移 = 字节）。
+- **地址立即数**：跳转/分支目标偏移与 escape 偏移的单位为**字节**，**不含任何单位标记**。装配器将其右移 2 位写入编码字段；汇编器**校验** `%4==0` 与范围。字段名映射见 §3.1。
 - **取值范围**：各立即数字段的位宽与取值范围见 `docs/assembly-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 §11）。
 
 ### 2.5 寄存器名
@@ -53,18 +51,19 @@
 
 ### 3.1 语法
 ```
-地址表达式   ::= "[" 基址 ["," 寄存器偏移] ["," 立即数偏移[单位后缀]] "]"
+地址表达式   ::= "[" 基址 ["," 寄存器偏移] ["," 立即数偏移] "]"
 基址         ::= rb寄存器 | 异常现场基址
 异常现场基址 ::= "excp_cause_ip"          // 仅 escape 使用（异常进入时保存的地址）
 寄存器偏移   ::= rd寄存器                  // 仅 jump/call 的 rrii 形式（见 §3.2）
-立即数偏移   ::= 立即数[单位后缀] | 符号
+立即数偏移   ::= 立即数 | 符号
 ```
 
 ### 3.2 语义（三类，公式不同）
 - **访存**（`ld.*`/`st.*`/`ldm.*`/`stm.*`/`cfxld`/`cfxst`）：有效地址 = `基址 + 立即数`（**偏移单位为字节**，`imms12`）。例：`ld.ub rd8, [rb2, 1]` ⇒ `rb2 + 1`。
-- **iiii 跳转/分支**（`jump`/`call` 的 iiii 形式、`br.*`）：目标 = `基址 + 立即数 × 4`（**偏移单位为指令字**，`imms24`/`imms18`/`imms12`）⇒ 书写时 **MUST** 加单位后缀 `i`。例：`jump [rb0, 2i]` ⇒ `rb0 + 8`。
-- **rrii 跳转**（`jump`/`call` 的 rrii 形式）：目标 = `基址 + 寄存器偏移 + 立即数 × 4`（**寄存器偏移不加倍**；立即数为 `imms12`，**MUST** 加 `i`）。例：`jump [rb3, rd0, 24i]` ⇒ `rb3 + rd0 + 96`。
+- **iiii 跳转/分支**（`jump`/`call` 的 iiii 形式、`br.*`）：目标 = `基址 + 立即数`（**字节**，`imms26`/`imms20`/`imms14`）。例：`jump [rb0, 8]` ⇒ `rb0 + 8`。
+- **rrii 跳转**（`jump`/`call` 的 rrii 形式）：目标 = `基址 + 寄存器偏移 + 立即数`（**字节**，`imms14`）。例：`jump [rb3, rd0, 96]` ⇒ `rb3 + rd0 + 96`。
 - **相对跳转的基址**：**iiii 形式**的基址 **MUST** 为 `rb0`（当前指令地址）；基址非 `rb0` 而指令为 iiii 形式时 **MUST** 报错。rrii 形式的基址 **MAY** 为任意 RB 寄存器。
+- **字段名映射**：汇编层 ×4 地址字段的名称与编码层不同——`imms14`（汇编，字节）⇔ 编码 `imms12`（`field = bytes >> 2`）、`imms20`（汇编）⇔ `imms18`（编码）、`imms26`（汇编）⇔ `imms24`（编码）。访存的 `imms12` 与 `ret` 的 `imms18` 不在映射范围内（值非地址）。
 
 ### 3.3 示例
 | 场景 | 写法 |
@@ -72,9 +71,9 @@
 | 访存（RD） | `ld.ub rd8, [rb2, 1]`、`st.b rd0, [rb1, 1]` |
 | 访存（RA/RB） | `ld.o ra1, [rb2, 0]`、`st.o rb1, [rb2, 8]` |
 | 多寄存器访存 | `ldm.ub {rd8:rd10}, [rb0, rd1]`（见 §4） |
-| 相对跳转 | `jump [rb0, 2i]`、`call [rb0, 3i]` |
-| 绝对跳转 | `jump [rb3, rd0, 24i]` |
-| 条件分支 | `br.eq {rd8, rd0}?, [rb0, 4i]` |
+| 相对跳转 | `jump [rb0, 8]`、`call [rb0, 12]` |
+| 绝对跳转 | `jump [rb3, rd0, 96]` |
+| 条件分支 | `br.eq {rd8, rd0}?, [rb0, 16]` |
 | 访存（符号偏移） | `ld.st rd2, [rb1, x_offset]`、`st.t rd4, [rb1, z_offset]` |
 | 条件分支（标签） | `br.nz {rd2}?, [rb0, overflow_handler]` |
 
@@ -109,9 +108,9 @@
 ### 4.3 示例
 | 场景 | 写法 |
 |---|---|
-| 单寄存器条件（`br.n`） | `br.n {rd0}?, [rb0, 4i]` |
-| 双寄存器条件（`br.eq`） | `br.eq {rd8, rd0}?, [rb0, 4i]` |
-| RB 条件（`br.z-rb`） | `br.z {rb2}?, [rb0, 4i]` |
+| 单寄存器条件（`br.n`） | `br.n {rd0}?, [rb0, 16]` |
+| 双寄存器条件（`br.eq`） | `br.eq {rd8, rd0}?, [rb0, 16]` |
+| RB 条件（`br.z-rb`） | `br.z {rb2}?, [rb0, 16]` |
 | 条件赋值（`cs.n`） | `cs.n {rd1}?, rd2, rd3, rd4` |
 | 条件赋值（`cs.eq`） | `cs.eq {rd1, rd2}?, rd3, rd4` |
 | 多寄存器访存 | `ldm.o {rd8:rd11}, [rb0, rd1]` |
@@ -140,26 +139,26 @@
 | `rrrr`（cs.n/z/p） | `助记符 {cond}?, dst, src1, src2` | `cs.n {rd1}?, rd2, rd3, rd4` | — |
 | `rrrr`（cs.eq/ne） | `助记符 {cond1, cond2}?, dst, src` | `cs.eq {rd8, rd0}?, rd9, rd10` | — |
 | `rrri` | `助记符 {dst:…}, [base, offset]` | `ldm.ub {rd8:rd10}, [rb0, rd1]` | count 省略 |
-| `rrii` | `助记符 dst, [base, offset]`；`jump`/`call` 为 `助记符 [base, reg, offseti]` | `ld.ub rd8, [rb2, 1]`；`jump [rb3, rd0, 24i]` | 访存偏移 = 字节；跳转偏移 = 指令字 |
-| `riii` | `助记符 dst, imm` / `助记符 {dst}?, [rb0, offi]`（分支） | `add.si rd8, 1`；`br.n {rd0}?, [rb0, 4i]` | 分支偏移 = 指令字 |
-| `iiii` | `助记符 [rb0, offi]`（`jump`/`call`） | `jump [rb0, 2i]` | 偏移 = 指令字 |
+| `rrii` | `助记符 dst, [base, offset]`；`jump`/`call` 为 `助记符 [base, reg, offset]` | `ld.ub rd8, [rb2, 1]`；`jump [rb3, rd0, 96]` | 访存偏移 = 字节；跳转偏移 = 字节 |
+| `riii` | `助记符 dst, imm` / `助记符 {dst}?, [rb0, off]`（分支） | `add.si rd8, 1`；`br.n {rd0}?, [rb0, 16]` | 分支偏移 = 字节 |
+| `iiii` | `助记符 [rb0, off]`（`jump`/`call`） | `jump [rb0, 8]` | 偏移 = 字节 |
 | `rwii` | `助记符 dst, wpN, immu16` | `set.zw rd8, wp2, 0x1234` | wyde 位置保持 `wpN` |
 | `orrr` | `助记符 dst, src1, src2` | `or.o rd8, rd9, rd10` | — |
 | `orri` | `助记符 dst, src, immu6` | `ext.uo rd8, rd0, 1` | — |
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
-| `oiii` | `助记符 immu18` | `illi 0`、`fence 0`、`swym 0` | 纯立即数，不加 `[]`/`i` |
+| `oiii` | `助记符 immu18` | `illi 0`、`fence 0`、`swym 0` | 纯立即数，不加 `[]` |
 
 **Excluded from M1 的格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**）：
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power），末两操作数为**地址**。
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 **`cg` 寄存器**与 **`rc` 寄存器**，各自命名。
 - `lr_nn.o rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
 - `sc_nn.o rd8, rd9, [rb1]`——**三个操作数**：`rdHB`(成功/失败结果)、`rdHC`(源)、地址 `rbHD`。
-- `escape cfx63, [excp_cause_ip, 1i]`——`cfxha` 写作 `cfxHA`；第二个参数是**指令字偏移**（加 `i`），但其基址**不是 `rb0`**，而是**异常进入时保存的地址 `excp_cause_ip`**（该基址**不在编码中**，与 `jump-iiii` 的 `rb0` 同构，故同样**显式写出**）。
-- `trap cfx63, 1`——`cfxha` 写作 `cfxHA`；其立即数**与地址无关**，**不加** `[]`/`i`。
+- `escape cfx63, [excp_cause_ip, 4]`——`cfxha` 写作 `cfxHA`；第二个参数是**字节偏移**（汇编层 `imms20`，须 `%4==0`），其基址**不是 `rb0`**，而是**异常进入时保存的地址 `excp_cause_ip`**（该基址**不在编码中**，与 `jump-iiii` 的 `rb0` 同构，故同样**显式写出**）。编码层 `Addr = excp_cause_ip + (imms18 << 2)`。
+- `trap cfx63, 1`——`cfxha` 写作 `cfxHA`；其立即数**与地址无关**，**不加** `[]`。
 
 **特例**：
-- `ret rd0, 0`：`imms18` 为返回值，**不是**地址，**不加** `[]`/`i`。
-- `jump`/`call` 的 rrii 形式：`jump [rb3, rd0, 24i]`（基址 `rb3` 可为任意 RB；仅 **iiii** 形式要求基址为 `rb0`）。
+- `ret rd0, 0`：`imms18` 为返回值，**不是**地址，**不加** `[]`。
+- `jump`/`call` 的 rrii 形式：`jump [rb3, rd0, 96]`（基址 `rb3` 可为任意 RB；仅 **iiii** 形式要求基址为 `rb0`）。
 
 ---
 
@@ -220,7 +219,7 @@
 | 项 | 状态 |
 |---|---|
 | 9 个 M1 格式类与 177 条 M1 指令 | ✅ 已实现（旧语法） |
-| **本规范的新记法**（`[]`/`{}`/`?`/`i`/`:`） | ❌ **待实现**（parser/printer/disassembler；等任务安排） |
+| **本规范的新记法**（`[]`/`{}`/`?`/`:`） | ❌ **待实现**（parser/printer/disassembler；等任务安排） |
 | **双目的/多寄存器新记法**（`{rdHA,rdHB}`/`{start:end}`） | ❌ **待实现** |
 | 伪指令 18 条 | ❌ 未实现 |
 | `.dd.*` 指导符 4 条 | ❌ 未实现 |
