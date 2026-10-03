@@ -101,6 +101,8 @@
 
 ## llvm / qemu / integ
 
+- **`ret rd0, <符号>` 拒绝属规则完整性扩展（`LLVM-027t` 提示，2026-10-03 登记）**：实现已拒绝 `ret rd0, <symbol>`（汇编期无法证明符号为 0；`ret rd1, <symbol>` 不受影响）；`spec/SimRISC-06 §函数返回` 文字仅述「`rdHA==rd0` 时 `imms18` MUST 为 0」，**未明写符号/重定位操作数**。判为**保守正确、非过宽**（M1 无 `ret` 返回值的合法重定位语义；静默放行会生成错误 `DADAO_FK_PCRel_18`）。**可选后续（非阻断）**：若要求规范显式，可在 spec 任务给 §函数返回补一句「符号/非常量操作数一并拒绝」；否则保持现状。**仅登记，不动手。**
+
 - **LLVM 侧 2 个新增文件 >1000 行（建议性跟踪，`INFRA-028t` size-report，2026-10-03 登记）**：按 `spec/Process-01 §11` 规模约定（**非强制**），`llvm-project/lib/Target/DADAO/DADAOInstrInfo.td`（**1304 行**）与 `llvm-project/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp`（**1091 行**）已 >1000（未越 2000）；另有 `qemu/target/dadao/insn_trans/trans_arith.c.inc`（**927**，逼近 1000）。**无需立即动作**——拆分是**建议性**、由人决定；如后续出现维护痛点或逼近/越过 2000，再评估拆分（如 TableGen 表项分文件、AsmParser 按指令族拆分）。归属：llvm 模块（`make size-report` 可随时复查）。
 
 - **F3 — ELF writer 存根是死代码（`LLVM-003t` reviewer F3，2026-09-17 登记）**：`DADAOELFObjectWriter.cpp` 定义了 `createDadaoELFObjectWriter`，但 `DADAOMCTargetDesc.cpp` 的 `LLVMInitializeDADAOTargetMC()` 未注册它（`RegisterELFObjectWriter` 未调用）；`createDadaoAsmBackend`/`createDadaoMCCodeEmitter` 只在 `DADAOMCTargetDesc.h` 中声明，无定义、未注册。当前 ELF writer 存根为死代码。归属：后续 ELF/汇编器任务（`LLVM-006t` 起）接线。不阻塞本任务（本任务边界 = triple 注册 + 最小 target 骨架 + `llvm-mc --version` 验证）。

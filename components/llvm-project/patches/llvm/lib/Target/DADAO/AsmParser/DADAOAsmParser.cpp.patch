@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..b37696b2f
+index 000000000..fcaa9beca
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1091 @@
+@@ -0,0 +1,1113 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1063,6 +1063,28 @@ index 000000000..b37696b2f
 +                   "branch/jump offset out of range");
 +    Flat[3] = DADAOOperand::createImm(Encoded, Flat[3]->getStartLoc(),
 +                                       Flat[3]->getEndLoc());
++  }
++
++  // Static legality check for `ret` (SPEC-083t; SimRISC-06 §函数返回):
++  // `ret rdHA, imms18` with rdHA == rd0 requires imms18 == 0; otherwise the
++  // instruction is illegal.  This is a static (assemble-time) rule and MUST be
++  // a hard error (Error level), never a warning.  Applies to `ret` only.
++  // A non-constant operand (symbol/relocation) cannot be proven to be 0, so it
++  // is rejected as well (otherwise the illegal encoding would silently reach
++  // the linker).
++  if (Mnemonic == "ret" && Flat.size() == 3 && Flat[1]->isReg()) {
++    MCRegister RdHA = Flat[1]->getReg();
++    if (RdHA == DADAO::rd0) {
++      // Note: a symbol/relocatable operand is also Kind == kImmediate (see
++      // createImmExpr), so it is distinguished by a non-null ImmExpr.
++      auto *ImmOp = static_cast<DADAOOperand *>(Flat[2].get());
++      bool IsZero = Flat[2]->isImm() && ImmOp->getImmExpr() == nullptr &&
++                    ImmOp->getImm() == 0;
++      if (!IsZero)
++        return Error(Flat[2]->getStartLoc(),
++                     "invalid 'ret': rdHA is rd0, so imms18 must be the "
++                     "constant 0 (use 'ret rd0, 0')");
++    }
 +  }
 +
 +  MCInst Inst;
