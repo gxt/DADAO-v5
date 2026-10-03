@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..43cd80a
+index 0000000..646901b
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,594 @@
+@@ -0,0 +1,846 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -14,7 +14,11 @@ index 0000000..43cd80a
 + *       rf_move (2): rd2rf/rf2rd
 + *       set_w   (1): set.w (-rf)
 + *       cs_rf   (5): cs.n/z/p/eq/ne (-rf)
-+ *   - The remaining 44 trans are ILLI stubs owned by QEMU-035t/036t/037t.
++ *   - QEMU-035t implements the bit-level semantics (10):
++ *       sign    (4): ftsgnj/ftsgnn/fosgnj/fosgnn
++ *       classify(2): ftcls/focls
++ *       compare (4): ftqcmp/ftscmp/foqcmp/foscmp
++ *   - The remaining 34 trans are ILLI stubs owned by QEMU-036t/037t.
 + *
 + * rf0 is the FCSR: reads expose the full 64 bits, writes go through
 + * store_rf() which applies RF0_WRITE_MASK for rf0.
@@ -91,6 +95,217 @@ index 0000000..43cd80a
 +    tcg_gen_andi_i64(lo, val, 0xFFFFFFFFULL);
 +    tcg_gen_or_i64(old, old, lo);
 +    tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
++}
++
++/* ── QEMU-035t: bit-level FP helpers (sign / classify / compare) ─────── */
++/*
++ * QEMU-035t implements the bit-level FP semantics with pure integer/bit
++ * operations; no softfloat is involved.  Semantics come from
++ * spec/SimRISC-07 §浮点符号位操作指令 / §浮点比较指令 / §浮点分类指令 and
++ * .tao/knowledge/contract-fp.md §7/§8/§9.
++ *
++ * ft is a 32-bit format held in the low half of the 64-bit rf register.
++ * Per the QEMU-034t/035t agreed convention, sign injection operates on the
++ * full 64-bit rf register (only the format sign bit is replaced, all other
++ * bits are preserved), and rd results are written as full 64-bit integers.
++ */
++
++/* Exactly-0/1 boolean helpers (TCG values are 0 or 1). */
++static TCGv_i64 fp_bool_not(TCGv_i64 a)
++{
++    TCGv_i64 r = tcg_temp_new_i64();
++    tcg_gen_xori_i64(r, a, 1);
++    return r;
++}
++
++static TCGv_i64 fp_and2(TCGv_i64 a, TCGv_i64 b)
++{
++    TCGv_i64 r = tcg_temp_new_i64();
++    tcg_gen_and_i64(r, a, b);
++    return r;
++}
++
++static TCGv_i64 fp_and3(TCGv_i64 a, TCGv_i64 b, TCGv_i64 c)
++{
++    return fp_and2(fp_and2(a, b), c);
++}
++
++static TCGv_i64 fp_or2(TCGv_i64 a, TCGv_i64 b)
++{
++    TCGv_i64 r = tcg_temp_new_i64();
++    tcg_gen_or_i64(r, a, b);
++    return r;
++}
++
++static void fp_set_bit_if(TCGv_i64 acc, TCGv_i64 pred, int bit)
++{
++    TCGv_i64 t = tcg_temp_new_i64();
++    tcg_gen_shli_i64(t, pred, bit);
++    tcg_gen_or_i64(acc, acc, t);
++}
++
++/* sign-injection:
++ *   result = (rfHC & ~signmask) | ((rfHD & signmask) ^ (invert ? signmask : 0))
++ * rfHD == rf0 ⇒ sign 0 ⇒ abs(); rfHC == rfHD ⇒ copy/negate.  No special
++ * cases are needed, matching SimRISC-07 §浮点符号位操作指令. */
++static void gen_fp_sign(arg_misc *a, int signpos, bool invert)
++{
++    const uint64_t signmask = 1ULL << signpos;
++    TCGv_i64 hc = load_rf(a->hc);
++    TCGv_i64 hd = load_rf(a->hd);
++    TCGv_i64 res = tcg_temp_new_i64();
++    TCGv_i64 si = tcg_temp_new_i64();
++
++    tcg_gen_andi_i64(res, hc, ~signmask);
++    tcg_gen_andi_i64(si, hd, signmask);
++    if (invert) {
++        tcg_gen_xori_i64(si, si, signmask);
++    }
++    tcg_gen_or_i64(res, res, si);
++    store_rf(a->hb, res);
++}
++
++/* True (1) iff v is a NaN (exp all ones and mantissa non-zero). */
++static TCGv_i64 fp_is_nan(TCGv_i64 v, bool isdbl)
++{
++    const int mantbits = isdbl ? 52 : 23;
++    const uint64_t expall = (1ULL << (isdbl ? 11 : 8)) - 1;
++    const uint64_t mantmask = (1ULL << mantbits) - 1;
++    TCGv_i64 exp = tcg_temp_new_i64();
++    TCGv_i64 man = tcg_temp_new_i64();
++    TCGv_i64 e_all = tcg_temp_new_i64();
++    TCGv_i64 m_nz = tcg_temp_new_i64();
++
++    tcg_gen_shri_i64(exp, v, mantbits);
++    tcg_gen_andi_i64(exp, exp, expall);
++    tcg_gen_andi_i64(man, v, mantmask);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, e_all, exp, expall);
++    tcg_gen_setcondi_i64(TCG_COND_NE, m_nz, man, 0);
++    return fp_and2(e_all, m_nz);
++}
++
++/* Classify one raw value into the [9:0] category mask
++ * (SimRISC-07 §浮点分类指令).  isdbl selects fo(64)/ft(low 32). */
++static TCGv_i64 fp_classify_one(TCGv_i64 raw, bool isdbl)
++{
++    const int mantbits = isdbl ? 52 : 23;
++    const int signpos = isdbl ? 63 : 31;
++    const uint64_t expall = (1ULL << (isdbl ? 11 : 8)) - 1;
++    const uint64_t mantmask = (1ULL << mantbits) - 1;
++    TCGv_i64 v = tcg_temp_new_i64();
++    TCGv_i64 sgn = tcg_temp_new_i64();
++    TCGv_i64 exp = tcg_temp_new_i64();
++    TCGv_i64 man = tcg_temp_new_i64();
++    TCGv_i64 mmsb = tcg_temp_new_i64();
++    TCGv_i64 exp_zero = tcg_temp_new_i64();
++    TCGv_i64 exp_all = tcg_temp_new_i64();
++    TCGv_i64 man_zero = tcg_temp_new_i64();
++
++    if (isdbl) {
++        tcg_gen_mov_i64(v, raw);
++    } else {
++        tcg_gen_andi_i64(v, raw, 0xFFFFFFFFULL);
++    }
++
++    tcg_gen_shri_i64(sgn, v, signpos);
++    tcg_gen_andi_i64(sgn, sgn, 1);
++    tcg_gen_shri_i64(exp, v, mantbits);
++    tcg_gen_andi_i64(exp, exp, expall);
++    tcg_gen_andi_i64(man, v, mantmask);
++    tcg_gen_shri_i64(mmsb, v, mantbits - 1);
++    tcg_gen_andi_i64(mmsb, mmsb, 1);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, exp_zero, exp, 0);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, exp_all, exp, expall);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, man_zero, man, 0);
++
++    TCGv_i64 ns = fp_bool_not(sgn);
++    TCGv_i64 nz = fp_bool_not(exp_zero);
++    TCGv_i64 na = fp_bool_not(exp_all);
++    TCGv_i64 nmz = fp_bool_not(man_zero);
++    TCGv_i64 nmb = fp_bool_not(mmsb);
++
++    TCGv_i64 acc = tcg_temp_new_i64();
++    tcg_gen_movi_i64(acc, 0);
++    fp_set_bit_if(acc, fp_and3(sgn, exp_all, man_zero), 0);   /* negInfinity */
++    fp_set_bit_if(acc, fp_and3(sgn, nz, na), 1);              /* negNormal   */
++    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, nmz), 2);       /* negSubnormal*/
++    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, man_zero), 3);  /* negZero     */
++    fp_set_bit_if(acc, fp_and3(ns, exp_zero, man_zero), 4);   /* posZero     */
++    fp_set_bit_if(acc, fp_and3(ns, exp_zero, nmz), 5);        /* posSubnormal*/
++    fp_set_bit_if(acc, fp_and3(ns, nz, na), 6);               /* posNormal   */
++    fp_set_bit_if(acc, fp_and3(ns, exp_all, man_zero), 7);    /* posInfinity */
++    fp_set_bit_if(acc, fp_and3(exp_all, nmz, nmb), 8);        /* signalingNaN*/
++    fp_set_bit_if(acc, fp_and3(exp_all, nmz, mmsb), 9);       /* quietNaN    */
++    return acc;
++}
++
++/* IEEE three-way compare of two raw values (already width-masked):
++ *   rfHC > rfHD → 1, == → 0, < → -1; unordered → nan_const.
++ * ±0 compare equal; the compare family sets no exception flags. */
++static void gen_fp_cmp(arg_misc *a, bool isdbl, uint64_t nan_const)
++{
++    const int signpos = isdbl ? 63 : 31;
++    const uint64_t signmask = 1ULL << signpos;
++    const uint64_t magmask = signmask - 1;
++    TCGv_i64 zero = tcg_constant_i64(0);
++    TCGv_i64 va = load_rf(a->hc);
++    TCGv_i64 vb = load_rf(a->hd);
++    TCGv_i64 sa = tcg_temp_new_i64();
++    TCGv_i64 sb = tcg_temp_new_i64();
++    TCGv_i64 ma = tcg_temp_new_i64();
++    TCGv_i64 mb = tcg_temp_new_i64();
++    TCGv_i64 unord;
++    TCGv_i64 same_sign = tcg_temp_new_i64();
++    TCGv_i64 mag_gt = tcg_temp_new_i64();
++    TCGv_i64 mag_lt = tcg_temp_new_i64();
++    TCGv_i64 gt_ss = tcg_temp_new_i64();
++    TCGv_i64 lt_ss = tcg_temp_new_i64();
++    TCGv_i64 a_zero = tcg_temp_new_i64();
++    TCGv_i64 b_zero = tcg_temp_new_i64();
++    TCGv_i64 not_both = tcg_temp_new_i64();
++    TCGv_i64 gt_ds;
++    TCGv_i64 lt_ds;
++    TCGv_i64 gt = tcg_temp_new_i64();
++    TCGv_i64 lt = tcg_temp_new_i64();
++    TCGv_i64 cmp = tcg_temp_new_i64();
++    TCGv_i64 res = tcg_temp_new_i64();
++
++    if (!isdbl) {
++        tcg_gen_andi_i64(va, va, 0xFFFFFFFFULL);
++        tcg_gen_andi_i64(vb, vb, 0xFFFFFFFFULL);
++    }
++    unord = fp_or2(fp_is_nan(va, isdbl), fp_is_nan(vb, isdbl));
++
++    tcg_gen_shri_i64(sa, va, signpos);
++    tcg_gen_andi_i64(sa, sa, 1);
++    tcg_gen_shri_i64(sb, vb, signpos);
++    tcg_gen_andi_i64(sb, sb, 1);
++    tcg_gen_andi_i64(ma, va, magmask);
++    tcg_gen_andi_i64(mb, vb, magmask);
++
++    tcg_gen_setcond_i64(TCG_COND_EQ, same_sign, sa, sb);
++    tcg_gen_setcond_i64(TCG_COND_GTU, mag_gt, ma, mb);
++    tcg_gen_setcond_i64(TCG_COND_LTU, mag_lt, ma, mb);
++
++    /* same sign: non-negative → magnitude order; negative → reversed. */
++    tcg_gen_movcond_i64(TCG_COND_EQ, gt_ss, sa, zero, mag_gt, mag_lt);
++    tcg_gen_movcond_i64(TCG_COND_EQ, lt_ss, sa, zero, mag_lt, mag_gt);
++
++    /* different sign: positive > negative, except ±0 which are equal. */
++    tcg_gen_setcondi_i64(TCG_COND_EQ, a_zero, ma, 0);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, b_zero, mb, 0);
++    tcg_gen_and_i64(not_both, a_zero, b_zero);
++    tcg_gen_xori_i64(not_both, not_both, 1);
++    gt_ds = fp_and2(fp_bool_not(sa), not_both);
++    lt_ds = fp_and2(sa, not_both);
++
++    tcg_gen_movcond_i64(TCG_COND_NE, gt, same_sign, zero, gt_ss, gt_ds);
++    tcg_gen_movcond_i64(TCG_COND_NE, lt, same_sign, zero, lt_ss, lt_ds);
++
++    tcg_gen_sub_i64(cmp, gt, lt);          /* 1 / 0 / -1 (two's complement) */
++    tcg_gen_movcond_i64(TCG_COND_NE, res, unord, zero,
++                        tcg_constant_i64(nan_const), cmp);
++    store_rd(a->hb, res);
 +}
 +
 +/* ── rf_mem: ld.t / st.t / ld.o / st.o (rrii) ────────────────────────── */
@@ -325,18 +540,34 @@ index 0000000..43cd80a
 +    return true;
 +}
 +
-+/* ── Remaining FP trans: ILLI stubs (QEMU-035t/036t/037t) ────────────── */
++/* ── Remaining FP trans (real: classify; stub: QEMU-036t/037t) ───────── */
 +
 +/* classify */
 +static bool trans_ftcls_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        store_rd(a->hb + i, fp_classify_one(load_rf(a->hc + i), false));
++    }
 +    return true;
 +}
 +
 +static bool trans_focls_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        store_rd(a->hb + i, fp_classify_one(load_rf(a->hc + i), true));
++    }
 +    return true;
 +}
 +
@@ -552,49 +783,70 @@ index 0000000..43cd80a
 +/* sign */
 +static bool trans_ftsgnj_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    gen_fp_sign(a, 31, false);
 +    return true;
 +}
 +
 +static bool trans_ftsgnn_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    gen_fp_sign(a, 31, true);
 +    return true;
 +}
 +
 +static bool trans_fosgnj_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    gen_fp_sign(a, 63, false);
 +    return true;
 +}
 +
 +static bool trans_fosgnn_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    gen_fp_sign(a, 63, true);
 +    return true;
 +}
 +
 +/* compare */
++/* Unordered result constants (sign bit 0):
++ *   quiet compare     → qNaN  0x7FC00000 (ft) / 0x7FF8000000000000 (fo)
++ *   signaling compare → sNaN  0x7F800001 (ft) / 0x7FF0000000000001 (fo)
++ * The qNaN values match the FCSR qNaN(ft/fo) fields (SimRISC-00). */
++#define FP_FT_QNAN  0x000000007FC00000ULL
++#define FP_FT_SNAN  0x000000007F800001ULL
++#define FP_FO_QNAN  0x7FF8000000000000ULL
++#define FP_FO_SNAN  0x7FF0000000000001ULL
++
 +static bool trans_ftqcmp_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    gen_fp_cmp(a, false, FP_FT_QNAN);
 +    return true;
 +}
 +
 +static bool trans_ftscmp_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    gen_fp_cmp(a, false, FP_FT_SNAN);
 +    return true;
 +}
 +
 +static bool trans_foqcmp_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    gen_fp_cmp(a, true, FP_FO_QNAN);
 +    return true;
 +}
 +
 +static bool trans_foscmp_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    gen_exception_illegal(ctx);
++    gen_fp_cmp(a, true, FP_FO_SNAN);
 +    return true;
 +}
