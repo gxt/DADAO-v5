@@ -1,0 +1,504 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
+new file mode 100644
+index 000000000..79d3405e4
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
+@@ -0,0 +1,498 @@
++//===-- DADAOInstrInfoFP.td - DADAO FP instruction defs ---*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// DADAO FP (scope: fp) instruction definitions (60 instructions).
++//
++// Hand-written (NOT generated): the `op`/`ha` (opx) values below are taken
++// verbatim from contracts/opcodes.yaml, which is the single source of truth
++// for the encoding.  Operand bindings follow the `fields` order declared in
++// that contract (`role=dst` → OutOperandList, `role=src/imm/wyde_pos` →
++// InOperandList); the operand name IS the format class's bits<> field name.
++//
++// This file is included at the end of DADAOInstrInfo.td, after the shared
++// format classes and operand types are defined.
++//
++//===----------------------------------------------------------------------===//
++
++// --- rrii format (4 instructions) ---
++
++def ld_t_rrii_rf : DADAORrii<"ld.t"> {
++  let OutOperandList = (outs GPRF:$ra);
++  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
++  let op = 0x16;
++  let Pattern = [];
++}
++
++def st_t_rrii_rf : DADAORrii<"st.t"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins GPRF:$ra, GPRB:$rb, imms12:$imm12);
++  let op = 0x17;
++  let Pattern = [];
++}
++
++def ld_o_rrii_rf : DADAORrii<"ld.o"> {
++  let OutOperandList = (outs GPRF:$ra);
++  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
++  let op = 0x26;
++  let Pattern = [];
++}
++
++def st_o_rrii_rf : DADAORrii<"st.o"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins GPRF:$ra, GPRB:$rb, imms12:$imm12);
++  let op = 0x27;
++  let Pattern = [];
++}
++
++// --- rrri format (4 instructions) ---
++
++def ldm_t_rrri_rf : DADAORrri<"ldm.t"> {
++  let OutOperandList = (outs GPRF:$ra);
++  let InOperandList = (ins GPRB:$rb, GPRD:$rc, immu6:$imm6);
++  let op = 0x2E;
++  let Pattern = [];
++}
++
++def stm_t_rrri_rf : DADAORrri<"stm.t"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins GPRF:$ra, GPRB:$rb, GPRD:$rc, immu6:$imm6);
++  let op = 0x2F;
++  let Pattern = [];
++}
++
++def ldm_o_rrri_rf : DADAORrri<"ldm.o"> {
++  let OutOperandList = (outs GPRF:$ra);
++  let InOperandList = (ins GPRB:$rb, GPRD:$rc, immu6:$imm6);
++  let op = 0x3E;
++  let Pattern = [];
++}
++
++def stm_o_rrri_rf : DADAORrri<"stm.o"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins GPRF:$ra, GPRB:$rb, GPRD:$rc, immu6:$imm6);
++  let op = 0x3F;
++  let Pattern = [];
++}
++
++// --- rwii format (1 instruction) ---
++
++def set_w_rwii_rf : DADAORwii<"set.w"> {
++  let OutOperandList = (outs GPRF:$ra);
++  let InOperandList = (ins wydepos:$wp, immu16:$imm16);
++  let op = 0x4F;
++  let Pattern = [];
++}
++
++// --- rrrr format (5 instructions) ---
++
++def cs_eq_rrrr_rf : DADAORrrr<"cs.eq"> {
++  let OutOperandList = (outs GPRF:$rc);
++  let InOperandList = (ins GPRD:$ra, GPRD:$rb, GPRF:$rd);
++  let op = 0x5E;
++  let Pattern = [];
++}
++
++def cs_ne_rrrr_rf : DADAORrrr<"cs.ne"> {
++  let OutOperandList = (outs GPRF:$rc);
++  let InOperandList = (ins GPRD:$ra, GPRD:$rb, GPRF:$rd);
++  let op = 0x5F;
++  let Pattern = [];
++}
++
++def cs_n_rrrr_rf : DADAORrrr<"cs.n"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$ra, GPRF:$rc, GPRF:$rd);
++  let op = 0x61;
++  let Pattern = [];
++}
++
++def cs_z_rrrr_rf : DADAORrrr<"cs.z"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$ra, GPRF:$rc, GPRF:$rd);
++  let op = 0x63;
++  let Pattern = [];
++}
++
++def cs_p_rrrr_rf : DADAORrrr<"cs.p"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$ra, GPRF:$rc, GPRF:$rd);
++  let op = 0x65;
++  let Pattern = [];
++}
++
++// --- orrr format (20 instructions; op=0x44, ha=opx) ---
++
++def ftadd_orrr_rf : DADAOOrrr<"ftadd"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x10;
++  let Pattern = [];
++}
++
++def ftsub_orrr_rf : DADAOOrrr<"ftsub"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x11;
++  let Pattern = [];
++}
++
++def ftmul_orrr_rf : DADAOOrrr<"ftmul"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x12;
++  let Pattern = [];
++}
++
++def ftdiv_orrr_rf : DADAOOrrr<"ftdiv"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x13;
++  let Pattern = [];
++}
++
++def ftrem_orrr_rf : DADAOOrrr<"ftrem"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x14;
++  let Pattern = [];
++}
++
++def ftsclb_orrr_rf : DADAOOrrr<"ftsclb"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x15;
++  let Pattern = [];
++}
++
++def ftsgnn_orrr_rf : DADAOOrrr<"ftsgnn"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x16;
++  let Pattern = [];
++}
++
++def ftsgnj_orrr_rf : DADAOOrrr<"ftsgnj"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x17;
++  let Pattern = [];
++}
++
++def foadd_orrr_rf : DADAOOrrr<"foadd"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x18;
++  let Pattern = [];
++}
++
++def fosub_orrr_rf : DADAOOrrr<"fosub"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x19;
++  let Pattern = [];
++}
++
++def fomul_orrr_rf : DADAOOrrr<"fomul"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x1A;
++  let Pattern = [];
++}
++
++def fodiv_orrr_rf : DADAOOrrr<"fodiv"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x1B;
++  let Pattern = [];
++}
++
++def forem_orrr_rf : DADAOOrrr<"forem"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x1C;
++  let Pattern = [];
++}
++
++def fosclb_orrr_rf : DADAOOrrr<"fosclb"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x1D;
++  let Pattern = [];
++}
++
++def fosgnn_orrr_rf : DADAOOrrr<"fosgnn"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x1E;
++  let Pattern = [];
++}
++
++def fosgnj_orrr_rf : DADAOOrrr<"fosgnj"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x1F;
++  let Pattern = [];
++}
++
++def ftqcmp_orrr_rf : DADAOOrrr<"ftqcmp"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x20;
++  let Pattern = [];
++}
++
++def ftscmp_orrr_rf : DADAOOrrr<"ftscmp"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x21;
++  let Pattern = [];
++}
++
++def foqcmp_orrr_rf : DADAOOrrr<"foqcmp"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x28;
++  let Pattern = [];
++}
++
++def foscmp_orrr_rf : DADAOOrrr<"foscmp"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, GPRF:$rd);
++  let op = 0x44;
++  let ha = 0x29;
++  let Pattern = [];
++}
++
++// --- orri format (26 instructions) ---
++
++def ftcls_orri_rf : DADAOOrri<"ftcls"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x00;
++  let Pattern = [];
++}
++
++def ft2fo_orri_rf : DADAOOrri<"ft2fo"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x01;
++  let Pattern = [];
++}
++
++def ft2ft_orri_rf : DADAOOrri<"ft2ft"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x02;
++  let Pattern = [];
++}
++
++def ftroot_orri_rf : DADAOOrri<"ftroot"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x06;
++  let Pattern = [];
++}
++
++def focls_orri_rf : DADAOOrri<"focls"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x08;
++  let Pattern = [];
++}
++
++def fo2ft_orri_rf : DADAOOrri<"fo2ft"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x09;
++  let Pattern = [];
++}
++
++def fo2fo_orri_rf : DADAOOrri<"fo2fo"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x0A;
++  let Pattern = [];
++}
++
++def foroot_orri_rf : DADAOOrri<"foroot"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x0E;
++  let Pattern = [];
++}
++
++def ft2it_orri_rf : DADAOOrri<"ft2it"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x30;
++  let Pattern = [];
++}
++
++def ft2io_orri_rf : DADAOOrri<"ft2io"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x31;
++  let Pattern = [];
++}
++
++def ft2ut_orri_rf : DADAOOrri<"ft2ut"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x32;
++  let Pattern = [];
++}
++
++def ft2uo_orri_rf : DADAOOrri<"ft2uo"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x33;
++  let Pattern = [];
++}
++
++def it2ft_orri_rf : DADAOOrri<"it2ft"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x34;
++  let Pattern = [];
++}
++
++def io2ft_orri_rf : DADAOOrri<"io2ft"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x35;
++  let Pattern = [];
++}
++
++def ut2ft_orri_rf : DADAOOrri<"ut2ft"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x36;
++  let Pattern = [];
++}
++
++def uo2ft_orri_rf : DADAOOrri<"uo2ft"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x37;
++  let Pattern = [];
++}
++
++def fo2it_orri_rf : DADAOOrri<"fo2it"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x38;
++  let Pattern = [];
++}
++
++def fo2io_orri_rf : DADAOOrri<"fo2io"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x39;
++  let Pattern = [];
++}
++
++def fo2ut_orri_rf : DADAOOrri<"fo2ut"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x3A;
++  let Pattern = [];
++}
++
++def fo2uo_orri_rf : DADAOOrri<"fo2uo"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x3B;
++  let Pattern = [];
++}
++
++def it2fo_orri_rf : DADAOOrri<"it2fo"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x3C;
++  let Pattern = [];
++}
++
++def rd2rf_orri_rf : DADAOOrri<"rd2rf"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x40;
++  let ha = 0x3D;
++  let Pattern = [];
++}
++
++def io2fo_orri_rf : DADAOOrri<"io2fo"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x3D;
++  let Pattern = [];
++}
++
++def rf2rd_orri_rf : DADAOOrri<"rf2rd"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let op = 0x40;
++  let ha = 0x3E;
++  let Pattern = [];
++}
++
++def ut2fo_orri_rf : DADAOOrri<"ut2fo"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x3E;
++  let Pattern = [];
++}
++
++def uo2fo_orri_rf : DADAOOrri<"uo2fo"> {
++  let OutOperandList = (outs GPRF:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x44;
++  let ha = 0x3F;
++  let Pattern = [];
++}

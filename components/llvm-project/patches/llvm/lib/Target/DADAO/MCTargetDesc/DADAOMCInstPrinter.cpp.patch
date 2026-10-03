@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000..e09ccbc68
+index 000000000..0746bbbfa
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,387 @@
+@@ -0,0 +1,398 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -336,7 +336,18 @@ index 000000000..e09ccbc68
 +        StringRef MnemStr(Mnem);
 +        if (MnemStr == "ra2rd" || MnemStr == "rb2rb" || MnemStr == "rb2rd" ||
 +            MnemStr == "rd2ra" || MnemStr == "rd2rb" || MnemStr == "rd2rd" ||
-+            MnemStr == "rd2rf" || MnemStr == "rf2rd") {
++            MnemStr == "rd2rf" || MnemStr == "rf2rd" ||
++            MnemStr == "ft2fo" || MnemStr == "fo2ft" ||
++            MnemStr == "ft2ft" || MnemStr == "fo2fo" ||
++            MnemStr == "ft2it" || MnemStr == "ft2io" ||
++            MnemStr == "ft2ut" || MnemStr == "ft2uo" ||
++            MnemStr == "fo2it" || MnemStr == "fo2io" ||
++            MnemStr == "fo2ut" || MnemStr == "fo2uo" ||
++            MnemStr == "it2ft" || MnemStr == "io2ft" ||
++            MnemStr == "ut2ft" || MnemStr == "uo2ft" ||
++            MnemStr == "it2fo" || MnemStr == "io2fo" ||
++            MnemStr == "ut2fo" || MnemStr == "uo2fo" ||
++            MnemStr == "ftcls" || MnemStr == "focls") {
 +          unsigned Count = MI->getOperand(2).getImm();
 +          O << " ";
 +          printRegGroupRange(O, MI->getOperand(0).getReg(), Count);

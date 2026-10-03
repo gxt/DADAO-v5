@@ -11,6 +11,7 @@ llvm/lib/Target/DADAO/DADAOInstrFormats.td.patch
 llvm/lib/Target/DADAO/DADAOInstrInfo.cpp.patch
 llvm/lib/Target/DADAO/DADAOInstrInfo.h.patch
 llvm/lib/Target/DADAO/DADAOInstrInfo.td.patch
+llvm/lib/Target/DADAO/DADAOInstrInfoFP.td.patch
 llvm/lib/Target/DADAO/DADAORegisterInfo.cpp.patch
 llvm/lib/Target/DADAO/DADAORegisterInfo.h.patch
 llvm/lib/Target/DADAO/DADAORegisterInfo.td.patch

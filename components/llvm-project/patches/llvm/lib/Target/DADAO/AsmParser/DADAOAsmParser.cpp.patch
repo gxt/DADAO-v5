@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..be307745f
+index 000000000..3faa5fb95
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1147 @@
+@@ -0,0 +1,1177 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -831,6 +831,21 @@ index 000000000..be307745f
 +  return false;
 +}
 +
++// FP block mnemonics (scope: fp) whose orri form carries a single immu6 that
++// encodes the element count shared by both `{start:end}` groups.  `rd2rf` and
++// `rf2rd` are FP block moves too and are handled alongside these 22 mnemonics
++// at the two call sites below.
++static bool isFPBlockMnemonic(StringRef Mnem) {
++  return Mnem == "ft2fo" || Mnem == "fo2ft" || Mnem == "ft2ft" ||
++         Mnem == "fo2fo" || Mnem == "ft2it" || Mnem == "ft2io" ||
++         Mnem == "ft2ut" || Mnem == "ft2uo" || Mnem == "fo2it" ||
++         Mnem == "fo2io" || Mnem == "fo2ut" || Mnem == "fo2uo" ||
++         Mnem == "it2ft" || Mnem == "io2ft" || Mnem == "ut2ft" ||
++         Mnem == "uo2ft" || Mnem == "it2fo" || Mnem == "io2fo" ||
++         Mnem == "ut2fo" || Mnem == "uo2fo" || Mnem == "ftcls" ||
++         Mnem == "focls";
++}
++
 +//===----------------------------------------------------------------------===//
 +// matchAndEmitInstruction — decompose complex operands and match.
 +//
@@ -906,6 +921,20 @@ index 000000000..be307745f
 +                       "register ranges overlap (mreg_range_overlap); source "
 +                       "and destination must be disjoint");
 +      }
++
++      // Hardening for FP block instructions (LLVM-029t): the orri conversion /
++      // classify / rd2rf / rf2rd forms carry a *single* immu6 that encodes the
++      // element count shared by both `{start:end}` groups.  If the two written
++      // groups have different sizes the instruction is ill-formed, so reject it
++      // with a hard error instead of silently taking one of the two counts.
++      // The pre-existing M1 `rd2rd`/`rb2rb` behaviour (last group wins) is left
++      // unchanged.
++      if ((isFPBlockMnemonic(Mnem) || Mnem == "rd2rf" || Mnem == "rf2rd") &&
++          DstOp->getGroupCount() != SrcOp->getGroupCount())
++        return Error(DstOp->getStartLoc(),
++                     "invalid '" + Mnem.str() + "': source and destination "
++                     "register group counts differ (they share a single immu6 "
++                     "element count)");
 +    }
 +  }
 +
@@ -1000,7 +1029,8 @@ index 000000000..be307745f
 +      (Mnemonic.starts_with("ldm.") || Mnemonic.starts_with("stm.") ||
 +       Mnemonic == "ra2rd" || Mnemonic == "rb2rb" || Mnemonic == "rb2rd" ||
 +       Mnemonic == "rd2ra" || Mnemonic == "rd2rb" || Mnemonic == "rd2rd" ||
-+       Mnemonic == "rd2rf" || Mnemonic == "rf2rd")) {
++       Mnemonic == "rd2rf" || Mnemonic == "rf2rd" ||
++       isFPBlockMnemonic(Mnemonic))) {
 +    Flat.push_back(DADAOOperand::createImm(SavedGroupCount, GroupLoc, GroupLoc));
 +  }
 +

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000000..8238bd692eec
+index 000000000..8a8ccade3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1304 @@
+@@ -0,0 +1,1305 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1308,3 +1308,4 @@ index 000000000000..8238bd692eec
 +  let ha = 0x02;
 +  let Pattern = [];
 +}
++include "DADAOInstrInfoFP.td"
