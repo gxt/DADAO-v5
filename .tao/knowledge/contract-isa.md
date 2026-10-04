@@ -62,7 +62,7 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 | [21:5] | SBZ | 应为零 |
 | [4:0] | R/W | 异常状态（Accrued Exception） |
 
-写 `rf0` 时**只更新** `[33:32]`（舍入模式）与 `[4:0]`（异常状态），其余位（只读 Quiet NaN 位、SBZ）**写无效、保持原值**。
+写 `rf0` 时**只更新** `[33:32]`（舍入模式）与 `[4:0]`（异常状态），其余位（只读 Quiet NaN 位、SBZ）**写无效、保持原值**。[SimRISC-00 §浮点状态寄存器]
 
 舍入模式编码：[SimRISC-00 §浮点状态寄存器]
 
@@ -154,9 +154,9 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 - `o`：六位的 opx
 - `c`：六位的 cfxha
 - `r`：寄存器
-- `i`：立即数（立即数域需要区分有符号数和无符号数）
+- `i`：立即数（立即数域需要区分有符号数和无符号数）[SimRISC-00 §指令域说明]
 - `w`：头两位为 wyde-position，后四位为立即数
-- `z`：未使用，应为零（SBZ）
+- `z`：未使用，应为零（SBZ）[SimRISC-00 §指令域说明]
 
 ### §2.3 操作数格式
 
@@ -608,7 +608,7 @@ shr.s: rdhb[N:0]   = (rdhc[N:0] >> shamt) with sign(N)   // 算术右移，高�
 ```
 [SimRISC-04 §Bit manipulating：位操作指令]
 
-**SPEC-069t 值语义通则**：所有移位/比较指令的结果均写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。64 位操作 N=63 自然写满；32/16/8 位操作的高位扩展规则见 §10.4.1/§11.4.1/§12.4.1。
+**SPEC-069t 值语义通则**：所有移位/比较指令的结果均写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。64 位操作 N=63 自然写满；32/16/8 位操作的高位扩展规则见 §10.4.1/§11.4.1/§12.4.1。[spec-decision]
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
@@ -823,7 +823,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 浮点类指令（SimRISC-07 + 散见 SimRISC-01/02/03 的 RF 形态，共 60 条）整体为 **`scope: fp`**（未实现，decode ILLI）；其规范内容已提取至独立叙述合约 `.tao/knowledge/contract-fp.md`（机器可读投影 `contracts/fp_semantics.yaml`，合法性规则见 `contracts/legality_rules.yaml`）。[SimRISC-07 §版本]
 
 - 范围：`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o`（RF 存取）、`rf2rd`/`rd2rf`、`set.w`、格式转换、浮点算术/符号位/比较/条件赋值/分类指令、`set.ft`/`set.fo` 伪指令。
-- 唯一例外：`rf0`（FCSR）的寄存器模型/位布局属 §1.3.3，M1 测试机复位值需要，已在 §1.3.3 提取。
+- 唯一例外：`rf0`（FCSR）的寄存器模型/位布局属 §1.3.3，M1 测试机复位值需要，已在 §1.3.3 提取。[SimRISC-00 §浮点状态寄存器]
 - 浮点指令的 rf0 操作数约定（**目的**为 rf0 → ILLI；作**源**合法）等属浮点内容，M1 不提取。[SimRISC-00 §浮点寄存器]
 - 完整浮点规范与编码留后续阶段（见 `.tao/knowledge/issues.yaml`）。
 
@@ -859,14 +859,14 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 ### §10.2 32 位比较（orrr 格式）— 值语义
 
-源操作数按 size 截断后比较，结果（−1/0/1）写入目的寄存器全 64 位。[SimRISC-08 §比较操作]
+源操作数按 size 截断后比较，结果（−1/0/1）写入目的寄存器全 64 位。[SimRISC-08 §比较操作 — 值语义]
 
 | 指令 | 位宽 | 比较范围 |
 |------|------|---------|
 | `cmp.ut`/`cmp.st` | 32 位 | bits[31:0] |
 
-- 汇编语法：`cmp.ut rdhb, rdhc, rdhd`。[SimRISC-08 §比较操作]
-- 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-08 §比较操作]
+- 汇编语法：`cmp.ut rdhb, rdhc, rdhd`。[SimRISC-08 §比较操作 — 值语义]
+- 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-08 §比较操作 — 值语义]
 - **高位规则（SPEC-069t）**：比较结果 −1/0/+1 按后缀扩展写满64位——`.st` ⇒ 符号扩展；`.ut` ⇒ 零扩展。
 
 ### §10.3 32 位逻辑运算 — 已删除
@@ -880,7 +880,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
 | `shl.ut`/`shr.ut`/`shr.st` | 31 | 0–31 | `hd[4:0]`，`hd[5]` 应为零 |
-[SimRISC-08 §Bit manipulating：位操作指令]
+[SimRISC-08 §Bit manipulating：位操作指令 — 值语义]
 
 运算公式（**SPEC-069t：值语义，写满64位**）：
 ```
@@ -892,7 +892,7 @@ shr.st:  rdhb[31:0]  = (rdhc[31:0] >> shamt) with sign(31) // 算术右移，高
          rdhb[63:32] = sign_extend(rdhc[31])                 // 高位符号扩展
 ```
 
-异常条件：`shamt > N` → **ILLI**。[SimRISC-08 §Bit manipulating：位操作指令]
+异常条件：`shamt > N` → **ILLI**。[SimRISC-08 §Bit manipulating：位操作指令 — 值语义]
 
 #### §10.4.2 32 位符号/零扩展 — 已删除
 
@@ -938,14 +938,14 @@ shr.st:  rdhb[31:0]  = (rdhc[31:0] >> shamt) with sign(31) // 算术右移，高
 
 ### §11.2 16 位比较（orrr 格式）— 值语义
 
-源操作数按 size 截断后比较，结果（−1/0/1）写入目的寄存器全 64 位。[SimRISC-09 §比较操作]
+源操作数按 size 截断后比较，结果（−1/0/1）写入目的寄存器全 64 位。[SimRISC-09 §比较操作 — 值语义]
 
 | 指令 | 位宽 | 比较范围 |
 |------|------|---------|
 | `cmp.uw`/`cmp.sw` | 16 位 | bits[15:0] |
 
-- 汇编语法：`cmp.uw rdhb, rdhc, rdhd`。[SimRISC-09 §比较操作]
-- 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-09 §比较操作]
+- 汇编语法：`cmp.uw rdhb, rdhc, rdhd`。[SimRISC-09 §比较操作 — 值语义]
+- 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-09 §比较操作 — 值语义]
 - **高位规则（SPEC-069t）**：比较结果 −1/0/+1 按后缀扩展写满64位——`.sw` ⇒ 符号扩展；`.uw` ⇒ 零扩展。
 
 ### §11.3 16 位逻辑运算 — 已删除
@@ -959,7 +959,7 @@ shr.st:  rdhb[31:0]  = (rdhc[31:0] >> shamt) with sign(31) // 算术右移，高
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
 | `shl.uw`/`shr.uw`/`shr.sw` | 15 | 0–15 | `hd[3:0]`，`hd[5:4]` 应为零 |
-[SimRISC-09 §Bit manipulating：位操作指令]
+[SimRISC-09 §Bit manipulating：位操作指令 — 值语义]
 
 运算公式（**SPEC-069t：值语义，写满64位**）：
 ```
@@ -971,7 +971,7 @@ shr.sw:  rdhb[15:0]  = (rdhc[15:0] >> shamt) with sign(15)
          rdhb[63:16] = sign_extend(rdhc[15])                 // 高位符号扩展
 ```
 
-异常条件：`shamt > N` → **ILLI**。[SimRISC-09 §Bit manipulating：位操作指令]
+异常条件：`shamt > N` → **ILLI**。[SimRISC-09 §Bit manipulating：位操作指令 — 值语义]
 
 #### §11.4.2 16 位符号/零扩展 — 已删除
 
@@ -1017,14 +1017,14 @@ shr.sw:  rdhb[15:0]  = (rdhc[15:0] >> shamt) with sign(15)
 
 ### §12.2 8 位比较（orrr 格式）— 值语义
 
-源操作数按 size 截断后比较，结果（−1/0/1）写入目的寄存器全 64 位。[SimRISC-10 §比较操作]
+源操作数按 size 截断后比较，结果（−1/0/1）写入目的寄存器全 64 位。[SimRISC-10 §比较操作 — 值语义]
 
 | 指令 | 位宽 | 比较范围 |
 |------|------|---------|
 | `cmp.ub`/`cmp.sb` | 8 位 | bits[7:0] |
 
-- 汇编语法：`cmp.ub rdhb, rdhc, rdhd`。[SimRISC-10 §比较操作]
-- 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-10 §比较操作]
+- 汇编语法：`cmp.ub rdhb, rdhc, rdhd`。[SimRISC-10 §比较操作 — 值语义]
+- 异常条件：`rdhb` 为 `rd0` → **ILLI**。[SimRISC-10 §比较操作 — 值语义]
 - **高位规则（SPEC-069t）**：比较结果 −1/0/+1 按后缀扩展写满64位——`.sb` ⇒ 符号扩展；`.ub` ⇒ 零扩展。
 
 ### §12.3 8 位逻辑运算 — 已删除
@@ -1038,7 +1038,7 @@ shr.sw:  rdhb[15:0]  = (rdhc[15:0] >> shamt) with sign(15)
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
 | `shl.ub`/`shr.ub`/`shr.sb` | 7 | 0–7 | `hd[2:0]`，`hd[5:3]` 应为零 |
-[SimRISC-10 §Bit manipulating：位操作指令]
+[SimRISC-10 §Bit manipulating：位操作指令 — 值语义]
 
 运算公式（**SPEC-069t：值语义，写满64位**）：
 ```
@@ -1050,7 +1050,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
          rdhb[63:8]  = sign_extend(rdhc[7])                  // 高位符号扩展
 ```
 
-异常条件：`shamt > N` → **ILLI**。[SimRISC-10 §Bit manipulating：位操作指令]
+异常条件：`shamt > N` → **ILLI**。[SimRISC-10 §Bit manipulating：位操作指令 — 值语义]
 
 #### §12.4.2 8 位符号/零扩展 — 已删除
 
@@ -1068,7 +1068,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 
 ## §13 其它指令
 
-> 范围：占位指令 `swym`、非法指令 `illi`、NOP 伪指令、保留编码与全零指令。特权 cfx 指令与 LR-SC 原子指令见 §14（Excluded from M1）。
+> 范围：占位指令 `swym`、非法指令 `illi`、NOP 伪指令、保留编码与全零指令。特权 cfx 指令与 LR-SC 原子指令见 §14（Excluded from M1）。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
 
 ### §13.1 占位指令 swym（oiii 格式）
 
@@ -1139,7 +1139,7 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 `lr`/`sc` 原子指令（`lr_nn.o`/`lr_nr.o`/`lr_an.o`/`lr_ar.o`、`sc_nn.o`/`sc_nr.o`/`sc_an.o`/`sc_ar.o`）**`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-12 §LR-SC指令]
 
-- 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/issues.yaml`）。
+- 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/issues.yaml`）。[spec-decision]
 - 编码位置：`MISC-AMO` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §MISC-AMO 指令编码]
 
 ### §14.3 特权 cfx 系统指令 — scope: excluded
@@ -1192,7 +1192,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 ### §15.2 精确异常承诺
 
-- `div`/`rem` 中 `rdhb` 为 `rd0` 触发 ILLI 时目的寄存器未写入（无副作用）。除数为零和有符号溢出（INT_MIN ÷ −1）不再触发异常，改为定值语义（见 §6.1.5）。[SimRISC-04/08/09/10 §乘除操作][用户裁定 2026-10-01]
+- `div`/`rem` 中 `rdhb` 为 `rd0` 触发 ILLI 时目的寄存器未写入（无副作用）。除数为零和有符号溢出（INT_MIN ÷ −1）不再触发异常，改为定值语义（见 §6.1.5）。[SimRISC-04 §乘除操作][SimRISC-08 §乘除操作][SimRISC-09 §乘除操作][SimRISC-10 §乘除操作][用户裁定 2026-10-01]
 - RASOF/RASUF 触发时 RA 寄存器保持异常前状态（push/pop 未提交），PC 指向触发异常的 call/ret 指令。[SimRISC-00 §返回地址栈]
 - MemRAS 访存异常时硬件保证精确异常（压栈/弹栈未执行，PC 指向 call/ret 指令），异常处理后可重新执行。[SimRISC-00 §返回地址栈]
 

@@ -7,7 +7,17 @@
 Check 1: 每个 [SimRISC-XX §...] / [DADAO-XX §...] 可解析到 spec/ 真实内容。
          三类命中: 标题(#1~4) > 粗体引子(> **X**：/ **X**) > 正文行。
 Check 2: 含规范标记(ILLI/UNDI/MALIGN/IALIGN/保留/reserved/必须 等) 且既无
-         spec 引用也无 [spec-decision]/ADR 引用的行 → 报「无引用断言」。
+         spec 引用也无 [spec-decision]/ADR 引用的断言 → 报「无引用断言」。
+
+         引用作用域（block scope，非逐行）: 合约以「前导行 + 块」方式标注来源。
+         一条规范断言满足以下任一即视为已引用：
+           (a) 本行含 spec 引用 / [spec-decision] / ADR 引用；
+           (b) 同块内、**本行之前**已有引用行（前导继承；不含后置继承）；
+           (c) 本块为 **表格/引用块**（其紧邻前导块的结构化投影/附注），且紧邻
+               前一块为非标题的带引用块。**列表不参与 (c)**——空行分隔的列表
+               视为独立断言序列，须逐条自带引用。
+         节标题（#1~6）是结构而非断言，不参与 Check 2。
+         详见 INFRA-011t 审阅记录「行级误报率评估」与下方 Check 2 作用域实现。
 
 fail-closed: 有违规 → exit 1; 无违规 → exit 0.
 
@@ -280,6 +290,31 @@ def check_line_has_decision(line: str) -> bool:
     return bool(_SPEC_DECISION_RE.search(line) or _ADR_REF_RE.search(line))
 
 
+def line_has_cite(line: str) -> bool:
+    """Line carries a spec reference or an explicit decision marker."""
+    return check_line_has_spec_ref(line) or check_line_has_decision(line)
+
+
+# Heading (#1~6): structural, never a normative assertion.
+_HEADING_RE = re.compile(r"^\s*#{1,6}\s")
+
+
+def is_inheriting_child_line(line: str) -> bool:
+    """Whether `line` opens a block that may inherit its immediately-preceding
+    cited lead-in's citation.
+
+    Scope is deliberately narrow (architect xcheck G1/EXP-B): only a **table**
+    (a structured projection of its caption) or a **blockquote** (an annotation
+    attached to the preceding block) may inherit across a blank line. A bare
+    **list** is treated as a sequence of independent assertions and thus must
+    carry its own citation per line — a blank-separated list does not inherit.
+    """
+    if not line.strip():
+        return False
+    s = line.lstrip()
+    return s.startswith("|") or s.startswith(">")
+
+
 # ── main audit ───────────────────────────────────────────────────────────────
 
 def audit(contract_dir: Path, spec_dir: Path) -> int:
@@ -347,28 +382,93 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
                     })
 
     # ── Check 2: normative assertions without spec reference ─────────────
+    # 作用域模型: 逐行判定取代为「引用块作用域」判定（见 INFRA-011t 审阅记录
+    # 「行级误报率评估」）。一条规范断言满足以下任一即视为已引用:
+    #   (a) 本行含 spec 引用 / [spec-decision] / ADR 引用;
+    #   (b) 同一块（连续非空行）内、**本行之前**的引用行（前导继承，不含后置）;
+    #   (c) 本块为 table/blockquote（其前导块的结构化投影/附注），且紧邻前一块为
+    #       非标题的带引用块。列表不参与 (c)。
+    # 节标题（#1~6）是结构，不参与 Check 2。
     check2_violations: list[dict] = []
 
     for cfile in contract_files:
         content = cfile.read_text(encoding="utf-8")
-        in_code = False
-        for lineno, line in enumerate(content.splitlines(), 1):
-            in_code = is_in_code_block(line, in_code)
-            if in_code:
-                continue
+        raw_lines = content.splitlines()
+        n_lines = len(raw_lines)
 
-            # Does the line have normative markers?
+        # Code-block tracking (skipped by Check 2).
+        in_code = [False] * n_lines
+        cur_code = False
+        for i, line in enumerate(raw_lines):
+            cur_code = is_in_code_block(line, cur_code)
+            in_code[i] = cur_code
+
+        # Block ids: a block = maximal run of consecutive non-blank lines.
+        block_id = [-1] * n_lines
+        block_first: dict[int, int] = {}
+        bid = -1
+        prev_blank = True
+        for i, line in enumerate(raw_lines):
+            if line.strip() == "":
+                prev_blank = True
+                continue
+            if prev_blank:
+                bid += 1
+            block_id[i] = bid
+            block_first.setdefault(bid, i)
+            prev_blank = False
+
+        # Per-block citation presence (code lines excluded) — used by rule (c).
+        block_has_cite: dict[int, bool] = {}
+        for i, line in enumerate(raw_lines):
+            if block_id[i] >= 0 and not in_code[i] and line_has_cite(line):
+                block_has_cite[block_id[i]] = True
+
+        # Rule (b) is LEADING-only: for each line, whether an earlier line of the
+        # same block already carried a citation (a later citation must NOT
+        # retroactively cover this line — see architect xcheck G1 / EXP-D).
+        preceding_cite = [False] * n_lines
+        _seen_cite: dict[int, bool] = {}
+        for i, line in enumerate(raw_lines):
+            bid_i = block_id[i]
+            if bid_i < 0:
+                continue
+            preceding_cite[i] = _seen_cite.get(bid_i, False)
+            if not in_code[i] and line_has_cite(line):
+                _seen_cite[bid_i] = True
+
+        def _preceding_block_has_cite(idx: int) -> bool:
+            """Immediately preceding non-blank block carries a citation, and is
+            not a heading (heading cannot serve as a source lead-in)."""
+            fb = block_first[block_id[idx]]
+            p = fb - 1
+            while p >= 0 and raw_lines[p].strip() == "":
+                p -= 1
+            if p < 0 or _HEADING_RE.match(raw_lines[p]):
+                return False
+            pb = block_id[p]
+            return pb >= 0 and block_has_cite.get(pb, False)
+
+        for i, line in enumerate(raw_lines):
+            if in_code[i]:
+                continue
             if not _NORMATIVE_RE.search(line):
                 continue
+            if line_has_cite(line):
+                continue  # (a)
+            if _HEADING_RE.match(line):
+                continue  # headings are structure, not assertions
+            bid_i = block_id[i]
+            if preceding_cite[i]:
+                continue  # (b) LEADING citation earlier in the same block
+            block_first_line = raw_lines[block_first[bid_i]]
+            if is_inheriting_child_line(block_first_line) and _preceding_block_has_cite(i):
+                continue  # (c) table/blockquote introduced by a cited lead-in
 
-            # Does the line have a spec reference or decision marker?
-            if check_line_has_spec_ref(line) or check_line_has_decision(line):
-                continue
-
-            # This line has normative markers but no spec reference → violation
+            # Normative assertion without any spec reference → violation
             check2_violations.append({
                 "file": str(cfile),
-                "line": lineno,
+                "line": i + 1,
                 "text": line.rstrip(),
             })
 

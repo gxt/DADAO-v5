@@ -43,7 +43,7 @@ call_ret:
   overflow_exception: RASOF
   underflow_exception: RASUF
   detail_contract: ".tao/knowledge/contract-isa.md §5.4-§5.6"
-  spec_cite: "SimRISC-02 §函数调用; SimRISC-02 §函数返回"
+  spec_cite: "SimRISC-06 §函数调用; SimRISC-06 §函数返回"
 
 # ── 寄存器角色（M1 事实）─────────────────────────────────────────────────────
 # 每条：range=[lo,hi]；abi_name 为区间时写作 [首,末]；callee_saved 为

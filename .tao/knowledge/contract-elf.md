@@ -97,7 +97,7 @@ M1 无 link 步骤，松弛（relaxation）不适用。M1 是否/如何禁止 re
 
 | 段 | 最小对齐 | 理由 |
 |----|---------|------|
-| `.text` | 4 字节 | 每条指令 4 字节且必须 4 字节对齐 [contract-isa.md §2.1] |
+| `.text` | 4 字节 | 每条指令 4 字节且必须 4 字节对齐 [contract-isa.md §2.1][ADR-0003 §D5] |
 | `.rodata` | 8 字节 | 64 位常量/指针的自然对齐；`ld.o`/`st.o` 要求 8 字节对齐 [contract-isa.md §4.1.1] |
 | `.data` | 8 字节 | 同 `.rodata` |
 | `.bss` | 8 字节 | 同 `.rodata` |
