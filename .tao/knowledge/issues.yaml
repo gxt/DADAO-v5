@@ -629,3 +629,11 @@
   blocks: []
   resolved_by: null
   notes: "SPEC-100t 后 opcodes=228。残留：spec/Toolchain-01-汇编语言.md:5、docs/README.md:17、.tao/knowledge/contract-asm.md:8、tools/spec/gen_legality_list.py:7、tools/qemu/check_qemu_trans.py:85。均非 make check 门控，越出 SPEC-100t 声明范围。建议另立小任务统一改。"
+
+- id: ISS-132
+  title: "`build-mc` 的 help 文本仍写 \"LLVM MC tools\"，未提 `llc`（INFRA-035t 追加后）"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "INFRA-035t 把 llc 追加进 LLVM_MC_FULL_TARGETS；Makefile help 文本未同步（任务书要求最小改动，未扩）。非门控。建议随 infra 文档小任务更新。"

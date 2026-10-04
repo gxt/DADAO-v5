@@ -118,7 +118,7 @@ prepare: fetch apply-series
 #
 # build-mc skips cmake when build.ninja already exists (incremental fast path).
 # Use build-mc-reconfig to force a cmake re-run (e.g. after changing CMakeLists.txt).
-LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen
+LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen llc
 LLVM_MC_LITE_TARGETS = llvm-mc llvm-objdump FileCheck not
 
 build-mc: manifest-check
