@@ -68,8 +68,8 @@ IMPLEMENTED_INSTRUCTIONS = {
     "set.zw_rwii_rd", "set.ow_rwii_rd", "or.w_rwii_rd", "andn.w_rwii_rd",
     "rd2rd_orri_rd",
     # reg-imm-block (rb/ra forms — real TCG in QEMU)
-    "add.si_riii_rb", "add.so_orrr_rb", "sub.so_orrr_rb",
-    "cmp.uo_orrr_rb", "or.w_rwii_rb", "andn.w_rwii_rb", "set.zw_rwii_rb",
+    "add.si_riii_rb", "add.o_orrr_bbd", "sub.o_orrr_bbd",
+    "cmp.uo_orrr_dbb", "or.w_rwii_rb", "andn.w_rwii_rb", "set.zw_rwii_rb",
     "ra2rd_orri_ra", "rb2rb_orri_rb", "rb2rd_orri_rb", "rd2ra_orri_ra", "rd2rb_orri_rb",
 }
 

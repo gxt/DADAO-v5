@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn.decode b/target/dadao/insn.decode
 new file mode 100644
-index 0000000000..0b1c43bf17
+index 0000000..0fa5444
 --- /dev/null
 +++ b/target/dadao/insn.decode
 @@ -0,0 +1,246 @@
@@ -135,9 +135,9 @@ index 0000000000..0b1c43bf17
 +shr_uo_orri_rd  01000000011010..................  @misc
 +shr_so_orri_rd  01000000011011..................  @misc
 +shl_uo_orri_rd  01000000011100..................  @misc
-+add_so_orrr_rb  01000000100000..................  @misc
-+sub_so_orrr_rb  01000000101000..................  @misc
-+cmp_uo_orrr_rb  01000000101001..................  @misc
++add_o_orrr_bbd  01000000110000..................  @misc
++sub_o_orrr_bbd  01000000110001..................  @misc
++cmp_uo_orrr_dbb  01000000110010..................  @misc
 +cmp_uo_orrr_rd  01000000101010..................  @misc
 +cmp_so_orrr_rd  01000000101011..................  @misc
 +rd2rd_orri_rd  01000000101100..................  @misc

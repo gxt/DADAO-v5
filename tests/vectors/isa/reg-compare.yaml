@@ -99,12 +99,12 @@
 - class: encoding
   deferred_reason: null
   encoding:
-    word: '0x40A41000'
+    word: '0x40C81000'
   expected_fault: null
   expected_pc: null
   expected_state: null
   format: orrr
-  id: cmp.uo_orrr_rb
+  id: cmp.uo_orrr_dbb
   input_state: {}
   mnemonic: cmp.uo
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
@@ -113,7 +113,7 @@
 - class: semantic
   deferred_reason: null
   encoding:
-    word: '0x40A41083'
+    word: '0x40C81083'
   expected_fault: null
   expected_pc: null
   expected_state:
@@ -123,7 +123,7 @@
     rd:
       rd1: '0xFFFFFFFFFFFFFFFF'
   format: orrr
-  id: cmp.uo_orrr_rb
+  id: cmp.uo_orrr_dbb
   input_state:
     rb:
       rb2: '0x000000000000000A'
@@ -135,7 +135,7 @@
 - class: semantic
   deferred_reason: null
   encoding:
-    word: '0x40A41083'
+    word: '0x40C81083'
   expected_fault: null
   expected_pc: null
   expected_state:
@@ -145,7 +145,7 @@
     rd:
       rd1: '0x0000000000000001'
   format: orrr
-  id: cmp.uo_orrr_rb
+  id: cmp.uo_orrr_dbb
   input_state:
     rb:
       rb2: '0x0001000000000001'
@@ -158,7 +158,7 @@
 - class: semantic
   deferred_reason: null
   encoding:
-    word: '0x40A41083'
+    word: '0x40C81083'
   expected_fault: null
   expected_pc: null
   expected_state:
@@ -168,7 +168,7 @@
     rd:
       rd1: '0x0000000000000001'
   format: orrr
-  id: cmp.uo_orrr_rb
+  id: cmp.uo_orrr_dbb
   input_state:
     rb:
       rb2: '0x0001000000000001'
@@ -181,7 +181,7 @@
 - class: semantic
   deferred_reason: null
   encoding:
-    word: '0x40A41083'
+    word: '0x40C81083'
   expected_fault: null
   expected_pc: null
   expected_state:
@@ -191,7 +191,7 @@
     rd:
       rd1: '0x0000000000000001'
   format: orrr
-  id: cmp.uo_orrr_rb
+  id: cmp.uo_orrr_dbb
   input_state:
     rb:
       rb2: '0x0001000000000000'
@@ -204,12 +204,12 @@
 - class: legality
   deferred_reason: null
   encoding:
-    word: '0x40A40000'
+    word: '0x40C80000'
   expected_fault: ILLI
   expected_pc: null
   expected_state: null
   format: orrr
-  id: cmp.uo_orrr_rb
+  id: cmp.uo_orrr_dbb
   input_state: {}
   mnemonic: cmp.uo
   notes: 'legality cmp.uo: dest=rd0/rb0 → ILLI (dst_rd0)'

@@ -45,12 +45,12 @@ COMPARE = {"cmp"}
 COND = {"cs"}
 IMM_BLOCK_RWII = {"set.zw", "set.ow", "or.w", "andn.w"}  # rwii format
 BLOCK = {"rd2rd", "rb2rb", "rb2rd", "rd2rb", "ra2rd", "rd2ra"}
-ARITH_MISC_OCTA = {"add.so_orrr_rb", "sub.so_orrr_rb"}
+ARITH_MISC_OCTA = {"add.o_orrr_bbd", "sub.o_orrr_bbd"}
 ARITH_DIVREM = {"div", "rem"}
 
 def _bank_from_id(insn):
     """Extract bank suffix from instruction id.
-    'ext.uo_orrr_rd' → 'rd', 'add.so_orrr_rb' → 'rb', 'rd2rd_orri_rd' → 'rd'
+    'ext.uo_orrr_rd' → 'rd', 'add.o_orrr_bbd' → 'bbd', 'rd2rd_orri_rd' → 'rd'
     Old format: 'add.uo-rd' → 'rd'"""
     if '_' in insn:
         parts = insn.split('_')
@@ -64,7 +64,7 @@ def _base_mnem(insn):
     """Extract base mnemonic from insn string.
     'add.uo_orrr_rd' → 'add', 'and.o_orrr_rd' → 'and', 'shl.uo_orrr_rd' → 'shl',
     'set.zw_rwii_rd' → 'set.zw', 'cs.n_rrrr_rd' → 'cs', 'rd2rd_orri_rd' → 'rd2rd',
-    'cmp.uo_orrr_rb' → 'cmp'
+    'cmp.uo_orrr_dbb' → 'cmp'
     Old format also supported: 'add.uo-rd' → 'add'
     """
     # Strip bank suffix: new format _bank, old format -bank
@@ -371,7 +371,7 @@ def gen_semantic_orrr_arith(rec, a_val, b_val, rdhb_old=0):
                  "active", None, None, sc, notes)
 
 def gen_semantic_orrr_arith_rb(rec, a_val, b_val, rbhb_old=0):
-    """Semantic for add.so-rb / sub.so-rb (orrr, rb dst)."""
+    """Semantic for add.o / sub.o (orrr, rb dst)."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = rec["format"]
@@ -420,7 +420,7 @@ def gen_boundary_orrr_arith(rec, a_val, b_val, rdhb_old=0):
                  "active", None, None, sc, notes)
 
 def gen_boundary_orrr_arith_rb(rec, a_val, b_val, rbhb_old=0):
-    """Boundary for add.so-rb / sub.so-rb."""
+    """Boundary for add.o / sub.o."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = rec["format"]
@@ -575,16 +575,18 @@ def gen_compare_semantic(rec, a_val, b_val, rdha_old=0):
     if fmt == "orrr":
         word = _build_word_orrr(rec, 1, 2, 3)
         expected = _cmp_result(a_val, b_val, bits, signed)
-        bank = _bank_from_id(insn) or "rd"
-        # cmp.uo_orrr_rb: rbhc(rb2)=src, rbhd(rb3)=src; others: rdhc(rd2), rdhd(rd3)
-        if bank == "rb":
+        # Derive the source bank from the record's src fields (D9.3: the id suffix
+        # is a bank *signature*, not a single bank).  cmp.uo_orrr_dbb presets
+        # rbhc(rb2)/rbhd(rb3); cmp.uo_orrr_rd presets rdhc(rd2)/rdhd(rd3).
+        src_fields = [f for f in rec.get("fields", []) if f.get("role") == "src"]
+        src_bank = src_fields[0]["bank"] if src_fields else "rd"
+        if src_bank == "rb":
             inp = {"rb": {"rb2": _hex64(a_val), "rb3": _hex64(b_val)}}
         else:
             inp = {"rd": {"rd2": _hex64(a_val), "rd3": _hex64(b_val)}}
         out = {"rd": {"rd1": _hex64(expected)}, "rb": {}, "ra": {}, "memory": []}
-        notes = "%s: %s=%s, %s=%s, bits=%d, signed=%s" % (
-            mnem, "rb2" if bank == "rb" else "rd2", hex(a_val),
-            "rb3" if bank == "rb" else "rd3", hex(b_val), bits, signed)
+        notes = "%s: %s2=%s, %s3=%s, bits=%d, signed=%s" % (
+            mnem, src_bank, hex(a_val), src_bank, hex(b_val), bits, signed)
     else:  # rrii
         imm = b_val & 0xFFF
         word = _build_word_rrii(rec, 1, 2, imm)
@@ -1237,9 +1239,9 @@ _TARGET_FILES_010T = {"reg-arith.yaml", "reg-logic.yaml", "reg-shift-extend.yaml
 
 def _op_from_insn(insn):
     """Get the operation name from insn for matching.
-    'and.o_orrr_rd' → 'and.o', 'add.so_orrr_rb' → 'add.so', 'rd2rd_orri_rd' → 'rd2rd',
+    'and.o_orrr_rd' → 'and.o', 'add.o_orrr_bbd' → 'add.o', 'rd2rd_orri_rd' → 'rd2rd',
     'set.zw_rwii_rd' → 'set.zw', 'cs.n_rrrr_rd' → 'cs.n'
-    Old format: 'add.so-rb' → 'add.so'
+    Old format: 'add.o-bbd' → 'add.o'
     """
     if '_' in insn:
         # New format: mnemonic_format_bank — extract mnemonic part
@@ -1274,7 +1276,7 @@ def generate_file(filename, recs):
         is_shift = op.split('.')[0] in SHIFT if '.' in op else op in SHIFT
         is_compare = op.split('.')[0] in COMPARE if '.' in op else op in COMPARE
         is_cond = op.split('.')[0] in COND if '.' in op else op in COND
-        is_arith_rb = op in ("add.so", "sub.so") and fmt == "orrr"
+        is_arith_rb = op in ("add.o", "sub.o") and fmt == "orrr"
         is_divrem = op.split('.')[0] in ("div", "rem") if '.' in op else False
         is_mul = op.split('.')[0] == "mul" if '.' in op else False
 

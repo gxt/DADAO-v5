@@ -739,21 +739,21 @@
 - class: encoding
   deferred_reason: null
   encoding:
-    word: '0x40801000'
+    word: '0x40C01000'
   expected_fault: null
   expected_pc: null
   expected_state: null
   format: orrr
-  id: add.so_orrr_rb
+  id: add.o_orrr_bbd
   input_state: {}
-  mnemonic: add.so
+  mnemonic: add.o
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-05 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
   encoding:
-    word: '0x40801083'
+    word: '0x40C01083'
   expected_fault: null
   expected_pc: null
   expected_state:
@@ -763,21 +763,21 @@
       rb1: '0x0000000000000082'
     rd: {}
   format: orrr
-  id: add.so_orrr_rb
+  id: add.o_orrr_bbd
   input_state:
     rb:
       rb1: '0x0000000000000000'
       rb2: '0x0000000000000064'
     rd:
       rd3: '0x000000000000001E'
-  mnemonic: add.so
-  notes: 'add.so: rb2=0x64, rd3=0x1e, full64-bit'
+  mnemonic: add.o
+  notes: 'add.o: rb2=0x64, rd3=0x1e, full64-bit'
   spec_cite: SimRISC-05 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x40801083'
+    word: '0x40C01083'
   expected_fault: null
   expected_pc: null
   expected_state:
@@ -787,49 +787,49 @@
       rb1: '0x8000000000000001'
     rd: {}
   format: orrr
-  id: add.so_orrr_rb
+  id: add.o_orrr_bbd
   input_state:
     rb:
       rb1: '0x0000000000000000'
       rb2: '0x8000000000000000'
     rd:
       rd3: '0x0000000000000001'
-  mnemonic: add.so
-  notes: 'boundary add.so: rb2=0x8000000000000000, rd3=0x1'
+  mnemonic: add.o
+  notes: 'boundary add.o: rb2=0x8000000000000000, rd3=0x1'
   spec_cite: SimRISC-05 §加减操作
   status: active
 - class: legality
   deferred_reason: null
   encoding:
-    word: '0x40800000'
+    word: '0x40C00000'
   expected_fault: ILLI
   expected_pc: null
   expected_state: null
   format: orrr
-  id: add.so_orrr_rb
+  id: add.o_orrr_bbd
   input_state: {}
-  mnemonic: add.so
-  notes: 'legality add.so: dest=rd0/rb0 → ILLI (dst_rb0)'
+  mnemonic: add.o
+  notes: 'legality add.o: dest=rd0/rb0 → ILLI (dst_rb0)'
   spec_cite: SimRISC-05 §加减操作; SimRISC-00 §基址寄存器
   status: active
 - class: encoding
   deferred_reason: null
   encoding:
-    word: '0x40A01000'
+    word: '0x40C41000'
   expected_fault: null
   expected_pc: null
   expected_state: null
   format: orrr
-  id: sub.so_orrr_rb
+  id: sub.o_orrr_bbd
   input_state: {}
-  mnemonic: sub.so
+  mnemonic: sub.o
   notes: 'encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI'
   spec_cite: SimRISC-05 §加减操作
   status: active
 - class: semantic
   deferred_reason: null
   encoding:
-    word: '0x40A01083'
+    word: '0x40C41083'
   expected_fault: null
   expected_pc: null
   expected_state:
@@ -839,21 +839,21 @@
       rb1: '0x0000000000000046'
     rd: {}
   format: orrr
-  id: sub.so_orrr_rb
+  id: sub.o_orrr_bbd
   input_state:
     rb:
       rb1: '0x0000000000000000'
       rb2: '0x0000000000000064'
     rd:
       rd3: '0x000000000000001E'
-  mnemonic: sub.so
-  notes: 'sub.so: rb2=0x64, rd3=0x1e, full64-bit'
+  mnemonic: sub.o
+  notes: 'sub.o: rb2=0x64, rd3=0x1e, full64-bit'
   spec_cite: SimRISC-05 §加减操作
   status: active
 - class: boundary
   deferred_reason: null
   encoding:
-    word: '0x40A01083'
+    word: '0x40C41083'
   expected_fault: null
   expected_pc: null
   expected_state:
@@ -863,29 +863,29 @@
       rb1: '0x7FFFFFFFFFFFFFFF'
     rd: {}
   format: orrr
-  id: sub.so_orrr_rb
+  id: sub.o_orrr_bbd
   input_state:
     rb:
       rb1: '0x0000000000000000'
       rb2: '0x8000000000000000'
     rd:
       rd3: '0x0000000000000001'
-  mnemonic: sub.so
-  notes: 'boundary sub.so: rb2=0x8000000000000000, rd3=0x1'
+  mnemonic: sub.o
+  notes: 'boundary sub.o: rb2=0x8000000000000000, rd3=0x1'
   spec_cite: SimRISC-05 §加减操作
   status: active
 - class: legality
   deferred_reason: null
   encoding:
-    word: '0x40A00000'
+    word: '0x40C40000'
   expected_fault: ILLI
   expected_pc: null
   expected_state: null
   format: orrr
-  id: sub.so_orrr_rb
+  id: sub.o_orrr_bbd
   input_state: {}
-  mnemonic: sub.so
-  notes: 'legality sub.so: dest=rd0/rb0 → ILLI (dst_rb0)'
+  mnemonic: sub.o
+  notes: 'legality sub.o: dest=rd0/rb0 → ILLI (dst_rb0)'
   spec_cite: SimRISC-05 §加减操作; SimRISC-00 §基址寄存器
   status: active
 - class: encoding

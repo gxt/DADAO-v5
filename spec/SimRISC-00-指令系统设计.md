@@ -70,7 +70,7 @@ SimRISC中目前接收如下数据类型：
 | 存取类指令 | `ld.o`/`ldm.o`/`st.o`/`stm.o`（内存→RB） | **全 64 位覆盖，bits[63:48] 正常读写** |
 | 赋值类指令-寄存器 | `rd2rb`/`rb2rb` | **全 64 位覆盖，bits[63:48] 正常读写** |
 | 赋值类指令-立即数 | `set.zw-rb`/`or.w-rb`/`andn.w-rb` | **全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3** |
-| 算术运算类指令-加减 | `add.so-rb`/`sub.so-rb`/`add.si-rb` | 二进制补码 64 位全宽加减法，地址仅在低 48 位有效；**bits[63:48]**为运算结果，可用于溢出检测 |
+| 算术运算类指令-加减 | `add.o`/`sub.o`/`add.si-rb` | 二进制补码 64 位全宽加减法，地址仅在低 48 位有效；**bits[63:48]**为运算结果，可用于溢出检测 |
 | 算术运算类指令-比较 | `cmp.uo-rb` | **整 64 位**无符号比较（`bits[63:48]` **参与**），结果 -1/0/1 区分小于/等于/大于 |
 | 控制流指令-跳转 | `br*`/`jump` | `rb0` 以 **64 位**参与地址计算；结果写回 `rb0`，取 **`rb0[47:0]`（低 48 位）**为下一条指令地址；**iiii 基址 = `rb0`；rrii 基址 = `rbHA`（仅读）**；`rb0[63:48]` 保留结果高 16 位并参与后续运算（见 §控制流指令） |
 | 控制流指令-函数调用 | `call` | `rb0` 以 **64 位**参与地址计算；结果写回 `rb0`，取 **`rb0[47:0]`（低 48 位）**为下一条指令地址；**iiii 基址 = `rb0`；rrii 基址 = `rbHA`（仅读）**；`rb0[63:48]` 保留结果高 16 位并参与后续运算（见 §控制流指令；`ret` 见 §返回地址栈） |
@@ -315,9 +315,9 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | 001-xxx   | and.o_orrr_rd      | or.o_orrr_rd       | xor.o_orrr_rd    | xnor.o_orrr_rd   |               |               |               |               |
 | 010-xxx   | ext.uo_orrr_rd     | ext.so_orrr_rd     | shr.uo_orrr_rd   | shr.so_orrr_rd   | shl.uo_orrr_rd   |               |               |               |
 | 011-xxx   | ext.uo_orri_rd     | ext.so_orri_rd     | shr.uo_orri_rd   | shr.so_orri_rd   | shl.uo_orri_rd   |               |               |               |
-| 100-xxx   | add.so_orrr_rb  |                 |               |               |               |               |               |               |
-| 101-xxx   | sub.so_orrr_rb  | cmp.uo_orrr_rb  | cmp.uo_orrr_rd   | cmp.so_orrr_rd   | rd2rd_orri_rd    | rd2ra_orri_ra    | ra2rd_orri_ra    |               |
-| 110-xxx   |                 |                 |               |               | rb2rb_orri_rb    | rd2rb_orri_rb    | rb2rd_orri_rb    |               |
+| 100-xxx   |                 |                 |               |               |               |               |               |               |
+| 101-xxx   |                 |                 | cmp.uo_orrr_rd   | cmp.so_orrr_rd   | rd2rd_orri_rd    | rd2ra_orri_ra    | ra2rd_orri_ra    |               |
+| 110-xxx   | add.o_orrr_bbd   | sub.o_orrr_bbd   | cmp.uo_orrr_dbb |               | rb2rb_orri_rb    | rd2rb_orri_rb    | rb2rd_orri_rb    |               |
 | 111-xxx   | div.uo_orrr_rd     | div.so_orrr_rd     | rem.uo_orrr_rd   | rem.so_orrr_rd   |               | rd2rf_orri_rf    | rf2rd_orri_rf    |               |
 
 ### MISC-tetra指令编码

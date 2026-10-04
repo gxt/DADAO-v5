@@ -107,8 +107,8 @@ def cmp_uo_rd(rdhb, rdhc, rdhd):
     return encode_orri(0x40, 0x2A, rdhb, rdhc, rdhd)
 
 
-def cmp_uo_rb(rdhb, rbhc, rbhd):
-    return encode_orri(0x40, 0x29, rdhb, rbhc, rbhd)
+def cmp_uo_dbb(rdhb, rbhc, rbhd):
+    return encode_orri(0x40, 0x32, rdhb, rbhc, rbhd)
 
 
 def br_nz(rdha, imms18):
@@ -148,7 +148,7 @@ def swym():
 # ── Assertion block (same proven pattern as 030t / 032t) ───────────────
 #
 # Layout (N checks):
-#   [2*i]   cmp(flag, actual_i, expected_i)   (cmp.uo for RD, cmp.uo-rb for RB)
+#   [2*i]   cmp(flag, actual_i, expected_i)   (cmp.uo for RD, cmp.uo for RB)
 #   [2*i+1] br_nz(flag, 2*(N-i)+1)            → FAIL arm
 #   [2*N]   set_zw(18, 0); [2*N+1] st_o_pass()   ← exit 0
 #   [2*N+2] set_zw(19, fc); [2*N+3] st_o_fail()  ← exit fc
@@ -159,7 +159,7 @@ def build_assertion(checks, fail_code):
     for i, (actual, expected, flag, bank) in enumerate(checks):
         offset = 2 * (N - i) + 1
         if bank == 'rb':
-            insns.append(cmp_uo_rb(flag, actual, expected))
+            insns.append(cmp_uo_dbb(flag, actual, expected))
         else:
             insns.append(cmp_uo_rd(flag, actual, expected))
         insns.append(br_nz(flag, offset))

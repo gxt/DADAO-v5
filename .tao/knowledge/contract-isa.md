@@ -678,8 +678,8 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| `add.so rbhb, rbhc, rdhd` | 二进制补码 64 位加法，全 64 位参与运算 | [SimRISC-05 §加减操作] |
-| `sub.so rbhb, rbhc, rdhd` | 二进制补码 64 位减法，全 64 位参与运算 | [SimRISC-05 §加减操作] |
+| `add.o rbhb, rbhc, rdhd` | 二进制补码 64 位加法，全 64 位参与运算 | [SimRISC-05 §加减操作] |
+| `sub.o rbhb, rbhc, rdhd` | 二进制补码 64 位减法，全 64 位参与运算 | [SimRISC-05 §加减操作] |
 
 - 地址计算仅在低 48 位有效，溢出丢弃；用户可通过 `rbhb` 的高 16 位（bits[63:48]）判断是否发生地址溢出。[SimRISC-05 §加减操作]
 
@@ -1296,14 +1296,14 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 011-010 | `shr.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 011-011 | `shr.so` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 011-100 | `shl.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
-| 100-000 | `add.so-rb` | orrr | [SimRISC-00 §MISC-octa指令编码] |
-| 101-000 | `sub.so-rb` | orrr | [SimRISC-00 §MISC-octa指令编码] |
-| 101-001 | `cmp.uo-rb` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 101-010 | `cmp.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 101-011 | `cmp.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 101-100 | `rd2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 101-101 | `rd2ra` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 101-110 | `ra2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 110-000 | `add.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 110-001 | `sub.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 110-010 | `cmp.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 110-100 | `rb2rb` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 110-101 | `rd2rb` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 110-110 | `rb2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |

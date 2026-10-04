@@ -2995,13 +2995,13 @@
   scope: m1
   rule_refs:
   - dst_rd0
-- id: add.so_orrr_rb
-  mnemonic: add.so
+- id: add.o_orrr_bbd
+  mnemonic: add.o
   format: orrr
   op: '0x40'
-  ha: '0x20'
+  ha: '0x30'
   mask: '0xFFFC0000'
-  value: '0x40800000'
+  value: '0x40C00000'
   fields:
   - name: rbhb
     bits: '[17:12]'
@@ -3021,13 +3021,13 @@
   scope: m1
   rule_refs:
   - dst_rb0
-- id: sub.so_orrr_rb
-  mnemonic: sub.so
+- id: sub.o_orrr_bbd
+  mnemonic: sub.o
   format: orrr
   op: '0x40'
-  ha: '0x28'
+  ha: '0x31'
   mask: '0xFFFC0000'
-  value: '0x40A00000'
+  value: '0x40C40000'
   fields:
   - name: rbhb
     bits: '[17:12]'
@@ -3047,13 +3047,13 @@
   scope: m1
   rule_refs:
   - dst_rb0
-- id: cmp.uo_orrr_rb
+- id: cmp.uo_orrr_dbb
   mnemonic: cmp.uo
   format: orrr
   op: '0x40'
-  ha: '0x29'
+  ha: '0x32'
   mask: '0xFFFC0000'
-  value: '0x40A40000'
+  value: '0x40C80000'
   fields:
   - name: rdhb
     bits: '[17:12]'

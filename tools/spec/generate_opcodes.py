@@ -537,15 +537,16 @@ def build_misc_octa(records):
     for i, mnem in enumerate(["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
                            ["rdhb != rd0"], S04_BIT, ha=0x18 + i))
-    records.append(rec("add.so-rb", "add.so", "orrr", op,
+    # D9.2/D9.3：orrr 单目的 id 后缀 = 操作数 bank 签名（bbd/dbb）
+    records.append(rec("add.o-bbd", "add.o", "orrr", op,
                        f_orrr("rbhb", "rbhc", "rdhd"), ["rbhb != rb0"],
-                       S05_ADD, ha=0x20))
-    records.append(rec("sub.so-rb", "sub.so", "orrr", op,
+                       S05_ADD, ha=0x30))
+    records.append(rec("sub.o-bbd", "sub.o", "orrr", op,
                        f_orrr("rbhb", "rbhc", "rdhd"), ["rbhb != rb0"],
-                       S05_ADD, ha=0x28))
-    records.append(rec("cmp.uo-rb", "cmp.uo", "orrr", op,
+                       S05_ADD, ha=0x31))
+    records.append(rec("cmp.uo-dbb", "cmp.uo", "orrr", op,
                        f_orrr("rdhb", "rbhc", "rbhd"), ["rdhb != rd0"],
-                       S05_CMP, ha=0x29))
+                       S05_CMP, ha=0x32))
     records.append(rec("cmp.uo", "cmp.uo", "orrr", op,
                        f_orrr("rdhb", "rdhc", "rdhd"), ["rdhb != rd0"],
                        S04_CMP, ha=0x2A))

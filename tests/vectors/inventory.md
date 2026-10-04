@@ -100,9 +100,9 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `shr.uo_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.so_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.uo_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `add.so_orrr_rb` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `sub.so_orrr_rb` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `cmp.uo_orrr_rb` | `orrr` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
+| `add.o_orrr_bbd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `sub.o_orrr_bbd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `cmp.uo_orrr_dbb` | `orrr` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cmp.uo_orrr_rd` | `orrr` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cmp.so_orrr_rd` | `orrr` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `rd2rd_orri_rd` | `orri` | `reg-imm-block.yaml` | ✓ | ✓ | ✓ | — | ✓ |  |

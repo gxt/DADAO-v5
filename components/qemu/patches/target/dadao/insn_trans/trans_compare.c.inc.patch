@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_compare.c.inc b/target/dadao/insn_trans/trans_compare.c.inc
 new file mode 100644
-index 0000000..b1c2c87
+index 0000000..f825fdb
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_compare.c.inc
 @@ -0,0 +1,194 @@
@@ -46,7 +46,7 @@ index 0000000..b1c2c87
 + * ADR-0012 D8.2 (revised): compare full 64 bits of rbhc/rbhd (unsigned).
 + * result = -1/0/1 for less/equal/greater, written to rdhb (full 64-bit)
 + * ILLI: rdhb == 0 */
-+static bool trans_cmp_uo_orrr_rb(DisasContext *ctx, arg_misc *a)
++static bool trans_cmp_uo_orrr_dbb(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rbhc = load_rb(ctx, a->hc);

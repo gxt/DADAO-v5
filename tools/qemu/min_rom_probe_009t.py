@@ -87,21 +87,21 @@ def add_si_rd(rd, imms18):
 def add_si_rb(rb, imms18):
     return encode_riii(0x5B, rb, imms18 & 0x3FFFF)
 
-def add_so_rb(rbhb, rbhc, rdhd):
-    """add.so rbhb, rbhc, rdhd (MISC-octa, ha=0x20)"""
-    return encode_orrr(0x40, 0x20, rbhb, rbhc, rdhd)
+def add_o_bbd(rbhb, rbhc, rdhd):
+    """add.o rbhb, rbhc, rdhd (MISC-octa, ha=0x30)"""
+    return encode_orrr(0x40, 0x30, rbhb, rbhc, rdhd)
 
-def sub_so_rb(rbhb, rbhc, rdhd):
-    """sub.so rbhb, rbhc, rdhd (MISC-octa, ha=0x28)"""
-    return encode_orrr(0x40, 0x28, rbhb, rbhc, rdhd)
+def sub_o_bbd(rbhb, rbhc, rdhd):
+    """sub.o rbhb, rbhc, rdhd (MISC-octa, ha=0x31)"""
+    return encode_orrr(0x40, 0x31, rbhb, rbhc, rdhd)
 
 def cmp_uo_rd(rdhb, rdhc, rdhd):
     """cmp.uo rdhb, rdhc, rdhd (MISC-octa, ha=0x2A)"""
     return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
-def cmp_uo_rb(rdhb, rbhc, rbhd):
-    """cmp.uo-rb rdhb, rbhc, rbhd (MISC-octa, ha=0x29)"""
-    return encode_orrr(0x40, 0x29, rdhb, rbhc, rbhd)
+def cmp_uo_dbb(rdhb, rbhc, rbhd):
+    """cmp.uo rdhb, rbhc, rbhd (MISC-octa, ha=0x32)"""
+    return encode_orrr(0x40, 0x32, rdhb, rbhc, rbhd)
 
 def xor_o(rdhb, rdhc, rdhd):
     """xor.o rdhb, rdhc, rdhd (MISC-octa, ha=0x0A)"""
@@ -276,7 +276,7 @@ def rela_exact_test(dest_rb, imm_signed, dest_high16, dest_low48=None):
     seq.append(rela_si_rb(dest_rb, imm_signed & 0x3FFFF))
     seq += load_rb64(EXACT_EXP_RB, expected)
     seq += [
-        cmp_uo_rb(EXACT_RD_CMP, dest_rb, EXACT_EXP_RB),   # 0 if equal
+        cmp_uo_dbb(EXACT_RD_CMP, dest_rb, EXACT_EXP_RB),   # 0 if equal
         set_zw_rd(EXACT_RD_ZERO, 0x0000),
         br_ne(EXACT_RD_CMP, EXACT_RD_ZERO, 3),            # != 0 (not equal) -> branch to FAIL
         set_zw_rd(18, 0x0000), st_o_rd(18, 16, 0),        # equal: PASS (fall-through)

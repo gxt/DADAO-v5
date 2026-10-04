@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_arith.c.inc b/target/dadao/insn_trans/trans_arith.c.inc
 new file mode 100644
-index 0000000..116d299
+index 0000000..addf754
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_arith.c.inc
 @@ -0,0 +1,634 @@
@@ -146,9 +146,9 @@ index 0000000..116d299
 +    return true;
 +}
 +
-+/* §4.5.1 add.so rbhb, rbhc, rdhd (orrr): rbhb = rbhc + rdhd (full 64-bit)
++/* §4.5.1 add.o rbhb, rbhc, rdhd (orrr): rbhb = rbhc + rdhd (full 64-bit)
 + * ILLI: rbhb == rb0 */
-+static bool trans_add_so_orrr_rb(DisasContext *ctx, arg_misc *a)
++static bool trans_add_o_orrr_bbd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rbhc = load_rb(ctx, a->hc);
@@ -159,9 +159,9 @@ index 0000000..116d299
 +    return true;
 +}
 +
-+/* §4.5.1 sub.so rbhb, rbhc, rdhd (orrr): rbhb = rbhc - rdhd (full 64-bit)
++/* §4.5.1 sub.o rbhb, rbhc, rdhd (orrr): rbhb = rbhc - rdhd (full 64-bit)
 + * ILLI: rbhb == rb0 */
-+static bool trans_sub_so_orrr_rb(DisasContext *ctx, arg_misc *a)
++static bool trans_sub_o_orrr_bbd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rbhc = load_rb(ctx, a->hc);

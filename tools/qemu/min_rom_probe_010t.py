@@ -16,8 +16,8 @@ stm.o-rb (6 vectors):
   8. legality ILLI: rb0 as src → 0x88
   9. legality MALIGN: EA unaligned (rd2=7) → 0x8C
   10. legality UNMAPPED: rb3=0 → EA=0 → 0x87
-  11. semantic: mem[RAM+0x100] = rb1 (0x42), readback via ldm.o-rb + cmp.uo-rb
-  12. boundary: mem[RAM+0] = rb1 (0xDEADBEEF), readback via ldm.o-rb + cmp.uo-rb
+  11. semantic: mem[RAM+0x100] = rb1 (0x42), readback via ldm.o-rb + cmp.uo
+  12. boundary: mem[RAM+0] = rb1 (0xDEADBEEF), readback via ldm.o-rb + cmp.uo
 
 Additional tests:
   13-24. Extended tests for ldm.o-rb + stm.o-rb (ILLI multi, MALIGN 4B, semantic multi)
@@ -109,13 +109,13 @@ def ld_o_rd(rdha, rbhb, imms12):
 
 def cmp_uo(rdhb, rbhc, rbhd):
     """cmp.uo rdhb, rbhc, rbhd (MISC-octa, op=0x40, ha=0x2A, orrr)
-    NOTE: This compares RD operands. For RB operands, use cmp_uo_rb."""
+    NOTE: This compares RD operands. For RB operands, use cmp_uo_dbb."""
     return encode_rrii(0x40, 0x2A, rdhb, rbhc, rbhd)
 
-def cmp_uo_rb(rdhb, rbhc, rbhd):
-    """cmp.uo-rb rdhb, rbhc, rbhd (MISC-octa, op=0x40, ha=0x29, orrr)
+def cmp_uo_dbb(rdhb, rbhc, rbhd):
+    """cmp.uo rdhb, rbhc, rbhd (MISC-octa, op=0x40, ha=0x32, orrr)
     Compares RB operands and returns result in RD."""
-    return encode_rrii(0x40, 0x29, rdhb, rbhc, rbhd)
+    return encode_rrii(0x40, 0x32, rdhb, rbhc, rbhd)
 
 def br_nz(rdha, imms18):
     """br.nz rdha, imms18 (op=0x6B)"""
@@ -249,7 +249,7 @@ TESTS = [
       ldm_o_rb(1, 3, 2, 1),      # ldm.o-rb rb1, rb3, rd2, 1 → rb1 = mem[RAM+0x100]
       # Compare rb1 with expected 0x42
       set_zw_rb(19, 0, 0x0042),   # rb19 = 0x42 (expected)
-      cmp_uo_rb(18, 1, 19),      # cmp.uo-rb rd18, rb1, rb19 → rd18=0 if equal
+      cmp_uo_dbb(18, 1, 19),      # cmp.uo rd18, rb1, rb19 → rd18=0 if equal
       br_nz(18, 2),               # br.nz rd18, +2 → if not equal, skip to FAIL
       # PASS
       set_zw_rd(18, 0),
@@ -274,7 +274,7 @@ TESTS = [
       # Compare rb1 with expected 0xDEADBEEF
       set_zw_rb(19, 0, 0xBEEF),   # rb19 = 0xBEEF
       or_w_rb(19, 1, 0xDEAD),     # rb19 = 0xDEADBEEF
-      cmp_uo_rb(18, 1, 19),      # cmp.uo-rb rd18, rb1, rb19 → rd18=0 if equal
+      cmp_uo_dbb(18, 1, 19),      # cmp.uo rd18, rb1, rb19 → rd18=0 if equal
       br_nz(18, 2),               # br.nz rd18, +2 → if not equal, skip to FAIL
       # PASS
       set_zw_rd(18, 0),
@@ -314,7 +314,7 @@ TESTS = [
       ldm_o_rb(10, 3, 2, 2),     # rb10 = mem[RAM+0x200], rb11 = mem[RAM+0x208]
       # Check rb10 = 0xAA
       set_zw_rb(19, 0, 0x00AA),   # rb19 = 0xAA
-      cmp_uo_rb(18, 10, 19),     # cmp.uo-rb rd18, rb10, rb19
+      cmp_uo_dbb(18, 10, 19),     # cmp.uo rd18, rb10, rb19
       br_nz(18, 2),               # if rb10 != 0xAA, skip to FAIL
       # PASS
       set_zw_rd(18, 0),
@@ -388,7 +388,7 @@ TESTS = [
      UNMAPPED_EXIT,
      "stm.o-rb EA=0 not UNMAPPED"),
 
-    # T19: semantic — stm.o-rb stores rb1=0x42 to RAM+0x100, readback via ldm.o-rb + cmp.uo-rb
+    # T19: semantic — stm.o-rb stores rb1=0x42 to RAM+0x100, readback via ldm.o-rb + cmp.uo
     ("T19 semantic: stm.o-rb rb1=0x42",
      [set_zw_rb(3, 2, 0xFFFF),   # rb3 = RAM base
       set_zw_rb(1, 0, 0x0042),   # rb1 = 0x42 (value to store)
@@ -398,7 +398,7 @@ TESTS = [
       # Readback: ldm.o-rb rb20, rb3, rd2, 1 → rb20 = mem[RAM+0x100]
       ldm_o_rb(20, 3, 2, 1),
       # Compare: rb1 vs rb20
-      cmp_uo_rb(18, 1, 20),     # cmp.uo-rb rd18, rb1, rb20 → rd18=0 if equal
+      cmp_uo_dbb(18, 1, 20),     # cmp.uo rd18, rb1, rb20 → rd18=0 if equal
       br_nz(18, 2),              # if not equal, skip to FAIL
       # PASS
       set_zw_rd(18, 0),
@@ -409,7 +409,7 @@ TESTS = [
      PASS_EXIT,
      "stm.o-rb semantic: rb1 != rb20 after round-trip"),
 
-    # T20: boundary — stm.o-rb stores rb1=0xDEADBEEF to RAM+0, readback via ldm.o-rb + cmp.uo-rb
+    # T20: boundary — stm.o-rb stores rb1=0xDEADBEEF to RAM+0, readback via ldm.o-rb + cmp.uo
     ("T20 boundary: stm.o-rb rb1=0xDEADBEEF",
      [set_zw_rb(3, 2, 0xFFFF),   # rb3 = RAM base
       set_zw_rb(1, 0, 0xBEEF),   # rb1 = 0xBEEF
@@ -420,7 +420,7 @@ TESTS = [
       # Readback: ldm.o-rb rb20, rb3, rd2, 1 → rb20 = mem[RAM+0]
       ldm_o_rb(20, 3, 2, 1),
       # Compare: rb1 vs rb20
-      cmp_uo_rb(18, 1, 20),     # cmp.uo-rb rd18, rb1, rb20 → rd18=0 if equal
+      cmp_uo_dbb(18, 1, 20),     # cmp.uo rd18, rb1, rb20 → rd18=0 if equal
       br_nz(18, 2),              # if not equal, skip to FAIL
       # PASS
       set_zw_rd(18, 0),
@@ -464,10 +464,10 @@ TESTS = [
       # Readback: ldm.o-rb rb20, rb3, rd2, 2 → rb20=mem[0x200], rb21=mem[0x208]
       ldm_o_rb(20, 3, 2, 2),
       # Check rb10 vs rb20 (0xAA)
-      cmp_uo_rb(18, 10, 20),    # cmp.uo-rb rd18, rb10, rb20
+      cmp_uo_dbb(18, 10, 20),    # cmp.uo rd18, rb10, rb20
       br_nz(18, 6),              # if rb10 != rb20, skip to FAIL (6 insns ahead)
       # Check rb11 vs rb21 (0xBB)
-      cmp_uo_rb(18, 11, 21),    # cmp.uo-rb rd18, rb11, rb21
+      cmp_uo_dbb(18, 11, 21),    # cmp.uo rd18, rb11, rb21
       br_nz(18, 4),              # if rb11 != rb21, skip to FAIL (4 insns ahead)
       # PASS
       set_zw_rd(18, 0),
@@ -506,7 +506,7 @@ TESTS = [
       ldm_o_rb(1, 3, 2, 1),     # EA = (rb3 + rd2) & 0x0000FFFFFFFFFFFF = RAM+0x100
       # Check rb1 = 0x42 (should be loaded from RAM+0x100)
       set_zw_rb(19, 0, 0x0042),
-      cmp_uo_rb(18, 1, 19),     # cmp.uo-rb rd18, rb1, rb19
+      cmp_uo_dbb(18, 1, 19),     # cmp.uo rd18, rb1, rb19
       br_nz(18, 2),              # if not equal, skip to FAIL
       # PASS
       set_zw_rd(18, 0),
@@ -532,7 +532,7 @@ TESTS = [
       ldm_o_rb(20, 17, 2, 1),   # rb20 = mem[RAM+0x100]
       # Check rb20 = 0x42 (should be stored to RAM+0x100)
       set_zw_rb(19, 0, 0x0042),
-      cmp_uo_rb(18, 20, 19),    # cmp.uo-rb rd18, rb20, rb19
+      cmp_uo_dbb(18, 20, 19),    # cmp.uo rd18, rb20, rb19
       br_nz(18, 2),              # if not equal, skip to FAIL
       # PASS
       set_zw_rd(18, 0),
@@ -563,7 +563,7 @@ TESTS = [
       ldm_o_rb(20, 3, 2, 2),
       # Check rb20 = 0xAA
       set_zw_rb(19, 0, 0x00AA),
-      cmp_uo_rb(18, 20, 19),
+      cmp_uo_dbb(18, 20, 19),
       br_nz(18, 2),
       # PASS
       set_zw_rd(18, 0),
@@ -595,11 +595,11 @@ TESTS = [
       ldm_o_rb(20, 17, 2, 2),   # rb20=mem[RAM+0], rb21=mem[RAM+8]
       # Check rb20 = 0xCC
       set_zw_rb(19, 0, 0x00CC),
-      cmp_uo_rb(18, 20, 19),
+      cmp_uo_dbb(18, 20, 19),
       br_nz(18, 5),              # if rb20 != 0xCC, skip to FAIL (5 insns ahead)
       # Check rb21 = 0xDD
       set_zw_rb(19, 0, 0x00DD),
-      cmp_uo_rb(18, 21, 19),
+      cmp_uo_dbb(18, 21, 19),
       br_nz(18, 2),              # if rb21 != 0xDD, skip to FAIL
       # PASS
       set_zw_rd(18, 0),

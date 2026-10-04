@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..8a8ccade3
+index 000000000..492c03131
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 @@ -0,0 +1,1305 @@
@@ -689,27 +689,27 @@ index 000000000..8a8ccade3
 +  let Pattern = [];
 +}
 +
-+def add_so_rb : DADAOOrrr<"add.so"> {
++def add_o_bbd : DADAOOrrr<"add.o"> {
 +  let OutOperandList = (outs GPRB:$rb);
 +  let InOperandList = (ins GPRB:$rc, GPRD:$rd);
 +  let op = 0x40;
-+  let ha = 0x20;
++  let ha = 0x30;
 +  let Pattern = [];
 +}
 +
-+def sub_so_rb : DADAOOrrr<"sub.so"> {
++def sub_o_bbd : DADAOOrrr<"sub.o"> {
 +  let OutOperandList = (outs GPRB:$rb);
 +  let InOperandList = (ins GPRB:$rc, GPRD:$rd);
 +  let op = 0x40;
-+  let ha = 0x28;
++  let ha = 0x31;
 +  let Pattern = [];
 +}
 +
-+def cmp_uo_rb : DADAOOrrr<"cmp.uo"> {
++def cmp_uo_dbb : DADAOOrrr<"cmp.uo"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRB:$rc, GPRB:$rd);
 +  let op = 0x40;
-+  let ha = 0x29;
++  let ha = 0x32;
 +  let Pattern = [];
 +}
 +

@@ -21,7 +21,7 @@
 - `adr-0012 D9` / `SPEC-100t` 的指令事实：`id=sub.o_orrr_dbb`、助记符 `sub.o`、格式 `orrr`、字段 `rdhb`(dst,rd)/`rbhc`(src,rb)/`rbhd`(src,rb)、`op=0x40`/`ha=0x33`/`mask=0xFFFC0000`/`value=0x40CC0000`、legality `dst_rd0`、`scope=m3`。
 - 现有 MC 实现（`.work/source/llvm-project/llvm/lib/Target/DADAO/`，对应补丁 `components/llvm-project/patches/llvm/lib/Target/DADAO/`）：
   - `DADAOInstrFormats.td`：`class DADAOOrrr<string mnemonic> : DADAOInst<mnemonic # "\t$rb, $rc, $rd">`（`hb=rb`/`hc=rc`/`hd=rd`）。
-  - `DADAOInstrInfo.td`：`cmp_uo_rb : DADAOOrrr<"cmp.uo"> { OutOperandList=(outs GPRD:$rb); InOperandList=(ins GPRB:$rc, GPRB:$rd); op=0x40; ha=0x29; }` ——本指令的**直接同形参照**。
+  - `DADAOInstrInfo.td`：`cmp_uo_dbb : DADAOOrrr<"cmp.uo"> { OutOperandList=(outs GPRD:$rb); InOperandList=(ins GPRB:$rc, GPRB:$rd); op=0x40; ha=0x32; }` ——本指令的**直接同形参照**（`SPEC-101t` 后由 `cmp_uo_rb`/`ha=0x29` 改名改槽）。
   - `AsmParser/DADAOAsmParser.cpp`：汇编匹配走 TableGen `MatchInstructionImpl`（同形指令无需手写分支）；`Disassembler/DADAODisassembler.cpp`、`MCTargetDesc/DADAOMCInstPrinter.cpp` 由 TableGen 生成。
 - `tools/llvm/test_encoding_oracle.py`（独立编码 oracle）、`tools/llvm/check_lit_bytes.py`、`tests/lit/MC/Dadao/*.s`。
 - `spec/Process-01-组件补丁组织与构建编排.md`（补丁导出纪律：一文件一补丁、`git apply` 可复现）。

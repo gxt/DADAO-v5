@@ -13,8 +13,8 @@ Tests cover:
 - call-iiii/call-rrii + ret: RegRAS push/pop round-trip
 - ld.o-rb/st.o-rb: RB load/store
 - rb2rd/rd2rb/rb2rb: register block copy
-- add.so-rb/sub.so-rb/add.si-rb: RB arithmetic (full 64-bit)
-- cmp.uo-rb: RB unsigned comparison
+- add.o/sub.o/add.si-rb: RB arithmetic (full 64-bit)
+- cmp.uo: RB unsigned comparison
 - ILLI checks: rb0 dest for RB ops
 
 Exit codes (ADR-0004 D5.8):
@@ -85,21 +85,21 @@ def add_si_rd(rd, imms18):
 def add_si_rb(rb, imms18):
     return encode_riii(0x5B, rb, imms18 & 0x3FFFF)
 
-def add_so_rb(rbhb, rbhc, rdhd):
-    """add.so rbhb, rbhc, rdhd (MISC-octa, ha=0x20)"""
-    return encode_orrr(0x40, 0x20, rbhb, rbhc, rdhd)
+def add_o_bbd(rbhb, rbhc, rdhd):
+    """add.o rbhb, rbhc, rdhd (MISC-octa, ha=0x30)"""
+    return encode_orrr(0x40, 0x30, rbhb, rbhc, rdhd)
 
-def sub_so_rb(rbhb, rbhc, rdhd):
-    """sub.so rbhb, rbhc, rdhd (MISC-octa, ha=0x28)"""
-    return encode_orrr(0x40, 0x28, rbhb, rbhc, rdhd)
+def sub_o_bbd(rbhb, rbhc, rdhd):
+    """sub.o rbhb, rbhc, rdhd (MISC-octa, ha=0x31)"""
+    return encode_orrr(0x40, 0x31, rbhb, rbhc, rdhd)
 
 def cmp_uo_rd(rdhb, rdhc, rdhd):
     """cmp.uo rdhb, rdhc, rdhd (MISC-octa, ha=0x2A)"""
     return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
-def cmp_uo_rb(rdhb, rbhc, rbhd):
-    """cmp.uo-rb rdhb, rbhc, rbhd (MISC-octa, ha=0x29)"""
-    return encode_orrr(0x40, 0x29, rdhb, rbhc, rbhd)
+def cmp_uo_dbb(rdhb, rbhc, rbhd):
+    """cmp.uo rdhb, rbhc, rbhd (MISC-octa, ha=0x32)"""
+    return encode_orrr(0x40, 0x32, rdhb, rbhc, rbhd)
 
 def xor_o(rdhb, rdhc, rdhd):
     """xor.o rdhb, rdhc, rdhd (MISC-octa, ha=0x0A)"""
@@ -594,19 +594,19 @@ TESTS = [
 
     # ── RB arithmetic tests ───────────────────────────────────────────
 
-    # T27: add.so-rb full 64-bit (high bits preserved)
-    # Uses cmp.uo-rb to verify full 64-bit result (not rb2rd → cmp.uo-rd
-    # which may mask high bits). If add.so-rb truncates to 48 bits, this
+    # T27: add.o full 64-bit (high bits preserved)
+    # Uses cmp.uo to verify full 64-bit result (not rb2rd → cmp.uo-rd
+    # which may mask high bits). If add.o truncates to 48 bits, this
     # test will FAIL because the comparison checks bits[63:48].
-    ("T27 add.so-rb full 64-bit",
+    ("T27 add.o full 64-bit",
      [set_zw_rb(19, 0x0010),    # rb19 = 0x10
       encode_rwii(0x4A, 19, 3, 0x1234),  # or.w rb19, wp3, 0x1234 → rb19=0x1234_0000_0000_0010
       set_zw_rd(20, 0x0020),    # rd20 = 0x20
-      add_so_rb(21, 19, 20),    # rb21 = rb19 + rd20 = 0x1234_0000_0000_0030
+      add_o_bbd(21, 19, 20),    # rb21 = rb19 + rd20 = 0x1234_0000_0000_0030
       # Expected: rb22 = 0x1234_0000_0000_0030
       set_zw_rb(22, 0x0030),    # rb22 = 0x30
       encode_rwii(0x4A, 22, 3, 0x1234),  # or.w rb22, wp3, 0x1234 → rb22=0x1234_0000_0000_0030
-      cmp_uo_rb(23, 21, 22),    # cmp.uo-rb rd23, rb21, rb22 (full 64-bit compare)
+      cmp_uo_dbb(23, 21, 22),    # cmp.uo rd23, rb21, rb22 (full 64-bit compare)
       set_zw_rd(24, 0x0000),    # expected = 0 (equal)
       br_ne(23, 24, 3),         # if not equal, skip 3 → FAIL path
       set_zw_rd(18, 0x0000),    # equal: PASS
@@ -614,16 +614,16 @@ TESTS = [
       set_zw_rd(18, 0x0001),    # not-equal: FAIL
       st_o_rd(18, 16, 0)],
      PASS_EXIT,
-     "add.so-rb full 64-bit wrong (truncated?)"),
+     "add.o full 64-bit wrong (truncated?)"),
 
-    # T28: sub.so-rb full 64-bit
-    # Uses cmp.uo-rb for full 64-bit verification.
-    ("T28 sub.so-rb full 64-bit",
+    # T28: sub.o full 64-bit
+    # Uses cmp.uo for full 64-bit verification.
+    ("T28 sub.o full 64-bit",
      [set_zw_rb(19, 0x0050),    # rb19 = 0x50
       set_zw_rd(20, 0x0020),    # rd20 = 0x20
-      sub_so_rb(21, 19, 20),    # rb21 = rb19 - rd20 = 0x30
+      sub_o_bbd(21, 19, 20),    # rb21 = rb19 - rd20 = 0x30
       set_zw_rb(22, 0x0030),    # expected rb22 = 0x30
-      cmp_uo_rb(23, 21, 22),    # cmp.uo-rb rd23, rb21, rb22
+      cmp_uo_dbb(23, 21, 22),    # cmp.uo rd23, rb21, rb22
       set_zw_rd(24, 0x0000),
       br_ne(23, 24, 3),         # if not equal, skip 3 → FAIL
       set_zw_rd(18, 0x0000),    # equal: PASS
@@ -631,15 +631,15 @@ TESTS = [
       set_zw_rd(18, 0x0001),    # not-equal: FAIL
       st_o_rd(18, 16, 0)],
      PASS_EXIT,
-     "sub.so-rb wrong"),
+     "sub.o wrong"),
 
     # T29: add.si-rb full 64-bit
-    # Uses cmp.uo-rb for full 64-bit verification.
+    # Uses cmp.uo for full 64-bit verification.
     ("T29 add.si-rb full 64-bit",
      [set_zw_rb(19, 0x0010),    # rb19 = 0x10
       add_si_rb(19, 5),         # rb19 += 5 → 0x15
       set_zw_rb(20, 0x0015),    # expected rb20 = 0x15
-      cmp_uo_rb(21, 19, 20),    # cmp.uo-rb rd21, rb19, rb20
+      cmp_uo_dbb(21, 19, 20),    # cmp.uo rd21, rb19, rb20
       set_zw_rd(22, 0x0000),
       br_ne(21, 22, 3),         # if not equal, skip 3 → FAIL
       set_zw_rd(18, 0x0000),    # equal: PASS
@@ -649,19 +649,19 @@ TESTS = [
      PASS_EXIT,
      "add.si-rb wrong"),
 
-    # T30: add.so-rb rb0 dest → ILLI
-    ("T30 add.so-rb rb0 dest → ILLI",
+    # T30: add.o rb0 dest → ILLI
+    ("T30 add.o rb0 dest → ILLI",
      [set_zw_rd(20, 0x0010),
-      add_so_rb(0, 19, 20)],
+      add_o_bbd(0, 19, 20)],
      ILLI_EXIT,
-     "add.so-rb rb0 dest not ILLI"),
+     "add.o rb0 dest not ILLI"),
 
-    # T31: sub.so-rb rb0 dest → ILLI
-    ("T31 sub.so-rb rb0 dest → ILLI",
+    # T31: sub.o rb0 dest → ILLI
+    ("T31 sub.o rb0 dest → ILLI",
      [set_zw_rd(20, 0x0010),
-      sub_so_rb(0, 19, 20)],
+      sub_o_bbd(0, 19, 20)],
      ILLI_EXIT,
-     "sub.so-rb rb0 dest not ILLI"),
+     "sub.o rb0 dest not ILLI"),
 
     # T32: add.si-rb rb0 dest → ILLI
     ("T32 add.si-rb rb0 dest → ILLI",
@@ -669,13 +669,13 @@ TESTS = [
      ILLI_EXIT,
      "add.si-rb rb0 dest not ILLI"),
 
-    # ── cmp.uo-rb test ────────────────────────────────────────────────
+    # ── cmp.uo test ────────────────────────────────────────────────
 
-    # T33: cmp.uo-rb equal → 0
-    ("T33 cmp.uo-rb equal → 0",
+    # T33: cmp.uo equal → 0
+    ("T33 cmp.uo equal → 0",
      [set_zw_rb(19, 0x0042),    # rb19 = 0x42
       set_zw_rb(20, 0x0042),    # rb20 = 0x42
-      cmp_uo_rb(21, 19, 20),    # rd21 = cmp(rb19, rb20) = 0
+      cmp_uo_dbb(21, 19, 20),    # rd21 = cmp(rb19, rb20) = 0
       set_zw_rd(22, 0x0000),    # expected = 0
       cmp_uo_rd(23, 21, 22),
       set_zw_rd(24, 0x0000),
@@ -685,16 +685,16 @@ TESTS = [
       set_zw_rd(18, 0x0001),    # not-equal: FAIL
       st_o_rd(18, 16, 0)],
      PASS_EXIT,
-     "cmp.uo-rb equal not 0"),
+     "cmp.uo equal not 0"),
 
-    # T34: cmp.uo-rb less → -1
+    # T34: cmp.uo less → -1
     # cmp.uo returns -1/0/1 as 64-bit signed values
     # -1 = 0xFFFFFFFFFFFFFFFF, 0 = 0, 1 = 1
     # To check -1: result != 0 AND result != 1
-    ("T34 cmp.uo-rb less → -1",
+    ("T34 cmp.uo less → -1",
      [set_zw_rb(19, 0x0010),    # rb19 = 0x10
       set_zw_rb(20, 0x0020),    # rb20 = 0x20
-      cmp_uo_rb(21, 19, 20),    # rd21 = cmp(0x10, 0x20) = -1
+      cmp_uo_dbb(21, 19, 20),    # rd21 = cmp(0x10, 0x20) = -1
       # Check rd21 != 0
       set_zw_rd(22, 0x0000),    # zero
       cmp_uo_rd(23, 21, 22),    # cmp(rd21, 0) → 0 if rd21==0, else !=0
@@ -711,13 +711,13 @@ TESTS = [
       set_zw_rd(18, 0x0000),
       st_o_rd(18, 16, 0)],
      PASS_EXIT,
-     "cmp.uo-rb less not -1"),
+     "cmp.uo less not -1"),
 
-    # T35: cmp.uo-rb greater → 1
-    ("T35 cmp.uo-rb greater → 1",
+    # T35: cmp.uo greater → 1
+    ("T35 cmp.uo greater → 1",
      [set_zw_rb(19, 0x0030),    # rb19 = 0x30
       set_zw_rb(20, 0x0010),    # rb20 = 0x10
-      cmp_uo_rb(21, 19, 20),    # rd21 = cmp(0x30, 0x10) = 1
+      cmp_uo_dbb(21, 19, 20),    # rd21 = cmp(0x30, 0x10) = 1
       set_zw_rd(22, 0x0001),    # expected = 1
       cmp_uo_rd(23, 21, 22),
       set_zw_rd(24, 0x0000),
@@ -727,15 +727,15 @@ TESTS = [
       set_zw_rd(18, 0x0001),    # not-equal: FAIL
       st_o_rd(18, 16, 0)],
      PASS_EXIT,
-     "cmp.uo-rb greater not 1"),
+     "cmp.uo greater not 1"),
 
-    # T36: cmp.uo-rb rdhb=0 → ILLI
-    ("T36 cmp.uo-rb rd0 dest → ILLI",
+    # T36: cmp.uo rdhb=0 → ILLI
+    ("T36 cmp.uo rd0 dest → ILLI",
      [set_zw_rb(19, 0x0010),
       set_zw_rb(20, 0x0020),
-      cmp_uo_rb(0, 19, 20)],
+      cmp_uo_dbb(0, 19, 20)],
      ILLI_EXIT,
-     "cmp.uo-rb rd0 dest not ILLI"),
+     "cmp.uo rd0 dest not ILLI"),
 
     # ── RASUF test ────────────────────────────────────────────────────
 

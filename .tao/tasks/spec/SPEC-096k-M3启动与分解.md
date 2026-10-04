@@ -105,7 +105,7 @@ M2（规范与接口冻结）已达成（2026-10-04，见 `milestones.md`）。�
 | C11 | **指令选择框架** | SelectionDAG + **GlobalISel**（`GISel/` 目录） | SelectionDAG（TableGen pattern + 自定义 `ISelDAGToDAG`），LLVM 22 API 适配 | v5 M3 用 SelectionDAG 还是 GlobalISel？ | **未定（建议 ADR）** |
 | C12 | **常量/立即数材料化** | `MOV` 立即数 / `LEA` / constant pool | `set.zw`（16 位 wyde，多次）+ `or.w` 构造 64 位；小立即数 `add.si`（18 位） | 范式选择 | v5 无 constant pool 通路（倾向 0628） |
 | C13 | **窄类型/子寄存器模型** | `DR8`/`DR16`/`DR32` 子寄存器（B/W/L） | 单一 64 位寄存器，无 subreg；窄类型提升/扩展；窄 load 需掩码（big-endian，DL-068a） | v5 无 subreg，取 0628 路径 | 倾向 0628 |
-| C14 | **GPRB 指针算术语义** | 地址寄存器可算术（`ADDQ` 等） | GPRB 算术用 `add.so`/`sub.so`（rb 变体） | v5 spec：0.5.4 RB 算术全 64 位 | v5 spec 已定 |
+| C14 | **GPRB 指针算术语义** | 地址寄存器可算术（`ADDQ` 等） | GPRB 算术用 `add.o`/`sub.o`（rb 变体） | v5 spec：0.5.4 RB 算术全 64 位 | v5 spec 已定 |
 | C15 | **RA/RF 保留 & `rb2`** | 无 RA/RF bank | RA/RF 全 reserved | SP-only 策略下 `rb2`（FP）是否仍 reserved？ | v5 现 reserved；结合 C7 |
 | C16 | **call 指令 `Defs`/RegMask** | 标准 target call-clobber 机制 | `Defs=[RD31,RB31]` + `getCallPreservedMask`（ML-004c/DL-070a 返工） | v5 call 必须声明 `Defs=[rd31,rb31]` 并附 call-preserved RegMask，否则寄存器分配静默错误 | 0628 教训，需纳入 |
 

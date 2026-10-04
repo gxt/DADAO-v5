@@ -169,3 +169,9 @@
 - `fp_status_init` 用 `memset(st,0,...)` 构建局部 `float_status` 后，`default_nan_pattern == 0`；而 `fpu/softfloat-parts.c.inc::partsN(default_nan)` 带 `assert(dnan_pattern != 0)` ⇒ invalid 运算（`0/0`、`inf−inf`、`inf×0`、`rem`-invalid、`sqrt(−x)`）走 default NaN 路径时结果畸形或触发断言。
 - 修复：`set_float_default_nan_pattern(0b01000000, st)`（default NaN = `0x7FC00000`/`0x7FF8000000000000`，与 `QEMU-035t` 的 `FP_FT_QNAN`/`FP_FO_QNAN` 一致）。架构师独立注入（移除该行）实测 12 例 FAIL ⇒ 承重。
 - **规则**：任何新增/复制的 softfloat 目标初始化都须显式设 `default_nan_pattern`，并在探针中覆盖至少一条 invalid→default-NaN 用例。
+
+### 7.2 id 后缀「bank 签名」约定与工具反解陷阱（`SPEC-101t`，2026-10-05）
+
+- `adr-0012 D9.3` 起，`orrr` 单目的指令 id 后缀 = **操作数 bank 签名**（按字段顺序：`bbd`=(rb dst,rb,rd)、`dbb`=(rd dst,rb,rb)），**不是**单 bank（旧约定 `_rb`/`_rd`）。**仅** `add.o_orrr_bbd`/`sub.o_orrr_bbd`/`cmp.uo_orrr_dbb`/`sub.o_orrr_dbb` 适用。
+- 陷阱：`tools/testcases/generate_isa_vectors.py::_bank_from_id` 取 id **末段**当 bank → 对 `bbd`/`dbb` **误判**（如把 `dbb` 当 bank）。修复：从记录的 **src 字段**推导 bank，不反解 id。
+- 陷阱：`tools/spec/validate_encoding.py` **只比对字面 `value`，不校验 `value = op<<24|ha<<18`** ⇒ `ha`/`value` 不一致**不会**被它抓到，只有**跨载体** `validate_vectors`/`check-interface` 能抓到。⇒ 编码类改动须以跨载体门控为准，不能只信单文件 validator（呼应 §1.2「分层验收」）。

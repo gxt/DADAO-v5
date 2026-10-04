@@ -143,10 +143,10 @@
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
+| `add.o` | `orrr` | `bbd` | `add.o rbHB, rbHC, rdHD` | `add.o_orrr_bbd` |
 | `add.si` | `riii` | `rb` | `add.si rbHA, imms18` | `add.si_riii_rb` |
-| `add.so` | `orrr` | `rb` | `add.so rbHB, rbHC, rdHD` | `add.so_orrr_rb` |
-| `cmp.uo` | `orrr` | `rb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_rb` |
-| `sub.so` | `orrr` | `rb` | `sub.so rbHB, rbHC, rdHD` | `sub.so_orrr_rb` |
+| `cmp.uo` | `orrr` | `dbb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_dbb` |
+| `sub.o` | `orrr` | `bbd` | `sub.o rbHB, rbHC, rdHD` | `sub.o_orrr_bbd` |
 
 ### 控制流（15 条）
 
