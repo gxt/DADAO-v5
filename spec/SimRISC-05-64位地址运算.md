@@ -1,12 +1,12 @@
 # SimRISC64位地址运算指令
 
 > **版本：0.5.4**（与 SimRISC-00 一致）
-> **分类：64位地址运算**（4 条）— add.si-rb/add.o/cmp.uo-rb/sub.o
+> **分类：64位地址运算**（5 条）— add.si-rb/add.o/cmp.uo-rb/sub.o(bbd)/sub.o(dbb)
 
 <!-- ASSEMBLY_LIST_START -->
 ## 汇编指令速查
 
-### 64位地址运算（4 条）
+### 64位地址运算（5 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -14,13 +14,14 @@
 | `add.si` | `riii` | `rb` | `add.si rbHA, imms18` | `add.si_riii_rb` |
 | `cmp.uo` | `orrr` | `dbb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_dbb` |
 | `sub.o` | `orrr` | `bbd` | `sub.o rbHB, rbHC, rdHD` | `sub.o_orrr_bbd` |
+| `sub.o` | `orrr` | `dbb` | `sub.o rdHB, rbHC, rbHD` | `sub.o_orrr_dbb` |
 
 <!-- ASSEMBLY_LIST_END -->
 
 <!-- LEGALITY_START -->
 ## 合法性检查
 
-* `dst_rd0`：目的 rd0 → ILLI — `cmp.uo_orrr_dbb`（1 条）
+* `dst_rd0`：目的 rd0 → ILLI — `cmp.uo_orrr_dbb`, `sub.o_orrr_dbb`（2 条）
 * `dst_rb0`：目的 rb0 → ILLI — `add.o_orrr_bbd`, `add.si_riii_rb`, `sub.o_orrr_bbd`（3 条）
 <!-- LEGALITY_END -->
 
@@ -30,13 +31,15 @@
 ### 加减操作
 
 针对rb寄存器的加减运算，操作数类型为 `orrr`。
-两个源操作数寄存器为`rbHC`和`rdHD`，采用`rbHB`作为目的寄存器。
+`bbd` 形态的两个源操作数寄存器为`rbHC`和`rdHD`，采用`rbHB`作为目的寄存器。
 `add.o`/`sub.o` 执行二进制补码的 64 位加减法，全 64 位参与运算。地址计算仅在低 48 位有效，溢出丢弃。用户可通过 `rbHB` 的高 16 位（bits[63:48]）判断是否发生地址溢出，从而避免地址计算错误。
+此外还有 `dbb` 形态的 `sub.o`：两个源操作数寄存器为`rbHC`和`rbHD`，目的寄存器为`rdHB`，执行二进制补码的 64 位减法（`rdHB = rbHC − rbHD`），全 64 位参与运算；**单条、无 `.s`/`.u` 变体**（64 位单目的结果位型与符号性无关）。
 具体指令如下：
 
 ```simrisc
 add.o  rbHB, rbHC, rdHD
 sub.o  rbHB, rbHC, rdHD
+sub.o  rdHB, rbHC, rbHD
 ```
 
 ### 自增自减

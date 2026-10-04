@@ -674,12 +674,13 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 ### §7.1 RB 加减（orrr 格式）
 
-针对 RB 的加减运算，操作数类型 `orrr`；两个源为 `rbhc` 和 `rdhd`，目的为 `rbhb`。[SimRISC-05 §加减操作]
+针对 RB 的加减运算，操作数类型 `orrr`。`bbd` 形态：两个源为 `rbhc` 和 `rdhd`，目的为 `rbhb`；`dbb` 形态：两个源为 `rbhc` 和 `rbhd`，目的为 `rdhb`。[SimRISC-05 §加减操作]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
 | `add.o rbhb, rbhc, rdhd` | 二进制补码 64 位加法，全 64 位参与运算 | [SimRISC-05 §加减操作] |
 | `sub.o rbhb, rbhc, rdhd` | 二进制补码 64 位减法，全 64 位参与运算 | [SimRISC-05 §加减操作] |
+| `sub.o rdhb, rbhc, rbhd` | 二进制补码 64 位减法，全 64 位参与运算；`rdhb = rbhc − rbhd`，**单条、无 `.s`/`.u` 变体**（64 位单目的结果位型与符号性无关） | [ADR-0012 D9.1][SimRISC-05 §加减操作] |
 
 - 地址计算仅在低 48 位有效，溢出丢弃；用户可通过 `rbhb` 的高 16 位（bits[63:48]）判断是否发生地址溢出。[SimRISC-05 §加减操作]
 
@@ -1304,6 +1305,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 110-000 | `add.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 110-001 | `sub.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 110-010 | `cmp.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 110-011 | `sub.o` | orrr | [ADR-0012 D9.1][SimRISC-00 §MISC-octa指令编码] |
 | 110-100 | `rb2rb` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 110-101 | `rd2rb` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 110-110 | `rb2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |

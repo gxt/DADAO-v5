@@ -77,7 +77,7 @@ def _unquote(cell):
 
 def load_opcodes(path):
     """返回 (m1_records, by_id, duplicate_ids, all_records)。
-    M1 判据 scope == "m1"；all_records 含全部 227 条（含 scope fp/excluded）。
+    M1 判据 scope == "m1"；all_records 含全部 228 条（含 scope fp/excluded/m3）。
     """
     with open(path) as fh:
         records = _yaml.safe_load(fh)

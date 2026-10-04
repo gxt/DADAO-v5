@@ -317,7 +317,7 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | 011-xxx   | ext.uo_orri_rd     | ext.so_orri_rd     | shr.uo_orri_rd   | shr.so_orri_rd   | shl.uo_orri_rd   |               |               |               |
 | 100-xxx   |                 |                 |               |               |               |               |               |               |
 | 101-xxx   |                 |                 | cmp.uo_orrr_rd   | cmp.so_orrr_rd   | rd2rd_orri_rd    | rd2ra_orri_ra    | ra2rd_orri_ra    |               |
-| 110-xxx   | add.o_orrr_bbd   | sub.o_orrr_bbd   | cmp.uo_orrr_dbb |               | rb2rb_orri_rb    | rd2rb_orri_rb    | rb2rd_orri_rb    |               |
+| 110-xxx   | add.o_orrr_bbd   | sub.o_orrr_bbd   | cmp.uo_orrr_dbb | sub.o_orrr_dbb | rb2rb_orri_rb    | rd2rb_orri_rb    | rb2rd_orri_rb    |               |
 | 111-xxx   | div.uo_orrr_rd     | div.so_orrr_rd     | rem.uo_orrr_rd   | rem.so_orrr_rd   |               | rd2rf_orri_rf    | rf2rd_orri_rf    |               |
 
 ### MISC-tetra指令编码

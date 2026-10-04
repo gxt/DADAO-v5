@@ -5,7 +5,9 @@
   - `scope: m1`（152 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统）；
   - `scope: fp`（60 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
     独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
-  - `scope: excluded`（15 条）——特权 cfx / LR-SC / fence，暂未归类。
+  - `scope: excluded`（15 条）——特权 cfx / LR-SC / fence，暂未归类；
+  - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
+    **非 M1 身份**，不要求 M1 向量覆盖。
 约定 `scope == "excluded"` ⇒ `decode: ILLI`——编码已定义但尚未实现，执行即非法指令；
 `m1`/`fp` 不携带 `decode`（已实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
 
@@ -179,8 +181,8 @@ def _infer_feature(fields, fmt=None):
 def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1"):
     """构造一条编码记录。ha 为 None 时为主表指令，否则为 MISC 子表指令。
 
-    scope ∈ {"m1", "fp", "excluded"}（必填语义，缺省 m1）。scope == "excluded" 时附
-    `decode: ILLI`（编码已定义但尚未实现）；`m1`/`fp` 不携带 `decode`。
+    scope ∈ {"m1", "fp", "excluded", "m3"}（必填语义，缺省 m1）。scope == "excluded" 时附
+    `decode: ILLI`（编码已定义但尚未实现）；`m1`/`fp`/`m3` 不携带 `decode`。
     对于 orrr/orri/oiii 格式，ha 并入 op（op 变为14位）。
     对于其余格式，ha 作为独立操作数 field（由调用方加入 fields 列表）。
     """
@@ -547,6 +549,11 @@ def build_misc_octa(records):
     records.append(rec("cmp.uo-dbb", "cmp.uo", "orrr", op,
                        f_orrr("rdhb", "rbhc", "rbhd"), ["rdhb != rd0"],
                        S05_CMP, ha=0x32))
+    # D9.1：新增 sub.o rdhb, rbhc, rbhd（RB − RB → RD，orrr，dbb 形态）
+    # scope: m3（M3 CodeGen 新增，非 M1 身份，不要求 M1 向量覆盖）
+    records.append(rec("sub.o-dbb", "sub.o", "orrr", op,
+                       f_orrr("rdhb", "rbhc", "rbhd"), ["rdhb != rd0"],
+                       S05_ADD, ha=0x33, scope="m3"))
     records.append(rec("cmp.uo", "cmp.uo", "orrr", op,
                        f_orrr("rdhb", "rdhc", "rdhd"), ["rdhb != rd0"],
                        S04_CMP, ha=0x2A))
@@ -792,6 +799,7 @@ def main():
     n_m1 = sum(1 for r in records if r.get("scope") == "m1")
     n_fp = sum(1 for r in records if r.get("scope") == "fp")
     n_ex = sum(1 for r in records if r.get("scope") == "excluded")
+    n_m3 = sum(1 for r in records if r.get("scope") == "m3")
     n_with_refs = sum(1 for r in records if r.get("rule_refs"))
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
@@ -801,12 +809,14 @@ def main():
         f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
         f.write("# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，\n")
         f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
-        f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条 + scope excluded {n_ex} 条\n")
+        f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
+        f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
+                f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条\n")
         f.write(f"# 有 rule_refs 的指令：{n_with_refs} 条\n\n")
         yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     print(f"生成完成：{len(records)} 条（M1 {n_m1}，scope fp {n_fp}，scope excluded {n_ex}，"
-          f"有 rule_refs {n_with_refs}）-> {OUT_PATH}")
+          f"scope m3 {n_m3}，有 rule_refs {n_with_refs}）-> {OUT_PATH}")
 
 
 if __name__ == "__main__":

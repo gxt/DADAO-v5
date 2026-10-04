@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""check_scope.py — opcodes.yaml 范围分区门控（`scope`: m1 | fp | excluded）。
+"""check_scope.py — opcodes.yaml 范围分区门控（`scope`: m1 | fp | excluded | m3）。
 
 职责（可执行、可失败；SPEC-086t §5.3）：
-  1. 每条记录**恰有** 1 个合法 `scope` ∈ {m1, fp, excluded}（缺失/非法 ⇒ FAIL）。
-  2. 分区计数：m1 == 152、fp == 60、excluded == 15、total == 227。
-  3. `scope == "excluded"` ⇔ `decode == "ILLI"`；`scope ∈ {m1, fp}` ⇒ 无 `decode`
+  1. 每条记录**恰有** 1 个合法 `scope` ∈ {m1, fp, excluded, m3}（缺失/非法 ⇒ FAIL）。
+  2. 分区计数：m1 == 152、fp == 60、excluded == 15、m3 == 1、total == 228。
+  3. `scope == "excluded"` ⇔ `decode == "ILLI"`；`scope ∈ {m1, fp, m3}` ⇒ 无 `decode`
      且无旧字段（防回退）。
   4. `scope == "fp"` ⇔ `id.endswith("_rf")`（结构性判据，源自 spec/契约）。
   5. 旧 M1 排除布尔字段（见 OLD_FIELD）在非历史文件中已消失。
@@ -13,6 +13,7 @@
 判据来源（Spec-first，不从实现反推）：
   * contracts/opcodes.yaml（每条记录 scope/decode/id）
   * SPEC-086t §5.3（计数 152/60/15/227；fp ⇔ _rf）
+  * ADR-0012 D9.1/D9.5（新增 scope: m3，total 227→228，M1 不变）
 
 Usage: python3 tools/spec/check_scope.py [--yaml contracts/opcodes.yaml] [--repo-root .]
 """
@@ -30,9 +31,10 @@ OLD_FIELD = "excluded" + "_m1"
 EXPECTED_M1 = 152
 EXPECTED_FP = 60
 EXPECTED_EXCLUDED = 15
-EXPECTED_TOTAL = 227
+EXPECTED_M3 = 1
+EXPECTED_TOTAL = 228
 
-ALLOWED_SCOPES = ("m1", "fp", "excluded")
+ALLOWED_SCOPES = ("m1", "fp", "excluded", "m3")
 
 # 扫描「非历史」源文件的路径（相对仓库根）。
 SCAN_DIRS = ("tools", "contracts", "spec", "tests", "docs")
@@ -129,11 +131,13 @@ def main() -> int:
     n_m1 = sum(1 for r in records if r.get("scope") == "m1")
     n_fp = sum(1 for r in records if r.get("scope") == "fp")
     n_ex = sum(1 for r in records if r.get("scope") == "excluded")
+    n_m3 = sum(1 for r in records if r.get("scope") == "m3")
     total = len(records)
     checks = {
         "m1 计数": (EXPECTED_M1, n_m1),
         "fp 计数": (EXPECTED_FP, n_fp),
         "excluded 计数": (EXPECTED_EXCLUDED, n_ex),
+        "m3 计数": (EXPECTED_M3, n_m3),
         "total 计数": (EXPECTED_TOTAL, total),
     }
     for name, (exp, act) in checks.items():
@@ -148,11 +152,11 @@ def main() -> int:
         failures.append("excluded 记录缺 decode: ILLI: "
                         + ", ".join(bad_decode[:10]))
 
-    # 3b. scope ∈ {m1, fp} ⇒ 无 decode、无旧字段（防回退；R1 方案 B）
+    # 3b. scope ∈ {m1, fp, m3} ⇒ 无 decode、无旧字段（防回退；R1 方案 B）
     bad_plain = [r.get("id", "?") for r in records
-                 if r.get("scope") in ("m1", "fp")
+                 if r.get("scope") in ("m1", "fp", "m3")
                  and ("decode" in r or OLD_FIELD in r)]
-    if not record("scope∈{m1,fp} ⇒ 无 decode/旧字段", "0 条",
+    if not record("scope∈{m1,fp,m3} ⇒ 无 decode/旧字段", "0 条",
                   f"{len(bad_plain)} 条") or bad_plain:
         failures.append("m1/fp 记录含 decode/旧字段: "
                         + ", ".join(bad_plain[:10]))

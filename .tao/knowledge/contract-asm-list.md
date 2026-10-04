@@ -1,7 +1,7 @@
 # DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（227 条 = M1 152 + `scope: fp` 60 + `scope: excluded` 15）
+> **源**：`contracts/opcodes.yaml`（228 条 = M1 152 + `scope: fp` 60 + `scope: excluded` 15 + `scope: m3` 1）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
 > **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（44 条）为 `scope: fp`（已实现）；**待定**（11 条）为 **deferred**（暂不归类）；其余 152 条为 `scope: m1` 当前有效书写形式
@@ -139,7 +139,7 @@
 | `xnor.o` | `orrr` | `rd` | `xnor.o rdHB, rdHC, rdHD` | `xnor.o_orrr_rd` |
 | `xor.o` | `orrr` | `rd` | `xor.o rdHB, rdHC, rdHD` | `xor.o_orrr_rd` |
 
-### 64位地址运算（4 条）
+### 64位地址运算（5 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -147,6 +147,7 @@
 | `add.si` | `riii` | `rb` | `add.si rbHA, imms18` | `add.si_riii_rb` |
 | `cmp.uo` | `orrr` | `dbb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_dbb` |
 | `sub.o` | `orrr` | `bbd` | `sub.o rbHB, rbHC, rdHD` | `sub.o_orrr_bbd` |
+| `sub.o` | `orrr` | `dbb` | `sub.o rdHB, rbHC, rbHD` | `sub.o_orrr_dbb` |
 
 ### 控制流（15 条）
 

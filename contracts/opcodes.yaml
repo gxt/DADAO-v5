@@ -4,8 +4,9 @@
 # scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；
 # scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
-# 共 227 条：M1 152 条 + scope fp 60 条 + scope excluded 15 条
-# 有 rule_refs 的指令：190 条
+# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
+# 共 228 条：M1 152 条 + scope fp 60 条 + scope excluded 15 条 + scope m3 1 条
+# 有 rule_refs 的指令：191 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -3071,6 +3072,32 @@
   - rdhb != rd0
   spec_cite: SimRISC-05 §比较操作
   scope: m1
+  rule_refs:
+  - dst_rd0
+- id: sub.o_orrr_dbb
+  mnemonic: sub.o
+  format: orrr
+  op: '0x40'
+  ha: '0x33'
+  mask: '0xFFFC0000'
+  value: '0x40CC0000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rbhc
+    bits: '[11:6]'
+    role: src
+    bank: rb
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality:
+  - rdhb != rd0
+  spec_cite: SimRISC-05 §加减操作
+  scope: m3
   rule_refs:
   - dst_rd0
 - id: cmp.uo_orrr_rd

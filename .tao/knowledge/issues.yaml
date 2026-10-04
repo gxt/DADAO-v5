@@ -620,4 +620,12 @@
   scope: [spec, llvm, qemu, M3]
   blocks: []
   resolved_by: null
-  notes: "用户 2026-10-04 裁定。与既有 cmp.uo-rb（(outs GPRD)(ins GPRB,GPRB)）同形，替代现有 rb2rd×2 + sub.o（3 条）。走 spec 变更（contract-isa/opcodes.yaml/编码）+ MC/反汇编 + QEMU + ISel pattern + ADR；M3 在首次需要 ptr−ptr 前落地，否则暂用 3 条兜底。signedness（单条 sub.o vs sub.so/sub.uo 变体）待定，用户倾向单条。 **2026-10-04 architect 编排（本任务）**：用户逐条裁定后决策记入 `adr-0012 D9`（`Accepted`）。落地链：`SPEC-101t`（三条既有 RB 算术指令改名/改编码：`add.so_orrr_rb`→`add.o_orrr_bbd`(0x30)、`sub.so_orrr_rb`→`sub.o_orrr_bbd`(0x31)、`cmp.uo_orrr_rb`→`cmp.uo_orrr_dbb`(0x32)，跨组件原子）→ `SPEC-100t`（新增 `sub.o_orrr_dbb`，`ha=0x33`、`scope:m3`）→ `LLVM-043t`（MC）∥ `QEMU-040t`（trans）→ `LLVM-035t`（ISel pattern，`ptr−ptr` 终态）；`SPEC-100t`+`QEMU-040t` 为原子落地集。 ⏳ 待用户确认：D9.1 `ha=0x33` 的 `value` 应为 `0x40CC0000`（原裁定写 `0x40C00000`，其 `ha` 实为 `0x30`、与 `add.o_orrr_bbd` 冲突）。"
+  notes: "用户 2026-10-04 裁定。与既有 cmp.uo-rb（(outs GPRD)(ins GPRB,GPRB)）同形，替代现有 rb2rd×2 + sub.o（3 条）。走 spec 变更（contract-isa/opcodes.yaml/编码）+ MC/反汇编 + QEMU + ISel pattern + ADR；M3 在首次需要 ptr−ptr 前落地，否则暂用 3 条兜底。signedness（单条 sub.o vs sub.so/sub.uo 变体）待定，用户倾向单条。 **2026-10-04 architect 编排（本任务）**：用户逐条裁定后决策记入 `adr-0012 D9`（`Accepted`）。落地链：`SPEC-101t`（三条既有 RB 算术指令改名/改编码：`add.so_orrr_rb`→`add.o_orrr_bbd`(0x30)、`sub.so_orrr_rb`→`sub.o_orrr_bbd`(0x31)、`cmp.uo_orrr_rb`→`cmp.uo_orrr_dbb`(0x32)，跨组件原子）→ `SPEC-100t`（新增 `sub.o_orrr_dbb`，`ha=0x33`、`scope:m3`）→ `LLVM-043t`（MC）∥ `QEMU-040t`（trans）→ `LLVM-035t`（ISel pattern，`ptr−ptr` 终态）；`SPEC-100t`+`QEMU-040t` 为原子落地集。 ✅ 已确认（2026-10-04）：D9.1 `ha=0x33 ⇒ value=0x40CC0000`。已落地（`SPEC-100t`+`QEMU-040t` 已验证，2026-10-05）。"
+
+- id: ISS-131
+  title: "5 处文档/注释的 opcodes 计数仍写 227，应随新增指令（SPEC-100t）统一改 228"
+  status: open
+  scope: [spec, llvm, qemu]
+  blocks: []
+  resolved_by: null
+  notes: "SPEC-100t 后 opcodes=228。残留：spec/Toolchain-01-汇编语言.md:5、docs/README.md:17、.tao/knowledge/contract-asm.md:8、tools/spec/gen_legality_list.py:7、tools/qemu/check_qemu_trans.py:85。均非 make check 门控，越出 SPEC-100t 声明范围。建议另立小任务统一改。"
