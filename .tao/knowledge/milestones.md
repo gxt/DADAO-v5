@@ -11,6 +11,8 @@
 > **归档（2026-10-03）**：M1 的 76 个任务书已归档至 `.tao/archive/M1/`（按模块子目录）；M1 时期 changelog/MEMORY 内容见 `.tao/archive/M1/README.md`；**M1 回顾见 `.tao/archive/M1/m1-retrospective.md`**（由 `docs/` 移入）。
 >
 > **M2 重定义（2026-10-04，用户裁定）**：M2 定为「**规范与接口冻结（Normative Freeze）**」，原「Basic CodeGen」顺延为 **M3**；并**取消「过渡期任务 `M<i>→M<i+1>`」类别**——原 `M1→M2` 任务一律提升为 `M2`（**推翻** 2026-09-25 决议；不立 ADR）。
+>
+> **归档前置（MUST）**：任何里程碑达成后、**归档前**，须先按 `spec/Process-04 §2` 对遗留台账（`.tao/knowledge/issues.yaml` / `lessons.md`）做一次**梳理**（关闭已消解项、校正 `scope`、移出教训类、判定 moot 项、头部同步）；未完成不得归档。
 
 ## 里程碑说明
 
