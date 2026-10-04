@@ -16,7 +16,7 @@
   - **指令事实（实测，`DADAOInstrInfo.td`）**：
     - 装载 rrii：`ld.o rd, [rb, imm12]`（64 位）、`ld.ut`/`ld.st`（tetra 零/符号扩展）、`ld.uw`/`ld.sw`（wyde）、`ld.ub`/`ld.sb`（byte）——`(outs GPRD:$ra) (ins GPRB:$rb, imms12:$imm12)`。
     - 存储 rrii：`st.o/st.t/st.w/st.b rd, [rb, imm12]`——`(ins GPRD:$ra, GPRB:$rb, imms12:$imm12)`。
-    - 地址 = `rb[47:0] + sign_extend(imm12)`（`contract-isa.md §4`；RB 全 64 位、访存取低 48 位，C14/`ADR-0018（C14）` D3）；负偏移/大偏移需 base 先算（GPRB 算术，`add.so-rb`/`add.si-rb`，C14/`ADR-0018（C14）` D1）。
+    - 地址 = `rb[47:0] + sign_extend(imm12)`（`contract-isa.md §4`；RB 全 64 位、访存取低 48 位，C14/`ADR-0018（C14）` D3）；负偏移/大偏移需 base 先算（GPRB 算术，`add.o`（orrr，rb 目的；旧名 `add.so-rb`，见 `adr-0012 D9`）/`add.si`，C14/`ADR-0018（C14）` D1）。
     - **大端窄访存（C13，`ADR-0018（C13）` D2）**：byte/wyde/tetra 装载按大端语义；`ld.ub/uw/ut` 零扩展、`ld.sb/sw/st` 符号扩展，结果写满 64 位（`SPEC-069t` 值语义）。**须显式保证/测试** `ReduceLoadWidth` 类 combine 的**字节偏移**（大端下窄 load 的字节偏移与掩码，0628 `DL-068a` silent miscompile 教训）。
   - **必须**：给对应 format class（`DADAORrii` 的 load/store 子类）加 `mayLoad`/`mayStore`（`DADAOInstrInfo.td` 现**无** `mayLoad`/`mayStore`——实测 grep 计数 0）；新增 `Pattern`：`(load (addr))`→`ld.*`、`(store val, addr)`→`st.*`；地址匹配支持 `base + simm12` 偏移。
   - **范围**：标量 i8/i16/i32/i64 及 `ptr` 的 load/store。**不含** FrameIndex 栈槽（→`LLVM-038t`）、全局符号地址（→M4）。本任务用「参数指针 + 常量偏移」验证。

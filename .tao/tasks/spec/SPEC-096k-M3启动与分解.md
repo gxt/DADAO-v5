@@ -46,30 +46,38 @@ M2（规范与接口冻结）已达成（2026-10-04，见 `milestones.md`）。�
 |------|------|------|--------|------|
 | `INFRA-035t` | `llc` 纳入 LLVM 构建目标 | infra | `Makefile`（`build-mc` 追加 `llc` 或新增 `build-llc`）+ 构建证据 | 无 |
 | `SPEC-097t` | 标量调用约定合约落地 | spec | `.tao/knowledge/contract-abi.md` §4 正文 + `contracts/abi.yaml` 扩展 | 无 |
+| `SPEC-100t` | **新增指令 `sub.o_orrr_dbb`（RB−RB→RD）规范与编码**（M3 前置） | spec | `spec/SimRISC-00/05` + `contracts/opcodes.yaml`（`scope:m3`）+ `check_scope.py` + `adr-0012 D9` | `SPEC-101t`（同改 opcodes/向量，串行在前） |
+| `SPEC-101t` | **RB 算术三条指令改名+改编码槽**（`add.so_orrr_rb`→`add.o_orrr_bbd`(0x30)、`sub.so_orrr_rb`→`sub.o_orrr_bbd`(0x31)、`cmp.uo_orrr_rb`→`cmp.uo_orrr_dbb`(0x32)）跨组件原子 | spec（+llvm/qemu） | `spec/` + `opcodes.yaml` + 向量/inventory + 生成器 + MC + QEMU + 探针 | 无（**本任务先于 `SPEC-100t`**） |
 | `LLVM-033t` | CodeGen 骨架（`llc` build + DataLayout + 注册 ISel/FrameLowering/AsmPrinter）+ RA/RF 保留配置 | llvm | `DADAOSubtarget`/`DADAOISelLowering`/`DADAOISelDAGToDAG`/`DADAOPassConfig` + 补丁集 + MIR 证据 | `INFRA-035t` |
 | `LLVM-034t` | 值类型 + 寄存器类（GPRD/GPRB）+ 跨 bank 搬运 | llvm | ISelLowering 双类注册 + `copyPhysReg` + MIR 证据 | `LLVM-033t` |
-| `LLVM-035t` | i64 算术 / 常数 | llvm | `.td` pattern + 常量材料化 + MIR 证据 | `LLVM-034t` |
+| `LLVM-043t` | **`sub.o_orrr_dbb` 的 MC**（汇编/反汇编/编码/decode）（M3 前置） | llvm | `DADAOInstrInfo.td` 定义 + AsmParser/InstPrinter + lit 往返 + 编码 oracle | `SPEC-100t` |
+| `LLVM-035t` | i64 算术 / 常数（+ **`ptr−ptr` ISel**） | llvm | `.td` pattern + 常量材料化 + `sub.o` ISel + MIR 证据 | `LLVM-034t`、`LLVM-043t` |
 | `LLVM-036t` | 标量 load/store | llvm | 各宽度 ld/st pattern（GPRB base + 偏移）+ MIR 证据 | `LLVM-034t` |
 | `LLVM-037t` | compare / branch | llvm | cmp/br.* ISel + 基本块布局 + MIR 证据 | `LLVM-035t`、`LLVM-036t` |
 | `LLVM-038t` | FrameIndex 消解 + spill/reload + prologue/epilogue | llvm | `eliminateFrameIndex` + `emitPrologue`/`emitEpilogue` + PEI MIR 证据 | `LLVM-036t` |
 | `LLVM-039t` | 调用约定（FormalArgs/Return/callee-save）+ call/ret | llvm | `DADAOCallingConv.td` + LowerCall/LowerReturn + MIR/`.s` 证据 | `SPEC-097t`、`LLVM-038t` |
 | `LLVM-040t` | AsmPrinter（MI→MCInst→`.s`） | llvm | `DADAOAsmPrinter` + pseudo 展开 + `.s`→`llvm-mc` obj 证据 | `LLVM-039t` |
 | `LLVM-041t` | 最小重定位与产物路径 | llvm | call/branch/jump 段内符号 PCRel 修复 + obj→raw binary 路径证据 | `LLVM-040t` |
-| `TESTCASES-026t` | CodeGen 独立测试向量 | testcases | `tests/codegen/*.ll` + 期望值（独立 oracle）+ validator | 无 |
-| `INTEG-012t` | CodeGen E2E 套件 + `make test-codegen` | integ | `tests/lit/Codegen/*.test` + `tools/integ/run_codegen_e2e.py` + `Makefile` 目标 | `LLVM-041t`、`TESTCASES-026t`、`INFRA-035t` |
-| `SPEC-099m` | M3 spec 里程碑 | spec | `m` 文件 | `SPEC-097t` |
+| `QEMU-040t` | **`sub.o_orrr_dbb` 的 QEMU 语义翻译（trans）**（M3 前置） | qemu | `insn.decode` pattern + `trans_sub_o_orrr_dbb` + 探针 | `SPEC-100t` |
+| `TESTCASES-026t` | CodeGen 独立测试向量（+ **`ptr−ptr` 指针差**） | testcases | `tests/codegen/*.ll` + 期望值（独立 oracle）+ validator | 无 |
+| `INTEG-012t` | CodeGen E2E 套件 + `make test-codegen` | integ | `tests/lit/Codegen/*.test` + `tools/integ/run_codegen_e2e.py` + `Makefile` 目标 | `LLVM-041t`、`TESTCASES-026t`、`INFRA-035t`、`QEMU-040t` |
+| `SPEC-099m` | M3 spec 里程碑 | spec | `m` 文件 | `SPEC-097t`、`SPEC-100t`、`SPEC-101t` |
 | `INFRA-036m` | M3 infra 里程碑 | infra | `m` 文件 | `INFRA-035t` |
 | `TESTCASES-027m` | M3 testcases 里程碑 | testcases | `m` 文件 | `TESTCASES-026t` |
-| `LLVM-042m` | M3 llvm 里程碑 | llvm | `m` 文件 | `LLVM-033t`~`LLVM-041t` |
-| `INTEG-013m` | M3 integ 里程碑 | integ | `m` 文件 | `INTEG-012t` |
+| `LLVM-042m` | M3 llvm 里程碑 | llvm | `m` 文件 | `LLVM-033t`~`LLVM-041t`、`LLVM-043t` |
+| `INTEG-013m` | M3 integ 里程碑 | integ | `m` 文件 | `INTEG-012t`（前置 `QEMU-040t`） |
 
 ### 依赖关系与串行纪律
 
 - **`INFRA-035t` 最先**（否则无 `llc` 可 build）。
-- **LLVM 全链严格串行**：`LLVM-033t → 034t → 035t → 036t → 037t → 038t → 039t → 040t → 041t`。所有 LLVM 任务同改 `components/llvm-project/patches/llvm/lib/Target/DADAO/**` 与 `.work/source/llvm-project`（共享文件），按 `AGENTS.md`「同改共享文件一律串行」**不得并行**；`LLVM-037t`/`LLVM-038t` 名义上可并行，仍按**串行**执行（同树、同构建）。
+- **LLVM 全链严格串行**：`LLVM-033t → 034t → 043t → 035t → 036t → 037t → 038t → 039t → 040t → 041t`（新增指令 MC **`LLVM-043t`** 插在 `034t` 与 `035t` 之间；`035t` 的 `ptr−ptr` ISel 依赖 `043t`）。所有 LLVM 任务同改 `components/llvm-project/patches/llvm/lib/Target/DADAO/**` 与 `.work/source/llvm-project`（共享文件），按 `AGENTS.md`「同改共享文件一律串行」**不得并行**；`LLVM-037t`/`LLVM-038t` 名义上可并行，仍按**串行**执行（同树、同构建）。
+- **新增/改名指令的 M3 前置链（全串行）**：`SPEC-101t`（三条既有 RB 算术指令改名+改编码，跨组件原子）→ `SPEC-100t`（新增 `sub.o_orrr_dbb`，`scope:m3`）→ {`LLVM-043t`（新指令 MC）∥ `QEMU-040t`（新指令 trans）}；`LLVM-035t` 的 `ptr−ptr` ISel 在 `LLVM-043t` 之后；`INTEG-012t` 在 `QEMU-040t` 之后。
+  - **串行理由**：`SPEC-100t`/`SPEC-101t` 共享 `contracts/opcodes.yaml` 与 `tests/vectors/**`；`SPEC-101t`/`LLVM-043t` 共享 `DADAOInstrInfo.td`；`SPEC-101t`/`QEMU-040t` 共享 `insn.decode`/`trans_*`。
+  - **原子落地集**：`SPEC-100t` + `QEMU-040t` 须**同一提交/集成波**落地（`check-interface` 要求 `opcodes.yaml` 条目 ↔ QEMU `trans_*` 一一对应，单独提交 `SPEC-100t` 会红）；`SPEC-101t` **内部原子**（改名/改槽一次改完，否则 `validate_vectors`/`check_qemu_trans` 必红）。**建议落地波**：先 `SPEC-101t`（改名，内部自洽、门控绿）→ 再 `SPEC-100t`+`QEMU-040t`（新指令，原子对）→ 再 `LLVM-043t`。
+  - **决策依据**：`adr-0012 D9`（`Accepted`，用户 2026-10-04 逐条确认）。
 - **`SPEC-097t` 先于 `LLVM-039t`**（CC 事实是 codegen 期望值来源）。
 - **`TESTCASES-026t` 先于 `INTEG-012t`**；`INTEG-012t` 须在 `INFRA-035t` 之后（同改 `Makefile`，串行）。
-- **`INTEG-012t` 最后**（依赖 `LLVM-041t` 的可编译产物）。
+- **`INTEG-012t` 最后**（依赖 `LLVM-041t` 的可编译产物与 `QEMU-040t` 的 trans）。
 - `k ↔ m`：本 `k` 对应项目里程碑 **M3**；各模块 `m`（`LLVM-042m`/`INFRA-036m`/`SPEC-099m`/`TESTCASES-027m`/`INTEG-013m`）在其模块任务收敛时核验，M3 项目里程碑由主会话在依赖的模块 `m` 均达成后置 `达成`。
 
 ### 分解理由
@@ -110,4 +118,5 @@ M2（规范与接口冻结）已达成（2026-10-04，见 `milestones.md`）。�
 - 本 `k` 只做规划，不实现；门槛核验在 `INTEG-013m`（及 M3 项目里程碑）前完成。
 - **ADR 提醒**：C1（硬双类 vs 联合类）、C7（FP 策略）、C9（栈对齐）、C11（SD vs GISel）涉及**外部契约/多方案取舍**，按 `spec/Process-03-ADR编写规范.md` 与 `AGENTS.md`「ADR decision 逐条确认」，**须由用户判定是否立 ADR**；架构师不擅自决定。建议至少对 C11（指令选择框架）与 C1/C7（bank 落地口径）立 ADR。
 - 任务书自包含：执行所需事实写入各任务书或引用 v5 自身知识（`.tao/knowledge/contract-*.md`、`contracts/*`）；M68k/0628 仅作**只读对照**，不作执行依赖（内容溯源，非执行必需）。
-- 假设：M3 期间不改 `spec/` 规范正文（仅 `SPEC-097t` 投影合约）；不改 `contracts/opcodes.yaml` 既有语义字段；重定位不扩 `contract-elf.md §2–§4`。
+- 假设：M3 期间不改 `spec/` 规范正文（仅 `SPEC-097t` 投影合约）——**例外**：`SPEC-101t`（三条既有 RB 算术指令改名+改编码）与 `SPEC-100t`（新增指令 `sub.o_orrr_dbb`，`scope:m3`）需改 `spec/SimRISC-00/05` 正文；重定位不扩 `contract-elf.md §2–§4`。
+- **`adr-0012 D9`**（新增指令 `sub.o_orrr_dbb`(0x33,`scope:m3`) + 三条既有 RB 算术指令改名/改编码 `add.o_orrr_bbd`(0x30)/`sub.o_orrr_bbd`(0x31)/`cmp.uo_orrr_dbb`(0x32) + id 后缀 bank 签名约定）：`Accepted`，用户 2026-10-04 逐条确认追加；落地 `SPEC-101t`→`SPEC-100t`→`{LLVM-043t,QEMU-040t}`→`LLVM-035t`。**⏳ 待确认**：D9.1 的 `ha=0x33` 对应 `value` 应为 `0x40CC0000`（原裁定写 `0x40C00000`，实为 `ha=0x30`、与 `add.o_orrr_bbd` 冲突）。

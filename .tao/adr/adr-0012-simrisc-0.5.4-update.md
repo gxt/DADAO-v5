@@ -101,6 +101,45 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - R2：`cmp.uo`（RD 变体）也改 48 位 → 超范围（用户选 (a)）；否决。
 - R3：把 `ret` 并入 D8.3 控制流地址计算 → `ret` 来源/异常属 RAS；否决。
 
+### D9：新增 `sub.o`（RB − RB → RD）与 RB 算术指令 id/编码槽重整（2026-10-04 新增）
+
+**用户 2026-10-04 逐条确认追加。** 背景：M3 CodeGen 需 `ptr−ptr`（`ADR-0018 C14 D4`、`ISS-130`）；同时把 orrr 单目的指令 id 后缀统一为**操作数 bank 签名**约定。
+
+**D9.1（新增指令）**
+
+- `id = sub.o_orrr_dbb`，助记符 `sub.o`，格式 `orrr`。
+- 字段：`rdhb`(dst,rd)[17:12]、`rbhc`(src,rb)[11:6]、`rbhd`(src,rb)[5:0]（同 `cmp.uo`）。
+- 编码：`op=0x40`、`ha=0x33`、`mask=0xFFFC0000`、`value=0x40CC0000`。
+  - ✅ **算术修正（用户 2026-10-04 已确认）**：原裁定笔误写 `value=0x40C00000`（该 `ha` 实为 `0x30`）；按 `value = op<<24 | ha<<18` 定为 **`ha=0x33 ⇒ value=0x40CC0000`**，已确认。
+- 语义：`rd = rb − rb`（二进制补码 64 位减法，全 64 位参与；结果按有符号差值解释）。**单条、无 `.s`/`.u` 变体**——64 位单目的加减的结果位型与符号性无关。
+- legality：复用 `dst_rd0`（`rdhb != rd0` → ILLI）；`rb0` 作**源**合法。
+- `scope = m3`（归属里程碑；**非** M1 身份，不要求 M1 向量覆盖）。
+
+**D9.2（三条既有指令改名 + 改编码槽）**：op 保持 `0x40`，mask `0xFFFC0000`。
+
+| 旧 id | 新 id | 新 mnemonic | 旧 ha | 新 ha | value |
+|---|---|---|---|---|---|
+| `add.so_orrr_rb` | `add.o_orrr_bbd` | `add.o` | `0x20` | `0x30` | `0x40C00000` |
+| `sub.so_orrr_rb` | `sub.o_orrr_bbd` | `sub.o` | `0x28` | `0x31` | `0x40C40000` |
+| `cmp.uo_orrr_rb` | `cmp.uo_orrr_dbb` | `cmp.uo`（名不变） | `0x29` | `0x32` | `0x40C80000` |
+
+**D9.3（id 后缀约定）**：orrr 单目的指令 id 后缀 = **操作数 bank 签名**（`b`=rb、`d`=rd），按字段顺序（dst 在前）：`bbd`=(rb dst, rb, rd)；`dbb`=(rd dst, rb, rb)。本 ADR **仅**对 D9.1/D9.2 的 4 条应用；其它既有 id（如 `cmp.uo_orrr_rd`、`add.si_riii_rb`）**不**在本次改名范围（如需全局迁移另立任务）。
+
+**D9.4（并存的同名/近名形态）**：
+- `add.o`/`sub.o`（orrr，rb 目的，`bbd`）与 **rrrr 双目的** `add.so`/`sub.so`（rd 双目的）**并存**（助记符不同）。
+- `sub.o`（orrr）同时有 `bbd`（`sub.o_orrr_bbd`，rb 目的）与 `dbb`（`sub.o_orrr_dbb`，rd 目的）两种操作数形态，由汇编器按寄存器类区分（同 `cmp.uo` 的 `dbb`/`rd` 两形态）。
+
+**D9.5（计数影响）**：新增 1 条（`scope: m3`）⇒ `contracts/opcodes.yaml` **227→228**；**M1 身份数不变（152）**；`tools/spec/check_scope.py` 须纳入 `m3`（`ALLOWED_SCOPES`、计数 `m3=1`/`total=228`）。
+
+**D9.6（同步面）**：`spec/SimRISC-00` QFC `MISC-octa` 子表 + `spec/SimRISC-05` 正文/计数；`contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；`.tao/knowledge/contract-isa.md`、`contract-asm-list.md`；`tests/vectors/{reg-arith,reg-compare}.yaml` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`；MC（`DADAOInstrInfo.td` mnemonic/def、`DADAOAsmParser`/`DADAOInstPrinter`/decode）；QEMU（`insn.decode` token + `trans_*` 函数名）；`tools/qemu/check_005t_coverage.py`。D8.6 中 `trans_cmp_uo_orrr_rb` 的引用由本 D9 更名（`trans_cmp_uo_orrr_dbb`）**取代**；**D8.6 原文不改写**。
+
+**备选（否决）**：
+- R1：新指令沿用 `sub.so` 名 → 与既有 `sub.so_orrr_rb` 重名/重 id、易混；否决。
+- R2：`sub.so`+`sub.uo` 两变体 → 结果位型一致、冗余；否决。
+- R3：新指令保留 `scope: m1` → 用户裁定归 `m3`、不要求 M1 向量覆盖；否决。
+
+**关联任务**：`SPEC-100t`（新增指令）、`SPEC-101t`（三条既有指令改名+改编码）、`LLVM-043t`（新指令 MC）、`QEMU-040t`（新指令 trans）、`LLVM-035t`（ISel）。
+
 ## 影响
 
 - ~~256 条指令 → 254 条（删除 ftmadd/fomadd）~~（2026-09-30 修订：254 条 → 253 条，删除 `rela.si`）
@@ -122,3 +161,5 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - 2026-10-02：D8.3 **措辞澄清**（用户同意，decision 语义不变）：明确**不假定 `rb0` 高 16 位为 0**（可为前一次地址回绕保留下来的值）；`rb0[63:48]` 保留计算结果高 16，**跨出 48 位地址空间时即进位**。**CPU 发出的地址总线只有 48 位** ⇒ **取指 / 访存有效地址 / 跳转目标一律取低 48 位**（与"寄存器 64 位""地址运算 64 位"不冲突）。文档中**不用「PC」指代 `rb0`**。
 - 2026-10-02：新增 **D8.7（一般原则，用户确认）**：**所有 RB/RA 寄存器（`rb0`–`rb63`/`ra0`–`ra63`）均为 64 位**；**凡其值被用作地址（取指 / 访存有效地址 / 跳转目标 / 返回地址）时一律取低 48 位**（CPU 地址总线 48 位）；高 16 为寄存器自身内容（RB 普通 64 位值；RA 递归计数 / `RACNT` / `MRPTR`）。与「寄存器 64 位、地址运算 64 位」不冲突。
 - 2026-10-02：**D8.2 就地修订**（用户确认，decision 变更）：`cmp.uo-rb` 由「低 48 位」改为「**整 64 位**」无符号比较，`br.z-rb`/`br.nz-rb` 条件同样**整 64 位**判零。理由：RB 高 16 是**合法内容**（D8.1），且**判断/比较不是「地址使用」**（48 位截断仅生于地址总线，D8.7）；高 16 意外非 0 时按 64 位**暴露**而非隐藏。连带返工：QEMU（去 `trans_cmp_uo_orrr_rb` 的 48 掩码）、向量、`spec/SimRISC-05`/`contract-isa` 措辞（见 `SPEC-081t`）。
+- 2026-10-04：新增 **D9**（新增指令 `sub.o`（RB−RB→RD，`sub.o_orrr_dbb`，`ha=0x33`，`scope:m3`）+ 三条既有 RB 算术指令改名/改编码槽 `add.so_orrr_rb`→`add.o_orrr_bbd`(0x30)、`sub.so_orrr_rb`→`sub.o_orrr_bbd`(0x31)、`cmp.uo_orrr_rb`→`cmp.uo_orrr_dbb`(0x32) + id 后缀 bank 签名约定）。**用户 2026-10-04 逐条确认追加**。关联 `SPEC-100t`/`SPEC-101t`/`LLVM-043t`/`QEMU-040t`/`LLVM-035t`。
+  - **算术修正（用户 2026-10-04 已确认）**：D9.1 定 `ha=0x33 ⇒ value=0x40CC0000`；旧 id 清零验收**仅覆盖活载体**（`spec/`/`contracts/`/`tests/`/`tools/`/`components/`），**映射记录豁免**。

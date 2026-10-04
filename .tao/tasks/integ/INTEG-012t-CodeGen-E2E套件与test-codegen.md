@@ -2,7 +2,7 @@
 
 **模块**：integ
 **项目里程碑**：M3
-**依赖**：`LLVM-041t`、`TESTCASES-026t`、`INFRA-035t`
+**依赖**：`LLVM-041t`、`TESTCASES-026t`、`INFRA-035t`、`QEMU-040t`（**新增指令 `sub.o rd,rb,rb` 的 QEMU trans；E2E 执行前置**）
 **状态**：待开始
 
 ## 执行环境
@@ -20,7 +20,7 @@
   - **单 TU 自包含**（`ADR-0003 §D5`）：`llc` 产物 `.s` + `codegen_crt0.s` 拼接为一个 `.s`；段内标签就地解析，无跨 object 链接、无 LLD。
   - **链路固定**：`llc -march=dadao <prog.ll>` → `.s`；`cat crt0.s prog.s` → `.s`；`llvm-mc -triple=dadao -filetype=obj` → `.o`；`llvm-objcopy -O binary --only-section=.text`（+按需多段拼接）→ `.bin`；`timeout N qemu-system-dadao -M dadao-m1 -bios <trampoline> -kernel <bin> -display none -nographic` → **进程退出码 = guest 退出码**。
   - **判据**：每用例 guest 退出码 == `expected.yaml` 期望值 ⇒ PASS；不等/超时/负例（fault 码 `0x80|cause`）⇒ FAIL。逐用例打印「名字 + 期望 + 实际 + 退出码」。
-  - **门槛**：`make test-codegen` 全绿；**≥1 算术 + ≥1 访存 + ≥1 分支 + ≥1 调用**函数端到端（与 `TESTCASES-026t` 覆盖矩阵一致）；并覆盖**大端窄访存**（C13/`ADR-0018（C13）`，显式核对字节偏移）与**指针算术**（C14/`ADR-0018（C14）`，`add.so-rb` base+offset / `cmp.uo-rb`）各 ≥1。
+  - **门槛**：`make test-codegen` 全绿；**≥1 算术 + ≥1 访存 + ≥1 分支 + ≥1 调用**函数端到端（与 `TESTCASES-026t` 覆盖矩阵一致）；并覆盖**大端窄访存**（C13/`ADR-0018（C13）`，显式核对字节偏移）、**指针算术**（C14/`ADR-0018（C14）`，`add.o`（orrr，rb 目的）base+offset / `cmp.uo`（orrr `dbb`））与 **`ptr−ptr` 指针差**（后端选出 `sub.o_orrr_dbb`，QEMU 由 `QEMU-040t` 支持执行）各 ≥1。
   - **反例门控**（强制）：驱动内置 `--inject` 或测试脚本注入反例（改一条期望值 / 把一个函数的操作数改错 → 预期 FAIL，再还原 → 回绿），完成区给出真实输出；**注入后须验证 `git diff --name-only` 非空且还原含重建**。
   - **不引入** LLD、不实现完整重定位；**不**扩 `contract-elf.md §2–§4`。
   - 不改 `components/**`；`Makefile` 改动与 `INFRA-035t` 串行（同改共享文件）。
