@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..26c49e979
+index 000000000..4dafe01f9
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1342 @@
+@@ -0,0 +1,1366 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -864,6 +864,19 @@ index 000000000..26c49e979
 +         M == "ftroot" || M == "foroot";
 +}
 +
++// FP instructions subject to the `dst_rd0` rule (SPEC-089t) whose destination
++// is an RD register, i.e. `rd0` is illegal.  These are the 15 FP rd-destination
++// forms: convert_f2i (8), classify (2), compare (4) and rf2rd (1).  rf2rd's
++// destination is an RD register; rd2rf's destination is RF (rf0 legal) and is
++// NOT listed.
++static bool isFPDstRdMnemonic(StringRef M) {
++  return M == "ft2it" || M == "ft2io" || M == "ft2ut" || M == "ft2uo" ||
++         M == "fo2it" || M == "fo2io" || M == "fo2ut" || M == "fo2uo" ||
++         M == "ftcls" || M == "focls" ||
++         M == "ftqcmp" || M == "ftscmp" || M == "foqcmp" || M == "foscmp" ||
++         M == "rf2rd";
++}
++
 +// FP convert_ff instructions (SPEC-088t `mreg_range_overlap`): two same-bank
 +// RF `{start:end}` groups that share one immu6 element count and must not
 +// overlap (any intersection, including complete coincidence, is illegal).
@@ -1281,6 +1294,17 @@ index 000000000..26c49e979
 +                 "invalid '" + Mnemonic.str() +
 +                     "': rf0 is the FCSR and cannot be a floating-point "
 +                     "destination (dst_rf0)");
++
++  // `dst_rd0` (SPEC-089t): the FP rd-destination forms (convert_f2i 8,
++  // classify 2, compare 4, rf2rd 1) must not write rd0 (the hard-wired zero
++  // register).  The destination start register is Flat[1] for both the orri
++  // group forms and the orrr single-destination compare (see decomposition).
++  if (isFPDstRdMnemonic(Mnemonic) && Flat.size() >= 2 && Flat[1]->isReg() &&
++      Flat[1]->getReg() == DADAO::rd0)
++    return Error(Flat[1]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rd0 is the hard-wired zero register and cannot be a "
++                     "destination (dst_rd0)");
 +
 +  if ((Mnemonic == "ftroot" || Mnemonic == "foroot") && Flat.size() >= 4 &&
 +      Flat[3]->isImm()) {

@@ -35,6 +35,18 @@
 - QEMU 二进制内嵌源码 revision，故**跨 commit/amend** 时不得以二进制 sha 相等作还原判据——应断言**源码 blob sha**，二进制等价以「**重建后探针回绿**」为证。
 - **同一 commit 工作树内**注入→还原并**重建**后，二进制 sha 应复原。
 
+### 2.4 未重建 QEMU 的探针回归判据＝「逐字节一致 / 零新增失败」，**不要求**探针 `rc=0`（`LLVM-031t`）
+
+- 改 **LLVM-only**（`make build-mc`、不重建 QEMU）时，QEMU 探针产出结构性不变；回归判据取**与改前基线逐字节一致**（`diff -q`），即**零新增失败**。
+- **不得**以探针 `rc=0` 为判据——多个 legacy 探针（`min_rom_probe_005t..036t` 内 6 条）在基线即 `rc=1`（pre-existing FAIL），以 `rc` 判定会误报「本任务引入回归」。
+- 实例：`LLVM-031t` 复用 `.work/evidence/QEMU-037t/baseline/`，17 条 `byte-identical` + `_037t` 91/91；已核实 18 个探针脚本均不引用 `llvm*`（`grep -l llvm tools/qemu/min_rom_probe_*.py` 空）。
+
+### 2.5 注入脚本须含异常退出回滚（trap）+ 替换串须含完整唯一条件前缀（`LLVM-031t`）
+
+- 注入脚本须对注入态**异常退出**设 `EXIT`-trap，自动 `git checkout` 还原并**重建**（源码还原 ≠ 二进制还原），否则工作树/二进制留在注入态、后续验收不可信。
+- 注入替换串必须是**完整、唯一可定位**的条件前缀：首版 `"if (false && " + old` 拼接得 `if (false && if (...` ⇒ 编译失败并遗留注入态；改为在 `if (` 后精确插入 `false && `（并加 trap）修复。
+- 已在 `LLVM-031t` 的 `.work/evidence/LLVM-031t/run.sh` 落地（`trap cleanup EXIT` + `git diff --name-only` 非空校验 + sha256 还原断言）。
+
 ## 3. 子代理协作异常事件与处置
 
 ### 3.1 子代理异常返回须逐项扫描残留（`SPEC-049t`，2026-09-29）
