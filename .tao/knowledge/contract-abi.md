@@ -206,4 +206,4 @@ M1 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2"`�
 | §1.7 | 大端序 / 指针宽度 | `DADAO-21-ABI §数据表示` |
 | §2.1 | SP/FP、栈向下增长 | `DADAO-21-ABI §寄存器规范`、`DADAO-21-ABI §函数调用规范 §The Stack Frame` |
 | §2.2 | `call` 时 SP 8B 对齐 | `DADAO-21-ABI §传参 §栈溢出规则` |
-| §2.3 | `call`/`ret` 与 RegRAS | `SimRISC-02 §函数调用`、`§函数返回`；`contract-isa.md §5.4–§5.6` |
+| §2.3 | `call`/`ret` 与 RegRAS | `SimRISC-06 §函数调用`、`§函数返回`；`contract-isa.md §5.4–§5.6` |
