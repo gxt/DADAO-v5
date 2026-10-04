@@ -1,7 +1,7 @@
 # LLVM-020t: 更新 lit/e2e/oracle 测试 + 重跑生成器更新 assembly-list
 
 **模块**：llvm
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`LLVM-019t`（MC 已支持新语法）、`LLVM-017t` + `LLVM-018t`（生成器已更新）
 **状态**：已验证
 

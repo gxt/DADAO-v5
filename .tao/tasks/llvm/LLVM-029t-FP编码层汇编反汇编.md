@@ -1,7 +1,7 @@
 # LLVM-029t: FP 编码层——60 条 `scope: fp` 指令汇编 / 反汇编
 
 **模块**：llvm
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-086t`（scope 口径）、`SPEC-087t`（FP 语义合约 / oracle 方案）、`SPEC-088t`（FP 合法性归并）——均须先 `已验证`。相关：`contracts/opcodes.yaml`（`scope: fp`，**编码唯一真源**）、`contracts/fp_semantics.yaml`、`docs/fp-oracle-design.md`、`LLVM-028t`（同类静态检查先例）。
 **状态**：已验证
 

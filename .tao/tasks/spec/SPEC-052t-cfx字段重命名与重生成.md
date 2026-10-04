@@ -1,7 +1,7 @@
 # SPEC-052t: cfx 字段重命名（cfxha/cghb/rchc/rdhd）与重生成
 
 **模块**：spec（含跨模块 `tools/llvm/gen_asm_list.py`，因须同步才能保持 `make check` 绿灯）
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`ADR-0013 D8`（Accepted，本任务落地 D8.1–D8.5 的**机制**部分）
 **状态**：已验证
 

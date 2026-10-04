@@ -1,7 +1,7 @@
 # INTEG-005t: `check_interface_alignment` 同类缺陷修复（非递归 glob → 递归 + 空补丁集硬错误）
 
 **模块**：integ
-**项目里程碑**：M1→M2（过渡期任务，见 `.tao/README.md` 与 `.tao/knowledge/milestones.md`）
+**项目里程碑**：M2
 **依赖**：`INTEG-003t`（本脚本的产出任务，已验证）；参照 `QEMU-024t`（**同类缺陷的先例修复**）
 **状态**：已验证
 **上游发现**：`QEMU-024t` 第 1 轮 reviewer 主动证伪时发现（2026-09-25），主会话独立复核确认

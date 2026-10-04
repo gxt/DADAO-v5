@@ -1,7 +1,7 @@
 # QEMU-035t: FP 位级语义族（sign 4 + classify 2 + compare 4 = 10 条）
 
 **模块**：qemu
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`QEMU-034t`（**必须先 `已验证`**：提供 `trans_fp.c.inc` 骨架、`load_rf`/`store_rf`、`dst_rf0` 检查 helper、探针范式）。相关：`SPEC-087t`（合约）、`LLVM-029t`/`LLVM-030t`（编码/汇编期对照）。
 **状态**：已验证
 

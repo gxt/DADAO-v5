@@ -1,7 +1,7 @@
 # LLVM-019t: 更新 LLVM MC 补丁——parser/printer/disassembler 新语法
 
 **模块**：llvm
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-036t`（规范已更新）、`LLVM-017t` + `LLVM-018t`（生成器已更新，可生成新语法示例供参考）
 **状态**：已验证
 

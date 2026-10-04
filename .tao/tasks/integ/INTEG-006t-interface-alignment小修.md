@@ -1,7 +1,7 @@
 # INTEG-006t: check_interface_alignment 两处缺陷
 
 **模块**：integ
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：无
 **状态**：已验证
 

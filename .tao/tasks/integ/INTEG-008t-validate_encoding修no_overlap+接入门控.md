@@ -1,7 +1,7 @@
 # INTEG-008t: `validate_encoding.py` 修 `no_overlap` + 接入 `make check`
 
 **模块**：integ（含仓库根 `Makefile`）
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-060t`（暴露该缺陷）、`INTEG-007t`（门控接线先例）
 **状态**：已验证
 

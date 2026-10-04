@@ -1,7 +1,7 @@
 # SPEC-057t: 全量删除 `rela.si`（跨 spec/qemu/llvm/testcases 原子变更）
 
 **模块**：spec（**跨模块**：`spec/`+`contracts/`+`tools/`+`components/qemu`+`components/llvm-project`+`tests/`）
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-056t`（`ADR-0012 D5` Accepted）
 **状态**：已验证
 

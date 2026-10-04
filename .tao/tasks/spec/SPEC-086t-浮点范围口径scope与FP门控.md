@@ -1,7 +1,7 @@
 # SPEC-086t: 浮点范围口径切换 —— `scope` 字段（m1|fp|excluded）与 FP 门控（试点）
 
 **模块**：spec
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：无硬依赖。相关基线（均**已验证**）：`SPEC-085t`（生成投影落位到 `.tao/knowledge/contract-asm-list.md`）、`INFRA-027t`（新增 `check-asm-list-drift` 门控）、`SPEC-069t`（当前 227=152+75 的编码表现状）。
 **状态**：已验证
 

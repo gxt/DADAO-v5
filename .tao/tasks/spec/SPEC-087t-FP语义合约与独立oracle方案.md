@@ -1,7 +1,7 @@
 # SPEC-087t: FP 语义合约与独立 oracle 方案（原生浮点）
 
 **模块**：spec
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-086t`（`scope` 口径切换，**已验证**，`scope: fp` = 60）；相关基线：`contract-isa.md`（M1 合约，§9 为 FP 指针）、`spec/SimRISC-00/01/02/03/07`、`spec/Process-02`、`spec/Process-03`、`tools/spec/{check_scope,check_rule_refs,gen_legality_list,generate_opcodes}.py`、`tools/infra/check_spec_drift.py`、`Makefile`。
 **状态**：已验证
 

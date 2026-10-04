@@ -1,7 +1,7 @@
 # SPEC-088t: FP 合法性规则归并（删 fp_mreg_*）、`mreg_range_overlap` 扩 FP、`dst_rf0` 分类修正
 
 **模块**：spec
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-086t`（`scope` 口径，已验证）、`SPEC-087t`（FP 语义合约层，已验证）。相关基线：`contracts/{opcodes,legality_rules,fp_semantics}.yaml`、`.tao/knowledge/{contract-fp,contract-isa}.md`、`spec/SimRISC-07`、`tools/spec/{check_rule_refs,check_fp_contract,gen_legality_list}.py`、`Makefile`。
 **状态**：已验证
 

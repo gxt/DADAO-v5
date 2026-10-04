@@ -1,9 +1,12 @@
 # SPEC-033t: contract-abi 引用修正 + docs/README 同步
 
 **模块**：spec
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：无
 **状态**：待开始
+
+> **处置（2026-10-04，`SPEC-090k` 核验）：改范围（继续执行，范围收窄）。**
+> 原两项中 **G5（`docs/README.md:17` 同步）已完成**（现为当前口径 `227 = M1 152 + scope fp 60 + scope excluded 15`）；**G4（`contract-abi.md` 引用陈旧）仍有效**——实测 `.tao/knowledge/contract-abi.md:209` 仍写 `SimRISC-02 §函数调用`/`§函数返回`，而 `SimRISC-02` 现为「寄存器复制」（无此二节），`SimRISC-06-控制流.md` 有「### 函数调用」「### 函数返回」（L107/L130）。**本任务收窄为仅修 `contract-abi.md` 的 2 处**；下文 G5 及 `docs/README.md` 相关项作废，不执行。
 
 ## 问题描述
 
@@ -28,7 +31,8 @@
 ## 修改内容
 
 1. `contract-abi.md` 的 `SimRISC-02 §函数调用`/`§函数返回` → `SimRISC-06`
-2. `docs/README.md` 第17行：顺序、名称、计数对齐 SimRISC-00~12
+
+（原第 2 项 `docs/README.md` 已于 2026-10-03/04 完成，见头部「处置」，不再执行。）
 
 ## 约束
 
@@ -37,10 +41,9 @@
 
 ## 验收标准
 
-1. `contract-abi.md` 中无 `SimRISC-02 §函数调用`/`§函数返回`
-2. `python3 tools/infra/check_spec_refs.py` 的 Check1 失败中 contract-abi 的 2 条真实陈旧消除（模板占位 `SimRISC-0X` 等除外）
-3. `docs/README.md:17` 顺序/名称/计数与 spec 一致
-4. 其他内容未改动
+1. `contract-abi.md` 中无 `SimRISC-02 §函数调用`/`§函数返回`（改为 `SimRISC-06`）
+2. `docs/README.md` 与其它文件未改动（`git diff` 只含 `contract-abi.md`）
+3. 一键证据脚本：逐项打印「检查名 + 期望/实际 + 退出码」；任一失败即非零退出；内置注入反例自检（如把改好的引用还原为 `SimRISC-02` → 自检 FAIL）。落点 `.work/evidence/SPEC-033t/`。
 
 ## 完成区
 **测试结果**：

@@ -1,7 +1,7 @@
 # SPEC-047t: SimRISC-07（浮点运算）正文改为新汇编格式
 
 **模块**：spec
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`ADR-0013`、`assembly-language.md` v1.1、`tools/llvm/gen_asm_list.py`、内嵌速查表；前置 `SPEC-041t`…`046t`、`SPEC-040t`（cls 正文）、`LLVM-023t`（cls 生成表）
 **状态**：已验证
 

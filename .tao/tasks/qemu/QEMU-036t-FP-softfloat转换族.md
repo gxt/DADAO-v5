@@ -1,7 +1,7 @@
 # QEMU-036t: FP softfloat 转换族（convert_ff 4 + convert_f2i 8 + convert_i2f 8 = 20 条）
 
 **模块**：qemu
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`QEMU-034t`（**必须先 `已验证`**：骨架/`load_rf`/`store_rf`/legality helper/探针范式）、`QEMU-035t`（建议先 `已验证`；非硬依赖，但同改 `trans_fp.c.inc` ⇒ 串行）。相关：`SPEC-087t`（合约）。
 **状态**：已验证
 

@@ -1,7 +1,7 @@
 # TESTCASES-022t: ret rd0 ⇒ imms18 非零 ILLI 向量用例
 
 **模块**：testcases
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-083t`、`TESTCASES-021t`
 **状态**：已验证
 

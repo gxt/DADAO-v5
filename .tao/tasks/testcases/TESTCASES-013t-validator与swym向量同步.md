@@ -1,7 +1,7 @@
 # TESTCASES-013t: validate_vectors 恢复 role 逻辑 + swym 向量同步
 
 **模块**：testcases
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-031t`
 **状态**：已验证
 

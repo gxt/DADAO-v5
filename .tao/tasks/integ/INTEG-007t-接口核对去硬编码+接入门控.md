@@ -1,7 +1,7 @@
 # INTEG-007t: `check_interface_alignment` 去硬编码 + 接入 `make check`
 
 **模块**：integ（含仓库根 `Makefile`，因需接入门控）
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：用户裁定（2026-09-30，方案 A）；`SPEC-057t`（暴露该缺陷）
 **状态**：已验证
 

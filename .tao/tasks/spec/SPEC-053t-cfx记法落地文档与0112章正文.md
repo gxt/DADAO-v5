@@ -1,7 +1,7 @@
 # SPEC-053t: cfx 记法落地——assembly-language.md 与 SimRISC-00/11/12 正文
 
 **模块**：spec
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`ADR-0013 D8`（Accepted）、`SPEC-052t`（已重命名字段 + 重生成生成表）
 **状态**：已验证
 

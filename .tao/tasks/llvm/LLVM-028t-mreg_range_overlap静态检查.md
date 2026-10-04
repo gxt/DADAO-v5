@@ -1,7 +1,7 @@
 # LLVM-028t: `mreg_range_overlap` M1 汇编期静态检查（`rd2rd`/`rb2rb`）
 
 **模块**：llvm
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-088t`（规范/合约层修复，**须先 `已验证`**）。相关：`contracts/legality_rules.yaml`（`mreg_range_overlap`，`active`/`static`）、`components/llvm-project/patches/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp.patch`、`tests/lit/MC/Dadao/ret-rd0-legality.s`（同类先例）。
 **状态**：已验证
 

@@ -1,7 +1,7 @@
 # QEMU-037t: FP softfloat 算术族（arith 12 + root 2 = 14 条）
 
 **模块**：qemu
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`QEMU-034t`（**必须先 `已验证`**）、`QEMU-036t`（**必须先 `已验证`**：提供 `fp_status_init`/`fp_status_commit`/舍入映射）。相关：`SPEC-087t`（合约）。
 **状态**：已验证
 

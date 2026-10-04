@@ -1,7 +1,7 @@
 # SPEC-050t: SimRISC-10（8位数据运算）正文改为新汇编格式
 
 **模块**：spec
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`ADR-0013`、`assembly-language.md` v1.1、`tools/llvm/gen_asm_list.py`、内嵌速查表；前置 `SPEC-041t`…`049t`
 **状态**：已验证
 

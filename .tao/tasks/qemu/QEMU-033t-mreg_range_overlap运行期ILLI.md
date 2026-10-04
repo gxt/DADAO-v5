@@ -1,7 +1,7 @@
 # QEMU-033t: `mreg_range_overlap` M1 运行期实现（QEMU translate 期 ILLI）
 
 **模块**：qemu
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-088t`（规范/合约层修复，**须先 `已验证`**）。相关：`contracts/legality_rules.yaml`（`mreg_range_overlap`，`active`）、`contracts/opcodes.yaml`（`rd2rd_orri_rd`/`rb2rb_orri_rb`）、`components/qemu/patches/target/dadao/insn_trans/trans_block.c.inc.patch`、`tools/qemu/min_rom_probe_*.py`。
 **状态**：已验证
 

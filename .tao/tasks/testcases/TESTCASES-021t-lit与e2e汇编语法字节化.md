@@ -1,7 +1,7 @@
 # TESTCASES-021t: lit 与 e2e 汇编语法字节化
 
 **模块**：testcases
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：LLVM-026t（需要新 llvm-mc 才能跑 `make check-lit`）
 **状态**：已验证
 

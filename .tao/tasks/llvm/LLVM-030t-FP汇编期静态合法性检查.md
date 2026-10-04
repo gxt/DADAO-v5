@@ -1,7 +1,7 @@
 # LLVM-030t: FP 汇编期静态合法性检查（`dst_rf0` / `mreg_range_overlap` / `mreg_range_overflow` / `encode_fp_root_n`）
 
 **模块**：llvm
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：**`LLVM-029t`（FP 编码层，须先 `已验证`）**；`SPEC-088t`（FP 合法性归并，已验证）。相关：`contracts/legality_rules.yaml`（规则描述，Spec-first 来源）、`contracts/fp_semantics.yaml`（`legality_refs` 逐条映射）、`LLVM-028t`（M1 同类先例，汇编期重叠检查）。
 **状态**：已验证
 

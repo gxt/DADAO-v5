@@ -1,7 +1,7 @@
 # INFRA-030t: check-qemu-semantics 并行化（降低 `make check` 耗时）
 
 **模块**：infra
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：无（纯本地 Python/Makefile 改造；不改被编译的组件源码）
 **状态**：已验证
 

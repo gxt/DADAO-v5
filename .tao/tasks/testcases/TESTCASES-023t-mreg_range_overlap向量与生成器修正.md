@@ -1,7 +1,7 @@
 # TESTCASES-023t: `mreg_range_overlap` 向量与生成器修正（同组重叠 ⇒ ILLI）
 
 **模块**：testcases
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：`SPEC-088t`（规范/合约层修复，**须先 `已验证`**）。相关：`contracts/legality_rules.yaml`（`mreg_range_overlap`）、`.tao/knowledge/contract-isa.md`（`SPEC-088t` 修正后的块赋值重叠条）、`tests/vectors/isa/reg-imm-block.yaml`、`tools/testcases/{generate_isa_vectors.py,009t-audit.py,validate_vectors.py}`、`tests/vectors/inventory.md`。
 **状态**：已验证
 

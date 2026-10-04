@@ -1,7 +1,7 @@
 # SPEC-028t: swym 编码同步（generate_opcodes.py + opcodes.yaml）
 
 **模块**：spec
-**项目里程碑**：M1→M2
+**项目里程碑**：M2
 **依赖**：无
 **状态**：已验证
 

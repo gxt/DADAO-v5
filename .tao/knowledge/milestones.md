@@ -5,9 +5,12 @@
 | 项目里程碑 | infra | spec | testcases | golden | llvm | qemu | integ | gem5 | sail | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | M1 | **`INFRA-014m` ✅ 里程碑** | **`SPEC-011m` ✅ 里程碑** | **`TESTCASES-012m` ✅ 里程碑** | — | **`LLVM-015m` ✅ 里程碑** | **`QEMU-021m` ✅ 里程碑** | **`INTEG-004m` ✅ 里程碑** | — | — | **✅ 达成** |
-| M2 | — | — | — | 待规划 | 待规划 | — | 待规划 | — | — | 待开始 |
+| M2 | 待开始 | 待开始 | 待开始 | — | 待开始 | 待开始 | 待开始 | — | — | 待开始 |
+| M3 | — | — | — | — | 待开始 | 待开始 | 待开始 | — | — | 待开始 |
 
 > **归档（2026-10-03）**：M1 的 76 个任务书已归档至 `.tao/archive/M1/`（按模块子目录）；M1 时期 changelog/MEMORY 内容见 `.tao/archive/M1/README.md`；**M1 回顾见 `.tao/archive/M1/m1-retrospective.md`**（由 `docs/` 移入）。
+>
+> **M2 重定义（2026-10-04，用户裁定）**：M2 定为「**规范与接口冻结（Normative Freeze）**」，原「Basic CodeGen」顺延为 **M3**；并**取消「过渡期任务 `M<i>→M<i+1>`」类别**——原 `M1→M2` 任务一律提升为 `M2`（**推翻** 2026-09-25 决议；不立 ADR）。
 
 ## 里程碑说明
 
@@ -15,13 +18,17 @@
 
 目的：`llvm-mc` 能汇编/反汇编全部 M1 指令；`qemu-system-dadao` 能在 MMU-off 裸机模式执行标量程序；独立测试向量经「MC 汇编 → QEMU 执行 → 结果比对」一致，形成 MC↔QEMU 集成闭环。门槛：`make build-mc` / `build-qemu` / `test-interface` 全绿。
 
-**M2 — Basic CodeGen**
+**M2 — 规范与接口冻结（Normative Freeze）**
 
-目的：`llc` 将标量整数/指针函数（LLVM IR）编译为 DADAO 汇编，经 MC → obj → 链接 → QEMU 执行结果正确（freestanding、same-TU，不含变参/聚合）。门槛：`make test-codegen` 全绿，至少一个算术/访存/分支/调用函数端到端在 QEMU 得到期望结果。
+目的：`spec/`（0.5.4）→ 投影（`contracts/*`、`contract-*.md`）→ checker 三层**机械一致**；FP **实现侧**收口（执行层 + 合法性）；偏离台账成型。为 M3 codegen 提供稳定契约。
 
-**过渡期任务**（`M<i>→M<i+1>`）
+门槛：① `make check` 全绿（所有 checker + 反例门控）；② 投影表「缺口」清零或显式 deferred；③ `spec_cite`/引用/计数全对齐；④ FP = 执行层 60/60 + `dst_rd0@FP` + **最小 FP smoke**；⑤ 偏离台账（6 项，见 `MEMORY.md`）。
 
-不属于单一里程碑、而是「修正上一阶段 + 为下一阶段铺路」的任务，任务书 `**项目里程碑**` 记为 `M1→M2` 形式（约定见 `.tao/README.md`）。此类任务**不进入**上表任何模块列（既不计入 M1 也不计入 M2）；**M2 的 `k` 任务书必须把当时仍未 `已验证` 的 `M1→M2` 任务列为前置**。「修正上一阶段」结束的判据 = 无未终态的 `M1→M2` 任务。已置 `里程碑` 的模块 `m` 不因过渡任务重开（用户裁定 2026-09-25）。
+**范围外（归 M3）**：FP 独立 oracle（`GOLDEN`）、FP 向量（`TESTCASES-024t`）、完整语义 E2E。
+
+**M3 — Basic CodeGen**
+
+目的：`llc` 将标量整数/指针函数（LLVM IR）编译为 DADAO 汇编，经 MC → obj → 链接 → QEMU 执行结果正确（freestanding、same-TU，不含变参/聚合）。门槛：`make test-codegen` 全绿，至少一个算术/访存/分支/调用函数端到端在 QEMU 得到期望结果。**含**（自 M2 顺延）：FP 独立 oracle、FP 向量、完整语义 E2E。
 
 ## M1 模块依赖关系
 
