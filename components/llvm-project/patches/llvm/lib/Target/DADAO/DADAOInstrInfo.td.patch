@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..492c03131
+index 000000000..b72a7e2f6
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1305 @@
+@@ -0,0 +1,1314 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -710,6 +710,15 @@ index 000000000..492c03131
 +  let InOperandList = (ins GPRB:$rc, GPRB:$rd);
 +  let op = 0x40;
 +  let ha = 0x32;
++  let Pattern = [];
++}
++
++// M3 (ADR-0012 D9.1): rd = rb - rb, all 64 bits. No ISel pattern (LLVM-035t).
++def sub_o_dbb : DADAOOrrr<"sub.o"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRB:$rc, GPRB:$rd);
++  let op = 0x40;
++  let ha = 0x33;
 +  let Pattern = [];
 +}
 +

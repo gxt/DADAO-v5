@@ -168,6 +168,10 @@ TESTS = [
     # orrr.s: or.o rd8, rd9, rd10 (op=0x40, ha=0x09)
     ("or.o rd8, rd9, rd10", encode_orrr(0x40, 0x09, 8, 9, 10)),
 
+    # orrr.s: sub.o rd8, rb9, rb10 (M3, ADR-0012 D9.1; op=0x40, ha=0x33)
+    # dst rd8 -> hb, src rb9 -> hc, src rb10 -> hd
+    ("sub.o rd8, rb9, rb10", encode_orrr(0x40, 0x33, 8, 9, 10)),
+
     # rb_ops.s: rb2rd {rd8:rd9}, {rb9:rb10} (op=0x40, ha=0x36)
     ("rb2rd {rd8:rd9}, {rb9:rb10}", encode_orri(0x40, 0x36, 8, 9, 2)),
     # rb_ops.s: rd2rd {rd8}, {rd1} (op=0x40, ha=0x2C)
