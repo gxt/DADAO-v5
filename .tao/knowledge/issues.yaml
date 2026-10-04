@@ -597,3 +597,27 @@
   blocks: []
   resolved_by: null
   notes: "原 backlog L244/L245/L250。位级：ft 高 32 位符号注入 + classify/compare 只看低 32 位；转换：ft2ft/fo2fo 全 64 位搬移、f2i 向零截断 + 饱和 + NV 不置 NX、NaN payload 加宽；算术：rem=IEEE remainder（平局取偶）、scalb 的 n 取整、rootn(-0,2) 不设期望。若用户另有裁定须同步改实现与探针。"
+
+- id: ISS-128
+  title: "汇编器错误接受裸数字 0–3 作 wyde 位置（rwii: set.zw/set.ow/or.w/andn.w）——须仅接受 wp0–wp3，裸数字须报错"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "用户 2026-10-04 裁定。现状（实测 .work/build/llvm/bin/llvm-mc）：set.zw rd1, 1, 0x1234 被接受并编码为 wp1（[0x4c,0x05,0x12,0x34]）；set.ow rd2,0→wp0、or.w rd3,3→wp3、andn.w rb4,2→wp2 同样被接受；裸 5/8 正确报错。根因：DADAOWydePosAsmOperand（DADAOInstrInfo.td:32）PredicateMethod=isWydePosImm 接受 kImmediate && 0≤ImmVal≤3，DADAOAsmParser::parseOperand 的 parseImmediate 兜底把裸数字变 immediate。期望：wyde 位置只能写作 wp0–wp3，裸数字 0–3 须报错。修复：收紧 wydepos 匹配，仅接受 parseWydePosToken 产出的操作数。连带：①反汇编器确认打印 wp0–wp3（当前已正确，修复后回归汇编↔反汇编往返）；②tests/e2e/{smoke_add,smoke_arith,smoke_fp}.s 现用裸数字须改 wpN，并修正三处『wpN 被静默忽略』的过时错误注释；③LLVM-035t:22 同句『须用数值 wyde 位置 0/1/2/3』与事实相反，须修正。"
+
+- id: ISS-129
+  title: "spec SimRISC-05 §RB 加减“地址计算仅在低 48 位有效”与同段“全 64 位参与运算”字面矛盾——须澄清为“算术=64 位；访存取低 48 位；高 16 位表示溢出”"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "用户 2026-10-04 裁定：RB 加减为全 64 位运算、结果为完整 64 位；仅当用该地址访存时硬件取 rb[47:0]，rb[63:48] 用于判断地址溢出。SimRISC-05 同段两句字面矛盾，须按此澄清；并检查 SimRISC-00 等文件里 RB 加减/叠加的同类表述。"
+
+- id: ISS-130
+  title: "新增指令候选 sub rd, rb, rb（RB − RB → RD）用于 ptr−ptr/地址差值——spec 变更 + ADR，M3 用到前加入"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "用户 2026-10-04 裁定。与既有 cmp.uo-rb（(outs GPRD)(ins GPRB,GPRB)）同形，替代现有 rb2rd×2 + sub.o（3 条）。走 spec 变更（contract-isa/opcodes.yaml/编码）+ MC/反汇编 + QEMU + ISel pattern + ADR；M3 在首次需要 ptr−ptr 前落地，否则暂用 3 条兜底。signedness（单条 sub.o vs sub.so/sub.uo 变体）待定，用户倾向单条。"

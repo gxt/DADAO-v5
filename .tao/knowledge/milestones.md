@@ -6,7 +6,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | M1 | **`INFRA-014m` ✅ 里程碑** | **`SPEC-011m` ✅ 里程碑** | **`TESTCASES-012m` ✅ 里程碑** | — | **`LLVM-015m` ✅ 里程碑** | **`QEMU-021m` ✅ 里程碑** | **`INTEG-004m` ✅ 里程碑** | — | — | **✅ 达成** |
 | M2 | **`INFRA-034m` ✅ 里程碑** | **`SPEC-095m` ✅ 里程碑** | **`TESTCASES-025m` ✅ 里程碑** | — | **`LLVM-032m` ✅ 里程碑** | **`QEMU-039m` ✅ 里程碑** | **`INTEG-011m` ✅ 里程碑** | — | — | **✅ 达成** |
-| M3 | — | — | — | — | 待开始 | 待开始 | 待开始 | — | — | 待开始 |
+| M3 | `INFRA-036m` | `SPEC-099m` | `TESTCASES-027m` | — | `LLVM-042m` | — | `INTEG-013m` | — | — | 待开始 |
 
 > **归档（2026-10-03）**：M1 的 76 个任务书已归档至 `.tao/archive/M1/`（按模块子目录）；M1 时期 changelog/MEMORY 内容见 `.tao/archive/M1/README.md`；**M1 回顾见 `.tao/archive/M1/m1-retrospective.md`**（由 `docs/` 移入）。
 >
@@ -19,6 +19,8 @@
 > **M2 达成（2026-10-04，architect 实测核验）**：M2 门槛 5 条全部满足、各模块 M2 任务均终态 ⇒ 6 个模块 `m` 置 `里程碑`、M2 置 `达成`。核验记录见下「M2 达成核验记录」。
 >
 > **归档（2026-10-04）**：M2 的 149 个任务书已归档至 `.tao/archive/M2/`（按模块子目录）；M2 时期 changelog（60 条）/MEMORY（45 行 + 2 段落）内容见 `.tao/archive/M2/README.md`；**M2 回顾见 `.tao/archive/M2/m2-retrospective.md`**；`issues.yaml` 的 41 条 M2 阶段 closed 项见 `.tao/archive/M2/issues-closed.md`。
+>
+> **M3 重定义（2026-10-04，用户裁定）**：M3 定为 **「Basic CodeGen（纯整数）」**——`llc` 编译标量整数/指针函数 → MC → 单 TU obj/raw binary → QEMU 执行正确；门槛 `make test-codegen` 全绿。bank 只 `GPRD`+`GPRB`；`RA`/`RF` 仅「保留不分配」；无需链接器（ADR-0003 §D5 单 TU + 最小重定位）。**M4（后续，未规划）**顺延：FP/RF codegen、完整调用约定（`ISS-005`，含变参/聚合/多返回/sret）、完整重定位（`ISS-008`）、clang targetinfo/driver。M3 任务分解见 `.tao/tasks/spec/SPEC-096k-M3启动与分解.md`；M3 的 `qemu` 无实现任务（执行层已由 M1 冻结）故本表填 `—`。
 
 ## M2 达成核验记录
 
@@ -38,7 +40,7 @@
 
 **归档前置**：`INFRA-033t`（`Process-04 §2` 台账梳理）`已验证`；M2 任务书归档由 `INTEG-010t` 在 M2 达成后执行。
 
-> **caveat（非阻断，交主会话复核）**：投影表仍存 3 处字面 `缺口`——`SimRISC-07` 行 ④列 `缺口`（FP oracle/向量待建，按定义属 **M3**，但未加 `deferred` 字样）、`DADAO-12` 行 ②④列 `缺口（据实）`（据实、无需独立投影）。按 `SPEC-090k` 对门槛②的 4 项界定为满足；若要字面清零，建议将 `SimRISC-07 ④` 改标 `deferred（M3）`（需改 `spec/README.md`，超出本次核验写范围）。
+> **caveat（非阻断，交主会话复核）**：投影表仍存 3 处字面 `缺口`——`SimRISC-07` 行 ④列 `缺口`（FP oracle/向量待建，2026-10-04 M3 重定义后属 **M4**，未加 `deferred` 字样）、`DADAO-12` 行 ②④列 `缺口（据实）`（据实、无需独立投影）。按 `SPEC-090k` 对门槛②的 4 项界定为满足；若要字面清零，建议将 `SimRISC-07 ④` 改标 `deferred（M3）`（需改 `spec/README.md`，超出本次核验写范围）。
 
 ## 里程碑说明
 
@@ -52,11 +54,15 @@
 
 门槛：① `make check` 全绿（所有 checker + 反例门控）；② 投影表「缺口」清零或显式 deferred；③ `spec_cite`/引用/计数全对齐；④ FP = 执行层 60/60 + `dst_rd0@FP` + **最小 FP smoke**；⑤ 偏离台账（6 项，见 `MEMORY.md`）。
 
-**范围外（归 M3）**：FP 独立 oracle（`GOLDEN`）、FP 向量（`TESTCASES-024t`）、完整语义 E2E。
+**范围外（2026-10-04 M3 重定义后改归 M4）**：FP 独立 oracle（`GOLDEN`）、FP 向量（`TESTCASES-024t`）、完整语义 E2E。
 
-**M3 — Basic CodeGen**
+**M3 — Basic CodeGen（纯整数）**
 
-目的：`llc` 将标量整数/指针函数（LLVM IR）编译为 DADAO 汇编，经 MC → obj → 链接 → QEMU 执行结果正确（freestanding、same-TU，不含变参/聚合）。门槛：`make test-codegen` 全绿，至少一个算术/访存/分支/调用函数端到端在 QEMU 得到期望结果。**含**（自 M2 顺延）：FP 独立 oracle、FP 向量、完整语义 E2E。
+目的：`llc` 将**标量整数/指针**函数（LLVM IR）编译为 DADAO 汇编，经 MC → **单 TU** obj/raw binary → `qemu-system-dadao` 执行结果正确（freestanding、same-TU、无链接器）。门槛：**`make test-codegen` 全绿**，至少一个算术/访存/分支/调用函数端到端在 QEMU 得到期望结果。**范围**（用户裁定 2026-10-04）：bank 只用 `GPRD`+`GPRB`；`RA`/`RF` 仅「保留不分配」；无需链接器（单 TU 自包含 + 最小重定位）。分解见 `.tao/tasks/spec/SPEC-096k-M3启动与分解.md`。
+
+> **M3 CodeGen 取舍点（C1–C17）已定（2026-10-04，用户逐条判定，32 条 decision 经逐一审核通过）**：判定结果见 `.tao/knowledge/project_M3-codegen-choices.md §5`；架构决策固化于单一 **`ADR-0018`**（分组：C1 硬双类、C2 指针 i64 通吃、C4 栈溢出区全局声明序、C5 返回 rb31 + callee 扩展、C7 帧策略条件式/SP-only 默认、C9 DataLayout、C11 SelectionDAG 为主、C13 无 subreg + 大端窄访存、C14 RB 算术落 GPRB、C16 call Defs/RegMask）；C17（无标志位 compare-branch）只落 `LLVM-037t` 任务书约束，不立 ADR。C6（CSR）归 ABI（`SPEC-097t`）。
+
+> **M2 定义变更留下的旧文本已在 2026-10-04 M3 重定义时移除**：M2 曾把「FP 独立 oracle / FP 向量 / 完整语义 E2E」顺延至 M3；用户 2026-10-04 重划边界后，FP/RF 及完整调用约定/完整重定位归 **M4**（见下「M3 重定义」）。
 
 ## M1 模块依赖关系
 
