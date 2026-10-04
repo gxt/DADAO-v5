@@ -12,6 +12,7 @@
 | AEE / ABI | 0.9.2 |
 | SEE / SBI | 0.7.1 |
 | HEE / HBI | 0.1.2 |
+| Toolchain | 1.1 |
 
 版本同步要求：AEE ↔ ABI、SEE ↔ SBI、HEE ↔ HBI 必须一致，全部基于同一 SimRISC 版本号。
 

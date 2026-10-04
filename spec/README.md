@@ -79,7 +79,7 @@
 | `DADAO-21`（ABI） | `contract-abi.md` | `contracts/abi.yaml` | `check_interface_alignment` | 据实 |
 | `DADAO-22`（SBI） | `缺口`（`contract-sbi.md`） | 据实 | 据实 | 据实 |
 | `DADAO-23`（HBI） | `缺口`（`contract-exception.md`） | 据实 | 据实 | 据实 |
-| `Toolchain-01` | `缺口`（`contract-asm.md`）+ `contract-asm-list.md`（生成投影，已落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py` | `tests/lit/MC` |
+| `Toolchain-01` | `contract-asm.md` + `contract-asm-list.md`（生成投影，已落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py` | `tests/lit/MC` |
 | `Process-01` | — | — | `tools/infra/check_patch_tree.py`（+ 报告，**非门控**：`tools/infra/size_report.py`，见 §11） | 不适用 |
 | `Process-02` | — | — | `tools/infra/check_spec_drift.py`（`check_spec_refs.py` 独立门控） | 不适用 |
 | `Process-03` | — | — | — | 不适用（人工遵守） |
@@ -88,12 +88,11 @@
 
 | 缺口（①叙述合约） | 来源册 | 缺口类型 |
 |-------------------|--------|----------|
-| `contract-asm.md` | `Toolchain-01` | 汇编语言叙述合约缺失 |
 | `contract-sbi.md` | `DADAO-12`（SEE）/ `DADAO-22`（SBI） | SBI 功能表缺失 |
 | `contract-exception.md` | `DADAO-13`（HEE）/ `DADAO-23`（HBI） | 系统态异常模型缺失 |
 | `contract-mmu.md` | `DADAO-12`（SEE，地址转换） | 地址转换模型缺失 |
 
-> 上述四项为**已登记缺口**（决策 8：缺失即登记，不臆造内容）；补齐后按轻量修订流程（见下）更新本表。
+> 上述三项为**已登记缺口**（决策 8：缺失即登记，不臆造内容）；补齐后按轻量修订流程（见下）更新本表。
 
 ## 规范修订流程
 

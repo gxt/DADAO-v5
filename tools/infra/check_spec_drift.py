@@ -49,6 +49,7 @@ SPEC_PREFIX_TO_COMPONENT = {
     "DADAO-21":   "AEE / ABI",
     "DADAO-22":   "SEE / SBI",
     "DADAO-23":   "HEE / HBI",
+    "Toolchain-01": "Toolchain",
 }
 
 # ── spec 前缀 → spec/ 文件名 ─────────────────────────────────────────────────
@@ -72,15 +73,16 @@ SPEC_PREFIX_TO_FILENAME = {
     "DADAO-21":   "DADAO-21-ABI-应用程序二进制接口.md",
     "DADAO-22":   "DADAO-22-SBI-主管系统二进制接口.md",
     "DADAO-23":   "DADAO-23-HBI-超管系统二进制接口.md",
+    "Toolchain-01": "Toolchain-01-汇编语言.md",
 }
 
 # ── 正则 ─────────────────────────────────────────────────────────────────────
-# 版本头: "> **版本：X.Y.Z**" 或 "> **版本：X.Y.Z** [...]"
+# 版本头: "> **版本：X.Y.Z**" / "> **版本：X.Y** [...]"（v5 自定规范 Toolchain-01 为两段版本）
 RE_VERSION_HEADER = re.compile(
-    r"^>\s*\*\*版本[：:]\s*(\d+\.\d+\.\d+)\s*\*\*"
+    r"^>\s*\*\*版本[：:]\s*(\d+(?:\.\d+){1,2})\s*\*\*"
 )
-# 来源引用: [SimRISC-XX §...] 或 [DADAO-XX §...]
-RE_SPEC_REF = re.compile(r"\[(SimRISC-\d+|DADAO-\d+)\s+§")
+# 来源引用: [SimRISC-XX §...] / [DADAO-XX §...] / [Toolchain-XX §...]
+RE_SPEC_REF = re.compile(r"\[(SimRISC-\d+|DADAO-\d+|Toolchain-\d+)\s+§")
 # ADR 引用: adr-XXXX-*.md
 RE_ADR_REF = re.compile(r"adr-(\d{4})-[\w-]+\.md")
 # ADR 状态: **状态**：Accepted 或 Status: Accepted（P2: 兼容中文 + 英文）
