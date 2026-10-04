@@ -52,7 +52,7 @@
   input_state: {}
   mnemonic: cs.n
   notes: 'legality cs.n: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -104,7 +104,7 @@
   input_state: {}
   mnemonic: cs.z
   notes: 'legality cs.z: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -156,7 +156,7 @@
   input_state: {}
   mnemonic: cs.p
   notes: 'legality cs.p: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -208,7 +208,7 @@
   input_state: {}
   mnemonic: cs.eq
   notes: 'legality cs.eq: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -260,7 +260,7 @@
   input_state: {}
   mnemonic: cs.ne
   notes: 'legality cs.ne: dest=rd0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-02 §条件赋值：Conditional Assignment; SimRISC-00 §数据寄存器
   status: active
 - class: overlap
   deferred_reason: C-27

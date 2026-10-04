@@ -70,7 +70,7 @@
   input_state: {}
   mnemonic: and.o
   notes: 'legality and.o: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -144,7 +144,7 @@
   input_state: {}
   mnemonic: or.o
   notes: 'legality or.o: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -218,7 +218,7 @@
   input_state: {}
   mnemonic: xor.o
   notes: 'legality xor.o: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -292,5 +292,5 @@
   input_state: {}
   mnemonic: xnor.o
   notes: 'legality xnor.o: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §Logic operators：逻辑运算; SimRISC-00 §数据寄存器
   status: active

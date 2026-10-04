@@ -45,7 +45,7 @@
   input_state: {}
   mnemonic: cmp.ui
   notes: 'legality cmp.ui: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -94,7 +94,7 @@
   input_state: {}
   mnemonic: cmp.si
   notes: 'legality cmp.si: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -213,7 +213,7 @@
   input_state: {}
   mnemonic: cmp.uo
   notes: 'legality cmp.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-05 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-05 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -263,7 +263,7 @@
   input_state: {}
   mnemonic: cmp.uo
   notes: 'legality cmp.uo: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -313,7 +313,7 @@
   input_state: {}
   mnemonic: cmp.so
   notes: 'legality cmp.so: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-04 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-04 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -363,7 +363,7 @@
   input_state: {}
   mnemonic: cmp.ut
   notes: 'legality cmp.ut: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -413,7 +413,7 @@
   input_state: {}
   mnemonic: cmp.st
   notes: 'legality cmp.st: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-08 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-08 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -463,7 +463,7 @@
   input_state: {}
   mnemonic: cmp.uw
   notes: 'legality cmp.uw: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -513,7 +513,7 @@
   input_state: {}
   mnemonic: cmp.sw
   notes: 'legality cmp.sw: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-09 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-09 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -563,7 +563,7 @@
   input_state: {}
   mnemonic: cmp.ub
   notes: 'legality cmp.ub: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §比较操作; SimRISC-00 §数据寄存器
   status: active
 - class: encoding
   deferred_reason: null
@@ -613,5 +613,5 @@
   input_state: {}
   mnemonic: cmp.sb
   notes: 'legality cmp.sb: dest=rd0/rb0 → ILLI (dst_rd0)'
-  spec_cite: SimRISC-10 §比较操作; SimRISC-01 §rd0 为目的寄存器约定
+  spec_cite: SimRISC-10 §比较操作; SimRISC-00 §数据寄存器
   status: active

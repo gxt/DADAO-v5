@@ -970,12 +970,16 @@ def gen_cs_overlap_deferred(rec):
 # Rule spec_cite values come from contracts/legality_rules.yaml.
 
 _ILLI_RULES = {
+    # AUTHORITY: each rule spec_cite MUST match the corresponding `rules[].spec_cite`
+    # in contracts/legality_rules.yaml (kept as literals only because mreg_zero is
+    # intentionally narrowed to its RD sub-section anchor; do NOT edit here without
+    # updating that file).
     # orrr single-dest (rdhb) / orri/rrii/riii/rwii rd-dest / ra2rd rdhb=rd0: dst_rd0
-    "dst_rd0": "SimRISC-01 §rd0 为目的寄存器约定",
+    "dst_rd0": "SimRISC-00 §数据寄存器",
     # rrrr dual-dest (rdha, rdhb): dst_dual_same
-    "dst_dual_same": "SimRISC-01 §加减操作",
+    "dst_dual_same": "SimRISC-04 §加减操作",
     # orrr rb-dest (rbhb): dst_rb0
-    "dst_rb0": "SimRISC-02 §rb0 为目的寄存器约定",
+    "dst_rb0": "SimRISC-00 §基址寄存器",
     # orri block move immu6=0 (RD/RB + RA): mreg_zero
     "mreg_zero": "SimRISC-01 §存取RD寄存器",
 }
