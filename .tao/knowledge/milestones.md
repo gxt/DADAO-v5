@@ -17,6 +17,8 @@
 > **状态口径**：本表 `状态` 列只有 **`待开始`/`达成`** 两态（模块 `m` 未置则显 `待开始`）；`issues.yaml` 头部的「M2=进行中」是**进度叙述**，二者不矛盾。
 >
 > **M2 达成（2026-10-04，architect 实测核验）**：M2 门槛 5 条全部满足、各模块 M2 任务均终态 ⇒ 6 个模块 `m` 置 `里程碑`、M2 置 `达成`。核验记录见下「M2 达成核验记录」。
+>
+> **归档（2026-10-04）**：M2 的 149 个任务书已归档至 `.tao/archive/M2/`（按模块子目录）；M2 时期 changelog（60 条）/MEMORY（45 行 + 2 段落）内容见 `.tao/archive/M2/README.md`；**M2 回顾见 `.tao/archive/M2/m2-retrospective.md`**；`issues.yaml` 的 41 条 M2 阶段 closed 项见 `.tao/archive/M2/issues-closed.md`。
 
 ## M2 达成核验记录
 
