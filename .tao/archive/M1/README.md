@@ -123,6 +123,7 @@
 
 - 里程碑定义/达成：`.tao/knowledge/milestones.md`（M1 = ✅ 达成）
 - M1 回顾：本目录 `m1-retrospective.md`
-- 遗留台账：`.tao/knowledge/deferred.md`、`docs/issues.yaml`
+- 遗留台账：`.tao/knowledge/issues.yaml`（issue 注册表）、`.tao/knowledge/lessons.md`（经验/教训）
+- M1 阶段关闭 issue：本目录 `issues-closed.md`（8 条，≤ 2026-09-22 的 closed）
 - 变更流水（M1 之后）：`.tao/knowledge/changelog.md`
 - **跨文件引用说明**：本归档**未更新**历史引用；凡引用 `changelog.md`/`MEMORY.md` 中 M1 条目者，其内容现位于本 README（历史指针）。

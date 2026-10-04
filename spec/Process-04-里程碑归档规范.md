@@ -63,7 +63,7 @@
 
 - 里程碑定义/达成：`.tao/knowledge/milestones.md`
 - 里程碑回顾：`docs/m<i>-retrospective.md`（如有）
-- 遗留台账：`.tao/knowledge/deferred.md`、`docs/issues.yaml`
+- 遗留台账：`.tao/knowledge/issues.yaml`（issue/待决）、`.tao/knowledge/lessons.md`（教训/方法论/过程记录）
 - 变更流水（之后）：`.tao/knowledge/changelog.md`
 - **跨文件引用说明**：本归档**未更新**历史引用；凡引用 `changelog.md`/`MEMORY.md` 中 M<i> 条目者，其内容现位于本 README（历史指针）。
 ```

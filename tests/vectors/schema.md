@@ -225,4 +225,4 @@ tests/vectors/isa/
 `tools/testcases/validate_vectors.py` 对上述字段、class/fault 取值、`id`
 存在性与 mask/value 一致性、`expected_pc`、`inventory` 同步、覆盖率等做机械校验；
 有错误时 `exit(1)` 并列出文件 + case 序号。完整语义期望值重算属 golden model
-模块（见 `.tao/knowledge/deferred.md`），不在 schema validator 能力内。
+模块（见 `.tao/knowledge/issues.yaml`），不在 schema validator 能力内。

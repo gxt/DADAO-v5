@@ -1070,7 +1070,7 @@ def gen_block_legality_mreg_zero(rec):
     rule_id = "mreg_zero"
     rule_cite = _ILLI_RULES[rule_id]
     # RA-involved block moves cite the RA sections (manual correction tracked
-    # as pre-existing generator↔vector drift, deferred.md; reproduce verbatim).
+    # as pre-existing generator↔vector drift, issues.yaml; reproduce verbatim).
     if mnem in ("ra2rd", "rd2ra"):
         rule_cite = "SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
@@ -1087,7 +1087,7 @@ def gen_ra2rd_legality_dest_rd0(rec):
     fmt = "orri"
     rule_id = "dst_rd0"
     # Manual spec_cite correction tracked as pre-existing generator↔vector
-    # drift (deferred.md); reproduce verbatim so regeneration is faithful.
+    # drift (issues.yaml); reproduce verbatim so regeneration is faithful.
     rule_cite = "SimRISC-02 §寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 0, 3, 1)
@@ -1498,7 +1498,7 @@ def generate_file(filename, recs):
 # Optional CLI filter: `generate_isa_vectors.py [file.yaml ...]` regenerates
 # only the named files. Default (no args) regenerates all six. The filter is
 # needed because five of the six committed files carry known pre-existing
-# generator↔vector drift (deferred.md) and must not be overwritten wholesale.
+# generator↔vector drift (issues.yaml) and must not be overwritten wholesale.
 os.makedirs(OUT, exist_ok=True)
 
 _SELECTED = set(sys.argv[1:])

@@ -201,7 +201,7 @@
 | `contract-abi.md §3 M1 机器可读事实`（DADAO-21 §寄存器规范、§数据表示、§函数调用规范） | `contracts/abi.yaml` | LLVM MC、QEMU CPU |
 | `contract-abi.md §4 Deferred to M2（完整调用约定：传参 / 返回值 / 栈帧 / prologue-epilogue / 系统调用规范）`（DADAO-21 §传参、§返回值、§函数调用规范、§系统调用规范） | —（M1 不提取） | `Deferred（M1 外）` |
 | `contract-abi.md §5 Excluded from M1（高级 ABI：varargs / HFA / HPA / 聚合 / 多返回值）`（DADAO-21 §可变参数、§传参 §聚合类型参数、§返回值） | —（M1 不提取） | `Deferred（M1 外）` |
-| `contract-abi.md §6 [OPEN] 汇总`（DADAO-21 §寄存器规范、§返回值、§函数调用规范） | `contracts/abi.yaml`（`[OPEN]` 相关索引）；`.tao/knowledge/deferred.md` | 不列为目标（未冻结项，M1 保守不分配） |
+| `contract-abi.md §6 [OPEN] 汇总`（DADAO-21 §寄存器规范、§返回值、§函数调用规范） | `contracts/abi.yaml`（`[OPEN]` 相关索引）；`.tao/knowledge/issues.yaml` | 不列为目标（未冻结项，M1 保守不分配） |
 | `contract-abi.md 附录 A 来源对照`（DADAO-21 §寄存器规范、§数据表示、§传参、§函数调用规范；DADAO-11 §返回地址栈） | `contract-abi.md §1`–`§2` | `—（溯源索引，非规范性）` |
 
 ---

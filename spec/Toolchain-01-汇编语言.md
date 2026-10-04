@@ -237,7 +237,7 @@
   1. **三方一致性**：本规范的指令语法表 ↔ `DADAOInstrInfo.td` 的 `AsmString` ↔ `contracts/opcodes.yaml` 的 `format`/`insn`；
   2. **示例可汇编**：本规范中每条示例**MUST**能被汇编器接受（新语法实现后启用）；
   3. **往返一致**：§10 的两条断言；
-  4. **缺口登记**：§11 的缺口项**MUST**在 `docs/issues.yaml` 中有对应条目。
+  4. **缺口登记**：§11 的缺口项**MUST**在 `.tao/knowledge/issues.yaml` 中有对应条目。
 
 ---
 

@@ -159,3 +159,7 @@ target/dadao/
 - **负面**：`006t` 任务范围扩大（load/store + MALIGN + jump/br.nz），但 MALIGN 与 load/store 天然耦合，jump/br.nz 实现简单，净增复杂度可控。
 - **下游约束**：`014t` 依赖从 `004t+TESTCASES-003t` 改为 `004t+006t`；`021m` 补丁清单更新；`019t` 的 trans lint 需适配 `insn_trans/` 路径；新增 `020t`（harness dumper 改造）。
 - **向后兼容**：已验证的任务（`002t`–`005t`）不受影响；`014t`（已验证）的 harness 代码不需修改，只是依赖声明更准确。
+
+## 修订
+
+- 2026-10-04（`INFRA-032t`）：本 ADR「关联」行引用的 `deferred.md` 已合并——issue 部分并入 `.tao/knowledge/issues.yaml`（`ISS-052`），教训/方法论部分并入 `.tao/knowledge/lessons.md`；`deferred.md` 已删除。本 ADR 的决策（D1–D4）与理由**未变**，此行仅为指针更正说明。

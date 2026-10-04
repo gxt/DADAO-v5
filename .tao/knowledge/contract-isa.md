@@ -825,7 +825,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 - 范围：`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o`（RF 存取）、`rf2rd`/`rd2rf`、`set.w`、格式转换、浮点算术/符号位/比较/条件赋值/分类指令、`set.ft`/`set.fo` 伪指令。
 - 唯一例外：`rf0`（FCSR）的寄存器模型/位布局属 §1.3.3，M1 测试机复位值需要，已在 §1.3.3 提取。
 - 浮点指令的 rf0 操作数约定（**目的**为 rf0 → ILLI；作**源**合法）等属浮点内容，M1 不提取。[SimRISC-00 §浮点寄存器]
-- 完整浮点规范与编码留后续阶段（见 `.tao/knowledge/deferred.md`）。
+- 完整浮点规范与编码留后续阶段（见 `.tao/knowledge/issues.yaml`）。
 
 ---
 
@@ -1139,7 +1139,7 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 `lr`/`sc` 原子指令（`lr_nn.o`/`lr_nr.o`/`lr_an.o`/`lr_ar.o`、`sc_nn.o`/`sc_nr.o`/`sc_an.o`/`sc_ar.o`）**`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-12 §LR-SC指令]
 
-- 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/deferred.md`）。
+- 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/issues.yaml`）。
 - 编码位置：`MISC-AMO` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §MISC-AMO 指令编码]
 
 ### §14.3 特权 cfx 系统指令 — scope: excluded

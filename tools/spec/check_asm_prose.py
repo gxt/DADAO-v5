@@ -34,7 +34,7 @@ Scan scope
 * ``spec/**/*.md``  (excl. ``spec/SimRISC-0.5.3/``)
 * ``docs/**/*.md``  (excl. ``m1-retrospective.md``, ``testcases-009t-audit.md``,
   ``self-consistency.md``)
-* ``.tao/knowledge/contract-*.md`` + ``.tao/adr/*.md``  (excl. ``deferred.md``)
+* ``.tao/knowledge/contract-*.md`` + ``.tao/adr/*.md``  (excl. ``lessons.md``)
 
 Only fenced code blocks (```…```) are inspected; generated regions delimited by
 ``<!-- ASSEMBLY_LIST_* -->`` / ``<!-- LEGALITY_* -->`` are excluded.
@@ -59,7 +59,7 @@ _EXCLUDE_FILES = {
     ROOT / "docs" / "m1-retrospective.md",
     ROOT / "docs" / "testcases-009t-audit.md",
     ROOT / "docs" / "self-consistency.md",
-    ROOT / ".tao" / "knowledge" / "deferred.md",
+    ROOT / ".tao" / "knowledge" / "lessons.md",
 }
 
 _EXCLUDE_DIRS = {

@@ -43,7 +43,7 @@ HISTORY_PREFIXES = (
     ".tao/tasks/",
     ".tao/knowledge/changelog.md",
     ".tao/knowledge/MEMORY.md",
-    ".tao/knowledge/deferred.md",
+    ".tao/knowledge/lessons.md",
     ".tao/knowledge/issues.yaml",
     "docs/spec-065t-legality-proposal.md",
     "spec/SimRISC-0.5.3/",

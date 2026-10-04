@@ -1,0 +1,917 @@
+# Issue registry — DADAO-v5
+#
+# M1-gate 定义（2026-09-21 用户裁定）：
+#   blocks: [M1-gate] = 直接阻断「任一模块 M1 里程碑」的 open 项。
+#   判据：某 issue 阻断某模块里程碑（该模块里程碑因它未置）⇒ 计入；否则不计。
+#
+# 当前 M1 里程碑状态：
+#   SPEC-011m: 里程碑 ✓
+#   TESTCASES-012m: 里程碑 ✓（149 缺口已消解）
+#   LLVM-013m: 里程碑 ✓
+#   INFRA-014m: 待开始（被任务依赖阻塞，非 issue）
+#   QEMU-021m: 待开始（fence 已 deferred ⇒ ISS-056 不阻断；其余项已就绪）
+#   INTEG-004m: 待开始（被 QEMU-021m 阻塞）
+#
+# 字段约束：
+#   status: open | closed
+#   scope: 非空列表 (M1 | post-M1 | M2 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
+#   blocks: 可空列表 (M1-gate 表示直接阻断 M1 里程碑)
+#   resolved_by: closed 时必填, open 时 null
+#
+# 台账合并（INFRA-032t，2026-10-04）：本文件吸收原 backlog 散文台账的 issue 部分；
+# 教训/方法论/过程记录见 `.tao/knowledge/lessons.md`；原散文台账已删除。
+#
+# M1 阶段关闭项（Step 3，2026-10-04）：M1 阶段（≤ 2026-09-22）的 closed issue（8 条）已提取至
+# `.tao/archive/M1/issues-closed.md`；本文件仅保留 open + post-M1（≥ 2026-09-23）closed。
+
+# ── spec ──────────────────────────────────────────────────────────────────────
+
+- id: ISS-002
+  title: "SPEC-002t/003t 产出（contract-isa.md、opcodes.yaml）在 spec 重排后需重新生成，旧文件暂作参考"
+  status: open
+  scope: [spec, M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-003
+  title: "M1 范围外（推迟）：浮点 RF、特权 cfx 系统指令、LR-SC 原子——M1 仅含标量整数 + 地址/内存 + 控制流 + 测试机系统/异常"
+  status: open
+  scope: [post-M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-004
+  title: "浮点支持（M1 不含，后续必做）——以 soft-float libcall 接入，不注册 FP 寄存器类"
+  status: open
+  scope: [post-M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-005
+  title: "ABI 合约（SPEC-004t）完整调用约定 Deferred to M2——M1 仅含最小 ABI 事实"
+  status: open
+  scope: [M2]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-006
+  title: "ABI [OPEN] 项：rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值——不得当规范性要求"
+  status: open
+  scope: [M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-007
+  title: "Object ABI（SPEC-005t）：EM_DADAO 注册状态、e_flags 命名空间策略、M1 是否用 target linker"
+  status: open
+  scope: [M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-008
+  title: "Object ABI / ELF 合约重定位（D2/D3/D4）Deferred to M2——M1 单 TU 自包含不产生重定位"
+  status: open
+  scope: [M2]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-009
+  title: "Spec 冻结（SPEC-010t）：impact matrix 是否覆盖 M1 之外的实现目标"
+  status: open
+  scope: [M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-010
+  title: "编码表变更的下游影响：legality_rules.yaml 中 M1 排除项规则仍 active，需在 SPEC-009t/INFRA-010t 明确 M1 流程过滤"
+  status: open
+  scope: [M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-011
+  title: "编码知识：0.5.4 MISC 子表 ha=RRR-CCC 拼为 6 位；旧 tools/opcodes.yaml（0628）不可作编码权威"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+
+# ── infra ─────────────────────────────────────────────────────────────────────
+
+- id: ISS-013
+  title: "fetch.py 选源标签逻辑重复（INFRA-009t 遗留，DRY）——select_source() 返回值建议含 label"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-014
+  title: "ADR-0005 Consequences C2 表述可更精确——select_source() 完成解析、sync_mirror 只接收 source_url"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-015
+  title: "make doctor 不检查 QEMU 构建依赖（glib-2.0/pixman-1/libfdt 等）——doctor PASS 但 configure 失败"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-016
+  title: "make prepare 非幂等——apply_series.py 要求 HEAD 等于基线 commit，已 patched 的组件会整体失败"
+  status: closed
+  scope: [infra]
+  blocks: []
+  resolved_by: "补丁集重整（2026-09-23）：apply_series.py 重写为 git apply 路径 + 幂等检测，工作树 HEAD 恒等于 base commit"
+  notes: "原 backlog L81 标 ✅已消解；本次合并据此关闭。"
+
+# ── testcases ─────────────────────────────────────────────────────────────────
+
+- id: ISS-017
+  title: "F5 — UNDI（保留编码）的向量层表达——已改由 TESTCASES-008t 承载（方案 A：class=legality + encoding.reserved=true）"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-018
+  title: "F6 — encoding 类对恒 fault 指令（illi）豁免——schema.md 已澄清，覆盖率由 legality active 满足"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-019
+  title: "F9① 结果级语义期望值重算需独立 oracle——属 golden model 模块，不在 testcases 模块内"
+  status: open
+  scope: [post-M1]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-020
+  title: "覆盖率门控分层：validate_vectors.py 覆盖率为声明级（177/177），数据级覆盖率不在该 validator 内"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-021
+  title: "并行前提不成立：002t 未交付 inventory 生成脚本，各数据任务须手改 inventory.md → 默认全串行"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-022
+  title: "数据已随上一版 002t 一并丢弃——003t~007t 的向量数据须从零生成（003t/004t/005t 已完成 10 个 isa/*.yaml）"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-023
+  title: "F10④ 守卫的 RB 覆盖缺口：validate_vectors.py 只提取 rdha，未覆盖 rbha——rbha=0 的 ILLI 未被捕获"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-024
+  title: "validate_vectors.py 变更历史（审计追溯）：002t→003t→004t 两次纯新增，未弱化既有断言"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-025
+  title: "br.* 双路径覆盖无结构性守卫：删掉 taken 或 not-taken 整条用例不会被捕获"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-026
+  title: "encoding 的 imm 值不在 validator 能力内——imm 语义正确性由 golden model 脚本守卫"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-027
+  title: "mem-* 边界覆盖未穷尽所有 format 组合——rrri 的 MALIGN 未生成，属 M1 最小覆盖"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-028
+  title: "br.* 无 legality/boundary 用例——br.* 不产生 fault，由 009t 兜底确认"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-029
+  title: "schema.md 新增 encoding.reserved 字段——下游消费者须识别 reserved case 的 UNDI 处理"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-030
+  title: "notes 文本笔误（006t 遗留 N-1）：ctrl-call.yaml case[7] notes 写 'low 48=0xAAAA000000000000'（多 4 个 0）"
+  status: closed
+  scope: [testcases]
+  blocks: []
+  resolved_by: "TESTCASES-018t（2026-09-29）：notes 订正为 0xAAAA00000000（48 位），生成器 + ctrl-call.yaml 同步，幂等；reviewer Accepted"
+
+- id: ISS-031
+  title: "call/ret 覆盖维度未穷尽：call-iiii shift-push 无独立 semantic，ret 仅覆盖单级 pop"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-032
+  title: "F7 守卫基线已完整（参照基准）：005t→006t→007t 形成单一 if/elif 块"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-035
+  title: "教训：工具交付物 vs 数据交付物应分层验收——脚本 bug 不应阻断数据交付"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+
+# ── llvm / qemu / integ ──────────────────────────────────────────────────────
+
+- id: ISS-038
+  title: "F3 — ELF writer 存根是死代码：DADAOMCTargetDesc.cpp 未注册 ELFObjectWriter"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-039
+  title: "F4 — e_flags 未设置：contract-elf.md 要求 e_flags=0x00000001，当前为 0"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-040
+  title: "DADAOFrameLowering 未覆写纯虚 hasFPImpl——M1 安全（无实例化），M2 会阻塞"
+  status: open
+  scope: [llvm, M2]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-041
+  title: "4 个 LLVM 文件缺末尾换行：DADAOFrameLowering.{h,cpp}、DADAORegisterInfo.cpp、DADAOTargetMachine.h"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-042
+  title: "rela.si fixup 占位语义与 M2 不兼容：getFixupKindForInstr 按 >>2 计算，但 rela.si 实际为 imms18<<12"
+  status: closed
+  scope: [llvm, M2]
+  blocks: []
+  resolved_by: "SPEC-056t"
+  notes: "`rela.si` 已删除（ADR-0012 D5，2026-09-30），编码 0x5A → UNDI，问题消失。"
+
+- id: ISS-043
+  title: "越界立即数静默截断（LLVM-006t reviewer ②）：分支/跳转 fixup 越界无诊断"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-044
+  title: "未定义符号静默为 0（LLVM-006t reviewer ③）：call ext_sym 立即数保持 0、无错误"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-045
+  title: "getFixupKindForInstr 的 default 分支未白名单化：非分支符号操作数按 PCRel_18 处理"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-046
+  title: "DecodeGPRFRegisterClass 未使用告警：M1 无 RF 指令 → -Wunused-function"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-047
+  title: "llvm-objdump -d 需显式 --triple=dadao-unknown-elf：e_machine 未映射到 dadao"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-049
+  title: "QEMU-003t 补丁 3 个源文件缺末尾换行：helper.c、helper.h、translate.c"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-050
+  title: "dadao_cpu_tlb_fill 未用 access_type / 未做 48 位屏蔽——skeleton 无访存指令故不可达"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-051
+  title: "v11.x 目录结构变更：target/riscv/translate.c 移到 target/riscv/tcg/translate.c"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-052
+  title: "harness 端到端依赖跨任务（QEMU-005t/006t/008t）——ADR-0010 D1 修法 a 使 006t 后可跑 RD-only"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-053
+  title: "andn.w-rb 在 006t 实现（translate.c:906）——名义归 008t，architect 裁定保留在 006t"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-054
+  title: "探针手算分支偏移易错 → 建议标签化框架（tools/qemu/ 基于标签的探针框架）"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-055
+  title: "engineer 子代理连续 3 次空返回（QEMU-009t 返工）——处置规则已入 AGENTS.md"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-056
+  title: "fence 已移出 M1（excluded_m1）——trans_fence 恒 ILLI 现为合规行为（excluded 指令应 ILLI）"
+  status: closed
+  scope: [qemu]
+  blocks: []
+  resolved_by: "SPEC-039t"
+  notes: "SPEC-039t：fence 标 `excluded_m1: true`（与浮点/特权 cfx/LR-SC 一致），M1 身份集 178→177。trans_fence 恒 ILLI 对 excluded 指令合规，本 issue 不再是缺陷。"
+
+- id: ISS-057
+  title: "MemRAS 路径（ra0 低 48≠0）未实现——gen_ras_push/pop 硬编码走 ra0==0 分支"
+  status: closed
+  scope: [qemu]
+  blocks: []
+  resolved_by: "QEMU-013t 实现；ADR-0012 D7 取代 MemRAS 引用计数语义（QEMU-030t，2026-09-30 核实）"
+  notes: "原 backlog L165 标「已关闭」；本次合并据此关闭。"
+
+- id: ISS-058
+  title: "scripts/decodetree.py 输出依赖 PYTHONHASHSEED——非 bit-reproducible"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-060
+  title: "rd2ra/ra2rd 缺独立测试向量——QEMU-013t 不改向量，归属 TESTCASES 侧补"
+  status: open
+  scope: [qemu, testcases]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-061
+  title: "harness 普通模式 TIMEOUT（QEMU-014t 后续实测）——根因 = TB 续接缺陷，015t 以 workaround 消除"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-062
+  title: "--dump 的 rb[1..63] 全 0、pc=0——根因 = TB 续接缺陷，dumper 超 TB 上限后死循环"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-063
+  title: "QEMU dadao target 的 TB 续接缺陷——tb_stop 缺 gen_update_pc，已由 QEMU-022t 新建补丁 0008"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-064
+  title: "cpu_loop_exit 的 longjmp 泄漏 MMIO re-entrancy 守卫——engaged_in_io 未复位"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-065
+  title: "源树提交作者为 Reviewer <reviewer@example.com>——git config 未设置项目约定身份"
+  status: closed
+  scope: [infra, qemu]
+  blocks: []
+  resolved_by: "补丁集重整（2026-09-23）：git apply 路径不再产生 patch commit，作者信息问题自然消失"
+  notes: "原 backlog L173 标 ✅已消解；本次合并据此关闭。"
+
+- id: ISS-066
+  title: "qemu 模块 engineer 子代理异常事件（2026-09-21 汇总）：016t/017t/018t 完成区与真实输出不符或空返回"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-067
+  title: "check_qemu_trans.py 的 patch 行分类：collect_trans_defs() 对 +/-/上下文行一视同仁，理论上后序删除会误判"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-068
+  title: "24 条 mem-rd 窄 load 向量 FAIL 归因变更：根因 = harness build_loader() 无条件用 st.o（8 字节），归 QEMU-023t"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-069
+  title: "harness 内硬编码 op 常量 ↔ opcodes.yaml 无交叉校验——encode_* helper 硬编码 op 值，存在漂移风险"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-070
+  title: "test_encoding_oracle.py 用例去重：扩展后 TESTS=57 但去重后仅 50 条（7 条旧用例被重复登记）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-071
+  title: "fence 的 LLVM 侧 lit 缺口——fence 无任何 lit 指令行，LLVM 侧实测可汇编且编码正确"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-072
+  title: "LLVM-010t 关闭的理由与去向——已无独立交付物，编号留空；遗留可选项：加 llvm-objcopy 构建目标"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+- id: ISS-073
+  title: "check_lit_bytes.py 两项可选增强：无 CLI（LIT_DIR 硬编码）+ 独立计数门控不能捕获整行 # OBJ: 被删除"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+
+# ── 内联提及项（原 backlog 非独立 bullet，但用户裁定/代码库明确引用）────────
+
+- id: ISS-074
+  title: "C-27 — cs.* 条件赋值快照：5 条 cs.{n,z,p,eq,ne}-rd overlap 因 condition & source register aliasing 语义未指定而 deferred"
+  status: open
+  scope: [testcases, M1]
+  blocks: []
+  resolved_by: null
+
+# ── 原 backlog 合并新增（INFRA-032t，2026-10-04）────────────────────────────────
+# 原 backlog 逐条归宿见 INFRA-032t 任务书完成区；教训/方法论见 lessons.md。
+
+- id: ISS-075
+  title: "文档分层改造 T1/T2/T3 收尾遗留（adr-0017 指针、assembly-list 旧路径、contract-asm-list 漂移门控、Toolchain-01 陈旧计数、docs/README 措辞、fetch.py 注释、E5 恢复步骤）——全部消解"
+  status: closed
+  scope: [spec, infra]
+  blocks: []
+  resolved_by: "SPEC-085t（T2）+ INFRA-027t（收尾，2026-10-03）"
+  notes: "原 backlog L9–L30。T1-①② 由 SPEC-085t 消解；T2-①②③、T3-1/2 由 INFRA-027t 消解；跨任务汇总（L23–30）同此，不重复登记。"
+
+- id: ISS-076
+  title: "cls 多寄存器化后 spec 正文/内嵌速查表/assembly-list 暂不一致——已由 LLVM-023t 消解"
+  status: closed
+  scope: [spec]
+  blocks: []
+  resolved_by: "LLVM-023t（2026-09-29）：gen_asm_list.py _MULTI_REG_MNEMONICS 加 focls/ftcls 并重生成"
+
+- id: ISS-077
+  title: "spec 正文代码块无永久门控——12 章正文新汇编格式正确性仅靠任务级 reviewer 脚本"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L45。若要机制化防回退，需新增检查器（对正文 ```simrisc 块逐行比对生成表；伪指令行需例外表）并接入 make check。"
+
+- id: ISS-078
+  title: "focls/ftcls 之外的浮点指令未复核（SPEC-047t 附带观察，非阻断）"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L47。用户此前指示先处理 cls；若后续发现其它 FP 指令存同类「语义固定值」问题，另立任务。"
+
+- id: ISS-079
+  title: "SPEC-067t F4 门控覆盖缺口：ftroot/foroot n=2 约束与规则改名无机械门控"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L49、L233。SPEC-065t 收口（rule_refs + 合法性 drift 门控，SPEC-071t/074t）不覆盖该散文约束，仍为独立候选。"
+
+- id: ISS-080
+  title: "SPEC-066t/067t 完成区「修改文件」字段未逐一提取（台账回填缺口，非阻断）"
+  status: open
+  scope: [infra, spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L50。提交 1ab5168 只补 changelog/MEMORY 与任务书状态，未提取两份完成区修改文件清单；如需完整台账可另立小任务补齐。"
+
+- id: ISS-081
+  title: "FP 后续衔接点（独立 oracle / harness RF 支持 / FP 向量 / E2E / 实现缺口）"
+  status: open
+  scope: [spec, golden, testcases, llvm, qemu, integ]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L53/L57/L62/L138/L239/L249。余下：① GOLDEN-001t 起 FP 独立 oracle（禁 LLVM/QEMU 校准）；② harness RF 寄存器类支持；③ TESTCASES-024t FP 向量/inventory 第二张表；④ INTEG-* FP E2E；⑤ LLVM-031t（汇编期 dst_rd0@FP 15 条静态检查）；⑥ QEMU-038t（运行期 dst_rd0@FP 15 条 ILLI 0x88）。均未创建任务。"
+
+- id: ISS-082
+  title: "L1 — fp「未实现，decode ILLI」文案残留（SimRISC-00 L290/L379、contract-isa.md L25/821/823）"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L63。SPEC-089t 未改（不在其改动清单）；建议后续 spec 小任务按 R1 口径收口并评估门控防回归。"
+
+- id: ISS-083
+  title: "rf2rd 目的 rd0 的 dst_rd0 缺口（合约↔spec 不一致）——SPEC-089t 已收口"
+  status: closed
+  scope: [spec, llvm, qemu]
+  blocks: []
+  resolved_by: "SPEC-089t（2026-10-04）：R2b (A) 全补 15 条（含 rf2rd）dst_rd0，opcodes.yaml + fp_semantics.yaml 双边 + Check 8 交叉断言"
+
+- id: ISS-084
+  title: "FP 实现期：FP 专属规则翻 active + 回填 rule_refs（SPEC-087t）——SPEC-089t 已完成"
+  status: closed
+  scope: [spec]
+  blocks: []
+  resolved_by: "SPEC-089t（2026-10-04）：_compute_rule_refs 收窄为 scope==excluded 才置空、EXPR_TO_RULE +7、dst_rf0/encode_fp_root_n 翻 active、重跑 gen_legality_list"
+
+- id: ISS-085
+  title: "mreg_range_overlap 落地任务 B1/B2/B3（QEMU-033t / LLVM-028t / TESTCASES-023t）——全部完成"
+  status: closed
+  scope: [spec, qemu, llvm, testcases]
+  blocks: []
+  resolved_by: "QEMU-033t + LLVM-028t + TESTCASES-023t（均 2026-10-03）"
+
+- id: ISS-086
+  title: "check-spec-refs 的 76 条历史既存违规（18 Check1 + 58 Check2；standalone，非本任务引入）"
+  status: open
+  scope: [spec, infra]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L58。SPEC-087t 新增 contract-fp.md 零新增违规；如需消解另立专门任务。"
+
+- id: ISS-087
+  title: "仓库外全局 agent 规则未同步新验收规程（~/t.a.o/opencode/agent/{reviewer,engineer}.md）"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L68。缺项：reviewer 无「一键证据脚本」「不另写等价验证脚本」「强制独立注入一次反例」；engineer 完成区规范未含「交付一键证据脚本」。不得擅动 ~/t.a.o/**，须用户批准。"
+
+- id: ISS-088
+  title: "C 规程的注入脆弱点无结构性拦截（行号定位/空注入/手改污染/注入无鉴别力）"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L70。候选方案 B：新增 tools/infra/inject_check.py（唯一定位 + sha 断言 + 要求非零退出 + trap 复原，退出码即判决）。用户 2026-10-03 裁定暂不修，仅登记。"
+
+- id: ISS-089
+  title: "check-qemu-semantics 的 gate 目录为瞬态（symlink 静默失败致假失败）"
+  status: open
+  scope: [qemu, infra]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L71。建议该 target 加 symlink 失败显式报错 / gate 目录存在性前置校验。"
+
+- id: ISS-090
+  title: "components/qemu/changelog.md 缺任务级记录（自 2026-09-23 起未按任务追加）"
+  status: open
+  scope: [qemu, infra]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L72/L143。spec/Process-01 §10 要求按任务一条；QEMU-032t/033t 任务书输出均未列该文件。建议协调者/架构师裁定是否统一补记。"
+
+- id: ISS-091
+  title: "13 个历史任务书「完成区已填但状态仍待验收」（漏 /complete）——已消解"
+  status: closed
+  scope: [infra]
+  blocks: []
+  resolved_by: "2026-10-03 回填台账 + 状态（用户批准）；check-tasks 现列 0"
+
+- id: ISS-092
+  title: "LLVM/QEMU 缓存重新浅克隆——已完成"
+  status: closed
+  scope: [infra]
+  blocks: []
+  resolved_by: "2026-09-29：llvm-project.git 378M(shallow) + qemu.git 52M(shallow)，2m50s，pinned commit 均存在"
+
+- id: ISS-093
+  title: "行内 code span 检测（INFRA-021t 评估，方案 b）——风险高于收益，登记 deferred"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L82。check_asm_prose.py 不含行内 code span；若后续发现行内 span 旧格式回退，再评估保守版。"
+
+- id: ISS-094
+  title: "check_asm_prose.py 域外场景 stdout 仍打 PASS（rc=1 但 stdout 语义不一致）"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L85。建议 had_out_of_scope 时改打 FAIL (out-of-scope --files)。"
+
+- id: ISS-095
+  title: "check-lit 接入 make check + check-asm-prose 转 --strict——已落地"
+  status: closed
+  scope: [infra]
+  blocks: []
+  resolved_by: "INFRA-021t（2026-10-02）"
+
+- id: ISS-096
+  title: "既有 reg-imm-block.yaml 同组重叠用例与 mreg_range_overlap 相违——TESTCASES-023t 已消解"
+  status: closed
+  scope: [testcases]
+  blocks: []
+  resolved_by: "TESTCASES-023t（2026-10-03）：两条改 ILLI + 各新增完全重合用例，向量 692→694"
+
+- id: ISS-097
+  title: "class: overlap 同组用例缺语义门控（覆盖≠语义再现）"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L91。候选：validate_vectors.py 对同组块赋值重叠用例按 word 的 hb/hc/immu6 重算区间交集，有交集则 expected_fault 必须 ILLI（纯结构、可机械执行）。"
+
+- id: ISS-098
+  title: "harness 对 ret 语义用例的 pre-existing 失败（ctrl-ret[0..3] 0x01、ctrl-call[5] loader 宽度推导）"
+  status: open
+  scope: [testcases, qemu]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L92。根因 build_test_binary.py:625 将 ret 路由到 build_call_ret_binary（剥离 RA）+ loader 对 call 的宽度推导 ValueError；与 ret rd0 无关。建议由 TESTCASES-022t 或专门 harness 任务处置。"
+
+- id: ISS-099
+  title: "009t-audit.py 对 ctrl-ret 全部 skip（旧 id 判据 ret-riii，应 ret_riii_ra）"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L93。建议修 id 匹配或加 ctrl-ret 专用重算。"
+
+- id: ISS-100
+  title: "新规则 dst_rd0_nonzero 无 ISA 合法性向量"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L95。_ILLI_RULES 只覆盖 dst_rd0/dst_dual_same/dst_rb0/mreg_zero；运行期 ILLI 由 QEMU 承担、汇编期硬报错由 LLVM-027t。建议另立补 ret rd0 非0 legality 向量。"
+
+- id: ISS-101
+  title: "SPEC-024t 暴露的测试向量 src 预置缺口（15 条）为误报——已订正"
+  status: closed
+  scope: [testcases]
+  blocks: []
+  resolved_by: "SPEC-031t（2026-09-28）：role 字段恢复，hb 实为目的寄存器"
+
+- id: ISS-102
+  title: "覆盖门控为 (id,class) 粒度，删单条 legality 用例不触发报错"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L126。归属：validator 增强或接受该粒度并以 harness 兜底。"
+
+- id: ISS-103
+  title: "generate_instrinfo.py / validate_instrinfo.py 陈旧、非真源（命名漂移 + 基线过期，EXIT≠0，均不在 make check）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L130/L197。validate_instrinfo Check 2 命名漂移（.td 用 . vs opcodes.yaml 用 _）；建议合并为「生成器/校验器刷新」清理任务。"
+
+- id: ISS-104
+  title: "M1 rd2rd/rb2rb 不等 count 静默取末组（FP 侧已加严，M1 未改）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L131。实测 rd2rd {rd4:rd6}, {rd8:rd12} rc=0；建议后续 M1 一致性任务评估同款 count 相等检查。"
+
+- id: ISS-105
+  title: "FP 汇编期静态合法性检查（dst_rf0/mreg_range_overlap/mreg_range_overflow/encode_fp_root_n）——LLVM-030t 已完成"
+  status: closed
+  scope: [llvm]
+  blocks: []
+  resolved_by: "LLVM-030t（2026-10-03）；lit 28→29"
+
+- id: ISS-106
+  title: "M1 RD 多寄存器 {rd0:rd63} 仍静默截断（M1 RD 侧 mreg_range_overflow 未加）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L134/L240。实测 ldm.o {rd0:rd63}, [rb1, rd0] rc=0、count=64 截断为 immu6=0；规则对 M1 active，属既存实现缺口。建议另立 M1 RD 侧加固任务。"
+
+- id: ISS-107
+  title: "ret rd0,<符号> 拒绝属规则完整性扩展（可选后续）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L136。判为保守正确、非过宽；可选在 spec §函数返回补「符号/非常量操作数一并拒绝」。"
+
+- id: ISS-108
+  title: "LLVM 侧 2 个新增文件 >1000 行（DADAOInstrInfo.td 1304 / DADAOAsmParser.cpp 1091）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L145。建议性跟踪（Process-01 §11 非强制）；如出现维护痛点再评估拆分。"
+
+- id: ISS-109
+  title: "# 行首仍被静默当注释（AllowAdditionalComments 默认 true）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L236。ADR-0013 D9 改 ; 注释符，但行首 # 仍被静默吞掉；建议设 AllowAdditionalComments=false 并改 assembly-language.md:204 示例。"
+
+- id: ISS-110
+  title: "LLVM MC 的 cfx 指令/别名实现（M2；ADR-0017 D5/D6 待落地）"
+  status: open
+  scope: [llvm, M2]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L237。crrr/crii/ciii 及 cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 全无定义；另 SPEC-075t 别名表 uart2..30 覆盖缺口需补齐。"
+
+- id: ISS-111
+  title: "QEMU-033t 任务书层面遗留（探针 pre-existing 失败 + 验收项 4「保持 PASS」措辞不符实际）"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L142。008t T20 实得 0x89、36/37；013t X1/X4 失败 20/22；与本改动无关。建议订正任务书措辞为「本次改动零新增失败」并评估探针保留。"
+
+- id: ISS-112
+  title: "check_interface_alignment.py 第三处调用的 isdir 守卫不一致"
+  status: open
+  scope: [integ]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L195/L205。check_opcodes_cross() 有 isdir 守卫，前两处无；建议删守卫使三处一致（交 iter_patch_files 统一处理）。"
+
+- id: ISS-113
+  title: "check_interface_alignment.py 非递归 glob 致 23 项 FAIL——INTEG-005t 已消解"
+  status: closed
+  scope: [integ]
+  blocks: []
+  resolved_by: "INTEG-005t（2026-09-25）：iter_patch_files() 递归 glob + 空集硬错误，80/80 EXIT 0 恢复"
+
+- id: ISS-114
+  title: "check_spec_drift.py 的 --test-mode 自测判别力不足"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L203。建议改为基于临时 fixture 的真实负测试。"
+
+- id: ISS-115
+  title: "gen_asm_list.py 默认输出会覆盖已入库文件（--plain 无显式 --output 时写 docs/assembly-list.md）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L207。建议 --plain 无显式 --output 时输出到 stdout 或强制要求 --output。"
+
+- id: ISS-116
+  title: "validate_encoding.py 的 no_overlap 标识符未注册（rd2rd/rb2rb；pre-existing，不在 make check）"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L208。EXIT=1 报 no_overlap 引用不存在标识符；建议后续修标识符注册。"
+
+- id: ISS-117
+  title: "check_interface_alignment.py 的 e_flags 检测行尾/块注释误命中（假绿，本产物无触发）"
+  status: open
+  scope: [integ]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L212。_is_comment() 只识别全行注释；零残留正解：改读真实产物（llvm-mc + llvm-readobj），属设计层改动。"
+
+- id: ISS-118
+  title: "lit 覆盖断言粒度限制：同族内删多条 pattern 之一无法检出（INTEG-007t）"
+  status: open
+  scope: [integ]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L213。无「基线条数」参照，属不可解；由后续任务评估。"
+
+- id: ISS-119
+  title: "new file mode 补丁的 index blob hash 失配 9 项（pre-existing，不影响 git apply）"
+  status: open
+  scope: [infra, qemu, llvm]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L214/L232。LLVM 7 项 + QEMU 2 项；修改类补丁不能用此法判定。归属补丁卫生任务（低优先级）。"
+
+- id: ISS-120
+  title: "min_rom_probe_{006t,008t,009t,010t,013t,028t}.py 群 FAIL 与 009t-audit FAIL（pre-existing 漂移）"
+  status: open
+  scope: [qemu, testcases]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L215/L216/L231。009t-audit 现 EXIT=1、18 条 mismatch（ctrl-br/mem-ra/mem-rb/reg-compare/reg-shift-extend），与 HEAD 逐行相同。归属后续清理任务。"
+
+- id: ISS-121
+  title: "excp_rasof/excp_rasuf 描述仍用已废弃的 MemRAS 引用计数模型（legality_rules.yaml）"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L222。与 ADR-0012 D7 不符；归属 spec 后续任务同步 D7 口径。"
+
+- id: ISS-122
+  title: "gen_legality_list.py --verify 检出 MISMATCH 仍 return 0"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L223。现由 check-legality-drift 承担；--verify 是否顺带修留后续（可选）。"
+
+- id: ISS-123
+  title: "check_rule_refs.py 的 gate2_fail 分支不可达"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L224。豁免自检先行退出，孤儿情形仍由自检报 EXIT=1、无假 PASS；建议随 drift 门控一并精简。"
+
+- id: ISS-124
+  title: "imm_range 移出 legality_rules.yaml 后规范侧通用说明未落位"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L225。用户裁定「汇编器职责」；归属 spec 后续任务落地通用说明。"
+
+- id: ISS-125
+  title: "生成器↔向量预存漂移（全量重跑会破坏 5 文件）"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L226/L227。TESTCASES-023t 已部分修（scoped 过滤 + reg-imm-block 忠实复现）；余 4 文件（reg-arith/reg-compare/reg-logic/reg-shift-extend）债务未清。归属 testcases 专任务。"
+
+- id: ISS-126
+  title: "FP 开放点固定取值（位级族/转换族/算术族）——供 SPEC-089t 与 GOLDEN 独立 oracle 参照"
+  status: open
+  scope: [spec, golden]
+  blocks: []
+  resolved_by: null
+  notes: "原 backlog L244/L245/L250。位级：ft 高 32 位符号注入 + classify/compare 只看低 32 位；转换：ft2ft/fo2fo 全 64 位搬移、f2i 向零截断 + 饱和 + NV 不置 NX、NaN payload 加宽；算术：rem=IEEE remainder（平局取偶）、scalb 的 n 取整、rootn(-0,2) 不设期望。若用户另有裁定须同步改实现与探针。"
+
+- id: ISS-127
+  title: "QEMU-037t FP softfloat 算术族（arith 12 + root 2）已完成——FP 执行层 60/60 收口"
+  status: closed
+  scope: [qemu]
+  blocks: []
+  resolved_by: "QEMU-037t（2026-10-03）；探针 91/91、make check EXIT=0"

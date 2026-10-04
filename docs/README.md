@@ -23,7 +23,7 @@
 | `repository-layout.md` | 仓库布局与 `.work/` 一次性工作区约定 |
 | `integ-interface-alignment.md` | 跨模块接口对齐核对清单（`INTEG-003t` 产出） |
 | `testcases-009t-audit.md` | ISA 向量逐族重推导审计记录（`TESTCASES-009t` 产出） |
-| `issues.yaml` | Issue registry（M1-gate 判据 + 各模块 issue 台账） |
+| `.tao/knowledge/issues.yaml` | Issue registry（M1-gate 判据 + 各模块 issue 台账） |
 | `self-consistency.md` | DADAO 规范自洽性审查方法（早期素材） |
 
 ## 说明
