@@ -1,7 +1,7 @@
 # INFRA-038t: 补丁 index blob hash 卫生（new file mode 补丁）
 
 **模块**：infra
-**项目里程碑**：M2
+**项目里程碑**：M3
 **依赖**：无
 **状态**：待开始
 

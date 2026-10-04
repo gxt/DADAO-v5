@@ -1,7 +1,7 @@
 # QEMU-041t: QEMU 组件文档与 gate 小修（semantics gate 目录前置校验、changelog 补记）
 
 **模块**：qemu
-**项目里程碑**：M2
+**项目里程碑**：M3
 **依赖**：无
 **状态**：待开始
 

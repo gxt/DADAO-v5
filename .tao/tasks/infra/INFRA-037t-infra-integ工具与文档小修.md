@@ -1,7 +1,7 @@
 # INFRA-037t: infra/integ 工具与文档小修（asm-prose stdout、build-mc help、LLVM 补丁计数）
 
 **模块**：infra
-**项目里程碑**：M2
+**项目里程碑**：M3
 **依赖**：无
 **状态**：待开始
 

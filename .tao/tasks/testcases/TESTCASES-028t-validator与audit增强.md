@@ -1,7 +1,7 @@
 # TESTCASES-028t: validator/audit 增强（br 双路径守卫、overlap 语义门控、009t-audit id 修正）
 
 **模块**：testcases
-**项目里程碑**：M2
+**项目里程碑**：M3
 **依赖**：无
 **状态**：待开始
 
