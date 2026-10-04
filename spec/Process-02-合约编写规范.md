@@ -13,11 +13,11 @@ Agent 不能直接读 spec/——它面向人类、存在歧义，需要归一�
 | `contract-asm-list.md` | 指令全表（由 `tools/llvm/gen_asm_list.py` 机械生成，无来源头） | 现行（生成投影） |
 | `contract-cfx-aliases.md` | cfx 别名表（由 `tools/spec/gen_cfx_aliases.py` 机械生成，无来源头） | 现行（生成投影） |
 | `contract-asm.md` | 汇编语言（`spec/Toolchain-01`）的叙述合约 | 现行 |
-| `contract-sbi.md` | 系统二进制接口功能表（`spec/DADAO-22`） | **缺口** |
-| `contract-exception.md` | 系统态异常模型（`spec/DADAO-13/23`；可标记 deferred） | **缺口** |
-| `contract-mmu.md` | 地址转换模型（`spec/DADAO-12`；可标记 deferred） | **缺口** |
+| `contract-sbi.md` | 系统二进制接口功能表（`spec/DADAO-22`） | **deferred**（无 M2/M3 消费方：M3 codegen 为 freestanding 单 TU，无 syscall/异常/MMU，未冻结后果可控；上游 `spec/DADAO-12/22` 已存在，补齐不需新造正文；归属 M3+，触发：SBI/SEE 消费方落地（如 OS→LFS 引入 syscall）时须先补齐再实现） |
+| `contract-exception.md` | 系统态异常模型（`spec/DADAO-13/23`） | **deferred**（无 M2/M3 消费方：M3 codegen 为 freestanding 单 TU，无 syscall/异常/MMU，未冻结后果可控；上游 `spec/DADAO-13/23` 已存在，补齐不需新造正文；归属 M3+，触发：系统态异常/HBI 消费方落地时须先补齐再实现） |
+| `contract-mmu.md` | 地址转换模型（`spec/DADAO-12`） | **deferred**（无 M2/M3 消费方：M3 codegen 为 freestanding 单 TU，无 syscall/异常/MMU，未冻结后果可控；上游 `spec/DADAO-12`（§2.2 虚实地址转换）已存在，补齐不需新造正文；归属 M3+，触发：MMU/地址转换消费方落地时须先补齐再实现） |
 
-> **缺口**项为**已登记、尚未落盘**的叙述合约（决策 8：缺失即登记，不臆造）；四类型投影落点见 `spec/README.md` 投影表。
+> **deferred** 项为**已登记、暂不落盘**的叙述合约（决策 8：缺失即登记，不臆造；理由与触发的完整口径见 `spec/README.md`「登记缺口（显式 deferred）」表）；四类型投影落点见 `spec/README.md` 投影表。
 
 ## 合约写法要点
 

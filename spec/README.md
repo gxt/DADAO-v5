@@ -74,25 +74,25 @@
 | `SimRISC-01…06, 08…12` | `contract-isa.md` | `contracts/opcodes.yaml`、`contracts/legality_rules.yaml` | `tools/spec/check_asm_list_consistency.py`、`check_legality_drift.py`、`check_asm_prose.py`、`check_scope.py` | `tests/vectors/isa/*.yaml`、`tests/lit/MC/Dadao`、`tests/e2e` |
 | `SimRISC-07`（浮点，`scope: fp`） | `contract-fp.md` | `contracts/fp_semantics.yaml`、`contracts/legality_rules.yaml` | `tools/spec/check_fp_contract.py`、`check_scope.py` | `缺口`（oracle/向量待建，见 `docs/fp-oracle-design.md`） |
 | `DADAO-11`（AEE） | `contract-abi.md` | `contracts/abi.yaml` | `tools/integ/check_interface_alignment.py` | `tests/`（据实） |
-| `DADAO-12`（SEE） | `缺口`（`contract-sbi.md`；地址转换 → `contract-mmu.md`） | `缺口`（据实） | `tools/spec/check_cfx_aliases.py` | `缺口`（据实） |
-| `DADAO-13`（HEE） | `缺口`（`contract-exception.md`） | 据实 | `gen_cfx_aliases`（DADAO-13 源） | 据实 |
+| `DADAO-12`（SEE） | `deferred`（`contract-sbi.md`、`contract-mmu.md`；归属 M3+，触发：SBI/地址转换消费方落地） | `缺口`（据实） | `tools/spec/check_cfx_aliases.py` | `缺口`（据实） |
+| `DADAO-13`（HEE） | `deferred`（`contract-exception.md`；归属 M3+，触发：系统态异常消费方落地） | 据实 | `gen_cfx_aliases`（DADAO-13 源） | 据实 |
 | `DADAO-21`（ABI） | `contract-abi.md` | `contracts/abi.yaml` | `check_interface_alignment` | 据实 |
-| `DADAO-22`（SBI） | `缺口`（`contract-sbi.md`） | 据实 | 据实 | 据实 |
-| `DADAO-23`（HBI） | `缺口`（`contract-exception.md`） | 据实 | 据实 | 据实 |
+| `DADAO-22`（SBI） | `deferred`（`contract-sbi.md`；归属 M3+，触发：SBI 消费方落地） | 据实 | 据实 | 据实 |
+| `DADAO-23`（HBI） | `deferred`（`contract-exception.md`；归属 M3+，触发：HBI 消费方落地） | 据实 | 据实 | 据实 |
 | `Toolchain-01` | `contract-asm.md` + `contract-asm-list.md`（生成投影，已落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py` | `tests/lit/MC` |
 | `Process-01` | — | — | `tools/infra/check_patch_tree.py`（+ 报告，**非门控**：`tools/infra/size_report.py`，见 §11） | 不适用 |
 | `Process-02` | — | — | `tools/infra/check_spec_drift.py`（`check_spec_refs.py` 独立门控） | 不适用 |
 | `Process-03` | — | — | — | 不适用（人工遵守） |
 
-**登记缺口**（决策 8；T2 `SPEC-085t` 定稿并同步 `Process-02` 的合约清单）：
+**登记缺口（显式 deferred）**（决策 8；T2 `SPEC-085t` 定稿并同步 `Process-02` 的合约清单；三类系统层缺口由 `SPEC-092t` 标显式 deferred）：
 
-| 缺口（①叙述合约） | 来源册 | 缺口类型 |
-|-------------------|--------|----------|
-| `contract-sbi.md` | `DADAO-12`（SEE）/ `DADAO-22`（SBI） | SBI 功能表缺失 |
-| `contract-exception.md` | `DADAO-13`（HEE）/ `DADAO-23`（HBI） | 系统态异常模型缺失 |
-| `contract-mmu.md` | `DADAO-12`（SEE，地址转换） | 地址转换模型缺失 |
+| 缺口（①叙述合约） | 来源册 | 状态 | deferred 理由 | 归属/触发 |
+|-------------------|--------|------|---------------|-----------|
+| `contract-sbi.md` | `DADAO-12`（SEE）/ `DADAO-22`（SBI） | **deferred** | 无 M2/M3 消费方：M3 codegen 为 freestanding 单 TU，无 syscall/异常/MMU，未冻结后果可控；上游 `spec/DADAO-12/22` 已存在，补齐不需新造正文。 | 归属 M3+；触发：SBI/SEE 消费方落地（如 OS→LFS 引入 syscall）时须先补齐 `contract-sbi.md` 再实现。 |
+| `contract-exception.md` | `DADAO-13`（HEE）/ `DADAO-23`（HBI） | **deferred** | 无 M2/M3 消费方：M3 codegen 为 freestanding 单 TU，无 syscall/异常/MMU，未冻结后果可控；上游 `spec/DADAO-13/23` 已存在，补齐不需新造正文。 | 归属 M3+；触发：系统态异常/HBI 消费方落地时须先补齐 `contract-exception.md` 再实现。 |
+| `contract-mmu.md` | `DADAO-12`（SEE，地址转换） | **deferred** | 无 M2/M3 消费方：M3 codegen 为 freestanding 单 TU，无 syscall/异常/MMU，未冻结后果可控；上游 `spec/DADAO-12`（§2.2 虚实地址转换）已存在，补齐不需新造正文。 | 归属 M3+；触发：MMU/地址转换消费方落地时须先补齐 `contract-mmu.md` 再实现。 |
 
-> 上述三项为**已登记缺口**（决策 8：缺失即登记，不臆造内容）；补齐后按轻量修订流程（见下）更新本表。
+> 上述三项为**已登记、显式 deferred**（决策 8：缺失即登记，不臆造内容）；上游依据可回溯（`spec/DADAO-12/13/22/23`），触发条件满足后按 `Process-02` 归一化补齐，再按轻量修订流程（见下）更新本表。
 
 ## 规范修订流程
 
