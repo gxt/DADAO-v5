@@ -1413,7 +1413,6 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x3F | stm.o-rf | `stm.o` | RF 存取 | [SimRISC-00 §SimRISC QFC] |
 | 0x44 | MISC-RF | （浮点子表） | 浮点 | [SimRISC-00 §MISC-RF指令编码] |
 | 0x4F | set.w-rf | `set.w` | RF 立即数 | [SimRISC-00 §SimRISC QFC] |
-
 | 0x5E | cs.eq-rf | `cs.eq` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
 | 0x5F | cs.ne-rf | `cs.ne` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
 | 0x61 | cs.n-rf | `cs.n` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
