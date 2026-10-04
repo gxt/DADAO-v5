@@ -600,10 +600,10 @@
 
 - id: ISS-128
   title: "汇编器错误接受裸数字 0–3 作 wyde 位置（rwii: set.zw/set.ow/or.w/andn.w）——须仅接受 wp0–wp3，裸数字须报错"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-045t
   notes: "用户 2026-10-04 裁定。现状（实测 .work/build/llvm/bin/llvm-mc）：set.zw rd1, 1, 0x1234 被接受并编码为 wp1（[0x4c,0x05,0x12,0x34]）；set.ow rd2,0→wp0、or.w rd3,3→wp3、andn.w rb4,2→wp2 同样被接受；裸 5/8 正确报错。根因：DADAOWydePosAsmOperand（DADAOInstrInfo.td:32）PredicateMethod=isWydePosImm 接受 kImmediate && 0≤ImmVal≤3，DADAOAsmParser::parseOperand 的 parseImmediate 兜底把裸数字变 immediate。期望：wyde 位置只能写作 wp0–wp3，裸数字 0–3 须报错。修复：收紧 wydepos 匹配，仅接受 parseWydePosToken 产出的操作数。连带：①反汇编器确认打印 wp0–wp3（当前已正确，修复后回归汇编↔反汇编往返）；②tests/e2e/{smoke_add,smoke_arith,smoke_fp}.s 现用裸数字须改 wpN，并修正三处『wpN 被静默忽略』的过时错误注释；③LLVM-035t:22 同句『须用数值 wyde 位置 0/1/2/3』与事实相反，须修正。"
 
 - id: ISS-129

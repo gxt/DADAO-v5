@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..4dafe01f9
+index 000000000..4a6b45b74
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1366 @@
+@@ -0,0 +1,1382 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -59,6 +59,8 @@ index 000000000..4dafe01f9
 +// DADAOOperand — represents a parsed assembly operand.
 +//
 +// In addition to the basic kinds (token, register, immediate), we add:
++//   kWydePos      — wp0/wp1/wp2/wp3 (explicit wyde-position token; distinct
++//                   from a bare immediate so that numeric 0-3 is rejected)
 +//   kRegGroup     — {rd8:rd11} or {rd8} (decomposed to flat operands)
 +//   kRegGroupCond — {rd8, rd0}? or {rd3}? (condition marker)
 +//   kRegPair      — {rd8, rd9} (dual-purpose, no ?)
@@ -75,6 +77,7 @@ index 000000000..4dafe01f9
 +    kToken,
 +    kRegister,
 +    kImmediate,
++    kWydePos,       // wp0/wp1/wp2/wp3 (only from parseWydePosToken)
 +    kRegGroup,      // {start:end} or {single}
 +    kRegGroupCond,  // {...}?
 +    kRegPair,       // {rd, rd} (no ?)
@@ -136,6 +139,18 @@ index 000000000..4dafe01f9
 +    Op->ImmVal = 0;
 +    Op->StartLoc = L;
 +    Op->EndLoc = EL;
++    return Op;
++  }
++
++  // Factory for an explicit wyde-position token (wp0/wp1/wp2/wp3).  It is a
++  // distinct kind from a bare immediate so the wydepos predicate can reject
++  // numeric 0-3 (LLVM-045t / ISS-128).
++  static std::unique_ptr<DADAOOperand> createWydePos(int64_t Val, SMLoc L,
++                                                     SMLoc E) {
++    auto Op = std::make_unique<DADAOOperand>(kWydePos);
++    Op->ImmVal = Val;
++    Op->StartLoc = L;
++    Op->EndLoc = E;
 +    return Op;
 +  }
 +
@@ -239,6 +254,7 @@ index 000000000..4dafe01f9
 +    case kToken:       OS << "Token:" << Tok; break;
 +    case kRegister:    OS << "Reg:" << RegNo; break;
 +    case kImmediate:   if (ImmExpr) OS << "ImmExpr"; else OS << "Imm:" << ImmVal; break;
++    case kWydePos:     OS << "WydePos:" << ImmVal; break;
 +    case kRegGroup:    OS << "RegGroup:" << RegList.size(); break;
 +    case kRegGroupCond: OS << "RegGroupCond:" << RegList.size(); break;
 +    case kRegPair:     OS << "RegPair"; break;
@@ -246,11 +262,11 @@ index 000000000..4dafe01f9
 +    }
 +  }
 +
-+  // Predicate for wyde-position: immediate in range [0, 3].
++  // Predicate for wyde-position: only an explicit wp0/wp1/wp2/wp3 token
++  // matches.  A bare immediate 0-3 (Kind == kImmediate) is rejected
++  // (LLVM-045t / ISS-128).
 +  bool isWydePosImm() const {
-+    if (Kind != kImmediate)
-+      return false;
-+    if (ImmExpr)
++    if (Kind != kWydePos)
 +      return false;
 +    return ImmVal >= 0 && ImmVal <= 3;
 +  }
@@ -416,7 +432,7 @@ index 000000000..4dafe01f9
 +  SMLoc StartLoc = Tok.getLoc();
 +  SMLoc EndLoc = Tok.getEndLoc();
 +  getParser().Lex();
-+  Operands.push_back(DADAOOperand::createImm(N, StartLoc, EndLoc));
++  Operands.push_back(DADAOOperand::createWydePos(N, StartLoc, EndLoc));
 +  return true;
 +}
 +

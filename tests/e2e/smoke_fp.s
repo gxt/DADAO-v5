@@ -31,16 +31,16 @@
 ;   "ft2it 向零截断 -> 3"). Result is 3 = 0x00000003.
 ;
 ; ── Bit-pattern construction ────────────────────────────────────────────────
-;   set.zw rdN, 1, immu16 sets wyde #1 = register bits[31:16]; bits[15:0]
+;   set.zw rdN, wp1, immu16 sets wyde #1 = register bits[31:16]; bits[15:0]
 ;   stay 0 (all other rd/rb/ra = 0 at entry per ADR-0004 D6.5). Thus:
 ;     rd1 = 0x0000_0000_3FC0_0000  (f32 1.5 in the low 32 bits)
 ;     rd2 = 0x0000_0000_4010_0000  (f32 2.25)
 ;   rd2rf copies the full 64-bit word unchanged into RF (contract-fp.md §12);
 ;   the ft format uses only the low 32 bits (contract-fp.md §1).
 ;
-; NOTE (pre-existing llvm-mc AsmParser bug, see smoke_add.s):
-;   wpN named constants are silently ignored and always encode wp0.
-;   Use numeric wyde positions (0/1/2/3).
+; NOTE (see smoke_add.s): the wyde position must be written as a named token
+;   wp0/wp1/wp2/wp3. Bare numeric 0/1/2/3 is rejected by the assembler (Error);
+;   wpN is encoded verbatim (LLVM-045t / ISS-128).
 ;
 ; Entry state (ADR-0004 D6.5):
 ;   rb0=0xffff_0000_0000 (PC), rb1=0xffff_00ff_0000 (SP), rb2=0xffff_0000_0000
@@ -48,12 +48,12 @@
 
 _start:
     ; 1. Construct exit-port address rb3 = 0xffff_8000_0000
-    set.zw  rb3, 2, 0xffff        ; rb3[47:32] = 0xffff, rest = 0
-    or.w    rb3, 1, 0x8000        ; rb3[31:16] |= 0x8000
+    set.zw  rb3, wp2, 0xffff        ; rb3[47:32] = 0xffff, rest = 0
+    or.w    rb3, wp1, 0x8000        ; rb3[31:16] |= 0x8000
 
     ; 2. f32 bit patterns into RD low 32 bits
-    set.zw  rd1, 1, 0x3fc0        ; rd1 = 0x0000_0000_3FC0_0000
-    set.zw  rd2, 1, 0x4010        ; rd2 = 0x0000_0000_4010_0000
+    set.zw  rd1, wp1, 0x3fc0        ; rd1 = 0x0000_0000_3FC0_0000
+    set.zw  rd2, wp1, 0x4010        ; rd2 = 0x0000_0000_4010_0000
 
     ; 3. RD -> RF (64-bit block copy, no datatype conversion)
     rd2rf   {rf1}, {rd1}
@@ -66,7 +66,7 @@ _start:
     ft2it   {rd3}, {rf3}
 
     ; 6. Compare against hand-derived expectation 3 (cmp.so -> 0 iff equal)
-    set.zw  rd4, 0, 3
+    set.zw  rd4, wp0, 3
     cmp.so  rd5, rd3, rd4
     br.nz   {rd5}?, [rb0, Lfail]
 
@@ -75,6 +75,6 @@ _start:
 
 Lfail:
     ; 8. FAIL: write 0x01 -> exit port
-    set.zw  rd7, 0, 1
+    set.zw  rd7, wp0, 1
     st.o    rd7, [rb3, 0]
     swym    0

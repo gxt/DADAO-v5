@@ -4,8 +4,9 @@
 ; Comparison pattern: XOR+ORR (ADR-0009 D2)
 ; Exit code: 0x00 = PASS, 0x01 = FAIL
 ;
-; NOTE: llvm-mc AsmParser bug — wpN named constants are silently ignored,
-;       always encoding wp0. Use numeric wyde positions (0/1/2/3) instead.
+; NOTE: the wyde position must be written as a named token wp0/wp1/wp2/wp3.
+;       Bare numeric 0/1/2/3 is rejected by the assembler (Error), and wpN is
+;       encoded verbatim (no longer silently ignored).
 ;
 ; Entry state (ADR-0004 D6.5):
 ;   rb0=0xffff_0000_0000 (PC), rb1=0xffff_00ff_0000 (SP), rb2=0xffff_0000_0000
@@ -13,12 +14,12 @@
 
 _start:
     ; 1. Construct exit port address rb3 = 0xffff_8000_0000
-    set.zw  rb3, 2, 0xffff
-    or.w    rb3, 1, 0x8000
+    set.zw  rb3, wp2, 0xffff
+    or.w    rb3, wp1, 0x8000
 
     ; 2. Load two immediates
-    set.zw  rd1, 0, 100
-    set.zw  rd2, 0, 55
+    set.zw  rd1, wp0, 100
+    set.zw  rd2, wp0, 55
 
     ; 3. RD arithmetic: rd1 = 100 + (-45) = 55
     add.si  rd1, -45
@@ -37,6 +38,6 @@ _start:
 
 Lfail:
     ; 7. FAIL: write 0x01 → exit port
-    set.zw  rd4, 0, 1
+    set.zw  rd4, wp0, 1
     st.o    rd4, [rb3, 0]
     swym    0
