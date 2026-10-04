@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..68dd07efe
+index 000000000..ce8919787
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,74 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -18,6 +18,7 @@ index 000000000..68dd07efe
 +//===----------------------------------------------------------------------===//
 +
 +#include "DADAOInstrInfo.h"
++#include "DADAORegisterInfo.h"
 +
 +// Include the generated instruction info tables.  The descriptor tables
 +// (DADAODescs / DADAOInstrNameIndices / DADAOInstrNameData) are emitted once in
@@ -26,10 +27,19 @@ index 000000000..68dd07efe
 +#define GET_INSTRINFO_CTOR_DTOR
 +#include "DADAOGenInstrInfo.inc"
 +
++// Instruction opcode enum (DADAO::rd2rd, DADAO::rb2rb, ...) used by
++// copyPhysReg.  DADAOInstrInfo.h only defines GET_INSTRINFO_HEADER.
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++#undef GET_INSTRINFO_ENUM
++
++#include "llvm/CodeGen/MachineBasicBlock.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++
 +using namespace llvm;
 +
-+// Constructor is provided by the generated base class.
-+// DADAOInstrInfo is currently a thin wrapper; no custom overrides yet.
++// Constructor is provided by the generated base class.  The only custom
++// override so far is copyPhysReg (bank-aware register moves, LLVM-034t).
 +DADAOInstrInfo::DADAOInstrInfo(const TargetSubtargetInfo &STI,
 +                               const TargetRegisterInfo &TRI,
 +                               unsigned CFSetupOpcode,
@@ -38,3 +48,33 @@ index 000000000..68dd07efe
 +                               unsigned ReturnOpcode)
 +    : DADAOGenInstrInfo(STI, TRI, CFSetupOpcode, CFDestroyOpcode,
 +                        CatchRetOpcode, ReturnOpcode) {}
++
++void DADAOInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
++                                 MachineBasicBlock::iterator MI,
++                                 const DebugLoc &DL, Register DestReg,
++                                 Register SrcReg, bool KillSrc,
++                                 bool RenamableDest, bool RenamableSrc) const {
++  (void)RenamableDest;
++  (void)RenamableSrc;
++
++  // Banks (C1/C2, ADR-0018): RD = i64 data, RB = pointers/addresses.
++  const bool DestRB = DADAO::GPRBRegClass.contains(DestReg);
++  const bool SrcRB = DADAO::GPRBRegClass.contains(SrcReg);
++
++  unsigned Opc;
++  if (DestRB && SrcRB)
++    Opc = DADAO::rb2rb; // RB -> RB
++  else if (!DestRB && !SrcRB)
++    Opc = DADAO::rd2rd; // RD -> RD
++  else if (DestRB)
++    Opc = DADAO::rd2rb; // RD -> RB
++  else
++    Opc = DADAO::rb2rd; // RB -> RD
++
++  // The bank-copy instructions are orri block copies whose immu6 operand is
++  // the register count, valid range 1..63 (0 is illegal).  A physical
++  // register copy is exactly one register.
++  BuildMI(MBB, MI, DL, get(Opc), DestReg)
++      .addReg(SrcReg, getKillRegState(KillSrc))
++      .addImm(1);
++}

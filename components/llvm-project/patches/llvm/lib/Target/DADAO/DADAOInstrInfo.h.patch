@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.h b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 new file mode 100644
-index 000000000000..a2b115f82449
+index 000000000..1bc70b099
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,52 @@
 +//===-- DADAOInstrInfo.h - DADAO Instruction Info ---------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -40,6 +40,17 @@ index 000000000000..a2b115f82449
 +                          unsigned CFDestroyOpcode = ~0u,
 +                          unsigned CatchRetOpcode = ~0u,
 +                          unsigned ReturnOpcode = ~0u);
++
++  /// Emit a register-to-register move, choosing the DADAO bank-copy
++  /// instruction that matches the source and destination banks (C3,
++  /// ADR-0018): rd2rd (RD->RD), rb2rb (RB->RB), rd2rb (RD->RB),
++  /// rb2rd (RB->RD).
++  void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
++                   const DebugLoc &DL, Register DestReg, Register SrcReg,
++                   bool KillSrc, bool RenamableDest = false,
++                   bool RenamableSrc = false) const override;
++  // Avoid hiding any other TargetInstrInfo::copyPhysReg overloads.
++  using TargetInstrInfo::copyPhysReg;
 +};
 +
 +} // end namespace llvm

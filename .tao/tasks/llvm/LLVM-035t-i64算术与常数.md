@@ -28,7 +28,7 @@
   - **v5 现状**：`DADAOInstrInfo.td` 无任何 pattern（`Pattern = []`），且**无伪指令**；本任务按需新增 `Pattern` 与（如需要）伪指令（如 `ADD_PSEUDO`/`SUB_PSEUDO`），并在 `expandPostRAPseudo`（`LLVM-040t` 或本任务）展开。
   - **范围**：i64 `add/sub/and/or/xor/shl/shr/mul`（`div/rem` 至少 `llvm_unreachable` 或 LibCall 兜底，完整语义可后置——**在完成区明确列出已覆盖/未覆盖**）；常数 i64 材料化。**不含** branch/compare-setcc（→`LLVM-037t`）、访存、调用、FP。
   - **`ptr−ptr` ISel（新增，M3 前置）**：为 `sub.o rd, rb, rb`（RB − RB → RD，见 `LLVM-043t`）添加 ISel 选择，使「两个指针相减」选出该指令。**两操作数须落 GPRB（`rbhc`/`rbhd`）、目的为 GPRD（`rdhb`）**；机制为 **bank 感知**（C1/C2 硬双类 + i64 通吃的人为约束，`ADR-0018`），可在 TableGen pattern 或 `DADAOISelDAGToDAG` 中实现（由 engineer 定，**须在完成区说明所选机制**）。**不得**以 `rb2rd`×2 + `sub.o` 作为终态（`ADR-0018 C14 R2` 已否决）。指令定义与编码由 `LLVM-043t` 提供（本任务只加选择，不重定义编码）。
-  - **不回归** GPRD/GPRB MIR（`LLVM-034t` 验收 1 的 `pass_ptr`/`add_i64`）。
+  - **不回归** GPRD/GPRB MIR（`LLVM-034t` 验收 1 的 `pass_ptr`/`id64`）。
   - 补丁纪律、构建/日志/临时目录/防造假纪律同 `LLVM-033t`；`make check-patch-tree`、`make check-source-state`。
   - 参照 **0628 `DL-060a`（shift/mul）/`DL-060b`（div/rem）/`DL-061a`（wyde imm）**（只读溯源）。
 
@@ -36,7 +36,7 @@
 
 1. `ninja` 退出 0。
 2. `llc -march=dadao -stop-after=finalize-isel` 对下列（**真实 MIR，含目标指令**）：
-   - `define i64 @f(i64 %a,i64 %b){ %r=add i64 %a,%b  ret i64 %r }` → 含 i64 add 选择（如 `ADD_PSEUDO`/`add.uo`），非 `COPY`+未实现；
+   - `define i64 @f(i64 %a,i64 %b){ %r=add i64 %a,%b  ret i64 %r }` → 含 i64 add 选择（如 `ADD_PSEUDO`/`add.uo`），非 `COPY`+未实现；**且结果含 `class: gprd`（计算型 i64 → GPRD；补 `LLVM-034t` 验收 1 推迟项，用户 2026-10-05 裁定）**；
    - 大常数：`define i64 @c(){ ret i64 123456789012345 }` → 材料化为 `set.zw`/`or.w` 序列（或 `add.si`）；给出 MIR。
    - `ptr−ptr`（M3 前置）：以两个指针形参相减为例（如 `define i64 @pdiff(ptr %p, ptr %q)` 中 `%r = sub i64 %a, %b`，`%a`/`%b` 来自 `ptrtoint`），`-stop-after=finalize-isel` 含 `sub.o`（两操作数来自 GPRB）选择，**无** `rb2rd`×2 兜底；给出 MIR。
 3. `llc -stop-after=finalize-isel` 对以上程序退出 0、不 `Cannot select`。

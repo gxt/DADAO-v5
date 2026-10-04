@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..e9327dbc1
+index 000000000..83ae550f5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,111 @@
+@@ -0,0 +1,132 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,10 +12,11 @@ index 000000000..e9327dbc1
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// M3 SelectionDAG lowering skeleton (LLVM-033t):
-+//   - register MVT::i64 with the GPRD register class (C1/C2, ADR-0018)
++// M3 SelectionDAG lowering (LLVM-033t skeleton + LLVM-034t value types):
++//   - register MVT::i64 with the GPRD (data) register class (C1/C2, ADR-0018)
++//   - force pointer/address formal arguments into GPRB virtual registers
 +//   - minimal LowerFormalArguments / LowerReturn sufficient to lower a
-+//     `ret`-only scalar function to MIR.
++//     `ret`-only scalar/pointer function to MIR.
 +//
 +// The full calling convention (spill slots, bank-aware CC, byval/varargs)
 +// is LLVM-039t (with SPEC-097t); only register arguments are handled here.
@@ -26,6 +27,8 @@ index 000000000..e9327dbc1
 +#include "DADAOSubtarget.h"
 +#include "DADAOTargetMachine.h"
 +
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
 +#include "llvm/CodeGen/SelectionDAG.h"
 +#include "llvm/Support/ErrorHandling.h"
 +
@@ -57,7 +60,20 @@ index 000000000..e9327dbc1
 +  // spec/DADAO-21 §传参 §参数寄存器 — scalar args go to rd16..rd31 and pointer
 +  // args go to rb16..rb31, each bank counted independently from 16.
 +  //
-+  // NOTE: bank-aware CC / spill slots / varargs / byval are LLVM-039t.
++  // C1/C2 (ADR-0018): GPRD carries i64 data, GPRB carries pointers/addresses.
++  // The pointer/integer split is made from ArgFlags.isPointer() (set by
++  // SelectionDAGBuilder from the original IR type), not from a separate MVT
++  // (pointers are legalized to i64, C2).  The incoming pointer's virtual
++  // register is therefore forced into GPRB here — the register allocator never
++  // gets to pick a bank for it.  As in 0628 DL-050a, the vreg is created
++  // explicitly and wired to the incoming physical register via addLiveIn, so
++  // the CopyFromReg's vreg class is the bank-selected class rather than the
++  // default i64 class (GPRD).
++  //
++  // NOTE: CC-based arg analysis / spill slots / varargs / byval are LLVM-039t.
++  MachineFunction &MF = DAG.getMachineFunction();
++  MachineRegisterInfo &RegInfo = MF.getRegInfo();
++
 +  unsigned NumRD = 0;
 +  unsigned NumRB = 0;
 +  for (unsigned i = 0, e = Ins.size(); i != e; ++i) {
@@ -79,7 +95,12 @@ index 000000000..e9327dbc1
 +                           : Register(DADAO::rd16 + Count);
 +    ++Count;
 +
-+    SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, InReg, MVT::i64);
++    const TargetRegisterClass *RC =
++        IsPtr ? &DADAO::GPRBRegClass : &DADAO::GPRDRegClass;
++    Register VReg = RegInfo.createVirtualRegister(RC);
++    RegInfo.addLiveIn(InReg, VReg);
++
++    SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, MVT::i64);
 +    InVals.push_back(ArgValue);
 +    Chain = ArgValue.getValue(1);
 +  }
