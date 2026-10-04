@@ -1,0 +1,57 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
+new file mode 100644
+index 000000000..53940c0f7
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
+@@ -0,0 +1,51 @@
++//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// SelectionDAG target nodes and CodeGen-only pseudo instructions for the
++// DADAO M3 backend skeleton (LLVM-033t).
++//
++// The instruction definitions in DADAOInstrInfo.td are auto-generated from
++// contracts/opcodes.yaml and carry no patterns.  This file adds the minimal
++// CodeGen glue needed so that `llc -march=dadao -stop-after=finalize-isel`
++// can lower a `ret`-only function to MIR.
++//
++// The real `ret` instruction (ret_riii) is expanded later (LLVM-040t); here a
++// CodeGen-only pseudo terminates the function so the MIR can be inspected.
++//
++//===----------------------------------------------------------------------===//
++
++//===----------------------------------------------------------------------===//
++// SelectionDAG target nodes
++//===----------------------------------------------------------------------===//
++
++// Return terminator produced by DADAOTargetLowering::LowerReturn.  Operands:
++//   chain, [return-value registers...], [glue]
++// Matched by RET_PSEUDO below.
++def DADAORetGlue : SDNode<"DADAOISD::RET_GLUE", SDTNone,
++                          [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
++
++//===----------------------------------------------------------------------===//
++// CodeGen-only pseudo instruction base
++//===----------------------------------------------------------------------===//
++
++class DADAOPseudo<dag outs, dag ins, list<dag> pattern> : Instruction {
++  let Namespace = "DADAO";
++  let OutOperandList = outs;
++  let InOperandList = ins;
++  let AsmString = "";
++  let Pattern = pattern;
++  let isPseudo = 1;
++  let isCodeGenOnly = 1;
++  let Size = 4;
++}
++
++// Function return terminator.  The return value has already been placed in
++// rd31 (scalar) / rb31 (pointer) by LowerReturn via CopyToReg, so no operands
++// are needed here.  Expansion to the real `ret rd0, 0` is LLVM-040t.
++let isReturn = 1, isTerminator = 1, isBarrier = 1 in
++def RET_PSEUDO : DADAOPseudo<(outs), (ins), [(DADAORetGlue)]>;

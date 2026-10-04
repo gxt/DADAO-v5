@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
 new file mode 100644
-index 000000000000..010db4f8a825
+index 000000000..91236f3a0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,80 @@
 +//===-- DADAORegisterInfo.cpp - DADAO Register Information -------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -57,6 +57,14 @@ index 000000000000..010db4f8a825
 +  // rb2 = FP (contract-abi.md §2.1)
 +  // N2 fix: use actual register enum (69), not DwarfRegAlias RBFP (1).
 +  Reserved.set(DADAO::rb2);
++  // rd1–rd7: rd1 = error number (Callee-saved '-' → conservative no-alloc);
++  // rd2–rd7 = reserved (compiler must not allocate). ADR-0018 C7 D6.
++  for (unsigned i = DADAO::rd1; i <= DADAO::rd7; ++i)
++    Reserved.set(i);
++  // rb3–rb7: rb3 = GP, rb4 = TP (Callee-saved '-' → conservative no-alloc);
++  // rb5–rb7 = reserved. ADR-0018 C7 D6.
++  for (unsigned i = DADAO::rb3; i <= DADAO::rb7; ++i)
++    Reserved.set(i);
 +  // RF and RA are entirely non-allocatable in M1
 +  for (unsigned i = DADAO::rf0; i <= DADAO::rf63; ++i)
 +    Reserved.set(i);

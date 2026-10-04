@@ -1,0 +1,117 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
+new file mode 100644
+index 000000000..e9327dbc1
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
+@@ -0,0 +1,111 @@
++//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// M3 SelectionDAG lowering skeleton (LLVM-033t):
++//   - register MVT::i64 with the GPRD register class (C1/C2, ADR-0018)
++//   - minimal LowerFormalArguments / LowerReturn sufficient to lower a
++//     `ret`-only scalar function to MIR.
++//
++// The full calling convention (spill slots, bank-aware CC, byval/varargs)
++// is LLVM-039t (with SPEC-097t); only register arguments are handled here.
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOISelLowering.h"
++#include "DADAOSubtarget.h"
++#include "DADAOTargetMachine.h"
++
++#include "llvm/CodeGen/SelectionDAG.h"
++#include "llvm/Support/ErrorHandling.h"
++
++using namespace llvm;
++
++DADAOTargetLowering::DADAOTargetLowering(const DADAOTargetMachine &TM,
++                                         const DADAOSubtarget &STI)
++    : TargetLowering(TM, STI) {
++  // M3 skeleton: i64 covers both data and pointers (C2, ADR-0018); pointers
++  // are forced into GPRB by the calling convention / ISel in LLVM-034t.
++  addRegisterClass(MVT::i64, &DADAO::GPRDRegClass);
++  computeRegisterProperties(STI.getRegisterInfo());
++}
++
++const char *DADAOTargetLowering::getTargetNodeName(unsigned Opcode) const {
++  switch (static_cast<DADAOISD::NodeType>(Opcode)) {
++  case DADAOISD::RET_GLUE:
++    return "DADAOISD::RET_GLUE";
++  default:
++    return nullptr;
++  }
++}
++
++SDValue DADAOTargetLowering::LowerFormalArguments(
++    SDValue Chain, CallingConv::ID /*CallConv*/, bool /*IsVarArg*/,
++    const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
++    SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
++  // Minimal M3 skeleton: register arguments only, assigned per
++  // spec/DADAO-21 §传参 §参数寄存器 — scalar args go to rd16..rd31 and pointer
++  // args go to rb16..rb31, each bank counted independently from 16.
++  //
++  // NOTE: bank-aware CC / spill slots / varargs / byval are LLVM-039t.
++  unsigned NumRD = 0;
++  unsigned NumRB = 0;
++  for (unsigned i = 0, e = Ins.size(); i != e; ++i) {
++    const ISD::InputArg &Arg = Ins[i];
++    if (Arg.Flags.isByVal() || Arg.Flags.isSRet() || Arg.Flags.isNest())
++      report_fatal_error(
++          "DADAO: byval/sret/nest arguments not yet supported (LLVM-039t)");
++    if (Arg.VT != MVT::i64)
++      report_fatal_error("DADAO: only i64 register arguments are supported in "
++                         "the M3 skeleton (LLVM-039t)");
++
++    const bool IsPtr = Arg.Flags.isPointer();
++    unsigned &Count = IsPtr ? NumRB : NumRD;
++    if (Count >= 16)
++      report_fatal_error("DADAO: more than 16 register arguments are not "
++                         "supported yet (LLVM-039t)");
++
++    Register InReg = IsPtr ? Register(DADAO::rb16 + Count)
++                           : Register(DADAO::rd16 + Count);
++    ++Count;
++
++    SDValue ArgValue = DAG.getCopyFromReg(Chain, DL, InReg, MVT::i64);
++    InVals.push_back(ArgValue);
++    Chain = ArgValue.getValue(1);
++  }
++  return Chain;
++}
++
++SDValue DADAOTargetLowering::LowerReturn(
++    SDValue Chain, CallingConv::ID /*CallConv*/, bool /*IsVarArg*/,
++    const SmallVectorImpl<ISD::OutputArg> &Outs,
++    const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
++    SelectionDAG &DAG) const {
++  // Minimal M3 skeleton: at most one value in a register.
++  //   scalar  -> rd31, pointer -> rb31 (C5, ADR-0018).
++  if (Outs.size() > 1)
++    report_fatal_error(
++        "DADAO: multiple return values not supported (deferred to M4)");
++
++  SmallVector<SDValue, 4> RetOps(1, Chain);
++
++  if (!Outs.empty()) {
++    if (OutVals[0].getValueType() != MVT::i64)
++      report_fatal_error("DADAO: only i64 register return values are supported "
++                         "in the M3 skeleton");
++    Register RetReg = Outs[0].Flags.isPointer() ? Register(DADAO::rb31)
++                                                : Register(DADAO::rd31);
++    SDValue Glue;
++    Chain = DAG.getCopyToReg(Chain, DL, RetReg, OutVals[0], Glue);
++    Glue = Chain.getValue(1);
++    RetOps.push_back(DAG.getRegister(RetReg, MVT::i64));
++    if (Glue.getNode())
++      RetOps.push_back(Glue);
++  }
++
++  return DAG.getNode(DADAOISD::RET_GLUE, DL, MVT::Other, RetOps);
++}

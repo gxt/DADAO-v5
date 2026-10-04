@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.td b/llvm/lib/Target/DADAO/DADAO.td
 new file mode 100644
-index 000000000000..6e40c160944e
+index 000000000..88d188afb
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.td
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,37 @@
 +//===-- DADAO.td - Top-level TableGen definitions for DADAO -*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -20,6 +20,7 @@ index 000000000000..6e40c160944e
 +
 +include "DADAORegisterInfo.td"
 +include "DADAOInstrInfo.td"
++include "DADAOCodeGen.td"
 +
 +//===----------------------------------------------------------------------===//
 +// Instruction set definition

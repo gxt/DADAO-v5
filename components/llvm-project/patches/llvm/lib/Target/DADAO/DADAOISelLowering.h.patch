@@ -1,0 +1,66 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
+new file mode 100644
+index 000000000..270655b95
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
+@@ -0,0 +1,60 @@
++//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file defines the interfaces that DADAO uses to lower LLVM code into a
++// selection DAG.  M3 skeleton (LLVM-033t): i64 register class registration and
++// a minimal LowerReturn; the SelectionDAG framework is the M3 choice (C11,
++// ADR-0018).
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOISELLOWERING_H
++#define LLVM_LIB_TARGET_DADAO_DADAOISELLOWERING_H
++
++#include "llvm/CodeGen/TargetLowering.h"
++
++namespace llvm {
++
++class DADAOSubtarget;
++class DADAOTargetMachine;
++
++namespace DADAOISD {
++
++enum NodeType : unsigned {
++  FIRST_NUMBER = ISD::BUILTIN_OP_END,
++
++  /// Return terminator: (chain, [return-value registers...], [glue]).
++  /// Produced by LowerReturn, matched by the RET_PSEUDO instruction
++  /// (see DADAOCodeGen.td).
++  RET_GLUE,
++};
++
++} // namespace DADAOISD
++
++class DADAOTargetLowering : public TargetLowering {
++public:
++  explicit DADAOTargetLowering(const DADAOTargetMachine &TM,
++                               const DADAOSubtarget &STI);
++
++  const char *getTargetNodeName(unsigned Opcode) const override;
++
++  SDValue
++  LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
++                       const SmallVectorImpl<ISD::InputArg> &Ins,
++                       const SDLoc &DL, SelectionDAG &DAG,
++                       SmallVectorImpl<SDValue> &InVals) const override;
++
++  SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
++                      const SmallVectorImpl<ISD::OutputArg> &Outs,
++                      const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
++                      SelectionDAG &DAG) const override;
++};
++
++} // namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOISELLOWERING_H

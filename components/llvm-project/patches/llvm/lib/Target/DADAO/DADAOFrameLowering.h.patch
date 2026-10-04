@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.h b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
 new file mode 100644
-index 000000000000..96dc0e9f8fd4
+index 000000000..17a6eece0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,47 @@
 +//===-- DADAOFrameLowering.h - Define frame lowering for DADAO -*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -21,6 +21,7 @@ index 000000000000..96dc0e9f8fd4
 +#define LLVM_LIB_TARGET_DADAO_DADAOFRAMELOWERING_H
 +
 +#include "llvm/CodeGen/TargetFrameLowering.h"
++#include "llvm/Support/ErrorHandling.h"
 +
 +namespace llvm {
 +
@@ -30,6 +31,21 @@ index 000000000000..96dc0e9f8fd4
 +      : TargetFrameLowering(StackGrowsDown,
 +                            /*StackAlignment=*/Align(8),
 +                            /*LocalAreaOffset=*/0) {}
++
++  void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override {
++    llvm_unreachable("DADAO emitPrologue not implemented (LLVM-038t)");
++  }
++
++  void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override {
++    llvm_unreachable("DADAO emitEpilogue not implemented (LLVM-038t)");
++  }
++
++  bool hasFPImpl(const MachineFunction &MF) const override {
++    // M3 skeleton default: SP-only (ADR-0018 C7 D2).  The conditional
++    // hasFPImpl (var-sized objects / frame address taken / realignment /
++    // -fno-omit-frame-pointer) is implemented in LLVM-038t.
++    return false;
++  }
 +};
 +
 +} // namespace llvm

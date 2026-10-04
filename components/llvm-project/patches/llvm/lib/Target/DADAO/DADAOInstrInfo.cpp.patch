@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000000..4f58d4a99db3
+index 000000000..68dd07efe
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,34 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -19,8 +19,11 @@ index 000000000000..4f58d4a99db3
 +
 +#include "DADAOInstrInfo.h"
 +
-+// Include the generated instruction info tables.
-+#define GET_INSTRINFO_MC_DESC
++// Include the generated instruction info tables.  The descriptor tables
++// (DADAODescs / DADAOInstrNameIndices / DADAOInstrNameData) are emitted once in
++// DADAOMCTargetDesc.cpp (GET_INSTRINFO_MC_DESC); here we only need the
++// DADAOGenInstrInfo constructor (GET_INSTRINFO_CTOR_DTOR).
++#define GET_INSTRINFO_CTOR_DTOR
 +#include "DADAOGenInstrInfo.inc"
 +
 +using namespace llvm;

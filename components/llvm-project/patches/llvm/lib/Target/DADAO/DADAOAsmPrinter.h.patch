@@ -1,0 +1,42 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.h b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
+new file mode 100644
+index 000000000..861d07e7b
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
+@@ -0,0 +1,36 @@
++//===-- DADAOAsmPrinter.h - DADAO LLVM Assembly Printer --------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Stub DADAO assembly printer (LLVM-033t).  It registers the AsmPrinter so the
++// target is complete enough for CodeGen wiring; full MCInst lowering and `.s`
++// emission are LLVM-040t.  The base AsmPrinter::emitInstruction already fails
++// explicitly (llvm_unreachable), which is the intended M3 skeleton behaviour.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOASMPRINTER_H
++#define LLVM_LIB_TARGET_DADAO_DADAOASMPRINTER_H
++
++#include "llvm/CodeGen/AsmPrinter.h"
++#include "llvm/MC/MCStreamer.h"
++
++namespace llvm {
++
++class DADAOAsmPrinter : public AsmPrinter {
++public:
++  static char ID;
++
++  DADAOAsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer)
++      : AsmPrinter(TM, std::move(Streamer), ID) {}
++
++  StringRef getPassName() const override { return "DADAO Assembly Printer"; }
++};
++
++} // namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOASMPRINTER_H

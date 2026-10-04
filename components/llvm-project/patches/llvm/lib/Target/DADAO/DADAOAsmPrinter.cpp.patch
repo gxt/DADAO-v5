@@ -1,0 +1,32 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
+new file mode 100644
+index 000000000..22587ca1d
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
+@@ -0,0 +1,26 @@
++//===-- DADAOAsmPrinter.cpp - DADAO LLVM Assembly Printer ------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOAsmPrinter.h"
++#include "DADAO.h"
++#include "TargetInfo/DADAOTargetInfo.h"
++
++#include "llvm/MC/TargetRegistry.h"
++
++using namespace llvm;
++
++#define DEBUG_TYPE "dadao-asm-printer"
++
++char DADAOAsmPrinter::ID = 0;
++
++INITIALIZE_PASS(DADAOAsmPrinter, DEBUG_TYPE, "DADAO Assembly Printer", false,
++                false)
++
++extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDADAOAsmPrinter() {
++  RegisterAsmPrinter<DADAOAsmPrinter> X(getTheDadaoTarget());
++}

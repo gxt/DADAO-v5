@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.td b/llvm/lib/Target/DADAO/DADAORegisterInfo.td
 new file mode 100644
-index 000000000000..124eef2999b2
+index 000000000..e316476d5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.td
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,183 @@
 +//===-- DADAORegisterInfo.td - DADAO Register defs ----------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -100,14 +100,20 @@ index 000000000000..124eef2999b2
 +//===----------------------------------------------------------------------===//
 +// Register classes
 +//
-+// GPRD              : all 64 RD (for MC encoding/disasm)
-+// GPRD_Allocatable  : allocatable subset rd8–rd63 (56 regs)
-+// GPRB              : all 64 RB (for MC encoding/disasm)
-+// GPRB_Allocatable  : allocatable subset rb8–rb63 (56 regs)
++// GPRD              : all 64 RD; the M3 CodeGen register class for i64
++// GPRD_Allocatable  : rd8–rd63 subset (56 regs)
++// GPRB              : all 64 RB; the M3 CodeGen register class for pointers
++// GPRB_Allocatable  : rb8–rb63 subset (56 regs)
 +// GPRF              : all 64 RF (non-allocatable, M1 defer)
 +// GPRA              : all 64 RA (non-allocatable, M1 defer)
 +//
 +// contract-abi.md §1.6: rd1/rb3/rb4 callee-saved spec '-' → M1 不分配.
++//
++// GPRD/GPRB are allocatable so that SelectionDAG can create i64 virtual
++// registers (MIR prints these as `%N:gprd` / `%N:gprb`).  The non-allocatable
++// registers they contain (rd0–rd7, rb0–rb7) are excluded by GPRD/GPRB
++// membership rules and are additionally reserved explicitly in
++// DADAORegisterInfo::getReservedRegs (ADR-0018 C7 D6 "双保险").
 +//===----------------------------------------------------------------------===//
 +
 +def GPRD : RegisterClass<"DADAO", [i64], 64,
@@ -119,9 +125,7 @@ index 000000000000..124eef2999b2
 +         rd40, rd41, rd42, rd43, rd44, rd45, rd46, rd47,
 +         rd48, rd49, rd50, rd51, rd52, rd53, rd54, rd55,
 +         rd56, rd57, rd58, rd59, rd60, rd61, rd62, rd63
-+    )> {
-+  let isAllocatable = 0;  // contains non-allocatable regs (rd0–rd7); MC use only
-+}
++    )>;
 +
 +def GPRD_Allocatable : RegisterClass<"DADAO", [i64], 64,
 +    (add rd8, rd9, rd10, rd11, rd12, rd13, rd14, rd15,
@@ -142,9 +146,7 @@ index 000000000000..124eef2999b2
 +         rb40, rb41, rb42, rb43, rb44, rb45, rb46, rb47,
 +         rb48, rb49, rb50, rb51, rb52, rb53, rb54, rb55,
 +         rb56, rb57, rb58, rb59, rb60, rb61, rb62, rb63
-+    )> {
-+  let isAllocatable = 0;  // contains non-allocatable regs (rb0–rb7); MC use only
-+}
++    )>;
 +
 +def GPRB_Allocatable : RegisterClass<"DADAO", [i64], 64,
 +    (add rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15,

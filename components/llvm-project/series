@@ -5,8 +5,14 @@ llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp.patch
 llvm/lib/Target/DADAO/CMakeLists.txt.patch
 llvm/lib/Target/DADAO/DADAO.h.patch
 llvm/lib/Target/DADAO/DADAO.td.patch
+llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp.patch
+llvm/lib/Target/DADAO/DADAOAsmPrinter.h.patch
+llvm/lib/Target/DADAO/DADAOCodeGen.td.patch
 llvm/lib/Target/DADAO/DADAOFrameLowering.cpp.patch
 llvm/lib/Target/DADAO/DADAOFrameLowering.h.patch
+llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp.patch
+llvm/lib/Target/DADAO/DADAOISelLowering.cpp.patch
+llvm/lib/Target/DADAO/DADAOISelLowering.h.patch
 llvm/lib/Target/DADAO/DADAOInstrFormats.td.patch
 llvm/lib/Target/DADAO/DADAOInstrInfo.cpp.patch
 llvm/lib/Target/DADAO/DADAOInstrInfo.h.patch
@@ -15,6 +21,8 @@ llvm/lib/Target/DADAO/DADAOInstrInfoFP.td.patch
 llvm/lib/Target/DADAO/DADAORegisterInfo.cpp.patch
 llvm/lib/Target/DADAO/DADAORegisterInfo.h.patch
 llvm/lib/Target/DADAO/DADAORegisterInfo.td.patch
+llvm/lib/Target/DADAO/DADAOSubtarget.cpp.patch
+llvm/lib/Target/DADAO/DADAOSubtarget.h.patch
 llvm/lib/Target/DADAO/DADAOTargetMachine.cpp.patch
 llvm/lib/Target/DADAO/DADAOTargetMachine.h.patch
 llvm/lib/Target/DADAO/Disassembler/CMakeLists.txt.patch
