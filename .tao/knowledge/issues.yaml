@@ -1,20 +1,24 @@
 # Issue registry — DADAO-v5
 #
-# M1-gate 定义（2026-09-21 用户裁定）：
+# 项目里程碑状态（INFRA-033t，2026-10-04 校正）：
+#   M1 = ✅ 达成（2026-09-22，用户确认；6/6 模块 m 全置：SPEC-011m / TESTCASES-012m /
+#        INFRA-014m / LLVM-015m / QEMU-021m / INTEG-004m；见 `.tao/knowledge/milestones.md`
+#        与 `.tao/archive/M1/README.md`）
+#   M2 = 进行中（「规范与接口冻结（Normative Freeze）」，2026-10-04 用户重定义；
+#        原「Basic CodeGen」顺延为 M3；见 `SPEC-090k`）
+#   M3 = 待开始（Basic CodeGen）
+#
+# M1-gate 定义（历史注，2026-09-21 用户裁定）：
 #   blocks: [M1-gate] = 直接阻断「任一模块 M1 里程碑」的 open 项。
 #   判据：某 issue 阻断某模块里程碑（该模块里程碑因它未置）⇒ 计入；否则不计。
-#
-# 当前 M1 里程碑状态：
-#   SPEC-011m: 里程碑 ✓
-#   TESTCASES-012m: 里程碑 ✓（149 缺口已消解）
-#   LLVM-013m: 里程碑 ✓
-#   INFRA-014m: 待开始（被任务依赖阻塞，非 issue）
-#   QEMU-021m: 待开始（fence 已 deferred ⇒ ISS-056 不阻断；其余项已就绪）
-#   INTEG-004m: 待开始（被 QEMU-021m 阻塞）
+#   —— M1 已于 2026-09-22 达成，M1-gate 作为门控随之退役；现存 issue 的 blocks 均为空，
+#      `tools/infra/check_issues.py` 保留该字段检查（兼容历史条目、防回退）。
 #
 # 字段约束：
 #   status: open | closed
-#   scope: 非空列表 (M1 | post-M1 | M2 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
+#   scope: 非空列表 (M1 | post-M1 | M2 | M3 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
+#     - M1 = M1 范围项；M2 = 规范与接口冻结；M3 = Basic CodeGen；
+#     - post-M1 = 已不属 M1 范围、归后续里程碑（M2/M3）的通用项，无明确单一里程碑归属。
 #   blocks: 可空列表 (M1-gate 表示直接阻断 M1 里程碑)
 #   resolved_by: closed 时必填, open 时 null
 #
@@ -23,15 +27,20 @@
 #
 # M1 阶段关闭项（Step 3，2026-10-04）：M1 阶段（≤ 2026-09-22）的 closed issue（8 条）已提取至
 # `.tao/archive/M1/issues-closed.md`；本文件仅保留 open + post-M1（≥ 2026-09-23）closed。
+#
+# 内容清理（INFRA-033t，2026-10-04）：A 头部校正；B 关闭 ISS-004（原生浮点候选）/ISS-086（SPEC-094t 76→0）；
+# C 校正 ISS-005/008/040/110 的 scope M2→M3；D 更新 ISS-081（含 INTEG-009t，余归 M3）；
+# E-1 ISS-024/032/035/055/066/072（教训/过程记录）移入 `lessons.md`（id 不复用）；E-2 M1 期 open 项逐条判定。
 
 # ── spec ──────────────────────────────────────────────────────────────────────
 
 - id: ISS-002
   title: "SPEC-002t/003t 产出（contract-isa.md、opcodes.yaml）在 spec 重排后需重新生成，旧文件暂作参考"
-  status: open
+  status: closed
   scope: [spec, M1]
   blocks: []
-  resolved_by: null
+  resolved_by: "SPEC-016t/018t（2026-09-28，合约重组 + 版本引用同步）+ SPEC-019t（2026-09-28，工具脚本重新生成）"
+  notes: "INFRA-033t（2026-10-04）判定：contract-isa.md / contracts/opcodes.yaml 已按 spec 0.5.4 重排重生成（现 227 条 = M1 152 + fp 60 + excluded 15），『旧文件暂作参考』已不适用 ⇒ closed。"
 
 - id: ISS-003
   title: "M1 范围外（推迟）：浮点 RF、特权 cfx 系统指令、LR-SC 原子——M1 仅含标量整数 + 地址/内存 + 控制流 + 测试机系统/异常"
@@ -41,53 +50,60 @@
   resolved_by: null
 
 - id: ISS-004
-  title: "浮点支持（M1 不含，后续必做）——以 soft-float libcall 接入，不注册 FP 寄存器类"
-  status: open
+  title: "浮点支持（M1 不含）——路线已由用户 2026-10-03 裁定为原生浮点，soft-float libcall 方案被否决"
+  status: closed
   scope: [post-M1]
   blocks: []
-  resolved_by: null
+  resolved_by: "用户 2026-10-03 裁定原生浮点（全工具链），否决 0628 的 soft-float libcall 路线（SPEC-086t §裁定 / SPEC-087t）；FP 60/60 已实现（SPEC-086t~089t、LLVM-029t~031t、QEMU-034t~038t）"
+  notes: "原主张『以 soft-float libcall 接入、不注册 FP 寄存器类』已被否决。否决策略去向：原生浮点（`scope: fp` 60 条）——执行层 QEMU-034t~037t、编码层 LLVM-029t、汇编期合法性 LLVM-030t/031t、运行期合法性 QEMU-038t；语义合约 contract-fp.md + contracts/fp_semantics.yaml（SPEC-087t/088t/089t）。"
 
 - id: ISS-005
   title: "ABI 合约（SPEC-004t）完整调用约定 Deferred to M2——M1 仅含最小 ABI 事实"
   status: open
-  scope: [M2]
+  scope: [M3]
   blocks: []
   resolved_by: null
+  notes: "INFRA-033t（2026-10-04）：M2 重定义为「规范与接口冻结」（SPEC-090k）后，完整调用约定属 codegen 前置（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。"
 
 - id: ISS-006
   title: "ABI [OPEN] 项：rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值——不得当规范性要求"
   status: open
-  scope: [M1]
+  scope: [M3]
   blocks: []
   resolved_by: null
+  notes: "INFRA-033t（2026-10-04）：contract-abi.md §6 仍列 5 项 [OPEN]（rd1/rb3/rb4 callee-saved、窄返回值扩展、多返回值、red zone、帧指针省略），属完整调用约定/codegen 前置 ⇒ scope M1→M3（与 ISS-005 同归）。依据：grep `[OPEN]` contract-abi.md L191–195。"
 
 - id: ISS-007
   title: "Object ABI（SPEC-005t）：EM_DADAO 注册状态、e_flags 命名空间策略、M1 是否用 target linker"
-  status: open
+  status: closed
   scope: [M1]
   blocks: []
-  resolved_by: null
+  resolved_by: "e_flags 由 ADR-0003（+修订）+ LLVM-014t（2026-09-22）落地；EM_DADAO 注册状态已文档化；M1 无 link 步骤"
+  notes: "INFRA-033t（2026-10-04）逐项判定：① e_flags 命名空间策略 = ADR-0003 §D1（`e_flags=0x00000001`）+ LLVM-014t 实测落地（e_flags.s lit）；② EM_DADAO=0x0DA0 project-custom、未注册，已由 contract-elf.md §1.3 显式文档化（非缺口）；③ M1 单 TU 自包含、无 link 步骤（contract-elf.md §6）⇒ 三项均已消解，closed。"
 
 - id: ISS-008
   title: "Object ABI / ELF 合约重定位（D2/D3/D4）Deferred to M2——M1 单 TU 自包含不产生重定位"
   status: open
-  scope: [M2]
+  scope: [M3]
   blocks: []
   resolved_by: null
+  notes: "INFRA-033t（2026-10-04）：重定位（contract-elf.md §2–§4）在 M2（规范与接口冻结）口径下不实现，属链接/codegen（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。"
 
 - id: ISS-009
   title: "Spec 冻结（SPEC-010t）：impact matrix 是否覆盖 M1 之外的实现目标"
-  status: open
+  status: closed
   scope: [M1]
   blocks: []
-  resolved_by: null
+  resolved_by: "SPEC-010t 定稿：impact matrix 明确 M1-only by design（docs/impact-matrix.md L3/L27）"
+  notes: "INFRA-033t（2026-10-04）判定：`docs/impact-matrix.md` 显式限定「实现目标标签（仅 M1）」，M1 外（LLVM CodeGen/gem5/Sail）统一标 `Deferred（M1 外）`；这是设计选择而非缺口，M1 已达成 ⇒ closed。"
 
 - id: ISS-010
   title: "编码表变更的下游影响：legality_rules.yaml 中 M1 排除项规则仍 active，需在 SPEC-009t/INFRA-010t 明确 M1 流程过滤"
-  status: open
+  status: closed
   scope: [M1]
   blocks: []
-  resolved_by: null
+  resolved_by: "SPEC-086t（2026-10-03，scope 分区 m1|fp|excluded）+ SPEC-089t（2026-10-04，rule_refs 按 scope 计算）"
+  notes: "INFRA-033t（2026-10-04）判定：旧『M1 排除布尔字段』已退役，改为逐条 `scope ∈ {m1,fp,excluded}`；`check_scope.py` 机械断言 `scope!=m1 ⇔ decode:ILLI`，`_compute_rule_refs` 按 scope 过滤 ⇒ M1 流程过滤已机械化，closed。"
 
 - id: ISS-011
   title: "编码知识：0.5.4 MISC 子表 ha=RRR-CCC 拼为 6 位；旧 tools/opcodes.yaml（0628）不可作编码权威"
@@ -131,55 +147,54 @@
 
 - id: ISS-017
   title: "F5 — UNDI（保留编码）的向量层表达——已改由 TESTCASES-008t 承载（方案 A：class=legality + encoding.reserved=true）"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: "TESTCASES-008t（2026-09-16，方案 A）"
+  notes: "INFRA-033t（2026-10-04）判定：`tests/vectors/schema.md` §保留编码 case（L40–72）落地 `encoding.reserved: true`；`tests/vectors/isa/reserved.yaml` 已存在 ⇒ closed。"
 
 - id: ISS-018
   title: "F6 — encoding 类对恒 fault 指令（illi）豁免——schema.md 已澄清，覆盖率由 legality active 满足"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: "TESTCASES-002t/schema.md 澄清（F6）"
+  notes: "INFRA-033t（2026-10-04）判定：`tests/vectors/schema.md` §「encoding 类对恒 fault 指令的豁免（F6）」（L167+）已澄清；illi 等恒 fault 指令不构造 encoding case，覆盖率由 legality active 满足 ⇒ closed。"
 
 - id: ISS-019
   title: "F9① 结果级语义期望值重算需独立 oracle——属 golden model 模块，不在 testcases 模块内"
   status: open
-  scope: [post-M1]
+  scope: [golden, M3]
   blocks: []
   resolved_by: null
+  notes: "INFRA-033t（2026-10-04）：结果级独立 oracle（错误期望值重算）归 golden 模块，已由 milestones.md 明确划入 M3（范围外：FP 独立 oracle / 完整语义 E2E）⇒ scope post-M1→[golden, M3]。"
 
 - id: ISS-020
   title: "覆盖率门控分层：validate_vectors.py 覆盖率为声明级（177/177），数据级覆盖率不在该 validator 内"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: "TESTCASES-009t/011t：数据级覆盖率门控已入 validate_vectors.py"
+  notes: "INFRA-033t（2026-10-04）判定：`tools/testcases/validate_vectors.py` L730–754 已实现数据级门控——inventory 声明 `✓` 的 (id,class) 若无 active 数据 case 即 `DATA COVERAGE GAP` 并 `sys.exit(1)`（TESTCASES-011t 转严）⇒ 数据级覆盖已入 validator，closed。"
 
 - id: ISS-021
   title: "并行前提不成立：002t 未交付 inventory 生成脚本，各数据任务须手改 inventory.md → 默认全串行"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: "M1 达成（2026-09-22）：数据向量任务已全部收敛，inventory 由 validate_vectors 机械核对"
+  notes: "INFRA-033t（2026-10-04）判定：该 issue 是 M1 期『任务可并行性』的过程前提；M1 已达成、003t~007t 全部完成，`validate_vectors.py` 现已机械校核 inventory 行集与 opcodes M1 身份集一致（无缺/无多/无重复）⇒ 并行前提问题不再成立，closed。"
 
 - id: ISS-022
   title: "数据已随上一版 002t 一并丢弃——003t~007t 的向量数据须从零生成（003t/004t/005t 已完成 10 个 isa/*.yaml）"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: "TESTCASES-003t~007t 完成；M1 覆盖 152/152（TESTCASES-012m 里程碑）"
+  notes: "INFRA-033t（2026-10-04）判定：`tests/vectors/isa/` 现含 15 个 yaml（含 reserved.yaml），`validate_vectors` M1 152/152、gap 0，向量已从零重建完成 ⇒ closed。"
 
 - id: ISS-023
   title: "F10④ 守卫的 RB 覆盖缺口：validate_vectors.py 只提取 rdha，未覆盖 rbha——rbha=0 的 ILLI 未被捕获"
-  status: open
-  scope: [testcases]
-  blocks: []
-  resolved_by: null
-
-- id: ISS-024
-  title: "validate_vectors.py 变更历史（审计追溯）：002t→003t→004t 两次纯新增，未弱化既有断言"
   status: open
   scope: [testcases]
   blocks: []
@@ -195,30 +210,34 @@
 - id: ISS-026
   title: "encoding 的 imm 值不在 validator 能力内——imm 语义正确性由 golden model 脚本守卫"
   status: open
-  scope: [testcases]
+  scope: [testcases, M3]
   blocks: []
   resolved_by: null
+  notes: "INFRA-033t（2026-10-04）：imm 语义正确性由 golden model 脚本承担，golden/结果级 oracle 归 M3（见 ISS-019）⇒ scope 追加 M3。"
 
 - id: ISS-027
   title: "mem-* 边界覆盖未穷尽所有 format 组合——rrri 的 MALIGN 未生成，属 M1 最小覆盖"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: "M1 达成：M1 最小覆盖已接受（mem-rd 含 22 项 boundary；M1 152/152）"
+  notes: "INFRA-033t（2026-10-04）判定：题面自述『属 M1 最小覆盖』；M1 已达成（2026-09-22）、M1 覆盖 152/152、gap 0，未穷尽的 format 组合属 M1 之外的非阻塞增强 ⇒ closed。"
 
 - id: ISS-028
   title: "br.* 无 legality/boundary 用例——br.* 不产生 fault，由 009t 兜底确认"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: "TESTCASES-005t/011t（boundary）+ TESTCASES-009t（兜底确认）"
+  notes: "INFRA-033t（2026-10-04）判定：`tests/vectors/isa/ctrl-br.yaml` 现含 10 项 boundary case（无 legality，因 br.* 不产生 fault）；009t 全量再审计已验证 ⇒ closed。"
 
 - id: ISS-029
   title: "schema.md 新增 encoding.reserved 字段——下游消费者须识别 reserved case 的 UNDI 处理"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: "TESTCASES-008t（schema）+ validate_vectors 落地消费者处理"
+  notes: "INFRA-033t（2026-10-04）判定：`tools/testcases/validate_vectors.py` L222–292 已实现 `encoding.reserved` 消费（class/expected_fault/status/word 约束校验），下游消费者已识别 reserved→UNDI ⇒ closed。"
 
 - id: ISS-030
   title: "notes 文本笔误（006t 遗留 N-1）：ctrl-call.yaml case[7] notes 写 'low 48=0xAAAA000000000000'（多 4 个 0）"
@@ -229,24 +248,11 @@
 
 - id: ISS-031
   title: "call/ret 覆盖维度未穷尽：call-iiii shift-push 无独立 semantic，ret 仅覆盖单级 pop"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
-
-- id: ISS-032
-  title: "F7 守卫基线已完整（参照基准）：005t→006t→007t 形成单一 if/elif 块"
-  status: open
-  scope: [testcases]
-  blocks: []
-  resolved_by: null
-
-- id: ISS-035
-  title: "教训：工具交付物 vs 数据交付物应分层验收——脚本 bug 不应阻断数据交付"
-  status: open
-  scope: [testcases]
-  blocks: []
-  resolved_by: null
+  resolved_by: "TESTCASES-006t/011t/018t/022t：shift-push semantic + 多级 pop/MemRAS 用例已补"
+  notes: "INFRA-033t（2026-10-04）判定：`ctrl-call.yaml` 现含 C3a shift-push semantic（call-iiii 与 call-rrii 各有）；`ctrl-ret.yaml` 现含 D2 count>1、D3 pop、D4b MemRAS 多级用例及 ret rd1 semantic ⇒ 覆盖维度已补全，closed。"
 
 # ── llvm / qemu / integ ──────────────────────────────────────────────────────
 
@@ -267,9 +273,10 @@
 - id: ISS-040
   title: "DADAOFrameLowering 未覆写纯虚 hasFPImpl——M1 安全（无实例化），M2 会阻塞"
   status: open
-  scope: [llvm, M2]
+  scope: [llvm, M3]
   blocks: []
   resolved_by: null
+  notes: "INFRA-033t（2026-10-04）：hasFPImpl 只在实例化 LLVM CodeGen 时阻塞，属 M3（Basic CodeGen）⇒ scope M2→M3（原题『M2 会阻塞』指旧 M2＝Basic CodeGen）。"
 
 - id: ISS-041
   title: "4 个 LLVM 文件缺末尾换行：DADAOFrameLowering.{h,cpp}、DADAORegisterInfo.cpp、DADAOTargetMachine.h"
@@ -363,13 +370,6 @@
   blocks: []
   resolved_by: null
 
-- id: ISS-055
-  title: "engineer 子代理连续 3 次空返回（QEMU-009t 返工）——处置规则已入 AGENTS.md"
-  status: open
-  scope: [qemu]
-  blocks: []
-  resolved_by: null
-
 - id: ISS-056
   title: "fence 已移出 M1（excluded_m1）——trans_fence 恒 ILLI 现为合规行为（excluded 指令应 ILLI）"
   status: closed
@@ -395,31 +395,35 @@
 
 - id: ISS-060
   title: "rd2ra/ra2rd 缺独立测试向量——QEMU-013t 不改向量，归属 TESTCASES 侧补"
-  status: open
+  status: closed
   scope: [qemu, testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: "TESTCASES 侧已覆盖（reg-imm-block.yaml 含 rd2ra/ra2rd 的 encoding/semantic/legality/overlap；TESTCASES-003t 起）"
+  notes: "INFRA-033t（2026-10-04）判定：`tests/vectors/isa/reg-imm-block.yaml` 现含 `rd2ra_orri_ra`（encoding/semantic/legality/overlap）与 `ra2rd_orri_ra`（encoding/semantic/legality×2/overlap）用例（自 TESTCASES-003t 存在，2026-09-28 TESTCASES-013t/015t 对齐）⇒ 向量缺口已补，closed。"
 
 - id: ISS-061
   title: "harness 普通模式 TIMEOUT（QEMU-014t 后续实测）——根因 = TB 续接缺陷，015t 以 workaround 消除"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: "QEMU-022t（2026-09-21，TB 续接缺陷根治）+ QEMU-015t（workaround）"
+  notes: "INFRA-033t（2026-10-04）判定：根因（TB 续接）已由 QEMU-022t（补丁 0008，gen_update_pc + 可靠 halt）根治；`make check-qemu-semantics` 现 149/149 ⇒ closed。"
 
 - id: ISS-062
   title: "--dump 的 rb[1..63] 全 0、pc=0——根因 = TB 续接缺陷，dumper 超 TB 上限后死循环"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: "QEMU-022t（2026-09-21，TB 续接 + exit-port halt 修复）"
+  notes: "INFRA-033t（2026-10-04）判定：QEMU-022t 修复后 `--dump` 的 rb1/rb2/rb62 与 pc=0xffff00000210 均正确（见 `.tao/archive/M1/README.md`）⇒ closed。"
 
 - id: ISS-063
   title: "QEMU dadao target 的 TB 续接缺陷——tb_stop 缺 gen_update_pc，已由 QEMU-022t 新建补丁 0008"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: "QEMU-022t（2026-09-21，补丁 0008）"
+  notes: "INFRA-033t（2026-10-04）判定：题面已述『已由 QEMU-022t 新建补丁 0008』；ADR-0011 固化，0008 已在补丁集 ⇒ closed。"
 
 - id: ISS-064
   title: "cpu_loop_exit 的 longjmp 泄漏 MMIO re-entrancy 守卫——engaged_in_io 未复位"
@@ -435,13 +439,6 @@
   blocks: []
   resolved_by: "补丁集重整（2026-09-23）：git apply 路径不再产生 patch commit，作者信息问题自然消失"
   notes: "原 backlog L173 标 ✅已消解；本次合并据此关闭。"
-
-- id: ISS-066
-  title: "qemu 模块 engineer 子代理异常事件（2026-09-21 汇总）：016t/017t/018t 完成区与真实输出不符或空返回"
-  status: open
-  scope: [qemu]
-  blocks: []
-  resolved_by: null
 
 - id: ISS-067
   title: "check_qemu_trans.py 的 patch 行分类：collect_trans_defs() 对 +/-/上下文行一视同仁，理论上后序删除会误判"
@@ -466,40 +463,37 @@
 
 - id: ISS-070
   title: "test_encoding_oracle.py 用例去重：扩展后 TESTS=57 但去重后仅 50 条（7 条旧用例被重复登记）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: "LLVM-022t（2026-09-29，oracle 去重 68→61 + 交叉检查）"
+  notes: "INFRA-033t（2026-10-04）实测：`tools/llvm/test_encoding_oracle.py` `len(TESTS)=121`、`unique=121`、重复 0 条；dedup 发生于 LLVM-022t（commit 9a7ea95，68→61）⇒ closed。"
 
 - id: ISS-071
   title: "fence 的 LLVM 侧 lit 缺口——fence 无任何 lit 指令行，LLVM 侧实测可汇编且编码正确"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-
-- id: ISS-072
-  title: "LLVM-010t 关闭的理由与去向——已无独立交付物，编号留空；遗留可选项：加 llvm-objcopy 构建目标"
-  status: open
-  scope: [llvm]
-  blocks: []
-  resolved_by: null
+  resolved_by: "SPEC-039t（2026-09-29）：fence 移出 M1 ⇒ scope: excluded"
+  notes: "INFRA-033t（2026-10-04）判定：fence 已 `scope: excluded`（ADR-0014；`contracts/opcodes.yaml` fence_oiii_imm）；excluded 指令无 M1 lit 覆盖要求（cfx/LR-SC 同样无 lit 行），其 M1 行为为 decode ILLI ⇒ 原 M1 口径下的『lit 缺口』不再成立，closed。（LLVM 仍可汇编 `fence` 为现状；若未来支持 fence 再补 lit。）"
 
 - id: ISS-073
   title: "check_lit_bytes.py 两项可选增强：无 CLI（LIT_DIR 硬编码）+ 独立计数门控不能捕获整行 # OBJ: 被删除"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: "LLVM-022t（2026-09-29，check_lit_bytes 加 `--lit-dir`/`--min-obj`）"
+  notes: "INFRA-033t（2026-10-04）实测：`tools/llvm/check_lit_bytes.py` 现有 `--lit-dir`（L61–65）与 `--min-obj`（L66–71，L137–141 用于「整行 OBJ 被删」保护）；由 LLVM-022t（commit 9a7ea95 提交说明）落地 ⇒ 两项可选增强均已提供，closed。（接入 Makefile 时的 min-obj 阈值仍可选。）"
 
 # ── 内联提及项（原 backlog 非独立 bullet，但用户裁定/代码库明确引用）────────
 
 - id: ISS-074
   title: "C-27 — cs.* 条件赋值快照：5 条 cs.{n,z,p,eq,ne}-rd overlap 因 condition & source register aliasing 语义未指定而 deferred"
   status: open
-  scope: [testcases, M1]
+  scope: [testcases, M3]
   blocks: []
   resolved_by: null
+  notes: "INFRA-033t（2026-10-04）实测：`tests/vectors/isa/reg-cond-assign.yaml` 仍含 5 条 `class: overlap` + `deferred_reason: C-27` + `expected_state: null`（cs.n/z/p/eq/ne），语义未指定 → 未消解；aliasing 语义为 codegen 依赖 ⇒ scope M1→M3。"
 
 # ── 原 backlog 合并新增（INFRA-032t，2026-10-04）────────────────────────────────
 # 原 backlog 逐条归宿见 INFRA-032t 任务书完成区；教训/方法论见 lessons.md。
@@ -554,10 +548,10 @@
 - id: ISS-081
   title: "FP 后续衔接点（独立 oracle / harness RF 支持 / FP 向量 / E2E / 实现缺口）"
   status: open
-  scope: [spec, golden, testcases, llvm, qemu, integ]
+  scope: [spec, golden, testcases, llvm, qemu, integ, M3]
   blocks: []
   resolved_by: null
-  notes: "原 backlog L53/L57/L62/L138/L239/L249。余下：① GOLDEN-001t 起 FP 独立 oracle（禁 LLVM/QEMU 校准）；② harness RF 寄存器类支持；③ TESTCASES-024t FP 向量/inventory 第二张表；④ INTEG-* FP E2E。**已闭合**：LLVM-031t（汇编期 dst_rd0@FP 15 条静态检查，2026-10-04 已验证——helper `isFPDstRdMnemonic` 15 条 + Error 级检查、新 lit fp-dst-rd0-legality.s、lit 29→30、patches 仍 69）+ QEMU-038t（运行期 dst_rd0@FP 15 条 ILLI 0x88，2026-10-04 已验证——helper `fp_check_dst_rd0` + 8 调用点覆盖 15 条、探针 `min_rom_probe_038t.py` 42/42、patches 仍 69）⇒ **dst_rd0@FP 缺口：汇编期 + 运行期两侧均已闭合**。"
+  notes: "原 backlog L53/L57/L62/L138/L239/L249。**已闭合**：LLVM-031t（汇编期 dst_rd0@FP 15 条静态检查，2026-10-04 已验证——helper `isFPDstRdMnemonic` 15 条 + Error 级检查、新 lit fp-dst-rd0-legality.s、lit 29→30、patches 仍 69）+ QEMU-038t（运行期 dst_rd0@FP 15 条 ILLI 0x88，2026-10-04 已验证——helper `fp_check_dst_rd0` + 8 调用点覆盖 15 条、探针 `min_rom_probe_038t.py` 42/42、patches 仍 69）⇒ **dst_rd0@FP 缺口：汇编期 + 运行期两侧均已闭合**。**本轮新增（2026-10-04）**：INTEG-009t 最小 FP E2E smoke 已验证（`tests/e2e/smoke_fp.s` + `tests/lit/E2E/smoke_fp.test`，llvm-mc→llvm-objcopy→QEMU，期望值宿主 `struct`/`math` 独立派生，E2E 4/4）⇒ M2 门槛④「FP = 执行层 60/60 + dst_rd0@FP + 最小 FP smoke」达成。**余下显式归 M3**（milestones.md M2 范围外）：① GOLDEN-001t 起 FP 独立 oracle（禁 LLVM/QEMU 校准）；② harness RF 寄存器类支持；③ TESTCASES-024t FP 向量/inventory 第二张表；④ 完整 FP E2E（INTEG-*）。"
 
 - id: ISS-082
   title: "L1 — fp「未实现，decode ILLI」文案残留（SimRISC-00 L290/L379、contract-isa.md L25/821/823）"
@@ -590,11 +584,11 @@
 
 - id: ISS-086
   title: "check-spec-refs 的 76 条历史既存违规（18 Check1 + 58 Check2；standalone，非本任务引入）"
-  status: open
+  status: closed
   scope: [spec, infra]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L58。SPEC-087t 新增 contract-fp.md 零新增违规；如需消解另立专门任务。"
+  resolved_by: "SPEC-094t（2026-10-04）：check-spec-refs 76→0（含返工收窄 rule b/c 假阴性）"
+  notes: "原 backlog L58。SPEC-094t 消解：Check1 18（3 占位符 + 15 陈旧 §名）全机械修正；Check2 58 = 4 节标题（跳过）+ 44 前导/结构化覆盖 + 10 补引；改后总引用 680、Check1/Check2 = 0、EXIT=0。SPEC-087t 新增 contract-fp.md 零新增违规。"
 
 - id: ISS-087
   title: "仓库外全局 agent 规则未同步新验收规程（~/t.a.o/opencode/agent/{reviewer,engineer}.md）"
@@ -777,10 +771,10 @@
 - id: ISS-110
   title: "LLVM MC 的 cfx 指令/别名实现（M2；ADR-0017 D5/D6 待落地）"
   status: open
-  scope: [llvm, M2]
+  scope: [llvm, M3]
   blocks: []
   resolved_by: null
-  notes: "原 backlog L237。crrr/crii/ciii 及 cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 全无定义；另 SPEC-075t 别名表 uart2..30 覆盖缺口需补齐。"
+  notes: "原 backlog L237。crrr/crii/ciii 及 cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 全无定义；另 SPEC-075t 别名表 uart2..30 覆盖缺口需补齐。INFRA-033t（2026-10-04）：cfx 属 `scope: excluded`（未实现、decode ILLI），其实现在 M2 规范冻结之外 ⇒ scope M2→M3。"
 
 - id: ISS-111
   title: "QEMU-033t 任务书层面遗留（探针 pre-existing 失败 + 验收项 4「保持 PASS」措辞不符实际）"
