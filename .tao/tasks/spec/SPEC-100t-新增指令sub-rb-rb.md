@@ -7,7 +7,7 @@
 
 > **决策依据（已定）**：用户 2026-10-04 逐条确认，decision 记入 **`.tao/adr/adr-0012-simrisc-0.5.4-update.md` 的 D9**（`Accepted`，见 `## 状态说明`）。本任务书按 D9 落地，**无待确认提案**（唯一例外见下方 ⚠️ 算术修正）。
 >
-> ⚠️ **待用户确认的算术修正**：D9.1 原裁定写 `ha=0x33` 但 `value=0x40C00000`；`0x40C00000` 的 `ha` 实为 **`0x30`**（= `SPEC-101t` 的 `add.o_orrr_bbd`），二者冲突。按 orrr 编码式 `value = op<<24 | ha<<18`、mask `0xFFFC0000`，取 **`ha=0x33 ⇒ value=0x40CC0000`**。本任务书按 `0x40CC0000` 写；若用户判定应为其它值，须先改 `adr-0012 D9` 再执行。
+> ✅ **算术修正（用户 2026-10-04 已确认）**：`ha=0x33 ⇒ value=0x40CC0000`（原裁定笔误 `0x40C00000` 实为 `ha=0x30`，与 `SPEC-101t` 的 `add.o_orrr_bbd` 冲突）。本任务书按 `0x40CC0000` 落地。
 >
 > **原子落地集**：本任务 + `QEMU-040t` 必须**同一集成波/同一提交**落地——`make check` 的 `check-interface` 要求 `contracts/opcodes.yaml` 每条 ↔ QEMU `trans_*` 一一对应；**单独提交本任务会红**（`check_qemu_trans --strict` / `QEMU trans_* 定义数`）。
 >
