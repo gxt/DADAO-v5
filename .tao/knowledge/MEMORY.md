@@ -99,6 +99,23 @@ DADAO-v5 基于 19 份上游 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，
 - **性能排查先定位主因，勿默认瓶颈在"重量级外部进程"（`INFRA-030t`，2026-10-03）**：`check-qemu-semantics` 的 46s 主因**不是**串行启动 QEMU（149 例 QEMU 合计仅 **~2.4s**），而是 `build_binary()` **每例重复 `yaml.safe_load` 整个向量 YAML**（纯 Python SafeLoader、GIL 绑定；149 次 ≈33–43s）。**GIL 下限速必须先消除重复工作（缓存）再并行**——只上线程池零提速（实测未加缓存 `thread8`≈45s，加缓存后 0.38s）。方法：先 profiling/独立计时，再决定优化手段
 - 角色规则由全局 `opencode/agent/` 提供，工作仓库不含 agent 文件
 
+## 上游 ↔ v5 偏离台账
+
+> M2 门槛⑤交付物：登记 **6 项**上游 spec 与 v5 决策之间的**规范性偏离**。每项均已由**已 `Accepted` 的 ADR**（或 M1→M2 过渡任务 `SPEC-086t`）固化；本节只做**归一化登记 + 指针**，不新增决策。`scope`、`RACNT`、`MRPTR`、exit 码等写法与 `contracts/opcodes.yaml`、ADR 一致。
+
+| # | 偏离点 | 上游依据 | v5 决策 | ADR / 契约指针 |
+|---|--------|----------|---------|----------------|
+| 1 | **exit port（程序停机）** | `SimRISC-11 §退出指令`：`escape cfxHA, [excp_cause_ip, imms20]`（**退出特权态**，非停机；编码层 `imms18`） | 自定 **exit port** MMIO（`0xffff_8000_0000`，8 B，只写）；退出码 = `0x80 \| cause_bit`；写入后 `cpu_loop_exit()` 锁定 | **ADR-0004 §D3**（Exit Port 协议）+ **ADR-0011 §D1–D4**（可靠 halt） |
+| 2 | **`fence` SBZ 非零** | `SimRISC-12 §fence指令`：`immu18 bits[17:4]` 为 SBZ，**非零值行为保留** | v5 定**非零 SBZ → ILLI**（`0x88`）；且 `fence` 整体 `scope: excluded`（未实现，decode ILLI） | **ADR-0004 §D5.3**（SBZ 非零 → ILLI）+ **ADR-0014 §D1–D3**（fence 移出 M1）；`contracts/opcodes.yaml::fence_oiii_imm` |
+| 3 | **测试机地址映射 / 复位值** | `spec/` **无测试机层**（`DADAO-12 §2.1` 仅给核内地址空间模型，无内存映射 / 复位值全集 / exit 协议） | 采用 spec 核内地址空间模型（cfxha 63/power）：boot ROM `0xffff_ffff_0000`、RAM `0xffff_0000_0000`(16 MiB)、Exit port `0xffff_8000_0000`；复位 PC=`rb0`=boot ROM；`rd0`/`rb1`–`rb63`/`ra0`–`ra63`/`rf1`–`rf63` 复位 `0`、`rf0` 复位 `0x7FF8_0000_7FC0_0000`（架构自定义确定性复位） | **ADR-0004 §D1/D2**（内存映射、复位向量与复位值） |
+| 4 | **`ra0` 语义（MemRAS 简化）** | `SimRISC-00 §返回地址栈`（v5 修订前；对照归档 `spec/SimRISC-0.5.3/SimRISC-00`）：`ra0` 高 16 位 = **MemRAS 引用计数** | v5 `ra0` = `[63:54]` SBZ + `[53:48]` **`RACNT`** + `[47:0]` **`MRPTR`**；**取消 MemRAS 引用计数**；有效性判据 = `RACNT` | **ADR-0012 §D7**（D7.1–D7.7） |
+| 5 | **`e_flags` 版本字段** | `spec/` **无 ELF/Object ABI**（`e_machine`/`e_flags` 无依据） | `e_machine = EM_DADAO (0x0DA0)`（project-custom，未注册）；`e_flags = 0x00000001`（bits 0–7 = 对象/ABI 格式版本 = 1；bits 8–31 保留 0） | **ADR-0003 §D1**（含 `## 修订` 的 `e_flags` 版本字段）；投影 `contract-elf.md §1.3` |
+| 6 | **M1/M2 排除口径**（**订正**） | 上游把浮点（`SimRISC-07`）、特权 cfx（`SimRISC-11 §特权指令` + `DADAO-12/13`）、LR-SC（`SimRISC-12 §LR-SC指令`）、`fence`（`SimRISC-12 §fence指令`）均定义为架构指令 | v5 用 `scope ∈ {m1, fp, excluded}` 划范围：`m1` 已实现；**`fp` 60 条已实现（不再是 ILLI）**；`excluded` 15 条（cfx 6 + fence 1 + LR-SC 8）仍 decode **ILLI** | **ADR-0012 §D3.1**（0 号寄存器/范围）+ **ADR-0014**（fence excluded）+ `SPEC-086t`（scope 口径，`contracts/opcodes.yaml` + `check_scope.py`） |
+
+> **订正说明（第 6 项）**：历史表述「浮点未实现 ⇒ decode ILLI」在 `QEMU-034t`~`037t`（执行层 60/60）后**已不成立**；现行口径为「**浮点已实现**（`scope: fp`），**仅** cfx/LR-SC/fence（`scope: excluded`）仍 ILLI」。本台账以此为准。
+>
+> **章节订正（实测）**：任务书/`docs/m2-spec-planning.md` 沿用 **SimRISC 0.5.3 编号**；v5 现行规范为 **0.5.4**，章节已重排——上游依据「exit port vs `escape`」现位于 `SimRISC-11 §退出指令`（0.5.3 为 `SimRISC-04`）、`fence` SBZ 位于 `SimRISC-12 §fence指令`（0.5.3 为 `SimRISC-04`）、浮点规范为 `SimRISC-07`（0.5.3 为 `SimRISC-03`）。均以 `contracts/opcodes.yaml` 的 `spec_cite` 实测为准。
+
 ## 如何参考 DADAO-0628 和 DADAO
 
 - `DADAO-0628`：基于 SimRISC 0.4.1 的完整实现，包含补丁集和任务文件
