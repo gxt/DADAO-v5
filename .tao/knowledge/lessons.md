@@ -34,12 +34,14 @@
 
 - QEMU 二进制内嵌源码 revision，故**跨 commit/amend** 时不得以二进制 sha 相等作还原判据——应断言**源码 blob sha**，二进制等价以「**重建后探针回绿**」为证。
 - **同一 commit 工作树内**注入→还原并**重建**后，二进制 sha 应复原。
+- **实操补充（`QEMU-038t`）**：`--inject` 在记录 `sha_bin_before` **之前须先做一次 normalize 重建**（对齐当前 clean commit）——否则基线取自 amend 前脏树构建的二进制（`qemu-version.h` 的 `git describe` 内嵌 revision 不同），还原后 sha 必不相等、误报「未复原」。主判据仍是**源码 blob sha + 重建回绿**；二进制 sha 复原为**同 commit/clean 态**下的辅证。
 
 ### 2.4 未重建 QEMU 的探针回归判据＝「逐字节一致 / 零新增失败」，**不要求**探针 `rc=0`（`LLVM-031t`）
 
 - 改 **LLVM-only**（`make build-mc`、不重建 QEMU）时，QEMU 探针产出结构性不变；回归判据取**与改前基线逐字节一致**（`diff -q`），即**零新增失败**。
 - **不得**以探针 `rc=0` 为判据——多个 legacy 探针（`min_rom_probe_005t..036t` 内 6 条）在基线即 `rc=1`（pre-existing FAIL），以 `rc` 判定会误报「本任务引入回归」。
 - 实例：`LLVM-031t` 复用 `.work/evidence/QEMU-037t/baseline/`，17 条 `byte-identical` + `_037t` 91/91；已核实 18 个探针脚本均不引用 `llvm*`（`grep -l llvm tools/qemu/min_rom_probe_*.py` 空）。
+- **6 条 legacy 探针确切清单（`QEMU-038t` 复核补全）**：`min_rom_probe_006t`、`_008t`、`_009t`、`_010t`、`_013t`、`_028t`（基线即 `rc=1`，pre-existing；与 `issues.yaml ISS-120` 一致，任务书同理见 §4.6）。
 
 ### 2.5 注入脚本须含异常退出回滚（trap）+ 替换串须含完整唯一条件前缀（`LLVM-031t`）
 
@@ -86,6 +88,11 @@
 
 - 原文「只查部分重叠、不查完全重合 … ⇒ T3 仍 PASS 但 T2/T4 应 FAIL」与括注「证明含完全重合承重」**互为矛盾**；engineer 按意图取 `hb != hc` 注入（实测 T3/T7→0x89、T2/T4/T6 仍 0x88）。
 - **教训**：反例条目须与括注的证明目的交叉自检，不得出现「T3 仍 PASS」与「证明含完全重合承重」并存。
+
+### 4.6 任务书「pre-existing 失败清单」须与实测一致（`QEMU-038t`）
+
+- `QEMU-038t` 任务书 §5 称「M1 探针已知 pre-existing 失败仅 `min_rom_probe_008t`/`_013t`」，实测为 **6 条**（`_006t/_008t/_009t/_010t/_013t/_028t`，与 `issues.yaml ISS-120` 一致）；engineer 已如实披露并改用「与基线逐字节一致 / 零新增」判据，未影响结论。
+- **教训**：任务书凡断言「仅 X 条 / X 与 Y」pre-existing，须在**下发前**对**全量探针**实测（或直接引用 `issues.yaml ISS-120` 的既列清单），不得沿用上一任务的旧清单；回归判据统一取「与改前基线逐字节一致 / 零新增」（见 §2.4），不依赖该清单的条数。
 
 ## 5. 工具陷阱与门控约定
 

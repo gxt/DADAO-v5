@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..ab1e2cb
+index 0000000..82b0d51
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,968 @@
+@@ -0,0 +1,1006 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -39,6 +39,19 @@ index 0000000..ab1e2cb
 +static bool fp_check_dst_rf0(DisasContext *ctx, int rfidx)
 +{
 +    if (rfidx == 0) {
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    return true;
++}
++
++/* dst_rd0 (SPEC-089t): the FP rd-destination forms (convert_f2i 8, classify 2,
++ * compare 4, rf2rd 1) must not write rd0 (the hard-wired zero register).
++ * rf0 as a *source* is unaffected; rd2rf's destination is RF and is not
++ * checked here. */
++static bool fp_check_dst_rd0(DisasContext *ctx, int rdstart)
++{
++    if (rdstart == 0) {
 +        gen_exception_illegal(ctx);
 +        return false;
 +    }
@@ -439,7 +452,11 @@ index 0000000..ab1e2cb
 +
 +static bool trans_rf2rd_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    /* Source rf0 is legal (reads the full 64 bits). */
++    /* Source rf0 is legal (reads the full 64 bits); dst_rd0 forbids rd0 as the
++     * destination start register (SPEC-089t). */
++    if (!fp_check_dst_rd0(ctx, a->hb)) {
++        return true;
++    }
 +    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
 +        return true;
 +    }
@@ -552,6 +569,9 @@ index 0000000..ab1e2cb
 +/* classify */
 +static bool trans_ftcls_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
 +    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
 +        return true;
 +    }
@@ -566,6 +586,9 @@ index 0000000..ab1e2cb
 +
 +static bool trans_focls_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
 +    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
 +        return true;
 +    }
@@ -641,6 +664,9 @@ index 0000000..ab1e2cb
 +/* convert_f2i: destination rd (a->hb), source rf (a->hc). */
 +static bool gen_convert_f2i(DisasContext *ctx, arg_misc *a, uint32_t kind)
 +{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
 +    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
 +        return true;
 +    }
@@ -951,24 +977,36 @@ index 0000000..ab1e2cb
 +
 +static bool trans_ftqcmp_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
 +    gen_fp_cmp(a, false, FP_FT_QNAN);
 +    return true;
 +}
 +
 +static bool trans_ftscmp_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
 +    gen_fp_cmp(a, false, FP_FT_SNAN);
 +    return true;
 +}
 +
 +static bool trans_foqcmp_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
 +    gen_fp_cmp(a, true, FP_FO_QNAN);
 +    return true;
 +}
 +
 +static bool trans_foscmp_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
 +    gen_fp_cmp(a, true, FP_FO_SNAN);
 +    return true;
 +}

@@ -557,7 +557,7 @@
   scope: [spec, golden, testcases, llvm, qemu, integ]
   blocks: []
   resolved_by: null
-  notes: "原 backlog L53/L57/L62/L138/L239/L249。余下：① GOLDEN-001t 起 FP 独立 oracle（禁 LLVM/QEMU 校准）；② harness RF 寄存器类支持；③ TESTCASES-024t FP 向量/inventory 第二张表；④ INTEG-* FP E2E；⑤ QEMU-038t（运行期 dst_rd0@FP 15 条 ILLI 0x88，任务书已建、待用户确认后下发）。**已闭合**：LLVM-031t（汇编期 dst_rd0@FP 15 条静态检查，2026-10-04 已验证——helper `isFPDstRdMnemonic` 15 条 + Error 级检查、新 lit fp-dst-rd0-legality.s、lit 29→30、patches 仍 69）⇒ **dst_rd0@FP 缺口：汇编期已闭合、运行期待 QEMU-038t**。"
+  notes: "原 backlog L53/L57/L62/L138/L239/L249。余下：① GOLDEN-001t 起 FP 独立 oracle（禁 LLVM/QEMU 校准）；② harness RF 寄存器类支持；③ TESTCASES-024t FP 向量/inventory 第二张表；④ INTEG-* FP E2E。**已闭合**：LLVM-031t（汇编期 dst_rd0@FP 15 条静态检查，2026-10-04 已验证——helper `isFPDstRdMnemonic` 15 条 + Error 级检查、新 lit fp-dst-rd0-legality.s、lit 29→30、patches 仍 69）+ QEMU-038t（运行期 dst_rd0@FP 15 条 ILLI 0x88，2026-10-04 已验证——helper `fp_check_dst_rd0` + 8 调用点覆盖 15 条、探针 `min_rom_probe_038t.py` 42/42、patches 仍 69）⇒ **dst_rd0@FP 缺口：汇编期 + 运行期两侧均已闭合**。"
 
 - id: ISS-082
   title: "L1 — fp「未实现，decode ILLI」文案残留（SimRISC-00 L290/L379、contract-isa.md L25/821/823）"
@@ -572,7 +572,7 @@
   status: closed
   scope: [spec, llvm, qemu]
   blocks: []
-  resolved_by: "SPEC-089t（2026-10-04）：R2b (A) 全补 15 条（含 rf2rd）dst_rd0，opcodes.yaml + fp_semantics.yaml 双边 + Check 8 交叉断言"
+  resolved_by: "SPEC-089t（2026-10-04）：R2b (A) 全补 15 条（含 rf2rd）dst_rd0，opcodes.yaml + fp_semantics.yaml 双边 + Check 8 交叉断言；汇编期 LLVM-031t、运行期 QEMU-038t（2026-10-04）两侧落地"
 
 - id: ISS-084
   title: "FP 实现期：FP 专属规则翻 active + 回填 rule_refs（SPEC-087t）——SPEC-089t 已完成"
