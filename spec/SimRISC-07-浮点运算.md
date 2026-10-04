@@ -1,14 +1,14 @@
 # SimRISC浮点运算指令
 
 > **版本：0.5.4**（与 SimRISC-00 一致）
-> **分类：浮点运算 [scope: fp]**（44 条；未实现，decode ILLI）— fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类
+> **分类：浮点运算 [scope: fp]**（44 条，已实现）— fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类
 >
 > **FP 范围总账（`scope: fp` 共 60 条）**：本册 44 条（MISC-RF 子表）+ SimRISC-01 取数存数 8 条（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ SimRISC-02 寄存器复制 7 条（`cs.eq`/`cs.ne`/`cs.n`/`cs.z`/`cs.p` 的 `-rf` 与 `rd2rf`/`rf2rd`）+ SimRISC-03 16位立即数操作 1 条（`set.w-rf`）。`scope` 表范围、`deferred` 表状态，二者正交（用户裁定 2026-10-03）。
 
 <!-- ASSEMBLY_LIST_START -->
 ## 汇编指令速查
 
-### 浮点运算（44 条）｜ **scope: fp（未实现，decode ILLI）** — 待浮点专门任务
+### 浮点运算（44 条）｜ **scope: fp（已实现）**
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -62,52 +62,12 @@
 <!-- LEGALITY_START -->
 ## 合法性检查
 
-
-**scope: fp（decode ILLI，未实现）：**
-* `fo2fo_orri_rf`：decode ILLI
-* `fo2ft_orri_rf`：decode ILLI
-* `fo2io_orri_rf`：decode ILLI
-* `fo2it_orri_rf`：decode ILLI
-* `fo2uo_orri_rf`：decode ILLI
-* `fo2ut_orri_rf`：decode ILLI
-* `foadd_orrr_rf`：decode ILLI
-* `focls_orri_rf`：decode ILLI
-* `fodiv_orrr_rf`：decode ILLI
-* `fomul_orrr_rf`：decode ILLI
-* `foqcmp_orrr_rf`：decode ILLI
-* `forem_orrr_rf`：decode ILLI
-* `foroot_orri_rf`：decode ILLI
-* `fosclb_orrr_rf`：decode ILLI
-* `foscmp_orrr_rf`：decode ILLI
-* `fosgnj_orrr_rf`：decode ILLI
-* `fosgnn_orrr_rf`：decode ILLI
-* `fosub_orrr_rf`：decode ILLI
-* `ft2fo_orri_rf`：decode ILLI
-* `ft2ft_orri_rf`：decode ILLI
-* `ft2io_orri_rf`：decode ILLI
-* `ft2it_orri_rf`：decode ILLI
-* `ft2uo_orri_rf`：decode ILLI
-* `ft2ut_orri_rf`：decode ILLI
-* `ftadd_orrr_rf`：decode ILLI
-* `ftcls_orri_rf`：decode ILLI
-* `ftdiv_orrr_rf`：decode ILLI
-* `ftmul_orrr_rf`：decode ILLI
-* `ftqcmp_orrr_rf`：decode ILLI
-* `ftrem_orrr_rf`：decode ILLI
-* `ftroot_orri_rf`：decode ILLI
-* `ftsclb_orrr_rf`：decode ILLI
-* `ftscmp_orrr_rf`：decode ILLI
-* `ftsgnj_orrr_rf`：decode ILLI
-* `ftsgnn_orrr_rf`：decode ILLI
-* `ftsub_orrr_rf`：decode ILLI
-* `io2fo_orri_rf`：decode ILLI
-* `io2ft_orri_rf`：decode ILLI
-* `it2fo_orri_rf`：decode ILLI
-* `it2ft_orri_rf`：decode ILLI
-* `uo2fo_orri_rf`：decode ILLI
-* `uo2ft_orri_rf`：decode ILLI
-* `ut2fo_orri_rf`：decode ILLI
-* `ut2ft_orri_rf`：decode ILLI
+* `dst_rd0`：目的 rd0 → ILLI — `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `foqcmp_orrr_rf`, `foscmp_orrr_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `ftqcmp_orrr_rf`, `ftscmp_orrr_rf`（14 条）
+* `dst_rf0`：浮点目的 rf0 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `foadd_orrr_rf`, `fodiv_orrr_rf`, `fomul_orrr_rf`, `forem_orrr_rf`, `foroot_orri_rf`, `fosclb_orrr_rf`, `fosgnj_orrr_rf`, `fosgnn_orrr_rf`, `fosub_orrr_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ftadd_orrr_rf`, `ftdiv_orrr_rf`, `ftmul_orrr_rf`, `ftrem_orrr_rf`, `ftroot_orri_rf`, `ftsclb_orrr_rf`, `ftsgnj_orrr_rf`, `ftsgnn_orrr_rf`, `ftsub_orrr_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（30 条）
+* `mreg_zero`：immu6=0 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（22 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（22 条）
+* `mreg_range_overlap`：源/目的范围交集 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`（4 条）
+* `encode_fp_root_n`：ftroot/foroot n≠2 → ILLI — `foroot_orri_rf`, `ftroot_orri_rf`（2 条）
 <!-- LEGALITY_END -->
 
 

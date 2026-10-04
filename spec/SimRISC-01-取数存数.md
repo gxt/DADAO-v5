@@ -56,19 +56,15 @@
 
 * `dst_rd0`：目的 rd0 → ILLI — `ld.o_rrii_rd`, `ld.sb_rrii_rd`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.ub_rrii_rd`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_rd`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`（14 条）
 * `dst_rb0`：目的 rb0 → ILLI — `ld.o_rrii_rb`, `ldm.o_rrri_rb`（2 条）
-* `mreg_zero`：immu6=0 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.t_rrri_rd`, `stm.w_rrri_rd`（15 条）
-* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.t_rrri_rd`, `stm.w_rrri_rd`（15 条）
+* `mreg_zero`：immu6=0 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
 * `excp_malign`（动态）：未对齐访问 → MALIGN — `ld.o_rrii_ra`, `ld.o_rrii_rb`, `ld.o_rrii_rd`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `st.o_rrii_ra`, `st.o_rrii_rb`, `st.o_rrii_rd`, `st.t_rrii_rd`, `st.w_rrii_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.t_rrri_rd`, `stm.w_rrri_rd`（24 条）
 
-**scope: fp（decode ILLI，未实现）：**
-* `ld.o_rrii_rf`：decode ILLI
-* `ld.t_rrii_rf`：decode ILLI
-* `ldm.o_rrri_rf`：decode ILLI
-* `ldm.t_rrri_rf`：decode ILLI
-* `st.o_rrii_rf`：decode ILLI
-* `st.t_rrii_rf`：decode ILLI
-* `stm.o_rrri_rf`：decode ILLI
-* `stm.t_rrri_rf`：decode ILLI
+**scope: fp（无附加合法性规则）：**
+* `ld.o_rrii_rf`
+* `ld.t_rrii_rf`
+* `st.o_rrii_rf`
+* `st.t_rrii_rf`
 <!-- LEGALITY_END -->
 
 

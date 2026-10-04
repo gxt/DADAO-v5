@@ -4,7 +4,7 @@
 Sources
 -------
 * ``contracts/legality_rules.yaml`` -- 16 rules (active + deferred)
-* ``contracts/opcodes.yaml`` -- 227 entries, 135 with ``rule_refs``
+* ``contracts/opcodes.yaml`` -- 227 entries, 190 with ``rule_refs``
 
 Reuses ``classify()``, ``SECTION_ORDER``, ``CLASS_TO_SPEC`` from
 ``tools/llvm/gen_asm_list.py`` (DRY: no duplicated classification logic).
@@ -69,7 +69,7 @@ RULE_SUMMARY: dict[str, str] = {
     "dst_rd0_nonzero":   "ret 目的 rd0 时 imms18≠0 → ILLI",
     "dst_dual_same":     "双目的同为 rd0 或同寄存器 → ILLI",
     "dst_rb0":           "目的 rb0 → ILLI",
-    "dst_rf0":           "浮点目的 rf0 → ILLI（deferred）",
+    "dst_rf0":           "浮点目的 rf0 → ILLI",
     "mreg_zero":         "immu6=0 → ILLI",
     "mreg_range_overflow": "起始+immu6>64 → ILLI",
     "mreg_range_overlap": "源/目的范围交集 → ILLI",
@@ -77,7 +77,7 @@ RULE_SUMMARY: dict[str, str] = {
     "excp_ialign":       "PC[1:0]≠0 → IALIGN",
     "encode_sbz":        "SBZ 非零 → ILLI",
     "encode_cfx":        "reserved cfxha → ILLI（deferred）",
-    "encode_fp_root_n":  "ftroot/foroot n≠2 → ILLI（deferred）",
+    "encode_fp_root_n":  "ftroot/foroot n≠2 → ILLI",
     "excp_undi":         "保留编码 → UNDI",
     "excp_rasof":        "RAS 上溢 → RASOF",
     "excp_rasuf":        "RAS 下溢 → RASUF",
@@ -153,7 +153,8 @@ def render_chapter_legality(
             applicable_rules.append(rule)
 
     # Find non-M1 entries in this chapter (not referenced by any rule), split by scope
-    fp_entries = [e for e in chapter_entries if e.get("scope") == "fp"]
+    fp_entries = [e for e in chapter_entries
+                  if e.get("scope") == "fp" and not e.get("rule_refs")]
     excluded_entries = [e for e in chapter_entries if e.get("scope") == "excluded"]
 
     # If no rules and no non-M1 entries, still render an empty area
@@ -211,9 +212,9 @@ def render_chapter_legality(
     # Add non-M1 instructions note, split by scope
     if fp_entries:
         lines.append("")
-        lines.append("**scope: fp（decode ILLI，未实现）：**")
+        lines.append("**scope: fp（无附加合法性规则）：**")
         for e in sorted(fp_entries, key=lambda x: x["id"]):
-            lines.append(f"* `{e['id']}`：decode ILLI")
+            lines.append(f"* `{e['id']}`")
     if excluded_entries:
         lines.append("")
         lines.append("**scope: excluded（decode ILLI）：**")

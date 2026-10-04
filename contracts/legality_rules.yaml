@@ -17,8 +17,8 @@
 # 范围：
 #   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（227 条：
 #     152 条 M1 + 60 条 scope: fp + 15 条 scope: excluded）
-#   - M1 范围外（deferred）：RF 浮点（SimRISC-03 全部）、LR-SC 原子（SimRISC-12 §LR-SC指令）、
-#     特权 cfx（SimRISC-04 §特权指令）；按 ADR-0004 D5 执行这些编码触发 ILLI
+#   - M1 范围外（deferred）：LR-SC 原子（SimRISC-12 §LR-SC指令）、特权 cfx（SimRISC-04 §特权指令）；
+#     按 ADR-0004 D5 执行这些编码触发 ILLI；RF 浮点已实现（scope: fp，60 条）
 #   - SBZ 非零 → ILLI 由 ADR-0004 D5.3 冻结（架构自定义；spec 未规定 fault 类型）
 
 rules:
@@ -38,6 +38,9 @@ rules:
       适用于 orrr（单目的 rdhb）、orri/rrii/riii/rwii（目的字段 rdha/rbha）。
       ra2rd 的目的字段 rdhb 为 rd0 时同样触发 ILLI 异常（目的不可为 rd0）；
       rd2ra 的目的为 RA 组字段，RA 组无 rd0 约束，不受此约束。
+      scope: fp 中目的为 rd 组的 15 条同样适用（orri 目的字段 rdhb：
+      convert_f2i 8 条 + classify 2 条 + rf2rd 1 条；orrr 单目的 rdhb：compare 4 条）；
+      目的为 rf 组的 FP 指令（rd2rf 等）不受本规则约束（rf0 作目的另有 dst_rf0）。
 
   - id: dst_rd0_nonzero
     fault: ILLI
@@ -75,7 +78,7 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-00 §浮点寄存器; SimRISC-01 §存取RF寄存器; SimRISC-02 §寄存器组之间块赋值; SimRISC-02 §浮点条件赋值; SimRISC-03 §立即数常数赋值：Immediate constant"
-    status: deferred
+    status: active
     description: >
       浮点运算指令的**目的**操作数为 rf0 时触发 ILLI 异常
       （rf0 为控制和状态寄存器 FCSR，不可作为浮点运算的目的操作数）；
@@ -91,7 +94,8 @@ rules:
       **例外（rf0 作目的合法）**：rd2rf（含 {rf0:rf0+immu6-1}，immu6≥2 允许）、
       ld.t/ld.o/ldm.t/ldm.o（按 FCSR 写掩码）、set.w。
       **源 rf0 合法（不触发本规则）**：上述各指令及 cs.*-rf 的 rf0-源角色（读出完整 64 位）。
-      浮点类指令（RF）整体属 M1 范围外；M1 仅保留 rf0 的寄存器模型/复位值。
+      本规则 active（FP 已实现，LLVM-029t/030t、QEMU-034t–037t）；由 scope: fp 记录的
+      rule_refs 覆盖（35 条）。
 
   # ── 多寄存器范围规则 ─────────────────────────────────────────────────────────
   - id: mreg_zero
@@ -204,10 +208,10 @@ rules:
     fault: ILLI
     kind: static
     spec_cite: "SimRISC-07 §S1D1"
-    status: deferred
+    status: active
     description: >
       ftroot/foroot 指令仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
-      浮点类指令（RF）整体属 M1 范围外。
+      本规则 active（FP 已实现）；由 scope: fp 记录的 rule_refs 覆盖（2 条）。
 
   # ── RAS 规则 ─────────────────────────────────────────────────────────────────
   - id: excp_rasof

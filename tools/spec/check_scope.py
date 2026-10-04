@@ -4,7 +4,7 @@
 职责（可执行、可失败；SPEC-086t §5.3）：
   1. 每条记录**恰有** 1 个合法 `scope` ∈ {m1, fp, excluded}（缺失/非法 ⇒ FAIL）。
   2. 分区计数：m1 == 152、fp == 60、excluded == 15、total == 227。
-  3. `scope != "m1"` ⇒ `decode == "ILLI"`；`scope == "m1"` ⇒ 无 `decode`
+  3. `scope == "excluded"` ⇔ `decode == "ILLI"`；`scope ∈ {m1, fp}` ⇒ 无 `decode`
      且无旧字段（防回退）。
   4. `scope == "fp"` ⇔ `id.endswith("_rf")`（结构性判据，源自 spec/契约）。
   5. 旧 M1 排除布尔字段（见 OLD_FIELD）在非历史文件中已消失。
@@ -44,7 +44,7 @@ HISTORY_PREFIXES = (
     ".tao/knowledge/changelog.md",
     ".tao/knowledge/MEMORY.md",
     ".tao/knowledge/deferred.md",
-    "docs/issues.yaml",
+    ".tao/knowledge/issues.yaml",
     "docs/spec-065t-legality-proposal.md",
     "spec/SimRISC-0.5.3/",
 )
@@ -140,21 +140,22 @@ def main() -> int:
         if not record(name, str(exp), str(act)):
             failures.append(f"{name}: 期望 {exp}，实际 {act}")
 
-    # 3a. scope != m1 ⇒ decode == ILLI
+    # 3a. scope == excluded ⇒ decode == ILLI（R1 方案 B）
     bad_decode = [r.get("id", "?") for r in records
-                  if r.get("scope") != "m1" and r.get("decode") != "ILLI"]
-    if not record("scope!=m1 ⇒ decode=ILLI", "0 条",
+                  if r.get("scope") == "excluded" and r.get("decode") != "ILLI"]
+    if not record("scope==excluded ⇒ decode=ILLI", "0 条",
                   f"{len(bad_decode)} 条") or bad_decode:
-        failures.append("非 m1 记录缺 decode: ILLI: "
+        failures.append("excluded 记录缺 decode: ILLI: "
                         + ", ".join(bad_decode[:10]))
 
-    # 3b. scope == m1 ⇒ 无 decode、无旧字段（防回退）
-    bad_m1 = [r.get("id", "?") for r in records
-              if r.get("scope") == "m1"
-              and ("decode" in r or OLD_FIELD in r)]
-    if not record("scope==m1 ⇒ 无 decode/旧字段", "0 条",
-                  f"{len(bad_m1)} 条") or bad_m1:
-        failures.append("m1 记录含 decode/旧字段: " + ", ".join(bad_m1[:10]))
+    # 3b. scope ∈ {m1, fp} ⇒ 无 decode、无旧字段（防回退；R1 方案 B）
+    bad_plain = [r.get("id", "?") for r in records
+                 if r.get("scope") in ("m1", "fp")
+                 and ("decode" in r or OLD_FIELD in r)]
+    if not record("scope∈{m1,fp} ⇒ 无 decode/旧字段", "0 条",
+                  f"{len(bad_plain)} 条") or bad_plain:
+        failures.append("m1/fp 记录含 decode/旧字段: "
+                        + ", ".join(bad_plain[:10]))
 
     # 4. scope == fp ⇔ id.endswith("_rf")
     fp_bad = [r.get("id", "?") for r in records

@@ -27,8 +27,8 @@
 * `dst_rd0`：目的 rd0 → ILLI — `andn.w_rwii_rd`, `or.w_rwii_rd`, `set.ow_rwii_rd`, `set.zw_rwii_rd`（4 条）
 * `dst_rb0`：目的 rb0 → ILLI — `andn.w_rwii_rb`, `or.w_rwii_rb`, `set.zw_rwii_rb`（3 条）
 
-**scope: fp（decode ILLI，未实现）：**
-* `set.w_rwii_rf`：decode ILLI
+**scope: fp（无附加合法性规则）：**
+* `set.w_rwii_rf`
 <!-- LEGALITY_END -->
 
 

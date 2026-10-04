@@ -309,9 +309,9 @@ check-interface:
 validate-encoding: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/validate_encoding.py contracts/opcodes.yaml
 
-# Scope partition gate (SPEC-086t): opcodes.yaml scope ∈ {m1,fp,excluded},
-# counts 152/60/15/227, scope != m1 => decode ILLI, fp <=> id endswith _rf,
-# and the old M1-exclusion boolean field has disappeared from live files.
+# Scope partition gate (SPEC-086t/089t): opcodes.yaml scope ∈ {m1,fp,excluded},
+# counts 152/60/15/227, excluded <=> decode ILLI (m1/fp carry none),
+# fp <=> id endswith _rf, and the old M1-exclusion boolean field has disappeared.
 check-scope:
 	@$(PYTHON) tools/spec/check_scope.py
 

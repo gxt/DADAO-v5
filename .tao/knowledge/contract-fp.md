@@ -42,7 +42,7 @@
 - 指令：`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`（orri：`rdHB` 目的、`rfHC` 源、`immu6` 连续个数 1–63）。[SimRISC-07 §格式转换指令]
 - 浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值（最大/最小）并置 NV。[SimRISC-07 §格式转换指令]
 - `immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI。[SimRISC-07 §格式转换指令]
-- 目的为 rd 组（非 rf），不受 rf0 目的约束。[SimRISC-00 §浮点寄存器]
+- 目的为 rd 组（非 rf），不受 rf0 目的约束；但受 `dst_rd0` 约束（目的 `rdHB` 为 `rd0` → ILLI）。[SimRISC-00 §浮点寄存器][SimRISC-00 §数据寄存器]
 - 精度损失（inexact）是否置 NX：spec 未明，本合约如实记录、不臆造（见 §16 开放点）。[SimRISC-07 §格式转换指令]
 
 ## §4 `convert_i2f`（整型→浮点）<a id="convert_i2f"></a>
@@ -84,7 +84,7 @@
 - 结果写入 rdHB：`rfHC > rfHD` → 1、`=` → 0、`<` → −1。[SimRISC-07 §浮点比较指令]
 - unordered（含 NaN）：Quiet Compare 返回 qNaN、Signaling Compare 返回 sNaN，**符号位为 0**。[SimRISC-07 §浮点比较指令]
 - qNaN/sNaN 按整型解读为**正数**；配合 `cs.*-rf`（SimRISC-02 §浮点条件赋值）的使用约定，可区分 Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered 等关系。[SimRISC-07 §浮点比较指令]
-- 目的为 rd 组（非 rf），不受 rf0 目的约束。[SimRISC-00 §浮点寄存器]
+- 目的为 rd 组（非 rf），不受 rf0 目的约束；但受 `dst_rd0` 约束（目的 `rdHB` 为 `rd0` → ILLI）。[SimRISC-00 §浮点寄存器][SimRISC-00 §数据寄存器]
 
 ## §9 `classify`（浮点分类）<a id="classify"></a>
 
@@ -93,6 +93,7 @@
 - 10 类位：0 negativeInfinity、1 negativeNormal、2 negativeSubnormal、3 negativeZero、4 positiveZero、5 positiveSubnormal、6 positiveNormal、7 positiveInfinity、8 signalingNaN、9 quietNaN。[SimRISC-07 §浮点分类指令]
 - 来源 `rf`、目的 `rd` 分属不同寄存器组、结构性不可能重叠；分类按序号递增逐对进行，**先读后写**。[SimRISC-07 §浮点分类指令]
 - `immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI。[SimRISC-07 §浮点分类指令]
+- 目的为 rd 组（非 rf），不受 rf0 目的约束；但受 `dst_rd0` 约束（目的 `rdHB` 为 `rd0` → ILLI）。[SimRISC-00 §浮点寄存器][SimRISC-00 §数据寄存器]
 
 ## §10 `cs_rf`（浮点条件赋值）<a id="cs_rf"></a>
 
@@ -113,6 +114,7 @@
 - 指令：`rd2rf`（orri：`rfHB` 目的、`rdHC` 源、`immu6` 1–63）与 `rf2rd`（orri：`rdHB` 目的、`rfHC` 源、`immu6` 1–63）。[SimRISC-02 §寄存器组之间块赋值]
 - 块传输不进行数据类型转换，保持 64 位二进制不变；`rd2rf`/`rf2rd` 的源与目的分属 RD/RF 不同寄存器组、结构性不可能重叠，按序先读后写。[SimRISC-02 §寄存器组之间块赋值]
 - `rd2rf` 目的 `rf0` **合法**（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许）；`rf2rd` 源 `rf0` 合法（读出完整 64 位）。[SimRISC-02 §寄存器组之间块赋值]
+- `rf2rd` 目的 `rdHB` 为 `rd0` → ILLI（`dst_rd0`，目的不可为 `rd0`）；`rd2rf` 目的为 rf 组（`rf0` 合法）——「源 `rf0` 合法」与「目的 `rd0` 非法」是两条不同约束。[SimRISC-02 §寄存器组之间块赋值][SimRISC-00 §数据寄存器]
 - `immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI。[SimRISC-02 §寄存器组之间块赋值]
 
 ## §13 `set_w_rf`（RF 立即数）<a id="set_w_rf"></a>
@@ -133,8 +135,9 @@
 - `mreg_zero`（与 M1 共享，同时服务 RD/RB/RA 多寄存器）：FP `immu6` 连续个数形式 `immu6 = 0` → ILLI（28 条）。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
 - `mreg_range_overflow`（与 M1 共享）：FP `immu6` 连续个数形式起始 + `immu6 > 64` → ILLI，不环绕、不截断（28 条）；**源与目的起始寄存器均检查**。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
 - `mreg_range_overlap`（与 M1 共享，M1 侧为 rd2rd/rb2rb）：FP `convert_ff` 四条源范围与目的范围有任何交集（含完全重合）→ ILLI（4 条）；跨组指令（convert_f2i/convert_i2f/classify/rd2rf/rf2rd）结构性不可能重叠。[SimRISC-07 §格式转换指令][SimRISC-02 §寄存器组之间块赋值]
+- `dst_rd0`（与 M1 共享）：FP 中目的为 rd 组的 15 条——orri 目的字段 `rdhb`（`convert_f2i` 8 + `classify` 2 + `rf2rd` 1）与 orrr 单目的 `rdhb`（`compare` 4）为 `rd0` → ILLI；目的为 rf 组的 FP 指令（`rd2rf` 等）不适用本规则。[SimRISC-00 §数据寄存器][SimRISC-02 §寄存器组之间块赋值]
 - `rf0` 作目的**例外（合法）**：`rd2rf`、`rf2rd`（源）、`ld.t`/`ldm.t`/`ld.o`/`ldm.o`、`st.*`/`stm.*`（源）、`set.w`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-01 §存取RF寄存器][SimRISC-03 §立即数常数赋值：Immediate constant]
-- `dst_rf0`/`encode_fp_root_n` 为 FP 专属、FP 未实现期 `deferred`；`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap` 为 `active` 且与 M1 共享。FP 记录 `rule_refs` 为空（`opcodes.yaml`，遵守 `SPEC-086t` 口径），规则覆盖由 `check-fp-contract` 的 `legality_refs` **精确计数**（28/28/4/35/2）承担。[SimRISC-07 §版本]
+- `dst_rf0`/`encode_fp_root_n` 为 FP 专属，FP 已实现（`LLVM-029t/030t`、`QEMU-034t`–`037t`）后均为 `active`；`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap`/`dst_rd0` 为 `active` 且与 M1 共享。FP 记录的 `rule_refs` 由 `opcodes.yaml` 依 `legality` 回填，须与 `fp_semantics.yaml` 的 `legality_refs` **逐 id 一致**（`check-fp-contract` Check 8 机械门控）。[SimRISC-07 §版本]
 
 ## §16 开放点（spec 未明，如实记录、不臆造）<a id="open-points"></a>
 

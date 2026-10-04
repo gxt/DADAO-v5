@@ -1,11 +1,11 @@
 # SimRISC 0.5.4 指令编码表（按 scope 划分范围）
 # 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/knowledge/contract-isa.md
 # M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统
-# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），
-# scope: excluded 为特权 cfx / LR-SC / fence；二者尚未实现，
+# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；
+# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # 共 227 条：M1 152 条 + scope fp 60 条 + scope excluded 15 条
-# 有 rule_refs 的指令：135 条
+# 有 rule_refs 的指令：190 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -194,7 +194,6 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
   rule_refs: []
 - id: st.t_rrii_rf
   mnemonic: st.t
@@ -219,7 +218,6 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
   rule_refs: []
 - id: st.b_rrii_rd
   mnemonic: st.b
@@ -480,7 +478,6 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
   rule_refs: []
 - id: st.o_rrii_rf
   mnemonic: st.o
@@ -505,7 +502,6 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
   rule_refs: []
 - id: ldm.ub_rrri_rd
   mnemonic: ldm.ub
@@ -743,11 +739,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality:
+  - immu6 != 0
+  - rfha + immu6 <= 64
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
 - id: stm.t_rrri_rf
   mnemonic: stm.t
   format: rrri
@@ -772,11 +771,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality:
+  - immu6 != 0
+  - rfha + immu6 <= 64
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
 - id: stm.b_rrri_rd
   mnemonic: stm.b
   format: rrri
@@ -1109,11 +1111,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality:
+  - immu6 != 0
+  - rfha + immu6 <= 64
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
 - id: stm.o_rrri_rf
   mnemonic: stm.o
   format: rrri
@@ -1138,11 +1143,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality:
+  - immu6 != 0
+  - rfha + immu6 <= 64
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
 - id: or.w_rwii_rd
   mnemonic: or.w
   format: rwii
@@ -1348,7 +1356,6 @@
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
   rule_refs: []
 - id: add.uo_rrrr_rd
   mnemonic: add.uo
@@ -1639,11 +1646,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhc != rf0
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: cs.ne_rrrr_rf
   mnemonic: cs.ne
   format: rrrr
@@ -1667,11 +1675,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhc != rf0
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: cs.n_rrrr_rd
   mnemonic: cs.n
   format: rrrr
@@ -1724,11 +1733,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: cs.z_rrrr_rd
   mnemonic: cs.z
   format: rrrr
@@ -1781,11 +1791,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: cs.p_rrrr_rd
   mnemonic: cs.p
   format: rrrr
@@ -1838,11 +1849,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §SimRISC QFC
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: cs.eq_rrrr_rd
   mnemonic: cs.eq
   format: rrrr
@@ -3432,11 +3444,15 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality:
+  - immu6 != 0
+  - rfhb + immu6 <= 64
+  - rdhc + immu6 <= 64
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - mreg_zero
+  - mreg_range_overflow
 - id: rf2rd_orri_rf
   mnemonic: rf2rd
   format: orri
@@ -3458,11 +3474,17 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality:
+  - rdhb != rd0
+  - immu6 != 0
+  - rdhb + immu6 <= 64
+  - rfhc + immu6 <= 64
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: shr.ut_orrr_rd
   mnemonic: shr.ut
   format: orrr
@@ -4915,11 +4937,17 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: &id003
+  - rdhb != rd0
+  - immu6 != 0
+  - rdhb + immu6 <= 64
+  - rfhc + immu6 <= 64
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: ft2fo_orri_rf
   mnemonic: ft2fo
   format: orri
@@ -4941,11 +4969,19 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: &id002
+  - rfhb != rf0
+  - immu6 != 0
+  - rfhb + immu6 <= 64
+  - rfhc + immu6 <= 64
+  - no_overlap(rfhb, rfhc, immu6)
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
+  - mreg_range_overlap
 - id: ft2ft_orri_rf
   mnemonic: ft2ft
   format: orri
@@ -4967,11 +5003,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id002
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
+  - mreg_range_overlap
 - id: ftroot_orri_rf
   mnemonic: ftroot
   format: orri
@@ -4993,11 +5032,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: &id004
+  - rfhb != rf0
+  - immu6 == 2
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - encode_fp_root_n
 - id: focls_orri_rf
   mnemonic: focls
   format: orri
@@ -5019,11 +5061,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id003
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: fo2ft_orri_rf
   mnemonic: fo2ft
   format: orri
@@ -5045,11 +5089,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id002
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
+  - mreg_range_overlap
 - id: fo2fo_orri_rf
   mnemonic: fo2fo
   format: orri
@@ -5071,11 +5118,14 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id002
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
+  - mreg_range_overlap
 - id: foroot_orri_rf
   mnemonic: foroot
   format: orri
@@ -5097,11 +5147,12 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id004
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - encode_fp_root_n
 - id: ft2it_orri_rf
   mnemonic: ft2it
   format: orri
@@ -5123,11 +5174,17 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: &id005
+  - rdhb != rd0
+  - immu6 != 0
+  - rdhb + immu6 <= 64
+  - rfhc + immu6 <= 64
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: ft2io_orri_rf
   mnemonic: ft2io
   format: orri
@@ -5149,11 +5206,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id005
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: ft2ut_orri_rf
   mnemonic: ft2ut
   format: orri
@@ -5175,11 +5234,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id005
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: ft2uo_orri_rf
   mnemonic: ft2uo
   format: orri
@@ -5201,11 +5262,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id005
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: it2ft_orri_rf
   mnemonic: it2ft
   format: orri
@@ -5227,11 +5290,17 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: &id006
+  - rfhb != rf0
+  - immu6 != 0
+  - rfhb + immu6 <= 64
+  - rdhc + immu6 <= 64
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
 - id: io2ft_orri_rf
   mnemonic: io2ft
   format: orri
@@ -5253,11 +5322,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id006
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
 - id: ut2ft_orri_rf
   mnemonic: ut2ft
   format: orri
@@ -5279,11 +5350,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id006
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
 - id: uo2ft_orri_rf
   mnemonic: uo2ft
   format: orri
@@ -5305,11 +5378,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id006
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
 - id: fo2it_orri_rf
   mnemonic: fo2it
   format: orri
@@ -5331,11 +5406,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id005
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: fo2io_orri_rf
   mnemonic: fo2io
   format: orri
@@ -5357,11 +5434,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id005
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: fo2ut_orri_rf
   mnemonic: fo2ut
   format: orri
@@ -5383,11 +5462,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id005
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: fo2uo_orri_rf
   mnemonic: fo2uo
   format: orri
@@ -5409,11 +5490,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id005
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
+  - mreg_zero
+  - mreg_range_overflow
 - id: it2fo_orri_rf
   mnemonic: it2fo
   format: orri
@@ -5435,11 +5518,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id006
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
 - id: io2fo_orri_rf
   mnemonic: io2fo
   format: orri
@@ -5461,11 +5546,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id006
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
 - id: ut2fo_orri_rf
   mnemonic: ut2fo
   format: orri
@@ -5487,11 +5574,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id006
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
 - id: uo2fo_orri_rf
   mnemonic: uo2fo
   format: orri
@@ -5513,11 +5602,13 @@
     role: imm
     bank: imm
     signed: false
-  legality: []
+  legality: *id006
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
 - id: ftadd_orrr_rf
   mnemonic: ftadd
   format: orrr
@@ -5538,11 +5629,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: ftsub_orrr_rf
   mnemonic: ftsub
   format: orrr
@@ -5563,11 +5655,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: ftmul_orrr_rf
   mnemonic: ftmul
   format: orrr
@@ -5588,11 +5681,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: ftdiv_orrr_rf
   mnemonic: ftdiv
   format: orrr
@@ -5613,11 +5707,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: ftrem_orrr_rf
   mnemonic: ftrem
   format: orrr
@@ -5638,11 +5733,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: ftsclb_orrr_rf
   mnemonic: ftsclb
   format: orrr
@@ -5663,11 +5759,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: ftsgnn_orrr_rf
   mnemonic: ftsgnn
   format: orrr
@@ -5688,11 +5785,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: ftsgnj_orrr_rf
   mnemonic: ftsgnj
   format: orrr
@@ -5713,11 +5811,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: foadd_orrr_rf
   mnemonic: foadd
   format: orrr
@@ -5738,11 +5837,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: fosub_orrr_rf
   mnemonic: fosub
   format: orrr
@@ -5763,11 +5863,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: fomul_orrr_rf
   mnemonic: fomul
   format: orrr
@@ -5788,11 +5889,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: fodiv_orrr_rf
   mnemonic: fodiv
   format: orrr
@@ -5813,11 +5915,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: forem_orrr_rf
   mnemonic: forem
   format: orrr
@@ -5838,11 +5941,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: fosclb_orrr_rf
   mnemonic: fosclb
   format: orrr
@@ -5863,11 +5967,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: fosgnn_orrr_rf
   mnemonic: fosgnn
   format: orrr
@@ -5888,11 +5993,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: fosgnj_orrr_rf
   mnemonic: fosgnj
   format: orrr
@@ -5913,11 +6019,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rfhb != rf0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rf0
 - id: ftqcmp_orrr_rf
   mnemonic: ftqcmp
   format: orrr
@@ -5938,11 +6045,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: ftscmp_orrr_rf
   mnemonic: ftscmp
   format: orrr
@@ -5963,11 +6071,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: foqcmp_orrr_rf
   mnemonic: foqcmp
   format: orrr
@@ -5988,11 +6097,12 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0
 - id: foscmp_orrr_rf
   mnemonic: foscmp
   format: orrr
@@ -6013,8 +6123,9 @@
     bits: '[5:0]'
     role: src
     bank: rf
-  legality: []
+  legality:
+  - rdhb != rd0
   spec_cite: SimRISC-00 §MISC-RF指令编码
   scope: fp
-  decode: ILLI
-  rule_refs: []
+  rule_refs:
+  - dst_rd0

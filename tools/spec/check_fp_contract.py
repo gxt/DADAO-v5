@@ -9,13 +9,16 @@
   4. 族完备：families 段为每族声明 required_keys（须 == 预期键集）；
      每条记录的族 required_keys 均存在（缺失 ⇒ FAIL）。
   5. legality 双向：每条 legality_refs ∈ legality_rules.yaml 的 id 集合；
-     5 条 FP 规则（dst_rf0/encode_fp_root_n/mreg_zero/mreg_range_overflow/
-     mreg_range_overlap）各被**精确条数**条 FP id 引用（28/28/4/35/2，SPEC-088t）；
-     仅 FP 专属规则（dst_rf0/encode_fp_root_n）不得被 scope != fp 的 opcodes 记录引用
-     （mreg_* 同时服务 M1，被非 fp 记录引用是预期）。
+     6 条 FP 规则（dst_rf0/encode_fp_root_n/mreg_zero/mreg_range_overflow/
+     mreg_range_overlap/dst_rd0）各被**精确条数**条 FP id 引用
+     （35/2/28/28/4/15，SPEC-088t + SPEC-089t）；仅 FP 专属规则
+     （dst_rf0/encode_fp_root_n）不得被 scope != fp 的 opcodes 记录引用
+     （mreg_*/dst_rd0 同时服务 M1，被非 fp 记录引用是预期）。
   6. 叙述锚点可达：每条 semantics_ref = contract-fp.md#<anchor>，且
      contract-fp.md 含 <a id="<anchor>">。
   7. 合规版本头：contract-fp.md 首个版本头行含 [SimRISC- 引用。
+  8. 交叉断言（SPEC-089t §2.9）：每个 scope: fp 记录的 rule_refs 集合 ==
+     fp_semantics.yaml 同 id 的 legality_refs 集合（排序比较，逐 id 打印差异）。
 
 退出 0 = 通过；退出 1 = 失败。输出「检查名 + 期望/实际 + 退出码」。
 
@@ -52,11 +55,11 @@ FAMILY_COUNTS = {
     "set_w_rf": 1,
 }
 
-# FP 相关合法性规则（5 条，SPEC-088t §2.5）：各须被精确条数条 FP id 引用。
-# dst_rf0/encode_fp_root_n 为 FP 专属；mreg_zero/mreg_range_overflow/mreg_range_overlap
+# FP 相关合法性规则（6 条，SPEC-088t §2.5 + SPEC-089t）：各须被精确条数条 FP id 引用。
+# dst_rf0/encode_fp_root_n 为 FP 专属；mreg_zero/mreg_range_overflow/mreg_range_overlap/dst_rd0
 # 与 M1 共享（被 M1 的 rule_refs 引用属预期）。
 FP_RULES = ("dst_rf0", "encode_fp_root_n", "mreg_zero",
-            "mreg_range_overflow", "mreg_range_overlap")
+            "mreg_range_overflow", "mreg_range_overlap", "dst_rd0")
 
 # 每条 FP 规则须被 FP id 引用的精确条数（SPEC-088t §2.6；收紧后才可对
 # 「漏一条 / 漏源侧」判 FAIL）。
@@ -66,6 +69,7 @@ FP_RULE_EXACT = {
     "mreg_zero": 28,
     "mreg_range_overflow": 28,
     "mreg_range_overlap": 4,
+    "dst_rd0": 15,
 }
 
 # 仅 FP 专属规则不得被 scope != fp 的 opcodes 记录引用
@@ -227,6 +231,27 @@ def main() -> int:
                   "含" if header_ok else ("无版本头" if header is None else "缺 spec 引用"),
                   ok=header_ok):
         failures.append("contract-fp.md 版本头缺失或未含 [SimRISC- 引用")
+
+    # ── 8. opcodes.rule_refs ↔ fp_semantics.legality_refs 交叉断言（SPEC-089t）──
+    # 每个 scope: fp 记录的 rule_refs 集合须 == fp_semantics.yaml 同 id 的
+    # legality_refs 集合（排序后比较）；逐 id 打印缺失/多出项，任一差异 ⇒ FAIL。
+    # 该断言防「同一事实两次登记」（opcodes.legality 表达式 vs fp_semantics.legality_refs）
+    # 之间的双源漂移，是本任务判出漏填任一条 FP 规则的关键门控。
+    sem_refs_by_id = {i.get("id"): (i.get("legality_refs") or []) for i in insns}
+    cross_bad: list[str] = []
+    for o in opcodes:
+        if o.get("scope") != "fp":
+            continue
+        oid = o.get("id")
+        a = sorted(set(o.get("rule_refs") or []))
+        b = sorted(set(sem_refs_by_id.get(oid) or []))
+        if a != b:
+            missing = [x for x in b if x not in a]
+            extra = [x for x in a if x not in b]
+            cross_bad.append(f"{oid}(缺:{missing} 多:{extra})")
+    if not record("opcodes.rule_refs == fp_semantics.legality_refs", 0,
+                  len(cross_bad)):
+        failures.append("FP 双源 rule_refs 漂移: " + "; ".join(cross_bad[:10]))
 
     # ── 输出 ─────────────────────────────────────────────────────────────
     print("check-fp-contract:")
