@@ -5,7 +5,7 @@
 | 项目里程碑 | infra | spec | testcases | golden | llvm | qemu | integ | gem5 | sail | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | M1 | **`INFRA-014m` ✅ 里程碑** | **`SPEC-011m` ✅ 里程碑** | **`TESTCASES-012m` ✅ 里程碑** | — | **`LLVM-015m` ✅ 里程碑** | **`QEMU-021m` ✅ 里程碑** | **`INTEG-004m` ✅ 里程碑** | — | — | **✅ 达成** |
-| M2 | 待开始 | 待开始 | 待开始 | — | 待开始 | 待开始 | 待开始 | — | — | 待开始 |
+| M2 | **`INFRA-034m` ✅ 里程碑** | **`SPEC-095m` ✅ 里程碑** | **`TESTCASES-025m` ✅ 里程碑** | — | **`LLVM-032m` ✅ 里程碑** | **`QEMU-039m` ✅ 里程碑** | **`INTEG-011m` ✅ 里程碑** | — | — | **✅ 达成** |
 | M3 | — | — | — | — | 待开始 | 待开始 | 待开始 | — | — | 待开始 |
 
 > **归档（2026-10-03）**：M1 的 76 个任务书已归档至 `.tao/archive/M1/`（按模块子目录）；M1 时期 changelog/MEMORY 内容见 `.tao/archive/M1/README.md`；**M1 回顾见 `.tao/archive/M1/m1-retrospective.md`**（由 `docs/` 移入）。
@@ -15,6 +15,28 @@
 > **归档前置（MUST）**：任何里程碑达成后、**归档前**，须先按 `spec/Process-04 §2` 对遗留台账（`.tao/knowledge/issues.yaml` / `lessons.md`）做一次**梳理**（关闭已消解项、校正 `scope`、移出教训类、判定 moot 项、头部同步）；未完成不得归档。
 >
 > **状态口径**：本表 `状态` 列只有 **`待开始`/`达成`** 两态（模块 `m` 未置则显 `待开始`）；`issues.yaml` 头部的「M2=进行中」是**进度叙述**，二者不矛盾。
+>
+> **M2 达成（2026-10-04，architect 实测核验）**：M2 门槛 5 条全部满足、各模块 M2 任务均终态 ⇒ 6 个模块 `m` 置 `里程碑`、M2 置 `达成`。核验记录见下「M2 达成核验记录」。
+
+## M2 达成核验记录
+
+**日期**：2026-10-04　**执行**：architect 实测（命令原样 + 退出码；完整输出见 `.work/log/integ/M2-milestone-make-check.log`、`.work/log/spec/M2-milestone-check-spec-refs.log`、`.work/log/qemu/M2-milestone-probe-03{4..8}t.log`）
+
+| # | 门槛 | 命令 / 证据 | 结果 |
+|---|------|-------------|------|
+| ① | `make check` 全绿（所有 checker + 反例门控） | `make check` | **EXIT=0**；`repository checks: PASS`；lit 31/31 |
+| ② | 投影表「缺口」清零或显式 deferred | `contract-asm.md` 已补齐（`SPEC-091t`）；`DADAO-12/13/22/23` ①列 = `deferred`（`SPEC-092t`）；`Process-02` 三者 = `deferred` | **满足**（4 项） |
+| ③ | `spec_cite` / 引用 / 计数全对齐 | `make check-spec-refs` | **EXIT=0**；Check1 680 引用 / 0 失败、Check2 0（76→0，`SPEC-094t`） |
+| ④ | FP = 执行层 60/60 + `dst_rd0@FP` + 最小 smoke | `min_rom_probe_03{4..7}t` = 59/77/113/91 全 PASS；`_038t` = 42/42；`smoke_fp.test` PASS | **满足** |
+| ⑤ | 偏离台账 6 项 | `.tao/knowledge/MEMORY.md` `## 上游 ↔ v5 偏离台账` | **恰好 6 行**（`SPEC-093t`） |
+
+**各模块 M2 `m`**：`INFRA-034m`、`SPEC-095m`、`TESTCASES-025m`、`LLVM-032m`、`QEMU-039m`、`INTEG-011m`。
+
+**M2 任务终态**：wave 1/2 全部 `已验证`；唯一非终态 M2 任务 = `INTEG-010t`（M2 达成**后**执行的归档收尾，非达成分解）。
+
+**归档前置**：`INFRA-033t`（`Process-04 §2` 台账梳理）`已验证`；M2 任务书归档由 `INTEG-010t` 在 M2 达成后执行。
+
+> **caveat（非阻断，交主会话复核）**：投影表仍存 3 处字面 `缺口`——`SimRISC-07` 行 ④列 `缺口`（FP oracle/向量待建，按定义属 **M3**，但未加 `deferred` 字样）、`DADAO-12` 行 ②④列 `缺口（据实）`（据实、无需独立投影）。按 `SPEC-090k` 对门槛②的 4 项界定为满足；若要字面清零，建议将 `SimRISC-07 ④` 改标 `deferred（M3）`（需改 `spec/README.md`，超出本次核验写范围）。
 
 ## 里程碑说明
 
