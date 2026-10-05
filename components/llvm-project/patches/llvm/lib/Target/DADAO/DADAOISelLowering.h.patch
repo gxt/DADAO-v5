@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..270655b95
+index 000000000..a532eaf07
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,92 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,9 +13,10 @@ index 000000000..270655b95
 +//===----------------------------------------------------------------------===//
 +//
 +// This file defines the interfaces that DADAO uses to lower LLVM code into a
-+// selection DAG.  M3 skeleton (LLVM-033t): i64 register class registration and
-+// a minimal LowerReturn; the SelectionDAG framework is the M3 choice (C11,
-+// ADR-0018).
++// selection DAG.  M3: i64 register class registration, minimal
++// LowerReturn/LowerFormalArguments (LLVM-033t), and integer compare/branch
++// lowering to cmp* + br.* (LLVM-037t; C17/C14).  The SelectionDAG framework is
++// the M3 choice (C11, ADR-0018).
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -38,6 +39,25 @@ index 000000000..270655b95
 +  /// Produced by LowerReturn, matched by the RET_PSEUDO instruction
 +  /// (see DADAOCodeGen.td).
 +  RET_GLUE,
++
++  /// Signed / unsigned compare: (lhs, rhs) -> i64 in {-1, 0, 1}.
++  /// No condition flags (C17); the result is an ordinary data register value.
++  CMP,
++  CMPU,
++
++  /// Branch on a compare result (or any value) against zero:
++  ///   (chain, val, dest).  val < 0 / <= 0 / > 0 / >= 0 / == 0 / != 0.
++  BRN,
++  BRNP,
++  BRP,
++  BRNN,
++  BRZ,
++  BRNZ,
++
++  /// Two-register ==/!= branch: (chain, lhs, rhs, dest).  C17: used directly
++  /// for integer ==/!= so no compare instruction is needed.
++  BREQ,
++  BRNE,
 +};
 +
 +} // namespace DADAOISD
@@ -59,6 +79,18 @@ index 000000000..270655b95
 +                      const SmallVectorImpl<ISD::OutputArg> &Outs,
 +                      const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
 +                      SelectionDAG &DAG) const override;
++
++  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
++
++private:
++  /// Lower an integer compare+branch to DADAO cmp* + br.* (C17, ADR-0018).
++  SDValue LowerBR_CC(SDValue Chain, ISD::CondCode CC, SDValue LHS, SDValue RHS,
++                     SDValue Dest, const SDLoc &DL, SelectionDAG &DAG) const;
++  SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
++
++  /// True if V is an i64 value held in the GPRB (pointer/address) bank, i.e. a
++  /// CopyFromReg of a GPRB virtual register created by LowerFormalArguments.
++  bool isPointerBankValue(SDValue V, const SelectionDAG &DAG) const;
 +};
 +
 +} // namespace llvm

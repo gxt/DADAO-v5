@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..96e67a3de
+index 000000000..fd38496c4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,148 @@
+@@ -0,0 +1,315 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -19,6 +19,10 @@ index 000000000..96e67a3de
 +//     so the corresponding ISel patterns match them (LLVM-036t; C13, ADR-0018)
 +//   - minimal LowerFormalArguments / LowerReturn sufficient to lower a
 +//     `ret`-only scalar/pointer function to MIR.
++//   - lower integer compare+branch to DADAO cmp* + br.* (LLVM-037t; C17/C14):
++//     no condition flags, so the compare writes -1/0/1 into a virtual GPRD
++//     and the branch tests it; ==/!= use br.eq/ne, p==NULL uses br.z/nz {rb},
++//     p==q uses cmp.uo-rb + br.z.
 +//
 +// The full calling convention (spill slots, bank-aware CC, byval/varargs)
 +// is LLVM-039t (with SPEC-097t); only register arguments are handled here.
@@ -33,6 +37,7 @@ index 000000000..96e67a3de
 +#include "llvm/CodeGen/MachineRegisterInfo.h"
 +#include "llvm/CodeGen/SelectionDAG.h"
 +#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/MathExtras.h"
 +
 +using namespace llvm;
 +
@@ -42,6 +47,15 @@ index 000000000..96e67a3de
 +  // M3 skeleton: i64 covers both data and pointers (C2, ADR-0018); pointers
 +  // are forced into GPRB by the calling convention / ISel in LLVM-034t.
 +  addRegisterClass(MVT::i64, &DADAO::GPRDRegClass);
++
++  // Conditional control flow (LLVM-037t; C17, ADR-0018): DADAO has no condition
++  // flags, so an integer compare+branch is lowered to a cmp* (result -1/0/1 in
++  // a virtual GPRD) followed by a br.* that tests it.  BR_CC is keyed by the
++  // comparison operand type (i64); BRCOND by its chain type.  SelectionDAGBuilder
++  // hands `br (icmp ...)` to us as SETCC + BRCOND, which LowerBRCOND folds back
++  // into a BR_CC.
++  setOperationAction(ISD::BR_CC, MVT::i64, Custom);
++  setOperationAction(ISD::BRCOND, MVT::Other, Custom);
 +
 +  // Narrow memory accesses (LLVM-036t; C13, ADR-0018).  All load extension
 +  // kinds and truncating stores between i64 and i8/i16/i32 are legal: the
@@ -63,6 +77,26 @@ index 000000000..96e67a3de
 +  switch (static_cast<DADAOISD::NodeType>(Opcode)) {
 +  case DADAOISD::RET_GLUE:
 +    return "DADAOISD::RET_GLUE";
++  case DADAOISD::CMP:
++    return "DADAOISD::CMP";
++  case DADAOISD::CMPU:
++    return "DADAOISD::CMPU";
++  case DADAOISD::BRN:
++    return "DADAOISD::BRN";
++  case DADAOISD::BRNP:
++    return "DADAOISD::BRNP";
++  case DADAOISD::BRP:
++    return "DADAOISD::BRP";
++  case DADAOISD::BRNN:
++    return "DADAOISD::BRNN";
++  case DADAOISD::BRZ:
++    return "DADAOISD::BRZ";
++  case DADAOISD::BRNZ:
++    return "DADAOISD::BRNZ";
++  case DADAOISD::BREQ:
++    return "DADAOISD::BREQ";
++  case DADAOISD::BRNE:
++    return "DADAOISD::BRNE";
 +  default:
 +    return nullptr;
 +  }
@@ -151,4 +185,137 @@ index 000000000..96e67a3de
 +  }
 +
 +  return DAG.getNode(DADAOISD::RET_GLUE, DL, MVT::Other, RetOps);
++}
++
++bool DADAOTargetLowering::isPointerBankValue(SDValue V,
++                                             const SelectionDAG &DAG) const {
++  // Pointers are legalized to i64 (C2) and only carry their bank in the virtual
++  // register created for the formal argument (LowerFormalArguments).  At
++  // lowering time a pointer argument therefore appears as a CopyFromReg of a
++  // GPRB virtual register; that register class is the bank witness.
++  if (V.getOpcode() != ISD::CopyFromReg)
++    return false;
++  const auto *RegNode = cast<RegisterSDNode>(V.getOperand(1));
++  const Register R = RegNode->getReg();
++  if (!R.isVirtual())
++    return false;
++  const MachineRegisterInfo &MRI = DAG.getMachineFunction().getRegInfo();
++  return MRI.getRegClass(R) == &DADAO::GPRBRegClass;
++}
++
++SDValue DADAOTargetLowering::LowerOperation(SDValue Op,
++                                            SelectionDAG &DAG) const {
++  switch (Op.getOpcode()) {
++  case ISD::BR_CC:
++    return LowerBR_CC(Op.getOperand(0),
++                      cast<CondCodeSDNode>(Op.getOperand(1))->get(),
++                      Op.getOperand(2), Op.getOperand(3), Op.getOperand(4),
++                      SDLoc(Op), DAG);
++  case ISD::BRCOND:
++    return LowerBRCOND(Op, DAG);
++  default:
++    return SDValue();
++  }
++}
++
++SDValue DADAOTargetLowering::LowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
++  SDValue Chain = Op.getOperand(0);
++  SDValue CondV = Op.getOperand(1);
++  SDValue Dest = Op.getOperand(2);
++  SDLoc DL(Op);
++
++  // `br (icmp ...)` reaches us as SETCC + BRCOND (SelectionDAGBuilder no longer
++  // builds BR_CC directly).  Fold the setcc back into a compare + branch.
++  if (CondV.getOpcode() == ISD::SETCC &&
++      CondV.getOperand(0).getValueType() == MVT::i64) {
++    ISD::CondCode CC = cast<CondCodeSDNode>(CondV.getOperand(2))->get();
++    return LowerBR_CC(Chain, CC, CondV.getOperand(0), CondV.getOperand(1),
++                      Dest, DL, DAG);
++  }
++
++  // Generic `br i1 %c`: test the low bit against zero (setne 0).  Zero-extend
++  // so the high bits do not poison the != 0 test.
++  SDValue Cond = CondV;
++  if (Cond.getValueType() != MVT::i64)
++    Cond = DAG.getZExtOrTrunc(Cond, DL, MVT::i64);
++  return LowerBR_CC(Chain, ISD::SETNE, Cond, DAG.getConstant(0, DL, MVT::i64),
++                    Dest, DL, DAG);
++}
++
++SDValue DADAOTargetLowering::LowerBR_CC(SDValue Chain, ISD::CondCode CC,
++                                        SDValue LHS, SDValue RHS, SDValue Dest,
++                                        const SDLoc &DL,
++                                        SelectionDAG &DAG) const {
++  auto IsZero = [](SDValue V) {
++    if (auto *C = dyn_cast<ConstantSDNode>(V))
++      return C->isZero();
++    return false;
++  };
++  auto Cmp = [&](bool Unsigned) {
++    return DAG.getNode(Unsigned ? DADAOISD::CMPU : DADAOISD::CMP, DL, MVT::i64,
++                       LHS, RHS);
++  };
++  auto BrOn = [&](DADAOISD::NodeType Op, SDValue Val) {
++    return DAG.getNode(Op, DL, MVT::Other, Chain, Val, Dest);
++  };
++  // Emit a compare + zero-test branch.  A constant RHS must fit the cmp
++  // immediate (12-bit); otherwise the compare cannot be selected.
++  auto CmpThenBranch = [&](bool Unsigned, DADAOISD::NodeType Op) {
++    if (auto *C = dyn_cast<ConstantSDNode>(RHS)) {
++      const bool FitsU = isUInt<12>(C->getZExtValue());
++      const bool FitsS = isInt<12>(C->getSExtValue());
++      if (Unsigned ? !FitsU : !FitsS)
++        report_fatal_error("DADAO: branch compare against a constant that does "
++                           "not fit a 12-bit immediate is not supported yet");
++    }
++    return BrOn(Op, Cmp(Unsigned));
++  };
++
++  switch (CC) {
++  default:
++    report_fatal_error("DADAO: unsupported integer branch condition");
++  case ISD::SETEQ:
++  case ISD::SETNE: {
++    const bool IsEQ = CC == ISD::SETEQ;
++    const DADAOISD::NodeType BrZ = IsEQ ? DADAOISD::BRZ : DADAOISD::BRNZ;
++    // Equality is symmetric: swap so the non-constant operand is on the left.
++    if (isa<ConstantSDNode>(LHS) && !isa<ConstantSDNode>(RHS))
++      std::swap(LHS, RHS);
++    // x == 0 / p == NULL: a single zero-test branch (br.z {rb} for pointers;
++    // C17).  Also covers `0 == x`.
++    if (IsZero(RHS))
++      return BrOn(BrZ, LHS);
++    // Pointer vs pointer: cmp.uo rd, rb, rb + br.z/nz (C14 D2 / C17 `p==q`).
++    if (isPointerBankValue(LHS, DAG) || isPointerBankValue(RHS, DAG))
++      return BrOn(BrZ, Cmp(/*Unsigned=*/true));
++    // Two integers in registers: br.eq/ne directly (C17: no cmp needed).
++    if (!isa<ConstantSDNode>(LHS) && !isa<ConstantSDNode>(RHS))
++      return DAG.getNode(IsEQ ? DADAOISD::BREQ : DADAOISD::BRNE, DL, MVT::Other,
++                         Chain, LHS, RHS, Dest);
++    // Non-zero constant: choose cmp.si/cmp.ui so the constant is reproduced
++    // exactly, then br.z/nz (--- but prefer the format that fits).
++    {
++      const auto *C = cast<ConstantSDNode>(RHS);
++      const bool FitsU = isUInt<12>(C->getZExtValue());
++      return CmpThenBranch(/*Unsigned=*/FitsU, BrZ);
++    }
++  }
++  case ISD::SETLT:
++    return CmpThenBranch(/*Unsigned=*/false, DADAOISD::BRN);
++  case ISD::SETLE:
++    return CmpThenBranch(/*Unsigned=*/false, DADAOISD::BRNP);
++  case ISD::SETGT:
++    return CmpThenBranch(/*Unsigned=*/false, DADAOISD::BRP);
++  case ISD::SETGE:
++    return CmpThenBranch(/*Unsigned=*/false, DADAOISD::BRNN);
++  case ISD::SETULT:
++    return CmpThenBranch(/*Unsigned=*/true, DADAOISD::BRN);
++  case ISD::SETULE:
++    return CmpThenBranch(/*Unsigned=*/true, DADAOISD::BRNP);
++  case ISD::SETUGT:
++    return CmpThenBranch(/*Unsigned=*/true, DADAOISD::BRP);
++  case ISD::SETUGE:
++    return CmpThenBranch(/*Unsigned=*/true, DADAOISD::BRNN);
++  }
++  llvm_unreachable("DADAO: unreachable branch condition");
 +}

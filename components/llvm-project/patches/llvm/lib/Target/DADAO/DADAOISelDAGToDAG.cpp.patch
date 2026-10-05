@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..3762c1e94
+index 000000000..e69da6104
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,175 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,11 +13,16 @@ index 000000000..3762c1e94
 +//===----------------------------------------------------------------------===//
 +//
 +// DADAO DAG-to-DAG instruction selector (M3 skeleton, LLVM-033t; i64
-+// arithmetic, LLVM-035t).  It wires the TableGen-generated matcher
-+// (DADAOGenDAGISel.inc) and additionally handles the two nodes that cannot be
-+// expressed as TableGen patterns:
++// arithmetic, LLVM-035t; compare/branch, LLVM-037t).  It wires the
++// TableGen-generated matcher (DADAOGenDAGISel.inc) and additionally handles
++// the nodes that cannot be expressed reliably as TableGen patterns:
 +//   - ISD::Constant  -> CONST_WYDE pseudo (64-bit materialization, C12)
 +//   - ptr − ptr      -> sub.o rd, rb, rb (bank-aware, C14 / ADR-0018)
++//   - pointer cmp    -> cmp.uo rd, rb, rb (C14 D2 / C17)
++//   - p == NULL      -> br.z/br.nz {rb} (C17)
++// The bank-sensitive cases are handled here because the TableGen matcher does
++// not discriminate register classes on i64 operands (it inserts a GPRB->GPRD
++// copy instead).
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -132,6 +137,35 @@ index 000000000..3762c1e94
 +        isPointerBankValue(Node->getOperand(0)) &&
 +        isPointerBankValue(Node->getOperand(1))) {
 +      SelectPointerSub(Node);
++      return;
++    }
++    break;
++  case DADAOISD::CMPU:
++    // Pointer comparison (C14 D2 / C17 `p == q`): cmp.uo rd, rb, rb when both
++    // operands are in the GPRB bank.  Integer compares fall through to the
++    // GPRD cmp_uo/cmp_ui patterns.
++    if (isPointerBankValue(Node->getOperand(0)) &&
++        isPointerBankValue(Node->getOperand(1))) {
++      SDNode *M = CurDAG->getMachineNode(DADAO::cmp_uo_dbb, SDLoc(Node),
++                                         MVT::i64, Node->getOperand(0),
++                                         Node->getOperand(1));
++      ReplaceNode(Node, M);
++      return;
++    }
++    break;
++  case DADAOISD::BRZ:
++  case DADAOISD::BRNZ:
++    // Zero-test on a pointer (C17 `p == NULL`): br.z/br.nz {rb} is a single
++    // instruction, so keep the operand in the RB bank instead of copying it
++    // to GPRD for the plain br.z/br.nz rd form.
++    if (isPointerBankValue(Node->getOperand(1))) {
++      const unsigned Opc = Node->getOpcode() == DADAOISD::BRZ
++                               ? DADAO::br_z_rb
++                               : DADAO::br_nz_rb;
++      // The input chain is carried as the machine node's last operand (as the
++      // generated matcher does for chained nodes).
++      CurDAG->SelectNodeTo(Node, Opc, MVT::Other, Node->getOperand(1),
++                           Node->getOperand(2), Node->getOperand(0));
 +      return;
 +    }
 +    break;

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..5fd44eb83
+index 000000000..9dda14490
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,190 @@
+@@ -0,0 +1,271 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -14,13 +14,13 @@ index 000000000..5fd44eb83
 +//
 +// SelectionDAG target nodes, CodeGen-only pseudo instructions and i64 ISel
 +// patterns for the DADAO M3 backend (LLVM-033t skeleton; LLVM-035t i64
-+// arithmetic/constants; LLVM-036t scalar load/store).
++// arithmetic/constants; LLVM-036t scalar load/store; LLVM-037t compare/branch).
 +//
 +// The instruction definitions in DADAOInstrInfo.td are generated from
 +// contracts/opcodes.yaml and carry no patterns.  This file adds the CodeGen
 +// glue: `llc -march=dadao -stop-after=finalize-isel` can lower scalar
-+// add/sub/mul/and/or/xor/shift/div/rem, 64-bit constants and scalar
-+// load/store to MIR.
++// add/sub/mul/and/or/xor/shift/div/rem, 64-bit constants, scalar load/store
++// and integer compare+branch to MIR.
 +//
 +// The real `ret` instruction (ret_riii) is expanded later (LLVM-040t); here a
 +// CodeGen-only pseudo terminates the function so the MIR can be inspected.
@@ -36,6 +36,41 @@ index 000000000..5fd44eb83
 +// Matched by RET_PSEUDO below.
 +def DADAORetGlue : SDNode<"DADAOISD::RET_GLUE", SDTNone,
 +                          [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
++
++//===----------------------------------------------------------------------===//
++// Compare / branch target nodes (LLVM-037t; C17, ADR-0018)
++//
++// DADAO has no condition flags (CZSO removed): a comparison computes a value
++// (-1/0/1) into a general register, and a branch tests that register against
++// zero (br.n/nn/z/nz/p/np) or compares two registers directly (br.eq/ne).
++// The comparison result is therefore an ordinary i64 value in a *virtual*
++// register — no fixed condition register, no compare/branch fusion (C17).
++//
++//   DADAOCmp / DADAOCmpU : (lhs, rhs) -> i64   signed / unsigned compare
++//   DADAOBrz/nz/n/nn/p/np: (chain, val, dest)  branch on val vs zero
++//   DADAOBreq / DADAOBrne: (chain, lhs, rhs, dest) two-register branch
++//
++// None of the compare nodes is marked SDNPCommutative: cmp is order sensitive
++// (sign(lhs-rhs) != sign(rhs-lhs)); the 0628 DL-058a/b lesson.
++//===----------------------------------------------------------------------===//
++
++def SDT_DADAOBr1 : SDTypeProfile<0, 2,
++    [SDTCisVT<0, i64>, SDTCisVT<1, OtherVT>]>;
++def SDT_DADAOBr2 : SDTypeProfile<0, 3,
++    [SDTCisVT<0, i64>, SDTCisVT<1, i64>, SDTCisVT<2, OtherVT>]>;
++
++def DADAOCmp  : SDNode<"DADAOISD::CMP",  SDTIntBinOp>;
++def DADAOCmpU : SDNode<"DADAOISD::CMPU", SDTIntBinOp>;
++
++def DADAOBrz  : SDNode<"DADAOISD::BRZ",  SDT_DADAOBr1, [SDNPHasChain]>;
++def DADAOBrnz : SDNode<"DADAOISD::BRNZ", SDT_DADAOBr1, [SDNPHasChain]>;
++def DADAOBrn  : SDNode<"DADAOISD::BRN",  SDT_DADAOBr1, [SDNPHasChain]>;
++def DADAOBrnn : SDNode<"DADAOISD::BRNN", SDT_DADAOBr1, [SDNPHasChain]>;
++def DADAOBrp  : SDNode<"DADAOISD::BRP",  SDT_DADAOBr1, [SDNPHasChain]>;
++def DADAOBrnp : SDNode<"DADAOISD::BRNP", SDT_DADAOBr1, [SDNPHasChain]>;
++
++def DADAOBreq : SDNode<"DADAOISD::BREQ", SDT_DADAOBr2, [SDNPHasChain]>;
++def DADAOBrne : SDNode<"DADAOISD::BRNE", SDT_DADAOBr2, [SDNPHasChain]>;
 +
 +//===----------------------------------------------------------------------===//
 +// CodeGen-only pseudo instruction base
@@ -194,3 +229,49 @@ index 000000000..5fd44eb83
 +          (st_t_rd GPRD:$val, GPRB:$base, 0)>;
 +def : Pat<(truncstorei32 GPRD:$val, (add GPRB:$base, simm12imm:$off)),
 +          (st_t_rd GPRD:$val, GPRB:$base, simm12imm:$off)>;
++
++//===----------------------------------------------------------------------===//
++// Compare / branch selection (LLVM-037t; C17/C14, ADR-0018)
++//
++// The comparisons are lowered by DADAOTargetLowering::LowerBR_CC to
++// DADAOCmp/DADAOCmpU (result -1/0/1 in i64) plus a zero-test branch, or to a
++// direct two-register branch for ==/!= (C17: `==`/`!=` use br.eq/ne, saving
++// the cmp).  The compare result is an ordinary GPRD value, so the only
++// unusual constraint is that the branch and its compare are two separate
++// instructions (no flags / no fusion).
++//
++// Immediate compares: cmp.si (signed, imms12) / cmp.ui (unsigned, immu12).
++// Register compares: cmp.so / cmp.uo.  Pointer compares use the RB form
++// cmp.uo rd, rb, rb (C14 D2).  Branch immediate is PC-relative (see brtarget*
++// in DADAOInstrInfo.td); the fixup shifts right by 2 (word offset).
++//===----------------------------------------------------------------------===//
++
++// Unsigned 12-bit immediate matching the `immu12` operand.
++def immu12imm : ImmLeaf<i64, [{ return isUInt<12>(Imm); }]>;
++
++// Signed compares -> cmp.so (reg,reg) / cmp.si (reg,imm).
++def : Pat<(DADAOCmp GPRD:$l, GPRD:$r), (cmp_so GPRD:$l, GPRD:$r)>;
++def : Pat<(DADAOCmp GPRD:$l, simm12imm:$r), (cmp_si_rd GPRD:$l, simm12imm:$r)>;
++
++// Unsigned compares -> cmp.uo (reg,reg) / cmp.ui (reg,imm).
++// Pointer compares (cmp.uo rd, rb, rb; C14 D2) and the RB-variant zero-test
++// branches (br.z/nz {rb}; C17) are selected bank-aware in DADAOISelDAGToDAG
++// (the TableGen matcher does not discriminate register classes for i64
++// operands -- it would insert a GPRB->GPRD copy, as LLVM-035t found).
++def : Pat<(DADAOCmpU GPRD:$l, GPRD:$r), (cmp_uo GPRD:$l, GPRD:$r)>;
++def : Pat<(DADAOCmpU GPRD:$l, immu12imm:$r), (cmp_ui_rd GPRD:$l, immu12imm:$r)>;
++
++// Zero-test branches on a GPRD value.
++def : Pat<(DADAOBrz  GPRD:$v, bb:$d), (br_z_rd  GPRD:$v, bb:$d)>;
++def : Pat<(DADAOBrnz GPRD:$v, bb:$d), (br_nz_rd GPRD:$v, bb:$d)>;
++def : Pat<(DADAOBrn  GPRD:$v, bb:$d), (br_n_rd  GPRD:$v, bb:$d)>;
++def : Pat<(DADAOBrnn GPRD:$v, bb:$d), (br_nn_rd GPRD:$v, bb:$d)>;
++def : Pat<(DADAOBrp  GPRD:$v, bb:$d), (br_p_rd  GPRD:$v, bb:$d)>;
++def : Pat<(DADAOBrnp GPRD:$v, bb:$d), (br_np_rd GPRD:$v, bb:$d)>;
++
++// Two-register ==/!= branches (C17: no compare needed).
++def : Pat<(DADAOBreq GPRD:$l, GPRD:$r, bb:$d), (br_eq_rd GPRD:$l, GPRD:$r, bb:$d)>;
++def : Pat<(DADAOBrne GPRD:$l, GPRD:$r, bb:$d), (br_ne_rd GPRD:$l, GPRD:$r, bb:$d)>;
++
++// Unconditional branch -> jump (iiii, PC-relative 24-bit).
++def : Pat<(br bb:$d), (jump_iiii bb:$d)>;

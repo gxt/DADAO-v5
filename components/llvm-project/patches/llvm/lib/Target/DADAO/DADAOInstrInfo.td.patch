@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..3fb6760f1
+index 000000000..51f563445
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1329 @@
+@@ -0,0 +1,1389 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -124,6 +124,43 @@ index 000000000..3fb6760f1
 +  let ParserMatchClass = DADAOWydePosAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
 +  let DecoderMethod = "DecodeWydePos";  // LLVM-007t implements
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++//===----------------------------------------------------------------------===//
++// Branch-target operands (CodeGen, LLVM-037t)
++//
++// Conditional/unconditional branch instructions carry a PC-relative target.
++// For CodeGen the operand is a MachineBasicBlock (Operand<OtherVT>) so the
++// selector can build a CFG edge; the MCSymbol reference becomes a PC-relative
++// fixup at object emission (DADAO_FK_PCRel_12/18/24, contract-isa.md §8;
++// imms = (target - current) >> 2, no +4 pipeline offset).  For the assembler
++// path a numeric byte offset / label expression is still accepted (the
++// parser bypasses the matcher for expressions; the DADAOImmAsmOperand
++// predicate is reused so the numeric matcher path is unchanged).
++//===----------------------------------------------------------------------===//
++
++def brtarget12 : Operand<OtherVT> {
++  let ParserMatchClass = DADAOImmAsmOperand;
++  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
++  let DecoderMethod = "DecodeSImm12";  // LLVM-007t implements
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++def brtarget18 : Operand<OtherVT> {
++  let ParserMatchClass = DADAOImmAsmOperand;
++  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
++  let DecoderMethod = "DecodeSImm18";  // LLVM-007t implements
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++def brtarget24 : Operand<OtherVT> {
++  let ParserMatchClass = DADAOImmAsmOperand;
++  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
++  let DecoderMethod = "DecodeSImm24";  // LLVM-007t implements
 +  let PrintMethod = "printOperand";
 +  let MIOperandInfo = (ops);
 +}
@@ -270,14 +307,18 @@ index 000000000..3fb6760f1
 +
 +def br_eq_rd : DADAORrii<"br.eq"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, GPRD:$rb, imms12:$imm12);
++  let InOperandList = (ins GPRD:$ra, GPRD:$rb, brtarget12:$imm12);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6E;
 +  let Pattern = [];
 +}
 +
 +def br_ne_rd : DADAORrii<"br.ne"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, GPRD:$rb, imms12:$imm12);
++  let InOperandList = (ins GPRD:$ra, GPRD:$rb, brtarget12:$imm12);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6F;
 +  let Pattern = [];
 +}
@@ -502,56 +543,72 @@ index 000000000..3fb6760f1
 +
 +def br_n_rd : DADAORiii<"br.n"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x68;
 +  let Pattern = [];
 +}
 +
 +def br_nn_rd : DADAORiii<"br.nn"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x69;
 +  let Pattern = [];
 +}
 +
 +def br_z_rd : DADAORiii<"br.z"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6A;
 +  let Pattern = [];
 +}
 +
 +def br_nz_rd : DADAORiii<"br.nz"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6B;
 +  let Pattern = [];
 +}
 +
 +def br_p_rd : DADAORiii<"br.p"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6C;
 +  let Pattern = [];
 +}
 +
 +def br_np_rd : DADAORiii<"br.np"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6D;
 +  let Pattern = [];
 +}
 +
 +def br_z_rb : DADAORiii<"br.z"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRB:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRB:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x72;
 +  let Pattern = [];
 +}
 +
 +def br_nz_rb : DADAORiii<"br.nz"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRB:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRB:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x73;
 +  let Pattern = [];
 +}
@@ -567,7 +624,10 @@ index 000000000..3fb6760f1
 +
 +def jump_iiii : DADAOIiii<"jump"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins imms24:$imm24);
++  let InOperandList = (ins brtarget24:$imm24);
++  let isBranch = 1;
++  let isTerminator = 1;
++  let isBarrier = 1;
 +  let op = 0x70;
 +  let Pattern = [];
 +}
