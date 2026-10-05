@@ -1,0 +1,173 @@
+# tests/codegen/expected.yaml
+# TESTCASES-026t: expected results for the M3 CodeGen scalar programs.
+#
+# Entry / exit channel (frozen by INTEG-012t):
+#   * every program defines `i64 @main()`;
+#   * crt0 `_start` calls it and writes the returned value (rd31) to the exit
+#     port 0xffff_8000_0000, then halts (`swym`);
+#   * the guest process exit code is that written value.
+#
+# Independent oracle (project hard rule):
+#   `expected_exit_code` is derived on the host from the LLVM IR semantics
+#   (64-bit two's-complement integer arithmetic, big-endian memory per
+#   contract-abi.md §1.7) -- it is NOT produced by llc or QEMU.
+#
+# All expected values are constrained to 0..255 so the process exit-code
+# comparison is unambiguous.  Where a raw IR result is negative (ptr - ptr),
+# the program itself masks with 255 and the raw value is documented below.
+schema: codegen-vectors-v1
+
+conventions:
+  entry: "define i64 @main()"
+  exit_channel: "guest exit code = returned i64 value (0..255)"
+  memory: "big-endian; 8-byte pointer"
+  oracle: "host-side IR-semantics model; not llc/QEMU"
+
+programs:
+  - name: arith_add_sub_neg.ll
+    category: arithmetic
+    expected_exit_code: 246
+    coverage: [C12, arith.add, arith.sub, arith.neg-const]
+    derivation: >-
+      Two volatile-loaded inputs a=-5, b=3 enclose both a negative constant and
+      genuine add/sub.
+      c = add(a,b) = -2 ; d = sub(b,a) = 8 ; e = xor(c,d) = (-2) ^ 8 = -10
+      (0xFFFFFFFFFFFFFFF6) ; r = e & 255 = 0xF6 = 246.
+
+  - name: arith_const_hi_wyde.ll
+    category: arithmetic
+    expected_exit_code: 238
+    coverage: [C12, arith.const-hi-wyde]
+    derivation: >-
+      v = u0xFEDCBA9876543210 (all four wydes non-trivial, forces a
+      set.zw/set.ow + or.w/andn.w sequence).
+      hi = v >> 56 = 0xFE = 254 ; lo = v & 255 = 0x10 = 16 ;
+      x = hi ^ lo = 0xEE = 238 ; r = x & 255 = 238.
+
+  - name: mem_store_load_offset.ll
+    category: memory
+    expected_exit_code: 77
+    coverage: [mem.load-store-offset]
+    derivation: >-
+      buf[0] = 100, buf[1] = 23 ; element 1 is at byte offset 8.
+      r = 100 - 23 = 77.
+
+  - name: mem_narrow_be_bytes.ll
+    category: memory
+    expected_exit_code: 41
+    coverage: [C13, mem.narrow-be, mem.ld-ub, mem.ld-sb]
+    derivation: >-
+      store i64 u0x0102030405060708 -> big-endian bytes 01 02 03 04 05 06 07 08.
+      store i8 -2 at offset 3 -> byte 3 = 0xFE.
+      b0 = zext(load i8 @0) = 0x01 = 1            (ld.ub, offset 0)
+      b7 = zext(load i8 @7) = 0x08 = 8            (ld.ub, offset 7)
+      s3 = sext(load i8 @3) = -2 = 0xFFFFFFFFFFFFFFFE   (ld.sb, offset 3)
+      shi = (s3 >> 8) & 255 = 0xFF = 255          (sign bits observable)
+      r = (b0*10 + b7*100 + shi) & 255 = (10 + 800 + 255) & 255 = 41.
+
+  - name: mem_narrow_be_wide.ll
+    category: memory
+    expected_exit_code: 236
+    coverage: [C13, mem.narrow-be, mem.ld-uw, mem.ld-sw, mem.ld-ut, mem.ld-st]
+    derivation: >-
+      store i64 u0x1122334455667788 -> bytes 11 22 33 44 55 66 77 88.
+      h0 = zext(load i16 @0) = 0x1122 ; a = (h0 >> 8) & 255 = 0x11 = 17   (ld.uw)
+      h6 = zext(load i16 @6) = 0x7788 ; b = h6 & 255       = 0x88 = 136   (ld.uw)
+      w4 = zext(load i32 @4) = 0x55667788 ; c = (w4 >> 24) & 255 = 0x55 = 85 (ld.ut)
+      store i16 -300 @2 ; n = sext(load i16 @2) ; nhi = (n >> 16) & 255 = 255 (ld.sw)
+      store i32 -70000 @0 ; s = sext(load i32 @0) ; shi = (s >> 32) & 255 = 255 (ld.st)
+      r = (a + b + c + nhi + shi) & 255 = (17 + 136 + 85 + 255 + 255) & 255 = 236.
+
+  - name: branch_loop_sum.ll
+    category: branch
+    expected_exit_code: 45
+    coverage: [C17, branch.signed-loop]
+    derivation: >-
+      n = 10 (volatile).  sum = 0 ; i = 0 ; while (i < n) { sum += i ; i += 1 }
+      -> sum = 0+1+...+9 = 45.  if (sum > 40) r = sum else r = 0 -> 45.
+      Predicate `icmp slt` is signed; loop taken/not-taken edges both execute.
+
+  - name: branch_eq_ne.ll
+    category: branch
+    expected_exit_code: 16
+    coverage: [C17, branch.eq-ne]
+    derivation: >-
+      a=7, b=7, c=3, d=9.
+      if (a == b) r = 1 else r = 100       -> r = 1
+      if (c != d) r = r + 10 else r = r+200 -> r = 11
+      r = r + 5                             -> 16.
+
+  - name: branch_ptr.ll
+    category: branch
+    expected_exit_code: 25
+    coverage: [C17, C14, C1, branch.ptr-null, branch.ptr-eq, ptr.cmp]
+    derivation: >-
+      @ptr_checks(p, q): if (p == null) r = 1 else r = 2 ;
+                         if (p == q)    r = r + 4 else r = r + 8.
+      p = &buf (non-null).
+      a = ptr_checks(p, p)    -> p != null -> 2 ; p == q -> 2 + 4 = 6
+      b = ptr_checks(p, null) -> p != null -> 2 ; p != q -> 2 + 8 = 10
+      c = ptr_checks(null, p) -> p == null -> 1 ; p != q -> 1 + 8 = 9
+      r = (6 + 10 + 9) & 255 = 25.
+
+  - name: call_direct_ret.ll
+    category: call
+    expected_exit_code: 9
+    coverage: [call.direct-ret]
+    derivation: >-
+      add3(x, y, z) = x + y + z ; main: 2 + 3 + 4 = 9.
+
+  - name: call_multiarg_stack.ll
+    category: call
+    expected_exit_code: 171
+    coverage: [C4, call.stack-args]
+    derivation: >-
+      18 scalar parameters: rd16..rd31 hold the first 16; x16 and x17 spill to
+      the outgoing stack area in declaration order (8 bytes each).
+      base = 1 ; x_i = base + i for i = 0..17.
+      sum = sum_{i=0}^{17} (base + i) = 18*base + 153 = 18 + 153 = 171.
+
+  - name: call_narrow_args.ll
+    category: call
+    expected_exit_code: 137
+    coverage: [C4, call.narrow-args]
+    derivation: >-
+      narrow(x, y, z, w) = zext(x) + zext(y) + zext(z) + w.
+      x = 200 (i8 0xC8), y = 300, z = 400, w = 5.
+      s = 200 + 300 + 400 + 5 = 905 ; r = 905 & 255 = 137.
+      (Sub-8-byte arguments are canonically extended by the caller, C4.)
+
+  - name: call_ptr_bank.ll
+    category: call
+    expected_exit_code: 42
+    coverage: [C1, C5, call.ptr-bank]
+    derivation: >-
+      buf[3] = 42 ; q = advance(buf, 3) = buf + 3 (pointer return, rb31) ;
+      r = deref(q) = 42 (pointer argument, rb16).
+
+  - name: ptr_add_offset.ll
+    category: memory
+    expected_exit_code: 171
+    coverage: [C14, ptr.add-offset]
+    derivation: >-
+      off = 20 (volatile) ; p = &buf[0] + off ; p[0] = -85 = 0xAB ;
+      r = zext(load i8 from p) = 0xAB = 171.
+      The runtime base+offset is the C14 `add.o` (rb = rb + rd) computation.
+
+  - name: ptr_diff_pos.ll
+    category: arithmetic
+    expected_exit_code: 7
+    coverage: [C14, ptr.diff-pos]
+    derivation: >-
+      p = &buf[10], q = &buf[3] ; r = (i64)p - (i64)q = 10 - 3 = 7.
+      Two pointer formal parameters (GPRB) -> single `sub.o_orrr_dbb`.
+
+  - name: ptr_diff_neg.ll
+    category: arithmetic
+    expected_exit_code: 249
+    coverage: [C14, ptr.diff-neg]
+    derivation: >-
+      p = &buf[10], q = &buf[3] ; d = (i64)q - (i64)p = 3 - 10 = -7
+      (raw 64-bit 0xFFFFFFFFFFFFFFF9) ; r = d & 255 = 0xF9 = 249.
+      Masking to 8 bits keeps the process exit-code channel unambiguous; the
+      raw 64-bit negative difference is what `sub.o_orrr_dbb` must produce.

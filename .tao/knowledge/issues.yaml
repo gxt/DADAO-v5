@@ -728,3 +728,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-041t 最小重定位仅就地解析同-section PCRel 符号；未定义/跨-section 返回 nullopt，立即数静默为 0、无 relocation。属完整重定位（contract-elf §2-§4 / LLD / ISS-008）→M4。静默留 0 可能掩盖错误，M4 宜改为显式报错或落 relocation。"
+
+- id: ISS-143
+  title: "后端缺口：sext i8/i16/i32 形参（sign_extend_inreg）无 ISel → 有符号窄参数扩展（C4）无法编译（abort 134）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "TESTCASES-026t 发现并 reviewer 独立复现：sign_extend_inreg 无 SelectionDAG pattern；call_narrow_args.ll 暂只用无符号窄参数。需另立 LLVM 任务补 ISel（有符号窄参数 caller 扩展，C4）。"
