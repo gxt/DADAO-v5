@@ -354,12 +354,21 @@ check-fp-contract:
 # via --jobs $(JOBS) (JOBS defaults to 8; never nproc/full-core).
 # Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
 # D6 compliance: gate dir under TEST_ARTIFACTS_DIR, log under .work/log/qemu/.
+# ISS-089: the gate dir is transient, so the setup must be explicit — create it,
+# then verify each vector is a symlink resolving to the expected file. ln errors
+# are NOT swallowed (a silent failure would feed the gate the wrong/empty input).
 QEMU_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
 QEMU_SEM_LOG = .work/log/qemu/check-qemu-semantics.log
+QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors/isa
 check-qemu-semantics:
-	@mkdir -p $(QEMU_SEM_DIR) .work/log/qemu && \
-	  ln -sf $(CURDIR)/tests/vectors/isa/reg-shift-extend.yaml $(QEMU_SEM_DIR)/ 2>/dev/null; \
-	  ln -sf $(CURDIR)/tests/vectors/isa/reg-compare.yaml $(QEMU_SEM_DIR)/ 2>/dev/null; \
+	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }; \
+	  mkdir -p $(QEMU_SEM_DIR) || { echo "check-qemu-semantics: ERROR: cannot create gate dir $(QEMU_SEM_DIR) (path occupied?)"; exit 1; }; \
+	  for v in reg-shift-extend.yaml reg-compare.yaml; do \
+	    [ -e $(QEMU_SEM_VEC_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: vector $(QEMU_SEM_VEC_DIR)/$$v not found"; exit 1; }; \
+	    ln -sf $(QEMU_SEM_VEC_DIR)/$$v $(QEMU_SEM_DIR)/$$v || { echo "check-qemu-semantics: ERROR: failed to symlink $$v into $(QEMU_SEM_DIR)"; exit 1; }; \
+	    [ -L $(QEMU_SEM_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$v is not a symlink (stale/occupied path?)"; exit 1; }; \
+	    [ "$$(readlink -f $(QEMU_SEM_DIR)/$$v)" = "$$(readlink -f $(QEMU_SEM_VEC_DIR)/$$v)" ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$v does not point to $(QEMU_SEM_VEC_DIR)/$$v"; exit 1; }; \
+	  done; \
 	  echo "check-qemu-semantics: running shift+compare (all cases)..."; \
 	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) --jobs $(JOBS) > $(QEMU_SEM_LOG) 2>&1; \
 	  rc=$$?; \
