@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000000..13a1f1976802
+index 000000000..c2ad88083
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,190 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -14,7 +14,11 @@ index 000000000000..13a1f1976802
 +//
 +// This file implements the DADAO AsmBackend.
 +// DADAO branch/jump fixup: imms = (target_byte_addr - current_byte_addr) >> 2
-+// No +4 pipeline offset (contract-isa.md §5.1–§5.4).
++// No +4 pipeline offset (contract-isa.md §8.2–§8.4); rb0 reads the PC of the
++// current instruction, so the displacement is measured from the instruction
++// itself (contract-isa.md §1.3.2).
++// M1 resolves section-local labels in place, including STB_GLOBAL functions
++// (contract-elf.md §6: single self-contained TU, no relocations).
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -26,9 +30,11 @@ index 000000000000..13a1f1976802
 +#include "llvm/MC/MCELFObjectWriter.h"
 +#include "llvm/MC/MCFixup.h"
 +#include "llvm/MC/MCObjectWriter.h"
++#include "llvm/MC/MCSymbol.h"
 +#include "llvm/MC/MCSubtargetInfo.h"
 +#include "llvm/MC/MCValue.h"
 +#include "llvm/Support/Endian.h"
++#include <optional>
 +
 +using namespace llvm;
 +
@@ -61,6 +67,49 @@ index 000000000000..13a1f1976802
 +      return Infos[Kind - llvm::DADAO::DADAO_FK_PCRel_12];
 +
 +    return MCAsmBackend::getFixupKindInfo(Kind);
++  }
++
++  // M1 self-contained TU: section-local labels are resolved in place.
++  //
++  // The shared ELF writer (ELFObjectWriter::isSymbolRefDifferenceFullyResolved-
++  // Impl) conservatively refuses to fold a PC-relative reference to an
++  // STB_GLOBAL symbol, because such a symbol is interposable at link time in
++  // general. M1 has no linker and requires the single translation unit to be
++  // self-contained (contract-elf.md §6), so any symbol *defined in the same
++  // section* — including globally-visible functions such as `callee` — must be
++  // folded here. Otherwise the immediate stays 0 and `call`/`br` targets
++  // address 0.
++  //
++  // Returning a value from this hook tells MCAssembler::evaluateFixup to treat
++  // the fixup as resolved and to skip the writer's conservatism; the hook must
++  // compute Value itself, mirroring the default (target - PC) computation.
++  std::optional<bool> evaluateFixup(const MCFragment &F, MCFixup &Fixup,
++                                    MCValue &Target,
++                                    uint64_t &Value) override {
++    unsigned Kind = Fixup.getKind();
++    if (Kind < llvm::DADAO::DADAO_FK_PCRel_12 ||
++        Kind > llvm::DADAO::DADAO_FK_PCRel_24)
++      return std::nullopt;
++    if (!Fixup.isPCRel())
++      return std::nullopt;
++
++    const MCSymbol *Add = Target.getAddSym();
++    const MCSymbol *Sub = Target.getSubSym();
++    if (!Add || Sub || Add->isUndefined() || Add->isAbsolute())
++      return std::nullopt;
++
++    // Resolve only same-section labels; a reference to another section (or an
++    // undefined symbol) is the M4 cross-symbol case and is left unresolved.
++    if (&Add->getSection() != F.getParent())
++      return std::nullopt;
++
++    // (target - PC): the symbol's section offset minus the fixup's own address.
++    // applyFixup() then shifts right by 2 and masks into the immediate field.
++    uint64_t V = Target.getConstant();
++    V += Asm->getSymbolOffset(*Add);
++    V -= Asm->getFragmentOffset(F) + Fixup.getOffset();
++    Value = V;
++    return true;
 +  }
 +
 +  void applyFixup(const MCFragment &F, const MCFixup &Fixup,

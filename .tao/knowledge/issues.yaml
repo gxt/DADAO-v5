@@ -720,3 +720,11 @@
   blocks: []
   resolved_by: "LLVM-040t（用户 2026-10-05 确认按 ADR-0013 D4 接受；任务书 §验收2 已订正为 call [rb0, callee]）"
   notes: "engineer 实际输出 call [rb0, callee]（符合 ADR-0013 D4；裸 call callee 亦被 AsmParser 规整回 [rb0, callee]，MCInstPrinter 经 lit 验证）。用户裁定：按 ADR-0013 D4 接受，关闭。"
+
+- id: ISS-142
+  title: "未定义外部符号 / 跨 section 引用静默留 0 且不落 relocation（完整重定位→M4）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-041t 最小重定位仅就地解析同-section PCRel 符号；未定义/跨-section 返回 nullopt，立即数静默为 0、无 relocation。属完整重定位（contract-elf §2-§4 / LLD / ISS-008）→M4。静默留 0 可能掩盖错误，M4 宜改为显式报错或落 relocation。"
