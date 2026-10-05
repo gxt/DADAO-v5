@@ -760,3 +760,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-048t：tests/codegen/ptr_add_offset.s 误入仓库随提交（已 dca57b8 清理 + .gitignore 加 tests/codegen/*.s|.o|.bin）。教训：证据/验证命令须在 .work/ 或 /tmp 运行，产物勿落仓库测试目录；收尾须核对 git status --untracked-files=all。reviewer 审计未捕获该残留。"
+
+- id: ISS-147
+  title: "INTEG-012t E2E 期望值落入 fault 区 0x80–0xFF（137==0x89==UNDI）→ false-PASS 风险"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "reviewer 判非阻塞但真实：真 UNDI fault 会被误判 PASS。建议另立 TESTCASES 任务把 tests/codegen 期望返回值约束到 0x00–0x7F。"

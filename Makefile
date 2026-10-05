@@ -42,6 +42,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
+        test-codegen \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants
 
@@ -82,6 +83,7 @@ help:
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose ```simrisc blocks vs opcodes.yaml (ISS-077)"
 	@echo "  make check-lit        Run lit MC + E2E tests (requires build-mc + build-qemu)"
+	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
 	@echo "  make check-patch-tree  Check component patch tree (spec/Process-01, 9 assertions)"
 	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
@@ -311,6 +313,36 @@ LIT_BIN = $(LLVM_BUILD)/bin/llvm-lit
 check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make build-mc' first"; exit 1; }
 	$(LIT_BIN) tests/lit/MC/Dadao tests/lit/E2E -v
+
+# M3 CodeGen end-to-end gate (INTEG-012t).  Reuses the build-mc/build-qemu
+# build trees.  Pipeline (single TU, per ADR-0003 D5):
+#   llc -march=dadao <prog.ll> -> .s; cat codegen_crt0.s prog.s -> .s;
+#   llvm-mc --triple=dadao -filetype=obj -> .o;
+#   llvm-objcopy -O binary --only-section=.text -> .bin;
+#   qemu-system-dadao -M dadao-m1 -bios trampoline.bin -kernel .bin ...
+# The guest process exit code is compared against tests/codegen/expected.yaml.
+# Fail-closed: any mismatch / timeout / machine fault => non-zero exit.
+LLC_BIN = $(LLVM_BUILD)/bin/llc
+LLVM_MC_BIN = $(LLVM_BUILD)/bin/llvm-mc
+LLVM_OBJCOPY_BIN = $(LLVM_BUILD)/bin/llvm-objcopy
+QEMU_BIN = $(QEMU_BUILD)/qemu-system-dadao
+CODEGEN_E2E_WORK = .work/log/integ/codegen-e2e
+CODEGEN_E2E_LOG = .work/log/integ/test-codegen.log
+test-codegen: build-mc build-qemu
+	@test -x $(LLC_BIN) || { echo "test-codegen: ERROR: $(LLC_BIN) not found"; exit 1; }
+	@test -x $(LLVM_MC_BIN) || { echo "test-codegen: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
+	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-codegen: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
+	@test -x $(QEMU_BIN) || { echo "test-codegen: ERROR: $(QEMU_BIN) not found"; exit 1; }
+	@mkdir -p .work/log/integ; \
+	  $(PYTHON) tools/integ/run_codegen_e2e.py \
+	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
+	    --qemu $(QEMU_BIN) --trampoline tests/scripts/trampoline.bin \
+	    --crt0 tests/scripts/codegen_crt0.s --work-dir $(CODEGEN_E2E_WORK) \
+	    > $(CODEGEN_E2E_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -20 $(CODEGEN_E2E_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-codegen: FAIL (rc=$$rc)"; exit $$rc; fi; \
+	  echo "test-codegen: PASS"
 
 # Legality drift gate (SPEC-074t): verifies LEGALITY sections in
 # spec/SimRISC-01..12 exactly match content rendered from contracts/.
