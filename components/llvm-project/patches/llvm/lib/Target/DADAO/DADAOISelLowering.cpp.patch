@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..83ae550f5
+index 000000000..96e67a3de
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,148 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -15,6 +15,8 @@ index 000000000..83ae550f5
 +// M3 SelectionDAG lowering (LLVM-033t skeleton + LLVM-034t value types):
 +//   - register MVT::i64 with the GPRD (data) register class (C1/C2, ADR-0018)
 +//   - force pointer/address formal arguments into GPRB virtual registers
++//   - mark narrow (i8/i16/i32) extending loads and truncating stores as Legal
++//     so the corresponding ISel patterns match them (LLVM-036t; C13, ADR-0018)
 +//   - minimal LowerFormalArguments / LowerReturn sufficient to lower a
 +//     `ret`-only scalar/pointer function to MIR.
 +//
@@ -40,6 +42,20 @@ index 000000000..83ae550f5
 +  // M3 skeleton: i64 covers both data and pointers (C2, ADR-0018); pointers
 +  // are forced into GPRB by the calling convention / ISel in LLVM-034t.
 +  addRegisterClass(MVT::i64, &DADAO::GPRDRegClass);
++
++  // Narrow memory accesses (LLVM-036t; C13, ADR-0018).  All load extension
++  // kinds and truncating stores between i64 and i8/i16/i32 are legal: the
++  // DADAO narrow loads/stores (ld.ub/sb/uw/sw/ut/st, st.b/w/t) perform the
++  // byte/wyde/tetra access and the (zero/sign) extension in one instruction,
++  // writing all 64 bits of the destination.  This keeps the extload/truncstore
++  // nodes intact so the DADAOCodeGen.td patterns can select them.
++  for (MVT VT : {MVT::i8, MVT::i16, MVT::i32}) {
++    setLoadExtAction(ISD::EXTLOAD, MVT::i64, VT, Legal);
++    setLoadExtAction(ISD::SEXTLOAD, MVT::i64, VT, Legal);
++    setLoadExtAction(ISD::ZEXTLOAD, MVT::i64, VT, Legal);
++    setTruncStoreAction(MVT::i64, VT, Legal);
++  }
++
 +  computeRegisterProperties(STI.getRegisterInfo());
 +}
 +

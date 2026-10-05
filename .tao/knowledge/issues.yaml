@@ -680,3 +680,11 @@
   blocks: []
   resolved_by: null
   notes: "SPEC-102t reviewer 判：越出该任务「仅改 5 处」范围，建议另立小任务统一刷新（含 opcodes=228、rule_refs 计数）。"
+
+- id: ISS-137
+  title: "C14 D1 未实现：指针算术应直接落 GPRB（单条 add.o）；当前超 imm12 偏移经 GPRD 算术 + rb2rd/rd2rb"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-036t reviewer 判非阻塞（该任务只要求 base+imm12）。终态见 ADR-0018 C14 D1（base+offset 单条 add.o）。建议随指针算术/GEP lowering 任务补齐。"

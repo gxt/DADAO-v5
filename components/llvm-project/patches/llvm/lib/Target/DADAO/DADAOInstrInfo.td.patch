@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..b72a7e2f6
+index 000000000..3fb6760f1
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1314 @@
+@@ -0,0 +1,1329 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -138,6 +138,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x10;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -145,6 +146,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x11;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -152,6 +154,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x12;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -159,6 +162,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x13;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -166,6 +170,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x14;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -173,6 +178,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x15;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -180,6 +186,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRD:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x18;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -187,6 +194,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRD:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x19;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -194,6 +202,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRD:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x1A;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -201,6 +210,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x20;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -208,6 +218,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRD:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x21;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -215,6 +226,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs GPRB:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x22;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -222,6 +234,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRB:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x23;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -229,6 +242,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs GPRA:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x24;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -236,6 +250,7 @@ index 000000000..b72a7e2f6
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRA:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x25;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +

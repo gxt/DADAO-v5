@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..8b4591f52
+index 000000000..5fd44eb83
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,190 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,13 +13,14 @@ index 000000000..8b4591f52
 +//===----------------------------------------------------------------------===//
 +//
 +// SelectionDAG target nodes, CodeGen-only pseudo instructions and i64 ISel
-+// patterns for the DADAO M3 backend (LLVM-033t skeleton, LLVM-035t i64
-+// arithmetic/constants).
++// patterns for the DADAO M3 backend (LLVM-033t skeleton; LLVM-035t i64
++// arithmetic/constants; LLVM-036t scalar load/store).
 +//
-+// The instruction definitions in DADAOInstrInfo.td are auto-generated from
++// The instruction definitions in DADAOInstrInfo.td are generated from
 +// contracts/opcodes.yaml and carry no patterns.  This file adds the CodeGen
 +// glue: `llc -march=dadao -stop-after=finalize-isel` can lower scalar
-+// add/sub/mul/and/or/xor/shift/div/rem and 64-bit constants to MIR.
++// add/sub/mul/and/or/xor/shift/div/rem, 64-bit constants and scalar
++// load/store to MIR.
 +//
 +// The real `ret` instruction (ret_riii) is expanded later (LLVM-040t); here a
 +// CodeGen-only pseudo terminates the function so the MIR can be inspected.
@@ -114,3 +115,82 @@ index 000000000..8b4591f52
 +def : Pat<(sdiv GPRD:$a, GPRD:$b), (div_so GPRD:$a, GPRD:$b)>;
 +def : Pat<(urem GPRD:$a, GPRD:$b), (rem_uo GPRD:$a, GPRD:$b)>;
 +def : Pat<(srem GPRD:$a, GPRD:$b), (rem_so GPRD:$a, GPRD:$b)>;
++
++//===----------------------------------------------------------------------===//
++// Scalar load/store (LLVM-036t; C13/C14, ADR-0018)
++//
++// Address = GPRB base + sign-extended 12-bit immediate (contract-isa.md
++// §3.1.1, C14 D3).  The base is forced into GPRB (C14 D5: RB is the base
++// bank).  Offsets that do not fit simm12 are not folded into these patterns;
++// the DAG keeps a separate 64-bit add which the generic i64 arithmetic
++// patterns (ADD_IMM_PSEUDO / ADD_PSEUDO) materialize, after which the address
++// is moved into GPRB.  Correct, though not yet the single-instruction
++// `add.o` (C14 D1) form.
++//
++// Narrow accesses are big-endian.  `ld.ub/uw/ut` zero-extend and `ld.sb/sw/st`
++// sign-extend, each writing all 64 bits (SPEC-069t value semantics); stores
++// `st.b/w/t` write the low 8/16/32 bits (contract-isa.md §3.1.1).  The load
++// extension and truncating-store actions are marked Legal in
++// DADAOTargetLowering so the extload/truncstore nodes reach ISel.  Because the
++// target is big-endian, the byte offsets produced by DAGCombine (e.g.
++// ReduceLoadWidth narrowing a wide load plus shift) are BE-derived; matching
++// them via `(add base, simm12)` is what avoids the 0628 DL-068a silent
++// miscompile.
++//===----------------------------------------------------------------------===//
++
++// Signed 12-bit offset matching the `imms12` operand.
++def simm12imm : ImmLeaf<i64, [{ return isInt<12>(Imm); }]>;
++
++// 64-bit load/store (ld.o / st.o, RD variants).
++def : Pat<(load GPRB:$base), (ld_o_rd GPRB:$base, 0)>;
++def : Pat<(load (add GPRB:$base, simm12imm:$off)),
++          (ld_o_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(store GPRD:$val, GPRB:$base), (st_o_rd GPRD:$val, GPRB:$base, 0)>;
++def : Pat<(store GPRD:$val, (add GPRB:$base, simm12imm:$off)),
++          (st_o_rd GPRD:$val, GPRB:$base, simm12imm:$off)>;
++
++// i8: zero/any extension -> ld.ub, sign extension -> ld.sb, truncating store
++// -> st.b.
++def : Pat<(i64 (extloadi8 GPRB:$base)), (ld_ub_rd GPRB:$base, 0)>;
++def : Pat<(i64 (extloadi8 (add GPRB:$base, simm12imm:$off))),
++          (ld_ub_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(i64 (zextloadi8 GPRB:$base)), (ld_ub_rd GPRB:$base, 0)>;
++def : Pat<(i64 (zextloadi8 (add GPRB:$base, simm12imm:$off))),
++          (ld_ub_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(i64 (sextloadi8 GPRB:$base)), (ld_sb_rd GPRB:$base, 0)>;
++def : Pat<(i64 (sextloadi8 (add GPRB:$base, simm12imm:$off))),
++          (ld_sb_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(truncstorei8 GPRD:$val, GPRB:$base),
++          (st_b_rd GPRD:$val, GPRB:$base, 0)>;
++def : Pat<(truncstorei8 GPRD:$val, (add GPRB:$base, simm12imm:$off)),
++          (st_b_rd GPRD:$val, GPRB:$base, simm12imm:$off)>;
++
++// i16 (wyde): ld.uw / ld.sw / st.w.
++def : Pat<(i64 (extloadi16 GPRB:$base)), (ld_uw_rd GPRB:$base, 0)>;
++def : Pat<(i64 (extloadi16 (add GPRB:$base, simm12imm:$off))),
++          (ld_uw_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(i64 (zextloadi16 GPRB:$base)), (ld_uw_rd GPRB:$base, 0)>;
++def : Pat<(i64 (zextloadi16 (add GPRB:$base, simm12imm:$off))),
++          (ld_uw_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(i64 (sextloadi16 GPRB:$base)), (ld_sw_rd GPRB:$base, 0)>;
++def : Pat<(i64 (sextloadi16 (add GPRB:$base, simm12imm:$off))),
++          (ld_sw_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(truncstorei16 GPRD:$val, GPRB:$base),
++          (st_w_rd GPRD:$val, GPRB:$base, 0)>;
++def : Pat<(truncstorei16 GPRD:$val, (add GPRB:$base, simm12imm:$off)),
++          (st_w_rd GPRD:$val, GPRB:$base, simm12imm:$off)>;
++
++// i32 (tetra): ld.ut / ld.st / st.t.
++def : Pat<(i64 (extloadi32 GPRB:$base)), (ld_ut_rd GPRB:$base, 0)>;
++def : Pat<(i64 (extloadi32 (add GPRB:$base, simm12imm:$off))),
++          (ld_ut_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(i64 (zextloadi32 GPRB:$base)), (ld_ut_rd GPRB:$base, 0)>;
++def : Pat<(i64 (zextloadi32 (add GPRB:$base, simm12imm:$off))),
++          (ld_ut_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(i64 (sextloadi32 GPRB:$base)), (ld_st_rd GPRB:$base, 0)>;
++def : Pat<(i64 (sextloadi32 (add GPRB:$base, simm12imm:$off))),
++          (ld_st_rd GPRB:$base, simm12imm:$off)>;
++def : Pat<(truncstorei32 GPRD:$val, GPRB:$base),
++          (st_t_rd GPRD:$val, GPRB:$base, 0)>;
++def : Pat<(truncstorei32 GPRD:$val, (add GPRB:$base, simm12imm:$off)),
++          (st_t_rd GPRD:$val, GPRB:$base, simm12imm:$off)>;
