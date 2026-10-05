@@ -159,6 +159,13 @@ TESTS = [
     # riii_branch.s: br.np {rd0}?, [rb0, 16] (16 bytes >> 2 = 4, op=0x6D)
     ("br.np {rd0}?, [rb0, 16]", encode_riii(0x6D, 0, 4)),
 
+    # LLVM-049t: br.z/br.nz bank variants (expression-offset bypass must select
+    # by operand bank).  Same register/offset, RD bank -> 0x6A/0x6B, RB -> 0x72/0x73.
+    ("br.z {rd16}?, [rb0, 16]", encode_riii(0x6A, 16, 4)),
+    ("br.nz {rd16}?, [rb0, 16]", encode_riii(0x6B, 16, 4)),
+    ("br.z {rb16}?, [rb0, 16]", encode_riii(0x72, 16, 4)),
+    ("br.nz {rb16}?, [rb0, 16]", encode_riii(0x73, 16, 4)),
+
     # rrii_branch.s: br.eq {rd8, rd0}?, [rb0, 16] (16 bytes >> 2 = 4, op=0x6E)
     ("br.eq {rd8, rd0}?, [rb0, 16]", encode_rrii(0x6E, 8, 0, 4)),
 

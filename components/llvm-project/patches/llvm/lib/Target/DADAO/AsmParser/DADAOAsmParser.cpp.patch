@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..5788d116b
+index 000000000..cae16fd80
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1405 @@
+@@ -0,0 +1,1430 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -36,6 +36,7 @@ index 000000000..5788d116b
 +#include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 +#include "llvm/MC/MCParser/MCTargetAsmParser.h"
 +#include "llvm/MC/MCRegister.h"
++#include "llvm/MC/MCRegisterInfo.h"
 +#include "llvm/MC/MCStreamer.h"
 +#include "llvm/MC/MCSubtargetInfo.h"
 +#include "llvm/MC/MCTargetOptions.h"
@@ -1240,23 +1241,47 @@ index 000000000..5788d116b
 +                                       Flat[1]->getEndLoc());
 +  }
 +
-+  // For riii br.* with expression offset: bypass matcher.
++  // For riii br.* with expression offset: bypass matcher.  Unlike the numeric
++  // offset path (which funnels through MatchInstructionImpl and is therefore
++  // bank-aware), this bypass builds the MCInst directly and must pick the
++  // variant itself: `br.z`/`br.nz` have both an RD (GPRD) and an RB (GPRB)
++  // variant, while `br.n`/`br.nn`/`br.p`/`br.np` only have the RD variant.
++  // Selecting purely from the mnemonic silently mis-encodes `br.z {rbN}?` /
++  // `br.nz {rbN}?` as the RD variant (op 0x6A/0x6B) even though the operand is
++  // a base register; the hardware then tests the wrong bank.
 +  if (Mnemonic.starts_with("br.") && Flat.size() == 3 && Flat[2]->isImm()) {
 +    auto *DOp = static_cast<DADAOOperand *>(Flat[2].get());
 +    if (DOp->getImmExpr()) {
-+      // Map mnemonic to opcode.
++      MCRegister Reg = static_cast<DADAOOperand *>(Flat[1].get())->getReg();
++      const MCRegisterInfo *RI = getContext().getRegisterInfo();
++      bool IsGPRB = RI->getRegClass(DADAO::GPRBRegClassID).contains(Reg);
++      bool IsGPRD = RI->getRegClass(DADAO::GPRDRegClassID).contains(Reg);
++
++      // Map mnemonic + operand bank to opcode.  0 means "no variant accepts
++      // this operand", mirroring the matcher's rejection of e.g. an RF/RA
++      // operand or an RB operand on a single-variant branch.
 +      unsigned Opcode;
-+      if (Mnemonic == "br.n") Opcode = DADAO::br_n_rd;
-+      else if (Mnemonic == "br.nn") Opcode = DADAO::br_nn_rd;
-+      else if (Mnemonic == "br.z") Opcode = DADAO::br_z_rd;
-+      else if (Mnemonic == "br.nz") Opcode = DADAO::br_nz_rd;
-+      else if (Mnemonic == "br.p") Opcode = DADAO::br_p_rd;
-+      else if (Mnemonic == "br.np") Opcode = DADAO::br_np_rd;
-+      else return Error(IDLoc, "unrecognized branch mnemonic");
++      if (Mnemonic == "br.z")
++        Opcode = IsGPRB ? DADAO::br_z_rb : (IsGPRD ? DADAO::br_z_rd : 0);
++      else if (Mnemonic == "br.nz")
++        Opcode = IsGPRB ? DADAO::br_nz_rb : (IsGPRD ? DADAO::br_nz_rd : 0);
++      else if (Mnemonic == "br.n")
++        Opcode = IsGPRD ? DADAO::br_n_rd : 0;
++      else if (Mnemonic == "br.nn")
++        Opcode = IsGPRD ? DADAO::br_nn_rd : 0;
++      else if (Mnemonic == "br.p")
++        Opcode = IsGPRD ? DADAO::br_p_rd : 0;
++      else if (Mnemonic == "br.np")
++        Opcode = IsGPRD ? DADAO::br_np_rd : 0;
++      else
++        return Error(IDLoc, "unrecognized branch mnemonic");
++      if (Opcode == 0)
++        return Error(Flat[1]->getStartLoc(),
++                     "invalid operand for '" + Mnemonic.str() + "'");
++
 +      MCInst Inst;
 +      Inst.setOpcode(Opcode);
-+      Inst.addOperand(MCOperand::createReg(
-+          static_cast<DADAOOperand *>(Flat[1].get())->getReg()));
++      Inst.addOperand(MCOperand::createReg(Reg));
 +      Inst.addOperand(MCOperand::createExpr(DOp->getImmExpr()));
 +      Out.emitInstruction(Inst, getSTI());
 +      return false;
