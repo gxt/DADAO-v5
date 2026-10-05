@@ -24,6 +24,6 @@
 
 `spec/`（0.5.4）→ 投影（`contracts/*`、`contract-*.md`）→ checker 三层机械一致；浮点实现侧收口并冻结接口；偏离台账成型，为后续 CodeGen 提供稳定契约。
 
-**M3 — Basic CodeGen（纯整数）**（进行中）
+**M3 — Basic CodeGen（纯整数）**（已达成，2026-10-05）
 
-`llc` 将标量整数/指针函数（LLVM IR）编译为 DADAO 汇编，经 MC → 单 TU obj/raw binary → `qemu-system-dadao` 执行结果正确（freestanding、单 TU 自包含、无链接器）。
+`llc` 将标量整数/指针函数（LLVM IR）编译为 DADAO 汇编，经 MC → 单 TU obj/raw binary → `qemu-system-dadao` 执行结果正确（freestanding、单 TU 自包含、无链接器）。门槛 `make test-codegen` 全绿——算术 / 访存（含大端窄访存）/ 分支 / 调用四类函数，以及指针算术（含指针差）均端到端通过。浮点/浮点寄存器、完整调用约定与完整重定位留待后续里程碑。
