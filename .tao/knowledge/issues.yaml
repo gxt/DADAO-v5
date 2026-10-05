@@ -10,8 +10,11 @@
 #   M3 = ✅ 达成（「Basic CodeGen（纯整数）」，2026-10-04 用户重定义；门槛
 #        `make test-codegen` 15/15；5/5 模块 m 全置：INFRA-036m / SPEC-099m /
 #        TESTCASES-027m / LLVM-042m / INTEG-013m；2026-10-05 达成）
-#   M4 = 未规划（后续；FP/RF codegen、完整调用约定、完整重定位、clang targetinfo/driver 等，
-#        见 `SPEC-096k §M4 交接` 与 `.tao/knowledge/milestones.md`）
+#   M4 = 规划中（「ELF 文件支持 + LLD 链接 + 汇编器遗留收口」，2026-10-05 用户裁定；
+#        四块：汇编器遗留 / ELF 产出规范（含全局数据段）/ LLD 链接器 / QEMU ELF 加载；
+#        参考基线：主对标 RISC-V 64，端序参考 PPC64 BE（+s390x），双 bank 历史参考 M68K；
+#        TDD（测试驱动）；不含 FP/RF、完整调用约定、clang、libc/OS/syscall；
+#        见 `.tao/knowledge/milestones.md` 与 `.tao/knowledge/project_M4-*.md`（待建））
 #
 # M1-gate 定义（历史注，2026-09-21 用户裁定）：
 #   blocks: [M1-gate] = 直接阻断「任一模块 M1 里程碑」的 open 项。
