@@ -28,7 +28,7 @@
 2. `.s` 产出（真实输出）：
    - `define i64 @add(i64 %a,i64 %b){ %s=add i64 %a,%b  ret i64 %s }` → `llc -march=dadao` 出 `.s`，`grep -c PSEUDO` = 0；
    - `define i64 @ld(ptr %p){ %v=load i64,ptr %p  ret i64 %v }` → `.s` 无 pseudo；
-   - caller/callee（`LLVM-039t` 的用例）→ `.s` 含 `call callee`、参数按 ABI 就位、无 pseudo。
+   - caller/callee（`LLVM-039t` 的用例）→ `.s` 含 `call [rb0, callee]`（记法见 `ADR-0013 D4`；`callee` 为函数符号、非寄存器）、参数按 ABI 就位、无 pseudo。
 3. `llvm-mc -triple=dadao -filetype=obj <.s>` 对以上每个 `.s` 退出 0（**不 grep，看 exit code**）。
 4. `llvm-objdump -d` 反汇编回流能对上助记符（可选，作为 cross-check）。
 5. 不回归 `make check-lit`；补丁导出且 `make check-patch-tree` 通过。
