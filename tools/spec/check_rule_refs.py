@@ -2,7 +2,8 @@
 """规则引用双向门控（SPEC-071t）。
 
 门控 1（ID 存在性）：每条指令 rule_refs 的所有 id 必须 ∈ legality_rules.yaml 的 id 集合。
-门控 2（孤儿规则）：status: active 的规则至少被 1 条指令引用。
+孤儿规则检测：由下方「孤儿豁免清单自检」承担——active 且 0 引用且不在豁免清单内的
+规则会先触发自检 FAIL（因此旧的 gate2 循环分支恒不可达，已于 SPEC-103t 删除）。
   豁免清单：{excp_ialign, excp_rasof, excp_rasuf, excp_undi}——
   运行时/兜底规则，不由编码 legality 表达式触发。
   status: deferred 允许 0 引用。
@@ -68,30 +69,19 @@ def main():
                       f"不在 legality_rules.yaml 中", file=sys.stderr)
                 gate1_fail = True
 
-    # ── 门控 2：孤儿规则 ──
-    # 统计每条规则被多少条指令引用
+    # ── 孤儿规则：由「孤儿豁免清单自检」（文件顶部）承担 ──
+    # SPEC-103t / ISS-123：原 gate2 循环（active 且 0 引用且非豁免 ⇒ FAIL）恒不可达——
+    # 任何此类规则都会先被上面 actual_exempt != EXPECTED_ORPHAN_EXEMPTIONS 自检捕获并 exit(1)。
+    # 故删除该死代码，孤儿检测语义不变（自检更严格：还断言豁免清单恰为 4 条）。
+    # ref_count 仅用于下方摘要统计。
     ref_count = {rid: 0 for rid in valid_ids}
     for oc in opcodes:
         for ref in oc.get("rule_refs", []):
             if ref in ref_count:
                 ref_count[ref] += 1
 
-    gate2_fail = False
-    for r in rules:
-        rid = r["id"]
-        if r["status"] == "deferred":
-            continue  # deferred 允许 0 引用
-        # active 规则：豁免清单内的允许 0 引用
-        if rid in EXPECTED_ORPHAN_EXEMPTIONS:
-            continue
-        if ref_count.get(rid, 0) == 0:
-            print(f"FAIL [Gate 2] active 规则 '{rid}' 未被任何指令引用（孤儿）",
-                  file=sys.stderr)
-            gate2_fail = True
-
-    if gate1_fail or gate2_fail:
-        print(f"check-rule-refs: FAIL (gate1={'FAIL' if gate1_fail else 'OK'}, "
-              f"gate2={'FAIL' if gate2_fail else 'OK'})", file=sys.stderr)
+    if gate1_fail:
+        print("check-rule-refs: FAIL (gate1=FAIL)", file=sys.stderr)
         sys.exit(1)
 
     # 打印摘要

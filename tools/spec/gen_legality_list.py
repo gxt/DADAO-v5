@@ -302,6 +302,7 @@ def main() -> int:
 
     # Generate legality blocks for each chapter
     chapter_blocks: dict[str, str] = {}
+    verify_failed = False
     for cls in SECTION_ORDER:
         if cls not in CLASS_TO_SPEC:
             continue
@@ -332,8 +333,10 @@ def main() -> int:
             print(f"gen-legality: {spec_rel} {status}")
             if not ok:
                 print(f"  Expected block not found in {spec_path}")
+                verify_failed = True
 
-    return 0
+    # ISS-122: --verify must fail (non-zero) on MISMATCH; --dry-run/--apply unchanged.
+    return 1 if verify_failed else 0
 
 
 if __name__ == "__main__":

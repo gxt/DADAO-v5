@@ -288,10 +288,10 @@
 
 - id: ISS-077
   title: "spec 正文代码块无永久门控——12 章正文新汇编格式正确性仅靠任务级 reviewer 脚本"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-103t
   notes: "原 backlog L45。若要机制化防回退，需新增检查器（对正文 ```simrisc 块逐行比对生成表；伪指令行需例外表）并接入 make check。"
 
 - id: ISS-078
@@ -304,10 +304,10 @@
 
 - id: ISS-079
   title: "SPEC-067t F4 门控覆盖缺口：ftroot/foroot n=2 约束与规则改名无机械门控"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-103t
   notes: "原 backlog L49、L233。SPEC-065t 收口（rule_refs + 合法性 drift 门控，SPEC-071t/074t）不覆盖该散文约束，仍为独立候选。"
 
 - id: ISS-080
@@ -560,18 +560,18 @@
 
 - id: ISS-122
   title: "gen_legality_list.py --verify 检出 MISMATCH 仍 return 0"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-103t
   notes: "原 backlog L223。现由 check-legality-drift 承担；--verify 是否顺带修留后续（可选）。"
 
 - id: ISS-123
   title: "check_rule_refs.py 的 gate2_fail 分支不可达"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-103t
   notes: "原 backlog L224。豁免自检先行退出，孤儿情形仍由自检报 EXIT=1、无假 PASS；建议随 drift 门控一并精简。"
 
 - id: ISS-124

@@ -43,7 +43,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
         check-patch-tree check-source-state check-asm-list-drift size-report \
-        check-tasks
+        check-tasks check-spec-codeblocks check-legality-invariants
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -80,8 +80,10 @@ help:
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
+	@echo "  make check-spec-codeblocks  Check spec prose ```simrisc blocks vs opcodes.yaml (ISS-077)"
 	@echo "  make check-lit        Run lit MC + E2E tests (requires build-mc + build-qemu)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
+	@echo "  make check-legality-invariants  Check ftroot/foroot n=2 + rule-rename gate (ISS-079)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
 	@echo "  make check-fp-contract  Check FP semantics contract completeness (SPEC-087t)"
 	@echo "  make check-instrinfo  Cross-check DADAOInstrInfo.td against opcodes.yaml (LLVM-046t)"
@@ -222,7 +224,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-legality-drift check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -286,6 +288,13 @@ check-asm-list-drift:
 check-asm-prose:
 	@$(PYTHON) tools/spec/check_asm_prose.py --strict
 
+# Spec prose ```simrisc code-block gate (SPEC-103t/ISS-077): every instruction
+# line in spec/**/*.md (excl. historical SimRISC-0.5.3) must use a mnemonic
+# from contracts/opcodes.yaml (pseudo-instructions excepted) with a valid
+# operand count.
+check-spec-codeblocks:
+	@$(PYTHON) tools/spec/check_spec_codeblocks.py
+
 # lit gate (INFRA-021t): run llvm-lit on MC (22/22) + E2E (3/3).
 # MC needs llvm-mc/llvm-objdump/FileCheck (build-mc-lite suffices).
 # E2E needs llvm-objcopy (full build-mc) + qemu-system-dadao (build-qemu) + trampoline.
@@ -299,6 +308,11 @@ check-lit:
 # spec/SimRISC-01..12 exactly match content rendered from contracts/.
 check-legality-drift:
 	@$(PYTHON) tools/spec/check_legality_drift.py
+
+# Legality invariants gate (SPEC-103t/ISS-079): ftroot/foroot n=2 constraint
+# and rule-rename registry (new id effective, old id 0 hits) per contracts/.
+check-legality-invariants:
+	@$(PYTHON) tools/spec/check_legality_invariants.py
 
 # Interface alignment gate (INTEG-003t / INTEG-007t): cross-module
 # contract↔implementation consistency (LLVM/QEMU/opcodes/inventory).
