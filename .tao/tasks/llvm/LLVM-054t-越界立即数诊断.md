@@ -33,7 +33,7 @@
 3. **边界接受**：各字段的**最小/最大合法值**（含负边界）→ `llvm-mc` EXIT=0 且编码正确（逐条 oracle 核对）。
 4. **对齐**：地址类非 4 倍数（如 `jump [rb0, 6]`）→ 报错；`ret` 非地址 立即数**不**受 `%4` 约束。
 5. **无静默环绕**：任选 ≥3 个字段注入越界值，均报错（不再出现「编码成 −x / 0」的静默环绕）。
-6. **lit 向量**：`tests/lit/MC/Dadao/` 新增反例用例（`%not` + `expected-error` 或等价）；`make check-lit` EXIT=0 不回归；`make check` EXIT=0；`make test-codegen` 不回归。
+6. **lit 向量**：`tests/llvm/lit/MC/DADAO/` 新增反例用例（`%not` + `expected-error` 或等价）；`make check-lit` EXIT=0 不回归；`make check` EXIT=0；`make test-codegen` 不回归。
 7. 一键证据脚本 `.work/evidence/LLVM-054t/run.sh`（含 `--inject`：把某字段范围校验改宽/删掉 → 该用例由报错变接受 → 期望 FAIL → 还原+重建 → 回绿）；完成区贴真实输出。
 
 ## 完成区

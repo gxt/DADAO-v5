@@ -7,7 +7,7 @@
 **关联任务**：`LLVM-050t`、`LLVM-051t`、`LLVM-052t`、`LLVM-053t`、`LLVM-054t`、`LLVM-055t`、`LLVM-056t`（7 个）
 
 ## 核验
-- 关联任务是否均已 `已验证`（严格串行链 `050t → 051t → 052t → 053t → 054t → 055t → 056t`，见 `SPEC-104k`）
+- 关联任务是否均已 `已验证`（严格串行链 `050t → 051t → 052t → 053t → 054t → 055t → 056t`，见 `SPEC-104k`；其**前置**为 `SPEC-109t`（MISC-AMO 编码原子）、`SPEC-105t`/`SPEC-106t`（spec 正文）与 `INFRA-045t`（tests 重排））
 - 产出是否存在：`DADAOELFObjectWriter` RELA + 4 类 `getRelocType`；`AsmParser` 伪指令/指导符/选项/诊断；CodeGen 全局数据 + `ABS48` fixup；`lld/ELF/Arch/DADAO.cpp` + `lld/ELF/Target.{cpp,h}` + `dadao.lds`
 - 补丁集完整：`components/llvm-project/patches/**` + `series` 与工作树一致；`make check-patch-tree` EXIT=0；`check-source-state` clean
 - `make check`/`make check-lit` EXIT=0；`make test-codegen`（M3 15/15）不回归

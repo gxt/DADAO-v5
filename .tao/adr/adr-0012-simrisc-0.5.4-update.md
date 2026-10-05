@@ -44,6 +44,7 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 2. **寄存器复制不允许覆盖范围**：rd2rd/rb2rb 等块赋值指令，源范围与目的范围有任何交集即报 ILLI
 3. **swym 编码修改**：格式从 iiii 改为 oiii，立即数从 immu24 改为 immu18
 4. **删除 ftmadd/fomadd 指令**：从 QFC 表、opcodes.yaml、spec 文档中移除融合乘加指令（2条）
+5. **`illi` 指令删除 + oiii 子表编码调整**（2026-10-06 就地增补；用户逐条确认）：① **删除 `illi` 指令**（`op=0x77, ha=0x00`）——**ILLI 异常保留**（由非法操作数/非法条件触发，**不再**有专门的 `illi` 指令）；② **`fence` 编码 `ha` 由 `0x01` 移至 `0x00`**：`value` `0x77040000` → **`0x77000000`**（`fence` 仍 `excluded`，见 `ADR-0014`）；③ **`swym` 编码 `ha` 由 `0x02` 移至 `0x22`**：`op=0x77` 不变，`value` `0x77080000` → **`0x77880000`**。**落地**：`spec/SimRISC-00/11` + `contract-isa §13` + `contract-asm §6` + `contracts/opcodes.yaml` + LLVM MC + QEMU `insn.decode`/`trans_ctrl` + `tests/vectors` + `ADR-0004`「全零字 UNDI」注 + crt0 `swym 0`。
 
 ### D4：spec/ 只读策略调整
 
@@ -163,3 +164,4 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - 2026-10-02：**D8.2 就地修订**（用户确认，decision 变更）：`cmp.uo-rb` 由「低 48 位」改为「**整 64 位**」无符号比较，`br.z-rb`/`br.nz-rb` 条件同样**整 64 位**判零。理由：RB 高 16 是**合法内容**（D8.1），且**判断/比较不是「地址使用」**（48 位截断仅生于地址总线，D8.7）；高 16 意外非 0 时按 64 位**暴露**而非隐藏。连带返工：QEMU（去 `trans_cmp_uo_orrr_rb` 的 48 掩码）、向量、`spec/SimRISC-05`/`contract-isa` 措辞（见 `SPEC-081t`）。
 - 2026-10-04：新增 **D9**（新增指令 `sub.o`（RB−RB→RD，`sub.o_orrr_dbb`，`ha=0x33`，`scope:m3`）+ 三条既有 RB 算术指令改名/改编码槽 `add.so_orrr_rb`→`add.o_orrr_bbd`(0x30)、`sub.so_orrr_rb`→`sub.o_orrr_bbd`(0x31)、`cmp.uo_orrr_rb`→`cmp.uo_orrr_dbb`(0x32) + id 后缀 bank 签名约定）。**用户 2026-10-04 逐条确认追加**。关联 `SPEC-100t`/`SPEC-101t`/`LLVM-043t`/`QEMU-040t`/`LLVM-035t`。
   - **算术修正（用户 2026-10-04 已确认）**：D9.1 定 `ha=0x33 ⇒ value=0x40CC0000`；旧 id 清零验收**仅覆盖活载体**（`spec/`/`contracts/`/`tests/`/`tools/`/`components/`），**映射记录豁免**。
+- 2026-10-06：**D3 就地增补第 5 项**（用户逐条确认）：**删除 `illi` 指令**（**ILLI 异常保留**，由非法操作数/条件触发）、**`fence` `ha` `0x01`→`0x00`**（`value` `0x77040000`→`0x77000000`）、**`swym` `ha` `0x02`→`0x22`**（`value` `0x77080000`→`0x77880000`）；`op=0x77` 不变。关联 M4 前置任务 `SPEC-109t`（跨组件原子落地）。

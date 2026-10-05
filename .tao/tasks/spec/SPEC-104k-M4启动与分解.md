@@ -52,44 +52,51 @@ llc → llvm-mc → ld.lld → ET_EXEC → qemu-system-dadao 直接加载执行
 
 | 编号 | 任务 | 模块 | 交付物 | 依赖 |
 |------|------|------|--------|------|
+| `SPEC-109t` | **删 `illi` / `fence`→`0x00` / `swym`→`0x22`（MISC-AMO 编码调整，跨组件原子；M4 链首）** | spec | `spec/SimRISC-00/11` + `contract-isa §13` + `contract-asm §6` + `contracts/opcodes.yaml` + LLVM MC + QEMU（`insn.decode`/`trans_ctrl`）+ `tests/vectors` + `adr-0004` 注 + crt0（**同一落地波/提交**） | 无 |
 | `SPEC-105t` | `contract-elf §2–§4` 重定位正文（按 `ADR-0019`） | spec | `contract-elf.md` §2–§4 正文（类型/公式/溢出）+ 门控对齐 | 无 |
-| `SPEC-106t` | 伪指令集收缩 spec 修订（按 `ADR-0013 D11`） | spec | `spec/SimRISC-00/03/06` + `contract-asm §6` + `MEMORY.md` 偏离台账 | 无 |
+| `SPEC-106t` | 伪指令集收缩 spec 修订（按 `ADR-0013 D11`；**只做 spec 文本**——权威源迁 `Toolchain-01 §6` + 全 `spec/` 功能说明/定义删除 + `contract-asm §6`/`MEMORY` 台账/`README` 投影；**不产向量**） | spec | `spec/Toolchain-01 §6`（权威伪指令）+ `spec/SimRISC-00/…`（功能说明）+ `contract-asm §6` + `MEMORY.md` 偏离台账 + `spec/README` 投影 | `SPEC-109t`、`INFRA-045t`、`SPEC-110t` |
 | `SPEC-107t` | `ADR-0004` 调整（ELF `e_entry`/段布局/加载约定）〔若需〕 | spec | `adr-0004` 就地修订 + `contract-elf §5/§6` 同步 | `SPEC-105t` |
+| `SPEC-110t` | **`Process-05 §6` 落点路径同步**（`INFRA-045t` 组件先行重排后示例路径过期） | spec | `spec/Process-05-里程碑TDD规范.md §6`（路径示例） | `INFRA-045t` |
 | `INFRA-043t` | LLD 入构建目标 | infra | `Makefile`（`build-mc`/新目标产出 `ld.lld`）+ 构建证据 | 无 |
-| `LLVM-050t` | ELF writer → **RELA** + `e_flags=1` + `e_machine`→dadao + `getRelocType`（4 类） | llvm | `DADAOELFObjectWriter`/`MCCodeEmitter`/`AsmBackend` + lit/`readelf` 证据 | `SPEC-105t` |
+| `INFRA-045t` | **`tests/` 组件先行重排**（对齐上游 `llvm/test/{MC,CodeGen,tools}`） | infra | `tests/llvm/{lit/{MC,CodeGen,tools}/DADAO, codegen}` + `tests/qemu/` + `tests/e2e/lit/`；`Makefile`/工具路径同步 | 无 |
+| `LLVM-050t` | ELF writer → **RELA** + `e_flags=1` + `e_machine`→dadao + `getRelocType`（4 类） | llvm | `DADAOELFObjectWriter`/`MCCodeEmitter`/`AsmBackend` + lit/`readelf` 证据 | `SPEC-105t`、`SPEC-109t`、`INFRA-045t` |
 | `LLVM-051t` | 伪指令展开（`set.rd/set.rb/set.ft/set.fo`；常量/符号分派） | llvm | AsmParser 展开 + lit MC 证据 | `SPEC-106t`、`LLVM-050t` |
 | `LLVM-052t` | `.dd.{b08,w16,t32,o64}` 指导符发射 | llvm | MC 指导符 + lit 证据 | `LLVM-050t` |
 | `LLVM-053t` | `-multiple-to-single` 汇编器选项 | llvm | MC 选项 + lit 证据 | `LLVM-051t` |
 | `LLVM-054t` | 越界立即数诊断（禁静默环绕） | llvm | AsmParser 报错 + lit 反例 | `LLVM-051t` |
 | `LLVM-055t` | 全局数据 lower（`.data`/`.rodata`）+ `ABS48`/RELA fixup | llvm | CodeGen 全局 lower + MIR/`.s` 证据 | `LLVM-050t` |
 | `LLVM-056t` | **DADAO LLD target** + 链接脚本 `dadao.lds` | llvm | `lld/ELF/Arch/DADAO.cpp` + `Target.{cpp,h}` + `dadao.lds` + 链接证据 | `INFRA-043t`、`LLVM-050t`、`SPEC-107t` |
-| `QEMU-042t` | **QEMU ELF 加载器**（`Ehdr`/`Phdr`/装载/`e_entry`） | qemu | `hw/dadao/` ELF 加载 + 负例（畸形 ELF 拒绝） | `SPEC-107t` |
-| `TESTCASES-029t` | L1 MC 向量（伪指令/指导符/选项/诊断/往返） | testcases | `tests/lit/MC/Dadao/` 扩展 + 独立 oracle | `SPEC-106t` |
-| `TESTCASES-030t` | L3 执行向量（多 TU/多段/ELF 链路；独立 oracle） | testcases | `tests/codegen/` 扩展 + 期望值 | `SPEC-105t` |
-| `INTEG-016t` | 多 TU/多段 E2E + `make test-elf` | integ | `tools/integ/` 驱动 + `Makefile` 目标 | `LLVM-056t`、`QEMU-042t`、`TESTCASES-029t`、`TESTCASES-030t` |
-| `SPEC-108m` | M4 spec 里程碑 | spec | `m` 文件 | `SPEC-105t`/`106t`/`107t` |
-| `INFRA-044m` | M4 infra 里程碑 | infra | `m` 文件 | `INFRA-043t` |
+| `QEMU-042t` | **QEMU ELF 加载器**（`Ehdr`/`Phdr`/装载/`e_entry`；加载期 over-size 守卫） | qemu | `hw/dadao/` ELF 加载 + 负例（畸形 ELF / over-size 拒绝） | `SPEC-107t`、`SPEC-109t` |
+| `TESTCASES-029t` | L1 MC 向量（伪指令/指导符/选项/诊断/往返） | testcases | `tests/llvm/lit/MC/DADAO/`（`UNSUPPORTED:` 标记）+ 独立 oracle | `SPEC-106t`、`INFRA-045t` |
+| `TESTCASES-030t` | L3 执行向量（多 TU/多段/ELF 链路；独立 oracle） | testcases | `tests/llvm/codegen/m4/`（独立 m4 清单）+ 期望值 | `SPEC-105t`、`INFRA-045t` |
+| `TESTCASES-032t` | **`not`/`neg` 功能向量（L1 编码 + L3 执行；测底层真实指令 `xnor.o`/`sub.sb/sw/st/so`）** | testcases | `tests/llvm/lit/MC/DADAO/`（`UNSUPPORTED:` 标记）+ `tests/llvm/codegen/m4/`（独立 m4 清单）+ 独立 oracle | `SPEC-106t`、`INFRA-045t`、`TESTCASES-029t`、`TESTCASES-030t` |
+| `INTEG-016t` | 多 TU/多段 E2E + `make test-elf` | integ | `tools/integ/` 驱动 + `Makefile` 目标 | `LLVM-056t`、`QEMU-042t`、`TESTCASES-029t`、`TESTCASES-030t`、`TESTCASES-032t` |
+| `SPEC-108m` | M4 spec 里程碑 | spec | `m` 文件 | `SPEC-105t`/`106t`/`107t`/`109t`/`110t` |
+| `INFRA-044m` | M4 infra 里程碑 | infra | `m` 文件 | `INFRA-043t`/`045t` |
 | `LLVM-057m` | M4 llvm 里程碑 | llvm | `m` 文件 | `LLVM-050t`~`056t` |
 | `QEMU-043m` | M4 qemu 里程碑 | qemu | `m` 文件 | `QEMU-042t` |
-| `TESTCASES-031m` | M4 testcases 里程碑 | testcases | `m` 文件 | `TESTCASES-029t`/`030t` |
+| `TESTCASES-031m` | M4 testcases 里程碑 | testcases | `m` 文件 | `TESTCASES-029t`/`030t`/`032t` |
 | `INTEG-017m` | M4 integ 里程碑 | integ | `m` 文件 | `INTEG-016t` |
 
 ### 依赖关系与串行纪律
 
-- **`spec` 正文先行**：`SPEC-105t`（reloc 正文）→ `LLVM-050t`（ELF writer/reloc）；`SPEC-106t`（伪指令）→ `LLVM-051t`。
+- **M4 链首（用户裁定 2026-10-06）**：**`SPEC-109t`**（删 `illi`/`fence`→`0x00`/`swym`→`0x22`，跨组件原子，**同一落地波/提交**）→ **`INFRA-045t`**（`tests/` 组件先行重排）；二者**先于 `LLVM-050t`** 及一切按新路径落向量的任务。
+- **`SPEC-109t` 为编码前提**：`contracts/opcodes.yaml` ↔ LLVM MC ↔ QEMU `trans_*` 计数须一致（`check-interface`/`check_qemu_trans`）⇒ 必须一次改完；`LLVM-050t`、`QEMU-042t` 依赖之。
+- **`spec` 正文先行**：`SPEC-105t`（reloc 正文）→ `LLVM-050t`（ELF writer/reloc）；`SPEC-110t`（`Process-05 §6` 落点路径，依赖 `INFRA-045t`）→ `SPEC-106t`（伪指令，依赖 `SPEC-109t`/`SPEC-110t`）→ `LLVM-051t`。
+- **`INFRA-045t` 为测试落点前提**：`LLVM-050t`~`054t`（新增 lit 向量）、`SPEC-110t`（`Process-05 §6` 路径同步）与 `TESTCASES-029t`/`030t`/`032t`（L1/L3/`not`·`neg` 向量）依赖其重排后的路径。
 - **LLVM 链严格串行**（同改 `components/llvm-project/patches/llvm/lib/Target/DADAO/**` 与 `lld/**`、同一 `.work/source/llvm-project`）：`LLVM-050t → 051t → 052t → 053t → 054t → 055t → 056t`（`050t` 先行；`051t` 依赖 `050t` 的 ELF/reloc 基础；`056t` 最后）。
-- **`INFRA-043t`**（LLD 入构建）与 `LLVM-050t` 无共享文件，可**先于** `LLVM-056t` 任意时机，但 `LLVM-056t` 依赖其产物。
-- **`QEMU-042t`**（不同仓库）可与 LLVM 链**并行**。
-- **`TESTCASES-029t`/`030t`** 按 `Process-05` **先于**对应实现（TDD），但为串行便利，先于 `INTEG-016t`。
-- **`INTEG-016t` 最后**（依赖 LLD + QEMU loader + 向量）；`make test-elf` 与 `make test-codegen` 并存（差分对照）。
-- **`Makefile`/`contracts/`/`spec/` 改动串行**（`AGENTS.md`「同改共享文件一律串行」）。
+- **`INFRA-043t`**（LLD 入构建）与 `LLVM-050t` 无共享文件，可先于 `LLVM-056t` 任意时机，但 `LLVM-056t` 依赖其产物。
+- **`QEMU-042t`**（不同仓库；但与 `SPEC-109t` 同改 QEMU 补丁树 ⇒ 依赖 `SPEC-109t`）可与 LLVM 链**并行**。
+- **`TESTCASES-029t`/`030t`/`032t`** 按 `Process-05` **先于**对应实现（TDD），但为串行便利，先于 `INTEG-016t`；`032t` 共享 `029t`/`030t` 的落点与 validator，**串行于二者**（在其后扩展脚本）。
+- **`INTEG-016t` 最后**（依赖 LLD + QEMU loader + `TESTCASES-029t`/`030t`/`032t` 向量）；`make test-elf` 与 `make test-codegen` 并存（差分对照）。
+- **`Makefile`/`contracts/`/`spec/`/`tests/` 改动串行**（`AGENTS.md`「同改共享文件一律串行」）。
 - `k ↔ m`：本 `k` 对应 M4；各模块 `m` 在模块任务收敛时核验，M4 由主会话在依赖模块 `m` 均达成后置 `达成`。
 
 ### 分解理由
 
 - 按「**契约 → 产物层 → 链接 → 加载 → E2E**」分层，每步以「真实产物（`.o`/`.s`/`.rela`/ELF/链接）+ 重 build + 不回归」为独立验收点。
 - `ADR-0019`（reloc）与 `ADR-0013 D11`（伪指令）已固化，`SPEC-105t`/`106t` 只做**正文落地**（不重新决策）。
-- 测试（`TESTCASES-029t`/`030t` 独立 oracle）与 E2E（`INTEG-016t`）分离，满足 **Independent oracle**；按 `Process-05` **TDD 先立向量**。
+- 测试（`TESTCASES-029t`/`030t`/`032t` 独立 oracle）与 E2E（`INTEG-016t`）分离，满足 **Independent oracle**；按 `Process-05` **TDD 先立向量**。
 
 ## 说明
 
@@ -97,6 +104,8 @@ llc → llvm-mc → ld.lld → ET_EXEC → qemu-system-dadao 直接加载执行
 - **ADR 提醒**：`ADR-0019`（reloc）与 `ADR-0013 D11`（伪指令）已 `Accepted`；`SPEC-107t` 若调整 `ADR-0004` **仍须用户逐条确认**（已 `Accepted` 的 ADR 改动）。
 - 任务书自包含：执行所需事实写入各任务书或引用 v5 自身知识；RISC-V64/PPC64BE/M68K/0628 仅作**只读对照**（内容溯源，非执行依赖）。
 - **假设**：M4 内不改 `contract-elf` 之外的 spec 正文（`SPEC-105t` 改 `contract-elf §2–§4`；`SPEC-106t` 改 `SimRISC-00/03/06` + `contract-asm §6`）。（**注**：`SPEC-106t` 的文件范围经用户 2026-10-06 裁定改为**全 `spec/`**，见完成区「新发现 1」，本假设作废。）
+- **修订（2026-10-06，用户逐条确认）**：新增 **`SPEC-109t`**（MISC-AMO 编码原子，M4 链首）与 **`INFRA-045t`**（`tests/` 组件先行重排）；修订 5 份任务书（`SPEC-106t` 伪指令范围改写、`TESTCASES-029t`/`030t` 落点、`LLVM-056t` 段溢出检查、`QEMU-042t` over-size 守卫），并同步全部受影响任务书的路径引用。详见「修订记录（2026-10-06）」。
+- **修订（2026-10-06·2，用户二次裁定）**：新增 **`TESTCASES-032t`**（`not`/`neg` 功能向量，L1+L3）与 **`SPEC-110t`**（`Process-05 §6` 落点路径同步）；**`SPEC-106t` 移除向量、只做 spec 文本**（依赖 += `SPEC-110t`）。详见「修订记录（2026-10-06·2）」。
 
 ## 完成区
 
@@ -261,3 +270,190 @@ llc → llvm-mc → ld.lld → ET_EXEC → qemu-system-dadao 直接加载执行
 - 两条用户裁定已在对应任务书正确体现；三个待裁定点已标注。
 - `make check-no-residue` EXIT=0；无已跟踪文件改动。
 - 状态 `待验收`，交主会话 `/complete` 收尾。
+
+## 修订记录（2026-10-06，用户逐条确认）
+
+**背景**：`SPEC-109k`→M4 规划（本 `k`）已 `Accepted` 并 `/complete` 收尾后，用户于 2026-10-06 逐条确认一组改动：新增 2 份任务书、修订 5 份既有任务书。本记录**追加**，不改写前述正文与审阅记录。
+
+**依据（原样引用）**：
+- `ADR-0012 D3 第 5 项`（2026-10-06 就地增补，用户逐条确认，`Accepted`）——删 `illi`（ILLI 异常保留）、`fence ha 0x01→0x00`（`value 0x77040000→0x77000000`）、`swym ha 0x02→0x22`（`value 0x77080000→0x77880000`），`op=0x77` 不变。
+- `ADR-0013 D11`（2026-10-06 增补，`Accepted`）——伪指令集收缩（留 8 条合成型 / 删 10 条 1:1 别名；`ret` 不加无参；反汇编只显真实指令）。
+
+**A. 新建（2 份）**：
+- `.tao/tasks/spec/SPEC-109t-illi删除与fence-swym编码调整.md`（spec / M4）——**M4 链首**、跨组件原子（`spec/SimRISC-00/11` + `contract-isa §13` + `contract-asm §6` + `contracts/opcodes.yaml` + LLVM MC + QEMU + `tests/vectors` + `adr-0004` 注 + crt0），**同一落地波/提交**。
+- `.tao/tasks/infra/INFRA-045t-tests组件先行重排.md`（infra / M4）——`tests/{llvm/lit/{MC,CodeGen,tools}/DADAO, llvm/codegen, qemu, vectors/isa, e2e}`；含 `tests/lit/MC/Dadao→tests/llvm/lit/MC/DADAO`、`tests/codegen→tests/llvm/codegen`、`tests/lit/E2E→tests/e2e/lit` 迁移 + `tests/qemu/` 新增。
+
+**B. 修订（5 份）**：
+1. **`SPEC-106t`**：范围改写——权威伪指令集迁 **`spec/Toolchain-01 §6`**；`SimRISC-00 §伪指令` 删定义、改留「功能说明 + 如何实现」（`not`→`xnor.o`、`neg`→`sub.sX`），不再作为指令；新增 `not`/`neg` 替代功能（`xnor`/`sub.sX`）**L1 编码 + L3 执行**专门向量；同步 `contract-asm §6` + `spec/README` 投影表指针；依赖 += `SPEC-109t`、`INFRA-045t`。
+2. **`TESTCASES-029t`**：落点改 **`tests/llvm/lit/MC/DADAO/`（单一）**；「暂不接门控」用 lit **`UNSUPPORTED:`** 标记（不并排 `Dadao-m4/`）；依赖 += `INFRA-045t`。
+3. **`TESTCASES-030t`**：落点改 **`tests/llvm/codegen/m4/`（并入 + 独立 m4 清单，M3 驱动不读）**，不另起 `tests/codegen-elf/`；依赖 += `INFRA-045t`。
+4. **`LLVM-056t`**：补 **段溢出检查**——`dadao.lds` 定义 `MEMORY`（RAM 16 MiB `0xffff_0000_0000`–`0xffff_00ff_ffff`、ROM 64 KiB `0xffff_ffff_0000`–`0xffff_ffff_ffff`）+ `ASSERT`；验收含「段超出区域 ⇒ LLD link-time error」及边界不误杀。
+5. **`QEMU-042t`**：补 **加载期 over-size 守卫**——ROM blob >64 KiB / 镜像（含 `.bss`）>RAM ⇒ 显式报错、非零退出（参 `ADR-0004` D1/D2.3）；验收含 over-size 负例与边界不误杀。
+
+**C. 路径引用同步（用户裁定「一并更新全部引用」）**：
+- `LLVM-050t`（依赖 += `SPEC-109t`、`INFRA-045t`）、`LLVM-051t`、`LLVM-052t`、`LLVM-053t`、`LLVM-054t`：lit 落点 → `tests/llvm/lit/MC/DADAO/`。
+- `INTEG-016t`：入参/输出/验收 → `tests/llvm/codegen/m4/`、`tests/llvm/lit/MC/DADAO/`（去 `UNSUPPORTED:` 接入）、`tests/llvm/codegen/`。
+- `INTEG-017m`、`TESTCASES-031m`：产出清单路径同步。
+- 里程碑关联任务：`SPEC-108m` 关联任务 3→4（+`SPEC-109t`，目标加 ④ 编码调整）；`INFRA-044m` 关联任务 1→2（+`INFRA-045t`，目标加 ② tests 重排）。
+- 跨模块核验注记：`QEMU-043m`（+`SPEC-109t` 编码、over-size 守卫与链接期互兜底）；`LLVM-057m`（+前置 `SPEC-109t`/`INFRA-045t`）。
+
+**D. 依赖/串行链更新**：见本 `k` §任务分解表与 §依赖关系与串行纪律（新增 `SPEC-109t`/`INFRA-045t` 行；调整 `SPEC-106t`/`LLVM-050t`/`QEMU-042t`/`TESTCASES-029t`/`030t` 依赖）。
+
+**本次 3 处澄清（用户答复摘要）**：① 路径引用**全部一并更新**（超出原列 5 份）；② `tests/lit/E2E`/`tests/scripts` 去向由架构师裁定——**`tests/lit/E2E`→`tests/e2e/lit/`**（在用户列出的 `e2e` 桶内）、`tests/scripts` 保持原位；③ L3「暂不接门控」= **单独 m4 清单（M3 驱动不读）**。
+
+**待裁定点**：
+1. **本 `k` 状态**：修订后是否需将 `SPEC-104k` 回退 `待验收` 并请 reviewer **重新交叉审查**（新增/修订任务书尚未经 reviewer 审查）；当前保持 `已验证` 未改。建议由主会话在 `/plan` 级复核后确定。
+2. **`INFRA-045t` 的 E2E 落点**：架构师裁定 `tests/lit/E2E → tests/e2e/lit`（用户原结构未列 `llvm/lit/E2E`）；若用户希望全部 lit 套件集中于 `tests/llvm/lit/`，可改为 `tests/llvm/lit/E2E/DADAO`。
+3. **`SPEC-106t` 承载 `not`/`neg` 向量的边界**：`not`/`neg` 替代功能（`xnor`/`sub.sX`）向量归 `SPEC-106t`（用户指示），而 `set.*` 展开等归 `TESTCASES-029t`/`030t`；若希望测试统一归 testcases 模块，需再调整。
+4. **`adr-0004` 注记同步**：`SPEC-109t` 含 `ADR-0004`「全零字 UNDI」**注记**同步（依据 `ADR-0012 D3.5` 明确的落地项）；若其中涉及 **decision 语义**，须**用户逐条确认**后方可改（任务书已写明「停下报告」边界）。
+5. **`spec/Process-05 §6` 落点文档过期**：该节现行文为「L1：`tests/lit/MC/Dadao/`……L3：`tests/codegen/`」，`INFRA-045t` 重排后应为 `tests/llvm/lit/MC/DADAO/`、`tests/llvm/codegen/`。因 `ADR-0012 D4`（仅 spec 模块任务可改 `spec/`），`INFRA-045t` 不得改之 ⇒ 需**另立 spec 模块同步任务**（或在既有 spec 任务中并入），否则 `Process-05 §6` 与实现落点不符。建议主会话裁定。
+
+**取代声明（追加，不改写）**：本修订记录**取代**完成区「新发现 2/3」（TESTCASES 暂存 `tests/lit/MC/Dadao-m4/`/`tests/codegen-elf/` 的落点决定）与「遗留问题」中「TESTCASES 落点长期性」一项——新落点分别为 `tests/llvm/lit/MC/DADAO/`（`UNSUPPORTED:` 标记）与 `tests/llvm/codegen/m4/`（独立 m4 清单）；旧文保留为历史记录。
+
+## 修订记录（2026-10-06·2，用户逐条确认）
+
+**背景**：承接上一条「修订记录（2026-10-06）」后，用户 2026-10-06 **二次裁定**。**用户原话（原文引用）**：「**`not`/`neg` 功能向量单独一个 `TESTCASES`；`Process-05 §6` 落点同步单独一个 `SPEC`**」。本记录**追加**，不改写前述正文与审阅记录。
+
+**依据（原样引用）**：
+- `ADR-0013 D11`（2026-10-06 增补，`Accepted`）——删 `not.{b,w,t,o}`（用 `xnor.o`/`xnor.X`）、`neg.{b,w,t,o}`（用 `sub.sX`）。
+- `ADR-0012 D4`（`Accepted`）——「只有 spec 模块的任务才能修改 `spec/` 下的文件」（`SPEC-110t` 的模块依据）。
+- `ADR-0012 D3 第 5 项`（`Accepted`）——落地项含 `ADR-0004`「全零字 UNDI」注（`SPEC-109t` 的注记依据）。
+
+**A. 新建（2 份）**：
+- `.tao/tasks/testcases/TESTCASES-032t-not-neg功能向量.md`（testcases / M4）——**`not`/`neg` 功能向量**（测**底层真实指令**：`not`→`xnor.o`（仅 64 位；窄位宽 `xnor.b/w/t` 已由 `SPEC-069t` 删除，`.b/.w/.t` **不适用**）；`neg`→`sub.sb/sw/st/so`）；**L1** 编码/往返落 `tests/llvm/lit/MC/DADAO/`（`UNSUPPORTED:` 标记）、**L3** 执行落 `tests/llvm/codegen/m4/`（独立 m4 清单）；期望值**独立派生自 `spec/`/`contracts/opcodes.yaml`**；扩展 `029t`/`030t` 的共享 validator；**暂不接门控**。
+- `.tao/tasks/spec/SPEC-110t-Process-05落点路径同步.md`（spec / M4）——`spec/Process-05-里程碑TDD规范.md §6` 的**示例路径**随 `INFRA-045t` 重排同步为 `tests/llvm/lit/MC/DADAO/`、`tests/llvm/lit/CodeGen/DADAO/`、`tests/llvm/codegen/`（+`m4/`）、`tests/qemu/`、`tests/e2e/lit/` 等；只改 §6 路径、不改规范语义；`make check`（`check-spec-refs`）EXIT=0。
+
+**B. 调整 `SPEC-106t`（只做 spec 文本，移除向量）**：
+- **移除**原输出项 4「新增 `not`/`neg` 底层功能专门测试」与验收标准 3「替代功能向量」；新增约束「**不产向量**：专门向量归 `TESTCASES-032t`」。
+- 依赖 `SPEC-109t`、`INFRA-045t` **+= `SPEC-110t`**（体例：`Process-05 §6` 落点先行确定，`spec/README` 投影路径与之对齐）；**不** += `TESTCASES-032t`（见下 E）。
+- 反例门控中的「`not` 替代向量期望字节」反例改为 spec 文本反例（删去 `Toolchain-01 §6` 某被删项替代写法）；完成区用户裁定注记补 ③「本任务不产向量」。
+
+**C. 采纳前一条 3 项裁定**（对应上一条「待裁定点」2/3/4）：
+1. **`SPEC-106t` 不产向量**（归 `TESTCASES-032t`）——待裁定点 3 定案。
+2. **`INFRA-045t` 的 E2E 落点 = `tests/e2e/`**（跨组件，**不塞** `llvm/`）——待裁定点 2 定案；与 `INFRA-045t` 现状（`tests/lit/E2E → tests/e2e/lit`）一致，**无需改** `INFRA-045t`。
+3. **`adr-0004`「全零字 UNDI」注记随 `SPEC-109t`**（**非** decision 变更）——待裁定点 4 定案；与 `SPEC-109t` 输出项 10（注记同步，边界「若涉 decision 语义则停下报告」）一致。
+
+**D. 一致性联动（超出字面清单，供复核／可回退）**：
+- `TESTCASES-031m`：关联任务 2→3（+`TESTCASES-032t`），目标加 ③、核验产出与覆盖矩阵补 `not`/`neg`。
+- `SPEC-108m`：关联任务 4→5（+`SPEC-110t`），目标加 ⑤、核验补 `Process-05 §6` 路径同步。
+- `INTEG-016t`：依赖 += `TESTCASES-032t`；入参/接入 L1 向量/`m4` 用例说明补 `TESTCASES-032t`。
+- `INTEG-017m`：跨模块核验补 `TESTCASES-032t`。
+- `TESTCASES-029t`：边界指针由「专门向量归 `SPEC-106t`」改为「归 `TESTCASES-032t`」（被删伪指令 unrecognized 反例仍留本任务）。
+
+**E. 依赖决策（"（如需）"答复，按实际定）**：
+- **`TESTCASES-032t` 依赖**：`SPEC-106t`、`INFRA-045t`、`TESTCASES-029t`、`TESTCASES-030t`——复用/扩展二者建立的落点与 validator（`validate_mc_vectors.py`/`validate_elf_vectors.py`），故**串行于 `029t`/`030t`**。
+- **`SPEC-106t` 不 += `TESTCASES-032t`**：向量移出后无依赖，且 `032t` 依赖 `106t`（职能/落点），若反向加入会**成环**；**+= `SPEC-110t`**（体例：落点路径先定）。
+
+**F. 路径引用同步**：`SPEC-104k` §任务分解表、§依赖关系与串行纪律、§分解理由已加入 `SPEC-110t`/`TESTCASES-032t`；`SPEC-108m`/`TESTCASES-031m`/`INTEG-016t`/`INTEG-017m` 产出/关联路径同步（见 D）。
+
+**取代声明（追加，不改写）**：本记录**取代**上一条「修订记录（2026-10-06）」中 **B.1「`SPEC-106t` … 新增 `not`/`neg` 替代功能专门向量」**与 **待裁定点 3「`not`/`neg` 向量归 `SPEC-106t`」**——新归属为 `TESTCASES-032t`；旧文保留为历史记录。
+
+**待裁定点（本记录）**：
+1. **本 `k` 状态**：修订后是否回退 `待验收` 并请 reviewer **重新交叉审查**（新增/调整任务书尚未经 reviewer 审查）；当前保持 `已验证` 未改（同前一条待裁定点 1）。
+2. **`TESTCASES-032t` 与 `029t`/`030t` 的 validator 复用 vs 独立**：本记录采取「**复用并扩展**共享 validator（串行）」。若用户希望 `not`/`neg` 向量**独立 oracle 脚本**（不耦合 `029t`/`030t`），需再调整依赖与产出。
+3. **`not.b/w/t` 无底层替代**：窄位宽 `xnor.b/w/t` 已由 `SPEC-069t` 删除 ⇒ `not.b/w/t` **无**对应真实指令，`TESTCASES-032t` 仅测 64 位 `not`（`xnor.o`）。若需覆盖 `not.b/w/t` 语义，须另议（超出 `ADR-0013 D11` 的「用 `xnor.X`」措辞）。
+
+## 审阅记录（续）
+
+#### 第 2 轮 reviewer 规划审查（增量，2026-10-06）
+
+**审查范围**：修订记录（2026-10-06 / ·2）的增量——新增 4 份任务书（`SPEC-109t`、`SPEC-110t`、`INFRA-045t`、`TESTCASES-032t`）、修订 18 份已有任务书/里程碑、`ADR-0012 D3.5` 增补。
+
+**重跑记录**：
+
+1. **任务书集合（25 份 M4 任务书 + 1 份 k）**：
+   ```bash
+   find .tao/tasks/ -name '*.md' | grep -E '(SPEC-10[5-9]|SPEC-110|INFRA-04[3-5]|LLVM-05[0-7]|QEMU-04[2-3]|TESTCASES-0(29|30|31|32)|INTEG-01[6-7])' | sort | wc -l
+   # → 26（含 SPEC-104k）
+   ```
+   逐条核对：
+   - spec（6t + 1m）：SPEC-105t/106t/107t/109t/110t + SPEC-108m ✓
+   - infra（2t + 1m）：INFRA-043t/045t + INFRA-044m ✓
+   - llvm（7t + 1m）：LLVM-050t~056t + LLVM-057m ✓
+   - qemu（1t + 1m）：QEMU-042t + QEMU-043m ✓
+   - testcases（3t + 1m）：TESTCASES-029t/030t/032t + TESTCASES-031m ✓
+   - integ（1t + 1m）：INTEG-016t + INTEG-017m ✓
+   - **合计 25 份任务书（19t + 6m）+ 1 份 k = 26 文件。无缺无多，编号无碰撞**。EXIT=0。
+   - 注：完成区旧文写「21 份任务书」为修订前历史记录（修订记录取代声明已标注），实际 25 份。
+
+2. **依赖链无环**：
+   - `TESTCASES-032t` → `SPEC-106t`（单向）：032t 依赖 106t，106t **不**依赖 032t。**无环** ✓
+   - `INFRA-045t` → `SPEC-110t` → `SPEC-106t`：链正确（SPEC-110t 依赖 INFRA-045t；SPEC-106t 依赖 SPEC-110t）。✓
+   - LLVM 链 `050t→051t→052t/053t/054t/055t→056t` 严格串行。✓
+   - `SPEC-109t` 无依赖（M4 链首）；`LLVM-050t`/`QEMU-042t` 依赖之。✓
+   - `INTEG-016t` 依赖 5 项（含 `TESTCASES-032t`），最后。✓
+   - 任务文件实际依赖与表逐条一致（抽查 SPEC-106t=`109t/045t/110t`、TESTCASES-032t=`106t/045t/029t/030t`、INTEG-016t=`056t/042t/029t/030t/032t`、TESTCASES-029t=`106t/045t`、TESTCASES-030t=`105t/045t`）。✓
+
+3. **落点一致**：
+   - LLVM 050t~054t 验收/lit 落点均为 `tests/llvm/lit/MC/DADAO/`（新路径）。✓
+   - TESTCASES-029t/030t/032t 落点为 `tests/llvm/lit/MC/DADAO/` + `tests/llvm/codegen/m4/`（`UNSUPPORTED:` + 独立 m4 清单）。✓
+   - INFRA-044m 提到旧路径在「无残留」检查语境中（应被清除的旧路径）。✓
+   - **SPEC-109t** 输出段使用 `tests/lit/MC/Dadao/`——**预期**（109t 在 INFRA-045t 之前执行，改迁移前文件）。✓
+   - **INTEG-016t** line 18 引用 `tests/codegen/` 为 Process-05 §6 当前文（SPEC-110t 执行前）。SPEC-110t 先于 INTEG-016t 执行（经 032t→106t→110t），届时已同步。**非阻塞**。✓
+   - **无残留旧路径在执行后任务书的输出/验收段中**。✓
+
+4. **`ADR-0012 D3.5` 与 `SPEC-109t` 逐字一致**：
+   - ADR-0012 D3.5（line 47）：①删 `illi`（ILLI 保留）、②`fence ha 0x01→0x00`（`0x77040000→0x77000000`）、③`swym ha 0x02→0x22`（`0x77080000→0x77880000`）；`op=0x77` 不变。✓
+   - SPEC-109t line 15 逐字段对齐 ✓
+   - `swym` 算术：`0x77<<24 | 0x22<<18 = 0x77880000`（`python3` 确认）✓
+   - `fence` 算术：`0x77<<24 | 0x00<<18 = 0x77000000`（确认）✓
+
+5. **`SPEC-106t` 不产向量**：
+   - line 13：「不重新决策、不产向量」✓
+   - line 28：「不产向量（用户裁定）…专门向量归 `TESTCASES-032t`」✓
+   - line 54：「本任务不产向量…移出本任务，归 `TESTCASES-032t`」✓
+   - `TESTCASES-032t` 承担 `not`/`neg` 的 L1+L3 且期望值独立派生（引用 `contract-isa`/`contracts/opcodes.yaml`）。✓
+
+6. **`SPEC-104k` 修订记录完整性**：
+   - 修订记录（2026-10-06）：A（2 份新建）/B（5 份修订）/C（路径同步）/D（依赖更新）+ 取代声明 + 5 项待裁定点。✓
+   - 修订记录（2026-10-06·2）：A（2 份新建）/B（SPEC-106t 调整）/C（3 项裁定采纳）/D（联动）/E（依赖决策）/F（路径同步）+ 取代声明 + 3 项待裁定点。✓
+   - **未改写**既有完成区/审阅记录（旧文保留，取代声明明确标注）。✓
+
+7. **无残留**：
+   ```
+   $ make check-no-residue 2>&1
+   check-no-residue: PASS
+   EXIT=0
+   ```
+   ```
+   $ git status --short
+   M  .tao/adr/adr-0012-simrisc-0.5.4-update.md
+   M  .tao/tasks/infra/INFRA-044m-*.md
+   M  .tao/tasks/integ/INTEG-016t-*.md
+   M  .tao/tasks/integ/INTEG-017m-*.md
+   M  .tao/tasks/llvm/LLVM-050t-*.md ... LLVM-057m-*.md（8 份）
+   M  .tao/tasks/qemu/QEMU-042t-*.md / QEMU-043m-*.md
+   M  .tao/tasks/spec/SPEC-104k-*.md / SPEC-106t-*.md / SPEC-108m-*.md
+   M  .tao/tasks/testcases/TESTCASES-029t-*.md ... TESTCASES-031m-*.md（3 份）
+   ?? .tao/tasks/infra/INFRA-045t-*.md
+   ?? .tao/tasks/spec/SPEC-109t-*.md
+   ?? .tao/tasks/spec/SPEC-110t-*.md
+   ?? .tao/tasks/testcases/TESTCASES-032t-*.md
+   ```
+   改动仅 `.tao/tasks/**`（18 M + 4 ??）+ `.tao/adr/adr-0012-*.md`（1 M）。**无其它改动**。✓
+
+8. **里程碑联动**：
+   - `SPEC-108m`：关联任务 5 个（含 `SPEC-109t`/`SPEC-110t`），目标含 ④编码调整 + ⑤路径同步。✓
+   - `TESTCASES-031m`：关联任务 3 个（含 `TESTCASES-032t`），目标含 ③`not`/`neg`。✓
+   - `INFRA-044m`：关联任务 2 个（含 `INFRA-045t`）。✓
+   - `QEMU-043m`：跨模块注记含 `SPEC-109t` 编码 + over-size 守卫。✓
+   - `LLVM-057m`：注记含前置 `SPEC-109t`/`INFRA-045t`。✓
+   - `INTEG-017m`：跨模块注记含 `TESTCASES-032t`。✓
+
+**判决**：**Accepted**
+
+- 25 份 M4 任务书全部存在且编号无碰撞（完成区旧「21」为修订前历史记录，取代声明已标注，非阻塞）。
+- 依赖链无环：`TESTCASES-032t→SPEC-106t` 单向；`INFRA-045t→SPEC-110t→SPEC-106t` 链正确；LLVM 链严格串行；`INTEG-016t` 最后（含 032t）。
+- 落点全部统一为新路径；SPEC-109t 的旧路径描述为迁移前输入（M4 链首）；INTEG-016t 的 Process-05 引用将在 SPEC-110t 执行后同步。非阻塞。
+- ADR-0012 D3.5 与 SPEC-109t 逐字段一致（`fence`→`0x77000000`、`swym`→`0x77880000`、删 `illi`、ILLI 保留）。
+- SPEC-106t 明确「不产向量」（3 处）；TESTCASES-032t 承担 `not`/`neg` L1+L3 且独立派生。
+- 修订记录完整（A/B/C/D 清单 + 取代声明 + 待裁定点）；未改写既有内容。
+- `make check-no-residue` EXIT=0；git 无非预期改动。
+- 里程碑联动全部到位。
+
+**待裁定点 reviewer 意见**（供用户裁）：
+
+1. **本 `k` 状态**：当前 `待验收`，建议直接 `/complete` 收尾置 `已验证`——本次审查已覆盖全部增量，无需再等。
+2. **`TESTCASES-032t` validator 复用 vs 独立**：建议**保持复用并扩展**（当前设计）——共享 validator 减少维护面，032t 串行于 029t/030t 已保证时序；独立 oracle 仅在 validator 接口不稳定时才有必要。
+3. **`not.b/w/t` 无底层替代**：建议**接受当前设计**（仅测 64 位 `xnor.o`）——窄位宽 `xnor.b/w/t` 已删是既定事实，`ADR-0013 D11` 的「用 `xnor.X`」措辞可覆盖 `.o`；若需覆盖 `.b/.w/.t` 语义属新能力，超出 M4 范围。
+4. **`SPEC-106t` 依赖判定**：当前 `SPEC-106t` 依赖 `SPEC-109t`/`INFRA-045t`/`SPEC-110t`，**不**依赖 `TESTCASES-032t`（032t 依赖 106t，单向）。设计正确，无环。

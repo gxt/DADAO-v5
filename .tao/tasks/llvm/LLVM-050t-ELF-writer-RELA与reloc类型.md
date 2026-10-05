@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M4
-**依赖**：`SPEC-105t`
+**依赖**：`SPEC-105t`、`SPEC-109t`、`INFRA-045t`
 **状态**：待开始
 
 ## 执行环境
@@ -36,7 +36,7 @@
 3. **编号/映射**：四类 fixup 到编号的映射与 `contract-elf §2` 逐条一致（`ABS48=0`/`REL26=1`/`REL20=2`/`REL14=3`），给出真实 `llvm-readobj -r` 输出。
 4. **`e_machine`/`e_flags`**：`llvm-readobj -h` 显示 `Machine: 0xDA0`、`Flags [ (0x1)`（`e_flags[7:0]=1`）——回归确认既有实现未被破坏。
 5. **`r_addend`**：`llvm-readobj -r --expand-relocs` 显示 RELA 的 `Addend` 字段非零且等于 `A`（构造一个 `+A` 用例）。
-6. **lit 向量**：新增/扩展 `tests/lit/MC/Dadao/`（或 patch 内 `llvm/test/MC/DADAO/`）用例，断言 RELA 类型/编号/`readobj` 字段；`make check-lit` EXIT=0 且不回归。
+6. **lit 向量**：新增/扩展 `tests/llvm/lit/MC/DADAO/`（或 patch 内 `llvm/test/MC/DADAO/`）用例，断言 RELA 类型/编号/`readobj` 字段；`make check-lit` EXIT=0 且不回归。
 7. **不回归**：`make test-codegen`（M3 15/15）EXIT=0；`make check` EXIT=0；`check-patch-tree` OK；`check-source-state` clean。
 8. 一键证据脚本 `.work/evidence/LLVM-050t/run.sh`（非交互、失败非零、逐项打印、`--inject`：改 `getRelocType` 映射错 → 期望 FAIL → 还原+**重建** → 回绿；结尾无 `tee`）；完成区贴真实输出与退出码。
 

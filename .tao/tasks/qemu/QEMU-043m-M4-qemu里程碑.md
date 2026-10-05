@@ -13,7 +13,7 @@
 - ELF 按 `e_entry` 进入并执行到 exit port（真实探针输出）；raw-bin 路径不回归（`make test-codegen` 15/15）
 - 畸形 ELF 负例：≥3 类显式拒绝、非零退出（真实输出）
 - `make check-patch-tree` EXIT=0；`check-source-state` clean
-- 跨模块影响：`SPEC-107t` 的 `ADR-0004` 修订已落地且与实现一致；与 `INTEG-016t`/`LLVM-056t` 的 `e_entry`/段布局约定对齐
+- 跨模块影响：`SPEC-107t` 的 `ADR-0004` 修订已落地且与实现一致；与 `INTEG-016t`/`LLVM-056t` 的 `e_entry`/段布局约定对齐；**`SPEC-109t` 的 MISC-AMO 编码调整**（删 `illi`/`fence`→`0x00`/`swym`→`0x22`）已在 `insn.decode`/`trans_ctrl` 落地且 `check_qemu_trans`/`check-interface` 绿；**QEMU-042t 的加载期 over-size 守卫**（ROM >64 KiB / 镜像 >RAM ⇒ 非零退出）与 `LLVM-056t` 的链接期 `MEMORY`/`ASSERT` 互为兜底
 
 ## 核验记录（主会话）
 （核验命令、输出与退出码；结论）

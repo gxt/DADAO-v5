@@ -30,7 +30,7 @@
 2. **宽度/字节序**：`.dd.b08 0x12`→`12`；`.dd.w16 0x1234`→`12 34`；`.dd.t32 0x11223344`→`11 22 33 44`；`.dd.o64 0x1122334455667788`→`11 22 33 44 55 66 77 88`——用 `llvm-mc -filetype=obj` + `llvm-objdump -s`/hexdump 逐条真实核对（给出 hexdump 输出）。
 3. **表达式/符号**：`.dd.o64 sym` / 含表达式的数据项可汇编；符号/可重定位引用在 `llvm-readobj -r` 可见对应数据 reloc（若需新类型则**停并报告**）。
 4. **拒绝一致性**：GAS `.word`/`.octa` 仍不被接受（非零退出或明确报错），与 `contract-asm §7` 一致。
-5. **lit 向量**：`tests/lit/MC/Dadao/` 新增 `.dd.*` 用例（宽度/字节序 + 反例）；`make check-lit` EXIT=0 不回归；`make check` EXIT=0。
+5. **lit 向量**：`tests/llvm/lit/MC/DADAO/` 新增 `.dd.*` 用例（宽度/字节序 + 反例）；`make check-lit` EXIT=0 不回归；`make check` EXIT=0。
 6. 一键证据脚本 `.work/evidence/LLVM-052t/run.sh`（含 `--inject`：把 `.dd.w16` 改小端/把 `.dd.o64` 改成 16B → 期望 FAIL → 还原+重建 → 回绿）；完成区贴真实输出。
 
 ## 完成区

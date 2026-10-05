@@ -38,7 +38,7 @@
 3. **寄存器传值**：`set.rd rd5, rb3` → `rb2rd`；`set.rb rb1, rd7` → `rd2rb`；`set.ft rf1, rd5` → `rd2rf`；`set.fo rf2, rf7` → `fo2fo`——反汇编逐条核对。
 4. **符号/可重定位**：对跨 section/未定义符号的 `set.rd rd, sym`，`llvm-readobj -r` 显示 **固定 3 条 `R_DADAO_ABS48`**（`LLVM-050t` 设施）；同段可解析者按最少指令数展开、无 reloc。
 5. **删除项不实现**：`nop`/`return`/`not.o`/`neg.o` 等 → `llvm-mc` 报 `unrecognized instruction mnemonic`（非零退出）；`ret rd0` → 报错（既有静态规则）。
-6. **lit 向量**：`tests/lit/MC/Dadao/` 新增伪指令用例（`set.*` 展开 + 删除项反例）；`make check-lit` EXIT=0 不回归；`make check` EXIT=0；`make test-codegen` 不回归。
+6. **lit 向量**：`tests/llvm/lit/MC/DADAO/` 新增伪指令用例（`set.*` 展开 + 删除项反例）；`make check-lit` EXIT=0 不回归；`make check` EXIT=0；`make test-codegen` 不回归。
 7. 一键证据脚本 `.work/evidence/LLVM-051t/run.sh`（含 `--inject`：把 `set.rd` 常量展开改错/把 `nop` 加回 → 期望 FAIL → 还原+重建 → 回绿）；完成区贴真实输出。
 
 ## 完成区
