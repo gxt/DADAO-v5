@@ -4,8 +4,6 @@
 
 ## 当前版本号
 
-本表是**规范版本与冻结状态的唯一来源**（不使用 `manifests/spec.lock.toml`）；版本号取自 `spec/` 各文档头部的 `> **版本：X.Y.Z**`。
-
 | 组件 | 版本 |
 |------|------|
 | SimRISC | 0.5.4 |
@@ -14,23 +12,18 @@
 | HEE / HBI | 0.1.2 |
 | Toolchain | 1.1 |
 
-版本同步要求：AEE ↔ ABI、SEE ↔ SBI、HEE ↔ HBI 必须一致，全部基于同一 SimRISC 版本号。
+版本号取自 `spec/` 各文档头部的 `> **版本：X.Y.Z**`。同步要求：AEE ↔ ABI、SEE ↔ SBI、HEE ↔ HBI 必须一致，全部基于同一 SimRISC 版本号。
 
-**冻结状态**：已冻结（`SPEC-010t` 核对：规范版本表与已 Accepted 合约一致；冻结影响矩阵见 `docs/impact-matrix.md`）。
+## 项目里程碑
 
-## 参考目录
+**M1 — MC + QEMU 标量核心 + MC↔QEMU 集成**（已达成，2026-09-22）
 
-| 目录 | 说明 |
-|------|------|
-| `.cache/refs/DADAO-0628` | 基于 SimRISC 0.4.1 的完整实现（工程参考，commit 锁定于 `manifests/references.lock.toml`） |
-| `.cache/refs/DADAO` | 各阶段早期的代码实现（已不再更新；`https://github.com/gxt/DADAO.git`） |
+`llvm-mc` 能汇编/反汇编全部 M1 指令；`qemu-system-dadao` 能在 MMU-off 裸机模式执行标量程序；独立测试向量经「MC 汇编 → QEMU 执行 → 结果比对」一致，形成 MC↔QEMU 集成闭环。
 
-## 路线图
+**M2 — 规范与接口冻结（Normative Freeze）**（已达成，2026-10-04）
 
-路线图与任务拆解**直接参考 DADAO-0628**（`.cache/refs/DADAO-0628`）：
+`spec/`（0.5.4）→ 投影（`contracts/*`、`contract-*.md`）→ checker 三层机械一致；浮点实现侧收口并冻结接口；偏离台账成型，为后续 CodeGen 提供稳定契约。
 
-- 里程碑：`docs/development-roadmap.md`（M0 Foundation / M1 MC+CPU Core / M2 Basic CodeGen / M2.5 clang+libc）
-- 详细路线：`code-agent/designs/0001-foundation-scope.md`、`0002-detailed-roadmap.md`
-- 任务：`code-agent/tasks/`（`DL`/`ML`/`KL`/`DG`/`SL`/`IN` 等流）
+**M3 — Basic CodeGen（纯整数）**（进行中）
 
-本仓库按**模块**组织任务（见 `.tao/README.md`）：`infra` / `spec` / `testcases` / `golden` / `llvm` / `qemu` / `integ` / `gem5` / `sail`。
+`llc` 将标量整数/指针函数（LLVM IR）编译为 DADAO 汇编，经 MC → 单 TU obj/raw binary → `qemu-system-dadao` 执行结果正确（freestanding、单 TU 自包含、无链接器）。
