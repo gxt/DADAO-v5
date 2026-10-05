@@ -26,3 +26,8 @@ __pycache__/
 # 系统
 .DS_Store
 Thumbs.db
+
+# 测试生成物（llc/llvm-mc/objcopy 产物，不入库）
+tests/codegen/*.s
+tests/codegen/*.o
+tests/codegen/*.bin
