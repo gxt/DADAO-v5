@@ -4,9 +4,14 @@
 #   M1 = ✅ 达成（2026-09-22，用户确认；6/6 模块 m 全置：SPEC-011m / TESTCASES-012m /
 #        INFRA-014m / LLVM-015m / QEMU-021m / INTEG-004m；见 `.tao/knowledge/milestones.md`
 #        与 `.tao/archive/M1/README.md`）
-#   M2 = 进行中（「规范与接口冻结（Normative Freeze）」，2026-10-04 用户重定义；
-#        原「Basic CodeGen」顺延为 M3；见 `SPEC-090k`）
-#   M3 = 待开始（Basic CodeGen）
+#   M2 = ✅ 达成（「规范与接口冻结（Normative Freeze）」，2026-10-04 用户重定义；
+#        原「Basic CodeGen」顺延为 M3；6/6 模块 m 全置：INFRA-034m / SPEC-095m /
+#        TESTCASES-025m / LLVM-032m / QEMU-039m / INTEG-011m；2026-10-04 达成）
+#   M3 = ✅ 达成（「Basic CodeGen（纯整数）」，2026-10-04 用户重定义；门槛
+#        `make test-codegen` 15/15；5/5 模块 m 全置：INFRA-036m / SPEC-099m /
+#        TESTCASES-027m / LLVM-042m / INTEG-013m；2026-10-05 达成）
+#   M4 = 未规划（后续；FP/RF codegen、完整调用约定、完整重定位、clang targetinfo/driver 等，
+#        见 `SPEC-096k §M4 交接` 与 `.tao/knowledge/milestones.md`）
 #
 # M1-gate 定义（历史注，2026-09-21 用户裁定）：
 #   blocks: [M1-gate] = 直接阻断「任一模块 M1 里程碑」的 open 项。
@@ -14,11 +19,18 @@
 #   —— M1 已于 2026-09-22 达成，M1-gate 作为门控随之退役；现存 issue 的 blocks 均为空，
 #      `tools/infra/check_issues.py` 保留该字段检查（兼容历史条目、防回退）。
 #
+# M3-gate 说明（INFRA-042t，2026-10-05）：
+#   本文件**未定义** M3-gate 字段；M3 期间所有 issue 的 blocks 均为空（无 gate 用法）。
+#   M3 已于 2026-10-05 达成；若有 M3-gate 亦随之退役。`check_issues.py` 的 blocks 检查
+#   继续保留（兼容历史、防回退）。
+#
 # 字段约束：
 #   status: open | closed
-#   scope: 非空列表 (M1 | post-M1 | M2 | M3 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
-#     - M1 = M1 范围项；M2 = 规范与接口冻结；M3 = Basic CodeGen；
-#     - post-M1 = 已不属 M1 范围、归后续里程碑（M2/M3）的通用项，无明确单一里程碑归属。
+#   scope: 非空列表 (M1 | post-M1 | M2 | M3 | M4 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
+#     - M1 = M1 范围项（已达成）；M2 = 规范与接口冻结（已达成）；M3 = Basic CodeGen（已达成）；
+#       M4 = 后续里程碑（未规划；FP/RF codegen、完整调用约定、完整重定位、clang driver 等）；
+#     - post-M1 = 已不属 M1 范围、归后续里程碑的通用项，无明确单一里程碑归属
+#       （含义随 M2/M3 达成后指向 M4+）。
 #   blocks: 可空列表 (M1-gate 表示直接阻断 M1 里程碑)
 #   resolved_by: closed 时必填, open 时 null
 #
@@ -34,39 +46,64 @@
 # 内容清理（INFRA-033t，2026-10-04）：A 头部校正；B 关闭 ISS-004（原生浮点候选）/ISS-086（SPEC-094t 76→0）；
 # C 校正 ISS-005/008/040/110 的 scope M2→M3；D 更新 ISS-081（含 INTEG-009t，余归 M3）；
 # E-1 ISS-024/032/035/055/066/072（教训/过程记录）移入 `lessons.md`（id 不复用）；E-2 M1 期 open 项逐条判定。
+#
+# 归档前置梳理（INFRA-042t，2026-10-05，`spec/Process-04 §2` 步骤 3–6）：头部里程碑状态同步
+# （M2/M3 → ✅ 达成）；scope 枚举补 M4；M3 边界项按用户 2026-10-05 裁定「**交付部分单独 close、
+# 未交付部分留 open**」处置——ISS-005/008 拆出 closed 条目 ISS-149/150（交付部分），原 id 保留
+# open 表剩余（归 M4）；ISS-006/019/026/074/081/110 未交付本里程碑内容，保留 open、scope M3→M4；
+# ISS-003 scope post-M1→M4；step 4「已被后续任务覆盖」关闭 ISS-015（INFRA-016t）/ISS-039（LLVM-014t）；
+# 教训/过程记录类 ISS-087/088/139/146 移入 `lessons.md`（id 不复用）；其余 open 项逐条判定保留。
+# 逐条判定表见 `.tao/tasks/infra/INFRA-042t-M3归档前置台账梳理.md` 完成区。
 
 # ── spec ──────────────────────────────────────────────────────────────────────
 
 - id: ISS-003
   title: "M1 范围外（推迟）：浮点 RF、特权 cfx 系统指令、LR-SC 原子——M1 仅含标量整数 + 地址/内存 + 控制流 + 测试机系统/异常"
   status: open
-  scope: [post-M1]
+  scope: [M4]
   blocks: []
   resolved_by: null
+  notes: "INFRA-042t（2026-10-05）：M2/M3 已达成，本项三项（浮点 RF→ISS-081、特权 cfx→ISS-110、LR-SC 原子）均属后续里程碑 ⇒ scope post-M1→M4；保持 open。"
 
 - id: ISS-005
   title: "ABI 合约（SPEC-004t）完整调用约定 Deferred to M2——M1 仅含最小 ABI 事实"
   status: open
-  scope: [M3]
+  scope: [M4]
   blocks: []
   resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：M2 重定义为「规范与接口冻结」（SPEC-090k）后，完整调用约定属 codegen 前置（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = 标量调用约定（`SPEC-097t` 合约 + `LLVM-039t` 实现：`CC_DADAO`/`RetCC_DADAO`/`CSR`、指针→rb16-31、标量→rd16-31、call/ret、callee-save）；剩余（变参、聚合传参/返回、多返回值、sret、间接调用）归 M4。"
+  notes: "INFRA-033t（2026-10-04）：M2 重定义为「规范与接口冻结」（SPEC-090k）后，完整调用约定属 codegen 前置（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。INFRA-041t（2026-10-05）边界重定；INFRA-042t（2026-10-05）依用户裁定『交付部分单独 close、未交付部分留 open』拆分：**M3 已交付部分**（标量调用约定，`SPEC-097t` 合约 + `LLVM-039t` 实现）单独记为 **closed ISS-149**；本条目保留**未交付部分**（变参、聚合传参/返回、多返回值、sret、间接调用）⇒ scope M3→M4。"
+
+- id: ISS-149
+  title: "〔已交付·M3〕标量调用约定（原 ISS-005 的 M3 子集）：CC_DADAO/RetCC_DADAO/CSR、指针→rb16-31、标量→rd16-31、call/ret、callee-save"
+  status: closed
+  scope: [M3]
+  blocks: []
+  resolved_by: "SPEC-097t（契约）+ LLVM-039t（实现）"
+  notes: "INFRA-042t（2026-10-05）按用户裁定『交付部分单独 close、未交付部分留 open』自 ISS-005 拆出（原 id 不复用）。已交付内容：`contract-abi.md §4` 正文 + `contracts/abi.yaml`（SPEC-097t，已验证）；`CC_DADAO`/`RetCC_DADAO`/`CSR`、指针参数→rb16-31、标量参数→rd16-31、call/ret、callee-save（LLVM-039t，已验证）。未交付部分见 ISS-005（open，归 M4）。"
 
 - id: ISS-006
   title: "ABI [OPEN] 项：rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值——不得当规范性要求"
   status: open
-  scope: [M3]
+  scope: [M4]
   blocks: []
   resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：contract-abi.md §6 仍列 5 项 [OPEN]（rd1/rb3/rb4 callee-saved、窄返回值扩展、多返回值、red zone、帧指针省略），属完整调用约定/codegen 前置 ⇒ scope M1→M3（与 ISS-005 同归）。依据：grep `[OPEN]` contract-abi.md L191–195。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = `SPEC-097t` 落地的标量调用约定（`contract-abi.md §4` 正文 + `contracts/abi.yaml`）；剩余 5 项 [OPEN]（rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值、red zone、帧指针省略）归 M4。"
+  notes: "INFRA-033t（2026-10-04）：contract-abi.md §6 仍列 5 项 [OPEN]（rd1/rb3/rb4 callee-saved、窄返回值扩展、多返回值、red zone、帧指针省略），属完整调用约定/codegen 前置 ⇒ scope M1→M3（与 ISS-005 同归）。依据：grep `[OPEN]` contract-abi.md L191–195。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = `SPEC-097t` 落地的标量调用约定（`contract-abi.md §4` 正文 + `contracts/abi.yaml`）；剩余 5 项 [OPEN]（rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值、red zone、帧指针省略）归 M4。INFRA-042t（2026-10-05）：本 issue 主题为 5 项 [OPEN]，M3 **未交付其中任何一项**（上句『已交付部分』指标量调用约定，系 ISS-005 的交付，记录见 closed ISS-149，不重复建档）；按用户裁定保留 open，scope M3→M4。"
 
 - id: ISS-008
   title: "Object ABI / ELF 合约重定位（D2/D3/D4）Deferred to M2——M1 单 TU 自包含不产生重定位"
   status: open
-  scope: [M3]
+  scope: [M4]
   blocks: []
   resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：重定位（contract-elf.md §2–§4）在 M2（规范与接口冻结）口径下不实现，属链接/codegen（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = 最小重定位（`LLVM-041t`：同-section PCRel 符号就地解析 `(target−PC)>>2`；未定义/跨-section 符号仍静默留 0、无 relocation）；剩余（`contract-elf.md §2–§4` 完整重定位、relocation 编号/溢出/松弛、LLD）归 M4。"
+  notes: "INFRA-033t（2026-10-04）：重定位（contract-elf.md §2–§4）在 M2（规范与接口冻结）口径下不实现，属链接/codegen（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。INFRA-041t（2026-10-05）边界重定；INFRA-042t（2026-10-05）依用户裁定『交付部分单独 close、未交付部分留 open』拆分：**M3 已交付部分**（最小重定位，`LLVM-041t`）单独记为 **closed ISS-150**；本条目保留**未交付部分**（`contract-elf.md §2–§4` 完整重定位、relocation 编号/溢出/松弛、LLD）⇒ scope M3→M4。"
+
+- id: ISS-150
+  title: "〔已交付·M3〕最小重定位：同-section PCRel 符号就地解析 (target−PC)>>2（原 ISS-008 的 M3 子集）"
+  status: closed
+  scope: [M3]
+  blocks: []
+  resolved_by: "LLVM-041t"
+  notes: "INFRA-042t（2026-10-05）按用户裁定『交付部分单独 close、未交付部分留 open』自 ISS-008 拆出（原 id 不复用）。已交付内容：同-section PCRel 符号就地解析 `(target−PC)>>2`（支/call/jump）；未定义符号、跨-section 引用仍静默留 0、无 relocation（LLVM-041t，已验证）。未交付部分见 ISS-008（open，归 M4）。"
 
 - id: ISS-011
   title: "编码知识：0.5.4 MISC 子表 ha=RRR-CCC 拼为 6 位；旧 tools/opcodes.yaml（0628）不可作编码权威"
@@ -94,20 +131,21 @@
 
 - id: ISS-015
   title: "make doctor 不检查 QEMU 构建依赖（glib-2.0/pixman-1/libfdt 等）——doctor PASS 但 configure 失败"
-  status: open
+  status: closed
   scope: [infra]
   blocks: []
-  resolved_by: null
+  resolved_by: INFRA-016t
+  notes: "INFRA-042t（2026-10-05，Process-04 §2 step 4「已被后续任务覆盖」）：INFRA-016t（M2，2026-10-04 已验证）在 `tools/infra/doctor.py` 新增 `component-deps` 层——QEMU（pkg-config/glib-2.0/pixman-1/zlib/libfdt header-fallback）+ LLVM（cmake>=3.20/ninja/c++），缺依赖 → FAIL + 安装建议。实测 `_QEMU_PKGS`/`_LIBFDT_HEADER` 在文件内（doctor.py L46-56）。"
 
 # ── testcases ─────────────────────────────────────────────────────────────────
 
 - id: ISS-019
   title: "F9① 结果级语义期望值重算需独立 oracle——属 golden model 模块，不在 testcases 模块内"
   status: open
-  scope: [golden, M3]
+  scope: [golden, M4]
   blocks: []
   resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：结果级独立 oracle（错误期望值重算）归 golden 模块，已由 milestones.md 明确划入 M3（范围外：FP 独立 oracle / 完整语义 E2E）⇒ scope post-M1→[golden, M3]。INFRA-041t（2026-10-05）边界重定：M3 未交付结果级/FP 独立 oracle（golden 模块 M3 未启动）；剩余（结果级错误期望值重算 + FP 独立 oracle）归 M4。"
+  notes: "INFRA-033t（2026-10-04）：结果级独立 oracle（错误期望值重算）归 golden 模块，已由 milestones.md 明确划入 M3（范围外：FP 独立 oracle / 完整语义 E2E）⇒ scope post-M1→[golden, M3]。INFRA-041t（2026-10-05）边界重定：M3 未交付结果级/FP 独立 oracle（golden 模块 M3 未启动）；剩余（结果级错误期望值重算 + FP 独立 oracle）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。"
 
 - id: ISS-023
   title: "F10④ 守卫的 RB 覆盖缺口：validate_vectors.py 只提取 rdha，未覆盖 rbha——rbha=0 的 ILLI 未被捕获"
@@ -127,10 +165,10 @@
 - id: ISS-026
   title: "encoding 的 imm 值不在 validator 能力内——imm 语义正确性由 golden model 脚本守卫"
   status: open
-  scope: [testcases, M3]
+  scope: [testcases, M4]
   blocks: []
   resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：imm 语义正确性由 golden model 脚本承担，golden/结果级 oracle 归 M3（见 ISS-019）⇒ scope 追加 M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 golden model imm 语义守卫；剩余（imm 语义 oracle）归 M4。"
+  notes: "INFRA-033t（2026-10-04）：imm 语义正确性由 golden model 脚本承担，golden/结果级 oracle 归 M3（见 ISS-019）⇒ scope 追加 M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 golden model imm 语义守卫；剩余（imm 语义 oracle）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。"
 
 # ── llvm / qemu / integ ──────────────────────────────────────────────────────
 
@@ -143,10 +181,11 @@
 
 - id: ISS-039
   title: "F4 — e_flags 未设置：contract-elf.md 要求 e_flags=0x00000001，当前为 0"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-014t
+  notes: "INFRA-042t（2026-10-05，Process-04 §2 step 4「已被后续任务覆盖」）：LLVM-014t（M1，commit d3ee023）以 `DADAOTargetStreamer` 设 `setELFHeaderEFlags(0x1)`（补丁 0008）；`tests/lit/MC/Dadao/e_flags.s` CHECK `Flags[0x1]`，`make check` lit 34/34 通过、e_flags.s PASS。与已 closed 的 ISS-007 同因（重复条目）。"
 
 - id: ISS-040
   title: "DADAOFrameLowering 未覆写纯虚 hasFPImpl——M1 安全（无实例化），M2 会阻塞"
@@ -289,10 +328,10 @@
 - id: ISS-074
   title: "C-27 — cs.* 条件赋值快照：5 条 cs.{n,z,p,eq,ne}-rd overlap 因 condition & source register aliasing 语义未指定而 deferred"
   status: open
-  scope: [testcases, M3]
+  scope: [testcases, M4]
   blocks: []
   resolved_by: null
-  notes: "INFRA-033t（2026-10-04）实测：`tests/vectors/isa/reg-cond-assign.yaml` 仍含 5 条 `class: overlap` + `deferred_reason: C-27` + `expected_state: null`（cs.n/z/p/eq/ne），语义未指定 → 未消解；aliasing 语义为 codegen 依赖 ⇒ scope M1→M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 cs.* 条件赋值 codegen / aliasing 语义；剩余（cs.* overlap 语义指定 + codegen）归 M4。"
+  notes: "INFRA-033t（2026-10-04）实测：`tests/vectors/isa/reg-cond-assign.yaml` 仍含 5 条 `class: overlap` + `deferred_reason: C-27` + `expected_state: null`（cs.n/z/p/eq/ne），语义未指定 → 未消解；aliasing 语义为 codegen 依赖 ⇒ scope M1→M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 cs.* 条件赋值 codegen / aliasing 语义；剩余（cs.* overlap 语义指定 + codegen）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。"
 
 # ── 原 backlog 合并新增（INFRA-032t，2026-10-04）────────────────────────────────
 # 原 backlog 逐条归宿见 INFRA-032t 任务书完成区；教训/方法论见 lessons.md。
@@ -332,10 +371,10 @@
 - id: ISS-081
   title: "FP 后续衔接点（独立 oracle / harness RF 支持 / FP 向量 / E2E / 实现缺口）"
   status: open
-  scope: [spec, golden, testcases, llvm, qemu, integ, M3]
+  scope: [spec, golden, testcases, llvm, qemu, integ, M4]
   blocks: []
   resolved_by: null
-  notes: "原 backlog L53/L57/L62/L138/L239/L249。**已闭合**：LLVM-031t（汇编期 dst_rd0@FP 15 条静态检查，2026-10-04 已验证——helper `isFPDstRdMnemonic` 15 条 + Error 级检查、新 lit fp-dst-rd0-legality.s、lit 29→30、patches 仍 69）+ QEMU-038t（运行期 dst_rd0@FP 15 条 ILLI 0x88，2026-10-04 已验证——helper `fp_check_dst_rd0` + 8 调用点覆盖 15 条、探针 `min_rom_probe_038t.py` 42/42、patches 仍 69）⇒ **dst_rd0@FP 缺口：汇编期 + 运行期两侧均已闭合**。**本轮新增（2026-10-04）**：INTEG-009t 最小 FP E2E smoke 已验证（`tests/e2e/smoke_fp.s` + `tests/lit/E2E/smoke_fp.test`，llvm-mc→llvm-objcopy→QEMU，期望值宿主 `struct`/`math` 独立派生，E2E 4/4）⇒ M2 门槛④「FP = 执行层 60/60 + dst_rd0@FP + 最小 FP smoke」达成。**余下显式归 M3**（milestones.md M2 范围外）：① GOLDEN-001t 起 FP 独立 oracle（禁 LLVM/QEMU 校准）；② harness RF 寄存器类支持；③ TESTCASES-024t FP 向量/inventory 第二张表；④ 完整 FP E2E（INTEG-*）。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = 无（M3=纯整数 CodeGen，FP/RF 不在范围）；剩余 ①FP 独立 oracle（GOLDEN）②harness RF 寄存器类 ③FP 向量/inventory ④完整 FP E2E 全部归 M4。"
+  notes: "原 backlog L53/L57/L62/L138/L239/L249。**已闭合**：LLVM-031t（汇编期 dst_rd0@FP 15 条静态检查，2026-10-04 已验证——helper `isFPDstRdMnemonic` 15 条 + Error 级检查、新 lit fp-dst-rd0-legality.s、lit 29→30、patches 仍 69）+ QEMU-038t（运行期 dst_rd0@FP 15 条 ILLI 0x88，2026-10-04 已验证——helper `fp_check_dst_rd0` + 8 调用点覆盖 15 条、探针 `min_rom_probe_038t.py` 42/42、patches 仍 69）⇒ **dst_rd0@FP 缺口：汇编期 + 运行期两侧均已闭合**。**本轮新增（2026-10-04）**：INTEG-009t 最小 FP E2E smoke 已验证（`tests/e2e/smoke_fp.s` + `tests/lit/E2E/smoke_fp.test`，llvm-mc→llvm-objcopy→QEMU，期望值宿主 `struct`/`math` 独立派生，E2E 4/4）⇒ M2 门槛④「FP = 执行层 60/60 + dst_rd0@FP + 最小 FP smoke」达成。**余下显式归 M3**（milestones.md M2 范围外）：① GOLDEN-001t 起 FP 独立 oracle（禁 LLVM/QEMU 校准）；② harness RF 寄存器类支持；③ TESTCASES-024t FP 向量/inventory 第二张表；④ 完整 FP E2E（INTEG-*）。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = 无（M3=纯整数 CodeGen，FP/RF 不在范围）；剩余 ①FP 独立 oracle（GOLDEN）②harness RF 寄存器类 ③FP 向量/inventory ④完整 FP E2E 全部归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付（M3=纯整数），保留 open，scope M3→M4。"
 
 - id: ISS-082
   title: "L1 — fp「未实现，decode ILLI」文案残留（SimRISC-00 L290/L379、contract-isa.md L25/821/823）"
@@ -344,22 +383,6 @@
   blocks: []
   resolved_by: SPEC-102t
   notes: "原 backlog L63。SPEC-089t 未改（不在其改动清单）；建议后续 spec 小任务按 R1 口径收口并评估门控防回归。"
-
-- id: ISS-087
-  title: "仓库外全局 agent 规则未同步新验收规程（~/t.a.o/opencode/agent/{reviewer,engineer}.md）"
-  status: open
-  scope: [infra]
-  blocks: []
-  resolved_by: null
-  notes: "原 backlog L68。缺项：reviewer 无「一键证据脚本」「不另写等价验证脚本」「强制独立注入一次反例」；engineer 完成区规范未含「交付一键证据脚本」。不得擅动 ~/t.a.o/**，须用户批准。"
-
-- id: ISS-088
-  title: "C 规程的注入脆弱点无结构性拦截（行号定位/空注入/手改污染/注入无鉴别力）"
-  status: open
-  scope: [infra]
-  blocks: []
-  resolved_by: null
-  notes: "原 backlog L70。候选方案 B：新增 tools/infra/inject_check.py（唯一定位 + sha 断言 + 要求非零退出 + trap 复原，退出码即判决）。用户 2026-10-03 裁定暂不修，仅登记。"
 
 - id: ISS-089
   title: "check-qemu-semantics 的 gate 目录为瞬态（symlink 静默失败致假失败）"
@@ -484,10 +507,10 @@
 - id: ISS-110
   title: "LLVM MC 的 cfx 指令/别名实现（M2；ADR-0017 D5/D6 待落地）"
   status: open
-  scope: [llvm, M3]
+  scope: [llvm, M4]
   blocks: []
   resolved_by: null
-  notes: "原 backlog L237。crrr/crii/ciii 及 cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 全无定义；另 SPEC-075t 别名表 uart2..30 覆盖缺口需补齐。INFRA-033t（2026-10-04）：cfx 属 `scope: excluded`（未实现、decode ILLI），其实现在 M2 规范冻结之外 ⇒ scope M2→M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 cfx 指令/别名（仍 `scope: excluded`、decode ILLI）；剩余（crrr/crii/ciii + cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 实现 + SPEC-075t uart2..30 别名补齐）归 M4。"
+  notes: "原 backlog L237。crrr/crii/ciii 及 cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 全无定义；另 SPEC-075t 别名表 uart2..30 覆盖缺口需补齐。INFRA-033t（2026-10-04）：cfx 属 `scope: excluded`（未实现、decode ILLI），其实现在 M2 规范冻结之外 ⇒ scope M2→M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 cfx 指令/别名（仍 `scope: excluded`、decode ILLI）；剩余（crrr/crii/ciii + cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 实现 + SPEC-075t uart2..30 别名补齐）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。"
 
 - id: ISS-111
   title: "QEMU-033t 任务书层面遗留（探针 pre-existing 失败 + 验收项 4「保持 PASS」措辞不符实际）"
@@ -697,14 +720,6 @@
   resolved_by: null
   notes: "LLVM-038t 实现 SP-only/FP + 大帧方案2（rb2rb+add.si，≤±128K）；>128K 显式 'scheme 1 not implemented'。per ADR-0018 C7 D4，方案1 仅 >128K，M3 可后补。"
 
-- id: ISS-139
-  title: "子代理假称已获用户裁定（LLVM-034t/SPEC-097t，未经记录的用户确认）"
-  status: open
-  scope: [process]
-  blocks: []
-  resolved_by: null
-  notes: "两次：LLVM-034t「i64→GPRD 已获用户裁定」、SPEC-097t「内联 Fence 经用户确认忽略」（均无记录）。建议在 AGENTS.md 子代理硬约束加一条：涉及用户裁定的结论必须能指回具体用户原话，否则视为不存在。见 lessons.md §7.3。"
-
 - id: ISS-140
   title: "README.md 中 LLVM 补丁数陈旧（新增 DADAOCallingConv.td 后计数未更新）"
   status: closed
@@ -752,14 +767,6 @@
   blocks: []
   resolved_by: INFRA-041t
   notes: "LLVM-048t reviewer 核实与 048t 无关（048t 仅改 codegen 1 文件）；系后续任务新增 MC/lit 用例后陈旧。建议改用非硬编码（模式/下限）断言。另：048t 曾越界改 039t 证据脚本（rbkeep MIR COPY→add_o_bbd，语义等价，reviewer 判非回归）。INFRA-041t（2026-10-05）修复：`.work/evidence/LLVM-043t/run.sh`、`.work/evidence/LLVM-045t/run.sh` 的 lit-mc / lit-bytes / oracle 断言改为「解析计数 + 下限」，重跑两脚本 EXIT=0。"
-
-- id: ISS-146
-  title: "验证命令把生成物写入 tests/codegen/ 致残留（llc 产物 .s 被 git add -A 带入；reviewer 未捕获）"
-  status: open
-  scope: [process]
-  blocks: []
-  resolved_by: null
-  notes: "LLVM-048t：tests/codegen/ptr_add_offset.s 误入仓库随提交（已 dca57b8 清理 + .gitignore 加 tests/codegen/*.s|.o|.bin）。教训：证据/验证命令须在 .work/ 或 /tmp 运行，产物勿落仓库测试目录；收尾须核对 git status --untracked-files=all。reviewer 审计未捕获该残留。"
 
 - id: ISS-147
   title: "INTEG-012t E2E 期望值落入 fault 区 0x80–0xFF（137==0x89==UNDI）→ false-PASS 风险"
