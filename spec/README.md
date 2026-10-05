@@ -9,7 +9,7 @@
 - **投影＝实现依据**：投影把规范**归一化**为机器/agent 可精确消费的形态，是实现的直接依据。投影分两层：
   - `contracts/*`：**机器可读数据**（编码表/ABI/合法性规则等），供工具消费；
   - `.tao/knowledge/contract-*.md`：**叙述型合约**（§ 编号 + `[spec §x]` 引用），供人/agent 阅读。
-- **本目录同时含上游基线与 v5 自定规范**：`SimRISC-00…12`、`DADAO-11…23` 为**上游基线**（按 `ADR-0012 D4`，spec 模块任务可改上游并生成新版本）；`Toolchain-01`、`Process-01/02/03` 为 **v5 自定规范**。二者同处一目录，取消历史上"原始规范 vs v5 规范层"的二分。
+- **本目录同时含上游基线与 v5 自定规范**：`SimRISC-00…12`、`DADAO-11…23` 为**上游基线**（按 `ADR-0012 D4`，spec 模块任务可改上游并生成新版本）；`Toolchain-01`、`Process-01/02/03/05` 为 **v5 自定规范**。二者同处一目录，取消历史上"原始规范 vs v5 规范层"的二分。
 - **ADR 不在此目录**：架构决策记录（ADR）属**决策层**，落 `.tao/adr/`（见 `spec/Process-03-ADR编写规范.md`）；ADR 只记决策、理由、被否方案与指向规范章节的指针，**不承载规范正文**。
 
 ## 分册清单
@@ -63,6 +63,7 @@
 | [`Process-02-合约编写规范.md`](Process-02-合约编写规范.md) | 合约（投影）文件组织、写法要点、版本管理 |
 | [`Process-03-ADR编写规范.md`](Process-03-ADR编写规范.md) | ADR 判据、提醒义务、落点命名与模板、流程 |
 | [`Process-04-里程碑归档规范.md`](Process-04-里程碑归档规范.md) | 里程碑达成后的任务书/台账归档（判据、落点、README 模板、原台账处理、验收） |
+| [`Process-05-里程碑TDD规范.md`](Process-05-里程碑TDD规范.md) | 里程碑测试驱动开发（三层向量 L1/L2/L3、规模与移植原则、反例门控、落点） |
 
 ## 投影表
 
@@ -83,6 +84,7 @@
 | `Process-01` | — | — | `tools/infra/check_patch_tree.py`（+ 报告，**非门控**：`tools/infra/size_report.py`，见 §11） | 不适用 |
 | `Process-02` | — | — | `tools/infra/check_spec_drift.py`（`check_spec_refs.py` 独立门控） | 不适用 |
 | `Process-03` | — | — | — | 不适用（人工遵守） |
+| `Process-05` | — | — | — | 不适用（人工遵守） |
 
 **登记缺口（显式 deferred）**（决策 8；T2 `SPEC-085t` 定稿并同步 `Process-02` 的合约清单；三类系统层缺口由 `SPEC-092t` 标显式 deferred）：
 

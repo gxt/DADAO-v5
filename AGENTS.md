@@ -20,6 +20,7 @@
 - **Spec-first**：所有编码/语义期望值来自 `.tao/knowledge/contract-*.md`，不从实现反推
 - **Independent oracle**：测试向量不能从 LLVM 或 QEMU 生成，必须独立派生自 `spec/`
 - **Component lock**：LLVM/QEMU/gem5 以 `manifests/` 中的精确 commit hash 锁定，不用 tag/branch
+- **里程碑 TDD**：自 M4 起，每个里程碑**先立测试向量/门控、再实现**（三层 L1 编码/L2 结构/L3 执行，见 `spec/Process-05-里程碑TDD规范.md`）；「一能力一向量」、规模 ∝ 能力，不超前建大套件
 
 ## 参考来源与任务自包含
 
