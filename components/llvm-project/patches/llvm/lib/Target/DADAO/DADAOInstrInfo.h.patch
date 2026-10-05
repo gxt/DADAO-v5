@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.h b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 new file mode 100644
-index 000000000..1bc70b099
+index 000000000..29f026943
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,59 @@
 +//===-- DADAOInstrInfo.h - DADAO Instruction Info ---------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -51,6 +51,13 @@ index 000000000..1bc70b099
 +                   bool RenamableSrc = false) const override;
 +  // Avoid hiding any other TargetInstrInfo::copyPhysReg overloads.
 +  using TargetInstrInfo::copyPhysReg;
++
++  /// Expand the CodeGen-only arithmetic pseudos (LLVM-035t):
++  /// ADD_PSEUDO/SUB_PSEUDO/MUL_PSEUDO -> rrrr add.uo/sub.uo/mul.uo with
++  /// rdha = rd0 (the low 64 bits are rdhb); ADD_IMM_PSEUDO -> rd2rd + add.si;
++  /// CONST_WYDE -> a set.zw/set.ow basis plus or.w/andn.w wyde fixes
++  /// (C12, ADR-0018).
++  bool expandPostRAPseudo(MachineInstr &MI) const override;
 +};
 +
 +} // end namespace llvm

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..ce8919787
+index 000000000..125bf9d45
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,179 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,7 +13,9 @@ index 000000000..ce8919787
 +//===----------------------------------------------------------------------===//
 +//
 +// DADAO instruction info implementation. Includes the TableGen-generated
-+// instruction info tables (DADAOGenInstrInfo.inc).
++// instruction info tables (DADAOGenInstrInfo.inc).  Custom overrides:
++//   copyPhysReg         - bank-aware register moves (LLVM-034t)
++//   expandPostRAPseudo  - i64 arithmetic / constant pseudos (LLVM-035t)
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -38,8 +40,9 @@ index 000000000..ce8919787
 +
 +using namespace llvm;
 +
-+// Constructor is provided by the generated base class.  The only custom
-+// override so far is copyPhysReg (bank-aware register moves, LLVM-034t).
++// Constructor is provided by the generated base class.  The custom overrides
++// are copyPhysReg (bank-aware register moves, LLVM-034t) and
++// expandPostRAPseudo (i64 arithmetic / constant pseudos, LLVM-035t).
 +DADAOInstrInfo::DADAOInstrInfo(const TargetSubtargetInfo &STI,
 +                               const TargetRegisterInfo &TRI,
 +                               unsigned CFSetupOpcode,
@@ -77,4 +80,106 @@ index 000000000..ce8919787
 +  BuildMI(MBB, MI, DL, get(Opc), DestReg)
 +      .addReg(SrcReg, getKillRegState(KillSrc))
 +      .addImm(1);
++}
++
++bool DADAOInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
++  MachineBasicBlock &MBB = *MI.getParent();
++  const DebugLoc &DL = MI.getDebugLoc();
++
++  switch (MI.getOpcode()) {
++  case DADAO::ADD_PSEUDO:
++  case DADAO::SUB_PSEUDO:
++  case DADAO::MUL_PSEUDO: {
++    // The rrrr add/sub/mul instructions produce 128 bits: rdha = high 64,
++    // rdhb = low 64.  CodeGen only needs the low half, so the high half is
++    // written to the hardwired-zero rd0 (contract-isa.md §6.1.1; the two
++    // destinations must not both be rd0 — rdhb is the result here).
++    unsigned Opc = MI.getOpcode() == DADAO::ADD_PSEUDO ? DADAO::add_uo_rd
++                 : MI.getOpcode() == DADAO::SUB_PSEUDO ? DADAO::sub_uo_rd
++                                                       : DADAO::mul_uo_rd;
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(Opc))
++        .addDef(DADAO::rd0) // rdha = rd0 (discard the high 64 bits)
++        .addDef(Dst)        // rdhb = low 64 bits of the result
++        .addReg(Src1)       // rdhc = src1
++        .addReg(Src2);      // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::ADD_IMM_PSEUDO: {
++    // `add.si rd, imm18` is in-place: copy the source into the result first
++    // (unless RA already coalesced them), then add.  The bank copy is a
++    // single-register rd2rd block move.
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src = MI.getOperand(1).getReg();
++    const int64_t Imm = MI.getOperand(2).getImm();
++    if (Dst != Src)
++      BuildMI(MBB, MI, DL, get(DADAO::rd2rd), Dst).addReg(Src).addImm(1);
++    BuildMI(MBB, MI, DL, get(DADAO::add_si_rd), Dst).addImm(Imm);
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::CONST_WYDE: {
++    // C12 (ADR-0018): pick a basis wyde by sign, then fix the other wydes.
++    //   - non-negative: set.zw basis (other wydes = 0), or.w adds 1-bits.
++    //   - negative:     set.ow basis (other wydes = 0xFFFF), andn.w clears
++    //                   the 0-bits.  (RB has no set.ow; these are RD.)
++    Register Dst = MI.getOperand(0).getReg();
++    int64_t SExt = MI.getOperand(1).getImm();
++    uint64_t Val = static_cast<uint64_t>(SExt);
++    const bool Neg = SExt < 0;
++
++    auto Wyde = [&](int W) -> uint16_t {
++      return static_cast<uint16_t>((Val >> (W * 16)) & 0xFFFF);
++    };
++
++    // Basis = a wyde that already differs from the fill value, so it does not
++    // need a fixup afterwards (highest for negative, lowest for positive).
++    int Basis = -1;
++    if (Neg) {
++      for (int W = 3; W >= 0; --W)
++        if (Wyde(W) != 0xFFFF) { Basis = W; break; }
++    } else {
++      for (int W = 0; W < 4; ++W)
++        if (Wyde(W) != 0) { Basis = W; break; }
++    }
++
++    if (Basis < 0) {
++      // All-zero (non-negative) or all-ones (negative).
++      if (Neg)
++        BuildMI(MBB, MI, DL, get(DADAO::set_ow_rd), Dst)
++            .addImm(0).addImm(0xFFFF);
++      else
++        BuildMI(MBB, MI, DL, get(DADAO::set_zw_rd), Dst).addImm(0).addImm(0);
++      MI.eraseFromParent();
++      return true;
++    }
++
++    BuildMI(MBB, MI, DL, get(Neg ? DADAO::set_ow_rd : DADAO::set_zw_rd), Dst)
++        .addImm(Basis)
++        .addImm(Wyde(Basis));
++    for (int W = 0; W < 4; ++W) {
++      if (W == Basis)
++        continue;
++      const uint16_t T = Wyde(W);
++      if (Neg) {
++        if (T == 0xFFFF)
++          continue;
++        BuildMI(MBB, MI, DL, get(DADAO::andn_w_rd), Dst)
++            .addImm(W)
++            .addImm(static_cast<uint16_t>(~T));
++      } else {
++        if (T == 0)
++          continue;
++        BuildMI(MBB, MI, DL, get(DADAO::or_w_rd), Dst).addImm(W).addImm(T);
++      }
++    }
++    MI.eraseFromParent();
++    return true;
++  }
++  default:
++    return false;
++  }
 +}

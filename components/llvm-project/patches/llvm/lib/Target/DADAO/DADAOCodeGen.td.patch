@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..53940c0f7
+index 000000000..8b4591f52
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,110 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,13 +12,14 @@ index 000000000..53940c0f7
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// SelectionDAG target nodes and CodeGen-only pseudo instructions for the
-+// DADAO M3 backend skeleton (LLVM-033t).
++// SelectionDAG target nodes, CodeGen-only pseudo instructions and i64 ISel
++// patterns for the DADAO M3 backend (LLVM-033t skeleton, LLVM-035t i64
++// arithmetic/constants).
 +//
 +// The instruction definitions in DADAOInstrInfo.td are auto-generated from
-+// contracts/opcodes.yaml and carry no patterns.  This file adds the minimal
-+// CodeGen glue needed so that `llc -march=dadao -stop-after=finalize-isel`
-+// can lower a `ret`-only function to MIR.
++// contracts/opcodes.yaml and carry no patterns.  This file adds the CodeGen
++// glue: `llc -march=dadao -stop-after=finalize-isel` can lower scalar
++// add/sub/mul/and/or/xor/shift/div/rem and 64-bit constants to MIR.
 +//
 +// The real `ret` instruction (ret_riii) is expanded later (LLVM-040t); here a
 +// CodeGen-only pseudo terminates the function so the MIR can be inspected.
@@ -55,3 +56,61 @@ index 000000000..53940c0f7
 +// are needed here.  Expansion to the real `ret rd0, 0` is LLVM-040t.
 +let isReturn = 1, isTerminator = 1, isBarrier = 1 in
 +def RET_PSEUDO : DADAOPseudo<(outs), (ins), [(DADAORetGlue)]>;
++
++//===----------------------------------------------------------------------===//
++// i64 arithmetic pseudos (LLVM-035t)
++//
++// The rrrr add/sub/mul instructions are 128-bit (two destinations): rdha holds
++// the high 64 bits, rdhb the low 64.  CodeGen only needs the low 64 bits, so
++// the selector matches these single-result pseudos and expandPostRAPseudo
++// rewrites them to `add.uo/sub.uo/mul.uo rd0, dst, a, b` (rdha = rd0 discards
++// the high half; ADR-0018 C12 / contract-isa.md §6.1.1).  Selecting the real
++// two-result instruction directly is not expressible as a TableGen pattern
++// (the high result has no DAG value), hence the pseudo indirection.
++//===----------------------------------------------------------------------===//
++
++// Signed immediate that fits the 18-bit `add.si`/riii field (§6.1.3).
++def simm18imm : ImmLeaf<i64, [{ return isInt<18>(Imm); }]>;
++
++def ADD_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
++                             [(set GPRD:$dst, (add GPRD:$a, GPRD:$b))]>;
++def SUB_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
++                             [(set GPRD:$dst, (sub GPRD:$a, GPRD:$b))]>;
++def MUL_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
++                             [(set GPRD:$dst, (mul GPRD:$a, GPRD:$b))]>;
++
++// In-place 18-bit immediate add: `add.si rd, imm18` (contract-isa.md
++// §6.1.3).  Expanded to a bank copy (rd2rd) into the result followed by
++// `add.si dst, imm`; the copy is skipped when RA has coalesced dst == src.
++def ADD_IMM_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$src, i64imm:$imm),
++                                 [(set GPRD:$dst, (add GPRD:$src, simm18imm:$imm))]>;
++
++// Large i64 constant materialization (C12, ADR-0018): `set.zw`/`set.ow`
++// basis + `or.w`/`andn.w` fixes, no constant pool (M3 has no .rodata).
++// Expanded by expandPostRAPseudo; the operand is the raw 64-bit value.
++def CONST_WYDE : DADAOPseudo<(outs GPRD:$dst), (ins i64imm:$val), []>;
++
++//===----------------------------------------------------------------------===//
++// Single-result i64 patterns (orrr, contract-isa.md §6.3–§6.4, §7)
++//
++// These instructions have exactly one destination, so they can be selected
++// directly by TableGen without a pseudo.  Pointer/address arithmetic (C14) is
++// handled bank-aware in DADAOISelDAGToDAG (ptr − ptr -> sub.o rd, rb, rb).
++//===----------------------------------------------------------------------===//
++
++def : Pat<(and GPRD:$a, GPRD:$b), (and_o GPRD:$a, GPRD:$b)>;
++def : Pat<(or GPRD:$a, GPRD:$b), (or_o GPRD:$a, GPRD:$b)>;
++def : Pat<(xor GPRD:$a, GPRD:$b), (xor_o GPRD:$a, GPRD:$b)>;
++
++// Variable shift amount (orrr): shamt is rdhc low 6 bits (§6.4.1).
++def : Pat<(shl GPRD:$a, GPRD:$b), (shl_uo_orrr GPRD:$a, GPRD:$b)>;
++def : Pat<(srl GPRD:$a, GPRD:$b), (shr_uo_orrr GPRD:$a, GPRD:$b)>;
++def : Pat<(sra GPRD:$a, GPRD:$b), (shr_so_orrr GPRD:$a, GPRD:$b)>;
++
++// 64-bit div/rem (orrr): rdhb = rdhc / rdhb ... (contract-isa.md §6.1.5).
++// DADAO returns defined values for the div-by-zero / INT_MIN/-1 cases that are
++// UB in LLVM IR, so the mapping is safe.
++def : Pat<(udiv GPRD:$a, GPRD:$b), (div_uo GPRD:$a, GPRD:$b)>;
++def : Pat<(sdiv GPRD:$a, GPRD:$b), (div_so GPRD:$a, GPRD:$b)>;
++def : Pat<(urem GPRD:$a, GPRD:$b), (rem_uo GPRD:$a, GPRD:$b)>;
++def : Pat<(srem GPRD:$a, GPRD:$b), (rem_so GPRD:$a, GPRD:$b)>;
