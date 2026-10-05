@@ -119,10 +119,10 @@
 
 - id: ISS-025
   title: "br.* 双路径覆盖无结构性守卫：删掉 taken 或 not-taken 整条用例不会被捕获"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: TESTCASES-028t
 
 - id: ISS-026
   title: "encoding 的 imm 值不在 validator 能力内——imm 语义正确性由 golden model 脚本守卫"
@@ -395,10 +395,10 @@
 
 - id: ISS-097
   title: "class: overlap 同组用例缺语义门控（覆盖≠语义再现）"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: TESTCASES-028t
   notes: "原 backlog L91。候选：validate_vectors.py 对同组块赋值重叠用例按 word 的 hb/hc/immu6 重算区间交集，有交集则 expected_fault 必须 ILLI（纯结构、可机械执行）。"
 
 - id: ISS-098
@@ -411,10 +411,10 @@
 
 - id: ISS-099
   title: "009t-audit.py 对 ctrl-ret 全部 skip（旧 id 判据 ret-riii，应 ret_riii_ra）"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: TESTCASES-028t
   notes: "原 backlog L93。建议修 id 匹配或加 ctrl-ret 专用重算。"
 
 - id: ISS-100

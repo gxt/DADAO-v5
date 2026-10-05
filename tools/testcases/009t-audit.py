@@ -877,7 +877,9 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
             _do_ra_push(inp_ra, expected_ra, return_addr)
 
     # ── riii ret (§5.5) ────────────────────────────────────────────────
-    elif fmt == "riii" and insn == "ret-riii":
+    # ISS-099: 向量 id 为 M1 身份名 `ret_riii_ra`（contracts/opcodes.yaml），
+    # 旧的连字符判据匹配不上导致 ctrl-ret 全部 skip；此处改用 M1 身份名。
+    elif fmt == "riii" and insn == "ret_riii_ra":
         # ret: PC = ra63 low 48 bits
         ra63 = get_ra("ra63")
         if ra63 is not None:

@@ -54,6 +54,12 @@ RAM_BASE = 0xFFFF_0000_0000
 RAM_END = 0xFFFF_00FF_FFFF
 ADDR48_MAX = 0xFFFF_FFFF_FFFF
 
+# ADR-0004 D2.2 + tests/vectors/isa/ctrl-br.yaml 头部约定：
+# 向量中指令地址 = RAM 入口 rb0 = 0xFFFF_0000_0000；
+# br.* 非跳转（not-taken）后继 PC = rb0 + 4。ISS-025 结构性守卫据此分类 taken/not-taken。
+RB0_PC = 0xFFFF_0000_0000
+BR_NOT_TAKEN_PC = RB0_PC + 4
+
 HEX_RE = re.compile(r"^0x[0-9a-fA-F]+$")
 REG_RE = re.compile(r"^(rd|rb|ra)\d+$")
 SEP_RE = re.compile(r":?-{2,}:?")
@@ -73,6 +79,15 @@ def _to_int(val):
 
 def _unquote(cell):
     return cell.strip().strip("`").strip()
+
+
+def _field_val(word_int, fld):
+    """从编码字中取命名字段的值（按 opcodes.yaml 的 bits=[hi:lo]）。"""
+    m = re.match(r"\[(\d+):(\d+)\]", fld.get("bits", ""))
+    if not m:
+        return None
+    hi, lo = int(m.group(1)), int(m.group(2))
+    return (word_int >> lo) & ((1 << (hi - lo + 1)) - 1)
 
 
 def load_opcodes(path):
@@ -433,6 +448,40 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                     errors.append("%s: %s case expected_fault must be null or "
                                   "ILLI, got %r" % (tag, cls, fault))
 
+        # ── ISS-097: overlap 同组块赋值的语义门控（mreg_range_overlap）──
+        # 依据 contract-isa.md §寄存器组之间块赋值 / legality_rules.yaml::mreg_range_overlap：
+        # 同寄存器组块赋值（rd2rd/rb2rb，及 scope fp 的 convert_ff 四条）源范围与目的
+        # 范围有任何交集（含完全重合）→ ILLI。此处按 word 的 dst/src 字段 + immu6
+        # 机械重算 [start..start+immu6-1] 区间交集；有交集而 expected_fault != ILLI ⇒ 报错。
+        # 跨组块赋值（ra2rd/rd2ra/rd2rb/rb2rd 等）源与目的分属不同 bank，结构性不可能
+        # 重叠，不适用本规则（由 bank 相等判据自动排除）。
+        if cls == "overlap" and key is not None and key in by_key \
+                and isinstance(word, str) and HEX_RE.match(word.strip()):
+            rec = by_key[key]
+            flds = rec.get("fields", [])
+            dst_f = next((f for f in flds if f.get("role") == "dst"), None)
+            src_f = next((f for f in flds if f.get("role") == "src"), None)
+            imm_f = next((f for f in flds if f.get("name") == "immu6"), None)
+            if dst_f is not None and src_f is not None and imm_f is not None \
+                    and dst_f.get("bank") == src_f.get("bank") \
+                    and dst_f.get("bank") in ("rd", "rb", "rf"):
+                wval_o = int(word, 16)
+                dst_i = _field_val(wval_o, dst_f)
+                src_i = _field_val(wval_o, src_f)
+                cnt = _field_val(wval_o, imm_f)
+                if dst_i is not None and src_i is not None \
+                        and cnt is not None and cnt > 0:
+                    dst_lo, dst_hi = dst_i, dst_i + cnt - 1
+                    src_lo, src_hi = src_i, src_i + cnt - 1
+                    if not (dst_hi < src_lo or src_hi < dst_lo):
+                        if fault != "ILLI":
+                            errors.append(
+                                "%s: overlap %s same-bank ranges "
+                                "[%d..%d] ∩ [%d..%d] ≠ ∅ but expected_fault=%r "
+                                "(must be ILLI per mreg_range_overlap)"
+                                % (tag, key, dst_lo, dst_hi, src_lo, src_hi,
+                                   fault))
+
         # F9①: active semantic/boundary src field register pre-set guard
         if status == "active" and cls in ("semantic", "boundary") and \
                 isinstance(input_state, dict) and \
@@ -700,6 +749,10 @@ def main():
     total_cases = 0
     # Data-level coverage map: (id, class) -> count of active cases
     data_coverage = {}
+    # ISS-025: br.* 双路径覆盖图 — id -> set{taken, not-taken}
+    # 分类依据 expected_pc（结构字段，不读 notes/文本）：
+    #   not-taken ⇔ expected_pc == BR_NOT_TAKEN_PC（rb0+4）；否则视为 taken。
+    br_paths = {}
     for fpath in yaml_files:
         total_cases += validate_file(fpath, by_id, m1_keys, all_records, errors)
         # Build data-level coverage from this file
@@ -726,6 +779,32 @@ def main():
                 continue
             cov_key = (c_id, c_cls)
             data_coverage[cov_key] = data_coverage.get(cov_key, 0) + 1
+
+            # ISS-025: 收集 br.* 的 taken / not-taken 语义覆盖
+            if isinstance(c_id, str) and c_id.startswith("br.") \
+                    and c_cls == "semantic":
+                epc = c.get("expected_pc")
+                if isinstance(epc, str) and HEX_RE.match(epc.strip()) \
+                        and int(epc, 16) == BR_NOT_TAKEN_PC:
+                    path = "not-taken"
+                else:
+                    path = "taken"
+                br_paths.setdefault(c_id, set()).add(path)
+
+    # ── ISS-025: br.* 双路径（taken + not-taken）结构性守卫 ────────────
+    # 每个 M1 br.* 指令须同时存在 taken 与非 taken 的 active semantic 用例；
+    # 删任一条 ⇒ 报错。分类仅依赖 expected_pc（结构字段），不依赖注释/文本。
+    for rid in sorted(m1_keys):
+        if not rid.startswith("br."):
+            continue
+        paths = br_paths.get(rid, set())
+        missing = [p for p in ("taken", "not-taken") if p not in paths]
+        if missing:
+            errors.append(
+                "BR DUAL-PATH GAP: id='%s' missing %s active semantic "
+                "case(s) (need both taken=rb0+(imm<<2) and "
+                "not-taken=rb0+4; ADR-0004 D2.2)"
+                % (rid, ", ".join(missing)))
 
     # ── Data-level coverage gate (TESTCASES-009t 验收标准 7) ──────────
     # For each id in inventory with ✓ for some class,
