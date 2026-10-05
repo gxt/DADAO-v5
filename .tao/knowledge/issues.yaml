@@ -79,10 +79,11 @@
 
 - id: ISS-013
   title: "fetch.py 选源标签逻辑重复（INFRA-009t 遗留，DRY）——select_source() 返回值建议含 label"
-  status: open
+  status: closed
   scope: [infra]
   blocks: []
-  resolved_by: null
+  resolved_by: INFRA-017t
+  notes: "INFRA-039t（2026-10-05）独立复核：select_source() 返回 (url,label)、调用处 select_source 解包（fetch.py L90/L145）；反注单值返回→2-tuple 断言 FAIL、还原回绿。实际修复源为 INFRA-017t（commit 9a7ea95），非任务书初筛所署 SPEC-085t。"
 
 - id: ISS-014
   title: "ADR-0005 Consequences C2 表述可更精确——select_source() 完成解析、sync_mirror 只接收 source_url"
@@ -110,10 +111,11 @@
 
 - id: ISS-023
   title: "F10④ 守卫的 RB 覆盖缺口：validate_vectors.py 只提取 rdha，未覆盖 rbha——rbha=0 的 ILLI 未被捕获"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
+  resolved_by: TESTCASES-019t
+  notes: "INFRA-039t（2026-10-05）独立复核：validate_vectors.py F10④b 守卫存在（rbha role=dst 且 =0 报错，L611-622）；注入 mem-rb case[0] rbha=1→0 后 EXIT=1 且报 'F10: encoding dest rbha=0'，还原后 EXIT=0。"
 
 - id: ISS-025
   title: "br.* 双路径覆盖无结构性守卫：删掉 taken 或 not-taken 整条用例不会被捕获"
@@ -156,10 +158,11 @@
 
 - id: ISS-041
   title: "4 个 LLVM 文件缺末尾换行：DADAOFrameLowering.{h,cpp}、DADAORegisterInfo.cpp、DADAOTargetMachine.h"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-021t
+  notes: "INFRA-039t（2026-10-05）独立复核：4 个补丁全树无 '\\ No newline at end of file'，按 '+' 行重建内容均以 \\n 结尾。git 溯源：标记由 LLVM-021t（f791c5d）移除。"
 
 - id: ISS-043
   title: "越界立即数静默截断（LLVM-006t reviewer ②）：分支/跳转 fixup 越界无诊断"
@@ -184,10 +187,11 @@
 
 - id: ISS-046
   title: "DecodeGPRFRegisterClass 未使用告警：M1 无 RF 指令 → -Wunused-function"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-029t
+  notes: "INFRA-039t（2026-10-05）独立复核：InstrInfoFP.td 被 InstrInfo.td include（FP 入 MC），60 条 FP 指令使用 GPRF 操作数（110 处）；生成的反汇编表引用 DecodeGPRFRegisterClass 17 次（.work/build 现物）⇒ 不再 unused。修复源 LLVM-029t。"
 
 - id: ISS-047
   title: "llvm-objdump -d 需显式 --triple=dadao-unknown-elf：e_machine 未映射到 dadao"
@@ -198,10 +202,11 @@
 
 - id: ISS-049
   title: "QEMU-003t 补丁 3 个源文件缺末尾换行：helper.c、helper.h、translate.c"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: QEMU-027t
+  notes: "INFRA-039t（2026-10-05）独立复核：helper.c/helper.h 标记移除于 QEMU-027t（9a7ea95），translate.c 现无标记；qemu patches 全树 0 命中 'No newline'，按 '+' 行重建内容均以 \\n 结尾。"
 
 - id: ISS-050
   title: "dadao_cpu_tlb_fill 未用 access_type / 未做 48 位屏蔽——skeleton 无访存指令故不可达"
@@ -254,10 +259,11 @@
 
 - id: ISS-067
   title: "check_qemu_trans.py 的 patch 行分类：collect_trans_defs() 对 +/-/上下文行一视同仁，理论上后序删除会误判"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: QEMU-027t
+  notes: "INFRA-039t（2026-10-05）独立复核：collect_trans_defs() 含 `if line.startswith('-'): continue`；两分测试确认 '-' 行不收集、'+'/上下文行收集。修复源 QEMU-027t。"
 
 - id: ISS-068
   title: "24 条 mem-rd 窄 load 向量 FAIL 归因变更：根因 = harness build_loader() 无条件用 st.o（8 字节），归 QEMU-023t"
@@ -268,10 +274,11 @@
 
 - id: ISS-069
   title: "harness 内硬编码 op 常量 ↔ opcodes.yaml 无交叉校验——encode_* helper 硬编码 op 值，存在漂移风险"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: QEMU-027t
+  notes: "INFRA-039t（2026-10-05）独立复核：tools/qemu/check_harness_ops.py 存在，22 op ↔ opcodes.yaml 交叉校验 EXIT=0；注入 op 值（临时 harness 副本）→ MISMATCH EXIT=1。修复源 QEMU-027t。"
 
 # ── 内联提及项（原 backlog 非独立 bullet，但用户裁定/代码库明确引用）────────
 
@@ -408,11 +415,11 @@
 
 - id: ISS-100
   title: "新规则 dst_rd0_nonzero 无 ISA 合法性向量"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L95。_ILLI_RULES 只覆盖 dst_rd0/dst_dual_same/dst_rb0/mreg_zero；运行期 ILLI 由 QEMU 承担、汇编期硬报错由 LLVM-027t。建议另立补 ret rd0 非0 legality 向量。"
+  resolved_by: TESTCASES-022t
+  notes: "原 backlog L95。_ILLI_RULES 只覆盖 dst_rd0/dst_dual_same/dst_rb0/mreg_zero；运行期 ILLI 由 QEMU 承担、汇编期硬报错由 LLVM-027t。INFRA-039t（2026-10-05）独立复核：tests/vectors/isa/ctrl-ret.yaml 含 dst_rd0_nonzero 说明 + ILLI 用例，已消解（修复源 TESTCASES-022t）。"
 
 - id: ISS-102
   title: "覆盖门控为 (id,class) 粒度，删单条 legality 用例不触发报错"
@@ -464,11 +471,11 @@
 
 - id: ISS-109
   title: "# 行首仍被静默当注释（AllowAdditionalComments 默认 true）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L236。ADR-0013 D9 改 ; 注释符，但行首 # 仍被静默吞掉；建议设 AllowAdditionalComments=false 并改 assembly-language.md:204 示例。"
+  resolved_by: LLVM-025t
+  notes: "原 backlog L236。INFRA-039t（2026-10-05）独立复核：DADAOMCAsmInfo.cpp `AllowAdditionalComments = false`；Toolchain-01 §9 记 '#' 为 C 预处理器指令符、纯汇编无条件非法。修复源 LLVM-025t。"
 
 - id: ISS-110
   title: "LLVM MC 的 cfx 指令/别名实现（M2；ADR-0017 D5/D6 待落地）"
@@ -488,35 +495,35 @@
 
 - id: ISS-112
   title: "check_interface_alignment.py 第三处调用的 isdir 守卫不一致"
-  status: open
+  status: closed
   scope: [integ]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L195/L205。check_opcodes_cross() 有 isdir 守卫，前两处无；建议删守卫使三处一致（交 iter_patch_files 统一处理）。"
+  resolved_by: INTEG-006t
+  notes: "原 backlog L195/L205。INFRA-039t（2026-10-05）独立复核：三处 patch 读取均走 iter_patch_files（定义+3 调用），无残留 patch isdir 守卫（仅 lit_dir 一处 isdir）。修复源 INTEG-006t。"
 
 - id: ISS-114
   title: "check_spec_drift.py 的 --test-mode 自测判别力不足"
-  status: open
+  status: closed
   scope: [infra]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L203。建议改为基于临时 fixture 的真实负测试。"
+  resolved_by: INFRA-017t
+  notes: "原 backlog L203。INFRA-039t（2026-10-05）独立复核：tools/infra/test_spec_drift_fixtures.py 提供 source_missing/source_bad_format/version_mismatch/unknown_adr 4 类真实缺陷 fixture 负测试，EXIT=0、4/4 PASS。修复源 INFRA-017t。"
 
 - id: ISS-115
   title: "gen_asm_list.py 默认输出会覆盖已入库文件（--plain 无显式 --output 时写 docs/assembly-list.md）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L207。建议 --plain 无显式 --output 时输出到 stdout 或强制要求 --output。"
+  resolved_by: LLVM-022t
+  notes: "原 backlog L207。INFRA-039t（2026-10-05）独立复核：--plain 无 --output 时写 stdout（257 行，stderr 报 '-> stdout'），未覆盖入库文件（git status 干净）。修复源 LLVM-022t。"
 
 - id: ISS-116
   title: "validate_encoding.py 的 no_overlap 标识符未注册（rd2rd/rb2rb；pre-existing，不在 make check）"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L208。EXIT=1 报 no_overlap 引用不存在标识符；建议后续修标识符注册。"
+  resolved_by: INTEG-008t
+  notes: "原 backlog L208。INFRA-039t（2026-10-05）独立复核：ALLOWED_NON_FIELD 含 no_overlap，validate_encoding EXIT=0（228 条）；删白名单注入 → EXIT=1 报 no_overlap。修复源 INTEG-008t。"
 
 - id: ISS-117
   title: "check_interface_alignment.py 的 e_flags 检测行尾/块注释误命中（假绿，本产物无触发）"
@@ -576,11 +583,11 @@
 
 - id: ISS-124
   title: "imm_range 移出 legality_rules.yaml 后规范侧通用说明未落位"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L225。用户裁定「汇编器职责」；归属 spec 后续任务落地通用说明。"
+  resolved_by: SPEC-085t
+  notes: "原 backlog L225。INFRA-039t（2026-10-05）独立复核：立即数范围通用说明落位 contract-asm.md + Toolchain-01 §2.4 + contract-asm-list.md「立即数范围速查」。SPEC-070t 规范侧收口判定满足：imm_range 属汇编器职责，其通用说明归 v5 汇编规范 Toolchain-01 与 contract-asm（用户裁定口径）。"
 
 - id: ISS-125
   title: "生成器↔向量预存漂移（全量重跑会破坏 5 文件）"
