@@ -42,7 +42,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
-        check-patch-tree check-source-state check-asm-list-drift size-report \
+        check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
@@ -82,6 +82,8 @@ help:
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose ```simrisc blocks vs opcodes.yaml (ISS-077)"
 	@echo "  make check-lit        Run lit MC + E2E tests (requires build-mc + build-qemu)"
+	@echo "  make check-patch-tree  Check component patch tree (spec/Process-01, 9 assertions)"
+	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-legality-invariants  Check ftroot/foroot n=2 + rule-rename gate (ISS-079)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
@@ -224,7 +226,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -241,6 +243,12 @@ check-spec-drift:
 # 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 spec/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:
 	@$(PYTHON) tools/infra/check_patch_tree.py
+
+# new-file 补丁 index blob hash 卫生 (INFRA-038t/ISS-119): 按补丁自身内容用
+# `git hash-object --stdin` 重算 new-file 补丁的 index 新 hash；失配 ⇒ FAIL。
+# 修改类补丁（有 old hash）不在此检查范围内，明确跳过。
+check-index-blobs:
+	@$(PYTHON) tools/infra/check_index_blobs.py
 
 # E7 模块自检 (2026-10-03): 报告每个源树的 E1 状态（worktree 干净 + base+1）。
 check-source-state:

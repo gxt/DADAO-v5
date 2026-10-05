@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
 new file mode 100644
-index 000000000000..466ea7d6a412
+index 000000000000..7bcd322cf58a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
 @@ -0,0 +1,49 @@

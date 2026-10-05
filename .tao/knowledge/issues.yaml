@@ -536,10 +536,10 @@
 
 - id: ISS-119
   title: "new file mode 补丁的 index blob hash 失配 9 项（pre-existing，不影响 git apply）"
-  status: open
+  status: closed
   scope: [infra, qemu, llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: INFRA-038t
   notes: "原 backlog L214/L232。LLVM 7 项 + QEMU 2 项；修改类补丁不能用此法判定。归属补丁卫生任务（低优先级）。"
 
 - id: ISS-120
