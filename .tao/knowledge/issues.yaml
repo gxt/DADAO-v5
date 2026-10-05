@@ -731,8 +731,16 @@
 
 - id: ISS-143
   title: "后端缺口：sext i8/i16/i32 形参（sign_extend_inreg）无 ISel → 有符号窄参数扩展（C4）无法编译（abort 134）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
+  resolved_by: "LLVM-047t（新增 sext_inreg → ext.so pattern；显式 sext 不再 abort）"
+  notes: "TESTCASES-026t 发现并 reviewer 独立复现。订正：abort 仅显式 sext（扩展未被断言）；signext 形参经 LLVM-039t AssertSext 本就可编译。LLVM-047t 修复并验收。"
+
+- id: ISS-144
+  title: "components/llvm-project/changelog.md 缺 LLVM-040t / LLVM-041t 两条组件条目"
+  status: open
+  scope: [infra]
+  blocks: []
   resolved_by: null
-  notes: "TESTCASES-026t 发现并 reviewer 独立复现：sign_extend_inreg 无 SelectionDAG pattern；call_narrow_args.ll 暂只用无符号窄参数。需另立 LLVM 任务补 ISel（有符号窄参数 caller 扩展，C4）。"
+  notes: "LLVM-047t engineer 发现、主会话核实：组件 changelog 最后一条为 039t，040t/041t 未补（040t 提交未改该文件）。reviewer 建议另立补录任务，不混入 047t。"
