@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.h b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
 new file mode 100644
-index 000000000..1043b0969
+index 000000000..e93025412
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,75 @@
 +//===-- DADAOFrameLowering.h - Define frame lowering for DADAO -*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -59,6 +59,14 @@ index 000000000..1043b0969
 +  /// is built).  Runs before PEI assigns object offsets.
 +  void processFunctionBeforeFrameFinalized(MachineFunction &MF,
 +                                           RegScavenger *RS = nullptr) const override;
++
++  /// Expand / drop the call-frame pseudos (ADJCALLSTACKDOWN/UP, LLVM-039t).
++  /// SP-only functions reserve the outgoing argument area in the prologue
++  /// (`hasReservedCallFrame`), so the pseudo is simply dropped; a frame pointer
++  /// function adjusts SP around the call site instead.
++  MachineBasicBlock::iterator
++  eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
++                                MachineBasicBlock::iterator MI) const override;
 +
 +private:
 +  /// Emit `add.si reg, <amount>` (splitting into chunks when the amount does

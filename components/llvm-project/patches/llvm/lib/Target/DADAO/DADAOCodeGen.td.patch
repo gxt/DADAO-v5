@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..07aa5b836
+index 000000000..e0eda6456
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,261 @@
+@@ -0,0 +1,308 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -36,6 +36,40 @@ index 000000000..07aa5b836
 +// Matched by RET_PSEUDO below.
 +def DADAORetGlue : SDNode<"DADAOISD::RET_GLUE", SDTNone,
 +                          [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
++
++//===----------------------------------------------------------------------===//
++// Direct call (LowerCall -> DADAOISD::CALL) and the call-frame pseudos
++// (C16, ADR-0018)
++//
++// Operands: chain, callee, [RegisterMask], [argument Registers...], [glue].
++//   - the callee is a TargetGlobalAddress / TargetExternalSymbol (indirect
++//     calls are deferred to M4);
++//   - the RegisterMask operand is getCallPreservedMask (must include
++//     rb32..rb63, ML-004c);
++//   - the RegisterSDNode operands are the live-in argument registers of this
++//     call site; InstrEmitter turns them into implicit-use MachineOperands,
++//     and the RegisterMaskSDNode into a regmask MachineOperand.
++// DADAOISelDAGToDAG carries all of these onto call_iiii (no TableGen pattern:
++// the variadic operand set cannot be expressed as a fixed TableGen pattern).
++//===----------------------------------------------------------------------===//
++
++def SDT_DADAOCall : SDTypeProfile<0, -1, [SDTCisVT<0, i64>]>;
++
++def DADAOCall : SDNode<"DADAOISD::CALL", SDT_DADAOCall,
++                       [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue, SDNPVariadic]>;
++
++// CALLSEQ_START/END -> ADJCALLSTACKDOWN/UP.  The outgoing stack-argument area
++// is either reserved in the prologue (SP-only: hasReservedCallFrame) or
++// adjusted around the call (FP); TargetFrameLowering::eliminateCallFramePseudoInstr
++// handles both (LLVM-039t).
++def SDT_DADAOCallSeqStart : SDCallSeqStart<[SDTCisVT<0, i64>, SDTCisVT<1, i64>]>;
++def SDT_DADAOCallSeqEnd : SDCallSeqEnd<[SDTCisVT<0, i64>, SDTCisVT<1, i64>]>;
++
++def DADAOCallSeqStart : SDNode<"ISD::CALLSEQ_START", SDT_DADAOCallSeqStart,
++                               [SDNPHasChain, SDNPOutGlue]>;
++def DADAOCallSeqEnd : SDNode<"ISD::CALLSEQ_END", SDT_DADAOCallSeqEnd,
++                             [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
++
 +
 +//===----------------------------------------------------------------------===//
 +// Compare / branch target nodes (LLVM-037t; C17, ADR-0018)
@@ -92,6 +126,19 @@ index 000000000..07aa5b836
 +// are needed here.  Expansion to the real `ret rd0, 0` is LLVM-040t.
 +let isReturn = 1, isTerminator = 1, isBarrier = 1 in
 +def RET_PSEUDO : DADAOPseudo<(outs), (ins), [(DADAORetGlue)]>;
++
++// Call frame adjustment pseudos (LLVM-039t).  They implicitly use/def SP: the
++// CodeGen must know they may modify the stack pointer before prolog-epilog
++// rewriting, and FinalizeISel sets AdjustsStack when it sees one.  Registered
++// as the call-frame setup/destroy opcodes in DADAOInstrInfo's constructor;
++// expanded/eliminated by DADAOFrameLowering::eliminateCallFramePseudoInstr.
++let Defs = [rb1], Uses = [rb1] in {
++def ADJCALLSTACKDOWN : DADAOPseudo<(outs), (ins i64imm:$amt1, i64imm:$amt2),
++                                   [(DADAOCallSeqStart timm:$amt1, timm:$amt2)]>;
++def ADJCALLSTACKUP : DADAOPseudo<(outs), (ins i64imm:$amt1, i64imm:$amt2),
++                                 [(DADAOCallSeqEnd timm:$amt1, timm:$amt2)]>;
++}
++
 +
 +//===----------------------------------------------------------------------===//
 +// i64 arithmetic pseudos (LLVM-035t)

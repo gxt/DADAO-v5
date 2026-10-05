@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..b9518b68a
+index 000000000..49e5ae700
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,226 @@
+@@ -0,0 +1,264 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -37,6 +37,7 @@ index 000000000..b9518b68a
 +#include "llvm/CodeGen/SelectionDAGISel.h"
 +#include "llvm/CodeGen/SelectionDAGNodes.h"
 +#include "llvm/Support/Debug.h"
++#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
 +
 +// Instruction opcodes (DADAO::RET_PSEUDO, ...) used by the generated matcher.
@@ -191,6 +192,43 @@ index 000000000..b9518b68a
 +      return;
 +    }
 +    break;
++  case DADAOISD::CALL: {
++    // Direct call (LLVM-039t): the DADAOISD::CALL operands are
++    //   chain, callee, [RegisterMask], [argument Registers...], [glue]
++    // The instruction only declares the callee operand; the remaining
++    // register/regmask operands are carried through so InstrEmitter marks the
++    // exact live-in argument registers implicit-use and attaches the
++    // call-clobber mask (DL-065a, ML-004c).  Chain/glue must trail the operand
++    // list (InstrEmitter::AddOperand invariant).
++    //
++    // Indirect calls are deferred to M4 (LowerCall already rejects them; this
++    // is a second guard).
++    SDValue Callee = Node->getOperand(1);
++    if (Callee.getOpcode() != ISD::TargetGlobalAddress &&
++        Callee.getOpcode() != ISD::TargetExternalSymbol)
++      report_fatal_error(
++          "DADAO: indirect calls are not supported (deferred to M4)");
++
++    const SDLoc DLC(Node);
++    SDValue Chain = Node->getOperand(0);
++    const unsigned NumOps = Node->getNumOperands();
++    const bool HasGlue =
++        NumOps > 2 && Node->getOperand(NumOps - 1).getValueType() == MVT::Glue;
++    const unsigned NumExtra = NumOps - 2 - (HasGlue ? 1 : 0);
++
++    SmallVector<SDValue, 8> Ops;
++    Ops.push_back(Callee);
++    for (unsigned i = 0; i < NumExtra; ++i)
++      Ops.push_back(Node->getOperand(2 + i));
++    Ops.push_back(Chain);
++    if (HasGlue)
++      Ops.push_back(Node->getOperand(NumOps - 1));
++
++    MachineSDNode *Call = CurDAG->getMachineNode(
++        DADAO::call_iiii, DLC, MVT::Other, MVT::Glue, Ops);
++    ReplaceNode(Node, Call);
++    return;
++  }
 +  case DADAOISD::CMPU:
 +    // Pointer comparison (C14 D2 / C17 `p == q`): cmp.uo rd, rb, rb when both
 +    // operands are in the GPRB bank.  Integer compares fall through to the

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..9e1c8368c
+index 000000000..0e4124682
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,251 @@
+@@ -0,0 +1,255 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -45,14 +45,16 @@ index 000000000..9e1c8368c
 +// Constructor is provided by the generated base class.  The custom overrides
 +// are copyPhysReg (bank-aware register moves, LLVM-034t) and
 +// expandPostRAPseudo (i64 arithmetic / constant pseudos, LLVM-035t).
++// The call-frame setup/destroy opcodes are registered here (LLVM-039t) so
++// PrologEpilogInserter/FinalizeISel recognise ADJCALLSTACKDOWN/UP.
 +DADAOInstrInfo::DADAOInstrInfo(const TargetSubtargetInfo &STI,
 +                               const TargetRegisterInfo &TRI,
-+                               unsigned CFSetupOpcode,
-+                               unsigned CFDestroyOpcode,
++                               unsigned /*CFSetupOpcode*/,
++                               unsigned /*CFDestroyOpcode*/,
 +                               unsigned CatchRetOpcode,
 +                               unsigned ReturnOpcode)
-+    : DADAOGenInstrInfo(STI, TRI, CFSetupOpcode, CFDestroyOpcode,
-+                        CatchRetOpcode, ReturnOpcode) {}
++    : DADAOGenInstrInfo(STI, TRI, DADAO::ADJCALLSTACKDOWN,
++                        DADAO::ADJCALLSTACKUP, CatchRetOpcode, ReturnOpcode) {}
 +
 +void DADAOInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 +                                 MachineBasicBlock::iterator MI,
@@ -195,11 +197,13 @@ index 000000000..9e1c8368c
 +                                         MachineInstr::MIFlag Flags) const {
 +  // Route by bank (C16 D3, ADR-0018): GPRD -> st.o (rd value), GPRB -> st.o
 +  // (rb value).  Both take the base register and a simm12 offset; the base is
-+  // a frame index that PEI replaces (LLVM-038t).
++  // a frame index that PEI replaces (LLVM-038t).  Use hasSubClassEq (not ==):
++  // callee-save spills go through getMinimalPhysRegClass, which yields the
++  // smaller GPRD_Allocatable / GPRB_Allocatable class (LLVM-039t).
 +  unsigned Opc;
-+  if (RC == &DADAO::GPRDRegClass)
++  if (DADAO::GPRDRegClass.hasSubClassEq(RC))
 +    Opc = DADAO::st_o_rd;
-+  else if (RC == &DADAO::GPRBRegClass)
++  else if (DADAO::GPRBRegClass.hasSubClassEq(RC))
 +    Opc = DADAO::st_o_rb;
 +  else
 +    llvm_unreachable("DADAO: cannot spill this register class to a stack slot");
@@ -230,9 +234,9 @@ index 000000000..9e1c8368c
 +                                          Register /*VReg*/, unsigned /*SubReg*/,
 +                                          MachineInstr::MIFlag Flags) const {
 +  unsigned Opc;
-+  if (RC == &DADAO::GPRDRegClass)
++  if (DADAO::GPRDRegClass.hasSubClassEq(RC))
 +    Opc = DADAO::ld_o_rd;
-+  else if (RC == &DADAO::GPRBRegClass)
++  else if (DADAO::GPRBRegClass.hasSubClassEq(RC))
 +    Opc = DADAO::ld_o_rb;
 +  else
 +    llvm_unreachable(

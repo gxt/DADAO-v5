@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..51f563445
+index 000000000..8f7d02803
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1389 @@
+@@ -0,0 +1,1413 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -334,6 +334,13 @@ index 000000000..51f563445
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRB:$ra, GPRD:$rb, imms12:$imm12);
 +  let op = 0x75;
++  // C16 (ADR-0018): a call writes the return-value registers rd31/rb31; the
++  // Defs must declare both banks or MachineVerifier reports "undefined
++  // physical register" for the caller-side copy of a pointer return (DL-070a).
++  // Indirect calls (this form) are deferred to M4 and are never selected by
++  // the M3 CodeGen.
++  let isCall = 1;
++  let Defs = [rd31, rb31];
 +  let Pattern = [];
 +}
 +
@@ -617,6 +624,14 @@ index 000000000..51f563445
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins imms18:$imm18);
 +  let op = 0x76;
++  // C16 (ADR-0018): `ret` is a terminator/barrier and does NOT declare Defs —
++  // the return value is defined earlier by LowerReturn's CopyToReg + glue
++  // chain; `ret`'s $ra slot is the fixed encoding-format field (rd0 in the
++  // expanded RET_PSEUDO, LLVM-040t).  Declaring Defs here would clash with
++  // the reaching definition the verifier needs at the call site.
++  let isReturn = 1;
++  let isTerminator = 1;
++  let isBarrier = 1;
 +  let Pattern = [];
 +}
 +
@@ -636,6 +651,15 @@ index 000000000..51f563445
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins imms24:$imm24);
 +  let op = 0x74;
++  // C16 (ADR-0018): direct call.  isCall=1 + Defs=[rd31, rb31] (DL-070a; both
++  // banks' return registers).  The per-call-site argument registers are
++  // attached as implicit uses by InstrEmitter from the DADAOISD::CALL node
++  // (LowerCall's glued CopyToReg chain + explicit RegisterSDNodes), and the
++  // call-clobbered set is carried as a RegisterMask operand
++  // (getCallPreservedMask, ML-004c) — no static Uses=[...] list here, which
++  // would over-claim argument registers and trip the verifier at -O1+.
++  let isCall = 1;
++  let Defs = [rd31, rb31];
 +  let Pattern = [];
 +}
 +

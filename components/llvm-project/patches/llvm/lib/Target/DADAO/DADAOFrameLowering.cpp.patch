@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
 new file mode 100644
-index 000000000..d058d246d
+index 000000000..780adf835
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
-@@ -0,0 +1,193 @@
+@@ -0,0 +1,222 @@
 +//===-- DADAOFrameLowering.cpp - DADAO Frame Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -196,4 +196,33 @@ index 000000000..d058d246d
 +    emitAddImm(MBB, MBBI, DL, DADAO::rb1, (int64_t)MFI.getStackSize(),
 +               /*IsEpilogue=*/true);
 +  }
++}
++
++MachineBasicBlock::iterator DADAOFrameLowering::eliminateCallFramePseudoInstr(
++    MachineFunction &MF, MachineBasicBlock &MBB,
++    MachineBasicBlock::iterator MI) const {
++  const DADAOInstrInfo &TII = *MF.getSubtarget<DADAOSubtarget>().getInstrInfo();
++  const unsigned Opc = MI->getOpcode();
++  const DebugLoc DL = MI->getDebugLoc();
++  const int64_t Amount = MI->getOperand(0).getImm();
++  const bool IsDestroy = Opc == TII.getCallFrameDestroyOpcode();
++
++  MachineBasicBlock::iterator Next = MBB.erase(MI);
++
++  // SP-only functions reserve the outgoing argument area in the prologue
++  // (hasReservedCallFrame == !hasFP), so no per-call adjustment is needed.
++  // With a frame pointer the call frame is not reserved: adjust SP around the
++  // call.  Amount is the outgoing-argument size; it is not a prologue/epilogue
++  // adjustment, so no FrameSetup/FrameDestroy flag is attached.
++  if (!hasReservedCallFrame(MF) && Amount != 0) {
++    int64_t Adj = IsDestroy ? Amount : -Amount;
++    while (Adj != 0) {
++      int64_t Step =
++          Adj > 0 ? std::min(Adj, AddSI_Max) : std::max(Adj, AddSI_Min);
++      BuildMI(MBB, Next, DL, TII.get(DADAO::add_si_rb), DADAO::rb1)
++          .addImm(Step);
++      Adj -= Step;
++    }
++  }
++  return Next;
 +}

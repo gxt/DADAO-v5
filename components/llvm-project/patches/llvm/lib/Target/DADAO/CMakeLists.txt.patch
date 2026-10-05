@@ -1,14 +1,15 @@
 diff --git a/llvm/lib/Target/DADAO/CMakeLists.txt b/llvm/lib/Target/DADAO/CMakeLists.txt
 new file mode 100644
-index 000000000..2594a1085
+index 000000000..e99447ecc
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/CMakeLists.txt
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,45 @@
 +add_llvm_component_group(DADAO)
 +
 +set(LLVM_TARGET_DEFINITIONS DADAO.td)
 +
 +tablegen(LLVM DADAOGenRegisterInfo.inc -gen-register-info)
++tablegen(LLVM DADAOGenCallingConv.inc -gen-callingconv)
 +tablegen(LLVM DADAOGenInstrInfo.inc -gen-instr-info)
 +tablegen(LLVM DADAOGenMCCodeEmitter.inc -gen-emitter)
 +tablegen(LLVM DADAOGenDisassemblerTables.inc -gen-disassembler)

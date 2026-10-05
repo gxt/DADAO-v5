@@ -7,6 +7,7 @@ llvm/lib/Target/DADAO/DADAO.h.patch
 llvm/lib/Target/DADAO/DADAO.td.patch
 llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp.patch
 llvm/lib/Target/DADAO/DADAOAsmPrinter.h.patch
+llvm/lib/Target/DADAO/DADAOCallingConv.td.patch
 llvm/lib/Target/DADAO/DADAOCodeGen.td.patch
 llvm/lib/Target/DADAO/DADAOFrameLowering.cpp.patch
 llvm/lib/Target/DADAO/DADAOFrameLowering.h.patch

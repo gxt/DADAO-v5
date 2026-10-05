@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
 new file mode 100644
-index 000000000..1714bb1c1
+index 000000000..47d130cc1
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,172 @@
 +//===-- DADAORegisterInfo.cpp - DADAO Register Information -------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -43,11 +43,22 @@ index 000000000..1714bb1c1
 +DADAORegisterInfo::DADAORegisterInfo()
 +    : DADAOGenRegisterInfo(DADAO::RBSP /* RA = SP */) {}
 +
-+const uint16_t *
++const MCPhysReg *
 +DADAORegisterInfo::getCalleeSavedRegs(const MachineFunction * /*MF*/) const {
-+  // Placeholder: M2 will populate the callee-saved list.
-+  static const uint16_t CalleeSaved[] = {0};
-+  return CalleeSaved;
++  // CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, ADR-0018 C6).
++  // SP (rb1) is not part of the generic CSR (maintained symmetrically by the
++  // prologue/epilogue); FP (rb2) is reserved and saved separately.
++  return CSR_SaveList;
++}
++
++const uint32_t *
++DADAORegisterInfo::getCallPreservedMask(const MachineFunction & /*MF*/,
++                                        CallingConv::ID /*CC*/) const {
++  // Call-preserved set = CSR.  It MUST include rb32..rb63: otherwise a GPRB
++  // (address-bank) callee-saved value computed before a call would be silently
++  // clobbered (ML-004c, ADR-0018 C16).  Attached as the call instruction's
++  // RegisterMask operand by LowerCall.
++  return CSR_RegMask;
 +}
 +
 +BitVector

@@ -1,0 +1,84 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOCallingConv.td b/llvm/lib/Target/DADAO/DADAOCallingConv.td
+new file mode 100644
+index 000000000..66f085e45
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOCallingConv.td
+@@ -0,0 +1,78 @@
++//===-- DADAOCallingConv.td - DADAO Calling Conventions ---*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// DADAO M3 scalar calling convention (contract-abi.md §4, ADR-0018 C4/C5/C6):
++//
++//   - Integer/scalar arguments -> rd16..rd31; pointer/address arguments ->
++//     rb16..rb31.  The two banks are counted *independently* starting at 16
++//     (contract-abi.md §4.1); there is no shared slot numbering.
++//   - DADAO is a 64-bit target, so both integers and pointers are legalized
++//     to the same MVT (i64).  CCIfPtr checks ArgFlags.isPointer() (set by
++//     SelectionDAGBuilder from the original IR type) rather than the value
++//     type (ADR-0018 C2 D2); this is how the pointer/integer split is made.
++//   - The CCIfPtr rules MUST precede the CCIfType<[i64]> rules: CCState
++//     evaluates top-to-bottom and stops at the first matching predicate, so
++//     a pointer (VT == i64) would otherwise match the integer rule first.
++//   - Narrow (<8B) scalars are promoted to 8B (contract-abi.md §4.2); the
++//     caller materializes the sign/zero extension (C4 D2).
++//   - The overflow area is a single shared stack area ordered by global
++//     declaration sequence (C4 D1): CCAssignToStack shares one monotonically
++//     increasing byte offset across all rules in the same CCState, so the
++//     pointer and integer stack rules naturally interleave in argument order.
++//
++//===----------------------------------------------------------------------===//
++
++//===----------------------------------------------------------------------===//
++// Argument / call calling convention (CC_DADAO)
++//===----------------------------------------------------------------------===//
++
++def CC_DADAO : CallingConv<[
++  // Promote i8/i16/i32 arguments to i64 (contract-abi.md §4.2).
++  CCIfType<[i8, i16, i32], CCPromoteToType<i64>>,
++
++  // Pointer/address arguments -> RB bank (rb16..rb31), independent count.
++  CCIfPtr<CCAssignToReg<[rb16, rb17, rb18, rb19, rb20, rb21, rb22, rb23,
++                         rb24, rb25, rb26, rb27, rb28, rb29, rb30, rb31]>>,
++  CCIfPtr<CCAssignToStack<8, 8>>,
++
++  // Integer/scalar arguments -> RD bank (rd16..rd31), independent count.
++  CCIfType<[i64], CCAssignToReg<[rd16, rd17, rd18, rd19, rd20, rd21, rd22,
++                                 rd23, rd24, rd25, rd26, rd27, rd28, rd29,
++                                 rd30, rd31]>>,
++  CCIfType<[i64], CCAssignToStack<8, 8>>,
++]>;
++
++//===----------------------------------------------------------------------===//
++// Return-value calling convention (RetCC_DADAO)
++//===----------------------------------------------------------------------===//
++
++def RetCC_DADAO : CallingConv<[
++  // Narrow returns are canonicalized by the callee (contract-abi.md §4.4, C5).
++  CCIfType<[i8, i16, i32], CCPromoteToType<i64>>,
++
++  // Pointer return -> rb31 (C5 D1: directly, no rd31 round trip).
++  CCIfPtr<CCAssignToReg<[rb31]>>,
++
++  // Integer/scalar return -> rd31.
++  CCIfType<[i64], CCAssignToReg<[rd31]>>,
++]>;
++
++//===----------------------------------------------------------------------===//
++// Callee-saved registers / call-preserved mask
++//
++// CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, C6).  SP (rb1) is NOT
++// part of the generic CSR (it is maintained symmetrically by the prologue /
++// epilogue); FP (rb2) is likewise reserved and handled separately.
++// The generated `CSR_SaveList` feeds DADAORegisterInfo::getCalleeSavedRegs and
++// `CSR_RegMask` feeds getCallPreservedMask (which must include rb32..rb63,
++// else GPRB callee-saved values get silently clobbered across calls — ML-004c,
++// ADR-0018 C16).
++//===----------------------------------------------------------------------===//
++
++def CSR : CalleeSavedRegs<(add (sequence "rd%u", 32, 63),
++                               (sequence "rb%u", 32, 63))>;

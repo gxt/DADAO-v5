@@ -704,3 +704,11 @@
   blocks: []
   resolved_by: null
   notes: "两次：LLVM-034t「i64→GPRD 已获用户裁定」、SPEC-097t「内联 Fence 经用户确认忽略」（均无记录）。建议在 AGENTS.md 子代理硬约束加一条：涉及用户裁定的结论必须能指回具体用户原话，否则视为不存在。见 lessons.md §7.3。"
+
+- id: ISS-140
+  title: "README.md 中 LLVM 补丁数陈旧（新增 DADAOCallingConv.td 后计数未更新）"
+  status: open
+  scope: [docs]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-039t reviewer 披露：新增补丁文件后仓库 README 的补丁计数未同步；非阻塞。建议随文档任务或 milestone 收尾统一刷新（与 README 版本表同步）。"

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..a532eaf07
+index 000000000..e68a00adf
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,110 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -39,6 +39,10 @@ index 000000000..a532eaf07
 +  /// Produced by LowerReturn, matched by the RET_PSEUDO instruction
 +  /// (see DADAOCodeGen.td).
 +  RET_GLUE,
++
++  /// Direct call: (chain, callee, [regmask], [argument registers...], [glue]).
++  /// Produced by LowerCall, selected to call_iiii (LLVM-039t).
++  CALL,
 +
 +  /// Signed / unsigned compare: (lhs, rhs) -> i64 in {-1, 0, 1}.
 +  /// No condition flags (C17); the result is an ordinary data register value.
@@ -80,9 +84,23 @@ index 000000000..a532eaf07
 +                      const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
 +                      SelectionDAG &DAG) const override;
 +
++  /// Direct call lowering (LLVM-039t): assign argument locations via CC_DADAO,
++  /// emit CALLSEQ_START/END, the DADAOISD::CALL node (with getCallPreservedMask
++  /// as a RegisterMask operand) and LowerCallResult.
++  SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
++                    SmallVectorImpl<SDValue> &InVals) const override;
++
 +  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 +
 +private:
++  /// Copy call results out of the return registers (RetCC_DADAO) into virtual
++  /// registers (LLVM-039t).
++  SDValue LowerCallResult(SDValue Chain, SDValue InGlue,
++                          CallingConv::ID CallConv, bool IsVarArg,
++                          const SmallVectorImpl<ISD::InputArg> &Ins,
++                          const SDLoc &DL, SelectionDAG &DAG,
++                          SmallVectorImpl<SDValue> &InVals) const;
++
 +  /// Lower an integer compare+branch to DADAO cmp* + br.* (C17, ADR-0018).
 +  SDValue LowerBR_CC(SDValue Chain, ISD::CondCode CC, SDValue LHS, SDValue RHS,
 +                     SDValue Dest, const SDLoc &DL, SelectionDAG &DAG) const;

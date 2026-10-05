@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.h b/llvm/lib/Target/DADAO/DADAORegisterInfo.h
 new file mode 100644
-index 000000000..b7fcb78fd
+index 000000000..31dd9759e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.h
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,49 @@
 +//===-- DADAORegisterInfo.h - DADAO Register Information -------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -28,8 +28,11 @@ index 000000000..b7fcb78fd
 +public:
 +  DADAORegisterInfo();
 +
-+  const uint16_t *
++  const MCPhysReg *
 +  getCalleeSavedRegs(const MachineFunction *MF) const override;
++
++  const uint32_t *getCallPreservedMask(const MachineFunction &MF,
++                                       CallingConv::ID CC) const override;
 +
 +  BitVector getReservedRegs(const MachineFunction &MF) const override;
 +
