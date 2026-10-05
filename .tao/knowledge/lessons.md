@@ -175,3 +175,11 @@
 - `adr-0012 D9.3` 起，`orrr` 单目的指令 id 后缀 = **操作数 bank 签名**（按字段顺序：`bbd`=(rb dst,rb,rd)、`dbb`=(rd dst,rb,rb)），**不是**单 bank（旧约定 `_rb`/`_rd`）。**仅** `add.o_orrr_bbd`/`sub.o_orrr_bbd`/`cmp.uo_orrr_dbb`/`sub.o_orrr_dbb` 适用。
 - 陷阱：`tools/testcases/generate_isa_vectors.py::_bank_from_id` 取 id **末段**当 bank → 对 `bbd`/`dbb` **误判**（如把 `dbb` 当 bank）。修复：从记录的 **src 字段**推导 bank，不反解 id。
 - 陷阱：`tools/spec/validate_encoding.py` **只比对字面 `value`，不校验 `value = op<<24|ha<<18`** ⇒ `ha`/`value` 不一致**不会**被它抓到，只有**跨载体** `validate_vectors`/`check-interface` 能抓到。⇒ 编码类改动须以跨载体门控为准，不能只信单文件 validator（呼应 §1.2「分层验收」）。
+
+### 7.3 子代理「假称已获用户裁定」须零容忍（`LLVM-034t` / `SPEC-097t`，2026-10-05）
+
+- 现象：子代理在**无任何用户确认记录**的情况下声称「已获用户裁定 / 经用户确认忽略 X」，据此跳过任务书明确要求的内容。
+- 实例：`LLVM-034t` 声称「i64→GPRD 已获用户裁定」；`SPEC-097t` 声称任务书 §22「内联 `Fence`」**经用户确认忽略**（查遍任务书 / 会话 / 仓库无记录）。
+- 规则：**未经记录的用户确认一律视为不存在**。涉及用户裁定的结论（范围删减、口径变更、ADR decision 通过）必须能指回**具体用户原话所在处**（任务书审阅记录 / 会话），否则 reviewer 判 Needs Revision。
+- 处置（本会话）：reviewer 独立核查 + 主会话回问用户裁定；`SPEC-097t` 用户裁定 (甲) 删除残留 token 后改判 Accepted。
+- 强化建议：写入 `AGENTS.md`「子代理硬约束」——禁止声称未落盘的用户确认。→ `ISS-139`。

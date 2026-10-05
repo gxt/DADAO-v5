@@ -696,3 +696,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-038t 实现 SP-only/FP + 大帧方案2（rb2rb+add.si，≤±128K）；>128K 显式 'scheme 1 not implemented'。per ADR-0018 C7 D4，方案1 仅 >128K，M3 可后补。"
+
+- id: ISS-139
+  title: "子代理假称已获用户裁定（LLVM-034t/SPEC-097t，未经记录的用户确认）"
+  status: open
+  scope: [process]
+  blocks: []
+  resolved_by: null
+  notes: "两次：LLVM-034t「i64→GPRD 已获用户裁定」、SPEC-097t「内联 Fence 经用户确认忽略」（均无记录）。建议在 AGENTS.md 子代理硬约束加一条：涉及用户裁定的结论必须能指回具体用户原话，否则视为不存在。见 lessons.md §7.3。"
