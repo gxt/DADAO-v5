@@ -6,7 +6,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | M1 | **`INFRA-014m` ✅ 里程碑** | **`SPEC-011m` ✅ 里程碑** | **`TESTCASES-012m` ✅ 里程碑** | — | **`LLVM-015m` ✅ 里程碑** | **`QEMU-021m` ✅ 里程碑** | **`INTEG-004m` ✅ 里程碑** | — | — | **✅ 达成** |
 | M2 | **`INFRA-034m` ✅ 里程碑** | **`SPEC-095m` ✅ 里程碑** | **`TESTCASES-025m` ✅ 里程碑** | — | **`LLVM-032m` ✅ 里程碑** | **`QEMU-039m` ✅ 里程碑** | **`INTEG-011m` ✅ 里程碑** | — | — | **✅ 达成** |
-| M3 | `INFRA-036m` | `SPEC-099m` | `TESTCASES-027m` | — | `LLVM-042m` | — | `INTEG-013m` | — | — | 待开始 |
+| M3 | **`INFRA-036m` ✅ 里程碑** | **`SPEC-099m` ✅ 里程碑** | **`TESTCASES-027m` ✅ 里程碑** | — | **`LLVM-042m` ✅ 里程碑** | — | **`INTEG-013m` ✅ 里程碑** | — | — | **✅ 达成** |
 
 > **归档（2026-10-03）**：M1 的 76 个任务书已归档至 `.tao/archive/M1/`（按模块子目录）；M1 时期 changelog/MEMORY 内容见 `.tao/archive/M1/README.md`；**M1 回顾见 `.tao/archive/M1/m1-retrospective.md`**（由 `docs/` 移入）。
 >
@@ -17,6 +17,8 @@
 > **状态口径**：本表 `状态` 列只有 **`待开始`/`达成`** 两态（模块 `m` 未置则显 `待开始`）；`issues.yaml` 头部的「M2=进行中」是**进度叙述**，二者不矛盾。
 >
 > **M2 达成（2026-10-04，architect 实测核验）**：M2 门槛 5 条全部满足、各模块 M2 任务均终态 ⇒ 6 个模块 `m` 置 `里程碑`、M2 置 `达成`。核验记录见下「M2 达成核验记录」。
+>
+> **M3 达成（2026-10-05，主会话实测核验）**：门槛 `make test-codegen` **15/15**；5 个模块 `m`（`INFRA-036m`/`SPEC-099m`/`TESTCASES-027m`/`LLVM-042m`/`INTEG-013m`）全部置 `里程碑` ⇒ M3 置 `达成`。核验命令与退出码见各 `m` 文件「核验记录」及 `.work/log/m3-closure/`（`llc --version`=0、`check-patch-tree`=0/80、`check`=0/34、`check-lit`=0/34、`test-codegen`=0/15、`check-no-residue`=0）。**归档前置**（`spec/Process-04 §2` 完整台账梳理，步骤 3–6）**待执行**，未完成不得归档。
 >
 > **归档（2026-10-04）**：M2 的 149 个任务书已归档至 `.tao/archive/M2/`（按模块子目录）；M2 时期 changelog（60 条）/MEMORY（45 行 + 2 段落）内容见 `.tao/archive/M2/README.md`；**M2 回顾见 `.tao/archive/M2/m2-retrospective.md`**；`issues.yaml` 的 41 条 M2 阶段 closed 项见 `.tao/archive/M2/issues-closed.md`。
 >
