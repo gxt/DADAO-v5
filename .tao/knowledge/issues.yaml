@@ -376,10 +376,10 @@
 
 - id: ISS-094
   title: "check_asm_prose.py 域外场景 stdout 仍打 PASS（rc=1 但 stdout 语义不一致）"
-  status: open
+  status: closed
   scope: [infra]
   blocks: []
-  resolved_by: null
+  resolved_by: INFRA-037t
   notes: "原 backlog L85。建议 had_out_of_scope 时改打 FAIL (out-of-scope --files)。"
 
 - id: ISS-097
@@ -632,18 +632,18 @@
 
 - id: ISS-132
   title: "`build-mc` 的 help 文本仍写 \"LLVM MC tools\"，未提 `llc`（INFRA-035t 追加后）"
-  status: open
+  status: closed
   scope: [infra]
   blocks: []
-  resolved_by: null
+  resolved_by: INFRA-037t
   notes: "INFRA-035t 把 llc 追加进 LLVM_MC_FULL_TARGETS；Makefile help 文本未同步（任务书要求最小改动，未扩）。非门控。建议随 infra 文档小任务更新。"
 
 - id: ISS-133
   title: "`components/llvm-project/README.md` 补丁数 36 陈旧（LLVM-033t 后实为 45）"
-  status: open
+  status: closed
   scope: [infra, llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: INFRA-037t
   notes: "LLVM-033t 新增 8 补丁（DADAOSubtarget/ISelLowering/ISelDAGToDAG/AsmPrinter/CodeGen.td 等），补丁总数 36→45；README 未同步。非门控。建议随 infra/llvm 文档小任务更新。"
 
 - id: ISS-134
@@ -653,3 +653,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-046t reviewer 独立复现：148 passed, 4 failed；最后改动在 LLVM-019t（非本次引入）。建议随 LLVM 工具刷新小任务修。"
+
+- id: ISS-135
+  title: "`make help` 预存故障：`Makefile:83` echo 内三反引号致 dash `EOF in backquote substitution`（EXIT=2）"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "INFRA-037t reviewer 独立核实：git show HEAD:Makefile 确认 HEAD 即如此（非本次引入）。建议随 infra 小任务修（转义反引号或改引号）。"

@@ -769,7 +769,16 @@ def main() -> None:
     else:
         violations = scan(opcode_formats, cfx_aliases, cfx_ranges, root_override)
 
-    report(violations)
+    if had_out_of_scope:
+        # --files contained paths outside the scan scope: fail-closed.  Do not
+        # print PASS (0 violations) here, or stdout would contradict the exit
+        # code; emit an explicit FAIL marker instead.
+        print("check-asm-prose: FAIL (out-of-scope --files)")
+    if violations or not had_out_of_scope:
+        # report() prints PASS when clean.  Skip it only on the out-of-scope
+        # clean path, where the FAIL marker above must stand alone; still call
+        # it to list violations when there are any.
+        report(violations)
 
     if (args.strict and violations) or had_out_of_scope:
         sys.exit(1)
