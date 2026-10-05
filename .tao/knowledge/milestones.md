@@ -75,13 +75,15 @@
 
 目的：把工具链从 M3 的「**raw-bin 单 TU 捷径**」升级为「**规范 ELF 产出 + 真实链接**」：`llc → llvm-mc → ld.lld → ET_EXEC → qemu 直接加载执行`；同时清掉 M1/M2 遗留的**汇编层欠账**（伪指令/指导符/汇编器选项/诊断）。
 
-范围：① 汇编器遗留；② ELF 产出规范（含全局数据段）；③ LLD 链接器；④ QEMU ELF 加载。**参考**：主对标 **RISC-V 64**；端序参考 **PPC64 BE（+ s390x）**；双 bank 历史参考 **M68K**。
+范围：① 汇编器遗留；② ELF 产出规范（含全局数据段）；③ LLD 链接器（**含链接脚本 `dadao.lds`**：地址布局依 **`ADR-0004`**〔RAM 基址 `0xffff_0000_0000` 作 `.text`/entry；段序 `.text→.rodata→.data→.bss`〕、段对齐依 `contract-elf §5`、`FILEHDR PHDRS` 使 `.text` 落在 file offset 0）；④ QEMU ELF 加载。**参考**：主对标 **RISC-V 64**；端序参考 **PPC64 BE（+ s390x）**；双 bank 历史参考 **M68K**。
 
 门槛：多 TU `ld.lld → ET_EXEC → qemu` 跑对；ELF 结构断言；汇编层 MC 用例；M3 向量 + 多段 + 多文件经新链路通过 + 差分；负例（畸形 ELF / reloc 溢出）。
 
 **范围外（留 M5+）**：完整调用约定（变参/聚合/sret/多返回/间接）、FP/RF codegen、clang 前端、libc/OS/syscall、semihosting 字符输出、golden model（结果级独立 oracle）。
 
-**前置 ADR**：重定位类型（`contract-elf §2–§4`，`e_flags[7:0]=1` namespace）。
+**前置 ADR**：重定位类型（`contract-elf §2–§4`，`e_flags[7:0]=1` namespace）。**可能需调整 `ADR-0004`**（ELF 的 `e_entry` / 段布局 / 加载约定；当前为 flat-binary 双镜像）。
+
+**reloc/fixup 坑预防（M4 硬约束，源自 `DADAO-0628` 实录）**：① fixup **必须尊重 `IsResolved`**（禁写预链接原始值）；② same-section「快速路径」不可靠则**删掉、退回真重定位**；③ **`rb0`（= 当前 PC）禁作基址/零**；④ 跳转表/间接跳转目标标签**必须显式发射**；⑤ 大常量**不得折入**受限立即数/relocation 字段（先材料化）。
 
 **测试策略（`spec/Process-05` TDD）**：**L1（MC）+ L3（执行）为主、L2（CodeGen 结构）极简**；「**一能力一向量**」（规模 ∝ 能力）；移植**只借结构**、期望值**独立派生自 `spec/`**、**手写少量不批量迁移**；每条向量须能对反例失败。**已定前置**：重定位类型 = `ADR-0019`（Accepted；RELA，`ABS48/REL26/REL20/REL14`，v5 无 −4，一律 max 3 片，禁用 relaxation）；伪指令集收缩 = `ADR-0013 D11`（只留合成型 8 条，删 10 条别名）。
 
