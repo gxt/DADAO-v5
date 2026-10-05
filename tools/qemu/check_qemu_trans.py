@@ -82,7 +82,7 @@ def main():
         sys.exit(f"ERROR: 在 {args.src} 下未找到任何 .patch 文件；"
                  "无法校验（补丁集为树形，请检查 --src 是否为 patches/ 根）")
 
-    # 比对（is_m1 仅用于分类统计；全部 227 条均须有 trans_* 或作为未实现 MISSING）
+    # 比对（is_m1 仅用于分类统计；全部 228 条均须有 trans_* 或作为未实现 MISSING）
     missing = []
     for rec, func_name in zip(records, func_names):
         expected = f"trans_{func_name}"

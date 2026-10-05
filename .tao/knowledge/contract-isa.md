@@ -22,7 +22,7 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 |------|------|------|---------|
 | 数据寄存器 (RD) | rd0–rd63 | 通用运算 | 是 |
 | 基址寄存器 (RB) | rb0–rb63 | 地址计算 | 是 |
-| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | RF 存取与运算 `scope: fp`（未实现，decode ILLI）；仅 rf0（FCSR）寄存器模型/复位值保留（供 SPEC-006t，指令语义未提取） |
+| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | RF 存取与运算 `scope: fp`——语义见 `contract-fp.md`（已归一化，共 60 条，执行层已实现）；本 M1 合约仅保留 rf0（FCSR）寄存器模型/复位值（供 SPEC-006t，指令语义见 `contract-fp.md`） |
 | 返回地址栈 (RA) | ra0–ra63 | 函数调用/返回 | 是（RegRAS/MemRAS 模型 + RA 存取/块赋值） |
 
 ### §1.2 寄存器编号编码
@@ -682,7 +682,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 | `sub.o rbhb, rbhc, rdhd` | 二进制补码 64 位减法，全 64 位参与运算 | [SimRISC-05 §加减操作] |
 | `sub.o rdhb, rbhc, rbhd` | 二进制补码 64 位减法，全 64 位参与运算；`rdhb = rbhc − rbhd`，**单条、无 `.s`/`.u` 变体**（64 位单目的结果位型与符号性无关） | [ADR-0012 D9.1][SimRISC-05 §加减操作] |
 
-- 地址计算仅在低 48 位有效，溢出丢弃；用户可通过 `rbhb` 的高 16 位（bits[63:48]）判断是否发生地址溢出。[SimRISC-05 §加减操作]
+- `add.o`/`sub.o` 执行全 64 位加减法，结果完整保留 64 位（`rbhb`）；**仅当以该结果访存时**取 `rbhb[47:0]`（低 48 位）为有效地址，`rbhb[63:48]` 表示地址溢出。用户可通过 `rbhb` 的高 16 位（bits[63:48]）判断是否发生地址溢出。[SimRISC-05 §加减操作][ADR-0012 D8.7]
 
 ### §7.2 RB 自增自减（riii 格式）
 
@@ -691,7 +691,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 | `add.si rbha, imms18` | `rbha = rbha + sign_extend(imms18)`，全 64 位运算 | [SimRISC-05 §自增自减] |
 
 - 立即数 18 位有符号，补码编码，无需区分加减。[SimRISC-05 §自增自减]
-- 用户可通过 `rbha` 的高 16 位判断地址溢出。[SimRISC-05 §自增自减]
+- `add.si` 为全 64 位运算，结果完整保留 64 位（`rbha`）；**仅当以该结果访存时**取 `rbha[47:0]`（低 48 位）为有效地址，用户可通过 `rbha` 的高 16 位判断地址溢出。[SimRISC-05 §自增自减][ADR-0012 D8.7]
 - 对栈指针的操作很重要；在没有专门 push/pop 指令的情况下，栈指针需通过显式加减移动。[SimRISC-05 §自增自减]
 
 ### §7.3 RB 比较（orrr 格式）
@@ -819,9 +819,9 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 ---
 
-## §9 浮点运算指令 — scope: fp（未实现，decode ILLI）[SimRISC-07 §版本]
+## §9 浮点运算指令 — scope: fp（语义见 contract-fp.md；执行层 60/60 已实现）[SimRISC-07 §版本]
 
-浮点类指令（SimRISC-07 + 散见 SimRISC-01/02/03 的 RF 形态，共 60 条）整体为 **`scope: fp`**（未实现，decode ILLI）；其规范内容已提取至独立叙述合约 `.tao/knowledge/contract-fp.md`（机器可读投影 `contracts/fp_semantics.yaml`，合法性规则见 `contracts/legality_rules.yaml`）。[SimRISC-07 §版本]
+浮点类指令（SimRISC-07 + 散见 SimRISC-01/02/03 的 RF 形态，共 60 条）整体为 **`scope: fp`**——**语义已归一化于 `contract-fp.md`，执行层 60/60 已实现**（`QEMU-034t`~`038t`），不触发 decode ILLI；其规范内容已提取至独立叙述合约 `.tao/knowledge/contract-fp.md`（机器可读投影 `contracts/fp_semantics.yaml`，合法性规则见 `contracts/legality_rules.yaml`）。[SimRISC-07 §版本]
 
 - 范围：`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o`（RF 存取）、`rf2rd`/`rd2rf`、`set.w`、格式转换、浮点算术/符号位/比较/条件赋值/分类指令、`set.ft`/`set.fo` 伪指令。
 - 唯一例外：`rf0`（FCSR）的寄存器模型/位布局属 §1.3.3，M1 测试机复位值需要，已在 §1.3.3 提取。[SimRISC-00 §浮点状态寄存器]

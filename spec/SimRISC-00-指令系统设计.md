@@ -70,7 +70,7 @@ SimRISC中目前接收如下数据类型：
 | 存取类指令 | `ld.o`/`ldm.o`/`st.o`/`stm.o`（内存→RB） | **全 64 位覆盖，bits[63:48] 正常读写** |
 | 赋值类指令-寄存器 | `rd2rb`/`rb2rb` | **全 64 位覆盖，bits[63:48] 正常读写** |
 | 赋值类指令-立即数 | `set.zw-rb`/`or.w-rb`/`andn.w-rb` | **全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3** |
-| 算术运算类指令-加减 | `add.o`/`sub.o`/`add.si-rb` | 二进制补码 64 位全宽加减法，地址仅在低 48 位有效；**bits[63:48]**为运算结果，可用于溢出检测 |
+| 算术运算类指令-加减 | `add.o`/`sub.o`/`add.si-rb` | 二进制补码 64 位全宽加减法，结果完整保留 64 位；仅当以该值**访存**时硬件取 `rb[47:0]`（低 48 位）为有效地址，**bits[63:48]** 为运算结果，可用于地址溢出检测 |
 | 算术运算类指令-比较 | `cmp.uo-rb` | **整 64 位**无符号比较（`bits[63:48]` **参与**），结果 -1/0/1 区分小于/等于/大于 |
 | 控制流指令-跳转 | `br*`/`jump` | `rb0` 以 **64 位**参与地址计算；结果写回 `rb0`，取 **`rb0[47:0]`（低 48 位）**为下一条指令地址；**iiii 基址 = `rb0`；rrii 基址 = `rbHA`（仅读）**；`rb0[63:48]` 保留结果高 16 位并参与后续运算（见 §控制流指令） |
 | 控制流指令-函数调用 | `call` | `rb0` 以 **64 位**参与地址计算；结果写回 `rb0`，取 **`rb0[47:0]`（低 48 位）**为下一条指令地址；**iiii 基址 = `rb0`；rrii 基址 = `rbHA`（仅读）**；`rb0[63:48]` 保留结果高 16 位并参与后续运算（见 §控制流指令；`ret` 见 §返回地址栈） |
@@ -287,7 +287,8 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | MISC-AMO        |
 | 0111-1xxx     |                      |                      | cfx2rd_crrr_cfx      | cfx2rc_crrr_cfx      | cfxld_crii_cfx       | cfxst_crii_cfx       | escape_ciii_cfx      | trap_ciii_cfx   |
 
-> **`scope` 分区**（用户裁定 2026-10-03）：主表 `MISC-RF` 子表（op=0x44，含 RF 运算/转换/比较/分类）为 `scope: fp`（未实现，decode ILLI）；特权 cfx（cfx2rd/cfx2rc/cfxld/cfxst/escape/trap）为 `scope: excluded`（未实现，decode ILLI）。
+> **`scope` 分区**（用户裁定 2026-10-03；2026-10-05 按实现状态更新）：`scope: fp`（主表 `MISC-RF` 子表 op=0x44 的 RF 运算/转换/比较/分类，及散见各表的 RF 存取形态，共 60 条）**语义已归一化于 `contract-fp.md`、执行层 60/60 已实现**（`QEMU-034t`~`038t`），不触发 decode ILLI。
+> `scope: excluded`（特权 cfx：cfx2rd/cfx2rc/cfxld/cfxst/escape/trap）**未实现，decode ILLI**。
 
 ### MISC-AMO 指令编码
 
@@ -376,7 +377,7 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 ### MISC-RF指令编码
 
-> 本子表 44 条均为 `scope: fp`（未实现，decode ILLI）。
+> 本子表 44 条均为 `scope: fp`——语义已归一化于 `contract-fp.md`，执行层已实现（`scope: fp` 共 60 条，`QEMU-034t`~`038t` 全部落地），不触发 decode ILLI。
 
 空白单元格为 reserved，执行保留编码触发 UNDI 异常。
 

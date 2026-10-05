@@ -339,10 +339,10 @@
 
 - id: ISS-082
   title: "L1 — fp「未实现，decode ILLI」文案残留（SimRISC-00 L290/L379、contract-isa.md L25/821/823）"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-102t
   notes: "原 backlog L63。SPEC-089t 未改（不在其改动清单）；建议后续 spec 小任务按 R1 口径收口并评估门控防回归。"
 
 - id: ISS-087
@@ -459,10 +459,10 @@
 
 - id: ISS-107
   title: "ret rd0,<符号> 拒绝属规则完整性扩展（可选后续）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-102t
   notes: "原 backlog L136。判为保守正确、非过宽；可选在 spec §函数返回补「符号/非常量操作数一并拒绝」。"
 
 - id: ISS-108
@@ -563,10 +563,10 @@
 
 - id: ISS-121
   title: "excp_rasof/excp_rasuf 描述仍用已废弃的 MemRAS 引用计数模型（legality_rules.yaml）"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-102t
   notes: "原 backlog L222。与 ADR-0012 D7 不符；归属 spec 后续任务同步 D7 口径。"
 
 - id: ISS-122
@@ -619,10 +619,10 @@
 
 - id: ISS-129
   title: "spec SimRISC-05 §RB 加减“地址计算仅在低 48 位有效”与同段“全 64 位参与运算”字面矛盾——须澄清为“算术=64 位；访存取低 48 位；高 16 位表示溢出”"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-102t
   notes: "用户 2026-10-04 裁定：RB 加减为全 64 位运算、结果为完整 64 位；仅当用该地址访存时硬件取 rb[47:0]，rb[63:48] 用于判断地址溢出。SimRISC-05 同段两句字面矛盾，须按此澄清；并检查 SimRISC-00 等文件里 RB 加减/叠加的同类表述。"
 
 - id: ISS-130
@@ -635,10 +635,10 @@
 
 - id: ISS-131
   title: "5 处文档/注释的 opcodes 计数仍写 227，应随新增指令（SPEC-100t）统一改 228"
-  status: open
+  status: closed
   scope: [spec, llvm, qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-102t
   notes: "SPEC-100t 后 opcodes=228。残留：spec/Toolchain-01-汇编语言.md:5、docs/README.md:17、.tao/knowledge/contract-asm.md:8、tools/spec/gen_legality_list.py:7、tools/qemu/check_qemu_trans.py:85。均非 make check 门控，越出 SPEC-100t 声明范围。建议另立小任务统一改。"
 
 - id: ISS-132
@@ -672,3 +672,11 @@
   blocks: []
   resolved_by: null
   notes: "INFRA-037t reviewer 独立核实：git show HEAD:Makefile 确认 HEAD 即如此（非本次引入）。建议随 infra 小任务修（转义反引号或改引号）。"
+
+- id: ISS-136
+  title: "opcodes/rule_refs 计数残留：legality_rules.yaml:18（227）、check_scope.py:15 docstring（227）、gen_legality_list.py:7（190→191）"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "SPEC-102t reviewer 判：越出该任务「仅改 5 处」范围，建议另立小任务统一刷新（含 opcodes=228、rule_refs 计数）。"

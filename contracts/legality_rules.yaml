@@ -221,7 +221,8 @@ rules:
     status: active
     description: >
       返回地址栈上溢触发 RASOF 异常（动态，取决于调用深度）。
-      RegRAS 满且 MemRAS 不可用，或 MemRAS 引用计数溢出时触发。
+      RegRAS 满（`RACNT == 63`，即 `ra0[53:48]`）且 MemRAS 不可用（`MRPTR == 0`，即 `ra0[47:0]`）时触发；
+      MemRAS 可用时改为把最旧（栈底）条目写入 MemRAS，不触发异常。无引用计数（ADR-0012 D7：`ra0[63:54]` 为 SBZ）。
       RASOF 为精确异常：RA 寄存器保持异常前状态，PC 指向 call 指令。
 
   - id: excp_rasuf
@@ -231,5 +232,6 @@ rules:
     status: active
     description: >
       返回地址栈下溢触发 RASUF 异常（动态，取决于调用深度）。
-      RegRAS 空且 MemRAS 不可用，或 MemRAS 引用计数下溢/内容无效时触发。
+      `RACNT > 0` 但栈顶条目递归计数为 0（`ra63[63:48] == 0`），或 `RACNT == 0` 且
+      无可用 MemRAS 条目（`MRPTR == 0`，或所读条目递归计数为 0）时触发。无引用计数（ADR-0012 D7：`ra0[63:54]` 为 SBZ）。
       RASUF 为精确异常：RA 寄存器保持异常前状态，PC 指向 ret 指令。
