@@ -1,0 +1,52 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOMCInstLower.h b/llvm/lib/Target/DADAO/DADAOMCInstLower.h
+new file mode 100644
+index 000000000..cc552e66f
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOMCInstLower.h
+@@ -0,0 +1,46 @@
++//===-- DADAOMCInstLower.h - DADAO MachineInstr to MCInst ------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains code to lower DADAO MachineInstrs to their corresponding
++// MCInst records (LLVM-040t).
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOMCINSTLOWER_H
++#define LLVM_LIB_TARGET_DADAO_DADAOMCINSTLOWER_H
++
++#include <optional>
++
++namespace llvm {
++
++class DADAOAsmPrinter;
++class MCContext;
++class MCInst;
++class MCOperand;
++class MCSymbol;
++class MachineInstr;
++class MachineOperand;
++
++class DADAOMCInstLower {
++  MCContext &Ctx;
++  const DADAOAsmPrinter &Printer;
++
++public:
++  DADAOMCInstLower(MCContext &Ctx, const DADAOAsmPrinter &AP);
++
++  void Lower(const MachineInstr *MI, MCInst &OutMI) const;
++
++private:
++  std::optional<MCOperand> LowerOperand(const MachineOperand &MO) const;
++  MCOperand LowerSymbolOperand(const MachineOperand &MO, MCSymbol *Sym) const;
++  MCSymbol *GetSymbolFromOperand(const MachineOperand &MO) const;
++};
++
++} // end namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOMCINSTLOWER_H

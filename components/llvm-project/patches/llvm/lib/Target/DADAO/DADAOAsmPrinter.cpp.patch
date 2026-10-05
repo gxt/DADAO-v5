@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
 new file mode 100644
-index 000000000..22587ca1d
+index 000000000..387e63079
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,60 @@
 +//===-- DADAOAsmPrinter.cpp - DADAO LLVM Assembly Printer ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -11,12 +11,25 @@ index 000000000..22587ca1d
 +// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 +//
 +//===----------------------------------------------------------------------===//
++//
++// DADAO assembly printer (LLVM-040t): converts each MachineInstr to an MCInst
++// (DADAOMCInstLower) and emits it through the MC streamer.  The assembly text
++// itself is produced by the DADAO MCInstPrinter (new syntax: `;` comments,
++// `[base, off]` addresses, `wpN` wyde positions), so the output round-trips
++// through DADAOAsmParser / llvm-mc.
++//
++//===----------------------------------------------------------------------===//
 +
 +#include "DADAOAsmPrinter.h"
++#include "DADAOMCInstLower.h"
 +#include "DADAO.h"
 +#include "TargetInfo/DADAOTargetInfo.h"
 +
++#include "llvm/ADT/Twine.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineInstr.h"
 +#include "llvm/MC/TargetRegistry.h"
++#include "llvm/Support/ErrorHandling.h"
 +
 +using namespace llvm;
 +
@@ -26,6 +39,27 @@ index 000000000..22587ca1d
 +
 +INITIALIZE_PASS(DADAOAsmPrinter, DEBUG_TYPE, "DADAO Assembly Printer", false,
 +                false)
++
++bool DADAOAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
++  MCInstLowering = std::make_unique<DADAOMCInstLower>(OutContext, *this);
++  return AsmPrinter::runOnMachineFunction(MF);
++}
++
++void DADAOAsmPrinter::emitInstruction(const MachineInstr *MI) {
++  // Every CodeGen-only pseudo must already be expanded: the arithmetic /
++  // constant / RET pseudos by DADAOInstrInfo::expandPostRAPseudo, the frame
++  // indices and call-frame adjustments by PrologEpilogInserter.  A leftover
++  // pseudo means the emitted assembly would not assemble; fail loudly instead
++  // of printing an empty AsmString.
++  if (MI->isPseudo())
++    report_fatal_error("DADAO: pseudo instruction reached the AsmPrinter "
++                       "(not expanded): opcode " +
++                       Twine(MI->getOpcode()));
++
++  MCInst TmpInst;
++  MCInstLowering->Lower(MI, TmpInst);
++  EmitToStreamer(*OutStreamer, TmpInst);
++}
 +
 +extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDADAOAsmPrinter() {
 +  RegisterAsmPrinter<DADAOAsmPrinter> X(getTheDadaoTarget());

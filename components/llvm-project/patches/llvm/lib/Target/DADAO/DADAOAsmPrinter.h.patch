@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.h b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
 new file mode 100644
-index 000000000..861d07e7b
+index 000000000..05f279b97
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,47 @@
 +//===-- DADAOAsmPrinter.h - DADAO LLVM Assembly Printer --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,10 +12,10 @@ index 000000000..861d07e7b
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// Stub DADAO assembly printer (LLVM-033t).  It registers the AsmPrinter so the
-+// target is complete enough for CodeGen wiring; full MCInst lowering and `.s`
-+// emission are LLVM-040t.  The base AsmPrinter::emitInstruction already fails
-+// explicitly (llvm_unreachable), which is the intended M3 skeleton behaviour.
++// DADAO assembly printer: lowers each MachineInstr to an MCInst and emits it
++// through the MC streamer (LLVM-040t).  CodeGen-only pseudos are expanded
++// before this pass (DADAOInstrInfo::expandPostRAPseudo, PrologEpilogInserter),
++// so no `*_PSEUDO` may reach emitInstruction.
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -25,9 +25,16 @@ index 000000000..861d07e7b
 +#include "llvm/CodeGen/AsmPrinter.h"
 +#include "llvm/MC/MCStreamer.h"
 +
++#include <memory>
++
 +namespace llvm {
 +
++class DADAOMCInstLower;
++class MachineFunction;
++
 +class DADAOAsmPrinter : public AsmPrinter {
++  std::unique_ptr<DADAOMCInstLower> MCInstLowering;
++
 +public:
 +  static char ID;
 +
@@ -35,8 +42,12 @@ index 000000000..861d07e7b
 +      : AsmPrinter(TM, std::move(Streamer), ID) {}
 +
 +  StringRef getPassName() const override { return "DADAO Assembly Printer"; }
++
++  bool runOnMachineFunction(MachineFunction &MF) override;
++
++  void emitInstruction(const MachineInstr *MI) override;
 +};
 +
-+} // namespace llvm
++} // end namespace llvm
 +
 +#endif // LLVM_LIB_TARGET_DADAO_DADAOASMPRINTER_H

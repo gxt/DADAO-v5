@@ -712,3 +712,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-039t reviewer 披露：新增补丁文件后仓库 README 的补丁计数未同步；非阻塞。建议随文档任务或 milestone 收尾统一刷新（与 README 版本表同步）。"
+
+- id: ISS-141
+  title: "LLVM-040t §验收 2 记法「call callee」与 ADR-0013 D4「call [rb0, callee]」字面不一致，待用户确认核对口径"
+  status: open
+  scope: [docs]
+  blocks: []
+  resolved_by: null
+  notes: "engineer 实际输出 call [rb0, callee]（符合 ADR-0013 D4；裸 call callee 亦被 AsmParser 规整回 [rb0, callee]，MCInstPrinter 经 lit 验证）。reviewer 判输出合规，但任务书字面表述需用户确认。"

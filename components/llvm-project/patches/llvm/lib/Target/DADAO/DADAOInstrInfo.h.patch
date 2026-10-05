@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.h b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 new file mode 100644
-index 000000000..7ebacde2c
+index 000000000..0ddfb8b75
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 @@ -0,0 +1,77 @@
@@ -52,11 +52,11 @@ index 000000000..7ebacde2c
 +  // Avoid hiding any other TargetInstrInfo::copyPhysReg overloads.
 +  using TargetInstrInfo::copyPhysReg;
 +
-+  /// Expand the CodeGen-only arithmetic pseudos (LLVM-035t):
-+  /// ADD_PSEUDO/SUB_PSEUDO/MUL_PSEUDO -> rrrr add.uo/sub.uo/mul.uo with
-+  /// rdha = rd0 (the low 64 bits are rdhb); ADD_IMM_PSEUDO -> rd2rd + add.si;
-+  /// CONST_WYDE -> a set.zw/set.ow basis plus or.w/andn.w wyde fixes
-+  /// (C12, ADR-0018).
++  /// Expand the CodeGen-only pseudos (LLVM-035t/LLVM-040t):
++  /// RET_PSEUDO -> `ret rd0, 0`; ADD_PSEUDO/SUB_PSEUDO/MUL_PSEUDO ->
++  /// rrrr add.uo/sub.uo/mul.uo with rdha = rd0 (the low 64 bits are rdhb);
++  /// ADD_IMM_PSEUDO -> rd2rd + add.si; CONST_WYDE -> a set.zw/set.ow basis
++  /// plus or.w/andn.w wyde fixes (C12, ADR-0018).
 +  bool expandPostRAPseudo(MachineInstr &MI) const override;
 +
 +  /// Register spilling to / reloading from a stack slot (LLVM-038t).  The

@@ -1,0 +1,104 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
+new file mode 100644
+index 000000000..ec8eb0c82
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
+@@ -0,0 +1,98 @@
++//===-- DADAOMCInstLower.cpp - DADAO MachineInstr to MCInst ----*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains code to lower DADAO MachineInstrs to their corresponding
++// MCInst records (LLVM-040t).  The operand kinds CodeGen produces for the M3
++// scalar subset are registers, immediates, basic-block targets (branches) and
++// global/external symbols (direct calls); the symbol operands become plain
++// MCSymbolRefExpr expressions, which the DADAO MCCodeEmitter turns into
++// PC-relative fixups (DADAO_FK_PCRel_12/18/24).
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOMCInstLower.h"
++
++#include "DADAOAsmPrinter.h"
++
++#include "llvm/CodeGen/AsmPrinter.h"
++#include "llvm/CodeGen/MachineBasicBlock.h"
++#include "llvm/CodeGen/MachineInstr.h"
++#include "llvm/CodeGen/MachineOperand.h"
++#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCExpr.h"
++#include "llvm/MC/MCInst.h"
++#include "llvm/Support/ErrorHandling.h"
++
++using namespace llvm;
++
++DADAOMCInstLower::DADAOMCInstLower(MCContext &Ctx, const DADAOAsmPrinter &AP)
++    : Ctx(Ctx), Printer(AP) {}
++
++MCSymbol *
++DADAOMCInstLower::GetSymbolFromOperand(const MachineOperand &MO) const {
++  assert((MO.isGlobal() || MO.isSymbol() || MO.isMBB()) &&
++         "Not a symbol reference");
++
++  if (MO.isGlobal())
++    // Plain symbol reference (no target flag / variant kind in M3): a direct
++    // call target only.  getSymbolPreferLocal keeps the plain name for a
++    // non-PIE static module (it is what the definition is emitted under).
++    return Printer.getSymbolPreferLocal(*MO.getGlobal());
++  if (MO.isMBB())
++    return MO.getMBB()->getSymbol();
++  // External symbol (a declared-but-not-defined callee).
++  return Printer.GetExternalSymbolSymbol(MO.getSymbolName());
++}
++
++MCOperand
++DADAOMCInstLower::LowerSymbolOperand(const MachineOperand &MO,
++                                     MCSymbol *Sym) const {
++  const MCExpr *Expr = MCSymbolRefExpr::create(Sym, Ctx);
++
++  if (!MO.isMBB() && MO.getOffset())
++    Expr = MCBinaryExpr::createAdd(
++        Expr, MCConstantExpr::create(MO.getOffset(), Ctx), Ctx);
++
++  return MCOperand::createExpr(Expr);
++}
++
++std::optional<MCOperand>
++DADAOMCInstLower::LowerOperand(const MachineOperand &MO) const {
++  switch (MO.getType()) {
++  default:
++    report_fatal_error("DADAO: unsupported machine operand in the AsmPrinter");
++  case MachineOperand::MO_Register:
++    // Implicit uses/defs (the argument/return registers of a call, the
++    // return-value register on RET) are liveness information only and have no
++    // place in the instruction encoding.
++    if (MO.isImplicit())
++      return std::nullopt;
++    return MCOperand::createReg(MO.getReg());
++  case MachineOperand::MO_RegisterMask:
++    // Call-clobber mask (getCallPreservedMask); not an MCInst operand.
++    return std::nullopt;
++  case MachineOperand::MO_Immediate:
++    return MCOperand::createImm(MO.getImm());
++  case MachineOperand::MO_MachineBasicBlock:
++  case MachineOperand::MO_GlobalAddress:
++  case MachineOperand::MO_ExternalSymbol:
++    return LowerSymbolOperand(MO, GetSymbolFromOperand(MO));
++  case MachineOperand::MO_MCSymbol:
++    return LowerSymbolOperand(MO, MO.getMCSymbol());
++  }
++}
++
++void DADAOMCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
++  OutMI.setOpcode(MI->getOpcode());
++
++  for (const MachineOperand &MO : MI->operands()) {
++    std::optional<MCOperand> MCOp = LowerOperand(MO);
++    if (MCOp)
++      OutMI.addOperand(*MCOp);
++  }
++}

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..0e4124682
+index 000000000..0f4315e7f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,255 @@
+@@ -0,0 +1,270 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -91,6 +91,21 @@ index 000000000..0e4124682
 +  const DebugLoc &DL = MI.getDebugLoc();
 +
 +  switch (MI.getOpcode()) {
++  case DADAO::RET_PSEUDO: {
++    // The return value has already been placed in rd31 (scalar) / rb31
++    // (pointer) by LowerReturn (C5, ADR-0018); `ret` only restores PC from the
++    // return-address stack.  The register field is the fixed encoding-format
++    // slot: `ret rd0, 0` (rdHA == rd0 requires imms18 == 0; SPEC-083t).
++    // Preserve the implicit operands so the return-value register stays live
++    // for the verifier.
++    MachineInstrBuilder MIB = BuildMI(MBB, MI, DL, get(DADAO::ret_riii));
++    MIB.addDef(DADAO::rd0);
++    MIB.addImm(0);
++    for (const MachineOperand &MO : MI.implicit_operands())
++      MIB.add(MO);
++    MI.eraseFromParent();
++    return true;
++  }
 +  case DADAO::ADD_PSEUDO:
 +  case DADAO::SUB_PSEUDO:
 +  case DADAO::MUL_PSEUDO: {
