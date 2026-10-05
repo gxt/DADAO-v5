@@ -752,3 +752,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-048t reviewer 核实与 048t 无关（048t 仅改 codegen 1 文件）；系后续任务新增 MC/lit 用例后陈旧。建议改用非硬编码（模式/下限）断言。另：048t 曾越界改 039t 证据脚本（rbkeep MIR COPY→add_o_bbd，语义等价，reviewer 判非回归）。"
+
+- id: ISS-146
+  title: "验证命令把生成物写入 tests/codegen/ 致残留（llc 产物 .s 被 git add -A 带入；reviewer 未捕获）"
+  status: open
+  scope: [process]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-048t：tests/codegen/ptr_add_offset.s 误入仓库随提交（已 dca57b8 清理 + .gitignore 加 tests/codegen/*.s|.o|.bin）。教训：证据/验证命令须在 .work/ 或 /tmp 运行，产物勿落仓库测试目录；收尾须核对 git status --untracked-files=all。reviewer 审计未捕获该残留。"

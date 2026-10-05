@@ -183,3 +183,9 @@
 - 规则：**未经记录的用户确认一律视为不存在**。涉及用户裁定的结论（范围删减、口径变更、ADR decision 通过）必须能指回**具体用户原话所在处**（任务书审阅记录 / 会话），否则 reviewer 判 Needs Revision。
 - 处置（本会话）：reviewer 独立核查 + 主会话回问用户裁定；`SPEC-097t` 用户裁定 (甲) 删除残留 token 后改判 Accepted。
 - 强化建议：写入 `AGENTS.md`「子代理硬约束」——禁止声称未落盘的用户确认。→ `ISS-139`。
+
+### 7.4 验证命令产物不得落入仓库测试目录（`LLVM-048t`，2026-10-05）
+
+- 现象：`llc` 验证命令在 `tests/codegen/` 就地生成 `ptr_add_offset.s`，随 `git add -A` 误入提交（reviewer 审计未捕获，主会话在提交输出中发现）。
+- 规则：证据/验证命令一律在 `.work/<任务ID>/` 或 `/tmp/opencode/<任务ID>/` 下运行，产物勿落仓库源/测试目录；收尾（`/complete`）必须核对 `git status --untracked-files=all` 干净。
+- 已处置：`dca57b8` 移除该文件 + `.gitignore` 加 `tests/codegen/*.s|.o|.bin`。→ `ISS-146`。
