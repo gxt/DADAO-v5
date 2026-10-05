@@ -1,10 +1,10 @@
 # M2 归档（Archive）
 
 > **归档日期**：2026-10-04 ｜ **范围**：M2 里程碑（2026-10-04 达成）的全部任务书与相关记录
-> **归档判据**：任务书字段 `**项目里程碑**：M2` 且状态终态（149 个）；`changelog.md` 中 ≤ 达成日的条目（60 条）；`MEMORY.md` 中纯 M2 行（45 行 + `spec`/`integ` 两个混合行的 M2 段落）；`issues.yaml` 中 ≤ 达成日关闭的项（41 条）。
+> **归档判据**：任务书字段 `**项目里程碑**：M2` 且状态终态（150 个）；`changelog.md` 中 ≤ 达成日的条目（61 条）；`MEMORY.md` 中纯 M2 行（45 行 + `spec`/`integ` 两个混合行的 M2 段落）；`issues.yaml` 中 ≤ 达成日关闭的项（41 条）。
 > **说明**：本目录是**历史归档**，不再活跃；权威摘要见本目录 `m2-retrospective.md`、路线见 `.tao/knowledge/milestones.md`。
 
-## 1. M2 任务清单（149 个，按模块）
+## 1. M2 任务清单（150 个，按模块）
 
 | 模块 | 数量 |
 |---|---|
@@ -13,13 +13,13 @@
 | testcases | 12 |
 | llvm | 16 |
 | qemu | 16 |
-| integ | 6 |
+| integ | 7 |
 
 > 任务书位于同目录下 `infra/` `spec/` `testcases/` `llvm/` `qemu/` `integ/` 子目录。
 >
 > 其中 2 个任务书（`QEMU-030t`/`TESTCASES-020t`）的 `**项目里程碑**` 字段写作 `M2（…）`（含「推翻 M1 已验收」限定语，里程碑仍为 **M2**），一并归档。
 
-## 2. changelog（M2 时期，2026-09-23 ~ 10-04，60 条）
+## 2. changelog（M2 时期，2026-09-23 ~ 10-04，61 条）
 
 | 日期 | 描述 | 执行方 |
 | --- | --- | --- |
@@ -83,6 +83,7 @@
 | 2026-10-03 | `INFRA-024t`：**`check_asm_prose` 去 `i` 后缀与 `%4` 对齐门控**。**改动**：`tools/spec/check_asm_prose.py`——移除 R2（jump/call `i` 后缀校验）与 R3（escape `immi` 模式）；新增 R2'（文档示例中跳转/分支/escape 字面数字偏移须 `%4==0`）；修复前导零漏检（`int(x,0)`→`int(x,10)`/`int(x,16)`）；`--files` 作用域外 fail-closed（`out_of_scope` 非空即 `sys.exit(1)`）。`docs/spec/component-patching.md` §6.3 补注 3 条（新增文件导出方法、`new file mode` 无 hunk 陷阱收紧、重建源树核对）。**reviewer 四轮**：第 1 轮 Needs Revision（F1 §6.3「空补丁恒通过」与实测矛盾）→ 返工 → 第 2 轮 Needs Revision（F4' `--files` 混合路径仍 PASS+rc=0）→ 返工 → 第 3 轮 Needs Revision（F4'' 混合路径 fail-closed 未闭环）→ 返工 → 第 4 轮 **Accepted**（A–E 全矩阵 + 收尾复核 N1/N2 清理）。**2026-10-03 §6.3 纠正**：主会话订正「新增文件导出」前提——须先 `git add -N`（`make_patch.py:60` 已 `git add -A -N`），`--no-index /dev/null <rel>` 为等价替代；reviewer 实证 sha256 逐字节等价、`.work/source` 无 `??`。**成果**：`make check-asm-prose` PASS；`make check` 全绿（25/25，repository checks: PASS）。**本批与 ADR-0013 D3**：D3 的门控侧落地——R2' 为 D3 取消 `i` 后缀后的新增守卫。 | engineer + reviewer |
 | 2026-10-03 | `INFRA-025t`：**产物路径合规与残留门控**。**改动**：①**D6 接线**——QEMU harness 运行产物（测试二进制/QMP socket/dump）改落 `test_artifacts_dir()/.dadao/tests/harness/`，12 个 `min_rom_probe_*.py` 同规（`.dadao/tests/probes/`），不再落 `$TMPDIR`，自清理+dump 保留；②**门控合规则化**——`Makefile` `QEMU_SEM_DIR`→`$(TEST_ARTIFACTS_DIR)/harness/gate`，日志→`.work/log/qemu/check-qemu-semantics.log`，收尾/失败 `rm -rf`；③**`check_asm_prose.py --root`**——默认行为不变、fail-closed 保持，反例可在 `/tmp` 构造；④**残留门控**——`check_dirs.py --residue [--root]` + `make check-no-residue`，匹配 `*_tmp*`/`*_gate*`/`*.orig`/`*.rej`，白名单 `.tao/tasks/**`/`.work/**`；⑤**`AGENTS.md`**——新增「子代理硬约束（下发提示必带）」7 条。**设计矛盾修正**（reviewer 指出）：`.gitignore` 加 `*_tmp*/`/`*.orig`/`*.rej`→`git ls-files --others --exclude-standard` 看不到→门控静默漏检→**从 `.gitignore` 移除这 3 行**，残留由 `check-no-residue` 负责检出。**reviewer Accepted**（18 个改动文件逐项重跑；D6 哨兵 `TMPDIR` 为空+`.dadao/tests/` 自清理；门控四类残留 EXIT=1；`make check` 149/149+25/25+check-no-residue PASS）。**关键证据**：`grep /tmp/opencode Makefile`=0；带 `.gitignore` 临时仓库中四类残留均被门控报出（rc=1）。 | engineer + reviewer |
 | 2026-09-25 | **《DADAO 汇编语言规范》v1 生效 + 汇编指令表 deferred 标注**（用户审核通过，非任务）。**规范**：`docs/spec/assembly-language.md` 状态 `草案 v1` → **`生效（v1，2026-09-25）`**（语法定稿，实现待安排）；**§3.1 地址表达式语法扩展为三元组** `[基址[, 寄存器偏移][, 立即数偏移i]]`（原为二元组，无法表达 `jump`/`call` 的 rrii 形式）；**§3.2 拆为三类公式**——访存 `基址+立即数`（字节）、iiii 跳转/分支 `基址+立即数×4`、rrii 跳转 `基址+寄存器+立即数×4`（寄存器**不**加倍）；§5 的 `rrii` 行补 `jump`/`call` 形式；修正 3 处陈旧路径 `docs/spec/assembly-list.md` → `docs/assembly-list.md`。**指令表**（`docs/assembly-list.md`，生成器 `tools/llvm/gen_asm_list.py`）：**「浮点」46 条与「待定」14 条整章 deferred**（用户裁定；deferred 指书写形式待定，与实现状态无关——`rela.si` 已被 defer 但 QEMU 侧已实现）；非 deferred 的 **16 条 rf 条目**（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 rf 形式、`cs.*-rf`、`rd2rf`/`rf2rd`、`set.w-rf`）**不** defer——浮点寄存器默认存在，这些只读写寄存器、不涉浮点运算；`ldm.*`/`stm.*` 的组记法由 `{rdHA…}` 改为 **`{rdHA:rdHA+immu6-1}`**（显式写出终点，count = rrri 的 `immu6` 字段）；`feature` 逐项裁定——**`call`/`ret` → `ra`**（RegRAS）、`jump` → `rb`、`cfx2rd`/`cfx2rc`/`escape`/`trap` 保持不 deferred、`cs.*` 保持目的侧（`-rd`/`-rf`）；最终分布 `rd 155 / rf 64 / rb 19 / ra 9 / cfx 6 / imm 3`。`make check` EXIT 0。**未决**：汇编语法的 **ADR 待立**（外部契约/不可逆/跨模块，三判据全中，已向用户提出）。 | 主会话 + 用户 |
+| 2026-10-04 | **`INTEG-010t`：M2 归档与回顾（M2 收尾）**。按 `spec/Process-04` 把 M2 的 **149 个任务书**（已验证 141 + 里程碑 8）`git mv` 归档至 `.tao/archive/M2/{infra,spec,testcases,llvm,qemu,integ}/`（`R100`；模块 19/80/12/16/16/6）；新建 `archive/M2/README.md`（§5 模板：判据计数 **149/60/47/41** + 任务清单 + changelog〔60〕/MEMORY〔45+2〕摘录 + 指针）+ `m2-retrospective.md` + `issues-closed.md`（41 条）。**活台账**（§6）：`changelog.md` 移除 60 条（指针在表头之上）、`MEMORY.md` 移除 45 行 + 拆 2 混合行（表内指针）、`issues.yaml` 提取 41 closed（头指针，现 **72 open / 0 closed**）、`milestones.md` 归档注。**门槛终检 5/5**；`make check` EXIT=0（lit 31/31）。**证据**：一键证据 31/31 + `--inject`；reviewer + architect 独立注入（decoy / changelog 追加行）→ FAIL → 还原 sha 复原。**披露**：`SPEC-020m`/`SPEC-025m` 按 (A) 归档；`QEMU-030t`/`TESTCASES-020t` 字段含 `M2（…）`。 | engineer + reviewer + architect |
 
 ## 3. MEMORY 摘录（M2 时期，45 行 + 2 段落）
 

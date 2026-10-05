@@ -53,7 +53,7 @@
 
 | 类别 | 数量 | 位置 |
 |---|---|---|
-| M3 任务文件 | **39**（已验证 34 + 里程碑 5） | `.tao/archive/M3/<module>/`（2026-10-05 归档，原 `.tao/tasks/<module>/`） |
+| M3 任务文件 | **40**（已验证 35 + 里程碑 5） | `.tao/archive/M3/<module>/`（2026-10-05 归档，原 `.tao/tasks/<module>/`） |
 | ADR | **18**（M3 新增 1：`0018`） | `.tao/adr/` |
 | 合约叙述 | 7（`contract-isa`/`-abi`/`-elf`/`-fp`/`-asm`/`-asm-list`/`-cfx-aliases`） | `.tao/knowledge/` |
 | 机器可读数据 | `opcodes.yaml`（**228** = 152 m1 + 60 fp + 15 excluded + 1 m3）/ `legality_rules.yaml`（16 规则）/ `abi.yaml` / `fp_semantics.yaml` | `contracts/` |
@@ -90,14 +90,14 @@
 
 ### 3.1 任务与状态
 
-- 任务总数 **39**（`已验证` 34 + `里程碑` 5）；5 模块全部收敛，**无 `待开始`/`待返工`/`待验收` 残留**（非归档项：`INTEG-014t` 归档收尾任务本身；`SPEC-096k` 由 `待开始` 置 `已验证` 随 M3 归档）。
+- 任务总数 **40**（`已验证` 35 + `里程碑` 5）；5 模块全部收敛，**无 `待开始`/`待返工`/`待验收` 残留**（含归档任务 `INTEG-014t` 自身，用户裁定 2026-10-05；`SPEC-096k` 由 `待开始` 置 `已验证` 随 M3 归档）。
 - `qemu` 无 M3 任务书（`QEMU-040t`/`041t` 虽标 `M3` 但计入 `qemu` 子目录，共 2 个）。
 
 ### 3.2 审阅轮次与打回
 
 | 指标 | 数值 |
 |---|---|
-| 有 ≥1 次 `Needs Revision` 的任务 | **4 / 39**（`SPEC-097t`、`SPEC-102t`、`LLVM-034t`、`LLVM-045t`） |
+| 有 ≥1 次 `Needs Revision` 的任务 | **4 / 40**（`SPEC-097t`、`SPEC-102t`、`LLVM-034t`、`LLVM-045t`） |
 | 多数任务 | 1 轮 reviewer 验收即 Accepted |
 
 **打回原因（代表）**：

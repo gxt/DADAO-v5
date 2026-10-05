@@ -1,10 +1,10 @@
 # M3 归档（Archive）
 
 > **归档日期**：2026-10-05 ｜ **范围**：M3 里程碑（2026-10-05 达成）的全部任务书与相关记录
-> **归档判据**：任务书字段 `**项目里程碑**：M3` 且状态终态（39 个）；`changelog.md` 中 ≤ 达成日的条目（34 条）；`MEMORY.md` 中纯 M3 行（1 行）；`issues.yaml` 中 ≤ 达成日关闭的项（56 条）。
+> **归档判据**：任务书字段 `**项目里程碑**：M3` 且状态终态（41 个）；`changelog.md` 中 ≤ 达成日的条目（35 条）；`MEMORY.md` 中纯 M3 行（1 行）；`issues.yaml` 中 ≤ 达成日关闭的项（56 条）。
 > **说明**：本目录是**历史归档**，不再活跃；权威摘要见本目录 `m3-retrospective.md`、路线见 `.tao/knowledge/milestones.md`。
 
-## 1. M3 任务清单（39 个，按模块）
+## 1. M3 任务清单（41 个，按模块）
 
 | 模块 | 数量 |
 |---|---|
@@ -13,17 +13,16 @@
 | testcases | 3 |
 | llvm | 17 |
 | qemu | 2 |
-| integ | 2 |
+| integ | 4 |
 
 > 任务书位于同目录下 `infra/` `spec/` `testcases/` `llvm/` `qemu/` `integ/` 子目录。
 >
 > `spec/` 含 1 个非「已验证/里程碑」状态的任务书 `SPEC-096k`（M3 启动与分解）：其状态由 `待开始` 置 `已验证`（用户裁定 2026-10-05，见 `INTEG-014t` 完成区），随 M3 一并归档。
 
-## 2. changelog（M3 时期，2026-10-04 ~ 10-05，34 条）
+## 2. changelog（M3 时期，2026-10-05，35 条）
 
 | 日期 | 描述 | 执行方 |
 | --- | --- | --- |
-| 2026-10-04 | **`INTEG-010t`：M2 归档与回顾（M2 收尾）**。按 `spec/Process-04` 把 M2 的 **149 个任务书**（已验证 141 + 里程碑 8）`git mv` 归档至 `.tao/archive/M2/{infra,spec,testcases,llvm,qemu,integ}/`（`R100`；模块 19/80/12/16/16/6）；新建 `archive/M2/README.md`（§5 模板：判据计数 **149/60/47/41** + 任务清单 + changelog〔60〕/MEMORY〔45+2〕摘录 + 指针）+ `m2-retrospective.md` + `issues-closed.md`（41 条）。**活台账**（§6）：`changelog.md` 移除 60 条（指针在表头之上）、`MEMORY.md` 移除 45 行 + 拆 2 混合行（表内指针）、`issues.yaml` 提取 41 closed（头指针，现 **72 open / 0 closed**）、`milestones.md` 归档注。**门槛终检 5/5**；`make check` EXIT=0（lit 31/31）。**证据**：一键证据 31/31 + `--inject`；reviewer + architect 独立注入（decoy / changelog 追加行）→ FAIL → 还原 sha 复原。**披露**：`SPEC-020m`/`SPEC-025m` 按 (A) 归档；`QEMU-030t`/`TESTCASES-020t` 字段含 `M2（…）`。 | engineer + reviewer + architect |
 | 2026-10-05 | **`SPEC-100t`+`QEMU-040t`（原子对）：新增指令 `sub.o_orrr_dbb`（RB−RB→RD，M3 前置）**。spec：`spec/SimRISC-00`(110-011)/`05`(分类 5)、`contract-isa §7.1`、`opcodes.yaml`（**227→228**，`m3=1`）、`check_scope.py`(m3/228)、生成器。qemu：`insn.decode`+`trans_arith.c.inc` 新增 `trans_sub_o_orrr_dbb` + 探针 `min_rom_probe_040t.py`。依据 `adr-0012 D9.1`（`ha=0x33`/`value=0x40CC0000`）。**验证**：`make check` EXIT=0（lit 31/31）；`check-interface` 228/80 项；`check_qemu_trans --strict` 228/228；`validate_vectors` 152/152；生成器零漂移；`validate_decodetree` EXIT=0；探针 6/6（负差全 64 位、rd0→ILLI 0x88、保留槽→UNDI 0x89）。**证据**：一键脚本 21+16 项；reviewer 独立注入 `op`→FAIL→还原回绿。**遗留**：5 处「227」文档计数残留（→ISS-131）；`validate_instrinfo.py` 陈旧（`issues.yaml:426` 已登记，非门控）。 | engineer + reviewer |
 | 2026-10-05 | **`INFRA-035t`：`llc` 纳入 LLVM 构建目标**。`Makefile:121` `LLVM_MC_FULL_TARGETS` 追加 `llc`（唯一代码改动）；`make build-mc` 产出 `.work/build/llvm/bin/llc`，`llc --version` 含 `dadao`。**验证**：build-mc EXIT=0（301 步）；原 MC 工具不回归；一键脚本 11/11；reviewer 独立注入（移走 `llc`）→2 FAIL→还原 sha 不变→回绿。**披露**：`build-mc` help 文本未提 `llc`（→ISS-132，非阻塞）。 | engineer + reviewer |
 | 2026-10-05 | **`SPEC-101t`：RB 算术三条指令改名 + 改编码槽（跨组件原子）**。`add.so_orrr_rb`→`add.o_orrr_bbd`(ha 0x30/val 0x40C00000)、`sub.so_orrr_rb`→`sub.o_orrr_bbd`(0x31/0x40C40000)、`cmp.uo_orrr_rb`→`cmp.uo_orrr_dbb`(0x32/0x40C80000)；id 后缀改操作数 bank 签名（`bbd`/`dbb`；`adr-0012 D9.2/D9.3`）。改 **21 文件**（spec SimRISC-00/05 正文+生成块、contract-isa/asm-list、`opcodes.yaml` 生成、legality 生成块、向量 `reg-arith`/`reg-compare`+`inventory`、生成器、`check_005t_coverage`、4 探针、MC/QEMU 补丁 4 份、2 v5 任务书）。**验证**：`make check` EXIT=0（lit 31/31；`check-interface` 227/227、M1 152/152；`validate_vectors` 694 cases）；活载体旧 id **零残留**；4 生成器**零漂移**；MC 新助记符编码=新 value + objdump 往返；QEMU `check_qemu_trans --strict` 227/227。**证据**：一键脚本 `.work/evidence/SPEC-101t/run.sh` 18/18 + reviewer 独立注入（`opcodes.yaml` value→4 FAIL→还原回绿）。**遗留**：ISS-125（预存向量漂移，未扩）。 | engineer + reviewer |
@@ -57,8 +56,10 @@
 | 2026-10-05 | **`INFRA-041t`：M3 收官前 issue 清扫（查缺补漏 + 顺带小修 + 边界重定）**。**关闭已修**：`ISS-040`（`hasFPImpl`←`LLVM-038t`）、`ISS-130`（`sub.o_orrr_dbb`←`SPEC-100t`/`QEMU-040t`/`LLVM-043t`）。**顺带小修（修+关）**：`ISS-135`（`Makefile` help 反引号→`make help` EXIT=0）、`ISS-136`（计数 227→228、190→191）、`ISS-140`（`components/llvm-project/README.md` 45→48）、`ISS-144`（组件 changelog 补 `LLVM-040t`/`041t` 两行）、`ISS-145`（`043t`/`045t` 证据脚本改非硬编码断言、重跑回绿）、`ISS-134`（`gen_m1_asm.py` 旧 `i` 后缀→新语法、`test_m1_asm.py` 152/152）。**边界重定（M3→M4，仅 notes）**：`ISS-005`/`006`/`008`/`019`/`026`/`074`/`081`/`110`。**验证**：`make check` EXIT=0（34/34）；证据 9/9 + 注入 6/6 + reviewer 独立注入；无残留。**披露**：`legality_rules.yaml` L19 分解行同步 `+1 scope: m3`（必要）；`gen_m1_asm.py`/`test_m1_asm.py` docstring「177」→ISS-148。 | engineer + reviewer |
 | 2026-10-05 | **`INFRA-042t`：M3 归档前置台账梳理（`Process-04 §2` 步骤 3–6）**。**步骤 3**：`ISS-087/088/139/146` 移入 `lessons.md`（§6.6/§2.6/§7.3/§7.4，id 退役不复用）。**步骤 4**：41 条逐条判定；M3 边界项按**用户裁定**拆分——`ISS-005`/`008` 交付部分另立 `closed ISS-149/150`，原 id 保留 `open` 剩余、scope→M4；补关 `ISS-015`（`INFRA-016t`）/`ISS-039`（`LLVM-014t`）；其余保留 open。**步骤 5**：头部 M2/M3→✅ 达成、M4=未规划、scope 枚举补 M4、M3-gate 退役注。**步骤 6**：判定表 + `check_issues.py` EXIT=0。**验证**：证据 10/10 + 注入 8/8 + reviewer 独立注入；`make check` EXIT=0；open 41→35。**越界披露**：按用户指示将「边界项拆分处置」规则写入 `spec/Process-04 §2 step 4`。 | engineer + reviewer |
 | 2026-10-05 | **`lessons §7.3` 机制订正 + `AGENTS.md` 子代理硬约束加一条**。用户澄清：子代理在**子会话**里用 `question` 直接征询用户、用户作答，但**父会话不可见**——故 `LLVM-034t`/`SPEC-097t` 的「用户裁定」**确为真实裁定**，原「子代理假称用户裁定」（`ISS-139`/`§7.3`）**结论作废**。规则改为：① 子代理取得裁定须把**用户原话原样写入任务书**；② 主会话不得仅因父会话无记录就否定裁定、反复回问。 | 主会话 |
+| 2026-10-05 | **`INTEG-014t`：M3 归档与回顾**。39 个 M3 任务书 → `.tao/archive/M3/`（`git mv`，38`R`+1`RM`）；`archive/M3/README.md`（§5 模板）+ `m3-retrospective.md` + `issues-closed.md`（56 条，`resolved_by` 提交日 ≤ 2026-10-05）；`changelog.md` 移 34 条 + 表头 M3 指针；`MEMORY.md` 移 1 行 + 表内指针；`issues.yaml` 移 56 closed + 头部指针；`milestones.md` 归档注。**用户裁定**：归档 `SPEC-096k`（`待开始`→`已验证`）。**验证**：证据 84 PASS + 注入 3；`make check` EXIT=0；`check_issues.py` EXIT=0（35 open/0 closed）；§3–§6 + 表格纪律合规。 | engineer + reviewer |
+| 2026-10-05 | **`INTEG-015t`：归档任务自归档订正**。按用户裁定「自归档 + 回溯」：`INTEG-010t`→`.tao/archive/M2/integ/`、`INTEG-014t`→`.tao/archive/M3/integ/`（两条 `R`）；`Process-04 §3.1` 增补「归档任务自身归入其所归档的里程碑」规则；计数订正（M3 40→41 / integ 4 / changelog 34→35；M2 149→150 / integ 7 / changelog 61；`milestones.md`/`MEMORY.md`/`m2,m3-retrospective.md` 同步）；活 `changelog.md` 表清空。**验证**：证据 43/43 + 注入 + reviewer 独立注入；`make check` EXIT=0；无残留。 | engineer + reviewer |
 
-> 其中 `2026-10-04` 的 1 条为 `INTEG-010t`（M2 归档与回顾）——该条于 M2 归档快照之后写入，按 §3.2「日期 ≤ 达成日」判据纳入本归档；其余 33 条均为 `2026-10-05`。
+> **自归档（2026-10-05，用户裁定）**：本目录含归档任务 `INTEG-014t` 及其订正 `INTEG-015t` 自身（`integ/`）；原按 §3.2 日期判据纳入本表的 `INTEG-010t` 行（2026-10-04）已按 `Process-04 §3.1`「归档任务自归档」回溯移至 `.tao/archive/M2/`。
 
 ## 3. MEMORY 摘录（M3 时期，1 行）
 
