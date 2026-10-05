@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
 new file mode 100644
-index 000000000000..2277e24e6e87
+index 000000000..d058d246d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
-@@ -0,0 +1,14 @@
+@@ -0,0 +1,193 @@
 +//===-- DADAOFrameLowering.cpp - DADAO Frame Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,9 +12,188 @@ index 000000000000..2277e24e6e87
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// Minimal DADAO frame lowering stub for M1.
-+// Full prologue/epilogue generation deferred to M2.
++// DADAO frame lowering for M3 (LLVM-038t, ADR-0018 C7/C8).
++//
++// Frame layout (StackGrowsDown, LocalAreaOffset = 0):
++//   entry SP ─┬─ [FP]          rbfp = rb2 (only when hasFP)
++//             │  [saved FP]    fixed slot at -8 (only when hasFP)
++//             │  locals / spill slots
++//   current SP┴─
++//
++// Prologue (SP-only):  add.si rbsp, -StackSize
++// Prologue (FP):       st.o rbfp, [rbsp, -8]      ; save the caller's FP
++//                      add.si rbsp, -StackSize    ; allocate the frame
++//                      rb2rb rbfp, rbsp           ; rbfp = entry SP
++//                      add.si rbfp, StackSize
++// Epilogue (SP-only):  add.si rbsp, +StackSize
++// Epilogue (FP):       rb2rb rbsp, rbfp           ; rbsp = entry SP
++//                      ld.o rbfp, [rbsp, -8]      ; restore the caller's FP
++//
++// Callee-saved register sets (CSR) are LLVM-039t; only the frame pointer is
++// saved here.
 +//
 +//===----------------------------------------------------------------------===//
 +
 +#include "DADAOFrameLowering.h"
++#include "DADAOInstrInfo.h"
++#include "DADAORegisterInfo.h"
++#include "DADAOSubtarget.h"
++
++#include "llvm/CodeGen/MachineFrameInfo.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/CodeGen/RegisterScavenging.h"
++#include "llvm/CodeGen/TargetRegisterInfo.h"
++#include "llvm/IR/Function.h"
++#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/MathExtras.h"
++#include "llvm/Target/TargetMachine.h"
++#include "llvm/Target/TargetOptions.h"
++
++// Instruction opcodes (DADAO::add_si_rb, DADAO::st_o_rb, DADAO::rb2rb, ...).
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++#undef GET_INSTRINFO_ENUM
++
++using namespace llvm;
++
++// Fixed slot (relative to the entry SP) holding the caller's frame pointer.
++// Only created/reserved when a frame pointer is built.
++static constexpr uint64_t FPSaveSlotSize = 8;
++static constexpr int64_t FPSaveSlotOffset = -8;
++
++// `add.si` immediate field is imms18: [-2^17, 2^17-1].
++static constexpr int64_t AddSI_Max = (int64_t(1) << 17) - 1;
++static constexpr int64_t AddSI_Min = -(int64_t(1) << 17);
++
++bool DADAOFrameLowering::hasFPImpl(const MachineFunction &MF) const {
++  // ADR-0018 C7 D1 (same conditional form as M68kFrameLowering).
++  const MachineFrameInfo &MFI = MF.getFrameInfo();
++  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
++
++  return MF.getTarget().Options.DisableFramePointerElim(MF) ||
++         MFI.hasVarSizedObjects() || MFI.isFrameAddressTaken() ||
++         TRI->hasStackRealignment(MF);
++}
++
++StackOffset DADAOFrameLowering::getFrameIndexReference(
++    const MachineFunction &MF, int FI, Register &FrameReg) const {
++  const MachineFrameInfo &MFI = MF.getFrameInfo();
++  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
++
++  FrameReg = TRI->getFrameRegister(MF); // rb2 with FP, rb1 SP-only
++  if (hasFP(MF)) {
++    // FP points at the entry SP, so the object offset is taken directly.
++    return StackOffset::getFixed(MFI.getObjectOffset(FI));
++  }
++  // SP-only: SP has already been decremented by the frame size, so add it
++  // back to address an object relative to the current SP.
++  return StackOffset::getFixed(MFI.getObjectOffset(FI) + MFI.getStackSize());
++}
++
++void DADAOFrameLowering::determineFrameLayout(MachineFunction &MF) const {
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  // PEI has already assigned object offsets; only the frame size is finalized
++  // here.  It must be a multiple of the stack alignment so that SP stays
++  // 8-byte aligned at calls (contract-abi.md §2.2).
++  Align StackAlign = std::max(getStackAlign(), MFI.getMaxAlign());
++  MFI.setStackSize(alignTo(MFI.getStackSize(), StackAlign));
++}
++
++void DADAOFrameLowering::processFunctionBeforeFrameFinalized(
++    MachineFunction &MF, RegScavenger * /*RS*/) const {
++  if (!hasFP(MF))
++    return;
++  // Reserve the slot closest to the entry SP for the saved frame pointer.  It
++  // is spilled/restored explicitly in emitPrologue/emitEpilogue.
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  MFI.CreateFixedSpillStackObject(FPSaveSlotSize, FPSaveSlotOffset,
++                                  /*IsImmutable=*/true);
++}
++
++void DADAOFrameLowering::emitAddImm(MachineBasicBlock &MBB,
++                                    MachineBasicBlock::iterator MBBI,
++                                    const DebugLoc &DL, Register Reg,
++                                    int64_t Amount, bool IsEpilogue) const {
++  if (Amount == 0)
++    return;
++  MachineFunction &MF = *MBB.getParent();
++  const DADAOInstrInfo &TII = *MF.getSubtarget<DADAOSubtarget>().getInstrInfo();
++  const MachineInstr::MIFlag Flag =
++      IsEpilogue ? MachineInstr::FrameDestroy : MachineInstr::FrameSetup;
++
++  while (Amount != 0) {
++    int64_t Step = Amount > 0 ? std::min(Amount, AddSI_Max)
++                              : std::max(Amount, AddSI_Min);
++    BuildMI(MBB, MBBI, DL, TII.get(DADAO::add_si_rb), Reg)
++        .addImm(Step)
++        .setMIFlag(Flag);
++    Amount -= Step;
++  }
++}
++
++void DADAOFrameLowering::emitPrologue(MachineFunction &MF,
++                                      MachineBasicBlock &MBB) const {
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  const DADAOInstrInfo &TII = *MF.getSubtarget<DADAOSubtarget>().getInstrInfo();
++
++  determineFrameLayout(MF);
++  const uint64_t StackSize = MFI.getStackSize();
++  const bool HasFP = hasFP(MF);
++
++  DebugLoc DL;
++  MachineBasicBlock::iterator MBBI = MBB.begin();
++
++  if (HasFP) {
++    // Save the caller's frame pointer before it is overwritten:
++    //   st.o rbfp, [rbsp, FPSaveSlotOffset]   (SP still at the entry value)
++    BuildMI(MBB, MBBI, DL, TII.get(DADAO::st_o_rb))
++        .addReg(DADAO::rb2)
++        .addReg(DADAO::rb1)
++        .addImm(FPSaveSlotOffset)
++        .setMIFlag(MachineInstr::FrameSetup);
++  }
++
++  // Allocate the frame: SP -= StackSize.
++  emitAddImm(MBB, MBBI, DL, DADAO::rb1, -(int64_t)StackSize,
++             /*IsEpilogue=*/false);
++
++  if (HasFP) {
++    // rbfp = entry SP = rbsp + StackSize.
++    BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), DADAO::rb2)
++        .addReg(DADAO::rb1)
++        .addImm(1)
++        .setMIFlag(MachineInstr::FrameSetup);
++    emitAddImm(MBB, MBBI, DL, DADAO::rb2, (int64_t)StackSize,
++               /*IsEpilogue=*/false);
++  }
++}
++
++void DADAOFrameLowering::emitEpilogue(MachineFunction &MF,
++                                      MachineBasicBlock &MBB) const {
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  const DADAOInstrInfo &TII = *MF.getSubtarget<DADAOSubtarget>().getInstrInfo();
++
++  MachineBasicBlock::iterator MBBI = MBB.getFirstTerminator();
++  DebugLoc DL;
++  if (MBBI != MBB.end())
++    DL = MBBI->getDebugLoc();
++
++  if (hasFP(MF)) {
++    // SP = FP (entry SP), then restore the caller's FP:
++    //   rb2rb rbsp, rbfp
++    //   ld.o rbfp, [rbsp, FPSaveSlotOffset]
++    BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), DADAO::rb1)
++        .addReg(DADAO::rb2)
++        .addImm(1)
++        .setMIFlag(MachineInstr::FrameDestroy);
++    BuildMI(MBB, MBBI, DL, TII.get(DADAO::ld_o_rb), DADAO::rb2)
++        .addReg(DADAO::rb1)
++        .addImm(FPSaveSlotOffset)
++        .setMIFlag(MachineInstr::FrameDestroy);
++  } else {
++    // Deallocate the frame: SP += StackSize.
++    emitAddImm(MBB, MBBI, DL, DADAO::rb1, (int64_t)MFI.getStackSize(),
++               /*IsEpilogue=*/true);
++  }
++}

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..9dda14490
+index 000000000..07aa5b836
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,271 @@
+@@ -0,0 +1,261 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -126,6 +126,13 @@ index 000000000..9dda14490
 +// Expanded by expandPostRAPseudo; the operand is the raw 64-bit value.
 +def CONST_WYDE : DADAOPseudo<(outs GPRD:$dst), (ins i64imm:$val), []>;
 +
++// Frame address materialization (LLVM-038t, ADR-0018 C7/C8): a frame object
++// address that is used as a *value* (not folded into the address of a
++// load/store) is materialized into a GPRB register.  The operand is a target
++// frame index that DADAORegisterInfo::eliminateFrameIndex rewrites into
++// `rb2rb + add.si` with the PrologEpilogInserter-resolved frame offset.
++def FRAME_ADDR : DADAOPseudo<(outs GPRB:$dst), (ins i64imm:$fi), []>;
++
 +//===----------------------------------------------------------------------===//
 +// Single-result i64 patterns (orrr, contract-isa.md §6.3–§6.4, §7)
 +//
@@ -152,15 +159,16 @@ index 000000000..9dda14490
 +def : Pat<(srem GPRD:$a, GPRD:$b), (rem_so GPRD:$a, GPRD:$b)>;
 +
 +//===----------------------------------------------------------------------===//
-+// Scalar load/store (LLVM-036t; C13/C14, ADR-0018)
++// Scalar load/store (LLVM-036t; C13/C14, ADR-0018; frame indices LLVM-038t)
 +//
 +// Address = GPRB base + sign-extended 12-bit immediate (contract-isa.md
 +// §3.1.1, C14 D3).  The base is forced into GPRB (C14 D5: RB is the base
-+// bank).  Offsets that do not fit simm12 are not folded into these patterns;
-+// the DAG keeps a separate 64-bit add which the generic i64 arithmetic
-+// patterns (ADD_IMM_PSEUDO / ADD_PSEUDO) materialize, after which the address
-+// is moved into GPRB.  Correct, though not yet the single-instruction
-+// `add.o` (C14 D1) form.
++// bank).  The address is matched by the DADAOAddr complex pattern (SelectAddr
++// in DADAOISelDAGToDAG) which folds `base + simm12` and, crucially, keeps a
++// *frame index* in the base position so PrologEpilogInserter can resolve it to
++// `[rbsp/rbfp, offset]` (ADR-0018 C7/C8, LLVM-038t).  Offsets that do not fit
++// simm12 are not folded; the DAG keeps a separate 64-bit add which the generic
++// i64 arithmetic patterns (ADD_IMM_PSEUDO / ADD_PSEUDO) materialize.
 +//
 +// Narrow accesses are big-endian.  `ld.ub/uw/ut` zero-extend and `ld.sb/sw/st`
 +// sign-extend, each writing all 64 bits (SPEC-069t value semantics); stores
@@ -176,59 +184,41 @@ index 000000000..9dda14490
 +// Signed 12-bit offset matching the `imms12` operand.
 +def simm12imm : ImmLeaf<i64, [{ return isInt<12>(Imm); }]>;
 +
++// Address operand: a GPRB base plus a sign-extended 12-bit offset.  The
++// SelectAddr C++ matcher accepts a bare frame index as the base (offset 0) as
++// well, so the load/store carries an MO_FrameIndex that PEI rewrites.
++def DADAOAddr : ComplexPattern<i64, 2, "SelectAddr">;
++
++class DADAOLdPat<PatFrag LoadOp, Instruction Inst>
++    : Pat<(i64 (LoadOp (DADAOAddr GPRB:$base, simm12imm:$off))),
++          (Inst GPRB:$base, simm12imm:$off)>;
++
++class DADAOStPat<PatFrag StoreOp, Instruction Inst>
++    : Pat<(StoreOp GPRD:$val, (DADAOAddr GPRB:$base, simm12imm:$off)),
++          (Inst GPRD:$val, GPRB:$base, simm12imm:$off)>;
++
 +// 64-bit load/store (ld.o / st.o, RD variants).
-+def : Pat<(load GPRB:$base), (ld_o_rd GPRB:$base, 0)>;
-+def : Pat<(load (add GPRB:$base, simm12imm:$off)),
-+          (ld_o_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(store GPRD:$val, GPRB:$base), (st_o_rd GPRD:$val, GPRB:$base, 0)>;
-+def : Pat<(store GPRD:$val, (add GPRB:$base, simm12imm:$off)),
-+          (st_o_rd GPRD:$val, GPRB:$base, simm12imm:$off)>;
++def : DADAOLdPat<load, ld_o_rd>;
++def : DADAOStPat<store, st_o_rd>;
 +
 +// i8: zero/any extension -> ld.ub, sign extension -> ld.sb, truncating store
 +// -> st.b.
-+def : Pat<(i64 (extloadi8 GPRB:$base)), (ld_ub_rd GPRB:$base, 0)>;
-+def : Pat<(i64 (extloadi8 (add GPRB:$base, simm12imm:$off))),
-+          (ld_ub_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(i64 (zextloadi8 GPRB:$base)), (ld_ub_rd GPRB:$base, 0)>;
-+def : Pat<(i64 (zextloadi8 (add GPRB:$base, simm12imm:$off))),
-+          (ld_ub_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(i64 (sextloadi8 GPRB:$base)), (ld_sb_rd GPRB:$base, 0)>;
-+def : Pat<(i64 (sextloadi8 (add GPRB:$base, simm12imm:$off))),
-+          (ld_sb_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(truncstorei8 GPRD:$val, GPRB:$base),
-+          (st_b_rd GPRD:$val, GPRB:$base, 0)>;
-+def : Pat<(truncstorei8 GPRD:$val, (add GPRB:$base, simm12imm:$off)),
-+          (st_b_rd GPRD:$val, GPRB:$base, simm12imm:$off)>;
++def : DADAOLdPat<extloadi8, ld_ub_rd>;
++def : DADAOLdPat<zextloadi8, ld_ub_rd>;
++def : DADAOLdPat<sextloadi8, ld_sb_rd>;
++def : DADAOStPat<truncstorei8, st_b_rd>;
 +
 +// i16 (wyde): ld.uw / ld.sw / st.w.
-+def : Pat<(i64 (extloadi16 GPRB:$base)), (ld_uw_rd GPRB:$base, 0)>;
-+def : Pat<(i64 (extloadi16 (add GPRB:$base, simm12imm:$off))),
-+          (ld_uw_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(i64 (zextloadi16 GPRB:$base)), (ld_uw_rd GPRB:$base, 0)>;
-+def : Pat<(i64 (zextloadi16 (add GPRB:$base, simm12imm:$off))),
-+          (ld_uw_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(i64 (sextloadi16 GPRB:$base)), (ld_sw_rd GPRB:$base, 0)>;
-+def : Pat<(i64 (sextloadi16 (add GPRB:$base, simm12imm:$off))),
-+          (ld_sw_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(truncstorei16 GPRD:$val, GPRB:$base),
-+          (st_w_rd GPRD:$val, GPRB:$base, 0)>;
-+def : Pat<(truncstorei16 GPRD:$val, (add GPRB:$base, simm12imm:$off)),
-+          (st_w_rd GPRD:$val, GPRB:$base, simm12imm:$off)>;
++def : DADAOLdPat<extloadi16, ld_uw_rd>;
++def : DADAOLdPat<zextloadi16, ld_uw_rd>;
++def : DADAOLdPat<sextloadi16, ld_sw_rd>;
++def : DADAOStPat<truncstorei16, st_w_rd>;
 +
 +// i32 (tetra): ld.ut / ld.st / st.t.
-+def : Pat<(i64 (extloadi32 GPRB:$base)), (ld_ut_rd GPRB:$base, 0)>;
-+def : Pat<(i64 (extloadi32 (add GPRB:$base, simm12imm:$off))),
-+          (ld_ut_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(i64 (zextloadi32 GPRB:$base)), (ld_ut_rd GPRB:$base, 0)>;
-+def : Pat<(i64 (zextloadi32 (add GPRB:$base, simm12imm:$off))),
-+          (ld_ut_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(i64 (sextloadi32 GPRB:$base)), (ld_st_rd GPRB:$base, 0)>;
-+def : Pat<(i64 (sextloadi32 (add GPRB:$base, simm12imm:$off))),
-+          (ld_st_rd GPRB:$base, simm12imm:$off)>;
-+def : Pat<(truncstorei32 GPRD:$val, GPRB:$base),
-+          (st_t_rd GPRD:$val, GPRB:$base, 0)>;
-+def : Pat<(truncstorei32 GPRD:$val, (add GPRB:$base, simm12imm:$off)),
-+          (st_t_rd GPRD:$val, GPRB:$base, simm12imm:$off)>;
++def : DADAOLdPat<extloadi32, ld_ut_rd>;
++def : DADAOLdPat<zextloadi32, ld_ut_rd>;
++def : DADAOLdPat<sextloadi32, ld_st_rd>;
++def : DADAOStPat<truncstorei32, st_t_rd>;
 +
 +//===----------------------------------------------------------------------===//
 +// Compare / branch selection (LLVM-037t; C17/C14, ADR-0018)

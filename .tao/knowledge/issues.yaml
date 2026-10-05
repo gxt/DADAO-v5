@@ -688,3 +688,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-036t reviewer 判非阻塞（该任务只要求 base+imm12）。终态见 ADR-0018 C14 D1（base+offset 单条 add.o）。建议随指针算术/GEP lowering 任务补齐。"
+
+- id: ISS-138
+  title: ">128K 帧（C7 D4 方案1：rd 存偏移 + ldm/stm）未实现，当前显式失败"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-038t 实现 SP-only/FP + 大帧方案2（rb2rb+add.si，≤±128K）；>128K 显式 'scheme 1 not implemented'。per ADR-0018 C7 D4，方案1 仅 >128K，M3 可后补。"

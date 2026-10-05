@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..e69da6104
+index 000000000..b9518b68a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,175 @@
+@@ -0,0 +1,226 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -33,9 +33,11 @@ index 000000000..e69da6104
 +
 +#include "llvm/CodeGen/MachineFunction.h"
 +#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/CodeGen/SelectionDAG.h"
 +#include "llvm/CodeGen/SelectionDAGISel.h"
 +#include "llvm/CodeGen/SelectionDAGNodes.h"
 +#include "llvm/Support/Debug.h"
++#include "llvm/Support/MathExtras.h"
 +
 +// Instruction opcodes (DADAO::RET_PSEUDO, ...) used by the generated matcher.
 +#define GET_INSTRINFO_ENUM
@@ -56,6 +58,11 @@ index 000000000..e69da6104
 +      : SelectionDAGISel(TM) {}
 +
 +  void Select(SDNode *N) override;
++
++  // Address matcher for the load/store patterns (DADAOAddr complex pattern):
++  // folds `base + simm12` and keeps a frame index as the base operand so
++  // PrologEpilogInserter can resolve it (LLVM-038t).
++  bool SelectAddr(SDValue Addr, SDValue &Base, SDValue &Offset);
 +
 +private:
 +  // i64 constant materialization (CONST_WYDE pseudo, C12 / ADR-0018).
@@ -116,6 +123,39 @@ index 000000000..e69da6104
 +  ReplaceNode(N, M);
 +}
 +
++bool DADAODAGToDAGISel::SelectAddr(SDValue Addr, SDValue &Base,
++                                   SDValue &Offset) {
++  const SDLoc DL(Addr);
++  const EVT VT = Addr.getValueType();
++
++  // A frame index stays in the base operand position; PrologEpilogInserter's
++  // eliminateFrameIndex later turns it into `[rbsp/rbfp, offset]`
++  // (ADR-0018 C7/C8, LLVM-038t).
++  if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
++    Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), VT);
++    Offset = CurDAG->getTargetConstant(0, DL, VT);
++    return true;
++  }
++
++  // base + sign-extended 12-bit offset (folded into the memory immediate).
++  if (CurDAG->isBaseWithConstantOffset(Addr)) {
++    int64_t CVal = cast<ConstantSDNode>(Addr.getOperand(1))->getSExtValue();
++    if (isInt<12>(CVal)) {
++      SDValue B = Addr.getOperand(0);
++      if (auto *FIN = dyn_cast<FrameIndexSDNode>(B))
++        B = CurDAG->getTargetFrameIndex(FIN->getIndex(), VT);
++      Base = B;
++      Offset = CurDAG->getSignedTargetConstant(CVal, DL, VT);
++      return true;
++    }
++  }
++
++  // Plain base register (e.g. a pointer argument in GPRB).
++  Base = Addr;
++  Offset = CurDAG->getTargetConstant(0, DL, VT);
++  return true;
++}
++
 +void DADAODAGToDAGISel::Select(SDNode *Node) {
 +  if (Node->isMachineOpcode()) {
 +    Node->setNodeId(-1);
@@ -129,6 +169,17 @@ index 000000000..e69da6104
 +      return;
 +    }
 +    break;
++  case ISD::FrameIndex: {
++    // A frame object address used as a value (not folded into a load/store
++    // address by SelectAddr): materialize it into a GPRB register.  The target
++    // frame index is resolved by eliminateFrameIndex (LLVM-038t).
++    auto *FIN = cast<FrameIndexSDNode>(Node);
++    SDValue TFI = CurDAG->getTargetFrameIndex(FIN->getIndex(), MVT::i64);
++    SDNode *M = CurDAG->getMachineNode(DADAO::FRAME_ADDR, SDLoc(Node),
++                                       MVT::i64, TFI);
++    ReplaceNode(Node, M);
++    return;
++  }
 +  case ISD::SUB:
 +    // Bank-aware ptr − ptr (C14 / ADR-0018): when both operands are still in
 +    // the GPRB bank, select the single sub.o rd, rb, rb.  A plain i64

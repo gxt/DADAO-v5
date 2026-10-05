@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..125bf9d45
+index 000000000..9e1c8368c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,179 @@
+@@ -0,0 +1,251 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -36,6 +36,8 @@ index 000000000..125bf9d45
 +#undef GET_INSTRINFO_ENUM
 +
 +#include "llvm/CodeGen/MachineBasicBlock.h"
++#include "llvm/CodeGen/MachineFrameInfo.h"
++#include "llvm/CodeGen/MachineFunction.h"
 +#include "llvm/CodeGen/MachineInstrBuilder.h"
 +
 +using namespace llvm;
@@ -182,4 +184,74 @@ index 000000000..125bf9d45
 +  default:
 +    return false;
 +  }
++}
++
++void DADAOInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
++                                         MachineBasicBlock::iterator MI,
++                                         Register SrcReg, bool isKill,
++                                         int FrameIndex,
++                                         const TargetRegisterClass *RC,
++                                         Register /*VReg*/,
++                                         MachineInstr::MIFlag Flags) const {
++  // Route by bank (C16 D3, ADR-0018): GPRD -> st.o (rd value), GPRB -> st.o
++  // (rb value).  Both take the base register and a simm12 offset; the base is
++  // a frame index that PEI replaces (LLVM-038t).
++  unsigned Opc;
++  if (RC == &DADAO::GPRDRegClass)
++    Opc = DADAO::st_o_rd;
++  else if (RC == &DADAO::GPRBRegClass)
++    Opc = DADAO::st_o_rb;
++  else
++    llvm_unreachable("DADAO: cannot spill this register class to a stack slot");
++
++  MachineFunction &MF = *MBB.getParent();
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  Align Alignment = MFI.getObjectAlign(FrameIndex);
++  MachineMemOperand *MMO = MF.getMachineMemOperand(
++      MachinePointerInfo::getFixedStack(MF, FrameIndex),
++      MachineMemOperand::MOStore, MFI.getObjectSize(FrameIndex), Alignment);
++
++  DebugLoc DL;
++  if (MI != MBB.end())
++    DL = MI->getDebugLoc();
++
++  BuildMI(MBB, MI, DL, get(Opc))
++      .addReg(SrcReg, getKillRegState(isKill))
++      .addFrameIndex(FrameIndex)
++      .addImm(0)
++      .addMemOperand(MMO)
++      .setMIFlag(Flags);
++}
++
++void DADAOInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
++                                          MachineBasicBlock::iterator MI,
++                                          Register DestReg, int FrameIndex,
++                                          const TargetRegisterClass *RC,
++                                          Register /*VReg*/, unsigned /*SubReg*/,
++                                          MachineInstr::MIFlag Flags) const {
++  unsigned Opc;
++  if (RC == &DADAO::GPRDRegClass)
++    Opc = DADAO::ld_o_rd;
++  else if (RC == &DADAO::GPRBRegClass)
++    Opc = DADAO::ld_o_rb;
++  else
++    llvm_unreachable(
++        "DADAO: cannot reload this register class from a stack slot");
++
++  MachineFunction &MF = *MBB.getParent();
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  Align Alignment = MFI.getObjectAlign(FrameIndex);
++  MachineMemOperand *MMO = MF.getMachineMemOperand(
++      MachinePointerInfo::getFixedStack(MF, FrameIndex),
++      MachineMemOperand::MOLoad, MFI.getObjectSize(FrameIndex), Alignment);
++
++  DebugLoc DL;
++  if (MI != MBB.end())
++    DL = MI->getDebugLoc();
++
++  BuildMI(MBB, MI, DL, get(Opc), DestReg)
++      .addFrameIndex(FrameIndex)
++      .addImm(0)
++      .addMemOperand(MMO)
++      .setMIFlag(Flags);
 +}

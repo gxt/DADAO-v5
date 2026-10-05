@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
 new file mode 100644
-index 000000000..91236f3a0
+index 000000000..1714bb1c1
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,161 @@
 +//===-- DADAORegisterInfo.cpp - DADAO Register Information -------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -14,18 +14,24 @@ index 000000000..91236f3a0
 +
 +#include "DADAORegisterInfo.h"
 +#include "DADAOFrameLowering.h"
++#include "DADAOInstrInfo.h"
++#include "DADAOSubtarget.h"
 +#include "llvm/ADT/BitVector.h"
 +#include "llvm/CodeGen/MachineFrameInfo.h"
 +#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
 +#include "llvm/CodeGen/RegisterScavenging.h"
 +#include "llvm/CodeGen/TargetFrameLowering.h"
++#include "llvm/CodeGen/TargetSubtargetInfo.h"
 +#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/MathExtras.h"
 +
-+// Register enum (DADAO::rd0, DADAO::rb1, etc.) is provided by
-+// DADAOMCTargetDesc.h via GET_REGINFO_ENUM, already included transitively
-+// through DADAORegisterInfo.h -> DADAOMCTargetDesc.h chain.
-+// We include DADAOMCTargetDesc.h explicitly to be safe.
-+#include "MCTargetDesc/DADAOMCTargetDesc.h"
++// Register enum (DADAO::rd0, DADAO::rb1, ...) comes from DADAOInstrInfo.h's
++// GET_REGINFO_ENUM.  The instruction opcode enum used by eliminateFrameIndex
++// (DADAO::add_si_rb, DADAO::rb2rb, ...) needs GET_INSTRINFO_ENUM here.
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++#undef GET_INSTRINFO_ENUM
 +
 +// TARGET_DESC section: provides DADAOGenRegisterInfo member function
 +// definitions (getFrameLowering, getRegClass, etc.).
@@ -74,13 +80,88 @@ index 000000000..91236f3a0
 +}
 +
 +bool DADAORegisterInfo::eliminateFrameIndex(
-+    MachineBasicBlock::iterator /*MI*/, int /*SPAdj*/,
-+    unsigned /*FIOperandNum*/, RegScavenger * /*RS*/) const {
-+  // Stub: M2 will implement frame index elimination.
-+  llvm_unreachable("eliminateFrameIndex not yet implemented for DADAO");
++    MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum,
++    RegScavenger *RS) const {
++  assert(SPAdj == 0 && "DADAO does not use SP-relative call frame pseudos yet");
++  MachineInstr &MI = *II;
++  MachineBasicBlock &MBB = *MI.getParent();
++  MachineFunction &MF = *MBB.getParent();
++  const DADAOSubtarget &ST = MF.getSubtarget<DADAOSubtarget>();
++  const DADAOInstrInfo &TII = *ST.getInstrInfo();
++  const DADAOFrameLowering *TFI = ST.getFrameLowering();
++  const DebugLoc &DL = MI.getDebugLoc();
++
++  assert(MI.getOperand(FIOperandNum).isFI() &&
++         "eliminateFrameIndex: expected a frame index operand");
++  const int FI = MI.getOperand(FIOperandNum).getIndex();
++
++  if (MI.getOpcode() == DADAO::FRAME_ADDR) {
++    // Materialize a frame address into the destination GPRB register:
++    //   rb2rb dst, <frame reg>
++    //   add.si dst, <frame offset>        (in place; ADR-0018 C7 D4 scheme 2)
++    Register Dst = MI.getOperand(0).getReg();
++    Register FrameReg;
++    StackOffset SO = TFI->getFrameIndexReference(MF, FI, FrameReg);
++    const int64_t Offset = SO.getFixed() + SPAdj;
++    if (!isInt<18>(Offset))
++      report_fatal_error("DADAO: frame address offset out of the 18-bit "
++                         "add.si range (large-frame scheme 1 not implemented)");
++    if (Dst != FrameReg)
++      BuildMI(MBB, II, DL, TII.get(DADAO::rb2rb), Dst)
++          .addReg(FrameReg)
++          .addImm(1);
++    if (Offset != 0)
++      BuildMI(MBB, II, DL, TII.get(DADAO::add_si_rb), Dst).addImm(Offset);
++    MI.eraseFromParent();
++    return true;
++  }
++
++  // Load/store (including the RA spill/reload instructions from
++  // storeRegToStackSlot/loadRegFromStackSlot): operand FIOperandNum is the
++  // GPRB base and FIOperandNum+1 the simm12 offset.
++  Register FrameReg;
++  StackOffset SO = TFI->getFrameIndexReference(MF, FI, FrameReg);
++  const int64_t FrameOffset = SO.getFixed() + SPAdj;
++  assert(FIOperandNum + 1 < MI.getNumOperands() &&
++         "eliminateFrameIndex: missing offset operand");
++  const int64_t GEPOffset = MI.getOperand(FIOperandNum + 1).getImm();
++  const int64_t Total = FrameOffset + GEPOffset;
++
++  if (isInt<12>(Total)) {
++    // The whole address fits `[base, simm12]`: fold it directly.
++    MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, /*isDef=*/false);
++    MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Total);
++    return false;
++  }
++
++  // The offset does not fit the load/store immediate.  Materialize the
++  // address in a scavenged RB register:
++  //   rb2rb scratch, <frame reg>
++  //   add.si scratch, <offset>          (in place, ±128K; scheme 2)
++  if (!RS)
++    report_fatal_error("DADAO: frame offset needs a scratch register but no "
++                       "register scavenger is available");
++  if (!isInt<18>(Total))
++    report_fatal_error("DADAO: frame offset exceeds the 18-bit add.si range "
++                       "(large-frame scheme 1 not implemented)");
++  Register Scratch = RS->scavengeRegisterBackwards(
++      DADAO::GPRBRegClass, II, /*RestoreAfter=*/false, SPAdj);
++  if (!Scratch)
++    report_fatal_error("DADAO: unable to scavenge a register for a large "
++                       "frame offset");
++  RS->setRegUsed(Scratch);
++  BuildMI(MBB, II, DL, TII.get(DADAO::rb2rb), Scratch)
++      .addReg(FrameReg)
++      .addImm(1);
++  BuildMI(MBB, II, DL, TII.get(DADAO::add_si_rb), Scratch).addImm(Total);
++  MI.getOperand(FIOperandNum).ChangeToRegister(Scratch, /*isDef=*/false);
++  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(0);
++  return false;
 +}
 +
 +Register
-+DADAORegisterInfo::getFrameRegister(const MachineFunction & /*MF*/) const {
-+  return DADAO::rb2; // FP = rb2
++DADAORegisterInfo::getFrameRegister(const MachineFunction &MF) const {
++  // ADR-0018 C7 D3: `hasFP ? rb2 : rb1` (replaces the old unconditional rb2).
++  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
++  return TFI->hasFP(MF) ? DADAO::rb2 : DADAO::rb1; // FP = rb2, SP = rb1
 +}
