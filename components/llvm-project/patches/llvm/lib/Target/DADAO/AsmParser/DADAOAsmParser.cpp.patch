@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..4a6b45b74
+index 000000000..5788d116b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1382 @@
+@@ -0,0 +1,1405 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -913,6 +913,28 @@ index 000000000..4a6b45b74
 +         M == "rd2rf" || M == "rf2rd";
 +}
 +
++// M1 block moves that carry *two* `{start:end}` groups sharing a single immu6
++// element count (ISS-104): the same-bank rd2rd/rb2rb and the cross-bank
++// rd2rb/rb2rd/rd2ra/ra2rd (contract-isa.md §3.3.2/§3.3.3).  Both written groups
++// must therefore have the same size.
++static bool isM1BlockMnemonic(StringRef M) {
++  return M == "rd2rd" || M == "rb2rb" || M == "rd2rb" || M == "rb2rd" ||
++         M == "rd2ra" || M == "ra2rd";
++}
++
++// M1 multi-register instructions subject to `mreg_range_overflow`: the ldm.*/
++// stm.* loads/stores (RD, RB and RA destinations) and the orri block moves.  A
++// written `{start:end}` group may hold at most a full bank (64 registers), but
++// the shared immu6 count field only covers 1..63, so a count-64 group such as
++// `{rd0:rd63}` (ISS-106) would silently truncate to immu6 = 0.  ldm.t/stm.t are
++// RF-only (scope: fp) and are handled with the FP groups instead.
++static bool isM1MregMnemonic(StringRef M) {
++  return M == "ldm.ub" || M == "ldm.uw" || M == "ldm.ut" ||
++         M == "ldm.sb" || M == "ldm.sw" || M == "ldm.st" ||
++         M == "ldm.o" || M == "stm.b" || M == "stm.w" ||
++         M == "stm.t" || M == "stm.o" || isM1BlockMnemonic(M);
++}
++
 +// First register of a flat register operand or of a `{start:end}` group;
 +// returns the no-register sentinel (0) for any other operand kind.
 +static MCRegister firstRegisterOf(const DADAOOperand *Op) {
@@ -974,23 +996,23 @@ index 000000000..4a6b45b74
 +    }
 +  }
 +
-+  // Static legality check for mreg_range_overflow (SPEC-088t; SimRISC-01
-+  // §存取RF寄存器 / SimRISC-02 §寄存器组之间块赋值 / SimRISC-07 §格式转换指令):
-+  // a `{start:end}` group in an FP multi-register instruction may carry up to 64
-+  // elements, but the shared immu6 field is only 6 bits (0..63), so `{rf0:rf63}`
-+  // (count 64) would silently truncate to 0 — the illegal `mreg_zero` encoding.
-+  // Reject any FP group whose element count exceeds 63.  This runs before the
++  // Static legality check for mreg_range_overflow (ISS-106 / SPEC-088t;
++  // SimRISC-01 §存取RD寄存器 / §存取RF寄存器 / SimRISC-02 §寄存器组之间块赋值 /
++  // SimRISC-07 §格式转换指令): a `{start:end}` group in a multi-register
++  // instruction may name up to a full bank (64 registers), but the shared immu6
++  // field is only 6 bits (0..63), so `{rd0:rd63}` (M1 RD) and `{rf0:rf63}` (FP)
++  // — both count 64 — would silently truncate to 0 (the illegal `mreg_zero`
++  // encoding).  Reject any group whose element count exceeds 63, for the FP
++  // multi-register mnemonics and for the M1 RD/RB/RA ones (ldm.*/stm.*, shared
++  // ldm.o/stm.o included, plus the orri block moves).  This runs before the
 +  // LLVM-029t "group counts differ" hardening below so that the specific
-+  // `mreg_range_overflow` rule is reported when both would apply.  The M1
-+  // ldm.*/stm.* RD forms share these mnemonics and are out of this task's
-+  // scope, so only their RF groups are checked.
++  // `mreg_range_overflow` rule is reported when both would apply.
 +  if (Operands.size() >= 2) {
 +    auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
 +    if (TokOp && TokOp->isToken()) {
 +      StringRef Mnem = TokOp->getToken();
-+      bool CheckAllGroups = isFPMregMnemonic(Mnem);
-+      bool CheckRFGroups = Mnem == "ldm.t" || Mnem == "stm.t" ||
-+                           Mnem == "ldm.o" || Mnem == "stm.o";
++      bool CheckAllGroups = isFPMregMnemonic(Mnem) || isM1MregMnemonic(Mnem);
++      bool CheckRFGroups = Mnem == "ldm.t" || Mnem == "stm.t";
 +      if (CheckAllGroups || CheckRFGroups) {
 +        for (size_t I = 1; I < Operands.size(); ++I) {
 +          auto *G = static_cast<DADAOOperand *>(Operands[I].get());
@@ -1041,14 +1063,15 @@ index 000000000..4a6b45b74
 +                       "and destination must be disjoint");
 +      }
 +
-+      // Hardening for FP block instructions (LLVM-029t): the orri conversion /
-+      // classify / rd2rf / rf2rd forms carry a *single* immu6 that encodes the
-+      // element count shared by both `{start:end}` groups.  If the two written
-+      // groups have different sizes the instruction is ill-formed, so reject it
-+      // with a hard error instead of silently taking one of the two counts.
-+      // The pre-existing M1 `rd2rd`/`rb2rb` behaviour (last group wins) is left
-+      // unchanged.
-+      if ((isFPBlockMnemonic(Mnem) || Mnem == "rd2rf" || Mnem == "rf2rd") &&
++      // Hardening for block instructions (LLVM-029t, extended by ISS-104): the
++      // orri conversion / classify / rd2rf / rf2rd forms and the M1
++      // rd2rd/rb2rb/rd2rb/rb2rd/rd2ra/ra2rd forms carry a *single* immu6 that
++      // encodes the element count shared by both `{start:end}` groups.  If the
++      // two written groups have different sizes the instruction is ill-formed,
++      // so reject it with a hard error instead of silently taking one of the
++      // two counts (previously the last group won).
++      if ((isFPBlockMnemonic(Mnem) || Mnem == "rd2rf" || Mnem == "rf2rd" ||
++           isM1BlockMnemonic(Mnem)) &&
 +          DstOp->getGroupCount() != SrcOp->getGroupCount())
 +        return Error(DstOp->getStartLoc(),
 +                     "invalid '" + Mnem.str() + "': source and destination "

@@ -432,18 +432,18 @@
 
 - id: ISS-104
   title: "M1 rd2rd/rb2rb 不等 count 静默取末组（FP 侧已加严，M1 未改）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-044t
   notes: "原 backlog L131。实测 rd2rd {rd4:rd6}, {rd8:rd12} rc=0；建议后续 M1 一致性任务评估同款 count 相等检查。"
 
 - id: ISS-106
   title: "M1 RD 多寄存器 {rd0:rd63} 仍静默截断（M1 RD 侧 mreg_range_overflow 未加）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-044t
   notes: "原 backlog L134/L240。实测 ldm.o {rd0:rd63}, [rb1, rd0] rc=0、count=64 截断为 immu6=0；规则对 M1 active，属既存实现缺口。建议另立 M1 RD 侧加固任务。"
 
 - id: ISS-107
