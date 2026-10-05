@@ -81,7 +81,7 @@ help:
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
-	@echo "  make check-spec-codeblocks  Check spec prose ```simrisc blocks vs opcodes.yaml (ISS-077)"
+	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
 	@echo "  make check-lit        Run lit MC + E2E tests (requires build-mc + build-qemu)"
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
 	@echo "  make check-patch-tree  Check component patch tree (spec/Process-01, 9 assertions)"

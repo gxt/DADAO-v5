@@ -12,7 +12,7 @@
 
 判据来源（Spec-first，不从实现反推）：
   * contracts/opcodes.yaml（每条记录 scope/decode/id）
-  * SPEC-086t §5.3（计数 152/60/15/227；fp ⇔ _rf）
+  * SPEC-086t §5.3（计数 152/60/15/228；fp ⇔ _rf）
   * ADR-0012 D9.1/D9.5（新增 scope: m3，total 227→228，M1 不变）
 
 Usage: python3 tools/spec/check_scope.py [--yaml contracts/opcodes.yaml] [--repo-root .]
