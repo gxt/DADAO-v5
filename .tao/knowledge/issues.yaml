@@ -217,24 +217,27 @@
 
 - id: ISS-051
   title: "v11.x 目录结构变更：target/riscv/translate.c 移到 target/riscv/tcg/translate.c"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: INFRA-040t
+  notes: "INFRA-040t（2026-10-05）独立复核：moot——`find components/qemu/patches -path '*riscv*'` 空；补丁树唯一 `target/*` 子目录为 `target/dadao`，无 `target/riscv/**`；`grep -rl riscv` 仅命中 `qapi/machine.json.patch`（arch 字符串列表 'riscv32'/'riscv64'，非 riscv 目标补丁）⇒ v11.x 目录变更与本仓 DADAO 补丁无交集。"
 
 - id: ISS-052
   title: "harness 端到端依赖跨任务（QEMU-005t/006t/008t）——ADR-0010 D1 修法 a 使 006t 后可跑 RD-only"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: QEMU-005t/006t/008t
+  notes: "INFRA-040t（2026-10-05）独立复核：resolved——`QEMU-005t/006t/008t` 归档任务书均 `**状态**：已验证`（跨任务依赖链全满足）；`ADR-0010 D1 修法 a`（普通模式不 emit dumper，`if dump_mode:` 守卫）实测存在于 `tests/scripts/build_test_binary.py` ⇒ 006t 后即可端到端跑 RD-only。"
 
 - id: ISS-053
   title: "andn.w-rb 在 006t 实现（translate.c:906）——名义归 008t，architect 裁定保留在 006t"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: QEMU-006t
+  notes: "INFRA-040t（2026-10-05）独立复核：resolved——`andn.w-rb` 实现存在于 `trans_imm.c.inc.patch::trans_andn_w_rwii_rb`（006t 交付）；`QEMU-006t` 归档任务书 `**状态**：已验证`，其「遗留问题」已登记 andn.w-rb 归属（architect 裁定保留 006t），无未处置项。"
 
 - id: ISS-054
   title: "探针手算分支偏移易错 → 建议标签化框架（tools/qemu/ 基于标签的探针框架）"
@@ -267,10 +270,11 @@
 
 - id: ISS-068
   title: "24 条 mem-rd 窄 load 向量 FAIL 归因变更：根因 = harness build_loader() 无条件用 st.o（8 字节），归 QEMU-023t"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: QEMU-023t
+  notes: "INFRA-040t（2026-10-05）独立复核：resolved——`QEMU-023t` 完成区载「24/24 窄 load FAIL→PASS」逐条证据 + 状态 `已验证`；现 harness `tests/scripts/build_test_binary.py::build_loader()` 按 mnemonic 宽度调 `derive_width_from_mnemonic()` 选 `st.b/w/t/o`（实测 `ld.ub`→st.b op=0x18、`ld.o`→st.o op=0x21；改 `_ST_WIDTH_MAP`→st.o 后 ld.ub 变 0x21，反例承重）。"
 
 - id: ISS-069
   title: "harness 内硬编码 op 常量 ↔ opcodes.yaml 无交叉校验——encode_* helper 硬编码 op 值，存在漂移风险"
@@ -319,11 +323,11 @@
 
 - id: ISS-080
   title: "SPEC-066t/067t 完成区「修改文件」字段未逐一提取（台账回填缺口，非阻断）"
-  status: open
+  status: closed
   scope: [infra, spec]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L50。提交 1ab5168 只补 changelog/MEMORY 与任务书状态，未提取两份完成区修改文件清单；如需完整台账可另立小任务补齐。"
+  resolved_by: INFRA-040t
+  notes: "原 backlog L50。提交 1ab5168 只补 changelog/MEMORY 与任务书状态，未提取两份完成区修改文件清单；如需完整台账可另立小任务补齐。INFRA-040t（2026-10-05）独立复核：moot——`SPEC-066t`/`SPEC-067t` 任务书已归档至 `.tao/archive/M2/spec/`（M2 于 2026-10-04 归档，archive 只读）；回填/订正归档任务书完成区不可执行，且 M2 期 changelog/MEMORY 条目亦已归档（无对应活载体）。"
 
 - id: ISS-081
   title: "FP 后续衔接点（独立 oracle / harness RF 支持 / FP 向量 / E2E / 实现缺口）"
@@ -487,11 +491,11 @@
 
 - id: ISS-111
   title: "QEMU-033t 任务书层面遗留（探针 pre-existing 失败 + 验收项 4「保持 PASS」措辞不符实际）"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L142。008t T20 实得 0x89、36/37；013t X1/X4 失败 20/22；与本改动无关。建议订正任务书措辞为「本次改动零新增失败」并评估探针保留。"
+  resolved_by: INFRA-040t
+  notes: "原 backlog L142。008t T20 实得 0x89、36/37；013t X1/X4 失败 20/22；与本改动无关。建议订正任务书措辞为「本次改动零新增失败」并评估探针保留。INFRA-040t（2026-10-05）独立复核：moot——`QEMU-033t` 任务书已归档至 `.tao/archive/M2/qemu/`（archive 只读），措辞订正不可执行。探针现状实测：`min_rom_probe_033t.py` 9/9 PASS EXIT=0（保留；可作同组重叠 ILLI 模板）；上述 pre-existing 失败为 `min_rom_probe_008t.py` T20（36/37，EXIT=1）与 `_013t.py` X1/X4（20/22，EXIT=1），与本改动无关且已由 ISS-120 跟踪（open），建议不改探针代码。"
 
 - id: ISS-112
   title: "check_interface_alignment.py 第三处调用的 isdir 守卫不一致"
