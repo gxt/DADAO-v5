@@ -40,7 +40,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
-        check-rule-refs check-fp-contract \
+        check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
         check-patch-tree check-source-state check-asm-list-drift size-report \
         check-tasks
@@ -84,6 +84,7 @@ help:
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-rule-refs  Check rule_refs bidirectional gate (SPEC-071t)"
 	@echo "  make check-fp-contract  Check FP semantics contract completeness (SPEC-087t)"
+	@echo "  make check-instrinfo  Cross-check DADAOInstrInfo.td against opcodes.yaml (LLVM-046t)"
 	@echo "  make check-cfx-aliases  Check cfx alias table drift gate (SPEC-075t)"
 	@echo "  make check-asm-list-drift  Check assembly-list drift gate (INFRA-027t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
@@ -221,7 +222,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-legality-drift check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-asm-list check-asm-list-drift check-asm-prose check-legality-drift check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -308,6 +309,13 @@ check-interface:
 # (value/mask, field overlap, bank, legality refs, decode conflicts).
 validate-encoding: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/validate_encoding.py contracts/opcodes.yaml
+
+# InstrInfo cross-check gate (LLVM-046t / ISS-103): the committed
+# DADAOInstrInfo.td (the .td truth, read from its patch) must match
+# contracts/opcodes.yaml (the encoding truth).  Hermetic: reads only repo files,
+# no .work/source checkout needed.
+check-instrinfo:
+	@$(PYTHON) tools/llvm/validate_instrinfo.py
 
 # Scope partition gate (SPEC-086t/089t): opcodes.yaml scope ∈ {m1,fp,excluded},
 # counts 152/60/15/227, excluded <=> decode ILLI (m1/fp carry none),

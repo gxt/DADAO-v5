@@ -424,10 +424,10 @@
 
 - id: ISS-103
   title: "generate_instrinfo.py / validate_instrinfo.py 陈旧、非真源（命名漂移 + 基线过期，EXIT≠0，均不在 make check）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-046t
   notes: "原 backlog L130/L197。validate_instrinfo Check 2 命名漂移（.td 用 . vs opcodes.yaml 用 _）；建议合并为「生成器/校验器刷新」清理任务。"
 
 - id: ISS-104
@@ -645,3 +645,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-033t 新增 8 补丁（DADAOSubtarget/ISelLowering/ISelDAGToDAG/AsmPrinter/CodeGen.td 等），补丁总数 36→45；README 未同步。非门控。建议随 infra/llvm 文档小任务更新。"
+
+- id: ISS-134
+  title: "`tools/llvm/gen_m1_asm.py`/`test_m1_asm.py` 用旧 i 后缀语法，实测 148/152（4 失败）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-046t reviewer 独立复现：148 passed, 4 failed；最后改动在 LLVM-019t（非本次引入）。建议随 LLVM 工具刷新小任务修。"
