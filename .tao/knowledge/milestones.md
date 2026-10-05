@@ -18,9 +18,11 @@
 >
 > **M2 达成（2026-10-04，architect 实测核验）**：M2 门槛 5 条全部满足、各模块 M2 任务均终态 ⇒ 6 个模块 `m` 置 `里程碑`、M2 置 `达成`。核验记录见下「M2 达成核验记录」。
 >
-> **M3 达成（2026-10-05，主会话实测核验）**：门槛 `make test-codegen` **15/15**；5 个模块 `m`（`INFRA-036m`/`SPEC-099m`/`TESTCASES-027m`/`LLVM-042m`/`INTEG-013m`）全部置 `里程碑` ⇒ M3 置 `达成`。核验命令与退出码见各 `m` 文件「核验记录」及 `.work/log/m3-closure/`（`llc --version`=0、`check-patch-tree`=0/80、`check`=0/34、`check-lit`=0/34、`test-codegen`=0/15、`check-no-residue`=0）。**归档前置**（`spec/Process-04 §2` 完整台账梳理，步骤 3–6）**待执行**，未完成不得归档。
+> **M3 达成（2026-10-05，主会话实测核验）**：门槛 `make test-codegen` **15/15**；5 个模块 `m`（`INFRA-036m`/`SPEC-099m`/`TESTCASES-027m`/`LLVM-042m`/`INTEG-013m`）全部置 `里程碑` ⇒ M3 置 `达成`。核验命令与退出码见各 `m` 文件「核验记录」及 `.work/log/m3-closure/`（`llc --version`=0、`check-patch-tree`=0/80、`check`=0/34、`check-lit`=0/34、`test-codegen`=0/15、`check-no-residue`=0）。**归档前置**（`spec/Process-04 §2` 完整台账梳理，步骤 3–6）由 `INFRA-042t` 执行（`已验证`）；归档见下。
 >
 > **归档（2026-10-04）**：M2 的 149 个任务书已归档至 `.tao/archive/M2/`（按模块子目录）；M2 时期 changelog（60 条）/MEMORY（45 行 + 2 段落）内容见 `.tao/archive/M2/README.md`；**M2 回顾见 `.tao/archive/M2/m2-retrospective.md`**；`issues.yaml` 的 41 条 M2 阶段 closed 项见 `.tao/archive/M2/issues-closed.md`。
+>
+> **归档（2026-10-05）**：M3 的 39 个任务书已归档至 `.tao/archive/M3/`（按模块子目录）；M3 时期 changelog（34 条）/MEMORY（1 行）内容见 `.tao/archive/M3/README.md`；**M3 回顾见 `.tao/archive/M3/m3-retrospective.md`**；`issues.yaml` 的 56 条 M3 阶段 closed 项见 `.tao/archive/M3/issues-closed.md`。
 >
 > **M3 重定义（2026-10-04，用户裁定）**：M3 定为 **「Basic CodeGen（纯整数）」**——`llc` 编译标量整数/指针函数 → MC → 单 TU obj/raw binary → QEMU 执行正确；门槛 `make test-codegen` 全绿。bank 只 `GPRD`+`GPRB`；`RA`/`RF` 仅「保留不分配」；无需链接器（ADR-0003 §D5 单 TU + 最小重定位）。**M4（后续，未规划）**顺延：FP/RF codegen、完整调用约定（`ISS-005`，含变参/聚合/多返回/sret）、完整重定位（`ISS-008`）、clang targetinfo/driver。M3 任务分解见 `.tao/tasks/spec/SPEC-096k-M3启动与分解.md`；M3 的 `qemu` 列原填 `—`（执行层已由 M1 冻结、无独立 qemu 模块里程碑）——**2026-10-04 追加**：新增指令 `sub.o rd,rb,rb` 的 QEMU 语义翻译 `QEMU-040t`（M3 前置，与 `SPEC-100t` 同原子落地集，由 `INTEG-012t`/`INTEG-013m` 门控），本列仍填 `—`。
 
