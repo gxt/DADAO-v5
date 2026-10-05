@@ -682,12 +682,12 @@
   notes: "SPEC-102t reviewer 判：越出该任务「仅改 5 处」范围，建议另立小任务统一刷新（含 opcodes=228、rule_refs 计数）。"
 
 - id: ISS-137
-  title: "C14 D1 未实现：指针算术应直接落 GPRB（单条 add.o）；当前超 imm12 偏移经 GPRD 算术 + rb2rd/rd2rb"
-  status: open
+  title: "C14 D1：指针算术直落 GPRB（单条 add.o）"
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "LLVM-036t reviewer 判非阻塞（该任务只要求 base+imm12）。终态见 ADR-0018 C14 D1（base+offset 单条 add.o）。建议随指针算术/GEP lowering 任务补齐。"
+  resolved_by: "LLVM-048t（新增 SelectPointerAdd：base(rb)+offset(rd)→add_o_bbd；不判 offset bank）"
+  notes: "LLVM-036t 发现（超 imm12 偏移经 GPRD 算术 + rb2rd/rd2rb）。LLVM-048t 实现并验收（reviewer post-RA 独立确认 add.o rb8,rb8,rd8、无 rb2rd/rd2rb）。前提订正：add.o_orrr_bbd 实为 (outs GPRB)(ins GPRB,GPRD)。"
 
 - id: ISS-138
   title: ">128K 帧（C7 D4 方案1：rd 存偏移 + ldm/stm）未实现，当前显式失败"
@@ -744,3 +744,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-047t engineer 发现、主会话核实：组件 changelog 最后一条为 039t，040t/041t 未补（040t 提交未改该文件）。reviewer 建议另立补录任务，不混入 047t。"
+
+- id: ISS-145
+  title: "043t/045t 证据脚本硬编码 MC 计数陈旧（114/27/28 → 110/29/29），产生假回归信号"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-048t reviewer 核实与 048t 无关（048t 仅改 codegen 1 文件）；系后续任务新增 MC/lit 用例后陈旧。建议改用非硬编码（模式/下限）断言。另：048t 曾越界改 039t 证据脚本（rbkeep MIR COPY→add_o_bbd，语义等价，reviewer 判非回归）。"
