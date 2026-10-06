@@ -1,4 +1,4 @@
-# tests/codegen/expected.yaml
+# tests/llvm/codegen/expected.yaml
 # TESTCASES-026t: expected results for the M3 CodeGen scalar programs.
 #
 # Entry / exit channel (frozen by INTEG-012t):

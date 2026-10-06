@@ -9,7 +9,7 @@ Sources
 * ``contracts/opcodes.yaml`` -- the authoritative encoding table
   (per-record ``scope`` = m1 | fp | excluded | m3), with per-field ``role``/``bank``.
 
-Derivation rules (validated against ``tests/lit/MC/Dadao/*.s``)
+Derivation rules (validated against ``tests/llvm/lit/MC/DADAO/*.s``)
 ---------------------------------------------------------------
 * operands are the fields whose ``role`` is one of dst/src/imm/wyde_pos/
   cfxcode/cfx_cg/cfx_rc; ``opx`` fields are already encoded in the

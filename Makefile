@@ -312,7 +312,7 @@ check-spec-codeblocks:
 LIT_BIN = $(LLVM_BUILD)/bin/llvm-lit
 check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make build-mc' first"; exit 1; }
-	$(LIT_BIN) tests/lit/MC/Dadao tests/lit/E2E -v
+	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/e2e/lit -v
 
 # M3 CodeGen end-to-end gate (INTEG-012t).  Reuses the build-mc/build-qemu
 # build trees.  Pipeline (single TU, per ADR-0003 D5):
@@ -320,7 +320,7 @@ check-lit:
 #   llvm-mc --triple=dadao -filetype=obj -> .o;
 #   llvm-objcopy -O binary --only-section=.text -> .bin;
 #   qemu-system-dadao -M dadao-m1 -bios trampoline.bin -kernel .bin ...
-# The guest process exit code is compared against tests/codegen/expected.yaml.
+# The guest process exit code is compared against tests/llvm/codegen/expected.yaml.
 # Fail-closed: any mismatch / timeout / machine fault => non-zero exit.
 LLC_BIN = $(LLVM_BUILD)/bin/llc
 LLVM_MC_BIN = $(LLVM_BUILD)/bin/llvm-mc

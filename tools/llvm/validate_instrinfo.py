@@ -68,7 +68,7 @@ FMT_BY_CLASS = {
 #   - scope:m3  -> M3 CodeGen instructions (ADR-0012 D9.1); LLVM-only, not M1.
 #   - scope:excluded -> still needed by the MC layer (assemble/disassemble) even
 #     though execution traps with ILLI.  SPEC-039t moved `fence` out of M1 but
-#     kept its def so llvm-mc can assemble it (see tests/lit/MC/Dadao/oiii.s).
+#     kept its def so llvm-mc can assemble it (see tests/llvm/lit/MC/DADAO/oiii.s).
 MC_ONLY_EXCLUDED_IDS = frozenset({"fence_oiii_imm"})
 
 # Documented sample of the explicit id -> .td def-name mapping, checked by

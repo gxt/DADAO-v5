@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """run_codegen_e2e.py -- M3 CodeGen end-to-end gate (INTEG-012t).
 
-Runs every program in ``tests/codegen/expected.yaml`` through the frozen M3
+Runs every program in ``tests/llvm/codegen/expected.yaml`` through the frozen M3
 single-TU pipeline and compares the **guest process exit code** against the
 independently-derived expected value (it does NOT rely on lit exit codes):
 
@@ -66,8 +66,8 @@ DEFAULT_LLVM_OBJCOPY = ".work/build/llvm/bin/llvm-objcopy"
 DEFAULT_QEMU = ".work/build/qemu/qemu-system-dadao"
 DEFAULT_TRAMPOLINE = "tests/scripts/trampoline.bin"
 DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
-DEFAULT_VECTORS_DIR = "tests/codegen"
-DEFAULT_EXPECTED = "tests/codegen/expected.yaml"
+DEFAULT_VECTORS_DIR = "tests/llvm/codegen"
+DEFAULT_EXPECTED = "tests/llvm/codegen/expected.yaml"
 DEFAULT_WORK_DIR = ".work/log/integ/codegen-e2e"
 DEFAULT_TIMEOUT = 30
 

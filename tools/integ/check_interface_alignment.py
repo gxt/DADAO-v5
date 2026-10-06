@@ -727,14 +727,14 @@ def check_opcodes_cross():
         record(cat, "QEMU trans ↔ opcodes.yaml", "FAIL", out)
 
     # --- LLVM lit format 族覆盖（跨载体交叉：opcodes.yaml M1 format 集 ↔ lit patterns） ---
-    # Source: contracts/opcodes.yaml M1 条目的 format 字段（契约）；tests/lit/MC/Dadao/*.s（实现）
+    # Source: contracts/opcodes.yaml M1 条目的 format 字段（契约）；tests/llvm/lit/MC/DADAO/*.s（实现）
     # 断言：每个 M1 format 族至少有 1 条 lit ; OBJ: pattern（其 opcode 匹配该族的 opcodes 条目）
     # 判定法：提取 ; OBJ: 行的 4 字节 opcode word，在 opodes.yaml 中找 (word & mask)==value
     #         的唯一匹配条目，取其 format 字段作为该 pattern 的族归属
-    lit_dir = os.path.join(REPO_ROOT, "tests", "lit", "MC", "Dadao")
+    lit_dir = os.path.join(REPO_ROOT, "tests", "llvm", "lit", "MC", "DADAO")
     if not os.path.isdir(lit_dir):
         record(cat, "LLVM lit format 族覆盖", "FAIL",
-               "tests/lit/MC/Dadao/ 目录不存在")
+               "tests/llvm/lit/MC/DADAO/ 目录不存在")
     else:
         # 收集 M1 format 族（从契约推导）
         m1_formats = set(

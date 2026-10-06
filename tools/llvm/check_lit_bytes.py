@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check_lit_bytes.py — lit ; OBJ: 字节 ↔ contracts/opcodes.yaml 独立校验。
 
-遍历 tests/lit/MC/Dadao/*.s，提取 `; OBJ:` 行的 4 字节 + mnemonic，
+遍历 tests/llvm/lit/MC/DADAO/*.s，提取 `; OBJ:` 行的 4 字节 + mnemonic，
 在 contracts/opcodes.yaml 中查找 (word & mask) == value 的记录。
 
 纯 Python + yaml；只读；不运行 LLVM 工具。
@@ -19,7 +19,7 @@ import sys
 import yaml
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DEFAULT_LIT_DIR = os.path.join(REPO_ROOT, "tests", "lit", "MC", "Dadao")
+DEFAULT_LIT_DIR = os.path.join(REPO_ROOT, "tests", "llvm", "lit", "MC", "DADAO")
 OPCODES_YAML = os.path.join(REPO_ROOT, "contracts", "opcodes.yaml")
 
 # P1: mnemonic 提取遇 {{ 即停
@@ -61,7 +61,7 @@ def main() -> int:
     parser.add_argument(
         "--lit-dir",
         default=DEFAULT_LIT_DIR,
-        help="directory containing lit .s test files (default: tests/lit/MC/DADAO)",
+        help="directory containing lit .s test files (default: tests/llvm/lit/MC/DADAO)",
     )
     parser.add_argument(
         "--min-obj",

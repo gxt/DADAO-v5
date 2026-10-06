@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the M3 CodeGen test vectors under ``tests/codegen/``.
+"""Validate the M3 CodeGen test vectors under ``tests/llvm/codegen/``.
 
 Checks performed (all fail-closed, exit non-zero on any failure):
 
@@ -34,7 +34,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-VEC_DIR = ROOT / "tests" / "codegen"
+VEC_DIR = ROOT / "tests" / "llvm" / "codegen"
 EXPECTED_PATH = VEC_DIR / "expected.yaml"
 
 SCHEMA = "codegen-vectors-v1"

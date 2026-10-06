@@ -29,11 +29,11 @@ tools_dir = getattr(config, 'llvm_tools_dir', None)
 if not tools_dir:
     tools_dir = os.environ.get('LLVM_TOOLS_DIR', '')
 if not tools_dir:
-    # Try to infer from the location of this file: tests/lit/MC/Dadao/ is 4
-    # levels deep from the repo root.
+    # Try to infer from the location of this file: tests/llvm/lit/MC/DADAO/
+    # is 5 levels deep from the repo root.
     here = os.path.dirname(os.path.abspath(__file__))
-    candidate = os.path.join(here, '..', '..', '..', '..', '.work', 'build',
-                             'llvm', 'bin')
+    candidate = os.path.join(here, '..', '..', '..', '..', '..', '.work',
+                             'build', 'llvm', 'bin')
     candidate = os.path.normpath(candidate)
     if os.path.isdir(candidate):
         tools_dir = candidate

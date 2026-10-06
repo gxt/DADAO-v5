@@ -30,7 +30,7 @@ tools_dir = getattr(config, 'llvm_tools_dir', None)
 if not tools_dir:
     tools_dir = os.environ.get('LLVM_TOOLS_DIR', '')
 if not tools_dir:
-    # Try to infer from the location of this file: tests/lit/E2E/ is 3
+    # Try to infer from the location of this file: tests/e2e/lit/ is 3
     # levels deep from the repo root.
     here = os.path.dirname(os.path.abspath(__file__))
     candidate = os.path.join(here, '..', '..', '..', '.work', 'build',
@@ -70,8 +70,9 @@ trampoline = os.path.normpath(os.path.join(here, '..', '..', 'scripts',
                                            'trampoline.bin'))
 config.substitutions.append(("%trampoline", trampoline))
 
-# Locate e2e source directory: <repo>/tests/e2e/
-e2e_dir = os.path.normpath(os.path.join(here, '..', '..', 'e2e'))
+# Locate e2e source directory: <repo>/tests/e2e/ (this config lives in
+# tests/e2e/lit/, so the source dir is its parent).
+e2e_dir = os.path.normpath(os.path.join(here, '..'))
 config.substitutions.append(("%e2e_dir", e2e_dir))
 
 # test_exec_root: put lit's scratch output in the LLVM build tree so that

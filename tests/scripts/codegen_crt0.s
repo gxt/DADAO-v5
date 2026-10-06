@@ -6,7 +6,7 @@
 ; translation unit** is assembled with llvm-mc -- there is no linker
 ; (ADR-0003 D5: single-TU, self-contained, in-place label resolution).
 ;
-; Entry / exit channel frozen with tests/codegen/expected.yaml:
+; Entry / exit channel frozen with tests/llvm/codegen/expected.yaml:
 ;   * every program defines `define i64 @main()`;
 ;   * `_start` sets up the stack pointer (rb1), calls `@main`; the returned
 ;     value arrives in rd31 (ABI C5);
