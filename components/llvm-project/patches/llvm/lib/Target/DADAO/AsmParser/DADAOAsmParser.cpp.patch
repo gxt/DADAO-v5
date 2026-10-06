@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..cae16fd80
+index 000000000..fc2988c0d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1430 @@
+@@ -0,0 +1,1690 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -41,6 +41,7 @@ index 000000000..cae16fd80
 +#include "llvm/MC/MCSubtargetInfo.h"
 +#include "llvm/MC/MCTargetOptions.h"
 +#include "llvm/MC/TargetRegistry.h"
++#include "llvm/Support/MathExtras.h"
 +#include "llvm/Support/raw_ostream.h"
 +
 +using namespace llvm;
@@ -317,6 +318,13 @@ index 000000000..cae16fd80
 +  bool parseAddressExpr(OperandVector &Operands);
 +  static unsigned matchRegisterName(StringRef Name);
 +  static bool isRegBankPrefix(StringRef Name);
++
++  // Synthetic pseudo-instruction expansion (ADR-0013 D11 / Toolchain-01 §6).
++  // Returns true on error, mirroring matchAndEmitInstruction.
++  bool expandPseudoInstruction(SMLoc IDLoc, StringRef Mnem,
++                               OperandVector &Operands, MCStreamer &Out,
++                               unsigned &Opcode, uint64_t &ErrorInfo,
++                               bool MatchingInlineAsm);
 +};
 +
 +// Include the auto-generated AsmMatcher implementation.
@@ -953,6 +961,248 @@ index 000000000..cae16fd80
 +  return R.id() >= DADAO::rf0 && R.id() <= DADAO::rf63;
 +}
 +
++// Register-bank predicates used by pseudo-instruction expansion.
++static bool isGPRDRegister(MCRegister R) {
++  return R.id() >= DADAO::rd0 && R.id() <= DADAO::rd63;
++}
++static bool isGPRBRegister(MCRegister R) {
++  return R.id() >= DADAO::rb0 && R.id() <= DADAO::rb63;
++}
++static bool isGPRARegister(MCRegister R) {
++  return R.id() >= DADAO::ra0 && R.id() <= DADAO::ra63;
++}
++
++// Build a single-register `{r}` group operand (range of length 1).  The pseudo
++// expansions are single-register block moves, so the shared immu6 count is 1.
++static std::unique_ptr<DADAOOperand> singleRegGroup(MCRegister R, SMLoc L) {
++  SmallVector<MCRegister, 1> Regs{R};
++  return DADAOOperand::createRegGroup(Regs, 1, L, L);
++}
++
++//===----------------------------------------------------------------------===//
++// Pseudo-instruction expansion (ADR-0013 D11 / spec/Toolchain-01 §6).
++//
++// The eight retained synthetic pseudo-forms are expanded here, in the front
++// end, into real hardware instructions; pseudo text never reaches the printer
++// or the disassembler.  Each expanded instruction is fed back through
++// matchAndEmitInstruction so the existing legality checks and the auto-
++// generated matcher apply unchanged.
++//
++//   set.rd rd, imm64 : constant -> minimal set.zw/set.ow + or.w/andn.w
++//                      symbol   -> fixed 3 slices (wp2/wp1/wp0) + ABS48
++//   set.rd rd, rs    : rb2rd / rf2rd / ra2rd / rd2rd
++//   set.rb rb, imm64 : set.zw-rb + or.w-rb (no set.ow-rb; all-ones = 4 insns)
++//   set.rb rb, rs    : rd2rb / rb2rb
++//   set.ft rf, imm32 : 2x set.w (never touches the high 32 bits)
++//   set.ft rf, rs    : rd2rf / ft2ft
++//   set.fo rf, imm64 : imm==0 -> rd2rf from rd0; else 4x set.w
++//   set.fo rf, rs    : rd2rf / fo2fo
++//===----------------------------------------------------------------------===//
++
++bool DADAOAsmParser::expandPseudoInstruction(
++    SMLoc IDLoc, StringRef Mnem, OperandVector &Operands, MCStreamer &Out,
++    unsigned &Opcode, uint64_t &ErrorInfo, bool MatchingInlineAsm) {
++  if (Operands.size() != 3)
++    return Error(IDLoc,
++                 "'" + Mnem.str() + "' requires exactly two operands");
++
++  auto *Dst = static_cast<DADAOOperand *>(Operands[1].get());
++  auto *Src = static_cast<DADAOOperand *>(Operands[2].get());
++  if (!Dst || !Src)
++    return Error(IDLoc, "invalid operand for '" + Mnem.str() + "'");
++  SMLoc DstLoc = Operands[1]->getStartLoc();
++  SMLoc SrcLoc = Operands[2]->getStartLoc();
++
++  if (Dst->Kind != DADAOOperand::kRegister)
++    return Error(DstLoc, "invalid '" + Mnem.str() +
++                             "': destination must be a register");
++  MCRegister DstReg = Dst->getReg();
++
++  // The destination bank is fixed by the pseudo mnemonic.
++  bool DstOK = (Mnem == "set.rd")
++                   ? isGPRDRegister(DstReg)
++                   : (Mnem == "set.rb")
++                         ? isGPRBRegister(DstReg)
++                         : /* set.ft / set.fo */ isRFRegister(DstReg);
++  if (!DstOK)
++    return Error(DstLoc, "invalid '" + Mnem.str() +
++                             "': destination register is in the wrong bank");
++
++  // Emit one already-expanded instruction through the normal path so that all
++  // existing checks (block counts, overlap, RF/RD destination rules, matching)
++  // apply exactly as if the real instruction had been written by hand.
++  auto emitSub = [&](OperandVector &SubOps) -> bool {
++    return matchAndEmitInstruction(IDLoc, Opcode, SubOps, Out, ErrorInfo,
++                                   MatchingInlineAsm);
++  };
++  auto emitRegInst = [&](StringRef Real, MCRegister A, MCRegister B) -> bool {
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++    SubOps.push_back(DADAOOperand::createToken(Real, IDLoc));
++    SubOps.push_back(singleRegGroup(A, DstLoc));
++    SubOps.push_back(singleRegGroup(B, SrcLoc));
++    return emitSub(SubOps);
++  };
++  auto emitWii = [&](StringRef Real, unsigned Wp, int64_t Val) -> bool {
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++    SubOps.push_back(DADAOOperand::createToken(Real, IDLoc));
++    SubOps.push_back(DADAOOperand::createReg(DstReg, DstLoc));
++    SubOps.push_back(DADAOOperand::createWydePos(Wp, SrcLoc, SrcLoc));
++    SubOps.push_back(
++        DADAOOperand::createImm(Val & 0xFFFF, SrcLoc, Operands[2]->getEndLoc()));
++    return emitSub(SubOps);
++  };
++  auto emitWiiExpr = [&](StringRef Real, unsigned Wp, const MCExpr *E) -> bool {
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++    SubOps.push_back(DADAOOperand::createToken(Real, IDLoc));
++    SubOps.push_back(DADAOOperand::createReg(DstReg, DstLoc));
++    SubOps.push_back(DADAOOperand::createWydePos(Wp, SrcLoc, SrcLoc));
++    SubOps.push_back(
++        DADAOOperand::createImmExpr(E, SrcLoc, Operands[2]->getEndLoc()));
++    return emitSub(SubOps);
++  };
++
++  // --- Register-source form ------------------------------------------------
++  if (Src->Kind == DADAOOperand::kRegister) {
++    MCRegister S = Src->getReg();
++    StringRef Real;
++    if (Mnem == "set.rd") {
++      if (isGPRBRegister(S))      Real = "rb2rd";
++      else if (isRFRegister(S))   Real = "rf2rd";
++      else if (isGPRARegister(S)) Real = "ra2rd";
++      else if (isGPRDRegister(S)) Real = "rd2rd";
++    } else if (Mnem == "set.rb") {
++      if (isGPRDRegister(S))      Real = "rd2rb";
++      else if (isGPRBRegister(S)) Real = "rb2rb";
++    } else if (Mnem == "set.ft") {
++      if (isGPRDRegister(S))      Real = "rd2rf";
++      else if (isRFRegister(S))   Real = "ft2ft";
++    } else { // set.fo
++      if (isGPRDRegister(S))      Real = "rd2rf";
++      else if (isRFRegister(S))   Real = "fo2fo";
++    }
++    if (Real.empty())
++      return Error(SrcLoc, "invalid '" + Mnem.str() +
++                               "': unsupported source register bank");
++    return emitRegInst(Real, DstReg, S);
++  }
++
++  // --- Immediate / symbol form ---------------------------------------------
++  if (Src->Kind != DADAOOperand::kImmediate)
++    return Error(SrcLoc, "invalid '" + Mnem.str() +
++                             "': expected a register or an immediate");
++
++  const MCExpr *SymExpr = Src->getImmExpr();
++  int64_t Imm = Src->getImm();
++
++  // Symbol / relocatable: fixed 3 slices + R_DADAO_ABS48.  A DADAO address is
++  // 48 bits, so the slices are wp2/wp1/wp0; set.zw seeds the high slice and
++  // zeroes the remaining bits.  Only set.rd/set.rb materialize addresses.
++  if (SymExpr) {
++    if (Mnem == "set.ft" || Mnem == "set.fo")
++      return Error(SrcLoc, "invalid '" + Mnem.str() +
++                               "': a symbol/relocatable operand is not "
++                               "supported (only set.rd/set.rb)");
++    if (emitWiiExpr("set.zw", 2, SymExpr))
++      return true;
++    if (emitWiiExpr("or.w", 1, SymExpr))
++      return true;
++    if (emitWiiExpr("or.w", 0, SymExpr))
++      return true;
++    return false;
++  }
++
++  // set.ft: exactly two set.w, low tetra only.  set.ft never uses rd2rf (that
++  // would clear the high 32 bits).
++  if (Mnem == "set.ft") {
++    if (!isUInt<32>(Imm) && !isInt<32>(Imm))
++      return Error(SrcLoc,
++                   "immediate out of range for 'set.ft' (must fit in 32 bits)");
++    uint32_t V32 = static_cast<uint32_t>(static_cast<uint64_t>(Imm));
++    if (emitWii("set.w", 1, (V32 >> 16) & 0xFFFF))
++      return true;
++    return emitWii("set.w", 0, V32 & 0xFFFF);
++  }
++
++  // set.fo: zero is materialized from rd0 (constant zero) with one rd2rf;
++  // otherwise four set.w cover the full octa.
++  if (Mnem == "set.fo") {
++    uint64_t V = static_cast<uint64_t>(Imm);
++    if (V == 0)
++      return emitRegInst("rd2rf", DstReg, DADAO::rd0);
++    for (int I = 3; I >= 0; --I)
++      if (emitWii("set.w", I, (V >> (16 * I)) & 0xFFFF))
++        return true;
++    return false;
++  }
++
++  // set.rd / set.rb constants: minimize the instruction count over the 4
++  // wydes.  A seed instruction (set.zw fills the other wydes with 0, set.ow
++  // with 0xFFFF) fixes one wyde; each remaining wyde needs one correction
++  // (or.w to set bits when the fill is 0, andn.w to clear bits when 0xFFFF).
++  // The seed is the highest-index wyde differing from the fill (wp0 if all
++  // match); corrections are emitted high-to-low.
++  uint64_t V = static_cast<uint64_t>(Imm);
++  uint16_t W[4];
++  for (int I = 0; I < 4; ++I)
++    W[I] = (V >> (16 * I)) & 0xFFFF;
++
++  // set.rb has no set.ow-rb variant: always seed with set.zw (fill 0).
++  if (Mnem == "set.rb") {
++    unsigned Base = 0;
++    for (int I = 3; I >= 0; --I)
++      if (W[I] != 0) {
++        Base = I;
++        break;
++      }
++    if (emitWii("set.zw", Base, W[Base]))
++      return true;
++    for (int I = 3; I >= 0; --I)
++      if (I != static_cast<int>(Base) && W[I] != 0)
++        if (emitWii("or.w", I, W[I]))
++          return true;
++    return false;
++  }
++
++  // set.rd: choose the cheaper fill (set.zw vs set.ow); ties prefer set.zw.
++  int Nz = 0, Nf = 0;
++  for (int I = 0; I < 4; ++I) {
++    if (W[I] != 0)
++      ++Nz;
++    if (W[I] != 0xFFFF)
++      ++Nf;
++  }
++  int CostZw = Nz > 0 ? Nz : 1;
++  int CostOw = Nf > 0 ? Nf : 1;
++  if (CostZw <= CostOw) {
++    unsigned Base = 0;
++    for (int I = 3; I >= 0; --I)
++      if (W[I] != 0) {
++        Base = I;
++        break;
++      }
++    if (emitWii("set.zw", Base, W[Base]))
++      return true;
++    for (int I = 3; I >= 0; --I)
++      if (I != static_cast<int>(Base) && W[I] != 0)
++        if (emitWii("or.w", I, W[I]))
++          return true;
++  } else {
++    unsigned Base = 0;
++    for (int I = 3; I >= 0; --I)
++      if (W[I] != 0xFFFF) {
++        Base = I;
++        break;
++      }
++    if (emitWii("set.ow", Base, W[Base]))
++      return true;
++    for (int I = 3; I >= 0; --I)
++      if (I != static_cast<int>(Base) && W[I] != 0xFFFF)
++        if (emitWii("andn.w", I, (~W[I]) & 0xFFFF))
++          return true;
++  }
++  return false;
++}
++
 +//===----------------------------------------------------------------------===//
 +// matchAndEmitInstruction — decompose complex operands and match.
 +//
@@ -975,6 +1225,16 @@ index 000000000..cae16fd80
 +                                              MCStreamer &Out,
 +                                              uint64_t &ErrorInfo,
 +                                              bool MatchingInlineAsm) {
++  // Synthetic pseudo-instructions (ADR-0013 D11): expand here into real
++  // hardware instructions before any of the real-instruction checks run.
++  if (Operands.size() >= 1 && Operands[0]->isToken()) {
++    StringRef Mnem = static_cast<DADAOOperand *>(Operands[0].get())->getToken();
++    if (Mnem == "set.rd" || Mnem == "set.rb" || Mnem == "set.ft" ||
++        Mnem == "set.fo")
++      return expandPseudoInstruction(IDLoc, Mnem, Operands, Out, Opcode,
++                                     ErrorInfo, MatchingInlineAsm);
++  }
++
 +  // Reject old flat syntax for dual-purpose rrrr instructions.
 +  // add.uo rd8, rd9, rd10, rd11 → must use add.uo {rd8, rd9}, rd10, rd11
 +  // Only applies to rrrr format (4 operands), not orrr format (3 operands).
