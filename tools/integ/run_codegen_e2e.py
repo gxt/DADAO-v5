@@ -68,7 +68,7 @@ DEFAULT_TRAMPOLINE = "tests/scripts/trampoline.bin"
 DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
 DEFAULT_VECTORS_DIR = "tests/llvm/codegen"
 DEFAULT_EXPECTED = "tests/llvm/codegen/expected.yaml"
-DEFAULT_WORK_DIR = ".work/log/integ/codegen-e2e"
+DEFAULT_WORK_DIR = "tests/llvm/codegen-e2e"
 DEFAULT_TIMEOUT = 30
 
 

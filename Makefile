@@ -359,14 +359,15 @@ LLC_BIN = $(LLVM_BUILD)/bin/llc
 LLVM_MC_BIN = $(LLVM_BUILD)/bin/llvm-mc
 LLVM_OBJCOPY_BIN = $(LLVM_BUILD)/bin/llvm-objcopy
 QEMU_BIN = $(QEMU_BUILD)/qemu-system-dadao
-CODEGEN_E2E_WORK = .work/log/integ/codegen-e2e
+CODEGEN_E2E_WORK = tests/llvm/codegen-e2e
 CODEGEN_E2E_LOG = .work/log/integ/test-codegen.log
 test-codegen: build-mc build-qemu
 	@test -x $(LLC_BIN) || { echo "test-codegen: ERROR: $(LLC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_MC_BIN) || { echo "test-codegen: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-codegen: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
 	@test -x $(QEMU_BIN) || { echo "test-codegen: ERROR: $(QEMU_BIN) not found"; exit 1; }
-	@mkdir -p .work/log/integ; \
+	@rm -rf $(CODEGEN_E2E_WORK); \
+	  mkdir -p .work/log/integ; \
 	  $(PYTHON) tools/integ/run_codegen_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) --trampoline tests/scripts/trampoline.bin \
