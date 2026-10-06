@@ -350,3 +350,11 @@
   blocks: []
   resolved_by: null
   notes: "SPEC-106t reviewer 判：`contract-isa.md` §6.6/§8.7/§10.5/§11.5/§12.5/§13.3 仍列已删伪指令（投影层）；`docs/impact-matrix.md` 悬空引用；`tools/spec/check_spec_codeblocks.py` 的 `PSEUDO_INSTRUCTIONS` 仍含 10 条已删项。`check-spec-refs` 靠小节头『（已删除）』保持绿，均非阻塞；建议另立 spec/tools 任务统一刷新。"
+
+- id: ISS-150
+  title: "LLVM-052t 遗留：REL12（load/store 相对寻址）未添加；FK_Data_1/2/4 数据符号引用静默出 0"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-052t reviewer 判：① load/store 相对寻址需 R_DADAO_REL12（用户允准 M4 之后，须 ADR 逐条确认，属新增第 5 类）；② FK_Data_1/2/4（.long <sym> 等）仍静默 0、无 reloc（既有缺陷，非本任务引入）；③ .quad <sym> 现也发 ABS48（机制必然，无回归）。② 建议随 LLVM-055t（全局数据）一并处理。"

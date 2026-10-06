@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..fc2988c0d
+index 000000000..a5cb59d0e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1690 @@
+@@ -0,0 +1,1760 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -308,9 +308,12 @@ index 000000000..fc2988c0d
 +                                uint64_t &ErrorInfo,
 +                                bool MatchingInlineAsm) override;
 +
++  ParseStatus parseDirective(AsmToken DirectiveID) override;
++
 +private:
 +  ParseStatus parseRegisterImpl(MCRegister &Reg, SMLoc &StartLoc,
 +                                 SMLoc &EndLoc);
++  ParseStatus parseDDDirective(unsigned Size, SMLoc Loc);
 +  bool parseOperand(OperandVector &Operands);
 +  bool parseImmediate(OperandVector &Operands);
 +  bool parseWydePosToken(OperandVector &Operands);
@@ -854,6 +857,73 @@ index 000000000..fc2988c0d
 +  }
 +
 +  return false;
++}
++
++//===----------------------------------------------------------------------===//
++// Data directives: .dd.b08 / .dd.w16 / .dd.t32 / .dd.o64
++//
++// DADAO data-length directives use Knuth/MMIX length names (spec/DADAO-11
++// §汇编兼容性 §指导符; contract-asm.md §7): .dd.b08 = 1 byte, .dd.w16 = 2 bytes,
++// .dd.t32 = 4 bytes, .dd.o64 = 8 bytes.  Values are emitted in the target byte
++// order (big endian; contract-elf.md §1.1).  Each directive accepts a comma-
++// separated list of expressions.
++//
++// GAS `.octa` is 16 bytes while DADAO's octa is 8 bytes, so the GAS directive
++// MUST NOT be used (contract-asm.md §7); it is rejected explicitly here (the
++// generic parser would otherwise accept it).  `.word` is not a known directive
++// and keeps its existing "unknown directive" rejection.
++//===----------------------------------------------------------------------===//
++
++ParseStatus DADAOAsmParser::parseDirective(AsmToken DirectiveID) {
++  StringRef ID = DirectiveID.getString();
++
++  // GAS `.octa` (16-byte octa) MUST NOT be used: DADAO's octa is 8 bytes
++  // (contract-asm.md §7 / DADAO-11 §指导符).  Point at the DADAO spelling.
++  if (ID == ".octa")
++    return Error(DirectiveID.getLoc(),
++                 "unsupported directive '.octa' (GAS 16-byte octa); DADAO's "
++                 "octa is 8 bytes -- use '.dd.o64'");
++
++  unsigned Size;
++  if (ID == ".dd.b08")
++    Size = 1;
++  else if (ID == ".dd.w16")
++    Size = 2;
++  else if (ID == ".dd.t32")
++    Size = 4;
++  else if (ID == ".dd.o64")
++    Size = 8;
++  else
++    return ParseStatus::NoMatch;
++
++  return parseDDDirective(Size, DirectiveID.getLoc());
++}
++
++ParseStatus DADAOAsmParser::parseDDDirective(unsigned Size, SMLoc Loc) {
++  MCAsmParser &Parser = getParser();
++  do {
++    SMLoc ValueLoc = Parser.getTok().getLoc();
++    const MCExpr *Value;
++    if (Parser.parseExpression(Value))
++      return ParseStatus::Failure;
++
++    // A relocatable (symbol / cross-section) operand of a data directive needs
++    // an absolute data relocation.  Only the 8-byte field can carry a DADAO
++    // 48-bit address (R_DADAO_ABS48, ADR-0019 §D2); narrower fields are
++    // rejected explicitly rather than silently truncated (contract-asm.md §9).
++    int64_t AbsValue;
++    if (Size != 8 &&
++        !Value->evaluateAsAbsolute(AbsValue,
++                                   Parser.getStreamer().getAssemblerPtr()))
++      return Error(ValueLoc,
++                   "relocatable operand in '.dd.b08/.dd.w16/.dd.t32' is not "
++                   "supported (a DADAO address needs an 8-byte field; use "
++                   "'.dd.o64')");
++
++    getParser().getStreamer().emitValue(Value, Size, ValueLoc);
++  } while (Parser.getTok().is(AsmToken::Comma) && (Parser.Lex(), true));
++
++  return ParseStatus::Success;
 +}
 +
 +// FP block mnemonics (scope: fp) whose orri form carries a single immu6 that

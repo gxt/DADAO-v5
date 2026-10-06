@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..a00c5e1c9
+index 000000000..435ceb229
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,221 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -123,6 +123,21 @@ index 000000000..a00c5e1c9
 +                  const MCValue &Target, uint8_t *Data, uint64_t Value,
 +                  bool IsResolved) override {
 +    unsigned Kind = Fixup.getKind();
++
++    // Relocatable 8-byte data items (`.dd.o64 <sym>`, `.quad <sym>`): an
++    // absolute data relocation (R_DADAO_ABS48 -- absolute, instruction or data;
++    // ADR-0019 §D2 / user ruling 2026-10-06).  An unresolved symbol is recorded
++    // as a real relocation, never a pre-link placeholder value; a resolved
++    // value is written big-endian into the 8-byte field.
++    if (Kind == llvm::FK_Data_8) {
++      if (!IsResolved) {
++        maybeAddReloc(F, Fixup, Target, Value, IsResolved);
++        return;
++      }
++      for (unsigned I = 0; I != 8; ++I)
++        Data[I] = static_cast<uint8_t>(Value >> (8 * (7 - I)));
++      return;
++    }
 +
 +    // Only process our custom fixup kinds.
 +    if (Kind < llvm::DADAO::DADAO_FK_PCRel_12 ||

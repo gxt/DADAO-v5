@@ -23,7 +23,7 @@
 
 | 编号 | 名 | 场景 | 编码字段 |
 |---|---|---|---|
-| 0 | `R_DADAO_ABS48` | `set.zw`/`or.w` 序列（≤3 片 wyde） | 3×`immu16`（按 wyde-position） |
+| 0 | `R_DADAO_ABS48` | **绝对 48 位地址**：`set.zw`/`or.w` 序列（≤3 片 wyde）**或数据字段（8 字节）** | 3×`immu16`（按 wyde-position）**或 8 字节数据字段** |
 | 1 | `R_DADAO_REL26` | `call` / `jump`（iiii） | imms24（有效 26 位） |
 | 2 | `R_DADAO_REL20` | `br.n/nn/z/nz/p/np`（riii） | imms18（有效 20 位） |
 | 3 | `R_DADAO_REL14` | `br.eq` / `br.ne`（rrii） | imms12（有效 14 位） |
@@ -31,11 +31,11 @@
 
 **D3 — 公式**（v5 **无 `-4`**；`S`=符号值、`A`=addend、`P`=重定位处地址）
 - `REL26/REL20/REL14`：`field = (S + A − P) >> 2`（字偏移）。
-- `ABS48`：`value = S + A`（48 位，按 wyde-position 分片写入 3×`immu16`）。
+- `ABS48`：`value = S + A`（48 位）；**指令**按 wyde-position 分片写入 3×`immu16`，**数据**写入 8 字节字段（绝对地址，**不区分指令与数据**）。
 
-**D4 — `ABS48` 片数与发射策略**：DADAO 地址空间 **48 位** ⇒ `ABS48` 最多 **3 片**；**一律发射固定 max 3 片**（禁用 relaxation，见 D7）。
+**D4 — `ABS48` 片数与发射策略**：DADAO 地址空间 **48 位** ⇒ **指令**发射 **3 片** wyde（**一律固定 max 3 片**，禁用 relaxation，见 D7）；**数据**为 **8 字节字段**（单条 reloc）。
 
-**D5 — reloc 挂载粒度**：**逐指令**挂 reloc（Q1-(b)）；linker 依**指令内的 wyde-position（`wp`）**判定该片对应地址的哪 16 位。
+**D5 — reloc 挂载粒度**：**指令**逐条挂 reloc（Q1-(b)），linker 依**指令内 wyde-position（`wp`）**判定分片；**数据**为**单条 8 字节字段 reloc**。
 
 **D6 — 溢出策略**：越界 ⇒ **link-time error**（不截断、不 wrap）。
 
@@ -81,3 +81,5 @@
 - **D8** 不做 ABS32 ✅
 
 > 实现前须先落 `contract-elf.md §2–§4` 正文（另立 spec 任务）；本 ADR 不含规范正文（`spec/Process-03`）。
+
+- 2026-10-06：**D2/D3/D4/D5 就地澄清**（用户逐条确认）：`ABS48` 为**绝对 48 位地址**，**不区分指令与数据**——指令路径 = 3 片 wyde（固定 max 3）；数据路径 = 8 字节字段（单条 reloc）。依据 `LLVM-052t`（`.dd.o64 <sym>` 数据绝对地址）+ 用户裁定原话「ABS48 是绝对地址，不区分指令和数据；…REL12 可以放在 M4 之后」。

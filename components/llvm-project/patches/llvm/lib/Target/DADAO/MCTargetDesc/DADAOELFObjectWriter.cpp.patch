@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
 new file mode 100644
-index 000000000..9a82a72fb
+index 000000000..69404d6ca
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,74 @@
 +//===-- DADAOELFObjectWriter.cpp - DADAO ELF Writer -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -49,6 +49,16 @@ index 000000000..9a82a72fb
 +      return ELF::R_DADAO_REL20;
 +    case llvm::DADAO::DADAO_FK_PCRel_12:
 +      return ELF::R_DADAO_REL14;
++
++    // A relocatable 8-byte data item (from `.dd.o64 <sym>`, `.quad <sym>`, ...)
++    // is an absolute address: R_DADAO_ABS48 is an absolute relocation and does
++    // not distinguish instruction from data (ADR-0019 §D2; user ruling
++    // 2026-10-06).  The linker writes the 48-bit value into the 8-byte field.
++    // Narrower data fields cannot carry a DADAO address and are rejected by the
++    // assembler (DADAOAsmParser::parseDDDirective), so they never reach here.
++    case llvm::FK_Data_8:
++      return ELF::R_DADAO_ABS48;
++
 +    default:
 +      llvm_unreachable("Invalid DADAO fixup kind!");
 +    }
