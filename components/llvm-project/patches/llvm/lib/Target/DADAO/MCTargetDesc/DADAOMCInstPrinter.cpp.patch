@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000..2b7f96dfa
+index 000000000..77699cee2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,398 @@
+@@ -0,0 +1,404 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -309,13 +309,19 @@ index 000000000..2b7f96dfa
 +
 +  case FK_rwii: {
 +    // rwii: set.zw/or.w — rd, wpN, imm16
-+    // MCInst: operand 0 = ra(rd), 1 = wp(0-3), 2 = imm16
++    // MCInst: operand 0 = ra(rd), 1 = wp(0-3), 2 = imm16 or a symbol expression
++    // (the GLOBAL_ADDR slices carry a symbol; LLVM-055t).
 +    if (NumOps == 3) {
 +      O << " ";
 +      printRegName(O, MI->getOperand(0).getReg());
 +      O << ", wp" << MI->getOperand(1).getImm();
-+      O << ", 0x";
-+      O.write_hex(MI->getOperand(2).getImm());
++      O << ", ";
++      if (MI->getOperand(2).isImm()) {
++        O << "0x";
++        O.write_hex(MI->getOperand(2).getImm());
++      } else if (MI->getOperand(2).isExpr()) {
++        MAI.printExpr(O, *MI->getOperand(2).getExpr());
++      }
 +    }
 +    break;
 +  }

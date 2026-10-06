@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..b6c8b8940
+index 000000000..0e626ad78
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,332 @@
+@@ -0,0 +1,352 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -126,6 +126,10 @@ index 000000000..b6c8b8940
 +  // ReplaceNode updates our operand in place.
 +  if (V.getOpcode() == ISD::FrameIndex)
 +    return true;
++  // The address of a global/static object (LLVM-055t) is by definition a
++  // pointer-bank value; it is materialized to GLOBAL_ADDR (GPRB) below.
++  if (V.getOpcode() == ISD::GlobalAddress)
++    return true;
 +  // Machine nodes whose result already lives in the GPRB bank: a frame object
 +  // address materialized for a *value* use (FRAME_ADDR, LLVM-038t, e.g. an
 +  // alloca used as a pointer) and the result of a pointer add already selected
@@ -226,6 +230,22 @@ index 000000000..b6c8b8940
 +    SDValue TFI = CurDAG->getTargetFrameIndex(FIN->getIndex(), MVT::i64);
 +    SDNode *M = CurDAG->getMachineNode(DADAO::FRAME_ADDR, SDLoc(Node),
 +                                       MVT::i64, TFI);
++    ReplaceNode(Node, M);
++    return;
++  }
++  case ISD::GlobalAddress: {
++    // Absolute 48-bit address of a global/static object (LLVM-055t).  Fold any
++    // constant offset into the TargetGlobalAddress addend (carried as the RELA
++    // r_addend) so the address is materialized by the fixed 3-slice
++    // set.zw/or.w sequence (GLOBAL_ADDR).  The MC layer records each slice as
++    // R_DADAO_ABS48; because ABS48 is absolute it is *never* resolved in place
++    // (ADR-0019 D4/D7) -- a same-section absolute address is still a
++    // relocation, the section base being unknown until link time.
++    auto *GA = cast<GlobalAddressSDNode>(Node);
++    SDValue Sym = CurDAG->getTargetGlobalAddress(
++        GA->getGlobal(), SDLoc(Node), MVT::i64, GA->getOffset());
++    SDNode *M =
++        CurDAG->getMachineNode(DADAO::GLOBAL_ADDR, SDLoc(Node), MVT::i64, Sym);
 +    ReplaceNode(Node, M);
 +    return;
 +  }

@@ -366,3 +366,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-054t reviewer 判：DADAOMCCodeEmitter 对访存符号偏移走默认分支落 R_DADAO_REL20，类型可能不符（既有、非本任务引入）。建议随 LLVM-055t/056t 或另立任务核实。"
+
+- id: ISS-152
+  title: "LLVM-055t 遗留：未加 .ll codegen lit 向量（CodeGen/DADAO 占位 suite 未接 make check-lit）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-055t reviewer 判属实、非阻塞：本任务以 .work/evidence/run.sh 作门控；L2 codegen 向量（全局数据/地址材料化）建议另立任务补入 tests/llvm/lit/CodeGen/DADAO 并接 check-lit。"

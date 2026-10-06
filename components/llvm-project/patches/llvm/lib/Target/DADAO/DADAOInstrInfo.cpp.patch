@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..0f4315e7f
+index 000000000..1c2d67bee
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,270 @@
+@@ -0,0 +1,290 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -195,6 +195,26 @@ index 000000000..0f4315e7f
 +        BuildMI(MBB, MI, DL, get(DADAO::or_w_rd), Dst).addImm(W).addImm(T);
 +      }
 +    }
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::GLOBAL_ADDR: {
++    // Absolute 48-bit global-address materialization (LLVM-055t): one set.zw
++    // for the low wyde plus two or.w to OR in the middle/high wydes -- fixed 3
++    // slices, relaxation disabled (ADR-0019 D4/D5/D7).  Every instruction
++    // carries the same symbol; the DADAO MCCodeEmitter turns each into an
++    // R_DADAO_ABS48 relocation on that instruction's immu16 field, and the
++    // linker selects the 16-bit slice from the instruction's wyde-position
++    // (wp).  The constant offset is part of the symbol expression (r_addend).
++    Register Dst = MI.getOperand(0).getReg();
++    const MachineOperand &Sym = MI.getOperand(1);
++    auto AddSym = [&](MachineInstrBuilder MIB) {
++      MIB.addGlobalAddress(Sym.getGlobal(), Sym.getOffset(),
++                           Sym.getTargetFlags());
++    };
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
 +    MI.eraseFromParent();
 +    return true;
 +  }

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..c870f8f93
+index 000000000..ec41a94d7
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,328 @@
+@@ -0,0 +1,341 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -180,6 +180,19 @@ index 000000000..c870f8f93
 +// frame index that DADAORegisterInfo::eliminateFrameIndex rewrites into
 +// `rb2rb + add.si` with the PrologEpilogInserter-resolved frame offset.
 +def FRAME_ADDR : DADAOPseudo<(outs GPRB:$dst), (ins i64imm:$fi), []>;
++
++// Absolute global-address materialization (LLVM-055t).  The operand is a
++// TargetGlobalAddress and the result lives in GPRB (the address bank, C1/C2,
++// ADR-0018).  It is expanded post-RA by DADAOInstrInfo::expandPostRAPseudo into
++// the fixed 3-slice absolute sequence
++//   set.zw rb, wp0, sym ; or.w rb, wp1, sym ; or.w rb, wp2, sym
++// (ADR-0019 D4/D5: a 48-bit address needs at most 3 wydes; relaxation is
++// disabled, so exactly 3 slices are always emitted).  The symbol operand makes
++// the DADAO MCCodeEmitter attach R_DADAO_ABS48 to each slice; the linker picks
++// the 16-bit slice from the instruction's wyde-position.  ABS48 is absolute and
++// is never resolved in place, so every slice becomes a relocation even for a
++// same-section symbol (the section base is only known at link time).
++def GLOBAL_ADDR : DADAOPseudo<(outs GPRB:$dst), (ins unknown:$sym), []>;
 +
 +//===----------------------------------------------------------------------===//
 +// Single-result i64 patterns (orrr, contract-isa.md §6.3–§6.4, §7)
