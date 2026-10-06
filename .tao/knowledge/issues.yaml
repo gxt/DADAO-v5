@@ -358,3 +358,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-052t reviewer 判：① load/store 相对寻址需 R_DADAO_REL12（用户允准 M4 之后，须 ADR 逐条确认，属新增第 5 类）；② FK_Data_1/2/4（.long <sym> 等）仍静默 0、无 reloc（既有缺陷，非本任务引入）；③ .quad <sym> 现也发 ABS48（机制必然，无回归）。② 建议随 LLVM-055t（全局数据）一并处理。"
+
+- id: ISS-151
+  title: "LLVM-054t 遗留：访存符号偏移 ld.st …,[rb1,sym] 的 reloc 类型落 REL20（emitter 默认分支，既有）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-054t reviewer 判：DADAOMCCodeEmitter 对访存符号偏移走默认分支落 R_DADAO_REL20，类型可能不符（既有、非本任务引入）。建议随 LLVM-055t/056t 或另立任务核实。"

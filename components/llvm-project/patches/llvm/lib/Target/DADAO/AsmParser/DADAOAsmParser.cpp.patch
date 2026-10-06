@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..3ddad2dc3
+index 000000000..e5ecbeae3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1935 @@
+@@ -0,0 +1,2055 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -335,6 +335,12 @@ index 000000000..3ddad2dc3
 +                                      OperandVector &Operands, MCStreamer &Out,
 +                                      unsigned &Opcode, uint64_t &ErrorInfo,
 +                                      bool MatchingInlineAsm);
++
++  // Range validation for assembly immediate encoding fields (LLVM-054t;
++  // contract-asm §2.4/§9/§11).  Returns true on error, mirroring
++  // matchAndEmitInstruction.
++  bool checkImmediateRanges(unsigned Opcode, StringRef Mnem,
++                            const OperandVector &Flat);
 +};
 +
 +// Include the auto-generated AsmMatcher implementation.
@@ -1423,6 +1429,113 @@ index 000000000..3ddad2dc3
 +}
 +
 +//===----------------------------------------------------------------------===//
++// Immediate field range validation (LLVM-054t; contract-asm §2.4/§9/§11).
++//
++// Every assembly immediate maps to a fixed-width encoding field.  The MC code
++// emitter drops the high bits by width (value & mask), so a value outside the
++// field's range would silently wrap (contract-asm §11: `add.si rd8, 131072`
++// encodes as -131072; `cmp.ui …, 4096` encodes as 0).  The assembler MUST
++// reject such values instead.
++//
++// The field range is known exactly from the matched instruction's format
++// (TSFlags[3:0], see DADAO::FormatKind), so this runs after MatchInstructionImpl
++// picks the concrete opcode and before the instruction is emitted.  Address
++// immediates (jump/call/br.* byte offsets) are validated earlier, together with
++// their %4==0 constraint (contract-asm §2.4 / ADR-0013 D3), and are skipped
++// here.  A symbolic / relocatable operand (ImmExpr) is not a constant and MUST
++// NOT be range-checked (contract-asm §3.1: addresses may be symbols; the value
++// is only known to the linker).
++//===----------------------------------------------------------------------===//
++
++enum class ImmFieldKind {
++  None,   // no immediate field, or an address field checked elsewhere
++  SImm12, // imms12: signed 12-bit (ld.*/st.*/cmp.si)
++  UImm12, // immu12: unsigned 12-bit (cmp.ui)
++  SImm18, // imms18: signed 18-bit (add.si / ret)
++  UImm18, // immu18: unsigned 18-bit (swym / fence)
++  UImm16, // immu16: unsigned 16-bit (rwii: or.w/andn.w/set.zw/set.ow/set.w)
++  UImm6   // immu6: unsigned 6-bit (rrri/orri)
++};
++
++struct ImmFieldRange {
++  int64_t Min, Max;
++  const char *Name;
++};
++
++// Field kind of the single immediate operand of a matched instruction, derived
++// from its format kind.  FormatKind values match DADAO::FormatKind (DADAO.h):
++//   0 rrrr, 1 rrri, 2 rrii, 3 riii, 4 iiii, 5 rwii, 6 orrr, 7 orri, 8 oiii.
++static ImmFieldKind getImmediateFieldKind(unsigned FormatKind,
++                                          StringRef Mnem) {
++  switch (FormatKind) {
++  case 1: // rrri — shared immu6 register count
++  case 7: // orri — immu6
++    return ImmFieldKind::UImm6;
++  case 2: // rrii
++    if (Mnem == "cmp.ui")
++      return ImmFieldKind::UImm12;
++    if (Mnem == "jump" || Mnem == "call" || Mnem.starts_with("br."))
++      return ImmFieldKind::None; // branch/jump byte offset (checked earlier)
++    return ImmFieldKind::SImm12; // ld.*/st.*/cmp.si
++  case 3: // riii
++    if (Mnem.starts_with("br."))
++      return ImmFieldKind::None; // branch byte offset (checked earlier)
++    return ImmFieldKind::SImm18; // add.si / ret
++  case 4: // iiii — jump/call byte offset (checked earlier)
++    return ImmFieldKind::None;
++  case 5: // rwii
++    return ImmFieldKind::UImm16;
++  case 8: // oiii
++    return ImmFieldKind::UImm18;
++  default: // rrrr (0) / orrr (6) — no immediate
++    return ImmFieldKind::None;
++  }
++}
++
++// Allowed inclusive range of an immediate field (contract-asm-list.md
++// 「立即数范围速查」).  Returns false for None.
++static bool getImmediateFieldRange(ImmFieldKind K, ImmFieldRange &R) {
++  switch (K) {
++  case ImmFieldKind::SImm12: R = {-2048, 2047, "imms12 (signed 12-bit)"}; return true;
++  case ImmFieldKind::UImm12: R = {0, 4095, "immu12 (unsigned 12-bit)"}; return true;
++  case ImmFieldKind::SImm18: R = {-131072, 131071, "imms18 (signed 18-bit)"}; return true;
++  case ImmFieldKind::UImm18: R = {0, 262143, "immu18 (unsigned 18-bit)"}; return true;
++  case ImmFieldKind::UImm16: R = {0, 65535, "immu16 (unsigned 16-bit)"}; return true;
++  case ImmFieldKind::UImm6:  R = {0, 63, "immu6 (unsigned 6-bit)"}; return true;
++  case ImmFieldKind::None:   return false;
++  }
++  return false;
++}
++
++bool DADAOAsmParser::checkImmediateRanges(unsigned Opcode, StringRef Mnem,
++                                          const OperandVector &Flat) {
++  ImmFieldKind K = getImmediateFieldKind(MII.get(Opcode).TSFlags & 0xF, Mnem);
++  if (K == ImmFieldKind::None)
++    return false;
++
++  // The user-visible immediate is the last flat operand (the shared register
++  // count appended for block moves is also in range by construction).
++  if (Flat.empty())
++    return false;
++  auto *Op = static_cast<DADAOOperand *>(Flat.back().get());
++  if (!Op || Op->Kind != DADAOOperand::kImmediate || Op->getImmExpr())
++    return false; // symbolic/relocatable operands are resolved at link time
++
++  ImmFieldRange R;
++  if (!getImmediateFieldRange(K, R))
++    return false;
++  int64_t Val = Op->getImm();
++  if (Val >= R.Min && Val <= R.Max)
++    return false;
++
++  return Error(Op->getStartLoc(),
++               "immediate out of range for '" + Mnem.str() + "': " +
++                   std::to_string(Val) + " is outside the " + R.Name +
++                   " range [" + std::to_string(R.Min) + ", " +
++                   std::to_string(R.Max) + "]");
++}
++
++//===----------------------------------------------------------------------===//
 +// matchAndEmitInstruction — decompose complex operands and match.
 +//
 +// Complex operands (register groups, register pairs, addresses) are decomposed
@@ -1741,7 +1854,8 @@ index 000000000..3ddad2dc3
 +    int64_t Encoded = ByteOff >> 2;
 +    if (Encoded < -8388608 || Encoded > 8388607)
 +      return Error(Flat[1]->getStartLoc(),
-+                   "jump/call offset out of range");
++                   "jump/call byte offset out of range: expected "
++                   "[-33554432, 33554428] (imms26, %4==0)");
 +    Flat[1] = DADAOOperand::createImm(Encoded, Flat[1]->getStartLoc(),
 +                                       Flat[1]->getEndLoc());
 +  }
@@ -1798,7 +1912,8 @@ index 000000000..3ddad2dc3
 +    int64_t Encoded = ByteOff >> 2;
 +    if (Encoded < -131072 || Encoded > 131071)
 +      return Error(Flat[2]->getStartLoc(),
-+                   "branch offset out of range");
++                   "branch byte offset out of range: expected "
++                   "[-524288, 524284] (imms20, %4==0)");
 +    Flat[2] = DADAOOperand::createImm(Encoded, Flat[2]->getStartLoc(),
 +                                       Flat[2]->getEndLoc());
 +  }
@@ -1831,7 +1946,8 @@ index 000000000..3ddad2dc3
 +    int64_t Encoded = ByteOff >> 2;
 +    if (Encoded < -2048 || Encoded > 2047)
 +      return Error(Flat[3]->getStartLoc(),
-+                   "branch/jump offset out of range");
++                   "branch/jump byte offset out of range: expected "
++                   "[-8192, 8188] (imms14, %4==0)");
 +    Flat[3] = DADAOOperand::createImm(Encoded, Flat[3]->getStartLoc(),
 +                                       Flat[3]->getEndLoc());
 +  }
@@ -1915,6 +2031,10 @@ index 000000000..3ddad2dc3
 +
 +  switch (MatchResult) {
 +  case Match_Success:
++    // Reject out-of-range immediates instead of letting the code emitter
++    // silently truncate them (contract-asm §2.4/§9/§11; LLVM-054t).
++    if (checkImmediateRanges(Inst.getOpcode(), Mnemonic, Flat))
++      return true;
 +    Out.emitInstruction(Inst, getSTI());
 +    return false;
 +  case Match_MissingFeature:
