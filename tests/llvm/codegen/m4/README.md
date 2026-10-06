@@ -64,11 +64,32 @@ QEMU (no `subprocess`/`os.system`/`Popen` in the file).
 | `multi_tu_call` | call | `m4_call_lib.ll`, `m4_call_main.ll` | `.text` `.rodata` `.bss` | call `lib_mix` + global `acc` | ABS48, REL26, REL14 | 42 | `lib_mix(20,11)=20+11+11=42`; read back `acc`=42; `42==42` → 42 |
 | `multi_section_loop` | memory | `m4_section_data.ll`, `m4_section_main.ll` | `.text` `.rodata` `.data` `.bss` | call `get_ro` + globals `rw_acc`/`bss_cnt` | ABS48, REL26, REL20 | 30 | `acc=2+3+5+7+9=26`; return `26+4=30` |
 | `cross_tu_pdiff` | arithmetic | `m4_pdiff_data.ll`, `m4_pdiff_main.ll` | `.text` `.bss` | call `pdiff` + global `buf` | ABS48, REL26 | 126 | `d=10-3=7`; `e=3-10=-7`; `e&127=121`; `7^121`=126 |
+| `notneg_not` | arithmetic | `m4_notneg_not_lib.ll`, `m4_notneg_not_main.ll` | `.text` | call `bitnot64` | REL26 | 108 | `~x` at **64 bits** (`xor x,-1`, behind `not.o`→`xnor.o`): `a=~0=-1`, `b=~(-1)=0`, `c=~0x0102030405060708=0xFEFDFCFBFAF9F8F7`; `y=a^b^c=0x0102030405060708`; fold64(y)=0x6C |
+| `notneg_neg` | arithmetic | `m4_notneg_neg_lib.ll`, `m4_notneg_neg_main.ll` | `.text` | call `neg8/16/32/64` | REL26 | 8 | `0-x` at **8/16/32/64 bits** (`sub.sb/sw/st`, `sub.so`, behind `neg.{b,w,t,o}`), sign-extended: INT_MIN wraps to `0x80..`, `neg 0=0`, sign boundary `neg8(0x80)`; `x5=a^b^c^d^e^g=0x800000007FFF8040`; fold64(x5)=0x08 |
 
 `*` Section mapping is the standard LLVM ELF mapping (`constant` → `.rodata`,
 non-constant non-zero init → `.data`, non-constant zero init → `.bss`), which
 matches the measured M4 section emission in `LLVM-055t`.  The definitive
 per-section check is `INTEG-016t`'s `llvm-readobj` assertion.
+
+## `not` / `neg` vectors (`TESTCASES-032t`)
+
+`notneg_not` and `notneg_neg` cover the **alternative functionality** of the
+pseudos deleted by `ADR-0013 D11`, expressed with the real instructions / IR:
+
+| Function | Real instruction (L1) | IR here | Widths |
+|----------|----------------------|---------|--------|
+| `not` | `xnor.o rd, rc, rd0` | `xor x, -1` | 64-bit only (`xnor.b/w/t` deleted by `SPEC-069t`) |
+| `neg` | `sub.sb`/`sub.sw`/`sub.st rd, rd0, rc`; `sub.so {rd0, rd}, rd0, rc` | `sub iN 0, x` + sign-extend | 8/16/32/64-bit signed |
+
+Both programs fold all 64 bits of the computed `~x` / `-x` results into the
+7-bit exit code with a multiplicative hash (`(v * 0x9E3779B97F4A7C15) >> 57`),
+so any wrong bit (including a wrong sign extension, or a wrong complement
+`xor 0` instead of `xor -1`) changes the exit code.  Boundary inputs: `not 0`,
+`not -1`, `neg 0`, each width's
+`INT_MIN`, and the 8-bit sign-extension boundary (`neg8(0x80)`).  The L1
+encoding vectors for the same real instructions are in
+`tests/llvm/lit/MC/DADAO/m4-not-neg.s`.
 
 ## Validate
 

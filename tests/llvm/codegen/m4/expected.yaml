@@ -69,6 +69,49 @@ programs:
       @rw_acc/@bss_cnt are read and written at run time; all global addresses
       are R_DADAO_ABS48.  The REL14 branch form is covered by `multi_tu_call`.
 
+  - name: notneg_not
+    category: arithmetic
+    sources: [m4_notneg_not_lib.ll, m4_notneg_not_main.ll]
+    expected_exit_code: 108
+    coverage: [multi-tu, cross-tu.call, reloc.rel26, sec.text]
+    derivation: >-
+      TESTCASES-032t: the `not` (bitwise complement) functionality of the
+      deleted `not.o` pseudo, written with the real 64-bit instruction
+      `xnor.o rd, rc, rd0` (IR: xor i64, -1).  `not` is 64-bit only because the
+      narrow logic instructions xnor.b/w/t were deleted (SPEC-069t).
+      TU A (@bitnot64, exported -> undefined in TU B -> REL26):
+        bitnot64(x) = ~x = x xor -1
+      TU B (@main):
+        a = bitnot64(0)                  = 0xFFFFFFFFFFFFFFFF   (not 0 boundary)
+        b = bitnot64(-1)                 = 0                    (not -1 boundary)
+        c = bitnot64(0x0102030405060708) = 0xFEFDFCFBFAF9F8F7
+        y = a ^ b ^ c                    = 0x0102030405060708
+        fold(y) = ((y * 0x9E3779B97F4A7C15) >> 57) & 127 = 0x6C
+        -> returns 108 (0x00..0x7F).
+
+  - name: notneg_neg
+    category: arithmetic
+    sources: [m4_notneg_neg_lib.ll, m4_notneg_neg_main.ll]
+    expected_exit_code: 8
+    coverage: [multi-tu, cross-tu.call, reloc.rel26, sec.text]
+    derivation: >-
+      TESTCASES-032t: the `neg` (arithmetic negation) functionality of the
+      deleted `neg.{b,w,t,o}` pseudo, written with the real signed subtract
+      instructions: 8/16/32-bit `sub.sb`/`sub.sw`/`sub.st rd, rd0, rc` and
+      64-bit `sub.so {rd0, rd}, rd0, rc` (IR: sub iN 0, x then sign-extend).
+      TU A (neg8/neg16/neg32/neg64, exported -> REL26):
+        neg_w(x) = sext_w(0 - trunc_w(x))
+      TU B (@main):
+        a = neg8 (128)     = 0xFFFFFFFFFFFFFF80   (INT8_MIN;  wire bits 0x80)
+        b = neg16(32768)   = 0xFFFFFFFFFFFF8000   (INT16_MIN)
+        c = neg32(2147483648) = 0xFFFFFFFF80000000 (INT32_MIN)
+        d = neg64(-2**63)  = 0x8000000000000000   (INT64_MIN)
+        e = neg64(0)       = 0                    (neg 0)
+        g = neg8 (64)      = 0xFFFFFFFFFFFFFFC0   (sign-extension boundary 0xC0)
+        x5 = a ^ b ^ c ^ d ^ e ^ g = 0x800000007FFF8040
+        fold(x5) = ((x5 * 0x9E3779B97F4A7C15) >> 57) & 127 = 0x08
+        -> returns 8 (0x00..0x7F).
+
   - name: cross_tu_pdiff
     category: arithmetic
     sources: [m4_pdiff_data.ll, m4_pdiff_main.ll]

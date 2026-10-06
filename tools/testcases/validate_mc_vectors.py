@@ -688,6 +688,14 @@ def check_error(by_mnemonic, insn_text, token):
 
 ANNOT_RE = re.compile(r";\s*@(enc|exp|dir|dirrej|rej|err|mts|norm)\s+(.*)$")
 CATEGORY_RE = re.compile(r";\s*@category\s+(\S+)")
+# `; OBJ: {{[0-9a-f]+:}} <b0> <b1> <b2> <b3>{{.*}}<mnemonic>...` — lit FileCheck
+# byte pattern (same shape as `tools/llvm/check_lit_bytes.py`).  TESTCASES-032t
+# requires the encoding vectors to carry the object bytes inline; we re-derive
+# them from opcodes.yaml and require them to equal the `@enc` value of the
+# instruction on the following line (so changing either fails).
+OBJ_RE = re.compile(
+    r";\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
+    r"([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})")
 
 
 def norm_text(s):
@@ -696,7 +704,7 @@ def norm_text(s):
 
 def parse_vectors():
     files = sorted(glob.glob(VEC_GLOB))
-    vectors = []          # (path, lineno, kind, code, expect)
+    vectors = []          # (path, lineno, kind, code, expect, obj_bytes)
     seen_categories = {}
     for path in files:
         with open(path, "r", encoding="utf-8") as fh:
@@ -704,17 +712,24 @@ def parse_vectors():
         if not lines or "UNSUPPORTED:" not in lines[0]:
             raise ValueError("%s: 首行缺少 'UNSUPPORTED:' 标记" % path)
         cat = None
+        pending_obj = None    # 最近一条 `; OBJ:` 的字节（供下一条 @enc 引用）
         for lineno, raw in enumerate(lines, 1):
             mc = CATEGORY_RE.search(raw)
             if mc and cat is None:
                 cat = mc.group(1)
             elif mc:
                 raise ValueError("%s:%d 重复 @category" % (path, lineno))
+            mo = OBJ_RE.search(raw)
+            if mo:
+                pending_obj = "".join(mo.groups())
+                continue
             ma = ANNOT_RE.search(raw)
             if not ma:
                 continue
             code = raw[:raw.index(";")].strip()
-            vectors.append((path, lineno, ma.group(1), code, ma.group(2).strip()))
+            vectors.append((path, lineno, ma.group(1), code,
+                            ma.group(2).strip(), pending_obj))
+            pending_obj = None
         if cat is None:
             raise ValueError("%s: 缺少 @category 标记" % path)
         seen_categories[cat] = path
@@ -749,12 +764,20 @@ def run(verbose=True):
         print("类别：%s" % ", ".join(sorted(categories)))
         print("-" * 72)
 
-    for path, lineno, kind, code, expect in vectors:
+    for path, lineno, kind, code, expect, obj_bytes in vectors:
         loc = "%s:%d" % (os.path.relpath(path, REPO), lineno)
         try:
             if kind == "enc":
                 got, _ = pick_and_encode(by_mnemonic, code)
                 ok = (got == expect.lower())
+                # `; OBJ:` 字节（若存在）必须等于同一独立派生编码
+                if obj_bytes is not None and obj_bytes.lower() != got:
+                    errors.append("%s: [enc/OBJ] %s — ; OBJ: 期望 %r，独立派生 %r"
+                                  % (loc, code, obj_bytes, got))
+                    if verbose:
+                        print("FAIL %s [enc/OBJ] %r: ; OBJ: %r，独立派生 %r"
+                              % (loc, code, obj_bytes, got))
+                    continue
             elif kind == "exp":
                 seq = expand_pseudo(code)
                 for real in seq:

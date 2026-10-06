@@ -77,6 +77,14 @@ HAND_DERIVED = {
     "multi_tu_call": (20 + 11 + 11) & 0xFF,          # 42
     "multi_section_loop": (2 + 3 + 5 + 7 + 9 + 4) & 0xFF,  # 30
     "cross_tu_pdiff": (7 ^ ((3 - 10) & 0x7F)) & 0xFF,      # 0x7E = 126
+    # TESTCASES-032t: bitwise complement (~x) at 64 bits, then fold 64->7.
+    # y = ~0 ^ ~(-1) ^ ~0x0102030405060708 = 0x0102030405060708;
+    # fold = (y * 0x9E3779B97F4A7C15) >> 57 = 0x6C = 108.
+    "notneg_not": 0x6C,
+    # TESTCASES-032t: signed negation (0 - x) at 8/16/32/64 bits, sign-extended,
+    # XORed and folded 64->7.  x5 = 0x800000007FFF8040;
+    # fold = (x5 * 0x9E3779B97F4A7C15) >> 57 = 0x08 = 8.
+    "notneg_neg": 0x08,
 }
 
 MASK64 = (1 << 64) - 1
