@@ -75,7 +75,7 @@
 
 目的：把工具链从 M3 的「**raw-bin 单 TU 捷径**」升级为「**规范 ELF 产出 + 真实链接**」：`llc → llvm-mc → ld.lld → ET_EXEC → qemu 直接加载执行`；同时清掉 M1/M2 遗留的**汇编层欠账**（伪指令/指导符/汇编器选项/诊断）。
 
-范围：① 汇编器遗留；② ELF 产出规范（含全局数据段）；③ LLD 链接器（**含链接脚本 `dadao.lds`**：地址布局依 **`ADR-0004`**〔RAM 基址 `0xffff_0000_0000` 作 `.text`/entry；段序 `.text→.rodata→.data→.bss`〕、段对齐依 `contract-elf §5`、`FILEHDR PHDRS` 使 `.text` 落在 file offset 0）；④ QEMU ELF 加载。**参考**：主对标 **RISC-V 64**；端序参考 **PPC64 BE（+ s390x）**；双 bank 历史参考 **M68K**。
+范围：① 汇编器遗留；② ELF 产出规范（含全局数据段）；③ LLD 链接器（**含链接脚本 `dadao.lds`**：地址布局依 **`ADR-0004`**〔RAM 基址 `0xffff_0000_0000` 作 `.text`/entry；段序 `.text→.rodata→.data→.bss`〕、段对齐依 `contract-elf §5`、M4 路径 `dadao.lds` **不使用 `FILEHDR PHDRS`**（头/程序头表只在文件中，不进 guest 内存）、`p_align` **目标默认 64 KiB（可被 `-z max-page-size` 覆写）**）；④ QEMU ELF 加载。**参考**：主对标 **RISC-V 64**；端序参考 **PPC64 BE（+ s390x）**；双 bank 历史参考 **M68K**。
 
 门槛：多 TU `ld.lld → ET_EXEC → qemu` 跑对；ELF 结构断言；汇编层 MC 用例；M3 向量 + 多段 + 多文件经新链路通过 + 差分；负例（畸形 ELF / reloc 溢出）。
 

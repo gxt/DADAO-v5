@@ -497,3 +497,40 @@ llc → llvm-mc → ld.lld → ET_EXEC → qemu-system-dadao 直接加载执行
 1. **`INFRA-046t` 落点选择**：任务书**明确选择 `tests/llvm/codegen-e2e/`**（模块固定路径，理由见任务书）；若用户更倾向 `ADR-0016 D6` 的兜底根 `.dadao/tests/codegen-e2e/`（gitignored、无需 `.gitignore` 改动），请裁定。
 2. **`Process-04` 编号顺延 vs 不改编号**：本记录按用户指示「顺延原 §1..§8」执行；`.tao/archive/**` 旧引用保留（历史冻结）。若希望归档引用也回溯更新，需另立任务（会改动历史文件）。
 3. **`Process-05 §6` 与 `SPEC-110t` 的关系**：本记录在 §6 增补「落点与留存」规则；`SPEC-110t` 仍按原计划同步 §6 的**示例路径**（旧路径 `tests/lit/MC/Dadao/`/`tests/codegen/` → 新路径）——两者不冲突，示例路径留待 `SPEC-110t`。
+
+## 修订记录（2026-10-06·4，用户逐条确认）
+
+**背景**：`LLVM-056t`（DADAO LLD target + `tests/scripts/dadao.lds`）**已验收、已提交**后，事后发现 `dadao.lds` 的 `FILEHDR PHDRS` 使 LLD 把 ELF 头放在最低 section（`.text` = RAM 基址 `0xffff_0000_0000`）**下方一页**，首个 `PT_LOAD` 落 `0xFFFEFFFFF000`（**越出 RAM**），与 `ADR-0004 §D2.3`「任一 `PT_LOAD` 装载区间越出映射区域 ⇒ 报错非零退出」冲突（`ISS-155`）。用户 2026-10-06 逐条确认处置方案。本记录**追加**，不改写前述正文、任务分解表与审阅记录。
+
+**用户原话（原样引用）**：
+
+1. 「B1」= 采用方案 B1：**去掉 `FILEHDR PHDRS`**（不采用 A「加载器放行头部页」、不采用 B2「`.text`/`e_entry` 抬 64 KiB 占位」）。
+2. 「1」= 页大小问题**并入本波一起做**（选项①）：`DADAO` target 设 `defaultMaxPageSize = 0x10000`（DADAO 页 = 64 KiB，依据 `spec/DADAO-12 §2.2.1`、`spec/DADAO-22 §SBI_PTW_HANDLE_FAULT` 的 64 KiB page_mask）。
+3. 「ADR落点不重要，重要的是，这些decision不应该影响后面的完整linker的实现」← **硬约束**。ADR 落点由主会话定为 **`ADR-0003 §D5`**。
+
+**A. 新建（2 份）**：
+
+- `.tao/tasks/spec/SPEC-112t-去FILEHDR-PHDRS与64KiB页大小决策.md`（spec / M4）——**决策/正文文本**：`ADR-0003 §D5` 就地修订（`## 修订` 加 `rev. 2026-10-06`：三条 decision + 被否方案 A/B2 + scope 限定）、`contract-elf §6.1.2` 删除「`FILEHDR PHDRS` 使 `.text` file-offset 0」并改写、`contract-elf §5` 补 `p_align` = 64 KiB（目标默认、可覆写）、`milestones.md:78` 同措辞修正、`ISS-155` 结案。
+- `.tao/tasks/llvm/LLVM-058t-dadao.lds去FILEHDR与页大小默认.md`（llvm / M4）——**实现 + 证据**：`tests/scripts/dadao.lds` 去 `FILEHDR PHDRS`；`DADAO.cpp` ctor 加一行 `defaultMaxPageSize = 0x10000;`；重建 `lld` + 重导出补丁 + `changelog`；重跑并更新链接证据（含反向证明：启用 `FILEHDR PHDRS` 仍可链接、`-z max-page-size` 仍可覆写）。
+
+**B. 依赖**：`LLVM-058t` **依赖 `SPEC-112t`**（spec-first；`SPEC-112t` 无依赖）。
+
+**C. 硬约束（中性/不约束完整 linker；用户原话「这些decision不应该影响后面的完整linker的实现」）**：两份任务书均须表述为「**M4 裸机路径 `dadao.lds` 不使用 `FILEHDR PHDRS`**」（**LLD 的 `FILEHDR PHDRS` 能力原样保留**，不得写成「DADAO ELF 头永不进内存」）；`p_offset`「**不要求**为 0、**不禁止**为 0」；`p_align`「**目标默认** = 64 KiB、**可被 `-z max-page-size` 覆写**」（非硬编码不变式）；只加 `defaultMaxPageSize` 一行、**不动** `DADAO.cpp` 其它函数；`ADR-0019` 的「本期禁用 relaxation / 4 类 reloc」保持原样。
+
+**D. 跨模块提示**：去 `FILEHDR PHDRS` 后首段回到 RAM 内（`0xFFFF00000000`），`ISS-155` 原「头部页落在 RAM 之下」问题根除；新布局（`p_align = 64 KiB` / 首段 `p_offset = 0x10000`）为 `QEMU-042t` ELF 加载器 / `INTEG-016t` 的**输入**，其任务书按需对齐（不改 decision 语义）。
+
+**待裁定点（本记录）**：
+
+1. **本 `k` 状态**：修订后是否回退 `待验收` 并请 reviewer **重新交叉审查**（新增 2 份任务书尚未经 reviewer 审查）；当前保持 `已验证` 未改（同前各条待裁定点）。
+2. **`ISS-155` 结案口径**：本记录按「去 `FILEHDR PHDRS` 后根除」结案；若要求保留「记录新布局供 QEMU/integ 对齐」的开放项，可另立 issue（不阻塞）。
+
+#### reviewer 追加确认（修订记录2026-10-06·4）
+
+**审查范围**：本轮追加登记（修订记录2026-10-06·4）——新建 `SPEC-112t`/`LLVM-058t` 两份任务书。
+
+**确认项**：
+- 追加登记只新增修订记录，未改写正文/任务表（任务表仍27行，不含 SPEC-112t/LLVM-058t）✓
+- 用户原话逐字落盘（B1/1/ADR落点三条）✓
+- 与前几轮修订记录（·1/·2/·3）的追加模式一致 ✓
+- 待裁定点2项已标注 ✓
+- 两份新建任务书的下发前预检结论：**Accepted**（详见各自任务书审阅记录）

@@ -1,6 +1,6 @@
 # ADR-0003: SimRISC M1 Object ABI（ELF 头字段与段/流水线）
 
-**状态**：Accepted（rev. 2026-09-13: `e_flags` 版本字段，见 `## 修订`）
+**状态**：Accepted（rev. 2026-09-13: `e_flags` 版本字段；rev. 2026-10-06: M4 ELF 路径 `dadao.lds` 去 `FILEHDR PHDRS` + `p_align` 目标默认 64 KiB，见 `## 修订`）
 **日期**：2026-09-13
 **关联**：ADR-0001（greenfield 重建）、ADR-0002（构建编排）、ADR-0004（test machine，`SPEC-006t`）、`SPEC-005t`（本 ADR 任务）、`SPEC-007t`（ELF 合约，下游规范化）、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）、`.tao/knowledge/contract-abi.md`（0.9.2）
 
@@ -87,6 +87,16 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 - 步骤 3 的 QEMU 消费的是 **flat binary，不是 ELF**；`e_entry` 不被 test machine 读取，入口固定为 flat binary 的加载基址（机器名、加载地址、命令行与 trampoline 由 ADR-0004（`SPEC-006t`）冻结）。因此本 ADR 不出现「test machine 跳到 `e_entry`」的表述。
 - 本 pipeline 与 ADR-0004（`SPEC-006t`）的加载模型统一：ADR-0003 冻结 object → flat 的转换，ADR-0004 冻结 flat → QEMU 的加载/入口协议。
 
+#### M4 ELF 路径补充（M4；2026-10-06 就地修订）
+
+（2026-10-06 就地修订：依据本 ADR `## 修订` rev. 2026-10-06，M4 起在本 §D5 的 M1 raw-bin pipeline 之外**新增 ELF 路径**并**并存**；ELF 加载/启动协议由 `ADR-0004 §D2.2/§D2.3`（rev. 2026-10-06）冻结）
+
+- **① M4 裸机路径不使用 `FILEHDR PHDRS`**：M4 裸机路径的 `tests/scripts/dadao.lds` **不使用** `FILEHDR PHDRS`——ELF 头/程序头表**只存在于文件中、不进入 guest 内存**。理由：M4 无运行期消费者（freestanding、无动态链接/libc/OS，无 `AT_PHDR`/自省），加载器（QEMU，**host 侧**）从**文件**解析 `Ehdr`/`Phdr`。**LLD 的 `FILEHDR PHDRS` 能力原样保留**（本 decision 不削弱 linker 能力；任何后续布局仍可自行启用）。此与 `ADR-0004 §D2.3`「任一 `PT_LOAD` 越界 ⇒ 启动加载阶段报错并非零退出」一致：去掉 `FILEHDR PHDRS` 后首个 `PT_LOAD` 自 `.text` 起、落在 RAM 内。
+- **② `p_offset` 不做要求**：首个 `PT_LOAD` 的 `p_offset` **不要求**为 0（也**不禁止**为 0）——它是链接器文件布局的产物，**不是不变式**。
+- **③ `p_align` 目标默认 64 KiB、可覆写**：`p_align` 的**目标默认** = 64 KiB（`DADAO` target `defaultMaxPageSize = 0x10000`，依据 DADAO 页 = 64 KiB），**可被 `-z max-page-size` 覆写**——**目标默认值，非硬编码不变式**。
+
+不变项：上文段最小对齐与 VA=PA、M1 raw-bin pipeline；`ADR-0004` 全部 decision；`ADR-0019` 的「本期禁用 relaxation / 4 类 reloc」。该三条 decision 的动机、被否方案（A 加载器放行头部页、B2 `.text`/`e_entry` 抬 64 KiB 占位）与 scope 限定见 `## 修订` rev. 2026-10-06。
+
 ### D2/D3/D4 — `Deferred to M2`（登记，不冻结）
 
 以下内容服务 M2，**不属 M1 规范性决策**。本 ADR 仅登记主题，不冻结编号/公式/策略：
@@ -142,3 +152,17 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 
 - **① 绝对地址不单列 wyde 地址构造场景**：`set.zw`/`or.w` 构造的地址统一归入「**绝对 64-bit 数据地址**」（与 `.quad`/指针数据同类），删除原「绝对 64-bit 地址构造」独立场景行。
 - **② 相对寻址 `<<2`**：相对**分支/call/jump** 的立即数均为**字偏移**，重定位须 `<<2`（字→字节），故**有效字节范围 = 立即数位宽 + 2 位**（如 imms18 → ±2¹⁹ = ±512 KiB、imms12 → ±8 KiB、imms24 → ±32 MiB）。~~**`rela.si` 例外**：其立即数直接 `<< 12`（12 位偏移），**无页概念、无 `<<2`**。~~（2026-09-30 注记：`rela.si` 已删除，见 `ADR-0012 D5`；PC 相对寻址改为 `rb0` 基址路径。）
+
+**rev. 2026-10-06（用户 2026-10-06 逐条确认；`SPEC-112t`）**：§D5 新增 **M4 ELF 路径补充**——不改变 M1 raw-bin pipeline，仅就 M4 ELF 路径冻结三条 decision；ELF 加载/启动协议仍归 `ADR-0004 §D2.2/§D2.3`（rev. 2026-10-06）。
+
+- **① M4 裸机路径不使用 `FILEHDR PHDRS`**：M4 裸机路径的 `tests/scripts/dadao.lds` **不使用** `FILEHDR PHDRS`——ELF 头/程序头表**只存在于文件中、不进入 guest 内存**。**理由**：M4 无运行期消费者（freestanding、无动态链接/libc/OS，无 `AT_PHDR`/自省），加载器（QEMU，**host 侧**）从**文件**解析 `Ehdr`/`Phdr`。**LLD 的 `FILEHDR PHDRS` 能力原样保留**（本 decision 不削弱 linker 能力；任何后续布局仍可自行启用）。
+- **② `p_offset` 不做要求**：首个 `PT_LOAD` 的 `p_offset` **不要求**为 0（也**不禁止**为 0）——它是链接器文件布局的产物，**不是不变式**。
+- **③ `p_align` 目标默认 64 KiB、可覆写**：`p_align` 的**目标默认** = 64 KiB（`DADAO` target `defaultMaxPageSize = 0x10000`，依据 DADAO 页 = 64 KiB），**`p_align` 可被 `-z max-page-size` 覆写**——**目标默认值，非硬编码不变式**。
+- **被否方案**：
+  - **A（加载器放行头部页）**：让 QEMU ELF 加载器忽略落在映射区外的一页——**否决**（把问题推给加载器，且与 `ADR-0004 §D2.3`「任一 `PT_LOAD` 越界 ⇒ 报错非零退出」冲突加深）。
+  - **B2（`.text`/`e_entry` 抬 64 KiB 占位）**：把 `.text`/入口上抬 64 KiB 给头部留位——**否决**（改变 RAM 布局与 reloc 期望值，污染 M4 已验收产物）。
+- **scope 限定**：本决策仅约束 **M4 路径级脚本 `dadao.lds`** 与 **可覆写的目标默认值**（`p_align`），**不约束完整 linker 实现**；`p_offset` 不做正反两向要求。
+- **不变项**：§D5 段最小对齐 / VA=PA / M1 raw-bin pipeline；`ADR-0004` 全部 decision；`ADR-0019` 的「本期禁用 relaxation / 4 类 reloc」。
+- **用户逐条确认（2026-10-06）**：主会话提案（B1 去掉 `FILEHDR PHDRS`；页大小并入本波 `defaultMaxPageSize = 0x10000`；落点 `ADR-0003 §D5` 且不影响后续完整 linker）经用户逐条确认；用户原话（问答摘要）见 `.tao/tasks/spec/SPEC-112t-去FILEHDR-PHDRS与64KiB页大小决策.md` §用户裁定。
+- **变更范围**：`**状态**` 行 rev 日期、§D5 新增「M4 ELF 路径补充」小节、本 `## 修订` 条目；配套同步 `.tao/knowledge/contract-elf.md §5/§6.1.2` 与附录 A、`.tao/knowledge/milestones.md`。**不变**：D1、D2/D3/D4 登记、§D5 段最小对齐/VA=PA/M1 raw-bin pipeline。
+- **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03`/`adr-authoring` 的一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-06`）。

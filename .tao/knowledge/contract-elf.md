@@ -2,7 +2,7 @@
 
 > **状态**：Accepted
 >
-> **来源**：`.tao/adr/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充）。本合约的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）是 ADR-0003 的归一化投影；**§2–§4（重定位）另有来源 `.tao/adr/adr-0019-dadao-relocation-types.md`（ADR-0019，Status: Accepted，用户 2026-10-05 逐条确认 D1–D8）**；**§5/§6 的加载/启动（ELF + raw-bin 双路径）并来源 `.tao/adr/adr-0004-test-machine.md`（ADR-0004，Status: Accepted，rev. 2026-10-06，用户逐条确认，`SPEC-107t`）§D2.2/§D2.3**。
+> **来源**：`.tao/adr/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充、rev. 2026-10-06 M4 ELF 路径补充〔去 `FILEHDR PHDRS` / `p_align` 目标默认 64 KiB，`SPEC-112t`〕）。本合约的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）是 ADR-0003 的归一化投影；**§2–§4（重定位）另有来源 `.tao/adr/adr-0019-dadao-relocation-types.md`（ADR-0019，Status: Accepted，用户 2026-10-05 逐条确认 D1–D8）**；**§5/§6 的加载/启动（ELF + raw-bin 双路径）并来源 `.tao/adr/adr-0004-test-machine.md`（ADR-0004，Status: Accepted，rev. 2026-10-06，用户逐条确认，`SPEC-107t`）§D2.2/§D2.3**。
 >
 > **引用**：指令格式/字段宽度/对齐/地址模型引用 `.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）；端序/指针宽度引用 `.tao/knowledge/contract-abi.md`（0.9.2）。本合约不重复定义这些内容。
 >
@@ -137,6 +137,10 @@ M1 无 MMU、无页表，加载期不做地址重定位。段的虚拟地址（V
 
 VA=PA 规则同时适用于 **raw-bin 路径**（段连续拼接，§6.1.1）与 **M4 ELF 路径**（`PT_LOAD` 段按 `p_vaddr` 装载，§6.1.2）：ELF 段的加载地址即 `p_vaddr`（`VA=PA`），不另做加载期地址重定位。[ADR-0004 §D2.2]
 
+### §5.3 `PT_LOAD` 段对齐（`p_align`）
+
+M4 ELF 路径下 `PT_LOAD` 段的 `p_align` **目标默认 = 64 KiB**（`defaultMaxPageSize = 0x10000`；依据 DADAO 普通页 = 64 KiB，页内偏移 16 位 [DADAO-12 §2.2.2 普通页的地址转换]、`SBI_PTW_HANDLE_FAULT` 返回的页面对齐掩码 `page_mask`（如 `0xFFFFFFFFFFFF0000` = 64 KiB）[DADAO-22 §4. 地址转换（cfx_ptw）]）；**可被链接选项 `-z max-page-size` 覆写**——为**目标默认值，非硬编码不变式**。[ADR-0003 §修订 rev. 2026-10-06]
+
 ---
 
 ## §6 端到端 artifact pipeline
@@ -173,7 +177,7 @@ M4 起，跨 object 链接由 DADAO LLD（`ADR-0019`）完成，产出 **`ET_EXE
 - **装载语义**：按 VA=PA（§5.2）将 **`PT_LOAD`** 段装入其 `p_vaddr` 对应区域（RAM/ROM，`ADR-0004 §D1`）；`p_filesz` 字节取自文件、`p_memsz − p_filesz` 的尾部（`.bss`）**零填充**；段的顺序/对齐见 §5.1。[ADR-0004 §D2.2]
 - **入口**：取 ELF **`e_entry`**（不再固定为加载基址）。[ADR-0004 §D2.2]
 - **头校验**：`EI_CLASS=ELFCLASS64`、`EI_DATA=ELFDATA2MSB`、`e_machine=EM_DADAO(0x0DA0)`、`e_flags[7:0]=1`（§1/§1.3）。[ADR-0004 §D2.2]
-- **文件偏移**：链接脚本 `FILEHDR PHDRS` 使 `.text` file-offset 0（`SPEC-104k`/`LLVM-056t`）。[ADR-0004 §修订 rev. 2026-10-06]
+- **首段与文件偏移**：M4 裸机路径 `dadao.lds` **不使用 `FILEHDR PHDRS`**——ELF 头/程序头表**只存在于文件中、不进入 guest 内存**（加载器从**文件**解析 `Ehdr`/`Phdr`）；首个 `PT_LOAD` 从 `.text` 起（VA=PA），其 `p_offset` **不做要求**（**不要求为 0、也不禁止为 0**）。[ADR-0003 §修订 rev. 2026-10-06]
 - **over-size / 畸形**：任一 `PT_LOAD` 段装载区间越出映射区域（RAM 16 MiB / ROM 64 KiB）、含 `.bss` 的 `p_memsz` 超限、或畸形 ELF ⇒ **启动加载阶段报错并非零退出**（工具/加载错误层，与 guest fault 分层）。[ADR-0004 §D2.3]
 
 ### §6.2 与 ADR-0004 的加载模型统一
@@ -215,8 +219,8 @@ qemu-system-dadao -machine dadao-m1 -kernel image.elf
 | §2 | 重定位类型（`SHT_RELA`、`R_DADAO_*` 编号、逐指令挂载） | `ADR-0019` §D1–D2、§D5 |
 | §3 | 重定位公式与溢出策略（无 −4、link-time error） | `ADR-0019` §D3、§D6 |
 | §4 | 重定位松弛（禁用 relaxation、不做 `ABS32`、`RELA_PAGE`/`RELA_LO` 留后） | `ADR-0019` §D4、§D7–D8 |
-| §5 | 段对齐、VA=PA（raw-bin 与 ELF 路径均适用） | `ADR-0003` §D5（+ `ADR-0004` §D2.2 加载地址/VA=PA） |
-| §6 | 端到端 artifact pipeline（raw-bin 路径 + M4 ELF 路径）、单 TU 自包含、多段拼接、加载/启动协议、与 ADR-0004 一致 | `ADR-0003` §D5（+ §Context、§Consequences）；§6.1.2/§6.2 的 ELF 加载与启动并来自 `ADR-0004` §D2.2/§D2.3（`## 修订` rev. 2026-10-06） |
+| §5 | 段对齐、VA=PA（raw-bin 与 ELF 路径均适用）、`PT_LOAD` 的 `p_align` 口径（目标默认 64 KiB、可覆写） | `ADR-0003` §D5（+ `ADR-0004` §D2.2 加载地址/VA=PA；`p_align` 并来自 `ADR-0003` §修订 rev. 2026-10-06） |
+| §6 | 端到端 artifact pipeline（raw-bin 路径 + M4 ELF 路径）、单 TU 自包含、多段拼接、加载/启动协议、与 ADR-0004 一致 | `ADR-0003` §D5（+ §Context、§Consequences）；§6.1.2 去 `FILEHDR PHDRS` 来自 `ADR-0003` §修订 rev. 2026-10-06；§6.1.2/§6.2 的 ELF 加载与启动并来自 `ADR-0004` §D2.2/§D2.3（`## 修订` rev. 2026-10-06） |
 
 > §2–§4 的重定位决策点来自 ADR-0019（`SPEC-105t`），非 ADR-0003 决策。
 
