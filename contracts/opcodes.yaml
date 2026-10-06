@@ -5,7 +5,7 @@
 # scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
-# 共 228 条：M1 152 条 + scope fp 60 条 + scope excluded 15 条 + scope m3 1 条
+# 共 227 条：M1 151 条 + scope fp 60 条 + scope excluded 15 条 + scope m3 1 条
 # 有 rule_refs 的指令：191 条
 
 - id: ld.ub_rrii_rd
@@ -2372,30 +2372,13 @@
   scope: excluded
   decode: ILLI
   rule_refs: []
-- id: illi_oiii_imm
-  mnemonic: illi
+- id: fence_oiii_imm
+  mnemonic: fence
   format: oiii
   op: '0x77'
   ha: '0x00'
   mask: '0xFFFC0000'
   value: '0x77000000'
-  fields:
-  - name: immu18
-    bits: '[17:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality: []
-  spec_cite: SimRISC-11 §非法指令
-  scope: m1
-  rule_refs: []
-- id: fence_oiii_imm
-  mnemonic: fence
-  format: oiii
-  op: '0x77'
-  ha: '0x01'
-  mask: '0xFFFC0000'
-  value: '0x77040000'
   fields:
   - name: immu18
     bits: '[17:0]'
@@ -2414,9 +2397,9 @@
   mnemonic: swym
   format: oiii
   op: '0x77'
-  ha: '0x02'
+  ha: '0x22'
   mask: '0xFFFC0000'
-  value: '0x77080000'
+  value: '0x77880000'
   fields:
   - name: immu18
     bits: '[17:0]'

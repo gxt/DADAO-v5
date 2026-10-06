@@ -121,11 +121,11 @@ def br_nz(rdha, imms18):
     """br.nz rdha, imms18 (op=0x6B)"""
     return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 
-def illi():
-    return encode_oiii(0x00, 0x00, 0)
+def fence():
+    return encode_oiii(0x77, 0x00, 0)
 
 def swym():
-    return encode_oiii(0x77, 0x00, 0)
+    return encode_oiii(0x77, 0x22, 0)
 
 # ── Terminators ───────────────────────────────────────────────────────
 
@@ -151,12 +151,12 @@ def build_rom(test_insns):
         rom += insn
     rom += UNDI_TERMINATOR
     while len(rom) < 64:
-        rom += illi()
+        rom += fence()
     return rom
 
 def run_test(rom_data, kernel_data=None, timeout=10):
     if kernel_data is None:
-        kernel_data = illi() * 4
+        kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rom_path = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:

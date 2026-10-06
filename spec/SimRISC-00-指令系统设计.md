@@ -296,11 +296,11 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 
 |           | xxx-000      | xxx-001      | xxx-010      | xxx-011      | xxx-100      | xxx-101      | xxx-110      | xxx-111      |
 | ---       | ---          | ---          | ---          | ---          | ---          | ---          | ---          | ---          |
-| 000-xxx   | illi_oiii_imm | fence_oiii_imm | swym_oiii_imm |              |              |              |              |              |
+| 000-xxx   | fence_oiii_imm |              |              |              |              |              |              |              |
 | 001-xxx   |              |              |              |              |              |              |              |              |
 | 010-xxx   | lr_nn.o_orrr_rd | lr_nr.o_orrr_rd | lr_an.o_orrr_rd | lr_ar.o_orrr_rd |              |              |              |              |
 | 011-xxx   | sc_nn.o_orrr_rd | sc_nr.o_orrr_rd | sc_an.o_orrr_rd | sc_ar.o_orrr_rd |              |              |              |              |
-| 100-xxx   |              |              |              |              |              |              |              |              |
+| 100-xxx   |              |              | swym_oiii_imm |              |              |              |              |              |
 | 101-xxx   |              |              |              |              |              |              |              |              |
 | 110-xxx   |              |              |              |              |              |              |              |              |
 | 111-xxx   |              |              |              |              |              |              |              |              |

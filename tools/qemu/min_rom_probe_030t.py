@@ -80,8 +80,8 @@ def cmp_uo_rd(rdhb, rdhc, rdhd): return encode_orri(0x40, 0x2A, rdhb, rdhc, rdhd
 def br_nz(rdha, imms18): return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 def call_iiii(imms24): return encode_iiii(0x74, imms24 & 0xFFFFFF)
 def ret_riii(rdha, imms18): return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
-def illi(): return encode_orri(0x77, 0x00, 0, 0, 0)
-def swym(): return struct.pack('>I', 0x77080000)
+def fence(): return encode_orri(0x77, 0x00, 0, 0, 0)
+def swym(): return struct.pack('>I', 0x77880000)
 def st_o_ra(raha, rbhb, imms12):
     imm = imms12 & 0xFFF; hc = (imm >> 6) & 0x3F; hd = imm & 0x3F
     if imms12 < 0: hc |= 0x20
@@ -140,13 +140,13 @@ def build_rom(test_insns):
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
-        rom += illi()
+        rom += fence()
     return rom
 
 # ── QEMU execution ────────────────────────────────────────────────────
 
 def run_test(rom_data, timeout=10):
-    kernel_data = illi() * 4
+    kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rp = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
@@ -162,7 +162,7 @@ def run_test(rom_data, timeout=10):
         os.unlink(rp); os.unlink(kp)
 
 def run_test_dcpu(rom_data, timeout=10):
-    kernel_data = illi() * 4
+    kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rp = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
@@ -226,7 +226,7 @@ def _t2():
     VERIFY_IDX = 14
     insns = [
         call_to(0, 5),              # [0] push (1, addr[1]), jump to [5]
-        illi(), illi(), illi(), illi(),  # [1..4]
+        fence(), fence(), fence(), fence(),  # [1..4]
     ]
     placeholder_val = 0
     test_val = (1 << 48) | 0xFFFFFFFF0040
@@ -240,7 +240,7 @@ def _t2():
     insns.append(rd2ra(63, 18, 1))
     insns.append(call_to(FOLD_CALL_IDX, VERIFY_IDX))
     while len(insns) < VERIFY_IDX:
-        insns.append(illi())
+        insns.append(fence())
     insns.append(ra2rd(19, 63, 1))
     insns.append(ra2rd(20, 0, 1))
     EXPECTED_RA63 = (2 << 48) | RET_ADDR_48
@@ -256,10 +256,10 @@ TESTS.append(("C2 fold (count 1→2, RACNT stays 1)", _t2(), PASS_EXIT, "C2 fold
 def _t3():
     insns = [
         call_to(0, 2),
-        illi(),
+        fence(),
         call_to(2, 7),
-        illi(),
-        illi(), illi(), illi(),
+        fence(),
+        fence(), fence(), fence(),
         ra2rd(19, 0, 1),
     ]
     insns += build_val(23, 2 << 48)
@@ -297,7 +297,7 @@ def _t5():
         call_to(6, VERIFY_IDX),
     ]
     while len(insns) < VERIFY_IDX:
-        insns.append(illi())
+        insns.append(fence())
     insns += [
         ra2rd(19, 0, 1),
         ld_o_rd(22, 17, MEM_OFFSET),
@@ -313,7 +313,7 @@ TESTS.append(("C3b spill (RACNT=63, MRPTR-=8, mem)", _t5(), PASS_EXIT, "C3b spil
 def _t6():
     return [
         call_to(0, 5),
-        illi(), illi(), illi(), illi(),
+        fence(), fence(), fence(), fence(),
         set_zw_rd(18, 0),
         rd2ra(63, 18, 1),
         ret_riii(0, 0),
@@ -325,7 +325,7 @@ TESTS.append(("D1 RASUF (corrupt count=0 → 0x8B)", _t6(), RASUF_EXIT, "D1 RASU
 def _t7():
     insns = [
         call_to(0, 3),
-        illi(), illi(),
+        fence(), fence(),
     ]
     RET_IDX = 3 + 4 + 1
     VERIFY_START = RET_IDX + 1
@@ -353,7 +353,7 @@ def _t8():
       [1] ra2rd(19, 0, 1) → rd19 = ra0 (RACNT)
       [2] set_zw(23, 0)   → expected RACNT=0
       [3..8] assertion    → compare rd19 vs rd23, PASS/FAIL exit
-      [9] illi (padding, not reached)
+      [9] fence (padding, not reached)
       [10] ret            → D3 pop, return to [1]
     After call→ret: RACNT should be 0. If D3 doesn't decrement → FAIL.
     """
@@ -365,7 +365,7 @@ def _t8():
     ]
     insns += build_assertion([(19, 23, 21)], 8)
     # [3..8] assertion block (6 insns: cmp+br+set+st_pass+set+st_fail)
-    insns.append(illi())             # [9] padding (not reached normally)
+    insns.append(fence())             # [9] padding (not reached normally)
     insns.append(ret_riii(0, 0))     # [10] D3 pop, return to [1]
     return insns
 
@@ -447,10 +447,10 @@ TESTS.append(("D4b invalid (count=0 → RASUF)", _t12(), RASUF_EXIT, "D4b invali
 def _t13():
     insns = [
         call_to(0, 2),
-        illi(),
+        fence(),
         call_to(2, 7),
-        illi(),
-        illi(), illi(), illi(),
+        fence(),
+        fence(), fence(), fence(),
         ra2rd(19, 0, 1),
     ]
     insns += build_val(23, 2 << 48)
@@ -499,11 +499,11 @@ def _t16():
     VERIFY_IDX = 12
     insns = [
         call_to(0, 3),              # [0] push addr[1], RACNT=1
-        illi(), illi(),             # [1..2]
+        fence(), fence(),             # [1..2]
         call_to(3, 6),              # [3] push addr[4], RACNT=2
-        illi(), illi(),             # [4..5]
+        fence(), fence(),             # [4..5]
         call_to(6, VERIFY_IDX),     # [6] push addr[7], RACNT=3
-        illi(), illi(), illi(), illi(), illi(),  # [7..11]
+        fence(), fence(), fence(), fence(), fence(),  # [7..11]
     ]
     # After 3 pushes: ra63 = addr[7], ra62 = addr[4], ra61 = addr[1]
     ADDR7 = addr_of(7)
@@ -559,7 +559,7 @@ def _t18():
     MARKER = 0xBEEF
     insns = [
         call_to(0, 5),              # [0] push (1, addr[1]), RACNT=1
-        illi(), illi(), illi(), illi(),  # [1..4]
+        fence(), fence(), fence(), fence(),  # [1..4]
         set_zw_rd(18, MARKER),      # [5] rd18 = 0xBEEF
         rd2ra(63, 18, 1),           # [6] ra63 = 0xBEEF (count=0, corrupt!)
         ret_riii(0, 0),             # [7] D1 → RASUF (0x8B)
@@ -573,8 +573,8 @@ TESTS.append(("Precise D1 RASUF (register check via -d cpu)", _t18(), RASUF_EXIT
 CTL_CHECKS = [
     ("CTL: st.o PASS but expect ILLI",
      [set_zw_rd(18, 0), st_o_rd_pass()], ILLI_EXIT, "CTL broken"),
-    ("CTL: illi but expect PASS",
-     [illi()], PASS_EXIT, "CTL broken"),
+    ("CTL: fence but expect PASS",
+     [fence()], PASS_EXIT, "CTL broken"),
 ]
 
 # ── Test runner ────────────────────────────────────────────────────────

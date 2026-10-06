@@ -142,7 +142,7 @@ def rb2rd(rdhb, rbhc, immu6):
 
 
 def swym():
-    return struct.pack('>I', 0x77000000)
+    return struct.pack('>I', 0x77880000)
 
 
 # ── Assertion block (same proven pattern as 030t / 032t) ───────────────

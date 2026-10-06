@@ -130,7 +130,7 @@ def reserved_octa_neighbor(rdhb, rbhc, rbhd):
 
 
 def swym():
-    return struct.pack('>I', 0x77000000)
+    return struct.pack('>I', 0x77880000)
 
 
 # ── Assertion block (same proven pattern as 033t) ──────────────────────

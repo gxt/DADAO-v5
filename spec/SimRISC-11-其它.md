@@ -1,19 +1,18 @@
 # SimRISC其它指令
 
 > **版本：0.5.4**（与 SimRISC-00 一致）
-> **分类：其它**（6 条）— cfx2rc/cfx2rd/escape/illi/swym/trap
+> **分类：其它**（5 条）— cfx2rc/cfx2rd/escape/swym/trap
 
 <!-- ASSEMBLY_LIST_START -->
 ## 汇编指令速查
 
-### 其它（6 条）
+### 其它（5 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
 | `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
 | `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
-| `illi` | `oiii` | `imm` | `illi immu18` | `illi_oiii_imm` |
 | `swym` | `oiii` | `imm` | `swym immu18` | `swym_oiii_imm` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 
@@ -47,6 +46,7 @@ swym    immu18
 - `swym N` 可作为硬件时延指令，后18位立即数为时延参数：具体时延由硬件实现确定，其时延约为 `swym 0` 的 N+1 倍。
   - 硬件可设时延上限，N 超过阈值后时延不再增加。
   - 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。
+- `swym` 的 op 为 0111-0111（0x77），`ha` 为 100-010（0x22），`swym 0` 的编码为 **0x77880000**。
 
 #### nop 伪指令
 
@@ -58,18 +58,11 @@ nop                     ; 展开为 swym 0
 
 ## 非法指令
 
-SimRISC 采用 illi 助记符作为专门的非法指令，即 illegal instruction。
+ILLI（illegal instruction，非法指令）异常由**非法操作数、非法条件**或**已定义但本机器未实现的编码**触发；SimRISC 0.5.4 **不再**提供专门的非法指令助记符（原 `op=0x77, ha=0x00`）。
 
-操作数类型为 `oiii`：
-
-```simrisc
-illi    immu18
-```
-
-- illi指令会引发 ILLI 异常，即非法指令异常。
-- illi指令的后18位立即数并无特殊含义，完全由用户或软件自行定义，用户可通过操作系统的相关机制捕获该异常，并进行功能扩展。
-  - 不建议用户或软件捕获并使用其它指令产生的非法指令异常做功能扩展，例如很多指令不允许目的操作数为 rd0，否则就会引发非法指令异常。
-- illi 的 op 为 0111-0111（0x77），`illi 0` 的编码为 0x77000000。MISC-AMO 编码变更后，32 位全零指令字（0x00000000）为保留编码，触发 UNDI 异常（非 ILLI）。
+- 已定义编码但操作数/字段非法时触发 ILLI，例如很多指令不允许目的操作数为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等。
+- `scope: excluded` 的已定义编码（特权 cfx、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI。
+- 保留编码（QFC 主表 / MISC 子表空白单元格）触发 UNDI 异常，而非 ILLI；32 位全零指令字（0x00000000）为保留编码，触发 UNDI 异常。
 
 ## 特权指令
 

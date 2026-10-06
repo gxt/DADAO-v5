@@ -300,13 +300,13 @@ N = 7(.b) / 15(.w) / 31(.t) / 63(.o)。高位保持 rdhb 初始值不变。
 ## 14. misc（misc.yaml）
 
 **case 数**：6（encoding 2 + legality 2 + semantic 2）
-**涉及指令**：`illi`（oiii）；`fence`（oiii）；`swym`（oiii）
+**涉及指令**：原专门非法指令（oiii）；`fence`（oiii）；`swym`（oiii）
 
 ### 重推导公式
 
 | 指令 | 公式 | 依据章节 |
 |------|------|---------|
-| `illi` | 恒 ILLI，encoding/semantic 豁免（F6） | §7.2 / §9.1 |
+| 原专门非法指令 | 恒 ILLI，encoding/semantic 豁免（F6） | §7.2 / §9.1 |
 | `fence` | 无架构副作用（M1 仅串行化语义）；SBZ 非零 → ILLI | §7.3 |
 | `swym` | PC 自增外无副作用（nop） | §7.1 |
 
@@ -327,7 +327,7 @@ N = 7(.b) / 15(.w) / 31(.t) / 63(.o)。高位保持 rdhb 初始值不变。
 | 保留编码 | `expected_fault = UNDI`；无 `(insn, format)` 身份 | §8.2 / §9 |
 
 - `encoding.reserved: true` → 不参与 `(insn, format)` 覆盖率门控
-- 全零字 `0x00000000` 是 `illi` → ILLI（§8.3），不是 UNDI
+- 全零字 `0x00000000` 是保留编码 → UNDI（原专门非法指令 `0x77000000` 已于 `ADR-0012 D3.5` 删除）
 
 ### 比对结论
 - **mismatch 数**：0（2 条 UNDI legality，结构合法）

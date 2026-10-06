@@ -539,9 +539,9 @@ def main():
         files[fname].append(gen_encoding(rec))
 
         # 2. Legality: ILLI (rd0/rb0/immu6=0)
-        illi = gen_legality_illi(rec)
-        if illi is not None:
-            files[fname].append(illi)
+        illi_case = gen_legality_illi(rec)
+        if illi_case is not None:
+            files[fname].append(illi_case)
 
         # 3. Legality: MALIGN (if alignment required)
         malign = gen_legality_malign(rec)

@@ -2,8 +2,8 @@
 # Minimal smoke test for DADAO M1 target skeleton.
 # Verifies: qemu-system-dadao exists, -M ? shows dadao-m1,
 # and boot triggers UNDI (exit code 0x89) because all-zero ROM
-# is a reserved encoding (MISC-AMO moved to op=0x77; 0x00000000
-# is no longer illi 0, but a reserved encoding → UNDI).
+# is a reserved encoding (MISC-AMO moved to op=0x77; the former
+# op=0x00 instruction is gone, so 0x00000000 is a reserved encoding → UNDI).
 #
 # NOTE: This script is NOT included in `make check`; it is a
 # standalone smoke test. Gate-blind: changes here do not block
@@ -38,7 +38,7 @@ fi
 
 # Create minimal ROM and kernel binaries (zeroed, 8 bytes each)
 # ROM: all zeros at 0xffff_ffff_0000 → first instruction is 0x00000000
-#      = reserved encoding (op=0x00, formerly illi 0; MISC-AMO now at op=0x77)
+#      = reserved encoding (op=0x00; MISC-AMO now at op=0x77)
 #      → UNDI (exit code 0x89 = 137)
 # Kernel: all zeros at 0xffff_0000_0000 (won't be reached, ROM UNDI happens first)
 dd if=/dev/zero of="$TMPDIR/rom.bin" bs=1 count=8 2>/dev/null

@@ -1,12 +1,12 @@
 diff --git a/target/dadao/insn.decode b/target/dadao/insn.decode
 new file mode 100644
-index 0000000..12d3376
+index 0000000..d074737
 --- /dev/null
 +++ b/target/dadao/insn.decode
-@@ -0,0 +1,247 @@
+@@ -0,0 +1,246 @@
 +# DADAO instruction decoding
 +# Auto-generated from contracts/opcodes.yaml
-+# 233 patterns; blank cells trigger UNDI
++# 227 patterns; blank cells trigger UNDI
 +
 +# Field declarations
 +%ha       18:6
@@ -110,9 +110,8 @@ index 0000000..12d3376
 +cfxst_crii_cfx  01111101........................  @main
 +escape_ciii_cfx  01111110........................  @main
 +trap_ciii_cfx  01111111........................  @main
-+illi_oiii_imm  01110111000000..................  @misc
-+fence_oiii_imm  01110111000001..................  @misc
-+swym_oiii_imm  01110111000010..................  @misc
++fence_oiii_imm  01110111000000..................  @misc
++swym_oiii_imm  01110111100010..................  @misc
 +lr_nn_o_orrr_rd  01110111010000..................  @misc
 +lr_nr_o_orrr_rd  01110111010001..................  @misc
 +lr_an_o_orrr_rd  01110111010010..................  @misc

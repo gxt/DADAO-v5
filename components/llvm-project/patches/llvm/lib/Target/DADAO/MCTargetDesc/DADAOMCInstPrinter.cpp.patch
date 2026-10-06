@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000..0746bbbfa
+index 000000000..2b7f96dfa
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 @@ -0,0 +1,398 @@
@@ -366,7 +366,7 @@ index 000000000..0746bbbfa
 +  }
 +
 +  case FK_oiii: {
-+    // oiii: illi, fence — imm
++    // oiii: fence, swym — imm
 +    O << " ";
 +    printOperand(MI, 0, O);
 +    break;

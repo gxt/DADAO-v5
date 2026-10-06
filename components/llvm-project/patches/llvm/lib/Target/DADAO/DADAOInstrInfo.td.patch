@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..8f7d02803
+index 000000000..0882dd5fe
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1413 @@
+@@ -0,0 +1,1405 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1391,9 +1391,9 @@ index 000000000..8f7d02803
 +  let Pattern = [];
 +}
 +
-+// --- oiii format (3 instructions) ---
++// --- oiii format (2 instructions) ---
 +
-+def illi : DADAOOiii<"illi"> {
++def fence : DADAOOiii<"fence"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
 +  let op = 0x77;
@@ -1401,19 +1401,11 @@ index 000000000..8f7d02803
 +  let Pattern = [];
 +}
 +
-+def fence : DADAOOiii<"fence"> {
-+  let OutOperandList = (outs );
-+  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x77;
-+  let ha = 0x01;
-+  let Pattern = [];
-+}
-+
 +def swym_oiii : DADAOOiii<"swym"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
 +  let op = 0x77;
-+  let ha = 0x02;
++  let ha = 0x22;
 +  let Pattern = [];
 +}
 +include "DADAOInstrInfoFP.td"

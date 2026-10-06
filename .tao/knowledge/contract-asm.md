@@ -5,7 +5,7 @@
 本合约把 v5 自定规范 `spec/Toolchain-01-汇编语言.md`（v1.1，语法已定稿；实现待安排）归一化为可精确消费的断言；规范叙述与理由留在该规范正文，本合约只提取可机械/agent 消费的约束。
 
 - **投影关系**：本合约为投影类型①（叙述合约）；②机器数据 = `contracts/opcodes.yaml`（`format`/汇编形式列）；③机械门控 = `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；④可执行 = `tests/lit/MC`。[Toolchain-01 §12]
-- **指令全表**：228 条指令表为生成投影 `.tao/knowledge/contract-asm-list.md`，本合约不重抄；指令编码身份以 `contracts/opcodes.yaml` 为准，指令语义见 `contract-isa.md`（M1）/`contract-fp.md`（`scope: fp`）。[Toolchain-01 §1]
+- **指令全表**：227 条指令表为生成投影 `.tao/knowledge/contract-asm-list.md`，本合约不重抄；指令编码身份以 `contracts/opcodes.yaml` 为准，指令语义见 `contract-isa.md`（M1）/`contract-fp.md`（`scope: fp`）。[Toolchain-01 §1]
 - **来源标注**：每条规范性断言以 `[Toolchain-01 §x]` 标注主来源；凡书写形式决策并标其冻结依据 `ADR-0013`（cfx 记法见 `ADR-0013 D8`），cfx 别名约定并标 `ADR-0017`，上游可溯源者并标 `SimRISC-0x`/`DADAO-11` 的对应章节。
 - **冲突处理**：本合约与 `spec/` 冲突时阻断实现，走变更流程（`spec/Process-02-合约编写规范.md`），由规范而非实现裁定。[Toolchain-01 §附：与上游 spec/ 的关系]
 
@@ -163,7 +163,7 @@
 | `orrr` | `助记符 dst, src1, src2` | `or.o rd8, rd9, rd10` | — |
 | `orri` | `助记符 dst, src, immu6` | `ext.uo rd8, rd0, 1` | — |
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
-| `oiii` | `助记符 immu18` | `illi 0`、`fence 0`、`swym 0` | 纯立即数，不加 `[]` |
+| `oiii` | `助记符 immu18` | `fence 0`、`swym 0` | 纯立即数，不加 `[]` |
 
 **`scope: excluded` 的格式（`crrr`/`crii`/`ciii`）与 LR-SC 的书写规则**（同规则、供对照）[Toolchain-01 §5][ADR-0013 D8]：
 
@@ -228,7 +228,7 @@
 
 | 项 | 状态 |
 |---|---|
-| 9 个 M1 格式类与 152 条 M1 指令 | 已实现（旧语法） |
+| 9 个 M1 格式类与 151 条 M1 指令 | 已实现（旧语法） |
 | 本规范的新记法（`[]`/`{}`/`?`/`:`） | 待实现（parser/printer/disassembler） |
 | 双目的/多寄存器新记法（`{rdHA,rdHB}`/`{start:end}`） | 待实现 |
 | 伪指令 18 条 | 未实现 |

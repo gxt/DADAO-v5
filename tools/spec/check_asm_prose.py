@@ -299,7 +299,7 @@ _FORMAT_OP_COUNTS: dict[str, set[int]] = {
     "rwii": {3},      # set.zw rdHA, wpN, immu16
     "orrr": {2, 3},   # 3 = and.o rdHB, rdHC, rdHD; 2 = lr_nn.o rdHC, [rbHD] (rdHB implicit rd0)
     "orri": {2, 3},   # 2 = ext.uo rdHB, rdHC, hd; 3 = ra2rd {rd8:rd10}, {ra1:ra3}
-    "oiii": {1},      # illi 0 / fence 0
+    "oiii": {1},      # fence 0 / swym 0
     # cfx family (SPEC-103t/ISS-077: previously absent ⇒ operand count silently skipped)
     "crrr": {2, 4},   # 4 = cfx2rd cfxHA, cgHB, rcHC, rdHD; 2 = alias cfx_<name>, rdHD
     "crii": {2},      # cfxld/cfxst cfxHA, [rbHB, immu12]

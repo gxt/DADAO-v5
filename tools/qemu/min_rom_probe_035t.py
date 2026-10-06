@@ -64,8 +64,8 @@ ILLI_EXIT = 0x88
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
-ILLI = 0x77000000                 # illi 0 -> ILLI
-SWYM = 0x77020000                 # swym (padding)
+ILLI = 0x77000000                 # fence 0 -> ILLI
+SWYM = 0x77880000                 # swym (padding)
 
 
 def encode_rwii(op, ha, wpN, immu16):

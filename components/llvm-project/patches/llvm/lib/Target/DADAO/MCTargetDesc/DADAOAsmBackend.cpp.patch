@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..c2ad88083
+index 000000000..09ff6cb25
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 @@ -0,0 +1,190 @@
@@ -178,9 +178,9 @@ index 000000000..c2ad88083
 +
 +  bool writeNopData(raw_ostream &OS, uint64_t Count,
 +                    const MCSubtargetInfo *STI) const override {
-+    // DADAO nop = swym 0 = 0x77080000 (oiii, big-endian).
++    // DADAO nop = swym 0 = 0x77880000 (oiii, big-endian).
 +    for (uint64_t I = 0; I < Count; I += 4) {
-+      OS.write("\x77\x08\x00\x00", 4);
++      OS.write("\x77\x88\x00\x00", 4);
 +    }
 +    return true;
 +  }

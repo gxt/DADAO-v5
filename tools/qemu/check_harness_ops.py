@@ -111,7 +111,7 @@ FUNC_TO_YAML = {
     "encode_ld_ut":     "ld.ut_rrii_rd",
     "encode_ld_o":      "ld.o_rrii_rd",
     "encode_swym":      "swym_oiii_imm",
-    "encode_illi":      "illi_oiii_imm",
+    "encode_fence":     "fence_oiii_imm",
     "encode_jump_iiii": "jump_iiii_rb",
 }
 

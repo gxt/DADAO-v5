@@ -193,7 +193,7 @@ rules:
     description: >
       执行保留编码触发 UNDI 异常：QFC 主表与各 MISC 子表的空白单元格
       （未分配编码），以及保留的 opx。
-      注意：32 位全零指令字是 illi 0，触发 ILLI 而非 UNDI（见 contract-isa.md §2.9）。
+      注意：32 位全零指令字（0x00000000）为保留编码，触发 UNDI 而非 ILLI（见 contract-isa.md §2.9；原专门非法指令已于 0.5.4 删除）。
 
   - id: encode_cfx
     fault: ILLI

@@ -69,7 +69,7 @@
 | `class` 必须为 `legality` | 保留编码 case 只能是 fault 期望 |
 | `expected_fault` 必须为 `UNDI` | 保留编码触发 UNDI（§8.2），**不是** ILLI |
 | `status` 必须为 `active` | 保留编码 case 不可 deferred |
-| `word` 不得为 `0x00000000` | 全零字 = 保留编码（op=0x00，MISC-AMO 编码变更后不再是 `illi 0`）→ UNDI（§2.9），非 `illi` 语义 |
+| `word` 不得为 `0x00000000` | 全零字 = 保留编码（op=0x00）→ UNDI（§2.9），非 ILLI 语义 |
 | `mnemonic` / `id` 为 `null` | 无已定义身份 |
 | `format` 可为 `null` 或字符串 | 可选，用于定位子表 |
 | `notes` 非空 | 须给出该 word 在 QFC/子表中的具体位置作为 reserved 依据 |
@@ -167,13 +167,11 @@
 ### `encoding` 类对恒 fault 指令的豁免（F6）
 
 `encoding` 类的定义是「**可解码执行无 fault**」，因此**恒 fault 指令无法构造
-`encoding` case**：
+`encoding` case**。
 
-- **`illi`**（`oiii`）：恒触发 ILLI（`contract-isa.md` §8.2/§9.1）。`illi 0` 的编码为
-  `0x77000000`（op=0x77）；32 位全零字 `0x00000000`（op=0x00）为保留编码 → UNDI
-  （§2.9）。故 `illi` **豁免**
-  `encoding`（及 `semantic`）类，其覆盖率由 `legality` active
-  （`expected_fault: ILLI`）满足；inventory 显式记 `—`。
+- 原专门非法指令（原 `oiii`，恒 ILLI）已于 `ADR-0012 D3.5` 删除；`ILLI` 异常保留，
+  由非法操作数/条件/已定义未实现编码触发。故 M1 范围内**当前无**恒 fault 指令，
+  F6 豁免暂无适用对象；`fence`（`scope: excluded`，decode ILLI）不属 M1，不在此列。
 
 **例外（理由不同，不得混同）**：`ret-riii` 亦无 `encoding` case，但**并非**恒 fault
 ——`ret` 的返回目标依赖 harness 布局、单指令不可构造。其理由与处置见
@@ -199,8 +197,8 @@
 
 ## 覆盖率要求
 
-- **M1 scope**：`contracts/opcodes.yaml` 中 `scope == "m1"` 的 **152 条**。
-  不得排除 RA 存取/块赋值或 `swym`/`illi`；`fence` 已排除（ADR-0014 D1）。
+- **M1 scope**：`contracts/opcodes.yaml` 中 `scope == "m1"` 的 **151 条**。
+  不得排除 RA 存取/块赋值或 `swym`；`fence` 已排除（ADR-0014 D1）；原专门非法指令已删除（ADR-0012 D3.5）。
 - **主键 `id`**（对应 `contracts/opcodes.yaml` 的 `id`，**唯一**）。
   `format` 保留为普通字段，不入覆盖率主键。
 - 每个 M1 身份 `id` 至少 1 条对应 class 的 case；算术/移位类还需

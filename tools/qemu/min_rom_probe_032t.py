@@ -87,7 +87,7 @@ def cmp_uo_rd(rdhb, rdhc, rdhd): return encode_orri(0x40, 0x2A, rdhb, rdhc, rdhd
 def br_nz(rdha, imms18): return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 def call_iiii(imms24): return encode_iiii(0x74, imms24 & 0xFFFFFF)
 def ret_riii(rdha, imms18): return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
-def illi(): return struct.pack('>I', 0x77000000)
+def fence(): return struct.pack('>I', 0x77000000)
 
 
 # ── Assertion block (same proven pattern as 030t) ───────────────────────
@@ -128,14 +128,14 @@ def build_rom(test_insns):
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
-        rom += illi()
+        rom += fence()
     return rom
 
 
 # ── QEMU execution ─────────────────────────────────────────────────────
 
 def run_test(rom_data, timeout=10):
-    kernel_data = illi() * 4
+    kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False,
                                      dir=_probe_artifact_dir()) as f:
         f.write(rom_data)
@@ -175,7 +175,7 @@ def case_positive_ret_rd0_0():
         call_to(0, 4),        # [0] push ra=addr[1], jump to [4]
         set_zw_rd(18, 0),     # [1] landing: rd18 = 0 (PASS code)
         st_o_rd_pass(),       # [2] exit 0
-        illi(),               # [3] padding (unreached)
+        fence(),               # [3] padding (unreached)
         ret_riii(0, 0),       # [4] ret rd0, 0 → pop → jump addr[1] → exit 0
     ]
     return insns, PASS_EXIT

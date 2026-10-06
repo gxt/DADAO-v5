@@ -11,7 +11,7 @@ DADAO-v5 基于 19 份上游 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，
 | **M1 归档**（2026-10-03） | ✅ M1 历史（testcases 模块 / M1 任务规划 / M1 实现 三行）已归档至 `.tao/archive/M1/README.md`；76 个 M1 任务书同在该目录。 |
 | **M2 归档**（2026-10-04） | ✅ M2 历史（45 行 + 2 条混合行〔`spec 模块`/`integ 模块`〕的 M2 段落）已归档至 `.tao/archive/M2/README.md`；150 个 M2 任务书同在该目录。 |
 | **M3 归档**（2026-10-05） | ✅ M3 历史（1 行〔`M3 进行中`〕）已归档至 `.tao/archive/M3/README.md`；41 个 M3 任务书同在该目录。 |
-| **M4 规划**（2026-10-06） | ✅ M4 = 「ELF 文件支持 + LLD 链接 + 汇编器遗留收口」。定义见 `milestones.md`；前置 `ADR-0019`（reloc）+ `ADR-0013 D11`（伪指令）+ `spec/Process-05`（TDD）；分解见 `SPEC-104k`（**21 任务书**，`SPEC-105t`~`108m` / `INFRA-043t`~`044m` / `LLVM-050t`~`057m` / `QEMU-042t`~`043m` / `TESTCASES-029t`~`031m` / `INTEG-016t`~`017m`）。 |
+| **M4 规划**（2026-10-06） | ✅ M4 = 「ELF 文件支持 + LLD 链接 + 汇编器遗留收口」。定义见 `milestones.md`；前置 `ADR-0019`（reloc）+ `ADR-0013 D11`（伪指令）+ `ADR-0012 D3.5`（编码调整）+ `spec/Process-05`（TDD）；分解见 `SPEC-104k`（**M4 任务书**）。**M4 进行中**：`SPEC-109t`（删 `illi`/`fence 0x00`/`swym 0x22`，跨组件原子）**已验证**。 |
 | SimRISC 规范 | ✅ 0.5.4 |
 | spec 模块 | ✅ M1 完成（`002t`~`010t` 已验证；`011m` 里程碑）。 |
 | integ 模块 | ✅ M1 完成（`001k`~`003t` 已验证；`004m` 里程碑）：`002t` = E2E 冒烟（`tests/e2e/*.s` + `tests/lit/E2E/`，lit 3/3，`.test` 消费 `.s` + `timeout`，反例门控）；`003t` = 跨模块接口对齐核对（`docs/integ-interface-alignment.md` + `tools/integ/check_interface_alignment.py`，80 项 0 FAIL，4 轮 reviewer）——**发现 ELF `e_flags=0x0` 违约**（另建 `LLVM-014t` 修复） |
@@ -110,7 +110,7 @@ DADAO-v5 基于 SimRISC 0.5.4 规范，与 DADAO-0628（锁定在 SimRISC 0.4.1�
 - 浮点架构完整定义（SimRISC-03），需 golden model 骨架和 LLVM 寄存器类
 - 系统指令：cfx2rd/cfx2rc/cfxld/cfxst/trap/escape 指令族（SimRISC-04）
 - 原子操作：lr/sc LR-SC 指令
-- 命名规范：wpN（非 ww）、pmem（非 phymem）、illi（非 unimp）
+- 命名规范：wpN（非 ww）、pmem（非 phymem）（初版对比 0.4.1；`illi` 已删除，见 `ADR-0012 D3.5`——原对比 `unimp`）
 - Scope 更广（含浮点/系统），实现优先级可先聚焦标量核心
 
 ## 文件映射：spec → contracts

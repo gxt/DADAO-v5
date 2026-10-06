@@ -32,7 +32,7 @@ description: Use when reviewing DADAO.wiki or DADAO-v5/wiki specification docume
 1. 读 SimRISC-00 编码表 → 逐条读 SimRISC-01/02/03/04 → 提取每条指令格式和操作数
 2. 检查每条指令的格式声明与编码表是否一致
 3. 检查每条指令的汇编语法中操作数个数与格式是否匹配
-4. 检查指令命名一致性（wpN 无 ww 残留、illi 无 unimp 残留、pmem 无 phymem 残留、setzw/setow/orw/andnw 有点号）
+4. 检查指令命名一致性（wpN 无 ww 残留、pmem 无 phymem 残留、setzw/setow/orw/andnw 有点号）
 5. 检查删除项是否彻底清除（andi/pushra/popra/orii）
 6. 检查每条指令格式后缀（rrrr/rrii/riii 等）与描述文档中的操作数个数是否一致，特别是示例代码中的参数个数
 
@@ -65,7 +65,7 @@ description: Use when reviewing DADAO.wiki or DADAO-v5/wiki specification docume
 每条指令格式声明与编码表一致、格式后缀补全、删除项清零
 
 ### 2. 命名一致性
-bpN/brrr/brri/shlu/shrs/shru/extz/exts/wpN/illi/pmem/setrd/setrb/setrf（无点号形式）无旧名残留
+bpN/brrr/brri/shlu/shrs/shru/extz/exts/wpN/pmem/setrd/setrb/setrf（无点号形式）无旧名残留
 
 ### 3. 异常路由自洽性
 FPEXCP 位号、优先级、cfx mask 守卫、伪代码/文本一致

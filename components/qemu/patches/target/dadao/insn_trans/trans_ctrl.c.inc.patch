@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000..776aadd
+index 0000000..3c3274a
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
-@@ -0,0 +1,408 @@
+@@ -0,0 +1,401 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* ── Helper: RegRAS/MemRAS push/pop (ADR-0012 D7) ──────────────────── */
@@ -398,14 +398,7 @@ index 0000000..776aadd
 +    return true;
 +}
 +
-+/* ── §7.2 illi ──────────────────────────────────────────────────────── */
-+static bool trans_illi_oiii_imm(DisasContext *ctx, arg_misc *a)
-+{
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+/* ── §7.3 fence ─────────────────────────────────────────────────────── */
++/* ── §7.2 fence ─────────────────────────────────────────────────────── */
 +static bool trans_fence_oiii_imm(DisasContext *ctx, arg_misc *a)
 +{
 +    /* fence - stub: ILLI (M1 fence semantics not implemented) */

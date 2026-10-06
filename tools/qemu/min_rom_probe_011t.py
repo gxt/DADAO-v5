@@ -24,9 +24,9 @@ Value comparison method (br.ne-based, v2):
   2. Load expected value
   3. cmp.uo rd_cmp, result, expected → rd_cmp=0 if equal, ±1 if not
   4. set.zw rd_zero, 0
-  5. br.ne rd_cmp, rd_zero, 2 → if mismatch (rd_cmp!=0), skip 2 → illi → 136
-  6. set.zw rd1, 1; br.ne rd1, rd0, 2 → unconditional: skip illi → UNDI(137)
-  7. illi → exit 136 (mismatch path)
+  5. br.ne rd_cmp, rd_zero, 2 → if mismatch (rd_cmp!=0), skip 2 → fence → 136
+  6. set.zw rd1, 1; br.ne rd1, rd0, 2 → unconditional: skip fence → UNDI(137)
+  7. fence → exit 136 (mismatch path)
   So: UNDI(137) = PASS (match), ILLI(136) = FAIL (mismatch).
 
 Usage: python3 tools/qemu/min_rom_probe_011t.py
@@ -131,26 +131,26 @@ def br_ne(rdha, rdhb, imms12):
         hc |= 0x20
     return encode_orrr(0x6F, rdha, rdhb, hc, hd)
 
-def illi():
-    return encode_oiii(0x00, 0x00, 0)
+def fence():
+    return encode_oiii(0x77, 0x00, 0)
 
 # ── Terminators / ROM ────────────────────────────────────────────────
 
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
 def build_rom(instructions):
-    """Build ROM: instructions + UNDI + illi padding to 64 bytes."""
+    """Build ROM: instructions + UNDI + fence padding to 64 bytes."""
     rom = b''
     for insn in instructions:
         rom += insn
     rom += UNDI_TERMINATOR
     while len(rom) < 64:
-        rom += illi()
+        rom += fence()
     return rom
 
 def run_rom(rom_data, kernel_data=None, timeout=10):
     if kernel_data is None:
-        kernel_data = illi() * 4
+        kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data)
         rom_path = f.name

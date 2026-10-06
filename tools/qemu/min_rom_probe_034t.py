@@ -59,8 +59,8 @@ MALIGN_EXIT = 0x8C
 
 # ── Instruction encoding (op / ha values from contracts/opcodes.yaml) ──
 
-ILLI = 0x77000000                 # illi 0 -> ILLI
-SWYM = 0x77020000                 # swym (padding)
+ILLI = 0x77000000                 # fence 0 -> ILLI
+SWYM = 0x77880000                 # swym (padding)
 UNDI_TERMINATOR = 0x08040001      # 033t convention (never reached)
 
 
@@ -323,7 +323,7 @@ def e2e_epilogue(checks, fail_code):
 # ── Case model ─────────────────────────────────────────────────────────
 #
 # expect_exit           : plain run, check process exit code
-# expect_rf / expect_rd : `-d cpu` run; ROM = insns + TB-split branch + illi;
+# expect_rf / expect_rd : `-d cpu` run; ROM = insns + TB-split branch + fence;
 #                         check parsed last-dump register values. The tb-split
 #                         branch (`br_nz rd40, 1`, rd40=1) guarantees the writes
 #                         are committed in an earlier TB than the fault dump.

@@ -111,8 +111,8 @@ def call_iiii(imms24):
 def ret_riii(rdha, imms18):
     return encode_riii(0x76, rdha, imms18 & 0x3FFFF)
 
-def illi():
-    return encode_orri(0x00, 0x00, 0, 0, 0)
+def fence():
+    return encode_orri(0x77, 0x00, 0, 0, 0)
 
 # ── RA instruction mnemonics ──────────────────────────────────────────
 
@@ -165,12 +165,12 @@ def build_rom(test_insns):
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
-        rom += illi()
+        rom += fence()
     return rom
 
 def run_test(rom_data, kernel_data=None, timeout=10):
     if kernel_data is None:
-        kernel_data = illi() * 4
+        kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rom_path = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
@@ -190,7 +190,7 @@ def run_test_dcpu(rom_data, kernel_data=None, timeout=10):
     """Like run_test but with -d cpu, returning (exit_code, log_text).
     Used for precise-exception read-back: parse RA[00] etc. from the fault dump."""
     if kernel_data is None:
-        kernel_data = illi() * 4
+        kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rom_path = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
@@ -392,8 +392,8 @@ TESTS = [
     # Each call returns to the next instruction, which is a ret → pops next.
     # Final return → set rd18=0, PASS.
     #
-    # Code layout: [ra0 setup] [call0] [PASS code] [call1,ret,illi] ... [call64,ret,illi] [ret]
-    # call0 jumps 3 instructions forward (into the chain). Subsequent calls chain with call+3,ret,illi.
+    # Code layout: [ra0 setup] [call0] [PASS code] [call1,ret,fence] ... [call64,ret,fence] [ret]
+    # call0 jumps 3 instructions forward (into the chain). Subsequent calls chain with call+3,ret,fence.
     # Each call pushes a distinct return address. The chain of rets unwinds.
     ("R1 MemRAS round-trip (65 calls, no RASOF)",
      [encode_rwii(0x4C, 18, 2, 0xFFFF),  # set.zw rd18, wp2, 0xFFFF → 0xFFFF_0000_0000_0000
@@ -402,7 +402,7 @@ TESTS = [
       call_iiii(3),                       # call → target (idx3), ret_addr = next
       set_zw_rd(18, 0), st_o_rd_pass(),  # return point → PASS
      ] +
-     [t for i in range(1, 65) for t in [call_iiii(3), ret_riii(0, 0), illi()]] +
+     [t for i in range(1, 65) for t in [call_iiii(3), ret_riii(0, 0), fence()]] +
      [ret_riii(0, 0)],
      PASS_EXIT,
      "MemRAS round-trip failed (RASOF with MemRAS enabled)"),
@@ -472,8 +472,8 @@ CTL_CHECKS = [
     ("CTL: st.o PASS but expect ILLI (wrong)",
      [set_zw_rd(18, 0), st_o_rd_pass()],
      ILLI_EXIT, "Self-check FAILED: probe cannot detect wrong values"),
-    ("CTL: illi but expect PASS (wrong)",
-     [illi()],
+    ("CTL: fence but expect PASS (wrong)",
+     [fence()],
      PASS_EXIT, "Self-check FAILED: probe cannot detect ILLI"),
 ]
 

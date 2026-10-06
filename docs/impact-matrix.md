@@ -142,7 +142,7 @@
 | 规格来源 | 依赖此节的合约/文件 | 下游实现目标 |
 |----------|-------------------|-------------|
 | `contract-isa.md §13.1 占位指令 swym`（SimRISC-11 §占位指令） | `contracts/opcodes.yaml` | LLVM MC、QEMU CPU、vectors |
-| `contract-isa.md §13.2 非法指令 illi`（SimRISC-11 §非法指令） | `contracts/legality_rules.yaml`；`adr-0004 §D5.1`、`§D6.3` | LLVM MC、QEMU CPU、QEMU machine、vectors、harness |
+| `contract-isa.md §13.2 非法指令异常（ILLI）`（SimRISC-11 §非法指令） | `contracts/legality_rules.yaml`；`adr-0004 §D5.1`、`§D6.3` | LLVM MC、QEMU CPU、QEMU machine、vectors、harness |
 | `contract-isa.md §13.3 伪指令 nop`（SimRISC-11 §nop 伪指令） | `contracts/opcodes.yaml`（展开形式） | LLVM MC、vectors |
 | `contract-isa.md §13.4 保留编码（UNDI）`（SimRISC-00 §SimRISC QFC） | `contracts/legality_rules.yaml`；`adr-0004 §D5.2` | QEMU CPU、QEMU machine、vectors、harness |
 | `contract-isa.md §13.5 全零指令（ILLI）`（SimRISC-11 §非法指令） | `contracts/legality_rules.yaml`；`adr-0004 §D5.1` | QEMU CPU、QEMU machine、vectors、harness |

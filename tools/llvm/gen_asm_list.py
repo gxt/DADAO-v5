@@ -122,7 +122,7 @@ FEATURE_OVERRIDE = {
     "jump": "rb",
     # call 压栈 / ret 弹栈均走 RegRAS（ra）——用户裁定 2026-09-25
     "call": "ra", "ret": "ra",
-    "swym": "imm", "illi": "imm", "fence": "imm",
+    "swym": "imm", "fence": "imm",
     "escape": "cfx", "trap": "cfx",
 }
 
@@ -362,7 +362,7 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
     # rwii —— 保持 wpN
     if fmt == "rwii":
         return f"{mnemonic} {R(ops[0])}, wpN, immu16"
-    if mnemonic in ("swym", "illi", "fence"):
+    if mnemonic in ("swym", "fence"):
         return f"{mnemonic} {field_name(imm_ops[0]['name']) if (field and imm_ops) else '0'}"
     # 双目的指令（rrrr 格式，rdha/rdhb 均为 dst）：{rdHA, rdHB}, rdHC, rdHD
     if fmt == "rrrr" and mnemonic in _DUAL_TARGET_MNEMONICS:

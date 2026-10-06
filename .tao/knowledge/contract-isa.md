@@ -251,13 +251,13 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | `MISC-octa` | 0100-0000 | octa |
 
 - 各子表指令的 opx 在 `ha[5:0]`，与 op 共同确定指令。[SimRISC-00 §指令域说明]
-- `MISC-AMO`（op = 0111-0111）承载 illi/fence 与 LR-SC 原子指令。[SimRISC-00 §MISC-AMO 指令编码]
+- `MISC-AMO`（op = 0111-0111）承载 `fence`、`swym` 与 LR-SC 原子指令。[SimRISC-00 §MISC-AMO 指令编码]
 - `MISC-RF`（op = 0100-0100）承载浮点指令，Excluded from M1。[SimRISC-00 §MISC-RF指令编码]
 
 ### §2.9 保留编码
 
 - QFC 主表与各 MISC 子表的空白单元格为 reserved（保留未分配），执行保留编码触发 **UNDI** 异常。[SimRISC-00 §SimRISC QFC]
-- 32 位全零指令字（0x00000000）：`MISC-AMO` 编码变更后，op = 0x00 在 QFC 主表为空白单元格（reserved），触发 **UNDI** 异常（不再是 `illi 0`）。`illi 0` 的新编码为 0x77000000。[SimRISC-11 §非法指令]
+- 32 位全零指令字（0x00000000）：op = 0x00 在 QFC 主表为空白单元格（reserved），触发 **UNDI** 异常（原专门非法指令已于 0.5.4 删除）。[SimRISC-00 §SimRISC QFC][SimRISC-11 §非法指令]
 
 ---
 
@@ -1069,7 +1069,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 
 ## §13 其它指令
 
-> 范围：占位指令 `swym`、非法指令 `illi`、NOP 伪指令、保留编码与全零指令。特权 cfx 指令与 LR-SC 原子指令见 §14（Excluded from M1）。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
+> 范围：占位指令 `swym`、ILLI 非法指令异常、NOP 伪指令、保留编码与全零指令。特权 cfx 指令与 LR-SC 原子指令见 §14（Excluded from M1）。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
 
 ### §13.1 占位指令 swym（oiii 格式）
 
@@ -1082,18 +1082,14 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 
 - 硬件可设时延上限，N 超过阈值后时延不再增加。[SimRISC-11 §占位指令]
 - 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。[SimRISC-11 §占位指令]
+- `swym` 的 op = `0111-0111`（0x77）、`ha` = `100-010`（0x22），`swym 0` 的编码为 **0x77880000**。[SimRISC-11 §占位指令][SimRISC-00 §MISC-AMO 指令编码]
 
-### §13.2 非法指令 illi（oiii 格式）
+### §13.2 非法指令异常（ILLI）
 
-SimRISC 采用 `illi` 作为专门的非法指令（illegal instruction）。[SimRISC-11 §非法指令]
+SimRISC 0.5.4 **不再**提供专门的非法指令助记符（原 `op=0x77, ha=0x00`）；`ILLI`（illegal instruction）异常改由**非法操作数、非法条件**或**已定义但本机器未实现的编码**触发。[SimRISC-11 §非法指令]
 
-| 指令 | 语义 | 来源 |
-|------|------|------|
-| `illi 0` | 引发 **ILLI** 异常 | [SimRISC-11 §非法指令] |
-
-- `illi` 的后 18 位立即数无特殊含义，完全由用户/软件自定义，用户可通过操作系统机制捕获该异常并做功能扩展。[SimRISC-11 §非法指令]
-- 不建议捕获其它指令产生的非法指令异常做功能扩展（例如很多指令不允许目的为 rd0，否则引发非法指令异常）。[SimRISC-11 §非法指令]
-- `illi` 的 op = 0111-0111（0x77），`illi 0` 的编码为 0x77000000。MISC-AMO 编码变更后，32 位全零指令字（0x00000000）不再是 `illi 0`，而是保留编码，触发 **UNDI** 异常（见 §2.9）。[SimRISC-11 §非法指令]
+- 已定义编码但操作数/字段非法时触发 ILLI（如目的寄存器为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等）。[SimRISC-11 §非法指令]
+- `scope: excluded` 的已定义编码（特权 cfx、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI。[SimRISC-11 §非法指令]
 
 ### §13.3 伪指令 nop
 
@@ -1107,9 +1103,9 @@ QFC 主表与各 MISC 子表的空白单元格为 reserved（保留未分配）�
 
 ### §13.5 全零指令（UNDI）
 
-MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 在 QFC 主表为空白单元格（reserved），触发 **UNDI** 异常（非 ILLI）。`illi 0` 的编码已变更为 0x77000000（op = 0x77）。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
+MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 在 QFC 主表为空白单元格（reserved），触发 **UNDI** 异常（非 ILLI）。[SimRISC-00 §SimRISC QFC]
 
-> 注意：`illi` 指令本身（op=0x77）触发 ILLI（§13.2），而全零字（op=0x00，保留编码）触发 UNDI（§13.5/§13.4），二者不同。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
+> 注意：`ILLI` 异常（非法操作数/条件，§13.2）与保留编码触发的 `UNDI`（§13.5/§13.4）不同。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
 
 ---
 
@@ -1189,7 +1185,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]
 - 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-04/08/09/10 §加减操作][SimRISC-04/08/09/10 §比较操作][SimRISC-04/08/09/10 §乘除操作]
-- `illi` 指令本身（op=0x77000000）。[SimRISC-11 §非法指令]
+- `scope: excluded` 的已定义编码（特权 cfx、LR-SC 原子、`fence`）在本机器执行时触发 ILLI（原专门非法指令已于 0.5.4 删除）。[SimRISC-11 §非法指令]
 
 ### §15.2 精确异常承诺
 
@@ -1393,10 +1389,9 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
-| 000-000 | `illi` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
-| 000-010 | `swym` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
+| 100-010 | `swym` | oiii | [SimRISC-00 §MISC-AMO 指令编码] |
 
-> `fence`（000-001）与 LR-SC 条目（010-xxx / 011-xxx）为 `scope: excluded`，见 A.7。[SimRISC-00 §MISC-AMO 指令编码]
+> `fence`（000-000）与 LR-SC 条目（010-xxx / 011-xxx）为 `scope: excluded`，见 A.7。[SimRISC-00 §MISC-AMO 指令编码]
 
 ### A.7 `scope: fp` / `scope: excluded` 编码清单
 
@@ -1428,7 +1423,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x7F | trap | `trap` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | MISC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
 | MISC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
-| MISC-AMO 000-001 | fence | `fence` | 待定指令 | [SimRISC-00 §MISC-AMO 指令编码] |
+| MISC-AMO 000-000 | fence | `fence` | 待定指令 | [SimRISC-00 §MISC-AMO 指令编码] |
 | MISC-AMO 010-xxx | lr_nn/lr_nr/lr_an/lr_ar | `lr_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
 | MISC-AMO 011-xxx | sc_nn/sc_nr/sc_an/sc_ar | `sc_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
 

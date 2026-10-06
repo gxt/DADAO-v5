@@ -29,7 +29,7 @@
 | **IALIGN** | 指令对齐 | `instruction_align` | **dynamic** | 06 |
 | **RASOF / RASUF** | 控制流 | `ras_of` / `ras_uf` | **dynamic** | 06 |
 
-† `reserved_undi` 的 fault = UNDI（覆盖 QFC 空白单元格）；32 位全零 → ILLI（`illi` 指令）。
+† `reserved_undi` 的 fault = UNDI（覆盖 QFC 空白单元格）；32 位全零 → ILLI（原专门非法指令；`ADR-0012 D3.5` 起该指令已删除、全零字为保留编码 → UNDI）。
 
 ### 1.2 各章「合法性检查」生成区排布序
 
@@ -47,7 +47,7 @@
 
 ### 1.3 聚合分布（要点）
 
-- **M1 中 `legality: []` 共 18 条**：`st.b`、10 条条件跳转、`jump`、`call`/`ret`、`illi`、`swym`（excluded_m1）。其合法性由**动态通用规则**覆盖（`instruction_align` IALIGN、`ras_of`/`ras_uf`），或 `rd0` 作**源**合法（ADR-0015 D2）。
+- **M1 中 `legality: []` 共 18 条**：`st.b`、10 条条件跳转、`jump`、`call`/`ret`、原专门非法指令（已删除）、`swym`（excluded_m1）。其合法性由**动态通用规则**覆盖（`instruction_align` IALIGN、`ras_of`/`ras_uf`），或 `rd0` 作**源**合法（ADR-0015 D2）。
 - 各章命中规则密度（聚合）：01 章 `rd_dest_rd0`×16 + `multi_*`×8 + `ra_multi_*`×4 + `data_malign`×14；04/08/09/10 章 `rd_dest_rd0` + `dual_dest_*` + `shamt_overflow` + `ext_bit_overflow` + `div_*`；等等。
 
 ---

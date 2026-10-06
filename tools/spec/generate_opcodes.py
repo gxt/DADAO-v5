@@ -2,7 +2,7 @@
 """从 SimRISC 0.5.4 规范生成范围机器可读编码表 contracts/opcodes.yaml。
 
 每条记录带 `scope` 字段（互斥、穷尽，用户裁定 2026-10-03）：
-  - `scope: m1`（152 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统）；
+  - `scope: m1`（151 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统）；
   - `scope: fp`（60 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
     独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
   - `scope: excluded`（15 条）——特权 cfx / LR-SC / fence，暂未归类；
@@ -241,7 +241,6 @@ S06_RET = "SimRISC-06 §函数返回"
 
 # 其它（SimRISC-11）
 S11_SWYM = "SimRISC-11 §占位指令"
-S11_ILLI = "SimRISC-11 §非法指令"
 
 # 待定（SimRISC-12）
 S12_FENCE = "SimRISC-12 §fence指令"
@@ -507,14 +506,14 @@ def build_main_table(records):
 
 def build_misc_amo(records):
     op = 0x77
-    records.append(rec("illi", "illi", "oiii", op, f_oiii("immu18"),
-                       [], S11_ILLI, ha=0x00))
+    # ADR-0012 D3.5：删除原专门非法指令（ILLI 异常保留，由非法操作数/条件/保留编码触发）；
+    # fence 移至 000-000（ha=0x00）；swym 移至 100-010（ha=0x22）。
     records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
                        ["immu18[17:12] == 0", "immu18[11:6] == 0", "immu18[5:4] == 0"],
-                       S12_FENCE, ha=0x01, scope="excluded"))
-    # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 MISC-AMO 000-010
+                       S12_FENCE, ha=0x00, scope="excluded"))
+    # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 MISC-AMO 100-010（ha=0x22）
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
-                       [], S11_SWYM, ha=0x02))
+                       [], S11_SWYM, ha=0x22))
     # spec MISC-AMO 表：行 010-xxx（lr）/ 011-xxx（sc）→ ha 0x10-0x13 / 0x18-0x1B
     for i, mnem in enumerate(["lr_nn.o", "lr_nr.o", "lr_an.o", "lr_ar.o"]):
         records.append(rec(mnem, mnem, "orrr", op,

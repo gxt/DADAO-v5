@@ -13,9 +13,9 @@ Value comparison method (br.ne-based, v4):
   2. Load expected value
   3. cmp.uo rd_cmp, result, expected → rd_cmp=0 if equal, ±1 if not
   4. set.zw rd_zero, 0
-  5. br.ne rd_cmp, rd_zero, 2 → if mismatch, skip 2 → illi
-  6. set.zw rd1, 1; br.ne rd1, rd0, 2 → unconditional skip illi → UNDI
-  7. illi → exit 136
+  5. br.ne rd_cmp, rd_zero, 2 → if mismatch, skip 2 → fence
+  6. set.zw rd1, 1; br.ne rd1, rd0, 2 → unconditional skip fence → UNDI
+  7. fence → exit 136
   So: UNDI(137) = PASS (match), ILLI(136) = FAIL (mismatch).
 
 Usage: python3 tools/qemu/min_rom_probe_005t.py
@@ -110,8 +110,8 @@ def br_ne(rdha, rdhb, imms12):
     if imms12 < 0: hc |= 0x20
     return encode_orrr(0x6F, rdha, rdhb, hc, hd)
 
-def illi(): return encode_oiii(0x00, 0x00, 0)
-def swym(): return encode_oiii(0x00, 0x02, 0)
+def fence(): return encode_oiii(0x77, 0x00, 0)
+def swym(): return encode_oiii(0x77, 0x22, 0)
 
 # ── Terminators / ROM ────────────────────────────────────────────────
 
@@ -121,11 +121,11 @@ def build_rom(instructions):
     rom = b''
     for insn in instructions: rom += insn
     rom += UNDI_TERMINATOR
-    while len(rom) < 64: rom += illi()
+    while len(rom) < 64: rom += fence()
     return rom
 
 def run_rom(rom_data, kernel_data=None, timeout=10):
-    if kernel_data is None: kernel_data = illi() * 4
+    if kernel_data is None: kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rom_path = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
@@ -151,13 +151,13 @@ CRASH_EXIT = 134
 #   [N]   set.zw rd_expected, ... (construct expected value)
 #   [N+K] cmp.uo rd_cmp, rd_result, rd_expected
 #   [N+K+1] set.zw rd_zero, 0
-#   [N+K+2] br.ne rd_cmp, rd_zero, 2   # mismatch → skip 2 → illi
+#   [N+K+2] br.ne rd_cmp, rd_zero, 2   # mismatch → skip 2 → fence
 #   [N+K+3] set.zw rd1, 1              # match: prep unconditional skip
-#   [N+K+4] br.ne rd1, rd0, 2          # unconditional → skip illi → UNDI
-#   [N+K+5] illi                        # mismatch target
+#   [N+K+4] br.ne rd1, rd0, 2          # unconditional → skip fence → UNDI
+#   [N+K+5] fence                        # mismatch target
 #
 # Match:   cmp=0 → br.ne NOT taken → set.zw(1,1) → br.ne(1,0,2) TAKEN → UNDI(137)
-# Mismatch: cmp≠0 → br.ne TAKEN → illi(136)
+# Mismatch: cmp≠0 → br.ne TAKEN → fence(136)
 
 def _set_rd_to_val(insns, rd, val):
     """Set rd to a 64-bit value. Handles small values via set.zw+add_si."""

@@ -10,7 +10,7 @@ Tests (ADR-0015 D1/D2/D3):
 
 CTL self-check:
   CTL1: st.o rd0 expects ILLI (wrong; should PASS) → probe broken if passes
-  CTL2: illi expects PASS (wrong) → probe broken if passes
+  CTL2: fence expects PASS (wrong) → probe broken if passes
 
 Exit codes: PASS=0, ILLI=136(0x88), UNDI=137(0x89), CRASH=134
 
@@ -122,9 +122,9 @@ def div_uo(rdhb, rdhc, rdhd):
     """div.uo rdhb, rdhc, rdhd — unsigned octa divide"""
     return encode_orrr(0x40, 0x38, rdhb, rdhc, rdhd)
 
-def illi():
-    """illi — trigger ILLI exception (exit=136)"""
-    return encode_oiii(0x00, 0x00, 0)
+def fence():
+    """fence — trigger ILLI exception (exit=136)"""
+    return encode_oiii(0x77, 0x00, 0)
 
 # ── Terminators and ROM builder ───────────────────────────────────────
 
@@ -150,12 +150,12 @@ def build_rom(test_insns):
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
-        rom += illi()
+        rom += fence()
     return rom
 
 def run_test(rom_data, kernel_data=None, timeout=10):
     if kernel_data is None:
-        kernel_data = illi() * 4
+        kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rom_path = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
@@ -402,8 +402,8 @@ CTL_CHECKS = [
      [st_o(0, 17, 0), st_o(0, 16, 0)],  # st.o rd0 should succeed
      ILLI_EXIT,
      "Self-check FAILED: probe cannot detect st.o rd0 PASS vs ILLI"),
-    ("CTL2: illi expects PASS (wrong)",
-     [illi()],
+    ("CTL2: fence expects PASS (wrong)",
+     [fence()],
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
 ]

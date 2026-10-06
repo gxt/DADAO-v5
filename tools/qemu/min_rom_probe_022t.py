@@ -11,7 +11,7 @@ Test cases:
 
 CTL self-check:
   CTL1: st.o PASS but expect TIMEOUT (wrong) — probe broken if passes
-  CTL2: illi but expect PASS (wrong) — probe broken if passes
+  CTL2: fence but expect PASS (wrong) — probe broken if passes
 
 Usage: python3 tools/qemu/min_rom_probe_022t.py
 """
@@ -64,8 +64,8 @@ def st_o_rd(rdha, rbhb, imms12):
     if imms12 < 0: hc |= 0x20
     return encode_rrii(0x21, rdha, rbhb, hc, hd)
 
-def illi():
-    return encode_orri(0x00, 0x00, 0, 0, 0)
+def fence():
+    return encode_orri(0x77, 0x00, 0, 0, 0)
 
 # ── Terminators and ROM builder ───────────────────────────────────────
 
@@ -91,12 +91,12 @@ def build_rom(test_insns):
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
-        rom += illi()
+        rom += fence()
     return rom
 
 def run_test(rom_data, kernel_data=None, timeout=10):
     if kernel_data is None:
-        kernel_data = illi() * 4
+        kernel_data = fence() * 4
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rom_path = f.name
     with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
@@ -173,8 +173,8 @@ CTL_CHECKS = [
      [st_o_rd(18, 16, 0)],
      TIMEOUT_EXIT,
      "Self-check FAILED: probe cannot detect PASS vs TIMEOUT"),
-    ("CTL2: illi but expect PASS (wrong)",
-     [illi()],
+    ("CTL2: fence but expect PASS (wrong)",
+     [fence()],
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
 ]
