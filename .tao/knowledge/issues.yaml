@@ -398,3 +398,19 @@
   blocks: []
   resolved_by: SPEC-112t
   notes: "LLVM-056t F7：LLD allocateHeaders 把 ELF 头放在最低 section 下方一页（RAM 基址 0xffff00000000 → 头落 0xfffefffff000），首个 PT_LOAD 区间越过 RAM 下界；.text sh_offset=0x1000（file offset 0 被头占据，字面 0 不可达）。已按用户裁定用 p_offset=0/flat 口径。ADR-0004 §D2.3 规定 PT_LOAD 越出映射区域即启动报错——QEMU-042t ELF 加载器须就「text 段头部一页落在 RAM 之下」与 INTEG-016t 对齐（或允许 unmapped 部分被忽略）。[SPEC-112t 2026-10-06 结案] ADR-0003 §D5 就地修订（rev. 2026-10-06，用户逐条确认）：M4 裸机路径 dadao.lds 不使用 FILEHDR PHDRS（ELF 头/程序头表只存在于文件中、不进入 guest 内存；LLD 的 FILEHDR PHDRS 能力原样保留），并冻结 p_offset 不做要求、p_align 目标默认 64 KiB（可被 -z max-page-size 覆写）。去 FILEHDR PHDRS 后首段回到 RAM 内（0xFFFF00000000），原『头部页落在 RAM 之下』问题根除；QEMU-042t/INTEG-016t 无需再处理该页。配套文本见 contract-elf §5.3/§6.1.2、milestones.md M4 范围段；实改/重建归 LLVM-058t。"
+
+- id: ISS-156
+  title: "set.fo rf,0 的 rd2rf 特例与 Toolchain-01 §6.1「4×set.w」口径不一"
+  status: open
+  scope: [llvm, spec]
+  blocks: []
+  resolved_by: null
+  notes: "TESTCASES-029t reviewer 建议登记：伪指令展开 `set.fo rf,0` 走 `rd2rf`（move rf0）而非 spec §6.1 的「4×set.w」口径。非阻塞 M4（向量只取非 0 值回避）。需核 spec 或实现择一。"
+
+- id: ISS-157
+  title: "汇编助记符大小写不敏感（spec 要求）当前未实现且未测"
+  status: open
+  scope: [llvm, spec]
+  blocks: []
+  resolved_by: null
+  notes: "TESTCASES-029t reviewer 建议登记：spec 要求助记符大小写不敏感，M4 MC 层当前未实现；本任务 norm 只测空白规范化（避免超 M4 范围）。需确认是否属 M4 能力缺口或留后。"
