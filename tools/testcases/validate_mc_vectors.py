@@ -9,8 +9,8 @@
 ``-multiple-to-single``、``§9`` 诊断、``§2.2`` ``#`` 非法）**独立派生**
 每条向量的期望编码/字段/展开形态，再与向量文件内联期望比对。
 
-向量文件 = ``tests/llvm/lit/MC/DADAO/m4-*.s``（每条新向量首行
-``; UNSUPPORTED: true``）。每个向量的**输入**是代码部分，**期望值**是同一行
+向量文件 = ``tests/llvm/lit/MC/DADAO/m4-*.s``（`INTEG-016t` 起已接入门控，
+不再要求门控占位标记）。每个向量的**输入**是代码部分，**期望值**是同一行
 末尾的 ``; @<kind> <expect>`` 注释：
 
     add.si rd8, 1                    ; @enc 59200001
@@ -709,8 +709,6 @@ def parse_vectors():
     for path in files:
         with open(path, "r", encoding="utf-8") as fh:
             lines = fh.read().splitlines()
-        if not lines or "UNSUPPORTED:" not in lines[0]:
-            raise ValueError("%s: 首行缺少 'UNSUPPORTED:' 标记" % path)
         cat = None
         pending_obj = None    # 最近一条 `; OBJ:` 的字节（供下一条 @enc 引用）
         for lineno, raw in enumerate(lines, 1):

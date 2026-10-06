@@ -1,4 +1,3 @@
-# UNSUPPORTED: true
 #
 # RUN: %llc -march=dadao -run-pass=branch-folder -verify-machineinstrs %s -o - \
 # RUN:   | %FileCheck %s
@@ -14,8 +13,7 @@
 # guard block (via `removeBranch`).  Before LLVM-059t the pass aborted with
 # "Target didn't implement TargetInstrInfo::insertBranch!".
 #
-# Checks (driven directly by `.work/evidence/LLVM-059t/run.sh` while the suite
-# is not wired into `make check-lit`):
+# Checks (driven by `make check-lit`; the suite is wired in by INTEG-016t):
 #   * bb.*.cond   -- conditional `br_p_rd` *followed by* an unconditional
 #                    `jump_iiii` => the two-way insert shape;
 #   * bb.*.done   -- conditional `br_nz_rd` with NO trailing unconditional

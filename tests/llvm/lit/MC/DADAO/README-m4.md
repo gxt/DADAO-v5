@@ -6,18 +6,23 @@
 > 权威源：`spec/Toolchain-01-汇编语言.md §6–§10`、`.tao/knowledge/contract-asm.md
 > §6–§10`、`contracts/opcodes.yaml`、`.tao/knowledge/contract-elf.md §1.1/§2.2`。
 
-## 门控时序（用户裁定 2026-10-06）
+## 门控时序（用户裁定 2026-10-06；INTEG-016t 接入）
 
-本任务**只产出向量 + 独立 oracle**，**暂不接入** `make check`/`make check-lit`/
-`make test-elf`。每个 `m4-*.s` 向量首行带
+本任务**只产出向量 + 独立 oracle**，产出时**暂不接入** `make check`/`make check-lit`/
+`make test-elf`，每个 `m4-*.s` 向量首行带
 
 ```
 ; UNSUPPORTED: true
 ```
 
-使 `llvm-lit` 将其记为 **unsupported**（不阻断、也不误报 PASS）。由对应实现任务
-（`LLVM-051t`~`054t`）与 `INTEG-016t` 移除标记、接入并转绿。用户原话：
+使 `llvm-lit` 将其记为 **unsupported**（不阻断、也不误报 PASS）。用户原话：
 「向量+独立 oracle，暂不接入门控（推荐）」。
+
+**`INTEG-016t` 已移除全部 `m4-*.s` 的标记并接入 `make check-lit`**（`m4-*` 与既有
+`LLVM-051t`~`054t` 实现向量并存、同目录运行）。其中 4 个向量（`m4-pseudo-set.s`/
+`m4-directive-dd.s`/`m4-option-mts.s`/`m4-roundtrip.s`）在移除标记时发现其 RUN 行
+引用的 FileCheck 前缀缺少对应 check 行，已补齐（内容与各向量 `@exp`/`@dir`/`@mts`/
+`@norm` 的独立派生期望一致；见 `INTEG-016t` 完成区「越界披露」）。
 
 ## 向量 ↔ 能力 ↔ 期望值来源
 
@@ -44,8 +49,7 @@
 `dd-width.s`、`multiple-to-single-*.s`、`imm-range.s` 等）。本任务的
 `m4-*.s` 是 **testcases 模块** 的 L1 向量集：内联期望（`; @<kind> …`）可由
 独立 oracle **从 `contracts/opcodes.yaml` + `spec/` 重算**，是「一能力一向量」
-的少量可审计集合；两者**不互相覆盖**，`m4-*.s` 以 `UNSUPPORTED:` 标记
-不进门控。
+的少量可审计集合；`INTEG-016t` 起两者**同目录并行**进 `make check-lit`。
 
 ## 内联期望注解格式
 
@@ -76,5 +80,8 @@
 1. 改一条 `@enc`/`@exp` 期望值 → `FAIL`；
 2. 改一条向量的代码操作数 → `FAIL`；
 3. 少一类 `@category` 覆盖 → `FAIL`；
-4. 删除 `UNSUPPORTED:` 标记 → `FAIL`；
-5. 改一条 `; OBJ:` 期望字节 → `FAIL`（与 `@enc` 独立派生值不一致）。
+4. 改一条 `; OBJ:` 期望字节 → `FAIL`（与 `@enc` 独立派生值不一致）；
+5. 向量缺失 / 源文件被删 → `FAIL`（schema/覆盖）。
+
+> `INTEG-016t` 接入门控后，`validate_mc_vectors.py` 不再要求首行门控占位标记
+> （原 TESTCASES-029t 的「删标记 → FAIL」自检随之退役）；上列其余可失败性保留。

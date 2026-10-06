@@ -1,4 +1,3 @@
-; UNSUPPORTED: true
 ; RUN: echo 'nop'          | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 ; RUN: echo 'return'       | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 ; RUN: echo 'not.o rd1, rd2' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC

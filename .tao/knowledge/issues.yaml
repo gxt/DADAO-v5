@@ -369,11 +369,11 @@
 
 - id: ISS-152
   title: "LLVM-055t 遗留：未加 .ll codegen lit 向量（CodeGen/DADAO 占位 suite 未接 make check-lit）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "LLVM-055t reviewer 判属实、非阻塞：本任务以 .work/evidence/run.sh 作门控；L2 codegen 向量（全局数据/地址材料化）建议另立任务补入 tests/llvm/lit/CodeGen/DADAO 并接 check-lit。"
+  resolved_by: INTEG-016t
+  notes: "LLVM-055t reviewer 判属实、非阻塞：本任务以 .work/evidence/run.sh 作门控；L2 codegen 向量（全局数据/地址材料化）建议另立任务补入 tests/llvm/lit/CodeGen/DADAO 并接 check-lit。 【INTEG-016t 已结案：更新 tests/llvm/lit/CodeGen/DADAO/lit.cfg.py（suffixes .ll/.mir、%llc/%FileCheck/%not 替换、test_exec_root），Makefile check-lit 增该路径，移除 LLVM-059t 两条向量（branch-fold-insert.ll / branch-fold-two-way.mir）的 UNSUPPORTED 标记；make check-lit 60/60（含 CodeGen 两条被发现且 PASS）EXIT=0。2026-10-06】"
 
 - id: ISS-153
   title: "自定义 reloc 类型编号含 0（R_DADAO_ABS48=0）与 LLD 默认 0 值哨兵冲突，须显式设 TargetInfo 哨兵字段"

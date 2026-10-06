@@ -1,4 +1,3 @@
-; UNSUPPORTED: true
 ;
 ; RUN: %llc -march=dadao -O2 -verify-machineinstrs -stop-after=branch-folder %s -o - \
 ; RUN:   | %FileCheck %s
@@ -12,9 +11,8 @@
 ; `br_*` (fall-through) analysis.  Before LLVM-059t this aborted with
 ; "Target didn't implement TargetInstrInfo::insertBranch!" (SIGABRT, exit 134).
 ;
-; The test is `UNSUPPORTED` for now: `tests/llvm/lit/CodeGen/DADAO/lit.cfg.py`
-; has no tool substitutions yet, so the suite is not wired into `make check-lit`.
-; INTEG-016t wires the suite and drops this marker.
+; The suite is wired into `make check-lit` (INTEG-016t): `lit.cfg.py` provides
+; the `%llc`/`%FileCheck` substitutions and a build-tree `test_exec_root`.
 ;
 ; The expected branch sequence is derived from the M4 branch model (see the
 ; task / contract-isa): unconditional = `jump_iiii`; the loop counter test

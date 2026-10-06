@@ -1,4 +1,3 @@
-; UNSUPPORTED: true
 ; RUN: echo 'add.si rd8, 131072'      | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=RANGE
 ; RUN: echo 'cmp.ui rd8, rd9, 4096'   | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UI
 ; RUN: echo 'jump [rb0, 6]'           | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ALIGN

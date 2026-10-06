@@ -1,4 +1,3 @@
-; UNSUPPORTED: true
 ; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t.o
 ; RUN: %llvm_objdump -s --section=.text %t.o | %FileCheck %s
 
@@ -25,3 +24,10 @@
 
 ; 符号 → 48 位绝对地址重定位
 .dd.o64 ext                       ; @dir ABS48
+
+; RUN 行所需的 FileCheck 模式：`llvm-objdump -s --section=.text` 的完整
+; `.text` 字节（大端）。与各 `@dir` 的独立派生字节一致；`.dd.o64 ext` 为
+; 未解析的 `R_DADAO_ABS48` 重定位，其字段在目标文件中预置为 0。
+; CHECK: 12123411 22334411 22334455 667788ff
+; CHECK: ff000000 07000000 13000000 00000000
+; CHECK: 0020 00

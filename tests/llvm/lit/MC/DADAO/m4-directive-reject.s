@@ -1,4 +1,3 @@
-; UNSUPPORTED: true
 ; RUN: echo '.word 0x1234'   | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=WORD
 ; RUN: echo '.octa 0x1'      | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=OCTA
 ; RUN: echo '.dd.b08 0x1234' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=RANGE

@@ -1,4 +1,3 @@
-; UNSUPPORTED: true
 ; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
 ; RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=OBJ
 ; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM

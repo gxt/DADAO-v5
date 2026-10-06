@@ -1,4 +1,3 @@
-; UNSUPPORTED: true
 ; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
 ; RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s --check-prefix=DEF
 ; RUN: %llvm_mc --triple=dadao-unknown-elf -multiple-to-single -filetype=obj %s -o %t.opt
@@ -26,3 +25,27 @@ stm.b {rd8:rd9}, [rb3, rd2]    ; @mts stm.b {rd8}, [rb3, rd2] ; add.si rd2, 1 ; 
 ; orri 块移动：每元素一条，无偏移寄存器
 ra2rd {rd8:rd10}, {ra1:ra3}    ; @mts ra2rd {rd8}, {ra1} ; ra2rd {rd9}, {ra2} ; ra2rd {rd10}, {ra3}
 ft2fo {rf4:rf6}, {rf8:rf10}    ; @mts ft2fo {rf4}, {rf8} ; ft2fo {rf5}, {rf9} ; ft2fo {rf6}, {rf10}
+
+; RUN 行所需的 FileCheck 模式（与 `@enc`/`@mts` 独立派生期望一致）：
+; 默认（关）保持多寄存器形态；`-multiple-to-single` 展开为单寄存器序列
+; （`ldm.o`/`stm.b` 每元素间 `add.si` 步进、末条复原）。助记符不变。
+; DEF: ldm.o {rd8:rd10}, [rb2, rd1]
+; DEF: stm.b {rd8:rd9}, [rb3, rd2]
+; DEF: ra2rd {rd8:rd10}, {ra1:ra3}
+; DEF: ft2fo {rf4:rf6}, {rf8:rf10}
+; OPT: ldm.o {rd8}, [rb2, rd1]
+; OPT: add.si rd1, 8
+; OPT: ldm.o {rd9}, [rb2, rd1]
+; OPT: add.si rd1, 8
+; OPT: ldm.o {rd10}, [rb2, rd1]
+; OPT: add.si rd1, -16
+; OPT: stm.b {rd8}, [rb3, rd2]
+; OPT: add.si rd2, 1
+; OPT: stm.b {rd9}, [rb3, rd2]
+; OPT: add.si rd2, -1
+; OPT: ra2rd {rd8}, {ra1}
+; OPT: ra2rd {rd9}, {ra2}
+; OPT: ra2rd {rd10}, {ra3}
+; OPT: ft2fo {rf4}, {rf8}
+; OPT: ft2fo {rf5}, {rf9}
+; OPT: ft2fo {rf6}, {rf10}

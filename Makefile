@@ -42,7 +42,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
-        test-codegen \
+        test-codegen test-elf \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants
 
@@ -83,8 +83,9 @@ help:
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
-	@echo "  make check-lit        Run lit MC + E2E tests (requires build-mc + build-qemu)"
+	@echo "  make check-lit        Run lit MC + CodeGen + E2E tests (requires build-mc + build-qemu)"
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
+	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
 	@echo "  make check-patch-tree  Check component patch tree (spec/Process-01, 9 assertions)"
 	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
@@ -338,14 +339,15 @@ check-asm-prose:
 check-spec-codeblocks:
 	@$(PYTHON) tools/spec/check_spec_codeblocks.py
 
-# lit gate (INFRA-021t): run llvm-lit on MC (22/22) + E2E (3/3).
-# MC needs llvm-mc/llvm-objdump/FileCheck (build-mc-lite suffices).
-# E2E needs llvm-objcopy (full build-mc) + qemu-system-dadao (build-qemu) + trampoline.
+# lit gate (INFRA-021t): run llvm-lit on MC (M1/M4) + CodeGen (L2) + E2E.
+# MC needs llvm-mc/llvm-objdump/FileCheck (build-mc-lite suffices); CodeGen needs
+# llc + FileCheck (build-mc); E2E needs llvm-objcopy (full build-mc) +
+# qemu-system-dadao (build-qemu) + trampoline.
 # llvm-lit missing => explicit error (never silent skip).
 LIT_BIN = $(LLVM_BUILD)/bin/llvm-lit
 check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make build-mc' first"; exit 1; }
-	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/e2e/lit -v
+	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
 
 # M3 CodeGen end-to-end gate (INTEG-012t).  Reuses the build-mc/build-qemu
 # build trees.  Pipeline (single TU, per ADR-0003 D5):
@@ -377,6 +379,40 @@ test-codegen: build-mc build-qemu
 	  tail -20 $(CODEGEN_E2E_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "test-codegen: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "test-codegen: PASS"
+
+# M4 multi-TU / multi-section ELF end-to-end gate (INTEG-016t).  Reuses the
+# build-mc/build-lld/build-qemu build trees.  Pipeline (multi-object, per
+# contract-elf.md §6.1.2):
+#   llvm-mc --triple=dadao -filetype=obj tests/scripts/codegen_crt0.s -> crt0.o;
+#   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
+#   ld.lld -T tests/scripts/dadao.lds crt0.o <tu>.o ... -o <prog>.elf;
+#   qemu-system-dadao -M dadao-m1 -kernel <prog>.elf ...
+# The guest process exit code is compared against the independent M4 manifest
+# tests/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
+# Fail-closed: any mismatch / timeout / build-step non-zero => non-zero exit.
+# Coexists with test-codegen (raw-bin / trampoline: kept as-is).
+LLD_BIN = $(LLVM_BUILD)/bin/ld.lld
+CODEGEN_ELF_WORK = .work/codegen-e2e-elf
+CODEGEN_ELF_LOG = .work/log/integ/test-elf.log
+test-elf: build-mc build-lld build-qemu
+	@test -x $(LLC_BIN) || { echo "test-elf: ERROR: $(LLC_BIN) not found"; exit 1; }
+	@test -x $(LLVM_MC_BIN) || { echo "test-elf: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
+	@test -x $(LLD_BIN) || { echo "test-elf: ERROR: $(LLD_BIN) not found"; exit 1; }
+	@test -x $(QEMU_BIN) || { echo "test-elf: ERROR: $(QEMU_BIN) not found"; exit 1; }
+	@rm -rf $(CODEGEN_ELF_WORK); \
+	  mkdir -p .work/log/integ; \
+	  $(PYTHON) tools/integ/run_elf_e2e.py \
+	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
+	    --qemu $(QEMU_BIN) --crt0 tests/scripts/codegen_crt0.s \
+	    --lds tests/scripts/dadao.lds \
+	    --vectors-dir tests/llvm/codegen/m4 \
+	    --expected tests/llvm/codegen/m4/expected.yaml \
+	    --work-dir $(CODEGEN_ELF_WORK) \
+	    > $(CODEGEN_ELF_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -20 $(CODEGEN_ELF_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-elf: FAIL (rc=$$rc)"; exit $$rc; fi; \
+	  echo "test-elf: PASS"
 
 # Legality drift gate (SPEC-074t): verifies LEGALITY sections in
 # spec/SimRISC-01..12 exactly match content rendered from contracts/.

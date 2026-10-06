@@ -1,4 +1,3 @@
-; UNSUPPORTED: true
 ; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t
 ; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
 ; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s -o %t.s
@@ -12,7 +11,7 @@
 ;  - `反汇编 → 汇编` 产生**逐字节相同**编码。
 ; 不调用反汇编器即可独立校验的部分：任一等价书写必派生出**同一编码**。
 ; oracle 对 `@enc` 独立重算字节、对 `@norm` 独立重算两种书写的编码并断言相等；
-; `cmp %t %t2`（真往返）在移除 `UNSUPPORTED` 后由 lit 执行。
+; `cmp %t %t2`（真往返）现由 lit 执行（INTEG-016t 接入门控）。
 ;
 ; @category roundtrip
 
@@ -27,3 +26,13 @@ jump [rb0, 8]                      ; @enc 70000002
 add.uo {rd8, rd9}, rd10, rd11      ; @norm add.uo {rd8,rd9},rd10,rd11
 ld.ub rd8, [rb2, 1]                ; @norm ld.ub  rd8,[rb2,1]
 set.zw rd8, wp0, 0xffff            ; @norm set.zw  rd8,wp0,0xffff
+
+; RUN 行所需的 FileCheck 模式：`-filetype=asm` 输出的语义等价文本（规范化后）。
+; ASM: add.uo {rd8, rd9}, rd10, rd11
+; ASM: or.o rd8, rd9, rd10
+; ASM: ld.ub rd8, [rb2, 1]
+; ASM: ret rd8, 6
+; ASM: jump [rb0, 8]
+; ASM: add.uo {rd8, rd9}, rd10, rd11
+; ASM: ld.ub rd8, [rb2, 1]
+; ASM: set.zw rd8, wp0, 0xffff
