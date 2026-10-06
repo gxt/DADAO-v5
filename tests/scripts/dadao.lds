@@ -9,9 +9,10 @@
  *     -> .bss (contract-elf.md §5.1).
  *   * minimum alignment: .text 4 B, .rodata/.data/.bss 8 B (contract-elf.md §5.1).
  *   * entry symbol _start.
- *   * FILEHDR PHDRS: the ELF header + program headers are included in the
- *     first PT_LOAD so that the loadable text image starts at file offset 0
- *     (contract-elf.md §6.1.2).
+ *   * the ELF header and program headers stay in the file only and do not
+ *     enter guest memory; the first PT_LOAD starts at .text (contract-elf.md
+ *     §6.1.2).  Its file offset is a linker file-layout artifact (currently
+ *     0x10000), not an invariant.
  *   * segment permissions: .text RX, .rodata/.data/.bss RW, .rom RX.
  *
  * Over-size is a link-time error (contract-elf.md §3.2 / §6.1.2,
@@ -30,7 +31,7 @@ MEMORY
 
 PHDRS
 {
-  text PT_LOAD FILEHDR PHDRS;
+  text PT_LOAD;
   data PT_LOAD;
   rom  PT_LOAD;
 }

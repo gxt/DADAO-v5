@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M4
 **依赖**：`SPEC-112t`
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -74,20 +74,65 @@
 
 ## 完成区
 
-**测试结果**：（真实输出/退出码；引用 `.work/evidence/LLVM-058t/` 与 `.work/log/llvm/`；重建耗时）
+**测试结果**：一键证据脚本 `.work/evidence/LLVM-058t/run.sh` **正常模式 0 failure / EXIT=0**、`--inject` 模式 **0 failure / EXIT=0**（真实输出：`.work/log/llvm/LLVM-058t-evidence-run.log`、`LLVM-058t-evidence-inject.log`）。重建耗时：`make build-lld` 为增量——cmake 复用已有配置（日志 `Configuring done (8.1s)` + `Generating done (4.2s)`），ninja 仅 3 步（编译 `DADAO.cpp.o` + 归档 `liblldELF.a` + 链接 `bin/lld`）；`--inject` 另含两次增量重建（源码注入 + 还原）。回归门控：`make check`/`make check-patch-tree`/`make test-codegen`/`make check-lit` 全 EXIT=0。
 
-**修改文件**：（`tests/scripts/dadao.lds`、组件源树 `lld/ELF/Arch/DADAO.cpp`、补丁集、`components/llvm-project/changelog.md`、证据脚本、本任务书）
+**修改文件**：
+- `tests/scripts/dadao.lds`（首段 `text PT_LOAD FILEHDR PHDRS;` → `text PT_LOAD;` + 头部注释同步，见审阅记录 F1/用户裁定）
+- `.work/source/llvm-project/lld/ELF/Arch/DADAO.cpp`（ctor **+1 行** `defaultMaxPageSize = 0x10000;`；组件源树经 `commit --amend` 收敛 base+1，**未提交**）
+- `components/llvm-project/patches/lld/ELF/Arch/DADAO.cpp.patch`（由 `make_patch.py` 重导出，`+1,193`→`+1,194`；`series` 内容不变仍 57 项）
+- `components/llvm-project/changelog.md`（追加 `LLVM-058t` 一条）
+- `.work/evidence/LLVM-056t/run.sh`（§2 首段 file offset `0x0`→`0x10000`、§7 `text PT_LOAD FILEHDR PHDRS`→`text PT_LOAD`；头部加注由 `LLVM-058t` 更新）
+- `.work/evidence/LLVM-058t/run.sh`（新建）+ `DADAO.056t.cpp`（056t 基线快照）
+- 本任务书（完成区/自审/状态）
 
-**验收结果**：（逐条对应「验收标准」1–13，附真实命令输出/退出码；**禁**转述/估算）
+**验收结果**（逐条对应「验收标准」1–13；完整日志 `.work/log/llvm/LLVM-058t-acceptance.log` 与 `LLVM-058t-*.log`）：
+
+1. **构建** `JOBS=8 make build-lld` EXIT=**0**；`bin/ld.lld -> lld`（`lld` 目标的 POST_BUILD 符号链接拷贝，无独立 `ld.lld` 目标）。真实尾部：`[1/3] Building CXX object …/Arch/DADAO.cpp.o`、`[3/3] Linking CXX executable bin/lld`、`build-lld: PASS`（`.work/log/llvm/LLVM-058t-build-lld.log`）。
+2. **`dadao.lds`** `grep -n 'FILEHDR'` 无输出 **EXIT=1**；`text PT_LOAD;`（三条 `PT_LOAD` 均去 `FILEHDR`）。`git diff`：功能行仅 `text PT_LOAD FILEHDR PHDRS;`→`text PT_LOAD;`；此外按用户裁定同步了第 12–14 行注释（原述 `FILEHDR PHDRS` 已失真）——详见 F1 与用户原话。`MEMORY`/`ENTRY`/段序/`ALIGN`/`ASSERT`/`data`:`rom` 行**逐行不变**。
+3. **`DADAO.cpp`** ctor 含 `defaultMaxPageSize = 0x10000;`。以 056t 提交版（`.work/evidence/LLVM-058t/DADAO.056t.cpp`，193 行）对拍：`diff` = `59a60 > defaultMaxPageSize = 0x10000;  // DADAO page = 64 KiB (DADAO-12 §2.2.2)`，**added=1 / removed=0**；`relocate()`/`getRelExpr()`/`calcEFlags()`/`relocateAlloc()`/`relocateInSection()` 函数体 diff **为空**。
+4. **链接与布局**（`llvm-mc` 056t `reloc.s`→`reloc.o`；`ld.lld -T dadao.lds reloc.o` **LD_EXIT=0**）：无 `PT_LOAD` 越界（自定义 bounds 检查：2 个 PT_LOAD 全落 RAM/ROM）；`e_entry=0xFFFF00000000`；首段 `p_vaddr=0xFFFF00000000`；全部 `p_align=0x10000`；首段 `p_offset=0x10000`（**实测**）且 `p_offset ≡ p_vaddr (mod p_align)`（`0x10000 ≡ 0xFFFF00000000 mod 0x10000`）；`.text` VA=`0xFFFF00000000`；**不出现** `0xFFFEFFFFF000`。
+5. **reloc 字节逐条不变**：`reloc.elf .text = 4c200018482100004822ffff740000036b2000046e209003`（逐字节相同）；`llvm-readobj -r` 无未解析 reloc；`data.elf .data = 0000ffff000000000000ffff000000100000ffff00000000`、`.rodata = 0000ffff00000000`（均与 056t 相同）。
+6. **反向证明 ①（能力未削弱）**：`/tmp` 下的脚本副本临时加回 `text PT_LOAD FILEHDR PHDRS;` → `ld.lld` **EXIT=0**（首段 `Offset=0x0`、`vaddr=0xFFFEFFFF0000`）；用后已删（`tests/scripts/` 未污染，主脚本回绿）。
+7. **反向证明 ②（`-z max-page-size` 可覆写）**：`-z max-page-size=4096` → `p_align=0x1000`（EXIT=0）；`-z max-page-size=0x20000` → `p_align=0x20000`；默认链接回 `0x10000`。
+8. **reloc 溢出负例仍成立**：`ovf_rel14/20/26`、`ovf_abs48`、`ovf_abs48i` 均 **rc=1 + `out of range`**（5/5）。
+9. **段溢出负例仍成立**：`ram_ovf` rc=1（`RAM sections exceed 16 MiB`）、`rom_ovf` rc=1（`ROM section exceeds 64 KiB`）；`ram_fill`/`rom_fill` rc=0（恰好填满不误杀）。
+10. **不回归**：`make check` EXIT=0（`repository checks: PASS`，lit 50/50）、`make check-patch-tree` EXIT=0（`2 component(s), 89 patches OK`）、`make test-codegen` EXIT=0（`Results: 15/15 passed`）、`make check-lit` EXIT=0（50/50）。
+11. **补丁与台账**：`DADAO.cpp.patch` 重导出为 `@@ -0,0 +1,194 @@`（含新行、非空 hunk）；`series` 含 `lld/ELF/Arch/DADAO.cpp.patch`（57 项）；`changelog.md` 含 `LLVM-058t` 条目（去 `FILEHDR PHDRS` + `defaultMaxPageSize = 0x10000` / `p_align` 默认 64 KiB 可覆写）。
+12. **一键证据脚本** `.work/evidence/LLVM-058t/run.sh`：正常模式 **全绿/EXIT=0**；`--inject`：`(a)` 脚本级加回 `FILEHDR PHDRS` → bounds 检查 FAIL（`OUT-OF-BOUNDS PT_LOAD: vaddr=0xfffeffff0000`）→ 还原回绿（无重建）；`(b)` 源码级 `0x10000`→`0x1000` → **重建** → `p_align=0x1000,`（FAIL）→ 还原源码（`git status` 空）+ **重建** → `p_align=0x10000,` 回绿。注入有效性：注入后 `git -C .work/source/llvm-project diff --name-only` 非空；还原后工作区干净。
+13. **状态**：已置 `待验收`。
 
 **新发现/坑**：
+1. **任务书 §输出 2 的引用笔误**：`DADAO-12 §2.2.1` 实为「超页的地址转换」（512 MiB），普通页 64 KiB 在 **§2.2.2**（`SPEC-112t` 已记录同笔误）。`DADAO.cpp` 注释采用正确的 `DADAO-12 §2.2.2`。
+2. **`llvm-readobj -l` 字段进制不统一**：`Offset`/`VirtualAddress`/`PhysicalAddress` 为**十六进制**，而 `FileSize`/`MemSize`/`Alignment` 为**十进制**——证据脚本初版按 `0x…` 解析 `MemSize`/`Alignment` 导致误报（已修为按前缀自适应解析）。
+3. **`readobj -r` 空表**：`DADAO` 可链接 ELF 的 `.rela.*` 已在链接期就地全部解析，`-r` 输出空 `Relocations [ ]`（脚本据此断言未解析 reloc=0）。
+4. **056t 证据脚本过期期望已同步**：`FILEHDR PHDRS` 移除后 056t §2/§7 期望过时，已更新并加注；056t 脚本重跑全绿。
+5. **变更后 `DADAO.cpp` 与 056t 的对拍基线**：主仓库未提交 058t，故从主仓库 `HEAD` 的 056t 补丁重建 056t 文件快照存于证据目录（提交后仍可复现）。
 
-**遗留问题**：（含跨模块：新布局 `p_align = 64 KiB` / 首段 `p_offset = 0x10000` 对 `QEMU-042t`/`INTEG-016t` 的输入影响）
+**遗留问题**：
+- **跨模块影响（需后续任务核实）**：`dadao.lds` 默认 `p_align=64 KiB` 使首段 `p_offset` 由 `0x0` 变为**实测 `0x10000`**（ELF 头/程序头表仍在文件中，`ProgramHeaderOffset=0x40`）。段 VA=PA 未变，故 guest 内存装载区间不变；但 **`QEMU-042t`（ELF 加载器）/`INTEG-016t` 若对 `p_offset` 或 `p_align` 有断言/假设，其输入期望值需相应核实**。本任务不改 QEMU，留待其任务覆盖。
+- 无其它未完成项。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**自审范围**：`tests/scripts/dadao.lds`、`lld/ELF/Arch/DADAO.cpp`（ctor +1 行）、重导出补丁/`series`、`changelog.md`、`.work/evidence/{LLVM-056t,LLVM-058t}/run.sh`。逐行核对：功能行改动、未触函数体、补丁非手改、证据脚本 FAIL 路径可达性、注入可复原性。判决：**无未修 finding，可标「待验收」**（下表 6 项均 ✅已修）。
+
+**用户裁定（原话落盘；子会话问答对父会话不可见，在此登记）**：
+- 提问：`dadao.lds` 第 12–14 行注释描述 `FILEHDR PHDRS`（去 `FILEHDR` 后已失真），与验收 2「`grep FILEHDR` 无输出」和「仅该行变化」冲突，如何处置？
+- **用户裁定（原样）**：选「**更新注释块(推荐)**」——「改第33行为 `text PT_LOAD;`，同时改写第12-14行注释：去掉 `FILEHDR` 描述，改为说明『首段自 `.text` 起、`p_offset` 为链接器实测(当前 0x10000)，非算法不变式』。验收2『仅该行变化』按『功能性仅该行(注释随事实同步)』理解，`grep FILEHDR` 仍为 EXIT=1。」
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `dadao.lds` 注释提及 `FILEHDR PHDRS`，若保留则验收 2 `grep FILEHDR` 命中、且注释失真 | ✅已修（用户裁定） | 改写第 12–14 行注释为「头部只留在文件、首段自 `.text` 起、file offset 为实测非不变式」；`text PT_LOAD FILEHDR PHDRS;`→`text PT_LOAD;` | `grep -n FILEHDR tests/scripts/dadao.lds` EXIT=1；`git diff` 仅该注释块 + 功能行；证据脚本 §2 PASS |
+| F2 `DADAO.cpp` 首次编辑误加 4 行注释块，违反「仅新增 1 行」 | ✅已修 | 收敛为单行内联注释 `defaultMaxPageSize = 0x10000;  // DADAO page = 64 KiB (DADAO-12 §2.2.2)` | 与 056t 快照 `diff` = `59a60`，added=1/removed=0；`git diff --numstat` = `1 0` |
+| F3 证据脚本按 `0x…` 解析 `llvm-readobj -l` 的 `MemSize`/`Alignment`，而二者实为**十进制** → bounds/p_align 误报 FAIL | ✅已修 | `pt_load_bounds` 用自适应进制 `num()`；`all_aligns` 输出 `printf '0x%x'` | 正常模式重跑 5 个原 FAIL 项全部 PASS，0 failure/EXIT=0 |
+| F4 `--inject` 末条 `restore(b): p_align green again` 的 expected 漏尾逗号（actual 为 `0x10000,`）→ 恒 FAIL | ✅已修 | expected 改 `0x10000,`（同 normal 模式口径） | `--inject` 重跑 0 failure/EXIT=0（`actual=0x10000,`） |
+| F5 证据脚本 §3 依赖主仓库 `HEAD` 的 056t 补丁（058t 提交后 `HEAD` 变为 058t，检查失效） | ✅已修 | 新增 056t 文件快照 `.work/evidence/LLVM-058t/DADAO.056t.cpp`，脚本优先用快照、缺失再回退 `HEAD` | 快照 193 行；重跑 §3 四项 PASS |
+| F6 任务书 `DADAO-12 §2.2.1` 为超页（512 MiB），普通页 64 KiB 实为 `§2.2.2` | ✅已修 | 代码注释采用 `DADAO-12 §2.2.2`（与 `contract-elf §5.3` 一致） | `grep '§2.2.2'` 命中；完成区「新发现/坑」① 披露 |
+
+**对账**：6 项 finding 全部 ✅已修；正常 `run.sh` 0 failure/EXIT=0、`--inject` 0 failure/EXIT=0、`make check`/`test-codegen`/`check-lit`/`check-patch-tree` 全绿 ⇒ 状态置「待验收」。
+
 
 #### 第 1 轮 reviewer 验收（下发前预检）
 
@@ -102,3 +147,79 @@
 - `components/llvm-project/series` 57 项含 `lld/ELF/Arch/DADAO.cpp.patch` ✓
 - 验收 6/7 反向证明保证 `FILEHDR PHDRS` 能力保留 + `-z max-page-size` 可覆写 ✓
 - `make build-lld`/`make check-patch-tree`/`make check`/`make test-codegen`/`make check-lit` 目标均存在于 Makefile ✓
+
+#### 第 2 轮 reviewer 验收（实施后独立重跑）
+
+**审查结论**：判决 **Accepted**。
+
+**一、证据脚本审计**
+
+`run.sh` 审计通过：
+- FAIL 路径：`report`/`report_rc`/`expect_diff` 均有 FAIL → `FAILS++` → 退出码非零 ✓
+- 注入可还原：(a) 脚本级 `cp` backup/restore + `trap restore_files EXIT`；(b) 源码级 backup + 重建 + 还原 + 重建 ✓
+- 无 `tee` 吞退出码：所有检查命令用 `cmd > log 2>&1; rc=$?` ✓
+- 无恒真断言：`report` 和 `expect_diff` 均有双向 FAIL 路径 ✓
+
+**二、重跑记录**
+
+正常模式：
+```
+=== result: 0 failure(s) ===
+EVIDENCE: PASS
+EXIT=0
+```
+52 项检查全 PASS（build/llds content/DADAO.cpp diff/link+header/PT_LOAD layout/reloc bytes/reverse proof①②/overflow negatives/region boundary/patch+changelog/regression gates）。
+
+`--inject` 模式：
+```
+=== result: 0 failure(s) ===
+EVIDENCE: PASS
+EXIT=0
+```
+注入(a)脚本级加回 FILEHDR PHDRS → bounds 检查 `rc=1`（`OUT-OF-BOUNDS PT_LOAD: vaddr=0xfffeffff0000`）→ 还原回绿 ✓
+注入(b)源码级 `0x10000→0x1000` → 重建 → `p_align=0x1000,`（FAIL）→ 还原+重建 → `p_align=0x10000,` 回绿 ✓
+
+**三、独立注入（与 engineer 不同的值）**
+
+注入：`defaultMaxPageSize = 0x10000` → `0x8000`
+- `git diff --name-only` = `lld/ELF/Arch/DADAO.cpp`（非空 ✓）
+- 增量重建 `lld` EXIT=0
+- `p_align = 32768 = 0x8000` ≠ 期望 `0x10000` → **FAIL** ✓
+- 还原源码：`git status --porcelain` 空 ✓
+- 重建 `lld` EXIT=0
+- `p_align = 65536 = 0x10000` → **回绿** ✓
+
+**四、约束核验**
+
+| 约束 | 结果 |
+|------|------|
+| 只改 2 行（`dadao.lds` 功能行1行 + 注释同步 + `DADAO.cpp` 1行） | ✓ `diff` 仅 `text PT_LOAD FILEHDR PHDRS;`→`text PT_LOAD;` + 注释块 + `DADAO.cpp` +1行 |
+| `DADAO.cpp` 函数体 diff 为空 | ✓ `diff` = `59a60 > defaultMaxPageSize...`，added=1/removed=0 |
+| `e_entry = 0xFFFF00000000` | ✓ |
+| 全部 `p_align = 0x10000` | ✓ |
+| 首段 `p_offset = 0x10000` 且 `≡ p_vaddr (mod p_align)` | ✓ |
+| 无 PT_LOAD 越界 | ✓ |
+| `.text` VA = `0xFFFF00000000` | ✓ |
+| reloc 字节逐条不变 | ✓ `.text`=`4c200018482100004822ffff740000036b2000046e209003`；`.data`=`0000ffff000000000000ffff000000100000ffff00000000`；`.rodata`=`0000ffff00000000` |
+| `readobj -r` 无未解析 reloc | ✓ count=0 |
+| 反向证明① FILEHDR 能力保留 | ✓ 脚本副本加回 FILEHDR → EXIT=0 |
+| 反向证明② `-z max-page-size` 可覆写 | ✓ `4096→p_align=0x1000`；`0x20000→p_align=0x20000` |
+| reloc 溢出负例（5 条）仍报错 | ✓ `rc=1 + out of range` |
+| 段溢出 + 恰好填满不误杀 | ✓ `ram_ovf`/`rom_ovf` rc=1；`ram_fill`/`rom_fill` rc=0 |
+| `make check` EXIT=0 | ✓ 50/50 |
+| `make check-patch-tree` EXIT=0 | ✓ 89 patches OK |
+| `make test-codegen` EXIT=0 | ✓ 15/15 |
+| `make check-lit` EXIT=0 | ✓ 50/50 |
+| 中性：`dadao.lds` 注释不含不变式措辞 | ✓ 写「file offset is a linker file-layout artifact (currently 0x10000), not an invariant」 |
+| 中性：`DADAO.cpp` 注释不含不变式措辞 | ✓ 仅「DADAO page = 64 KiB」（可覆写） |
+| 补丁含新行、series 57 项 | ✓ |
+| changelog 含 LLVM-058t 条目 | ✓ |
+| 056t 证据脚本过期期望已更新（仅 §2 offset + §7 pattern） | ✓ 头部加注 `LLVM-058t` 更新 |
+| 056t 任务书未被改写 | ✓ `git diff` 空 |
+| 056t 脚本重跑 EXIT=0 | ✓ |
+
+**五、遗留判定**
+
+- **`QEMU-042t` / `INTEG-016t` 断言核实**：`p_offset` 由 `0x0` 变为 `0x10000`，若这两个任务对 `p_offset` 或 `p_align` 有断言需相应更新。**非阻塞**，留待其任务覆盖。建议在 MEMORY 中登记为待核实项。
+- **`DADAO-12 §2.2.1`→`§2.2.2` 笔误**：代码注释已采用正确引用。✓
+- 无其它遗留。

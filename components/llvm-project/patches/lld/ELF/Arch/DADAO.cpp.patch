@@ -1,9 +1,9 @@
 diff --git a/lld/ELF/Arch/DADAO.cpp b/lld/ELF/Arch/DADAO.cpp
 new file mode 100644
-index 000000000..62e078e54
+index 000000000..8f8be0165
 --- /dev/null
 +++ b/lld/ELF/Arch/DADAO.cpp
-@@ -0,0 +1,193 @@
+@@ -0,0 +1,194 @@
 +//===- DADAO.cpp - DADAO ELF Linker Target ----------------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -63,6 +63,7 @@ index 000000000..62e078e54
 +    // default iRelSymbolicRel sentinel is 0 and ABS48 is numbered 0.  Use the
 +    // R_DADAO_NUM count value as a sentinel that never matches a real reloc.
 +    iRelSymbolicRel = R_DADAO_NUM;
++    defaultMaxPageSize = 0x10000;  // DADAO page = 64 KiB (DADAO-12 §2.2.2)
 +  }
 +
 +  uint32_t calcEFlags() const override;
