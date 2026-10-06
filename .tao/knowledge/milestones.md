@@ -13,13 +13,13 @@
 >
 > **M2 重定义（2026-10-04，用户裁定）**：M2 定为「**规范与接口冻结（Normative Freeze）**」，原「Basic CodeGen」顺延为 **M3**；并**取消「过渡期任务 `M<i>→M<i+1>`」类别**——原 `M1→M2` 任务一律提升为 `M2`（**推翻** 2026-09-25 决议；不立 ADR）。
 >
-> **归档前置（MUST）**：任何里程碑达成后、**归档前**，须先按 `spec/Process-04 §2` 对遗留台账（`.tao/knowledge/issues.yaml` / `lessons.md`）做一次**梳理**（关闭已消解项、校正 `scope`、移出教训类、判定 moot 项、头部同步）；未完成不得归档。
+> **归档前置（MUST）**：任何里程碑达成后、**归档前**，须先按 `spec/Process-04 §3`（原 §2，2026-10-06 因新增 §1「里程碑生命周期」顺延）对遗留台账（`.tao/knowledge/issues.yaml` / `lessons.md`）做一次**梳理**（关闭已消解项、校正 `scope`、移出教训类、判定 moot 项、头部同步）；未完成不得归档。
 >
 > **状态口径**：本表 `状态` 列只有 **`待开始`/`达成`** 两态（模块 `m` 未置则显 `待开始`）；`issues.yaml` 头部的「M2=进行中」是**进度叙述**，二者不矛盾。
 >
 > **M2 达成（2026-10-04，architect 实测核验）**：M2 门槛 5 条全部满足、各模块 M2 任务均终态 ⇒ 6 个模块 `m` 置 `里程碑`、M2 置 `达成`。核验记录见下「M2 达成核验记录」。
 >
-> **M3 达成（2026-10-05，主会话实测核验）**：门槛 `make test-codegen` **15/15**；5 个模块 `m`（`INFRA-036m`/`SPEC-099m`/`TESTCASES-027m`/`LLVM-042m`/`INTEG-013m`）全部置 `里程碑` ⇒ M3 置 `达成`。核验命令与退出码见各 `m` 文件「核验记录」及 `.work/log/m3-closure/`（`llc --version`=0、`check-patch-tree`=0/80、`check`=0/34、`check-lit`=0/34、`test-codegen`=0/15、`check-no-residue`=0）。**归档前置**（`spec/Process-04 §2` 完整台账梳理，步骤 3–6）由 `INFRA-042t` 执行（`已验证`）；归档见下。
+> **M3 达成（2026-10-05，主会话实测核验）**：门槛 `make test-codegen` **15/15**；5 个模块 `m`（`INFRA-036m`/`SPEC-099m`/`TESTCASES-027m`/`LLVM-042m`/`INTEG-013m`）全部置 `里程碑` ⇒ M3 置 `达成`。核验命令与退出码见各 `m` 文件「核验记录」及 `.work/log/m3-closure/`（`llc --version`=0、`check-patch-tree`=0/80、`check`=0/34、`check-lit`=0/34、`test-codegen`=0/15、`check-no-residue`=0）。**归档前置**（`spec/Process-04 §3` 完整台账梳理，步骤 3–6；原 §2，2026-10-06 顺延）由 `INFRA-042t` 执行（`已验证`）；归档见下。
 >
 > **归档（2026-10-04）**：M2 的 150 个任务书已归档至 `.tao/archive/M2/`（按模块子目录）；M2 时期 changelog（61 条）/MEMORY（45 行 + 2 段落）内容见 `.tao/archive/M2/README.md`；**M2 回顾见 `.tao/archive/M2/m2-retrospective.md`**；`issues.yaml` 的 41 条 M2 阶段 closed 项见 `.tao/archive/M2/issues-closed.md`。
 >
@@ -45,7 +45,7 @@
 
 **M2 任务终态**：wave 1/2 全部 `已验证`；唯一非终态 M2 任务 = `INTEG-010t`（M2 达成**后**执行的归档收尾，非达成分解）。
 
-**归档前置**：`INFRA-033t`（`Process-04 §2` 台账梳理）`已验证`；M2 任务书归档由 `INTEG-010t` 在 M2 达成后执行。
+**归档前置**：`INFRA-033t`（`Process-04 §3` 台账梳理；原 §2，2026-10-06 顺延）`已验证`；M2 任务书归档由 `INTEG-010t` 在 M2 达成后执行。
 
 > **caveat（非阻断，交主会话复核）**：投影表仍存 3 处字面 `缺口`——`SimRISC-07` 行 ④列 `缺口`（FP oracle/向量待建，2026-10-04 M3 重定义后属 **M4**，未加 `deferred` 字样）、`DADAO-12` 行 ②④列 `缺口（据实）`（据实、无需独立投影）。按 `SPEC-090k` 对门槛②的 4 项界定为满足；若要字面清零，建议将 `SimRISC-07 ④` 改标 `deferred（M3）`（需改 `spec/README.md`，超出本次核验写范围）。
 

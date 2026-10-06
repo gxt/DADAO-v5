@@ -40,6 +40,11 @@
 - **L2**：`tests/lit/` 或 patch 的 `llvm/test/CodeGen/DADAO/`；MIR 用例；
 - **L3**：`tests/codegen/` + `tools/integ/` + `tools/testcases/`；独立 oracle 脚本**随产物入库**。
 
+**测试产物落点与留存（用户 2026-10-06 裁定）**：
+
+- **落点按测试本身定，不强制**：若某模块的**测试路径固定** ⇒ 落**该模块目录下**（如 `tests/llvm/...`、`tests/qemu/...`）；**否则**统一落 **`.dadao/tests/`**（`ADR-0016 D6`）。
+- **不强制留存**：测试运行产物**可以自清/不保留**；需要检视时保留、不需要时清理，均合规。
+
 ## 7. 与其它规范的关系
 
 - `Process-02`（合约）：**期望值的来源**（spec-first）；

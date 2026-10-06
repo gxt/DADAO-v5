@@ -59,6 +59,7 @@ llc → llvm-mc → ld.lld → ET_EXEC → qemu-system-dadao 直接加载执行
 | `SPEC-110t` | **`Process-05 §6` 落点路径同步**（`INFRA-045t` 组件先行重排后示例路径过期） | spec | `spec/Process-05-里程碑TDD规范.md §6`（路径示例） | `INFRA-045t` |
 | `INFRA-043t` | LLD 入构建目标 | infra | `Makefile`（`build-mc`/新目标产出 `ld.lld`）+ 构建证据 | 无 |
 | `INFRA-045t` | **`tests/` 组件先行重排**（对齐上游 `llvm/test/{MC,CodeGen,tools}`） | infra | `tests/llvm/{lit/{MC,CodeGen,tools}/DADAO, codegen}` + `tests/qemu/` + `tests/e2e/lit/`；`Makefile`/工具路径同步 | 无 |
+| `INFRA-046t` | **测试产物落点与留存统一**（`test-codegen` 落 `.work/log/integ/codegen-e2e` → 模块固定路径 `tests/llvm/codegen-e2e/`；依 `Process-05 §6` + `ADR-0016 D6`） | infra | `Makefile`（`CODEGEN_E2E_WORK`）+ `tools/integ/run_codegen_e2e.py`（`DEFAULT_WORK_DIR`）+ `.gitignore` + 运行/负例证据 | `INFRA-045t` |
 | `LLVM-050t` | ELF writer → **RELA** + `e_flags=1` + `e_machine`→dadao + `getRelocType`（4 类） | llvm | `DADAOELFObjectWriter`/`MCCodeEmitter`/`AsmBackend` + lit/`readelf` 证据 | `SPEC-105t`、`SPEC-109t`、`INFRA-045t` |
 | `LLVM-051t` | 伪指令展开（`set.rd/set.rb/set.ft/set.fo`；常量/符号分派） | llvm | AsmParser 展开 + lit MC 证据 | `SPEC-106t`、`LLVM-050t` |
 | `LLVM-052t` | `.dd.{b08,w16,t32,o64}` 指导符发射 | llvm | MC 指导符 + lit 证据 | `LLVM-050t` |
@@ -72,7 +73,7 @@ llc → llvm-mc → ld.lld → ET_EXEC → qemu-system-dadao 直接加载执行
 | `TESTCASES-032t` | **`not`/`neg` 功能向量（L1 编码 + L3 执行；测底层真实指令 `xnor.o`/`sub.sb/sw/st/so`）** | testcases | `tests/llvm/lit/MC/DADAO/`（`UNSUPPORTED:` 标记）+ `tests/llvm/codegen/m4/`（独立 m4 清单）+ 独立 oracle | `SPEC-106t`、`INFRA-045t`、`TESTCASES-029t`、`TESTCASES-030t` |
 | `INTEG-016t` | 多 TU/多段 E2E + `make test-elf` | integ | `tools/integ/` 驱动 + `Makefile` 目标 | `LLVM-056t`、`QEMU-042t`、`TESTCASES-029t`、`TESTCASES-030t`、`TESTCASES-032t` |
 | `SPEC-108m` | M4 spec 里程碑 | spec | `m` 文件 | `SPEC-105t`/`106t`/`107t`/`109t`/`110t` |
-| `INFRA-044m` | M4 infra 里程碑 | infra | `m` 文件 | `INFRA-043t`/`045t` |
+| `INFRA-044m` | M4 infra 里程碑 | infra | `m` 文件 | `INFRA-043t`/`045t`/`046t` |
 | `LLVM-057m` | M4 llvm 里程碑 | llvm | `m` 文件 | `LLVM-050t`~`056t` |
 | `QEMU-043m` | M4 qemu 里程碑 | qemu | `m` 文件 | `QEMU-042t` |
 | `TESTCASES-031m` | M4 testcases 里程碑 | testcases | `m` 文件 | `TESTCASES-029t`/`030t`/`032t` |
@@ -84,6 +85,7 @@ llc → llvm-mc → ld.lld → ET_EXEC → qemu-system-dadao 直接加载执行
 - **`SPEC-109t` 为编码前提**：`contracts/opcodes.yaml` ↔ LLVM MC ↔ QEMU `trans_*` 计数须一致（`check-interface`/`check_qemu_trans`）⇒ 必须一次改完；`LLVM-050t`、`QEMU-042t` 依赖之。
 - **`spec` 正文先行**：`SPEC-105t`（reloc 正文）→ `LLVM-050t`（ELF writer/reloc）；`SPEC-110t`（`Process-05 §6` 落点路径，依赖 `INFRA-045t`）→ `SPEC-106t`（伪指令，依赖 `SPEC-109t`/`SPEC-110t`）→ `LLVM-051t`。
 - **`INFRA-045t` 为测试落点前提**：`LLVM-050t`~`054t`（新增 lit 向量）、`SPEC-110t`（`Process-05 §6` 路径同步）与 `TESTCASES-029t`/`030t`/`032t`（L1/L3/`not`·`neg` 向量）依赖其重排后的路径。
+- **`INFRA-046t` 依 `INFRA-045t`**（同改 `tools/integ/run_codegen_e2e.py`/`Makefile`；`tests/llvm/` 结构须先建立）：把 `test-codegen` 运行产物由 `.work/log/integ/codegen-e2e` 改到**模块固定路径** `tests/llvm/codegen-e2e/`（依 `Process-05 §6` 新增「测试产物落点与留存」规则 + `ADR-0016 D6`）。
 - **LLVM 链严格串行**（同改 `components/llvm-project/patches/llvm/lib/Target/DADAO/**` 与 `lld/**`、同一 `.work/source/llvm-project`）：`LLVM-050t → 051t → 052t → 053t → 054t → 055t → 056t`（`050t` 先行；`051t` 依赖 `050t` 的 ELF/reloc 基础；`056t` 最后）。
 - **`INFRA-043t`**（LLD 入构建）与 `LLVM-050t` 无共享文件，可先于 `LLVM-056t` 任意时机，但 `LLVM-056t` 依赖其产物。
 - **`QEMU-042t`**（不同仓库；但与 `SPEC-109t` 同改 QEMU 补丁树 ⇒ 依赖 `SPEC-109t`）可与 LLVM 链**并行**。
@@ -457,3 +459,41 @@ llc → llvm-mc → ld.lld → ET_EXEC → qemu-system-dadao 直接加载执行
 2. **`TESTCASES-032t` validator 复用 vs 独立**：建议**保持复用并扩展**（当前设计）——共享 validator 减少维护面，032t 串行于 029t/030t 已保证时序；独立 oracle 仅在 validator 接口不稳定时才有必要。
 3. **`not.b/w/t` 无底层替代**：建议**接受当前设计**（仅测 64 位 `xnor.o`）——窄位宽 `xnor.b/w/t` 已删是既定事实，`ADR-0013 D11` 的「用 `xnor.X`」措辞可覆盖 `.o`；若需覆盖 `.b/.w/.t` 语义属新能力，超出 M4 范围。
 4. **`SPEC-106t` 依赖判定**：当前 `SPEC-106t` 依赖 `SPEC-109t`/`INFRA-045t`/`SPEC-110t`，**不**依赖 `TESTCASES-032t`（032t 依赖 106t，单向）。设计正确，无环。
+
+## 修订记录（2026-10-06·3，用户逐条确认）
+
+**背景**：承接「修订记录（2026-10-06·2）」后，用户 2026-10-06 **三次裁定**：① 测试产物落点与留存规则；② 里程碑「INTEG 开启 / INTEG 结束」闭环（**M5 起**）；③ **M1–M4** 由 SPEC 模块 `SPEC-*k` 开启（历史保留）。本记录**追加**，不改写前述正文与审阅记录。
+
+**依据（原样引用用户裁定）**：
+
+- **① 测试产物落点与留存**：「测试产物落点**按测试本身定，不强制**；**若某模块的测试路径固定 → 放该模块目录下**（如 `tests/llvm/...`、`tests/qemu/...`）；**否则统一放 `.dadao/tests/`**（`ADR-0016 D6`）。**不强制留存**。」
+- **② 里程碑生命周期**：「里程碑采用 **「INTEG 开启 / INTEG 结束」闭环**：**开启** = INTEG 模块的规划 `k` 任务（产出里程碑定义 `milestones.md` + 前置 ADR + 任务分解 + 串行链）；**执行** = 各模块任务串行链（同改共享文件串行；模块内 `m` 就近核验）；**结束** = INTEG 模块的 `m` 任务（集成门槛），依赖的模块 `m` 均 `里程碑` ⇒ 主会话置项目里程碑 `达成`；**归档** = `Process-04 §2` 台账梳理 → §3 判据 → 归档（用户确认提交）。其它模块（spec/llvm/qemu/testcases/infra）各放一个 `m` 结束点。**历史说明**：**M1–M4 由 SPEC 模块 `SPEC-*k` 开启**（历史做法，保留不改）；**M5 起**采用 INTEG 闭环。」（其中 §2/§3 为 `Process-04` **调整前**编号；调整后对应 §3/§4。）
+
+**A. 新建（1 份）**：
+
+- `.tao/tasks/infra/INFRA-046t-测试产物落点与留存统一.md`（infra / M4）——修正现状偏差：`test-codegen` 运行产物由 `.work/log/integ/codegen-e2e`（既非模块下、也非 `.dadao/tests/`）改到**模块固定路径** `tests/llvm/codegen-e2e/`（依规则「模块测试路径固定 ⇒ 落该模块目录下」；被否方案 `.dadao/tests/codegen-e2e/` 为**无固定模块路径**时的兜底）；同步 `Makefile`（`CODEGEN_E2E_WORK`）+ `tools/integ/run_codegen_e2e.py`（`DEFAULT_WORK_DIR`）+ `.gitignore`；保留探针/harness 自清行为（不强制留存）。
+
+**B. 规范修订（2 份，`spec/`；用户裁定落地）**：
+
+1. `spec/Process-04-里程碑归档规范.md`：正文**前部**新增 **§1「里程碑生命周期（开启 → 执行 → 收敛 → 归档）」**（INTEG 闭环约定 + M1–M4 历史说明），原 §1..§8 **顺延为 §2..§9**，全篇内部 `§` 引用同步。
+2. `spec/Process-05-里程碑TDD规范.md §6`：增补「**测试产物落点与留存**」规则（落点按测试定、模块固定则落模块下、否则 `.dadao/tests/`；不强制留存），保留原 L1/L2/L3 落点说明。
+
+**C. 联动（超出字面清单，供复核／可回退）**：
+
+- `INFRA-044m`：关联任务 2→3（+`INFRA-046t`），目标加 ③（测试产物落点统一）、核验补该项。
+- `Process-04` 外部引用同步（非归档、非历史记录）：`.tao/knowledge/{lessons.md,issues.yaml,milestones.md}` 的 `Process-04 §2` → `§3`（附顺延说明）。
+- `.tao/archive/**`（历史归档）**不改写**（`AGENTS.md`：历史记录不改写）——其 `Process-04 §N` 引用保留旧编号，属冻结历史。
+
+**D. 依赖/串行链更新**：本 `k` §任务分解表新增 `INFRA-046t` 行；§依赖关系与串行纪律补「`INFRA-046t` 依 `INFRA-045t`」；`INFRA-044m` 依赖列 += `046t`。
+
+**E. 执行与验证（engineer，2026-10-06·3）**：
+
+- **改动清单（7 改 + 1 新）**：① `spec/Process-04-里程碑归档规范.md`（新增 §1 + 原 §1..§8 顺延为 §2..§9 + 内部 `§` 引用同步）；② `spec/Process-05-里程碑TDD规范.md §6`（增补「测试产物落点与留存」）；③ `.tao/tasks/infra/INFRA-046t-测试产物落点与留存统一.md`（**新建**）；④ `.tao/tasks/infra/INFRA-044m-M4-infra里程碑.md`（关联/目标/核验）；⑤ 本 `k`（任务表 + 串行链 + 本记录）；⑥ `.tao/knowledge/milestones.md`、⑦ `.tao/knowledge/lessons.md`、⑧ `.tao/knowledge/issues.yaml`（`Process-04 §2` → `§3` 引用同步，附顺延说明）。
+- **门控真实输出**：`make check` **EXIT=0**（`lit` 34/34，`repository checks: PASS`）；`make check-spec-refs` **EXIT=0**（`Check 1`/`Check 2` 均 0 violations）；`make check-no-residue` **EXIT=0**；`git status` 仅上述 8 文件。
+- **engineer 自审（自主逐行）**：修 2 处笔误（「产出**租**里程碑定义」→「产出里程碑定义」；「上**表** INTEG 闭环」→「上述」）；补漏 2 处 `Process-04 §2`→`§3`（`milestones.md` M3 达成行 / M2 归档前置行）；确认 `Process-04` 全部内部 `§` 引用顺延一致（正文头 §8、新 §1 的 §3/§4、§4 的 §5/§7、§5 落点树的 §6/§6/§8/§4.4/§7、§9 的 §8）；`.tao/archive/**` 引用**按历史不改写保留**。
+
+**待裁定点（本记录）**：
+
+1. **`INFRA-046t` 落点选择**：任务书**明确选择 `tests/llvm/codegen-e2e/`**（模块固定路径，理由见任务书）；若用户更倾向 `ADR-0016 D6` 的兜底根 `.dadao/tests/codegen-e2e/`（gitignored、无需 `.gitignore` 改动），请裁定。
+2. **`Process-04` 编号顺延 vs 不改编号**：本记录按用户指示「顺延原 §1..§8」执行；`.tao/archive/**` 旧引用保留（历史冻结）。若希望归档引用也回溯更新，需另立任务（会改动历史文件）。
+3. **`Process-05 §6` 与 `SPEC-110t` 的关系**：本记录在 §6 增补「落点与留存」规则；`SPEC-110t` 仍按原计划同步 §6 的**示例路径**（旧路径 `tests/lit/MC/Dadao/`/`tests/codegen/` → 新路径）——两者不冲突，示例路径留待 `SPEC-110t`。
