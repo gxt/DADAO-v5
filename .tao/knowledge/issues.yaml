@@ -422,3 +422,11 @@
   blocks: []
   resolved_by: LLVM-059t
   notes: "TESTCASES-030t reviewer 独立复现：循环体含跨 TU 调用 + 后置等值守卫（cond→done→{br.eq/ne}→ret）经 Control Flow Optimizer 触发 TargetInstrInfo::insertBranch 未实现 → exit=134。影响范围：INTEG-016t 等需 loop+eq guard 组合的 ELF 测试。建议立 LLVM 任务补 DADAOInstrInfo::insertBranch。本任务向量已规避。 【LLVM-059t 已修复：实现 analyzeBranch/insertBranch/removeBranch/getBranchDestBlock；复现 llc 134→0；执行级 30/1/30；结案 2026-10-06】"
+
+- id: ISS-159
+  title: "M4 后端 lower IR not/neg 未走 xnor.o / sub.sX 路径（走 xor.o+常数 / sub.uo+ext.so）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "TESTCASES-032t reviewer 判真实缺口但不阻断：IR `xor x,-1`/`sub iN 0,x` 经后端 lower 为 `xor.o`+常数 / `sub.uo`+`ext.so`，而非伪指令实现路径的 `xnor.o`/`sub.sX`。L1 覆盖 `xnor.o`/`sub.sX` 编码、L3 覆盖 not/neg 语义，分工仍成立；属 LLVM 优化/CSE 议题，INTEG-016t 接入时需确认。"

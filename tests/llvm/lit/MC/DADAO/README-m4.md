@@ -30,6 +30,13 @@
 | `m4-option-mts.s` | option | `-multiple-to-single` 开/关对照（助记符不变、单寄存器序列） | `spec/Toolchain-01 §8` + `§4.2` + `contracts/opcodes.yaml`（默认形态编码） |
 | `m4-diagnostic.s` | diagnostic | 越界立即数、`%4!=0`、`ret rd0, 非0`、`#` 非法 | `spec/Toolchain-01 §9/§2.4/§2.2` + `contracts/opcodes.yaml`（字段位宽/legality） |
 | `m4-roundtrip.s` | roundtrip | 汇编↔反汇编；等价书写规范化 | `spec/Toolchain-01 §10` + `contracts/opcodes.yaml` |
+| `m4-not-neg.s` | roundtrip | `not`/`neg` 功能的**底层真实指令**：`not`→`xnor.o rd, rc, rd0`（仅 64 位）、`neg`→`sub.sb/sw/st rd, rd0, rc`（8/16/32 位）与 `sub.so {rd0, rd}, rd0, rc`（64 位）的编码/往返 | `contracts/opcodes.yaml`（`xnor.o_orrr_rd`=0x402C0000 / `sub.sb_orrr_rd`=0x43A40000 / `sub.sw_orrr_rd`=0x42A40000 / `sub.st_orrr_rd`=0x41A40000 / `sub.so_rrrr_rd`=0x53000000）+ `contract-isa §6.3/§6.6/§10.6/§11.6/§12.6`（`ADR-0013 D11`） |
+
+> `not` 仅 64 位：窄位宽逻辑指令 `xnor.b/w/t` 已随 `SPEC-069t` 删除，`not.b/w/t`
+> **无**等宽底层指令（本向量**不**测试已删助记符；其「unrecognized」反例见
+> `TESTCASES-029t` 的 `m4-pseudo-removed.s`）。`neg` 的 `sub.sb/sw/st` 结果
+> **符号扩展**、`sub.so` 为**双目的**（`rdha:rdhb = rdhc − rdhd`），期望编码均按
+> 字段位域独立派生（见下）。
 
 ## 与既有实现向量的关系
 
@@ -55,6 +62,12 @@
 | `mts` | `-multiple-to-single` 展开序列 | `spec §8` + `§4.2` |
 | `norm` | 两种等价书写 → 必须同编码（往返规范化） | `opcodes.yaml`（两次派生相等） |
 
+`; OBJ: {{[0-9a-f]+:}} <b0> <b1> <b2> <b3>{{.*}}<mnemonic>{{.*}}<operands>` 是 lit
+的**对象字节 FileCheck 模式**（`m4-not-neg.s` 用于编码向量；由 `llvm-objdump -d`
+比对）。该 4 字节由 `validate_mc_vectors.py` 与 `tools/llvm/check_lit_bytes.py`
+**各自独立从 `contracts/opcodes.yaml` 派生**；`validate_mc_vectors.py` 另要求
+`; OBJ:` 字节与同一指令的 `@enc` 独立派生值相等（改任一即失败）。
+
 ## 反例门控（可失败性）
 
 `tools/testcases/validate_mc_vectors.py` 可对以下注入**失败**（见
@@ -63,4 +76,5 @@
 1. 改一条 `@enc`/`@exp` 期望值 → `FAIL`；
 2. 改一条向量的代码操作数 → `FAIL`；
 3. 少一类 `@category` 覆盖 → `FAIL`；
-4. 删除 `UNSUPPORTED:` 标记 → `FAIL`。
+4. 删除 `UNSUPPORTED:` 标记 → `FAIL`；
+5. 改一条 `; OBJ:` 期望字节 → `FAIL`（与 `@enc` 独立派生值不一致）。
