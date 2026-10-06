@@ -333,7 +333,7 @@ check-asm-prose:
 	@$(PYTHON) tools/spec/check_asm_prose.py --strict
 
 # Spec prose ```simrisc code-block gate (SPEC-103t/ISS-077): every instruction
-# line in spec/**/*.md (excl. historical SimRISC-0.5.3) must use a mnemonic
+# line in spec/**/*.md must use a mnemonic
 # from contracts/opcodes.yaml (pseudo-instructions excepted) with a valid
 # operand count.
 check-spec-codeblocks:

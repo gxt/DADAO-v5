@@ -31,7 +31,8 @@
 | [`SimRISC-10-8位数据运算.md`](SimRISC-10-8位数据运算.md) | 8 位数据运算 |
 | [`SimRISC-11-其它.md`](SimRISC-11-其它.md) | 其它类指令 |
 | [`SimRISC-12-待定.md`](SimRISC-12-待定.md) | 待定类指令 |
-| [`SimRISC-0.5.3/`](SimRISC-0.5.3/) | 历史基线（**只读**，仅供对照，不参与实现） |
+
+> **历史基线（已归档）**：`SimRISC-0.5.3/`（0.5.3 基线，5 分册，**只读**，仅供对照、不参与实现）原在 `spec/` 目录下，现已归档至 `.tao/archive/SimRISC-0.5.3/`（与 `.tao/archive/SimRISC-0.4.1`、`M1/`~`M3/` 同处 `.tao/archive/`，体例为只读历史快照）。
 
 ### 环境
 

@@ -27,7 +27,7 @@ Checks (per instruction line in a ```simrisc block)
 
 Scan scope
 ----------
-``spec/**/*.md`` excluding the historical ``spec/SimRISC-0.5.3/``.  Generated
+``spec/**/*.md``.  Generated
 regions (``<!-- ASSEMBLY_LIST_* -->`` / ``<!-- LEGALITY_* -->``) are skipped by
 ``extract_code_blocks`` — their truth is gated by ``check-asm-list`` /
 ``check-legality-drift``.
@@ -57,7 +57,6 @@ from tools.spec.check_asm_prose import (  # noqa: E402
 )
 
 SPEC_DIR = ROOT / "spec"
-HISTORICAL_DIR = ROOT / "spec" / "SimRISC-0.5.3"
 
 # Assembler pseudo-instructions (SimRISC-00 §伪指令 / spec/Toolchain-01 §6).
 # These are expanded by the assembler into real instructions, so they are
@@ -76,16 +75,11 @@ def collect_files(root: Path | None = None) -> list[Path]:
     """Collect markdown files to scan.
 
     *root* given ⇒ every ``*.md`` under it (fixture mode).
-    Otherwise scan ``spec/**/*.md`` excluding the historical ``SimRISC-0.5.3``.
+    Otherwise scan ``spec/**/*.md``.
     """
     if root is not None:
         return sorted(root.rglob("*.md"))
-    files: list[Path] = []
-    for p in sorted(SPEC_DIR.rglob("*.md")):
-        if HISTORICAL_DIR in p.parents:
-            continue
-        files.append(p)
-    return files
+    return sorted(SPEC_DIR.rglob("*.md"))
 
 
 def _relpath(p: Path, effective: Path) -> str:

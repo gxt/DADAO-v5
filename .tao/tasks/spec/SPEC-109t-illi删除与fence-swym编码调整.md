@@ -149,7 +149,7 @@ $ git status --untracked-files=all → 仅本任务应有改动（见上）；�
 
 - **豁免：未改写的历史/规划/台账载体**（`illi` 词token 或旧值残留，均为历史/决策/规划记录，按项目「历史记录不改写」约定保留）：
   - `.tao/tasks/**`（M4 规划任务书：`SPEC-104k`/`SPEC-108m`/`SPEC-109t`/`QEMU-043m`；`SPEC-109t` 即本任务书）——**规划文本，非活载体**。
-  - `spec/SimRISC-0.5.3/**`（历史版本归档；`check_scope.py`/`check_spec_codeblocks.py` 已按历史排除）。
+  - `.tao/archive/SimRISC-0.5.3/**`（历史版本归档；`check_scope.py`/`check_spec_codeblocks.py` 已按历史排除）。
   - `.tao/adr/adr-0009`/`adr-0010`/`adr-0012`（历史/决策 ADR；`adr-0012` 为本次唯一决策源，其 D3.5 原文含旧 mnemonic）。
   - `.tao/knowledge/MEMORY.md`（第 113 行）、`.tao/knowledge/changelog.md`（第 13 行）——台账，`/complete` 更新。
   - 旧值 `0x77080000/0x77040000` 仅剩 `.tao/tasks/SPEC-104k`、`.tao/tasks/SPEC-109t`、`.tao/adr/adr-0012`（均为规划/决策记录）。

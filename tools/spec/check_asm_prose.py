@@ -31,7 +31,7 @@ R6  Operand shape from opcodes.yaml — for each mnemonic, ``opcodes.yaml`` list
 
 Scan scope
 ----------
-* ``spec/**/*.md``  (excl. ``spec/SimRISC-0.5.3/``)
+* ``spec/**/*.md``
 * ``docs/**/*.md``  (excl. ``m1-retrospective.md``, ``testcases-009t-audit.md``,
   ``self-consistency.md``)
 * ``.tao/knowledge/contract-*.md`` + ``.tao/adr/*.md``  (excl. ``lessons.md``)
@@ -60,10 +60,6 @@ _EXCLUDE_FILES = {
     ROOT / "docs" / "testcases-009t-audit.md",
     ROOT / "docs" / "self-consistency.md",
     ROOT / ".tao" / "knowledge" / "lessons.md",
-}
-
-_EXCLUDE_DIRS = {
-    ROOT / "spec" / "SimRISC-0.5.3",
 }
 
 # Override root for --root mode (set by CLI before scanning)
@@ -185,15 +181,7 @@ def _load_cfx_aliases() -> tuple[set[str], dict[str, tuple[int, int]]]:
 # ---------------------------------------------------------------------------
 
 def _should_exclude(p: Path) -> bool:
-    if p in _EXCLUDE_FILES:
-        return True
-    for d in _EXCLUDE_DIRS:
-        try:
-            p.relative_to(d)
-            return True
-        except ValueError:
-            pass
-    return False
+    return p in _EXCLUDE_FILES
 
 def collect_files(root: Path | None = None) -> list[Path]:
     """Collect markdown files in scope.

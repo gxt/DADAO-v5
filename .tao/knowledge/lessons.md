@@ -130,7 +130,7 @@
 
 ### 5.3 历史文档旧路径「保留、不回溯更新」（by design）
 
-- `docs/m1-retrospective.md`、`docs/m2-spec-planning.md`、`changelog.md`、全部已验收任务书、`spec/SimRISC-0.5.3/` 中的旧路径保留（历史快照）；如需全仓一致再另行裁定。
+- `docs/m1-retrospective.md`、`docs/m2-spec-planning.md`、`changelog.md`、全部已验收任务书、`.tao/archive/SimRISC-0.5.3/` 中的旧路径保留（历史快照）；如需全仓一致再另行裁定。
 
 ### 5.4 `validate_vectors.py` 变更历史（审计追溯，`ISS-024`）
 
