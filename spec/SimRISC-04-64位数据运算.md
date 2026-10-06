@@ -171,30 +171,23 @@ rem.so  rdHB, rdHC, rdHD
 
 无需提供专门的not指令，可以采用xnor指令实现相同的功能。当rdHC或rdHD为rd0时，xnor指令实现了另一操作数的取反操作，即逻辑非运算。逻辑非的运算规则：一变零，零变一。即操作数为1时结果为0，操作数为0时结果为1。
 
-#### not 伪指令
+#### not 伪指令（已删除）
 
-汇编器应提供 `not.o` 伪指令，用于对操作数进行 64 位按位取反。汇编器根据后缀展开为对应位宽的 `xnor` 指令。
+上游 `SimRISC-0.5.4` 曾定义 `not.{b,w,t,o}` 伪指令；v5 **删除**（`ADR-0013 D11`），**1:1 别名一律不保留**。64 位按位取反**直接书写真实指令 `xnor.o rd, rs, rd0`**（`rdHC`/`rdHD` 之一为 `rd0` 时 `xnor` 即取反；源与目的可为同一寄存器、原地取反）。窄位宽 `not.b`/`not.w`/`not.t` **无等宽替代**（`xnor.b/w/t` 已随 `SPEC-069t` 删除）。
 
-| 伪指令 | 展开形式 | 操作范围 |
-|--------|----------|----------|
-| `not.o rdHB, rdHC` | `xnor.o rdHB, rdHC, rd0` | bits[63:0] 全 64 位取反 |
-
-源和目的可为同一寄存器（原地取反）。
-
-#### neg 伪指令
-
-`neg.o` 是汇编器提供的伪指令，用于对操作数进行 64 位取负操作（二进制补码）。
-
-| 伪指令 | 展开形式 | 语义 |
-|--------|----------|------|
-| `neg.o rdHB, rdHC` | `sub.so {rd0, rdHB}, rd0, rdHC` | 64 位取负 |
-
-示例：
 ```simrisc
-neg.o   rd3, rd4        ; rd3 = -rd4（64 位取负）
+xnor.o  rd3, rd4, rd0     ; rd3 = ~rd4（64 位按位取反）
 ```
 
-> **注**：`neg.b`/`neg.w`/`neg.t` 分别见 SimRISC-10、SimRISC-09、SimRISC-08。
+#### neg 伪指令（已删除）
+
+上游 `SimRISC-0.5.4` 曾定义 `neg.{b,w,t,o}` 伪指令；v5 **删除**（`ADR-0013 D11`）。按位宽取负**直接书写真实指令 `sub.sX`**：`neg.b`→`sub.sb`、`neg.w`→`sub.sw`、`neg.t`→`sub.st`、`neg.o`→`sub.so`。
+
+```simrisc
+sub.so  {rd0, rd3}, rd0, rd4     ; rd3 = -rd4（64 位取负，双目的写回 rd3）
+```
+
+> **注**：`neg.b`/`neg.w`/`neg.t` 的对应 `sub.sb`/`sub.sw`/`sub.st` 分别见 SimRISC-10、SimRISC-09、SimRISC-08。
 
 ### Bit manipulating：位操作指令
 

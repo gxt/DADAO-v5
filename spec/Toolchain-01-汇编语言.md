@@ -164,10 +164,49 @@
 
 ## 6. 伪指令
 
-上游 `SimRISC-00 §伪指令` 规定了 18 条伪指令（`nop`、`return`、`not.{b,w,t,o}`、`neg.{b,w,t,o}`、`set.rd`×2、`set.rb`×2、`set.ft`×2、`set.fo`×2），**含展开形式**。
+> 本节是**伪指令集的唯一权威定义**（决策 `ADR-0013 D11`，2026-10-06 用户逐条确认；上游 `SimRISC-0.5.4 §伪指令` 的 18 条口径由此收缩）。伪指令**不是**硬件指令，由汇编器在**前端展开**为一条或多条真实硬件指令；**反汇编器只输出真实硬件指令**，不输出伪指令。
 
-- 语法**MUST**与上游一致；展开结果**MUST**为等价的硬件指令序列。
-- **当前状态**：v5 汇编器**尚未实现**（全部报 `unrecognized instruction mnemonic`）⇒ 属**待实现缺口**（见 §11）。
+**原则**：只保留「**ISA 无法直接表达、需多指令合成**」的伪指令；**1:1 助记符别名（可用单条真实指令等价表达）一律不保留**。
+
+### 6.1 保留（实现，8 条合成型）
+
+| 伪指令 | 语法 | 展开 |
+|---|---|---|
+| `set.rd` | `set.rd rd, imm64` | 常量 → **最少指令数**（`set.zw`/`set.ow` + `or.w`/`andn.w`，≤4 条）；符号/可重定位 → **固定 3 片** + `R_DADAO_ABS48`（`ADR-0019`） |
+| `set.rd` | `set.rd rd, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` |
+| `set.rb` | `set.rb rb, imm64` | `set.zw-rb` + `or.w-rb` 组合 |
+| `set.rb` | `set.rb rb, rs` | `rd2rb`/`rb2rb` |
+| `set.ft` | `set.ft rf, imm32` | 2 条 `set.w` |
+| `set.ft` | `set.ft rf, rs` | `rd2rf`/`ft2ft` |
+| `set.fo` | `set.fo rf, imm64` | 4 条 `set.w` |
+| `set.fo` | `set.fo rf, rs` | `rd2rf`/`fo2fo` |
+
+**展开规则**（`MUST`）：
+
+- **常量 vs 符号**：第二操作数为**可汇编期求值的常量** → 采用「最少指令数」展开；为**符号 / 可重定位** → **固定 3 片** + 重定位类型 `R_DADAO_ABS48`（`ADR-0019 D4/D5`）。同段可解析的表达式按可求值处理；跨段/外部按符号处理。
+- **`set.rb` 细节**：允许 `wp0–wp3`（wyde 位置不限制）；**其为地址时 MUST ≤48 位**；**不补 `set.ow-rb`**（rb 无 `set.ow` 变体）——不对称性注明：64 位全 1 需 `set.zw` + 3×`or.w` = 4 条，而 `set.rd` 用 `set.ow` 仅 1 条。
+- `set.rd`/`set.rb`/`set.ft`/`set.fo` 的 wyde 级展开示例见 `SimRISC-03 §set.rd/set.rb/set.ft/set.fo 伪指令`（`SimRISC-03` 为该节的展开示例投影，定义以本节为准）。
+
+### 6.2 删除（不实现，10 条）
+
+以下助记符**不再作为伪指令**（`ADR-0013 D11` 删除；上游 `SimRISC-0.5.4` 曾定义）。**1:1 别名一律不保留**——需要相应功能时，**直接书写真实指令**：
+
+- `nop` → `swym 0`（空操作 / 对齐）；
+- `return` → `ret rd0, 0`（无返回值返回）；
+- `not.{b,w,t,o}` → `xnor.o rd, rs, rd0`（64 位按位取反）；窄位宽 `not.b`/`not.w`/`not.t` **无等宽替代**（`xnor.b/w/t` 已随 `SPEC-069t` 删除，需要时用 `xnor.o` 做 64 位取反）；
+- `neg.{b,w,t,o}` → `sub.sX`（按位宽映射为 `sub.sb`/`sub.sw`/`sub.st`/`sub.so`）。
+
+```simrisc
+; 被删伪指令的替代——直接书写真实指令
+swym    0                       ; 旧 `nop`
+ret     rd0, 0                  ; 旧 `return`
+xnor.o  rd16, rd31, rd0         ; 旧 `not.o`（64 位取反）
+sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 rd3）
+```
+
+**`ret` 语法**：保持 `ret rdHA, imms18` **显式**两操作数；**不加无参形态**（故被删的 `return` 用 `ret rd0, 0` 表达）。
+
+- **当前状态**：v5 汇编器**尚未实现**伪指令展开（8 条合成型报 `unrecognized instruction mnemonic`）⇒ 属**待实现缺口**（见 §11；展开实现归 LLVM 任务）。删除的 10 条**不再实现**。
 
 ---
 
@@ -221,7 +260,7 @@
 | 9 个 M1 格式类与 152 条 M1 指令 | ✅ 已实现（旧语法） |
 | **本规范的新记法**（`[]`/`{}`/`?`/`:`） | ❌ **待实现**（parser/printer/disassembler；等任务安排） |
 | **双目的/多寄存器新记法**（`{rdHA,rdHB}`/`{start:end}`） | ❌ **待实现** |
-| 伪指令 18 条 | ❌ 未实现 |
+| 伪指令 **8 条合成型**（`set.rd`/`set.rb`/`set.ft`/`set.fo`，各 2 形式） | ❌ **待实现**（展开归 LLVM 任务；上游 10 条 1:1 别名已删除，见 §6.2） |
 | `.dd.*` 指导符 4 条 | ❌ 未实现 |
 | `-multiple-to-single` | ❌ 未实现 |
 | ABI 寄存器别名 | ❌ 未实现（`DwarfRegAlias` 不可用于汇编） |

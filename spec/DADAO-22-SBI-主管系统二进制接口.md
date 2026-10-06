@@ -356,7 +356,7 @@ cfx_tlb_ptw_delegate:
     ; 修复成功 → invalid 对应 TLB 表项，按实际页大小
     and.o   rd40, rd40, rd31                          ; 按掩码对齐至页面起始
     cfx2rc  cfx_tlb_addr_start, rd40
-    not.o   rd16, rd31
+    xnor.o  rd16, rd31, rd0                       ; rd16 = ~rd31（not.o 已删除，见 ADR-0013 D11）
     add.si    rd16, 1                             ; addr_size = ~mask + 1
     cfx2rc  cfx_tlb_addr_size, rd16
     set.rd   rd2, 2

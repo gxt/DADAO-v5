@@ -72,7 +72,7 @@
 | 册 / 分组 | ①叙述合约 `contract-*.md` | ②机器数据 `contracts/*` | ③机械门控 | ④可执行 lit/oracle/向量 |
 |-----------|---------------------------|--------------------------|------------|--------------------------|
 | `SimRISC-00` | `contract-isa.md` | `contracts/opcodes.yaml`（QFC 主表 + MISC 子表） | `tools/spec/validate_encoding.py`、`check_qfc_coverage.py`、`check_d7_consistency.py`、`check_rule_refs.py`、`check_scope.py` | `tests/vectors/` |
-| `SimRISC-01…06, 08…12` | `contract-isa.md` | `contracts/opcodes.yaml`、`contracts/legality_rules.yaml` | `tools/spec/check_asm_list_consistency.py`、`check_legality_drift.py`、`check_asm_prose.py`、`check_scope.py` | `tests/vectors/isa/*.yaml`、`tests/lit/MC/Dadao`、`tests/e2e` |
+| `SimRISC-01…06, 08…12` | `contract-isa.md` | `contracts/opcodes.yaml`、`contracts/legality_rules.yaml` | `tools/spec/check_asm_list_consistency.py`、`check_legality_drift.py`、`check_asm_prose.py`、`check_scope.py` | `tests/vectors/isa/*.yaml`、`tests/llvm/lit/MC/DADAO`、`tests/e2e` |
 | `SimRISC-07`（浮点，`scope: fp`） | `contract-fp.md` | `contracts/fp_semantics.yaml`、`contracts/legality_rules.yaml` | `tools/spec/check_fp_contract.py`、`check_scope.py` | `缺口`（oracle/向量待建，见 `docs/fp-oracle-design.md`） |
 | `DADAO-11`（AEE） | `contract-abi.md` | `contracts/abi.yaml` | `tools/integ/check_interface_alignment.py` | `tests/`（据实） |
 | `DADAO-12`（SEE） | `deferred`（`contract-sbi.md`、`contract-mmu.md`；归属 M3+，触发：SBI/地址转换消费方落地） | `缺口`（据实） | `tools/spec/check_cfx_aliases.py` | `缺口`（据实） |
@@ -80,7 +80,7 @@
 | `DADAO-21`（ABI） | `contract-abi.md` | `contracts/abi.yaml` | `check_interface_alignment` | 据实 |
 | `DADAO-22`（SBI） | `deferred`（`contract-sbi.md`；归属 M3+，触发：SBI 消费方落地） | 据实 | 据实 | 据实 |
 | `DADAO-23`（HBI） | `deferred`（`contract-exception.md`；归属 M3+，触发：HBI 消费方落地） | 据实 | 据实 | 据实 |
-| `Toolchain-01` | `contract-asm.md` + `contract-asm-list.md`（生成投影，已落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py` | `tests/lit/MC` |
+| `Toolchain-01` | `contract-asm.md` + `contract-asm-list.md`（生成投影，已落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py` | `tests/llvm/lit/MC/DADAO` |
 | `Process-01` | — | — | `tools/infra/check_patch_tree.py`（+ 报告，**非门控**：`tools/infra/size_report.py`，见 §11） | 不适用 |
 | `Process-02` | — | — | `tools/infra/check_spec_drift.py`（`check_spec_refs.py` 独立门控） | 不适用 |
 | `Process-03` | — | — | — | 不适用（人工遵守） |

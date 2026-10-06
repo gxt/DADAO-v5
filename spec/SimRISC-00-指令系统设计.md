@@ -394,22 +394,13 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 ## 伪指令
 
-汇编器提供以下伪指令，简化常用操作的编写。伪指令不是硬件指令，汇编器将其展开为一条或多条硬件指令。
+> **伪指令集的权威定义在 `spec/Toolchain-01-汇编语言.md §6`**（决策 `ADR-0013 D11`）。伪指令**不是**硬件指令，由汇编器在前端展开为一条或多条真实硬件指令；**反汇编器只输出真实硬件指令**，不输出伪指令。
 
-| 伪指令 | 语法 | 展开形式 | 说明 | 详细定义 |
-|--------|------|----------|------|----------|
-| `nop` | `nop` | `swym 0` | 空操作，占位或对齐 | SimRISC-11 §nop 伪指令 |
-| `return` | `return` | `ret rd0, 0` | 无返回值的函数返回 | SimRISC-06 §return 伪指令 |
-| `not.o` | `not.o rdHB, rdHC` | `xnor.o rdHB, rdHC, rd0` | 64 位按位取反 | SimRISC-04 §not 伪指令 |
-| `neg.b` | `neg.b rdHB, rdHC` | `sub.sb rdHB, rd0, rdHC` | 8 位取负，符号扩展 | SimRISC-10 §neg 伪指令 |
-| `neg.w` | `neg.w rdHB, rdHC` | `sub.sw rdHB, rd0, rdHC` | 16 位取负，符号扩展 | SimRISC-09 §neg 伪指令 |
-| `neg.t` | `neg.t rdHB, rdHC` | `sub.st rdHB, rd0, rdHC` | 32 位取负，符号扩展 | SimRISC-08 §neg 伪指令 |
-| `neg.o` | `neg.o rdHB, rdHC` | `sub.so {rd0, rdHB}, rd0, rdHC` | 64 位取负 | SimRISC-04 §neg 伪指令 |
-| `set.rd` | `set.rd rdxx, imm64` | `set.zw`/`set.ow` + `or.w`/`andn.w` | 加载 64 位立即数到 rd | SimRISC-03 §set.rd 伪指令 |
-| `set.rd` | `set.rd rdxx, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 从其他寄存器传值到 rd | SimRISC-03 §set.rd 伪指令 |
-| `set.rb` | `set.rb rbxx, imm64` | `set.zw-rb` + `or.w-rb` | 加载立即数到 rb | SimRISC-03 §set.rb 伪指令 |
-| `set.rb` | `set.rb rbxx, rs` | `rd2rb`/`rb2rb` | 从其他寄存器传值到 rb | SimRISC-03 §set.rb 伪指令 |
-| `set.ft` | `set.ft rfxx, imm32` | `set.w`（2 条） | 加载单精浮点立即数 | SimRISC-03 §set.ft / set.fo 伪指令 |
-| `set.fo` | `set.fo rfxx, imm64` | `set.w`（4 条） | 加载双精浮点立即数 | SimRISC-03 §set.ft / set.fo 伪指令 |
-| `set.ft` | `set.ft rfxx, rs` | `rd2rf`/`ft2ft` | 从其他寄存器传值到 rf | SimRISC-03 §set.ft / set.fo 伪指令 |
-| `set.fo` | `set.fo rfxx, rs` | `rd2rf`/`fo2fo` | 从其他寄存器传值到 rf | SimRISC-03 §set.ft / set.fo 伪指令 |
+v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成型**伪指令（`set.rd`/`set.rb`/`set.ft`/`set.fo`，各有「立即数」与「寄存器」两种源形式）；逐条语法、展开规则与示例见 `Toolchain-01 §6`（`set.*` 的 wyde 级展开示例见 SimRISC-03）。
+
+**已删除助记符（不再作为伪指令）**：上游 `SimRISC-0.5.4` 定义的 `nop`、`return`、`not.{b,w,t,o}`、`neg.{b,w,t,o}`（共 10 条）**1:1 别名一律不保留**（`ADR-0013 D11`）。需要相应功能时**直接书写真实指令**：
+
+- `nop` → `swym 0`（空操作 / 对齐）；
+- `return` → `ret rd0, 0`（无返回值返回；`ret` 保持显式两操作数，**无无参形态**）；
+- `not.o` → `xnor.o rd, rs, rd0`（64 位按位取反）；`not.b`/`not.w`/`not.t` 无等宽替代（窄位宽 `xnor.b/w/t` 已随 `SPEC-069t` 删除，需要时用 `xnor.o` 做 64 位取反）；
+- `neg.b`/`neg.w`/`neg.t`/`neg.o` → `sub.sX`（`sub.sb`/`sub.sw`/`sub.st`/`sub.so`）。

@@ -11,7 +11,7 @@ DADAO-v5 基于 19 份上游 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，
 | **M1 归档**（2026-10-03） | ✅ M1 历史（testcases 模块 / M1 任务规划 / M1 实现 三行）已归档至 `.tao/archive/M1/README.md`；76 个 M1 任务书同在该目录。 |
 | **M2 归档**（2026-10-04） | ✅ M2 历史（45 行 + 2 条混合行〔`spec 模块`/`integ 模块`〕的 M2 段落）已归档至 `.tao/archive/M2/README.md`；150 个 M2 任务书同在该目录。 |
 | **M3 归档**（2026-10-05） | ✅ M3 历史（1 行〔`M3 进行中`〕）已归档至 `.tao/archive/M3/README.md`；41 个 M3 任务书同在该目录。 |
-| **M4 规划**（2026-10-06） | ✅ M4 = 「ELF 文件支持 + LLD 链接 + 汇编器遗留收口」。定义见 `milestones.md`；前置 `ADR-0019`（reloc）+ `ADR-0013 D11`（伪指令）+ `ADR-0012 D3.5`（编码调整）+ `spec/Process-05`（TDD）；分解见 `SPEC-104k`（**M4 任务书**）。**M4 进行中**：`SPEC-109t`（删 `illi`/`fence 0x00`/`swym 0x22`，跨组件原子）、`INFRA-045t`（`tests/` 组件先行重排）、`SPEC-110t`（`Process-05 §6` 路径同步）**已验证**。 |
+| **M4 规划**（2026-10-06） | ✅ M4 = 「ELF 文件支持 + LLD 链接 + 汇编器遗留收口」。定义见 `milestones.md`；前置 `ADR-0019`（reloc）+ `ADR-0013 D11`（伪指令）+ `ADR-0012 D3.5`（编码调整）+ `spec/Process-05`（TDD）；分解见 `SPEC-104k`（**M4 任务书**）。**M4 进行中**：`SPEC-109t`（删 `illi`/`fence 0x00`/`swym 0x22`，跨组件原子）、`INFRA-045t`（`tests/` 组件先行重排）、`SPEC-110t`（`Process-05 §6` 路径同步）、`SPEC-106t`（伪指令集收缩 spec 修订，`ADR-0013 D11`）**已验证**。 |
 | SimRISC 规范 | ✅ 0.5.4 |
 | spec 模块 | ✅ M1 完成（`002t`~`010t` 已验证；`011m` 里程碑）。 |
 | integ 模块 | ✅ M1 完成（`001k`~`003t` 已验证；`004m` 里程碑）：`002t` = E2E 冒烟（`tests/e2e/*.s` + `tests/lit/E2E/`，lit 3/3，`.test` 消费 `.s` + `timeout`，反例门控）；`003t` = 跨模块接口对齐核对（`docs/integ-interface-alignment.md` + `tools/integ/check_interface_alignment.py`，80 项 0 FAIL，4 轮 reviewer）——**发现 ELF `e_flags=0x0` 违约**（另建 `LLVM-014t` 修复） |
@@ -57,7 +57,7 @@ DADAO-v5 基于 19 份上游 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，
 
 ## 上游 ↔ v5 偏离台账
 
-> M2 门槛⑤交付物：登记 **6 项**上游 spec 与 v5 决策之间的**规范性偏离**。每项均已由**已 `Accepted` 的 ADR**（或 M1→M2 过渡任务 `SPEC-086t`）固化；本节只做**归一化登记 + 指针**，不新增决策。`scope`、`RACNT`、`MRPTR`、exit 码等写法与 `contracts/opcodes.yaml`、ADR 一致。
+> M2 门槛⑤交付物：登记 **7 项**上游 spec 与 v5 决策之间的**规范性偏离**。每项均已由**已 `Accepted` 的 ADR**（或 M1→M2 过渡任务 `SPEC-086t`）固化；本节只做**归一化登记 + 指针**，不新增决策。`scope`、`RACNT`、`MRPTR`、exit 码等写法与 `contracts/opcodes.yaml`、ADR 一致。
 
 | # | 偏离点 | 上游依据 | v5 决策 | ADR / 契约指针 |
 |---|--------|----------|---------|----------------|
@@ -67,6 +67,7 @@ DADAO-v5 基于 19 份上游 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，
 | 4 | **`ra0` 语义（MemRAS 简化）** | `SimRISC-00 §返回地址栈`（v5 修订前；对照归档 `spec/SimRISC-0.5.3/SimRISC-00`）：`ra0` 高 16 位 = **MemRAS 引用计数** | v5 `ra0` = `[63:54]` SBZ + `[53:48]` **`RACNT`** + `[47:0]` **`MRPTR`**；**取消 MemRAS 引用计数**；有效性判据 = `RACNT` | **ADR-0012 §D7**（D7.1–D7.7） |
 | 5 | **`e_flags` 版本字段** | `spec/` **无 ELF/Object ABI**（`e_machine`/`e_flags` 无依据） | `e_machine = EM_DADAO (0x0DA0)`（project-custom，未注册）；`e_flags = 0x00000001`（bits 0–7 = 对象/ABI 格式版本 = 1；bits 8–31 保留 0） | **ADR-0003 §D1**（含 `## 修订` 的 `e_flags` 版本字段）；投影 `contract-elf.md §1.3` |
 | 6 | **M1/M2 排除口径**（**订正**） | 上游把浮点（`SimRISC-07`）、特权 cfx（`SimRISC-11 §特权指令` + `DADAO-12/13`）、LR-SC（`SimRISC-12 §LR-SC指令`）、`fence`（`SimRISC-12 §fence指令`）均定义为架构指令 | v5 用 `scope ∈ {m1, fp, excluded}` 划范围：`m1` 已实现；**`fp` 60 条已实现（不再是 ILLI）**；`excluded` 15 条（cfx 6 + fence 1 + LR-SC 8）仍 decode **ILLI** | **ADR-0012 §D3.1**（0 号寄存器/范围）+ **ADR-0014**（fence excluded）+ `SPEC-086t`（scope 口径，`contracts/opcodes.yaml` + `check_scope.py`） |
+| 7 | **汇编伪指令集收缩**（删上游 5 类伪指令） | `SimRISC-0.5.4 §伪指令`：定义 18 条伪指令，含 `nop`/`return`/`not.{b,w,t,o}`/`neg.{b,w,t,o}` 共 10 条 1:1 别名 | v5 只保留「ISA 无法直接表达、需多指令合成」的 **8 条合成型**（`set.rd`×2/`set.rb`×2/`set.ft`×2/`set.fo`×2）；删除 10 条 1:1 别名（`nop`→`swym 0`、`return`→`ret rd0, 0`、`not.*`→`xnor.o`、`neg.*`→`sub.sX`）；`ret` 不加无参形态；反汇编只显真实指令 | **ADR-0013 §D11** |
 
 > **订正说明（第 6 项）**：历史表述「浮点未实现 ⇒ decode ILLI」在 `QEMU-034t`~`037t`（执行层 60/60）后**已不成立**；现行口径为「**浮点已实现**（`scope: fp`），**仅** cfx/LR-SC/fence（`scope: excluded`）仍 ILLI」。本台账以此为准。
 >

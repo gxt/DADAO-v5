@@ -4,7 +4,7 @@
 
 本合约把 v5 自定规范 `spec/Toolchain-01-汇编语言.md`（v1.1，语法已定稿；实现待安排）归一化为可精确消费的断言；规范叙述与理由留在该规范正文，本合约只提取可机械/agent 消费的约束。
 
-- **投影关系**：本合约为投影类型①（叙述合约）；②机器数据 = `contracts/opcodes.yaml`（`format`/汇编形式列）；③机械门控 = `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；④可执行 = `tests/lit/MC`。[Toolchain-01 §12]
+- **投影关系**：本合约为投影类型①（叙述合约）；②机器数据 = `contracts/opcodes.yaml`（`format`/汇编形式列）；③机械门控 = `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；④可执行 = `tests/llvm/lit/MC/DADAO`。[Toolchain-01 §12]
 - **指令全表**：227 条指令表为生成投影 `.tao/knowledge/contract-asm-list.md`，本合约不重抄；指令编码身份以 `contracts/opcodes.yaml` 为准，指令语义见 `contract-isa.md`（M1）/`contract-fp.md`（`scope: fp`）。[Toolchain-01 §1]
 - **来源标注**：每条规范性断言以 `[Toolchain-01 §x]` 标注主来源；凡书写形式决策并标其冻结依据 `ADR-0013`（cfx 记法见 `ADR-0013 D8`），cfx 别名约定并标 `ADR-0017`，上游可溯源者并标 `SimRISC-0x`/`DADAO-11` 的对应章节。
 - **冲突处理**：本合约与 `spec/` 冲突时阻断实现，走变更流程（`spec/Process-02-合约编写规范.md`），由规范而非实现裁定。[Toolchain-01 §附：与上游 spec/ 的关系]
@@ -183,9 +183,12 @@
 
 ## §6 伪指令
 
-- 上游 `SimRISC-00 §伪指令` 规定 18 条伪指令（`nop`、`return`、`not.{b,w,t,o}`、`neg.{b,w,t,o}`、`set.rd`×2、`set.rb`×2、`set.ft`×2、`set.fo`×2），含展开形式。[Toolchain-01 §6][SimRISC-00 §伪指令]
-- 语法 MUST 与上游一致；展开结果 MUST 为等价的硬件指令序列。[Toolchain-01 §6][SimRISC-00 §伪指令]
-- 当前状态：v5 汇编器尚未实现（全部报 `unrecognized instruction mnemonic`），属待实现缺口（见 §11）。[Toolchain-01 §6]
+- **权威源 = `spec/Toolchain-01-汇编语言.md §6`**（决策 `ADR-0013 D11`）。伪指令**不是**硬件指令，由汇编器在前端展开为真实硬件指令；**反汇编只输出真实硬件指令**。[Toolchain-01 §6][ADR-0013 D11]
+- **保留 8 条合成型**：`set.rd rd, imm64`（常量 → 最少指令数 `set.zw`/`set.ow` + `or.w`/`andn.w`；符号/可重定位 → 固定 3 片 + `R_DADAO_ABS48`）、`set.rd rd, rs`（`rb2rd`/`rf2rd`/`ra2rd`/`rd2rd`）、`set.rb rb, imm64`（`set.zw-rb` + `or.w-rb`）、`set.rb rb, rs`（`rd2rb`/`rb2rb`）、`set.ft rf, imm32`（2 条 `set.w`）/ `set.ft rf, rs`（`rd2rf`/`ft2ft`）、`set.fo rf, imm64`（4 条 `set.w`）/ `set.fo rf, rs`（`rd2rf`/`fo2fo`）。[Toolchain-01 §6][ADR-0013 D11]
+- **`set.rb` 细节**：允许 `wp0–wp3`；其为地址时 MUST ≤48 位；不补 `set.ow-rb`（rb 无 `set.ow` 变体）。[Toolchain-01 §6][ADR-0013 D11]
+- **`ret` 语法**：保持 `ret rdha, imms18` 显式两操作数；不加无参形态。[Toolchain-01 §6][ADR-0013 D11]
+- **删除（不实现，10 条）**：`nop`（用 `swym 0`）、`return`（用 `ret rd0, 0`）、`not.{b,w,t,o}`（用 `xnor.o rd, rs, rd0`；窄位宽 `not.b/w/t` 无等宽替代）、`neg.{b,w,t,o}`（用 `sub.sX`）。[Toolchain-01 §6][ADR-0013 D11]
+- 当前状态：v5 汇编器**尚未实现**伪指令展开（8 条合成型报 `unrecognized instruction mnemonic`），属**待实现缺口**（见 §11）。[Toolchain-01 §6]
 
 ---
 
@@ -231,7 +234,7 @@
 | 9 个 M1 格式类与 151 条 M1 指令 | 已实现（旧语法） |
 | 本规范的新记法（`[]`/`{}`/`?`/`:`） | 待实现（parser/printer/disassembler） |
 | 双目的/多寄存器新记法（`{rdHA,rdHB}`/`{start:end}`） | 待实现 |
-| 伪指令 18 条 | 未实现 |
+| 伪指令 8 条（合成型） | 待实现 |
 | `.dd.*` 指导符 4 条 | 未实现 |
 | `-multiple-to-single` | 未实现 |
 | ABI 寄存器别名 | 未实现（`DwarfRegAlias` 不可用于汇编） |

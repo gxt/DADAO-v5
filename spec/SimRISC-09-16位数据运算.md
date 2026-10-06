@@ -75,17 +75,12 @@ shr.sw  rdHB, rdHC, rdHD
 shr.sw  rdHB, rdHC, immu6
 ```
 
-#### neg 伪指令
+#### neg 伪指令（已删除）
 
-`neg.w` 是汇编器提供的伪指令，用于对操作数进行 16 位取负操作（二进制补码）。
+上游 `SimRISC-0.5.4` 曾定义 `neg.w` 伪指令；v5 **删除**（`ADR-0013 D11`）。16 位取负（符号扩展至 64 位）**直接书写真实指令 `sub.sw rdHB, rd0, rdHC`**：
 
-| 伪指令 | 展开形式 | 语义 |
-|--------|----------|------|
-| `neg.w rdHB, rdHC` | `sub.sw rdHB, rd0, rdHC` | 16 位取负，符号扩展至 64 位 |
-
-示例：
 ```simrisc
-neg.w   rd1, rd2        ; rd1 = -rd2（低 16 位取负，符号扩展）
+sub.sw  rd1, rd0, rd2        ; rd1 = -rd2（低 16 位取负，符号扩展）
 ```
 
 ### 比较操作 — 值语义
@@ -121,9 +116,9 @@ MISC-wyde 子表中的 `mul`/`div`/`rem` 提供 16 位乘除余运算。`mul` �
 
 **SPEC-069t**：`and.w`/`or.w`/`xor.w`/`xnor.w` 已从指令集中删除。64 位逻辑运算见 SimRISC-04。
 
-#### not 伪指令 — 已删除
+#### not 伪指令（已删除）
 
-**SPEC-069t**：`not.w` 已删除（窄位宽逻辑指令 `xnor.w` 已不存在）；仅保留 `not.o`（见 SimRISC-04）。
+**SPEC-069t**：`not.w` 已删除（窄位宽逻辑指令 `xnor.w` 已不存在）；v5 亦**不保留** `not.o`（`ADR-0013 D11`）。按位取反**直接书写真实指令 `xnor.o rd, rs, rd0`**（64 位）。
 
 ### Bit manipulating：位操作指令 — 值语义
 
