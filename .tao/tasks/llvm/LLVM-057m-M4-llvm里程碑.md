@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M4
-**状态**：待开始
+**状态**：里程碑
 **目标**：LLVM 侧 M4 收口——① ELF writer 改 `SHT_RELA` 并实现 4 类 `getRelocType`（`ABS48/REL26/REL20/REL14`）；② 汇编器遗留落地（`set.*` 伪指令展开、`.dd.*` 指导符、`-multiple-to-single`、越界立即数报错）；③ 全局数据 `.data`/`.rodata` lower + `ABS48`/RELA fixup；④ DADAO LLD target + `dadao.lds` 产出 `ET_EXEC`。为 `INTEG-016t`（多 TU/多段 E2E）提供 `llc`/`llvm-mc`/`ld.lld` 全链能力。
 **关联任务**：`LLVM-050t`、`LLVM-051t`、`LLVM-052t`、`LLVM-053t`、`LLVM-054t`、`LLVM-055t`、`LLVM-056t`、`LLVM-059t`（8 个）
 
@@ -15,4 +15,6 @@
 - reloc/fixup 坑预防 5 条在 `LLVM-050t`/`055t`/`056t` 落实（尤其②同段判定、⑤大常量材料化）
 
 ## 核验记录（主会话）
+
+**M4 里程碑核验（主会话，2026-10-07）**：关联任务**全部 `已验证`**；产出存在（8 项抽检通过）；make check / check-lit / test-codegen / test-elf / check-no-residue / check-patch-tree / check-qemu-semantics 全部 EXIT=0（`.work/log/integ/m4-closure/`）；差异：`M3 15 向量经新 ELF 链 == raw-bin（0 分歧）`；负例（畸形 ELF / reloc 溢出）非零；跨模块影响已处置（issues 核查：6 结案 + 8 rescale M5 + 3 moot；`ISS-047` 改归 M5）。**结论：满足，置 `里程碑`**。
 （核验命令、输出与退出码；结论）

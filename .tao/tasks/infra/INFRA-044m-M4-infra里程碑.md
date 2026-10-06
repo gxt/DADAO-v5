@@ -2,7 +2,7 @@
 
 **模块**：infra
 **项目里程碑**：M4
-**状态**：待开始
+**状态**：里程碑
 **目标**：构建基础设施支持 M4——① 新增构建入口产出 `ld.lld`（`.work/build/llvm/bin/ld.lld`），且 `build-mc`/`build-qemu` 既有目标不回归（为 `LLVM-056t`（DADAO LLD target）与 `INTEG-016t`（`make test-elf`）提供链接器产物）；② `tests/` 组件先行重排（`tests/llvm/{lit/{MC,CodeGen,tools}/DADAO, codegen}` + `tests/qemu/` + `tests/e2e/lit/`，对齐上游 `llvm/test/{MC,CodeGen,tools}`），迁移后 `make check`/`check-lit`/`test-codegen` 全绿、无残留；③ 测试产物落点统一（`test-codegen` 由 `.work/log/integ/codegen-e2e` 改到模块固定路径 `tests/llvm/codegen-e2e/`，依 `Process-05 §6` + `ADR-0016 D6`）。
 **关联任务**：`INFRA-043t`、`INFRA-045t`、`INFRA-046t`（3 个）
 
@@ -16,4 +16,6 @@
 - `make check-no-residue` 干净；`make check` 全绿
 
 ## 核验记录（主会话）
+
+**M4 里程碑核验（主会话，2026-10-07）**：关联任务**全部 `已验证`**；产出存在（8 项抽检通过）；make check / check-lit / test-codegen / test-elf / check-no-residue / check-patch-tree / check-qemu-semantics 全部 EXIT=0（`.work/log/integ/m4-closure/`）；差异：`M3 15 向量经新 ELF 链 == raw-bin（0 分歧）`；负例（畸形 ELF / reloc 溢出）非零；跨模块影响已处置（issues 核查：6 结案 + 8 rescale M5 + 3 moot；`ISS-047` 改归 M5）。**结论：满足，置 `里程碑`**。
 （核验命令、输出与退出码；结论）

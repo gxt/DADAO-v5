@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M4
-**状态**：待开始
+**状态**：里程碑
 **目标**：`qemu-system-dadao` 支持 ELF 加载——解析 `Elf64_Ehdr`/`Phdr`、按 `VA=PA` 装载 PT_LOAD 段、跳 `e_entry`，替代 `objcopy`+trampoline 的 M3 捷径；同时保留 raw-bin 路径（M3 `make test-codegen` 不回归）；畸形 ELF 显式拒绝（加载层非零退出）。为 `INTEG-016t`（多 TU/多段 ELF E2E）提供加载能力。
 **关联任务**：`QEMU-042t`（1 个）
 
@@ -16,4 +16,6 @@
 - 跨模块影响：`SPEC-107t` 的 `ADR-0004` 修订已落地且与实现一致；与 `INTEG-016t`/`LLVM-056t` 的 `e_entry`/段布局约定对齐；**`SPEC-109t` 的 MISC-AMO 编码调整**（删 `illi`/`fence`→`0x00`/`swym`→`0x22`）已在 `insn.decode`/`trans_ctrl` 落地且 `check_qemu_trans`/`check-interface` 绿；**QEMU-042t 的加载期 over-size 守卫**（ROM >64 KiB / 镜像 >RAM ⇒ 非零退出）与 `LLVM-056t` 的链接期 `MEMORY`/`ASSERT` 互为兜底
 
 ## 核验记录（主会话）
+
+**M4 里程碑核验（主会话，2026-10-07）**：关联任务**全部 `已验证`**；产出存在（8 项抽检通过）；make check / check-lit / test-codegen / test-elf / check-no-residue / check-patch-tree / check-qemu-semantics 全部 EXIT=0（`.work/log/integ/m4-closure/`）；差异：`M3 15 向量经新 ELF 链 == raw-bin（0 分歧）`；负例（畸形 ELF / reloc 溢出）非零；跨模块影响已处置（issues 核查：6 结案 + 8 rescale M5 + 3 moot；`ISS-047` 改归 M5）。**结论：满足，置 `里程碑`**。
 （核验命令、输出与退出码；结论）

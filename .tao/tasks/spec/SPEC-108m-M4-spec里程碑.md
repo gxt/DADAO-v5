@@ -2,7 +2,7 @@
 
 **模块**：spec
 **项目里程碑**：M4
-**状态**：待开始
+**状态**：里程碑
 **目标**：M4 的规范层收口——① `contract-elf.md §2–§4` 由 `Deferred to M2` 转为规范正文（按 `ADR-0019` 的 RELA/`ABS48/REL26/REL20/REL14`/无 −4/溢出=link-time error/禁用 relaxation）；② 伪指令集收缩按 `ADR-0013 D11` 落地（权威源迁 `Toolchain-01 §6`；留 8 条合成型、删 10 条别名、`ret` 不加无参、反汇编只显真实指令）并登记上游偏离台账；③ `ADR-0004` 的 ELF `e_entry`/段布局/加载约定调整（若需，经用户逐条确认）与 `contract-elf §5/§6` 同步；④ **MISC-AMO 编码调整**按 `ADR-0012 D3.5` 落地（删 `illi`、`fence ha 0x01→0x00`、`swym ha 0x02→0x22`，跨组件原子 `SPEC-109t`）；⑤ **`Process-05 §6` 落点路径同步**（`INFRA-045t` 组件先行重排后示例路径过期，按 `ADR-0012 D4` 由 spec 模块同步）。为 LLVM/LLD/QEMU 的 M4 实现提供稳定期望值来源。
 **关联任务**：`SPEC-105t`、`SPEC-106t`、`SPEC-107t`、`SPEC-109t`、`SPEC-110t`（5 个）
 
@@ -18,4 +18,6 @@
 - M4 内**未**改 `contract-elf` 之外的 spec 正文，除 `SPEC-106t` 的伪指令修订（含实测扩展文件）、`SPEC-107t` 的 §5/§6、`SPEC-109t` 的 `SimRISC-00/11`（MISC-AMO 编码）与 `SPEC-110t` 的 `Process-05 §6`（路径同步）
 
 ## 核验记录（主会话）
+
+**M4 里程碑核验（主会话，2026-10-07）**：关联任务**全部 `已验证`**；产出存在（8 项抽检通过）；make check / check-lit / test-codegen / test-elf / check-no-residue / check-patch-tree / check-qemu-semantics 全部 EXIT=0（`.work/log/integ/m4-closure/`）；差异：`M3 15 向量经新 ELF 链 == raw-bin（0 分歧）`；负例（畸形 ELF / reloc 溢出）非零；跨模块影响已处置（issues 核查：6 结案 + 8 rescale M5 + 3 moot；`ISS-047` 改归 M5）。**结论：满足，置 `里程碑`**。
 （核验命令、输出与退出码；结论）

@@ -3,11 +3,13 @@
 项目级里程碑（跨模块），由各模块的里程碑支撑（模块里程碑见 `.tao/tasks/<module>/` 的 `m` 文件）。主会话在依赖的模块里程碑均达成为 `里程碑` 后，将本项目里程碑置为 `达成`。路线参考 DADAO-0628（`.cache/refs/DADAO-0628`）。
 
 | 项目里程碑 | infra | spec | testcases | golden | llvm | qemu | integ | gem5 | sail | 状态 |
+> **M4 达成（2026-10-07，主会话实测核验）**：门槛 `make test-elf` **5/5**；6 个模块 `m`（`SPEC-108m`/`INFRA-044m`/`LLVM-057m`/`QEMU-043m`/`TESTCASES-031m`/`INTEG-017m`）全部置 `里程碑`；`make check`/`check-lit`(60/60)/`test-codegen`(15/15)/`test-elf`/`check-no-residue`/`check-patch-tree`(89)/`check-qemu-semantics` 全 EXIT=0（`.work/log/integ/m4-closure/`）。前置 `SPEC-105t` 补置已验证；`SPEC-111t` 归档收口。M4 任务书归档待立归档任务（`Process-04 §3`，同 M1–M3 体例）。
+
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | M1 | **`INFRA-014m` ✅ 里程碑** | **`SPEC-011m` ✅ 里程碑** | **`TESTCASES-012m` ✅ 里程碑** | — | **`LLVM-015m` ✅ 里程碑** | **`QEMU-021m` ✅ 里程碑** | **`INTEG-004m` ✅ 里程碑** | — | — | **✅ 达成** |
 | M2 | **`INFRA-034m` ✅ 里程碑** | **`SPEC-095m` ✅ 里程碑** | **`TESTCASES-025m` ✅ 里程碑** | — | **`LLVM-032m` ✅ 里程碑** | **`QEMU-039m` ✅ 里程碑** | **`INTEG-011m` ✅ 里程碑** | — | — | **✅ 达成** |
 | M3 | **`INFRA-036m` ✅ 里程碑** | **`SPEC-099m` ✅ 里程碑** | **`TESTCASES-027m` ✅ 里程碑** | — | **`LLVM-042m` ✅ 里程碑** | — | **`INTEG-013m` ✅ 里程碑** | — | — | **✅ 达成** |
-| M4 | 待分解 | 待分解 | 待分解 | — | 待分解 | 待分解 | 待分解 | — | — | 待开始 |
+| M4 | **`INFRA-044m` ✅ 里程碑** | **`SPEC-108m` ✅ 里程碑** | **`TESTCASES-031m` ✅ 里程碑** | — | **`LLVM-057m` ✅ 里程碑** | **`QEMU-043m` ✅ 里程碑** | **`INTEG-017m` ✅ 里程碑** | — | — | **✅ 达成** |
 
 > **归档（2026-10-03）**：M1 的 76 个任务书已归档至 `.tao/archive/M1/`（按模块子目录）；M1 时期 changelog/MEMORY 内容见 `.tao/archive/M1/README.md`；**M1 回顾见 `.tao/archive/M1/m1-retrospective.md`**（由 `docs/` 移入）。
 >
