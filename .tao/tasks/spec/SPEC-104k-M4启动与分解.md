@@ -534,3 +534,14 @@ llc → llvm-mc → ld.lld → ET_EXEC → qemu-system-dadao 直接加载执行
 - 与前几轮修订记录（·1/·2/·3）的追加模式一致 ✓
 - 待裁定点2项已标注 ✓
 - 两份新建任务书的下发前预检结论：**Accepted**（详见各自任务书审阅记录）
+
+## 修订记录（2026-10-06·5，架构师登记，追加）
+
+**背景**：`TESTCASES-030t` 完成区「新发现/坑 1」与 reviewer 第六节、以及 `.tao/knowledge/issues.yaml` 的 `ISS-158` 记录：M4 DADAO backend 未实现 `TargetInstrInfo::insertBranch`，循环体含跨 TU 调用 + 后置等值守卫时 `llc` `SIGABRT(134)`，影响 `INTEG-016t` 等需 CFG 改写的用例。**用户裁定「a」= 现在补齐**（新增本任务），而非登记留后或先做 `INTEG-016t`。本记录**追加**，不改写前述正文、任务分解表与审阅记录。
+
+**A. 新建（1 份）**：
+- `.tao/tasks/llvm/LLVM-059t-DADAO分支分析插入删除.md`（llvm / M4）——补 `DADAOInstrInfo` 的 `analyzeBranch`/`insertBranch`/`removeBranch`/`getBranchDestBlock`；**先于 `INTEG-016t`**（`INTEG-016t` 的 loop + eq guard 用例受阻）。
+
+**B. 依赖（主会话裁定，用户已准；任务分解表未改）**：`LLVM-059t` 依赖 `LLVM-050t`~`LLVM-058t`；`LLVM-057m` 关联任务 **+= `LLVM-059t`**（7→8）；`INTEG-016t` 依赖 **+= `LLVM-059t`**（顺序显式，置于 `LLVM-056t` 后）。已同步两份任务书字段。
+
+**C. 门控策略（主会话裁定，用户已确认）**：`LLVM-059t` 新增的 `tests/llvm/lit/CodeGen/DADAO/` 回归向量**暂不接门控**——**标 `UNSUPPORTED:`**，**不改 `Makefile`、不改 `lit.cfg.py`**；「suite 接入 `make check-lit` + 去 `UNSUPPORTED:`」整体**缓到 `INTEG-016t`** 一并收口（顺带解 `ISS-152`）。向量可失败性由 `LLVM-059t` 的一键证据脚本直接调 `llc`/`FileCheck` 证明。

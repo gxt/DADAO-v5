@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..1c2d67bee
+index 000000000..4c0927975
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,290 @@
+@@ -0,0 +1,493 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,6 +16,8 @@ index 000000000..1c2d67bee
 +// instruction info tables (DADAOGenInstrInfo.inc).  Custom overrides:
 +//   copyPhysReg         - bank-aware register moves (LLVM-034t)
 +//   expandPostRAPseudo  - i64 arithmetic / constant pseudos (LLVM-035t)
++//   analyzeBranch / removeBranch / insertBranch / getBranchDestBlock
++//                       - CFG branch support (LLVM-059t)
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -293,4 +295,205 @@ index 000000000..1c2d67bee
 +      .addImm(0)
 +      .addMemOperand(MMO)
 +      .setMIFlag(Flags);
++}
++
++// ===--------------------------------------------------------------------=== //
++// Branch analysis / insertion / removal (LLVM-059t / ISS-158)
++// ===--------------------------------------------------------------------=== //
++
++// The DADAO conditional branches whose operand layout is understood by
++// analyzeBranch / insertBranch.  This is an explicit list (rather than
++// isConditionalBranch()) so that any future or unknown conditional branch is
++// reported as "cannot analyze" instead of being silently mis-modelled:
++//   * riii (one non-target reg): br.n / br.nn / br.z / br.nz / br.p / br.np on
++//     a GPRD, plus br.z / br.nz on a GPRB;
++//   * rrii (two non-target regs): br.eq / br.ne on two GPRDs.
++// The branch target is always the last explicit operand (DADAOInstrInfo.td).
++bool DADAOInstrInfo::isSupportedCondBranchOpcode(unsigned Opcode) {
++  switch (Opcode) {
++  case DADAO::br_eq_rd:
++  case DADAO::br_ne_rd:
++  case DADAO::br_n_rd:
++  case DADAO::br_nn_rd:
++  case DADAO::br_z_rd:
++  case DADAO::br_nz_rd:
++  case DADAO::br_p_rd:
++  case DADAO::br_np_rd:
++  case DADAO::br_z_rb:
++  case DADAO::br_nz_rb:
++    return true;
++  default:
++    return false;
++  }
++}
++
++// Parse a fall-through conditional branch into the convention shared with
++// insertBranch: Cond[0] = Imm(opcode), Cond[1..] = the branch's non-target
++// explicit operands (the target is always the last explicit operand).
++static void parseCondBranch(MachineInstr &LastInst, MachineBasicBlock *&Target,
++                            SmallVectorImpl<MachineOperand> &Cond) {
++  assert(LastInst.getDesc().isConditionalBranch() &&
++         "Unknown conditional branch");
++  const unsigned NumExplicit = LastInst.getNumExplicitOperands();
++  Target = LastInst.getOperand(NumExplicit - 1).getMBB();
++  Cond.push_back(MachineOperand::CreateImm(LastInst.getOpcode()));
++  for (unsigned i = 0, e = NumExplicit - 1; i != e; ++i)
++    Cond.push_back(LastInst.getOperand(i));
++}
++
++bool DADAOInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
++                                   MachineBasicBlock *&TBB,
++                                   MachineBasicBlock *&FBB,
++                                   SmallVectorImpl<MachineOperand> &Cond,
++                                   bool AllowModify) const {
++  TBB = FBB = nullptr;
++  Cond.clear();
++
++  // If the block has no terminators, it just falls into the block after it.
++  MachineBasicBlock::iterator I = MBB.getLastNonDebugInstr();
++  if (I == MBB.end() || !isUnpredicatedTerminator(*I))
++    return false;
++
++  // Count the contiguous terminators at the end and remember the first
++  // unconditional (or indirect) branch among them.
++  MachineBasicBlock::iterator FirstUncondOrIndirectBr = MBB.end();
++  int NumTerminators = 0;
++  for (auto J = I.getReverse(); J != MBB.rend() && isUnpredicatedTerminator(*J);
++       J++) {
++    NumTerminators++;
++    if (J->getDesc().isUnconditionalBranch() ||
++        J->getDesc().isIndirectBranch())
++      FirstUncondOrIndirectBr = J.getReverse();
++  }
++
++  // If AllowModify is true, we can erase any terminators after the first
++  // unconditional/indirect branch.
++  if (AllowModify && FirstUncondOrIndirectBr != MBB.end()) {
++    while (std::next(FirstUncondOrIndirectBr) != MBB.end()) {
++      std::next(FirstUncondOrIndirectBr)->eraseFromParent();
++      NumTerminators--;
++    }
++    I = FirstUncondOrIndirectBr;
++  }
++
++  // Indirect branches and pre-ISel generic branches are not understood.
++  if (I->getDesc().isIndirectBranch() || I->isPreISelOpcode())
++    return true;
++
++  // We can't handle blocks with more than two terminators.
++  if (NumTerminators > 2)
++    return true;
++
++  // A single unconditional branch.
++  if (NumTerminators == 1 && I->getDesc().isUnconditionalBranch()) {
++    TBB = getBranchDestBlock(*I);
++    return false;
++  }
++
++  // A single conditional branch (fall-through to the next block).
++  if (NumTerminators == 1 && I->getDesc().isConditionalBranch()) {
++    if (!isSupportedCondBranchOpcode(I->getOpcode()))
++      return true;
++    parseCondBranch(*I, TBB, Cond);
++    return false;
++  }
++
++  // A conditional branch followed by an unconditional branch.
++  if (NumTerminators == 2 && std::prev(I)->getDesc().isConditionalBranch() &&
++      I->getDesc().isUnconditionalBranch()) {
++    if (!isSupportedCondBranchOpcode(std::prev(I)->getOpcode()))
++      return true;
++    parseCondBranch(*std::prev(I), TBB, Cond);
++    FBB = getBranchDestBlock(*I);
++    return false;
++  }
++
++  // Anything else (e.g. a block ending in `ret`): cannot analyze.
++  return true;
++}
++
++unsigned DADAOInstrInfo::removeBranch(MachineBasicBlock &MBB,
++                                      int *BytesRemoved) const {
++  if (BytesRemoved)
++    *BytesRemoved = 0;
++
++  MachineBasicBlock::iterator I = MBB.getLastNonDebugInstr();
++  if (I == MBB.end())
++    return 0;
++
++  if (!I->getDesc().isUnconditionalBranch() &&
++      !isSupportedCondBranchOpcode(I->getOpcode()))
++    return 0;
++
++  // Remove the unconditional branch.
++  if (BytesRemoved)
++    *BytesRemoved += getInstSizeInBytes(*I);
++  I->eraseFromParent();
++
++  I = MBB.end();
++  if (I == MBB.begin())
++    return 1;
++  --I;
++  if (!isSupportedCondBranchOpcode(I->getOpcode()))
++    return 1;
++
++  // Remove the conditional branch.
++  if (BytesRemoved)
++    *BytesRemoved += getInstSizeInBytes(*I);
++  I->eraseFromParent();
++  return 2;
++}
++
++unsigned DADAOInstrInfo::insertBranch(MachineBasicBlock &MBB,
++                                      MachineBasicBlock *TBB,
++                                      MachineBasicBlock *FBB,
++                                      ArrayRef<MachineOperand> Cond,
++                                      const DebugLoc &DL,
++                                      int *BytesAdded) const {
++  if (BytesAdded)
++    *BytesAdded = 0;
++
++  // Shouldn't be a fall through.
++  assert(TBB && "insertBranch must not be told to insert a fallthrough");
++  assert((Cond.empty() || isSupportedCondBranchOpcode(Cond[0].getImm())) &&
++         "unsupported DADAO branch condition");
++
++  // Unconditional branch.
++  if (Cond.empty()) {
++    MachineInstr &MI = *BuildMI(&MBB, DL, get(DADAO::jump_iiii)).addMBB(TBB);
++    if (BytesAdded)
++      *BytesAdded += getInstSizeInBytes(MI);
++    return 1;
++  }
++
++  // Either a one- or two-way conditional branch: rebuild the conditional
++  // branch from its opcode and non-target operands, then append the target.
++  MachineInstrBuilder MIB = BuildMI(&MBB, DL, get(Cond[0].getImm()));
++  for (unsigned i = 1, e = Cond.size(); i != e; ++i)
++    MIB.add(Cond[i]);
++  MIB.addMBB(TBB);
++  if (BytesAdded)
++    *BytesAdded += getInstSizeInBytes(*MIB);
++
++  // One-way conditional branch.
++  if (!FBB)
++    return 1;
++
++  // Two-way conditional branch: conditional first, unconditional second.
++  MachineInstr &JmpMI = *BuildMI(&MBB, DL, get(DADAO::jump_iiii)).addMBB(FBB);
++  if (BytesAdded)
++    *BytesAdded += getInstSizeInBytes(JmpMI);
++  return 2;
++}
++
++MachineBasicBlock *
++DADAOInstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
++  assert(MI.getDesc().isBranch() && "Unexpected opcode!");
++  // The branch target is always the last explicit operand.
++  return MI.getOperand(MI.getNumExplicitOperands() - 1).getMBB();
++}
++
++unsigned DADAOInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
++  // Every DADAO instruction is a fixed 32-bit word (DADAOInstrFormats.td).
++  return MI.getDesc().getSize();
 +}

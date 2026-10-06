@@ -4,7 +4,7 @@
 **项目里程碑**：M4
 **状态**：待开始
 **目标**：LLVM 侧 M4 收口——① ELF writer 改 `SHT_RELA` 并实现 4 类 `getRelocType`（`ABS48/REL26/REL20/REL14`）；② 汇编器遗留落地（`set.*` 伪指令展开、`.dd.*` 指导符、`-multiple-to-single`、越界立即数报错）；③ 全局数据 `.data`/`.rodata` lower + `ABS48`/RELA fixup；④ DADAO LLD target + `dadao.lds` 产出 `ET_EXEC`。为 `INTEG-016t`（多 TU/多段 E2E）提供 `llc`/`llvm-mc`/`ld.lld` 全链能力。
-**关联任务**：`LLVM-050t`、`LLVM-051t`、`LLVM-052t`、`LLVM-053t`、`LLVM-054t`、`LLVM-055t`、`LLVM-056t`（7 个）
+**关联任务**：`LLVM-050t`、`LLVM-051t`、`LLVM-052t`、`LLVM-053t`、`LLVM-054t`、`LLVM-055t`、`LLVM-056t`、`LLVM-059t`（8 个）
 
 ## 核验
 - 关联任务是否均已 `已验证`（严格串行链 `050t → 051t → 052t → 053t → 054t → 055t → 056t`，见 `SPEC-104k`；其**前置**为 `SPEC-109t`（MISC-AMO 编码原子）、`SPEC-105t`/`SPEC-106t`（spec 正文）与 `INFRA-045t`（tests 重排））

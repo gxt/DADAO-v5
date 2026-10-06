@@ -1,0 +1,149 @@
+# UNSUPPORTED: true
+#
+# RUN: %llc -march=dadao -run-pass=branch-folder -verify-machineinstrs %s -o - \
+# RUN:   | %FileCheck %s
+#
+# LLVM-059t / ISS-158: DADAOInstrInfo::{analyzeBranch,insertBranch,removeBranch}
+# on the two-way CFG shape.
+#
+# Input: the post-RA MIR of the loop+guard program *before* the Control Flow
+# Optimizer, with the block order adjusted so that the loop test's taken target
+# is the layout fall-through.  `branch-folder` then has to keep an explicit
+# unconditional branch (the "cond + jump" two-way form produced by
+# `insertBranch` with a non-null FBB), and removes the redundant jump of the
+# guard block (via `removeBranch`).  Before LLVM-059t the pass aborted with
+# "Target didn't implement TargetInstrInfo::insertBranch!".
+#
+# Checks (driven directly by `.work/evidence/LLVM-059t/run.sh` while the suite
+# is not wired into `make check-lit`):
+#   * bb.*.cond   -- conditional `br_p_rd` *followed by* an unconditional
+#                    `jump_iiii` => the two-way insert shape;
+#   * bb.*.done   -- conditional `br_nz_rd` with NO trailing unconditional
+#                    branch => the redundant `jump_iiii` was removed.
+#
+# CHECK-LABEL: bb.{{[0-9]+}}.cond:
+# CHECK:         br_p_rd
+# CHECK:         jump_iiii
+# CHECK-LABEL: bb.{{[0-9]+}}.done:
+# CHECK:         br_nz_rd
+# CHECK-NOT:     jump_iiii
+# CHECK-LABEL: bb.{{[0-9]+}}.ok:
+#
+--- |
+  ; ModuleID = 'branch-fold-two-way.mir'
+  source_filename = "branch-fold-two-way.mir"
+  target datalayout = "E-m:e-p:64:64-i64:64-i128:128-n8:16:32:64-S128"
+  
+  @rw_acc = external global i64, align 8
+  @bss_cnt = external global i64, align 8
+  
+  declare i64 @get_ro(i64)
+  
+  ; Function Attrs: noinline
+  define i64 @main() #0 {
+  entry:
+    br label %cond
+  
+  cond:                                             ; preds = %body, %entry
+    %i = load i64, ptr @bss_cnt, align 8
+    %c = icmp slt i64 %i, 4
+    br i1 %c, label %body, label %done
+  
+  body:                                             ; preds = %cond
+    %v = call i64 @get_ro(i64 %i)
+    %a = load i64, ptr @rw_acc, align 8
+    %s = add i64 %a, %v
+    store i64 %s, ptr @rw_acc, align 8
+    %i1 = add i64 %i, 1
+    store i64 %i1, ptr @bss_cnt, align 8
+    br label %cond
+  
+  done:                                             ; preds = %cond
+    %sum = load i64, ptr @rw_acc, align 8
+    %is26 = icmp eq i64 %sum, 26
+    br i1 %is26, label %ok, label %fail
+  
+  ok:                                               ; preds = %done
+    %r = add i64 %sum, 4
+    ret i64 %r
+  
+  fail:                                             ; preds = %done
+    ret i64 1
+  }
+  
+  attributes #0 = { noinline }
+...
+---
+name:            main
+alignment:       1
+tracksRegLiveness: true
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+tracksDebugUserValues: true
+frameInfo:
+  stackSize:       8
+  maxAlignment:    8
+  adjustsStack:    true
+  hasCalls:        true
+  framePointerPolicy: none
+  maxCallFrameSize: 0
+  isCalleeSavedInfoValid: true
+stack:
+  - { id: 0, type: spill-slot, offset: -8, size: 8, alignment: 8, callee-saved-register: '$rd32' }
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    liveins: $rd32
+  
+    $rb1 = frame-setup add_si_rb -8
+    st_o_rd killed $rd32, $rb1, 0 :: (store (s64) into %stack.0)
+  
+  bb.1.cond:
+    successors: %bb.2(0x7c000000), %bb.3(0x04000000)
+  
+    $rb8 = GLOBAL_ADDR @bss_cnt
+    $rd32 = ld_o_rd killed $rb8, 0 :: (dereferenceable load (s64) from @bss_cnt)
+    $rd8 = cmp_si_rd $rd32, 3
+    br_p_rd killed $rd8, %bb.3
+    jump_iiii %bb.2
+  
+  bb.3.done:
+    successors: %bb.4, %bb.5
+  
+    $rb8 = GLOBAL_ADDR @rw_acc
+    $rd8 = ld_o_rd killed $rb8, 0 :: (dereferenceable load (s64) from @rw_acc)
+    $rd9 = cmp_ui_rd $rd8, 26
+    br_nz_rd killed $rd9, %bb.5
+    jump_iiii %bb.4
+  
+  bb.2.body:
+    liveins: $rd32
+  
+    $rd16 = COPY $rd32
+    call_iiii @get_ro, csr, implicit-def $rd31, implicit-def dead $rb31, implicit killed $rd16, implicit-def $rb1
+    $rd8 = ADD_IMM_PSEUDO killed $rd32, 1
+    $rb8 = GLOBAL_ADDR @bss_cnt
+    st_o_rd killed $rd8, killed $rb8, 0 :: (store (s64) into @bss_cnt)
+    $rb8 = GLOBAL_ADDR @rw_acc
+    $rd8 = ld_o_rd $rb8, 0 :: (dereferenceable load (s64) from @rw_acc)
+    $rd8 = ADD_PSEUDO killed $rd8, killed $rd31
+    st_o_rd killed $rd8, killed $rb8, 0 :: (store (s64) into @rw_acc)
+    jump_iiii %bb.1
+  
+  bb.4.ok:
+    liveins: $rd8
+  
+    $rd31 = ADD_IMM_PSEUDO killed $rd8, 4
+    $rd32 = ld_o_rd $rb1, 0 :: (load (s64) from %stack.0)
+    $rb1 = frame-destroy add_si_rb 8
+    RET_PSEUDO implicit $rd31
+  
+  bb.5.fail:
+    $rd31 = CONST_WYDE 1
+    $rd32 = ld_o_rd $rb1, 0 :: (load (s64) from %stack.0)
+    $rb1 = frame-destroy add_si_rb 8
+    RET_PSEUDO implicit $rd31
+...
+

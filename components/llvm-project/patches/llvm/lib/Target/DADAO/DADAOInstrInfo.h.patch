@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.h b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 new file mode 100644
-index 000000000..0ddfb8b75
+index 000000000..f85807c50
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,118 @@
 +//===-- DADAOInstrInfo.h - DADAO Instruction Info ---------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -76,6 +76,47 @@ index 000000000..0ddfb8b75
 +                            Register VReg, unsigned SubReg,
 +                            MachineInstr::MIFlag Flags = MachineInstr::NoFlags)
 +      const override;
++
++  /// CFG branch support (LLVM-059t / ISS-158).  Recognise the DADAO branch
++  /// shapes emitted by CodeGen -- a conditional `br_*` (fall-through) and/or
++  /// an unconditional `jump_iiii` -- and fill in TBB/FBB/Cond per the base
++  /// class contract.  Returns true ("cannot analyze") for anything else, e.g.
++  /// a block ending in `ret` or an unsupported branch form.
++  bool analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
++                     MachineBasicBlock *&FBB,
++                     SmallVectorImpl<MachineOperand> &Cond,
++                     bool AllowModify = false) const override;
++
++  /// Remove the branch code at the end of \p MBB (LLVM-059t).
++  unsigned removeBranch(MachineBasicBlock &MBB,
++                        int *BytesRemoved = nullptr) const override;
++
++  /// Insert an unconditional branch to \p TBB (and, when \p Cond is non-empty
++  /// and \p FBB is non-null, a conditional branch to \p TBB followed by an
++  /// unconditional branch to \p FBB) at the end of \p MBB (LLVM-059t).
++  /// \p Cond follows the analyzeBranch convention: Cond[0] = Imm(opcode) of a
++  /// conditional branch, Cond[1..] = its non-target explicit operands; the
++  /// branch target is always the last explicit operand.
++  unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
++                        MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
++                        const DebugLoc &DL,
++                        int *BytesAdded = nullptr) const override;
++
++  /// Return the destination block of a DADAO branch (always the last explicit
++  /// operand; LLVM-059t).
++  MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
++
++  /// Size in bytes of a DADAO instruction.  Required by removeBranch /
++  /// insertBranch to report BytesRemoved / BytesAdded; every DADAO
++  /// instruction is a fixed 4 bytes (DADAOInstrFormats.td).  (LLVM-059t)
++  unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
++
++private:
++  /// Return true iff \p Opcode is one of the DADAO conditional branches whose
++  /// operand layout is understood by analyzeBranch / insertBranch (LLVM-059t).
++  /// Any other conditional branch must make analyzeBranch report "cannot
++  /// analyze" rather than silently mis-model the CFG.
++  static bool isSupportedCondBranchOpcode(unsigned Opcode);
 +};
 +
 +} // end namespace llvm
