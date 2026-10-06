@@ -3,7 +3,7 @@
 **模块**：integ
 **项目里程碑**：M4
 **依赖**：`LLVM-056t`、`LLVM-059t`（本任务先于 `INTEG-016t`）、`QEMU-042t`、`TESTCASES-029t`、`TESTCASES-030t`、`TESTCASES-032t`
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
