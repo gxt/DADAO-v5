@@ -36,9 +36,10 @@
 
 ## 6. 落点（SHOULD）
 
-- **L1**：`tests/lit/MC/Dadao/`（必要时进 patch 的 `llvm/test/MC/DADAO/`）；
-- **L2**：`tests/lit/` 或 patch 的 `llvm/test/CodeGen/DADAO/`；MIR 用例；
-- **L3**：`tests/codegen/` + `tools/integ/` + `tools/testcases/`；独立 oracle 脚本**随产物入库**。
+- **L1**：`tests/llvm/lit/MC/DADAO/`（必要时进 patch 的 `llvm/test/MC/DADAO/`）；
+- **L2**：`tests/llvm/lit/CodeGen/DADAO/` 或 patch 的 `llvm/test/CodeGen/DADAO/`；MIR 用例；
+- **L3**：`tests/llvm/codegen/`（M3）+ `tests/llvm/codegen/m4/`（M4 独立清单）+ `tools/integ/` + `tools/testcases/`；独立 oracle 脚本**随产物入库**；
+- **其它落点**：QEMU 组件测试 `tests/qemu/`；E2E 驱动 `tests/e2e/lit/`；共享 harness `tests/scripts/`；契约向量 `tests/vectors/isa/`。
 
 **测试产物落点与留存（用户 2026-10-06 裁定）**：
 
