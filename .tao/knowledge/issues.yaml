@@ -10,7 +10,7 @@
 #   M3 = ✅ 达成（「Basic CodeGen（纯整数）」，2026-10-04 用户重定义；门槛
 #        `make test-codegen` 15/15；5/5 模块 m 全置：INFRA-036m / SPEC-099m /
 #        TESTCASES-027m / LLVM-042m / INTEG-013m；2026-10-05 达成）
-#   M4 = 规划中（「ELF 文件支持 + LLD 链接 + 汇编器遗留收口」，2026-10-05 用户裁定；
+#   M4 = ✅ 达成（「ELF 文件支持 + LLD 链接 + 汇编器遗留收口」，2026-10-05 用户裁定；2026-10-07 达成；
 #        四块：汇编器遗留 / ELF 产出规范（含全局数据段）/ LLD 链接器 / QEMU ELF 加载；
 #        参考基线：主对标 RISC-V 64，端序参考 PPC64 BE（+s390x），双 bank 历史参考 M68K；
 #        TDD（测试驱动）；不含 FP/RF、完整调用约定、clang、libc/OS/syscall；
@@ -31,7 +31,7 @@
 #   status: open | closed
 #   scope: 非空列表 (M1 | post-M1 | M2 | M3 | M4 | M5 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
 #     - M1 = M1 范围项（已达成）；M2 = 规范与接口冻结（已达成）；M3 = Basic CodeGen（已达成）；
-#       M4 = 后续里程碑（未规划；FP/RF codegen、完整调用约定、完整重定位、clang driver 等）；
+#       M4 = ELF 文件支持 + LLD 链接 + 汇编器遗留收口（已达成）；M5 = 后续里程碑（FP/RF codegen、完整调用约定、clang driver 等）；
 #     - post-M1 = 已不属 M1 范围、归后续里程碑的通用项，无明确单一里程碑归属
 #       （含义随 M2/M3 达成后指向 M4+）。
 #   blocks: 可空列表 (M1-gate 表示直接阻断 M1 里程碑)
@@ -48,6 +48,9 @@
 #
 # M3 阶段关闭项（INTEG-014t，2026-10-05）：M3 阶段（≤ 2026-10-05）的 closed issue（56 条）已提取至
 # `.tao/archive/M3/issues-closed.md`；本文件仅保留 open 项。
+#
+# M4 阶段关闭项（INTEG-018t，2026-10-07）：M4 阶段（≤ 2026-10-07）的 closed issue（12 条）已提取至
+# `.tao/archive/M4/issues-closed.md`；本文件仅保留 open 项。
 #
 # 内容清理（INFRA-033t，2026-10-04）：A 头部校正；B 关闭 ISS-004（原生浮点候选）/ISS-086（SPEC-094t 76→0）；
 # C 校正 ISS-005/008/040/110 的 scope M2→M3；D 更新 ISS-081（含 INTEG-009t，余归 M3）；
@@ -87,31 +90,7 @@
   resolved_by: null
   notes: "INFRA-033t（2026-10-04）：contract-abi.md §6 仍列 5 项 [OPEN]（rd1/rb3/rb4 callee-saved、窄返回值扩展、多返回值、red zone、帧指针省略），属完整调用约定/codegen 前置 ⇒ scope M1→M3（与 ISS-005 同归）。依据：grep `[OPEN]` contract-abi.md L191–195。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = `SPEC-097t` 落地的标量调用约定（`contract-abi.md §4` 正文 + `contracts/abi.yaml`）；剩余 5 项 [OPEN]（rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值、red zone、帧指针省略）归 M4。INFRA-042t（2026-10-05）：本 issue 主题为 5 项 [OPEN]，M3 **未交付其中任何一项**（上句『已交付部分』指标量调用约定，系 ISS-005 的交付，记录见 closed ISS-149，不重复建档）；按用户裁定保留 open，scope M3→M4。"
 
-- id: ISS-008
-  title: "Object ABI / ELF 合约重定位（D2/D3/D4）Deferred to M2——M1 单 TU 自包含不产生重定位"
-  status: closed
-  scope: [M4]
-  blocks: []
-  resolved_by: "LLVM-050t/056t + ADR-0019 (SPEC-105t)"
-  notes: "INFRA-033t（2026-10-04）：重定位（contract-elf.md §2–§4）在 M2（规范与接口冻结）口径下不实现，属链接/codegen（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。INFRA-041t（2026-10-05）边界重定；INFRA-042t（2026-10-05）依用户裁定『交付部分单独 close、未交付部分留 open』拆分：**M3 已交付部分**（最小重定位，`LLVM-041t`）单独记为 **closed ISS-150**；本条目保留**未交付部分**（`contract-elf.md §2–§4` 完整重定位、relocation 编号/溢出/松弛、LLD）⇒ scope M3→M4。 【2026-10-06 核查结案：M4 已交付 RELA + 编号/公式/溢出/松弛 + LLD；残余 REL12/FK_Data 见 ISS-150】"
-
-- id: ISS-011
-  title: "编码知识：0.5.4 MISC 子表 ha=RRR-CCC 拼为 6 位；旧 tools/opcodes.yaml（0628）不可作编码权威"
-  status: closed
-  scope: [spec]
-  blocks: []
-  resolved_by: "moot（2026-10-06 用户裁定）"
-  notes: "【2026-10-06 用户裁定 close（moot）：编码知识已落 contract-isa §2.8 / contract-asm §1（权威=contracts/opcodes.yaml），判 moot】"
-
 # ── infra ─────────────────────────────────────────────────────────────────────
-
-- id: ISS-014
-  title: "ADR-0005 Consequences C2 表述可更精确——select_source() 完成解析、sync_mirror 只接收 source_url"
-  status: closed
-  scope: [infra]
-  blocks: []
-  resolved_by: "moot（2026-10-06 用户裁定）"
-  notes: "【2026-10-06 用户裁定 close（moot）：ADR-0005 C2 现文已近精确；剩余为措辞 nit，判 moot】"
 
 # ── testcases ─────────────────────────────────────────────────────────────────
 
@@ -133,28 +112,12 @@
 
 # ── llvm / qemu / integ ──────────────────────────────────────────────────────
 
-- id: ISS-038
-  title: "F3 — ELF writer 存根是死代码：DADAOMCTargetDesc.cpp 未注册 ELFObjectWriter"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: "LLVM-006t + LLVM-050t"
-  notes: "【2026-10-06 核查结案：ELFObjectWriter 早已注册（INFRA-042t 的 grep 大小写假阴性误判为未注册）；M4 换真实现】"
-
 - id: ISS-043
   title: "越界立即数静默截断（LLVM-006t reviewer ②）：分支/跳转 fixup 越界无诊断"
   status: open
   scope: [llvm]
   blocks: []
   resolved_by: null
-
-- id: ISS-044
-  title: "未定义符号静默为 0（LLVM-006t reviewer ③）：call ext_sym 立即数保持 0、无错误"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: "LLVM-050t"
-  notes: "【2026-10-06 核查结案：未解析 fixup 一律落 relocation；未定义符号由 LLD 链接期报错（不再静默 0）】"
 
 - id: ISS-045
   title: "getFixupKindForInstr 的 default 分支未白名单化：非分支符号操作数按 PCRel_18 处理"
@@ -169,14 +132,6 @@
   scope: [llvm, M5]
   blocks: []
   resolved_by: null
-
-- id: ISS-050
-  title: "dadao_cpu_tlb_fill 未用 access_type / 未做 48 位屏蔽——skeleton 无访存指令故不可达"
-  status: closed
-  scope: [qemu]
-  blocks: []
-  resolved_by: "moot（2026-10-06 用户裁定）"
-  notes: "【2026-10-06 用户裁定 close（moot）：access_type 已用；48 位屏蔽在无 MMU 测试机下无触发，判 moot】"
 
 - id: ISS-054
   title: "探针手算分支偏移易错 → 建议标签化框架（tools/qemu/ 基于标签的探针框架）"
@@ -276,14 +231,6 @@
   resolved_by: null
   notes: "原 backlog L237。crrr/crii/ciii 及 cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 全无定义；另 SPEC-075t 别名表 uart2..30 覆盖缺口需补齐。INFRA-033t（2026-10-04）：cfx 属 `scope: excluded`（未实现、decode ILLI），其实现在 M2 规范冻结之外 ⇒ scope M2→M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 cfx 指令/别名（仍 `scope: excluded`、decode ILLI）；剩余（crrr/crii/ciii + cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 实现 + SPEC-075t uart2..30 别名补齐）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。"
 
-- id: ISS-117
-  title: "check_interface_alignment.py 的 e_flags 检测行尾/块注释误命中（假绿，本产物无触发）"
-  status: closed
-  scope: [integ]
-  blocks: []
-  resolved_by: "INTEG-006t"
-  notes: "原 backlog L212。_is_comment() 只识别全行注释；零残留正解：改读真实产物（llvm-mc + llvm-readobj），属设计层改动。 【2026-10-06 核查结案：_strip_inline_comment/_is_comment_line 消除 e_flags 检测行尾/块注释假绿】"
-
 - id: ISS-118
   title: "lit 覆盖断言粒度限制：同族内删多条 pattern 之一无法检出（INTEG-007t）"
   status: open
@@ -323,14 +270,6 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-038t 实现 SP-only/FP + 大帧方案2（rb2rb+add.si，≤±128K）；>128K 显式 'scheme 1 not implemented'。per ADR-0018 C7 D4，方案1 仅 >128K，M3 可后补。"
-
-- id: ISS-142
-  title: "未定义外部符号 / 跨 section 引用静默留 0 且不落 relocation（完整重定位→M4）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: "LLVM-050t"
-  notes: "LLVM-041t 最小重定位仅就地解析同-section PCRel 符号；未定义/跨-section 返回 nullopt，立即数静默为 0、无 relocation。属完整重定位（contract-elf §2-§4 / LLD / ISS-008）→M4。静默留 0 可能掩盖错误，M4 宜改为显式报错或落 relocation。 【2026-10-06 核查结案：未定义/跨 section 引用落 relocation（不再静默留 0）】"
 
 - id: ISS-147
   title: "INTEG-012t E2E 期望值落入 fault 区 0x80–0xFF（137==0x89==UNDI）→ false-PASS 风险"
@@ -372,22 +311,6 @@
   resolved_by: null
   notes: "LLVM-054t reviewer 判：DADAOMCCodeEmitter 对访存符号偏移走默认分支落 R_DADAO_REL20，类型可能不符（既有、非本任务引入）。建议随 LLVM-055t/056t 或另立任务核实。"
 
-- id: ISS-152
-  title: "LLVM-055t 遗留：未加 .ll codegen lit 向量（CodeGen/DADAO 占位 suite 未接 make check-lit）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: INTEG-016t
-  notes: "LLVM-055t reviewer 判属实、非阻塞：本任务以 .work/evidence/run.sh 作门控；L2 codegen 向量（全局数据/地址材料化）建议另立任务补入 tests/llvm/lit/CodeGen/DADAO 并接 check-lit。 【INTEG-016t 已结案：更新 tests/llvm/lit/CodeGen/DADAO/lit.cfg.py（suffixes .ll/.mir、%llc/%FileCheck/%not 替换、test_exec_root），Makefile check-lit 增该路径，移除 LLVM-059t 两条向量（branch-fold-insert.ll / branch-fold-two-way.mir）的 UNSUPPORTED 标记；make check-lit 60/60（含 CodeGen 两条被发现且 PASS）EXIT=0。2026-10-06】"
-
-- id: ISS-153
-  title: "自定义 reloc 类型编号含 0（R_DADAO_ABS48=0）与 LLD 默认 0 值哨兵冲突，须显式设 TargetInfo 哨兵字段"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: "LLVM-056t"
-  notes: "LLVM-056t F1（严重）：LLD Relocations.cpp 的 isStaticLinkTimeConstant 用 `type == target.iRelSymbolicRel`，默认 iRelSymbolicRel=0，致所有 R_DADAO_ABS48(0) 被当 IRELATIVE 拒绝（cannot be used against symbol; -no-pie 无效）。修法：DADAO ctor 设 iRelSymbolicRel=R_DADAO_NUM 哨兵。教训：凡自定义 reloc 含 0 编号，必须显式设置 TargetInfo 的 0 值哨兵字段（iRelSymbolicRel/symbolicRel/relativeRel…）。建议沉淀入 lessons。 【2026-10-06 核查结案：DADAO ctor 显式设 iRelSymbolicRel=R_DADAO_NUM（消除与 LLD 默认 0 哨兵冲突）】"
-
 - id: ISS-154
   title: "contract-elf.md §2/§3 ABS48 未含数据 8 字节字段表示（与 ADR-0019 §D2 澄清漂移）"
   status: open
@@ -395,14 +318,6 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-056t F8：合约正文（SPEC-105t 版）只写 ABS48 指令表示（3×immu16），未含 ADR-0019 §D2（2026-10-06）澄清的数据 8 字节字段。实现按 ADR + 用户裁定两条均实现。建议后续 spec 任务把 §2/§3 的 ABS48 行补上数据表示。"
-
-- id: ISS-155
-  title: "FILEHDR PHDRS 使 ELF 头落在 RAM 下方一页 + .text 字面 sh_offset≠0；QEMU ELF 加载器/集成须对齐"
-  status: closed
-  scope: [qemu, integ]
-  blocks: []
-  resolved_by: SPEC-112t
-  notes: "LLVM-056t F7：LLD allocateHeaders 把 ELF 头放在最低 section 下方一页（RAM 基址 0xffff00000000 → 头落 0xfffefffff000），首个 PT_LOAD 区间越过 RAM 下界；.text sh_offset=0x1000（file offset 0 被头占据，字面 0 不可达）。已按用户裁定用 p_offset=0/flat 口径。ADR-0004 §D2.3 规定 PT_LOAD 越出映射区域即启动报错——QEMU-042t ELF 加载器须就「text 段头部一页落在 RAM 之下」与 INTEG-016t 对齐（或允许 unmapped 部分被忽略）。[SPEC-112t 2026-10-06 结案] ADR-0003 §D5 就地修订（rev. 2026-10-06，用户逐条确认）：M4 裸机路径 dadao.lds 不使用 FILEHDR PHDRS（ELF 头/程序头表只存在于文件中、不进入 guest 内存；LLD 的 FILEHDR PHDRS 能力原样保留），并冻结 p_offset 不做要求、p_align 目标默认 64 KiB（可被 -z max-page-size 覆写）。去 FILEHDR PHDRS 后首段回到 RAM 内（0xFFFF00000000），原『头部页落在 RAM 之下』问题根除；QEMU-042t/INTEG-016t 无需再处理该页。配套文本见 contract-elf §5.3/§6.1.2、milestones.md M4 范围段；实改/重建归 LLVM-058t。"
 
 - id: ISS-156
   title: "set.fo rf,0 的 rd2rf 特例与 Toolchain-01 §6.1「4×set.w」口径不一"
@@ -419,14 +334,6 @@
   blocks: []
   resolved_by: null
   notes: "TESTCASES-029t reviewer 建议登记：spec 要求助记符大小写不敏感，M4 MC 层当前未实现；本任务 norm 只测空白规范化（避免超 M4 范围）。需确认是否属 M4 能力缺口或留后。"
-
-- id: ISS-158
-  title: "DADAOInstrInfo::insertBranch 未实现 → llc SIGABRT(134)（loop + 跨 TU call + 后置等值守卫）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-059t
-  notes: "TESTCASES-030t reviewer 独立复现：循环体含跨 TU 调用 + 后置等值守卫（cond→done→{br.eq/ne}→ret）经 Control Flow Optimizer 触发 TargetInstrInfo::insertBranch 未实现 → exit=134。影响范围：INTEG-016t 等需 loop+eq guard 组合的 ELF 测试。建议立 LLVM 任务补 DADAOInstrInfo::insertBranch。本任务向量已规避。 【LLVM-059t 已修复：实现 analyzeBranch/insertBranch/removeBranch/getBranchDestBlock；复现 llc 134→0；执行级 30/1/30；结案 2026-10-06】"
 
 - id: ISS-159
   title: "M4 后端 lower IR not/neg 未走 xnor.o / sub.sX 路径（走 xor.o+常数 / sub.uo+ext.so）"
