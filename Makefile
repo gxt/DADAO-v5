@@ -36,7 +36,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 .DEFAULT_GOAL := help
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
-        clean-work build-mc build-mc-lite build-mc-reconfig \
+        clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
@@ -66,6 +66,7 @@ help:
 	@echo "  make build-mc        Build LLVM MC + CodeGen tools incl. llc (skips cmake if build.ninja exists)"
 	@echo "  make build-mc-lite   Build LLVM MC/objdump/FileCheck/not only (no objcopy/readobj/CodeGen)"
 	@echo "  make build-mc-reconfig  Force cmake re-run then build LLVM MC + CodeGen tools incl. llc"
+	@echo "  make build-lld       Build LLD linker (bin/ld.lld); re-runs cmake with LLVM_ENABLE_PROJECTS=lld"
 	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
@@ -171,6 +172,38 @@ build-mc-reconfig: manifest-check
 	  -DLLVM_ENABLE_ASSERTIONS=ON
 	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLVM_MC_FULL_TARGETS)
 	@echo "build-mc-reconfig: PASS"
+
+# build-lld: build the LLD linker (produces .work/build/llvm/bin/ld.lld).
+# See INFRA-043t.
+#
+# LLD is an LLVM sub-project, so it only exists when CMake is configured with
+# -DLLVM_ENABLE_PROJECTS=lld — a different configuration from build-mc
+# (LLVM_ENABLE_PROJECTS="").  build-mc/build-mc-lite/build-mc-reconfig share
+# this same .work/build/llvm tree, so build-lld re-runs cmake there to switch
+# the project set.  build-mc's incremental fast path (ninja over the existing
+# build.ninja) keeps working afterwards, and build-mc-reconfig restores the
+# lld-less configuration.  Unlike build-mc we cannot skip cmake when build.ninja
+# already exists: that guard would keep the lld-less configuration and leave the
+# `lld` target unavailable.
+#
+# The ninja target is `lld` (not `ld.lld`): lld/CMakeLists.txt creates the
+# `ld.lld`/`lld-link`/`ld64.lld`/`wasm-ld` names as POST_BUILD copies of the
+# `lld` executable (add_lld_symlink -> ALWAYS_GENERATE), so no separate ninja
+# target named ld.lld exists.  Building `lld` writes bin/ld.lld.
+LLD_TARGETS = lld
+
+build-lld: manifest-check
+	@$(call component-enabled,llvm-project) || { \
+	  echo "build-lld: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
+	  exit 1; \
+	}
+	cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) \
+	  -DLLVM_TARGETS_TO_BUILD=DADAO \
+	  -DLLVM_ENABLE_PROJECTS=lld \
+	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+	  -DLLVM_ENABLE_ASSERTIONS=ON
+	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLD_TARGETS)
+	@echo "build-lld: PASS"
 
 # build-qemu skips configure when build.ninja already exists (incremental fast
 # path).  After applying patches that only touch .c/.h files (not meson.build),
