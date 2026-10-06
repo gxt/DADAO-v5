@@ -1,0 +1,12 @@
+diff --git a/lld/ELF/Target.h b/lld/ELF/Target.h
+index 50f0cd8a9..849ffd6a3 100644
+--- a/lld/ELF/Target.h
++++ b/lld/ELF/Target.h
+@@ -209,6 +209,7 @@ void setAArch64TargetInfo(Ctx &);
+ void setAMDGPUTargetInfo(Ctx &);
+ void setARMTargetInfo(Ctx &);
+ void setAVRTargetInfo(Ctx &);
++void setDADAOTargetInfo(Ctx &);
+ void setHexagonTargetInfo(Ctx &);
+ void setLoongArchTargetInfo(Ctx &);
+ void setMSP430TargetInfo(Ctx &);

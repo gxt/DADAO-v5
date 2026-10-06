@@ -1,0 +1,12 @@
+diff --git a/lld/ELF/CMakeLists.txt b/lld/ELF/CMakeLists.txt
+index e22897c27..250421464 100644
+--- a/lld/ELF/CMakeLists.txt
++++ b/lld/ELF/CMakeLists.txt
+@@ -24,6 +24,7 @@ add_lld_library(lldELF
+   Arch/AMDGPU.cpp
+   Arch/ARM.cpp
+   Arch/AVR.cpp
++  Arch/DADAO.cpp
+   Arch/Hexagon.cpp
+   Arch/LoongArch.cpp
+   Arch/Mips.cpp

@@ -1,3 +1,7 @@
+lld/ELF/Arch/DADAO.cpp.patch
+lld/ELF/CMakeLists.txt.patch
+lld/ELF/Target.cpp.patch
+lld/ELF/Target.h.patch
 llvm/CMakeLists.txt.patch
 llvm/include/llvm/BinaryFormat/ELF.h.patch
 llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def.patch

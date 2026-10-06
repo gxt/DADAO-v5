@@ -374,3 +374,27 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-055t reviewer 判属实、非阻塞：本任务以 .work/evidence/run.sh 作门控；L2 codegen 向量（全局数据/地址材料化）建议另立任务补入 tests/llvm/lit/CodeGen/DADAO 并接 check-lit。"
+
+- id: ISS-153
+  title: "自定义 reloc 类型编号含 0（R_DADAO_ABS48=0）与 LLD 默认 0 值哨兵冲突，须显式设 TargetInfo 哨兵字段"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: "LLVM-056t"
+  notes: "LLVM-056t F1（严重）：LLD Relocations.cpp 的 isStaticLinkTimeConstant 用 `type == target.iRelSymbolicRel`，默认 iRelSymbolicRel=0，致所有 R_DADAO_ABS48(0) 被当 IRELATIVE 拒绝（cannot be used against symbol; -no-pie 无效）。修法：DADAO ctor 设 iRelSymbolicRel=R_DADAO_NUM 哨兵。教训：凡自定义 reloc 含 0 编号，必须显式设置 TargetInfo 的 0 值哨兵字段（iRelSymbolicRel/symbolicRel/relativeRel…）。建议沉淀入 lessons。"
+
+- id: ISS-154
+  title: "contract-elf.md §2/§3 ABS48 未含数据 8 字节字段表示（与 ADR-0019 §D2 澄清漂移）"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-056t F8：合约正文（SPEC-105t 版）只写 ABS48 指令表示（3×immu16），未含 ADR-0019 §D2（2026-10-06）澄清的数据 8 字节字段。实现按 ADR + 用户裁定两条均实现。建议后续 spec 任务把 §2/§3 的 ABS48 行补上数据表示。"
+
+- id: ISS-155
+  title: "FILEHDR PHDRS 使 ELF 头落在 RAM 下方一页 + .text 字面 sh_offset≠0；QEMU ELF 加载器/集成须对齐"
+  status: open
+  scope: [qemu, integ]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-056t F7：LLD allocateHeaders 把 ELF 头放在最低 section 下方一页（RAM 基址 0xffff00000000 → 头落 0xfffefffff000），首个 PT_LOAD 区间越过 RAM 下界；.text sh_offset=0x1000（file offset 0 被头占据，字面 0 不可达）。已按用户裁定用 p_offset=0/flat 口径。ADR-0004 §D2.3 规定 PT_LOAD 越出映射区域即启动报错——QEMU-042t ELF 加载器须就「text 段头部一页落在 RAM 之下」与 INTEG-016t 对齐（或允许 unmapped 部分被忽略）。"

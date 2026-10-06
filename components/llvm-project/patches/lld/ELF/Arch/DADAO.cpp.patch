@@ -1,0 +1,199 @@
+diff --git a/lld/ELF/Arch/DADAO.cpp b/lld/ELF/Arch/DADAO.cpp
+new file mode 100644
+index 000000000..62e078e54
+--- /dev/null
++++ b/lld/ELF/Arch/DADAO.cpp
+@@ -0,0 +1,193 @@
++//===- DADAO.cpp - DADAO ELF Linker Target ----------------------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// DADAO (SimRISC) ELF linker target.
++//
++// Relocation model (contract-elf.md §2–§4, ADR-0019):
++//   R_DADAO_ABS48 (0): absolute 48-bit address.  Two encodings share the type:
++//       * instruction (set.zw/or.w/andn.w in an executable section): one
++//         16-bit wyde per instruction, selected by wyde-position (wp = hb[5:4]);
++//       * data (`.dd.o64 <sym>` / `.quad <sym>`, non-executable section): a
++//         single 8-byte absolute address field.
++//   R_DADAO_REL26 (1): field = (S + A - P) >> 2, imms24 (effective 26 bits)
++//   R_DADAO_REL20 (2): field = (S + A - P) >> 2, imms18 (effective 20 bits)
++//   R_DADAO_REL14 (3): field = (S + A - P) >> 2, imms12 (effective 14 bits)
++//
++// v5 has **no -4** pipeline offset: rb0 reads the address of the current
++// instruction, so the PC-relative displacement is measured from P itself
++// (contract-elf.md §3.1, ADR-0019 §D3).
++//
++// Out-of-range results are a link-time error (no truncation, no wrap;
++// contract-elf.md §3.2, ADR-0019 §D6).  Relaxation is disabled: the linker
++// only patches in place, never shortens or reorders (ADR-0019 §D7).
++//
++// The instruction-vs-data distinction uses the target section's SHF_EXECINSTR
++// flag (ADR-0019 §D5: "指令逐条挂 reloc ... 数据为单条 8 字节字段 reloc").
++//
++//===----------------------------------------------------------------------===//
++
++#include "InputFiles.h"
++#include "OutputSections.h"
++#include "Relocations.h"
++#include "Symbols.h"
++#include "Target.h"
++#include "lld/Common/ErrorHandler.h"
++#include "llvm/BinaryFormat/ELF.h"
++#include "llvm/Support/Endian.h"
++#include "llvm/Support/MathExtras.h"
++
++using namespace llvm;
++using namespace llvm::ELF;
++using namespace llvm::object;
++using namespace llvm::support::endian;
++using namespace lld;
++using namespace lld::elf;
++
++namespace {
++class DADAO final : public TargetInfo {
++public:
++  DADAO(Ctx &ctx) : TargetInfo(ctx) {
++    // DADAO has no IRELATIVE-style (symbol-based) relocation: "recompile with
++    // -fPIC" would otherwise be triggered for every R_DADAO_ABS48 because the
++    // default iRelSymbolicRel sentinel is 0 and ABS48 is numbered 0.  Use the
++    // R_DADAO_NUM count value as a sentinel that never matches a real reloc.
++    iRelSymbolicRel = R_DADAO_NUM;
++  }
++
++  uint32_t calcEFlags() const override;
++  RelExpr getRelExpr(RelType type, const Symbol &s,
++                     const uint8_t *loc) const override;
++  void relocate(uint8_t *loc, const Relocation &rel,
++                uint64_t val) const override;
++  void relocateAlloc(InputSection &sec, uint8_t *buf) const override;
++
++private:
++  void relocateInSection(uint8_t *loc, const Relocation &rel, uint64_t val,
++                         bool isExec) const;
++};
++} // namespace
++
++static uint32_t getEFlags(Ctx &ctx, InputFile *f) {
++  return cast<ObjFile<ELF64BE>>(f)->getObj().getHeader().e_flags;
++}
++
++uint32_t DADAO::calcEFlags() const {
++  // The object/ABI format version is 1 in bits 0–7; bits 8–31 are reserved and
++  // must be zero.  A consumer must reject any other value (contract-elf.md
++  // §1.3, ADR-0003 §D1).  The linked ET_EXEC carries e_flags = 0x1.
++  for (InputFile *f : ctx.objectFiles) {
++    uint32_t eflags = getEFlags(ctx, f);
++    if (eflags != 0x1)
++      Err(ctx) << f << ": unsupported DADAO e_flags 0x" << utohexstr(eflags)
++               << "; expected 0x1 (ABI version 1, reserved bits clear)";
++  }
++  return 0x1;
++}
++
++RelExpr DADAO::getRelExpr(RelType type, const Symbol &s,
++                          const uint8_t *loc) const {
++  switch (type) {
++  case R_DADAO_ABS48:
++    // Absolute 48-bit address (S + A); never PC-relative.
++    return R_ABS;
++  case R_DADAO_REL26:
++  case R_DADAO_REL20:
++  case R_DADAO_REL14:
++    // PC-relative word offset: (S + A - P) >> 2.
++    return R_PC;
++  default:
++    Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << type.v
++             << ") against symbol " << &s;
++    return R_NONE;
++  }
++}
++
++void DADAO::relocateInSection(uint8_t *loc, const Relocation &rel,
++                              uint64_t val, bool isExec) const {
++  switch (rel.type) {
++  case R_DADAO_REL26:
++  case R_DADAO_REL20:
++  case R_DADAO_REL14: {
++    // field = (S + A - P) >> 2  (word offset; no -4 in v5).
++    int64_t disp = static_cast<int64_t>(val);
++    if (disp & 0x3) {
++      Err(ctx) << getErrorLoc(ctx, loc) << "improper alignment for relocation "
++               << rel.type << ": 0x" << utohexstr(static_cast<uint64_t>(disp))
++               << " is not a multiple of 4";
++      return;
++    }
++    int64_t imm = disp >> 2;
++
++    unsigned width;
++    uint32_t mask;
++    switch (rel.type) {
++    case R_DADAO_REL26:
++      width = 24; // imms24
++      mask = 0x00FFFFFFu;
++      break;
++    case R_DADAO_REL20:
++      width = 18; // imms18
++      mask = 0x0003FFFFu;
++      break;
++    default:
++      width = 12; // imms12
++      mask = 0x00000FFFu;
++      break;
++    }
++    // Out of range => link-time error (no truncation / wrap).
++    checkInt(ctx, loc, imm, width, rel);
++
++    uint32_t insn = read32be(loc);
++    insn = (insn & ~mask) | (static_cast<uint32_t>(imm) & mask);
++    write32be(loc, insn);
++    return;
++  }
++  case R_DADAO_ABS48:
++    // Absolute address must fit in 48 bits (the address space is 48-bit).
++    checkIntUInt(ctx, loc, val, 48, rel);
++    if (isExec) {
++      // Instruction path: write the 16-bit wyde selected by the instruction's
++      // wyde-position wp (hb[5:4] = bits[17:16]); opcode and register fields
++      // are preserved.
++      uint32_t insn = read32be(loc);
++      unsigned wp = (insn >> 16) & 0x3;
++      uint32_t slice = static_cast<uint32_t>(val >> (16 * wp)) & 0xFFFFu;
++      insn = (insn & 0xFFFF0000u) | slice;
++      write32be(loc, insn);
++    } else {
++      // Data path: a single 8-byte absolute address field, big-endian.
++      write64be(loc, val);
++    }
++    return;
++  default:
++    Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << rel.type.v
++             << ") against symbol " << rel.sym;
++    return;
++  }
++}
++
++void DADAO::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
++  // Entry point used by relocateNoSym()/non-alloc sections.  DADAO ABS48
++  // relocations in allocatable sections go through relocateAlloc() below,
++  // which knows whether the target section is executable.
++  relocateInSection(loc, rel, val, /*isExec=*/false);
++}
++
++void DADAO::relocateAlloc(InputSection &sec, uint8_t *buf) const {
++  uint64_t secAddr = sec.getOutputSection()->addr + sec.outSecOff;
++  const bool isExec = (sec.flags & SHF_EXECINSTR) != 0;
++  for (const Relocation &rel : sec.relocs()) {
++    if (rel.expr == R_RELAX_HINT)
++      continue;
++    uint8_t *loc = buf + rel.offset;
++    uint64_t val = sec.getRelocTargetVA(ctx, rel, secAddr + rel.offset);
++    relocateInSection(loc, rel, val, isExec);
++  }
++}
++
++void elf::setDADAOTargetInfo(Ctx &ctx) { ctx.target.reset(new DADAO(ctx)); }
