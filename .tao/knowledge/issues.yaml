@@ -29,7 +29,7 @@
 #
 # 字段约束：
 #   status: open | closed
-#   scope: 非空列表 (M1 | post-M1 | M2 | M3 | M4 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
+#   scope: 非空列表 (M1 | post-M1 | M2 | M3 | M4 | M5 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
 #     - M1 = M1 范围项（已达成）；M2 = 规范与接口冻结（已达成）；M3 = Basic CodeGen（已达成）；
 #       M4 = 后续里程碑（未规划；FP/RF codegen、完整调用约定、完整重定位、clang driver 等）；
 #     - post-M1 = 已不属 M1 范围、归后续里程碑的通用项，无明确单一里程碑归属
@@ -66,7 +66,7 @@
 - id: ISS-003
   title: "M1 范围外（推迟）：浮点 RF、特权 cfx 系统指令、LR-SC 原子——M1 仅含标量整数 + 地址/内存 + 控制流 + 测试机系统/异常"
   status: open
-  scope: [M4]
+  scope: [M5]
   blocks: []
   resolved_by: null
   notes: "INFRA-042t（2026-10-05）：M2/M3 已达成，本项三项（浮点 RF→ISS-081、特权 cfx→ISS-110、LR-SC 原子）均属后续里程碑 ⇒ scope post-M1→M4；保持 open。"
@@ -74,7 +74,7 @@
 - id: ISS-005
   title: "ABI 合约（SPEC-004t）完整调用约定 Deferred to M2——M1 仅含最小 ABI 事实"
   status: open
-  scope: [M4]
+  scope: [M5]
   blocks: []
   resolved_by: null
   notes: "INFRA-033t（2026-10-04）：M2 重定义为「规范与接口冻结」（SPEC-090k）后，完整调用约定属 codegen 前置（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。INFRA-041t（2026-10-05）边界重定；INFRA-042t（2026-10-05）依用户裁定『交付部分单独 close、未交付部分留 open』拆分：**M3 已交付部分**（标量调用约定，`SPEC-097t` 合约 + `LLVM-039t` 实现）单独记为 **closed ISS-149**；本条目保留**未交付部分**（变参、聚合传参/返回、多返回值、sret、间接调用）⇒ scope M3→M4。"
@@ -82,41 +82,43 @@
 - id: ISS-006
   title: "ABI [OPEN] 项：rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值——不得当规范性要求"
   status: open
-  scope: [M4]
+  scope: [M5]
   blocks: []
   resolved_by: null
   notes: "INFRA-033t（2026-10-04）：contract-abi.md §6 仍列 5 项 [OPEN]（rd1/rb3/rb4 callee-saved、窄返回值扩展、多返回值、red zone、帧指针省略），属完整调用约定/codegen 前置 ⇒ scope M1→M3（与 ISS-005 同归）。依据：grep `[OPEN]` contract-abi.md L191–195。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = `SPEC-097t` 落地的标量调用约定（`contract-abi.md §4` 正文 + `contracts/abi.yaml`）；剩余 5 项 [OPEN]（rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值、red zone、帧指针省略）归 M4。INFRA-042t（2026-10-05）：本 issue 主题为 5 项 [OPEN]，M3 **未交付其中任何一项**（上句『已交付部分』指标量调用约定，系 ISS-005 的交付，记录见 closed ISS-149，不重复建档）；按用户裁定保留 open，scope M3→M4。"
 
 - id: ISS-008
   title: "Object ABI / ELF 合约重定位（D2/D3/D4）Deferred to M2——M1 单 TU 自包含不产生重定位"
-  status: open
+  status: closed
   scope: [M4]
   blocks: []
-  resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：重定位（contract-elf.md §2–§4）在 M2（规范与接口冻结）口径下不实现，属链接/codegen（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。INFRA-041t（2026-10-05）边界重定；INFRA-042t（2026-10-05）依用户裁定『交付部分单独 close、未交付部分留 open』拆分：**M3 已交付部分**（最小重定位，`LLVM-041t`）单独记为 **closed ISS-150**；本条目保留**未交付部分**（`contract-elf.md §2–§4` 完整重定位、relocation 编号/溢出/松弛、LLD）⇒ scope M3→M4。"
+  resolved_by: "LLVM-050t/056t + ADR-0019 (SPEC-105t)"
+  notes: "INFRA-033t（2026-10-04）：重定位（contract-elf.md §2–§4）在 M2（规范与接口冻结）口径下不实现，属链接/codegen（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。INFRA-041t（2026-10-05）边界重定；INFRA-042t（2026-10-05）依用户裁定『交付部分单独 close、未交付部分留 open』拆分：**M3 已交付部分**（最小重定位，`LLVM-041t`）单独记为 **closed ISS-150**；本条目保留**未交付部分**（`contract-elf.md §2–§4` 完整重定位、relocation 编号/溢出/松弛、LLD）⇒ scope M3→M4。 【2026-10-06 核查结案：M4 已交付 RELA + 编号/公式/溢出/松弛 + LLD；残余 REL12/FK_Data 见 ISS-150】"
 
 - id: ISS-011
   title: "编码知识：0.5.4 MISC 子表 ha=RRR-CCC 拼为 6 位；旧 tools/opcodes.yaml（0628）不可作编码权威"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
+  resolved_by: "moot（2026-10-06 用户裁定）"
+  notes: "【2026-10-06 用户裁定 close（moot）：编码知识已落 contract-isa §2.8 / contract-asm §1（权威=contracts/opcodes.yaml），判 moot】"
 
 # ── infra ─────────────────────────────────────────────────────────────────────
 
 - id: ISS-014
   title: "ADR-0005 Consequences C2 表述可更精确——select_source() 完成解析、sync_mirror 只接收 source_url"
-  status: open
+  status: closed
   scope: [infra]
   blocks: []
-  resolved_by: null
+  resolved_by: "moot（2026-10-06 用户裁定）"
+  notes: "【2026-10-06 用户裁定 close（moot）：ADR-0005 C2 现文已近精确；剩余为措辞 nit，判 moot】"
 
 # ── testcases ─────────────────────────────────────────────────────────────────
 
 - id: ISS-019
   title: "F9① 结果级语义期望值重算需独立 oracle——属 golden model 模块，不在 testcases 模块内"
   status: open
-  scope: [golden, M4]
+  scope: [golden, M5]
   blocks: []
   resolved_by: null
   notes: "INFRA-033t（2026-10-04）：结果级独立 oracle（错误期望值重算）归 golden 模块，已由 milestones.md 明确划入 M3（范围外：FP 独立 oracle / 完整语义 E2E）⇒ scope post-M1→[golden, M3]。INFRA-041t（2026-10-05）边界重定：M3 未交付结果级/FP 独立 oracle（golden 模块 M3 未启动）；剩余（结果级错误期望值重算 + FP 独立 oracle）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。"
@@ -124,7 +126,7 @@
 - id: ISS-026
   title: "encoding 的 imm 值不在 validator 能力内——imm 语义正确性由 golden model 脚本守卫"
   status: open
-  scope: [testcases, M4]
+  scope: [testcases, M5]
   blocks: []
   resolved_by: null
   notes: "INFRA-033t（2026-10-04）：imm 语义正确性由 golden model 脚本承担，golden/结果级 oracle 归 M3（见 ISS-019）⇒ scope 追加 M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 golden model imm 语义守卫；剩余（imm 语义 oracle）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。"
@@ -133,10 +135,11 @@
 
 - id: ISS-038
   title: "F3 — ELF writer 存根是死代码：DADAOMCTargetDesc.cpp 未注册 ELFObjectWriter"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: "LLVM-006t + LLVM-050t"
+  notes: "【2026-10-06 核查结案：ELFObjectWriter 早已注册（INFRA-042t 的 grep 大小写假阴性误判为未注册）；M4 换真实现】"
 
 - id: ISS-043
   title: "越界立即数静默截断（LLVM-006t reviewer ②）：分支/跳转 fixup 越界无诊断"
@@ -147,10 +150,11 @@
 
 - id: ISS-044
   title: "未定义符号静默为 0（LLVM-006t reviewer ③）：call ext_sym 立即数保持 0、无错误"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: "LLVM-050t"
+  notes: "【2026-10-06 核查结案：未解析 fixup 一律落 relocation；未定义符号由 LLD 链接期报错（不再静默 0）】"
 
 - id: ISS-045
   title: "getFixupKindForInstr 的 default 分支未白名单化：非分支符号操作数按 PCRel_18 处理"
@@ -162,16 +166,17 @@
 - id: ISS-047
   title: "llvm-objdump -d 需显式 --triple=dadao-unknown-elf：e_machine 未映射到 dadao"
   status: open
-  scope: [llvm]
+  scope: [llvm, M5]
   blocks: []
   resolved_by: null
 
 - id: ISS-050
   title: "dadao_cpu_tlb_fill 未用 access_type / 未做 48 位屏蔽——skeleton 无访存指令故不可达"
-  status: open
+  status: closed
   scope: [qemu]
   blocks: []
-  resolved_by: null
+  resolved_by: "moot（2026-10-06 用户裁定）"
+  notes: "【2026-10-06 用户裁定 close（moot）：access_type 已用；48 位屏蔽在无 MMU 测试机下无触发，判 moot】"
 
 - id: ISS-054
   title: "探针手算分支偏移易错 → 建议标签化框架（tools/qemu/ 基于标签的探针框架）"
@@ -199,7 +204,7 @@
 - id: ISS-074
   title: "C-27 — cs.* 条件赋值快照：5 条 cs.{n,z,p,eq,ne}-rd overlap 因 condition & source register aliasing 语义未指定而 deferred"
   status: open
-  scope: [testcases, M4]
+  scope: [testcases, M5]
   blocks: []
   resolved_by: null
   notes: "INFRA-033t（2026-10-04）实测：`tests/vectors/isa/reg-cond-assign.yaml` 仍含 5 条 `class: overlap` + `deferred_reason: C-27` + `expected_state: null`（cs.n/z/p/eq/ne），语义未指定 → 未消解；aliasing 语义为 codegen 依赖 ⇒ scope M1→M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 cs.* 条件赋值 codegen / aliasing 语义；剩余（cs.* overlap 语义指定 + codegen）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。"
@@ -218,7 +223,7 @@
 - id: ISS-081
   title: "FP 后续衔接点（独立 oracle / harness RF 支持 / FP 向量 / E2E / 实现缺口）"
   status: open
-  scope: [spec, golden, testcases, llvm, qemu, integ, M4]
+  scope: [spec, golden, testcases, llvm, qemu, integ, M5]
   blocks: []
   resolved_by: null
   notes: "原 backlog L53/L57/L62/L138/L239/L249。**已闭合**：LLVM-031t（汇编期 dst_rd0@FP 15 条静态检查，2026-10-04 已验证——helper `isFPDstRdMnemonic` 15 条 + Error 级检查、新 lit fp-dst-rd0-legality.s、lit 29→30、patches 仍 69）+ QEMU-038t（运行期 dst_rd0@FP 15 条 ILLI 0x88，2026-10-04 已验证——helper `fp_check_dst_rd0` + 8 调用点覆盖 15 条、探针 `min_rom_probe_038t.py` 42/42、patches 仍 69）⇒ **dst_rd0@FP 缺口：汇编期 + 运行期两侧均已闭合**。**本轮新增（2026-10-04）**：INTEG-009t 最小 FP E2E smoke 已验证（`tests/e2e/smoke_fp.s` + `tests/lit/E2E/smoke_fp.test`，llvm-mc→llvm-objcopy→QEMU，期望值宿主 `struct`/`math` 独立派生，E2E 4/4）⇒ M2 门槛④「FP = 执行层 60/60 + dst_rd0@FP + 最小 FP smoke」达成。**余下显式归 M3**（milestones.md M2 范围外）：① GOLDEN-001t 起 FP 独立 oracle（禁 LLVM/QEMU 校准）；② harness RF 寄存器类支持；③ TESTCASES-024t FP 向量/inventory 第二张表；④ 完整 FP E2E（INTEG-*）。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = 无（M3=纯整数 CodeGen，FP/RF 不在范围）；剩余 ①FP 独立 oracle（GOLDEN）②harness RF 寄存器类 ③FP 向量/inventory ④完整 FP E2E 全部归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付（M3=纯整数），保留 open，scope M3→M4。"
@@ -266,18 +271,18 @@
 - id: ISS-110
   title: "LLVM MC 的 cfx 指令/别名实现（M2；ADR-0017 D5/D6 待落地）"
   status: open
-  scope: [llvm, M4]
+  scope: [llvm, M5]
   blocks: []
   resolved_by: null
   notes: "原 backlog L237。crrr/crii/ciii 及 cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 全无定义；另 SPEC-075t 别名表 uart2..30 覆盖缺口需补齐。INFRA-033t（2026-10-04）：cfx 属 `scope: excluded`（未实现、decode ILLI），其实现在 M2 规范冻结之外 ⇒ scope M2→M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 cfx 指令/别名（仍 `scope: excluded`、decode ILLI）；剩余（crrr/crii/ciii + cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 实现 + SPEC-075t uart2..30 别名补齐）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。"
 
 - id: ISS-117
   title: "check_interface_alignment.py 的 e_flags 检测行尾/块注释误命中（假绿，本产物无触发）"
-  status: open
+  status: closed
   scope: [integ]
   blocks: []
-  resolved_by: null
-  notes: "原 backlog L212。_is_comment() 只识别全行注释；零残留正解：改读真实产物（llvm-mc + llvm-readobj），属设计层改动。"
+  resolved_by: "INTEG-006t"
+  notes: "原 backlog L212。_is_comment() 只识别全行注释；零残留正解：改读真实产物（llvm-mc + llvm-readobj），属设计层改动。 【2026-10-06 核查结案：_strip_inline_comment/_is_comment_line 消除 e_flags 检测行尾/块注释假绿】"
 
 - id: ISS-118
   title: "lit 覆盖断言粒度限制：同族内删多条 pattern 之一无法检出（INTEG-007t）"
@@ -321,11 +326,11 @@
 
 - id: ISS-142
   title: "未定义外部符号 / 跨 section 引用静默留 0 且不落 relocation（完整重定位→M4）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "LLVM-041t 最小重定位仅就地解析同-section PCRel 符号；未定义/跨-section 返回 nullopt，立即数静默为 0、无 relocation。属完整重定位（contract-elf §2-§4 / LLD / ISS-008）→M4。静默留 0 可能掩盖错误，M4 宜改为显式报错或落 relocation。"
+  resolved_by: "LLVM-050t"
+  notes: "LLVM-041t 最小重定位仅就地解析同-section PCRel 符号；未定义/跨-section 返回 nullopt，立即数静默为 0、无 relocation。属完整重定位（contract-elf §2-§4 / LLD / ISS-008）→M4。静默留 0 可能掩盖错误，M4 宜改为显式报错或落 relocation。 【2026-10-06 核查结案：未定义/跨 section 引用落 relocation（不再静默留 0）】"
 
 - id: ISS-147
   title: "INTEG-012t E2E 期望值落入 fault 区 0x80–0xFF（137==0x89==UNDI）→ false-PASS 风险"
@@ -343,21 +348,21 @@
   resolved_by: null
   notes: "INFRA-041t reviewer 披露：docstring 计数陈旧，超 ISS-134 范围未改。建议随 llvm 文档/工具刷新一并修。"
 
-- id: ISS-149
+- id: ISS-160
   title: "SPEC-106t 范围外残留：contract-isa 投影层仍列已删伪指令 + impact-matrix 悬空 + check_spec_codeblocks PSEUDO_INSTRUCTIONS 陈旧"
   status: open
   scope: [spec]
   blocks: []
   resolved_by: null
-  notes: "SPEC-106t reviewer 判：`contract-isa.md` §6.6/§8.7/§10.5/§11.5/§12.5/§13.3 仍列已删伪指令（投影层）；`docs/impact-matrix.md` 悬空引用；`tools/spec/check_spec_codeblocks.py` 的 `PSEUDO_INSTRUCTIONS` 仍含 10 条已删项。`check-spec-refs` 靠小节头『（已删除）』保持绿，均非阻塞；建议另立 spec/tools 任务统一刷新。"
+  notes: "【2026-10-06 改号：原误用 M3 已归档的 ISS-149，改为 ISS-160】SPEC-106t reviewer 判：`contract-isa.md` §6.6/§8.7/§10.5/§11.5/§12.5/§13.3 仍列已删伪指令（投影层）；`docs/impact-matrix.md` 悬空引用；`tools/spec/check_spec_codeblocks.py` 的 `PSEUDO_INSTRUCTIONS` 仍含 10 条已删项。`check-spec-refs` 靠小节头『（已删除）』保持绿，均非阻塞；建议另立 spec/tools 任务统一刷新。"
 
-- id: ISS-150
+- id: ISS-161
   title: "LLVM-052t 遗留：REL12（load/store 相对寻址）未添加；FK_Data_1/2/4 数据符号引用静默出 0"
   status: open
   scope: [llvm]
   blocks: []
   resolved_by: null
-  notes: "LLVM-052t reviewer 判：① load/store 相对寻址需 R_DADAO_REL12（用户允准 M4 之后，须 ADR 逐条确认，属新增第 5 类）；② FK_Data_1/2/4（.long <sym> 等）仍静默 0、无 reloc（既有缺陷，非本任务引入）；③ .quad <sym> 现也发 ABS48（机制必然，无回归）。② 建议随 LLVM-055t（全局数据）一并处理。"
+  notes: "【2026-10-06 改号：原误用 M3 已归档的 ISS-150，改为 ISS-161】LLVM-052t reviewer 判：① load/store 相对寻址需 R_DADAO_REL12（用户允准 M4 之后，须 ADR 逐条确认，属新增第 5 类）；② FK_Data_1/2/4（.long <sym> 等）仍静默 0、无 reloc（既有缺陷，非本任务引入）；③ .quad <sym> 现也发 ABS48（机制必然，无回归）。② 建议随 LLVM-055t（全局数据）一并处理。"
 
 - id: ISS-151
   title: "LLVM-054t 遗留：访存符号偏移 ld.st …,[rb1,sym] 的 reloc 类型落 REL20（emitter 默认分支，既有）"
@@ -377,11 +382,11 @@
 
 - id: ISS-153
   title: "自定义 reloc 类型编号含 0（R_DADAO_ABS48=0）与 LLD 默认 0 值哨兵冲突，须显式设 TargetInfo 哨兵字段"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
   resolved_by: "LLVM-056t"
-  notes: "LLVM-056t F1（严重）：LLD Relocations.cpp 的 isStaticLinkTimeConstant 用 `type == target.iRelSymbolicRel`，默认 iRelSymbolicRel=0，致所有 R_DADAO_ABS48(0) 被当 IRELATIVE 拒绝（cannot be used against symbol; -no-pie 无效）。修法：DADAO ctor 设 iRelSymbolicRel=R_DADAO_NUM 哨兵。教训：凡自定义 reloc 含 0 编号，必须显式设置 TargetInfo 的 0 值哨兵字段（iRelSymbolicRel/symbolicRel/relativeRel…）。建议沉淀入 lessons。"
+  notes: "LLVM-056t F1（严重）：LLD Relocations.cpp 的 isStaticLinkTimeConstant 用 `type == target.iRelSymbolicRel`，默认 iRelSymbolicRel=0，致所有 R_DADAO_ABS48(0) 被当 IRELATIVE 拒绝（cannot be used against symbol; -no-pie 无效）。修法：DADAO ctor 设 iRelSymbolicRel=R_DADAO_NUM 哨兵。教训：凡自定义 reloc 含 0 编号，必须显式设置 TargetInfo 的 0 值哨兵字段（iRelSymbolicRel/symbolicRel/relativeRel…）。建议沉淀入 lessons。 【2026-10-06 核查结案：DADAO ctor 显式设 iRelSymbolicRel=R_DADAO_NUM（消除与 LLD 默认 0 哨兵冲突）】"
 
 - id: ISS-154
   title: "contract-elf.md §2/§3 ABS48 未含数据 8 字节字段表示（与 ADR-0019 §D2 澄清漂移）"
