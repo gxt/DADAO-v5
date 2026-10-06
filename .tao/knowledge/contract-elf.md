@@ -2,17 +2,19 @@
 
 > **状态**：Accepted
 >
-> **来源**：`.tao/adr/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充）。本合约的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）是 ADR-0003 的归一化投影；**§2–§4（重定位）另有来源 `.tao/adr/adr-0019-dadao-relocation-types.md`（ADR-0019，Status: Accepted，用户 2026-10-05 逐条确认 D1–D8）**。
+> **来源**：`.tao/adr/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充）。本合约的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）是 ADR-0003 的归一化投影；**§2–§4（重定位）另有来源 `.tao/adr/adr-0019-dadao-relocation-types.md`（ADR-0019，Status: Accepted，用户 2026-10-05 逐条确认 D1–D8）**；**§5/§6 的加载/启动（ELF + raw-bin 双路径）并来源 `.tao/adr/adr-0004-test-machine.md`（ADR-0004，Status: Accepted，rev. 2026-10-06，用户逐条确认，`SPEC-107t`）§D2.2/§D2.3**。
 >
 > **引用**：指令格式/字段宽度/对齐/地址模型引用 `.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）；端序/指针宽度引用 `.tao/knowledge/contract-abi.md`（0.9.2）。本合约不重复定义这些内容。
 >
-> **M1 范围**：§1 ELF 文件头字段、§5 段对齐与 VA=PA、§6 端到端 artifact pipeline。
+> **M1 范围**：§1 ELF 文件头字段、§5 段对齐与 VA=PA、§6 端到端 artifact pipeline（raw-bin 路径）。
 >
 > **M4 范围（§2–§4）**：§2 重定位类型、§3 重定位公式与溢出策略、§4 重定位松弛——由 `ADR-0019`（M4，Accepted，用户 2026-10-05 逐条确认 D1–D8）冻结为规范正文。
 >
-> **来源标注**：每条规范性断言句末以 `[ADR-0003 §DN]`（§1/§5/§6）或 `[ADR-0019 §DN]`（§2–§4）标注来源决策点，不写行号；引用合约时用 `contract-isa.md §N` / `contract-abi.md §N`。
+> **M4 范围（§5/§6 加载/启动扩展，`SPEC-107t`）**：§5/§6 由 `ADR-0004`（rev. 2026-10-06，用户逐条确认）扩展为 **「ELF 路径 + 保留 raw-bin 路径」双路径**——新增 **ELF 加载**（读 `Ehdr`/`Phdr`、按 VA=PA 装载 `PT_LOAD` 段、跳 `e_entry`），**保留** raw-bin（`.o → objcopy .text → flat`、入口固定基址）。加载/启动约定归 `ADR-0004 §D2.2/§D2.3`。
 >
-> **说明**：本合约（§1/§5/§6）由 ADR-0003 归一化投影而来，§2–§4 由 ADR-0019 归一化投影而来，面向实现；与 ADR-0003（§1/§5/§6）或 ADR-0019（§2–§4）冲突时阻断实现，走变更流程（见 `spec/Process-02-合约编写规范.md`）。v5 `spec/` 不含 ELF 内容，D1/D5 属架构自定义（ELF 结构常量取自 ELF 标准，具体取值由 ADR-0003 决策）；遗留 `Dadao.def`/`ELF.h` 仅作只读对照，不作为编号/公式来源。[ADR-0003 §Context]
+> **来源标注**：每条规范性断言句末以 `[ADR-0003 §DN]`（§1/§5/§6）或 `[ADR-0019 §DN]`（§2–§4）标注来源决策点，§5/§6 的加载/启动路径另以 `[ADR-0004 §DN]`（或 `[ADR-0004 §修订 rev. 2026-10-06]`）标注；不写行号；引用合约时用 `contract-isa.md §N` / `contract-abi.md §N`。
+>
+> **说明**：本合约（§1/§5/§6）由 ADR-0003 归一化投影而来（§5/§6 的加载/启动双路径并由 ADR-0004 投影），§2–§4 由 ADR-0019 归一化投影而来，面向实现；与 ADR-0003（§1/§5/§6）、ADR-0004（§5/§6 加载/启动）或 ADR-0019（§2–§4）冲突时阻断实现，走变更流程（见 `spec/Process-02-合约编写规范.md`）。v5 `spec/` 不含 ELF 内容，D1/D5 属架构自定义（ELF 结构常量取自 ELF 标准，具体取值由 ADR-0003 决策）；遗留 `Dadao.def`/`ELF.h` 仅作只读对照，不作为编号/公式来源。[ADR-0003 §Context]
 
 ---
 
@@ -127,15 +129,23 @@ reloc **逐指令**挂载（非逐段/逐符号）；多片时 linker 依**指�
 
 段默认布局顺序为 `.text` → `.rodata` → `.data` → `.bss`；在满足各自最小对齐的前提下允许调整顺序。[ADR-0003 §D5]
 
+该最小对齐与默认布局顺序对 **raw-bin 段拼接**（§6.1.1）与 **M4 ELF `PT_LOAD` 段装载**（§6.1.2）**均适用**；M4 ELF 的段地址由链接脚本 `dadao.lds` 给出，须满足本表对齐。[ADR-0003 §D5][ADR-0004 §D2.2]
+
 ### §5.2 VA=PA（freestanding 无 MMU）
 
 M1 无 MMU、无页表，加载期不做地址重定位。段的虚拟地址（VMA）等于其物理加载地址（PA）；即段被放在哪个物理地址，就以该地址作为其有效虚拟地址。有效地址为 48 位，高 16 位在地址计算时被硬件忽略 [contract-isa.md §1.5]。[ADR-0003 §D5]
+
+VA=PA 规则同时适用于 **raw-bin 路径**（段连续拼接，§6.1.1）与 **M4 ELF 路径**（`PT_LOAD` 段按 `p_vaddr` 装载，§6.1.2）：ELF 段的加载地址即 `p_vaddr`（`VA=PA`），不另做加载期地址重定位。[ADR-0004 §D2.2]
 
 ---
 
 ## §6 端到端 artifact pipeline
 
-### §6.1 唯一路径（M1）
+### §6.1 路径概览
+
+本合约的 artifact pipeline **有两条路径并存**（`SPEC-107t` rev. 2026-10-06 起）：M1–M3 的 **raw-bin 路径**（§6.1.1）**保留不回归**，M4 起新增 **ELF 路径**（§6.1.2）。[ADR-0003 §D5][ADR-0004 §D2.2][ADR-0004 §D2.3]
+
+#### §6.1.1 raw-bin 路径（M1–M3；保留）
 
 M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD）**、不产生 `ET_EXEC`、不做跨 object 链接：[ADR-0003 §D5]
 
@@ -148,27 +158,52 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 - **步骤 1——单 TU 自包含**：步骤 1 的 `.o` 为单翻译单元、自包含；段内标签由汇编器就地解析，**不产生重定位**。[ADR-0003 §D5] 术语「单 TU 自包含」指：TU（Translation Unit，翻译单元）是汇编器/编译器的单次输入单位，一个 TU 产出恰好一个 object（`.o`）；「自包含」指该单元内所有符号/标签都在本单元内定义并**就地解析**，不引用任何外部符号。自包含的直接后果是**不产生重定位**——汇编器在汇编期即可算出全部标签地址，无需留待链接期回填的占位项。[ADR-0003 §Context]
 - **步骤 2——objcopy 段提取**：步骤 2 使用 `objcopy`（M1 用 `llvm-objcopy`）的**段提取**能力（`--only-section=.text` + `-O binary`），不经过静态链接；这是 M1 不依赖 LLD 的关键。M1 e2e 路径冻结提取 `.text`。[ADR-0003 §D5]
 - **多段提取连续拼接**：其它可分配段（若后续 M1 用例需要）以同一机制提取，其对齐要求见 §5.1。若 M1 用例需要 `.rodata`/`.data`，则以同一 `objcopy` 机制提取并按 8B 对齐**连续拼接**为单一 flat 镜像（拼接顺序沿用 §5.1 默认布局 `.text` → `.rodata` → `.data`）。[ADR-0003 §D5]
-- **步骤 3——flat binary 而非 ELF**：步骤 3 的 QEMU 消费的是 **flat binary，不是 ELF**；`e_entry` 不被 test machine 读取，入口固定为 flat binary 的加载基址。机器名、加载地址、命令行与 trampoline 由 ADR-0004（`SPEC-006t`）冻结。[ADR-0003 §D5] **不得把 QEMU 的 flat binary 加载称为「ELF loader」**——M1 test machine 不做 ELF 解析。[ADR-0003 §D5][ADR-0004 §D2.2]
+- **步骤 3——raw-bin 路径消费 flat binary 而非 ELF**：raw-bin 路径下 QEMU 消费的是 **flat binary，不是 ELF**；`e_entry` 不被读取，入口固定为 flat binary 的加载基址。机器名、加载地址、命令行与 trampoline 由 ADR-0004（`SPEC-006t`）冻结。[ADR-0003 §D5] **不得把该 raw-bin 加载称为「ELF loader」**——raw-bin 路径不做 ELF 解析；M4 ELF 路径（§6.1.2）则**是**真正的 ELF 加载（解析 `Ehdr`/`Phdr`、跳 `e_entry`）。[ADR-0003 §D5][ADR-0004 §D2.2]
+
+#### §6.1.2 ELF 路径（M4 起新增）
+
+M4 起，跨 object 链接由 DADAO LLD（`ADR-0019`）完成，产出 **`ET_EXEC`** ELF（含 `SHT_RELA`/`R_DADAO_*` 重定位，见 §2–§4）；QEMU test machine 消费该 ELF：[ADR-0004 §D2.2][ADR-0004 §D2.3][ADR-0004 §修订 rev. 2026-10-06]
+
+```
+1. 汇编/编译（可多 TU）    →  ET_REL object(s) (.o)（含 SHT_RELA，见 §2–§4）
+2. ld.lld -T dadao.lds     →  ET_EXEC ELF（e_machine=EM_DADAO(0x0DA0)、e_flags[7:0]=1）
+3. QEMU test machine 解析 Elf64_Ehdr/Elf64_Phdr，按 VA=PA 装载 PT_LOAD 段，从 e_entry 进入
+```
+
+- **装载语义**：按 VA=PA（§5.2）将 **`PT_LOAD`** 段装入其 `p_vaddr` 对应区域（RAM/ROM，`ADR-0004 §D1`）；`p_filesz` 字节取自文件、`p_memsz − p_filesz` 的尾部（`.bss`）**零填充**；段的顺序/对齐见 §5.1。[ADR-0004 §D2.2]
+- **入口**：取 ELF **`e_entry`**（不再固定为加载基址）。[ADR-0004 §D2.2]
+- **头校验**：`EI_CLASS=ELFCLASS64`、`EI_DATA=ELFDATA2MSB`、`e_machine=EM_DADAO(0x0DA0)`、`e_flags[7:0]=1`（§1/§1.3）。[ADR-0004 §D2.2]
+- **文件偏移**：链接脚本 `FILEHDR PHDRS` 使 `.text` file-offset 0（`SPEC-104k`/`LLVM-056t`）。[ADR-0004 §修订 rev. 2026-10-06]
+- **over-size / 畸形**：任一 `PT_LOAD` 段装载区间越出映射区域（RAM 16 MiB / ROM 64 KiB）、含 `.bss` 的 `p_memsz` 超限、或畸形 ELF ⇒ **启动加载阶段报错并非零退出**（工具/加载错误层，与 guest fault 分层）。[ADR-0004 §D2.3]
 
 ### §6.2 与 ADR-0004 的加载模型统一
 
-本 pipeline 与 ADR-0004（`SPEC-006t`）的加载模型统一：ADR-0003 冻结 object → flat 的转换，ADR-0004 冻结 flat → QEMU 的加载/入口协议。[ADR-0003 §D5]
+本 pipeline 与 ADR-0004（`SPEC-006t`；`SPEC-107t` rev. 2026-10-06 调整后）的加载模型统一：ADR-0003 冻结 object → flat 的转换，ADR-0019 冻结 M4 重定位/ELF 链接，ADR-0004 冻结 QEMU 的加载/入口协议——**raw-bin 与 ELF 两条路径并存**。[ADR-0003 §D5][ADR-0004 §D2.2][ADR-0004 §修订 rev. 2026-10-06]
 
-ADR-0004 冻结的唯一启动协议为**双镜像**（ROM trampoline blob 由 `-bios` 加载，测试 flat binary 由 `-kernel` 加载，**两者必须同时提供**）：[ADR-0004 §D2.3]
+**raw-bin 路径（保留；M1–M3）**——双镜像（ROM trampoline blob 由 `-bios` 加载，测试 flat binary 由 `-kernel` 加载，**两者必须同时提供**）：[ADR-0004 §D2.3]
 
 ```
 qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin
 ```
 
-- 测试 flat binary 由 `-kernel` 加载到 RAM 基址 `0xffff_0000_0000`，入口固定为该基址；QEMU 不做 ELF 解析、不读取 `e_entry`。[ADR-0004 §D2.2][ADR-0004 §D2.3]
+- 测试 flat binary 由 `-kernel` 加载到 RAM 基址 `0xffff_0000_0000`，入口固定为该基址；此路径下 QEMU 不做 ELF 解析、不读取 `e_entry`。[ADR-0004 §D2.2][ADR-0004 §D2.3]
 - ROM trampoline blob 链接基址 `0xffff_ffff_0000`，上限 64 KiB。[ADR-0004 §D2.3]
 
-### §6.3 M1 约束
+**ELF 路径（M4 起新增）**——单 ELF（`-kernel image.elf`，入口取 `e_entry`，不使用外部 `-bios` ROM）：[ADR-0004 §D2.2][ADR-0004 §D2.3]
 
-- **`.text` 自包含约束**：M1 的 `.text` 必须单 TU 自包含（段内标签就地解析、不产生重定位）；若使用绝对地址构造，其地址须与 ADR-0004 冻结的加载基址一致。[ADR-0003 §Consequences]
-- **不引入 LLD**：M1 pipeline 不依赖 target linker；不得默认 M1 已获得 DADAO LLD backend。M2 若需要多 object/重定位，再决策 linker 与 §2/§3/§4。[ADR-0003 §Consequences]
-- **`e_entry` 仅作信息**：不被 M1 test machine 消费；入口由 ADR-0004 的加载模型冻结。[ADR-0003 §Consequences]
-- **D2/D3/D4 不得在 M1 实现**：M1 不实现 ELF relocation（`LLVM-006t` 明确不实现）。[ADR-0003 §Consequences]
+```
+qemu-system-dadao -machine dadao-m1 -kernel image.elf
+```
+
+- QEMU 解析 `Elf64_Ehdr`/`Elf64_Phdr`，按 VA=PA（§5.2）装载 `PT_LOAD` 段（`p_filesz` 数据 + `.bss` 零填充），入口取 `e_entry`。[ADR-0004 §D2.2]
+- 段装载越出映射区域（RAM 16 MiB / ROM 64 KiB）或畸形 ELF ⇒ 启动加载阶段报错并非零退出。[ADR-0004 §D2.3]
+
+### §6.3 M1 / raw-bin 约束
+
+- **`.text` 自包含约束**：raw-bin 路径（M1）的 `.text` 必须单 TU 自包含（段内标签就地解析、不产生重定位）；若使用绝对地址构造，其地址须与 ADR-0004 冻结的加载基址一致。[ADR-0003 §Consequences]
+- **不引入 LLD（仅限 raw-bin 路径）**：M1 raw-bin pipeline 不依赖 target linker；M4 起 ELF 路径（§6.1.2）由 `ADR-0019` 决策并引入 DADAO LLD（`LLVM-056t`）。[ADR-0003 §Consequences]
+- **`e_entry`**：raw-bin 路径下 `e_entry` 不被消费（入口固定为加载基址）；**M4 ELF 路径下 `e_entry` 被消费为入口**（§6.1.2/§6.2）。[ADR-0003 §Consequences][ADR-0004 §D2.2]
+- **D2/D3/D4 不得在 M1 实现**：M1 不实现 ELF relocation（`LLVM-006t` 明确不实现）；M4 起由 `ADR-0019`（§2–§4）落地。[ADR-0003 §Consequences]
 
 ---
 
@@ -180,9 +215,9 @@ qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin
 | §2 | 重定位类型（`SHT_RELA`、`R_DADAO_*` 编号、逐指令挂载） | `ADR-0019` §D1–D2、§D5 |
 | §3 | 重定位公式与溢出策略（无 −4、link-time error） | `ADR-0019` §D3、§D6 |
 | §4 | 重定位松弛（禁用 relaxation、不做 `ABS32`、`RELA_PAGE`/`RELA_LO` 留后） | `ADR-0019` §D4、§D7–D8 |
-| §5 | 段对齐、VA=PA | `ADR-0003` §D5 |
-| §6 | 端到端 artifact pipeline、单 TU 自包含、多段拼接、与 ADR-0004 一致 | `ADR-0003` §D5（+ §Context、§Consequences） |
+| §5 | 段对齐、VA=PA（raw-bin 与 ELF 路径均适用） | `ADR-0003` §D5（+ `ADR-0004` §D2.2 加载地址/VA=PA） |
+| §6 | 端到端 artifact pipeline（raw-bin 路径 + M4 ELF 路径）、单 TU 自包含、多段拼接、加载/启动协议、与 ADR-0004 一致 | `ADR-0003` §D5（+ §Context、§Consequences）；§6.1.2/§6.2 的 ELF 加载与启动并来自 `ADR-0004` §D2.2/§D2.3（`## 修订` rev. 2026-10-06） |
 
 > §2–§4 的重定位决策点来自 ADR-0019（`SPEC-105t`），非 ADR-0003 决策。
 
-> §6.2 的启动命令/镜像对来自 ADR-0004（`SPEC-006t`）§D2.2/§D2.3，非 ADR-0003 决策。
+> §6.1.1/§6.2 的 raw-bin 启动命令/镜像对来自 ADR-0004（`SPEC-006t`）§D2.2/§D2.3；§6.1.2/§6.2 的 ELF 加载/启动来自 ADR-0004 的 `## 修订` rev. 2026-10-06（`SPEC-107t`，用户逐条确认），均非 ADR-0003 决策。

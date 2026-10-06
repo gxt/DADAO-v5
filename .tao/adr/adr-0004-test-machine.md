@@ -1,6 +1,6 @@
 # ADR-0004: SimRISC M1 裸机测试机（Test Machine）
 
-**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型，见 `## 修订`）
+**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径，见 `## 修订`）
 **日期**：2026-09-13
 **关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）、`.tao/knowledge/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
 
@@ -72,18 +72,26 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
 
 #### D2.2 加载方法与入口
 
-- **镜像格式：flat binary（不使用 ELF）**。测试程序以 flat binary 提供，QEMU 不做 ELF 解析、不读取 `e_entry`；入口固定为加载基址。与 ADR-0003 一致：`.o → objcopy --only-section=.text -O binary → flat binary`，无 LLD、无 `ET_EXEC`、无 `e_entry` 加载语义。
-- **加载地址：RAM 基址 `0xffff_0000_0000`**。
+（2026-10-06 就地修订：依据本 ADR `## 修订` rev. 2026-10-06，**两条路径并存**——新增 ELF 路径并保留 raw-bin 路径；M4 ELF 支持由 `LLVM-056t`/`QEMU-042t` 实现）
 
-#### D2.3 唯一启动协议（冻结）
+- **路径 A —— ELF（M4 新增）**：测试程序可为 **`ET_EXEC` ELF** 镜像；QEMU **解析 `Elf64_Ehdr`/`Elf64_Phdr`**（大端），按 **VA=PA**（D1；`contract-elf §5.2`）把 **`PT_LOAD`** 段装载到其 `p_vaddr` 对应区域（`p_filesz` 字节取自文件，`p_memsz − p_filesz` 的 `.bss` 尾部零填充），**入口取 `e_entry`**（可与 RAM 基址 `0xffff_0000_0000` 不同）。头字段校验依 `contract-elf §1`：`EI_CLASS=ELFCLASS64`、`EI_DATA=ELFDATA2MSB`、`e_machine=EM_DADAO(0x0DA0)`、`e_flags[7:0]=1`。
+- **路径 B —— raw-bin（保留；M1–M3 既有路径）**：测试程序以 flat binary 提供，QEMU 不做 ELF 解析、不读取 `e_entry`；入口固定为加载基址。与 ADR-0003 一致：`.o → objcopy --only-section=.text -O binary → flat binary`，无 LLD、无 `ET_EXEC`、无 `e_entry` 加载语义。此路径**不得回归**（M3 `make test-codegen` 依赖）。
+- **加载地址 / RAM 基址：`0xffff_0000_0000`**（路径 B 的固定入口；路径 A 中 `.text` 默认链接于该基址，见 `SPEC-104k`）。
 
-采用**双镜像**：ROM trampoline blob 由 `-bios` 加载，测试 flat binary 由 `-kernel` 加载，**两者必须同时提供**。
+#### D2.3 启动协议（冻结；两条路径并存）
 
-- **唯一命令行**：`qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin`
-- **ROM blob 布局**：flat binary，链接基址 `0xffff_ffff_0000`，trampoline 代码位于 blob 偏移 0；加载到 ROM 区域起点。blob 大小上限 64 KiB。
-- **RAM entry**：`0xffff_0000_0000`（固定；trampoline 跳转目标，D6）。
-- **oversize / error 行为**：ROM blob > 64 KiB、或 test binary > 16 MiB、或缺少 `-bios`/`-kernel` 时，QEMU 机器在**启动加载阶段报错并以非零状态退出**，不得静默截断、部分加载或继续执行。此类为**工具/加载错误**，与 guest fault（D4/D5）分属不同层，不参与 `$?` 的 guest 协议。
-- 该协议是 M1 唯一可自动化启动路径；ADR-0003 冻结 flat binary 的生成，本 ADR 冻结其加载与入口。
+（2026-10-06 就地修订：依据本 ADR `## 修订` rev. 2026-10-06，新增单 ELF 启动路径并保留双镜像 raw-bin 路径；标题由「唯一启动协议」改为「启动协议」）
+
+- **路径 A —— 单 ELF（M4 新增）**：`qemu-system-dadao -machine dadao-m1 -kernel image.elf`
+  - **入口**：取 ELF `e_entry`（D2.2 路径 A）；段按 `PT_LOAD` + VA=PA 装载。
+  - **ROM**：本路径**不使用**外部 `-bios` ROM blob（入口由 `e_entry` 直接给出，无需 ROM trampoline）。
+- **路径 B —— 双镜像 raw-bin（保留；M1–M3 既有路径）**：ROM trampoline blob 由 `-bios` 加载，测试 flat binary 由 `-kernel` 加载，**两者必须同时提供**。
+  - **命令行**：`qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin`
+  - **ROM blob 布局**：flat binary，链接基址 `0xffff_ffff_0000`，trampoline 代码位于 blob 偏移 0；加载到 ROM 区域起点。blob 大小上限 64 KiB。
+  - **RAM entry**：`0xffff_0000_0000`（固定；trampoline 跳转目标，D6）。
+  - 此路径**不得回归**（M3 `make test-codegen` 依赖）。
+- **oversize / error 行为（两路径共同）**（2026-10-06 就地修订：扩展至 ELF 段装载越界）：ROM blob > 64 KiB、或 RAM 侧镜像超限（路径 B 的 test binary > 16 MiB；路径 A 的任一 `PT_LOAD` 段装载区间越出映射区域、或含 `.bss` 的 `p_memsz` 超出 RAM 16 MiB）、或缺少必需镜像参数时，QEMU 机器在**启动加载阶段报错并以非零状态退出**，不得静默截断、部分加载或继续执行。此类为**工具/加载错误**，与 guest fault（D4/D5）分属不同层，不参与 `$?` 的 guest 协议。
+- **路径 A/B 为 M4 起的可自动化启动路径**；ADR-0003 冻结 flat binary 的生成，本 ADR 冻结其加载与入口。
 
 ### D3 Exit Port 协议
 
@@ -322,7 +330,7 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 ## Rationale（理由）
 
 - **内存映射采用核内地址空间模型**：M1 无 cfx、无 MMU，测试机整体占用最高段 cfxha 63（power）的核内地址空间，使 boot ROM 正好落在 spec 的硬件复位向量 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`，从而 `rb0` 复位值**直接符合 spec**、无需偏离。RAM/Exit port 作为测试机约定放在同一段内的独立地址（`0xffff_0000_0000` / `0xffff_8000_0000`），三者互不重叠且 8 B 对齐。遗留 `dadao-virt`（ROM `0x0010_0000`/UART `0x1000_0000`/RAM `0x8000_0000`）仅作只读对照，v5 不沿用。
-- **双镜像启动而非单镜像**：D1 要求 ROM 容纳最小 trampoline、D6 需要 ROM trampoline；由 `-bios` 提供外部 ROM blob 使 QEMU 机器保持简单，且不必把 ISA 二进制内建进 QEMU 源码。与 ADR-0003 一致：测试产物仍是 `.o → objcopy .text → flat`，由 `-kernel` 加载到 RAM 基址、从该基址进入；`e_entry` 不参与。
+- **raw-bin 与 ELF 双路径并存（2026-10-06 就地修订：依据本 ADR `## 修订` rev. 2026-10-06）**：M1–M3 的 **raw-bin 双镜像**路径继续保留——D1 要求 ROM 容纳最小 trampoline、D6 需要 ROM trampoline，由 `-bios` 提供外部 ROM blob 使 QEMU 机器保持简单，且不必把 ISA 二进制内建进 QEMU 源码；与 ADR-0003 一致，测试产物是 `.o → objcopy .text → flat`，由 `-kernel` 加载到 RAM 基址、从该基址进入，`e_entry` 不参与；此路径为 M3 `make test-codegen` 所依赖，**不得回归**。M4 引入 DADAO LLD（`ADR-0019`）产出 `ET_EXEC` ELF 后，**新增单 ELF 路径**（D2.2 路径 A / D2.3 路径 A）：QEMU 解析 `Ehdr`/`Phdr`、按 VA=PA 装载 `PT_LOAD` 段、以 `e_entry` 进入——因入口由 `e_entry` 直接给出，该路径默认不提供外部 `-bios` ROM。两条路径并存，使既有 raw-bin 向量与 M4 ELF 向量各有自然启动方式，不为一个目标牺牲另一个。
 - **直接 exit 而非 handler**：无 OS 时 handler 方案需要 handler 地址、fault info 布局与返回机制，依赖 M1 没有的异常 ABI；直接退出更简单、可自动化，且不预设未来异常模型。M1 中 `trap`/`escape` 等特权 cfx 指令**不提供陷入/退出机制**，按 D5.1 归 **ILLI（`0x88`）**，同样走直接退出路径。
 - **fault 码与 guest 码分区**：`0x00`–`0x7F` 为 guest（pass/fail），`0x80`–`0xFF` 为机器 fault；fault 码由 **spec cause 位派生**（`0x80 | cause_bit` → `0x88`–`0x8D`）或测试机约定（`0x87` unmapped），使 `$?` 单值即可无歧义区分 pass/fail/fault，满足零 host 依赖，且可回溯到 spec 的异常原因编码。
 - **fault 码由 spec cause 位派生（`0x80 | cause_bit`）**：`spec/` 定义异常原因 `excp cause id = 1<<n`（ILLI=8、UNDI=9、RASOF=10、RASUF=11、MALIGN=12、IALIGN=13）[DADAO-12 §cfx_umon 异常原因表][DADAO-13 §HEE 异常原因表]。退出码取 `0x80 | n`，使测试机 fault 码**可回溯到 spec**，而非任意编号；unmapped 无对应 spec cause，退出码 `0x87` 为**测试机约定**（与 spec cause 位无关）。
@@ -336,12 +344,12 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 ## Consequences（影响）
 
 - **零 host 依赖成立**：所有 pass/fail/fault 分类均可由 `$?` 判定；精确异常状态（faulting PC、不提交）由机器可读的 guest 寄存器读取路径（GDB/QMP）验证，不依赖日志/stderr/超时。
-- **下游约束**：QEMU `hw/dadao/` 机器须实现本 ADR 的内存映射、复位值、exit port、fault→退出码映射与双镜像加载；test harness/向量须按 `0x00`/`0x01`–`0x7F`/`0x80`–`0xFF` 分区断言（具体 fault 码见 D5.8）；测试程序不得向 exit port 写 `0x80`–`0xFF`。
+- **下游约束**：QEMU `hw/dadao/` 机器须实现本 ADR 的内存映射、复位值、exit port、fault→退出码映射与**双路径加载（raw-bin 双镜像 + ELF 单镜像，D2.2/D2.3）**；test harness/向量须按 `0x00`/`0x01`–`0x7F`/`0x80`–`0xFF` 分区断言（具体 fault 码见 D5.8）；测试程序不得向 exit port 写 `0x80`–`0xFF`。
 - **诊断局限**：退出码只编码 fault 类别，不编码 faulting 地址/操作数；需要精确 PC/状态验证的测试须使用 D4 冻结的寄存器读取路径。
 - **`rb0` 复位符合 spec**：`rb0` 复位取 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（= boot ROM 基址），与 spec 一致；M1 仅借用该地址，不复现 hypv 复位运行模式等 HBI/SEE 语义。
 - **架构自定义项**：RAM/Exit port 的具体地址、「测试机整体占用 cfxha 63 段」、复位值（`rd1`–`rd63`/`rb1`–`rb63`/`ra*`/`rf0` 的 R/W 位/`rf1`–`rf63`）、退出码、SBZ→ILLI、MMIO 访问矩阵均无 `spec/` 依据；若未来 `spec/` 给出规定，须修订本 ADR。
 - **SBZ = ILLI 为前瞻性决策**：若 `spec/` 后续规定 SBZ → UNDI，须修订。
-- **与 ADR-0003 一致**：ADR-0003 冻结 object → flat 的转换（无 LLD/`ET_EXEC`/`e_entry` 加载），本 ADR 冻结 flat → QEMU 的加载/入口；两者共同构成唯一端到端路径。
+- **与 ADR-0003 / ADR-0019 一致（两条端到端路径）**（2026-10-06 就地修订：依据本 ADR `## 修订` rev. 2026-10-06）：**raw-bin 路径**——ADR-0003 冻结 object → flat 的转换（无 LLD/`ET_EXEC`/`e_entry` 加载），本 ADR 冻结 flat → QEMU 的加载/入口（入口固定基址）；**ELF 路径**——ADR-0019 冻结 M4 重定位（`SHT_RELA`/`R_DADAO_*`），DADAO LLD 产出 `ET_EXEC`，本 ADR 冻结 ELF → QEMU 的加载/入口（按 `PT_LOAD` + VA=PA 装载、入口取 `e_entry`）。两条端到端路径并存。
 - **RF 指令不可用**：M1 测试程序不得执行 RF 指令（执行即 ILLI）；RF 支持留后续阶段。
 
 ## 状态说明
@@ -364,3 +372,12 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 **rev. 2026-09-13（用户决定）：D4/D5 机器 fault 退出码改为由 spec cause 位派生**：机器 fault 退出码改为 **`0x80 | spec_cause_bit_index`**——ILLI=`0x88`、UNDI=`0x89`、RASOF=`0x8A`、RASUF=`0x8B`、MALIGN=`0x8C`、IALIGN=`0x8D`（原为 `0x81`–`0x86`，与 spec 位序无对应）；unmapped=`0x87`（测试机约定，与 spec cause 位无关）。依据 `spec/DADAO-12:408-413`（cfx_umon 异常原因表）/`spec/DADAO-13:38-43`（HEE 表）的 `excp cause id = 1<<n`。D4、D5.1–D5.6、D5.8 码表与 D6 示例同步更新。
 
 **rev. 2026-09-30（术语统一，`SPEC-058t`）**：D5.3「minor-opcode」→「opx」、D6.3「minor-opcode」→「opx」（就地措辞修订，decision 语义不变）。
+
+**rev. 2026-10-06（用户 2026-10-06 逐条确认，`SPEC-107t`）**：加载与启动协议由「**仅** flat binary / 唯一双镜像 raw-bin」**扩展为「ELF 与 raw-bin 双路径并存」**，以支持 M4 引入的 DADAO LLD 链接 + ELF 产物。
+
+- **D2.2 加载方法与入口**：新增 **ELF 路径**——QEMU 解析 `Elf64_Ehdr`/`Elf64_Phdr`（大端），按 **VA=PA** 装载 **`PT_LOAD`** 段（`p_filesz` 数据 + `.bss` 零填充），**入口取 `e_entry`**；**保留** raw-bin 路径（`.o → objcopy --only-section=.text -O binary → flat binary`，入口固定加载基址 `0xffff_0000_0000`）。
+- **D2.3 启动协议**：新增 **单 ELF** `-kernel image.elf` 路径（入口 `e_entry`、不用 `-bios`）；**保留** 原双镜像 `-bios rom.bin -kernel test.bin` raw-bin 路径（M3 `make test-codegen` 不回归）。标题由「唯一启动协议」改为「启动协议」。
+- **oversize / error**：由「ROM blob > 64 KiB / test binary > 16 MiB」扩展为「**ELF 段装载越出映射区域**（RAM 16 MiB / ROM 64 KiB）亦在**启动加载阶段报错并非零退出**」。
+- **用户逐条确认（2026-10-06）**：主会话提案四条（D2.2 扩展 ELF + 保留 raw-bin；D2.3 允许单 ELF + 保留双镜像；oversize 扩展 ELF 段越界；就地修订），用户答「**继续**」= 确认四条；原话（问答摘要）见 `.tao/tasks/spec/SPEC-107t-ADR-0004调整.md` 完成区。
+- **变更范围**：D2.2、D2.3、Rationale（双路径条目）、Consequences（下游约束、与 ADR-0003/ADR-0019 一致条目）、`**状态**` 行 rev 日期；配套同步 `.tao/knowledge/contract-elf.md §5/§6` 与文件头范围说明。**不变**：D1 内存映射、D2.1 复位值、D3 exit port、D4/D5 fault、D6 测试 pattern。
+- **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-06`）。Context 段「冻结该 flat binary 如何被 QEMU 加载并进入」的 flat-only 措辞由本修订取代（D2.2/D2.3 为准）。
