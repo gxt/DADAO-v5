@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
 new file mode 100644
-index 000000000000..7bcd322cf58a
+index 000000000..efd780a25
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,60 @@
 +//===-- DADAOFixupKinds.h - DADAO Fixup Kind Info ---------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -17,8 +17,10 @@ index 000000000000..7bcd322cf58a
 +//   DADAO_FK_PCRel_12: 12-bit signed (br.eq/br.ne rrii format)
 +//   DADAO_FK_PCRel_18: 18-bit signed (br.n/br.nn/br.z/br.nz/br.p/br.np riii format)
 +//   DADAO_FK_PCRel_24: 24-bit signed (call/jump iiii format)
++//   DADAO_FK_ABS48:    absolute 48-bit address (set.zw/or.w/andn.w rwii)
 +//
 +// All PCRel fixups: imms = (target - current) >> 2 (no +4 pipeline offset).
++// ABS48: value = S + A, sliced by the instruction's wyde-position (wp).
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -46,8 +48,17 @@ index 000000000000..7bcd322cf58a
 +    // Used by: call/jump (imms24)
 +    DADAO_FK_PCRel_24,
 +
++    // Absolute 48-bit address fixup for the rwii address-construction
++    // sequence: one 16-bit wyde of (S + A) per instruction.  The wyde position
++    // (wp, encoded in hb[5:4]) tells the linker which slice of the address this
++    // instruction carries; the addend A is carried explicitly in r_addend
++    // (RELA).  Never resolved in place: the address is only known at link time.
++    // Source: contract-elf.md §2.3, §3.1 (ADR-0019 §D3–§D5).
++    // Used by: set.zw / or.w / andn.w (rwii address construction)
++    DADAO_FK_ABS48,
++
 +    // Sentinel
-+    LastTargetFixupKind = DADAO_FK_PCRel_24
++    LastTargetFixupKind = DADAO_FK_ABS48
 +  };
 +} // end namespace DADAO
 +} // end namespace llvm

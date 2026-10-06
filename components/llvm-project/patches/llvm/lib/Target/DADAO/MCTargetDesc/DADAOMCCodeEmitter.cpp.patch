@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
 new file mode 100644
-index 000000000000..b2ab01973719
+index 000000000..d4061868d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
-@@ -0,0 +1,143 @@
+@@ -0,0 +1,173 @@
 +//===-- DADAOMCCodeEmitter.cpp - DADAO MC Code Emitter --------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -62,6 +62,11 @@ index 000000000000..b2ab01973719
 +private:
 +  // Determine the fixup kind for a PC-relative branch/jump instruction.
 +  MCFixupKind getFixupKindForInstr(const MCInst &MI) const;
++
++  // True for the rwii address-construction instructions (set.zw / or.w /
++  // andn.w, rd and rb variants) whose symbol operand is an absolute 48-bit
++  // address.  They emit DADAO_FK_ABS48 instead of a PC-relative fixup.
++  static bool isAddressConstructionInstr(unsigned Opcode);
 +};
 +
 +} // end anonymous namespace
@@ -94,6 +99,20 @@ index 000000000000..b2ab01973719
 +  return MCFixupKind(llvm::DADAO::DADAO_FK_PCRel_18);
 +}
 +
++bool DADAOMCCodeEmitter::isAddressConstructionInstr(unsigned Opcode) {
++  switch (Opcode) {
++  case DADAO::or_w_rd:
++  case DADAO::or_w_rb:
++  case DADAO::andn_w_rd:
++  case DADAO::andn_w_rb:
++  case DADAO::set_zw_rd:
++  case DADAO::set_zw_rb:
++    return true;
++  default:
++    return false;
++  }
++}
++
 +unsigned DADAOMCCodeEmitter::getMachineOpValue(
 +    const MCInst &Inst, const MCOperand &MCOp,
 +    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
@@ -119,6 +138,17 @@ index 000000000000..b2ab01973719
 +
 +  // MCOp must be an expression (symbol reference).
 +  assert(MCOp.isExpr() && "Unexpected operand type");
++
++  // Address construction (set.zw / or.w / andn.w): the symbol expression is an
++  // absolute 48-bit address.  Emit an ABS48 fixup (PCRel=false); the explicit
++  // addend A travels in r_addend (RELA).  Source: contract-elf.md §2–§3
++  // (ADR-0019 §D3–§D5).
++  if (isAddressConstructionInstr(Inst.getOpcode())) {
++    Fixups.push_back(MCFixup::create(0, MCOp.getExpr(),
++                                     MCFixupKind(llvm::DADAO::DADAO_FK_ABS48),
++                                     /*PCRel=*/false));
++    return 0;
++  }
 +
 +  // Create a PC-relative fixup for branch/jump targets.
 +  // The fixup kind depends on the instruction format (12/18/24 bit immediate).

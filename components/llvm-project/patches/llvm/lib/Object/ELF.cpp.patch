@@ -1,0 +1,18 @@
+diff --git a/llvm/lib/Object/ELF.cpp b/llvm/lib/Object/ELF.cpp
+index 5dbdecc99..f2cf493c2 100644
+--- a/llvm/lib/Object/ELF.cpp
++++ b/llvm/lib/Object/ELF.cpp
+@@ -183,6 +183,13 @@ StringRef llvm::object::getELFRelocationTypeName(uint32_t Machine,
+       break;
+     }
+     break;
++  case ELF::EM_DADAO:
++    switch (Type) {
++#include "llvm/BinaryFormat/ELFRelocs/DADAO.def"
++    default:
++      break;
++    }
++    break;
+   default:
+     break;
+   }

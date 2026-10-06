@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
 new file mode 100644
-index 000000000000..b11df251812e
+index 000000000..9a82a72fb
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,64 @@
 +//===-- DADAOELFObjectWriter.cpp - DADAO ELF Writer -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,38 +12,53 @@ index 000000000000..b11df251812e
 +//
 +//===----------------------------------------------------------------------===//
 +
++#include "MCTargetDesc/DADAOFixupKinds.h"
 +#include "MCTargetDesc/DADAOMCTargetDesc.h"
 +#include "llvm/BinaryFormat/ELF.h"
 +#include "llvm/MC/MCELFObjectWriter.h"
++#include "llvm/MC/MCFixup.h"
 +#include "llvm/MC/MCObjectWriter.h"
 +
 +using namespace llvm;
 +
-+// EM_DADAO: project-custom machine id.
++// EM_DADAO is defined in llvm/BinaryFormat/ELF.h (project-custom machine id).
 +// Source: contract-elf.md §1.1 (ADR-0003 §D1).
-+// Not registered in IANA/SysV public ELF registry.
-+static constexpr unsigned EM_DADAO = 0x0DA0;
 +
 +namespace {
 +
 +class DADAOELFObjectWriter : public MCELFObjectTargetWriter {
 +public:
 +  explicit DADAOELFObjectWriter(uint8_t OSABI)
-+      : MCELFObjectTargetWriter(/*Is64Bit_=*/true, OSABI, EM_DADAO,
-+                                /*HasRelocationAddend_=*/false) {}
++      : MCELFObjectTargetWriter(/*Is64Bit_=*/true, OSABI, ELF::EM_DADAO,
++                                /*HasRelocationAddend_=*/true) {}
 +
 +  ~DADAOELFObjectWriter() override = default;
 +
 +protected:
 +  unsigned getRelocType(const MCFixup &Fixup, const MCValue &,
-+                        bool IsPCRel) const override {
-+    // Stub: M1 does not produce relocations (contract-elf.md §2).
-+    // Return 0 (no relocation type defined for M1).
-+    return 0;
++                        bool /*IsPCRel*/) const override {
++    // Fixup kind -> R_DADAO_* type.  The numbering and the type set are frozen
++    // by contract-elf.md §2.2 (ADR-0019 §D2); the legacy Dadao.def numbering is
++    // intentionally not reused.
++    switch (Fixup.getKind()) {
++    case llvm::DADAO::DADAO_FK_ABS48:
++      return ELF::R_DADAO_ABS48;
++    case llvm::DADAO::DADAO_FK_PCRel_24:
++      return ELF::R_DADAO_REL26;
++    case llvm::DADAO::DADAO_FK_PCRel_18:
++      return ELF::R_DADAO_REL20;
++    case llvm::DADAO::DADAO_FK_PCRel_12:
++      return ELF::R_DADAO_REL14;
++    default:
++      llvm_unreachable("Invalid DADAO fixup kind!");
++    }
 +  }
 +
 +  bool needsRelocateWithSymbol(const MCValue &, unsigned Type) const override {
-+    return false;
++    // ABS48 carries an absolute address, so the linker must resolve the real
++    // symbol (never rewrite it to an STT_SECTION symbol).  Source:
++    // contract-elf.md §3.1 (ADR-0019 §D3).
++    return Type == ELF::R_DADAO_ABS48;
 +  }
 +};
 +

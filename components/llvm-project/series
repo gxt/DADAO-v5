@@ -1,5 +1,8 @@
 llvm/CMakeLists.txt.patch
+llvm/include/llvm/BinaryFormat/ELF.h.patch
+llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def.patch
 llvm/include/llvm/TargetParser/Triple.h.patch
+llvm/lib/Object/ELF.cpp.patch
 llvm/lib/Target/DADAO/AsmParser/CMakeLists.txt.patch
 llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp.patch
 llvm/lib/Target/DADAO/CMakeLists.txt.patch
