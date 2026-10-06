@@ -1,0 +1,87 @@
+# tests/llvm/codegen/m4/expected.yaml
+# TESTCASES-030t: M4 L3 (execution) vectors -- multi-TU / multi-section ELF link.
+#
+# This is the **independent M4 manifest**.  It is deliberately kept in its own
+# file so the M3 driver (tools/integ/run_codegen_e2e.py, which reads only
+# tests/llvm/codegen/expected.yaml and never recurses into m4/) cannot pick these
+# programs up.  INTEG-016t will consume this manifest explicitly.
+#
+# Entry / exit channel (frozen by the M3 gate and ADR-0004 D3):
+#   * every program defines `define i64 @main()`;
+#   * crt0 `_start` (linked in by ld.lld) calls it and writes the returned value
+#     to the exit port 0xffff_8000_0000, then halts;
+#   * the guest process exit code is the low byte of that value (0x00..0x7F are
+#     reserved for the guest; 0x80..0xFF are machine faults).
+#
+# Independent oracle (project hard rule):
+#   `expected_exit_code` is derived on the host by a small interpreter of the
+#   LLVM IR semantics (64-bit two's-complement integer arithmetic, big-endian
+#   memory per contract-abi.md §1.7, 8-byte pointers, 48-bit effective
+#   addresses).  It is NOT produced by llc / ld.lld / QEMU.
+#   tools/testcases/validate_elf_vectors.py re-derives every value from the
+#   actual `*.ll` sources and rejects mismatches; it never invokes a tool.
+#
+# Link instructions: `sources` lists the translation units of one program in
+# link order.  Each program has >= 2 TUs.
+schema: codegen-elf-vectors-v1
+
+conventions:
+  entry: "define i64 @main() -- linked with crt0 via ld.lld"
+  exit_channel: "guest exit code = low byte of @main return value (0x00..0x7F, ADR-0004 D3)"
+  memory: "big-endian; 8-byte pointer; DADAO 48-bit effective address"
+  link: "llc -march=dadao -filetype=obj per TU; ld.lld -T dadao.lds"
+  oracle: "host-side IR-semantics interpreter; not llc/ld.lld/QEMU"
+
+programs:
+  - name: multi_tu_call
+    category: call
+    sources: [m4_call_lib.ll, m4_call_main.ll]
+    expected_exit_code: 42
+    coverage: [multi-tu, cross-tu.call, cross-tu.global, reloc.abs48, reloc.rel26,
+               reloc.rel14, branch.cond-eq, sec.text, sec.rodata, sec.bss,
+               data.runtime-write, data.runtime-read]
+    derivation: >-
+      TU A (@lib_mix, exported -> undefined in TU B -> REL26; @seed constant ->
+      .rodata; @acc zero-initialised -> .bss):
+        lib_mix(a, b) = a + b + load(seed) ; store(acc, result)
+      TU B (@main):
+        r = lib_mix(20, 11) = 20 + 11 + 11 = 42
+        v = load(acc) = 42                       (run-time read of the .bss value
+                                                  written by lib_mix)
+        if (r == v) return r else return 1
+        -> returns 42.  Addresses of @seed/@acc are R_DADAO_ABS48; the call to
+        @lib_mix is R_DADAO_REL26; the `icmp eq` guard is the REL14 branch form.
+
+  - name: multi_section_loop
+    category: memory
+    sources: [m4_section_data.ll, m4_section_main.ll]
+    expected_exit_code: 30
+    coverage: [multi-tu, cross-tu.call, cross-tu.global, reloc.abs48, reloc.rel26,
+               reloc.rel20, branch.cond-loop, sec.text, sec.rodata, sec.data, sec.bss,
+               data.runtime-write, data.runtime-read]
+    derivation: >-
+      TU A: @ro_tbl = {3,5,7,9} (constant -> .rodata); @rw_acc = 2 (.data);
+      @bss_cnt = 0 (.bss); @get_ro(i) = ro_tbl[i] (exported -> REL26).
+      TU B (@main): acc = 2 ; i = 0 ;
+        while (i < 4) { acc += get_ro(i) ; i += 1 }   (icmp slt -> REL20 form)
+        -> acc = 2 + 3 + 5 + 7 + 9 = 26
+        return acc + 4                                 -> returns 30.
+      @rw_acc/@bss_cnt are read and written at run time; all global addresses
+      are R_DADAO_ABS48.  The REL14 branch form is covered by `multi_tu_call`.
+
+  - name: cross_tu_pdiff
+    category: arithmetic
+    sources: [m4_pdiff_data.ll, m4_pdiff_main.ll]
+    expected_exit_code: 126
+    coverage: [multi-tu, cross-tu.call, cross-tu.global, reloc.abs48, reloc.rel26,
+               sec.text, sec.bss, ptr.diff-pos, ptr.diff-neg]
+    derivation: >-
+      TU A: @buf = 16 zero bytes (.bss) ; @pdiff(a, b) = (i64)a - (i64)b
+      (exported -> REL26; @buf addressed from TU B -> ABS48).
+      TU B (@main):
+        p = &buf[10] ; q = &buf[3]
+        d = pdiff(p, q) = 10 - 3 = 7
+        e = pdiff(q, p) = 3 - 10 = -7 = 0xFFFFFFFFFFFFFFF9   (raw 64-bit)
+        m = e & 127 = 0x79 = 121
+        r = d ^ m = 0x07 ^ 0x79 = 0x7E = 126
+        -> returns 126 (low byte, in 0x00..0x7F).

@@ -414,3 +414,11 @@
   blocks: []
   resolved_by: null
   notes: "TESTCASES-029t reviewer 建议登记：spec 要求助记符大小写不敏感，M4 MC 层当前未实现；本任务 norm 只测空白规范化（避免超 M4 范围）。需确认是否属 M4 能力缺口或留后。"
+
+- id: ISS-158
+  title: "DADAOInstrInfo::insertBranch 未实现 → llc SIGABRT(134)（loop + 跨 TU call + 后置等值守卫）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "TESTCASES-030t reviewer 独立复现：循环体含跨 TU 调用 + 后置等值守卫（cond→done→{br.eq/ne}→ret）经 Control Flow Optimizer 触发 TargetInstrInfo::insertBranch 未实现 → exit=134。影响范围：INTEG-016t 等需 loop+eq guard 组合的 ELF 测试。建议立 LLVM 任务补 DADAOInstrInfo::insertBranch。本任务向量已规避。"
