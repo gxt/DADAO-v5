@@ -87,6 +87,12 @@
 
 **测试策略（`spec/Process-05` TDD）**：**L1（MC）+ L3（执行）为主、L2（CodeGen 结构）极简**；「**一能力一向量**」（规模 ∝ 能力）；移植**只借结构**、期望值**独立派生自 `spec/`**、**手写少量不批量迁移**；每条向量须能对反例失败。**已定前置**：重定位类型 = `ADR-0019`（Accepted；RELA，`ABS48/REL26/REL20/REL14`，v5 无 −4，一律 max 3 片，禁用 relaxation）；伪指令集收缩 = `ADR-0013 D11`（只留合成型 8 条，删 10 条别名）。
 
+> **M5 起步待办（2026-10-06，用户裁定）**：**M5 阶段开始先处理 install 问题**——落地 `ADR-0016 D1–D11`：host 工具链 → `.dadao/cross-toolchain`（D3/D4/D11）、target sysroot → `.dadao/dadao-unknown-elf`（D5）、`manifests/` 单一真源定位（D7，禁硬编码）、**门控/执行器改从 install 根取可执行**、`.work/` **仅**作 build 区（D9）；并保留「从源码可重建」（D9）。**M4 阶段不强制**；落地任务编号待 M5 规划时再定（不预建任务书）。
+
+> **生成物落点口径（2026-10-06，用户明确）**：运行产物**默认为 `.dadao/tests/`**；**只有"难以放进 `.dadao/`"时**才退到**当前模块对应目录**；判据 = **"能否用配置选项解决"——能配置解决的一律不算"难"，必须放 `.dadao/`**。规范正文落 `spec/Process-05 §6`（M5 补正）。
+
+> **落点规则生效时点（2026-10-06，用户裁定）**：**M4 已完成/在做的测试落点一律不动**；**自 M5 起按新规则**。M5 起步须迁移（判据 = 能配置解决 ⇒ 必进 `.dadao/`）：① `test-codegen` 运行产物 `tests/llvm/codegen-e2e` → `.dadao/tests/codegen-e2e`；② `test-elf` 运行产物（`run_elf_e2e.py` 的 `DEFAULT_WORK_DIR` / `Makefile`）→ `.dadao/tests/elf-e2e`；③ lit 的 `test_exec_root`（现 `<build>/test-output/<name>`，在 `.work/build/llvm/` 内）→ `.dadao/tests/lit-output/<name>`。**`.work/log`（日志）与 `.work/evidence`（证据）不算"生成物"、不动**（2026-10-06 用户裁定）。
+
 ## M1 模块依赖关系
 
 ```
