@@ -1,0 +1,16 @@
+diff --git a/llvm/include/llvm/MC/MCTargetOptions.h b/llvm/include/llvm/MC/MCTargetOptions.h
+index 1ef26da9a..bfe2a000e 100644
+--- a/llvm/include/llvm/MC/MCTargetOptions.h
++++ b/llvm/include/llvm/MC/MCTargetOptions.h
+@@ -126,6 +126,11 @@ public:
+   // (personality/LSDA/TType already default to sdata8).
+   bool LargeEHEncoding = false;
+ 
++  // DADAO: convert multi-register instructions (ldm.*/stm.* and the orri block
++  // moves / FP format conversions) to a series of single-register instructions
++  // keeping the same mnemonic (`-multiple-to-single`, DADAO-11 §汇编器选项).
++  bool DADAOMultipleToSingle = false;
++
+   LLVM_ABI MCTargetOptions();
+ 
+   /// getABIName - If this returns a non-empty string this represents the

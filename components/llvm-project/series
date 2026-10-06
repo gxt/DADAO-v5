@@ -1,6 +1,7 @@
 llvm/CMakeLists.txt.patch
 llvm/include/llvm/BinaryFormat/ELF.h.patch
 llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def.patch
+llvm/include/llvm/MC/MCTargetOptions.h.patch
 llvm/include/llvm/TargetParser/Triple.h.patch
 llvm/lib/Object/ELF.cpp.patch
 llvm/lib/Target/DADAO/AsmParser/CMakeLists.txt.patch
@@ -49,3 +50,4 @@ llvm/lib/Target/DADAO/TargetInfo/DADAOTargetInfo.cpp.patch
 llvm/lib/Target/DADAO/TargetInfo/DADAOTargetInfo.h.patch
 llvm/lib/TargetParser/TargetDataLayout.cpp.patch
 llvm/lib/TargetParser/Triple.cpp.patch
+llvm/tools/llvm-mc/llvm-mc.cpp.patch

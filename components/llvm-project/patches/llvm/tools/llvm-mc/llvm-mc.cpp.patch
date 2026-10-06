@@ -1,0 +1,28 @@
+diff --git a/llvm/tools/llvm-mc/llvm-mc.cpp b/llvm/tools/llvm-mc/llvm-mc.cpp
+index 903f82e68..7e29c8e09 100644
+--- a/llvm/tools/llvm-mc/llvm-mc.cpp
++++ b/llvm/tools/llvm-mc/llvm-mc.cpp
+@@ -73,6 +73,15 @@ static cl::opt<bool> ShowEncoding("show-encoding",
+                                   cl::desc("Show instruction encodings"),
+                                   cl::cat(MCCategory));
+ 
++// DADAO: expand multi-register instructions into single-register instructions
++// keeping the same mnemonic (spec/DADAO-11 §汇编器选项; contract-asm §8).  Only
++// the DADAO target acts on it (read via MCTargetOptions in DADAOAsmParser).
++static cl::opt<bool> MultipleToSingle(
++    "multiple-to-single",
++    cl::desc("DADAO: convert multi-register instructions to a series of "
++             "single-register instructions (same mnemonic)"),
++    cl::cat(MCCategory));
++
+ static cl::opt<DebugCompressionType> CompressDebugSections(
+     "compress-debug-sections", cl::ValueOptional,
+     cl::init(DebugCompressionType::None),
+@@ -413,6 +422,7 @@ int main(int argc, char **argv) {
+   MCOptions.MCNoExecStack = NoExecStack;
+   MCOptions.MCUseDwarfDirectory = MCTargetOptions::EnableDwarfDirectory;
+   MCOptions.InstPrinterOptions = InstPrinterOptions;
++  MCOptions.DADAOMultipleToSingle = MultipleToSingle;
+   if (OutputAsmVariant.getNumOccurrences())
+     MCOptions.OutputAsmVariant = OutputAsmVariant;
+ 

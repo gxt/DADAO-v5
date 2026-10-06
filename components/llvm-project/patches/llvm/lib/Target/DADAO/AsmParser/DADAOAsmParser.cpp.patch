@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..a5cb59d0e
+index 000000000..3ddad2dc3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1760 @@
+@@ -0,0 +1,1935 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -328,6 +328,13 @@ index 000000000..a5cb59d0e
 +                               OperandVector &Operands, MCStreamer &Out,
 +                               unsigned &Opcode, uint64_t &ErrorInfo,
 +                               bool MatchingInlineAsm);
++
++  // `-multiple-to-single` expansion (DADAO-11 §汇编器选项; contract-asm §8).
++  // Returns true on error, mirroring matchAndEmitInstruction.
++  bool expandMultiRegisterInstruction(SMLoc IDLoc, StringRef Mnem,
++                                      OperandVector &Operands, MCStreamer &Out,
++                                      unsigned &Opcode, uint64_t &ErrorInfo,
++                                      bool MatchingInlineAsm);
 +};
 +
 +// Include the auto-generated AsmMatcher implementation.
@@ -1014,6 +1021,34 @@ index 000000000..a5cb59d0e
 +         M == "stm.t" || M == "stm.o" || isM1BlockMnemonic(M);
 +}
 +
++// orri block moves / floating-point format conversions that carry *two*
++// `{start:end}` groups sharing one immu6 element count: the 8 register copies
++// (ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd) and the 20 FP conversions
++// (contract-asm.md §4.2).  Classify (ftcls/focls) also has two groups, but it
++// is deliberately excluded: the spec's multi-to-single scope is 8+20.  The
++// FP root instructions are excluded too (their immu6 is the root order n, not
++// a register count).
++static bool isMultiToSingleOrriMnemonic(StringRef M) {
++  return M == "ra2rd" || M == "rb2rb" || M == "rb2rd" || M == "rd2ra" ||
++         M == "rd2rb" || M == "rd2rd" || M == "rd2rf" || M == "rf2rd" ||
++         (isFPBlockMnemonic(M) && M != "ftcls" && M != "focls");
++}
++
++// Element width (bytes) of a multi-register load/store mnemonic, i.e. the
++// amount the offset register advances between consecutive elements
++// (contract-isa.md §3.1.2: ".dd" widths b=1/w=2/t=4/o=8, signed/unsigned alike).
++static unsigned ldmStmElemWidth(StringRef M) {
++  if (M.ends_with(".ub") || M.ends_with(".sb") || M.ends_with(".b"))
++    return 1;
++  if (M.ends_with(".uw") || M.ends_with(".sw") || M.ends_with(".w"))
++    return 2;
++  if (M.ends_with(".ut") || M.ends_with(".st") || M.ends_with(".t"))
++    return 4;
++  if (M.ends_with(".o"))
++    return 8;
++  return 0;
++}
++
 +// First register of a flat register operand or of a `{start:end}` group;
 +// returns the no-register sentinel (0) for any other operand kind.
 +static MCRegister firstRegisterOf(const DADAOOperand *Op) {
@@ -1274,6 +1309,120 @@ index 000000000..a5cb59d0e
 +}
 +
 +//===----------------------------------------------------------------------===//
++// -multiple-to-single expansion (spec/DADAO-11 §汇编器选项; contract-asm §8).
++//
++// When the option is enabled, a multi-register instruction is converted into a
++// series of single-register instructions that keep the same mnemonic:
++//
++//   ldm.*/stm.* (rrri) : {d0:dN-1}, [rb, rc]
++//                        -> N x {di}, [rb, rc], advancing the offset register
++//                           with `add.si rc, +W` between elements and a final
++//                           `add.si rc, -(N-1)*W` restoring it
++//                           (W = element width of the mnemonic).
++//   orri block moves / : {d0:dN-1}, {s0:sN-1}  ->  N x {di}, {si}
++//   FP format converts
++//
++// The original multi-register instruction has already passed the static checks
++// above, so illegal ranges/overlaps are still rejected first.  Four cases
++// cannot be expanded safely and are rejected here (hard errors):
++//   * rb0 base — PC-relative, and each expanded instruction has a different
++//     address, so the effective address would change;
++//   * rd0 as the offset register — `add.si rd0` cannot change it;
++//   * the offset register lies inside the accessed range — the expansion would
++//     overwrite the value it needs to keep advancing;
++//   * an ldm.* base inside the written destination range — the group is written
++//     element by element, so the base would be overwritten before later reads.
++//===----------------------------------------------------------------------===//
++
++bool DADAOAsmParser::expandMultiRegisterInstruction(
++    SMLoc IDLoc, StringRef Mnem, OperandVector &Operands, MCStreamer &Out,
++    unsigned &Opcode, uint64_t &ErrorInfo, bool MatchingInlineAsm) {
++  auto emit = [&](OperandVector &SubOps) -> bool {
++    return matchAndEmitInstruction(IDLoc, Opcode, SubOps, Out, ErrorInfo,
++                                   MatchingInlineAsm);
++  };
++
++  if (Mnem.starts_with("ldm.") || Mnem.starts_with("stm.")) {
++    // Operand layout (parseInstruction): Token, {d0:dN-1}, rb, rc.
++    auto *G = static_cast<DADAOOperand *>(Operands[1].get());
++    MCRegister First = G->getRegList()[0];
++    MCRegister Base = static_cast<DADAOOperand *>(Operands[2].get())->getReg();
++    MCRegister Offset = static_cast<DADAOOperand *>(Operands[3].get())->getReg();
++    unsigned Count = G->getGroupCount();
++    SMLoc Loc = G->getStartLoc();
++
++    if (Base == DADAO::rb0)
++      return Error(IDLoc,
++                   "'-multiple-to-single' cannot expand '" + Mnem.str() +
++                       "': base register rb0 is PC-relative, but the expansion "
++                       "changes the instruction address");
++    if (Offset == DADAO::rd0)
++      return Error(IDLoc,
++                   "'-multiple-to-single' cannot expand '" + Mnem.str() +
++                       "': the offset register rd0 cannot be advanced");
++    if (Offset.id() >= First.id() && Offset.id() < First.id() + Count)
++      return Error(IDLoc,
++                   "'-multiple-to-single' cannot expand '" + Mnem.str() +
++                       "': the offset register is inside the accessed register "
++                       "range");
++    // ldm.* writes each element of the group in turn, and every element re-reads
++    // the base for its address, so a base inside the (written) destination group
++    // would be overwritten before a later element reads it.  The ISA allows this
++    // case (addresses use the original base), but the expansion cannot preserve
++    // it.  stm.* only reads its group, so a base inside it is harmless.
++    if (Mnem.starts_with("ldm.") && Base.id() >= First.id() &&
++        Base.id() < First.id() + Count)
++      return Error(IDLoc,
++                   "'-multiple-to-single' cannot expand '" + Mnem.str() +
++                       "': the base register is inside the written destination "
++                       "register range");
++
++    unsigned W = ldmStmElemWidth(Mnem);
++    for (unsigned I = 0; I < Count; ++I) {
++      if (I > 0) {
++        SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> AddOps;
++        AddOps.push_back(DADAOOperand::createToken("add.si", IDLoc));
++        AddOps.push_back(DADAOOperand::createReg(Offset, Loc));
++        AddOps.push_back(DADAOOperand::createImm(W, Loc, Loc));
++        if (emit(AddOps))
++          return true;
++      }
++      SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++      SubOps.push_back(DADAOOperand::createToken(Mnem, IDLoc));
++      SubOps.push_back(singleRegGroup(MCRegister(First.id() + I), Loc));
++      SubOps.push_back(DADAOOperand::createReg(Base, Loc));
++      SubOps.push_back(DADAOOperand::createReg(Offset, Loc));
++      if (emit(SubOps))
++        return true;
++    }
++
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> RestoreOps;
++    RestoreOps.push_back(DADAOOperand::createToken("add.si", IDLoc));
++    RestoreOps.push_back(DADAOOperand::createReg(Offset, Loc));
++    RestoreOps.push_back(DADAOOperand::createImm(
++        -static_cast<int64_t>(W) * (Count - 1), Loc, Loc));
++    return emit(RestoreOps);
++  }
++
++  // orri block move / FP conversion: Token, {d0:dN-1}, {s0:sN-1}.
++  auto *DstG = static_cast<DADAOOperand *>(Operands[1].get());
++  auto *SrcG = static_cast<DADAOOperand *>(Operands[2].get());
++  MCRegister DstFirst = DstG->getRegList()[0];
++  MCRegister SrcFirst = SrcG->getRegList()[0];
++  unsigned Count = DstG->getGroupCount();
++  SMLoc Loc = DstG->getStartLoc();
++  for (unsigned I = 0; I < Count; ++I) {
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++    SubOps.push_back(DADAOOperand::createToken(Mnem, IDLoc));
++    SubOps.push_back(singleRegGroup(MCRegister(DstFirst.id() + I), Loc));
++    SubOps.push_back(singleRegGroup(MCRegister(SrcFirst.id() + I), Loc));
++    if (emit(SubOps))
++      return true;
++  }
++  return false;
++}
++
++//===----------------------------------------------------------------------===//
 +// matchAndEmitInstruction — decompose complex operands and match.
 +//
 +// Complex operands (register groups, register pairs, addresses) are decomposed
@@ -1444,6 +1593,32 @@ index 000000000..a5cb59d0e
 +        }
 +      }
 +    }
++  }
++
++  // -multiple-to-single (spec/DADAO-11 §汇编器选项; contract-asm §8): expand a
++  // multi-register instruction into single-register instructions.  The flag is
++  // set by llvm-mc's `-multiple-to-single` (MCTargetOptions; see llvm-mc.cpp)
++  // and read here via getTargetOptions().  Placed after the static checks above
++  // (so illegal ranges/overlaps are still reported on the original) and before
++  // the decomposition below (which keeps only the first register of each
++  // group).  Default off -> behaviour unchanged.
++  if (getTargetOptions().DADAOMultipleToSingle && !Operands.empty() &&
++      Operands[0]->isToken()) {
++    StringRef Mnem = static_cast<DADAOOperand *>(Operands[0].get())->getToken();
++    bool Applies = false;
++    if ((Mnem.starts_with("ldm.") || Mnem.starts_with("stm.")) &&
++        Operands.size() == 4) {
++      auto *G = static_cast<DADAOOperand *>(Operands[1].get());
++      Applies = G->Kind == DADAOOperand::kRegGroup && G->getGroupCount() > 1;
++    } else if (isMultiToSingleOrriMnemonic(Mnem) && Operands.size() == 3) {
++      auto *D = static_cast<DADAOOperand *>(Operands[1].get());
++      auto *S = static_cast<DADAOOperand *>(Operands[2].get());
++      Applies = D->Kind == DADAOOperand::kRegGroup &&
++                S->Kind == DADAOOperand::kRegGroup && D->getGroupCount() > 1;
++    }
++    if (Applies)
++      return expandMultiRegisterInstruction(IDLoc, Mnem, Operands, Out, Opcode,
++                                            ErrorInfo, MatchingInlineAsm);
 +  }
 +
 +  // Decompose complex operands into flat operands.
