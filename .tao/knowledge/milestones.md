@@ -8,6 +8,7 @@
 | M2 | **`INFRA-034m` ✅ 里程碑** | **`SPEC-095m` ✅ 里程碑** | **`TESTCASES-025m` ✅ 里程碑** | — | **`LLVM-032m` ✅ 里程碑** | **`QEMU-039m` ✅ 里程碑** | **`INTEG-011m` ✅ 里程碑** | — | — | **✅ 达成** |
 | M3 | **`INFRA-036m` ✅ 里程碑** | **`SPEC-099m` ✅ 里程碑** | **`TESTCASES-027m` ✅ 里程碑** | — | **`LLVM-042m` ✅ 里程碑** | — | **`INTEG-013m` ✅ 里程碑** | — | — | **✅ 达成** |
 | M4 | **`INFRA-044m` ✅ 里程碑** | **`SPEC-108m` ✅ 里程碑** | **`TESTCASES-031m` ✅ 里程碑** | — | **`LLVM-057m` ✅ 里程碑** | **`QEMU-043m` ✅ 里程碑** | **`INTEG-017m` ✅ 里程碑** | — | — | **✅ 达成** |
+| M5 | `INFRA-049m`（规划中） | `SPEC-118m`（规划中） | `TESTCASES-035m`（规划中） | — | `LLVM-061m`（规划中） | `QEMU-048m`（规划中） | `INTEG-021m`（规划中） | — | — | 待开始 |
 
 > **归档（2026-10-03）**：M1 的 76 个任务书已归档至 `.tao/archive/M1/`（按模块子目录）；M1 时期 changelog/MEMORY 内容见 `.tao/archive/M1/README.md`；**M1 回顾见 `.tao/archive/M1/m1-retrospective.md`**（由 `docs/` 移入）。
 >
@@ -96,6 +97,28 @@
 > **生成物落点口径（2026-10-06，用户明确）**：运行产物**默认为 `.dadao/tests/`**；**只有"难以放进 `.dadao/`"时**才退到**当前模块对应目录**；判据 = **"能否用配置选项解决"——能配置解决的一律不算"难"，必须放 `.dadao/`**。规范正文落 `spec/Process-05 §6`（M5 补正）。
 
 > **落点规则生效时点（2026-10-06，用户裁定）**：**M4 已完成/在做的测试落点一律不动**；**自 M5 起按新规则**。M5 起步须迁移（判据 = 能配置解决 ⇒ 必进 `.dadao/`）：① `test-codegen` 运行产物 `tests/llvm/codegen-e2e` → `.dadao/tests/codegen-e2e`；② `test-elf` 运行产物（`run_elf_e2e.py` 的 `DEFAULT_WORK_DIR` / `Makefile`）→ `.dadao/tests/elf-e2e`；③ lit 的 `test_exec_root`（现 `<build>/test-output/<name>`，在 `.work/build/llvm/` 内）→ `.dadao/tests/lit-output/<name>`。**`.work/log`（日志）与 `.work/evidence`（证据）不算"生成物"、不动**（2026-10-06 用户裁定）。
+
+**M5 — SEE/HEE 运行环境 + semihosting**（规划中；`k` = **`INTEG-019k`**）
+
+> **开启（2026-10-07）**：依 `spec/Process-04 §1`（用户 2026-10-06 裁定「**M5 起由 INTEG 模块开闭**」），M5 由 **INTEG 模块的规划 `k`** 开启 ⇒ `.tao/tasks/integ/INTEG-019k-m5启动与分解.md`（**非** `SPEC-*k`；M1–M4 的 SPEC 开启做法为历史，不沿用）。本行为**规划中**（模块 `m` 尚未建立、`t`/`m` 任务书为草案）。
+
+**目的**：把 QEMU 从 M1–M4 的「裸机、无 OS、无 syscall、`exit port` 停机」升级为「**SEE/HEE 运行环境 + semihosting**」：实现四运行模式与 cfx（核芯功能扩展）寄存器的**权限/掩码/`switch_run_mode`/权限异常**；以**新 bootrom（自有工具链编）**完成初始权限/向量配置；让 guest 经 `trap`（semihosting tag = `immu18[17:16]==2'b11`）走 QEMU **共享层 `do_common_semihosting`** 服务（**ARM 号值**），并以 **`SYS_EXIT` 替代 `exit port`**；LLVM 实现 `trap`/`escape`/`cfx2rc`/`cfx2rd`（`SimRISC-11`）——**`SimRISC-12`（`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）保持 deferred**。
+
+**范围**（用户裁定 2026-10-07，详见 `INTEG-019k` §已锁定边界 + §第 2 轮用户裁定）：① 基础设施：`ADR-0016 D1–D11` install 落地 + 生成物落点迁移（`.dadao/tests/`）+ `Process-05 §6` 补正；② SEE/HEE：运行模式/cfx 寄存器/掩码/权限/`switch_run_mode`/权限异常/异常进入流程（**权限范围 = 只做 `cfx0/1/2/3/63`**；**未实现 cfx ⇒ `CFXREG` 异常**，`DADAO-22:58`）；③ 新 bootrom（构建+链接+测试；**`-bios` 加载、复位向量不变 `0xffff_ffff_0000`、hypv→user 直跳、本版不启用 supv**）；④ LLVM 4 条指令（MC + 必要 CodeGen/内建）+ re-scope（`excluded`→已实现）；⑤ semihosting（tag 判定 + **服务表 = 完整 25 个**〔含 D2 文件档；`SYSTEM`、`HEAPINFO` 都做〕+ **共享层钩子按 `n` 选 bank**〔`n=0`→`rd16`、`n=1`→`rb16`、`set_ret`→`rd31`〕+ `SYS_EXIT` 替代 + exit-port 迁移〔**全部**〕 + harness stdio 捕获）；⑥ spec 正文（测试机/SEE/semihosting 调用表 + re-scope + 大小写敏感修订）；⑦ 门控收口。
+
+**semihosting 传参/返回寄存器（用户裁定 2026-10-07）**：**号（标量）→ `rd16`（=`rda0`）**、**参数块指针（地址）→ `rb16`**、**返回值 → `rd31`**（`.tao/knowledge/contract-abi.md §4.1/§4.4`；指针返回才用 `rb31`，semihosting 不用）。
+
+**门槛（用户裁定 2026-10-07 第 2 轮）**：门控名 = **`make test-semihost`**（**不是** `test-see`——用户指出"没有 SEE"）。组成 = **正向**（bootrom + 单/多 TU ELF 经 `-semihosting`、console 捕获、`SYS_EXIT` 码）/ **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）/ **服务表各条至少 1 例** / **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）/ **`INTEG` 开闭**。
+
+**范围外（边界声明）**：**M6 = 完整调用约定（整数）+ 欠账收口**（已定，不在 M5）。FP/RF codegen、clang 前端、libc/OS、golden model 不在 M5。
+
+> **前置 ADR（待用户逐条确认）**：`ADR-0020`（新建，SEE/HEE 与 semihosting，D1–D14）、`ADR-0004` 修订（新 bootrom 与加载模型，R1–R3）、`ADR-0016`（落地范围，S1）。decision 提案与**已裁定项（10 项，2026-10-07 第 2 轮）**见 `INTEG-019k` §说明 / §第 2 轮用户裁定。**M5 开启于 `INTEG-019k`；`/plan` 交叉审查通过后再建 21 份 `t`/`m` 任务书。**
+>
+> **任务书已建（追加，2026-10-07）**：`INTEG-019k` §任务分解的 **21 份任务书（15 `t` + 6 `m`）已创建**（编号按 `INTEG-019k` 草案，无占用冲突、无顺延）：W0 `INFRA-047t`/`INFRA-048t`/`SPEC-117t`；W1 `SPEC-113t`/`SPEC-114t`/`SPEC-115t`/`SPEC-116t`；W2 `LLVM-060t`；W3 `QEMU-044t`/`QEMU-045t`/`QEMU-046t`/`QEMU-047t`；W4 `TESTCASES-033t`/`TESTCASES-034t`；W5 `INTEG-020t`；模块 `m` = `INFRA-049m`/`SPEC-118m`/`LLVM-061m`/`QEMU-048m`/`TESTCASES-035m`/`INTEG-021m`。依赖/串行链严格按 `INTEG-019k` §任务分解表（见各任务书 `**依赖**` 字段）。
+>
+> **落点裁定（追加，2026-10-07，用户确认）**：① **`QEMU-047t`（新 bootrom）**——**固件源码放 `tests/scripts/`**、**生成物放 `.dadao/` 下**（运行产物默认 `.dadao/tests/`；能靠配置解决的不算「难」，须放 `.dadao/`）。② **`SPEC-114t`（SEE/semihosting 规范正文）**——**正文落新建 `spec/Machine-01-测试机运行环境.md`**（`Machine` 前缀经用户确认），章节 ①内存映射/复位 ②运行模式 ③cfx/权限 ④`trap`/`escape`/异常进入 ⑤semihosting ⑥加载/bootrom ⑦退出，并**登记 `spec/README.md`**。两处落点已写入对应任务书（`QEMU-047t` 输出/约束、`SPEC-114t` 输出）。
+>
+> **`/plan` 通过（追加，2026-10-07）**：`INTEG-019k` 规划经 `/plan` 级交叉审查通过（第 2 轮 reviewer 复审的最小必改项已落实：`INTEG-019k` B9 现为 `SimRISC-11 L80`，与 `spec/SimRISC-11-其它.md:80` 一致）⇒ `INTEG-019k` 状态置 **`已验证`**。
 
 ## M1 模块依赖关系
 
