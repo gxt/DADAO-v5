@@ -350,3 +350,11 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-060t 新发现（属任务外范围、本任务未修）：`DADAOAsmParser` 的 `GET_OPERAND_DIAGNOSTIC_TYPES` 匿名 `enum` **无** `= FIRST_TARGET_MATCH_RESULT_TY` 偏移（对照 X86：`enum X86MatchResultTy { Match_Unsupported = FIRST_TARGET_MATCH_RESULT_TY; ... }`）。只新增一个诊断类型名（字母序在 `InvalidImmediate` 前）即把 `Match_InvalidImmediate` 由 **0** 挤到 **1**（= `Match_InvalidTiedOperand`），使 `wpn_err_*` 三条既有 lit 由「invalid operand」变「invalid tied operand」而 FAIL。本任务规避：3 个 cfx 操作数类复用 `DiagnosticType = \"InvalidImmediate\"`（`std::set` 去重 ⇒ 枚举项数与数值与改前逐字节相同）。建议后续按 X86 加 `FIRST_TARGET_MATCH_RESULT_TY` 偏移 + 在 `matchAndEmitInstruction` 显式加 `case Match_Invalid…:`，消除该隐患。"
+
+- id: ISS-163
+  title: "Toolchain-01 §5/§11/§13 仍含与 contracts/opcodes.yaml 的 scope 不符的旧口径（授权范围外，SPEC-116t 遗留）"
+  status: open
+  scope: [spec, M5]
+  blocks: []
+  resolved_by: null
+  notes: "SPEC-116t 遗留（该任务授权范围严格限 `Toolchain-01 §1` + `§2.1`，故三处旧口径未动）。上游只读册 `spec/Toolchain-01-汇编语言.md` 仍有三处与 `contracts/opcodes.yaml` 的 `scope` 事实不符——① `§5`（L152）「`scope: excluded` 的格式（`crrr`/`crii`/`ciii`）」（`crrr`/`ciii` 已 re-scope 为 `m1`，仅 `crii` 仍 `excluded`）；② `§11`（L261）「9 个 M1 格式类与 152 条 M1 指令」（应为 11 类 / 155 条）；③ `§13`（L286）「cfx 属 `scope: excluded`」（`crrr`/`ciii` 已 re-scope 为 `m1`）。**用户 2026-10-08 裁定（原话，逐字）：「暂登记遗留」** ⇒ 本项**暂登记**，收口须**另行授权**（含该册 `sha256` 锁同步）；`resolved_by` 待定。凭据详见 `.tao/tasks/spec/SPEC-116t-大小写敏感修订.md` 审阅记录「收尾裁定落纸」。"
