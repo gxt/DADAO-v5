@@ -483,3 +483,181 @@ EXIT=0
 - **补充发现（措辞级，不阻塞，不改变判决）**：`ADR-0004 R2` 括注称「（`D3` 标 `Superseded`）」，而 `D3` 节内**无** in-place `Superseded` 标记——其「取代」由**修订条目（文件级）**声明；`Process-03`（「新增 ADR 或标注 `Superseded`」）已由**新增 `ADR-0020`** 满足 ⇒ 决策成立。**待办**：是否经授权修订为二选一（给 `D3` 加 `Superseded` 标记 / 改括注为「由本修订条目声明取代」）——**未擅自改**，登记待用户定。
 - **收尾检查**：`make check` 覆盖内改动（`.tao/adr/**` 属决策层文档；`**状态**`/`## 修订` 追加）已由 reviewer 重跑 `EXIT=0`；台账为纯文档（豁免）；`git status --porcelain -uall` 干净；证据留 `.work/evidence/SPEC-113t/`、`.work/log/spec/`。
 - **最终判决**：**`Accepted`** ⇒ 任务书 `**状态**` 置 `已验证`。
+
+#### 经授权修订：ADR-0004 D3 加 Superseded 标记（2026-10-07，用户原话「闭合即可，a」）
+
+- **用户裁定原话**：**「闭合即可，a」**（对上方收尾「补充发现」登记的遗留项「是否经授权修订为二选一」作答）⇒ 选定 **a = 给 `ADR-0004 D3` 加 `Superseded` 标记**；即**授权**对已 `Accepted` 决策（`D3`）作**经授权就地修订**（`spec/Process-03`「决策变更时新增 ADR 或标注 `Superseded`」的 `Superseded` 途径）。
+- **改动摘要**：
+  1. `.tao/adr/adr-0004-test-machine.md`：
+     - `### D3 Exit Port 协议` 标题下方新增**单行 in-place 标记**：`> **Superseded by \`ADR-0020 D8\`**（2026-10-07，经用户授权）——semihosting \`SYS_EXIT\` 取代 exit-port 作为停机协议；取代声明亦见本 ADR \`## 修订\` rev. 2026-10-07 \`R2\`；本节点内正文未改写。`（写法与 `spec/Process-03`「标注 `Superseded`」及 `feedback_004` §3 建议一致：`> **Superseded by ADR-00xx Dn**`）。
+     - `## 修订` `R2` 括注**同步**：`（\`D3\` 标 \`Superseded\`）` → `（\`D3\` 节内标 \`Superseded\`，见 \`D3\` 标题下方标记）`；`本 rev 不改写 \`D3\` 正文` → `本 rev 仅加该标记、不改写 \`D3\` 协议正文`——使括注与 `D3` 节内实际标记**一致**（消除原「声称已标而未标」）。
+     - **未改** `D3` 协议正文语义、**未改**其它受保护节（`D1`/`D2.1`/`D4`/`D5`/`D6`）：`git diff` 仅「`D3` 标题后插入标记（+标记行+空行）」与「`R2` 一行替换」两处；`D3` 节删标记行后与 HEAD 逐字一致。
+  2. `.work/evidence/SPEC-113t/run.sh`（gitignored）：原第 4 节「`D3` 正文未改（与 HEAD 逐字相同）」改**白名单式**——新增 `d3_whitelist_ok()`：① `D3` 节**删标记行（含其引入的空行）后须与 HEAD 逐字一致**；② 标记须存在且指明 `ADR-0020 D8`；③ 防空提取（防空 ⇒ 假 `same`）。其余受保护节（`D1`/`D2.1`/`D4`/`D5`/`D6`）**仍要求逐字相同**（「修一类」保留）。新增第 6 节注入自检：删 `D3` 的 `Superseded` 标记行 ⇒ 白名单断言 **FAIL** ⇒ `cp`+`md5` 还原 ⇒ **回绿**。
+- **脚本重跑真实输出与结论**：`bash .work/evidence/SPEC-113t/run.sh` ⇒ **`RESULT: PASS`、`EXIT=0`**（49 项检查，0 FAIL）。关键行：第 4 节 `[PASS] adr-0004 D3 白名单（仅 Superseded 标记差异） | expected=[ok] actual=[ok]`；第 6 节 `[PASS] inject(D3): D3 白名单断言应 FAIL | expected=[FAIL] actual=[FAIL]`、`[PASS] restore(D3): D3 白名单断言应回绿 | expected=[ok] actual=[ok]`。完整输出：`.work/log/spec/SPEC-113t-evidence-rerun.log`。
+- **独立注入（architect 复核，非脚本自检）**：在临时树 `/tmp/opencode/SPEC-113t/` 改 `D3` 协议正文（`0xffff_8000_0000`→`0xffff_8000_0008`）⇒ 同款「按节提取 + 删标记行 + `diff`」逻辑报 **DIFFERENT**（证明白名单**不吞**正文改动，仍判 FAIL）；注入 `git diff --stat` 非空（防空注入）。工作树未受污染：`git status --porcelain -uall` 仅 ` M .tao/adr/adr-0004-test-machine.md`（md5 `bc2bd33c30a2aed2bfc5817aa1027c23`）；`adr-0020` md5 未变（`77414d82d68c17890aff09aced796d8e`）。
+- **提交**：见下方 architect 提交（经授权修订）记录。
+
+#### architect 提交（经授权修订）
+
+- **档位**：**正常**（用户对 `SPEC-113t` 收尾遗留项裁定「闭合即可，a」= **授权**经授权就地修订；改动为决策层文档 `Superseded` 标记，**不含 `WIP:` 前缀**）。
+- **文件集对账**（显式 staging，未用 `git add -A`）：`git diff --cached --name-only` 与本节「改动摘要」+ 任务范围对账 —— 应入库 **2 项**：`.tao/adr/adr-0004-test-machine.md`（`D3` 标记 + `R2` 括注同步）、`.tao/tasks/spec/SPEC-113t-ADR决策落地.md`（本记录）；**无漏提 / 无多提 / 无越界**（未卷入 `adr-0020`、`spec/`、`components/`、其它任务书；`.work/**` gitignored 不入库）。
+- **提交信息**：`SPEC-113t 后续：ADR-0004 D3 加 Superseded 标记（经用户授权）`；**新增提交**（不改写已 push 的 `ca7ad85`）；**只 commit，未 push**（push 归主会话）。
+
+#### 第 2 轮 reviewer 验收（经授权后续改动复验）
+
+**审查环境**：临时目录 `/tmp/opencode/SPEC-113t-review2/`；模型 `mimo-v2.5-pro`；审查对象 = `ff88dcc`（`ca7ad85` 之后的新增提交）。
+
+##### 1. 重跑证据脚本
+
+```
+$ bash .work/evidence/SPEC-113t/run.sh > /tmp/opencode/SPEC-113t-review2/evidence.log 2>&1; echo "EXIT=$?"
+EXIT=0
+```
+
+**完整输出**（51/51 PASS）：
+
+```
+== SPEC-113t 证据：ADR 决策落地 ==
+repo=/mnt/tao/DADAO-v5
+
+-- 1. ADR-0020 落位与结构 --
+[PASS] adr-0020 存在
+[PASS] adr-0020 结构 ×5
+[PASS] adr-0020 状态 Accepted
+[PASS] adr-0020 状态说明含 Accepted（2026-10-07）
+[PASS] adr-0020 状态说明含推定保留
+[PASS] adr-0020 D1 语义说明移 spec/Machine-01
+[PASS] adr-0020 D1 无 spec 依据（架构自定义）
+[PASS] adr-0020 D1..D15 缺失数（应为 0） | [0]=[0]
+
+-- 2. ADR-0020 D15 口径 --
+[PASS] D15 核内地址空间 RAM@0
+[PASS] D15 boot ROM 复位向量
+[PASS] D15 旧 RAM 段过渡保留
+[PASS] D15 exit port
+[PASS] D15 RAM 基址全 0
+[PASS] D15 含取指路径
+[PASS] D15 CFXMEM
+[PASS] D15 CFXMEM cause 1<<1
+[PASS] D15 CFXMEM 映射 0x81
+[PASS] D15 测试机约定 unmapped 0x87
+[PASS] D15 码表冻结不重排
+
+-- 3. ADR-0004 修订（R1/R2/R3 + 取代关系）--
+[PASS] adr-0004 has 修订
+[PASS] adr-0004 rev. 2026-10-07
+[PASS] adr-0004 R1/R2/R3
+[PASS] adr-0004 R1 并存非替代
+[PASS] adr-0004 R2 取代本 ADR D3
+[PASS] adr-0004 R2 Superseded
+[PASS] adr-0004 R3 RAM 改全 0
+[PASS] adr-0004 R3 C1 双映射两步过渡
+[PASS] adr-0004 R3 step1/step2
+
+-- 4. 受保护决策正文（HEAD vs worktree 逐节比对 + D3 白名单）--
+[PASS] D1/D2.1/D4/D5/D6 正文未改 | [same]=[same]
+[PASS] D3 白名单（仅 Superseded 标记差异） | [ok]=[ok]
+
+-- 5. 注入自检：删 D15 行 --
+[PASS] inject 行差=1 / D-missing=1 / restore md5 一致 / D-missing=0
+
+-- 6. 注入自检：删 D3 的 Superseded 标记行 --
+[PASS] inject(D3) 行差=1 / D3 白名单 FAIL / restore md5 一致 / D3 白名单 ok
+```
+
+✅ **51/51 PASS，EXIT=0**。
+
+##### 2. 独立注入反例（reviewer 自行执行，两次）
+
+**注入前快照**：
+```
+$ git status --porcelain -uall
+（空——工作树干净）
+$ md5sum .tao/adr/adr-0004-test-machine.md .tao/adr/adr-0020-see-semihosting.md
+bc2bd33c30a2aed2bfc5817aa1027c23  .tao/adr/adr-0004-test-machine.md
+77414d82d68c17890aff09aced796d8e  .tao/adr/adr-0020-see-semihosting.md
+```
+
+**注入 A：删 D3 的 `Superseded` 标记行**（L98 `> **Superseded by \`ADR-0020 D8\`**...`）
+
+- 方法：`grep -v '> \*\*Superseded by `ADR-0020 D8`\*\*'` 删行
+- 注入后 `git diff --name-only` = `.tao/adr/adr-0004-test-machine.md`（非空 ✅）
+- 注入后行差 = 397 → 396（=1 ✅）
+- 重跑脚本：`[FAIL] adr-0004 D3 白名单（仅 Superseded 标记差异） | expected=[ok] actual=[VIOLATION]`，EXIT=1 ✅
+- 还原：`cp` 备份回，md5=`bc2bd33c30a2aed2bfc5817aa1027c23`（一致 ✅），`git status` 干净
+- 还原后重跑：51/51 PASS，EXIT=0 ✅
+
+**注入 B：改 D3 协议正文**（L100 `0xffff_8000_0000` → `0xffff_8000_DEAD`）
+
+- 方法：`sed -i '100s/0xffff_8000_0000/0xffff_8000_DEAD/'`
+- 注入后 `git diff` 非空 ✅（改了 D3 协议正文地址值）
+- 重跑脚本：`[FAIL] adr-0004 D3 白名单（仅 Superseded 标记差异） | expected=[ok] actual=[VIOLATION]`，EXIT=1 ✅
+- 还原：`cp` 备份回，md5=`bc2bd33c30a2aed2bfc5817aa1027c23`（一致 ✅），`git status` 干净
+- 还原后重跑：51/51 PASS，EXIT=0 ✅
+
+**结论**：两次注入（删标记行 / 改协议正文）均被脚本检出 FAIL，还原后均回绿。白名单**不吞**正文改动。
+
+**还原后快照对账**：
+```
+$ git status --porcelain -uall
+（空——工作树干净）
+$ md5sum .tao/adr/adr-0004-test-machine.md .tao/adr/adr-0020-see-semihosting.md
+bc2bd33c30a2aed2bfc5817aa1027c23  .tao/adr/adr-0004-test-machine.md
+77414d82d68c17890aff09aced796d8e  .tao/adr/adr-0020-see-semihosting.md
+```
+与注入前快照**逐行一致** ✅。
+
+##### 3. 核改动范围（`git show ff88dcc`）
+
+`ff88dcc` 仅改 **2 文件**：
+
+| 文件 | 改动 |
+|------|------|
+| `.tao/adr/adr-0004-test-machine.md` | +4/-1：① `### D3 Exit Port 协议` 标题后插入 Superseded 标记行+空行（+2）；② `## 修订` R2 括注同步（`D3 标 Superseded` → `D3 节内标 Superseded，见 D3 标题下方标记`；`不改写 D3 正文` → `仅加该标记、不改写 D3 协议正文`）（+1/-1） |
+| `.tao/tasks/spec/SPEC-113t-ADR决策落地.md` | +19：追加「经授权修订」记录 + architect 提交记录 |
+
+- **D1/D2.1/D4/D5/D6**：零改动 ✅
+- **D3 协议正文**（地址/宽度/编码等）：零改动 ✅（仅标题后加了标记行）
+
+##### 4. 核历史未被改写
+
+```
+$ git log --oneline ca7ad85~1..HEAD
+ff88dcc SPEC-113t 后续：ADR-0004 D3 加 Superseded 标记（经用户授权）
+ca7ad85 SPEC-113t ADR-0020 新建 + ADR-0004 修订（M5 W1）——已验证
+
+$ git rev-parse origin/master
+ca7ad852b7a255d9ed67ba60cbe55d49defce113
+
+$ git rev-parse ca7ad85
+ca7ad852b7a255d9ed67ba60cbe55d49defce113
+```
+
+- `origin/master` == `ca7ad85` ✅（已 push 提交未被改写）
+- `ff88dcc` 是 `ca7ad85` 之上的**新增提交**（非 amend）✅
+
+##### 5. 核表述一致性
+
+- **D3 标记**：`> **Superseded by \`ADR-0020 D8\`**（2026-10-07，经用户授权）——semihosting \`SYS_EXIT\` 取代 exit-port 作为停机协议；取代声明亦见本 ADR \`## 修订\` rev. 2026-10-07 \`R2\`；本节点内正文未改写。`
+- **R2 括注**：`（D3 节内标 Superseded，见 D3 标题下方标记）`
+- **一致性**：D3 标记指明取代者 `ADR-0020 D8`，R2 括注指向 D3 标记——**互相一致**，不再「声称已标而未标」 ✅
+- **Process-03 合规**：格式 `> **Superseded by ADR-00xx Dn**` 符合 `spec/Process-03`「标注 `Superseded`」与 `feedback_004` §3 建议 ✅
+
+##### 6. 核未越界
+
+```
+$ git show ff88dcc --name-only --format=""
+.tao/adr/adr-0004-test-machine.md
+.tao/tasks/spec/SPEC-113t-ADR决策落地.md
+
+$ git diff ca7ad85..ff88dcc -- .tao/adr/adr-0020-see-semihosting.md  （空）
+$ git diff ca7ad85..ff88dcc -- spec/                                   （空）
+$ git diff ca7ad85..ff88dcc -- components/                             （空）
+$ git diff ca7ad85..ff88dcc -- .tao/adr/adr-0016-dadao-install-layout.md（空）
+```
+
+未卷入 `spec/`、`adr-0020`、`adr-0016`、`components/`、其它任务书 ✅
+
+##### 判决
+
+**Accepted** — 验收命令块在独立重跑下全部通过（51/51 PASS，EXIT=0）、两次独立注入反例均成功检出并回绿、改动范围精确（仅 D3 标记+R2 括注同步+任务书记录）、历史未被改写、表述一致、未越界、约束无违反。
