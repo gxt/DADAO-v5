@@ -13,7 +13,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > `validate_vectors.py` 机械校验本表的 M1 行集与 `contracts/opcodes.yaml`
 > 中 `scope == "m1"` 的身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）。
 
-## M1 覆盖矩阵（151 条）
+## M1 覆盖矩阵（155 条）
 
 | id | format | file | encoding | legality | semantic | boundary | overlap | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -168,3 +168,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `div.sb_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.ub_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.sb_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `cfx2rc_crrr_cfx` | `crrr` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 特权 cfx；SPEC-115t re-scope excluded→m1（已实现，MC 可汇编），向量待 TESTCASES-033t |
+| `cfx2rd_crrr_cfx` | `crrr` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |
+| `escape_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上（位宽：汇编 imms20 ⇔ 编码 imms18=bytes>>2） |
+| `trap_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |

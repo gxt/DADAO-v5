@@ -2,10 +2,11 @@
 """从 SimRISC 0.5.4 规范生成范围机器可读编码表 contracts/opcodes.yaml。
 
 每条记录带 `scope` 字段（互斥、穷尽，用户裁定 2026-10-03）：
-  - `scope: m1`（151 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统）；
+  - `scope: m1`（155 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
   - `scope: fp`（60 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
     独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
-  - `scope: excluded`（15 条）——特权 cfx / LR-SC / fence，暂未归类；
+  - `scope: excluded`（11 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC / fence，
+    暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
     **非 M1 身份**，不要求 M1 向量覆盖。
 约定 `scope == "excluded"` ⇒ `decode: ILLI`——编码已定义但尚未实现，执行即非法指令；
@@ -487,19 +488,21 @@ def build_main_table(records):
     records.append(rec("ret-riii", "ret", "riii", 0x76,
                        f_riii("rdha", "imms18"), [LEG_RET_RD0_IMMS18], S06_RET))
 
-    # ── 0111-1xxx：特权 cfx（excluded）──
+    # ── 0111-1xxx：特权 cfx ──
+    # SPEC-115t：trap/escape/cfx2rd/cfx2rc re-scope excluded → m1（已实现，MC 可汇编）。
+    # cfxld/cfxst 保持 scope: excluded（SimRISC-12 待定，decode ILLI）。
     records.append(rec("cfx2rd-crrr", "cfx2rd", "crrr", 0x7A,
-                       f_crrr(), [], S00_QFC, scope="excluded"))
+                       f_crrr(), [], S00_QFC, scope="m1"))
     records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
-                       f_crrr(), [], S00_QFC, scope="excluded"))
+                       f_crrr(), [], S00_QFC, scope="m1"))
     records.append(rec("cfxld-crii", "cfxld", "crii", 0x7C,
                        f_crii("immu12"), [], S00_QFC, scope="excluded"))
     records.append(rec("cfxst-crii", "cfxst", "crii", 0x7D,
                        f_crii("immu12"), [], S00_QFC, scope="excluded"))
     records.append(rec("escape-ciii", "escape", "ciii", 0x7E,
-                       f_ciii("imms18"), [], S00_QFC, scope="excluded"))
+                       f_ciii("imms18"), [], S00_QFC, scope="m1"))
     records.append(rec("trap-ciii", "trap", "ciii", 0x7F,
-                       f_ciii("immu18"), [], S00_QFC, scope="excluded"))
+                       f_ciii("immu18"), [], S00_QFC, scope="m1"))
 
 
 # ────────────────────────────── MISC-AMO ──────────────────────────────

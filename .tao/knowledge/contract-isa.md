@@ -4,7 +4,7 @@
 >
 > **范围**：M1——标量整数 + 地址/内存 RD/RB/**RA** + 控制流（`call`/`ret`、RegRAS）+ 测试机所需系统/异常。
 >
-> **M1 范围外**（`scope: fp` / `scope: excluded`，本合约不提取其规范内容）：浮点（**RF 全部**，`scope: fp`：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）、`scope: excluded`（特权 cfx 系统指令 trap/escape/cfx2rd/cfx2rc/cfxld/cfxst、LR-SC 原子指令、fence）。
+> **M1 范围外**（`scope: fp` / `scope: excluded`，本合约不提取其规范内容）：浮点（**RF 全部**，`scope: fp`：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）、`scope: excluded`（特权 cfx 系统指令 `cfxld`/`cfxst`、LR-SC 原子指令、fence）。**（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`，见 §13.6。）**
 >
 > **来源标注**：每条规范性断言在句末以 `[SimRISC-XX §章节名]` 标注来源 spec/ 章节，不写行号。SimRISC-07 仅用于确认浮点边界。
 >
@@ -184,7 +184,7 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 | `orri` | opx + 两个寄存器 + 6 位立即数在 `hd[5:0]` |
 | `oiii` | opx + 18 位立即数在 `hb[5:0]`+`hc[5:0]`+`hd[5:0]` |
 
-> cfxha（`c`）相关格式 `crrr`/`crii`/`ciii` 属特权 cfx 指令，Excluded from M1（见 §14.3）。
+> cfxha（`c`）相关格式 `crrr`/`crii`/`ciii` 属特权 cfx 指令：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`（ciii）已 re-scope 为 `m1`（见 §13.6）；`cfxld`/`cfxst`（crii）仍 Excluded from M1（见 §14.3）。
 
 ### §2.4 Wyde-Position 编码
 
@@ -235,7 +235,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
 | 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
 | 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | MISC-AMO |
-| 0111-1xxx | — | — | cfx2rd Excl. | cfx2rc Excl. | cfxld Excl. | cfxst Excl. | escape Excl. | trap Excl. |
+| 0111-1xxx | — | — | cfx2rd | cfx2rc | cfxld Excl. | cfxst Excl. | escape | trap |
 
 > Excl. = `Excluded from M1`。`MISC-AMO` 子表中的 LR-SC 条目同属 Excluded from M1（见 §14.2）。[SimRISC-00 §SimRISC QFC]
 
@@ -1069,7 +1069,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 
 ## §13 其它指令
 
-> 范围：占位指令 `swym`、ILLI 非法指令异常、NOP 伪指令、保留编码与全零指令。特权 cfx 指令与 LR-SC 原子指令见 §14（Excluded from M1）。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
+> 范围：占位指令 `swym`、特权 cfx 系统指令（`cfx2rd`/`cfx2rc`/`trap`/`escape`，见 §13.6）、ILLI 非法指令异常、NOP 伪指令、保留编码与全零指令。`cfxld`/`cfxst` 与 LR-SC 原子指令见 §14（Excluded from M1）。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
 
 ### §13.1 占位指令 swym（oiii 格式）
 
@@ -1089,7 +1089,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 SimRISC 0.5.4 **不再**提供专门的非法指令助记符（原 `op=0x77, ha=0x00`）；`ILLI`（illegal instruction）异常改由**非法操作数、非法条件**或**已定义但本机器未实现的编码**触发。[SimRISC-11 §非法指令]
 
 - 已定义编码但操作数/字段非法时触发 ILLI（如目的寄存器为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等）。[SimRISC-11 §非法指令]
-- `scope: excluded` 的已定义编码（特权 cfx、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI。[SimRISC-11 §非法指令]
+- `scope: excluded` 的已定义编码（`cfxld`/`cfxst`、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI。[SimRISC-11 §非法指令]
 
 ### §13.3 伪指令 nop
 
@@ -1107,11 +1107,28 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 > 注意：`ILLI` 异常（非法操作数/条件，§13.2）与保留编码触发的 `UNDI`（§13.5/§13.4）不同。[SimRISC-11 §非法指令][SimRISC-00 §SimRISC QFC]
 
+### §13.6 特权 cfx 系统指令（`crrr`/`ciii`）— scope: m1
+
+`SPEC-115t` 将以下 4 条特权 cfx 系统指令由 `scope: excluded` re-scope 为 **`scope: m1`**（已实现：MC 层可汇编/反汇编；执行语义由各核芯功能扩展实现）。[SimRISC-11 §特权指令]
+
+| 指令 | 格式 | op | 语义 | 来源 |
+|------|------|----|------|------|
+| `trap cfxHA, immu18` | `ciii` | 0x7F | 将控制权转移到对应核芯功能扩展的异常向量地址 | [SimRISC-11 §陷入指令] |
+| `escape cfxHA, [excp_cause_ip, imms20]` | `ciii` | 0x7E | 退出当前特权态，将控制权交还给陷入异常前的状态 | [SimRISC-11 §退出指令] |
+| `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `crrr` | 0x7A | 将 `cfx_<cfxname>_cgHB_rcHC` 的值设置到 `rdHD` | [SimRISC-11 §寄存器传输指令] |
+| `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `crrr` | 0x7B | 将 `rdHD` 的值设置到 `cfx_<cfxname>_cgHB_rcHC` | [SimRISC-11 §寄存器传输指令] |
+
+- **执行模式**：`trap`/`escape`/`cfx2rd`/`cfx2rc`（及 `cfxld`/`cfxst`）可在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。[SimRISC-11 §特权指令]
+- **cfxha 写法**：`cfx<cfxha>`（如 `cfx63`）与 `cfx_<cfxname>`（如 `cfx_power`）等价，均编码为 6 位 cfxha。[SimRISC-11 §特权指令]（别名表见 `contract-cfx-aliases.md`、`ADR-0017`。）
+- **`escape` 位宽关系**：汇编层 `imms20` 为**字节**偏移（须 `%4==0`），编码层为 `imms18 = imms20 >> 2`；实际地址 `Addr = excp_cause_ip + (imms18 << 2)`。[SimRISC-11 §退出指令][Toolchain-01 §3.2]
+- **legality**：本合约对这 4 条**不设静态编码 legality 规则**（`contracts/opcodes.yaml` 的 `legality`/`rule_refs` 均为 `[]`）——`reserved cfxha`（7–14、19–61）→ ILLI、读写不存在组合 / 权限不匹配 → CFXREG 均属**实现/运行期**语义，不在汇编/编码期约束（见 `ADR-0020`）。[SimRISC-11 §寄存器传输指令]
+- **编码位置**：op = `0111-1010`/`0111-1011`/`0111-1110`/`0111-1111`（0x7A/0x7B/0x7E/0x7F），均 `mask = 0xFF000000`。[SimRISC-00 §SimRISC QFC]
+
 ---
 
 ## §14 待定指令 — scope: excluded
 
-> 范围：fence 指令、LR-SC 原子指令、特权 cfx 系统指令。均 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其完整规范内容。[SimRISC-12 §fence指令]
+> 范围：fence 指令、LR-SC 原子指令、特权 cfx 系统指令中的 `cfxld`/`cfxst`。均 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其完整规范内容。[SimRISC-12 §fence指令]（`trap`/`escape`/`cfx2rd`/`cfx2rc` 已 re-scope 为 `m1`，见 §13.6。）
 
 ### §14.1 fence 指令（oiii 格式）
 
@@ -1141,17 +1158,15 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 ### §14.3 特权 cfx 系统指令 — scope: excluded
 
-以下特权态指令 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容：[SimRISC-11 §特权指令]
+以下特权态指令 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容：[SimRISC-12 §SRAM块传输指令]
 
 | 指令 | 格式 | 来源 |
 |------|------|------|
-| `trap cfx_<cfxname>, immu18` | ciii | [SimRISC-11 §陷入指令] |
-| `escape cfx_<cfxname>, imms18` | ciii | [SimRISC-11 §退出指令] |
-| `cfx2rd`/`cfx2rc cfx_<cfxname>, cghb, rchc, rdhd` | crrr | [SimRISC-11 §寄存器传输指令] |
 | `cfxld`/`cfxst cfx_<cfxname>, rbhb, immu12` | crii | [SimRISC-12 §SRAM块传输指令] |
 
-- 涉及异常 **CFXREG**、cfx reserved 编号（7–14、19–61）等均属特权内容，M1 不提取。[SimRISC-11 §寄存器传输指令]
-- 编码位置：op = 0111-1010 ~ 0111-1111（cfx2rd/cfx2rc/cfxld/cfxst/escape/trap）。[SimRISC-00 §SimRISC QFC]
+- `trap`/`escape`/`cfx2rd`/`cfx2rc` 已 re-scope 为 `m1`，见 §13.6。
+- 涉及异常 **CFXREG**、cfx reserved 编号（7–14、19–61）等属特权内容，本合约不提取其**运行期**语义。[SimRISC-11 §寄存器传输指令]
+- 编码位置：op = `0111-1100`/`0111-1101`（cfxld/cfxst）。[SimRISC-00 §SimRISC QFC]
 
 ---
 
@@ -1168,7 +1183,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | **RASOF** | RegRAS 满栈（`RACNT == 63`）且需溢出到 MemRAS 但 `MRPTR == 0` | [SimRISC-00 §压栈流程] |
 | **RASUF** | `RACNT > 0` 且递归计数 == 0（D1）；或 `RACNT == 0` 且 `MRPTR == 0`（D4a）；或 MemRAS 条目递归计数 == 0（D4b） | [SimRISC-00 §弹栈流程] |
 
-> CFXREG 异常仅由特权 cfx 指令产生，Excluded from M1，不列入本表。[SimRISC-11 §寄存器传输指令]
+> CFXREG 异常仅由特权 cfx 指令（`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst`）产生，属运行期语义，不列入本表（M1 静态异常表）。[SimRISC-11 §寄存器传输指令]
 
 ### §15.1 ILLI 触发场景（M1 汇总）
 
@@ -1185,7 +1200,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]
 - 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-04/08/09/10 §加减操作][SimRISC-04/08/09/10 §比较操作][SimRISC-04/08/09/10 §乘除操作]
-- `scope: excluded` 的已定义编码（特权 cfx、LR-SC 原子、`fence`）在本机器执行时触发 ILLI（原专门非法指令已于 0.5.4 删除）。[SimRISC-11 §非法指令]
+- `scope: excluded` 的已定义编码（`cfxld`/`cfxst`、LR-SC 原子、`fence`）在本机器执行时触发 ILLI（原专门非法指令已于 0.5.4 删除）。[SimRISC-11 §非法指令]
 
 ### §15.2 精确异常承诺
 
@@ -1274,6 +1289,10 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x74 | 0111-0100 | iiii | call-iiii | `call` | [SimRISC-00 §SimRISC QFC] |
 | 0x75 | 0111-0101 | rrii | call-rrii | `call` | [SimRISC-00 §SimRISC QFC] |
 | 0x76 | 0111-0110 | riii | ret | `ret` | [SimRISC-00 §SimRISC QFC] |
+| 0x7A | 0111-1010 | crrr | cfx2rd-crrr | `cfx2rd` | [SimRISC-00 §SimRISC QFC] |
+| 0x7B | 0111-1011 | crrr | cfx2rc-crrr | `cfx2rc` | [SimRISC-00 §SimRISC QFC] |
+| 0x7E | 0111-1110 | ciii | escape-ciii | `escape` | [SimRISC-00 §SimRISC QFC] |
+| 0x7F | 0111-1111 | ciii | trap-ciii | `trap` | [SimRISC-00 §SimRISC QFC] |
 
 ### A.2 MISC-octa 子表（op = 0x40，opx 在 ha[5:0]）
 
@@ -1396,7 +1415,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 ### A.7 `scope: fp` / `scope: excluded` 编码清单
 
 > `scope: fp`（共 60 条）：RF 存取（8）、`set.w-rf`（1）、`cs.*-rf`（5）、`rd2rf`/`rf2rd`（2）、MISC-RF 子表（44）。
-> `scope: excluded`（共 15 条）：特权 cfx（6）、fence（1）、LR-SC（8）。
+> `scope: excluded`（共 11 条）：特权 cfx（2：`cfxld`/`cfxst`）、fence（1）、LR-SC（8）。（`cfx2rd`/`cfx2rc`/`escape`/`trap` 已 re-scope 为 `m1`，见 A.1/§13.6。）
 
 | op (hex) / 位置 | insn | 助记符 | 类别 | 来源 |
 |-----------------|------|--------|------|------|
@@ -1415,12 +1434,8 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x61 | cs.n-rf | `cs.n` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
 | 0x63 | cs.z-rf | `cs.z` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
 | 0x65 | cs.p-rf | `cs.p` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
-| 0x7A | cfx2rd | `cfx2rd` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
-| 0x7B | cfx2rc | `cfx2rc` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | 0x7C | cfxld | `cfxld` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | 0x7D | cfxst | `cfxst` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
-| 0x7E | escape | `escape` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
-| 0x7F | trap | `trap` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | MISC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
 | MISC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
 | MISC-AMO 000-000 | fence | `fence` | 待定指令 | [SimRISC-00 §MISC-AMO 指令编码] |

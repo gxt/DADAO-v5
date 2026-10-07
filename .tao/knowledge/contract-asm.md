@@ -15,8 +15,8 @@
 
 - 适用范围：DADAO M1 汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。[Toolchain-01 §1]
 - 指令集权威：编码与身份以 `contracts/opcodes.yaml` 为准，语义以 `contract-isa.md` 为准；本合约只规定书写形式。[Toolchain-01 §1]
-- 9 种 M1 格式类：`rrrr`、`rrri`、`rrii`、`riii`、`iiii`、`rwii`、`orrr`、`orri`、`oiii`。[Toolchain-01 §1]
-- `crrr`/`crii`/`ciii` 属特权 cfx，`scope: excluded`。[Toolchain-01 §1]
+- 9 种 M1 格式类（`Toolchain-01 §1` 定义）：`rrrr`、`rrri`、`rrii`、`riii`、`iiii`、`rwii`、`orrr`、`orri`、`oiii`；`SPEC-115t` re-scope 后 `m1` 另含 `crrr`/`ciii`（`cfx2rd`/`cfx2rc`/`trap`/`escape`）。[Toolchain-01 §1]
+- `crrr`/`crii`/`ciii` 属特权 cfx：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`（ciii）为 `scope: m1`（已实现）；`cfxld`/`cfxst`（crii）仍 `scope: excluded`。[Toolchain-01 §1]
 - 术语：地址表达式、寄存器组、条件寄存器、地址立即数（字节）。[Toolchain-01 §1]
 
 ---
@@ -165,7 +165,7 @@
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
 | `oiii` | `助记符 immu18` | `fence 0`、`swym 0` | 纯立即数，不加 `[]` |
 
-**`scope: excluded` 的格式（`crrr`/`crii`/`ciii`）与 LR-SC 的书写规则**（同规则、供对照）[Toolchain-01 §5][ADR-0013 D8]：
+**特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC 的书写规则**（同规则、供对照；`crrr`/`ciii` 现为 `scope: m1`，`crii` 仍 `scope: excluded`）[Toolchain-01 §5][ADR-0013 D8]：
 
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power）；末两操作数为地址。[Toolchain-01 §5][ADR-0013 D8]
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 `cg` 寄存器与 `rc` 寄存器。[Toolchain-01 §5][ADR-0013 D8]
@@ -231,7 +231,7 @@
 
 | 项 | 状态 |
 |---|---|
-| 9 个 M1 格式类与 151 条 M1 指令 | 已实现（旧语法） |
+| 9 个 M1 格式类与 155 条 M1 指令（含 `SPEC-115t` re-scope 的 4 条特权 cfx） | 已实现（旧语法） |
 | 本规范的新记法（`[]`/`{}`/`?`/`:`） | 待实现（parser/printer/disassembler） |
 | 双目的/多寄存器新记法（`{rdHA,rdHB}`/`{start:end}`） | 待实现 |
 | 伪指令 8 条（合成型） | 待实现 |
@@ -257,7 +257,7 @@
 
 ## §13 cfx 别名约定
 
-本节承载 cfx 系列别名的**书写约定**（规范正文「怎么写」）；决策与理由见 `ADR-0017`。**别名表**为机械生成投影 `.tao/knowledge/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），不属于规范正文。cfx 属 `scope: excluded`，本节约定随 M2 落地。[Toolchain-01 §13][ADR-0017]
+本节承载 cfx 系列别名的**书写约定**（规范正文「怎么写」）；决策与理由见 `ADR-0017`。**别名表**为机械生成投影 `.tao/knowledge/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），不属于规范正文。cfx 中 `cfx2rd`/`cfx2rc`/`trap`/`escape` 已 `SPEC-115t` re-scope 为 `scope: m1`（MC 可汇编）；`cfxld`/`cfxst` 仍 `scope: excluded`。[Toolchain-01 §13][ADR-0017]
 
 ### §13.1 归属与形态（D1/D2）
 

@@ -252,3 +252,20 @@
 - **根因**：任务书「允许文件集（验收 10 无残留清单）」按「**任务范围**」而非「**产物可否复现**」定，漏了「产物入库 ⇒ 生成器随之入库」这一条。
 - **判据（可复用）**：**凡产出被提交（入 git）的生成器/脚本，必须随产物保留在非易失位置**（优先 `tools/<module>/`，否则 `.work/<任务ID>/`）——`AGENTS.md`「临时目录」条已定；判据是**产物是否入库**，而非「脚本是否只服务一个任务」；**「一次性」只描述用途，不等于可丢弃**。任务书的「允许文件集」须**显式含**「随产物入库的生成器」这一项（`LLVM-060t` 由 architect 追加输出 6b + 约束 + 验收 10 修复）。
 - **落地**：`tools/llvm/gen_cfx_alias_table.py`（**复用** `tools/spec/gen_cfx_aliases.py` 投影函数、不另造轮子；`--out` 便于对临时路径校验）随产物入库；生成物内 provenance 行（`// Generator:`）指向生成器当前路径（经用户裁定授权改该 1 行注释）。**可复现性须以 `cmp` 逐字节证**（重跑生成器 → worktree `.inc` 不变 ⇒ `git diff <lock-commit> -- .inc` 与已入库 patch `cmp` EXIT=0）；architect 交叉复核时**须自己跑一遍生成器 + `cmp`**，不得采信他人输出。
+
+### 7.8 re-scope 的双层（生成器 + yaml）与跨任务契约（`MC_ONLY_EXCLUDED_IDS` 加/减）（`SPEC-115t`/`LLVM-060t`，2026-10-08）
+
+- **事由**：`SPEC-115t`（re-scope）有两处易漏的「双层」结构：
+  1. **生成物双层**：`contracts/opcodes.yaml` 由 `tools/spec/generate_opcodes.py` 生成（git 历史中二者恒同改）⇒ 只改 yaml 会使生成器失同步（下次重跑即回退）。
+  2. **跨任务门控载体**：`tools/llvm/validate_instrinfo.py` 的 `MC_ONLY_EXCLUDED_IDS` 是**跨任务共享集合**，其内容随 `scope` 状态改变——`LLVM-060t` 阶段 4 条仍 `scope: excluded` 但 MC 层需 `.td` def ⇒ **加入**；`SPEC-115t` re-scope 为 `m1` 后 ⇒ **移除**（否则 `missing_mc_only` / `bad_non_m1` FAIL）。
+- **判据（可复用）**：
+  1. **生成物改动须「改生成器 + 重跑」**，禁只手改生成物；重跑须 **byte-identical / 幂等**（两跑 md5 相等），并作为验收项（`SPEC-115t` 验收 9）。
+  2. **跨任务共享的集合型门控载体**（其内容随某任务的状态改变）⇒ 须在**两个任务的接口**写明「**谁加、谁减**」，并把「本任务应移除/加入」列为**接收变更方**的验收项 + 机械核验（`SPEC-115t` 验收 10：`MC_ONLY_EXCLUDED_IDS` 不再含 4 条、`fence_oiii_imm` 保留）。
+- **配套**：与 §7.6（下发前预检第 2 项须识别门控载体产者）同类——**范围类改动的门控载体可能横跨多个任务**，须在规划阶段显式定「加/减」归属，否则单发必红或留下失同步的隐藏回退。
+
+### 7.9 证据脚本对「已提交变更」的断言须带提交范围（`BASE..HEAD`），否则提交后假 FAIL（`SPEC-115t` round1→round2，2026-10-08）
+
+- **事由**：`SPEC-115t` round1 的证据脚本 `.work/evidence/SPEC-115t/run.sh` 用**裸 `git diff`** 检测「锁文件变更」「生成器改动」（`git diff -- manifests/…` / `git diff --name-only`）；但 architect 已把交付物 **WIP 提交**，而裸 `git diff` 比较的是**工作树 vs HEAD** ⇒ 变更已入 HEAD、工作树干净 ⇒ 输出为空 ⇒ 两项断言**假 FAIL**（`expected=2 actual=0` / `[FAIL] 9 generator modified`），证据脚本 EXIT=1。
+- **判据（可复用）**：证据脚本中凡断言「某变更存在 / 某文件被改」的 git 调用，若被测产物**可能已被提交**，**必须带提交范围**（`git diff "$BASE_COMMIT"..HEAD -- …`，`BASE_COMMIT` = 本任务基线提交，可经环境变量覆盖以验证 FAIL 路径）；**禁裸 `git diff`**。仅「检测工作树残留」用 `git status --porcelain`（不依赖是否已提交，合理保留）。
+- **配套**：与 §2.1（管道退出码陷阱）同为「**证据脚本自身缺陷导致假 FAIL/假 PASS**」类——**证据脚本本身也是交付物**，其 git 调用须经受「提交后仍应回绿」的自检；reviewer 审核脚本时须**逐条核 git 调用的 range**（`SPEC-115t` reviewer round2 即如此）。
+- **指向**：`SPEC-115t` 落地 = round2 新增 `BASE_COMMIT`（默认基线）+ 检查 7 追加 `$BASE_COMMIT..HEAD` 越界检查；规则见 `feedback_007`。

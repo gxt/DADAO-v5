@@ -21,12 +21,7 @@
 <!-- LEGALITY_START -->
 ## 合法性检查
 
-
-**scope: excluded（decode ILLI）：**
-* `cfx2rc_crrr_cfx`：decode ILLI
-* `cfx2rd_crrr_cfx`：decode ILLI
-* `escape_ciii_cfx`：decode ILLI
-* `trap_ciii_cfx`：decode ILLI
+（本章无适用规则）
 <!-- LEGALITY_END -->
 
 

@@ -5,7 +5,7 @@
 # scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
-# 共 227 条：M1 151 条 + scope fp 60 条 + scope excluded 15 条 + scope m3 1 条
+# 共 227 条：M1 155 条 + scope fp 60 条 + scope excluded 11 条 + scope m3 1 条
 # 有 rule_refs 的指令：191 条
 
 - id: ld.ub_rrii_rd
@@ -2249,8 +2249,7 @@
     bank: rd
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
-  scope: excluded
-  decode: ILLI
+  scope: m1
   rule_refs: []
 - id: cfx2rc_crrr_cfx
   mnemonic: cfx2rc
@@ -2277,8 +2276,7 @@
     bank: rd
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
-  scope: excluded
-  decode: ILLI
+  scope: m1
   rule_refs: []
 - id: cfxld_crii_cfx
   mnemonic: cfxld
@@ -2348,8 +2346,7 @@
     signed: true
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
-  scope: excluded
-  decode: ILLI
+  scope: m1
   rule_refs: []
 - id: trap_ciii_cfx
   mnemonic: trap
@@ -2369,8 +2366,7 @@
     signed: false
   legality: []
   spec_cite: SimRISC-00 §SimRISC QFC
-  scope: excluded
-  decode: ILLI
+  scope: m1
   rule_refs: []
 - id: fence_oiii_imm
   mnemonic: fence

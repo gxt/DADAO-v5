@@ -70,7 +70,7 @@ sha256 = "ee41a25a2029942faf8df782c1b2a0cc00b4b0abe6a81117b41e8551b752fe4a"
 [[spec]]
 path = "spec/SimRISC-11-其它.md"
 group = "simrisc-00..12"
-sha256 = "f6de0860b78208356833449243b481ce942aefa891b2e77fa6c62a5d68111fe8"
+sha256 = "12da1f319c828cc87201cd9e95642965770fea4665420d911939ca364746b552"
 
 [[spec]]
 path = "spec/SimRISC-12-待定.md"

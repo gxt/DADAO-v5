@@ -62,7 +62,9 @@ FMT_BY_CLASS = {
     "DADAORrrr": "rrrr", "DADAORrri": "rrri", "DADAORrii": "rrii",
     "DADAORiii": "riii", "DADAOIiii": "iiii", "DADAORwii": "rwii",
     "DADAOOrrr": "orrr", "DADAOOrri": "orri", "DADAOOiii": "oiii",
-    # Privileged cfx formats (LLVM-060t): MC-only .td defs (scope: excluded).
+    # Privileged cfx formats (LLVM-060t): .td defs for trap/escape/cfx2rd/cfx2rc.
+    # SPEC-115t re-scoped these four to scope:m1, so their defs are now plain M1
+    # defs (not MC-only-excluded); the crrr/ciii format mapping stays required.
     "DADAOCrrr": "crrr", "DADAOCiii": "ciii",
 }
 
@@ -71,15 +73,11 @@ FMT_BY_CLASS = {
 #   - scope:excluded -> still needed by the MC layer (assemble/disassemble) even
 #     though execution traps with ILLI.  SPEC-039t moved `fence` out of M1 but
 #     kept its def so llvm-mc can assemble it (see tests/llvm/lit/MC/DADAO/oiii.s).
-#     LLVM-060t likewise defines the four privileged cfx instructions
-#     (crrr/ciii) while they are still scope:excluded; SPEC-115t re-scopes them
-#     to m1 and removes them from this allow-list.
+#     LLVM-060t defined the four privileged cfx instructions (crrr/ciii) while
+#     they were scope:excluded; SPEC-115t re-scoped them to m1, so they are no
+#     longer in this allow-list and now satisfy the M1 baseline check directly.
 MC_ONLY_EXCLUDED_IDS = frozenset({
     "fence_oiii_imm",
-    "trap_ciii_cfx",
-    "escape_ciii_cfx",
-    "cfx2rc_crrr_cfx",
-    "cfx2rd_crrr_cfx",
 })
 
 # Documented sample of the explicit id -> .td def-name mapping, checked by
