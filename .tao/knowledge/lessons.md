@@ -268,4 +268,105 @@
 - **事由**：`SPEC-115t` round1 的证据脚本 `.work/evidence/SPEC-115t/run.sh` 用**裸 `git diff`** 检测「锁文件变更」「生成器改动」（`git diff -- manifests/…` / `git diff --name-only`）；但 architect 已把交付物 **WIP 提交**，而裸 `git diff` 比较的是**工作树 vs HEAD** ⇒ 变更已入 HEAD、工作树干净 ⇒ 输出为空 ⇒ 两项断言**假 FAIL**（`expected=2 actual=0` / `[FAIL] 9 generator modified`），证据脚本 EXIT=1。
 - **判据（可复用）**：证据脚本中凡断言「某变更存在 / 某文件被改」的 git 调用，若被测产物**可能已被提交**，**必须带提交范围**（`git diff "$BASE_COMMIT"..HEAD -- …`，`BASE_COMMIT` = 本任务基线提交，可经环境变量覆盖以验证 FAIL 路径）；**禁裸 `git diff`**。仅「检测工作树残留」用 `git status --porcelain`（不依赖是否已提交，合理保留）。
 - **配套**：与 §2.1（管道退出码陷阱）同为「**证据脚本自身缺陷导致假 FAIL/假 PASS**」类——**证据脚本本身也是交付物**，其 git 调用须经受「提交后仍应回绿」的自检；reviewer 审核脚本时须**逐条核 git 调用的 range**（`SPEC-115t` reviewer round2 即如此）。
-- **指向**：`SPEC-115t` 落地 = round2 新增 `BASE_COMMIT`（默认基线）+ 检查 7 追加 `$BASE_COMMIT..HEAD` 越界检查；规则见 `feedback_007`。
+- **指向**：`SPEC-115t` 落地 = round2 新增 `BASE_COMMIT`（默认基线）+ 检查 7 追加 `$BASE_COMMIT..HEAD` 越界检查；规则见 §8.7。
+
+### 7.10 `ADR-0016 D9` 点名项被改述收窄、门控来源未沿调用链核（`INFRA-047t`，2026-10-07）
+
+- **事由**：`INFRA-047t` 的目标之一是「**门控/执行器改从 install 根取可执行**」（`ADR-0016 D9`）。第 1 轮实现与验收（判 `Accepted`）时，`make check` 的子门控 `check-qemu-semantics` 仍经 `tests/scripts/run_qemu_test.py` 从 `.work/build` 取 QEMU——**未被发现**：任务书把 `D9` 点名清单**改述**为「`Makefile` 路径变量 + `tools/integ/run_{codegen,elf}_e2e.py` + `tests/**/lit.cfg.py`」，漏掉 `D9` **原文点名**的 `run_qemu_test.py`；下发前预检又把验收 grep 范围收窄到 `Makefile`+`tools/infra`+`tools/integ`，使该缺口在验收中**不可见**。reviewer 在 B 节已瞄到，但因「超出任务界定」未阻塞判决。
+- **根因**：① **点名清单被概括改述**，未逐字列举、逐项核到底；② 核对门控可执行来源只 `grep` 工具目录，未从 `make check` 依赖表**沿调用链**追到 `tests/scripts/`（门控常经脚本**间接**取可执行）。
+- **处置/闭合**：architect 范围修正后**重开一轮**（第 2 轮 reviewer `Accepted`），补修 `run_qemu_test.py` 改根；`tests/scripts/verify_harness_dump.py` 经**调用链反证**为非门控 ⇒ out-of-scope（登记遗留）。
+- **规范**：见 §8.1。
+
+### 7.11 生成物落点迁移未同删旧产物目录、脚本比对 git 路径受 `core.quotePath` 干扰（`INFRA-048t`，2026-10-07）
+
+- **事由**：`INFRA-048t` 把 `test-codegen`/`test-elf`/lit 的运行产物落点从源码树/构建树迁到 `.dadao/tests/`，并要求清理 `.gitignore` 旧忽略规则 `tests/llvm/codegen-e2e/`。**下发前预检**发现：该旧目录**实际存在**（内含 `arith_*.bin/.o/.s/.prog.s` 等运行产物），若只清忽略规则而不删目录，运行产物会暴露为未跟踪残留，与任务自身「无残留」验收**自相矛盾**（实测清规则后 `git status --porcelain -uall` 多出 60 个 `??`）。另：lit scratch 的**实际**旧落点（`.dadao/cross-toolchain/test-output/`，因 `INFRA-047t` 改了 `tools_dir` 默认）与任务书描述的 `.work/build/llvm/test-output/` **不一致**。证据脚本用默认 `git status` 匹配中文任务书路径，自审实测 `bad-count=1`（**假阳性**：非 ASCII 路径被加引号 + 八进制转义）。
+- **根因**：① 迁移只「改落点 + 清规则」，漏「删残留旧产物目录」；② 旧落点路径以**任务书描述为准、未实测**（已被上游任务改变）；③ 脚本比对 git 路径**未关 `core.quotePath`**。
+- **处置/闭合**：同删旧产物目录（`tests/llvm/codegen-e2e/`、`.work/codegen-e2e-elf`）；证据脚本改 `git -c core.quotePath=false`；reviewer `Accepted` + architect 交叉复核。
+- **规范**：见 §8.2。
+
+### 7.12 误把 `.PHONY` 续行当 `make check` 依赖（`SPEC-117t`，2026-10-07）
+
+- **事由**：`SPEC-117t` 的约束原写「`make check`（`check-spec-refs` 等）EXIT=0」，下发前预检据此**断言**「`check-spec-refs` 确在 `make check` 依赖链内」，并引 `Makefile:41` 为据。**实测**：`Makefile:41` 是 `.PHONY` 清单的**续行**（`... check-spec-refs check-spec-drift ...`），**不是**依赖；`check:`（`Makefile:297`）的依赖行**不含** `check-spec-refs`；其目标处（`Makefile:336`）注释明示 `# Standalone target, not part of \`make check\`.`。
+- **根因**：把 `.PHONY` 伪目标声明**误读**为依赖关系；且行号引用未逐行核对（reviewer 记录中曾把注释行 `336` 误记为 `337`，仅偏一、不影响结论）。
+- **处置/闭合**：主会话更正 + 工程师实测该两门控单独跑均 `EXIT=0`；规范正文与验收分别写明「standalone，不在 `make check` 依赖链内」。
+- **规范**：见 §8.3。
+
+### 7.13 核「已 `Accepted` 决策未被静默改写」不能只凭 `git diff` hunk（`SPEC-113t`，2026-10-07）
+
+- **事由**：`SPEC-113t` 按 `Process-03`「不直接改写已 `Accepted` 的决策」就地修订 `ADR-0004`：新增 `## 修订` 条目（`R1`/`R2`/`R3`）表达取代/覆盖关系，**不得**改动受保护决策 `D1`/`D2.1`/`D3`/`D4`/`D5`/`D6` 正文。工程师原拟用 `git diff` 的 hunk（删除行）判定「未静默改写」，但 hunk 边界**脆弱**：修订条目里**引用** D 项正文措辞（如「覆盖 `D1` 内存映射表…」）会与正文改动**混淆**。另 `ADR-0004 R2` 括注称「（`D3` 标 `Superseded`）」，实测 `D3` 节标题与节内**均无** `Superseded`——该「已标」实为**文件级取代声明**，非节内标记（措辞不精确；决策成立：`Process-03`「新增 ADR 或标注 `Superseded`」已由新增 `ADR-0020` 满足）。
+- **根因**：① 判「正文未改」依赖脆弱的 `git diff` hunk 边界；② 节提取**未做非空校验**（空提取 ⇒ 两侧都空 ⇒ 假 PASS）；③ 「已标 `Superseded`」未核到**节内**标记。
+- **处置/闭合**：改用「`git show HEAD:<file>` × 工作树**按节 diff + 非空校验**」；reviewer 独立注入（临时树 `cp`+md5）；architect 交叉复核；`ADR-0004 D3` 标题下补 in-place 标记 `> **Superseded by ADR-0020 D8**`。
+- **规范**：见 §8.4；机械核验范式另见 §5.6。
+
+## 8. 操作规范（该这样做 / 不该这样做）
+
+> 由 `feedback_001…007`（2026-10-08，用户裁定）**并回**本文件：**经过/根因**归 §7.10–§7.13 与 §7.5/§7.7/§7.9，**正面规范**归本节。每条的「教训指引」只给指针，不复述经过。
+
+### 8.1 ADR/规范逐个点名一类产物时，任务界定与验收范围须「逐字列出、逐项核到底」；核门控可执行来源须沿调用链逐跳追
+
+- **规则**：
+  1. ADR/规范**逐个点名**一类产物时，任务书「范围」与「验收 grep 范围」须把点名项**原样抄入**，逐项给「已落地 / 不适用 / out-of-scope（附证据）」结论；**不得**以概括措辞替代点名清单。
+  2. 核对「门控可执行来源」须从 `make check` 依赖表出发，沿「门控 → 脚本 → 可执行/子脚本」调用链**逐跳追**；grep 范围须覆盖**全部被调脚本所在目录**（含 `tests/scripts/`），不能只 grep `Makefile`+`tools/**`。
+  3. 判「是否门控/执行器」须用**调用链证据**（全仓 grep 脚本名 + 门控对其 `import`/`subprocess`）；不得因「同款写法」或「同目录」类推。判 out-of-scope 须给**调用链反证**并登记遗留。
+- **依据/来源**：`INFRA-047t`（2026-10-07 第 1 轮后由 architect 范围修正、重开一轮闭合）。
+- **教训指引**：见 §7.10。
+
+### 8.2 迁移生成物落点须「改落点 + 清旧忽略规则 + 删残留旧产物目录」同一原子落地；脚本比对 git 路径须关 `core.quotePath`；迁移前须实测旧落点真实路径
+
+- **规则**：
+  1. 迁移生成物落点 = 改落点 + 清旧忽略规则 + **同删残留旧产物目录**，三者须**同一原子落地**；任务书「输出」须显式列出旧目录为**删除目标**，并贴删除前后 `ls`/`git status --porcelain -uall` 真实输出。判据：清掉忽略规则后 `git status --untracked-files=all` 若暴露旧产物，即证必须同删。
+  2. 迁移前须 `grep`/`ls` **实测**旧落点真实路径（可能已被上游任务改变），不以任务书/历史描述为准。
+  3. 脚本比对 `git status` 路径须先 `git -c core.quotePath=false`；非 ASCII 路径默认被加引号 + 八进制转义，会与按原文匹配的白名单**错配** ⇒ **假阳性 FAIL**。
+  4. 范围判定不得越界：旧落点删除目标**只列任务书明确列出的目录**；gitignored 树内其它历史残留**登记为遗留/另立任务**，不顺手删。
+- **依据/来源**：`INFRA-048t`（2026-10-07 下发前预检修订 + 验收；reviewer `Accepted` + architect 交叉复核）。
+- **教训指引**：见 §7.11。
+
+### 8.3 判 target 是否在 `make check` 依赖链须读 `check:` 依赖行而非 `.PHONY` 清单；行号引用须逐行核对
+
+- **规则**：
+  1. 判「某 target 是否随 `make check` 跑」只看 `check:` 目标的**依赖行**（`grep -n '^check:' Makefile`），**不得**以 `.PHONY:` 清单为准（`.PHONY` 只是伪目标声明，与依赖关系无关）；再 `grep -n '^<target>:' Makefile` 看目标处注释（常标 `standalone`）。
+  2. 要求「另跑 standalone target」时，须显式写明「standalone，不在 `make check` 依赖链内」，并各自单独跑、各自报 EXIT，不得与 `make check` 合并成一句「`make check`（含 X）」。
+  3. `.PHONY`、`check:` 依赖行、目标处注释三者都要核；**行号引用须逐行核对**再落纸。
+- **依据/来源**：`SPEC-117t`（2026-10-07 下发前预检错误引用；工程师实测 + 主会话更正 + reviewer 独立复核 + architect 交叉复核）。
+- **教训指引**：见 §7.12。
+
+### 8.4 核「已 `Accepted` 决策未被静默改写」用「HEAD×工作树按节 diff + 非空校验」；「已标 `Superseded`」须核到节内标记；独立注入用临时树 + `cp`/md5
+
+- **规则**：
+  1. 判「受保护决策正文未被改写」用「`git show HEAD:<file>` × 工作树**按节前缀提取**后逐节 `diff -q` ⇒ `same`」，**不以 `git diff` hunk 为准**（hunk 边界脆弱：修订条目引用正文措辞会混淆）。
+  2. 提取结果须做**非空校验**（每节 `行数 > 0`），否则空提取 ⇒ 两侧都空 ⇒ `same` ⇒ **假 PASS**。
+  3. 「某决策已标 `Superseded`」须核到**该节内**的 in-place 标记（`awk '/^### D3 /,/^### D4 /' <file> | grep -c Superseded`），不得以「修订条目里写了『已标』」为准。
+  4. 独立注入须「**非空 → 检出 FAIL → 还原回绿**」三步齐证；注入宜在**临时树** `/tmp/opencode/<任务ID>/`，还原用 `cp`+md5（**禁** `git checkout/restore/stash`）。
+- **依据/来源**：`SPEC-113t`（2026-10-07 engineer 自审 F2 + reviewer 独立注入 + architect 交叉复核）。
+- **教训指引**：见 §7.13；机械核验范式另见 §5.6。
+
+### 8.5 改 `spec/` 目录须用户**事先**明确授权（含 v5 自定册）；上游只读册只作只读引用
+
+- **规则**：
+  1. `spec/` 下任何**新增/修改/删除**（含 v5 自定册 `Machine-*`/`Process-*` 与 `spec/README.md`）**须用户"事先"明确允许**，授权**原话落盘**；未获授权而拟改 `spec/` ⇒ **BLOCKED**。
+  2. **上游只读册**（`DADAO-1x`〔11/12/13〕、`DADAO-2x`〔21/22/23〕、`SimRISC-00..12`、`Toolchain-01`，共 **20 册**）只作**只读引用**（引 `§` 章节号，**不改一字**）；确需修改须先经用户授权，并在**同一变更**内更新 `manifests/spec-readonly.lock.toml` 的 `sha256`。
+  3. 任务书「输出」不得把上游只读册列为可改对象；需要的新正文一律落 **v5 自定册**。
+  4. **三处固定检查**（下发前预检第 5 项 / reviewer 验收 / architect 提交）均以 `git diff --name-only`（提交前 `--cached`）与 `spec/` 清单交叉；有交集而缺授权证据 ⇒ 阻断。
+- **依据/来源**：`SPEC-114t` round1 擅改上游只读册事故，用户 2026-10-07 裁定；机制落地 `SPEC-119t`。
+- **教训指引**：见 §7.5；范式另见 §5.6；规则正文 `spec/Process-06-spec目录保护规范.md`。
+
+### 8.6 生成器随产物入库（产物入 git ⇒ 生成器不得只留 `.work/`）
+
+- **规则**：
+  1. **判据 = 产物是否入库**：凡产出**被提交（入 git）**的生成器/脚本，必须**随产物**保留在**非易失位置**——优先 `tools/<module>/`，否则 `.work/<任务ID>/`；**不得**只留 `/tmp` 或 `.work/`（被 `.gitignore` 整体忽略 ⇒ 不入库）。
+  2. **「一次性」只描述用途，不等于可丢弃**。
+  3. 任务书「允许文件集」须**显式含**「随产物入库的生成器」。
+  4. 入库生成器须**可复现生成**产物（`cmp` 逐字节证）；architect 交叉复核时**须自己跑一遍生成器 + `cmp`**，不采信他人输出。
+  5. 生成物内 provenance 行（如 `// Generator: <路径>`）须指向生成器当前路径；落点迁移致失真时按用户授权改注释并**重新导出 patch**（只改注释、表数据/编码零变化）。
+- **依据/来源**：`LLVM-060t`（2026-10-07 round1→round2）。
+- **教训指引**：见 §7.7。
+
+### 8.7 证据脚本对「已提交变更」的断言须带提交范围（`BASE..HEAD`）
+
+- **规则**：
+  1. 凡断言「某变更存在 / 某文件被改」的 git 调用，若被测产物**可能已被提交**，**必须带提交范围**：`git diff "$BASE_COMMIT"..HEAD -- <path>`；**禁裸 `git diff`**（裸 diff 比较**工作树 vs HEAD**，变更已入 HEAD 时返回空 ⇒ **假 FAIL**）。
+  2. `BASE_COMMIT` 须可经**环境变量覆盖**（默认基线），以便 `BASE_COMMIT=HEAD` 重放脚本、验证该断言**确实可 FAIL**。
+  3. 只有「检测工作树残留」才用 `git status --porcelain`（其语义就是查工作树，合理保留）；需在**提交后**仍抓越界则另加 `$BASE_COMMIT..HEAD` 越界断言。
+  4. 证据脚本本身也是**交付物**：须经受「**提交后仍应回绿**」自检；reviewer 审核须**逐条核 git 调用是否带 range**；engineer 修一处缺陷须 `grep -nE '\bgit\s+(diff|status|log|show)\b'` **全脚本同类排查**。
+- **依据/来源**：`SPEC-115t`（2026-10-08 round1→round2）。
+- **教训指引**：见 §7.9；同类 §2.1（管道退出码陷阱）。
