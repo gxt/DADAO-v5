@@ -41,7 +41,8 @@
 4. **投影一致**：`contract-isa.md`/`contract-asm.md`/`contract-asm-list.md` 相应条目更新；`make check`（`check-asm-list*`/`check-legality-drift`/`check-interface`）EXIT=0。
 5. **`escape` 位宽关系**：spec 侧写明「汇编 `imms20`（字节，`%4==0`）⇔ 编码 `imms18`（`>>2`），`Addr = excp_cause_ip + (imms18<<2)`」（`grep` 证据）。
 6. **一键证据脚本**：`.work/evidence/SPEC-115t/run.sh`——非交互、失败非零、逐项打印；**内置注入自检**（把某条改回 `excluded`/改一条 `op` 字节 ⇒ 断言 **FAIL** ⇒ 还原 ⇒ 回绿），结尾**禁 `tee`**；给真实输出。
-7. **无残留**：`git status --untracked-files=all` 仅 `spec/SimRISC-11-其它.md` + `contracts/{opcodes,legality_rules}.yaml` + `tools/spec/check_scope.py` + `.tao/knowledge/contract-*.md` + 本任务书。
+7. **无残留**：`git status --untracked-files=all` 仅 `spec/SimRISC-11-其它.md` + `manifests/spec-readonly.lock.toml` + `contracts/{opcodes,legality_rules}.yaml` + `tools/spec/check_scope.py` + `.tao/knowledge/contract-*.md` + 本任务书。
+8. **只读锁同步（前置的机械核验）**：改动 `spec/SimRISC-11-其它.md` 后须**重算并写入**该册的新 `sha256`（`sha256sum spec/SimRISC-11-其它.md` 的值与 lock 中该册 `sha256` **逐位相等**）；`make check-spec-readonly` **EXIT=0**（给真实输出，含退出码，**禁 `tee`**）；且**其余 19 册锁值不得变动**（`git diff manifests/spec-readonly.lock.toml` **仅** `spec/SimRISC-11-其它.md` 一段 `sha256` 变更——给真实 `git diff`）。
 
 ## 完成区
 
@@ -58,3 +59,12 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证：`run.sh` 审核 + 重跑 + **独立注入一次反例**〔改 scope/改编码字节〕+ 逐条核计数/编码不变/SimRISC-12 未动 + 判决）
+
+#### 下发前预检修订（architect，2026-10-07）
+**F1（真冲突，已改）**：任务书顶部「⚠️ 前置」要求本任务修改上游只读册 `spec/SimRISC-11-其它.md` 时**须在同一变更内更新 `manifests/spec-readonly.lock.toml` 中该册的 `sha256` 锁**（否则 `make check-spec-readonly` FAIL ⇒ `make check` 红）；但原「验收标准 7」的 `git status --untracked-files=all` 允许清单**未含**该锁文件 ⇒ 工程师要么不更新锁（违反前置），要么更新锁就违反验收 7，二者不可兼得。
+**改法**：①「验收标准 7」清单**加入** `manifests/spec-readonly.lock.toml`；②新增「验收标准 8」明确 **改后须重算并写入 `spec/SimRISC-11-其它.md` 的新 `sha256`**、`make check-spec-readonly` **EXIT=0**（给真实输出），并断言**其余 19 册锁值不得变动**。
+
+**用户授权原话（本任务改上游只读册的授权，落盘于此）**：
+> 「允许（re-scope SimRISC-11）」
+
+**授权范围**：`spec/SimRISC-11-其它.md` 的 **4 条 re-scope**（`trap`/`escape`/`cfx2rc`/`cfx2rd` 由 `excluded` → 已实现）+ **同步更新该册锁值**（`manifests/spec-readonly.lock.toml` 中 `spec/SimRISC-11-其它.md` 一段 `sha256`）。`spec/SimRISC-12-待定.md` 仅只读引用、不改。
