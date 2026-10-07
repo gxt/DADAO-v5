@@ -41,7 +41,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
-        check-dirs check-no-residue check-cfx-aliases check-asm-prose check-lit \
+        check-dirs check-no-residue check-spec-readonly check-cfx-aliases check-asm-prose check-lit \
         test-codegen test-elf \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants
@@ -98,6 +98,7 @@ help:
 	@echo "  make check-asm-list-drift  Check assembly-list drift gate (INFRA-027t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
 	@echo "  make check-no-residue  Detect unexpected untracked temp files"
+	@echo "  make check-spec-readonly  Verify upstream read-only spec volumes against sha256 lock (SPEC-119t)"
 	@echo "  make size-report  Report added-component-file sizes (advisory, not a gate)"
 	@echo "  make check-tasks  Report tasks with filled 完成区 but status still 待验收 (advisory; --strict to fail)"
 
@@ -294,7 +295,7 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-lit
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-lit
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks: PASS"
@@ -349,6 +350,11 @@ check-dirs:
 # Residue gate (INFRA-025t): detect unexpected untracked temp files.
 check-no-residue:
 	@$(PYTHON) tools/infra/check_dirs.py --residue
+
+# spec 目录只读锁 (SPEC-119t): 上游只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
+# 规则见 spec/Process-06-spec目录保护规范.md §5。
+check-spec-readonly:
+	@$(PYTHON) tools/infra/check_spec_readonly.py
 
 # Spec embedded assembly list consistency (SPEC-037t).
 check-asm-list:

@@ -11,5 +11,5 @@
 
 ## 指向
 
-- 机制落地：`SPEC-119t`（`manifests/spec-readonly.lock.toml` + `tools/infra/check_spec_readonly.py` + `make check-spec-readonly`，**纳入 `make check`**）。
+- 机制落地：`SPEC-119t`（`manifests/spec-readonly.lock.toml` + `tools/infra/check_spec_readonly.py` + `make check-spec-readonly`，**纳入 `make check`**）。**✅ 已落地（2026-10-07，reviewer `Accepted`、architect 交叉复核通过；见 `lessons.md §5.6`）。**
 - 规则正文：`spec/Process-06-spec目录保护规范.md`（`SPEC-119t` 产出）。

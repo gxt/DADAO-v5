@@ -71,6 +71,7 @@
 | [`Process-03-ADR编写规范.md`](Process-03-ADR编写规范.md) | ADR 判据、提醒义务、落点命名与模板、流程 |
 | [`Process-04-里程碑归档规范.md`](Process-04-里程碑归档规范.md) | 里程碑达成后的任务书/台账归档（判据、落点、README 模板、原台账处理、验收） |
 | [`Process-05-里程碑TDD规范.md`](Process-05-里程碑TDD规范.md) | 里程碑测试驱动开发（三层向量 L1/L2/L3、规模与移植原则、反例门控、落点） |
+| [`Process-06-spec目录保护规范.md`](Process-06-spec目录保护规范.md) | spec 目录保护：上游只读册只读引用、`spec/` 改动须用户事先授权、下发/验收/提交三处固定检查、上游只读册 `sha256` 哈希锁门控 |
 
 ## 投影表
 
@@ -93,6 +94,7 @@
 | `Process-02` | — | — | `tools/infra/check_spec_drift.py`（`check_spec_refs.py` 独立门控） | 不适用 |
 | `Process-03` | — | — | — | 不适用（人工遵守） |
 | `Process-05` | — | — | — | 不适用（人工遵守） |
+| `Process-06` | — | — | `tools/infra/check_spec_readonly.py`（`make check-spec-readonly`） | 不适用（人工遵守） |
 
 **登记缺口（显式 deferred）**（决策 8；T2 `SPEC-085t` 定稿并同步 `Process-02` 的合约清单；三类系统层缺口由 `SPEC-092t` 标显式 deferred）：
 
@@ -115,6 +117,8 @@
 4. 缺口登记（投影缺失者记入本文「投影表」缺口）
 5. 不强制记 ADR —— 仅「多方案取舍 / 外部契约 / 取向改变」才记
 ```
+
+> **前置（MUST）**：改 `spec/` 任何册（含 v5 自定册与 `spec/README.md`）须**用户事先授权**（见 `Process-06`）；上游只读册另有 `sha256` 锁门控（`make check-spec-readonly`，已纳入 `make check`）。
 
 ## Rationale
 

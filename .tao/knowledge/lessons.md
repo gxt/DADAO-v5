@@ -142,6 +142,16 @@
 - 记录：`005t`→`006t`→`007t` 形成单一 `if/elif` 守卫块，F7 守卫基线已完整，作为**参照基准**。
 - 来源：原 `ISS-032`；`INFRA-033t`（2026-10-04）判定其为**基线记录**而非待办 issue，移入本文件（id 不复用）。
 
+### 5.6 只读清单门控范式：TOML 锁 + `--root` 临时树注入 + `if errors` fail-closed（`SPEC-119t`，2026-10-07）
+
+- **范式（可复用）**：对「不许改的只读清单」（此处 = 上游 20 册 `spec/`）做**机械门控**，三要素：
+  1. **TOML `[[…]]` 锁 + 复用既有 checker 体例**：逐项 `sha256` 锁于 `manifests/*.lock.toml`，checker 复用既有 `check_index_blobs.py`/`check_dirs.py` 范式（manifest 驱动、`--verbose`、`--root` 覆盖、只读、非零退出），**不另造轮子**。
+  2. **`--root DIR` 让「临时树注入」成为默认自测手段**：checker 从 `<root>/manifests/*.lock.toml` 读锁、逐 `path` 相对 `<root>` 解析 ⇒ 注入/还原全在 `/tmp/opencode/<任务ID>/` 的**临时树**内进行，**不触碰真实仓库**；还原一律 `cp` 备份 + md5 对账（**禁** `git checkout/restore/stash`，见全局「注入/改动的还原纪律」）。
+  3. **fail-closed 判据用 `if errors:` 而非 `if mismatches:`**：锁**残缺**（某条缺 `sha256` / 缺 `format` / 条目为空）时，若只判「被锁文件失配数」会 `mismatches==0` ⇒ 误返回 0（**fail-open**）。必须让**任何**锁解析错误 / 文件不符 / 缺失都计入 `errors`，并据 `errors` 非零退出——「锁本身坏掉」也必须 FAIL。
+- **反例门控须覆盖「锁残缺」类**（改册 / 删册 / 改锁值 / 缺 `format` / 空条目 / 缺 `sha256`），**不能只测「被锁文件被改」**——否则 fail-open 路径不被证伪。
+- **门控类任务的「变更集」定义 = tracked `git diff` ∪ untracked `git status`**：新建文件（untracked）不出现在 `git diff`，判断「改了哪些文件/是否越界」须用 `git status --porcelain -uall`（或并集），并加 `git -c core.quotePath=false`（否则非 ASCII 路径被转义致集合比较假失败）。
+- 落地见 `manifests/spec-readonly.lock.toml` + `tools/infra/check_spec_readonly.py` + `make check-spec-readonly` + `spec/Process-06-spec目录保护规范.md`（`SPEC-119t`）。
+
 ## 6. spec 开放点与过程记录
 
 ### 6.1 历史记录不改写正文（体例）
@@ -218,3 +228,4 @@
   - **reviewer / architect 固定检查**：验收/提交前固定执行 `git diff --name-only`（提交前 `git diff --cached --name-only`）与 `spec/` 清单交叉；有交集而缺用户授权证据 ⇒ reviewer 判 `Needs Revision` / architect 拒绝提交。
   - **规则正文**入 `spec/Process-06-spec目录保护规范.md`：**`spec/` 下任何新增/修改/删除（含 v5 自定册 `Machine-*`/`Process-*`/`spec/README.md`）均须用户"事先"明确允许，授权原话落盘**；上游只读册只作**只读引用**（引 `§` 章节号，不改一字）。
 - **已处置**：`DADAO-12`/`DADAO-22` 以 **`cp`+`md5` 还原**到 base `96f09f1`（md5 `83dec5ea…`/`a3070bd4…`，逐字一致；**未用** `git checkout/restore/stash`，见全局「注入/改动的还原纪律」）；`SPEC-114t` round2 返工后上游册**零改动**（20/20 md5 SAME），相关正文一律落新建 `spec/Machine-01-测试机运行环境.md`。
+- **✅ 已落地（`SPEC-119t`，2026-10-07）**：上「防复发」三处机制**全部实现并通过验收**——`manifests/spec-readonly.lock.toml`（上游 20 册 `sha256` 锁）+ `tools/infra/check_spec_readonly.py`（`if errors` **fail-closed**）+ `make check-spec-readonly`（**纳入 `make check`**）+ 规则正文 `spec/Process-06-spec目录保护规范.md`（①–⑤ 均 MUST）。reviewer **`Accepted`**、architect 交叉复核通过（20 册 `sha256` 独立重算全等、路径清单无多无漏、`spec/` 变更仅 `Process-06`+`README.md`〔无上游册〕、6 类反例注入均 FAIL 且 `cp`+md5 还原回绿）。范式见 §5.6。

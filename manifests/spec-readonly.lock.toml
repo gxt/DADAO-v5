@@ -1,0 +1,113 @@
+format = 1
+# 上游只读册：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
+# 同一变更内更新此处哈希。见 spec/Process-06-spec目录保护规范.md。
+policy = "readonly-requires-authorization"
+
+# 清单 = 20 册上游只读册（用户 2026-10-07 全选）：
+#   dadao-1x   DADAO-11/12/13
+#   dadao-2x   DADAO-21/22/23
+#   simrisc    SimRISC-00..12
+#   toolchain  Toolchain-01
+# sha256 = 工作树基线（还原后）逐册实测；由 make check-spec-readonly 校验。
+# 注意：spec/Machine-01、spec/Process-0x、spec/README.md 为 v5 自定册，
+# 不在本锁内——其修订由 Process-06 §2 的授权流程约束。
+
+[[spec]]
+path = "spec/SimRISC-00-指令系统设计.md"
+group = "simrisc-00..12"
+sha256 = "f7d7c7db7adbb07493dbb42f3b363a5a812e14bbe78f732ac5220a5a8c538158"
+
+[[spec]]
+path = "spec/SimRISC-01-取数存数.md"
+group = "simrisc-00..12"
+sha256 = "08b76ba3047f01b86abbca30b56e84e8efcdd7c820578b17ffd7fb509ed72ce6"
+
+[[spec]]
+path = "spec/SimRISC-02-寄存器复制.md"
+group = "simrisc-00..12"
+sha256 = "017faa19b7fb677ddbaca8ea226b444c0c8313e92f7e651c8406d0cc30454c7e"
+
+[[spec]]
+path = "spec/SimRISC-03-16位立即数操作.md"
+group = "simrisc-00..12"
+sha256 = "030b788c1e46b467d134761ababeccd1d3f328aac37f3d7795b66e7715e66629"
+
+[[spec]]
+path = "spec/SimRISC-04-64位数据运算.md"
+group = "simrisc-00..12"
+sha256 = "2d5767efa62be276f17bff78b19a0e3c08d77c7bbc7bdbdb2537f2aab112acc9"
+
+[[spec]]
+path = "spec/SimRISC-05-64位地址运算.md"
+group = "simrisc-00..12"
+sha256 = "958223965a0ff4218930002538bf894806933171cd1aaf4b103a4a6fd552e297"
+
+[[spec]]
+path = "spec/SimRISC-06-控制流.md"
+group = "simrisc-00..12"
+sha256 = "a82179a769f40e86234cfb3275f7d0341898866a28014ab4029d6ab773e25313"
+
+[[spec]]
+path = "spec/SimRISC-07-浮点运算.md"
+group = "simrisc-00..12"
+sha256 = "2e215c2c5a15c739073603b616bcd2cb14997d343690f82cb8769029459767da"
+
+[[spec]]
+path = "spec/SimRISC-08-32位数据运算.md"
+group = "simrisc-00..12"
+sha256 = "4bb00f033b9e69c5100ce21313a023cab793ffbb0be7ad42567f114f0f485a7c"
+
+[[spec]]
+path = "spec/SimRISC-09-16位数据运算.md"
+group = "simrisc-00..12"
+sha256 = "da0f66d56af27dd906409bb4a2306df0c23da5251ee4d2a9eb6c242ad8b8b6da"
+
+[[spec]]
+path = "spec/SimRISC-10-8位数据运算.md"
+group = "simrisc-00..12"
+sha256 = "ee41a25a2029942faf8df782c1b2a0cc00b4b0abe6a81117b41e8551b752fe4a"
+
+[[spec]]
+path = "spec/SimRISC-11-其它.md"
+group = "simrisc-00..12"
+sha256 = "f6de0860b78208356833449243b481ce942aefa891b2e77fa6c62a5d68111fe8"
+
+[[spec]]
+path = "spec/SimRISC-12-待定.md"
+group = "simrisc-00..12"
+sha256 = "c0b69b3935276506374fae2a2bf97410a497d40c0e7a3360620c4f0e0c6a39c2"
+
+[[spec]]
+path = "spec/DADAO-11-AEE-应用程序运行环境.md"
+group = "dadao-1x"
+sha256 = "9fc43f3b06906565e2763f3ec5cd30706e5960771abf5585faf17671bce0edd0"
+
+[[spec]]
+path = "spec/DADAO-12-SEE-主管系统运行环境.md"
+group = "dadao-1x"
+sha256 = "c0a5b598cb5b4c577003cb65b80d9325b801e5452b770b5ace3f11960c56a0c7"
+
+[[spec]]
+path = "spec/DADAO-13-HEE-超管系统运行环境.md"
+group = "dadao-1x"
+sha256 = "ed69fe3fb57c847ff24af20bba2cb81ad771b622963bec9c2300393425c7dba1"
+
+[[spec]]
+path = "spec/DADAO-21-ABI-应用程序二进制接口.md"
+group = "dadao-2x"
+sha256 = "672210cd0ba7d87f49b26b3a5148a56dc9b7616e19d7695420175b117a9a77e6"
+
+[[spec]]
+path = "spec/DADAO-22-SBI-主管系统二进制接口.md"
+group = "dadao-2x"
+sha256 = "e80a48a3074dbc22f0adc06a1ef342d7cb6def3bfac5e56ea8fc50a422608aad"
+
+[[spec]]
+path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
+group = "dadao-2x"
+sha256 = "df4274184b72d7b4236728e9c5a6f078d590452b4747fbb1493c3f95f6b3905a"
+
+[[spec]]
+path = "spec/Toolchain-01-汇编语言.md"
+group = "toolchain-01"
+sha256 = "d00c0925a0e2cf8d1a3bbbf2cbd46d380a8ce97a0ae77176d7449b0c012e1085"
