@@ -328,12 +328,12 @@
   notes: "TESTCASES-029t reviewer 建议登记：伪指令展开 `set.fo rf,0` 走 `rd2rf`（move rf0）而非 spec §6.1 的「4×set.w」口径。非阻塞 M4（向量只取非 0 值回避）。需核 spec 或实现择一。"
 
 - id: ISS-157
-  title: "汇编助记符大小写不敏感（spec 要求）当前未实现且未测"
-  status: open
+  title: "汇编助记符大小写不敏感（spec 要求）当前未实现且未测——→ SPEC-116t 以「条款撤销」结案"
+  status: closed
   scope: [llvm, spec]
   blocks: []
-  resolved_by: null
-  notes: "TESTCASES-029t reviewer 建议登记：spec 要求助记符大小写不敏感，M4 MC 层当前未实现；本任务 norm 只测空白规范化（避免超 M4 范围）。需确认是否属 M4 能力缺口或留后。"
+  resolved_by: SPEC-116t
+  notes: "SPEC-116t 以「条款撤销」结案（非实现缺口）：经用户授权撤销 `Toolchain-01 §2.1` / `contract-asm §2.1` 的「大小写不敏感」条款，改为大小写敏感（用户裁定 INTEG-019k D16）。LLVM MC 侧大小写敏感行为与修订后规范一致，无需改动实现；TESTCASES-029t 的 norm 向量只测空白规范化，不受影响。"
 
 - id: ISS-159
   title: "M4 后端 lower IR not/neg 未走 xnor.o / sub.sX 路径（走 xor.o+常数 / sub.uo+ext.so）"

@@ -12,7 +12,7 @@
 
 - **适用范围**：DADAO M1 的汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。
 - **指令集权威**：编码与身份以 `contracts/opcodes.yaml` 为准；语义以 `contract-isa.md` 为准；本规范**只规定书写形式**。
-- **格式类（format）**：`contract-isa.md §2.3` 定义的 9 种 M1 格式——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii`（`crrr`/`crii`/`ciii` 属特权 cfx，`scope: excluded`）。
+- **格式类（format）**：`contract-isa.md §2.3` 定义的 **11 类** M1 格式——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`）属特权 cfx、已纳入 M1（`scope: m1`）；`crii`（`cfxld`/`cfxst`）仍属 `scope: excluded`（`SimRISC-12` deferred）。
 - **术语**：**地址表达式**、**寄存器组**、**条件寄存器**、**地址立即数（字节）**——见 §3/§4/§2.4。
 
 ---
@@ -21,7 +21,8 @@
 
 ### 2.1 空白与大小写
 - 空白（空格、制表）**MAY** 出现在记号之间任意位置，**MUST NOT** 改变记号序列。
-- 助记符与寄存器名**大小写不敏感**（`ADD.SI` ≡ `add.si`）。
+- 助记符、寄存器名、伪指令、指导符等记号**区分大小写**（**大小写敏感**，`add.si` ≠ `ADD.SI`）；规范书写范式为**小写**。规范文档在**叙述**中出现的 `ADD.UO` 等大写**仅为示例**，**不构成**与对应小写形式等价的书写形式。
+- **（2026-10-08 修订）** 上一条的**大小写敏感**为本条现行口径；原「`ADD.SI` ≡ `add.si`」的**等价**规定经用户授权**撤销**（依据：`INTEG-019k D16` 裁定；关联 `ISS-157`——以「条款撤销」结案，非实现缺口）。
 
 ### 2.2 注释
 - `;` 起至行尾为注释（`CommentString = ";"`）。

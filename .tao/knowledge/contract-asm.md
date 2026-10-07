@@ -15,8 +15,8 @@
 
 - 适用范围：DADAO M1 汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。[Toolchain-01 §1]
 - 指令集权威：编码与身份以 `contracts/opcodes.yaml` 为准，语义以 `contract-isa.md` 为准；本合约只规定书写形式。[Toolchain-01 §1]
-- 9 种 M1 格式类（`Toolchain-01 §1` 定义）：`rrrr`、`rrri`、`rrii`、`riii`、`iiii`、`rwii`、`orrr`、`orri`、`oiii`；`SPEC-115t` re-scope 后 `m1` 另含 `crrr`/`ciii`（`cfx2rd`/`cfx2rc`/`trap`/`escape`）。[Toolchain-01 §1]
-- `crrr`/`crii`/`ciii` 属特权 cfx：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`（ciii）为 `scope: m1`（已实现）；`cfxld`/`cfxst`（crii）仍 `scope: excluded`。[Toolchain-01 §1]
+- 11 类 M1 格式类（`Toolchain-01 §1` 定义）：`rrrr`、`rrri`、`rrii`、`riii`、`iiii`、`rwii`、`orrr`、`orri`、`oiii`、`crrr`、`ciii`。[Toolchain-01 §1]
+- `crrr`/`ciii` 属特权 cfx：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`（ciii）为 `scope: m1`（已实现）；`cfxld`/`cfxst`（crii）仍 `scope: excluded`。[Toolchain-01 §1]
 - 术语：地址表达式、寄存器组、条件寄存器、地址立即数（字节）。[Toolchain-01 §1]
 
 ---
@@ -26,7 +26,7 @@
 ### §2.1 空白与大小写
 
 - 空白（空格、制表）MAY 出现在记号之间任意位置，MUST NOT 改变记号序列。[Toolchain-01 §2.1][ADR-0013]
-- 助记符与寄存器名大小写不敏感（`ADD.SI` ≡ `add.si`）。[Toolchain-01 §2.1]
+- 助记符、寄存器名、伪指令、指导符等记号**区分大小写**（**大小写敏感**，`add.si` ≠ `ADD.SI`）；规范书写范式为**小写**。规范文档在**叙述**中出现的 `ADD.UO` 等大写**仅为示例**，**不构成**与对应小写形式等价的书写形式；原「`ADD.SI` ≡ `add.si`」的**等价**规定经用户授权**撤销**（2026-10-08，`INTEG-019k D16`）。[Toolchain-01 §2.1]
 
 ### §2.2 注释
 
@@ -231,7 +231,7 @@
 
 | 项 | 状态 |
 |---|---|
-| 9 个 M1 格式类与 155 条 M1 指令（含 `SPEC-115t` re-scope 的 4 条特权 cfx） | 已实现（旧语法） |
+| 11 类 M1 格式类与 155 条 M1 指令（含 `SPEC-115t` re-scope 的 4 条特权 cfx） | 已实现（旧语法） |
 | 本规范的新记法（`[]`/`{}`/`?`/`:`） | 待实现（parser/printer/disassembler） |
 | 双目的/多寄存器新记法（`{rdHA,rdHB}`/`{start:end}`） | 待实现 |
 | 伪指令 8 条（合成型） | 待实现 |

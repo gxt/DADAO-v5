@@ -110,4 +110,4 @@ sha256 = "df4274184b72d7b4236728e9c5a6f078d590452b4747fbb1493c3f95f6b3905a"
 [[spec]]
 path = "spec/Toolchain-01-汇编语言.md"
 group = "toolchain-01"
-sha256 = "d00c0925a0e2cf8d1a3bbbf2cbd46d380a8ce97a0ae77176d7449b0c012e1085"
+sha256 = "3f53c89c007e52d43c9c7a15bc35eeec89071f9e0a840db31b6eff11714672ae"
