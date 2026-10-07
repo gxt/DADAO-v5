@@ -2,8 +2,8 @@
 #
 # lit configuration for DADAO E2E tests.
 #
-# This config locates the built llvm-mc, llvm-objcopy, qemu-system-dadao,
-# and the ROM trampoline binary.
+# This config locates llvm-mc/llvm-objcopy/qemu-system-dadao (the install-root
+# host toolchain bin by default) and the ROM trampoline binary.
 # When run via `llvm-lit`, config.llvm_tools_dir is set by the site config.
 # When run standalone, set LLVM_TOOLS_DIR environment variable.
 
@@ -24,18 +24,24 @@ config.suffixes = [".test"]
 # Use ShTest format (standard for .test files).
 config.test_format = lit.formats.ShTest(False)
 
-# Locate tools: prefer config.llvm_tools_dir (set by site config when running
-# via llvm-lit from the build tree), fall back to LLVM_TOOLS_DIR env var.
+# Locate tools: prefer config.llvm_tools_dir (set by a site config) and the
+# LLVM_TOOLS_DIR env override; otherwise default to the install root's host
+# toolchain bin (ADR-0016 D9), resolved through the single source of truth
+# (D7, tools/infra/paths.py) rather than a hardcoded build path.
 tools_dir = getattr(config, 'llvm_tools_dir', None)
 if not tools_dir:
     tools_dir = os.environ.get('LLVM_TOOLS_DIR', '')
 if not tools_dir:
-    # Try to infer from the location of this file: tests/e2e/lit/ is 3
-    # levels deep from the repo root.
+    # Walk up to the repo root (the dir holding the install-dirs manifest).
     here = os.path.dirname(os.path.abspath(__file__))
-    candidate = os.path.join(here, '..', '..', '..', '.work', 'build',
-                             'llvm', 'bin')
-    candidate = os.path.normpath(candidate)
+    root = here
+    while (root != os.path.dirname(root)
+           and not os.path.isfile(os.path.join(root, 'manifests',
+                                               'install-dirs.lock.toml'))):
+        root = os.path.dirname(root)
+    sys.path.insert(0, os.path.join(root, 'tools', 'infra'))
+    import paths as dadao_paths
+    candidate = str(dadao_paths.host_toolchain_bin())
     if os.path.isdir(candidate):
         tools_dir = candidate
 
@@ -52,16 +58,13 @@ llvm_objcopy = os.path.join(tools_dir, "llvm-objcopy")
 config.substitutions.append(("%llvm_mc", llvm_mc))
 config.substitutions.append(("%llvm_objcopy", llvm_objcopy))
 
-# Locate qemu-system-dadao: relative to tools_dir (which is <build>/bin)
-# QEMU is at <build>/../qemu/qemu-system-dadao or <repo>/.work/build/qemu/
-qemu_dir = os.path.join(os.path.dirname(tools_dir), "qemu")
-qemu_bin = os.path.join(qemu_dir, "qemu-system-dadao")
+# Locate qemu-system-dadao.  In the install root it sits in the same bin/ as the
+# other host tools (ADR-0016 D4); when tools_dir is an LLVM build tree's bin/ it
+# is the sibling qemu build tree instead.
+qemu_bin = os.path.join(tools_dir, "qemu-system-dadao")
 if not os.path.isfile(qemu_bin):
-    # Try <repo>/.work/build/qemu/qemu-system-dadao
-    here = os.path.dirname(os.path.abspath(__file__))
-    qemu_bin = os.path.normpath(os.path.join(here, '..', '..', '..', '.work',
-                                              'build', 'qemu',
-                                              'qemu-system-dadao'))
+    qemu_bin = os.path.join(os.path.dirname(tools_dir), "qemu",
+                            "qemu-system-dadao")
 config.substitutions.append(("%qemu", os.path.abspath(qemu_bin)))
 
 # Locate trampoline.bin: <repo>/tests/scripts/trampoline.bin
@@ -75,9 +78,8 @@ config.substitutions.append(("%trampoline", trampoline))
 e2e_dir = os.path.normpath(os.path.join(here, '..'))
 config.substitutions.append(("%e2e_dir", e2e_dir))
 
-# test_exec_root: put lit's scratch output in the LLVM build tree so that
-# running tests never pollutes the source / git-tracked tree.
-# tools_dir is <build>/bin, so the build root is its parent.
-build_root = os.path.dirname(tools_dir)  # <build>
+# test_exec_root: put lit's scratch output beside tools_dir (under the install
+# root by default), which is gitignored, so tests never pollute the source tree.
+build_root = os.path.dirname(tools_dir)  # <prefix> when tools_dir = <prefix>/bin
 config.test_exec_root = os.path.join(build_root, "test-output", config.name)
 os.makedirs(config.test_exec_root, exist_ok=True)

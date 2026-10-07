@@ -37,7 +37,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-qemu build-qemu-reconfig build-gem5 docker-image docker-shell check \
+        build-qemu build-qemu-reconfig build-gem5 install-host docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -70,6 +70,7 @@ help:
 	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
+	@echo "  make install-host    Install the needed host tool set into \$$(HOST_TOOLCHAIN_BIN) (.dadao/cross-toolchain/bin); adr-0016 D3/D4/D5/D11"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
 	@echo "  make clean-work      Remove generated .work content only"
@@ -83,7 +84,7 @@ help:
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
-	@echo "  make check-lit        Run lit MC + CodeGen + E2E tests (requires build-mc + build-qemu)"
+	@echo "  make check-lit        Run lit MC + CodeGen + E2E tests (requires install-host)"
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
 	@echo "  make check-patch-tree  Check component patch tree (spec/Process-01, 9 assertions)"
@@ -253,6 +254,37 @@ build-gem5: manifest-check
 	@echo "build-gem5: gem5 build command is not defined yet (owned by the gem5 module); refusing to fake success"
 	@exit 1
 
+# install-host (INFRA-047t, ADR-0016 D3/D4/D5/D11): stage only the needed host
+# tool set from the .work/ build trees into the install root's bin/, install the
+# lit runner (package + launcher) so the install root is self-contained, and lay
+# down the target sysroot skeleton.  .work/ stays the single build truth (D9);
+# the install root is a cache — re-run after rebuilding the components.
+#
+# D11 scope: just the tools the gates/executors need — llvm-mc/llvm-objdump/
+# llvm-readobj/FileCheck/not (lit MC), llc (CodeGen), llvm-objcopy (test-codegen),
+# lld + ld.lld (test-elf), qemu-system-dadao (D4), llvm-lit (lit runner).
+# No full `cmake --install`.
+HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not llc
+HOST_LIT_DIR = $(HOST_TOOLCHAIN_DIR)/share/lit
+
+install-host: build-mc build-lld build-qemu
+	@mkdir -p $(HOST_TOOLCHAIN_BIN)
+	@for t in $(HOST_LLVM_TOOLS); do \
+	  cp -a $(LLVM_BUILD)/bin/$$t $(HOST_TOOLCHAIN_BIN)/$$t || exit 1; \
+	done
+	@cp -a $(LLVM_BUILD)/bin/lld $(HOST_TOOLCHAIN_BIN)/lld
+	@ln -sf lld $(HOST_TOOLCHAIN_BIN)/ld.lld
+	@cp -a $(QEMU_BUILD)/qemu-system-dadao $(HOST_TOOLCHAIN_BIN)/qemu-system-dadao
+	@rm -rf $(HOST_LIT_DIR)
+	@mkdir -p $(HOST_LIT_DIR)
+	@cp -a $(LLVM_SRC)/utils/lit/lit $(HOST_LIT_DIR)/lit
+	@rm -rf $(HOST_LIT_DIR)/lit/__pycache__
+	@printf '%s\n' '#!/usr/bin/env python3' '# DADAO install-root lit launcher (INFRA-047t): the lit package is installed in ../share/lit' 'import os' 'import sys' '' '_prefix = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))' 'sys.path.insert(0, os.path.join(_prefix, "share", "lit"))' '' 'from lit.main import main' '' 'if __name__ == "__main__":' '    main()' > $(HOST_TOOLCHAIN_BIN)/llvm-lit
+	@chmod +x $(HOST_TOOLCHAIN_BIN)/llvm-lit
+	@mkdir -p $(TARGET_SYSROOT_DIR)/include $(TARGET_SYSROOT_DIR)/lib
+	@printf '%s\n' '# DADAO target sysroot (dadao-unknown-elf)' '' 'Layout per ADR-0016 D5 (.tao/adr/adr-0016-dadao-install-layout.md):' '' '- include/ — target C headers (populated when a target libc/toolchain lands)' '- lib/     — target libraries' '' 'Placeholder only: there is no header/library consumer yet, so no content is' 'fabricated here. Consumers must resolve this path from' 'manifests/install-dirs.lock.toml via tools/infra/paths.py' '(target_sysroot_dir()), never hardcode it.' > $(TARGET_SYSROOT_DIR)/README.md
+	@echo "install-host: PASS"
+
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev
 
@@ -340,30 +372,32 @@ check-spec-codeblocks:
 	@$(PYTHON) tools/spec/check_spec_codeblocks.py
 
 # lit gate (INFRA-021t): run llvm-lit on MC (M1/M4) + CodeGen (L2) + E2E.
-# MC needs llvm-mc/llvm-objdump/FileCheck (build-mc-lite suffices); CodeGen needs
-# llc + FileCheck (build-mc); E2E needs llvm-objcopy (full build-mc) +
-# qemu-system-dadao (build-qemu) + trampoline.
+# MC needs llvm-mc/llvm-objdump/FileCheck; CodeGen needs llc + FileCheck; E2E
+# needs llvm-objcopy + qemu-system-dadao + trampoline (all installed by
+# `make install-host`).
 # llvm-lit missing => explicit error (never silent skip).
-LIT_BIN = $(LLVM_BUILD)/bin/llvm-lit
+# INFRA-047t (ADR-0016 D9): tools are taken from the install root, not .work/build.
+LIT_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-lit
 check-lit:
-	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make build-mc' first"; exit 1; }
+	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
 	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
 
-# M3 CodeGen end-to-end gate (INTEG-012t).  Reuses the build-mc/build-qemu
-# build trees.  Pipeline (single TU, per ADR-0003 D5):
+# M3 CodeGen end-to-end gate (INTEG-012t).  Tools are taken from the install
+# root (ADR-0016 D9); install-host keeps it in sync with the .work/ build trees.
+# Pipeline (single TU, per ADR-0003 D5):
 #   llc -march=dadao <prog.ll> -> .s; cat codegen_crt0.s prog.s -> .s;
 #   llvm-mc --triple=dadao -filetype=obj -> .o;
 #   llvm-objcopy -O binary --only-section=.text -> .bin;
 #   qemu-system-dadao -M dadao-m1 -bios trampoline.bin -kernel .bin ...
 # The guest process exit code is compared against tests/llvm/codegen/expected.yaml.
 # Fail-closed: any mismatch / timeout / machine fault => non-zero exit.
-LLC_BIN = $(LLVM_BUILD)/bin/llc
-LLVM_MC_BIN = $(LLVM_BUILD)/bin/llvm-mc
-LLVM_OBJCOPY_BIN = $(LLVM_BUILD)/bin/llvm-objcopy
-QEMU_BIN = $(QEMU_BUILD)/qemu-system-dadao
+LLC_BIN = $(HOST_TOOLCHAIN_BIN)/llc
+LLVM_MC_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-mc
+LLVM_OBJCOPY_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-objcopy
+QEMU_BIN = $(HOST_TOOLCHAIN_BIN)/qemu-system-dadao
 CODEGEN_E2E_WORK = tests/llvm/codegen-e2e
 CODEGEN_E2E_LOG = .work/log/integ/test-codegen.log
-test-codegen: build-mc build-qemu
+test-codegen: install-host
 	@test -x $(LLC_BIN) || { echo "test-codegen: ERROR: $(LLC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_MC_BIN) || { echo "test-codegen: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-codegen: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
@@ -380,9 +414,9 @@ test-codegen: build-mc build-qemu
 	  if [ $$rc -ne 0 ]; then echo "test-codegen: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "test-codegen: PASS"
 
-# M4 multi-TU / multi-section ELF end-to-end gate (INTEG-016t).  Reuses the
-# build-mc/build-lld/build-qemu build trees.  Pipeline (multi-object, per
-# contract-elf.md §6.1.2):
+# M4 multi-TU / multi-section ELF end-to-end gate (INTEG-016t).  Tools are taken
+# from the install root (ADR-0016 D9); install-host keeps it in sync with the
+# build trees.  Pipeline (multi-object, per contract-elf.md §6.1.2):
 #   llvm-mc --triple=dadao -filetype=obj tests/scripts/codegen_crt0.s -> crt0.o;
 #   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
 #   ld.lld -T tests/scripts/dadao.lds crt0.o <tu>.o ... -o <prog>.elf;
@@ -391,10 +425,10 @@ test-codegen: build-mc build-qemu
 # tests/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
 # Fail-closed: any mismatch / timeout / build-step non-zero => non-zero exit.
 # Coexists with test-codegen (raw-bin / trampoline: kept as-is).
-LLD_BIN = $(LLVM_BUILD)/bin/ld.lld
+LLD_BIN = $(HOST_TOOLCHAIN_BIN)/ld.lld
 CODEGEN_ELF_WORK = .work/codegen-e2e-elf
 CODEGEN_ELF_LOG = .work/log/integ/test-elf.log
-test-elf: build-mc build-lld build-qemu
+test-elf: install-host
 	@test -x $(LLC_BIN) || { echo "test-elf: ERROR: $(LLC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_MC_BIN) || { echo "test-elf: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "test-elf: ERROR: $(LLD_BIN) not found"; exit 1; }
@@ -458,7 +492,8 @@ check-fp-contract:
 	@$(PYTHON) tools/spec/check_fp_contract.py
 
 # QEMU semantic execution gate (SPEC-069t): runs ISA semantic test vectors
-# through QEMU. Requires 'make build-qemu' to have been run.
+# through QEMU. The QEMU binary is taken from the install root (ADR-0016 D9;
+# INFRA-047t): run 'make install-host' first.
 # Runs all semantic/boundary cases in reg-shift-extend + reg-compare.
 # Uses symlinked temp dir + --batch for full coverage; cases run in parallel
 # via --jobs $(JOBS) (JOBS defaults to 8; never nproc/full-core).
@@ -480,7 +515,7 @@ check-qemu-semantics:
 	    [ "$$(readlink -f $(QEMU_SEM_DIR)/$$v)" = "$$(readlink -f $(QEMU_SEM_VEC_DIR)/$$v)" ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$v does not point to $(QEMU_SEM_VEC_DIR)/$$v"; exit 1; }; \
 	  done; \
 	  echo "check-qemu-semantics: running shift+compare (all cases)..."; \
-	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) --jobs $(JOBS) > $(QEMU_SEM_LOG) 2>&1; \
+	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) --jobs $(JOBS) --qemu $(QEMU_BIN) > $(QEMU_SEM_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -5 $(QEMU_SEM_LOG); \
 	  if [ $$rc -ne 0 ]; then \

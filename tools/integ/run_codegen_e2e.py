@@ -49,6 +49,13 @@ REPO_ROOT = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 )
 
+# Install root (ADR-0016 D9): resolve the host toolchain bin from the single
+# source of truth (D7, tools/infra/paths.py) instead of hardcoding .work/build.
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
+import paths as _dadao_paths  # noqa: E402
+
+_TOOLCHAIN_BIN = str(_dadao_paths.host_toolchain_bin())
+
 # Machine fault exit codes (ADR-0004 D5.8): 0x80 | spec cause bit index.
 FAULT_NAMES = {
     0x87: "UNMAPPED",
@@ -60,10 +67,10 @@ FAULT_NAMES = {
     0x8D: "IALIGN",
 }
 
-DEFAULT_LLC = ".work/build/llvm/bin/llc"
-DEFAULT_LLVM_MC = ".work/build/llvm/bin/llvm-mc"
-DEFAULT_LLVM_OBJCOPY = ".work/build/llvm/bin/llvm-objcopy"
-DEFAULT_QEMU = ".work/build/qemu/qemu-system-dadao"
+DEFAULT_LLC = os.path.join(_TOOLCHAIN_BIN, "llc")
+DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
+DEFAULT_LLVM_OBJCOPY = os.path.join(_TOOLCHAIN_BIN, "llvm-objcopy")
+DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 DEFAULT_TRAMPOLINE = "tests/scripts/trampoline.bin"
 DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
 DEFAULT_VECTORS_DIR = "tests/llvm/codegen"
@@ -114,7 +121,7 @@ def _run(cmd, timeout=None):
 def _require_exec(path: str, what: str) -> None:
     if not os.path.isfile(path) or not os.access(path, os.X_OK):
         sys.stderr.write(f"ERROR: {what} not found / not executable: {path}\n")
-        sys.stderr.write("       run 'make build-mc' and 'make build-qemu' first\n")
+        sys.stderr.write("       run 'make install-host' first\n")
         sys.exit(2)
 
 

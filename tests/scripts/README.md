@@ -65,7 +65,11 @@ python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --dump
 
 ## QEMU Binary
 
-The harness expects `qemu-system-dadao` at `.work/build/qemu/qemu-system-dadao` (out-of-tree build). Override with:
+The harness resolves `qemu-system-dadao` from the **install root** (ADR-0016 D9)
+via `tools/infra/paths.py` (`host_toolchain_bin()/qemu-system-dadao`, i.e. the
+`.dadao/cross-toolchain/bin/` prefix — run `make install-host` to populate it).
+The install path is never hardcoded (D7). Lookup order in `find_qemu()` is:
+`$QEMU_SYSTEM_DADAO` → install-root default → `$PATH`. Override with:
 
 ```bash
 # Environment variable

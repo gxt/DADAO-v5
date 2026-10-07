@@ -92,7 +92,7 @@
 
 **测试策略（`spec/Process-05` TDD）**：**L1（MC）+ L3（执行）为主、L2（CodeGen 结构）极简**；「**一能力一向量**」（规模 ∝ 能力）；移植**只借结构**、期望值**独立派生自 `spec/`**、**手写少量不批量迁移**；每条向量须能对反例失败。**已定前置**：重定位类型 = `ADR-0019`（Accepted；RELA，`ABS48/REL26/REL20/REL14`，v5 无 −4，一律 max 3 片，禁用 relaxation）；伪指令集收缩 = `ADR-0013 D11`（只留合成型 8 条，删 10 条别名）。
 
-> **M5 起步待办（2026-10-06，用户裁定）**：**M5 阶段开始先处理 install 问题**——落地 `ADR-0016 D1–D11`：host 工具链 → `.dadao/cross-toolchain`（D3/D4/D11）、target sysroot → `.dadao/dadao-unknown-elf`（D5）、`manifests/` 单一真源定位（D7，禁硬编码）、**门控/执行器改从 install 根取可执行**、`.work/` **仅**作 build 区（D9）；并保留「从源码可重建」（D9）。**M4 阶段不强制**；落地任务编号待 M5 规划时再定（不预建任务书）。
+> **M5 起步待办（2026-10-06，用户裁定）**：**M5 阶段开始先处理 install 问题**——落地 `ADR-0016 D1–D11`：host 工具链 → `.dadao/cross-toolchain`（D3/D4/D11）、target sysroot → `.dadao/dadao-unknown-elf`（D5）、`manifests/` 单一真源定位（D7，禁硬编码）、**门控/执行器改从 install 根取可执行**、`.work/` **仅**作 build 区（D9）；并保留「从源码可重建」（D9）。**M4 阶段不强制**；落地任务编号待 M5 规划时再定（不预建任务书）。 **✅ 已落地（2026-10-07，`INFRA-047t`）**：host 工具链 `.dadao/cross-toolchain`（D3/D4/D11）、target sysroot `.dadao/dadao-unknown-elf`（D5）、`manifests/` 单一真源定位（D7，禁硬编码）、**门控/执行器改从 install 根取可执行**（D9，含 `D9` 点名的 `run_qemu_test.py`）、`.work/` 仅作 build 区（D9）均已实现；保留「从源码可重建」（`rm -rf .dadao/cross-toolchain && make install-host` 仍 EXIT=0）。
 
 > **生成物落点口径（2026-10-06，用户明确）**：运行产物**默认为 `.dadao/tests/`**；**只有"难以放进 `.dadao/`"时**才退到**当前模块对应目录**；判据 = **"能否用配置选项解决"——能配置解决的一律不算"难"，必须放 `.dadao/`**。规范正文落 `spec/Process-05 §6`（M5 补正）。
 

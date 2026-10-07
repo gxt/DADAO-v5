@@ -25,25 +25,31 @@ config.suffixes = [".ll", ".mir"]
 # Use ShTest format (standard for llc/FileCheck-driven tests).
 config.test_format = lit.formats.ShTest(False)
 
-# Locate tools: prefer config.llvm_tools_dir (set by the site config when
-# running via llvm-lit from the build tree), fall back to LLVM_TOOLS_DIR env.
+# Locate tools: prefer config.llvm_tools_dir (set by the site config) and the
+# LLVM_TOOLS_DIR env override; otherwise default to the install root's host
+# toolchain bin (ADR-0016 D9), resolved through the single source of truth
+# (D7, tools/infra/paths.py) rather than a hardcoded build path.
 tools_dir = getattr(config, 'llvm_tools_dir', None)
 if not tools_dir:
     tools_dir = os.environ.get('LLVM_TOOLS_DIR', '')
 if not tools_dir:
-    # Infer from this file's location: tests/llvm/lit/CodeGen/DADAO/ is 5 levels
-    # deep from the repo root.
+    # Walk up to the repo root (the dir holding the install-dirs manifest).
     here = os.path.dirname(os.path.abspath(__file__))
-    candidate = os.path.normpath(os.path.join(here, '..', '..', '..', '..',
-                                              '..', '.work', 'build', 'llvm',
-                                              'bin'))
+    root = here
+    while (root != os.path.dirname(root)
+           and not os.path.isfile(os.path.join(root, 'manifests',
+                                               'install-dirs.lock.toml'))):
+        root = os.path.dirname(root)
+    sys.path.insert(0, os.path.join(root, 'tools', 'infra'))
+    import paths as dadao_paths
+    candidate = str(dadao_paths.host_toolchain_bin())
     if os.path.isdir(candidate):
         tools_dir = candidate
 
 if not tools_dir:
     sys.exit("lit.cfg.py: could not locate LLVM tools directory; "
              "set LLVM_TOOLS_DIR to the directory containing llc, "
-             "or run via llvm-lit from the build tree")
+             "or run 'make install-host' first")
 
 # Ensure absolute paths so lit's internal shell can find the tools.
 tools_dir = os.path.abspath(tools_dir)
@@ -55,9 +61,8 @@ config.substitutions.append(("%llc", llc))
 config.substitutions.append(("%FileCheck", file_check))
 config.substitutions.append(("%not", not_tool))
 
-# test_exec_root: put lit's scratch output in the LLVM build tree so that
-# running tests never pollutes the source / git-tracked tree.
-# tools_dir is <build>/bin, so the build root is its parent.
-build_root = os.path.dirname(tools_dir)  # <build>
+# test_exec_root: put lit's scratch output beside tools_dir (under the install
+# root by default), which is gitignored, so tests never pollute the source tree.
+build_root = os.path.dirname(tools_dir)  # <prefix> when tools_dir = <prefix>/bin
 config.test_exec_root = os.path.join(build_root, "test-output", config.name)
 os.makedirs(config.test_exec_root, exist_ok=True)

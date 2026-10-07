@@ -28,8 +28,15 @@ import yaml
 # Constants
 # ---------------------------------------------------------------------------
 
-# Default QEMU binary path (out-of-tree build)
-DEFAULT_QEMU = ".work/build/qemu/qemu-system-dadao"
+# D6/D7/D9 compliance: resolve the install-root toolchain bin via paths.py (the
+# single source of truth for install dirs).  The default QEMU binary is taken
+# from the install root (ADR-0016 D9) — the install path is never hardcoded (D7).
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "infra"))
+import paths as _paths
+
+# Default QEMU binary path: install root (ADR-0016 D9), resolved via paths.py.
+DEFAULT_QEMU = str(_paths.host_toolchain_bin() / "qemu-system-dadao")
 
 # Default timeout (seconds) - ADR-0004 D3: 9s harness timeout
 DEFAULT_TIMEOUT = 9
@@ -58,11 +65,6 @@ if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 from build_test_binary import DUMP_BASE, DUMP_SIZE
 
-# D6 compliance: resolve test artifacts dir via paths.py
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "infra"))
-import paths as _paths
-
 
 def _resolve_artifact_dir(subdir: str = "harness") -> str:
     """Return absolute path to test artifacts subdirectory, creating it if needed."""
@@ -78,11 +80,9 @@ def find_qemu():
     if qemu and os.path.isfile(qemu):
         return qemu
 
-    # Check default path relative to repo root
-    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    qemu = os.path.join(repo_root, DEFAULT_QEMU)
-    if os.path.isfile(qemu):
-        return qemu
+    # Check the install-root default (ADR-0016 D9; absolute, resolved via paths.py)
+    if os.path.isfile(DEFAULT_QEMU):
+        return DEFAULT_QEMU
 
     # Try PATH
     import shutil
