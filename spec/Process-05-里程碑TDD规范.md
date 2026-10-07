@@ -41,9 +41,16 @@
 - **L3**：`tests/llvm/codegen/`（M3）+ `tests/llvm/codegen/m4/`（M4 独立清单）+ `tools/integ/` + `tools/testcases/`；独立 oracle 脚本**随产物入库**；
 - **其它落点**：QEMU 组件测试 `tests/qemu/`；E2E 驱动 `tests/e2e/lit/`；共享 harness `tests/scripts/`；契约向量 `tests/vectors/isa/`。
 
-**测试产物落点与留存（用户 2026-10-06 裁定）**：
+**测试运行产物落点与留存（用户 2026-10-06 裁定；自 M5 起生效）**：
 
-- **落点按测试本身定，不强制**：若某模块的**测试路径固定** ⇒ 落**该模块目录下**（如 `tests/llvm/...`、`tests/qemu/...`）；**否则**统一落 **`.dadao/tests/`**（`ADR-0016 D6`）。
+> **适用范围**：本段只约束**测试运行产物**（跑测试产生的中间物/输出）；上列 L1/L2/L3 与「其它落点」是**测试源文件/向量**的落点，二者不同，源文件**仍随产物入库**。
+> **规范等级**：本段为**用户裁定口径**——默认落点、退让判据、定位机制为 **MUST**；「不强制留存」为 **可以**（MAY）。（本节标题标 SHOULD 指上列 L1/L2/L3 示例落点。）
+
+- **默认落 `.dadao/tests/`**：测试**运行产物默认**统一落 **`.dadao/tests/`**（`ADR-0016 D6`）——如 `.dadao/tests/codegen-e2e`、`.dadao/tests/elf-e2e`、`.dadao/tests/lit-output/<name>`。
+- **退让判据 = 「能否用配置选项解决」**：仅当**用配置选项**（如 lit 的 `test_exec_root`、脚本的 `--work-dir`）**仍**「**难以放进 `.dadao/`**」时，才退到**该模块目录下**；**能配置解决的一律必须放 `.dadao/`**（「能配置解决」**不算**「难」）。**不得**以「历史上落在模块目录」为由保留旧落点。
+- **落点须经定位机制解析、禁硬编码**：落点路径**必须**经 `manifests/install-dirs.lock.toml`（`test_artifacts_dir`）与 `tools/infra/paths.py` 解析（`ADR-0016 D7/D8`）；Makefile 与 Python 脚本**禁止硬编码** `.dadao/tests/` 字面路径。
+- **`.work/log`/`.work/evidence` 不受本规则约束**：二者是**日志/证据留存区，不算「生成物」**，落点**不动**（仍为 `.work/log`、`.work/evidence`）。
+- **生效时点：自 M5 起**：**M4 及以前**已完成/在做的测试落点**一律不动**；**自 M5 起**按本规则执行（能配置解决 ⇒ 必进 `.dadao/`）。
 - **不强制留存**：测试运行产物**可以自清/不保留**；需要检视时保留、不需要时清理，均合规。
 
 ## 7. 与其它规范的关系
