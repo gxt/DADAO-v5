@@ -203,3 +203,18 @@
 - 现象：`llc` 验证命令在 `tests/codegen/` 就地生成 `ptr_add_offset.s`，随 `git add -A` 误入提交（reviewer 审计未捕获，主会话在提交输出中发现）。
 - 规则：证据/验证命令一律在 `.work/<任务ID>/` 或 `/tmp/opencode/<任务ID>/` 下运行，产物勿落仓库源/测试目录；收尾（`/complete`）必须核对 `git status --untracked-files=all` 干净。
 - 已处置：`dca57b8` 移除该文件 + `.gitignore` 加 `tests/codegen/*.s|.o|.bin`。（原 `ISS-146` 已随本条并入 `lessons.md`；该 id 退役、不复用。）
+
+### 7.5 擅自修改上游 spec 册（`SPEC-114t` round1，2026-10-07）
+
+- **事故经过**：`SPEC-114t`（SEE/semihosting 规范正文）**round1**，engineer 在**无用户授权**下修改了**上游只读册** `spec/DADAO-12-SEE-主管系统运行环境.md`、`spec/DADAO-22-SBI-主管系统二进制接口.md`（各插入 2 行，把「实现范围」「semihosting 承接/返回」写进上游册）。
+- **用户裁定（原话，2026-10-07，经主会话转达——子会话问答对父会话不可见，见 §7.3）**：「**DADAO-21 和 DADAO-22 都不应该做修改**」；「**所有针对 spec 目录的修改，都应该经过我的允许，不能擅自进行**」。**上游只读册清单（用户全选，共 20 册）** = `DADAO-1x`(11/12/13) + `DADAO-2x`(21/22/23) + `SimRISC-00..12` + `Toolchain-01`。
+- **根因（三处，须一并堵住）**：
+  1. **架构阶段**把上游只读册写成任务书的**可改对象**（`SPEC-114t` round1 任务书「输出」item 2 原文把 `DADAO-12` 本体列为待改），下游 engineer 据此执行——**职责边界失守**（改 `spec/` 从未获用户授权）。
+  2. **下发前预检**只有 4 项（内部一致性 / 依赖链 / 验收可执行性 / 与 spec/vectors 一致），**没有**「拟改文件清单 × `spec/` 清单」这一关 ⇒ 命中 `spec/` 而缺用户授权时不阻断。
+  3. **无机械门控**：`spec/` 上游只读册没有哈希锁，改动在 `make check` 中**零告警**（round1 的 `make check` 全绿，未被任何门控拦下）。
+- **防复发（机制化，`SPEC-119t` =「spec 目录保护：只读哈希锁 + 门控 + 流程约束」）**：
+  - **哈希锁**：`manifests/spec-readonly.lock.toml`（上游 20 册逐册 `sha256`）+ `tools/infra/check_spec_readonly.py` + `make check-spec-readonly`（**纳入 `make check`**）⇒ 未更新锁而改册 ⇒ **门控 FAIL**；确需修改（先经用户授权）时同一变更内更新锁。
+  - **下发前预检第 5 项**：`/dispatch` 前把**拟改文件清单 × `spec/` 清单**逐一对照——命中 `spec/` 而无**用户授权原话** ⇒ **BLOCKED**（`AGENTS.md`「下发前预检」由 4 项扩为 **5 项**）。
+  - **reviewer / architect 固定检查**：验收/提交前固定执行 `git diff --name-only`（提交前 `git diff --cached --name-only`）与 `spec/` 清单交叉；有交集而缺用户授权证据 ⇒ reviewer 判 `Needs Revision` / architect 拒绝提交。
+  - **规则正文**入 `spec/Process-06-spec目录保护规范.md`：**`spec/` 下任何新增/修改/删除（含 v5 自定册 `Machine-*`/`Process-*`/`spec/README.md`）均须用户"事先"明确允许，授权原话落盘**；上游只读册只作**只读引用**（引 `§` 章节号，不改一字）。
+- **已处置**：`DADAO-12`/`DADAO-22` 以 **`cp`+`md5` 还原**到 base `96f09f1`（md5 `83dec5ea…`/`a3070bd4…`，逐字一致；**未用** `git checkout/restore/stash`，见全局「注入/改动的还原纪律」）；`SPEC-114t` round2 返工后上游册**零改动**（20/20 md5 SAME），相关正文一律落新建 `spec/Machine-01-测试机运行环境.md`。

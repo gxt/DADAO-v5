@@ -4,7 +4,7 @@
 **项目里程碑**：M5
 **状态**：待开始
 **目标**：规范层支持 M5——① **ADR 决策落地**：`ADR-0020`（SEE/HEE 与 semihosting，D1–D14）新建、`ADR-0004` 修订（新 bootrom 与加载模型，R1–R3，含 **R3「RAM 基址是否随 bootrom 调整」判定/记录**）、`ADR-0016` 范围判定（S1）——**每个 decision 逐条经用户确认**；② **SEE/HEE + semihosting 规范正文入 `spec/`** + 投影（`contract-sbi.md`/`contract-see.md`/`contract-semihosting.md`）+ `spec/README` 投影表；③ **re-scope**：`trap`/`escape`/`cfx2rc`/`cfx2rd` 由 `excluded`→已实现（`contracts/*` + 投影 + `check_scope` 计数 155/11/227；`SimRISC-12` 保持 deferred）；④ **大小写敏感修订**（`Toolchain-01 §2.1` + `contract-asm §2.1` 撤销「不敏感」；`ISS-157` 以「条款撤销」结案）；⑤ **`Process-05 §6` 落点规则补正**（`.dadao/tests/` 口径）。
-**关联任务**：`SPEC-113t`、`SPEC-114t`、`SPEC-115t`、`SPEC-116t`、`SPEC-117t`（5 个）
+**关联任务**：`SPEC-113t`、`SPEC-114t`、`SPEC-115t`、`SPEC-116t`、`SPEC-117t`、`SPEC-119t`（6 个；`SPEC-119t` = **`spec/` 目录保护机制**，跨切面流程任务）
 
 ## 核验
 - 关联任务是否均已 `已验证`
