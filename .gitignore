@@ -31,4 +31,3 @@ Thumbs.db
 tests/llvm/codegen/*.s
 tests/llvm/codegen/*.o
 tests/llvm/codegen/*.bin
-tests/llvm/codegen-e2e/

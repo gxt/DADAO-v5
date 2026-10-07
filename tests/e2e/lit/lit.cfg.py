@@ -24,23 +24,25 @@ config.suffixes = [".test"]
 # Use ShTest format (standard for .test files).
 config.test_format = lit.formats.ShTest(False)
 
+# Resolve the repo root (the dir holding the install-dirs manifest) and the
+# single-source-of-truth path module (ADR-0016 D7), used both to locate the
+# tools and to place lit's scratch output.
+here = os.path.dirname(os.path.abspath(__file__))
+root = here
+while (root != os.path.dirname(root)
+       and not os.path.isfile(os.path.join(root, 'manifests',
+                                           'install-dirs.lock.toml'))):
+    root = os.path.dirname(root)
+sys.path.insert(0, os.path.join(root, 'tools', 'infra'))
+import paths as dadao_paths
+
 # Locate tools: prefer config.llvm_tools_dir (set by a site config) and the
 # LLVM_TOOLS_DIR env override; otherwise default to the install root's host
-# toolchain bin (ADR-0016 D9), resolved through the single source of truth
-# (D7, tools/infra/paths.py) rather than a hardcoded build path.
+# toolchain bin (ADR-0016 D9).
 tools_dir = getattr(config, 'llvm_tools_dir', None)
 if not tools_dir:
     tools_dir = os.environ.get('LLVM_TOOLS_DIR', '')
 if not tools_dir:
-    # Walk up to the repo root (the dir holding the install-dirs manifest).
-    here = os.path.dirname(os.path.abspath(__file__))
-    root = here
-    while (root != os.path.dirname(root)
-           and not os.path.isfile(os.path.join(root, 'manifests',
-                                               'install-dirs.lock.toml'))):
-        root = os.path.dirname(root)
-    sys.path.insert(0, os.path.join(root, 'tools', 'infra'))
-    import paths as dadao_paths
     candidate = str(dadao_paths.host_toolchain_bin())
     if os.path.isdir(candidate):
         tools_dir = candidate
@@ -68,7 +70,6 @@ if not os.path.isfile(qemu_bin):
 config.substitutions.append(("%qemu", os.path.abspath(qemu_bin)))
 
 # Locate trampoline.bin: <repo>/tests/scripts/trampoline.bin
-here = os.path.dirname(os.path.abspath(__file__))
 trampoline = os.path.normpath(os.path.join(here, '..', '..', 'scripts',
                                            'trampoline.bin'))
 config.substitutions.append(("%trampoline", trampoline))
@@ -78,8 +79,8 @@ config.substitutions.append(("%trampoline", trampoline))
 e2e_dir = os.path.normpath(os.path.join(here, '..'))
 config.substitutions.append(("%e2e_dir", e2e_dir))
 
-# test_exec_root: put lit's scratch output beside tools_dir (under the install
-# root by default), which is gitignored, so tests never pollute the source tree.
-build_root = os.path.dirname(tools_dir)  # <prefix> when tools_dir = <prefix>/bin
-config.test_exec_root = os.path.join(build_root, "test-output", config.name)
+# test_exec_root: lit's scratch output goes under the SDK test-artifacts root
+# (.dadao/tests/lit-output/<name>, ADR-0016 D6), resolved through
+# tools/infra/paths.py (D7), so tests never pollute the source tree.
+config.test_exec_root = str(dadao_paths.test_artifacts_dir() / "lit-output" / config.name)
 os.makedirs(config.test_exec_root, exist_ok=True)

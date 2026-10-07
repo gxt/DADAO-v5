@@ -75,7 +75,9 @@ DEFAULT_TRAMPOLINE = "tests/scripts/trampoline.bin"
 DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
 DEFAULT_VECTORS_DIR = "tests/llvm/codegen"
 DEFAULT_EXPECTED = "tests/llvm/codegen/expected.yaml"
-DEFAULT_WORK_DIR = "tests/llvm/codegen-e2e"
+# Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved through
+# the single source of truth (D7, tools/infra/paths.py); never hardcoded.
+DEFAULT_WORK_DIR = str(_dadao_paths.test_artifacts_dir() / "codegen-e2e")
 DEFAULT_TIMEOUT = 30
 
 

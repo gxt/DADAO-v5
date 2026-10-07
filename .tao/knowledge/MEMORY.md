@@ -12,7 +12,7 @@ DADAO-v5 基于 19 份上游 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，
 | **M2 归档**（2026-10-04） | ✅ M2 历史（45 行 + 2 条混合行〔`spec 模块`/`integ 模块`〕的 M2 段落）已归档至 `.tao/archive/M2/README.md`；150 个 M2 任务书同在该目录。 |
 | **M3 归档**（2026-10-05） | ✅ M3 历史（1 行〔`M3 进行中`〕）已归档至 `.tao/archive/M3/README.md`；41 个 M3 任务书同在该目录。 |
 | **M4 归档**（2026-10-07） | ✅ M4 历史（1 行〔`M4 规划`〕）已归档至 `.tao/archive/M4/README.md`；32 个 M4 任务书同在该目录。 |
-| **M5 进行中**（2026-10-07） | 首个任务 `INFRA-047t`（`ADR-0016` install 落地：host 工具链 `.dadao/cross-toolchain` + target sysroot + 门控/执行器改从 install 根取可执行）**已验证**。M5 其余任务与门槛见 `.tao/knowledge/milestones.md`。 |
+| **M5 进行中**（2026-10-07） | `INFRA-047t`（`ADR-0016` install 落地：host 工具链 `.dadao/cross-toolchain` + target sysroot + 门控/执行器改从 install 根取可执行）**已验证**；`INFRA-048t`（生成物落点迁移：`test-codegen`/`test-elf`/lit 运行产物 → `.dadao/tests/`，reviewer `Accepted`、architect 交叉复核通过）收尾中。M5 其余任务与门槛见 `.tao/knowledge/milestones.md`。 |
 | SimRISC 规范 | ✅ 0.5.4 |
 | spec 模块 | ✅ M1 完成（`002t`~`010t` 已验证；`011m` 里程碑）。 |
 | integ 模块 | ✅ M1 完成（`001k`~`003t` 已验证；`004m` 里程碑）：`002t` = E2E 冒烟（`tests/e2e/*.s` + `tests/lit/E2E/`，lit 3/3，`.test` 消费 `.s` + `timeout`，反例门控）；`003t` = 跨模块接口对齐核对（`docs/integ-interface-alignment.md` + `tools/integ/check_interface_alignment.py`，80 项 0 FAIL，4 轮 reviewer）——**发现 ELF `e_flags=0x0` 违约**（另建 `LLVM-014t` 修复） |

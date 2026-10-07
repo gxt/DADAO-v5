@@ -83,7 +83,9 @@ DEFAULT_CRT0 = "tests/scripts/codegen_crt0.s"
 DEFAULT_LDS = "tests/scripts/dadao.lds"
 DEFAULT_VECTORS_DIR = "tests/llvm/codegen/m4"
 DEFAULT_EXPECTED = "tests/llvm/codegen/m4/expected.yaml"
-DEFAULT_WORK_DIR = ".work/codegen-e2e-elf"
+# Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved through
+# the single source of truth (D7, tools/infra/paths.py); never hardcoded.
+DEFAULT_WORK_DIR = str(_dadao_paths.test_artifacts_dir() / "elf-e2e")
 DEFAULT_TIMEOUT = 30
 
 

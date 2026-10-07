@@ -395,7 +395,9 @@ LLC_BIN = $(HOST_TOOLCHAIN_BIN)/llc
 LLVM_MC_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-mc
 LLVM_OBJCOPY_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-objcopy
 QEMU_BIN = $(HOST_TOOLCHAIN_BIN)/qemu-system-dadao
-CODEGEN_E2E_WORK = tests/llvm/codegen-e2e
+# Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved via
+# paths.py (D7) — never the source tree.
+CODEGEN_E2E_WORK = $(TEST_ARTIFACTS_DIR)/codegen-e2e
 CODEGEN_E2E_LOG = .work/log/integ/test-codegen.log
 test-codegen: install-host
 	@test -x $(LLC_BIN) || { echo "test-codegen: ERROR: $(LLC_BIN) not found"; exit 1; }
@@ -426,7 +428,9 @@ test-codegen: install-host
 # Fail-closed: any mismatch / timeout / build-step non-zero => non-zero exit.
 # Coexists with test-codegen (raw-bin / trampoline: kept as-is).
 LLD_BIN = $(HOST_TOOLCHAIN_BIN)/ld.lld
-CODEGEN_ELF_WORK = .work/codegen-e2e-elf
+# Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved via
+# paths.py (D7); coexists with test-codegen's dir.
+CODEGEN_ELF_WORK = $(TEST_ARTIFACTS_DIR)/elf-e2e
 CODEGEN_ELF_LOG = .work/log/integ/test-elf.log
 test-elf: install-host
 	@test -x $(LLC_BIN) || { echo "test-elf: ERROR: $(LLC_BIN) not found"; exit 1; }

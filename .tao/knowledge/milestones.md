@@ -96,7 +96,7 @@
 
 > **生成物落点口径（2026-10-06，用户明确）**：运行产物**默认为 `.dadao/tests/`**；**只有"难以放进 `.dadao/`"时**才退到**当前模块对应目录**；判据 = **"能否用配置选项解决"——能配置解决的一律不算"难"，必须放 `.dadao/`**。规范正文落 `spec/Process-05 §6`（M5 补正）。
 
-> **落点规则生效时点（2026-10-06，用户裁定）**：**M4 已完成/在做的测试落点一律不动**；**自 M5 起按新规则**。M5 起步须迁移（判据 = 能配置解决 ⇒ 必进 `.dadao/`）：① `test-codegen` 运行产物 `tests/llvm/codegen-e2e` → `.dadao/tests/codegen-e2e`；② `test-elf` 运行产物（`run_elf_e2e.py` 的 `DEFAULT_WORK_DIR` / `Makefile`）→ `.dadao/tests/elf-e2e`；③ lit 的 `test_exec_root`（现 `<build>/test-output/<name>`，在 `.work/build/llvm/` 内）→ `.dadao/tests/lit-output/<name>`。**`.work/log`（日志）与 `.work/evidence`（证据）不算"生成物"、不动**（2026-10-06 用户裁定）。
+> **落点规则生效时点（2026-10-06，用户裁定）**：**M4 已完成/在做的测试落点一律不动**；**自 M5 起按新规则**。M5 起步须迁移（判据 = 能配置解决 ⇒ 必进 `.dadao/`）：① `test-codegen` 运行产物 `tests/llvm/codegen-e2e` → `.dadao/tests/codegen-e2e`；② `test-elf` 运行产物（`run_elf_e2e.py` 的 `DEFAULT_WORK_DIR` / `Makefile`）→ `.dadao/tests/elf-e2e`；③ lit 的 `test_exec_root`（现 `<build>/test-output/<name>`，在 `.work/build/llvm/` 内）→ `.dadao/tests/lit-output/<name>`。**`.work/log`（日志）与 `.work/evidence`（证据）不算"生成物"、不动**（2026-10-06 用户裁定）。 **✅ 已落地（2026-10-07，`INFRA-048t`）**：三处落点均已迁移——`test-codegen` → `.dadao/tests/codegen-e2e`、`test-elf` → `.dadao/tests/elf-e2e`、lit `test_exec_root` → `.dadao/tests/lit-output/<name>`（均经 `tools/infra/paths.py`〔D7〕解析，无硬编码）；清 `.gitignore` 旧规则 `tests/llvm/codegen-e2e/` 并**同删残留旧产物目录**（`tests/llvm/codegen-e2e/`、`.work/codegen-e2e-elf`）；语义零改动（15/15 + 5/5 + 60/60）。第 4 处占位 lit 配置 `tests/llvm/lit/tools/DADAO/lit.cfg.py` 无门控引用，按最小原则未改（登记遗留）。
 
 **M5 — SEE/HEE 运行环境 + semihosting**（规划中；`k` = **`INTEG-019k`**）
 
