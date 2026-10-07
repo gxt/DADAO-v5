@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
 new file mode 100644
-index 000000000..7f7371c9c
+index 000000000..fdc6a62ef
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.h
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,58 @@
 +//===-- DADAO.h - Top-level interface for DADAO representation --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -54,6 +54,8 @@ index 000000000..7f7371c9c
 +  FK_orrr = 6,  // opx + three regs: and.o, or.o, ...
 +  FK_orri = 7,  // opx + two regs + imm6: ext.*, shr.*, ra2rd, ...
 +  FK_oiii = 8,  // opx + imm18: fence, swym
++  FK_crrr = 9,  // cfx code + cg + rc + rd: cfx2rd, cfx2rc
++  FK_ciii = 10, // cfx code + imm18: trap, escape
 +};
 +
 +} // namespace DADAO

@@ -140,6 +140,8 @@
 > - **另立 `SPEC-120t`（裁定 3）**：`encode_cfx` 定界与最小修正（汇编/编码层不应含实现期语义；先调研定界 → 最小修正〔候选 A 删除 / B 降级〕；**默认不触 `spec/`**）。`**项目里程碑** = M5`（**architect 判断，待用户复核**）；`SPEC-118m` 关联任务 6 → 7。**M5 任务书 23 → 24**（+`SPEC-120t`）。
 > - **教训**：下发前预检第 2 项须核「本任务**验证手段**所需的全部前置」，非仅「任务书声明的依赖」——见 `lessons.md §7.6`。
 
+> **✅ M5 指令链首发落地完成（追加，2026-10-07，`LLVM-060t`）**：`trap`/`escape`/`cfx2rc`/`cfx2rd`（MC + 编码）落 `llvm/lib/Target/DADAO/**`（`.td` def〔op/mask/value 与 `contracts/opcodes.yaml` 一致〕+ AsmParser〔`cfx<ha>`/`cfx_<name>` 等价、简化 regname 展开、`escape` 位宽〕+ InstPrinter + 生成别名表 `DADAOCfxAlias.inc`）；**5b 门控前置**（lit `crrr`/`ciii` 的 `; OBJ:` 覆盖 + `MC_ONLY_EXCLUDED_IDS` += 4 条，由 `SPEC-115t` re-scope 时移除）满足 ⇒ 解除 `SPEC-115t` BLOCKED 的 `.td`/lit 前置。reviewer **`Accepted`**、architect 交叉复核通过（独立重跑生成器 + `cmp` 复现 patch、`check-patch-tree` 90 patches〔断言⑥〕、oracle 14 向量 0 错、注入有鉴别力、未越界〔无 `spec/`〕）；`make build-mc`/`check`(62/62)/`check-lit` EXIT=0。生成器随产物入库（`tools/llvm/gen_cfx_alias_table.py`）——教训见 `lessons.md §7.7`、规范见 `feedback_006`。**M5 下一环** = `SPEC-115t`（re-scope 收口）。
+
 ## M1 模块依赖关系
 
 ```

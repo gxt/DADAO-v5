@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..e5ecbeae3
+index 000000000..297122402
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2055 @@
+@@ -0,0 +1,2327 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -83,7 +83,10 @@ index 000000000..e5ecbeae3
 +    kRegGroup,      // {start:end} or {single}
 +    kRegGroupCond,  // {...}?
 +    kRegPair,       // {rd, rd} (no ?)
-+    kAddress        // [base, offset] or [base, reg, offset]
++    kAddress,       // [base, offset] or [base, reg, offset]
++    kCfxha,         // cfx<ha> / cfx_<name> (6-bit cfx code; crrr/ciii)
++    kCfxCg,         // cg<N> (cfx cg code; crrr)
++    kCfxRc          // rc<N> (cfx rc code; crrr)
 +  } Kind;
 +
 +private:
@@ -153,6 +156,31 @@ index 000000000..e5ecbeae3
 +    Op->ImmVal = Val;
 +    Op->StartLoc = L;
 +    Op->EndLoc = E;
++    return Op;
++  }
++
++  // Factory for a cfx field operand (cfxha / cg / rc; crrr/ciii, LLVM-060t).
++  // Distinct kinds from a bare immediate so a numeric literal is rejected and
++  // so the three fields cannot be silently interchanged in the matcher.
++  static std::unique_ptr<DADAOOperand> createCfxha(int64_t Val, SMLoc L) {
++    auto Op = std::make_unique<DADAOOperand>(kCfxha);
++    Op->ImmVal = Val;
++    Op->StartLoc = L;
++    Op->EndLoc = L;
++    return Op;
++  }
++  static std::unique_ptr<DADAOOperand> createCfxCg(int64_t Val, SMLoc L) {
++    auto Op = std::make_unique<DADAOOperand>(kCfxCg);
++    Op->ImmVal = Val;
++    Op->StartLoc = L;
++    Op->EndLoc = L;
++    return Op;
++  }
++  static std::unique_ptr<DADAOOperand> createCfxRc(int64_t Val, SMLoc L) {
++    auto Op = std::make_unique<DADAOOperand>(kCfxRc);
++    Op->ImmVal = Val;
++    Op->StartLoc = L;
++    Op->EndLoc = L;
 +    return Op;
 +  }
 +
@@ -251,6 +279,12 @@ index 000000000..e5ecbeae3
 +    }
 +  }
 +
++  // cfx field operands (cfxha/cg/rc; crrr/ciii) all render as a 6-bit imm.
++  void addCfxFieldOperands(MCInst &Inst, unsigned N) const {
++    assert(N == 1 && "Invalid number of operands!");
++    Inst.addOperand(MCOperand::createImm(getImm()));
++  }
++
 +  void print(raw_ostream &OS, const MCAsmInfo &) const override {
 +    switch (Kind) {
 +    case kToken:       OS << "Token:" << Tok; break;
@@ -261,6 +295,9 @@ index 000000000..e5ecbeae3
 +    case kRegGroupCond: OS << "RegGroupCond:" << RegList.size(); break;
 +    case kRegPair:     OS << "RegPair"; break;
 +    case kAddress:     OS << "Address"; break;
++    case kCfxha:       OS << "Cfxha:" << ImmVal; break;
++    case kCfxCg:       OS << "CfxCg:" << ImmVal; break;
++    case kCfxRc:       OS << "CfxRc:" << ImmVal; break;
 +    }
 +  }
 +
@@ -272,7 +309,73 @@ index 000000000..e5ecbeae3
 +      return false;
 +    return ImmVal >= 0 && ImmVal <= 3;
 +  }
++
++  // Predicates for the cfx field operands (crrr/ciii; LLVM-060t): each kind
++  // only matches its own token form, and all values are 6-bit (0..63).
++  bool isCfxhaImm() const {
++    return Kind == kCfxha && ImmVal >= 0 && ImmVal <= 63;
++  }
++  bool isCfxCgImm() const {
++    return Kind == kCfxCg && ImmVal >= 0 && ImmVal <= 63;
++  }
++  bool isCfxRcImm() const {
++    return Kind == kCfxRc && ImmVal >= 0 && ImmVal <= 63;
++  }
 +};
++
++//===----------------------------------------------------------------------===//
++// cfx alias tables + lookup (ADR-0017 D3/D4/D8/D10; Toolchain-01 §13).
++//
++// DADAOCfxAlias.inc is mechanically generated from the same spec sources as
++// the committed alias projection (.tao/knowledge/contract-cfx-aliases.md);
++// see the header of that file for provenance.
++//===----------------------------------------------------------------------===//
++
++#include "DADAOCfxAlias.inc"
++
++// Resolve a scalar alias `cfx_<cfxname>` -> 6-bit cfx code (ADR-0017 D3).
++static bool lookupCfxScalarAlias(StringRef Name, unsigned &Code) {
++  for (const CfxScalarAlias &A : CfxScalarAliases)
++    if (Name == A.Name) {
++      Code = A.Code;
++      return true;
++    }
++  return false;
++}
++
++// Resolve a register alias (bare name, no subscript) -> (cfxha, cg, rcBase,
++// rcCount).  cfx-specific aliases (cg >= 8) are matched by full name first;
++// the remaining `cfx_<cfxname>_<tail>` forms use the generic tail table
++// (ADR-0017 D4).  rcCount > 1 marks an array register (D10).
++static bool lookupCfxRegAlias(StringRef Name, unsigned &Cfxha, unsigned &Cg,
++                              unsigned &RcBase, unsigned &RcCount) {
++  for (const CfxSpecificAlias &S : CfxSpecificAliases)
++    if (Name == S.Name) {
++      Cfxha = S.Cfxha;
++      Cg = S.Cg;
++      RcBase = S.RcBase;
++      RcCount = S.RcCount;
++      return true;
++    }
++  for (const CfxScalarAlias &A : CfxScalarAliases) {
++    StringRef Prefix(A.Name);
++    if (!Name.starts_with(Prefix))
++      continue;
++    StringRef Tail = Name.drop_front(Prefix.size());
++    if (!Tail.starts_with("_"))
++      continue;
++    Tail = Tail.drop_front(1);
++    for (const CfxRegTail &T : CfxRegTails)
++      if (Tail == T.Tail) {
++        Cfxha = A.Code;
++        Cg = T.Cg;
++        RcBase = T.RcBase;
++        RcCount = T.RcCount;
++        return true;
++      }
++  }
++  return false;
++}
 +
 +//===----------------------------------------------------------------------===//
 +// DADAOAsmParser
@@ -317,6 +420,7 @@ index 000000000..e5ecbeae3
 +  bool parseOperand(OperandVector &Operands);
 +  bool parseImmediate(OperandVector &Operands);
 +  bool parseWydePosToken(OperandVector &Operands);
++  int parseCfxOperand(OperandVector &Operands);
 +  bool parseRegGroup(OperandVector &Operands);
 +  bool parseAddressExpr(OperandVector &Operands);
 +  static unsigned matchRegisterName(StringRef Name);
@@ -459,6 +563,119 @@ index 000000000..e5ecbeae3
 +  getParser().Lex();
 +  Operands.push_back(DADAOOperand::createWydePos(N, StartLoc, EndLoc));
 +  return true;
++}
++
++//===----------------------------------------------------------------------===//
++// cfx operand tokens (crrr/ciii; LLVM-060t).
++//
++// Accepted forms (Toolchain-01 §13; ADR-0017 D3/D4/D10):
++//   cfx<N>                    scalar code (0..63)
++//   cfx_<cfxname>             scalar alias  -> cfx code
++//   cfx_<cfxname>_<regname>   register alias -> cfxha, cg, rc
++//   cfx_<...>[N]              array register alias -> cfxha, cg, rcBase + N
++//   cg<N>                     cfx cg register code (0..63)
++//   rc<N>                     cfx rc register code (0..63)
++//
++// A bare numeric literal is NOT accepted (distinct operand kinds; cf. wyde
++// position, LLVM-045t).  Returns -1 on error (diagnostic already emitted),
++// 0 if no cfx token was present, 1 if one was consumed.
++//===----------------------------------------------------------------------===//
++
++int DADAOAsmParser::parseCfxOperand(OperandVector &Operands) {
++  const AsmToken &Tok = getParser().getTok();
++  if (Tok.isNot(AsmToken::Identifier))
++    return 0;
++
++  StringRef Name = Tok.getString();
++  SMLoc StartLoc = Tok.getLoc();
++
++  if (Name.starts_with("cfx")) {
++    // cfx_<cfxname> (scalar) or cfx_<cfxname>_<regname> (register alias).
++    if (Name.starts_with("cfx_")) {
++      unsigned Code;
++      if (lookupCfxScalarAlias(Name, Code)) {
++        getParser().Lex();
++        Operands.push_back(DADAOOperand::createCfxha(Code, StartLoc));
++        return 1;
++      }
++
++      unsigned Cfxha, Cg, RcBase, RcCount;
++      if (lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount)) {
++        getParser().Lex();
++        int64_t Sub = -1;
++        if (RcCount > 1) {
++          // Array register: the single-subscript form is required (D10).
++          if (getParser().getTok().isNot(AsmToken::LBrac)) {
++            Error(StartLoc, "'" + Name + "' is an array cfx register; a single "
++                            "subscript is required, e.g. " + Name + "[0]");
++            return -1;
++          }
++          getParser().Lex(); // consume '['
++          const MCExpr *SubExpr;
++          SMLoc SubEnd;
++          if (getParser().parseExpression(SubExpr, SubEnd))
++            return -1;
++          if (!SubExpr->evaluateAsAbsolute(Sub)) {
++            Error(SubEnd, "cfx register subscript must be a constant");
++            return -1;
++          }
++          if (getParser().getTok().isNot(AsmToken::RBrac)) {
++            Error(getParser().getTok().getLoc(),
++                  "expected ']' to close cfx register subscript");
++            return -1;
++          }
++          getParser().Lex(); // consume ']'
++          if (Sub < 0 || Sub >= (int64_t)RcCount) {
++            Error(StartLoc, "cfx register subscript " + std::to_string(Sub) +
++                                " out of range [0, " +
++                                std::to_string(RcCount - 1) + "]");
++            return -1;
++          }
++        } else if (getParser().getTok().is(AsmToken::LBrac)) {
++          Error(StartLoc, "'" + Name + "' is not an array cfx register; a "
++                          "subscript is not allowed");
++          return -1;
++        }
++        Operands.push_back(DADAOOperand::createCfxha(Cfxha, StartLoc));
++        Operands.push_back(DADAOOperand::createCfxCg(Cg, StartLoc));
++        Operands.push_back(
++            DADAOOperand::createCfxRc(RcBase + (Sub < 0 ? 0 : Sub), StartLoc));
++        return 1;
++      }
++      return 0; // unknown cfx_* symbol -> let parseImmediate report it
++    }
++
++    // cfx<N>.
++    unsigned N;
++    if (Name.size() > 3 && !Name.substr(3).getAsInteger(10, N) && N < 64) {
++      getParser().Lex();
++      Operands.push_back(DADAOOperand::createCfxha(N, StartLoc));
++      return 1;
++    }
++    return 0;
++  }
++
++  if (Name.starts_with("cg")) {
++    unsigned N;
++    if (Name.size() > 2 && !Name.substr(2).getAsInteger(10, N) && N < 64) {
++      getParser().Lex();
++      Operands.push_back(DADAOOperand::createCfxCg(N, StartLoc));
++      return 1;
++    }
++    return 0;
++  }
++
++  if (Name.starts_with("rc")) {
++    unsigned N;
++    if (Name.size() > 2 && !Name.substr(2).getAsInteger(10, N) && N < 64) {
++      getParser().Lex();
++      Operands.push_back(DADAOOperand::createCfxRc(N, StartLoc));
++      return 1;
++    }
++    return 0;
++  }
++
++  return 0;
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -711,6 +928,13 @@ index 000000000..e5ecbeae3
 +    if (parseWydePosToken(Operands))
 +      return false;
 +
++    // Try cfx operand tokens (cfx<ha>/cfx_<name>, cg<N>, rc<N>; crrr/ciii).
++    int Cfx = parseCfxOperand(Operands);
++    if (Cfx < 0)
++      return true; // diagnostic already emitted
++    if (Cfx > 0)
++      return false;
++
 +    // Try register.
 +    unsigned RegNo = matchRegisterName(Tok.getString());
 +    if (RegNo) {
@@ -855,6 +1079,49 @@ index 000000000..e5ecbeae3
 +        if (getParser().getTok().is(AsmToken::RBrac))
 +          getParser().Lex();
 +      }
++    } else if (Name == "escape") {
++      // escape cfxHA, [excp_cause_ip, imms20]
++      // The base `excp_cause_ip` is NOT encoded (like rb0 for jump-iiii), so it
++      // is written explicitly and dropped here; the byte offset is shifted
++      // right by 2 into the 18-bit encoding field (Toolchain-01 §3.2).
++      if (parseOperand(Operands))
++        return true;
++      if (getParser().getTok().isNot(AsmToken::Comma))
++        return Error(getParser().getTok().getLoc(),
++                     "expected ',' in 'escape cfxHA, [excp_cause_ip, imms20]'");
++      getParser().Lex(); // consume ','
++      if (getParser().getTok().isNot(AsmToken::LBrac))
++        return Error(getParser().getTok().getLoc(),
++                     "expected '[' in 'escape cfxHA, [excp_cause_ip, imms20]'");
++      getParser().Lex(); // consume '['
++      if (getParser().getTok().isNot(AsmToken::Identifier) ||
++          getParser().getTok().getString() != "excp_cause_ip")
++        return Error(getParser().getTok().getLoc(),
++                     "escape base must be 'excp_cause_ip'");
++      getParser().Lex(); // consume 'excp_cause_ip'
++      if (getParser().getTok().isNot(AsmToken::Comma))
++        return Error(getParser().getTok().getLoc(),
++                     "expected ',' after 'excp_cause_ip'");
++      getParser().Lex(); // consume ','
++      SMLoc OffStart = getParser().getTok().getLoc();
++      const MCExpr *OffExpr;
++      SMLoc OffEnd;
++      if (getParser().parseExpression(OffExpr, OffEnd))
++        return true;
++      int64_t Bytes;
++      if (!OffExpr->evaluateAsAbsolute(Bytes))
++        return Error(OffStart, "escape offset must be a constant (imms20)");
++      if (Bytes % 4 != 0)
++        return Error(OffStart,
++                     "escape offset must be a multiple of 4 bytes (imms20)");
++      if (Bytes < -524288 || Bytes > 524284)
++        return Error(OffStart,
++                     "escape byte offset out of range: expected "
++                     "[-524288, 524284] (imms20, %4==0)");
++      if (getParser().getTok().isNot(AsmToken::RBrac))
++        return Error(getParser().getTok().getLoc(), "expected ']'");
++      getParser().Lex(); // consume ']'
++      Operands.push_back(DADAOOperand::createImm(Bytes >> 2, OffStart, OffEnd));
 +    } else {
 +      // Normal instruction: parse operands sequentially.
 +      if (parseOperand(Operands)) {
@@ -1464,7 +1731,8 @@ index 000000000..e5ecbeae3
 +
 +// Field kind of the single immediate operand of a matched instruction, derived
 +// from its format kind.  FormatKind values match DADAO::FormatKind (DADAO.h):
-+//   0 rrrr, 1 rrri, 2 rrii, 3 riii, 4 iiii, 5 rwii, 6 orrr, 7 orri, 8 oiii.
++//   0 rrrr, 1 rrri, 2 rrii, 3 riii, 4 iiii, 5 rwii, 6 orrr, 7 orri, 8 oiii,
++//   9 crrr, 10 ciii.
 +static ImmFieldKind getImmediateFieldKind(unsigned FormatKind,
 +                                          StringRef Mnem) {
 +  switch (FormatKind) {
@@ -1487,6 +1755,10 @@ index 000000000..e5ecbeae3
 +    return ImmFieldKind::UImm16;
 +  case 8: // oiii
 +    return ImmFieldKind::UImm18;
++  case 9: // crrr — cfxha/cg/rc are 6-bit fields validated at parse time
++    return ImmFieldKind::None;
++  case 10: // ciii — trap (immu18) / escape (imms18; byte offset pre-shifted)
++    return Mnem == "escape" ? ImmFieldKind::SImm18 : ImmFieldKind::UImm18;
 +  default: // rrrr (0) / orrr (6) — no immediate
 +    return ImmFieldKind::None;
 +  }

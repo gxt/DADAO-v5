@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000..77699cee2
+index 000000000..8c47bdc25
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,404 @@
+@@ -0,0 +1,419 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -97,7 +97,7 @@ index 000000000..77699cee2
 +//
 +// FormatKind values (DADAO.h):
 +//   FK_rrrr=0, FK_rrri=1, FK_rrii=2, FK_riii=3, FK_iiii=4,
-+//   FK_rwii=5, FK_orrr=6, FK_orri=7, FK_oiii=8
++//   FK_rwii=5, FK_orrr=6, FK_orri=7, FK_oiii=8, FK_crrr=9, FK_ciii=10
 +//===----------------------------------------------------------------------===//
 +
 +void DADAOInstPrinter::printNewSyntax(const MCInst *MI, uint64_t Address, raw_ostream &O) {
@@ -243,16 +243,6 @@ index 000000000..77699cee2
 +          MAI.printExpr(O, *MI->getOperand(2).getExpr());
 +        O << "]";
 +      }
-+    } else if (MnemStr == "escape") {
-+      if (NumOps == 3) {
-+        O << " ";
-+        printOperand(MI, 0, O);
-+        O << ", [";
-+        printOperand(MI, 1, O);
-+        O << ", ";
-+        O << (MI->getOperand(2).getImm() << 2);
-+        O << "]";
-+      }
 +    } else if (MnemStr.starts_with("ld.") || MnemStr.starts_with("st.")) {
 +      if (NumOps == 3) {
 +        O << " ";
@@ -375,6 +365,31 @@ index 000000000..77699cee2
 +    // oiii: fence, swym — imm
 +    O << " ";
 +    printOperand(MI, 0, O);
++    break;
++  }
++
++  case FK_crrr: {
++    // crrr: cfx2rd, cfx2rc — cfxHA, cgHB, rcHC, rdHD
++    // MCInst order (OperandList = outs++ins): rdhd, cfxha, cghb, rchc.
++    O << " cfx" << MI->getOperand(1).getImm();
++    O << ", cg" << MI->getOperand(2).getImm();
++    O << ", rc" << MI->getOperand(3).getImm();
++    O << ", ";
++    printRegName(O, MI->getOperand(0).getReg());
++    break;
++  }
++
++  case FK_ciii: {
++    // ciii: trap — cfxHA, immu18 ; escape — cfxHA, [excp_cause_ip, imms20]
++    // MCInst order: cfxha, imm18 (escape stores the encoded byte offset >> 2).
++    O << " cfx" << MI->getOperand(0).getImm();
++    if (Mnem == "escape") {
++      O << ", [excp_cause_ip, ";
++      O << (MI->getOperand(1).getImm() << 2);
++      O << "]";
++    } else {
++      O << ", " << MI->getOperand(1).getImm();
++    }
 +    break;
 +  }
 +

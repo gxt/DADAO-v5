@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..0882dd5fe
+index 000000000..f2d9e438c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1405 @@
+@@ -0,0 +1,1498 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -40,6 +40,34 @@ index 000000000..0882dd5fe
 +  let RenderMethod = "addImmOperands";
 +  let DiagnosticType = "InvalidImmediate";
 +  let PredicateMethod = "isWydePosImm";
++  let SuperClasses = [DADAOImmAsmOperand];
++}
++
++// cfx field operands (crrr/ciii; LLVM-060t): 6-bit cfx code / cg / rc fields.
++// The parser produces distinct operand kinds from the cfx<N>/cfx_<name>,
++// cg<N>, rc<N> tokens (see DADAOAsmParser::parseCfxOperand); a bare number is
++// therefore rejected (same rationale as DADAOWydePos, LLVM-045t).
++def DADAOCfxhaAsmOperand : AsmOperandClass {
++  let Name = "DADAOCfxha";
++  let RenderMethod = "addCfxFieldOperands";
++  let DiagnosticType = "InvalidImmediate";
++  let PredicateMethod = "isCfxhaImm";
++  let SuperClasses = [DADAOImmAsmOperand];
++}
++
++def DADAOCfxCgAsmOperand : AsmOperandClass {
++  let Name = "DADAOCfxCg";
++  let RenderMethod = "addCfxFieldOperands";
++  let DiagnosticType = "InvalidImmediate";
++  let PredicateMethod = "isCfxCgImm";
++  let SuperClasses = [DADAOImmAsmOperand];
++}
++
++def DADAOCfxRcAsmOperand : AsmOperandClass {
++  let Name = "DADAOCfxRc";
++  let RenderMethod = "addCfxFieldOperands";
++  let DiagnosticType = "InvalidImmediate";
++  let PredicateMethod = "isCfxRcImm";
 +  let SuperClasses = [DADAOImmAsmOperand];
 +}
 +
@@ -124,6 +152,32 @@ index 000000000..0882dd5fe
 +  let ParserMatchClass = DADAOWydePosAsmOperand;
 +  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
 +  let DecoderMethod = "DecodeWydePos";  // LLVM-007t implements
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++// cfx field operands (crrr/ciii; LLVM-060t): 6-bit cfxha / cg / rc values.
++// Encoded like any 6-bit immediate by the shared getMachineOpValue().
++def cfxCfxha : Operand<i64> {
++  let ParserMatchClass = DADAOCfxhaAsmOperand;
++  let EncoderMethod = "";
++  let DecoderMethod = "DecodeUImm6";  // 6-bit value 0..63
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++def cfxCg : Operand<i64> {
++  let ParserMatchClass = DADAOCfxCgAsmOperand;
++  let EncoderMethod = "";
++  let DecoderMethod = "DecodeUImm6";
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++def cfxRc : Operand<i64> {
++  let ParserMatchClass = DADAOCfxRcAsmOperand;
++  let EncoderMethod = "";
++  let DecoderMethod = "DecodeUImm6";
 +  let PrintMethod = "printOperand";
 +  let MIOperandInfo = (ops);
 +}
@@ -1408,4 +1462,43 @@ index 000000000..0882dd5fe
 +  let ha = 0x22;
 +  let Pattern = [];
 +}
++
++// --- crrr/ciii format (privileged cfx; scope: excluded; MC layer only) ---
++// LLVM-060t: op/format per contracts/opcodes.yaml.  MC assemble/disassemble
++// without semantics (execution traps with ILLI, see SimRISC-11 §寄存器传输指令).
++// No CodeGen patterns (Pattern = []): these stay out of M1 codegen.
++//
++// Both crrr defs share the operand layout [rdhd, cfxha, cghb, rchc]; for
++// cfx2rc rdhd is architecturally a source, but the MC layer only encodes /
++// decodes the field value, so a uniform layout keeps printer/disassembler
++// symmetric (cf. ld.ub / st.b sharing one layout).
++
++def cfx2rd_crrr : DADAOCrrr<"cfx2rd"> {
++  let OutOperandList = (outs GPRD:$rdhd);
++  let InOperandList = (ins cfxCfxha:$cfxha, cfxCg:$cghb, cfxRc:$rchc);
++  let op = 0x7A;
++  let Pattern = [];
++}
++
++def cfx2rc_crrr : DADAOCrrr<"cfx2rc"> {
++  let OutOperandList = (outs GPRD:$rdhd);
++  let InOperandList = (ins cfxCfxha:$cfxha, cfxCg:$cghb, cfxRc:$rchc);
++  let op = 0x7B;
++  let Pattern = [];
++}
++
++def escape_ciii : DADAOCiii<"escape"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins cfxCfxha:$cfxha, imms18:$imm18);
++  let op = 0x7E;
++  let Pattern = [];
++}
++
++def trap_ciii : DADAOCiii<"trap"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins cfxCfxha:$cfxha, immu18:$imm18);
++  let op = 0x7F;
++  let Pattern = [];
++}
++
 +include "DADAOInstrInfoFP.td"

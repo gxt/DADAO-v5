@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrFormats.td b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
 new file mode 100644
-index 000000000..c760c68b0
+index 000000000..91b5c9e9e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrFormats.td
-@@ -0,0 +1,235 @@
+@@ -0,0 +1,275 @@
 +//===-- DADAOInstrFormats.td - DADAO Instruction Formats ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -37,8 +37,10 @@ index 000000000..c760c68b0
 +//   binds the operand values to the bits<> fields. No explicit
 +//   `let ra = rdha;` is needed — the operand name IS the field name.
 +//
-+// Excluded from M1 (not defined here):
-+//   crrr, crii, ciii — privileged cfx formats (contract-isa.md §2.3, §7.5)
++// Excluded from M1 (not defined here as executables):
++//   crii — privileged cfx load/store format (contract-isa.md §2.3, §7.5).
++// The MC layer also needs .td defs for the contained-escapement cfx formats
++// crrr/ciii (LLVM-060t; AssembleDisassemble without semantics): see below.
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -238,4 +240,42 @@ index 000000000..c760c68b0
 +  let hc = imm18{11-6};
 +  let hd = imm18{5-0};
 +  let FormatKind = 8;  // FK_oiii
++}
++
++//===----------------------------------------------------------------------===//
++// Format: crrr — cfx code + cg + rc + rd (privileged cfx, contract-isa.md §2.3)
++//
++//   ha = cfxha, hb = cghb (cfx cg register), hc = rchc (cfx rc register),
++//   hd = rdhd (rd bank).  The MCInst operand order is OperandList (outs++ins);
++//   AsmString/assembly order is `$cfxha, $cghb, $rchc, $rdhd`.
++//   Examples: cfx2rd, cfx2rc  (scope: excluded; MC layer only)
++//===----------------------------------------------------------------------===//
++
++class DADAOCrrr<string mnemonic> : DADAOInst<mnemonic # "\t$cfxha, $cghb, $rchc, $rdhd"> {
++  bits<6> cfxha;
++  bits<6> cghb;
++  bits<6> rchc;
++  bits<6> rdhd;
++  let ha = cfxha;
++  let hb = cghb;
++  let hc = rchc;
++  let hd = rdhd;
++  let FormatKind = 9;  // FK_crrr
++}
++
++//===----------------------------------------------------------------------===//
++// Format: ciii — cfx code + 18-bit immediate (privileged cfx)
++//
++//   ha = cfxha, hb:hc:hd = imm18.
++//   Examples: trap (immu18), escape (imms18)  (scope: excluded; MC layer only)
++//===----------------------------------------------------------------------===//
++
++class DADAOCiii<string mnemonic> : DADAOInst<mnemonic # "\t$cfxha, $imm18"> {
++  bits<6>  cfxha;
++  bits<18> imm18;
++  let ha = cfxha;
++  let hb = imm18{17-12};
++  let hc = imm18{11-6};
++  let hd = imm18{5-0};
++  let FormatKind = 10;  // FK_ciii
 +}

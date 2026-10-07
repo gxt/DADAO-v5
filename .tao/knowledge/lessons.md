@@ -245,3 +245,10 @@
   凡「产物须在**同一原子变更**内出现的门控载体」（如 `inventory.md` 行集 == `scope==m1` 集）⇒ 必须**并入本任务文件集**或**前置**，不得留在下游任务（否则成环或红）。
 - **处置（本轮）**：用户裁定「**先 `LLVM-060t` 再 `SPEC-115t`**」⇒ `SPEC-115t` 重排（`LLVM-060t` 前置）+ 文件集扩至门控载体（`tools/spec/generate_opcodes.py`/`tests/vectors/inventory.md`/`tools/llvm/validate_instrinfo.py`）；`encode_cfx` 另立 `SPEC-120t`。详见 `SPEC-115t`/`INTEG-019k` 审阅记录「第 2 轮/第 7 轮 architect 重排落纸」。
 - **配套**：与 §7.2（跨载体门控：`validate_encoding` 只比字面值、跨载体门控才抓得到）同类——**编码/范围类改动的验收，须以跨载体门控为准，并识别其载体产者**。
+
+### 7.7 生成器随产物入库：产物入 git ⇒ 生成器不得只留 `.work/`（`LLVM-060t`，2026-10-07）
+
+- **事由**：`LLVM-060t` round1 把 `DADAOCfxAlias.inc`（**已入 git** 的产物，落 `components/llvm-project/patches/**/AsmParser/DADAOCfxAlias.inc.patch`）的**生成器**留在 `.work/LLVM-060t/gen_cfx_cpp_table.py`；因**原任务书允许文件集**把 `tools/**` 限为 `validate_instrinfo.py`，engineer 未越界、生成器**未入库**（`.work/` 被 `.gitignore` 整体忽略）。
+- **根因**：任务书「允许文件集（验收 10 无残留清单）」按「**任务范围**」而非「**产物可否复现**」定，漏了「产物入库 ⇒ 生成器随之入库」这一条。
+- **判据（可复用）**：**凡产出被提交（入 git）的生成器/脚本，必须随产物保留在非易失位置**（优先 `tools/<module>/`，否则 `.work/<任务ID>/`）——`AGENTS.md`「临时目录」条已定；判据是**产物是否入库**，而非「脚本是否只服务一个任务」；**「一次性」只描述用途，不等于可丢弃**。任务书的「允许文件集」须**显式含**「随产物入库的生成器」这一项（`LLVM-060t` 由 architect 追加输出 6b + 约束 + 验收 10 修复）。
+- **落地**：`tools/llvm/gen_cfx_alias_table.py`（**复用** `tools/spec/gen_cfx_aliases.py` 投影函数、不另造轮子；`--out` 便于对临时路径校验）随产物入库；生成物内 provenance 行（`// Generator:`）指向生成器当前路径（经用户裁定授权改该 1 行注释）。**可复现性须以 `cmp` 逐字节证**（重跑生成器 → worktree `.inc` 不变 ⇒ `git diff <lock-commit> -- .inc` 与已入库 patch `cmp` EXIT=0）；architect 交叉复核时**须自己跑一遍生成器 + `cmp`**，不得采信他人输出。

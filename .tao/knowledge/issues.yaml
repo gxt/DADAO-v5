@@ -342,3 +342,11 @@
   blocks: []
   resolved_by: null
   notes: "TESTCASES-032t reviewer 判真实缺口但不阻断：IR `xor x,-1`/`sub iN 0,x` 经后端 lower 为 `xor.o`+常数 / `sub.uo`+`ext.so`，而非伪指令实现路径的 `xnor.o`/`sub.sX`。L1 覆盖 `xnor.o`/`sub.sX` 编码、L3 覆盖 not/neg 语义，分工仍成立；属 LLVM 优化/CSE 议题，INTEG-016t 接入时需确认。"
+
+- id: ISS-162
+  title: "DADAOAsmParser 诊断枚举缺 FIRST_TARGET_MATCH_RESULT_TY 偏移（新增诊断名会挤动基类 MatchResultTy 数值）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "LLVM-060t 新发现（属任务外范围、本任务未修）：`DADAOAsmParser` 的 `GET_OPERAND_DIAGNOSTIC_TYPES` 匿名 `enum` **无** `= FIRST_TARGET_MATCH_RESULT_TY` 偏移（对照 X86：`enum X86MatchResultTy { Match_Unsupported = FIRST_TARGET_MATCH_RESULT_TY; ... }`）。只新增一个诊断类型名（字母序在 `InvalidImmediate` 前）即把 `Match_InvalidImmediate` 由 **0** 挤到 **1**（= `Match_InvalidTiedOperand`），使 `wpn_err_*` 三条既有 lit 由「invalid operand」变「invalid tied operand」而 FAIL。本任务规避：3 个 cfx 操作数类复用 `DiagnosticType = \"InvalidImmediate\"`（`std::set` 去重 ⇒ 枚举项数与数值与改前逐字节相同）。建议后续按 X86 加 `FIRST_TARGET_MATCH_RESULT_TY` 偏移 + 在 `matchAndEmitInstruction` 显式加 `case Match_Invalid…:`，消除该隐患。"
