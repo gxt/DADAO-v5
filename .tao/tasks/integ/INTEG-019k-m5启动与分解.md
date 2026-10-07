@@ -129,14 +129,14 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 ## 任务分解（草案）
 
 > 编号规则：`<PREFIX>-nnn<suffix>`，模块内递增、跨后缀共享。各模块起始号 = 该模块 M4 归档后最大号 + 1。
-> **本 `k` 只出草案，不建 `t`/`m` 文件**；建立时机已裁定：**先 `/plan` 交叉审查本 `k`，再建 21 份**（见 §待用户裁定项 9 / §第 2 轮用户裁定 10）。
+> **本 `k` 只出草案，不建 `t`/`m` 文件**；建立时机已裁定：**先 `/plan` 交叉审查本 `k`，再建 21 份**（见 §待用户裁定项 9 / §第 2 轮用户裁定 10）。**（2026-10-07 追加：按 `ADR-0004 R3`/`ADR-0020 D15` 裁定，新增 C1 step1 `QEMU-049t`（RAM@0 双映射）⇒ 21 → **22 份**。）**
 
 | 编号 | 任务 | 模块 | 交付物（一句话范围） | 依赖 |
 |------|------|------|----------------------|------|
 | `INTEG-019k` | **M5 启动与分解**（本文件） | integ | 本 `k` + `milestones.md` M5 定义 | 无 |
 | `INFRA-047t` | **install 落地**（`ADR-0016 D1–D11`） | infra | Makefile 定位机制（`manifests/` 单一真源）+ `tools/infra/` + `.dadao/{cross-toolchain,dadao-unknown-elf}` 布局；门控/执行器改从 **install 根**取可执行；`.work/` 仅 build 区；保留「从源码可重建」 | 无 |
 | `INFRA-048t` | **生成物落点迁移**（→ `.dadao/tests/`） | infra | `Makefile`（`CODEGEN_E2E_WORK` + `test-elf` 目标 + lit `test_exec_root`）+ `tools/integ/run_{codegen,elf}_e2e.py` + `.gitignore`；`.work/log`/`.work/evidence` **不动** | `INFRA-047t` |
-| `SPEC-113t` | **ADR 决策落地**（`ADR-0020` 新建 + `ADR-0004` 修订 + `ADR-0016` 范围） | spec | `.tao/adr/adr-0020-*.md` + `adr-0004` 就地修订 + `adr-0016` 修订/沿用；**每个 decision 逐条经用户确认**（**判定项显式含 `ADR-0004 R3`「RAM 基址是否随 bootrom 调整」**——**归属**：仅作 ADR 判定/记录；本 M5 任务清单**不承接** RAM 基址调整实现，若 R3 判需调整，由 `SPEC-113t` 记录结论并**后续另立任务**） | 无（决策先行） |
+| `SPEC-113t` | **ADR 决策落地**（`ADR-0020` 新建 + `ADR-0004` 修订 + `ADR-0016` 范围） | spec | `.tao/adr/adr-0020-*.md` + `adr-0004` 就地修订 + `adr-0016` 修订/沿用；**每个 decision 逐条经用户确认**（**用户 2026-10-07 逐条裁定**：**新增 `ADR-0020 D15`**〔核内地址空间划分 + 越界访问/取指异常〕；**`D1`** 决策保留、语义说明移 `spec/Machine-01-*`；**`R1`** = `-bios` bootrom 与 M4 ELF **并存**；**`R2`** = `SYS_EXIT` 取代 exit-port；**`R3`** = **RAM 基址改全 0 + C1 双映射两步**〔step1 = `QEMU-049t`；step2 = 另立〕；`D2–D14`/`S1` 按「未特别指出=保留」**推定**，待用户复核）。**本任务只落 ADR 决策/口径，不改实现/链接脚本** | 无（决策先行） |
 | `SPEC-114t` | **SEE/HEE 运行环境 + semihosting 规范正文** | spec | **新建 `spec/Machine-01-测试机运行环境.md`**（正文落点，用户裁定 2026-10-07）+ `spec/DADAO-12`（§1/§5 等，+`DADAO-13`/`DADAO-22`/`DADAO-21` 相关）+ 投影 `contract-sbi.md`/`contract-see.md`/`contract-semihosting.md` + `spec/README` 登记与投影表 | `SPEC-113t` |
 | `SPEC-115t` | **re-scope：`trap`/`escape`/`cfx2rc`/`cfx2rd` `excluded`→已实现** | spec | `spec/SimRISC-11` + `contracts/opcodes.yaml`/`legality_rules.yaml` + `contract-isa`/`contract-asm`/`contract-asm-list` 投影 + `check_scope.py` 对齐；**`SimRISC-12` 保持 deferred** | `SPEC-114t`、`SPEC-113t` |
 | `SPEC-116t` | **大小写敏感修订**（`Toolchain-01 §2.1` + `contract-asm §2.1`） | spec | 上述两处（撤销「不敏感」条款）+ `check-asm-*`/`check-spec-refs` 绿；**`ISS-157` 以「条款撤销」结案** | 无（与 113–115 同改 `spec/` ⇒ 串行） |
@@ -145,18 +145,20 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 | `QEMU-044t` | **SEE/HEE 运行模式 + cfx 寄存器/掩码/权限/异常** | qemu | `components/qemu/patches/target/dadao/**` + `hw/dadao/**`：四运行模式、cg0–cg7 共有 + 专有寄存器、`global_cfx_mask`/指令类型 mask、`switch_run_mode`、权限异常（`NU/J/SP/HPERM`）、**异常进入流程**（`DADAO-12 §5`）+ 探针。**权限范围 = 只做 `cfx0/1/2/3/63`**（`umon/jmon/smon/hmon/power`）；**未实现 cfx ⇒ `CFXREG` 异常**（`DADAO-22:58`） | `SPEC-114t` |
 | `QEMU-045t` | **`trap`/`escape` 语义 + `cfx2rd`/`cfx2rc` 执行** | qemu | trap 译码 → CFXTRAP 路由 → **走 spec 异常进入流程（`DADAO-12 §5`）并进入该 cfx 的向量**（**一般 trap**，`immu18[17:16] ≠ 2'b11`）；`escape` 退出（恢复 `prev_run_mode`/`prev_cfx_mask`、`escape_num`++、按 `imms18` 跳转）；cfx2rd/cfx2rc 读写 cfx 寄存器 + 探针；**semihosting 短路（`immu18[17:16] == 2'b11`，译码层直接服务、不进入向量）不在本任务，见 `QEMU-046t`** | `SPEC-115t`、`SPEC-114t`、`QEMU-044t` |
 | `QEMU-046t` | **semihosting** | qemu | `immu18[17:16]==2'b11` 判定（**QEMU 译码层短路，与 RISC-V `RISCV_EXCP_SEMIHOST` 同构**：**不进入 cfx 向量**、直接服务并按 PC 步进返回；对照「一般 trap 走 spec 异常进入流程并进入向量」，见 `QEMU-045t`）；`DADAO common-semi-target.c` 钩子（**按 `n` 选 bank**：`n=0`→`rd16`、`n=1`→`rb16`；`set_ret`→`rd31`——**共享层小适配，非重写**）+ 复用 `do_common_semihosting`；**服务表 = 完整 25 个**（含 **D2 文件档**；**`SYSTEM`、`HEAPINFO` 都做**）；`SYS_EXIT` **替代 exit port**；探针 | `QEMU-045t`、`SPEC-114t` |
-| `QEMU-047t` | **新 bootrom**（构建 + 链接 + 测试） | qemu | bootrom 固件源码（初始权限/向量配置；**hypv → user 直跳、本版不启用 supv**）+ 自有工具链构建/链接接入（`Makefile`；**含 bootrom 链接脚本**——地址布局对齐 `0xffff_ffff_0000` 的 64 KiB ROM 区、段序/对齐依 `ADR-0004`/`contract-elf`）+ **`-bios` 加载、复位向量不变（`0xffff_ffff_0000`）** + 端到端启动证据（LLVM 新指令首个真实用户） | `LLVM-060t`、`QEMU-044t`、`INFRA-047t` |
+| `QEMU-047t` | **新 bootrom**（构建 + 链接 + 测试） | qemu | bootrom 固件源码（初始权限/向量配置；**hypv → user 直跳、本版不启用 supv**）+ 自有工具链构建/链接接入（`Makefile`；**含 bootrom 链接脚本**——地址布局对齐 `0xffff_ffff_0000` 的 64 KiB ROM 区、段序/对齐依 `ADR-0004`/`contract-elf`）+ **`-bios` 加载、复位向量不变（`0xffff_ffff_0000`）** + 端到端启动证据（LLVM 新指令首个真实用户） | `LLVM-060t`、`QEMU-044t`、`QEMU-049t`（RAM@0 双映射）、`INFRA-047t` |
+| `QEMU-049t` | **RAM@0 双映射**（C1 step1；`ADR-0004 R3`/`ADR-0020 D15`） | qemu | `components/qemu/patches/target/dadao/**` + `hw/dadao/**`：QEMU 机器模型**同时映射 RAM@0（新，供 bootrom/SEE）+ 保留旧 RAM 段（`0xffff_0000_0000`，供既有测试）** + **RAM@0 链接基址（供 bootrom/SEE 的链接脚本片段）**；**`check-interface` 断言新增 RAM@0 段（旧断言保留）** ⇒ 每任务门控保持全绿；**越界（访问/取指）异常语义**（`CFXMEM` vs 测试机约定 `unmapped 0x87`，含取指路径）见 `ADR-0020 D15` | `QEMU-044t`（同改 `hw/dadao/**` ⇒ 串行） |
+| `RAM@0-migrate`（**另立，M5 之外**） | **旧向量/harness 迁移到 RAM@0**（C1 step2）；**不建本 M5 任务书** | （跨 testcases/integ/infra/qemu） | 既有向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧 `check-interface` 断言；**登记为另立任务**（编号待 M6 规划/另立时确定；**不阻塞 M5 门槛**——M5 门控经 step1 双映射保持全绿） | `QEMU-049t`、`TESTCASES-034t`、`INTEG-020t` |
 | `TESTCASES-033t` | **SEE/HEE + semihosting 向量**（L1 MC + L3 执行） | testcases | `tests/llvm/lit/MC/DADAO/`（trap/escape/cfx2*；**分阶段**：`LLVM-060t` 就绪前 L1 MC 向量以 `UNSUPPORTED:` 暂缓，`LLVM-060t` 完成后去除 `UNSUPPORTED:`）+ `tests/llvm/codegen/m5/`（semihosting 服务/权限异常）+ 独立 oracle（**禁从 LLVM/QEMU 反填**） | `SPEC-114t`、`SPEC-115t`、`LLVM-060t`、`INFRA-048t` |
 | `TESTCASES-034t` | **exit-port → `SYS_EXIT` 迁移**（范围 = **全部**） | testcases | M1–M4 **所有**依赖 exit-port 的向量/harness + oracle 更新；`ISS-147`（exit 码与 fault 区重叠）随迁处置 | `QEMU-046t`、`TESTCASES-033t` |
 | `INTEG-020t` | **SEE/semihosting E2E + harness stdio 捕获 + 门控收口** | integ | `tools/integ/` 驱动 + `Makefile`（新目标 **`test-semihost`**）+ `tests/e2e/lit/`；harness stdio 捕获（**细节展开**：`-semihosting-config` 的 `chardev=`/`target=` 由 Makefile 传参还是 harness 脚本包装；console 输出捕获到 stdout/stderr 的落点与比对）；`make check` 收口 | `QEMU-046t`、`QEMU-047t`、`TESTCASES-033t`、`TESTCASES-034t` |
 | `INFRA-049m` | M5 infra 里程碑 | infra | `m` 文件 | `INFRA-047t`/`048t` |
 | `SPEC-118m` | M5 spec 里程碑 | spec | `m` 文件 | `SPEC-113t`~`117t` |
 | `LLVM-061m` | M5 llvm 里程碑 | llvm | `m` 文件 | `LLVM-060t` |
-| `QEMU-048m` | M5 qemu 里程碑 | qemu | `m` 文件 | `QEMU-044t`~`047t` |
+| `QEMU-048m` | M5 qemu 里程碑 | qemu | `m` 文件 | `QEMU-044t`~`047t`、`QEMU-049t` |
 | `TESTCASES-035m` | M5 testcases 里程碑 | testcases | `m` 文件 | `TESTCASES-033t`/`034t` |
 | `INTEG-021m` | M5 integ 里程碑（**整体收敛点**） | integ | `m` 文件 | `INTEG-020t` |
 
-> 合计：**15 `t` + 6 `m` = 21 份任务书**（草案，尚未创建）。
+> 合计：**16 `t` + 6 `m` = 22 份任务书**（含 2026-10-07 追加的 C1 step1 `QEMU-049t`；**step2 为「另立、M5 之外」，不计入本 M5 任务书**）。（原为 15 `t` + 6 `m` = 21 份。）
 
 ### 依赖关系与串行链（分波）
 
@@ -168,19 +170,21 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 - **Wave 2 — LLVM 指令**：`LLVM-060t` ← `SPEC-115t`（编码/re-scope 定后）+ `INFRA-047t`（从 install 根取工具）。**只 1 条，无链内并发**。
 - **Wave 3 — QEMU（与 Wave 2 不同仓库，可并行；但 QEMU 内串行）**：
   `QEMU-044t`（模式/cfx/权限/异常）→ `QEMU-045t`（trap/escape/cfx2*）→ `QEMU-046t`（semihosting）；
-  `QEMU-047t`（新 bootrom）← `LLVM-060t` + `QEMU-044t` + `INFRA-047t`（**须 LLVM 指令 + 权限配置就绪**）。
+  `QEMU-049t`（RAM@0 双映射，C1 step1；← `QEMU-044t`，同改 `hw/dadao/**` ⇒ 串行）→ `QEMU-047t`（新 bootrom）← `LLVM-060t` + `QEMU-044t` + `QEMU-049t` + `INFRA-047t`（**须 LLVM 指令 + 权限配置 + RAM@0 就绪**）。
+  - **step1/step2 关系（C1，`ADR-0004 R3`/`ADR-0020 D15`）**：`QEMU-049t` = step1（M5，机器模型双映射 + `check-interface` 新断言 ⇒ 门控全绿）；**step2**（旧向量/harness 迁到 `0` + 删旧 RAM 段 + 收紧断言）= **另立、M5 之外**，**不阻塞 M5 门槛**（M5 门控经双映射保持全绿）。
 - **Wave 4 — 向量**：`TESTCASES-033t` ← `SPEC-114t`/`115t` + `LLVM-060t`（L1 MC 编码；`UNSUPPORTED:` 分阶段）+ `INFRA-048t`（落点）；`TESTCASES-034t` ← `QEMU-046t` + `TESTCASES-033t`（**迁移须在 semihosting 落地后**）。
 - **Wave 5 — E2E + 门控收口**：`INTEG-020t` 最后（依赖 QEMU-046t/047t + 033t/034t）；**`make test-semihost`**（**不是** `test-see`）与既有 `make test-codegen`/`make test-elf` 并存或迁移后等价。
 - **共享文件串行**：`Makefile`/`contracts/`/`spec/`/`tests/` 改动一律串行（`AGENTS.md`）。
 - `k ↔ m`：本 `k` 对应 M5；各模块 `m` 在模块任务收敛时就近核验，M5 由主会话在依赖模块 `m` 均置 `里程碑` 后置 `达成`（`Process-04 §1`）。
-- **反向依赖（实现 ← 契约）**：`LLVM-060t`←`SPEC-115t`；`QEMU-044t`←`SPEC-114t`；`QEMU-045t`←`SPEC-114t`/`115t`；`QEMU-046t`←`SPEC-114t`；`TESTCASES-*`←`SPEC-114t`/`115t`；`TESTCASES-033t`←`LLVM-060t`（L1 MC 编码支持）。
+- **反向依赖（实现 ← 契约）**：`LLVM-060t`←`SPEC-115t`；`QEMU-044t`←`SPEC-114t`；`QEMU-045t`←`SPEC-114t`/`115t`；`QEMU-046t`←`SPEC-114t`；`QEMU-049t`←`SPEC-113t`（`R3`/`D15` 决策）；`QEMU-047t`←`QEMU-049t`（RAM@0 双映射）；`TESTCASES-*`←`SPEC-114t`/`115t`；`TESTCASES-033t`←`LLVM-060t`（L1 MC 编码支持）。
 
 ### 分解理由
 
 - **决策先行**（Wave 1 的 `SPEC-113t`）：本千行涉「跨组件合约 + 多方案 + 固定结论」，命中 `Process-03` ADR 判据（`ADR-0020`/`ADR-0004` 修订），故先落 ADR、经用户逐条确认，再落正文与实现。
 - **基础设施前置**（Wave 0）：`ADR-0016` install + 落点迁移是 M5 起步待办（`milestones.md` §M5 起步待办），且改动波及门控/执行器——先做可避免后续任务反复改 `Makefile`。
 - **spec 正文 ⇄ 实现分离**（`SPEC-114t`/`115t` vs `LLVM-060t`/`QEMU-*`）：`E17` 明确规范正文入 `spec/`；`Spec-first` 要求编码/语义期望值来自 `contracts/*`，不倒推。
-- **bootrom 依赖链最紧**（`QEMU-047t` 三重依赖）：bootrom 是「LLVM 新指令首个真实用户」——只有在 `LLVM-060t` 能编 `trap`/`escape`/`cfx2*`、且 `QEMU-044t` 能配置初始权限后方可构建/启动。
+- **bootrom 依赖链最紧**（`QEMU-047t` 四重依赖）：bootrom 是「LLVM 新指令首个真实用户」——只有在 `LLVM-060t` 能编 `trap`/`escape`/`cfx2*`、`QEMU-044t` 能配置初始权限、且 `QEMU-049t` 提供 RAM@0 双映射（供 bootrom/SEE）后方可构建/启动。
+- **RAM@0 过渡分两步**（`ADR-0004 R3`/`ADR-0020 D15`，C1）：`QEMU-049t`（step1）先把机器模型改为**双映射**并**追加** `check-interface` 断言 —— 既有测试仍走旧 RAM 段 ⇒ **每任务门控保持全绿**；向量/harness 迁移（step2）**另立、M5 之外**，避免 M5 期间大面积改动既有向量/`crt0`。
 - **向量与 E2E 分离**（`TESTCASES-*` vs `INTEG-020t`）：满足 **Independent oracle**；`Process-05` TDD ⇒ 向量先立。
 - **`SimRISC-12` 保持 deferred**（`C13`）：不纳入本 M5，避免范围蔓延。
 
@@ -210,14 +214,15 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 | D12 | **新 bootrom**：M5 的 QEMU 提供新 bootrom（固件），用于初始权限/向量配置；bootrom 用自有工具链编。**（用户 2026-10-07 裁定：`-bios` 加载、复位向量不变 `0xffff_ffff_0000`；bootrom hypv→user 直跳、本版不启用 supv）** |
 | D13 | **承载位置**：测试机/SEE 规范正文入 `spec/`（非 ADR）；ADR 只记决策。 |
 | D14 | **共享层适配点**（**用户 2026-10-07 裁定**）：共享层 `common_semi_arg(cs,n)` 假定"同一组 `a0+n`"（RISC-V 实测 `gpr[xA0+argno]`），v5 **三组分离** ⇒ DADAO 钩子**按 `n` 选 bank**（`n=0`→`rd16`、`n=1`→`rb16`）、`common_semi_set_ret`→`rd31`；**小适配（非重写）**。 |
+| D15 | **核内地址空间划分 + 越界（访问/取指）报异常**（**用户 2026-10-07 裁定新增**）：M5 测试机使用的 cfxha 段/地址区间划分（**RAM@0**〔`0x0000_0000_0000`，cfxha 0 = `umon`，供 bootrom/SEE〕、**boot ROM**〔`0xffff_ffff_0000`，cfxha 63 = `power`，64 KiB，`-bios`〕、**旧 RAM 段过渡保留**〔`0xffff_0000_0000`，cfxha 63，16 MiB〕、exit port〔`0xffff_8000_0000`，cfxha 63〕）；**越界访问与越界取指均须报异常**（含取指路径）。异常语义：**`CFXMEM`**（spec：核内地址空间非法访问，`DADAO-12 §2.1:73`、异常原因表 `1<<1`）vs 测试机约定 **`unmapped 0x87`**（`ADR-0004 D5.8`）。**注**：`ADR-0004 D5.8` 码表**已冻结、不得重排**；`CFXMEM`（`1<<1`）⇒ `0x81`，落在表内已保留的 `0x81`–`0x86` 区间，**无需新码**。 |
 
 **② `ADR-0004`（就地**修订**口径）：新 bootrom 与加载模型**
 
 | 提案 | decision |
 |------|----------|
-| R1 | 现「路径 A ELF **不用 `-bios`**」与「路径 B 双镜像 **用 `-bios`**」须随 M5 **新 bootrom** 调整——新增/明确「SEE 启动 = bootrom 固件（初始权限/向量配置）→ 跳应用」的**加载/入口模型**（**用户 2026-10-07 裁定**：**用 `-bios`**、**复位向量不变** `0xffff_ffff_0000`；bootrom **hypv → user 直跳、本版不启用 supv**）。 |
-| R2 | `ADR-0004 D3` 的 **exit port 与 semihosting `SYS_EXIT` 的关系**（**用户 2026-10-07 裁定**）：`SYS_EXIT` **替代** exit-port；**迁移范围 = 全部**（M1–M4 所有依赖 exit-port 的向量/harness 全迁）。 |
-| R3 | 段布局/RAM 基址（`0xffff_0000_0000`）/ROM（`0xffff_ffff_0000` 64 KiB）是否因 bootrom 调整。**用户裁定复位向量/ROM 起点不变**；RAM 基址是否调整仍属本 ADR 逐条判定项。 |
+| R1 | 现「路径 A ELF **不用 `-bios`**」与「路径 B 双镜像 **用 `-bios`**」须随 M5 **新 bootrom** 调整——新增/明确「SEE 启动 = bootrom 固件（初始权限/向量配置）→ 跳应用」的**加载/入口模型**（**用户 2026-10-07 裁定**：**用 `-bios`**、**复位向量不变** `0xffff_ffff_0000`；bootrom **hypv → user 直跳、本版不启用 supv**；**`-bios` bootrom 与 M4 ELF 路径【并存】、非替代**）。 |
+| R2 | `ADR-0004 D3` 的 **exit port 与 semihosting `SYS_EXIT` 的关系**（**用户 2026-10-07 裁定**：**「R2：是的」**）：`SYS_EXIT` **替代** exit-port；**迁移范围 = 全部**（M1–M4 所有依赖 exit-port 的向量/harness 全迁）。 |
+| R3 | 段布局/RAM 基址/ROM 是否因 bootrom 调整。**用户 2026-10-07 裁定**：复位向量/ROM 起点不变（`0xffff_ffff_0000`，64 KiB）；**RAM 基址改为全 0**（`0x0000_0000_0000`）；**C1 双映射两步**——**step1（M5）**：机器模型**同时映射 RAM@0（新，供 bootrom/SEE）+ 保留旧 RAM 段（`0xffff_0000_0000`，供既有测试）** + `-bios` bootrom，`check-interface` 断言**新增 RAM@0 段（旧断言保留）** ⇒ **每任务门控保持全绿**；**step2（另立，M5 之外）**：既有向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段 + 收紧断言。 |
 
 **③ `ADR-0016`（落地范围）**
 
@@ -588,3 +593,26 @@ L139 `SPEC-113t` 交付物描述：
 - **档位**：**正常提交**（非 `WIP:`）——`INTEG-019k` 已置 `已验证`（`/plan` 级交叉审查通过）。
 - **提交号**：`5e37de1`　`M5 规划：INTEG-019k（已验证）+ 21 份任务书（15t+6m）`（**仅本地 `commit`、未 `push`**）。
 - **文件集对账**：显式 staging（逐个路径 `git add --`，**未用 `git add -A`**）；`git diff --cached --name-only`（`core.quotepath=false`）= **23** 条 = **22 任务书**（15 `t` + 6 `m` + `INTEG-019k`）+ **`.tao/knowledge/milestones.md`**；**漏提 0 / 多提 0 / 越界 0**（`.tao/` 之外 0 条；无 `spec/` 改动卷入；无并行会话改动）。`git diff --cached --stat` = `23 files changed, 1650 insertions(+)`。
+
+#### 第 5 轮 architect 规划更新（2026-10-07，ADR 逐条裁定落盘）
+
+**依据**：用户对 `SPEC-113t` ADR 判定清单**逐条裁定**（原话见 `SPEC-113t` §待用户逐条判定清单「四、用户逐条裁定结果」）。**范围**：本 `k` 的 ADR 表 / 任务表 / 依赖链同步 + `SPEC-113t`/`114t`/`QEMU-047t`/`QEMU-048m`/`TESTCASES-034t`/`INTEG-020t` 范围增补 + **新建 C1 step1 `QEMU-049t`** + `milestones.md` M5 段同步；**不写 ADR 正本**（归 `SPEC-113t`）、**不改 `spec/` 正文**（归 `SPEC-113t`/`114t`）、**不改 `QEMU-044t`**（D15 的机器模型部分归 `QEMU-049t`，异常进入流程引用 `QEMU-044t`）。
+
+**裁定落点（要点，原话见 `SPEC-113t`）**：
+
+1. **新增 `ADR-0020 D15`**：核内地址空间划分（RAM@0 / boot ROM / 旧 RAM 段 / exit port）+ **越界访问/取指报异常**（`CFXMEM`〔`DADAO-12 §2.1:73`，`1<<1`〕vs 测试机约定 `unmapped 0x87`；`ADR-0004 D5.8` 码表**冻结不重排**，`CFXMEM` ⇒ `0x81`，无需新码）⇒ 已写入 §ADR 清单 ① 表 D15 行。
+2. **`D1`**：决策保留；**语义/理由说明**（`immu18[17:16]==2'b11`、无 spec 依据属架构自定义）落 `spec/Machine-01-*`（`SPEC-114t`），ADR 只留决策 ⇒ 已在 `SPEC-114t` 范围增补。
+3. **`R1`**：`ADR-0004` 修订口径 = **`-bios` bootrom 与 M4 ELF 路径【并存】（非替代）** ⇒ 已更新 §ADR 清单 ② 表 R1 行。
+4. **`R2`**：`SYS_EXIT` 取代 exit-port（`ADR-0004 D3`）⇒ R2 行确认。
+5. **`R3`**：**RAM 基址改为全 0**（`0x0000_0000_0000`）；**C1 双映射两步**（step1 = M5 机器模型+bootrom；step2 = 另立、M5 之外）⇒ 已更新 R3 行 + 任务表新增 `QEMU-049t` + 登记 step2。
+6. **`D2–D14`、`S1`**：按「**未特别指出 = 保留**」**推定**（**待用户复核**）⇒ 在原样写入 ADR 时按此推定。
+
+**任务表新增（C1 step1）**：**`QEMU-049t`（RAM@0 双映射）** —— 机器模型**同时映射 RAM@0（新，供 bootrom/SEE）+ 保留旧 RAM 段** + RAM@0 链接基址 + **`check-interface` 断言新增 RAM@0 段（旧断言保留）**；依赖 `QEMU-044t`（同改 `hw/dadao/**` ⇒ 串行）；`QEMU-047t` 依赖 += `QEMU-049t`。**`QEMU-048m` 关联任务 += `QEMU-049t`**。**合计 21 → 22 份**（16 `t` + 6 `m`）。
+
+**step1 与 `QEMU-047t` 的关系（架构师判断）**：**另立 `QEMU-049t`、串在 `QEMU-047t` 之前**（**非合并**）。理由：① **可独立验收**——RAM@0 双映射 + `check-interface` 断言可脱离 `LLVM-060t`/bootrom 独立门控（`QEMU-047t` 依赖链含 `LLVM-060t`，合并则受其阻塞）；② **Do One Thing**——「内存映射」与「固件构建」分属两类交付物；③ `QEMU-047t` 已较重，另立可降低其风险。**编号**：`QEMU-049t`（按模块现状顺延，`QEMU-048m` 之后；`QEMU-048m` 关联任务已同步含之）。**（备选/被否：并入 `QEMU-047t` —— 因耦合与阻塞，未采纳。）**
+
+**step2 是否阻塞 M5 门槛（架构师判断）**：**不阻塞**。M5 门槛 = `make test-semihost` + 不回归（`test-elf`/`test-codegen`/`check`/`check-lit`）；step1 双映射**保留旧 RAM 段** ⇒ 既有测试仍绿；semihosting/SEE 正向路径走 RAM@0（step1 提供）。step2（迁移 + 删旧段 + 收紧断言）登记为**另立、M5 之外**（编号待 M6 规划/另立时确定）。**M5 里程碑须记明双映射为过渡态。**
+
+**残留提醒（不改变裁定）**：`D2–D14`/`S1` 的「保留」为**推定**，待用户复核；`ADR-0004 D5.8` 码表若未来确需新增 fault 码，须说明依据（本轮 D15 未用新码）。
+
+**判决**：本轮规划更新完成；`SPEC-113t` 据此写 ADR 正本（D1–D15 + R1–R3 + S1 落纸）。

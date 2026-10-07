@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M5
-**依赖**：`LLVM-060t`、`QEMU-044t`、`INFRA-047t`
+**依赖**：`LLVM-060t`、`QEMU-044t`、`QEMU-049t`（RAM@0 双映射）、`INFRA-047t`
 **状态**：待开始
 
 ## 执行环境
@@ -11,20 +11,21 @@
 ## 接口规范
 
 - **输入**：
-  - `LLVM-060t`（自有工具链能编 `trap`/`escape`/`cfx2rd`/`cfx2rc`）；`QEMU-044t`（cfx 寄存器/权限/异常进入流程）；`INFRA-047t`（install 根可执行）。
-  - `.tao/adr/adr-0020-see-semihosting.md`（`Accepted`，**D12**）+ `adr-0004` 修订（**R1**：`-bios` 加载、复位向量不变 `0xffff_ffff_0000`；bootrom **hypv→user 直跳、本版不启用 supv**）。
+  - `LLVM-060t`（自有工具链能编 `trap`/`escape`/`cfx2rd`/`cfx2rc`）；`QEMU-044t`（cfx 寄存器/权限/异常进入流程）；`QEMU-049t`（**RAM@0 双映射**：RAM@0〔`0x0000_0000_0000`，cfxha 0 = `umon`〕供 bootrom/SEE，**旧 RAM 段〔`0xffff_0000_0000`〕过渡保留**；RAM@0 链接基址；`check-interface` 断言）；`INFRA-047t`（install 根可执行）。
+  - `.tao/adr/adr-0020-see-semihosting.md`（`Accepted`，**D12** + **D15**〔核内地址空间划分 / 越界取指异常〕）+ `adr-0004` 修订（**R1**：`-bios` 加载、复位向量不变 `0xffff_ffff_0000`、**与 M4 ELF 路径并存**；bootrom **hypv→user 直跳、本版不启用 supv**；**R3**：RAM 基址改全 0 + C1 双映射两步）。
   - `spec/DADAO-12 §2.1`（复位向量 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`，64 KiB）；`§3`（cfx 寄存器初始化：异常向量 `cfx_umon_user_excp_vector`、`global_cfx_mask` 清除对应位等，`DADAO-22 §3` 初始化范式）；`spec/DADAO-22 §1`（调用/返回约定，`escape cfxha,[excp_cause_ip,4]`）。
   - `.tao/knowledge/contract-elf.md §5/§6`（`EM_DADAO=0x0DA0`、`e_flags=1`、段对齐 `.text 4B`、VA=PA；ELF 路径 `-kernel image.elf` 取 `e_entry`；raw-bin 双镜像路径 `-bios rom.bin -kernel test.bin`）；`tests/scripts/dadao.lds`（M4 链接脚本，地址布局参考）。
   - `spec/Process-01`（补丁纪律，若涉 `components/**`）。
 - **输出**：
   1. **bootrom 固件源码**（自有汇编 + 自有工具链）：初始化——设置各 cfx（至少 `cfx_umon`/`cfx_power`）的异常向量、`global_cfx_mask`/指令类型 mask 允许所需调用；**初始化完成后 hypv → user 直跳**（设置 `switch_run_mode` + 经 `escape` 或等价路径进入 user；**本版不启用 supv、不涉及 smon**）。**落点（用户裁定 2026-10-07）：固件源码放 `tests/scripts/`**。
   2. **构建/链接接入（`Makefile`）**：用自有工具链（`llvm-mc`/`ld.lld` + `dadao.lds` 式链接脚本）汇编/链接 bootrom；**含 bootrom 链接脚本**——地址布局对齐 `0xffff_ffff_0000` 的 **64 KiB ROM 区**、段序/对齐依 `ADR-0004`/`contract-elf`；产物 = bootrom 镜像（`-bios` 加载格式）。**生成物落点（用户裁定 2026-10-07）：放 `.dadao/` 下**——按落点规则：**运行产物默认 `.dadao/tests/`**；能靠配置解决的不算"难"，一律放 `.dadao/`（建议 `.dadao/tests/bootrom/`）。
-  3. **加载模型**：**`-bios` 加载 bootrom**、**复位向量不变 `0xffff_ffff_0000`**；bootrom 跳应用（应用为 ELF 或 raw-bin，据 `adr-0004` 修订后的路径关系，与 `QEMU-042t` 加载器并存）。
+  3. **加载模型**：**`-bios` 加载 bootrom**、**复位向量不变 `0xffff_ffff_0000`**；bootrom 跳应用（应用为 ELF 或 raw-bin，据 `adr-0004` 修订后的路径关系，与 `QEMU-042t` 加载器**并存**——`ADR-0004 R1`：`-bios` bootrom 与 M4 ELF 路径**并存、非替代**）；**应用的栈/数据落在 RAM@0**（`QEMU-049t` 双映射引入；旧 RAM 段过渡保留）。
   4. **端到端启动证据**：`qemu-system-dadao -M dadao-m1 -bios <bootrom> -kernel <app>`（或以修订后约定）启动 → bootrom 完成初始权限/向量配置 → 跳 user 应用执行（**LLVM 新指令 `trap`/`escape`/`cfx2*` 的首个真实用户**）。
   5. **探针/证据**：`tools/qemu/min_rom_probe_047t.py`（或 `.work/evidence/QEMU-047t/`）——bootrom 装载于 `0xffff_ffff_0000`、复位 PC 正确、初始化后寄存器/mask 生效、hypv→user 跳转、应用可达。
 - **约束（硬）**：
   - **bootrom 用自有工具链编**（不得用外部/宿主汇编器绕过 `LLVM-060t`）——bootrom 就是新指令的第一个真实用户。
   - **复位向量不变 `0xffff_ffff_0000`、`-bios` 加载、hypv→user 直跳、本版不启用 supv**（`INTEG-019k` 裁定 5/6）。
+  - **RAM@0（C1 step1，`ADR-0020 D15`/`ADR-0004 R3`）**：bootrom/SEE 使用 RAM@0（`QEMU-049t` 双映射提供）；**旧 RAM 段（`0xffff_0000_0000`）保留**（供既有测试，不回归）；step2（旧向量迁移/删旧段/收紧断言）**另立、M5 之外**，不在本任务。
   - **不回归**：M1–M4 的 raw-bin 双镜像与 ELF 路径（`make test-codegen`/`test-elf`）**不回归**；如与 bootrom 加载模型冲突，**停下报告**（属 `adr-0004` 修订范围，不得自行改契约）。
   - **补丁纪律（`spec/Process-01`）**：若改动 `components/qemu/**` 的 bootrom 内建/加载 → 只能在 `.work/source/qemu`；**bootrom 固件源码入库落 `tests/scripts/`**（用户裁定 2026-10-07）；**生成器/脚本随产物保留**（`AGENTS.md`「临时目录」）。
   - **落点（用户裁定 2026-10-07）**：**固件源码放 `tests/scripts/`**；**生成物放 `.dadao/` 下**（运行产物默认 `.dadao/tests/`；能靠配置解决的不算"难"，必须放 `.dadao/`，不得退到模块目录）。

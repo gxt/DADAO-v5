@@ -119,6 +119,13 @@
 > **落点裁定（追加，2026-10-07，用户确认）**：① **`QEMU-047t`（新 bootrom）**——**固件源码放 `tests/scripts/`**、**生成物放 `.dadao/` 下**（运行产物默认 `.dadao/tests/`；能靠配置解决的不算「难」，须放 `.dadao/`）。② **`SPEC-114t`（SEE/semihosting 规范正文）**——**正文落新建 `spec/Machine-01-测试机运行环境.md`**（`Machine` 前缀经用户确认），章节 ①内存映射/复位 ②运行模式 ③cfx/权限 ④`trap`/`escape`/异常进入 ⑤semihosting ⑥加载/bootrom ⑦退出，并**登记 `spec/README.md`**。两处落点已写入对应任务书（`QEMU-047t` 输出/约束、`SPEC-114t` 输出）。
 >
 > **`/plan` 通过（追加，2026-10-07）**：`INTEG-019k` 规划经 `/plan` 级交叉审查通过（第 2 轮 reviewer 复审的最小必改项已落实：`INTEG-019k` B9 现为 `SimRISC-11 L80`，与 `spec/SimRISC-11-其它.md:80` 一致）⇒ `INTEG-019k` 状态置 **`已验证`**。
+>
+> **ADR 逐条裁定落盘 + RAM@0 两步（追加，2026-10-07）**：用户对 `SPEC-113t` ADR 判定清单**逐条裁定**（原话见 `SPEC-113t` §待用户逐条判定清单「四、用户逐条裁定结果」）——**新增 `ADR-0020 D15`**（核内地址空间划分 + **越界访问/取指异常**：`CFXMEM` vs 测试机约定 `unmapped 0x87`，含取指路径；`ADR-0004 D5.8` 码表冻结不重排）；**`D1`** 决策保留、语义/理由说明移 **`spec/Machine-01-*`**（`SPEC-114t`）；**`R1`** = `-bios` bootrom 与 M4 ELF **并存（非替代）**；**`R2`** = `SYS_EXIT` 取代 exit-port；**`R3`** = **RAM 基址改为全 0**（`0x0000_0000_0000`）+ **C1 双映射两步**；**`D2–D14`/`S1` 按「未特别指出 = 保留」推定**，并经用户 **2026-10-07 明确确认**（原话「全部确认」）——**复核闭合**。
+>
+> - **C1 两步（`ADR-0004 R3`/`ADR-0020 D15`）**：**step1（M5）** = 新任务 **`QEMU-049t`**（QEMU 机器模型**同时映射 RAM@0〔新，供 bootrom/SEE〕+ 保留旧 RAM 段〔`0xffff_0000_0000`，供既有测试〕** + RAM@0 链接基址 + **`check-interface` 断言新增 RAM@0 段〔旧断言保留〕**），`QEMU-047t` 依赖之；**step2（另立，M5 之外）** = 既有向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段 + 收紧断言。
+> - **M5 门槛口径**：**以「RAM@0 双映射过渡态」收敛**——step1 保留旧 RAM 段 ⇒ 既有测试**不回归**（`test-elf`/`test-codegen`/`check`/`check-lit`）；**step2 不阻塞 M5 门槛**（编号/归属待 M6 规划或另立时确定）。M5 qemu 任务数 **4→5**（`QEMU-048m` 关联任务含 `QEMU-049t`）。
+>
+> **✅ ADR 决策落地完成（追加，2026-10-07，`SPEC-113t`）**：`ADR-0020`（新建，`D1–D15`）置 `Accepted`；`ADR-0004` 就地修订（`R1` `-bios` bootrom 与 M4 ELF 路径**并存** / `R2` `SYS_EXIT` **取代** exit-port / `R3` RAM 基址**改全 0** + C1 双映射两步），受保护决策 `D1`/`D2.1`/`D3`/`D4`/`D5`/`D6` 正文**未改**；`ADR-0016 S1` 判**沿用** `D1–D11`（不改正文）。reviewer `Accepted`、architect 交叉复核通过（证据脚本 51/51 + 独立注入有鉴别力；`make check` 80/80 EXIT=0）。
 
 ## M1 模块依赖关系
 

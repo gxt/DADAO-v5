@@ -1,6 +1,6 @@
 # ADR-0004: SimRISC M1 裸机测试机（Test Machine）
 
-**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径，见 `## 修订`）
+**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步，见 `## 修订`）
 **日期**：2026-09-13
 **关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）、`.tao/knowledge/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
 
@@ -381,3 +381,15 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 - **用户逐条确认（2026-10-06）**：主会话提案四条（D2.2 扩展 ELF + 保留 raw-bin；D2.3 允许单 ELF + 保留双镜像；oversize 扩展 ELF 段越界；就地修订），用户答「**继续**」= 确认四条；原话（问答摘要）见 `.tao/tasks/spec/SPEC-107t-ADR-0004调整.md` 完成区。
 - **变更范围**：D2.2、D2.3、Rationale（双路径条目）、Consequences（下游约束、与 ADR-0003/ADR-0019 一致条目）、`**状态**` 行 rev 日期；配套同步 `.tao/knowledge/contract-elf.md §5/§6` 与文件头范围说明。**不变**：D1 内存映射、D2.1 复位值、D3 exit port、D4/D5 fault、D6 测试 pattern。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-06`）。Context 段「冻结该 flat binary 如何被 QEMU 加载并进入」的 flat-only 措辞由本修订取代（D2.2/D2.3 为准）。
+
+**rev. 2026-10-07（用户 2026-10-07 逐条确认，`SPEC-113t`；配套 `ADR-0020`）**：按 M5 新 bootrom 与 semihosting 落地口径，补充「新 bootrom 与加载模型」并修订停机协议与 RAM 基址。**`D1`/`D2.1`/`D3`/`D4`/`D5`/`D6` 决策正文不改**——以下通过本 `## 修订` 条目表达**取代 / 覆盖关系**（`Process-03`：不直接改写已 `Accepted` 的决策）。
+
+- **R1 — 加载/入口模型（新增口径；并存，非替代）**：新增「**SEE 启动 = bootrom 固件（初始权限/向量配置）→ 跳应用**」加载模型——**用 `-bios` 加载 bootrom**、**复位向量不变**（`0xffff_ffff_0000`）、bootrom **hypv → user 直跳、本版不启用 supv**。**并存关系**：`-bios` bootrom 路径与既有 **M4 ELF 路径（D2.2/D2.3 路径 A，不用 `-bios`）【并存】、非替代**——两条启动路径各自可自动化，互不替代。依据 `ADR-0020 D12`、`spec/DADAO-12 §2.1:68`；实现归 `QEMU-047t`。
+- **R2 — 停机协议（取代关系）**：semihosting **`SYS_EXIT` 取代本 ADR `D3`（Exit Port 协议）** 作为停机协议；**迁移范围 = 全部**（M1–M4 所有依赖 exit-port 的向量/harness 全迁 `SYS_EXIT`）。**取代关系**：**本 ADR `D3` 由 `ADR-0020 D8` 取代**（`D3` 标 **`Superseded`**）；本 rev **不改写 `D3` 正文**。依据 `ADR-0020 D8`、`ADR-0011`；迁移归 `TESTCASES-034t`。
+- **R3 — RAM 基址（覆盖关系）+ C1 双映射两步过渡**：**RAM 基址改为全 0（`0x0000_0000_0000`）**；复位向量/ROM（`0xffff_ffff_0000`，64 KiB）与 exit port（`0xffff_8000_0000`）**不变**。
+  - **覆盖关系**：本 ADR **`D1` 内存映射表中「RAM 起始 `0xffff_0000_0000`」**由本条目**覆盖**（新基址 `0x0000_0000_0000`）；`D2.2`/`D2.3`/`D6.4`/`D6.5` 中以旧基址 `0xffff_0000_0000` 表述 RAM 入口/基址者，**在 step2 迁移前因双映射仍有效**（见下），故本 rev **不改写 `D1` 正文**、也不改写其它既有段落。地址图与越界异常语义见 **`ADR-0020 D15`**。
+  - **C1 双映射两步过渡**：
+    - **step1（M5，`QEMU-049t`）**：机器模型**同时映射 RAM@0（新，供 bootrom/SEE）+ 保留旧 RAM 段（`0xffff_0000_0000`，供既有测试）** + `-bios` bootrom；`check-interface` **新增 RAM@0 段断言（旧断言保留）** ⇒ **每任务门控保持全绿**。
+    - **step2（另立，M5 之外）**：既有向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧断言。
+  - **依据**：`ADR-0020 D15`；`ADR-0004 D5.8` 码表**冻结不重排**；实测位置 `components/qemu/patches/target/dadao/cpu.h.patch:63-64`（`DADAO_RAM_BASE=0xffff00000000ULL`/`DADAO_RAM_SIZE=(16*1024*1024)`）、`hw/dadao/dadao-machine.c.patch:183`、`tools/integ/check_interface_alignment.py:319-320/351`。
+- **用户逐条确认（2026-10-07）**：主会话提案 `R1`（`-bios` bootrom 与 ELF 并存）、`R2`（`SYS_EXIT` 取代 exit-port）、`R3`（RAM 基址改全 0 + C1 双映射两步）三条及每条的实现归属，用户逐条确认（原话见 `.tao/tasks/spec/SPEC-113t-ADR决策落地.md` §四与完成区）。
