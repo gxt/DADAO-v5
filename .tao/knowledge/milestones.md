@@ -133,6 +133,13 @@
 >
 > **✅ SEE/semihosting 规范正文落地完成（追加，2026-10-07，`SPEC-114t`）**：新建 **`spec/Machine-01-测试机运行环境.md`**（①–⑦ 七节：内存映射/复位〔核内地址空间划分表 + 越界访问/**取指**异常 `CFXMEM` vs 测试机约定 `unmapped 0x87`，`ADR-0020 D15`；`ADR-0004 R3` RAM 基址全 0 + C1 双映射两步〕、运行模式〔`hypv`/`user`，本版不启用 `supv`〕、cfx/权限〔**`cfx0/1/2/3/63` 明标测试机约定、不构成上游架构限制**；未实现 cfx ⇒ `CFXREG`；`NUPERM` 等两权限层次〕、`trap`/`escape`/异常进入〔两条路对照〕、semihosting〔判定 `immu18[17:16]==2'b11`、`D1` 语义说明、传参 `rd16`/`rb16`、返回 `rd31`、**完整 25 服务**、PC 步进无 `escape`、`SYS_EXIT` 取代 exit port、`SYS_SYSTEM` 风险登记〕、加载/bootrom、退出）；投影 **`contract-see.md`/`contract-semihosting.md`**（最小集合 = 2）+ 登记 `spec/README.md`。**上游只读册零改动**（`DADAO-12/13/21/22`、`SimRISC-*`、`Toolchain-01` 共 20 册 `git diff 96f09f1..HEAD -- spec/` 无交集、逐册 md5 与 base 逐字一致）；round1 擅改的 `DADAO-12`/`DADAO-22` 已还原。reviewer **`Accepted`**、architect 交叉复核通过（`make check`/`check-spec-refs` EXIT=0；证据脚本 35 PASS + 独立注入有鉴别力）。
 
+> **M5 任务链重排（追加，2026-10-07，用户裁定 1/2/3）**：`SPEC-115t` 的 engineer **BLOCKED**（未实施、工作树零改动）——`scope: excluded → m1` 会撞 **3 个跨模块门控**（`validate-vectors` 的 `inventory.md` M1 行集 / `check-interface` 的 M1 计数 + 每 M1 `format` 族 lit `; OBJ:` / `check-instrinfo` 的每 M1 唯一 `.td` def，均在 `make check` 内），其中 `check-instrinfo` **必须** `LLVM-060t` 的 `.td` def；原分解把 `LLVM-060t` 置于其后 ⇒ 单发必红。**用户裁定（原话）**：①「**A 重排：先 LLVM-060t 再 SPEC-115t（推荐）**」；②「**改生成器并重跑（推荐）**」；③「**encode_cfx不应该存在，这个是实现层面的事情，不是汇编或者编码时需要处理的问题，单独建立一个任务解决该问题**」。
+>
+> - **重排（裁定 1）**：`LLVM-060t` **前置**（依赖仅 `INFRA-047t`；编码 `op`/`mask`/`value` 在 re-scope 前后不变）；`SPEC-115t` 依赖 += `LLVM-060t`，文件集 += `tests/vectors/inventory.md`（+4 行）/`tools/llvm/validate_instrinfo.py`（`MC_ONLY_EXCLUDED_IDS`：`LLVM-060t` 加入 4 条、`SPEC-115t` re-scope 后移除）；lit `crrr`/`ciii` 的 `; OBJ:` 由前置的 `LLVM-060t` 承接（`TESTCASES-033t` 复用/扩展）。Wave：Wave 1 增 `LLVM-060t`、Wave 2 改「re-scope 收口」+ `SPEC-115t`。归属裁定见 `SPEC-115t` 审阅记录（**待用户复核项**）。
+> - **改生成器（裁定 2）**：`contracts/opcodes.yaml` 由 `tools/spec/generate_opcodes.py` 生成 ⇒ `SPEC-115t` **改生成器 + 重跑**（禁只手改 yaml）。`legality`/`rule_refs` **保持 `[]`**（**不引 `encode_cfx`**，裁定 3 口径）。
+> - **另立 `SPEC-120t`（裁定 3）**：`encode_cfx` 定界与最小修正（汇编/编码层不应含实现期语义；先调研定界 → 最小修正〔候选 A 删除 / B 降级〕；**默认不触 `spec/`**）。`**项目里程碑** = M5`（**architect 判断，待用户复核**）；`SPEC-118m` 关联任务 6 → 7。**M5 任务书 23 → 24**（+`SPEC-120t`）。
+> - **教训**：下发前预检第 2 项须核「本任务**验证手段**所需的全部前置」，非仅「任务书声明的依赖」——见 `lessons.md §7.6`。
+
 ## M1 模块依赖关系
 
 ```

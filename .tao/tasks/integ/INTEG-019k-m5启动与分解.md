@@ -138,10 +138,11 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 | `INFRA-048t` | **生成物落点迁移**（→ `.dadao/tests/`） | infra | `Makefile`（`CODEGEN_E2E_WORK` + `test-elf` 目标 + lit `test_exec_root`）+ `tools/integ/run_{codegen,elf}_e2e.py` + `.gitignore`；`.work/log`/`.work/evidence` **不动** | `INFRA-047t` |
 | `SPEC-113t` | **ADR 决策落地**（`ADR-0020` 新建 + `ADR-0004` 修订 + `ADR-0016` 范围） | spec | `.tao/adr/adr-0020-*.md` + `adr-0004` 就地修订 + `adr-0016` 修订/沿用；**每个 decision 逐条经用户确认**（**用户 2026-10-07 逐条裁定**：**新增 `ADR-0020 D15`**〔核内地址空间划分 + 越界访问/取指异常〕；**`D1`** 决策保留、语义说明移 `spec/Machine-01-*`；**`R1`** = `-bios` bootrom 与 M4 ELF **并存**；**`R2`** = `SYS_EXIT` 取代 exit-port；**`R3`** = **RAM 基址改全 0 + C1 双映射两步**〔step1 = `QEMU-049t`；step2 = 另立〕；`D2–D14`/`S1` 按「未特别指出=保留」**推定**，待用户复核）。**本任务只落 ADR 决策/口径，不改实现/链接脚本** | 无（决策先行） |
 | `SPEC-114t` | **SEE/HEE 运行环境 + semihosting 规范正文** | spec | **新建 `spec/Machine-01-测试机运行环境.md`**（正文落点，用户裁定 2026-10-07）+ `spec/DADAO-12`（§1/§5 等，+`DADAO-13`/`DADAO-22`/`DADAO-21` 相关）+ 投影 `contract-sbi.md`/`contract-see.md`/`contract-semihosting.md` + `spec/README` 登记与投影表 | `SPEC-113t` |
-| `SPEC-115t` | **re-scope：`trap`/`escape`/`cfx2rc`/`cfx2rd` `excluded`→已实现** | spec | `spec/SimRISC-11` + `contracts/opcodes.yaml`/`legality_rules.yaml` + `contract-isa`/`contract-asm`/`contract-asm-list` 投影 + `check_scope.py` 对齐；**`SimRISC-12` 保持 deferred** | `SPEC-114t`、`SPEC-113t` |
+| `SPEC-115t` | **re-scope：`trap`/`escape`/`cfx2rc`/`cfx2rd` `excluded`→已实现** | spec | `spec/SimRISC-11` + `contracts/opcodes.yaml`（**经 `tools/spec/generate_opcodes.py` 改生成器 + 重跑**） + `contract-isa`/`contract-asm`/`contract-asm-list` 投影 + `check_scope.py` 对齐 + `tests/vectors/inventory.md`（+4 行）+ `tools/llvm/validate_instrinfo.py`（`MC_ONLY_EXCLUDED_IDS` 移除 4 条）；**`SimRISC-12` 保持 deferred**；`legality`/`rule_refs` 保持 `[]` | `SPEC-114t`、`SPEC-113t`、`SPEC-119t`、**`LLVM-060t`**（2026-10-07 用户裁定 1 重排） |
 | `SPEC-116t` | **大小写敏感修订**（`Toolchain-01 §2.1` + `contract-asm §2.1`） | spec | 上述两处（撤销「不敏感」条款）+ `check-asm-*`/`check-spec-refs` 绿；**`ISS-157` 以「条款撤销」结案** | 无（与 113–115 同改 `spec/` ⇒ 串行） |
 | `SPEC-117t` | **`Process-05 §6` 落点规则补正** | spec | `spec/Process-05-里程碑TDD规范.md §6`（`.dadao/tests/` 规则正文） | `INFRA-048t` |
-| `LLVM-060t` | **`trap`/`escape`/`cfx2rc`/`cfx2rd`**（MC + 必要 CodeGen/内建） | llvm | `components/llvm-project/patches/llvm/lib/Target/DADAO/**`（parser/printer/disassembler/编码）+ lit L1 + 编码 oracle；`escape` 位宽关系落实 | `SPEC-115t`、`INFRA-047t` |
+| `SPEC-120t` | **`encode_cfx` 规则定界与最小修正**（汇编/编码层不应含实现期语义） | spec | 调研定界 + `contracts/legality_rules.yaml` 的 `encode_cfx` 处置（候选 A 删除 / B 降级为运行期口径）+ `tools/spec/gen_legality_list.py` 同步 + 门控绿（**默认不触 `spec/`**） | `SPEC-115t`（串行） |
+| `LLVM-060t` | **`trap`/`escape`/`cfx2rc`/`cfx2rd`**（MC + 必要 CodeGen/内建） | llvm | `components/llvm-project/patches/llvm/lib/Target/DADAO/**`（parser/printer/disassembler/编码）+ lit L1（**`crrr`/`ciii` 的 `; OBJ:`**）+ 编码 oracle；`escape` 位宽关系落实；`tools/llvm/validate_instrinfo.py`（`MC_ONLY_EXCLUDED_IDS` += 4 条，临时） | `INFRA-047t`（2026-10-07 用户裁定 1 重排：**去掉 `SPEC-115t`**，前置） |
 | `QEMU-044t` | **SEE/HEE 运行模式 + cfx 寄存器/掩码/权限/异常** | qemu | `components/qemu/patches/target/dadao/**` + `hw/dadao/**`：四运行模式、cg0–cg7 共有 + 专有寄存器、`global_cfx_mask`/指令类型 mask、`switch_run_mode`、权限异常（`NU/J/SP/HPERM`）、**异常进入流程**（`DADAO-12 §5`）+ 探针。**权限范围 = 只做 `cfx0/1/2/3/63`**（`umon/jmon/smon/hmon/power`）；**未实现 cfx ⇒ `CFXREG` 异常**（`DADAO-22:58`） | `SPEC-114t` |
 | `QEMU-045t` | **`trap`/`escape` 语义 + `cfx2rd`/`cfx2rc` 执行** | qemu | trap 译码 → CFXTRAP 路由 → **走 spec 异常进入流程（`DADAO-12 §5`）并进入该 cfx 的向量**（**一般 trap**，`immu18[17:16] ≠ 2'b11`）；`escape` 退出（恢复 `prev_run_mode`/`prev_cfx_mask`、`escape_num`++、按 `imms18` 跳转）；cfx2rd/cfx2rc 读写 cfx 寄存器 + 探针；**semihosting 短路（`immu18[17:16] == 2'b11`，译码层直接服务、不进入向量）不在本任务，见 `QEMU-046t`** | `SPEC-115t`、`SPEC-114t`、`QEMU-044t` |
 | `QEMU-046t` | **semihosting** | qemu | `immu18[17:16]==2'b11` 判定（**QEMU 译码层短路，与 RISC-V `RISCV_EXCP_SEMIHOST` 同构**：**不进入 cfx 向量**、直接服务并按 PC 步进返回；对照「一般 trap 走 spec 异常进入流程并进入向量」，见 `QEMU-045t`）；`DADAO common-semi-target.c` 钩子（**按 `n` 选 bank**：`n=0`→`rd16`、`n=1`→`rb16`；`set_ret`→`rd31`——**共享层小适配，非重写**）+ 复用 `do_common_semihosting`；**服务表 = 完整 25 个**（含 **D2 文件档**；**`SYSTEM`、`HEAPINFO` 都做**）；`SYS_EXIT` **替代 exit port**；探针 | `QEMU-045t`、`SPEC-114t` |
@@ -158,25 +159,28 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 | `TESTCASES-035m` | M5 testcases 里程碑 | testcases | `m` 文件 | `TESTCASES-033t`/`034t` |
 | `INTEG-021m` | M5 integ 里程碑（**整体收敛点**） | integ | `m` 文件 | `INTEG-020t` |
 
-> 合计：**16 `t` + 6 `m` = 22 份任务书**（含 2026-10-07 追加的 C1 step1 `QEMU-049t`；**step2 为「另立、M5 之外」，不计入本 M5 任务书**）。（原为 15 `t` + 6 `m` = 21 份。）
+> 合计：**17 `t` + 6 `m` = 23 份任务书**（表内；含 2026-10-07 追加的 C1 step1 `QEMU-049t` 与 `SPEC-120t`〔`encode_cfx` 定界/修正〕；`SPEC-119t`〔spec 目录保护〕另见 `SPEC-118m` 关联任务、本表未列；**step2 为「另立、M5 之外」，不计入本 M5 任务书**）。（原为 15 `t` + 6 `m` = 21 份。）
+
+> **2026-10-07 重排（用户裁定 1「A 重排：先 `LLVM-060t` 再 `SPEC-115t`」）**：`LLVM-060t` **前置**、`SPEC-115t` **后置**；`SPEC-115t` 依赖 += `LLVM-060t`；`SPEC-115t` 文件集 += `tools/spec/generate_opcodes.py`（裁定 2：改生成器 + 重跑）、`tests/vectors/inventory.md`、`tools/llvm/validate_instrinfo.py`；`llvm`/`legality` 口径见 `SPEC-115t` 审阅记录「第 2 轮 architect 重排落纸」。
 
 ### 依赖关系与串行链（分波）
 
 - **Wave 0 — 基础设施**（无前置，最先；同改 `Makefile` ⇒ **串行**）：
   `INFRA-047t`（install）→ `INFRA-048t`（落点迁移）→ `SPEC-117t`（`Process-05 §6` 补正，依 `INFRA-048t`）。
-- **Wave 1 — 决策与规范（spec-first）**：
-  `SPEC-113t`（ADR，**用户逐条确认**）→ `SPEC-114t`（规范正文）→ `SPEC-115t`（re-scope）；`SPEC-116t`（大小写）与 113–115 **同改 `spec/` ⇒ 串行**（可置于 114 前后）。
-  ⇒ **ADR 未 `Accepted` 前不进入 Wave 2/3**（`Process-03`：决策先行）。
-- **Wave 2 — LLVM 指令**：`LLVM-060t` ← `SPEC-115t`（编码/re-scope 定后）+ `INFRA-047t`（从 install 根取工具）。**只 1 条，无链内并发**。
-- **Wave 3 — QEMU（与 Wave 2 不同仓库，可并行；但 QEMU 内串行）**：
+- **Wave 1 — 决策与规范（spec-first）+ LLVM 指令（重排后前移）**：
+  `SPEC-113t`（ADR，**用户逐条确认**）→ `SPEC-114t`（规范正文）；`SPEC-116t`（大小写）与 113–114 **同改 `spec/` ⇒ 串行**（可置于 114 前后）。
+  **`LLVM-060t`** ← `INFRA-047t`（**2026-10-07 用户裁定 1 重排：不再等 `SPEC-115t`**；编码 `op`/`mask`/`value` 已定义，re-scope 只改 `scope`/`decode`）。
+  ⇒ **ADR 未 `Accepted` 前不进入 re-scope/QEMU**（`Process-03`：决策先行）。
+- **Wave 2 — re-scope 收口（spec）**：`SPEC-115t` ← `SPEC-114t`/`113t`/`119t` + **`LLVM-060t`**（`.td` def + lit `; OBJ:` 就绪）；*本任务一次使 3 门控转绿*（`validate-vectors`/`check-interface`/`check-instrinfo`）。紧随 **`SPEC-120t`**（`encode_cfx` 定界/修正，**串行**）。**只 1+1 条，无链内并发**。
+- **Wave 3 — QEMU（与 Wave 1/2 不同仓库，可并行；但 QEMU 内串行）**：
   `QEMU-044t`（模式/cfx/权限/异常）→ `QEMU-045t`（trap/escape/cfx2*）→ `QEMU-046t`（semihosting）；
   `QEMU-049t`（RAM@0 双映射，C1 step1；← `QEMU-044t`，同改 `hw/dadao/**` ⇒ 串行）→ `QEMU-047t`（新 bootrom）← `LLVM-060t` + `QEMU-044t` + `QEMU-049t` + `INFRA-047t`（**须 LLVM 指令 + 权限配置 + RAM@0 就绪**）。
   - **step1/step2 关系（C1，`ADR-0004 R3`/`ADR-0020 D15`）**：`QEMU-049t` = step1（M5，机器模型双映射 + `check-interface` 新断言 ⇒ 门控全绿）；**step2**（旧向量/harness 迁到 `0` + 删旧 RAM 段 + 收紧断言）= **另立、M5 之外**，**不阻塞 M5 门槛**（M5 门控经双映射保持全绿）。
-- **Wave 4 — 向量**：`TESTCASES-033t` ← `SPEC-114t`/`115t` + `LLVM-060t`（L1 MC 编码；`UNSUPPORTED:` 分阶段）+ `INFRA-048t`（落点）；`TESTCASES-034t` ← `QEMU-046t` + `TESTCASES-033t`（**迁移须在 semihosting 落地后**）。
+- **Wave 4 — 向量**：`TESTCASES-033t` ← `SPEC-114t`/`115t` + **`LLVM-060t`**（L1 MC 向量与其 oracle；**重排后 `LLVM-060t` 已前置、本任务复用/扩展，`UNSUPPORTED:` 分阶段不再需要**）+ `INFRA-048t`（落点）；`TESTCASES-034t` ← `QEMU-046t` + `TESTCASES-033t`（**迁移须在 semihosting 落地后**）。
 - **Wave 5 — E2E + 门控收口**：`INTEG-020t` 最后（依赖 QEMU-046t/047t + 033t/034t）；**`make test-semihost`**（**不是** `test-see`）与既有 `make test-codegen`/`make test-elf` 并存或迁移后等价。
 - **共享文件串行**：`Makefile`/`contracts/`/`spec/`/`tests/` 改动一律串行（`AGENTS.md`）。
 - `k ↔ m`：本 `k` 对应 M5；各模块 `m` 在模块任务收敛时就近核验，M5 由主会话在依赖模块 `m` 均置 `里程碑` 后置 `达成`（`Process-04 §1`）。
-- **反向依赖（实现 ← 契约）**：`LLVM-060t`←`SPEC-115t`；`QEMU-044t`←`SPEC-114t`；`QEMU-045t`←`SPEC-114t`/`115t`；`QEMU-046t`←`SPEC-114t`；`QEMU-049t`←`SPEC-113t`（`R3`/`D15` 决策）；`QEMU-047t`←`QEMU-049t`（RAM@0 双映射）；`TESTCASES-*`←`SPEC-114t`/`115t`；`TESTCASES-033t`←`LLVM-060t`（L1 MC 编码支持）。
+- **反向依赖（实现 ← 契约）**：**`SPEC-115t`←`LLVM-060t`**（2026-10-07 用户裁定 1 重排；原为 `LLVM-060t`←`SPEC-115t`）；`SPEC-120t`←`SPEC-115t`；`QEMU-044t`←`SPEC-114t`；`QEMU-045t`←`SPEC-114t`/`115t`；`QEMU-046t`←`SPEC-114t`；`QEMU-049t`←`SPEC-113t`（`R3`/`D15` 决策）；`QEMU-047t`←`QEMU-049t`（RAM@0 双映射）；`TESTCASES-*`←`SPEC-114t`/`115t`；`TESTCASES-033t`←`LLVM-060t`（L1 MC 编码支持）。
 
 ### 分解理由
 
@@ -640,3 +644,28 @@ L139 `SPEC-113t` 交付物描述：
 
 - **擅改上游册 = 红线**：任务书「输出」**不得**把上游只读册列为可改对象；改 `spec/` 一律**先取用户授权、原话落盘、同步更新哈希锁**。
 - **机制优先于纪律**：`SPEC-119t` 把「不许擅自改 `spec/`」从**口头纪律**变为**机械门控**（哈希锁失配 ⇒ FAIL）+ **三处固定检查**（下发预检第 5 项 / reviewer 验收 / architect 提交）。
+
+#### 第 7 轮 architect 重排落纸（2026-10-07，用户裁定 1/2/3）
+
+**背景**：`SPEC-115t` 的 engineer **BLOCKED**（未实施、工作树零改动）——实测 `scope: excluded → m1` 会撞 3 个跨模块门控（`validate-vectors` 的 `inventory.md` M1 行集 / `check-interface` 的 M1 计数 + 每 M1 `format` 族 lit `; OBJ:` / `check-instrinfo` 的每 M1 唯一 `.td` def），且 `check-instrinfo` **必须** `LLVM-060t` 的 `.td` def。原分解把 `LLVM-060t` 置于 `SPEC-115t` 之后 ⇒ 本任务单发必红（BLOCKED 证据摘要见 `SPEC-115t` 审阅记录「第 2 轮 architect 重排落纸」）。
+
+**用户裁定（原话，经主会话转达——子会话问答对父会话不可见，见 `lessons §7.3`）**：
+
+> 1. **「A 重排：先 LLVM-060t 再 SPEC-115t（推荐）」**
+> 2. **「改生成器并重跑（推荐）」**
+> 3. **「encode_cfx不应该存在，这个是实现层面的事情，不是汇编或者编码时需要处理的问题，单独建立一个任务解决该问题」**
+
+**本轮改动**：
+
+1. **任务表**：`LLVM-060t` 依赖 `SPEC-115t`→`INFRA-047t`（前置）；`SPEC-115t` 依赖 += `LLVM-060t`、文件集 += `tools/spec/generate_opcodes.py`/`tests/vectors/inventory.md`/`tools/llvm/validate_instrinfo.py`；新增 `SPEC-120t`（`encode_cfx` 定界/修正）行。
+2. **Wave**：Wave 1 增 `LLVM-060t`（← `INFRA-047t`）；Wave 2 改为「re-scope 收口」`SPEC-115t`（← `SPEC-114t`/`113t`/`119t` + `LLVM-060t`）+ `SPEC-120t`（串行）。
+3. **反向依赖**：`SPEC-115t`←`LLVM-060t`（重排）；`SPEC-120t`←`SPEC-115t`。
+4. **`SPEC-115t` 任务书**：依赖/前置/接口/约束/验收 7/9/10 + 审阅记录；**`LLVM-060t` 任务书**：依赖/输入/输出 5b/验收 10 + 审阅记录（跨任务契约：`MC_ONLY_EXCLUDED_IDS` 两任务先后各改一次）。
+5. **另立 `SPEC-120t`**（裁定 3）：先调研定界 → 最小修正（候选 A 删除 / B 降级）；`**项目里程碑** = M5`（**architect 判断，待用户复核**）。
+6. **知识沉淀**：`lessons.md §7.6`（下发前预检第 2 项失效）；`milestones.md`/`MEMORY.md` 同步。
+
+**归属裁定（architect 判断，列为待用户复核项）**：`inventory.md` 4 行 → **`SPEC-115t`**（`validate_vectors` 要求行集 == `scope==m1` 集 ⇒ **原子强制**；`TESTCASES-033t` 依赖 `SPEC-115t` ⇒ 无法前置承接）；lit `; OBJ:` → **`LLVM-060t`**（L1 MC 向量天然产出、前置就绪，`SPEC-115t` 复用/兜底）。
+
+**发现（下发前预检失效）**：原任务表未含 `LLVM-060t` 作为 `SPEC-115t` 前置于「本任务验证手段所需的能力」——即**下发前预检第 2 项**（依赖链实际可用性）只核了任务书**声明的依赖**，未核**「本任务验证手段所需的全部前置」**。教训落 `lessons.md §7.6`。
+
+**判决**：本轮重排落纸完成；`SPEC-115t` 边界已重定，待 `LLVM-060t` 完成后重新下发。

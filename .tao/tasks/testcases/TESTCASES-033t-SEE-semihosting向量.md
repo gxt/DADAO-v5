@@ -55,3 +55,8 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证：`run.sh` 审核 + 重跑 + **独立注入一次反例** + 独立全量重算（逐条） + 门控 + 判决）
+
+#### architect 重排落纸（2026-10-07，用户裁定 1）
+**用户原话**：「**A 重排：先 LLVM-060t 再 SPEC-115t（推荐）**」（经主会话转达；见 `lessons §7.3`）。
+
+**对本任务的影响（lit 归属裁定）**：本任务的 L1 MC 向量落点 `tests/llvm/lit/MC/DADAO/` 现由**前置的 `LLVM-060t` 先行自带**（含 `crrr`/`ciii` 的 `; OBJ:`），本任务**复用/扩展**（不再需要「`LLVM-060t` 就绪前以 `UNSUPPORTED:` 暂缓」，因其已就绪）。`tests/vectors/inventory.md` 的 4 行由 `SPEC-115t` 承接（`validate_vectors` 要求行集 == `scope==m1` 集，原子强制）。完整归属理由见 `SPEC-115t` 审阅记录「第 2 轮 architect 重排落纸」。

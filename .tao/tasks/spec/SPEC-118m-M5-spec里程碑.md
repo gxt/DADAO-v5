@@ -3,8 +3,8 @@
 **模块**：spec
 **项目里程碑**：M5
 **状态**：待开始
-**目标**：规范层支持 M5——① **ADR 决策落地**：`ADR-0020`（SEE/HEE 与 semihosting，D1–D14）新建、`ADR-0004` 修订（新 bootrom 与加载模型，R1–R3，含 **R3「RAM 基址是否随 bootrom 调整」判定/记录**）、`ADR-0016` 范围判定（S1）——**每个 decision 逐条经用户确认**；② **SEE/HEE + semihosting 规范正文入 `spec/`** + 投影（`contract-sbi.md`/`contract-see.md`/`contract-semihosting.md`）+ `spec/README` 投影表；③ **re-scope**：`trap`/`escape`/`cfx2rc`/`cfx2rd` 由 `excluded`→已实现（`contracts/*` + 投影 + `check_scope` 计数 155/11/227；`SimRISC-12` 保持 deferred）；④ **大小写敏感修订**（`Toolchain-01 §2.1` + `contract-asm §2.1` 撤销「不敏感」；`ISS-157` 以「条款撤销」结案）；⑤ **`Process-05 §6` 落点规则补正**（`.dadao/tests/` 口径）。
-**关联任务**：`SPEC-113t`、`SPEC-114t`、`SPEC-115t`、`SPEC-116t`、`SPEC-117t`、`SPEC-119t`（6 个；`SPEC-119t` = **`spec/` 目录保护机制**，跨切面流程任务）
+**目标**：规范层支持 M5——① **ADR 决策落地**：`ADR-0020`（SEE/HEE 与 semihosting，D1–D14）新建、`ADR-0004` 修订（新 bootrom 与加载模型，R1–R3，含 **R3「RAM 基址是否随 bootrom 调整」判定/记录**）、`ADR-0016` 范围判定（S1）——**每个 decision 逐条经用户确认**；② **SEE/HEE + semihosting 规范正文入 `spec/`** + 投影（`contract-sbi.md`/`contract-see.md`/`contract-semihosting.md`）+ `spec/README` 投影表；③ **re-scope**：`trap`/`escape`/`cfx2rc`/`cfx2rd` 由 `excluded`→已实现（`contracts/*` + 投影 + `check_scope` 计数 155/11/227；`SimRISC-12` 保持 deferred）；④ **大小写敏感修订**（`Toolchain-01 §2.1` + `contract-asm §2.1` 撤销「不敏感」；`ISS-157` 以「条款撤销」结案）；⑤ **`Process-05 §6` 落点规则补正**（`.dadao/tests/` 口径）；⑥ **`encode_cfx` 定界/最小修正**（用户裁定 3：汇编/编码层不应含实现期语义）。
+**关联任务**：`SPEC-113t`、`SPEC-114t`、`SPEC-115t`、`SPEC-116t`、`SPEC-117t`、`SPEC-119t`、`SPEC-120t`（7 个；`SPEC-119t` = **`spec/` 目录保护机制**，跨切面流程任务；`SPEC-120t` = **`encode_cfx` 定界/最小修正**〔用户裁定 3〕，2026-10-07 追加）
 
 ## 核验
 - 关联任务是否均已 `已验证`
@@ -15,6 +15,7 @@
 - `ISS-157` 以「条款撤销」`closed`；`ISS-110` 部分收口登记
 - `spec/README.md` 投影表 `DADAO-12/13/22/23` 行更新（`deferred`→实际落点）
 - `make check-no-residue` 干净
+- **`encode_cfx` 处置（`SPEC-120t`）**：汇编/编码层不再含实现期语义（用户裁定 3）；调研定界结论 + 所选候选（删除/降级）已落纸；`check-rule-refs`/`check-legality-drift` 绿（**默认不触 `spec/`**）
 
 ## 核验记录（主会话）
 

@@ -229,3 +229,19 @@
   - **规则正文**入 `spec/Process-06-spec目录保护规范.md`：**`spec/` 下任何新增/修改/删除（含 v5 自定册 `Machine-*`/`Process-*`/`spec/README.md`）均须用户"事先"明确允许，授权原话落盘**；上游只读册只作**只读引用**（引 `§` 章节号，不改一字）。
 - **已处置**：`DADAO-12`/`DADAO-22` 以 **`cp`+`md5` 还原**到 base `96f09f1`（md5 `83dec5ea…`/`a3070bd4…`，逐字一致；**未用** `git checkout/restore/stash`，见全局「注入/改动的还原纪律」）；`SPEC-114t` round2 返工后上游册**零改动**（20/20 md5 SAME），相关正文一律落新建 `spec/Machine-01-测试机运行环境.md`。
 - **✅ 已落地（`SPEC-119t`，2026-10-07）**：上「防复发」三处机制**全部实现并通过验收**——`manifests/spec-readonly.lock.toml`（上游 20 册 `sha256` 锁）+ `tools/infra/check_spec_readonly.py`（`if errors` **fail-closed**）+ `make check-spec-readonly`（**纳入 `make check`**）+ 规则正文 `spec/Process-06-spec目录保护规范.md`（①–⑤ 均 MUST）。reviewer **`Accepted`**、architect 交叉复核通过（20 册 `sha256` 独立重算全等、路径清单无多无漏、`spec/` 变更仅 `Process-06`+`README.md`〔无上游册〕、6 类反例注入均 FAIL 且 `cp`+md5 还原回绿）。范式见 §5.6。
+
+### 7.6 下发前预检第 2 项须核「本任务**验证手段**所需的全部前置」，非仅「任务书声明的依赖」（`SPEC-115t` BLOCKED，2026-10-07）
+
+- **事由**：`SPEC-115t`（re-scope：`trap`/`escape`/`cfx2rc`/`cfx2rd` 由 `scope: excluded` → `m1`）**依赖字段**列 `SPEC-114t`/`SPEC-113t`/`SPEC-119t`；但工程师在改动前核对**验收手段** `make check`，实测发现 `scope: excluded → m1` 会撞 **3 个跨模块门控**（均在 `make check` 内）：
+  1. `tools/testcases/validate_vectors.py` —— `tests/vectors/inventory.md` 的 M1 行集必须 == `contracts/opcodes.yaml` 的 `scope==m1` 集（探针实测 4×`INVENTORY MISSING`）；
+  2. `tools/integ/check_interface_alignment.py` —— `inventory.md` M1 计数 == `opcodes` M1 计数，且**每个 M1 `format` 族须有 lit `; OBJ:` 覆盖**（探针实测缺 `['ciii','crrr']`）；
+  3. `tools/llvm/validate_instrinfo.py` —— **每条 `scope==m1` 记录须有唯一 `.td` def**（探针实测 `151/155`）⇒ **必须** `LLVM-060t` 的 `.td`。
+  而 `LLVM-060t`/`TESTCASES-033t` 在原 Wave 顺序中**在 `SPEC-115t` 之后** ⇒ **本任务单发必红**，工程师 **BLOCKED（未实施、工作树零改动）**。
+- **根因**：`AGENTS.md`「下发前预检」第 2 项（**依赖链实际可用性**）被**窄化**为「核任务书 `依赖` 字段所指向的任务是否已验证/存在」，**未核**「**本任务验证手段**所需的**全部**前置（含跨任务的门控载体/工具产出）」。`SPEC-115t` 的 `依赖` 字段本身**没有漏**——漏的是「**门控载体（`inventory.md`/lit `; OBJ:`/`.td` def）由谁产出、是否在依赖链上游**」这一层。
+- **教训 / 判据（可复用）**：下发前预检第 2 项须把验收命令（如 `make check`）**逐个子门控拆开**，对**每个子门控**问三问：
+  1. 它**读哪些文件**（门控载体）；
+  2. 这些文件**由谁产出**（本任务？同仓库前置？跨模块前置？）；
+  3. 产者是否已在**本任务之前**（依赖链上游）且**已验证**？
+  凡「产物须在**同一原子变更**内出现的门控载体」（如 `inventory.md` 行集 == `scope==m1` 集）⇒ 必须**并入本任务文件集**或**前置**，不得留在下游任务（否则成环或红）。
+- **处置（本轮）**：用户裁定「**先 `LLVM-060t` 再 `SPEC-115t`**」⇒ `SPEC-115t` 重排（`LLVM-060t` 前置）+ 文件集扩至门控载体（`tools/spec/generate_opcodes.py`/`tests/vectors/inventory.md`/`tools/llvm/validate_instrinfo.py`）；`encode_cfx` 另立 `SPEC-120t`。详见 `SPEC-115t`/`INTEG-019k` 审阅记录「第 2 轮/第 7 轮 architect 重排落纸」。
+- **配套**：与 §7.2（跨载体门控：`validate_encoding` 只比字面值、跨载体门控才抓得到）同类——**编码/范围类改动的验收，须以跨载体门控为准，并识别其载体产者**。
