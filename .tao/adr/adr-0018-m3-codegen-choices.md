@@ -1,6 +1,6 @@
 # ADR-0018: M3 CodeGen 取舍点（C1–C17 已判）
 
-**状态**：Accepted
+**状态**：Accepted（rev. 2026-10-08: `§C7 D4` 大帧寻址改为**四形态 + 代价驱动**，见 `## 修订`）
 **日期**：2026-10-04
 **决策者**：用户（逐条确认，见 `project_M3-codegen-choices.md §5`）
 **关联**：`SPEC-096k`（M3 启动与分解）；`.tao/knowledge/project_M3-codegen-choices.md §5`（权威判定）；任务 `INFRA-035t`/`SPEC-097t`/`LLVM-033t`–`041t`/`TESTCASES-026t`/`INTEG-012t` 及各模块 `m`
@@ -42,7 +42,7 @@
 - **D1**：`hasFPImpl` 采用**标准条件式** —— `hasFPImpl = DisableFramePointerElim ∨ hasVarSizedObjects ∨ isFrameAddressTaken ∨ hasStackRealignment`。
 - **D2**：默认 **SP-only（rb1）**；上述条件成立或有选项时 → **FP = rb2**。
 - **D3**：`getFrameRegister = hasFP ? rb2 : rb1`（C8 的条件式落地；替代现行恒返回 `rb2`）。
-- **D4**：大帧：**方案2 为主**（`rb2rb` + `add.si`，≤±128K，单/多寄存器都支持）；方案1（rd 存偏移 + `ldm/stm`）仅 **>128K**。
+- **D4**（rev. 2026-10-08，**四形态 + 代价驱动**；原「方案2 为主 / 方案1 仅 >128K」口径已被本次修订取代，见 `## 修订`）：大帧寻址 = **四形态**——① `[sp, disp12]`；② `rb2rb` + `add.si`；③ `add.o tmprb, sp, tmp` + `[tmprb, disp]`；④ `ldm/stm [sp, tmp]`（`immu6`=1 单次、>1 批量）。**由编译器按代价（指令数 × 访存条数/复用次数）选择**。
 - **D5**：**M3 现在实现**（帧布局、prologue/epilogue、大帧方案2）。
 - **D6**：`rb2` **始终 reserved**（可能是 FP）；RA/RF **保留不分配**（M3 边界）；`rd1-7`/`rb3-7` 保留；保留方式统一为 **`isAllocatable=0` + 显式 `Reserved.set` 双保险**。
 
@@ -104,7 +104,7 @@
 
 - 条件式兼顾两者：默认 SP-only 与 0628 已验证实现一致；条件成立（变长对象/取帧地址/栈重对齐/禁用消除）时建 FP，覆盖 SP-only 无法处理的场景。
 - 「rb=基址」下 FP 作为帧基址正是 RB 的本职用途；但 `rb2` 非通用，故 D6 始终保留。
-- 大帧以两寄存器形式（`add.so` 的 base+offset）为主，覆盖单/多寄存器访问；`ldm/stm` 仅在 >128K 且需要长偏移时使用。
+- 大帧寻址**按代价在四形态间选择**（rev. 2026-10-08，见 `## 修订`）：`[sp, disp12]` 位移仅 12 位但最省；`rb2rb` + `add.si` 覆盖中等位移；`add.o tmprb, sp, tmp` + `[tmprb, disp]` 覆盖单次大偏移；`ldm/stm [sp, tmp]` 覆盖批量（`immu6`>1）或单次大偏移（`immu6`=1）。由编译器按「指令数 × 访存条数/复用次数」择优。
 
 ### C9
 
@@ -160,7 +160,7 @@
 
 - **R1（否决）**：`hasFP` 恒 true（TCH 式，每函数都建 FP）。理由：牺牲 leaf 函数、与 0628 实践相悖，代价无谓。
 - **R2（否决）**：无条件 SP-only（0628 式，永不建 FP）。理由：无法覆盖 `hasVarSizedObjects`/`isFrameAddressTaken`/`hasStackRealignment` 等场景。
-- **R3（否决）**：大帧以方案1（`ldm/stm` + rd 存偏移）为主。理由：>128K 才需要；≤±128K 用方案2 更直接。
+- **R3（否决；rev. 2026-10-08 口径更新）**：大帧**固定**以方案1（`ldm/stm` + rd 存偏移）为主。理由：不再有固定「为主」方案——改为**按代价在四形态间选择**（`D4` rev. 2026-10-08，见 `## 修订`）。
 
 ### C9
 
@@ -209,7 +209,7 @@
 
 ### C7
 
-- `LLVM-038t` 实现条件式 `hasFPImpl`、`getFrameRegister`、`emitPrologue`/`emitEpilogue`、`eliminateFrameIndex`、大帧方案2。
+- `LLVM-038t` 实现条件式 `hasFPImpl`、`getFrameRegister`、`emitPrologue`/`emitEpilogue`、`eliminateFrameIndex`、大帧方案2（rev. 2026-10-08：大帧策略见 `D4` 修订；M6 由 `LLVM-064t` 落**四形态 + 代价驱动**）。
 - `SPEC-097t` 在 `contract-abi.md §4` 给出帧指针策略 M3 口径并更新 §6 `[OPEN] #5`；`rb2` 始终 reserved 的 ABI 事实以 `contract-abi.md`/`abi.yaml` 为准。
 - `LLVM-033t` 的 RA/RF 保留配置按 D6 双保险落实。
 
@@ -254,8 +254,23 @@
 - **C14**：`.tao/knowledge/contract-isa.md §7`；`spec/SimRISC-05 §比较`、`spec/SimRISC-00 §基址寄存器`；台账 `ISS-129`/`ISS-130`。
 - **C16**：`.tao/knowledge/contract-abi.md §1.5`/`§1.6`/`§4`；`spec/DADAO-21 §寄存器规范`、`§函数调用规范`；溯源教训 0628 `DL-070a`、`ML-004c`。
 
+## 修订
+
+**rev. 2026-10-08（用户 2026-10-08 逐条确认；`SPEC-122t`；`ISS-138`）**：`§C7 D4` 大帧寻址由「方案2 为主（`rb2rb` + `add.si`，≤±128K，单/多寄存器都支持）；方案1（rd 存偏移 + `ldm/stm`）仅 >128K」**修订为「四形态 + 代价驱动」**：
+
+- **① 四形态**：`[sp, disp12]` / `rb2rb` + `add.si` / `add.o tmprb, sp, tmp` + `[tmprb, disp]` / `ldm/stm [sp, tmp]`（`immu6`=1 单次、>1 批量）。
+- **② 代价驱动**：由**编译器按代价（指令数 × 访存条数/复用次数）选择**，不再「固定方案2 为主 / 方案1 仅 >128K」。
+- **③ 用户细化（原话摘要）**：第四形态**不仅适用于批量访存，也适用于单次且偏移大的情况**；第三形态若为单次且 `disp` 为 0，则**无必要引入 `tmprb`**；`ldm/stm [sp, tmp]` 的 `immu6`=1 即单次、>1 批量。
+- **动机**：原「固定方案2 为主」无法覆盖 (a) 单次但偏移超 ±128K、(b) 批量访存高复用场景；四形态 + 代价驱动让编译器按实际指令数/访存条数择优。
+- **被否方案（口径更新）**：`R3` 的「大帧**固定**以方案1（`ldm/stm` + rd 存偏移）为主」——否决理由更新为：不再有固定「为主」方案，改为代价驱动。
+- **变更范围**：`**状态**` 行 rev 日期、`§C7 D4` 正文、`§C7` Rationale 与被否方案 `R3`、`§C7` Consequences 注记、本 `## 修订` 条目。**不变**：`C7` 的 `D1`/`D2`/`D3`/`D5`/`D6` 及其余全部 decision。
+- **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03`/`adr-authoring` 的一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-08`）。
+- **用户逐条确认证据**：见 `.tao/tasks/spec/SPEC-122t-ADR决策落地.md` 完成区（Q4 ① + 用户原话摘要）。
+- **实现落点**：`ISS-138`（>128K 帧未实现）；M6 由 `LLVM-064t` 实现四形态（按代价选择）。
+
 ## 状态说明
 
 - 2026-10-04：C1/C2/C4/C5/C7/C9/C11/C13/C14/C16 的 32 条 decision 经用户逐一审核**无变化、直接通过**；本 ADR 由原 10 条草案合并为单文件，置 **`Accepted`**。
 - C17（无标志位 compare-branch）按用户裁定**只落任务书约束**（`LLVM-037t`），不立 ADR；C6（CSR）归 ABI（`SPEC-097t`）。
+- 2026-10-08：**`§C7 D4` 就地修订**（用户逐条确认）——大帧寻址改为**四形态 + 代价驱动**（详见 `## 修订`）；其余 decision 不变。
 - 后续如需变更任一 decision，按 `spec/Process-03-ADR编写规范.md`（新增 ADR / 标注 `Superseded` / 经授权的就地修订），并仍须逐条经用户确认。
