@@ -366,3 +366,19 @@
   blocks: []
   resolved_by: null
   notes: "QEMU-044t 遗留（architect 交叉复核判定需跟踪）。`DADAO-12 §5` 步骤 2 依 `cfx_⟨cfxname⟩_excp_cause_nonmaskable` 判定——而 §4 异常原因表把 **monitor（umon/jmon/smon/hmon）的全部 listed cause 标为『否』（不可屏蔽）**，故步骤 3（`inner_cfx_mask`）/步骤 4（`cfx_⟨cfxname⟩_<mode>_global_cfx_mask`）/步骤 5（`excp_cause_mask`）对 monitor 同步异常**一律跳过**。当前测试机只实现 `cfx0/1/2/3/63`（monitor + power），其余已分配 cfx（ptw=4/tlb=5/cache=6/timer=18/uart=62…）访问 ⇒ `CFXREG`（路由回当前 mode monitor）；reserved/被指令类型 mask 禁止 ⇒ `ILLI`（亦路由回 monitor）。**结论：可观测的『mask ⇒ ILLI』路径仅为步骤 1 的『指令类型 cfx mask』**（探针 `mask_illi` 即以 cfx_umon hypv `trap_cfx_mask` bit0 证明）。步骤 3/4 的 `inner_cfx_mask`/`global_cfx_mask` 屏蔽 ⇒ ILLI 重定向、步骤 5 的 `excp_cause_mask` 屏蔽 ⇒ `pending` **均不可观测**（探针仅验证 `global_cfx_mask` 为真实 per-mode 全局共享 RW、`excp_cause_mask` 为真实 RW）。**跟踪理由**：当后续里程碑实现带**可屏蔽 cause** 的 cfx（ptw/tlb/cache/timer/uart 等）后，须补验步骤 3/4/5 的 ILLI 重定向与 `pending` 置位路径——否则该分支可能长期未被任何向量触达。另：`escape`/`trap`（负偏移回退、跨 cfx escape、`cfx2rd`/`cfx2rc` 全寄存器面）的完整语义归 `QEMU-045t`，非本项范围；PTBR 权限层（`NUPERM/NJPERM/NSPERM/NHPERM`）不在 M5（`ADR-0020 D9`、`spec/Machine-01 §3`），非本项范围。"
+
+- id: ISS-165
+  title: "C1 step2 迁移（RAM@0 收口，跨模块）：旧向量/harness/crt0/e2e 迁到 0 + 删旧 RAM 段 + 收紧 check-interface 断言"
+  status: open
+  scope: [testcases, qemu, integ, M5]
+  blocks: []
+  resolved_by: null
+  notes: "QEMU-049t 遗留（C1 step1 已落地：RAM@0 = 0x0000_0000_0000 / 16 MiB〔cfxha 0 = umon〕与旧 RAM 段 0xffff_0000_0000 双映射并存）。step2 = 旧向量/harness/crt0/e2e 迁到 0 + 删旧 RAM 段 + 收紧 check-interface 断言；另立、M5 之外（编号/归属待 M6 规划或另立时确定）。跨模块影响：① tests/vectors/**（如 isa/{mem-rd,mem-rb,mem-ra,ctrl-*}.yaml 以 EA=0 作 unmapped 的用例）；② tools/qemu/*.py 探针（如 min_rom_probe_010t.py 的 T6/T18）——既有『EA=0 ⇒ unmapped 0x87』向量/探针在 R3（RAM 基址改全 0）下失效（EA=0 变为合法 RAM）。当前不在任何 make 门控内（check-qemu-semantics 只跑 reg-shift-extend/reg-compare）⇒ 门控全绿、step2 不阻塞 M5 门槛。附带项（同归 step2）：harness FAULT_NAMES 未扩（未列 0x81）；0x81 复用 ADR-0004 D5.8 冻结表已保留区、0x87–0x8D 未重排。"
+
+- id: ISS-166
+  title: "Machine-01 §1 未完全覆盖越界路由口径与 RAM@0 容量（QEMU-049t 已落地三条，spec 待用户授权收口）"
+  status: open
+  scope: [spec, qemu, M5]
+  blocks: []
+  resolved_by: null
+  notes: "QEMU-049t 按 ADR-0020 D15 落地三条口径：① umon 段（addr[47:42]==0）越界访问/取指 ⇒ CFXMEM（0x81）；② 其余段（含旧 power 段 63）越界 ⇒ 测试机约定 unmapped（0x87）；③ RAM@0 容量 = 16 MiB。核 spec/Machine-01 §1（v5 自定册）现行措辞：未完全覆盖——(a) §1.1 表 RAM@0 大小仍是占位『【待 QEMU-049t 定】』（无 16 MiB）；(b) §1.2 末条显式把『精确路由与 RAM@0 容量』委派给 QEMU-049t，未写具体口径；(c) §1.2『层次与适用』条『cfxha 段内的非法子区间、越界访问/取指 ⇒ CFXMEM』按字面也覆盖 power 段 63 ⇒ 与已落地路由（power 63 ⇒ 0x87）歧义。处置：不改 spec/（spec 改动须用户事先授权，见 lessons §8.5 / Process-06）；差异清单 + 拟改文本见 .tao/tasks/qemu/QEMU-049t-RAM0双映射.md 审阅记录『第 1 轮 architect 提交（WIP）』，交主会话提请用户授权。"

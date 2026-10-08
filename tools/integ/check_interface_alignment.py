@@ -346,6 +346,91 @@ def check_adr_alignment():
         record(cat, "RAM_SIZE=16MiB", "FAIL",
                "QEMU patch 未找到 DADAO_RAM_SIZE")
 
+    # --- RAM@0 (C1 step1) base = 0x0000_0000_0000, size = 16 MiB ---
+    # Source: ADR-0004 R3 (RAM base -> all zero) + ADR-0020 D15 (internal
+    # address space split + C1 step1 dual mapping) + spec/Machine-01 §1.1.
+    # The legacy RAM assertions above are intentionally kept (step1 is a
+    # transition state; step2 removes the legacy segment).
+    ram0_base_exp = 0x0000_0000_0000
+    ram0_size_exp = 16 * 1024 * 1024
+    ram0_base_match = re.search(r'DADAO_RAM0_BASE\s+(0x[0-9a-fA-F]+)', patch_content)
+    ram0_size_match = re.search(
+        r'DADAO_RAM0_SIZE\s+\((\d+\s*\*\s*\d+\s*\*\s*\d+)\)', patch_content)
+    if ram0_base_match:
+        actual = int(ram0_base_match.group(1), 16)
+        if actual == ram0_base_exp:
+            record(cat, f"RAM0_BASE=0x{ram0_base_exp:X}", "PASS",
+                   f"QEMU: DADAO_RAM0_BASE = {hex(actual)}")
+        else:
+            record(cat, f"RAM0_BASE=0x{ram0_base_exp:X}", "FAIL",
+                   f"期望 0x{ram0_base_exp:X}, 实际 {hex(actual)}")
+    else:
+        record(cat, f"RAM0_BASE=0x{ram0_base_exp:X}", "FAIL",
+               "QEMU patch 未找到 DADAO_RAM0_BASE")
+
+    if ram0_size_match:
+        actual = 1
+        for f in ram0_size_match.group(1).split("*"):
+            actual *= int(f.strip())
+        if actual == ram0_size_exp:
+            record(cat, "RAM0_SIZE=16MiB", "PASS",
+                   f"QEMU: DADAO_RAM0_SIZE = {actual} ({actual // (1024*1024)} MiB)")
+        else:
+            record(cat, "RAM0_SIZE=16MiB", "FAIL",
+                   f"期望 {ram0_size_exp}, 实际 {actual}")
+    else:
+        record(cat, "RAM0_SIZE=16MiB", "FAIL",
+               "QEMU patch 未找到 DADAO_RAM0_SIZE")
+
+    # --- RAM@0 registration in hw/dadao (init_ram + add_subregion) ---
+    # Source: ADR-0020 D15 (machine model maps RAM@0) / spec/Machine-01 §1.1.
+    if re.search(r'memory_region_init_ram\(\s*ram0\b[^;]*DADAO_RAM0_SIZE',
+                 patch_content, re.DOTALL):
+        record(cat, "RAM0 hw registration (init_ram)", "PASS",
+               "hw/dadao: memory_region_init_ram(ram0, ..., DADAO_RAM0_SIZE)")
+    else:
+        record(cat, "RAM0 hw registration (init_ram)", "FAIL",
+               "QEMU patch 未找到 RAM@0 的 memory_region_init_ram 注册")
+
+    if re.search(r'memory_region_add_subregion\(\s*system_memory\s*,\s*'
+                 r'DADAO_RAM0_BASE\s*,\s*ram0\s*\)', patch_content):
+        record(cat, "RAM0 hw registration (add_subregion)", "PASS",
+               "hw/dadao: add_subregion(system_memory, DADAO_RAM0_BASE, ram0)")
+    else:
+        record(cat, "RAM0 hw registration (add_subregion)", "FAIL",
+               "QEMU patch 未找到 RAM@0 的 memory_region_add_subregion 注册")
+
+    # --- CFXMEM exit code = 0x81 (ADR-0004 D5.8; ADR-0020 D15) ---
+    cfxmem_match = re.search(r'DADAO_EXIT_CFXMEM\s*=\s*(0x[0-9a-fA-F]+|\d+)',
+                             patch_content)
+    if cfxmem_match:
+        raw = cfxmem_match.group(1)
+        actual = int(raw, 16) if raw.startswith("0x") else int(raw)
+        if actual == 0x81:
+            record(cat, "EXIT_CFXMEM=0x81", "PASS",
+                   f"QEMU: DADAO_EXIT_CFXMEM = 0x{actual:02X}")
+        else:
+            record(cat, "EXIT_CFXMEM=0x81", "FAIL",
+                   f"期望 0x81, 实际 0x{actual:02X}")
+    else:
+        record(cat, "EXIT_CFXMEM=0x81", "FAIL",
+               "QEMU patch 未找到 DADAO_EXIT_CFXMEM")
+
+    # --- CFXMEM routing boundary: umon segment cfxha == 0 ---
+    # Source: ADR-0020 D15 (routing: cfxha-0 OOB => CFXMEM; others => 0x87).
+    umon_match = re.search(r'DADAO_CFXHA_UMON\s+(\d+)', patch_content)
+    if umon_match:
+        actual = int(umon_match.group(1))
+        if actual == 0:
+            record(cat, "CFXHA_UMON=0 (CFXMEM routing)", "PASS",
+                   f"QEMU: DADAO_CFXHA_UMON = {actual}")
+        else:
+            record(cat, "CFXHA_UMON=0 (CFXMEM routing)", "FAIL",
+                   f"期望 0, 实际 {actual}")
+    else:
+        record(cat, "CFXHA_UMON=0 (CFXMEM routing)", "FAIL",
+               "QEMU patch 未找到 DADAO_CFXHA_UMON")
+
     # --- Exit port base = 0xffff_8000_0000, size = 8 ---
     # Source: ADR-0004 §D3
     exit_base_exp = 0xFFFF_8000_0000

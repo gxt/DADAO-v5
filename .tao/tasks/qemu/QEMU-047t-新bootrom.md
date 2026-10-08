@@ -16,6 +16,7 @@
   - `spec/DADAO-12 §2.1`（复位向量 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`，64 KiB）；`§3`（cfx 寄存器初始化：异常向量 `cfx_umon_user_excp_vector`、`global_cfx_mask` 清除对应位等，`DADAO-22 §3` 初始化范式）；`spec/DADAO-22 §1`（调用/返回约定，`escape cfxha,[excp_cause_ip,4]`）。
   - `.tao/knowledge/contract-elf.md §5/§6`（`EM_DADAO=0x0DA0`、`e_flags=1`、段对齐 `.text 4B`、VA=PA；ELF 路径 `-kernel image.elf` 取 `e_entry`；raw-bin 双镜像路径 `-bios rom.bin -kernel test.bin`）；`tests/scripts/dadao.lds`（M4 链接脚本，地址布局参考）。
   - `spec/Process-01`（补丁纪律，若涉 `components/**`）。
+  - **组件现状（`QEMU-049t` 遗留，实测，前置风险）**：`hw/dadao/dadao-machine.c` 的 `dadao_load_regions[]` 仍**仅列旧 RAM 段 + ROM**，**未纳入 RAM@0** ⇒ 链接进 RAM@0 的 **ELF 镜像段暂不可加载**。**若本任务的应用/bootrom ELF 链进 RAM@0，须扩该表（加入 RAM@0 区）并加对应验证**（不扩则 ELF 段加载失败）。
 - **输出**：
   1. **bootrom 固件源码**（自有汇编 + 自有工具链）：初始化——设置各 cfx（至少 `cfx_umon`/`cfx_power`）的异常向量、`global_cfx_mask`/指令类型 mask 允许所需调用；**初始化完成后 hypv → user 直跳**（设置 `switch_run_mode` + 经 `escape` 或等价路径进入 user；**本版不启用 supv、不涉及 smon**）。**落点（用户裁定 2026-10-07）：固件源码放 `tests/scripts/`**。
   2. **构建/链接接入（`Makefile`）**：用自有工具链（`llvm-mc`/`ld.lld` + `dadao.lds` 式链接脚本）汇编/链接 bootrom；**含 bootrom 链接脚本**——地址布局对齐 `0xffff_ffff_0000` 的 **64 KiB ROM 区**、段序/对齐依 `ADR-0004`/`contract-elf`；产物 = bootrom 镜像（`-bios` 加载格式）。**生成物落点（用户裁定 2026-10-07）：放 `.dadao/` 下**——按落点规则：**运行产物默认 `.dadao/tests/`**；能靠配置解决的不算"难"，一律放 `.dadao/`（建议 `.dadao/tests/bootrom/`）。
@@ -32,6 +33,7 @@
   - **重建成本申报**：`make build-qemu`（**5–20 分钟**）+ `build-mc`/`build-lld`（增量）；开工前写明预计耗时；受 `JOBS` 限制；失败即停、**禁自动重试**。
   - 临时目录 `/tmp/opencode/QEMU-047t/`；**不提交 git**；复杂命令输出留存 `.work/log/qemu/`（**禁 `tee`**）。
   - **注入/还原纪律**：注入后**还原须含重建**；`cp`+`md5` 对账，**禁 `git checkout`/`git restore`/`git stash`**。
+  - **前置风险（`QEMU-049t` 遗留，`lessons.md §7.6`）**：ELF 加载器 `dadao_load_regions[]` 未纳入 RAM@0——**下发前须核实本任务验证手段是否需要 ELF 段落到 RAM@0**（bootrom 经 `-bios` 走 ROM、应用栈/数据在 RAM@0；若应用本体也链进 RAM@0 则须扩表）。据核实结果决定是否把「扩 `dadao_load_regions[]` + 验证」并入本任务文件集；**不得重演「验收手段前置未核」**。
 
 ## 验收标准
 
