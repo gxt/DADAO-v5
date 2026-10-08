@@ -1,68 +1,80 @@
-# INTEG-023k: M6 启动与分解（目标/边界 + 待裁定；长叙述见 `.work/log/integ/INTEG-023k-detail.md`）
-
-**模块**：integ
-**项目里程碑**：M6
+# INTEG-023k: M6 启动与分解（用户逐条裁定落纸 + 任务分解草案）
+**模块**：integ　**项目里程碑**：M6　**状态**：待开始
 **依赖**：`INTEG-021m`（M5 integ 里程碑，`里程碑`）、`INTEG-022t`（M5 归档，`已验证`）；无硬前置
-**状态**：待开始
+> 用户 **2026-10-08 逐条裁定** M6 的 **20 项内涵 + 12 条 LLVM 欠账**（§A/§B）；本 `k` 只**落纸 + 出分解草案（§C/§D）**，**不建 `t`/`m`、不改 `spec/`**。长叙述见 `.work/log/integ/INTEG-023k-detail.md`。
 
-> **定位**：用户 2026-10-08 已给 M6 方向（4 点，见 detail §用户裁定落纸）；**任务分解、门槛、关键取舍待用户裁定**。**不预设** `milestones.md` 门槛/任务清单，**不占编号**。原文全文（318 行）**逐字**见 `.work/log/integ/INTEG-023k-detail.md`。
+## A. M6 内涵逐项裁定（#1–#20，**用户 2026-10-08 逐条裁定**）
 
-## 目标 / 边界
+| # | 内涵项 | 裁定 |
+|---|---|---|
+| 1 | 整数完整调用约定（变参/聚合/`sret`/多返回/间接调用） | **纳入**（M6 核心） |
+| 2 | FP/RF codegen | **纳入**，**排整数之后** |
+| 3 | `mem*`/内建/运行时 | M6 **不引 libc**：`mem*`/`str*` 自写最小实现 + 后端 **`MaxStoresPerMem*=16`**；真实程序留 M7；compiler-rt 与 libc 正交，取舍随 #2 软浮点 |
+| 4 | LLVM 欠账收口 | **纳入**（逐条见 §B） |
+| 5 | clang 前端 | **纳入**（= 钉子①，**只用于 freestanding**） |
+| 6 | 最小 libc | **不纳入** |
+| 7 | OS/syscall | **不纳入** |
+| 8 | `REL12` | **纳入**（与 #9 合并为「`ld/st` 符号偏移 reloc 体系」；**须 ADR 逐条确认**） |
+| 9 | `ISS-151` | **纳入**（**新增专用 reloc 类型，不复用 `REL20`**；**必须覆盖超出 `REL12` 的情形**） |
+| 10 | `ISS-154` | **纳入**；`ABS48` 数据 8 字节字段表示 = **48 位地址、大端存储、高 16 位填 0** |
+| 11 | `ADR-0019 D7` | **留后** |
+| 12–14 | QEMU ELF 直载 | **改走 `load_elf()`**（取消自建 `dadao_load_regions[]` 白名单；多段 `PT_LOAD`/RELA/`e_entry`/栈由 `load_elf()` 提供 ⇒ 作**验证项**）；**`-bios`+ELF 组合不需要** |
+| 15 | RAM@0 尺寸 | **维持 16 MiB** |
+| 16 | `ISS-165` step2 | **纳入**（随 M6） |
+| 17 | oracle | **采纳 `lli` 作值级 oracle**；构建 = **一次构建**（`LLVM_TARGETS_TO_BUILD="DADAO;X86"`，产出 `clang`/`llc`/`ld.lld`/`lli`）+ **两处落点**（交叉工具链 → `.dadao/cross-toolchain/bin/`；host `lli` → `.dadao/host-tools/bin/`〔可选〕），**随 M6 clang 构建一并做**；边界 = **只做值级**（端序/内存布局类排除）、**IR 需兼容**、**同源性质 = 证「IR 语义被保持」** |
+| 18 | 上游 IR 素材 | **纳入**（编译/编码层 + 有 `lli` 时值级对拍；**不寄望其提供执行语义判据**） |
+| 19 | lit 量产 | **纳入**（骨架 agent 生成 + 期望值**从 `spec`/`contracts` 机械派生**、**禁从 `llc`/QEMU 结果反填**；对拍类**运行期比对**；目标**数百**〔对齐 0628：lit 81 + 差分 200〕；分层 = **快档入 `make check`、全量档 opt-in**） |
+| 20 | fuzz | **后置 M7** |
 
-**M6 定位**：完整 LLVM（**编译正确性**为重点）+ QEMU **直接加载 ELF** 测试 + **链接器更完善** + **RAM@0 起、1–4 GiB**（按测试实际需求定）。
-- **主线**：编译正确性；核心问题 = **如何进行大量测试**（测试策略/规模/自动化 = 设计主线，非附属）。
-- **测试路径**：QEMU 直接加载 ELF（非 `objdump` bin + bootrom）。
-- **边界（待裁定）**：`clang` 前端 / 最小 `libc` / OS-syscall 是否纳入；`-bios`+ELF 组合是否保留；「完整 LLVM」内涵。
-- **纪律**：**不改 `spec/`**；`spec/Machine-01 §1`（只读册）尺寸改动**须先经用户授权**。
+## B. LLVM 欠账 12 条裁定（#4 展开，**用户 2026-10-08 逐条裁定**）
 
-## 三根钉子（M6 **前三项具体交付**，生态接入式）
+- **逐条**：`ISS-043` 纳入 / `ISS-045` 纳入 / `ISS-047` 纳入 / `ISS-108` 纳入（**拆分文件**）/ **`ISS-110` 全留后** / `ISS-148` 纳入（**做法 = 消除硬编码计数**，非改数字）/ `ISS-151` 纳入（= #9）/ `ISS-156` 纳入 / `ISS-159` 纳入 / `ISS-161` 纳入（含 `REL12`；另修 `FK_Data_1/2/4` **静默出 0**）/ `ISS-162` 纳入。
+- `ISS-138` 纳入：大帧寻址 = **四形态**（①`[sp,disp12]` ②`rb2rb`+`add.si` ③`add.o tmprb,sp,tmp`+`[tmprb,disp]` ④`ldm/stm [sp,tmp]`〔`immu6`=1 单次、>1 批量〕），**由编译器按代价（指令数 × 访存条数/复用次数）选择**；**须修订 `ADR-0018 C7 D4`**〔逐条确认〕。
+- `ISS-156`：**用户已授权改 `spec/Toolchain-01 §6.1`**，口径 = `rd2rf rfx, rd0` + **仅非零 `wp` 的 `set.w`**（`set.fo rf,0` ⇒ 1 条）；**并同步该册 `sha256` 锁**。
+> **用户新规范口径**：文档/注释/任务书/验收**不得硬编码计数**（需要时由脚本/门控现场统计，或写「不下降/逐项相等」；门控计数须**派生自单一真源**）。
+## C. M6 任务分解草案（体例照 `INTEG-019k`；**只出编号/范围，不建文件**）
 
-> **口径更正（2026-10-08）**：本节原写「RAM@0 尺寸 / 完整 LLVM 内涵边界 / 测试策略」系**误读**；主会话原话语境 = **M6 前三项具体交付**（下列 ①②③）。原三项**属待用户裁定**，已移入 §需用户裁定。
+| 编号 | 任务 | 模块 | 范围（草案） | 依赖 |
+|---|---|---|---|---|
+| `INTEG-023k` | M6 启动与分解（本文件） | integ | 本 `k` + 分解草案 + `milestones.md` M6 定义（待 `/plan` 后） | 无 |
+| `INFRA-050t` | LLVM 一次构建 + 双落点 | infra | `LLVM_TARGETS_TO_BUILD="DADAO;X86"` 产出 `clang`/`llc`/`ld.lld`/`lli`；落 `.dadao/cross-toolchain/bin/`（交叉）+ `.dadao/host-tools/bin/`（host `lli`，可选）；`Makefile`/`install-dirs` 同步 | 无 |
+| `INFRA-051t` | Embench 组件接入 | infra | ADR 记录上游+commit ⇒ `manifests` 翻 `enabled=true`；建 `components/embench-iot/{patches,series}` 骨架 + `make fetch` 落 `.work/source/embench-iot` | `SPEC-122t` |
+| `SPEC-122t` | ADR 决策落地（逐条用户确认） | spec | ①`ADR-0018 C7 D4` 修订（大帧四形态/代价驱动）②新 ADR「`ld/st` 符号偏移 reloc 体系」③Embench 上游选择 ADR ④组合加载语义 ADR（判断见 §D） | 无 |
+| `SPEC-123t` | reloc 正文 + `Toolchain-01 §6.1` | spec | `contract-elf §2–§4`（`REL12`/新类型/`ABS48` 数据 8B 字段〔`ISS-154`〕）+ `spec/Toolchain-01 §6.1` 修订（`ISS-156`）+ 该册 `sha256` 锁同步 | `SPEC-122t` |
+| `SPEC-124t` | 调用约定契约收口 | spec | `contract-abi §6` 3 项 `[OPEN]`（多返回值声明顺序/red zone/`i128`）消解 | `SPEC-122t` |
+| `SPEC-125m` | M6 spec 里程碑 | spec | `m` 文件 | `SPEC-122t`~`124t` |
+| `LLVM-062t` | 整数完整调用约定 + 小欠账 | llvm | 变参/聚合/`sret`/多返回/间接调用（`ISS-005/006`）+ `ISS-043/045/047/148/159/162`；**`ISS-110` 留后** | `INFRA-050t`、`SPEC-124t` |
+| `LLVM-063t` | DADAO clang target（钉子①） | llvm | `TargetInfo`/DataLayout/ABI/driver/sysroot；**只用于 freestanding**；模板 = RISC-V64 形状 + PPC64BE 端序/DL + AArch64 CC | `INFRA-050t`、`SPEC-124t` |
+| `LLVM-064t` | 大帧寻址 + `mem*` 内建 | llvm | `ISS-138` 四形态（按代价选择；落 `ADR-0018 C7 D4` 修订）+ `mem*` 内建 + 后端 `MaxStoresPerMem*=16` | `LLVM-062t`、`SPEC-122t` |
+| `LLVM-065t` | lld reloc 完善 | llvm | `REL12` + 新专用类型（`ISS-151/161`）+ `FK_Data_1/2/4` 静默出 0；`ISS-108` 拆分文件 | `SPEC-123t`、`INFRA-050t` |
+| `LLVM-066t` | FP/RF codegen | llvm | FP/RF（**排整数之后**；`ISS-081/126/078`；含 compiler-rt 软浮点取舍随 #2） | `LLVM-062t`、`SPEC-122t` |
+| `LLVM-067m` | M6 llvm 里程碑 | llvm | `m` 文件 | `LLVM-062t`~`066t` |
+| `QEMU-050t` | 改走 `load_elf()`（钉子②） | qemu | 复用 `hw/core/loader.c`；**取消**自建 `dadao_load_regions[]` 白名单；多段 `PT_LOAD`/RELA/`e_entry`/栈初始化作**验证项** | 无（M5 已验证态） |
+| `QEMU-051t` | RAM@0 step2（`ISS-165`） | qemu | 旧向量/harness/`crt0`/e2e 迁 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧 `check-interface` 断言 | `QEMU-050t`、`TESTCASES-034t`（已验） |
+| `QEMU-052m` | M6 qemu 里程碑 | qemu | `m` 文件 | `QEMU-050t/051t` |
+| `TESTCASES-036t` | 新能力向量（L1+L3） | testcases | 调用约定/reloc/大帧/FP-RF 的 L1 编码 + L3 执行向量；**独立 oracle**（禁从 LLVM/QEMU 反填） | `LLVM-062t`~`066t`、`QEMU-050t` |
+| `TESTCASES-037t` | lit 量产 | testcases | 骨架 agent 生成 + 期望值**从 `spec`/`contracts` 机械派生**（禁反填）；目标数百；分层：**快档入 `make check`、全量档 opt-in** | `LLVM-062t`、`QEMU-050t` |
+| `TESTCASES-038t` | 上游 IR + `lli` 值级对拍 | testcases | 上游 `.ll` 当输入（编译/编码层）+ 有 `lli` 时值级对拍（证「IR 语义被保持」）；**不作执行语义判据** | `LLVM-063t`、`INFRA-050t` |
+| `TESTCASES-039t` | Embench 接入（钉子③） | testcases | board shim 3 函数（`initialise_board`/`start_trigger`/`stop_trigger`）+ 最小运行时（`mem*/str*/ctype/sqrt`）+ `md5sum` 大端适配；**首验收 = 最小基准 QEMU 正确退出码** | `INFRA-051t`、`LLVM-062t/063t`、`QEMU-050t` |
+| `TESTCASES-040m` | M6 testcases 里程碑 | testcases | `m` 文件 | `TESTCASES-036t`~`039t` |
+| `INTEG-025t` | E2E + `make test-m6` 门控收口 | integ | 驱动 `lli` 对拍/Embench/lit 全量档；新 target `test-m6`（**opt-in，不进 `make check`**）；`check` 收口 | `TESTCASES-036t`~`039t`、`LLVM-065t`、`QEMU-051t` |
+| `INTEG-026m` | M6 integ 里程碑（整体收敛） | integ | `m` 文件 | `INTEG-025t` |
 
-1. **DADAO clang target**：`TargetInfo` / DataLayout / ABI / driver / sysroot；**模板** = RISC-V64 形状 + PPC64BE 端序/DL + AArch64 CC。**当前唯一硬缺口**（无 clang 二进制、补丁集无 clang 侧 `TargetInfo`）。
-2. **QEMU 改走 `load_elf()`**：复用**生态现成件** `hw/core/loader.c`（**36 处复用**）⇒ **一次**解决 ELF 直载 / 多段 / 入口，并**取消**「扩 `dadao_load_regions[]`」这类**自建 loader** 的后续工作。
-3. **Embench 接入**：board shim 3 函数（`initialise_board`/`start_trigger`/`stop_trigger`）+ 最小运行时（见 §关键结论）+ `md5sum` 大端适配。**首验收** = 最小基准在 QEMU 打出**正确退出码**（`main` 返回 `!correct`）。
+## D. Wave/串行链 · 前置 ADR · 说明
 
-## 需用户裁定（结论式）
-
-> **口径更正（2026-10-08）**：原「三根钉子」误含下列三项；三项**实为待用户裁定**（非 M6 交付）。
-
-### 原被误置为「三根钉子」的三项
-
-1. **RAM 尺寸 / 地址空间**：维持 16 MiB 还是 1/2/4 GiB？是否授权改只读册 `spec/Machine-01 §1` + 锁？（配套见下 §其余裁定项 #1、#2）
-2. **「完整 LLVM」内涵边界**：完整调用约定（整数）/ FP-RF codegen / intrinsic / llvm 欠账收口 / clang-libc，逐项纳入与否（detail §D.1，20 项；见下 #3）。
-3. **测试策略（如何大量测试）**：golden（独立 oracle）/ 上游 IR 素材复用 / lit 量产 / fuzz / C 程序链路，选组合（detail §D.2 两轴）。
-
-### 其余裁定项
-
-1. **RAM@0 尺寸**：实测最大单程序 `.o`=1128 B、`m5-e2e` 10 bin 合计 980 B ⇒ **建议维持 16 MiB**（免 `spec`/锁/ADR/断言/补丁连带）；1 GiB 起步为备选。
-2. **`spec/Machine-01 §1` 授权**：与 #1 配套——**维持 16 MiB 则无须授权**。
-3. **内涵逐项**（detail §D.1 第 1–20 项）：逐项裁定（保留 / 修改 / 否决）。
-4. **clang 前端 / 最小 libc**：**建议均不引**（M4 已留后，大依赖）。
-5. **`-bios` + ELF 组合**（`ISS-168`）：**建议不需要**（纯 ELF 直载 + semihosting）。
-6. **8 项归属存疑**（`ISS-019/026/047/074/081/163/164/167`）：逐条选（归 M6 / 另立里程碑 / 保留待规划 / 继续暂登记）；`ISS-163/167` 未授权改上游只读册前 **BLOCKED**。
-7. **ADR 决策**（逐条确认）：`REL12` 新增 / RAM@0 尺寸变更 / 组合加载语义 / `RELA_PAGE`·`RELA_LO` 启用。
-8. **是否合并 `ISS-165`（step2）与 RAM@0 尺寸变更**：建议合并（否则仅 step2）。
-
-## 关键结论
-
-- **RAM 实测**：RAM 为**单次运行**口径；16 MiB 已远超（余量 ≥250×）⇒ **维持 16 MiB，撞上限再改**。
-- **Embench 分析要点**（详 `.work/log/integ/embench-analysis.md`）：平台接入面极窄（仅 3 函数）；端序唯一坑 `md5sum`（大端 FAIL）；无需 varargs（printf 均在宏内）；BEEBS 自带 bump 堆 ≤8 KiB（无 libc malloc）；纯整数但 `wikisort` 需 double `sqrt`；最小运行时 = memcpy/memset/memmove/memcmp/strlen/strchr + ctype + sqrt；单最大基准 ≈64 KB；无 OS/syscall（semihosting `SYS_EXIT` 停机）。
-- **clang 缺口**：无可用的 C 前端 `clang`（`.work/build/llvm/bin/` 无 clang；`components/llvm-project/patches/` 无 clang 侧补丁）⇒ Embench（C 源码）需 clang `TargetInfo` 或等价 C→IR 通道；与「clang 不纳入 M6」存在张力。
-
-## Embench 接入（M6 待办）
-
-① 建 **ADR**（记录 Embench 上游选择 + 精确 commit）⇒ 翻 `manifests/components.lock.toml` 的 `enabled = true`；② 建 `components/embench-iot/{patches/**,series,changelog.md}`（board shim 3 函数、`md5sum` 大端适配、最小运行时）；③ 工作树由既有 `make fetch` 生成到 `.work/source/embench-iot`。
-
-## 说明
-
-- **性质**：用户方向已定、方案已出、**任务拆解待裁定**；不自行定门槛/清单、不写 `milestones.md` M6 行、不建 `t`/`m`、**不占编号**。
-- **交付**：主会话将 §三根钉子（交付三项）+ §需用户裁定（含原「钉子」三项）+ §关键结论 转呈用户**逐条裁定**；裁定后按 `spec/Process-04 §1` + `INTEG-019k` 体例出任务分解表 + 分波串行链 + `k↔m` 对应 + 前置 ADR。
+- **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t`。
+- **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
+- **Wave 2（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-062t` → `063t` → `064t` → `065t` → `066t`（FP 最后）。
+- **Wave 3（qemu；同改 `components/qemu/patches` ⇒ 串行）**：`QEMU-050t` → `QEMU-051t`。
+- **Wave 4（testcases）**：`TESTCASES-036t`／`037t`／`038t`／`039t`；**Wave 5（integ）**：`INTEG-025t` → `INTEG-026m`。
+- **前置 ADR 清单（逐条待用户确认，勿预标 `Accepted`）**：① `ADR-0018 C7 D4` 修订（大帧四形态/代价驱动）；② 新 ADR「`ld/st` 符号偏移 reloc 体系」（`REL12` + 新专用类型）；③ Embench 上游选择 + commit；④ 组合加载语义——**判断：不再需要独立 ADR**（已被「改走 `load_elf()`」取代，自建 loader/组合路径**取消**；仅在 `SPEC-122t` 落「不立 + 理由」）；⑤ 判断无需其它（`ADR-0019 D7` 记为**留后**、不启用）。
+- **`k↔m`**：本 `k` 对应 M6；各模块 `m` 就近核验，M6 由主会话在模块 `m` 均 `里程碑` 后置 `达成`（`Process-04 §1`）。
+- **说明**：本 `k` 只落纸 + 出草案，**不建 `t`/`m`、不占编号**（编号按各模块现有最大号 +1，已按 M5 归档后顺延）；另有 `INTEG-024t`（台账搬迁，M6，**并行且互不占号**）。
 
 ## 审阅记录
 
 #### 第 1 轮 architect 口径更正（2026-10-08）
+- 「三根钉子」= M6 前三项具体交付（clang target〔#5〕/ QEMU `load_elf()`〔#12–14〕/ Embench 接入〔`TESTCASES-039t`〕）；原文误读为「先钉死三项」已更正（详见 git 历史与 `.work/log/integ/`）。
 
-- **误读更正**：本任务书原 §「三根钉子」写为「M6 分组前必须先钉死：① RAM@0 尺寸/地址空间 ② 完整 LLVM 内涵边界 ③ 测试策略」= **误读**。
-- **依据 = 主会话原话语境**：**「三根钉子」= M6 前三项具体交付（生态接入式）**：① **DADAO clang target**（`TargetInfo`/DL/ABI/driver/sysroot；模板 = RISC-V64 形状 + PPC64BE 端序/DL + AArch64 CC）——**当前唯一硬缺口**；② **QEMU 改走 `load_elf()`**（复用 `hw/core/loader.c`，36 处）⇒ 一次解决 ELF 直载/多段/入口，并**取消**「扩 `dadao_load_regions[]`」自建 loader 后续工作；③ **Embench 接入**（board shim 3 函数 + 最小运行时 + `md5sum` 大端适配）⇒ **首验收** = 最小基准在 QEMU 打出正确退出码（`main` 返回 `!correct`）。
-- **处置**：§三根钉子 改写为上述三项；「RAM 尺寸 / 内涵边界 / 测试策略」三项**移入 §需用户裁定**（另列小节「原被误置为『三根钉子』的三项」）；`.work/log/integ/INTEG-023k-detail.md` **未含**该误读段落（经 `grep` 核实：全文无「钉/必须先/分组前」），故**未改动**该文件。
+#### 第 2 轮 architect 裁定落纸（2026-10-08）
+- 用户对 **20 项内涵（§A）+ 12 条 LLVM 欠账（§B）逐条裁定**已落纸；M6 分解草案落 **§C/§D**。**待 `/plan` 交叉审查**，通过后再建 `t`/`m` 任务书。
