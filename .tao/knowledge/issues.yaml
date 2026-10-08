@@ -382,3 +382,11 @@
   blocks: []
   resolved_by: SPEC-121t
   notes: "QEMU-049t 按 ADR-0020 D15 落地三条口径：① umon 段（addr[47:42]==0）越界访问/取指 ⇒ CFXMEM（0x81）；② 其余段（含旧 power 段 63）越界 ⇒ 测试机约定 unmapped（0x87）；③ RAM@0 容量 = 16 MiB。核 spec/Machine-01 §1（v5 自定册）现行措辞：未完全覆盖——(a) §1.1 表 RAM@0 大小仍是占位『【待 QEMU-049t 定】』（无 16 MiB）；(b) §1.2 末条显式把『精确路由与 RAM@0 容量』委派给 QEMU-049t，未写具体口径；(c) §1.2『层次与适用』条『cfxha 段内的非法子区间、越界访问/取指 ⇒ CFXMEM』按字面也覆盖 power 段 63 ⇒ 与已落地路由（power 63 ⇒ 0x87）歧义。处置：不改 spec/（spec 改动须用户事先授权，见 lessons §8.5 / Process-06）；差异清单 + 拟改文本见 .tao/tasks/qemu/QEMU-049t-RAM0双映射.md 审阅记录『第 1 轮 architect 提交（WIP）』，交主会话提请用户授权。**已由 SPEC-121t 承接（用户授权 2026-10-08）**：拟改文本落 `spec/Machine-01 §1`（3 处）+ 该册入只读锁（`manifests/spec-readonly.lock.toml` 新增 1 条，锁内 20→21）+ `spec/Process-06 §5/§6` 同步；任务书见 `.tao/tasks/spec/SPEC-121t-Machine-01-越界路由与RAM0容量落地.md`。已由 `SPEC-121t` 收口（用户授权 2026-10-08；`spec/` 改动仅 `Machine-01 §1` + `Process-06 §5/§6`）。"
+
+- id: ISS-167
+  title: "DADAO-12 §5 异常退出流程 prose 与伪代码在『跨 cfx escape』上的措辞张力（判据：伪代码为权威，实现按伪代码；spec 缺口待授权收口）"
+  status: open
+  scope: [spec, qemu, M5]
+  blocks: []
+  resolved_by: null
+  notes: "QEMU-045t 新发现②（verification-only 任务、无组件补丁改动；architect 交叉复核判定需跟踪）。`spec/DADAO-12-SEE-主管系统运行环境.md §5`『异常退出流程』：伪代码 `⟨cfxname⟩` 明确定义为 `inner_cfx_code`（**当前**执行 escape 的 cfx），步骤 1/2 恢复**当前 cfx** 的 `excp_prev_cfx_mask`/`excp_prev_run_mode`、步骤 4 返回地址用**当前 cfx** 的 `excp_cause_ip`（`excp_cause_ip + (imms18<<2)`，L830/L853）；而同节 prose（L674）称跨 cfx escape 时『硬件直接恢复到 A 的 prev 现场，B 的现场被静默丢弃』——与伪代码（以当前 cfx 为 `⟨cfxname⟩`）存在**措辞张力**。**判据：伪代码为权威**（`DADAO-12 §5` 伪代码为硬件语义权威）；QEMU 实现按伪代码，QEMU-045t 探针 `escape_cross_allowed` 验证『跨 cfx 允许时恢复当前 cfx 的非复位 prev 值』（`escape cfx0` 于 cfx63 执行 ⇒ 恢复 cfx63 的 `prev_run_mode`/`prev_cfx_mask`，非复位值 0xDEADBEEF/`USER`）。**处置：本任务未改 spec/**（`DADAO-12` 为上游只读册，`manifests/spec-readonly.lock.toml` 锁定；改它须用户**事先**授权，见 lessons §8.5 / spec/Process-06）——建议**另立 spec 任务**（经用户授权）厘清 §5 prose 措辞以消张力；若授权改动，须在**同一变更**内同步该册 `sha256` 锁。**附带（同类不同处置）**：QEMU-045t 新发现①（§5 退出流程**不恢复 `inner_cfx_code`**，只恢复 `inner_cfx_mask`/`inner_run_mode`）属『**澄清**』类（实现与伪代码一致、仅易误解）⇒ 已沉淀 `lessons §7.18`，**不立** spec 任务。教训见 `lessons §7.18`、规范见 `§8.12`。"
