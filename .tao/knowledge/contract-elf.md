@@ -2,13 +2,13 @@
 
 > **状态**：Accepted
 >
-> **来源**：`.tao/adr/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充、rev. 2026-10-06 M4 ELF 路径补充〔去 `FILEHDR PHDRS` / `p_align` 目标默认 64 KiB，`SPEC-112t`〕）。本合约的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）是 ADR-0003 的归一化投影；**§2–§4（重定位）另有来源 `.tao/adr/adr-0019-dadao-relocation-types.md`（ADR-0019，Status: Accepted，用户 2026-10-05 逐条确认 D1–D8）**；**§5/§6 的加载/启动（ELF + raw-bin 双路径）并来源 `.tao/adr/adr-0004-test-machine.md`（ADR-0004，Status: Accepted，rev. 2026-10-06，用户逐条确认，`SPEC-107t`）§D2.2/§D2.3**。
+> **来源**：`.tao/adr/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充、rev. 2026-10-06 M4 ELF 路径补充〔去 `FILEHDR PHDRS` / `p_align` 目标默认 64 KiB，`SPEC-112t`〕）。本合约的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）是 ADR-0003 的归一化投影；**§2–§4（重定位）另有来源 `.tao/adr/adr-0019-dadao-relocation-types.md`（ADR-0019，Status: Accepted，用户 2026-10-05 逐条确认 D1–D8）与 `.tao/adr/adr-0021-ldst-symbol-reloc.md`（ADR-0021，Status: Accepted，2026-10-08 用户逐条确认 D1–D3；扩展 `ld/st` 符号偏移体系 `R_DADAO_REL12` + `R_DADAO_ABS12`，rev. 2026-10-09）**；**§5/§6 的加载/启动（ELF + raw-bin 双路径）并来源 `.tao/adr/adr-0004-test-machine.md`（ADR-0004，Status: Accepted，rev. 2026-10-06，用户逐条确认，`SPEC-107t`）§D2.2/§D2.3**。
 >
 > **引用**：指令格式/字段宽度/对齐/地址模型引用 `.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）；端序/指针宽度引用 `.tao/knowledge/contract-abi.md`（0.9.2）。本合约不重复定义这些内容。
 >
 > **M1 范围**：§1 ELF 文件头字段、§5 段对齐与 VA=PA、§6 端到端 artifact pipeline（raw-bin 路径）。
 >
-> **M4 范围（§2–§4）**：§2 重定位类型、§3 重定位公式与溢出策略、§4 重定位松弛——由 `ADR-0019`（M4，Accepted，用户 2026-10-05 逐条确认 D1–D8）冻结为规范正文。
+> **M4 范围（§2–§4）**：§2 重定位类型、§3 重定位公式与溢出策略、§4 重定位松弛——由 `ADR-0019`（M4，Accepted，用户 2026-10-05 逐条确认 D1–D8）冻结为规范正文；`ld/st` 符号偏移体系 `R_DADAO_REL12`（`rb0`，PC 相对）+ `R_DADAO_ABS12`（`rb1–rb63`，基址相对）由 `ADR-0021` 扩展（Accepted，2026-10-08；rev. 2026-10-09 用户改判为双类型，逐条确认）。
 >
 > **M4 范围（§5/§6 加载/启动扩展，`SPEC-107t`）**：§5/§6 由 `ADR-0004`（rev. 2026-10-06，用户逐条确认）扩展为 **「ELF 路径 + 保留 raw-bin 路径」双路径**——新增 **ELF 加载**（读 `Ehdr`/`Phdr`、按 VA=PA 装载 `PT_LOAD` 段、跳 `e_entry`），**保留** raw-bin（`.o → objcopy .text → flat`、入口固定基址）。加载/启动约定归 `ADR-0004 §D2.2/§D2.3`。
 >
@@ -73,13 +73,21 @@ M4 ELF object 的重定位记录采用 **`SHT_RELA`**（`.rela.*` 段），每�
 
 | 编号 | 名 | 场景 | 编码字段 |
 |------|----|------|----------|
-| 0 | `R_DADAO_ABS48` | `set.zw` / `or.w` / `andn.w` 地址构造序列（≤ 3 片 wyde） | 3×`immu16`（按 `wyde-position` 分片） |
+| 0 | `R_DADAO_ABS48` | `set.zw` / `or.w` / `andn.w` 地址构造序列（≤ 3 片 wyde）**或数据绝对地址字段（8 字节）** | 3×`immu16`（按 `wyde-position` 分片）**或 8 字节字段** |
 | 1 | `R_DADAO_REL26` | `call` / `jump`（iiii） | `imms24`（有效 26 位） |
 | 2 | `R_DADAO_REL20` | `br.n` / `br.nn` / `br.z` / `br.nz` / `br.p` / `br.np`（riii） | `imms18`（有效 20 位） |
 | 3 | `R_DADAO_REL14` | `br.eq` / `br.ne`（rrii） | `imms12`（有效 14 位） |
-| 4 | `R_DADAO_NUM` | 类型计数（非实际重定位） | — |
+| 4 | `R_DADAO_REL12` | `ld.*` / `st.*`（rrii）访存符号偏移 `[rb0, sym]`（**`rb0` 基址**、PC 相对） | `imms12`（**字节**偏移、有效 12 位） |
+| 5 | `R_DADAO_ABS12` | `ld.*` / `st.*`（rrii）访存符号偏移 `[rbN, sym]`（**`rb1–rb63` 基址**、基址相对） | `imms12`（**字节**偏移、有效 12 位） |
+| 6 | `R_DADAO_NUM` | 类型计数（非实际重定位） | — |
 
 相对类的**有效位宽 = 立即数位宽 + 2**（字偏移；`24+2=26` / `18+2=20` / `12+2=14`）；指令格式/字段位置见 [contract-isa.md §2.3–§2.4]，分支/call/jump 语义见 [contract-isa.md §4.7][contract-isa.md §5.2]。[ADR-0019 §D2]
+
+`R_DADAO_REL12` / `R_DADAO_ABS12` 是上一条「+2」规则的**例外**：两者均服务访存的**字节**偏移（`ld/st` 有效地址 = 基址寄存器 + `imms12`，`imms12` 单位为**字节**、非字），故**不适用**「立即数位宽 + 2」的字偏移换算——其有效范围即 `imms12` 的**有符号 12 位**（`−2048..+2047`，约 ±2 KiB）。[ADR-0021 §D1][contract-isa.md §2.3]
+
+`R_DADAO_REL12` / `R_DADAO_ABS12` 是 `ld/st` 符号偏移的**专用类型**（二者按基址寄存器区分，见下），**不得复用** `R_DADAO_REL20`——后者服务 `riii` 分支相对类（`imms18`、有效 20 位、字偏移），与访存的 `imms12`（字节偏移）**字段宽度与语义均不同**，复用会产出错误编码。[ADR-0021 §D2][contract-isa.md §2.3]
+
+**两类型必须明确区分**（用户 2026-10-09 裁定）：ELF `RELA` 记录**无「基址寄存器」字段** ⇒ **由汇编器按访存基址寄存器自动选择类型**——基址为 **`rb0`** 选 `R_DADAO_REL12`，基址为 **`rb1–rb63`** 选 `R_DADAO_ABS12`。**不得**只用一个类型承载两种公式（否则 PC 相对与基址相对混淆 ⇒ 静默错值）；**linker 只看类型、不解码指令**。[ADR-0021 §D1][contract-isa.md §2.3]
 
 ### §2.3 挂载粒度与分片
 
@@ -96,19 +104,31 @@ reloc **逐指令**挂载（非逐段/逐符号）；多片时 linker 依**指�
 | 类型 | 公式 | 落点字段 |
 |------|------|----------|
 | `R_DADAO_REL26` / `R_DADAO_REL20` / `R_DADAO_REL14` | `field = (S + A − P) >> 2`（**字偏移**） | `imms24` / `imms18` / `imms12` |
-| `R_DADAO_ABS48` | `value = S + A`（48 位，按 `wyde-position` 分片写入 3×`immu16`） | 3×`immu16` |
+| `R_DADAO_REL12` | `field = S + A − P`（**字节偏移**、`rb0` 基址、PC 相对；`P` = 该访存指令地址 = `rb0` 读出值） | `imms12` |
+| `R_DADAO_ABS12` | `field = S + A`（**字节偏移**、`rb1–rb63` 基址） | `imms12` |
+| `R_DADAO_ABS48` | `value = S + A`（48 位）；**指令**按 `wyde-position` 分片写入 3×`immu16`，**数据**写入 8 字节字段（**大端**、高 16 位 = 0） | 3×`immu16` / 8 字节字段 |
 
 相对类公式为 `(S + A − P) >> 2`，即**字偏移**（`P` 为重定位处地址本身）。**v5 无 `− 4`**：不引入 `PC+4` 修正；这与 0628 的 `(val-4)>>2` 不同——v5 的 `rb0` 读出为**当前指令地址**（非下一条）[contract-isa.md §1.3.2]，故 `P` 无需再减 4。[ADR-0019 §D3]
+
+`R_DADAO_REL12` 的符号为 **`rb0` 相对（PC 相对）**偏移：`ld/st rd, [rb0, sym]` 中 `rb0` 读出为**当前指令地址**（即 `P`，见 [contract-isa.md §1.3.2]），故 `field = S + A − P`（**字节、不 `>>2`**）。`R_DADAO_ABS12` 的符号为 **`rb1–rb63` 基址相对**偏移：`ld/st rd, [rbN, sym]` 中基址为通用基址寄存器 `rbN`（非 `rb0`），符号偏移即绝对字节量，故 `field = S + A`（**字节、不 `>>2`**）。两类型**字段宽度同为 `imms12`、公式不同**，由汇编器按基址寄存器自动选型（§2.2），**必须区分**。[ADR-0021 §D1][contract-isa.md §4.1.1][contract-isa.md §1.3.2]
+
+**`rb0` 作访存基址的危险（规范只记危险；规避由 LLVM 定）**：`rb0` 读出为**当前指令的地址**，随取指推进而变（[contract-isa.md §1.3.2]/§8）⇒ 在**多指令形态**（`ADR-0018 §C7 D4` 形态②③④，见 §4）中以 `rb0` 为基址会发生**漂移**，取到的地址取决于该访存指令自身位置。**规范不指定、不硬性禁止**——**如何规避（先 `rb2rb` 拷出并做 ±k×4 修正、或避免以 `rb0` 作基址）由 LLVM 依实际情形决定**。[ADR-0021 §D1][ADR-0018 §C7 D4]
+
+`R_DADAO_ABS48` 的**数据**形式（8 字节字段）：`value = S + A` 的 48 位地址按 **大端**存储，**高 16 位（`bits[63:48]`）填 0**（字段字节序为 `00 00 A5 A4 A3 A2 A1 A0`，`A5` = 地址 `bits[47:40]`）。指令形式与数据形式共享同一类型，由目标 section 是否含 `SHF_EXECINSTR` 区分。[ADR-0019 §D2][ADR-0019 §D3]
 
 ### §3.2 溢出策略
 
 重定位结果越出目标字段可表示范围时，一律 **link-time error**（**不截断、不 wrap**）。[ADR-0019 §D6]
+
+`R_DADAO_REL12` / `R_DADAO_ABS12` 的越界（符号偏移 `S + A − P` / `S + A` 超出 `imms12` 有符号 12 位范围，即 `−2048..+2047`）同样一律 **link-time error**——**不截断、不 wrap、不静默出 0**，且**不**另设更宽类型、**不**做汇编器序列化（超出即显式失败）。[ADR-0021 §D3][ADR-0019 §D6]
 
 ---
 
 ## §4 重定位松弛（Relaxation）
 
 - **本期禁用 relaxation**（不缩短序列）：`R_DADAO_ABS48` **≤3 片**（DADAO 地址空间 48 位，最多 3 片）；**一律发射固定 max 3 片**，linker 只做原地补丁，不重排/不缩短。[ADR-0019 §D4][ADR-0019 §D7]
+- `R_DADAO_REL12` / `R_DADAO_ABS12` 均为**单字段**就地补丁（一条访存指令的 `imms12`），**无多片、无 relaxation**；越界见 §3.2。[ADR-0021 §D3]
+- **访存偏移形态由 LLVM 选择，reloc 层不越权**：大帧/大偏移访存用**哪一形态**（`ADR-0018 §C7 D4` 四形态——① `[sp, disp12]`、② `rb2rb` + `add.si`、③ `add.o tmprb, sp, tmp` + `[tmprb, disp]`、④ `ldm/stm [sp, tmp]`；rev. 2026-10-08）**由 LLVM 依实际情形选择**，规范**不指定**。reloc 层**不新增更宽类型、不做 relaxation**；`R_DADAO_REL12` / `R_DADAO_ABS12` 只服务「编译器选择**形态①**（单条访存、`imms12` 就地补丁）」的情形——其余形态按普通指令 + `R_DADAO_ABS48`/分支相对类组合构造地址，不依赖本体系。[ADR-0018 §C7 D4][ADR-0021 §D3]
 - `RELA_PAGE` / `RELA_LO`（基址 `rb0` / 数据段相对寻址）**本期不实现、留后**。[ADR-0019 §D7]
 - **不做 `ABS32`**：无 32-bit 数据/指针场景（地址空间为 48 位）。[ADR-0019 §D8]
 
@@ -216,12 +236,12 @@ qemu-system-dadao -machine dadao-m1 -kernel image.elf
 | 本合约 § | 内容 | 决策点 |
 |----------|------|--------|
 | §1 | ELF 文件头字段（`EI_CLASS`/`EI_DATA`/`e_machine`/`e_flags`/`EI_OSABI`） | `ADR-0003` §D1（含 `## 修订`） |
-| §2 | 重定位类型（`SHT_RELA`、`R_DADAO_*` 编号、逐指令挂载） | `ADR-0019` §D1–D2、§D5 |
-| §3 | 重定位公式与溢出策略（无 −4、link-time error） | `ADR-0019` §D3、§D6 |
+| §2 | 重定位类型（`SHT_RELA`、`R_DADAO_*` 编号、逐指令挂载；`R_DADAO_REL12`（`rb0`）/ `R_DADAO_ABS12`（`rb1–rb63`）= `ld/st` 符号偏移专用类型，按基址寄存器自动选型） | `ADR-0019` §D1–D2、§D5（+ `ADR-0021` §D1–D2） |
+| §3 | 重定位公式与溢出策略（无 −4、link-time error；`REL12` = `S + A − P`（rb0/PC 相对）、`ABS12` = `S + A`（rb1–rb63 基址相对）字节偏移及越界；`ABS48` 数据 8B 字段） | `ADR-0019` §D3、§D6（+ `ADR-0021` §D1、§D3） |
 | §4 | 重定位松弛（禁用 relaxation、不做 `ABS32`、`RELA_PAGE`/`RELA_LO` 留后） | `ADR-0019` §D4、§D7–D8 |
 | §5 | 段对齐、VA=PA（raw-bin 与 ELF 路径均适用）、`PT_LOAD` 的 `p_align` 口径（目标默认 64 KiB、可覆写） | `ADR-0003` §D5（+ `ADR-0004` §D2.2 加载地址/VA=PA；`p_align` 并来自 `ADR-0003` §修订 rev. 2026-10-06） |
 | §6 | 端到端 artifact pipeline（raw-bin 路径 + M4 ELF 路径）、单 TU 自包含、多段拼接、加载/启动协议、与 ADR-0004 一致 | `ADR-0003` §D5（+ §Context、§Consequences）；§6.1.2 去 `FILEHDR PHDRS` 来自 `ADR-0003` §修订 rev. 2026-10-06；§6.1.2/§6.2 的 ELF 加载与启动并来自 `ADR-0004` §D2.2/§D2.3（`## 修订` rev. 2026-10-06） |
 
-> §2–§4 的重定位决策点来自 ADR-0019（`SPEC-105t`），非 ADR-0003 决策。
+> §2–§4 的重定位决策点来自 ADR-0019（`SPEC-105t`）与 ADR-0021（`SPEC-122t`/`SPEC-123t`，`R_DADAO_REL12` + `R_DADAO_ABS12`，rev. 2026-10-09），非 ADR-0003 决策。
 
 > §6.1.1/§6.2 的 raw-bin 启动命令/镜像对来自 ADR-0004（`SPEC-006t`）§D2.2/§D2.3；§6.1.2/§6.2 的 ELF 加载/启动来自 ADR-0004 的 `## 修订` rev. 2026-10-06（`SPEC-107t`，用户逐条确认），均非 ADR-0003 决策。

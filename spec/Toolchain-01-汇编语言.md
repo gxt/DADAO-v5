@@ -179,13 +179,14 @@
 | `set.rb` | `set.rb rb, rs` | `rd2rb`/`rb2rb` |
 | `set.ft` | `set.ft rf, imm32` | 2 条 `set.w` |
 | `set.ft` | `set.ft rf, rs` | `rd2rf`/`ft2ft` |
-| `set.fo` | `set.fo rf, imm64` | 4 条 `set.w` |
+| `set.fo` | `set.fo rf, imm64` | `rd2rf rf, rd0`（以 `rd0` 恒 0 清零目的 `rf`）+ 仅对**非零** wyde 的 `set.w rf, wpN, <wyde>`；`set.fo rf, 0` ⇒ 1 条 |
 | `set.fo` | `set.fo rf, rs` | `rd2rf`/`fo2fo` |
 
 **展开规则**（`MUST`）：
 
 - **常量 vs 符号**：第二操作数为**可汇编期求值的常量** → 采用「最少指令数」展开；为**符号 / 可重定位** → **固定 3 片** + 重定位类型 `R_DADAO_ABS48`（`ADR-0019 D4/D5`）。同段可解析的表达式按可求值处理；跨段/外部按符号处理。
 - **`set.rb` 细节**：允许 `wp0–wp3`（wyde 位置不限制）；**其为地址时 MUST ≤48 位**；**不补 `set.ow-rb`**（rb 无 `set.ow` 变体）——不对称性注明：64 位全 1 需 `set.zw` + 3×`or.w` = 4 条，而 `set.rd` 用 `set.ow` 仅 1 条。
+- **`set.fo` 展开细节**（`ISS-156`，2026-10-08 用户授权修订，取代原「固定 `set.w` 组合」口径）：`set.fo rf, imm64` 展开为 **`rd2rf rf, rd0`（`rd0` 恒为 0，一条指令清零目的 `rf`）**，**再加**对每个**非零** 16 位 wyde 各一条 `set.w rf, wpN, <wyde>`（**零 wyde 不再逐条 `set.w`**）；`set.fo rf, 0` ⇒ **仅 `rd2rf rf, rd0`，1 条**。
 - `set.rd`/`set.rb`/`set.ft`/`set.fo` 的 wyde 级展开示例见 `SimRISC-03 §set.rd/set.rb/set.ft/set.fo 伪指令`（`SimRISC-03` 为该节的展开示例投影，定义以本节为准）。
 
 ### 6.2 删除（不实现，10 条）
