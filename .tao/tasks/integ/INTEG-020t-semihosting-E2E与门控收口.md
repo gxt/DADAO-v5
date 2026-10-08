@@ -18,7 +18,7 @@
   - **门槛（`INTEG-019k` §第 2 轮用户裁定 9；**正向口径已由 `INTEG-019k` §第 8 轮修订**）**：门控名 = **`make test-semihost`**（**不是** `test-see`）；组成 = ① **正向**（**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码）；② **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）；③ **服务表各条至少 1 例**；④ **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）；⑤ **`INTEG` 开闭**。
   - **RAM@0 双映射（C1 step1，`ADR-0004 R3`/`ADR-0020 D15`）**：M5 **正向**（bootrom/SEE + `-semihosting`）经 **RAM@0**（`QEMU-049t` 双映射提供）；**旧 RAM 段过渡保留** ⇒ 既有测试不回归；**step2**（旧向量/harness 迁到 RAM@0 + 删旧段 + 收紧断言）**另立、随 M6**（用户 2026-10-08 裁定；`ISS-165`），**不阻塞本门槛**。
 - **输出**：
-  1. **`tools/integ/` 驱动**（如 `run_semihost_e2e.py`）：fail-closed——bootrom（`-bios`，`QEMU-047t`）+ **bin 应用**（`objcopy -O binary`）经 `-semihosting`，跑通 semihosting 服务，**捕获 console 输出**，比对 `SYS_EXIT` 码；逐例打印「名字/期望/实际/退出码」。**（原「单/多 TU ELF」正向用例移 M6——用户 2026-10-08 裁定。）**
+  1. **`tools/integ/` 驱动**（**复用 `tools/integ/run_m5_e2e.py`**〔`TESTCASES-033t` 产出〕，**只追加/最小改**，**不另建 `run_semihost_e2e.py`**）：fail-closed——bootrom（`-bios`，`QEMU-047t`）+ **bin 应用**（`objcopy -O binary`）经 `-semihosting`，跑通 semihosting 服务，**捕获 console 输出**，比对 `SYS_EXIT` 码；逐例打印「名字/期望/实际/退出码」。**（原「单/多 TU ELF」正向用例移 M6——用户 2026-10-08 裁定。）**
   2. **harness stdio 捕获（细节展开，本任务明确落定）**：
      - **`-semihosting-config` 的 `target=`/`chardev=`/`arg=` 由谁传**：**明确**是 **Makefile 传参** 还是 **harness 脚本包装**（二选一，落定并记录理由）；建议 **驱动脚本经 `-semihosting-config target=gdb|native,chardev=...` 传参**（与 `ADR-0020 D7` 一致，默认沙箱）。
      - **console 输出捕获落点**：捕获到 **stdout** 还是 **stderr**（或 chardev 文件），**落点** = `.dadao/tests/semihost-e2e/`（`INFRA-048t` 口径）；**比对方式**（逐字节/去尾空白/期望串包含）。
@@ -109,3 +109,15 @@
 **ADR 推迟至 M6**：**本任务不涉组合 ADR**——「`-bios`+ELF 组合」加载/入口语义属加载模型/外部契约，**ADR 决策推迟至 M6**（`ISS-168`）；**M5 阶段不立 ADR**。
 
 **未改范围**：本轮**未动 `spec/`**（本文件亦无 `spec/` 改动）；上「architect 前置风险评估」为**历史记录，保留不改**（只追加本节）。
+
+#### 主会话判定落纸（architect，2026-10-08，只追加）
+
+**背景**：`TESTCASES-033t` 审阅记录「下发前预检修订」末「**供裁定**」第 3 项登记——本任务输出 1 曾举 `run_semihost_e2e.py` 为例，与 `TESTCASES-033t` 产出的 `tools/integ/run_m5_e2e.py` 重复。主会话本轮**判定**：**去重、复用 `run_m5_e2e.py`**（属去重、非新增范围）。
+
+**判定 3（`tools/integ/` 驱动复用）— 已落纸**
+
+- **判定原话（主会话）**：「`INTEG-020t` 的输出 1 若举 `run_semihost_e2e.py` ⇒ 改为**复用 `tools/integ/run_m5_e2e.py`**（**只追加/最小改**，并在其审阅记录说明依据）。」
+- **依据**：`run_m5_e2e.py` 由 `TESTCASES-033t` 产出（读 m5 清单 → 自有工具链编 bin → `qemu -bios <bootrom> -kernel <bin> -semihosting-config …` → 逐例比对 → `--inject` 反例自检）；本任务职责 = `make test-semihost` 接线 + harness stdio 捕获 + 门控收口 ⇒ **在其上追加/最小改**即可（DRY），**不另建 `run_semihost_e2e.py`**。
+- **改法**：输出 1 的「（如 `run_semihost_e2e.py`）」→「（**复用 `tools/integ/run_m5_e2e.py`**〔`TESTCASES-033t` 产出〕，**只追加/最小改**，**不另建 `run_semihost_e2e.py`**）」。
+
+**边界**：本轮仅改**本任务书**（输出 1 + 本审阅记录）；**`spec/` 交集为空**；未改 `contracts/**`/`components/**`/`Makefile`；未新增/删除任务。

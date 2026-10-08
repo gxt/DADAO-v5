@@ -2,7 +2,7 @@
 
 **模块**：testcases
 **项目里程碑**：M5
-**依赖**：`SPEC-114t`、`SPEC-115t`、`LLVM-060t`、`INFRA-048t`、`QEMU-047t`
+**依赖**：`SPEC-114t`、`SPEC-115t`、`LLVM-060t`、`INFRA-048t`、`QEMU-044t`、`QEMU-045t`、`QEMU-046t`、`QEMU-047t`
 **状态**：待开始
 
 ## 执行环境
@@ -18,7 +18,7 @@
   - 既有 `tests/llvm/lit/MC/DADAO/`（`validate_mc_vectors.py` oracle）与 `tests/llvm/codegen/`（L3 驱动模式）；既有驱动 `tools/integ/run_codegen_e2e.py`/`run_elf_e2e.py`（**`run_m5_e2e.py` 复用其结构**：清单 → 自有工具链编 bin → `-bios`+`qemu` 跑 → 逐例比对 → `--inject` 反例自检）。
 - **输出**：
   - **L1 MC 向量**：落 `tests/llvm/lit/MC/DADAO/`（如 `m5-trap-escape-cfx2.s`）——`trap`/`escape`/`cfx2rd`/`cfx2rc` 编码与往返；**分阶段**：`LLVM-060t` 就绪前以 lit **`UNSUPPORTED:`** 标记暂缓（`Process-05`；`LLVM-060t` 完成后**去除**标记）。期望编码**独立派生自 `contracts/opcodes.yaml`**（**禁**从 `llvm-mc` 反推）。
-  - **L3 执行向量**：落 `tests/llvm/codegen/m5/`（独立 m5 清单 + `expected.yaml`）——**承载形态 = bin**（`llc`/`llvm-mc` → `objcopy -O binary` → `qemu`；**不经 `ld.lld` 多 TU ELF**——用户 2026-10-08 M5 范围简化裁定，见下「承载形态裁定」）跑通：① **semihosting 服务**（≥ console `WRITEC/WRITE0/WRITE` + `EXIT`/`EXIT_EXTENDED`；`READC` 可 host 输入桩）；② **权限反例**（未授权模式/未实现 cfx ⇒ `NUPERM/NJPERM/NSPERM/NHPERM` 或 `CFXREG`）；③ **一条一般 trap 进入向量 + escape 返回**。**期望值独立派生自 spec/契约**（**禁**从 QEMU 反填）。
+  - **L3 执行向量**：落 `tests/llvm/codegen/m5/`（独立 m5 清单 + `expected.yaml`）——**承载形态 = bin**（`llc`/`llvm-mc` → `objcopy -O binary` → `qemu`；**不经 `ld.lld` 多 TU ELF**——用户 2026-10-08 M5 范围简化裁定，见下「承载形态裁定」）跑通：① **semihosting 服务**（≥ console `WRITEC/WRITE0/WRITE` + `EXIT`/`EXIT_EXTENDED`；`READC` 可 host 输入桩）；② **权限反例（cfx 级可观测；M5 无 PTBR 权限层）**（reserved cfxha / mask 禁止 ⇒ `ILLI`〔含 reserved〕；未实现 cfx / 不存在或超数量寄存器组合 ⇒ `CFXREG`；**`NUPERM/NJPERM/NSPERM/NHPERM` 属 `DADAO-12 §2.2` PTBR 权限层、不在 M5**〔`ADR-0020 D9`〕）；③ **一条一般 trap 进入向量 + escape 返回**。**期望值独立派生自 spec/契约**（**禁**从 QEMU 反填）。
   - **L3 运行方式（与 M5 门槛口径一致；用户 2026-10-08 裁定）**：`qemu-system-dadao -M dadao-m1 -bios <bootrom.bin> -kernel <vec.bin> -semihosting-config enable=on,target=<native|gdb>`；`<bootrom.bin>` = `QEMU-047t` 产物 `.dadao/tests/bootrom/bootrom.bin`（**经 `tools/infra/paths.py::test_artifacts_dir()`/`BOOTROM_DIR` 解析，禁硬编码**），`<vec.bin>` 由**自有工具链**（`llvm-mc`/`llc` → `llvm-objcopy -O binary`）产生。**L3 全部用例均经 `-bios` bootrom**（bootrom = 唯一应用入口/启动器：复位 PC=`0xffff_ffff_0000`，须由 bootrom 完成模式/向量/栈初始化后 hypv→user 跳应用——**无 `-bios` 则应用无入口、不执行**）；若认为某例无需 bootrom，**须写出依据**（该例如何获得入口/模式配置）**供裁定，不得静默采用**（依据见「审阅记录 · 下发前预检修订」）。
   - **m5 L3 驱动**：**新建 `tools/integ/run_m5_e2e.py`**（复用既有 runner 结构：读 m5 清单 → 自有工具链编 bin → `qemu -bios <bootrom> -kernel <bin> -semihosting-config …` → 逐例比对期望退出码/故障码 → `--inject` 反例自检；对 `run_codegen_e2e.py`/`run_elf_e2e.py` **只复用结构、不改其 M3/M4 门控**）；本任务内**直接 `python3` 调用**（`Makefile`/`make test-semihost` 接线归 `INTEG-020t`，本任务**不改 `Makefile`**）。
   - **独立 oracle**：扩展 `tools/testcases/validate_mc_vectors.py` / 新增 `validate_elf_vectors.py` 派生（复用 `029t`/`030t` 共享 validator，`Process-05 §6`）；**不调用** `llvm-mc`/`llc`/QEMU 作为期望来源。
@@ -35,10 +35,10 @@
 ## 验收标准
 
 1. **L1 向量**：`tests/llvm/lit/MC/DADAO/` 含 4 条指令编码/往返向量（`LLVM-060t` 就绪前带 `UNSUPPORTED:`）；`make check-lit` EXIT=0 且新向量被正确处理（unsupported 或 PASS）。
-2. **L3 向量**：`tests/llvm/codegen/m5/` 含 semihosting 服务（≥3 类）/权限反例（≥3 类）/一般 trap+escape 各 ≥1；给出「向量 ↔ 能力 ↔ 期望值来源」表。
+2. **L3 向量**：`tests/llvm/codegen/m5/` 含 semihosting 服务（≥3 类）/权限反例（**cfx 级可观测**：`ILLI`〔含 mask 禁止/reserved〕/`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕，≥3 类）/一般 trap+escape 各 ≥1；给出「向量 ↔ 能力 ↔ 期望值来源」表。
 3. **独立 oracle**：`python3 tools/testcases/validate_*.py` EXIT=0；oracle **无** `subprocess`/`os.system`/`Popen`（`grep` 核实）；期望值可独立重算。
 4. **L3 执行**：经 m5 驱动（`python3 tools/integ/run_m5_e2e.py …`）跑通，逐例「名字/期望/实际/退出码」；**逐例给出实际 qemu 命令行（含 `-bios`）**，并核**复位 PC/bootrom 生效**（`-d cpu` 首块 `PC=0xffff_ffff_0000` 或等价，含「模式/向量配置生效」观测）；给真实输出（`.work/log/testcases/`）。
-5. **反例门控**：对注入反例（改一条期望字节 / 改一条服务号 / 改一条权限期望）⇒ oracle/驱动器**非零退出**；还原后回绿（真实输出）。
+5. **反例门控**：对注入反例（改一条期望字节 / 改一条服务号 / 改一条**权限期望**〔cfx 级：改 `ILLI`/`CFXREG` 期望码〕）⇒ oracle/驱动器**非零退出**；还原后回绿（真实输出）。
 6. **门控**：`make check`/`make check-lit` EXIT=0；`make check-no-residue` EXIT=0。
 7. **一键证据脚本**：`.work/evidence/TESTCASES-033t/run.sh`——非交互、失败非零、逐项打印、≥2 类注入自检、结尾**禁 `tee`**。
 8. **无残留**：`git status --untracked-files=all` 仅新增向量 + oracle + `tools/integ/run_m5_e2e.py` + README + 本任务书。
@@ -105,5 +105,30 @@
 3. **`INTEG-020t` 的 `tools/integ/` 驱动复用**：`INTEG-020t` 输出 1 举 `run_semihost_e2e.py` 为例；为避免与 `run_m5_e2e.py` 重复，**建议 `INTEG-020t` 复用 `run_m5_e2e.py`**（其负责 `make test-semihost` 接线 + console stdio 捕获）。**供主会话协调**（本轮未改 `INTEG-020t`）。
 
 **台账同步（最小）**：`INTEG-019k` §任务分解表 `TESTCASES-033t` 行依赖 += `QEMU-047t`；Wave 4 依赖链同步。`milestones.md` 未列本任务依赖 ⇒ **无需改**。
+
+**边界**：本轮仅改**本任务书** + `INTEG-019k` 台账（1 行 + Wave 4）；**`spec/` 交集为空**；未改 `contracts/**`/`components/**`/`Makefile`；未新增/删除任务。
+
+#### 主会话判定落纸（architect，2026-10-08，只追加）
+
+**背景**：上「下发前预检修订」末「**供裁定**」登记 3 项（依赖补齐 / 权限反例 M5 可观测性 / `INTEG-020t` 驱动复用），**均待主会话裁定**。主会话本轮**逐项判定**，且明示**属事实对齐/去重、非新增范围**。以下按判定落纸；**未改任务范围**（L1/L3 交付物不变）、**未触 `spec/`**。
+
+**判定 1（依赖补齐）— 已落纸**
+
+- **判定**：依赖段 **+= `QEMU-044t`、`QEMU-045t`、`QEMU-046t`**（L3 执行跑在 QEMU 上；**均 `已验证`**）。
+- **依据**：L3 执行向量三类用例分别落在 `QEMU-044t`（cfx/权限反例）、`QEMU-045t`（一般 `trap`/`escape`）、`QEMU-046t`（semihosting 服务）；`QEMU-047t`（bootrom）已在前轮计入。原依赖段仅列 `SPEC-114t`/`SPEC-115t`/`LLVM-060t`/`INFRA-048t`/`QEMU-047t`，缺上述三项 ⇒ 补齐。
+- **改法**：依赖段（文件头）→ `SPEC-114t`、`SPEC-115t`、`LLVM-060t`、`INFRA-048t`、`QEMU-044t`、`QEMU-045t`、`QEMU-046t`、`QEMU-047t`。同步 `INTEG-019k` §任务分解表 `TESTCASES-033t` 行 + Wave 4。
+
+**判定 2（权限反例口径）— 已落纸**
+
+- **判定**：M5 **无 PTBR 权限层** ⇒ 「未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`」**改为 cfx 级可观测**：`ILLI`（含 mask 禁止 / reserved）/ `CFXREG`（未实现 cfx / 不存在或超数量寄存器组合）；`NUPERM…` **明确标注属 `DADAO-12 §2.2` PTBR 层、不在 M5**（`ADR-0020 D9`）。
+- **依据**：`ADR-0020 D9`；`QEMU-044t` 完成区遗留明示「`NUPERM` 等属 PTBR 权限层、不在 M5」；M5 机器可观测的权限反例 = cfx 级。
+- **改法（3 处，已在主文改）**：① 「输出 · L3 执行向量」的 ② 权限反例；② 「验收 2」权限反例（≥3 类，明确 cfx 级）；③ 「验收 5」注入反例的「权限期望」明确为 cfx 级（改 `ILLI`/`CFXREG` 期望码）。
+
+**判定 3（`INTEG-020t` 驱动去重）— 落 `INTEG-020t`**
+
+- **判定**：`INTEG-020t` 输出 1 若举 `run_semihost_e2e.py` ⇒ **改为复用 `tools/integ/run_m5_e2e.py`**（**只追加/最小改**）。
+- **落纸**：见 `INTEG-020t` 审阅记录「主会话判定落纸（architect，2026-10-08）」（本文件不改，去重落点在 `INTEG-020t`）。
+
+**台账同步（最小）**：`INTEG-019k` §任务分解表 `TESTCASES-033t` 行依赖 += `QEMU-044t`/`045t`/`046t`；Wave 4 依赖链同步。`milestones.md` 未列本任务依赖 ⇒ **无需改**。
 
 **边界**：本轮仅改**本任务书** + `INTEG-019k` 台账（1 行 + Wave 4）；**`spec/` 交集为空**；未改 `contracts/**`/`components/**`/`Makefile`；未新增/删除任务。
