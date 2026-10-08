@@ -142,7 +142,7 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 | `SPEC-116t` | **`Toolchain-01` 修订**（`§2.1` 大小写敏感 + **`§1` M1 格式类口径同步**〔**2026-10-08 并入**，用户授权 ②〕） | spec | `spec/Toolchain-01 §2.1`（撤销「不敏感」句）+ **`§1` 格式类 9→11 类**（`crrr`/`ciii` 入 `m1`，`crii` 据实仍 `excluded`）+ `contract-asm §2.1`/投影刷新 + **只读锁同步（`manifests/spec-readonly.lock.toml`，仅 `Toolchain-01` 一段 `sha256`）** + `check-asm-*`/`check-spec-refs`/`check-spec-readonly` 绿；**`ISS-157` 以「条款撤销」结案** | `SPEC-115t`（**已验证**；`§1` 口径依 re-scope 后 `scope` 事实）、`SPEC-119t`（与 113–115 同改 `spec/` ⇒ 串行） |
 | `SPEC-117t` | **`Process-05 §6` 落点规则补正** | spec | `spec/Process-05-里程碑TDD规范.md §6`（`.dadao/tests/` 规则正文） | `INFRA-048t` |
 | `SPEC-120t` | **`encode_cfx` 规则定界与最小修正**（汇编/编码层不应含实现期语义） | spec | 调研定界 + `contracts/legality_rules.yaml` 的 `encode_cfx` 处置（候选 A 删除 / B 降级为运行期口径）+ `tools/spec/gen_legality_list.py` 同步 + 门控绿（**默认不触 `spec/`**） | `SPEC-115t`（串行） |
-| `SPEC-121t` | **Machine-01 §1 越界路由与 RAM@0 容量落地**（承 `ISS-166`；+ `Machine-01` 入锁 / `Process-06` 同步） | spec | `spec/Machine-01 §1.1` 表 RAM@0 容量占位 → **16 MiB** + `§1.2` **新增「精确路由」条** + 末条改落地陈述；`manifests/spec-readonly.lock.toml` **新增 `spec/Machine-01` 一条**（锁内 20→**21**）；`spec/Process-06 §5/§6` 同步；`ISS-166` 结案 | `QEMU-049t`（已验证；口径来源）、`SPEC-119t`（锁/门控） |
+| `SPEC-121t` | **Machine-01 §1 越界路由与 RAM@0 容量落地**（承 `ISS-166`；+ `Machine-01` 入锁〔**含 v5 自定册**〕/ `Process-06` 同步 / 门控措辞） | spec | `spec/Machine-01 §1.1` 表 RAM@0 容量占位 → **16 MiB** + `§1.2` **新增「精确路由」条** + 末条改落地陈述；`manifests/spec-readonly.lock.toml` **新增 `spec/Machine-01` 一条**（锁内 20→**21**）；`spec/Process-06 §5/§6` 同步（语义扩为「含 v5 自定册」）；`tools/infra/check_spec_readonly.py`/`Makefile` help 措辞去「upstream」；`ISS-166` 结案 | `QEMU-049t`（已验证；口径来源）、`SPEC-119t`（锁/门控） |
 | `LLVM-060t` | **`trap`/`escape`/`cfx2rc`/`cfx2rd`**（MC + 必要 CodeGen/内建） | llvm | `components/llvm-project/patches/llvm/lib/Target/DADAO/**`（parser/printer/disassembler/编码）+ lit L1（**`crrr`/`ciii` 的 `; OBJ:`**）+ 编码 oracle；`escape` 位宽关系落实；`tools/llvm/validate_instrinfo.py`（`MC_ONLY_EXCLUDED_IDS` += 4 条，临时） | `INFRA-047t`（2026-10-07 用户裁定 1 重排：**去掉 `SPEC-115t`**，前置） |
 | `QEMU-044t` | **SEE/HEE 运行模式 + cfx 寄存器/掩码/权限/异常** | qemu | `components/qemu/patches/target/dadao/**` + `hw/dadao/**`：四运行模式、cg0–cg7 共有 + 专有寄存器、`global_cfx_mask`/指令类型 mask、`switch_run_mode`、权限异常（`NU/J/SP/HPERM`）、**异常进入流程**（`DADAO-12 §5`）+ 探针。**权限范围 = 只做 `cfx0/1/2/3/63`**（`umon/jmon/smon/hmon/power`）；**未实现 cfx ⇒ `CFXREG` 异常**（`DADAO-22:58`） | `SPEC-114t` |
 | `QEMU-045t` | **`trap`/`escape` 语义 + `cfx2rd`/`cfx2rc` 执行** | qemu | trap 译码 → CFXTRAP 路由 → **走 spec 异常进入流程（`DADAO-12 §5`）并进入该 cfx 的向量**（**一般 trap**，`immu18[17:16] ≠ 2'b11`）；`escape` 退出（恢复 `prev_run_mode`/`prev_cfx_mask`、`escape_num`++、按 `imms18` 跳转）；cfx2rd/cfx2rc 读写 cfx 寄存器 + 探针；**semihosting 短路（`immu18[17:16] == 2'b11`，译码层直接服务、不进入向量）不在本任务，见 `QEMU-046t`** | `SPEC-115t`、`SPEC-114t`、`QEMU-044t` |
@@ -163,6 +163,8 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 > 合计：**17 `t` + 6 `m` = 23 份任务书**（表内；含 2026-10-07 追加的 C1 step1 `QEMU-049t` 与 `SPEC-120t`〔`encode_cfx` 定界/修正〕；`SPEC-119t`〔spec 目录保护〕另见 `SPEC-118m` 关联任务、本表未列；**step2 为「另立、M5 之外」，不计入本 M5 任务书**）。（原为 15 `t` + 6 `m` = 21 份。）
 >
 > **2026-10-08 追加**：新增 **`SPEC-121t`**（承 `ISS-166`；`Machine-01 §1` 口径落纸 + 该册入锁 + `Process-06` 同步；见本表与 Wave 1）——表内合计 **18 `t` + 6 `m` = 24 份**（`SPEC-119t` 仍另见 `SPEC-118m` 关联任务、本表未列）。用户授权原话（「授权按拟改文本改（推荐）」「把 Machine-01 新增进锁」「授权含 Process-06 同步（推荐）」）落 `SPEC-121t` 文件头。
+>
+> **2026-10-08 `SPEC-121t` 范围补正**：用户裁定原话 ④「**确认两条，按此下发（推荐）**」（确认 `Machine-01` 进锁 **20→21** + 授权 `Process-06 §5/§6` 同步）、⑤「**并入 SPEC-121t 一并更正**」（`tools/infra/check_spec_readonly.py` 输出 / `Makefile` help 的「upstream read-only spec volume(s)」措辞一并更正）已落 `SPEC-121t` 文件头「⚠️ 前置」+ 审阅记录「范围补正」。该入锁**语义扩面**：`Process-06` 由「只保护上游 20 册」改为「**含 v5 自定册**」。
 
 > **2026-10-07 重排（用户裁定 1「A 重排：先 `LLVM-060t` 再 `SPEC-115t`」）**：`LLVM-060t` **前置**、`SPEC-115t` **后置**；`SPEC-115t` 依赖 += `LLVM-060t`；`SPEC-115t` 文件集 += `tools/spec/generate_opcodes.py`（裁定 2：改生成器 + 重跑）、`tests/vectors/inventory.md`、`tools/llvm/validate_instrinfo.py`；`llvm`/`legality` 口径见 `SPEC-115t` 审阅记录「第 2 轮 architect 重排落纸」。
 
@@ -172,7 +174,7 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
   `INFRA-047t`（install）→ `INFRA-048t`（落点迁移）→ `SPEC-117t`（`Process-05 §6` 补正，依 `INFRA-048t`）。
 - **Wave 1 — 决策与规范（spec-first）+ LLVM 指令（重排后前移）**：
   `SPEC-113t`（ADR，**用户逐条确认**）→ `SPEC-114t`（规范正文）；`SPEC-116t`（`§2.1` 大小写 + **`§1` 格式类口径同步**〔2026-10-08 并入〕）与 113–114 **同改 `spec/` ⇒ 串行**（可置于 114 前后；`§1` 口径依赖 `SPEC-115t` re-scope 后 `scope` 事实）。
-  `SPEC-121t`（**`Machine-01 §1` 越界路由/RAM@0 容量落纸** + 该册**入锁** + `Process-06 §5/§6` 同步；← `QEMU-049t`〔**已验证**，口径来源〕——**同改 `spec/`/锁 ⇒ 与 113–116/117/120 串行**；用户授权原话落其文件头）。
+  `SPEC-121t`（**`Machine-01 §1` 越界路由/RAM@0 容量落纸** + 该册**入锁**〔含 v5 自定册〕 + `Process-06 §5/§6` 同步 + 门控措辞去「upstream」；← `QEMU-049t`〔**已验证**，口径来源〕——**同改 `spec/`/锁 ⇒ 与 113–116/117/120 串行**；用户授权原话落其文件头）。
   **`LLVM-060t`** ← `INFRA-047t`（**2026-10-07 用户裁定 1 重排：不再等 `SPEC-115t`**；编码 `op`/`mask`/`value` 已定义，re-scope 只改 `scope`/`decode`）。
   ⇒ **ADR 未 `Accepted` 前不进入 re-scope/QEMU**（`Process-03`：决策先行）。
 - **Wave 2 — re-scope 收口（spec）**：`SPEC-115t` ← `SPEC-114t`/`113t`/`119t` + **`LLVM-060t`**（`.td` def + lit `; OBJ:` 就绪）；*本任务一次使 3 门控转绿*（`validate-vectors`/`check-interface`/`check-instrinfo`）。紧随 **`SPEC-120t`**（`encode_cfx` 定界/修正，**串行**）。**只 1+1 条，无链内并发**。
