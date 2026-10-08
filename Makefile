@@ -42,7 +42,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-spec-readonly check-cfx-aliases check-asm-prose check-lit \
-        test-codegen test-elf \
+        test-codegen test-elf test-semihost \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants
 
@@ -88,6 +88,7 @@ help:
 	@echo "  make check-lit        Run lit MC + CodeGen + E2E tests (requires install-host)"
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
+	@echo "  make test-semihost    Run M5 SEE/semihosting E2E gate (bootrom+bin via -semihosting, console+SYS_EXIT, 25 svc; INTEG-020t)"
 	@echo "  make check-patch-tree  Check component patch tree (spec/Process-01, 9 assertions)"
 	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
@@ -479,6 +480,50 @@ test-elf: install-host
 	  tail -20 $(CODEGEN_ELF_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "test-elf: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "test-elf: PASS"
+
+# M5 SEE/semihosting end-to-end gate (INTEG-020t).  Five components, all
+# fail-closed (any failure => non-zero exit):
+#   1. forward: SEE bootrom (`-bios`, QEMU-047t) + flat bin application
+#      (`-kernel`) served through `-semihosting`; the semihosting console is
+#      captured with a file chardev and the host exit code is the SYS_EXIT
+#      status.
+#   2. cfx-level permission counter-examples (4 cases carried by the same
+#      driver: reserved cfxha / masked trap => ILLI; unimplemented cfx /
+#      out-of-range scratch register => CFXREG; ADR-0020 D9).
+#   3. full 25-service table coverage (QEMU-046t min-ROM probe, >=1 per id).
+#   4. no regression: test-elf (5/5), test-codegen (15/15) and check (which
+#      includes check-lit) -- enforced as prerequisites.
+#   5. INTEG open/close registration (INTEG-021m): recorded in this target's
+#      logs and the task book.
+# Tools come from the install root (ADR-0016 D9); the bootrom from
+# `make build-bootrom`.  Coexists with (does not replace) test-elf/test-codegen.
+SEMIHOST_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m5-e2e
+SEMIHOST_E2E_LOG = .work/log/integ/test-semihost.log
+SEMIHOST_PROBE_LOG = .work/log/integ/test-semihost-probe.log
+MIN_ROM_PROBE = tools/qemu/min_rom_probe_046t.py
+
+test-semihost: install-host build-bootrom test-elf test-codegen check
+	@test -x $(LLVM_MC_BIN) || { echo "test-semihost: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
+	@test -x $(LLVM_OBJCOPY_BIN) || { echo "test-semihost: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
+	@test -x $(QEMU_BIN) || { echo "test-semihost: ERROR: $(QEMU_BIN) not found"; exit 1; }
+	@test -f $(MIN_ROM_PROBE) || { echo "test-semihost: ERROR: $(MIN_ROM_PROBE) not found"; exit 1; }
+	@test -f $(BOOTROM_DIR)/bootrom.bin || { echo "test-semihost: ERROR: $(BOOTROM_DIR)/bootrom.bin not found (run 'make build-bootrom')"; exit 1; }
+	@mkdir -p .work/log/integ
+	@rm -rf $(SEMIHOST_E2E_WORK)
+	@echo "test-semihost: [1/2] forward semihosting + cfx-level permission counter-examples"; \
+	  $(PYTHON) tools/integ/run_m5_e2e.py \
+	    --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
+	    --qemu $(QEMU_BIN) --bootrom $(BOOTROM_DIR)/bootrom.bin \
+	    --work-dir $(SEMIHOST_E2E_WORK) > $(SEMIHOST_E2E_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 30 $(SEMIHOST_E2E_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-semihost: FAIL (forward/permission rc=$$rc)"; exit $$rc; fi
+	@echo "test-semihost: [2/2] 25-service table coverage (QEMU-046t probe)"; \
+	  $(PYTHON) $(MIN_ROM_PROBE) --qemu $(QEMU_BIN) > $(SEMIHOST_PROBE_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 4 $(SEMIHOST_PROBE_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-semihost: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
+	@echo "test-semihost: PASS (forward + permission + 25-service + no-regression + INTEG registration)"
 
 # Legality drift gate (SPEC-074t): verifies LEGALITY sections in
 # spec/SimRISC-01..12 exactly match content rendered from contracts/.

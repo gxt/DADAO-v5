@@ -8,7 +8,7 @@
 
 ## 核验
 - 关联任务是否均已 `已验证`
-- 产出是否存在：`tools/integ/run_semihost_e2e.py`、`Makefile::test-semihost`、`tests/e2e/lit/**`
+- 产出是否存在：`tools/integ/run_m5_e2e.py`（`TESTCASES-033t` 产出，`INTEG-020t` **复用、不另建 `run_semihost_e2e.py`**）、`Makefile::test-semihost`（`tests/e2e/lit/**` 判定不适用，见 `INTEG-020t` 遗留问题）
 - `make test-semihost` EXIT=0，五组成逐项：
   - 正向：**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码（原「单/多 TU ELF」正向用例移 M6——用户 2026-10-08 裁定，见 `INTEG-019k` §第 8 轮）
   - 权限反例（cfx 级）：**M5 可观测 = cfx 级**——`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕（**`NUPERM/NJPERM/NSPERM/NHPERM` 出自 `DADAO-12 §2.2` PTBR 层、不在 M5**；`ADR-0020 D9`）
@@ -31,3 +31,13 @@
 **改动**：核验「权限反例」行由「未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`」对齐为 **cfx 级 `ILLI`/`CFXREG`**（保留 `NUPERM…` 出处说明）。**性质 = 与既定决策的一致性修正，非新增范围**。
 
 **边界**：仅改本文件该 1 行 + 本记录；**`spec/` 交集为空**；未改 `contracts/**`/`components/**`/`Makefile`；未新增/删除任务。
+
+## 审阅记录
+
+#### 第 1 轮 architect 修订（2026-10-08，只追加）
+
+**改动**：核验「产出是否存在」由 `tools/integ/run_semihost_e2e.py` 就地更正为 `tools/integ/run_m5_e2e.py`（另注 `tests/e2e/lit/**` 判定不适用）。
+
+**依据**：既定判定 **复用 `tools/integ/run_m5_e2e.py`、不另建 `run_semihost_e2e.py`**——见 `INTEG-020t` 审阅记录「主会话判定落纸（architect，2026-10-08）」判定 3 + 「下发前预检修订」F2（该判定的原始落点），以及 `TESTCASES-033t` 审阅记录（`run_m5_e2e.py` 为 `TESTCASES-033t` 实际交付驱动）；`INTEG-020t` 遗留问题「INTEG 开闭登记材料」亦登记此为待更正项。本次为**与既定判定的一致性更正，非新增范围**。
+
+**边界**：仅改本文件核验 1 行 + 本记录；**`spec/` 交集为空**；未改 `contracts/**`/`components/**`/`Makefile`/`tools/**`；未新增/删除任务。

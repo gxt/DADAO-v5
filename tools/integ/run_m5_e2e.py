@@ -101,7 +101,8 @@ USER_MODE = 0
 
 class CaseResult:
     __slots__ = ("name", "category", "expected", "actual", "passed", "reason",
-                 "expected_cause", "cmdline")
+                 "expected_cause", "cmdline",
+                 "console_expected", "console_actual", "console_ok")
 
     def __init__(self, name, category, expected):
         self.name = name
@@ -112,6 +113,11 @@ class CaseResult:
         self.reason = ""
         self.expected_cause = None
         self.cmdline = ""
+        # Semihosting console capture (chardev file): expected is None when the
+        # manifest declares no console expectation for this case.
+        self.console_expected = None
+        self.console_actual = None
+        self.console_ok = None
 
 
 def _abspath(path: str) -> str:
@@ -268,6 +274,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     if os.path.exists(console_path):
         with open(console_path, "rb") as fh:
             console = fh.read()
+    res.console_actual = console
     log = ""
     if os.path.exists(cpu_log):
         with open(cpu_log, "r", encoding="utf-8", errors="replace") as fh:
@@ -282,7 +289,9 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
 
     if prog["console"] is not None:
         want = prog["console"].encode("latin-1")
-        if console != want:
+        res.console_expected = want
+        res.console_ok = (console == want)
+        if not res.console_ok:
             problems.append(f"console={console!r} != {want!r}")
 
     file_expect = prog.get("file")
@@ -321,6 +330,13 @@ def run_suite(programs, tools, work_dir, timeout, verbose=False):
         sys.stdout.write(
             f"  {status}  {res.name}  expected={res.expected} actual={actual} "
             f"exit={actual}{cause}  ({res.reason})\n")
+        # Console capture (chardev file) is compared byte-exactly; echo the
+        # expected/actual bytes so the comparison is visible in the gate log.
+        if res.console_expected is not None:
+            verdict = "match" if res.console_ok else "MISMATCH"
+            sys.stdout.write(
+                f"  console {res.name}  expected={res.console_expected!r} "
+                f"actual={res.console_actual!r} {verdict} (byte-exact)\n")
         sys.stdout.flush()
         results.append(res)
     return results
