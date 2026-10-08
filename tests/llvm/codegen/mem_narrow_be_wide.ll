@@ -11,8 +11,10 @@
 ;   w4 = zext(load i32 @4) = 0x55667788 ; c = (w4 >> 24) & 255 = 0x55 = 85 (ld.ut, offset 4)
 ;   store i16 -300 @2 ; n = sext(load i16 @2) = -300 ; nhi = (n >> 16) & 255 = 255 (ld.sw, offset 2)
 ;   store i32 -70000 @0 ; s = sext(load i32 @0) = -70000 ; shi = (s >> 32) & 255 = 255 (ld.st, offset 0)
-;   r = (a + b + c + nhi + shi) & 255 = (17 + 136 + 85 + 255 + 255) & 255 = 236
-; Expected guest exit code: 236
+;   r = (a + b + c + nhi + shi) & 127 = (17 + 136 + 85 + 255 + 255) & 127 = 748 & 127 = 108
+; The outer mask is 127 so the guest exit code stays in 0x00..0x7F (ISS-147);
+; the intermediate sign-bit extractions keep the 255 mask to expose all sign bits.
+; Expected guest exit code: 108
 define i64 @main() {
 entry:
   %buf = alloca [8 x i8], align 8
@@ -52,6 +54,6 @@ entry:
   %ehi = lshr i64 %e, 32
   %ehi8 = and i64 %ehi, 255
   %t4 = add i64 %t3, %ehi8
-  %r = and i64 %t4, 255
+  %r = and i64 %t4, 127
   ret i64 %r
 }

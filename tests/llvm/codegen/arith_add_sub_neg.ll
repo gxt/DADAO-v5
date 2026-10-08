@@ -7,8 +7,10 @@
 ;   c = add a, b  = -2
 ;   d = sub b, a  = 8
 ;   e = xor c, d  = -10          (xor keeps both add and sub alive)
-;   r = and e, 255 = 246
-; Expected guest exit code (i64 return of @main): 246  (in 0..255)
+;   r = and e, 127 = 118
+; The mask is 127 (not 255) so the guest exit code stays in 0x00..0x7F, clear of
+; the machine-fault range 0x80..0xFF (ADR-0004 D5.7/D5.8; ISS-147).
+; Expected guest exit code (i64 return of @main): 118  (in 0x00..0x7F)
 define i64 @main() {
 entry:
   %sa = alloca i64, align 8
@@ -20,6 +22,6 @@ entry:
   %c = add i64 %a, %b
   %d = sub i64 %b, %a
   %e = xor i64 %c, %d
-  %r = and i64 %e, 255
+  %r = and i64 %e, 127
   ret i64 %r
 }

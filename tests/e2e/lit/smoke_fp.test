@@ -1,6 +1,7 @@
 # Minimal FP end-to-end smoke (M2 gate ④).
-# Assemble smoke_fp.s, extract .text, run on qemu dadao-m1; the guest writes
-# 0x00 to the exit port on PASS. qemu's process exit code is the lit result.
+# Assemble smoke_fp.s, extract .text, run on qemu dadao-m1; the guest reports
+# 0x00 through the semihosting SYS_EXIT service on PASS (ADR-0020 D8). qemu's
+# process exit code is the lit result.
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/smoke_fp.s -o %t.o
 # RUN: %llvm_objcopy -O binary --only-section=.text %t.o %t.bin
-# RUN: timeout 30 %qemu -M dadao-m1 -bios %trampoline -kernel %t.bin -display none -nographic
+# RUN: timeout 30 %qemu -M dadao-m1 -bios %trampoline -kernel %t.bin -semihosting-config enable=on,target=native -display none -nographic

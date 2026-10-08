@@ -17,9 +17,10 @@ This directory is not yet wired into `make check` / `make test-elf` either —
   **>= 2 TUs** — a symbol defined in one TU is called/read from another, which
   is what forces real link-time relocations.
 - Every program defines `define i64 @main()`.  `crt0` (`tests/scripts/codegen_crt0.s`,
-  linked by `ld.lld`) calls it and writes the returned value to the exit port
-  `0xffff_8000_0000`; the **guest exit code is the low byte** of that value
-  (ADR-0004 D3).  Every program returns `0x00..0x7F` (the guest partition; the
+  linked by `ld.lld`) calls it and reports the returned value through the
+  semihosting `SYS_EXIT` service (`ADR-0020 D8`: `SYS_EXIT` replaces the exit
+  port, `ADR-0004 D3` superseded); the **guest exit code is the low byte** of
+  that value.  Every program returns `0x00..0x7F` (the guest partition; the
   `0x80..0xFF` range is reserved for machine faults).
 - Programs use only globals + registers: no `alloca`, no `phi`, no aggregates,
   no varargs, no `sret`, no floating point.  This keeps the host-side oracle

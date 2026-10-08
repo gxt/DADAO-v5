@@ -7,9 +7,9 @@ Usage:
   python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --dump
   python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ --batch
 
-Exit code protocol (ADR-0004 D3/D5):
+Exit code protocol (ADR-0004 D5; SYS_EXIT per ADR-0020 D8):
   0x00       = PASS
-  0x01-0x7F  = FAIL (test-defined)
+  0x01-0x7F  = FAIL (test-defined, reported via semihosting SYS_EXIT)
   0x80-0xFF  = Machine fault (0x87=unmapped, 0x88=ILLI, 0x89=UNDI, etc.)
 """
 
@@ -302,6 +302,9 @@ def run_qemu(qemu_bin, trampoline_path, test_bin_path, timeout=DEFAULT_TIMEOUT, 
         "-nographic",
         "-bios", trampoline_path,
         "-kernel", test_bin_path,
+        # SYS_EXIT status reaches the host $? only when semihosting is enabled
+        # (ADR-0020 D8; the harness explicitly enables 'native', ADR-0020 D7).
+        "-semihosting-config", "enable=on,target=native",
     ]
 
     dump_file = None

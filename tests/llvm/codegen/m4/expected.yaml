@@ -9,7 +9,7 @@
 # Entry / exit channel (frozen by the M3 gate and ADR-0004 D3):
 #   * every program defines `define i64 @main()`;
 #   * crt0 `_start` (linked in by ld.lld) calls it and writes the returned value
-#     to the exit port 0xffff_8000_0000, then halts;
+#     through the semihosting SYS_EXIT service, then halts;
 #   * the guest process exit code is the low byte of that value (0x00..0x7F are
 #     reserved for the guest; 0x80..0xFF are machine faults).
 #

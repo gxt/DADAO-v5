@@ -11,14 +11,20 @@ expected value (it does NOT rely on lit exit codes):
     link:    ld.lld -T tests/scripts/dadao.lds \
                  crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC)
     run:     timeout N qemu-system-dadao -M dadao-m1 \
-                 -kernel <prog>.elf -display none -nographic
+                 -kernel <prog>.elf \
+                 -semihosting-config enable=on,target=native \
+                 -display none -nographic
                                                           -> guest exit code
 
 The crt0 `_start` calls `@main` (via an R_DADAO_REL26 relocation resolved by
-ld.lld) and writes the returned value to the exit port 0xffff_8000_0000
-(ADR-0004 D3); the guest exit code is the low byte.  Unlike the M3 raw-bin
-pipeline (run_codegen_e2e.py) this links multiple objects with the target LLD
-and loads the resulting ELF directly (contract-elf.md §6.1.2).
+ld.lld) and reports the returned value through the semihosting `SYS_EXIT`
+service (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device, ADR-0004 D3 superseded);
+the guest exit code is the low byte.  Unlike the M3 raw-bin pipeline
+(run_codegen_e2e.py) this links multiple objects with the target LLD and loads
+the resulting ELF directly (contract-elf.md §6.1.2).
+`-semihosting-config enable=on,target=native` is required so the SYS_EXIT
+status reaches the host `$?` (ADR-0020 D7: the harness explicitly enables
+`native`).
 
 Manifest shape (both accepted):
   * multi-TU (m4):  {name, sources: [a.ll, b.ll, ...], expected_exit_code}
@@ -223,6 +229,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             tools["qemu"],
             "-M", "dadao-m1",
             "-kernel", elf,
+            "-semihosting-config", "enable=on,target=native",
             "-display", "none",
             "-nographic",
         ],
@@ -235,8 +242,8 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     if rc is None:
         res.reason = "qemu did not return an exit code"
         return res
-    # Fault detection (ADR-0004 D3): 0x80..0xFF are machine faults, but expected
-    # values may legitimately fall in that range (see INTEG-012t), so only a
+    # Fault detection (ADR-0004 D5.7/D5.8): 0x80..0xFF are machine faults; the
+    # guest (SYS_EXIT) codes are constrained to 0x00..0x7F (ISS-147), so only a
     # *mismatch* can be classified as a fault.
     if rc == prog["expected"]:
         res.passed = True

@@ -4,13 +4,15 @@
 ;   RD immediates -> rd2rf -> RF
 ;   ftadd  (f32 add, contract-fp.md §5)
 ;   ft2it  (f32 -> signed int32, contract-fp.md §3)
-;   cmp.so (integer equality, contract-isa.md §6.2.2) -> br.nz -> exit port
+;   cmp.so (integer equality, contract-isa.md §6.2.2) -> br.nz -> SYS_EXIT
 ;
 ; Program: rf1 = 1.5, rf2 = 2.25; rf3 = ftadd(rf1, rf2); rd3 = ft2it(rf3);
 ;          PASS iff rd3 == 3.
 ;
-; Exit protocol (ADR-0004 D3): write 8 B to exit port 0xffff_8000_0000;
-;   0x00 = PASS, non-zero = FAIL. First write wins.
+; Exit channel (ADR-0020 D8): semihosting SYS_EXIT replaces the legacy MMIO halt device.
+;   rd16 = service number 0x18 (SYS_EXIT); rb16 = argument-block pointer;
+;   block = {0x20026 (ADP_Stopped_ApplicationExit), code}.  0x00 = PASS,
+;   non-zero = FAIL.
 ;
 ; ── Expected values: INDEPENDENTLY HAND-DERIVED (IEEE-754 binary32) ──────────
 ; NOT produced, calibrated, or back-filled from llvm-mc / llvm-objdump / QEMU
@@ -47,9 +49,13 @@
 ;   rd0=0 (hardwired), all other rd/rb/ra = 0; rf0 = FCSR = 0
 
 _start:
-    ; 1. Construct exit-port address rb3 = 0xffff_8000_0000
-    set.zw  rb3, wp2, 0xffff        ; rb3[47:32] = 0xffff, rest = 0
-    or.w    rb3, wp1, 0x8000        ; rb3[31:16] |= 0x8000
+    ; 1. Build the SYS_EXIT argument block at rb16 = 0xffff_00ff_f000.
+    set.zw  rb16, wp2, 0xffff
+    or.w    rb16, wp1, 0x00ff
+    or.w    rb16, wp0, 0xf000
+    set.zw  rd6, wp1, 0x0002
+    or.w    rd6, wp0, 0x0026
+    st.o    rd6, [rb16, 0]
 
     ; 2. f32 bit patterns into RD low 32 bits
     set.zw  rd1, wp1, 0x3fc0        ; rd1 = 0x0000_0000_3FC0_0000
@@ -70,11 +76,15 @@ _start:
     cmp.so  rd5, rd3, rd4
     br.nz   {rd5}?, [rb0, Lfail]
 
-    ; 7. PASS: write 0x00 -> exit port
-    st.o    rd5, [rb3, 0]
+    ; 7. PASS: report 0x00 via SYS_EXIT
+    st.o    rd5, [rb16, 8]
+    set.zw  rd16, wp0, 0x0018
+    trap    cfx_umon, 0x30000
 
 Lfail:
-    ; 8. FAIL: write 0x01 -> exit port
+    ; 8. FAIL: report 0x01 via SYS_EXIT
     set.zw  rd7, wp0, 1
-    st.o    rd7, [rb3, 0]
+    st.o    rd7, [rb16, 8]
+    set.zw  rd16, wp0, 0x0018
+    trap    cfx_umon, 0x30000
     swym    0

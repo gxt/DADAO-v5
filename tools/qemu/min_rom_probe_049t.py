@@ -5,9 +5,9 @@ access/fetch fault semantics (CFXMEM vs the test-machine unmapped convention).
 Spec sources (expectations derived by hand from spec/ + ADRs, never from the
 QEMU implementation):
   - spec/Machine-01-测试机运行环境.md §1.1 (internal-address-space split:
-    RAM@0 0x0000_0000_0000 / legacy RAM 0xffff_0000_0000 16 MiB / exit port /
-    boot ROM; C1 step1 dual mapping) and §1.2 (out-of-range access AND fetch
-    both fault; CFXMEM(0x81) vs test-machine unmapped(0x87)).
+    RAM@0 0x0000_0000_0000 / legacy RAM 0xffff_0000_0000 16 MiB / legacy MMIO
+    halt device / boot ROM; C1 step1 dual mapping) and §1.2 (out-of-range
+    access AND fetch both fault; CFXMEM(0x81) vs test-machine unmapped(0x87)).
   - .tao/adr/adr-0020-see-semihosting.md D15 and adr-0004-test-machine.md
     R3 (RAM base -> all zero; C1 two-step) + D5.8 (frozen fault-code table:
     0x81 reserved for CFXMEM = 0x80 | (1<<1); 0x87 = unmapped convention).
@@ -24,7 +24,8 @@ Routing implemented by QEMU-049t (ADR-0020 D15):
 Observation channels:
   * register results / mapped reads -> QEMU `-d cpu` dump (parses the LAST
     dump block; same convention as min_rom_probe_034t..044t).
-  * fault codes -> process exit code via exit port (ADR-0004 D5.8).
+  * fault codes -> process exit code via QEMU's fault mapping; normal pass/fail
+    -> semihosting SYS_EXIT (ADR-0020 D8; replaces the legacy MMIO halt device).
 
 Usage:
   min_rom_probe_049t.py                 # run all checks
@@ -86,9 +87,17 @@ def _rrii(op, ha, hb, off):
 def ld_o(rd, rb, off):   return _rrii(0x20, rd, rb, off)
 def st_o(rd, rb, off):   return _rrii(0x21, rd, rb, off)
 def jump_rrii(rb, rd, off): return _rrii(0x71, rb, rd, off)
+def jump_iiii(imms24):   return (0x70 << 24) | (imms24 & 0xFFFFFF)
+def trap(ha, immu18):    return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
 
 
 def swym():              return 0x77880000
+
+
+# Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
+SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
 
 
 def load_rd(rd, val):
@@ -110,9 +119,18 @@ def load_rb(rb, val):
 
 
 def exit_seq(code):
-    """Write `code` to the exit port (rb16 = 0xffff_8000_0000) -> host $?."""
-    return ([set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x8000)] +
-            load_rd(16, code) + [st_o(16, 16, 0)])
+    """Report `code` via semihosting SYS_EXIT (ADR-0020 D8) -> host $?.
+
+    The leading no-op `jump` ends the current TB so the last `-d cpu` dump (the
+    probe's observation channel) captures the caller's state (e.g. the `ld_o`
+    result) before this epilogue; rb16 = argument-block pointer; block =
+    {reason, code}; rd16 = 0x18 (SYS_EXIT); `trap` with the semihosting tag.
+    """
+    return ([jump_iiii(1)]
+            + [set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
+            + load_rd(9, code) + [st_o(9, 16, 8)]
+            + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
 
 
 def words_to_bytes(ws):
@@ -141,6 +159,7 @@ def run(rom):
     with open(kp, "wb") as f:
         f.write(b"\x00" * 16)
     cmd = [QEMU, "-M", "dadao-m1", "-nographic", "-bios", rp, "-kernel", kp,
+           "-semihosting-config", "enable=on,target=native",
            "-d", "cpu", "-D", lp]
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, text=True)
@@ -227,9 +246,14 @@ def _ram0_top():
 # -- acc 2: RAM@0 is executable (fetch from RAM@0) ---------------------------
 @case("ram0_exec", "fetch/execute from RAM@0 (write code then jump)")
 def _ram0_exec():
-    fragment_word = st_o(16, 16, 0)          # rd16 (=0x5A) -> exit port (rb16)
-    prog = [set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x8000)]  # rb16 = exit port
-    prog += load_rd(16, 0x5A)                # exit code held in rd16
+    # The fragment executed from RAM@0 is the semihosting SYS_EXIT trap: the
+    # main program pre-loads rd16 = 0x18, rb16 = SEMI_BLOCK and the {0x20026,
+    # 0x5A} block, then stores the trap word into RAM@0 and jumps to it.
+    fragment_word = trap(0, SEMIHOST_TAG)    # SYS_EXIT trap, executed from RAM@0
+    prog = load_rd(8, ADP_STOPPED_APPLICATION_EXIT)
+    prog += load_rb(16, SEMI_BLOCK) + [st_o(8, 16, 0)]     # block[0] = 0x20026
+    prog += load_rd(9, 0x5A) + [st_o(9, 16, 8)]            # block[1] = 0x5A
+    prog += load_rd(16, 0x18)                # rd16 = SYS_EXIT service number
     prog += load_rb(2, RAM0_BASE + 0x2000)   # code target in RAM@0
     prog += load_rd(7, fragment_word << 32)  # place word in the high 32 bits
     prog += [st_o(7, 2, 0)]                  # store word at RAM@0 0x2000

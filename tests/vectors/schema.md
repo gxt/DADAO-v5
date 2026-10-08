@@ -135,8 +135,9 @@
 - RAM 窗口：`[0xffff_0000_0000, 0xffff_00ff_ffff]`（16 MiB）。
 - `semantic` 类的 `memory` 地址**必须**落在 RAM 窗口内（validator 阻断校验）。
 - `legality` 类可表达 unmapped（`expected_fault: UNMAPPED`）等越界地址，不受此限。
-- 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`、Exit port
-  `0xffff_8000_0000`–`0xffff_8000_0007`）须显式引用 ADR-0004 章节。
+- 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`；以及 ADR-0004 D3
+  定义的 MMIO 停机端口——已由 semihosting `SYS_EXIT` 取代、设备机制保留）
+  须显式引用 ADR-0004 章节。
 
 ### `expected_pc`（本版新增）
 

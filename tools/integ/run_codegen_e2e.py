@@ -10,12 +10,16 @@ independently-derived expected value (it does NOT rely on lit exit codes):
     llvm-mc --triple=dadao -filetype=obj       -> <prog>.o
     llvm-objcopy -O binary --only-section=.text-> <prog>.bin
     timeout N qemu-system-dadao -M dadao-m1 -bios trampoline.bin \
-            -kernel <prog>.bin -display none -nographic
+            -kernel <prog>.bin -semihosting-config enable=on,target=native \
+            -display none -nographic
                                                -> process exit code == guest exit code
 
-The startup stub calls ``@main`` and writes the returned value (rd31) to the
-exit port ``0xffff_8000_0000``; the guest exit code is the low byte
-(ADR-0003 D5 single TU, ADR-0004 D3 exit port).
+The startup stub calls ``@main`` and reports the returned value (rd31) through
+the semihosting ``SYS_EXIT`` service; the guest exit code is the low byte
+(ADR-0003 D5 single TU; ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device,
+ADR-0004 D3 superseded).  ``-semihosting-config enable=on,target=native`` is
+required so the SYS_EXIT status reaches the host ``$?`` (ADR-0020 D7: the
+harness explicitly enables ``native``).
 
 Judgement (fail-closed):
   * guest exit code == expected          -> PASS
@@ -210,6 +214,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             "-M", "dadao-m1",
             "-bios", tools["trampoline"],
             "-kernel", bin_path,
+            "-semihosting-config", "enable=on,target=native",
             "-display", "none",
             "-nographic",
         ],
@@ -222,12 +227,11 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     if rc is None:
         res.reason = "qemu did not return an exit code"
         return res
-    # NOTE on fault detection: the comparison must be primary.  ADR-0004 D3
-    # reserves 0x80..0xFF for machine faults, but the TESTCASES-026t expected
-    # values include numbers in that range (e.g. 137 == 0x89 == UNDI, 236/238/
-    # 246/249).  A guest exit code and a fault code are therefore not always
-    # distinguishable from the raw status; we can only classify a *mismatch* as
-    # a fault.  See the INTEG-012t findings for the ambiguity.
+    # NOTE on fault detection: the comparison must be primary.  ADR-0004
+    # D5.7/D5.8 reserves 0x80..0xFF for machine faults; the guest (SYS_EXIT)
+    # codes are constrained to 0x00..0x7F (ISS-147, fixed by TESTCASES-034t),
+    # so an unexpected fault (>= 0x80) can never equal an expected guest code.
+    # A *mismatch* is still classified as a fault when it lands in FAULT_NAMES.
     if rc == prog["expected"]:
         res.passed = True
         res.reason = "match"

@@ -127,22 +127,28 @@ For **semantic/boundary** cases with `expected_state`:
 3. For RB: `rb2rd` copies actual RB into scratch RD, then XOR with expected
 4. For RA: `ra2rd` copies actual RA into scratch RD, then XOR with expected
 5. OR all differences into accumulator
-6. If accumulator == 0 → write `0x00` (PASS) to exit port
-7. If accumulator != 0 → write `0x01` (FAIL) to exit port
+6. If accumulator == 0 → report `0x00` (PASS) via semihosting `SYS_EXIT`
+7. If accumulator != 0 → report `0x01` (FAIL) via semihosting `SYS_EXIT`
 
 For **encoding** cases (no expected_state, no expected_fault):
-- Write `0x00` (PASS) to exit port after test instruction
+- Report `0x00` (PASS) via `SYS_EXIT` after the test instruction
 
 For **legality** cases with `expected_fault`:
-- Write safety-net FAIL code (if fault doesn't happen)
-- QEMU handles the fault and writes fault code to exit port
+- Report a safety-net FAIL code if the fault doesn't happen
+- QEMU handles the fault and exits with its own fault code (e.g. `0x88`)
 
-## Exit Code Protocol (ADR-0004 D3/D5)
+The `SYS_EXIT` epilogue writes the 64-bit argument block
+`{ADP_Stopped_ApplicationExit (0x20026), code}` into RAM at
+`0xffff_00fd_0000`, then issues `rd16 = 0x18 (SYS_EXIT)`, `rb16 = block`,
+`trap` (semihosting tag).  The harness runs QEMU with
+`-semihosting-config enable=on,target=native` (ADR-0020 D7/D8).
+
+## Exit Code Protocol (ADR-0004 D5.7/D5.8; SYS_EXIT per ADR-0020 D8)
 
 | Range | Source | Meaning |
 |-------|--------|---------|
-| `0x00` | Exit port | PASS |
-| `0x01`-`0x7F` | Exit port | FAIL (test-defined) |
+| `0x00` | `SYS_EXIT` (guest) | PASS |
+| `0x01`-`0x7F` | `SYS_EXIT` (guest) | FAIL (test-defined) |
 | `0x80`-`0xFF` | Machine fault | See below |
 
 Machine fault codes (ADR-0004 D5.8):
@@ -165,7 +171,6 @@ Machine fault codes (ADR-0004 D5.8):
 | `rd61` | XOR+ORR accumulator |
 | `rd62` | Exit code |
 | `rd63` | Temp for dump |
-| `rb60` | Exit port address |
 | `rb61` | Temp for memory address |
 | `rb62` | Dump pointer |
 
@@ -175,7 +180,7 @@ Machine fault codes (ADR-0004 D5.8):
 
 **Normal mode**: Dumper section dumps state to memory, then continues to exit section. Host reads exit code from `$?`.
 
-**Dump mode** (`--dump` flag): After dumper section, guest spins (`jump rb0, rd0, 0`) instead of writing to exit port. Host uses QMP to dump memory. The harness starts QEMU with `-S` (frozen CPU), connects to QMP Unix socket, sends `cont` to resume guest, waits for guest to reach spin, then issues `pmemsave` and `quit`:
+**Dump mode** (`--dump` flag): After dumper section, guest spins (`jump rb0, rd0, 0`) instead of exiting via `SYS_EXIT`. Host uses QMP to dump memory. The harness starts QEMU with `-S` (frozen CPU), connects to QMP Unix socket, sends `cont` to resume guest, waits for guest to reach spin, then issues `pmemsave` and `quit`:
 
 ```bash
 # The harness does this automatically. For manual testing:

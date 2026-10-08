@@ -126,6 +126,24 @@ def fence():
     """fence — trigger ILLI exception (exit=136)"""
     return encode_oiii(0x77, 0x00, 0)
 
+
+# ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
+
+SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
+
+
+def semi_exit(code_rd):
+    """rb16 = SEMI_BLOCK; block = {0x20026, code_rd}; rd16 = 0x18; trap."""
+    return ([encode_rwii(0x4E, 16, 2, 0xFFFF), encode_rwii(0x4A, 16, 1, 0x00FF),
+             encode_rwii(0x4A, 16, 0, 0xF000)]
+            + [set_zw(8, 0x0026), or_w(8, 1, 0x0002)]
+            + [st_o(8, 16, 0)]
+            + [st_o(code_rd, 16, 8)]
+            + [set_zw(16, 0x0018)]
+            + [encode_oiii(0x7F, 0, SEMIHOST_TAG)])
+
 # ── Terminators and ROM builder ───────────────────────────────────────
 
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
@@ -134,16 +152,16 @@ def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
     Trampoline (7 insns = 28 bytes):
       rd1=0, rd18=0(PASS), rd19=1(FAIL)
-      rb16=exit port (0xFFFF_8000_0000)
+      rb16=the SYS_EXIT argument block (rebuilt by semi_exit)
       rb17=RAM base (0xFFFF_00FE_0000)
     """
     trampoline = [
         set_zw(1, 0),                          # rd1 = 0 (scratch)
         set_zw(18, 0),                          # rd18 = 0 (PASS value)
         set_zw(19, 1),                          # rd19 = 1 (FAIL value)
-        # rb16 = exit port (0xFFFF_8000_0000)
+        # rb16 = SYS_EXIT argument block (rebuilt by semi_exit)
         encode_rwii(0x4E, 16, 2, 0xFFFF),      # set.zw rb16, wp2, 0xFFFF
-        encode_rwii(0x4A, 16, 1, 0x8000),       # or.w rb16, wp1, 0x8000
+        encode_rwii(0x4A, 16, 1, 0x00FF),      # rb16 = 0xFFFF00FF0000 (dead; semi_exit rebuilds it)
         # rb17 = RAM base (0xFFFF_00FE_0000) for st/ld stores
         encode_rwii(0x4E, 17, 2, 0xFFFF),      # set.zw rb17, wp2, 0xFFFF
         encode_rwii(0x4A, 17, 1, 0x00FE),       # or.w rb17, wp1, 0x00FE
@@ -163,7 +181,8 @@ def run_test(rom_data, kernel_data=None, timeout=10):
     try:
         result = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic',
-             '-bios', rom_path, '-kernel', kernel_path],
+             '-bios', rom_path, '-kernel', kernel_path,
+             '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return result.returncode, result.stderr
     except subprocess.TimeoutExpired:
@@ -381,9 +400,8 @@ def make_t6_st_o_rd0_no_illi():
     """
     insns = [
         st_o(0, 17, 0),              # st.o rd0, [rb17, 0] → should store 0
-        # If st.o rd0 succeeded, write exit port: st.o rd18, rb16, 0 (rd18=0 → PASS)
-        st_o(18, 16, 0),
-    ]
+        # If st.o rd0 succeeded, report PASS (0) via SYS_EXIT
+    ] + semi_exit(18)
     return ("T6: st.o rd0 should NOT ILLI (counterexample gate)",
             insns, PASS_EXIT,
             "st.o rd0 should NOT ILLI (rd0 is source)")
@@ -399,7 +417,7 @@ TESTS = [
 
 CTL_CHECKS = [
     ("CTL1: st.o rd0 expects ILLI (wrong; should PASS)",
-     [st_o(0, 17, 0), st_o(0, 16, 0)],  # st.o rd0 should succeed
+     [st_o(0, 17, 0)] + semi_exit(0),  # st.o rd0 should succeed
      ILLI_EXIT,
      "Self-check FAILED: probe cannot detect st.o rd0 PASS vs ILLI"),
     ("CTL2: fence expects PASS (wrong)",

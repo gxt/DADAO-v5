@@ -18,7 +18,9 @@ Checks performed (all fail-closed, exit non-zero on any failure):
   6. Expected results: each ``expected_exit_code`` equals the value produced by
      an **independent host-side model of the LLVM IR semantics** (64-bit
      two's-complement arithmetic, big-endian memory).  This model never invokes
-     ``llc`` or QEMU.
+     ``llc`` or QEMU.  Every expected code must lie in ``0x00..0x7F`` so it can
+     never collide with a machine-fault code (``0x80..0xFF``; ADR-0004
+     D5.7/D5.8; ISS-147).
 
 The oracle in this file is a structural/consistency oracle; the full manual
 re-derivation of every value is recorded in the task completion area.  A green
@@ -102,25 +104,29 @@ def be_u(bs: list) -> int:
 
 
 def oracle(name: str):
-    """Return the expected exit code for a program, or None if unknown."""
+    """Return the expected exit code for a program, or None if unknown.
+
+    Every program masks its raw IR result with 127, so the guest exit code is
+    always in 0x00..0x7F (ISS-147: clear of the machine-fault range 0x80..0xFF).
+    """
     if name == "arith_add_sub_neg.ll":
         a, b = -5, 3
         c, d = u64(a + b), u64(b - a)
-        return (c ^ d) & 0xFF
+        return (c ^ d) & 0x7F
 
     if name == "arith_const_hi_wyde.ll":
         v = 0xFEDCBA9876543210
-        return ((v >> 56) ^ (v & 0xFF)) & 0xFF
+        return ((v >> 56) ^ (v & 0xFF)) & 0x7F
 
     if name == "mem_store_load_offset.ll":
-        return (100 - 23) & 0xFF
+        return (100 - 23) & 0x7F
 
     if name == "mem_narrow_be_bytes.ll":
         bs = be_bytes(0x0102030405060708, 8)
         bs[3] = 0xFE
         b0, b7, s3 = bs[0], bs[7], bs[3]
         shi8 = (u64(sext(s3, 8)) >> 8) & 0xFF
-        return (b0 * 10 + b7 * 100 + shi8) & 0xFF
+        return (b0 * 10 + b7 * 100 + shi8) & 0x7F
 
     if name == "mem_narrow_be_wide.ll":
         bs = be_bytes(0x1122334455667788, 8)
@@ -134,46 +140,46 @@ def oracle(name: str):
         bs[0:4] = be_bytes(-70000 & 0xFFFFFFFF, 4)
         s = be_u(bs[0:4])
         shi = (u64(sext(s, 32)) >> 32) & 0xFF
-        return (a8 + b + c8 + nhi + shi) & 0xFF
+        return (a8 + b + c8 + nhi + shi) & 0x7F
 
     if name == "branch_loop_sum.ll":
         n = 10
         total = sum(range(n))
-        return (total if total > 40 else 0) & 0xFF
+        return (total if total > 40 else 0) & 0x7F
 
     if name == "branch_eq_ne.ll":
         a, b, c, d = 7, 7, 3, 9
         r = 1 if a == b else 100
         r = r + 10 if c != d else r + 200
-        return (r + 5) & 0xFF
+        return (r + 5) & 0x7F
 
     if name == "branch_ptr.ll":
         def checks(p_is_null, p_eq_q):
             r = 1 if p_is_null else 2
             return r + (4 if p_eq_q else 8)
-        return (checks(False, True) + checks(False, False) + checks(True, False)) & 0xFF
+        return (checks(False, True) + checks(False, False) + checks(True, False)) & 0x7F
 
     if name == "call_direct_ret.ll":
-        return (2 + 3 + 4) & 0xFF
+        return (2 + 3 + 4) & 0x7F
 
     if name == "call_multiarg_stack.ll":
         base = 1
-        return sum(base + i for i in range(18)) & 0xFF
+        return sum(base + i for i in range(18)) & 0x7F
 
     if name == "call_narrow_args.ll":
-        return (200 + 300 + 400 + 5) & 0xFF
+        return (200 + 300 + 400 + 5) & 0x7F
 
     if name == "call_ptr_bank.ll":
         return 42
 
     if name == "ptr_add_offset.ll":
-        return 0xAB
+        return 0xAB & 0x7F
 
     if name == "ptr_diff_pos.ll":
-        return (10 - 3) & 0xFF
+        return (10 - 3) & 0x7F
 
     if name == "ptr_diff_neg.ll":
-        return (3 - 10) & 0xFF
+        return (3 - 10) & 0x7F
 
     return None
 
@@ -257,9 +263,10 @@ def check_records(ck: Checker, programs: list) -> None:
             vocab_ok = False
             print(f"       record #{i} coverage must be a non-empty list")
         code = rec.get("expected_exit_code")
-        if isinstance(code, bool) or not isinstance(code, int) or not (0 <= code <= 255):
+        if isinstance(code, bool) or not isinstance(code, int) or not (0 <= code <= 0x7F):
             range_ok = False
-            print(f"       record #{i} expected_exit_code out of range: {code!r}")
+            print(f"       record #{i} expected_exit_code out of range 0x00..0x7F "
+                  f"(machine-fault range 0x80..0xFF must be avoided; ISS-147): {code!r}")
         deriv = rec.get("derivation")
         if not isinstance(deriv, str) or not deriv.strip():
             deriv_ok = False

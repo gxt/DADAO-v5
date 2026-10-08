@@ -67,6 +67,28 @@ def st_o_rd(rdha, rbhb, imms12):
 def fence():
     return encode_orri(0x77, 0x00, 0, 0, 0)
 
+
+# ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
+
+SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
+
+
+def trap(ha, immu18):
+    return struct.pack('>I', (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF))
+
+
+def semi_exit(code_rd):
+    """rb16 = SEMI_BLOCK; block = {0x20026, code_rd}; rd16 = 0x18; trap."""
+    return ([encode_rwii(0x4E, 16, 2, 0xFFFF), encode_rwii(0x4A, 16, 1, 0x00FF),
+             encode_rwii(0x4A, 16, 0, 0xF000)]
+            + [set_zw_rd(8, 0x0026), or_w_rd(8, 1, 0x0002)]
+            + [st_o_rd(8, 16, 0)]
+            + [st_o_rd(code_rd, 16, 8)]
+            + [set_zw_rd(16, 0x0018)]
+            + [trap(0, SEMIHOST_TAG)])
+
 # ── Terminators and ROM builder ───────────────────────────────────────
 
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
@@ -75,16 +97,16 @@ def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
     Trampoline sets up:
       rb1  = SP (0xFFFF_00FF_0000)
-      rb16 = exit port (0xFFFF_8000_0000)
+      rb16 = the SYS_EXIT argument block (rebuilt by semi_exit)
       rb17 = DUMP_BASE (0xFFFF_00FE_0000) — RAM for st.o stores
-      rd18 = 0 (PASS value for exit port)
+      rd18 = 0 (PASS value)
       rd19 = 1 (FAIL value)
     """
     trampoline = [
         encode_rwii(0x4E, 1, 2, 0xFFFF),  # set.zw rb1, wp2, 0xFFFF
         encode_rwii(0x4A, 1, 1, 0x00FF),  # or.w rb1, wp1, 0x00FF (SP)
         encode_rwii(0x4E, 16, 2, 0xFFFF), # set.zw rb16, wp2, 0xFFFF
-        encode_rwii(0x4A, 16, 1, 0x8000), # or.w rb16, wp1, 0x8000 (exit port)
+        encode_rwii(0x4A, 16, 1, 0x00FF), # rb16 = 0xFFFF00FF0000 (dead; semi_exit rebuilds it)
         encode_rwii(0x4E, 17, 2, 0xFFFF), # set.zw rb17, wp2, 0xFFFF (RAM base)
         set_zw_rd(18, 0),                  # rd18 = 0 (PASS)
         set_zw_rd(19, 1),                  # rd19 = 1 (FAIL)
@@ -104,7 +126,8 @@ def run_test(rom_data, kernel_data=None, timeout=10):
     try:
         result = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic',
-             '-bios', rom_path, '-kernel', kernel_path],
+             '-bios', rom_path, '-kernel', kernel_path,
+             '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return result.returncode, result.stderr
     except subprocess.TimeoutExpired:
@@ -123,21 +146,21 @@ def make_st_o_rd_sequence(n):
     Each store: st.o rdN, rb17, N*8 (N=1..n, rdN is pre-set to 0 by trampoline
     for rd18, others are 0 by default).
     Uses rd1..rdN for variety; rd0 stores would be silently ignored.
-    After all stores, write exit port: st.o rd18, rb16, 0 (rd18=0 → PASS).
+    After all stores, report PASS (0) via SYS_EXIT.
     """
     insns = []
     for i in range(1, n + 1):
         rd = ((i - 1) % 62) + 1  # cycle rd1..rd62, skip rd0 and rd63(scratch)
         offset = (i * 8) & 0xFFF
         insns.append(st_o_rd(rd, 17, offset))
-    # PASS: st.o rd18, rb16, 0 (rd18=0, rb16=exit port)
-    insns.append(st_o_rd(18, 16, 0))
+    # PASS: SYS_EXIT(0)
+    insns += semi_exit(18)
     return insns
 
 def make_set_zw_sequence(n):
-    """Generate n set.zw instructions then write exit port.
+    """Generate n set.zw instructions then report PASS.
     Each set.zw writes an immediate to a different rd (cycles rd1..rd62).
-    After all set.zw, write exit port: st.o rd18, rb16, 0 (rd18=0 → PASS).
+    After all set.zw, report PASS (0) via SYS_EXIT.
     """
     insns = []
     for i in range(1, n + 1):
@@ -145,8 +168,8 @@ def make_set_zw_sequence(n):
         insns.append(set_zw_rd(rd, i & 0xFFFF))
     # Reset rd18=0 (may have been overwritten by set.zw cycle) before PASS
     insns.append(set_zw_rd(18, 0))
-    # PASS: st.o rd18, rb16, 0
-    insns.append(st_o_rd(18, 16, 0))
+    # PASS: SYS_EXIT(0)
+    insns += semi_exit(18)
     return insns
 
 # ── Test definitions ──────────────────────────────────────────────────
@@ -170,7 +193,7 @@ TESTS = [
 
 CTL_CHECKS = [
     ("CTL1: st.o PASS but expect TIMEOUT (wrong)",
-     [st_o_rd(18, 16, 0)],
+     semi_exit(18),
      TIMEOUT_EXIT,
      "Self-check FAILED: probe cannot detect PASS vs TIMEOUT"),
     ("CTL2: fence but expect PASS (wrong)",

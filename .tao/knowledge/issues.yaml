@@ -274,11 +274,11 @@
 
 - id: ISS-147
   title: "INTEG-012t E2E 期望值落入 fault 区 0x80–0xFF（137==0x89==UNDI）→ false-PASS 风险"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
-  notes: "reviewer 判非阻塞但真实：真 UNDI fault 会被误判 PASS。建议另立 TESTCASES 任务把 tests/codegen 期望返回值约束到 0x00–0x7F。"
+  resolved_by: TESTCASES-034t
+  notes: "closed by TESTCASES-034t（exit-port → SYS_EXIT 迁移任务，2026-10-08）。处置：把 M3 CodeGen E2E 的**全部** expected_exit_code 约束到 0x00..0x7F（避开 fault 区 0x80..0xFF）：原先 7 条超界（arith_add_sub_neg 246、arith_const_hi_wyde 238、mem_narrow_be_wide 236、call_multiarg_stack 171、call_narrow_args 137、ptr_add_offset 171、ptr_diff_neg 249）的程序掩码由 `& 255` 改为 `& 127`，期望值相应重算为 118/110/108/43/9/43/121，并同步更新 `tests/llvm/codegen/expected.yaml`（含 derivation）与独立 oracle `tools/testcases/validate_codegen_vectors.py`（oracle 亦改为 `& 0x7F`，且 validator 的 exit-code-range 检查收紧为 `0 <= code <= 0x7F`，命中超界即 FAIL）。M4 `tests/llvm/codegen/m4/expected.yaml` 全部本已 ≤ 0x7F。`run_codegen_e2e.py` 的 fault/guest 二义性注释更新（SYS_EXIT 迁移后 guest 码仍限于 0x00..0x7F）。验证：`test-codegen` 15/15、（注入改错期望值 ⇒ 门控非零退出 ⇒ 还原回绿，见 `.work/evidence/TESTCASES-034t/run.sh`）。"
 
 - id: ISS-148
   title: "tools/llvm/gen_m1_asm.py / test_m1_asm.py docstring 仍写「177 条」（实 152）"
@@ -399,3 +399,11 @@
   blocks: []
   resolved_by: null
   notes: "用户 2026-10-08 裁定（原话逐字见 INTEG-019k §第 8 轮）：「用bios的时候，直接接bin，也就是objdump后的测试程序；而用elf的时候，则不需要bootrom，只需要semihosting即可……只做bootrom+bin的情况；elf加载放在M6，与完整LLVM的任务一起进行」。⇒ M5 范围简化：M5 只做 bootrom(-bios)+bin；以下随 M6（与完整 LLVM 任务一并）：① 「-bios bootrom + ELF 应用」组合加载/入口语义（复位 PC=0xffff_ffff_0000 → bootrom 初始化 → 跳 ELF e_entry；须定 e_entry 传递方式）；② ELF loader 扩展（hw/dadao/dadao-machine.c 的 dadao_load_regions[] 现仅含旧 RAM 段+ROM、未含 RAM@0 ⇒ 组合路径需扩表 + 验证）；③ 组合加载语义的 ADR 决策（属加载模型/外部契约变更 ⇒ 须 ADR 并逐条经用户确认；M5 阶段不立 ADR）。背景：QEMU-047t 落地时的「前置风险」（见 INTEG-020t 审阅记录『architect 前置风险评估』；lessons §7.21/§8.15），architect 与 reviewer 曾倾向选项 A（另立任务）；用户裁定采纳『bootrom+bin』口径（与 ADR-0004 R1『-bios bootrom 与 M4 ELF 路径并存、非替代』自洽），该缺口不再是 M5 门槛前置。关联：ISS-165（RAM@0 C1 step2，随 M6）。"
+
+- id: ISS-169
+  title: "TESTCASES-034t 披露例外：6 个 M1/M2 期 QEMU 探针（006t/008t/009t/010t/012t/013t）仍以 exit-port 为退出通道，未随迁 SYS_EXIT"
+  status: open
+  scope: [qemu, testcases, M6]
+  blocks: []
+  resolved_by: null
+  notes: "TESTCASES-034t（exit-port → SYS_EXIT 迁移）逐条披露的例外（默认全迁；此 6 个因架构/实现原因保留 exit-port）。**共同原因**：这些是 M1/M2 期的手写 `.py` ROM 探针，其测试用例是**手排字面指令表**，退出写成**单条 `st.o rdN, [rb16,0]`（rb16=exit port）**，且与**手算的 PC 相对分支偏移交错**（PASS/FAIL 臂、跳转目标）；改为多指令 `SYS_EXIT` 序列会改变字长、使手算偏移失效——而分支偏移正是其中 012t 的被测对象。逐条：① `006t` —— 显式测**保留的 exit-port MMIO 访问矩阵**（T22/T23/T28–T34：非 8B/multi 写 ⇒ ILLI、对齐优先级 ⇒ MALIGN；ADR-0004 D5.6），是**设备测试**而非退出通道；② `009t` —— 文件头标注 **OBSOLETE / DO NOT RUN**（rela.si 已删，op=0x5A 现为 UNDI），保留为历史物；③ `008t`/`010t`/`012t`/`013t` —— 用例内退出与分支偏移交错（PASS/FAIL 臂、跳过臂），展开会破坏手算偏移。**证据**：TESTCASES-034t `.work/evidence/TESTCASES-034t/run.sh` 第 1 步（acceptance 1）把残留 grep 集合**显式断言**为这 6 个文件 + `tools/integ/check_interface_alignment.py`（后者仅校验 QEMU 保留的 exit-port 设备常量）。**建议**：另立(或随 M6)任务把这 6 个探针的退出通道重写为 SYS_EXIT（含按新字长重算分支偏移），届时可移除本例外与 `check_interface_alignment.py` 的注释例外。**不影响 M5 门槛**：迁移面中所有进入 `make` 门控的向量/harness/驱动（`tests/e2e/*`、`tests/scripts/{codegen_crt0.s,build_test_binary.py,run_qemu_test.py}`、`tools/integ/run_{codegen,elf}_e2e.py`、`tests/llvm/codegen/*`）**均已迁 SYS_EXIT**且门控全绿。"

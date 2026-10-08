@@ -8,8 +8,9 @@
 ; IR semantics:
 ;   narrow(x, y, z, w) = zext(x) + zext(y) + zext(z) + w
 ;   main: x=200, y=300, z=400, w=5  ->  905
-;   r = 905 & 255 = 137
-; Expected guest exit code: 137
+;   r = 905 & 127 = 9
+; The mask is 127 (not 255) so the guest exit code stays in 0x00..0x7F (ISS-147).
+; Expected guest exit code: 9
 define i64 @narrow(i8 %x, i16 %y, i32 %z, i64 %w) noinline {
 entry:
   %xz = zext i8 %x to i64
@@ -36,6 +37,6 @@ entry:
   %z = load volatile i32, i32* %sz, align 4
   %w = load volatile i64, i64* %sw, align 8
   %s = call i64 @narrow(i8 %x, i16 %y, i32 %z, i64 %w)
-  %r = and i64 %s, 255
+  %r = and i64 %s, 127
   ret i64 %r
 }

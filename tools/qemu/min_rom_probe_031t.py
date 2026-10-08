@@ -5,7 +5,7 @@ Creates a standalone binary that:
   1. jump +8 (forward) → taken path: rb0 set to target (64-bit)
   2. rb2rd rd1, rb0, 1 → copy rb0 to rd1
   3. Compare rd1 against expected rb0 value (target address)
-  4. Write 0 (PASS) or 1 (FAIL) to exit port
+  4. Report 0 (PASS) or 1 (FAIL) via semihosting SYS_EXIT (ADR-0020 D8)
 
 If rb0 writeback is removed (old 48-bit-only), rb0 will be stale/wrong → FAIL.
 """
@@ -63,6 +63,10 @@ def encode_br_nz(rdha, imms18):
     """br.nz rdha, imms18 (riii, op=0x6B)"""
     return (0x6B << 24) | (rdha << 18) | (imms18 & 0x3FFFF)
 
+def encode_trap(cfxha, immu18):
+    """trap cfxha, immu18 (ciii, op=0x7F)"""
+    return (0x7F << 24) | (cfxha << 18) | (immu18 & 0x3FFFF)
+
 def w32(v):
     return struct.pack('>I', v)
 
@@ -90,23 +94,35 @@ def load_imm64_rd(rd, value):
 
 # ── Probe builders ────────────────────────────────────────────────────────
 
-EXIT_PORT = 0xFFFF_8000_0000
-# BINARY_BASE = 0xFFFF_0000_1000 (trampoline loads here)
+# Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
+SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
+
+
+def semi_exit(code_rd):
+    """Write {0x20026, code_rd} to SEMI_BLOCK (rb16) and SYS_EXIT (ADR-0020 D8).
+
+    The low byte of code_rd becomes the host process status; 0 = PASS.
+    """
+    return (load_imm64_rd(8, ADP_STOPPED_APPLICATION_EXIT)
+            + [encode_st_o(8, 16, 0)]
+            + [encode_st_o(code_rd, 16, 8)]
+            + load_imm64_rd(16, 0x18)
+            + [encode_trap(0, SEMIHOST_TAG)])
 
 def build_probe_jump_taken():
     """Probe: jump taken → rb0 should be target address (64-bit).
 
     Sequence:
-      [0] set.zw rb1, wp0, lo16(EXIT_PORT)   -- rb1 = EXIT_PORT base
-      [1] or.w  rb1, wp1, mid16(EXIT_PORT)
-      [2] or.w  rb1, wp2, hi16(EXIT_PORT)
-      [3] set.zw rd62, 0, 0                   -- rd62 = 0 (PASS init)
-      [4] jump +2                             -- PC = rb0 + 8 (skip1 insn)
-      [5] rb2rd rd1, rb0, 1                   -- rd1 = rb0 (target addr)
-      [6] (skipped by jump)                   -- this is the jump target+1
-      [7] <expected rd1 value>                -- load expected into rd2
-      [8-10] xor rd3, rd1, rd2; or rd62, rd62, rd3
-      [11] st.o rd62, [rb1, 0]                -- write PASS/FAIL to exit port
+      [0..] load SEMI_BLOCK into rb16          -- SYS_EXIT argument-block pointer
+      [N] set.zw rd62, 0, 0                    -- rd62 = 0 (PASS init)
+      [N+1] jump +2                            -- PC = rb0 + 8 (skip 1 insn)
+      [N+2] rb2rd rd1, rb0, 1                  -- rd1 = rb0 (this is SKIPPED)
+      [N+3] rb2rd rd1, rb0, 1                  -- rd1 = rb0 (target addr)
+      [..]  <expected rd1 value>               -- load expected into rd2
+      [..]  xor rd3, rd1, rd2; or rd62, rd62, rd3
+      [..]  SYS_EXIT(rd62)                     -- report PASS/FAIL
 
     jump +2 at [4] → target = addr([4]) + 8 = addr([6])
     rb0 after jump = addr([6]) (64-bit, with D8.3 writeback)
@@ -115,13 +131,13 @@ def build_probe_jump_taken():
     If rb0 writeback is removed → rb0 is stale → rd1 wrong → FAIL
     """
     words = []
-    EXIT_LO = EXIT_PORT & 0xFFFF
-    EXIT_MID = (EXIT_PORT >> 16) & 0xFFFF
-    EXIT_HI = (EXIT_PORT >> 32) & 0xFFFF
+    EXIT_LO = SEMI_BLOCK & 0xFFFF
+    EXIT_MID = (SEMI_BLOCK >> 16) & 0xFFFF
+    EXIT_HI = (SEMI_BLOCK >> 32) & 0xFFFF
 
-    # [0-2] Load EXIT_PORT into rb1
-    words.extend(load_imm64_rb(1, EXIT_PORT))
-    loader_count = len(words)  # 3-4 instructions
+    # [0-2] Load the SYS_EXIT argument-block address into rb16
+    words.extend(load_imm64_rb(16, SEMI_BLOCK))
+    loader_count = len(words)  # 2-4 instructions
 
     # [N] set.zw rd62, 0, 0 → accumulator = 0 (PASS)
     words.append(encode_set_zw_rd(62, 0, 0))
@@ -157,8 +173,8 @@ def build_probe_jump_taken():
     # OR into accumulator (rd62)
     words.append(encode_or_o(62, 62, 3))
 
-    # Write rd62 to exit port: 0 = PASS, nonzero = FAIL
-    words.append(encode_st_o(62, 1, 0))
+    # Write rd62 to the exit channel: 0 = PASS, nonzero = FAIL.
+    words.extend(semi_exit(62))
 
     return b''.join(w32(w) for w in words), expected_rb0, jump_idx, rb2rd_idx
 
@@ -167,7 +183,7 @@ def build_probe_not_taken():
     """Probe: branch not-taken → rb0 = PC+4 (64-bit) from tb_stop.
 
     Sequence:
-      [0-2] load EXIT_PORT into rb1
+      [0..] load the SYS_EXIT argument block into rb16
       [3] set.zw rd62, 0, 0 (PASS init)
       [4] set.zw rd1, 0, 0 (rd1 = 0, for br.nz condition)
       [5] br.nz rd1, +2 → rd1=0, NOT taken, fall through
@@ -178,7 +194,7 @@ def build_probe_not_taken():
     expected rd1 = BINARY_BASE + rb2rd_idx * 4
     """
     words = []
-    words.extend(load_imm64_rb(1, EXIT_PORT))
+    words.extend(load_imm64_rb(16, SEMI_BLOCK))
     words.append(encode_set_zw_rd(62, 0, 0))  # accumulator
     words.append(encode_set_zw_rd(1, 0, 0))   # rd1 = 0
 
@@ -196,7 +212,7 @@ def build_probe_not_taken():
     words.extend(load_imm64_rd(2, expected_rb0))
     words.append(encode_xor_o(3, 1, 2))
     words.append(encode_or_o(62, 62, 3))
-    words.append(encode_st_o(62, 1, 0))
+    words.extend(semi_exit(62))
 
     return b''.join(w32(w) for w in words), expected_rb0, br_idx, rb2rd_idx
 
@@ -243,6 +259,7 @@ def run_probe(binary_data, label, qemu_bin, trampoline_path, timeout=10):
             '-nographic',
             '-bios', trampoline_path,
             '-kernel', bin_path,
+            '-semihosting-config', 'enable=on,target=native',
         ]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:

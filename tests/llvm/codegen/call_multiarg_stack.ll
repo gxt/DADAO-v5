@@ -7,7 +7,9 @@
 ; IR semantics:
 ;   base = 1 ; x_i = base + i for i = 0..17
 ;   sum18 = x0 + x1 + ... + x17 = 18*base + (0+1+...+17) = 18 + 153 = 171
-; Expected guest exit code: 171
+;   main masks the call result with 127 -> 171 & 127 = 43
+; The mask keeps the guest exit code in 0x00..0x7F (ISS-147).
+; Expected guest exit code: 43
 define i64 @sum18(i64 %x0, i64 %x1, i64 %x2, i64 %x3, i64 %x4, i64 %x5, i64 %x6,
                   i64 %x7, i64 %x8, i64 %x9, i64 %x10, i64 %x11, i64 %x12, i64 %x13,
                   i64 %x14, i64 %x15, i64 %x16, i64 %x17) noinline {
@@ -58,5 +60,6 @@ entry:
   %r = call i64 @sum18(i64 %a0, i64 %a1, i64 %a2, i64 %a3, i64 %a4, i64 %a5, i64 %a6,
                       i64 %a7, i64 %a8, i64 %a9, i64 %a10, i64 %a11, i64 %a12, i64 %a13,
                       i64 %a14, i64 %a15, i64 %a16, i64 %a17)
-  ret i64 %r
+  %m = and i64 %r, 127
+  ret i64 %m
 }

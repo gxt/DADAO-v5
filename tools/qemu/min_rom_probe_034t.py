@@ -20,7 +20,7 @@ Verification channels:
   * value cases  -> QEMU `-d cpu` dump, parsing the *last* RF[]/RD[] dump
                     (state at the start of the fault TB, i.e. after commit).
   * fault cases  -> process exit code (ILLI 0x88 / MALIGN 0x8C).
-  * E2E cases    -> in-ROM compare + exit-port PASS/FAIL epilogue.
+  * E2E cases    -> in-ROM compare + SYS_EXIT PASS/FAIL epilogue.
 
 Reverse gate (see .work/evidence/QEMU-034t/run.sh --inject): reverting any
 implementation makes the corresponding cases FAIL.
@@ -216,10 +216,31 @@ def set_rf(rf, val):
     return load_imm64_rd(31, val) + [rd2rf(rf, 31, 1)]
 
 
+# ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
+
+SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
+
+
+def trap_ciii(cfxha, immu18):
+    return encode_riii(0x7F, cfxha, immu18 & 0x3FFFF)
+
+
+def semi_exit(code_rd):
+    """rb16 = SEMI_BLOCK; block = {0x20026, code_rd}; rd16 = 0x18; trap."""
+    return ([set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+            + load_imm64_rd(8, ADP_STOPPED_APPLICATION_EXIT)
+            + [st_o_rd(8, 16, 0)]
+            + [st_o_rd(code_rd, 16, 8)]
+            + load_imm64_rd(16, 0x18)
+            + [trap_ciii(0, SEMIHOST_TAG)])
+
+
 # ── ROM assembly ───────────────────────────────────────────────────────
 
 TRAMPOLINE = [
-    set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x8000),  # rb16 = 0xFFFF80000000 (exit port)
+    set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF),  # rb16 = 0xFFFF00FF0000 (dead; semi_exit rebuilds it)
     set_zw_rb(17, 2, 0xFFFF),                          # rb17 = 0xFFFF00000000 (RAM)
     encode_rwii(0x4C, 40, 0, 0x0001),                  # rd40 = 1 (TB-split branch flag)
 ]
@@ -236,12 +257,12 @@ def build_rom(test_insns):
 def build_fault_rom(test_insns):
     """Fault-case ROM: body + PASS epilogue.
 
-    If the instruction under test does NOT fault, the PASS epilogue writes 0 to
-    the exit port (exit 0x00), which differs from the expected fault code => FAIL.
+    If the instruction under test does NOT fault, the PASS epilogue reports 0
+    via SYS_EXIT (exit 0x00), which differs from the expected fault code => FAIL.
     This gives every fault case a reachable FAIL path (appending ILLI instead
     would mask a missing legality check)."""
     return (b''.join(TRAMPOLINE) + b''.join(test_insns) +
-            b''.join([set_zw_rd(18, 0), st_o_rd(18, 16, 0)]))
+            b''.join([set_zw_rd(18, 0)] + semi_exit(18)))
 
 
 def build_e2e_rom(test_insns):
@@ -259,7 +280,8 @@ def run_plain(rom_data, timeout=10):
         kp = f.name
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp],
+            [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp,
+             '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return r.returncode, r.stderr
     except subprocess.TimeoutExpired:
@@ -281,6 +303,7 @@ def run_dcpu(rom_data, timeout=10):
     try:
         r = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp,
+             '-semihosting-config', 'enable=on,target=native',
              '-d', 'cpu', '-D', lp],
             capture_output=True, timeout=timeout, text=True)
         with open(lp) as lf:
@@ -303,20 +326,21 @@ def last_reg(log_text, bank, idx):
     return int(m.group(1), 16) if m else None
 
 
-# ── E2E assertion epilogue (compare rd(s), exit port PASS/FAIL) ─────────
+# ── E2E assertion epilogue (compare rd(s), SYS_EXIT PASS/FAIL) ─────────
 
 def e2e_epilogue(checks, fail_code):
     """checks: list of (actual_rd, expected_rd, flag_rd)."""
     N = len(checks)
+    pass_arm = [set_zw_rd(18, 0)] + semi_exit(18)             # PASS: exit 0
+    fail_arm = [set_zw_rd(19, fail_code)] + semi_exit(19)     # FAIL: exit fail_code
+    P = len(pass_arm)
     insns = []
     for i, (actual, expected, flag) in enumerate(checks):
-        offset = 2 * (N - i) + 1
+        offset = 2 * (N - i) + (P - 1)
         insns.append(cmp_uo_rd(flag, actual, expected))
         insns.append(br_nz(flag, offset))
-    insns.append(set_zw_rd(18, 0))
-    insns.append(st_o_rd(18, 16, 0))          # PASS: exit 0
-    insns.append(set_zw_rd(19, fail_code))
-    insns.append(st_o_rd(19, 16, 0))          # FAIL: exit fail_code
+    insns += pass_arm
+    insns += fail_arm
     return insns
 
 
@@ -538,21 +562,21 @@ CASES.append(Case("F22 cs.p dest rf0 -> ILLI", [cs_p_rf(10, 0, 6, 7)], expect_ex
 CASES.append(Case("F23 cs.eq dest rf0 (a->hc) -> ILLI", [cs_eq_rf(10, 11, 0, 7)], expect_exit=ILLI_EXIT))
 CASES.append(Case("F24 cs.ne dest rf0 (a->hc) -> ILLI", [cs_ne_rf(10, 11, 0, 7)], expect_exit=ILLI_EXIT))
 
-# ── E2E cases (in-ROM compare + exit port) ────────────────────────────
+# ── E2E cases (in-ROM compare + SYS_EXIT) ────────────────────────────
 _e1 = (load_imm64_rd(30, _LV) + [st_o_rd(30, 17, 0), ld_o_rf(10, 17, 0), rf2rd(20, 10, 1)] +
        load_imm64_rd(22, _LV) + e2e_epilogue([(20, 22, 24)], 0x42))
-CASES.append(Case("E1 ld.o-rf/st.o-rf round trip (exit-port assertion)", _e1,
+CASES.append(Case("E1 ld.o-rf/st.o-rf round trip (SYS_EXIT assertion)", _e1,
                   expect_exit=PASS_EXIT, e2e=True))
 
 _e2 = ([set_w_rf(0, 2, 0x0003), rf2rd(20, 0, 1)] +
        load_imm64_rd(22, RESET0 | (0x3 << 32)) + e2e_epilogue([(20, 22, 24)], 0x43))
-CASES.append(Case("E2 set.w-rf rf0 mask + rf2rd (exit-port assertion)", _e2,
+CASES.append(Case("E2 set.w-rf rf0 mask + rf2rd (SYS_EXIT assertion)", _e2,
                   expect_exit=PASS_EXIT, e2e=True))
 
 _e3 = (set_rf(6, _CA) + set_rf(7, _CB) + load_imm64_rd(10, 0xFFFFFFFFFFFFFFFF) +
        [cs_n_rf(10, 5, 6, 7), rf2rd(20, 5, 1)] +
        load_imm64_rd(22, _CA) + e2e_epilogue([(20, 22, 24)], 0x44))
-CASES.append(Case("E3 cs.n true arm (exit-port assertion)", _e3,
+CASES.append(Case("E3 cs.n true arm (SYS_EXIT assertion)", _e3,
                   expect_exit=PASS_EXIT, e2e=True))
 
 
@@ -623,14 +647,14 @@ def selftest():
     ok2, _ = run_case(c2)
     results.append(("fault exit-code FAIL path", ok2 is False))
 
-    # 3. E2E exit-port assertion (wrong expected -> FAIL arm -> exit 0x42 != 0)
+    # 3. E2E SYS_EXIT assertion (wrong expected -> FAIL arm -> exit 0x42 != 0)
     insns = (load_imm64_rd(30, 0xDEADBEEFCAFEBABE) +
              [st_o_rd(30, 17, 0), ld_o_rf(10, 17, 0), rf2rd(20, 10, 1)] +
              load_imm64_rd(22, 0xDEADBEEFCAFEBABF) +
              e2e_epilogue([(20, 22, 24)], 0x42))
     c3 = Case("selftest e2e", insns, expect_exit=PASS_EXIT, e2e=True)
     ok3, _ = run_case(c3)
-    results.append(("E2E exit-port assertion FAIL path", ok3 is False))
+    results.append(("E2E SYS_EXIT assertion FAIL path", ok3 is False))
 
     allok = True
     for name, v in results:

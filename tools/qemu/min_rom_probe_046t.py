@@ -6,7 +6,7 @@ Spec sources (all expectations are derived by hand from spec/ + contracts/,
 never from the QEMU implementation):
   - spec/Machine-01-测试机运行环境.md §5 (semihosting: entry tag
     immu18[17:16]==2'b11, calling convention rd16/rb16/rd31, the authoritative
-    25-service table, pc+=4 return, SYS_EXIT replaces the exit port).
+    25-service table, pc+=4 return, SYS_EXIT replaces the legacy MMIO halt device).
   - .tao/adr/adr-0020-see-semihosting.md D1/D2/D3/D4/D5/D6/D8/D10/D14.
   - .tao/knowledge/contract-semihosting.md §1-§6.
   - .tao/knowledge/contract-abi.md §2.1 (SP = rb1 / rbsp), §4.1/§4.4.
@@ -18,9 +18,9 @@ Observation channels:
     each trap/escape/cfx2* helper ends its TB, so the start-of-TB dump of the
     next block shows the semihosting return in rd31).
   * SYS_EXIT / SYS_EXIT_EXTENDED -> process exit code (host $?). The shared
-    responder implements the ADR-0020 D8 "SYS_EXIT replaces the exit port"
-    halt by calling exit(code) -- the same deterministic exit-code channel as
-    the exit port -- so $? equals the semihosting status code.
+    responder implements the ADR-0020 D8 halt (SYS_EXIT replaces the legacy
+    MMIO exit device) by calling exit(code), so $? equals the semihosting
+    status code.
   * WRITEC / WRITE0 console output and native file I/O -> files on the host
     (the probe passes a file chardev and creates/reads real files).
 
@@ -142,9 +142,21 @@ def set_addr(rb, addr):
 
 
 def exit_seq(code):
-    """Write `code` to the exit port (rb16 = 0xffff_8000_0000) -> host $?."""
-    return ([set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x8000)]
-            + load_rd(16, code) + [st_o(16, 16, 0)])
+    """Report `code` via semihosting SYS_EXIT (ADR-0020 D8) -> host $?.
+
+    rb16 = SEMI_BLOCK (argument-block pointer); block = {reason, code};
+    rd16 = 0x18 (SYS_EXIT); `trap` with the semihosting tag.  The low byte of
+    `code` becomes the process status (contract-semihosting.md §3/§5).
+
+    The leading no-op `jump` ends the current TB so that the last `-d cpu` dump
+    (the probe's observation channel) captures the caller's state *before* this
+    epilogue -- the same role the MMIO halt-device store used to play.
+    """
+    return ([jump_iiii(1)]
+            + [set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
+            + load_rd(9, code) + [st_o(9, 16, 8)]
+            + load_rd(16, 0x18) + [trap(0, TAG)])
 
 
 def sh_call(num, blk_addr, cfxha=0):

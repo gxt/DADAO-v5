@@ -1,48 +1,49 @@
 # tests/llvm/codegen/expected.yaml
 # TESTCASES-026t: expected results for the M3 CodeGen scalar programs.
 #
-# Entry / exit channel (frozen by INTEG-012t):
+# Entry / exit channel (frozen by INTEG-012t; MMIO halt device -> SYS_EXIT by TESTCASES-034t):
 #   * every program defines `i64 @main()`;
-#   * crt0 `_start` calls it and writes the returned value (rd31) to the exit
-#     port 0xffff_8000_0000, then halts (`swym`);
-#   * the guest process exit code is that written value.
+#   * crt0 `_start` calls it and reports the returned value (rd31) through the
+#     semihosting SYS_EXIT service (ADR-0020 D8: SYS_EXIT replaces the exit
+#     port, ADR-0004 D3 superseded), then halts;
+#   * the guest process exit code is the low byte of that value.
 #
 # Independent oracle (project hard rule):
 #   `expected_exit_code` is derived on the host from the LLVM IR semantics
 #   (64-bit two's-complement integer arithmetic, big-endian memory per
 #   contract-abi.md §1.7) -- it is NOT produced by llc or QEMU.
 #
-# All expected values are constrained to 0..255 so the process exit-code
-# comparison is unambiguous.  Where a raw IR result is negative (ptr - ptr),
-# the program itself masks with 255 and the raw value is documented below.
+# All expected values are constrained to 0x00..0x7F so the process exit-code
+# comparison can never collide with a machine-fault code (0x80..0xFF; ADR-0004
+# D5.7/D5.8; ISS-147).  Every program masks its raw IR result with 127.
 schema: codegen-vectors-v1
 
 conventions:
   entry: "define i64 @main()"
-  exit_channel: "guest exit code = returned i64 value (0..255)"
+  exit_channel: "guest exit code = low byte of the returned i64 value (0x00..0x7F)"
   memory: "big-endian; 8-byte pointer"
   oracle: "host-side IR-semantics model; not llc/QEMU"
 
 programs:
   - name: arith_add_sub_neg.ll
     category: arithmetic
-    expected_exit_code: 246
+    expected_exit_code: 118
     coverage: [C12, arith.add, arith.sub, arith.neg-const]
     derivation: >-
       Two volatile-loaded inputs a=-5, b=3 enclose both a negative constant and
       genuine add/sub.
       c = add(a,b) = -2 ; d = sub(b,a) = 8 ; e = xor(c,d) = (-2) ^ 8 = -10
-      (0xFFFFFFFFFFFFFFF6) ; r = e & 255 = 0xF6 = 246.
+      (0xFFFFFFFFFFFFFFF6) ; r = e & 127 = 0x76 = 118.
 
   - name: arith_const_hi_wyde.ll
     category: arithmetic
-    expected_exit_code: 238
+    expected_exit_code: 110
     coverage: [C12, arith.const-hi-wyde]
     derivation: >-
       v = u0xFEDCBA9876543210 (all four wydes non-trivial, forces a
       set.zw/set.ow + or.w/andn.w sequence).
       hi = v >> 56 = 0xFE = 254 ; lo = v & 255 = 0x10 = 16 ;
-      x = hi ^ lo = 0xEE = 238 ; r = x & 255 = 238.
+      x = hi ^ lo = 0xEE = 238 ; r = x & 127 = 0x6E = 110.
 
   - name: mem_store_load_offset.ll
     category: memory
@@ -67,7 +68,7 @@ programs:
 
   - name: mem_narrow_be_wide.ll
     category: memory
-    expected_exit_code: 236
+    expected_exit_code: 108
     coverage: [C13, mem.narrow-be, mem.ld-uw, mem.ld-sw, mem.ld-ut, mem.ld-st]
     derivation: >-
       store i64 u0x1122334455667788 -> bytes 11 22 33 44 55 66 77 88.
@@ -76,7 +77,7 @@ programs:
       w4 = zext(load i32 @4) = 0x55667788 ; c = (w4 >> 24) & 255 = 0x55 = 85 (ld.ut)
       store i16 -300 @2 ; n = sext(load i16 @2) ; nhi = (n >> 16) & 255 = 255 (ld.sw)
       store i32 -70000 @0 ; s = sext(load i32 @0) ; shi = (s >> 32) & 255 = 255 (ld.st)
-      r = (a + b + c + nhi + shi) & 255 = (17 + 136 + 85 + 255 + 255) & 255 = 236.
+      r = (a + b + c + nhi + shi) & 127 = 748 & 127 = 108.
 
   - name: branch_loop_sum.ll
     category: branch
@@ -119,22 +120,23 @@ programs:
 
   - name: call_multiarg_stack.ll
     category: call
-    expected_exit_code: 171
+    expected_exit_code: 43
     coverage: [C4, call.stack-args]
     derivation: >-
       18 scalar parameters: rd16..rd31 hold the first 16; x16 and x17 spill to
       the outgoing stack area in declaration order (8 bytes each).
       base = 1 ; x_i = base + i for i = 0..17.
-      sum = sum_{i=0}^{17} (base + i) = 18*base + 153 = 18 + 153 = 171.
+      sum = sum_{i=0}^{17} (base + i) = 18*base + 153 = 18 + 153 = 171 ;
+      r = 171 & 127 = 43.
 
   - name: call_narrow_args.ll
     category: call
-    expected_exit_code: 137
+    expected_exit_code: 9
     coverage: [C4, call.narrow-args]
     derivation: >-
       narrow(x, y, z, w) = zext(x) + zext(y) + zext(z) + w.
       x = 200 (i8 0xC8), y = 300, z = 400, w = 5.
-      s = 200 + 300 + 400 + 5 = 905 ; r = 905 & 255 = 137.
+      s = 200 + 300 + 400 + 5 = 905 ; r = 905 & 127 = 9.
       (Sub-8-byte arguments are canonically extended by the caller, C4.)
 
   - name: call_ptr_bank.ll
@@ -147,11 +149,11 @@ programs:
 
   - name: ptr_add_offset.ll
     category: memory
-    expected_exit_code: 171
+    expected_exit_code: 43
     coverage: [C14, ptr.add-offset]
     derivation: >-
       off = 20 (volatile) ; p = &buf[0] + off ; p[0] = -85 = 0xAB ;
-      r = zext(load i8 from p) = 0xAB = 171.
+      z = zext(load i8 from p) = 0xAB = 171 ; r = 171 & 127 = 43.
       The runtime base+offset is the C14 `add.o` (rb = rb + rd) computation.
 
   - name: ptr_diff_pos.ll
@@ -164,10 +166,11 @@ programs:
 
   - name: ptr_diff_neg.ll
     category: arithmetic
-    expected_exit_code: 249
+    expected_exit_code: 121
     coverage: [C14, ptr.diff-neg]
     derivation: >-
       p = &buf[10], q = &buf[3] ; d = (i64)q - (i64)p = 3 - 10 = -7
-      (raw 64-bit 0xFFFFFFFFFFFFFFF9) ; r = d & 255 = 0xF9 = 249.
-      Masking to 8 bits keeps the process exit-code channel unambiguous; the
-      raw 64-bit negative difference is what `sub.o_orrr_dbb` must produce.
+      (raw 64-bit 0xFFFFFFFFFFFFFFF9) ; r = d & 127 = 0x79 = 121.
+      Masking to 7 bits keeps the process exit-code channel clear of the
+      machine-fault range 0x80..0xFF; the raw 64-bit negative difference is
+      what `sub.o_orrr_dbb` must produce.

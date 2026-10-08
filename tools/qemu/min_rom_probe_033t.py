@@ -95,13 +95,22 @@ def st_o_rd(rdha, rbhb, imms12):
     return encode_rrii(0x21, rdha, rbhb, hc, hd)
 
 
-def st_o_rd_pass():
-    return st_o_rd(18, 16, 0)
+# ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
+
+SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 
-def st_o_rd_fail():
-    return st_o_rd(19, 16, 0)
-
+def semi_exit(code_rd):
+    """rb16 = SEMI_BLOCK; block = {0x20026, code_rd}; rd16 = 0x18; trap."""
+    return ([encode_rwii(0x4E, 16, 2, 0xFFFF), encode_rwii(0x4A, 16, 1, 0x00FF),
+             encode_rwii(0x4A, 16, 0, 0xF000)]
+            + [encode_rwii(0x4C, 8, 0, 0x0026), encode_rwii(0x48, 8, 1, 0x0002)]
+            + [st_o_rd(8, 16, 0)]
+            + [st_o_rd(code_rd, 16, 8)]
+            + [encode_rwii(0x4C, 16, 0, 0x0018)]
+            + [encode_riii(0x7F, 0, SEMIHOST_TAG)])
 
 def cmp_uo_rd(rdhb, rdhc, rdhd):
     return encode_orri(0x40, 0x2A, rdhb, rdhc, rdhd)
@@ -155,18 +164,19 @@ def swym():
 
 def build_assertion(checks, fail_code):
     N = len(checks)
+    pass_arm = [set_zw_rd(18, 0)] + semi_exit(18)           # PASS: exit 0
+    fail_arm = [set_zw_rd(19, fail_code)] + semi_exit(19)   # FAIL: exit fail_code
+    P = len(pass_arm)
     insns = []
     for i, (actual, expected, flag, bank) in enumerate(checks):
-        offset = 2 * (N - i) + 1
+        offset = 2 * (N - i) + (P - 1)
         if bank == 'rb':
             insns.append(cmp_uo_dbb(flag, actual, expected))
         else:
             insns.append(cmp_uo_rd(flag, actual, expected))
         insns.append(br_nz(flag, offset))
-    insns.append(set_zw_rd(18, 0))
-    insns.append(st_o_rd_pass())
-    insns.append(set_zw_rd(19, fail_code))
-    insns.append(st_o_rd_fail())
+    insns += pass_arm
+    insns += fail_arm
     return insns
 
 
@@ -179,7 +189,7 @@ def build_rom(test_insns):
         encode_rwii(0x4A, 1, 1, 0x00FF),   # rb1 = 0xFFFF00FF0000
         encode_rwii(0x4E, 2, 2, 0xFFFF),   # rb2 = 0xFFFF00000000 (RAM)
         encode_rwii(0x4E, 16, 2, 0xFFFF),  # rb16 = 0xFFFF00000000
-        encode_rwii(0x4A, 16, 1, 0x8000),  # rb16 = 0xFFFF80000000 (exit port)
+        encode_rwii(0x4A, 16, 1, 0x00FF),  # rb16 = 0xFFFF80000000 (dead; semi_exit rebuilds it)
         encode_rwii(0x4E, 17, 2, 0xFFFF),  # rb17 = 0xFFFF00000000
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
@@ -202,7 +212,7 @@ def run_test(rom_data, timeout=10):
         kp = f.name
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp],
+            [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp, '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return r.returncode, r.stderr
     except subprocess.TimeoutExpired:

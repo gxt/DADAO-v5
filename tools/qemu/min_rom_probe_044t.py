@@ -18,7 +18,8 @@ the QEMU implementation):
 Observation channels:
   * run mode / cfx registers / counters / cause frame -> QEMU `-d cpu` dump
     (parses the LAST dump block; same convention as min_rom_probe_034t..042t).
-  * entry/return path -> process exit code (exit port), ADR-0004 D5.8.
+  * entry/return path -> process exit code (semihosting SYS_EXIT, ADR-0020 D8;
+    replaces the legacy MMIO halt device).
 
 Instruction under test (encodings from contracts/opcodes.yaml):
   trap   ciii  op 0x7F  cfxha=ha[23:18]  immu18=(hb,hc,hd)
@@ -69,6 +70,11 @@ USER, JAIL, SUPV, HYPV = 0, 1, 2, 3
 # Cause ids (DADAO-12 §4 monitor exception table)
 CFXTRAP, CFXMEM, CFXREG, ILLI = 1, 2, 4, 1 << 8
 
+# Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
+SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+
 # ---------------------------------------------------------------------------
 # Encoders (contracts/opcodes.yaml)
 # ---------------------------------------------------------------------------
@@ -95,9 +101,16 @@ def load_rd(rd, val):
 
 
 def exit_seq(code):
-    """Write `code` to the exit port (rb16 = 0xffff_8000_0000) -> host $?."""
-    return ([set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x8000)] +
-            load_rd(16, code) + [st_o(16, 16, 0)])
+    """Report `code` via semihosting SYS_EXIT (ADR-0020 D8) -> host $?.
+
+    rb16 = SEMI_BLOCK (argument-block pointer); block = {reason, code};
+    rd16 = 0x18 (SYS_EXIT); `trap` with the semihosting tag.  The low byte of
+    `code` becomes the process status (contract-semihosting.md §3/§5).
+    """
+    return ([set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+            + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
+            + load_rd(9, code) + [st_o(9, 16, 8)]
+            + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
 
 
 def words_to_bytes(ws):
@@ -130,6 +143,7 @@ def run(rom):
     with open(kp, "wb") as f:
         f.write(b"\x00" * 16)
     cmd = [QEMU, "-M", "dadao-m1", "-nographic", "-bios", rp, "-kernel", kp,
+           "-semihosting-config", "enable=on,target=native",
            "-d", "cpu", "-D", lp]
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=TIMEOUT, text=True)

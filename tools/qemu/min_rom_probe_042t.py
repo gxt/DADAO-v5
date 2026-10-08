@@ -4,12 +4,12 @@
 Contract sources (spec-first; encodings NOT taken from QEMU):
   - contracts/opcodes.yaml            (instruction op/ha/masks)
   - .tao/knowledge/contract-elf.md §1/§5/§6
-  - .tao/adr/adr-0004-test-machine.md (D1 memory map, D2.2/D2.3 load paths, D3 exit port)
+  - .tao/adr/adr-0004-test-machine.md (D1 memory map, D2.2/D2.3 load paths)
 
 What it checks (each printed as "[PASS]/[FAIL] name: expected -> actual"):
   ELF path (A):
     * entry:   ELF with e_entry != RAM base; a `fence` (ILLI) poison sits at the
-               RAM base, so the program can only reach the exit port if the
+               RAM base, so the program can only report success if the
                loader really set PC = e_entry.
     * segments: .rodata/.data file bytes are placed at VA=PA; a `.bss` tail
                (p_memsz > p_filesz) reads back as zero; nonzero data is checked.
@@ -57,7 +57,9 @@ RAM_BASE = 0xFFFF_0000_0000
 RAM_SIZE = 16 * 1024 * 1024
 ROM_BASE = 0xFFFF_FFFF_0000
 ROM_SIZE = 64 * 1024
-EXIT_PORT = 0xFFFF_8000_0000
+SEMI_BLOCK = 0xFFFF_00FF_F000        # SYS_EXIT argument block {reason, code}, in RAM
+SEMIHOST_TAG = 0x30000               # immu18[17:16] == 2'b11 -> semihosting trap
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 EM_DADAO = 0x0DA0
 EHDR_SIZE = 64
@@ -97,6 +99,10 @@ def br_nz(rd, off_words):
 def jump_rrii(rb, rd, off_words):
     return (0x71 << 24) | (rb << 18) | (rd << 12) | (off_words & 0xFFF)
 
+def trap(ha, immu18):
+    return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
+
+
 def swym():
     return 0x77880000
 
@@ -119,15 +125,18 @@ def imm64_rb(rb, val):
             words.append(or_w_rb(rb, wp, w))
     return words
 
-def code_set_exit_port():
-    return [set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x8000)]
+def code_set_semi_block():
+    """rb16 = SEMI_BLOCK; block[0] = 0x20026 (ADR-0020 D8)."""
+    return ([set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+            + imm64_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o_rd(8, 16, 0)])
 
 def code_exit(code):
-    return code_set_exit_port() + imm64_rd(16, code & 0xFF) + [st_o_rd(16, 16, 0)]
+    return (code_set_semi_block() + imm64_rd(9, code & 0xFF) + [st_o_rd(9, 16, 8)]
+            + imm64_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
 
 def code_data_checks(data_vaddr, checks):
     """acc(rd18) = OR over XOR(expected, memory); FAIL(1) if acc != 0."""
-    words = code_set_exit_port()
+    words = code_set_semi_block()
     words += imm64_rb(17, data_vaddr)
     words += [set_zw_rd(18, 0, 0)]
     for off, val in checks:
@@ -135,11 +144,11 @@ def code_data_checks(data_vaddr, checks):
         words.append(ld_o_rd(17, 17, off))
         words.append(xor_o(16, 16, 17))
         words.append(or_o(18, 18, 16))
-    words.append(br_nz(18, 3))          # -> fail block (br + 2 PASS words)
-    words += imm64_rd(16, 0)
-    words.append(st_o_rd(16, 16, 0))    # PASS
-    words += imm64_rd(16, 1)
-    words.append(st_o_rd(16, 16, 0))    # FAIL
+    pass_arm = imm64_rd(16, 0) + [st_o_rd(16, 16, 8)] + imm64_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)]
+    fail_arm = imm64_rd(16, 1) + [st_o_rd(16, 16, 8)] + imm64_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)]
+    words.append(br_nz(18, 1 + len(pass_arm)))   # -> fail arm
+    words += pass_arm                            # PASS (exit 0)
+    words += fail_arm                            # FAIL (exit 1)
     return words
 
 def words_to_bytes(words):
@@ -274,7 +283,8 @@ def write_tmp(name, data):
 
 
 def run_qemu(elf_path=None, bios=None, kernel=None):
-    args = [QEMU, "-M", "dadao-m1", "-nographic"]
+    args = [QEMU, "-M", "dadao-m1", "-nographic",
+            "-semihosting-config", "enable=on,target=native"]
     if bios:
         args += ["-bios", bios]
     if kernel:

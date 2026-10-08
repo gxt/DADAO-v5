@@ -432,7 +432,11 @@ def check_adr_alignment():
                "QEMU patch 未找到 DADAO_CFXHA_UMON")
 
     # --- Exit port base = 0xffff_8000_0000, size = 8 ---
-    # Source: ADR-0004 §D3
+    # Source: ADR-0004 §D3 (superseded as the *halt protocol* by ADR-0020 D8,
+    # but QEMU-046t retains the exit-port device for compatibility, so this
+    # QEMU-interface constant is still asserted).  TESTCASES-034t migrated the
+    # test-side exit *mechanism* to semihosting SYS_EXIT; this checker only
+    # verifies the retained QEMU device constant, not a test harness.
     exit_base_exp = 0xFFFF_8000_0000
     exit_size_exp = 8
     exit_base_match = re.search(r'DADAO_EXIT_PORT_BASE\s+(0x[0-9a-fA-F]+)', patch_content)
@@ -555,7 +559,6 @@ def check_adr_alignment():
     harness_content = load_file("tests/scripts/build_test_binary.py")
     if harness_content:
         h_binary_match = re.search(r'BINARY_BASE\s*=\s*(0x[0-9a-fA-F_]+)', harness_content)
-        h_exit_match = re.search(r'EXIT_PORT\s*=\s*(0x[0-9a-fA-F_]+)', harness_content)
         if h_binary_match:
             actual = int(h_binary_match.group(1).replace("_", ""), 16)
             if actual == ram_base_exp:
@@ -564,14 +567,10 @@ def check_adr_alignment():
             else:
                 record(cat, "harness.BINARY_BASE=RAM_BASE", "FAIL",
                        f"期望 0x{ram_base_exp:X}, 实際 0x{actual:X}")
-        if h_exit_match:
-            actual = int(h_exit_match.group(1).replace("_", ""), 16)
-            if actual == exit_base_exp:
-                record(cat, "harness.EXIT_PORT=EXIT_PORT_BASE", "PASS",
-                       f"build_test_binary.py: EXIT_PORT = 0x{actual:X}")
-            else:
-                record(cat, "harness.EXIT_PORT=EXIT_PORT_BASE", "FAIL",
-                       f"期望 0x{exit_base_exp:X}, 实際 0x{actual:X}")
+        # NOTE (TESTCASES-034t): build_test_binary.py no longer carries an
+        # EXIT_PORT constant — the ISA-vector harness signals pass/fail through
+        # the semihosting SYS_EXIT service (ADR-0020 D8), so the former
+        # harness.EXIT_PORT=EXIT_PORT_BASE cross-check is retired here.
 
     # --- Harness fault code mapping (run_qemu_test.py) ---
     # Source: ADR-0004 §D5.8

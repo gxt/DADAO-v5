@@ -363,6 +363,18 @@
 - **处置（本轮）**：服务表机械解析（25 条）；硬编码部分带引用 + 披露（已记任务书「遗留」）；驱动加 `-chardev` 捕获（已披露，任务书「新发现 2」）。**无缺口**。
 - **提示**：独立 oracle 绿灯**只是必要条件**——真实执行语义由 E2E 驱动（`tools/integ/run_m5_e2e.py`）承担；oracle **禁** `subprocess`/`os.system`/`Popen`（`grep` 0 命中）。
 
+### 7.23 exit-port → semihosting `SYS_EXIT` 全量迁移的四条实现坑（块指针 `rb16`／退出码在内存块／`-d cpu` 须强制 TB 边界／范围计数须脚本枚举）（`TESTCASES-034t`，2026-10-08）
+
+- **事由**：`TESTCASES-034t` 把 M1–M4 **全部**依赖 exit-port（MMIO `0xffff_8000_0000`，写 `st.o rdN,[rb16,0]`）的向量/harness/oracle 迁到 semihosting `SYS_EXIT`（`ADR-0020 D8` / `ADR-0004 R2`）。迁移中踩到四条坑：
+  1. **块指针 = `rb16`、退出码在内存块（非寄存器）**：旧 exit-port 是「把寄存器 `st.o` 写到 MMIO 地址」；`SYS_EXIT` 是「**64 位大端参数块** `{reason=0x20026, code}` 由块指针指 + `rd16=0x18` + `trap cfx_umon, 0x30000`」。初版**沿用 exit-port 习惯把块指针放 `rb3`** ⇒ 全部 FAIL（`SYS_EXIT` 读 `rb16`）。**块指针在 `rb16`、退出码在内存块第 2 字段**，不是「写某个寄存器」。
+  2. **`-semihosting-config enable=on,target=native` 须由 harness 显式给**：否则 `SYS_EXIT` 不可达、host `$?` 不传播（`ADR-0020 D7`：`native` 非默认、须显式开，测试侧显式开属合规）。
+  3. **`-d cpu` 的「最后一次 dump」观测陷阱**：旧 exit-port 的 `st.o` 是 **MMIO**，QEMU 在 store 前强制切 TB（`CF_LAST_IO`）⇒「最后一次 dump」恰落在 store 前、捕获到前置 `ld_o` 结果；而 `SYS_EXIT` 的 `trap` 经 `raise_exception`→`cpu_loop_exit_restore` 结束 TB、**不在 trap 前切分** ⇒ 若「读观测值的 `ld_o`」与 exit 序列同处一个 TB，最后一次 dump 落在 `ld_o` 之前、观测到**旧值**（`svc_read`/`svc_get_cmdline` 曾因此 FAIL）。**修法**：exit 序列**前置一条 no-op `jump`**（`jump-iiii imms24=1`，跳到下一条）强制 TB 边界 + 回主循环 + 记录下一 TB 的 dump。
+  4. **范围计数须脚本枚举，不靠目测抽样**：`ISS-147`（期望退出码落 fault 区 `0x80–0xFF`）初判 **5** 条，脚本枚举发现实为 **7** 条（另有 `call_multiarg_stack`=171、`ptr_add_offset`=171，均 `0xAB`，亦落 fault 区）。
+- **根因 / 判据（可复用）**：跨「停机协议」迁移时，**新旧协议的参数传递 / 观测切点 / 编码宽度都可能不同**——不可沿用旧协议的习惯（寄存器角色）与观测假设（TB 切分点）；迁移前须**先记改前基线（逐条真实输出）再对拍**，且**范围 / 计数一律脚本枚举**。
+- **处置（本轮）**：四条坑全部当场修（块指针改 `rb16`；harness 显式 `target=native`；`046t`/`049t` 前置 no-op `jump`；`ISS-147` 7 条掩码 `255→127` 并同步 oracle）。**无缺口**（迁移后各门控与改前逐项相等、26 探针逐条等价）。
+- **附带教训（一份 crt0 服务两条管线）**：同一 `tests/scripts/codegen_crt0.s` 在 M3（`cat crt0.s prog.s` 单 TU、无 link）与 M4（`llvm-mc crt0.o` + `ld.lld`）下均可用 ⇒ 迁移点收敛为 **1 文件 + 2 driver**（DRY）。
+- **提示**：规范落 §8.17。
+
 ## 8. 操作规范（该这样做 / 不该这样做）
 
 > 由 `feedback_001…007`（2026-10-08，用户裁定）**并回**本文件：**经过/根因**归 §7.10–§7.13 与 §7.5/§7.7/§7.9，**正面规范**归本节。每条的「教训指引」只给指针，不复述经过。
@@ -519,3 +531,13 @@
   4. 执行载体的**旁路输出通道**（如 semihosting 控制台）须**显式**重定向到可比对的位置（M5：`-chardev file,id=semi,path=…` + `chardev=semi`），禁依赖默认 stderr（与 QEMU 告警混淆、不可判定）。
 - **依据/来源**：`TESTCASES-033t`（2026-10-08，reviewer `Accepted` + architect 交叉复核）。
 - **教训指引**：见 §7.22；同类 §7.19 / §8.13（复用共享层须列接入点清单）。
+
+### 8.17 测试停机协议迁移（exit-port → semihosting `SYS_EXIT`）：块指针 `rb16` + 退出码在内存块 + 显式 `target=native`；迁移类任务先记改前基线再对拍；`-d cpu` 观测强制 TB 边界；范围计数脚本枚举
+
+- **规则**：
+  1. **semihosting `SYS_EXIT` 约定**（迁自 exit-port 时）：参数为 **64 位大端内存块** `{reason=0x20026, exit_code}`，**块指针在 `rb16`**（**非**旧 exit-port 的「寄存器习惯」）、服务号 `rd16=0x18`、`trap cfx_umon, 0x30000`；**退出码在内存块第 2 字段、不是直接写某寄存器**。改错块指针寄存器即全部 FAIL。
+  2. **harness 须显式** `-semihosting-config enable=on,target=native`——否则 `SYS_EXIT` 不可达、host `$?` 不传播（`ADR-0020 D7`：`native` 非默认、须由 harness 显式开）。
+  3. **`-d cpu` 观测**：`SYS_EXIT` 的 `trap` **不在 trap 前切 TB**（不同于 exit-port 的 MMIO store 会因 `CF_LAST_IO` 切分）⇒ 若「读观测值的 `ld_o`」与 exit 序列同 TB，「最后一次 dump」会落在 `ld_o` 之前、观测到旧值。**修法**：exit 序列**前置一条 no-op `jump-iiii imms24=1`** 强制 TB 边界。
+  4. **迁移类任务**须**先记改前基线**（逐条真实输出）**再对拍**（迁移后逐项与改前相等）；**范围 / 计数一律脚本枚举**（禁目测抽样——`ISS-147` 实为 7 条而非 5 条）；默认全迁、例外须**逐条披露**并登记 issue。
+- **依据/来源**：`TESTCASES-034t`（2026-10-08，reviewer `Accepted` + architect 交叉复核；`ISS-147` 结案、`ISS-169` 登记 6 探针例外）。
+- **教训指引**：见 §7.23；同类 §8.16（执行载体旁路通道须显式）、§8.2（迁移须同一原子落地）。
