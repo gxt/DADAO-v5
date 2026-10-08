@@ -363,3 +363,22 @@ python3 tools/integ/check_interface_alignment.py
 | 归档前置台账梳理 | bdbcfd2（主会话） | —— | `Process-04 §3`；`check_issues.py` |
 
 > 历史日志：`.work/log/<module>/<任务ID>-<命令名>.log`（reviewer 重跑加 `-review-`）；M4 收官核验日志见 `.work/log/integ/m4-closure/`。
+
+**M4 重定义（2026-10-05，用户裁定）**：M4 定为 **「ELF 文件支持 + LLD 链接 + 汇编器遗留收口」**——把工具链从 M3 的「raw-bin 单 TU 捷径」升级为**规范 ELF 产出 + 真实链接**，并清掉 M1/M2 遗留的汇编层欠账。**四块范围**：① **汇编器遗留**（伪指令〔**重定后**〕/`.dd.{b08,w16,t32,o64}` 指导符/`-multiple-to-single`/越界立即数**报错**/ABI 寄存器别名，见 `contract-asm §6/§7/§8/§11`）；② **ELF 产出规范**（`ELFObjectWriter` 注册/`e_flags=1`/`e_machine`→dadao/段布局对齐/**全局数据 `.data`/`.rodata`**，`ISS-038/039/047/117`）；③ **LLD 链接器**（新增 DADAO LLD target：`lld/ELF/Arch/DADAO.cpp`+`Target.{cpp,h}`+`EM_DADAO`/reloc，产 `ET_EXEC`；`ISS-008`；0628 先例）；④ **QEMU ELF 加载**（解析 `Ehdr`/`Phdr`、按 `VA=PA` 装载 LOAD 段、跳 `e_entry`，替代 `objcopy`+trampoline；`ADR-0004` 扩展）。**门槛**：多 TU `ld.lld → ET_EXEC → qemu` 跑对 + ELF 结构断言（`readelf`/`readobj`）+ 汇编层 MC 用例 + M3 15 向量/多段/多文件经新链路 + 差分 + 负例（畸形 ELF 拒绝、reloc 溢出 link-time error）。**参考基线（2026-10-05 用户裁定）**：**主对标 RISC-V 64**（完整工具链/软件系统总纲）；**次要 x86-64/AArch64**（LLD/ELF 基础设施与测试组织）；**端序参考 PPC64 BE（+ s390x）**（64 位大端完整栈）；**双 bank 历史参考 M68K**（BE、32 位，退居次要）。**TDD**：本里程碑起采用**测试驱动开发**（先测试向量/门控、再实现），并需**完善测试向量**（MC 向量 + CodeGen 向量 + 执行向量；**移植对象 = 上述参考**：借鉴其测试**结构**，编码/期望值按 DADAO spec **独立派生**）。**前置（待判）**：重定位类型（`contract-elf §2–§4`）→ **ADR**；伪指令重定 → **spec 修订**；测试向量范围 → **待细化**。**明确不含（留后）**：完整调用约定（变参/聚合/sret/多返回/间接）、**FP/RF**、clang 前端、libc/OS/syscall、semihosting 字符输出、golden model。分解待立（`SPEC-1xxk` 规划任务）。
+**M4 达成（2026-10-07，主会话实测核验）**：门槛 `make test-elf` **5/5**；6 个模块 `m`（`SPEC-108m`/`INFRA-044m`/`LLVM-057m`/`QEMU-043m`/`TESTCASES-031m`/`INTEG-017m`）全部置 `里程碑`；`make check`/`check-lit`(60/60)/`test-codegen`(15/15)/`test-elf`/`check-no-residue`/`check-patch-tree`(89)/`check-qemu-semantics` 全 EXIT=0（`.work/log/integ/m4-closure/`）。前置 `SPEC-105t` 补置已验证；`SPEC-111t` 归档收口。M4 任务书归档见下（`Process-04 §3`，同 M1–M3 体例）。
+**归档（2026-10-07）**：M4 的 32 个任务书已归档至 `.tao/archive/M4/`（按模块子目录）；M4 时期 changelog（28 条）/MEMORY（1 行）内容见 `.tao/archive/M4/README.md`；**M4 回顾见 `.tao/archive/M4/m4-retrospective.md`**；`issues.yaml` 的 12 条 M4 阶段 closed 项见 `.tao/archive/M4/issues-closed.md`。
+**M4 — ELF 文件支持 + LLD 链接 + 汇编器遗留收口**（规划中）
+
+目的：把工具链从 M3 的「**raw-bin 单 TU 捷径**」升级为「**规范 ELF 产出 + 真实链接**」：`llc → llvm-mc → ld.lld → ET_EXEC → qemu 直接加载执行`；同时清掉 M1/M2 遗留的**汇编层欠账**（伪指令/指导符/汇编器选项/诊断）。
+
+范围：① 汇编器遗留；② ELF 产出规范（含全局数据段）；③ LLD 链接器（**含链接脚本 `dadao.lds`**：地址布局依 **`ADR-0004`**〔RAM 基址 `0xffff_0000_0000` 作 `.text`/entry；段序 `.text→.rodata→.data→.bss`〕、段对齐依 `contract-elf §5`、M4 路径 `dadao.lds` **不使用 `FILEHDR PHDRS`**（头/程序头表只在文件中，不进 guest 内存）、`p_align` **目标默认 64 KiB（可被 `-z max-page-size` 覆写）**）；④ QEMU ELF 加载。**参考**：主对标 **RISC-V 64**；端序参考 **PPC64 BE（+ s390x）**；双 bank 历史参考 **M68K**。
+
+门槛：多 TU `ld.lld → ET_EXEC → qemu` 跑对；ELF 结构断言；汇编层 MC 用例；M3 向量 + 多段 + 多文件经新链路通过 + 差分；负例（畸形 ELF / reloc 溢出）。
+
+**范围外（留 M5+）**：完整调用约定（变参/聚合/sret/多返回/间接）、FP/RF codegen、clang 前端、libc/OS/syscall、semihosting 字符输出、golden model（结果级独立 oracle）。
+
+**前置 ADR**：重定位类型（`contract-elf §2–§4`，`e_flags[7:0]=1` namespace）。**可能需调整 `ADR-0004`**（ELF 的 `e_entry` / 段布局 / 加载约定；当前为 flat-binary 双镜像）。
+
+**reloc/fixup 坑预防（M4 硬约束，源自 `DADAO-0628` 实录）**：① fixup **必须尊重 `IsResolved`**（禁写预链接原始值）；② same-section「快速路径」不可靠则**删掉、退回真重定位**；③ **`rb0`（= 当前 PC）禁作基址/零**；④ 跳转表/间接跳转目标标签**必须显式发射**；⑤ 大常量**不得折入**受限立即数/relocation 字段（先材料化）。
+
+**测试策略（`spec/Process-05` TDD）**：**L1（MC）+ L3（执行）为主、L2（CodeGen 结构）极简**；「**一能力一向量**」（规模 ∝ 能力）；移植**只借结构**、期望值**独立派生自 `spec/`**、**手写少量不批量迁移**；每条向量须能对反例失败。**已定前置**：重定位类型 = `ADR-0019`（Accepted；RELA，`ABS48/REL26/REL20/REL14`，v5 无 −4，一律 max 3 片，禁用 relaxation）；伪指令集收缩 = `ADR-0013 D11`（只留合成型 8 条，删 10 条别名）。

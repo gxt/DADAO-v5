@@ -345,3 +345,33 @@ python3 tools/infra/check_issues.py
 | M2 达成 | `INTEG-011m` 等 6 `m` | 核验记录 | `make check` EXIT 0；`milestones.md` M2 = 达成 |
 
 > 历史日志：`.work/log/<module>/<任务ID>-<命令名>.log`（reviewer 重跑加 `-review-`）；`.tao/logs/` **已废弃**。
+
+**M2 重定义（2026-10-04，用户裁定）**：M2 定为「**规范与接口冻结（Normative Freeze）**」，原「Basic CodeGen」顺延为 **M3**；并**取消「过渡期任务 `M<i>→M<i+1>`」类别**——原 `M1→M2` 任务一律提升为 `M2`（**推翻** 2026-09-25 决议；不立 ADR）。
+**M2 达成（2026-10-04，architect 实测核验）**：M2 门槛 5 条全部满足、各模块 M2 任务均终态 ⇒ 6 个模块 `m` 置 `里程碑`、M2 置 `达成`。核验记录见下「M2 达成核验记录」。
+**归档（2026-10-04）**：M2 的 150 个任务书已归档至 `.tao/archive/M2/`（按模块子目录）；M2 时期 changelog（61 条）/MEMORY（45 行 + 2 段落）内容见 `.tao/archive/M2/README.md`；**M2 回顾见 `.tao/archive/M2/m2-retrospective.md`**；`issues.yaml` 的 41 条 M2 阶段 closed 项见 `.tao/archive/M2/issues-closed.md`。
+## M2 达成核验记录
+
+**日期**：2026-10-04　**执行**：architect 实测（命令原样 + 退出码；完整输出见 `.work/log/integ/M2-milestone-make-check.log`、`.work/log/spec/M2-milestone-check-spec-refs.log`、`.work/log/qemu/M2-milestone-probe-03{4..8}t.log`）
+
+| # | 门槛 | 命令 / 证据 | 结果 |
+|---|------|-------------|------|
+| ① | `make check` 全绿（所有 checker + 反例门控） | `make check` | **EXIT=0**；`repository checks: PASS`；lit 31/31 |
+| ② | 投影表「缺口」清零或显式 deferred | `contract-asm.md` 已补齐（`SPEC-091t`）；`DADAO-12/13/22/23` ①列 = `deferred`（`SPEC-092t`）；`Process-02` 三者 = `deferred` | **满足**（4 项） |
+| ③ | `spec_cite` / 引用 / 计数全对齐 | `make check-spec-refs` | **EXIT=0**；Check1 680 引用 / 0 失败、Check2 0（76→0，`SPEC-094t`） |
+| ④ | FP = 执行层 60/60 + `dst_rd0@FP` + 最小 smoke | `min_rom_probe_03{4..7}t` = 59/77/113/91 全 PASS；`_038t` = 42/42；`smoke_fp.test` PASS | **满足** |
+| ⑤ | 偏离台账 6 项 | `.tao/knowledge/MEMORY.md` `## 上游 ↔ v5 偏离台账` | **恰好 6 行**（`SPEC-093t`） |
+
+**各模块 M2 `m`**：`INFRA-034m`、`SPEC-095m`、`TESTCASES-025m`、`LLVM-032m`、`QEMU-039m`、`INTEG-011m`。
+
+**M2 任务终态**：wave 1/2 全部 `已验证`；唯一非终态 M2 任务 = `INTEG-010t`（M2 达成**后**执行的归档收尾，非达成分解）。
+
+**归档前置**：`INFRA-033t`（`Process-04 §3` 台账梳理；原 §2，2026-10-06 顺延）`已验证`；M2 任务书归档由 `INTEG-010t` 在 M2 达成后执行。
+
+> **caveat（非阻断，交主会话复核）**：投影表仍存 3 处字面 `缺口`——`SimRISC-07` 行 ④列 `缺口`（FP oracle/向量待建，2026-10-04 M3 重定义后属 **M4**，未加 `deferred` 字样）、`DADAO-12` 行 ②④列 `缺口（据实）`（据实、无需独立投影）。按 `SPEC-090k` 对门槛②的 4 项界定为满足；若要字面清零，建议将 `SimRISC-07 ④` 改标 `deferred（M3）`（需改 `spec/README.md`，超出本次核验写范围）。
+**M2 — 规范与接口冻结（Normative Freeze）**
+
+目的：`spec/`（0.5.4）→ 投影（`contracts/*`、`contract-*.md`）→ checker 三层**机械一致**；FP **实现侧**收口（执行层 + 合法性）；偏离台账成型。为 M3 codegen 提供稳定契约。
+
+门槛：① `make check` 全绿（所有 checker + 反例门控）；② 投影表「缺口」清零或显式 deferred；③ `spec_cite`/引用/计数全对齐；④ FP = 执行层 60/60 + `dst_rd0@FP` + **最小 FP smoke**；⑤ 偏离台账（6 项，见 `MEMORY.md`）。
+
+**范围外（2026-10-04 M3 重定义后改归 M4）**：FP 独立 oracle（`GOLDEN`）、FP 向量（`TESTCASES-024t`）、完整语义 E2E。

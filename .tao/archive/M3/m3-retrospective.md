@@ -335,3 +335,14 @@ python3 tools/integ/check_interface_alignment.py
 | M3 达成 | 5 个 `m` | 核验记录 | `make check` EXIT=0；`milestones.md` M3 = 达成 |
 
 > 历史日志：`.work/log/<module>/<任务ID>-<命令名>.log`（reviewer 重跑加 `-review-`）；M3 收官核验日志见 `.work/log/m3-closure/`。
+
+**M3 达成（2026-10-05，主会话实测核验）**：门槛 `make test-codegen` **15/15**；5 个模块 `m`（`INFRA-036m`/`SPEC-099m`/`TESTCASES-027m`/`LLVM-042m`/`INTEG-013m`）全部置 `里程碑` ⇒ M3 置 `达成`。核验命令与退出码见各 `m` 文件「核验记录」及 `.work/log/m3-closure/`（`llc --version`=0、`check-patch-tree`=0/80、`check`=0/34、`check-lit`=0/34、`test-codegen`=0/15、`check-no-residue`=0）。**归档前置**（`spec/Process-04 §3` 完整台账梳理，步骤 3–6；原 §2，2026-10-06 顺延）由 `INFRA-042t` 执行（`已验证`）；归档见下。
+**归档（2026-10-05）**：M3 的 41 个任务书已归档至 `.tao/archive/M3/`（按模块子目录）；M3 时期 changelog（35 条）/MEMORY（1 行）内容见 `.tao/archive/M3/README.md`；**M3 回顾见 `.tao/archive/M3/m3-retrospective.md`**；`issues.yaml` 的 56 条 M3 阶段 closed 项见 `.tao/archive/M3/issues-closed.md`。
+**M3 重定义（2026-10-04，用户裁定）**：M3 定为 **「Basic CodeGen（纯整数）」**——`llc` 编译标量整数/指针函数 → MC → 单 TU obj/raw binary → QEMU 执行正确；门槛 `make test-codegen` 全绿。bank 只 `GPRD`+`GPRB`；`RA`/`RF` 仅「保留不分配」；无需链接器（ADR-0003 §D5 单 TU + 最小重定位）。**M4（后续，未规划）**顺延：FP/RF codegen、完整调用约定（`ISS-005`，含变参/聚合/多返回/sret）、完整重定位（`ISS-008`）、clang targetinfo/driver。M3 任务分解见 `.tao/tasks/spec/SPEC-096k-M3启动与分解.md`；M3 的 `qemu` 列原填 `—`（执行层已由 M1 冻结、无独立 qemu 模块里程碑）——**2026-10-04 追加**：新增指令 `sub.o rd,rb,rb` 的 QEMU 语义翻译 `QEMU-040t`（M3 前置，与 `SPEC-100t` 同原子落地集，由 `INTEG-012t`/`INTEG-013m` 门控），本列仍填 `—`。
+**M3 — Basic CodeGen（纯整数）**
+
+目的：`llc` 将**标量整数/指针**函数（LLVM IR）编译为 DADAO 汇编，经 MC → **单 TU** obj/raw binary → `qemu-system-dadao` 执行结果正确（freestanding、same-TU、无链接器）。门槛：**`make test-codegen` 全绿**，至少一个算术/访存/分支/调用函数端到端在 QEMU 得到期望结果。**范围**（用户裁定 2026-10-04）：bank 只用 `GPRD`+`GPRB`；`RA`/`RF` 仅「保留不分配」；无需链接器（单 TU 自包含 + 最小重定位）。分解见 `.tao/tasks/spec/SPEC-096k-M3启动与分解.md`。
+
+> **M3 CodeGen 取舍点（C1–C17）已定（2026-10-04，用户逐条判定，32 条 decision 经逐一审核通过）**：判定结果见 `.tao/knowledge/project_M3-codegen-choices.md §5`；架构决策固化于单一 **`ADR-0018`**（分组：C1 硬双类、C2 指针 i64 通吃、C4 栈溢出区全局声明序、C5 返回 rb31 + callee 扩展、C7 帧策略条件式/SP-only 默认、C9 DataLayout、C11 SelectionDAG 为主、C13 无 subreg + 大端窄访存、C14 RB 算术落 GPRB、C16 call Defs/RegMask）；C17（无标志位 compare-branch）只落 `LLVM-037t` 任务书约束，不立 ADR。C6（CSR）归 ABI（`SPEC-097t`）。**新增指令 `sub.o_orrr_dbb`（C14 D4 的 `ptr−ptr` 终态）与三条既有 RB 算术指令改名/改编码（`add.o_orrr_bbd`/`sub.o_orrr_bbd`/`cmp.uo_orrr_dbb`）记入 `adr-0012 D9`**（`Accepted`，用户 2026-10-04 逐条确认追加），落地 `SPEC-101t`→`SPEC-100t`→`LLVM-043t`/`QEMU-040t`→`LLVM-035t`。
+
+> **M2 定义变更留下的旧文本已在 2026-10-04 M3 重定义时移除**：M2 曾把「FP 独立 oracle / FP 向量 / 完整语义 E2E」顺延至 M3；用户 2026-10-04 重划边界后，FP/RF 及完整调用约定/完整重定位归 **M4**（见下「M3 重定义」）。
