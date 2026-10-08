@@ -225,3 +225,11 @@ EVIDENCE: PASS
 - **方法论偏差（如实记录）**：reviewer 的注入还原用 **`git show HEAD:path > file`**（**等同从提交读回**），非项目规定的 **`cp` 备份 + `md5` 对账** ⇒ 本次未造成损失，但**属偏差**；已沉淀 `lessons §7.20`/`§8.14`（禁用清单扩充）。
 - **⚠️ 前置风险（待用户裁定）**：**「`-bios` bootrom + ELF 应用」组合未定义/未实现**（kernel 为 ELF 时机器**整体忽略 `machine->firmware`**；`dadao_load_regions[]` 未含 RAM@0；`ADR-0004 D2.3 路径 A` 明示不使用外部 `-bios`）。而 M5 门槛正向含「bootrom + 单/多 TU **ELF** 经 `-semihosting`」⇒ **按字面读缺口成立**。选项：**A** 另立任务（扩 `dadao_load_regions[]`(+RAM@0) + 定义组合加载/入口语义 ⇒ 属加载模型/外部契约，须 ADR 修订并逐条确认）；**B** 调整门槛正向为 raw-bin 组合（最小改动、与 `R1`「并存」自洽，但损失"多 TU ELF"覆盖）；**C** 其它。architect 与 reviewer **均倾向 A**。已沉淀 `lessons §7.21`/`§8.15`（门槛前置组合若 ADR 未定义须先裁定）。
 - **最终判决**：**`Accepted`** ⇒ 任务书 `**状态**` 置 `已验证`。
+
+#### architect M6 归属留痕（2026-10-08，用户裁定；只追加）
+
+**背景**：本任务「前置风险」（`-bios`+ELF 组合未定义/未实现）与「遗留问题」第 1 项（「`-bios` bootrom + ELF 应用」组合未实现、需扩 `dadao_load_regions[]`+RAM@0）原标注 **`待用户裁定`**、倾向选项 A。
+
+**用户 2026-10-08 裁定（原话见 `INTEG-019k` §第 8 轮）**：「用bios的时候，直接接bin，也就是objdump后的测试程序；而用elf的时候，则不需要bootrom，只需要semihosting即可……只做bootrom+bin的情况；elf加载放在M6」。⇒ **本任务据实选择的 raw-bin path B（bootrom `-bios` + bin `-kernel`）正是 M5 的最终口径**；「`-bios`+ELF 组合 / ELF loader 扩表（`dadao_load_regions[]`+RAM@0） / 组合入口语义」**改挂 M6**（`ISS-168`），**不再是 M5 门槛前置缺口**（M5 门槛正向已改「bootrom（`-bios`）+ bin」）。
+
+**保留**：上「遗留问题」第 1 项与「前置风险评估」相关记录为**历史记录，保留不改**（本节点只追加）。**未动 `spec/`**。

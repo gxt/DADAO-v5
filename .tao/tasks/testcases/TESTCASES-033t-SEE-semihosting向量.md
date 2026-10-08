@@ -18,7 +18,7 @@
   - 既有 `tests/llvm/lit/MC/DADAO/`（`validate_mc_vectors.py` oracle）与 `tests/llvm/codegen/`（L3 驱动模式）。
 - **输出**：
   - **L1 MC 向量**：落 `tests/llvm/lit/MC/DADAO/`（如 `m5-trap-escape-cfx2.s`）——`trap`/`escape`/`cfx2rd`/`cfx2rc` 编码与往返；**分阶段**：`LLVM-060t` 就绪前以 lit **`UNSUPPORTED:`** 标记暂缓（`Process-05`；`LLVM-060t` 完成后**去除**标记）。期望编码**独立派生自 `contracts/opcodes.yaml`**（**禁**从 `llvm-mc` 反推）。
-  - **L3 执行向量**：落 `tests/llvm/codegen/m5/`（独立 m5 清单 + `expected.yaml`）——经 `llc`/`llvm-mc`/`ld.lld`/`qemu` 跑通：① **semihosting 服务**（≥ console `WRITEC/WRITE0/WRITE` + `EXIT`/`EXIT_EXTENDED`；`READC` 可 host 输入桩）；② **权限反例**（未授权模式/未实现 cfx ⇒ `NUPERM/NJPERM/NSPERM/NHPERM` 或 `CFXREG`）；③ **一条一般 trap 进入向量 + escape 返回**。**期望值独立派生自 spec/契约**（**禁**从 QEMU 反填）。
+  - **L3 执行向量**：落 `tests/llvm/codegen/m5/`（独立 m5 清单 + `expected.yaml`）——**承载形态 = bin**（`llc`/`llvm-mc` → `objcopy -O binary` → `qemu`；**不经 `ld.lld` 多 TU ELF**——用户 2026-10-08 M5 范围简化裁定，见下「承载形态裁定」）跑通：① **semihosting 服务**（≥ console `WRITEC/WRITE0/WRITE` + `EXIT`/`EXIT_EXTENDED`；`READC` 可 host 输入桩）；② **权限反例**（未授权模式/未实现 cfx ⇒ `NUPERM/NJPERM/NSPERM/NHPERM` 或 `CFXREG`）；③ **一条一般 trap 进入向量 + escape 返回**。**期望值独立派生自 spec/契约**（**禁**从 QEMU 反填）。
   - **独立 oracle**：扩展 `tools/testcases/validate_mc_vectors.py` / 新增 `validate_elf_vectors.py` 派生（复用 `029t`/`030t` 共享 validator，`Process-05 §6`）；**不调用** `llvm-mc`/`llc`/QEMU 作为期望来源。
   - `tests/llvm/lit/MC/DADAO/README-m5.md`（向量 ↔ 能力 ↔ 期望值来源对照）。
 - **门控时序（`Process-05` TDD）**：向量**先立**；L1 暂缓用 `UNSUPPORTED:`（**不接门控**），由 `LLVM-060t` 完成后（或 `INTEG-020t` 收口时）去除标记接入 `check-lit`；L3 落 m5 独立清单（`make test-codegen`/`test-elf` 的 M3/M4 驱动**不读**，避免误接）。
@@ -60,3 +60,17 @@
 **用户原话**：「**A 重排：先 LLVM-060t 再 SPEC-115t（推荐）**」（经主会话转达；见 `lessons §7.3`）。
 
 **对本任务的影响（lit 归属裁定）**：本任务的 L1 MC 向量落点 `tests/llvm/lit/MC/DADAO/` 现由**前置的 `LLVM-060t` 先行自带**（含 `crrr`/`ciii` 的 `; OBJ:`），本任务**复用/扩展**（不再需要「`LLVM-060t` 就绪前以 `UNSUPPORTED:` 暂缓」，因其已就绪）。`tests/vectors/inventory.md` 的 4 行由 `SPEC-115t` 承接（`validate_vectors` 要求行集 == `scope==m1` 集，原子强制）。完整归属理由见 `SPEC-115t` 审阅记录「第 2 轮 architect 重排落纸」。
+
+#### architect 承载形态裁定（2026-10-08，用户裁定）
+
+**用户原话（逐字落盘；完整原话见 `INTEG-019k` §第 8 轮）**：
+
+> 「……用bios的时候，直接接bin，也就是objdump后的测试程序；而用elf的时候，则不需要bootrom，只需要semihosting即可……只做bootrom+bin的情况；elf加载放在M6……」
+
+**对本任务的影响**：
+
+1. **L3 执行向量承载形态改 = bin**（`llc`/`llvm-mc` → `objcopy -O binary` → `qemu`）；**不经 `ld.lld` 多 TU ELF**（已同步接口规范「L3 执行向量」条）。
+2. **原「单/多 TU ELF」正向用例移 M6**（ELF 加载/链接态随 M6，与「`-bios`+ELF 组合语义」一并；登记 `ISS-168`）。本任务保留的 L3 用例 = semihosting 服务 / 权限反例 / 一般 trap+escape（**bin 形态即可承载**，不依赖多 TU ELF）。
+3. **L1 MC 向量不变**（`trap`/`escape`/`cfx2rd`/`cfx2rc` 编码/往返；`LLVM-060t` 已自带，本任务复用/扩展）。
+
+**未改范围**：本轮**未动 `spec/`**。

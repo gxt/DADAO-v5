@@ -11,6 +11,7 @@
 - 产出是否存在：`.tao/adr/adr-0020-see-semihosting.md`（`Accepted`）、`adr-0004` 修订、`adr-0016` 范围判定；`spec/DADAO-12`（+`DADAO-13/21/22` 相关）semihosting 正文；投影 `contract-sbi.md`/`contract-see.md`/`contract-semihosting.md`；`contracts/opcodes.yaml` 4 条 re-scope；`check_scope.py` 计数
 - 用户逐条确认记录：`ADR-0020` D1–D14、`ADR-0004` R1–R3、`ADR-0016` S1 **逐条**已确认（完成区原话/摘要）；无「未确认即 `Accepted`」
 - **R3 归属**：判定结论 + 「仅判定/记录、实现另立任务」已登记
+- **组合加载 ADR 推迟 M6（用户 2026-10-08 裁定）**：「`-bios`+ELF 组合」加载/入口语义的 ADR 决策**不在 M5**（M5 不立 ADR；推迟 M6，见 `INTEG-019k` §第 8 轮、`ISS-168`）——`ADR-0020`/`ADR-0004`/`ADR-0016` 的 M5 落地不受影响（本 `m` 核验不含组合 ADR）
 - `python3 tools/spec/check_scope.py` EXIT=0（`m1=155`/`excluded=11`/`total=227`）；`make check` EXIT=0（`check-spec-refs`/`check-legality-drift`/`check-asm-*` 绿）
 - `ISS-157` 以「条款撤销」`closed`；`ISS-110` 部分收口登记
 - `spec/README.md` 投影表 `DADAO-12/13/22/23` 行更新（`deferred`→实际落点）

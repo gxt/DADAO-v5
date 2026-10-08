@@ -15,10 +15,10 @@
   - `.tao/adr/adr-0020-see-semihosting.md`（`Accepted`，**D7** host 侧安全：`-semihosting-config` 的 `target=`/`chardev=`/`arg=`；建议默认 `gdb`/沙箱）+ `adr-0004` 修订。
   - `spec/Process-05-里程碑TDD规范.md §6`（落点 + `INFRA-048t` 的 `.dadao/tests/`）；`tools/infra/paths.py`（`test_artifacts_dir`）。
   - 既有 `tools/integ/run_elf_e2e.py`/`Makefile::test-elf`/`check-lit`（E2E 驱动范式）。
-  - **门槛（`INTEG-019k` §第 2 轮用户裁定 9）**：门控名 = **`make test-semihost`**（**不是** `test-see`）；组成 = ① **正向**（bootrom + 单/多 TU ELF 经 `-semihosting`、console 捕获、`SYS_EXIT` 码）；② **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）；③ **服务表各条至少 1 例**；④ **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）；⑤ **`INTEG` 开闭**。
-  - **RAM@0 双映射（C1 step1，`ADR-0004 R3`/`ADR-0020 D15`）**：M5 **正向**（bootrom/SEE + `-semihosting`）经 **RAM@0**（`QEMU-049t` 双映射提供）；**旧 RAM 段过渡保留** ⇒ 既有测试不回归；**step2**（旧向量/harness 迁到 RAM@0 + 删旧段 + 收紧断言）**另立、M5 之外**，**不阻塞本门槛**。
+  - **门槛（`INTEG-019k` §第 2 轮用户裁定 9；**正向口径已由 `INTEG-019k` §第 8 轮修订**）**：门控名 = **`make test-semihost`**（**不是** `test-see`）；组成 = ① **正向**（**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码）；② **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）；③ **服务表各条至少 1 例**；④ **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）；⑤ **`INTEG` 开闭**。
+  - **RAM@0 双映射（C1 step1，`ADR-0004 R3`/`ADR-0020 D15`）**：M5 **正向**（bootrom/SEE + `-semihosting`）经 **RAM@0**（`QEMU-049t` 双映射提供）；**旧 RAM 段过渡保留** ⇒ 既有测试不回归；**step2**（旧向量/harness 迁到 RAM@0 + 删旧段 + 收紧断言）**另立、随 M6**（用户 2026-10-08 裁定；`ISS-165`），**不阻塞本门槛**。
 - **输出**：
-  1. **`tools/integ/` 驱动**（如 `run_semihost_e2e.py`）：fail-closed——bootrom（`-bios`，`QEMU-047t`）+ 单/多 TU ELF 经 `-semihosting`，跑通 semihosting 服务，**捕获 console 输出**，比对 `SYS_EXIT` 码；逐例打印「名字/期望/实际/退出码」。
+  1. **`tools/integ/` 驱动**（如 `run_semihost_e2e.py`）：fail-closed——bootrom（`-bios`，`QEMU-047t`）+ **bin 应用**（`objcopy -O binary`）经 `-semihosting`，跑通 semihosting 服务，**捕获 console 输出**，比对 `SYS_EXIT` 码；逐例打印「名字/期望/实际/退出码」。**（原「单/多 TU ELF」正向用例移 M6——用户 2026-10-08 裁定。）**
   2. **harness stdio 捕获（细节展开，本任务明确落定）**：
      - **`-semihosting-config` 的 `target=`/`chardev=`/`arg=` 由谁传**：**明确**是 **Makefile 传参** 还是 **harness 脚本包装**（二选一，落定并记录理由）；建议 **驱动脚本经 `-semihosting-config target=gdb|native,chardev=...` 传参**（与 `ADR-0020 D7` 一致，默认沙箱）。
      - **console 输出捕获落点**：捕获到 **stdout** 还是 **stderr**（或 chardev 文件），**落点** = `.dadao/tests/semihost-e2e/`（`INFRA-048t` 口径）；**比对方式**（逐字节/去尾空白/期望串包含）。
@@ -36,7 +36,7 @@
 
 ## 验收标准
 
-1. **正向**：`make test-semihost` EXIT=0；bootrom + 单/多 TU ELF 经 `-semihosting`，console 捕获内容与 `SYS_EXIT` 码逐例比对正确；给真实输出（多 TU + console 各 ≥1）。
+1. **正向**：`make test-semihost` EXIT=0；bootrom（`-bios`）+ **bin 应用**经 `-semihosting`，console 捕获内容与 `SYS_EXIT` 码逐例比对正确；给真实输出（console ≥1）。**（原「单/多 TU ELF」正向用例移 M6——用户 2026-10-08 裁定。）**
 2. **权限反例**：未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`（≥1 类）——机器可判（真实输出）。
 3. **服务表覆盖**：**25 服务各 ≥1 例**（脚本计数=25；给真实输出）。
 4. **不回归**：`make test-elf` 5/5、`make test-codegen` 15/15、`make check`、`make check-lit` 全 EXIT=0（给真实输出）。
@@ -88,3 +88,24 @@
 - **倾向 A**（若用户确认门槛正向按字面耦合读）：唯一能同时满足「bootrom」+「单/多 TU ELF」且**保留 `R1` 并存**（新增第三条组合路径，不删路径 A/B）的方案；与门控收口（`INTEG-020t`）解耦，合 Do-One-Thing。**但须先由用户裁定「是否承认『`-bios`+ELF』为门槛前置」，并逐条确认组合加载语义的 ADR 决策**，据此才可建任务 / 改 ADR。
 - **次选 B**（若用户接受 M5 门槛正向不含组合、且「多 TU ELF」不在 M5 门槛 E2E 覆盖）：最小改动、零组件补丁、零回归风险，但降低门槛正向覆盖度。
 - **本评估**：只写评估与选项；**未改任务范围、未动 `spec/`、未建新任务、未立 ADR**——均**待用户裁定后再行**。
+
+#### architect M5 范围简化落纸（2026-10-08，用户裁定；只追加）
+
+**背景**：上「architect 前置风险评估」（`QEMU-047t` 遗留）判「`-bios`+ELF 组合缺口」为**可能 M5 门槛前置**、倾向选项 A，**待用户裁定**。用户本轮就此裁定 → **M5 范围简化**（口径与上评估**选项 B** 一致：M5 门槛正向改为 bootrom + bin，与 `ADR-0004 R1`「并存」自洽；组合移 M6）。
+
+**用户原话（逐字落盘；`AGENTS.md`「用户裁定落盘」/`lessons §7.3`）**：
+
+> 「确实，这是两个分开的事情，用bios的时候，直接接bin，也就是objdump后的测试程序；而用elf的时候，则不需要bootrom，只需要semihosting即可。我们简化一下M5本身的任务目标，只做bootrom+bin的情况；elf加载放在M6，与完整LLVM的任务一起进行；你觉得呢」
+
+**四条理解（主会话转达；architect 核对：与原话一致，无出入）**：
+
+1. **M5 门槛正向**改为：`-bios <bootrom>` + **bin 应用**经 `-semihosting`（console 捕获 + `SYS_EXIT` 码）；原「单/多 TU ELF」用例**移 M6**。
+2. **M4 既有 `test-elf`（path A：ELF、不用 bootrom）保留**为**不回归项**（不撤、不改）。
+3. **`-bios`+ELF 组合 / ELF 加载器扩展（`dadao_load_regions[]`+RAM@0）/ 组合入口语义 ⇒ 移 M6**；**M5 不做**；**本阶段不立 ADR**（**推迟至 M6**，现只登记待办 + 理由）。
+4. **连带**：`TESTCASES-033t` 改以 **bin 形态**承载；`TESTCASES-034t` 口径不变；`QEMU-049t` 挂到 `QEMU-047t` 的「ELF loader 未含 RAM@0」前置风险**改挂 M6**；`RAM@0` **step2（旧向量迁移）随 M6**。
+
+**本任务受影响落点（已改）**：接口规范「门槛」/输出 1、验收 1——正向由「bootrom + 单/多 TU ELF」→「bootrom（`-bios`）+ **bin**」；**M4 `test-elf`（path A）仍为不回归项**（验收 4/6 不变）。
+
+**ADR 推迟至 M6**：**本任务不涉组合 ADR**——「`-bios`+ELF 组合」加载/入口语义属加载模型/外部契约，**ADR 决策推迟至 M6**（`ISS-168`）；**M5 阶段不立 ADR**。
+
+**未改范围**：本轮**未动 `spec/`**（本文件亦无 `spec/` 改动）；上「architect 前置风险评估」为**历史记录，保留不改**（只追加本节）。

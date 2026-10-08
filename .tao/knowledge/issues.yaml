@@ -29,9 +29,10 @@
 #
 # 字段约束：
 #   status: open | closed
-#   scope: 非空列表 (M1 | post-M1 | M2 | M3 | M4 | M5 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
+#   scope: 非空列表 (M1 | post-M1 | M2 | M3 | M4 | M5 | M6 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
 #     - M1 = M1 范围项（已达成）；M2 = 规范与接口冻结（已达成）；M3 = Basic CodeGen（已达成）；
-#       M4 = ELF 文件支持 + LLD 链接 + 汇编器遗留收口（已达成）；M5 = 后续里程碑（FP/RF codegen、完整调用约定、clang driver 等）；
+#       M4 = ELF 文件支持 + LLD 链接 + 汇编器遗留收口（已达成）；M5 = SEE/HEE 运行环境 + semihosting（进行中，门控 make test-semihost）；
+#       M6 = 完整调用约定（整数）+ 欠账收口，追加「elf 加载」（规划待启；M6 自 M5 范围简化转入「-bios+ELF 组合语义 / ELF loader 扩展 / 组合 ADR」= ISS-168、step2 = ISS-165）；
 #     - post-M1 = 已不属 M1 范围、归后续里程碑的通用项，无明确单一里程碑归属
 #       （含义随 M2/M3 达成后指向 M4+）。
 #   blocks: 可空列表 (M1-gate 表示直接阻断 M1 里程碑)
@@ -370,10 +371,10 @@
 - id: ISS-165
   title: "C1 step2 迁移（RAM@0 收口，跨模块）：旧向量/harness/crt0/e2e 迁到 0 + 删旧 RAM 段 + 收紧 check-interface 断言"
   status: open
-  scope: [testcases, qemu, integ, M5]
+  scope: [testcases, qemu, integ, M6]
   blocks: []
   resolved_by: null
-  notes: "QEMU-049t 遗留（C1 step1 已落地：RAM@0 = 0x0000_0000_0000 / 16 MiB〔cfxha 0 = umon〕与旧 RAM 段 0xffff_0000_0000 双映射并存）。step2 = 旧向量/harness/crt0/e2e 迁到 0 + 删旧 RAM 段 + 收紧 check-interface 断言；另立、M5 之外（编号/归属待 M6 规划或另立时确定）。跨模块影响：① tests/vectors/**（如 isa/{mem-rd,mem-rb,mem-ra,ctrl-*}.yaml 以 EA=0 作 unmapped 的用例）；② tools/qemu/*.py 探针（如 min_rom_probe_010t.py 的 T6/T18）——既有『EA=0 ⇒ unmapped 0x87』向量/探针在 R3（RAM 基址改全 0）下失效（EA=0 变为合法 RAM）。当前不在任何 make 门控内（check-qemu-semantics 只跑 reg-shift-extend/reg-compare）⇒ 门控全绿、step2 不阻塞 M5 门槛。附带项（同归 step2）：harness FAULT_NAMES 未扩（未列 0x81）；0x81 复用 ADR-0004 D5.8 冻结表已保留区、0x87–0x8D 未重排。"
+  notes: "QEMU-049t 遗留（C1 step1 已落地：RAM@0 = 0x0000_0000_0000 / 16 MiB〔cfxha 0 = umon〕与旧 RAM 段 0xffff_0000_0000 双映射并存）。step2 = 旧向量/harness/crt0/e2e 迁到 0 + 删旧 RAM 段 + 收紧 check-interface 断言；另立、M5 之外（编号/归属待 M6 规划或另立时确定）。跨模块影响：① tests/vectors/**（如 isa/{mem-rd,mem-rb,mem-ra,ctrl-*}.yaml 以 EA=0 作 unmapped 的用例）；② tools/qemu/*.py 探针（如 min_rom_probe_010t.py 的 T6/T18）——既有『EA=0 ⇒ unmapped 0x87』向量/探针在 R3（RAM 基址改全 0）下失效（EA=0 变为合法 RAM）。当前不在任何 make 门控内（check-qemu-semantics 只跑 reg-shift-extend/reg-compare）⇒ 门控全绿、step2 不阻塞 M5 门槛。附带项（同归 step2）：harness FAULT_NAMES 未扩（未列 0x81）；0x81 复用 ADR-0004 D5.8 冻结表已保留区、0x87–0x8D 未重排。【2026-10-08 M5 范围简化（用户裁定，原话见 INTEG-019k §第 8 轮）：step2 明确随 M6（原「M5 之外」→ M6）；scope 由 M5 改 M6。】"
 
 - id: ISS-166
   title: "Machine-01 §1 未完全覆盖越界路由口径与 RAM@0 容量（QEMU-049t 已落地三条）→ 已由 SPEC-121t 承接（用户授权 2026-10-08）"
@@ -390,3 +391,11 @@
   blocks: []
   resolved_by: null
   notes: "QEMU-045t 新发现②（verification-only 任务、无组件补丁改动；architect 交叉复核判定需跟踪）。`spec/DADAO-12-SEE-主管系统运行环境.md §5`『异常退出流程』：伪代码 `⟨cfxname⟩` 明确定义为 `inner_cfx_code`（**当前**执行 escape 的 cfx），步骤 1/2 恢复**当前 cfx** 的 `excp_prev_cfx_mask`/`excp_prev_run_mode`、步骤 4 返回地址用**当前 cfx** 的 `excp_cause_ip`（`excp_cause_ip + (imms18<<2)`，L830/L853）；而同节 prose（L674）称跨 cfx escape 时『硬件直接恢复到 A 的 prev 现场，B 的现场被静默丢弃』——与伪代码（以当前 cfx 为 `⟨cfxname⟩`）存在**措辞张力**。**判据：伪代码为权威**（`DADAO-12 §5` 伪代码为硬件语义权威）；QEMU 实现按伪代码，QEMU-045t 探针 `escape_cross_allowed` 验证『跨 cfx 允许时恢复当前 cfx 的非复位 prev 值』（`escape cfx0` 于 cfx63 执行 ⇒ 恢复 cfx63 的 `prev_run_mode`/`prev_cfx_mask`，非复位值 0xDEADBEEF/`USER`）。**处置：本任务未改 spec/**（`DADAO-12` 为上游只读册，`manifests/spec-readonly.lock.toml` 锁定；改它须用户**事先**授权，见 lessons §8.5 / spec/Process-06）——建议**另立 spec 任务**（经用户授权）厘清 §5 prose 措辞以消张力；若授权改动，须在**同一变更**内同步该册 `sha256` 锁。**附带（同类不同处置）**：QEMU-045t 新发现①（§5 退出流程**不恢复 `inner_cfx_code`**，只恢复 `inner_cfx_mask`/`inner_run_mode`）属『**澄清**』类（实现与伪代码一致、仅易误解）⇒ 已沉淀 `lessons §7.18`，**不立** spec 任务。教训见 `lessons §7.18`、规范见 `§8.12`。"
+
+- id: ISS-168
+  title: "M6 待办（自 M5 范围简化转入）：『-bios』+ELF 组合加载/入口语义 + ELF loader 扩展（dadao_load_regions[]+RAM@0）+ 组合加载 ADR 决策待定"
+  status: open
+  scope: [qemu, integ, spec, M6]
+  blocks: []
+  resolved_by: null
+  notes: "用户 2026-10-08 裁定（原话逐字见 INTEG-019k §第 8 轮）：「用bios的时候，直接接bin，也就是objdump后的测试程序；而用elf的时候，则不需要bootrom，只需要semihosting即可……只做bootrom+bin的情况；elf加载放在M6，与完整LLVM的任务一起进行」。⇒ M5 范围简化：M5 只做 bootrom(-bios)+bin；以下随 M6（与完整 LLVM 任务一并）：① 「-bios bootrom + ELF 应用」组合加载/入口语义（复位 PC=0xffff_ffff_0000 → bootrom 初始化 → 跳 ELF e_entry；须定 e_entry 传递方式）；② ELF loader 扩展（hw/dadao/dadao-machine.c 的 dadao_load_regions[] 现仅含旧 RAM 段+ROM、未含 RAM@0 ⇒ 组合路径需扩表 + 验证）；③ 组合加载语义的 ADR 决策（属加载模型/外部契约变更 ⇒ 须 ADR 并逐条经用户确认；M5 阶段不立 ADR）。背景：QEMU-047t 落地时的「前置风险」（见 INTEG-020t 审阅记录『architect 前置风险评估』；lessons §7.21/§8.15），architect 与 reviewer 曾倾向选项 A（另立任务）；用户裁定采纳『bootrom+bin』口径（与 ADR-0004 R1『-bios bootrom 与 M4 ELF 路径并存、非替代』自洽），该缺口不再是 M5 门槛前置。关联：ISS-165（RAM@0 C1 step2，随 M6）。"

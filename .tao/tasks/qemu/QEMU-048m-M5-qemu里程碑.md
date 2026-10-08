@@ -14,7 +14,7 @@
 - 四运行模式/cfx 寄存器/mask 屏蔽/`switch_run_mode`/权限反例（`NU/J/SP/HPERM` 或 `CFXREG`）/reserved ⇒ ILLI（真实探针）
 - 一般 trap 进向量 + escape 返回（含负偏移）；`cfx2rd`/`cfx2rc` 读写
 - semihosting：判定短路（不进入向量、PC 步进）；钩子 bank（`rd16`/`rb16`/`rd31`）；**25 服务各 ≥1 例**；`SYS_EXIT` 码传播；`SYSTEM`/D2 文件档
-- 新 bootrom：`-bios`、复位 PC `0xffff_ffff_0000`、初始化生效、hypv→user、端到端 EXIT=0
+- 新 bootrom：`-bios`、复位 PC `0xffff_ffff_0000`、初始化生效、hypv→user、端到端 EXIT=0（**M5 正向 = bootrom(`-bios`) + bin**；**「`-bios`+ELF」组合 / ELF loader 扩表〔`dadao_load_regions[]`+RAM@0〕移 M6**——用户 2026-10-08 裁定，见 `INTEG-019k` §第 8 轮、`ISS-168`）
 - 不回归：`make check`/`check-qemu-semantics` EXIT=0；`test-codegen` 15/15、`test-elf` 5/5；`check-patch-tree` EXIT=0；`.work/source/qemu` clean
 
 ## 核验记录（主会话）

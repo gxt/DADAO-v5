@@ -37,9 +37,9 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 
 同时清掉基础设施欠账（`ADR-0016` install + 生成物落点）、把 `trap`/`escape`/`cfx2rc`/`cfx2rd` 从 `excluded` **re-scope 为已实现**、把 SEE/semihosting 规范**正文入 `spec/`**。
 
-**门槛（用户 2026-10-07 第 2 轮裁定，见 §第 2 轮用户裁定）**：门槛名 = **`make test-semihost`**（**不是** `test-see`——用户指出"没有 SEE"）。组成：① **正向**（bootrom + 单/多 TU ELF 经 `-semihosting`、console 捕获、`SYS_EXIT` 码）；② **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）；③ **服务表各条至少 1 例**；④ **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）；⑤ **`INTEG` 开闭**。
+**门槛（用户 2026-10-07 第 2 轮裁定，见 §第 2 轮用户裁定；**正向口径已由 §第 8 轮 M5 范围简化修订**）**：门槛名 = **`make test-semihost`**（**不是** `test-see`——用户指出"没有 SEE"）。组成：① **正向**（**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码；**原「单/多 TU ELF」正向用例移 M6**——用户 2026-10-08 裁定，见 §第 8 轮）；② **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）；③ **服务表各条至少 1 例**；④ **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）；⑤ **`INTEG` 开闭**。
 
-**边界声明**：**M6 = 完整调用约定（整数）+ 欠账收口**（已定，**不在本 `k` 的任务清单内**）。FP/RF codegen、clang 前端、libc/OS、golden model 不在 M5。
+**边界声明**：**M6 = 完整调用约定（整数）+ 欠账收口 +「elf 加载」**（已定，**不在本 `k` 的任务清单内**；「elf 加载」= 用户 2026-10-08 裁定，见 §第 8 轮）。FP/RF codegen、clang 前端、libc/OS、golden model 不在 M5。
 
 ---
 
@@ -101,7 +101,7 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 6. **bootrom 加载**：**用 `-bios`**、**复位向量不变**（`0xffff_ffff_0000`，`DADAO-12 §2.1`）。
 7. **exit-port 迁移范围 = 全部**（M1–M4 所有依赖 exit-port 的向量/harness 全迁到 `SYS_EXIT`）。
 8. **`ADR-0020` 新建** ✓（decision 提案**待用户逐条判定**）。
-9. **M5 门槛名 = `make test-semihost`**（**不是** `test-see`——用户指出"**没有 SEE**"）；门槛组成 = **正向**（bootrom + 单/多 TU ELF 经 `-semihosting`、console 捕获、`SYS_EXIT` 码）/ **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）/ **服务表各条至少 1 例** / **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）/ **`INTEG` 开闭**。
+9. **M5 门槛名 = `make test-semihost`**（**不是** `test-see`——用户指出"**没有 SEE**"）；门槛组成 = **正向**（bootrom + 单/多 TU ELF 经 `-semihosting`、console 捕获、`SYS_EXIT` 码）/ **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）/ **服务表各条至少 1 例** / **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）/ **`INTEG` 开闭**。（**注：正向口径已由 §第 8 轮 M5 范围简化修订为 bootrom（`-bios`）+ bin；原「单/多 TU ELF」正向用例移 M6。**）
 10. **执行顺序**：**先 `/plan` 交叉审查本 `k`，再建 21 份任务书**（本 `k` 仍只出草案、**不建 `t`/`m` 文件**）。
 
 ---
@@ -149,7 +149,7 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 | `QEMU-046t` | **semihosting** | qemu | `immu18[17:16]==2'b11` 判定（**QEMU 译码层短路，与 RISC-V `RISCV_EXCP_SEMIHOST` 同构**：**不进入 cfx 向量**、直接服务并按 PC 步进返回；对照「一般 trap 走 spec 异常进入流程并进入向量」，见 `QEMU-045t`）；`DADAO common-semi-target.c` 钩子（**按 `n` 选 bank**：`n=0`→`rd16`、`n=1`→`rb16`；`set_ret`→`rd31`——**共享层小适配，非重写**）+ 复用 `do_common_semihosting`；**服务表 = 完整 25 个**（含 **D2 文件档**；**`SYSTEM`、`HEAPINFO` 都做**）；`SYS_EXIT` **替代 exit port**；探针 | `QEMU-045t`、`SPEC-114t` |
 | `QEMU-047t` | **新 bootrom**（构建 + 链接 + 测试） | qemu | bootrom 固件源码（初始权限/向量配置；**hypv → user 直跳、本版不启用 supv**）+ 自有工具链构建/链接接入（`Makefile`；**含 bootrom 链接脚本**——地址布局对齐 `0xffff_ffff_0000` 的 64 KiB ROM 区、段序/对齐依 `ADR-0004`/`contract-elf`）+ **`-bios` 加载、复位向量不变（`0xffff_ffff_0000`）** + 端到端启动证据（LLVM 新指令首个真实用户） | `LLVM-060t`、`QEMU-044t`、`QEMU-049t`（RAM@0 双映射）、`INFRA-047t` |
 | `QEMU-049t` | **RAM@0 双映射**（C1 step1；`ADR-0004 R3`/`ADR-0020 D15`） | qemu | `components/qemu/patches/target/dadao/**` + `hw/dadao/**`：QEMU 机器模型**同时映射 RAM@0（新，供 bootrom/SEE）+ 保留旧 RAM 段（`0xffff_0000_0000`，供既有测试）** + **RAM@0 链接基址（供 bootrom/SEE 的链接脚本片段）**；**`check-interface` 断言新增 RAM@0 段（旧断言保留）** ⇒ 每任务门控保持全绿；**越界（访问/取指）异常语义**（`CFXMEM` vs 测试机约定 `unmapped 0x87`，含取指路径）见 `ADR-0020 D15` | `QEMU-044t`（同改 `hw/dadao/**` ⇒ 串行） |
-| `RAM@0-migrate`（**另立，M5 之外**） | **旧向量/harness 迁移到 RAM@0**（C1 step2）；**不建本 M5 任务书** | （跨 testcases/integ/infra/qemu） | 既有向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧 `check-interface` 断言；**登记为另立任务**（编号待 M6 规划/另立时确定；**不阻塞 M5 门槛**——M5 门控经 step1 双映射保持全绿） | `QEMU-049t`、`TESTCASES-034t`、`INTEG-020t` |
+| `RAM@0-migrate`（**另立，M6**；用户 2026-10-08 裁定「随 M6」） | **旧向量/harness 迁移到 RAM@0**（C1 step2）；**不建本 M5 任务书** | （跨 testcases/integ/infra/qemu） | 既有向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧 `check-interface` 断言；**登记为另立任务（随 M6）**（编号待 M6 规划/另立时确定；**不阻塞 M5 门槛**——M5 门控经 step1 双映射保持全绿）；见 §第 8 轮 + `ISS-165`（scope 已改 M6） | `QEMU-049t`、`TESTCASES-034t`、`INTEG-020t` |
 | `TESTCASES-033t` | **SEE/HEE + semihosting 向量**（L1 MC + L3 执行） | testcases | `tests/llvm/lit/MC/DADAO/`（trap/escape/cfx2*；**分阶段**：`LLVM-060t` 就绪前 L1 MC 向量以 `UNSUPPORTED:` 暂缓，`LLVM-060t` 完成后去除 `UNSUPPORTED:`）+ `tests/llvm/codegen/m5/`（semihosting 服务/权限异常）+ 独立 oracle（**禁从 LLVM/QEMU 反填**） | `SPEC-114t`、`SPEC-115t`、`LLVM-060t`、`INFRA-048t` |
 | `TESTCASES-034t` | **exit-port → `SYS_EXIT` 迁移**（范围 = **全部**） | testcases | M1–M4 **所有**依赖 exit-port 的向量/harness + oracle 更新；`ISS-147`（exit 码与 fault 区重叠）随迁处置 | `QEMU-046t`、`TESTCASES-033t` |
 | `INTEG-020t` | **SEE/semihosting E2E + harness stdio 捕获 + 门控收口** | integ | `tools/integ/` 驱动 + `Makefile`（新目标 **`test-semihost`**）+ `tests/e2e/lit/`；harness stdio 捕获（**细节展开**：`-semihosting-config` 的 `chardev=`/`target=` 由 Makefile 传参还是 harness 脚本包装；console 输出捕获到 stdout/stderr 的落点与比对）；`make check` 收口 | `QEMU-046t`、`QEMU-047t`、`TESTCASES-033t`、`TESTCASES-034t` |
@@ -165,6 +165,8 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 > **2026-10-08 追加**：新增 **`SPEC-121t`**（承 `ISS-166`；`Machine-01 §1` 口径落纸 + 该册入锁 + `Process-06` 同步；见本表与 Wave 1）——表内合计 **18 `t` + 6 `m` = 24 份**（`SPEC-119t` 仍另见 `SPEC-118m` 关联任务、本表未列）。用户授权原话（「授权按拟改文本改（推荐）」「把 Machine-01 新增进锁」「授权含 Process-06 同步（推荐）」）落 `SPEC-121t` 文件头。
 >
 > **2026-10-08 `SPEC-121t` 范围补正**：用户裁定原话 ④「**确认两条，按此下发（推荐）**」（确认 `Machine-01` 进锁 **20→21** + 授权 `Process-06 §5/§6` 同步）、⑤「**并入 SPEC-121t 一并更正**」（`tools/infra/check_spec_readonly.py` 输出 / `Makefile` help 的「upstream read-only spec volume(s)」措辞一并更正）已落 `SPEC-121t` 文件头「⚠️ 前置」+ 审阅记录「范围补正」。该入锁**语义扩面**：`Process-06` 由「只保护上游 20 册」改为「**含 v5 自定册**」。
+
+> **2026-10-08 M5 范围简化（用户裁定，见 §第 8 轮）**：用户裁定 **M5 只做「bootrom（`-bios`）+ bin」**；**「elf 加载」随 M6**（与完整 LLVM 任务一并）。连带：① **门槛正向口径** 由「bootrom + 单/多 TU ELF 经 `-semihosting`」**改为「bootrom（`-bios`）+ bin 应用经 `-semihosting`、console 捕获、`SYS_EXIT` 码」**（`INTEG-020t`/`INTEG-021m` 同步）；② **M4 `test-elf`（path A：ELF、不用 bootrom）保留**为不回归项（不撤、不改）；③ **「`-bios`+ELF 组合」/ ELF loader 扩表（`dadao_load_regions[]`+RAM@0）/ 组合入口语义 ⇒ 移 M6**（**M5 不做**）；**本阶段不立 ADR**（推迟 M6，现只登记待办 + 理由，见 `ISS-168`）；④ **`TESTCASES-033t`** 向量承载形态改 **bin**；**`TESTCASES-034t`** 口径不变；**`QEMU-047t` 的「ELF loader 未含 RAM@0 / `-bios`+ELF 组合」前置风险改挂 M6**；**`RAM@0` step2（旧向量迁移）随 M6**（`ISS-165` scope 改 M6）。任务表 `RAM@0-migrate` 行、Wave 5 与 `milestones.md` M5 段同步。
 
 > **2026-10-07 重排（用户裁定 1「A 重排：先 `LLVM-060t` 再 `SPEC-115t`」）**：`LLVM-060t` **前置**、`SPEC-115t` **后置**；`SPEC-115t` 依赖 += `LLVM-060t`；`SPEC-115t` 文件集 += `tools/spec/generate_opcodes.py`（裁定 2：改生成器 + 重跑）、`tests/vectors/inventory.md`、`tools/llvm/validate_instrinfo.py`；`llvm`/`legality` 口径见 `SPEC-115t` 审阅记录「第 2 轮 architect 重排落纸」。
 
@@ -183,7 +185,7 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
   `QEMU-049t`（RAM@0 双映射，C1 step1；← `QEMU-044t`，同改 `hw/dadao/**` ⇒ 串行）→ `QEMU-047t`（新 bootrom）← `LLVM-060t` + `QEMU-044t` + `QEMU-049t` + `INFRA-047t`（**须 LLVM 指令 + 权限配置 + RAM@0 就绪**）。
   - **step1/step2 关系（C1，`ADR-0004 R3`/`ADR-0020 D15`）**：`QEMU-049t` = step1（M5，机器模型双映射 + `check-interface` 新断言 ⇒ 门控全绿）；**step2**（旧向量/harness 迁到 `0` + 删旧 RAM 段 + 收紧断言）= **另立、M5 之外**，**不阻塞 M5 门槛**（M5 门控经双映射保持全绿）。
 - **Wave 4 — 向量**：`TESTCASES-033t` ← `SPEC-114t`/`115t` + **`LLVM-060t`**（L1 MC 向量与其 oracle；**重排后 `LLVM-060t` 已前置、本任务复用/扩展，`UNSUPPORTED:` 分阶段不再需要**）+ `INFRA-048t`（落点）；`TESTCASES-034t` ← `QEMU-046t` + `TESTCASES-033t`（**迁移须在 semihosting 落地后**）。
-- **Wave 5 — E2E + 门控收口**：`INTEG-020t` 最后（依赖 QEMU-046t/047t + 033t/034t）；**`make test-semihost`**（**不是** `test-see`）与既有 `make test-codegen`/`make test-elf` 并存或迁移后等价。
+- **Wave 5 — E2E + 门控收口**：`INTEG-020t` 最后（依赖 QEMU-046t/047t + 033t/034t）；**`make test-semihost`**（**不是** `test-see`）与既有 `make test-codegen`/`make test-elf` 并存或迁移后等价。**正向口径（用户 2026-10-08 裁定，§第 8 轮）= bootrom（`-bios`）+ bin 应用经 `-semihosting`**；原「单/多 TU ELF」正向用例移 M6；**M4 `test-elf`（path A）保留**为不回归项。
 - **共享文件串行**：`Makefile`/`contracts/`/`spec/`/`tests/` 改动一律串行（`AGENTS.md`）。
 - `k ↔ m`：本 `k` 对应 M5；各模块 `m` 在模块任务收敛时就近核验，M5 由主会话在依赖模块 `m` 均置 `里程碑` 后置 `达成`（`Process-04 §1`）。
 - **反向依赖（实现 ← 契约）**：**`SPEC-115t`←`LLVM-060t`**（2026-10-07 用户裁定 1 重排；原为 `LLVM-060t`←`SPEC-115t`）；`SPEC-120t`←`SPEC-115t`；`QEMU-044t`←`SPEC-114t`；`QEMU-045t`←`SPEC-114t`/`115t`；`QEMU-046t`←`SPEC-114t`；`QEMU-049t`←`SPEC-113t`（`R3`/`D15` 决策）；`QEMU-047t`←`QEMU-049t`（RAM@0 双映射）；`TESTCASES-*`←`SPEC-114t`/`115t`；`TESTCASES-033t`←`LLVM-060t`（L1 MC 编码支持）。
@@ -675,3 +677,26 @@ L139 `SPEC-113t` 交付物描述：
 **发现（下发前预检失效）**：原任务表未含 `LLVM-060t` 作为 `SPEC-115t` 前置于「本任务验证手段所需的能力」——即**下发前预检第 2 项**（依赖链实际可用性）只核了任务书**声明的依赖**，未核**「本任务验证手段所需的全部前置」**。教训落 `lessons.md §7.6`。
 
 **判决**：本轮重排落纸完成；`SPEC-115t` 边界已重定，待 `LLVM-060t` 完成后重新下发。
+
+#### 第 8 轮 architect M5 范围简化（2026-10-08，用户裁定）
+
+**背景**：`QEMU-047t` 落地时暴露「`-bios`+ELF 组合未定义/未实现」的前置风险（见 `INTEG-020t` 审阅记录「architect 前置风险评估」、`milestones.md` M5 段「前置风险（2026-10-08）」；`lessons §7.21`/`§8.15`）。architect 与 reviewer 均判「缺口成立、倾向 A（另立任务扩表 + 定义组合）」，**待用户裁定**。用户本轮就此裁定 → **M5 范围简化**。
+
+**用户原话（逐字落盘；`AGENTS.md`「用户裁定落盘」/`lessons §7.3`）**：
+
+> 「确实，这是两个分开的事情，用bios的时候，直接接bin，也就是objdump后的测试程序；而用elf的时候，则不需要bootrom，只需要semihosting即可。我们简化一下M5本身的任务目标，只做bootrom+bin的情况；elf加载放在M6，与完整LLVM的任务一起进行；你觉得呢」
+
+**主会话转达的四条理解（architect 核对：与原话一致，无出入）**：
+
+1. **M5 门槛正向**改为：`-bios <bootrom>` + **bin 应用**经 `-semihosting`（console 捕获 + `SYS_EXIT` 码）；原「单/多 TU ELF」用例**移 M6**。
+2. **M4 既有 `test-elf`（path A：ELF、不用 bootrom）保留**为**不回归项**（不撤、不改）。
+3. **`-bios`+ELF 组合 / ELF 加载器扩展（`dadao_load_regions[]`+RAM@0）/ 组合入口语义 ⇒ 移 M6**；**M5 不做**；**本阶段不立 ADR**（推迟 M6，现只登记待办 + 理由）。
+4. **连带**：`TESTCASES-033t` 改以 **bin 形态**承载；`TESTCASES-034t` 口径不变；`QEMU-049t` 挂到 `QEMU-047t` 的「ELF loader 未含 RAM@0」前置风险**改挂 M6**；`RAM@0` **step2（旧向量迁移）随 M6**。
+
+**本轮改动**（**只改任务书/知识文件，未动 `spec/`**）：
+
+- 目的段**门槛口径**（正向 → bootrom（`-bios`）+ bin）；裁定 9 就地加注（正向口径已由本轮修订）。
+- **任务表**：`RAM@0-migrate` 行标注「另立，**M6**」；表后新增「M5 范围简化」说明块；**Wave 5** 加注正向口径。
+- 本 `k` 之外的落点（本轮一并落纸）：`milestones.md` M5 段（门槛口径 + M6 待办）、`INTEG-020t`（门槛正向用例口径 + 审阅记录追加）、`QEMU-047t`（风险改挂 M6 说明）、`TESTCASES-033t`（承载改 bin）、`INTEG-021m`/`QEMU-048m`/`SPEC-118m`（核验/目标最小同步）、`issues.yaml`（`ISS-165` scope→M6 + 新增 `ISS-168`）。
+
+**判决**：M5 范围按用户裁定简化落纸完成；**「`-bios`+ELF 组合语义 / ELF loader 扩展 / 组合 ADR 决策」随 M6**（`ISS-168`）。
