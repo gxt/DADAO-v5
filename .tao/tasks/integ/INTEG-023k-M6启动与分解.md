@@ -1,5 +1,5 @@
 # INTEG-023k: M6 启动与分解（用户逐条裁定落纸 + 任务分解草案）
-**模块**：integ　**项目里程碑**：M6　**状态**：待开始
+**模块**：integ　**项目里程碑**：M6　**状态**：已验证
 **依赖**：`INTEG-021m`（M5 integ 里程碑，`里程碑`）、`INTEG-022t`（M5 归档，`已验证`）；无硬前置
 > 用户 **2026-10-08 逐条裁定** M6 的 **20 项内涵 + 12 条 LLVM 欠账**（§A/§B）；本 `k` 只**落纸 + 出分解草案（§C/§D）**，**不建 `t`/`m`、不改 `spec/`**。长叙述见 `.work/log/integ/INTEG-023k-detail.md`。
 
@@ -38,7 +38,8 @@
 |---|---|---|---|---|
 | `INTEG-023k` | M6 启动与分解（本文件） | integ | 本 `k` + 分解草案 + `milestones.md` M6 定义（待 `/plan` 后） | 无 |
 | `INFRA-050t` | LLVM 一次构建 + 双落点 | infra | `LLVM_TARGETS_TO_BUILD="DADAO;X86"` 产出 `clang`/`llc`/`ld.lld`/`lli`；落 `.dadao/cross-toolchain/bin/`（交叉）+ `.dadao/host-tools/bin/`（host `lli`，可选）；`Makefile`/`install-dirs` 同步 | 无 |
-| `INFRA-051t` | Embench 组件接入 | infra | ADR 记录上游+commit ⇒ `manifests` 翻 `enabled=true`；建 `components/embench-iot/{patches,series}` 骨架 + `make fetch` 落 `.work/source/embench-iot` | `SPEC-122t` |
+| `INFRA-051t` | Embench 组件接入 | infra | ADR 记录上游+commit ⇒ `manifests` 翻 `enabled=true`；建 `components/embench-iot/{patches,series,changelog}` 骨架 + `make fetch` 落 `.work/source/embench-iot` | `SPEC-122t` |
+| `INFRA-052m` | M6 infra 里程碑 | infra | `m` 文件 | `INFRA-050t`/`051t` |
 | `SPEC-122t` | ADR 决策落地（逐条用户确认） | spec | ①`ADR-0018 C7 D4` 修订（大帧四形态/代价驱动）②新 ADR「`ld/st` 符号偏移 reloc 体系」③Embench 上游选择 ADR ④组合加载语义 ADR（判断见 §D） | 无 |
 | `SPEC-123t` | reloc 正文 + `Toolchain-01 §6.1` | spec | `contract-elf §2–§4`（`REL12`/新类型/`ABS48` 数据 8B 字段〔`ISS-154`〕）+ `spec/Toolchain-01 §6.1` 修订（`ISS-156`）+ 该册 `sha256` 锁同步 | `SPEC-122t` |
 | `SPEC-124t` | 调用约定契约收口 | spec | `contract-abi §6` 3 项 `[OPEN]`（多返回值声明顺序/red zone/`i128`）消解 | `SPEC-122t` |
@@ -49,15 +50,15 @@
 | `LLVM-065t` | lld reloc 完善 | llvm | `REL12` + 新专用类型（`ISS-151/161`）+ `FK_Data_1/2/4` 静默出 0；`ISS-108` 拆分文件 | `SPEC-123t`、`INFRA-050t` |
 | `LLVM-066t` | FP/RF codegen | llvm | FP/RF（**排整数之后**；`ISS-081/126/078`；含 compiler-rt 软浮点取舍随 #2） | `LLVM-062t`、`SPEC-122t` |
 | `LLVM-067m` | M6 llvm 里程碑 | llvm | `m` 文件 | `LLVM-062t`~`066t` |
-| `QEMU-050t` | 改走 `load_elf()`（钉子②） | qemu | 复用 `hw/core/loader.c`；**取消**自建 `dadao_load_regions[]` 白名单；多段 `PT_LOAD`/RELA/`e_entry`/栈初始化作**验证项** | 无（M5 已验证态） |
-| `QEMU-051t` | RAM@0 step2（`ISS-165`） | qemu | 旧向量/harness/`crt0`/e2e 迁 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧 `check-interface` 断言 | `QEMU-050t`、`TESTCASES-034t`（已验） |
-| `QEMU-052m` | M6 qemu 里程碑 | qemu | `m` 文件 | `QEMU-050t/051t` |
-| `TESTCASES-036t` | 新能力向量（L1+L3） | testcases | 调用约定/reloc/大帧/FP-RF 的 L1 编码 + L3 执行向量；**独立 oracle**（禁从 LLVM/QEMU 反填） | `LLVM-062t`~`066t`、`QEMU-050t` |
-| `TESTCASES-037t` | lit 量产 | testcases | 骨架 agent 生成 + 期望值**从 `spec`/`contracts` 机械派生**（禁反填）；目标数百；分层：**快档入 `make check`、全量档 opt-in** | `LLVM-062t`、`QEMU-050t` |
+| `QEMU-052t` | 改走 `load_elf()`（钉子②） | qemu | 复用 `hw/core/loader.c`；**取消**自建 `dadao_load_regions[]` 白名单；多段 `PT_LOAD`/RELA/`e_entry`/栈初始化作**验证项** | 无（M5 已验证态） |
+| `QEMU-053t` | RAM@0 step2（`ISS-165`）+ `ISS-169` | qemu | 旧向量/harness/`crt0`/e2e 迁 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧 `check-interface` 断言；**另含 `ISS-169`**（6 个 M1/M2 手写探针退出通道改写为 `SYS_EXIT`，含按新字长重算分支偏移） | `QEMU-052t`、`TESTCASES-034t`（已验） |
+| `QEMU-054m` | M6 qemu 里程碑 | qemu | `m` 文件 | `QEMU-052t/053t` |
+| `TESTCASES-036t` | 新能力向量（L1+L3） | testcases | 调用约定/reloc/大帧/FP-RF 的 L1 编码 + L3 执行向量；**独立 oracle**（禁从 LLVM/QEMU 反填） | `LLVM-062t`~`066t`、`QEMU-052t` |
+| `TESTCASES-037t` | lit 量产 | testcases | 骨架 agent 生成 + 期望值**从 `spec`/`contracts` 机械派生**（禁反填）；目标数百；分层：**快档入 `make check`、全量档 opt-in** | `LLVM-062t`、`QEMU-052t` |
 | `TESTCASES-038t` | 上游 IR + `lli` 值级对拍 | testcases | 上游 `.ll` 当输入（编译/编码层）+ 有 `lli` 时值级对拍（证「IR 语义被保持」）；**不作执行语义判据** | `LLVM-063t`、`INFRA-050t` |
-| `TESTCASES-039t` | Embench 接入（钉子③） | testcases | board shim 3 函数（`initialise_board`/`start_trigger`/`stop_trigger`）+ 最小运行时（`mem*/str*/ctype/sqrt`）+ `md5sum` 大端适配；**首验收 = 最小基准 QEMU 正确退出码** | `INFRA-051t`、`LLVM-062t/063t`、`QEMU-050t` |
+| `TESTCASES-039t` | Embench 接入（钉子③） | testcases | board shim 3 函数（`initialise_board`/`start_trigger`/`stop_trigger`）+ 最小运行时（`mem*/str*/ctype/sqrt`）+ `md5sum` 大端适配；**首验收 = 最小基准 QEMU 正确退出码** | `INFRA-051t`、`LLVM-062t/063t`、`QEMU-052t` |
 | `TESTCASES-040m` | M6 testcases 里程碑 | testcases | `m` 文件 | `TESTCASES-036t`~`039t` |
-| `INTEG-025t` | E2E + `make test-m6` 门控收口 | integ | 驱动 `lli` 对拍/Embench/lit 全量档；新 target `test-m6`（**opt-in，不进 `make check`**）；`check` 收口 | `TESTCASES-036t`~`039t`、`LLVM-065t`、`QEMU-051t` |
+| `INTEG-025t` | E2E + `make test-m6` 门控收口 | integ | 驱动 `lli` 对拍/Embench/lit 全量档；新 target `test-m6`（**opt-in，不进 `make check`**）；`check` 收口 | `TESTCASES-036t`~`039t`、`LLVM-065t`、`QEMU-053t` |
 | `INTEG-026m` | M6 integ 里程碑（整体收敛） | integ | `m` 文件 | `INTEG-025t` |
 
 ## D. Wave/串行链 · 前置 ADR · 说明
@@ -65,11 +66,20 @@
 - **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t`。
 - **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
 - **Wave 2（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-062t` → `063t` → `064t` → `065t` → `066t`（FP 最后）。
-- **Wave 3（qemu；同改 `components/qemu/patches` ⇒ 串行）**：`QEMU-050t` → `QEMU-051t`。
+- **Wave 3（qemu；同改 `components/qemu/patches` ⇒ 串行）**：`QEMU-052t` → `QEMU-053t`。
 - **Wave 4（testcases）**：`TESTCASES-036t`／`037t`／`038t`／`039t`；**Wave 5（integ）**：`INTEG-025t` → `INTEG-026m`。
 - **前置 ADR 清单（逐条待用户确认，勿预标 `Accepted`）**：① `ADR-0018 C7 D4` 修订（大帧四形态/代价驱动）；② 新 ADR「`ld/st` 符号偏移 reloc 体系」（`REL12` + 新专用类型）；③ Embench 上游选择 + commit；④ 组合加载语义——**判断：不再需要独立 ADR**（已被「改走 `load_elf()`」取代，自建 loader/组合路径**取消**；仅在 `SPEC-122t` 落「不立 + 理由」）；⑤ 判断无需其它（`ADR-0019 D7` 记为**留后**、不启用）。
 - **`k↔m`**：本 `k` 对应 M6；各模块 `m` 就近核验，M6 由主会话在模块 `m` 均 `里程碑` 后置 `达成`（`Process-04 §1`）。
-- **说明**：本 `k` 只落纸 + 出草案，**不建 `t`/`m`、不占编号**（编号按各模块现有最大号 +1，已按 M5 归档后顺延）；另有 `INTEG-024t`（台账搬迁，M6，**并行且互不占号**）。
+- **说明**：本 `k` 为规划/分解；**`/plan` 通过后已建 17 `t` + 6 `m` = 23 份任务书**（见 §C，落 `.tao/tasks/<module>/`；编号按各模块 M5 归档后最大号顺延，QEMU 因跨模块重号消除再顺延，见 §E）；另有 `INTEG-024t`（台账搬迁，M6，**并行且互不占号**）。
+
+## E. `/plan` 4 项修正落实（architect，2026-10-08）
+
+> 依 reviewer 交叉审查（判决：**通过**）的 4 项非阻塞建议，**建 `t`/`m` 任务书时一并修正**：
+
+1. **消除跨模块重号**：**实测**各模块 M5 归档后最大号 = `INFRA-049`/`SPEC-121`/`LLVM-061`/`QEMU-049`/`TESTCASES-035`/`INTEG-022` ⇒ 自然顺延下 `INFRA` 与 `QEMU` 均落到 `050t/051t/052m`，**跨模块重号**。处置：`INFRA` 保持 `050t/051t + 052m`；**`QEMU` 顺延两位为 `QEMU-052t/053t/054m`**（使 M6 二十余份任务书的**完整编号**〔含前缀〕全局唯一；跨模块引用一律显式带模块前缀）。§C/§D 已同步；reviewer 审查记录中出现的 `QEMU-050t/051t/052m` 为**审查时点的旧草案编号**，属历史原文、保留不改。
+2. **`ISS-003`（LR-SC 原子）**：**M6 排除**（显式声明）。理由：`ISS-003` 余项 = `SimRISC-12` 的 `lr_*`/`sc_*`（ISA 扩展，现 `scope: excluded`/decode ILLI），**与 M6 主题**（整数完整调用约定 / 12 条 LLVM 欠账收口 / ELF 加载）**无关**，且 `SimRISC-12` 整体 deferred ⇒ **M6 不引入新 ISA**；其 scope 待后续（ISA 扩展）里程碑重定。已同步 `.tao/knowledge/issues.yaml`（`ISS-003` notes **仅追加**说明，**id 不变**）。
+3. **`ISS-169`（6 探针保留 exit-port）**：归 **`QEMU-053t`**（RAM@0 step2）范围——step2 本涉旧向量/探针迁移，一并把 6 个 M1/M2 手写探针（`006t/008t/009t/010t/012t/013t`）的退出通道改写为 `SYS_EXIT`（**含按新字长重算手算分支偏移**）。
+4. **「计数不写死」**：作为**硬约束**写入**全部** M6 任务书（尤其 `TESTCASES-*`/`SPEC-*`/`LLVM-*`）——文档/注释/任务书/验收**不硬编码计数**；需要时由脚本/门控**现场统计**或写「**不下降 / 逐项相等**」；门控计数须**派生自单一真源**。
 
 ## 审阅记录
 
@@ -78,3 +88,132 @@
 
 #### 第 2 轮 architect 裁定落纸（2026-10-08）
 - 用户对 **20 项内涵（§A）+ 12 条 LLVM 欠账（§B）逐条裁定**已落纸；M6 分解草案落 **§C/§D**。**待 `/plan` 交叉审查**，通过后再建 `t`/`m` 任务书。
+
+#### 第 1 轮 reviewer 交叉审查（2026-10-08）
+
+**审查范围**：§A（20 项内涵裁定）、§B（12 条 LLVM 欠账裁定）、§C（任务分解草案）、§D（Wave/串行链/ADR 前置）。核验依据 = `issues.yaml` 实查 + `adr-0018`/`adr-0019` + 归档任务编号 + `AGENTS.md` 规则。
+
+##### 1. 裁定落纸完整性
+
+**§A 20 项内涵**：逐条核对 §A 表与 detail 文件 §D.1 表，20 项裁定**全部落纸**且与 detail §D.1 建议一致。重点核：
+- **#3 不引 libc**：§A L12 明确「M6 **不引 libc**」+ `MaxStoresPerMem*=16` → 归 `LLVM-064t`（§C L48）✓
+- **#8/#9 reloc**：§A L17-18 明确「新增专用 reloc 类型，不复用 REL20」「须 ADR」→ 归 `SPEC-122t`（ADR）+ `SPEC-123t`（正文）+ `LLVM-065t`（实现）✓
+- **#10 ABS48 数据 8B**：§A L19 明确「48 位地址、大端存储、高 16 位填 0」，与 `ADR-0019 D2`（L26：`3×immu16 或 8 字节数据字段`）一致 ✓
+- **#12–14 load_elf()**：§A L21 明确「改走 load_elf()」「取消自建白名单」→ 归 `QEMU-050t` ✓
+- **#15 维持 16 MiB**：§A L22 明确 ✓（但见下文 §6 风险 #1）
+- **#17 lli oracle**：§A L24 明确「一次构建 DADAO;X86 + 两处落点」→ 归 `INFRA-050t` ✓
+- **#19 期望值禁反填**：§A L26 明确「禁从 llc/QEMU 结果反填」→ 归 `TESTCASES-037t` ✓
+
+**§B 12 条 LLVM 欠账**：逐条核对 `issues.yaml` 实查（行号附后），**全部12条落纸**且与台账一致：
+| ISS | issues.yaml 行 | status | §B 裁定 | 一致？ |
+|---|---|---|---|---|
+| ISS-043 | L140 | open | 纳入 | ✓ |
+| ISS-045 | L147 | open | 纳入 | ✓ |
+| ISS-047 | L154 | open [llvm,M5] | 纳入 | ✓ |
+| ISS-108 | L243 | open | 纳入（拆分文件） | ✓ |
+| ISS-110 | L251 | open [llvm,M6] | 全留后 | ✓（notes 确认「scope M5→M6」，§B 裁定为留后 = 不实现但跟踪） |
+| ISS-138 | L291 | open | 纳入（四形态） | ✓ |
+| ISS-148 | L299 | open | 纳入（消除硬编码计数） | ✓ |
+| ISS-151 | L323 | open | 纳入 | ✓ |
+| ISS-156 | L339 | open [llvm,spec] | 纳入 | ✓ |
+| ISS-159 | L347 | open | 纳入 | ✓ |
+| ISS-161 | L315 | open | 纳入（含 REL12 + FK_Data_1/2/4） | ✓ |
+| ISS-162 | L355 | open | 纳入 | ✓ |
+
+**结论**：裁定落纸完整性 **通过**。
+
+##### 2. 内部一致性
+
+**① 跨模块重号**：`INFRA-050t`（§C L40）与 `QEMU-050t`（§C L52）编号均为 `050`。任务书§D（L72）说明「编号按各模块现有最大号 +1」——归档实查确认 INFRA 最大=049、QEMU 最大=049，两模块独立递增确实都会到050。**风险**：跨模块引用时（如「050t 已完成」）易混淆；§C L54 `QEMU-052m` 依赖写 `QEMU-050t/051t` 即可能被误读为 INFRA-050t。**建议**：QEMU 模块从052起编（052t/053t/054m），或在所有跨模块引用处显式加模块前缀。**非阻塞**，但建议修订。
+
+**② M5 归档后现状一致**：`INTEG-022t` 已归档（`.tao/archive/M5/integ/INTEG-022t-M5归档与回顾.md` 存在）、`INTEG-024t` 存在（`.tao/tasks/integ/INTEG-024t-issues台账搬迁.md`）、`milestones.md` L6 已标 M6 ✓。§C/§D 编号顺延与归档一致 ✓。
+
+**③ 与 AGENTS.md 规则一致**：
+- 「并行任务上限 ≤8」：Wave 0–4 最多同时有 `INFRA-050t` + `SPEC-122t` + `QEMU-050t` = 3 个并行，未超限 ✓
+- 「同改共享文件串行」：§D 正确声明 `Makefile/manifests`（Wave 0 串行）、`spec/`（Wave 1 串行）、`components/llvm-project/patches`（Wave 2 串行）、`components/qemu/patches`（Wave 3 串行）✓
+- 「模块里程碑与跨模块交互」：各 `m` 文件依赖对应 `t` 全部完成 ✓
+
+**结论**：内部一致性 **通过**（跨模块重号为非阻塞建议）。
+
+##### 3. 依赖与串行
+
+**Wave DAG 无环验证**：
+```
+INFRA-050t ──┬──→ INFRA-051t ──→ TESTCASES-039t ──→ INTEG-025t → INTEG-026m
+              │
+SPEC-122t ──┬──→ SPEC-123t ──→ LLVM-065t ──→ INTEG-025t
+             ├──→ SPEC-124t ──→ LLVM-062t ──┬──→ LLVM-064t ──→ TESTCASES-036t
+             │                              ├──→ LLVM-066t ──→ TESTCASES-036t
+             │                              └──→ TESTCASES-037t/039t
+             └──→ LLVM-063t ──┬──→ TESTCASES-038t
+                              └──→ TESTCASES-039t
+QEMU-050t ──→ QEMU-051t ──→ INTEG-025t
+             └──→ TESTCASES-036t/037t/039t
+```
+**无环** ✓。关键路径 = `SPEC-122t` → `SPEC-124t` → `LLVM-062t` → `LLVM-064t`/`066t` → `TESTCASES-036t` → `INTEG-025t`。
+
+**共享文件声明串行**：§D 各 Wave 正确声明 ✓。
+
+**QEMU-050t 与 INFRA-050t 同 Wave 是否真无关**：INFRA-050t 改 `Makefile`/`install-dirs`；QEMU-050t 改 `components/qemu/patches`。**无共享文件**，可并行 ✓。
+
+**结论**：依赖与串行 **通过**。
+
+##### 4. ADR 前置
+
+**① ADR 只作提案**：§D L70「前置 ADR 清单（逐条待用户确认，勿预标 Accepted）」✓。`SPEC-122t` 范围（§C L42）列4项 ADR 决策，均为提案 ✓。
+
+**② 组合加载 ADR 不必立**：§D L70 判断「已被改走 load_elf() 取代」。`ISS-168` notes（issues.yaml L401）原定义的3项中①组合加载/②ELF loader 扩展被 `load_elf()` 取代（复用 QEMU 上游 `hw/core/loader.c`）⇒ 无新加载模型需固化 ✓。**成立**。
+
+**③ 是否遗漏必需 ADR**：`QEMU-050t` 走 `load_elf()` 是复用上游标准 API，不改变外部接口契约（用户仍通过 `-kernel <elf>` 加载），**不需 ADR** ✓。`ADR-0018 C7 D4` 修订（大帧四形态）已在 `SPEC-122t` 范围内 ✓。新 reloc 体系 ADR 也在 `SPEC-122t` 范围内 ✓。**无遗漏**。
+
+**结论**：ADR 前置 **通过**。
+
+##### 5. 可执行性
+
+- **`LLVM-063t`（clang target）**：依赖 `INFRA-050t`（一次构建 DADAO;X86）+ `SPEC-124t`（调用约定契约）。`SPEC-124t` 依赖 `SPEC-122t`（ADR 先行）。**前置链完整** ✓
+- **`TESTCASES-038t`（上游 IR + lli 对拍）**：依赖 `LLVM-063t`（clang target）+ `INFRA-050t`（lli 产出）。**前置链完整** ✓
+- **`TESTCASES-039t`（Embench）**：依赖 `INFRA-051t`（组件接入）+ `LLVM-062t/063t`（编译能力）+ `QEMU-050t`（ELF 加载）。`INFRA-051t` 依赖 `SPEC-122t`（Embench ADR）。**前置链完整** ✓
+- **所有任务的验证手段**：§C 各任务范围描述隐含验证方式（如 `QEMU-050t` = 多段 PT_LOAD/RELA/e_entry 作验证项；`TESTCASES-036t` = 独立 oracle）。§D L301-302 明确「快档入 make check + 全量档 opt-in」。**可执行** ✓
+
+**结论**：可执行性 **通过**。
+
+##### 6. 风险/遗漏
+
+**#1 `MaxStoresPerMem*=16` 归属**：§A #3（L12）提及 → §C `LLVM-064t`（L48）明确包含 ✓。无遗漏。
+
+**#2 `#16 step2` 与 `#12–14 load_elf()` 先后/耦合**：§C `QEMU-051t`（L53）依赖 `QEMU-050t` ✓。step2 在 load_elf() 之后执行（先有 ELF 加载能力，再迁移旧向量）。**顺序正确**。
+
+**#3 「计数不写死」落点**：§B L34 声明为**跨任务通用规范**（「文档/注释/任务书/验收不得硬编码计数」）。§C/§D 未将其分配到单个任务——**合理**（它是约束而非任务），但应在建 `t`/`m` 时作为**每个任务书的硬约束**显式写入。**非阻塞**，提醒 architect 建任务书时带入。
+
+**#4 `ISS-003`（LR-SC 原子）遗漏**：`issues.yaml` 实查确认 `ISS-003` scope `[M6]`（L94-100），但 §A/§B/§C **均未提及**。LR-SC 是新 ISA 指令（非 LLVM 欠账），不在「完整 LLVM」20 项内——**推测有意排除**（M6 聚焦编译正确性，非 ISA 扩展），但**未显式说明**。建议 §A 或 §D 追加一条「`ISS-003` LR-SC 原子：**不纳入 M6**（ISA 扩展，非编译正确性范畴），scope 待后续里程碑重定」。**非阻塞**但建议补说明。
+
+**#5 `ISS-169`（exit-port 迁移）遗漏**：`issues.yaml` 实查确认 `ISS-169` scope `[qemu, testcases, M6]`（L403-409），§C/§D **未提及**。6 个旧探针的 exit-port → SYS_EXIT 迁移可归入 `QEMU-051t`（RAM@0 step2 也涉及旧向量迁移）或另立小任务。**建议**在 §C 补入（随 `QEMU-051t` 或独立）。**非阻塞**但建议补。
+
+**#6 `INTEG-024t` 冲突**：`INTEG-024t` 改 `issues.yaml`（移出规划/阻塞/待裁定项），`INTEG-023k` 只规划不改文件。**无冲突** ✓。但若 `INTEG-024t` 先执行，`issues.yaml` 结构变化后 §B 引用的行号会失效——**不影响正确性**（§B 引用的是 ISS id 非行号），仅影响 reviewer 重查效率。**无风险**。
+
+**#7 `INTEG-024t` 建议分类与 §B 的一致性**：`INTEG-024t` 建议 `ISS-043/045/108/138/148/151/154/156/159/161/162` 为「④ 真 issue（保留）」（L89），与 §B「纳入 M6」一致（纳入 = 作为 M6 欠账收口，完成后 close；保留 = 留在 issues.yaml 直到 close）✓。
+
+**结论**：风险/遗漏 **基本通过**，有3项非阻塞建议（#1 跨模块重号、#4 ISS-003 说明、#5 ISS-169 补入）。
+
+##### 判决
+
+**通过**（附非阻塞建议）。
+
+**最小建议清单**（非阻塞，可在建 `t`/`m` 时一并处理）：
+1. **跨模块重号**：QEMU 模块编号从052起（052t/053t/054m），或所有跨模块引用显式加模块前缀。
+2. **ISS-003 说明**：§A 或 §D 追加「ISS-003 LR-SC 不纳入 M6」的显式说明。
+3. **ISS-169 补入**：§C 补 `ISS-169` exit-port 迁移（随 `QEMU-051t` 或独立小任务）。
+4. **「计数不写死」约束传播**：建 `t`/`m` 时作为每个任务书的硬约束带入。
+
+**据此建17份 t + 6份 m 任务书是否安全**：**是**，上述3项建议为非阻塞，可在建任务书时一并修正。核心依赖链、ADR 前置、串行约束均完备。
+
+#### 第 3 轮 architect `/plan` 通过 + 4 项修正落实（2026-10-08）
+
+- **`/plan` 交叉审查判决 = 通过**（见上「第 1 轮 reviewer 交叉审查」）；本 `k` `**状态**` 置 **`已验证`**。
+- **4 项修正已落实**（详见 §E）：
+  1. **跨模块重号消除**：实测各模块最大号（`INFRA-049`/`SPEC-121`/`LLVM-061`/`QEMU-049`/`TESTCASES-035`/`INTEG-022`）后，`QEMU` 顺延两位 ⇒ **`QEMU-052t/053t/054m`**；§C/§D 已同步（reviewer 记录中旧编号保留为历史原文）。
+  2. **`ISS-003`（LR-SC）M6 排除**（显式声明 + 理由，§E-2）；已同步 `issues.yaml`（仅追加 notes，id 不变）。
+  3. **`ISS-169` 归 `QEMU-053t` 范围**（§C/§E-3）。
+  4. **「计数不写死」**作为硬约束写入全部 M6 任务书（§E-4）。
+- **任务书已建**：**17 `t` + 6 `m` = 23 份**（§C 表；较 `k` 草案新增 `INFRA-052m`），落 `.tao/tasks/<module>/`。
+- **边界**：本次仅改本 `k` + `milestones.md` + `issues.yaml`（+ 新建任务书）；**`spec/` 交集为空**；未触 `contracts/**`/`components/**`/`Makefile`/`tools/**`。
