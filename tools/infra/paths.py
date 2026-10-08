@@ -22,7 +22,7 @@ _THIS = Path(__file__).resolve()          # real path of this file
 _REPO_ROOT = _THIS.parents[2]            # repo root (two levels up from tools/infra/)
 _MANIFEST = _REPO_ROOT / "manifests" / "install-dirs.lock.toml"
 
-_REQUIRED_KEYS = ("sdk_dir", "host_toolchain_dir", "target_sysroot_dir", "test_artifacts_dir")
+_REQUIRED_KEYS = ("sdk_dir", "host_toolchain_dir", "host_tools_dir", "target_sysroot_dir", "test_artifacts_dir")
 
 
 def _load_manifest() -> dict[str, str]:
@@ -73,6 +73,20 @@ def host_toolchain_bin() -> Path:
     return host_toolchain_dir() / "bin"
 
 
+def host_tools_dir() -> Path:
+    """Absolute path to the host-only tools root (INFRA-050t).
+
+    Host tools (e.g. the ``lli`` value-level oracle) are never target-side
+    tools, so they live in their own root instead of ``cross-toolchain``.
+    """
+    return _resolve(_load_manifest()["host_tools_dir"])
+
+
+def host_tools_bin() -> Path:
+    """Absolute path to the host-only tools ``bin/`` directory."""
+    return host_tools_dir() / "bin"
+
+
 def target_sysroot_dir() -> Path:
     """Absolute path to the target sysroot."""
     return _resolve(_load_manifest()["target_sysroot_dir"])
@@ -89,6 +103,8 @@ _GETTERS: dict[str, callable] = {  # type: ignore[type-arg]
     "sdk_dir": sdk_dir,
     "host_toolchain_dir": host_toolchain_dir,
     "host_toolchain_bin": host_toolchain_bin,
+    "host_tools_dir": host_tools_dir,
+    "host_tools_bin": host_tools_bin,
     "target_sysroot_dir": target_sysroot_dir,
     "test_artifacts_dir": test_artifacts_dir,
 }
@@ -108,6 +124,7 @@ def _print_make_vars() -> None:
     # Also export repo_root-derived helpers
     print(f"REPO_ROOT := {_REPO_ROOT}")
     print(f"HOST_TOOLCHAIN_BIN := {_resolve(data['host_toolchain_dir']) / 'bin'}")
+    print(f"HOST_TOOLS_BIN := {_resolve(data['host_tools_dir']) / 'bin'}")
 
 
 def main() -> int:

@@ -3,7 +3,7 @@
 
 Checks (all fail-closed):
 
-  1. ``manifests/install-dirs.lock.toml`` exists, has all four required keys,
+  1. ``manifests/install-dirs.lock.toml`` exists, has all required keys,
      all values are relative paths, and child dirs are under ``sdk_dir``.
   2. Scans version-controlled scripts/build files for the symlink prefix
      ``/home/ubuntu/tao`` (must use real path or relative path instead).
@@ -24,8 +24,8 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "manifests" / "install-dirs.lock.toml"
 REFS_MANIFEST = ROOT / "manifests" / "references.lock.toml"
 
-REQUIRED_KEYS = ("sdk_dir", "host_toolchain_dir", "target_sysroot_dir", "test_artifacts_dir")
-CHILD_KEYS = ("host_toolchain_dir", "target_sysroot_dir", "test_artifacts_dir")
+REQUIRED_KEYS = ("sdk_dir", "host_toolchain_dir", "host_tools_dir", "target_sysroot_dir", "test_artifacts_dir")
+CHILD_KEYS = ("host_toolchain_dir", "host_tools_dir", "target_sysroot_dir", "test_artifacts_dir")
 
 # Patterns to scan for symlink prefix violations
 SCAN_GLOBS = [

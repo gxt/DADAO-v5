@@ -15,11 +15,12 @@ REPO_ROOT          := $(shell $(PYTHON) tools/infra/paths.py repo_root)
 SDK_DIR            := $(shell $(PYTHON) tools/infra/paths.py sdk_dir)
 HOST_TOOLCHAIN_DIR := $(shell $(PYTHON) tools/infra/paths.py host_toolchain_dir)
 HOST_TOOLCHAIN_BIN := $(shell $(PYTHON) tools/infra/paths.py host_toolchain_bin)
+HOST_TOOLS_BIN     := $(shell $(PYTHON) tools/infra/paths.py host_tools_bin)
 TARGET_SYSROOT_DIR := $(shell $(PYTHON) tools/infra/paths.py target_sysroot_dir)
 TEST_ARTIFACTS_DIR := $(shell $(PYTHON) tools/infra/paths.py test_artifacts_dir)
 
 # Non-empty guard: abort if any path variable is empty (manifest missing/corrupt).
-_install_dir_vars = REPO_ROOT SDK_DIR HOST_TOOLCHAIN_DIR HOST_TOOLCHAIN_BIN TARGET_SYSROOT_DIR TEST_ARTIFACTS_DIR
+_install_dir_vars = REPO_ROOT SDK_DIR HOST_TOOLCHAIN_DIR HOST_TOOLCHAIN_BIN HOST_TOOLS_BIN TARGET_SYSROOT_DIR TEST_ARTIFACTS_DIR
 $(foreach v,$(_install_dir_vars),$(if $($v),,$(error $v is empty — check manifests/install-dirs.lock.toml and tools/infra/paths.py)))
 
 # Component source/build trees (all under the disposable .work/ root). The
@@ -63,15 +64,15 @@ help:
 	@echo "  make apply-series    Apply ordered patch series then auto-commit (E5)"
 	@echo "  make prepare         Fetch enabled components and apply their patch series"
 	@echo "  make check-source-state  Report each source tree's E1 state (clean + base+1)"
-	@echo "  make build-mc        Build LLVM MC + CodeGen tools incl. llc (skips cmake if build.ninja exists)"
-	@echo "  make build-mc-lite   Build LLVM MC/objdump/FileCheck/not only (no objcopy/readobj/CodeGen)"
-	@echo "  make build-mc-reconfig  Force cmake re-run then build LLVM MC + CodeGen tools incl. llc"
-	@echo "  make build-lld       Build LLD linker (bin/ld.lld); re-runs cmake with LLVM_ENABLE_PROJECTS=lld"
+	@echo "  make build-mc        Build LLVM MC+CodeGen+clang+lli from one config (targets DADAO;X86, projects clang;lld)"
+	@echo "  make build-mc-lite   Build LLVM MC/objdump/FileCheck/not only (no objcopy/readobj/CodeGen/clang/lli)"
+	@echo "  make build-mc-reconfig  Force cmake re-run then build the full LLVM tool set"
+	@echo "  make build-lld       Build LLD linker (bin/ld.lld); shares the one-shot LLVM config"
 	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
-	@echo "  make install-host    Install the needed host tool set into \$$(HOST_TOOLCHAIN_BIN) (.dadao/cross-toolchain/bin); adr-0016 D3/D4/D5/D11"
+	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
 	@echo "  make clean-work      Remove generated .work content only"
@@ -129,9 +130,25 @@ prepare: fetch apply-series
 # DADAO is registered by adding it to LLVM_ALL_TARGETS in llvm/CMakeLists.txt
 # (see ADR-0007).
 #
-# build-mc skips cmake when build.ninja already exists (incremental fast path).
-# Use build-mc-reconfig to force a cmake re-run (e.g. after changing CMakeLists.txt).
-LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen llc
+# INFRA-050t: ONE cmake configuration for the whole LLVM tool set.  The tree
+# .work/build/llvm is shared by build-mc / build-mc-lite / build-lld, so all of
+# them must agree on the configuration; otherwise each would keep switching the
+# tree back and forth.  The single configuration is:
+#   - targets  DADAO + X86   (X86 is needed by lli's JIT value-level oracle)
+#   - projects clang + lld   (clang compiler binary + ld.lld linker)
+# and produces all four tools (clang/llc/ld.lld + lli) from one source commit.
+# The config is stamped into the disposable build tree; the incremental fast
+# path reconfigures only when the stamp differs, so a stale tree can never be
+# silently reused (use build-mc-reconfig to force).  ADR-0016 D3/D11.
+LLVM_TARGETS ?= DADAO;X86
+LLVM_PROJECTS ?= clang;lld
+LLVM_BUILD_CONFIG = targets=$(LLVM_TARGETS) projects=$(LLVM_PROJECTS) build_type=RelWithDebInfo assertions=ON
+
+# Single-line shell snippet: (re)configure $(LLVM_BUILD) only when its stamped
+# configuration differs.  A failing cmake aborts before the stamp is written.
+LLVM_CONFIGURE = echo '$(LLVM_BUILD_CONFIG)' | cmp -s - $(LLVM_BUILD)/.dadao-llvm-config 2>/dev/null || { echo "llvm: configuring $(LLVM_BUILD) [$(LLVM_BUILD_CONFIG)]"; cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) -DLLVM_TARGETS_TO_BUILD="$(LLVM_TARGETS)" -DLLVM_ENABLE_PROJECTS="$(LLVM_PROJECTS)" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON || exit 1; echo '$(LLVM_BUILD_CONFIG)' > $(LLVM_BUILD)/.dadao-llvm-config; }
+
+LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen llc lli clang
 LLVM_MC_LITE_TARGETS = llvm-mc llvm-objdump FileCheck not
 
 build-mc: manifest-check
@@ -139,57 +156,39 @@ build-mc: manifest-check
 	  echo "build-mc: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
 	}
-	@test -f $(LLVM_BUILD)/build.ninja || \
-	  cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) \
-	    -DLLVM_TARGETS_TO_BUILD=DADAO \
-	    -DLLVM_ENABLE_PROJECTS="" \
-	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	    -DLLVM_ENABLE_ASSERTIONS=ON
+	@$(LLVM_CONFIGURE)
 	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLVM_MC_FULL_TARGETS)
 	@echo "build-mc: PASS"
 
-# build-mc-lite: same as build-mc but omits llvm-objcopy, llvm-readobj, and
-# LLVMDADAOCodeGen.  Sufficient for lit MC tests + encoding oracle + FileCheck.
+# build-mc-lite: same as build-mc but omits llvm-objcopy, llvm-readobj,
+# LLVMDADAOCodeGen, lli and clang.  Sufficient for lit MC tests + encoding
+# oracle + FileCheck.  Shares the one-shot configuration above.
 build-mc-lite: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc-lite: component 'llvm-project' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
 	}
-	@test -f $(LLVM_BUILD)/build.ninja || \
-	  cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) \
-	    -DLLVM_TARGETS_TO_BUILD=DADAO \
-	    -DLLVM_ENABLE_PROJECTS="" \
-	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	    -DLLVM_ENABLE_ASSERTIONS=ON
+	@$(LLVM_CONFIGURE)
 	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLVM_MC_LITE_TARGETS)
 	@echo "build-mc-lite: PASS"
 
-# build-mc-reconfig: always re-run cmake (for when CMakeLists.txt / patches change).
+# build-mc-reconfig: force a cmake re-run (drops the config stamp first).
 build-mc-reconfig: manifest-check
 	@$(call component-enabled,llvm-project) || { \
 	  echo "build-mc-reconfig: component 'llvm-project' is not enabled / commit pending; refusing to fake success"; \
 	  exit 1; \
 	}
-	cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) \
-	  -DLLVM_TARGETS_TO_BUILD=DADAO \
-	  -DLLVM_ENABLE_PROJECTS="" \
-	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	  -DLLVM_ENABLE_ASSERTIONS=ON
+	@rm -f $(LLVM_BUILD)/.dadao-llvm-config
+	@$(LLVM_CONFIGURE)
 	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLVM_MC_FULL_TARGETS)
 	@echo "build-mc-reconfig: PASS"
 
 # build-lld: build the LLD linker (produces .work/build/llvm/bin/ld.lld).
-# See INFRA-043t.
+# See INFRA-043t / INFRA-050t.
 #
-# LLD is an LLVM sub-project, so it only exists when CMake is configured with
-# -DLLVM_ENABLE_PROJECTS=lld — a different configuration from build-mc
-# (LLVM_ENABLE_PROJECTS="").  build-mc/build-mc-lite/build-mc-reconfig share
-# this same .work/build/llvm tree, so build-lld re-runs cmake there to switch
-# the project set.  build-mc's incremental fast path (ninja over the existing
-# build.ninja) keeps working afterwards, and build-mc-reconfig restores the
-# lld-less configuration.  Unlike build-mc we cannot skip cmake when build.ninja
-# already exists: that guard would keep the lld-less configuration and leave the
-# `lld` target unavailable.
+# Since INFRA-050t, lld is part of the single shared configuration
+# (LLVM_ENABLE_PROJECTS=clang;lld), so build-lld no longer needs its own cmake
+# re-run: it reuses the stamped configuration via $(LLVM_CONFIGURE).
 #
 # The ninja target is `lld` (not `ld.lld`): lld/CMakeLists.txt creates the
 # `ld.lld`/`lld-link`/`ld64.lld`/`wasm-ld` names as POST_BUILD copies of the
@@ -202,11 +201,7 @@ build-lld: manifest-check
 	  echo "build-lld: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
 	}
-	cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) \
-	  -DLLVM_TARGETS_TO_BUILD=DADAO \
-	  -DLLVM_ENABLE_PROJECTS=lld \
-	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	  -DLLVM_ENABLE_ASSERTIONS=ON
+	@$(LLVM_CONFIGURE)
 	ninja -j$(JOBS) -C $(LLVM_BUILD) $(LLD_TARGETS)
 	@echo "build-lld: PASS"
 
@@ -265,18 +260,27 @@ build-gem5: manifest-check
 #
 # D11 scope: just the tools the gates/executors need — llvm-mc/llvm-objdump/
 # llvm-readobj/FileCheck/not (lit MC), llc (CodeGen), llvm-objcopy (test-codegen),
-# lld + ld.lld (test-elf), qemu-system-dadao (D4), llvm-lit (lit runner).
-# No full `cmake --install`.
-HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not llc
+# lld + ld.lld (test-elf), clang (M6 cross compiler, INFRA-050t), qemu-system-dadao
+# (D4), llvm-lit (lit runner).  No full `cmake --install`.
+#
+# INFRA-050t dual destination: the cross toolchain (clang/llc/ld.lld) and the
+# other target/cross tools go into $(HOST_TOOLCHAIN_BIN); the host-only lli
+# value-level oracle goes into $(HOST_TOOLS_BIN) (resolved via paths.py, D7).
+# The build tree's bin/clang is a symlink to a versioned clang-NN, so install
+# with `cp -L` to dereference it (otherwise the installed symlink dangles).
+# --remove-destination keeps install-host idempotent even over a stale (e.g.
+# previously dangling) destination, which cp would otherwise refuse to replace.
+HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not llc clang
 HOST_LIT_DIR = $(HOST_TOOLCHAIN_DIR)/share/lit
 
 install-host: build-mc build-lld build-qemu
-	@mkdir -p $(HOST_TOOLCHAIN_BIN)
+	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
-	  cp -a $(LLVM_BUILD)/bin/$$t $(HOST_TOOLCHAIN_BIN)/$$t || exit 1; \
+	  cp -aL --remove-destination $(LLVM_BUILD)/bin/$$t $(HOST_TOOLCHAIN_BIN)/$$t || exit 1; \
 	done
-	@cp -a $(LLVM_BUILD)/bin/lld $(HOST_TOOLCHAIN_BIN)/lld
+	@cp -aL --remove-destination $(LLVM_BUILD)/bin/lld $(HOST_TOOLCHAIN_BIN)/lld
 	@ln -sf lld $(HOST_TOOLCHAIN_BIN)/ld.lld
+	@cp -aL --remove-destination $(LLVM_BUILD)/bin/lli $(HOST_TOOLS_BIN)/lli
 	@cp -a $(QEMU_BUILD)/qemu-system-dadao $(HOST_TOOLCHAIN_BIN)/qemu-system-dadao
 	@rm -rf $(HOST_LIT_DIR)
 	@mkdir -p $(HOST_LIT_DIR)
