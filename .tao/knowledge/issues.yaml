@@ -41,7 +41,7 @@
 #   status: open | closed
 #   scope: 非空列表 (M1 | post-M1 | M2 | M3 | M4 | M5 | M6 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
 #     - M1 = M1 范围项（已达成）；M2 = 规范与接口冻结（已达成）；M3 = Basic CodeGen（已达成）；
-#       M4 = ELF 文件支持 + LLD 链接 + 汇编器遗留收口（已达成）；M5 = SEE/HEE 运行环境 + semihosting（已达成，2026-10-08；门控 make test-semihost）；
+#       M4 = ELF 文件支持 + LLD 链接 + 汇编器遗留收口（已达成）；M5 = SEE/HEE 运行环境 + semihosting（已达成，2026-10-08；门控 make test-semihost；**不再作 open 项 scope**——`INTEG-024t`，2026-10-08 已全部迁出）；
 #       M6 = 完整调用约定（整数）+ 欠账收口，追加「elf 加载」（下一里程碑；M6 自 M5 范围简化转入「-bios+ELF 组合语义 / ELF loader 扩展 / 组合 ADR」= ISS-168、step2 = ISS-165）；
 #     - post-M1 = 已不属 M1 范围、归后续里程碑的通用项，无明确单一里程碑归属
 #       （含义随 M2/M3 达成后指向 M4+）。
@@ -88,52 +88,24 @@
 # ISS-003 scope post-M1→M4；step 4「已被后续任务覆盖」关闭 ISS-015（INFRA-016t）/ISS-039（LLVM-014t）；
 # 教训/过程记录类 ISS-087/088/139/146 移入 `lessons.md`（id 不复用）；其余 open 项逐条判定保留。
 # 逐条判定表见 `.tao/tasks/infra/INFRA-042t-M3归档前置台账梳理.md` 完成区。
+#
+# 台账性质分流（INTEG-024t，2026-10-08；用户 2026-10-08 指示「issues 中很多内容属规划/阻塞/待裁定，
+# 可移到该文件（milestones.md）、不必重复记录」）：`.tao/knowledge/milestones.md`「当前进度」定位为
+# **规划中 / 阻塞与待裁定**载体，本文件**只保留真 issue**（缺陷 defect / 欠账 debt / 技术债 tech-debt）。
+# 属**规划① / 阻塞② / 待裁定③**者已**整条移出**至 `milestones.md`；**id 不复用**（原 id 仅作历史指针，
+# 已迁 id 见下，**均列于本注释、非本文件条目**）。**未改**任何条目的 `scope` / `resolved_by` / 归属结论，
+# **未 close、未裁决**（裁决动作属 `spec/Process-04 §3`，非本任务）。
+#   已迁出 id（共 15 条，`id` 不复用）：
+#     · 规划①（7）：ISS-003 / ISS-005 / ISS-006 / ISS-110 / ISS-165 / ISS-168 / ISS-169
+#     · 阻塞·待裁定②③（8）：ISS-019 / ISS-026 / ISS-047 / ISS-074 / ISS-081 / ISS-163 / ISS-164 / ISS-167
+#   （迁出明细 + 待裁定项**用户选项**见 `.tao/knowledge/milestones.md`「当前进度」；逐条判定表见
+#    `.tao/tasks/integ/INTEG-024t-issues台账搬迁.md` 完成区。）
 
 # ── spec ──────────────────────────────────────────────────────────────────────
-
-- id: ISS-003
-  title: "M1 范围外（推迟）：浮点 RF、特权 cfx 系统指令、LR-SC 原子——M1 仅含标量整数 + 地址/内存 + 控制流 + 测试机系统/异常"
-  status: open
-  scope: [M6]
-  blocks: []
-  resolved_by: null
-  notes: "INFRA-042t（2026-10-05）：M2/M3 已达成，本项三项（浮点 RF→ISS-081、特权 cfx→ISS-110、LR-SC 原子）均属后续里程碑 ⇒ scope post-M1→M4；保持 open。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 4，里程碑边界项拆分）】M5 已达成：本项**已交付部分**＝「特权 cfx 系统指令」——`trap`/`escape`/`cfx2rc`/`cfx2rd` 由 `LLVM-060t` 实现（MC+编码）、`SPEC-115t` re-scope（`excluded`→`m1`）、`QEMU-044t`/`QEMU-045t` 执行层落地 ⇒ **单独记为 closed ISS-170**（不复用本 id）；「浮点 RF」部分已由 **ISS-081** 单独跟踪（不在本项）；**未交付余项 = 「LR-SC 原子」（`SimRISC-12` `lr_*`/`sc_*`，仍 `scope: excluded`/decode ILLI）** 保留 open ⇒ **scope M5→M6**。【M6 规划（INTEG-023k，2026-10-08）】**M6 排除**（显式声明）：本项余项 = `SimRISC-12` 的 `lr_*`/`sc_*`（ISA 扩展，现 `scope: excluded`/decode ILLI），与 M6 主题（整数完整调用约定 / 12 条 LLVM 欠账收口 / ELF 加载）无关，且 `SimRISC-12` 整体 deferred ⇒ M6 不引入新 ISA；scope 待后续（ISA 扩展）里程碑重定。"
-
-- id: ISS-005
-  title: "ABI 合约（SPEC-004t）完整调用约定 Deferred to M2——M1 仅含最小 ABI 事实"
-  status: open
-  scope: [M6]
-  blocks: []
-  resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：M2 重定义为「规范与接口冻结」（SPEC-090k）后，完整调用约定属 codegen 前置（M3）⇒ scope M2→M3。原题中『Deferred to M2』指旧 M2＝Basic CodeGen（现 M3）。INFRA-041t（2026-10-05）边界重定；INFRA-042t（2026-10-05）依用户裁定『交付部分单独 close、未交付部分留 open』拆分：**M3 已交付部分**（标量调用约定，`SPEC-097t` 合约 + `LLVM-039t` 实现）单独记为 **closed ISS-149**；本条目保留**未交付部分**（变参、聚合传参/返回、多返回值、sret、间接调用）⇒ scope M3→M4。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2）】M5 已达成、M5 未交付本项（M5＝SEE/HEE + semihosting，不含完整调用约定）；M6 定义显式含「完整调用约定（整数）」⇒ **scope M5→M6**；保留 open。"
-
-- id: ISS-006
-  title: "ABI [OPEN] 项：rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值——不得当规范性要求"
-  status: open
-  scope: [M6]
-  blocks: []
-  resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：contract-abi.md §6 仍列 5 项 [OPEN]（rd1/rb3/rb4 callee-saved、窄返回值扩展、多返回值、red zone、帧指针省略），属完整调用约定/codegen 前置 ⇒ scope M1→M3（与 ISS-005 同归）。依据：grep `[OPEN]` contract-abi.md L191–195。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = `SPEC-097t` 落地的标量调用约定（`contract-abi.md §4` 正文 + `contracts/abi.yaml`）；剩余 5 项 [OPEN]（rd1/rb3/rb4 callee-saved 分类、窄返回值扩展规则、多返回值、red zone、帧指针省略）归 M4。INFRA-042t（2026-10-05）：本 issue 主题为 5 项 [OPEN]，M3 **未交付其中任何一项**（上句『已交付部分』指标量调用约定，系 ISS-005 的交付，记录见 closed ISS-149，不重复建档）；按用户裁定保留 open，scope M3→M4。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2）】M5 未交付本项；5 项 [OPEN] 均属「完整调用约定/ABI」⇒ M6 定义显式含「完整调用约定（整数）+ 欠账收口」⇒ **scope M5→M6**；保留 open。"
 
 # ── infra ─────────────────────────────────────────────────────────────────────
 
 # ── testcases ─────────────────────────────────────────────────────────────────
-
-- id: ISS-019
-  title: "F9① 结果级语义期望值重算需独立 oracle——属 golden model 模块，不在 testcases 模块内"
-  status: open
-  scope: [golden, M5]
-  blocks: []
-  resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：结果级独立 oracle（错误期望值重算）归 golden 模块，已由 milestones.md 明确划入 M3（范围外：FP 独立 oracle / 完整语义 E2E）⇒ scope post-M1→[golden, M3]。INFRA-041t（2026-10-05）边界重定：M3 未交付结果级/FP 独立 oracle（golden 模块 M3 未启动）；剩余（结果级错误期望值重算 + FP 独立 oracle）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2/4）】**scope 归属待裁定**：M5 已达成（M5 范围外显式含 golden model）；M6 定义为「完整调用约定（整数）+ 欠账收口 + elf 加载」，**未显式覆盖 golden model** ⇒ 归属里程碑**未定** ⇒ 依「不确定处提问」纪律**保持原 scope（含 M5）、标「待裁定」**，**未擅自定为 M6/closed**；提请用户裁定。"
-
-- id: ISS-026
-  title: "encoding 的 imm 值不在 validator 能力内——imm 语义正确性由 golden model 脚本守卫"
-  status: open
-  scope: [testcases, M5]
-  blocks: []
-  resolved_by: null
-  notes: "INFRA-033t（2026-10-04）：imm 语义正确性由 golden model 脚本承担，golden/结果级 oracle 归 M3（见 ISS-019）⇒ scope 追加 M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 golden model imm 语义守卫；剩余（imm 语义 oracle）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2/4）】**scope 归属待裁定**：M5 已达成；M6 定义未显式覆盖 golden model（imm 语义守卫依赖 golden）⇒ 归属里程碑**未定** ⇒ 依「不确定处提问」纪律**保持原 scope（含 M5）、标「待裁定」**，**未擅自定为 M6/closed**；提请用户裁定。"
 
 # ── llvm / qemu / integ ──────────────────────────────────────────────────────
 
@@ -151,13 +123,6 @@
   blocks: []
   resolved_by: null
 
-- id: ISS-047
-  title: "llvm-objdump -d 需显式 --triple=dadao-unknown-elf：e_machine 未映射到 dadao"
-  status: open
-  scope: [llvm, M5]
-  blocks: []
-  resolved_by: null
-  notes: "【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2/4）】**scope 归属待裁定**：M5 已达成；本项（`llvm-objdump` 的 `e_machine`→dadao 映射）M5 未交付；M6 定义为「完整调用约定（整数）+ 欠账收口 + elf 加载」，本项是否属「欠账收口」未显式 ⇒ 归属**未定** ⇒ 依「不确定处提问」纪律**保持原 scope（含 M5）、标「待裁定」**，**未擅自定为 M6/closed**；提请用户裁定。"
 - id: ISS-054
   title: "探针手算分支偏移易错 → 建议标签化框架（tools/qemu/ 基于标签的探针框架）"
   status: open
@@ -181,14 +146,6 @@
 
 # ── 内联提及项（原 backlog 非独立 bullet，但用户裁定/代码库明确引用）────────
 
-- id: ISS-074
-  title: "C-27 — cs.* 条件赋值快照：5 条 cs.{n,z,p,eq,ne}-rd overlap 因 condition & source register aliasing 语义未指定而 deferred"
-  status: open
-  scope: [testcases, M5]
-  blocks: []
-  resolved_by: null
-  notes: "INFRA-033t（2026-10-04）实测：`tests/vectors/isa/reg-cond-assign.yaml` 仍含 5 条 `class: overlap` + `deferred_reason: C-27` + `expected_state: null`（cs.n/z/p/eq/ne），语义未指定 → 未消解；aliasing 语义为 codegen 依赖 ⇒ scope M1→M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 cs.* 条件赋值 codegen / aliasing 语义；剩余（cs.* overlap 语义指定 + codegen）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2/4）】**scope 归属待裁定**：M5 已达成；M6 定义未显式覆盖 cs.*（FP/条件赋值 codegen）⇒ 归属里程碑**未定** ⇒ 依「不确定处提问」纪律**保持原 scope（含 M5）、标「待裁定」**，**未擅自定为 M6/closed**；提请用户裁定。"
-
 # ── 原 backlog 合并新增（INFRA-032t，2026-10-04）────────────────────────────────
 # 原 backlog 逐条归宿见 INFRA-032t 任务书完成区；教训/方法论见 lessons.md。
 
@@ -199,14 +156,6 @@
   blocks: []
   resolved_by: null
   notes: "原 backlog L47。用户此前指示先处理 cls；若后续发现其它 FP 指令存同类「语义固定值」问题，另立任务。"
-
-- id: ISS-081
-  title: "FP 后续衔接点（独立 oracle / harness RF 支持 / FP 向量 / E2E / 实现缺口）"
-  status: open
-  scope: [spec, golden, testcases, llvm, qemu, integ, M5]
-  blocks: []
-  resolved_by: null
-  notes: "原 backlog L53/L57/L62/L138/L239/L249。**已闭合**：LLVM-031t（汇编期 dst_rd0@FP 15 条静态检查，2026-10-04 已验证——helper `isFPDstRdMnemonic` 15 条 + Error 级检查、新 lit fp-dst-rd0-legality.s、lit 29→30、patches 仍 69）+ QEMU-038t（运行期 dst_rd0@FP 15 条 ILLI 0x88，2026-10-04 已验证——helper `fp_check_dst_rd0` + 8 调用点覆盖 15 条、探针 `min_rom_probe_038t.py` 42/42、patches 仍 69）⇒ **dst_rd0@FP 缺口：汇编期 + 运行期两侧均已闭合**。**本轮新增（2026-10-04）**：INTEG-009t 最小 FP E2E smoke 已验证（`tests/e2e/smoke_fp.s` + `tests/lit/E2E/smoke_fp.test`，llvm-mc→llvm-objcopy→QEMU，期望值宿主 `struct`/`math` 独立派生，E2E 4/4）⇒ M2 门槛④「FP = 执行层 60/60 + dst_rd0@FP + 最小 FP smoke」达成。**余下显式归 M3**（milestones.md M2 范围外）：① GOLDEN-001t 起 FP 独立 oracle（禁 LLVM/QEMU 校准）；② harness RF 寄存器类支持；③ TESTCASES-024t FP 向量/inventory 第二张表；④ 完整 FP E2E（INTEG-*）。INFRA-041t（2026-10-05）边界重定：M3 已交付部分 = 无（M3=纯整数 CodeGen，FP/RF 不在范围）；剩余 ①FP 独立 oracle（GOLDEN）②harness RF 寄存器类 ③FP 向量/inventory ④完整 FP E2E 全部归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付（M3=纯整数），保留 open，scope M3→M4。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2/4）】**scope 归属待裁定**：M5 已达成；剩余项（①FP 独立 oracle〔GOLDEN〕②harness RF 寄存器类 ③FP 向量/inventory ④完整 FP E2E）M5 均未交付；M6 定义未显式覆盖 FP/RF 与 golden model ⇒ 归属里程碑**未定** ⇒ 依「不确定处提问」纪律**保持原 scope（含 M5）、标「待裁定」**，**未擅自定为 M6/closed**；提请用户裁定。"
 
 - id: ISS-090
   title: "components/qemu/changelog.md 缺任务级记录（自 2026-09-23 起未按任务追加）"
@@ -247,14 +196,6 @@
   blocks: []
   resolved_by: null
   notes: "原 backlog L145。建议性跟踪（Process-01 §11 非强制）；如出现维护痛点再评估拆分。"
-
-- id: ISS-110
-  title: "LLVM MC 的 cfx 指令/别名实现（M2；ADR-0017 D5/D6 待落地）"
-  status: open
-  scope: [llvm, M6]
-  blocks: []
-  resolved_by: null
-  notes: "原 backlog L237。crrr/crii/ciii 及 cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 全无定义；另 SPEC-075t 别名表 uart2..30 覆盖缺口需补齐。INFRA-033t（2026-10-04）：cfx 属 `scope: excluded`（未实现、decode ILLI），其实现在 M2 规范冻结之外 ⇒ scope M2→M3。INFRA-041t（2026-10-05）边界重定：M3 未交付 cfx 指令/别名（仍 `scope: excluded`、decode ILLI）；剩余（crrr/crii/ciii + cfx2rd/cfx2rc/cfxld/cfxst/escape/trap 实现 + SPEC-075t uart2..30 别名补齐）归 M4。INFRA-042t（2026-10-05）：确认 M3 未交付，保留 open，scope M3→M4。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 4，里程碑边界项拆分）】M5 已达成：本项**已交付部分**＝`trap`/`escape`/`cfx2rc`/`cfx2rd`（MC+编码，由 `LLVM-060t` 实现 + `SPEC-115t` re-scope `excluded`→`m1`）⇒ **单独记为 closed ISS-171**（不复用本 id）；**未交付余项 = `cfxld`/`cfxst`（`SimRISC-12`，仍 `scope: excluded`）+ `crii` 格式（仍 `excluded`）+ `SPEC-075t` 别名表 uart2..30 覆盖缺口** 保留 open ⇒ **scope M5→M6**。"
 
 - id: ISS-118
   title: "lit 覆盖断言粒度限制：同族内删多条 pattern 之一无法检出（INTEG-007t）"
@@ -359,51 +300,3 @@
   blocks: []
   resolved_by: null
   notes: "LLVM-060t 新发现（属任务外范围、本任务未修）：`DADAOAsmParser` 的 `GET_OPERAND_DIAGNOSTIC_TYPES` 匿名 `enum` **无** `= FIRST_TARGET_MATCH_RESULT_TY` 偏移（对照 X86：`enum X86MatchResultTy { Match_Unsupported = FIRST_TARGET_MATCH_RESULT_TY; ... }`）。只新增一个诊断类型名（字母序在 `InvalidImmediate` 前）即把 `Match_InvalidImmediate` 由 **0** 挤到 **1**（= `Match_InvalidTiedOperand`），使 `wpn_err_*` 三条既有 lit 由「invalid operand」变「invalid tied operand」而 FAIL。本任务规避：3 个 cfx 操作数类复用 `DiagnosticType = \"InvalidImmediate\"`（`std::set` 去重 ⇒ 枚举项数与数值与改前逐字节相同）。建议后续按 X86 加 `FIRST_TARGET_MATCH_RESULT_TY` 偏移 + 在 `matchAndEmitInstruction` 显式加 `case Match_Invalid…:`，消除该隐患。"
-
-- id: ISS-163
-  title: "Toolchain-01 §5/§11/§13 仍含与 contracts/opcodes.yaml 的 scope 不符的旧口径（授权范围外，SPEC-116t 遗留）"
-  status: open
-  scope: [spec, M5]
-  blocks: []
-  resolved_by: null
-  notes: "SPEC-116t 遗留（该任务授权范围严格限 `Toolchain-01 §1` + `§2.1`，故三处旧口径未动）。上游只读册 `spec/Toolchain-01-汇编语言.md` 仍有三处与 `contracts/opcodes.yaml` 的 `scope` 事实不符——① `§5`（L152）「`scope: excluded` 的格式（`crrr`/`crii`/`ciii`）」（`crrr`/`ciii` 已 re-scope 为 `m1`，仅 `crii` 仍 `excluded`）；② `§11`（L261）「9 个 M1 格式类与 152 条 M1 指令」（应为 11 类 / 155 条）；③ `§13`（L286）「cfx 属 `scope: excluded`」（`crrr`/`ciii` 已 re-scope 为 `m1`）。**用户 2026-10-08 裁定（原话，逐字）：「暂登记遗留」** ⇒ 本项**暂登记**，收口须**另行授权**（含该册 `sha256` 锁同步）；`resolved_by` 待定。凭据详见 `.tao/tasks/spec/SPEC-116t-大小写敏感修订.md` 审阅记录「收尾裁定落纸」。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2/4）】**scope 归属待裁定**：M5 已达成；本项为 `Toolchain-01` 旧口径 spec 缺口（**须用户授权方可收口**，用户 2026-10-08 已裁定「暂登记遗留」）⇒ 归属里程碑（是否 M6「欠账收口」）**未定**、**未获收口授权** ⇒ 依「不确定处提问」纪律**保持原 scope（含 M5）、标「待裁定」**，**未关闭、未擅自定为 M6**；提请用户裁定。"
-
-- id: ISS-164
-  title: "QEMU-044t：cfx mask（inner/global/指令类型）与 excp_cause_mask 的屏蔽路径在当前测试机不可观测（monitor cause 全不可屏蔽）"
-  status: open
-  scope: [qemu, M5]
-  blocks: []
-  resolved_by: null
-  notes: "QEMU-044t 遗留（architect 交叉复核判定需跟踪）。`DADAO-12 §5` 步骤 2 依 `cfx_⟨cfxname⟩_excp_cause_nonmaskable` 判定——而 §4 异常原因表把 **monitor（umon/jmon/smon/hmon）的全部 listed cause 标为『否』（不可屏蔽）**，故步骤 3（`inner_cfx_mask`）/步骤 4（`cfx_⟨cfxname⟩_<mode>_global_cfx_mask`）/步骤 5（`excp_cause_mask`）对 monitor 同步异常**一律跳过**。当前测试机只实现 `cfx0/1/2/3/63`（monitor + power），其余已分配 cfx（ptw=4/tlb=5/cache=6/timer=18/uart=62…）访问 ⇒ `CFXREG`（路由回当前 mode monitor）；reserved/被指令类型 mask 禁止 ⇒ `ILLI`（亦路由回 monitor）。**结论：可观测的『mask ⇒ ILLI』路径仅为步骤 1 的『指令类型 cfx mask』**（探针 `mask_illi` 即以 cfx_umon hypv `trap_cfx_mask` bit0 证明）。步骤 3/4 的 `inner_cfx_mask`/`global_cfx_mask` 屏蔽 ⇒ ILLI 重定向、步骤 5 的 `excp_cause_mask` 屏蔽 ⇒ `pending` **均不可观测**（探针仅验证 `global_cfx_mask` 为真实 per-mode 全局共享 RW、`excp_cause_mask` 为真实 RW）。**跟踪理由**：当后续里程碑实现带**可屏蔽 cause** 的 cfx（ptw/tlb/cache/timer/uart 等）后，须补验步骤 3/4/5 的 ILLI 重定向与 `pending` 置位路径——否则该分支可能长期未被任何向量触达。另：`escape`/`trap`（负偏移回退、跨 cfx escape、`cfx2rd`/`cfx2rc` 全寄存器面）的完整语义归 `QEMU-045t`，非本项范围；PTBR 权限层（`NUPERM/NJPERM/NSPERM/NHPERM`）不在 M5（`ADR-0020 D9`、`spec/Machine-01 §3`），非本项范围。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2/4）】**scope 归属待裁定**：M5 已达成；本项为「待后续里程碑实现带**可屏蔽 cause** 的 cfx 后补验」的跟踪项；归属里程碑（是否 M6）**未定** ⇒ 依「不确定处提问」纪律**保持原 scope（含 M5）、标「待裁定」**，**未擅自定为 M6/closed**；提请用户裁定。"
-
-- id: ISS-165
-  title: "C1 step2 迁移（RAM@0 收口，跨模块）：旧向量/harness/crt0/e2e 迁到 0 + 删旧 RAM 段 + 收紧 check-interface 断言"
-  status: open
-  scope: [testcases, qemu, integ, M6]
-  blocks: []
-  resolved_by: null
-  notes: "QEMU-049t 遗留（C1 step1 已落地：RAM@0 = 0x0000_0000_0000 / 16 MiB〔cfxha 0 = umon〕与旧 RAM 段 0xffff_0000_0000 双映射并存）。step2 = 旧向量/harness/crt0/e2e 迁到 0 + 删旧 RAM 段 + 收紧 check-interface 断言；另立、M5 之外（编号/归属待 M6 规划或另立时确定）。跨模块影响：① tests/vectors/**（如 isa/{mem-rd,mem-rb,mem-ra,ctrl-*}.yaml 以 EA=0 作 unmapped 的用例）；② tools/qemu/*.py 探针（如 min_rom_probe_010t.py 的 T6/T18）——既有『EA=0 ⇒ unmapped 0x87』向量/探针在 R3（RAM 基址改全 0）下失效（EA=0 变为合法 RAM）。当前不在任何 make 门控内（check-qemu-semantics 只跑 reg-shift-extend/reg-compare）⇒ 门控全绿、step2 不阻塞 M5 门槛。附带项（同归 step2）：harness FAULT_NAMES 未扩（未列 0x81）；0x81 复用 ADR-0004 D5.8 冻结表已保留区、0x87–0x8D 未重排。【2026-10-08 M5 范围简化（用户裁定，原话见 INTEG-019k §第 8 轮）：step2 明确随 M6（原「M5 之外」→ M6）；scope 由 M5 改 M6。】"
-
-- id: ISS-167
-  title: "DADAO-12 §5 异常退出流程 prose 与伪代码在『跨 cfx escape』上的措辞张力（判据：伪代码为权威，实现按伪代码；spec 缺口待授权收口）"
-  status: open
-  scope: [spec, qemu, M5]
-  blocks: []
-  resolved_by: null
-  notes: "QEMU-045t 新发现②（verification-only 任务、无组件补丁改动；architect 交叉复核判定需跟踪）。`spec/DADAO-12-SEE-主管系统运行环境.md §5`『异常退出流程』：伪代码 `⟨cfxname⟩` 明确定义为 `inner_cfx_code`（**当前**执行 escape 的 cfx），步骤 1/2 恢复**当前 cfx** 的 `excp_prev_cfx_mask`/`excp_prev_run_mode`、步骤 4 返回地址用**当前 cfx** 的 `excp_cause_ip`（`excp_cause_ip + (imms18<<2)`，L830/L853）；而同节 prose（L674）称跨 cfx escape 时『硬件直接恢复到 A 的 prev 现场，B 的现场被静默丢弃』——与伪代码（以当前 cfx 为 `⟨cfxname⟩`）存在**措辞张力**。**判据：伪代码为权威**（`DADAO-12 §5` 伪代码为硬件语义权威）；QEMU 实现按伪代码，QEMU-045t 探针 `escape_cross_allowed` 验证『跨 cfx 允许时恢复当前 cfx 的非复位 prev 值』（`escape cfx0` 于 cfx63 执行 ⇒ 恢复 cfx63 的 `prev_run_mode`/`prev_cfx_mask`，非复位值 0xDEADBEEF/`USER`）。**处置：本任务未改 spec/**（`DADAO-12` 为上游只读册，`manifests/spec-readonly.lock.toml` 锁定；改它须用户**事先**授权，见 lessons §8.5 / spec/Process-06）——建议**另立 spec 任务**（经用户授权）厘清 §5 prose 措辞以消张力；若授权改动，须在**同一变更**内同步该册 `sha256` 锁。**附带（同类不同处置）**：QEMU-045t 新发现①（§5 退出流程**不恢复 `inner_cfx_code`**，只恢复 `inner_cfx_mask`/`inner_run_mode`）属『**澄清**』类（实现与伪代码一致、仅易误解）⇒ 已沉淀 `lessons §7.18`，**不立** spec 任务。教训见 `lessons §7.18`、规范见 `§8.12`。【INTEG-022t（2026-10-08，`Process-04 §3` 步骤 2/4）】**scope 归属待裁定**：M5 已达成；本项为 `DADAO-12 §5` prose/伪代码张力（**须用户授权方可收口上游只读册**；建议另立 spec 任务）⇒ 归属里程碑**未定**、**未获收口授权** ⇒ 依「不确定处提问」纪律**保持原 scope（含 M5）、标「待裁定」**，**未关闭、未擅自定为 M6**；提请用户裁定。"
-
-- id: ISS-168
-  title: "M6 待办（自 M5 范围简化转入）：『-bios』+ELF 组合加载/入口语义 + ELF loader 扩展（dadao_load_regions[]+RAM@0）+ 组合加载 ADR 决策待定"
-  status: open
-  scope: [qemu, integ, spec, M6]
-  blocks: []
-  resolved_by: null
-  notes: "用户 2026-10-08 裁定（原话逐字见 INTEG-019k §第 8 轮）：「用bios的时候，直接接bin，也就是objdump后的测试程序；而用elf的时候，则不需要bootrom，只需要semihosting即可……只做bootrom+bin的情况；elf加载放在M6，与完整LLVM的任务一起进行」。⇒ M5 范围简化：M5 只做 bootrom(-bios)+bin；以下随 M6（与完整 LLVM 任务一并）：① 「-bios bootrom + ELF 应用」组合加载/入口语义（复位 PC=0xffff_ffff_0000 → bootrom 初始化 → 跳 ELF e_entry；须定 e_entry 传递方式）；② ELF loader 扩展（hw/dadao/dadao-machine.c 的 dadao_load_regions[] 现仅含旧 RAM 段+ROM、未含 RAM@0 ⇒ 组合路径需扩表 + 验证）；③ 组合加载语义的 ADR 决策（属加载模型/外部契约变更 ⇒ 须 ADR 并逐条经用户确认；M5 阶段不立 ADR）。背景：QEMU-047t 落地时的「前置风险」（见 INTEG-020t 审阅记录『architect 前置风险评估』；lessons §7.21/§8.15），architect 与 reviewer 曾倾向选项 A（另立任务）；用户裁定采纳『bootrom+bin』口径（与 ADR-0004 R1『-bios bootrom 与 M4 ELF 路径并存、非替代』自洽），该缺口不再是 M5 门槛前置。关联：ISS-165（RAM@0 C1 step2，随 M6）。"
-
-- id: ISS-169
-  title: "TESTCASES-034t 披露例外：6 个 M1/M2 期 QEMU 探针（006t/008t/009t/010t/012t/013t）仍以 exit-port 为退出通道，未随迁 SYS_EXIT"
-  status: open
-  scope: [qemu, testcases, M6]
-  blocks: []
-  resolved_by: null
-  notes: "TESTCASES-034t（exit-port → SYS_EXIT 迁移）逐条披露的例外（默认全迁；此 6 个因架构/实现原因保留 exit-port）。**共同原因**：这些是 M1/M2 期的手写 `.py` ROM 探针，其测试用例是**手排字面指令表**，退出写成**单条 `st.o rdN, [rb16,0]`（rb16=exit port）**，且与**手算的 PC 相对分支偏移交错**（PASS/FAIL 臂、跳转目标）；改为多指令 `SYS_EXIT` 序列会改变字长、使手算偏移失效——而分支偏移正是其中 012t 的被测对象。逐条：① `006t` —— 显式测**保留的 exit-port MMIO 访问矩阵**（T22/T23/T28–T34：非 8B/multi 写 ⇒ ILLI、对齐优先级 ⇒ MALIGN；ADR-0004 D5.6），是**设备测试**而非退出通道；② `009t` —— 文件头标注 **OBSOLETE / DO NOT RUN**（rela.si 已删，op=0x5A 现为 UNDI），保留为历史物；③ `008t`/`010t`/`012t`/`013t` —— 用例内退出与分支偏移交错（PASS/FAIL 臂、跳过臂），展开会破坏手算偏移。**证据**：TESTCASES-034t `.work/evidence/TESTCASES-034t/run.sh` 第 1 步（acceptance 1）把残留 grep 集合**显式断言**为这 6 个文件 + `tools/integ/check_interface_alignment.py`（后者仅校验 QEMU 保留的 exit-port 设备常量）。**建议**：另立(或随 M6)任务把这 6 个探针的退出通道重写为 SYS_EXIT（含按新字长重算分支偏移），届时可移除本例外与 `check_interface_alignment.py` 的注释例外。**不影响 M5 门槛**：迁移面中所有进入 `make` 门控的向量/harness/驱动（`tests/e2e/*`、`tests/scripts/{codegen_crt0.s,build_test_binary.py,run_qemu_test.py}`、`tools/integ/run_{codegen,elf}_e2e.py`、`tests/llvm/codegen/*`）**均已迁 SYS_EXIT**且门控全绿。【M6 规划（INTEG-023k，2026-10-08）】归 **`QEMU-053t`（RAM@0 step2）** 范围：step2 一并把 6 个手写探针退出通道改写为 `SYS_EXIT`（含按新字长重算手算分支偏移）。"

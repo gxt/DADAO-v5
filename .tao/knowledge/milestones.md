@@ -9,7 +9,24 @@
   - **M6 任务书已建（2026-10-08）**：**17 `t` + 6 `m` = 23 份**（`INTEG-023k` `/plan` 通过后），落 `.tao/tasks/{infra,spec,llvm,qemu,testcases,integ}/`；编号 `INFRA-050t…052m`、`SPEC-122t…125m`、`LLVM-062t…067m`、`QEMU-052t…054m`（QEMU 顺延两位以消跨模块重号）、`TESTCASES-036t…040m`、`INTEG-025t/026m`；Wave 串行见 `INTEG-023k §C/§D`
   - **Embench 接入（M6 待办）**：① 建 **ADR**（记录 Embench 上游选择 + 精确 commit）⇒ 翻 `manifests/components.lock.toml` 的 `enabled = true`；② 建 `components/embench-iot/{patches/**,series,changelog.md}`（board shim 3 函数、`md5sum` 大端适配、最小运行时）；③ 工作树由既有 `make fetch` 机制生成到 `.work/source/embench-iot`
   - **`lessons.md` 瘦身**：下次里程碑归档时按新口径（新增条目 ≤3 行 + 指针，细节进 `.work/log/`；**不追溯重写**）瘦身（现 612 行 / 46 字头）
+  - **`issues.yaml` 移入**（规划①，2026-10-08 `INTEG-024t`；原 `scope` 原样括注）：
+    - `ISS-003`（原 `[M6]`）：**LR-SC 原子**（`SimRISC-12` `lr_*`/`sc_*`，ISA 扩展整体 deferred）—— ① 未开始的能力（`SimRISC-12` 整体 deferred；M6 显式排除，待后续 ISA 里程碑重定）
+    - `ISS-005`（原 `[M6]`）：**完整调用约定未交付部分**（变参 / 聚合传参返回 / 多返回值 / `sret` / 间接调用）—— ① 里程碑待办（M6 主题「完整调用约定（整数）」）
+    - `ISS-006`（原 `[M6]`）：**ABI 5 项 `[OPEN]`**（rd1/rb3/rb4 callee-saved、窄返回值扩展、多返回值、red zone、帧指针省略）—— ① 里程碑待办（`contract-abi.md §6`）
+    - `ISS-110`（原 `[llvm, M6]`）：**`cfxld`/`cfxst`（`SimRISC-12`）+ `crii` 格式 + `SPEC-075t` 别名表 uart2..30 覆盖缺口**（MC 未实现）—— ① 里程碑待办（`INTEG-022t` 边界拆分余项）
+    - `ISS-165`（原 `[testcases, qemu, integ, M6]`）：**C1 step2（RAM@0 收口）**——旧向量/harness/crt0/e2e 迁 0 + 删旧 RAM 段 + 收紧 `check-interface` 断言 —— ① 里程碑待办（`QEMU-049t` 遗留）
+    - `ISS-168`（原 `[qemu, integ, spec, M6]`）：**「`-bios` + ELF」组合加载 / ELF loader 扩 `dadao_load_regions[]` + RAM@0 / 组合加载 ADR** —— ① 里程碑待办（用户 2026-10-08 裁定，`INTEG-019k §第 8 轮`）
+    - `ISS-169`（原 `[qemu, testcases, M6]`）：**6 个 M1/M2 探针（006t/008t/009t/010t/012t/013t）退出通道 `exit-port` → `SYS_EXIT`** —— ① 里程碑待办（归 `QEMU-053t`；`TESTCASES-034t` 披露例外）
 - **阻塞与待裁定**：8 项归属存疑（`ISS-019/026/047/074/081/163/164/167`；其中 `ISS-163`/`ISS-167` 涉改上游只读册，**须用户授权**）；M6 主题**已裁定**（2026-10-08，见 `INTEG-023k`）
+  - **`issues.yaml` 移入**（阻塞②/待裁定③，2026-10-08 `INTEG-024t`；原 `scope` 原样括注；**待用户裁定（2026-10-09 早晨）**）：
+    - `ISS-019`（原 `[golden, M5]`）：结果级 / **FP 独立 oracle**（golden model）—— ③ 归属未定（M6 主题未显式覆盖 golden）—— **待用户裁定**；选项 A 归 M6「欠账收口」/ B 另立 golden 专用里程碑（`GOLDEN-*`）/ C 保留待规划
+    - `ISS-026`（原 `[testcases, M5]`）：encoding `imm` **语义守卫依赖 golden** —— ③ 归属未定（同 `ISS-019`）—— **待用户裁定**；选项 A 归 M6 / B 另立 golden 里程碑 / C 保留待规划
+    - `ISS-047`（原 `[llvm, M5]`）：`llvm-objdump -d` 需显式 `--triple`（`e_machine` 未映射到 dadao）—— ③ 归属存疑（④ 已实现物缺陷 抑或 ① LLVM 工具待办）—— **待用户裁定**；选项 A 归 M6「欠账收口」/ B 判为真 issue 保留 `issues.yaml` / C 保留待规划
+    - `ISS-074`（原 `[testcases, M5]`）：`cs.*` 条件赋值 **overlap 语义（C-27）**未指定（aliasing 为 codegen 依赖）—— ③ 归属未定（FP/条件赋值相邻）—— **待用户裁定**；选项 A 归 M6 / B 随 FP 一并（M7+）/ C 保留待规划
+    - `ISS-081`（原 `[spec, golden, testcases, llvm, qemu, integ, M5]`）：**FP 后续衔接点**（FP 独立 oracle / harness RF 寄存器类 / FP 向量 / 完整 FP E2E）—— ③ 归属未定（FP 不在 M6 显式范围）—— **待用户裁定**；选项 A 归 M6 / B 归 M7+（FP 专用）/ C 保留待规划
+    - `ISS-163`（原 `[spec, M5]`）：`Toolchain-01 §5/§11/§13` **旧口径与 `contracts/opcodes.yaml` 不符** —— ②③ 须**用户授权**方可收口上游只读册（用户 2026-10-08 已裁定「暂登记遗留」）—— **待用户裁定**；选项 A 另立 spec 任务（授权 + 锁 `sha256` 同步）/ B 归 M6「欠账收口」/ C 继续暂登记
+    - `ISS-164`（原 `[qemu, M5]`）：cfx mask（inner/global）与 `excp_cause_mask` **屏蔽路径当前不可观测**（monitor cause 全不可屏蔽）—— ② 须后续实现带可屏蔽 cause 的 cfx 后补验 —— **待用户裁定**；选项 A 归 M6 / B 保留跟踪（待可屏蔽 cause 的 cfx 里程碑）
+    - `ISS-167`（原 `[spec, qemu, M5]`）：`DADAO-12 §5` 异常退出流程 **prose 与伪代码张力**（判据：伪代码为权威）—— ②③ 须**用户授权**方可收口上游只读册 —— **待用户裁定**；选项 A 另立 spec 任务（授权 + 锁同步）/ B 归 M6 / C 保留
 
 ## 任务流水（仅当前里程碑 M6）
 
