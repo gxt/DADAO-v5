@@ -304,6 +304,13 @@
 - **处置**：engineer **以实测为准**——`§1` 的 cfx 子句**只写 cfx 组**（`crrr`/`crii`/`ciii`），`crii` 据实 = `excluded`，**未**把 cfx 组外的同值项（`oiii`/`orrr`）混入该子句（避免臆断、避免扩义）；完成区记明更正，reviewer `Accepted`。
 - **教训**：任务书「事实源 / 事实核实」段凡出现「**唯一 / 仅 / 全部 / 共 N 个**」类**计数或集合**断言，须在**下发前**对生成物**全量实测**并落纸（与 §4.6 同类），不得沿用旧任务/历史台账的表述；子句若限定某**子集**（如「cfx 组」），只在该子集内据实书写，不把子集外的同值项混入。
 
+### 7.15 证据脚本断言依赖「未提交工作树」⇒ 提交后假 FAIL；reviewer 误以「pre-commit 设计」放行（`SPEC-120t`，2026-10-08）
+
+- **事由**：`SPEC-120t` round1 证据脚本的 C10 由**工作树** `git status --porcelain` 计算「非 `.tao` 改动集」并断言 = 2 文件。architect **WIP 提交前**运行 PASS（工作树 = 交付物）；**WIP 提交后**工作树干净 ⇒ C10 必然为空 ⇒ **假 FAIL**（reviewer round1 实测 `C10 FAIL`，却以「post-commit 已知限制、不阻塞验收」判 `Accepted`）；`:140` 诊断行裸 `git diff --name-only` 同类。
+- **根因**：reviewer round1 **未按 §8.7 rule 4**「逐条核 git 调用是否带 range」判，反而接受「pre-commit 设计」的放行理由——把「提交后必红」当作可接受的脚本设计。
+- **处置/闭合**：**主会话依 `lessons §8.7` 推翻 round1 `Accepted` ⇒ 改判 `Needs Revision`**（判例：此为**首次由主会话推翻 reviewer `Accepted`**）；engineer round2 **修一类**（全脚本枚举 6 处 git 调用：C10 改 `$BASE_COMMIT..HEAD`；C9/C11 工作树残留合理保留；诊断行 2 处非断言）⇒ round2 reviewer `Accepted`（`BASE_COMMIT=HEAD` 重放复现 C10 FAIL，证断言非恒真；`cp`+md5 注入/还原有鉴别力）。
+- **规范**：见 §8.7 rule 5。
+
 ## 8. 操作规范（该这样做 / 不该这样做）
 
 > 由 `feedback_001…007`（2026-10-08，用户裁定）**并回**本文件：**经过/根因**归 §7.10–§7.13 与 §7.5/§7.7/§7.9，**正面规范**归本节。每条的「教训指引」只给指针，不复述经过。
@@ -374,8 +381,9 @@
   2. `BASE_COMMIT` 须可经**环境变量覆盖**（默认基线），以便 `BASE_COMMIT=HEAD` 重放脚本、验证该断言**确实可 FAIL**。
   3. 只有「检测工作树残留」才用 `git status --porcelain`（其语义就是查工作树，合理保留）；需在**提交后**仍抓越界则另加 `$BASE_COMMIT..HEAD` 越界断言。
   4. 证据脚本本身也是**交付物**：须经受「**提交后仍应回绿**」自检；reviewer 审核须**逐条核 git 调用是否带 range**；engineer 修一处缺陷须 `grep -nE '\bgit\s+(diff|status|log|show)\b'` **全脚本同类排查**。
-- **依据/来源**：`SPEC-115t`（2026-10-08 round1→round2）。
-- **教训指引**：见 §7.9；同类 §2.1（管道退出码陷阱）。
+  5. **评审不得因「pre-commit 设计」放行**：凡证据脚本的断言依赖**未提交工作树**（`git status` / 裸 `git diff`）而**提交后必红 / 必空**，reviewer **不得**以「pre-commit 设计 / 提交前已验证 / post-commit 已知限制」为由判 `Accepted`——**须判 `Needs Revision`**，要求改为 `$BASE_COMMIT..HEAD`。判例：`SPEC-120t` round1 reviewer 判 `Accepted`（C10 用工作树 `git status` 计算改动集，post-commit 必然为空 ⇒ 假 FAIL），**由主会话依 §8.7 推翻改判 `Needs Revision`**（首次推翻），round2 改 `$BASE_COMMIT..HEAD` 后回绿。
+- **依据/来源**：`SPEC-115t`（2026-10-08 round1→round2）；补强 `SPEC-120t`（2026-10-08，主会话推翻 round1 `Accepted`）。
+- **教训指引**：见 §7.9、§7.15；同类 §2.1（管道退出码陷阱）。
 
 ### 8.8 任务书「事实源」段的「唯一 / 仅 / 全部」类断言须下发前全量实测；子集子句只在该子集内书写
 
