@@ -98,3 +98,146 @@
 - **漏提 0**：声明 7 = staged 7；
 - **多提 0 / 越界 0**：staged 全部 `.tao/**`（`grep -vE '^\.tao/'` → 空）；**`spec/` 交集为空**（`grep -E '^spec/'` → 空）；未触 `contracts/**`/`components/**`/`Makefile`/`tools/**`；
 - `git show --stat`：7 files changed, 245 insertions(+), 13 deletions(-)。
+
+#### 第 1 轮 reviewer 独立复核（2026-10-08）
+
+**审查者**：reviewer 子代理（独立验证，非执行者）
+**审查范围**：M5 里程碑达成判定（重大结论），独立证伪
+**基础**：`7616559`（INTEG-020t 提交）→ HEAD = `d89ef2a`（architect 留痕）
+
+##### 1. M5 `t` 任务全 `已验证`
+
+独立 `grep` 逐个核验 M5 全部 20 个 `t` 任务 + `INTEG-019k`：
+
+```
+INFRA-047t → 已验证（第 2 轮 Accepted，line 6）
+INFRA-048t → 已验证
+INTEG-019k → 已验证
+INTEG-020t → 已验证
+LLVM-060t  → 已验证
+QEMU-044t  → 已验证
+QEMU-045t  → 已验证
+QEMU-046t  → 已验证
+QEMU-047t  → 已验证
+QEMU-049t  → 已验证
+SPEC-113t  → 已验证
+SPEC-114t  → 已验证
+SPEC-115t  → 已验证
+SPEC-116t  → 已验证
+SPEC-117t  → 已验证
+SPEC-119t  → 已验证
+SPEC-120t  → 已验证
+SPEC-121t  → 已验证
+TESTCASES-033t → 已验证
+TESTCASES-034t → 已验证
+```
+
+**注**：`INFRA-047t` 文件含多条 `**状态**` 行（审阅中间态），最终状态为 `已验证`（line 678 `Accepted`）。`QEMU-044t/045t/046t` 同理（审阅记录中提及 `待验收` 为中间态，最终 `已验证`）。
+
+**结论**：20/20 `t` + `INTEG-019k` 全部 `已验证` ✓
+
+##### 2. 6 个 `m` 全 `里程碑`
+
+```
+INFRA-049m    → 里程碑 ✓
+SPEC-118m     → 里程碑 ✓
+LLVM-061m     → 里程碑 ✓
+QEMU-048m     → 里程碑 ✓
+TESTCASES-035m → 里程碑 ✓
+INTEG-021m    → 里程碑 ✓
+```
+
+**结论**：6/6 全部 `里程碑` ✓
+
+##### 3. 门槛证据（独立重跑）
+
+**独立重跑 `make test-semihost JOBS=8`**（非读日志）：
+```
+[PASS] svc_tickfreq         SYS_TICKFREQ returns the tick frequency -> ok
+[PASS] iserror_be64         argument block field read as 64-bit big-endian -> ok
+[PASS] service coverage: all 25 service ids exercised
+RESULT: PASS
+test-semihost: PASS (forward + permission + 25-service + no-regression + INTEG registration)
+EXIT=0
+```
+
+日志 `.work/log/integ/INTEG-020t-test-semihost.log` 末段一致：10/10 m5_e2e PASS、25-service coverage PASS、62/62 MC PASS、`EXIT=0`。
+
+**结论**：五组成全绿，EXIT=0 ✓
+
+##### 4. 不回归证据（独立读日志）
+
+| 日志 | 通过数 | EXIT |
+|------|--------|------|
+| `INTEG-020t-test-elf.log` | 5/5 PASS | EXIT=0 |
+| `INTEG-020t-test-codegen.log` | 15/15 PASS | EXIT=0 |
+| `INTEG-020t-check.log` | 62/62 MC + repository checks PASS | EXIT=0 |
+| `INTEG-020t-check-lit.log` | 62/62 PASS | EXIT=0 |
+
+**独立重跑 `make check JOBS=8`**：`repository checks: PASS`，EXIT=0 ✓
+**独立重跑 `make check-no-residue`**：`check-no-residue: PASS`，EXIT=0 ✓
+
+**结论**：不回归全绿 ✓
+
+##### 5. 跨模块项处置（独立核 `issues.yaml`）
+
+| ISS | 状态 | 处置 | 阻断 M5? |
+|-----|------|------|----------|
+| ISS-163 | open | 用户裁定「暂登记遗留」，收口须另行授权 | 否 |
+| ISS-164 | open | 登记跟踪（cfx mask 可观测性局限） | 否 |
+| ISS-165 | open (scope: M6) | 用户裁定随 M6（RAM@0 step2 迁移） | 否 |
+| ISS-166 | closed (by SPEC-121t) | Machine-01 §1 越界路由已由 SPEC-121t 收口 | 否 |
+| ISS-167 | open | 登记 + 建议另立 spec 任务（§5 prose 措辞张力） | 否 |
+| ISS-168 | open (scope: M6) | 用户裁定移 M6（-bios+ELF 组合/ELF loader） | 否 |
+| ISS-169 | open (scope: M6) | 披露 6 探针保留 exit-port 例外，进门控项均迁 SYS_EXIT | 否 |
+
+**独立判据**（`AGENTS.md`「因其它模块影响而需修复类型的任务」）：
+- ISS-163/167：文档措辞类，不影响实现/门控，显式 deferred
+- ISS-164：测试机可观测性局限，当前 cfx 全不可屏蔽 cause，非实现缺陷
+- ISS-165/168：用户裁定移 M6，step1 已落地且门控全绿
+- ISS-166：已 closed
+- ISS-169：迁移例外已披露，进门控的测试侧均已迁 SYS_EXIT
+
+**结论**：无未处置跨模块影响，不阻断 M5 收敛 ✓
+
+##### 6. 3 处口径偏差（独立核）
+
+1. **SPEC-118m（Machine-01 落点）**：原措辞「`spec/DADAO-12`」实际落 `spec/Machine-01`（用户 2026-10-07 裁定），上游只读册零改动。**非缺口**。
+2. **TESTCASES-035m（L1 复用）**：L1 MC 向量复用 `LLVM-060t` 的 `cfx2-trap-escape.s`（DRY 判定），不重复引入 `m5-*.s`。**非缺口**。
+3. **QEMU-048m（check-interface 86→85）**：
+
+**独立重跑 `python3 tools/integ/check_interface_alignment.py`**：
+```
+总计: 85 项 | PASS: 85 | FAIL: 0 | MANUAL: 0
+EXIT=0
+```
+
+RAM@0 断言全部保留（RAM0_BASE=0x0 PASS、RAM0_SIZE=16MiB PASS、RAM0 hw registration PASS）。86→85 因 `TESTCASES-034t` 移除 1 条 `harness.EXIT_PORT` 断言（harness 已不用 EXIT_PORT），属正常迁移。**非缺口**。
+
+**结论**：3 处偏差均经用户裁定/DRY/正常迁移，非缺口 ✓
+
+##### 7. 未越界
+
+```
+$ git diff --name-only 7616559..HEAD | wc -l
+7
+```
+
+文件清单：`milestones.md` + 6 个 `m` 文件。`spec/` 交集为空。
+
+**注**：任务书声称「8 文件」，实为 7 文件（INTEG-021m 被双算——既是 6m 之一又被单独计入）。非阻塞，属计数笔误。
+
+**结论**：未越界，`spec/` 交集为空 ✓
+
+##### 判决：**成立**
+
+M5 达成判定成立。全部 7 项核验通过：
+1. 20/20 `t` + `INTEG-019k` 全 `已验证` ✓
+2. 6/6 `m` 全 `里程碑` ✓
+3. 门槛 `make test-semihost` EXIT=0（**独立重跑**确认）✓
+4. 不回归全绿（**独立重跑** `make check` + `check-no-residue` 确认）✓
+5. 7 个 ISS 均处置，无未处置跨模块影响 ✓
+6. 3 处口径偏差均为正常变更，非缺口 ✓
+7. 未越界，git diff = 7 文件，`spec/` 交集空 ✓
+
+**独立实跑部分**：`make test-semihost JOBS=8`、`make check JOBS=8`、`make check-no-residue`、`python3 tools/integ/check_interface_alignment.py`——全部由 reviewer 独立执行，非采信 engineer/主会话转述。
