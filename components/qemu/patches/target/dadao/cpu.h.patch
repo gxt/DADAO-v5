@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000000..1d6f4c595a58b91d2b45169b9969edc84d25c429
+index 0000000..f355b41
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,124 @@
+@@ -0,0 +1,206 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -71,6 +71,80 @@ index 0000000000..1d6f4c595a58b91d2b45169b9969edc84d25c429
 +#define DADAO_RESET_PC      DADAO_ROM_BASE
 +#define DADAO_RESET_RF0     0x7FF800007FC00000ULL
 +
++/* ===================================================================
++ * SEE/HEE run mode + cfx register file (QEMU-044t)
++ * Spec sources: spec/DADAO-12 §1/§3/§4 ("共有/专有寄存器"), §5 (异常进入/退出
++ * 流程), spec/DADAO-13 §1 (cg3/hypv), spec/SimRISC-11 §特权指令.  See also
++ * .tao/knowledge/contract-see.md §1/§3/§4 and spec/Machine-01-测试机运行环境.md.
++ * =================================================================== */
++
++/* Run modes: 0b00 user / 0b01 jail / 0b10 supv / 0b11 hypv (DADAO-12 §1). */
++enum {
++    DADAO_MODE_USER = 0,
++    DADAO_MODE_JAIL = 1,
++    DADAO_MODE_SUPV = 2,
++    DADAO_MODE_HYPV = 3,
++};
++
++/* Test-machine implemented cfx set: umon/jmon/smon/hmon/power (ADR-0020 D9,
++ * Machine-01 §3).  Every other cfxha either is reserved (7-14, 19-61 => ILLI)
++ * or allocated-but-unimplemented here (=>> CFXREG). */
++#define DADAO_NUM_CFX 5
++extern const int dadao_cfxha_map[DADAO_NUM_CFX]; /* defined in helper.c */
++
++#define DADAO_CFX_IS_RESERVED(h)  (((h) >= 7 && (h) <= 14) || \
++                                   ((h) >= 19 && (h) <= 61))
++
++/* Exception cause ids (one-hot, DADAO-12 §4 monitor exception table). */
++#define DADAO_CAUSE_CFXTRAP   (1ULL << 0)
++#define DADAO_CAUSE_CFXMEM    (1ULL << 1)
++#define DADAO_CAUSE_CFXREG    (1ULL << 2)
++#define DADAO_CAUSE_ILLI      (1ULL << 8)
++#define DADAO_CAUSE_UNDI      (1ULL << 9)
++#define DADAO_CAUSE_RASOF     (1ULL << 10)
++#define DADAO_CAUSE_RASUF     (1ULL << 11)
++#define DADAO_CAUSE_MALIGN    (1ULL << 12)
++#define DADAO_CAUSE_IALIGN    (1ULL << 13)
++
++/* cg0-cg3 shared ("共有") per-mode registers, rc2..rc12.  rc0 (global version)
++ * and rc1 (global cfx mask) are global registers shared by every cfx and are
++ * held in cfx_global_version[]/global_cfx_mask[] (DADAO-12 §3 note). */
++typedef struct DADAOCfxModeRegs {
++    uint64_t cfx2rd_mask;      /* rc2  */
++    uint64_t cfx2rc_mask;      /* rc3  */
++    uint64_t cfxld_mask;       /* rc4  */
++    uint64_t cfxst_mask;       /* rc5  */
++    uint64_t trap_mask;        /* rc6  */
++    uint64_t escape_mask;      /* rc7  */
++    uint64_t switch_run_mode;  /* rc8  */
++    uint64_t switch_cfx_mask;  /* rc9  */
++    uint64_t excp_vector;      /* rc10 */
++    uint64_t excp_cause_mask;  /* rc11 */
++    uint64_t cg_reg_deleg;     /* rc12 (cg3/hypv only, DADAO-13 §1) */
++} DADAOCfxModeRegs;
++
++/* Per-cfx cg4..cg7 (config / exception frame / scratch / sram control). */
++typedef struct DADAOCfxRegs {
++    DADAOCfxModeRegs mode[4];   /* cg0..cg3 */
++    uint64_t cfx_id;            /* cg4 rc0 (RO) */
++    uint64_t version;           /* cg4 rc1 (RO) */
++    uint64_t trap_num;          /* cg4 rc2 */
++    uint64_t excp_sync_num;     /* cg4 rc3 */
++    uint64_t excp_async_num;    /* cg4 rc4 */
++    uint64_t escape_num;        /* cg4 rc5 */
++    uint64_t scratch_regs_num;  /* cg4 rc6 (RO) */
++    uint64_t prev_run_mode;     /* cg5 rc0 */
++    uint64_t prev_cfx_mask;     /* cg5 rc1 */
++    uint64_t cause_id;          /* cg5 rc2 (RO) */
++    uint64_t cause_ip;          /* cg5 rc3 */
++    uint64_t cause_info;        /* cg5 rc4 (RO) */
++    uint64_t pending;           /* cg5 rc5 */
++    uint64_t cause_nonmaskable; /* cg5 rc63 (RO) */
++    uint64_t scratch[4];        /* cg6 rc0..N-1 */
++    uint64_t sram_block_sel;    /* cg7 rc0 */
++    uint64_t sram_addr;         /* cg7 rc1 */
++} DADAOCfxRegs;
++
 +/*
 + * DADAO CPU state.
 + * Register groups: rd[64], rb[64], rf[64], ra[64], pc.
@@ -84,6 +158,14 @@ index 0000000000..1d6f4c595a58b91d2b45169b9969edc84d25c429
 +    uint64_t ras_base;  /* Ring-buffer base index (hidden, non-architectural) */
 +    uint64_t ras_tmp;   /* Temp storage for ras_pop return value (hidden) */
 +    uint64_t pc;        /* Program counter (alias for rb0 read) */
++
++    /* ── SEE/HEE state (QEMU-044t) ── */
++    uint8_t  inner_run_mode;             /* 0..3 (DADAO-12 §1) */
++    uint8_t  inner_cfx_code;             /* current cfxha 0..63 */
++    uint64_t inner_cfx_mask;             /* per-hart cfx mask (DADAO-12 §1 注) */
++    uint64_t cfx_global_version[4];      /* cg0-3 rc0 (global, per mode) */
++    uint64_t global_cfx_mask[4];         /* cg0-3 rc1 (global, per mode) */
++    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,63} */
 +} CPUDADAOState;
 +
 +/**

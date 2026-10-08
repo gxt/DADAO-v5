@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.h b/target/dadao/helper.h
 new file mode 100644
-index 0000000..aad01d1
+index 0000000..718436c
 --- /dev/null
 +++ b/target/dadao/helper.h
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,41 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -36,3 +36,12 @@ index 0000000..aad01d1
 + * select the operation and format; see trans_fp.c.inc. */
 +DEF_HELPER_4(fp_arith, i64, env, i64, i64, i32)
 +DEF_HELPER_3(fp_root, i64, env, i64, i32)
++
++/* QEMU-044t: SEE/HEE run mode + cfx register file + exception flow.
++ * trap/escape/cfx2rd/cfx2rc decode routes into these helpers, which run the
++ * DADAO-12 §5 exception-entry / exception-exit flow and the cfx register
++ * access rules.  `pc` is the address of the instruction (translate-time). */
++DEF_HELPER_4(cfx_trap, void, env, i32, i32, i64)
++DEF_HELPER_4(cfx_escape, void, env, i32, i32, i64)
++DEF_HELPER_6(cfx2rd, void, env, i32, i32, i32, i32, i64)
++DEF_HELPER_6(cfx2rc, void, env, i32, i32, i32, i32, i64)

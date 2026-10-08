@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000000..97825318d90ccc1b317e87e805b1ef695bad1100
+index 0000000..89eaa5c
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,397 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -124,6 +124,85 @@ index 0000000000..97825318d90ccc1b317e87e805b1ef695bad1100
 +    env->rf[0] = DADAO_RESET_RF0;
 +
 +    /* ra0-ra63 all zero (RegRAS empty at reset) */
++
++    /* ── SEE/HEE reset state (QEMU-044t) ──
++     * Reset boots in hypv at cfx_power (DADAO-12 §2.1: reset vector is
++     * cfx_power_hypv_excp_vector); inner_cfx_mask = all-ones (ADR-0004 D2,
++     * reference DADAO-0628 scaffold).  Register reset values follow
++     * DADAO-12 §3 (cg0-cg3) and DADAO-13 §1 (cg3/hypv). */
++    env->inner_run_mode = DADAO_MODE_HYPV;
++    env->inner_cfx_code = 63;
++    env->inner_cfx_mask = ~0ULL;
++
++    env->cfx_global_version[0] = 0x00090002ULL;  /* AEE 0.9.2 */
++    env->cfx_global_version[1] = 0x00090002ULL;  /* jail == user (DADAO-12 §3) */
++    env->cfx_global_version[2] = 0x00070001ULL;  /* SEE 0.7.1 */
++    env->cfx_global_version[3] = 0x00010002ULL;  /* HEE 0.1.2 (DADAO-13 §1) */
++    env->global_cfx_mask[0] = ~0ULL;
++    env->global_cfx_mask[1] = ~0ULL;
++    env->global_cfx_mask[2] = ~0ULL;
++    env->global_cfx_mask[3] = 0;                 /* hypv all-0 (DADAO-13 §1) */
++
++    for (int i = 0; i < DADAO_NUM_CFX; i++) {
++        DADAOCfxRegs *r = &env->cfx[i];
++        uint64_t cfxha = (uint64_t)dadao_cfxha_map[i];
++
++        memset(r, 0, sizeof(*r));
++        for (int m = 0; m < 4; m++) {
++            DADAOCfxModeRegs *mr = &r->mode[m];
++
++            if (m == DADAO_MODE_HYPV) {
++                /* DADAO-13 §1 (cg3): masks all-0, switch_run_mode=3,
++                 * switch_cfx_mask all-1, excp_vector = cfxha<<42 | 0x3ff_ffff_0000. */
++                mr->cfx2rd_mask = 0;
++                mr->cfx2rc_mask = 0;
++                mr->cfxld_mask = 0;
++                mr->cfxst_mask = 0;
++                mr->trap_mask = 0;
++                mr->escape_mask = 0;
++                mr->switch_run_mode = DADAO_MODE_HYPV;
++                mr->switch_cfx_mask = ~0ULL;
++                mr->excp_vector = (cfxha << 42) + 0x3FFFFFF0000ULL;
++                mr->excp_cause_mask = ~0ULL;
++                mr->cg_reg_deleg = ~0ULL;
++            } else {
++                /* DADAO-12 §3 (cg0-cg2): masks all-1, switch_run_mode=2 (supv),
++                 * excp_vector 0, excp_cause_mask all-1. */
++                mr->cfx2rd_mask = ~0ULL;
++                mr->cfx2rc_mask = ~0ULL;
++                mr->cfxld_mask = ~0ULL;
++                mr->cfxst_mask = ~0ULL;
++                mr->trap_mask = ~0ULL;
++                mr->escape_mask = ~0ULL;
++                mr->switch_run_mode = DADAO_MODE_SUPV;
++                mr->switch_cfx_mask = ~0ULL;
++                mr->excp_vector = 0;
++                mr->excp_cause_mask = ~0ULL;
++                mr->cg_reg_deleg = 0;
++            }
++        }
++        r->cfx_id = cfxha;                    /* cg4 rc0 (HW) */
++        r->version = 0x00010000ULL;           /* cg4 rc1 (HW; test-machine value) */
++        r->trap_num = 0;                      /* cg4 rc2 */
++        r->excp_sync_num = 0;                 /* cg4 rc3 */
++        r->excp_async_num = 0;                /* cg4 rc4 */
++        r->escape_num = 0;                    /* cg4 rc5 */
++        r->scratch_regs_num = 4;              /* cg4 rc6 (HW; >=2,<=64) */
++        r->prev_run_mode = 0;                 /* cg5 rc0 */
++        r->prev_cfx_mask = 0;                 /* cg5 rc1 */
++        r->cause_id = 0;                      /* cg5 rc2 */
++        r->cause_ip = 0;                      /* cg5 rc3 */
++        r->cause_info = 0;                    /* cg5 rc4 */
++        r->pending = 0;                       /* cg5 rc5 */
++        /* cg5 rc63: non-maskable set from the monitor exception table
++         * (DADAO-12 §4: every listed monitor cause is "no"). */
++        r->cause_nonmaskable = DADAO_CAUSE_CFXTRAP | DADAO_CAUSE_CFXMEM |
++                               DADAO_CAUSE_CFXREG | DADAO_CAUSE_ILLI |
++                               DADAO_CAUSE_UNDI | DADAO_CAUSE_RASOF |
++                               DADAO_CAUSE_RASUF | DADAO_CAUSE_MALIGN |
++                               DADAO_CAUSE_IALIGN;
++        /* cg6 scratch[]/cg7 left 0 (scratch undefined at reset) */
++    }
 +}
 +
 +static void dadao_cpu_realizefn(DeviceState *dev, Error **errp)
@@ -192,6 +271,52 @@ index 0000000000..97825318d90ccc1b317e87e805b1ef695bad1100
 +        qemu_fprintf(f, "RA[%02d]: %016" PRIx64 "  ", i, env->ra[phys]);
 +        if ((i % 4) == 3) {
 +            qemu_fprintf(f, "\n");
++        }
++    }
++    qemu_fprintf(f, "\n");
++
++    /* ── SEE/HEE state (QEMU-044t) ── */
++    qemu_fprintf(f, "MODE: %u\n", env->inner_run_mode);
++    qemu_fprintf(f, "CFXCODE: %u\n", env->inner_cfx_code);
++    qemu_fprintf(f, "CFXMASK: %016" PRIx64 "\n", env->inner_cfx_mask);
++    for (i = 0; i < 4; i++) {
++        qemu_fprintf(f, "GVER%d: %016" PRIx64 " GCM%d: %016" PRIx64 "\n",
++                     i, env->cfx_global_version[i], i, env->global_cfx_mask[i]);
++    }
++    for (i = 0; i < DADAO_NUM_CFX; i++) {
++        DADAOCfxRegs *r = &env->cfx[i];
++        int j;
++
++        qemu_fprintf(f, "CFX%02d ID:%016" PRIx64 " VER:%016" PRIx64
++                     " TRAPN:%016" PRIx64 " SYNCN:%016" PRIx64
++                     " ASYNCN:%016" PRIx64 " ESCN:%016" PRIx64
++                     " SCRN:%016" PRIx64 "\n",
++                     dadao_cfxha_map[i], r->cfx_id, r->version, r->trap_num,
++                     r->excp_sync_num, r->excp_async_num, r->escape_num,
++                     r->scratch_regs_num);
++        qemu_fprintf(f, "CFX%02d PREVM:%016" PRIx64 " PREVMASK:%016" PRIx64
++                     " CID:%016" PRIx64 " CIP:%016" PRIx64
++                     " CINFO:%016" PRIx64 " PEND:%016" PRIx64
++                     " NONMASK:%016" PRIx64 "\n",
++                     dadao_cfxha_map[i], r->prev_run_mode, r->prev_cfx_mask,
++                     r->cause_id, r->cause_ip, r->cause_info, r->pending,
++                     r->cause_nonmaskable);
++        for (j = 0; j < 4; j++) {
++            qemu_fprintf(f, "CFX%02d M%d SWMODE:%016" PRIx64
++                         " SWMASK:%016" PRIx64 " VEC:%016" PRIx64
++                         " TRAPMASK:%016" PRIx64 " CAUSEMASK:%016" PRIx64
++                         " CX2RMASK:%016" PRIx64 " CX2WMASK:%016" PRIx64
++                         " ESCMASK:%016" PRIx64 " GVER:%016" PRIx64 "\n",
++                         dadao_cfxha_map[i], j,
++                         r->mode[j].switch_run_mode, r->mode[j].switch_cfx_mask,
++                         r->mode[j].excp_vector, r->mode[j].trap_mask,
++                         r->mode[j].excp_cause_mask, r->mode[j].cfx2rd_mask,
++                         r->mode[j].cfx2rc_mask, r->mode[j].escape_mask,
++                         env->cfx_global_version[j]);
++        }
++        for (j = 0; j < 4; j++) {
++            qemu_fprintf(f, "CFX%02d SCR%d:%016" PRIx64 "\n",
++                         dadao_cfxha_map[i], j, r->scratch[j]);
 +        }
 +    }
 +    qemu_fprintf(f, "\n");

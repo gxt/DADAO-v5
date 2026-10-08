@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000..3c3274a
+index 0000000..133bc75
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
-@@ -0,0 +1,401 @@
+@@ -0,0 +1,427 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* ── Helper: RegRAS/MemRAS push/pop (ADR-0012 D7) ──────────────────── */
@@ -360,17 +360,31 @@ index 0000000..3c3274a
 +    return true;
 +}
 +
-+/* ── M1 excluded: cfx/trap/escape → ILLI ────────────────────────────── */
++/* ── cfx/trap/escape (QEMU-044t): route into the SEE exception flow and the
++ * cfx register file (see helper.c helper_cfx_trap/escape/cfx2rd/cfx2rc).
++ * trap/escape/cfx2rd/cfx2rc now execute; cfxld/cfxst stay ILLI (scope:excluded,
++ * SimRISC-12 deferred).  These helpers always set env->pc (vector on exception
++ * entry, pc+4 otherwise), so the TB ends after the call. ── */
 +
 +static bool trans_cfx2rd_crrr_cfx(DisasContext *ctx, arg_main *a)
 +{
-+    gen_exception_illegal(ctx);
++    gen_helper_cfx2rd(tcg_env, tcg_constant_i32(a->ha),
++                      tcg_constant_i32(a->hb), tcg_constant_i32(a->hc),
++                      tcg_constant_i32(a->hd),
++                      tcg_constant_i64(ctx->base.pc_next));
++    tcg_gen_exit_tb(NULL, 0);
++    ctx->base.is_jmp = DISAS_NORETURN;
 +    return true;
 +}
 +
 +static bool trans_cfx2rc_crrr_cfx(DisasContext *ctx, arg_main *a)
 +{
-+    gen_exception_illegal(ctx);
++    gen_helper_cfx2rc(tcg_env, tcg_constant_i32(a->ha),
++                      tcg_constant_i32(a->hb), tcg_constant_i32(a->hc),
++                      tcg_constant_i32(a->hd),
++                      tcg_constant_i64(ctx->base.pc_next));
++    tcg_gen_exit_tb(NULL, 0);
++    ctx->base.is_jmp = DISAS_NORETURN;
 +    return true;
 +}
 +
@@ -388,13 +402,25 @@ index 0000000..3c3274a
 +
 +static bool trans_escape_ciii_cfx(DisasContext *ctx, arg_main *a)
 +{
-+    gen_exception_illegal(ctx);
++    uint32_t imms18 = ((uint32_t)a->hb << 12) | ((uint32_t)a->hc << 6) | a->hd;
++
++    gen_helper_cfx_escape(tcg_env, tcg_constant_i32(a->ha),
++                          tcg_constant_i32(imms18),
++                          tcg_constant_i64(ctx->base.pc_next));
++    tcg_gen_exit_tb(NULL, 0);
++    ctx->base.is_jmp = DISAS_NORETURN;
 +    return true;
 +}
 +
 +static bool trans_trap_ciii_cfx(DisasContext *ctx, arg_main *a)
 +{
-+    gen_exception_illegal(ctx);
++    uint32_t immu18 = ((uint32_t)a->hb << 12) | ((uint32_t)a->hc << 6) | a->hd;
++
++    gen_helper_cfx_trap(tcg_env, tcg_constant_i32(a->ha),
++                        tcg_constant_i32(immu18),
++                        tcg_constant_i64(ctx->base.pc_next));
++    tcg_gen_exit_tb(NULL, 0);
++    ctx->base.is_jmp = DISAS_NORETURN;
 +    return true;
 +}
 +

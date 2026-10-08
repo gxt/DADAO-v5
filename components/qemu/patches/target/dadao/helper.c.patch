@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..db30d30
+index 0000000..19d0b88
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,571 @@
+@@ -0,0 +1,946 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -574,4 +574,379 @@ index 0000000..db30d30
 +    }
 +    fp_status_commit(env, &st);
 +    return res;
++}
++
++/* ===================================================================
++ * SEE/HEE run mode + cfx register file + exception flow (QEMU-044t)
++ *
++ * Sources (spec-first):
++ *   spec/DADAO-12-SEE-主管系统运行环境.md §1 (run modes / cfxha table),
++ *     §3 (cg0-cg7 shared registers), §4 (per-cfx registers / monitor exception
++ *     tables), §5 (exception entry steps 1-10 + exception exit).
++ *   spec/DADAO-13-HEE-超管系统运行环境.md §1 (cg3 / hypv reset values).
++ *   spec/SimRISC-11-其它.md §特权指令 (trap/escape/cfx2rd/cfx2rc; reserved =>
++ *     ILLI; non-existent register combination => CFXREG).
++ *   .tao/knowledge/contract-see.md §1/§3/§4; spec/Machine-01-测试机运行环境.md.
++ *
++ * Test-machine scope (ADR-0020 D9, Machine-01 §3): only cfx0/1/2/3/63 are
++ * implemented; access to any other allocated-but-unimplemented cfx => CFXREG.
++ * =================================================================== */
++
++const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 63 };
++
++/* cfxha -> compact index into env->cfx[], or -1 if not implemented here. */
++static int cfx_idx(int cfxha)
++{
++    int i;
++    for (i = 0; i < DADAO_NUM_CFX; i++) {
++        if (dadao_cfxha_map[i] == cfxha) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++/* cg0-cg3 (rc2..rc12) shared per-mode register -> pointer. */
++static uint64_t *cfx_mode_reg(int ci, DADAOCfxModeRegs *m, int rc)
++{
++    switch (rc) {
++    case 2:  return &m->cfx2rd_mask;
++    case 3:  return &m->cfx2rc_mask;
++    case 4:  return &m->cfxld_mask;
++    case 5:  return &m->cfxst_mask;
++    case 6:  return &m->trap_mask;
++    case 7:  return &m->escape_mask;
++    case 8:  return &m->switch_run_mode;
++    case 9:  return &m->switch_cfx_mask;
++    case 10: return &m->excp_vector;
++    case 11: return &m->excp_cause_mask;
++    case 12: return (ci >= 0) ? &m->cg_reg_deleg : NULL;   /* cg3 only */
++    default: return NULL;
++    }
++}
++
++/*
++ * Resolve (cfxha, cg, rc) to a register pointer.  Returns NULL for any
++ * non-existent register combination or a read/write permission mismatch
++ * (DADAO-12 §3: rc >= scratch_regs_num => CFXREG; SimRISC-11 §特权指令:
++ * "读写权限不匹配时触发 CFXREG").  cg3 is only accessible in hypv
++ * (DADAO-13 §1).  Callers must handle reserved/unimplemented cfxha first.
++ */
++static uint64_t *cfx_reg_ptr(CPUDADAOState *env, int ci, int cg, int rc,
++                             bool write)
++{
++    DADAOCfxRegs *r = &env->cfx[ci];
++
++    if (cg <= 2) {
++        if (rc == 0) {
++            return write ? NULL : &env->cfx_global_version[cg]; /* RO */
++        }
++        if (rc == 1) {
++            return &env->global_cfx_mask[cg]; /* global RW */
++        }
++        if (rc <= 11) {
++            return cfx_mode_reg(ci, &r->mode[cg], rc);
++        }
++        return NULL;
++    }
++    if (cg == 3) {
++        if (env->inner_run_mode != DADAO_MODE_HYPV) {
++            return NULL;   /* cg3 only in hypv (DADAO-13 §1) => CFXREG */
++        }
++        if (rc == 0) {
++            return write ? NULL : &env->cfx_global_version[3];
++        }
++        if (rc == 1) {
++            return &env->global_cfx_mask[3];
++        }
++        if (rc <= 12) {
++            return cfx_mode_reg(ci, &r->mode[3], rc);
++        }
++        return NULL;
++    }
++    switch (cg) {
++    case 4:
++        switch (rc) {
++        case 0: return write ? NULL : &r->cfx_id;
++        case 1: return write ? NULL : &r->version;
++        case 2: return write ? NULL : &r->trap_num;
++        case 3: return write ? NULL : &r->excp_sync_num;
++        case 4: return write ? NULL : &r->excp_async_num;
++        case 5: return write ? NULL : &r->escape_num;
++        case 6: return write ? NULL : &r->scratch_regs_num;
++        default: return NULL;
++        }
++    case 5:
++        switch (rc) {
++        case 0: return &r->prev_run_mode;
++        case 1: return &r->prev_cfx_mask;
++        case 2: return write ? NULL : &r->cause_id;
++        case 3: return &r->cause_ip;
++        case 4: return write ? NULL : &r->cause_info;
++        case 5: return &r->pending;
++        case 63: return write ? NULL : &r->cause_nonmaskable;
++        default: return NULL;
++        }
++    case 6:
++        if ((uint64_t)rc >= r->scratch_regs_num) {
++            return NULL;   /* rc >= N => CFXREG (DADAO-12 §3) */
++        }
++        return &r->scratch[rc];
++    case 7:
++        switch (rc) {
++        case 0: return &r->sram_block_sel;
++        case 1: return &r->sram_addr;
++        default: return NULL;
++        }
++    default:
++        return NULL;
++    }
++}
++
++/*
++ * DADAO-12 §5 exception-entry flow (steps 1-10).  `target` is the initially
++ * determined target cfxha (from step 1); `sync` selects the sync/async
++ * masking behaviour.  Returns the exception vector to jump to; *entered is
++ * set to false when the exception is masked and only records `pending`.
++ *
++ * Deviation note (documented): spec §5 step 3/4 "goto check_nonmaskable"
++ * after an ILLI redirect would re-apply the inner/global mask to the
++ * redirect target (the current-mode monitor) forever; hardware must terminate,
++ * so a single redirect is performed and the monitor (current-mode cfx0-3) is
++ * then entered without re-checking the inner/global mask.
++ */
++static uint64_t cfx_enter(CPUDADAOState *env, uint64_t cause, int target,
++                          uint64_t cause_ip, uint64_t cause_info,
++                          bool sync, bool *entered)
++{
++    uint8_t entry_mode = env->inner_run_mode;
++    bool redirected = false;
++    int ci;
++    uint64_t vec;
++
++    for (;;) {
++        ci = cfx_idx(target);
++        if (ci < 0) {
++            /* A frame can only exist for an implemented cfx. */
++            *entered = false;
++            return 0;
++        }
++        if (!redirected && !(env->cfx[ci].cause_nonmaskable & cause)) {
++            /* step 3: inner_cfx_mask (self cfxha is not checked) */
++            if (target != env->inner_cfx_code &&
++                (env->inner_cfx_mask & (1ULL << target))) {
++                if (sync) {
++                    cause = DADAO_CAUSE_ILLI;
++                    target = entry_mode;      /* redirect to current monitor */
++                    redirected = true;
++                    continue;
++                }
++                env->cfx[ci].pending |= cause;
++                *entered = false;
++                return 0;
++            }
++            /* step 4: global_cfx_mask (self cfxha is not checked) */
++            if (target != env->inner_cfx_code &&
++                (env->global_cfx_mask[entry_mode] & (1ULL << target))) {
++                if (sync) {
++                    cause = DADAO_CAUSE_ILLI;
++                    target = entry_mode;
++                    redirected = true;
++                    continue;
++                }
++                env->cfx[ci].pending |= cause;
++                *entered = false;
++                return 0;
++            }
++            /* step 5: exception-cause mask */
++            if (env->cfx[ci].mode[entry_mode].excp_cause_mask & cause) {
++                env->cfx[ci].pending |= cause;
++                *entered = false;
++                return 0;
++            }
++        }
++        break;
++    }
++
++    /* step 6: increment the trap / sync / async counter (keyed on the
++     * (possibly redirected) cause, per §5 step 6). */
++    if (cause == DADAO_CAUSE_CFXTRAP) {
++        env->cfx[ci].trap_num++;
++    } else if (!sync) {
++        env->cfx[ci].excp_async_num++;
++    } else {
++        env->cfx[ci].excp_sync_num++;
++    }
++    /* step 7: save the previous run mode / cfx mask */
++    env->cfx[ci].prev_run_mode = entry_mode;
++    env->cfx[ci].prev_cfx_mask = env->inner_cfx_mask;
++    /* step 8: switch run mode / cfx mask to the <entry_mode> switch values */
++    vec = env->cfx[ci].mode[entry_mode].excp_vector;
++    env->inner_run_mode = env->cfx[ci].mode[entry_mode].switch_run_mode & 0x3;
++    env->inner_cfx_mask = env->cfx[ci].mode[entry_mode].switch_cfx_mask;
++    env->inner_cfx_code = (uint8_t)target;
++    /* step 9: record cause ip / id / info */
++    env->cfx[ci].cause_ip = cause_ip;
++    env->cfx[ci].cause_id = cause;
++    env->cfx[ci].cause_info = cause_info;
++    /* step 10: jump to the exception vector */
++    *entered = true;
++    return vec;
++}
++
++/* Enter the flow and set the next PC (vector on entry, pc+4 when masked). */
++static void cfx_raise(CPUDADAOState *env, uint64_t cause, int target,
++                      uint64_t pc, uint64_t cause_info)
++{
++    bool entered;
++    uint64_t vec = cfx_enter(env, cause, target, pc, cause_info, true, &entered);
++    env->pc = entered ? vec : pc + 4;
++    env->rb[0] = env->pc;
++}
++
++/* trap cfxha, immu18 : general trap (immu18[17:16] != 2'b11) -> §5 flow.
++ * Semihosting (immu18[17:16] == 2'b11) is QEMU-046t; until implemented an
++ * unsupported tag fails explicitly as ILLI (no silent success). */
++void helper_cfx_trap(CPUDADAOState *env, uint32_t cfxha, uint32_t immu18,
++                     uint64_t pc)
++{
++    uint64_t info = ((uint64_t)0x7F << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
++                    (uint64_t)(immu18 & 0x3FFFF);
++    uint64_t cause;
++    int target;
++    int ci;
++
++    if (((immu18 >> 16) & 0x3) == 0x3) {
++        /* semihosting tag: not yet supported (QEMU-046t). */
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (DADAO_CFX_IS_RESERVED(cfxha)) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    ci = cfx_idx(cfxha);
++    if (ci < 0) {
++        /* allocated but not implemented by the test machine => CFXREG */
++        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (cfxha != env->inner_cfx_code &&
++        (env->cfx[ci].mode[env->inner_run_mode].trap_mask & (1ULL << cfxha))) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    target = cfxha;
++    cause = DADAO_CAUSE_CFXTRAP;
++
++    {
++        bool entered;
++        uint64_t vec = cfx_enter(env, cause, target, pc, info, true, &entered);
++        env->pc = entered ? vec : pc + 4;
++        env->rb[0] = env->pc;
++    }
++}
++
++/* escape cfxha, imms18 : §5 exception-exit flow (steps 0-4).  State is taken
++ * from the current cfx (inner_cfx_code); the target cfxha only participates in
++ * the escape-mask check (cross-cfx escape). */
++void helper_cfx_escape(CPUDADAOState *env, uint32_t cfxha, uint32_t imms18,
++                       uint64_t pc)
++{
++    uint8_t mode = env->inner_run_mode;
++    int ci = cfx_idx(env->inner_cfx_code);
++    int32_t imm = (int32_t)(imms18 & 0x3FFFF);
++
++    if (imm & (1 << 17)) {
++        imm |= ~0x1FFFF;    /* sign-extend from 18 bits */
++    }
++
++    /* step 0: escape cfx mask (non-self target only) */
++    if (ci < 0 || (cfxha != env->inner_cfx_code &&
++                   (env->cfx[ci].mode[mode].escape_mask & (1ULL << cfxha)))) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, mode, pc, 0);
++        return;
++    }
++
++    /* step 1: restore cfx mask; step 2: restore run mode */
++    env->inner_cfx_mask = env->cfx[ci].prev_cfx_mask;
++    env->inner_run_mode = env->cfx[ci].prev_run_mode & 0x3;
++    /* step 3: increment the escape counter */
++    env->cfx[ci].escape_num++;
++    /* step 4: return address = cause_ip + (imms18 << 2) */
++    {
++        uint64_t ret = env->cfx[ci].cause_ip + ((int64_t)imm << 2);
++        env->pc = ret;
++        env->rb[0] = ret;
++    }
++}
++
++/* cfx2rd cfxha, cghb, rchc, rdhd */
++void helper_cfx2rd(CPUDADAOState *env, uint32_t cfxha, uint32_t cg,
++                   uint32_t rc, uint32_t rd, uint64_t pc)
++{
++    uint64_t info = ((uint64_t)0x7A << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
++                    ((uint64_t)(cg & 0x3F) << 12) | ((uint64_t)(rc & 0x3F) << 6) |
++                    (rd & 0x3F);
++    uint64_t *p;
++    int ci;
++
++    if (DADAO_CFX_IS_RESERVED(cfxha)) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    ci = cfx_idx(cfxha);
++    if (ci >= 0 && cfxha != env->inner_cfx_code &&
++        (env->cfx[ci].mode[env->inner_run_mode].cfx2rd_mask & (1ULL << cfxha))) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (ci < 0) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
++    p = cfx_reg_ptr(env, ci, cg, rc, false);
++    if (!p) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++        return;
++    }
++    if (rd != 0) {
++        env->rd[rd] = *p;
++    }
++    env->pc = pc + 4;
++    env->rb[0] = pc + 4;
++}
++
++/* cfx2rc cfxha, cghb, rchc, rdhd */
++void helper_cfx2rc(CPUDADAOState *env, uint32_t cfxha, uint32_t cg,
++                   uint32_t rc, uint32_t rd, uint64_t pc)
++{
++    uint64_t info = ((uint64_t)0x7B << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
++                    ((uint64_t)(cg & 0x3F) << 12) | ((uint64_t)(rc & 0x3F) << 6) |
++                    (rd & 0x3F);
++    uint64_t *p;
++    int ci;
++
++    if (DADAO_CFX_IS_RESERVED(cfxha)) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    ci = cfx_idx(cfxha);
++    if (ci >= 0 && cfxha != env->inner_cfx_code &&
++        (env->cfx[ci].mode[env->inner_run_mode].cfx2rc_mask & (1ULL << cfxha))) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (ci < 0) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
++    p = cfx_reg_ptr(env, ci, cg, rc, true);
++    if (!p) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++        return;
++    }
++    *p = (rd == 0) ? 0 : env->rd[rd];
++    env->pc = pc + 4;
++    env->rb[0] = pc + 4;
 +}

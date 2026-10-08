@@ -358,3 +358,11 @@
   blocks: []
   resolved_by: null
   notes: "SPEC-116t 遗留（该任务授权范围严格限 `Toolchain-01 §1` + `§2.1`，故三处旧口径未动）。上游只读册 `spec/Toolchain-01-汇编语言.md` 仍有三处与 `contracts/opcodes.yaml` 的 `scope` 事实不符——① `§5`（L152）「`scope: excluded` 的格式（`crrr`/`crii`/`ciii`）」（`crrr`/`ciii` 已 re-scope 为 `m1`，仅 `crii` 仍 `excluded`）；② `§11`（L261）「9 个 M1 格式类与 152 条 M1 指令」（应为 11 类 / 155 条）；③ `§13`（L286）「cfx 属 `scope: excluded`」（`crrr`/`ciii` 已 re-scope 为 `m1`）。**用户 2026-10-08 裁定（原话，逐字）：「暂登记遗留」** ⇒ 本项**暂登记**，收口须**另行授权**（含该册 `sha256` 锁同步）；`resolved_by` 待定。凭据详见 `.tao/tasks/spec/SPEC-116t-大小写敏感修订.md` 审阅记录「收尾裁定落纸」。"
+
+- id: ISS-164
+  title: "QEMU-044t：cfx mask（inner/global/指令类型）与 excp_cause_mask 的屏蔽路径在当前测试机不可观测（monitor cause 全不可屏蔽）"
+  status: open
+  scope: [qemu, M5]
+  blocks: []
+  resolved_by: null
+  notes: "QEMU-044t 遗留（architect 交叉复核判定需跟踪）。`DADAO-12 §5` 步骤 2 依 `cfx_⟨cfxname⟩_excp_cause_nonmaskable` 判定——而 §4 异常原因表把 **monitor（umon/jmon/smon/hmon）的全部 listed cause 标为『否』（不可屏蔽）**，故步骤 3（`inner_cfx_mask`）/步骤 4（`cfx_⟨cfxname⟩_<mode>_global_cfx_mask`）/步骤 5（`excp_cause_mask`）对 monitor 同步异常**一律跳过**。当前测试机只实现 `cfx0/1/2/3/63`（monitor + power），其余已分配 cfx（ptw=4/tlb=5/cache=6/timer=18/uart=62…）访问 ⇒ `CFXREG`（路由回当前 mode monitor）；reserved/被指令类型 mask 禁止 ⇒ `ILLI`（亦路由回 monitor）。**结论：可观测的『mask ⇒ ILLI』路径仅为步骤 1 的『指令类型 cfx mask』**（探针 `mask_illi` 即以 cfx_umon hypv `trap_cfx_mask` bit0 证明）。步骤 3/4 的 `inner_cfx_mask`/`global_cfx_mask` 屏蔽 ⇒ ILLI 重定向、步骤 5 的 `excp_cause_mask` 屏蔽 ⇒ `pending` **均不可观测**（探针仅验证 `global_cfx_mask` 为真实 per-mode 全局共享 RW、`excp_cause_mask` 为真实 RW）。**跟踪理由**：当后续里程碑实现带**可屏蔽 cause** 的 cfx（ptw/tlb/cache/timer/uart 等）后，须补验步骤 3/4/5 的 ILLI 重定向与 `pending` 置位路径——否则该分支可能长期未被任何向量触达。另：`escape`/`trap`（负偏移回退、跨 cfx escape、`cfx2rd`/`cfx2rc` 全寄存器面）的完整语义归 `QEMU-045t`，非本项范围；PTBR 权限层（`NUPERM/NJPERM/NSPERM/NHPERM`）不在 M5（`ADR-0020 D9`、`spec/Machine-01 §3`），非本项范围。"
