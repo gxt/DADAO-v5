@@ -11,7 +11,7 @@
 - 产出是否存在：`components/qemu/patches/target/dadao/**` + `hw/dadao/**`（模式/cfx/权限/异常/trap/escape/cfx2*/semihosting/bootrom/**RAM@0 双映射**）+ 探针 `tools/qemu/min_rom_probe_04{4,5,6,7,9}t.py`（或 `.work/evidence/`）
 - `make build-qemu` EXIT=0
 - **RAM@0 双映射（`ADR-0004 R3`/`ADR-0020 D15`，C1 step1）**：RAM@0（`0x0000_0000_0000`）**与旧 RAM 段（`0xffff_0000_0000`）并存**；`check-interface` **新增 RAM@0 断言 + 旧断言保留**；越界访问/取指异常（`CFXMEM`/测试机约定 `unmapped 0x87`，含取指）语义按 `ADR-0020 D15`（**step2 迁移另立、M5 之外**）
-- 四运行模式/cfx 寄存器/mask 屏蔽/`switch_run_mode`/权限反例（`NU/J/SP/HPERM` 或 `CFXREG`）/reserved ⇒ ILLI（真实探针）
+- 四运行模式/cfx 寄存器/mask 屏蔽/`switch_run_mode`/权限反例（**cfx 级**：`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕；**`NUPERM/NJPERM/NSPERM/NHPERM` 出自 `DADAO-12 §2.2` PTBR 权限层、不在 M5**〔`ADR-0020 D9`〕）/reserved ⇒ ILLI（真实探针）
 - 一般 trap 进向量 + escape 返回（含负偏移）；`cfx2rd`/`cfx2rc` 读写
 - semihosting：判定短路（不进入向量、PC 步进）；钩子 bank（`rd16`/`rb16`/`rd31`）；**25 服务各 ≥1 例**；`SYS_EXIT` 码传播；`SYSTEM`/D2 文件档
 - 新 bootrom：`-bios`、复位 PC `0xffff_ffff_0000`、初始化生效、hypv→user、端到端 EXIT=0（**M5 正向 = bootrom(`-bios`) + bin**；**「`-bios`+ELF」组合 / ELF loader 扩表〔`dadao_load_regions[]`+RAM@0〕移 M6**——用户 2026-10-08 裁定，见 `INTEG-019k` §第 8 轮、`ISS-168`）
@@ -20,3 +20,11 @@
 ## 核验记录（主会话）
 
 （核验命令、输出与退出码；结论）
+
+## 审阅记录
+
+#### 口径全局对齐（architect，2026-10-08）
+
+- **改动**：核验「权限反例」行由「`NU/J/SP/HPERM` 或 `CFXREG`」对齐为 **cfx 级 `ILLI`/`CFXREG`**（保留 `NUPERM…` 出处说明）。
+- **依据**：已确认的 **`ADR-0020 D9`**——M5 权限范围只做 `cfx0/1/2/3/63`；**`NUPERM/NJPERM/NSPERM/NHPERM` 属 `DADAO-12 §2.2` PTBR 权限层、不在 M5**；**M5 可观测的权限反例 = cfx 级**：`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕。
+- **性质**：与既定决策的一致性修正，非新增范围。同批口径对齐见 `INTEG-019k`/`INTEG-020t`/`INTEG-021m`（提交 `33c36a2`）及 `QEMU-044t` 审阅记录留痕（本提交）。**`spec/` 零改动。**

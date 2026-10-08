@@ -379,3 +379,8 @@ md5 相等 ✓
 - **补充发现（非阻塞）**：reviewer 注入站点与 engineer 自检 #1 同处（仅语法不同）⇒ 建议后续组件任务让 reviewer 注入**不同语义分支**以扩大独立证伪面。
 - **收尾检查**：`make check`/`check-qemu-semantics` EXIT=0、`test-codegen` 15/15、`test-elf` 5/5、`check-patch-tree` 90 patches；`git status --porcelain -uall` 干净；证据留 `.work/evidence/QEMU-044t/`、`.work/log/qemu/`（含 `PROGRESS.md`）。
 - **最终判决**：**`Accepted`** ⇒ 任务书 `**状态**` 置 `已验证`。
+
+#### 口径说明（architect，2026-10-08）
+
+- **不改验收标准正文**（验收 6 等历史文本保留）。
+- **说明**：验收 6 的「`NU/J/SP/HPERM` 或 `CFXREG`」在 M5 的实现中**实际走 cfx 级分支**（`CFXREG` / reserved ⇒ `ILLI`）；`NUPERM/NJPERM/NSPERM/NHPERM` 属 `DADAO-12 §2.2` **PTBR 层、不在 M5**（`ADR-0020 D9`）。本条与完成区「遗留问题」及 `ISS-164` 记录一致；属**口径澄清**，非新增范围、非缺陷。
