@@ -8,7 +8,7 @@
 | M2 | **`INFRA-034m` ✅ 里程碑** | **`SPEC-095m` ✅ 里程碑** | **`TESTCASES-025m` ✅ 里程碑** | — | **`LLVM-032m` ✅ 里程碑** | **`QEMU-039m` ✅ 里程碑** | **`INTEG-011m` ✅ 里程碑** | — | — | **✅ 达成** |
 | M3 | **`INFRA-036m` ✅ 里程碑** | **`SPEC-099m` ✅ 里程碑** | **`TESTCASES-027m` ✅ 里程碑** | — | **`LLVM-042m` ✅ 里程碑** | — | **`INTEG-013m` ✅ 里程碑** | — | — | **✅ 达成** |
 | M4 | **`INFRA-044m` ✅ 里程碑** | **`SPEC-108m` ✅ 里程碑** | **`TESTCASES-031m` ✅ 里程碑** | — | **`LLVM-057m` ✅ 里程碑** | **`QEMU-043m` ✅ 里程碑** | **`INTEG-017m` ✅ 里程碑** | — | — | **✅ 达成** |
-| M5 | `INFRA-049m`（规划中） | `SPEC-118m`（规划中） | `TESTCASES-035m`（规划中） | — | `LLVM-061m`（规划中） | `QEMU-048m`（规划中） | `INTEG-021m`（规划中） | — | — | 待开始 |
+| M5 | **`INFRA-049m` ✅ 里程碑** | **`SPEC-118m` ✅ 里程碑** | **`TESTCASES-035m` ✅ 里程碑** | — | **`LLVM-061m` ✅ 里程碑** | **`QEMU-048m` ✅ 里程碑** | **`INTEG-021m` ✅ 里程碑** | — | — | **✅ 达成** |
 
 > **归档（2026-10-03）**：M1 的 76 个任务书已归档至 `.tao/archive/M1/`（按模块子目录）；M1 时期 changelog/MEMORY 内容见 `.tao/archive/M1/README.md`；**M1 回顾见 `.tao/archive/M1/m1-retrospective.md`**（由 `docs/` 移入）。
 >
@@ -33,6 +33,8 @@
 > **M4 达成（2026-10-07，主会话实测核验）**：门槛 `make test-elf` **5/5**；6 个模块 `m`（`SPEC-108m`/`INFRA-044m`/`LLVM-057m`/`QEMU-043m`/`TESTCASES-031m`/`INTEG-017m`）全部置 `里程碑`；`make check`/`check-lit`(60/60)/`test-codegen`(15/15)/`test-elf`/`check-no-residue`/`check-patch-tree`(89)/`check-qemu-semantics` 全 EXIT=0（`.work/log/integ/m4-closure/`）。前置 `SPEC-105t` 补置已验证；`SPEC-111t` 归档收口。M4 任务书归档见下（`Process-04 §3`，同 M1–M3 体例）。
 >
 > **归档（2026-10-07）**：M4 的 32 个任务书已归档至 `.tao/archive/M4/`（按模块子目录）；M4 时期 changelog（28 条）/MEMORY（1 行）内容见 `.tao/archive/M4/README.md`；**M4 回顾见 `.tao/archive/M4/m4-retrospective.md`**；`issues.yaml` 的 12 条 M4 阶段 closed 项见 `.tao/archive/M4/issues-closed.md`。
+>
+> **M5 达成（2026-10-08，architect 代主会话核验）**：门槛 **`make test-semihost` EXIT=0**（**五组成全绿**：正向 10/10 / cfx 级权限反例 4/4 / 服务表 25/25 / 不回归〔`test-elf` 5/5、`test-codegen` 15/15、`check`〔含 `check-lit` 62/62〕、`check-no-residue`〕/ INTEG 开闭）；6 个模块 `m`（`INFRA-049m`/`SPEC-118m`/`LLVM-061m`/`QEMU-048m`/`TESTCASES-035m`/`INTEG-021m`）**全置 `里程碑`**；19 个 M5 `t` 任务 + `INTEG-019k` 全 `已验证`。核验命令/证据见各 `m` 文件「核验记录」与 `.work/log/integ/INTEG-020t-*.log`。**跨模块项**（`ISS-163`〔用户裁定暂登记〕/`ISS-164`〔跟踪〕/`ISS-165`〔M6〕/`ISS-166`〔closed〕/`ISS-167`〔登记 + 建议另立 spec 任务〕/`ISS-168`〔M6〕/`ISS-169`〔M6〕）均已处置、不阻断 M5 收敛；`ISS-170` 不存在（最大 id = `ISS-169`）。**归档前置**（`Process-04 §3` 遗留台账梳理，步骤 3–6）与 **M5 任务书归档**（预期 **26** 个 = `infra 3/spec 9/llvm 2/qemu 6/testcases 3/integ 3` + 自归档）待立归档任务（建议 `INTEG-022t`，范围见 `INTEG-021m` §核验记录「归档准备（评估）」）。**M6 待办**见下「M6 待办」条。
 
 ## M2 达成核验记录
 
