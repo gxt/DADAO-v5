@@ -35,6 +35,8 @@
 > **归档（2026-10-07）**：M4 的 32 个任务书已归档至 `.tao/archive/M4/`（按模块子目录）；M4 时期 changelog（28 条）/MEMORY（1 行）内容见 `.tao/archive/M4/README.md`；**M4 回顾见 `.tao/archive/M4/m4-retrospective.md`**；`issues.yaml` 的 12 条 M4 阶段 closed 项见 `.tao/archive/M4/issues-closed.md`。
 >
 > **M5 达成（2026-10-08，architect 代主会话核验）**：门槛 **`make test-semihost` EXIT=0**（**五组成全绿**：正向 10/10 / cfx 级权限反例 4/4 / 服务表 25/25 / 不回归〔`test-elf` 5/5、`test-codegen` 15/15、`check`〔含 `check-lit` 62/62〕、`check-no-residue`〕/ INTEG 开闭）；6 个模块 `m`（`INFRA-049m`/`SPEC-118m`/`LLVM-061m`/`QEMU-048m`/`TESTCASES-035m`/`INTEG-021m`）**全置 `里程碑`**；19 个 M5 `t` 任务 + `INTEG-019k` 全 `已验证`。核验命令/证据见各 `m` 文件「核验记录」与 `.work/log/integ/INTEG-020t-*.log`。**跨模块项**（`ISS-163`〔用户裁定暂登记〕/`ISS-164`〔跟踪〕/`ISS-165`〔M6〕/`ISS-166`〔closed〕/`ISS-167`〔登记 + 建议另立 spec 任务〕/`ISS-168`〔M6〕/`ISS-169`〔M6〕）均已处置、不阻断 M5 收敛；`ISS-170` 不存在（最大 id = `ISS-169`）。**归档前置**（`Process-04 §3` 遗留台账梳理，步骤 3–6）与 **M5 任务书归档**（预期 **26** 个 = `infra 3/spec 9/llvm 2/qemu 6/testcases 3/integ 3` + 自归档）待立归档任务（建议 `INTEG-022t`，范围见 `INTEG-021m` §核验记录「归档准备（评估）」）。**M6 待办**见下「M6 待办」条。
+>
+> **归档（2026-10-08）**：M5 的 27 个任务书已归档至 `.tao/archive/M5/`（按模块子目录）；M5 时期 changelog（20 条）/MEMORY（1 行）内容见 `.tao/archive/M5/README.md`；**M5 回顾见 `.tao/archive/M5/m5-retrospective.md`**；`issues.yaml` 的 5 条 M5 阶段 closed 项（`ISS-147`/`ISS-157`/`ISS-166` + 边界交付项 `ISS-170`/`ISS-171`）见 `.tao/archive/M5/issues-closed.md`。归档前置 `Process-04 §3` 台账梳理（步骤 1–6）与本归档（`§4`）由归档任务 **`INTEG-022t`** 一并执行；台账指针已同步（`changelog.md`/`MEMORY.md`/`issues.yaml`/本文件）。
 
 ## M2 达成核验记录
 
