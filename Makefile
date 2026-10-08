@@ -37,7 +37,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-qemu build-qemu-reconfig build-gem5 install-host docker-image docker-shell check \
+        build-qemu build-qemu-reconfig build-gem5 build-bootrom install-host docker-image docker-shell check \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
@@ -70,6 +70,7 @@ help:
 	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
+	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make install-host    Install the needed host tool set into \$$(HOST_TOOLCHAIN_BIN) (.dadao/cross-toolchain/bin); adr-0016 D3/D4/D5/D11"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
@@ -285,6 +286,27 @@ install-host: build-mc build-lld build-qemu
 	@mkdir -p $(TARGET_SYSROOT_DIR)/include $(TARGET_SYSROOT_DIR)/lib
 	@printf '%s\n' '# DADAO target sysroot (dadao-unknown-elf)' '' 'Layout per ADR-0016 D5 (.tao/adr/adr-0016-dadao-install-layout.md):' '' '- include/ — target C headers (populated when a target libc/toolchain lands)' '- lib/     — target libraries' '' 'Placeholder only: there is no header/library consumer yet, so no content is' 'fabricated here. Consumers must resolve this path from' 'manifests/install-dirs.lock.toml via tools/infra/paths.py' '(target_sysroot_dir()), never hardcode it.' > $(TARGET_SYSROOT_DIR)/README.md
 	@echo "install-host: PASS"
+
+# build-bootrom (QEMU-047t / ADR-0020 D12): assemble and link the SEE bootrom
+# firmware with the project toolchain (llvm-mc + ld.lld + tests/scripts/
+# bootrom.lds; ADR-0003 / ADR-0019 / contract-elf §6.1.2) and emit the flat
+# `-bios` image, plus the sample user application loaded by `-kernel`
+# (ADR-0004 D2.3 path B: raw-bin dual image).  Tools come from the install root
+# (ADR-0016 D9); run `make install-host` first.  Outputs live under the SDK
+# test-artifacts root (ADR-0016 D6, resolved via paths.py):
+#   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin}
+BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
+build-bootrom:
+	@test -x $(LLVM_MC_BIN) || { echo "build-bootrom: ERROR: $(LLVM_MC_BIN) not found — run 'make install-host' first"; exit 1; }
+	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
+	@test -x $(LLVM_OBJCOPY_BIN) || { echo "build-bootrom: ERROR: $(LLVM_OBJCOPY_BIN) not found — run 'make install-host' first"; exit 1; }
+	@mkdir -p $(BOOTROM_DIR)
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/scripts/bootrom.S -o $(BOOTROM_DIR)/bootrom.o
+	$(LLD_BIN) -T tests/scripts/bootrom.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
+	$(LLVM_OBJCOPY_BIN) -O binary $(BOOTROM_DIR)/bootrom.elf $(BOOTROM_DIR)/bootrom.bin
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/scripts/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
+	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
+	@echo "build-bootrom: PASS (outputs under $(BOOTROM_DIR))"
 
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev

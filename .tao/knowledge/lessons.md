@@ -340,6 +340,21 @@
 - **处置/闭合**：实现补 ③ 项接入点、暴露并当场修 ①（SIGSEGV）与 ②（CLI 拒绝）；两项越界如实披露，reviewer 判「最小必要接线」`Accepted`；architect 交叉复核确认两处补丁**均为必要**（`translate_for_debug` 接入 `SysemuCPUOps`、`qemu-options.hx` 两处 `DEF` arch mask 均增 `QEMU_ARCH_DADAO`）。
 - **残留**：无（「须在任务书输出中列全接入点」已提升为 §8.13 规范）。
 
+### 7.20 还原方式再扩面：`git show <commit>:<path> > <path>` 亦属「从提交读回」，工作树有未提交改动时会丢改动（`QEMU-047t`，2026-10-08）
+
+- **事由**：`QEMU-047t` reviewer 做**独立注入**（移除 `tests/scripts/bootrom.S` 的 SP 初始化 `set.zw rb1, wp1, 0x00f0` ⇒ `stack_in_ram0`/`handler_reached`/`app_exit_0` FAIL）后，**还原**用了 `git show HEAD:tests/scripts/bootrom.S > tests/scripts/bootrom.S`（理由：证据脚本注入 A 流程已删除其 `.preinject` 备份文件），而非另行 `cp`。
+- **本次结果**：目标文件**已提交（在 HEAD 中）且工作树对该文件无未提交改动** ⇒ `git show HEAD:<path>` 读回的内容 == 原始内容（`md5` 相符、还原+重建后探针回绿），**未造成损失**。
+- **根因 / 判据（可复用）**：`git show <commit>:<path> > <path>` **等同 `git checkout <commit> -- <path>` / `git restore`**——它把文件**覆盖为「提交中的版本」**，在**工作树对该文件有未提交改动**时会**静默丢弃**这些改动（且无 `cp` 备份可对账）。因此它与 `git checkout`/`git restore`/`git stash` **同类，属须避免的还原方式**（§2.5 / §8.4 rule 4 的禁用清单据此**扩充**）。
+- **正解**：还原一律以**注入前 `cp` 备份 + `md5` 对账**为准，或**优先在临时树**（`/tmp/opencode/<任务ID>/`）注入（不触碰真实仓库）；二者均**不以 `git status`/`git diff` 干净作为「已还原」证据**（脏文件被清后也显示干净）。
+- **提示**：本条**不否定该 reviewer 独立注入的有效性**（注入→FAIL→还原+重建→回绿流程成立、有鉴别力），仅**记录还原方式的偏差**并要求后续严格用 `cp` 备份。
+
+### 7.21 门槛前置：门槛正向依赖的「路径 / 组合」若 ADR/规范未定义，须在门槛任务立案前裁定，不得默认可用（`QEMU-047t`/`INTEG-020t`，2026-10-08）
+
+- **事由**：M5 门控 `make test-semihost` 正向 = 「**bootrom + 单/多 TU ELF 经 `-semihosting`**、console 捕获、`SYS_EXIT` 码」。`QEMU-047t`（新 bootrom）按 `ADR-0004 D2.3` 选 **raw-bin path B**（bootrom `-bios` + 应用 flat bin `-kernel`），**未实现**「`-bios` bootrom + **ELF** 应用」组合——实测 `hw/dadao/dadao-machine.c`：kernel 为 ELF 时走**路径 A 并整体忽略 `machine->firmware`（`-bios`）**，且 `dadao_load_regions[]` **仅含旧 RAM + ROM、未含 RAM@0**；而 `ADR-0004 D2.3 路径 A` 正文**明示「不使用外部 `-bios` ROM blob」** ⇒ **「`-bios`+ELF」组合语义未被任何 ADR 定义**（`R1` 只言「并存、非替代」，不含「组合」）。
+- **根因**：门槛正向把两种**未定义能否共存**的路径（`-bios` bootrom 与 ELF `-kernel`）**并在同一例**，而 ADR 里二者是**两条互斥路径**、无组合定义 ⇒ 门槛任务（`INTEG-020t`）若照字面执行，**无任一现成路径可同时满足**（(a) path B 缺 ELF、(b) path A 缺 bootrom、(c) 组合未实现）。
+- **判据（可复用）**：门槛任务立案 / `/dispatch` 前，须对门槛正向依赖的**每个路径 / 组合**问：「**该组合是否已被 ADR / 规范定义且已实现**？」**未定义** ⇒ 视为**前置缺口**，须**先经用户裁定**（① 承认缺口并另立任务实现该组合〔+ ADR 逐条确认〕 / ② 调整门槛口径以匹配现状〔与既有 ADR 自洽〕 / ③ 其它），**不得**默认「组合可用」而把风险留给门槛任务（否则门槛任务必红或被迫降级覆盖）。与 §7.6（下发前预检第 2 项须核本任务验证手段所需的全部前置）同类——**扩展至「门槛任务的验证手段的前置组合是否被 ADR 定义」**。
+- **处置（本轮）**：`QEMU-047t` 按 `ADR-0004 R1` 与最小修改原则**未**引入该组合；缺口 + 选项 A/B/C（**倾向 A**）+ 建议**只追加**写入 `INTEG-020t` 任务书「审阅记录」+ `milestones.md` M5 段，**待用户裁定**（**未改任务范围、未动 `spec/`、未建新任务、未立 ADR**）。
+
 ## 8. 操作规范（该这样做 / 不该这样做）
 
 > 由 `feedback_001…007`（2026-10-08，用户裁定）**并回**本文件：**经过/根因**归 §7.10–§7.13 与 §7.5/§7.7/§7.9，**正面规范**归本节。每条的「教训指引」只给指针，不复述经过。
@@ -468,3 +483,21 @@
   3. **共享层零改动**仍须**实测证**：`git -C .work/source/<comp> diff --stat HEAD -- <share-path>` 为空；本任务只改**目标侧**接入点，不重写共享层。
 - **依据/来源**：`QEMU-046t`（2026-10-08；`common-semi-target.c` 钩子 + `translate_for_debug`〔CPU.c〕+ `qemu-options.hx` arch mask + `Kconfig`/`meson.build` 接线；reviewer `Accepted` 判两项披露为「最小必要接线」+ architect 交叉复核）。
 - **教训指引**：见 §7.19；同类 §8.1（点名类产物须逐项核到底）。
+
+### 8.14 还原方式禁用清单扩充：`git show <commit>:<path> > <path>` 与 `git checkout`/`restore`/`stash` 同类
+
+- **规则**：
+  1. **禁用**用 `git checkout`/`git restore`/`git stash` **及 `git show <commit>:<path> > <path>`** 还原注入或临时改动——它们都把文件**覆盖为「提交中的版本」**，在**工作树对该文件有未提交改动**时**静默丢弃**这些改动。
+  2. 还原一律 **`cp` 备份 + `md5` 对账**（注入前 `cp f f.preinject` 并记 md5；还原 `cp` 回；以 md5 相等判成功），或**优先在临时树**（`/tmp/opencode/<任务ID>/`）注入。
+  3. **`git status`/`git diff` 干净不作「已还原」证据**；「还原须含重建」（源码还原 ≠ 二进制还原）。
+- **依据/来源**：`QEMU-047t`（2026-10-08，reviewer 独立注入还原用 `git show HEAD:<path>`；本次未造成损失但属偏差）。与全局 `AGENTS.md`「注入/改动的还原纪律」同源。
+- **教训指引**：见 §7.20；相关 §2.5 / §8.4 rule 4。
+
+### 8.15 门槛任务立案前须核「门槛正向依赖的路径 / 组合是否已被 ADR / 规范定义」
+
+- **规则**：
+  1. 门槛（里程碑门控）正向用例若把**两条及以上的路径 / 组合**（如 `-bios` + ELF）**并在同一例**，须在**门槛任务立案 / 下发前**逐项核：「该路径 / 组合是否已被 ADR / 规范**定义**？是否已**实现**？」
+  2. **未定义** ⇒ 视为**前置缺口**，**先经用户裁定**（另立任务实现 + ADR 逐条确认 / 调整门槛口径 / 其它），**不得**默认「组合可用」而把风险留给门槛任务。
+  3. 缺口与选项只**追加**写入相关任务书审阅记录 + `milestones.md`，**不改任务范围、不动 `spec/`、不擅自建任务 / 立 ADR**（`待用户裁定`）。
+- **依据/来源**：`QEMU-047t` 遗留 + `INTEG-020t` architect 前置风险评估（2026-10-08，**待用户裁定**；`spec/` 零改动）。
+- **教训指引**：见 §7.21；同类 §7.6 / §8.8（前置 / 「唯一·仅·全部」类断言须下发前全量实测）。
