@@ -1,0 +1,164 @@
+# tests/llvm/codegen/m5/expected.yaml
+# TESTCASES-033t: M5 L3 (execution) vectors -- SEE / semihosting, cfx-level
+# permission counter-examples, and general trap + escape.
+#
+# This is the **independent M5 manifest**.  Like tests/llvm/codegen/m4/ it is
+# kept in its own directory so the M3 driver (tools/integ/run_codegen_e2e.py)
+# and the M4 driver (tools/integ/run_elf_e2e.py) never pick these programs up
+# (they read only their own manifests and do not recurse).  The M5 driver is
+# tools/integ/run_m5_e2e.py (INTEG-020t will wire it into `make test-semihost`).
+#
+# Load model (user decision 2026-10-08, M5 scope simplified):
+#   * every vector is a hand-written `*.s` assembled by the *own* toolchain
+#     (`llvm-mc --triple=dadao-unknown-elf -filetype=obj` then
+#     `llvm-objcopy -O binary --only-section=.text`) to a flat bin;
+#   * the bin is loaded at the legacy RAM base 0xffff_0000_0000 by `-kernel`
+#     (ADR-0004 D2.3 path B) and entered in *user* mode by the SEE bootrom
+#     (`-bios .dadao/tests/bootrom/bootrom.bin`, QEMU-047t / Machine-01 §2);
+#   * the reset PC is 0xffff_ffff_0000 (cfx_power_hypv_excp_vector), so the
+#     bootrom always runs first and installs the cfx_umon user exception vector
+#     (ROM+0x200, `escape`) before handing off.
+# No multi-TU ELF is used (ELF loading moved to M6, ISS-168).
+#
+# Observation channels (never "expected value from QEMU"):
+#   * semihosting console (WRITEC/WRITE0) -> the semihosting chardev captured
+#     by the driver (`expected_console`);
+#   * host file services (WRITE) -> the file produced under the driver's
+#     working directory (`expected_file`);
+#   * SYS_EXIT / SYS_EXIT_EXTENDED -> the host process exit code ($?);
+#   * permission counter-examples / general trap -> the vector self-checks the
+#     cfx cause id it read back with `cfx2rd` against the contract-derived value
+#     and reports a documented pass token (a wrong cause yields the fail token).
+schema: m5-vectors-v1
+
+conventions:
+  load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at 0xffff_0000_0000"
+  entry: "SEE bootrom (-bios) sets cfx vectors/masks then hands off to the app in user mode (Machine-01 §2)"
+  reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
+  semihosting: "trap cfx_umon, 0x30000 (immu18[17:16]==2'b11); rd16=service, rb16=argument block, rd31=return (contract-semihosting.md §1/§2)"
+  permission: "cfx-level only (ILLI / CFXREG); NUPERM/NJPERM/NSPERM/NHPERM are the PTBR layer and not in M5 (ADR-0020 D9 / contract-see.md §3)"
+  exit: "SYS_EXIT (0x18) / SYS_EXIT_EXTENDED (0x20); host $? = guest exit code (contract-semihosting.md §5)"
+  oracle: "host-side derivation from contracts/ + the vector's @m5 header; never llvm-mc / QEMU"
+
+programs:
+  - name: m5_semi_writec
+    sources: [m5_semi_writec.s]
+    category: semihosting
+    expected_exit_code: 0x40
+    expected_console: "A"
+    coverage: [semihosting.console, semihosting.writec, adr0020.d1, adr0020.d3]
+    derivation: >-
+      SYS_WRITEC (0x03) writes the single byte at rb16 (contract-semihosting.md
+      §3).  The vector stores 0x41 at RAM@0+0x1000, so the console output is
+      exactly "A".  The pass token (SYS_EXIT subcode) is 0x40.
+
+  - name: m5_semi_write0
+    sources: [m5_semi_write0.s]
+    category: semihosting
+    expected_exit_code: 0x41
+    expected_console: "OK\n"
+    coverage: [semihosting.console, semihosting.write0, adr0020.d3]
+    derivation: >-
+      SYS_WRITE0 (0x04) writes the NUL-terminated string at rb16.  The vector
+      stores 4f 4b 0a 00 ("OK\n" + NUL) at RAM@0+0x1000, so the console output is
+      the three bytes 4f 4b 0a.  Pass token 0x41.
+
+  - name: m5_semi_write
+    sources: [m5_semi_write.s]
+    category: semihosting
+    expected_exit_code: 0x42
+    expected_console: ""
+    expected_file:
+      name: m5_write.txt
+      contents: "WXYZ"
+    coverage: [semihosting.open, semihosting.write, adr0020.d3]
+    derivation: >-
+      SYS_OPEN (0x01) with mode 4 ("w") creates the host file "m5_write.txt";
+      SYS_WRITE (0x05) with the argument block {handle, buffer, 4} writes the
+      4-byte buffer 57 58 59 5a ("WXYZ") into it.  Both are contract-semihosting.md
+      §3 services.  The vector additionally self-checks that the SYS_WRITE return
+      (rd31, unwritten bytes) is 0.  Pass token 0x42.
+
+  - name: m5_semi_exit
+    sources: [m5_semi_exit.s]
+    category: semihosting
+    expected_exit_code: 0x43
+    expected_console: ""
+    coverage: [semihosting.exit, adr0020.d8]
+    derivation: >-
+      SYS_EXIT (0x18) with the block {ADP_Stopped_ApplicationExit (0x20026),
+      0x43}.  Since v5 is 64-bit (ADR-0020 D6), SYS_EXIT takes the extended
+      parameter block and the subcode becomes the host exit status
+      (contract-semihosting.md §5), so $? = 0x43.
+
+  - name: m5_semi_exit_extended
+    sources: [m5_semi_exit_extended.s]
+    category: semihosting
+    expected_exit_code: 0x44
+    expected_console: ""
+    coverage: [semihosting.exit_extended, adr0020.d8]
+    derivation: >-
+      SYS_EXIT_EXTENDED (0x20) with {ADP_Stopped_ApplicationExit, 0x44}; the
+      second field is the explicit exit status, so $? = 0x44
+      (contract-semihosting.md §3/§5).
+
+  - name: m5_perm_reserved_illi
+    sources: [m5_perm_reserved_illi.s]
+    category: permission
+    expected_exit_code: 0x50
+    expected_cause: ILLI
+    coverage: [perm.illi.reserved, adr0020.d9]
+    derivation: >-
+      General `trap cfx7, 0`; cfxha 7 is a reserved code (contract-see.md §3 /
+      SimRISC-11 §特权指令), so the machine raises ILLI and redirects to the
+      current-mode monitor.  The vector reads cfx_umon.cg5.rc2 (excp_cause_id)
+      and requires ILLI (1<<8); pass token 0x50, mismatch token 0xE1.
+
+  - name: m5_perm_mask_illi
+    sources: [m5_perm_mask_illi.s]
+    category: permission
+    expected_exit_code: 0x51
+    expected_cause: ILLI
+    coverage: [perm.illi.mask, adr0020.d9]
+    derivation: >-
+      General `trap cfx_jmon, 0`; cfxha 1 is legal but its user instruction-type
+      trap cfx mask bit is set (mask 1 = masked, contract-see.md §3), so the
+      machine raises ILLI.  The vector requires cause_id == ILLI; pass token
+      0x51, mismatch token 0xE1.
+
+  - name: m5_perm_unimpl_cfxreg
+    sources: [m5_perm_unimpl_cfxreg.s]
+    category: permission
+    expected_exit_code: 0x52
+    expected_cause: CFXREG
+    coverage: [perm.cfxreg.unimpl, adr0020.d9]
+    derivation: >-
+      `trap cfx_ptw, 0`; cfxha 4 is allocated but not implemented by the M5 test
+      machine (only cfx0/1/2/3/63, ADR-0020 D9), so access raises CFXREG
+      (contract-see.md §3 / DADAO-22 §3).  The vector requires cause_id ==
+      CFXREG (1<<2); pass token 0x52, mismatch token 0xE1.
+
+  - name: m5_perm_badcombo_cfxreg
+    sources: [m5_perm_badcombo_cfxreg.s]
+    category: permission
+    expected_exit_code: 0x53
+    expected_cause: CFXREG
+    coverage: [perm.cfxreg.combo, adr0020.d9]
+    derivation: >-
+      `cfx2rd cfx_umon, cg6, rc63, rd10`; cg6 is the scratch bank with
+      scratch_regs_num = 4, so rc63 is outside the register file and the access
+      raises CFXREG (contract-see.md §3 / DADAO-12 §3).  The vector requires
+      cause_id == CFXREG; pass token 0x53, mismatch token 0xE1.
+
+  - name: m5_trap_escape
+    sources: [m5_trap_escape.s]
+    category: trap
+    expected_exit_code: 0x60
+    expected_cause: CFXTRAP
+    coverage: [trap.vector, trap.escape, adr0020.d10]
+    derivation: >-
+      `trap cfx_umon, 0x0123` (immu18[17:16] != 2'b11) records cause CFXTRAP and
+      enters the cfx_umon user vector; the bootrom handler returns with
+      `escape cfx_umon, [excp_cause_ip, 4]` (DADAO-12 §5 / contract-see.md §4).
+      The vector requires cause_id == CFXTRAP (1<<0) and escape_num == 1 (the
+      escape really ran); pass token 0x60, mismatch token 0xE2.
