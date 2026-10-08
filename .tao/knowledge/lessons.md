@@ -333,6 +333,13 @@
 - **处置/闭合**：验证型任务**亦**须交付**可失败的专证据**——本案证据脚本内置 **6 反例（A–F）合并注入** ⇒ **8 用例 FAIL** ⇒ `cp`+md5 还原 ⇒ **重建** ⇒ 回绿；reviewer 另做**独立注入**（`<<2`→`<<4`，与 A–F 不同、**特异**：只命中 escape 偏移路径 ⇒ 2 用例 FAIL 而 `reserved_illi` 仍 PASS）；且「未发现基线缺口」须由**用例覆盖面**兜底（14 用例**逐条对应**任务输出范围：trap 一般/`trap_mask`/reserved、escape 正/负/跨 cfx 禁止/允许、`cfx2rd`/`cfx2rc` cg0–cg7 全寄存器面、CFXREG 4 类），**非以 validator 绿灯 / 覆盖脚本充数**（对齐 `AGENTS.md`「**覆盖 ≠ 语义**」）。
 - **残留**：无。
 
+### 7.19 「复用上游共享层」须同时落地**接入点清单**，缺一即 SIGSEGV 或 CLI 被拒；「只写钩子」式范围低估（`QEMU-046t`，2026-10-08）
+
+- **事由**：`QEMU-046t` 落地 semihosting，任务书约束字面为「**只写** `target/dadao/common-semi-target.c`（+ 接入点/异常枚举）」。实现中发现，**复用**上游共享层 `semihosting/arm-compat-semi.c` 除钩子文件外，还**必须**补齐三处接入点，否则功能不可达或直接崩溃：① **debug 地址翻译钩子**——共享层经 `cpu_memory_rw_debug()` 读写 guest 内存，该路径在 `sysemu_ops` 未实现 `translate_for_debug` 时回退调用 **NULL** 的 `get_phys_addr_debug` ⇒ **SIGSEGV**（需在 `target/dadao/cpu.c` 新增 `dadao_cpu_translate_for_debug`）；② **`-semihosting-config` 的 arch mask**——`DEF(...)` 带 `QEMU_ARCH_*` 掩码，`system/vl.c` 的 `qemu_arch_available()` 按此门控，DADAO 原不在列 ⇒ CLI 被拒（需扩 `qemu-options.hx`）；③ **Kconfig `select` + meson 挂钩**——共享层 `.c` 需经 `select ARM_COMPATIBLE_SEMIHOSTING if TCG` + `when: 'CONFIG_...'` 条件编译才编入 `libsystem.a`。另加 `cpu.h` 的异常枚举。两项超字面范围者（① ②）已按「**越界披露**」报备。
+- **根因**：任务书按「**文件**」划范围（只写钩子文件），未按「**复用共享层所需的全部接入点**」划范围——共享层的**服务逻辑**虽可零改动复用，但其**触及宿主/CLI/构建的接缝**（内存访问、CLI 门控、编译接线）分散在多个文件，「只写钩子」隐含**低估**。此类缺口在**首次**触达共享层时才暴露（本次为全首次）。
+- **处置/闭合**：实现补 ③ 项接入点、暴露并当场修 ①（SIGSEGV）与 ②（CLI 拒绝）；两项越界如实披露，reviewer 判「最小必要接线」`Accepted`；architect 交叉复核确认两处补丁**均为必要**（`translate_for_debug` 接入 `SysemuCPUOps`、`qemu-options.hx` 两处 `DEF` arch mask 均增 `QEMU_ARCH_DADAO`）。
+- **残留**：无（「须在任务书输出中列全接入点」已提升为 §8.13 规范）。
+
 ## 8. 操作规范（该这样做 / 不该这样做）
 
 > 由 `feedback_001…007`（2026-10-08，用户裁定）**并回**本文件：**经过/根因**归 §7.10–§7.13 与 §7.5/§7.7/§7.9，**正面规范**归本节。每条的「教训指引」只给指针，不复述经过。
@@ -452,3 +459,12 @@
   3. **区分两类**：「**澄清**类」（实现与伪代码一致，仅易误解，如 escape 不恢复 `inner_cfx_code`）⇒ 入 `lessons`，**不立** spec 任务；「**覆盖缺口 / 张力**类」（prose 与伪代码/机制不符，须改上游册）⇒ **登记 issue + 提请授权**，不得静默改。
 - **依据/来源**：`QEMU-045t`（2026-10-08，`ISS-167`：`DADAO-12 §5` 跨 cfx escape prose/伪代码张力；`spec/` 零改动）。
 - **教训指引**：见 §7.18；同类 §8.5 / §8.10。
+
+### 8.13 「复用上游共享层」任务须在输出中列全**接入点清单**（arch mask / `translate_for_debug` / Kconfig select / meson 挂钩），缺一即 SIGSEGV 或 CLI 被拒
+
+- **规则**：
+  1. 任务范围若为「**复用**上游共享层（如 `semihosting/arm-compat-semi.c`）」，**不得**只按「钩子文件」划范围；任务书「输出」须**显式列全接入点清单**，逐项给落点：① 钩子实现文件（target-specific：`common_semi_arg`/`common_semi_set_ret`/`is_64bit_semihosting` 等）；② **调试地址翻译钩子**（共享层经 `cpu_memory_rw_debug()` 读写 guest 内存 ⇒ 须实现 `SysemuCPUOps.translate_for_debug`，否则回退 NULL ⇒ **SIGSEGV**）；③ **CLI arch mask**（`qemu-options.hx` 的 `DEF(...)` `QEMU_ARCH_*` 掩码 ⇒ 缺则 `qemu_arch_available()` 拒绝 CLI）；④ **Kconfig `select` + meson `when:` 挂钩**（否则共享层 `.c` 不编入）。任一项漏列 ⇒ 实现期必然「越界」或功能不可达。
+  2. 越界**判据**：以「**是否为本任务复用共享层的必需接线**」为准，**非**以任务书字面文件清单为准；超出字面清单的必需接线须**如实披露**（完成区「新发现/坑」+ 审阅记录），**不得裁剪**，由 reviewer 判「必要接线 / 越界」。
+  3. **共享层零改动**仍须**实测证**：`git -C .work/source/<comp> diff --stat HEAD -- <share-path>` 为空；本任务只改**目标侧**接入点，不重写共享层。
+- **依据/来源**：`QEMU-046t`（2026-10-08；`common-semi-target.c` 钩子 + `translate_for_debug`〔CPU.c〕+ `qemu-options.hx` arch mask + `Kconfig`/`meson.build` 接线；reviewer `Accepted` 判两项披露为「最小必要接线」+ architect 交叉复核）。
+- **教训指引**：见 §7.19；同类 §8.1（点名类产物须逐项核到底）。

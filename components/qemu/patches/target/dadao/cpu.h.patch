@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..54fa246
+index 0000000..2dae725
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,224 @@
+@@ -0,0 +1,225 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -46,6 +46,7 @@ index 0000000..54fa246
 +    DADAO_EXCP_IALIGN = 6,     /* Instruction alignment fault */
 +    DADAO_EXCP_UNMAPPED = 7,   /* Unmapped memory access */
 +    DADAO_EXCP_CFXMEM = 8,     /* Illegal internal-address-space access */
++    DADAO_EXCP_SEMIHOST = 9,   /* semihosting trap tag (not a fault) */
 +};
 +
 +/* DADAO exit codes (propagated to host $?, per ADR-0004 D5.8) */

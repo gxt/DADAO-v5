@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..89eaa5c
+index 0000000..ae875cd
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,397 @@
+@@ -0,0 +1,424 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -323,9 +323,36 @@ index 0000000..89eaa5c
 +}
 +
 +#include "hw/core/sysemu-cpu-ops.h"
++#include "exec/target_page.h"
++
++/*
++ * Debug/semihosting virtual-to-physical translation (QEMU-046t).
++ *
++ * The semihosting responder reads and writes guest memory through
++ * cpu_memory_rw_debug(); without a translation hook that helper would call a
++ * NULL get_phys_addr_debug pointer and crash.  DADAO has no MMU, so the
++ * mapping is identity (ADR-0004 D1: VA == PA); only the mapped regions are
++ * exposed, so an access outside them fails cleanly instead of reaching host
++ * memory.
++ */
++static bool dadao_cpu_translate_for_debug(CPUState *cs, vaddr addr,
++                                          TranslateForDebugResult *result)
++{
++    if (addr < DADAO_RAM0_BASE + DADAO_RAM0_SIZE ||
++        (addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) ||
++        (addr >= DADAO_ROM_BASE && addr < DADAO_ROM_BASE + DADAO_ROM_SIZE)) {
++        result->physaddr = addr;
++        result->attrs = MEMTXATTRS_UNSPECIFIED;
++        result->attrs.debug = 1;
++        result->lg_page_size = TARGET_PAGE_BITS;
++        return true;
++    }
++    return false;
++}
 +
 +static const struct SysemuCPUOps dadao_sysemu_ops = {
 +    .has_work = dadao_cpu_has_work,
++    .translate_for_debug = dadao_cpu_translate_for_debug,
 +};
 +
 +G_NORETURN static void dadao_cpu_do_unaligned_access(CPUState *cs, vaddr addr,

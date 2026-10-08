@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..ae3fb70
+index 0000000..cbd943c
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,971 @@
+@@ -0,0 +1,995 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -36,6 +36,7 @@ index 0000000..ae3fb70
 +#include "accel/tcg/cpu-ldst.h"
 +#include "exec/helper-proto.h"
 +#include "fpu/softfloat.h"
++#include "semihosting/common-semi.h"
 +
 +/* Map QEMU-internal exception index to ADR-0004 exit code */
 +static int dadao_excp_to_exit_code(int excp)
@@ -64,6 +65,24 @@ index 0000000..ae3fb70
 +
 +void dadao_cpu_do_interrupt(CPUState *cs)
 +{
++    /*
++     * Semihosting short-circuit (ADR-0020 D4/D5/D10; Machine-01 §5): the trap
++     * tag immu18[17:16] == 2'b11 is raised from the decode layer
++     * (trans_trap_ciii_cfx) as DADAO_EXCP_SEMIHOST.  Serve the call through
++     * the shared responder do_common_semihosting() and advance PC past the
++     * trap -- semihosting never enters a cfx vector and is not a fault (same
++     * shape as RISCV_EXCP_SEMIHOST).  cpu_loop_exit_restore has already set
++     * env->pc to the trapping instruction, so += 4 is the return step.
++     */
++    if (cs->exception_index == DADAO_EXCP_SEMIHOST) {
++        CPUDADAOState *env = cpu_env(cs);
++
++        do_common_semihosting(cs);
++        env->pc += 4;       /* no `escape`; return by stepping past the trap */
++        env->rb[0] = env->pc;
++        return;
++    }
++
 +    /*
 +     * M1: no guest exception handler. QEMU directly maps fault → exit code
 +     * and exits. Per ADR-0004 D6.1, this avoids pre-setting future exception
@@ -830,8 +849,10 @@ index 0000000..ae3fb70
 +}
 +
 +/* trap cfxha, immu18 : general trap (immu18[17:16] != 2'b11) -> §5 flow.
-+ * Semihosting (immu18[17:16] == 2'b11) is QEMU-046t; until implemented an
-+ * unsupported tag fails explicitly as ILLI (no silent success). */
++ * Semihosting (immu18[17:16] == 2'b11) is handled by the decode-layer
++ * short-circuit (trans_trap_ciii_cfx -> DADAO_EXCP_SEMIHOST, QEMU-046t) and
++ * therefore never reaches this helper; the tag check below is a defensive
++ * explicit failure only. */
 +void helper_cfx_trap(CPUDADAOState *env, uint32_t cfxha, uint32_t immu18,
 +                     uint64_t pc)
 +{
@@ -842,7 +863,10 @@ index 0000000..ae3fb70
 +    int ci;
 +
 +    if (((immu18 >> 16) & 0x3) == 0x3) {
-+        /* semihosting tag: not yet supported (QEMU-046t). */
++        /* Semihosting tag (immu18[17:16] == 2'b11, QEMU-046t): short-circuited
++         * at the decode layer (trans_trap_ciii_cfx -> DADAO_EXCP_SEMIHOST) and
++         * must never reach this general-trap helper.  Fail explicitly (ILLI)
++         * if it does, rather than silently entering a cfx vector. */
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
 +        return;
 +    }

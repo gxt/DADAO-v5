@@ -1,0 +1,89 @@
+diff --git a/target/dadao/common-semi-target.c b/target/dadao/common-semi-target.c
+new file mode 100644
+index 0000000..87216bc
+--- /dev/null
++++ b/target/dadao/common-semi-target.c
+@@ -0,0 +1,83 @@
++/*
++ * Target-specific parts of semihosting/arm-compat-semi.c for the DADAO
++ * test machine (QEMU-046t).
++ *
++ * Spec sources (spec-first):
++ *   spec/Machine-01-测试机运行环境.md §5 (semihosting: entry tag, calling
++ *     convention, full 25-service table, return mechanism, SYS_EXIT).
++ *   .tao/adr/adr-0020-see-semihosting.md D2/D4/D6/D14 (rd16 = service number,
++ *     rb16 = argument-block pointer, rd31 = scalar return; always 64-bit
++ *     big-endian).
++ *   .tao/knowledge/contract-semihosting.md §2.
++ *   .tao/knowledge/contract-abi.md §2.1 (SP = rb1 / rbsp), §4.1/§4.4
++ *     (rd16-rd31 data args, rb16-rb31 address args, rd31 scalar return).
++ *
++ * v5 keeps the three DADAO register banks (rd/rb/rf) independent, each
++ * numbered from 16, whereas the shared layer's common_semi_arg(cs, n) assumes
++ * the "a0 + n, same bank" layout.  This hook therefore maps by argument
++ * number instead of by register offset:
++ *     common_semi_arg(cs, 0) -> rd16  (service number / scalar)
++ *     common_semi_arg(cs, 1) -> rb16  (argument-block pointer / address)
++ * and common_semi_set_ret() -> rd31.
++ *
++ * The shared responder (do_common_semihosting in semihosting/arm-compat-semi.c)
++ * is reused unmodified (ADR-0020 D5).
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++
++#include "qemu/osdep.h"
++#include "cpu.h"
++#include "semihosting/common-semi.h"
++
++/* Register roles fixed by Machine-01 §5.2 / ADR-0020 D2/D14. */
++#define DADAO_SEMI_NUM_REG  16   /* rd16: service number (scalar) */
++#define DADAO_SEMI_ARG_REG  16   /* rb16: argument-block pointer (address) */
++#define DADAO_SEMI_RET_REG  31   /* rd31: scalar return value */
++#define DADAO_SEMI_SP_REG    1   /* rb1 == rbsp (contract-abi.md §2.1) */
++
++uint64_t common_semi_arg(CPUState *cs, int argno)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    switch (argno) {
++    case 0:
++        return env->rd[DADAO_SEMI_NUM_REG];
++    case 1:
++        return env->rb[DADAO_SEMI_ARG_REG];
++    default:
++        /* The semihosting ABI only uses argument numbers 0 and 1. */
++        return 0;
++    }
++}
++
++void common_semi_set_ret(CPUState *cs, uint64_t ret)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    env->rd[DADAO_SEMI_RET_REG] = ret;
++}
++
++bool is_64bit_semihosting(CPUArchState *env)
++{
++    (void)env;
++    return true;   /* v5 is always 64-bit (ADR-0020 D6) */
++}
++
++bool common_semi_sys_exit_is_extended(CPUState *cs)
++{
++    return is_64bit_semihosting(cpu_env(cs));
++}
++
++uint64_t common_semi_stack_bottom(CPUState *cs)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    return env->rb[DADAO_SEMI_SP_REG];   /* rbsp (contract-abi.md §2.1) */
++}
++
++bool common_semi_has_synccache(CPUArchState *env)
++{
++    (void)env;
++    return true;   /* SYS_SYNCCACHE (0x19) is in the v5 service set */
++}

@@ -7,8 +7,10 @@ hw/dadao/meson.build.patch
 hw/meson.build.patch
 include/qemu/base-arch-defs.h.patch
 qapi/machine.json.patch
+qemu-options.hx.patch
 target/Kconfig.patch
 target/dadao/Kconfig.patch
+target/dadao/common-semi-target.c.patch
 target/dadao/cpu-param.h.patch
 target/dadao/cpu-qom.h.patch
 target/dadao/cpu.c.patch
