@@ -1,16 +1,17 @@
 format = 1
-# 上游只读册：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
+# 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 spec/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
 
-# 清单 = 20 册上游只读册（用户 2026-10-07 全选）：
+# 清单 = 21 册只读册 = 20 册上游只读册（用户 2026-10-07 全选）+ 1 册 v5 自定册（spec/Machine-01，2026-10-08 纳入）：
 #   dadao-1x   DADAO-11/12/13
 #   dadao-2x   DADAO-21/22/23
 #   simrisc    SimRISC-00..12
 #   toolchain  Toolchain-01
+#   machine-01 Machine-01（v5 自定）
 # sha256 = 工作树基线（还原后）逐册实测；由 make check-spec-readonly 校验。
-# 注意：spec/Machine-01、spec/Process-0x、spec/README.md 为 v5 自定册，
-# 不在本锁内——其修订由 Process-06 §2 的授权流程约束。
+# 注意：spec/Machine-01 已于 2026-10-08 纳入本锁（用户授权）；spec/Process-0x、
+# spec/README.md 为 v5 自定册，不在本锁内——其修订由 Process-06 §2 的授权流程约束。
 
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
@@ -111,3 +112,8 @@ sha256 = "df4274184b72d7b4236728e9c5a6f078d590452b4747fbb1493c3f95f6b3905a"
 path = "spec/Toolchain-01-汇编语言.md"
 group = "toolchain-01"
 sha256 = "3f53c89c007e52d43c9c7a15bc35eeec89071f9e0a840db31b6eff11714672ae"
+
+[[spec]]
+path = "spec/Machine-01-测试机运行环境.md"
+group = "machine-01"
+sha256 = "de4cd6d81751f3c1a79c7714ffda280372d41c9614c1a073a629de843bf43e40"

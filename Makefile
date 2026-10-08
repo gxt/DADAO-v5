@@ -98,7 +98,7 @@ help:
 	@echo "  make check-asm-list-drift  Check assembly-list drift gate (INFRA-027t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
 	@echo "  make check-no-residue  Detect unexpected untracked temp files"
-	@echo "  make check-spec-readonly  Verify upstream read-only spec volumes against sha256 lock (SPEC-119t)"
+	@echo "  make check-spec-readonly  Verify read-only spec volumes against sha256 lock (SPEC-119t)"
 	@echo "  make size-report  Report added-component-file sizes (advisory, not a gate)"
 	@echo "  make check-tasks  Report tasks with filled 完成区 but status still 待验收 (advisory; --strict to fail)"
 
@@ -351,7 +351,7 @@ check-dirs:
 check-no-residue:
 	@$(PYTHON) tools/infra/check_dirs.py --residue
 
-# spec 目录只读锁 (SPEC-119t): 上游只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
+# spec 目录只读锁 (SPEC-119t): 只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
 # 规则见 spec/Process-06-spec目录保护规范.md §5。
 check-spec-readonly:
 	@$(PYTHON) tools/infra/check_spec_readonly.py

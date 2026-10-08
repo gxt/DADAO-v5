@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Spec read-only guard: verify upstream spec volumes against a sha256 lock.
+"""Spec read-only guard: verify read-only spec volumes against a sha256 lock.
 
-``manifests/spec-readonly.lock.toml`` pins the ``sha256`` of every upstream
-read-only spec volume (``spec/SimRISC-*``, ``spec/DADAO-1x``/``DADAO-2x``,
-``spec/Toolchain-01``).  Those volumes are upstream inputs and must not be
-modified without the user's explicit, prior authorization (recorded verbatim)
-and a lock update in the *same* change.  This gate makes that rule mechanical:
-it recomputes each locked file's ``sha256`` and fails closed on any mismatch or
-missing file.
+``manifests/spec-readonly.lock.toml`` pins the ``sha256`` of every read-only
+spec volume (``spec/SimRISC-*``, ``spec/DADAO-1x``/``DADAO-2x``,
+``spec/Toolchain-01``, ``spec/Machine-01``).  Those volumes are read-only
+inputs and must not be modified without the user's explicit, prior
+authorization (recorded verbatim) and a lock update in the *same* change.
+This gate makes that rule mechanical: it recomputes each locked file's
+``sha256`` and fails closed on any mismatch or missing file.
 
 See ``spec/Process-06-spec目录保护规范.md`` (§5).  Read-only: never writes.
 
@@ -83,7 +83,7 @@ def load_entries(lock_path: Path, errors: list[str]) -> list[tuple[str, str, str
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Verify upstream read-only spec volumes against a sha256 lock (SPEC-119t)."
+        description="Verify read-only spec volumes against a sha256 lock (SPEC-119t)."
     )
     parser.add_argument(
         "--root",
@@ -140,7 +140,7 @@ def main() -> int:
         )
         return 1
 
-    print(f"check-spec-readonly: {len(entries)} upstream read-only spec volume(s) OK")
+    print(f"check-spec-readonly: {len(entries)} read-only spec volume(s) OK")
     return 0
 
 

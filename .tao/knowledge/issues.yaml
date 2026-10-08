@@ -377,8 +377,8 @@
 
 - id: ISS-166
   title: "Machine-01 §1 未完全覆盖越界路由口径与 RAM@0 容量（QEMU-049t 已落地三条）→ 已由 SPEC-121t 承接（用户授权 2026-10-08）"
-  status: open
+  status: closed
   scope: [spec, qemu, M5]
   blocks: []
-  resolved_by: null
-  notes: "QEMU-049t 按 ADR-0020 D15 落地三条口径：① umon 段（addr[47:42]==0）越界访问/取指 ⇒ CFXMEM（0x81）；② 其余段（含旧 power 段 63）越界 ⇒ 测试机约定 unmapped（0x87）；③ RAM@0 容量 = 16 MiB。核 spec/Machine-01 §1（v5 自定册）现行措辞：未完全覆盖——(a) §1.1 表 RAM@0 大小仍是占位『【待 QEMU-049t 定】』（无 16 MiB）；(b) §1.2 末条显式把『精确路由与 RAM@0 容量』委派给 QEMU-049t，未写具体口径；(c) §1.2『层次与适用』条『cfxha 段内的非法子区间、越界访问/取指 ⇒ CFXMEM』按字面也覆盖 power 段 63 ⇒ 与已落地路由（power 63 ⇒ 0x87）歧义。处置：不改 spec/（spec 改动须用户事先授权，见 lessons §8.5 / Process-06）；差异清单 + 拟改文本见 .tao/tasks/qemu/QEMU-049t-RAM0双映射.md 审阅记录『第 1 轮 architect 提交（WIP）』，交主会话提请用户授权。**已由 SPEC-121t 承接（用户授权 2026-10-08）**：拟改文本落 `spec/Machine-01 §1`（3 处）+ 该册入只读锁（`manifests/spec-readonly.lock.toml` 新增 1 条，锁内 20→21）+ `spec/Process-06 §5/§6` 同步；任务书见 `.tao/tasks/spec/SPEC-121t-Machine-01-越界路由与RAM0容量落地.md`。"
+  resolved_by: SPEC-121t
+  notes: "QEMU-049t 按 ADR-0020 D15 落地三条口径：① umon 段（addr[47:42]==0）越界访问/取指 ⇒ CFXMEM（0x81）；② 其余段（含旧 power 段 63）越界 ⇒ 测试机约定 unmapped（0x87）；③ RAM@0 容量 = 16 MiB。核 spec/Machine-01 §1（v5 自定册）现行措辞：未完全覆盖——(a) §1.1 表 RAM@0 大小仍是占位『【待 QEMU-049t 定】』（无 16 MiB）；(b) §1.2 末条显式把『精确路由与 RAM@0 容量』委派给 QEMU-049t，未写具体口径；(c) §1.2『层次与适用』条『cfxha 段内的非法子区间、越界访问/取指 ⇒ CFXMEM』按字面也覆盖 power 段 63 ⇒ 与已落地路由（power 63 ⇒ 0x87）歧义。处置：不改 spec/（spec 改动须用户事先授权，见 lessons §8.5 / Process-06）；差异清单 + 拟改文本见 .tao/tasks/qemu/QEMU-049t-RAM0双映射.md 审阅记录『第 1 轮 architect 提交（WIP）』，交主会话提请用户授权。**已由 SPEC-121t 承接（用户授权 2026-10-08）**：拟改文本落 `spec/Machine-01 §1`（3 处）+ 该册入只读锁（`manifests/spec-readonly.lock.toml` 新增 1 条，锁内 20→21）+ `spec/Process-06 §5/§6` 同步；任务书见 `.tao/tasks/spec/SPEC-121t-Machine-01-越界路由与RAM0容量落地.md`。已由 `SPEC-121t` 收口（用户授权 2026-10-08；`spec/` 改动仅 `Machine-01 §1` + `Process-06 §5/§6`）。"
