@@ -37,7 +37,7 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 
 同时清掉基础设施欠账（`ADR-0016` install + 生成物落点）、把 `trap`/`escape`/`cfx2rc`/`cfx2rd` 从 `excluded` **re-scope 为已实现**、把 SEE/semihosting 规范**正文入 `spec/`**。
 
-**门槛（用户 2026-10-07 第 2 轮裁定，见 §第 2 轮用户裁定；**正向口径已由 §第 8 轮 M5 范围简化修订**）**：门槛名 = **`make test-semihost`**（**不是** `test-see`——用户指出"没有 SEE"）。组成：① **正向**（**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码；**原「单/多 TU ELF」正向用例移 M6**——用户 2026-10-08 裁定，见 §第 8 轮）；② **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）；③ **服务表各条至少 1 例**；④ **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）；⑤ **`INTEG` 开闭**。
+**门槛（用户 2026-10-07 第 2 轮裁定，见 §第 2 轮用户裁定；**正向口径已由 §第 8 轮 M5 范围简化修订**）**：门槛名 = **`make test-semihost`**（**不是** `test-see`——用户指出"没有 SEE"）。组成：① **正向**（**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码；**原「单/多 TU ELF」正向用例移 M6**——用户 2026-10-08 裁定，见 §第 8 轮）；② **权限反例**（**M5 可观测 = cfx 级**：`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕；**`NUPERM/NJPERM/NSPERM/NHPERM` 出自 `DADAO-12 §2.2` PTBR 权限层、不在 M5**〔`ADR-0020 D9`〕）；③ **服务表各条至少 1 例**；④ **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）；⑤ **`INTEG` 开闭**。
 
 **边界声明**：**M6 = 完整调用约定（整数）+ 欠账收口 +「elf 加载」**（已定，**不在本 `k` 的任务清单内**；「elf 加载」= 用户 2026-10-08 裁定，见 §第 8 轮）。FP/RF codegen、clang 前端、libc/OS、golden model 不在 M5。
 
@@ -102,6 +102,8 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 7. **exit-port 迁移范围 = 全部**（M1–M4 所有依赖 exit-port 的向量/harness 全迁到 `SYS_EXIT`）。
 8. **`ADR-0020` 新建** ✓（decision 提案**待用户逐条判定**）。
 9. **M5 门槛名 = `make test-semihost`**（**不是** `test-see`——用户指出"**没有 SEE**"）；门槛组成 = **正向**（bootrom + 单/多 TU ELF 经 `-semihosting`、console 捕获、`SYS_EXIT` 码）/ **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）/ **服务表各条至少 1 例** / **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）/ **`INTEG` 开闭**。（**注：正向口径已由 §第 8 轮 M5 范围简化修订为 bootrom（`-bios`）+ bin；原「单/多 TU ELF」正向用例移 M6。**）
+
+   > **注（权限反例口径全局对齐，2026-10-08）**：本条「未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`」为 **2026-10-07 裁定要点原话，保留不改**；**M5 可观测的权限反例口径已对齐为 cfx 级**——`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕；`NUPERM/NJPERM/NSPERM/NHPERM` 出自 `DADAO-12 §2.2` **PTBR 权限层、不在 M5**（`ADR-0020 D9`）。
 10. **执行顺序**：**先 `/plan` 交叉审查本 `k`，再建 21 份任务书**（本 `k` 仍只出草案、**不建 `t`/`m` 文件**）。
 
 ---
@@ -412,7 +414,7 @@ M4（ELF 文件支持 + LLD 链接 + 汇编器遗留收口）已达成（2026-10
 **结论：五部分可机器判定；exit-port 迁移与不回归的关系需在任务书里明确机制。**
 
 - **正向**：bootrom + ELF 经 `-semihosting`、console 捕获、`SYS_EXIT` 码 → 可机器判定（比对 stdout/stderr 内容 + exit code）。✓
-- **权限反例**：未授权模式 ⇒ `NUPERM` 等 → 可机器判定（比对 QEMU 异常输出/退出码）。✓
+- **权限反例**：未授权模式 ⇒ `NUPERM` 等 → 可机器判定（比对 QEMU 异常输出/退出码）。✓ **〔口径全局对齐加注（architect，2026-10-08）：原文保留不改；M5 可观测的权限反例口径 = cfx 级 `ILLI`/`CFXREG`；`NUPERM` 等属 `DADAO-12 §2.2` PTBR 层、不在 M5（`ADR-0020 D9`）。〕**
 - **服务表各条至少 1 例**：25 个服务各 1 例 → 可机器判定（计数）。✓
 - **不回归**：`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit` → 可机器判定。✓
 - **INTEG 开闭**：可机器判定。✓
@@ -700,3 +702,17 @@ L139 `SPEC-113t` 交付物描述：
 - 本 `k` 之外的落点（本轮一并落纸）：`milestones.md` M5 段（门槛口径 + M6 待办）、`INTEG-020t`（门槛正向用例口径 + 审阅记录追加）、`QEMU-047t`（风险改挂 M6 说明）、`TESTCASES-033t`（承载改 bin）、`INTEG-021m`/`QEMU-048m`/`SPEC-118m`（核验/目标最小同步）、`issues.yaml`（`ISS-165` scope→M6 + 新增 `ISS-168`）。
 
 **判决**：M5 范围按用户裁定简化落纸完成；**「`-bios`+ELF 组合语义 / ELF loader 扩展 / 组合 ADR 决策」随 M6**（`ISS-168`）。
+
+#### 口径全局对齐（architect，2026-10-08）
+
+**依据**：已确认的 **`ADR-0020 D9`**——**M5 权限范围只做 `cfx0/1/2/3/63`**；**`NUPERM/NJPERM/NSPERM/NHPERM` 属 `DADAO-12 §2.2` PTBR 权限层、不在 M5**；**M5 可观测的权限反例 = cfx 级**：`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕。**性质 = 与既定决策的一致性修正，非新增范围**。
+
+**逐处改动（本文件）**：
+
+1. §目的「门槛」组成 ②（原 :40）：`未授权模式 ⇒ NUPERM/NJPERM/NSPERM/NHPERM` → **cfx 级 `ILLI`/`CFXREG`**（保留 `NUPERM…` 出处说明：`DADAO-12 §2.2` PTBR 层、不在 M5，`ADR-0020 D9`）。
+2. §第 2 轮用户裁定 9（原 :104）：**原话保留不改**，其下追加「口径全局对齐」注。
+3. 第 1 轮 reviewer 规划审查 §6 门槛可执行性「权限反例」（原 :415）：**原文保留不改**，追加「口径全局对齐加注」。
+
+**同批对齐（本 `k` 之外）**：`.tao/knowledge/milestones.md` M5 门槛组成 ②；`.tao/tasks/integ/INTEG-020t-*.md` 门槛 + 验收 2；`.tao/tasks/integ/INTEG-021m-*.md` 核验「权限反例」行（**自检 grep 发现、非主会话列举**，已一并最小改）。
+
+**边界**：**未改 `spec/`**（`spec/` 交集为空）；未改 `contracts/**`/`components/**`/`Makefile`；未新增/删除任务；`ADR-0020` 正本未改。

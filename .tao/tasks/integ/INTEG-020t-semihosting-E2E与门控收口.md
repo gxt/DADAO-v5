@@ -15,7 +15,7 @@
   - `.tao/adr/adr-0020-see-semihosting.md`（`Accepted`，**D7** host 侧安全：`-semihosting-config` 的 `target=`/`chardev=`/`arg=`；建议默认 `gdb`/沙箱）+ `adr-0004` 修订。
   - `spec/Process-05-里程碑TDD规范.md §6`（落点 + `INFRA-048t` 的 `.dadao/tests/`）；`tools/infra/paths.py`（`test_artifacts_dir`）。
   - 既有 `tools/integ/run_elf_e2e.py`/`Makefile::test-elf`/`check-lit`（E2E 驱动范式）。
-  - **门槛（`INTEG-019k` §第 2 轮用户裁定 9；**正向口径已由 `INTEG-019k` §第 8 轮修订**）**：门控名 = **`make test-semihost`**（**不是** `test-see`）；组成 = ① **正向**（**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码）；② **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）；③ **服务表各条至少 1 例**；④ **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）；⑤ **`INTEG` 开闭**。
+  - **门槛（`INTEG-019k` §第 2 轮用户裁定 9；**正向口径已由 `INTEG-019k` §第 8 轮修订**）**：门控名 = **`make test-semihost`**（**不是** `test-see`）；组成 = ① **正向**（**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码）；② **权限反例**（**M5 可观测 = cfx 级**：`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕；**`NUPERM/NJPERM/NSPERM/NHPERM` 出自 `DADAO-12 §2.2` PTBR 权限层、不在 M5**〔`ADR-0020 D9`〕）；③ **服务表各条至少 1 例**；④ **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）；⑤ **`INTEG` 开闭**。
   - **RAM@0 双映射（C1 step1，`ADR-0004 R3`/`ADR-0020 D15`）**：M5 **正向**（bootrom/SEE + `-semihosting`）经 **RAM@0**（`QEMU-049t` 双映射提供）；**旧 RAM 段过渡保留** ⇒ 既有测试不回归；**step2**（旧向量/harness 迁到 RAM@0 + 删旧段 + 收紧断言）**另立、随 M6**（用户 2026-10-08 裁定；`ISS-165`），**不阻塞本门槛**。
 - **输出**：
   1. **`tools/integ/` 驱动**（**复用 `tools/integ/run_m5_e2e.py`**〔`TESTCASES-033t` 产出〕，**只追加/最小改**，**不另建 `run_semihost_e2e.py`**）：fail-closed——bootrom（`-bios`，`QEMU-047t`）+ **bin 应用**（`objcopy -O binary`）经 `-semihosting`，跑通 semihosting 服务，**捕获 console 输出**，比对 `SYS_EXIT` 码；逐例打印「名字/期望/实际/退出码」。**（原「单/多 TU ELF」正向用例移 M6——用户 2026-10-08 裁定。）**
@@ -37,7 +37,7 @@
 ## 验收标准
 
 1. **正向**：`make test-semihost` EXIT=0；bootrom（`-bios`）+ **bin 应用**经 `-semihosting`，console 捕获内容与 `SYS_EXIT` 码逐例比对正确；给真实输出（console ≥1）。**（原「单/多 TU ELF」正向用例移 M6——用户 2026-10-08 裁定。）**
-2. **权限反例**：未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`（≥1 类）——机器可判（真实输出）。
+2. **权限反例**（cfx 级）：**M5 可观测 = cfx 级**——`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕（≥1 类）——机器可判（真实输出）。**（`NUPERM/NJPERM/NSPERM/NHPERM` 出自 `DADAO-12 §2.2` PTBR 层、不在 M5；`ADR-0020 D9`。）**
 3. **服务表覆盖**：**25 服务各 ≥1 例**（脚本计数=25；给真实输出）。
 4. **不回归**：`make test-elf` 5/5、`make test-codegen` 15/15、`make check`、`make check-lit` 全 EXIT=0（给真实输出）。
 5. **harness stdio 落定**：完成区明确「`-semihosting-config` 传参方」与「console 捕获落点/比对方式」，且与实现一致（`grep`/真实输出）。
@@ -121,3 +121,14 @@
 - **改法**：输出 1 的「（如 `run_semihost_e2e.py`）」→「（**复用 `tools/integ/run_m5_e2e.py`**〔`TESTCASES-033t` 产出〕，**只追加/最小改**，**不另建 `run_semihost_e2e.py`**）」。
 
 **边界**：本轮仅改**本任务书**（输出 1 + 本审阅记录）；**`spec/` 交集为空**；未改 `contracts/**`/`components/**`/`Makefile`；未新增/删除任务。
+
+#### 口径全局对齐（architect，2026-10-08）
+
+**依据**：已确认的 **`ADR-0020 D9`**——M5 权限范围只做 `cfx0/1/2/3/63`；`NUPERM/NJPERM/NSPERM/NHPERM` 属 `DADAO-12 §2.2` **PTBR 权限层、不在 M5**；**M5 可观测的权限反例 = cfx 级**：`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕。**性质 = 与既定决策的一致性修正，非新增范围**。
+
+**逐处改动（本文件）**：
+
+1. 接口规范「门槛」组成 ②（:18）：`未授权模式 ⇒ NUPERM/NJPERM/NSPERM/NHPERM` → **cfx 级 `ILLI`/`CFXREG`**（保留 `NUPERM…` 出处说明）。
+2. 验收标准 2「权限反例」（:40）：同口径改（cfx 级 `ILLI`/`CFXREG` + 保留 `NUPERM…` 出处说明）。
+
+**边界**：本轮仅改本任务书上述 2 处 + 本审阅记录；**`spec/` 交集为空**；未改 `contracts/**`/`components/**`/`Makefile`；未新增/删除任务。

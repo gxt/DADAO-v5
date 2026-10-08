@@ -108,7 +108,7 @@
 
 **semihosting 传参/返回寄存器（用户裁定 2026-10-07）**：**号（标量）→ `rd16`（=`rda0`）**、**参数块指针（地址）→ `rb16`**、**返回值 → `rd31`**（`.tao/knowledge/contract-abi.md §4.1/§4.4`；指针返回才用 `rb31`，semihosting 不用）。
 
-**门槛（用户裁定 2026-10-07 第 2 轮；**正向口径已于 2026-10-08 修订**，见下「M5 范围简化」）**：门控名 = **`make test-semihost`**（**不是** `test-see`——用户指出"没有 SEE"）。组成 = **正向**（**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码；原「单/多 TU ELF」正向用例**移 M6**）/ **权限反例**（未授权模式 ⇒ `NUPERM/NJPERM/NSPERM/NHPERM`）/ **服务表各条至少 1 例** / **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）/ **`INTEG` 开闭**。
+**门槛（用户裁定 2026-10-07 第 2 轮；**正向口径已于 2026-10-08 修订**，见下「M5 范围简化」）**：门控名 = **`make test-semihost`**（**不是** `test-see`——用户指出"没有 SEE"）。组成 = **正向**（**bootrom（`-bios`）+ bin 应用**经 `-semihosting`、console 捕获、`SYS_EXIT` 码；原「单/多 TU ELF」正向用例**移 M6**）/ **权限反例**（**M5 可观测 = cfx 级**：`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕；**`NUPERM/NJPERM/NSPERM/NHPERM` 出自 `DADAO-12 §2.2` PTBR 权限层、不在 M5**〔`ADR-0020 D9`〕）/ **服务表各条至少 1 例** / **不回归**（`test-elf` 5/5、`test-codegen` 15/15、`check`、`check-lit`）/ **`INTEG` 开闭**。
 
 > **前置风险（2026-10-08，architect 实测）→ ✅ 已由用户裁定消解**：门槛正向「bootrom + 单/多 TU ELF 经 `-semihosting`」按**字面耦合读** ⇒ 曾需**「`-bios`+ELF」组合**，而 `QEMU-047t`（选 path B raw-bin）**未实现**该组合（`dadao_load_regions[]` 未含 RAM@0、ELF 分支忽略 `-bios`）⇒ 曾判**可能为 M5 门槛前置缺口**。**用户 2026-10-08 裁定（原话见 `INTEG-019k` §第 8 轮）**：**M5 只做 bootrom+bin**、**elf 加载随 M6** ⇒ **门槛正向口径改为「bootrom（`-bios`）+ bin 应用经 `-semihosting`」**，该缺口**不再是 M5 门槛前置**（「`-bios`+ELF 组合 / ELF loader 扩展 / 组合入口语义」移 M6，见下「M6 待办」+ `ISS-168`）。原评估/选项（历史记录）见 `.tao/tasks/integ/INTEG-020t-*.md`「审阅记录」architect 前置风险评估。
 
@@ -171,6 +171,8 @@
 > - **`RAM@0` C1 step2**（旧向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段 + 收紧 `check-interface` 断言）：原「另立、M5 之外」，现明确**随 M6**。**理由**：用户裁定 step2 随 M6；不阻塞 M5 门槛（step1 双映射保门控全绿）。
 > - **组合加载语义的 ADR 决策待定**：**M5 阶段不立 ADR**（推迟 M6）。**理由**：该组合属加载模型/外部契约变更 ⇒ 须 ADR 并**逐条经用户确认**（`AGENTS.md`「ADR decision 逐条确认」），且不在 M5 范围。
 > - **登记**：`issues.yaml` `ISS-168`（组合语义 + loader 扩展 + 组合 ADR 待定）+ `ISS-165`（step2；scope 已 `M5→M6`）。
+
+> **口径全局对齐（追加，2026-10-08，architect）**：依已确认的 **`ADR-0020 D9`**，M5「权限反例」口径全局对齐——**M5 可观测 = cfx 级**：`ILLI`〔mask 禁止 / reserved〕、`CFXREG`〔未实现 cfx / 不存在或超数量寄存器组合〕；**`NUPERM/NJPERM/NSPERM/NHPERM` 出自 `DADAO-12 §2.2` PTBR 权限层、不在 M5**。**性质 = 与既定决策的一致性修正，非新增范围。** 本文件 M5 门槛组成 ②（上「门槛」行）已改；同批对齐 `INTEG-019k`（门槛 + 第 2 轮裁定 9 + 审阅记录两处，后二者保留原话加注）、`INTEG-020t`（门槛 + 验收 2）、`INTEG-021m`（核验「权限反例」行）。**`spec/` 零改动。**
 
 ## M1 模块依赖关系
 
