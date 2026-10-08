@@ -85,3 +85,16 @@
 **归档准备**：**需立归档任务**（建议 `INTEG-022t`），范围见上「归档准备（评估）」；**本次不执行归档**。
 
 **边界**：本次仅改本文件 + `milestones.md`（M5 行 + 达成注）；**`spec/` 交集为空**；未触 `contracts/**`/`components/**`/`Makefile`/`tools/**`；未新增/删除任务。
+
+#### architect 提交与文件集审核（2026-10-08）
+
+**档位**：**正常提交**（本次为架构师里程碑核验步，验收通过 ⇒ 无 `WIP:` 前缀）；**只 `commit`、未 `push`**。
+
+**提交号**：`e4db3b1`（`M5 模块里程碑核验（6 个）+ M5 达成判定`）。
+
+**显式 staging（禁 `git add -A`）**：逐个路径 `git add` **7** 文件——`milestones.md` + 6 个 `m` 文件（`INFRA-049m`/`SPEC-118m`/`LLVM-061m`/`QEMU-048m`/`TESTCASES-035m`/`INTEG-021m`）。
+
+**对账结论**（`git -c core.quotePath=false diff --cached --name-only` ↔ 声明文件集）：
+- **漏提 0**：声明 7 = staged 7；
+- **多提 0 / 越界 0**：staged 全部 `.tao/**`（`grep -vE '^\.tao/'` → 空）；**`spec/` 交集为空**（`grep -E '^spec/'` → 空）；未触 `contracts/**`/`components/**`/`Makefile`/`tools/**`；
+- `git show --stat`：7 files changed, 245 insertions(+), 13 deletions(-)。
