@@ -137,3 +137,10 @@
 **门控**：`make check` EXIT=0（62 tests PASS）✓；`make check-patch-tree` EXIT=0（92 patches OK）✓。
 
 **判决：Accepted**
+
+#### 提交留痕（architect，2026-10-09）
+
+- **档位**：reviewer 判决 **Accepted** ⇒ **正常提交**（无 `WIP:` 前缀）。
+- **提交号**：`ac19fce`（`SPEC-127t: 聚合传参收口…+ DADAO-21 与锁同步 + contract-abi §6.4`）；**只 commit、未 push**。
+- **文件集对账**（显式 staging，逐个路径，禁 `git add -A`）；`git diff --cached --name-only` = `spec/DADAO-21-ABI-应用程序二进制接口.md` / `manifests/spec-readonly.lock.toml` / `.tao/knowledge/contract-abi.md` / `contracts/abi.yaml` / 本任务书 —— 与「修改文件」**逐条相等**（**无漏提 / 无多提 / 无越界**）。
+- **交叉复核**：DADAO-21 统一「8 槽位（64 字节）」+ `>64B ⇒ 间接指针`；锁 `sha256` 实测 = 锁文件（`1db71655…`），`git diff` 仅 1 行 `sha256` 变；contract-abi §6.4 / `contracts/abi.yaml` 注记一致；全仓无聚合槽位残留（仅 `DADAO-21` L260 栈 varargs「32 字节 struct 占四个 slot」，非聚合传参主题）。**限长**：完成区 17 行 ≤30、审阅每轮 ≤40。

@@ -63,6 +63,10 @@
 
 **遗留问题（⚠️ 契约冲突，待裁定）**：旧探针 042t（非门控）14 负例中 5 项在新实现下**由「非零退出」变为 `exit=0`（未拒）**：`neg_bad_flags_ver`/`neg_bad_flags_res`/`neg_bad_type`/`neg_seg_out_of_range`/`oversize_elf_seg`；另 6 项仍非零退出但消息改为上游文案（`Failed to load ELF`/`incorrect endianness`/`incompatible architecture`/`segments are too big to load`）。**选项**：(A) 采纳 `load_elf()` 语义 ⇒ **改契约**（`contract-elf §6.1.2` + `ADR-0004 D2.3`，属 spec 任务，非本任务）；(B) 补薄校验（如改调 `load_elf_ram_sym(...,load_rom=false)` 使越界写立即 MEMTX 失败，并另校验 `e_flags`/`e_type`）——但与「取消自建白名单」相抵。证据全文见上日志。**未标 `待验收`：待用户在 A/B 间裁定。**
 
+> **【追加：用户裁定（2026-10-09，原话留痕）】** ① ②「**我们自己校验（推荐）**」、③「**用 `load_rom=false`（推荐）**」；用户原问「1/2不需要load_elf校验，简言之，就是不改load_elf」+「3我没看懂，到底是load_elf还是load_rom」。**裁定结论 = 不改上游 `load_elf`、不改契约**：①② 调用方在装载前**自校验**（`e_flags[7:0]==1`、`e_type==ET_EXEC`）；③ 改用 `load_elf_ram_sym(..., load_rom=false, ...)`。**文案不约束**（用户裁定）。据此**选项 A/B 均不采纳**，按上方案继续实现。
+
+**子代理异常登记（2026-10-09，只追加）**：本任务 engineer 子代理被 **`cancelled`**（**非失败**；它主动停下等裁定，产出已落盘、WIP 保命提交 `5dfd311`）—— session `ses_ee1d85631ffe…`、异常类型 `cancelled`、**次数 1**、产出已落盘 ⇒ **无需重试**，改按上述用户裁定继续。同记 `milestones.md`「当前进度」。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审

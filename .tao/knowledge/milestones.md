@@ -14,7 +14,7 @@
 | `SPEC-124t` | 已验证 | 10-09 08:17 | 10-09 08:22 | 调用约定契约收口（`contract-abi §6` 三 `[OPEN]` 消解）+ 用户授权改册（`DADAO-21 §返回值` 返回寄存器 `rd31→rd8/rb8/rf8`、声明序递增、每 bank K=8、超者 sret 经 rb16）+ 锁同步；reviewer Accepted |
 | `SPEC-126t` | 已验证 | 10-09 08:37 | 10-09 08:48 | 系统调用/半托管返回寄存器 `rd31 → rd8`（`DADAO-21 §系统调用规范`/`DADAO-22` SBI 返回表/`DADAO-23`/`Machine-01 §5.2·5.4`）+ `contract-see/semihosting/abi` 同步 + 锁同步；**入参 `rd15`/参数区不动**；reviewer Accepted |
 | `QEMU-052t` | 进行中 | 10-09 08:54 | — | 改走上游 `load_elf()`（钉子②），取消自建 `dadao_load_regions[]` 白名单；多段 `PT_LOAD`/RELA/`e_entry`/栈降为验证项；RAM@0 仍 16 MiB |
-| `SPEC-127t` | 待开始 | — | — | 聚合传参/HFA/HPA 约定收口（**用户 2026-10-09 裁定 B：全部聚合槽位上限 `4→8`〔64 字节〕，`>64 B ⇒ 间接指针`** + 补 `spec/DADAO-21 §传参 §聚合类型参数` + 锁同步 + `contract-abi`/`contracts/abi.yaml` 升 M6 口径）；**不含实现**（整数聚合 → `LLVM-062t`，HFA/RF → `LLVM-066t`） |
+| `SPEC-127t` | 已验证 | 10-09 10:06 | 10-09 10:17 | 聚合传参/HFA/HPA 约定收口（**用户 2026-10-09 裁定 B：全部聚合槽位上限 `4→8`〔64 字节〕，`>64 B ⇒ 间接指针`** + 补 `spec/DADAO-21 §传参 §聚合类型参数` + 锁同步 + `contract-abi`/`contracts/abi.yaml` 升 M6 口径）；**不含实现**（整数聚合 → `LLVM-062t`，HFA/RF → `LLVM-066t`）；reviewer Accepted |
 
 > （`INTEG-024t` 时间取自制品 mtime：开始 = `.work/INTEG-024t` 创建 00:00；结束 = reviewer Accepted 00:05。）
 
@@ -52,3 +52,5 @@
     - `ISS-163`（原 `[spec, M5]`）：`Toolchain-01 §5/§11/§13` **旧口径与 `contracts/opcodes.yaml` 不符** —— ②③ 须**用户授权**方可收口上游只读册（用户 2026-10-08 已裁定「暂登记遗留」）—— **待用户裁定**；选项 A 另立 spec 任务（授权 + 锁 `sha256` 同步）/ B 归 M6「欠账收口」/ C 继续暂登记
     - `ISS-164`（原 `[qemu, M5]`）：cfx mask（inner/global）与 `excp_cause_mask` **屏蔽路径当前不可观测**（monitor cause 全不可屏蔽）—— ② 须后续实现带可屏蔽 cause 的 cfx 后补验 —— **待用户裁定**；选项 A 归 M6 / B 保留跟踪（待可屏蔽 cause 的 cfx 里程碑）
     - `ISS-167`（原 `[spec, qemu, M5]`）：`DADAO-12 §5` 异常退出流程 **prose 与伪代码张力**（判据：伪代码为权威）—— ②③ 须**用户授权**方可收口上游只读册 —— **待用户裁定**；选项 A 另立 spec 任务（授权 + 锁同步）/ B 归 M6 / C 保留
+- **`QEMU-052t` 用户裁定（2026-10-09，**原话留痕**）**：① ②「**我们自己校验（推荐）**」、③「**用 `load_rom=false`（推荐）**」；用户原问「1/2不需要load_elf校验，简言之，就是不改load_elf」+「3我没看懂，到底是load_elf还是load_rom」。**结论 = 不改上游 `load_elf`、不改契约**——①② 由调用方在装载前**自校验**（`e_flags[7:0]==1`、`e_type==ET_EXEC`）；③ 改用 `load_elf_ram_sym(..., load_rom=false, ...)`。**文案不约束**（用户裁定）。详见 `QEMU-052t` 任务书「遗留问题」。
+- **子代理异常登记（2026-10-09）**：`QEMU-052t` 的 engineer 子代理被 **`cancelled`**（非失败；主动停下等裁定，产出已落盘并 WIP 保命 `5dfd311`）—— session `ses_ee1d85631ffe…`、异常类型 `cancelled`、**次数 1**、**产出已落盘**、**无需重试**（改按上述裁定继续）。详见 `QEMU-052t` 任务书完成区。
