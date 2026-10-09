@@ -11,8 +11,11 @@
 #   - M3 标量调用约定（非变参 / 非聚合）—— 见 scalar_calling_convention：
 #     参数寄存器 / 标量提升 / 栈溢出区 / 返回值 / callee-saved（CSR） /
 #     栈帧布局 / prologue-epilogue / call Defs+RegMask。
-#   - 高级 ABI（varargs / HFA / HPA / 聚合传参 / sret）与 i128 / RF / 动态链接-TLS
-#     → M4，见 deferred_to_m4。
+#   - 高级 ABI（varargs / 聚合返回 sret）与 i128 / RF / 动态链接-TLS → M4，见 deferred_to_m4。
+#   - HFA / HPA / 聚合传参已由用户 2026-10-09 裁定于 M6 收口（SPEC-127t，rev. 2026-10-09）：
+#     统一「最多 8 个寄存器槽位（64 字节）」，>64B 间接指针；口径见 contract-abi.md §6.4，
+#     权威正文 spec/DADAO-21 §传参 §聚合类型参数；deferred_to_m4 中的 hfa/hpa/
+#     aggregate_arguments 仅作 M3 边界登记（其 M6 口径已定）。
 #   - M3 的未决项（多返回值/聚合返回、red zone、i128）已由用户逐条裁定于 M6 消解
 #     （见 contract-abi.md §6，SPEC-124t，rev. 2026-10-09）；open_items 随之为空。
 #   - 返回值寄存器 rd8/rb8/rf8 + 多返回值/聚合「按声明顺序自 8 递增、每 bank K=8」
@@ -215,6 +218,8 @@ open_items: []
 # 注：M6 已对 `aggregate_return_sret`/`multiple_return_values`（口径见
 # contract-abi.md §6.1）与 `i128`（不支持，见 §6.3）作出裁定；本索引按「M3 边界」保留登记。
 deferred_to_m4:
+  # 注（SPEC-127t，2026-10-09）：`hfa`/`hpa`/`aggregate_arguments` 的 M6 口径已定
+  # （统一 ≤8 槽位/64B；>64B 间接指针，见 contract-abi.md §6.4），仅作 M3 边界登记。
   items:
     - varargs
     - hfa

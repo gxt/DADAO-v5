@@ -4,9 +4,9 @@
 >
 > **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/DADAO-11-AEE-应用程序运行环境.md`（0.9.2）；指令语义与寄存器模型基础引用 `.tao/knowledge/contract-isa.md`（0.5.4）；M3 调用约定的取舍项固化于 `.tao/adr/adr-0018-m3-codegen-choices.md`（`ADR-0018`，Accepted）。
 >
-> **范围**：M1 最小 ABI 事实（寄存器角色、`SP=rb1`、栈向下增长 / `call` 时 SP 8B 对齐、`call`/`ret` 与 RegRAS；§1–§3）+ **M3 标量调用约定**（非变参、非聚合：参数寄存器、标量提升、栈溢出区、返回值、callee-saved / CSR、栈帧布局、prologue/epilogue、`call` 的 `Defs`/RegMask；§4）。供 test machine（`SPEC-006t`）、M1/M3 集成与 M3 BasicCodeGen（`LLVM-039t`）使用。
+> **范围**：M1 最小 ABI 事实（寄存器角色、`SP=rb1`、栈向下增长 / `call` 时 SP 8B 对齐、`call`/`ret` 与 RegRAS；§1–§3）+ **M3 标量调用约定**（非变参、非聚合：参数寄存器、标量提升、栈溢出区、返回值、callee-saved / CSR、栈帧布局、prologue/epilogue、`call` 的 `Defs`/RegMask；§4）+ **M6 口径**（多返回值/聚合返回 §6.1、聚合传参/HFA/HPA §6.4）。供 test machine（`SPEC-006t`）、M1/M3 集成、M3 BasicCodeGen（`LLVM-039t`）、聚合传参实现（`LLVM-062t`/`LLVM-066t`）使用。
 >
-> **`Excluded from M3`**：高级 ABI（varargs / HFA / HPA / 聚合传参 / 聚合返回 sret / 多返回值 / `i128`）与浮点 RF（整层）→ M4（见 §5）。
+> **`Excluded from M3`**：高级 ABI（varargs / 聚合返回 sret / 多返回值 / `i128`）与浮点 RF（整层）→ M4（见 §5）；**HFA / HPA / 聚合传参已由用户 2026-10-09 裁定于 M6 收口**（见 §6.4）。
 >
 > **来源标注**：每条规范性断言句末以 `[DADAO-NN §章节名]` / `[SimRISC-XX §章节名]` 标注 spec/ 来源，不写行号；spec/ 未规定、由 M3 决策补足者标 `[ADR-0018（CX）]`；spec 未规定、由**用户逐条裁定**补足者标 `[spec-decision]`（M6，见 §6）。
 >
@@ -151,7 +151,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 - `registers` 表为逐寄存器分类的**权威来源**（`rb1`/`rb2` 依 spec 标 `callee_saved: true`）。[DADAO-21 §寄存器规范]
 - `callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**：`callee_saved` 只给出各 bank 的**通用 callee-saved 块（32–63）**（不含 SP/FP 等帧管理专用寄存器；**RF 整体 `Excluded from M3`、`allocatable.rf` 为空，其块仅作 spec 事实登记**）；`reserved_registers` 依 M3 口径（C6）为 `rd1–rd7` / `rb3–rb7`。[DADAO-21 §寄存器规范][ADR-0018（C6）]
 - `scalar_calling_convention` 为 §4 标量调用约定的 M3 机器可读投影。[DADAO-21 §函数调用规范][ADR-0018（C4）]
-- `open_items` 为空（M3 的未决项已由用户逐条裁定于 M6 消解，见 §6）；`deferred_to_m4` 为 M3 范围外的高级 ABI 边界索引（见 §5）。[DADAO-21 §返回值 §多返回值]
+- `open_items` 为空（M3 的未决项已由用户逐条裁定于 M6 消解，见 §6）；`deferred_to_m4` 为 M3 范围外的高级 ABI 边界索引（见 §5）；其中 `hfa` / `hpa` / `aggregate_arguments` 已由用户 2026-10-09 裁定于 M6 收口（见 §6.4）。[DADAO-21 §返回值 §多返回值][DADAO-21 §传参 §聚合类型参数]
 
 > 派生索引不新增规范性事实。[DADAO-21 §寄存器规范]
 
@@ -263,20 +263,20 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 ### §4.10 M3 覆盖与 M4 交接
 
 - 本节覆盖的 M3 事实：参数寄存器（§4.1）、标量提升（§4.2）、栈溢出区（§4.3）、返回值（§4.4）、callee-saved / CSR（§4.5）、`call` 寄存器效果（§4.6）、帧布局（§4.7）、prologue/epilogue（§4.8）、栈对齐/DataLayout（§4.9）。[DADAO-21 §函数调用规范]
-- 不在本节（→ M4）：变参、HFA/HPA、聚合传参、聚合返回 sret、多返回值、`i128`、RF 浮点、动态链接 / TLS、系统调用规范。[DADAO-21 §传参 §聚合类型参数][DADAO-21 §返回值 §多返回值]
+- 不在本节（→ M4）：变参、聚合返回 sret、多返回值、`i128`、RF 浮点、动态链接 / TLS、系统调用规范；**HFA/HPA、聚合传参**不属 M3、已由用户 2026-10-09 裁定于 **M6 收口**（见 §6.4）。[DADAO-21 §传参 §聚合类型参数][DADAO-21 §返回值 §多返回值]
 
 ---
 
 ## §5 `Excluded from M3`（高级 ABI，→ M4）
 
-以下内容不属 M3 标量调用约定，顺延 M4：
+以下内容不属 M3 标量调用约定；除已由用户裁定于 **M6 收口**者（状态列注明，见 §6）外，顺延 M4：
 
 | 主题 | spec/ 出处 | 状态 |
 |------|-----------|------|
 | 可变参数（`va_list` / 保存区 / `va_start` / `va_arg`） | [DADAO-21 §可变参数] | `Excluded from M3`（→ M4） |
-| HFA（同质浮点聚合，RF bank） | [DADAO-21 §传参 §聚合类型参数] | `Excluded from M3`（→ M4） |
-| HPA（同质指针聚合，RB bank） | [DADAO-21 §传参 §聚合类型参数] | `Excluded from M3`（→ M4） |
-| 聚合传参（≤32B 拆 RD 块 / >32B 间接指针） | [DADAO-21 §传参 §聚合类型参数] | `Excluded from M3`（→ M4） |
+| HFA（同质浮点聚合，RF bank；≤8 槽位/64B） | [DADAO-21 §传参 §聚合类型参数] | `Excluded from M3`（**M6 已定口径，见 §6.4**） |
+| HPA（同质指针聚合，RB bank；≤8 槽位/64B） | [DADAO-21 §传参 §聚合类型参数] | `Excluded from M3`（**M6 已定口径，见 §6.4**） |
+| 聚合传参（≤64B 拆 RD 块 / >64B 间接指针） | [DADAO-21 §传参 §聚合类型参数] | `Excluded from M3`（**M6 已定口径，见 §6.4**） |
 | 聚合返回值（hidden sret，指针经 rb16） | [DADAO-21 §返回值 §聚合类型返回值] | `Excluded from M3`（M6 已定口径，见 §6.1） |
 | 多返回值 | [DADAO-21 §返回值 §多返回值] | `Excluded from M3`（M6 已定口径，见 §6.1） |
 | `i128` 传参 / 返回约定 | [DADAO-21 §返回值 §标量类型返回值] | `Excluded`（M6 裁定不支持，见 §6.3） |
@@ -298,6 +298,8 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 | 2 | red zone（128B） | **不采用** | 用户 2026-10-08 裁定（v5 `spec/` 未提及）[spec-decision] |
 | 3 | `i128` 传参 / 返回 | **不支持**（保持 `Excluded`） | 用户 2026-10-08 裁定；spec 未规定。[spec-decision] |
 
+**M6 另收口（原 §5 高级 ABI 边界，非 §6 未决项）**：**聚合传参 / HFA / HPA**——用户 2026-10-09 裁定「B」后已写入 `spec/DADAO-21 §传参 §聚合类型参数`，口径见 **§6.4**。
+
 ### §6.1 多返回值 / 聚合返回值（原 #1）——`LLVM-062t` 实现依据
 
 - **返回寄存器**：整数 `rd8`、指针 `rb8`、浮点 `rf8`（各 bank 低编号区 `rd8–rd15` / `rb8–rb15` / `rf8–rf15`），**与参数寄存器区（`rd16–rd31` / `rb16–rb31` / `rf16–rf31`）不重叠**。[DADAO-21 §返回值]
@@ -315,6 +317,17 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 - **结论**：**不支持 `i128`**（保持 `Excluded`）。实现**不得**为 `i128` 生成传参 / 返回寄存器约定或 `sret` 约定；遇 `i128` 参数 / 返回值时应显式失败，不得静默降级。[spec-decision]
 - **来源**：用户 2026-10-08 裁定「不支持」（保持 `Excluded`）。spec `§标量类型返回值` 未规定 `i128` 约定。[DADAO-21 §返回值 §标量类型返回值]
 - **注**：`DataLayout` 的 `i128:128`（§4.9，C9）是**存储布局**事实，与传参 / 返回约定无关，不受本项影响。[ADR-0018（C9）]
+
+### §6.4 聚合传参 / HFA / HPA（M6 口径，`LLVM-062t` / `LLVM-066t` 实现依据）
+
+- **统一槽位上限（用户 2026-10-09 裁定「B」）**：聚合类型（含**通用聚合**、**HFA**、**HPA**）传参**最多消耗 8 个寄存器槽位（64 字节）**；超过上限即改用**间接指针**。[DADAO-21 §传参 §聚合类型参数]
+  - **HFA**（同质浮点，全部叶子字段为同一浮点类型）：经 **RF bank** 传递，每个叶子字段占 **1 个 RF 槽位**，自 `rf16` 起递增；叶子字段总数 ≤ 8（占 `rf16–rf23`）。[DADAO-21 §传参 §聚合类型参数]
+  - **HPA**（同质指针，全部叶子字段为指针类型，指向的具体类型可不同）：经 **RB bank** 传递，每个叶子字段占 **1 个 RB 槽位**，自 `rb16` 起递增；叶子字段总数 ≤ 8（占 `rb16–rb23`）。[DADAO-21 §传参 §聚合类型参数]
+  - **通用聚合**（非 HFA/HPA，跨 bank）：`≤ 64 字节` ⇒ 拆分为 **1–8 个 8 字节块**放入 **RD bank**（高位块先入高寄存器）；**`> 64 字节` ⇒ 间接指针**（caller 在栈上分配临时空间，callee 经 RB bank 中的指针访问）。[DADAO-21 §传参 §聚合类型参数]
+- **判定流程不变**：flatten（递归展开嵌套 struct；`union` 直接判定为不满足）、同质检查、计数检查（叶子字段总数 ≤ 8）。聚合对齐、`> 8B` 聚合变参的拆分规则不变（后二者不属本节）。[DADAO-21 §传参 §聚合类型参数]
+- **与返回口径一致**：聚合返回同以「**每 bank 至多 8**」为容量口径（§6.1），聚合传参 8 槽位上限与其统一。[DADAO-21 §返回值 §多返回值][DADAO-21 §返回值 §聚合类型返回值]
+- **实现归属**：通用（整数）聚合传参 → `LLVM-062t`；HFA / HPA（RF/RB）传参 → `LLVM-066t`。[DADAO-21 §传参 §聚合类型参数]
+- **来源**：用户 2026-10-09 裁定原话「hfa/hpa也调整为：最多消耗 8个寄存器槽位（64字节）」+ 追问通用聚合后答「B，补充spec」（B = 通用/HFA/HPA 统一 8 槽位/64B）；已写入 `spec/DADAO-21 §传参 §聚合类型参数`（本任务同一变更内改册 + 同步只读锁 `sha256`）。[DADAO-21 §传参 §聚合类型参数]
 
 ---
 
@@ -338,3 +351,4 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 | §4.6 | `call` `Defs` / `getCallPreservedMask` / `ret` | `ADR-0018`（C16）；`DADAO-21-ABI §返回值 §标量类型返回值` |
 | §4.7 | 栈帧布局 / FP 策略 | `DADAO-21-ABI §函数调用规范 §The Stack Frame`；`ADR-0018`（C7） |
 | §4.8 | prologue / epilogue（SP-only + FP 两套） | `DADAO-21-ABI §函数调用规范 §The Stack Frame`、`§传参 §栈溢出规则`；`ADR-0018`（C7） |
+| §6.4 | 聚合传参 / HFA / HPA（统一 ≤8 槽位 / 64B；>64B 间接指针） | `DADAO-21-ABI §传参 §聚合类型参数` |

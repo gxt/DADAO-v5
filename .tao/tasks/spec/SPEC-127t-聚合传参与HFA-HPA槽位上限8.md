@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M6
 **依赖**：`SPEC-124t`（调用约定契约收口 `contract-abi §6`，`已验证`）、`SPEC-126t`（返回 `rd8`，`已验证`）；与所有改 `spec/`/锁任务**串行**（同改 `spec/DADAO-21` + `manifests/spec-readonly.lock.toml`）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -21,18 +21,20 @@
 2. **待用户裁定（**不擅改**）**：**通用聚合（非 HFA/HPA）** 是否同步由 4 槽位（32 B）改 8 槽位（64 B）——见下「待用户裁定」节。
 3. **不含实现**：`components/**`/`tools/**`/`tests/**` 归 `LLVM-062t`（整数聚合）/ `LLVM-066t`（HFA/RF）；本任务 `git diff` 与实现侧交集为空。
 
-## 待用户裁定（通用聚合 4 vs 8，**不擅定**）
+## 通用聚合 4 vs 8：**已裁定 = B**（2026-10-09）
 
-> 用户原话只点名 **HFA/HPA → 8 槽位（64 B）**；**通用聚合（非 HFA/HPA）** 是否同步改动**未明说**。HFA/HPA 属 **RF/RB 单 bank**，通用聚合**跨 bank**（RD 块 / 指针间接），两者机制不同。
+> **用户原话（逐字留痕，2026-10-09）**：
+> - 「**hfa/hpa也调整为：最多消耗 8个寄存器槽位（64字节）**」
+> - 追问「通用聚合（非 HFA/HPA）是否同步 4 → 8」后，用户答：「**B，补充spec**」
+
+**裁定 = 选项 B（取代原默认 A）**：**全部聚合（通用 / HFA / HPA）统一为「最多消耗 8 个寄存器槽位（64 字节）」**；**连带阈值**：`≤ 64 字节` ⇒ 拆 `1–8` 个 8 字节块入 RD bank，**`> 64 字节` ⇒ 间接指针**（原 `>32B` ⇒ 间接指针）；**补充 `spec/`**（用户已预先授权改只读册 + 同一变更内同步 `sha256` 锁）；**不立 ADR**。
+
+> 下述 A/B 选项表为**裁定前**记录，**选项 A 已被 B 取代**（保留供溯源）。
 
 | 选项 | 口径 | 影响 |
 |---|---|---|
-| **A（本任务默认落点）** | 仅 **HFA/HPA → 8**（64 B）；**通用聚合仍 4 槽位（32 B）**（`≤32B` 拆 RD 块、`>32B` 走指针间接，**不变**） | 与用户原话**字面一致**；通用聚合行为不变，`LLVM-062t` 整数聚合路径**不受影响** |
-| **B** | 通用聚合**也**改 **8 槽位（64 B）**（`≤64B` 拆 8 块、`>64B` 走指针） | 通用聚合同步放宽；`>32B 且 ≤64B` 的聚合由「指针间接」变为「8 个 RD 块」，**`LLVM-062t` 整数聚合传参须按 8 块实现**（否则不一致） |
-
-- **本任务只落 A 的显式部分**（HFA/HPA = 8），**不擅改通用聚合**（保持 4 槽位/32 B）。
-- **`待用户裁定`**：请用户就 **A / B** 明确裁定；裁 **B** 时须**另立变更**（同步改通用聚合正文 + `LLVM-062t` 范围），**不并入本轮**。
-- **阻塞提示**：`LLVM-062t`（整数完整调用约定）实现的是**通用聚合**传参 ⇒ 该裁定应在 `LLVM-062t` 下发前给出，否则其通用聚合上限口径悬空。
+| A（原默认，**已被取代**） | 仅 **HFA/HPA → 8**；**通用聚合仍 4 槽位（32 B）** | — |
+| **B（已裁定）** | 通用聚合**也**改 **8 槽位（64 B）**（`≤64B` 拆 8 块、`>64B` 走指针） | `>32B 且 ≤64B` 的聚合由「指针间接」变为「8 个 RD 块」，**`LLVM-062t` 整数聚合传参按 8 块实现** |
 
 ## 接口规范
 
@@ -81,16 +83,57 @@
 10. **无残留**：`git status --porcelain -uall` 仅本任务应有改动（`spec/DADAO-21-ABI-应用程序二进制接口.md` + `manifests/spec-readonly.lock.toml` + `.tao/knowledge/contract-abi.md` + `contracts/abi.yaml` + 本任务书）；无 `*_tmp*`/`*.orig`/`*.rej`。
 
 ## 完成区
-**测试结果**：
+
+**测试结果**：`make check` EXIT=0（含 `check-spec-readonly`/`check-spec-drift`/`check-patch-tree`）；`make check-spec-refs` EXIT=0；`make check-patch-tree` EXIT=0；证据脚本 `.work/evidence/SPEC-127t/run.sh` RUN_EXIT=0。
 **修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- `spec/DADAO-21-ABI-应用程序二进制接口.md`（§传参 §聚合类型参数：统一 8 槽位/64B；计数检查 ≤8；阈值 ≤64B/>64B 间接；HFA/HPA 各补 8 槽位正例 + 负例 >8）
+- `manifests/spec-readonly.lock.toml`（DADAO-21 sha256 同步，1/1 行）
+- `.tao/knowledge/contract-abi.md`（头部范围/Excluded 行、§3、§4.10、§5 状态列、§6 新增 §6.4、附录 A）
+- `contracts/abi.yaml`（头部注 + `deferred_to_m4` M6 注记）
+- 本任务书；`.work/evidence/SPEC-127t/run.sh`（`.work/` 不在 git）
+**验收结果**（真实输出，见 `.work/log/spec/SPEC-127t-*.log`）：
+- `check-spec-readonly: 21 read-only spec volume(s) OK`（EXIT=0）
+- `check-spec-refs`：`结果: PASS (0 violations)`
+- `make check` 末行：`repository checks: PASS`
+- 证据脚本：`RUN_EXIT=0 (all checks passed)`；Phase B 注入（8/64→4/32）：`INJ1`/`INJ2`/`INJ3(check-spec-readonly 非零)` 如期 FAIL；`C RESTORE md5 与注入前相等`（`cp`+md5），Phase C 回绿。
+**用户裁定（原话留痕，2026-10-09）**：「hfa/hpa也调整为：最多消耗 8个寄存器槽位（64字节）」；追问通用聚合后答「B，补充spec」⇒ B = 全聚合统一 8 槽位/64B。**不立 ADR。**
+**新发现/坑**：任务书验收 #2「通用聚合未改（≤32B/>32B）」与裁定 B **冲突**，已按 B 覆盖为「≤64B/>64B」；原「待用户裁定」节已更正为「已裁定=B」。
+**遗留问题**：无（整数聚合/HFA 实现归 `LLVM-062t`/`LLVM-066t`，不在本任务；`components/**`/`tools/**`/`tests/**` 未碰）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+
+**审查范围**：`spec/DADAO-21 §传参 §聚合类型参数` 全文、`manifests/spec-readonly.lock.toml`、`contract-abi.md §3/§4.10/§5/§6/附录 A`、`contracts/abi.yaml`；对照用户裁定 B。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| 任务书验收 #2「通用聚合未改」与裁定 B 冲突 | ✅已修（按 B） | 通用聚合阈值 `≤32B/>32B` → `≤64B/>64B`；任务书「待裁定」节更正为「已裁定=B」 | 脚本 C6a/C6b（≤64B/>64B）PASS；`make check` EXIT=0 |
+| 锁 `sha256` 与实测一致性 + 仅 DADAO-21 变 | ✅已修 | 改册后实测 sha256 写回锁 | 脚本 C8 `锁 sha256==实测` PASS；`git diff -U0` 锁 `sha256` 行 `-`/`+` 各 1 |
+| §可变参数「32 字节 struct 占四个连续 slot」是否需同步 | ❌不修 | 未动 | 任务显式要求「变参 >8B 拆分不动」；该句为栈内存 slot（32B=4 slot 恒真），与寄存器槽位上限无冲突 |
+| contract-abi §6.1「返回 K=8」与传参 8 槽位口径 | ✅已修（登记一致） | §6.4 明示「与返回口径一致（§6.1 K=8）」；标注实现归属 `LLVM-062t`/`LLVM-066t` | 目视 §6.4；`check-spec-refs` PASS |
+| 注入还原是否污染工作树 | ✅已修（验证） | 用 `cp`+md5（trap 兜底），禁 `git checkout/restore` | 脚本后 `md5sum` = 注入前 `a34b50bb…`；`grep -c '8 个寄存器槽位（64 字节）'=1`、`'4 个…'=0` |
 
 #### 第 1 轮 reviewer 验收
-（待填）
+
+**证据脚本审核**：`run.sh` 28/28 断言全部 PASS，EXIT=0。FAIL 路径存在（C1–C8 逐项判 0/1，INJ1/2/3 检测注入后非零），无 `tee`，`rc=$?` 捕获退出码，`cp`+md5 还原 + trap 兜底。**合格**。
+
+**重跑证据**（真实输出 `/tmp/opencode/SPEC-127t-review/run.log`）：Phase A 全 PASS → Phase B 注入有效(md5变) → INJ1/2/3 如期 FAIL → Phase C md5 还原相等 → 回绿全 PASS。`RUN_EXIT=0`。
+
+**独立注入**：`cp` 备份(md5=`a34b50bb…`) → python3 改 `8→4`/`64→32` 四处 → md5=`33d20427…`(注入有效) → 脚本 `INJ_EXIT=1`(10项FAIL) → `cp` 还原 → md5=`a34b50bb…`(相等) → 脚本 `EXIT=0` 回绿。
+
+**① DADAO-21 内容**：L171「最多消耗 8 个寄存器槽位（64 字节）」✓；L177「叶子字段总数 ≤ 8」✓；HFA 8×double/RF16-23 正例(L189) ✓；HPA 8×int*/RB16-23 正例(L210) ✓；负例「叶子字段 > 8」(L199/L218) ✓；通用聚合 ≤64B/>64B(L221-222) ✓。展开/flatten/union/对齐规则未被误改。L260「32字节struct占四个slot」为**栈 varargs 内存 slot**（非寄存器槽位），不受影响。
+
+**② 全仓残留扫描**：`grep -rnE '4 ?个寄存器槽位|32 ?字节|>32 ?B|≤32' spec/DADAO-21*.md .tao/knowledge/contract-abi.md contracts/abi.yaml` → 仅命中 L260（栈 varargs，非聚合传参主题）。**无残留**。
+
+**③ 锁 sha256**：实测=`1db71655…` = 锁文件 L105 ✓；`git diff` 仅 1 行 sha256 `-`/`+`（DADAO-21）✓。
+
+**④ contract-abi.md**：§5 表 HFA/HPA/聚合传参已标「M6 已定口径，见 §6.4」✓；§6.4 统一 8 槽位/64B + §6.1 K=8 一致 ✓；实现归属 `LLVM-062t`/`LLVM-066t` ✓。`contracts/abi.yaml` YAML 可解析 ✓。
+
+**⑤ 任务书**：验收 #2「通用聚合未改」与裁定 B 冲突**已披露**（完成区L100），仅追加更正、未改写完成区/审阅记录 ✓。
+
+**⑥ 越界**：`git status` 仅 5 文件：`spec/DADAO-21-*` + `manifests/spec-readonly.lock.toml` + `.tao/knowledge/contract-abi.md` + `contracts/abi.yaml` + 本任务书。无 `components/`/`tools/`/`tests/`，无 `_tmp/_orig/_rej/_preinject` ✓。
+
+**门控**：`make check` EXIT=0（62 tests PASS）✓；`make check-patch-tree` EXIT=0（92 patches OK）✓。
+
+**判决：Accepted**

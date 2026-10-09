@@ -168,13 +168,13 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 
 #### 聚合类型参数：Aggregate parameter
 
-聚合类型按以下规则传递，最多消耗 4 个寄存器槽位（32 字节）。
+聚合类型按以下规则传递，最多消耗 8 个寄存器槽位（64 字节）。
 
 **HFA/HPA 递归判定流程**
 
 1. **展开（flatten）**：递归展开聚合类型的所有嵌套 struct 成员，得到叶子字段列表。union 直接判定为不满足条件。
 2. **同质检查**：HFA 要求所有叶子字段为同一浮点类型（float 或 double）；HPA 要求所有叶子字段为指针类型（指针指向的具体类型可以不同）。
-3. **计数检查**：叶子字段总数 ≤ 4。
+3. **计数检查**：叶子字段总数 ≤ 8。
 
 **同质浮点聚合（HFA, Homogeneous Floating-point Aggregate）**
 
@@ -186,6 +186,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 | `struct { double x, y; }` | 2×double | 16B | RF16, RF17 |
 | `struct { float a, b, c; }` | 3×float | 12B | RF16-18 |
 | `struct { struct { double x,y; } a, b; }` | 4×double | 32B | RF16-19 |
+| `struct { double a, b, c, d, e, f, g, h; }` | 8×double | 64B | RF16-23 |
 | `struct { double x; }` | 1×double | 8B | RF16 |
 
 以下情况不是 HFA：
@@ -195,7 +196,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 | `struct { float f; int i; }` | 混合类型（float + int） |
 | `struct { double x; char c; }` | 含非浮点类型（char） |
 | `union { float f; int i; }` | union 不展开 |
-| `struct { double a,b,c,d,e; }` | 叶子字段 > 4 |
+| `struct { double a,b,c,d,e,f,g,h,i; }` | 叶子字段 > 8 |
 
 **同质指针聚合（HPA, Homogeneous Pointer Aggregate）**
 
@@ -206,6 +207,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 |---------|--------|------|---------|
 | `struct { void *p, *q; }` | 2×void* | 16B | RB16, RB17 |
 | `struct { int *a, *b, *c, *d; }` | 4×int* | 32B | RB16-19 |
+| `struct { int *a, *b, *c, *d, *e, *f, *g, *h; }` | 8×int* | 64B | RB16-23 |
 | `struct { struct { char *x; } a; char *b; }` | 2×char* | 16B | RB16, RB17 |
 | `struct { int *p; void *q; }` | 2×指针 | 16B | RB16, RB17 |
 
@@ -213,10 +215,11 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 | 聚合类型 | 原因 |
 |---------|------|
 | `struct { void *p; int i; }` | 混合类型（指针 + int） |
+| `struct { int *a, *b, *c, *d, *e, *f, *g, *h, *i; }` | 叶子字段 > 8 |
 
 **不满足 HFA/HPA 条件**：
-- ≤ 32 字节：拆分为 1-4 个 8 字节块，放入 RD bank，高位块先入高寄存器
-- > 32 字节：通过指针引用（caller 在栈上分配临时空间，callee 通过 RB bank 中的指针访问）
+- ≤ 64 字节：拆分为 1-8 个 8 字节块，放入 RD bank，高位块先入高寄存器
+- > 64 字节：通过指针引用（caller 在栈上分配临时空间，callee 通过 RB bank 中的指针访问）
 
 #### 栈溢出规则
 
