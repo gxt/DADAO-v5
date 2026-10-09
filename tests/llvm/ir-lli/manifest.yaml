@@ -1,0 +1,146 @@
+# tests/llvm/ir-lli/manifest.yaml
+# TESTCASES-038t: value-level differential corpus (host `lli` vs DADAO target).
+#
+# Value channel (frozen; see ./README.md):
+#   process exit code == low byte of the `i64` returned by `@main`.
+#     * host  : `lli <ir>` runs `@main` natively; the OS truncates its return.
+#     * target: `llc -march=dadao` -> `llvm-mc` -> crt0 (`_start` calls `@main`,
+#               reports `rd8` through the semihosting `SYS_EXIT` service) -> QEMU
+#               guest exit code.
+#   Both sides thus expose exactly the same value channel, so the two counts are
+#   directly comparable.
+#
+# Judgement: host exit == dadao exit for every `include` case.
+#
+# Structural closure (lessons §8.35): `include` ∪ `exclude` MUST equal every
+#   `*.ll` found on disk under `corpus_roots`, and the two sets MUST be disjoint.
+#   An unclassified `*.ll` => FAIL => a manifest entry cannot be deleted to
+#   silently shrink coverage.  The driver reports per-case hits (§8.34).
+#
+# Boundary (hard constraint): VALUE-LEVEL only -- endianness / memory-layout
+#   class modules are excluded (classes `endianness` / `memory-layout`).  This
+#   differential check does NOT serve as an execution-semantics oracle.
+#
+# NOTE: the `include` cases are the *self-contained single-TU value-level*
+#   modules; the rest are registered in `exclude` with a reason + class.
+
+schema: ir-lli-v1
+
+corpus_roots:
+  - tests/llvm/codegen
+  - tests/llvm/lit/CodeGen/DADAO
+
+# ---- included: self-contained single-TU, value-level, endianness/layout safe
+include:
+  # M3 scalar CodeGen value corpus
+  - {name: arith_add_sub_neg.ll,     ir: tests/llvm/codegen/arith_add_sub_neg.ll,     category: arithmetic}
+  - {name: arith_const_hi_wyde.ll,   ir: tests/llvm/codegen/arith_const_hi_wyde.ll,   category: arithmetic}
+  - {name: branch_eq_ne.ll,          ir: tests/llvm/codegen/branch_eq_ne.ll,          category: branch}
+  - {name: branch_loop_sum.ll,       ir: tests/llvm/codegen/branch_loop_sum.ll,       category: branch}
+  - {name: branch_ptr.ll,            ir: tests/llvm/codegen/branch_ptr.ll,            category: branch}
+  - {name: call_direct_ret.ll,       ir: tests/llvm/codegen/call_direct_ret.ll,       category: call}
+  - {name: call_multiarg_stack.ll,   ir: tests/llvm/codegen/call_multiarg_stack.ll,   category: call}
+  - {name: call_narrow_args.ll,      ir: tests/llvm/codegen/call_narrow_args.ll,      category: call}
+  - {name: call_ptr_bank.ll,         ir: tests/llvm/codegen/call_ptr_bank.ll,         category: call}
+  - {name: mem_store_load_offset.ll, ir: tests/llvm/codegen/mem_store_load_offset.ll, category: memory}
+  - {name: ptr_add_offset.ll,        ir: tests/llvm/codegen/ptr_add_offset.ll,        category: memory}
+  - {name: ptr_diff_neg.ll,          ir: tests/llvm/codegen/ptr_diff_neg.ll,          category: arithmetic}
+  - {name: ptr_diff_pos.ll,          ir: tests/llvm/codegen/ptr_diff_pos.ll,          category: arithmetic}
+  # M6 raw-bin value corpus (single TU)
+  - {name: m6_aggregate_arg.ll,      ir: tests/llvm/codegen/m6/m6_aggregate_arg.ll,   category: call}
+  - {name: m6_fp_arith.ll,           ir: tests/llvm/codegen/m6/m6_fp_arith.ll,        category: fp}
+  - {name: m6_fp_hfa.ll,             ir: tests/llvm/codegen/m6/m6_fp_hfa.ll,          category: fp}
+  - {name: m6_large_frame.ll,        ir: tests/llvm/codegen/m6/m6_large_frame.ll,     category: memory}
+  - {name: m6_multi_return.ll,       ir: tests/llvm/codegen/m6/m6_multi_return.ll,    category: call}
+  - {name: m6_sret.ll,               ir: tests/llvm/codegen/m6/m6_sret.ll,            category: call}
+
+# ---- excluded: registered with class + reason (never silently dropped)
+exclude:
+  # (a) endianness class -- value depends on memory byte order (host LE vs DADAO BE)
+  - ir: tests/llvm/codegen/mem_narrow_be_bytes.ll
+    class: endianness
+    reason: >-
+      stores an i64 then reads it back byte-wise (load i8 at offsets 0/3/7);
+      the observable value is the byte order of the stored i64 (host little-endian
+      vs DADAO big-endian), which the task boundary excludes.
+  - ir: tests/llvm/codegen/mem_narrow_be_wide.ll
+    class: endianness
+    reason: >-
+      narrow loads (i16/i32) of a wider stored value; the result depends on memory
+      byte order (host LE vs DADAO BE), excluded by the value-level-only boundary.
+
+  # (b) host-unsupported: host `lli` cannot execute the module
+  - ir: tests/llvm/codegen/m6/m6_varargs.ll
+    class: host-unsupported
+    reason: >-
+      host `lli` crashes (SIGSEGV, exit 139) on the `llvm.va_start.p0` variadic
+      module, so no host value channel exists.  (The DADAO target runs it; it is
+      covered by the M6 execution vectors, not this differential driver.)
+  - ir: tests/llvm/lit/CodeGen/DADAO/m6-varargs.ll
+    class: host-unsupported
+    reason: >-
+      same variadic `llvm.va_start` shape as above; host `lli` crashes (SIGSEGV).
+
+  # (c) needs-linker / multi-TU: not a single-TU flat-binary module
+  - ir: tests/llvm/codegen/m6/m6_indirect_call.ll
+    class: needs-linker
+    reason: >-
+      indirect call through a function pointer; the DADAO side needs the ELF/
+      linker pipeline to resolve `R_DADAO_ABS48` (flat-binary flow cannot), so it
+      is out of this single-TU driver (covered by the M6 ELF vectors).
+  - ir: tests/llvm/codegen/m4/m4_call_main.ll
+    class: multi-tu
+    reason: "calls `@lib_mix` defined in m4_call_lib.ll; requires multi-TU linking."
+  - ir: tests/llvm/codegen/m4/m4_notneg_neg_main.ll
+    class: multi-tu
+    reason: "references symbols defined in m4_notneg_neg_lib.ll; requires multi-TU linking."
+  - ir: tests/llvm/codegen/m4/m4_notneg_not_main.ll
+    class: multi-tu
+    reason: "references symbols defined in m4_notneg_not_lib.ll; requires multi-TU linking."
+  - ir: tests/llvm/codegen/m4/m4_pdiff_main.ll
+    class: multi-tu
+    reason: "references data/symbols defined in m4_pdiff_data.ll; requires multi-TU linking."
+  - ir: tests/llvm/codegen/m4/m4_section_main.ll
+    class: multi-tu
+    reason: "references data/symbols defined in m4_section_data.ll; requires multi-TU linking."
+  - ir: tests/llvm/lit/CodeGen/DADAO/branch-fold-insert.ll
+    class: multi-tu
+    reason: >-
+      FileCheck structural `-stop-after=branch-folder` test; `main` reads external
+      globals and calls a declared external symbol (multi-TU), no self-contained
+      value channel.
+
+  # (d) no-value-entry: no `i64 @main()` value channel
+  - ir: tests/llvm/codegen/m4/m4_call_lib.ll
+    class: no-value-entry
+    reason: "library TU (no `@main`); no standalone value channel."
+  - ir: tests/llvm/codegen/m4/m4_notneg_neg_lib.ll
+    class: no-value-entry
+    reason: "library TU (no `@main`); no standalone value channel."
+  - ir: tests/llvm/codegen/m4/m4_notneg_not_lib.ll
+    class: no-value-entry
+    reason: "library TU (no `@main`); no standalone value channel."
+  - ir: tests/llvm/codegen/m4/m4_pdiff_data.ll
+    class: no-value-entry
+    reason: "data TU (no `@main`); no standalone value channel."
+  - ir: tests/llvm/codegen/m4/m4_section_data.ll
+    class: no-value-entry
+    reason: "data TU (no `@main`); no standalone value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/fp-codegen.ll
+    class: no-value-entry
+    reason: "FileCheck structural (register-shape) test; no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m6-indirect-call.ll
+    class: no-value-entry
+    reason: "FileCheck structural test; no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m6-large-frame.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (large-frame form selection); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m6-memintrin.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (mem intrinsics); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m6-not-neg.ll
+    class: no-value-entry
+    reason: "FileCheck structural test; no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m6-return-regs.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (return-register shape); no `@main` value channel."

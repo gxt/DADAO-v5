@@ -717,3 +717,8 @@
 
 - **规则**：遍历真源**全部记录**（如 `contracts/opcodes.yaml`）的量产生成器须：① 逐条覆盖，遇「无法无歧义映射」（如某 word 命中多条记录）**中止报错**（`SystemExit`），**禁静默跳过 / 人工挑拣**；② **幂等**——同一真源两跑产物**逐字相等**（md5 对账）作为**可验收判据**；③ 规模产物**分层**：快档入常驻门控、全量档 opt-in（**opt-in 档与真源一致性无常态报警**，须登记遗留 + 里程碑分层时定层）。
 - **依据/来源**：`TESTCASES-037t`（`_selfcheck` 唯一命中否则中止；两跑 14 产物 md5 全等；`gen-fast.s` 入 `check-lit` 76/75/1、`DADAO-gen/` 入 opt-in `check-lit-full`）；细节 `.work/log/testcases/TESTCASES-037t-*.log`、该任务书。同类 §8.6（生成器随产物入库）、§8.34/§8.35（验证器自证）。
+
+### 8.37 用「进程退出码」做跨后端值级通道须记两点：值域仅低 8 位、信号致负 rc 须显式拒收；host `lli` 对变参模块会 SIGSEGV（`TESTCASES-038t`，2026-10-09）
+
+- **规则**：当以子进程退出码承载跨后端「值」（如 `lli` / QEMU `SYS_EXIT`）做对拍时：① **值通道只有低 8 位**（`ret i64 300` ⇒ `44`；`& 0xFF`），更宽值须另寻通道；② **信号致负 `returncode`**（如 `-11`）`&0xFF` 会把崩溃静默当值 ⇒ 取 rc 处须判 `rc<0 ⇒ 失败`。host `lli` 在 `llvm.va_start` 变参模块上 **SIGSEGV（exit 139）** ⇒ 该类模块归 `host-unsupported` 排除并登记，非静默。
+- **依据/来源**：`TESTCASES-038t`（值通道 = crt0/`SYS_EXIT` 与 `lli` 同构、实测 `ret i64 300`⇒`44`；`m6_varargs.ll` lli SIGSEGV）；细节 `.work/log/testcases/TESTCASES-038t-*.log`、该任务书。同类 §8.16（期望值须机械解析/独立 oracle）。
