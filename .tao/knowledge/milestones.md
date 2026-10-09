@@ -34,7 +34,7 @@
 | `QEMU-054m` | 待开始 | — | — | M6 qemu 里程碑 |
 | `QEMU-055t` | 已验证 | — | 10-09 20:42 | 半托管/SEE 返回寄存器 `rd31 → rd8`（实现 `DADAO_SEMI_RET_REG=8` + `046t` 探针/期望重派生 + **域 B（`m5_semi_write.s`/`expected.yaml`）随本任务收口**）；`test-semihost` 10/10 |
 | `TESTCASES-036t` | 已验证 | — | 10-09 21:34 | M6 新能力向量（L1 编码向量 + L3 执行向量：raw-bin 7/7 + ELF 1/1）；**独立 oracle**（`validate_m6_vectors.py`，无 `subprocess`）；`check-lit` **73→74 PASS（+1）**；遗留：REL12/ABS12（`ld/st` 符号偏移）L1+L3 待 `LLVM-065t`〔`UNSUPPORTED` 暂缓〕、`make test-m6` 接线归 `INTEG-025t` |
-| `TESTCASES-037t` | 待开始 | — | — | lit 量产（骨架生成 + 期望机械派生，**禁从实现反填**） |
+| `TESTCASES-037t` | 已验证 | — | 10-09 21:59 | lit 量产：骨架生成器**机械遍历 `contracts/opcodes.yaml` 全部记录**（现行统计 227 = 217 正例 + 10 反例）、期望**机械派生**（禁反填）、**幂等**；**分层**——快档 `gen-fast.s` 入 `make check`（`check-lit` 76/75/1）、全量档 `MC/DADAO-gen/` **opt-in** `check-lit-full`；`make check-lit` 耗时受控；遗留：`DADAO-gen` 完整性仅 opt-in 校验〔M7 分层时定层〕 |
 | `TESTCASES-038t` | 待开始 | — | — | 上游 IR 素材 + `lli` 值级对拍 |
 | `TESTCASES-039t` | 待开始 | — | — | Embench 接入（**钉子③**） |
 | `TESTCASES-040m` | 待开始 | — | — | M6 testcases 里程碑 |
@@ -42,7 +42,7 @@
 
 > **本表即 M6 全部已规划任务**（唯一真源）：每行对应 `.tao/tasks/<模块>/<任务>-*.md` 一份任务书，**状态取自该任务书 `**状态**` 字段**（可机读复核，**不在本表写死计数**）；未开始项以 `—` 占位。
 
-> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）；`LLVM-068t` 结束 = 12:49（reviewer 证据脚本重跑日志 `/tmp/opencode/LLVM-068t-review/run.log` mtime 12:49:43）；`SPEC-129t` 结束 = 13:17（reviewer 独立注入闭环重建日志 `/tmp/opencode/SPEC-129t-review/restore-test.log` mtime 13:17:34）；`LLVM-063t` 结束 = 14:59（reviewer 判决写入任务书 mtime 14:59:48）；`LLVM-064t` 结束 = 16:25（reviewer 判决写入任务书 mtime 16:25:23）；`LLVM-066t` 结束 = 17:51（reviewer 判决写入任务书 mtime 17:51:20）；`QEMU-053t` 结束 = 18:58（reviewer 判决写入任务书 mtime 18:58:05）；`INFRA-053t` 结束 = 20:06（reviewer 判决写入任务书 mtime 20:06:30）；`QEMU-055t` 结束 = 20:42（reviewer 末次门控日志 `.work/log/qemu/QEMU-055t-review-*.log` mtime 20:42）；`TESTCASES-036t` 结束 = 21:34（reviewer 第 3 轮判决写入任务书 mtime 21:34:53）。）
+> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）；`LLVM-068t` 结束 = 12:49（reviewer 证据脚本重跑日志 `/tmp/opencode/LLVM-068t-review/run.log` mtime 12:49:43）；`SPEC-129t` 结束 = 13:17（reviewer 独立注入闭环重建日志 `/tmp/opencode/SPEC-129t-review/restore-test.log` mtime 13:17:34）；`LLVM-063t` 结束 = 14:59（reviewer 判决写入任务书 mtime 14:59:48）；`LLVM-064t` 结束 = 16:25（reviewer 判决写入任务书 mtime 16:25:23）；`LLVM-066t` 结束 = 17:51（reviewer 判决写入任务书 mtime 17:51:20）；`QEMU-053t` 结束 = 18:58（reviewer 判决写入任务书 mtime 18:58:05）；`INFRA-053t` 结束 = 20:06（reviewer 判决写入任务书 mtime 20:06:30）；`QEMU-055t` 结束 = 20:42（reviewer 末次门控日志 `.work/log/qemu/QEMU-055t-review-*.log` mtime 20:42）；`TESTCASES-036t` 结束 = 21:34（reviewer 第 3 轮判决写入任务书 mtime 21:34:53）；`TESTCASES-037t` 结束 = 21:59（reviewer 判决写入任务书 mtime 21:59:00）。）
 
 > 开始/结束由**主会话**在 `/dispatch`／`/complete` 时填写（格式 **`MM-DD hh:mm`**，不带年份）；只填**可考证**时间，**禁编造**。
 
@@ -57,6 +57,7 @@
 - **`ISS-108` 挂账（用户裁定，2026-10-09）**：`ISS-108` 已由用户裁定**推迟 M7**（`DADAOInstrInfo.td` **1502 行** / `DADAOAsmParser.cpp` **2349 行**；**非功能性重构**）。⇒ `LLVM-062t` 唯一缺口移除、转 `Accepted`（提交 `d367bf6`）。
 - **`ADR-0018 §C7 D6` 修订措辞复核（用户 2026-10-09）**：`SPEC-128t` 就地修订的 `ADR-0018 §C7 D6`（ABI 寄存器布局重排）措辞经用户复核，裁定「**照此保留**」（**无改动**）——**用户 2026-10-09 复核通过**。
 - **规划中**：
+  - **门控分层（用户 2026-10-09 裁定）——推迟到 M7**：三层 = **L1 完整性/可用性**（默认 `make check`，秒~几十秒）/ **L2 各模块功能代表集**（几十~几百秒）/ **L3 较完整**（几百~几千秒）+ **模块完整按需**；落地要点 = `check` 收缩为 L1（`check-qemu-semantics` 移出 + 新增 `check-qemu-smoke` 机械派生代表集）、每层须「能失败 + 结构断言」、触发点写 `AGENTS.md`（收尾跑 L2 / 里程碑跑 L3）；**第 0 步 = 逐门控计时**。细节指针：`.work/log/integ/gate-tiering-design.md`（**gitignored**，故本摘要自足）。
   - **M6 主题与范围（已裁定，2026-10-08；见 `INTEG-023k`）**：整数**完整调用约定** + **12 条 LLVM 欠账收口** + **ELF 加载**（改走 `load_elf()`，钉子②）+ **clang target**（仅 freestanding，钉子①）+ **Embench 接入**（钉子③）+ lit 量产 + `lli` 值级对拍；**不含** libc/OS/syscall、golden model、fuzz（后置 M7）；`ISS-003`（LR-SC）**M6 显式排除**
   - **M6 任务书**：逐项见上表（**计数不写死**，需时现场统计）；编号 `INTEG-023k/024t/025t/026m`、`INFRA-050t/051t/052m`、`SPEC-122t…128t/125m`、`LLVM-062t…068t/067m`、`QEMU-052t…055t/054m`、`TESTCASES-036t…041t/040m`；Wave 串行见 `INTEG-023k §C/§D`
   - **本轮新增裁定的连带影响（均已落纸）**：① 返回寄存器 `rd31→rd8/rb8/rf8`（K=8）⇒ `SPEC-124t` ✓ + 实现侧 `LLVM-062t`/`TESTCASES-041t`；② 系统调用/半托管返回 `rd31→rd8` ⇒ `SPEC-126t` ✓ + `QEMU-055t`/`TESTCASES-041t`；③ 聚合槽位 `4→8`（64 B）⇒ `SPEC-127t` ✓ + `LLVM-062t`〔整数〕/`LLVM-066t`〔HFA〕

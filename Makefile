@@ -43,6 +43,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-spec-readonly check-cfx-aliases check-asm-prose check-lit \
+        check-lit-full \
         test-codegen test-elf test-semihost \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants
@@ -87,6 +88,7 @@ help:
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
 	@echo "  make check-lit        Run lit MC + CodeGen + E2E tests (requires install-host)"
+	@echo "  make check-lit-full   Run full generated lit MC suite from contracts/opcodes.yaml (opt-in; TESTCASES-037t)"
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
 	@echo "  make test-semihost    Run M5 SEE/semihosting E2E gate (bootrom+bin via -semihosting, console+SYS_EXIT, 25 svc; INTEG-020t)"
@@ -435,6 +437,15 @@ LIT_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-lit
 check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
 	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
+
+# lit 全量档 (TESTCASES-037t): 由 contracts/opcodes.yaml 机械生成的全部 lit MC
+# 编码用例（快档受控子集已随 check-lit 进 `make check`；本目标承载规模，
+# **opt-in，不进 `make check`**）。先跑结构+编码检查器，再跑 lit。
+# 计数不写死：由 check_lit_gen.py / llvm-lit **现场统计**；本目标不设硬编码门限。
+check-lit-full:
+	@test -x $(LIT_BIN) || { echo "check-lit-full: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tools/testcases/check_lit_gen.py
+	$(LIT_BIN) tests/llvm/lit/MC/DADAO-gen -v
 
 # M3 CodeGen end-to-end gate (INTEG-012t).  Tools are taken from the install
 # root (ADR-0016 D9); install-host keeps it in sync with the .work/ build trees.
