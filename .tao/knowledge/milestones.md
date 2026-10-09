@@ -26,6 +26,7 @@
 
 ## 当前进度
 - **历史瑕疵登记**：提交 `815d854` 的**内容 = `SPEC-122t`**（`.tao/adr/adr-0018/0021/0022` + `SPEC-122t` 任务书），但**提交消息误写为 `INFRA-050t: …`**（squash 时 `fixup` 冲突触发 `GIT_EDITOR`，编辑脚本**无条件覆写**了合并消息）；**内容与 squash 前逐字节一致**（`git diff backup/pre-push-squash HEAD` = 0 行，已实测）。**用户 2026-10-09 已批准「修正（force-push）」**（只改消息、不动内容）；因**历史改写须独占工作树**（后台任务在写同一工作树时不可执行），**待工作树干净后执行**：`rebase -i` 停该提交 → `commit --amend`（**只对该条**设消息）→ `--continue` → 两级校验（对 `backup/pre-push-squash` 逐字节 0 行 + 对旧 `origin/master` 内容 diff 0 行）→ `push --force-with-lease`。备份分支：`backup/pre-push-squash`、`backup/before-msgfix`。
+- **WIP 入史登记（用户裁定）**：已推送历史中含提交 `5dfd311 WIP: QEMU-052t 候选实现（改走 load_elf()，门控全绿）+ 停下报告：契约 §6.1.2/ADR-0004 D2.3 三类加载期校验丢失，待用户裁定 A/B`——该 WIP 系**保命提交**（子代理 `cancelled`、任务卡在裁定）。用户 2026-10-09 裁定「**选 b，保留现状**」⇒ **不改写已推送历史**；`QEMU-052t` 的最终交付提交将叠加于其后。
 - **里程碑**：M6（`INTEG-023k`「M6 启动与分解」）
 - **规划中**：
   - **M6 主题与范围（已裁定，2026-10-08；见 `INTEG-023k`）**：整数**完整调用约定** + **12 条 LLVM 欠账收口** + **ELF 加载**（改走 `load_elf()`，钉子②）+ **clang target**（仅 freestanding，钉子①）+ **Embench 接入**（钉子③）+ lit 量产 + `lli` 值级对拍；**不含** libc/OS/syscall、golden model、fuzz（后置 M7）；`ISS-003`（LR-SC）**M6 显式排除**
