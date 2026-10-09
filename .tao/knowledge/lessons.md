@@ -722,3 +722,8 @@
 
 - **规则**：当以子进程退出码承载跨后端「值」（如 `lli` / QEMU `SYS_EXIT`）做对拍时：① **值通道只有低 8 位**（`ret i64 300` ⇒ `44`；`& 0xFF`），更宽值须另寻通道；② **信号致负 `returncode`**（如 `-11`）`&0xFF` 会把崩溃静默当值 ⇒ 取 rc 处须判 `rc<0 ⇒ 失败`。host `lli` 在 `llvm.va_start` 变参模块上 **SIGSEGV（exit 139）** ⇒ 该类模块归 `host-unsupported` 排除并登记，非静默。
 - **依据/来源**：`TESTCASES-038t`（值通道 = crt0/`SYS_EXIT` 与 `lli` 同构、实测 `ret i64 300`⇒`44`；`m6_varargs.ll` lli SIGSEGV）；细节 `.work/log/testcases/TESTCASES-038t-*.log`、该任务书。同类 §8.16（期望值须机械解析/独立 oracle）。
+
+### 8.38 下发前预检的「任务书自洽性」若涉及 `enabled`/构建前置，必须**实测该门控的硬要求**，不能只读文字（`INFRA-051t`，2026-10-09）
+
+- **规则**：`/dispatch` 前的「任务书自洽性」预检，若任务涉及 `enabled` 组件、`series`、构建前置等**由门控机械判定**的约束，须先**实跑/实读该门控脚本**确认硬要求（如 enabled 组件是否允许空 `series`），再判自洽；**不得**仅凭任务书文字推断「自洽」。实例：`INFRA-051t` 任务书写「只建骨架（空 `series`）」，而 `check_patch_tree.py` 对 **enabled 组件硬拒空 `series`**（`series is empty`，EXIT=1）⇒ 下发预检判「自洽 ✓」为**误**（偏离即停，待用户裁定后加 1 个最小占位补丁收口）。
+- **依据/来源**：`INFRA-051t`（主会话下发预检漏检，`lessons §7.3` 用户裁定「放 1 个最小占位补丁」）；细节见 `.tao/tasks/infra/INFRA-051t-*.md`「新发现/坑」「遗留问题」。同类 §8.34/§8.35（验证器/门控须自证）。

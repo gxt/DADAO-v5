@@ -49,11 +49,9 @@ role = "functional second reference"
 
 [[component]]
 name = "embench-iot"
-enabled = false
+enabled = true
 repository = "https://github.com/embench/embench-iot.git"
-commit = ""
-# 批量/精确 commit 待 M6 的 ADR 记录上游选择后填写并翻 enabled = true；
-# 当前 master HEAD = 09c2ed8c3b7008c95d08b038de4a3f6dc103ed70（仅作记录，不作基线）
+commit = "09c2ed8c3b7008c95d08b038de4a3f6dc103ed70"
 patch_dir = "components/embench-iot/patches"
 patch_series = "components/embench-iot/series"
 role = "IoT benchmark suite (M6 compilation-correctness tests)"
