@@ -106,4 +106,8 @@
 
 ## 审阅记录
 
-（待填）
+#### 提交留痕（architect，2026-10-09）
+
+- **档位**：architect 规划产出（立项新任务 + 联动台账），内容完整、无未决 ⇒ **正常提交**（无 `WIP:` 前缀）。
+- **提交号**：`f1e32e4`（`M6: 立项 Toolchain-01 旧口径消除 + §11/§12 移位（ISS-163 收口；ISS-167 挂账）`）；**只 commit、未 push**。
+- **文件集对账**（显式 staging，逐个路径，**禁** `git add -A`）：`git diff --cached --name-only` = `.tao/knowledge/milestones.md` / `.tao/tasks/integ/INTEG-023k-M6启动与分解.md` / `.tao/tasks/spec/SPEC-129t-Toolchain-01旧口径消除与移位.md`（新）——与本轮立项范围**逐条相等**（**无漏提 / 无多提 / 无越界**）。
