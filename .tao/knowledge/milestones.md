@@ -7,6 +7,7 @@
 - **规划中**：
   - **M6 主题与范围（已裁定，2026-10-08；见 `INTEG-023k`）**：整数**完整调用约定** + **12 条 LLVM 欠账收口** + **ELF 加载**（改走 `load_elf()`，钉子②）+ **clang target**（仅 freestanding，钉子①）+ **Embench 接入**（钉子③）+ lit 量产 + `lli` 值级对拍；**不含** libc/OS/syscall、golden model、fuzz（后置 M7）；`ISS-003`（LR-SC）**M6 显式排除**
   - **M6 任务书已建（2026-10-08）**：**17 `t` + 6 `m` = 23 份**（`INTEG-023k` `/plan` 通过后），落 `.tao/tasks/{infra,spec,llvm,qemu,testcases,integ}/`；编号 `INFRA-050t…052m`、`SPEC-122t…125m`、`LLVM-062t…067m`、`QEMU-052t…054m`（QEMU 顺延两位以消跨模块重号）、`TESTCASES-036t…040m`、`INTEG-025t/026m`；Wave 串行见 `INTEG-023k §C/§D`
+  - **M6 任务书追加（2026-10-09，用户裁定「统一为 `rd8`」；**不立 ADR**）**：新增 **3 份 `t`** ⇒ **20 `t` + 6 `m` = 26 份**——`SPEC-126t`（系统调用/半托管返回寄存器 `rd31 → rd8`，spec+contracts+锁）、`QEMU-055t`（半托管返回 `rd8` 实现 + 探针重派生）、`TESTCASES-041t`（向量/期望值重派生；**域A 函数返回**〔`SPEC-124t`〕/ **域B 半托管返回**〔`SPEC-126t`〕**分别验收**）；Wave 同步见 `INTEG-023k §C/§D`
   - **Embench 接入（M6 待办）**：① 建 **ADR**（记录 Embench 上游选择 + 精确 commit）⇒ 翻 `manifests/components.lock.toml` 的 `enabled = true`；② 建 `components/embench-iot/{patches/**,series,changelog.md}`（board shim 3 函数、`md5sum` 大端适配、最小运行时）；③ 工作树由既有 `make fetch` 机制生成到 `.work/source/embench-iot`
   - **`lessons.md` 瘦身**：下次里程碑归档时按新口径（新增条目 ≤3 行 + 指针，细节进 `.work/log/`；**不追溯重写**）瘦身（现 612 行 / 46 字头）
   - **`issues.yaml` 移入**（规划①，2026-10-08 `INTEG-024t`；原 `scope` 原样括注）：

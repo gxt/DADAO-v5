@@ -4,7 +4,7 @@
 **项目里程碑**：M6
 **状态**：待开始
 **目标**：M6 测试资产就位——新能力向量（调用约定/reloc/大帧/FP-RF 的 L1 编码 + L3 执行，**独立 oracle**）；lit 量产（骨架生成 + 期望值**从 `spec`/`contracts` 机械派生**、**禁反填**；快档入 `make check`、全量档 opt-in）；上游 IR 素材 + `lli` **值级对拍**；**Embench 接入**（board shim + 最小运行时 + `md5sum` 大端适配；首验收 = 最小基准 QEMU 正确退出码）。
-**关联任务**：`TESTCASES-036t`、`TESTCASES-037t`、`TESTCASES-038t`、`TESTCASES-039t`
+**关联任务**：`TESTCASES-036t`、`TESTCASES-037t`、`TESTCASES-038t`、`TESTCASES-039t`、`TESTCASES-041t`
 
 ## 核验
 - 关联任务是否均已 `已验证`

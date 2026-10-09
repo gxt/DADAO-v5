@@ -4,7 +4,7 @@
 **项目里程碑**：M6
 **状态**：待开始
 **目标**：M6 决策与规范正文就位——`adr-0018 §C7 D4` 修订 + 新 reloc ADR（拟 `adr-0021`）+ Embench 上游选择 ADR（拟 `adr-0022`）+ 组合加载 ADR「不立」记录（`SPEC-122t`）；`contract-elf.md §2–§4` reloc 正文（`REL12`/新专用类型/`ABS48` 数据 8B 字段〔`ISS-154`〕）+ `spec/Toolchain-01 §6.1` 修订（`ISS-156`）+ 该册 `sha256` 锁同步（`SPEC-123t`）；`contract-abi.md §6` 三 `[OPEN]` 消解（`SPEC-124t`）；`make check`（含 `check-spec-*`/`check-spec-readonly`）绿。
-**关联任务**：`SPEC-122t`、`SPEC-123t`、`SPEC-124t`
+**关联任务**：`SPEC-122t`、`SPEC-123t`、`SPEC-124t`、`SPEC-126t`
 
 ## 核验
 - 关联任务是否均已 `已验证`

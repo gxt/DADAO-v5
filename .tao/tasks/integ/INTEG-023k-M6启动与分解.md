@@ -44,6 +44,7 @@
 | `SPEC-123t` | reloc 正文 + `Toolchain-01 §6.1` | spec | `contract-elf §2–§4`（`REL12`/新类型/`ABS48` 数据 8B 字段〔`ISS-154`〕）+ `spec/Toolchain-01 §6.1` 修订（`ISS-156`）+ 该册 `sha256` 锁同步 | `SPEC-122t` |
 | `SPEC-124t` | 调用约定契约收口 | spec | `contract-abi §6` 3 项 `[OPEN]`（多返回值声明顺序/red zone/`i128`）消解 | `SPEC-122t` |
 | `SPEC-125m` | M6 spec 里程碑 | spec | `m` 文件 | `SPEC-122t`~`124t` |
+| `SPEC-126t` | 系统调用/半托管返回 `rd8` | spec | 系统调用（`DADAO-22`/`DADAO-23`/`DADAO-21 §系统调用规范`）与半托管（`Machine-01 §5`）服务返回寄存器 `rd31 → rd8` + `contract-see §5`/`contract-semihosting` 同步 + 锁同步；**逐条分类、不改 `rd15 = nr`**；**不含实现** | `SPEC-124t` |
 | `LLVM-062t` | 整数完整调用约定 + 小欠账 | llvm | 变参/聚合/`sret`/多返回/间接调用（`ISS-005/006`）+ `ISS-043/045/047/148/159/162`；**`ISS-110` 留后** | `INFRA-050t`、`SPEC-124t` |
 | `LLVM-063t` | DADAO clang target（钉子①） | llvm | `TargetInfo`/DataLayout/ABI/driver/sysroot；**只用于 freestanding**；模板 = RISC-V64 形状 + PPC64BE 端序/DL + AArch64 CC | `INFRA-050t`、`SPEC-124t` |
 | `LLVM-064t` | 大帧寻址 + `mem*` 内建 | llvm | `ISS-138` 四形态（按代价选择；落 `ADR-0018 C7 D4` 修订）+ `mem*` 内建 + 后端 `MaxStoresPerMem*=16` | `LLVM-062t`、`SPEC-122t` |
@@ -53,21 +54,25 @@
 | `QEMU-052t` | 改走 `load_elf()`（钉子②） | qemu | 复用 `hw/core/loader.c`；**取消**自建 `dadao_load_regions[]` 白名单；多段 `PT_LOAD`/RELA/`e_entry`/栈初始化作**验证项** | 无（M5 已验证态） |
 | `QEMU-053t` | RAM@0 step2（`ISS-165`）+ `ISS-169` | qemu | 旧向量/harness/`crt0`/e2e 迁 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧 `check-interface` 断言；**另含 `ISS-169`**（6 个 M1/M2 手写探针退出通道改写为 `SYS_EXIT`，含按新字长重算分支偏移） | `QEMU-052t`、`TESTCASES-034t`（已验） |
 | `QEMU-054m` | M6 qemu 里程碑 | qemu | `m` 文件 | `QEMU-052t/053t` |
+| `QEMU-055t` | 半托管返回 `rd8` | qemu | `common-semi-target.c.patch` `DADAO_SEMI_RET_REG 31 → 8` + `tools/qemu/min_rom_probe_046t.py` 等服务返回期望值重派生重验 | `SPEC-126t` |
 | `TESTCASES-036t` | 新能力向量（L1+L3） | testcases | 调用约定/reloc/大帧/FP-RF 的 L1 编码 + L3 执行向量；**独立 oracle**（禁从 LLVM/QEMU 反填） | `LLVM-062t`~`066t`、`QEMU-052t` |
 | `TESTCASES-037t` | lit 量产 | testcases | 骨架 agent 生成 + 期望值**从 `spec`/`contracts` 机械派生**（禁反填）；目标数百；分层：**快档入 `make check`、全量档 opt-in** | `LLVM-062t`、`QEMU-052t` |
 | `TESTCASES-038t` | 上游 IR + `lli` 值级对拍 | testcases | 上游 `.ll` 当输入（编译/编码层）+ 有 `lli` 时值级对拍（证「IR 语义被保持」）；**不作执行语义判据** | `LLVM-063t`、`INFRA-050t` |
 | `TESTCASES-039t` | Embench 接入（钉子③） | testcases | board shim 3 函数（`initialise_board`/`start_trigger`/`stop_trigger`）+ 最小运行时（`mem*/str*/ctype/sqrt`）+ `md5sum` 大端适配；**首验收 = 最小基准 QEMU 正确退出码** | `INFRA-051t`、`LLVM-062t/063t`、`QEMU-052t` |
 | `TESTCASES-040m` | M6 testcases 里程碑 | testcases | `m` 文件 | `TESTCASES-036t`~`039t` |
+| `TESTCASES-041t` | 返回 `rd8` 向量收口 | testcases | `tests/**` 受影响向量/期望值重派生重验——**域A 函数返回**（`SPEC-124t`）/ **域B 半托管返回**（`SPEC-126t`），**分别验收** | `SPEC-124t`、`SPEC-126t` |
 | `INTEG-025t` | E2E + `make test-m6` 门控收口 | integ | 驱动 `lli` 对拍/Embench/lit 全量档；新 target `test-m6`（**opt-in，不进 `make check`**）；`check` 收口 | `TESTCASES-036t`~`039t`、`LLVM-065t`、`QEMU-053t` |
 | `INTEG-026m` | M6 integ 里程碑（整体收敛） | integ | `m` 文件 | `INTEG-025t` |
+
+> **追加（2026-10-09，用户裁定「**统一为 `rd8`**」）**：新增 **3 份 `t`** —— `SPEC-126t`（系统调用/半托管返回寄存器 `rd31 → rd8`，spec+contracts+锁）、`QEMU-055t`（半托管返回 `rd8` 实现 + 探针重派生）、`TESTCASES-041t`（向量/期望值重派生，域A 函数返回/域B 半托管返回**分别验收**）；**不立 ADR**。M6 任务书总数由 17 `t` + 6 `m` 增为 **20 `t` + 6 `m` = 26 份**。§D 各 Wave 已同步（`SPEC-126t` 入 Wave 1、`QEMU-055t` 入 Wave 3、`TESTCASES-041t` 入 Wave 4）。
 
 ## D. Wave/串行链 · 前置 ADR · 说明
 
 - **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t`。
-- **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
+- **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t` → `SPEC-126t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
 - **Wave 2（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-062t` → `063t` → `064t` → `065t` → `066t`（FP 最后）。
-- **Wave 3（qemu；同改 `components/qemu/patches` ⇒ 串行）**：`QEMU-052t` → `QEMU-053t`。
-- **Wave 4（testcases）**：`TESTCASES-036t`／`037t`／`038t`／`039t`；**Wave 5（integ）**：`INTEG-025t` → `INTEG-026m`。
+- **Wave 3（qemu；同改 `components/qemu/patches` ⇒ 串行）**：`QEMU-052t` → `QEMU-053t` → `QEMU-055t`。
+- **Wave 4（testcases）**：`TESTCASES-036t`／`037t`／`038t`／`039t`／`041t`；**Wave 5（integ）**：`INTEG-025t` → `INTEG-026m`。
 - **前置 ADR 清单（逐条待用户确认，勿预标 `Accepted`）**：① `ADR-0018 C7 D4` 修订（大帧四形态/代价驱动）；② 新 ADR「`ld/st` 符号偏移 reloc 体系」（`REL12` + 新专用类型）；③ Embench 上游选择 + commit；④ 组合加载语义——**判断：不再需要独立 ADR**（已被「改走 `load_elf()`」取代，自建 loader/组合路径**取消**；仅在 `SPEC-122t` 落「不立 + 理由」）；⑤ 判断无需其它（`ADR-0019 D7` 记为**留后**、不启用）。
 - **`k↔m`**：本 `k` 对应 M6；各模块 `m` 就近核验，M6 由主会话在模块 `m` 均 `里程碑` 后置 `达成`（`Process-04 §1`）。
 - **说明**：本 `k` 为规划/分解；**`/plan` 通过后已建 17 `t` + 6 `m` = 23 份任务书**（见 §C，落 `.tao/tasks/<module>/`；编号按各模块 M5 归档后最大号顺延，QEMU 因跨模块重号消除再顺延，见 §E）；另有 `INTEG-024t`（台账搬迁，M6，**并行且互不占号**）。
