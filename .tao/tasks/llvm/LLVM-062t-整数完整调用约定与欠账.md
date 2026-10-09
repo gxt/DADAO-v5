@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M6
 **依赖**：`INFRA-050t`（一次构建）、`SPEC-124t`（调用约定契约收口）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -72,6 +72,7 @@
 
 **遗留问题**：`ISS-108`（`DADAOInstrInfo.td`/`DADAOAsmParser.cpp` >1000 行拆分）**未做**——该条属 `Process-01 §11` **建议性非强制**、`ISS-108` 自身措辞为「建议性跟踪…再评估」，且本任务验收标准 §2 的「无遗留」清单（043/045/047/148/159/162）**不含** 108；`DADAOAsmParser.cpp` 为单一匿名类，真实拆分需「类外提为头文件」的侵入式重构，风险/收益不匹配，建议另立专门任务。`tail call` 断言（坑①）为既有缺陷，非本任务范围，建议另立 `ISS`。
 
+**收口裁定（用户原话留痕，2026-10-09；`lessons §7.3`）**：`ISS-108`（两文件 >1000 行拆分）→「**推迟 M7，转 Accepted**」。⇒ 该任务**唯一缺口移除**，**转 `Accepted`**（上文既有完成区/审阅记录**不改写**，仅追加）。`ISS-108` 挂账见 `milestones.md`「当前进度」。
 
 ## 审阅记录
 
@@ -113,3 +114,10 @@
 **补丁纪律**：`series` 含新增 `ELFObjectFile.h.patch`；一文件一补丁；`git status --porcelain` 无 `_tmp/_orig/_rej`；`spec/`/`contracts/` 交集空；源码树 clean。
 
 **判决**：**Needs Revision** —— ISS-108 未执行（文件未拆分），用户 dispatch 明确要求「纳入（拆分）」。其余全部通过。工程师须拆分 `DADAOInstrInfo.td` 和/或 `DADAOAsmParser.cpp` 至 ≤1000 行并更新补丁，或与用户重新确认 ISS-108 的处置方式。
+
+#### 第 1 轮 architect 收口（提交，2026-10-09）
+
+- **档位**：验收完成（用户裁定 `ISS-108` 推迟 M7 ⇒ 唯一缺口移除 ⇒ `Accepted`）⇒ **正常提交**。
+- **squash**：`ddcaee7`（`WIP:`）+ `e55476e`（台账，相邻）→ `d367bf6`（单一正常提交）。方法：`git rebase -i` 因工作树有未提交的 `SPEC-128t` 改动被拒（`stash` 禁用）⇒ 改用 `git reset --soft ddcaee7~1` + `git commit -F <msg>`（文件式消息，无 `GIT_EDITOR` 覆写）。
+- **零变化校验**：`git diff backup/llvm062t-pre-squash d367bf6` = **0 行**；`^{tree}` 相同（`3d785fb…`）。
+- **文件集对账**：squash 提交含 **31 文件** = 完成区「修改文件」声明 ∪ `milestones.md`（台账）；`spec/`/`contracts/` 交集空，无越界。

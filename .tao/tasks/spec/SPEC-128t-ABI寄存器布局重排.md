@@ -145,3 +145,8 @@
 **注**：HEAD 含 `LLVM-062t` 本地 WIP 提交（后端调用约定，旧布局，预期），非本任务改动。
 
 **判决：Accepted**
+
+#### 第 1 轮 architect 提交（2026-10-09）
+
+- **档位**：reviewer `Accepted` ⇒ **正常提交** `6e78ff6`（`SPEC-128t: ABI 寄存器布局重排…`）。
+- **文件集对账**：显式 staging（禁 `git add -A`）后 `git -c core.quotepath=false diff --cached --name-only` = **6 文件**，与完成区「修改文件」声明**逐条一致**（`spec/DADAO-21` + `manifests/spec-readonly.lock.toml` + `.tao/knowledge/contract-abi.md` + `contracts/abi.yaml` + `.tao/adr/adr-0018-*.md` + 本任务书）；**无漏提/多提/越界**，`spec/` 变更仅 `DADAO-21`。
