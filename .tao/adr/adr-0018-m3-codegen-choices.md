@@ -1,6 +1,6 @@
 # ADR-0018: M3 CodeGen 取舍点（C1–C17 已判）
 
-**状态**：Accepted（rev. 2026-10-08: `§C7 D4` 大帧寻址改为**四形态 + 代价驱动**，见 `## 修订`）
+**状态**：Accepted（rev. 2026-10-08: `§C7 D4` 大帧寻址改为**四形态 + 代价驱动**；rev. 2026-10-09: `§C7 D6` 保留策略改为 **`rb63` 条件式保留**（FP 由 `rb2` 迁 `rb63`），见 `## 修订`）
 **日期**：2026-10-04
 **决策者**：用户（逐条确认，见 `project_M3-codegen-choices.md §5`）
 **关联**：`SPEC-096k`（M3 启动与分解）；`.tao/knowledge/project_M3-codegen-choices.md §5`（权威判定）；任务 `INFRA-035t`/`SPEC-097t`/`LLVM-033t`–`041t`/`TESTCASES-026t`/`INTEG-012t` 及各模块 `m`
@@ -45,6 +45,7 @@
 - **D4**（rev. 2026-10-08，**四形态 + 代价驱动**；原「方案2 为主 / 方案1 仅 >128K」口径已被本次修订取代，见 `## 修订`）：大帧寻址 = **四形态**——① `[sp, disp12]`；② `rb2rb` + `add.si`；③ `add.o tmprb, sp, tmp` + `[tmprb, disp]`；④ `ldm/stm [sp, tmp]`（`immu6`=1 单次、>1 批量）。**由编译器按代价（指令数 × 访存条数/复用次数）选择**。
 - **D5**：**M3 现在实现**（帧布局、prologue/epilogue、大帧方案2）。
 - **D6**：`rb2` **始终 reserved**（可能是 FP）；RA/RF **保留不分配**（M3 边界）；`rd1-7`/`rb3-7` 保留；保留方式统一为 **`isAllocatable=0` + 显式 `Reserved.set` 双保险**。
+  - **（rev. 2026-10-09）修订**：上句「`rb2` **始终 reserved**（可能是 FP）」**不再成立**——FP 寄存器由 `rb2` 改为 **`rb63`**，且 `rb63` 为**条件式保留**：`hasFP` 为真时保留为 FP，否则可作通用 callee-saved 分配（**`rb63` 恒 callee-saved**）。保留区间由 `rd1-7`/`rb3-7` 收为 **`rd1–rd3`/`rb2–rb3`**（`rd4–rd7`/`rb4–rb7` 放开为 temporary / caller-saved）。其余（RA/RF 保留、`isAllocatable=0`+`Reserved.set` 双保险）不变。详见 `## 修订`。
 
 ### C9 DataLayout / 栈对齐
 
@@ -268,9 +269,22 @@
 - **用户逐条确认证据**：见 `.tao/tasks/spec/SPEC-122t-ADR决策落地.md` 完成区（Q4 ① + 用户原话摘要）。
 - **实现落点**：`ISS-138`（>128K 帧未实现）；M6 由 `LLVM-064t` 实现四形态（按代价选择）。
 
+**rev. 2026-10-09（用户 2026-10-09 逐条裁定；`SPEC-128t`）**：`§C7 D6` 由「`rb2` 始终 reserved（可能是 FP）；保留区间 `rd1-7`/`rb3-7`」**修订为「`rb63` 条件式保留（`hasFP` 为真时保留为 FP，否则可作通用 callee-saved；恒 callee-saved）；保留区间 `rd1–rd3`/`rb2–rb3`」**：
+
+- **① FP 寄存器迁移**：`rb2` 由 FP 改为 **GP（global pointer）**；`rb3` 由 GP 改为 **TP（thread pointer）**；`rb4` 由 TP 改为 **temporary（caller-saved）**。FP 寄存器由 `rb2` 迁至 **`rb63`**。
+- **② `rb63` 条件语义**：`hasFP` 为真 ⇒ 保留为 FP（prologue 保存旧 `rbfp`、epilogue 恢复）；否则 `rb63` 为通用 callee-saved 可分配（∈ CSR）。**`rb63` 恒 callee-saved**。因 `rb63` 为 RB 组最高编号，`ldm`/`stm` 的 `immu6` 连续区间不能从 `rb63` 向上展开——批量保存须排除 FP（`rb63`）或先保存再恢复。
+- **③ `getFrameRegister`（C8 / C7 D3）**：`hasFP ? rb2 : rb1` → **`hasFP ? rb63 : rb1`**；C7 中作为 FP 的 `rb2`（`D2`/`D3`）一并为 **`rb63`**（帧指针策略语义不变：仍为标准条件式 `hasFPImpl`、默认 SP-only）。
+- **④ 保留区间收窄**：`rd1-7`/`rb3-7` → **`rd1–rd3`/`rb2–rb3`**；`rd4–rd7`/`rb4–rb7` 由 reserved 放开为 **temporary（caller-saved）**；`rd2–rd3` 记「**调试/测试保留**」。（RF 表不变。）
+- **⑤ 用户裁定原话摘要（2026-10-09）**：「我想把fp改为rb63，在明确需要的时候，rb63是fp，否则，rb63可以由llvm分配；且rb63自身就是callee saved」；「想把 rb4-rb7 作为 caller saved regs，交给 llvm 使用，现有的 rbgp/rbtp 改为 rb2/rb3；这样的规整性是极好的」；「同样的，rd4-rd7/rf1-rf7 也改为 caller-saved，由 llvm 分配使用」→ 追问后「只放开 rd4-rd7，rd2 和 rd3 可以加说明：调试/测试保留」；「不立 ADR（只改册+契约）」。
+- **变更范围**：`**状态**` 行 rev 日期、`§C7 D6` 正文（追加修订子条）、本 `## 修订` 条目、`## 状态说明` 追加一行。**不变**：`C7` 的 `D1`/`D2`/`D3`/`D4`/`D5` 及其余全部 decision（`D2`/`D3` 的 FP 寄存器号以本条目 ③ 声明为准）。
+- **流程说明**：本次为经用户逐条确认的**就地修订**（一般规则「决策变更时新增 ADR 或标注 `Superseded`」，此处为经授权的例外；用户裁定「**不立 ADR**（只改册+契约）」，但 `D6` 现文在新布局下**事实失真**，不改则与册/契约矛盾，故按 `spec/Process-03` 经授权的就地修订处理）。
+- **依据**：`spec/DADAO-21 §寄存器规范`（同变更内改册 + 同步只读锁 `sha256`）、`.tao/knowledge/contract-abi.md`、`contracts/abi.yaml`；任务 `SPEC-128t`。
+- **实现落点**：后端（调用约定 / FP 策略 / CSR）归 **`LLVM-068t`** 同步。
+
 ## 状态说明
 
 - 2026-10-04：C1/C2/C4/C5/C7/C9/C11/C13/C14/C16 的 32 条 decision 经用户逐一审核**无变化、直接通过**；本 ADR 由原 10 条草案合并为单文件，置 **`Accepted`**。
 - C17（无标志位 compare-branch）按用户裁定**只落任务书约束**（`LLVM-037t`），不立 ADR；C6（CSR）归 ABI（`SPEC-097t`）。
 - 2026-10-08：**`§C7 D4` 就地修订**（用户逐条确认）——大帧寻址改为**四形态 + 代价驱动**（详见 `## 修订`）；其余 decision 不变。
+- 2026-10-09：**`§C7 D6` 就地修订**（用户逐条确认「不立 ADR」）——FP 由 `rb2` 迁 `rb63`，`rb63` 改为**条件式保留**（恒 callee-saved），保留区间收为 `rd1–rd3`/`rb2–rb3`（`rd4–rd7`/`rb4–rb7` 放开为 caller-saved）；`D2`/`D3` 的 FP 寄存器号以 `## 修订` ③ 声明为准（详见 `## 修订`）；其余 decision 不变。
 - 后续如需变更任一 decision，按 `spec/Process-03-ADR编写规范.md`（新增 ADR / 标注 `Superseded` / 经授权的就地修订），并仍须逐条经用户确认。

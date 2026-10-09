@@ -17,7 +17,8 @@ RD寄存器的约定如下：
 |   ---         | ---           | ---               | ---               |
 | rd0           | rdzero        | Zero              | Immutable         |
 | rd1           | rderrno       | error number      | -                 |
-| rd2 - rd7     |               | reserved（编译器不得分配使用） | -                 |
+| rd2 - rd3     |               | reserved（调试/测试保留，编译器不得分配使用） | -                 |
+| rd4 - rd7     |               | temporary regs    | No                |
 | rd8 - rd15    | rdt0 - rdt7   | temporary regs    | No                |
 | rd16 - rd31   | rda0 - rda15  | temporary regs    | No                |
 | rd32 - rd63   |               | callee saved regs | Yes               |
@@ -30,13 +31,17 @@ RB寄存器的约定如下：
 |   ---         | ---           | ---                   | ---               |
 | rb0           | rbip          | instruction pointer   | -                 |
 | rb1           | rbsp          | stack pointer         | Yes               |
-| rb2           | rbfp          | frame pointer         | Yes               |
-| rb3           | rbgp          | global pointer        | -                 |
-| rb4           | rbtp          | thread pointer        | -                 |
-| rb5 - rb7     |               | reserved              | -                 |
+| rb2           | rbgp          | global pointer        | -                 |
+| rb3           | rbtp          | thread pointer        | -                 |
+| rb4 - rb7     |               | temporary regs        | No                |
 | rb8 - rb15    | rbt0 - rbt7   | temporary regs        | No                |
 | rb16 - rb31   | rba0 - rba15  | temporary regs        | No                |
-| rb32 - rb63   |               | callee saved regs     | Yes               |
+| rb32 - rb62   |               | callee saved regs     | Yes               |
+| rb63          | rbfp          | frame pointer（条件占用；hasFP 为真时为 FP，否则可作通用 callee-saved 分配） | Yes |
+
+`rb63` 作 frame pointer 是**条件式**的：hasFP 为真时保留为 `rbfp`（即函数需要帧指针时），由 prologue 保存其旧值、epilogue 恢复；否则 `rb63` 可作通用 callee-saved 寄存器由编译器分配。`rb63` 恒为 callee-saved。
+
+因 `rb63` 是 RB 组最高编号寄存器，`ldm`/`stm` 的 `immu6` 连续寄存器区间不能从 `rb63` 向上展开：批量保存 callee-saved 寄存器时须排除 FP（`rb63`），或对 `rb63` 先保存再恢复。
 
 ### RF寄存器（Floating-point registers）
 

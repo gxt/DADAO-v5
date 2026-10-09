@@ -35,7 +35,8 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 |--------|--------|------|--------------|
 | rd0 | rdzero | 硬连零（Immutable，只读） | Immutable |
 | rd1 | rderrno | error number | `-` |
-| rd2–rd7 | — | reserved（编译器不得分配使用） | `-` |
+| rd2–rd3 | — | reserved（调试/测试保留，编译器不得分配使用） | `-` |
+| rd4–rd7 | — | temporary regs | No |
 | rd8–rd15 | rdt0–rdt7 | temporary regs | No |
 | rd16–rd31 | rda0–rda15 | temporary regs | No |
 | rd32–rd63 | — | callee saved regs | Yes |
@@ -48,13 +49,15 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 |--------|--------|------|--------------|
 | rb0 | rbip | instruction pointer（PC，读出为当前指令的地址，只读） | `-` |
 | rb1 | rbsp | stack pointer（SP） | Yes |
-| rb2 | rbfp | frame pointer（FP） | Yes |
-| rb3 | rbgp | global pointer | `-` |
-| rb4 | rbtp | thread pointer | `-` |
-| rb5–rb7 | — | reserved | `-` |
+| rb2 | rbgp | global pointer（GP） | `-` |
+| rb3 | rbtp | thread pointer（TP） | `-` |
+| rb4–rb7 | — | temporary regs | No |
 | rb8–rb15 | rbt0–rbt7 | temporary regs | No |
 | rb16–rb31 | rba0–rba15 | temporary regs | No |
-| rb32–rb63 | — | callee saved regs | Yes |
+| rb32–rb62 | — | callee saved regs | Yes |
+| rb63 | rbfp | frame pointer（条件占用：`hasFP` 为真时为 FP，否则作通用 callee-saved 分配；恒 callee-saved） | Yes |
+
+> `rb63` 的 FP 是**条件式**的：`hasFP` 为真时保留为 FP（prologue 保存旧 `rbfp`、epilogue 恢复），否则可作通用 callee-saved 寄存器由编译器分配。**`rb63` 恒为 callee-saved**。因 `rb63` 是 RB 组最高编号，`ldm`/`stm` 的 `immu6` 连续区间不能从 `rb63` 向上展开——批量保存 callee-saved 时须**排除 FP（`rb63`）**，或对 `rb63` **先保存再恢复**。[DADAO-21 §寄存器规范 §RB寄存器]
 
 ### §1.4 RF 寄存器角色（M1 不使用）
 
@@ -90,8 +93,8 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 
 | 组 | 可分配范围 | 来源 |
 |----|-----------|------|
-| RD | rd8–rd15、rd16–rd31、rd32–rd63 | [DADAO-21 §寄存器规范 §RD寄存器] |
-| RB | rb8–rb15、rb16–rb31、rb32–rb63 | [DADAO-21 §寄存器规范 §RB寄存器] |
+| RD | rd4–rd7、rd8–rd15、rd16–rd31、rd32–rd63 | [DADAO-21 §寄存器规范 §RD寄存器] |
+| RB | rb4–rb7、rb8–rb15、rb16–rb31、rb32–rb62；`rb63` 条件式（`hasFP` 为假时可分配，为真时保留为 FP） | [DADAO-21 §寄存器规范 §RB寄存器] |
 | RF | （无） | [contract-isa.md §6] |
 
 **不可分配**：
@@ -100,17 +103,15 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 |--------|------|------|
 | rd0 | 硬连零（Immutable） | [DADAO-21 §寄存器规范 §RD寄存器] |
 | rd1 | reserved（C6；spec 栏 `-`），M3 保留不分配 | [DADAO-21 §寄存器规范 §RD寄存器][ADR-0018（C6）] |
-| rd2–rd7 | reserved（编译器不得分配使用） | [DADAO-21 §寄存器规范 §RD寄存器] |
+| rd2–rd3 | reserved（调试/测试保留，编译器不得分配使用） | [DADAO-21 §寄存器规范 §RD寄存器] |
 | rb0 | PC | [DADAO-21 §寄存器规范 §RB寄存器] |
 | rb1 | SP（帧管理专用） | [DADAO-21 §寄存器规范 §RB寄存器] |
-| rb2 | FP（帧管理专用） | [DADAO-21 §寄存器规范 §RB寄存器] |
-| rb3 | reserved（C6；spec 栏 `-`），M3 保留不分配 | [DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）] |
-| rb4 | reserved（C6；spec 栏 `-`），M3 保留不分配 | [DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）] |
-| rb5–rb7 | reserved | [DADAO-21 §寄存器规范 §RB寄存器] |
+| rb2 | GP（global pointer） | [DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）] |
+| rb3 | TP（thread pointer） | [DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）] |
 | ra0–ra63 | 由 `call`/`ret` 管理，非通用可分配 | [DADAO-21 §寄存器规范 §RA寄存器] |
 | rf0–rf63 | `Excluded from M1` | [contract-isa.md §6] |
 
-> `rd1`/`rb3`/`rb4` 的 Callee-saved 分类在 spec 中为 `-`（未分类）。M3 按 C6 将其与同类 `rd2–rd7`/`rb5–rb7` 一并归入 **reserved**（编译器不得分配），**不再作为未冻结的 `[OPEN]` 项**（见 §4.5/§6）。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
+> `rd1`/`rb2`/`rb3` 的 Callee-saved 分类在 spec 中为 `-`（未分类）。M3 按 C6 将其与同类 `rd2–rd3` 一并归入 **reserved**（编译器不得分配），**不再作为未冻结的 `[OPEN]` 项**（见 §4.5/§6）。`rd2–rd3` 为 spec 明文 reserved，角色为**调试/测试保留**。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
 
 ### §1.7 基础数据布局（M1）
 
@@ -128,7 +129,7 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 - `SP = rb1`（`rbsp`）。[DADAO-21 §寄存器规范 §RB寄存器]
 - 栈从高地址**向下增长**。[DADAO-21 §函数调用规范 §The Stack Frame]
 - `rbsp` 位于当前帧低地址端（`rbsp` 为 saved regs / local vars 的下界）。[DADAO-21 §函数调用规范 §The Stack Frame]
-- `FP = rb2`（`rbfp`）；帧指针的使用方式（可选）见 §4.7（M3 条件式策略）。[DADAO-21 §函数调用规范 §The Stack Frame]
+- `FP = rb63`（`rbfp`，条件式）；帧指针的使用方式（可选）见 §4.7（M3 条件式策略）。[DADAO-21 §函数调用规范 §The Stack Frame]
 
 ### §2.2 `call` 时 SP 对齐
 
@@ -148,8 +149,8 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 
 M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2"`），其字段与 §1 / §4 一致：
 
-- `registers` 表为逐寄存器分类的**权威来源**（`rb1`/`rb2` 依 spec 标 `callee_saved: true`）。[DADAO-21 §寄存器规范]
-- `callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**：`callee_saved` 只给出各 bank 的**通用 callee-saved 块（32–63）**（不含 SP/FP 等帧管理专用寄存器；**RF 整体 `Excluded from M3`、`allocatable.rf` 为空，其块仅作 spec 事实登记**）；`reserved_registers` 依 M3 口径（C6）为 `rd1–rd7` / `rb3–rb7`。[DADAO-21 §寄存器规范][ADR-0018（C6）]
+- `registers` 表为逐寄存器分类的**权威来源**（`rb1`/`rb63` 依 spec 标 `callee_saved: true`）。[DADAO-21 §寄存器规范]
+- `callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**：`callee_saved` 给出各 bank 的**通用 callee-saved 块**（`rd`: 32–63；`rb`: 32–62，上界不含条件式 `rb63`；**RF 整体 `Excluded from M3`、`allocatable.rf` 为空，其块仅作 spec 事实登记**）；`reserved_registers` 依 M3 口径（C6）为 `rd1–rd3` / `rb2–rb3`。[DADAO-21 §寄存器规范][ADR-0018（C6）]
 - `scalar_calling_convention` 为 §4 标量调用约定的 M3 机器可读投影。[DADAO-21 §函数调用规范][ADR-0018（C4）]
 - `open_items` 为空（M3 的未决项已由用户逐条裁定于 M6 消解，见 §6）；`deferred_to_m4` 为 M3 范围外的高级 ABI 边界索引（见 §5）；其中 `hfa` / `hpa` / `aggregate_arguments` 已由用户 2026-10-09 裁定于 M6 收口（见 §6.4）。[DADAO-21 §返回值 §多返回值][DADAO-21 §传参 §聚合类型参数]
 
@@ -202,12 +203,12 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 
 ### §4.5 callee-saved / caller-saved 与 CSR
 
-- **callee-saved（被调用者保存）**：`rd32–rd63` 与 `rb32–rb63`。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
-- **caller-saved（调用者保存 / temporary）**：`rd8–rd31` 与 `rb8–rb31`。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
-- **CSR（callee-saved / call-preserved 寄存器集合，M3 口径，C6）**：`CSR = rd32–rd63 ∪ rb32–rb63`（供 `getCalleeSavedRegs` 与 `getCallPreservedMask` 使用）。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
+- **callee-saved（被调用者保存）**：`rd32–rd63` 与 `rb32–rb62`；**`rb63` 恒 callee-saved**（条件式 FP，见 §4.7）。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
+- **caller-saved（调用者保存 / temporary）**：`rd4–rd31` 与 `rb4–rb31`（`rd4–rd7`/`rb4–rb7` 为 spec temporary regs，与 `rd8–rd31`/`rb8–rb31` 连续）。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
+- **CSR（callee-saved / call-preserved 寄存器集合，M3 口径，C6）**：`CSR = rd32–rd63 ∪ rb32–rb63`（含 `rb63`；供 `getCalleeSavedRegs` 与 `getCallPreservedMask` 使用）。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
 - `SP`（`rb1`）**不属于 CSR**：spec 栏其 callee-saved 为 Yes（callee 必须保持其调用前后的值），但它由 prologue/epilogue 对称调整维护，**不列入通用 CSR 保存集合**。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
-- `FP`（`rb2`）在 M3 **始终 reserved**；需要 FP 时由 prologue/epilogue 显式保存/恢复旧 `rbfp`，**不列入通用 CSR**。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C7）]
-- `rd1–rd7` / `rb3–rb7` 为 **reserved**（编译器不得分配）：`rd2–rd7`、`rb5–rb7` 由 spec 明文 reserved；`rd1`（rderrno）、`rb3`（rbgp）、`rb4`（rbtp）spec 栏 callee-saved 为 `-`，M3 按 C6 一并**保留不分配**。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
+- **`rb63`（条件式 FP）恒 callee-saved**：`hasFP` 为真时保留为 FP，由 prologue/epilogue 保存/恢复旧 `rbfp`；否则作通用 callee-saved 由编译器分配。两种占用下跨 `call` 存活的值均须按 callee-saved 处置。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C7）]
+- `rd1`/`rd2–rd3` / `rb2`/`rb3` 为 **reserved**（编译器不得分配）：`rd2–rd3` 由 spec 明文 reserved（**调试/测试保留**）；`rd1`（rderrno）、`rb2`（rbgp，GP）、`rb3`（rbtp，TP）spec 栏 callee-saved 为 `-`，M3 按 C6 一并**保留不分配**。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
 - `rd0`（rdzero，硬连零 / Immutable）与 `rb0`（rbip，PC，只读）为**特殊寄存器**，不参与通用分配。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
 - RA（`ra0–ra63`）由 `call`/`ret` 自动管理，不属 caller/callee-saved 框架（见 §2.3）。[DADAO-21 §寄存器规范 §RA寄存器]
 - RF（`rf0–rf63`）整层 `Excluded from M3`（→ M4）。[DADAO-21 §寄存器规范 §RF寄存器][ADR-0018（C1）]
@@ -235,12 +236,12 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 | … | … | … |
 | `rbsp` | Saved regs or local vars | Current |
 
-- `rbfp` 为帧指针（`FP = rb2`）、`rbsp` 为栈指针（`SP = rb1`）；spec 允许直接用 `rbsp` 访问帧上数据（省一个寄存器与入口/出口指令）。[DADAO-21 §函数调用规范 §The Stack Frame]
+- `rbfp` 为帧指针（`FP = rb63`）、`rbsp` 为栈指针（`SP = rb1`）；spec 允许直接用 `rbsp` 访问帧上数据（省一个寄存器与入口/出口指令）。[DADAO-21 §函数调用规范 §The Stack Frame]
 - 参数溢出区（§4.3）位于 `rbfp + 8` 起（帧表 `memory argument octa 0`）；SP-only 下等价于入口 `rbsp + 0` 起。[DADAO-21 §函数调用规范 §The Stack Frame]
 - **M3 口径（C7）**：
-  - 帧指针策略取**标准条件式**：`hasFPImpl = DisableFramePointerElim ∨ hasVarSizedObjects ∨ isFrameAddressTaken ∨ hasStackRealignment`；条件不成立时默认 **SP-only**（`rbsp` 相对寻址），成立或有选项时启用 **FP = rb2**。[DADAO-21 §函数调用规范 §The Stack Frame][ADR-0018（C7）]
-  - `getFrameRegister = hasFP ? rb2 : rb1`。[ADR-0018（C7）]
-  - `rb2`（FP）**始终 reserved**（见 §4.5）。[ADR-0018（C7）]
+  - 帧指针策略取**标准条件式**：`hasFPImpl = DisableFramePointerElim ∨ hasVarSizedObjects ∨ isFrameAddressTaken ∨ hasStackRealignment`；条件不成立时默认 **SP-only**（`rbsp` 相对寻址），成立或有选项时启用 **FP = rb63**。[DADAO-21 §函数调用规范 §The Stack Frame][ADR-0018（C7）]
+  - `getFrameRegister = hasFP ? rb63 : rb1`。[ADR-0018（C7）]
+  - `rb63`（FP）**条件式保留**：`hasFP` 为真时保留为 FP（prologue 保存旧 `rbfp`、epilogue 恢复）；否则可作通用 callee-saved 分配。**`rb63` 恒 callee-saved**（见 §4.5）。[DADAO-21 §函数调用规范 §The Stack Frame][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C7）]
 
 ### §4.8 prologue / epilogue
 
@@ -288,7 +289,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 
 ## §6 契约收口（M6：原未决项消解，rev. 2026-10-09）
 
-**M3 已判（不再列为未决项）**：`rd1`/`rb3`/`rb4` 分类 → reserved（C6，见 §4.5）；窄返回值扩展 → callee canonical / caller 不截断（C5，见 §4.4）；帧指针省略策略 → 条件式 `hasFPImpl` / 默认 SP-only（C7，见 §4.7）。[ADR-0018（C5）][ADR-0018（C6）][ADR-0018（C7）]
+**M3 已判（不再列为未决项）**：`rd1`/`rb2`/`rb3` 分类 → reserved（C6，见 §4.5）；窄返回值扩展 → callee canonical / caller 不截断（C5，见 §4.4）；帧指针省略策略 → 条件式 `hasFPImpl` / 默认 SP-only（C7，见 §4.7）。[ADR-0018（C5）][ADR-0018（C6）][ADR-0018（C7）]
 
 **原 §6 未决项（M6 已消解）**：#1 已由用户 2026-10-09 裁定并**写入 `spec/DADAO-21 §返回值`**（本任务同一变更内改册 + 同步只读锁），故直接引 spec；#2 / #3 在 M3 无 spec 依据，**由用户逐条裁定**，标 `[spec-decision]`。消解后口径冻结，供 `LLVM-062t` 实现**直接引用**。
 

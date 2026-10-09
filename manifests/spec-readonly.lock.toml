@@ -102,7 +102,10 @@ group = "dadao-2x"
 # 2026-10-09（SPEC-127t，用户裁定 B「hfa/hpa也调整为：最多消耗 8个寄存器槽位（64字节）」+「B，补充spec」）：
 # §传参 §聚合类型参数 —— 通用/HFA/HPA 统一「最多消耗 8 个寄存器槽位（64 字节）」；计数检查 ≤4 → ≤8；
 # 「不满足 HFA/HPA」阈值 ≤32B 拆 RD 块 / >32B 间接指针 → ≤64B / >64B 间接指针。
-sha256 = "1db71655fe7b611e4e17513fc1c37fb49ffcb48dd0f0e9bd30e70c81eebd0273"
+# 2026-10-09（SPEC-128t，用户裁定「把fp改为rb63…rb63自身就是callee saved」「rb4-rb7 作为 caller saved regs…rbgp/rbtp 改为 rb2/rb3」「只放开 rd4-rd7，rd2 和 rd3…调试/测试保留」；「不立 ADR，只改册+契约」）：
+# §寄存器规范 —— rb2=GP、rb3=TP、rb4–rb7=temporary、rb32–rb62=callee saved、rb63=rbfp（条件占用）；
+# rd2–rd3=reserved（调试/测试保留）、rd4–rd7=temporary；RF 表不变。
+sha256 = "675bbbdc7ab3227b131d3a6ce8ba94a0b7de529b851141074e5877f44d1f39a8"
 
 [[spec]]
 path = "spec/DADAO-22-SBI-主管系统二进制接口.md"

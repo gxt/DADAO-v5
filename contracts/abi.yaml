@@ -42,9 +42,9 @@ data_layout:
 stack:
   stack_pointer: rb1
   stack_pointer_abi_name: rbsp
-  frame_pointer: rb2
+  frame_pointer: rb63
   frame_pointer_abi_name: rbfp
-  frame_pointer_optional: true
+  frame_pointer_optional: true   # 条件式：hasFP 为真时才用 rb63 作 FP；否则 rb63 可作通用 callee-saved 分配
   growth_direction: downward
   stack_alignment: 8       # call 执行时 SP 必须 8 字节对齐
   spec_cite: "DADAO-21 §函数调用规范 §The Stack Frame; §传参 §栈溢出规则"
@@ -66,20 +66,22 @@ registers:
   rd:
     - {range: [0, 0],   abi_name: rdzero, role: zero,            callee_saved: immutable}
     - {range: [1, 1],   abi_name: rderrno, role: error_number,   callee_saved: null}
-    - {range: [2, 7],                      role: reserved,       callee_saved: null}
+    - {range: [2, 3],                      role: reserved,       callee_saved: null}   # 调试/测试保留
+    - {range: [4, 7],                      role: temporary,      callee_saved: false}
     - {range: [8, 15],  abi_name: [rdt0, rdt7],  role: temporary, callee_saved: false}
     - {range: [16, 31], abi_name: [rda0, rda15], role: temporary, callee_saved: false}
     - {range: [32, 63],                    role: callee_saved,   callee_saved: true}
   rb:
     - {range: [0, 0],   abi_name: rbip,   role: current_instruction_address, callee_saved: null}
     - {range: [1, 1],   abi_name: rbsp,   role: stack_pointer,       callee_saved: true}
-    - {range: [2, 2],   abi_name: rbfp,   role: frame_pointer,       callee_saved: true}
-    - {range: [3, 3],   abi_name: rbgp,   role: global_pointer,      callee_saved: null}
-    - {range: [4, 4],   abi_name: rbtp,   role: thread_pointer,      callee_saved: null}
-    - {range: [5, 7],                     role: reserved,            callee_saved: null}
+    - {range: [2, 2],   abi_name: rbgp,   role: global_pointer,      callee_saved: null}
+    - {range: [3, 3],   abi_name: rbtp,   role: thread_pointer,      callee_saved: null}
+    - {range: [4, 7],                     role: temporary,           callee_saved: false}
     - {range: [8, 15],  abi_name: [rbt0, rbt7],  role: temporary,    callee_saved: false}
     - {range: [16, 31], abi_name: [rba0, rba15], role: temporary,    callee_saved: false}
-    - {range: [32, 63],                   role: callee_saved,        callee_saved: true}
+    - {range: [32, 62],                   role: callee_saved,        callee_saved: true}
+    # rb63：条件式 FP —— hasFP 为真时保留为 FP；否则可作通用 callee-saved 分配。恒 callee-saved。
+    - {range: [63, 63], abi_name: rbfp,   role: frame_pointer,       callee_saved: true,   conditional: true}
   rf:
     - {range: [0, 0],   role: fp_status,  callee_saved: null}    # rf0 = FCSR
     - {range: [1, 7],   role: temporary,  callee_saved: false}
@@ -93,38 +95,41 @@ registers:
 
 # ── M1 可分配 / 不可分配集合（保守策略）─────────────────────────────────────
 allocatable:
-  rd: [[8, 15], [16, 31], [32, 63]]
-  rb: [[8, 15], [16, 31], [32, 63]]
+  rd: [[4, 7], [8, 15], [16, 31], [32, 63]]
+  # [32, 62] 无条件；rb63 条件式（仅 hasFP 为假时可作通用 callee-saved 分配）
+  rb: [[4, 7], [8, 15], [16, 31], [32, 62], [63, 63]]
   rf: []
 
 non_allocatable:
   - {reg: rd0,        reason: hardwired_zero}
   - {reg: rd1,        reason: "reserved (C6; spec callee-saved '-')"}
-  - {reg: "rd2-rd7",  reason: reserved}
+  - {reg: "rd2-rd3",  reason: "reserved (debug/test-reserved)"}
   - {reg: rb0,        reason: pc}
   - {reg: rb1,        reason: stack_pointer}
-  - {reg: rb2,        reason: frame_pointer}
-  - {reg: rb3,        reason: "reserved (C6; spec callee-saved '-')"}
-  - {reg: rb4,        reason: "reserved (C6; spec callee-saved '-')"}
-  - {reg: "rb5-rb7",  reason: reserved}
+  - {reg: rb2,        reason: global_pointer}
+  - {reg: rb3,        reason: thread_pointer}
   - {reg: "ra0-ra63", reason: managed_by_call_ret}
   - {reg: "rf0-rf63", reason: excluded_from_m3}
+  # 注：rb63 不在本表——它仅条件式保留（hasFP 为真时为 FP），见 registers / callee_saved。
 
 # ── 分类索引（便于消费者直接读取的派生视图）────────────────────────────────
-# 语义：`callee_saved` 给出「各 bank 的通用 callee-saved 块（32–63）」。
-# 对 rd/rb，该块即编译器可分配的 callee-saved 区间（与上方 `allocatable` 的 [32, 63] 一致）；
+# 语义：`callee_saved` 给出「各 bank 的通用 callee-saved 块」。
+# 对 rd，该块为 32–63（与上方 `allocatable` 的 [32, 63] 一致）；
+# 对 rb，该块为 **32–62**（上界由 63 收到 62）：**rb63 不在通用块内**——它是**条件式 FP**，
+# `hasFP` 为真时保留为 FP、否则可作通用 callee-saved 分配，且**恒 callee-saved**
+# （见上方 `registers` 的 [63,63] 与下方 `stack_frame`）。
 # **RF 整体 `Excluded from M3`（`allocatable.rf` 为空）**，其 32–63 仅作 spec 事实登记，M3 不可分配。
-# 它**不含** SP(rb1)/FP(rb2) 等由帧管理专用的 callee-saved 寄存器
-# （这些见 `non_allocatable`）；逐寄存器的权威分类以上方 `registers` 表为准
-# （rb1/rb2 在表中标 `callee_saved: true`）。
+# 通用块**不含** SP(rb1)；逐寄存器的权威分类以上方 `registers` 表为准
+# （rb1/rb63 在表中标 `callee_saved: true`）。
 callee_saved:
   rd: [32, 63]
-  rb: [32, 63]   # 通用块；SP=rb1 / FP=rb2 见 registers 表（callee_saved: true）
+  rb: [32, 62]   # 通用块；SP=rb1 / 条件式 FP=rb63 见 registers 表（callee_saved: true）
   rf: [32, 63]
-# reserved 区间（M3 口径 C6）：rd1–rd7 / rb3–rb7。rb1=SP、rb2=FP 另见 non_allocatable。
+# reserved 区间（M3 口径 C6）：rd1–rd3 / rb2–rb3。rb1=SP、rb0=PC、rb63 另见 non_allocatable / registers。
+# rd2–rd3 为 spec 明文 reserved（调试/测试保留）；rb2=GP、rb3=TP spec 栏 `-`，M3 按 C6 保留不分配。
 reserved_registers:
-  rd: [1, 7]
-  rb: [3, 7]
+  rd: [1, 3]
+  rb: [2, 3]
 
 # ── M3 标量调用约定（非变参 / 非聚合；SPEC-097t 提取）──────────────────────
 # 权威正文见 .tao/knowledge/contract-abi.md §4；决策依据 ADR-0018（C1/C4/C5/C6/C7/C9/C16）。
@@ -173,23 +178,23 @@ scalar_calling_convention:
 
   callee_saved:                 # CSR（C6）
     csr_rd: [32, 63]
-    csr_rb: [32, 63]
+    csr_rb: [32, 63]            # rb63（条件式 FP，恒 callee-saved）∈ CSR
     sp_in_csr: false            # SP(rb1) ∉ CSR
-    fp_in_csr: false            # FP(rb2) 由 prologue/epilogue 管理
-    caller_saved_rd: [8, 31]
-    caller_saved_rb: [8, 31]
-    reserved_rd: [1, 7]
-    reserved_rb: [3, 7]
+    fp_in_csr: true             # FP(rb63) ∈ CSR：rb63 恒 callee-saved；作 FP 时由 prologue 保存旧值
+    caller_saved_rd: [4, 31]    # rd4–rd7 + rd8–rd31（连续）
+    caller_saved_rb: [4, 31]    # rb4–rb7 + rb8–rb31（连续）
+    reserved_rd: [1, 3]         # rd1（rderrno）+ rd2–rd3（调试/测试保留）
+    reserved_rb: [2, 3]         # rb2=GP + rb3=TP
     special: [rd0, rb0]
 
   stack_frame:
     stack_pointer: rb1
-    frame_pointer: rb2
+    frame_pointer: rb63
     growth_direction: downward
     frame_pointer_strategy: conditional   # C7：hasFPImpl 条件式，默认 SP-only
     has_fp_impl: "DisableFramePointerElim || hasVarSizedObjects || isFrameAddressTaken || hasStackRealignment"
-    get_frame_register: "hasFP ? rb2 : rb1"
-    frame_pointer_always_reserved: true
+    get_frame_register: "hasFP ? rb63 : rb1"
+    frame_pointer_always_reserved: false  # rb63 条件式：hasFP 为真时保留为 FP，否则可作通用 callee-saved
     param_overflow_base: "rbfp + 8"       # 溢出参数 0；SP-only 等价 incoming_sp + 0
 
   prologue_epilogue:

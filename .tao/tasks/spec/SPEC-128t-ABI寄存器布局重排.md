@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M6
 **依赖**：`SPEC-127t`（聚合传参收口，`已验证`）；与所有改 `spec/`/锁任务**串行**（同改 `spec/DADAO-21` + `manifests/spec-readonly.lock.toml`）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -94,21 +94,54 @@
 
 ## 完成区
 
-**测试结果**：
+**用户裁定（原话留痕，2026-10-09）**：「我想把fp改为rb63…rb63自身就是callee saved」；「想把 rb4-rb7 作为 caller saved regs…现有的 rbgp/rbtp 改为 rb2/rb3」；「只放开 rd4-rd7，rd2 和 rd3 可以加说明：调试/测试保留」；「不立 ADR（只改册+契约）」；「放 M6，排 clang target 之前」。（RF 表不改。）
+
+**测试结果**：全绿。`make check` EXIT=0（末行 `repository checks: PASS`）；`check-spec-readonly` EXIT=0（21 册 OK）；`check-spec-refs` EXIT=0（0 violations）；`check-spec-drift` EXIT=0；`check-patch-tree` EXIT=0（93 patches OK）；证据脚本 `RUN_EXIT=0`。日志 `.work/log/spec/SPEC-128t-*.log`。
 
 **修改文件**：
+- `spec/DADAO-21-ABI-应用程序二进制接口.md`（§寄存器规范 RD/RB 两表重排 + `rb63` 条件语义 + `ldm`/`stm` 不变式；RF 表未改）
+- `manifests/spec-readonly.lock.toml`（`DADAO-21` `sha256` 同步，`-`/`+` 各 1 行）
+- `.tao/knowledge/contract-abi.md`（§1.2/§1.3/§1.6 重写 + §2.1/§3/§4.5/§4.7/§6 最小同步）
+- `contracts/abi.yaml`（`registers`/`allocatable`/`non_allocatable`/`callee_saved`/`reserved_registers`/`scalar_calling_convention.callee_saved`/`stack_frame`/`stack`）
+- `.tao/adr/adr-0018-m3-codegen-choices.md`（`§C7 D6` 就地修订 + `## 修订` rev. 2026-10-09 + 状态行/状态说明）
+- 本任务书；`.work/evidence/SPEC-128t/run.sh`（`.work/` 不在 git）
 
-**验收结果**：
+**验收结果**（真实输出）：
+- `DADAO-21` 实测 `sha256=675bbbdc7ab3227b131d3a6ce8ba94a0b7de529b851141074e5877f44d1f39a8` == 锁；`check-spec-readonly: 21 read-only spec volume(s) OK`。
+- `check-spec-refs`：`结果: PASS (0 violations)`；`make check` 末行 `repository checks: PASS`。
+- 证据脚本 `RUN_EXIT=0`；Phase B 注入（`rb63` 行删 / `rb32–63` 复现 / `rd4–7`→`rd2–7` 保留）⇒ 12 项 FAIL + `check-spec-readonly` 非零；`cp`+md5 还原（md5 相等）⇒ 回绿。
+- RF 表 0 变更（脚本：本任务 `git diff` 内 rf 表行变更数=0）；`spec/` 变更仅 `DADAO-21`（须 `git -c core.quotepath=false`；git 默认 quote 非 ASCII 路径，`git diff --name-only | grep '^spec/'` 命中 0）。
 
-**新发现/坑**：
+**新发现/坑**：`ADR-0018 C7 D6` 现文（`rb2` 始终 reserved）在新布局下事实失真——按用户「不立 ADR」经授权就地修订；`C7 D2`/`D3` 的 FP 寄存器号于 `## 修订`③ 统一声明为 `rb63`（不改其 decision 正文）。任务书验收 #10 所列 `check-contracts` target **不存在**（Makefile 无此 target）；等价合约门控 `check-spec-drift`/`check-spec-refs`/`check-rule-refs` 均绿。
 
 **遗留问题**：
-- **可选遗留（不本任务做，改该册需授权）**：`spec/DADAO-22-SBI` 示例用 `rb3` 作 scratch（`set.rb rb3, rd3` + `jump [rb3, rd0, 0]`）；`rb3` 改 TP 后，改用 `rb8+` 更合适——记为遗留，改该册须用户授权。
+- `spec/DADAO-22-SBI` 示例 5 处用 `rb3` 作 scratch（`set.rb rb3, rd3` + `jump [rb3, rd0, 0]`）；`rb3` 改 TP 后宜改 `rb8+`——改该册须用户授权，不在本任务。
+- 后端同步（调用约定 / FP 策略 / CSR / `getCalleeSavedRegs`）归 `LLVM-068t`；本任务 `components/**`/`tools/**`/`tests/**` 未碰。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**审查范围**：`spec/DADAO-21 §寄存器规范` RD/RB/RF 三表 + `rb63`/`ldm` 段；`contract-abi.md §1.2/§1.3/§1.6/§2.1/§3/§4.5/§4.7/§6`；`contracts/abi.yaml`（YAML 解析 + 逐字段）；`manifests/spec-readonly.lock.toml`；`ADR-0018 §C7 D6`/`## 修订`；对照用户 5 条裁定。**判决：全部处置完毕，转「待验收」。**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| 验收 #2 要求逐字「hasFP 为真时保留」表述 | ✅已修 | spec 段改为「hasFP 为真时保留为 `rbfp`」 | 脚本 `A RB hasFP 为真时保留为(逐字)` PASS |
+| `callee_saved.rb=[32,62]` 与 CSR `rb32–rb63` 上界不一致之疑 | ✅已澄清（语义区分） | `contract-abi §1.6/§3` + `abi.yaml` 注释明示「通用块止于 62；`rb63` 条件式 FP、恒 callee-saved，故 ∈ CSR[32,63]」 | 脚本 `CABI rb63 条件占用 FP`/`YAML 全部字段断言`（`csr_rb=[32,63]`）PASS |
+| `fp_in_csr` 由 `false`→`true` | ✅已修（语义自洽） | `rb63` ∈ `csr_rb[32,63]` 且恒 callee-saved，故 FP 属 CSR；注释说明作 FP 时由 prologue 保存旧值 | 脚本 YAML 断言 PASS |
+| `ADR D2`/`D3` 的 FP 寄存器号未就地改 | ❌不修（按任务） | 任务明令「只在该 decision〔D6〕/该修订条目，不重写其它 decision 正文」；`## 修订`③ 声明 `rb2`→`rb63` | `git diff` ADR 仅 D6 + 修订/状态行；D2/D3 未动 |
+| 验收 #9 `git diff --name-only \| grep '^spec/'` 命中 0（git quote 非 ASCII） | ✅已修（脚本口径） | 脚本改用 `git -c core.quotepath=false` 断言仅 `DADAO-21`；完成区披露该坑 | 脚本 `A/B/C spec/ 变更仅 DADAO-21` PASS |
+| RF 表「0 变更」缺机械证据 | ✅已加 | 脚本断言本任务 `git diff` 内 rf 表行变更数=0 + 5 条 RF 行为期望值 | 脚本 `A RF rf0/rf1-7/rf32-63`、`RF diff 内 rf 表行变更数` PASS |
+| 验收 #10 列 `check-contracts` target | ⏸披露（非阻塞） | Makefile 无该 target；等价合约门控为 `check-spec-drift`/`check-spec-refs`/`check-rule-refs` | 三者 + `make check` EXIT=0 |
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑**：`bash .work/evidence/SPEC-128t/run.sh` EXIT=0（Phase A 39/39 PASS，Phase B 13 项预期 FAIL + 6 注入检查 PASS，Phase C 39/39 PASS + md5 还原相等 `e137d1c8`）。
+
+**独立注入反例**：cp 备份 `e137d1c8`→ 删 rb63 行 + rb32-62→rb32-63（旧布局）→ 脚本报 5 项 FAIL（rb32-62 callee / rb63 / hasFP / rb32-63 旧 / 锁 sha256）+ check-spec-readonly 非零→ cp 还原→ md5=`e137d1c8` 相等→ 回绿 EXIT=0。
+
+**独立复核**：① DADAO-21 RD/RB 表与裁定逐条一致（rb2=GP rb3=TP rb4-7 temp rb32-62 callee rb63=rbfp 条件 rd2-3 reserved 调试 rd4-7 temp）；RF 表 git diff 0 变更。② 锁 sha256=实测 `675bbbdc…`，diff 仅 1 行变。③ contract-abi §1.2/§1.3/§1.6/§2.1/§4.5/§4.7 与册一致；abi.yaml 解析 OK 全字段断言通过；grep 旧口径仅命中历史说明段（L292）。④ ADR-0018 §C7 D6 原文保留+追加修订子条+`## 修订` rev. 2026-10-09 含用户原话；D2/D3 一致性于 ③ 声明。⑤ git status 6 个 tracked 文件，无 components/tools/tests，无 _tmp/_orig/_rej。`make check` EXIT=0（68/68 + repository checks: PASS）；`make check-patch-tree` EXIT=0（93 patches OK）。
+
+**注**：HEAD 含 `LLVM-062t` 本地 WIP 提交（后端调用约定，旧布局，预期），非本任务改动。
+
+**判决：Accepted**
