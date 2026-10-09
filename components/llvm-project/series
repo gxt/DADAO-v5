@@ -1,3 +1,15 @@
+clang/lib/Basic/CMakeLists.txt.patch
+clang/lib/Basic/Targets.cpp.patch
+clang/lib/Basic/Targets/DADAO.cpp.patch
+clang/lib/Basic/Targets/DADAO.h.patch
+clang/lib/CodeGen/CMakeLists.txt.patch
+clang/lib/CodeGen/CodeGenModule.cpp.patch
+clang/lib/CodeGen/TargetInfo.h.patch
+clang/lib/CodeGen/Targets/DADAO.cpp.patch
+clang/lib/Driver/CMakeLists.txt.patch
+clang/lib/Driver/Driver.cpp.patch
+clang/lib/Driver/ToolChains/DADAO.cpp.patch
+clang/lib/Driver/ToolChains/DADAO.h.patch
 lld/ELF/Arch/DADAO.cpp.patch
 lld/ELF/CMakeLists.txt.patch
 lld/ELF/Target.cpp.patch

@@ -668,3 +668,8 @@
 
 - **规则**：每任务**开工前建分支**（名 = 任务号前缀，如 `SPEC-129t`）；该任务 **WIP / 返工 / reviewer 修改**一律提交在**该分支**，**完全确定后一次性落地 `master`**（`git merge --squash <branch> && git commit`，或 FF）并**删除该分支** ⇒ `master` 只接受"一次性落地"、**永不改写已推送历史**；`push` 仍由主会话 `/complete` 后执行（FF、无需 force）。**不追溯**既有历史。
 - **依据/来源**：用户 2026-10-09 裁定（本会话 `SPEC-129t` 事故 `§8.25`：squash base 写错 + `;` 串接 push ⇒ 内容/收尾双提交入史）；同类 §8.23、§8.25。
+### 8.27 clang target 上架三处口径：DataLayout 由 triple 派生、小聚合 ABI 须自建 `ABIInfo`、driver 勿重复透传链接参数（`LLVM-063t`，2026-10-09）
+
+- **规则**：1) `TargetInfo` 的 DataLayout **须** `resetDataLayout()` **由 triple 派生**，**禁**写死字面量——clang 以 `err_data_layout_mismatch` 强制其与后端 TargetMachine 一致（`-emit-llvm` 的 `target datalayout` 源自 TargetMachine），写死即**编译期报错**（0628 的 0020 即反例）。2) 默认 `DefaultABIInfo` 对**所有聚合**走间接（返回 `sret`、传参按指针）；凡 ABI 要求「小聚合入寄存器」（`contract-abi §6.1/§6.4` ≤64B）**须**自建 `CodeGen/Targets/<T>.cpp` 的 `ABIInfo` 并分发。3) clang driver **已自动透传** `-Wl,`/`-Xlinker`，工具内**勿**再 `AddAllArgValues(OPT_Wl_COMMA)`（重复 `-T` → ld.lld `region 'RAM' already defined`）。
+- **依据/来源**：`LLVM-063t`（2026-10-09，clang target 打通）；细节见该任务书完成区「新发现/坑」。同类 §8.3（依赖链逐跳追）、§8.10（委派口径落实现 + 台账）。
+

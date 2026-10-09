@@ -1,0 +1,22 @@
+diff --git a/clang/lib/Driver/Driver.cpp b/clang/lib/Driver/Driver.cpp
+index e606cdc4c..ae4913f93 100644
+--- a/clang/lib/Driver/Driver.cpp
++++ b/clang/lib/Driver/Driver.cpp
+@@ -17,6 +17,7 @@
+ #include "ToolChains/CrossWindows.h"
+ #include "ToolChains/Cuda.h"
+ #include "ToolChains/Cygwin.h"
++#include "ToolChains/DADAO.h"
+ #include "ToolChains/Darwin.h"
+ #include "ToolChains/DragonFly.h"
+ #include "ToolChains/FreeBSD.h"
+@@ -7287,6 +7288,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
+       case llvm::Triple::msp430:
+         TC = std::make_unique<toolchains::MSP430ToolChain>(*this, Target, Args);
+         break;
++      case llvm::Triple::dadao:
++        TC = std::make_unique<toolchains::DADAOToolChain>(*this, Target, Args);
++        break;
+       case llvm::Triple::riscv32:
+       case llvm::Triple::riscv64:
+       case llvm::Triple::riscv32be:

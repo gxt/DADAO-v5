@@ -1,0 +1,111 @@
+diff --git a/clang/lib/Driver/ToolChains/DADAO.cpp b/clang/lib/Driver/ToolChains/DADAO.cpp
+new file mode 100644
+index 000000000..deb056f25
+--- /dev/null
++++ b/clang/lib/Driver/ToolChains/DADAO.cpp
+@@ -0,0 +1,105 @@
++//===--- DADAO.cpp - DADAO ToolChain Implementations ----------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAO.h"
++#include "clang/Driver/CommonArgs.h"
++#include "clang/Driver/Compilation.h"
++#include "clang/Driver/InputInfo.h"
++#include "clang/Options/Options.h"
++#include "llvm/Option/ArgList.h"
++#include "llvm/Support/Path.h"
++
++using namespace clang::driver;
++using namespace clang::driver::toolchains;
++using namespace clang::driver::tools;
++using namespace clang;
++using namespace llvm::opt;
++
++DADAOToolChain::DADAOToolChain(const Driver &D, const llvm::Triple &Triple,
++                               const ArgList &Args)
++    : Generic_ELF(D, Triple, Args) {
++  // clang/llc/ld.lld/llvm-mc live together in the install root's cross-toolchain
++  // bin/ (ADR-0016 D3/D4); make that bin/ the first place the driver looks.
++  getProgramPaths().push_back(getDriver().Dir);
++}
++
++std::string DADAOToolChain::computeSysRoot() const {
++  if (!getDriver().SysRoot.empty())
++    return getDriver().SysRoot;
++
++  // ADR-0016 D5: the target sysroot is a sibling of the host cross-toolchain.
++  // With clang installed at <root>/cross-toolchain/bin/clang, the sysroot is
++  // <root>/dadao-unknown-elf.
++  SmallString<128> Dir(getDriver().Dir);
++  llvm::sys::path::append(Dir, "..", "..", "dadao-unknown-elf");
++  if (llvm::sys::fs::exists(Dir))
++    return std::string(Dir);
++  return {};
++}
++
++void DADAOToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
++                                               ArgStringList &CC1Args) const {
++  if (DriverArgs.hasArg(options::OPT_nostdinc))
++    return;
++
++  // Compiler-provided freestanding headers (stddef.h, stdint.h, ...).
++  if (!DriverArgs.hasArg(options::OPT_nobuiltininc)) {
++    SmallString<128> Dir(getDriver().ResourceDir);
++    llvm::sys::path::append(Dir, "include");
++    addSystemInclude(DriverArgs, CC1Args, Dir.str());
++  }
++
++  if (DriverArgs.hasArg(options::OPT_nostdlibinc))
++    return;
++
++  std::string SysRoot = computeSysRoot();
++  if (!SysRoot.empty()) {
++    SmallString<128> Dir(SysRoot);
++    llvm::sys::path::append(Dir, "include");
++    addSystemInclude(DriverArgs, CC1Args, Dir.str());
++  }
++}
++
++Tool *DADAOToolChain::buildLinker() const {
++  return new tools::dadao::Linker(*this);
++}
++
++void DADAOToolChain::addClangTargetOptions(const ArgList &DriverArgs,
++                                           ArgStringList &CC1Args, BoundArch,
++                                           Action::OffloadKind) const {
++  // Do not fall back to the host's /usr/include search paths; only the
++  // freestanding builtin headers and the target sysroot (added above) apply.
++  CC1Args.push_back("-nostdsysteminc");
++}
++
++void dadao::Linker::ConstructJob(Compilation &C, const JobAction &JA,
++                                 const InputInfo &Output,
++                                 const InputInfoList &Inputs,
++                                 const ArgList &Args,
++                                 const char *LinkingOutput) const {
++  const ToolChain &TC = getToolChain();
++  ArgStringList CmdArgs;
++
++  // DADAO is freestanding (ADR-0016 D5): no CRT objects and no C library are
++  // added implicitly.  Linker-script/-L/-e/-u/-r flags are forwarded directly;
++  // the driver itself already hands `-Wl,<arg>` / `-Xlinker <arg>` through to
++  // the linker command, so they are not repeated here.
++  Args.addAllArgs(CmdArgs,
++                  {options::OPT_T, options::OPT_L, options::OPT_e,
++                   options::OPT_u, options::OPT_s, options::OPT_r});
++  TC.AddFilePathLibArgs(Args, CmdArgs);
++  AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
++
++  CmdArgs.push_back("-o");
++  CmdArgs.push_back(Output.getFilename());
++
++  std::string Linker = TC.GetProgramPath("ld.lld");
++  C.addCommand(std::make_unique<Command>(
++      JA, *this, ResponseFileSupport::AtFileCurCP(), Args.MakeArgString(Linker),
++      CmdArgs, Inputs, Output));
++}

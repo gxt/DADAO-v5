@@ -1,0 +1,102 @@
+diff --git a/clang/lib/Basic/Targets/DADAO.h b/clang/lib/Basic/Targets/DADAO.h
+new file mode 100644
+index 000000000..ffdb1b90f
+--- /dev/null
++++ b/clang/lib/Basic/Targets/DADAO.h
+@@ -0,0 +1,96 @@
++//===--- DADAO.h - Declare DADAO target feature support --------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file declares the DADAO TargetInfo object.
++//
++// DADAO is a 64-bit big-endian, freestanding (ELF, no libc/OS) target.  The
++// scalar type model follows spec/DADAO-21 §数据表示 §Fundamental Types and the
++// contract in .tao/knowledge/contract-abi.md §1.7/§4.9.  The DataLayout is
++// deliberately *derived from the triple* (never a literal here) so that clang
++// and the DADAO backend (DADAOTargetMachine -> Triple::computeDataLayout) can
++// never drift (ADR-0018 §C9 D1).
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_CLANG_LIB_BASIC_TARGETS_DADAO_H
++#define LLVM_CLANG_LIB_BASIC_TARGETS_DADAO_H
++
++#include "clang/Basic/TargetInfo.h"
++#include "clang/Basic/TargetOptions.h"
++#include "llvm/Support/Compiler.h"
++#include "llvm/TargetParser/Triple.h"
++
++namespace clang {
++namespace targets {
++
++class LLVM_LIBRARY_VISIBILITY DADAOTargetInfo : public TargetInfo {
++public:
++  DADAOTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
++      : TargetInfo(Triple) {
++    // 64-bit big-endian (spec/DADAO-21 §数据表示; ADR-0018 C9).
++    BigEndian = true;
++    // Freestanding: no TLS, no thread-local storage support.
++    TLSSupported = false;
++    // '{' / '}' are ordinary characters for the DADAO assembly syntax.
++    NoAsmVariants = true;
++
++    // LP64 scalar model (spec/DADAO-21 §数据表示 §Fundamental Types).
++    LongWidth = LongAlign = 64;
++    PointerWidth = PointerAlign = 64;
++    IntMaxType = Int64Type = SignedLong;
++    IntPtrType = PtrDiffType = SignedLong;
++    SizeType = UnsignedLong;
++    SigAtomicType = SignedLong;
++    WCharType = UnsignedInt;
++    WIntType = UnsignedInt;
++
++    // `long double` is absent from the spec's Fundamental Types table.  For the
++    // freestanding M6 target keep it 64-bit (identical to `double`) so no
++    // 128-bit float codegen is implied.
++    LongDoubleWidth = LongDoubleAlign = 64;
++
++    // Maximum scalar alignment; aggregates align to 8 bytes per spec.
++    SuitableAlign = 64;
++
++    // Derive the DataLayout from the triple so it is byte-identical to the
++    // backend's (llvm/lib/TargetParser/TargetDataLayout.cpp, case
++    // Triple::dadao: "E-m:e-p:64:64-i64:64-i128:128-n8:16:32:64-S128").
++    resetDataLayout();
++  }
++
++  void getTargetDefines(const LangOptions &Opts,
++                        MacroBuilder &Builder) const override;
++
++  // Minimal feature set: the target itself, nothing else.
++  bool hasFeature(StringRef Feature) const override {
++    return Feature == "dadao";
++  }
++
++  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override {
++    return {};
++  }
++
++  BuiltinVaListKind getBuiltinVaListKind() const override {
++    return TargetInfo::VoidPtrBuiltinVaList;
++  }
++
++  std::string_view getClobbers() const override { return ""; }
++
++  bool validateAsmConstraint(const char *&Name,
++                             TargetInfo::ConstraintInfo &Info) const override {
++    return false;
++  }
++
++  ArrayRef<const char *> getGCCRegNames() const override;
++  ArrayRef<GCCRegAlias> getGCCRegAliases() const override;
++};
++
++} // namespace targets
++} // namespace clang
++
++#endif // LLVM_CLANG_LIB_BASIC_TARGETS_DADAO_H

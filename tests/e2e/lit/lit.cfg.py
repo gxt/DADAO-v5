@@ -56,9 +56,13 @@ if not tools_dir:
 tools_dir = os.path.abspath(tools_dir)
 llvm_mc = os.path.join(tools_dir, "llvm-mc")
 llvm_objcopy = os.path.join(tools_dir, "llvm-objcopy")
+clang = os.path.join(tools_dir, "clang")
+file_check = os.path.join(tools_dir, "FileCheck")
 
 config.substitutions.append(("%llvm_mc", llvm_mc))
 config.substitutions.append(("%llvm_objcopy", llvm_objcopy))
+config.substitutions.append(("%clang", clang))
+config.substitutions.append(("%FileCheck", file_check))
 
 # Locate qemu-system-dadao.  In the install root it sits in the same bin/ as the
 # other host tools (ADR-0016 D4); when tools_dir is an LLVM build tree's bin/ it

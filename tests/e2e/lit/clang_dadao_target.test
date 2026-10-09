@@ -1,0 +1,26 @@
+# DADAO clang target smoke test (LLVM-063t).
+#
+# Verifies that `clang -target dadao-unknown-elf` (a) recognizes the target,
+# (b) defines the DADAO macros and the big-endian LP64 scalar model,
+# (c) emits assembly that the DADAO integrated assembler accepts, and
+# (d) realizes the aggregate ABI (<=64B by value -> rd8/rd9, arg in rd16/rd17).
+#
+# RUN: %clang -target dadao-unknown-elf -x c -dM -E - </dev/null | %FileCheck %s --check-prefix=MACRO
+# RUN: %clang -target dadao-unknown-elf -x c -S -O2 %e2e_dir/clang_dadao_target.c -o %t.s
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %t.s -o %t.s.o
+# RUN: %clang -target dadao-unknown-elf -x c -c -O2 %e2e_dir/clang_dadao_target.c -o %t.c.o
+# RUN: %FileCheck %s --check-prefix=ASM < %t.s
+
+# MACRO-DAG: #define __dadao__ 1
+# MACRO-DAG: #define __DADAO__ 1
+# MACRO-DAG: #define __ELF__ 1
+# MACRO-DAG: #define __BYTE_ORDER__ __ORDER_BIG_ENDIAN__
+# MACRO-DAG: #define __SIZEOF_POINTER__ 8
+# MACRO-DAG: #define __SIZEOF_LONG__ 8
+
+# ASM: clang_mkpair:
+# ASM-DAG: rd2rd {rd8}
+# ASM-DAG: rd2rd {rd9}
+# ASM: clang_pairval:
+# ASM-DAG: rd16
+# ASM-DAG: rd17

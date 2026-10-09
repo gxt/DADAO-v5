@@ -1,0 +1,87 @@
+diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
+new file mode 100644
+index 000000000..41fb213a2
+--- /dev/null
++++ b/clang/lib/CodeGen/Targets/DADAO.cpp
+@@ -0,0 +1,81 @@
++//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// The DADAO C ABI for aggregates (contract-abi.md §6.1 / §6.4):
++//
++//   * An aggregate of at most 64 bytes (8 octa / 8 register slots) is passed
++//     and returned *by value*; the DADAO backend (LLVM-062t) then assigns the
++//     individual 8-byte blocks to the per-bank argument/return registers
++//     (rd16-rd31 / rb16-rb31 and rd8-rd15 / rb8-rb15).
++//   * An aggregate larger than 64 bytes is passed/returned indirectly: a
++//     hidden pointer (sret for returns; an indirect pointer argument for
++//     arguments) carried in the RB bank.
++//
++// Everything else (scalars, pointers, and the <8-byte scalar promotion) is left
++// to DefaultABIInfo, whose Direct/Extend classification the DADAO backend
++// consumes via its own calling convention.
++//
++//===----------------------------------------------------------------------===//
++
++#include "ABIInfoImpl.h"
++#include "TargetInfo.h"
++
++using namespace clang;
++using namespace clang::CodeGen;
++
++namespace {
++
++/// Maximum size (in bits) of an aggregate carried in registers.
++constexpr uint64_t MaxAggregateBits = 64 * 8;
++
++class DADAOABIInfo : public DefaultABIInfo {
++public:
++  DADAOABIInfo(CodeGenTypes &CGT) : DefaultABIInfo(CGT) {}
++
++  ABIArgInfo classifyReturnType(QualType RetTy) const {
++    if (isAggregateTypeForABI(RetTy)) {
++      if (getContext().getTypeSize(RetTy) <= MaxAggregateBits)
++        return ABIArgInfo::getDirect();
++      return getNaturalAlignIndirect(RetTy,
++                                     getDataLayout().getAllocaAddrSpace());
++    }
++    return DefaultABIInfo::classifyReturnType(RetTy);
++  }
++
++  ABIArgInfo classifyArgumentType(QualType Ty) const {
++    if (isAggregateTypeForABI(Ty)) {
++      if (getContext().getTypeSize(Ty) <= MaxAggregateBits)
++        return ABIArgInfo::getDirect();
++      return getNaturalAlignIndirect(Ty,
++                                     getDataLayout().getAllocaAddrSpace());
++    }
++    return DefaultABIInfo::classifyArgumentType(Ty);
++  }
++
++  // DefaultABIInfo::classify{Return,Argument}Type are not virtual, so the
++  // dispatch has to be reproduced here (same shape as MSP430ABIInfo).
++  void computeInfo(CGFunctionInfo &FI) const override {
++    if (!getCXXABI().classifyReturnType(FI))
++      FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
++    for (auto &I : FI.arguments())
++      I.info = classifyArgumentType(I.type);
++  }
++};
++
++class DADAOTargetCodeGenInfo : public TargetCodeGenInfo {
++public:
++  DADAOTargetCodeGenInfo(CodeGenTypes &CGT)
++      : TargetCodeGenInfo(std::make_unique<DADAOABIInfo>(CGT)) {}
++};
++
++} // namespace
++
++std::unique_ptr<TargetCodeGenInfo>
++CodeGen::createDADAOTargetCodeGenInfo(CodeGenModule &CGM) {
++  return std::make_unique<DADAOTargetCodeGenInfo>(CGM.getTypes());
++}

@@ -1,0 +1,14 @@
+diff --git a/clang/lib/CodeGen/TargetInfo.h b/clang/lib/CodeGen/TargetInfo.h
+index 9405cf012..51c6d1a89 100644
+--- a/clang/lib/CodeGen/TargetInfo.h
++++ b/clang/lib/CodeGen/TargetInfo.h
+@@ -513,6 +513,9 @@ createBPFTargetCodeGenInfo(CodeGenModule &CGM);
+ std::unique_ptr<TargetCodeGenInfo>
+ createCSKYTargetCodeGenInfo(CodeGenModule &CGM, unsigned FLen);
+ 
++std::unique_ptr<TargetCodeGenInfo>
++createDADAOTargetCodeGenInfo(CodeGenModule &CGM);
++
+ std::unique_ptr<TargetCodeGenInfo>
+ createHexagonTargetCodeGenInfo(CodeGenModule &CGM);
+ 
