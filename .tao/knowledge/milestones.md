@@ -14,6 +14,7 @@
 | `INFRA-051t` | 已验证 | — | 10-09 22:43 | Embench 组件接入：锁翻 `enabled=true` + commit `09c2ed8c…`（= `ADR-0022 D2`）；骨架 `components/embench-iot/**`（含**用户裁定的 1 个最小占位补丁**）；`make fetch` 幂等零联网、`.work/source`=base+1；board shim/运行时归 `TESTCASES-039t` |
 | `INFRA-052m` | 待开始 | — | — | M6 infra 里程碑 |
 | `INFRA-053t` | 已验证 | — | 10-09 20:06 | `ISS-172` 修复：`atomic-install`（`cp -aL …tmp.$$ && mv -f`，`rename(2)` 原子）；串行 ×2 与并行均 0；同 worktree 并发 gate 仍不支持〔已声明〕 |
+| `INFRA-054t` | 待开始 | — | — | clang 内置头（resource-dir `include/`）随 `install-host` 安装（`ISS-174`）：`clang -print-resource-dir` 指向的 `lib/clang/<ver>/include` 未安装 ⇒ `#include <stddef.h>` `file not found`；范围 `Makefile`/`tools/infra/**`；**Wave 0/infra**（同改 `Makefile` ⇒ 串行）；**阻塞 `TESTCASES-039t`** |
 | `SPEC-122t` | 已验证 | 10-08 23:54 | 10-08 23:57 | M6 ADR 决策落地（`ADR-0018 §C7 D4` 四形态修订 + `ADR-0021`/`0022` 新建；组合加载 ADR 不立） |
 | `SPEC-123t` | 已验证 | 10-09 07:21 | 10-09 07:53 | reloc 正文（`REL12`(rb0/PC 相对 `S+A−P`)/`ABS12`(rb1–rb63 `S+A`)、`NUM`=6 + `ABS48` 数据 8B）+ `Toolchain-01 §6.1` `set.fo` 口径 + 锁 |
 | `SPEC-124t` | 已验证 | 10-09 08:17 | 10-09 08:22 | 调用约定契约收口（`§6` 三 `[OPEN]` 消解）+ 改册（返回寄存器 `rd31→rd8/rb8/rf8`、声明序递增、每 bank K=8、超者 sret 经 rb16）+ 锁 |
@@ -29,6 +30,7 @@
 | `LLVM-066t` | 已验证 | — | 10-09 17:51 | FP/RF codegen（**排整数之后**）：硬件 FP lowering（`fadd/fsub/fmul/fdiv/fsqrt`/转换/比较/`select_cc` 一对一映射）+ FP ABI（参数 `rf16–rf31`／返回 `rf8–rf15`／HFA `{rf8,rf9}`）+ RF 实现侧放开（`rf1–rf7` caller-saved 可分配、`rf0`=FCSR 保留、`rf32–rf63` callee-saved 保存恢复）+ 软浮点**不引 compiler-rt**（核心 FP 无 libcall）；**遗留能力缺口**：`fabs`/`frem`/`fma`/FP 分类/FP↔RB 拷贝 = 显式失败（见「当前进度」） |
 | `LLVM-067m` | 待开始 | — | — | M6 llvm 里程碑 |
 | `LLVM-068t` | 已验证 | — | 10-09 12:49 | ABI 寄存器重排后端实现：寄存器类（`rd4–rd7`/`rb4–rb7` caller-saved）+ `getReservedRegs`（`rd2–rd3`、`rb2`=GP、`rb3`=TP 保留；**`rb63` 条件保留**）+ `getFrameRegister = hasFP ? rb63 : rb1` + `FrameLowering`（FP=`rb63`、批量保存排除 FP）+ `LLVM-062t` RegMask 同步 + lit 期望；重建；排 `LLVM-063t` 前、与 `LLVM-064t` 串行。**RegMask 核对一致无需改；风险：批量保存排除 FP(rb63) 仅注释未强制 ⇒ 移交 `LLVM-064t`** |
+| `LLVM-069t` | 待开始 | — | — | 整数 `setcc` / `select_cc` lowering（补后端能力缺口，`ISS-173`）：DADAO 后端仅设 `ISD::BR_CC`/`BRCOND=Custom`、无整数 `SETCC`/`SELECT_CC` action/模式 ⇒ 比较取值即 ISel 崩溃（`Cannot select: … setcc`）；范围 `components/llvm-project/patches/llvm/lib/Target/DADAO/**`；**Wave 2**（llvm 串行）；依赖 `INFRA-050t`/`LLVM-062t`/`LLVM-066t`/`LLVM-063t`〔均 `已验证`〕；**阻塞 `TESTCASES-039t`** |
 | `QEMU-052t` | 已验证 | 10-09 08:54 | 10-09 10:50 | 改走 `load_elf()`（**钉子②**）+ 调用前薄校验（`e_flags`/`ET_EXEC` + 逐段一致性/范围）；**用户裁定 D**：允许集合 = **仅旧 RAM 段**（`0xffff_0000_0000`/16 MiB），落 ROM 窗口段 ⇒ 加载期非零退出；**RAM@0 未纳入**（留 `QEMU-053t` step2）；`-bios`+ELF 组合不需要 |
 | `QEMU-053t` | 已验证 | — | 10-09 18:58 | RAM@0 step2（`ISS-165`）收口 + `ISS-169` 探针迁移。`ISS-165` step2：删旧 RAM 段（`0xffff_0000_0000`）+ 删 exit-port + ~60 文件迁 `0` + `check-interface` 收紧 + `Machine-01` 与锁同步（用户预授权）；`ISS-169`：7 探针 → `SYS_EXIT`（`006t`/`008t`/`010t`/`012t`/`013t`/`030t` rc=0；`009t` 属 OBSOLETE 语义 rc=1）。提交 `2f54df9`（含 `5898601`）；`master` 单提交落地 |
 | `QEMU-054m` | 待开始 | — | — | M6 qemu 里程碑 |
@@ -36,7 +38,7 @@
 | `TESTCASES-036t` | 已验证 | — | 10-09 21:34 | M6 新能力向量（L1 编码向量 + L3 执行向量：raw-bin 7/7 + ELF 1/1）；**独立 oracle**（`validate_m6_vectors.py`，无 `subprocess`）；`check-lit` **73→74 PASS（+1）**；遗留：REL12/ABS12（`ld/st` 符号偏移）L1+L3 待 `LLVM-065t`〔`UNSUPPORTED` 暂缓〕、`make test-m6` 接线归 `INTEG-025t` |
 | `TESTCASES-037t` | 已验证 | — | 10-09 21:59 | lit 量产：骨架生成器**机械遍历 `contracts/opcodes.yaml` 全部记录**（现行统计 227 = 217 正例 + 10 反例）、期望**机械派生**（禁反填）、**幂等**；**分层**——快档 `gen-fast.s` 入 `make check`（`check-lit` 76/75/1）、全量档 `MC/DADAO-gen/` **opt-in** `check-lit-full`；`make check-lit` 耗时受控；遗留：`DADAO-gen` 完整性仅 opt-in 校验〔M7 分层时定层〕 |
 | `TESTCASES-038t` | 已验证 | — | 10-09 22:21 | 上游 IR 编译层 + host `lli` × DADAO(QEMU) **值级对拍**；现场统计：编译 19/19、对拍 19/19 matched、`on-disk 41 / include 19 / exclude 22`；**只做值级**、端序/内存布局类排除、**不作执行语义判据**；遗留：驱动 **opt-in**，接线归 `INTEG-025t`；值通道 = 退出码低 8 位 |
-| `TESTCASES-039t` | 待开始 | — | — | Embench 接入（**钉子③**） |
+| `TESTCASES-039t` | 待开始 | — | — | Embench 接入（**钉子③**）；**⚠️阻塞**：待 `LLVM-069t`〔整数 `setcc`/`select_cc` lowering〕+ `INFRA-054t`〔clang 内置头/resource-dir〕；证据 `.work/log/testcases/TESTCASES-039t-{blocker.log,progress.md}` |
 | `TESTCASES-040m` | 待开始 | — | — | M6 testcases 里程碑 |
 | `TESTCASES-041t` | 待开始 | — | — | 返回寄存器 `rd8` 收口——受影响向量/期望值重派生重验（域A 函数返回 / 域B 半托管返回**分别验收**） |
 

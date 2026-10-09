@@ -310,3 +310,21 @@
   blocks: []
   resolved_by: INFRA-053t
   notes: "现象：`make install-host`（及依赖它的 `make test-elf`/`test-semihost`）**间歇**失败，`rc=2`，报 `cp: cannot create regular file '<HOST_TOOLCHAIN_BIN>/<tool>': File exists`（`make: *** [Makefile:278: install-host] Error 1`；目标见 `Makefile:276–293`）。复现线索：**首跑 rc=2、重跑 rc=0**；单独 `make install-host`/`make test-elf` rc=0；`make test-codegen`（同为 `install-host` 依赖）通过。`QEMU-053t` reviewer（2026-10-09）观测到 `test-elf` 与 `test-semihost` **并行**执行时**同时**失败且失败文件不同（`llvm-readobj` vs `llvm-objdump`）⇒ 疑与**并发调用 install-host**（`Makefile:278` 的 `cp -aL --remove-destination` 与 `Makefile:284` 缺 `--remove-destination` 的 `cp -a`）竞态有关，**根因未定位**。影响：门控 **flaky**——污染 `make check` 上下游门控与复验，本会话已导致一次 reviewer 对 `QEMU-053t` 的误判（`install-host` 首跑 `File exists` 被当作回归候选，见任务书「审阅记录·第 2 轮 reviewer 补正 §③」）。证据指针：`QEMU-053t` 任务书审阅记录补正段；gate 日志 `.work/log/qemu/QEMU-053t-review-gate-test-{elf,semihost}.log`。归属：新任务 `INFRA-053t`（修幂等性）。"
+
+# ── 新登记（2026-10-10，TESTCASES-039t 停工发现）──────────────────────────────
+
+- id: ISS-173
+  title: "DADAO 后端缺整数 `setcc` / `select_cc` lowering：把比较结果当值使用即 ISel 崩溃（阻塞真实 C / Embench）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "现象：凡把比较结果**当值**使用的 C（`a==b`、`!x`、`a<b`、三目 `?:`、逻辑 `&&`/`||`）经 `clang`/`llc` 在**指令选择**阶段 SIGABRT：`fatal error: error in backend: Cannot select: t16: i64 = setcc t20, t21, seteq:ch`（clang rc=1）/ `LLVM ERROR: Cannot select: t13: i64 = setcc t2, t4, seteq:ch`（llc rc=134）。最小复现：`int f(int a,int b){return a==b;}`；或手工 `.ll`（`icmp eq`+`zext i1→i64`）`llc -march=dadao` rc=134（与 clang 无关）。**纯分支**形态 `if(a<b) return 1; return 0;`（`br(icmp)`，-O0）rc=0；-O2 因 if-conversion 又转 `select_cc` 崩溃。构造矩阵（O0/O2）：`== != < <= && ! 三元 ?: 无符号比较` 及 Embench `support/main.c:37 return(!correct)` **全部 FAIL**。根因：`DADAOTargetLowering`（`DADAOISelLowering.cpp`）仅设 `ISD::BR_CC`/`ISD::BRCOND=Custom`，**无 `ISD::SETCC` / 整数 `ISD::SELECT_CC` 的 action 或 ISel 模式**（`grep -rniE setcc` 仅命中注释）；M4/M6 向量一律用 `br(icmp)` 回避此形态故历次任务未暴露。影响：19 个 Embench 基准中 **14 个** `verify_benchmark` 直接 `return (比较)`，其余经 `main.c:37` 也必经 `setcc` ⇒ **无一基准可编译**，`TESTCASES-039t` 首验收不可达（判据未降级 = 退出码 0）。证据指针：`.work/log/testcases/TESTCASES-039t-{blocker.log,blocker_probe_result.txt,matrix_result.txt,progress.md}`；`TESTCASES-039t` 任务书完成区。归属：新任务 `LLVM-069t`（整数 `setcc`/`select_cc` lowering）。"
+
+- id: ISS-174
+  title: "clang 内置头（resource-dir `include/`）未随 `install-host` 安装：`#include <stddef.h>` 即 `file not found`"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "现象：`.dadao/cross-toolchain/bin/clang -print-resource-dir` = `.dadao/cross-toolchain/lib/clang/23`，而该目录**不存在** ⇒ `clang -target dadao-unknown-elf -ffreestanding -c` 对 `#include <stddef.h>` 报 `fatal error: 'stddef.h' file not found`（rc=1）。根因：`install-host`（`ADR-0016 D11` 范围）只装 `bin/` 工具 + lit + sysroot 骨架，**未安装 clang resource-dir 的 `lib/clang/<ver>/include`**（内置 freestanding 头，源 = clang `clang/lib/Headers/**`，构建后落 `<LLVM_BUILD>/lib/clang/<ver>/include`，现已确认存在）。影响：真实 C 与 Embench（`md5sum`/`ctype`/`string` 等）无法包含内建头；`LLVM-063t` 已登记为遗留（freestanding 最小程序不受影响）。证据指针：`.work/log/testcases/TESTCASES-039t-blocker.log`（§D1 `file not found`、§D2 `-print-resource-dir`、§D3 `NO (missing)`）、`-blocker_probe_result.txt`、`-progress.md`；`LLVM-063t` 任务书「遗留问题」末条。归属：新任务 `INFRA-054t`（clang 内置头安装）。"

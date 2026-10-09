@@ -3,7 +3,9 @@
 **模块**：testcases
 **项目里程碑**：M6
 **依赖**：`INFRA-051t`（Embench 组件接入）、`LLVM-062t`/`063t`（编译能力）、`QEMU-052t`（ELF 加载）
-**状态**：待开始
+**状态**：待开始（⚠️ **阻塞**：交付工具链缺整数 `setcc`/`select_cc` lowering ⇒ 首验收不可达；见「完成区」）
+
+> **追加（2026-10-10）**：本任务**新增依赖** `LLVM-069t`（整数 `setcc`/`select_cc` lowering，`ISS-173`）+ `INFRA-054t`（clang 内置头/resource-dir，`ISS-174`）；**二者就绪后重新下发**。当前 `状态` 保持 `待开始`，阻塞说明（完成区）保留。证据指针：`.work/log/testcases/TESTCASES-039t-{blocker.log,progress.md}`。
 
 ## 执行环境
 **执行环境**：本地
@@ -52,20 +54,31 @@
 
 ## 完成区
 
-**测试结果**：
+> ⚠️ **未完成 / 阻塞**：首验收（≥1 最小基准退出码 0）**不可达**——交付工具链无法编译任何真实 C（详见下）。判据**未降级**（恒定 = 退出码 0）。未产出交付物（board shim/runtime/md5 补丁），因其**无法编译/验证**，产出即属降级判据。
 
-**修改文件**：
+**测试结果**：0/1 首验收通过（阻塞）。19/19 基准均无法编译（非运行失败，是编译即崩）。
+
+**修改文件**：无交付物改动。仅新增证据（`.work/` 不入 git）：`.work/log/testcases/TESTCASES-039t-{blocker_probe.sh,blocker_probe_result.txt,matrix.sh,matrix_result.txt,blocker.log,progress.md}`。
 
 **验收结果**：
+- **阻塞（致命）**：DADAO 后端**无法 lower 整数 `setcc`（比较取值）/ 整数 `select_cc`**。最小复现：`int f(int a,int b){return a==b;}` → `clang` rc=1、`llc` rc=134（均 *error in backend: Cannot select: i64 = setcc ... :ch*）。矩阵：`== != < <= && ! 三元 ?: 无符号比较 及 main.c:37 return(!correct)` **全部 FAIL**；仅纯分支 `if(a<b) return 1; return 0;`（`br(icmp)`，-O0）可过（-O2 if-convert 又转 `select_cc` 崩）。后端源码仅设 `ISD::BR_CC/BRCOND=Custom`，**无 SETCC/SELECT_CC action/pattern**；`llc` 手工 `.ll` 复现 ⇒ 与 clang 无关。⇒ 14/19 基准 `verify_benchmark` 直接 `return (比较)`，其余经 `main.c` 过 `setcc` ⇒ **无一基准可编译**。
+- **阻塞（次要、可绕过）**：clang 内置头缺失——`-print-resource-dir`→`.dadao/cross-toolchain/lib/clang/23`（**不存在**）；`#include <stddef.h>` 即失败。
+- **反例证据（证明工具链其余部分正常）**：`if(a<b)`（分支形）`clang rc=0 → ld.lld rc=0 → qemu rc=0`；`m6_varargs.ll`（`br(icmp)`）`llc rc=0`。
 
-**新发现/坑**：
+**新发现/坑**：① M6「LLVM-062t/063t 已验证」**≠「可编译真实 C」**：各任务范围**均未覆盖**整数 `setcc`-as-value/`SELECT_CC`；M4/M6 向量一律用 `br(icmp)` 回避此形态，`LLVM-066t` 注释已自认「no FP setcc-as-value」。② 判据证据：`.work/log/testcases/TESTCASES-039t-progress.md`（含命令/退出码/建议）。
 
-**遗留问题**：
+**遗留问题**：**未修**（越界：修它须改 `components/llvm-project/**`）。建议：①**新增 LLVM 任务**补整数 `setcc`/`select_cc` lowering；（可选）② `install-host` 随装 clang 内置头（或约定 `-resource-dir`）；③ 二者就绪后**重新下发 TESTCASES-039t**。
 
 ## 审阅记录
 
-#### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+#### 第 1 轮 engineer 自审（2026-10-10，**无代码改动**，自审=阻塞核实）
+
+- 本任务无源码改动（未产出交付物），自审=**独立复核阻塞结论**：先用手工 `.ll`（不含 clang）在 `llc` 上复现 `setcc` 崩溃 → 排除 clang/TargetInfo 因素，确认为后端 ISel 能力缺口；再矩阵化 C 构造（O0/O2）→ 确认 Embench 必经形态无一可编。**判定**：首验收不可达，判据不降级，`待开始`（阻塞）返回。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| 整数 `setcc`/`select_cc` 无 lowering ⇒ Embench 不可编译 | ⏸延后（越界，须改 `components/llvm-project/**`） | 无（越界；仅记录） | `.work/log/testcases/TESTCASES-039t-{blocker.log,matrix_result.txt}`；`llc sc.ll` rc=134 |
+| clang 内置头缺失（resource-dir 不存在） | ⏸延后（可绕过，非本任务致命项） | 无 | `.work/log/testcases/TESTCASES-039t-blocker_probe_result.txt`（D1 rc=1 / D3 NO） |
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）

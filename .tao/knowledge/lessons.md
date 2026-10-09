@@ -727,3 +727,8 @@
 
 - **规则**：`/dispatch` 前的「任务书自洽性」预检，若任务涉及 `enabled` 组件、`series`、构建前置等**由门控机械判定**的约束，须先**实跑/实读该门控脚本**确认硬要求（如 enabled 组件是否允许空 `series`），再判自洽；**不得**仅凭任务书文字推断「自洽」。实例：`INFRA-051t` 任务书写「只建骨架（空 `series`）」，而 `check_patch_tree.py` 对 **enabled 组件硬拒空 `series`**（`series is empty`，EXIT=1）⇒ 下发预检判「自洽 ✓」为**误**（偏离即停，待用户裁定后加 1 个最小占位补丁收口）。
 - **依据/来源**：`INFRA-051t`（主会话下发预检漏检，`lessons §7.3` 用户裁定「放 1 个最小占位补丁」）；细节见 `.tao/tasks/infra/INFRA-051t-*.md`「新发现/坑」「遗留问题」。同类 §8.34/§8.35（验证器/门控须自证）。
+
+### 8.39 里程碑 E2E 若只用 trivial 程序（如 `exit=42`），不足以证明「能编译真实 C」——须用**真实语料/更大程序**做端到端（`TESTCASES-039t`，2026-10-10）
+
+- **规则**：里程碑/门控「编译 E2E」用**小到 `exit=42`** 的程序可全绿却掩盖**整类**未实现能力——历史向量惯用 `br(icmp)` 而**回避**「比较取值（`setcc`）/ `select_cc`」，故 M4/M6 历次 clang E2E 均通过，真实 C（`a==b`/`!x`/`?:`/`&&`）却**全部 ISel 崩溃**。⇒ 「能编译真实 C」须以**真实语料（如 Embench）或覆盖语言惯用形态的大程序**做端到端，**不得**以 trivial 程序通过为由宣称具备编译能力。
+- **依据/来源**：`TESTCASES-039t` 停工（`ISS-173`）——`LLVM-063t` clang E2E `exit=42` 通过，而 `int f(int a,int b){return a==b;}` rc=1 / `llc` rc=134；细节 `.work/log/testcases/TESTCASES-039t-{blocker.log,progress.md}`、`LLVM-063t`/`TESTCASES-039t` 任务书。同类 §8.16（独立 oracle 覆盖）、§7.22。

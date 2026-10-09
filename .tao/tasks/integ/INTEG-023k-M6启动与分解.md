@@ -80,6 +80,11 @@
 
 > **追加（2026-10-09，用户裁定「域 B 并入 `QEMU-055t`」）**：半托管服务返回 `rd31 → rd8` 的**向量侧**（`tests/llvm/codegen/m5/**`）由 `QEMU-055t` **随实现同批收口**（实现与向量耦合，拆分落地即红门控）；`TESTCASES-041t` **收窄为域 A（函数返回）+ 其余**。
 
+> **追加（2026-10-10，`TESTCASES-039t` 停工登记 ⇒ 立 2 修复任务；主会话 2026-10-10 已独立复核）**：`TESTCASES-039t`（Embench）engineer **诚实停工**（判据未降级 = 退出码 0）——交付工具链**无一基准可编译**。两条真缺口各立一 `t`：
+> - **`LLVM-069t`**（llvm；**入 Wave 2**〔llvm 串行〕）：**整数 `setcc` / `select_cc` lowering**——DADAO 后端仅设 `ISD::BR_CC`/`BRCOND=Custom`，无整数 `SETCC`/`SELECT_CC` action/模式 ⇒ 比较取值即 ISel 崩溃（`Cannot select: ... setcc`）。范围 `components/llvm-project/patches/llvm/lib/Target/DADAO/**`；依赖 `INFRA-050t`/`LLVM-062t`/`LLVM-066t`/`LLVM-063t`（均已 `已验证`）。查 `ISS-173`。
+> - **`INFRA-054t`**（infra；**入 Wave 0/infra**〔同改 `Makefile` ⇒ 串行〕）：**clang 内置头（resource-dir）安装**——`clang -print-resource-dir` 指向的 `lib/clang/<ver>/include` 未随 `install-host` 安装 ⇒ `#include <stddef.h>` `file not found`。范围 `Makefile`/`tools/infra/**`；依赖 `INFRA-050t`。查 `ISS-174`。
+> - **`TESTCASES-039t` 依赖改为 = 原依赖 + `LLVM-069t` + `INFRA-054t`**（二者就绪后**重新下发**）；本 `k` 表 §C 中该行原文保留（历史原文），依赖扩充以本追加为准。M6 任务书总数由 21 `t` + 6 `m` 增为 **23 `t` + 6 `m` = 29 份**。
+
 ## D. Wave/串行链 · 前置 ADR · 说明
 
 - **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t` → `INFRA-053t`（`ISS-172` `install-host` 幂等性修复；同改 `Makefile` ⇒ 串行）。
