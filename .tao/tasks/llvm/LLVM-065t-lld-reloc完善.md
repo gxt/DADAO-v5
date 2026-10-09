@@ -70,3 +70,9 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+## 归属登记（architect 追加，2026-10-09）
+
+- **`ld.*/st.* [rbN, sym]` 的 MC 侧符号偏移 fixup 未实现**（`TESTCASES-036t` 实证）：`llvm-mc --triple=dadao-unknown-elf -filetype=obj` 吃 `ld.o rd8,[rb0,target]` ⇒ `LLVM ERROR: DADAO: no PC-relative fixup kind …`、`Aborted`、`rc=134`（即 `llvm-mc` 在 MC 层就失败，先于 LLD）。
+- **归属判定**：本任务**输出 2** 已含 `DADAOFixupKinds`/`DADAOMCCodeEmitter`（MC 侧 fixup），**验收 1** 覆盖 `ld/st …, [rb1, sym]` 的 reloc ⇒ 该 MC 侧 fixup 缺口**属本任务范围**（无需另立 issue）。
+- `TESTCASES-036t` 已落 L1 期望向量 `tests/llvm/lit/MC/DADAO/m6-ldst-symbol.s`（`REQUIRES:` 暂缓）；本任务就绪后去除 `REQUIRES:` 即转正常 lit。**本登记仅记归属，不改任何 decision。**
