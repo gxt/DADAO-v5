@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..5614a36
+index 0000000..0becffd
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,600 @@
+@@ -0,0 +1,359 @@
 +/*
 + * DADAO M1 bare-metal test machine for QEMU
 + *
@@ -33,9 +33,9 @@ index 0000000..5614a36
 + * magic (0x7f 'E' 'L' 'F'):
 + *
 + *   path A (ELF):   qemu-system-dadao -machine dadao-m1 -kernel image.elf
-+ *                   parse Elf64_Ehdr/Elf64_Phdr (big-endian), load PT_LOAD
-+ *                   segments VA=PA, then set PC = e_entry.  No external -bios
-+ *                   ROM is used on this path.
++ *                   load PT_LOAD segments VA=PA and set PC = e_entry via the
++ *                   upstream loader (hw/core/loader.c: load_elf).  No external
++ *                   -bios ROM is used on this path.
 + *
 + *   path B (raw):   qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin
 + *                   flat ROM trampoline + flat test binary, entry fixed at the
@@ -141,32 +141,15 @@ index 0000000..5614a36
 +/* ---------------------------------------------------------------------------
 + * Image loading
 + *
-+ * Path selection and validation are governed by contract-elf.md §5/§6 and
-+ * ADR-0004 D2.2/D2.3.  The ELF image is big-endian (ELFDATA2MSB); all header
-+ * fields are read with explicit big-endian accessors so the loader does not
-+ * depend on the host byte order or on C struct padding.
++ * Path selection is governed by contract-elf.md §5/§6 and ADR-0004 D2.2/D2.3.
++ * On the ELF path the segment load (every PT_LOAD, VA=PA, with the
++ * (p_memsz - p_filesz) tail zero-filled) and the entry point (e_entry) are
++ * delegated to the upstream loader in hw/core/loader.c rather than
++ * re-implemented here.
 + * ------------------------------------------------------------------------- */
 +
 +/* EM_DADAO is project-custom and not defined by QEMU's include/elf.h. */
 +#define DADAO_EM_MACHINE            0x0DA0
-+/* e_flags: bits[7:0] = object/ABI format version (M1 = 1); bits[31:8] = 0. */
-+#define DADAO_ELF_FLAGS_VERSION     0x00000001u
-+
-+/* Elf64_Ehdr field offsets (ELFCLASS64). */
-+#define DADAO_EHDR_E_TYPE_OFF       16
-+#define DADAO_EHDR_E_MACHINE_OFF    18
-+#define DADAO_EHDR_E_ENTRY_OFF      24
-+#define DADAO_EHDR_E_PHOFF_OFF      32
-+#define DADAO_EHDR_E_FLAGS_OFF      48
-+#define DADAO_EHDR_E_PHENTSIZE_OFF  54
-+#define DADAO_EHDR_E_PHNUM_OFF      56
-+
-+/* Elf64_Phdr field offsets. */
-+#define DADAO_PHDR_P_TYPE_OFF       0
-+#define DADAO_PHDR_P_OFFSET_OFF     8
-+#define DADAO_PHDR_P_VADDR_OFF      16
-+#define DADAO_PHDR_P_FILESZ_OFF     32
-+#define DADAO_PHDR_P_MEMSZ_OFF      40
 +
 +/*
 + * Explicit size-limit guards (ADR-0004 D2.3).  Kept behind a single switch so
@@ -174,64 +157,6 @@ index 0000000..5614a36
 + */
 +#define DADAO_ENFORCE_SIZE_LIMITS   1
 +static const bool dadao_enforce_size_limits = DADAO_ENFORCE_SIZE_LIMITS;
-+
-+typedef struct DadaoLoadRegion {
-+    const char *name;
-+    uint64_t base;
-+    uint64_t size;
-+} DadaoLoadRegion;
-+
-+static const DadaoLoadRegion dadao_load_regions[] = {
-+    { "RAM", DADAO_RAM_BASE, DADAO_RAM_SIZE },
-+    { "ROM", DADAO_ROM_BASE, DADAO_ROM_SIZE },
-+};
-+
-+static uint16_t dadao_elf_rd16(const uint8_t *p)
-+{
-+    return ((uint16_t)p[0] << 8) | (uint16_t)p[1];
-+}
-+
-+static uint32_t dadao_elf_rd32(const uint8_t *p)
-+{
-+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
-+           ((uint32_t)p[2] << 8) | (uint32_t)p[3];
-+}
-+
-+static uint64_t dadao_elf_rd64(const uint8_t *p)
-+{
-+    return ((uint64_t)dadao_elf_rd32(p) << 32) |
-+           (uint64_t)dadao_elf_rd32(p + 4);
-+}
-+
-+/* True if [vaddr, vaddr + memsz) lies entirely inside the region. */
-+static bool dadao_region_contains(const DadaoLoadRegion *r,
-+                                  uint64_t vaddr, uint64_t memsz)
-+{
-+    if (vaddr < r->base) {
-+        return false;
-+    }
-+    if (vaddr - r->base > r->size) {
-+        return false;
-+    }
-+    return memsz <= r->size - (vaddr - r->base);
-+}
-+
-+/* Zero-fill [addr, addr + len), including ROM (write_rom bypasses RO). */
-+static MemTxResult dadao_fill_zero(uint64_t addr, uint64_t len)
-+{
-+    static const uint8_t zeros[512];
-+    MemTxResult res = MEMTX_OK;
-+
-+    while (len > 0) {
-+        uint64_t chunk = MIN(len, (uint64_t)sizeof(zeros));
-+
-+        res |= address_space_write_rom(&address_space_memory, addr,
-+                                       MEMTXATTRS_UNSPECIFIED, zeros, chunk);
-+        addr += chunk;
-+        len -= chunk;
-+    }
-+    return res;
-+}
 +
 +/* True if the buffer starts with the ELF magic number (contract-elf §6.1.2). */
 +static bool dadao_is_elf_magic(const uint8_t *buf, gsize len)
@@ -259,172 +184,6 @@ index 0000000..5614a36
 +    close(fd);
 +    return n == (ssize_t)sizeof(magic) &&
 +           dadao_is_elf_magic(magic, sizeof(magic));
-+}
-+
-+/*
-+ * ELF path (ADR-0004 D2.2/D2.3 path A; contract-elf §5/§6): parse the
-+ * big-endian Elf64 header/program headers, load every PT_LOAD segment VA=PA
-+ * (p_filesz bytes from file + (p_memsz - p_filesz) zero fill), then set
-+ * PC = e_entry.  Any malformed field or out-of-range segment is a load error.
-+ * Returns 0 on success, -1 on failure (message already reported).
-+ */
-+static int dadao_load_elf(DadaoCPU *cpu, const char *filename,
-+                          const uint8_t *buf, gsize len)
-+{
-+    uint16_t e_type, e_machine, e_phentsize, e_phnum, i;
-+    uint32_t e_flags;
-+    uint64_t e_entry, e_phoff;
-+    unsigned r;
-+
-+    if (len < sizeof(Elf64_Ehdr)) {
-+        error_report("dadao-m1: malformed ELF '%s': file is %" G_GSIZE_FORMAT
-+                     " bytes, smaller than Elf64_Ehdr (%zu bytes)",
-+                     filename, len, sizeof(Elf64_Ehdr));
-+        return -1;
-+    }
-+
-+    if (buf[EI_CLASS] != ELFCLASS64) {
-+        error_report("dadao-m1: malformed ELF '%s': EI_CLASS=%u, expected "
-+                     "ELFCLASS64 (%u)", filename, buf[EI_CLASS], ELFCLASS64);
-+        return -1;
-+    }
-+    if (buf[EI_DATA] != ELFDATA2MSB) {
-+        error_report("dadao-m1: malformed ELF '%s': EI_DATA=%u, expected "
-+                     "ELFDATA2MSB (%u)", filename, buf[EI_DATA], ELFDATA2MSB);
-+        return -1;
-+    }
-+
-+    e_type = dadao_elf_rd16(buf + DADAO_EHDR_E_TYPE_OFF);
-+    if (e_type != ET_EXEC) {
-+        error_report("dadao-m1: malformed ELF '%s': e_type=0x%04x, expected "
-+                     "ET_EXEC (0x%04x)", filename, e_type, ET_EXEC);
-+        return -1;
-+    }
-+
-+    e_machine = dadao_elf_rd16(buf + DADAO_EHDR_E_MACHINE_OFF);
-+    if (e_machine != DADAO_EM_MACHINE) {
-+        error_report("dadao-m1: malformed ELF '%s': e_machine=0x%04x, expected "
-+                     "EM_DADAO (0x%04x)", filename, e_machine, DADAO_EM_MACHINE);
-+        return -1;
-+    }
-+
-+    e_flags = dadao_elf_rd32(buf + DADAO_EHDR_E_FLAGS_OFF);
-+    if ((e_flags & 0xFF) != (DADAO_ELF_FLAGS_VERSION & 0xFF)) {
-+        error_report("dadao-m1: malformed ELF '%s': e_flags version=%u, "
-+                     "expected 1", filename, e_flags & 0xFF);
-+        return -1;
-+    }
-+    if ((e_flags & ~0xFFu) != 0) {
-+        error_report("dadao-m1: malformed ELF '%s': e_flags=0x%08x has reserved "
-+                     "bits [31:8] set", filename, e_flags);
-+        return -1;
-+    }
-+
-+    e_entry = dadao_elf_rd64(buf + DADAO_EHDR_E_ENTRY_OFF);
-+    e_phoff = dadao_elf_rd64(buf + DADAO_EHDR_E_PHOFF_OFF);
-+    e_phentsize = dadao_elf_rd16(buf + DADAO_EHDR_E_PHENTSIZE_OFF);
-+    e_phnum = dadao_elf_rd16(buf + DADAO_EHDR_E_PHNUM_OFF);
-+
-+    if (e_phnum == 0) {
-+        error_report("dadao-m1: malformed ELF '%s': no program headers "
-+                     "(e_phnum=0)", filename);
-+        return -1;
-+    }
-+    if (e_phentsize != sizeof(Elf64_Phdr)) {
-+        error_report("dadao-m1: malformed ELF '%s': e_phentsize=%u, expected "
-+                     "sizeof(Elf64_Phdr)=%zu", filename, e_phentsize,
-+                     sizeof(Elf64_Phdr));
-+        return -1;
-+    }
-+    if (e_phoff > len || (uint64_t)e_phnum > (len - e_phoff) / e_phentsize) {
-+        error_report("dadao-m1: malformed ELF '%s': program header table out of "
-+                     "file bounds (e_phoff=0x%" PRIx64 ", e_phnum=%u, "
-+                     "e_phentsize=%u, file size=0x%" G_GSIZE_FORMAT ")",
-+                     filename, e_phoff, e_phnum, e_phentsize, len);
-+        return -1;
-+    }
-+
-+    for (i = 0; i < e_phnum; i++) {
-+        const uint8_t *ph = buf + e_phoff + (uint64_t)i * e_phentsize;
-+        const DadaoLoadRegion *region = NULL;
-+        uint64_t p_offset, p_vaddr, p_filesz, p_memsz;
-+        uint32_t p_type = dadao_elf_rd32(ph + DADAO_PHDR_P_TYPE_OFF);
-+
-+        if (p_type != PT_LOAD) {
-+            continue;
-+        }
-+
-+        p_offset = dadao_elf_rd64(ph + DADAO_PHDR_P_OFFSET_OFF);
-+        p_vaddr  = dadao_elf_rd64(ph + DADAO_PHDR_P_VADDR_OFF);
-+        p_filesz = dadao_elf_rd64(ph + DADAO_PHDR_P_FILESZ_OFF);
-+        p_memsz  = dadao_elf_rd64(ph + DADAO_PHDR_P_MEMSZ_OFF);
-+
-+        if (p_filesz > p_memsz) {
-+            error_report("dadao-m1: malformed ELF '%s': PT_LOAD[%u] p_filesz "
-+                         "(0x%" PRIx64 ") > p_memsz (0x%" PRIx64 ")",
-+                         filename, i, p_filesz, p_memsz);
-+            return -1;
-+        }
-+        if (p_filesz > 0 &&
-+            (p_offset > len || p_filesz > len - p_offset)) {
-+            error_report("dadao-m1: malformed ELF '%s': PT_LOAD[%u] file range "
-+                         "[0x%" PRIx64 ", +0x%" PRIx64 ") exceeds file size "
-+                         "0x%" G_GSIZE_FORMAT,
-+                         filename, i, p_offset, p_filesz, len);
-+            return -1;
-+        }
-+        if (p_memsz == 0) {
-+            continue;
-+        }
-+
-+        for (r = 0; r < ARRAY_SIZE(dadao_load_regions); r++) {
-+            if (dadao_region_contains(&dadao_load_regions[r], p_vaddr, p_memsz)) {
-+                region = &dadao_load_regions[r];
-+                break;
-+            }
-+        }
-+        if (!region) {
-+            error_report("dadao-m1: ELF segment out of range '%s': PT_LOAD[%u] "
-+                         "load interval [0x%016" PRIx64 ", +0x%016" PRIx64 ") is "
-+                         "outside the mapped regions (RAM 0x%016" PRIx64
-+                         " size 0x%" PRIx64 ", ROM 0x%016" PRIx64
-+                         " size 0x%" PRIx64 ")",
-+                         filename, i, p_vaddr, p_memsz,
-+                         (uint64_t)DADAO_RAM_BASE, (uint64_t)DADAO_RAM_SIZE,
-+                         (uint64_t)DADAO_ROM_BASE, (uint64_t)DADAO_ROM_SIZE);
-+            return -1;
-+        }
-+
-+        if (p_filesz > 0) {
-+            MemTxResult res =
-+                address_space_write_rom(&address_space_memory, p_vaddr,
-+                                        MEMTXATTRS_UNSPECIFIED,
-+                                        buf + p_offset, p_filesz);
-+            if (res != MEMTX_OK) {
-+                error_report("dadao-m1: ELF segment load failed '%s': PT_LOAD[%u] "
-+                             "data write at 0x%016" PRIx64 " (0x%" PRIx64
-+                             " bytes) into %s failed",
-+                             filename, i, p_vaddr, p_filesz, region->name);
-+                return -1;
-+            }
-+        }
-+        if (p_memsz > p_filesz) {
-+            MemTxResult res =
-+                dadao_fill_zero(p_vaddr + p_filesz, p_memsz - p_filesz);
-+            if (res != MEMTX_OK) {
-+                error_report("dadao-m1: ELF segment load failed '%s': PT_LOAD[%u] "
-+                             ".bss zero-fill at 0x%016" PRIx64 " (0x%" PRIx64
-+                             " bytes) into %s failed",
-+                             filename, i, p_vaddr + p_filesz,
-+                             p_memsz - p_filesz, region->name);
-+                return -1;
-+            }
-+        }
-+    }
-+
-+    /* Entry: PC = e_entry (path A; rb0 reset value is the ROM base). */
-+    cpu_set_pc(CPU(cpu), e_entry);
-+    return 0;
 +}
 +
 +/*
@@ -507,23 +266,23 @@ index 0000000..5614a36
 +    /* The kernel's magic selects the loading path (ADR-0004 D2.3). */
 +    if (dadao_kernel_is_elf(kernel)) {
 +        /*
-+         * Path A: ELF.  No external -bios ROM; segments are placed by their
-+         * p_vaddr and PC is taken from e_entry (ADR-0004 D2.2/D2.3).
++         * Path A: ELF.  Delegate parsing and segment placement to the upstream
++         * loader (hw/core/loader.c): it walks every PT_LOAD, loads p_filesz
++         * bytes at VA=PA and zero-fills the (p_memsz - p_filesz) tail, and
++         * reports e_entry.  No external -bios ROM is used on this path.
 +         */
-+        g_autofree gchar *kernel_data = NULL;
-+        gsize kernel_len = 0;
-+        GError *gerr = NULL;
++        uint64_t entry = 0;
++        ssize_t elf_size;
 +
-+        if (!g_file_get_contents(kernel, &kernel_data, &kernel_len, &gerr)) {
-+            error_report("dadao-m1: could not read kernel image '%s': %s",
-+                         kernel, gerr->message);
-+            g_error_free(gerr);
++        elf_size = load_elf(kernel, NULL, NULL, NULL, &entry, NULL, NULL, NULL,
++                            ELFDATA2MSB, DADAO_EM_MACHINE, 0, 0);
++        if (elf_size < 0) {
++            error_report("dadao-m1: could not load ELF kernel '%s': %s",
++                         kernel, load_elf_strerror(elf_size));
 +            exit(1);
 +        }
-+        if (dadao_load_elf(cpu, kernel, (const uint8_t *)kernel_data,
-+                           kernel_len) < 0) {
-+            exit(1);
-+        }
++        /* Entry: PC = e_entry (path A; rb0 reset value is the ROM base). */
++        cpu_set_pc(CPU(cpu), entry);
 +        return;
 +    }
 +

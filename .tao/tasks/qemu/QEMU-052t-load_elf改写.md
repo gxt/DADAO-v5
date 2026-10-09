@@ -51,20 +51,34 @@
 
 ## 完成区
 
-**测试结果**：
+> ⚠️ **停下报告（契约冲突）→ 未标 `待验收`，状态保持 `待开始`**：派遣要求「加载模型/机器接口须与 `contract-elf.md §5/§6` 对得上；若契约与 `load_elf()` 语义冲突 ⇒ **停下报告**，不擅自改契约」。实测确认**冲突成立**——改走**纯 `load_elf()`** 后，契约 §6.1.2 / `ADR-0004 D2.3` 的三类**加载期非零退出校验丢失**（详见「遗留问题」）。候选实现已完成且要求门控全绿，但据该句不做收尾/不改契约，留待裁定；候选留工作树（未提交）。
 
-**修改文件**：
+**测试结果**：`make test-elf` 5/5 PASS（EXIT=0）；`make check-qemu-semantics` 149/149 PASS（EXIT=0）；`check-patch-tree` 92 patches OK（EXIT=0）。日志 `.work/log/qemu/QEMU-052t-{build,test-elf,check-qemu-semantics}.log`。
 
-**验收结果**：
+**修改文件**（candidate，未提交）：`.work/source/qemu/hw/dadao/dadao-machine.c`（删自建 loader+白名单、改调 `load_elf()`）；`components/qemu/patches/hw/dadao/dadao-machine.c.patch`（`make_patch qemu` 重导出，359 行）。
 
-**新发现/坑**：
+**验收结果**（正例，真机）：path A 改调 `load_elf(kernel,NULL,NULL,NULL,&entry,NULL,NULL,NULL,ELFDATA2MSB,DADAO_EM_MACHINE,0,0)` + `cpu_set_pc(entry)`；`grep dadao_load_regions` 无残留；内存图（RAM@0 16 MiB / 旧 RAM / ROM / exit port）与 raw-bin path B **未改**。旧探针 042t 正例全绿：多段 `PT_LOAD`、`.bss` 零填充、`e_entry`（RAM base 放 `fence` poison）、exact RAM/ROM —— `.work/log/qemu/QEMU-052t-probe042t-post.log`。
 
-**遗留问题**：
+**新发现/坑**：上游 `load_elf()` **不含** §6.1.2 要求的 `e_flags` 版本/保留位校验、`e_type==ET_EXEC` 校验、PT_LOAD「越出映射区域」校验；且以 **ROM blob** 装载、`rom_reset` **忽略**写错误 ⇒ 越界/超限段**静默不装载**，**不**「加载期非零退出」。
+
+**遗留问题（⚠️ 契约冲突，待裁定）**：旧探针 042t（非门控）14 负例中 5 项在新实现下**由「非零退出」变为 `exit=0`（未拒）**：`neg_bad_flags_ver`/`neg_bad_flags_res`/`neg_bad_type`/`neg_seg_out_of_range`/`oversize_elf_seg`；另 6 项仍非零退出但消息改为上游文案（`Failed to load ELF`/`incorrect endianness`/`incompatible architecture`/`segments are too big to load`）。**选项**：(A) 采纳 `load_elf()` 语义 ⇒ **改契约**（`contract-elf §6.1.2` + `ADR-0004 D2.3`，属 spec 任务，非本任务）；(B) 补薄校验（如改调 `load_elf_ram_sym(...,load_rom=false)` 使越界写立即 MEMTX 失败，并另校验 `e_flags`/`e_type`）——但与「取消自建白名单」相抵。证据全文见上日志。**未标 `待验收`：待用户在 A/B 间裁定。**
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
 （工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+> **范围**：`hw/dadao/dadao-machine.c` 的 loader 改写（自建 → `load_elf()`）。逐行审查 + 真机验证。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `load_elf()` 调用参数（endian/machine/entry/clear_lsb/data_swab）须正确 | ✅已修 | 传 `ELFDATA2MSB`、`DADAO_EM_MACHINE(0x0DA0)`、`&entry`、`0,0` | `neg_bad_data`/`neg_bad_machine` 仍非零退出；`elf_data_bss`（entry≠base）PASS |
+| F2 VA=PA：`load_elf` 用 `p_paddr` 装载（契约要求 `p_vaddr`） | ✅核实 | 契约 §5.2 强制 `p_vaddr==p_paddr` ⇒ 等价；未改契约 | test-elf 5/5（ld.lld 产物 paddr==vaddr） |
+| F3 自建白名单/loader 残留 | ✅已修 | 删 `dadao_load_regions[]`/`dadao_elf_rd*`/`dadao_region_contains`/`dadao_fill_zero`/`dadao_load_elf` | `grep -n 'dadao_load_regions\|DadaoLoadRegion\|dadao_load_elf'` 无输出；`check-patch-tree` ⑥绿 |
+| F4 装配错误（缺 include/未用变量） | ✅核实 | `loader.h`/`elf.h` 已在；`cpu` 仍用于 `cpu_set_pc` | `make build-qemu` EXIT=0（无 error） |
+| F5 **契约 §6.1.2 负例校验丢失**（`e_flags`/`e_type`/越界） | ⏸延后（**停下报告**） | 无（不擅自改契约/加校验） | 探针 042t：`neg_bad_flags_*`/`neg_bad_type`/`neg_seg_out_of_range`/`oversize_elf_seg` → exit=0 |
+
+**结论**：F1–F4 已处置；**F5 为契约层冲突，据派遣「停下报告」未处置** ⇒ 任务**不标 `待验收`**，保持 `待开始`，返回主会话裁定（选项 A/B 见完成区「遗留问题」）。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
