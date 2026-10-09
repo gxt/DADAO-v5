@@ -13,7 +13,7 @@
 | `INFRA-050t` | 已验证 | 10-08 23:49 | 10-09 07:09 | LLVM 一次构建（`DADAO;X86` + `clang;lld`）+ 双落点；曾中断，半成品已保命续用 |
 | `INFRA-051t` | 待开始 | — | — | Embench 组件接入（组件化 + `enabled` 翻转；ADR-0022 已定上游 commit） |
 | `INFRA-052m` | 待开始 | — | — | M6 infra 里程碑 |
-| `INFRA-053t` | 待开始 | — | — | 修 `install-host` 幂等性（`ISS-172`——`cp` 间歇 `File exists`、`test-elf`/`test-semihost` 首跑 rc=2 / 重跑 rc=0；目标 = 连续两次 `make install-host` 与 `make test-semihost` 均 rc=0；含证据脚本 + 注入自检） |
+| `INFRA-053t` | 已验证 | — | 10-09 20:06 | `ISS-172` 修复：`atomic-install`（`cp -aL …tmp.$$ && mv -f`，`rename(2)` 原子）；串行 ×2 与并行均 0；同 worktree 并发 gate 仍不支持〔已声明〕 |
 | `SPEC-122t` | 已验证 | 10-08 23:54 | 10-08 23:57 | M6 ADR 决策落地（`ADR-0018 §C7 D4` 四形态修订 + `ADR-0021`/`0022` 新建；组合加载 ADR 不立） |
 | `SPEC-123t` | 已验证 | 10-09 07:21 | 10-09 07:53 | reloc 正文（`REL12`(rb0/PC 相对 `S+A−P`)/`ABS12`(rb1–rb63 `S+A`)、`NUM`=6 + `ABS48` 数据 8B）+ `Toolchain-01 §6.1` `set.fo` 口径 + 锁 |
 | `SPEC-124t` | 已验证 | 10-09 08:17 | 10-09 08:22 | 调用约定契约收口（`§6` 三 `[OPEN]` 消解）+ 改册（返回寄存器 `rd31→rd8/rb8/rf8`、声明序递增、每 bank K=8、超者 sret 经 rb16）+ 锁 |
@@ -42,7 +42,7 @@
 
 > **本表即 M6 全部已规划任务**（唯一真源）：每行对应 `.tao/tasks/<模块>/<任务>-*.md` 一份任务书，**状态取自该任务书 `**状态**` 字段**（可机读复核，**不在本表写死计数**）；未开始项以 `—` 占位。
 
-> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）；`LLVM-068t` 结束 = 12:49（reviewer 证据脚本重跑日志 `/tmp/opencode/LLVM-068t-review/run.log` mtime 12:49:43）；`SPEC-129t` 结束 = 13:17（reviewer 独立注入闭环重建日志 `/tmp/opencode/SPEC-129t-review/restore-test.log` mtime 13:17:34）；`LLVM-063t` 结束 = 14:59（reviewer 判决写入任务书 mtime 14:59:48）；`LLVM-064t` 结束 = 16:25（reviewer 判决写入任务书 mtime 16:25:23）；`LLVM-066t` 结束 = 17:51（reviewer 判决写入任务书 mtime 17:51:20）；`QEMU-053t` 结束 = 18:58（reviewer 判决写入任务书 mtime 18:58:05）。）
+> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）；`LLVM-068t` 结束 = 12:49（reviewer 证据脚本重跑日志 `/tmp/opencode/LLVM-068t-review/run.log` mtime 12:49:43）；`SPEC-129t` 结束 = 13:17（reviewer 独立注入闭环重建日志 `/tmp/opencode/SPEC-129t-review/restore-test.log` mtime 13:17:34）；`LLVM-063t` 结束 = 14:59（reviewer 判决写入任务书 mtime 14:59:48）；`LLVM-064t` 结束 = 16:25（reviewer 判决写入任务书 mtime 16:25:23）；`LLVM-066t` 结束 = 17:51（reviewer 判决写入任务书 mtime 17:51:20）；`QEMU-053t` 结束 = 18:58（reviewer 判决写入任务书 mtime 18:58:05）；`INFRA-053t` 结束 = 20:06（reviewer 判决写入任务书 mtime 20:06:30）。）
 
 > 开始/结束由**主会话**在 `/dispatch`／`/complete` 时填写（格式 **`MM-DD hh:mm`**，不带年份）；只填**可考证**时间，**禁编造**。
 

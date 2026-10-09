@@ -693,3 +693,7 @@
 - **规则**：用 `git diff --name-only | grep '<前缀>/'` 判定路径交集时，若仓库含**非 ASCII 文件名**，`git diff` 默认 `core.quotepath=true` 会对该类路径**加引号并转义**（如 `"spec/Machine-01-\346…"`）⇒ `grep '^spec/'` 匹配不到、**假阴性**；须改 `git -c core.quotepath=false diff --name-only`，或用 `git diff -z --name-only`（NUL 分隔）解析后再判。
 - **依据/来源**：`QEMU-053t`（2026-10-09；reviewer 第 2 轮补正：上一轮以 `git diff --name-only origin/master...HEAD | grep '^spec/'` 判「`spec/` 交集为空」为假阴性，实测 `spec/Machine-01` 有改动）。同类 §8.16（结构化期望值须机械解析）、§8.22（大小写不敏感扫描）。
 
+### 8.32 并发/可重入的安装步骤须用「临时名 + `rename(2)` 原子替换」；`cp --remove-destination` 的 `unlink`+`open(O_EXCL)` 在并发下会 `EEXIST`（`INFRA-053t`，2026-10-09）
+
+- **规则**：同一目标可能被多个 `make` 目标/并行任务写的**安装步骤**，须先写**每进程唯一临时名**再 `rename(2)` 原子替换（如 `cp -aL src dst.tmp.$$ && mv -f dst.tmp.$$ dst`）；**禁**依赖 `cp --remove-destination`——它是 `unlinkat(dst)` 后 `openat(dst,O_CREAT|O_EXCL)` 的**非原子对**，两进程并发时后者 `O_EXCL` 撞前者新建 ⇒ `EEXIST`（`cp: cannot create regular file …: File exists`）。
+- **依据/来源**：`INFRA-053t`（`ISS-172`；strace 实证 coreutils 9.4 行为，8 对并行 `install-host` 7/8→0/8）；细节 `.work/log/infra/INFRA-053t-*`。同类 §8.23、§8.25。

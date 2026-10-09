@@ -268,20 +268,41 @@ build-gem5: manifest-check
 # value-level oracle goes into $(HOST_TOOLS_BIN) (resolved via paths.py, D7).
 # The build tree's bin/clang is a symlink to a versioned clang-NN, so install
 # with `cp -L` to dereference it (otherwise the installed symlink dangles).
-# --remove-destination keeps install-host idempotent even over a stale (e.g.
-# previously dangling) destination, which cp would otherwise refuse to replace.
+#
+# INFRA-053t: every install writes to a per-process temp name and then rename(2)s
+# it over the destination ($(call atomic-install,...)).  rename(2) atomically
+# replaces an existing regular file *or* a stale (e.g. previously dangling)
+# symlink, so re-runs stay idempotent — and two concurrent `make install-host`
+# runs can no longer hit `cp: cannot create regular file ...: File exists`.
+# That error came from `cp -L --remove-destination`, which unlinks then opens
+# O_CREAT|O_EXCL (a non-atomic pair): the loser's O_EXCL open fails EEXIST when
+# the winner recreates the destination in between (ISS-172).
+#
+# NOTE (concurrency): only install-host's *writes* are made race-safe here.
+# Running *gate* targets (test-elf / test-semihost / check / …) concurrently in
+# one worktree remains UNSUPPORTED — they share the build trees and the SDK
+# artifact dirs under $(TEST_ARTIFACTS_DIR); see AGENTS.md ("并行任务上限").
+# Run them serially.
 HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not llc clang
 HOST_LIT_DIR = $(HOST_TOOLCHAIN_DIR)/share/lit
+
+# $(call atomic-install,<src>,<dst>): install <src> over <dst> via a per-process
+# temp file + rename(2).  Idempotent and race-free (INFRA-053t / ISS-172).
+# `cp -L` dereferences a source symlink (e.g. bin/clang -> clang-NN); rename(2)
+# atomically replaces a regular/symlink destination, including a dangling one.
+define atomic-install
+cp -aL $(1) $(2).tmp.$$$$ && mv -f $(2).tmp.$$$$ $(2)
+endef
 
 install-host: build-mc build-lld build-qemu
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
-	  cp -aL --remove-destination $(LLVM_BUILD)/bin/$$t $(HOST_TOOLCHAIN_BIN)/$$t || exit 1; \
+	  $(call atomic-install,$(LLVM_BUILD)/bin/$$t,$(HOST_TOOLCHAIN_BIN)/$$t) || exit 1; \
 	done
-	@cp -aL --remove-destination $(LLVM_BUILD)/bin/lld $(HOST_TOOLCHAIN_BIN)/lld
+	@$(call atomic-install,$(LLVM_BUILD)/bin/lld,$(HOST_TOOLCHAIN_BIN)/lld)
 	@ln -sf lld $(HOST_TOOLCHAIN_BIN)/ld.lld
-	@cp -aL --remove-destination $(LLVM_BUILD)/bin/lli $(HOST_TOOLS_BIN)/lli
-	@cp -a $(QEMU_BUILD)/qemu-system-dadao $(HOST_TOOLCHAIN_BIN)/qemu-system-dadao
+	@$(call atomic-install,$(LLVM_BUILD)/bin/lli,$(HOST_TOOLS_BIN)/lli)
+	@$(call atomic-install,$(QEMU_BUILD)/qemu-system-dadao,$(HOST_TOOLCHAIN_BIN)/qemu-system-dadao)
 	@rm -rf $(HOST_LIT_DIR)
 	@mkdir -p $(HOST_LIT_DIR)
 	@cp -a $(LLVM_SRC)/utils/lit/lit $(HOST_LIT_DIR)/lit
