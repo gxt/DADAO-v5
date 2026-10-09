@@ -626,3 +626,9 @@
 - **规则**：1) 长构建/夜跑**不得**直接作为 opencode shell 的子进程，须 `setsid nohup … >log 2>&1 &`（或 `systemd-run`）**脱离工作区服务**；2) **禁用"会话内后台等待器"当唤醒机制**——它随工作区一起被回收（实测 5h45m 无人唤醒）；改为**落盘完成标记 + 定时巡检**；3) 日志须含**独立完成标记**（`XXX_EXIT=$rc`），**禁**以「无 `FAILED`」推断成功；4) 识别：`ninja: build stopped: interrupted by user` + `make: *** [..] Terminated` **同秒**出现 ≠ 用户中断，查 `~/.local/share/opencode/log/opencode.log` 同期是否 `location services evicted directory=<工作区>`（shell 输出 API 同秒 `404`）。
 - **依据/来源**：`INFRA-050t`（2026-10-09 01:07:56 构建被杀）：opencode 按活跃度回收**工作区 location 服务**（约 60 min 周期、**全天发生**），回收时销毁该工作区的 shell ⇒ 构建与等待器同时被收走；已排除服务端重启/机器重启/OOM/用户操作（`opencode.log` + `ps` + `dmesg` 实证）。
 - **教训指引**：失败现场 `.work/log/infra/`；同类 §8.14（还原方式禁用清单）、§3（子代理异常处置口径）。
+
+### 8.22 以寄存器号/符号名做 grep 机械扫描与判类时须**大小写不敏感**（`RD31` 与 `rd31` 会漏网）
+
+- **规则**：用 grep 机械枚举/分类「某寄存器号或符号出现在哪些行」时，须**大小写不敏感**（`grep -i`，或大小写各扫一遍再并集）——否则**仅大写**写法（如 `返回值 RD31`）会漏网，致「改一类」不彻底、遗留陈旧口径。
+- **依据/来源**：`SPEC-126t`（2026-10-09；原小写 grep `\brd31\b` 漏 `contract-abi.md:285` 的 `RD31`，由 reviewer 独立 `-i` 全仓重扫才发现）。
+- **教训指引**：见 `.work/log/spec/SPEC-126t-rescan-ci.txt`；同类 §8.1（逐字核到底）、§8.16（机械解析）。

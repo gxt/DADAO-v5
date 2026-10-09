@@ -117,9 +117,9 @@ v5 semihosting 为**恒 64 位**、**大端**（`ADR-0003 D1`）[ADR-0020 D6]。
 |------|-----------|------|
 | **操作号（标量）** | `rd16`（= `rda0`） | 服务号（见 `§5.3`） |
 | **参数块指针（地址）** | `rb16`（= `rba0`） | 指向 64 位字段组成的参数块 |
-| **返回值** | `rd31` | 标量返回；指针返回才用 `rb31`，semihosting 不用 |
+| **返回值** | `rd8` | 标量返回；指针返回才用 `rb8`，semihosting 不用 |
 
-- 号 → `rd16`、参数块指针 → `rb16`、返回 → `rd31`；对齐共享层 `common_semi_arg(cs,0)`=号、`common_semi_arg(cs,1)`=参数块指针。[ADR-0020 D2][ADR-0020 D14]
+- 号 → `rd16`、参数块指针 → `rb16`、返回 → `rd8`；对齐共享层 `common_semi_arg(cs,0)`=号、`common_semi_arg(cs,1)`=参数块指针。[ADR-0020 D2][ADR-0020 D14]
 - **不另设 `rd15`**：`rd15` 是 `umon`/`jmon` 系统调用号，semihosting 不使用。[ADR-0020 D2][DADAO-21 §系统调用规范]
 - 传参复用 ABI 约定（数据参数 `rd16–rd31`、地址参数 `rb16–rb31`）；三组寄存器各自独立计数。[DADAO-22 §1. 调用约定][DADAO-21 §参数寄存器：Parameter registers]
 - 参数块字段为 **64 位**，按 target 端序读取（v5 **大端**）。[ADR-0020 D6]
@@ -162,7 +162,7 @@ v5 semihosting **服务集 = 完整 25 个**，号值采用 **Arm Semihosting �
 
 ### 5.4 返回机制
 
-semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 PC**（`pc += 4`，跳过 `trap`）并写回返回寄存器（`rd31`）；guest 侧不需 `escape` 返回。[ADR-0020 D4]
+semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 PC**（`pc += 4`，跳过 `trap`）并写回返回寄存器（`rd8`）；guest 侧不需 `escape` 返回。[ADR-0020 D4]
 
 - 该机制与一般 trap 的 `escape cfxha, [excp_cause_ip, 4]` 返回（`§4.2`）不同：semihosting 不进入向量，故不适用通用 `escape` 返回约定（`ADR-0020 D4`）。[ADR-0020 D4][DADAO-22 §1. 调用约定]
 

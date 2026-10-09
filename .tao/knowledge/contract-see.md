@@ -51,7 +51,7 @@
 - 调用方 `trap cfxha, immu18` 陷入目标 cfx；被调方经 `escape cfxha, [excp_cause_ip, 4]` 返回。[DADAO-22 §1. 调用约定]
 - 参数传递与 ABI 传参规范一致（参见 `contract-abi.md`）。[DADAO-22 §1. 调用约定][DADAO-21 §传参：Parameter Passing]
 - 参数寄存器：`rd16–rd31`（数据）、`rb16–rb31`（地址）、`rf16–rf31`（浮点）；三组独立计数、从 16 起递增。[DADAO-21 §参数寄存器：Parameter registers]
-- 标量返回值用 `rd31`；指针返回值用 `rb31`。[DADAO-21 §标量类型返回值：Scalar type return]
+- 标量返回值用 `rd8`；指针返回值用 `rb8`。[DADAO-21 §标量类型返回值：Scalar type return]
 - 系统调用号存于 `rd15`，与 `immu18` 为两个独立层次。[DADAO-21 §系统调用规范]
 - 错误码：`0 = SBI_SUCCESS`、`−1 = SBI_ERR_FAILED`、`−2 = SBI_ERR_NOT_SUPPORTED`、`−3 = SBI_ERR_INVALID_PARAM`、`−4 = SBI_ERR_NO_DEVICE`。[DADAO-22 §1. 调用约定]
 

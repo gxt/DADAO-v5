@@ -38,15 +38,15 @@ umon（cfx0）为 user 模式的异常入口，处理用户态系统调用。系
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_UMON_SYSCALL | rd15 = nr | rd31 = result | 用户态系统调用分发 |
-| 1 | SBI_UMON_GET_VERSION | — | rd31 = version | 返回 umon 版本号：当前 0.7.1 = `0x00070001`（`(major<<32)\|(minor<<16)\|patch`） |
+| 0 | SBI_UMON_SYSCALL | rd15 = nr | rd8 = result | 用户态系统调用分发 |
+| 1 | SBI_UMON_GET_VERSION | — | rd8 = version | 返回 umon 版本号：当前 0.7.1 = `0x00070001`（`(major<<32)\|(minor<<16)\|patch`） |
 
 jmon（cfx1）为 jail 模式的异常入口，处理受限用户态系统调用。jmon 与 umon 为独立上下文，immu18 各自编号互不冲突。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_JMON_SYSCALL | rd15 = nr | rd31 = result | 受限用户态系统调用分发 |
-| 1 | SBI_JMON_GET_VERSION | — | rd31 = version | 返回 jmon 版本号：当前 0.7.1 = `0x00070001` |
+| 0 | SBI_JMON_SYSCALL | rd15 = nr | rd8 = result | 受限用户态系统调用分发 |
+| 1 | SBI_JMON_GET_VERSION | — | rd8 = version | 返回 jmon 版本号：当前 0.7.1 = `0x00070001` |
 
 ## 3. 系统信息（smon）
 
@@ -54,8 +54,8 @@ cfx_smon 提供 SBI 版本查询和核芯功能扩展探测。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_SMON_GET_VERSION | — | rd31 = version | 返回 SBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.7.1 = `0x00070001` |
-| 1 | SBI_SMON_PROBE_CFX | rd16 = cfx | rd31 = func_map | 探测 cfx 支持的 SBI 功能位图（bit i = 1 表示 func i 可用）。若 cfx 硬件不存在则触发 CFXREG 异常；rd31=0 表示 cfx 存在但未实现任何 SBI 功能。实现上通过读取 `cfx_*_cfx_id` 寄存器验证存在性 |
+| 0 | SBI_SMON_GET_VERSION | — | rd8 = version | 返回 SBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.7.1 = `0x00070001` |
+| 1 | SBI_SMON_PROBE_CFX | rd16 = cfx | rd8 = func_map | 探测 cfx 支持的 SBI 功能位图（bit i = 1 表示 func i 可用）。若 cfx 硬件不存在则触发 CFXREG 异常；rd8=0 表示 cfx 存在但未实现任何 SBI 功能。实现上通过读取 `cfx_*_cfx_id` 寄存器验证存在性 |
 
 ### 初始化
 
@@ -95,13 +95,13 @@ cfx_smon_unknown:
 
 ```simrisc
 cfx_smon_get_version:
-    set.rd   rd31, 0x00070001                        ; v0.7.1
+    set.rd   rd8, 0x00070001                        ; v0.7.1
     escape cfx_smon, [excp_cause_ip, 4]
 
 cfx_smon_probe_cfx:
     ; rd16 = cfx（调用方传入）
     ; 根据硬件实现返回目标 cfx 的功能位图
-    set.rd   rd31, 0                                 ; 占位
+    set.rd   rd8, 0                                 ; 占位
     escape cfx_smon, [excp_cause_ip, 4]
 ```
 
@@ -126,11 +126,11 @@ cfx_ptw 为地址转换部件，管理页表和 PTBR。
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_PTW_SET_PTBR | rd16 = idx, rb16 = base | — | 设置第 idx 个 PTBR 的页表基地址。base 为 PA[63:16]（高 48 位），低 16 位强制为 0（64KiB 对齐）。调用前须已写入 pthi[idx] 和 pahi[idx] |
-| 1 | SBI_PTW_GET_PTBR | rd16 = idx | rd31 = base | 读取第 idx 个 PTBR 的值 |
+| 1 | SBI_PTW_GET_PTBR | rd16 = idx | rd8 = base | 读取第 idx 个 PTBR 的值 |
 | 2 | SBI_PTW_SET_PTBR_PERM | rd16 = mode, rd17 = perm | — | 设置 mode=0(U)/1(J)/2(S)/3(H) 的 PTBR 权限位图（64 位，bit i=1 表示允许第 i 个 PTBR） |
 | 3 | SBI_PTW_ENABLE_PTBR | rd16 = mask | — | 设置 PTBR 使能位图（64 位，bit i=1 表示 enable 第 i 个 PTBR） |
 | 4 | SBI_PTW_SET_PTE | rd16 = ptbr_code, rd17 = level, rb16 = va, rd18 = pte | — | 设置 level 页表（1=L1, 2=L2）中 VA 对应索引的 PTE 为 pte |
-| 5 | SBI_PTW_HANDLE_FAULT | rb16 = fault_addr, rd16 = cause | rd31 = page_mask | 处理页表异常。成功返回页面对齐掩码（如 0xFFFFFFFFFFFF0000 = 64KiB，0xFFFFFFFFE0000000 = 512MiB），失败返回 0 |
+| 5 | SBI_PTW_HANDLE_FAULT | rb16 = fault_addr, rd16 = cause | rd8 = page_mask | 处理页表异常。成功返回页面对齐掩码（如 0xFFFFFFFFFFFF0000 = 64KiB，0xFFFFFFFFE0000000 = 512MiB），失败返回 0 |
 | 6 | SBI_PTW_SET_PTHI | rd16 = idx, rb16 = pthi | — | 设置第 idx 个 PTBR 的页表步进物理地址高 16 位（PA[63:48]） |
 | 7 | SBI_PTW_SET_PAHI | rd16 = idx, rb16 = pahi | — | 设置第 idx 个 PTBR 的最终转换结果物理地址高 16 位（PA[63:48]） |
 
@@ -199,19 +199,19 @@ cfx_ptw_ptbr_table:
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_get_ptbr:
-    ; rd16 = idx，返回 rd31 = base
+    ; rd16 = idx，返回 rd8 = base
     shl.uo  rd16, rd16, 3
     set.rd   rd3, cfx_ptw_get_ptbr_table
     add.so {rd0, rd3}, rd3, rd16
     set.rb   rb3, rd3                      ; rd→rb 中转
     jump [rb3, rd0, 0]
 cfx_ptw_get_ptbr_table:
-    cfx2rd  cfx_ptw_ptbr[0], rd31 ; PTBR[0]
+    cfx2rd  cfx_ptw_ptbr[0], rd8 ; PTBR[0]
     escape cfx_ptw, [excp_cause_ip, 4]
-    cfx2rd  cfx_ptw_ptbr[1], rd31 ; PTBR[1]
+    cfx2rd  cfx_ptw_ptbr[1], rd8 ; PTBR[1]
     escape cfx_ptw, [excp_cause_ip, 4]
     ; ... 共 64 路，rc 0-63 ...
-    cfx2rd  cfx_ptw_ptbr[63], rd31 ; PTBR[63]
+    cfx2rd  cfx_ptw_ptbr[63], rd8 ; PTBR[63]
     escape cfx_ptw, [excp_cause_ip, 4]
 
 cfx_ptw_set_ptbr_perm:
@@ -350,13 +350,13 @@ cfx_tlb_ptw_delegate:
     set.rb   rb16, rd40
     cfx2rd  cfx_tlb_excp_cause_id, rd16              ; 异常原因（cause_id）
     trap    cfx_ptw, SBI_PTW_HANDLE_FAULT
-    ; 返回 rd31 = page_mask（成功：0xFFFF...掩码；失败：0）
+    ; 返回 rd8 = page_mask（成功：0xFFFF...掩码；失败：0）
     set.rd   rd3, 0
-    br.eq {rd31, rd3}?, [rb0, cfx_tlb_ptw_fail] ; 修复失败 → 跳过
+    br.eq {rd8, rd3}?, [rb0, cfx_tlb_ptw_fail] ; 修复失败 → 跳过
     ; 修复成功 → invalid 对应 TLB 表项，按实际页大小
-    and.o   rd40, rd40, rd31                          ; 按掩码对齐至页面起始
+    and.o   rd40, rd40, rd8                          ; 按掩码对齐至页面起始
     cfx2rc  cfx_tlb_addr_start, rd40
-    xnor.o  rd16, rd31, rd0                       ; rd16 = ~rd31（not.o 已删除，见 ADR-0013 D11）
+    xnor.o  rd16, rd8, rd0                       ; rd16 = ~rd8（not.o 已删除，见 ADR-0013 D11）
     add.si    rd16, 1                             ; addr_size = ~mask + 1
     cfx2rc  cfx_tlb_addr_size, rd16
     set.rd   rd2, 2
@@ -417,7 +417,7 @@ cfx_hart 为 Hart 管理部件，提供 hart ID。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_HART_GET_ID | — | rd31 = id | 返回当前 hart 编号 |
+| 0 | SBI_HART_GET_ID | — | rd8 = id | 返回当前 hart 编号 |
 
 > 初始化方式与其他 cfx 一致：探测 cfx_hart 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 15）。cfx_hart 为 per-hart cfx，每个 hart 独立初始化。
 
@@ -437,11 +437,11 @@ cfx_pmem 为存储器管理部件，S-mode 可查询 hypv 固件设置的物理�
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | SBI_PMEM_GET_PM_COUNT | — | rd31 = count | 返回 PM 区域总数 |
-| 1 | SBI_PMEM_GET_PM_START | rd16 = idx | rd31 = start | 查询第 idx 个 PM 区域的起始地址 |
-| 2 | SBI_PMEM_GET_PM_SIZE | rd16 = idx | rd31 = size | 查询第 idx 个 PM 区域的大小 |
-| 3 | SBI_PMEM_GET_PM_ATTR | rd16 = idx | rd31 = attr | 查询第 idx 个 PM 区域的属性 |
-| 4 | SBI_PMEM_ALLOC_PAGE | rd16 = size_hint | rd31 = ppn | 从 PM 区域分配物理页。成功返回 PPN（物理页号，>=0），失败返回 -1。由 cfx_ptw 委托调用 |
+| 0 | SBI_PMEM_GET_PM_COUNT | — | rd8 = count | 返回 PM 区域总数 |
+| 1 | SBI_PMEM_GET_PM_START | rd16 = idx | rd8 = start | 查询第 idx 个 PM 区域的起始地址 |
+| 2 | SBI_PMEM_GET_PM_SIZE | rd16 = idx | rd8 = size | 查询第 idx 个 PM 区域的大小 |
+| 3 | SBI_PMEM_GET_PM_ATTR | rd16 = idx | rd8 = attr | 查询第 idx 个 PM 区域的属性 |
+| 4 | SBI_PMEM_ALLOC_PAGE | rd16 = size_hint | rd8 = ppn | 从 PM 区域分配物理页。成功返回 PPN（物理页号，>=0），失败返回 -1。由 cfx_ptw 委托调用 |
 | 5 | SBI_PMEM_FREE_PAGE | rd16 = ppn | — | 释放物理页，由 cfx_ptw 委托调用 |
 
 > 初始化方式与其他 cfx 一致：探测 cfx_pmem 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 17）。cfx_pmem 的 PM 区域配置由 hypv 固件在 H-mode 初始化阶段完成（见 HBI §3）。
@@ -472,7 +472,7 @@ cfx_pmem_unknown:
     escape cfx_pmem, [excp_cause_ip, 4]
 
 cfx_pmem_get_pm_count:
-    cfx2rd  cfx_pmem_exist, rd31
+    cfx2rd  cfx_pmem_exist, rd8
     ; TODO: 遍历 cfx_pmem_exist 位图，统计置 1 的位数 = PM 区域数
     escape cfx_pmem, [excp_cause_ip, 4]
 
@@ -493,7 +493,7 @@ cfx_pmem_get_pm_attr:
 
 cfx_pmem_alloc_page:
     ; rd16 = size_hint（0 = 自动选择最小的可用区域）
-    ; 返回 rd31 = ppn（物理页号）或 -1（失败）
+    ; 返回 rd8 = ppn（物理页号）或 -1（失败）
     ; TODO: 遍历 PM 区域，维护自由页链表，分配并返回 PPN
     escape cfx_pmem, [excp_cause_ip, 4]
 
@@ -510,7 +510,7 @@ cfx_timer 为定时器/计数器，提供定时器服务。
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_TIMER_SET_TIMER | rd16 = timeout | — | 设置定时器在 timeout（周期计数值）时触发中断 |
-| 1 | SBI_TIMER_GET_TIME | — | rd31 = value | 返回定时器当前计数值 |
+| 1 | SBI_TIMER_GET_TIME | — | rd8 = value | 返回定时器当前计数值 |
 
 ### 初始化
 
@@ -566,7 +566,7 @@ cfx_timer_set_timer:
     escape cfx_timer, [excp_cause_ip, 4]
 
 cfx_timer_get_time:
-    cfx2rd  cfx_timer_regs[0], rd31                    ; 返回值在 rd31，读取定时器当前计数值
+    cfx2rd  cfx_timer_regs[0], rd8                    ; 返回值在 rd8，读取定时器当前计数值
     escape cfx_timer, [excp_cause_ip, 4]
 
 cfx_timer_int:
@@ -586,7 +586,7 @@ trap    cfx_timer, SBI_TIMER_SET_TIMER
 
 ; 读取当前周期计数
 trap    cfx_timer, SBI_TIMER_GET_TIME
-; 返回值在 rd31
+; 返回值在 rd8
 ```
 
 ## 11. 串口控制台（cfx_uart）
@@ -596,9 +596,9 @@ cfx_uart 为 UART 控制器，提供控制台输入输出。
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
 | 0 | SBI_UART_PUTCHAR | rd16 = ch | — | 向控制台写入字符 ch |
-| 1 | SBI_UART_GETCHAR | — | rd31 = ch | 从控制台读取字符。若无可用字符，返回 -1 |
-| 2 | SBI_UART_WRITE | rb16 = buf, rd16 = len | rd31 = written | 向控制台写入 len 字节。返回实际写入字节数 |
-| 3 | SBI_UART_READ | rb16 = buf, rd16 = len | rd31 = read | 从控制台读取最多 len 字节。返回实际读取字节数 |
+| 1 | SBI_UART_GETCHAR | — | rd8 = ch | 从控制台读取字符。若无可用字符，返回 -1 |
+| 2 | SBI_UART_WRITE | rb16 = buf, rd16 = len | rd8 = written | 向控制台写入 len 字节。返回实际写入字节数 |
+| 3 | SBI_UART_READ | rb16 = buf, rd16 = len | rd8 = read | 从控制台读取最多 len 字节。返回实际读取字节数 |
 
 ### 初始化
 
@@ -657,19 +657,19 @@ cfx_uart_putchar:
 
 cfx_uart_getchar:
     ; 从 UART 接收寄存器读取字符
-    cfx2rd  cfx_uart_uart0_regs[1], rd31
+    cfx2rd  cfx_uart_uart0_regs[1], rd8
     escape cfx_uart, [excp_cause_ip, 4]
 
 cfx_uart_write:
     ; rb16 = buf, rd16 = len
     ; 循环写入 len 字节（此处省略循环实现）
-    set.rd   rd31, 0
+    set.rd   rd8, 0
     escape cfx_uart, [excp_cause_ip, 4]
 
 cfx_uart_read:
     ; rb16 = buf, rd16 = len
     ; 循环读取 len 字节（此处省略循环实现）
-    set.rd   rd31, 0
+    set.rd   rd8, 0
     escape cfx_uart, [excp_cause_ip, 4]
 ```
 
@@ -687,7 +687,7 @@ trap    cfx_uart, SBI_UART_PUTCHAR
 
 ; 读取字符
 trap    cfx_uart, SBI_UART_GETCHAR
-; 返回值在 rd31
+; 返回值在 rd8
 ```
 
 ## 12. 系统控制（cfx_power）

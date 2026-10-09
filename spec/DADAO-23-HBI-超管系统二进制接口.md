@@ -16,7 +16,7 @@ cfx_hmon 为 hypv 的 monitor，提供 HBI 版本查询和硬件信息。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | HBI_GET_VERSION | — | rd31 = version | 返回 HBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.1.2 = `0x00010002` |
+| 0 | HBI_GET_VERSION | — | rd8 = version | 返回 HBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.1.2 = `0x00010002` |
 
 ## 3. 启动与引导移交约定
 

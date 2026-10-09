@@ -282,7 +282,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 | `i128` 传参 / 返回约定 | [DADAO-21 §返回值 §标量类型返回值] | `Excluded`（M6 裁定不支持，见 §6.3） |
 | 浮点 RF（寄存器角色除外，整层） | [contract-isa.md §6][DADAO-21 §寄存器规范 §RF寄存器] | `Excluded from M3`（→ M4） |
 | 动态链接 / TLS | （v5 spec 无） | `Excluded from M3`（→ M4） |
-| 系统调用规范（`trap`、RD15 调用号、返回值 RD31） | [DADAO-21 §系统调用规范] | `Excluded from M3`（M3 freestanding 无 syscall；→ M4） |
+| 系统调用规范（`trap`、RD15 调用号、返回值 RD8） | [DADAO-21 §系统调用规范] | `Excluded from M3`（M3 freestanding 无 syscall；→ M4） |
 
 ---
 

@@ -20,11 +20,11 @@
 
 ## §2 调用约定
 
-- 寄存器映射：操作号（标量）→ `rd16`（= `rda0`）；参数块指针（地址）→ `rb16`（= `rba0`）；返回值 → `rd31`。[ADR-0020 D2][ADR-0020 D14][Machine-01 §5.2]
+- 寄存器映射：操作号（标量）→ `rd16`（= `rda0`）；参数块指针（地址）→ `rb16`（= `rba0`）；返回值 → `rd8`。[ADR-0020 D2][ADR-0020 D14][Machine-01 §5.2]
 - **不另设 `rd15`**：`rd15` 是 `umon`/`jmon` 系统调用号，semihosting 不使用。[ADR-0020 D2][DADAO-21 §系统调用规范]
 - 传参复用 ABI 约定（数据参数 `rd16–rd31`、地址参数 `rb16–rb31`，三组独立计数）。[DADAO-22 §1. 调用约定][DADAO-21 §参数寄存器：Parameter registers]
 - 恒 **64 位**、**大端**（同 `ADR-0003 D1`）；参数块字段为 **64 位**。[ADR-0020 D6]
-- 共享层取参位序映射：`n=0 → rd16`、`n=1 → rb16`；返回写 `rd31`。[ADR-0020 D14][Machine-01 §5.2]
+- 共享层取参位序映射：`n=0 → rd16`、`n=1 → rb16`；返回写 `rd8`。[ADR-0020 D14][Machine-01 §5.2]
 
 ## §3 服务表（完整 25 个）
 
@@ -65,7 +65,7 @@
 
 ## §4 返回机制
 
-- semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 PC**（`pc += 4`）并写回返回寄存器 `rd31`；guest 侧不需 `escape`。[ADR-0020 D4][Machine-01 §5.4]
+- semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 PC**（`pc += 4`）并写回返回寄存器 `rd8`；guest 侧不需 `escape`。[ADR-0020 D4][Machine-01 §5.4]
 - 该机制与一般 trap 的 `escape cfxha, [excp_cause_ip, 4]` 返回不同（semihosting 不进入向量）。[ADR-0020 D4][DADAO-22 §1. 调用约定]
 
 ## §5 停机（`SYS_EXIT` 取代 exit port）
@@ -85,7 +85,7 @@
 | 本合约 § | 内容 | 来源 |
 |----------|------|------|
 | §1 | 入口 tag 判定 / 架构自定义说明 / 两条路 | `ADR-0020 D1`/`D10`；`Machine-01 §5.1`/`§4`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §陷入指令` |
-| §2 | 传参/返回寄存器（rd16/rb16/rd31）、64 位大端 | `ADR-0020 D2`/`D6`/`D14`；`Machine-01 §5.2`；`DADAO-21 §参数寄存器：Parameter registers`；`DADAO-22 §1. 调用约定` |
+| §2 | 传参/返回寄存器（rd16/rb16/rd8）、64 位大端 | `ADR-0020 D2`/`D6`/`D14`；`Machine-01 §5.2`；`DADAO-21 §参数寄存器：Parameter registers`；`DADAO-22 §1. 调用约定` |
 | §3 | 完整 25 服务表（号值 = Arm 号值） | `ADR-0020 D3`；`Machine-01 §5.3`；Arm Semihosting（Release 2.0） |
 | §4 | 无 `escape`、PC 步进返回 | `ADR-0020 D4`；`Machine-01 §5.4` |
 | §5 | `SYS_EXIT` 取代 exit port | `ADR-0020 D8`；`ADR-0004 R2`；`Machine-01 §5.5` |
