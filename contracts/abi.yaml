@@ -12,7 +12,12 @@
 #     参数寄存器 / 标量提升 / 栈溢出区 / 返回值 / callee-saved（CSR） /
 #     栈帧布局 / prologue-epilogue / call Defs+RegMask。
 #   - 高级 ABI（varargs / HFA / HPA / 聚合传参 / sret）与 i128 / RF / 动态链接-TLS
-#     → M4，见 deferred_to_m4；未消解的 [OPEN] 见 open_items。
+#     → M4，见 deferred_to_m4。
+#   - M3 的未决项（多返回值/聚合返回、red zone、i128）已由用户逐条裁定于 M6 消解
+#     （见 contract-abi.md §6，SPEC-124t，rev. 2026-10-09）；open_items 随之为空。
+#   - 返回值寄存器 rd8/rb8/rf8 + 多返回值/聚合「按声明顺序自 8 递增、每 bank K=8」
+#     已写入 spec/DADAO-21 §返回值（用户 2026-10-09 授权改册；同变更内更新只读锁 sha256）。
+#     权威正文见 contract-abi.md §4.4/§4.6/§6.1。
 
 format: dadao-abi
 version: "0.9.2"
@@ -147,10 +152,20 @@ scalar_calling_convention:
     note: "spec §栈溢出规则 同句两读；M3 取全局声明序（用户判定 C4）"
 
   return_values:
-    integer: rd31
-    pointer: rb31
-    floating_point: rf31        # M3 Excluded → M4
-    pointer_direct_rb31: true   # C5 D1
+    integer: rd8                # M6 rev. 2026-10-09（spec/DADAO-21 §返回值 改册）：返回值寄存器
+    pointer: rb8
+    floating_point: rf8         # M3 Excluded → M4
+    return_window:              # 返回寄存器区（各 bank 低编号区；与参数区不重叠）
+      rd: [8, 15]
+      rb: [8, 15]
+      rf: [8, 15]
+    multiple_values:
+      order: declaration_order  # 按声明顺序
+      direction: ascending      # 自 8 递增：第 1 个 → 8，第 2 个 → 9 …
+      per_bank_limit: 8         # K = 8（rd8–rd15 / rb8–rb15 / rf8–rf15，各 bank 独立计数）
+      overflow: sret            # 任一 bank 超 8（或无法承载）⇒ sret
+      observable: true          # 顺序属 ABI 可观测语义
+    pointer_direct_rb8: true    # C5 D1（原 pointer_direct_rb31，随返回寄存器改 rb8）
     narrow_extension: callee_canonical   # C5 D2；caller 不截断
 
   callee_saved:                 # CSR（C6）
@@ -182,27 +197,23 @@ scalar_calling_convention:
     ra_managed_by: call_ret
     sequence_owner: [LLVM-038t, LLVM-039t]
 
-  call_defs_regmask:            # C16
-    call_defs: [rd31, rb31]
+  call_defs_regmask:            # C16（M6 rev. 2026-10-09：返回寄存器区 rd/rb 8–15）
+    call_defs: ["rd8-rd15", "rb8-rb15"]   # 返回寄存器区间；浮点 rf8-rf15 在 M3 Excluded
     call_preserved_mask_includes_rb_callee_saved: true
     ret_defs: []
 
-  spec_cite: "DADAO-21 §传参 §参数寄存器 / §传参 §标量参数 / §传参 §栈溢出规则 / §返回值 §标量类型返回值 / §寄存器规范 / §函数调用规范 §The Stack Frame"
+  spec_cite: "DADAO-21 §传参 §参数寄存器 / §传参 §标量参数 / §传参 §栈溢出规则 / §返回值 §标量类型返回值 / §返回值 §多返回值 / §返回值 §聚合类型返回值 / §寄存器规范 / §函数调用规范 §The Stack Frame"
   adr_cite: "ADR-0018 (C1,C4,C5,C6,C7,C9,C16)"
 
-# ── [OPEN]（M3 未消解；→ M4）────────────────────────────────────────────────
-open_items:
-  - id: multiple_return_order
-    desc: "spec 多返回值声明顺序规则与示例内部冲突；M3 Excluded → M4"
-    spec_cite: "DADAO-21 §返回值 §多返回值"
-  - id: red_zone
-    desc: "v5 spec 未提及 128B red zone；M3 不采用 → M4 确认"
-    spec_cite: null
-  - id: i128_convention
-    desc: "spec 未规定 i128 传参/返回约定；M3 不做 i128 → M4 再议"
-    spec_cite: "DADAO-21 §返回值 §标量类型返回值"
+# ── open_items（M3 未决项；M6 已由用户逐条裁定消解 ⇒ 空）────────────────────
+# 原各项已消解：多返回值声明顺序（用户 2026-10-09 裁定，已写入 spec/DADAO-21
+# §返回值）、red zone（用户 2026-10-08 裁定）、i128（用户 2026-10-08 裁定）；
+# 正文见 contract-abi.md §6（SPEC-124t）；§6 不再有未决项，此派生索引随之为空。
+open_items: []
 
-# ── Deferred to M4：M3 范围外的高级 ABI ─────────────────────────────────────
+# ── M3 范围外的高级 ABI 边界索引（历史字段名 deferred_to_m4）────────────────
+# 注：M6 已对 `aggregate_return_sret`/`multiple_return_values`（口径见
+# contract-abi.md §6.1）与 `i128`（不支持，见 §6.3）作出裁定；本索引按「M3 边界」保留登记。
 deferred_to_m4:
   items:
     - varargs

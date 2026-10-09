@@ -8,7 +8,7 @@
 >
 > **`Excluded from M3`**：高级 ABI（varargs / HFA / HPA / 聚合传参 / 聚合返回 sret / 多返回值 / `i128`）与浮点 RF（整层）→ M4（见 §5）。
 >
-> **来源标注**：每条规范性断言句末以 `[DADAO-NN §章节名]` / `[SimRISC-XX §章节名]` 标注 spec/ 来源，不写行号；spec/ 未规定、由 M3 决策补足者标 `[ADR-0018（CX）]`；无 spec 依据的空白项仍标 `[OPEN]`（见 §6）。
+> **来源标注**：每条规范性断言句末以 `[DADAO-NN §章节名]` / `[SimRISC-XX §章节名]` 标注 spec/ 来源，不写行号；spec/ 未规定、由 M3 决策补足者标 `[ADR-0018（CX）]`；spec 未规定、由**用户逐条裁定**补足者标 `[spec-decision]`（M6，见 §6）。
 >
 > **说明**：本合约由 spec/ 归一化投影而来，面向实现；与 spec/ 冲突时阻断实现，走变更流程（见 `spec/Process-02-合约编写规范.md`）。
 
@@ -151,7 +151,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 - `registers` 表为逐寄存器分类的**权威来源**（`rb1`/`rb2` 依 spec 标 `callee_saved: true`）。[DADAO-21 §寄存器规范]
 - `callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**：`callee_saved` 只给出各 bank 的**通用 callee-saved 块（32–63）**（不含 SP/FP 等帧管理专用寄存器；**RF 整体 `Excluded from M3`、`allocatable.rf` 为空，其块仅作 spec 事实登记**）；`reserved_registers` 依 M3 口径（C6）为 `rd1–rd7` / `rb3–rb7`。[DADAO-21 §寄存器规范][ADR-0018（C6）]
 - `scalar_calling_convention` 为 §4 标量调用约定的 M3 机器可读投影。[DADAO-21 §函数调用规范][ADR-0018（C4）]
-- `open_items` 为 M3 未消解的 `[OPEN]` 项（见 §6）；`deferred_to_m4` 为 M3 范围外的高级 ABI 边界索引（见 §5）。[DADAO-21 §返回值 §多返回值]
+- `open_items` 为空（M3 的未决项已由用户逐条裁定于 M6 消解，见 §6）；`deferred_to_m4` 为 M3 范围外的高级 ABI 边界索引（见 §5）。[DADAO-21 §返回值 §多返回值]
 
 > 派生索引不新增规范性事实。[DADAO-21 §寄存器规范]
 
@@ -191,12 +191,13 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 
 ### §4.4 返回值
 
-- 返回值为**绝对地址**（指针）时，使用 `rb31` 作为返回值寄存器。[DADAO-21 §返回值 §标量类型返回值]
-- 返回值为**浮点数**时，使用 `rf31`（M3 `Excluded`，→ M4）。[DADAO-21 §返回值 §标量类型返回值]
-- 其它情况（标量整数）使用 `rd31` 作为返回值寄存器。[DADAO-21 §返回值 §标量类型返回值]
+- 返回值为**绝对地址**（指针）时，使用 `rb8` 作为返回值寄存器。[DADAO-21 §返回值 §标量类型返回值]
+- 返回值为**浮点数**时，使用 `rf8`（M3 `Excluded`，→ M4）。[DADAO-21 §返回值 §标量类型返回值]
+- 其它情况（标量整数）使用 `rd8` 作为返回值寄存器。[DADAO-21 §返回值 §标量类型返回值]
+- 返回寄存器位于各 bank 低编号区（`rd8–rd15` / `rb8–rb15` / `rf8–rf15`），与参数寄存器区（`rd16–rd31` / `rb16–rb31` / `rf16–rf31`）**不重叠**。[DADAO-21 §返回值]
 - **M3 口径（C5）**：
-  - 指针返回**直接落 `rb31`**（不经 `rd31` 中转）。[DADAO-21 §返回值 §标量类型返回值][ADR-0018（C5）]
-  - **窄返回扩展**：`<8B` 返回值由 **callee** 按 §4.2 的符号/零扩展规则扩展为 canonical 64 位后再 `ret`；**caller 不截断**（可假定 `rd31`/`rb31` 为 canonical 64 位）。[ADR-0018（C5）]
+  - 指针返回**直接落 `rb8`**（不经 `rd8` 中转）。[DADAO-21 §返回值 §标量类型返回值][ADR-0018（C5）]
+  - **窄返回扩展**：`<8B` 返回值由 **callee** 按 §4.2 的符号/零扩展规则扩展为 canonical 64 位后再 `ret`；**caller 不截断**（可假定 `rd8`/`rb8` 为 canonical 64 位）。[ADR-0018（C5）]
   - 多返回值与 `i128` 返回**不属 M3**（→ M4，见 §5/§6）。[DADAO-21 §返回值 §多返回值][ADR-0018（C5）]
 
 ### §4.5 callee-saved / caller-saved 与 CSR
@@ -213,7 +214,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 
 ### §4.6 `call` 的寄存器效果与 RegMask（M3 口径，C16）
 
-- `call` 指令的 `Defs`（显式定义）为 `[rd31, rb31]`：callee 经 `rd31`/`rb31` 返回标量/指针值，调用点须声明这两个寄存器被写。[DADAO-21 §返回值 §标量类型返回值][ADR-0018（C16）]
+- `call` 指令的 `Defs`（显式定义）为**返回寄存器区间** `rd8–rd15`、`rb8–rb15`（整数/指针返回值区；浮点 `rf8–rf15` 在 M3 `Excluded`）：callee 经 `rd8–rd15`/`rb8–rb15` 返回标量/指针值，调用点须声明这些寄存器被写（单值用 `rd8`/`rb8`；多返回值/聚合按声明顺序自 `rd8`/`rb8` **递增**占用，至多 8 个/bank）。[DADAO-21 §返回值 §标量类型返回值][DADAO-21 §返回值 §多返回值][ADR-0018（C16）]
 - 实现**必须**提供 `getCallPreservedMask`（preserved 集合含 `rb32–rb63`）并在 `LowerCall` 附 RegMask，使跨调用存活的 callee-saved（尤其**地址类** `rb32–rb63`）不被误 clobber。[ADR-0018（C16）]
 - `ret` **不加 `Defs`**：返回值定义在 `CopyToReg` + glue 链上，`ret` 不额外声明定义。[ADR-0018（C16）]
 - 调用者可依赖：跨 `call` 存活的值须置于 callee-saved（`rd32–rd63`/`rb32–rb63`）或由 caller 自行保存；caller-saved（`rd8–rd31`/`rb8–rb31`）可由 callee 自由 clobber。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
@@ -276,26 +277,44 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 | HFA（同质浮点聚合，RF bank） | [DADAO-21 §传参 §聚合类型参数] | `Excluded from M3`（→ M4） |
 | HPA（同质指针聚合，RB bank） | [DADAO-21 §传参 §聚合类型参数] | `Excluded from M3`（→ M4） |
 | 聚合传参（≤32B 拆 RD 块 / >32B 间接指针） | [DADAO-21 §传参 §聚合类型参数] | `Excluded from M3`（→ M4） |
-| 聚合返回值（hidden sret，指针经 rb16） | [DADAO-21 §返回值 §聚合类型返回值] | `Excluded from M3`（→ M4） |
-| 多返回值 | [DADAO-21 §返回值 §多返回值] | `Excluded from M3`（spec 内部冲突，见 §6；→ M4） |
-| `i128` 传参 / 返回约定 | [DADAO-21 §返回值 §标量类型返回值] | `[OPEN]`（spec 未规定；→ M4 再议，见 §6） |
+| 聚合返回值（hidden sret，指针经 rb16） | [DADAO-21 §返回值 §聚合类型返回值] | `Excluded from M3`（M6 已定口径，见 §6.1） |
+| 多返回值 | [DADAO-21 §返回值 §多返回值] | `Excluded from M3`（M6 已定口径，见 §6.1） |
+| `i128` 传参 / 返回约定 | [DADAO-21 §返回值 §标量类型返回值] | `Excluded`（M6 裁定不支持，见 §6.3） |
 | 浮点 RF（寄存器角色除外，整层） | [contract-isa.md §6][DADAO-21 §寄存器规范 §RF寄存器] | `Excluded from M3`（→ M4） |
 | 动态链接 / TLS | （v5 spec 无） | `Excluded from M3`（→ M4） |
 | 系统调用规范（`trap`、RD15 调用号、返回值 RD31） | [DADAO-21 §系统调用规范] | `Excluded from M3`（M3 freestanding 无 syscall；→ M4） |
 
 ---
 
-## §6 `[OPEN]` 汇总
+## §6 契约收口（M6：原未决项消解，rev. 2026-10-09）
 
-**M3 已判（不再列为 `[OPEN]`）**：`rd1`/`rb3`/`rb4` 分类 → reserved（C6，见 §4.5）；窄返回值扩展 → callee canonical / caller 不截断（C5，见 §4.4）；帧指针省略策略 → 条件式 `hasFPImpl` / 默认 SP-only（C7，见 §4.7）。[ADR-0018（C5）][ADR-0018（C6）][ADR-0018（C7）]
+**M3 已判（不再列为未决项）**：`rd1`/`rb3`/`rb4` 分类 → reserved（C6，见 §4.5）；窄返回值扩展 → callee canonical / caller 不截断（C5，见 §4.4）；帧指针省略策略 → 条件式 `hasFPImpl` / 默认 SP-only（C7，见 §4.7）。[ADR-0018（C5）][ADR-0018（C6）][ADR-0018（C7）]
 
-**仍 `[OPEN]`（M3 无 spec 依据，→ M4）**：[DADAO-21 §返回值 §多返回值]
+**原 §6 未决项（M6 已消解）**：#1 已由用户 2026-10-09 裁定并**写入 `spec/DADAO-21 §返回值`**（本任务同一变更内改册 + 同步只读锁），故直接引 spec；#2 / #3 在 M3 无 spec 依据，**由用户逐条裁定**，标 `[spec-decision]`。消解后口径冻结，供 `LLVM-062t` 实现**直接引用**。
 
-| # | 项 | 说明 | 来源 |
-|---|----|------|------|
-| 1 | 多返回值声明顺序 | spec 声明顺序规则与示例存在内部冲突；M3 标 Excluded，→ M4 解决 | `[OPEN]` [DADAO-21 §返回值 §多返回值] |
-| 2 | red zone（128B） | v5 `spec/DADAO-21-ABI` 未提及；M3 不采用，→ M4 确认 | `[OPEN]`（无 spec 来源） |
-| 3 | `i128` 传参 / 返回约定 | spec 未规定；M3 不做 `i128`，→ M4 再议 | `[OPEN]` [DADAO-21 §返回值 §标量类型返回值] |
+| # | 项 | 结论（M6 口径） | 来源 |
+|---|----|----------------|------|
+| 1 | 多返回值 / 聚合返回 | 按**声明顺序**依次占用返回寄存器（第 1 个 → `rd8`/`rb8`/`rf8` 起**递增**：第 2 个 → `rd9`…）；**每 bank 上限 K=8**（`rd8–rd15`/`rb8–rb15`/`rf8–rf15`）；任一 bank 超 8（或无法承载）⇒ **`sret`**（隐藏指针经 `rb16`，其后地址参数自 `rb17` 起） | [DADAO-21 §返回值 §多返回值][DADAO-21 §返回值 §聚合类型返回值] |
+| 2 | red zone（128B） | **不采用** | 用户 2026-10-08 裁定（v5 `spec/` 未提及）[spec-decision] |
+| 3 | `i128` 传参 / 返回 | **不支持**（保持 `Excluded`） | 用户 2026-10-08 裁定；spec 未规定。[spec-decision] |
+
+### §6.1 多返回值 / 聚合返回值（原 #1）——`LLVM-062t` 实现依据
+
+- **返回寄存器**：整数 `rd8`、指针 `rb8`、浮点 `rf8`（各 bank 低编号区 `rd8–rd15` / `rb8–rb15` / `rf8–rf15`），**与参数寄存器区（`rd16–rd31` / `rb16–rb31` / `rf16–rf31`）不重叠**。[DADAO-21 §返回值]
+- **顺序（ABI 可观测语义）**：多返回值 / 聚合按**声明顺序**依次占用返回寄存器，各 bank **独立、自 8 递增**：第 1 个 → `rd8`（整数）/`rb8`（指针）/`rf8`（浮点），第 2 个 → `rd9`/`rb9`/`rf9`，依次类推。例：`(int x, int y, double* p)` ⇒ `x=rd8`、`y=rd9`、`p=rb8`；`(int a, double* p, float f)` ⇒ `a=rd8`、`p=rb8`、`f=rf8`。[DADAO-21 §返回值 §多返回值]
+- **容量口径（K=8，每 bank 计数）**：任一 bank 的返回值占用**至多 8 个**（`rd8–rd15` / `rb8–rb15` / `rf8–rf15`）；**任一 bank 超过 8 个**，或无法用该规则承载 ⇒ **`sret`（隐藏指针）**。原「聚合总大小 ≤2 字 / >2 字（>64 位）」阈值表述**以本「每 bank K=8 计数」为准**（用户 2026-10-09 裁定「K=8」「最多 8 个寄存器」）。[DADAO-21 §返回值 §多返回值][DADAO-21 §返回值 §聚合类型返回值]
+- **`sret` 隐藏指针位置**：作为**隐藏的第一个地址参数**经 **`rb16`** 传入 callee；callee 将返回值写入 `sret_ptr` 指向的地址，返回时 **`rb16` 仍保存该地址**供 caller 读取（⇒ 该隐藏参数占用 `rb16`，后续地址参数自 **`rb17`** 起计数）。[DADAO-21 §返回值 §聚合类型返回值]
+
+### §6.2 red zone（128B）（原 #2）
+
+- **结论**：**不采用** red zone。leaf 函数**不得**假定 `rbsp`（`rb1`）之下存在保留区；callee 除本函数已分配的帧空间外，不拥有 `rbsp` 之下的内存。[spec-decision]
+- **来源**：用户 2026-10-08 裁定「不采用」（与其保持一致：v5 `spec/` 未提及）。v5 `spec/DADAO-21-ABI` / `DADAO-11-AEE` 全文无 `red zone` / 128B 保留区定义。[spec-decision]
+
+### §6.3 `i128` 传参 / 返回（原 #3）
+
+- **结论**：**不支持 `i128`**（保持 `Excluded`）。实现**不得**为 `i128` 生成传参 / 返回寄存器约定或 `sret` 约定；遇 `i128` 参数 / 返回值时应显式失败，不得静默降级。[spec-decision]
+- **来源**：用户 2026-10-08 裁定「不支持」（保持 `Excluded`）。spec `§标量类型返回值` 未规定 `i128` 约定。[DADAO-21 §返回值 §标量类型返回值]
+- **注**：`DataLayout` 的 `i128:128`（§4.9，C9）是**存储布局**事实，与传参 / 返回约定无关，不受本项影响。[ADR-0018（C9）]
 
 ---
 
@@ -314,7 +333,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 | §4.1 | 参数寄存器分配（三 bank、独立计数、类型→bank） | `DADAO-21-ABI §传参 §参数寄存器` |
 | §4.2 | 标量参数提升（<8B → 8B，符号/零扩展） | `DADAO-21-ABI §传参 §标量参数`；`ADR-0018`（C4） |
 | §4.3 | 寄存器溢出 / 栈溢出区（全局声明序单栈区、每槽 8B） | `DADAO-21-ABI §传参 §栈溢出规则`；`ADR-0018`（C4） |
-| §4.4 | 返回值（整数→rd31、指针→rb31；窄返回 callee 扩展） | `DADAO-21-ABI §返回值 §标量类型返回值`；`ADR-0018`（C5） |
+| §4.4 | 返回值（整数→rd8、指针→rb8；窄返回 callee 扩展） | `DADAO-21-ABI §返回值 §标量类型返回值`；`ADR-0018`（C5） |
 | §4.5 | callee-saved / caller-saved / CSR | `DADAO-21-ABI §寄存器规范 §RD寄存器`、`§RB寄存器`；`ADR-0018`（C6/C7） |
 | §4.6 | `call` `Defs` / `getCallPreservedMask` / `ret` | `ADR-0018`（C16）；`DADAO-21-ABI §返回值 §标量类型返回值` |
 | §4.7 | 栈帧布局 / FP 策略 | `DADAO-21-ABI §函数调用规范 §The Stack Frame`；`ADR-0018`（C7） |

@@ -37,6 +37,7 @@
 | `SPEC-122t` | 已验证 | 10-08 23:54 | 10-08 23:57 | M6 ADR 决策落地（`ADR-0018 §C7 D4` 四形态修订 + `ADR-0021`/`0022` 新建；用户逐条确认；reviewer Accepted） |
 | `INTEG-024t` | 已验证 | 10-09 00:00 | 10-09 00:05 | issues 台账按性质分流（移出 15 = 规划① 7 + 阻塞/待裁定②③ 8；保留 24 真 issue）；reviewer Accepted |
 | `SPEC-123t` | 已验证 | 10-09 07:21 | 10-09 07:53 | reloc 正文（`REL12`(rb0/PC 相对 `S+A−P`)/`ABS12`(rb1–rb63 `S+A`)、`NUM`=6 + `ABS48` 数据 8B）+ `Toolchain-01 §6.1` `set.fo` 口径 + 锁同步；reviewer Accepted |
+| `SPEC-124t` | 已验证 | 10-09 08:17 | 10-09 08:22 | 调用约定契约收口（`contract-abi §6` 三 `[OPEN]` 消解）+ 用户授权改册（`DADAO-21 §返回值` 返回寄存器 `rd31→rd8/rb8/rf8`、声明序递增、每 bank K=8、超者 sret 经 rb16）+ 锁同步；reviewer Accepted |
 
 > （`INTEG-024t` 时间取自制品 mtime：开始 = `.work/INTEG-024t` 创建 00:00；结束 = reviewer Accepted 00:05。）
 
