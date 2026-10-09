@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..bd89edc84
+index 000000000..ef38957c2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,522 @@
+@@ -0,0 +1,646 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -82,6 +82,15 @@ index 000000000..bd89edc84
 +    setTruncStoreAction(MVT::i64, VT, Legal);
 +  }
 +
++  // Varargs (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  DADAO's
++  // va_list is a plain void*: va_start points just past the named arguments in
++  // the caller-written save area, and va_arg walks the 8-byte slots.  VACOPY
++  // expands to a memcpy and VAEND is a no-op.
++  setOperationAction(ISD::VASTART, MVT::Other, Custom);
++  setOperationAction(ISD::VAARG, MVT::Other, Custom);
++  setOperationAction(ISD::VACOPY, MVT::Other, Expand);
++  setOperationAction(ISD::VAEND, MVT::Other, Expand);
++
 +  computeRegisterProperties(STI.getRegisterInfo());
 +}
 +
@@ -116,6 +125,33 @@ index 000000000..bd89edc84
 +  }
 +}
 +
++bool DADAOTargetLowering::CanLowerReturn(
++    CallingConv::ID /*CallConv*/, MachineFunction & /*MF*/, bool /*IsVarArg*/,
++    const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext & /*Context*/,
++    const Type * /*RetTy*/) const {
++  // M6 (contract-abi.md §6.1): the return registers are rd8..rd15 / rb8..rb15,
++  // i.e. at most K = 8 values per bank.  Each bank is counted independently;
++  // as soon as any bank would need a 9th value the whole return is demoted to
++  // a hidden sret pointer (SelectionDAGBuilder inserts it as the first address
++  // argument, which lands in rb16 through CC_DADAO's CCIfSRet rule).
++  //
++  // Outs here comes from GetReturnInfo (FunctionLoweringInfo::CanLowerReturn
++  // and SelectionDAGBuilder::LowerCallTo), whose ArgFlags do *not* carry the
++  // pointer bit; the per-element OrigTy is the authoritative bank witness
++  // (GetReturnInfo sets OrigTy to the flattened element type).
++  unsigned NumInt = 0, NumPtr = 0;
++  for (const ISD::OutputArg &Arg : Outs) {
++    if (Arg.OrigTy && Arg.OrigTy->isPointerTy()) {
++      if (++NumPtr > 8)
++        return false;
++    } else {
++      if (++NumInt > 8)
++        return false;
++    }
++  }
++  return true;
++}
++
 +SDValue DADAOTargetLowering::LowerFormalArguments(
 +    SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
 +    const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
@@ -127,14 +163,15 @@ index 000000000..bd89edc84
 +  //     stack area at incoming_sp + 0 (C4 D1);
 +  //   - the caller has already canonicalised a narrow (<8B) argument (C4 D2),
 +  //     so the callee only records the asserted extension.
++  // M6 (contract-abi.md §6): varargs, byval (>64B aggregate passed indirectly)
++  // and sret (hidden return pointer) are all supported.  byval and sret arrive
++  // as pointer arguments and CC_DADAO routes them to the RB bank (sret via the
++  // CCIfSRet rule to rb16); nest remains unsupported.
 +  if (CallConv != CallingConv::C && CallConv != CallingConv::Fast)
-+    report_fatal_error("DADAO: only the C calling convention is supported (M3)");
-+  if (IsVarArg)
-+    report_fatal_error("DADAO: varargs are not supported (deferred to M4)");
++    report_fatal_error("DADAO: only the C calling convention is supported");
 +  for (const ISD::InputArg &Arg : Ins)
-+    if (Arg.Flags.isByVal() || Arg.Flags.isSRet() || Arg.Flags.isNest())
-+      report_fatal_error(
-+          "DADAO: byval/sret/nest arguments are not supported (deferred to M4)");
++    if (Arg.Flags.isNest())
++      report_fatal_error("DADAO: nest arguments are not supported");
 +
 +  MachineFunction &MF = DAG.getMachineFunction();
 +  MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -197,21 +234,19 @@ index 000000000..bd89edc84
 +    const SmallVectorImpl<ISD::OutputArg> &Outs,
 +    const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
 +    SelectionDAG &DAG) const {
-+  // M3 scalar returns (contract-abi.md §4.4, ADR-0018 C5):
-+  //   - integer/scalar -> rd31, pointer -> rb31 (directly, no rd31 round trip);
++  // M6 scalar/multi returns (contract-abi.md §4.4/§6.1, ADR-0018 C5):
++  //   - integer/scalar -> rd8..rd15, pointer -> rb8..rb15 (first value at
++  //     index 8, each subsequent value +1 in its own bank);
 +  //   - a narrow (<8B) return value is canonicalised by the callee; the caller
 +  //     does not truncate (C5 D2).
-+  if (IsVarArg)
-+    report_fatal_error("DADAO: varargs are not supported (deferred to M4)");
++  // Whether the values fit the return registers (K = 8 per bank) is decided by
++  // CanLowerReturn; a return that does not fit was already demoted to sret, so
++  // here every value must be a register.
 +
 +  SmallVector<CCValAssign, 16> RVLocs;
 +  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
 +                 *DAG.getContext());
 +  CCInfo.AnalyzeReturn(Outs, RetCC_DADAO);
-+
-+  if (RVLocs.size() > 1)
-+    report_fatal_error(
-+        "DADAO: multiple return values are not supported (deferred to M4)");
 +
 +  SDValue Glue;
 +  SmallVector<SDValue, 4> RetOps(1, Chain);
@@ -243,13 +278,18 @@ index 000000000..bd89edc84
 +
 +SDValue DADAOTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 +                                       SmallVectorImpl<SDValue> &InVals) const {
-+  // M3 direct scalar call (contract-abi.md §4, ADR-0018 C4/C16):
++  // M6 call lowering (contract-abi.md §4/§6, ADR-0018 C4/C16):
 +  //   - arguments assigned by CC_DADAO (bank split, shared overflow area);
-+  //   - CALLSEQ_START/END bracket the outgoing argument area (ADJCALLSTACK);
++  //   - sret/byval arrive as pointer arguments and are routed to the RB bank;
++  //   - a direct callee is a target global/external symbol (call_iiii); an
++  //     indirect callee (function pointer) is materialized into GPRB and
++  //     selected to call_rrii (Addr = rbha + rdhb + (imms12 << 2));
++  //   - for a variadic call every argument is also written into an 8-byte-slot
++  //     save area at the call-site SP (spec DADAO-21 §可变参数);
++  //   - CALLSEQ_START/END bracket the outgoing argument area;
 +  //   - the DADAOISD::CALL node carries the call-preserved mask
 +  //     (getCallPreservedMask: includes rb32..rb63, ML-004c) and the live-in
 +  //     argument registers of this call site (DL-065a).
-+  // varargs, aggregates and indirect calls are deferred to M4 (explicit fail).
 +  SelectionDAG &DAG = CLI.DAG;
 +  const SDLoc &DL = CLI.DL;
 +  SmallVectorImpl<ISD::OutputArg> &Outs = CLI.Outs;
@@ -261,25 +301,31 @@ index 000000000..bd89edc84
 +  bool IsVarArg = CLI.IsVarArg;
 +
 +  if (CallConv != CallingConv::C && CallConv != CallingConv::Fast)
-+    report_fatal_error("DADAO: only the C calling convention is supported (M3)");
-+  if (IsVarArg)
-+    report_fatal_error("DADAO: varargs are not supported (deferred to M4)");
-+  if (Callee.getOpcode() != ISD::GlobalAddress &&
-+      Callee.getOpcode() != ISD::ExternalSymbol)
-+    report_fatal_error(
-+        "DADAO: indirect calls are not supported (deferred to M4)");
++    report_fatal_error("DADAO: only the C calling convention is supported");
 +  for (const ISD::OutputArg &Arg : Outs)
-+    if (Arg.Flags.isByVal() || Arg.Flags.isSRet() || Arg.Flags.isNest())
-+      report_fatal_error(
-+          "DADAO: byval/sret/nest arguments are not supported (deferred to M4)");
++    if (Arg.Flags.isNest())
++      report_fatal_error("DADAO: nest arguments are not supported");
 +
 +  MachineFunction &MF = DAG.getMachineFunction();
++
++  // Varargs (M6): in addition to the register assignment, every argument is
++  // written into a contiguous save area at the call-site SP (slot i at
++  // SP + i*8, 8 bytes each, declaration order).  All arguments must currently
++  // fit the register banks so that the save area starts at SP + 0 and the
++  // callee can compute the first-variadic address as entry_SP + N_named*8.
++  const bool VarArgSaveArea = IsVarArg;
 +
 +  SmallVector<CCValAssign, 16> ArgLocs;
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
 +  CCInfo.AnalyzeCallOperands(Outs, CC_DADAO);
 +
-+  const uint64_t NumBytes = CCInfo.getStackSize();
++  if (VarArgSaveArea && CCInfo.getStackSize() != 0)
++    report_fatal_error("DADAO: a varargs call with register-exhausted "
++                       "arguments is not supported yet");
++
++  const uint64_t NumBytes =
++      VarArgSaveArea ? static_cast<uint64_t>(Outs.size()) * 8
++                     : CCInfo.getStackSize();
 +  Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, DL);
 +
 +  SmallVector<std::pair<Register, SDValue>, 8> RegsToPass;
@@ -304,6 +350,16 @@ index 000000000..bd89edc84
 +      break;
 +    default:
 +      llvm_unreachable("DADAO: unsupported argument location info");
++    }
++
++    if (VarArgSaveArea) {
++      // Store the promoted argument into its 8-byte save slot SP + i*8.
++      SDValue StackPtr = DAG.getRegister(DADAO::rb1, MVT::i64);
++      SDValue SlotAddr = DAG.getNode(
++          ISD::ADD, DL, MVT::i64, StackPtr,
++          DAG.getIntPtrConstant(static_cast<int64_t>(i) * 8, DL));
++      MemOpChains.push_back(DAG.getStore(
++          Chain, DL, Arg, SlotAddr, MachinePointerInfo::getStack(MF, i * 8)));
 +    }
 +
 +    if (VA.isRegLoc()) {
@@ -334,11 +390,22 @@ index 000000000..bd89edc84
 +    ArgGlue = Chain.getValue(1);
 +  }
 +
-+  // Direct call: turn the callee into a target global address.
-+  if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee))
-+    Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
-+  else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee))
-+    Callee = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);
++  // Turn the callee into the call operand: a target global/external symbol for
++  // a direct call, or a GPRB virtual register for an indirect one.
++  SDValue CalleeOp;
++  if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++    CalleeOp = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
++  } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
++    CalleeOp = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);
++  } else {
++    // Indirect call: materialize the target address into a GPRB register so
++    // call_rrii's base operand (rb) is satisfied.
++    Register TargetReg =
++        MF.getRegInfo().createVirtualRegister(&DADAO::GPRBRegClass);
++    Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Callee, ArgGlue);
++    ArgGlue = Chain.getValue(1);
++    CalleeOp = DAG.getRegister(TargetReg, MVT::i64);
++  }
 +
 +  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
 +  const uint32_t *Mask = TRI->getCallPreservedMask(MF, CallConv);
@@ -347,7 +414,7 @@ index 000000000..bd89edc84
 +  SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
 +  SmallVector<SDValue, 8> CallOps;
 +  CallOps.push_back(Chain);
-+  CallOps.push_back(Callee);
++  CallOps.push_back(CalleeOp);
 +  // Call-clobbered set (inv: preserved includes rb32..rb63, C16/ML-004c).
 +  CallOps.push_back(DAG.getRegisterMask(Mask));
 +  // The live-in argument registers of this call site (InstrEmitter turns these
@@ -420,9 +487,66 @@ index 000000000..bd89edc84
 +                      SDLoc(Op), DAG);
 +  case ISD::BRCOND:
 +    return LowerBRCOND(Op, DAG);
++  case ISD::VASTART:
++    return LowerVASTART(Op, DAG);
++  case ISD::VAARG:
++    return LowerVAARG(Op, DAG);
 +  default:
 +    return SDValue();
 +  }
++}
++
++SDValue DADAOTargetLowering::LowerVASTART(SDValue Op,
++                                          SelectionDAG &DAG) const {
++  // `llvm.va_start(ptr %ap)` (M6, spec DADAO-21 §可变参数).  DADAO's va_list is
++  // a plain void*: va_start sets it to the address of the first variadic
++  // argument, i.e. entry SP + N_named*8, where the caller's save area holds
++  // slot i at entry SP + i*8.  N_named is the number of named arguments of the
++  // variadic function.
++  MachineFunction &MF = DAG.getMachineFunction();
++  const DataLayout &DLayout = DAG.getDataLayout();
++  MVT PtrVT = getPointerTy(DLayout);
++  SDLoc DL(Op);
++
++  const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
++  const unsigned NumNamed =
++      static_cast<unsigned>(MF.getFunction().arg_size());
++  int FI = MF.getFrameInfo().CreateFixedObject(
++      /*Size=*/8, /*Offset=*/static_cast<int64_t>(NumNamed) * 8,
++      /*IsImmutable=*/true);
++  SDValue FIN = DAG.getFrameIndex(FI, PtrVT);
++  return DAG.getStore(Op.getOperand(0), DL, FIN, Op.getOperand(1),
++                      MachinePointerInfo(SV));
++}
++
++SDValue DADAOTargetLowering::LowerVAARG(SDValue Op, SelectionDAG &DAG) const {
++  // `llvm.va_arg(ptr %ap, T)` (M6, spec DADAO-21 §可变参数).  The va_list holds
++  // the address of the next slot; read the value, then advance by one 8-byte
++  // slot.  DADAO is big-endian, so a narrow value is right-aligned in the slot:
++  // read it at slot + (8 - sizeof(T)).
++  SDLoc DL(Op);
++  const DataLayout &DLayout = DAG.getDataLayout();
++  MVT PtrVT = getPointerTy(DLayout);
++  SDValue Chain = Op.getOperand(0);
++  SDValue VAListPtr = Op.getOperand(1);
++  EVT VT = Op.getValueType();
++
++  SDValue Slot =
++      DAG.getLoad(PtrVT, DL, Chain, VAListPtr, MachinePointerInfo());
++  Chain = Slot.getValue(1);
++
++  SDValue Addr = Slot;
++  const unsigned Size = VT.getSizeInBits() / 8;
++  if (Size < 8)
++    Addr = DAG.getNode(ISD::ADD, DL, PtrVT, Slot,
++                       DAG.getConstant(8 - Size, DL, PtrVT));
++  SDValue Val = DAG.getLoad(VT, DL, Chain, Addr, MachinePointerInfo());
++  Chain = Val.getValue(1);
++
++  SDValue Next = DAG.getNode(ISD::ADD, DL, PtrVT, Slot,
++                             DAG.getConstant(8, DL, PtrVT));
++  Chain = DAG.getStore(Chain, DL, Next, VAListPtr, MachinePointerInfo());
++  return DAG.getMergeValues({Val, Chain}, DL);
 +}
 +
 +SDValue DADAOTargetLowering::LowerBRCOND(SDValue Op, SelectionDAG &DAG) const {

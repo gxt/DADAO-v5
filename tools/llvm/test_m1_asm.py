@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Test all 177 M1 instructions can be assembled by llvm-mc.
+Test that every M1 instruction (as generated from contracts/opcodes.yaml, the
+single source of truth) can be assembled by llvm-mc.
 Exit code 0 if all pass, 1 if any fail.
 """
 import subprocess

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..435ceb229
+index 000000000..dd8cac1a5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,221 @@
+@@ -0,0 +1,243 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -36,7 +36,9 @@ index 000000000..435ceb229
 +#include "llvm/MC/MCSymbol.h"
 +#include "llvm/MC/MCSubtargetInfo.h"
 +#include "llvm/MC/MCValue.h"
++#include "llvm/ADT/Twine.h"
 +#include "llvm/Support/Endian.h"
++#include "llvm/Support/MathExtras.h"
 +#include <optional>
 +
 +using namespace llvm;
@@ -175,6 +177,7 @@ index 000000000..435ceb229
 +    // PC-relative fixup: imms = (target - current) >> 2
 +    // Value is already (target - current) when PCRel = true.
 +    // We need to right-shift by 2 to get the immediate value.
++    const int64_t ByteDelta = static_cast<int64_t>(Value);
 +    uint64_t ImmValue = Value >> 2;
 +
 +    // B2 fix: Apply the correct bitmask based on the fixup kind.
@@ -182,19 +185,38 @@ index 000000000..435ceb229
 +    //   PCRel_12 (rrii): 12-bit signed, mask 0xFFF
 +    //   PCRel_18 (riii): 18-bit signed, mask 0x3FFFF
 +    //   PCRel_24 (iiii): 24-bit signed, mask 0xFFFFFF
++    unsigned Bits;
 +    uint64_t Mask;
 +    switch (Kind) {
 +    case llvm::DADAO::DADAO_FK_PCRel_12:
++      Bits = 12;
 +      Mask = 0xFFF;
 +      break;
 +    case llvm::DADAO::DADAO_FK_PCRel_18:
++      Bits = 18;
 +      Mask = 0x3FFFF;
 +      break;
 +    case llvm::DADAO::DADAO_FK_PCRel_24:
++      Bits = 24;
 +      Mask = 0xFFFFFF;
 +      break;
 +    default:
 +      return;  // Should not reach here
++    }
++
++    // Reject an out-of-range or misaligned branch displacement instead of
++    // silently truncating it (ISS-043).  The stored word offset must be a
++    // signed value that fits the immediate field width.
++    const int64_t WordOffset = ByteDelta >> 2;
++    if ((ByteDelta & 3) != 0 ||
++        !(Bits == 12 ? isInt<12>(WordOffset)
++                     : Bits == 18 ? isInt<18>(WordOffset)
++                                  : isInt<24>(WordOffset))) {
++      Asm->getContext().reportError(
++          Fixup.getLoc(),
++          Twine("branch/jump target out of range for a ") + Twine(Bits) +
++              "-bit PC-relative immediate");
++      return;
 +    }
 +
 +    // OR in the immediate value (opcode bits are already set by the emitter).

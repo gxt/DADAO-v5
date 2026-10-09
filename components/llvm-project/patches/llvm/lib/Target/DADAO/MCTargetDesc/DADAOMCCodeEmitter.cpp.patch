@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
 new file mode 100644
-index 000000000..d4061868d
+index 000000000..f3d10e931
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,185 @@
 +//===-- DADAOMCCodeEmitter.cpp - DADAO MC Code Emitter --------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -26,6 +26,7 @@ index 000000000..d4061868d
 +#include "llvm/MC/MCFixup.h"
 +#include "llvm/MC/MCSubtargetInfo.h"
 +#include "llvm/Support/Endian.h"
++#include "llvm/Support/ErrorHandling.h"
 +
 +using namespace llvm;
 +
@@ -75,28 +76,39 @@ index 000000000..d4061868d
 +#include "DADAOGenMCCodeEmitter.inc"
 +
 +MCFixupKind DADAOMCCodeEmitter::getFixupKindForInstr(const MCInst &MI) const {
-+  unsigned Opcode = MI.getOpcode();
-+
-+  // Determine fixup kind based on instruction format:
-+  //   rrii format (br.eq/br.ne, jump-rrii, call-rrii): 12-bit → PCRel_12
-+  //   riii format (br.n/br.nn/br.z/br.nz/br.p/br.np, br.z-rb/br.nz-rb): 18-bit → PCRel_18
-+  //   iiii format (jump-iiii, call-iiii): 24-bit → PCRel_24
-+
-+  // Check for rrii format branch/jump/call instructions.
-+  // br.eq=0x6E, br.ne=0x6F, jump-rrii=0x71, call-rrii=0x75
-+  if (Opcode == DADAO::br_eq_rd || Opcode == DADAO::br_ne_rd ||
-+      Opcode == DADAO::jump_rrii || Opcode == DADAO::call_rrii)
++  // Whitelist (ISS-045): only actual branch/jump/call instructions get a
++  // PC-relative fixup for their symbol operand.  Anything else that reaches
++  // here has a symbol operand this emitter does not know how to relocate and
++  // must fail loudly rather than be silently treated as an 18-bit branch
++  // (which would emit a wrong relocation kind).
++  //   rrii (12-bit): br.eq/br.ne, jump-rrii, call-rrii
++  //   riii (18-bit): br.n/nn/z/nz/p/np (rd), br.z/nz (rb)
++  //   iiii (24-bit): jump-iiii, call-iiii
++  switch (MI.getOpcode()) {
++  case DADAO::br_eq_rd:
++  case DADAO::br_ne_rd:
++  case DADAO::jump_rrii:
++  case DADAO::call_rrii:
 +    return MCFixupKind(llvm::DADAO::DADAO_FK_PCRel_12);
 +
-+  // Check for iiii format jump/call instructions.
-+  // jump-iiii=0x70, call-iiii=0x74
-+  if (Opcode == DADAO::jump_iiii || Opcode == DADAO::call_iiii)
++  case DADAO::jump_iiii:
++  case DADAO::call_iiii:
 +    return MCFixupKind(llvm::DADAO::DADAO_FK_PCRel_24);
 +
-+  // Default: riii format branch instructions.
-+  // br.n=0x68, br.nn=0x69, br.z=0x6A, br.nz=0x6B, br.p=0x6C, br.np=0x6D
-+  // br.z-rb=0x72, br.nz-rb=0x73
-+  return MCFixupKind(llvm::DADAO::DADAO_FK_PCRel_18);
++  case DADAO::br_n_rd:
++  case DADAO::br_nn_rd:
++  case DADAO::br_z_rd:
++  case DADAO::br_nz_rd:
++  case DADAO::br_p_rd:
++  case DADAO::br_np_rd:
++  case DADAO::br_z_rb:
++  case DADAO::br_nz_rb:
++    return MCFixupKind(llvm::DADAO::DADAO_FK_PCRel_18);
++
++  default:
++    report_fatal_error(
++        "DADAO: no PC-relative fixup kind for this symbol-operand instruction");
++  }
 +}
 +
 +bool DADAOMCCodeEmitter::isAddressConstructionInstr(unsigned Opcode) {

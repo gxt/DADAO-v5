@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..4c0927975
+index 000000000..0a11f4020
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,493 @@
+@@ -0,0 +1,507 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -94,9 +94,9 @@ index 000000000..4c0927975
 +
 +  switch (MI.getOpcode()) {
 +  case DADAO::RET_PSEUDO: {
-+    // The return value has already been placed in rd31 (scalar) / rb31
-+    // (pointer) by LowerReturn (C5, ADR-0018); `ret` only restores PC from the
-+    // return-address stack.  The register field is the fixed encoding-format
++    // The return value(s) have already been placed in rd8..rd15 / rb8..rb15
++    // by LowerReturn (M6, contract-abi.md §6.1); `ret` only restores PC from
++    // the return-address stack.  The register field is the fixed encoding-format
 +    // slot: `ret rd0, 0` (rdHA == rd0 requires imms18 == 0; SPEC-083t).
 +    // Preserve the implicit operands so the return-value register stays live
 +    // for the verifier.
@@ -126,6 +126,20 @@ index 000000000..4c0927975
 +        .addDef(Dst)        // rdhb = low 64 bits of the result
 +        .addReg(Src1)       // rdhc = src1
 +        .addReg(Src2);      // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::NEG_PSEUDO: {
++    // iss-159: `neg dst = sub.so {rd0, dst}, rd0, src`.  rdha (high 64 bits)
++    // goes to the hardwired-zero rd0, rdhb holds the low 64 bits; the minuend
++    // is rd0 (0) and the subtrahend is the source.
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src = MI.getOperand(1).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::sub_so_rd))
++        .addDef(DADAO::rd0)
++        .addDef(Dst)
++        .addReg(DADAO::rd0)
++        .addReg(Src);
 +    MI.eraseFromParent();
 +    return true;
 +  }

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..0e626ad78
+index 000000000..9eff1a814
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,352 @@
+@@ -0,0 +1,360 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -281,21 +281,21 @@ index 000000000..0e626ad78
 +    }
 +    break;
 +  case DADAOISD::CALL: {
-+    // Direct call (LLVM-039t): the DADAOISD::CALL operands are
-+    //   chain, callee, [RegisterMask], [argument Registers...], [glue]
-+    // The instruction only declares the callee operand; the remaining
-+    // register/regmask operands are carried through so InstrEmitter marks the
-+    // exact live-in argument registers implicit-use and attaches the
-+    // call-clobber mask (DL-065a, ML-004c).  Chain/glue must trail the operand
-+    // list (InstrEmitter::AddOperand invariant).
-+    //
-+    // Indirect calls are deferred to M4 (LowerCall already rejects them; this
-+    // is a second guard).
++    // Call (LLVM-039t direct; M6 adds indirect): the DADAOISD::CALL operands
++    // are chain, callee, [RegisterMask], [argument Registers...], [glue].
++    // A direct callee is a TargetGlobalAddress/TargetExternalSymbol and is
++    // selected to call_iiii (PC-relative 24-bit).  An indirect callee is a
++    // Register (the target address, already in GPRB) and is selected to
++    // call_rrii with Addr = rbha + rdhb + (imms12 << 2), rdhb = rd0, imm = 0.
++    // The remaining register/regmask operands are carried through so
++    // InstrEmitter marks the exact live-in argument registers implicit-use and
++    // attaches the call-clobber mask (DL-065a, ML-004c).  Chain/glue must
++    // trail the operand list (InstrEmitter::AddOperand invariant).
 +    SDValue Callee = Node->getOperand(1);
-+    if (Callee.getOpcode() != ISD::TargetGlobalAddress &&
-+        Callee.getOpcode() != ISD::TargetExternalSymbol)
-+      report_fatal_error(
-+          "DADAO: indirect calls are not supported (deferred to M4)");
++    const bool Direct = Callee.getOpcode() == ISD::TargetGlobalAddress ||
++                        Callee.getOpcode() == ISD::TargetExternalSymbol;
++    if (!Direct && Callee.getOpcode() != ISD::Register)
++      report_fatal_error("DADAO: unsupported call callee");
 +
 +    const SDLoc DLC(Node);
 +    SDValue Chain = Node->getOperand(0);
@@ -305,7 +305,14 @@ index 000000000..0e626ad78
 +    const unsigned NumExtra = NumOps - 2 - (HasGlue ? 1 : 0);
 +
 +    SmallVector<SDValue, 8> Ops;
-+    Ops.push_back(Callee);
++    if (Direct) {
++      Ops.push_back(Callee);
++    } else {
++      // call_rrii rbTarget, rd0, 0
++      Ops.push_back(Callee);
++      Ops.push_back(CurDAG->getRegister(DADAO::rd0, MVT::i64));
++      Ops.push_back(CurDAG->getTargetConstant(0, DLC, MVT::i64));
++    }
 +    for (unsigned i = 0; i < NumExtra; ++i)
 +      Ops.push_back(Node->getOperand(2 + i));
 +    Ops.push_back(Chain);
@@ -313,7 +320,8 @@ index 000000000..0e626ad78
 +      Ops.push_back(Node->getOperand(NumOps - 1));
 +
 +    MachineSDNode *Call = CurDAG->getMachineNode(
-+        DADAO::call_iiii, DLC, MVT::Other, MVT::Glue, Ops);
++        Direct ? DADAO::call_iiii : DADAO::call_rrii, DLC, MVT::Other,
++        MVT::Glue, Ops);
 +    ReplaceNode(Node, Call);
 +    return;
 +  }

@@ -10,7 +10,7 @@
 ; Entry / exit channel frozen with tests/llvm/codegen/expected.yaml:
 ;   * every program defines `define i64 @main()`;
 ;   * `_start` sets up the stack pointer (rb1), calls `@main`; the returned
-;     value arrives in rd31 (ABI C5);
+;     value arrives in rd8 (ABI §返回值, M6 contract-abi.md §6.1);
 ;   * `_start` reports that value through the semihosting `SYS_EXIT` service
 ;     (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device, ADR-0004 `D3` superseded);
 ;   * the **guest process exit code** is the low byte of that value.
@@ -41,7 +41,7 @@ _start:
 	set.zw	rb1, wp2, 0xffff
 	or.w	rb1, wp1, 0x00ff
 
-	; 2. Call the program entry point; the result returns in rd31.
+	; 2. Call the program entry point; the result returns in rd8 (M6).
 	call	[rb0, main]
 
 	; 3. Build the SYS_EXIT argument block at rb16 = 0xffff_00ff_f000:
@@ -54,7 +54,7 @@ _start:
 	st.o	rd16, [rb16, 0]
 
 	; 4. block[1] = @main return value (low byte = guest exit code).
-	st.o	rd31, [rb16, 8]
+	st.o	rd8, [rb16, 8]
 
 	; 5. rd16 = 0x18 (SYS_EXIT); trap with the semihosting tag.
 	set.zw	rd16, wp0, 0x0018

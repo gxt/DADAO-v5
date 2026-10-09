@@ -20,7 +20,7 @@
 | `SPEC-126t` | 已验证 | 10-09 08:37 | 10-09 08:48 | 系统调用/半托管返回寄存器 `rd31 → rd8`（`DADAO-21/22/23` + `Machine-01`）+ 两合约同步 + 锁；**入参 `rd15`/参数区不动** |
 | `SPEC-127t` | 已验证 | 10-09 10:06 | 10-09 10:17 | 聚合传参收口（**全部聚合含 HFA/HPA 槽位上限 4→8 = 64 B；`>64 B` ⇒ 间接指针**）+ `DADAO-21` 与锁同步 + `contract-abi §6.4` |
 | `SPEC-128t` | 待开始 | — | — | ABI 寄存器布局重排（spec/契约侧）：RD `rd2–rd3` reserved〔调试/测试保留〕/`rd4–rd7` caller-saved；RB `rb2`=GP/`rb3`=TP/`rb4–rb7` caller-saved/`rb32–rb62` callee saved/`rb63`=FP 条件占用〔callee-saved〕；改 `DADAO-21`+锁+`contract-abi`+`contracts/abi.yaml`+就地修订 `ADR-0018 C7 D6`；**不立 ADR**；不含实现 |
-| `LLVM-062t` | 待开始 | — | — | 整数完整调用约定 + 小欠账收口（`043/045/047/108/148/159/162`）+ **返回 `rd8` 涟漪** + **聚合 8 槽位** |
+| `LLVM-062t` | 待返工 | — | — | 整数完整调用约定 + 小欠账收口（`043/045/047/108/148/159/162`）+ **返回 `rd8` 涟漪** + **聚合 8 槽位**；**reviewer Needs Revision：唯一缺口 = `ISS-108` 拆分；其余全绿；本地 WIP，未 push** |
 | `LLVM-063t` | 待开始 | — | — | DADAO clang target + driver/sysroot（**钉子①**） |
 | `LLVM-064t` | 待开始 | — | — | 大帧寻址四形态（代价驱动）+ `mem*` 内建 + `MaxStoresPerMem*=16` |
 | `LLVM-065t` | 待开始 | — | — | lld reloc 完善（`REL12`/`ABS12` + `FK_Data_*` 静默 0 + `ABS48` 数据表示） |
@@ -48,6 +48,7 @@
 - **历史瑕疵登记（已解决）**：提交 `815d854` 的**内容 = `SPEC-122t`**、**消息曾误写为 `INFRA-050t: …`**；**用户 2026-10-09 批准修正**，已以 `commit --amend` 改写为 `eb10259`（**只改消息、内容未变**：对 `backup/pre-push-squash` 与旧 `origin/master` 两级校验均 0 行差异），并 `--force-with-lease` 推送（**由用户本人执行**，因其 `permission.bash` 策略 `git push --force*` = `deny`）。备份分支：`backup/pre-push-squash`、`backup/before-msgfix`、`backup/pre-msgfix2`。
 - **WIP 入史登记（用户裁定）**：已推送历史中含 `5dfd311 WIP: QEMU-052t 候选实现（改走 load_elf()，门控全绿）+ 停下报告：契约 §6.1.2/ADR-0004 D2.3 三类加载期校验丢失，待用户裁定 A/B`——**保命提交**（子代理 `cancelled`、任务卡在裁定）。用户 2026-10-09 裁定「**选 b，保留现状**」⇒ **不改写已推送历史**；`QEMU-052t` 的最终交付提交叠加于其后。
 - **里程碑**：M6（`INTEG-023k`「M6 启动与分解」）
+- **`ISS-108` 提请用户裁定（`LLVM-062t`，2026-10-09）**：`LLVM-062t` reviewer 判 **Needs Revision**，唯一缺口 = `ISS-108`（`DADAOInstrInfo.td` **1502 行**、`DADAOAsmParser.cpp` **2349 行**，均 >1000 行）未拆分。**原裁定为「纳入（拆分）」，但现实已变**——两文件规模远超阈值，拆分是**侵入式重构**（`DADAOAsmParser.cpp` 为单一匿名类，需类外提为头文件）且属**非功能性**改动，风险/收益不匹配。⇒ **提请用户**在「**仍在本里程碑（M6）拆分**」/「**推迟到 M7，`LLVM-062t` 转 Accepted**」之间裁定；**不擅自决定**。其余验收项（返回 `rd8/rb8/rf8`+K=8、聚合 ≤64 B/`>64 B` byval、变参、间接调用、六条欠账 `043/045/047/148/159/162`、四门控、证据脚本 16/16 + 注入回绿、补丁纪律、`spec/`/`contracts/` 交集空）**均已通过**。当前 `LLVM-062t` 为本地 **WIP 提交（未 push）**。
 - **规划中**：
   - **M6 主题与范围（已裁定，2026-10-08；见 `INTEG-023k`）**：整数**完整调用约定** + **12 条 LLVM 欠账收口** + **ELF 加载**（改走 `load_elf()`，钉子②）+ **clang target**（仅 freestanding，钉子①）+ **Embench 接入**（钉子③）+ lit 量产 + `lli` 值级对拍；**不含** libc/OS/syscall、golden model、fuzz（后置 M7）；`ISS-003`（LR-SC）**M6 显式排除**
   - **M6 任务书**：逐项见上表（**计数不写死**，需时现场统计）；编号 `INTEG-023k/024t/025t/026m`、`INFRA-050t/051t/052m`、`SPEC-122t…128t/125m`、`LLVM-062t…068t/067m`、`QEMU-052t…055t/054m`、`TESTCASES-036t…041t/040m`；Wave 串行见 `INTEG-023k §C/§D`

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..f2d9e438c
+index 000000000..4d6ec6597
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1498 @@
+@@ -0,0 +1,1502 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -388,13 +388,15 @@ index 000000000..f2d9e438c
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRB:$ra, GPRD:$rb, imms12:$imm12);
 +  let op = 0x75;
-+  // C16 (ADR-0018): a call writes the return-value registers rd31/rb31; the
-+  // Defs must declare both banks or MachineVerifier reports "undefined
-+  // physical register" for the caller-side copy of a pointer return (DL-070a).
-+  // Indirect calls (this form) are deferred to M4 and are never selected by
-+  // the M3 CodeGen.
++  // C16 (ADR-0018) / M6 (contract-abi.md §6.1): a call writes the return-value
++  // registers rd8..rd15 / rb8..rb15 (integer/pointer banks; the callee writes
++  // up to 8 per bank, from index 8 upward).  The Defs must declare the whole
++  // return range or MachineVerifier reports "undefined physical register" for
++  // the caller-side copy of a return value (DL-070a).  This form is the
++  // indirect call: Addr = rbha + rdhb + (imms12 << 2) (contract-isa.md §8.5).
 +  let isCall = 1;
-+  let Defs = [rd31, rb31];
++  let Defs = [rd8, rd9, rd10, rd11, rd12, rd13, rd14, rd15,
++              rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15];
 +  let Pattern = [];
 +}
 +
@@ -705,15 +707,17 @@ index 000000000..f2d9e438c
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins imms24:$imm24);
 +  let op = 0x74;
-+  // C16 (ADR-0018): direct call.  isCall=1 + Defs=[rd31, rb31] (DL-070a; both
-+  // banks' return registers).  The per-call-site argument registers are
-+  // attached as implicit uses by InstrEmitter from the DADAOISD::CALL node
-+  // (LowerCall's glued CopyToReg chain + explicit RegisterSDNodes), and the
-+  // call-clobbered set is carried as a RegisterMask operand
-+  // (getCallPreservedMask, ML-004c) — no static Uses=[...] list here, which
-+  // would over-claim argument registers and trip the verifier at -O1+.
++  // C16 (ADR-0018) / M6 (contract-abi.md §6.1): direct call.  isCall=1 +
++  // Defs=[rd8..rd15, rb8..rb15] (DL-070a; the whole return range of both
++  // banks).  The per-call-site argument registers are attached as implicit
++  // uses by InstrEmitter from the DADAOISD::CALL node (LowerCall's glued
++  // CopyToReg chain + explicit RegisterSDNodes), and the call-clobbered set is
++  // carried as a RegisterMask operand (getCallPreservedMask, ML-004c) -- no
++  // static Uses=[...] list here, which would over-claim argument registers and
++  // trip the verifier at -O1+.
 +  let isCall = 1;
-+  let Defs = [rd31, rb31];
++  let Defs = [rd8, rd9, rd10, rd11, rd12, rd13, rd14, rd15,
++              rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15];
 +  let Pattern = [];
 +}
 +

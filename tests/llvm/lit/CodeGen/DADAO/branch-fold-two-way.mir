@@ -120,28 +120,28 @@ body:             |
     liveins: $rd32
   
     $rd16 = COPY $rd32
-    call_iiii @get_ro, csr, implicit-def $rd31, implicit-def dead $rb31, implicit killed $rd16, implicit-def $rb1
-    $rd8 = ADD_IMM_PSEUDO killed $rd32, 1
+    call_iiii @get_ro, csr, implicit-def $rd8, implicit-def dead $rd9, implicit-def dead $rd10, implicit-def dead $rd11, implicit-def dead $rd12, implicit-def dead $rd13, implicit-def dead $rd14, implicit-def dead $rd15, implicit-def dead $rb8, implicit-def dead $rb9, implicit-def dead $rb10, implicit-def dead $rb11, implicit-def dead $rb12, implicit-def dead $rb13, implicit-def dead $rb14, implicit-def dead $rb15, implicit killed $rd16, implicit-def $rb1
+    $rd9 = ADD_IMM_PSEUDO killed $rd32, 1
     $rb8 = GLOBAL_ADDR @bss_cnt
-    st_o_rd killed $rd8, killed $rb8, 0 :: (store (s64) into @bss_cnt)
+    st_o_rd killed $rd9, killed $rb8, 0 :: (store (s64) into @bss_cnt)
     $rb8 = GLOBAL_ADDR @rw_acc
-    $rd8 = ld_o_rd $rb8, 0 :: (dereferenceable load (s64) from @rw_acc)
-    $rd8 = ADD_PSEUDO killed $rd8, killed $rd31
+    $rd9 = ld_o_rd $rb8, 0 :: (dereferenceable load (s64) from @rw_acc)
+    $rd8 = ADD_PSEUDO killed $rd9, killed $rd8
     st_o_rd killed $rd8, killed $rb8, 0 :: (store (s64) into @rw_acc)
     jump_iiii %bb.1
   
   bb.4.ok:
     liveins: $rd8
   
-    $rd31 = ADD_IMM_PSEUDO killed $rd8, 4
+    $rd8 = ADD_IMM_PSEUDO killed $rd8, 4
     $rd32 = ld_o_rd $rb1, 0 :: (load (s64) from %stack.0)
     $rb1 = frame-destroy add_si_rb 8
-    RET_PSEUDO implicit $rd31
+    RET_PSEUDO implicit $rd8
   
   bb.5.fail:
-    $rd31 = CONST_WYDE 1
+    $rd8 = CONST_WYDE 1
     $rd32 = ld_o_rd $rb1, 0 :: (load (s64) from %stack.0)
     $rb1 = frame-destroy add_si_rb 8
-    RET_PSEUDO implicit $rd31
+    RET_PSEUDO implicit $rd8
 ...
 

@@ -174,3 +174,40 @@ programs:
       Masking to 7 bits keeps the process exit-code channel clear of the
       machine-fault range 0x80..0xFF; the raw 64-bit negative difference is
       what `sub.o_orrr_dbb` must produce.
+
+  # ---------------------------------------------------------------------------
+  # M6 (LLVM-062t): full integer calling convention.
+  # ---------------------------------------------------------------------------
+  - name: m6_multi_return.ll
+    category: call
+    expected_exit_code: 16
+    coverage: [M6, call.multi-return, contract-abi-6.1]
+    derivation: >-
+      pair(a, b) = { a+b, a-b }.  main: p = pair(50, 8) = {58, 42}.
+      The two return values travel in rd8 (58) and rd9 (42); r = 58 - 42 = 16.
+
+  - name: m6_sret.ll
+    category: call
+    expected_exit_code: 3
+    coverage: [M6, call.sret, contract-abi-6.1]
+    derivation: >-
+      fill(x) returns a 9-field struct (> 8 slots), so the return is demoted to
+      a hidden sret pointer (passed in rb16); every field equals x = 3.
+      main: r = field[8] & 127 = 3.
+
+  - name: m6_aggregate_arg.ll
+    category: call
+    expected_exit_code: 51
+    coverage: [M6, call.aggregate-arg, call.byval, contract-abi-6.4]
+    derivation: >-
+      sum_small({40, 2}) passes a 16-byte struct in rd16, rd17 -> 42.
+      sum_big(big) passes a 72-byte struct indirectly (> 64B, byval pointer in
+      rb16); big.field[8] = 9 -> 9.  r = (42 + 9) & 127 = 51.
+
+  - name: m6_varargs.ll
+    category: call
+    expected_exit_code: 42
+    coverage: [M6, call.varargs, contract-abi-6]
+    derivation: >-
+      vsum(3, 10, 20, 12) reads 3 slots from va_start (entry_SP + 1*8, past the
+      named `n`): {10, 20, 12}; sum = 42; r = 42 & 127 = 42.

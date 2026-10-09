@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..ec41a94d7
+index 000000000..ad8a84e86
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,341 @@
+@@ -0,0 +1,363 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -123,7 +123,7 @@ index 000000000..ec41a94d7
 +}
 +
 +// Function return terminator.  The return value has already been placed in
-+// rd31 (scalar) / rb31 (pointer) by LowerReturn via CopyToReg, so no operands
++// rd8 (scalar) / rb8 (pointer) by LowerReturn via CopyToReg, so no operands
 +// are needed here.  Expansion to the real `ret rd0, 0` is LLVM-040t.
 +let isReturn = 1, isTerminator = 1, isBarrier = 1 in
 +def RET_PSEUDO : DADAOPseudo<(outs), (ins), [(DADAORetGlue)]>;
@@ -160,6 +160,13 @@ index 000000000..ec41a94d7
 +                             [(set GPRD:$dst, (add GPRD:$a, GPRD:$b))]>;
 +def SUB_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
 +                             [(set GPRD:$dst, (sub GPRD:$a, GPRD:$b))]>;
++
++// Negation (ISS-159): `neg x` (i64) must lower to the real `sub.so {rd0, dst},
++// rd0, src` (contract-isa.md §6.6), not `sub.uo` + narrow extension.  sub.so is
++// a two-result rrrr (rdha = high 64 bits, rdhb = low 64 bits), which cannot be
++// expressed as a single-result TableGen pattern, so a single-result pseudo is
++// matched and expanded post-RA (the high half goes to the hardwired-zero rd0).
++def NEG_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$src), []>;
 +def MUL_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
 +                             [(set GPRD:$dst, (mul GPRD:$a, GPRD:$b))]>;
 +
@@ -205,6 +212,21 @@ index 000000000..ec41a94d7
 +def : Pat<(and GPRD:$a, GPRD:$b), (and_o GPRD:$a, GPRD:$b)>;
 +def : Pat<(or GPRD:$a, GPRD:$b), (or_o GPRD:$a, GPRD:$b)>;
 +def : Pat<(xor GPRD:$a, GPRD:$b), (xor_o GPRD:$a, GPRD:$b)>;
++
++// Bitwise NOT (ISS-159): `not x` = `xor x, -1` lowers to `xnor.o rd, rc, rd0`
++// (contract-isa.md §6.3: a source of rd0 turns xnor into a one's complement),
++// not `xor.o` + a materialized -1 constant.
++def : Pat<(not GPRD:$a), (xnor_o GPRD:$a, rd0)>;
++
++// Integer negation (ISS-159): `sub 0, x` (i64) lowers to the real
++// `sub.so {rd0, dst}, rd0, src` via NEG_PSEUDO (expanded post-RA).  Narrow
++// `neg iN` is the sign-extended narrow subtraction `sub.sb/sw/st dst, rd0, src`
++// (contract-isa.md §10.6/§11.6/§12.6), matched through the sign_extend_inreg
++// that legalization wraps around the promoted sub.
++def : Pat<(i64 (sub 0, GPRD:$a)), (NEG_PSEUDO GPRD:$a)>;
++def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i8)), (sub_sb rd0, GPRD:$a)>;
++def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i16)), (sub_sw rd0, GPRD:$a)>;
++def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i32)), (sub_st rd0, GPRD:$a)>;
 +
 +// Variable shift amount (orrr): shamt is rdhc low 6 bits (§6.4.1).
 +def : Pat<(shl GPRD:$a, GPRD:$b), (shl_uo_orrr GPRD:$a, GPRD:$b)>;

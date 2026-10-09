@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCallingConv.td b/llvm/lib/Target/DADAO/DADAOCallingConv.td
 new file mode 100644
-index 000000000..66f085e45
+index 000000000..f505c3675
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCallingConv.td
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,95 @@
 +//===-- DADAOCallingConv.td - DADAO Calling Conventions ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -38,10 +38,21 @@ index 000000000..66f085e45
 +//===----------------------------------------------------------------------===//
 +
 +def CC_DADAO : CallingConv<[
++  // Hidden sret pointer (M6, contract-abi.md §6.1): the first address
++  // argument, passed in rb16; subsequent address arguments start at rb17
++  // (the later CCIfPtr rule skips the already-allocated rb16).  It must be
++  // listed first and use CCIfSRet (not CCIfPtr): the callee-side sret
++  // argument synthesized by SelectionDAGBuilder carries only the "sret"
++  // flag, not "pointer", so CCIfPtr would miss it and it would fall into the
++  // integer bank.
++  CCIfSRet<CCIfType<[i64], CCAssignToReg<[rb16]>>>,
++
 +  // Promote i8/i16/i32 arguments to i64 (contract-abi.md §4.2).
 +  CCIfType<[i8, i16, i32], CCPromoteToType<i64>>,
 +
 +  // Pointer/address arguments -> RB bank (rb16..rb31), independent count.
++  // byval (>64B aggregate passed indirectly, contract-abi.md §6.4) is a
++  // pointer argument and is routed here too.
 +  CCIfPtr<CCAssignToReg<[rb16, rb17, rb18, rb19, rb20, rb21, rb22, rb23,
 +                         rb24, rb25, rb26, rb27, rb28, rb29, rb30, rb31]>>,
 +  CCIfPtr<CCAssignToStack<8, 8>>,
@@ -61,11 +72,17 @@ index 000000000..66f085e45
 +  // Narrow returns are canonicalized by the callee (contract-abi.md §4.4, C5).
 +  CCIfType<[i8, i16, i32], CCPromoteToType<i64>>,
 +
-+  // Pointer return -> rb31 (C5 D1: directly, no rd31 round trip).
-+  CCIfPtr<CCAssignToReg<[rb31]>>,
++  // Pointer return -> rb8..rb15 (M6, contract-abi.md §6.1): the first pointer
++  // return lands in rb8, the next in rb9, ...  Each bank is counted
++  // independently; exceeding 8 in any bank is handled by CanLowerReturn, which
++  // demotes the whole return to an sret pointer.  There is deliberately NO
++  // stack fallback here, so an exhausted bank leaves the value unassigned
++  // (CanLowerReturn / CheckReturn then reports "cannot lower return").
++  CCIfPtr<CCAssignToReg<[rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15]>>,
 +
-+  // Integer/scalar return -> rd31.
-+  CCIfType<[i64], CCAssignToReg<[rd31]>>,
++  // Integer/scalar return -> rd8..rd15 (M6, contract-abi.md §6.1).
++  CCIfType<[i64], CCAssignToReg<[rd8, rd9, rd10, rd11, rd12, rd13, rd14,
++                                 rd15]>>,
 +]>;
 +
 +//===----------------------------------------------------------------------===//

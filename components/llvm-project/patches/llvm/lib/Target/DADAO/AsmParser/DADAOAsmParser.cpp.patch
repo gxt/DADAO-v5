@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..297122402
+index 000000000..004a6087c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2327 @@
+@@ -0,0 +1,2349 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -393,9 +393,21 @@ index 000000000..297122402
 +#include "DADAOGenAsmMatcher.inc"
 +
 +  enum {
++    // Reserve the target diagnostic range before the generated operand-class
++    // diagnostic names (ISS-162): without this offset the first generated name
++    // (e.g. Match_InvalidImmediate) would be 0 and collide with
++    // MCTargetAsmParser::Match_InvalidOperand, so adding any diagnostic name
++    // alphabetically before it would silently renumber the existing names.
++    Match_Dummy = FIRST_TARGET_MATCH_RESULT_TY,
 +#define GET_OPERAND_DIAGNOSTIC_TYPES
 +#include "DADAOGenAsmMatcher.inc"
 +  };
++
++  // Guard (ISS-162): the operand-class diagnostic names must sit above the base
++  // MatchResultTy range, so they can never alias Match_InvalidOperand.
++  static_assert(Match_InvalidImmediate >= FIRST_TARGET_MATCH_RESULT_TY,
++                "target diagnostic MatchResultTy must be offset by "
++                "FIRST_TARGET_MATCH_RESULT_TY");
 +
 +  // MCTargetAsmParser interface.
 +  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc,
@@ -2314,6 +2326,16 @@ index 000000000..297122402
 +  case Match_MnemonicFail:
 +    return Error(IDLoc, "unrecognized instruction mnemonic");
 +  case Match_InvalidOperand: {
++    SMLoc ErrorLoc = IDLoc;
++    if (ErrorInfo < Flat.size())
++      ErrorLoc = Flat[ErrorInfo]->getStartLoc();
++    return Error(ErrorLoc, "invalid operand for instruction");
++  }
++  case Match_InvalidImmediate: {
++    // Target operand-class mismatch (wyde position / cfx field / immediate):
++    // same wording as the base diagnostic (the wpn_err_* lit tests rely on it).
++    // Reaching this case at all is guarded by the FIRST_TARGET_MATCH_RESULT_TY
++    // offset (ISS-162): without it this value would alias Match_InvalidOperand.
 +    SMLoc ErrorLoc = IDLoc;
 +    if (ErrorInfo < Flat.size())
 +      ErrorLoc = Flat[ErrorInfo]->getStartLoc();
