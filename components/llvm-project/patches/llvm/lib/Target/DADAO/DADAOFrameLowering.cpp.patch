@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
 new file mode 100644
-index 000000000..780adf835
+index 000000000..608428ef7
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,233 @@
 +//===-- DADAOFrameLowering.cpp - DADAO Frame Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -15,7 +15,7 @@ index 000000000..780adf835
 +// DADAO frame lowering for M3 (LLVM-038t, ADR-0018 C7/C8).
 +//
 +// Frame layout (StackGrowsDown, LocalAreaOffset = 0):
-+//   entry SP ─┬─ [FP]          rbfp = rb2 (only when hasFP)
++//   entry SP ─┬─ [FP]          rbfp = rb63 (only when hasFP)
 +//             │  [saved FP]    fixed slot at -8 (only when hasFP)
 +//             │  locals / spill slots
 +//   current SP┴─
@@ -30,7 +30,16 @@ index 000000000..780adf835
 +//                      ld.o rbfp, [rbsp, -8]      ; restore the caller's FP
 +//
 +// Callee-saved register sets (CSR) are LLVM-039t; only the frame pointer is
-+// saved here.
++// saved here (rb63, conditionally reserved — see DADAORegisterInfo).
++//
++// INVARIANT (spec DADAO-21 §RB寄存器 / contract-abi.md §1.3): rb63 is the
++// highest-numbered RB register, so the `ldm`/`stm` immu6 contiguous block can
++// never be extended upward past it.  When the FP is live (hasFP), rb63 must
++// therefore be EXCLUDED from any batch callee-saved save/restore (it is saved
++// to its own fixed slot here) — or saved first and restored last.  The CSR
++// spill path used today is per-register (no ldm/stm batching), so rb63-as-FP
++// is never batched; keep this property when adding ldm/stm batch saves
++// (LLVM-064t).
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -81,7 +90,7 @@ index 000000000..780adf835
 +  const MachineFrameInfo &MFI = MF.getFrameInfo();
 +  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
 +
-+  FrameReg = TRI->getFrameRegister(MF); // rb2 with FP, rb1 SP-only
++  FrameReg = TRI->getFrameRegister(MF); // rb63 with FP, rb1 SP-only
 +  if (hasFP(MF)) {
 +    // FP points at the entry SP, so the object offset is taken directly.
 +    return StackOffset::getFixed(MFI.getObjectOffset(FI));
@@ -147,8 +156,10 @@ index 000000000..780adf835
 +  if (HasFP) {
 +    // Save the caller's frame pointer before it is overwritten:
 +    //   st.o rbfp, [rbsp, FPSaveSlotOffset]   (SP still at the entry value)
++    // rbfp is rb63; it is reserved while hasFP holds (getReservedRegs), so it
++    // is never allocated and this explicit save is its only spill.
 +    BuildMI(MBB, MBBI, DL, TII.get(DADAO::st_o_rb))
-+        .addReg(DADAO::rb2)
++        .addReg(DADAO::rb63)
 +        .addReg(DADAO::rb1)
 +        .addImm(FPSaveSlotOffset)
 +        .setMIFlag(MachineInstr::FrameSetup);
@@ -160,11 +171,11 @@ index 000000000..780adf835
 +
 +  if (HasFP) {
 +    // rbfp = entry SP = rbsp + StackSize.
-+    BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), DADAO::rb2)
++    BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), DADAO::rb63)
 +        .addReg(DADAO::rb1)
 +        .addImm(1)
 +        .setMIFlag(MachineInstr::FrameSetup);
-+    emitAddImm(MBB, MBBI, DL, DADAO::rb2, (int64_t)StackSize,
++    emitAddImm(MBB, MBBI, DL, DADAO::rb63, (int64_t)StackSize,
 +               /*IsEpilogue=*/false);
 +  }
 +}
@@ -184,10 +195,10 @@ index 000000000..780adf835
 +    //   rb2rb rbsp, rbfp
 +    //   ld.o rbfp, [rbsp, FPSaveSlotOffset]
 +    BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), DADAO::rb1)
-+        .addReg(DADAO::rb2)
++        .addReg(DADAO::rb63)
 +        .addImm(1)
 +        .setMIFlag(MachineInstr::FrameDestroy);
-+    BuildMI(MBB, MBBI, DL, TII.get(DADAO::ld_o_rb), DADAO::rb2)
++    BuildMI(MBB, MBBI, DL, TII.get(DADAO::ld_o_rb), DADAO::rb63)
 +        .addReg(DADAO::rb1)
 +        .addImm(FPSaveSlotOffset)
 +        .setMIFlag(MachineInstr::FrameDestroy);

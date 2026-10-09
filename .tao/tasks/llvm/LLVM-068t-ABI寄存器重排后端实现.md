@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M6
 **依赖**：`SPEC-128t`（册/契约先行；`SPEC-128t` 产出 `contract-abi`/`contracts/abi.yaml` 新口径）、`LLVM-062t`（整数完整调用约定；**须同步其 RegMask/caller-saved**）、`INFRA-050t`（一次构建 `DADAO;X86`）；**排 `LLVM-063t` 之前**；与 `LLVM-064t` **串行**（同改 `DADAOFrameLowering`，且 `LLVM-064t` 大帧四形态含 `ldm/stm` 批量保存）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -69,20 +69,55 @@
 
 ## 完成区
 
-**测试结果**：
+**预计耗时**：改补丁 ⇒ LLVM 增量重建，实测约 6 分钟（build-mc 41 目标 <4 min，install-host 2 min）；两个门控为测试运行（`make check` ~1 min、`test-codegen` ~1.5 min、`test-elf` ~1 min）。
 
-**修改文件**：
+**测试结果**：全部门控 PASS（真实 rc）：`make check` **EXIT=0**（含 `check-lit` 68/68）；`make check-patch-tree` **EXIT=0**（`2 component(s), 93 patches OK`）；`make check-lit` 含于 check（68/68）；`make test-codegen` **EXIT=0**（`Results: 19/19 passed`）；`make test-elf` **EXIT=0**（`Results: 5/5 passed`）。日志留 `.work/log/llvm/LLVM-068t-*.log`。
 
-**验收结果**：
+**修改文件**（组件补丁集，`make_patch.py llvm-project` 导出，`series` 仍 59）：`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAORegisterInfo.{td,cpp}.patch`、`DADAOFrameLowering.{cpp,h}.patch`、`DADAOCallingConv.td.patch`（5 补丁）+ `components/llvm-project/changelog.md`（+1 行）。源树 `.work/source/llvm-project` 同上 5 文件（HEAD=base+1，clean）。**未动 spec//contracts/**（`git diff --name-only | grep -E '^(spec|contracts)/'` → 无输出）。
 
-**新发现/坑**：
+**验收结果**（证据脚本 `.work/evidence/LLVM-068t/run.sh` 真实输出，`RUN_EXIT=0`；llc = `.work/build/llvm/bin/llc`）：
+- ①caller-saved 扩大：`alloc_rd.ll` 全流水线用 **rd4/rd5/rd6 + rb4**（A1/A2 PASS）；`GPRD/GPRB_Allocatable` 各 +4。
+- ②保留集：`many_ptr.ll`（高压力、无 FP）中 **rd1/rd2/rd3/rb2/rb3 从不分配**（A6 PASS）；rd0/rb0/rb1 保留不变。
+- ③`rb63` 条件保留：有 FP（`-frame-pointer=all`）⇒ 反汇编含 `st.o rb63, [rb1, -8]` / `rb2rb {rb63}, {rb1}` / FP 访问 `[rb63, -16]`（A3 PASS）；无 FP（`many_ptr.ll`）⇒ `rb63` 作通用 callee-saved 被分配并 spill/reload（`add.o rb63, rb4, rd8`、`st.o rb63, [rb1, 72] ; Folded Spill`，A4 PASS）。
+- ④`getFrameRegister`：有 FP→rb63（A3）、无 FP→rb1（`sp_fn` 访问 `[rb1, 0]`，A5 PASS）。
+- ⑤批量保存不变式：现为 per-register spill（无 `ldm/stm` 批），FP(`rb63`) 由固定槽 `-8` 单独存/取；`DADAORegisterInfo.cpp`/`DADAOFrameLowering.cpp` 均写入「批量 CSR 保存须排除 FP(rb63)」不变式注释。
+- ⑥RegMask 同步：解码构建产物 `CSR_RegMask`（A7 PASS）——`rb32..rb63`（含 `rb63`）preserved、`rd4..rd7`/`rb4..rb7` clobbered；`getCallPreservedMask`=CSR_RegMask，`call` `Defs`=rd8–15/rb8–15（`LLVM-062t` 口径）**逐处核对无改动**（已与新布局一致）。
+- ⑦注入自检：`getFrameRegister` 改回 `rb2` ⇒ 重建 ⇒ A3 FAIL（`[rb63,` 消失）；`cp`+**md5 相等**还原 ⇒ 重建 ⇒ 回绿（`RUN_EXIT=0`）。
+- ⑧`machineinstrs` 验证：`fp_fn`/`sp_fn`/`many_ptr` 均 `-verify-machineinstrs` rc=0。
 
-**遗留问题**：
+**新发现/坑**：① `getReservedRegs` 的 `rb63` 条件保留**必须**与 `getFrameRegister` 用**同一** `hasFP(MF)`（已写注释不变式）——`hasFPImpl` 输入（var-sized/取帧址/重对齐/`-fno-omit-frame-pointer`）在 SelectionDAG `finalizeLowering` 冻结保留集前已定，故 RA 与 PEI 间稳定。②`RBFP` 是独立 `DwarfRegAlias` 寄存器（非 `rb63`）；其编码/别名已由 `rb2` 改指 `rb63`。③`GPRD/GPRB`（全 64）经寄存器集包含自动成为 `_Allocatable` 的父类，故 `getMinimalPhysRegClass` 返回 `_Allocatable` 时 `hasSubClassEq` 仍真⇒spill 路由正确（已由 rd4/rb4 spill 实证）。④**还原注入禁 `cp -p`**：保留 mtime 会使 ninja 判定 .o 新于源而**不重建**，导致注入残留（首轮踩到）；须 plain `cp`（脚本已注明）。
+
+**遗留问题**：无。RF 放开归 `LLVM-066t`；大帧四形态 + `ldm/stm` 批量保存（须适用上述 FP 排除不变式）归 `LLVM-064t`。用户裁定原话留痕见任务书「用户裁定」区（与 `.tao/adr/adr-0018 §C7 D6` rev. 一致）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+自主逐行审查（engineer 深度 1，无嵌套子代理）。判决：**全部 finding 已修**，状态 → 待验收。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `getReservedRegs` 条件保留 `rb63` 与 `getFrameRegister` 的 `hasFP` 必须同源（否则 RA 与 PEI 对 rb63 是否 FP 分歧，静默坏帧） | ✅已修 | 两处**均** `MF.getSubtarget().getFrameLowering()->hasFP(MF)`，并在两处写不变式注释 | 同 MF 下 A3/A4 双向证据；`fp_fn`/`many_ptr` `-verify-machineinstrs` rc=0 |
+| F2 `RBFP` 别名仍指 `rb2`（FP 已迁 `rb63`，语义失真） | ✅已修 | `def RBFP : DADAOReg<63,"rbfp">, DwarfRegAlias<rb63>;` | 编译通过；`many_ptr` 打印 `rb63`；`check-lit` 68/68 |
+| F3 批量 CSR 保存须排除 FP（`rb63` 为 RB 最高编号，`immu6` 不能向上展开）——现无 `ldm/stm` 批，须留不变式 | ✅已修 | `getCalleeSavedRegs` + `DADAOFrameLowering.cpp` 头注释写明「批保存须排除 FP/先存后取」 | 现路径为 per-register spill（`many_ptr` 中 `st.o rb63,... ; Folded Spill` 逐条存），A4 PASS |
+| F4 首轮注入自检「还原后未回绿」：`cp -p` 保留 mtime，ninja 判定 .o 新于源⇒**不重建**，注入残留 | ✅已修 | `run.sh` 还原改 **plain `cp`**（注释说明理由） | 重跑 `run.sh`：注入 FAIL → md5 还原 → 重建 → 回绿，`RUN_EXIT=0` |
+| F5 `rd4–rd7`/`rb4–rb7` 加入 `_Allocatable` 后 spill 路由（`getMinimalPhysRegClass`→`_Allocatable`，`hasSubClassEq`）是否成立 | ✅已修（非改动，实证） | 无代码改动 | `many_ptr` 真出现 `st.o rd4,…`/`st.o rb4,… ; Folded Spill`（GPRD/GPRB 自动成为父类） |
+| F6 是否有 lit/CodeGen 用例断言旧布局（`rb2` 作 FP / `rb5–7` 保留 / prologue 里 `rb2`） | ❌不修（无此用例） | 无 | `grep -rnE 'rb2|rb5|rb6|rb7|rbfp|frame-pointer' tests/` → 仅 `rb2rb` 通用模式与变量名；`check-lit` 68/68、`test-codegen` 19/19 不改期望全绿 |
+
+自审补充核对：`spec/`/`contracts/` 交集为空（A8）；补丁一文件一补丁 + `series` 同步（`check-patch-tree` 93 patches OK）；计数未写死（注释去数字）；临时产物在 `/tmp/opencode/LLVM-068t/` 与 `.work/`，仓库无残留。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑证据脚本**：`bash .work/evidence/LLVM-068t/run.sh > /tmp/opencode/LLVM-068t-review/run.log 2>&1; rc=$?` → **RUN_EXIT=0**，全部 16 检查 PASS（A1–A8 + 注入自检 8 项）。
+
+**门控**（逐个 `make`，真实 rc）：`make check` EXIT=0（check-lit 68/68、check-patch-tree 93 patches OK、INTEG-003t 85/85 PASS）；`make check-patch-tree` EXIT=0（2 component, 93 patches）；`make test-codegen` EXIT=0（19/19）；`make test-elf` EXIT=0（5/5）。
+
+**独立注入**（与 engineer 不同：将 `getReservedRegs` 的 `if (TFI->hasFP(MF)) rb63` 改为**恒保留 rb63**）：注入后 `git diff` 非空 → 重建 → **A4 FAIL**（`rb63 present` 失败，无 FP 时 rb63 不再被分配）→ `cp`+md5 还原（md5=d5151824056112c3ff1094252f257c32 相等）→ 重建 → 回绿（RUN_EXIT=0）。
+
+**① rd4–rd7/rb4–rb7 真被分配**：`alloc_rd.s` 中出现 `rd4`/`rd5`/`rd6`/`rb4`（已分配位置）。✅
+**② rb63 条件语义双向**：`fp_fn.s`（`-frame-pointer=all`）含 `st.o rb63,[rb1,-8]` + `rb2rb {rb63},{rb1}` + `[rb63,`（FP）；`many_ptr.s`（无 FP）含 `st.o rb63,[rb1,72] ; Folded Spill`（通用 callee-saved）且**无** `rb63,[rb1,-8]`（非 FP）。✅
+**③ getFrameRegister**：源码 `TFI->hasFP(MF) ? DADAO::rb63 : DADAO::rb1`，与 `getReservedRegs` 同用 `MF.getSubtarget().getFrameLowering()->hasFP(MF)`，同源一致（INVARIANT 注释明确要求）。✅
+**④ 不变式 4**：**仅注释**（`DADAORegisterInfo.cpp:48-51`、`DADAOFrameLowering.cpp:30-35`），当前无 `ldm/stm` 批保存路径（per-register spill）；注释标注为 `LLVM-064t` 待强制。**风险：未代码强制**，供 `LLVM-064t` 遵循。
+**⑤ Defs/PreservedMask**：`CSR` = `(add rd32..rd63, rb32..rb63)` → `CSR_RegMask`（rb32..rb63 preserved, rd4..7/rb4..7 clobbered）；`getCallPreservedMask` 返回 `CSR_RegMask`；RetCC Defs = rd8–15/rb8–15。✅
+**⑥ 补丁纪律**：5 补丁一文件一补丁（DADAORegisterInfo.{td,cpp}.patch + DADAOFrameLowering.{cpp,h}.patch + DADAOCallingConv.td.patch）+ changelog.md +1 行；`check-patch-tree` 93 patches OK；`spec/`/`contracts/` 交集空；`git status` 无 `_tmp/_orig/_rej/_preinject`。✅
+
+**判决：Accepted** — 验收标准 1–10 全部满足，约束无违反。

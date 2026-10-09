@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.h b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
 new file mode 100644
-index 000000000..e93025412
+index 000000000..a61e84a84
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
 @@ -0,0 +1,75 @@
@@ -13,7 +13,7 @@ index 000000000..e93025412
 +//===----------------------------------------------------------------------===//
 +//
 +// DADAO frame lowering for M3 (LLVM-038t, ADR-0018 C7/C8):
-+//   - SP-only by default (frame register rb1); a frame pointer (rb2) is built
++//   - SP-only by default (frame register rb1); a frame pointer (rb63) is built
 +//     only when hasFPImpl holds (var-sized objects / frame address taken /
 +//     stack realignment / -fno-omit-frame-pointer).
 +//   - prologue/epilogue adjust SP with `add.si` (in-place, 18-bit immediate)
@@ -42,7 +42,7 @@ index 000000000..e93025412
 +  void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 +
 +  /// hasFPImpl (ADR-0018 C7 D1): standard conditional form.  Default SP-only;
-+  /// build FP = rb2 for variable-sized objects, taken frame address, stack
++  /// build FP = rb63 for variable-sized objects, taken frame address, stack
 +  /// realignment or when frame pointer elimination is disabled.
 +  bool hasFPImpl(const MachineFunction &MF) const override;
 +

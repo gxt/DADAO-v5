@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCallingConv.td b/llvm/lib/Target/DADAO/DADAOCallingConv.td
 new file mode 100644
-index 000000000..f505c3675
+index 000000000..2479397ca
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCallingConv.td
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,98 @@
 +//===-- DADAOCallingConv.td - DADAO Calling Conventions ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -88,9 +88,12 @@ index 000000000..f505c3675
 +//===----------------------------------------------------------------------===//
 +// Callee-saved registers / call-preserved mask
 +//
-+// CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, C6).  SP (rb1) is NOT
-+// part of the generic CSR (it is maintained symmetrically by the prologue /
-+// epilogue); FP (rb2) is likewise reserved and handled separately.
++// CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, C6).  rb63 is included:
++// it is ALWAYS callee-saved — as FP when hasFP (saved separately by the
++// prologue/epilogue), otherwise as an ordinary general callee-saved register.
++// SP (rb1) is NOT part of the generic CSR (it is maintained symmetrically by
++// the prologue/epilogue).  The caller-saved set (rd4–rd31 / rb4–rb31) is the
++// complement of the preserved mask plus the non-allocatable registers.
 +// The generated `CSR_SaveList` feeds DADAORegisterInfo::getCalleeSavedRegs and
 +// `CSR_RegMask` feeds getCallPreservedMask (which must include rb32..rb63,
 +// else GPRB callee-saved values get silently clobbered across calls — ML-004c,

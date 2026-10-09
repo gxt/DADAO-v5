@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
 new file mode 100644
-index 000000000..47d130cc1
+index 000000000..0186801df
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
-@@ -0,0 +1,172 @@
+@@ -0,0 +1,190 @@
 +//===-- DADAORegisterInfo.cpp - DADAO Register Information -------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -47,7 +47,15 @@ index 000000000..47d130cc1
 +DADAORegisterInfo::getCalleeSavedRegs(const MachineFunction * /*MF*/) const {
 +  // CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, ADR-0018 C6).
 +  // SP (rb1) is not part of the generic CSR (maintained symmetrically by the
-+  // prologue/epilogue); FP (rb2) is reserved and saved separately.
++  // prologue/epilogue).  FP (rb63) is *always* callee-saved: when hasFP it is
++  // saved separately by the prologue/epilogue (emitPrologue/emitEpilogue);
++  // otherwise it is an ordinary CSR member and spilled like any other.
++  //
++  // NB (spec DADAO-21 §RB寄存器): rb63 is the highest-numbered RB register,
++  // so the `ldm`/`stm` immu6 contiguous range cannot be extended upward past
++  // it.  Any batch CSR save must therefore EXCLUDE the FP (rb63) — or save it
++  // separately first (see DADAOFrameLowering).  Keeping rb63 in CSR_SaveList is
++  // safe with the per-register default spill path used here.
 +  return CSR_SaveList;
 +}
 +
@@ -62,26 +70,35 @@ index 000000000..47d130cc1
 +}
 +
 +BitVector
-+DADAORegisterInfo::getReservedRegs(const MachineFunction & /*MF*/) const {
++DADAORegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 +  BitVector Reserved(getNumRegs());
 +  // rd0 = hardwired zero (contract-isa.md §1.3.1)
 +  Reserved.set(DADAO::rd0);
 +  // rb0 = PC (contract-isa.md §1.3.2)
 +  Reserved.set(DADAO::rb0);
 +  // rb1 = SP (contract-abi.md §2.1)
-+  // N2 fix: use actual register enum (68), not DwarfRegAlias RBSP (2).
 +  Reserved.set(DADAO::rb1);
-+  // rb2 = FP (contract-abi.md §2.1)
-+  // N2 fix: use actual register enum (69), not DwarfRegAlias RBFP (1).
++  // rb2 = GP (global pointer), rb3 = TP (thread pointer): reserved, not
++  // allocatable (contract-abi.md §1.6; ADR-0018 C7 D6 rev. 2026-10-09).
 +  Reserved.set(DADAO::rb2);
-+  // rd1–rd7: rd1 = error number (Callee-saved '-' → conservative no-alloc);
-+  // rd2–rd7 = reserved (compiler must not allocate). ADR-0018 C7 D6.
-+  for (unsigned i = DADAO::rd1; i <= DADAO::rd7; ++i)
++  Reserved.set(DADAO::rb3);
++  // rd1 = error number (rderrno); rd2–rd3 = reserved (debug/test only).
++  // rd4–rd7 are temporary (caller-saved) and allocatable.
++  for (unsigned i = DADAO::rd1; i <= DADAO::rd3; ++i)
 +    Reserved.set(i);
-+  // rb3–rb7: rb3 = GP, rb4 = TP (Callee-saved '-' → conservative no-alloc);
-+  // rb5–rb7 = reserved. ADR-0018 C7 D6.
-+  for (unsigned i = DADAO::rb3; i <= DADAO::rb7; ++i)
-+    Reserved.set(i);
++  // FP (rb63) is CONDITIONALLY reserved: reserve it iff this function builds a
++  // frame pointer.  Otherwise rb63 is a general callee-saved register.
++  //
++  // INVARIANT: this must use the *same* hasFP(MF) test as getFrameRegister, on
++  // the *same* MachineFunction — otherwise the allocator and the frame layout
++  // would disagree on whether rb63 is the FP (a mismatch silently corrupts the
++  // frame).  Both call TFI->hasFP(MF); hasFPImpl's inputs (var-sized objects /
++  // frame address taken / stack realignment / -fno-omit-frame-pointer) are
++  // finalized by SelectionDAG before reserved regs are frozen, so the answer is
++  // stable across RA and PEI.
++  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
++  if (TFI->hasFP(MF))
++    Reserved.set(DADAO::rb63);
 +  // RF and RA are entirely non-allocatable in M1
 +  for (unsigned i = DADAO::rf0; i <= DADAO::rf63; ++i)
 +    Reserved.set(i);
@@ -172,7 +189,8 @@ index 000000000..47d130cc1
 +
 +Register
 +DADAORegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-+  // ADR-0018 C7 D3: `hasFP ? rb2 : rb1` (replaces the old unconditional rb2).
++  // ADR-0018 C7 D3/C7 D6 rev. 2026-10-09: `hasFP ? rb63 : rb1`.
++  // Keep this hasFP(MF) test identical to getReservedRegs' rb63 reservation.
 +  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
-+  return TFI->hasFP(MF) ? DADAO::rb2 : DADAO::rb1; // FP = rb2, SP = rb1
++  return TFI->hasFP(MF) ? DADAO::rb63 : DADAO::rb1; // FP = rb63, SP = rb1
 +}
