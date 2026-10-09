@@ -697,3 +697,8 @@
 
 - **规则**：同一目标可能被多个 `make` 目标/并行任务写的**安装步骤**，须先写**每进程唯一临时名**再 `rename(2)` 原子替换（如 `cp -aL src dst.tmp.$$ && mv -f dst.tmp.$$ dst`）；**禁**依赖 `cp --remove-destination`——它是 `unlinkat(dst)` 后 `openat(dst,O_CREAT|O_EXCL)` 的**非原子对**，两进程并发时后者 `O_EXCL` 撞前者新建 ⇒ `EEXIST`（`cp: cannot create regular file …: File exists`）。
 - **依据/来源**：`INFRA-053t`（`ISS-172`；strace 实证 coreutils 9.4 行为，8 对并行 `install-host` 7/8→0/8）；细节 `.work/log/infra/INFRA-053t-*`。同类 §8.23、§8.25。
+
+### 8.33 实现侧与向量侧耦合须**同批落地**：改「返回寄存器」⇒ 读取方向量必须同批改（`QEMU-055t`×`TESTCASES-041t` 域 B，2026-10-09）
+
+- **规则**：拆分任务时，若某改动**同时**含「写侧」（实现，如半托管返回 `rd31→rd8` 的 `DADAO_SEMI_RET_REG`）与「读侧」（向量/期望值，如 `m5_semi_write.s`/`expected.yaml` 读返回），二者须放进**同一任务**或**同批落地**；任一侧单独落地即**红门控**（读侧先改→实现未改读不到；实现先改→读侧仍读旧寄存器）。
+- **依据/来源**：用户 2026-10-09 裁定「域 B 并入 `QEMU-055t`」（本会话 `QEMU-055t`×`041t` 域 B 实例）；细节见 `.tao/tasks/qemu/QEMU-055t-半托管返回寄存器rd8.md`。同类 §8.16（独立 oracle 与实现解耦——本次为**不该解耦**的耦合对，反面）。

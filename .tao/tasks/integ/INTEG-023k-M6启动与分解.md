@@ -78,6 +78,8 @@
 
 > **追加（2026-10-09，`QEMU-053t` 复验发现缺陷）**：新增 **1 份 `t`** —— `INFRA-053t`（修 `install-host` 幂等性：`ISS-172`——`cp` 间歇 `File exists`、`make test-elf`/`test-semihost` 首跑 `rc=2`/重跑 `rc=0`、`test-codegen` 通过；目标 = **连续两次 `make install-host` 与 `make test-semihost` 均 `rc=0`**，含证据脚本 + 注入自检）。**属修类型小任务**，与 `QEMU-053t` **无共享文件**（仅 `Makefile`）⇒ **不阻断**其落地；**入 Wave 0**（`INFRA-050t` → `051t` → `053t`，同改 `Makefile` ⇒ 串行）。`milestones.md` 已同步（新增 `INFRA-053t` 行）。
 
+> **追加（2026-10-09，用户裁定「域 B 并入 `QEMU-055t`」）**：半托管服务返回 `rd31 → rd8` 的**向量侧**（`tests/llvm/codegen/m5/**`）由 `QEMU-055t` **随实现同批收口**（实现与向量耦合，拆分落地即红门控）；`TESTCASES-041t` **收窄为域 A（函数返回）+ 其余**。
+
 ## D. Wave/串行链 · 前置 ADR · 说明
 
 - **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t` → `INFRA-053t`（`ISS-172` `install-host` 幂等性修复；同改 `Makefile` ⇒ 串行）。

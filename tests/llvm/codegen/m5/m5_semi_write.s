@@ -6,6 +6,10 @@
 ; Machine-01 §5.3).  The host file is opened with mode 4 ("w", write+create+
 ; truncate, Arm Semihosting / gdb_open_modeflags[4]).
 ;
+; Both service returns are read from rd8 (contract-semihosting.md §2/§4;
+; Machine-01 §5.2): the SYS_OPEN handle and the SYS_WRITE unwritten count.
+; rd31 is an ordinary scratch register and is not used for the return.
+;
 ; SYS_WRITE writes the 4-byte buffer "WXYZ" into the host file "m5_write.txt"
 ; (relative to the QEMU working directory chosen by the driver).
 ;
@@ -80,7 +84,7 @@ _start:
 
 	; --- SYS_WRITE: block at RAM@0 + 0x3100 = {handle, buf ptr, count} ---
 	set.zw	rb16, wp0, 0x3100
-	st.o	rd31, [rb16, 0]			; handle returned in rd31
+	st.o	rd8, [rb16, 0]			; handle returned in rd8 (§2/§4)
 	set.zw	rd8, wp0, 0x3300
 	st.o	rd8, [rb16, 8]
 	set.zw	rd9, wp0, 0x0004
@@ -90,7 +94,7 @@ _start:
 
 	; --- self-check: SYS_WRITE returns 0 (no unwritten bytes) ---
 	set.zw	rd12, wp0, 0x0000
-	cmp.so	rd11, rd31, rd12
+	cmp.so	rd11, rd8, rd12
 	br.nz	{rd11}?, [rb0, fail]
 
 	; report success via SYS_EXIT (pass token 0x42)

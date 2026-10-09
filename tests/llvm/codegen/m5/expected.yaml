@@ -35,7 +35,7 @@ conventions:
   load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at 0x0000_0000_0000"
   entry: "SEE bootrom (-bios) sets cfx vectors/masks then hands off to the app in user mode (Machine-01 §2)"
   reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
-  semihosting: "trap cfx_umon, 0x30000 (immu18[17:16]==2'b11); rd16=service, rb16=argument block, rd31=return (contract-semihosting.md §1/§2)"
+  semihosting: "trap cfx_umon, 0x30000 (immu18[17:16]==2'b11); rd16=service, rb16=argument block, rd8=return (contract-semihosting.md §1/§2)"
   permission: "cfx-level only (ILLI / CFXREG); NUPERM/NJPERM/NSPERM/NHPERM are the PTBR layer and not in M5 (ADR-0020 D9 / contract-see.md §3)"
   exit: "SYS_EXIT (0x18) / SYS_EXIT_EXTENDED (0x20); host $? = guest exit code (contract-semihosting.md §5)"
   oracle: "host-side derivation from contracts/ + the vector's @m5 header; never llvm-mc / QEMU"
@@ -73,11 +73,13 @@ programs:
       contents: "WXYZ"
     coverage: [semihosting.open, semihosting.write, adr0020.d3]
     derivation: >-
-      SYS_OPEN (0x01) with mode 4 ("w") creates the host file "m5_write.txt";
-      SYS_WRITE (0x05) with the argument block {handle, buffer, 4} writes the
-      4-byte buffer 57 58 59 5a ("WXYZ") into it.  Both are contract-semihosting.md
-      §3 services.  The vector additionally self-checks that the SYS_WRITE return
-      (rd31, unwritten bytes) is 0.  Pass token 0x42.
+      SYS_OPEN (0x01) with mode 4 ("w") creates the host file "m5_write.txt" and
+      returns the handle in rd8; SYS_WRITE (0x05) with the argument block
+      {handle, buffer, 4} writes the 4-byte buffer 57 58 59 5a ("WXYZ") into it.
+      Both are contract-semihosting.md §3 services, and both service returns are
+      read from rd8 (contract-semihosting.md §2/§4; Machine-01 §5.2).  The
+      vector additionally self-checks that the SYS_WRITE return (rd8, unwritten
+      bytes) is 0.  Pass token 0x42.
 
   - name: m5_semi_exit
     sources: [m5_semi_exit.s]
