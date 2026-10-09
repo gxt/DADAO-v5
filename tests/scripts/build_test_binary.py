@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build test binary from ISA vector YAML for dadao-m1 QEMU testing.
 
-Binary layout (loaded at BINARY_BASE = 0xffff_0000_0000):
+Binary layout (loaded at BINARY_BASE = 0x0000_0000_0000, RAM@0):
   [section 1] loader   - Set rd/rb/ra registers from input_state, write memory
   [section 2] test     - Raw encoding word (struct.pack('>I', word))
   [section 3] dumper   - Dump state to state-dump region (diagnostics only)
@@ -35,12 +35,13 @@ import yaml
 # Constants
 # ---------------------------------------------------------------------------
 
-# Memory map (ADR-0004 D1)
-BINARY_BASE = 0xFFFF_0000_0000       # RAM entry point
+# Memory map (ADR-0004 R3 / ADR-0020 D15, C1 step2): RAM@0 is the single RAM
+# segment at 0x0000_0000_0000 (16 MiB).
+BINARY_BASE = 0x0000_0000_0000       # RAM@0 entry point
 # SYS_EXIT argument block {reason, code} (ADR-0020 D8).  Writable RAM near the
-# top, above the downward-growing stack (SP starts at 0xffff_00ff_0000).
-EXIT_BLOCK  = 0xFFFF_00FD_0000       # SYS_EXIT argument-block address
-DUMP_BASE   = 0xFFFF_00FE_0000       # State-dump region base
+# top, above the downward-growing stack (SP starts at 0x00ff_0000).
+EXIT_BLOCK  = 0x0000_00FD_0000       # SYS_EXIT argument-block address
+DUMP_BASE   = 0x0000_00FE_0000       # State-dump region base
 DUMP_SIZE   = 0x408                  # 1032 bytes: rd[0]+rd[1..63]+rb[0]+rb[1..63]+pc
 RD_DUMP_OFF = 0x008                  # rd[1] starts at +0x008 (rd[0] slot at +0x000 is reserved)
 RB_DUMP_OFF = 0x208                  # rb[1] starts at +0x208 (rb[0] slot at +0x200 is reserved)

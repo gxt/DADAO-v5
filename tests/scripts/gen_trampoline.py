@@ -2,14 +2,14 @@
 """Generate ROM trampoline blob for dadao-m1 test machine.
 
 The trampoline is loaded at boot ROM base (0xffff_ffff_0000) via QEMU -bios.
-It sets up the stack pointer (rb1) and jumps to the RAM entry point
-(0xffff_0000_0000) where the test binary is loaded via -kernel.
+It sets up the stack pointer (rb1) and jumps to the RAM@0 entry point
+(0x0000_0000_0000) where the test binary is loaded via -kernel.  RAM@0 is the
+single RAM segment since C1 step2 (ADR-0004 R3 / ADR-0020 D15).
 
-Trampoline instructions (from ADR-0004 D6.4):
-  1. set.zw rb1, wp2, 0xffff   -> rb1 = 0x0000_ffff_0000_0000 (wyde2=0xffff)
-  2. or.w   rb1, wp1, 0x00ff   -> rb1 = 0x0000_ffff_00ff_0000 (wyde1|=0x00ff, SP)
-  3. set.zw rb2, wp2, 0xffff   -> rb2 = 0x0000_ffff_0000_0000 (wyde2=0xffff)
-  4. jump   rb2, rd0, 0        -> PC = rb2 + rd0 + 0 = 0xffff_0000_0000
+Trampoline instructions (adapted from ADR-0004 D6.4 for RAM@0):
+  1. set.zw rb1, wp1, 0x00ff   -> rb1 = 0x0000_0000_00ff_0000 (SP, near RAM top)
+  2. set.zw rb2, wp0, 0x0000   -> rb2 = 0x0000_0000_0000_0000 (RAM@0 entry)
+  3. jump   rb2, rd0, 0        -> PC = rb2 + rd0 + 0 = 0x0000_0000_0000
 
 Encoding references (contracts/opcodes.yaml):
   set.zw-rb: op=0x4E, rwii, (0x4E<<24)|(rbha<<18)|(wpN<<16)|immu16
@@ -52,16 +52,13 @@ def generate_trampoline():
     """Generate trampoline instruction words."""
     instructions = []
 
-    # 1. set.zw rb1, wp2, 0xffff -> rb1 = 0x0000_ffff_0000_0000
-    instructions.append(encode_set_zw_rb(1, 2, 0xFFFF))
+    # 1. set.zw rb1, wp1, 0x00ff -> rb1 = 0x0000_0000_00ff_0000 (SP)
+    instructions.append(encode_set_zw_rb(1, 1, 0x00FF))
 
-    # 2. or.w rb1, wp1, 0x00ff -> rb1 = 0x0000_ffff_00ff_0000 (SP)
-    instructions.append(encode_or_w_rb(1, 1, 0x00FF))
+    # 2. set.zw rb2, wp0, 0x0000 -> rb2 = 0x0000_0000_0000_0000 (RAM@0 entry)
+    instructions.append(encode_set_zw_rb(2, 0, 0x0000))
 
-    # 3. set.zw rb2, wp2, 0xffff -> rb2 = 0x0000_ffff_0000_0000
-    instructions.append(encode_set_zw_rb(2, 2, 0xFFFF))
-
-    # 4. jump rb2, rd0, 0 -> PC = rb2 + 0 + 0 = 0xffff_0000_0000
+    # 3. jump rb2, rd0, 0 -> PC = rb2 + 0 + 0 = 0x0000_0000_0000
     instructions.append(encode_jump_rrii(2, 0, 0))
 
     return instructions

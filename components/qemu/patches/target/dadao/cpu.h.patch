@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..2dae725
+index 0000000..8b4a08f
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,225 @@
+@@ -0,0 +1,222 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -62,25 +62,22 @@ index 0000000..2dae725
 +    DADAO_EXIT_IALIGN = 0x8D,
 +};
 +
-+/* Memory map constants (per ADR-0004 D1) */
-+#define DADAO_RAM_BASE      0xffff00000000ULL
++/* Memory map constants (per ADR-0004 R3 / ADR-0020 D15, C1 step2).
++ * RAM@0 is the single RAM segment: base 0x0000_0000_0000, 16 MiB, cfxha 0
++ * (umon).  The legacy 0xffff_0000_0000 RAM of C1 step1 was removed in step2,
++ * and the legacy exit-port MMIO device was removed with it (halt is now the
++ * semihosting SYS_EXIT service, ADR-0020 D8). */
++#define DADAO_RAM_BASE      0x000000000000ULL
 +#define DADAO_RAM_SIZE      (16 * 1024 * 1024)  /* 16 MiB */
-+/* RAM@0 (C1 step1, ADR-0004 R3 / ADR-0020 D15): 0x0000_0000_0000, cfxha 0
-+ * (umon), for bootrom/SEE.  Coexists with the legacy RAM above until the
-+ * step2 migration removes the legacy segment. */
-+#define DADAO_RAM0_BASE     0x000000000000ULL
-+#define DADAO_RAM0_SIZE     (16 * 1024 * 1024)  /* 16 MiB */
-+#define DADAO_EXIT_PORT_BASE 0xffff80000000ULL
-+#define DADAO_EXIT_PORT_SIZE 8
 +#define DADAO_ROM_BASE      0xffffffff0000ULL
 +#define DADAO_ROM_SIZE      (64 * 1024)          /* 64 KiB */
 +
-+/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  The umon
-+ * segment (0) is the RAM@0/SEE address space; an access/fetch inside it but
++/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  RAM@0 is the
++ * whole umon (cfxha 0) segment; an access/fetch inside that segment but
 + * outside RAM@0 is an illegal internal-address-space access => CFXMEM (exit
-+ * 0x81, cause 1<<1, spec/DADAO-12 §2.1:73).  Addresses in the legacy power
-+ * segment (63) and other unmapped segments keep the test-machine convention
-+ * 0x87 (ADR-0004 D5.8; ADR-0020 D15 C1 step1 coexistence). */
++ * 0x81, cause 1<<1, spec/DADAO-12 §2.1:73).  Addresses in the power segment
++ * (63, incl. the boot ROM window) and other unmapped segments keep the
++ * test-machine convention 0x87 (ADR-0004 D5.8). */
 +#define DADAO_CFXHA_SHIFT   42
 +#define DADAO_CFXHA_MASK    0x3F
 +#define DADAO_CFXHA_UMON    0

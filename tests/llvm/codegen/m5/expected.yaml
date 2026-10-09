@@ -12,7 +12,7 @@
 #   * every vector is a hand-written `*.s` assembled by the *own* toolchain
 #     (`llvm-mc --triple=dadao-unknown-elf -filetype=obj` then
 #     `llvm-objcopy -O binary --only-section=.text`) to a flat bin;
-#   * the bin is loaded at the legacy RAM base 0xffff_0000_0000 by `-kernel`
+#   * the bin is loaded at the RAM@0 base 0x0000_0000_0000 by `-kernel`
 #     (ADR-0004 D2.3 path B) and entered in *user* mode by the SEE bootrom
 #     (`-bios .dadao/tests/bootrom/bootrom.bin`, QEMU-047t / Machine-01 §2);
 #   * the reset PC is 0xffff_ffff_0000 (cfx_power_hypv_excp_vector), so the
@@ -32,7 +32,7 @@
 schema: m5-vectors-v1
 
 conventions:
-  load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at 0xffff_0000_0000"
+  load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at 0x0000_0000_0000"
   entry: "SEE bootrom (-bios) sets cfx vectors/masks then hands off to the app in user mode (Machine-01 §2)"
   reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
   semihosting: "trap cfx_umon, 0x30000 (immu18[17:16]==2'b11); rd16=service, rb16=argument block, rd31=return (contract-semihosting.md §1/§2)"

@@ -5,7 +5,7 @@ Architecture: test code runs from ROM (same as 005t probe pattern).
 Kernel binary provides test data (loaded at RAM base).
 
 Tests cover:
-- Legal st.o to exit port → PASS (0x00)
+- SYS_EXIT terminal (store code + trap) → PASS (0x00)
 - Legal ld.o from aligned RAM → no crash
 - Unaligned ld.o/st.o → MALIGN (0x8C)
 - ILLI: rdha=0, immu6=0, rdha+immu6>64
@@ -64,6 +64,9 @@ def set_zw_rb(rb, immu16):
 
 def or_w_rb(rb, wpN, immu16):
     return encode_rwii(0x4A, rb, wpN, immu16)
+
+def or_w_rd(rd, wpN, immu16):
+    return encode_rwii(0x48, rd, wpN, immu16)
 
 def add_si_rb(rb, imms18):
     return encode_riii(0x5B, rb, imms18 & 0x3FFFF)
@@ -147,6 +150,22 @@ def fence():
 def swym():
     return encode_oiii(0x77, 0x22, 0)
 
+def trap_sys_exit():
+    """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
+    return encode_oiii(0x7F, 0x00, SEMIHOST_TAG)
+
+# ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
+# The trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
+# rd16 = 0x18 (SYS_EXIT).  Each terminal store writes the exit code into
+# block[1] (offset 8) and traps; SYS_EXIT never returns.
+
+SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+
+def semi_exit(code_rd):
+    """store code_rd into SEMI_BLOCK[1] then `trap` (SYS_EXIT); +1 insn."""
+    return [st_o(code_rd, 16, 8), trap_sys_exit()]
+
 # ── Terminators ───────────────────────────────────────────────────────
 
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
@@ -155,24 +174,21 @@ UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
 def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
-    Trampoline sets rb1=SP, rb2=RAM base, rb16=exit port, rb17=RAM base.
-    All addresses are 48-bit: 0x0000_FFFF_xxxx_xxxx.
-    set.zw wp2 sets bits[47:32]=0xFFFF, zeros bits[63:48] and bits[31:0]."""
+
+    Trampoline sets rb1=SP, rb2=rb17=RAM@0 base, and primes the semihosting
+    SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
-        # rb1 = SP = 0x0000_FFFF_00FF_0000
-        set_zw_rb(1, 0xFFFF),     # set.zw rb1, wp0, 0xFFFF → rb1=0xFFFF (WRONG for SP)
-        # Actually need: set.zw rb1, wp2, 0xFFFF → rb1[47:32]=0xFFFF
-        # Then: or.w rb1, wp1, 0x00FF → rb1[31:16] |= 0x00FF
-        # set.zw wp2: encode_rwii(0x4E, 1, 2, 0xFFFF)
-    ]
-    # Use explicit wp2 encoding for correct 48-bit addresses
-    trampoline = [
-        encode_rwii(0x4E, 1, 2, 0xFFFF),  # set.zw rb1, wp2, 0xFFFF → 0x0000_FFFF_0000_0000
-        encode_rwii(0x4A, 1, 1, 0x00FF),  # or.w rb1, wp1, 0x00FF → 0x0000_FFFF_00FF_0000 (SP)
-        encode_rwii(0x4E, 2, 2, 0xFFFF),  # set.zw rb2, wp2, 0xFFFF → 0x0000_FFFF_0000_0000
-        encode_rwii(0x4E, 16, 2, 0xFFFF), # set.zw rb16, wp2, 0xFFFF → 0x0000_FFFF_0000_0000
-        encode_rwii(0x4A, 16, 1, 0x8000), # or.w rb16, wp1, 0x8000 → exit port
-        encode_rwii(0x4E, 17, 2, 0xFFFF), # set.zw rb17, wp2, 0xFFFF → RAM base
+        set_zw_rb(1, 0x0000),    # set.zw rb1, wp0, 0x0000 -> rb1 = 0
+        or_w_rb(1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0x00FF0000 (SP)
+        set_zw_rb(2, 0x0000),    # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
+        set_zw_rb(16, 0x0000),   # set.zw rb16, wp0, 0x0000 -> rb16 = 0
+        or_w_rb(16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF -> rb16 = 0x00FF0000
+        or_w_rb(16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0x00FFF000 (block)
+        set_zw_rd(8, 0x0026),    # set.zw rd8, wp0, 0x0026
+        or_w_rd(8, 1, 0x0002),   # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
+        st_o(8, 16, 0),          # block[0] = 0x20026 (ADP_Stopped_ApplicationExit)
+        set_zw_rd(16, 0x0018),   # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
+        set_zw_rb(17, 0x0000),   # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
     ]
     rom = b''
     for insn in trampoline:
@@ -194,7 +210,8 @@ def run_test(rom_data, kernel_data=None, timeout=10):
     try:
         result = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic',
-             '-bios', rom_path, '-kernel', kernel_path],
+             '-bios', rom_path, '-kernel', kernel_path,
+             '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return result.returncode, result.stderr
     except subprocess.TimeoutExpired:
@@ -211,28 +228,28 @@ MALIGN_EXIT = 140  # 0x8C
 UNMAPPED_EXIT = 135 # 0x87
 
 # ── Test cases ────────────────────────────────────────────────────────
-# After trampoline: rb16=exit port, rb17=RAM base, rb2=RAM base
+# After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM@0 base
 
 TESTS = [
-    # T1: st.o 0 to exit port → PASS (exit 0x00)
-    ("T1 st.o 0 → exit port PASS",
+    # T1: st.o 0 → SYS_EXIT code 0 (PASS)
+    ("T1 st.o 0 → SYS_EXIT PASS",
      [set_zw_rd(18, 0x0000),    # rd18 = 0
-      st_o(18, 16, 0)],         # st.o rd18, rb16, 0 → exit 0x00
+      *semi_exit(18)],          # report exit 0x00
      PASS_EXIT,
-     "st.o to exit port failed"),
+     "SYS_EXIT code 0 failed"),
 
-    # T2: st.o 1 → exit code 1
-    ("T2 st.o 1 → exit code 1",
+    # T2: st.o 1 → SYS_EXIT code 1
+    ("T2 st.o 1 → SYS_EXIT code 1",
      [set_zw_rd(18, 0x0001),    # rd18 = 1
-      st_o(18, 16, 0)],         # st.o rd18, rb16, 0 → exit 0x01
+      *semi_exit(18)],          # report exit 0x01
      1,
-     "st.o FAIL code failed"),
+     "SYS_EXIT code 1 failed"),
 
     # T3: ld.o from RAM (aligned) + PASS
     ("T3 ld.o from RAM (aligned)",
      [ld_o(18, 17, 0),          # ld.o rd18, rb17, 0 (RAM+0, aligned)
       set_zw_rd(18, 0x0000),
-      st_o(18, 16, 0)],
+      *semi_exit(18)],
      PASS_EXIT,
      "ld.o from RAM crashed"),
 
@@ -240,21 +257,20 @@ TESTS = [
     ("T4 ld.o from RAM+8 (aligned)",
      [ld_o(18, 17, 8),          # ld.o rd18, rb17, 8
       set_zw_rd(18, 0x0000),
-      st_o(18, 16, 0)],
+      *semi_exit(18)],
      PASS_EXIT,
      "ld.o from RAM+8 crashed"),
 
     # T5: Unaligned ld.o (RAM+1) → MALIGN
     ("T5 ld.o RAM+1 → MALIGN",
-     [encode_rwii(0x4E, 18, 2, 0xFFFF),  # rb18 = 0x0000FFFF_00000000
-      encode_rwii(0x4A, 18, 0, 0x0001),  # rb18 |= 0x0001 → RAM+1
-      ld_o(19, 18, 0)],                  # ld.o rd19, rb18, 0 → unaligned
+     [set_zw_rb(18, 0x0001),    # rb18 = RAM+1 (RAM@0)
+      ld_o(19, 18, 0)],         # ld.o rd19, rb18, 0 → unaligned
      MALIGN_EXIT,
      "ld.o unaligned not MALIGN"),
 
     # T6: Unaligned ld.o (RAM+4) → MALIGN (needs 8-byte align)
     ("T6 ld.o RAM+4 → MALIGN",
-     [ld_o(18, 17, 4)],          # EA = rb17+4 = 0x0000FFFF_00000004 (4-byte, not 8-byte)
+     [ld_o(18, 17, 4)],         # EA = rb17+4 = RAM+4 (4-byte, not 8-byte)
      MALIGN_EXIT,
      "ld.o at 4-byte offset not MALIGN"),
 
@@ -264,11 +280,14 @@ TESTS = [
      ILLI_EXIT,
      "ld.o rd0 not ILLI"),
 
-    # T8: st.o rd0 → ILLI
-    ("T8 st.o rd0 → ILLI",
-     [st_o(0, 16, 0)],
-     ILLI_EXIT,
-     "st.o rd0 not ILLI"),
+    # T8: st.o rd0 source is LEGAL (contract dst_rd0: st* RD field is a data
+    # SOURCE; rd0 reads 0 and does NOT trigger ILLI — ADR-0015 D2/D3).
+    ("T8 st.o rd0 (source reads 0, legal)",
+     [st_o(0, 17, 0x40),        # store rd0(=0) to RAM+0x40 — legal
+      set_zw_rd(18, 0x0000),
+      *semi_exit(18)],
+     PASS_EXIT,
+     "st.o rd0 source should be legal"),
 
     # T9: ldm.o immu6=0 → ILLI
     ("T9 ldm.o immu6=0 → ILLI",
@@ -289,29 +308,33 @@ TESTS = [
      [set_zw_rd(19, 0),
       ldm_o(20, 17, 19, 2),     # ldm.o rd20, rb17, rd19, 2
       set_zw_rd(18, 0x0000),
-      st_o(18, 16, 0)],
+      *semi_exit(18)],
      PASS_EXIT,
      "Legal ldm.o crashed"),
 
     # T12: stm.o+ldm.o round-trip (exact value)
     # Use rb18 = RAM+0x100 for data area
+    # NOTE (ISS-120 drift): the old "div-by-zero if equal → ILLI" trick is
+    # obsolete (SPEC-066t: div-by-zero yields a defined value, no fault), so the
+    # match is now reported with a br.nz/FAIL arm (present-ISA equivalent).
     ("T12 stm.o+ldm.o round-trip",
-     [encode_rwii(0x4E, 18, 2, 0xFFFF),  # rb18 = 0x0000FFFF_00000000
-      encode_rwii(0x4A, 18, 0, 0x0100),  # rb18 |= 0x0100 → RAM+0x100
+     [set_zw_rb(18, 0x0100),             # rb18 = RAM+0x100 (RAM@0)
       set_zw_rd(20, 0x0042),             # rd20 = 0x42
       set_zw_rd(19, 0),                  # rd19 = 0 (offset)
       stm_o(20, 18, 19, 1),              # stm.o rd20, rb18, rd19, 1
       ldm_o(21, 18, 19, 1),              # ldm.o rd21, rb18, rd19, 1
       set_zw_rd(22, 0x0042),             # expected = 0x42
-      cmp_uo(23, 21, 22),                # cmp.uo rd23, rd21, rd22
-      div_uo(24, 23, 23)],               # div-by-zero if equal → ILLI
-     ILLI_EXIT,
+      cmp_uo(23, 21, 22),                # cmp.uo rd23, rd21, rd22 (0 if match)
+      set_zw_rd(24, 0x0000),
+      br_nz(23, 4),                      # mismatch → skip to FAIL arm
+      set_zw_rd(18, 0x0000), *semi_exit(18),   # PASS
+      set_zw_rd(18, 0x0001), *semi_exit(18)],  # FAIL
+     PASS_EXIT,
      "stm.o/ldm.o round-trip mismatch"),
 
     # T13: Unaligned stm.o → MALIGN
     ("T13 stm.o unaligned → MALIGN",
-     [encode_rwii(0x4E, 18, 2, 0xFFFF),  # rb18 = 0x0000FFFF_00000000
-      encode_rwii(0x4A, 18, 0, 0x0001),  # rb18 = RAM+1
+     [set_zw_rb(18, 0x0001),             # rb18 = RAM+1
       set_zw_rd(20, 0x0042), set_zw_rd(19, 0),
       stm_o(20, 18, 19, 1)],
      MALIGN_EXIT,
@@ -321,7 +344,7 @@ TESTS = [
     ("T14 ld.ub RAM+1 (byte, no align)",
      [ld_ub(18, 17, 1),         # ld.ub rd18, rb17, 1 (byte)
       set_zw_rd(18, 0x0000),
-      st_o(18, 16, 0)],
+      *semi_exit(18)],
      PASS_EXIT,
      "ld.ub from RAM+1 crashed"),
 
@@ -330,18 +353,18 @@ TESTS = [
      [set_zw_rd(18, 0x0000),    # rd18 = 0
       br_nz(18, 2),             # br.nz rd18, +2 → not taken
       set_zw_rd(19, 0x0000),
-      st_o(19, 16, 0)],         # PASS
+      *semi_exit(19)],          # PASS
      PASS_EXIT,
      "br.nz not-taken failed"),
 
     # T16: br.nz rd=1 taken → skip fail
     ("T16 br.nz rd!=0 taken → PASS",
      [set_zw_rd(18, 0x0001),    # rd18 = 1
-      br_nz(18, 3),             # br.nz rd18, +3 → taken, skip 2 insns + land at PASS
+      br_nz(18, 4),             # br.nz rd18, +4 → taken, skip fail arm to PASS
       set_zw_rd(19, 0x0001),    # skipped: rd19 = 1 (FAIL)
-      st_o(19, 16, 0),          # skipped: st.o FAIL
+      *semi_exit(19),           # skipped: FAIL
       set_zw_rd(19, 0x0000),    # landed: rd19 = 0 (PASS)
-      st_o(19, 16, 0)],
+      *semi_exit(19)],
      PASS_EXIT,
      "br.nz taken failed"),
 
@@ -366,8 +389,7 @@ TESTS = [
 
     # T20: Unaligned single st.o → MALIGN (J3 fix)
     ("T20 st.o RAM+1 → MALIGN",
-     [encode_rwii(0x4E, 18, 2, 0xFFFF),  # rb18 = 0x0000FFFF_00000000
-      encode_rwii(0x4A, 18, 0, 0x0001),  # rb18 = RAM+1
+     [set_zw_rb(18, 0x0001),             # rb18 = RAM+1
       set_zw_rd(20, 0x0042),             # rd20 = 0x42
       st_o(20, 18, 0)],                  # st.o rd20, rb18, 0 → unaligned
      MALIGN_EXIT,
@@ -380,136 +402,81 @@ TESTS = [
      MALIGN_EXIT,
      "st.o at 4-byte offset not MALIGN"),
 
-    # T22: st.t to exit port → ILLI (J4 fix, ADR-0004 D3/D5.6)
-    ("T22 st.t exit port → ILLI",
+    # T22: ROM store → ILLI (J5 fix, ADR-0004 D5.6)
+    # rb0 = PC (translation-time); st.o with imms12=4 so EA = PC+4 is an
+    # 8-byte aligned ROM address (MALIGN priority > ILLI per D5.6).
+    ("T22 st.o ROM → ILLI",
      [set_zw_rd(18, 0x0042),
-      st_t(18, 16, 0)],                  # st.t rd18, rb16, 0 → exit port (non-8B)
-     ILLI_EXIT,
-     "st.t to exit port not ILLI"),
-
-    # T23: st.t to exit port +4 → ILLI (J4 fix)
-    ("T23 st.t exit+4 → ILLI",
-     [set_zw_rd(18, 0x0042),
-      st_t(18, 16, 4)],                  # st.t rd18, rb16, 4 → exit port + 4
-     ILLI_EXIT,
-     "st.t to exit+4 not ILLI"),
-
-    # T24: ROM store → ILLI (J5 fix, ADR-0004 D5.6)
-    # ROM base = 0xffff_ffff_0000; rb0 = PC (translation-time)
-    # st.o with imms12=4 so EA = rb0+4 is 8-byte aligned ROM address
-    # (MALIGN priority > ILLI per D5.6, so must be aligned to reach ROM-store check)
-    ("T24 st.o ROM → ILLI",
-     [set_zw_rd(18, 0x0042),
-      st_o(18, 0, 4)],                   # st.o rd18, rb0, 4 → EA = PC+4, ROM, aligned
+      st_o(18, 0, 8)],                   # st.o rd18, rb0, 8 → EA = PC+8, ROM, 8B-aligned
      ILLI_EXIT,
      "st.o to ROM not ILLI"),
 
-    # T25: jump-rrii e2e (J1 fix, should not SIGABRT)
+    # T23: jump-rrii e2e (J1 fix, should not SIGABRT)
     # jump rb2, rd0, 0 → PC = rb2 + rd0 + 0 = RAM base
     # RAM base has kernel = fence() → ILLI exit (not crash)
-    ("T25 jump-rrii → no crash (ILLI)",
+    ("T23 jump-rrii → no crash (ILLI)",
      [jump_rrii(2, 0, 0)],               # jump to RAM base (trampoline set rb2=RAM base)
      ILLI_EXIT,                           # kernel is fence → 0x88
      "jump-rrii crashed (SIGABRT)"),
 
-    # T26: br.nz taken with correct PC target (J2 fix)
-    # Branch instruction at offset +48 from trampoline end (after 6 trampoline insns)
-    # rb0 = current instruction PC (translation-time), not TB start
-    # Layout: set.zw rd18,1; br.nz rd18,+2; set.zw rd19,1; st.o rd19,rb16,0 (FAIL); st.o rd0,rb16,0 (PASS)
-    ("T26 br.nz taken → skip to PASS",
+    # T24: br.nz taken with correct PC target (J2 fix)
+    ("T24 br.nz taken → skip to PASS",
      [set_zw_rd(18, 0x0001),             # rd18 = 1
-      br_nz(18, 3),                      # br.nz rd18, +3 → taken, skip 2 insns
+      br_nz(18, 4),                      # br.nz rd18, +4 → taken, skip fail arm
       set_zw_rd(19, 0x0001),             # skipped: rd19 = 1 (FAIL)
-      st_o(19, 16, 0),                   # skipped: FAIL
+      *semi_exit(19),                    # skipped: FAIL
       set_zw_rd(19, 0x0000),             # landed: rd19 = 0 (PASS)
-      st_o(19, 16, 0)],
+      *semi_exit(19)],
      PASS_EXIT,
      "br.nz taken wrong PC target"),
 
-    # T27: br.nz not-taken → fall through to PASS (J2 fix verification)
-    ("T27 br.nz not-taken → PASS",
+    # T25: br.nz not-taken → fall through to PASS (J2 fix verification)
+    ("T25 br.nz not-taken → PASS",
      [set_zw_rd(18, 0x0000),             # rd18 = 0
-      br_nz(18, 3),                      # br.nz rd18, +3 → not taken
+      br_nz(18, 4),                      # br.nz rd18, +4 → not taken
       set_zw_rd(19, 0x0000),             # rd19 = 0 (PASS)
-      st_o(19, 16, 0)],
+      *semi_exit(19)],
      PASS_EXIT,
      "br.nz not-taken failed"),
 
-    # T28: stm.o → exit port → ILLI (J4 fix, ADR-0004 D5.6)
-    # stm.o generates 8B store, same as st.o; device handler can't distinguish.
-    # Translate-layer runtime check catches EA in exit port range.
-    ("T28 stm.o exit port → ILLI",
-     [set_zw_rd(20, 0x0042),             # rd20 = 0x42
-      set_zw_rd(19, 0),                  # rd19 = 0 (offset)
-      stm_o(20, 16, 19, 1)],             # stm.o rd20, rb16, rd19, 1 → exit port
-     ILLI_EXIT,
-     "stm.o to exit port not ILLI"),
-
-    # T29: stm.t → exit port → ILLI (J4 fix, ADR-0004 D5.6)
-    ("T29 stm.t exit port → ILLI",
-     [set_zw_rd(20, 0x0042),
-      set_zw_rd(19, 0),
-      stm_t(20, 16, 19, 1)],             # stm.t rd20, rb16, rd19, 1 → exit port
-     ILLI_EXIT,
-     "stm.t to exit port not ILLI"),
-
-    # T30: stm.w → exit port → ILLI (J4 fix, ADR-0004 D5.6)
-    ("T30 stm.w exit port → ILLI",
-     [set_zw_rd(20, 0x0042),
-      set_zw_rd(19, 0),
-      stm_w(20, 16, 19, 1)],             # stm.w rd20, rb16, rd19, 1 → exit port
-     ILLI_EXIT,
-     "stm.w to exit port not ILLI"),
-
-    # T31: stm.b → exit port → ILLI (J4 fix, ADR-0004 D5.6)
-    ("T31 stm.b exit port → ILLI",
-     [set_zw_rd(20, 0x0042),
-      set_zw_rd(19, 0),
-      stm_b(20, 16, 19, 1)],             # stm.b rd20, rb16, rd19, 1 → exit port
-     ILLI_EXIT,
-     "stm.b to exit port not ILLI"),
-
-    # T32: stm.o exit+1 (unaligned) → MALIGN (J6 fix, ADR-0004 D5.6 priority)
-    # EA = exit+1, unaligned for 8B → MO_ALIGN_8 triggers MALIGN (not ILLI)
-    ("T32 stm.o exit+1 (unaligned) → MALIGN",
+    # T26: stm.o unaligned RAM+1 → MALIGN (was exit-port unaligned; J6 priority)
+    ("T26 stm.o RAM+1 (unaligned) → MALIGN",
      [set_zw_rd(20, 0x0042),
       set_zw_rd(19, 1),                   # rd19 = 1 (offset)
-      stm_o(20, 16, 19, 1)],              # stm.o rd20, rb16, rd19, 1 → EA=exit+1
+      stm_o(20, 17, 19, 1)],              # EA = RAM+1 → unaligned for 8B
      MALIGN_EXIT,
-     "stm.o unaligned exit not MALIGN"),
+     "stm.o unaligned not MALIGN"),
 
-    # T33: stm.t exit+2 (unaligned) → MALIGN (J6 fix)
-    # EA = exit+2, unaligned for 4B (2 mod 4 ≠ 0) → MO_ALIGN_4 triggers MALIGN
-    ("T33 stm.t exit+2 (unaligned) → MALIGN",
+    # T27: stm.t unaligned RAM+2 → MALIGN (J6 fix)
+    ("T27 stm.t RAM+2 (unaligned) → MALIGN",
      [set_zw_rd(20, 0x0042),
       set_zw_rd(19, 2),                   # rd19 = 2 (offset)
-      stm_t(20, 16, 19, 1)],              # stm.t rd20, rb16, rd19, 1 → EA=exit+2
+      stm_t(20, 17, 19, 1)],              # EA = RAM+2 → unaligned for 4B
      MALIGN_EXIT,
-     "stm.t unaligned exit not MALIGN"),
+     "stm.t unaligned not MALIGN"),
 
-    # T34: stm.w exit+1 (unaligned) → MALIGN (J6 fix)
-    # EA = exit+1, unaligned for 2B (1 mod 2 ≠ 0) → MO_ALIGN_2 triggers MALIGN
-    ("T34 stm.w exit+1 (unaligned) → MALIGN",
+    # T28: stm.w unaligned RAM+1 → MALIGN (J6 fix)
+    ("T28 stm.w RAM+1 (unaligned) → MALIGN",
      [set_zw_rd(20, 0x0042),
       set_zw_rd(19, 1),                   # rd19 = 1 (offset)
-      stm_w(20, 16, 19, 1)],              # stm.w rd20, rb16, rd19, 1 → EA=exit+1
+      stm_w(20, 17, 19, 1)],              # EA = RAM+1 → unaligned for 2B
      MALIGN_EXIT,
-     "stm.w unaligned exit not MALIGN"),
+     "stm.w unaligned not MALIGN"),
 ]
 
 # ── CTL self-check ────────────────────────────────────────────────────
 
 CTL_CHECKS = [
-    ("CTL: st.o PASS but expect MALIGN (wrong)",
-     [set_zw_rd(18, 0x0000), st_o(18, 16, 0)],
+    ("CTL: SYS_EXIT PASS but expect MALIGN (wrong)",
+     [set_zw_rd(18, 0x0000), *semi_exit(18)],
      MALIGN_EXIT,
      "Self-check FAILED: probe cannot detect wrong values"),
-    ("CTL: stm.o exit ILLI but expect PASS (wrong)",
-     [set_zw_rd(20, 0x0042), set_zw_rd(19, 0), stm_o(20, 16, 19, 1)],
+    ("CTL: stm.o ILLI (immu6=0) but expect PASS (wrong)",
+     [set_zw_rd(20, 0x0042), set_zw_rd(19, 0), stm_o(20, 17, 19, 0)],
      PASS_EXIT,
-     "Self-check FAILED: probe cannot detect stm.o exit-port ILLI"),
-    ("CTL: stm.o unaligned exit MALIGN but expect ILLI (wrong)",
-     [set_zw_rd(20, 0x0042), set_zw_rd(19, 1), stm_o(20, 16, 19, 1)],
+     "Self-check FAILED: probe cannot detect stm.o immu6=0 ILLI"),
+    ("CTL: stm.o unaligned MALIGN but expect ILLI (wrong)",
+     [set_zw_rd(20, 0x0042), set_zw_rd(19, 1), stm_o(20, 17, 19, 1)],
      ILLI_EXIT,
      "Self-check FAILED: probe cannot detect alignment priority"),
 ]

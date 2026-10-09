@@ -95,7 +95,7 @@ def load_imm64_rd(rd, value):
 # ── Probe builders ────────────────────────────────────────────────────────
 
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
-SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+SEMI_BLOCK = 0x0000_00FF_F000       # argument block {reason, code}, in RAM
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 

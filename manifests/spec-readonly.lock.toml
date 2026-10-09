@@ -134,4 +134,6 @@ sha256 = "2ffcad3ea471170b35ab7f44921de9ee93cafd186c1191285a7fa5261e4475f0"
 path = "spec/Machine-01-测试机运行环境.md"
 group = "machine-01"
 # 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：semihosting 返回 rd31 → rd8（§5.2/§5.4；指针返回 rb31 → rb8）。
-sha256 = "5be7baed209242a9415e3cc0388a1edb1242ad706546684e53ba1e2eee558177"
+# 2026-10-09（QEMU-053t，用户裁定「RAM@0 收口 + 删 exit port」）：§1.1 删旧 RAM 段与 exit-port 行、
+# 「并存/过渡」表述改为「RAM@0 唯一 RAM 段」；§1.2 去「并存」；§5.5/§7 记 exit-port 已删。
+sha256 = "60eb9a04e1b00d9db9d380ff433181953b4d1747fb849ff433a3de9951076d25"

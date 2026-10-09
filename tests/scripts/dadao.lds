@@ -1,7 +1,7 @@
 /* dadao.lds — DADAO M4 ELF link script (contract-elf.md §5, ADR-0004 §D1/§D2).
  *
- * Memory geometry (ADR-0004 §D1):
- *   RAM : 0xffff_0000_0000 .. 0xffff_00ff_ffff  (16 MiB, rwx)
+ * Memory geometry (ADR-0004 R3 / ADR-0020 D15, C1 step2):
+ *   RAM : 0x0000_0000_0000 .. 0x0000_00ff_ffff  (16 MiB, rwx)
  *   ROM : 0xffff_ffff_0000 .. 0xffff_ffff_ffff  (64 KiB, rx)
  *
  * Layout:
@@ -25,7 +25,7 @@ ENTRY(_start)
 
 MEMORY
 {
-  RAM (rwx) : ORIGIN = 0xffff00000000, LENGTH = 16M
+  RAM (rwx) : ORIGIN = 0x000000000000, LENGTH = 16M
   ROM (rx)  : ORIGIN = 0xffffffff0000, LENGTH = 64K
 }
 

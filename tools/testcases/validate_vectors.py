@@ -49,15 +49,15 @@ ALLOWED_FAULTS = {None, "ILLI", "UNDI", "MALIGN", "IALIGN",
 REQUIRED_FIELDS = ["mnemonic", "id", "format", "class", "encoding",
                    "input_state", "spec_cite"]
 
-# ADR-0004 D1：RAM 窗口（16 MiB）与 48-bit 有效地址上限
-RAM_BASE = 0xFFFF_0000_0000
-RAM_END = 0xFFFF_00FF_FFFF
+# ADR-0004 R3 / ADR-0020 D15（C1 step2）：RAM@0 窗口（16 MiB）与 48-bit 有效地址上限
+RAM_BASE = 0x0000_0000_0000
+RAM_END = 0x0000_00FF_FFFF
 ADDR48_MAX = 0xFFFF_FFFF_FFFF
 
 # ADR-0004 D2.2 + tests/vectors/isa/ctrl-br.yaml 头部约定：
-# 向量中指令地址 = RAM 入口 rb0 = 0xFFFF_0000_0000；
+# 向量中指令地址 = RAM@0 入口 rb0 = 0x0000_0000_0000；
 # br.* 非跳转（not-taken）后继 PC = rb0 + 4。ISS-025 结构性守卫据此分类 taken/not-taken。
-RB0_PC = 0xFFFF_0000_0000
+RB0_PC = 0x0000_0000_0000
 BR_NOT_TAKEN_PC = RB0_PC + 4
 
 HEX_RE = re.compile(r"^0x[0-9a-fA-F]+$")

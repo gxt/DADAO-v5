@@ -10,33 +10,31 @@
 ;       encoded verbatim (LLVM-045t / ISS-128).
 ;
 ; Layout:
-;   [0x00] set.zw rb16, wp2, 0xffff   ; build SYS_EXIT block address
-;   [0x04] or.w   rb16, wp1, 0x00ff
-;   [0x08] or.w   rb16, wp0, 0xf000   ; rb16 = 0xffff_00ff_f000
-;   [0x0C] set.zw rd6, wp1, 0x0002    ; block[0] = 0x20026
-;   [0x10] or.w   rd6, wp0, 0x0026
-;   [0x14] st.o   rd6, [rb16, 0]
-;   [0x18] set.zw rd5, wp0, 0         ; prepare PASS value (0) in rd5
-;   [0x1C] set.zw rd4, wp0, 1         ; prepare FAIL value (1) in rd4
-;   [0x20] jump   [rb0, 12]           ; skip 3 instructions → land on Lpass
-;   [0x24] st.o   rd4, [rb16, 8]      ; Lfail: report 0x01 (SKIPPED by jump)
-;   [0x28] set.zw rd16, wp0, 0x0018   ; Lfail: SYS_EXIT (SKIPPED)
-;   [0x2C] trap   cfx_umon, 0x30000   ; Lfail: semihosting trap (SKIPPED)
-;   [0x30] st.o   rd5, [rb16, 8]      ; Lpass: report 0x00 (land here)
-;   [0x34] set.zw rd16, wp0, 0x0018   ; Lpass: SYS_EXIT
-;   [0x38] trap   cfx_umon, 0x30000   ; Lpass: semihosting trap
+;   [0x00] or.w   rb16, wp1, 0x00ff   ; build SYS_EXIT block address (RAM@0)
+;   [0x04] or.w   rb16, wp0, 0xf000   ; rb16 = 0x0000_0000_00ff_f000
+;   [0x08] set.zw rd6, wp1, 0x0002    ; block[0] = 0x20026
+;   [0x0C] or.w   rd6, wp0, 0x0026
+;   [0x10] st.o   rd6, [rb16, 0]
+;   [0x14] set.zw rd5, wp0, 0         ; prepare PASS value (0) in rd5
+;   [0x18] set.zw rd4, wp0, 1         ; prepare FAIL value (1) in rd4
+;   [0x1C] jump   [rb0, Lpass]        ; skip 3 instructions → land on Lpass
+;   [0x20] st.o   rd4, [rb16, 8]      ; Lfail: report 0x01 (SKIPPED by jump)
+;   [0x24] set.zw rd16, wp0, 0x0018   ; Lfail: SYS_EXIT (SKIPPED)
+;   [0x28] trap   cfx_umon, 0x30000   ; Lfail: semihosting trap (SKIPPED)
+;   [0x2C] st.o   rd5, [rb16, 8]      ; Lpass: report 0x00 (land here)
+;   [0x30] set.zw rd16, wp0, 0x0018   ; Lpass: SYS_EXIT
+;   [0x34] trap   cfx_umon, 0x30000   ; Lpass: semihosting trap
 ;
 ; jump-iiii: Addr = rb0 + (imms24 << 2), rb0 = current instruction address.
 ;   The jump target is the `Lpass` label (the assembler computes the offset),
 ;   so it skips the three error-path instructions.
 ;
 ; Entry state (ADR-0004 D6.5):
-;   rb0=0xffff_0000_0000 (PC), rb1=0xffff_00ff_0000 (SP), rb2=0xffff_0000_0000
+;   rb0=0x0000_0000_0000 (PC), rb1=0x0000_0000_00ff_0000 (SP), rb2=0x0000_0000_0000
 ;   rd0=0 (hardwired), all other rd/rb/ra = 0
 
 _start:
-    ; 1. Build the SYS_EXIT argument block at rb16 = 0xffff_00ff_f000.
-    set.zw  rb16, wp2, 0xffff
+    ; 1. Build the SYS_EXIT argument block at rb16 = 0x0000_0000_00ff_f000.
     or.w    rb16, wp1, 0x00ff
     or.w    rb16, wp0, 0xf000
     set.zw  rd6, wp1, 0x0002

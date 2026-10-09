@@ -242,7 +242,7 @@ def set_rf(rf, val):
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
 
-SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+SEMI_BLOCK = 0x0000_00FF_F000       # argument block {reason, code}, in RAM
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
@@ -253,7 +253,7 @@ def trap_ciii(cfxha, immu18):
 
 def semi_exit(code_rd):
     """rb16 = SEMI_BLOCK; block = {0x20026, code_rd}; rd16 = 0x18; trap."""
-    return ([set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+    return ([set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
             + load_imm64_rd(8, ADP_STOPPED_APPLICATION_EXIT)
             + [st_o_rd(8, 16, 0)]
             + [st_o_rd(code_rd, 16, 8)]
@@ -277,8 +277,8 @@ def rf0_with(mode=0, flags=0):
 # ── ROM assembly ──────────────────────────────────────────────────────────
 
 TRAMPOLINE = [
-    set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF),  # rb16 = 0xFFFF00FF0000 (dead; semi_exit rebuilds it)
-    set_zw_rb(17, 2, 0xFFFF),                          # rb17 = 0xFFFF00000000
+    set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF),  # rb16 = 0x00000000FF0000 (dead; semi_exit rebuilds it)
+    set_zw_rb(17, 0, 0x0000),                          # rb17 = 0x000000000000
     encode_rwii(0x4C, 40, 0, 0x0001),                  # rd40 = 1
 ]
 

@@ -28,7 +28,7 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 ## 2. L3 执行向量（`tests/llvm/codegen/m5/`）— 向量 ↔ 能力 ↔ 期望值来源
 
 承载形态 = **bin**（用户 2026-10-08 M5 范围简化裁定）：`llvm-mc` → `llvm-objcopy -O binary` →
-`-kernel` 载入旧 RAM 基址 `0xffff_0000_0000`（`ADR-0004 D2.3` path B）→ **SEE bootrom**（`-bios`）
+`-kernel` 载入RAM@0 基址 `0x0000_0000_0000`（`ADR-0004 D2.3` path B）→ **SEE bootrom**（`-bios`）
 在**复位 PC `0xffff_ffff_0000`** 启动、配置 cfx 向量/掩码后 **hypv→user** 跳应用
 （`QEMU-047t` / `Machine-01 §2`）。**不经** `ld.lld` 多 TU ELF（ELF 加载归 M6，`ISS-168`）。
 

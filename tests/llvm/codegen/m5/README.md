@@ -18,7 +18,7 @@ qemu-system-dadao -M dadao-m1 -bios .dadao/tests/bootrom/bootrom.bin \
                                                 -> host exit code (+ console/file)
 ```
 
-The flat bin is loaded at the legacy RAM base `0xffff_0000_0000` (`-kernel`,
+The flat bin is loaded at the RAM@0 base `0x0000_0000_0000` (`-kernel`,
 ADR-0004 D2.3 path B); the SEE bootrom (`-bios`, QEMU-047t) starts at the reset
 PC `0xffff_ffff_0000`, installs the cfx user exception vector / clears the trap
 masks, and hands off to the application in *user* mode (Machine-01 §2).  No

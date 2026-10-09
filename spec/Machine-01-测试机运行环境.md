@@ -22,22 +22,19 @@ v5 测试机使用的核内地址空间划分如下（均为 48 位核内有效�
 
 | 区域 | 起始 | 大小 | cfxha / cfxname | 说明 |
 |------|------|------|-----------------|------|
-| **RAM@0（新）** | `0x0000_0000_0000` | 16 MiB | 0 / `umon` | 供 bootrom/SEE（C1 step1 双映射引入） |
-| **旧 RAM 段（过渡保留）** | `0xffff_0000_0000` | 16 MiB | 63 / `power` | 供既有 M1–M4 测试（step2 迁移后删除） |
-| **exit port（过渡保留）** | `0xffff_8000_0000` | 8 B | 63 / `power` | `ADR-0004 D3` 协议；`D8` 后由 `SYS_EXIT` 取代 |
+| **RAM@0（唯一 RAM 段）** | `0x0000_0000_0000` | 16 MiB | 0 / `umon` | 唯一 RAM 段；供 bootrom/SEE/应用（C1 step2 收口） |
 | **boot ROM** | `0xffff_ffff_0000` | 64 KiB | 63 / `power` | 复位向量 = `cfx_power_hypv_excp_vector`；`-bios` 加载 |
 
-- **RAM 基址口径**：M5 起 RAM 基址改为全 0（`0x0000_0000_0000`）；复位向量/ROM（`0xffff_ffff_0000`，64 KiB）与 exit port（`0xffff_8000_0000`）不变。[ADR-0004 R3]
-- **C1 双映射过渡**：**step1（M5，`QEMU-049t`）** 机器模型**同时映射 RAM@0（新，供 bootrom/SEE）与旧 RAM 段（`0xffff_0000_0000`，供既有测试）**；**step2（另立，M5 之外）** 把既有向量/harness/`crt0`/e2e 迁到 `0` 并删旧 RAM 段、收紧断言。[ADR-0020 D15][ADR-0004 R3]
-- 上述划分**存续期**为 C1 step2 迁移完成前：旧 RAM 段与 RAM@0 并存，exit port 与 `SYS_EXIT` 并存。[ADR-0020 D15]
+- **RAM 基址口径**：RAM 基址为全 0（`0x0000_0000_0000`，RAM@0，**唯一 RAM 段**）；复位向量/ROM（`0xffff_ffff_0000`，64 KiB）不变。[ADR-0004 R3]
+- **C1 两步过渡（已收口）**：**step1（M5，`QEMU-049t`）** 机器模型**同时映射 RAM@0（新）与旧 RAM 段（`0xffff_0000_0000`，供既有测试）**；**step2（`QEMU-053t`）** 已把既有向量/harness/`crt0`/e2e 迁到 `0`、**删除旧 RAM 段（`0xffff_0000_0000`）与 exit-port MMIO 设备**，并收紧 `check-interface` 断言（RAM@0 为唯一 RAM 段）。**RAM@0 现为唯一 RAM 段**。[ADR-0020 D15][ADR-0004 R3]
 
 ### 1.2 越界访问与越界取指异常（含取指路径）
 
 - **spec 层语义（`CFXMEM`）**：对核内地址空间进行非法访问时，触发对应核芯功能扩展的 `CFXMEM` 异常；目标 cfx 由地址高 6 位 `addr[47:42]`（cfxha）确定。[DADAO-12 §2.1 核内地址空间] `CFXMEM` 的异常原因编号为 `1 << 1`。[DADAO-12 §4. 专有寄存器设计规范]
 - **测试机退出码**：机器 fault 退出码 = `0x80 | spec_cause_bit_index`（`ADR-0004 D5.8` 规则）⇒ `CFXMEM`（`1<<1`）对应 **`0x81`**。[ADR-0004 D5.8][ADR-0020 D15]
 - **测试机历史约定（`unmapped`）**：`0x87` 为**测试机约定**退出码，**无 spec cause**，用于无 cfx 归属的 unmapped 访问；`0x87` 与 spec cause 位无关。[ADR-0004 D5.8]
-- **层次与适用**：`CFXMEM`（`0x81`）适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指）；`0x87`（unmapped）保留为测试机历史约定，用于既有 M1–M4 语义；C1 step2 迁移完成前两者并存。[ADR-0020 D15]
-- **精确路由（`QEMU-049t` 已按 `ADR-0020 D15` 落地）**：**`umon` 段（`addr[47:42]==0`）的越界访问/越界取指 ⇒ `CFXMEM`（`0x81`）**；**其余段（含旧 `power` 段 63）的越界访问/越界取指 ⇒ 测试机约定 `unmapped`（`0x87`）**。[ADR-0020 D15]
+- **层次与适用**：`CFXMEM`（`0x81`）适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指）；`0x87`（unmapped）保留为测试机历史约定，用于无 cfx 归属的 unmapped 访问。[ADR-0020 D15]
+- **精确路由（`QEMU-049t` 已按 `ADR-0020 D15` 落地）**：**`umon` 段（`addr[47:42]==0`）的越界访问/越界取指 ⇒ `CFXMEM`（`0x81`）**；**其余段（含 `power` 段 63）的越界访问/越界取指 ⇒ 测试机约定 `unmapped`（`0x87`）**。[ADR-0020 D15]
 - **取指路径同等对待**：越界**取指**与越界**数据访问**同属非法核内地址访问，**均须报异常**，不得只覆盖数据访问路径；不得静默继续或静默丢弃。[ADR-0020 D15]
 - **码表冻结、不得重排**：`ADR-0004 D5.8` 的 fault 码表已冻结；`CFXMEM` 落在表中已保留的 `0x81`–`0x86` 区间（对应 spec cause 位 1–6），**无需新码、无需重排**；`0x87`–`0x8D` 一经冻结不得重排。[ADR-0004 D5.8][ADR-0020 D15]
 - 精确路由与 RAM@0 容量由 `QEMU-049t` 落地（`umon` 段 ⇒ `0x81`、其余 ⇒ `0x87`；RAM@0 = 16 MiB），并以 `check-interface` 断言固化。[ADR-0020 D15]
@@ -170,7 +167,7 @@ semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 
 
 - semihosting **`SYS_EXIT`（`0x18`）/`SYS_EXIT_EXTENDED`（`0x20`）取代 exit port**（`ADR-0004 D3`）作为停机协议。[ADR-0020 D8][ADR-0004 R2]
 - 常规应用退出使用原因码 `ADP_Stopped_ApplicationExit`（`0x20026`）；`SYS_EXIT_EXTENDED` 的第二个字段为退出状态码。退出码须忠实传播到 host `$?`，沿用 `ADR-0011` 的确定性 halt 机制（写入后即锁定退出码）。[ADR-0020 D8]
-- **迁移范围 = 全部**：M1–M4 所有依赖 exit port 的向量/harness 全迁 `SYS_EXIT`（实施归 `TESTCASES-034t`）；迁移完成前 exit port 过渡保留。[ADR-0020 D8][ADR-0020 D15]
+- **迁移范围 = 全部**：M1–M4 所有依赖 exit port 的向量/harness 已迁 `SYS_EXIT`（`TESTCASES-034t`）；exit-port MMIO 设备已于 C1 step2（`QEMU-053t`）删除——机器模型不再保留 exit port。[ADR-0020 D8][ADR-0020 D15]
 
 ### 5.6 已知风险（`SYS_SYSTEM`）
 
@@ -191,4 +188,4 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 ## 7. 退出
 
 - v5 测试机的程序停机协议为 semihosting **`SYS_EXIT`/`SYS_EXIT_EXTENDED`**（见 `§5.5`），**取代** exit port（`ADR-0004 D3`）。[ADR-0020 D8][ADR-0004 R2]
-- exit port 在迁移完成前**过渡保留**；C1 step2 迁移完成后删除。[ADR-0020 D8][ADR-0020 D15][ADR-0004 R2]
+- exit-port MMIO 设备已在 C1 step2（`QEMU-053t`）**随旧 RAM 段一并删除**。[ADR-0020 D8][ADR-0020 D15][ADR-0004 R2]

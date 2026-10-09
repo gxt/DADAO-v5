@@ -90,13 +90,27 @@ def ld_o_rd(rdha, rbhb, imms12):
     if imms12 < 0: hc |= 0x20
     return encode_rrii(0x20, rdha, rbhb, hc, hd)
 
+# ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
+# Trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
+# rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
+
+SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+
+def trap_sys_exit():
+    """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
+    return struct.pack('>I', (0x7F << 24) | (SEMIHOST_TAG & 0x3FFFF))
+
+def semi_exit(code_rd):
+    return [st_o_rd(code_rd, 16, 8), trap_sys_exit()]
+
 def st_o_rd_pass():
-    """st.o rd18, rb16, 0 — assumes rd18==0 (set by caller)"""
-    return encode_rrii(0x21, 18, 16, 0, 0)
+    """PASS terminal: SYS_EXIT with rd18 as the exit code (rd18==0 by caller)."""
+    return semi_exit(18)
 
 def st_o_rd_fail():
-    """st.o rd19, rb16, 0 — assumes rd19==1 (set by caller)"""
-    return encode_rrii(0x21, 19, 16, 0, 0)
+    """FAIL terminal: SYS_EXIT with rd19 as the exit code (rd19!=0 by caller)."""
+    return semi_exit(19)
 
 def cmp_uo_rd(rdhb, rdhc, rdhd):
     """cmp.uo rdhb, rdhc, rdhd (MISC ha=0x2A)"""
@@ -154,14 +168,22 @@ def ra2rd(rdhb, rahc, immu6):
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
 def build_rom(test_insns):
-    """Build ROM: [trampoline | test_insns | UNDI | padding]."""
+    """Build ROM: [trampoline | test_insns | UNDI | padding].
+
+    Trampoline sets rb1=SP, rb2=rb17=RAM@0 base, and primes the semihosting
+    SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
-        encode_rwii(0x4E, 1, 2, 0xFFFF),  # set.zw rb1, wp2, 0xFFFF
-        encode_rwii(0x4A, 1, 1, 0x00FF),  # or.w rb1, wp1, 0x00FF (SP)
-        encode_rwii(0x4E, 2, 2, 0xFFFF),  # set.zw rb2, wp2, 0xFFFF
-        encode_rwii(0x4E, 16, 2, 0xFFFF), # set.zw rb16, wp2, 0xFFFF
-        encode_rwii(0x4A, 16, 1, 0x8000), # or.w rb16, wp1, 0x8000 (exit port)
-        encode_rwii(0x4E, 17, 2, 0xFFFF), # set.zw rb17, wp2, 0xFFFF (RAM base)
+        encode_rwii(0x4E, 1, 0, 0x0000),   # set.zw rb1, wp0, 0x0000 -> rb1 = 0
+        encode_rwii(0x4A, 1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0x00FF0000 (SP)
+        encode_rwii(0x4E, 2, 0, 0x0000),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
+        encode_rwii(0x4E, 16, 0, 0x0000),  # set.zw rb16, wp0, 0x0000 -> rb16 = 0
+        encode_rwii(0x4A, 16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF -> rb16 = 0x00FF0000
+        encode_rwii(0x4A, 16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0x00FFF000 (block)
+        encode_rwii(0x4C, 8, 0, 0x0026),   # set.zw rd8, wp0, 0x0026
+        encode_rwii(0x48, 8, 1, 0x0002),   # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
+        encode_rrii(0x21, 8, 16, 0, 0),    # st.o rd8, rb16, 0 -> block[0] = 0x20026
+        encode_rwii(0x4C, 16, 0, 0x0018),  # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
+        encode_rwii(0x4E, 17, 0, 0x0000),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
@@ -178,7 +200,8 @@ def run_test(rom_data, kernel_data=None, timeout=10):
     try:
         result = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic',
-             '-bios', rom_path, '-kernel', kernel_path],
+             '-bios', rom_path, '-kernel', kernel_path,
+             '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return result.returncode, result.stderr
     except subprocess.TimeoutExpired:
@@ -200,6 +223,7 @@ def run_test_dcpu(rom_data, kernel_data=None, timeout=10):
         result = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic',
              '-bios', rom_path, '-kernel', kernel_path,
+             '-semihosting-config', 'enable=on,target=native',
              '-d', 'cpu', '-D', log_path],
             capture_output=True, timeout=timeout, text=True)
         with open(log_path) as lf:
@@ -232,9 +256,9 @@ def pass_fail_epilogue(offset_to_pass):
     """Generate epilogue: br_nz skips to FAIL, then PASS, then FAIL."""
     # offset_to_pass: how many instructions br_nz should skip to reach FAIL
     return [
-        st_o_rd_pass(),              # PASS (rd18=0, rb16=exit port)
+        *st_o_rd_pass(),              # PASS (SYS_EXIT rd18=0)
         set_zw_rd(19, 0x0001),      # rd19 = 1 (FAIL value)
-        st_o_rd_fail(),              # FAIL
+        *st_o_rd_fail(),              # FAIL
     ]
 
 # ── Test cases ────────────────────────────────────────────────────────
@@ -254,16 +278,16 @@ TESTS = [
       ld_o_ra(11, 17, 16),      # ra11 = mem64[RAM+16]
       ra2rd(19, 11, 1),         # rd19 = ra11
       cmp_uo_rd(20, 18, 19),    # rd20 = cmp(rd18, rd19) — OVERWRITES rd20!
-      br_nz(20, 2),             # mismatch → skip to FAIL
-      st_o_rd(20, 16, 0),       # PASS (rd20=0 from cmp equal result)
-      set_zw_rd(19, 0x0001), st_o_rd_fail()],
+      br_nz(20, 3),             # mismatch → skip to FAIL
+      *semi_exit(20),       # PASS (rd20=0 from cmp equal result)
+      set_zw_rd(19, 0x0001), *st_o_rd_fail()],
      PASS_EXIT,
      "ld.o-ra/st.o-ra round-trip failed"),
 
     # M2: ld.o-ra MALIGN (unaligned → 0x8C)
     ("M2 ld.o-ra MALIGN (unaligned → 0x8C)",
      [ld_o_ra(10, 17, 1),         # EA = RAM+1 → MALIGN
-      set_zw_rd(18, 0x0001), st_o_rd_pass()],
+      set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      MALIGN_EXIT,
      "ld.o-ra unaligned didn't trigger MALIGN"),
 
@@ -276,11 +300,11 @@ TESTS = [
       ra2rd(21, 10, 2),           # rd21=ra10=0xAA, rd22=ra11=0xBB
       set_zw_rd(23, 0x00AA), set_zw_rd(24, 0x00BB),
       cmp_uo_rd(25, 21, 23),      # compare rd21 vs 0xAA
-      br_nz(25, 5),
+      br_nz(25, 6),
       cmp_uo_rd(25, 22, 24),      # compare rd22 vs 0xBB
-      br_nz(25, 3),
-      set_zw_rd(18, 0), st_o_rd_pass(),
-      set_zw_rd(19, 0x0001), st_o_rd_fail()],
+      br_nz(25, 4),
+      set_zw_rd(18, 0), *st_o_rd_pass(),
+      set_zw_rd(19, 0x0001), *st_o_rd_fail()],
      PASS_EXIT,
      "ldm.o-ra normal failed"),
 
@@ -293,24 +317,24 @@ TESTS = [
       ld_o_ra(11, 17, 32),        # ra11 = mem[RAM+32] = 0xCC
       ra2rd(21, 11, 1),           # rd21 = ra11 = 0xCC
       cmp_uo_rd(25, 21, 18),      # compare rd21 vs 0xCC
-      br_nz(25, 3),
-      set_zw_rd(18, 0), st_o_rd_pass(),
-      set_zw_rd(19, 0x0001), st_o_rd_fail()],
+      br_nz(25, 4),
+      set_zw_rd(18, 0), *st_o_rd_pass(),
+      set_zw_rd(19, 0x0001), *st_o_rd_fail()],
      PASS_EXIT,
      "stm.o-ra normal failed"),
 
     # M5-M7: ILLI and MALIGN
     ("M5 ldm.o-ra ILLI (immu6=0 → 0x88)",
-     [ldm_o_ra(10, 17, 0, 0), set_zw_rd(18, 0x0001), st_o_rd_pass()],
+     [ldm_o_ra(10, 17, 0, 0), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "ldm.o-ra immu6=0 didn't trigger ILLI"),
 
     ("M6 stm.o-ra ILLI (ra62+3>64 → 0x88)",
-     [stm_o_ra(62, 17, 0, 3), set_zw_rd(18, 0x0001), st_o_rd_pass()],
+     [stm_o_ra(62, 17, 0, 3), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "stm.o-ra ra62+3 didn't trigger ILLI"),
 
     ("M7 ldm.o-ra MALIGN (unaligned → 0x8C)",
      [set_zw_rd(18, 1), ldm_o_ra(10, 17, 18, 1),
-      set_zw_rd(18, 0x0001), st_o_rd_pass()],
+      set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      MALIGN_EXIT, "ldm.o-ra unaligned didn't trigger MALIGN"),
 
     # ── rd2ra / ra2rd tests ───────────────────────────────────────────
@@ -318,9 +342,9 @@ TESTS = [
     # B1: rd2ra normal
     ("B1 rd2ra normal (RD→RA block copy)",
      [set_zw_rd(18, 0x0042), rd2ra(10, 18, 1), ra2rd(19, 10, 1),
-      cmp_uo_rd(20, 18, 19), br_nz(20, 3),
-      set_zw_rd(18, 0), st_o_rd_pass(),
-      set_zw_rd(19, 0x0001), st_o_rd_fail()],
+      cmp_uo_rd(20, 18, 19), br_nz(20, 4),
+      set_zw_rd(18, 0), *st_o_rd_pass(),
+      set_zw_rd(19, 0x0001), *st_o_rd_fail()],
      PASS_EXIT, "rd2ra normal failed"),
 
     # B2: ra2rd normal — compare the copied value against a KNOWN constant
@@ -331,40 +355,40 @@ TESTS = [
       st_o_ra(10, 17, 0x40),                            # RAM[base+0x40] = 0xCD0000AB (side effect)
       set_zw_rd(18, 0), ra2rd(18, 10, 1),               # rd18 = ra10
       set_zw_rd(20, 0x00AB), or_w_rd(20, 1, 0xCD00),    # rd20 = 0xCD0000AB (expected)
-      cmp_uo_rd(22, 18, 20), br_nz(22, 3),
-      set_zw_rd(18, 0), st_o_rd_pass(),
-      set_zw_rd(19, 0x0001), st_o_rd_fail()],
+      cmp_uo_rd(22, 18, 20), br_nz(22, 4),
+      set_zw_rd(18, 0), *st_o_rd_pass(),
+      set_zw_rd(19, 0x0001), *st_o_rd_fail()],
      PASS_EXIT, "ra2rd normal failed (copied value wrong)"),
 
     # B3: rd2ra→ra2rd round-trip (2 registers)
     ("B3 rd2ra→ra2rd round-trip (2 registers)",
      [set_zw_rd(18, 0x00AA), set_zw_rd(19, 0x00BB),
       rd2ra(10, 18, 2), ra2rd(20, 10, 2),
-      cmp_uo_rd(22, 18, 20), br_nz(22, 5),
-      cmp_uo_rd(22, 19, 21), br_nz(22, 3),
-      set_zw_rd(18, 0), st_o_rd_pass(),
-      set_zw_rd(19, 0x0001), st_o_rd_fail()],
+      cmp_uo_rd(22, 18, 20), br_nz(22, 6),
+      cmp_uo_rd(22, 19, 21), br_nz(22, 4),
+      set_zw_rd(18, 0), *st_o_rd_pass(),
+      set_zw_rd(19, 0x0001), *st_o_rd_fail()],
      PASS_EXIT, "rd2ra→ra2rd round-trip failed"),
 
     # B4-B8: ILLI checks
     ("B4 rd2ra ILLI (immu6=0 → 0x88)",
-     [rd2ra(10, 18, 0), set_zw_rd(18, 0x0001), st_o_rd_pass()],
+     [rd2ra(10, 18, 0), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "rd2ra immu6=0 didn't trigger ILLI"),
 
     ("B5 ra2rd ILLI (immu6=0 → 0x88)",
-     [ra2rd(18, 10, 0), set_zw_rd(18, 0x0001), st_o_rd_pass()],
+     [ra2rd(18, 10, 0), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "ra2rd immu6=0 didn't trigger ILLI"),
 
     ("B6 ra2rd ILLI (dest=rd0 → 0x88)",
-     [ra2rd(0, 10, 1), set_zw_rd(18, 0x0001), st_o_rd_pass()],
+     [ra2rd(0, 10, 1), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "ra2rd dest=rd0 didn't trigger ILLI"),
 
     ("B7 rd2ra ILLI (ra62+3>64 → 0x88)",
-     [rd2ra(62, 18, 3), set_zw_rd(18, 0x0001), st_o_rd_pass()],
+     [rd2ra(62, 18, 3), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "rd2ra ra62+3 didn't trigger ILLI"),
 
     ("B8 ra2rd ILLI (rd62+3>64 → 0x88)",
-     [ra2rd(62, 10, 3), set_zw_rd(18, 0x0001), st_o_rd_pass()],
+     [ra2rd(62, 10, 3), set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      ILLI_EXIT, "ra2rd rd62+3 didn't trigger ILLI"),
 
     # B9: rd2ra→ra2rd adjacent windows.
@@ -378,10 +402,10 @@ TESTS = [
       rd2ra(19, 18, 2),           # ra19=rd18=0x42, ra20=rd19=0x43
       ra2rd(20, 19, 2),           # rd20=ra19=0x42, rd21=ra20=0x43
       set_zw_rd(22, 0x0042), set_zw_rd(23, 0x0043),
-      cmp_uo_rd(24, 20, 22), br_nz(24, 5),
-      cmp_uo_rd(24, 21, 23), br_nz(24, 3),
-      set_zw_rd(18, 0), st_o_rd_pass(),
-      set_zw_rd(19, 0x0001), st_o_rd_fail()],
+      cmp_uo_rd(24, 20, 22), br_nz(24, 6),
+      cmp_uo_rd(24, 21, 23), br_nz(24, 4),
+      set_zw_rd(18, 0), *st_o_rd_pass(),
+      set_zw_rd(19, 0x0001), *st_o_rd_fail()],
      PASS_EXIT, "rd2ra overlap failed"),
 
     # ── MemRAS tests ──────────────────────────────────────────────────
@@ -396,11 +420,11 @@ TESTS = [
     # call0 jumps 3 instructions forward (into the chain). Subsequent calls chain with call+3,ret,fence.
     # Each call pushes a distinct return address. The chain of rets unwinds.
     ("R1 MemRAS round-trip (65 calls, no RASOF)",
-     [encode_rwii(0x4C, 18, 2, 0xFFFF),  # set.zw rd18, wp2, 0xFFFF → 0xFFFF_0000_0000_0000
-      encode_rwii(0x48, 18, 0, 0x8000),  # or.w rd18, wp0, 0x8000 → 0xFFFF_0000_8000
+     [encode_rwii(0x4C, 18, 0, 0x0000),  # set.zw rd18, wp0, 0x0000 → 0xFFFF_0000_0000_0000
+      encode_rwii(0x48, 18, 0, 0x8000),  # or.w rd18, wp0, 0x8000 → 0x8000 (RAM+0x8000)
       rd2ra(0, 18, 1),                    # ra0 = rd18 = 0xFFFF_0000_8000
-      call_iiii(3),                       # call → target (idx3), ret_addr = next
-      set_zw_rd(18, 0), st_o_rd_pass(),  # return point → PASS
+      call_iiii(4),                       # call → first chain call (offset +1 terminal)
+      set_zw_rd(18, 0), *st_o_rd_pass(),  # return point → PASS
      ] +
      [t for i in range(1, 65) for t in [call_iiii(3), ret_riii(0, 0), fence()]] +
      [ret_riii(0, 0)],
@@ -411,32 +435,36 @@ TESTS = [
     # Same pattern as012t R2b: [call_iiii(1)] * 64 → RASOF
     ("R2 RASOF without MemRAS (64 calls → 0x8A)",
      [call_iiii(1)] * 64 +
-     [set_zw_rd(18, 0x0001), st_o_rd_pass()],
+     [set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      RASOF_EXIT,
      "RASOF not triggered without MemRAS"),
 
     # ── MemRAS exception paths (F2) ───────────────────────────────────
-    # X1: MemRAS refcount overflow at spill (ra0.hi16==0xFFFF) → RASOF
-    ("X1 MemRAS spill refcount overflow (ra0.hi16=0xFFFF) → 0x8A",
-     words((3, 0xFFFF), (2, 0xFFFF), (0, 0x8000)) +   # rd18 = 0xFFFF_FFFF_0000_8000
+    # X1: MemRAS full-ring spill (racnt=63, MRPTR set) — must NOT fault.
+    ("X1 MemRAS spill (racnt=63, MRPTR set) → no RASOF (spill proceeds)",
+     # NOTE (ISS-120 drift): contract-isa §1.3.4/§8.6 — MemRAS capacity
+     # exhaustion is NOT hardware-detected ("MemRAS 越界... 不由硬件检测，交 OS"),
+     # so the spill proceeds without RASOF.  The positive expectation is that the
+     # spill completes (no fault) and the program reaches its PASS terminal.
+     words((3, 0xFFFF), (2, 0x0000), (0, 0x8000)) +   # ra0 = racnt=63, MRPTR=RAM+0x8000
      [rd2ra(0, 18, 1)] +
      [call_iiii(1)] * 64 +
-     [set_zw_rd(18, 0x0001), st_o_rd_pass()],
-     RASOF_EXIT, "MemRAS refcount overflow didn't trigger RASOF"),
+     [set_zw_rd(18, 0x0000), *st_o_rd_pass()],
+     PASS_EXIT, "MemRAS spill must not fault (no RASOF per contract §1.3.4)"),
 
     # X2: MemRAS refcount underflow at pop (ra0.hi16==0, low48!=0) → RASUF
     ("X2 MemRAS pop refcount underflow (ra0.hi16=0) → 0x8B",
-     words((3, 0x0000), (2, 0xFFFF), (0, 0x8000)) +   # rd18 = 0x0000_FFFF_0000_8000
+     words((3, 0x0000), (2, 0x0000), (0, 0x8000)) +   # ra0 = 0x0000_0000_0000_8000
      [rd2ra(0, 18, 1), ret_riii(0, 0),
-      set_zw_rd(18, 0x0001), st_o_rd_pass()],
+      set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      RASUF_EXIT, "MemRAS refcount underflow didn't trigger RASUF"),
 
     # X3: MemRAS invalid content (entry hi16==0) → RASUF, and ra0 must be UNCHANGED
     # (precise exception, §1.3.4 / ADR-0004 D5.5). Read-back via -d cpu.
     ("X3 MemRAS invalid content (entry hi16=0) → 0x8B",
-     words((3, 0x0001), (2, 0xFFFF), (0, 0x8000)) +   # rd18 = 0x0001_FFFF_0000_8000
+     words((3, 0x0001), (2, 0x0000), (0, 0x8000)) +   # ra0 = 0x0001_0000_0000_8000
      [rd2ra(0, 18, 1), ret_riii(0, 0),
-      set_zw_rd(18, 0x0001), st_o_rd_pass()],
+      set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      RASUF_EXIT, "MemRAS invalid content didn't trigger RASUF"),
 
     # X4: MemRAS pop with entry hi16>1 → ra63 = (hi16-1)<<48|lo, PC = lo.
@@ -446,31 +474,31 @@ TESTS = [
     #         idx6-8 = ra0 value, idx9 = rd2ra(ra0), idx10 = ret,
     #         idx11 = PASS setup (landing = ROM 0xffff_ffff_0018 + 11*4 = 0x...0044)
     ("X4 MemRAS pop entry hi16>1 → ra63 store-back + PC=lo",
-     words((3, 0x0002), (2, 0xFFFF), (1, 0xFFFF), (0, 0x0044)) +  # entry = 0x0002_FFFF_FFFF_0044
+     words((3, 0x0002), (2, 0xFFFF), (1, 0xFFFF), (0, 0x0058)) +  # entry = 0x0002_FFFF_FFFF_0044
      [rd2ra(5, 18, 1),          # ra5 = entry
       st_o_ra(5, 17, 0x7F8),    # MemRAS[0] (RAM+0x7F8, fits imms12) = entry
      ] +
-     words((3, 0x0001), (2, 0xFFFF), (0, 0x07F8)) +   # ra0 value: count=1, ptr=RAM+0x7F8
+     words((3, 0x0000), (2, 0x0000), (0, 0x07F8)) +   # ra0: count=0, ptr=RAM+0x7F8 (D4b)
      [rd2ra(0, 18, 1),          # ra0 = MemRAS pointer/count
       ret_riii(0, 0),           # pop → ra63 = 0x0001_FFFF_FFFF_0044, PC = lo = 0x...0044
       ra2rd(18, 63, 1),         # read ra63 back (makes the store-back observable)
-      set_zw_rd(20, 0x0044), or_w_rd(20, 1, 0xFFFF),
+      set_zw_rd(20, 0x0058), or_w_rd(20, 1, 0xFFFF),
       or_w_rd(20, 2, 0xFFFF), or_w_rd(20, 3, 0x0001),   # rd20 = 0x0001_FFFF_FFFF_0044
-      cmp_uo_rd(22, 18, 20), br_nz(22, 3),
-      set_zw_rd(18, 0), st_o_rd_pass(),
-      set_zw_rd(19, 0x0001), st_o_rd_fail()],
+      cmp_uo_rd(22, 18, 20), br_nz(22, 4),
+      set_zw_rd(18, 0), *st_o_rd_pass(),
+      set_zw_rd(19, 0x0001), *st_o_rd_fail()],
      PASS_EXIT, "MemRAS pop hi16>1 store-back wrong (ra63 mismatch)"),
 ]
 
 # X3 precise-exception read-back: ra0 must be 0x0001_FFFF_0000_8000 at fault time
 # (not the post-commit 0x0000_FFFF_0000_8008).
-X3_RA0_EXPECT = 0x0001FFFF00008000
+X3_RA0_EXPECT = 0x0001000000008000
 
 # ── CTL self-check ────────────────────────────────────────────────────
 
 CTL_CHECKS = [
     ("CTL: st.o PASS but expect ILLI (wrong)",
-     [set_zw_rd(18, 0), st_o_rd_pass()],
+     [set_zw_rd(18, 0), *st_o_rd_pass()],
      ILLI_EXIT, "Self-check FAILED: probe cannot detect wrong values"),
     ("CTL: fence but expect PASS (wrong)",
      [fence()],

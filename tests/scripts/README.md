@@ -81,7 +81,7 @@ python3 tests/scripts/run_qemu_test.py --qemu /path/to/qemu-system-dadao ...
 
 ## Binary Layout
 
-The test binary is loaded at RAM base `0xffff_0000_0000` (ADR-0004 D2.2):
+The test binary is loaded at RAM@0 base `0x0000_0000_0000` (ADR-0004 D2.2/R3):
 
 ```
 [section 1] loader   - Set rd/rb/ra registers from input_state, write memory
@@ -109,7 +109,7 @@ Dumps `rd[1..63]`, `rb[1..63]`, and `rb0` (PC) to state-dump region for diagnost
 
 **PC dump mechanism**: `st.o-rb` requires `rbha != rb0` (legality constraint), so `rb0` (PC) cannot be stored directly. The harness uses `rb2rd rd63, rb0, 1` to copy PC into scratch register `rd63`, then `st.o rd63, rb62, 0x400` to store it at the dump region. Encoding from `contracts/opcodes.yaml` (`rb2rd`, format `orri`, op=0x40, ha=0x36).
 
-**State-dump region** (at `0xffff_00fe_0000`, total 1032 bytes):
+**State-dump region** (at `0x0000_00fe_0000`, total 1032 bytes):
 
 | Offset | Content | Size | Notes |
 |--------|---------|------|-------|
@@ -139,7 +139,7 @@ For **legality** cases with `expected_fault`:
 
 The `SYS_EXIT` epilogue writes the 64-bit argument block
 `{ADP_Stopped_ApplicationExit (0x20026), code}` into RAM at
-`0xffff_00fd_0000`, then issues `rd16 = 0x18 (SYS_EXIT)`, `rb16 = block`,
+`0x0000_00fd_0000`, then issues `rd16 = 0x18 (SYS_EXIT)`, `rb16 = block`,
 `trap` (semihosting tag).  The harness runs QEMU with
 `-semihosting-config enable=on,target=native` (ADR-0020 D7/D8).
 

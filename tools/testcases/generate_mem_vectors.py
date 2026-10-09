@@ -13,7 +13,7 @@ contracts/opcodes.yaml, .tao/knowledge/contract-isa.md, and
 F10 design (方案B):
   - encoding class: base=rb3 (unused register), dest=rd1/ra1 (not rd0/ra0),
     store src=rd1/ra1 (not rd0/ra0), immu6=1 for multi.
-  - input_state presets rb3=0x0000ffff00000000 (RAM base, 48-bit).
+  - input_state presets rb3=0x0000000000000000 (RAM@0 base, 48-bit).
   - All encoding cases: expected_state=null, expected_pc=null,
     expected_fault=null, status=active.
 
@@ -44,9 +44,9 @@ M1 = [r for r in ALL if r.get("scope") == "m1"]
 BY_KEY = {(r["id"], r["format"]): r for r in M1}
 
 # ── Constants ─────────────────────────────────────────────────────────
-RAM_BASE = 0x0000FFFF00000000  # rb3 preset value
-RAM_BASE_HEX = "0x0000ffff00000000"
-RAM_END = 0x0000FFFF00FFFFFF   # RAM end (16 MiB)
+RAM_BASE = 0x0000000000000000  # rb3 preset value (RAM@0, C1 step2)
+RAM_BASE_HEX = "0x0000000000000000"
+RAM_END = 0x0000000000FFFFFF   # RAM@0 end (16 MiB)
 
 # Register assignments for F10 encoding vectors
 RB_BASE = 3   # rb3

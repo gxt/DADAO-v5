@@ -112,9 +112,9 @@
     rd:
       rd1: "0x0000000000000001"
     rb:
-      rb1: "0x0000ffff00000000"
+      rb1: "0x0000000000000000"
     memory:
-      - address: "0x0000ffff00000000"
+      - address: "0x0000000000000000"
         value: "0x0000000000000002"
   expected_state:
     rd:
@@ -130,14 +130,13 @@
   notes: ""
 ```
 
-### 内存地址范围（ADR-0004 D1）
+### 内存地址范围（ADR-0004 R3 / ADR-0020 D15，C1 step2）
 
-- RAM 窗口：`[0xffff_0000_0000, 0xffff_00ff_ffff]`（16 MiB）。
+- RAM 窗口（RAM@0，唯一 RAM 段）：`[0x0000_0000_0000, 0x0000_00ff_ffff]`（16 MiB）。
 - `semantic` 类的 `memory` 地址**必须**落在 RAM 窗口内（validator 阻断校验）。
 - `legality` 类可表达 unmapped（`expected_fault: UNMAPPED`）等越界地址，不受此限。
-- 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`；以及 ADR-0004 D3
-  定义的 MMIO 停机端口——已由 semihosting `SYS_EXIT` 取代、设备机制保留）
-  须显式引用 ADR-0004 章节。
+- 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`）须显式引用 ADR-0004 章节。
+  （旧 exit-port MMIO 停机端口已随 C1 step2 删除；停机协议为 semihosting `SYS_EXIT`。）
 
 ### `expected_pc`（本版新增）
 

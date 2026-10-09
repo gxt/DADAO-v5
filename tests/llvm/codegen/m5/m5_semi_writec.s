@@ -6,7 +6,7 @@
 ; (contract-semihosting.md §1); the call is short-circuited in the decode layer
 ; and returns by pc += 4 (contract-semihosting.md §4).
 ;
-; Loaded as a flat bin at the legacy RAM base 0xffff_0000_0000 by `-kernel`
+; Loaded as a flat bin at the RAM@0 base 0x0000_0000_0000 by `-kernel`
 ; (ADR-0004 D2.3 path B) and entered in user mode by the SEE bootrom
 ; (QEMU-047t / Machine-01 §2).  Expected values are derived on the host from the
 ; contract (see tools/testcases/validate_m5_vectors.py); they are never taken

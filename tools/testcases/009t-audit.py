@@ -147,9 +147,9 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
     inp_rb = input_state.get("rb", {})
     inp_ra = input_state.get("ra", {})
 
-    # rb0 = PC (hardwired). Test vectors use rb0 = 0xFFFF00000000 (RAM entry, ADR-0004 D2.2)
+    # rb0 = PC (hardwired). Test vectors use rb0 = 0x000000000000 (RAM@0 entry, ADR-0004 D2.2)
     # This is not in input_state; read from notes or use convention.
-    RB0_PC = 0xFFFF_0000_0000  # Default convention for test vectors
+    RB0_PC = 0x0000_0000_0000  # Default convention for test vectors
 
     def get_rd(name):
         if name == "rd0":

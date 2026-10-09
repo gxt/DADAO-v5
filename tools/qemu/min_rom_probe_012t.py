@@ -147,6 +147,24 @@ def fence():
 def swym():
     return encode_oiii(0x77, 0x22, 0)
 
+def trap_sys_exit():
+    """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
+    return encode_oiii(0x7F, 0x00, SEMIHOST_TAG)
+
+# ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
+# The trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
+# rd16 = 0x18 (SYS_EXIT).  Each terminal store writes the exit code into
+# block[1] (offset 8) and traps; SYS_EXIT never returns.
+
+SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
+
+
+def semi_exit(code_rd):
+    """store code_rd into SEMI_BLOCK[1] then `trap` (SYS_EXIT); +1 insn."""
+    return [st_o_rd(code_rd, 16, 8), trap_sys_exit()]
+
 # ── Terminators ───────────────────────────────────────────────────────
 
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
@@ -155,14 +173,21 @@ UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
 def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
-    Trampoline sets rb1=SP, rb2=RAM base, rb16=exit port, rb17=RAM base."""
+
+    Trampoline sets rb1=SP, rb2=rb17=RAM@0 base, and primes the semihosting
+    SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
-        encode_rwii(0x4E, 1, 2, 0xFFFF),  # set.zw rb1, wp2, 0xFFFF → 0x0000_FFFF_0000_0000
-        encode_rwii(0x4A, 1, 1, 0x00FF),  # or.w rb1, wp1, 0x00FF → 0x0000_FFFF_00FF_0000 (SP)
-        encode_rwii(0x4E, 2, 2, 0xFFFF),  # set.zw rb2, wp2, 0xFFFF → 0x0000_FFFF_0000_0000
-        encode_rwii(0x4E, 16, 2, 0xFFFF), # set.zw rb16, wp2, 0xFFFF → 0x0000_FFFF_0000_0000
-        encode_rwii(0x4A, 16, 1, 0x8000), # or.w rb16, wp1, 0x8000 → exit port
-        encode_rwii(0x4E, 17, 2, 0xFFFF), # set.zw rb17, wp2, 0xFFFF → RAM base
+        encode_rwii(0x4E, 1, 0, 0x0000),   # set.zw rb1, wp0, 0x0000 -> rb1 = 0
+        encode_rwii(0x4A, 1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0x00FF0000 (SP)
+        encode_rwii(0x4E, 2, 0, 0x0000),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
+        encode_rwii(0x4E, 16, 0, 0x0000),  # set.zw rb16, wp0, 0x0000 -> rb16 = 0
+        encode_rwii(0x4A, 16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF -> rb16 = 0x00FF0000
+        encode_rwii(0x4A, 16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0x00FFF000 (block)
+        encode_rwii(0x4C, 8, 0, 0x0026),   # set.zw rd8, wp0, 0x0026
+        encode_rwii(0x48, 8, 1, 0x0002),   # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
+        st_o_rd(8, 16, 0),                 # block[0] = 0x20026 (ADP_Stopped_ApplicationExit)
+        encode_rwii(0x4C, 16, 0, 0x0018),  # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
+        encode_rwii(0x4E, 17, 0, 0x0000),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
     ]
     rom = b''
     for insn in trampoline:
@@ -184,7 +209,8 @@ def run_test(rom_data, kernel_data=None, timeout=10):
     try:
         result = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic',
-             '-bios', rom_path, '-kernel', kernel_path],
+             '-bios', rom_path, '-kernel', kernel_path,
+             '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return result.returncode, result.stderr
     except subprocess.TimeoutExpired:
@@ -201,7 +227,7 @@ RASOF_EXIT = 138   # 0x8A
 RASUF_EXIT = 139   # 0x8B
 
 # ── Test cases ────────────────────────────────────────────────────────
-# After trampoline: rb16=exit port, rb17=RAM base, rb2=RAM base
+# After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM@0 base
 
 TESTS = [
     # ── Branch taken/not-taken tests ──────────────────────────────────
@@ -218,12 +244,12 @@ TESTS = [
     ("B1 branch taken positive offset (br.nz +4)",
      [set_zw_rd(18, 0x0001),    # idx0: rd18 = 1
       set_zw_rd(19, 0x0001),    # idx1: rd19 = 1 (fail value)
-      br_nz(18, 4),             # idx2: br.nz +4 → target = idx6 (pass_set)
-      st_o_rd(19, 16, 0),       # idx3: [fail_store] NOT taken: exit 0x01
-      set_zw_rd(18, 0x0001),    # idx4: [dead]
-      st_o_rd(18, 16, 0),       # idx5: [dead_store] exit 0x01 (wrong offset lands here)
-      set_zw_rd(18, 0x0000),    # idx6: [pass_set] correct target
-      st_o_rd(18, 16, 0)],      # idx7: [pass_store] exit 0x00
+      br_nz(18, 6),             # idx2: br.nz +6 → target = pass_set (offset grown by 2 terminals)
+      *semi_exit(19),           # idx3: [fail_store] NOT taken: exit 0x01
+      set_zw_rd(18, 0x0001),    # [dead]
+      *semi_exit(18),           # [dead_store] exit 0x01 (wrong offset lands here)
+      set_zw_rd(18, 0x0000),    # [pass_set] correct target
+      *semi_exit(18)],          # [pass_store] exit 0x00
      PASS_EXIT,
      "br.nz taken positive offset failed"),
 
@@ -234,7 +260,7 @@ TESTS = [
      [set_zw_rd(18, 0x0002),    # t0: rd18 = 2
       add_si_rd(18, -1),        # t1 L: rd18 -= 1
       br_nz(18, -1),            # t2: rd18!=0 → taken → back to t1 (t2-1 = t1)
-      st_o_rd(18, 16, 0)],      # t3: [PASS] not-taken (rd18==0) → exit 0x00
+      *semi_exit(18)],          # t3: [PASS] not-taken (rd18==0) → exit 0x00
      PASS_EXIT,
      "br.nz negative offset loop failed"),
 
@@ -246,11 +272,11 @@ TESTS = [
     ("B3 branch not-taken (br.z rd18!=0)",
      [set_zw_rd(18, 0x0001),    # idx0: rd18 = 1 (non-zero)
       set_zw_rd(19, 0x0001),    # idx1: rd19 = 1 (fail value, for taken path)
-      br_z(18, 3),              # idx2: br.z rd18, +3 → NOT taken (rd18≠0), fall through
+      br_z(18, 4),              # idx2: br.z rd18, +4 → NOT taken (rd18≠0), fall through
       set_zw_rd(19, 0x0000),    # idx3: not-taken: overwrite rd19 = 0 (PASS)
-      st_o_rd(19, 16, 0),       # idx4: exit 0x00 (PASS)
-      set_zw_rd(20, 0x0001),    # idx5: [taken target] rd20 = 1
-      st_o_rd(20, 16, 0)],      # idx6: [taken target] exit 0x01 (FAIL)
+      *semi_exit(19),           # idx4: exit 0x00 (PASS)
+      set_zw_rd(20, 0x0001),    # [taken target] rd20 = 1
+      *semi_exit(20)],          # [taken target] exit 0x01 (FAIL)
      PASS_EXIT,
      "br.z not-taken failed"),
 
@@ -262,12 +288,12 @@ TESTS = [
      [set_zw_rd(18, 0x0042),    # idx0: rd18 = 0x42
       set_zw_rd(19, 0x0042),    # idx1: rd19 = 0x42
       set_zw_rd(20, 0x0001),    # idx2: rd20 = 1 (fail value)
-      br_eq(18, 19, 4),         # idx3: br.eq +4 → target = idx7 (pass_set)
-      st_o_rd(20, 16, 0),       # idx4: [fail_store] NOT taken: exit 0x01
-      set_zw_rd(18, 0x0001),    # idx5: [dead]
-      st_o_rd(18, 16, 0),       # idx6: [dead_store] exit 0x01 (wrong offset lands here)
-      set_zw_rd(18, 0x0000),    # idx7: [pass_set] correct target
-      st_o_rd(18, 16, 0)],      # idx8: [pass_store] exit 0x00
+      br_eq(18, 19, 6),         # idx3: br.eq +6 → target = pass_set (offset grown by 2 terminals)
+      *semi_exit(20),           # idx4: [fail_store] NOT taken: exit 0x01
+      set_zw_rd(18, 0x0001),    # [dead]
+      *semi_exit(18),           # [dead_store] exit 0x01 (wrong offset lands here)
+      set_zw_rd(18, 0x0000),    # [pass_set] correct target
+      *semi_exit(18)],          # [pass_store] exit 0x00
      PASS_EXIT,
      "br.eq taken failed"),
 
@@ -277,12 +303,12 @@ TESTS = [
     ("B5 branch taken (br.nz-rb rb!=0)",
      [set_zw_rb(18, 0x0100),    # idx0: rb18 = 0x0100
       set_zw_rd(19, 0x0001),    # idx1: rd19 = 1 (fail value)
-      br_nz_rb(18, 4),          # idx2: br.nz-rb +4 → target = idx6 (pass_set)
-      st_o_rd(19, 16, 0),       # idx3: [fail_store] NOT taken: exit 0x01
-      set_zw_rd(18, 0x0001),    # idx4: [dead]
-      st_o_rd(18, 16, 0),       # idx5: [dead_store] exit 0x01 (wrong offset lands here)
-      set_zw_rd(18, 0x0000),    # idx6: [pass_set] correct target
-      st_o_rd(18, 16, 0)],      # idx7: [pass_store] exit 0x00
+      br_nz_rb(18, 6),          # idx2: br.nz-rb +6 → target = pass_set (offset grown by 2 terminals)
+      *semi_exit(19),           # idx3: [fail_store] NOT taken: exit 0x01
+      set_zw_rd(18, 0x0001),    # [dead]
+      *semi_exit(18),           # [dead_store] exit 0x01 (wrong offset lands here)
+      set_zw_rd(18, 0x0000),    # [pass_set] correct target
+      *semi_exit(18)],          # [pass_store] exit 0x00
      PASS_EXIT,
      "br.nz-rb taken failed"),
 
@@ -293,36 +319,36 @@ TESTS = [
     # Correct: call +5 → ret → return to pass path
     # Wrong +3: lands on fail_set → fail_store → exit 0x01 (DETECTED)
     ("C1 call-iiii return address (call+1)",
-     [call_iiii(5),              # idx0: call +5 → target = idx5 (ret)
+     [call_iiii(7),              # idx0: call +7 → target = ret (offset grown by 2 terminals)
       set_zw_rd(18, 0x0000),    # idx1: return here: rd18 = 0 (PASS)
-      st_o_rd(18, 16, 0),       # idx2: exit 0x00
+      *semi_exit(18),           # idx2: exit 0x00
       set_zw_rd(19, 0x0001),    # idx3: [fail_set] wrong offset lands here
-      st_o_rd(19, 16, 0),       # idx4: [fail_store] exit 0x01
-      ret_riii(0, 0)],          # idx5: ret (correct target)
+      *semi_exit(19),           # idx4: [fail_store] exit 0x01
+      ret_riii(0, 0)],          # [ret] (correct target)
      PASS_EXIT,
      "call-iiii return address wrong"),
 
     # C2: call-rrii return address = call+1
     # call rb0, rd0, +5 → target = rb0 + 0 + 20 = PC + 20
     ("C2 call-rrii return address (call+1)",
-     [call_rrii(0, 0, 5),       # idx0: call +5 → target = idx5 (ret)
+     [call_rrii(0, 0, 7),       # idx0: call +7 → target = ret (offset grown by 2 terminals)
       set_zw_rd(18, 0x0000),    # idx1: return here: rd18 = 0 (PASS)
-      st_o_rd(18, 16, 0),       # idx2: exit 0x00
+      *semi_exit(18),           # idx2: exit 0x00
       set_zw_rd(19, 0x0001),    # idx3: [fail_set]
-      st_o_rd(19, 16, 0),       # idx4: [fail_store] exit 0x01
-      ret_riii(0, 0)],          # idx5: ret
+      *semi_exit(19),           # idx4: [fail_store] exit 0x01
+      ret_riii(0, 0)],          # [ret]
      PASS_EXIT,
      "call-rrii return address wrong"),
 
     # C3: call→ret→landing round-trip (basic)
     # Verifies RA push/pop mechanism works correctly
     ("C3 call→ret→landing round-trip",
-     [call_iiii(5),              # call +5 → target = ret
+     [call_iiii(7),              # call +7 → target = ret (offset grown by 2 terminals)
       set_zw_rd(18, 0x0000),    # return: PASS
-      st_o_rd(18, 16, 0),
+      *semi_exit(18),
       set_zw_rd(19, 0x0001),    # [fail_set]
-      st_o_rd(19, 16, 0),       # [fail_store]
-      ret_riii(0, 0)],          # ret
+      *semi_exit(19),           # [fail_store]
+      ret_riii(0, 0)],          # [ret]
      PASS_EXIT,
      "call→ret round-trip failed"),
 
@@ -333,9 +359,9 @@ TESTS = [
     # correct, but does NOT prove high16==0x0001 (a refcount>1 also round-trips).
     # The exact high16 value is checked by the direct -d cpu read in the report.
     ("R1 RA cold push (case 1: first call, round-trip)",
-     [call_iiii(3),              # first call → cold push to ra63
+     [call_iiii(4),              # first call → cold push to ra63 (offset grown by 1 terminal)
       set_zw_rd(18, 0x0000),    # return: PASS
-      st_o_rd(18, 16, 0),
+      *semi_exit(18),
       ret_riii(0, 0)],          # ret → should pop correctly
      PASS_EXIT,
      "RA cold push failed (ret didn't return correctly)"),
@@ -354,7 +380,7 @@ TESTS = [
       add_si_rd(18, -1),        # t3 S: counter -= 1
       br_nz(18, -3),            # t4: rd18!=0 → back to t1 (t4-3 = t1)
       set_zw_rd(18, 0x0000),    # t5: PASS
-      st_o_rd(18, 16, 0)],      # t6: exit 0x00
+      *semi_exit(18)],          # t6: exit 0x00
      PASS_EXIT,
      "same-address recursion (case 2) failed — refcount not incremented"),
 
@@ -364,7 +390,7 @@ TESTS = [
     ("R2b RA distinct-address deep chain (case 3: depth overflow)",
      [call_iiii(1)] * 64 +      # 64 chained calls (distinct return addresses)
       [set_zw_rd(18, 0x0001),   # if RASOF didn't trigger → FAIL
-       st_o_rd(18, 16, 0)],
+       *semi_exit(18)],
      RASOF_EXIT,
      "deep distinct-address chain didn't trigger RASOF (case 3 broken?)"),
 
@@ -372,13 +398,13 @@ TESTS = [
     # func1 calls func2 (different return addresses) → shift-down
     # Verified by: nested call/ret returns to correct places
     ("R3 RA shift-down push (case 3: different addresses)",
-     [call_iiii(3),              # main calls func1 → push ret(main+1)
+     [call_iiii(4),              # main calls func1 → push ret(main+1) (offset +1 terminal)
       set_zw_rd(18, 0x0000),    # main return: PASS
-      st_o_rd(18, 16, 0),
-      # func1 (at idx 3):
+      *semi_exit(18),
+      # func1:
       call_iiii(2),              # func1 calls func2 → push ret(func1+1), shift-down
       ret_riii(0, 0),            # func1 return
-      # func2 (at idx 5):
+      # func2:
       ret_riii(0, 0)],           # func2 return
      PASS_EXIT,
      "RA shift-down push (case 3) failed"),
@@ -387,16 +413,16 @@ TESTS = [
     # Exercises: cold push (case1) → shift-down (case3)
     # All levels must return correctly
     ("R4 RA two-level nested call/ret",
-     [call_iiii(3),              # main→func1: cold push (case1)
+     [call_iiii(4),              # main→func1: cold push (case1) (offset +1 terminal)
       set_zw_rd(18, 0x0000),    # main return: PASS
-      st_o_rd(18, 16, 0),
-      # func1 (idx 3):
+      *semi_exit(18),
+      # func1:
       call_iiii(3),              # func1→func2: shift-down (case3)
       ret_riii(0, 0),            # func1 return
-      # func2 (idx 6):
+      # func2:
       call_iiii(2),              # func2→func3: shift-down (case3)
       ret_riii(0, 0),            # func2 return
-      # func3 (idx 8):
+      # func3:
       ret_riii(0, 0)],           # func3 return
      PASS_EXIT,
      "two-level nested call/ret failed"),
@@ -406,13 +432,13 @@ TESTS = [
 
 CTL_CHECKS = [
     ("CTL: st.o PASS but expect ILLI (wrong)",
-     [set_zw_rd(18, 0x0000), st_o_rd(18, 16, 0)],
+     [set_zw_rd(18, 0x0000), *semi_exit(18)],
      ILLI_EXIT,
      "Self-check FAILED: probe cannot detect wrong values"),
     ("CTL: br.nz rd0 never-taken but expect taken (wrong)",
-     [br_nz(0, 3),              # never taken (rd0=0)
+     [br_nz(0, 4),              # never taken (rd0=0)
       set_zw_rd(18, 0x0000),    # fall through: PASS
-      st_o_rd(18, 16, 0)],
+      *semi_exit(18)],
      ILLI_EXIT,                  # wrong expectation
      "Self-check FAILED: probe cannot detect br.nz rd0 behavior"),
     ("CTL: ILLI but expect PASS (wrong)",

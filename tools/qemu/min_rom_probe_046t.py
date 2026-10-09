@@ -66,7 +66,7 @@ WORKDIR = "/tmp/opencode/QEMU-046t"
 TIMEOUT = 10
 
 ROM_BASE = 0xFFFF_FFFF_0000
-RAM_BASE = 0xFFFF_0000_0000
+RAM_BASE = 0x0000_0000_0000
 H = ROM_BASE + 0x100            # vector handler slot in ROM
 TAG = 0x30000                  # immu18 with immu18[17:16] == 2'b11
 
@@ -153,7 +153,7 @@ def exit_seq(code):
     epilogue -- the same role the MMIO halt-device store used to play.
     """
     return ([jump_iiii(1)]
-            + [set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+            + [set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
             + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
             + load_rd(9, code) + [st_o(9, 16, 8)]
             + load_rd(16, 0x18) + [trap(0, TAG)])

@@ -688,3 +688,8 @@
 - **规则**：自定义后端**手写**的 `getCalleeSavedRegs`（如 `ReversedCSR[]`）/ `getReservedRegs` 必须与 TableGen 生成的 `CSR_RegMask` / 保留集**集合相等**——新增 callee-saved 寄存器（如 RF 放开后 `rf32–rf63`）时二者须同步；不一致则 RA 视其为 preserved 而 PEI 不保存 ⇒ **静默坏寄存器**（无报错、仅运行期错值）。无常量池后端另须 `setOperationAction(ConstantFP, Legal)` + `DAGToDAG` 材料化，否则 FP 常量被折成常量池 load 而崩。
 - **依据/来源**：`LLVM-066t`（FP/RF codegen）；详见该任务书完成区「新发现/坑」①③。同类 §8.27。
 
+### 8.31 判定 `spec/`/非 ASCII 路径交集须用 `git -c core.quotepath=false`（或 `-z`）；裸 `grep '^spec/'` 会因引号假阴性（`QEMU-053t`，2026-10-09）
+
+- **规则**：用 `git diff --name-only | grep '<前缀>/'` 判定路径交集时，若仓库含**非 ASCII 文件名**，`git diff` 默认 `core.quotepath=true` 会对该类路径**加引号并转义**（如 `"spec/Machine-01-\346…"`）⇒ `grep '^spec/'` 匹配不到、**假阴性**；须改 `git -c core.quotepath=false diff --name-only`，或用 `git diff -z --name-only`（NUL 分隔）解析后再判。
+- **依据/来源**：`QEMU-053t`（2026-10-09；reviewer 第 2 轮补正：上一轮以 `git diff --name-only origin/master...HEAD | grep '^spec/'` 判「`spec/` 交集为空」为假阴性，实测 `spec/Machine-01` 有改动）。同类 §8.16（结构化期望值须机械解析）、§8.22（大小写不敏感扫描）。
+

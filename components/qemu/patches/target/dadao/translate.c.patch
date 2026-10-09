@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..7da3e29
+index 0000000..74364f5
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,519 @@
+@@ -0,0 +1,485 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -74,40 +74,6 @@ index 0000000..7da3e29
 +static void gen_raise_exception_illi(DisasContext *ctx)
 +{
 +    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI));
-+}
-+
-+/* Check if EA falls in exit port range [0xffff80000000, 0xffff80000008).
-+ * If EA is naturally aligned for element size N AND in exit port range,
-+ * raise ILLI at runtime. Unaligned EAs are let through so that MO_ALIGN_N
-+ * triggers MALIGN (0x8C) with higher priority per ADR-0004 D5.6.
-+ *
-+ * Used by trans_stm_* to enforce: ALL multi-store (stm.*) to exit port
-+ * triggers ILLI (aligned) or MALIGN (unaligned).
-+ *
-+ * N must be a power of 2: 1 (byte), 2 (wyde), 4 (tetra), 8 (octa). */
-+static void gen_check_exit_port_illi(DisasContext *ctx, TCGv_i64 ea, int N)
-+{
-+    TCGLabel *ok = gen_new_label();
-+    TCGv_i64 diff = tcg_temp_new_i64();
-+    /* Alignment gate: if N > 1, skip ILLI when EA is unaligned (let
-+     * MO_ALIGN_N trigger MALIGN instead). For N==1 (byte), always aligned. */
-+    if (N > 1) {
-+        TCGLabel *unaligned = gen_new_label();
-+        tcg_gen_andi_i64(diff, ea, N - 1);
-+        tcg_gen_brcondi_i64(TCG_COND_NE, diff, 0, unaligned);
-+        /* EA aligned → fall through to exit-port range check */
-+        tcg_gen_subi_i64(diff, ea, 0xffff80000000ULL);
-+        tcg_gen_brcondi_i64(TCG_COND_GEU, diff, 8, ok);
-+        gen_raise_exception_illi(ctx);
-+        gen_set_label(unaligned);
-+        /* EA unaligned → skip ILLI, let store's MO_ALIGN_N trigger MALIGN */
-+    } else {
-+        /* N==1: byte stores have no alignment requirement */
-+        tcg_gen_subi_i64(diff, ea, 0xffff80000000ULL);
-+        tcg_gen_brcondi_i64(TCG_COND_GEU, diff, 8, ok);
-+        gen_raise_exception_illi(ctx);
-+    }
-+    gen_set_label(ok);
 +}
 +
 +static void gen_exception_undi(DisasContext *ctx)

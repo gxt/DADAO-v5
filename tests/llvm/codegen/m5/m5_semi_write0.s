@@ -4,7 +4,7 @@
 ; the argument pointer (rb16) to the semihosting console
 ; (contract-semihosting.md §3; Machine-01 §5.3).
 ;
-; Loaded as a flat bin at the legacy RAM base 0xffff_0000_0000 by `-kernel`
+; Loaded as a flat bin at the RAM@0 base 0x0000_0000_0000 by `-kernel`
 ; (ADR-0004 D2.3 path B) and entered in user mode by the SEE bootrom
 ; (QEMU-047t / Machine-01 §2).
 ;

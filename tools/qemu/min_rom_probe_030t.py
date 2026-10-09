@@ -37,7 +37,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 
 # ROM base and test base addresses
 ROM_BASE = 0xFFFFFFFF0000
-TEST_BASE = ROM_BASE + 0x18  # test instructions start after 6-insn trampoline
+TEST_BASE = ROM_BASE + 0x2C  # test instructions start after the 11-insn trampoline
 
 def addr_of(idx):
     """Byte address of test instruction at index idx."""
@@ -74,8 +74,15 @@ def ld_o_rd(rdha, rbhb, imms12):
     imm = imms12 & 0xFFF; hc = (imm >> 6) & 0x3F; hd = imm & 0x3F
     if imms12 < 0: hc |= 0x20
     return encode_rrii(0x20, rdha, rbhb, hc, hd)
-def st_o_rd_pass(): return encode_rrii(0x21, 18, 16, 0, 0)
-def st_o_rd_fail(): return encode_rrii(0x21, 19, 16, 0, 0)
+# ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
+# Trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
+# rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
+SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+def trap_sys_exit(): return encode_riii(0x7F, 0x00, SEMIHOST_TAG)
+def semi_exit(code_rd): return [st_o_rd(code_rd, 16, 8), trap_sys_exit()]
+def st_o_rd_pass(): return semi_exit(18)   # PASS: exit code from rd18
+def st_o_rd_fail(): return semi_exit(19)   # FAIL: exit code from rd19
 def cmp_uo_rd(rdhb, rdhc, rdhd): return encode_orri(0x40, 0x2A, rdhb, rdhc, rdhd)
 def br_nz(rdha, imms18): return encode_riii(0x6B, rdha, imms18 & 0x3FFFF)
 def call_iiii(imms24): return encode_iiii(0x74, imms24 & 0xFFFFFF)
@@ -104,25 +111,25 @@ def build_val(reg, val):
 
 def build_assertion(checks, fail_code):
     """Build assertion block with PASS and FAIL exit.
-    For N checks, layout:
+    For N checks, layout (each SYS_EXIT terminal is store+trap = 2 insns):
       [2*i]   cmp_uo(flag, actual_i, expected_i)
-      [2*i+1] br_nz(flag, 2*(N-i)+1) → FAIL arm at [2*N+2]
+      [2*i+1] br_nz(flag, 2*(N-i)+2) → FAIL arm at [2*N+3]
       [2*N]   set_zw(18, 0)      ← PASS
-      [2*N+1] st_o_pass()        ← exit 0
-      [2*N+2] set_zw(19, fc)     ← FAIL arm
-      [2*N+3] st_o_fail()        ← exit fc
-    Returns 2*N + 4 instructions. Caller must NOT append PASS.
+      [2*N+1] st.o rd18, block+8 ; [2*N+2] trap   ← exit 0
+      [2*N+3] set_zw(19, fc)     ← FAIL arm
+      [2*N+4] st.o rd19, block+8 ; [2*N+5] trap   ← exit fc
+    Returns 2*N + 6 instructions. Caller must NOT append PASS.
     """
     N = len(checks)
     insns = []
     for i, (actual, expected, flag) in enumerate(checks):
-        offset = 2 * (N - i) + 1
+        offset = 2 * (N - i) + 2
         insns.append(cmp_uo_rd(flag, actual, expected))
         insns.append(br_nz(flag, offset))
     insns.append(set_zw_rd(18, 0))
-    insns.append(st_o_rd_pass())
+    insns.extend(st_o_rd_pass())
     insns.append(set_zw_rd(19, fail_code))
-    insns.append(st_o_rd_fail())
+    insns.extend(st_o_rd_fail())
     return insns
 
 # ── ROM construction ──────────────────────────────────────────────────
@@ -130,13 +137,20 @@ def build_assertion(checks, fail_code):
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
 def build_rom(test_insns):
+    # 11-insn trampoline: SP=RAM@0, rb2=rb17=RAM@0 base, and the semihosting
+    # SYS_EXIT argument block (rb16=SEMI_BLOCK, block[0]=0x20026, rd16=0x18).
     trampoline = [
-        encode_rwii(0x4E, 1, 2, 0xFFFF),
-        encode_rwii(0x4A, 1, 1, 0x00FF),
-        encode_rwii(0x4E, 2, 2, 0xFFFF),
-        encode_rwii(0x4E, 16, 2, 0xFFFF),
-        encode_rwii(0x4A, 16, 1, 0x8000),
-        encode_rwii(0x4E, 17, 2, 0xFFFF),
+        encode_rwii(0x4E, 1, 0, 0x0000),   # rb1 = 0
+        encode_rwii(0x4A, 1, 1, 0x00FF),   # rb1 = 0x00FF0000 (SP)
+        encode_rwii(0x4E, 2, 0, 0x0000),   # rb2 = 0 (RAM base)
+        encode_rwii(0x4E, 16, 0, 0x0000),  # rb16 = 0
+        encode_rwii(0x4A, 16, 1, 0x00FF),  # rb16 = 0x00FF0000
+        encode_rwii(0x4A, 16, 0, 0xF000),  # rb16 = 0x00FFF000 (block)
+        encode_rwii(0x4C, 8, 0, 0x0026),   # rd8 = 0x26
+        encode_rwii(0x48, 8, 1, 0x0002),   # rd8 = 0x20026
+        encode_rrii(0x21, 8, 16, 0, 0),    # block[0] = 0x20026
+        encode_rwii(0x4C, 16, 0, 0x0018),  # rd16 = 0x18 (SYS_EXIT)
+        encode_rwii(0x4E, 17, 0, 0x0000),  # rb17 = 0 (RAM base)
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
@@ -153,7 +167,8 @@ def run_test(rom_data, timeout=10):
         f.write(kernel_data); kp = f.name
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp],
+            [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp,
+             '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return r.returncode, r.stderr
     except subprocess.TimeoutExpired:
@@ -171,6 +186,7 @@ def run_test_dcpu(rom_data, timeout=10):
     try:
         r = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic', '-bios', rp, '-kernel', kp,
+             '-semihosting-config', 'enable=on,target=native',
              '-d', 'cpu', '-D', lp],
             capture_output=True, timeout=timeout, text=True)
         with open(lp) as lf:
@@ -207,7 +223,7 @@ TESTS = []
 
 # ── Test 1: C1 push + D3 pop (with FAIL arm, R5) ─────────────────────
 def _t1():
-    K = 9  # jump over assertion to ret
+    K = 11  # jump over assertion (2N+6) to ret
     insns = [
         call_to(0, K),          # [0] push (1, addr[1]), jump to ret
         ra2rd(19, 0, 1),        # [1] rd19 = ra0 (read RACNT after pop)
@@ -281,7 +297,7 @@ TESTS.append(("C3b RASOF (RACNT=63, MRPTR=0 → 0x8A)", _t4(), RASOF_EXIT, "RASO
 
 # ── Test 5: C3b spill ────────────────────────────────────────────────
 def _t5():
-    OLD_MRPTR = 0xFFFF00000100
+    OLD_MRPTR = 0x000000000100
     NEW_MRPTR = OLD_MRPTR - 8
     MARKER = 0xBEEF
     EXPECTED_RA0 = (63 << 48) | NEW_MRPTR
@@ -289,7 +305,7 @@ def _t5():
     VERIFY_IDX = 15
     insns = [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0xFFFF),
+        or_w_rd(18, 2, 0x0000),   # RAM@0: MRPTR high bits = 0
         or_w_rd(18, 3, 0x003F),
         rd2ra(0, 18, 1),
         set_zw_rd(18, MARKER),
@@ -357,7 +373,7 @@ def _t8():
       [10] ret            → D3 pop, return to [1]
     After call→ret: RACNT should be 0. If D3 doesn't decrement → FAIL.
     """
-    RET_IDX = 10
+    RET_IDX = 12
     insns = [
         call_to(0, RET_IDX),        # [0] push, jump to [10] ret
         ra2rd(19, 0, 1),            # [1] rd19 = ra0 (RACNT after pop)
@@ -379,11 +395,11 @@ TESTS.append(("D4a RASUF (empty, MRPTR=0 → 0x8B)", _t9(), RASUF_EXIT, "D4a RAS
 
 # ── Test 10: D4b count=1 ─────────────────────────────────────────────
 def _t10():
-    OLD_MRPTR = 0xFFFF00000100
+    OLD_MRPTR = 0x000000000100
     NEW_MRPTR = OLD_MRPTR + 8
     insns = [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0xFFFF),
+        or_w_rd(18, 2, 0x0000),   # RAM@0: MRPTR high bits = 0
         rd2ra(0, 18, 1),
     ]
     RET_IDX = 3 + 4 + 1 + 1
@@ -403,11 +419,11 @@ TESTS.append(("D4b count=1 (MRPTR+=8)", _t10(), PASS_EXIT, "D4b count=1 failed")
 
 # ── Test 11: D4b count>1 ─────────────────────────────────────────────
 def _t11():
-    OLD_MRPTR = 0xFFFF00000100
+    OLD_MRPTR = 0x000000000100
     NEW_MRPTR = OLD_MRPTR + 8
     insns = [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0xFFFF),
+        or_w_rd(18, 2, 0x0000),   # RAM@0: MRPTR high bits = 0
         rd2ra(0, 18, 1),
     ]
     RET_IDX = 3 + 4 + 1 + 1
@@ -433,7 +449,7 @@ TESTS.append(("D4b count>1 (push RegRAS, RACNT=1, MRPTR+=8)", _t11(), PASS_EXIT,
 def _t12():
     return [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0xFFFF),
+        or_w_rd(18, 2, 0x0000),   # RAM@0: MRPTR high bits = 0
         rd2ra(0, 18, 1),
         set_zw_rd(18, 0),
         rd2ra(5, 18, 1),
@@ -461,7 +477,7 @@ TESTS.append(("RACNT readback (2 pushes → RACNT=2)", _t13(), PASS_EXIT, "RACNT
 
 # ── Test 14: MRPTR readback ─────────────────────────────────────────
 def _t14():
-    val = (1 << 48) | 0xFFFF00002000
+    val = (1 << 48) | 0x000000002000
     insns = build_val(18, val) + [
         rd2ra(0, 18, 1),
         ra2rd(19, 0, 1),
@@ -572,7 +588,7 @@ TESTS.append(("Precise D1 RASUF (register check via -d cpu)", _t18(), RASUF_EXIT
 
 CTL_CHECKS = [
     ("CTL: st.o PASS but expect ILLI",
-     [set_zw_rd(18, 0), st_o_rd_pass()], ILLI_EXIT, "CTL broken"),
+     [set_zw_rd(18, 0), *st_o_rd_pass()], ILLI_EXIT, "CTL broken"),
     ("CTL: fence but expect PASS",
      [fence()], PASS_EXIT, "CTL broken"),
 ]

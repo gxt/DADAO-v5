@@ -59,11 +59,11 @@ WORKDIR = "/tmp/opencode/QEMU-042t"
 TIMEOUT = 20
 
 # Memory map (ADR-0004 D1)
-RAM_BASE = 0xFFFF_0000_0000
+RAM_BASE = 0x0000_0000_0000
 RAM_SIZE = 16 * 1024 * 1024
 ROM_BASE = 0xFFFF_FFFF_0000
 ROM_SIZE = 64 * 1024
-SEMI_BLOCK = 0xFFFF_00FF_F000        # SYS_EXIT argument block {reason, code}, in RAM
+SEMI_BLOCK = 0x0000_00FF_F000        # SYS_EXIT argument block {reason, code}, in RAM
 SEMIHOST_TAG = 0x30000               # immu18[17:16] == 2'b11 -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
@@ -133,7 +133,7 @@ def imm64_rb(rb, val):
 
 def code_set_semi_block():
     """rb16 = SEMI_BLOCK; block[0] = 0x20026 (ADR-0020 D8)."""
-    return ([set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+    return ([set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
             + imm64_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o_rd(8, 16, 0)])
 
 def code_exit(code):
@@ -308,9 +308,9 @@ def run_qemu(elf_path=None, bios=None, kernel=None):
 # trampoline (ADR-0004 D6.4) for the raw-bin path
 def build_trampoline():
     return words_to_bytes([
-        set_zw_rb(1, 2, 0xFFFF),
+        set_zw_rb(1, 0, 0x0000),
         or_w_rb(1, 1, 0x00FF),
-        set_zw_rb(2, 2, 0xFFFF),
+        set_zw_rb(2, 0, 0x0000),
         jump_rrii(2, 0, 0),
     ])
 

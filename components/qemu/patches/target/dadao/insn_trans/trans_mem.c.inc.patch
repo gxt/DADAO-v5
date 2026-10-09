@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_mem.c.inc b/target/dadao/insn_trans/trans_mem.c.inc
 new file mode 100644
-index 0000000..9bac822
+index 0000000..090703a
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_mem.c.inc
-@@ -0,0 +1,533 @@
+@@ -0,0 +1,529 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §4.1.1 Single RD Load (rrii): ld.sb/ld.ub/ld.sw/ld.uw/ld.st/ld.ut/ld.o
@@ -304,7 +304,6 @@ index 0000000..9bac822
 +        } else {
 +            tcg_gen_addi_i64(ea, base, i);
 +        }
-+        gen_check_exit_port_illi(ctx, ea, 1); /* ADR-0004 D5.6: stm.b→exit=ILLI */
 +        TCGv_i64 val = load_rd(a->ha + i);
 +        tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_UB);
 +    }
@@ -323,7 +322,6 @@ index 0000000..9bac822
 +    for (int i = 0; i < a->hd; i++) {
 +        TCGv_i64 ea = tcg_temp_new_i64();
 +        tcg_gen_addi_i64(ea, base, i * 2);
-+        gen_check_exit_port_illi(ctx, ea, 2); /* ADR-0004 D5.6: stm.w→exit=ILLI */
 +        TCGv_i64 val = load_rd(a->ha + i);
 +        tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUW | MO_ALIGN_2);
 +    }
@@ -342,7 +340,6 @@ index 0000000..9bac822
 +    for (int i = 0; i < a->hd; i++) {
 +        TCGv_i64 ea = tcg_temp_new_i64();
 +        tcg_gen_addi_i64(ea, base, i * 4);
-+        gen_check_exit_port_illi(ctx, ea, 4); /* ADR-0004 D5.6: stm.t→exit=ILLI */
 +        TCGv_i64 val = load_rd(a->ha + i);
 +        tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUL | MO_ALIGN_4);
 +    }
@@ -380,7 +377,6 @@ index 0000000..9bac822
 +    for (int i = 0; i < a->hd; i++) {
 +        TCGv_i64 ea = tcg_temp_new_i64();
 +        tcg_gen_addi_i64(ea, base, i * 8);
-+        gen_check_exit_port_illi(ctx, ea, 8); /* ADR-0004 D5.6: stm.o→exit=ILLI */
 +        TCGv_i64 val = load_rd(a->ha + i);
 +        tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
 +    }

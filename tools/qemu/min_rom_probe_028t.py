@@ -129,14 +129,14 @@ def fence():
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
 
-SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+SEMI_BLOCK = 0x0000_00FF_F000       # argument block {reason, code}, in RAM
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 
 def semi_exit(code_rd):
     """rb16 = SEMI_BLOCK; block = {0x20026, code_rd}; rd16 = 0x18; trap."""
-    return ([encode_rwii(0x4E, 16, 2, 0xFFFF), encode_rwii(0x4A, 16, 1, 0x00FF),
+    return ([encode_rwii(0x4E, 16, 0, 0x0000), encode_rwii(0x4A, 16, 1, 0x00FF),
              encode_rwii(0x4A, 16, 0, 0xF000)]
             + [set_zw(8, 0x0026), or_w(8, 1, 0x0002)]
             + [st_o(8, 16, 0)]
@@ -160,10 +160,10 @@ def build_rom(test_insns):
         set_zw(18, 0),                          # rd18 = 0 (PASS value)
         set_zw(19, 1),                          # rd19 = 1 (FAIL value)
         # rb16 = SYS_EXIT argument block (rebuilt by semi_exit)
-        encode_rwii(0x4E, 16, 2, 0xFFFF),      # set.zw rb16, wp2, 0xFFFF
-        encode_rwii(0x4A, 16, 1, 0x00FF),      # rb16 = 0xFFFF00FF0000 (dead; semi_exit rebuilds it)
+        encode_rwii(0x4E, 16, 0, 0x0000),      # set.zw rb16, wp2, 0xFFFF
+        encode_rwii(0x4A, 16, 1, 0x00FF),      # rb16 = 0x00000000FF0000 (dead; semi_exit rebuilds it)
         # rb17 = RAM base (0xFFFF_00FE_0000) for st/ld stores
-        encode_rwii(0x4E, 17, 2, 0xFFFF),      # set.zw rb17, wp2, 0xFFFF
+        encode_rwii(0x4E, 17, 0, 0x0000),      # set.zw rb17, wp2, 0xFFFF
         encode_rwii(0x4A, 17, 1, 0x00FE),       # or.w rb17, wp1, 0x00FE
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR

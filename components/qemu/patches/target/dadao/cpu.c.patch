@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..ae875cd
+index 0000000..2b6c67a
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,424 @@
+@@ -0,0 +1,423 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -338,8 +338,7 @@ index 0000000..ae875cd
 +static bool dadao_cpu_translate_for_debug(CPUState *cs, vaddr addr,
 +                                          TranslateForDebugResult *result)
 +{
-+    if (addr < DADAO_RAM0_BASE + DADAO_RAM0_SIZE ||
-+        (addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) ||
++    if ((addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) ||
 +        (addr >= DADAO_ROM_BASE && addr < DADAO_ROM_BASE + DADAO_ROM_SIZE)) {
 +        result->physaddr = addr;
 +        result->attrs = MEMTXATTRS_UNSPECIFIED;

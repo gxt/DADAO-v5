@@ -11,8 +11,9 @@
 ;     (= cfx_power_hypv_excp_vector, spec/DADAO-12 §2.1) via `-bios`;
 ;   * reset PC (rb0) = 0xffff_ffff_0000 is unchanged, so the bootrom runs first
 ;     in hypv/CfxPower (cpu reset state, QEMU-044t);
-;   * the flat test application is loaded at the legacy RAM base
-;     0xffff_0000_0000 by `-kernel` (path B fixed entry, ADR-0004 D2.2/D2.3);
+;   * the flat test application is loaded at the RAM@0 base
+;     0x0000_0000_0000 by `-kernel` (path B fixed entry, ADR-0004 D2.2/D2.3;
+;     RAM@0 is the single RAM segment since C1 step2, ADR-0004 R3);
 ;   * the bootrom configures cfx then hands off to that entry in user mode.
 ; The M4 single-ELF path (ADR-0004 D2.2/D2.3 path A, no `-bios`) is untouched.
 ;
@@ -39,8 +40,8 @@ _start:
 	; --- SP (rb1) -> RAM@0 top-ish (0x0000_0000_00f0_0000 = RAM@0 + 15 MiB) ---
 	set.zw	rb1, wp1, 0x00f0
 
-	; --- rd2 = application entry = legacy RAM base 0xffff_0000_0000 ---
-	set.zw	rd2, wp2, 0xffff
+	; --- rd2 = application entry = RAM@0 base 0x0000_0000_0000 ---
+	set.zw	rd2, wp0, 0x0000
 
 	; --- rd3 = user exception handler = 0xffff_ffff_0200 (ROM base + 0x200) ---
 	set.zw	rd3, wp2, 0xffff

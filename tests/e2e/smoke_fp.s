@@ -45,12 +45,11 @@
 ;   wpN is encoded verbatim (LLVM-045t / ISS-128).
 ;
 ; Entry state (ADR-0004 D6.5):
-;   rb0=0xffff_0000_0000 (PC), rb1=0xffff_00ff_0000 (SP), rb2=0xffff_0000_0000
+;   rb0=0x0000_0000_0000 (PC), rb1=0x0000_0000_00ff_0000 (SP), rb2=0x0000_0000_0000
 ;   rd0=0 (hardwired), all other rd/rb/ra = 0; rf0 = FCSR = 0
 
 _start:
-    ; 1. Build the SYS_EXIT argument block at rb16 = 0xffff_00ff_f000.
-    set.zw  rb16, wp2, 0xffff
+    ; 1. Build the SYS_EXIT argument block at rb16 = 0x0000_0000_00ff_f000.
     or.w    rb16, wp1, 0x00ff
     or.w    rb16, wp0, 0xf000
     set.zw  rd6, wp1, 0x0002

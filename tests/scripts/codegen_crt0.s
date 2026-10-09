@@ -24,30 +24,28 @@
 ;   The harness must run QEMU with `-semihosting-config enable=on,target=native`
 ;   (ADR-0020 D7: native is explicitly enabled by the test harness).
 ;
-; Entry state (ADR-0004 D6.5): rb0 = 0xffff_0000_0000 (PC),
-;   rb1 = 0xffff_00ff_0000 (SP; also set by the ROM trampoline),
+; Entry state (ADR-0004 D6.5): rb0 = 0x0000_0000_0000 (PC, RAM@0),
+;   rb1 = 0x0000_0000_00ff_0000 (SP; also set by the ROM trampoline),
 ;   all other RD/RB/RA = 0, rf0 = 0x7FF8_0000_7FC0_0000.
 ;
 ; Register use: rb1 (SP), rb16 (argument-block pointer) and rd16 (block field
 ;   temp, then the SYS_EXIT service number).  All of them are caller-saved, so
 ;   the block is built *after* the call returns (building it before the call
-;   would let the callee clobber it).  The block lives near the top of RAM
-;   (0xffff_00ff_f000, above the downward-growing stack).
+;   would let the callee clobber it).  The block lives near the top of RAM@0
+;   (0x0000_0000_00ff_f000, above the downward-growing stack).
 
 	.text
 	.globl	_start
 _start:
-	; 1. Stack pointer rbsp = rb1 = 0xffff_00ff_0000 (near the RAM top).
-	set.zw	rb1, wp2, 0xffff
-	or.w	rb1, wp1, 0x00ff
+	; 1. Stack pointer rbsp = rb1 = 0x0000_0000_00ff_0000 (near the RAM top).
+	set.zw	rb1, wp1, 0x00ff
 
 	; 2. Call the program entry point; the result returns in rd8 (M6).
 	call	[rb0, main]
 
-	; 3. Build the SYS_EXIT argument block at rb16 = 0xffff_00ff_f000:
+	; 3. Build the SYS_EXIT argument block at rb16 = 0x0000_0000_00ff_f000:
 	;    block[0] = 0x20026 (ADP_Stopped_ApplicationExit).
-	set.zw	rb16, wp2, 0xffff
-	or.w	rb16, wp1, 0x00ff
+	set.zw	rb16, wp1, 0x00ff
 	or.w	rb16, wp0, 0xf000
 	set.zw	rd16, wp1, 0x0002
 	or.w	rd16, wp0, 0x0026

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Min ROM probe for QEMU-049t: RAM@0 dual mapping (C1 step1) + out-of-range
-access/fetch fault semantics (CFXMEM vs the test-machine unmapped convention).
+"""Min ROM probe for QEMU-049t: RAM@0 mapping (C1 step2: single RAM segment) +
+out-of-range access/fetch fault semantics (CFXMEM vs the test-machine unmapped
+convention).
 
 Spec sources (expectations derived by hand from spec/ + ADRs, never from the
 QEMU implementation):
   - spec/Machine-01-测试机运行环境.md §1.1 (internal-address-space split:
-    RAM@0 0x0000_0000_0000 / legacy RAM 0xffff_0000_0000 16 MiB / legacy MMIO
-    halt device / boot ROM; C1 step1 dual mapping) and §1.2 (out-of-range
-    access AND fetch both fault; CFXMEM(0x81) vs test-machine unmapped(0x87)).
+    RAM@0 0x0000_0000_0000 16 MiB as the single RAM segment / boot ROM; C1
+    step2 removed the legacy 0xffff_0000_0000 RAM and the exit-port device)
+    and §1.2 (out-of-range access AND fetch both fault; CFXMEM(0x81) vs
+    test-machine unmapped(0x87)).
   - .tao/adr/adr-0020-see-semihosting.md D15 and adr-0004-test-machine.md
     R3 (RAM base -> all zero; C1 two-step) + D5.8 (frozen fault-code table:
     0x81 reserved for CFXMEM = 0x80 | (1<<1); 0x87 = unmapped convention).
@@ -18,8 +20,8 @@ QEMU implementation):
 Routing implemented by QEMU-049t (ADR-0020 D15):
   * address inside the umon segment (cfxha 0) but outside RAM@0 => CFXMEM 0x81
     (both data access and instruction fetch).
-  * any other unmapped address (incl. the legacy power segment, cfxha 63)
-    => unmapped 0x87 (historical M1-M4 convention).
+  * any other unmapped address (incl. the power segment, cfxha 63, and the
+    removed legacy RAM 0xffff_0000_0000) => unmapped 0x87.
 
 Observation channels:
   * register results / mapped reads -> QEMU `-d cpu` dump (parses the LAST
@@ -97,7 +99,7 @@ def swym():              return 0x77880000
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
-SEMI_BLOCK = 0xFFFF_00FF_F000       # argument block {reason, code}, in RAM
+SEMI_BLOCK = 0x0000_00FF_F000       # argument block {reason, code}, in RAM
 
 
 def load_rd(rd, val):
@@ -127,7 +129,7 @@ def exit_seq(code):
     {reason, code}; rd16 = 0x18 (SYS_EXIT); `trap` with the semihosting tag.
     """
     return ([jump_iiii(1)]
-            + [set_zw_rb(16, 2, 0xFFFF), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+            + [set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
             + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
             + load_rd(9, code) + [st_o(9, 16, 8)]
             + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
@@ -209,30 +211,19 @@ def _ram0_rw():
     return build_rom(prog), {"exit": 0x00, "rd5": 0xCAFEF00D}
 
 
-# -- acc 2: legacy RAM still read/write (offset 0x1000) ---------------------
-@case("old_ram_rw", "legacy RAM 0xffff_0000_0000 read/write preserved")
-def _old_ram_rw():
-    prog = load_rb(3, OLD_RAM_BASE + 0x1000) + load_rd(4, 0x0BADC0DE) + [st_o(4, 3, 0)]
-    prog += [ld_o(5, 3, 0)] + exit_seq(0x00)
-    return build_rom(prog), {"exit": 0x00, "rd5": 0x0000_0BADC0DE}
+# -- acc 2: legacy RAM segment removed (C1 step2) --------------------------
+@case("old_ram_unmapped", "legacy RAM 0xffff_0000_0000 removed => data access UNMAPPED 0x87")
+def _old_ram_unmapped():
+    prog = load_rb(3, OLD_RAM_BASE + 0x1000) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
+    return build_rom(prog), {"exit": EXIT_UNMAPPED}
 
 
-# -- acc 2: two segments independent at the same offset ---------------------
-@case("no_interference", "RAM@0 and legacy RAM independent at the same offset")
-def _no_interference():
-    prog = []
-    prog += load_rb(3, RAM0_BASE + 0x2000)
-    prog += load_rd(4, 0xAAAA_5555)
-    prog += [st_o(4, 3, 0)]
-    prog += load_rb(6, OLD_RAM_BASE + 0x2000)
-    prog += load_rd(7, 0x1357_9BDF)
-    prog += [st_o(7, 6, 0)]
-    prog += [ld_o(8, 3, 0)]     # read back RAM@0
-    prog += [ld_o(9, 6, 0)]     # read back legacy RAM
-    prog += exit_seq(0x00)
-    return build_rom(prog), {"exit": 0x00,
-                             "rd8": 0x0000_0000AAAA5555,
-                             "rd9": 0x0000_0001_3579BDF}
+# -- acc 2: no second mapped RAM region -------------------------------------
+@case("legacy_ram_gone", "write to 0xffff_0000_0000 => UNMAPPED 0x87 (RAM@0 is the only RAM)")
+def _legacy_ram_gone():
+    prog = load_rb(3, OLD_RAM_BASE + 0x2000) + load_rd(4, 0xAAAA_5555) + [st_o(4, 3, 0)]
+    prog += exit_seq(0xEE)
+    return build_rom(prog), {"exit": EXIT_UNMAPPED}
 
 
 # -- acc 2: RAM@0 top 8 bytes ------------------------------------------------

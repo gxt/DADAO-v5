@@ -11,9 +11,10 @@ flat-bin pipeline and compares the observed result against the manifest:
         -chardev file,id=semi,path=<console> -d cpu -D <log>
                                                              -> host exit code
 
-The bin is loaded at the legacy RAM base 0xffff_0000_0000 by `-kernel`
-(ADR-0004 D2.3 path B); the SEE bootrom (`-bios .dadao/tests/bootrom/
-bootrom.bin`, QEMU-047t) starts at the reset PC 0xffff_ffff_0000, configures the
+The bin is loaded at the RAM@0 base 0x0000_0000_0000 by `-kernel`
+(ADR-0004 D2.3 path B; single RAM segment since C1 step2); the SEE bootrom
+(`-bios .dadao/tests/bootrom/bootrom.bin`, QEMU-047t) starts at the reset PC
+0xffff_ffff_0000, configures the
 cfx user exception vector/masks and hands off to the app in *user* mode
 (Machine-01 §2).  Every vector carries a hand-derived expectation in the
 manifest; the expected values come from `.tao/knowledge/contract-*.md` +
@@ -26,7 +27,7 @@ Judgement (fail-closed), per case:
   * produced host file == ``expected_file``             (when declared)
   * bootrom effective: first ``-d cpu`` block PC == 0xffff_ffff_0000, the
     bootrom-installed cfx_umon user vector is present, and the app is observed
-    running in user mode (MODE == 0) in the legacy RAM range
+    running in user mode (MODE == 0) in the RAM@0 range
 
 Exit status:
   0  all cases PASS
@@ -89,9 +90,9 @@ DEFAULT_EXPECTED = "tests/llvm/codegen/m5/expected.yaml"
 DEFAULT_WORK_DIR = str(_TEST_ARTIFACTS / "m5-e2e")
 DEFAULT_TIMEOUT = 30
 
-# Reset PC / memory map (ADR-0004 D1/D2, DADAO-12 §2.1).
+# Reset PC / memory map (ADR-0004 D2 / R3, DADAO-12 §2.1, C1 step2).
 RESET_PC = 0xFFFF_FFFF_0000
-RAM_BASE = 0xFFFF_0000_0000
+RAM_BASE = 0x0000_0000_0000
 RAM_SIZE = 16 * 1024 * 1024
 # The SEE bootrom installs this cfx_umon user exception vector (Rom base + 0x200,
 # `escape cfx_umon, [excp_cause_ip, 4]`); its presence proves the config ran.

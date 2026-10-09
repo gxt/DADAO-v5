@@ -53,7 +53,7 @@ TIMEOUT = 10
 
 # Memory map / handoff constants (from the firmware sources + ADRs above).
 ROM_BASE = 0xFFFF_FFFF_0000            # boot ROM base, reset PC (ADR-0004 D1/D2.1)
-APP_ENTRY = 0xFFFF_0000_0000           # legacy RAM base = path-B entry (ADR-0004 D2.2)
+APP_ENTRY = 0x0000_0000_0000           # legacy RAM base = path-B entry (ADR-0004 D2.2)
 HANDLER = 0xFFFF_FFFF_0200             # bootrom user exception handler (ROM + 0x200)
 RAM0_STACK = 0x0000_0000_00F0_0000     # bootrom SP in RAM@0 (RAM@0 + 15 MiB)
 EXIT_PASS = 0x00

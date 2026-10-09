@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..ebb86bd
+index 0000000..048aa1a
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,588 @@
+@@ -0,0 +1,501 @@
 +/*
 + * DADAO M1 bare-metal test machine for QEMU
 + *
@@ -21,11 +21,11 @@ index 0000000..ebb86bd
 + * You should have received a copy of the GNU General Public License along with
 + * this program.  If not, see <http://www.gnu.org/licenses/>.
 + *
-+ * Memory map per ADR-0004 D1 (legacy) and ADR-0004 R3 / ADR-0020 D15 (M5 C1
-+ * step1 dual mapping):
-+ *   RAM@0:      0x0000_0000_0000 .. +DADAO_RAM0_SIZE  (16 MiB, RWX; cfxha 0)
-+ *   RAM:        0xffff_0000_0000 .. 0xffff_00ff_ffff  (16 MiB, RWX; legacy)
-+ *   Exit port:  0xffff_8000_0000 .. 0xffff_8000_0007  (8 B, MMIO, write-only)
++ * Memory map per ADR-0004 R3 / ADR-0020 D15 (C1 step2): RAM@0 is the single
++ * RAM segment.  The legacy 0xffff_0000_0000 RAM of C1 step1 and the legacy
++ * exit-port MMIO device were removed in step2 (halt is now semihosting
++ * SYS_EXIT, ADR-0020 D8).
++ *   RAM@0:      0x0000_0000_0000 .. +DADAO_RAM_SIZE   (16 MiB, RWX; cfxha 0)
 + *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff  (64 KiB, RO+X)
 + *
 + * Loading paths per ADR-0004 D2.2/D2.3 (rev. 2026-10-06, SPEC-107t) and
@@ -64,7 +64,6 @@ index 0000000..ebb86bd
 +#include "hw/core/loader.h"
 +#include "hw/core/cpu.h"
 +#include "hw/core/qdev-properties.h"
-+#include "hw/core/sysbus.h"
 +#include "hw/core/boards.h"
 +#include "system/memory.h"
 +#include "system/address-spaces.h"
@@ -72,80 +71,6 @@ index 0000000..ebb86bd
 +#include "system/runstate.h"
 +#include "qom/object.h"
 +#include "target/dadao/cpu.h"
-+#include "accel/tcg/cpu-loop.h"
-+
-+/* Exit port MMIO handler */
-+typedef struct DadaoExitPort {
-+    SysBusDevice parent_obj;
-+    MemoryRegion mr;
-+} DadaoExitPort;
-+
-+#define TYPE_DADAO_EXIT_PORT "dadao-exit-port"
-+OBJECT_DECLARE_SIMPLE_TYPE(DadaoExitPort, DADAO_EXIT_PORT)
-+
-+static uint64_t dadao_exit_port_read(void *opaque, hwaddr addr, unsigned size)
-+{
-+    /* Exit port is write-only; reads trigger ILLI */
-+    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
-+                                           DADAO_EXIT_ILLI);
-+    return 0;
-+}
-+
-+static void dadao_exit_port_write(void *opaque, hwaddr addr,
-+                                  uint64_t data, unsigned size)
-+{
-+    /*
-+     * Per ADR-0004 D3:
-+     * - Only 8-byte (octa) writes are valid exit port accesses
-+     * - Write value & 0xFF = exit code propagated to host $?
-+     * - Non-8B writes trigger ILLI (0x88)
-+     *
-+     * .impl.max_access_size = 8 prevents TCG from splitting 64-bit MMIO
-+     * writes into two 32-bit writes. Without this, a guest st.o would be
-+     * split into two 4-byte writes, neither of which is a valid exit.
-+     */
-+    if (size != 8) {
-+        qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
-+                                               DADAO_EXIT_ILLI);
-+        cpu_loop_exit(current_cpu);
-+        return;
-+    }
-+
-+    int exit_code = (int)(data & 0xFF);
-+    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_SHUTDOWN,
-+                                           exit_code);
-+    /* Per ADR-0011 D1: cpu_loop_exit longjmps back to cpu_exec's setjmp
-+     * point, guaranteeing no further guest instructions execute after the
-+     * exit port write. This prevents subsequent instructions (e.g., FAIL
-+     * stores, UNDI terminators) from overriding the locked exit code. */
-+    cpu_loop_exit(current_cpu);
-+}
-+
-+static const MemoryRegionOps dadao_exit_port_ops = {
-+    .read = dadao_exit_port_read,
-+    .write = dadao_exit_port_write,
-+    .endianness = DEVICE_BIG_ENDIAN,
-+    .valid.min_access_size = 1,
-+    .valid.max_access_size = 8,
-+    .impl.max_access_size = 8,
-+};
-+
-+static void dadao_exit_port_init(Object *obj)
-+{
-+    DadaoExitPort *s = DADAO_EXIT_PORT(obj);
-+    SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
-+
-+    memory_region_init_io(&s->mr, obj, &dadao_exit_port_ops, s,
-+                          "dadao-exit-port", DADAO_EXIT_PORT_SIZE);
-+    sysbus_init_mmio(sbd, &s->mr);
-+}
-+
-+static const TypeInfo dadao_exit_port_info = {
-+    .name = TYPE_DADAO_EXIT_PORT,
-+    .parent = TYPE_SYS_BUS_DEVICE,
-+    .instance_size = sizeof(DadaoExitPort),
-+    .instance_init = dadao_exit_port_init,
-+};
 +
 +/* ---------------------------------------------------------------------------
 + * Image loading
@@ -444,8 +369,7 @@ index 0000000..ebb86bd
 +static void dadao_m1_init(MachineState *machine)
 +{
 +    DadaoCPU *cpu;
-+    MemoryRegion *ram, *ram0, *rom, *system_memory;
-+    DadaoExitPort *exit_port;
++    MemoryRegion *ram, *rom, *system_memory;
 +    Error *err = NULL;
 +    ssize_t bios_size, kernel_size;
 +    const char *kernel = machine->kernel_filename;
@@ -461,14 +385,9 @@ index 0000000..ebb86bd
 +
 +    system_memory = get_system_memory();
 +
-+    /* RAM@0 (C1 step1, ADR-0004 R3 / ADR-0020 D15): 0x0000_0000_0000,
-+     * cfxha 0 (umon), for bootrom/SEE.  Coexists with the legacy RAM below
-+     * (step2 migration removes the legacy segment). */
-+    ram0 = g_new(MemoryRegion, 1);
-+    memory_region_init_ram(ram0, NULL, "dadao-ram0", DADAO_RAM0_SIZE, &error_fatal);
-+    memory_region_add_subregion(system_memory, DADAO_RAM0_BASE, ram0);
-+
-+    /* RAM (legacy, C1 step1 transition): 0xffff_0000_0000, 16 MiB */
++    /* RAM@0 (C1 step2, ADR-0004 R3 / ADR-0020 D15): the single 16 MiB RAM
++     * segment at 0x0000_0000_0000 (cfxha 0, umon).  The legacy RAM segment
++     * and the exit-port device were removed in step2. */
 +    ram = g_new(MemoryRegion, 1);
 +    memory_region_init_ram(ram, NULL, "dadao-ram", DADAO_RAM_SIZE, &error_fatal);
 +    memory_region_add_subregion(system_memory, DADAO_RAM_BASE, ram);
@@ -477,11 +396,6 @@ index 0000000..ebb86bd
 +    rom = g_new(MemoryRegion, 1);
 +    memory_region_init_rom(rom, NULL, "dadao-rom", DADAO_ROM_SIZE, &error_fatal);
 +    memory_region_add_subregion(system_memory, DADAO_ROM_BASE, rom);
-+
-+    /* Exit port: 0xffff_8000_0000, 8 B */
-+    exit_port = DADAO_EXIT_PORT(qdev_new(TYPE_DADAO_EXIT_PORT));
-+    sysbus_realize_and_unref(SYS_BUS_DEVICE(exit_port), &error_fatal);
-+    sysbus_mmio_map(SYS_BUS_DEVICE(exit_port), 0, DADAO_EXIT_PORT_BASE);
 +
 +    /* The kernel's magic selects the loading path (ADR-0004 D2.3). */
 +    if (dadao_kernel_is_elf(kernel)) {
@@ -587,7 +501,6 @@ index 0000000..ebb86bd
 +
 +static void dadao_m1_machine_init(void)
 +{
-+    type_register_static(&dadao_exit_port_info);
 +    type_register_static(&dadao_m1_type);
 +}
 +

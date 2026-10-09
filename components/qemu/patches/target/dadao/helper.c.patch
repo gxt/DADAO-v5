@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..cbd943c
+index 0000000..4c178e8
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,995 @@
+@@ -0,0 +1,981 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -112,33 +112,19 @@ index 0000000..cbd943c
 +    /*
 +     * M1: no MMU, 1:1 virtual-to-physical mapping.
 +     * Check if address falls within known regions:
-+     *   RAM@0: 0x0000_0000_0000 .. +DADAO_RAM0_SIZE (cfxha 0/umon; C1 step1)
-+     *   RAM:  0xffff_0000_0000 .. 0xffff_00ff_ffff (16 MiB, legacy)
-+     *   Exit: 0xffff_8000_0000 .. 0xffff_8000_0007 (8 B)
-+     *   ROM:  0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB)
++     *   RAM@0: 0x0000_0000_0000 .. +DADAO_RAM_SIZE (16 MiB, cfxha 0/umon)
++     *   ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB)
 +     * Unmapped/illegal accesses are classified per ADR-0020 D15 (see below).
 +     */
 +    uint64_t addr = address;
 +    int prot;
 +    hwaddr paddr;
 +
-+    /* RAM@0 (C1 step1, ADR-0004 R3): new RAM at 0x0000_0000_0000 (cfxha 0,
-+     * umon) for bootrom/SEE.  Coexists with the legacy RAM below. */
-+    if (addr >= DADAO_RAM0_BASE && addr < DADAO_RAM0_BASE + DADAO_RAM0_SIZE) {
-+        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
-+        paddr = addr;
-+        goto map;
-+    }
-+
++    /* RAM@0 (C1 step2, ADR-0004 R3): the single 16 MiB RAM at
++     * 0x0000_0000_0000 (cfxha 0, umon).  The legacy RAM segment and the
++     * exit-port device were removed in step2. */
 +    if (addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) {
 +        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
-+        paddr = addr;
-+        goto map;
-+    }
-+
-+    if (addr >= DADAO_EXIT_PORT_BASE &&
-+        addr < DADAO_EXIT_PORT_BASE + DADAO_EXIT_PORT_SIZE) {
-+        prot = PAGE_READ | PAGE_WRITE;
 +        paddr = addr;
 +        goto map;
 +    }
@@ -168,7 +154,7 @@ index 0000000..cbd943c
 +     * Machine-level fault classification (ADR-0020 D15 / ADR-0004 R3):
 +     *  - inside the umon segment (cfxha 0) but outside RAM@0 => illegal
 +     *    access/fetch to the internal address space => CFXMEM (exit 0x81).
-+     *  - addresses elsewhere (including the legacy power segment 63) keep the
++     *  - addresses elsewhere (including the power segment 63) keep the
 +     *    historical test-machine unmapped code 0x87 (ADR-0004 D5.8).
 +     * Data accesses and instruction fetches are treated identically here: the
 +     * fetch path reaches this function through get_page_addr_code ->

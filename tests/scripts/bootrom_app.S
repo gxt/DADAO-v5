@@ -1,9 +1,10 @@
 ; bootrom_app.S — DADAO-v5 sample user application for the SEE bootrom E2E
 ; (QEMU-047t, M5).
 ;
-; Loaded as a flat binary by `-kernel` at the legacy RAM base
-; 0xffff_0000_0000 (ADR-0004 D2.3 path B fixed entry) and entered there by the
-; bootrom in `user` mode (Machine-01 §2/§6).  It is the first real user of
+; Loaded as a flat binary by `-kernel` at the RAM@0 base
+; 0x0000_0000_0000 (ADR-0004 D2.3 path B fixed entry; single RAM segment since
+; C1 step2) and entered there by the bootrom in `user` mode (Machine-01 §2/§6).
+; It is the first real user of
 ; `cfx2rd` / `trap` / `escape` in an application, plus semihosting `SYS_EXIT`.
 ;
 ; What it does:
