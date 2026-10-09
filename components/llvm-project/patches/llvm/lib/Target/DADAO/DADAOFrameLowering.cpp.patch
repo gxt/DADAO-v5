@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
 new file mode 100644
-index 000000000..5f608cf44
+index 000000000..a1714473b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
-@@ -0,0 +1,440 @@
+@@ -0,0 +1,446 @@
 +//===-- DADAOFrameLowering.cpp - DADAO Frame Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -200,11 +200,15 @@ index 000000000..5f608cf44
 +  const DebugLoc DL = MBB.findDebugLoc(MBBI);
 +
 +  // Group the callee-saved registers by bank and sort by register number so a
-+  // contiguous run is a maximal ascending sequence.
-+  SmallVector<std::pair<unsigned, int>, 16> Bank[2];
++  // contiguous run is a maximal ascending sequence.  Banks: 0 = RD, 1 = RB,
++  // 2 = RF.  (RF callee-saved regs are rf32–rf63; they are always spilled
++  // per-register — see below.)
++  SmallVector<std::pair<unsigned, int>, 16> Bank[3];
 +  for (const CalleeSavedInfo &CS : CSI) {
 +    const unsigned Reg = CS.getReg();
-+    const unsigned BankIdx = DADAO::GPRBRegClass.contains(CS.getReg()) ? 1 : 0;
++    const unsigned BankIdx = DADAO::GPRBRegClass.contains(Reg)   ? 1
++                             : DADAO::GPRFRegClass.contains(Reg) ? 2
++                                                                 : 0;
 +    Bank[BankIdx].push_back({Reg, CS.getFrameIdx()});
 +  }
 +  for (auto &B : Bank)
@@ -227,8 +231,9 @@ index 000000000..5f608cf44
 +
 +  Register FrameReg = TRI->getFrameRegister(MF);
 +
-+  for (unsigned Idx = 0; Idx < 2; ++Idx) {
++  for (unsigned Idx = 0; Idx < 3; ++Idx) {
 +    const bool IsRB = Idx == 1;
++    const bool IsRF = Idx == 2;
 +    ArrayRef<std::pair<unsigned, int>> Regs(Bank[Idx]);
 +    const unsigned N = Regs.size();
 +    for (unsigned i = 0; i < N;) {
@@ -241,8 +246,9 @@ index 000000000..5f608cf44
 +      // leave a single register in the range once the top becomes the offset
 +      // holder, so only runs of >= 3 batch that way.  A GPRB batch with a
 +      // nonzero offset additionally needs an add.si-representable offset for
-+      // the RB offset-holder setup.
-+      bool CanRun = (j > i);
++      // the RB offset-holder setup.  RF runs are always spilled per-register
++      // (there is no ldm/stm RF batch path here).
++      bool CanRun = (j > i) && !IsRF;
 +      int64_t Off0 = 0;
 +      if (CanRun) {
 +        Off0 = getFrameIndexReference(MF, Regs[i].second, FrameReg).getFixed();

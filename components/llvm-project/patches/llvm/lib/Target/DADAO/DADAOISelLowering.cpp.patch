@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..fb04ee2d1
+index 000000000..20b8e8155
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,659 @@
+@@ -0,0 +1,757 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -56,6 +56,11 @@ index 000000000..fb04ee2d1
 +  // are forced into GPRB by the calling convention / ISel in LLVM-034t.
 +  addRegisterClass(MVT::i64, &DADAO::GPRDRegClass);
 +
++  // M6 (LLVM-066t): FP values live in the RF bank.  f64 and f32 share the one
++  // 64-bit GPRF class (an ft value occupies the low 32 bits).
++  addRegisterClass(MVT::f64, &DADAO::GPRFRegClass);
++  addRegisterClass(MVT::f32, &DADAO::GPRFRegClass);
++
 +  // SP = rb1: needed by the calling convention (LowerCall reads it for the
 +  // outgoing stack-argument area) and the call-frame pseudos (LLVM-039t).
 +  setStackPointerRegisterToSaveRestore(DADAO::rb1);
@@ -68,6 +73,10 @@ index 000000000..fb04ee2d1
 +  // into a BR_CC.
 +  setOperationAction(ISD::BR_CC, MVT::i64, Custom);
 +  setOperationAction(ISD::BRCOND, MVT::Other, Custom);
++  // FP compare+branch reaches us as BR_CC (DAGCombiner fuses fcmp+br) or as
++  // BRCOND over an FP setcc; both are custom (M6, LLVM-066t).
++  setOperationAction(ISD::BR_CC, MVT::f32, Custom);
++  setOperationAction(ISD::BR_CC, MVT::f64, Custom);
 +
 +  // Narrow memory accesses (LLVM-036t; C13, ADR-0018).  All load extension
 +  // kinds and truncating stores between i64 and i8/i16/i32 are legal: the
@@ -90,6 +99,43 @@ index 000000000..fb04ee2d1
 +  setOperationAction(ISD::VAARG, MVT::Other, Custom);
 +  setOperationAction(ISD::VACOPY, MVT::Other, Expand);
 +  setOperationAction(ISD::VAEND, MVT::Other, Expand);
++
++  // Floating point (M6, LLVM-066t).  Natively supported (Legal; patterns in
++  // DADAOCodeGen.td): + - * /, sqrt, negate, absolute value, and the
++  // int<->fp / fp<->fp conversions.  Every other FP op is expanded; a few of
++  // those expansions are libcalls (e.g. frem -> fmod), which a freestanding
++  // program must avoid or supply itself.
++  for (MVT VT : {MVT::f32, MVT::f64}) {
++    setOperationAction(
++        {ISD::FADD, ISD::FSUB, ISD::FMUL, ISD::FDIV, ISD::FSQRT, ISD::FNEG},
++        VT, Legal);
++    setOperationAction(
++        {ISD::FABS, ISD::FREM, ISD::FMA, ISD::FCOPYSIGN, ISD::FSIN, ISD::FCOS,
++         ISD::FTAN, ISD::FASIN, ISD::FACOS, ISD::FATAN, ISD::FATAN2,
++         ISD::FSINH, ISD::FCOSH, ISD::FTANH, ISD::FPOW, ISD::FPOWI, ISD::FEXP,
++         ISD::FEXP2, ISD::FEXP10, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
++         ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FRINT, ISD::FNEARBYINT,
++         ISD::FROUND, ISD::FROUNDEVEN, ISD::FMINNUM, ISD::FMAXNUM,
++         ISD::FMINIMUM, ISD::FMAXIMUM, ISD::FCANONICALIZE, ISD::FLDEXP,
++         ISD::FFREXP, ISD::FGETSIGN, ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT},
++        VT, Expand);
++  }
++  // f64 <-> f32 conversions (ft2fo / fo2ft).  FP_ROUND is keyed on the smaller
++  // (result) type, FP_EXTEND on the larger (result) type.
++  setOperationAction(ISD::FP_ROUND, MVT::f32, Legal);
++  setOperationAction(ISD::FP_EXTEND, MVT::f64, Legal);
++  // A floating-point constant is materialized natively (bit pattern in GPRD +
++  // rd2rf, DADAOISelDAGToDAG::Select), so tell the DAG it is legal: this keeps
++  // DAGCombiner::convertSelectOfFPConstantsToLoadOffset from reaching for a
++  // constant pool, which this backend does not have.
++  setOperationAction(ISD::ConstantFP, MVT::f32, Legal);
++  setOperationAction(ISD::ConstantFP, MVT::f64, Legal);
++  // Integer <-> FP conversions.  FP_TO_* are keyed on the integer result;
++  // SINT/UINT_TO_FP on the integer operand.  The integer side is always i64
++  // (narrower integers are promoted by the type legalizer first).
++  setOperationAction({ISD::FP_TO_SINT, ISD::FP_TO_UINT, ISD::SINT_TO_FP,
++                      ISD::UINT_TO_FP},
++                     MVT::i64, Legal);
 +
 +  computeRegisterProperties(STI.getRegisterInfo());
 +
@@ -117,6 +163,8 @@ index 000000000..fb04ee2d1
 +    return "DADAOISD::CMP";
 +  case DADAOISD::CMPU:
 +    return "DADAOISD::CMPU";
++  case DADAOISD::FCMP:
++    return "DADAOISD::FCMP";
 +  case DADAOISD::BRN:
 +    return "DADAOISD::BRN";
 +  case DADAOISD::BRNP:
@@ -151,11 +199,17 @@ index 000000000..fb04ee2d1
 +  // Outs here comes from GetReturnInfo (FunctionLoweringInfo::CanLowerReturn
 +  // and SelectionDAGBuilder::LowerCallTo), whose ArgFlags do *not* carry the
 +  // pointer bit; the per-element OrigTy is the authoritative bank witness
-+  // (GetReturnInfo sets OrigTy to the flattened element type).
-+  unsigned NumInt = 0, NumPtr = 0;
++  // (GetReturnInfo sets OrigTy to the flattened element type).  The three
++  // return banks rd/rb/rf (contract-abi.md §6.1) are counted independently.
++  unsigned NumInt = 0, NumPtr = 0, NumFP = 0;
 +  for (const ISD::OutputArg &Arg : Outs) {
-+    if (Arg.OrigTy && Arg.OrigTy->isPointerTy()) {
++    const Type *Ty = Arg.OrigTy;
++    if (Ty && Ty->isPointerTy()) {
 +      if (++NumPtr > 8)
++        return false;
++    } else if (Ty && Ty->isFloatingPointTy()) {
++      // rf8..rf15 (M6, contract-abi.md §4.4/§6.1, LLVM-066t).
++      if (++NumFP > 8)
 +        return false;
 +    } else {
 +      if (++NumInt > 8)
@@ -197,18 +251,20 @@ index 000000000..fb04ee2d1
 +  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
 +    CCValAssign &VA = ArgLocs[i];
 +    const EVT LocVT = VA.getLocVT();
-+    if (LocVT != MVT::i64)
++    if (LocVT != MVT::i64 && LocVT != MVT::f32 && LocVT != MVT::f64)
 +      report_fatal_error(
-+          "DADAO: only scalar/pointer arguments are supported in M3");
++          "DADAO: only scalar/pointer/floating-point arguments are supported");
 +
 +    SDValue ArgValue;
 +    if (VA.isRegLoc()) {
 +      // Bank comes from the register CC_DADAO actually assigned (rb* for
-+      // pointers, rd* for scalars); the vreg class must match it so the
-+      // register allocator cannot put a pointer in RD (C1/C2).
++      // pointers, rd* for scalars, rf* for floating point); the vreg class must
++      // match it so the register allocator cannot put a value in the wrong bank
++      // (C1/C2; FP: contract-abi.md §4.1).
 +      const TargetRegisterClass *RC =
-+          DADAO::GPRBRegClass.contains(VA.getLocReg()) ? &DADAO::GPRBRegClass
-+                                                       : &DADAO::GPRDRegClass;
++          DADAO::GPRBRegClass.contains(VA.getLocReg())   ? &DADAO::GPRBRegClass
++          : DADAO::GPRFRegClass.contains(VA.getLocReg()) ? &DADAO::GPRFRegClass
++                                                         : &DADAO::GPRDRegClass;
 +      Register VReg = RegInfo.createVirtualRegister(RC);
 +      RegInfo.addLiveIn(VA.getLocReg(), VReg);
 +      ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, LocVT);
@@ -568,13 +624,17 @@ index 000000000..fb04ee2d1
 +  SDValue Dest = Op.getOperand(2);
 +  SDLoc DL(Op);
 +
-+  // `br (icmp ...)` reaches us as SETCC + BRCOND (SelectionDAGBuilder no longer
-+  // builds BR_CC directly).  Fold the setcc back into a compare + branch.
-+  if (CondV.getOpcode() == ISD::SETCC &&
-+      CondV.getOperand(0).getValueType() == MVT::i64) {
-+    ISD::CondCode CC = cast<CondCodeSDNode>(CondV.getOperand(2))->get();
-+    return LowerBR_CC(Chain, CC, CondV.getOperand(0), CondV.getOperand(1),
-+                      Dest, DL, DAG);
++  // `br (icmp ...)` / `br (fcmp ...)` reaches us as SETCC + BRCOND
++  // (SelectionDAGBuilder no longer builds BR_CC directly).  Fold the setcc back
++  // into a compare + branch.  The integer path (i64) and the FP path
++  // (f32/f64, M6/LLVM-066t) are both handled by LowerBR_CC.
++  if (CondV.getOpcode() == ISD::SETCC) {
++    const EVT OpVT = CondV.getOperand(0).getValueType();
++    if (OpVT == MVT::i64 || OpVT == MVT::f32 || OpVT == MVT::f64) {
++      ISD::CondCode CC = cast<CondCodeSDNode>(CondV.getOperand(2))->get();
++      return LowerBR_CC(Chain, CC, CondV.getOperand(0), CondV.getOperand(1),
++                        Dest, DL, DAG);
++    }
 +  }
 +
 +  // Generic `br i1 %c`: test the low bit against zero (setne 0).  Zero-extend
@@ -614,6 +674,44 @@ index 000000000..fb04ee2d1
 +    }
 +    return BrOn(Op, Cmp(Unsigned));
 +  };
++
++  // --- Floating-point compare + branch (M6, LLVM-066t) ---
++  // The DADAO FP compare writes -1 / 0 / 1 for ordered results (lhs <, ==, > rhs)
++  // and a positive NaN value for unordered (contract-fp.md §8).  The same
++  // register zero-test branches then implement the C predicates; `>`/`>=` are
++  // expressed by swapping the operands into `<`/`<=`.  Predicates outside the
++  // C set (unordered-family, ordered-not-equal, ord/uno) are not needed by C
++  // and fail loudly rather than silently miscompile.
++  if (LHS.getValueType().isFloatingPoint()) {
++    auto FCmp = [&](SDValue A, SDValue B) {
++      return DAG.getNode(DADAOISD::FCMP, DL, MVT::i64, A, B);
++    };
++    switch (CC) {
++    case ISD::SETOEQ: // == : rc == 0              (unordered NaN -> not 0)
++      return BrOn(DADAOISD::BRZ, FCmp(LHS, RHS));
++    case ISD::SETUNE: // != : rc != 0              (unordered NaN -> true)
++      return BrOn(DADAOISD::BRNZ, FCmp(LHS, RHS));
++    case ISD::SETOLT: // <  : rc < 0
++      return BrOn(DADAOISD::BRN, FCmp(LHS, RHS));
++    case ISD::SETOLE: // <= : rc <= 0
++      return BrOn(DADAOISD::BRNP, FCmp(LHS, RHS));
++    case ISD::SETOGT: // >  : ordered (rhs < lhs)
++      return BrOn(DADAOISD::BRN, FCmp(RHS, LHS));
++    case ISD::SETOGE: // >= : ordered (rhs <= lhs)
++      return BrOn(DADAOISD::BRNP, FCmp(RHS, LHS));
++    case ISD::SETUGT: // unordered or >  : rc > 0
++      return BrOn(DADAOISD::BRP, FCmp(LHS, RHS));
++    case ISD::SETUGE: // unordered or >= : rc >= 0
++      return BrOn(DADAOISD::BRNN, FCmp(LHS, RHS));
++    case ISD::SETULT: // unordered or <  : (= ugt(rhs, lhs))
++      return BrOn(DADAOISD::BRP, FCmp(RHS, LHS));
++    case ISD::SETULE: // unordered or <= : (= uge(rhs, lhs))
++      return BrOn(DADAOISD::BRNN, FCmp(RHS, LHS));
++    default:
++      report_fatal_error(
++          "DADAO: unsupported floating-point branch condition");
++    }
++  }
 +
 +  switch (CC) {
 +  default:

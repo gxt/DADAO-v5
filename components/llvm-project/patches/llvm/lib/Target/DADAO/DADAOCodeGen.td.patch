@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..ad8a84e86
+index 000000000..32448f21c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,363 @@
+@@ -0,0 +1,476 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -96,6 +96,12 @@ index 000000000..ad8a84e86
 +
 +def DADAOCmp  : SDNode<"DADAOISD::CMP",  SDTIntBinOp>;
 +def DADAOCmpU : SDNode<"DADAOISD::CMPU", SDTIntBinOp>;
++
++// Floating-point compare (M6, LLVM-066t): result i64 in {-1, 0, 1} ordered, or a
++// positive NaN value for unordered (contract-fp.md §8).  Operands share the
++// same FP type (f64 -> foqcmp, f32 -> ftqcmp).
++def SDT_DADAOFCmp : SDTypeProfile<1, 2, [SDTCisVT<0, i64>, SDTCisSameAs<1, 2>]>;
++def DADAOFCmp : SDNode<"DADAOISD::FCMP", SDT_DADAOFCmp>;
 +
 +def DADAOBrz  : SDNode<"DADAOISD::BRZ",  SDT_DADAOBr1, [SDNPHasChain]>;
 +def DADAOBrnz : SDNode<"DADAOISD::BRNZ", SDT_DADAOBr1, [SDNPHasChain]>;
@@ -367,3 +373,110 @@ index 000000000..ad8a84e86
 +
 +// Unconditional branch -> jump (iiii, PC-relative 24-bit).
 +def : Pat<(br bb:$d), (jump_iiii bb:$d)>;
++
++//===----------------------------------------------------------------------===//
++// Floating-point CodeGen (M6, LLVM-066t; contract-abi.md §4/§6, contract-fp.md)
++//
++// FP values live in the RF bank (GPRF, 64-bit; f32 in the low 32 bits).  The
++// f64 instructions (fo*) operate on octa float, the f32 instructions (ft*) on
++// tetra float.  rf0 (FCSR) is a legal *source* only (an FP-op destination of
++// rf0 is an ILLI form), which is exactly what the fabs patterns exploit.
++//===----------------------------------------------------------------------===//
++
++// --- f64 (fo): arithmetic / sqrt / neg / abs (orrr, orri) ---
++def : Pat<(fadd f64:$a, f64:$b), (foadd_orrr_rf f64:$a, f64:$b)>;
++def : Pat<(fsub f64:$a, f64:$b), (fosub_orrr_rf f64:$a, f64:$b)>;
++def : Pat<(fmul f64:$a, f64:$b), (fomul_orrr_rf f64:$a, f64:$b)>;
++def : Pat<(fdiv f64:$a, f64:$b), (fodiv_orrr_rf f64:$a, f64:$b)>;
++// rootn(x, 2): the only legal n (contract-fp.md §6).
++def : Pat<(fsqrt f64:$a), (foroot_orri_rf f64:$a, 2)>;
++// fneg(x) = sgnn(x, x) (contract-fp.md §7: sgnn with rfHC == rfHD negates).
++def : Pat<(fneg f64:$a), (fosgnn_orrr_rf f64:$a, f64:$a)>;
++// NB: fabs via `sgnj(x, rf0)` is NOT expressed as a TableGen pattern: rf0 lives
++// in the two-typed GPRF class (f64/f32), so a bare physical-register operand in
++// the pattern result is ambiguous.  fabs stays Expand (a libcall); the
++// freestanding tests do not use it.
++
++// --- f32 (ft): arithmetic / sqrt / neg / abs ---
++def : Pat<(fadd f32:$a, f32:$b), (ftadd_orrr_rf f32:$a, f32:$b)>;
++def : Pat<(fsub f32:$a, f32:$b), (ftsub_orrr_rf f32:$a, f32:$b)>;
++def : Pat<(fmul f32:$a, f32:$b), (ftmul_orrr_rf f32:$a, f32:$b)>;
++def : Pat<(fdiv f32:$a, f32:$b), (ftdiv_orrr_rf f32:$a, f32:$b)>;
++def : Pat<(fsqrt f32:$a), (ftroot_orri_rf f32:$a, 2)>;
++def : Pat<(fneg f32:$a), (ftsgnn_orrr_rf f32:$a, f32:$a)>;
++
++// --- FP compare: DADAOISD::FCMP -> foqcmp / ftqcmp (orrr; result in GPRD) ---
++def : Pat<(DADAOFCmp f64:$l, f64:$r), (foqcmp_orrr_rf f64:$l, f64:$r)>;
++def : Pat<(DADAOFCmp f32:$l, f32:$r), (ftqcmp_orrr_rf f32:$l, f32:$r)>;
++
++// --- FP select_cc -> DADAO cs.* conditional assign (contract-isa.md §6.5) ---
++// A `select` on an FP condition reaches ISel as SELECT_CC (no FP setcc-as-value
++// in this backend).  The FCMP result rc is -1/0/1 for ordered results and a
++// positive NaN for unordered, so every C predicate is one cs test (cs.n/cs.z/
++// cs.p) with possible operand and/or true/false swapping; `>`/`>=` swap the
++// compare operands (rc' = cmp(b, a)).
++multiclass DADAOFPSelCC<Instruction Cmp, ValueType CmpVT, ValueType ValVT,
++                        Instruction CsN, Instruction CsZ, Instruction CsP> {
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETOLT),
++            (CsN (Cmp CmpVT:$a, CmpVT:$b), ValVT:$t, ValVT:$f)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETOLE),
++            (CsP (Cmp CmpVT:$a, CmpVT:$b), ValVT:$f, ValVT:$t)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETOGT),
++            (CsN (Cmp CmpVT:$b, CmpVT:$a), ValVT:$t, ValVT:$f)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETOGE),
++            (CsP (Cmp CmpVT:$b, CmpVT:$a), ValVT:$f, ValVT:$t)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETOEQ),
++            (CsZ (Cmp CmpVT:$a, CmpVT:$b), ValVT:$t, ValVT:$f)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETUNE),
++            (CsZ (Cmp CmpVT:$a, CmpVT:$b), ValVT:$f, ValVT:$t)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETUGT),
++            (CsP (Cmp CmpVT:$a, CmpVT:$b), ValVT:$t, ValVT:$f)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETUGE),
++            (CsN (Cmp CmpVT:$a, CmpVT:$b), ValVT:$f, ValVT:$t)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETULT),
++            (CsP (Cmp CmpVT:$b, CmpVT:$a), ValVT:$t, ValVT:$f)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETULE),
++            (CsN (Cmp CmpVT:$b, CmpVT:$a), ValVT:$f, ValVT:$t)>;
++}
++
++defm FPSelCC_f64_rd
++    : DADAOFPSelCC<foqcmp_orrr_rf, f64, i64, cs_n_rd, cs_z_rd, cs_p_rd>;
++defm FPSelCC_f64_rf
++    : DADAOFPSelCC<foqcmp_orrr_rf, f64, f64, cs_n_rrrr_rf, cs_z_rrrr_rf,
++                   cs_p_rrrr_rf>;
++defm FPSelCC_f32_rd
++    : DADAOFPSelCC<ftqcmp_orrr_rf, f32, i64, cs_n_rd, cs_z_rd, cs_p_rd>;
++defm FPSelCC_f32_rf
++    : DADAOFPSelCC<ftqcmp_orrr_rf, f32, f32, cs_n_rrrr_rf, cs_z_rrrr_rf,
++                   cs_p_rrrr_rf>;
++
++// --- FP loads/stores (RF bank; ld.t/st.t 4B, ld.o/st.o 8B) ---
++def : Pat<(f64 (load (DADAOAddr GPRB:$base, simm12imm:$off))),
++          (ld_o_rrii_rf GPRB:$base, simm12imm:$off)>;
++def : Pat<(store f64:$val, (DADAOAddr GPRB:$base, simm12imm:$off)),
++          (st_o_rrii_rf f64:$val, GPRB:$base, simm12imm:$off)>;
++def : Pat<(f32 (load (DADAOAddr GPRB:$base, simm12imm:$off))),
++          (ld_t_rrii_rf GPRB:$base, simm12imm:$off)>;
++def : Pat<(store f32:$val, (DADAOAddr GPRB:$base, simm12imm:$off)),
++          (st_t_rrii_rf f32:$val, GPRB:$base, simm12imm:$off)>;
++
++// --- FP format conversions (orri; immu6 = 1 register) ---
++// fpext f32->f64 = ft2fo ; fptrunc f64->f32 = fo2ft (contract-fp.md §2).
++def : Pat<(f64 (fpextend f32:$a)), (ft2fo_orri_rf f32:$a, 1)>;
++def : Pat<(f32 (fpround f64:$a)), (fo2ft_orri_rf f64:$a, 1)>;
++
++// --- FP <-> integer conversions (orri; the int side is always i64) ---
++// fp_to_sint / fp_to_uint -> i octa (fo2io/ft2io for octa floats; signed i,
++// unsigned u).  A narrower (i32/i16/i8) integer result is promoted to i64 by
++// the type legalizer and truncated afterwards.
++def : Pat<(i64 (fp_to_sint f64:$a)), (fo2io_orri_rf f64:$a, 1)>;
++def : Pat<(i64 (fp_to_sint f32:$a)), (ft2io_orri_rf f32:$a, 1)>;
++def : Pat<(i64 (fp_to_uint f64:$a)), (fo2uo_orri_rf f64:$a, 1)>;
++def : Pat<(i64 (fp_to_uint f32:$a)), (ft2uo_orri_rf f32:$a, 1)>;
++// sint_to_fp / uint_to_fp <- i octa (io2fo/uo2fo).  A narrower integer source
++// is promoted to i64 before the conversion, so only the i64 patterns are
++// reachable.
++def : Pat<(f64 (sint_to_fp GPRD:$a)), (io2fo_orri_rf GPRD:$a, 1)>;
++def : Pat<(f32 (sint_to_fp GPRD:$a)), (io2ft_orri_rf GPRD:$a, 1)>;
++def : Pat<(f64 (uint_to_fp GPRD:$a)), (uo2fo_orri_rf GPRD:$a, 1)>;
++def : Pat<(f32 (uint_to_fp GPRD:$a)), (uo2ft_orri_rf GPRD:$a, 1)>;

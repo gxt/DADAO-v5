@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..9eff1a814
+index 000000000..74882fcc3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,360 @@
+@@ -0,0 +1,380 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -222,6 +222,26 @@ index 000000000..9eff1a814
 +      return;
 +    }
 +    break;
++  case ISD::ConstantFP: {
++    // Floating-point constants (M6, LLVM-066t).  There is no constant pool in
++    // this backend (M3/M4 have no .rodata pool path), so an f64/f32 constant is
++    // materialized as its integer bit pattern in GPRD (CONST_WYDE) and then
++    // copied bit-for-bit into RF (rd2rf, contract-fp.md §12).  The RF register
++    // always holds 64 bits; an ft value occupies the low 32 bits, so the high
++    // half is zero-filled and irrelevant.
++    const auto *CFP = cast<ConstantFPSDNode>(Node);
++    const APInt Bits = CFP->getValueAPF().bitcastToAPInt();
++    SDValue IntC =
++        CurDAG->getTargetConstant(Bits.getZExtValue(), SDLoc(Node), MVT::i64);
++    SDNode *Wyde =
++        CurDAG->getMachineNode(DADAO::CONST_WYDE, SDLoc(Node), MVT::i64, IntC);
++    SDValue One = CurDAG->getTargetConstant(1, SDLoc(Node), MVT::i64);
++    SDNode *M = CurDAG->getMachineNode(DADAO::rd2rf_orri_rf, SDLoc(Node),
++                                       Node->getValueType(0), SDValue(Wyde, 0),
++                                       One);
++    ReplaceNode(Node, M);
++    return;
++  }
 +  case ISD::FrameIndex: {
 +    // A frame object address used as a value (not folded into a load/store
 +    // address by SelectAddr): materialize it into a GPRB register.  The target

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..1658ac2af
+index 000000000..d88e338f0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,536 @@
+@@ -0,0 +1,557 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -41,6 +41,7 @@ index 000000000..1658ac2af
 +#include "llvm/CodeGen/MachineFrameInfo.h"
 +#include "llvm/CodeGen/MachineFunction.h"
 +#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/Support/ErrorHandling.h"
 +
 +using namespace llvm;
 +
@@ -66,12 +67,28 @@ index 000000000..1658ac2af
 +  (void)RenamableDest;
 +  (void)RenamableSrc;
 +
-+  // Banks (C1/C2, ADR-0018): RD = i64 data, RB = pointers/addresses.
++  // Banks (C1/C2, ADR-0018; RF M6/LLVM-066t): RD = i64 data, RB =
++  // pointers/addresses, RF = f64/f32.
 +  const bool DestRB = DADAO::GPRBRegClass.contains(DestReg);
 +  const bool SrcRB = DADAO::GPRBRegClass.contains(SrcReg);
++  const bool DestRF = DADAO::GPRFRegClass.contains(DestReg);
++  const bool SrcRF = DADAO::GPRFRegClass.contains(SrcReg);
++
++  // No single DADAO instruction moves between the RF and RB banks (RF<->RD uses
++  // rd2rf/rf2rd, RD<->RB uses rd2rb/rb2rd, RF<->RF uses fo2fo).  Fail loudly
++  // rather than silently misencoding a cross-bank copy.
++  if ((DestRF && SrcRB) || (DestRB && SrcRF))
++    report_fatal_error(
++        "DADAO: no single-instruction copy between the RF and RB banks");
 +
 +  unsigned Opc;
-+  if (DestRB && SrcRB)
++  if (DestRF && SrcRF)
++    Opc = DADAO::fo2fo_orri_rf; // RF -> RF (64-bit bit copy; immu6 = 1)
++  else if (DestRF)
++    Opc = DADAO::rd2rf_orri_rf; // RD -> RF
++  else if (SrcRF)
++    Opc = DADAO::rf2rd_orri_rf; // RF -> RD
++  else if (DestRB && SrcRB)
 +    Opc = DADAO::rb2rb; // RB -> RB
 +  else if (!DestRB && !SrcRB)
 +    Opc = DADAO::rd2rd; // RD -> RD
@@ -285,6 +302,8 @@ index 000000000..1658ac2af
 +    Opc = DADAO::st_o_rd;
 +  else if (DADAO::GPRBRegClass.hasSubClassEq(RC))
 +    Opc = DADAO::st_o_rb;
++  else if (DADAO::GPRFRegClass.hasSubClassEq(RC))
++    Opc = DADAO::st_o_rrii_rf; // RF bank store (contract-isa.md §11)
 +  else
 +    llvm_unreachable("DADAO: cannot spill this register class to a stack slot");
 +
@@ -318,6 +337,8 @@ index 000000000..1658ac2af
 +    Opc = DADAO::ld_o_rd;
 +  else if (DADAO::GPRBRegClass.hasSubClassEq(RC))
 +    Opc = DADAO::ld_o_rb;
++  else if (DADAO::GPRFRegClass.hasSubClassEq(RC))
++    Opc = DADAO::ld_o_rrii_rf; // RF bank load (contract-isa.md §11)
 +  else
 +    llvm_unreachable(
 +        "DADAO: cannot reload this register class from a stack slot");

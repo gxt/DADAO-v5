@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
 new file mode 100644
-index 000000000..0fe15cb65
+index 000000000..43478a55a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
-@@ -0,0 +1,263 @@
+@@ -0,0 +1,275 @@
 +//===-- DADAORegisterInfo.cpp - DADAO Register Information -------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -45,16 +45,19 @@ index 000000000..0fe15cb65
 +
 +const MCPhysReg *
 +DADAORegisterInfo::getCalleeSavedRegs(const MachineFunction * /*MF*/) const {
-+  // CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, ADR-0018 C6).
-+  // SP (rb1) is not part of the generic CSR (maintained symmetrically by the
-+  // prologue/epilogue).  FP (rb63) is *always* callee-saved: when hasFP it is
-+  // saved by the prologue to its own dedicated slot (st.o rb63, [sp, -8]);
-+  // otherwise it is an ordinary CSR member and spilled like any other.
++  // CSR = rd32..rd63 ∪ rb32..rb63 ∪ rf32..rf63 (contract-abi.md §4.5, C6; RF
++  // portion M6/LLVM-066t).  SP (rb1) is not part of the generic CSR (maintained
++  // symmetrically by the prologue/epilogue).  FP (rb63) is *always*
++  // callee-saved: when hasFP it is saved by the prologue to its own dedicated
++  // slot (st.o rb63, [sp, -8]); otherwise it is an ordinary CSR member and
++  // spilled like any other.
 +  //
-+  // The list is returned in DESCENDING register order (see below).  The set is
-+  // exactly CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, C6); only the
-+  // order differs, so getCallPreservedMask's CSR_RegMask (order-independent)
-+  // is unchanged.
++  // The list is returned in DESCENDING register order (see below).  The set must
++  // stay exactly equal to the generated `CSR` set, because the two are consumed
++  // by different passes: getCalleeSavedRegs drives PEI's prologue/epilogue
++  // spilling, while getCallPreservedMask's CSR_RegMask drives the register
++  // allocator's call-clobber model.  If they diverge, a callee-saved register
++  // the RA treats as preserved would not actually be saved (or vice versa).
 +  //
 +  // NB (contract-isa.md §15.1, rule `mreg_range_overflow`): the `ldm.*`/`stm.*`
 +  // immediate encodes a contiguous register range that must satisfy
@@ -71,6 +74,14 @@ index 000000000..0fe15cb65
 +  // and no single-range batch is possible.
 +  static const MCPhysReg ReversedCSR[] = {
 +#define CSR_ENTRY(reg) DADAO::reg,
++      CSR_ENTRY(rf63) CSR_ENTRY(rf62) CSR_ENTRY(rf61) CSR_ENTRY(rf60)
++      CSR_ENTRY(rf59) CSR_ENTRY(rf58) CSR_ENTRY(rf57) CSR_ENTRY(rf56)
++      CSR_ENTRY(rf55) CSR_ENTRY(rf54) CSR_ENTRY(rf53) CSR_ENTRY(rf52)
++      CSR_ENTRY(rf51) CSR_ENTRY(rf50) CSR_ENTRY(rf49) CSR_ENTRY(rf48)
++      CSR_ENTRY(rf47) CSR_ENTRY(rf46) CSR_ENTRY(rf45) CSR_ENTRY(rf44)
++      CSR_ENTRY(rf43) CSR_ENTRY(rf42) CSR_ENTRY(rf41) CSR_ENTRY(rf40)
++      CSR_ENTRY(rf39) CSR_ENTRY(rf38) CSR_ENTRY(rf37) CSR_ENTRY(rf36)
++      CSR_ENTRY(rf35) CSR_ENTRY(rf34) CSR_ENTRY(rf33) CSR_ENTRY(rf32)
 +      CSR_ENTRY(rb63) CSR_ENTRY(rb62) CSR_ENTRY(rb61) CSR_ENTRY(rb60)
 +      CSR_ENTRY(rb59) CSR_ENTRY(rb58) CSR_ENTRY(rb57) CSR_ENTRY(rb56)
 +      CSR_ENTRY(rb55) CSR_ENTRY(rb54) CSR_ENTRY(rb53) CSR_ENTRY(rb52)
@@ -132,9 +143,10 @@ index 000000000..0fe15cb65
 +  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
 +  if (TFI->hasFP(MF))
 +    Reserved.set(DADAO::rb63);
-+  // RF and RA are entirely non-allocatable in M1
-+  for (unsigned i = DADAO::rf0; i <= DADAO::rf63; ++i)
-+    Reserved.set(i);
++  // RF: only rf0 (FCSR) is reserved (contract-abi.md §1.4/§1.6; LLVM-066t).
++  // rf1–rf63 are allocatable (rf1–rf31 caller-saved, rf32–rf63 callee-saved).
++  Reserved.set(DADAO::rf0);
++  // RA is entirely non-allocatable (managed by call/ret).
 +  for (unsigned i = DADAO::ra0; i <= DADAO::ra63; ++i)
 +    Reserved.set(i);
 +  return Reserved;

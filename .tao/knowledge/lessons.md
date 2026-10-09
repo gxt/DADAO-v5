@@ -683,3 +683,8 @@
 - **规则**：改写历史前需留锚点时，**记 SHA 到 `.work/log/`**（+ `git reflog` 兜底），**不建 `backup/*` 锚点分支**——旧「在 `master` 上滚动 + push 前 squash」工作流使**每个任务都要改写 master**，遂每任务一个锚点分支且从不回收（本次清理 7 个）；**分支制（§8.26）落地后该需求消失**（历史改写只发生在私有分支内），确需改写时记 SHA 即可。
 - **依据/来源**：用户 2026-10-09 裁定（`LLVM-064t` 收尾，清理 7 个 `backup/*` 锚点分支）；同类 §8.26（每任务一分支）。
 
+### 8.30 LLVM 后端手写 `getCalleeSavedRegs`/`getReservedRegs` 须与生成的 `CSR` 集合相等（`LLVM-066t`，2026-10-09）
+
+- **规则**：自定义后端**手写**的 `getCalleeSavedRegs`（如 `ReversedCSR[]`）/ `getReservedRegs` 必须与 TableGen 生成的 `CSR_RegMask` / 保留集**集合相等**——新增 callee-saved 寄存器（如 RF 放开后 `rf32–rf63`）时二者须同步；不一致则 RA 视其为 preserved 而 PEI 不保存 ⇒ **静默坏寄存器**（无报错、仅运行期错值）。无常量池后端另须 `setOperationAction(ConstantFP, Legal)` + `DAGToDAG` 材料化，否则 FP 常量被折成常量池 load 而崩。
+- **依据/来源**：`LLVM-066t`（FP/RF codegen）；详见该任务书完成区「新发现/坑」①③。同类 §8.27。
+

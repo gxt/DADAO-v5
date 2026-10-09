@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..3d48b9fa9
+index 000000000..82092ffad
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,131 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -48,6 +48,12 @@ index 000000000..3d48b9fa9
 +  /// No condition flags (C17); the result is an ordinary data register value.
 +  CMP,
 +  CMPU,
++
++  /// Floating-point compare: (lhs, rhs) -> i64.  The DADAO FP compare writes
++  /// -1 / 0 / 1 for ordered results (lhs <, ==, > rhs) and a positive NaN value
++  /// for unordered; the result feeds the same br.* machinery as CMP (M6,
++  /// LLVM-066t; contract-fp.md §8).
++  FCMP,
 +
 +  /// Branch on a compare result (or any value) against zero:
 +  ///   (chain, val, dest).  val < 0 / <= 0 / > 0 / >= 0 / == 0 / != 0.

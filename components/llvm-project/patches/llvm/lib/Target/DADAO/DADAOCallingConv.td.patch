@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCallingConv.td b/llvm/lib/Target/DADAO/DADAOCallingConv.td
 new file mode 100644
-index 000000000..02ac88926
+index 000000000..df58ab27a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCallingConv.td
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,122 @@
 +//===-- DADAOCallingConv.td - DADAO Calling Conventions ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -50,6 +50,15 @@ index 000000000..02ac88926
 +  // Promote i8/i16/i32 arguments to i64 (contract-abi.md §4.2).
 +  CCIfType<[i8, i16, i32], CCPromoteToType<i64>>,
 +
++  // Floating-point arguments -> RF bank (rf16..rf31), independent count
++  // (contract-abi.md §4.1/§6.4; M6, LLVM-066t).  HFA elements (all f32 or all
++  // f64, <= 8 of them) flatten to individual floating-point scalars upstream,
++  // so each element is assigned one RF slot here, starting at rf16.
++  CCIfType<[f32, f64], CCAssignToReg<[rf16, rf17, rf18, rf19, rf20, rf21,
++                                       rf22, rf23, rf24, rf25, rf26, rf27,
++                                       rf28, rf29, rf30, rf31]>>,
++  CCIfType<[f32, f64], CCAssignToStack<8, 8>>,
++
 +  // Pointer/address arguments -> RB bank (rb16..rb31), independent count.
 +  // byval (>64B aggregate passed indirectly, contract-abi.md §6.4) is a
 +  // pointer argument and is routed here too.
@@ -72,6 +81,11 @@ index 000000000..02ac88926
 +  // Narrow returns are canonicalized by the callee (contract-abi.md §4.4, C5).
 +  CCIfType<[i8, i16, i32], CCPromoteToType<i64>>,
 +
++  // Floating-point return -> rf8..rf15 (M6, contract-abi.md §4.4/§6.1).  The
++  // first FP return lands in rf8, the next in rf9, ...; HFA results likewise.
++  CCIfType<[f32, f64], CCAssignToReg<[rf8, rf9, rf10, rf11, rf12, rf13, rf14,
++                                       rf15]>>,
++
 +  // Pointer return -> rb8..rb15 (M6, contract-abi.md §6.1): the first pointer
 +  // return lands in rb8, the next in rb9, ...  Each bank is counted
 +  // independently; exceeding 8 in any bank is handled by CanLowerReturn, which
@@ -88,7 +102,8 @@ index 000000000..02ac88926
 +//===----------------------------------------------------------------------===//
 +// Callee-saved registers / call-preserved mask
 +//
-+// CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, C6).  rb63 is included:
++// CSR = rd32..rd63 ∪ rb32..rb63 ∪ rf32..rf63 (contract-abi.md §4.5, C6;
++// RF 口径 M6/LLVM-066t).  rb63 is included:
 +// it is ALWAYS callee-saved — as FP when hasFP (saved to its own dedicated
 +// slot, st.o rb63, [sp, -8]), otherwise as an ordinary general callee-saved
 +// register.  SP (rb1) is NOT part of the generic CSR (it is maintained
@@ -109,4 +124,5 @@ index 000000000..02ac88926
 +//===----------------------------------------------------------------------===//
 +
 +def CSR : CalleeSavedRegs<(add (sequence "rd%u", 32, 63),
-+                               (sequence "rb%u", 32, 63))>;
++                               (sequence "rb%u", 32, 63),
++                               (sequence "rf%u", 32, 63))>;
