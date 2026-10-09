@@ -45,6 +45,7 @@
 | `SPEC-124t` | 调用约定契约收口 | spec | `contract-abi §6` 3 项 `[OPEN]`（多返回值声明顺序/red zone/`i128`）消解 | `SPEC-122t` |
 | `SPEC-125m` | M6 spec 里程碑 | spec | `m` 文件 | `SPEC-122t`~`124t` |
 | `SPEC-126t` | 系统调用/半托管返回 `rd8` | spec | 系统调用（`DADAO-22`/`DADAO-23`/`DADAO-21 §系统调用规范`）与半托管（`Machine-01 §5`）服务返回寄存器 `rd31 → rd8` + `contract-see §5`/`contract-semihosting` 同步 + 锁同步；**逐条分类、不改 `rd15 = nr`**；**不含实现** | `SPEC-124t` |
+| `SPEC-127t` | 聚合传参/HFA/HPA 约定收口 + HFA/HPA 槽位上限 8 | spec | `spec/DADAO-21 §传参 §聚合类型参数`（**HFA/HPA 槽位上限 `4→8`〔64 B〕**）+ 锁同步 + `contract-abi.md`（HFA/HPA/聚合传参 由 `Excluded from M3` 升 **M6 口径**）+ `contracts/abi.yaml` 派生投影；**通用聚合 4 vs 8 待用户裁定、本轮不改**；**不含实现**（整数聚合→`LLVM-062t`、HFA/RF→`LLVM-066t`） | `SPEC-124t`、`SPEC-126t` |
 | `LLVM-062t` | 整数完整调用约定 + 小欠账 | llvm | 变参/聚合/`sret`/多返回/间接调用（`ISS-005/006`）+ `ISS-043/045/047/148/159/162`；**`ISS-110` 留后** | `INFRA-050t`、`SPEC-124t` |
 | `LLVM-063t` | DADAO clang target（钉子①） | llvm | `TargetInfo`/DataLayout/ABI/driver/sysroot；**只用于 freestanding**；模板 = RISC-V64 形状 + PPC64BE 端序/DL + AArch64 CC | `INFRA-050t`、`SPEC-124t` |
 | `LLVM-064t` | 大帧寻址 + `mem*` 内建 | llvm | `ISS-138` 四形态（按代价选择；落 `ADR-0018 C7 D4` 修订）+ `mem*` 内建 + 后端 `MaxStoresPerMem*=16` | `LLVM-062t`、`SPEC-122t` |
@@ -66,10 +67,12 @@
 
 > **追加（2026-10-09，用户裁定「**统一为 `rd8`**」）**：新增 **3 份 `t`** —— `SPEC-126t`（系统调用/半托管返回寄存器 `rd31 → rd8`，spec+contracts+锁）、`QEMU-055t`（半托管返回 `rd8` 实现 + 探针重派生）、`TESTCASES-041t`（向量/期望值重派生，域A 函数返回/域B 半托管返回**分别验收**）；**不立 ADR**。M6 任务书总数由 17 `t` + 6 `m` 增为 **20 `t` + 6 `m` = 26 份**。§D 各 Wave 已同步（`SPEC-126t` 入 Wave 1、`QEMU-055t` 入 Wave 3、`TESTCASES-041t` 入 Wave 4）。
 
+> **追加（2026-10-09，用户裁定「**hfa/hpa也调整为：最多消耗 8个寄存器槽位（64字节）**」）**：新增 **1 份 `t`** —— `SPEC-127t`（聚合传参/HFA/HPA 约定收口 + HFA/HPA 槽位上限 `4→8`〔64 B〕；`spec/DADAO-21 §传参 §聚合类型参数` + 锁同步 + `contract-abi.md`/`contracts/abi.yaml` 升 M6 口径）；**通用聚合 4 vs 8 待用户裁定**、本轮不改；**不含实现**（整数聚合→`LLVM-062t`、HFA/RF→`LLVM-066t`）；**不立 ADR**。M6 任务书总数由 20 `t` + 6 `m` 增为 **21 `t` + 6 `m` = 27 份**。§D Wave 1 已同步（`SPEC-127t` 串于 `SPEC-126t` 之后）。
+
 ## D. Wave/串行链 · 前置 ADR · 说明
 
 - **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t`。
-- **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t` → `SPEC-126t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
+- **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t` → `SPEC-126t` → `SPEC-127t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
 - **Wave 2（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-062t` → `063t` → `064t` → `065t` → `066t`（FP 最后）。
 - **Wave 3（qemu；同改 `components/qemu/patches` ⇒ 串行）**：`QEMU-052t` → `QEMU-053t` → `QEMU-055t`。
 - **Wave 4（testcases）**：`TESTCASES-036t`／`037t`／`038t`／`039t`／`041t`；**Wave 5（integ）**：`INTEG-025t` → `INTEG-026m`。
