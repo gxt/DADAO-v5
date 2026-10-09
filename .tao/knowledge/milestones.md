@@ -27,7 +27,7 @@
 | `LLVM-065t` | 待开始 | — | — | lld reloc 完善（`REL12`/`ABS12` + `FK_Data_*` 静默 0 + `ABS48` 数据表示） |
 | `LLVM-066t` | 待开始 | — | — | FP/RF codegen（**排整数之后**；含 HFA/`rf8–rf15` 返回） |
 | `LLVM-067m` | 待开始 | — | — | M6 llvm 里程碑 |
-| `LLVM-068t` | 待开始 | — | — | ABI 寄存器重排后端实现：寄存器类（`rd4–rd7`/`rb4–rb7` caller-saved）+ `getReservedRegs`（`rd2–rd3`、`rb2`=GP、`rb3`=TP 保留；**`rb63` 条件保留**）+ `getFrameRegister = hasFP ? rb63 : rb1` + `FrameLowering`（FP=`rb63`、批量保存排除 FP）+ `LLVM-062t` RegMask 同步 + lit 期望；重建；排 `LLVM-063t` 前、与 `LLVM-064t` 串行 |
+| `LLVM-068t` | 已验证 | — | 10-09 12:49 | ABI 寄存器重排后端实现：寄存器类（`rd4–rd7`/`rb4–rb7` caller-saved）+ `getReservedRegs`（`rd2–rd3`、`rb2`=GP、`rb3`=TP 保留；**`rb63` 条件保留**）+ `getFrameRegister = hasFP ? rb63 : rb1` + `FrameLowering`（FP=`rb63`、批量保存排除 FP）+ `LLVM-062t` RegMask 同步 + lit 期望；重建；排 `LLVM-063t` 前、与 `LLVM-064t` 串行。**RegMask 核对一致无需改；风险：批量保存排除 FP(rb63) 仅注释未强制 ⇒ 移交 `LLVM-064t`** |
 | `QEMU-052t` | 已验证 | 10-09 08:54 | 10-09 10:50 | 改走 `load_elf()`（**钉子②**）+ 调用前薄校验（`e_flags`/`ET_EXEC` + 逐段一致性/范围）；**用户裁定 D**：允许集合 = **仅旧 RAM 段**（`0xffff_0000_0000`/16 MiB），落 ROM 窗口段 ⇒ 加载期非零退出；**RAM@0 未纳入**（留 `QEMU-053t` step2）；`-bios`+ELF 组合不需要 |
 | `QEMU-053t` | 待开始 | — | — | RAM@0 step2（`ISS-165`）+ 6 探针退出通道迁移（`ISS-169`） |
 | `QEMU-054m` | 待开始 | — | — | M6 qemu 里程碑 |
@@ -41,7 +41,7 @@
 
 > **本表即 M6 全部已规划任务**（唯一真源）：每行对应 `.tao/tasks/<模块>/<任务>-*.md` 一份任务书，**状态取自该任务书 `**状态**` 字段**（可机读复核，**不在本表写死计数**）；未开始项以 `—` 占位。
 
-> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）。）
+> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）；`LLVM-068t` 结束 = 12:49（reviewer 证据脚本重跑日志 `/tmp/opencode/LLVM-068t-review/run.log` mtime 12:49:43）。）
 
 > 开始/结束由**主会话**在 `/dispatch`／`/complete` 时填写（格式 **`MM-DD hh:mm`**，不带年份）；只填**可考证**时间，**禁编造**。
 
