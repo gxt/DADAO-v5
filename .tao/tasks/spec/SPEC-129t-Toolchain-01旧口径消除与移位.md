@@ -13,6 +13,7 @@
 > 1. `ISS-163`：「**消除写死**」。
 > 2. 追问「§11/§12 是否该放 `ADR-0013`」后：「**台账 + 门控清单，ADR 只指向（推荐）**」。
 > 3. `ISS-167`：「**现在和异常退出流程没有关系，需要的时候，提出问题，我来判定**」⇒ **挂账**（本任务**不**处理）。
+> 4. （**追加 2026-10-09，用户裁定 8**）`spec/DADAO-22`（SBI）示例中 **5 处 `rb3` 当 scratch**（改布局后 `rb3`=TP）：**「改 + 同步锁」** ⇒ **并入本任务**（同一类「册旧口径同步」）——改示例为**真临时寄存器**（`rb8`/`rb9`）+ 同步 `DADAO-22` 的 `sha256` 锁。
 
 > **授权（`Process-06 §2`）**：`spec/Toolchain-01-汇编语言.md` 为**只读册**，改册须用户**事先**明确授权。上列裁定 1/2 即授权：**消除写死 + §11/§12 移出（台账 + 门控清单）+ `ADR-0013` 只加指向**；改册**同一变更**内**必须**同步 `spec-readonly.lock.toml` 的 `sha256`（`Process-06 §5`）。
 
@@ -37,6 +38,8 @@
 
 - **输入**：
   - `spec/Toolchain-01-汇编语言.md`（只读册；§5 L151-152、§11 L258-270、§12 L274-281、§13 L287；册内 `见 §11` 交叉引用在 §2.4/§2.5/§6.2/§9）。
+  - `spec/DADAO-22-SBI-主管系统二进制接口.md`（只读册；**5 处 `rb3` 当 scratch** 的代码示例，位于 L190/206/223/256/273 附近，形如 `set.rb rb3, rd3` + `jump [rb3, rd0, 0]`）。（**追加 2026-10-09，用户裁定 8**）
+  - `manifests/spec-readonly.lock.toml` 的 `DADAO-22` 段 `sha256`（现值 `e439d62d602fad8f89132545b4d555c1db045ab0994a67dc7a62f5125cd988a6`）。（**追加 2026-10-09**）
   - `contracts/opcodes.yaml`（`scope`/`format` **真源**）。
   - `.tao/knowledge/contract-asm.md`（投影；§11 状态表 + §12 机器检查；§5/§13 已对齐新口径——**作对照**）。
   - `.tao/knowledge/contract-asm-list.md`（生成投影，**真源之一**；其头部含「227 = …」等**派生**计数）。
@@ -54,8 +57,10 @@
   2. `.tao/knowledge/contract-asm.md`：§11 为**唯一 home**（去写死计数 → 指向真源）；§12 收敛为门控名/指针（与册同落点）；§5/§13 核对（如已一致则不改）。
   3. `manifests/spec-readonly.lock.toml`：`Toolchain-01` 段 `sha256` **同步**（改毕 `sha256sum` 实测 + 追加授权说明注释）。
   4. `.tao/adr/adr-0013-assembly-syntax.md`：**只追加指向句**（+ 用户原话留痕），**不搬状态/门禁**。
+  5. （**追加 2026-10-09，用户裁定 8**）`spec/DADAO-22-SBI-主管系统二进制接口.md`：把 **5 处**示例中当 scratch 的 `rb3` 改为**真临时寄存器**（`rb8`/`rb9`；`rb3`=TP，不可当通用临时）；改毕 `sha256sum` 实测并**同步** `manifests/spec-readonly.lock.toml` 的 `DADAO-22` 段 `sha256`（追加授权说明注释）。**只改示例寄存器选择，不动其余口径**。
 - **约束**：
   - **只动授权范围**：`spec/` 仅允许 `spec/Toolchain-01-汇编语言.md`（+ 若确需 `spec/README.md`）；其它只读册**一字不改**。
+  - （**追加 2026-10-09，用户裁定 8**）**授权范围扩至 `spec/DADAO-22-SBI-主管系统二进制接口.md`**：**仅**改 5 处示例的 scratch 寄存器（`rb3`→`rb8`/`rb9`）+ 同步其 `sha256` 锁；`DADAO-22` 其余内容**一字不改**。
   - **不改实现**：`components/**`/`tools/**`/`tests/**` **不碰**（`tools/spec/*` 现有 3 个门控已覆盖本规范，**无需改门控脚本**）；`contracts/**` **不碰**。
   - **不新建文档**（`AGENTS.md`「新增文档三问」）；**不新增长叙述**。
   - **消除写死 = 修一类**（`AGENTS.md`「修复须修一类」）：`Toolchain-01` 与 `contract-asm.md` 内**凡以数字陈述** M1 格式类数 / 指令条数者（含 §1 的「11 类」、§11 的「9 个/152 条」、引言/§12 的「227 条」等），改为**指向真源**（`contracts/opcodes.yaml` / 生成投影 `contract-asm-list.md`）或**去数字**；**唯一允许保留数字处** = 生成投影 `contract-asm-list.md`（其计数由生成器派生自真源）。
@@ -88,7 +93,8 @@
 9. **授权范围**：`git -c core.quotepath=false diff --name-only | grep '^spec/'` 仅 `spec/Toolchain-01-汇编语言.md`（如确改 `spec/README.md` 则一并列出并在完成区说明理由）。
 10. **门控全绿**：`make check` **EXIT=0**（改动落在 `spec/`/锁/`contract-asm.md`，均在门控覆盖内，**不得**以「纯文档豁免」为由跳过）。
 11. **一键证据脚本**：`.work/evidence/SPEC-129t/run.sh` 逐项通过、`RUN_EXIT=0`；含注入自检（如把 §11 旧计数 `152` 注回 ⇒ 断言 FAIL ⇒ `cp`+md5 还原 ⇒ 回绿），给真实输出与退出码。
-12. **无残留**：`git status --porcelain -uall` 仅本任务应有改动（`spec/Toolchain-01-*` + 若需 `spec/README.md` + `manifests/spec-readonly.lock.toml` + `.tao/knowledge/contract-asm.md` + `.tao/adr/adr-0013-*.md` + 本任务书）；无 `*_tmp*`/`*.orig`/`*.rej`。
+12. **无残留**：`git status --porcelain -uall` 仅本任务应有改动（`spec/Toolchain-01-*` + `spec/DADAO-22-*` + 若需 `spec/README.md` + `manifests/spec-readonly.lock.toml` + `.tao/knowledge/contract-asm.md` + `.tao/adr/adr-0013-*.md` + 本任务书）；无 `*_tmp*`/`*.orig`/`*.rej`。
+13. （**追加 2026-10-09，用户裁定 8**）**`DADAO-22` 示例 scratch 改对 + 锁同步**：`spec/DADAO-22-SBI-主管系统二进制接口.md` 内**不再有** `rb3` 充当 scratch 的示例（`grep -nE 'rb3' ` 无「当临时寄存器」用法；`set.rb rb3`/`jump [rb3,…]` 已改 `rb8`/`rb9`）；`DADAO-22` 段 `sha256` == 实测（`make check-spec-readonly` **EXIT=0**）；**未改册** `sha256` 行**逐条未变**；`make check` **EXIT=0**。
 
 ## 完成区
 

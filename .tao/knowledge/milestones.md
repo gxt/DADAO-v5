@@ -20,7 +20,7 @@
 | `SPEC-126t` | 已验证 | 10-09 08:37 | 10-09 08:48 | 系统调用/半托管返回寄存器 `rd31 → rd8`（`DADAO-21/22/23` + `Machine-01`）+ 两合约同步 + 锁；**入参 `rd15`/参数区不动** |
 | `SPEC-127t` | 已验证 | 10-09 10:06 | 10-09 10:17 | 聚合传参收口（**全部聚合含 HFA/HPA 槽位上限 4→8 = 64 B；`>64 B` ⇒ 间接指针**）+ `DADAO-21` 与锁同步 + `contract-abi §6.4` |
 | `SPEC-128t` | 已验证 | — | 10-09 12:12 | ABI 寄存器布局重排（spec/契约侧）：RD `rd2–rd3` reserved〔调试/测试保留〕/`rd4–rd7` caller-saved；RB `rb2`=GP/`rb3`=TP/`rb4–rb7` caller-saved/`rb32–rb62` callee saved/`rb63`=FP 条件占用〔callee-saved〕；改 `DADAO-21`+锁+`contract-abi`+`contracts/abi.yaml`+就地修订 `ADR-0018 C7 D6`；**不立 ADR**；不含实现。**册+契约+ADR 修订；RF 表未改；RF 实现放开归 `LLVM-066t`** |
-| `SPEC-129t` | 待开始 | — | — | `Toolchain-01` 旧口径消除 + §11/§12 移位（`ISS-163` 收口，用户 2026-10-09 裁定「消除写死」+「台账 + 门控清单，ADR 只指向」）：改 `§5`/`§11`/`§13` 三处旧口径（`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`）；**消除写死**（计数指向 `contracts/opcodes.yaml`/`contract-asm-list.md`）；§11→既有投影 `contract-asm.md §11`、§12→既有门控说明（门控名）；`ADR-0013` 只加指向；改只读册 `Toolchain-01`+锁 `sha256` 同步；**不改实现** |
+| `SPEC-129t` | 待开始 | — | — | `Toolchain-01` 旧口径消除 + §11/§12 移位（`ISS-163` 收口，用户 2026-10-09 裁定「消除写死」+「台账 + 门控清单，ADR 只指向」）：改 `§5`/`§11`/`§13` 三处旧口径（`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`）；**消除写死**（计数指向 `contracts/opcodes.yaml`/`contract-asm-list.md`）；§11→既有投影 `contract-asm.md §11`、§12→既有门控说明（门控名）；`ADR-0013` 只加指向；改只读册 `Toolchain-01`+锁 `sha256` 同步；**不改实现**。**（追加 2026-10-09，用户裁定 8）并入 `spec/DADAO-22` 示例 5 处 `rb3` 当 scratch → 真临时寄存器（`rb8`/`rb9`）+ `DADAO-22` 锁 `sha256` 同步**（同一类「册旧口径同步」） |
 | `LLVM-062t` | 已验证 | — | 10-09 12:16 | 整数完整调用约定（返回 `rd8`/`rb8`/`rf8` + K=8 + 聚合 `≤64 B`/`>64 B` byval + `sret` 经 `rb16` + 变参 + 间接调用）+ 六条欠账（`043/045/047/148/159/162`）；`ISS-108` 按用户裁定推迟 M7 |
 | `LLVM-063t` | 待开始 | — | — | DADAO clang target + driver/sysroot（**钉子①**） |
 | `LLVM-064t` | 待开始 | — | — | 大帧寻址四形态（代价驱动）+ `mem*` 内建 + `MaxStoresPerMem*=16` |
@@ -51,11 +51,13 @@
 - **里程碑**：M6（`INTEG-023k`「M6 启动与分解」）
 - **`ISS-108` 提请用户裁定（`LLVM-062t`，2026-10-09）**：`LLVM-062t` reviewer 判 **Needs Revision**，唯一缺口 = `ISS-108`（`DADAOInstrInfo.td` **1502 行**、`DADAOAsmParser.cpp` **2349 行**，均 >1000 行）未拆分。**原裁定为「纳入（拆分）」，但现实已变**——两文件规模远超阈值，拆分是**侵入式重构**（`DADAOAsmParser.cpp` 为单一匿名类，需类外提为头文件）且属**非功能性**改动，风险/收益不匹配。⇒ **提请用户**在「**仍在本里程碑（M6）拆分**」/「**推迟到 M7，`LLVM-062t` 转 Accepted**」之间裁定；**不擅自决定**。其余验收项（返回 `rd8/rb8/rf8`+K=8、聚合 ≤64 B/`>64 B` byval、变参、间接调用、六条欠账 `043/045/047/148/159/162`、四门控、证据脚本 16/16 + 注入回绿、补丁纪律、`spec/`/`contracts/` 交集空）**均已通过**。当前 `LLVM-062t` 为本地 **WIP 提交（未 push）**。
 - **`ISS-108` 挂账（用户裁定，2026-10-09）**：`ISS-108` 已由用户裁定**推迟 M7**（`DADAOInstrInfo.td` **1502 行** / `DADAOAsmParser.cpp` **2349 行**；**非功能性重构**）。⇒ `LLVM-062t` 唯一缺口移除、转 `Accepted`（提交 `d367bf6`）。
+- **`ADR-0018 §C7 D6` 修订措辞复核（用户 2026-10-09）**：`SPEC-128t` 就地修订的 `ADR-0018 §C7 D6`（ABI 寄存器布局重排）措辞经用户复核，裁定「**照此保留**」（**无改动**）——**用户 2026-10-09 复核通过**。
 - **规划中**：
   - **M6 主题与范围（已裁定，2026-10-08；见 `INTEG-023k`）**：整数**完整调用约定** + **12 条 LLVM 欠账收口** + **ELF 加载**（改走 `load_elf()`，钉子②）+ **clang target**（仅 freestanding，钉子①）+ **Embench 接入**（钉子③）+ lit 量产 + `lli` 值级对拍；**不含** libc/OS/syscall、golden model、fuzz（后置 M7）；`ISS-003`（LR-SC）**M6 显式排除**
   - **M6 任务书**：逐项见上表（**计数不写死**，需时现场统计）；编号 `INTEG-023k/024t/025t/026m`、`INFRA-050t/051t/052m`、`SPEC-122t…128t/125m`、`LLVM-062t…068t/067m`、`QEMU-052t…055t/054m`、`TESTCASES-036t…041t/040m`；Wave 串行见 `INTEG-023k §C/§D`
   - **本轮新增裁定的连带影响（均已落纸）**：① 返回寄存器 `rd31→rd8/rb8/rf8`（K=8）⇒ `SPEC-124t` ✓ + 实现侧 `LLVM-062t`/`TESTCASES-041t`；② 系统调用/半托管返回 `rd31→rd8` ⇒ `SPEC-126t` ✓ + `QEMU-055t`/`TESTCASES-041t`；③ 聚合槽位 `4→8`（64 B）⇒ `SPEC-127t` ✓ + `LLVM-062t`〔整数〕/`LLVM-066t`〔HFA〕
   - **GP（`rbgp`）候选（M7/优化期，**M6 不做**——用户 2026-10-09 裁定）**：`rb2=rbgp` 现由 **M6 寄存器重排**（`SPEC-128t`）列为 **reserved（编译器不得分配）**（`contract-abi §1.3/§1.6`），后端**无** GP 机制（`rbgp` 仅出现在注释）。启用需：**小数据区**（`.sdata/.sbss` + 阈值）× **链接脚本聚到 `_gp`** × **启动设 `rb2=_gp`** × 后端 `getGlobalBaseReg`（MIPS 式，`%gp_rel`）；**reloc 已备**——我们新定的 **`ABS12`（基址 `rb1–rb63` 相对、`field=S+A`、字节）恰为 GP 相对所需**，且**访存偏移 ±2 KiB 正是小数据区的自然上限**（一次 `ld/st [rbgp,disp12]` 取代三条地址构造）。代价：**改变 `rb2` 的 ABI 语义**（独立裁定）；0628 参考未用 GP。依据：主会话分析（`ABS12`/四形态/访存偏移见 `contract-elf §2–§3`、`ADR-0018 §C7 D4`）。
+   - **`GOLDEN-*` 里程碑候选（M7 起，用户 2026-10-09 裁定）**：为 **golden model（结果级 / FP 独立 oracle）另立** `golden` 模块专用里程碑（`GOLDEN-*`，**M7 起**）——承载 `ISS-019`（结果级 / FP 独立 oracle）、`ISS-026`（encoding `imm` 语义守卫依赖 golden）**二者整体**，以及 `ISS-081` **拆分后的 FP 独立 oracle 部分**（`ISS-081` 的 FP 向量 / harness RF 部分**归 M6**：`LLVM-066t`/`TESTCASES-036t`/`041t`）。**本候选仅登记归属，不在本轮立项/建任务书**（任务分解待 M7 规划）。
   - **Embench 接入（M6 待办）**：① ADR 已建（`ADR-0022`，上游选择 + 精确 commit）⇒ 翻 `manifests/components.lock.toml` 的 `enabled = true`（归 `INFRA-051t`）；② 建 `components/embench-iot/{patches/**,series,changelog.md}`；③ 工作树由 `make fetch` 生成到 `.work/source/embench-iot`
   - **`lessons.md` 瘦身**：下次里程碑归档时按新口径（新增条目 ≤3 行 + 指针，细节进 `.work/log/`；**不追溯重写**）瘦身（**行数/字头数现场统计、不写死**）
   - **`issues.yaml` 移入**（规划①，2026-10-08 `INTEG-024t`；原 `scope` 原样括注）：
@@ -68,11 +70,11 @@
     - `ISS-169`（原 `[qemu, testcases, M6]`）：**6 个 M1/M2 探针退出通道 `exit-port` → `SYS_EXIT`** —— ① 里程碑待办（归 `QEMU-053t`）
 - **阻塞与待裁定**：8 项归属存疑（`ISS-019/026/047/074/081/163/164/167`；其中 `ISS-163`/`ISS-167` 涉改上游只读册，**须用户授权**）；M6 主题**已裁定**（2026-10-08，见 `INTEG-023k`）
   - **`issues.yaml` 移入**（阻塞②/待裁定③，2026-10-08 `INTEG-024t`；原 `scope` 原样括注；**待用户裁定**）：
-    - `ISS-019`（原 `[golden, M5]`）：结果级 / **FP 独立 oracle**（golden model）—— ③ 归属未定 —— **待用户裁定**；选项 A 归 M6 / B 另立 `GOLDEN-*` 里程碑 / C 保留待规划
-    - `ISS-026`（原 `[testcases, M5]`）：encoding `imm` **语义守卫依赖 golden** —— ③ 归属未定（同 `ISS-019`）—— **待用户裁定**；选项 A 归 M6 / B 另立 golden 里程碑 / C 保留待规划
-    - `ISS-047`（原 `[llvm, M5]`）：`llvm-objdump -d` 需显式 `--triple`（`e_machine` 未映射到 dadao）—— ③ 归属存疑 —— **待用户裁定**；选项 A 归 M6「欠账收口」/ B 判为真 issue / C 保留待规划
-    - `ISS-074`（原 `[testcases, M5]`）：`cs.*` 条件赋值 **overlap 语义（C-27）**未指定 —— ③ 归属未定 —— **待用户裁定**；选项 A 归 M6 / B 随 FP（M7+）/ C 保留
-    - `ISS-081`（原 `[spec, golden, testcases, llvm, qemu, integ, M5]`）：**FP 后续衔接点** —— ③ 归属未定（FP 不在 M6 显式范围）—— **待用户裁定**；选项 A 归 M6 / B 归 M7+ / C 保留
+    - `ISS-019`（原 `[golden, M5]`）：结果级 / **FP 独立 oracle**（golden model）—— ③ 归属未定 —— **待用户裁定**；选项 A 归 M6 / B 另立 `GOLDEN-*` 里程碑 / C 保留待规划 【**已裁定（用户 2026-10-09）**：选 **B** ⇒ golden（含 FP 独立 oracle）**另立 `GOLDEN-*` 专用里程碑（M7 起）**；见「规划中」`GOLDEN-*` 候选】
+    - `ISS-026`（原 `[testcases, M5]`）：encoding `imm` **语义守卫依赖 golden** —— ③ 归属未定（同 `ISS-019`）—— **待用户裁定**；选项 A 归 M6 / B 另立 golden 里程碑 / C 保留待规划 【**已裁定（用户 2026-10-09）**：同 `ISS-019` ⇒ 随 golden 归 **`GOLDEN-*` 专用里程碑（M7 起）**】
+    - `ISS-047`（原 `[llvm, M5]`）：`llvm-objdump -d` 需显式 `--triple`（`e_machine` 未映射到 dadao）—— ③ 归属存疑 —— **待用户裁定**；选项 A 归 M6「欠账收口」/ B 判为真 issue / C 保留待规划 【**已解决（用户 2026-10-09）**：**归 M6** 并标已解决——实测已修（`EM_DADAO→Triple::dadao`，见 `LLVM-062t` 欠账 `047` ✅）】
+    - `ISS-074`（原 `[testcases, M5]`）：`cs.*` 条件赋值 **overlap 语义（C-27）**未指定 —— ③ 归属未定 —— **待用户裁定**；选项 A 归 M6 / B 随 FP（M7+）/ C 保留 【**挂账（用户 2026-10-09）**：**待实现时再定**——后端当前**不发** `cs.*`；待实现/发射时定 overlap 语义（含改上游册需授权）】
+    - `ISS-081`（原 `[spec, golden, testcases, llvm, qemu, integ, M5]`）：**FP 后续衔接点** —— ③ 归属未定（FP 不在 M6 显式范围）—— **待用户裁定**；选项 A 归 M6 / B 归 M7+ / C 保留 【**已裁定（用户 2026-10-09，按性质拆分）**：**FP 向量 / harness RF 归 M6**（`LLVM-066t`/`TESTCASES-036t`/`041t`）；**FP 独立 oracle 随 golden 归 `GOLDEN-*`（M7 起）**】
     - `ISS-163`（原 `[spec, M5]`）：`Toolchain-01 §5/§11/§13` **旧口径与 `contracts/opcodes.yaml` 不符** —— ②③ 须**用户授权**方可收口上游只读册（2026-10-08 已裁定「暂登记遗留」）—— **待用户裁定** 【**已裁定：立任务收口** ⇒ `SPEC-129t`（用户 2026-10-09：「消除写死」+「台账 + 门控清单，ADR 只指向（推荐）」；授权改 `Toolchain-01` + 同步锁）】
-    - `ISS-164`（原 `[qemu, M5]`）：cfx mask 与 `excp_cause_mask` **屏蔽路径当前不可观测** —— ② 须后续实现带可屏蔽 cause 的 cfx 后补验 —— **待用户裁定**
+    - `ISS-164`（原 `[qemu, M5]`）：cfx mask 与 `excp_cause_mask` **屏蔽路径当前不可观测** —— ② 须后续实现带可屏蔽 cause 的 cfx 后补验 —— **待用户裁定** 【**保留跟踪（用户 2026-10-09）**：**不入 M6**；待带可屏蔽 cause 的 cfx / 特权层里程碑补验】
     - `ISS-167`（原 `[spec, qemu, M5]`）：`DADAO-12 §5` 异常退出流程 **prose 与伪代码张力** —— ②③ 须**用户授权**方可收口上游只读册 —— **待用户裁定** 【**挂账**（用户 2026-10-09：「现在和异常退出流程没有关系，需要的时候，提出问题，我来判定」）】
