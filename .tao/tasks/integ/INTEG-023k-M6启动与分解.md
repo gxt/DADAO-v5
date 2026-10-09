@@ -76,9 +76,11 @@
 
 > **追加（2026-10-09，用户裁定「**消除写死**」+「**台账 + 门控清单，ADR 只指向（推荐）**」）**：新增 **1 份 `t`** —— `SPEC-129t`（`Toolchain-01` 旧口径消除 + §11/§12 移位：改 `§5`/`§11`/`§13` 三处旧口径〔`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`〕+ **消除写死**〔计数指向 `contracts/opcodes.yaml`/生成投影 `contract-asm-list.md`〕+ **§11→既有投影** `contract-asm.md §11`、**§12→既有门控说明**〔门控名〕+ `ADR-0013` **只加指向** + 只读册 `Toolchain-01` 锁 `sha256` 同步；**不改实现**）。`ISS-163` 据此收口；`ISS-167` **挂账**（用户裁定「现在和异常退出流程没有关系，需要的时候，提出问题，我来判定」，**本任务不处理**）。§C 表已加该行、§D Wave 1 已同步（`SPEC-129t` 串于 `SPEC-128t` 之后）。**不立 ADR**（`ADR-0013` 只加指向）。
 
+> **追加（2026-10-09，`QEMU-053t` 复验发现缺陷）**：新增 **1 份 `t`** —— `INFRA-053t`（修 `install-host` 幂等性：`ISS-172`——`cp` 间歇 `File exists`、`make test-elf`/`test-semihost` 首跑 `rc=2`/重跑 `rc=0`、`test-codegen` 通过；目标 = **连续两次 `make install-host` 与 `make test-semihost` 均 `rc=0`**，含证据脚本 + 注入自检）。**属修类型小任务**，与 `QEMU-053t` **无共享文件**（仅 `Makefile`）⇒ **不阻断**其落地；**入 Wave 0**（`INFRA-050t` → `051t` → `053t`，同改 `Makefile` ⇒ 串行）。`milestones.md` 已同步（新增 `INFRA-053t` 行）。
+
 ## D. Wave/串行链 · 前置 ADR · 说明
 
-- **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t`。
+- **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t` → `INFRA-053t`（`ISS-172` `install-host` 幂等性修复；同改 `Makefile` ⇒ 串行）。
 - **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t` → `SPEC-126t` → `SPEC-127t` → `SPEC-128t` → `SPEC-129t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
 - **Wave 2（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-062t` → `LLVM-068t`（ABI 寄存器重排）→ `063t` → `064t` → `065t` → `066t`（FP 最后）。**`LLVM-068t` 与 `LLVM-064t` 串行**（同改 `DADAOFrameLowering`，且 `064t` 大帧四形态含 `ldm/stm` 批量保存）；**`LLVM-068t` 排 `063t` 之前**。
 - **Wave 3（qemu；同改 `components/qemu/patches` ⇒ 串行）**：`QEMU-052t` → `QEMU-053t` → `QEMU-055t`。
