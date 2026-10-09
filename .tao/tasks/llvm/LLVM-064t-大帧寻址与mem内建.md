@@ -24,6 +24,7 @@
   - **不引 libc**（`mem*`/`str*` 自写最小实现）。
   - **`spec/` 交集为空**。
   - 与 Wave 2 **同改 `components/llvm-project/patches` ⇒ 串行**。
+  - **批量 callee-saved 保存须排除 FP（`rb63`）**（`LLVM-068t` 移交风险④）：`rb63` 是 RB 组最高编号，`ldm/stm` 的 `immu6` 连续区间**不能从 `rb63` 向上展开**，故按「**排除 FP**」或「**先保存再恢复**」处理该不变式。来源：`ADR-0018 §C7 D6` rev. 2026-10-09 + `LLVM-068t` 风险④。
 
 ## 硬约束
 
@@ -48,6 +49,7 @@
 5. **`spec/` 交集为空**：`git diff --name-only | grep -E '^spec/'` → 无输出。
 6. **一键证据脚本**：`.work/evidence/LLVM-064t/run.sh` 逐项通过、`RUN_EXIT=0`；含注入自检，给真实输出与退出码。
 7. **无残留**：`git status --porcelain -uall` 仅本任务应有改动；无 `*_tmp*`/`*.orig`/`*.rej`。
+8. **FP 排除不变式（`LLVM-068t` 移交）**：批量（`ldm/stm`）callee-saved 保存**排除 FP（`rb63`）**或「先保存再恢复」；给真实产物/反汇编证据。来源：`ADR-0018 §C7 D6` rev. 2026-10-09 + `LLVM-068t` 风险④。
 
 ## 完成区
 
