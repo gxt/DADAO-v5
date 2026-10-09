@@ -16,14 +16,16 @@
   - `.tao/adr/adr-0018-m3-codegen-choices.md`（CodeGen 决策）。
   - `.tao/knowledge/issues.yaml`：`ISS-081`（FP 衔接点：独立 oracle/harness RF/FP 向量/E2E/实现缺口）、`ISS-126`（FP 开放点固定取值）、`ISS-078`（`focls/ftcls` 之外未复核）。
   - `INTEG-023k §A（#2 FP/RF codegen；含 compiler-rt 软浮点取舍随 #2）`。
+  - 用户 2026-10-09 裁定（经 `SPEC-128t` 连带）：「**同样的，rd4-rd7/rf1-rf7 也改为 caller-saved，由 llvm 分配使用**」——RF 实现侧放开归本任务。
 - **输出**：
   1. `components/llvm-project/patches/llvm/lib/Target/DADAO/**`：FP/RF **codegen**——FP 寄存器类（`rf`）、FP 指令 lowering/选择、FP 传参/返回（按 `contract-abi` FP 部分）；`ISS-081`/`ISS-126`/`ISS-078` 范围内收口。
   2. **compiler-rt 软浮点取舍**（随 #2 裁定）；如引入须落 `components/`/`runtime` 相应位置并申报。
-  3. `series`/`changelog.md` 随任务追加（`Process-01`）。
+  3. **RF 实现侧放开（`SPEC-128t` 裁决连带，2026-10-09）**：解除 M3 边界对 RF 的保留——`getReservedRegs`/`GPRF` 中 **`rf1–rf7` 放开为可分配 caller-saved**（`rf0`=FCSR **保留**）；`GPRF`（`rf0–rf63`）由全保留改为「`rf0` 保留 + 其余按 ABI（`rf1–rf7`/`rf8–rf31` temporary、`rf32–rf63` callee-saved）可分配」；**册不改**（`DADAO-21` 已定 RF 角色，本项仅实现侧放开）。
+  4. `series`/`changelog.md` 随任务追加（`Process-01`）。
 - **约束**：
   - **排在整数之后**（依赖 `LLVM-062t`）。
   - **不引 libc**；软浮点取舍给**明确结论**（引入/不引入 + 理由）。
-  - **`spec/` 交集为空**。
+  - **`spec/`/`contracts/` 交集为空**（RF 角色已由 `DADAO-21` 定，本任务只做实现侧放开）。
   - 与 Wave 2 **同改 `components/llvm-project/patches` ⇒ 串行**（本任务为 Wave 2 收尾）。
 
 ## 硬约束
@@ -45,10 +47,11 @@
 1. **FP/RF codegen 可用**：FP 算术/转换/比较等由后端正确 lower（给真实编译产物/反汇编）；FP 传参/返回与 `contract-abi` FP 部分一致。
 2. **`ISS-081/126/078` 处置**：逐条给「已实现/已消解/留后 + 理由」（`ISS-078` 若仍属 spec 侧，登记并说明归属）。
 3. **软浮点取舍**：给出 compiler-rt **引入/不引入**的明确结论 + 理由。
-4. **不回归**：`make build-mc`/`make check`/`make check-patch-tree`/`make check-lit` EXIT=0（通过数与改前**逐项相等**）。
-5. **`spec/` 交集为空**：`git diff --name-only | grep -E '^spec/'` → 无输出。
-6. **一键证据脚本**：`.work/evidence/LLVM-066t/run.sh` 逐项通过、`RUN_EXIT=0`；含注入自检，给真实输出与退出码。
-7. **无残留**：`git status --porcelain -uall` 仅本任务应有改动；无 `*_tmp*`/`*.orig`/`*.rej`。
+4. **RF 实现侧放开**：`rf1–rf7` 可被分配为 caller-saved、`rf0`(FCSR) 保留（给 `getReservedRegs` 真实输出 + 分配证据）；RF 角色与 `DADAO-21 §RF寄存器`（`rf1–rf7`/`rf8–rf31` temporary、`rf32–rf63` callee-saved）逐条一致。
+5. **不回归**：`make build-mc`/`make check`/`make check-patch-tree`/`make check-lit` EXIT=0（通过数与改前**逐项相等**）。
+6. **`spec/`/`contracts/` 交集为空**：`git diff --name-only | grep -E '^(spec|contracts)/'` → 无输出。
+7. **一键证据脚本**：`.work/evidence/LLVM-066t/run.sh` 逐项通过、`RUN_EXIT=0`；含注入自检，给真实输出与退出码。
+8. **无残留**：`git status --porcelain -uall` 仅本任务应有改动；无 `*_tmp*`/`*.orig`/`*.rej`。
 
 ## 完成区
 

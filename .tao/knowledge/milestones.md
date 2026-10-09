@@ -19,12 +19,14 @@
 | `SPEC-125m` | 待开始 | — | — | M6 spec 里程碑 |
 | `SPEC-126t` | 已验证 | 10-09 08:37 | 10-09 08:48 | 系统调用/半托管返回寄存器 `rd31 → rd8`（`DADAO-21/22/23` + `Machine-01`）+ 两合约同步 + 锁；**入参 `rd15`/参数区不动** |
 | `SPEC-127t` | 已验证 | 10-09 10:06 | 10-09 10:17 | 聚合传参收口（**全部聚合含 HFA/HPA 槽位上限 4→8 = 64 B；`>64 B` ⇒ 间接指针**）+ `DADAO-21` 与锁同步 + `contract-abi §6.4` |
+| `SPEC-128t` | 待开始 | — | — | ABI 寄存器布局重排（spec/契约侧）：RD `rd2–rd3` reserved〔调试/测试保留〕/`rd4–rd7` caller-saved；RB `rb2`=GP/`rb3`=TP/`rb4–rb7` caller-saved/`rb32–rb62` callee saved/`rb63`=FP 条件占用〔callee-saved〕；改 `DADAO-21`+锁+`contract-abi`+`contracts/abi.yaml`+就地修订 `ADR-0018 C7 D6`；**不立 ADR**；不含实现 |
 | `LLVM-062t` | 待开始 | — | — | 整数完整调用约定 + 小欠账收口（`043/045/047/108/148/159/162`）+ **返回 `rd8` 涟漪** + **聚合 8 槽位** |
 | `LLVM-063t` | 待开始 | — | — | DADAO clang target + driver/sysroot（**钉子①**） |
 | `LLVM-064t` | 待开始 | — | — | 大帧寻址四形态（代价驱动）+ `mem*` 内建 + `MaxStoresPerMem*=16` |
 | `LLVM-065t` | 待开始 | — | — | lld reloc 完善（`REL12`/`ABS12` + `FK_Data_*` 静默 0 + `ABS48` 数据表示） |
 | `LLVM-066t` | 待开始 | — | — | FP/RF codegen（**排整数之后**；含 HFA/`rf8–rf15` 返回） |
 | `LLVM-067m` | 待开始 | — | — | M6 llvm 里程碑 |
+| `LLVM-068t` | 待开始 | — | — | ABI 寄存器重排后端实现：寄存器类（`rd4–rd7`/`rb4–rb7` caller-saved）+ `getReservedRegs`（`rd2–rd3`、`rb2`=GP、`rb3`=TP 保留；**`rb63` 条件保留**）+ `getFrameRegister = hasFP ? rb63 : rb1` + `FrameLowering`（FP=`rb63`、批量保存排除 FP）+ `LLVM-062t` RegMask 同步 + lit 期望；重建；排 `LLVM-063t` 前、与 `LLVM-064t` 串行 |
 | `QEMU-052t` | 已验证 | 10-09 08:54 | 10-09 10:50 | 改走 `load_elf()`（**钉子②**）+ 调用前薄校验（`e_flags`/`ET_EXEC` + 逐段一致性/范围）；**用户裁定 D**：允许集合 = **仅旧 RAM 段**（`0xffff_0000_0000`/16 MiB），落 ROM 窗口段 ⇒ 加载期非零退出；**RAM@0 未纳入**（留 `QEMU-053t` step2）；`-bios`+ELF 组合不需要 |
 | `QEMU-053t` | 待开始 | — | — | RAM@0 step2（`ISS-165`）+ 6 探针退出通道迁移（`ISS-169`） |
 | `QEMU-054m` | 待开始 | — | — | M6 qemu 里程碑 |
@@ -48,9 +50,9 @@
 - **里程碑**：M6（`INTEG-023k`「M6 启动与分解」）
 - **规划中**：
   - **M6 主题与范围（已裁定，2026-10-08；见 `INTEG-023k`）**：整数**完整调用约定** + **12 条 LLVM 欠账收口** + **ELF 加载**（改走 `load_elf()`，钉子②）+ **clang target**（仅 freestanding，钉子①）+ **Embench 接入**（钉子③）+ lit 量产 + `lli` 值级对拍；**不含** libc/OS/syscall、golden model、fuzz（后置 M7）；`ISS-003`（LR-SC）**M6 显式排除**
-  - **M6 任务书（合计 29 份文件）**：见上表；编号 `INTEG-023k/024t/025t/026m`、`INFRA-050t/051t/052m`、`SPEC-122t…127t/125m`、`LLVM-062t…066t/067m`、`QEMU-052t…055t/054m`、`TESTCASES-036t…041t/040m`；Wave 串行见 `INTEG-023k §C/§D`
+  - **M6 任务书**：逐项见上表（**计数不写死**，需时现场统计）；编号 `INTEG-023k/024t/025t/026m`、`INFRA-050t/051t/052m`、`SPEC-122t…128t/125m`、`LLVM-062t…068t/067m`、`QEMU-052t…055t/054m`、`TESTCASES-036t…041t/040m`；Wave 串行见 `INTEG-023k §C/§D`
   - **本轮新增裁定的连带影响（均已落纸）**：① 返回寄存器 `rd31→rd8/rb8/rf8`（K=8）⇒ `SPEC-124t` ✓ + 实现侧 `LLVM-062t`/`TESTCASES-041t`；② 系统调用/半托管返回 `rd31→rd8` ⇒ `SPEC-126t` ✓ + `QEMU-055t`/`TESTCASES-041t`；③ 聚合槽位 `4→8`（64 B）⇒ `SPEC-127t` ✓ + `LLVM-062t`〔整数〕/`LLVM-066t`〔HFA〕
-  - **GP（`rbgp`）候选（M7/优化期，**M6 不做**——用户 2026-10-09 裁定）**：`rb3=rbgp` 现由 M3 按 C6 列为 **reserved（编译器不得分配）**（`contract-abi §1.3/§1.6`），后端**无** GP 机制（`rbgp` 仅出现在注释）。启用需：**小数据区**（`.sdata/.sbss` + 阈值）× **链接脚本聚到 `_gp`** × **启动设 `rb3=_gp`** × 后端 `getGlobalBaseReg`（MIPS 式，`%gp_rel`）；**reloc 已备**——我们新定的 **`ABS12`（基址 `rb1–rb63` 相对、`field=S+A`、字节）恰为 GP 相对所需**，且**访存偏移 ±2 KiB 正是小数据区的自然上限**（一次 `ld/st [rbgp,disp12]` 取代三条地址构造）。代价：**改变 `rb3` 的 ABI 语义**（独立裁定）；0628 参考未用 GP。依据：主会话分析（`ABS12`/四形态/访存偏移见 `contract-elf §2–§3`、`ADR-0018 §C7 D4`）。
+  - **GP（`rbgp`）候选（M7/优化期，**M6 不做**——用户 2026-10-09 裁定）**：`rb2=rbgp` 现由 **M6 寄存器重排**（`SPEC-128t`）列为 **reserved（编译器不得分配）**（`contract-abi §1.3/§1.6`），后端**无** GP 机制（`rbgp` 仅出现在注释）。启用需：**小数据区**（`.sdata/.sbss` + 阈值）× **链接脚本聚到 `_gp`** × **启动设 `rb2=_gp`** × 后端 `getGlobalBaseReg`（MIPS 式，`%gp_rel`）；**reloc 已备**——我们新定的 **`ABS12`（基址 `rb1–rb63` 相对、`field=S+A`、字节）恰为 GP 相对所需**，且**访存偏移 ±2 KiB 正是小数据区的自然上限**（一次 `ld/st [rbgp,disp12]` 取代三条地址构造）。代价：**改变 `rb2` 的 ABI 语义**（独立裁定）；0628 参考未用 GP。依据：主会话分析（`ABS12`/四形态/访存偏移见 `contract-elf §2–§3`、`ADR-0018 §C7 D4`）。
   - **Embench 接入（M6 待办）**：① ADR 已建（`ADR-0022`，上游选择 + 精确 commit）⇒ 翻 `manifests/components.lock.toml` 的 `enabled = true`（归 `INFRA-051t`）；② 建 `components/embench-iot/{patches/**,series,changelog.md}`；③ 工作树由 `make fetch` 生成到 `.work/source/embench-iot`
   - **`lessons.md` 瘦身**：下次里程碑归档时按新口径（新增条目 ≤3 行 + 指针，细节进 `.work/log/`；**不追溯重写**）瘦身（**行数/字头数现场统计、不写死**）
   - **`issues.yaml` 移入**（规划①，2026-10-08 `INTEG-024t`；原 `scope` 原样括注）：

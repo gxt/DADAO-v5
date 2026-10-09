@@ -46,12 +46,14 @@
 | `SPEC-125m` | M6 spec 里程碑 | spec | `m` 文件 | `SPEC-122t`~`124t` |
 | `SPEC-126t` | 系统调用/半托管返回 `rd8` | spec | 系统调用（`DADAO-22`/`DADAO-23`/`DADAO-21 §系统调用规范`）与半托管（`Machine-01 §5`）服务返回寄存器 `rd31 → rd8` + `contract-see §5`/`contract-semihosting` 同步 + 锁同步；**逐条分类、不改 `rd15 = nr`**；**不含实现** | `SPEC-124t` |
 | `SPEC-127t` | 聚合传参/HFA/HPA 约定收口 + HFA/HPA 槽位上限 8 | spec | `spec/DADAO-21 §传参 §聚合类型参数`（**HFA/HPA 槽位上限 `4→8`〔64 B〕**）+ 锁同步 + `contract-abi.md`（HFA/HPA/聚合传参 由 `Excluded from M3` 升 **M6 口径**）+ `contracts/abi.yaml` 派生投影；**通用聚合 4 vs 8 待用户裁定、本轮不改**；**不含实现**（整数聚合→`LLVM-062t`、HFA/RF→`LLVM-066t`） | `SPEC-124t`、`SPEC-126t` |
+| `SPEC-128t` | ABI 寄存器布局重排（spec/契约侧） | spec | **RD**：`rd2–rd3` reserved（调试/测试保留）、`rd4–rd7` temporary（caller-saved）；**RB**：`rb2`=GP、`rb3`=TP、`rb4–rb7` temporary、`rb32–rb62` callee saved、**`rb63`=FP 条件占用（callee-saved）**；**RF 不改册**（实现侧放开归 `LLVM-066t`）。改 `spec/DADAO-21 §寄存器规范` + 锁 + `contract-abi §1.2/§1.3/§1.6`（+ §2.1/§3/§4.5/§4.7 最小同步）+ `contracts/abi.yaml`；**就地修订 `ADR-0018 C7 D6`**（`rb2` 始终保留 → `rb63` 条件保留；**不立新 ADR**）；**不含实现** | `SPEC-127t` |
 | `LLVM-062t` | 整数完整调用约定 + 小欠账 | llvm | 变参/聚合/`sret`/多返回/间接调用（`ISS-005/006`）+ `ISS-043/045/047/148/159/162`；**`ISS-110` 留后** | `INFRA-050t`、`SPEC-124t` |
-| `LLVM-063t` | DADAO clang target（钉子①） | llvm | `TargetInfo`/DataLayout/ABI/driver/sysroot；**只用于 freestanding**；模板 = RISC-V64 形状 + PPC64BE 端序/DL + AArch64 CC | `INFRA-050t`、`SPEC-124t` |
+| `LLVM-063t` | DADAO clang target（钉子①） | llvm | `TargetInfo`/DataLayout/ABI/driver/sysroot；**只用于 freestanding**；模板 = RISC-V64 形状 + PPC64BE 端序/DL + AArch64 CC | `INFRA-050t`、`SPEC-124t`、`LLVM-068t` |
 | `LLVM-064t` | 大帧寻址 + `mem*` 内建 | llvm | `ISS-138` 四形态（按代价选择；落 `ADR-0018 C7 D4` 修订）+ `mem*` 内建 + 后端 `MaxStoresPerMem*=16` | `LLVM-062t`、`SPEC-122t` |
 | `LLVM-065t` | lld reloc 完善 | llvm | `REL12` + 新专用类型（`ISS-151/161`）+ `FK_Data_1/2/4` 静默出 0；`ISS-108` 拆分文件 | `SPEC-123t`、`INFRA-050t` |
 | `LLVM-066t` | FP/RF codegen | llvm | FP/RF（**排整数之后**；`ISS-081/126/078`；含 compiler-rt 软浮点取舍随 #2） | `LLVM-062t`、`SPEC-122t` |
-| `LLVM-067m` | M6 llvm 里程碑 | llvm | `m` 文件 | `LLVM-062t`~`066t` |
+| `LLVM-067m` | M6 llvm 里程碑 | llvm | `m` 文件 | `LLVM-062t`~`066t`、`LLVM-068t` |
+| `LLVM-068t` | ABI 寄存器布局重排（后端实现） | llvm | 寄存器类（`rd4–rd7`/`rb4–rb7` caller-saved）+ `getReservedRegs`（`rd2–rd3`、`rb2`=GP、`rb3`=TP 保留；**`rb63` 条件保留**）+ `getFrameRegister = hasFP ? rb63 : rb1` + `FrameLowering`（FP=`rb63`、批量保存排除 FP）+ **`LLVM-062t` RegMask 同步** + lit/CodeGen 期望；**重建**（`setsid` 脱离）；**不改 `spec/`/`contracts/`** | `SPEC-128t`、`LLVM-062t`、`INFRA-050t`；**排 `LLVM-063t` 之前**；与 `LLVM-064t` **串行** |
 | `QEMU-052t` | 改走 `load_elf()`（钉子②） | qemu | 复用 `hw/core/loader.c`；**取消**自建 `dadao_load_regions[]` 白名单；多段 `PT_LOAD`/RELA/`e_entry`/栈初始化作**验证项** | 无（M5 已验证态） |
 | `QEMU-053t` | RAM@0 step2（`ISS-165`）+ `ISS-169` | qemu | 旧向量/harness/`crt0`/e2e 迁 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧 `check-interface` 断言；**另含 `ISS-169`**（6 个 M1/M2 手写探针退出通道改写为 `SYS_EXIT`，含按新字长重算分支偏移） | `QEMU-052t`、`TESTCASES-034t`（已验） |
 | `QEMU-054m` | M6 qemu 里程碑 | qemu | `m` 文件 | `QEMU-052t/053t` |
@@ -69,11 +71,13 @@
 
 > **追加（2026-10-09，用户裁定「**hfa/hpa也调整为：最多消耗 8个寄存器槽位（64字节）**」）**：新增 **1 份 `t`** —— `SPEC-127t`（聚合传参/HFA/HPA 约定收口 + HFA/HPA 槽位上限 `4→8`〔64 B〕；`spec/DADAO-21 §传参 §聚合类型参数` + 锁同步 + `contract-abi.md`/`contracts/abi.yaml` 升 M6 口径）；**通用聚合 4 vs 8 待用户裁定**、本轮不改；**不含实现**（整数聚合→`LLVM-062t`、HFA/RF→`LLVM-066t`）；**不立 ADR**。M6 任务书总数由 20 `t` + 6 `m` 增为 **21 `t` + 6 `m` = 27 份**。§D Wave 1 已同步（`SPEC-127t` 串于 `SPEC-126t` 之后）。
 
+> **追加（2026-10-09，用户裁定「**M6 ABI 寄存器布局重排**；**不立 ADR**；**放 M6、排 clang target 之前**」）**：新增 **2 份 `t`** —— `SPEC-128t`（ABI 寄存器布局重排 spec/契约侧：RD `rd2–rd3` reserved〔调试/测试保留〕/`rd4–rd7` caller-saved；RB `rb2`=GP/`rb3`=TP/`rb4–rb7` caller-saved/`rb32–rb62` callee saved/`rb63`=FP 条件占用〔callee-saved〕；RF 不改册；就地修订 `ADR-0018 C7 D6`；**不含实现**）+ `LLVM-068t`（后端实现：寄存器类/`getReservedRegs`〔`rb63` 条件保留〕/`getFrameRegister = hasFP ? rb63 : rb1`/`FrameLowering`〔FP=`rb63`、批量保存排除 FP〕/`LLVM-062t` RegMask 同步/lit 期望；**重建**）；**连带** `LLVM-066t` 追加「RF 实现侧放开（`rf1–rf7` caller-saved；`rf0`=FCSR 保留）」。依赖/串行：**`SPEC-128t` → `LLVM-068t` → `LLVM-063t`**；`LLVM-068t` 与 `LLVM-064t` **串行**。§C 表已加两行、§D Wave 1/2 已同步；`LLVM-063t`/`LLVM-067m` 依赖已加 `LLVM-068t`。
+
 ## D. Wave/串行链 · 前置 ADR · 说明
 
 - **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t`。
-- **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t` → `SPEC-126t` → `SPEC-127t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
-- **Wave 2（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-062t` → `063t` → `064t` → `065t` → `066t`（FP 最后）。
+- **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t` → `SPEC-126t` → `SPEC-127t` → `SPEC-128t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
+- **Wave 2（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-062t` → `LLVM-068t`（ABI 寄存器重排）→ `063t` → `064t` → `065t` → `066t`（FP 最后）。**`LLVM-068t` 与 `LLVM-064t` 串行**（同改 `DADAOFrameLowering`，且 `064t` 大帧四形态含 `ldm/stm` 批量保存）；**`LLVM-068t` 排 `063t` 之前**。
 - **Wave 3（qemu；同改 `components/qemu/patches` ⇒ 串行）**：`QEMU-052t` → `QEMU-053t` → `QEMU-055t`。
 - **Wave 4（testcases）**：`TESTCASES-036t`／`037t`／`038t`／`039t`／`041t`；**Wave 5（integ）**：`INTEG-025t` → `INTEG-026m`。
 - **前置 ADR 清单（逐条待用户确认，勿预标 `Accepted`）**：① `ADR-0018 C7 D4` 修订（大帧四形态/代价驱动）；② 新 ADR「`ld/st` 符号偏移 reloc 体系」（`REL12` + 新专用类型）；③ Embench 上游选择 + commit；④ 组合加载语义——**判断：不再需要独立 ADR**（已被「改走 `load_elf()`」取代，自建 loader/组合路径**取消**；仅在 `SPEC-122t` 落「不立 + 理由」）；⑤ 判断无需其它（`ADR-0019 D7` 记为**留后**、不启用）。
@@ -225,3 +229,9 @@ QEMU-050t ──→ QEMU-051t ──→ INTEG-025t
   4. **「计数不写死」**作为硬约束写入全部 M6 任务书（§E-4）。
 - **任务书已建**：**17 `t` + 6 `m` = 23 份**（§C 表；较 `k` 草案新增 `INFRA-052m`），落 `.tao/tasks/<module>/`。
 - **边界**：本次仅改本 `k` + `milestones.md` + `issues.yaml`（+ 新建任务书）；**`spec/` 交集为空**；未触 `contracts/**`/`components/**`/`Makefile`/`tools/**`。
+
+#### 提交留痕（architect，2026-10-09）
+
+- **档位**：architect 规划产出（立项新任务 + 联动台账），内容完整、无未决 ⇒ **正常提交**（无 `WIP:` 前缀）。
+- **提交号**：`2d5cc4f`（`M6: 立项 ABI 寄存器重排（rb2=GP/rb3=TP/rb4-7 与 rd4-7 caller-saved/rd2-3 调试测试保留/rb63=FP 条件保留；不立 ADR；排 clang target 前）`）；**只 commit、未 push**。
+- **文件集对账**（显式 staging，逐个路径，**禁** `git add -A`）：`git diff --cached --name-only` = `.tao/knowledge/milestones.md` / `.tao/tasks/integ/INTEG-023k-M6启动与分解.md` / `.tao/tasks/llvm/LLVM-063t-clang-target与driver.md` / `.tao/tasks/llvm/LLVM-066t-FP-RF-codegen.md` / `.tao/tasks/llvm/LLVM-068t-ABI寄存器重排后端实现.md`（新） / `.tao/tasks/spec/SPEC-128t-ABI寄存器布局重排.md`（新）——与本轮立项范围**逐条相等**（**无漏提 / 无多提 / 无越界**；`LLVM-062t` 在跑改动**未混入**）。
