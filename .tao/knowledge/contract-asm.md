@@ -5,7 +5,7 @@
 本合约把 v5 自定规范 `spec/Toolchain-01-汇编语言.md`（v1.1，语法已定稿；实现待安排）归一化为可精确消费的断言；规范叙述与理由留在该规范正文，本合约只提取可机械/agent 消费的约束。
 
 - **投影关系**：本合约为投影类型①（叙述合约）；②机器数据 = `contracts/opcodes.yaml`（`format`/汇编形式列）；③机械门控 = `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；④可执行 = `tests/llvm/lit/MC/DADAO`。[Toolchain-01 §12]
-- **指令全表**：227 条指令表为生成投影 `.tao/knowledge/contract-asm-list.md`，本合约不重抄；指令编码身份以 `contracts/opcodes.yaml` 为准，指令语义见 `contract-isa.md`（M1）/`contract-fp.md`（`scope: fp`）。[Toolchain-01 §1]
+- **指令全表**：指令全表为生成投影 `.tao/knowledge/contract-asm-list.md`（条数由该生成投影派生自 `contracts/opcodes.yaml`），本合约不重抄；指令编码身份以 `contracts/opcodes.yaml` 为准，指令语义见 `contract-isa.md`（M1）/`contract-fp.md`（`scope: fp`）。[Toolchain-01 §1]
 - **来源标注**：每条规范性断言以 `[Toolchain-01 §x]` 标注主来源；凡书写形式决策并标其冻结依据 `ADR-0013`（cfx 记法见 `ADR-0013 D8`），cfx 别名约定并标 `ADR-0017`，上游可溯源者并标 `SimRISC-0x`/`DADAO-11` 的对应章节。
 - **冲突处理**：本合约与 `spec/` 冲突时阻断实现，走变更流程（`spec/Process-02-合约编写规范.md`），由规范而非实现裁定。[Toolchain-01 §附：与上游 spec/ 的关系]
 
@@ -15,7 +15,7 @@
 
 - 适用范围：DADAO M1 汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。[Toolchain-01 §1]
 - 指令集权威：编码与身份以 `contracts/opcodes.yaml` 为准，语义以 `contract-isa.md` 为准；本合约只规定书写形式。[Toolchain-01 §1]
-- 11 类 M1 格式类（`Toolchain-01 §1` 定义）：`rrrr`、`rrri`、`rrii`、`riii`、`iiii`、`rwii`、`orrr`、`orri`、`oiii`、`crrr`、`ciii`。[Toolchain-01 §1]
+- M1 格式类（`Toolchain-01 §1` 定义；格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）：`rrrr`、`rrri`、`rrii`、`riii`、`iiii`、`rwii`、`orrr`、`orri`、`oiii`、`crrr`、`ciii`。[Toolchain-01 §1]
 - `crrr`/`ciii` 属特权 cfx：`cfx2rd`/`cfx2rc`（crrr）与 `trap`/`escape`（ciii）为 `scope: m1`（已实现）；`cfxld`/`cfxst`（crii）仍 `scope: excluded`。[Toolchain-01 §1]
 - 术语：地址表达式、寄存器组、条件寄存器、地址立即数（字节）。[Toolchain-01 §1]
 
@@ -115,11 +115,11 @@
 - **单寄存器**：`{rd3}`——不带冒号。[Toolchain-01 §4.2][ADR-0013 D1]
 - **范围**：`{rd3:rd8}` 表示 `rd3` 到 `rd8` 的连续寄存器；分隔符 MUST 为 `:`（不是 `-`）。[Toolchain-01 §4.2][ADR-0013 D1]
 - **条件寄存器**：`?` MUST 紧跟 `}` 之后，标记「该组寄存器用于条件判断」；MUST NOT 写在寄存器名之后（`rd3?` 被词法解析为单个标识符）。[Toolchain-01 §4.2][ADR-0013 D2]
-- **双目的指令**：`rrrr` 格式中 6 条指令（`add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so`）的 `rdha` 与 `rdhb` 均为 dst；书写为 `助记符 {rdHA, rdHB}, rdHC, rdHD`（花括号内逗号后加空格）。[Toolchain-01 §4.2][ADR-0013 D1][ADR-0013 D6]
+- **双目的指令**：`rrrr` 格式中 `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 的 `rdha` 与 `rdhb` 均为 dst；书写为 `助记符 {rdHA, rdHB}, rdHC, rdHD`（花括号内逗号后加空格）。[Toolchain-01 §4.2][ADR-0013 D1][ADR-0013 D6]
 - **多寄存器指令**（`ldm.*`/`stm.*`）：目的寄存器与个数合并为寄存器组，个数 MUST NOT 显式书写（由组推出）。[Toolchain-01 §4.2][ADR-0013 D5]
   - MUST 校验：`{}` 不得为空；起点+个数 MUST NOT 越出 `rd63`；个数为 0 MUST 报错。[Toolchain-01 §4.2][ADR-0013 D5]
   - `ldm` 的组是**目的**（内存→寄存器），`stm` 的组是**源**（寄存器→内存）。[Toolchain-01 §4.2][ADR-0013 D5]
-- **多寄存器组记法扩展**：当 `immu6` 表示连续寄存器个数时，源与目的都用 `{start:end}` 范围记法；适用于 8 条寄存器复制指令（`ra2rd`/`rb2rb`/`rb2rd`/`rd2ra`/`rd2rb`/`rd2rd`/`rd2rf`/`rf2rd`，orri 格式）与 20 条浮点格式转换指令（`ft2fo`/`fo2ft`/…/`ut2fo`，orri 格式）。[Toolchain-01 §4.2][ADR-0013 D5]
+- **多寄存器组记法扩展**：当 `immu6` 表示连续寄存器个数时，源与目的都用 `{start:end}` 范围记法；适用于寄存器复制指令（`ra2rd`/`rb2rb`/`rb2rd`/`rd2ra`/`rd2rb`/`rd2rd`/`rd2rf`/`rf2rd`，orri 格式）与浮点格式转换指令（`ft2fo`/`fo2ft`/…/`ut2fo`，orri 格式）。[Toolchain-01 §4.2][ADR-0013 D5]
 
 ### §4.3 示例
 
@@ -231,27 +231,24 @@
 
 | 项 | 状态 |
 |---|---|
-| 11 类 M1 格式类与 155 条 M1 指令（含 `SPEC-115t` re-scope 的 4 条特权 cfx） | 已实现（旧语法） |
+| M1 格式类与 M1 指令（含 `SPEC-115t` re-scope 的特权 cfx；格式类数/指令条数以 `contracts/opcodes.yaml` 为准） | 已实现（旧语法） |
 | 本规范的新记法（`[]`/`{}`/`?`/`:`） | 待实现（parser/printer/disassembler） |
 | 双目的/多寄存器新记法（`{rdHA,rdHB}`/`{start:end}`） | 待实现 |
-| 伪指令 8 条（合成型） | 待实现 |
-| `.dd.*` 指导符 4 条 | 未实现 |
+| 伪指令（合成型） | 待实现 |
+| `.dd.*` 指导符 | 未实现 |
 | `-multiple-to-single` | 未实现 |
 | ABI 寄存器别名 | 未实现（`DwarfRegAlias` 不可用于汇编） |
 | 越界立即数静默环绕 | 缺陷——MUST 报错 [Toolchain-01 §11][ADR-0013 D3] |
 
 - 缺陷实例：`add.si rd8, 131072` → 编码为 −131072；`cmp.ui …, 4096` → 0；两者均须报错。[Toolchain-01 §11][ADR-0013 D3]
 
+> 上述缺口项的登记与跟踪见 `.tao/knowledge/issues.yaml`。
+
 ---
 
 ## §12 机器检查
 
-- 本规范的检查（待建）[Toolchain-01 §12]：
-  1. **三方一致性**：本规范指令语法表 ↔ `DADAOInstrInfo.td` 的 `AsmString` ↔ `contracts/opcodes.yaml` 的 `format`/`insn`；[Toolchain-01 §12]
-  2. **示例可汇编**：本规范每条示例须能被汇编器接受（新语法实现后启用）；[Toolchain-01 §12]
-  3. **往返一致**：§10 的两条断言；[Toolchain-01 §12]
-  4. **缺口登记**：§11 缺口项须在 `.tao/knowledge/issues.yaml` 中有对应条目。[Toolchain-01 §12]
-- `tools/infra/check_patch_tree.py`：组件补丁集九断言（与本文档无关，列出以说明仓库门控现状）。[Toolchain-01 §12]
+本规范的机械门控收敛为既有门控名（与 `Toolchain-01 §12` 同落点）——见 `spec/README.md` 投影表 `Toolchain-01` 行 ③ 机械门控列：`tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；缺口登记见 `.tao/knowledge/issues.yaml`。[Toolchain-01 §12]
 
 ---
 

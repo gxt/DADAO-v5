@@ -187,8 +187,8 @@ cfx_ptw_set_ptbr:
     shl.uo  rd16, rd16, 3                          ; idx × 8（每路 2 条指令 = 8 字节）
     set.rd   rd3, cfx_ptw_ptbr_table
     add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb3, rd3                      ; rd→rb 中转
-    jump [rb3, rd0, 0]
+    set.rb   rb8, rd3                      ; rd→rb 中转
+    jump [rb8, rd0, 0]
 cfx_ptw_ptbr_table:
     cfx2rc  cfx_ptw_ptbr[0], rd17 ; PTBR[0]
     escape cfx_ptw, [excp_cause_ip, 4]
@@ -203,8 +203,8 @@ cfx_ptw_get_ptbr:
     shl.uo  rd16, rd16, 3
     set.rd   rd3, cfx_ptw_get_ptbr_table
     add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb3, rd3                      ; rd→rb 中转
-    jump [rb3, rd0, 0]
+    set.rb   rb8, rd3                      ; rd→rb 中转
+    jump [rb8, rd0, 0]
 cfx_ptw_get_ptbr_table:
     cfx2rd  cfx_ptw_ptbr[0], rd8 ; PTBR[0]
     escape cfx_ptw, [excp_cause_ip, 4]
@@ -220,8 +220,8 @@ cfx_ptw_set_ptbr_perm:
     shl.uo  rd16, rd16, 3                          ; mode × 8（跳转表偏移，每路 2 条指令）
     set.rd   rd3, cfx_ptw_perm_table
     add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb3, rd3                      ; rd→rb 中转
-    jump [rb3, rd0, 0]
+    set.rb   rb8, rd3                      ; rd→rb 中转
+    jump [rb8, rd0, 0]
 cfx_ptw_perm_table:
     cfx2rc  cfx_ptw_user_perm, rd17               ; U-mode (0)
     escape cfx_ptw, [excp_cause_ip, 4]
@@ -253,8 +253,8 @@ cfx_ptw_set_pthi:
     shl.uo  rd16, rd16, 3
     set.rd   rd3, cfx_ptw_set_pthi_table
     add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb3, rd3                      ; rd→rb 中转
-    jump [rb3, rd0, 0]
+    set.rb   rb8, rd3                      ; rd→rb 中转
+    jump [rb8, rd0, 0]
 cfx_ptw_set_pthi_table:
     cfx2rc  cfx_ptw_pthi[0], rd17 ; pthi[0]
     escape cfx_ptw, [excp_cause_ip, 4]
@@ -270,8 +270,8 @@ cfx_ptw_set_pahi:
     shl.uo  rd16, rd16, 3
     set.rd   rd3, cfx_ptw_set_pahi_table
     add.so {rd0, rd3}, rd3, rd16
-    set.rb   rb3, rd3                      ; rd→rb 中转
-    jump [rb3, rd0, 0]
+    set.rb   rb8, rd3                      ; rd→rb 中转
+    jump [rb8, rd0, 0]
 cfx_ptw_set_pahi_table:
     cfx2rc  cfx_ptw_pahi[0], rd17 ; pahi[0]
     escape cfx_ptw, [excp_cause_ip, 4]

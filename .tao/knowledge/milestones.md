@@ -20,7 +20,7 @@
 | `SPEC-126t` | 已验证 | 10-09 08:37 | 10-09 08:48 | 系统调用/半托管返回寄存器 `rd31 → rd8`（`DADAO-21/22/23` + `Machine-01`）+ 两合约同步 + 锁；**入参 `rd15`/参数区不动** |
 | `SPEC-127t` | 已验证 | 10-09 10:06 | 10-09 10:17 | 聚合传参收口（**全部聚合含 HFA/HPA 槽位上限 4→8 = 64 B；`>64 B` ⇒ 间接指针**）+ `DADAO-21` 与锁同步 + `contract-abi §6.4` |
 | `SPEC-128t` | 已验证 | — | 10-09 12:12 | ABI 寄存器布局重排（spec/契约侧）：RD `rd2–rd3` reserved〔调试/测试保留〕/`rd4–rd7` caller-saved；RB `rb2`=GP/`rb3`=TP/`rb4–rb7` caller-saved/`rb32–rb62` callee saved/`rb63`=FP 条件占用〔callee-saved〕；改 `DADAO-21`+锁+`contract-abi`+`contracts/abi.yaml`+就地修订 `ADR-0018 C7 D6`；**不立 ADR**；不含实现。**册+契约+ADR 修订；RF 表未改；RF 实现放开归 `LLVM-066t`** |
-| `SPEC-129t` | 待开始 | — | — | `Toolchain-01` 旧口径消除 + §11/§12 移位（`ISS-163` 收口，用户 2026-10-09 裁定「消除写死」+「台账 + 门控清单，ADR 只指向」）：改 `§5`/`§11`/`§13` 三处旧口径（`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`）；**消除写死**（计数指向 `contracts/opcodes.yaml`/`contract-asm-list.md`）；§11→既有投影 `contract-asm.md §11`、§12→既有门控说明（门控名）；`ADR-0013` 只加指向；改只读册 `Toolchain-01`+锁 `sha256` 同步；**不改实现**。**（追加 2026-10-09，用户裁定 8）并入 `spec/DADAO-22` 示例 5 处 `rb3` 当 scratch → 真临时寄存器（`rb8`/`rb9`）+ `DADAO-22` 锁 `sha256` 同步**（同一类「册旧口径同步」） |
+| `SPEC-129t` | 已验证 | — | 10-09 13:17 | `Toolchain-01` 旧口径消除 + §11/§12 移位（`ISS-163` 收口，用户 2026-10-09 裁定「消除写死」+「台账 + 门控清单，ADR 只指向」）：改 `§5`/`§11`/`§13` 三处旧口径（`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`）；**消除写死**（计数指向 `contracts/opcodes.yaml`/`contract-asm-list.md`）；§11→既有投影 `contract-asm.md §11`、§12→既有门控说明（门控名）；`ADR-0013` 只加指向；改只读册 `Toolchain-01`+锁 `sha256` 同步；**不改实现**。**（追加 2026-10-09，用户裁定 8）并入 `spec/DADAO-22` 示例 5 处 `rb3` 当 scratch → 真临时寄存器（`rb8`/`rb9`）+ `DADAO-22` 锁 `sha256` 同步**（同一类「册旧口径同步」）；**遗留①：`contract-asm §11` 状态结论疑似已实现，未擅改、如实登记** |
 | `LLVM-062t` | 已验证 | — | 10-09 12:16 | 整数完整调用约定（返回 `rd8`/`rb8`/`rf8` + K=8 + 聚合 `≤64 B`/`>64 B` byval + `sret` 经 `rb16` + 变参 + 间接调用）+ 六条欠账（`043/045/047/148/159/162`）；`ISS-108` 按用户裁定推迟 M7 |
 | `LLVM-063t` | 待开始 | — | — | DADAO clang target + driver/sysroot（**钉子①**） |
 | `LLVM-064t` | 待开始 | — | — | 大帧寻址四形态（代价驱动）+ `mem*` 内建 + `MaxStoresPerMem*=16` |
@@ -41,7 +41,7 @@
 
 > **本表即 M6 全部已规划任务**（唯一真源）：每行对应 `.tao/tasks/<模块>/<任务>-*.md` 一份任务书，**状态取自该任务书 `**状态**` 字段**（可机读复核，**不在本表写死计数**）；未开始项以 `—` 占位。
 
-> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）；`LLVM-068t` 结束 = 12:49（reviewer 证据脚本重跑日志 `/tmp/opencode/LLVM-068t-review/run.log` mtime 12:49:43）。）
+> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）；`LLVM-068t` 结束 = 12:49（reviewer 证据脚本重跑日志 `/tmp/opencode/LLVM-068t-review/run.log` mtime 12:49:43）；`SPEC-129t` 结束 = 13:17（reviewer 独立注入闭环重建日志 `/tmp/opencode/SPEC-129t-review/restore-test.log` mtime 13:17:34）。）
 
 > 开始/结束由**主会话**在 `/dispatch`／`/complete` 时填写（格式 **`MM-DD hh:mm`**，不带年份）；只填**可考证**时间，**禁编造**。
 
@@ -75,6 +75,6 @@
     - `ISS-047`（原 `[llvm, M5]`）：`llvm-objdump -d` 需显式 `--triple`（`e_machine` 未映射到 dadao）—— ③ 归属存疑 —— **待用户裁定**；选项 A 归 M6「欠账收口」/ B 判为真 issue / C 保留待规划 【**已解决（用户 2026-10-09）**：**归 M6** 并标已解决——实测已修（`EM_DADAO→Triple::dadao`，见 `LLVM-062t` 欠账 `047` ✅）】
     - `ISS-074`（原 `[testcases, M5]`）：`cs.*` 条件赋值 **overlap 语义（C-27）**未指定 —— ③ 归属未定 —— **待用户裁定**；选项 A 归 M6 / B 随 FP（M7+）/ C 保留 【**挂账（用户 2026-10-09）**：**待实现时再定**——后端当前**不发** `cs.*`；待实现/发射时定 overlap 语义（含改上游册需授权）】
     - `ISS-081`（原 `[spec, golden, testcases, llvm, qemu, integ, M5]`）：**FP 后续衔接点** —— ③ 归属未定（FP 不在 M6 显式范围）—— **待用户裁定**；选项 A 归 M6 / B 归 M7+ / C 保留 【**已裁定（用户 2026-10-09，按性质拆分）**：**FP 向量 / harness RF 归 M6**（`LLVM-066t`/`TESTCASES-036t`/`041t`）；**FP 独立 oracle 随 golden 归 `GOLDEN-*`（M7 起）**】
-    - `ISS-163`（原 `[spec, M5]`）：`Toolchain-01 §5/§11/§13` **旧口径与 `contracts/opcodes.yaml` 不符** —— ②③ 须**用户授权**方可收口上游只读册（2026-10-08 已裁定「暂登记遗留」）—— **待用户裁定** 【**已裁定：立任务收口** ⇒ `SPEC-129t`（用户 2026-10-09：「消除写死」+「台账 + 门控清单，ADR 只指向（推荐）」；授权改 `Toolchain-01` + 同步锁）】
+    - `ISS-163`（原 `[spec, M5]`）：`Toolchain-01 §5/§11/§13` **旧口径与 `contracts/opcodes.yaml` 不符** —— ②③ 须**用户授权**方可收口上游只读册（2026-10-08 已裁定「暂登记遗留」）—— **待用户裁定** 【**已裁定：立任务收口** ⇒ `SPEC-129t`（用户 2026-10-09：「消除写死」+「台账 + 门控清单，ADR 只指向（推荐）」；授权改 `Toolchain-01` + 同步锁）】 【**已解决 2026-10-09**：`SPEC-129t` 收口——`Toolchain-01 §5/§11/§13` 旧口径改对（`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`；cfx 4 条→`m1`）+ 写死计数消除 + §11/§12 移位 + 锁同步；reviewer `Accepted`（提交 `82280d9`）】
     - `ISS-164`（原 `[qemu, M5]`）：cfx mask 与 `excp_cause_mask` **屏蔽路径当前不可观测** —— ② 须后续实现带可屏蔽 cause 的 cfx 后补验 —— **待用户裁定** 【**保留跟踪（用户 2026-10-09）**：**不入 M6**；待带可屏蔽 cause 的 cfx / 特权层里程碑补验】
     - `ISS-167`（原 `[spec, qemu, M5]`）：`DADAO-12 §5` 异常退出流程 **prose 与伪代码张力** —— ②③ 须**用户授权**方可收口上游只读册 —— **待用户裁定** 【**挂账**（用户 2026-10-09：「现在和异常退出流程没有关系，需要的时候，提出问题，我来判定」）】

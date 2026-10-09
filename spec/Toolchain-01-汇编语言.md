@@ -2,7 +2,7 @@
 
 > **状态**：**生效（v1.1，2026-09-25，用户审核通过；修订：双目的/多寄存器语法，2026-09-28）**——语法已定稿；**实现待安排**（LLVM MC 的 parser/printer/disassembler 改动；当前汇编器实现的是旧语法）
 > **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策由 **`ADR-0013`《DADAO 汇编语言语法》冻结（Accepted，2026-09-28）**
-> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表）、`.tao/knowledge/contract-asm-list.md`（228 条指令全表，自动生成；其中**浮点**章为 `scope: fp`（已实现）、**待定**章为 deferred）
+> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/knowledge/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现）、**待定**章为 deferred）
 > **说明**：本规范按 ADR-0012 D4 由 spec 模块任务修改上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）
 > **关键词**：MUST / SHOULD / MAY 按 RFC 2119 解释
 
@@ -12,7 +12,7 @@
 
 - **适用范围**：DADAO M1 的汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。
 - **指令集权威**：编码与身份以 `contracts/opcodes.yaml` 为准；语义以 `contract-isa.md` 为准；本规范**只规定书写形式**。
-- **格式类（format）**：`contract-isa.md §2.3` 定义的 **11 类** M1 格式——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`）属特权 cfx、已纳入 M1（`scope: m1`）；`crii`（`cfxld`/`cfxst`）仍属 `scope: excluded`（`SimRISC-12` deferred）。
+- **格式类（format）**：`contract-isa.md §2.3` 定义的 M1 格式类——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`（格式类清单与各指令 `scope` 归属以 `contracts/opcodes.yaml` 为准）。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`）属特权 cfx、已纳入 M1（`scope: m1`）；`crii`（`cfxld`/`cfxst`）仍属 `scope: excluded`（`SimRISC-12` deferred）。
 - **术语**：**地址表达式**、**寄存器组**、**条件寄存器**、**地址立即数（字节）**——见 §3/§4/§2.4。
 
 ---
@@ -37,12 +37,12 @@
 - 立即数**MAY**写为十进制、`0x…`（十六进制）、`0b…`（二进制）、负数（前导 `-`）；下划线分隔符**MUST NOT** 使用。
 - 立即数位置接受完整的常量表达式（`+ - * / % & | ^ << >> == != < <= > >= && ||` 与一元 `! ~ - +`、括号分组）。
 - **地址立即数**：跳转/分支目标偏移与 escape 偏移的单位为**字节**，**不含任何单位标记**。装配器将其右移 2 位写入编码字段；汇编器**校验** `%4==0` 与范围。字段名映射见 §3.1。
-- **取值范围**：各立即数字段的位宽与取值范围见 `.tao/knowledge/contract-asm-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 §11）。
+- **取值范围**：各立即数字段的位宽与取值范围见 `.tao/knowledge/contract-asm-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 `contract-asm.md §11`）。
 
 ### 2.5 寄存器名
 - 四组：`rd0`–`rd63`、`rb0`–`rb63`、`ra0`–`ra63`、`rf0`–`rf63`（RF 属 `scope: fp`）。
 - 寄存器名**MUST**为「组前缀 + 十进制序号」，序号**MUST**在 0–63。
-- **ABI 别名**（`rdzero`/`rderrno`/`rdt0`–`rdt7`/`rda0`–`rda15` 及 RB/RA/RF 对应，见 `contract-abi.md §1.2`）**MAY**在后续版本支持；**当前 MUST NOT** 使用（未实现，见 §11）。
+- **ABI 别名**（`rdzero`/`rderrno`/`rdt0`–`rdt7`/`rda0`–`rda15` 及 RB/RA/RF 对应，见 `contract-abi.md §1.2`）**MAY**在后续版本支持；**当前 MUST NOT** 使用（未实现，见 `contract-asm.md §11`）。
 
 ---
 
@@ -99,12 +99,12 @@
 - **单寄存器**：`{rd3}`——**不带**冒号。
 - **范围**：`{rd3:rd8}`——表示 `rd3` 到 `rd8` 的**连续**寄存器；分隔符**MUST**为 `:`（不是 `-`）。
 - **条件寄存器**：`?` **MUST** 紧跟 `}` 之后，标记「该组寄存器用于条件判断」。**MUST NOT** 写在寄存器名之后（`rd3?` 会被词法解析为单个标识符）。
-- **双目的指令**：`rrrr` 格式中有 6 条指令（`add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so`）的 `rdha` 和 `rdhb` 均为 dst。书写格式：`助记符 {rdHA, rdHB}, rdHC, rdHD`。花括号内逗号后加空格（与整体风格一致）。
+- **双目的指令**：`rrrr` 格式中 `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 的 `rdha` 和 `rdhb` 均为 dst。书写格式：`助记符 {rdHA, rdHB}, rdHC, rdHD`。花括号内逗号后加空格（与整体风格一致）。
 - **多寄存器指令**（`ldm.*`/`stm.*`）：目的寄存器与**个数**合并为寄存器组，**个数 MUST NOT 显式书写**（由组推出）。
   - 例：`ldm.ub {rd8:rd10}, [rb0, rd1]` ≡ 旧写法 `ldm.ub rd8, rb0, rd1, 3`。
   - **MUST** 校验：`{}` 不得为空；起点+个数**MUST NOT**越出 `rd63`；个数为 0 **MUST** 报错。
   - `ldm` 的组是**目的**（内存→寄存器），`stm` 的组是**源**（寄存器→内存）。
-- **多寄存器组记法扩展**：组记法用于指令的寄存器操作数（源或目的），当 `immu6` 表示连续寄存器个数时。适用于：寄存器复制指令（`ra2rd`/`rb2rb`/`rb2rd`/`rd2ra`/`rd2rb`/`rd2rd`/`rd2rf`/`rf2rd`，8 条，`orri` 格式）和浮点格式转换指令（`ft2fo`/`fo2ft`/…/`ut2fo`，20 条，`orri` 格式）。源和目的**都用** `{start:end}` 范围记法。示例：`ra2rd {rd8:rd10}, {ra1:ra3}`、`ft2fo {rf4:rf6}, {rf8:rf10}`。
+- **多寄存器组记法扩展**：组记法用于指令的寄存器操作数（源或目的），当 `immu6` 表示连续寄存器个数时。适用于：寄存器复制指令（`ra2rd`/`rb2rb`/`rb2rd`/`rd2ra`/`rd2rb`/`rd2rd`/`rd2rf`/`rf2rd`，`orri` 格式）和浮点格式转换指令（`ft2fo`/`fo2ft`/…/`ut2fo`，`orri` 格式）。源和目的**都用** `{start:end}` 范围记法。示例：`ra2rd {rd8:rd10}, {ra1:ra3}`、`ft2fo {rf4:rf6}, {rf8:rf10}`。
 
 ### 4.3 示例
 | 场景 | 写法 |
@@ -149,7 +149,7 @@
 | `orri`（块赋值/格式转换） | `助记符 {dst:…}, {src:…}` | `ra2rd {rd8:rd10}, {ra1:ra3}` | `immu6` = 连续寄存器个数 |
 | `oiii` | `助记符 immu18` | `fence 0`、`swym 0` | 纯立即数，不加 `[]` |
 
-**`scope: excluded` 的格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**）：
+**特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`，`crii` 仍为 `scope: excluded`）：
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power），末两操作数为**地址**。
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 **`cg` 寄存器**与 **`rc` 寄存器**，各自命名。
 - `lr_nn.o rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
@@ -208,7 +208,7 @@ sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 r
 
 **`ret` 语法**：保持 `ret rdHA, imms18` **显式**两操作数；**不加无参形态**（故被删的 `return` 用 `ret rd0, 0` 表达）。
 
-- **当前状态**：v5 汇编器**尚未实现**伪指令展开（8 条合成型报 `unrecognized instruction mnemonic`）⇒ 属**待实现缺口**（见 §11；展开实现归 LLVM 任务）。删除的 10 条**不再实现**。
+- **当前状态**：v5 汇编器**尚未实现**伪指令展开（8 条合成型报 `unrecognized instruction mnemonic`）⇒ 属**待实现缺口**（见 `contract-asm.md §11`；展开实现归 LLVM 任务）。删除的 10 条**不再实现**。
 
 ---
 
@@ -241,7 +241,7 @@ sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 r
 - 汇编器**MUST**对以下情形报错（而非静默接受）：
   - 未知助记符 / 未知指导符 / 非法选项；
   - 寄存器序号越界（如 `rd64`）、寄存器组为空、范围越出 `rd63`；
-  - 立即数越界（**当前为静默环绕，属缺陷**，见 §11）；
+  - 立即数越界（**当前为静默环绕，属缺陷**，见 `contract-asm.md §11`）；
   - 需要 `rb0` 而基址非 `rb0` 的相对跳转；
   - 非法记号（如 `#`、`wp4`）——`#` 为 C 预处理器指令符（`#include`/`#define` 等），纯汇编中**无条件非法**（`AllowAdditionalComments = false`）；汇编文件需预处理时由 cpp 先行处理。
 - 诊断文本**SHOULD**包含位置（文件:行:列）与「期望值」提示。
@@ -255,36 +255,21 @@ sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 r
 
 ---
 
-## 11. 实现状态与缺口（2026-09-23）
+## 11. 实现状态与缺口
 
-| 项 | 状态 |
-|---|---|
-| 9 个 M1 格式类与 152 条 M1 指令 | ✅ 已实现（旧语法） |
-| **本规范的新记法**（`[]`/`{}`/`?`/`:`） | ❌ **待实现**（parser/printer/disassembler；等任务安排） |
-| **双目的/多寄存器新记法**（`{rdHA,rdHB}`/`{start:end}`） | ❌ **待实现** |
-| 伪指令 **8 条合成型**（`set.rd`/`set.rb`/`set.ft`/`set.fo`，各 2 形式） | ❌ **待实现**（展开归 LLVM 任务；上游 10 条 1:1 别名已删除，见 §6.2） |
-| `.dd.*` 指导符 4 条 | ❌ 未实现 |
-| `-multiple-to-single` | ❌ 未实现 |
-| ABI 寄存器别名 | ❌ 未实现（`DwarfRegAlias` 不可用于汇编） |
-| **越界立即数静默环绕** | ⚠️ **缺陷**（`add.si rd8, 131072` → 编码为 −131072；`cmp.ui …, 4096` → 0）——**MUST 报错** |
-| 上游 `spec/` 同步 | 已由 SPEC-034k 系列任务安排（上游将按本规范生成**新版本** `spec/`，本仓库 `spec/` 可由 spec 模块任务按 ADR-0012 D4 修改） |
+> **内容已移出**：实现状态见 `.tao/knowledge/contract-asm.md §11`（状态表）；缺口登记见 `.tao/knowledge/issues.yaml`。
 
 ---
 
 ## 12. 机器检查
 
-- `tools/infra/check_patch_tree.py`：组件补丁集九断言（与本文档无关，列出以说明仓库门控现状）。
-- **本规范的检查（待建）**：
-  1. **三方一致性**：本规范的指令语法表 ↔ `DADAOInstrInfo.td` 的 `AsmString` ↔ `contracts/opcodes.yaml` 的 `format`/`insn`；
-  2. **示例可汇编**：本规范中每条示例**MUST**能被汇编器接受（新语法实现后启用）；
-  3. **往返一致**：§10 的两条断言；
-  4. **缺口登记**：§11 的缺口项**MUST**在 `.tao/knowledge/issues.yaml` 中有对应条目。
+> **内容已移出**：本规范的机械门控收敛为既有门控名——见 `spec/README.md` 投影表 `Toolchain-01` 行 ③ 机械门控列（`tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`）；缺口登记见 `.tao/knowledge/issues.yaml`。
 
 ---
 
 ## 13. cfx 别名约定
 
-> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/knowledge/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 属 `scope: excluded`，本节约定随 M2 落地。
+> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/knowledge/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`；`cfxld`/`cfxst`（`crii`）为 `scope: excluded`。本节约定随 M2 落地。
 
 ### 13.1 归属与形态（D1/D2）
 - cfx 别名属**汇编规范**：由汇编器内置**符号表**解析，**不引入** cpp 头文件/宏。

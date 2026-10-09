@@ -111,7 +111,9 @@ sha256 = "675bbbdc7ab3227b131d3a6ce8ba94a0b7de529b851141074e5877f44d1f39a8"
 path = "spec/DADAO-22-SBI-主管系统二进制接口.md"
 group = "dadao-2x"
 # 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：SBI 各 cfx 服务返回 rd31 → rd8（返回表 + 代码示例）。
-sha256 = "e439d62d602fad8f89132545b4d555c1db045ab0994a67dc7a62f5125cd988a6"
+# 2026-10-09（SPEC-129t，用户裁定 8）：示例 5 处 rb3 当 scratch（改布局后 rb3=TP）→ 真临时寄存器 rb8
+# （§4 cfx_ptw 各 dispatch 的 set.rb/jump 中转）；仅改示例寄存器选择，其余口径不动。
+sha256 = "c0dea2e0a88a4f144cfe2443cccea108ef2d3bff24968643a52ec6c905bf6728"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
@@ -122,7 +124,11 @@ sha256 = "61ba9aaa24a3bfd6c4561198462e5f1ccaf516eae11da1ff58ce6b2c125fcdf0"
 [[spec]]
 path = "spec/Toolchain-01-汇编语言.md"
 group = "toolchain-01"
-sha256 = "9d6164bc9fed20039a6a1e1558ccd5a604cbae118f38fe88706b7ea2abe7ee92"
+# 2026-10-09（SPEC-129t，用户裁定「消除写死」+「台账 + 门控清单，ADR 只指向（推荐）」）：
+# §5「scope: excluded」格式列表改为仅 crii（crrr/ciii 注明 m1）；§13「cfx 属 excluded」改为
+# cfx2rd/cfx2rc/trap/escape=m1、cfxld/cfxst=excluded；§11/§12 内容移出（指针 → contract-asm.md §11 /
+# spec/README.md 门控列）；消除写死计数（M1 格式类数/指令条数改为指向 contracts/opcodes.yaml）。
+sha256 = "2ffcad3ea471170b35ab7f44921de9ee93cafd186c1191285a7fa5261e4475f0"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"
