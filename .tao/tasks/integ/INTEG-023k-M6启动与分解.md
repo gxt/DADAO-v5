@@ -47,6 +47,7 @@
 | `SPEC-126t` | 系统调用/半托管返回 `rd8` | spec | 系统调用（`DADAO-22`/`DADAO-23`/`DADAO-21 §系统调用规范`）与半托管（`Machine-01 §5`）服务返回寄存器 `rd31 → rd8` + `contract-see §5`/`contract-semihosting` 同步 + 锁同步；**逐条分类、不改 `rd15 = nr`**；**不含实现** | `SPEC-124t` |
 | `SPEC-127t` | 聚合传参/HFA/HPA 约定收口 + HFA/HPA 槽位上限 8 | spec | `spec/DADAO-21 §传参 §聚合类型参数`（**HFA/HPA 槽位上限 `4→8`〔64 B〕**）+ 锁同步 + `contract-abi.md`（HFA/HPA/聚合传参 由 `Excluded from M3` 升 **M6 口径**）+ `contracts/abi.yaml` 派生投影；**通用聚合 4 vs 8 待用户裁定、本轮不改**；**不含实现**（整数聚合→`LLVM-062t`、HFA/RF→`LLVM-066t`） | `SPEC-124t`、`SPEC-126t` |
 | `SPEC-128t` | ABI 寄存器布局重排（spec/契约侧） | spec | **RD**：`rd2–rd3` reserved（调试/测试保留）、`rd4–rd7` temporary（caller-saved）；**RB**：`rb2`=GP、`rb3`=TP、`rb4–rb7` temporary、`rb32–rb62` callee saved、**`rb63`=FP 条件占用（callee-saved）**；**RF 不改册**（实现侧放开归 `LLVM-066t`）。改 `spec/DADAO-21 §寄存器规范` + 锁 + `contract-abi §1.2/§1.3/§1.6`（+ §2.1/§3/§4.5/§4.7 最小同步）+ `contracts/abi.yaml`；**就地修订 `ADR-0018 C7 D6`**（`rb2` 始终保留 → `rb63` 条件保留；**不立新 ADR**）；**不含实现** | `SPEC-127t` |
+| `SPEC-129t` | `Toolchain-01` 旧口径消除 + §11/§12 移位（`ISS-163` 收口） | spec | 改 `§5`/`§11`/`§13` 三处旧口径（`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`）+ **消除写死**（计数指向 `contracts/opcodes.yaml`/生成投影 `contract-asm-list.md`）+ **§11→既有投影** `contract-asm.md §11`、**§12→既有门控说明**（门控名）+ `ADR-0013` **只加指向** + 只读册 `Toolchain-01` 锁 `sha256` 同步；**不改实现** | `SPEC-128t` |
 | `LLVM-062t` | 整数完整调用约定 + 小欠账 | llvm | 变参/聚合/`sret`/多返回/间接调用（`ISS-005/006`）+ `ISS-043/045/047/148/159/162`；**`ISS-110` 留后** | `INFRA-050t`、`SPEC-124t` |
 | `LLVM-063t` | DADAO clang target（钉子①） | llvm | `TargetInfo`/DataLayout/ABI/driver/sysroot；**只用于 freestanding**；模板 = RISC-V64 形状 + PPC64BE 端序/DL + AArch64 CC | `INFRA-050t`、`SPEC-124t`、`LLVM-068t` |
 | `LLVM-064t` | 大帧寻址 + `mem*` 内建 | llvm | `ISS-138` 四形态（按代价选择；落 `ADR-0018 C7 D4` 修订）+ `mem*` 内建 + 后端 `MaxStoresPerMem*=16` | `LLVM-062t`、`SPEC-122t` |
@@ -73,10 +74,12 @@
 
 > **追加（2026-10-09，用户裁定「**M6 ABI 寄存器布局重排**；**不立 ADR**；**放 M6、排 clang target 之前**」）**：新增 **2 份 `t`** —— `SPEC-128t`（ABI 寄存器布局重排 spec/契约侧：RD `rd2–rd3` reserved〔调试/测试保留〕/`rd4–rd7` caller-saved；RB `rb2`=GP/`rb3`=TP/`rb4–rb7` caller-saved/`rb32–rb62` callee saved/`rb63`=FP 条件占用〔callee-saved〕；RF 不改册；就地修订 `ADR-0018 C7 D6`；**不含实现**）+ `LLVM-068t`（后端实现：寄存器类/`getReservedRegs`〔`rb63` 条件保留〕/`getFrameRegister = hasFP ? rb63 : rb1`/`FrameLowering`〔FP=`rb63`、批量保存排除 FP〕/`LLVM-062t` RegMask 同步/lit 期望；**重建**）；**连带** `LLVM-066t` 追加「RF 实现侧放开（`rf1–rf7` caller-saved；`rf0`=FCSR 保留）」。依赖/串行：**`SPEC-128t` → `LLVM-068t` → `LLVM-063t`**；`LLVM-068t` 与 `LLVM-064t` **串行**。§C 表已加两行、§D Wave 1/2 已同步；`LLVM-063t`/`LLVM-067m` 依赖已加 `LLVM-068t`。
 
+> **追加（2026-10-09，用户裁定「**消除写死**」+「**台账 + 门控清单，ADR 只指向（推荐）**」）**：新增 **1 份 `t`** —— `SPEC-129t`（`Toolchain-01` 旧口径消除 + §11/§12 移位：改 `§5`/`§11`/`§13` 三处旧口径〔`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`〕+ **消除写死**〔计数指向 `contracts/opcodes.yaml`/生成投影 `contract-asm-list.md`〕+ **§11→既有投影** `contract-asm.md §11`、**§12→既有门控说明**〔门控名〕+ `ADR-0013` **只加指向** + 只读册 `Toolchain-01` 锁 `sha256` 同步；**不改实现**）。`ISS-163` 据此收口；`ISS-167` **挂账**（用户裁定「现在和异常退出流程没有关系，需要的时候，提出问题，我来判定」，**本任务不处理**）。§C 表已加该行、§D Wave 1 已同步（`SPEC-129t` 串于 `SPEC-128t` 之后）。**不立 ADR**（`ADR-0013` 只加指向）。
+
 ## D. Wave/串行链 · 前置 ADR · 说明
 
 - **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t`。
-- **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t` → `SPEC-126t` → `SPEC-127t` → `SPEC-128t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
+- **Wave 1（spec 决策先行；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-122t` → `SPEC-123t`／`SPEC-124t` → `SPEC-126t` → `SPEC-127t` → `SPEC-128t` → `SPEC-129t`。**ADR 未 `Accepted` 前不进实现**（`Process-03`）。
 - **Wave 2（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-062t` → `LLVM-068t`（ABI 寄存器重排）→ `063t` → `064t` → `065t` → `066t`（FP 最后）。**`LLVM-068t` 与 `LLVM-064t` 串行**（同改 `DADAOFrameLowering`，且 `064t` 大帧四形态含 `ldm/stm` 批量保存）；**`LLVM-068t` 排 `063t` 之前**。
 - **Wave 3（qemu；同改 `components/qemu/patches` ⇒ 串行）**：`QEMU-052t` → `QEMU-053t` → `QEMU-055t`。
 - **Wave 4（testcases）**：`TESTCASES-036t`／`037t`／`038t`／`039t`／`041t`；**Wave 5（integ）**：`INTEG-025t` → `INTEG-026m`。

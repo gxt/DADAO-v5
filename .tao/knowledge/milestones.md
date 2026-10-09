@@ -20,6 +20,7 @@
 | `SPEC-126t` | 已验证 | 10-09 08:37 | 10-09 08:48 | 系统调用/半托管返回寄存器 `rd31 → rd8`（`DADAO-21/22/23` + `Machine-01`）+ 两合约同步 + 锁；**入参 `rd15`/参数区不动** |
 | `SPEC-127t` | 已验证 | 10-09 10:06 | 10-09 10:17 | 聚合传参收口（**全部聚合含 HFA/HPA 槽位上限 4→8 = 64 B；`>64 B` ⇒ 间接指针**）+ `DADAO-21` 与锁同步 + `contract-abi §6.4` |
 | `SPEC-128t` | 已验证 | — | 10-09 12:12 | ABI 寄存器布局重排（spec/契约侧）：RD `rd2–rd3` reserved〔调试/测试保留〕/`rd4–rd7` caller-saved；RB `rb2`=GP/`rb3`=TP/`rb4–rb7` caller-saved/`rb32–rb62` callee saved/`rb63`=FP 条件占用〔callee-saved〕；改 `DADAO-21`+锁+`contract-abi`+`contracts/abi.yaml`+就地修订 `ADR-0018 C7 D6`；**不立 ADR**；不含实现。**册+契约+ADR 修订；RF 表未改；RF 实现放开归 `LLVM-066t`** |
+| `SPEC-129t` | 待开始 | — | — | `Toolchain-01` 旧口径消除 + §11/§12 移位（`ISS-163` 收口，用户 2026-10-09 裁定「消除写死」+「台账 + 门控清单，ADR 只指向」）：改 `§5`/`§11`/`§13` 三处旧口径（`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`）；**消除写死**（计数指向 `contracts/opcodes.yaml`/`contract-asm-list.md`）；§11→既有投影 `contract-asm.md §11`、§12→既有门控说明（门控名）；`ADR-0013` 只加指向；改只读册 `Toolchain-01`+锁 `sha256` 同步；**不改实现** |
 | `LLVM-062t` | 已验证 | — | 10-09 12:16 | 整数完整调用约定（返回 `rd8`/`rb8`/`rf8` + K=8 + 聚合 `≤64 B`/`>64 B` byval + `sret` 经 `rb16` + 变参 + 间接调用）+ 六条欠账（`043/045/047/148/159/162`）；`ISS-108` 按用户裁定推迟 M7 |
 | `LLVM-063t` | 待开始 | — | — | DADAO clang target + driver/sysroot（**钉子①**） |
 | `LLVM-064t` | 待开始 | — | — | 大帧寻址四形态（代价驱动）+ `mem*` 内建 + `MaxStoresPerMem*=16` |
@@ -72,6 +73,6 @@
     - `ISS-047`（原 `[llvm, M5]`）：`llvm-objdump -d` 需显式 `--triple`（`e_machine` 未映射到 dadao）—— ③ 归属存疑 —— **待用户裁定**；选项 A 归 M6「欠账收口」/ B 判为真 issue / C 保留待规划
     - `ISS-074`（原 `[testcases, M5]`）：`cs.*` 条件赋值 **overlap 语义（C-27）**未指定 —— ③ 归属未定 —— **待用户裁定**；选项 A 归 M6 / B 随 FP（M7+）/ C 保留
     - `ISS-081`（原 `[spec, golden, testcases, llvm, qemu, integ, M5]`）：**FP 后续衔接点** —— ③ 归属未定（FP 不在 M6 显式范围）—— **待用户裁定**；选项 A 归 M6 / B 归 M7+ / C 保留
-    - `ISS-163`（原 `[spec, M5]`）：`Toolchain-01 §5/§11/§13` **旧口径与 `contracts/opcodes.yaml` 不符** —— ②③ 须**用户授权**方可收口上游只读册（2026-10-08 已裁定「暂登记遗留」）—— **待用户裁定**
+    - `ISS-163`（原 `[spec, M5]`）：`Toolchain-01 §5/§11/§13` **旧口径与 `contracts/opcodes.yaml` 不符** —— ②③ 须**用户授权**方可收口上游只读册（2026-10-08 已裁定「暂登记遗留」）—— **待用户裁定** 【**已裁定：立任务收口** ⇒ `SPEC-129t`（用户 2026-10-09：「消除写死」+「台账 + 门控清单，ADR 只指向（推荐）」；授权改 `Toolchain-01` + 同步锁）】
     - `ISS-164`（原 `[qemu, M5]`）：cfx mask 与 `excp_cause_mask` **屏蔽路径当前不可观测** —— ② 须后续实现带可屏蔽 cause 的 cfx 后补验 —— **待用户裁定**
-    - `ISS-167`（原 `[spec, qemu, M5]`）：`DADAO-12 §5` 异常退出流程 **prose 与伪代码张力** —— ②③ 须**用户授权**方可收口上游只读册 —— **待用户裁定**
+    - `ISS-167`（原 `[spec, qemu, M5]`）：`DADAO-12 §5` 异常退出流程 **prose 与伪代码张力** —— ②③ 须**用户授权**方可收口上游只读册 —— **待用户裁定** 【**挂账**（用户 2026-10-09：「现在和异常退出流程没有关系，需要的时候，提出问题，我来判定」）】
