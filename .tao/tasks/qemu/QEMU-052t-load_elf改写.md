@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M6
 **依赖**：无（M5 已验证态）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -51,21 +51,31 @@
 
 ## 完成区
 
-> ⚠️ **停下报告（契约冲突）→ 未标 `待验收`，状态保持 `待开始`**：派遣要求「加载模型/机器接口须与 `contract-elf.md §5/§6` 对得上；若契约与 `load_elf()` 语义冲突 ⇒ **停下报告**，不擅自改契约」。实测确认**冲突成立**——改走**纯 `load_elf()`** 后，契约 §6.1.2 / `ADR-0004 D2.3` 的三类**加载期非零退出校验丢失**（详见「遗留问题」）。候选实现已完成且要求门控全绿，但据该句不做收尾/不改契约，留待裁定；候选留工作树（未提交）。
+**用户裁定原话留痕（2026-10-09，`lessons §7.3`）**：主会话问「其它 ISA 是怎么判断越界的？」，答「Linux = loader 只做一致性/溢出检查 + 让映射器拒绝；QEMU 上游 `load_elf()` 不查范围、关心的机器在机器代码里自己查；裸机 bootloader 同」。用户据此选定 **「B′ 一致性/范围检查（推荐）」** ⇒ **`load_elf()` 保持上游 ROM 装载（回退 `load_rom=false`，消除 ROM 段回归）+ 在调用前做一致性/范围检查**；契约不变；并修正探针为真越界。① ② 由**我们自校验**（不改上游 `load_elf`）仍有效；文案不约束。**不改上游 `load_elf`/`loader.c`、不恢复 `dadao_load_regions[]` 白名单、不改契约正文（仅 §6.1.2 追加一句，上一轮已加，本轮确认存在）。**
 
-**测试结果**：`make test-elf` 5/5 PASS（EXIT=0）；`make check-qemu-semantics` 149/149 PASS（EXIT=0）；`check-patch-tree` 92 patches OK（EXIT=0）。日志 `.work/log/qemu/QEMU-052t-{build,test-elf,check-qemu-semantics}.log`。
+**测试结果/门控（全 EXIT=0）**：`make test-elf` 5/5；`check-qemu-semantics` 149/149；`check-patch-tree` 92 patches OK；`make check` 全绿。042t 探针 **21/21 PASS**（`.work/log/qemu/QEMU-052t-probe-full.log`）。
 
-**修改文件**（candidate，未提交）：`.work/source/qemu/hw/dadao/dadao-machine.c`（删自建 loader+白名单、改调 `load_elf()`）；`components/qemu/patches/hw/dadao/dadao-machine.c.patch`（`make_patch qemu` 重导出，359 行）。
+**修改文件**：`.work/source/qemu/hw/dadao/dadao-machine.c`（回退 `load_elf_ram_sym(...,false,...)` → `load_elf(...)`；+`dadao_elf_check_segments`/`dadao_mapped_regions[]`/大端读取器）；`components/qemu/patches/hw/dadao/dadao-machine.c.patch`（`make_patch qemu` 重导出，585 行）；`components/qemu/changelog.md`；`tools/qemu/min_rom_probe_042t.py`（`neg_seg_out_of_range` 真越界 + 4 例文案断言放宽）；`.work/evidence/QEMU-052t/run.sh`。
 
-**验收结果**（正例，真机）：path A 改调 `load_elf(kernel,NULL,NULL,NULL,&entry,NULL,NULL,NULL,ELFDATA2MSB,DADAO_EM_MACHINE,0,0)` + `cpu_set_pc(entry)`；`grep dadao_load_regions` 无残留；内存图（RAM@0 16 MiB / 旧 RAM / ROM / exit port）与 raw-bin path B **未改**。旧探针 042t 正例全绿：多段 `PT_LOAD`、`.bss` 零填充、`e_entry`（RAM base 放 `fence` poison）、exact RAM/ROM —— `.work/log/qemu/QEMU-052t-probe042t-post.log`。
+**验收结果**（042t 五负例逐例真实 QEMU exit，`QEMU-052t-probe-full.log`）：`neg_bad_flags_ver`→1；`neg_bad_flags_res`→1；`neg_bad_type`→1；`neg_seg_out_of_range` 0→**1**；`oversize_elf_seg` 0→**1** ⇒ **5/5 非零退出** ✅。另 `neg_filesz_gt_memsz`→1。**回归项**：`elf_fill_rom_exact` 上轮 exit=1 → **本轮 exit=0（恢复绿）** ✅。证据脚本 **RUN_EXIT=0**（注入：禁用 `dadao_elf_check_header`+`dadao_elf_check_segments` 调用点 ⇒ `neg_bad_type`/`oversize_elf_seg` 不再被拒 ⇒ 检出 FAIL ⇒ `cp`+md5 还原 ⇒ 回绿；`QEMU-052t-evidence.log`）。
 
-**新发现/坑**：上游 `load_elf()` **不含** §6.1.2 要求的 `e_flags` 版本/保留位校验、`e_type==ET_EXEC` 校验、PT_LOAD「越出映射区域」校验；且以 **ROM blob** 装载、`rom_reset` **忽略**写错误 ⇒ 越界/超限段**静默不装载**，**不**「加载期非零退出」。
+**新发现/坑**：① 上游按 **`p_paddr`** 装载、并把与后段重叠的 `p_memsz` **截断到 `p_filesz`**（`hw/elf_ops.h.inc`）⇒ 越界/超限须**调用前**查、不能依赖 loader；② `load_rom=false` 经 `address_space_write` 写只读 ROM 必失败 ⇒ ROM 段回归，故须回上游默认 `load_elf()`（ROM blob 路径）；③ 契约「不约束文案」⇒ 由上游 loader 承担文本的负例只能断言非零退出。
 
-**遗留问题（⚠️ 契约冲突，待裁定）**：旧探针 042t（非门控）14 负例中 5 项在新实现下**由「非零退出」变为 `exit=0`（未拒）**：`neg_bad_flags_ver`/`neg_bad_flags_res`/`neg_bad_type`/`neg_seg_out_of_range`/`oversize_elf_seg`；另 6 项仍非零退出但消息改为上游文案（`Failed to load ELF`/`incorrect endianness`/`incompatible architecture`/`segments are too big to load`）。**选项**：(A) 采纳 `load_elf()` 语义 ⇒ **改契约**（`contract-elf §6.1.2` + `ADR-0004 D2.3`，属 spec 任务，非本任务）；(B) 补薄校验（如改调 `load_elf_ram_sym(...,load_rom=false)` 使越界写立即 MEMTX 失败，并另校验 `e_flags`/`e_type`）——但与「取消自建白名单」相抵。证据全文见上日志。**未标 `待验收`：待用户在 A/B 间裁定。**
+**遗留问题**：无（① ② ③ 全部调用前自校验；5 负例全非零退出；ROM 段回归已消除）。
 
-> **【追加：用户裁定（2026-10-09，原话留痕）】** ① ②「**我们自己校验（推荐）**」、③「**用 `load_rom=false`（推荐）**」；用户原问「1/2不需要load_elf校验，简言之，就是不改load_elf」+「3我没看懂，到底是load_elf还是load_rom」。**裁定结论 = 不改上游 `load_elf`、不改契约**：①② 调用方在装载前**自校验**（`e_flags[7:0]==1`、`e_type==ET_EXEC`）；③ 改用 `load_elf_ram_sym(..., load_rom=false, ...)`。**文案不约束**（用户裁定）。据此**选项 A/B 均不采纳**，按上方案继续实现。
+## 完成区（D 收窄 · 2026-10-09）
 
-**子代理异常登记（2026-10-09，只追加）**：本任务 engineer 子代理被 **`cancelled`**（**非失败**；它主动停下等裁定，产出已落盘、WIP 保命提交 `5dfd311`）—— session `ses_ee1d85631ffe…`、异常类型 `cancelled`、**次数 1**、产出已落盘 ⇒ **无需重试**，改按上述用户裁定继续。同记 `milestones.md`「当前进度」。
+**用户裁定原话留痕（`lessons §7.3`）**：用户指出「我们现在要测的是 **elf 文件的执行，都是装载到 ram 中，没有 rom 的事**」⇒ 追问后选定 **「D 收窄为只允许 RAM（推荐）」**。语义 = **ELF 段只允许落在 RAM**；**落 ROM 窗口的段 ⇒ 加载期非零退出**。①（`e_flags[7:0]==1`）②（`e_type==ET_EXEC`）仍**由我们调用前自校验**（不改上游 `load_elf`）；`load_rom` 之争作废（ROM 段在调 `load_elf` 前就被拒）。
+
+**允许集合（区间 + 依据）**：**仅旧 RAM 段 `0xffff_0000_0000` .. `0xffff_00ff_ffff`（16 MiB）**。依据：`contract-elf §6.1.2` 装载语义 + §6.2「RAM 16 MiB」（来源 `ADR-0004 D2.2/D2.3` rev. 2026-10-06，其时 RAM 只有此窗）；`tests/scripts/dadao.lds` 把 ELF 链到该基址；**实测**：`elf_fill_ram_exact`/`elf_data_bss` 在该窗 exit=0、`test-elf` 5/5。**RAM@0（`0x0`，16 MiB）不纳入**：其为 `ADR-0004 R3`/`QEMU-049t` 引入「供 bootrom/SEE」的 RAM，`-kernel` ELF 路径迁 `0` 属 **R3 step2（未做）**；本任务保持现状（保留旧 RAM 窗、不新增窗，避免引入未测试语义）。**ROM 窗口 `0xffff_ffff_0000`/64 KiB 已从允许集合移除**。
+
+**修改文件**：`.work/source/qemu/hw/dadao/dadao-machine.c`（`dadao_mapped_regions[]` 删 ROM 项 + 注释/错误文案改「仅 RAM」）；`components/qemu/patches/hw/dadao/dadao-machine.c.patch`（`make_patch qemu` 重导出，594 行）；`.tao/knowledge/contract-elf.md`（§6.1.2 装载语义改「仅 RAM；落 ROM 窗口 ⇒ 加载期错误并非零退出」+ §6.1.2/§6.2 两处 over-size 文案同步删 ROM）；`components/qemu/changelog.md`（本任务条目改 D 口径）；`tools/qemu/min_rom_probe_042t.py`（`elf_fill_rom_exact` 改为期望**被拒**）；`.work/evidence/QEMU-052t/run.sh`。
+
+**验收结果（真实）**：`elf_fill_rom_exact` exit **1（被拒，预期）**；`elf_fill_ram_exact` exit 0（仍可运行）；5 负例逐例 exit：`neg_bad_flags_ver`=1、`neg_bad_flags_res`=1、`neg_bad_type`=1、`neg_seg_out_of_range`=1、`oversize_elf_seg`=1（另 `neg_filesz_gt_memsz`=1）。**「ROM 段被拒（预期）」vs「ROM 段装载失败（回归）」区分**：D 下 ROM 段在 `load_elf` 前被我们拒（exit=1）；注入（允许集合改回含 ROM）时该 ROM ELF **运行 exit=0** ⇒ 上游 loader 的 ROM 装载路径仍可用，B′ 的「ROM 段装载失败」回归已消除（`QEMU-052t-evidence.log` 注入段）。门控：`make test-elf` EXIT=0（5/5）、`make check-qemu-semantics` EXIT=0（149/149）、`make check-patch-tree` EXIT=0（92 patches）、`make check` EXIT=0；042t 探针 **21/21**。证据脚本 **RUN_EXIT=0**（注入：允许集合加回 ROM + 禁用两处 callsite ⇒ `elf_fill_rom_exact`/`neg_bad_type`/`oversize_elf_seg` 不再被拒 ⇒ 检出 FAIL ⇒ `cp`+md5 还原 ⇒ 回绿）。
+
+**新发现/坑**：① 上游 `load_elf()` 按 `p_paddr` 装载、并把与后段重叠的 `p_memsz` 截断到 `p_filesz` ⇒ 越界/超限须**调用前**查；② `load_rom=false` 会致 ROM 段装载失败（B′ 回归），故保持上游默认 `load_elf()`；D 下 ROM 段被调用前拒，不再触及该路径；③ 契约「不约束文案」⇒ 上游 loader 承担文本的负例只断言非零退出。
+
+**遗留问题**：无。RAM@0 是否应纳入 `-kernel` ELF 允许集合，留待 `ADR-0004 R3` **step2**（RAM 基址迁 `0`）一并裁定。
 
 ## 审阅记录
 
@@ -86,3 +96,72 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### 第 2 轮 engineer 自审（用户裁定后收口）
+> **范围**：`dadao_elf_check_header()`（新增）+ `load_elf_ram_sym(...,false,...)` 调用 + run.sh 注入自检。逐行审查 + 真机复验。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F5（上轮延后）`e_flags`/`e_type` 校验 | ✅已修 | 新增 `dadao_elf_check_header()` 于装载前（`offsetof`+大端逐字节，无新依赖）；契约仅追加「文案不约束」一句 | `neg_bad_flags_ver/res`/`neg_bad_type` 均 exit=1；run.sh 断言 rc=0 |
+| F6 越界段「立即失败」 | ⚠️部分 | 改 `load_elf_ram_sym(...,&address_space_memory,false,NULL)`；真·越界/单段超限 exit=1 | rootcause.log；但 042t 两例仍不拒（上游 `p_paddr`/截断语义，见遗留） |
+| F7 `offsetof`/`address_space_memory`/`load_elf_ram_sym` 可用 | ✅核实 | `osdep.h` 带 `<stddef.h>`；`system/address-spaces.h` 已 include；`loader.h` 已 include | `make build-qemu` EXIT=0 |
+| F8 注入自检真实可失败且可还原 | ✅已修 | run.sh `sed` 禁用 callsite（非空注入）→ probe rc≠0 检出 → `cp`+md5 还原 → 回绿 | evidence.log：`inject_effective`/`inject_header_off_detected`/`restore_md5_match`/`restored_green` 全 PASS |
+| F9 ROM 段 ELF 回归（新发现） | ⏸延后 | 未改（用户已裁定 `load_rom=false`，取舍超本任务权限） | probe `elf_fill_rom_exact` exit=1；run.sh 标 `[KNOWN]`；完成区遗留③ |
+
+**结论**：F5/F7/F8 已处置；**F6 部分、F9 为上游语义/用户裁定下的已知取舍**，如实记入完成区遗留（未隐瞒）。据派遣「如实报告」⇒ 标 `待验收`。
+
+#### 第 3 轮 engineer 自审（用户裁定 B′ 后收口）
+> **范围**：`load_elf()` 调用回退 + `dadao_elf_check_segments()` + 探针 `neg_seg_out_of_range` 修正/文案放宽 + run.sh 注入。逐行审查 + 真机复验。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F10（上轮遗留③）ROM 段回归 | ✅已修 | 回退 `load_rom=false` → 上游默认 `load_elf()`（ROM blob 路径） | probe `elf_fill_rom_exact` exit 1→**0** |
+| F11（上轮遗留①②：越界/超限不拒） | ✅已修 | 新增 `dadao_elf_check_segments`：`p_filesz<=p_memsz`/`p_vaddr==p_paddr`/区间∈{RAM,ROM}/无溢出，调前执行 | `neg_seg_out_of_range`/`oversize_elf_seg`/`neg_filesz_gt_memsz` 均 exit=1 |
+| F12 探针 `neg_seg_out_of_range` 非真越界（只改 `p_vaddr`，上游按 `p_paddr`） | ✅已修 | 同改 `p_vaddr`(ph1+16) 与 `p_paddr`(ph1+24) 为 `0xFFFF_0200_0000` | probe PASS（`outside the mapped regions`） |
+| F13 4 例文案断言与「文案不约束」冲突（文本由上游 loader 承担，非我方可控） | ✅已修 | 新增 `_expect_reject`（只断言非零退出），EI_CLASS/EI_DATA/e_machine/Phdr-oob 改用 | 探针 21/21 PASS；4 例均 exit=1 |
+| F14 注入自检须覆盖新 ③ 且可还原 | ✅已修 | run.sh 同时禁用两个调用点 | `inject_effective` + 两例 FAIL + `restore_md5_match`(09e1e988…) + 回绿（`QEMU-052t-evidence.log`） |
+| F15 `phentsize`/`offsetof`/大端读取正确、无越界读 | ✅核实 | `offsetof(Elf64_*)` + BE 读取器；`phentsize!=56` 交上游 | `build-qemu`/`make check` EXIT=0；`test-elf` 5/5 |
+
+**结论**：F10–F15 全部处置；5 负例全非零退出、ROM 回归恢复绿、四门控 EXIT=0 ⇒ 标 `待验收`。
+
+#### 第 4 轮 engineer 自审（用户裁定 D 后收口）
+> **范围**：`dadao_mapped_regions[]` 收窄为仅 RAM + 相关注释/错误文案 + 契约 §6.1.2 + 探针 `elf_fill_rom_exact` + run.sh。逐行审查 + 真机复验。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F16（用户裁定 D）允许集合须「仅 RAM」 | ✅已修 | `dadao_mapped_regions[]` 删 ROM 项；错误文案改「only RAM … the boot ROM window is rejected」 | `elf_fill_rom_exact` exit=1；`elf_fill_ram_exact` exit=0；门控全绿 |
+| F17 探针 `elf_fill_rom_exact` 期望须翻转为「被拒」 | ✅已修 | `c_elf_fill_rom_exact` rc==0 ⇒ FAIL（附 D 依据注释）；docstring 同步 | 探针 21/21；run.sh `probe_assert elf_fill_rom_exact 0` PASS |
+| F18 契约 §6.1.2 语义须改「仅 RAM」 | ✅已修 | §6.1.2 装载语义改「仅 RAM；落 ROM 窗口 ⇒ 加载期错误并非零退出」；§6.1.2/§6.2 两处 over-size 文案同步删 ROM（同一语义，为一致性） | 目视三处一致；`make check` EXIT=0 |
+| F19 ROM 段「被拒」vs「装载失败回归」须区分 | ✅已修 | 保留上游默认 `load_elf()`；D 下 ROM 段调用前拒；注入（ROM 加回允许集合）演示 ROM 段运行 exit=0 | evidence.log 注入段 `elf_fill_rom_exact … exit=0`（装载路径可用）→ 检出 FAIL → 还原回绿 |
+| F20 证据脚本注入须真实可失败且可还原（`cp`+md5） | ✅已修 | run.sh 注入 =「允许集合加回 ROM + 禁用两处 callsite」；`cp`+md5 还原 | `inject_effective`/`inject_rom_readded`/`restore_md5_match`(37784cf1…)/恢复回绿 全 PASS；RUN_EXIT=0 |
+
+**结论**：F16–F20 全部 ✅已修；5 负例全非零退出、`elf_fill_rom_exact` 被拒、`elf_fill_ram_exact` 仍可运行、四门控 EXIT=0、探针 21/21、证据脚本 RUN_EXIT=0 ⇒ 标 `待验收`。
+
+#### 第 1 轮 reviewer 验收
+
+**判决：Accepted**
+
+**证据脚本审核**：`run.sh` 结构合规——`set -u`；`verdict()` 逐项打印期望/实际/rc；`probe_assert()` 捕获 `$rc`（非 `$?` after pipe）；注入用 `sed` 改 callsite（非空）+ `cp`+md5 还原；无 `tee`；结尾 `$FAILED` 判定退出码。负例断言体：`_expect_reject` 检 `rc==0 ⇒ bad("exit=0 (expected non-zero exit)")`——非恒真，FAIL 路径可达。
+
+**重跑**：`bash .work/evidence/QEMU-052t/run.sh` EXIT=0。逐项全 PASS（见 `/tmp/opencode/QEMU-052t-review/run.log`）。
+
+**独立注入反例**：禁用 `dadao_elf_check_segments` 调用 ⇒ `oversize_elf_seg`→FAIL（exit=0, expected non-zero）、`neg_seg_out_of_range`→FAIL → 还原 `cp`+md5=`37784cf1f56ec386ae14dd96901449d7`（相等）→ 重建 → 两探针均回绿 PASS。
+
+**约束逐条核验**：
+| 约束 | 结果 |
+|---|---|
+| ① 改走 `load_elf()` | ✅ `grep 'load_elf('` 存在、`load_elf_ram_sym` 不存在 |
+| ② 白名单已移除 | ✅ `grep 'dadao_load_regions'` 无输出（源码+补丁） |
+| ③ 允许集合仅 RAM | ✅ `dadao_mapped_regions[]` 只含 `{DADAO_RAM_BASE, DADAO_RAM_SIZE}`，无 ROM 项 |
+| ④ `elf_fill_rom_exact` 被拒 | ✅ exit=1（rejected） |
+| ⑤ `elf_fill_ram_exact` 仍可运行 | ✅ exit=0 |
+| ⑥ 五负例全非零退出 | ✅ `neg_bad_flags_ver`=1, `neg_bad_flags_res`=1, `neg_bad_type`=1, `neg_seg_out_of_range`=1, `oversize_elf_seg`=1 |
+| ⑦ 三方一致性（代码注释/契约/探针） | ✅ 代码 L482-492 写「RAM image…ROM window is rejected (user decision D)」；契约 §6.1.2 写「仅 RAM；落 ROM ⇒ 加载期错误」；探针 `elf_fill_rom_exact` 期望被拒。三者一致，无 `ROM blob` 残留 |
+| ⑧ 上游 `loader.c` 未改 | ✅ `components/qemu/patches/hw/core/loader.c*` 不存在 |
+| ⑨ `git status` | ✅ 仅任务文件（5项），无 `_tmp/_orig/_rej/_preinject` |
+| ⑩ 门控 | ✅ `make test-elf`=0, `check-qemu-semantics`=0, `check-patch-tree`=0, `check`=0 |
+
+#### architect 提交留痕（2026-10-09）
+- **档位**：正常提交（reviewer 判决 `Accepted`）。
+- **提交号**：`4996fd4`（5 files changed, 369(+)/39(−)）。
+- **文件集对账（显式 staging，禁 `git add -A`）**：`git diff --cached --name-only` = `contract-elf.md` / `QEMU-052t-load_elf改写.md` / `components/qemu/changelog.md` / `dadao-machine.c.patch` / `min_rom_probe_042t.py`，与任务书「修改文件」可提交项逐条一致；`.work/source/...`、`.work/evidence/...` 为 gitignore 工作产物、不入库。**无漏提 / 多提 / 越界**。

@@ -13,15 +13,21 @@ What it checks (each printed as "[PASS]/[FAIL] name: expected -> actual"):
                loader really set PC = e_entry.
     * segments: .rodata/.data file bytes are placed at VA=PA; a `.bss` tail
                (p_memsz > p_filesz) reads back as zero; nonzero data is checked.
-    * bounds:  a PT_LOAD that exactly fills RAM (16 MiB) and one that exactly
-               fills ROM (64 KiB) load and run (no false rejection).
+    * bounds:  a PT_LOAD that exactly fills RAM (16 MiB) loads and runs (no
+               false rejection); a PT_LOAD in the boot ROM window (64 KiB) is
+               REJECTED -- an ELF loaded over -kernel is a RAM image, so a
+               ROM-window segment is a load-stage error (non-zero exit).
+               User decision D, 2026-10-09.
   raw-bin path (B, M1-M3):
     * -bios trampoline + flat -kernel still runs and exits 0.
     * ROM blob exactly 64 KiB and RAM image exactly 16 MiB are accepted.
-  Negatives (load-stage, non-zero exit + explicit message):
+  Negatives (load-stage, non-zero exit):
     * malformed ELF: EI_CLASS / EI_DATA / e_machine / e_flags version /
       e_flags reserved / e_type / Phdr out of file bounds / p_filesz > p_memsz /
       segment outside mapped regions / truncated header / non-ELF without -bios.
+      Cases enforced by the upstream loader (EI_CLASS/EI_DATA/e_machine/Phdr-oob)
+      assert only a non-zero exit -- contract-elf.md §6.1.2 constrains the
+      'non-zero exit + load-error layer', not the wording (rev. 2026-10-09).
     * oversize: ELF segment > RAM; raw-bin ROM blob > 64 KiB; raw-bin RAM image
       > 16 MiB (message must carry the actual size and the limit).
 
@@ -359,13 +365,18 @@ def c_elf_fill_ram_exact():
     return ok("exit=0")
 
 
-@check("elf_fill_rom_exact", "ELF PT_LOAD in ROM p_memsz exactly 64 KiB runs")
+@check("elf_fill_rom_exact", "ELF PT_LOAD in ROM window rejected (RAM-only; user decision D)")
 def c_elf_fill_rom_exact():
+    # User decision D (2026-10-09): a -kernel ELF is a RAM image -- only RAM is
+    # allowed.  A PT_LOAD whose interval lies in the boot ROM window is a
+    # load-stage error (non-zero exit), so this ELF must be REJECTED, not run.
+    # (Distinct from the earlier B' bug where a ROM-window segment failed to
+    # *load*: here we reject it before the loader is ever reached.)
     p = write_tmp("exact_rom.elf", elf_exact_rom())
     rc, err = run_qemu(elf_path=p)
-    if rc != 0:
-        return bad("exit=%d (expected 0); stderr=%r" % (rc, err[:300]))
-    return ok("exit=0")
+    if rc == 0:
+        return bad("exit=0 (expected non-zero: ROM-window PT_LOAD must be rejected)")
+    return ok("exit=%d (rejected as expected)" % rc)
 
 
 @check("rawbin_compat", "-bios trampoline + flat -kernel exits 0 (M1-M3 path)")
@@ -421,22 +432,34 @@ def _expect_load_error(blob, name, *needles):
     return ok("exit=%d, msg ok" % rc)
 
 
+def _expect_reject(blob, name):
+    """Reject must be non-zero exit.  No message needle: for cases handled by
+    the upstream loader (hw/core/loader.c) the text is not ours to fix --
+    contract-elf.md §6.1.2 only constrains 'non-zero exit + load-error layer',
+    not the wording (rev. 2026-10-09)."""
+    p = write_tmp(name, blob)
+    rc, err = run_qemu(elf_path=p)
+    if rc == 0:
+        return bad("exit=0 (expected non-zero exit)")
+    return ok("exit=%d" % rc)
+
+
 @check("neg_bad_class", "EI_CLASS != ELFCLASS64 rejected")
 def c_neg_bad_class():
     b = bytearray(_good_elf()); b[4] = 1
-    return _expect_load_error(bytes(b), "neg_class.elf", "EI_CLASS")
+    return _expect_reject(bytes(b), "neg_class.elf")
 
 
 @check("neg_bad_data", "EI_DATA != ELFDATA2MSB rejected")
 def c_neg_bad_data():
     b = bytearray(_good_elf()); b[5] = 1
-    return _expect_load_error(bytes(b), "neg_data.elf", "EI_DATA")
+    return _expect_reject(bytes(b), "neg_data.elf")
 
 
 @check("neg_bad_machine", "e_machine != EM_DADAO rejected")
 def c_neg_bad_machine():
     b = patch(_good_elf(), 18, ">H", 0x1234)
-    return _expect_load_error(b, "neg_machine.elf", "e_machine")
+    return _expect_reject(b, "neg_machine.elf")
 
 
 @check("neg_bad_flags_ver", "e_flags[7:0] != 1 rejected")
@@ -461,8 +484,7 @@ def c_neg_bad_type():
 def c_neg_phdr_oob():
     g = _good_elf()
     b = patch(g, 32, ">Q", len(g) + 64)      # e_phoff beyond EOF
-    return _expect_load_error(b, "neg_phdr_oob.elf",
-                              "program header table out of file bounds")
+    return _expect_reject(b, "neg_phdr_oob.elf")
 
 
 @check("neg_filesz_gt_memsz", "PT_LOAD p_filesz > p_memsz rejected")
@@ -478,7 +500,12 @@ def c_neg_filesz_gt_memsz():
 def c_neg_seg_out_of_range():
     g = _good_elf()
     ph1 = EHDR_SIZE + PHDR_SIZE
-    b = patch(g, ph1 + 16, ">Q", 0xFFFF_0200_0000)  # outside RAM
+    # A genuine "load out of range": the upstream loader places PT_LOAD at
+    # p_paddr (include/hw/elf_ops.h.inc), so an out-of-range test must move
+    # p_paddr; to also keep VA=PA valid we move p_vaddr to the same unmapped
+    # value.  (Patching only p_vaddr exercises a VA!=PA mismatch instead.)
+    b = patch(g, ph1 + 16, ">Q", 0xFFFF_0200_0000)   # p_vaddr (outside RAM/ROM)
+    b = patch(b, ph1 + 24, ">Q", 0xFFFF_0200_0000)   # p_paddr (same, VA=PA)
     return _expect_load_error(b, "neg_range.elf", "outside the mapped regions")
 
 

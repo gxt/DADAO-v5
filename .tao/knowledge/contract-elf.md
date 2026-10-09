@@ -194,11 +194,11 @@ M4 起，跨 object 链接由 DADAO LLD（`ADR-0019`）完成，产出 **`ET_EXE
 3. QEMU test machine 解析 Elf64_Ehdr/Elf64_Phdr，按 VA=PA 装载 PT_LOAD 段，从 e_entry 进入
 ```
 
-- **装载语义**：按 VA=PA（§5.2）将 **`PT_LOAD`** 段装入其 `p_vaddr` 对应区域（RAM/ROM，`ADR-0004 §D1`）；`p_filesz` 字节取自文件、`p_memsz − p_filesz` 的尾部（`.bss`）**零填充**；段的顺序/对齐见 §5.1。[ADR-0004 §D2.2]
+- **装载语义**：按 VA=PA（§5.2）将 **`PT_LOAD`** 段装入其 `p_vaddr` 对应的 **RAM** 区域（**仅 RAM**；落 boot ROM 窗口 `0xffff_ffff_0000`/64 KiB 的 `PT_LOAD` ⇒ **加载期错误并非零退出**——`-kernel` ELF 是 RAM 镜像，用户 2026-10-09 裁定 D）；`p_filesz` 字节取自文件、`p_memsz − p_filesz` 的尾部（`.bss`）**零填充**；段的顺序/对齐见 §5.1。[ADR-0004 §D2.2]
 - **入口**：取 ELF **`e_entry`**（不再固定为加载基址）。[ADR-0004 §D2.2]
 - **头校验**：`EI_CLASS=ELFCLASS64`、`EI_DATA=ELFDATA2MSB`、`e_machine=EM_DADAO(0x0DA0)`、`e_flags[7:0]=1`（§1/§1.3）。[ADR-0004 §D2.2]
 - **首段与文件偏移**：M4 裸机路径 `dadao.lds` **不使用 `FILEHDR PHDRS`**——ELF 头/程序头表**只存在于文件中、不进入 guest 内存**（加载器从**文件**解析 `Ehdr`/`Phdr`）；首个 `PT_LOAD` 从 `.text` 起（VA=PA），其 `p_offset` **不做要求**（**不要求为 0、也不禁止为 0**）。[ADR-0003 §修订 rev. 2026-10-06]
-- **over-size / 畸形**：任一 `PT_LOAD` 段装载区间越出映射区域（RAM 16 MiB / ROM 64 KiB）、含 `.bss` 的 `p_memsz` 超限、或畸形 ELF ⇒ **启动加载阶段报错并非零退出**（工具/加载错误层，与 guest fault 分层）。[ADR-0004 §D2.3]
+- **over-size / 畸形**：任一 `PT_LOAD` 段装载区间越出 **RAM 区域（16 MiB；含落 boot ROM 窗口者）**、含 `.bss` 的 `p_memsz` 超限、或畸形 ELF ⇒ **启动加载阶段报错并非零退出**（工具/加载错误层，与 guest fault 分层）。[ADR-0004 §D2.3]（**只约束「非零退出 + 工具/加载错误层分层」，不约束错误文案**——用户 2026-10-09 裁定）
 
 ### §6.2 与 ADR-0004 的加载模型统一
 
@@ -220,7 +220,7 @@ qemu-system-dadao -machine dadao-m1 -kernel image.elf
 ```
 
 - QEMU 解析 `Elf64_Ehdr`/`Elf64_Phdr`，按 VA=PA（§5.2）装载 `PT_LOAD` 段（`p_filesz` 数据 + `.bss` 零填充），入口取 `e_entry`。[ADR-0004 §D2.2]
-- 段装载越出映射区域（RAM 16 MiB / ROM 64 KiB）或畸形 ELF ⇒ 启动加载阶段报错并非零退出。[ADR-0004 §D2.3]
+- 段装载越出 **RAM 区域（16 MiB；含落 boot ROM 窗口者）** 或畸形 ELF ⇒ 启动加载阶段报错并非零退出。[ADR-0004 §D2.3]
 
 ### §6.3 M1 / raw-bin 约束
 

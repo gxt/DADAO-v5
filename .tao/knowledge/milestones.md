@@ -25,7 +25,7 @@
 | `LLVM-065t` | 待开始 | — | — | lld reloc 完善（`REL12`/`ABS12` + `FK_Data_*` 静默 0 + `ABS48` 数据表示） |
 | `LLVM-066t` | 待开始 | — | — | FP/RF codegen（**排整数之后**；含 HFA/`rf8–rf15` 返回） |
 | `LLVM-067m` | 待开始 | — | — | M6 llvm 里程碑 |
-| `QEMU-052t` | 进行中 | 10-09 08:54 | — | 改走 `load_elf()`（**钉子②**）；裁定：①② `e_flags`/`ET_EXEC` **我们自校验**、③ 越界用 `load_elf_ram_sym(..., load_rom=false)`；`-bios`+ELF 组合不需要 |
+| `QEMU-052t` | 已验证 | 10-09 08:54 | 10-09 10:50 | 改走 `load_elf()`（**钉子②**）+ 调用前薄校验（`e_flags`/`ET_EXEC` + 逐段一致性/范围）；**用户裁定 D**：允许集合 = **仅旧 RAM 段**（`0xffff_0000_0000`/16 MiB），落 ROM 窗口段 ⇒ 加载期非零退出；**RAM@0 未纳入**（留 `QEMU-053t` step2）；`-bios`+ELF 组合不需要 |
 | `QEMU-053t` | 待开始 | — | — | RAM@0 step2（`ISS-165`）+ 6 探针退出通道迁移（`ISS-169`） |
 | `QEMU-054m` | 待开始 | — | — | M6 qemu 里程碑 |
 | `QEMU-055t` | 待开始 | — | — | 半托管/SEE 返回寄存器 `rd31 → rd8`（实现 + 探针重派生重验） |
@@ -38,7 +38,7 @@
 
 > **本表即 M6 全部已规划任务**（唯一真源）：每行对应 `.tao/tasks/<模块>/<任务>-*.md` 一份任务书，**状态取自该任务书 `**状态**` 字段**（可机读复核，**不在本表写死计数**）；未开始项以 `—` 占位。
 
-> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）。）
+> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）。）
 
 > 开始/结束由**主会话**在 `/dispatch`／`/complete` 时填写（格式 **`MM-DD hh:mm`**，不带年份）；只填**可考证**时间，**禁编造**。
 
@@ -58,7 +58,7 @@
     - `ISS-006`（原 `[M6]`）：**ABI 5 项 `[OPEN]`**（rd1/rb3/rb4 callee-saved、窄返回值扩展、多返回值、red zone、帧指针省略）—— ① 里程碑待办（`contract-abi.md §6`；其中 3 项已由 `SPEC-124t` 消解）
     - `ISS-110`（原 `[llvm, M6]`）：**`cfxld`/`cfxst` + `crii` + `SPEC-075t` 别名表 uart2..30 缺口** —— ① 里程碑待办（`INTEG-022t` 边界拆分余项）
     - `ISS-165`（原 `[testcases, qemu, integ, M6]`）：**C1 step2（RAM@0 收口）** —— ① 里程碑待办（归 `QEMU-053t`）
-    - `ISS-168`（原 `[qemu, integ, spec, M6]`）：**「`-bios` + ELF」组合加载 / 扩 `dadao_load_regions[]` / 组合加载 ADR** —— ① 里程碑待办（用户 2026-10-08 裁定；**已由「改走 `load_elf()`」取代**，`SPEC-122t` 记「不立 ADR」）
+    - `ISS-168`（原 `[qemu, integ, spec, M6]`）：**「`-bios` + ELF」组合加载 / 扩 `dadao_load_regions[]` / 组合加载 ADR** —— ① 里程碑待办（用户 2026-10-08 裁定；**已由「改走 `load_elf()`」取代**，`SPEC-122t` 记「不立 ADR」）【**已解决 2026-10-09**：组合加载不需要〔M5 裁定〕+ 扩白名单取消〔`QEMU-052t` 删 `dadao_load_regions[]`〕+ 组合加载 ADR 不立〔`SPEC-122t`〕】
     - `ISS-169`（原 `[qemu, testcases, M6]`）：**6 个 M1/M2 探针退出通道 `exit-port` → `SYS_EXIT`** —— ① 里程碑待办（归 `QEMU-053t`）
 - **阻塞与待裁定**：8 项归属存疑（`ISS-019/026/047/074/081/163/164/167`；其中 `ISS-163`/`ISS-167` 涉改上游只读册，**须用户授权**）；M6 主题**已裁定**（2026-10-08，见 `INTEG-023k`）
   - **`issues.yaml` 移入**（阻塞②/待裁定③，2026-10-08 `INTEG-024t`；原 `scope` 原样括注；**待用户裁定**）：
