@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCallingConv.td b/llvm/lib/Target/DADAO/DADAOCallingConv.td
 new file mode 100644
-index 000000000..2479397ca
+index 000000000..02ac88926
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCallingConv.td
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,106 @@
 +//===-- DADAOCallingConv.td - DADAO Calling Conventions ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -89,15 +89,23 @@ index 000000000..2479397ca
 +// Callee-saved registers / call-preserved mask
 +//
 +// CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, C6).  rb63 is included:
-+// it is ALWAYS callee-saved — as FP when hasFP (saved separately by the
-+// prologue/epilogue), otherwise as an ordinary general callee-saved register.
-+// SP (rb1) is NOT part of the generic CSR (it is maintained symmetrically by
-+// the prologue/epilogue).  The caller-saved set (rd4–rd31 / rb4–rb31) is the
-+// complement of the preserved mask plus the non-allocatable registers.
++// it is ALWAYS callee-saved — as FP when hasFP (saved to its own dedicated
++// slot, st.o rb63, [sp, -8]), otherwise as an ordinary general callee-saved
++// register.  SP (rb1) is NOT part of the generic CSR (it is maintained
++// symmetrically by the prologue/epilogue).  The caller-saved set
++// (rd4–rd31 / rb4–rb31) is the complement of the preserved mask plus the
++// non-allocatable registers.
 +// The generated `CSR_SaveList` feeds DADAORegisterInfo::getCalleeSavedRegs and
 +// `CSR_RegMask` feeds getCallPreservedMask (which must include rb32..rb63,
 +// else GPRB callee-saved values get silently clobbered across calls — ML-004c,
 +// ADR-0018 C16).
++//
++// NB (contract-isa.md §15.1, rule `mreg_range_overflow`): an `ldm.*`/`stm.*`
++// batch range must satisfy `start + immu6 <= 64`.  Many of these CSR registers
++// may be saved with one `stm.o`; rb63 is the highest RB number, so it may only
++// be the range END (or a singleton) — never the start of a multi-register
++// range ({rb32..rb63}, start 32 + immu6 32 = 64, is legal).  DADAOFrameLowering
++// keeps this rule (see emitCalleeSavedRegs).
 +//===----------------------------------------------------------------------===//
 +
 +def CSR : CalleeSavedRegs<(add (sequence "rd%u", 32, 63),

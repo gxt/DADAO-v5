@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
 new file mode 100644
-index 000000000..608428ef7
+index 000000000..5f608cf44
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
-@@ -0,0 +1,233 @@
+@@ -0,0 +1,440 @@
 +//===-- DADAOFrameLowering.cpp - DADAO Frame Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -32,14 +32,26 @@ index 000000000..608428ef7
 +// Callee-saved register sets (CSR) are LLVM-039t; only the frame pointer is
 +// saved here (rb63, conditionally reserved — see DADAORegisterInfo).
 +//
-+// INVARIANT (spec DADAO-21 §RB寄存器 / contract-abi.md §1.3): rb63 is the
-+// highest-numbered RB register, so the `ldm`/`stm` immu6 contiguous block can
-+// never be extended upward past it.  When the FP is live (hasFP), rb63 must
-+// therefore be EXCLUDED from any batch callee-saved save/restore (it is saved
-+// to its own fixed slot here) — or saved first and restored last.  The CSR
-+// spill path used today is per-register (no ldm/stm batching), so rb63-as-FP
-+// is never batched; keep this property when adding ldm/stm batch saves
-+// (LLVM-064t).
++// Large-frame addressing (ADR-0018 C7 D4, rev. 2026-10-08; LLVM-064t) is
++// cost-driven, with four forms selected by the compiler (all in
++// DADAORegisterInfo::eliminateFrameIndex):
++//   ① [sp, disp12]                         |disp| <= 2047
++//   ② rb2rb tmp, sp ; add.si tmp, N ; [tmp, 0]        |N| <= 128K
++//   ③ set.zw/or.w tmpRD, N ; add.o tmpRB, sp, tmpRD ; [tmpRB, 0]   any N
++//   ④ ldm/stm {..}, [sp, tmp]              immu6 = 1 single / >1 batch
++// Form ①/②/③ cover a single access; the batch case (form ④) is the
++// callee-saved save.  This makes any frame size reachable (ISS-138).
++//
++// INVARIANT (contract-isa.md §15.1, rule `mreg_range_overflow`): an
++// `ldm.*`/`stm.*` immediate encodes a contiguous register range with the hard
++// rule `start + immu6 <= 64` (no wrap / truncation).  rb63 is the highest RB
++// number, so it may only be the *last* element (or a singleton) of a batch
++// range; {rb32..rb63} (start 32 + immu6 32 = 64) is legal.  Project convention
++// (contract-abi.md §1.3): rb63 = FP is saved to its own dedicated slot
++// (`st.o rb63, [sp, -8]` in emitPrologue); a batch callee-saved save normally
++// does not include it, and if it did it would have to sit at the range END.
++// emitCalleeSavedRegs keeps rb63-as-run-top as the separate offset holder, so
++// it is never a range start.
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -53,6 +65,8 @@ index 000000000..608428ef7
 +#include "llvm/CodeGen/MachineInstrBuilder.h"
 +#include "llvm/CodeGen/RegisterScavenging.h"
 +#include "llvm/CodeGen/TargetRegisterInfo.h"
++#include "llvm/ADT/STLExtras.h"
++#include "llvm/ADT/SmallVector.h"
 +#include "llvm/IR/Function.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
@@ -110,14 +124,24 @@ index 000000000..608428ef7
 +}
 +
 +void DADAOFrameLowering::processFunctionBeforeFrameFinalized(
-+    MachineFunction &MF, RegScavenger * /*RS*/) const {
-+  if (!hasFP(MF))
-+    return;
-+  // Reserve the slot closest to the entry SP for the saved frame pointer.  It
-+  // is spilled/restored explicitly in emitPrologue/emitEpilogue.
++    MachineFunction &MF, RegScavenger *RS) const {
 +  MachineFrameInfo &MFI = MF.getFrameInfo();
-+  MFI.CreateFixedSpillStackObject(FPSaveSlotSize, FPSaveSlotOffset,
-+                                  /*IsImmutable=*/true);
++  if (hasFP(MF)) {
++    // Reserve the slot closest to the entry SP for the saved frame pointer.  It
++    // is spilled/restored explicitly in emitPrologue/emitEpilogue.
++    MFI.CreateFixedSpillStackObject(FPSaveSlotSize, FPSaveSlotOffset,
++                                    /*IsImmutable=*/true);
++  }
++
++  // Large frame offsets are materialized through a scavenged scratch register
++  // (ADR-0018 C7 D4 form 3).  When the frame can exceed the simm12 load/store
++  // immediate, give the register scavenger an emergency spill slot so that
++  // spilling/reloading the scratch stays reachable with a small frame offset
++  // (LLVM-064t / ISS-138).  The slot is placed closest to the final SP.
++  if (RS && MFI.estimateStackSize(MF) > 2047) {
++    int FI = MFI.CreateSpillStackObject(8, Align(8));
++    RS->addScavengingFrameIndex(FI);
++  }
 +}
 +
 +void DADAOFrameLowering::emitAddImm(MachineBasicBlock &MBB,
@@ -138,6 +162,181 @@ index 000000000..608428ef7
 +        .addImm(Step)
 +        .setMIFlag(Flag);
 +    Amount -= Step;
++  }
++}
++
++bool DADAOFrameLowering::spillCalleeSavedRegisters(
++    MachineBasicBlock & /*MBB*/, MachineBasicBlock::iterator /*MI*/,
++    ArrayRef<CalleeSavedInfo> /*CSI*/,
++    const TargetRegisterInfo * /*TRI*/) const {
++  // The saves are emitted from emitPrologue, where the frame-object offsets are
++  // final (the ldm/stm batch of ADR-0018 C7 D4 form 4 needs the concrete
++  // offset).  Returning true suppresses the default per-register path.
++  return true;
++}
++
++bool DADAOFrameLowering::restoreCalleeSavedRegisters(
++    MachineBasicBlock & /*MBB*/, MachineBasicBlock::iterator /*MI*/,
++    MutableArrayRef<CalleeSavedInfo> /*CSI*/,
++    const TargetRegisterInfo * /*TRI*/) const {
++  // Emitted from emitEpilogue (see spillCalleeSavedRegisters).
++  return true;
++}
++
++void DADAOFrameLowering::emitCalleeSavedRegs(
++    MachineFunction &MF, MachineBasicBlock &MBB,
++    MachineBasicBlock::iterator MBBI, bool IsEpilogue) const {
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  if (!MFI.isCalleeSavedInfoValid())
++    return;
++  ArrayRef<CalleeSavedInfo> CSI = MFI.getCalleeSavedInfo();
++  if (CSI.empty())
++    return;
++
++  const DADAOInstrInfo &TII = *MF.getSubtarget<DADAOSubtarget>().getInstrInfo();
++  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
++  const MachineInstr::MIFlag Flag =
++      IsEpilogue ? MachineInstr::FrameDestroy : MachineInstr::FrameSetup;
++  const DebugLoc DL = MBB.findDebugLoc(MBBI);
++
++  // Group the callee-saved registers by bank and sort by register number so a
++  // contiguous run is a maximal ascending sequence.
++  SmallVector<std::pair<unsigned, int>, 16> Bank[2];
++  for (const CalleeSavedInfo &CS : CSI) {
++    const unsigned Reg = CS.getReg();
++    const unsigned BankIdx = DADAO::GPRBRegClass.contains(CS.getReg()) ? 1 : 0;
++    Bank[BankIdx].push_back({Reg, CS.getFrameIdx()});
++  }
++  for (auto &B : Bank)
++    llvm::sort(B, [](const std::pair<unsigned, int> &A,
++                     const std::pair<unsigned, int> &B) {
++      return A.first < B.first;
++    });
++
++  // Per-register st.o / ld.o; also the fallback for non-batchable runs.  The
++  // access is emitted with a frame index and resolved by eliminateFrameIndex.
++  auto emitOne = [&](unsigned Reg, int FI) {
++    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
++    if (IsEpilogue)
++      TII.loadRegFromStackSlot(MBB, MBBI, Reg, FI, RC, Register(),
++                               /*SubReg=*/0, Flag);
++    else
++      TII.storeRegToStackSlot(MBB, MBBI, Reg, /*isKill=*/false, FI, RC,
++                              Register(), Flag);
++  };
++
++  Register FrameReg = TRI->getFrameRegister(MF);
++
++  for (unsigned Idx = 0; Idx < 2; ++Idx) {
++    const bool IsRB = Idx == 1;
++    ArrayRef<std::pair<unsigned, int>> Regs(Bank[Idx]);
++    const unsigned N = Regs.size();
++    for (unsigned i = 0; i < N;) {
++      unsigned j = i;
++      while (j + 1 < N && Regs[j + 1].first == Regs[j].first + 1)
++        ++j;
++
++      // A batch needs a run of >= 2 registers with ascending consecutive
++      // 8-byte slots.  With a nonzero base offset a run of exactly 2 would
++      // leave a single register in the range once the top becomes the offset
++      // holder, so only runs of >= 3 batch that way.  A GPRB batch with a
++      // nonzero offset additionally needs an add.si-representable offset for
++      // the RB offset-holder setup.
++      bool CanRun = (j > i);
++      int64_t Off0 = 0;
++      if (CanRun) {
++        Off0 = getFrameIndexReference(MF, Regs[i].second, FrameReg).getFixed();
++        for (unsigned t = i; t <= j && CanRun; ++t) {
++          Register FRt;
++          const int64_t Ot =
++              getFrameIndexReference(MF, Regs[t].second, FRt).getFixed();
++          if (FRt != FrameReg || Ot != Off0 + (int64_t)(t - i) * 8)
++            CanRun = false;
++        }
++        if (IsRB && Off0 != 0 && !isInt<18>(Off0))
++          CanRun = false;
++      }
++      const bool Batch = CanRun && (Off0 == 0 || j >= i + 2);
++
++      if (!Batch) {
++        for (unsigned t = i; t <= j; ++t)
++          emitOne(Regs[t].first, Regs[t].second);
++        i = j + 1;
++        continue;
++      }
++
++      // Run [i..j] is batched with one ldm/stm.  The ISA range rule
++      // `start + immu6 <= 64` (contract-isa.md §15.1, mreg_range_overflow) holds
++      // for any contiguous range inside rd0..rd63 / rb0..rb63, so rb63 may only
++      // be the range END.  Two cases:
++      //   * offset 0: the whole run fits at the frame base; rc = rd0 (hardwired
++      //     zero) and every register is in one range.
++      //   * offset != 0: Regs[j] (the run top) is saved/restored on its own and
++      //     reused as the offset holder -- its caller value is in memory and
++      //     its body value is irrelevant because it is callee-saved -- and
++      //     Regs[i..j-1] are the range.  When the top is rb63 it is thus never a
++      //     range start, and rb63-as-FP (hasFP) is absent from the callee-saved
++      //     info anyway (saved to its own dedicated slot).
++      const unsigned Start = Regs[i].first;
++
++      auto emitBatch = [&](unsigned Opc, unsigned RangeStart, unsigned Count,
++                           unsigned Base, unsigned OffReg) {
++        const RegState DefState = getDefRegState(IsEpilogue);
++        MachineInstrBuilder MIB = BuildMI(MBB, MBBI, DL, TII.get(Opc));
++        MIB.addReg(RangeStart, DefState);
++        MIB.addReg(Base);
++        MIB.addReg(OffReg);
++        MIB.addImm(Count);
++        // The range partners are implicit uses (save) / defs (restore).
++        for (unsigned r = 1; r < Count; ++r) {
++          const RegState St = RegState::Implicit | DefState;
++          MIB.addReg(RangeStart + r, St);
++        }
++        MIB.setMIFlag(Flag);
++      };
++
++      if (Off0 == 0) {
++        const unsigned Count = j - i + 1;
++        emitBatch(IsEpilogue ? (IsRB ? DADAO::ldm_o_rb : DADAO::ldm_o_rd)
++                             : (IsRB ? DADAO::stm_o_rb : DADAO::stm_o_rd),
++                  Start, Count, FrameReg, DADAO::rd0);
++        i = j + 1;
++        continue;
++      }
++
++      const unsigned Top = Regs[j].first;
++      const unsigned Count = j - i; // Regs[i..j-1]
++      auto setupOffsetHolder = [&]() {
++        if (IsRB) {
++          BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), Top)
++              .addReg(FrameReg)
++              .addImm(1)
++              .setMIFlag(Flag);
++          BuildMI(MBB, MBBI, DL, TII.get(DADAO::add_si_rb), Top)
++              .addImm(Off0)
++              .setMIFlag(Flag);
++        } else {
++          TII.materializeImm64(MBB, MBBI, DL, Top, Off0, Flag);
++        }
++      };
++
++      if (!IsEpilogue) {
++        emitOne(Top, Regs[j].second); // save the offset holder first
++        setupOffsetHolder();
++        if (IsRB)
++          emitBatch(DADAO::stm_o_rb, Start, Count, Top, DADAO::rd0);
++        else
++          emitBatch(DADAO::stm_o_rd, Start, Count, FrameReg, Top);
++      } else {
++        setupOffsetHolder(); // clobber Top; its body value is irrelevant
++        if (IsRB)
++          emitBatch(DADAO::ldm_o_rb, Start, Count, Top, DADAO::rd0);
++        else
++          emitBatch(DADAO::ldm_o_rd, Start, Count, FrameReg, Top);
++        emitOne(Top, Regs[j].second); // restore the offset holder last
++      }
++      i = j + 1;
++    }
 +  }
 +}
 +
@@ -178,6 +377,10 @@ index 000000000..608428ef7
 +    emitAddImm(MBB, MBBI, DL, DADAO::rb63, (int64_t)StackSize,
 +               /*IsEpilogue=*/false);
 +  }
++
++  // Callee-saved register saves (ADR-0018 C7 D4 form 4).  Emitted here, after
++  // the SP adjustment and the FP setup, so the batch offsets are final.
++  emitCalleeSavedRegs(MF, MBB, MBBI, /*IsEpilogue=*/false);
 +}
 +
 +void DADAOFrameLowering::emitEpilogue(MachineFunction &MF,
@@ -189,6 +392,10 @@ index 000000000..608428ef7
 +  DebugLoc DL;
 +  if (MBBI != MBB.end())
 +    DL = MBBI->getDebugLoc();
++
++  // Callee-saved register restores (ADR-0018 C7 D4 form 4) happen while SP/FP
++  // are still valid, before the frame is torn down.
++  emitCalleeSavedRegs(MF, MBB, MBBI, /*IsEpilogue=*/true);
 +
 +  if (hasFP(MF)) {
 +    // SP = FP (entry SP), then restore the caller's FP:

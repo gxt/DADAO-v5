@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
 new file mode 100644
-index 000000000..0186801df
+index 000000000..0fe15cb65
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
-@@ -0,0 +1,190 @@
+@@ -0,0 +1,263 @@
 +//===-- DADAORegisterInfo.cpp - DADAO Register Information -------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -48,15 +48,48 @@ index 000000000..0186801df
 +  // CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, ADR-0018 C6).
 +  // SP (rb1) is not part of the generic CSR (maintained symmetrically by the
 +  // prologue/epilogue).  FP (rb63) is *always* callee-saved: when hasFP it is
-+  // saved separately by the prologue/epilogue (emitPrologue/emitEpilogue);
++  // saved by the prologue to its own dedicated slot (st.o rb63, [sp, -8]);
 +  // otherwise it is an ordinary CSR member and spilled like any other.
 +  //
-+  // NB (spec DADAO-21 §RB寄存器): rb63 is the highest-numbered RB register,
-+  // so the `ldm`/`stm` immu6 contiguous range cannot be extended upward past
-+  // it.  Any batch CSR save must therefore EXCLUDE the FP (rb63) — or save it
-+  // separately first (see DADAOFrameLowering).  Keeping rb63 in CSR_SaveList is
-+  // safe with the per-register default spill path used here.
-+  return CSR_SaveList;
++  // The list is returned in DESCENDING register order (see below).  The set is
++  // exactly CSR = rd32..rd63 ∪ rb32..rb63 (contract-abi.md §4.5, C6); only the
++  // order differs, so getCallPreservedMask's CSR_RegMask (order-independent)
++  // is unchanged.
++  //
++  // NB (contract-isa.md §15.1, rule `mreg_range_overflow`): the `ldm.*`/`stm.*`
++  // immediate encodes a contiguous register range that must satisfy
++  // `start + immu6 <= 64` (no wrap, no truncation).  rb63 is the highest RB
++  // number, so it may only appear as the *last* element (or a singleton) of a
++  // batch range, never as the start of a multi-register range.  A batch
++  // {rb32..rb63} (start = 32, immu6 = 32 -> 32 + 32 = 64) is legal.
++  //
++  // DESCENDING order (highest register first) makes the PEI-assigned spill
++  // slots ascend with register number, so a contiguous register run occupies
++  // consecutive ascending offsets and can be covered by one stm.o/ldm.o
++  // (DADAOFrameLowering::emitCalleeSavedRegs), which maps register i to
++  // base + offset + i*8.  With the natural ascending order the offsets descend
++  // and no single-range batch is possible.
++  static const MCPhysReg ReversedCSR[] = {
++#define CSR_ENTRY(reg) DADAO::reg,
++      CSR_ENTRY(rb63) CSR_ENTRY(rb62) CSR_ENTRY(rb61) CSR_ENTRY(rb60)
++      CSR_ENTRY(rb59) CSR_ENTRY(rb58) CSR_ENTRY(rb57) CSR_ENTRY(rb56)
++      CSR_ENTRY(rb55) CSR_ENTRY(rb54) CSR_ENTRY(rb53) CSR_ENTRY(rb52)
++      CSR_ENTRY(rb51) CSR_ENTRY(rb50) CSR_ENTRY(rb49) CSR_ENTRY(rb48)
++      CSR_ENTRY(rb47) CSR_ENTRY(rb46) CSR_ENTRY(rb45) CSR_ENTRY(rb44)
++      CSR_ENTRY(rb43) CSR_ENTRY(rb42) CSR_ENTRY(rb41) CSR_ENTRY(rb40)
++      CSR_ENTRY(rb39) CSR_ENTRY(rb38) CSR_ENTRY(rb37) CSR_ENTRY(rb36)
++      CSR_ENTRY(rb35) CSR_ENTRY(rb34) CSR_ENTRY(rb33) CSR_ENTRY(rb32)
++      CSR_ENTRY(rd63) CSR_ENTRY(rd62) CSR_ENTRY(rd61) CSR_ENTRY(rd60)
++      CSR_ENTRY(rd59) CSR_ENTRY(rd58) CSR_ENTRY(rd57) CSR_ENTRY(rd56)
++      CSR_ENTRY(rd55) CSR_ENTRY(rd54) CSR_ENTRY(rd53) CSR_ENTRY(rd52)
++      CSR_ENTRY(rd51) CSR_ENTRY(rd50) CSR_ENTRY(rd49) CSR_ENTRY(rd48)
++      CSR_ENTRY(rd47) CSR_ENTRY(rd46) CSR_ENTRY(rd45) CSR_ENTRY(rd44)
++      CSR_ENTRY(rd43) CSR_ENTRY(rd42) CSR_ENTRY(rd41) CSR_ENTRY(rd40)
++      CSR_ENTRY(rd39) CSR_ENTRY(rd38) CSR_ENTRY(rd37) CSR_ENTRY(rd36)
++      CSR_ENTRY(rd35) CSR_ENTRY(rd34) CSR_ENTRY(rd33) CSR_ENTRY(rd32)
++#undef CSR_ENTRY
++      0};
++  return ReversedCSR;
 +}
 +
 +const uint32_t *
@@ -123,23 +156,59 @@ index 000000000..0186801df
 +         "eliminateFrameIndex: expected a frame index operand");
 +  const int FI = MI.getOperand(FIOperandNum).getIndex();
 +
++  // ADR-0018 C7 D4 form 3 (large frame): materialize an out-of-simm18 byte
++  // offset in a scavenged GPRD scratch and fold it into the frame register
++  // with `add.o`:
++  //   set.zw/or.w scratchRD, <offset>      ; 64-bit offset constant
++  //   add.o scratchRB, <frame reg>, scratchRD
++  // Returns the GPRB register holding base + offset.  Used when the offset is
++  // outside the simm18 `add.si` range of form 2, so it covers any frame size
++  // (ISS-138).  Both scratch registers are marked used so a second scavenge
++  // cannot hand out the same physical register twice.
++  auto materializeLargeOffset = [&](Register FrameReg, int64_t Offset) {
++    assert(RS && "large frame offsets require register scavenging");
++    Register ScratchRD = RS->scavengeRegisterBackwards(
++        DADAO::GPRD_AllocatableRegClass, II, /*RestoreAfter=*/false, SPAdj);
++    if (!ScratchRD)
++      report_fatal_error("DADAO: unable to scavenge a data register for a "
++                         "large frame offset");
++    RS->setRegUsed(ScratchRD);
++    TII.materializeImm64(MBB, II, DL, ScratchRD, Offset);
++
++    Register ScratchRB = RS->scavengeRegisterBackwards(
++        DADAO::GPRB_AllocatableRegClass, II, /*RestoreAfter=*/false, SPAdj);
++    if (!ScratchRB)
++      report_fatal_error("DADAO: unable to scavenge an address register for a "
++                         "large frame offset");
++    RS->setRegUsed(ScratchRB);
++    BuildMI(MBB, II, DL, TII.get(DADAO::add_o_bbd), ScratchRB)
++        .addReg(FrameReg)
++        .addReg(ScratchRD, RegState::Kill);
++    return ScratchRB;
++  };
++
 +  if (MI.getOpcode() == DADAO::FRAME_ADDR) {
-+    // Materialize a frame address into the destination GPRB register:
-+    //   rb2rb dst, <frame reg>
-+    //   add.si dst, <frame offset>        (in place; ADR-0018 C7 D4 scheme 2)
++    // Materialize a frame address into the destination GPRB register.
 +    Register Dst = MI.getOperand(0).getReg();
 +    Register FrameReg;
 +    StackOffset SO = TFI->getFrameIndexReference(MF, FI, FrameReg);
 +    const int64_t Offset = SO.getFixed() + SPAdj;
-+    if (!isInt<18>(Offset))
-+      report_fatal_error("DADAO: frame address offset out of the 18-bit "
-+                         "add.si range (large-frame scheme 1 not implemented)");
-+    if (Dst != FrameReg)
-+      BuildMI(MBB, II, DL, TII.get(DADAO::rb2rb), Dst)
-+          .addReg(FrameReg)
-+          .addImm(1);
-+    if (Offset != 0)
-+      BuildMI(MBB, II, DL, TII.get(DADAO::add_si_rb), Dst).addImm(Offset);
++    if (isInt<18>(Offset)) {
++      // Form 2: rb2rb dst, <frame reg>; add.si dst, <offset> (in place, ±128K).
++      if (Dst != FrameReg)
++        BuildMI(MBB, II, DL, TII.get(DADAO::rb2rb), Dst)
++            .addReg(FrameReg)
++            .addImm(1);
++      if (Offset != 0)
++        BuildMI(MBB, II, DL, TII.get(DADAO::add_si_rb), Dst).addImm(Offset);
++    } else {
++      // Form 3: constant + add.o, then copy into the destination bank slot.
++      Register ScratchRB = materializeLargeOffset(FrameReg, Offset);
++      if (Dst != ScratchRB)
++        BuildMI(MBB, II, DL, TII.get(DADAO::rb2rb), Dst)
++            .addReg(ScratchRB)
++            .addImm(1);
++    }
 +    MI.eraseFromParent();
 +    return true;
 +  }
@@ -156,32 +225,36 @@ index 000000000..0186801df
 +  const int64_t Total = FrameOffset + GEPOffset;
 +
 +  if (isInt<12>(Total)) {
-+    // The whole address fits `[base, simm12]`: fold it directly.
++    // The whole address fits `[base, simm12]`: fold it directly (form 1).
 +    MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, /*isDef=*/false);
 +    MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Total);
 +    return false;
 +  }
 +
-+  // The offset does not fit the load/store immediate.  Materialize the
-+  // address in a scavenged RB register:
-+  //   rb2rb scratch, <frame reg>
-+  //   add.si scratch, <offset>          (in place, ±128K; scheme 2)
++  // The offset does not fit the load/store immediate.
 +  if (!RS)
 +    report_fatal_error("DADAO: frame offset needs a scratch register but no "
 +                       "register scavenger is available");
-+  if (!isInt<18>(Total))
-+    report_fatal_error("DADAO: frame offset exceeds the 18-bit add.si range "
-+                       "(large-frame scheme 1 not implemented)");
-+  Register Scratch = RS->scavengeRegisterBackwards(
-+      DADAO::GPRBRegClass, II, /*RestoreAfter=*/false, SPAdj);
-+  if (!Scratch)
-+    report_fatal_error("DADAO: unable to scavenge a register for a large "
-+                       "frame offset");
-+  RS->setRegUsed(Scratch);
-+  BuildMI(MBB, II, DL, TII.get(DADAO::rb2rb), Scratch)
-+      .addReg(FrameReg)
-+      .addImm(1);
-+  BuildMI(MBB, II, DL, TII.get(DADAO::add_si_rb), Scratch).addImm(Total);
++
++  Register Scratch;
++  if (isInt<18>(Total)) {
++    // Form 2: materialize the address in a scavenged RB register:
++    //   rb2rb scratch, <frame reg>
++    //   add.si scratch, <offset>          (in place, ±128K)
++    Scratch = RS->scavengeRegisterBackwards(DADAO::GPRBRegClass, II,
++                                            /*RestoreAfter=*/false, SPAdj);
++    if (!Scratch)
++      report_fatal_error("DADAO: unable to scavenge a register for a large "
++                         "frame offset");
++    RS->setRegUsed(Scratch);
++    BuildMI(MBB, II, DL, TII.get(DADAO::rb2rb), Scratch)
++        .addReg(FrameReg)
++        .addImm(1);
++    BuildMI(MBB, II, DL, TII.get(DADAO::add_si_rb), Scratch).addImm(Total);
++  } else {
++    // Form 3: constant + add.o (any offset, including beyond ±128K).
++    Scratch = materializeLargeOffset(FrameReg, Total);
++  }
 +  MI.getOperand(FIOperandNum).ChangeToRegister(Scratch, /*isDef=*/false);
 +  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(0);
 +  return false;

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.h b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 new file mode 100644
-index 000000000..f85807c50
+index 000000000..2255a659b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,130 @@
 +//===-- DADAOInstrInfo.h - DADAO Instruction Info ---------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -58,6 +58,18 @@ index 000000000..f85807c50
 +  /// ADD_IMM_PSEUDO -> rd2rd + add.si; CONST_WYDE -> a set.zw/set.ow basis
 +  /// plus or.w/andn.w wyde fixes (C12, ADR-0018).
 +  bool expandPostRAPseudo(MachineInstr &MI) const override;
++
++  /// Materialize a 64-bit immediate into a GPRD register with the fixed
++  /// set.zw / or.w wyde-slice sequence (C12, ADR-0018): the lowest nonzero
++  /// wyde is set with `set.zw` (which zeroes the other 48 bits), the remaining
++  /// nonzero wydes are OR-ed in with `or.w`.  Works for any 64-bit value
++  /// (positive or negative) because the raw wyde bits are written verbatim.
++  /// Used by the large-frame addressing (ADR-0018 C7 D4 form 3) to build an
++  /// out-of-simm18 frame offset in a scratch register.  \p Value must be
++  /// nonzero (zero needs no materialization).
++  void materializeImm64(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
++                        const DebugLoc &DL, Register DstReg, int64_t Value,
++                        MachineInstr::MIFlag Flag = MachineInstr::NoFlags) const;
 +
 +  /// Register spilling to / reloading from a stack slot (LLVM-038t).  The
 +  /// access is emitted as a `st.o`/`ld.o` with a frame index as the base, the

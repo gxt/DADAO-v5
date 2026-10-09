@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.h b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
 new file mode 100644
-index 000000000..a61e84a84
+index 000000000..8254eadbe
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,100 @@
 +//===-- DADAOFrameLowering.h - Define frame lowering for DADAO -*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -26,6 +26,8 @@ index 000000000..a61e84a84
 +#ifndef LLVM_LIB_TARGET_DADAO_DADAOFRAMELOWERING_H
 +#define LLVM_LIB_TARGET_DADAO_DADAOFRAMELOWERING_H
 +
++#include "llvm/ADT/ArrayRef.h"
++#include "llvm/CodeGen/MachineFrameInfo.h"
 +#include "llvm/CodeGen/TargetFrameLowering.h"
 +
 +namespace llvm {
@@ -60,6 +62,21 @@ index 000000000..a61e84a84
 +  void processFunctionBeforeFrameFinalized(MachineFunction &MF,
 +                                           RegScavenger *RS = nullptr) const override;
 +
++  /// Callee-saved register save / restore (ADR-0018 C7 D4 form 4, LLVM-064t).
++  /// Handled here (not by the per-register default) so that contiguous
++  /// same-bank runs can be emitted as a single `stm.o`/`ldm.o`.  The actual
++  /// code is emitted from emitPrologue/emitEpilogue, where the frame-object
++  /// offsets are final; these hooks return true to suppress the default path.
++  bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
++                                 MachineBasicBlock::iterator MI,
++                                 ArrayRef<CalleeSavedInfo> CSI,
++                                 const TargetRegisterInfo *TRI) const override;
++
++  bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
++                                   MachineBasicBlock::iterator MI,
++                                   MutableArrayRef<CalleeSavedInfo> CSI,
++                                   const TargetRegisterInfo *TRI) const override;
++
 +  /// Expand / drop the call-frame pseudos (ADJCALLSTACKDOWN/UP, LLVM-039t).
 +  /// SP-only functions reserve the outgoing argument area in the prologue
 +  /// (`hasReservedCallFrame`), so the pseudo is simply dropped; a frame pointer
@@ -74,6 +91,14 @@ index 000000000..a61e84a84
 +  void emitAddImm(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
 +                  const DebugLoc &DL, Register Reg, int64_t Amount,
 +                  bool IsEpilogue) const;
++
++  /// Emit the callee-saved register saves (IsEpilogue == false) or restores
++  /// (IsEpilogue == true).  Contiguous same-bank runs whose frame slots are
++  /// also consecutive are emitted as a single `stm.o`/`ldm.o` batch (form 4);
++  /// everything else uses the per-register `st.o`/`ld.o` path.
++  void emitCalleeSavedRegs(MachineFunction &MF, MachineBasicBlock &MBB,
++                           MachineBasicBlock::iterator MBBI,
++                           bool IsEpilogue) const;
 +};
 +
 +} // namespace llvm

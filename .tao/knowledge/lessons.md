@@ -673,3 +673,13 @@
 - **规则**：1) `TargetInfo` 的 DataLayout **须** `resetDataLayout()` **由 triple 派生**，**禁**写死字面量——clang 以 `err_data_layout_mismatch` 强制其与后端 TargetMachine 一致（`-emit-llvm` 的 `target datalayout` 源自 TargetMachine），写死即**编译期报错**（0628 的 0020 即反例）。2) 默认 `DefaultABIInfo` 对**所有聚合**走间接（返回 `sret`、传参按指针）；凡 ABI 要求「小聚合入寄存器」（`contract-abi §6.1/§6.4` ≤64B）**须**自建 `CodeGen/Targets/<T>.cpp` 的 `ABIInfo` 并分发。3) clang driver **已自动透传** `-Wl,`/`-Xlinker`，工具内**勿**再 `AddAllArgValues(OPT_Wl_COMMA)`（重复 `-T` → ld.lld `region 'RAM' already defined`）。
 - **依据/来源**：`LLVM-063t`（2026-10-09，clang target 打通）；细节见该任务书完成区「新发现/坑」。同类 §8.3（依赖链逐跳追）、§8.10（委派口径落实现 + 台账）。
 
+### 8.28 描述 ISA 约束须引用精确形式，禁「必须排除/必须包含」式笼统表述（`LLVM-064t`，2026-10-09）
+
+- **规则**：描述 ISA 约束须引用**精确形式**（如 `mreg_range_overflow` 的 `start+immu6 ≤ 64`，`contract-isa.md §15.1` / `contracts/legality_rules.yaml:119`），**禁**用「必须排除/必须包含」式笼统表述——笼统表述会**同时过强与漏约束**（既排除本属合法的 `rb63` 作末位/单元素用法，又漏掉 `start+immu6>64` 这一真正边界）。
+- **依据/来源**：用户 2026-10-09 指出（`LLVM-064t` 任务书「FP 排除不变式」表述过于笼统）；修订见 `.tao/tasks/llvm/LLVM-064t-大帧寻址与mem内建.md` 约束/验收 8–9。同类 §8.1（逐字核到底）。
+
+### 8.29 历史改写的锚点用 `.work/log/` 记 SHA，不建 `backup/*` 分支（`LLVM-064t`，2026-10-09）
+
+- **规则**：改写历史前需留锚点时，**记 SHA 到 `.work/log/`**（+ `git reflog` 兜底），**不建 `backup/*` 锚点分支**——旧「在 `master` 上滚动 + push 前 squash」工作流使**每个任务都要改写 master**，遂每任务一个锚点分支且从不回收（本次清理 7 个）；**分支制（§8.26）落地后该需求消失**（历史改写只发生在私有分支内），确需改写时记 SHA 即可。
+- **依据/来源**：用户 2026-10-09 裁定（`LLVM-064t` 收尾，清理 7 个 `backup/*` 锚点分支）；同类 §8.26（每任务一分支）。
+

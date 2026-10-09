@@ -1,0 +1,99 @@
+#
+# RUN: %llc -march=dadao -run-pass=prolog-epilog -verify-machineinstrs %s -o - \
+# RUN:   | %FileCheck %s
+#
+# LLVM-064t / ADR-0018 C7 D4 form 4: a contiguous same-bank run of callee-saved
+# registers is saved with ONE `stm.o` / restored with ONE `ldm.o`.  The ISA range
+# rule (contract-isa.md §15.1, mreg_range_overflow) is `start + immu6 <= 64`, so
+# a range may end at rb63 but must never start above it.  Here rb32..rb35 are all
+# modified, so PEI saves them; the run is batched and rb63 is not involved.
+#
+# CHECK-LABEL: name:            batch4
+# Callee-saved slots ascend with register number (rb32@8, rb33@16, rb34@24,
+# rb35@32).  The run {rb32..rb35} is a single stm.o; the top register (rb35) is
+# saved on its own and reused as the offset holder, so the range is
+# {rb32..rb34} (immu6 = 3).  rb63 is never involved (it is not in the range).
+# CHECK:         stm_o_rb $rb32, {{.*}}, 3, implicit $rb33, implicit $rb34
+# CHECK:         ldm_o_rb {{.*}}, {{.*}}, 3, implicit-def $rb33, implicit-def $rb34
+# CHECK-NOT:     stm_o_rb $rb63
+# CHECK-NOT:     ldm_o_rb $rb63
+#
+--- |
+  target datalayout = "E-m:e-p:64:64-i64:64-i128:128-n8:16:32:64-S128"
+  target triple = "dadao-unknown-elf"
+
+  define void @batch4(i64 %x) {
+  entry:
+    %a = alloca i64, align 8
+    store volatile i64 %x, ptr %a, align 8
+    ret void
+  }
+...
+---
+name:            batch4
+alignment:       1
+exposesReturnsTwice: false
+legalized:       false
+regBankSelected: false
+selected:        false
+failedISel:      false
+tracksRegLiveness: true
+hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         true
+hasFakeUses:     false
+callsEHReturn:   false
+callsUnwindInit: false
+hasEHContTarget: false
+hasEHScopes:     false
+hasEHFunclets:   false
+isOutlined:      false
+debugInstrRef:   false
+failsVerification: false
+tracksDebugUserValues: false
+registers:       []
+liveins:
+  - { reg: '$rd16', virtual-reg: '' }
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    8
+  adjustsStack:    false
+  hasCalls:        false
+  framePointerPolicy: none
+  stackProtector:  ''
+  functionContext: ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  isCalleeSavedInfoValid: false
+  localFrameSize:  0
+fixedStack:      []
+stack:
+  - { id: 0, name: a, type: default, offset: 0, size: 8, alignment: 8, 
+      stack-id: default, callee-saved-register: '', callee-saved-restored: true, 
+      debug-info-variable: '', debug-info-expression: '', debug-info-location: '' }
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0.entry:
+    liveins: $rd16
+
+    $rb32 = COPY $rd16
+    $rb33 = COPY $rd16
+    $rb34 = COPY $rd16
+    $rb35 = COPY $rd16
+    st_o_rb $rb32, %stack.0.a, 0 :: (volatile store (s64) into %ir.a)
+    RET_PSEUDO implicit $rb33, implicit $rb34, implicit $rb35
+...

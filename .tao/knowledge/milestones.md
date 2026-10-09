@@ -23,7 +23,7 @@
 | `SPEC-129t` | 已验证 | — | 10-09 13:17 | `Toolchain-01` 旧口径消除 + §11/§12 移位（`ISS-163` 收口，用户 2026-10-09 裁定「消除写死」+「台账 + 门控清单，ADR 只指向」）：改 `§5`/`§11`/`§13` 三处旧口径（`crrr`/`ciii`→`m1`、仅 `crii` 仍 `excluded`）；**消除写死**（计数指向 `contracts/opcodes.yaml`/`contract-asm-list.md`）；§11→既有投影 `contract-asm.md §11`、§12→既有门控说明（门控名）；`ADR-0013` 只加指向；改只读册 `Toolchain-01`+锁 `sha256` 同步；**不改实现**。**（追加 2026-10-09，用户裁定 8）并入 `spec/DADAO-22` 示例 5 处 `rb3` 当 scratch → 真临时寄存器（`rb8`/`rb9`）+ `DADAO-22` 锁 `sha256` 同步**（同一类「册旧口径同步」）；**遗留①：`contract-asm §11` 状态结论疑似已实现，未擅改、如实登记** |
 | `LLVM-062t` | 已验证 | — | 10-09 12:16 | 整数完整调用约定（返回 `rd8`/`rb8`/`rf8` + K=8 + 聚合 `≤64 B`/`>64 B` byval + `sret` 经 `rb16` + 变参 + 间接调用）+ 六条欠账（`043/045/047/148/159/162`）；`ISS-108` 按用户裁定推迟 M7 |
 | `LLVM-063t` | 已验证 | — | 10-09 14:59 | DADAO clang target + driver/sysroot（**钉子①**）：clang target 打通（`--print-targets` 含 `dadao`／DL 与后端逐字符一致／E2E `clang→llvm-mc`+`ld.lld`→QEMU `exit=42`／`make check` lit 69/69／`series` 71 条）；遗留：`DADAOABIInfo` 最小首版（HFA/HPA 留 `LLVM-066t`）、sysroot resource-dir `include/` 暂缺 |
-| `LLVM-064t` | 待开始 | — | — | 大帧寻址四形态（代价驱动）+ `mem*` 内建 + `MaxStoresPerMem*=16` |
+| `LLVM-064t` | 已验证 | — | 10-09 16:25 | 大帧寻址四形态（代价驱动；实测三形态：form1 `isInt<12>`/form2 `isInt<18>`/form3 else）+ `mem*` 内建（`MaxStoresPerMem*=16`，切换点 **128 B**〔16×8〕、132 B 起 libcall；自写运行时无 libc）+ `rb63` 批量排除（注释精确化：`contract-isa §15.1` `start+immu6≤64`/FP 专用槽）；`ISS-138` 关闭；>128K E2E QEMU **exit=8**；遗留：无 |
 | `LLVM-065t` | 待开始 | — | — | lld reloc 完善（`REL12`/`ABS12` + `FK_Data_*` 静默 0 + `ABS48` 数据表示） |
 | `LLVM-066t` | 待开始 | — | — | FP/RF codegen（**排整数之后**；含 HFA/`rf8–rf15` 返回） |
 | `LLVM-067m` | 待开始 | — | — | M6 llvm 里程碑 |
@@ -41,7 +41,7 @@
 
 > **本表即 M6 全部已规划任务**（唯一真源）：每行对应 `.tao/tasks/<模块>/<任务>-*.md` 一份任务书，**状态取自该任务书 `**状态**` 字段**（可机读复核，**不在本表写死计数**）；未开始项以 `—` 占位。
 
-> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）；`LLVM-068t` 结束 = 12:49（reviewer 证据脚本重跑日志 `/tmp/opencode/LLVM-068t-review/run.log` mtime 12:49:43）；`SPEC-129t` 结束 = 13:17（reviewer 独立注入闭环重建日志 `/tmp/opencode/SPEC-129t-review/restore-test.log` mtime 13:17:34）；`LLVM-063t` 结束 = 14:59（reviewer 判决写入任务书 mtime 14:59:48）。）
+> （时间来源：`INTEG-024t` = 制品 mtime（`.work/INTEG-024t` 创建 00:00 / reviewer Accepted 00:05）；`SPEC-123t` = 锁 mtime 07:21 / 任务书末次写入 07:53；`SPEC-124t`/`SPEC-126t`/`SPEC-127t` = 任务书与台账落盘 mtime；`QEMU-052t` 开始 = 08:54（opencode 日志首个相关进程时间戳）/ 结束 = 10:50（reviewer 判决写入任务书 mtime 10:50:06；reviewer 末次门控 `check.log` 10:49）；`LLVM-068t` 结束 = 12:49（reviewer 证据脚本重跑日志 `/tmp/opencode/LLVM-068t-review/run.log` mtime 12:49:43）；`SPEC-129t` 结束 = 13:17（reviewer 独立注入闭环重建日志 `/tmp/opencode/SPEC-129t-review/restore-test.log` mtime 13:17:34）；`LLVM-063t` 结束 = 14:59（reviewer 判决写入任务书 mtime 14:59:48）；`LLVM-064t` 结束 = 16:25（reviewer 判决写入任务书 mtime 16:25:23）。）
 
 > 开始/结束由**主会话**在 `/dispatch`／`/complete` 时填写（格式 **`MM-DD hh:mm`**，不带年份）；只填**可考证**时间，**禁编造**。
 

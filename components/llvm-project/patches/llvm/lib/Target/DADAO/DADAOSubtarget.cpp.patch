@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..ddc94ffb0
+index 000000000..e4a3edfa5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,41 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -14,6 +14,9 @@ index 000000000..ddc94ffb0
 +
 +#include "DADAOSubtarget.h"
 +#include "DADAOTargetMachine.h"
++
++#include "llvm/CodeGen/LibcallLoweringInfo.h"
++#include "llvm/IR/RuntimeLibcalls.h"
 +
 +using namespace llvm;
 +
@@ -30,3 +33,15 @@ index 000000000..ddc94ffb0
 +      TLInfo(TM, *this) {}
 +
 +DADAOSubtarget::~DADAOSubtarget() = default;
++
++void DADAOSubtarget::initLibcallLoweringInfo(LibcallLoweringInfo &Info) const {
++  // M6 / INTEG-023k §A #3 (no libc): select the standard C `mem*` libcalls so
++  // an out-of-line llvm.memcpy/memset/memmove/memcmp lowers to `call memcpy`
++  // (etc.) instead of an IR loop.  Small constant-size intrinsics remain
++  // inlined by ISel up to MaxStoresPerMem* (16).  The symbols are resolved by
++  // the freestanding runtime (tests/scripts/dadao_mem_runtime.s).
++  Info.setLibcallImpl(RTLIB::MEMCPY, RTLIB::impl_memcpy);
++  Info.setLibcallImpl(RTLIB::MEMSET, RTLIB::impl_memset);
++  Info.setLibcallImpl(RTLIB::MEMMOVE, RTLIB::impl_memmove);
++  Info.setLibcallImpl(RTLIB::MEMCMP, RTLIB::impl_memcmp);
++}

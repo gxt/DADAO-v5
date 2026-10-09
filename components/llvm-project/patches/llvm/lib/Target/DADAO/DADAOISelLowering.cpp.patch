@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..ef38957c2
+index 000000000..fb04ee2d1
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,646 @@
+@@ -0,0 +1,659 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -92,6 +92,19 @@ index 000000000..ef38957c2
 +  setOperationAction(ISD::VAEND, MVT::Other, Expand);
 +
 +  computeRegisterProperties(STI.getRegisterInfo());
++
++  // mem* builtins (M6, INTEG-023k §A #3, no libc): inline a constant-size
++  // memcpy/memset/memmove/memcmp as up to 16 stores/loads; anything larger
++  // lowers to a libcall resolved by the freestanding runtime
++  // (tests/scripts/dadao_mem_runtime.s) at link time.  The 0628 pitfall:
++  // leaving these at UINT_MAX makes a real `llvm.memcpy` lowering expand an
++  // unbounded store sequence and blow up -- the cap must be finite.  Both the
++  // normal and the OptSize (minsize) thresholds are set to the same value so
++  // the behaviour does not depend on the optimisation level.
++  MaxStoresPerMemset = MaxStoresPerMemsetOptSize = 16;
++  MaxStoresPerMemcpy = MaxStoresPerMemcpyOptSize = 16;
++  MaxStoresPerMemmove = MaxStoresPerMemmoveOptSize = 16;
++  MaxLoadsPerMemcmp = MaxLoadsPerMemcmpOptSize = 16;
 +}
 +
 +const char *DADAOTargetLowering::getTargetNodeName(unsigned Opcode) const {
