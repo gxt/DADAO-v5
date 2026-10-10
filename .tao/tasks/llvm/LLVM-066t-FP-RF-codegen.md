@@ -75,7 +75,7 @@
 
 **新发现/坑**：①`getCalleeSavedRegs`（手写）必须与生成的 `CSR`（`CSR_RegMask`）**集合相等**——旧版仅列 `rd/rb32-63`，本次加 `rf32-63`，否则 RA 视 RF callee-saved 而 PEI 不保存 ⇒ 静默坏寄存器（自审发现并修）。②`GPRF` 含两个类型（f64+f32）时**裸物理寄存器 `rf0` 不能作 TableGen 模式操作数**（类型歧义）⇒ `fabs`（`fosgnj x,rf0`）无法成 Pat，改 `Expand`。③FP 常量在**无常量池**后端由 `DAGToDAG` 的 `ISD::ConstantFP` 材料化（整数位型 + `rd2rf`）；须 `setOperationAction(ConstantFP, Legal)`，否则 `convertSelectOfFPConstantsToLoadOffset` 会**引入常量池**（后端无此路径）。④`clang -O2` 的 `if`/`return` 会 if-convert 成 **FP `select_cc`** ⇒ 必须有 `cs.*` 模式（本任务加 RD/RF 两族 × 10 谓词，含 operand/t-f swap 与 `>`/`>=` 交换）。⑤`6.0` 恰只占 `wp3` ⇒ 单条 `set.zw` + `rd2rf`。
 
-**遗留问题**：①`fabs` 未成 Pat（`Expand`，libcall）——E2E 不用；②`frem`（DADAO `forem` 是 IEEE remainder，与 LLVM `frem`=`fmod` 语义不同）未映射，置 `Expand`；③FP `select_cc` 仅覆盖 10 个 C 谓词（`ueq/one/ord/uno` 等显式 `report_fatal_error`）；④FP **分类**（`ISD::IS_FPCLASS` bit-remap lowering）未做（「按需」，无 libm 可见需求；MC 层 `LLVM-029t/030t` 已有指令）；⑤FP↔RB 跨 bank 单指令拷贝不存在 ⇒ `copyPhysReg` 显式失败。均**显式失败/记录**，非静默降级。
+**遗留问题**：①`fabs` 未成 Pat（`Expand`，libcall）——E2E 不用；②`frem`（DADAO `forem` 是 IEEE remainder，与 LLVM `frem`=`fmod` 语义不同）未映射，置 `Expand`；③FP `select_cc` 仅覆盖 10 个 C 谓词（`ueq/one/ord/uno` 等显式 `report_fatal_error`）；④FP **分类**（`ISD::IS_FPCLASS` bit-remap lowering）未做（「按需」，无 libm 可见需求；MC 层 `LLVM-029t/030t` 已有指令）；⑤FP↔RB 跨 bank 单指令拷贝不存在 ⇒ `copyPhysReg` 显式失败。均**显式失败/记录**，非静默降级。〔**补正（2026-10-10 登记，源 `.work/log/integ/pending-registrations.md §R4`）**：`RB` = **基址寄存器**（`rb0`=PC / `rb1`=SP / `rb2`=GP…，服务访存地址，**非通用整数 bank**）；FP 位搬运的真实缺口是 `bitcast`(FP↔RD) 的 **ISel 模式**缺失，指令 `rf2rd`/`rd2rf` **已在**。〕
 
 ## 审阅记录
 

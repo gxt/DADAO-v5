@@ -794,3 +794,8 @@
 
 - **规则**：MC `MCAssembler::writeFragment` 的 `FT_Align` 分支以**字节** `Count`（`FillLen=1`）调 `writeNopData`——定长 4B / 无子字指令的 ISA（如 DADAO）须**精确写 `Count` 字节**（不足一个整字的尾部用 **0** 补齐，整字写 NOP `swym 0`）；**不可** `ceil(Count/4)*4` 向上取整（写超 ⇒ 流推进 ≠ fragment 尺寸 ⇒ `MCAssembler.cpp:588` 断言崩），**亦不可** `getMinimumNopSize()=4`（`relaxAlign` 的 `Size += Alignment` 使 `Size%4` 永不变 ⇒ 死循环）。仅**可执行段**触发（`.text` 经 `useCodeAlign` 走 NOP 路径；`.rodata` 走 value-fill、不经 `writeNopData`）。
 - **依据/来源**：`LLVM-075t`（`ISS-182`）；细节 `.tao/tasks/llvm/LLVM-075t-*.md`「新发现/坑①②」、`contract-isa.md §13.1/§13.3`（`swym 0`=0x77880000=nop）。
+
+### 8.49 「失败」不再即停：保留现场 + 自行处置 + 继续推进；需语义裁定才留问；重试须有据且记录次数（用户 2026-10-10 裁定）
+
+- **规则**：**「失败」不再是停止条件**——失败须**保留现场**（命令 / 完整输出 / 退出码 / 日志路径），**但继续推进**：自行处置（当场派修 / 绕行 / **按需重试并记录次数** / 登记后跳过）；**只在需要用户语义裁定（新决策 / 需授权）时才留问**；**重试须有据、须记录次数、须保留现场，不得以重试掩盖根因**。「不掩盖」仍成立——失败与处置必须写入任务书 / `.work/log/` / `issues.yaml`。
+- **依据/来源**：用户 2026-10-10 裁定（原话「失败即停已经是老黄历了」）；同步 `AGENTS.md`「最小安全设计」+ `.opencode/agents/{engineer,reviewer,architect}.md` + `.opencode/commands/dispatch.md`。子代理**异常返回**仍按 §8.9（保留现场 + 有据重试 1 次后拆分）。

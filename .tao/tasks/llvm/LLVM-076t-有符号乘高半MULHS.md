@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M6
 **依赖**：`INFRA-050t`（一次构建 `DADAO;X86`）、`INFRA-051t`（Embench 源树）、`LLVM-062t`/`LLVM-063t`/`LLVM-069t`/`LLVM-073t`（均已 `已验证`）、`QEMU-052t`（ELF 加载，`已验证`）；**与 Wave 2 其它 llvm 任务同改 `components/llvm-project/patches` ⇒ 串行**
-**状态**：待开始
+**状态**：已验证
 
 > **覆盖缺口**：**`ISS-185`（有符号乘高半 `MULHS`/`SMUL_LOHI`）**；与 `LLVM-073t`（无符号 `mulhu`/`umul_lohi`）**同族**。
 
@@ -70,16 +70,61 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：证据 `.work/evidence/LLVM-076t/run.sh` 功能档 `RUN_EXIT=0`（checks=50 failed=0）；`--inject` `RUN_EXIT=0`（注入⇒5 检查 FAIL〔lit + oracle m1_c0/c1 + m3_c0/c1〕⇒`cp`+md5 还原〔md5 `3511bf2958f2e6d363a9c7d0fa362ed7` 相等〕⇒重建⇒回绿）。门控 `build-mc`/`check`/`check-patch-tree`(109 patches)/`check-lit`(**88/88**＝基线 87＋本任务 1) 均 EXIT=0。
+
+**修改文件**：补丁 2 份（改）`components/llvm-project/patches/llvm/lib/Target/DADAO/{DADAOCodeGen.td,DADAOInstrInfo.cpp}.patch`、`components/llvm-project/changelog.md`（追加）；新增 `tests/llvm/lit/CodeGen/DADAO/smul-lohi.ll`、`tests/e2e/smulhi_e2e.c`；本任务书。证据（gitignored）`.work/evidence/LLVM-076t/run.sh`、日志 `.work/log/llvm/LLVM-076t-*.log`。`series` 仍 71；组件源树 HEAD `6868a04fd`=base(`6dfe1677a`)+1 clean。
+
+**验收结果**（真实命令 + rc；缺口原话 `ISS-185`：`有符号乘高半 MULHS/SMUL_LOHI 缺失 ⇒ long g(long a,long b){return a*b/3;} ⇒ llc rc=134 Cannot select … mulhs`）：
+- ① 最小复现 `long g(long a,long b){return a*b/3;}`：`llc -march=dadao -O0/-O2` **rc=0**（改前 rc=134 同一 `Cannot select … mulhs`）；反汇编 `mul.so {rd4, rd0}, rd4, rd5`（`rdha`=高半、`rdhb`=`rd0` 丢弃低半；依据 `contract-isa.md §6.1.4` `mul.so rdha:rdhb=rdhc×rdhd`）；`clang -O0/-O2 -c` **rc=0**。
+- ② 独立 oracle（host Python **有符号**大整数；10 边界用例×4 模式＝40 用例、**320 次逐字节全等**，0 mismatch；含 `-1`/负数/跨 `2^32`/`2^63-1`/`-2^63`/`(2^63-1)^2`/`(-2^63)^2`）：`RUN_EXIT=0`。**实现=ISA 专用 `mul.so`（非等价序列）。**
+- ③ **半字序可判别**（引 `lessons §8.46`）：lit/E2E 用**非交换** `hi - lo`（非 `xor`）；`halfswap_sensitivity` 现场统计 **6/10** 用例低字节随半字互换而变；**注入两半互换 ⇒ lit 与 oracle m3 均 FAIL**（见 `--inject`）。
+- ④ E2E `tests/e2e/smulhi_e2e.c`：clang→ld.lld→QEMU，`-DMODE=0..3`（低半/高半`mulhs`/`a*b/3` 有符号/非交换 `hi-lo`）逐字节退出码＝Python（如 mode1 case0 hi=0⇒退出码 0；case1=`0x3fffffffffffffff`）。
+- ⑤ `aha-mont64` **`-O0` 全部对象 rc=0**；`-O2` 被**它类缺口** `ISS-186`（`Cannot select … load<…, zext from i1>`）阻塞、**不阻断**；**现场统计** `bench_sweep_O0: 19/19` 基准 `-O0` 全 rc=0。
+- ⑥ 门控 EXIT=0（见上，`check-lit` 88/88 不下降）。⑦ `git -c core.quotepath=false diff --name-only | grep -E '^(spec|contracts)/'` → 无输出。⑨ `git status --porcelain -uall` 仅本任务 5 文件，无 `_tmp/_orig/_rej`。
+
+**新发现/坑**：① 与 `MULHU`/`UMUL_LOHI`（LLVM-073t）**同族**：`MULHS`/`SMUL_LOHI` 亦默认 `Legal`（`TargetLowering` 初值）却无 pattern ⇒ `Cannot select: … mulhs`。② `mul.so` 定义序 (rdha=high, rdhb=low)，而 `ISD::SMUL_LOHI` 结果序 (low, high) ⇒ 伪指令列 (lo,hi) 后由 `expandPostRAPseudo` **换序**（同 `mul.uo`）。③ 有符号 `a*b` 的**高半**走 `mul.so`、**低半**走 `mul.uo`（低 64 位有/无符号相同）。④ XOR 交换不变 ⇒ 对半字序不敏感（§8.46），故改用 `hi-lo`；另有 4/10 用例 hi==lo 时低字节天然不可判别（已记入统计口径）。
+
+**遗留问题**：无（`ISS-185` 实现面已收口）；`aha-mont64 -O2` 的 `zext from i1` load 缺口归 `ISS-186`/另立（非本任务能力缺口）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+**自主逐行审查**（2 文件改动）：
+- `DADAOCodeGen.td`：`MULHS_PSEUDO`＝`(set GPRD:$dst,(mulhs GPRD:$a,GPRD:$b))`；`SMUL_LOHI_PSEUDO`＝`(set $lo,$hi,(smullohi …))`，结果序 (low,high) 与 `ISDOpcodes.h`／`TargetLowering::expandDIVREMByConstant`（`getValue(0)=Lo`）一致——与既有 `MULHU/UMUL_LOHI` 同构。
+- `DADAOInstrInfo.cpp`：`MULHS_PSEUDO → mul.so Dst,rd0,a,b`（高半入 Dst、低半丢 `rd0`）；`SMUL_LOHI_PSEUDO → mul.so {Hi,Lo},a,b`（换序）；满足「双目的不得同时 rd0」。
+- 边界：常量操作数（`BuildSDIV` 经 `CONST_WYDE` 物化入 GPRD，lit `sdiv3` 实测 `set.zw`+`mul.so`）、i128 有符号乘（`smul128_delta`/mode3 实测 `mul.so {rd5,rd4}`）、`-O0`/`-O2`、`-verify-machineinstrs` 干净。
+- 防造假：真实 `llc`/`clang`/`ld.lld`/QEMU；计数现场统计（`ORACLE: cases=40 byte-comparisons=320`、`bench_sweep 19/19`）；`--inject` 注入→FAIL→`cp`+md5→重建→回绿；无 `tee` 吞码。
+
+**finding 处置**：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 证据脚本 `oracle_num_cases` 未剥注释 ⇒ 把 `IN_A` 注释内 `0x123456789abcdef0` 当数据（11≠10），oracle 在 case10 越界 FAIL | ✅已修 | 解析前剥 `/* */` 与 `//` | 功能档 `ORACLE: cases=40 …`、`RUN_EXIT=0` |
+| F2 lit `sdiv3` 断言 `set.ow`，实际有符号 magic 常量 `0x5556…5555` 为正 ⇒ 用 `set.zw` | ✅已修 | 改 `set.zw` | llc+FileCheck rc=0 |
+| F3 lit `muldiv3` 期望低半 `mul.so`，实际为 `mul.uo`（低半有/无符号相同） | ✅已修 | 首行改 `mul.uo {rd0, rdN}` | llc+FileCheck rc=0 |
+| F4 已提交 `umul128_xor` 式 XOR 交换不变、对半字序不敏感（§8.46） | ✅已改 | 用例改**非交换** `hi - lo` + oracle mode3 + `halfswap_sensitivity` 现场统计 | 注入 m3 FAIL、`6/10` 用例可判别 |
+| F5 只验 `aha-mont64` 不足以覆盖「相关基准」 | ✅已补 | 证据脚本加 `bench_sweep_O0`（全 `src/*/` 现场统计） | `bench_sweep_O0: 19/19` |
+
+**判决**：finding 全部 ✅已修，状态置 `待验收`。
+
+#### 第 1 轮 reviewer 验收（**Accepted**）
+
+**环境处置**：22:06:55 起另一并发 reviewer 会话在同一源树/构建树做注入自检，致 `clang-23` 重写中无 +x（my oracle rc=126 现场留存）。22:13 用户确认无并发后继续。对方 `REBUILD_RESTORE_EXIT=0`/`RUNSH_RESTORE_EXIT=0`；ninja no-op 确认二进制↔干净源码对应后继续。
+
+**快照对账**：开工快照（6 文件 status + 5 文件 md5）已留 snap-pre.*；**终态快照 diff rc=0、md5 全一致、组件源树 clean**——注入已完全还原。
+
+**已重跑（真实输出/退出码）**：
+- **门控**：`check-patch-tree` EXIT=0「109 patches OK」；`check-lit` EXIT=0「88/88 Passed」含 `smul-lohi.ll`；`make check` EXIT=0；`build-mc` EXIT=0（no work to do）。
+- **证据脚本功能档**：rc=0，RUN_EXIT=0，checks=50 failed=0；halfswap=6/10，ORACLE 320/320，bench_sweep 19/19，aha-mont64 O0 全绿、O2 被 `zext from i1`（ISS-186）挡。
+- **最小复现**：`llc -O0/-O2 rc=0`，`mul.so {rd4, rd0}, rd4, rd5`（高半入 rd4、低半丢 rd0）——独立确认。
+- **独立 oracle**：Python 独立重算 40 期望值（读工程师 C 矢量 IN_A/IN_B、自写 signed big-int 逻辑），0 mismatch（ORACLE_VERIFY: cases=40 mismatches=0）。
+- **半字序判别**：独立 Python 验证 6/10 用例 `(hi-lo)&0xff ≠ (lo-hi)&0xff`——与 engineer 的 halfswap_sensitivity=6 完全一致。
+- **`--inject` 重跑**：RUN_EXIT=0；注入后 5 FAIL（lit + m1_c0/c1 + m3_c0/c1）→ md5 `3511bf…` 还原 → 重建 → 回绿。
+- **我的独立注入（仅 SMUL_LOHI 双目互换、不动 MULHS）**：注入后 10 FAIL（m3_c0..c9 全报；m0/m1/m2 全 PASS、lit PASS）→ `cp`+md5 还原 → 重建 → 50/0 回绿。**两半互换注入被非交换语义断言检出** ✓。
+- **spec|contracts 交集**：grep rc=1（空）。
+- **脚本审计**：各断言可达 FAIL 路径；注入锚 assert 唯一；计数现场统计。
+
+**观察（不阻断）**：`smulhi_e2e.c` 未接入 `tests/e2e/lit`（半字序回归保护仅在 gitignored 证据脚本中），与 `LLVM-073t` 的 `mulhi_e2e.c` 先例一致；结构 lit 覆盖指令选择、e2e 覆盖语义——可后续统一改进。
+
+**判决**：**Accepted**——全部 9 条验收标准满足、硬约束无违反、注入自检通过、独立 oracle 独立验证通过。

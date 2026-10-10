@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..e673fa355
+index 000000000..12fcc23d0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,647 @@
+@@ -0,0 +1,679 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -201,6 +201,38 @@ index 000000000..e673fa355
 +    Register Src1 = MI.getOperand(2).getReg();
 +    Register Src2 = MI.getOperand(3).getReg();
 +    BuildMI(MBB, MI, DL, get(DADAO::mul_uo_rd))
++        .addDef(Hi)           // rdha = high 64 bits
++        .addDef(Lo)           // rdhb = low 64 bits
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::MULHS_PSEUDO: {
++    // High half of a signed 64x64 product (LLVM-076t, ISS-185):
++    // `mul.so rdha, rdhb, rdhc, rdhd` has rdha = high 64, rdhb = low 64
++    // (contract-isa.md §6.1.4), so the high half alone is
++    // `mul.so dst, rd0, a, b` (the low half goes to the hardwired-zero rd0).
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_so_rd))
++        .addDef(Dst)          // rdha = high 64 bits of the product
++        .addDef(DADAO::rd0)   // rdhb = rd0 (discard the low 64 bits)
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::SMUL_LOHI_PSEUDO: {
++    // Full signed 64x64 -> 128 product (ISD::SMUL_LOHI).  The node's results
++    // are (low, high) but mul.so's defs are (rdha=high, rdhb=low), so the
++    // operand order is swapped here (LLVM-076t, ISS-185).
++    Register Lo = MI.getOperand(0).getReg();
++    Register Hi = MI.getOperand(1).getReg();
++    Register Src1 = MI.getOperand(2).getReg();
++    Register Src2 = MI.getOperand(3).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_so_rd))
 +        .addDef(Hi)           // rdha = high 64 bits
 +        .addDef(Lo)           // rdhb = low 64 bits
 +        .addReg(Src1)         // rdhc = src1

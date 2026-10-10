@@ -416,11 +416,11 @@
 
 - id: ISS-185
   title: "有符号乘高半 `MULHS` / `SMUL_LOHI` 缺失（`Cannot select: ... mulhs` rc=134）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "**G2 同族缺口（未修，范围外）**。现象：`long g(long a,long b){ return a*b/3; }` ⇒ `llc -march=dadao` rc=134，`LLVM ERROR: Cannot select: ... mulhs ...`（有符号乘高半无 pattern；`LLVM-073t` 仅实现无符号 `mulhu`/`umul_lohi`）。`LLVM-073t` engineer 记录 + reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**（M6 边界待用户裁定）。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑③」「遗留问题①」。**关联（测试强度缺口；择一说明：并入本条而非单列，以维持本轮新 issue 计 2 条）**：已提交用例 `mulhi_e2e.c` mode3 `lo^hi` 与 lit `umul128_xor` 均为 **XOR 交换不变** ⇒ 对「`umul_lohi` 双结果(半字序)互换」类缺陷**数学上不可检**；后续修复/补测须构造**非交换**判别用例（reviewer 已实测 `hi-lo` 可检出）。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-076t`。**"
+  resolved_by: LLVM-076t
+  notes: "**G2 同族缺口（未修，范围外）**。现象：`long g(long a,long b){ return a*b/3; }` ⇒ `llc -march=dadao` rc=134，`LLVM ERROR: Cannot select: ... mulhs ...`（有符号乘高半无 pattern；`LLVM-073t` 仅实现无符号 `mulhu`/`umul_lohi`）。`LLVM-073t` engineer 记录 + reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**（M6 边界待用户裁定）。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑③」「遗留问题①」。**关联（测试强度缺口；择一说明：并入本条而非单列，以维持本轮新 issue 计 2 条）**：已提交用例 `mulhi_e2e.c` mode3 `lo^hi` 与 lit `umul128_xor` 均为 **XOR 交换不变** ⇒ 对「`umul_lohi` 双结果(半字序)互换」类缺陷**数学上不可检**；后续修复/补测须构造**非交换**判别用例（reviewer 已实测 `hi-lo` 可检出）。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-076t`。** **【已解决 2026-10-10】**：`LLVM-076t` 实现 `MULHS`/`SMUL_LOHI`（ISA 专用 `mul.so`，`contract-isa §6.1.4`）——`mulhs` 取高半、`smul_lohi` `(low,high)`↔`(high,low)` 换序；最小复现 `-O0/-O2` rc=0；**oracle 320/320 逐字节全等**；**半字序非交换断言（`hi-lo`）+ 双目互换注入可检出**（补齐本条前述测试强度缺口）；`check-lit` 88/88；reviewer `Accepted`。"
 
 - id: ISS-186
   title: "`aha-mont64 -O2` 阻塞于 `Cannot select: ... load<..., zext from i1>`（后端缺口，它类）"
@@ -429,3 +429,19 @@
   blocks: []
   resolved_by: null
   notes: "**它类缺口（与 G2 无关）**。现象：`aha-mont64` 在 `-O2` 编译 `mont64.c` rc=1，`LLVM ERROR: Cannot select: ... load<..., zext from i1>`（`trunc(load i64)` ⇒ `load i1` zext 无 lowering）；此前被 G2 掩盖。`-O0` rc=0 正常。`LLVM-073t` reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑④」「遗留问题②」。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-077t`（**先诊断根因**）。**"
+
+- id: ISS-187
+  title: "窄位指令利用不足（8/16/32 位算术未用；`mul32` 用 128 位双目的 `mul.uo` 而非单目的 `mul.ut`）——M7 优化候选，非缺陷"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R3`）】**M7 优化候选，非缺陷**（正确性无影响：promote + 截断/扩展语义正确）。**ISA 事实**（`contracts/opcodes.yaml`）：SimRISC 8/16/32 位指令齐全（算术 `.sb/.sw/.st` + `.ub/.uw/.ut`）；`mul.uo`/`mul.so` 为 4 操作数（128 位双目的），`mul.ut/uw/ub` 等为 3 操作数（单目的）。**实测**（`llc -march=dadao -O2`）：窄位访存**已有效利用**（`i8→ld.ub` / `i16→ld.uw` / `i32→ld.ut`）；窄位算术**未利用**（`add8/16/32/64` 全 → `add.uo` 64 位）；窄位乘除**未利用且用重形式**（`mul32` → `mul.uo {rd0, rd8}`）。**根因**：后端只注册 `MVT::i64` legal（`DADAOISelLowering.cpp:51`），i8/i16/i32 一律 promote 到 i64，指令选择只登记 64 位模式。**建议（M7）**：先量化（Embench/微基准对比 `mul.ut` vs `mul.uo`、窄 ALU vs `add.uo`），有收益才立项，收益≈0 则不做（避免过度设计）。**只登记，不建任务。**"
+
+- id: ISS-188
+  title: "FP 完备性缺口（`fcmp` 取值 / `fabs`/`frem`/`copysign` / `fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` / `fpclass` / `f16` / `bitcast double→i64` 缺 ISel 模式）——M7"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R4`）】**M7**。**实测**：`fcmp` **取值**（含 ordered `oeq`）⇒ `Cannot select setcc`；`fabs`/`frem`/`copysign` ⇒ `Cannot select bitcast`；`fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` ⇒ `no libcall`；`fpclass` ⇒ `setcc setuo`；`f16` ⇒ `fp_to_fp16`；`bitcast double→i64`（FP↔RD）**缺 ISel 模式**（指令 `rf2rd`/`rd2rf` **已在**）。**全部显式失败、不产错码**（非静默降级）。**只登记，不建任务。**"

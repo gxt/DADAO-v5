@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..0fda9028d
+index 000000000..8bc3d0aeb
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,574 @@
+@@ -0,0 +1,597 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -258,6 +258,29 @@ index 000000000..0fda9028d
 +                                   (ins GPRD:$a, GPRD:$b),
 +                                   [(set GPRD:$lo, GPRD:$hi,
 +                                     (umullohi GPRD:$a, GPRD:$b))]>;
++
++// High half of a 64x64 signed product (LLVM-076t, ISS-185).  `mulhs` reaches
++// ISel because i64 MULHS is Legal by default, but the backend had no pattern
++// for it, so a non-power-of-two signed division (`a*b/3`, lowered by
++// TargetLowering::BuildSDIV to a magic-constant multiply) aborted with
++// "Cannot select: ... mulhs".  DADAO's `mul.so` produces the full 128-bit
++// signed product (contract-isa.md §6.1.4: rdha:rdhb = rdhc x rdhd), so the high
++// half alone is `mul.so dst, rd0, a, b` (rdhb = rd0 discards the low half).  A
++// two-result rrrr instruction is not expressible as a single-result TableGen
++// pattern, hence the pseudo indirection (mirrors MULHU_PSEUDO).
++def MULHS_PSEUDO : DADAOPseudo<(outs GPRD:$dst), (ins GPRD:$a, GPRD:$b),
++                               [(set GPRD:$dst, (mulhs GPRD:$a, GPRD:$b))]>;
++
++// Full 64x64 -> 128 signed product (ISD::SMUL_LOHI), e.g. the `__int128`
++// multiply.  Like UMUL_LOHI the node's results are (low, high) --
++// ISDOpcodes.h; TargetLowering::expandDIVREMByConstant binds getValue(0)=Lo,
++// getValue(1)=Hi -- while mul.so's def order is (rdha=high, rdhb=low), so the
++// pseudo lists (lo, hi) and expandPostRAPseudo reorders to the instruction's
++// (high, low).
++def SMUL_LOHI_PSEUDO : DADAOPseudo<(outs GPRD:$lo, GPRD:$hi),
++                                   (ins GPRD:$a, GPRD:$b),
++                                   [(set GPRD:$lo, GPRD:$hi,
++                                     (smullohi GPRD:$a, GPRD:$b))]>;
 +
 +// In-place 18-bit immediate add: `add.si rd, imm18` (contract-isa.md
 +// §6.1.3).  Expanded to a bank copy (rd2rd) into the result followed by
