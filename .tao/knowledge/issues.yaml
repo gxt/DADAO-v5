@@ -71,6 +71,8 @@
 #   `.tao/archive/M6/issues-closed.md`；本文件仅保留 open 项。
 #   **台账待收敛（如实登记）**：ISS-043/045/138/148/156/159/162 由 M6 任务（LLVM-062t/064t、SPEC-123t）
 #   完成区声称已修/已收口，但 `resolved_by` 未回填（仍 open）——建议 M7 归档前置 `Process-04 §3` 梳理时回填/关闭。
+#   **已收敛（INTEG-028t，2026-10-11）**：上述 7 条已逐条独立核实（证据 `.work/log/integ/ISS-reconcile.md`）并回填
+#   `resolved_by` + 置 `closed`：ISS-043/045/148/159/162→LLVM-062t、ISS-138→LLVM-064t、ISS-156→SPEC-123t。
 #
 # M5 归档前置梳理（INTEG-022t，2026-10-08，`spec/Process-04 §3` 步骤 1–6）：
 #   ① 关闭已消解项：M5 期无「已消解仍 open」项（边界交付部分按步骤 4 拆分、单独 closed）；
@@ -117,17 +119,17 @@
 
 - id: ISS-043
   title: "越界立即数静默截断（LLVM-006t reviewer ②）：分支/跳转 fixup 越界无诊断"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-062t
 
 - id: ISS-045
   title: "getFixupKindForInstr 的 default 分支未白名单化：非分支符号操作数按 PCRel_18 处理"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-062t
 
 - id: ISS-054
   title: "探针手算分支偏移易错 → 建议标签化框架（tools/qemu/ 基于标签的探针框架）"
@@ -237,18 +239,18 @@
 
 - id: ISS-138
   title: ">128K 帧（C7 D4 方案1：rd 存偏移 + ldm/stm）未实现，当前显式失败"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-064t
   notes: "LLVM-038t 实现 SP-only/FP + 大帧方案2（rb2rb+add.si，≤±128K）；>128K 显式 'scheme 1 not implemented'。per ADR-0018 C7 D4，方案1 仅 >128K，M3 可后补。"
 
 - id: ISS-148
   title: "tools/llvm/gen_m1_asm.py / test_m1_asm.py docstring 仍写「177 条」（实 152）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-062t
   notes: "INFRA-041t reviewer 披露：docstring 计数陈旧，超 ISS-134 范围未改。建议随 llvm 文档/工具刷新一并修。"
 
 - id: ISS-160
@@ -261,26 +263,26 @@
 
 - id: ISS-156
   title: "set.fo rf,0 的 rd2rf 特例与 Toolchain-01 §6.1「4×set.w」口径不一"
-  status: open
+  status: closed
   scope: [llvm, spec]
   blocks: []
-  resolved_by: null
+  resolved_by: SPEC-123t
   notes: "TESTCASES-029t reviewer 建议登记：伪指令展开 `set.fo rf,0` 走 `rd2rf`（move rf0）而非 spec §6.1 的「4×set.w」口径。非阻塞 M4（向量只取非 0 值回避）。需核 spec 或实现择一。"
 
 - id: ISS-159
   title: "M4 后端 lower IR not/neg 未走 xnor.o / sub.sX 路径（走 xor.o+常数 / sub.uo+ext.so）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-062t
   notes: "TESTCASES-032t reviewer 判真实缺口但不阻断：IR `xor x,-1`/`sub iN 0,x` 经后端 lower 为 `xor.o`+常数 / `sub.uo`+`ext.so`，而非伪指令实现路径的 `xnor.o`/`sub.sX`。L1 覆盖 `xnor.o`/`sub.sX` 编码、L3 覆盖 not/neg 语义，分工仍成立；属 LLVM 优化/CSE 议题，INTEG-016t 接入时需确认。"
 
 - id: ISS-162
   title: "DADAOAsmParser 诊断枚举缺 FIRST_TARGET_MATCH_RESULT_TY 偏移（新增诊断名会挤动基类 MatchResultTy 数值）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-062t
   notes: "LLVM-060t 新发现（属任务外范围、本任务未修）：`DADAOAsmParser` 的 `GET_OPERAND_DIAGNOSTIC_TYPES` 匿名 `enum` **无** `= FIRST_TARGET_MATCH_RESULT_TY` 偏移（对照 X86：`enum X86MatchResultTy { Match_Unsupported = FIRST_TARGET_MATCH_RESULT_TY; ... }`）。只新增一个诊断类型名（字母序在 `InvalidImmediate` 前）即把 `Match_InvalidImmediate` 由 **0** 挤到 **1**（= `Match_InvalidTiedOperand`），使 `wpn_err_*` 三条既有 lit 由「invalid operand」变「invalid tied operand」而 FAIL。本任务规避：3 个 cfx 操作数类复用 `DiagnosticType = \"InvalidImmediate\"`（`std::set` 去重 ⇒ 枚举项数与数值与改前逐字节相同）。建议后续按 X86 加 `FIRST_TARGET_MATCH_RESULT_TY` 偏移 + 在 `matchAndEmitInstruction` 显式加 `case Match_Invalid…:`，消除该隐患。"
 
 # ── 新登记（2026-10-10，TESTCASES-039t 首验收达标后暴露的 6 类后端缺口）──────────
