@@ -42,7 +42,7 @@
 #   scope: 非空列表 (M1 | post-M1 | M2 | M3 | M4 | M5 | M6 | system | SBI | kernel | spec | infra | llvm | qemu | testcases | integ | golden)
 #     - M1 = M1 范围项（已达成）；M2 = 规范与接口冻结（已达成）；M3 = Basic CodeGen（已达成）；
 #       M4 = ELF 文件支持 + LLD 链接 + 汇编器遗留收口（已达成）；M5 = SEE/HEE 运行环境 + semihosting（已达成，2026-10-08；门控 make test-semihost；**不再作 open 项 scope**——`INTEG-024t`，2026-10-08 已全部迁出）；
-#       M6 = 完整调用约定（整数）+ 欠账收口，追加「elf 加载」（下一里程碑；M6 自 M5 范围简化转入「-bios+ELF 组合语义 / ELF loader 扩展 / 组合 ADR」= ISS-168、step2 = ISS-165）；
+#       M6 = 完整调用约定（整数）+ 欠账收口，追加「elf 加载」（**已达成 2026-10-11**；M6 自 M5 范围简化转入「-bios+ELF 组合语义 / ELF loader 扩展 / 组合 ADR」= ISS-168、step2 = ISS-165）；
 #     - post-M1 = 已不属 M1 范围、归后续里程碑的通用项，无明确单一里程碑归属
 #       （含义随 M2/M3 达成后指向 M4+）。
 #   blocks: 可空列表 (M1-gate 表示直接阻断 M1 里程碑)
@@ -65,6 +65,12 @@
 #
 # M5 阶段关闭项（INTEG-022t，2026-10-08）：M5 阶段（≤ 2026-10-08）的 closed issue（5 条 = ISS-147/157/166
 #   + 本归档梳理新增的边界交付项 ISS-170/171）已提取至 `.tao/archive/M5/issues-closed.md`；本文件仅保留 open 项。
+#
+# M6 阶段关闭项（INTEG-026m，2026-10-11）：M6 阶段（2026-10-08 ~ 2026-10-11）的 closed issue（18 条 =
+#   ISS-151/154/161/172/173/174/175/176/177/178/179/180/181/182/183/184/185/186）已提取至
+#   `.tao/archive/M6/issues-closed.md`；本文件仅保留 open 项。
+#   **台账待收敛（如实登记）**：ISS-043/045/138/148/156/159/162 由 M6 任务（LLVM-062t/064t、SPEC-123t）
+#   完成区声称已修/已收口，但 `resolved_by` 未回填（仍 open）——建议 M7 归档前置 `Process-04 §3` 梳理时回填/关闭。
 #
 # M5 归档前置梳理（INTEG-022t，2026-10-08，`spec/Process-04 §3` 步骤 1–6）：
 #   ① 关闭已消解项：M5 期无「已消解仍 open」项（边界交付部分按步骤 4 拆分、单独 closed）；
@@ -253,30 +259,6 @@
   resolved_by: null
   notes: "【2026-10-06 改号：原误用 M3 已归档的 ISS-149，改为 ISS-160】SPEC-106t reviewer 判：`contract-isa.md` §6.6/§8.7/§10.5/§11.5/§12.5/§13.3 仍列已删伪指令（投影层）；`docs/impact-matrix.md` 悬空引用；`tools/spec/check_spec_codeblocks.py` 的 `PSEUDO_INSTRUCTIONS` 仍含 10 条已删项。`check-spec-refs` 靠小节头『（已删除）』保持绿，均非阻塞；建议另立 spec/tools 任务统一刷新。"
 
-- id: ISS-161
-  title: "LLVM-052t 遗留：REL12（load/store 相对寻址）未添加；FK_Data_1/2/4 数据符号引用静默出 0"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-065t
-  notes: "【2026-10-06 改号：原误用 M3 已归档的 ISS-150，改为 ISS-161】LLVM-052t reviewer 判：① load/store 相对寻址需 R_DADAO_REL12（用户允准 M4 之后，须 ADR 逐条确认，属新增第 5 类）；② FK_Data_1/2/4（.long <sym> 等）仍静默 0、无 reloc（既有缺陷，非本任务引入）；③ .quad <sym> 现也发 ABS48（机制必然，无回归）。② 建议随 LLVM-055t（全局数据）一并处理。 **已解决（2026-10-10，LLVM-065t）**：① `REL12`(4)/`ABS12`(5) 已实现（按基址寄存器选型，不再落 `REL20`），越界 link-time error；② `.byte/.short/.long <sym>` 改**显式报错**（合约无更窄数据 reloc、禁静默 0），`.quad/.dd.o64 <sym>` 发 `ABS48`。"
-
-- id: ISS-151
-  title: "LLVM-054t 遗留：访存符号偏移 ld.st …,[rb1,sym] 的 reloc 类型落 REL20（emitter 默认分支，既有）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-065t
-  notes: "LLVM-054t reviewer 判：DADAOMCCodeEmitter 对访存符号偏移走默认分支落 R_DADAO_REL20，类型可能不符（既有、非本任务引入）。建议随 LLVM-055t/056t 或另立任务核实。 **已解决（2026-10-10，LLVM-065t）**：`ld/st [rbN, sym]` 按基址寄存器选型——`rb0` 发 `REL12`(4)（PC 相对 `S+A−P`）、`rb1–rb63` 发 `ABS12`(5)（`S+A`），不再落 `REL20`；reviewer 独立重跑无 `REL20`。"
-
-- id: ISS-154
-  title: "contract-elf.md §2/§3 ABS48 未含数据 8 字节字段表示（与 ADR-0019 §D2 澄清漂移）"
-  status: closed
-  scope: [spec]
-  blocks: []
-  resolved_by: LLVM-065t
-  notes: "LLVM-056t F8：合约正文（SPEC-105t 版）只写 ABS48 指令表示（3×immu16），未含 ADR-0019 §D2（2026-10-06）澄清的数据 8 字节字段。实现按 ADR + 用户裁定两条均实现。建议后续 spec 任务把 §2/§3 的 ABS48 行补上数据表示。 **已解决（2026-10-10，LLVM-065t）**：`ABS48` 数据 8 字节字段表示（48 位地址、大端、高 16 位 0）已由 `LLVM-065t` 落地并经 reviewer 独立验证（`.quad ext` ⇒ `R_DADAO_ABS48`；`--defsym ext=0xABCD12345678` ⇒ `.data`=`0000abcd12345678`；越界 ⇒ `out of range` rc=1）；合约正文 `contract-elf §2–§4` 已由 `SPEC-123t` 落定同口径（含数据 8B 字段）。"
-
 - id: ISS-156
   title: "set.fo rf,0 的 rd2rf 特例与 Toolchain-01 §6.1「4×set.w」口径不一"
   status: open
@@ -301,134 +283,10 @@
   resolved_by: null
   notes: "LLVM-060t 新发现（属任务外范围、本任务未修）：`DADAOAsmParser` 的 `GET_OPERAND_DIAGNOSTIC_TYPES` 匿名 `enum` **无** `= FIRST_TARGET_MATCH_RESULT_TY` 偏移（对照 X86：`enum X86MatchResultTy { Match_Unsupported = FIRST_TARGET_MATCH_RESULT_TY; ... }`）。只新增一个诊断类型名（字母序在 `InvalidImmediate` 前）即把 `Match_InvalidImmediate` 由 **0** 挤到 **1**（= `Match_InvalidTiedOperand`），使 `wpn_err_*` 三条既有 lit 由「invalid operand」变「invalid tied operand」而 FAIL。本任务规避：3 个 cfx 操作数类复用 `DiagnosticType = \"InvalidImmediate\"`（`std::set` 去重 ⇒ 枚举项数与数值与改前逐字节相同）。建议后续按 X86 加 `FIRST_TARGET_MATCH_RESULT_TY` 偏移 + 在 `matchAndEmitInstruction` 显式加 `case Match_Invalid…:`，消除该隐患。"
 
-# ── 新登记（2026-10-09，QEMU-053t 复验发现）────────────────────────────────────
-
-- id: ISS-172
-  title: "`install-host` 幂等性缺陷：`cp` 间歇 `File exists`，污染 `test-elf`/`test-semihost` 门控（首跑 rc=2、重跑 rc=0）"
-  status: closed
-  scope: [infra]
-  blocks: []
-  resolved_by: INFRA-053t
-  notes: "现象：`make install-host`（及依赖它的 `make test-elf`/`test-semihost`）**间歇**失败，`rc=2`，报 `cp: cannot create regular file '<HOST_TOOLCHAIN_BIN>/<tool>': File exists`（`make: *** [Makefile:278: install-host] Error 1`；目标见 `Makefile:276–293`）。复现线索：**首跑 rc=2、重跑 rc=0**；单独 `make install-host`/`make test-elf` rc=0；`make test-codegen`（同为 `install-host` 依赖）通过。`QEMU-053t` reviewer（2026-10-09）观测到 `test-elf` 与 `test-semihost` **并行**执行时**同时**失败且失败文件不同（`llvm-readobj` vs `llvm-objdump`）⇒ 疑与**并发调用 install-host**（`Makefile:278` 的 `cp -aL --remove-destination` 与 `Makefile:284` 缺 `--remove-destination` 的 `cp -a`）竞态有关，**根因未定位**。影响：门控 **flaky**——污染 `make check` 上下游门控与复验，本会话已导致一次 reviewer 对 `QEMU-053t` 的误判（`install-host` 首跑 `File exists` 被当作回归候选，见任务书「审阅记录·第 2 轮 reviewer 补正 §③」）。证据指针：`QEMU-053t` 任务书审阅记录补正段；gate 日志 `.work/log/qemu/QEMU-053t-review-gate-test-{elf,semihost}.log`。归属：新任务 `INFRA-053t`（修幂等性）。"
-
-# ── 新登记（2026-10-10，TESTCASES-039t 停工发现）──────────────────────────────
-
-- id: ISS-173
-  title: "DADAO 后端缺整数 `setcc` / `select_cc` lowering：把比较结果当值使用即 ISel 崩溃（阻塞真实 C / Embench）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-069t
-  notes: "现象：凡把比较结果**当值**使用的 C（`a==b`、`!x`、`a<b`、三目 `?:`、逻辑 `&&`/`||`）经 `clang`/`llc` 在**指令选择**阶段 SIGABRT：`fatal error: error in backend: Cannot select: t16: i64 = setcc t20, t21, seteq:ch`（clang rc=1）/ `LLVM ERROR: Cannot select: t13: i64 = setcc t2, t4, seteq:ch`（llc rc=134）。最小复现：`int f(int a,int b){return a==b;}`；或手工 `.ll`（`icmp eq`+`zext i1→i64`）`llc -march=dadao` rc=134（与 clang 无关）。**纯分支**形态 `if(a<b) return 1; return 0;`（`br(icmp)`，-O0）rc=0；-O2 因 if-conversion 又转 `select_cc` 崩溃。构造矩阵（O0/O2）：`== != < <= && ! 三元 ?: 无符号比较` 及 Embench `support/main.c:37 return(!correct)` **全部 FAIL**。根因：`DADAOTargetLowering`（`DADAOISelLowering.cpp`）仅设 `ISD::BR_CC`/`ISD::BRCOND=Custom`，**无 `ISD::SETCC` / 整数 `ISD::SELECT_CC` 的 action 或 ISel 模式**（`grep -rniE setcc` 仅命中注释）；M4/M6 向量一律用 `br(icmp)` 回避此形态故历次任务未暴露。影响：19 个 Embench 基准中 **14 个** `verify_benchmark` 直接 `return (比较)`，其余经 `main.c:37` 也必经 `setcc` ⇒ **无一基准可编译**，`TESTCASES-039t` 首验收不可达（判据未降级 = 退出码 0）。证据指针：`.work/log/testcases/TESTCASES-039t-{blocker.log,blocker_probe_result.txt,matrix_result.txt,progress.md}`；`TESTCASES-039t` 任务书完成区。归属：新任务 `LLVM-069t`（整数 `setcc`/`select_cc` lowering）。"
-
-- id: ISS-174
-  title: "clang 内置头（resource-dir `include/`）未随 `install-host` 安装：`#include <stddef.h>` 即 `file not found`"
-  status: closed
-  scope: [infra]
-  blocks: []
-  resolved_by: INFRA-054t
-  notes: "现象：`.dadao/cross-toolchain/bin/clang -print-resource-dir` = `.dadao/cross-toolchain/lib/clang/23`，而该目录**不存在** ⇒ `clang -target dadao-unknown-elf -ffreestanding -c` 对 `#include <stddef.h>` 报 `fatal error: 'stddef.h' file not found`（rc=1）。根因：`install-host`（`ADR-0016 D11` 范围）只装 `bin/` 工具 + lit + sysroot 骨架，**未安装 clang resource-dir 的 `lib/clang/<ver>/include`**（内置 freestanding 头，源 = clang `clang/lib/Headers/**`，构建后落 `<LLVM_BUILD>/lib/clang/<ver>/include`，现已确认存在）。影响：真实 C 与 Embench（`md5sum`/`ctype`/`string` 等）无法包含内建头；`LLVM-063t` 已登记为遗留（freestanding 最小程序不受影响）。证据指针：`.work/log/testcases/TESTCASES-039t-blocker.log`（§D1 `file not found`、§D2 `-print-resource-dir`、§D3 `NO (missing)`）、`-blocker_probe_result.txt`、`-progress.md`；`LLVM-063t` 任务书「遗留问题」末条。归属：新任务 `INFRA-054t`（clang 内置头安装）。"
-
 # ── 新登记（2026-10-10，TESTCASES-039t 首验收达标后暴露的 6 类后端缺口）──────────
 # 性质区分：G6 = 缺陷（编译成功但运行期静默错码）；G1–G5 = 缺能力（均显式失败，非静默）。
 # 逐基准矩阵 + 最小复现见 `.work/log/testcases/TESTCASES-039t-stage1-gaps.md`；
 # reviewer 独立复现见 `.work/log/testcases/TESTCASES-039t-review-{matrix,gates,e2e}.log`。
-
-- id: ISS-175
-  title: "大常量比较超 12 位立即数：`select/setcc`/branch 比较常量 >12 位即显式失败（`llc` rc=134 / `clang` rc=1）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-071t
-  notes: "**G1**（已知遗留的独立登记）。现象：`icmp slt i64 %v, 5000` 经 `llc -march=dadao` ⇒ `LLVM ERROR: DADAO: select/setcc compare against a constant that does not fit a 12-bit immediate is not supported yet`（rc=134）；`clang` 同形态 rc=1。最小复现：`int f(long a){ return a < 5000; }`（`-O2`）。命中基准：edn / slre / wikisort（`select/setcc`）、crc32 / edn / sglib-combined / slre / md5sum（branch）。**性质 = 缺能力（编译期显式失败，非静默错码）**；`LLVM-069t` 已记为遗留（与既有 `br(icmp)` 分支路径同界）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G1`；reviewer 独立复现 `TESTCASES-039t-review-*.log`（`icmp slt i64 %v,5000` rc=134）。归属：新任务 `LLVM-071t`（G1 + G5）。 **已解决（2026-10-10，`LLVM-071t`）**：>12 位常量比较改为 ISel **常量物化**（`set.zw`/`set.ow`+`or.w`）再寄存器比较（`cmp.so`/`cmp.uo`，含符号扩展），删除两处 `report_fatal_error`；覆盖 `select/setcc`+`br(icmp)`；reviewer 独立手算 E2E 全对（退出码 255/255）。"
-
-- id: ISS-176
-  title: "128 位乘高半 `umul_lohi` / `mulhu` 不可 select（`Cannot select: ... mulhu` rc=134）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-073t
-  notes: "**G2**。现象：`Cannot select: ... mulhu t5, Constant:i64<-6148914691236517205>`（rc=134）。最小复现：`unsigned long f(unsigned long a, unsigned long b){ return a*b/3; }`（`-O0`/`-O2`）——非 2 的幂除数触发 128 位乘高半；`unsigned long long` 直接路径亦触发（aha-mont64 `mulul64`）。命中基准：aha-mont64（`-O0`/`-O2`）、wikisort（`-O0` 的 `mulhu`）。**性质 = 缺能力（编译期显式失败）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G2`；矩阵 `TESTCASES-039t-stage1-matrix{,-O0}.log`。归属：新任务 `LLVM-073t`。 **已解决（2026-10-10，`LLVM-073t`）**：用 **ISA 专用 `mul.uo`**（`contract-isa §6.1.4`，`mul.uo rdha:rdhb=rdhc×rdhd`，128 位积）实现 `ISD::MULHU`（取高半、丢低半）与 `ISD::UMUL_LOHI`（结果序 `(low,high)` ↔ `mul.uo` 定义序 `(high,low)` **换序**）；最小复现 `llc -march=dadao -O0/-O2` rc=0（改前 rc=134）；**独立 oracle（host Python 大整数）320/320 逐字节全等、0 mismatch**（非采样）；E2E `tests/e2e/mulhi_e2e.c`（clang→ld.lld→QEMU）各模式逐字节=Python；`aha-mont64 -O0` rc=0；`check-lit` 82/82；reviewer 独立重跑 + 独立注入（`mul.uo`→`mul.so` 有符号高半）⇒FAIL⇒`cp`+md5 还原重建回绿。"
-
-- id: ISS-177
-  title: "`br_jt`（跳转表 / `switch` 密集分发）不可 select：`-O0` 即触发（`Cannot select: ... br_jt`）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-072t
-  notes: "**G3**。现象：`Cannot select: t4: ch = br_jt t2:1, JumpTable:i64<0>, t2>`（`-O0` 即触发）。最小复现：`switch(x)` 含 16 个 case（含 fallthrough 全分支）→ `clang`/`llc` rc=134。命中基准：picojpeg / qrduino。**性质 = 缺能力（编译期显式失败）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G3`。归属：新任务 `LLVM-072t`。 **已解决（2026-10-10，`LLVM-072t`）**：`ISD::BR_JT` 设 `Custom` + `LowerBR_JT` → `DADAOISD::BR_JT`；表落 `.rodata`（`EK_BlockAddress` 8B 绝对地址、`.quad` ⇒ `R_DADAO_ABS48`）+ 索引 `shl.uo …,3`(×8)/`add.o`/`ld.o`/间接 `jump`。reviewer 独立验证：16 case `-O0` rc=0、E2E `exit=255==手算`（含低于最小 case⇒default 与 fallthrough）、qrduino/picojpeg `-O0/-O2` rc=0、`check-lit` 81/81、独立注入（表项步长）⇒FAIL⇒`cp`+md5 还原重建回绿。"
-
-- id: ISS-178
-  title: "尾调用 `LowerCall` 断言 `LowerCall emitted a return value for a tail call!`（仅 `-O2`）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-070t
-  notes: "**G4**。现象：`-O2` 下 `clang` 在 `LowerCall` 断言失败（rc=134）：`LowerCall emitted a return value for a tail call!`；`-O0` 全部消失。最小复现：`extern long g(void); long f(void){ return g(); }`（`-O2`）。命中基准：crc32 / md5sum / tarfind / ud / xgboost（**仅 `-O2`**）。**性质 = 缺能力（编译期显式失败，但仅优化级触发）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G4`。归属：新任务 `LLVM-074t`。 **已解决（2026-10-10，`LLVM-070t`）**：G4 与 G6（`ISS-180`）**同根**——后端不处理尾调用（`LowerCall` 忽略 `CLI.IsTailCall`）；修复后尾调用形态一律降级为非尾调用（发普通 `call`+`ret`），该断言路径不可达（reviewer 独立验证：修复后非 void 尾调用 `llc` rc=0、注入复原即断言 rc=134）。真尾调用**实现**（优化）转 `LLVM-074t`（**非 M6 硬性**）。"
-
-- id: ISS-179
-  title: "分支 / 跳转目标超 12 位 PC 相对范围：`error: branch/jump target out of range for a 12-bit PC-relative immediate`"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-071t
-  notes: "**G5**。现象：`error: branch/jump target out of range for a 12-bit PC-relative immediate`（`-O2`）。最小复现：nsichneu（`-O2`，`-O0` 通过）。**性质 = 缺能力（编译期显式失败）**；与 `ISS-175`（G1）同属「12 位字段溢出」类（常量立即数 / 分支偏移）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G5`；矩阵 `TESTCASES-039t-stage1-matrix.log`。归属：新任务 `LLVM-071t`（G1 + G5）。 **已解决（2026-10-10，`LLVM-071t`）**：分支超 12 位 PC 相对范围改经 `BranchRelaxation` **跳岛**放宽（`isBranchOffsetInRange` 按各分支宽度判界 + `BranchRelaxationPassID`）；reviewer 独立构造 `br.eq` 跨 >8KB gap 触发跳岛 + 两路语义 QEMU=手算 3。"
-
-- id: ISS-180
-  title: "【缺陷·静默错码】`-O2` 运行期误编译致死循环：编译成功但 QEMU 执行 hang（`GUEST_EXIT=124`），`-O0`/`-O1` 正常"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-070t
-  notes: "**G6（最严重：静默错码，非编译期失败）**。现象：`huffbench` / `matmult-int` / `nettle-sha256` / `statemate` 在 `-O2` **编译成功**，但 QEMU 运行**超时（`GUEST_EXIT=124`）**；`-O0`/`-O1` 同基准 **exit=0**。最小复现：`.work/source/embench-iot/src/matmult-int/matmult-int.c` 仅把 `LOCAL_SCALE_FACTOR 39` 改 `3`（`/tmp/opencode/TESTCASES-039t/red/mm.c`），`-O2` 死循环、`-O0`/`-O1` exit=0。执行轨迹（`-d exec`）：停在 `memcpy` 的两条指令（PC `0x4e0`/`0x4f4`）反复自转，`rd4`（i）持续自增而 `rd5`（n）=0，即循环不推进 ⇒ **`-O2` 优化级误编译，非算法死循环**。影响：**污染所有 `-O2` 交付**（静默错码，编译 rc=0 掩盖运行期错误）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G6`；reviewer 独立复现 `TESTCASES-039t-review-{matrix,gates,e2e}.log`（`TO=25` 下 `-O2` huffbench/matmult-int ⇒ rc=124，`-O0` ⇒ 0；QEMU 输出仅 `[board:init]`、无 `[board:start]`，hang 于 `warm_caches`）。归属：新任务 `LLVM-070t`（**优先执行**）。 **已解决（2026-10-10，`LLVM-070t`）**：根因 = 后端不处理尾调用（`LowerCall` 忽略 `CLI.IsTailCall` ⇒ 尾调用当普通 `call` 发但**不发 `ret`** ⇒ 返回地址 = 调用者函数结束处 = 被调者自身入口 ⇒ 静默无限重入；触发点 `warm_caches` 的 `tail call @benchmark_body`）；修复 = 清零 `CLI.IsTailCall`（发 `call`+正常 `ret`）+ `musttail` 显式 `report_fatal_error`；4 基准 `-O2` 退出码 0；reviewer 独立注入（删清零行）⇒ matmult-int `-O2` `GUEST_EXIT=124` ⇒ 还原重建回绿；门控全绿。"
-
-- id: ISS-181
-  title: "数据指示符口径待裁决：禁 `.word/.long/.quad`、规范名 `.dd.*`、删 `.align` 只留 `.p2align`"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: "SPEC-130t + LLVM-078t"
-  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R1`）】**状态 = 待裁决 / 暂不改**（不建任务、不改 `spec/` 与工具链）。用户裁定方向：① `.word`/`.long` 语义在汇编与高级语言间不一致 ⇒ **完全禁用**，连带 `.quad` 也不用作规范名；② 规范名 = `.dd.b08/.dd.w16/.dd.t32/.dd.o64`（`DADAO-11 §汇编兼容性`、`Toolchain-01 §7`）；③ `.dd.128` **不需要**（`llc` 对 `i128` 发两条 `.quad`，语义等价）；④ `.align` 有歧义（实测 `.align N` = 字节数、非 2^N）⇒ **删 `.align` 只留 `.p2align`**（2^N）。**待定项**：`.byte/.short` 是否一并禁；受理侧是否拒绝 GAS 名（拒 GAS 名可能需动通用 `MCParser/AsmParser.cpp`，成本↑）。**ADR 建议**：命中「外部契约 + 结论固化 + 跨模块」⇒ 建议立 ADR（**用户尚未表态**）。 **已裁定（用户 2026-10-10：4 缺口全入 M6）：拆 `SPEC-130t`（=本项**正文口径 + 锁**）+ `LLVM-078t`（**工具链生成/受理 + 用例**，依赖 `SPEC-130t`）；裁定 ①只留 `.dd.*`（`.byte/.short/.long/.quad/.word/.octa` 全禁）②两侧一致（`llc` 只生成 `.dd.*`、`llvm-mc` 拒 GAS 名；受理侧不可行 ⇒ 退回只禁生成侧并登记）③删 `.align` 只留 `.p2align` ④**不立 ADR**、改 v5 侧 `Toolchain-01 §7` + `contract-asm.md` + 锁，**不动上游 `DADAO-11`** ⑤`.dd.128` 暂不加。** **正文本轮完成（2026-10-10，`SPEC-130t` `已验证`）**：`Toolchain-01 §7.1/§7.2` + `contract-asm §7` 同口径收口（唯一集 `.dd.b08/.dd.w16/.dd.t32/.dd.o64`；`.byte/.short/.long/.quad/.word/.octa` 全禁；删 `.align` 只留 `.p2align`）+ 锁 `sha256` 同步 `3d129ba8…`；**实现侧（`llc` 只生成 `.dd.*` / `llvm-mc` 拒 GAS 名 / 用例跟改）归 `LLVM-078t`**（依赖 `SPEC-130t` 已满足）⇒ 本 issue **保持 `open`** 至 `LLVM-078t` 完成。** **【已解决（`SPEC-130t` + `LLVM-078t`）】**：**正文侧**（`SPEC-130t`）`Toolchain-01 §7.1/§7.2` + `contract-asm §7` 同口径收口 + 锁 `sha256` 同步；**实现侧**（`LLVM-078t`）：**生成侧** `DADAOMCAsmInfo` 数据 directive 串改 `.dd.b08/.dd.w16/.dd.t32/.dd.o64`（`llc` 只发 `.dd.*`，GAS 名=0、`.align`=0；`i128` 仍两条 `.dd.o64`）；**受理侧** target 级 shadow 拒 7 名（`.byte/.short/.long/.quad/.word/.octa/.align` 全 rc=1；`.dd.*`+`.p2align` rc=0）—— 走 `getTargetParser().parseDirective` **先于**通用 `DirectiveKindMap` 分派，**`llvm/lib/MC/**` 未动**（可行性评估结论：可行、无需改通用 MC）；用例跟改 `tests/**` 14 文件 + `tools/testcases/validate_mc_vectors.py`；`check-lit` 89/89 不下降、Embench `-O0/-O2` 双 19/19；reviewer `Accepted`。**遗留**：裁定 4 名外的其它 LLVM 内建数据指导符（`.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double`）仍受理 ⇒ 新条 `ISS-189`。"
-
-- id: ISS-182
-  title: "【缺陷】`.p2align`（可执行段）使 `llvm-mc` 崩溃：`MCAssembler.cpp:588 The stream should advance by fragment size`"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-075t
-  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R2`）】**缺陷**：`.text` 内 `.p2align N`（N≥1）或 `.align N`（N≥2）⇒ `llvm-mc` rc=134/141，断言 `MCAssembler.cpp:588 The stream should advance by fragment size`；`.rodata` 内同指令正常（rc=0）。**最小复现**：`printf '.text\\n.byte 1\\n.p2align 3\\n.byte 2\\n' | llvm-mc --triple=dadao-unknown-elf -filetype=obj -o /tmp/x.o /dev/stdin`。**可疑根因**：`DADAOAsmBackend::writeNopData`（`MCTargetDesc/DADAOAsmBackend.cpp:299`，已实现）行为不对，或对齐 fragment 尺寸算错。**影响**：真实 C 代码在 `.text` 内做块对齐即触发（`llc` 会发 `.p2align`）。**待用户定是否提前修**；暂不建任务。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-075t`（**缺陷，优先**）。**"
-
-- id: ISS-183
-  title: "【子代理执行异常·已处置】`LLVM-071t` reviewer 首次下发返回 `Too Many Requests`、产出未落盘；重试 1 次成功（未触发任务拆分）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-071t
-  notes: "【子代理执行异常登记（用户规则：每次异常与重试须登记）】**现象**：`LLVM-071t` reviewer 第 1 次下发返回 `Too Many Requests`、**产出未落盘**（任务书无新增审阅记录、无文件改动）。**处置**：按「子代理返回异常处理」**重试 1 次同一任务**（重试附失败现场：无落盘 + 原始 error）；**结果**：重试成功、产出落盘并判 `Accepted`；**未触发任务拆分**。**task_id**：首次 `ses_edb56cc2bffe…`；重试 `ses_edb50044dffe…`。"
-
-- id: ISS-184
-  title: "【子代理执行异常·已处置】`LLVM-072t` reviewer 首轮返回 `Too Many Requests`、产出未落盘；重试 1 次成功（未触发任务拆分）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-072t
-  notes: "【子代理执行异常登记（用户规则：每次异常与重试须登记）】**现象**：`LLVM-072t` reviewer 首轮下发返回 `Too Many Requests`、**产出未落盘**（任务书无新增审阅记录、无文件改动）。**处置**：按「子代理返回异常处理」**重试 1 次同一任务**（重试附失败现场：无落盘 + 原始 error）；**结果**：重试成功、产出落盘（reviewer 第 1 轮 `Needs Revision` ⇒ 第 2 轮 `Accepted`）；**未触发任务拆分**。**task_id**：首轮 `ses_edb048bbdffe…`；重试 `ses_edafda412ffe…`。**登记落点择一说明**：与 `ISS-183`（`LLVM-071t` 同类 `Too Many Requests` 异常）**同型但不同任务** ⇒ 单独立条（按任务 1:1 便于追溯），互相交叉引用；未并入 `ISS-183`。"
-
-- id: ISS-185
-  title: "有符号乘高半 `MULHS` / `SMUL_LOHI` 缺失（`Cannot select: ... mulhs` rc=134）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-076t
-  notes: "**G2 同族缺口（未修，范围外）**。现象：`long g(long a,long b){ return a*b/3; }` ⇒ `llc -march=dadao` rc=134，`LLVM ERROR: Cannot select: ... mulhs ...`（有符号乘高半无 pattern；`LLVM-073t` 仅实现无符号 `mulhu`/`umul_lohi`）。`LLVM-073t` engineer 记录 + reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**（M6 边界待用户裁定）。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑③」「遗留问题①」。**关联（测试强度缺口；择一说明：并入本条而非单列，以维持本轮新 issue 计 2 条）**：已提交用例 `mulhi_e2e.c` mode3 `lo^hi` 与 lit `umul128_xor` 均为 **XOR 交换不变** ⇒ 对「`umul_lohi` 双结果(半字序)互换」类缺陷**数学上不可检**；后续修复/补测须构造**非交换**判别用例（reviewer 已实测 `hi-lo` 可检出）。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-076t`。** **【已解决 2026-10-10】**：`LLVM-076t` 实现 `MULHS`/`SMUL_LOHI`（ISA 专用 `mul.so`，`contract-isa §6.1.4`）——`mulhs` 取高半、`smul_lohi` `(low,high)`↔`(high,low)` 换序；最小复现 `-O0/-O2` rc=0；**oracle 320/320 逐字节全等**；**半字序非交换断言（`hi-lo`）+ 双目互换注入可检出**（补齐本条前述测试强度缺口）；`check-lit` 88/88；reviewer `Accepted`。"
-
-- id: ISS-186
-  title: "`aha-mont64 -O2` 阻塞于 `Cannot select: ... load<..., zext from i1>`（后端缺口，它类）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-077t
-  notes: "**它类缺口（与 G2 无关）**。现象：`aha-mont64` 在 `-O2` 编译 `mont64.c` rc=1，`LLVM ERROR: Cannot select: ... load<..., zext from i1>`（`trunc(load i64)` ⇒ `load i1` zext 无 lowering）；此前被 G2 掩盖。`-O0` rc=0 正常。`LLVM-073t` reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑④」「遗留问题②」。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-077t`（**先诊断根因**）。** **【已解决 2026-10-10】**：`LLVM-077t` 根因 = `initActions` 中 i1 存储型 load-ext 默认 `Legal` 而后端无 i1 load pattern（形态源自 `GlobalOpt::TryToShrinkGlobalToBoolean`）；修复 = `Promote` 到 i8（`ld.ub`）+ `(sext_inreg i64,i1)→ext.so …,0`；最小复现 `-O0/-O2` rc=0；**Embench `-O0` 19/19、`-O2` 19/19**；`check-lit` 89/89；reviewer `Accepted`。"
 
 - id: ISS-187
   title: "窄位指令利用不足（8/16/32 位算术未用；`mul32` 用 128 位双目的 `mul.uo` 而非单目的 `mul.ut`）——M7 优化候选，非缺陷"
@@ -453,3 +311,4 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `LLVM-078t` 完成区「遗留问题」；engineer + reviewer 双实测）】`LLVM-078t` 仅按用户 2026-10-10 裁定拒 **7 名**（`.byte/.short/.long/.quad/.word/.octa/.align`），裁定范围**外**的其它 LLVM 内建 / GAS 数据指导符仍经通用 parser 受理（实测 `.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 全 rc=0）。**性质 = 口径未覆盖（未授权扩大，非缺陷）**。**只登记，不建任务**：建议后续按 `spec/Toolchain-01 §7` 唯一集口径一并收口（受理侧按 `DADAOAsmParser::parseDirective` target 级 shadow 同机制扩拒即可，无需改 `llvm/lib/MC/**`）。证据指针：`.tao/tasks/llvm/LLVM-078t-*.md`「遗留问题」；`.work/evidence/LLVM-078t/run.sh`。"
+
