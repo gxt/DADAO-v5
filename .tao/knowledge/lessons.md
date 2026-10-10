@@ -804,3 +804,8 @@
 
 - **规则**：`local o=$1 d=$WORK/aha-$o` 在 `set -u` 下会因 `o` 尚未生效而报 `o: unbound variable`（退出脚本）；**拆成独立 `local` 赋值**（`local o=$1` / `local d=$WORK/aha-$o`）。
 - **依据/来源**：`LLVM-077t` F1（与 `LLVM-076t` F2 同型，**同类已复发 2 次**）；细节见两任务书「审阅记录 · finding 处置」。
+
+### 8.51 证据脚本的反例注入还原须以「clean baseline」为锚，不得以运行现场为锚（`INTEG-025t`，2026-10-11）
+
+- **规则**：注入脚本的还原目标须是**注入前的干净基线**（备份须在确认 workspace clean 时生成，或脚本**先校验/断言 clean 态、否则拒绝运行**）；若以「运行时现场」为锚，则在**已注入态**重跑时还原会回到**已注入态**（`md5` 虽一致但基线已脏、检查仍红）。
+- **依据/来源**：`INTEG-025t` reviewer C2 观察（`.work/evidence/INTEG-025t/run.sh` 的 `$O/Makefile.preinject` 取自运行现场）；同类 §2.5/§2.6。

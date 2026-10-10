@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | `INTEG-023k` | 已验证 | — | — | M6 启动与分解（20 项内涵 + 12 条 LLVM 欠账逐条裁定落纸；`/plan` 通过） |
 | `INTEG-024t` | 已验证 | 10-09 00:00 | 10-09 00:05 | issues 台账按性质分流（移出 15 = 规划① 7 + 阻塞/待裁定②③ 8；保留 24 真 issue） |
-| `INTEG-025t` | 待开始 | — | — | M6 E2E + 门控收口（`test-m6`） |
+| `INTEG-025t` | 已验证 | — | 10-11 01:31 | M6 E2E + 门控收口：新增 **opt-in** `make test-m6`（`make -n check` 无 `test-m6`，未进 `check` 依赖链）；组成**现场统计** = `check-lit-full` **12/12** + `diff_ir_lli` 值级对拍 **19/19** + Embench **38/38**（`src/*/` 现场发现 19 基准 × `-O0`/`-O2`，判据 guest exit 0）；落点 `.dadao/tests/` 经 `paths.py`（`TEST_ARTIFACTS_DIR`，无字面量）；不回归 5 门控（`test-codegen`/`test-elf`/`test-semihost`/`check-lit 89/89`/`check`）EXIT=0；`spec/` 交集空。遗留：① `check-spec-refs` 1 违规**保持登记**（仅补前缀映射会把 1→91、裸数字节号匹配器受限，须另立 `tools/infra` 任务）② 证据脚本 C2 恢复增强建议 |
 | `INTEG-026m` | 待开始 | — | — | M6 integ 里程碑（整体收敛点） |
 | `INFRA-050t` | 已验证 | 10-08 23:49 | 10-09 07:09 | LLVM 一次构建（`DADAO;X86` + `clang;lld`）+ 双落点；曾中断，半成品已保命续用 |
 | `INFRA-051t` | 已验证 | — | 10-09 22:43 | Embench 组件接入：锁翻 `enabled=true` + commit `09c2ed8c…`（= `ADR-0022 D2`）；骨架 `components/embench-iot/**`（含**用户裁定的 1 个最小占位补丁**）；`make fetch` 幂等零联网、`.work/source`=base+1；board shim/运行时归 `TESTCASES-039t` |

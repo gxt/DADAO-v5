@@ -44,7 +44,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-spec-readonly check-cfx-aliases check-asm-prose check-lit \
         check-lit-full \
-        test-codegen test-elf test-semihost \
+        test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants
 
@@ -92,6 +92,7 @@ help:
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
 	@echo "  make test-semihost    Run M5 SEE/semihosting E2E gate (bootrom+bin via -semihosting, console+SYS_EXIT, 25 svc; INTEG-020t)"
+	@echo "  make test-m6          Run M6 E2E gate (lli value-level diff + Embench all benches -O0/-O2 + full lit MC suite; opt-in, INTEG-025t)"
 	@echo "  make check-patch-tree  Check component patch tree (spec/Process-01, 9 assertions)"
 	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
@@ -594,6 +595,50 @@ test-semihost: install-host build-bootrom test-elf test-codegen check
 	  tail -n 4 $(SEMIHOST_PROBE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "test-semihost: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
 	@echo "test-semihost: PASS (forward + permission + 25-service + no-regression + INTEG registration)"
+
+# M6 end-to-end gate (INTEG-025t).  Three components, all fail-closed:
+#   1. value-level differential: the same LLVM IR runs on the host `lli` (X86)
+#      and on the DADAO target; both must expose the same value channel
+#      (`@main` return low byte) -- tools/testcases/diff_ir_lli.py (038t).
+#   2. Embench-IoT E2E: every benchmark under <embench-src>/src/ is compiled,
+#      linked and run at -O0 and -O2; judgement = guest exit code 0
+#      (support/main.c returns !correct) -- tools/integ/run_embench_e2e.py.
+#   3. the full generated lit MC suite (check-lit-full, 037t), driven through a
+#      sub-make so its own exit code is captured.
+# opt-in: NOT part of `make check` (the fast lit subset is already in check-lit).
+# Tools come from the install root (ADR-0016 D9): run 'make install-host' first.
+# Landing: work dirs under the SDK test-artifacts root (ADR-0016 D6 /
+# Process-05 §6), resolved via paths.py (D7) -- never hardcoded.
+DIFF_IR_LLI = tools/testcases/diff_ir_lli.py
+EMBENCH_E2E = tools/integ/run_embench_e2e.py
+EMBENCH_SRC = .work/source/embench-iot
+IR_LLI_WORK = $(TEST_ARTIFACTS_DIR)/ir-lli-diff
+EMBENCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m6-embench
+IR_LLI_LOG = .work/log/integ/test-m6-ir-lli.log
+EMBENCH_E2E_LOG = .work/log/integ/test-m6-embench.log
+LIT_FULL_LOG = .work/log/integ/test-m6-lit-full.log
+test-m6: install-host
+	@test -x $(HOST_TOOLS_BIN)/lli || { echo "test-m6: ERROR: $(HOST_TOOLS_BIN)/lli not found — run 'make install-host'"; exit 1; }
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "test-m6: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -d $(EMBENCH_SRC) || { echo "test-m6: ERROR: $(EMBENCH_SRC) not found — run 'make fetch'"; exit 1; }
+	@mkdir -p .work/log/integ
+	@echo "test-m6: [1/3] lit full MC suite (check-lit-full)"; \
+	  $(MAKE) --no-print-directory check-lit-full > $(LIT_FULL_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 5 $(LIT_FULL_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-m6: FAIL (check-lit-full rc=$$rc)"; exit $$rc; fi
+	@echo "test-m6: [2/3] lli value-level differential (host X86 vs DADAO target)"; \
+	  $(PYTHON) $(DIFF_IR_LLI) --work-dir $(IR_LLI_WORK) > $(IR_LLI_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 6 $(IR_LLI_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-m6: FAIL (diff_ir_lli rc=$$rc)"; exit $$rc; fi
+	@echo "test-m6: [3/3] Embench E2E (all benchmarks x -O0/-O2; judge guest exit 0)"; \
+	  $(PYTHON) $(EMBENCH_E2E) --embench-src $(EMBENCH_SRC) --work-dir $(EMBENCH_E2E_WORK) \
+	    > $(EMBENCH_E2E_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 8 $(EMBENCH_E2E_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-m6: FAIL (embench rc=$$rc)"; exit $$rc; fi
+	@echo "test-m6: PASS (lit full + lli value-level diff + Embench E2E)"
 
 # Legality drift gate (SPEC-074t): verifies LEGALITY sections in
 # spec/SimRISC-01..12 exactly match content rendered from contracts/.
