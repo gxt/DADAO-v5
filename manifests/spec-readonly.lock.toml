@@ -16,7 +16,7 @@ policy = "readonly-requires-authorization"
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
 group = "simrisc-00..12"
-sha256 = "f7d7c7db7adbb07493dbb42f3b363a5a812e14bbe78f732ac5220a5a8c538158"
+sha256 = "851c59dcd75d412dce6f225c84515d22d52bf083a74ce400286446e10633f6d7"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
