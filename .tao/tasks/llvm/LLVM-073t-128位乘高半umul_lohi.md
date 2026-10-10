@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M6
 **依赖**：`INFRA-050t`（一次构建 `DADAO;X86`）、`INFRA-051t`（Embench 源树）、`LLVM-062t`/`LLVM-063t`/`LLVM-069t`（均已 `已验证`）、`QEMU-052t`（ELF 加载，`已验证`）；**与 Wave 2 其它 llvm 任务同改 `components/llvm-project/patches` ⇒ 串行**
-**状态**：待开始
+**状态**：已验证
 
 > **覆盖缺口**：**G2（`ISS-176`）**。
 
@@ -64,16 +64,57 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：一键证据 `.work/evidence/LLVM-073t/run.sh` 默认 `RUN_EXIT=0`（checks=48 failed=0）；`--inject` `RUN_EXIT=0`（注入⇒`lit_umul_lohi`+`oracle_m1_c0` FAIL⇒`cp`+md5 还原〔md5 `b260038c…` 相等〕⇒重建⇒回绿）。门控：`make build-mc`/`check-patch-tree`(109 patches)/`check-lit`(**82/82**＝基线 81＋本任务 1)/`check` 均 EXIT=0。
+
+**修改文件**：补丁 2 份 `components/llvm-project/patches/llvm/lib/Target/DADAO/{DADAOCodeGen.td,DADAOInstrInfo.cpp}.patch`、`components/llvm-project/changelog.md`、`tests/llvm/lit/CodeGen/DADAO/umul-lohi.ll`(A)、`tests/e2e/mulhi_e2e.c`(A)、本任务书；证据（gitignored）`.work/evidence/LLVM-073t/run.sh`。`series` 仍 71；组件源树 HEAD `90a6d2d7`=base+1 clean。
+
+**验收结果**（真实命令 + rc；缺口原话 `ISS-176`：`128 位乘高半 umul_lohi / mulhu 不可 select（Cannot select: ... mulhu rc=134）`；最小复现 `unsigned long f(unsigned long a,unsigned long b){return a*b/3;}`）：
+- ① 最小复现：`llc -march=dadao -O0/-O2` **rc=0**（改前 rc=134 同一 `Cannot select … mulhu`）；反汇编证据 `mul.uo {rd4, rd0}, rd4, rd5`（`rdha`=高半、`rdhb`=`rd0` 丢弃低半；依据 `contract-isa.md §6.1.4` `mul.uo rdha:rdhb=rdhc×rdhd`）；`clang -O0/-O2 -c` **rc=0**。
+- ② 独立 oracle（host Python 大整数；10 边界用例×4 模式＝40 用例、**320 次逐字节全等**，0 mismatch；含大值/跨 2^32/`2^64-1`/`(2^64-1)^2`）：`RUN_EXIT=0`。**实现=ISA 专用 `mul.uo`（非等价序列）。**
+- ③ E2E `tests/e2e/mulhi_e2e.c`：clang→ld.lld→QEMU，`-DMODE=0..3`（低半/高半/`a*b/3`/`lo^hi`）逐字节退出码＝Python（如 case0 hi=`0xfffffffffffffffe`⇒退出码 254）。
+- ④ aha-mont64（`umul_lohi`）：**`-O0` rc=0**；`-O2` 被**它类缺口**阻塞（`Cannot select … load<…, zext from i1>`，与 G2 无关，不阻断）。
+- ⑤ `build-mc`/`check`/`check-patch-tree`/`check-lit` EXIT=0（check-lit 82/82 不下降）。⑥ `git -c core.quotepath=false diff --name-only | grep -E '^(spec|contracts)/'` → 无输出。⑧ 仅本任务改动，无 `_tmp/_orig/_rej`。
+
+**新发现/坑**：① i64 `MULHU`/`MUL_LOHI` 默认 `Legal`（`TargetLowering` 初值）⇒ `BuildUDIV`/`expandMUL_LOHI` 直接生成 `mulhu`/`umul_lohi`，必须给 pattern，否则 `Cannot select`。② `ISD::UMUL_LOHI` 结果序 **(low, high)**（`ISDOpcodes.h`；`TargetLowering::expandDIVREMByConstant` bind `getValue(0)=Lo`），而 `mul.uo` 定义序 (high, low) ⇒ 伪指令须**换序**。③ 同族缺口（**未修、范围外**）：`MULHS`/`SMUL_LOHI` 亦缺 pattern（`long g(long,long){return a*b/3;}` 仍 rc=134）。④ aha-mont64 `-O2` 新暴露 `i1` zext-load 缺口（`trunc(load i64)→load i1`），此前被 G2 掩盖。
+
+**遗留问题**：① `MULHS`/`SMUL_LOHI`（`mul.so` 同族）未在本任务范围（任务书仅列 `mulhu`/`umul_lohi`）⇒ 建议另立任务；② aha-mont64 `-O2` 的 `i1` load 缺口（归它类/另立）。二者均非本任务能力缺口，`ISS-176` 实现面已收口。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**自主逐行审查**（2 文件改动）：
+- `DADAOCodeGen.td`：`MULHU_PSEUDO`＝`(set GPRD:$dst,(mulhu GPRD:$a,GPRD:$b))`（`mulhu`＝`SDTIntBinOp`：1 结果/2 参，常量操作数由 matcher 物化入 GPRD）；`UMUL_LOHI_PSEUDO`＝`(set $lo,$hi,(umullohi …))`，结果序 (low,high) 与 `ISDOpcodes.h`/`expandDIVREMByConstant`（`getValue(0)=Lo`）一致。
+- `DADAOInstrInfo.cpp`：`MULHU_PSEUDO → mul.uo Dst,rd0,a,b`（高半入 Dst、低半丢 `rd0`；满足「双目的不得同时 rd0」）；`UMUL_LOHI_PSEUDO → mul.uo {Hi,Lo},a,b`（定义序 high,low＝换序）。
+- 边界：常量操作数（两 pattern 实测 OK）；i128 路径（`umul_lohi` 实测 `{rd5,rd4}` 双非 rd0）；`-O0`/`-O2`；`-verify-machineinstrs` 干净。
+- 防造假：证据脚本用真实 `llc`/`clang`/`ld.lld`/QEMU；计数现场统计（`ORACLE: cases=40 byte-comparisons=320`）；`--inject` 注入→FAIL→`cp`+md5（`b260038c…`）→重建→回绿 `RUN_EXIT=0`；无 `tee` 吞码。
+
+**finding 处置**：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 lit RUN 未开 `-verify-machineinstrs`（2 结果伪指令无 MIR 校验） | ✅已修 | `umul-lohi.ll` RUN + 证据 `check_lit` 加该 flag | `llc -O0/-O2 -verify-machineinstrs` rc=0；`check-lit` 82/82 |
+| F2 证据脚本 `local o=$1 bdir=…$o` 在 `set -u` 下 `o: unbound variable` | ✅已修 | 拆成独立 `local` 赋值 | 功能档 `RUN_EXIT=0` checks=48 |
+| F3 `oracle_expect` 把注释内 `0xAAA` 当数据（IN_B 解析出 11 项） | ✅已修 | 解析前剥离 C 注释 + 改注释 | `cases: 40`（A=B=10 现场统计）；oracle 全等 |
+| F4 `MULHS`/`SMUL_LOHI` 同族缺口 | ⏸延后 | 未改（任务书仅列 `mulhu`/`umul_lohi`） | `long g(long,long){return a*b/3;}` 仍 rc=134（记入遗留） |
+
+**判决**：finding 全部 ✅已修或 ⏸延后（F4 范围外），状态置 `待验收`。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+
+**重跑记录**（全部 reviewer 自跑，真实 rc；日志 `.work/log/llvm/LLVM-073t-review-*.log`）：
+- ① 最小复现（自写 `r.ll`/`r.c`）：`llc -march=dadao -O0/-O2` rc=0/rc=0；`clang -O0/-O2 -c` rc=0/rc=0；反汇编 `mul.uo {rd0, rd4}, rd16, rd17`（低半）+ `mul.uo {rd4, rd0}, rd4, rd5`（高半，`rdhb=rd0` 丢低半）——确用 `mul.uo`。
+- ② 独立语义 oracle（reviewer 自写 `oracle_check.py`，自选 10 边界〔0/1/2^31/2^32±1/2^63/2^64-1/`(2^32+1)^2`/`(2^64-1)^2`〕×4 模式 ×8 字节）：**320/320 逐字节全等，mismatch=0**（`HILO/REVIEW-ORACLE-EXIT=0`）。**半字序判定**：mode1 高半 `(2^32+1)^2→0x1`、`(2^64-1)^2→0xff…fe` 正确；另补**非交换** `hi-lo` 用例强制双目的 `mul.uo {rd5, rd4}`（反汇编确认），8×8=64 字节全等（`(2^32+1)^2` ⇒ `0xfffffffe00000000`）⇒ **`UMUL_LOHI` 换序正确、半字未互换**。
+- ③ E2E `a*b/c`（`0x123456789abcdef0*0xfedcba9876543210/3`）：clang/ld.lld/QEMU rc=0/0/170；host Python 全值 `0x0bcf2daa1cb2efaa`，低字节 170 ✓。
+- ④ aha-mont64：`-O0` 4 对象全 rc=0；`-O2` `mont64.c rc=1`，`Cannot select: t78: i64,ch = load<…>, zext from i1>`（reviewer 独立复现）。
+- ⑤ 不回归（一次一个 make）：`make build-mc` rc=0（ninja no work）；`make check-patch-tree` rc=0（3 组件 109 patches OK）；`make check-lit` rc=0（Total 82 / Passed 82 / Failed 0 / Unsupported 0；前任务 LLVM-072t 提交记 81/81 ⇒ 81+1 不下降）；`make check` rc=0（`repository checks: PASS`）。⑥ `diff --name-only | grep -E '^(spec|contracts)/'` 计 0；`git status` 交集亦空。
+- ⑦ 证据脚本（逐条审：llc/lit/oracle/aha/spec 均有可达 FAIL 路径、oracle 逐字节现场比对、计数现场统计、无 `tee` 吞码）：功能档重跑 `checks=48 failed=0 RUN_EXIT=0`。**reviewer 独立注入**（与半字互换不同：`MULHU_PSEUDO` 展开 `mul_uo_rd→mul_so_rd`，有符号高半不同值）：diff 非空、md5 `b260038c…→ad2e2b94…`，重建 rc=0 ⇒ 同脚本 **`RUN_EXIT=1`（9 FAIL：llc_repro O0/O2、lit、oracle_m1 六用例逐字节不符）** ⇒ `cp` 还原 md5 回 `b260038c…`（与 engineer 记录一致）⇒ 重建 rc=0 ⇒ 复跑 `RUN_EXIT=0`。
+- ⑧ 补丁纪律：`series` 71 条（现场 `grep -vc`）；`check-patch-tree` 断言绿；两补丁派生内容与源树文件**逐字节相等**（647/533 行）；源树 HEAD `90a6d2d78`=锁 base `6dfe1677a`+1 clean；`git status --porcelain -uall` 仅本任务 6 文件，无 `_tmp/_orig/_rej`；验收前后快照（status+md5）逐行对账一致。
+
+**约束核验**：临时目录 `/tmp/opencode/LLVM-073t-review/` ✓；未改被测物/未提交 git ✓；构建 `setsid` 脱离 + JOBS=8 ✓；还原用 `cp`+md5（未用 checkout/restore/stash）✓；证据脚本未代写 ✓。
+
+**新缺口复核（属实，供登记）**：① `long g(long,long){return a*b/3;}` ⇒ `llc rc=134`，`LLVM ERROR: Cannot select: t14: i64 = mulhs t5, Constant:i64<6148914691236517206>`（`MULHS`/`SMUL_LOHI` 未实现，建议另立）；② aha-mont64 `-O2` 阻塞于 `load<…, zext from i1>`（它类缺口，与 G2 无关）。
+
+**非阻断建议**：已提交用例中 mode3 `lo^hi` 为 XOR 交换不变、lit `umul128_xor` 亦然，**区分不了双目的换序**；建议后续在 `umul-lohi.ll`/`mulhi_e2e.c` 补 `hi-lo` 之类非交换断言（本审查已实测通过，不阻断）。
+
+**判决**：**Accepted**——验收 1–8 全部经 reviewer 独立重跑通过，约束无违反；两处新缺口属实且均非本任务范围。

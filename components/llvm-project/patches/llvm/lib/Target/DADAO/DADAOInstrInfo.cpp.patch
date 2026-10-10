@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..d87bdb053
+index 000000000..e673fa355
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,615 @@
+@@ -0,0 +1,647 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -173,6 +173,38 @@ index 000000000..d87bdb053
 +        .addDef(Dst)        // rdhb = low 64 bits of the result
 +        .addReg(Src1)       // rdhc = src1
 +        .addReg(Src2);      // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::MULHU_PSEUDO: {
++    // High half of an unsigned 64x64 product (LLVM-073t, ISS-176/G2):
++    // `mul.uo rdha, rdhb, rdhc, rdhd` has rdha = high 64, rdhb = low 64
++    // (contract-isa.md §6.1.4), so the high half alone is
++    // `mul.uo dst, rd0, a, b` (the low half goes to the hardwired-zero rd0).
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_uo_rd))
++        .addDef(Dst)          // rdha = high 64 bits of the product
++        .addDef(DADAO::rd0)   // rdhb = rd0 (discard the low 64 bits)
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::UMUL_LOHI_PSEUDO: {
++    // Full unsigned 64x64 -> 128 product (ISD::UMUL_LOHI).  The node's results
++    // are (low, high) but mul.uo's defs are (rdha=high, rdhb=low), so the
++    // operand order is swapped here (LLVM-073t, ISS-176/G2).
++    Register Lo = MI.getOperand(0).getReg();
++    Register Hi = MI.getOperand(1).getReg();
++    Register Src1 = MI.getOperand(2).getReg();
++    Register Src2 = MI.getOperand(3).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_uo_rd))
++        .addDef(Hi)           // rdha = high 64 bits
++        .addDef(Lo)           // rdhb = low 64 bits
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
 +    MI.eraseFromParent();
 +    return true;
 +  }

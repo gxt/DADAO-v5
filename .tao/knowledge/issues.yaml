@@ -344,11 +344,11 @@
 
 - id: ISS-176
   title: "128 位乘高半 `umul_lohi` / `mulhu` 不可 select（`Cannot select: ... mulhu` rc=134）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "**G2**。现象：`Cannot select: ... mulhu t5, Constant:i64<-6148914691236517205>`（rc=134）。最小复现：`unsigned long f(unsigned long a, unsigned long b){ return a*b/3; }`（`-O0`/`-O2`）——非 2 的幂除数触发 128 位乘高半；`unsigned long long` 直接路径亦触发（aha-mont64 `mulul64`）。命中基准：aha-mont64（`-O0`/`-O2`）、wikisort（`-O0` 的 `mulhu`）。**性质 = 缺能力（编译期显式失败）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G2`；矩阵 `TESTCASES-039t-stage1-matrix{,-O0}.log`。归属：新任务 `LLVM-073t`。"
+  resolved_by: LLVM-073t
+  notes: "**G2**。现象：`Cannot select: ... mulhu t5, Constant:i64<-6148914691236517205>`（rc=134）。最小复现：`unsigned long f(unsigned long a, unsigned long b){ return a*b/3; }`（`-O0`/`-O2`）——非 2 的幂除数触发 128 位乘高半；`unsigned long long` 直接路径亦触发（aha-mont64 `mulul64`）。命中基准：aha-mont64（`-O0`/`-O2`）、wikisort（`-O0` 的 `mulhu`）。**性质 = 缺能力（编译期显式失败）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G2`；矩阵 `TESTCASES-039t-stage1-matrix{,-O0}.log`。归属：新任务 `LLVM-073t`。 **已解决（2026-10-10，`LLVM-073t`）**：用 **ISA 专用 `mul.uo`**（`contract-isa §6.1.4`，`mul.uo rdha:rdhb=rdhc×rdhd`，128 位积）实现 `ISD::MULHU`（取高半、丢低半）与 `ISD::UMUL_LOHI`（结果序 `(low,high)` ↔ `mul.uo` 定义序 `(high,low)` **换序**）；最小复现 `llc -march=dadao -O0/-O2` rc=0（改前 rc=134）；**独立 oracle（host Python 大整数）320/320 逐字节全等、0 mismatch**（非采样）；E2E `tests/e2e/mulhi_e2e.c`（clang→ld.lld→QEMU）各模式逐字节=Python；`aha-mont64 -O0` rc=0；`check-lit` 82/82；reviewer 独立重跑 + 独立注入（`mul.uo`→`mul.so` 有符号高半）⇒FAIL⇒`cp`+md5 还原重建回绿。"
 
 - id: ISS-177
   title: "`br_jt`（跳转表 / `switch` 密集分发）不可 select：`-O0` 即触发（`Cannot select: ... br_jt`）"
@@ -413,3 +413,19 @@
   blocks: []
   resolved_by: LLVM-072t
   notes: "【子代理执行异常登记（用户规则：每次异常与重试须登记）】**现象**：`LLVM-072t` reviewer 首轮下发返回 `Too Many Requests`、**产出未落盘**（任务书无新增审阅记录、无文件改动）。**处置**：按「子代理返回异常处理」**重试 1 次同一任务**（重试附失败现场：无落盘 + 原始 error）；**结果**：重试成功、产出落盘（reviewer 第 1 轮 `Needs Revision` ⇒ 第 2 轮 `Accepted`）；**未触发任务拆分**。**task_id**：首轮 `ses_edb048bbdffe…`；重试 `ses_edafda412ffe…`。**登记落点择一说明**：与 `ISS-183`（`LLVM-071t` 同类 `Too Many Requests` 异常）**同型但不同任务** ⇒ 单独立条（按任务 1:1 便于追溯），互相交叉引用；未并入 `ISS-183`。"
+
+- id: ISS-185
+  title: "有符号乘高半 `MULHS` / `SMUL_LOHI` 缺失（`Cannot select: ... mulhs` rc=134）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "**G2 同族缺口（未修，范围外）**。现象：`long g(long a,long b){ return a*b/3; }` ⇒ `llc -march=dadao` rc=134，`LLVM ERROR: Cannot select: ... mulhs ...`（有符号乘高半无 pattern；`LLVM-073t` 仅实现无符号 `mulhu`/`umul_lohi`）。`LLVM-073t` engineer 记录 + reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**（M6 边界待用户裁定）。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑③」「遗留问题①」。**关联（测试强度缺口；择一说明：并入本条而非单列，以维持本轮新 issue 计 2 条）**：已提交用例 `mulhi_e2e.c` mode3 `lo^hi` 与 lit `umul128_xor` 均为 **XOR 交换不变** ⇒ 对「`umul_lohi` 双结果(半字序)互换」类缺陷**数学上不可检**；后续修复/补测须构造**非交换**判别用例（reviewer 已实测 `hi-lo` 可检出）。"
+
+- id: ISS-186
+  title: "`aha-mont64 -O2` 阻塞于 `Cannot select: ... load<..., zext from i1>`（后端缺口，它类）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "**它类缺口（与 G2 无关）**。现象：`aha-mont64` 在 `-O2` 编译 `mont64.c` rc=1，`LLVM ERROR: Cannot select: ... load<..., zext from i1>`（`trunc(load i64)` ⇒ `load i1` zext 无 lowering）；此前被 G2 掩盖。`-O0` rc=0 正常。`LLVM-073t` reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑④」「遗留问题②」。"
