@@ -1,1 +1,4 @@
 examples/dadao/README.md.patch
+examples/dadao/boardsupport.c.patch
+examples/dadao/boardsupport.h.patch
+src/md5sum/md5.c.patch

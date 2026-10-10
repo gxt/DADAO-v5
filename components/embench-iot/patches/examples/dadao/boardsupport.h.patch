@@ -1,0 +1,20 @@
+diff --git a/examples/dadao/boardsupport.h b/examples/dadao/boardsupport.h
+new file mode 100644
+index 0000000..f4856ae
+--- /dev/null
++++ b/examples/dadao/boardsupport.h
+@@ -0,0 +1,14 @@
++/* Copyright (C) 2026 DADAO-v5
++
++   This file is part of Embench.
++
++   SPDX-License-Identifier: GPL-3.0-or-later */
++
++/* DADAO board support header (empty by design, mirroring
++ * examples/native/speed/boardsupport.h).  The three platform hooks are
++ * declared in support/support.h and defined in boardsupport.c. */
++
++#ifndef DADAO_BOARDSUPPORT_H
++#define DADAO_BOARDSUPPORT_H
++
++#endif /* DADAO_BOARDSUPPORT_H */

@@ -742,3 +742,8 @@
 
 - **规则**：**文件**的原子替换（`cp -aL src dst.tmp.$$ && mv -f …`，§8.32）不能直接推广到**目录**——`rename(2)` 覆盖**非空**目录会 `ENOTEMPTY`；须 `rm -rf dst.tmp.$$ && cp -aL src dst.tmp.$$ && rm -rf dst && mv -f …`（staged 副本先完整、再暴露；重跑幂等），并由**连跑两次 `EXIT=0`** 证幂等。
 - **依据/来源**：`INFRA-054t`（clang resource-dir `lib/clang/<ver>/include` 随 `install-host` 安装，`ISS-174`）；细节 `.tao/tasks/infra/INFRA-054t-*.md`、`.work/evidence/INFRA-054t/run.sh`。同类 §8.32（文件型原子安装）。
+
+### 8.42 真实语料 E2E 判据须含「运行期带超时的退出码」+ 优化级矩阵：编译 rc=0 ≠ 可运行（`-O2` 可静默误编译）（`TESTCASES-039t`，2026-10-10）
+
+- **规则**：真实程序（Embench 等）E2E 中「编译+链接 `rc=0`」**不足以**证明正确——编译器可能在**优化级**产生运行期错误代码（**静默错码**）；判据须含**运行期**（`timeout N`，`124` 判 **FAIL**，不得当"跑完"），且**逐优化级**（`-O0`/`-O1`/`-O2`）分别跑，以把两类分开：**编译期显式失败 = 缺能力**（可延后立任务）、**编译成功而运行错 = 缺陷**（**须优先**，污染该优化级**所有**交付）。
+- **依据/来源**：`TESTCASES-039t` 首验收暴露 G6（`ISS-180`，`-O2` 死循环 huffbench/matmult-int/nettle-sha256/statemate；`-O0` 正常）；细节 `.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G6` + `ISS-180`、任务书完成区。同类 §8.39（trivial 程序不足以证「能编译真实 C」）。

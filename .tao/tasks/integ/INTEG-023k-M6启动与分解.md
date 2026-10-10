@@ -85,6 +85,14 @@
 > - **`INFRA-054t`**（infra；**入 Wave 0/infra**〔同改 `Makefile` ⇒ 串行〕）：**clang 内置头（resource-dir）安装**——`clang -print-resource-dir` 指向的 `lib/clang/<ver>/include` 未随 `install-host` 安装 ⇒ `#include <stddef.h>` `file not found`。范围 `Makefile`/`tools/infra/**`；依赖 `INFRA-050t`。查 `ISS-174`。
 > - **`TESTCASES-039t` 依赖改为 = 原依赖 + `LLVM-069t` + `INFRA-054t`**（二者就绪后**重新下发**）；本 `k` 表 §C 中该行原文保留（历史原文），依赖扩充以本追加为准。M6 任务书总数由 21 `t` + 6 `m` 增为 **23 `t` + 6 `m` = 29 份**。
 
+> **追加（2026-10-10，`TESTCASES-039t` 首验收达标后暴露 6 类后端缺口 ⇒ 立 5 修复/补能力任务；主会话 2026-10-10 已独立复核 reviewer Accepted）**：`TESTCASES-039t` 首验收**已达标**（`-O0` 10/19 基准退出码 0），但编译矩阵暴露 **6 类 DADAO 后端缺口**（逐条见 `issues.yaml` `ISS-175`–`ISS-180`；证据 `.work/log/testcases/TESTCASES-039t-stage1-gaps.md`），**M6「完整编译正确性」目标尚未达成**。据此立 **5 份 LLVM `t`**（均入 **Wave 2/llvm 串行**，同改 `components/llvm-project/patches` ⇒ 串行；依赖 `INFRA-050t`/`INFRA-051t`/`LLVM-062t`/`063t`/`069t`/`QEMU-052t`，均已就绪）：
+> - **`LLVM-070t`**（= **G6**，`ISS-180`；**缺陷·静默错码，优先执行**）：`-O2` 运行期误编译致死循环（huffbench/matmult-int/nettle-sha256/statemate；`-O0`/`-O1` 正常）；**先诊断根因再修**；E2E = 4 基准 `-O2` 退出码 0。
+> - **`LLVM-071t`**（= **G1 + G5**，`ISS-175` + `ISS-179`）：12 位立即数/分支范围溢出（大常量比较**常量物化** + 分支目标**放宽**；同属「12 位字段溢出」类）。
+> - **`LLVM-072t`**（= **G3**，`ISS-177`）：跳转表 `br_jt` lowering（`-O0` 即触发；picojpeg/qrduino）。
+> - **`LLVM-073t`**（= **G2**，`ISS-176`）：128 位乘高半 `umul_lohi`/`mulhu`（aha-mont64/wikisort）。
+> - **`LLVM-074t`**（= **G4**，`ISS-178`）：尾调用 `LowerCall` 断言（仅 `-O2`；crc32/md5sum/tarfind/ud/xgboost）。
+> 性质区分：**G6 = 缺陷（编译成功但运行期静默错码）**；**G1–G5 = 缺能力（均显式失败，非静默）**。M6 任务书总数由 23 `t` + 6 `m` 增为 **28 `t` + 6 `m` = 34 份**。`milestones.md` 已同步（新增 5 行 + M6 范围注记）。
+
 ## D. Wave/串行链 · 前置 ADR · 说明
 
 - **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t` → `INFRA-053t`（`ISS-172` `install-host` 幂等性修复；同改 `Makefile` ⇒ 串行）。

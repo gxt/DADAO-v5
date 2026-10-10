@@ -1,0 +1,39 @@
+diff --git a/src/md5sum/md5.c b/src/md5sum/md5.c
+index 092e183..5145df2 100644
+--- a/src/md5sum/md5.c
++++ b/src/md5sum/md5.c
+@@ -90,15 +90,31 @@ void md5(uint8_t *initial_msg, size_t initial_len) {
+     msg[initial_len] = 128; // write the "1" bit
+ 
+     uint32_t bits_len = 8*initial_len; // note, we append the len
+-    memcpy(msg + new_len, &bits_len, 4);           // in bits at the end of the buffer
++    // DADAO-v5: the MD5 length field is little-endian; write it explicitly so
++    // the result is independent of host byte order (DADAO is big-endian).
++    msg[new_len]     = (uint8_t) (bits_len);
++    msg[new_len + 1] = (uint8_t) (bits_len >> 8);
++    msg[new_len + 2] = (uint8_t) (bits_len >> 16);
++    msg[new_len + 3] = (uint8_t) (bits_len >> 24);
+ 
+     // Process the message in successive 512-bit chunks:
+     //for each 512-bit chunk of message:
+     int offset;
+     for(offset=0; offset<new_len; offset += (512/8)) {
+ 
+-        // break chunk into sixteen 32-bit words w[j], 0 ≤ j ≤ 15
+-        uint32_t *w = (uint32_t *) (msg + offset);
++        // break chunk into sixteen 32-bit words w[j], 0 ≤ j ≤ 15.
++        // DADAO-v5: assemble each word explicitly in little-endian order
++        // (the original `uint32_t *w = (uint32_t *)(msg+offset)` reinterpret
++        // assumes a little-endian host; DADAO is big-endian).
++        uint32_t w[16];
++        int word_i;
++        for (word_i = 0; word_i < 16; word_i++)
++          {
++            w[word_i] = (uint32_t) msg[offset + 4 * word_i]
++              | ((uint32_t) msg[offset + 4 * word_i + 1] << 8)
++              | ((uint32_t) msg[offset + 4 * word_i + 2] << 16)
++              | ((uint32_t) msg[offset + 4 * word_i + 3] << 24);
++          }
+ 
+ #ifdef DEBUG
+         printf("offset: %d %x\n", offset, offset);

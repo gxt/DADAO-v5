@@ -328,3 +328,56 @@
   blocks: []
   resolved_by: INFRA-054t
   notes: "现象：`.dadao/cross-toolchain/bin/clang -print-resource-dir` = `.dadao/cross-toolchain/lib/clang/23`，而该目录**不存在** ⇒ `clang -target dadao-unknown-elf -ffreestanding -c` 对 `#include <stddef.h>` 报 `fatal error: 'stddef.h' file not found`（rc=1）。根因：`install-host`（`ADR-0016 D11` 范围）只装 `bin/` 工具 + lit + sysroot 骨架，**未安装 clang resource-dir 的 `lib/clang/<ver>/include`**（内置 freestanding 头，源 = clang `clang/lib/Headers/**`，构建后落 `<LLVM_BUILD>/lib/clang/<ver>/include`，现已确认存在）。影响：真实 C 与 Embench（`md5sum`/`ctype`/`string` 等）无法包含内建头；`LLVM-063t` 已登记为遗留（freestanding 最小程序不受影响）。证据指针：`.work/log/testcases/TESTCASES-039t-blocker.log`（§D1 `file not found`、§D2 `-print-resource-dir`、§D3 `NO (missing)`）、`-blocker_probe_result.txt`、`-progress.md`；`LLVM-063t` 任务书「遗留问题」末条。归属：新任务 `INFRA-054t`（clang 内置头安装）。"
+
+# ── 新登记（2026-10-10，TESTCASES-039t 首验收达标后暴露的 6 类后端缺口）──────────
+# 性质区分：G6 = 缺陷（编译成功但运行期静默错码）；G1–G5 = 缺能力（均显式失败，非静默）。
+# 逐基准矩阵 + 最小复现见 `.work/log/testcases/TESTCASES-039t-stage1-gaps.md`；
+# reviewer 独立复现见 `.work/log/testcases/TESTCASES-039t-review-{matrix,gates,e2e}.log`。
+
+- id: ISS-175
+  title: "大常量比较超 12 位立即数：`select/setcc`/branch 比较常量 >12 位即显式失败（`llc` rc=134 / `clang` rc=1）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "**G1**（已知遗留的独立登记）。现象：`icmp slt i64 %v, 5000` 经 `llc -march=dadao` ⇒ `LLVM ERROR: DADAO: select/setcc compare against a constant that does not fit a 12-bit immediate is not supported yet`（rc=134）；`clang` 同形态 rc=1。最小复现：`int f(long a){ return a < 5000; }`（`-O2`）。命中基准：edn / slre / wikisort（`select/setcc`）、crc32 / edn / sglib-combined / slre / md5sum（branch）。**性质 = 缺能力（编译期显式失败，非静默错码）**；`LLVM-069t` 已记为遗留（与既有 `br(icmp)` 分支路径同界）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G1`；reviewer 独立复现 `TESTCASES-039t-review-*.log`（`icmp slt i64 %v,5000` rc=134）。归属：新任务 `LLVM-071t`（G1 + G5）。"
+
+- id: ISS-176
+  title: "128 位乘高半 `umul_lohi` / `mulhu` 不可 select（`Cannot select: ... mulhu` rc=134）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "**G2**。现象：`Cannot select: ... mulhu t5, Constant:i64<-6148914691236517205>`（rc=134）。最小复现：`unsigned long f(unsigned long a, unsigned long b){ return a*b/3; }`（`-O0`/`-O2`）——非 2 的幂除数触发 128 位乘高半；`unsigned long long` 直接路径亦触发（aha-mont64 `mulul64`）。命中基准：aha-mont64（`-O0`/`-O2`）、wikisort（`-O0` 的 `mulhu`）。**性质 = 缺能力（编译期显式失败）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G2`；矩阵 `TESTCASES-039t-stage1-matrix{,-O0}.log`。归属：新任务 `LLVM-073t`。"
+
+- id: ISS-177
+  title: "`br_jt`（跳转表 / `switch` 密集分发）不可 select：`-O0` 即触发（`Cannot select: ... br_jt`）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "**G3**。现象：`Cannot select: t4: ch = br_jt t2:1, JumpTable:i64<0>, t2>`（`-O0` 即触发）。最小复现：`switch(x)` 含 16 个 case（含 fallthrough 全分支）→ `clang`/`llc` rc=134。命中基准：picojpeg / qrduino。**性质 = 缺能力（编译期显式失败）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G3`。归属：新任务 `LLVM-072t`。"
+
+- id: ISS-178
+  title: "尾调用 `LowerCall` 断言 `LowerCall emitted a return value for a tail call!`（仅 `-O2`）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "**G4**。现象：`-O2` 下 `clang` 在 `LowerCall` 断言失败（rc=134）：`LowerCall emitted a return value for a tail call!`；`-O0` 全部消失。最小复现：`extern long g(void); long f(void){ return g(); }`（`-O2`）。命中基准：crc32 / md5sum / tarfind / ud / xgboost（**仅 `-O2`**）。**性质 = 缺能力（编译期显式失败，但仅优化级触发）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G4`。归属：新任务 `LLVM-074t`。"
+
+- id: ISS-179
+  title: "分支 / 跳转目标超 12 位 PC 相对范围：`error: branch/jump target out of range for a 12-bit PC-relative immediate`"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "**G5**。现象：`error: branch/jump target out of range for a 12-bit PC-relative immediate`（`-O2`）。最小复现：nsichneu（`-O2`，`-O0` 通过）。**性质 = 缺能力（编译期显式失败）**；与 `ISS-175`（G1）同属「12 位字段溢出」类（常量立即数 / 分支偏移）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G5`；矩阵 `TESTCASES-039t-stage1-matrix.log`。归属：新任务 `LLVM-071t`（G1 + G5）。"
+
+- id: ISS-180
+  title: "【缺陷·静默错码】`-O2` 运行期误编译致死循环：编译成功但 QEMU 执行 hang（`GUEST_EXIT=124`），`-O0`/`-O1` 正常"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "**G6（最严重：静默错码，非编译期失败）**。现象：`huffbench` / `matmult-int` / `nettle-sha256` / `statemate` 在 `-O2` **编译成功**，但 QEMU 运行**超时（`GUEST_EXIT=124`）**；`-O0`/`-O1` 同基准 **exit=0**。最小复现：`.work/source/embench-iot/src/matmult-int/matmult-int.c` 仅把 `LOCAL_SCALE_FACTOR 39` 改 `3`（`/tmp/opencode/TESTCASES-039t/red/mm.c`），`-O2` 死循环、`-O0`/`-O1` exit=0。执行轨迹（`-d exec`）：停在 `memcpy` 的两条指令（PC `0x4e0`/`0x4f4`）反复自转，`rd4`（i）持续自增而 `rd5`（n）=0，即循环不推进 ⇒ **`-O2` 优化级误编译，非算法死循环**。影响：**污染所有 `-O2` 交付**（静默错码，编译 rc=0 掩盖运行期错误）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G6`；reviewer 独立复现 `TESTCASES-039t-review-{matrix,gates,e2e}.log`（`TO=25` 下 `-O2` huffbench/matmult-int ⇒ rc=124，`-O0` ⇒ 0；QEMU 输出仅 `[board:init]`、无 `[board:start]`，hang 于 `warm_caches`）。归属：新任务 `LLVM-070t`（**优先执行**）。"
