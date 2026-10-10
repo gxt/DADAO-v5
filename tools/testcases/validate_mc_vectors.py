@@ -59,6 +59,9 @@ VEC_GLOB = os.path.join(VEC_DIR, "m4-*.s")
 
 # spec/Toolchain-01 §7：4 条数据指导符（Knuth/MMIX 数据长度）
 DIRECTIVE_WIDTH = {".dd.b08": 1, ".dd.w16": 2, ".dd.t32": 4, ".dd.o64": 8}
+# §7.1/§7.2：被显式拒绝的 GAS 指导符（`.octa` 语义不同；`.byte/.short/.long/
+# `.quad` 为 GAS 数据指示符；`.align` 为字节数语义）——分类为 "unsupported"。
+GAS_DIRECTIVES = (".octa", ".byte", ".short", ".long", ".quad", ".align")
 # spec/Toolchain-01 §6.2：被删的 10 条伪指令（不再实现）
 DELETED_PSEUDO = ("nop", "return", "not.b", "not.w", "not.t", "not.o",
                   "neg.b", "neg.w", "neg.t", "neg.o")
@@ -553,7 +556,7 @@ def check_dirrej(code, expect):
     parts = code.split(None, 1)
     directive = parts[0].lower()
     if directive not in DIRECTIVE_WIDTH:
-        got = "unsupported" if directive in (".octa",) else "unknown"
+        got = "unsupported" if directive in GAS_DIRECTIVES else "unknown"
         return got, (got == expect)
     width = DIRECTIVE_WIDTH[directive]
     if expect == "range":

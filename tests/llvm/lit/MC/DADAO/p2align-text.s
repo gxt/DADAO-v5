@@ -10,10 +10,10 @@
 ;
 ; `.text` is a code section, so MCAsmInfoELF::useCodeAlign() selects the
 ; code-alignment path: the padding is filled through the backend writeNopData().
-; A preceding `.byte` leaves the offset 4-unaligned, so the padding count is
+; A preceding `.dd.b08` leaves the offset 4-unaligned, so the padding count is
 ; NOT a multiple of 4 -- the case that used to crash.
 ;
-; `.byte 1` at offset 0; `.p2align 3` pads to offset 8 (7 bytes, no trailing
+; `.dd.b08 1` at offset 0; `.p2align 3` pads to offset 8 (7 bytes, no trailing
 ; item).  The first 3 padding bytes are zero-fill to reach the next 4-byte
 ; boundary; the following 4 bytes are one canonical `swym 0` = 0x77880000
 ; (contract-isa.md §13.1/§13.3).
@@ -21,7 +21,7 @@
 ; @category directive
 
 	.text
-	.byte	1
+	.dd.b08	1
 	.p2align 3
 
 ; Exact `llvm-objdump -h` size: 1 data byte + 7 padding = 8 (2^3).

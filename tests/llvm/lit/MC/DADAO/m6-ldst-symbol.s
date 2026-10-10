@@ -31,4 +31,4 @@ _start:
 	.section	.data
 	.globl	target
 target:
-	.quad	0
+	.dd.o64	0

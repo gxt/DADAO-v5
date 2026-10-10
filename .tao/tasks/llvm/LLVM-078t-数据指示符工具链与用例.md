@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M6
 **依赖**：**`SPEC-130t`（正文口径 + 锁，`已验证`）**、`INFRA-050t`（一次构建 `DADAO;X86`）、`LLVM-062t`/`LLVM-063t`/`LLVM-065t`/`LLVM-069t`（均已 `已验证`）、`QEMU-052t`（ELF 加载，`已验证`）；**与 Wave 2 其它 llvm 任务同改 `components/llvm-project/patches` ⇒ 串行**
-**状态**：待开始
+**状态**：已验证
 
 > **覆盖缺口**：**`ISS-181`** 的**工具链实现 + 用例跟改**部分。**说明（拆分）**：`ISS-181` 拆为 **`SPEC-130t`（规范正文 + 锁）** + **`LLVM-078t`（本文件）**；**本任务依赖 `SPEC-130t`**（正文口径先落，再对齐实现，Spec-first）。
 
@@ -78,17 +78,95 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**受理侧可行性评估结论**：
-**新发现/坑**：
-**遗留问题**：
+**用户裁定落实**：无子会话用户问答（裁定见任务书 `§用户裁定` + 主会话下发）；①唯一数据指示符 `.dd.b08/.dd.w16/.dd.t32/.dd.o64`、②`llc` 只生成 `.dd.*` + `llvm-mc` 拒 GAS 名、③删 `.align` 只留 `.p2align`、⑤`.dd.128` 不加、⑥跟改面 全部落地；不改 `spec/`、不立 ADR、不动上游 `DADAO-11`。
+**受理侧可行性评估结论**：**可行——能 target-scoped 拒绝，无需改通用 MC 代码**。依据：`llvm/lib/MC/MCParser/AsmParser.cpp:1941` 在通用 `DirectiveKindMap` 分派（L1958+）**之前**先调 `getTargetParser().parseDirective(ID)`；`DADAOAsmParser::parseDirective`（`DADAOAsmParser.cpp:1163`，`MCTargetAsmParser`）即该 target parser，已用同机制处理 `.octa`/`.dd.*`。故在其内对 `.byte/.short/.long/.quad/.align` 返回 `Error()`（=Failure）即 shadow 通用内建；`llvm/lib/MC/**` **未动**。
+**测试结果**：`.work/evidence/LLVM-078t/run.sh` **14/14 PASS、RUN_EXIT=0**；`run.sh --inject` **RUN_EXIT=0**（注入 `Data64bitsDirective="\t.quad\t"` ⇒ 2 生成侧断言 FAIL ⇒ `cp`+md5 还原 ⇒ `ninja llc` 重建 ⇒ 回绿；md5 `f969584f8e79e94111023f7fd5263670` 对账一致）。
+**修改文件**：`components/llvm-project/patches/llvm/lib/Target/DADAO/{MCTargetDesc/DADAOMCAsmInfo.cpp.patch,AsmParser/DADAOAsmParser.cpp.patch}`、`components/llvm-project/changelog.md`、`.tao/knowledge/contract-asm.md`、`tools/testcases/validate_mc_vectors.py`、`tests/**` 14 文件（`lit/CodeGen/DADAO/br-jt.ll`；`lit/MC/DADAO/{README-m4.md,dd-reject.s,m4-directive-reject.s,m6-callconv.s,m6-data-narrow-reject.s,m6-ldst-symbol.s,p2align-degrees.s,p2align-rodata.s,p2align-text.s,rela-addend.s,rela.s,set-symbol.s}`；`tests/scripts/bootrom.S`），本任务书。`series` 仍 71（无新增文件）。
+**验收结果**：①`llc` 产物 GAS 名=0、`.align`=0，`.dd.b08/.w16/.t32/.o64`=1/1/1/4，`i128`=2×`.dd.o64`，`.p2align`=5（min 模块，rc=0）；②`llvm-mc` rc：`.byte/.short/.long/.quad/.word/.octa/.align` **全 rc=1（拒）**；`.dd.b08/.w16/.t32/.o64/.p2align` **全 rc=0**；③E2E：`check-lit` **89/89**、`test-codegen` **15/15**、`test-elf` **5/5**、`test-semihost` **10/10** 全 EXIT=0；全局数据 C→lld→QEMU 退出码 0（O0/O2）、`.dd.*` 大端字节独立 oracle 相等；④门控 `build-mc`/`check`/`check-patch-tree`/`check-lit` 全 EXIT=0（lit 89 = 改前 `LLVM-077t-gate-check-lit.log` 89，**不下降**）；`spec|contracts` 交集空、无残留。
+**新发现/坑**：（1）**target parser 先于通用分派**（`AsmParser.cpp:1941` vs L1958）是「目标级拒绝」的关键，无需碰 `llvm/lib/MC/**`；（2）改 `.dd.*` 后 `m6-data-narrow-reject.s` 的诊断从通用 `parseDirectiveValue` 文本（`a 1/2/4-byte data field`）切到 DADAO `parseDDDirective` 文本，故 NARROW 断言收敛为语义锚 `relocatable operand in`；（3）在组件源树 `commit --amend` 改 commit hash 会触发 LLVM `VCSRevision.h` 重生成（+重链）——属预期。
+**遗留问题**：**超出用户裁定 4 名集合**的其他 LLVM 内建数据指导符（`.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double`）仍被通用 parser 受理（实测 rc=0）——未在裁定范围内，**未动**；建议后续任务按 `Toolchain-01 §7` 口径一并收口（登记建议）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**审查方式**：全局 `subagent_depth=1`，engineer 自主逐行审查（无嵌套子代理）。范围：2 个 DADAO 源补丁（`DADAOMCAsmInfo.cpp`、`DADAOAsmParser.cpp`）、14 个 `tests/**`、`tools/testcases/validate_mc_vectors.py`、`.tao/knowledge/contract-asm.md §11`、`components/llvm-project/changelog.md`、证据脚本 `run.sh`；对照任务书验收 1–9 与硬约束逐条核验，并以真实执行（llc/llvm-mc/lit/lld/qemu/门控）验证。
+
+**逐行审查要点与判决**：
+- **生成侧**：`Data{8,16,32,64}bitsDirective` 字段名与默认值（`MCAsmInfo.h:245-248`）逐一核对，串格式 `"\t.dd.*\t"` 与默认 `"\t.byte\t"` 同构；不改构造签名。**判决：正确**。
+- **受理侧**：`DADAOAsmParser::parseDirective` 顺序为 `.octa` → 4 个 GAS 数据名 → `.align` → `.dd.*` 分发；全部 `Error()` 早返回，不影响后续 `.dd.*`；`Twine` 拼接经编译验证（`-Werror` 未触发，仅既有无关 warning）。**判决：正确**。
+- **可达 FAIL**：证据脚本每条断言均有可达 FAIL 路径——生成侧由 `--inject` 实测 FAIL（gas=4）；受理侧拒断言在改前实测 rc=0（可 FAIL）；字节 oracle 为独立 Python 大端派生（非恒真）。**判决：通过**。
+
+| finding | 处置 | 说明 | 复验证据 |
+|---------|------|------|---------|
+| F1 `.word` 维持 `unknown directive`（非 "unsupported"）而非显式拒绝 | ❌不修 | 用户裁定仅要求「拒」；`llvm-mc` 对 `.word` **本就 rc≠0**（LLVM 无此内建）；且 `validate_mc_vectors.py` oracle 与 `m4-directive-reject.s` 期望为 `unknown`，显式拒绝会无谓扩大改动面 | 实测 `.word 1` rc=1；`validate_mc_vectors` 78 向量 0 错 |
+| F2 `.align` 拒绝是否会误伤既有合法书写 | ✅已核 | 全仓 `grep '\.align\b'`（tests/tools）0 命中；`llc` 只发 `.p2align` | evidence `llc_gen_dd_only` align=0；`make check` EXIT=0 |
+| F3 换 `.dd.*` 后 `m6-data-narrow-reject.s` 诊断文本变化 | ✅已修 | RUN 行改 `.dd.b08/w16/t32 ext` 以保留「窄字段可重定位拒」语义；NARROW 断言由实现文本收敛为语义锚 `relocatable operand in`（与 `dd-reject.s`/`m4-directive-reject.s` 一致） | `check-lit` 89/89 |
+| F4 组件源树 `commit --amend` 改 hash 触发 `VCSRevision.h` 重生成 | ✅已核（预期） | amend 为补丁导出（E1）必需；重生成只影响少量 TU + 重链，行为无关 | `build-mc` 二次 EXIT=0；`check-source-state` OK |
+| F5 其他 LLVM 内建数据指导符（`.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double`）仍被受理 | ⏸延后 | **超出用户裁定 4 名集合**，未授权扩大；登记「遗留问题」+ 建议后续任务 | 实测 rc=0（见完成区） |
+
+**判决**：所有 finding 已处置（F3 已修并复验，F1/F5 有据不修/延后，F2/F4 核实无问题）；任务状态置 **待验收**。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**审查方式**：独立重跑 `run.sh`（functional + inject 模式）+ 自行构造 `.ll`/逐个 `llvm-mc` 测试 + 逐条 `make` 门控 + 独立 Embench 扫描 + 独立反例注入（不同 surface：放开 `.byte` 受理）。全程禁 `git checkout/restore/stash`，cp+md5 还原并逐项对账。临时目录 `/tmp/opencode/LLVM-078t-review/`。
+
+**重跑记录**（逐条真实输出/退出码）：
+
+| 检查 | 期望 | 实际（reviewer 独立跑） | 备注 |
+|------|------|------------------------|------|
+| 生成侧 `llc` own `.ll` (i8/i16/i32/i64/ptr/i128/arr) | GAS=0, .align=0, .dd.*全现, i128=2×.dd.o64, .p2align≥1 | GAS=0, .align=0, .dd.b08=1, .dd.w16=4, .dd.t32=1, .dd.o64=4, .p2align=6, i128=2×dd.o64, llc rc=0 | 与 engineer 1/1/1/4 差异来自测试 .ll 多了 `[3 x i16]` 数组；关键断言（gas=0, .align=0, i128=2）一致 |
+| `.byte` → rc | rc≠0 | rc=1, msg=`unsupported directive '.byte' (GAS data directive)` | |
+| `.short` → rc | rc≠0 | rc=1, msg=`unsupported directive '.short' (GAS data directive)` | |
+| `.long` → rc | rc≠0 | rc=1, msg=`unsupported directive '.long' (GAS data directive)` | |
+| `.quad` → rc | rc≠0 | rc=1, msg=`unsupported directive '.quad' (GAS data directive)` | |
+| `.word` → rc | rc≠0 | rc=1, msg=`unknown directive .word 1` | LLVM 无内建 `.word`；F1 有据不修 |
+| `.octa` → rc | rc≠0 | rc=1, msg=`unsupported directive '.octa' (GAS 16-byte octa)` | |
+| `.align 3` → rc | rc≠0 | rc=1, msg=`unsupported directive '.align' (byte-count semantics)` | |
+| `.dd.b08 1` → rc | rc=0 | rc=0 | |
+| `.dd.w16 1` → rc | rc=0 | rc=0 | |
+| `.dd.t32 1` → rc | rc=0 | rc=0 | |
+| `.dd.o64 1` → rc | rc=0 | rc=0 | |
+| `.p2align 3` → rc | rc=0 | rc=0 | |
+| `git diff \| grep llvm/lib/MC/` (worktree) | 0 hits | 0 hits, rc=1 | |
+| `getTargetParser().parseDirective(ID)` 行号 | L1941（先于 generic dispatch） | L1941 confirmed; generic `switch (DirKind)` at L1961 | |
+| `grep .byte/.short/… tests/ tools/` | 仅拒测文件 + 非汇编含义 | 见 item 4 分析 | |
+| `make check-patch-tree` | rc=0 | rc=0, 3 components, 109 patches OK | |
+| `make build-mc` | rc=0 | rc=0 | |
+| `make check` | rc=0 | rc=0, 89 discovered/89 passed | |
+| `make check-lit` | rc=0, 不下降 | rc=0, 89/89 (= LLVM-077t 89) | |
+| `make test-codegen` | rc=0 | rc=0, 15/15 | |
+| `make test-elf` | rc=0 | rc=0, 5/5 | |
+| `make test-semihost` | rc=0 | rc=0, 10/10 | |
+| Embench -O0 | 19/19 | 19/19（independent sweep） | |
+| Embench -O2 | 19/19 | 19/19（independent sweep） | |
+| `run.sh` (functional) | RUN_EXIT=0 | RUN_EXIT=0, 14/14 PASS | |
+| `spec\|contracts` intersection | 0 hits | 0 hits | |
+| `series` count | 71 | 71 | |
+
+**target-scoped 核实**：`DADAOAsmParser::parseDirective`（AsmParser.cpp:1163）在 `getTargetParser().parseDirective(ID)`（AsmParser.cpp:1941）中被调用，先于通用 `switch (DirKind)`（L1961）。`.byte/.short/.long/.quad` → `Error("unsupported directive...")` 早返回 shadow 通用 DK_BYTE 等 case。`llvm/lib/MC/**` 未修改。
+
+**跟改面核实**：`grep tests/ tools/` 命中全部为（a）拒测文件（dd-reject.s、m4-directive-reject.s 使用 `%not` + FileCheck EXPECT 拒绝）、（b）文档（README-m4.md）、（c）validate_mc_vectors.py `GAS_DIRECTIVES` 元组（oracle 分类为 unsupported）。无真需求使用 GAS 名。`encoding.word` 为向量 schema 字段名，非汇编指令。
+
+**脚本审计**：run.sh 14 条断言均有可达 FAIL 路径——gen-side 由注入实测 FAIL（gas=4）；mc-reject/mc-accept 由反例实测 FAIL（rc=0 vs 期望≠0）；byte oracle 为独立 Python 大端派生；gdata e2e 退出码独立。脚本无 `tee`，退出码捕获无管道截断。`run.sh --inject` 模式：注入 `Data64bitsDirective="\t.quad\t"` → 2 gen-side 断言 FAIL → md5 `f969584f8e79e94111023f7fd5263670` 还原一致 → 重建回绿。
+
+**独立反例注入**（surface 不同于 engineer 的 `.quad` gen-side）：
+- 注入：修改 `DADAOAsmParser.cpp` 的 `.byte` 拒绝条件 → `ID == ".byteNOSUCH"` → `.byte` 不再被拦截（放开了一个 GAS 名）。
+- `git diff --name-only` 确认注入非空（1 path）；md5 pre-inject=`d96d6155b58f7ab34bf4edeea4df9c33`。
+- rebuild（setsid nohup，exit=0）→ `run.sh`：`llvm_mc_reject_gas` **FAIL**（`.byte 1 rc=0`，被接受）+ `check_patch_tree` **FAIL**（rc=2，patch-tree 检测到源树漂移）+ `make_check` **FAIL**（rc=2）；**RUN_EXIT=1** ✓。
+- `cp` 还原 → md5 `d96d6155...` = pre-inject ✓ → rebuild（exit=0）→ `run.sh`：14/14 PASS，**RUN_EXIT=0** ✓。
+- 工作区快照对账：`git status --porcelain -uall` pre==post ✓；4 个目标文件 md5 pre==post ✓。
+
+**遗留核实**（item 8）：独立测试 `.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` → 全部 rc=0（仍被 llvm-mc 受理）。不在用户裁定 4 名集合内，未动。engineer 遗留登记属实。
+
+**约束核验**：
+- ✅ 生成侧只发 `.dd.*`（gas=0, .align=0）
+- ✅ 受理侧拒 7 名（全 rc=1）、收 `.dd.*`+`.p2align`（全 rc=0）
+- ✅ `llvm/lib/MC/**` 未修改（target-scoped 拒绝）
+- ✅ `spec|contracts` 交集空
+- ✅ 不回归：check-lit 89/89（=改前 89）、test-codegen 15/15、test-elf 5/5、test-semihost 10/10、Embench 19/19×2
+- ✅ 证据脚本14/14 + 注入 FAIL + md5还原 + 回绿
+- ✅ 补丁纪律：series=71、一文件一补丁、无残留
+- ✅ 工作区快照对账一致
+
+**判决：Accepted**

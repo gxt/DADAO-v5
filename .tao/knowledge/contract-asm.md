@@ -243,7 +243,7 @@
 | 本规范的新记法（`[]`/`{}`/`?`/`:`） | 待实现（parser/printer/disassembler） |
 | 双目的/多寄存器新记法（`{rdHA,rdHB}`/`{start:end}`） | 待实现 |
 | 伪指令（合成型） | 待实现 |
-| `.dd.*` 指导符 | 未实现 |
+| `.dd.*` 指导符 | 已受理（`llvm-mc` 受理 `.dd.b08/.dd.w16/.dd.t32/.dd.o64`；`llc` 生成侧只发 `.dd.*`；GAS 数据指示符与 `.align` 被拒） |
 | `-multiple-to-single` | 未实现 |
 | ABI 寄存器别名 | 未实现（`DwarfRegAlias` 不可用于汇编） |
 | 越界立即数静默环绕 | 缺陷——MUST 报错 [Toolchain-01 §11][ADR-0013 D3] |

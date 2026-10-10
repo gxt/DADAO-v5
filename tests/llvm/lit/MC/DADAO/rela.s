@@ -38,7 +38,7 @@ _start:
 	.section	.data
 	.globl	ext
 ext:
-	.quad	0
+	.dd.o64	0
 	.globl	other
 other:
-	.quad	0
+	.dd.o64	0

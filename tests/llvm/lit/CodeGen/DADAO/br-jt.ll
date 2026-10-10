@@ -6,7 +6,7 @@
 ; dense switch failed to compile ("Cannot select: ... br_jt ...").
 ;
 ; The DADAO jump table lives in a read-only data section and holds one 8-byte
-; absolute case address per entry (EK_BlockAddress; each `.quad LBB` becomes an
+; absolute case address per entry (EK_BlockAddress; each `.dd.o64 LBB` becomes an
 ; R_DADAO_ABS48 field, contract-elf.md §2-§4).  The dispatch
 ;   * materializes the table base into an address register (GPRB) with the fixed
 ;     3-slice set.zw/or.w/or.w sequence (same mechanism as GLOBAL_ADDR, ABS48),
@@ -70,8 +70,9 @@ default: ret i64 0
 ; CHECK: jump [rb{{[0-9]+}}, rd0, 0]
 
 ; The table is emitted in the read-only data section (not .text), 8-byte aligned,
-; one `.quad LBB` absolute case address per entry.
+; one `.dd.o64 LBB` absolute case address per entry (the DADAO 8-byte
+; data directive; contract-asm.md §7.1).
 ; CHECK: .section .rodata
 ; CHECK: .p2align 3
 ; CHECK: [[JTI]]:
-; CHECK-NEXT: .quad .LBB
+; CHECK-NEXT: .dd.o64 .LBB

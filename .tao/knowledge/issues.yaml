@@ -384,11 +384,11 @@
 
 - id: ISS-181
   title: "数据指示符口径待裁决：禁 `.word/.long/.quad`、规范名 `.dd.*`、删 `.align` 只留 `.p2align`"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R1`）】**状态 = 待裁决 / 暂不改**（不建任务、不改 `spec/` 与工具链）。用户裁定方向：① `.word`/`.long` 语义在汇编与高级语言间不一致 ⇒ **完全禁用**，连带 `.quad` 也不用作规范名；② 规范名 = `.dd.b08/.dd.w16/.dd.t32/.dd.o64`（`DADAO-11 §汇编兼容性`、`Toolchain-01 §7`）；③ `.dd.128` **不需要**（`llc` 对 `i128` 发两条 `.quad`，语义等价）；④ `.align` 有歧义（实测 `.align N` = 字节数、非 2^N）⇒ **删 `.align` 只留 `.p2align`**（2^N）。**待定项**：`.byte/.short` 是否一并禁；受理侧是否拒绝 GAS 名（拒 GAS 名可能需动通用 `MCParser/AsmParser.cpp`，成本↑）。**ADR 建议**：命中「外部契约 + 结论固化 + 跨模块」⇒ 建议立 ADR（**用户尚未表态**）。 **已裁定（用户 2026-10-10：4 缺口全入 M6）：拆 `SPEC-130t`（=本项**正文口径 + 锁**）+ `LLVM-078t`（**工具链生成/受理 + 用例**，依赖 `SPEC-130t`）；裁定 ①只留 `.dd.*`（`.byte/.short/.long/.quad/.word/.octa` 全禁）②两侧一致（`llc` 只生成 `.dd.*`、`llvm-mc` 拒 GAS 名；受理侧不可行 ⇒ 退回只禁生成侧并登记）③删 `.align` 只留 `.p2align` ④**不立 ADR**、改 v5 侧 `Toolchain-01 §7` + `contract-asm.md` + 锁，**不动上游 `DADAO-11`** ⑤`.dd.128` 暂不加。** **正文本轮完成（2026-10-10，`SPEC-130t` `已验证`）**：`Toolchain-01 §7.1/§7.2` + `contract-asm §7` 同口径收口（唯一集 `.dd.b08/.dd.w16/.dd.t32/.dd.o64`；`.byte/.short/.long/.quad/.word/.octa` 全禁；删 `.align` 只留 `.p2align`）+ 锁 `sha256` 同步 `3d129ba8…`；**实现侧（`llc` 只生成 `.dd.*` / `llvm-mc` 拒 GAS 名 / 用例跟改）归 `LLVM-078t`**（依赖 `SPEC-130t` 已满足）⇒ 本 issue **保持 `open`** 至 `LLVM-078t` 完成。**"
+  resolved_by: "SPEC-130t + LLVM-078t"
+  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R1`）】**状态 = 待裁决 / 暂不改**（不建任务、不改 `spec/` 与工具链）。用户裁定方向：① `.word`/`.long` 语义在汇编与高级语言间不一致 ⇒ **完全禁用**，连带 `.quad` 也不用作规范名；② 规范名 = `.dd.b08/.dd.w16/.dd.t32/.dd.o64`（`DADAO-11 §汇编兼容性`、`Toolchain-01 §7`）；③ `.dd.128` **不需要**（`llc` 对 `i128` 发两条 `.quad`，语义等价）；④ `.align` 有歧义（实测 `.align N` = 字节数、非 2^N）⇒ **删 `.align` 只留 `.p2align`**（2^N）。**待定项**：`.byte/.short` 是否一并禁；受理侧是否拒绝 GAS 名（拒 GAS 名可能需动通用 `MCParser/AsmParser.cpp`，成本↑）。**ADR 建议**：命中「外部契约 + 结论固化 + 跨模块」⇒ 建议立 ADR（**用户尚未表态**）。 **已裁定（用户 2026-10-10：4 缺口全入 M6）：拆 `SPEC-130t`（=本项**正文口径 + 锁**）+ `LLVM-078t`（**工具链生成/受理 + 用例**，依赖 `SPEC-130t`）；裁定 ①只留 `.dd.*`（`.byte/.short/.long/.quad/.word/.octa` 全禁）②两侧一致（`llc` 只生成 `.dd.*`、`llvm-mc` 拒 GAS 名；受理侧不可行 ⇒ 退回只禁生成侧并登记）③删 `.align` 只留 `.p2align` ④**不立 ADR**、改 v5 侧 `Toolchain-01 §7` + `contract-asm.md` + 锁，**不动上游 `DADAO-11`** ⑤`.dd.128` 暂不加。** **正文本轮完成（2026-10-10，`SPEC-130t` `已验证`）**：`Toolchain-01 §7.1/§7.2` + `contract-asm §7` 同口径收口（唯一集 `.dd.b08/.dd.w16/.dd.t32/.dd.o64`；`.byte/.short/.long/.quad/.word/.octa` 全禁；删 `.align` 只留 `.p2align`）+ 锁 `sha256` 同步 `3d129ba8…`；**实现侧（`llc` 只生成 `.dd.*` / `llvm-mc` 拒 GAS 名 / 用例跟改）归 `LLVM-078t`**（依赖 `SPEC-130t` 已满足）⇒ 本 issue **保持 `open`** 至 `LLVM-078t` 完成。** **【已解决（`SPEC-130t` + `LLVM-078t`）】**：**正文侧**（`SPEC-130t`）`Toolchain-01 §7.1/§7.2` + `contract-asm §7` 同口径收口 + 锁 `sha256` 同步；**实现侧**（`LLVM-078t`）：**生成侧** `DADAOMCAsmInfo` 数据 directive 串改 `.dd.b08/.dd.w16/.dd.t32/.dd.o64`（`llc` 只发 `.dd.*`，GAS 名=0、`.align`=0；`i128` 仍两条 `.dd.o64`）；**受理侧** target 级 shadow 拒 7 名（`.byte/.short/.long/.quad/.word/.octa/.align` 全 rc=1；`.dd.*`+`.p2align` rc=0）—— 走 `getTargetParser().parseDirective` **先于**通用 `DirectiveKindMap` 分派，**`llvm/lib/MC/**` 未动**（可行性评估结论：可行、无需改通用 MC）；用例跟改 `tests/**` 14 文件 + `tools/testcases/validate_mc_vectors.py`；`check-lit` 89/89 不下降、Embench `-O0/-O2` 双 19/19；reviewer `Accepted`。**遗留**：裁定 4 名外的其它 LLVM 内建数据指导符（`.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double`）仍受理 ⇒ 新条 `ISS-189`。"
 
 - id: ISS-182
   title: "【缺陷】`.p2align`（可执行段）使 `llvm-mc` 崩溃：`MCAssembler.cpp:588 The stream should advance by fragment size`"
@@ -445,3 +445,11 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R4`）】**M7**。**实测**：`fcmp` **取值**（含 ordered `oeq`）⇒ `Cannot select setcc`；`fabs`/`frem`/`copysign` ⇒ `Cannot select bitcast`；`fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` ⇒ `no libcall`；`fpclass` ⇒ `setcc setuo`；`f16` ⇒ `fp_to_fp16`；`bitcast double→i64`（FP↔RD）**缺 ISel 模式**（指令 `rf2rd`/`rd2rf` **已在**）。**全部显式失败、不产错码**（非静默降级）。**只登记，不建任务。**"
+
+- id: ISS-189
+  title: "其它 LLVM 内建数据指导符（`.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 等）仍被 `llvm-mc` 受理（裁定口径 4 名外的剩余面）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `LLVM-078t` 完成区「遗留问题」；engineer + reviewer 双实测）】`LLVM-078t` 仅按用户 2026-10-10 裁定拒 **7 名**（`.byte/.short/.long/.quad/.word/.octa/.align`），裁定范围**外**的其它 LLVM 内建 / GAS 数据指导符仍经通用 parser 受理（实测 `.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 全 rc=0）。**性质 = 口径未覆盖（未授权扩大，非缺陷）**。**只登记，不建任务**：建议后续按 `spec/Toolchain-01 §7` 唯一集口径一并收口（受理侧按 `DADAOAsmParser::parseDirective` target 级 shadow 同机制扩拒即可，无需改 `llvm/lib/MC/**`）。证据指针：`.tao/tasks/llvm/LLVM-078t-*.md`「遗留问题」；`.work/evidence/LLVM-078t/run.sh`。"

@@ -74,8 +74,8 @@ _start:
 	;     read by the handler's SYS_EXIT (Machine-01 §5.3/§5.5) ---
 	.org 0x180
 _exit_block:
-	.quad 0x20026				; ADP_Stopped_ApplicationExit
-	.quad 0
+	.dd.o64 0x20026				; ADP_Stopped_ApplicationExit
+	.dd.o64 0
 
 	; --- user exception handler (cfx_umon.cg0.excp_vector target).  Returns to
 	;     the instruction after the caller's `trap` through `escape`

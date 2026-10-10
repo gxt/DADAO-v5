@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..004a6087c
+index 000000000..2669ae6bd
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2349 @@
+@@ -0,0 +1,2367 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1175,6 +1175,24 @@ index 000000000..004a6087c
 +    return Error(DirectiveID.getLoc(),
 +                 "unsupported directive '.octa' (GAS 16-byte octa); DADAO's "
 +                 "octa is 8 bytes -- use '.dd.o64'");
++
++  // GAS data directives MUST NOT be accepted (contract-asm.md §7.1 /
++  // Toolchain-01 §7.1): the only data directives are the DADAO `.dd.*` set.
++  // The target parser runs before the generic (target-independent) directive
++  // parser, so returning an error here shadows LLVM's built-in `.byte`/`.short`/
++  // `.long`/`.quad` handlers without touching the shared MC layer.
++  if (ID == ".byte" || ID == ".short" || ID == ".long" || ID == ".quad")
++    return Error(DirectiveID.getLoc(),
++                 Twine("unsupported directive '") + ID +
++                     "' (GAS data directive); use '.dd.b08'/'.dd.w16'/"
++                     "'.dd.t32'/'.dd.o64'");
++
++  // `.align` uses byte-count semantics, which conflicts with GAS's `2^N`
++  // (contract-asm.md §7.2).  The only alignment directive is `.p2align`.
++  if (ID == ".align")
++    return Error(DirectiveID.getLoc(),
++                 "unsupported directive '.align' (byte-count semantics); use "
++                 "'.p2align N' to align to 2^N bytes");
 +
 +  unsigned Size;
 +  if (ID == ".dd.b08")
