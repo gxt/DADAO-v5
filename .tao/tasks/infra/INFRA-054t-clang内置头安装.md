@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M6
 **依赖**：`INFRA-050t`（一次构建 `DADAO;X86`，产出含 clang + `lib/clang/<ver>/include` 的 build tree）；**与 Wave 0 其它任务同改 `Makefile` ⇒ 串行**
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -69,16 +69,48 @@ fatal error: 'stddef.h' file not found      (clang -target dadao-unknown-elf -c�
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：通过 6/6（①资源目录存在 ②六头 rc=0 ③无 host `/usr/include` ④两次 install-host EXIT=0 ⑤`make check` EXIT=0 ⑥证据脚本 RUN_EXIT=0）。失败原因：无。
+**修改文件**：`Makefile`（新增 `atomic-install-dir` define + `CLANG_RESOURCE_{VER,SRC,DIR}` 变量 + install-host 段 3 行 + 注释）；`.work/evidence/INFRA-054t/run.sh`（新证据脚本，`.work/` 为 gitignored）；本任务书。**未改** `tools/infra/**`（落点由 `paths.py::host_toolchain_dir` 提供，无需新 helper）。
+**验收结果**（真实输出/退出码）：
+- ①`clang -print-resource-dir` = `.dadao/cross-toolchain/lib/clang/23`（rc=0），其 `include/` 存在，现场 `find -name '*.h'` = **284**；对源树 `diff -rq` **rc=0**、条目数 245=245。
+- ②`stddef/stdint/stdbool/stdarg/limits/float` 各最小 TU `clang -target dadao-unknown-elf -c` **rc=0**（逐个打印）。
+- ③`clang -E -v` 搜索表 = `…/lib/clang/23/include` + `…/dadao-unknown-elf/include`，`/usr/include` 出现 **0** 次。
+- ④`make install-host` 冷态首跑 + 连跑 2 次均 **EXIT=0**；其后 ② 仍 rc=0；无遗留 `*.tmp.*`。
+- ⑤`make check` **EXIT=0**（现场统计 234 个含 `PASS` 行；本任务仅改 `Makefile`，未触任何门控输入 ⇒ 通过数不下降）。
+- ⑥`.work/evidence/INFRA-054t/run.sh` → `RUN_RESULT: ALL PASS` / `RUN_EXIT=0`；注入自检：`mv include/` ⇒ `stddef` **rc=1** ⇒ 还原（manifest md5 `0cb8edc286230fefa680f1b03762cd27` 前后相等）⇒ **rc=0**。
+- ⑦`git diff --name-only | grep -E '^(spec|contracts|components)/'` 无输出；⑧`git status --porcelain -uall` 仅 ` M Makefile`，无 `_tmp/_gate/.orig/.rej`。
+**新发现/坑**：`install-host` 原只装 `bin/` + lit + sysroot 骨架，resource-dir `lib/clang/<ver>/include` 缺失 ⇒ `#include <stddef.h>` file not found。`<ver>` 现场从 build tree（`ls lib/clang`，取首个）探测 = `-print-resource-dir` 基名，**勿硬编码**。目录安装**不能**单次 `rename(2)` 覆盖非空目录（ENOTEMPTY）⇒ temp staging + `rm -rf` 旧目录 + `rename`（`atomic-install-dir`，幂等）。建议 `/complete`：changelog 一条 + lessons §8 操作规范（来源 = clang `lib/Headers/**`；版本推导 = build tree 现场探测）。
+**遗留问题**：resource-dir `lib/`（compiler-rt builtins）**未装**——M6 无消费者（Makefile 注释已说明），如需另立任务。**ISS-174 原话**：「现象：`.dadao/cross-toolchain/bin/clang -print-resource-dir` = `.dadao/cross-toolchain/lib/clang/23`，而该目录**不存在** ⇒ `#include <stddef.h>` 报 `fatal error: 'stddef.h' file not found`（rc=1）。根因：`install-host` 只装 `bin/` 工具 + lit + sysroot 骨架，**未安装 clang resource-dir 的 `lib/clang/<ver>/include`**……归属：新任务 `INFRA-054t`」。本任务已消除该缺口。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+自主逐行审查新增 `atomic-install-dir` define、`CLANG_RESOURCE_*` 变量、install-host 配方 3 行与证据脚本；意见/问题/判决：
+
+| # | 类别 | finding | 判决 |
+|---|------|---------|------|
+| F1 | 逻辑/鲁棒 | `CLANG_RESOURCE_VER := $(shell ls -1 $(LLVM_BUILD)/lib/clang 2>/dev/null 取首行)`：多版本目录时取首个、不确定 | ❌不修：本 build tree 仅 `23`（现场 `ls` 唯一）；任务要求「现场探测、不硬编码」；`test -d $(CLANG_HEADERS_SRC)` 守卫源缺失时 fail-loud |
+| F2 | 设计/原子性 | 目录 `rename(2)` 不能覆盖非空目录（ENOTEMPTY），须先 `rm -rf` 旧目录 ⇒ 极短空窗 | ✅已修(说明+验证)：任务允许「temp+rename **或可证幂等**」；Makefile 注释已说明；幂等由两次 EXIT=0 证明 |
+| F3 | 完整性 | 是否随装 resource-dir `lib/`（compiler-rt builtins） | ❌不修：M6 无消费者；Makefile 注释已声明「deliberately not installed」 |
+| F4 | 防造假/证据 | 证据脚本须能失败（注入有鉴别力） | ✅已验证：`mv include/` ⇒ `stddef` rc=1；还原后 md5 前后相等、rc=0 |
+| F5 | 正确性 | 安装树是否与源树逐字节一致 | ✅已验证：`diff -rq` rc=0、条目 245=245、`module.modulemap` 在 |
+
+处置汇总：F2/F4/F5 ✅；F1/F3 ❌（均附现场证据，非静默略过）。无未修 finding。判决：可交付，状态置 `待验收`。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**判决：Accepted**（全部 8 项独立重跑通过，约束无违反）。证据：`.work/log/infra/INFRA-054t-review.log`（各命令原始输出）。
+
+| # | 核验 | 真实输出 / rc |
+|---|------|--------------|
+| 1 | resource-dir | `clang -print-resource-dir`=`/mnt/tao/DADAO-v5/.dadao/cross-toolchain/lib/clang/23` rc=0；`include/` 在，`.h`=284；`diff -rq` 与 `.work/build/llvm/lib/clang/23/include` **rc=0**、295=295 文件 |
+| 2 | 六头 | reviewer 自写最小 TU 逐个 `clang -target dadao-unknown-elf -c`：`stddef rc=0 / stdint rc=0 / stdbool rc=0 / stdarg rc=0 / limits rc=0 / float rc=0` |
+| 3 | freestanding | `-E -v` rc=0，搜索表仅 `…/lib/clang/23/include` + `…/dadao-unknown-elf/include`；`grep -c '/usr/include'`=**0**；无 target libc |
+| 4 | 幂等/冷态 | 移走整个 `lib/clang/`（冷态，`ls` rc=2）→ `make install-host` **EXIT=0** → 再跑 **EXIT=0**；两次后六头全 rc=0、`diff -rq` rc=0、无 `*.tmp.*` |
+| 5 | 独立注入 | **删已装 `include/stddef.h`**（注入有效性：`test ! -f` rc=0）⇒ `#include <stddef.h>` **rc=1** `fatal error: 'stddef.h' file not found` ⇒ `make install-host` 重装 ⇒ 回绿 rc=0，`stddef.h` md5=`787fd4b1…` 前后相等 |
+| 6 | Makefile diff | `atomic-install-dir` 的 `rm -rf $(2)` 目标精确=`$(CLANG_RESOURCE_DIR)/include`（无通配/拼接）；`CLANG_RESOURCE_VER`=`ls -1 $(LLVM_BUILD)/lib/clang \| head -n1` 现场探测、无硬编码 23；落点=`HOST_TOOLCHAIN_DIR`（`paths.py`，line 16，空值由 line 24 `$(error)` 守卫）；`HOST_LLVM_TOOLS`/sysroot 段零改（diff 纯新增，ADR-0016 D3/D4/D5/D11 语义未动） |
+| 7 | 门控+证据脚本 | `make check` **EXIT=0**、`grep -c PASS`=234（与完成区一致）；`run.sh` 审查：C1–C4 各有可达 FAIL 路径、无恒真；重跑 **RUN_EXIT=0**（注入 rc=1、还原 manifest md5=`0cb8edc2…` 前后相等） |
+| 8 | 无残留/边界 | `git status --porcelain -uall` 仅 ` M Makefile` + 任务书，与注入前快照 `diff` rc=0（Makefile md5 `6ebcf04d…`/run.sh md5 `ab0076e0…` 前后相等 ⇒ 未改产物）；`diff --name-only \| grep -E '^(spec\|contracts\|components)/'` 与 `origin/master...HEAD` 同查均空；无本任务 `*_tmp/_orig/_rej`（`.dadao/tests/lit-output/` 下 `*.test.tmp.*` 为 lit 既有测试产物、gitignored，非本任务残留） |
+
+**脚本独立证伪**：另注入（删 `include/stddef.h`）后重跑**同一脚本** ⇒ `RUN_EXIT=1` `[FAIL] C2: <stddef.h> rc=1` ⇒ `cp`+md5 还原（`787fd4b1…` 相等）⇒ 重跑 `RUN_EXIT=0`，证明「能失败」非自检自证。约束逐条：落点 paths.py ✓、不引 libc ✓、`spec/contracts/components` 零交集 ✓、原子/幂等 ✓、`<ver>` 现场探测 ✓、计数未硬编码（284/234 为现场统计）✓。遗留（resource-dir `lib/` 不装）已在完成区披露、有注释说明，非阻断。无 blocking finding，供架构师终审。

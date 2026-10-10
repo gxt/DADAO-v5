@@ -323,8 +323,8 @@
 
 - id: ISS-174
   title: "clang 内置头（resource-dir `include/`）未随 `install-host` 安装：`#include <stddef.h>` 即 `file not found`"
-  status: open
+  status: closed
   scope: [infra]
   blocks: []
-  resolved_by: null
+  resolved_by: INFRA-054t
   notes: "现象：`.dadao/cross-toolchain/bin/clang -print-resource-dir` = `.dadao/cross-toolchain/lib/clang/23`，而该目录**不存在** ⇒ `clang -target dadao-unknown-elf -ffreestanding -c` 对 `#include <stddef.h>` 报 `fatal error: 'stddef.h' file not found`（rc=1）。根因：`install-host`（`ADR-0016 D11` 范围）只装 `bin/` 工具 + lit + sysroot 骨架，**未安装 clang resource-dir 的 `lib/clang/<ver>/include`**（内置 freestanding 头，源 = clang `clang/lib/Headers/**`，构建后落 `<LLVM_BUILD>/lib/clang/<ver>/include`，现已确认存在）。影响：真实 C 与 Embench（`md5sum`/`ctype`/`string` 等）无法包含内建头；`LLVM-063t` 已登记为遗留（freestanding 最小程序不受影响）。证据指针：`.work/log/testcases/TESTCASES-039t-blocker.log`（§D1 `file not found`、§D2 `-print-resource-dir`、§D3 `NO (missing)`）、`-blocker_probe_result.txt`、`-progress.md`；`LLVM-063t` 任务书「遗留问题」末条。归属：新任务 `INFRA-054t`（clang 内置头安装）。"

@@ -737,3 +737,8 @@
 
 - **规则**：整数 `setcc`-as-value 需 `setOperationAction(ISD::SETCC, MVT::i64, Custom)`（比较操作数 i64）；但 `SELECT_CC` 的 action **按结果类型**取 ⇒ 设 `SELECT_CC MVT::i64 Custom` 会**连带捕获「FP 比较选整数臂」（结果 i64）**，故 lowering 须统一处理 `SETCC`/`SELECT_CC`（含 `FCMP` 源）而非只做整数路径。另：`cs.*` 选的臂操作数须用 **i64 类型叶子**（`DAG.getConstant`/`getRegister` + `MVT::i64`），**非** `GPRD` 寄存器类叶子，否则**常量臂**（经 `CONST_WYDE` 物化）被拒。
 - **依据/来源**：`LLVM-069t`（`ISS-173` 修复）——`LowerCmpSelect` 统一处理 + 删失效 `FPSelCC_{f64,f32}_rd`；细节 `.tao/tasks/llvm/LLVM-069t-*.md`「新发现/坑」、`.work/evidence/LLVM-069t/run.sh`。同类 §8.30（手写集合须与生成一致）。
+
+### 8.41 目录型安装须「temp staging + 先 `rm -rf` 旧目录 + `rename(2)`」：`rename(2)` 不能覆盖非空目录（`ENOTEMPTY`）（`INFRA-054t`，2026-10-10）
+
+- **规则**：**文件**的原子替换（`cp -aL src dst.tmp.$$ && mv -f …`，§8.32）不能直接推广到**目录**——`rename(2)` 覆盖**非空**目录会 `ENOTEMPTY`；须 `rm -rf dst.tmp.$$ && cp -aL src dst.tmp.$$ && rm -rf dst && mv -f …`（staged 副本先完整、再暴露；重跑幂等），并由**连跑两次 `EXIT=0`** 证幂等。
+- **依据/来源**：`INFRA-054t`（clang resource-dir `lib/clang/<ver>/include` 随 `install-host` 安装，`ISS-174`）；细节 `.tao/tasks/infra/INFRA-054t-*.md`、`.work/evidence/INFRA-054t/run.sh`。同类 §8.32（文件型原子安装）。

@@ -296,6 +296,37 @@ define atomic-install
 cp -aL $(1) $(2).tmp.$$$$ && mv -f $(2).tmp.$$$$ $(2)
 endef
 
+# $(call atomic-install-dir,<srcdir>,<dstdir>): same temp+rename(2) convention as
+# atomic-install, for a directory tree.  A rename(2) cannot overwrite a
+# *non-empty* directory (ENOTEMPTY), so the previous <dstdir> is removed just
+# before the final rename; the staged copy is always complete before it is
+# exposed and re-runs are idempotent (INFRA-054t).
+define atomic-install-dir
+rm -rf $(2).tmp.$$$$ && cp -aL $(1) $(2).tmp.$$$$ && rm -rf $(2) && mv -f $(2).tmp.$$$$ $(2)
+endef
+
+# clang builtin (resource-dir) headers — INFRA-054t / ISS-174.
+#
+# Source: the `lib/clang/<ver>/include` tree emitted by the clang build (upstream
+# `clang/lib/Headers/**` — freestanding headers such as stddef.h/stdint.h/
+# stdbool.h/stdarg.h/limits.h/float.h).  A clang binary resolves its resource dir
+# from its own prefix as `$(HOST_TOOLCHAIN_DIR)/lib/clang/<ver>`, so that dir must
+# contain a real `include/` tree or every `#include <stddef.h>` fails with
+# "file not found".
+#
+# <ver> is probed *live* from the build tree (never hardcoded): it is the same
+# version the just-built clang reports via `-print-resource-dir`, so the staged
+# dir lines up with what the installed clang looks for.
+#
+# The whole clang builtin `include/` tree is staged (these are the compiler's own
+# freestanding headers — no target libc/OS/syscall header is introduced).  The
+# resource-dir `lib/` (compiler-rt builtins) has no consumer in M6 and is
+# deliberately not installed.  These headers are part of the *host* compiler
+# (D3), not the target sysroot (D5) — ADR-0016 D3/D5/D11 scope is unchanged.
+CLANG_RESOURCE_VER := $(shell ls -1 $(LLVM_BUILD)/lib/clang 2>/dev/null | head -n1)
+CLANG_HEADERS_SRC  = $(LLVM_BUILD)/lib/clang/$(CLANG_RESOURCE_VER)/include
+CLANG_RESOURCE_DIR = $(HOST_TOOLCHAIN_DIR)/lib/clang/$(CLANG_RESOURCE_VER)
+
 install-host: build-mc build-lld build-qemu
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
@@ -311,6 +342,9 @@ install-host: build-mc build-lld build-qemu
 	@rm -rf $(HOST_LIT_DIR)/lit/__pycache__
 	@printf '%s\n' '#!/usr/bin/env python3' '# DADAO install-root lit launcher (INFRA-047t): the lit package is installed in ../share/lit' 'import os' 'import sys' '' '_prefix = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))' 'sys.path.insert(0, os.path.join(_prefix, "share", "lit"))' '' 'from lit.main import main' '' 'if __name__ == "__main__":' '    main()' > $(HOST_TOOLCHAIN_BIN)/llvm-lit
 	@chmod +x $(HOST_TOOLCHAIN_BIN)/llvm-lit
+	@test -d $(CLANG_HEADERS_SRC) || { echo "install-host: ERROR: clang builtin headers not found at $(CLANG_HEADERS_SRC) — build tree incomplete (run 'make build-mc')"; exit 1; }
+	@mkdir -p $(CLANG_RESOURCE_DIR)
+	@$(call atomic-install-dir,$(CLANG_HEADERS_SRC),$(CLANG_RESOURCE_DIR)/include)
 	@mkdir -p $(TARGET_SYSROOT_DIR)/include $(TARGET_SYSROOT_DIR)/lib
 	@printf '%s\n' '# DADAO target sysroot (dadao-unknown-elf)' '' 'Layout per ADR-0016 D5 (.tao/adr/adr-0016-dadao-install-layout.md):' '' '- include/ — target C headers (populated when a target libc/toolchain lands)' '- lib/     — target libraries' '' 'Placeholder only: there is no header/library consumer yet, so no content is' 'fabricated here. Consumers must resolve this path from' 'manifests/install-dirs.lock.toml via tools/infra/paths.py' '(target_sysroot_dir()), never hardcode it.' > $(TARGET_SYSROOT_DIR)/README.md
 	@echo "install-host: PASS"
