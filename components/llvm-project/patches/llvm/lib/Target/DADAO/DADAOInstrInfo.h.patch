@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.h b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 new file mode 100644
-index 000000000..2255a659b
+index 000000000..23595fa30
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
-@@ -0,0 +1,130 @@
+@@ -0,0 +1,146 @@
 +//===-- DADAOInstrInfo.h - DADAO Instruction Info ---------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -122,6 +122,22 @@ index 000000000..2255a659b
 +  /// insertBranch to report BytesRemoved / BytesAdded; every DADAO
 +  /// instruction is a fixed 4 bytes (DADAOInstrFormats.td).  (LLVM-059t)
 +  unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
++
++  /// Return true iff a PC-relative branch of opcode \p BranchOpc can reach a
++  /// target \p BrOffset bytes away.  \p BrOffset is measured from the branch
++  /// instruction itself and is a BYTE offset; the DADAO branch immediates hold
++  /// a WORD offset (`imms << 2`, contract-isa.md §8.1/§8.2), so the field width
++  /// applies to `BrOffset / 4`.  Consulted by the BranchRelaxation pass
++  /// (LLVM-071t) so an out-of-range br.eq/br.ne is relaxed (a short inverted
++  /// branch over a long `jump`) instead of failing at assembly time.
++  /// `jump`/`call` cover a 24-bit word field and are treated as always in range
++  /// here; the assembler still validates the field and reports an error if a
++  /// function ever exceeds it.  DADAO deliberately does *not* override
++  /// reverseBranchCondition: BranchRelaxation then relaxes a conditional branch
++  /// via the "island" form (an inserted block reached by a short branch that
++  /// jumps on), which keeps BranchFolder's existing CFG shape unchanged.
++  bool isBranchOffsetInRange(unsigned BranchOpc,
++                             int64_t BrOffset) const override;
 +
 +private:
 +  /// Return true iff \p Opcode is one of the DADAO conditional branches whose

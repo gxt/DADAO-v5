@@ -769,3 +769,8 @@
 
 - **规则**：定位后端缺陷时，**不得以「某优化级正常」判其无缺陷**——同一根因（如 `LowerCall` 未处理尾调用形态）可在 `-O2` 表现为**静默死循环**（void 尾调用 ⇒ 有 `call` 无 `ret` ⇒ 返回自身入口）、`-O1` 因重入后寄存器被 clobber「**偶然退出**」、非-void 形态表现为 **ISel 断言 `crash`**（同根两态）。⇒ 须以**逐优化级的运行期退出码**（含 `timeout`）为判据、并**归并同根 issue**；对不支持的调用形态须**显式拒绝/降级**（不可依赖断言兜底）。
 - **依据/来源**：`LLVM-070t`（G6/`ISS-180` + G4/`ISS-178` **同根**；根因 = `LowerCall` 忽略 `CLI.IsTailCall`）；细节 `.tao/tasks/llvm/LLVM-070t-*.md`「新发现/坑」、`.work/log/llvm/LLVM-070t-rootcause.md`。同类 §8.42（逐优化级判据）、§8.30（手写集合须与生成一致）。
+
+### 8.44 DADAO 分支放宽两坑：`reverseBranchCondition` 会改 CFG 形状触发既有 lit 回归；`BranchRelaxation` 的 `BrOffset` 是**字节**、须按各分支字段宽度换算为字（`LLVM-071t`，2026-10-10）
+
+- **规则**：给 DADAO 加分支放宽（`BranchRelaxationPassID`）时——① **勿实现 `reverseBranchCondition`**：它会把 `branch-folder` 输出的 `br_p_rd`+显式 `jump` 改成 `br_np_rd`（无 jump），触发既有 `branch-fold-two-way.mir` 回归；放宽只需走 **BranchRelaxation 跳岛**回退路径（保既有 CFG 形状）；② `isBranchOffsetInRange` 收到的 `BrOffset` 是**字节**偏移，而 DADAO 分支立即数存**字**（编码字段 `field=bytes>>2`）⇒ 判据须**按各分支字段宽度**换算（`br.eq/ne`=`isInt<12>`、单寄存器/`rb` 变体=`isInt<18>`、`jump/call` 恒真），并加 **4 对齐前置**（非对齐一律判越界，`/4` 与 MC `>>2` 等价）。
+- **依据/来源**：`LLVM-071t`（G1+G5；engineer F1/F4、reviewer §1/§3 独立核算）；细节 `.tao/tasks/llvm/LLVM-071t-*.md`、`.work/log/llvm/LLVM-071t-g5-relax.log`。同类 §8.30（手写集合须与生成一致）、§8.42（逐优化级判据）。

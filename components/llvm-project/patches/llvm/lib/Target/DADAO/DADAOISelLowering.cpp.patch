@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..3dafbf5b8
+index 000000000..370378938
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,933 @@
+@@ -0,0 +1,926 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -709,16 +709,14 @@ index 000000000..3dafbf5b8
 +  auto BrOn = [&](DADAOISD::NodeType Op, SDValue Val) {
 +    return DAG.getNode(Op, DL, MVT::Other, Chain, Val, Dest);
 +  };
-+  // Emit a compare + zero-test branch.  A constant RHS must fit the cmp
-+  // immediate (12-bit); otherwise the compare cannot be selected.
++  // Emit a compare + zero-test branch.  A constant RHS that fits the cmp*
++  // 12-bit immediate is folded into cmp.si/cmp.ui; a larger constant is
++  // materialised into a GPRD register (CONST_WYDE, C12 / ADR-0018) and compared
++  // with the register-register form cmp.so/cmp.uo (contract-isa.md §6.2).  The
++  // same DADAOISD::CMP/CMPU node carries either shape: ISel picks the immediate
++  // pattern when the constant fits and the register pattern otherwise, so a
++  // large constant is never rejected here.
 +  auto CmpThenBranch = [&](bool Unsigned, DADAOISD::NodeType Op) {
-+    if (auto *C = dyn_cast<ConstantSDNode>(RHS)) {
-+      const bool FitsU = isUInt<12>(C->getZExtValue());
-+      const bool FitsS = isInt<12>(C->getSExtValue());
-+      if (Unsigned ? !FitsU : !FitsS)
-+        report_fatal_error("DADAO: branch compare against a constant that does "
-+                           "not fit a 12-bit immediate is not supported yet");
-+    }
 +    return BrOn(Op, Cmp(Unsigned));
 +  };
 +
@@ -874,14 +872,9 @@ index 000000000..3dafbf5b8
 +  if (auto *C = dyn_cast<ConstantSDNode>(RHS))
 +    if (CC == ISD::SETEQ || CC == ISD::SETNE)
 +      Unsigned = isUInt<12>(C->getZExtValue());
-+  // A constant RHS must fit the cmp* 12-bit immediate (LowerBR_CC's limit).
-+  if (auto *C = dyn_cast<ConstantSDNode>(RHS)) {
-+    const bool FitsU = isUInt<12>(C->getZExtValue());
-+    const bool FitsS = isInt<12>(C->getSExtValue());
-+    if (Unsigned ? !FitsU : !FitsS)
-+      report_fatal_error("DADAO: select/setcc compare against a constant that "
-+                         "does not fit a 12-bit immediate is not supported yet");
-+  }
++  // A constant RHS that does not fit the cmp* 12-bit immediate is not rejected:
++  // ISel materialises it into a GPRD register (CONST_WYDE, C12 / ADR-0018) and
++  // uses the register-register cmp.so/cmp.uo form (contract-isa.md §6.2).
 +
 +  SDValue Cmp = DAG.getNode(Unsigned ? DADAOISD::CMPU : DADAOISD::CMP, DL,
 +                            MVT::i64, LHS, RHS);

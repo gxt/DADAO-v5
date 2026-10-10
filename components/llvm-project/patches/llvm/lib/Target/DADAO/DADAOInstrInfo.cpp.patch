@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..d88e338f0
+index 000000000..caa1a3295
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,557 @@
+@@ -0,0 +1,598 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -42,6 +42,7 @@ index 000000000..d88e338f0
 +#include "llvm/CodeGen/MachineFunction.h"
 +#include "llvm/CodeGen/MachineInstrBuilder.h"
 +#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/MathExtras.h"
 +
 +using namespace llvm;
 +
@@ -560,4 +561,44 @@ index 000000000..d88e338f0
 +unsigned DADAOInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
 +  // Every DADAO instruction is a fixed 32-bit word (DADAOInstrFormats.td).
 +  return MI.getDesc().getSize();
++}
++
++// ===--------------------------------------------------------------------=== //
++// Branch relaxation support (LLVM-071t)
++// ===--------------------------------------------------------------------=== //
++
++bool DADAOInstrInfo::isBranchOffsetInRange(unsigned BranchOpc,
++                                           int64_t BrOffset) const {
++  // BrOffset is a BYTE offset from the branch instruction (contract-isa.md
++  // §8.1/§8.2: `Addr = rb0 + (imms << 2)`, rb0 = the current instruction's PC).
++  // The immediate fields hold a WORD offset, so the field width applies to
++  // BrOffset / 4.
++  const bool Aligned = (BrOffset & 3) == 0;
++  const int64_t Words = BrOffset / 4;
++  switch (BranchOpc) {
++  case DADAO::br_eq_rd:
++  case DADAO::br_ne_rd:
++    // rrii two-register branches: 12-bit signed word immediate.
++    return Aligned && isInt<12>(Words);
++  case DADAO::br_n_rd:
++  case DADAO::br_nn_rd:
++  case DADAO::br_z_rd:
++  case DADAO::br_nz_rd:
++  case DADAO::br_p_rd:
++  case DADAO::br_np_rd:
++  case DADAO::br_z_rb:
++  case DADAO::br_nz_rb:
++    // riii one-register branches: 18-bit signed word immediate.
++    return Aligned && isInt<18>(Words);
++  case DADAO::jump_iiii:
++  case DADAO::call_iiii:
++    // 24-bit signed word immediate.  This covers the whole practical code size;
++    // it is treated as always in range so BranchRelaxation never asks us for an
++    // indirect-branch sequence (which DADAO does not implement).  The assembler
++    // (DADAOAsmBackend::applyFixup) still validates the actual field and turns a
++    // genuine overflow into a hard error, so this never silently miscompiles.
++    return true;
++  default:
++    return true;
++  }
 +}

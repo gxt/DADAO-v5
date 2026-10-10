@@ -336,11 +336,11 @@
 
 - id: ISS-175
   title: "大常量比较超 12 位立即数：`select/setcc`/branch 比较常量 >12 位即显式失败（`llc` rc=134 / `clang` rc=1）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "**G1**（已知遗留的独立登记）。现象：`icmp slt i64 %v, 5000` 经 `llc -march=dadao` ⇒ `LLVM ERROR: DADAO: select/setcc compare against a constant that does not fit a 12-bit immediate is not supported yet`（rc=134）；`clang` 同形态 rc=1。最小复现：`int f(long a){ return a < 5000; }`（`-O2`）。命中基准：edn / slre / wikisort（`select/setcc`）、crc32 / edn / sglib-combined / slre / md5sum（branch）。**性质 = 缺能力（编译期显式失败，非静默错码）**；`LLVM-069t` 已记为遗留（与既有 `br(icmp)` 分支路径同界）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G1`；reviewer 独立复现 `TESTCASES-039t-review-*.log`（`icmp slt i64 %v,5000` rc=134）。归属：新任务 `LLVM-071t`（G1 + G5）。"
+  resolved_by: LLVM-071t
+  notes: "**G1**（已知遗留的独立登记）。现象：`icmp slt i64 %v, 5000` 经 `llc -march=dadao` ⇒ `LLVM ERROR: DADAO: select/setcc compare against a constant that does not fit a 12-bit immediate is not supported yet`（rc=134）；`clang` 同形态 rc=1。最小复现：`int f(long a){ return a < 5000; }`（`-O2`）。命中基准：edn / slre / wikisort（`select/setcc`）、crc32 / edn / sglib-combined / slre / md5sum（branch）。**性质 = 缺能力（编译期显式失败，非静默错码）**；`LLVM-069t` 已记为遗留（与既有 `br(icmp)` 分支路径同界）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G1`；reviewer 独立复现 `TESTCASES-039t-review-*.log`（`icmp slt i64 %v,5000` rc=134）。归属：新任务 `LLVM-071t`（G1 + G5）。 **已解决（2026-10-10，`LLVM-071t`）**：>12 位常量比较改为 ISel **常量物化**（`set.zw`/`set.ow`+`or.w`）再寄存器比较（`cmp.so`/`cmp.uo`，含符号扩展），删除两处 `report_fatal_error`；覆盖 `select/setcc`+`br(icmp)`；reviewer 独立手算 E2E 全对（退出码 255/255）。"
 
 - id: ISS-176
   title: "128 位乘高半 `umul_lohi` / `mulhu` 不可 select（`Cannot select: ... mulhu` rc=134）"
@@ -368,11 +368,11 @@
 
 - id: ISS-179
   title: "分支 / 跳转目标超 12 位 PC 相对范围：`error: branch/jump target out of range for a 12-bit PC-relative immediate`"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "**G5**。现象：`error: branch/jump target out of range for a 12-bit PC-relative immediate`（`-O2`）。最小复现：nsichneu（`-O2`，`-O0` 通过）。**性质 = 缺能力（编译期显式失败）**；与 `ISS-175`（G1）同属「12 位字段溢出」类（常量立即数 / 分支偏移）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G5`；矩阵 `TESTCASES-039t-stage1-matrix.log`。归属：新任务 `LLVM-071t`（G1 + G5）。"
+  resolved_by: LLVM-071t
+  notes: "**G5**。现象：`error: branch/jump target out of range for a 12-bit PC-relative immediate`（`-O2`）。最小复现：nsichneu（`-O2`，`-O0` 通过）。**性质 = 缺能力（编译期显式失败）**；与 `ISS-175`（G1）同属「12 位字段溢出」类（常量立即数 / 分支偏移）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G5`；矩阵 `TESTCASES-039t-stage1-matrix.log`。归属：新任务 `LLVM-071t`（G1 + G5）。 **已解决（2026-10-10，`LLVM-071t`）**：分支超 12 位 PC 相对范围改经 `BranchRelaxation` **跳岛**放宽（`isBranchOffsetInRange` 按各分支宽度判界 + `BranchRelaxationPassID`）；reviewer 独立构造 `br.eq` 跨 >8KB gap 触发跳岛 + 两路语义 QEMU=手算 3。"
 
 - id: ISS-180
   title: "【缺陷·静默错码】`-O2` 运行期误编译致死循环：编译成功但 QEMU 执行 hang（`GUEST_EXIT=124`），`-O0`/`-O1` 正常"
@@ -397,3 +397,11 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R2`）】**缺陷**：`.text` 内 `.p2align N`（N≥1）或 `.align N`（N≥2）⇒ `llvm-mc` rc=134/141，断言 `MCAssembler.cpp:588 The stream should advance by fragment size`；`.rodata` 内同指令正常（rc=0）。**最小复现**：`printf '.text\\n.byte 1\\n.p2align 3\\n.byte 2\\n' | llvm-mc --triple=dadao-unknown-elf -filetype=obj -o /tmp/x.o /dev/stdin`。**可疑根因**：`DADAOAsmBackend::writeNopData`（`MCTargetDesc/DADAOAsmBackend.cpp:299`，已实现）行为不对，或对齐 fragment 尺寸算错。**影响**：真实 C 代码在 `.text` 内做块对齐即触发（`llc` 会发 `.p2align`）。**待用户定是否提前修**；暂不建任务。"
+
+- id: ISS-183
+  title: "【子代理执行异常·已处置】`LLVM-071t` reviewer 首次下发返回 `Too Many Requests`、产出未落盘；重试 1 次成功（未触发任务拆分）"
+  status: closed
+  scope: [llvm]
+  blocks: []
+  resolved_by: LLVM-071t
+  notes: "【子代理执行异常登记（用户规则：每次异常与重试须登记）】**现象**：`LLVM-071t` reviewer 第 1 次下发返回 `Too Many Requests`、**产出未落盘**（任务书无新增审阅记录、无文件改动）。**处置**：按「子代理返回异常处理」**重试 1 次同一任务**（重试附失败现场：无落盘 + 原始 error）；**结果**：重试成功、产出落盘并判 `Accepted`；**未触发任务拆分**。**task_id**：首次 `ses_edb56cc2bffe…`；重试 `ses_edb50044dffe…`。"
