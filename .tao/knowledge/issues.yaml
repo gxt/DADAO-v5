@@ -392,10 +392,10 @@
 
 - id: ISS-182
   title: "【缺陷】`.p2align`（可执行段）使 `llvm-mc` 崩溃：`MCAssembler.cpp:588 The stream should advance by fragment size`"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
+  resolved_by: LLVM-075t
   notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R2`）】**缺陷**：`.text` 内 `.p2align N`（N≥1）或 `.align N`（N≥2）⇒ `llvm-mc` rc=134/141，断言 `MCAssembler.cpp:588 The stream should advance by fragment size`；`.rodata` 内同指令正常（rc=0）。**最小复现**：`printf '.text\\n.byte 1\\n.p2align 3\\n.byte 2\\n' | llvm-mc --triple=dadao-unknown-elf -filetype=obj -o /tmp/x.o /dev/stdin`。**可疑根因**：`DADAOAsmBackend::writeNopData`（`MCTargetDesc/DADAOAsmBackend.cpp:299`，已实现）行为不对，或对齐 fragment 尺寸算错。**影响**：真实 C 代码在 `.text` 内做块对齐即触发（`llc` 会发 `.p2align`）。**待用户定是否提前修**；暂不建任务。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-075t`（**缺陷，优先**）。**"
 
 - id: ISS-183

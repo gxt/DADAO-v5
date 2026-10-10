@@ -789,3 +789,8 @@
 
 - **规则**：DADAO 后端改动后，若只 `ninja llc`（或 `build-mc-lite`），**`clang` 不随动**（clang 静态链接了后端库的旧副本）⇒ 同一源码 `clang` 与 `llc` 产物不同，易被误判为后端 bug。**验证 `clang` 行为须用完整 `make build-mc`**（同时更新 `llc` 与 `clang`）。
 - **依据/来源**：`LLVM-074t`（engineer 曾据此误判为后端 bug，见任务书「新发现/坑④」）。
+
+### 8.48 定长 ISA 的 MC `writeNopData` 须精确写 `Count` 字节、不可向上取整到指令宽度（`LLVM-075t`，2026-10-10）
+
+- **规则**：MC `MCAssembler::writeFragment` 的 `FT_Align` 分支以**字节** `Count`（`FillLen=1`）调 `writeNopData`——定长 4B / 无子字指令的 ISA（如 DADAO）须**精确写 `Count` 字节**（不足一个整字的尾部用 **0** 补齐，整字写 NOP `swym 0`）；**不可** `ceil(Count/4)*4` 向上取整（写超 ⇒ 流推进 ≠ fragment 尺寸 ⇒ `MCAssembler.cpp:588` 断言崩），**亦不可** `getMinimumNopSize()=4`（`relaxAlign` 的 `Size += Alignment` 使 `Size%4` 永不变 ⇒ 死循环）。仅**可执行段**触发（`.text` 经 `useCodeAlign` 走 NOP 路径；`.rodata` 走 value-fill、不经 `writeNopData`）。
+- **依据/来源**：`LLVM-075t`（`ISS-182`）；细节 `.tao/tasks/llvm/LLVM-075t-*.md`「新发现/坑①②」、`contract-isa.md §13.1/§13.3`（`swym 0`=0x77880000=nop）。

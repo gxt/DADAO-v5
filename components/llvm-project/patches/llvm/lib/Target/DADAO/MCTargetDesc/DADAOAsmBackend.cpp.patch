@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..87b623197
+index 000000000..6b4dc3500
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,316 @@
+@@ -0,0 +1,334 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -304,10 +304,28 @@ index 000000000..87b623197
 +
 +  bool writeNopData(raw_ostream &OS, uint64_t Count,
 +                    const MCSubtargetInfo *STI) const override {
-+    // DADAO nop = swym 0 = 0x77880000 (oiii, big-endian).
-+    for (uint64_t I = 0; I < Count; I += 4) {
-+      OS.write("\x77\x88\x00\x00", 4);
++    // The canonical DADAO nop is `swym 0` = 0x77880000 (oiii, big-endian;
++    // contract-isa.md §13.1/§13.3).  DADAO instructions are fixed 4-byte words,
++    // so a whole word of padding is exactly one `swym 0`.
++    //
++    // writeNopData() MUST emit *exactly* Count bytes: MCAssembler::writeFragment
++    // asserts that the stream advances by the fragment size, and an alignment
++    // fragment's size is a byte count that need not be a multiple of 4 (e.g.
++    // `.p2align` after a `.byte`, or `.align`, where the current offset is not
++    // 4-aligned).  Rounding Count up to a multiple of 4 (the pre-ISS-182 code
++    // wrote `ceil(Count/4)*4` bytes) overruns the fragment and aborts the
++    // assembler.
++    //
++    // Pad the leading bytes up to the next 4-byte boundary with zero bytes --
++    // the same byte-fill convention binutils/RISC-V use for a fixed-width ISA
++    // (RISCVAsmBackend::writeNopData) -- so that the `swym 0` words that follow
++    // are 4-byte aligned, then emit one `swym 0` per remaining whole word.
++    while (Count % 4) {
++      OS.write("\x00", 1);
++      --Count;
 +    }
++    for (; Count != 0; Count -= 4)
++      OS.write("\x77\x88\x00\x00", 4);
 +    return true;
 +  }
 +};
