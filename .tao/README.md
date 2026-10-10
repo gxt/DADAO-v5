@@ -1,7 +1,7 @@
 # .tao — DADAO-v5 交互目录
 
 本目录承载任务、知识与协作记录，由架构师/工程师/审查者角色流程使用。
-全局规则见 `~/.config/opencode/AGENTS.md`（自动加载）；角色 agent 定义与 model 见全局 `~/.config/opencode/agent/`。
+全局规则见 `~/.config/opencode/AGENTS.md`（自动加载）；角色 agent 定义与命令（mode）见项目 `.opencode/agents/`、`.opencode/commands/`。
 
 ## 核心原则
 
@@ -29,7 +29,8 @@
 | `/plan` | 流程 | 调起架构师规划，拆解任务文件 |
 | `/dispatch` | 流程 | 调起工程师执行任务 |
 | `/complete` | 流程 | 调起审查者验收 + 知识沉淀 |
-| `/translate` | 工具 | 英文 markdown 文档中英对照翻译 |
+
+> 命令定义见 `.opencode/commands/*.md`（`plan`/`dispatch`/`complete`/`status`）。
 
 ## 交互目录 $TAO_ROOT 定位
 
@@ -37,9 +38,9 @@
 
 ## 目录
 
-- `tasks/<module>/` — 任务文件 `<PREFIX>-nnn<suffix>-描述.md`（按模块分子目录），状态机按后缀：`k` 待开始→已验证；`t` 待开始→待验收→已验证（`待返工` 回退）；`m` 待开始→里程碑
+- `tasks/<module>/` — 任务文件 `<PREFIX>-nnn<suffix>-描述.md`（按模块分子目录）；状态机（按后缀 `k`/`t`/`m`）见 `.opencode/agents/architect.md`「任务状态机」
 - `archive/<里程碑>/` — 历史归档（**只读，不再活跃**）：`archive/M1/` 等，按里程碑归档已达成里程碑的任务书（按模块子目录）+ 该时期 changelog/MEMORY 摘录（`README.md`）；判据 = 任务书 `**项目里程碑**` 字段 + 状态终态（`已验证`/`里程碑`）
-- `knowledge/` — 知识库：`MEMORY.md`（状态摘要）、`changelog.md`（变更记录）、`milestones.md`（项目里程碑路线图）、`contract-*.md`（归一化合约）、`project_*.md`、`feedback_*.md`
+- `knowledge/` — 知识库：`MEMORY.md`（状态摘要）、`changelog.md`（变更记录）、`milestones.md`（项目里程碑路线图）、`contract-*.md`（归一化合约）、`project_*.md`、`lessons.md`（教训 §7 / 规范 §8），`issues.yaml`（异常登记）
 - `adr/` — 架构决策记录（决策层）：`adr-<nnnn>-<slug>.md`（独立于知识库投影层）
 - **日志留存** — 复杂验证类命令（build/test/smoke 等）的完整输出留存到 `.work/log/<模块>/<任务ID>-<命令名>.log`（reviewer 重跑加 `-review-`）；命令正常结束时用 `tee` 同时输出到终端和日志
 - `.work/` 由根 `.gitignore` 整体忽略，不进 git
@@ -49,18 +50,13 @@
 
 任务按模块组织：`tasks/<module>/<PREFIX>-nnn<suffix>-描述.md`，`nnn` 为模块内三位递增序号（跨后缀共享，前缀保证全局唯一）。
 
-- `<suffix>`（谋事有因 / 做事有据 / 了事有果）：
-  - `k`=启动（澄清目标+分解任务），状态 `待开始` → `已验证`（/plan 审查通过后，不单独验收）
-  - `t`=普通任务，四态 `待开始` → `待验收` → `已验证`（`待返工` 回退）
-  - `m`=里程碑标记（轻量），两态 `待开始` → `里程碑`
+- `<suffix>`（谋事有因 / 做事有据 / 了事有果）：`k`=启动（澄清目标+分解任务）、`t`=普通任务、`m`=里程碑（轻量标记）；各态转移与设置方见 `.opencode/agents/architect.md`「任务状态机」
 - 任务文件头部含 `**模块**` / `**项目里程碑**` / `**依赖**`；`k` 状态置顶，`m` 以 `**目标**` / `**关联任务**` 标注；项目里程碑（M1/M2…）见 `knowledge/milestones.md`
 - **项目里程碑字段**：任务书 `**项目里程碑**` 须填**单一项目里程碑**（`M1`/`M2`/…）。**已取消**「过渡期任务 `M<i>→M<i+1>`」类别（用户裁定 2026-10-04）——原 `M1→M2` 任务一律提升为 `M2`，不产生 `k`/`m` 的规则随之作废；`milestones.md` 的 M2/M3 定义见该文件。
 
 ## 任务书限长（**不加门控**，2026-10-08，措施 3）
 
-- **完成区**：只留「验收结果表 + 证据路径（`.work/log/...`）+ 修改文件 + 遗留」，**≤30 行**；长输出**不放**任务书。
-- **审阅记录**：只留「判决 + 逐项真实输出（可摘要，原文留 `.work/log/`）+ 注入与还原证据路径」，**每轮 ≤40 行**。
-- **执行方式**：**不加门控**；由 **architect 提交前复核**（超限即要求压缩）+ **`/complete` 收尾检查**（主会话）执行。
+完成区 **≤30 行**（只留验收结果 + 证据路径 + 修改文件 + 遗留）、审阅记录**每轮 ≤40 行**；不加门控，由 architect 提交前复核 + `/complete` 收尾检查执行。详见 `AGENTS.md`「任务收尾」。
 
 | 模块 | 前缀 | 交付物 |
 | --- | --- | --- |
@@ -91,7 +87,7 @@
 
 ## model
 
-各角色的 agent 定义与 model 位于全局 opencode 配置（`~/.config/opencode/agent/`），工作仓库不包含 agent 文件。
+各角色的 agent 定义与 model 见项目 `.opencode/agents/`（architect/engineer/reviewer，随项目入库）；命令（mode）见 `.opencode/commands/`。
 
 ## 日志目录迁移说明
 
