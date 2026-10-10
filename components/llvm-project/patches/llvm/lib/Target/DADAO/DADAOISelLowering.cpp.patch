@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..02e058298
+index 000000000..6a0f1d977
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1040 @@
+@@ -0,0 +1,1056 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -115,6 +115,22 @@ index 000000000..02e058298
 +    setLoadExtAction(ISD::SEXTLOAD, MVT::i64, VT, Legal);
 +    setLoadExtAction(ISD::ZEXTLOAD, MVT::i64, VT, Legal);
 +    setTruncStoreAction(MVT::i64, VT, Legal);
++  }
++
++  // i1 (boolean) loads (LLVM-077t, ISS-186).  The load-extension action for an
++  // i1 memory type defaults to Legal, but the byte/wyde/tetra load patterns
++  // above have no i1 form, so a surviving `zextloadi1` (an i1 in memory is a
++  // whole byte; the DAG prints its MMO as 8 bits) would fail ISel with
++  // "Cannot select: ... zext from i1".  Such nodes are produced whenever a
++  // value narrowed to a boolean is read back, e.g. the `(load i64) & 1`
++  // (GlobalOpt shrink-to-bool) pattern in aha-mont64.  Promote the i1 memory
++  // type to i8 so the existing byte-load patterns match: a well-defined i1 in
++  // memory is exactly 0 or 1, so the promoted byte load is exact (this is the
++  // standard trick documented in LegalizeDAG and used by SystemZ/Mips/MSP430).
++  for (MVT VT : MVT::integer_valuetypes()) {
++    setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
++    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
++    setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
 +  }
 +
 +  // Varargs (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  DADAO's

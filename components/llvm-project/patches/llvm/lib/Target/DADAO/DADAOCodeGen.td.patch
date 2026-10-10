@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..8bc3d0aeb
+index 000000000..1e04ec167
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,597 @@
+@@ -0,0 +1,602 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -379,6 +379,11 @@ index 000000000..8bc3d0aeb
 +def : Pat<(i64 (sext_inreg GPRD:$src, i8)),  (ext_so_orri GPRD:$src, 7)>;
 +def : Pat<(i64 (sext_inreg GPRD:$src, i16)), (ext_so_orri GPRD:$src, 15)>;
 +def : Pat<(i64 (sext_inreg GPRD:$src, i32)), (ext_so_orri GPRD:$src, 31)>;
++// i1 (LLVM-077t, ISS-186): the promoted `sextload i1` from a sign-extending
++// load legalises to `zextload i8` + `sign_extend_inreg i64, i1` (LegalizeDAG),
++// and an explicit `sext i1` also lands here.  hd = 0 sign-extends from bit 0,
++// i.e. the low bit selects 0 / -1, exactly a signed boolean.
++def : Pat<(i64 (sext_inreg GPRD:$src, i1)), (ext_so_orri GPRD:$src, 0)>;
 +
 +//===----------------------------------------------------------------------===//
 +// Scalar load/store (LLVM-036t; C13/C14, ADR-0018; frame indices LLVM-038t)

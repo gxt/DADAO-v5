@@ -424,11 +424,11 @@
 
 - id: ISS-186
   title: "`aha-mont64 -O2` 阻塞于 `Cannot select: ... load<..., zext from i1>`（后端缺口，它类）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "**它类缺口（与 G2 无关）**。现象：`aha-mont64` 在 `-O2` 编译 `mont64.c` rc=1，`LLVM ERROR: Cannot select: ... load<..., zext from i1>`（`trunc(load i64)` ⇒ `load i1` zext 无 lowering）；此前被 G2 掩盖。`-O0` rc=0 正常。`LLVM-073t` reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑④」「遗留问题②」。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-077t`（**先诊断根因**）。**"
+  resolved_by: LLVM-077t
+  notes: "**它类缺口（与 G2 无关）**。现象：`aha-mont64` 在 `-O2` 编译 `mont64.c` rc=1，`LLVM ERROR: Cannot select: ... load<..., zext from i1>`（`trunc(load i64)` ⇒ `load i1` zext 无 lowering）；此前被 G2 掩盖。`-O0` rc=0 正常。`LLVM-073t` reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑④」「遗留问题②」。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-077t`（**先诊断根因**）。** **【已解决 2026-10-10】**：`LLVM-077t` 根因 = `initActions` 中 i1 存储型 load-ext 默认 `Legal` 而后端无 i1 load pattern（形态源自 `GlobalOpt::TryToShrinkGlobalToBoolean`）；修复 = `Promote` 到 i8（`ld.ub`）+ `(sext_inreg i64,i1)→ext.so …,0`；最小复现 `-O0/-O2` rc=0；**Embench `-O0` 19/19、`-O2` 19/19**；`check-lit` 89/89；reviewer `Accepted`。"
 
 - id: ISS-187
   title: "窄位指令利用不足（8/16/32 位算术未用；`mul32` 用 128 位双目的 `mul.uo` 而非单目的 `mul.ut`）——M7 优化候选，非缺陷"
