@@ -144,3 +144,31 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/m6-return-regs.ll
     class: no-value-entry
     reason: "FileCheck structural test (return-register shape); no `@main` value channel."
+  # (e) later M6 LLVM tasks (069t/071t/073t/074t/076t/077t/078t) added structural
+  #     `llc | FileCheck` CodeGen tests under the corpus root without value
+  #     channels; registered here so the structural-closure invariant stays green
+  #     (lessons §8.35).  Maintained during TESTCASES-040m milestone verification.
+  - ir: tests/llvm/lit/CodeGen/DADAO/br-jt.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (br_jt jump-table lowering, LLVM-072t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/i1-load.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (i1 load promote, LLVM-077t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/large-const-cmp.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (large-const compare materialisation, LLVM-071t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/setcc-select.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (setcc/select lowering, LLVM-069t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/smul-lohi.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (signed multiply high half, LLVM-076t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/tail-call-lowering.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (tail-call lowering, LLVM-074t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/tail-call-musttail-reject.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (`not --crash`, musttail reject, LLVM-074t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/umul-lohi.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (unsigned multiply high half, LLVM-073t); no `@main` value channel."
