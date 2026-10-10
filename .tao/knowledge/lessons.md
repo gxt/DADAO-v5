@@ -774,3 +774,8 @@
 
 - **规则**：给 DADAO 加分支放宽（`BranchRelaxationPassID`）时——① **勿实现 `reverseBranchCondition`**：它会把 `branch-folder` 输出的 `br_p_rd`+显式 `jump` 改成 `br_np_rd`（无 jump），触发既有 `branch-fold-two-way.mir` 回归；放宽只需走 **BranchRelaxation 跳岛**回退路径（保既有 CFG 形状）；② `isBranchOffsetInRange` 收到的 `BrOffset` 是**字节**偏移，而 DADAO 分支立即数存**字**（编码字段 `field=bytes>>2`）⇒ 判据须**按各分支字段宽度**换算（`br.eq/ne`=`isInt<12>`、单寄存器/`rb` 变体=`isInt<18>`、`jump/call` 恒真），并加 **4 对齐前置**（非对齐一律判越界，`/4` 与 MC `>>2` 等价）。
 - **依据/来源**：`LLVM-071t`（G1+G5；engineer F1/F4、reviewer §1/§3 独立核算）；细节 `.tao/tasks/llvm/LLVM-071t-*.md`、`.work/log/llvm/LLVM-071t-g5-relax.log`。同类 §8.30（手写集合须与生成一致）、§8.42（逐优化级判据）。
+
+### 8.45 完成区计数须写明口径（如「按标签数」而非「按行数」）——行数常 ≠ 条目数（`LLVM-072t`，2026-10-10）
+
+- **规则**：任务书/完成区/文档里的计数必须**写明口径**（实例：跳转表张数 = 数 `.LJTI*` **标签**，`grep -c '^\.LJTI[0-9_]*:'`，而非 `grep -c '\.LJTI'` 的**行**数）；统计前先判「一行 = 一个条目？」——汇编里一个表常有 **1 个标签 + N 处基址引用**（本例 1 标签 + 3 片 ABS48 = 4 行/表）⇒ **行数 ≠ 条目数**，两种口径混用即失实。
+- **依据/来源**：`LLVM-072t`（reviewer 第 1 轮打回：完成区③把 `.LJTI` 的 4 **行**误报成 4 **张表**，实为 1 张；第 2 轮独立计数核实）；细节 `.tao/tasks/llvm/LLVM-072t-跳转表br_jt-lowering.md`。

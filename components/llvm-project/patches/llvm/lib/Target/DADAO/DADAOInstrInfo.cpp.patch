@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..caa1a3295
+index 000000000..d87bdb053
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,598 @@
+@@ -0,0 +1,615 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -274,6 +274,23 @@ index 000000000..caa1a3295
 +    auto AddSym = [&](MachineInstrBuilder MIB) {
 +      MIB.addGlobalAddress(Sym.getGlobal(), Sym.getOffset(),
 +                           Sym.getTargetFlags());
++    };
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::JT_ADDR: {
++    // Absolute address of a function's jump table (LLVM-072t, ISS-177/G3).
++    // Identical 3-slice materialization to GLOBAL_ADDR, except the symbol is the
++    // jump table's local label carried as an MO_JumpTableIndex (the AsmPrinter/
++    // MCInstLower resolves it to MF->getJTISymbol, the label emitJumpTableInfo
++    // defines in front of the table).  Each slice becomes R_DADAO_ABS48.
++    Register Dst = MI.getOperand(0).getReg();
++    const MachineOperand &Sym = MI.getOperand(1);
++    auto AddSym = [&](MachineInstrBuilder MIB) {
++      MIB.addJumpTableIndex(Sym.getIndex(), Sym.getTargetFlags());
 +    };
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));

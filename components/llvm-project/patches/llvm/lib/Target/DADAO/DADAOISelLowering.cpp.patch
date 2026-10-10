@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..370378938
+index 000000000..954747b1e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,926 @@
+@@ -0,0 +1,954 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -77,6 +77,14 @@ index 000000000..370378938
 +  // BRCOND over an FP setcc; both are custom (M6, LLVM-066t).
 +  setOperationAction(ISD::BR_CC, MVT::f32, Custom);
 +  setOperationAction(ISD::BR_CC, MVT::f64, Custom);
++
++  // Dense switch dispatch (LLVM-072t, ISS-177/G3): DADAO has no dedicated
++  // jump-table instruction, so ISD::BR_JT is lowered to a target node that the
++  // custom selector expands into "materialize the table base, index, load the
++  // 8-byte absolute case address, jump through it" (jump_rrii).  Marking the
++  // operation Custom is also what enables jump-table formation
++  // (TargetLowering::areJTsAllowed).
++  setOperationAction(ISD::BR_JT, MVT::Other, Custom);
 +
 +  // Compare-as-value (LLVM-069t): a comparison whose result is *used as a
 +  // value* (C `a == b`, `!x`, `a < b`, `?:`, `&&`/`||`) reaches us as a
@@ -205,6 +213,8 @@ index 000000000..370378938
 +    return "DADAOISD::CS_Z";
 +  case DADAOISD::CS_P:
 +    return "DADAOISD::CS_P";
++  case DADAOISD::BR_JT:
++    return "DADAOISD::BR_JT";
 +  default:
 +    return nullptr;
 +  }
@@ -607,6 +617,8 @@ index 000000000..370378938
 +    return LowerVASTART(Op, DAG);
 +  case ISD::VAARG:
 +    return LowerVAARG(Op, DAG);
++  case ISD::BR_JT:
++    return LowerBR_JT(Op, DAG);
 +  default:
 +    return SDValue();
 +  }
@@ -691,6 +703,22 @@ index 000000000..370378938
 +    Cond = DAG.getZExtOrTrunc(Cond, DL, MVT::i64);
 +  return LowerBR_CC(Chain, ISD::SETNE, Cond, DAG.getConstant(0, DL, MVT::i64),
 +                    Dest, DL, DAG);
++}
++
++SDValue DADAOTargetLowering::LowerBR_JT(SDValue Op, SelectionDAG &DAG) const {
++  // Dense switch dispatch (LLVM-072t, ISS-177/G3).  The jump table itself is
++  // emitted by the generic AsmPrinter: EK_BlockAddress entries (one 8-byte
++  // absolute case address each) in a read-only data section, each `.quad LBB`
++  // becoming an R_DADAO_ABS48 field.  All this hook has to do is retag the
++  // ISD::BR_JT node so the custom selector (DADAOISelDAGToDAG::Select) can emit
++  // the materialize-index-load-jump sequence; the table symbol travels as a
++  // TargetJumpTable leaf, which InstrEmitter turns into an MO_JumpTableIndex.
++  SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  auto *JT = cast<JumpTableSDNode>(Op.getOperand(1));
++  SDValue Index = Op.getOperand(2);
++  SDValue TargetJT = DAG.getTargetJumpTable(JT->getIndex(), MVT::i64);
++  return DAG.getNode(DADAOISD::BR_JT, DL, MVT::Other, Chain, Index, TargetJT);
 +}
 +
 +SDValue DADAOTargetLowering::LowerBR_CC(SDValue Chain, ISD::CondCode CC,

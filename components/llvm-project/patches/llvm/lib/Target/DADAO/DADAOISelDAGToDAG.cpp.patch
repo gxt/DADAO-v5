@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..74882fcc3
+index 000000000..ff8390b02
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,380 @@
+@@ -0,0 +1,418 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -300,6 +300,44 @@ index 000000000..74882fcc3
 +      return;
 +    }
 +    break;
++  case DADAOISD::BR_JT: {
++    // Dense switch dispatch (LLVM-072t, ISS-177/G3).  Operands:
++    //   [0] chain, [1] index (GPRD i64), [2] TargetJumpTable.
++    // The jump table lives in a read-only data section and holds one 8-byte
++    // absolute case address per entry (EK_BlockAddress; each `.quad LBB` is an
++    // R_DADAO_ABS48 field, contract-elf.md §2-§4).  Emit:
++    //   rb_base = <absolute address of the jump table>     (JT_ADDR, GPRB)
++    //   rd_off  = index << 3                               (entry size 8)
++    //   rb_addr = rb_base + rd_off                         (add.o rb, rb, rd)
++    //   rb_tgt  = ld.o [rb_addr, 0]                        (8-byte absolute case)
++    //   jump rb_tgt, rd0, 0                                (Addr = rb_tgt + 0 + 0)
++    // jump_rrii is the terminator/indirect branch; rd0 is the hardwired-zero
++    // data register, so the rrii address is exactly the loaded absolute target.
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    SDValue Index = Node->getOperand(1);
++    SDValue TargetJT = Node->getOperand(2);
++    SDValue Scale = CurDAG->getTargetConstant(3, DL, MVT::i64);
++    SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i64);
++
++    SDNode *Base =
++        CurDAG->getMachineNode(DADAO::JT_ADDR, DL, MVT::i64, TargetJT);
++    SDNode *Scaled = CurDAG->getMachineNode(DADAO::shl_uo_orri, DL, MVT::i64,
++                                            Index, Scale);
++    SDNode *Addr = CurDAG->getMachineNode(DADAO::add_o_bbd, DL, MVT::i64,
++                                          SDValue(Base, 0), SDValue(Scaled, 0));
++    SDNode *Tgt = CurDAG->getMachineNode(DADAO::ld_o_rb, DL, MVT::i64,
++                                         SDValue(Addr, 0), Zero);
++    SmallVector<SDValue, 4> JmpOps;
++    JmpOps.push_back(SDValue(Tgt, 0));
++    JmpOps.push_back(CurDAG->getRegister(DADAO::rd0, MVT::i64));
++    JmpOps.push_back(Zero);
++    JmpOps.push_back(Chain);
++    SDNode *Jmp = CurDAG->getMachineNode(DADAO::jump_rrii, DL, MVT::Other,
++                                         JmpOps);
++    ReplaceNode(Node, Jmp);
++    return;
++  }
 +  case DADAOISD::CALL: {
 +    // Call (LLVM-039t direct; M6 adds indirect): the DADAOISD::CALL operands
 +    // are chain, callee, [RegisterMask], [argument Registers...], [glue].

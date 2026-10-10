@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..2c64b9aa3
+index 000000000..ed5139e7b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,169 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -79,6 +79,13 @@ index 000000000..2c64b9aa3
 +  CS_N,
 +  CS_Z,
 +  CS_P,
++
++  /// Dense switch dispatch (LLVM-072t, ISS-177/G3).  Lowered from ISD::BR_JT:
++  /// (chain, index, TargetJumpTable).  Selected by DADAOISelDAGToDAG to load an
++  /// entry from the read-only jump table and jump through it (jump_rrii); the
++  /// table itself is emitted by the generic AsmPrinter as one 8-byte absolute
++  /// address per case (EK_BlockAddress -> R_DADAO_ABS48).
++  BR_JT,
 +};
 +
 +} // namespace DADAOISD
@@ -145,6 +152,11 @@ index 000000000..2c64b9aa3
 +  SDValue LowerCmpSelect(ISD::CondCode CC, SDValue LHS, SDValue RHS,
 +                         SDValue True, SDValue False, const SDLoc &DL,
 +                         SelectionDAG &DAG) const;
++
++  /// Lower a dense `switch` (ISD::BR_JT) to a DADAOISD::BR_JT node carrying the
++  /// jump-table index and the (TargetJumpTable) table symbol (LLVM-072t,
++  /// ISS-177/G3); the indirect load+jump is selected in DADAOISelDAGToDAG.
++  SDValue LowerBR_JT(SDValue Op, SelectionDAG &DAG) const;
 +
 +  /// Varargs lowering (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  The
 +  /// caller writes every argument into a contiguous 8-byte-slot save area at

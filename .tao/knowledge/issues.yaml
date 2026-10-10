@@ -352,11 +352,11 @@
 
 - id: ISS-177
   title: "`br_jt`（跳转表 / `switch` 密集分发）不可 select：`-O0` 即触发（`Cannot select: ... br_jt`）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "**G3**。现象：`Cannot select: t4: ch = br_jt t2:1, JumpTable:i64<0>, t2>`（`-O0` 即触发）。最小复现：`switch(x)` 含 16 个 case（含 fallthrough 全分支）→ `clang`/`llc` rc=134。命中基准：picojpeg / qrduino。**性质 = 缺能力（编译期显式失败）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G3`。归属：新任务 `LLVM-072t`。"
+  resolved_by: LLVM-072t
+  notes: "**G3**。现象：`Cannot select: t4: ch = br_jt t2:1, JumpTable:i64<0>, t2>`（`-O0` 即触发）。最小复现：`switch(x)` 含 16 个 case（含 fallthrough 全分支）→ `clang`/`llc` rc=134。命中基准：picojpeg / qrduino。**性质 = 缺能力（编译期显式失败）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G3`。归属：新任务 `LLVM-072t`。 **已解决（2026-10-10，`LLVM-072t`）**：`ISD::BR_JT` 设 `Custom` + `LowerBR_JT` → `DADAOISD::BR_JT`；表落 `.rodata`（`EK_BlockAddress` 8B 绝对地址、`.quad` ⇒ `R_DADAO_ABS48`）+ 索引 `shl.uo …,3`(×8)/`add.o`/`ld.o`/间接 `jump`。reviewer 独立验证：16 case `-O0` rc=0、E2E `exit=255==手算`（含低于最小 case⇒default 与 fallthrough）、qrduino/picojpeg `-O0/-O2` rc=0、`check-lit` 81/81、独立注入（表项步长）⇒FAIL⇒`cp`+md5 还原重建回绿。"
 
 - id: ISS-178
   title: "尾调用 `LowerCall` 断言 `LowerCall emitted a return value for a tail call!`（仅 `-O2`）"
@@ -405,3 +405,11 @@
   blocks: []
   resolved_by: LLVM-071t
   notes: "【子代理执行异常登记（用户规则：每次异常与重试须登记）】**现象**：`LLVM-071t` reviewer 第 1 次下发返回 `Too Many Requests`、**产出未落盘**（任务书无新增审阅记录、无文件改动）。**处置**：按「子代理返回异常处理」**重试 1 次同一任务**（重试附失败现场：无落盘 + 原始 error）；**结果**：重试成功、产出落盘并判 `Accepted`；**未触发任务拆分**。**task_id**：首次 `ses_edb56cc2bffe…`；重试 `ses_edb50044dffe…`。"
+
+- id: ISS-184
+  title: "【子代理执行异常·已处置】`LLVM-072t` reviewer 首轮返回 `Too Many Requests`、产出未落盘；重试 1 次成功（未触发任务拆分）"
+  status: closed
+  scope: [llvm]
+  blocks: []
+  resolved_by: LLVM-072t
+  notes: "【子代理执行异常登记（用户规则：每次异常与重试须登记）】**现象**：`LLVM-072t` reviewer 首轮下发返回 `Too Many Requests`、**产出未落盘**（任务书无新增审阅记录、无文件改动）。**处置**：按「子代理返回异常处理」**重试 1 次同一任务**（重试附失败现场：无落盘 + 原始 error）；**结果**：重试成功、产出落盘（reviewer 第 1 轮 `Needs Revision` ⇒ 第 2 轮 `Accepted`）；**未触发任务拆分**。**task_id**：首轮 `ses_edb048bbdffe…`；重试 `ses_edafda412ffe…`。**登记落点择一说明**：与 `ISS-183`（`LLVM-071t` 同类 `Too Many Requests` 异常）**同型但不同任务** ⇒ 单独立条（按任务 1:1 便于追溯），互相交叉引用；未并入 `ISS-183`。"

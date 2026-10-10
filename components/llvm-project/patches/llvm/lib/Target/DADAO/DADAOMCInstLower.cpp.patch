@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
 new file mode 100644
-index 000000000..ec8eb0c82
+index 000000000..ba8ae4302
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,104 @@
 +//===-- DADAOMCInstLower.cpp - DADAO MachineInstr to MCInst ----*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -88,6 +88,12 @@ index 000000000..ec8eb0c82
 +  case MachineOperand::MO_GlobalAddress:
 +  case MachineOperand::MO_ExternalSymbol:
 +    return LowerSymbolOperand(MO, GetSymbolFromOperand(MO));
++  case MachineOperand::MO_JumpTableIndex:
++    // Jump-table label (LLVM-072t, ISS-177/G3): the local symbol emitted in
++    // front of the table by AsmPrinter::emitJumpTableInfo.  Used by the
++    // JT_ADDR materialization (set.zw/or.w -> R_DADAO_ABS48).
++    return MCOperand::createExpr(
++        MCSymbolRefExpr::create(Printer.GetJTISymbol(MO.getIndex()), Ctx));
 +  case MachineOperand::MO_MCSymbol:
 +    return LowerSymbolOperand(MO, MO.getMCSymbol());
 +  }

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..aa5561364
+index 000000000..dffaf26ea
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,494 @@
+@@ -0,0 +1,510 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -113,6 +113,14 @@ index 000000000..aa5561364
 +def DADAOBreq : SDNode<"DADAOISD::BREQ", SDT_DADAOBr2, [SDNPHasChain]>;
 +def DADAOBrne : SDNode<"DADAOISD::BRNE", SDT_DADAOBr2, [SDNPHasChain]>;
 +
++// Dense switch dispatch (LLVM-072t, ISS-177/G3): (chain, index, TargetJumpTable).
++// Lowered from ISD::BR_JT by DADAOTargetLowering::LowerBR_JT; the custom
++// selector (DADAOISelDAGToDAG::Select) expands it into the jump-table
++// materialize/load/indirect-jump sequence.  Both the index and the jump-table
++// leaf are i64 (pointer-typed) values.
++def SDT_DADAOBrJT : SDTypeProfile<0, 2, [SDTCisVT<0, i64>, SDTCisVT<1, i64>]>;
++def DADAOBrJT : SDNode<"DADAOISD::BR_JT", SDT_DADAOBrJT, [SDNPHasChain]>;
++
 +// Conditional assignment (LLVM-069t; contract-isa.md §6.5): (cond, true, false)
 +// -> selected value, all i64.  CS_N tests cond < 0, CS_Z cond == 0, CS_P
 +// cond > 0; the two arms are selected explicitly, so <=0 / >=0 reuse a test
@@ -217,6 +225,14 @@ index 000000000..aa5561364
 +// is never resolved in place, so every slice becomes a relocation even for a
 +// same-section symbol (the section base is only known at link time).
 +def GLOBAL_ADDR : DADAOPseudo<(outs GPRB:$dst), (ins unknown:$sym), []>;
++
++// Jump-table address materialization (LLVM-072t, ISS-177/G3).  The operand is a
++// TargetJumpTable leaf (InstrEmitter -> MO_JumpTableIndex, i.e. the function's
++// local jump-table label).  Expanded post-RA to the same fixed 3-slice absolute
++// sequence as GLOBAL_ADDR (set.zw rb, wp0 ; or.w rb, wp1 ; or.w rb, wp2), each
++// instruction carrying the jump-table symbol so the MCCodeEmitter attaches
++// R_DADAO_ABS48.  The result lives in GPRB (the address bank).
++def JT_ADDR : DADAOPseudo<(outs GPRB:$dst), (ins unknown:$sym), []>;
 +
 +//===----------------------------------------------------------------------===//
 +// Single-result i64 patterns (orrr, contract-isa.md §6.3–§6.4, §7)

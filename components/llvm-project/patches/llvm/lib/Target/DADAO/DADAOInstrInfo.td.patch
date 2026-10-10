@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..4d6ec6597
+index 000000000..1938af289
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1502 @@
+@@ -0,0 +1,1509 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -377,6 +377,13 @@ index 000000000..4d6ec6597
 +  let Pattern = [];
 +}
 +
++// `jump rb, rd, imm12` (LLVM-072t, ISS-177/G3): the generic form is the
++// rrii two-register-plus-immediate jump (Addr = rbha + rdhb + (imms12 << 2);
++// contract-isa.md §8.3).  CodeGen uses it only as the indirect jump-table
++// dispatch (base read from the table, rd0 supplies a zero offset), so it also
++// carries the terminator / barrier / indirect-branch attributes; the assembler
++// path (jump [rbN, rdM, imm]) is unaffected by these CodeGen-only flags.
++let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1 in
 +def jump_rrii : DADAORrii<"jump"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRB:$ra, GPRD:$rb, imms12:$imm12);
