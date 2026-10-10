@@ -14,7 +14,7 @@ independently-derived expected value (it does NOT rely on lit exit codes):
             -display none -nographic
                                                -> process exit code == guest exit code
 
-The startup stub calls ``@main`` and reports the returned value (rd31) through
+The startup stub calls ``@main`` and reports the returned value (rd8) through
 the semihosting ``SYS_EXIT`` service; the guest exit code is the low byte
 (ADR-0003 D5 single TU; ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device,
 ADR-0004 D3 superseded).  ``-semihosting-config enable=on,target=native`` is

@@ -1,6 +1,6 @@
 ; TESTCASES-026t / CodeGen vector: call (C1 pointer argument bank / C5 pointer return bank)
-; @advance takes a pointer (rb16) and returns a pointer (rb31); @deref takes a
-; pointer (rb16) and returns an integer (rd31).  The pointer offset is loaded
+; @advance takes a pointer (rb16) and returns a pointer (rb8); @deref takes a
+; pointer (rb16) and returns an integer (rd8).  The pointer offset is loaded
 ; from a volatile slot so the GEP is a genuine pointer+offset computation.
 ;
 ; IR semantics:

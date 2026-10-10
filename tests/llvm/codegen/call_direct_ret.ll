@@ -1,6 +1,6 @@
 ; TESTCASES-026t / CodeGen vector: call (direct call/ret + integer return value)
 ; The callee is noinline and its operands come from volatile loads, so the call is
-; not inlined and not constant-folded. Return value travels in rd31 (C5).
+; not inlined and not constant-folded. Return value travels in rd8 (C5).
 ;
 ; IR semantics:
 ;   add3(x, y, z) = x + y + z
