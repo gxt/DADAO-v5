@@ -1,24 +1,24 @@
-# LLVM-074t: 尾调用 `LowerCall` 断言（仅 `-O2`）【G4】
+# LLVM-074t: 真尾调用实现（优化，可选；**非 M6 硬性**）
 
 **模块**：llvm
 **项目里程碑**：M6
 **依赖**：`INFRA-050t`（一次构建 `DADAO;X86`）、`INFRA-051t`（Embench 源树）、`LLVM-062t`/`LLVM-063t`/`LLVM-069t`（均已 `已验证`）、`QEMU-052t`（ELF 加载，`已验证`）；**与 Wave 2 其它 llvm 任务同改 `components/llvm-project/patches` ⇒ 串行**
 **状态**：待开始
 
-> **覆盖缺口**：**G4（`ISS-178`）**。与 `LLVM-070t`（G6，`-O2` 误编译）同属「`-O2` 专属」性质，二者可互作线索（诊断时可交叉参考）。
+> **范围变更（2026-10-10，`LLVM-070t` 收尾）**：原缺口 **G4（`ISS-178`）** 与 **G6（`ISS-180`）同根**——根因均为「后端不处理尾调用」（`LowerCall` 忽略 `CLI.IsTailCall`）；`LLVM-070t` 已修复（尾调用一律降级为非尾调用：发普通 `call`+`ret`；`musttail` ⇒ `report_fatal_error`）并**关闭 G4/G6**。
+> ⇒ 本任务**不再是缺陷修复**，降级为**优化项（可选）**：**实现**真尾调用（tail-jump：复用调用者返回地址 + 拆帧），不再以「`-O2` 崩溃」为动机。**非 M6 硬性**——**可在 M6 内做，亦可推 M7**。
 
 ## 执行环境
 **执行环境**：本地
 
 ## 背景 / 问题根源（自包含）
 
-- **现象**：`-O2` 下 `clang` 在 `LowerCall` **断言失败**（rc=134）：`LowerCall emitted a return value for a tail call!`；`-O0` 全部消失。
-- **最小复现**：`extern long g(void); long f(void){ return g(); }`（`-O2`）。
-- **定性**：DADAO 后端**尾调用 lowering 未实现/不完整**——`-O2` 触发尾调用优化后，`LowerCall` 对「尾调用仍产出返回值」报断言。
-- **命中基准**：crc32 / md5sum / tarfind / ud / xgboost（**仅 `-O2`**）。
-- **性质 = 缺能力（编译期显式失败，但仅优化级触发）**。
+- **动机（优化）**：`LLVM-070t` 后，DADAO 后端对尾调用**一律降级为非尾调用**（发普通 `call`+`ret`）——正确但**放弃尾调用优化**（每次尾调用多一轮帧压/弹与返回）。
+- **本任务目标**：**实现**真尾调用（tail-jump）——在 `-O2`（等）下把合法尾调用编译为「**复用调用者返回地址 + 拆本帧**」的跳转，减栈占用/返回开销。
+- **性质 = 能力增强（优化，非缺陷）**；**不影响现状正确性**（降级路径已正确）⇒ **非 M6 硬性、可选**。
+- **受益基准（参考）**：crc32 / md5sum / tarfind / ud / xgboost 等（原 G4 命中项，`-O2`）。
 
-**证据指针**：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G4`；issue `ISS-178`。
+**证据指针（原缺口）**：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G4`；issue `ISS-178`（**已 closed**，`resolved_by: LLVM-070t`）。
 
 ## 接口规范
 
@@ -27,7 +27,7 @@
   - `.tao/knowledge/contract-abi.md`（完整调用约定；尾调用须保持 ABI 语义）、`contract-isa.md`（`call`/`ret` 族）。
   - `spec/Process-01-组件补丁组织与构建编排.md`（补丁纪律）。
 - **输出**（`components/llvm-project/patches/llvm/lib/Target/DADAO/**` + 必要的 `tests/llvm/**`/`tests/e2e/**`）：
-  1. **尾调用 lowering**：实现/修正 DADAO 的尾调用（`isTailCall` / `LowerCall`）路径，使 `-O2` 尾调用形态可编译且语义正确（返回被调者返回值）；若 ISA/ABI 不支持某类尾调用，须**优雅降级为非尾调用**（`report_fatal_error` 不可）而非断言崩溃。
+  1. **真尾调用 lowering（实现）**：在 `LowerCall`/`isTailCall` 路径**实现** DADAO 真尾调用（tail-jump：复用调用者返回地址 + 拆本帧），使合法尾调用在 `-O2` 下编译为**跳转**（不再是「降级为非尾调用」）；语义须正确（返回被调者返回值，保持返回寄存器约定 `rd8`）；ISA/ABI 不支持的形态（如 `musttail` 约束不满足）**优雅降级或显式失败**，不得断言崩溃。
   2. 如需改 `DADAOISelLowering.{h,cpp}`/`DADAOCallingConv.td`/`DADAOInstrInfo.td`，一并落地；受影响 `tests/llvm/**` 期望值按册/契约**重新派生**（**不从实现反填**）。
   3. `series`/`changelog.md` 随任务追加（`Process-01`）。
 - **约束**：
@@ -52,7 +52,7 @@
 
 ## 验收标准
 
-1. **尾调用可编译**：最小复现 `extern long g(void); long f(void){ return g(); }`（`-O2`）经 `clang` **rc=0**（给真实命令 + rc）。
+1. **真尾调用已实现（优化）**：最小复现 `extern long g(void); long f(void){ return g(); }`（`-O2`）经 `clang` rc=0，且生成代码为**尾跳转**（复用返回地址、无额外 `call`/`ret` 帧往返）——**不能只是「已降级为非尾调用」**（须给反汇编证据）。
 2. **尾调用语义正确（E2E）**：尾调用链（至少两级、含非 void 返回）经「编译 → 链接 → QEMU 执行 → **正确退出码**」端到端通过（给真实命令 + 退出码）；返回寄存器约定（`rd8`）保持。
 3. **真实基准**：crc32 / md5sum / tarfind / ud / xgboost **至少一个**经 `-O2` 编译 **rc=0**（给真实命令 + rc）。
 4. **不回归**：`make build-mc`/`make check`/`make check-patch-tree`/`make check-lit` EXIT=0（通过数与改前**逐项相等 / 不下降**）；`-O0` 集不下降。

@@ -31,11 +31,11 @@
 | `LLVM-067m` | 待开始 | — | — | M6 llvm 里程碑 |
 | `LLVM-068t` | 已验证 | — | 10-09 12:49 | ABI 寄存器重排后端实现：寄存器类（`rd4–rd7`/`rb4–rb7` caller-saved）+ `getReservedRegs`（`rd2–rd3`、`rb2`=GP、`rb3`=TP 保留；**`rb63` 条件保留**）+ `getFrameRegister = hasFP ? rb63 : rb1` + `FrameLowering`（FP=`rb63`、批量保存排除 FP）+ `LLVM-062t` RegMask 同步 + lit 期望；重建；排 `LLVM-063t` 前、与 `LLVM-064t` 串行。**RegMask 核对一致无需改；风险：批量保存排除 FP(rb63) 仅注释未强制 ⇒ 移交 `LLVM-064t`** |
 | `LLVM-069t` | 已验证 | — | 10-10 08:07 | 整数 `setcc`/`select_cc` lowering（`Custom` `LowerCmpSelect`，10 谓词全覆盖；`CMP`/`CMPU` + `cs.{n,z,p}` 归一化 0/1）；原崩溃最小复现 rc=134→0；E2E 正确；遗留：常量比较超 12 位立即数仍**显式失败**〔与既有 `br(icmp)` 同界〕；`ISS-173` 关闭 |
-| `LLVM-070t` | 待开始 | — | — | `-O2` 误编译致死循环（**G6**/`ISS-180`；**缺陷·静默错码，优先执行**；先诊断根因再修；E2E = 4 基准 `-O2` 退出码 0） |
+| `LLVM-070t` | 已验证 | — | 10-10 11:09 | 修复 `-O2` 静默错码（**G6**/`ISS-180`）。**根因 = 后端不处理尾调用**（`LowerCall` 忽略 `CLI.IsTailCall` ⇒ 尾调用当普通 `call` 发但**不发 `ret`** ⇒ 返回地址=调用者函数结束处=被调者自身入口 ⇒ **静默无限重入**；触发点 `warm_caches` 的 `tail call @benchmark_body`）。**修复 = 清零 `CLI.IsTailCall`** ⇒ 发 `call`+正常 `ret`（正确代码）；`musttail` 不可合法降级 ⇒ 显式 `report_fatal_error`。**4 基准 `-O2` 退出码 0**（huffbench/matmult-int/nettle-sha256/statemate）；**G4（`ISS-178`）与 G6 同根，一并消除**。遗留 = 真尾调用**实现**（优化）留 `LLVM-074t`（**非 M6 硬性**） |
 | `LLVM-071t` | 待开始 | — | — | 12 位立即数/分支范围溢出（**G1 + G5**/`ISS-175`+`ISS-179`；大常量比较**常量物化** + 分支目标**放宽**） |
 | `LLVM-072t` | 待开始 | — | — | 跳转表 `br_jt` lowering（**G3**/`ISS-177`；`-O0` 即触发；picojpeg/qrduino） |
 | `LLVM-073t` | 待开始 | — | — | 128 位乘高半 `umul_lohi`/`mulhu`（**G2**/`ISS-176`；aha-mont64/wikisort） |
-| `LLVM-074t` | 待开始 | — | — | 尾调用 `LowerCall` 断言（**G4**/`ISS-178`；仅 `-O2`；crc32/md5sum/tarfind/ud/xgboost） |
+| `LLVM-074t` | 待开始 | — | — | **真尾调用实现（优化，可选；非 M6 硬性——可在 M6 内做亦可推 M7）**。范围变更（2026-10-10，`LLVM-070t` 收尾）：G4（`ISS-178`）与 G6（`ISS-180`）**同根、已由 `LLVM-070t` 修复并关闭** ⇒ 本项**不再是缺陷修复**，而是**实现**真尾调用（tail-jump 复用调用者返回地址 + 拆帧），进一步优化 `-O2` 产物；受益基准 crc32/md5sum/tarfind/ud/xgboost 等 |
 | `QEMU-052t` | 已验证 | 10-09 08:54 | 10-09 10:50 | 改走 `load_elf()`（**钉子②**）+ 调用前薄校验（`e_flags`/`ET_EXEC` + 逐段一致性/范围）；**用户裁定 D**：允许集合 = **仅旧 RAM 段**（`0xffff_0000_0000`/16 MiB），落 ROM 窗口段 ⇒ 加载期非零退出；**RAM@0 未纳入**（留 `QEMU-053t` step2）；`-bios`+ELF 组合不需要 |
 | `QEMU-053t` | 已验证 | — | 10-09 18:58 | RAM@0 step2（`ISS-165`）收口 + `ISS-169` 探针迁移。`ISS-165` step2：删旧 RAM 段（`0xffff_0000_0000`）+ 删 exit-port + ~60 文件迁 `0` + `check-interface` 收紧 + `Machine-01` 与锁同步（用户预授权）；`ISS-169`：7 探针 → `SYS_EXIT`（`006t`/`008t`/`010t`/`012t`/`013t`/`030t` rc=0；`009t` 属 OBSOLETE 语义 rc=1）。提交 `2f54df9`（含 `5898601`）；`master` 单提交落地 |
 | `QEMU-054m` | 待开始 | — | — | M6 qemu 里程碑 |
@@ -43,7 +43,7 @@
 | `TESTCASES-036t` | 已验证 | — | 10-09 21:34 | M6 新能力向量（L1 编码向量 + L3 执行向量：raw-bin 7/7 + ELF 1/1）；**独立 oracle**（`validate_m6_vectors.py`，无 `subprocess`）；`check-lit` **73→74 PASS（+1）**；遗留：REL12/ABS12（`ld/st` 符号偏移）L1+L3 待 `LLVM-065t`〔`UNSUPPORTED` 暂缓〕、`make test-m6` 接线归 `INTEG-025t` |
 | `TESTCASES-037t` | 已验证 | — | 10-09 21:59 | lit 量产：骨架生成器**机械遍历 `contracts/opcodes.yaml` 全部记录**（现行统计 227 = 217 正例 + 10 反例）、期望**机械派生**（禁反填）、**幂等**；**分层**——快档 `gen-fast.s` 入 `make check`（`check-lit` 76/75/1）、全量档 `MC/DADAO-gen/` **opt-in** `check-lit-full`；`make check-lit` 耗时受控；遗留：`DADAO-gen` 完整性仅 opt-in 校验〔M7 分层时定层〕 |
 | `TESTCASES-038t` | 已验证 | — | 10-09 22:21 | 上游 IR 编译层 + host `lli` × DADAO(QEMU) **值级对拍**；现场统计：编译 19/19、对拍 19/19 matched、`on-disk 41 / include 19 / exclude 22`；**只做值级**、端序/内存布局类排除、**不作执行语义判据**；遗留：驱动 **opt-in**，接线归 `INTEG-025t`；值通道 = 退出码低 8 位 |
-| `TESTCASES-039t` | 已验证 | — | 10-10 09:49 | Embench 接入（钉子③）：board shim 3 函数 + 最小运行时（不引 libc）+ `md5` 大端；**首验收达标：`-O0` 10/19 基准退出码 0**；**暴露 6 类后端缺口 G1–G6（见 `LLVM-070t…074t`；M6「完整编译正确性」目标尚未达成）**；reviewer 非阻断建议 4 条〔`run.sh` 日志截断 / C1 grep 同名 / C2 UND 面窄 / `sqrt` 暂为死代码〕 |
+| `TESTCASES-039t` | 已验证 | — | 10-10 09:49 | Embench 接入（钉子③）：board shim 3 函数 + 最小运行时（不引 libc）+ `md5` 大端；**首验收达标：`-O0` 10/19 基准退出码 0**；**暴露 6 类后端缺口 G1–G6（见 `LLVM-070t…074t`；M6「完整编译正确性」目标尚未达成）**；reviewer 非阻断建议 4 条〔`run.sh` 日志截断 / C1 grep 同名 / C2 UND 面窄 / `sqrt` 暂为死代码〕；**`-O2` 死循环 4 例〔G6/`ISS-180`〕已随 `LLVM-070t` 修复** |
 | `TESTCASES-040m` | 待开始 | — | — | M6 testcases 里程碑 |
 | `TESTCASES-041t` | 待开始 | — | — | 返回寄存器 `rd8` 收口——受影响向量/期望值重派生重验（域A 函数返回 / 域B 半托管返回**分别验收**） |
 

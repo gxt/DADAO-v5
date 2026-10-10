@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..593880eb6
+index 000000000..3dafbf5b8
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,916 @@
+@@ -0,0 +1,933 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -392,6 +392,23 @@ index 000000000..593880eb6
 +  SDValue Callee = CLI.Callee;
 +  CallingConv::ID CallConv = CLI.CallConv;
 +  bool IsVarArg = CLI.IsVarArg;
++
++  // DADAO has no tail-call instruction: every `call` pushes a return address
++  // onto the RegRAS (`ra63`; contract-abi.md §2.3).  Lowering a `tail call` as
++  // a plain `call` therefore makes the callee return to the instruction after
++  // the call -- which, when the call is the caller's last instruction, is the
++  // *callee's own entry* (or the next function), yielding a silent infinite
++  // loop (ISS-180 / G6).  Until DADAO lowers tail calls to a real tail-jump,
++  // decline the tail-call form (TargetLowering::CallLoweringInfo::IsTailCall is
++  // documented to be cleared by LowerCall implementations) so a normal
++  // call+return is emitted instead.  `musttail` cannot legally be demoted, so
++  // fail explicitly rather than silently miscompile.
++  if (CLI.IsTailCall) {
++    if (CLI.CB && CLI.CB->isMustTailCall())
++      report_fatal_error("DADAO: 'musttail' calls are not supported (the "
++                         "target has no tail-call instruction)");
++    CLI.IsTailCall = false;
++  }
 +
 +  if (CallConv != CallingConv::C && CallConv != CallingConv::Fast)
 +    report_fatal_error("DADAO: only the C calling convention is supported");

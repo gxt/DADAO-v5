@@ -360,11 +360,11 @@
 
 - id: ISS-178
   title: "尾调用 `LowerCall` 断言 `LowerCall emitted a return value for a tail call!`（仅 `-O2`）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "**G4**。现象：`-O2` 下 `clang` 在 `LowerCall` 断言失败（rc=134）：`LowerCall emitted a return value for a tail call!`；`-O0` 全部消失。最小复现：`extern long g(void); long f(void){ return g(); }`（`-O2`）。命中基准：crc32 / md5sum / tarfind / ud / xgboost（**仅 `-O2`**）。**性质 = 缺能力（编译期显式失败，但仅优化级触发）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G4`。归属：新任务 `LLVM-074t`。"
+  resolved_by: LLVM-070t
+  notes: "**G4**。现象：`-O2` 下 `clang` 在 `LowerCall` 断言失败（rc=134）：`LowerCall emitted a return value for a tail call!`；`-O0` 全部消失。最小复现：`extern long g(void); long f(void){ return g(); }`（`-O2`）。命中基准：crc32 / md5sum / tarfind / ud / xgboost（**仅 `-O2`**）。**性质 = 缺能力（编译期显式失败，但仅优化级触发）**。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G4`。归属：新任务 `LLVM-074t`。 **已解决（2026-10-10，`LLVM-070t`）**：G4 与 G6（`ISS-180`）**同根**——后端不处理尾调用（`LowerCall` 忽略 `CLI.IsTailCall`）；修复后尾调用形态一律降级为非尾调用（发普通 `call`+`ret`），该断言路径不可达（reviewer 独立验证：修复后非 void 尾调用 `llc` rc=0、注入复原即断言 rc=134）。真尾调用**实现**（优化）转 `LLVM-074t`（**非 M6 硬性**）。"
 
 - id: ISS-179
   title: "分支 / 跳转目标超 12 位 PC 相对范围：`error: branch/jump target out of range for a 12-bit PC-relative immediate`"
@@ -376,8 +376,8 @@
 
 - id: ISS-180
   title: "【缺陷·静默错码】`-O2` 运行期误编译致死循环：编译成功但 QEMU 执行 hang（`GUEST_EXIT=124`），`-O0`/`-O1` 正常"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "**G6（最严重：静默错码，非编译期失败）**。现象：`huffbench` / `matmult-int` / `nettle-sha256` / `statemate` 在 `-O2` **编译成功**，但 QEMU 运行**超时（`GUEST_EXIT=124`）**；`-O0`/`-O1` 同基准 **exit=0**。最小复现：`.work/source/embench-iot/src/matmult-int/matmult-int.c` 仅把 `LOCAL_SCALE_FACTOR 39` 改 `3`（`/tmp/opencode/TESTCASES-039t/red/mm.c`），`-O2` 死循环、`-O0`/`-O1` exit=0。执行轨迹（`-d exec`）：停在 `memcpy` 的两条指令（PC `0x4e0`/`0x4f4`）反复自转，`rd4`（i）持续自增而 `rd5`（n）=0，即循环不推进 ⇒ **`-O2` 优化级误编译，非算法死循环**。影响：**污染所有 `-O2` 交付**（静默错码，编译 rc=0 掩盖运行期错误）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G6`；reviewer 独立复现 `TESTCASES-039t-review-{matrix,gates,e2e}.log`（`TO=25` 下 `-O2` huffbench/matmult-int ⇒ rc=124，`-O0` ⇒ 0；QEMU 输出仅 `[board:init]`、无 `[board:start]`，hang 于 `warm_caches`）。归属：新任务 `LLVM-070t`（**优先执行**）。"
+  resolved_by: LLVM-070t
+  notes: "**G6（最严重：静默错码，非编译期失败）**。现象：`huffbench` / `matmult-int` / `nettle-sha256` / `statemate` 在 `-O2` **编译成功**，但 QEMU 运行**超时（`GUEST_EXIT=124`）**；`-O0`/`-O1` 同基准 **exit=0**。最小复现：`.work/source/embench-iot/src/matmult-int/matmult-int.c` 仅把 `LOCAL_SCALE_FACTOR 39` 改 `3`（`/tmp/opencode/TESTCASES-039t/red/mm.c`），`-O2` 死循环、`-O0`/`-O1` exit=0。执行轨迹（`-d exec`）：停在 `memcpy` 的两条指令（PC `0x4e0`/`0x4f4`）反复自转，`rd4`（i）持续自增而 `rd5`（n）=0，即循环不推进 ⇒ **`-O2` 优化级误编译，非算法死循环**。影响：**污染所有 `-O2` 交付**（静默错码，编译 rc=0 掩盖运行期错误）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G6`；reviewer 独立复现 `TESTCASES-039t-review-{matrix,gates,e2e}.log`（`TO=25` 下 `-O2` huffbench/matmult-int ⇒ rc=124，`-O0` ⇒ 0；QEMU 输出仅 `[board:init]`、无 `[board:start]`，hang 于 `warm_caches`）。归属：新任务 `LLVM-070t`（**优先执行**）。 **已解决（2026-10-10，`LLVM-070t`）**：根因 = 后端不处理尾调用（`LowerCall` 忽略 `CLI.IsTailCall` ⇒ 尾调用当普通 `call` 发但**不发 `ret`** ⇒ 返回地址 = 调用者函数结束处 = 被调者自身入口 ⇒ 静默无限重入；触发点 `warm_caches` 的 `tail call @benchmark_body`）；修复 = 清零 `CLI.IsTailCall`（发 `call`+正常 `ret`）+ `musttail` 显式 `report_fatal_error`；4 基准 `-O2` 退出码 0；reviewer 独立注入（删清零行）⇒ matmult-int `-O2` `GUEST_EXIT=124` ⇒ 还原重建回绿；门控全绿。"
