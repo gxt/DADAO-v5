@@ -18,7 +18,7 @@
 | `SPEC-122t` | 已验证 | 10-08 23:54 | 10-08 23:57 | M6 ADR 决策落地（`ADR-0018 §C7 D4` 四形态修订 + `ADR-0021`/`0022` 新建；组合加载 ADR 不立） |
 | `SPEC-123t` | 已验证 | 10-09 07:21 | 10-09 07:53 | reloc 正文（`REL12`(rb0/PC 相对 `S+A−P`)/`ABS12`(rb1–rb63 `S+A`)、`NUM`=6 + `ABS48` 数据 8B）+ `Toolchain-01 §6.1` `set.fo` 口径 + 锁 |
 | `SPEC-124t` | 已验证 | 10-09 08:17 | 10-09 08:22 | 调用约定契约收口（`§6` 三 `[OPEN]` 消解）+ 改册（返回寄存器 `rd31→rd8/rb8/rf8`、声明序递增、每 bank K=8、超者 sret 经 rb16）+ 锁 |
-| `SPEC-125m` | 待开始 | — | — | M6 spec 里程碑 |
+| `SPEC-125m` | 里程碑 | — | 10-11 00:41 | M6 spec 里程碑：关联 `SPEC-122t`/`123t`/`124t`/`126t` 均 `已验证`；产出（`adr-0018` 修订/`adr-0021`/`adr-0022` 均 `Accepted`、`contract-elf §2–§4`、`Toolchain-01 §6.1`+锁 `3d129ba8…`、`contract-abi §6` 三 `[OPEN]` 消解）齐；`make check` EXIT=0 |
 | `SPEC-126t` | 已验证 | 10-09 08:37 | 10-09 08:48 | 系统调用/半托管返回寄存器 `rd31 → rd8`（`DADAO-21/22/23` + `Machine-01`）+ 两合约同步 + 锁；**入参 `rd15`/参数区不动** |
 | `SPEC-127t` | 已验证 | 10-09 10:06 | 10-09 10:17 | 聚合传参收口（**全部聚合含 HFA/HPA 槽位上限 4→8 = 64 B；`>64 B` ⇒ 间接指针**）+ `DADAO-21` 与锁同步 + `contract-abi §6.4` |
 | `SPEC-128t` | 已验证 | — | 10-09 12:12 | ABI 寄存器布局重排（spec/契约侧）：RD `rd2–rd3` reserved〔调试/测试保留〕/`rd4–rd7` caller-saved；RB `rb2`=GP/`rb3`=TP/`rb4–rb7` caller-saved/`rb32–rb62` callee saved/`rb63`=FP 条件占用〔callee-saved〕；改 `DADAO-21`+锁+`contract-abi`+`contracts/abi.yaml`+就地修订 `ADR-0018 C7 D6`；**不立 ADR**；不含实现。**册+契约+ADR 修订；RF 表未改；RF 实现放开归 `LLVM-066t`** |
