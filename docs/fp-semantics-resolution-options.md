@@ -21,11 +21,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **候选 C**：单源操作保留 NaN 信息，双源操作 canonical 化；优点是实现分层，代价是规则不对称、向量数量增加。
 **后续影响**：contract/oracle 要按单源和双源分支；LLVM/QEMU 需一致实现，vectors 覆盖源交换与 sNaN/qNaN 混合。
 
-## FP-004
-**候选 A**：一次操作先计算完整结果，再以 OR 合并所有新 flags，最后原子提交结果和 FCSR；优点是容易复现，代价是需明确异常集合。
-**候选 B**：按规定优先级逐项提交 flags，结果提交后再更新 FCSR；优点是可表达优先级，代价是时序更复杂，LLVM/QEMU 需同步。
-**候选 C**：异常只保留最高优先级；优点是状态简单，代价是丢失并发异常信息，contract 与 oracle 需重写。
-**后续影响**：contract/oracle 固定 flags 合并和时序；LLVM/QEMU 更新 FCSR 提交点，vectors 加旧 flags 与多异常组合。
+## FP-004（已裁定：原候选 A）
+**采用规则**：一次操作先依据其各自语义计算完整结果与本次 IEEE exception flags 集合，再将该集合与旧 `rf0[4:0]` 按位 OR，并与结果原子提交；同次多个异常位均保留，无优先级覆盖。
+**依据**：IEEE 754 的 exception flags / accrued status flags 模型；DADAO 浮点无 trap。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须采用该累积/提交规则；各异常的触发条件与 NaN/舍入细则仍按其对应未决问题处理。
 
 ## FP-005
 **候选 A**：所有可舍入操作使用 FCSR rounding_mode，按 IEEE 类似的 exact/inexact 判定并 OR OF/UF/NX；优点是统一，代价是需为边界建立独立 oracle。

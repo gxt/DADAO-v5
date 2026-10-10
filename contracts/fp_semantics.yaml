@@ -434,7 +434,7 @@ instructions:
     semantics_ref: "contract-fp.md#set_w_rf"
     legality_refs: []
 
-# SPEC-130t oracle review projection (no semantic decision)
+# SPEC-130t oracle review projection; only listed adjudications are decided.
 consumer_policy:
   unspecified: UNSUPPORTED
 review_projection:
@@ -442,6 +442,11 @@ review_projection:
   scope: fp
   report_issues: docs/fp-semantics-open-issues.md
   resolution_options: docs/fp-semantics-resolution-options.md
+  adjudications:
+  - id: FP-004
+    status: RESOLVED
+    decision: ieee754_accrued_flags_atomic_commit
+    spec_reference: SimRISC-00 §浮点状态寄存器
   entries:
   - id: ft2fo_orri_rf
     family: convert_ff
@@ -453,7 +458,6 @@ review_projection:
     - FP-001
     - FP-002
     - FP-003
-    - FP-004
     - FP-005
   - id: ft2ft_orri_rf
     family: convert_ff
@@ -483,7 +487,6 @@ review_projection:
     - SimRISC-07 §格式转换指令
     basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
     issue_ids: &id002
-    - FP-004
     - FP-006
   - id: ft2io_orri_rf
     family: convert_f2i
@@ -542,7 +545,6 @@ review_projection:
     basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
     issue_ids: &id003
     - FP-001
-    - FP-004
     - FP-007
   - id: io2ft_orri_rf
     family: convert_i2f
@@ -602,7 +604,6 @@ review_projection:
     issue_ids: &id004
     - FP-001
     - FP-003
-    - FP-004
     - FP-005
     - FP-008
     - FP-009
@@ -693,7 +694,6 @@ review_projection:
     issue_ids: &id005
     - FP-001
     - FP-003
-    - FP-004
     - FP-010
     - FP-017
   - id: foroot_orri_rf

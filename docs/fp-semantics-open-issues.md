@@ -28,13 +28,11 @@
 **一个具体可观察例子**：算术左源为 qNaN、右源为 sNaN；交换两个源后，选择左源与选择 sNaN 优先会产生不同 payload 和 NV。
 **待裁决问题**：sNaN 的 quiet、源选择、payload/sign 传播和 NV 规则按哪一套唯一规则执行？
 
-## FP-004
-**现象**：一次操作可能同时产生多个异常，但 spec 没说明旧 FCSR 与新 flags 如何合并。
-**受影响指令集合**：所有会更新 FCSR 的转换、算术、root、compare 和 classify 操作。
-**spec 已规定什么**：`SimRISC-00 §浮点状态寄存器`定义 flags 字段；`SimRISC-07`定义相关操作族。
-**spec 未规定什么**：flags 是否只 OR 累积、同一操作的产生顺序、结果写入与 FCSR 写入的先后，以及同时异常的优先级。
-**一个具体可观察例子**：旧 FCSR 已有 NX，而本次操作产生 NV 与 OF；读回 FCSR 和结果时，不同提交顺序会暴露不同中间/最终状态。
-**待裁决问题**：异常集合、旧值合并、优先级和结果/FCSR 的原子可观察顺序是什么？
+## FP-004（已裁定）
+**裁定**：采用 IEEE 754 的 exception flags / accrued status flags 模型。对产生 IEEE 异常的操作，本次异常位集合与指令开始时的 `rf0[4:0]` 按位 OR；同次多个异常均保留、无优先级覆盖；结果与 flags 原子提交。DADAO 无浮点 trap，flags 仅作累积状态记录；显式写 `rf0` 仍按写掩码覆盖相应位。
+**规范落点**：`SimRISC-00 §浮点状态寄存器` 已补入该规则；裁定参考 IEEE 754 对 exception flags 与 accrued status flags 的规定。
+**受影响指令集合**：产生 IEEE 异常的转换、算术、root、compare 等浮点操作；不将 `set.w rf0`、`rd2rf`/`ld.o` 等显式 FCSR 写入误作异常累积。
+**保留边界**：哪些输入产生各异常位、舍入/underflow 细则、NaN 结果规则仍由其他 FP 问题裁定。
 
 ## FP-005
 **现象**：舍入会改变结果位和异常 flags，但各浮点操作的舍入与异常边界没有闭合。
