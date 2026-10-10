@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
 new file mode 100644
-index 000000000..0bde8d03d
+index 000000000..0ed721422
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
-@@ -0,0 +1,238 @@
+@@ -0,0 +1,239 @@
 +//===-- DADAOMCCodeEmitter.cpp - DADAO MC Code Emitter --------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -113,6 +113,7 @@ index 000000000..0bde8d03d
 +
 +  case DADAO::jump_iiii:
 +  case DADAO::call_iiii:
++  case DADAO::tailjmp_iiii:
 +    return MCFixupKind(llvm::DADAO::DADAO_FK_PCRel_24);
 +
 +  case DADAO::br_n_rd:

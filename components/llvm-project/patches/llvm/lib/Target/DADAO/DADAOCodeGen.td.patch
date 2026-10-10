@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..de90e49a3
+index 000000000..0fda9028d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,533 @@
+@@ -0,0 +1,574 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -70,6 +70,19 @@ index 000000000..de90e49a3
 +                               [SDNPHasChain, SDNPOutGlue]>;
 +def DADAOCallSeqEnd : SDNode<"ISD::CALLSEQ_END", SDT_DADAOCallSeqEnd,
 +                             [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
++
++//===----------------------------------------------------------------------===//
++// Tail call (LLVM-074t)
++//
++// Operands: chain, callee, [RegisterMask], [argument Registers...], [glue]
++// (the same shape as DADAOCall).  Produced by LowerCall for an eligible tail
++// call (all arguments in registers, non-variadic); selected to TAILJMP
++// (direct) / TAILJMPIND (indirect) by DADAOISelDAGToDAG.
++//===----------------------------------------------------------------------===//
++
++def SDT_DADAOTail : SDTypeProfile<0, -1, [SDTCisVT<0, i64>]>;
++def DADAOTail : SDNode<"DADAOISD::TAIL", SDT_DADAOTail,
++                       [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue, SDNPVariadic]>;
 +
 +
 +//===----------------------------------------------------------------------===//
@@ -145,6 +158,34 @@ index 000000000..de90e49a3
 +  let isPseudo = 1;
 +  let isCodeGenOnly = 1;
 +  let Size = 4;
++}
++
++// Tail-jump instructions (LLVM-074t).  These encode exactly like `jump-iiii`
++// / `jump-rrii` (same opcode field) but are declared isCall/isReturn -- a
++// tail-call terminator that has no successors -- and, crucially, NOT isBranch:
++// their target is a symbol, so BranchRelaxation must never treat them as a
++// branch with a basic-block destination (that would assert in
++// TargetInstrInfo::getBranchDestBlock).  isCodeGenOnly keeps them out of the
++// asm matcher (the `jump` mnemonic is still used when printing).  The block is
++// a return block (isReturn), so PrologEpilogInserter emits the standard
++// epilogue (callee-saved restores + SP/FP teardown) immediately before the
++// jump; the jump pushes no return address, so the callee's `ret` pops the
++// caller's RegRAS entry (contract-isa.md §8.3/§8.4) and the frame is torn down
++// exactly as for a normal `ret`.
++let isCall = 1, isReturn = 1, isTerminator = 1, isBarrier = 1,
++    isCodeGenOnly = 1 in {
++def tailjmp_iiii : DADAOIiii<"jump"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins brtarget24:$imm24);
++  let op = 0x70;
++  let Pattern = [];
++}
++def tailjmp_rrii : DADAORrii<"jump"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins GPRB:$ra, GPRD:$rb, imms12:$imm12);
++  let op = 0x71;
++  let Pattern = [];
++}
 +}
 +
 +// Function return terminator.  The return value has already been placed in

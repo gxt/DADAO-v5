@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..ed5139e7b
+index 000000000..ca2a59bd9
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,178 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -43,6 +43,15 @@ index 000000000..ed5139e7b
 +  /// Direct call: (chain, callee, [regmask], [argument registers...], [glue]).
 +  /// Produced by LowerCall, selected to call_iiii (LLVM-039t).
 +  CALL,
++
++  /// Tail call (real tail-jump): (chain, callee, [regmask],
++  /// [argument registers...], [glue]).  Produced by LowerCall when a tail call
++  /// is eligible (LLVM-074t: all arguments in registers, non-variadic);
++  /// selected to TAILJMP/TAILJMPIND.  The pseudo is isReturn, so PEI emits the
++  /// standard epilogue before it, and the jump reuses the caller's RegRAS
++  /// return address (contract-isa.md §8.3/§8.4: a plain `jump` does not push
++  /// a return address, so the callee's `ret` returns to our caller).
++  TAIL,
 +
 +  /// Signed / unsigned compare: (lhs, rhs) -> i64 in {-1, 0, 1}.
 +  /// No condition flags (C17); the result is an ordinary data register value.

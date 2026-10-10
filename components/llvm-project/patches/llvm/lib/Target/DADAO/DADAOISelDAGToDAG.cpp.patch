@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..ff8390b02
+index 000000000..3e3f33f81
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,418 @@
+@@ -0,0 +1,463 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -381,6 +381,51 @@ index 000000000..ff8390b02
 +        Direct ? DADAO::call_iiii : DADAO::call_rrii, DLC, MVT::Other,
 +        MVT::Glue, Ops);
 +    ReplaceNode(Node, Call);
++    return;
++  }
++  case DADAOISD::TAIL: {
++    // Real tail-jump (LLVM-074t): the operand list has the same shape as
++    // DADAOISD::CALL (chain, callee, [regmask], [argument registers...],
++    // [glue]).  A direct callee becomes tailjmp_iiii (a `jump` to the symbol);
++    // an indirect callee (the target address already in a GPRB register)
++    // becomes tailjmp_rrii with Addr = rbha + rdhb + (imms12 << 2), rdhb = rd0
++    // and imms12 = 0.  The instructions are isReturn so the epilogue is
++    // emitted before them and isCall/isBarrier so the block has no successors;
++    // the remaining register/regmask operands are carried through exactly as
++    // for CALL so InstrEmitter marks the live-in argument registers
++    // implicit-use and attaches the call-clobber mask (DL-065a, ML-004c).
++    SDValue Callee = Node->getOperand(1);
++    const bool Direct = Callee.getOpcode() == ISD::TargetGlobalAddress ||
++                        Callee.getOpcode() == ISD::TargetExternalSymbol;
++    if (!Direct && Callee.getOpcode() != ISD::Register)
++      report_fatal_error("DADAO: unsupported tail-call callee");
++
++    const SDLoc DLC(Node);
++    SDValue Chain = Node->getOperand(0);
++    const unsigned NumOps = Node->getNumOperands();
++    const bool HasGlue =
++        NumOps > 2 && Node->getOperand(NumOps - 1).getValueType() == MVT::Glue;
++    const unsigned NumExtra = NumOps - 2 - (HasGlue ? 1 : 0);
++
++    SmallVector<SDValue, 8> Ops;
++    if (Direct) {
++      Ops.push_back(Callee);
++    } else {
++      // tailjmp_rrii rbTarget, rd0, 0
++      Ops.push_back(Callee);
++      Ops.push_back(CurDAG->getRegister(DADAO::rd0, MVT::i64));
++      Ops.push_back(CurDAG->getTargetConstant(0, DLC, MVT::i64));
++    }
++    for (unsigned i = 0; i < NumExtra; ++i)
++      Ops.push_back(Node->getOperand(2 + i));
++    Ops.push_back(Chain);
++    if (HasGlue)
++      Ops.push_back(Node->getOperand(NumOps - 1));
++
++    MachineSDNode *Tail = CurDAG->getMachineNode(
++        Direct ? DADAO::tailjmp_iiii : DADAO::tailjmp_rrii, DLC, MVT::Other,
++        MVT::Glue, Ops);
++    ReplaceNode(Node, Tail);
 +    return;
 +  }
 +  case DADAOISD::CMPU:

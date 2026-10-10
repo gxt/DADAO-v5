@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..954747b1e
+index 000000000..02e058298
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,954 @@
+@@ -0,0 +1,1040 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -185,6 +185,8 @@ index 000000000..954747b1e
 +    return "DADAOISD::RET_GLUE";
 +  case DADAOISD::CALL:
 +    return "DADAOISD::CALL";
++  case DADAOISD::TAIL:
++    return "DADAOISD::TAIL";
 +  case DADAOISD::CMP:
 +    return "DADAOISD::CMP";
 +  case DADAOISD::CMPU:
@@ -403,23 +405,6 @@ index 000000000..954747b1e
 +  CallingConv::ID CallConv = CLI.CallConv;
 +  bool IsVarArg = CLI.IsVarArg;
 +
-+  // DADAO has no tail-call instruction: every `call` pushes a return address
-+  // onto the RegRAS (`ra63`; contract-abi.md §2.3).  Lowering a `tail call` as
-+  // a plain `call` therefore makes the callee return to the instruction after
-+  // the call -- which, when the call is the caller's last instruction, is the
-+  // *callee's own entry* (or the next function), yielding a silent infinite
-+  // loop (ISS-180 / G6).  Until DADAO lowers tail calls to a real tail-jump,
-+  // decline the tail-call form (TargetLowering::CallLoweringInfo::IsTailCall is
-+  // documented to be cleared by LowerCall implementations) so a normal
-+  // call+return is emitted instead.  `musttail` cannot legally be demoted, so
-+  // fail explicitly rather than silently miscompile.
-+  if (CLI.IsTailCall) {
-+    if (CLI.CB && CLI.CB->isMustTailCall())
-+      report_fatal_error("DADAO: 'musttail' calls are not supported (the "
-+                         "target has no tail-call instruction)");
-+    CLI.IsTailCall = false;
-+  }
-+
 +  if (CallConv != CallingConv::C && CallConv != CallingConv::Fast)
 +    report_fatal_error("DADAO: only the C calling convention is supported");
 +  for (const ISD::OutputArg &Arg : Outs)
@@ -438,6 +423,107 @@ index 000000000..954747b1e
 +  SmallVector<CCValAssign, 16> ArgLocs;
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
 +  CCInfo.AnalyzeCallOperands(Outs, CC_DADAO);
++
++  // Real tail call (LLVM-074t; contract-isa.md §8.3/§8.4, contract-abi.md
++  // §2.3/§4.6).  DADAO has no tail-call instruction, but it does have a plain
++  // `jump`: a tail call is lowered as a tail-jump that (a) tears down this
++  // frame and (b) jumps to the callee *without* pushing a return address, so
++  // the callee's `ret` pops the *caller's* RegRAS entry.  The frame teardown is
++  // not emitted here -- the selected tail-jump instruction (tailjmp_iiii /
++  // tailjmp_rrii) is isReturn, so PEI emits the standard epilogue before it.
++  // Only tail calls whose arguments all live in registers and in no memory of
++  // *this* frame are eligible (see the eligibility loop below).
++  if (CLI.IsTailCall) {
++    // Eligibility (LLVM-074t).  A tail-jump leaves SP at the caller's frame, so
++    // any argument that needs memory in *this* frame is unsafe:
++    //   - a varargs save area or an out-of-register (stack) argument needs the
++    //     outgoing argument area of this frame;
++    //   - a `byval` argument is a pointer to a caller-local copy, and an
++    //     `Indirect` (large aggregate) argument is a pointer to a caller-local
++    //     temporary -- both become dangling once the epilogue deallocates the
++    //     frame (same guards as RISCV/AArch64);
++    //   - an `sret` argument (callee returns through a pointer) points into the
++    //     caller's frame too.
++    bool Eligible = !VarArgSaveArea && CCInfo.getStackSize() == 0;
++    for (const ISD::OutputArg &Arg : Outs)
++      if (Arg.Flags.isByVal() || Arg.Flags.isSRet())
++        Eligible = false;
++    for (const CCValAssign &VA : ArgLocs)
++      if (VA.getLocInfo() == CCValAssign::Indirect)
++        Eligible = false;
++    if (Eligible) {
++      // Copy the outgoing register arguments (glued), materialising the
++      // caller-side sign/zero extension exactly as the normal path (C4 D2).
++      SDValue ArgGlue;
++      SmallVector<std::pair<Register, SDValue>, 8> TailRegs;
++      for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
++        CCValAssign &VA = ArgLocs[i];
++        SDValue Arg = OutVals[i];
++        switch (VA.getLocInfo()) {
++        case CCValAssign::Full:
++          break;
++        case CCValAssign::SExt:
++          Arg = DAG.getNode(ISD::SIGN_EXTEND, DL, VA.getLocVT(), Arg);
++          break;
++        case CCValAssign::ZExt:
++          Arg = DAG.getNode(ISD::ZERO_EXTEND, DL, VA.getLocVT(), Arg);
++          break;
++        case CCValAssign::AExt:
++          Arg = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Arg);
++          break;
++        default:
++          llvm_unreachable("DADAO: unsupported argument location info");
++        }
++        assert(VA.isRegLoc() && "tail call with an out-of-register argument");
++        Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), Arg, ArgGlue);
++        ArgGlue = Chain.getValue(1);
++        TailRegs.push_back(std::make_pair(VA.getLocReg(), Arg));
++      }
++
++      // Callee operand: a target global/external symbol (direct) or a GPRB
++      // virtual register holding the target address (indirect), as in CALL.
++      SDValue CalleeOp;
++      if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++        CalleeOp = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
++      } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
++        CalleeOp = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);
++      } else {
++        Register TargetReg =
++            MF.getRegInfo().createVirtualRegister(&DADAO::GPRBRegClass);
++        Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Callee, ArgGlue);
++        ArgGlue = Chain.getValue(1);
++        CalleeOp = DAG.getRegister(TargetReg, MVT::i64);
++      }
++
++      const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
++      const uint32_t *Mask = TRI->getCallPreservedMask(MF, CallConv);
++      assert(Mask &&
++             "DADAO: missing call-preserved mask for the calling convention");
++
++      SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
++      SmallVector<SDValue, 8> TailOps;
++      TailOps.push_back(Chain);
++      TailOps.push_back(CalleeOp);
++      TailOps.push_back(DAG.getRegisterMask(Mask));
++      for (auto &Reg : TailRegs)
++        TailOps.push_back(
++            DAG.getRegister(Reg.first, Reg.second.getValueType()));
++      if (ArgGlue.getNode())
++        TailOps.push_back(ArgGlue);
++      return DAG.getNode(DADAOISD::TAIL, DL, NodeTys, TailOps);
++    }
++
++    // Not eligible: a `musttail` call promises to reuse the frame, so it cannot
++    // be silently demoted -- fail loudly.  A plain (hint-only) `tail` may be
++    // demoted to an ordinary call+return (TargetLowering::CallLoweringInfo::
++    // IsTailCall is documented to be cleared by LowerCall implementations);
++    // that is correct, just not the tail-call optimisation (LLVM-070t).
++    if (CLI.CB && CLI.CB->isMustTailCall())
++      report_fatal_error("DADAO: 'musttail' call cannot be lowered: the tail "
++                         "call needs stack arguments, is variadic, or has a "
++                         "byval/indirect/sret argument");
++    CLI.IsTailCall = false;
++  }
 +
 +  if (VarArgSaveArea && CCInfo.getStackSize() != 0)
 +    report_fatal_error("DADAO: a varargs call with register-exhausted "

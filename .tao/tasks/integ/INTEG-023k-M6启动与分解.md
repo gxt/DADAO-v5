@@ -93,6 +93,14 @@
 > - **`LLVM-074t`**（= **G4**，`ISS-178`）：尾调用 `LowerCall` 断言（仅 `-O2`；crc32/md5sum/tarfind/ud/xgboost）。
 > 性质区分：**G6 = 缺陷（编译成功但运行期静默错码）**；**G1–G5 = 缺能力（均显式失败，非静默）**。M6 任务书总数由 23 `t` + 6 `m` 增为 **28 `t` + 6 `m` = 34 份**。`milestones.md` 已同步（新增 5 行 + M6 范围注记）。
 
+> **追加（2026-10-10，`LLVM-074t` 收尾 + 用户裁定 4 缺口全入 M6 ⇒ 立 5 份 `t`）**：`LLVM-074t` reviewer 判 **Accepted**（**真尾跳**：`tailjmp` 与 `jump` 同编码 `0x70`/`0x71`、`PCRel_24`；非法形态优雅降级〔varargs/byval/sret ⇒ `call`+`ret`〕、`musttail` 显式失败；`check-lit` 83/83）。`LLVM-074t` 遗留**两个新缺口**（`ISS-182`/`ISS-185`/`ISS-186`）与**待裁决项 `ISS-181`** 一并齐备。用户 **2026-10-10 裁定：`ISS-182`/`ISS-185`/`ISS-186`/`ISS-181` 四缺口全部纳入 M6**（「10 点前完不成 ⇒ 全加、跑一晚上」）⇒ 立 **5 份 `t`**（`LLVM-075t`~`078t` 入 **Wave 2/llvm 串行**〔同改 `components/llvm-project/patches` ⇒ 串行〕；`SPEC-130t` 入 **Wave 1/spec 串行**）：
+> - **`LLVM-075t`**（= **`ISS-182`**，**缺陷，优先**）：`.p2align`（可执行段）使 `llvm-mc` **abort**（`MCAssembler.cpp:588`）；可疑根因 `DADAOAsmBackend::writeNopData`；验收 `.text` 内 `.p2align 1..4` **字节数正确** + `.rodata` 不回归 + E2E。
+> - **`LLVM-076t`**（= **`ISS-185`**）：**有符号乘高半 `MULHS`/`SMUL_LOHI`**（照 `LLVM-073t` 套路，用 ISA `mul.so`；含负数/边界 **host 大整数 oracle**；断言须能区分半字序〔`lessons §8.46`〕）。
+> - **`LLVM-077t`**（= **`ISS-186`**）：`-O2` `Cannot select: … load<…, zext from i1>`（**先诊断根因**再修；`aha-mont64 -O2`）。
+> - **`SPEC-130t`**（= **`ISS-181`** 拆分-①，spec）：数据指示符口径**正文**（`spec/Toolchain-01 §7` + `.tao/knowledge/contract-asm.md`）+ **锁 `sha256` 同步**（**用户授权改只读册**；**不立 ADR**；**不动上游 `DADAO-11`**）。
+> - **`LLVM-078t`**（= **`ISS-181`** 拆分-②，llvm）：**工具链生成侧**（`llc` 只发 `.dd.*`）+ **受理侧评估**（`llvm-mc` 拒 GAS 名；**确不可行 ⇒ 退回「只禁生成侧」并登记**）+ 删 `.align` 只留 `.p2align` + **用例跟改**（`tests/**` lit/e2e/scripts + `DADAOMCAsmInfo` directive 串）；**依赖 `SPEC-130t`**。
+> **拆分说明**：`ISS-181` 跨 spec（只读册正文 + 锁）与 llvm（生成/受理 + 用例），体量大且须 **Spec-first** ⇒ 拆 `SPEC-130t` + `LLVM-078t`（后者依赖前者）。M6 任务书总数由 28 `t` + 6 `m` 增为 **33 `t` + 6 `m` = 39 份**。`milestones.md` 已同步（新增 5 行）。
+
 ## D. Wave/串行链 · 前置 ADR · 说明
 
 - **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-050t` → `INFRA-051t` → `INFRA-053t`（`ISS-172` `install-host` 幂等性修复；同改 `Makefile` ⇒ 串行）。

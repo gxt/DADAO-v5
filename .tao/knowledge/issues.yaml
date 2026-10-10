@@ -388,7 +388,7 @@
   scope: [llvm]
   blocks: []
   resolved_by: null
-  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R1`）】**状态 = 待裁决 / 暂不改**（不建任务、不改 `spec/` 与工具链）。用户裁定方向：① `.word`/`.long` 语义在汇编与高级语言间不一致 ⇒ **完全禁用**，连带 `.quad` 也不用作规范名；② 规范名 = `.dd.b08/.dd.w16/.dd.t32/.dd.o64`（`DADAO-11 §汇编兼容性`、`Toolchain-01 §7`）；③ `.dd.128` **不需要**（`llc` 对 `i128` 发两条 `.quad`，语义等价）；④ `.align` 有歧义（实测 `.align N` = 字节数、非 2^N）⇒ **删 `.align` 只留 `.p2align`**（2^N）。**待定项**：`.byte/.short` 是否一并禁；受理侧是否拒绝 GAS 名（拒 GAS 名可能需动通用 `MCParser/AsmParser.cpp`，成本↑）。**ADR 建议**：命中「外部契约 + 结论固化 + 跨模块」⇒ 建议立 ADR（**用户尚未表态**）。"
+  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R1`）】**状态 = 待裁决 / 暂不改**（不建任务、不改 `spec/` 与工具链）。用户裁定方向：① `.word`/`.long` 语义在汇编与高级语言间不一致 ⇒ **完全禁用**，连带 `.quad` 也不用作规范名；② 规范名 = `.dd.b08/.dd.w16/.dd.t32/.dd.o64`（`DADAO-11 §汇编兼容性`、`Toolchain-01 §7`）；③ `.dd.128` **不需要**（`llc` 对 `i128` 发两条 `.quad`，语义等价）；④ `.align` 有歧义（实测 `.align N` = 字节数、非 2^N）⇒ **删 `.align` 只留 `.p2align`**（2^N）。**待定项**：`.byte/.short` 是否一并禁；受理侧是否拒绝 GAS 名（拒 GAS 名可能需动通用 `MCParser/AsmParser.cpp`，成本↑）。**ADR 建议**：命中「外部契约 + 结论固化 + 跨模块」⇒ 建议立 ADR（**用户尚未表态**）。 **已裁定（用户 2026-10-10：4 缺口全入 M6）：拆 `SPEC-130t`（=本项**正文口径 + 锁**）+ `LLVM-078t`（**工具链生成/受理 + 用例**，依赖 `SPEC-130t`）；裁定 ①只留 `.dd.*`（`.byte/.short/.long/.quad/.word/.octa` 全禁）②两侧一致（`llc` 只生成 `.dd.*`、`llvm-mc` 拒 GAS 名；受理侧不可行 ⇒ 退回只禁生成侧并登记）③删 `.align` 只留 `.p2align` ④**不立 ADR**、改 v5 侧 `Toolchain-01 §7` + `contract-asm.md` + 锁，**不动上游 `DADAO-11`** ⑤`.dd.128` 暂不加。**"
 
 - id: ISS-182
   title: "【缺陷】`.p2align`（可执行段）使 `llvm-mc` 崩溃：`MCAssembler.cpp:588 The stream should advance by fragment size`"
@@ -396,7 +396,7 @@
   scope: [llvm]
   blocks: []
   resolved_by: null
-  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R2`）】**缺陷**：`.text` 内 `.p2align N`（N≥1）或 `.align N`（N≥2）⇒ `llvm-mc` rc=134/141，断言 `MCAssembler.cpp:588 The stream should advance by fragment size`；`.rodata` 内同指令正常（rc=0）。**最小复现**：`printf '.text\\n.byte 1\\n.p2align 3\\n.byte 2\\n' | llvm-mc --triple=dadao-unknown-elf -filetype=obj -o /tmp/x.o /dev/stdin`。**可疑根因**：`DADAOAsmBackend::writeNopData`（`MCTargetDesc/DADAOAsmBackend.cpp:299`，已实现）行为不对，或对齐 fragment 尺寸算错。**影响**：真实 C 代码在 `.text` 内做块对齐即触发（`llc` 会发 `.p2align`）。**待用户定是否提前修**；暂不建任务。"
+  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R2`）】**缺陷**：`.text` 内 `.p2align N`（N≥1）或 `.align N`（N≥2）⇒ `llvm-mc` rc=134/141，断言 `MCAssembler.cpp:588 The stream should advance by fragment size`；`.rodata` 内同指令正常（rc=0）。**最小复现**：`printf '.text\\n.byte 1\\n.p2align 3\\n.byte 2\\n' | llvm-mc --triple=dadao-unknown-elf -filetype=obj -o /tmp/x.o /dev/stdin`。**可疑根因**：`DADAOAsmBackend::writeNopData`（`MCTargetDesc/DADAOAsmBackend.cpp:299`，已实现）行为不对，或对齐 fragment 尺寸算错。**影响**：真实 C 代码在 `.text` 内做块对齐即触发（`llc` 会发 `.p2align`）。**待用户定是否提前修**；暂不建任务。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-075t`（**缺陷，优先**）。**"
 
 - id: ISS-183
   title: "【子代理执行异常·已处置】`LLVM-071t` reviewer 首次下发返回 `Too Many Requests`、产出未落盘；重试 1 次成功（未触发任务拆分）"
@@ -420,7 +420,7 @@
   scope: [llvm]
   blocks: []
   resolved_by: null
-  notes: "**G2 同族缺口（未修，范围外）**。现象：`long g(long a,long b){ return a*b/3; }` ⇒ `llc -march=dadao` rc=134，`LLVM ERROR: Cannot select: ... mulhs ...`（有符号乘高半无 pattern；`LLVM-073t` 仅实现无符号 `mulhu`/`umul_lohi`）。`LLVM-073t` engineer 记录 + reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**（M6 边界待用户裁定）。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑③」「遗留问题①」。**关联（测试强度缺口；择一说明：并入本条而非单列，以维持本轮新 issue 计 2 条）**：已提交用例 `mulhi_e2e.c` mode3 `lo^hi` 与 lit `umul128_xor` 均为 **XOR 交换不变** ⇒ 对「`umul_lohi` 双结果(半字序)互换」类缺陷**数学上不可检**；后续修复/补测须构造**非交换**判别用例（reviewer 已实测 `hi-lo` 可检出）。"
+  notes: "**G2 同族缺口（未修，范围外）**。现象：`long g(long a,long b){ return a*b/3; }` ⇒ `llc -march=dadao` rc=134，`LLVM ERROR: Cannot select: ... mulhs ...`（有符号乘高半无 pattern；`LLVM-073t` 仅实现无符号 `mulhu`/`umul_lohi`）。`LLVM-073t` engineer 记录 + reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**（M6 边界待用户裁定）。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑③」「遗留问题①」。**关联（测试强度缺口；择一说明：并入本条而非单列，以维持本轮新 issue 计 2 条）**：已提交用例 `mulhi_e2e.c` mode3 `lo^hi` 与 lit `umul128_xor` 均为 **XOR 交换不变** ⇒ 对「`umul_lohi` 双结果(半字序)互换」类缺陷**数学上不可检**；后续修复/补测须构造**非交换**判别用例（reviewer 已实测 `hi-lo` 可检出）。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-076t`。**"
 
 - id: ISS-186
   title: "`aha-mont64 -O2` 阻塞于 `Cannot select: ... load<..., zext from i1>`（后端缺口，它类）"
@@ -428,4 +428,4 @@
   scope: [llvm]
   blocks: []
   resolved_by: null
-  notes: "**它类缺口（与 G2 无关）**。现象：`aha-mont64` 在 `-O2` 编译 `mont64.c` rc=1，`LLVM ERROR: Cannot select: ... load<..., zext from i1>`（`trunc(load i64)` ⇒ `load i1` zext 无 lowering）；此前被 G2 掩盖。`-O0` rc=0 正常。`LLVM-073t` reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑④」「遗留问题②」。"
+  notes: "**它类缺口（与 G2 无关）**。现象：`aha-mont64` 在 `-O2` 编译 `mont64.c` rc=1，`LLVM ERROR: Cannot select: ... load<..., zext from i1>`（`trunc(load i64)` ⇒ `load i1` zext 无 lowering）；此前被 G2 掩盖。`-O0` rc=0 正常。`LLVM-073t` reviewer 独立复现属实。**性质 = 缺能力（编译期显式失败，非静默）**。**只登记，不建任务**。证据指针：`.work/log/llvm/LLVM-073t-review-*.log`；任务书 `.tao/tasks/llvm/LLVM-073t-*.md`「新发现/坑④」「遗留问题②」。 **已立项（用户 2026-10-10 裁定 4 缺口全入 M6）：归 `LLVM-077t`（**先诊断根因**）。**"
