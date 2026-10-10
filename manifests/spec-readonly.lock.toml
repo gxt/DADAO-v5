@@ -128,7 +128,10 @@ group = "toolchain-01"
 # §5「scope: excluded」格式列表改为仅 crii（crrr/ciii 注明 m1）；§13「cfx 属 excluded」改为
 # cfx2rd/cfx2rc/trap/escape=m1、cfxld/cfxst=excluded；§11/§12 内容移出（指针 → contract-asm.md §11 /
 # spec/README.md 门控列）；消除写死计数（M1 格式类数/指令条数改为指向 contracts/opcodes.yaml）。
-sha256 = "2ffcad3ea471170b35ab7f44921de9ee93cafd186c1191285a7fa5261e4475f0"
+# 2026-10-10（SPEC-130t，用户裁定数据指示符口径：只留 .dd.b08/.dd.w16/.dd.t32/.dd.o64、
+# .byte/.short/.long/.quad/.word/.octa 全禁、删 .align 只留 .p2align、.dd.128 暂不加、不立 ADR）：
+# §7 重写为 §7.1「数据指示符（唯一集合）」+ §7.2「对齐指示符」；删过时「v5 汇编器尚未实现」表述。
+sha256 = "3d129ba8c7391aea291059d788b015a6fb9a3f965728434d2530eeb144aa7a4a"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"

@@ -194,9 +194,17 @@
 
 ## §7 指导符（directives）
 
-- 上游 `DADAO-11 §汇编兼容性` 规定 4 条数据指导符（Knuth/MMIX 的数据长度定义）：`.dd.b08`（8 位/1 字节）、`.dd.w16`（16 位/2 字节）、`.dd.t32`（32 位/4 字节）、`.dd.o64`（64 位/8 字节）。[Toolchain-01 §7][DADAO-11 §指导符（directives）]
-- DADAO 的 octa = 8 字节，与 GAS 的 `.octa`（16 字节）不同，MUST NOT 使用 GAS 的 `.word`/`.octa` 语义。[Toolchain-01 §7][DADAO-11 §指导符（directives）]
-- 当前状态：v5 汇编器尚未实现（报 `unknown directive`）；`.word` 被拒（与上述意图一致）。[Toolchain-01 §7]
+### §7.1 数据指示符（唯一集合）
+
+- 上游 `DADAO-11 §汇编兼容性` 规定数据指示符采用 Knuth/MMIX 的数据长度定义；DADAO 汇编语言的**唯一**数据指示符集合为 `.dd.b08`（8 位/1 字节）、`.dd.w16`（16 位/2 字节）、`.dd.t32`（32 位/4 字节）、`.dd.o64`（64 位/8 字节）。[Toolchain-01 §7.1][DADAO-11 §指导符（directives）]
+- `llc` MUST 只生成上述 `.dd.*` 集，`llvm-mc` MUST 受理上述 `.dd.*` 集。[Toolchain-01 §7.1]
+- GAS 数据指示符 `.byte`/`.short`/`.long`/`.quad`/`.word`/`.octa` MUST NOT 使用（亦 MUST NOT 被受理）；DADAO 的 octa = 8 字节，与 GAS 的 `.octa`（16 字节）语义不同 ⇒ 8 字节数据写 `.dd.o64`。[Toolchain-01 §7.1][DADAO-11 §指导符（directives）]
+- `.dd.128`（16 字节）暂不引入。[Toolchain-01 §7.1]
+
+### §7.2 对齐指示符
+
+- `.align` MUST NOT 使用（`.align N` 为字节数语义，与 GAS 的 `2^N` 冲突）。[Toolchain-01 §7.2]
+- 唯一对齐指示符为 `.p2align N`（按 `2^N` 字节对齐）。[Toolchain-01 §7.2]
 
 ---
 
