@@ -12,7 +12,7 @@
 | `INTEG-026m` | 待开始 | — | — | M6 integ 里程碑（整体收敛点） |
 | `INFRA-050t` | 已验证 | 10-08 23:49 | 10-09 07:09 | LLVM 一次构建（`DADAO;X86` + `clang;lld`）+ 双落点；曾中断，半成品已保命续用 |
 | `INFRA-051t` | 已验证 | — | 10-09 22:43 | Embench 组件接入：锁翻 `enabled=true` + commit `09c2ed8c…`（= `ADR-0022 D2`）；骨架 `components/embench-iot/**`（含**用户裁定的 1 个最小占位补丁**）；`make fetch` 幂等零联网、`.work/source`=base+1；board shim/运行时归 `TESTCASES-039t` |
-| `INFRA-052m` | 待开始 | — | — | M6 infra 里程碑 |
+| `INFRA-052m` | 里程碑 | — | 10-11 00:38 | M6 infra 里程碑：关联 `INFRA-050t`/`051t` 均 `已验证`；产出（`cross-toolchain/{clang,llc,ld.lld}`+`host-tools/lli`+`components/embench-iot/**`+`enabled=true`）齐；`make check`/`check-patch-tree` EXIT=0 |
 | `INFRA-053t` | 已验证 | — | 10-09 20:06 | `ISS-172` 修复：`atomic-install`（`cp -aL …tmp.$$ && mv -f`，`rename(2)` 原子）；串行 ×2 与并行均 0；同 worktree 并发 gate 仍不支持〔已声明〕 |
 | `INFRA-054t` | 已验证 | — | 10-10 08:24 | `install-host` 随装 clang 内置头（`atomic-install-dir` + `<ver>` 现场探测）；resource-dir 真实存在；仍 freestanding；幂等；遗留：resource-dir `lib/`〔compiler-rt builtins〕不装〔M6 无消费者〕 |
 | `SPEC-122t` | 已验证 | 10-08 23:54 | 10-08 23:57 | M6 ADR 决策落地（`ADR-0018 §C7 D4` 四形态修订 + `ADR-0021`/`0022` 新建；组合加载 ADR 不立） |
