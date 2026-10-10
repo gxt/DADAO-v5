@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
 new file mode 100644
-index 000000000..f3d10e931
+index 000000000..0bde8d03d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
-@@ -0,0 +1,185 @@
+@@ -0,0 +1,238 @@
 +//===-- DADAOMCCodeEmitter.cpp - DADAO MC Code Emitter --------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -38,6 +38,21 @@ index 000000000..f3d10e931
 +
 +namespace {
 +
++// Map a DADAO register enum to its 6-bit hardware encoding, or ~0u for a
++// register outside the four banks (RD/RB/RF/RA).  rb0 maps to 0 (the PC alias);
++// it is the register that selects the PC-relative ld/st reloc type.
++static unsigned dadaoRegHW(unsigned RegNo) {
++  if (RegNo >= 131 && RegNo <= 194) // RD
++    return RegNo - 131;
++  if (RegNo >= 67 && RegNo <= 130) // RB
++    return RegNo - 67;
++  if (RegNo >= 3 && RegNo <= 66) // RF
++    return RegNo - 3;
++  if (RegNo >= 195 && RegNo <= 258) // RA
++    return RegNo - 195;
++  return ~0u;
++}
++
 +class DADAOMCCodeEmitter : public MCCodeEmitter {
 +  const MCInstrInfo &MCII;
 +  MCContext &Ctx;
@@ -68,6 +83,11 @@ index 000000000..f3d10e931
 +  // andn.w, rd and rb variants) whose symbol operand is an absolute 48-bit
 +  // address.  They emit DADAO_FK_ABS48 instead of a PC-relative fixup.
 +  static bool isAddressConstructionInstr(unsigned Opcode);
++
++  // True for the rrii load/store instructions (ld.*/st.*, rd/rb/ra variants)
++  // whose memory operand may carry a symbol displacement.  The base register is
++  // operand 1; the symbol displacement (imms12) is the expression operand.
++  static bool isLoadStoreInstr(unsigned Opcode);
 +};
 +
 +} // end anonymous namespace
@@ -125,25 +145,39 @@ index 000000000..f3d10e931
 +  }
 +}
 +
++bool DADAOMCCodeEmitter::isLoadStoreInstr(unsigned Opcode) {
++  switch (Opcode) {
++  // Loads (rrii): dst is rd/rb/ra; memory operand [rb, imms12].
++  case DADAO::ld_ub_rd:
++  case DADAO::ld_uw_rd:
++  case DADAO::ld_ut_rd:
++  case DADAO::ld_sb_rd:
++  case DADAO::ld_sw_rd:
++  case DADAO::ld_st_rd:
++  case DADAO::ld_o_rd:
++  case DADAO::ld_o_rb:
++  case DADAO::ld_o_ra:
++  // Stores (rrii): src is rd/rb/ra; memory operand [rb, imms12].
++  case DADAO::st_b_rd:
++  case DADAO::st_w_rd:
++  case DADAO::st_t_rd:
++  case DADAO::st_o_rd:
++  case DADAO::st_o_rb:
++  case DADAO::st_o_ra:
++    return true;
++  default:
++    return false;
++  }
++}
++
 +unsigned DADAOMCCodeEmitter::getMachineOpValue(
 +    const MCInst &Inst, const MCOperand &MCOp,
 +    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
 +  if (MCOp.isReg()) {
 +    // Convert LLVM register enum to 6-bit hardware encoding.
-+    // RD bank: rd0=131, rd1=132, ..., rd63=194 → hw 0-63
-+    // RB bank: rb0=67, rb1=68, ..., rb63=130 → hw 0-63
-+    // RF bank: rf0=3, rf1=4, ..., rf63=66 → hw 0-63
-+    // RA bank: ra0=195, ra1=196, ..., ra63=258 → hw 0-63
-+    unsigned RegNo = MCOp.getReg().id();
-+    if (RegNo >= 131 && RegNo <= 194) // RD
-+      return RegNo - 131;
-+    if (RegNo >= 67 && RegNo <= 130) // RB
-+      return RegNo - 67;
-+    if (RegNo >= 3 && RegNo <= 66) // RF
-+      return RegNo - 3;
-+    if (RegNo >= 195 && RegNo <= 258) // RA
-+      return RegNo - 195;
-+    return 0;
++    // RD bank: hw 0-63; RB bank: hw 0-63; RF bank: hw 0-63; RA bank: hw 0-63.
++    unsigned HW = dadaoRegHW(MCOp.getReg().id());
++    return HW == ~0u ? 0 : HW;
 +  }
 +  if (MCOp.isImm())
 +    return static_cast<unsigned>(MCOp.getImm());
@@ -159,6 +193,25 @@ index 000000000..f3d10e931
 +    Fixups.push_back(MCFixup::create(0, MCOp.getExpr(),
 +                                     MCFixupKind(llvm::DADAO::DADAO_FK_ABS48),
 +                                     /*PCRel=*/false));
++    return 0;
++  }
++
++  // ld.*/st.* symbol displacement ([rb, sym]): the assembler picks the reloc
++  // type from the base register (the RELA record has no base-register field).
++  //   base rb0        -> R_DADAO_REL12 : PC-relative byte offset, S + A - P
++  //   base rb1..rb63  -> R_DADAO_ABS12 : base-relative byte offset, S + A
++  // Both use the imms12 (byte) field.  Picking REL20 here (the emitter's old
++  // default) was wrong: REL20 is an 18-bit *word* branch offset (ISS-151).
++  // Source: contract-elf.md §2.2/§3.1 (ADR-0021 §D1-D3).
++  if (isLoadStoreInstr(Inst.getOpcode())) {
++    assert(Inst.getNumOperands() >= 2 && Inst.getOperand(1).isReg() &&
++           "ld/st base register operand missing");
++    bool IsRb0 = dadaoRegHW(Inst.getOperand(1).getReg().id()) == 0;
++    Fixups.push_back(MCFixup::create(
++        0, MCOp.getExpr(),
++        MCFixupKind(IsRb0 ? llvm::DADAO::DADAO_FK_REL12
++                          : llvm::DADAO::DADAO_FK_ABS12),
++        /*PCRel=*/IsRb0));
 +    return 0;
 +  }
 +

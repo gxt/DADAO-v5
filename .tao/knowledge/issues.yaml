@@ -255,27 +255,27 @@
 
 - id: ISS-161
   title: "LLVM-052t 遗留：REL12（load/store 相对寻址）未添加；FK_Data_1/2/4 数据符号引用静默出 0"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "【2026-10-06 改号：原误用 M3 已归档的 ISS-150，改为 ISS-161】LLVM-052t reviewer 判：① load/store 相对寻址需 R_DADAO_REL12（用户允准 M4 之后，须 ADR 逐条确认，属新增第 5 类）；② FK_Data_1/2/4（.long <sym> 等）仍静默 0、无 reloc（既有缺陷，非本任务引入）；③ .quad <sym> 现也发 ABS48（机制必然，无回归）。② 建议随 LLVM-055t（全局数据）一并处理。"
+  resolved_by: LLVM-065t
+  notes: "【2026-10-06 改号：原误用 M3 已归档的 ISS-150，改为 ISS-161】LLVM-052t reviewer 判：① load/store 相对寻址需 R_DADAO_REL12（用户允准 M4 之后，须 ADR 逐条确认，属新增第 5 类）；② FK_Data_1/2/4（.long <sym> 等）仍静默 0、无 reloc（既有缺陷，非本任务引入）；③ .quad <sym> 现也发 ABS48（机制必然，无回归）。② 建议随 LLVM-055t（全局数据）一并处理。 **已解决（2026-10-10，LLVM-065t）**：① `REL12`(4)/`ABS12`(5) 已实现（按基址寄存器选型，不再落 `REL20`），越界 link-time error；② `.byte/.short/.long <sym>` 改**显式报错**（合约无更窄数据 reloc、禁静默 0），`.quad/.dd.o64 <sym>` 发 `ABS48`。"
 
 - id: ISS-151
   title: "LLVM-054t 遗留：访存符号偏移 ld.st …,[rb1,sym] 的 reloc 类型落 REL20（emitter 默认分支，既有）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "LLVM-054t reviewer 判：DADAOMCCodeEmitter 对访存符号偏移走默认分支落 R_DADAO_REL20，类型可能不符（既有、非本任务引入）。建议随 LLVM-055t/056t 或另立任务核实。"
+  resolved_by: LLVM-065t
+  notes: "LLVM-054t reviewer 判：DADAOMCCodeEmitter 对访存符号偏移走默认分支落 R_DADAO_REL20，类型可能不符（既有、非本任务引入）。建议随 LLVM-055t/056t 或另立任务核实。 **已解决（2026-10-10，LLVM-065t）**：`ld/st [rbN, sym]` 按基址寄存器选型——`rb0` 发 `REL12`(4)（PC 相对 `S+A−P`）、`rb1–rb63` 发 `ABS12`(5)（`S+A`），不再落 `REL20`；reviewer 独立重跑无 `REL20`。"
 
 - id: ISS-154
   title: "contract-elf.md §2/§3 ABS48 未含数据 8 字节字段表示（与 ADR-0019 §D2 澄清漂移）"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
-  notes: "LLVM-056t F8：合约正文（SPEC-105t 版）只写 ABS48 指令表示（3×immu16），未含 ADR-0019 §D2（2026-10-06）澄清的数据 8 字节字段。实现按 ADR + 用户裁定两条均实现。建议后续 spec 任务把 §2/§3 的 ABS48 行补上数据表示。"
+  resolved_by: LLVM-065t
+  notes: "LLVM-056t F8：合约正文（SPEC-105t 版）只写 ABS48 指令表示（3×immu16），未含 ADR-0019 §D2（2026-10-06）澄清的数据 8 字节字段。实现按 ADR + 用户裁定两条均实现。建议后续 spec 任务把 §2/§3 的 ABS48 行补上数据表示。 **已解决（2026-10-10，LLVM-065t）**：`ABS48` 数据 8 字节字段表示（48 位地址、大端、高 16 位 0）已由 `LLVM-065t` 落地并经 reviewer 独立验证（`.quad ext` ⇒ `R_DADAO_ABS48`；`--defsym ext=0xABCD12345678` ⇒ `.data`=`0000abcd12345678`；越界 ⇒ `out of range` rc=1）；合约正文 `contract-elf §2–§4` 已由 `SPEC-123t` 落定同口径（含数据 8B 字段）。"
 
 - id: ISS-156
   title: "set.fo rf,0 的 rd2rf 特例与 Toolchain-01 §6.1「4×set.w」口径不一"
@@ -381,3 +381,19 @@
   blocks: []
   resolved_by: LLVM-070t
   notes: "**G6（最严重：静默错码，非编译期失败）**。现象：`huffbench` / `matmult-int` / `nettle-sha256` / `statemate` 在 `-O2` **编译成功**，但 QEMU 运行**超时（`GUEST_EXIT=124`）**；`-O0`/`-O1` 同基准 **exit=0**。最小复现：`.work/source/embench-iot/src/matmult-int/matmult-int.c` 仅把 `LOCAL_SCALE_FACTOR 39` 改 `3`（`/tmp/opencode/TESTCASES-039t/red/mm.c`），`-O2` 死循环、`-O0`/`-O1` exit=0。执行轨迹（`-d exec`）：停在 `memcpy` 的两条指令（PC `0x4e0`/`0x4f4`）反复自转，`rd4`（i）持续自增而 `rd5`（n）=0，即循环不推进 ⇒ **`-O2` 优化级误编译，非算法死循环**。影响：**污染所有 `-O2` 交付**（静默错码，编译 rc=0 掩盖运行期错误）。证据指针：`.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G6`；reviewer 独立复现 `TESTCASES-039t-review-{matrix,gates,e2e}.log`（`TO=25` 下 `-O2` huffbench/matmult-int ⇒ rc=124，`-O0` ⇒ 0；QEMU 输出仅 `[board:init]`、无 `[board:start]`，hang 于 `warm_caches`）。归属：新任务 `LLVM-070t`（**优先执行**）。 **已解决（2026-10-10，`LLVM-070t`）**：根因 = 后端不处理尾调用（`LowerCall` 忽略 `CLI.IsTailCall` ⇒ 尾调用当普通 `call` 发但**不发 `ret`** ⇒ 返回地址 = 调用者函数结束处 = 被调者自身入口 ⇒ 静默无限重入；触发点 `warm_caches` 的 `tail call @benchmark_body`）；修复 = 清零 `CLI.IsTailCall`（发 `call`+正常 `ret`）+ `musttail` 显式 `report_fatal_error`；4 基准 `-O2` 退出码 0；reviewer 独立注入（删清零行）⇒ matmult-int `-O2` `GUEST_EXIT=124` ⇒ 还原重建回绿；门控全绿。"
+
+- id: ISS-181
+  title: "数据指示符口径待裁决：禁 `.word/.long/.quad`、规范名 `.dd.*`、删 `.align` 只留 `.p2align`"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R1`）】**状态 = 待裁决 / 暂不改**（不建任务、不改 `spec/` 与工具链）。用户裁定方向：① `.word`/`.long` 语义在汇编与高级语言间不一致 ⇒ **完全禁用**，连带 `.quad` 也不用作规范名；② 规范名 = `.dd.b08/.dd.w16/.dd.t32/.dd.o64`（`DADAO-11 §汇编兼容性`、`Toolchain-01 §7`）；③ `.dd.128` **不需要**（`llc` 对 `i128` 发两条 `.quad`，语义等价）；④ `.align` 有歧义（实测 `.align N` = 字节数、非 2^N）⇒ **删 `.align` 只留 `.p2align`**（2^N）。**待定项**：`.byte/.short` 是否一并禁；受理侧是否拒绝 GAS 名（拒 GAS 名可能需动通用 `MCParser/AsmParser.cpp`，成本↑）。**ADR 建议**：命中「外部契约 + 结论固化 + 跨模块」⇒ 建议立 ADR（**用户尚未表态**）。"
+
+- id: ISS-182
+  title: "【缺陷】`.p2align`（可执行段）使 `llvm-mc` 崩溃：`MCAssembler.cpp:588 The stream should advance by fragment size`"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.work/log/integ/pending-registrations.md §R2`）】**缺陷**：`.text` 内 `.p2align N`（N≥1）或 `.align N`（N≥2）⇒ `llvm-mc` rc=134/141，断言 `MCAssembler.cpp:588 The stream should advance by fragment size`；`.rodata` 内同指令正常（rc=0）。**最小复现**：`printf '.text\\n.byte 1\\n.p2align 3\\n.byte 2\\n' | llvm-mc --triple=dadao-unknown-elf -filetype=obj -o /tmp/x.o /dev/stdin`。**可疑根因**：`DADAOAsmBackend::writeNopData`（`MCTargetDesc/DADAOAsmBackend.cpp:299`，已实现）行为不对，或对齐 fragment 尺寸算错。**影响**：真实 C 代码在 `.text` 内做块对齐即触发（`llc` 会发 `.p2align`）。**待用户定是否提前修**；暂不建任务。"

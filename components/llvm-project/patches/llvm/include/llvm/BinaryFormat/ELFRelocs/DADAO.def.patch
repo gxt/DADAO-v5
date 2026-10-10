@@ -1,9 +1,9 @@
 diff --git a/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def b/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def
 new file mode 100644
-index 000000000..c09de10f5
+index 000000000..d4bbd37a2
 --- /dev/null
 +++ b/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,28 @@
 +
 +#ifndef ELF_RELOC
 +#error "ELF_RELOC must be defined"
@@ -22,5 +22,13 @@ index 000000000..c09de10f5
 +// PC-relative word offset for br.eq/br.ne (imms12).
 +// field = (S + A - P) >> 2.
 +ELF_RELOC(R_DADAO_REL14, 3)
++// Byte offset for ld.*/st.* symbol displacement with base rb0 (rrii imms12).
++// rb0 reads the address of the current instruction, so the displacement is
++// PC-relative: field = S + A - P, in BYTES (no >>2; contract-elf.md §3.1).
++ELF_RELOC(R_DADAO_REL12, 4)
++// Byte offset for ld.*/st.* symbol displacement with base rb1..rb63 (imms12).
++// The base is a general register, so the displacement is base-relative
++// (absolute): field = S + A, in BYTES (no >>2; contract-elf.md §3.1).
++ELF_RELOC(R_DADAO_ABS12, 5)
 +// Number of relocation types (not a relocation).
-+ELF_RELOC(R_DADAO_NUM, 4)
++ELF_RELOC(R_DADAO_NUM, 6)

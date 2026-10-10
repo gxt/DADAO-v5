@@ -8,18 +8,10 @@
 ;   * base rb1..rb63  -> R_DADAO_ABS12  (base-relative, field = S + A)
 ; Both use the same imms12 field (byte offset, signed 12-bit, -2048..+2047).
 ;
-; DEFERRED (spec/Process-05 §3, the deferred-vector rule): the assembler does
-; not yet emit a relocation kind for `ld/st [rbN, symbol]` (it aborts with
-; "no PC-relative fixup kind for this symbol-operand instruction"); the fixup
-; kind + linker support (R_DADAO_REL12 / R_DADAO_ABS12) is LLVM-065t, which is
-; not yet done.  The vector is written down now so downstream has the intended
-; contract, and is skipped via a REQUIRES feature that is deliberately never
-; enabled in lit.cfg.py.  When LLVM-065t lands, drop the REQUIRES line and this
-; becomes a normal lit test.  The expectations below are still re-derived from
-; contracts/opcodes.yaml (encoding) and contract-elf.md §2.2 (reloc type) by
-; tools/testcases/validate_m6_vectors.py.
-;
-; REQUIRES: dadao-ldst-symbol-reloc
+; LLVM-065t wired the fixup kind for `ld/st [rbN, symbol]` (DADAO_FK_REL12 /
+; DADAO_FK_ABS12) and the linker support; the vector is now a normal lit test.
+; The expectations are re-derived from contracts/opcodes.yaml (encoding) and
+; contract-elf.md §2.2 (reloc type) by tools/testcases/validate_m6_vectors.py.
 ;
 ; RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %s -o %t.o
 ; RUN: %llvm_readobj -r --expand-relocs %t.o | %FileCheck %s --check-prefix=REL

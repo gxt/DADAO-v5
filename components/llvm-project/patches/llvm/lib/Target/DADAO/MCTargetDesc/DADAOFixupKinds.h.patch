@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
 new file mode 100644
-index 000000000..efd780a25
+index 000000000..cf3be4625
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,78 @@
 +//===-- DADAOFixupKinds.h - DADAO Fixup Kind Info ---------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -18,9 +18,13 @@ index 000000000..efd780a25
 +//   DADAO_FK_PCRel_18: 18-bit signed (br.n/br.nn/br.z/br.nz/br.p/br.np riii format)
 +//   DADAO_FK_PCRel_24: 24-bit signed (call/jump iiii format)
 +//   DADAO_FK_ABS48:    absolute 48-bit address (set.zw/or.w/andn.w rwii)
++//   DADAO_FK_REL12:    12-bit signed BYTE offset, PC-relative (ld.*/st.* [rb0, sym])
++//   DADAO_FK_ABS12:    12-bit signed BYTE offset, base-relative (ld.*/st.* [rbN, sym])
 +//
-+// All PCRel fixups: imms = (target - current) >> 2 (no +4 pipeline offset).
++// All PCRel fixups: imms = (target - current) >> 2 (no +4 pipeline offset),
++// except DADAO_FK_REL12 whose imms12 holds a BYTE offset (no >>2).
 +// ABS48: value = S + A, sliced by the instruction's wyde-position (wp).
++// ABS12: value = S + A (byte offset).
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -57,8 +61,22 @@ index 000000000..efd780a25
 +    // Used by: set.zw / or.w / andn.w (rwii address construction)
 +    DADAO_FK_ABS48,
 +
++    // Byte displacement for a `ld.*`/`st.*` symbol offset with base rb0
++    // (rrii imms12).  rb0 reads the current instruction address, so the
++    // displacement is PC-relative: field = S + A - P, in BYTES (no >>2).
++    // The assembler picks this kind whenever the base register is rb0.
++    // Source: contract-elf.md §2.2/§3.1 (ADR-0021 §D1-D3).
++    DADAO_FK_REL12,
++
++    // Byte displacement for a `ld.*`/`st.*` symbol offset with base rb1..rb63
++    // (rrii imms12).  The base is a general register, so the displacement is
++    // base-relative (absolute): field = S + A, in BYTES (no >>2).
++    // The assembler picks this kind whenever the base register is not rb0.
++    // Source: contract-elf.md §2.2/§3.1 (ADR-0021 §D1-D3).
++    DADAO_FK_ABS12,
++
 +    // Sentinel
-+    LastTargetFixupKind = DADAO_FK_ABS48
++    LastTargetFixupKind = DADAO_FK_ABS12
 +  };
 +} // end namespace DADAO
 +} // end namespace llvm

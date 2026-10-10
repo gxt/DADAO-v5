@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..dd8cac1a5
+index 000000000..87b623197
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,243 @@
+@@ -0,0 +1,316 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -68,11 +68,17 @@ index 000000000..dd8cac1a5
 +      // DADAO_FK_ABS48: one 16-bit wyde of an absolute 48-bit address
 +      // (rwii: hb[3:0]+hc+hd); the wyde-position selects the slice.
 +      // Used by set.zw/or.w/andn.w
-+      {"DADAO_FK_ABS48", 0, 16, 0}
++      {"DADAO_FK_ABS48", 0, 16, 0},
++      // DADAO_FK_REL12: 12-bit signed BYTE offset, PC-relative (rrii: hc+hd)
++      // Used by ld.*/st.* with base rb0
++      {"DADAO_FK_REL12", 0, 32, 0},
++      // DADAO_FK_ABS12: 12-bit signed BYTE offset, base-relative (rrii: hc+hd)
++      // Used by ld.*/st.* with base rb1..rb63
++      {"DADAO_FK_ABS12", 0, 32, 0}
 +    };
 +
 +    if (Kind >= llvm::DADAO::DADAO_FK_PCRel_12 &&
-+        Kind <= llvm::DADAO::DADAO_FK_ABS48)
++        Kind <= llvm::DADAO::DADAO_FK_ABS12)
 +      return Infos[Kind - llvm::DADAO::DADAO_FK_PCRel_12];
 +
 +    return MCAsmBackend::getFixupKindInfo(Kind);
@@ -96,8 +102,14 @@ index 000000000..dd8cac1a5
 +                                    MCValue &Target,
 +                                    uint64_t &Value) override {
 +    unsigned Kind = Fixup.getKind();
-+    if (Kind < llvm::DADAO::DADAO_FK_PCRel_12 ||
-+        Kind > llvm::DADAO::DADAO_FK_PCRel_24)
++    // PC-relative branch/jump kinds, and the ld/st PC-relative byte kind
++    // (DADAO_FK_REL12) which is also resolved in place when the target symbol
++    // lives in the same section.  DADAO_FK_ABS48 / DADAO_FK_ABS12 are absolute
++    // and are never folded here.
++    const bool IsPCBranch = Kind >= llvm::DADAO::DADAO_FK_PCRel_12 &&
++                            Kind <= llvm::DADAO::DADAO_FK_PCRel_24;
++    const bool IsLdstPCRel = Kind == llvm::DADAO::DADAO_FK_REL12;
++    if (!IsPCBranch && !IsLdstPCRel)
 +      return std::nullopt;
 +    if (!Fixup.isPCRel())
 +      return std::nullopt;
@@ -113,7 +125,8 @@ index 000000000..dd8cac1a5
 +      return std::nullopt;
 +
 +    // (target - PC): the symbol's section offset minus the fixup's own address.
-+    // applyFixup() then shifts right by 2 and masks into the immediate field.
++    // applyFixup() then shifts right by 2 for the branch kinds (or uses the
++    // byte offset directly for DADAO_FK_REL12) and masks the immediate field.
 +    uint64_t V = Target.getConstant();
 +    V += Asm->getSymbolOffset(*Add);
 +    V -= Asm->getFragmentOffset(F) + Fixup.getOffset();
@@ -125,6 +138,39 @@ index 000000000..dd8cac1a5
 +                  const MCValue &Target, uint8_t *Data, uint64_t Value,
 +                  bool IsResolved) override {
 +    unsigned Kind = Fixup.getKind();
++
++    // Relocatable narrow data items (`.byte`/`.short`/`.long <sym>`, i.e.
++    // FK_Data_1/2/4): a DADAO address is 48-bit, so it can never fit in a
++    // 1/2/4-byte field and there is no narrower data relocation type
++    // (ADR-0019 §D8 forbids ABS32).  The old behaviour emitted a silent 0 with
++    // no relocation (ISS-161); now it is an explicit assembler error: no
++    // truncation, no wrap, no silent 0 (contract-elf.md §2-§4/§3.2).  Use
++    // `.dd.o64` / `.quad`, which carry the 8-byte R_DADAO_ABS48 field.
++    if (Kind == llvm::FK_Data_1 || Kind == llvm::FK_Data_2 ||
++        Kind == llvm::FK_Data_4) {
++      const unsigned NB =
++          Kind == llvm::FK_Data_1 ? 1 : Kind == llvm::FK_Data_2 ? 2 : 4;
++      if (!IsResolved) {
++        Asm->getContext().reportError(
++            Fixup.getLoc(),
++            "relocatable operand in a 1/2/4-byte data field "
++            "(.byte/.short/.long) cannot carry a 48-bit DADAO address; "
++            "use '.dd.o64'/'.quad' (8-byte field)");
++        return;
++      }
++      // A resolved (absolute) value must still fit the field width.
++      if (!isUIntN(8 * NB, Value)) {
++        Asm->getContext().reportError(
++            Fixup.getLoc(), Twine("data value 0x") +
++                                Twine::utohexstr(Value) +
++                                " does not fit in a " + Twine(NB) +
++                                "-byte field");
++        return;
++      }
++      for (unsigned I = 0; I != NB; ++I)
++        Data[I] = static_cast<uint8_t>(Value >> (8 * (NB - 1 - I)));
++      return;
++    }
 +
 +    // Relocatable 8-byte data items (`.dd.o64 <sym>`, `.quad <sym>`): an
 +    // absolute data relocation (R_DADAO_ABS48 -- absolute, instruction or data;
@@ -143,7 +189,7 @@ index 000000000..dd8cac1a5
 +
 +    // Only process our custom fixup kinds.
 +    if (Kind < llvm::DADAO::DADAO_FK_PCRel_12 ||
-+        Kind > llvm::DADAO::DADAO_FK_ABS48)
++        Kind > llvm::DADAO::DADAO_FK_ABS12)
 +      return;
 +
 +    // M4: an unresolved fixup (target symbol in another section, or undefined)
@@ -158,6 +204,33 @@ index 000000000..dd8cac1a5
 +    // resolves it in place (relaxation disabled, contract-elf.md §4).
 +    if (Kind == llvm::DADAO::DADAO_FK_ABS48)
 +      return;
++
++    // ld/st symbol displacement (DADAO_FK_REL12 / DADAO_FK_ABS12): both live in
++    // the rrii imms12 field, Inst{11:0}.  REL12 is PC-relative (Value = S + A -
++    // P); ABS12 is base-relative (Value = S + A).  Neither is shifted: the
++    // imms12 holds a BYTE offset (contract-elf.md §3.1, ADR-0021 §D1).  An
++    // out-of-range offset is a hard error, never a silent truncation (§3.2).
++    if (Kind == llvm::DADAO::DADAO_FK_REL12 ||
++        Kind == llvm::DADAO::DADAO_FK_ABS12) {
++      const int64_t ByteOffset = static_cast<int64_t>(Value);
++      if (!isInt<12>(ByteOffset)) {
++        Asm->getContext().reportError(
++            Fixup.getLoc(),
++            "ld/st symbol offset out of range for the 12-bit byte immediate "
++            "(-2048..+2047)");
++        return;
++      }
++      uint32_t Inst = (static_cast<uint32_t>(Data[0]) << 24) |
++                      (static_cast<uint32_t>(Data[1]) << 16) |
++                      (static_cast<uint32_t>(Data[2]) << 8) |
++                      static_cast<uint32_t>(Data[3]);
++      Inst = (Inst & ~0xFFFu) | (static_cast<uint32_t>(ByteOffset) & 0xFFFu);
++      Data[0] = (Inst >> 24) & 0xFF;
++      Data[1] = (Inst >> 16) & 0xFF;
++      Data[2] = (Inst >> 8) & 0xFF;
++      Data[3] = Inst & 0xFF;
++      return;
++    }
 +
 +    if (Value == 0)
 +      return;  // Zero delta: no change needed
