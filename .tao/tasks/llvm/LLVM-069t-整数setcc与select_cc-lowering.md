@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M6
 **依赖**：`INFRA-050t`（一次构建 `DADAO;X86`）、`LLVM-062t`（整数完整调用约定，已验证）、`LLVM-066t`（FP `select_cc`/`FCMP` 结构可作对照，已验证）、`LLVM-063t`（clang target / E2E 通道，已验证）；**与 Wave 2 其它任务同改 `components/llvm-project/patches` ⇒ 串行**
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -71,16 +71,92 @@ LLVM ERROR: Cannot select: t13: i64 = setcc t2, t4, seteq:ch                    
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**做法选择**：(a) `Custom` lowering（非 TableGen `Pat`）。理由：`setcc-as-value` 需产出 0/1（臂为常量 0/1），且整数 `select_cc` 的比较操作数常为**常量**——TableGen 需按「reg/imm × 有/无符号 × 10 谓词」组合爆炸，而 `Custom` 可复用既有 `CMP/CMPU`（已有 reg/imm 模式）+ 新增 `cs.*` 节点统一归一化/选臂。
+
+**测试结果**：证据脚本 58/58（`fail=0 detected=1`，`RUN_EXIT=0`）；`make build-mc`/`make check`/`make check-patch-tree`（3 组件 106 补丁 OK）/`make check-lit` 全 **EXIT=0**。
+**修改文件**：`components/llvm-project/patches/llvm/lib/Target/DADAO/{DADAOISelLowering.h,DADAOISelLowering.cpp,DADAOCodeGen.td}.patch`（source `.work/source/llvm-project`，3 文件补丁重导出，`series` 仍 71）；`components/llvm-project/changelog.md`（追加 LLVM-069t 行）；新增 `tests/llvm/lit/CodeGen/DADAO/setcc-select.ll`、`tests/e2e/setcc_e2e.c`、`tests/e2e/selectcc_e2e.c`（**越界披露**：任务书输出范围为 `tests/llvm/**`，E2E C 程序按既有约定落 `tests/e2e/`，沿用 `LLVM-066t` 的 `tests/e2e/fp_codegen.c` 先例）。
+**验收结果**（真实输出与退出码；完整日志 `.work/log/llvm/LLVM-069t-*.log`，脚本 `.work/evidence/LLVM-069t/run.sh`）：
+1. **逐谓词 rc=0**（clang 与 llc 各 10 条）：`eq/ne/slt/sle/sgt/sge/ult/ule/ugt/uge` 全 `rc=0`；崩最小复现 `int f(int a,int b){return a==b;}` clang `rc=0`；结构核验 `setcc_<p>_cmp`∈{`cmp.so`,`cmp.uo`}、`setcc_<p>_cs`∈{`cs.n`,`cs.p`,`cs.z`} 全 PASS（映射按 `contract-isa §6.2/§6.5`）。
+2. **setcc E2E**（编译→`ld.lld`→QEMU→退出码）：`setcc_e2e.c` -O0/-O2 退出码 **59**（相等/有符号</无符号</不等/`!x`/`&&`）；`return (a<b)`、`return (!correct)` 惯用法 clang `rc=0`。
+3. **select_cc E2E**：三目 `?:`（有/无符号）`selectcc_e2e.c` -O0/-O2 退出码 **15**；`-O2`（if-conversion）**不再崩溃**（`rc=0`）。
+4. **门控**：`make check` EXIT=0；lit `check-lit` 77 发现 / 76 通过 / 1 unsupported —— 基线（`TESTCASES-038t-make-check.log`）76/75/1 ⇒ **+1 通过、无下降**（新增 `setcc-select.ll` PASS）。
+5. **`spec//contracts/` 交集空**（脚本 `spec_intersection_empty` `expected=[] actual=[]`）；**无残留**（`git status --porcelain -uall` 仅本任务 3 补丁 + changelog + 3 新测试）。
+6. **注入自检**：把 `CMPU↔CMP` 选错 ⇒ `pl_ult` 由 `cmp.uo`→`cmp.so`（`PASS(inject-detected)`）⇒ `cp`+md5 还原（`bd2d04e5…` 相等）⇒ `ninja … llc` 重建 ⇒ 回绿 `cmp.uo`。
+**新发现/坑**（建议沉淀）：`ISD::SETCC` 的 action 按**操作数**类型、`ISD::SELECT_CC` 按**结果**类型取 ⇒ `SELECT_CC MVT::i64 Custom` 会连带捕获「FP 比较选整数臂」（i64 结果）的 selectcc，故 `LowerCmpSelect` 统一处理（FCMP+cs.*）并删除失效的 `FPSelCC_{f64,f32}_rd`（FP 结果仍走原 pattern）。`cs_*_rd` 臂操作数须用 `i64` **类型**叶子（非 `GPRD` 寄存器类叶子）才接受**常量臂**（经 `CONST_WYDE` 物化）。常量比较沿用既有 `LowerBR_CC` 的 12 位立即数界（不满足即 `report_fatal_error`，不静默）。
+**遗留问题**：① 常量比较/选择超出 12 位立即数（如 `a < 5000`）仍显式失败（与既有 `br(icmp)` 分支路径**同界**，属既有能力边界，非本任务范围）；② 未在 `TESTCASES-039t` 范围跑通全量 Embench（任务书 §验收4 明确不要求）——本任务已解除其编译阻塞（根因 `ISS-173`）。
+**ISS-173 原话**：「凡把比较结果**当值**使用的 C（`a==b`、`!x`、`a<b`、三目 `?:`、逻辑 `&&`/`||`）经 `clang`/`llc` 在**指令选择**阶段 SIGABRT…最小复现 `int f(int a,int b){return a==b;}`…19 个 Embench 基准中 14 个 `verify_benchmark` 直接 `return (比较)`，其余经 `main.c:37` 也必经 `setcc` ⇒ 无一基准可编译」。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**判决**：可交付（`待验收`）。改动范围 = `components/llvm-project/patches/**`（3 文件补丁）+ `tests/**`（3 新文件）+ changelog；未动 `spec/`/`contracts/`，未改任何已有函数签名，未引入外部依赖。
+
+**逐行审查**：
+- 谓词映射逐条对照 `contract-isa §6.2/§6.5`（`<`→`cs.n`、`>`→`cs.p`、`==`/`!=`→`cs.z`；`<=`/`>=` 复用 `>`/`<` 并交换臂；有/无符号→`CMP`/`CMPU`）；10 谓词 llc 结构核验全 PASS。
+- 边界：常量臂物化（`sel_const`→`set.zw 0xb/0x16`+`cs.n`）；非 setcc 条件（`trunc i64 to i1`→`and.o …,1`+`cs.z`）；常量超 12 位立即数→显式 `report_fatal_error`（不静默）；LHS 常量→交换+`getSetCCSwappedOperands`。
+- 回归防护：`br(icmp)` 仍降 `cmp.so`+`br.nn`（未退化）；FP-条件选整数臂 `foqcmp`+`cs.n`；FP 结果 select 仍走 `FPSelCC_*_rf`；`make check` 全绿、lit 无下降。
+- 防造假：证据脚本 `rc=$?` 直取退出码（无 `tee`）；注入自检真实重建 llc 并检出；还原以 md5 对账 + `check-source-state`（HEAD=base+1 干净）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 大常量（>12 位立即数）比较显式失败 | ❌不修 | —（与既有 `LowerBR_CC` 同界，既有能力边界） | `.work/log/llvm/LLVM-069t-evidence.log` |
+| F2 删 `FPSelCC_{f64,f32}_rd` 是否回归 FP 选整数臂 | ✅已修/验证 | FP i64 结果 selectcc 改由 `LowerCmpSelect` | `llc fpsel.ll`→`foqcmp`+`cs.n` rc=0；lit 76 通过 |
+| F3 `setBooleanContents(ZeroOrOne)` 影响 | ✅验证 | 新增 1 行 | E2E 退出码正确；lit 无下降 |
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**判决**：**Accepted**
+
+**逐条约束核验**：
+
+| # | 约束 | 结果 | 证据 |
+|---|------|------|------|
+| 1 | 10 谓词全覆盖（signed CMP / unsigned CMPU） | ✅ | lit `setcc-select.ll` PASS；脚本逐谓词 `cmp.so`/`cmp.uo` + `cs.n`/`cs.z`/`cs.p` 全绿 |
+| 2 | 语义正确：signed/unsigned 区分 | ✅ | `test_sign.c` E2E exit=1（-1<1 signed=true, unsigned=false）；`test_full.c` exit=206 全 10 谓词手算/实测一致 |
+| 3 | 归一化（cmp -1/0/1 → 0/1） | ✅ | `test_norm.c` exit=5；若漏归一则(5>7)!=0→1 误→exit=7；exit=5 证明 cs.* 正确 |
+| 4 | select_cc 语义 | ✅ | `selectcc_e2e.c` -O0/-O2 均 exit=15（signed/unsigned 三目，含 if-conversion） |
+| 5 | 边界常量 >12 位 → 显式失败 | ✅ | `v1 < 3000`（signed，immu12=3000>2047）→ clang rc=1 + "does not fit a 12-bit immediate"；llc rc=134（SIGABRT）；不静默错码 |
+| 6 | 不回归：门控全绿 | ✅ | `make build-mc` EXIT=0；`make check` 77 discovered / 76 passed / 1 unsupported；`make check-patch-tree` 106 patches OK；`make check-lit` 77 discovered / 76 passed / 1 unsupported |
+| 7 | spec/contracts 交集空 | ✅ | `git diff --name-only | grep -E '^(spec|contracts)/'` → 空 |
+| 8 | 补丁纪律：3 补丁 + changelog + 3 测试 | ✅ | `git status --porcelain -uall` 仅 3 patch + changelog + 3 test + 任务书；无 `_tmp/_orig/_rej/_preinject` |
+| 9 | 证据脚本 RUN_EXIT=0 | ✅ | 重跑 `run.sh`：58/58 PASS，fail=0，detected=1（CMPU↔CMP 注入检出），RUN_EXIT=0 |
+
+**独立注入（CS_N→CS_P，slt 极性反转）**：
+- 注入前 md5：`bd2d04e567ea692f4bb54b557b3993a8`
+- 注入后 md5：`348ed77c4925a244d2a74ecdd9b0344b`（diff 非空 ✓）
+- 注入后重建 llc（3 targets，~1min）→ `test_sign.ll` slt 变 `cs.p` → exit=**0**（应为 1，FAIL ✓）
+- 还原 cp+md5=`bd2d04e5...` = 备份 ✓
+- 还原后重建 → `test_sign.ll` slt 恢复 `cs.n` → exit=**1**（GREEN ✓）
+
+**手算表（关键用例）**：
+
+| 测试 | 期望 exit | 实际 exit | 验证方式 |
+|------|----------|----------|---------|
+| `test_full.c` 10 谓词（5 vs 7）| 206 | 206 | QEMU E2E |
+| `test_sign.c` signed/unsigned -1 vs 1 | 1 | 1 | QEMU E2E |
+| `test_norm.c` 归一化（5 vs 7）| 5 | 5 | QEMU E2E（exit=5 vs 未归一=7）|
+| `setcc_e2e.c` -O0 | 59 | 59 | QEMU E2E |
+| `selectcc_e2e.c` -O0/-O2 | 15 | 15 | QEMU E2E |
+| `v1 < 3000`（signed imm 超界）| clang rc≠0 | rc=1 | 显式报错 |
+
+**手算推理（test_full.c）**：
+5 vs 7：eq=0, ne=1, slt=1, sle=1, sgt=0, sge=0, ult=1, ule=1, ugt=0, uge=0
+→ bits 0-9 = 0|2|4|8|0|0|64|128|0|0 = **206** ✓
+
+**手算推理（test_sign.c）**：
+-1 signed < 1 → true(1)；0xFFFFFFFFFFFFFFFF unsigned < 1 → false(0)
+→ bit0=1, bit1=0 → **1** ✓
+
+**手算推理（test_norm.c）**：
+(5<7)!=0 → 1，(5>7)!=0 → 0，(5==5)!=0 → 1，(5==7)!=0 → 0
+→ 1|0|4|0 = **5**（若未归一化则 (5>7) cmp=-1, -1!=0→1, exit=7 ≠5）✓
+
+**workspace 快照对账**：`git status --porcelain -uall` 与 md5 与注入前快照一致，无残留。
+
+#### architect 提交留痕（A 分支提交）
+
+- **档位**：**正常提交**（reviewer 判 **Accepted**）。
+- **提交号**：分支提交 `947c32d`（`LLVM-069t: 整数 setcc/select_cc lowering…`）；本留痕为其后继提交，随 `master` **一次性落地**（`git merge --squash`）。
+- **文件集对账**（`git -c core.quotepath=false diff --cached --name-only` vs 完成区「修改文件」+ 任务范围）：产物 **3 补丁 + `changelog.md` + 3 新测试**全部纳入；**漏提 0 / 多提 0**。**越界**：`tests/e2e/{setcc,selectcc}_e2e.c`（任务书输出范围仅 `tests/llvm/**`）—— engineer 已披露、沿用 `LLVM-066t` `tests/e2e/fp_codegen.c` 先例，**合理**。
+- **收尾台账**：`milestones.md`（`LLVM-069t`→`已验证` + `TESTCASES-039t` 说明更新）、`issues.yaml`（`ISS-173`→`closed`/`resolved_by: LLVM-069t`，`check_issues.py` rc=0）、`lessons.md §8.40`、任务书 `**状态**`→`已验证`，一并入库。`.work/**`（证据脚本/日志）按 `.gitignore` 不入库。

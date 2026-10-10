@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..82092ffad
+index 000000000..2c64b9aa3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,157 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -68,6 +68,17 @@ index 000000000..82092ffad
 +  /// for integer ==/!= so no compare instruction is needed.
 +  BREQ,
 +  BRNE,
++
++  /// Conditional assignment (contract-isa.md §6.5): (cond, true, false) -> i64,
++  /// selected to cs.n / cs.z / cs.p.  CS_N takes the true arm when cond < 0,
++  /// CS_Z when cond == 0 and CS_P when cond > 0.  Produced by LowerSETCC (to
++  /// turn the cmp* result {-1,0,1} into the C boolean 0/1), LowerSELECT_CC and
++  /// LowerSELECT (LLVM-069t).  A compare whose result feeds an FP select can
++  /// drive the same nodes (the FP setcc stage of LowerCmpSelect), which is why
++  /// the FP side no longer carries its own selectcc patterns for i64 results.
++  CS_N,
++  CS_Z,
++  CS_P,
 +};
 +
 +} // namespace DADAOISD
@@ -119,6 +130,21 @@ index 000000000..82092ffad
 +  SDValue LowerBR_CC(SDValue Chain, ISD::CondCode CC, SDValue LHS, SDValue RHS,
 +                     SDValue Dest, const SDLoc &DL, SelectionDAG &DAG) const;
 +  SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
++
++  /// Compare-as-value lowering (LLVM-069t).  `icmp` used as a value (SETCC
++  /// surviving the i1 -> i64 promotion) selects constants 1/0; a ternary /
++  /// if-conversion SELECT_CC selects its two arms.  Both compute a cmp* result
++  /// (-1/0/1) and normalise it through cs.* (contract-isa.md §6.2/§6.5).
++  SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
++
++  /// Shared driver for SETCC / SELECT_CC: emit the compare (CMP/CMPU for
++  /// integers, FCMP for floating point, both yielding {-1,0,1}) and a cs.*
++  /// conditional assignment picking True/False (contract-isa.md §6.5).
++  SDValue LowerCmpSelect(ISD::CondCode CC, SDValue LHS, SDValue RHS,
++                         SDValue True, SDValue False, const SDLoc &DL,
++                         SelectionDAG &DAG) const;
 +
 +  /// Varargs lowering (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  The
 +  /// caller writes every argument into a contiguous 8-byte-slot save area at

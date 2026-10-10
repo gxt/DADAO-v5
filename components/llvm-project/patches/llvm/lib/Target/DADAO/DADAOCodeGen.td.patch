@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..32448f21c
+index 000000000..aa5561364
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,476 @@
+@@ -0,0 +1,494 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -112,6 +112,17 @@ index 000000000..32448f21c
 +
 +def DADAOBreq : SDNode<"DADAOISD::BREQ", SDT_DADAOBr2, [SDNPHasChain]>;
 +def DADAOBrne : SDNode<"DADAOISD::BRNE", SDT_DADAOBr2, [SDNPHasChain]>;
++
++// Conditional assignment (LLVM-069t; contract-isa.md §6.5): (cond, true, false)
++// -> selected value, all i64.  CS_N tests cond < 0, CS_Z cond == 0, CS_P
++// cond > 0; the two arms are selected explicitly, so <=0 / >=0 reuse a test
++// with the arms swapped.  Produced by LowerSETCC / LowerSELECT_CC / LowerSELECT
++// and selected to the cs.n / cs.z / cs.p conditional-assign instructions.
++def SDT_DADAOCS : SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>,
++                                       SDTCisSameAs<0, 3>, SDTCisInt<0>]>;
++def DADAOCSN : SDNode<"DADAOISD::CS_N", SDT_DADAOCS>;
++def DADAOCSZ : SDNode<"DADAOISD::CS_Z", SDT_DADAOCS>;
++def DADAOCSP : SDNode<"DADAOISD::CS_P", SDT_DADAOCS>;
 +
 +//===----------------------------------------------------------------------===//
 +// CodeGen-only pseudo instruction base
@@ -371,6 +382,14 @@ index 000000000..32448f21c
 +def : Pat<(DADAOBreq GPRD:$l, GPRD:$r, bb:$d), (br_eq_rd GPRD:$l, GPRD:$r, bb:$d)>;
 +def : Pat<(DADAOBrne GPRD:$l, GPRD:$r, bb:$d), (br_ne_rd GPRD:$l, GPRD:$r, bb:$d)>;
 +
++// Conditional assignment (LLVM-069t; contract-isa.md §6.5).  The arms are
++// typed i64 leaves (like the FP selectcc patterns below) so both a register
++// and a constant arm are accepted; a constant arm is materialised into GPRD
++// (CONST_WYDE) like any other register operand.
++def : Pat<(DADAOCSN i64:$c, i64:$t, i64:$f), (cs_n_rd i64:$c, i64:$t, i64:$f)>;
++def : Pat<(DADAOCSZ i64:$c, i64:$t, i64:$f), (cs_z_rd i64:$c, i64:$t, i64:$f)>;
++def : Pat<(DADAOCSP i64:$c, i64:$t, i64:$f), (cs_p_rd i64:$c, i64:$t, i64:$f)>;
++
 +// Unconditional branch -> jump (iiii, PC-relative 24-bit).
 +def : Pat<(br bb:$d), (jump_iiii bb:$d)>;
 +
@@ -410,11 +429,14 @@ index 000000000..32448f21c
 +def : Pat<(DADAOFCmp f32:$l, f32:$r), (ftqcmp_orrr_rf f32:$l, f32:$r)>;
 +
 +// --- FP select_cc -> DADAO cs.* conditional assign (contract-isa.md §6.5) ---
-+// A `select` on an FP condition reaches ISel as SELECT_CC (no FP setcc-as-value
-+// in this backend).  The FCMP result rc is -1/0/1 for ordered results and a
-+// positive NaN for unordered, so every C predicate is one cs test (cs.n/cs.z/
-+// cs.p) with possible operand and/or true/false swapping; `>`/`>=` swap the
-+// compare operands (rc' = cmp(b, a)).
++// A `select` on an FP condition *whose result is FP* reaches ISel as SELECT_CC
++// (no FP setcc-as-value in this backend) and is matched here; the FCMP result
++// rc is -1/0/1 for ordered results and a positive NaN for unordered, so every
++// C predicate is one cs test (cs.n/cs.z/cs.p) with possible operand and/or
++// true/false swapping; `>`/`>=` swap the compare operands (rc' = cmp(b, a)).
++// An FP condition selecting *integer* arms (i64 result) is lowered uniformly
++// by DADAOTargetLowering::LowerCmpSelect (LLVM-069t), so it has no pattern
++// here.
 +multiclass DADAOFPSelCC<Instruction Cmp, ValueType CmpVT, ValueType ValVT,
 +                        Instruction CsN, Instruction CsZ, Instruction CsP> {
 +  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETOLT),
@@ -439,13 +461,9 @@ index 000000000..32448f21c
 +            (CsN (Cmp CmpVT:$b, CmpVT:$a), ValVT:$f, ValVT:$t)>;
 +}
 +
-+defm FPSelCC_f64_rd
-+    : DADAOFPSelCC<foqcmp_orrr_rf, f64, i64, cs_n_rd, cs_z_rd, cs_p_rd>;
 +defm FPSelCC_f64_rf
 +    : DADAOFPSelCC<foqcmp_orrr_rf, f64, f64, cs_n_rrrr_rf, cs_z_rrrr_rf,
 +                   cs_p_rrrr_rf>;
-+defm FPSelCC_f32_rd
-+    : DADAOFPSelCC<ftqcmp_orrr_rf, f32, i64, cs_n_rd, cs_z_rd, cs_p_rd>;
 +defm FPSelCC_f32_rf
 +    : DADAOFPSelCC<ftqcmp_orrr_rf, f32, f32, cs_n_rrrr_rf, cs_z_rrrr_rf,
 +                   cs_p_rrrr_rf>;

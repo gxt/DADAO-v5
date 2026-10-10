@@ -732,3 +732,8 @@
 
 - **规则**：里程碑/门控「编译 E2E」用**小到 `exit=42`** 的程序可全绿却掩盖**整类**未实现能力——历史向量惯用 `br(icmp)` 而**回避**「比较取值（`setcc`）/ `select_cc`」，故 M4/M6 历次 clang E2E 均通过，真实 C（`a==b`/`!x`/`?:`/`&&`）却**全部 ISel 崩溃**。⇒ 「能编译真实 C」须以**真实语料（如 Embench）或覆盖语言惯用形态的大程序**做端到端，**不得**以 trivial 程序通过为由宣称具备编译能力。
 - **依据/来源**：`TESTCASES-039t` 停工（`ISS-173`）——`LLVM-063t` clang E2E `exit=42` 通过，而 `int f(int a,int b){return a==b;}` rc=1 / `llc` rc=134；细节 `.work/log/testcases/TESTCASES-039t-{blocker.log,progress.md}`、`LLVM-063t`/`TESTCASES-039t` 任务书。同类 §8.16（独立 oracle 覆盖）、§7.22。
+
+### 8.40 LLVM `SelectionDAG` 的 `setOperationAction` 键：`SETCC` 按**操作数**类型、`SELECT_CC` 按**结果**类型（`LLVM-069t`，2026-10-10）
+
+- **规则**：整数 `setcc`-as-value 需 `setOperationAction(ISD::SETCC, MVT::i64, Custom)`（比较操作数 i64）；但 `SELECT_CC` 的 action **按结果类型**取 ⇒ 设 `SELECT_CC MVT::i64 Custom` 会**连带捕获「FP 比较选整数臂」（结果 i64）**，故 lowering 须统一处理 `SETCC`/`SELECT_CC`（含 `FCMP` 源）而非只做整数路径。另：`cs.*` 选的臂操作数须用 **i64 类型叶子**（`DAG.getConstant`/`getRegister` + `MVT::i64`），**非** `GPRD` 寄存器类叶子，否则**常量臂**（经 `CONST_WYDE` 物化）被拒。
+- **依据/来源**：`LLVM-069t`（`ISS-173` 修复）——`LowerCmpSelect` 统一处理 + 删失效 `FPSelCC_{f64,f32}_rd`；细节 `.tao/tasks/llvm/LLVM-069t-*.md`「新发现/坑」、`.work/evidence/LLVM-069t/run.sh`。同类 §8.30（手写集合须与生成一致）。

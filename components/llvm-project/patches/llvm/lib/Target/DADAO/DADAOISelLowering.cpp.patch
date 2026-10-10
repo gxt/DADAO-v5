@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..20b8e8155
+index 000000000..593880eb6
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,757 @@
+@@ -0,0 +1,916 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -77,6 +77,24 @@ index 000000000..20b8e8155
 +  // BRCOND over an FP setcc; both are custom (M6, LLVM-066t).
 +  setOperationAction(ISD::BR_CC, MVT::f32, Custom);
 +  setOperationAction(ISD::BR_CC, MVT::f64, Custom);
++
++  // Compare-as-value (LLVM-069t): a comparison whose result is *used as a
++  // value* (C `a == b`, `!x`, `a < b`, `?:`, `&&`/`||`) reaches us as a
++  // surviving SETCC (the i1 result is promoted to i64) or a SELECT_CC (a
++  // ternary / -O2 if-conversion).  Both are custom: the cmp* result {-1,0,1}
++  // is normalised to 0/1 and the select is a cs.* conditional assignment
++  // (contract-isa.md §6.2/§6.5).  SETCC is keyed by the *compared* type (i64),
++  // SELECT_CC/SELECT by the *result* type (i64) -- the i64 result also covers
++  // an FP comparison selecting integer arms, handled uniformly by
++  // LowerCmpSelect.
++  setOperationAction(ISD::SETCC, MVT::i64, Custom);
++  setOperationAction(ISD::SELECT_CC, MVT::i64, Custom);
++  setOperationAction(ISD::SELECT, MVT::i64, Custom);
++  // The lowered SETCC produces a *canonical* 0/1 boolean (the cmp* {-1,0,1}
++  // normalised through cs.*), so declare ZeroOrOne: booleans that survive to
++  // the legalizer are zero-extended, never any-extended, keeping a `false`
++  // exactly 0 for the cs.z-based select test.
++  setBooleanContents(ZeroOrOneBooleanContent);
 +
 +  // Narrow memory accesses (LLVM-036t; C13, ADR-0018).  All load extension
 +  // kinds and truncating stores between i64 and i8/i16/i32 are legal: the
@@ -181,6 +199,12 @@ index 000000000..20b8e8155
 +    return "DADAOISD::BREQ";
 +  case DADAOISD::BRNE:
 +    return "DADAOISD::BRNE";
++  case DADAOISD::CS_N:
++    return "DADAOISD::CS_N";
++  case DADAOISD::CS_Z:
++    return "DADAOISD::CS_Z";
++  case DADAOISD::CS_P:
++    return "DADAOISD::CS_P";
 +  default:
 +    return nullptr;
 +  }
@@ -556,6 +580,12 @@ index 000000000..20b8e8155
 +                      SDLoc(Op), DAG);
 +  case ISD::BRCOND:
 +    return LowerBRCOND(Op, DAG);
++  case ISD::SETCC:
++    return LowerSETCC(Op, DAG);
++  case ISD::SELECT_CC:
++    return LowerSELECT_CC(Op, DAG);
++  case ISD::SELECT:
++    return LowerSELECT(Op, DAG);
 +  case ISD::VASTART:
 +    return LowerVASTART(Op, DAG);
 +  case ISD::VAARG:
@@ -760,4 +790,133 @@ index 000000000..20b8e8155
 +    return CmpThenBranch(/*Unsigned=*/true, DADAOISD::BRNN);
 +  }
 +  llvm_unreachable("DADAO: unreachable branch condition");
++}
++
++SDValue DADAOTargetLowering::LowerCmpSelect(ISD::CondCode CC, SDValue LHS,
++                                            SDValue RHS, SDValue True,
++                                            SDValue False, const SDLoc &DL,
++                                            SelectionDAG &DAG) const {
++  // cs.* conditional assignment (contract-isa.md §6.5): the three tests cover
++  // cond < 0 / == 0 / > 0 with the two arms selected explicitly, so <=0 / >=0
++  // reuse a test with the arms swapped.
++  auto Select = [&](DADAOISD::NodeType Cs, SDValue Cond, SDValue T, SDValue F) {
++    return DAG.getNode(Cs, DL, MVT::i64, Cond, T, F);
++  };
++
++  // --- Floating-point compare selecting integer arms (M6 uniform path) ---
++  // The FP compare result is -1/0/1 for ordered results and a positive NaN for
++  // unordered (contract-fp.md §8), so every C predicate is one cs test, with
++  // possible operand and/or arm swapping; `>`/`>=` compare the operands the
++  // other way round (rc' = cmp(rhs, lhs)).
++  if (LHS.getValueType().isFloatingPoint()) {
++    auto FCmp = [&](SDValue A, SDValue B) {
++      return DAG.getNode(DADAOISD::FCMP, DL, MVT::i64, A, B);
++    };
++    switch (CC) {
++    case ISD::SETOEQ: // ==  : rc == 0
++      return Select(DADAOISD::CS_Z, FCmp(LHS, RHS), True, False);
++    case ISD::SETUNE: // !=  : rc != 0
++      return Select(DADAOISD::CS_Z, FCmp(LHS, RHS), False, True);
++    case ISD::SETOLT: // <   : rc < 0
++      return Select(DADAOISD::CS_N, FCmp(LHS, RHS), True, False);
++    case ISD::SETOLE: // <=  : rc <= 0
++      return Select(DADAOISD::CS_P, FCmp(LHS, RHS), False, True);
++    case ISD::SETOGT: // >   : (rhs < lhs)
++      return Select(DADAOISD::CS_N, FCmp(RHS, LHS), True, False);
++    case ISD::SETOGE: // >=  : (rhs <= lhs)
++      return Select(DADAOISD::CS_P, FCmp(RHS, LHS), False, True);
++    case ISD::SETUGT: // unordered or >  : rc > 0
++      return Select(DADAOISD::CS_P, FCmp(LHS, RHS), True, False);
++    case ISD::SETUGE: // unordered or >= : rc >= 0
++      return Select(DADAOISD::CS_N, FCmp(LHS, RHS), False, True);
++    case ISD::SETULT: // unordered or <  : (= ugt(rhs, lhs))
++      return Select(DADAOISD::CS_P, FCmp(RHS, LHS), True, False);
++    case ISD::SETULE: // unordered or <= : (= uge(rhs, lhs))
++      return Select(DADAOISD::CS_N, FCmp(RHS, LHS), False, True);
++    default:
++      report_fatal_error(
++          "DADAO: unsupported floating-point select/setcc condition");
++    }
++  }
++
++  if (LHS.getValueType() != MVT::i64)
++    report_fatal_error("DADAO: unsupported setcc/select_cc operand type");
++
++  // Canonicalise so a constant is on the right (the cmp* immediate formats
++  // take the constant in rdhb).
++  if (isa<ConstantSDNode>(LHS) && !isa<ConstantSDNode>(RHS)) {
++    std::swap(LHS, RHS);
++    CC = ISD::getSetCCSwappedOperands(CC);
++  }
++
++  bool Unsigned = CC == ISD::SETULT || CC == ISD::SETULE ||
++                  CC == ISD::SETUGT || CC == ISD::SETUGE;
++  // == / != are order- and format-independent, so pick the cmp format whose
++  // 12-bit immediate the constant fits (mirrors LowerBR_CC); the ordered
++  // predicates keep the format fixed by the (un)signedness of the CC.
++  if (auto *C = dyn_cast<ConstantSDNode>(RHS))
++    if (CC == ISD::SETEQ || CC == ISD::SETNE)
++      Unsigned = isUInt<12>(C->getZExtValue());
++  // A constant RHS must fit the cmp* 12-bit immediate (LowerBR_CC's limit).
++  if (auto *C = dyn_cast<ConstantSDNode>(RHS)) {
++    const bool FitsU = isUInt<12>(C->getZExtValue());
++    const bool FitsS = isInt<12>(C->getSExtValue());
++    if (Unsigned ? !FitsU : !FitsS)
++      report_fatal_error("DADAO: select/setcc compare against a constant that "
++                         "does not fit a 12-bit immediate is not supported yet");
++  }
++
++  SDValue Cmp = DAG.getNode(Unsigned ? DADAOISD::CMPU : DADAOISD::CMP, DL,
++                            MVT::i64, LHS, RHS);
++  switch (CC) {
++  case ISD::SETEQ: // == : rc == 0
++    return Select(DADAOISD::CS_Z, Cmp, True, False);
++  case ISD::SETNE: // != : rc != 0
++    return Select(DADAOISD::CS_Z, Cmp, False, True);
++  case ISD::SETLT:
++  case ISD::SETULT: // <  : rc < 0
++    return Select(DADAOISD::CS_N, Cmp, True, False);
++  case ISD::SETLE:
++  case ISD::SETULE: // <= : not (rc > 0)
++    return Select(DADAOISD::CS_P, Cmp, False, True);
++  case ISD::SETGT:
++  case ISD::SETUGT: // >  : rc > 0
++    return Select(DADAOISD::CS_P, Cmp, True, False);
++  case ISD::SETGE:
++  case ISD::SETUGE: // >= : not (rc < 0)
++    return Select(DADAOISD::CS_N, Cmp, False, True);
++  default:
++    report_fatal_error("DADAO: unsupported integer setcc/select_cc condition");
++  }
++  llvm_unreachable("DADAO: unreachable compare condition");
++}
++
++SDValue DADAOTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
++  // Integer `icmp` used as a value: compare into {-1,0,1} then select 1/0
++  // (the promoted i1 result is a 0/1 i64; contract-isa.md §6.2/§6.5).
++  const SDLoc DL(Op);
++  SDValue One = DAG.getConstant(1, DL, MVT::i64);
++  SDValue Zero = DAG.getConstant(0, DL, MVT::i64);
++  return LowerCmpSelect(cast<CondCodeSDNode>(Op.getOperand(2))->get(),
++                        Op.getOperand(0), Op.getOperand(1), One, Zero, DL, DAG);
++}
++
++SDValue DADAOTargetLowering::LowerSELECT_CC(SDValue Op,
++                                            SelectionDAG &DAG) const {
++  const SDLoc DL(Op);
++  return LowerCmpSelect(cast<CondCodeSDNode>(Op.getOperand(4))->get(),
++                        Op.getOperand(0), Op.getOperand(1), Op.getOperand(2),
++                        Op.getOperand(3), DL, DAG);
++}
++
++SDValue DADAOTargetLowering::LowerSELECT(SDValue Op,
++                                         SelectionDAG &DAG) const {
++  // `select cond, true, false` with a non-setcc condition: a false condition
++  // is exactly 0 (ZeroOrOne boolean content), so cs.z picks the false arm.
++  const SDLoc DL(Op);
++  SDValue Cond = Op.getOperand(0);
++  if (Cond.getValueType() != MVT::i64)
++    Cond = DAG.getZExtOrTrunc(Cond, DL, MVT::i64);
++  return DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, Cond, Op.getOperand(2),
++                     Op.getOperand(1));
 +}
