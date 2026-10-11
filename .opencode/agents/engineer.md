@@ -2,10 +2,13 @@
 description: 实现子代理（engineer）：按架构师任务文件执行实现，Spec-first，任务完成后自审。用于大型开发任务的实现环节。
 mode: subagent
 model: deepseek/deepseek-flash
-permission:
-  bash:
-    "*": "allow"
-    "sudo *": "deny"
+permissions:
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: shell
+    resource: "sudo *"
+    effect: deny
 ---
 
 # 规则：工程师（实现子代理）

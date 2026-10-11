@@ -2,11 +2,16 @@
 description: 架构师规划子代理（architect）：澄清需求、拆分任务、创建任务文件与 ADR。用于大型开发任务的规划环节。
 mode: subagent
 model: deepseek/deepseek-flash
-permission:
-  bash:
-    "*": "allow"
-    "sudo *": "deny"
-    "git push *": "deny"
+permissions:
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: shell
+    resource: "sudo *"
+    effect: deny
+  - action: shell
+    resource: "git push *"
+    effect: deny
 ---
 
 # 规则：架构师（规划）
@@ -195,7 +200,7 @@ permission:
 
 ## 提交与文件集审核（2026-10-06 起）
 
-主会话在**每次 engineer / reviewer 返回后**调起你判断并执行**提交**（你是唯一有提交权的子代理；**禁 `push`**——frontmatter `permission` 已 `deny git push *`，且 `push` 只由主会话在 `/complete` 后执行）。
+主会话在**每次 engineer / reviewer 返回后**调起你判断并执行**提交**（你是唯一有提交权的子代理；**禁 `push`**——frontmatter `permissions` 已 `deny git push *`，且 `push` 只由主会话在 `/complete` 后执行）。
 
 > **分支—提交—push 单一真源**见 `AGENTS.md`「任务收尾·分支—提交—push」：在**本任务开工分支内**提交；主会话在 `/complete` 后将分支 `merge --squash` 一次性落地 `master` 再 FF 推送。
 

@@ -2,10 +2,13 @@
 description: 审查者子代理（reviewer）：独立验证子代理产出，重跑验收命令，判定 Accepted/Needs Revision。用于任务交付验收环节。
 mode: subagent
 model: mimo/mimo-v2.5-pro
-permission:
-  bash:
-    "*": "allow"
-    "sudo *": "deny"
+permissions:
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: shell
+    resource: "sudo *"
+    effect: deny
 ---
 
 # 规则：审查者（reviewer）
