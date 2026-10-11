@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..88b14358b
+index 000000000..4e5457e06
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1094 @@
+@@ -0,0 +1,1115 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -185,6 +185,27 @@ index 000000000..88b14358b
 +         ISD::FFREXP, ISD::FGETSIGN, ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT},
 +        VT, Expand);
 +  }
++  // P1 (LLVM-080t; INTEG-033k §裁定汇总 #6) -- double-precision copysign/fabs
++  // use the ISA sign-injection instruction `fosgnj` (contract-fp.md §7:
++  // sgnj(rfHC, rfHD) = copySign(rfHC, rfHD)).  Both are made Legal and matched
++  // by a direct pattern (DADAOCodeGen.td): copysign(a, b) is `fosgnj(a, b)`,
++  // and fabs(x) is `fosgnj(x, +0.0)` against a sign source of all-zero bits
++  // (contract-fp.md §7: the sign bit of the sign operand is copied, so a zero
++  // sign source gives the absolute value).
++  //
++  // NB: FABS must be Legal, NOT left as Expand.  If FABS is Expand while
++  // FCOPYSIGN is Legal, LegalizeDAG::ExpandFABS rewrites `fabs(x)` as
++  // `fcopysign(x, +0.0)` and DAGCombiner canonicalises `fcopysign(x, +const)`
++  // straight back to `fabs(x)` -- an infinite legalize/combine loop (observed
++  // hanging codegen).  Matching both directly avoids it.
++  //
++  // The other P1 operations -- the rounding family (floor/ceil/trunc/round/
++  // rint/nearbyint) and fmin/fmax -- have no ISA instruction
++  // (contracts/opcodes.yaml scope `fp`), so they stay `Expand`: the resulting
++  // out-of-line calls are registered in DADAOSubtarget (initLibcallLoweringInfo).
++  // f32 stays Expand (P1 is double precision).
++  setOperationAction(ISD::FCOPYSIGN, MVT::f64, Legal);
++  setOperationAction(ISD::FABS, MVT::f64, Legal);
 +  // f64 <-> f32 conversions (ft2fo / fo2ft).  FP_ROUND is keyed on the smaller
 +  // (result) type, FP_EXTEND on the larger (result) type.
 +  setOperationAction(ISD::FP_ROUND, MVT::f32, Legal);

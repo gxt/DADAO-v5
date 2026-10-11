@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..e4a3edfa5
+index 000000000..472079ae9
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,61 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -44,4 +44,24 @@ index 000000000..e4a3edfa5
 +  Info.setLibcallImpl(RTLIB::MEMSET, RTLIB::impl_memset);
 +  Info.setLibcallImpl(RTLIB::MEMMOVE, RTLIB::impl_memmove);
 +  Info.setLibcallImpl(RTLIB::MEMCMP, RTLIB::impl_memcmp);
++
++  // P1 FP rounding / min-max libcalls (LLVM-080t; INTEG-033k §裁定汇总 #6,
++  // double precision).  The ISA has no rounding-direction or min/max FP
++  // instruction (`contracts/opcodes.yaml` scope `fp` carries only
++  // convert/arith/root/sign/compare/classify — no floor/ceil/trunc/round/rint/
++  // nearbyint/fmin/fmax), so these DAG nodes are `Expand`ed to an out-of-line
++  // call to the standard C math routine (`DADAOISelLowering.cpp`).  Leaving
++  // them unregistered makes ExpandLibCall report "no libcall available for
++  // ffloor" and abort codegen (the ISS-188 picolibc gap).  The symbols are the
++  // picolibc ones (`floor`/`ceil`/...); the f64 implementations are pure
++  // bit-manipulation (libm/math/s_floor.c) and compile with the DADAO backend.
++  // f32 (`*f`) and other FP ops stay out of P1 scope.
++  Info.setLibcallImpl(RTLIB::FLOOR_F64, RTLIB::impl_floor);
++  Info.setLibcallImpl(RTLIB::CEIL_F64, RTLIB::impl_ceil);
++  Info.setLibcallImpl(RTLIB::TRUNC_F64, RTLIB::impl_trunc);
++  Info.setLibcallImpl(RTLIB::ROUND_F64, RTLIB::impl_round);
++  Info.setLibcallImpl(RTLIB::RINT_F64, RTLIB::impl_rint);
++  Info.setLibcallImpl(RTLIB::NEARBYINT_F64, RTLIB::impl_nearbyint);
++  Info.setLibcallImpl(RTLIB::FMIN_F64, RTLIB::impl_fmin);
++  Info.setLibcallImpl(RTLIB::FMAX_F64, RTLIB::impl_fmax);
 +}

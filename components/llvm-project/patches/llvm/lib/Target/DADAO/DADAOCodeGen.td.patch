@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..4acc67c7d
+index 000000000..7f5c09b7b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,630 @@
+@@ -0,0 +1,637 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -538,10 +538,17 @@ index 000000000..4acc67c7d
 +def : Pat<(fsqrt f64:$a), (foroot_orri_rf f64:$a, 2)>;
 +// fneg(x) = sgnn(x, x) (contract-fp.md §7: sgnn with rfHC == rfHD negates).
 +def : Pat<(fneg f64:$a), (fosgnn_orrr_rf f64:$a, f64:$a)>;
-+// NB: fabs via `sgnj(x, rf0)` is NOT expressed as a TableGen pattern: rf0 lives
-+// in the two-typed GPRF class (f64/f32), so a bare physical-register operand in
-+// the pattern result is ambiguous.  fabs stays Expand (a libcall); the
-+// freestanding tests do not use it.
++// copysign(a, b) = sgnj(a, b) (contract-fp.md §7: sgnj(rfHC, rfHD) =
++// copySign(rfHC, rfHD)).  fabs(x) = sgnj(x, +0.0): the sign bit of the sign
++// source is all-zero, so the copied sign is positive and the result is the
++// magnitude of x (contract-fp.md §7).  The +0.0 sign source is the all-zero bit
++// pattern moved RD->RF with `rd2rf {rfN}, {rd0}` (rd0 is hardwired zero,
++// contract-isa.md; rd2rf is the RD<->RF block move, contract-fp.md §12) --
++// no constant pool.  Both fabs and copysign therefore select one ISA
++// instruction (LLVM-080t P1) instead of the generic bit-manipulation sequence.
++def : Pat<(fcopysign f64:$a, f64:$b), (fosgnj_orrr_rf f64:$a, f64:$b)>;
++def : Pat<(fabs f64:$a),
++          (fosgnj_orrr_rf f64:$a, (rd2rf_orri_rf rd0, 1))>;
 +
 +// --- f32 (ft): arithmetic / sqrt / neg / abs ---
 +def : Pat<(fadd f32:$a, f32:$b), (ftadd_orrr_rf f32:$a, f32:$b)>;

@@ -20,6 +20,7 @@
   2. **分层门控**：快档（代表集）入 `make check` 或专项 target、全量档 opt-in（对齐 `Process-05 §2`/M6 分层；**不写死计数**，现场统计）。
   3. **100% 报告**：适用测试集**逐条结果**（pass/fail/excluded），fail=0（除显式 excluded）。
 - **约束**：
+  - **前置（`LLVM-080t` 整改，2026-10-12）**：**恢复 picolibc `libm`（删 `INFRA-057t` 源过滤表并重建）**——sysroot `libm.a` 现为空壳（876 B，仅 `empty.c.o`）；`nm` 复核 8 符号：`floor`/`ceil`/`trunc`/`round`/`rint`/`nearbyint`/`fmin`/`fmax`（P0/P1 已由 `LLVM-079t`/`LLVM-080t` 收口）。`ISS-188`。
   - **独立 oracle**：期望值**不得**从 QEMU/`llc` 反推（`AGENTS.md`「Independent oracle」）；test 自身断言为准。
   - **不适用项 = 显式 excluded + 理由**（如动态链接）；**不得**以 skip 掩盖。
   - **依赖未就绪不降级**（同 `TESTCASES-039t` 教训）：阻塞时保留现场、登记，不伪造通过。
