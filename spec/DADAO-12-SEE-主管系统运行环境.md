@@ -1,6 +1,6 @@
 # DADAO Supervisor Execution Environment（SEE）
 
-> **版本：0.7.1**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
+> **版本：0.7.2-rc**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
 
 本文档定义DADAO主管系统运行环境（Supervisor Execution Environment, SEE）的体系结构规范，涵盖地址空间组织、处理器资源管理、核芯功能扩展设计、外设资源抽象及运行模式定义等内容。
 
@@ -852,3 +852,24 @@ cfx_⟨cfxname⟩_escape_num             <= cfx_⟨cfxname⟩_escape_num + 1
 // 4. 计算返回地址并跳转
 inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 ```
+
+---
+
+## 附录：版本与变更记录
+
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+
+### 0.7.2-rc（未发布）
+
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 与上游 SimRISC 0.5.4 基线对齐。
+- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
+- 为 cg0–cg3 增加 `rc0` 版本号寄存器；RO 寄存器初始值统一标记为 HW。
+- `pending` 统一：删除 timer/uart/power 专有 pending，`cfx_pending`→`excp_pending`（cg5 rc5）。
+- 特权模型与 SimRISC 对齐（`RASUP`→`RASUF`、删冗余 ILLI 声明）。
+- 删除 FPEXCP 异常；术语「储存块」→「存储块」。
+- 多项审查修复（溢出检测 / 跳转表 / 引导 / 掩码 / 注释）。
+
+### 0.7.1（上游基线；导入日 2026-07-14，发布日不详）
+
+- 上游 DADAO 主管系统运行环境（SEE）基线（基于 SimRISC 0.4.1）。

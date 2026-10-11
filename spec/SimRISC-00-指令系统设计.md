@@ -1,6 +1,6 @@
 # SimRISC指令系统
 
-> **版本：0.5.4**
+> **版本：0.5.5-rc**
 
 SimRISC名称有三重含义：
 
@@ -404,3 +404,59 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 - `return` → `ret rd0, 0`（无返回值返回；`ret` 保持显式两操作数，**无无参形态**）；
 - `not.o` → `xnor.o rd, rs, rd0`（64 位按位取反）；`not.b`/`not.w`/`not.t` 无等宽替代（窄位宽 `xnor.b/w/t` 已随 `SPEC-069t` 删除，需要时用 `xnor.o` 做 64 位取反）；
 - `neg.b`/`neg.w`/`neg.t`/`neg.o` → `sub.sX`（`sub.sb`/`sub.sw`/`sub.st`/`sub.so`）。
+
+---
+
+## 附录：版本与变更记录
+
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+
+### 0.5.5-rc（未发布）
+
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 伪指令集收缩：删除 `nop`/`return`/`not.*`/`neg.*` 等 1:1 别名伪指令，仅保留需多指令合成的伪指令。
+- 删除 `illi` 指令；`fence` 编码改 `0x00`、`swym` 编码改 `0x22`。
+- 新增 `sub.o`（RB−RB→RD）；RB 算术三条指令改名并调整编码槽。
+- 浮点范围口径引入 `scope`（`m1` / `fp` / `excluded`）标注。
+- `cmp.uo-rb` 改为整 64 位比较；RB / 控制流地址语义修正。
+- 窄位宽指令精简、高位处理统一为值语义；`MISC-AMO` 编码移至 `0111-0111`。
+- 删除 `ftlog`/`folog`；`ftroot`/`foroot` 仅保留 n=2。
+- 浮点状态寄存器 `rf0` 位域与访问规则调整。
+- 术语统一：`major-op`→`opc`、`minor-op`→`opx`（删 `minor_op` 死代码）；全量删除 `rela.si`。
+- 0 号寄存器作源操作数语义澄清；各寄存器组 0 号寄存器用途措辞定稿。
+- 伪指令表改用新汇编格式；cfx 系列记法约定。
+
+### 0.5.4（2026-09-28）
+
+- 手册重组为 12 分册（`SimRISC-00`…`SimRISC-12`）；本册保留指令系统设计（数据表示 / 寄存器 / 指令设计 / QFC 主表 / 伪指令汇总）。
+- 伪指令自 ABI 迁回 SimRISC 各册，并新增伪指令汇总表；新增 `neg.b/w/t/o`（取负）与 `not.b/w/t/o`（取反）伪指令。
+- 删除 FPEXCP 异常（浮点按 IEEE 754 执行、经 `rf0` 轮询异常状态）。
+- 职责边界调整：数据表示 / 寄存器 / 返回地址栈移入本册。
+- 目录 `wiki/` 重命名为 `spec/`。
+
+### 0.5.3（2026-07-19）
+
+- QFC 重排：MISC-AMO 移到 `x000`、MISC-RF 位于 `0100-0100`；`jump`/`call`/`ret` 编码 +2、`trap`/`escape` 对调；`illi` 移入 MISC-octa。
+- `setrd`/`setrb`/`setrf` 改名为 `set.rd`/`set.rb`/`set.rf`。
+
+### 0.5.2（2026-07-18）
+
+- 删除 `bpN`/`brrr`/`brri`，改用 `MISC-byte`/`wyde`/`tetra`/`octa` 四种固定位宽子表。
+- 指令名后缀统一为 `.ub`/`.sb`/`.uw`/`.sw`/`.ut`/`.st`/`.uo`/`.so`。
+- `add`/`sub` rrrr 拆分为 `add.uo`/`add.so`/`sub.uo`/`sub.so`；`addi`→`add.si`；`cmps`/`cmpu`→`cmp.si`/`cmp.ui`；`orr`→`or`。
+- `cs.`/`br.` 指令名加点、条件后缀统一。
+
+### 0.5.1（2026-07-17）
+
+- 编码表重排（MISC-Norm / `jump` / `call` / `ret` / MISC-AMO 移入新表）；`ld`/`st` 宽度对齐、`stm`/`ldm` 连续排列。
+- QFC 重构：MISC-AMO 并入 MISC-Norm、`exts`/`extz` 移 `0001` 行、`swym` 移 `0111`。
+
+### 0.5.0（2026-07-15）
+
+- 新增 `brrr` 格式（`cmps`/`cmpu`/`add`/`sub`/`muls`/`mulu`）；删除 `cmps`/`cmpu`-orrr。
+- 位掩码 `bN`→`bmN`→`bpN`（bit position）重命名；`ww`→`wpN`（wyde position）重命名。
+- 格式分组整理（r/rw/o/b/c 分类）；删除 `orii`、`oiii` 补 18 位分配；`swym` 改 iiii 格式、`unimp`→`illi`。
+
+### 0.4.1（2026-07-14）
+
+- 初版：自 DADAO.wiki 同步 SimRISC 指令系统设计（数据表示 / 寄存器 / 指令设计 / QFC / 伪指令）。

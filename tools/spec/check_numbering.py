@@ -8,6 +8,8 @@
 4. 层级连续：每个父节下的子号自 1 起、逐一递增；
 5. **父节存在（层级逐级）**：每个 ≥3 级标题的父号须作为其上一级（`L-1`）标题出现
    （禁 `##` 直挂 `####` 的"孤儿父节"）。
+6. 文末 `## 附录：版本与变更记录`（无编号结构段）**起**的标题不参与以上断言
+   （该段的 `###` 是版本号，见 SPEC-134t）。
 所有计数**现场统计**（不写死）。
 """
 import re
@@ -23,6 +25,10 @@ H2_RE = re.compile(r"^(\d+)\.\s+\S")
 H3_RE = re.compile(r"^(\d+)\.(\d+)\s+\S")
 H4_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)\s+\S")
 
+# 文末附录段起点（SPEC-134t）：该段为**无编号**结构段，其下的 `###` 是版本号而非章节号。
+# 校验器自该行起跳过全文件剩余标题。
+APPENDIX_RE = re.compile(r"^##\s+附录：版本与变更记录\s*$")
+
 
 def lock_paths():
     return [REPO / m.group(1) for line in LOCK.read_text().splitlines()
@@ -36,7 +42,13 @@ def main():
     for p in files:
         lines = p.read_text(encoding="utf-8").splitlines()
         seq = []  # (level, num_tuple, lineno)
+        in_appendix = False  # 文末「## 附录：版本与变更记录」为无编号结构段（SPEC-134t）
         for ln, line in enumerate(lines, 1):
+            if APPENDIX_RE.match(line):
+                in_appendix = True
+                continue
+            if in_appendix:
+                continue
             m = HEADER_RE.match(line)
             if not m:
                 continue
