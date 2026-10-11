@@ -14,7 +14,7 @@
 | M4 | ELF 文件支持 + LLD 链接 + 汇编器遗留收口 | 2026-10-07 | `.tao/archive/M4/` |
 | M5 | SEE/HEE 运行环境 + semihosting | 2026-10-08 | `.tao/archive/M5/` |
 | **M6** | 整数完整调用约定 + LLVM 欠账收口 + ELF 直载 + clang target + Embench | **2026-10-11** | `.tao/archive/M6/` |
-| M7 | 待规划（`k` 未立） | — | — |
+| M7 | picolibc 移植（自带 test 100%）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle | — | — |
 
 **M6 模块里程碑**（均已 `里程碑`）：`INFRA-052m` / `SPEC-125m` / `LLVM-067m` / `QEMU-054m` / `TESTCASES-040m` / `INTEG-026m`。
 
@@ -24,7 +24,7 @@
 
 ## 当前进度
 
-- **里程碑**：M6（**达成 2026-10-11**）；M7 规划未启（无 `k`）。
+- **里程碑**：M6（**达成 2026-10-11**）；**M7 规划启动**（`INTEG-033k`，`待开始`；任务分解见该 `k`）。
 - **M6 遗留（M6→M7，均已登记 = 已处置）**：
   - `ISS-187` 窄位指令利用不足（8/16/32 位算术未用；`mul32` 用 `mul.uo` 而非 `mul.ut`）——**M7 优化候选，非缺陷**（用户 2026-10-10「先只登记，暂不改」）；指针 `.work/log/integ/pending-registrations.md §R3`。
   - `ISS-188` FP 完备性缺口（`fcmp` 取值 / `fabs`/`frem`/`copysign` / `fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` / `fpclass` / `f16` / `bitcast`(FP↔RD)；**全部显式失败、不产错码**）——**M7**；指针 `.work/log/integ/pending-registrations.md §R4`。
@@ -41,9 +41,21 @@
   - **`GOLDEN-*` 里程碑候选（M7 起，用户 2026-10-09 裁定）**：为 **golden model（结果级 / FP 独立 oracle）另立** `golden` 模块专用里程碑——承载 `ISS-019`（结果级 / FP 独立 oracle）、`ISS-026`（encoding `imm` 语义守卫依赖 golden）二者整体，以及 `ISS-081` 拆分后的 FP 独立 oracle 部分（`ISS-081` 的 FP 向量 / harness RF 部分**已在 M6 交付**：`LLVM-066t`/`TESTCASES-036t`/`041t`）。**仅登记归属，不在本轮立项**。
   - **GP（`rbgp`）候选（M7/优化期，M6 不做——用户 2026-10-09 裁定）**：`rb2=rbgp` 现由 M6 寄存器重排（`SPEC-128t`）列为 **reserved**；启用需：小数据区（`.sdata/.sbss` + 阈值）× 链接脚本聚到 `_gp` × 启动设 `rb2=_gp` × 后端 `getGlobalBaseReg`；**reloc 已备**——`ABS12`（基址 `rb1–rb63` 相对、字节）恰为 GP 相对所需、访存偏移 ±2 KiB = 小数据区自然上限。代价：**改变 `rb2` 的 ABI 语义**（独立裁定）。
   - **`lessons.md` 瘦身**：下次里程碑归档时按新口径（新增条目 ≤3 行 + 指针，细节进 `.work/log/`；**不追溯重写**）瘦身（**行数现场统计、不写死**）。
-  - **M7 主题待规划**：M6 已交付「整数完整调用约定 + 欠账收口 + ELF 直载 + clang target + Embench」；M7 主题（FP 完备 / golden model / libc/OS / fuzz / 门控分层等）由 **M7 规划 `k`** 裁定（`Process-04 §1`，INTEG 开闭）。
+  - **M7 主题（`INTEG-033k` 裁定，2026-10-11）**：M6 已交付「整数完整调用约定 + 欠账收口 + ELF 直载 + clang target + Embench」；M7 主题 = **picolibc 移植（自带 test 100%）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle**（见下「M7 裁定」；`Process-04 §1`，INTEG 开闭）。
 
 - **M7 候选主题（用户 2026-10-11）**：`musl` + **`pk`(proxy kernel)** + **更完整测试向量** + **benchmark**；**须分层、不混**：
   - **运行环境层**：`pk`（加载 ELF + trap/异常/syscall 转发）；**linux-user（qemu-user）列候选/后置**；
   - **链接层**：**静态优先（含 musl 静态最小集）**；**动态链接独立后置**（`.so`/`ld.so`/`GOT`/`PLT`/`-fPIC`/`-shared` + loader `PT_INTERP`/`.dynamic`）；
   - **用户裁定原话**：「不想把 proxy kernel 和动态链接混到一起」；且 `/plan` 时按 `AGENTS.md` 新增规则**先检索 `DADAO-0628`** 经验；ADR 判据（外部契约/多方案/高代价）**逐条提醒用户裁定**。
+
+- **M7 裁定（用户 2026-10-11，10 条；落纸 + 指针）**——`INTEG-033k`（M7 启动）；原话/细节见该 `k`「裁定汇总」与 `lessons §7.3`：
+  1. **`adr-0023` 立**（picolibc 上游 + 精确 commit 固化）：D1 上游 `https://github.com/picolibc/picolibc`；D2 commit `2ae376c6…`（= tag `1.8.12`；「保持 1.8.12」）；D3 `shallow_ref` 用 **tag**。指针 `.tao/adr/adr-0023-picolibc-upstream.md`。
+  2. **picolibc test 验收 = 100%**（用户原话「要求 100%」）——归 `TESTCASES-042t`。
+  3. **加 `clang++`** + 核 2 个 `.cpp` 测试需求——归 `INFRA-056t`。
+  4. **P0 后端纳入 M7**（`f32→f64 anyext` 载入 / FP 比较取值 `setcc` / `f64↔i64 bitcast` / `f64 select_cc` / `i64 cttz`；**优先用 ISA 现成指令**如 `ft2fo`）——归 `LLVM-079t`。
+  5. **「ISA↔后端覆盖矩阵」立即立项**（生成式；以 `contracts/opcodes.yaml` **全量**为真源；**两层分列**：汇编器可受理？／**ISel 是否用得上**？）——归 `LLVM-081t`。
+  6. **P1 后端纳入 M7**（`floor/ceil/trunc/round/rint/nearbyint`、`fmin/fmax`、`fabs`/`copysign` 双精度）——归 `LLVM-080t`。
+  7. **过渡 oracle 采用**：宿主机结果作参照 + **明确边界**（端序／`long double`=f64 vs 宿主 80-bit／`fenv`／UB／实现定义），**登记为「非判据真源」**（将来 `GOLDEN-*` 替换）——归 `SPEC-131t`。
+  8. **M7 明确排除**：**动态链接 / linux-user / pk / Chipyard / golden**——见 `INTEG-033k §排除项`。
+  9. **执行环境 `hypv`**；semihosting 用 `trap cfx3, 0x30000`——**须核 M6 探针 `cfx_umon`（= cfxha 0）是否为 cfx3（= `hmon`）；实测不一致，已登记**（`INTEG-033k §避坑`/`QEMU-056t`/`SPEC-131t`）。
+  10. **RAM 基址改为 `0xFC00_0000_0000`**（`[47:42]≡63` 的 cfx63 段；加 cfx 后不变）；**16 MiB 够用 ⇒ 不改大**——`ADR-0004` 就地修订 + 归 `QEMU-056t`。
