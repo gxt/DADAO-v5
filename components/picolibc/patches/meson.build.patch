@@ -1,52 +1,79 @@
 diff --git a/meson.build b/meson.build
-index 93daa5d..c106fb3 100644
+index 93daa5d..7f5f595 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1924,6 +1924,43 @@ foreach libname : libnames
+@@ -1924,6 +1924,70 @@ foreach libname : libnames
    libsrcs += get_variable('src_' + libname, [])
  endforeach
  
-+# DADAO port scope (INFRA-057t).  The DADAO LLVM backend cannot yet select
-+# several DAG nodes that the full C library needs: f64/i64 bitcast (float bit
-+# manipulation), FP setcc / select_cc, floating-point branch conditions,
-+# ctlz/cttz/bswap, and the FP rounding libcalls.  These are tracked by
-+# LLVM-079t (P0) / LLVM-080t (P1); until they land, the sources that hit them
-+# are left out of the library so that the build is deterministic instead of
-+# failing halfway.  This scope is explicit and reported by `make build-picolibc`;
-+# the list shrinks as the backend grows (delete entries, do not extend).
++# DADAO port scope (INFRA-057t; minimized by INFRA-066t).  The DADAO LLVM
++# backend still cannot select a handful of DAG nodes / lower some libcalls that
++# a few sources need.  Those sources are excluded so the build is deterministic
++# instead of failing halfway.  The list below is the *minimal* set obtained by
++# compiling every source in this build (INFRA-066t); each entry, its failure
++# signature and its root cause are registered in ISS-193.  Delete entries as the
++# backend grows -- never extend the list.
 +_dadao_backend_blocked = []
 +if host_cpu_family == 'dadao'
 +  _dadao_backend_blocked = [
-+    # libc float conversion / scanf / byte-swap / signbit users
-+    'atod_ryu.c',
-+    'atof_ryu.c',
-+    'atold_engine.c',
-+    'dtoa_ryu.c',
-+    'ecvt_r.c',
-+    'fcvt_r.c',
-+    'fcvtf_r.c',
++    # FP predicate SETO / SETUO / SETUNO missing (no explicit NaN / unordered
++    # handling in the DADAO FP branch and select lowering); ISS-193 (a).
++    'cacosh.c',
++    'cacoshf.c',
++    'cacoshl.c',
++    'casin.c',
++    'casinf.c',
++    'casinh.c',
++    'casinhf.c',
++    'casinhl.c',
++    'casinl.c',
++    'catanh.c',
++    'catanhf.c',
++    'catanhl.c',
++    'csqrt.c',
++    'csqrtf.c',
++    's_acos.c',
++    's_acosh.c',
++    's_asin.c',
++    's_fma.c',
++    's_hypot.c',
++    's_j0.c',
++    's_j1.c',
++    's_jn.c',
++    's_pow.c',
++    'sf_acos.c',
++    'sf_acosh.c',
++    'sf_asin.c',
++    'sf_hypot.c',
++    'sf_j0.c',
++    'sf_j1.c',
++    'sf_pow.c',
++    # f32 rounding / log libcalls (frint / flog / ftrunc) missing; ISS-193 (b).
++    'sf_log10.c',
++    'sf_nearbyint.c',
++    'sf_scalb.c',
++    'sf_tgamma.c',
++    'srf_lgamma.c',
++    # i64 bswap not selected; ISS-193 (c).
 +    'hash_page.c',
-+    'memset_explicit.c',
-+    'memset_s.c',
-+    'ryu_table.c',
-+    'strtod.c',
-+    'strtof.c',
-+    'ubsan_val_to_string.c',
-+    'vffscanf.c',
++    # truncating store (i32 store of an f64 value, 'trunc to f32') not
++    # selected; ISS-193 (d).
 +    'vfscanf.c',
 +    'vfwscanf.c',
-+    'vstrfmon.c',
-+    'wcstod.c',
-+    'wcstof.c',
++    # inline-asm "r" constraint rejects pointer values; ISS-193 (e).
++    'memset_explicit.c',
++    'memset_s.c',
++    # long-double strtod engine libcall unsupported; ISS-193 (f).
++    'atold_engine.c',
 +  ]
-+  message('DADAO port scope: excluding libm/ + @0@ backend-blocked libc sources (tracked by LLVM-079t/080t)'
++  message('DADAO port scope: excluding @0@ backend-blocked libc sources (ISS-193)'
 +          .format(_dadao_backend_blocked.length()))
 +endif
 +
  foreach params : targets
    target = params['name']
    target_dir = params['dir']
-@@ -1939,6 +1976,23 @@ foreach params : targets
+@@ -1939,6 +2003,23 @@ foreach params : targets
      libsrcs_target += get_variable('src_' + libname + target, [])
    endforeach
  
@@ -54,7 +81,7 @@ index 93daa5d..c106fb3 100644
 +    _dadao_filtered = []
 +    foreach _s : libsrcs_target
 +      _p = _s.full_path()
-+      _drop = _p.contains('/libm/')
++      _drop = false
 +      foreach _b : _dadao_backend_blocked
 +        if _p.endswith('/' + _b)
 +          _drop = true

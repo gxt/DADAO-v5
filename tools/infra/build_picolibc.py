@@ -10,12 +10,13 @@ result into the target sysroot (``target_sysroot_dir()``: headers under
 Idempotent: re-running reconfigures the same build tree and rebuilds only what
 changed; the install step refreshes the sysroot.
 
-Port scope (INFRA-057t): the DADAO LLVM backend cannot yet select some DAG
-nodes the full C library needs (f64/i64 bitcast, FP setcc / select_cc, ctlz/
-cttz/bswap, FP rounding libcalls).  The port therefore excludes the affected
-sources (see the DADAO block in the component's ``meson.build``); they are
-tracked by LLVM-079t (P0) / LLVM-080t (P1).  When those land, delete the
-entries and this build produces the full library.
+Port scope (INFRA-057t, minimized by INFRA-066t): the DADAO LLVM backend still
+cannot lower some DAG nodes / libcalls that a few sources need; those sources
+(the *minimal* set of 41, derived in INFRA-066t by compiling every source in
+this build) are listed in the component's ``meson.build``.  The full math library
+now builds into ``libc.a`` (picolibc merges libc+libm into one archive and ships
+an empty ``libm.a`` for ``-lm`` compatibility); see ``ISS-193`` for the residual
+gaps.
 
 Tools: ``clang``/``clang++``/``ld.lld`` come from the install root's
 cross-toolchain ``bin/`` (put on PATH here); ``ar``/``nm``/``strip`` are the
