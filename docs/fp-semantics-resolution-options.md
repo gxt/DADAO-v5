@@ -24,11 +24,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **依据**：IEEE 754 的 exception flags / accrued status flags 模型；DADAO 浮点无 trap。
 **后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须采用该累积/提交规则；各异常的触发条件与 NaN/舍入细则仍按其对应未决问题处理。
 
-## FP-005
-**候选 A**：所有可舍入操作使用 FCSR rounding_mode，按 IEEE 类似的 exact/inexact 判定并 OR OF/UF/NX；优点是统一，代价是需为边界建立独立 oracle。
-**候选 B**：仅格式转换和算术使用 rounding_mode，特殊值走固定结果；优点是实现范围清楚，代价是操作族间规则不同。
-**候选 C**：结果采用固定 RNE，rounding_mode 只记录不影响结果；优点是组件简单，代价是放弃状态字段语义，需改 contract 和 vectors。
-**后续影响**：contract/oracle 明确模式是否生效；LLVM/QEMU 的舍入实现与 vectors 的 halfway、OF/UF/NX 期望必须同步。
+## FP-005（已裁定：细化原候选 A）
+**采用规则**：以精确结果为输入、按指令开始时 FCSR rounding_mode 单次正确舍入；RNE halfway 取偶。结果不精确置 NX；溢出且舍入置 OF+NX；tininess 在舍入后检测，通常的 tiny 且不精确结果置 UF+NX。NaN/无穷/invalid/divide-by-zero 等指令特例优先。
+**依据**：IEEE 754 的定向舍入、overflow、underflow、inexact 与 tininess-after-rounding 模型；FP-004 的 accrued flags 规则。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖四种舍入模式、halfway、OF、舍入后 tiny/zero 及 NX；FP-008 remainder 特例、FP-009 指数转换、FP-006/007 保持各自规则。
 
 ## FP-006
 **候选 A**：按 rounding_mode 舍入到零/无穷等，越界与 NaN/Inf 写目标格式的固定 sentinel，并分别置 NV/NX；优点是结果总可观察，代价是需逐 signedness 定义 sentinel。
