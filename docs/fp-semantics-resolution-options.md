@@ -73,11 +73,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **候选 C**：按寄存器顺序处理重叠区域，未完成部分回滚；优点是确定，代价是需要临时缓冲和明确回滚语义。
 **后续影响**：contract/oracle 固定顺序、部分提交或回滚；LLVM/QEMU 的块路径和 vectors 必须覆盖 overlap 与 fault。
 
-## FP-014
-**候选 A**：t 操作严格 32 位、o 操作严格 64 位；窄 load 清高位，窄 store 只读低 32 位；优点是边界直观，代价是更新所有宽度向量。
-**候选 B**：窄 load 保留高位但窄 store 仍只写低 32 位；优点是减少寄存器破坏，代价是状态历史可见。
-**候选 C**：所有浮点存取统一 64 位容器并由格式字段解释；优点是实现统一，代价是内存宽度和 contract 复杂，需改后续组件。
-**后续影响**：contract/oracle 固定容器与内存宽度；LLVM/QEMU 的 load/store 及 vectors 必须同步高位和字节掩码规则。
+## FP-014（已裁定：候选 B）
+**采用规则**：t 操作严格读写 32 位，load 保持 RF 高 32 位，store 仅读 RF 低 32 位；o 操作严格读写完整 64 位。所有 store 不修改 RF，块指令逐元素采用相同宽度；`set.w` 保持其选定 16 位替换语义。
+**依据**：SimRISC-03 的 `set.w` 保持其余 48 位规则；rf0 的 t-load 高 32 位保持规则；tetra/octa 的 32/64 位格式定义。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 t-load 高位保持、t-store 忽略高位、o 操作全宽及 rf0 路径；动态 fault 仍归 FP-013。
 
 ## FP-015
 **候选 A**：只读取被选源，未选源不产生 NaN、fault 或 flags；优点是条件选择可短路，代价是实现需保证惰性。

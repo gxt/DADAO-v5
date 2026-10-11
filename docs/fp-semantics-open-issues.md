@@ -84,13 +84,10 @@
 **一个具体可观察例子**：块 store 的第二个元素地址 fault；第一元素是否已写入决定内存可观察状态。
 **待裁决问题**：块元素顺序、重叠策略、fault 提交点和部分结果规则是什么？
 
-## FP-014
-**现象**：f32 load/store 与 `set.w` 的宽度边界容易被错误地当成 64 位操作。
-**受影响指令集合**：`ld.t/ldm.t/st.t/stm.t`、`ld.o/ldm.o/st.o/stm.o`、`set.w`。
-**spec 已规定什么**：`SimRISC-01 §浮点数据存取`规定 tetra/octa 存取类别；`SimRISC-03 §Immediate constant`规定 set.w。
-**spec 未规定什么**：f32 load 写寄存器高位、f32 store 读取范围、store 是否修改寄存器，以及各类地址/块边界的掩码。
-**一个具体可观察例子**：fo 的高 32 位非零时执行 `st.t`；若 store 读取整个 fo，内存会多出不应有的高位字节。
-**待裁决问题**：每条 t/o 操作的源读取宽度、目标写掩码和块行为是什么？
+## FP-014（已裁定）
+**裁定**：t 存取每元素严格为 32 位：`ld.t/ldm.t` 仅写 RF 低 32 位并保持高 32 位，`st.t/stm.t` 仅读低 32 位且不修改 RF。o 存取每元素严格为 64 位：load 覆盖完整 RF，store 读完整 RF 且不修改 RF。块指令逐元素采用同一宽度；`set.w` 仍仅替换选定 16 位。
+**规范落点**：`SimRISC-01 §存取RF寄存器` 已补入 t/o 宽度与 rf0 源/目的规则；`SimRISC-03 §Immediate constant` 的 `set.w` 保持规则不变。
+**保留边界**：块访存的动态 fault 部分提交仍由 FP-013 裁定；rf0 的 FCSR 写掩码仍由 FP-012 覆盖。
 
 ## FP-015
 **现象**：conditional move 未选中的源是否读取，会影响 NaN、fault 和 FCSR 可观察行为。

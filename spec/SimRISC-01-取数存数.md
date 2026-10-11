@@ -195,4 +195,6 @@ stm.o   {rfHA:rfHA+immu6-1}, [rbHB, rdHC]
 - 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
 - `rfHA + immu6 > 64`（超出 rf63）时触发 ILLI 异常
 
-> **注**：`rf0` 作**目的**合法（`ld.o`/`ldm.o`/`ld.t`/`ldm.t`），写入按 SimRISC-00 的写语义（`ld.t`/`ldm.t` 的 `[63:32]` 不变）；`rf0` 作**源**（`st.o`/`st.t`/`stm.o`/`stm.t`）读出完整 64 位。
+RF 的 tetra/octa 存取宽度如下：`ld.t`/`ldm.t` 每元素从内存读 32 位、仅写 rf 的 `[31:0]`，`[63:32]` 保持不变；`st.t`/`stm.t` 每元素仅读 rf 的 `[31:0]` 并写 32 位内存，且不修改 rf。`ld.o`/`ldm.o` 每元素读 64 位并覆盖完整 rf；`st.o`/`stm.o` 每元素读完整 rf 的 64 位并写 64 位内存，且不修改 rf。块指令逐元素采用相同宽度。
+
+> **注**：`rf0` 作**目的**合法（`ld.o`/`ldm.o`/`ld.t`/`ldm.t`），写入按 SimRISC-00 的 FCSR 写语义；`ld.t`/`ldm.t` 仍不写 `[63:32]`。`rf0` 作**源**时，`st.o`/`stm.o` 读完整 64 位，`st.t`/`stm.t` 仅读低 32 位。

@@ -21,7 +21,7 @@ sha256 = "291d75dc5d5d8e4c94b0b89f7d921be6c48802dac07bb607ab2d9e2887f221c6"
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
 group = "simrisc-00..12"
-sha256 = "08b76ba3047f01b86abbca30b56e84e8efcdd7c820578b17ffd7fb509ed72ce6"
+sha256 = "7197e29c5fa5cbff95b0dce92b66268d1ed2953da2729971a206f29c54a79c65"
 
 [[spec]]
 path = "spec/SimRISC-02-寄存器复制.md"
