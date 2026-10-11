@@ -12,21 +12,18 @@
 **一个具体可观察例子**：先让目标寄存器高 32 位为非零，再执行产生 f32 的转换；随后以 f64 形式读回，至少有“高位为零”和“高位仍非零”两种结果。
 **待裁决问题**：每种写入的目标宽度、写掩码及高位值分别是什么，`st.t` 是否只读 ft 的低 32 位、`st.o` 是否只读 fo 的 64 位？
 
-## FP-002
-**现象**：格式转换遇到 NaN 时，结果的符号、quiet 位和 payload 可能不唯一。
-**受影响指令集合**：`ft2ft`、`ft2fo`、`fo2ft`、`fo2fo`。
-**spec 已规定什么**：`SimRISC-07 §格式转换指令`规定源格式、目标格式和转换操作，并提及 NaN 传播。
-**spec 未规定什么**：sNaN 是否 quiet、payload 如何截取或补位、符号是否保留，以及转换产生 NV 的条件。
-**一个具体可观察例子**：把带符号且带非零 payload 的 f64 qNaN 转成 f32；“保留低 payload 位”和“产生固定 canonical NaN”会得到不同位模式。
-**待裁决问题**：每个方向和输入类别的 NaN 结果位形、写掩码与 NV 规则是什么？
+## FP-002（已裁定）
+**裁定**：格式转换的 qNaN 保持 sign 并传播 payload；同格式保持 payload，ft→fo 将 22 位 payload 写入 fo payload 的低 22 位且高 29 位补 0，fo→ft 取低 22 位。该布局使 qNaN 的 `f32→f64→f32` 往返保持相同 sign、quiet 位和 payload。sNaN 使用同一映射后 quiet 化为 qNaN，并产生 NV；qNaN 转换本身不新增异常状态。
+**规范落点**：`SimRISC-07 §格式转换指令` 已补入该规则；裁定遵守该节的 payload 传播要求与 IEEE 754 对 signaling NaN 的 invalid/quiet NaN 处理。
+**保留边界**：ft 结果写入 RF 的高 32 位仍由 FP-001 裁定；算术/root 的 sNaN、多源 NaN 选择仍由 FP-003 裁定。
 
 ## FP-003
 **现象**：sNaN 进入转换、算术或 root 时，quiet 处理和 NV 置位可能不同。
-**受影响指令集合**：浮点格式转换、`add/sub/mul/div/rem/scalb`、`rootn`。
-**spec 已规定什么**：`SimRISC-07 §格式转换指令`、`§S2D1`、`§S1D1`分别规定这些操作族和源目的关系。
+**受影响指令集合**：`add/sub/mul/div/rem/scalb` 与 `rootn`。
+**spec 已规定什么**：`SimRISC-07 §S2D1`、`§S1D1`规定这些操作族和源目的关系；格式转换的 sNaN 规则已由 FP-002 裁定。
 **spec 未规定什么**：多个源中 sNaN 与 qNaN 的选择优先级、quiet 后 payload/sign 的来源，以及 NV 与结果写入的关系。
 **一个具体可观察例子**：算术左源为 qNaN、右源为 sNaN；交换两个源后，选择左源与选择 sNaN 优先会产生不同 payload 和 NV。
-**待裁决问题**：sNaN 的 quiet、源选择、payload/sign 传播和 NV 规则按哪一套唯一规则执行？
+**待裁决问题**：算术/root 的 sNaN quiet、源选择、payload/sign 传播和 NV 规则按哪一套唯一规则执行？
 
 ## FP-004（已裁定）
 **裁定**：采用 IEEE 754 的 exception flags / accrued status flags 模型。对产生 IEEE 异常的操作，本次异常位集合与指令开始时的 `rf0[4:0]` 按位 OR；同次多个异常均保留、无优先级覆盖；结果与 flags 原子提交。DADAO 无浮点 trap，flags 仅作累积状态记录；显式写 `rf0` 仍按写掩码覆盖相应位。

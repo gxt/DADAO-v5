@@ -9,14 +9,13 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **候选 C**：窄写产生固定扩展模式并让 store 严格按格式取值；优点是可重复，代价是新增编码规则、contract 字段及全套回归向量。
 **后续影响**：选择 A/B/C 都要同步 contract 与独立 oracle；LLVM/QEMU 按同一写掩码实现，vectors 增加高位回读和 t/o store 用例。
 
-## FP-002
-**候选 A**：保留 sign，quiet sNaN，按目标格式截取/补位 payload；优点是信息保留，代价是实现和 oracle 需格式化 payload 规则。
-**候选 B**：所有 NaN 转成目标格式固定 canonical qNaN；优点是跨格式一致，代价是丢失 sign/payload，需更新 contract、组件和 NaN 向量。
-**候选 C**：保留 payload 但固定 sign；优点是诊断信息适中，代价是与 A 不同且需单独验证 quiet/NV。
-**后续影响**：contract/oracle 要记录 payload、sign、quiet 和 NV；LLVM/QEMU 的转换路径及 NaN vectors 必须采用同一候选。
+## FP-002（已裁定：细化原候选 A）
+**采用规则**：qNaN 保持 sign；同格式保持 payload，ft→fo 将 payload 放入 fo payload 的低 22 位并将高 29 位清零，fo→ft 取低 22 位。选择低位布局是为保证 qNaN `f32→f64→f32` 往返保持相同 sign、quiet 位和 payload。sNaN 使用同一映射、quiet 化为 qNaN 并置 NV；qNaN 转换不新增 flags。
+**依据**：SimRISC-07 的 NaN payload 传播要求；IEEE 754 的 signaling NaN invalid/quiet NaN 处理。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 NaN 转换向量必须采用该映射；ft 结果的 RF 高 32 位仍依赖 FP-001。
 
 ## FP-003
-**候选 A**：按操作数顺序选第一 NaN，quiet sNaN，保留 sign/payload，并为 sNaN 置 NV；优点是可追踪，代价是每个二元操作需统一双源逻辑。
+**候选 A**：按操作数顺序选第一 NaN，quiet sNaN，保留 sign/payload，并为 sNaN 置 NV；优点是可追踪，代价是每个二元算术操作需统一双源逻辑。
 **候选 B**：sNaN 优先，结果 canonical qNaN，NV 只由 sNaN 触发；优点是异常规则醒目，代价是丢失 payload，contract/oracle/组件需同步。
 **候选 C**：单源操作保留 NaN 信息，双源操作 canonical 化；优点是实现分层，代价是规则不对称、向量数量增加。
 **后续影响**：contract/oracle 要按单源和双源分支；LLVM/QEMU 需一致实现，vectors 覆盖源交换与 sNaN/qNaN 混合。

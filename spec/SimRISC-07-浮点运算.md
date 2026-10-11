@@ -109,6 +109,8 @@ uo2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
 
 浮点格式转换遵循 IEEE 754 标准：浮点→浮点（fo2ft/ft2fo）溢出返回 ±Inf（设置 OF），下溢按舍入模式处理（设置 UF），NaN 传播 payload。整数→浮点转换可能 inexact（精度损失）。浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值（最大/最小），设置 NV 标志。sNaN 作为算术输入时设置 NV 并返回 qNaN。舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。
 
+浮点→浮点格式转换的 NaN 规则如下：qNaN 保持符号位并传播 payload；同格式转换保持 payload 不变，ft→fo 将 ft 的 22 位 payload 写入 fo payload 的低 22 位、其余 29 位补 0，fo→ft 取 fo payload 的低 22 位。该低位布局保证 qNaN 经 ft→fo→ft 往返后保持相同的符号位、quiet 位和 payload。sNaN 使用相同的符号位和 payload 映射，但目标结果 quiet 位设为 1 成为 qNaN，并设置 NV；qNaN 转换本身不新增异常状态。sNaN 的 NV 与其他异常状态按浮点状态寄存器的累计规则写入。ft 结果写入 rf 的高 32 位规则见 SimRISC-00 §浮点寄存器。
+
 限制如下：
 
 - `immu6` = 0 时触发 ILLI 异常
