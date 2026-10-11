@@ -51,7 +51,7 @@ sha256 = "a82179a769f40e86234cfb3275f7d0341898866a28014ab4029d6ab773e25313"
 [[spec]]
 path = "spec/SimRISC-07-浮点运算.md"
 group = "simrisc-00..12"
-sha256 = "4cef669331a7f3954e016bf4d666778ef88da534905aef14b744514dec06b35a"
+sha256 = "70f90d2c84c95bdaed42cc58e37502b5811deae68b390c7d81eed37240def130"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"

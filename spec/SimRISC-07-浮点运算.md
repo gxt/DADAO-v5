@@ -212,7 +212,7 @@ rdHB中的比较结果有四种情况：
 
 任一源为 NaN 时比较结果为 unordered，不传播输入 NaN 的 sign 或 payload。ftqcmp 向 rdHB 写入零扩展的 `0x7FC00000`，ftscmp 写入零扩展的 `0x7F800001`；foqcmp 写入 `0x7FF8000000000000`，foscmp 写入 `0x7FF0000000000001`。Quiet Compare 仅当任一源为 sNaN 时设置 NV；Signaling Compare 在任一源为 qNaN 或 sNaN 时设置 NV。NaN 比较不设置 DZ、OF、UF 或 NX；NV 按浮点状态寄存器的累计规则写入。
 
-由于qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdHB的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
+由于正 canonical qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdHB的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
 
 ## 浮点分类指令
 
