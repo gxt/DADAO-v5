@@ -45,7 +45,6 @@ SCAN_FILES = ("Makefile", "README.md", "AGENTS.md")
 HISTORY_PREFIXES = (
     ".tao/adr/",
     ".tao/tasks/",
-    ".tao/knowledge/MEMORY.md",
     ".tao/knowledge/lessons.md",
     ".tao/knowledge/issues.yaml",
 )

@@ -28,7 +28,7 @@ done
 
 ### 3. 输出阶段与下一步
 
-读取 `$TAO_ROOT/knowledge/MEMORY.md` 的「当前进展」段（阶段、下一步、说明），原样呈现。
+读取 `$TAO_ROOT/knowledge/milestones.md` 的「当前进度」段（里程碑、规划中、裁定），原样呈现。
 
 ### 4. 输出流转提示
 

@@ -14,4 +14,4 @@
 
 - 以上为**原始素材**（早期 wiki 文档，属 0.4.1 时代），供 M0 讲义**引用/改写**；其中出现的旧助记符（如 `setzw`/`orw`/`unimp`）与旧约定，以当前规范为准。
 - 后续据此整理为 **lecnote 格式**的 M0 讲义（历史篇、理念篇），并补「课程与项目路线」（M0/M1/M2 + 两条深入路线：OS→LFS、chipyard→FPGA）。
-- 相关项目知识：`adr-0001`（greenfield 重建）、`.tao/knowledge/MEMORY.md`（0.5.4 与 0.4.1 的差异）。
+- 相关项目知识：`adr-0001`（greenfield 重建）、`.tao/knowledge/MEMORY.md`（项目知识入口导航）。

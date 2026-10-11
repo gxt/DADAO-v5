@@ -64,8 +64,8 @@ agent: build
 
 对照完成区内容（尤其工程师在"新发现/坑"字段记录的沉淀建议），逐一检查。**知识库更新由本命令统一执行，工程师不直接写知识库。** 任务部分完成时也必须更新 memory 反映当前状态，不要因为"任务未完成"而跳过更新。
 
-**A. `$TAO_ROOT/knowledge/MEMORY.md` 摘要行**
-- 若任务结论改变了某个项目的状态/进展，更新对应摘要行
+**A. `$TAO_ROOT/knowledge/MEMORY.md`（纯指针页）**
+- MEMORY.md **只做导航、不承载事实**；若任务结论改变了项目状态/进展，更新 `$TAO_ROOT/knowledge/milestones.md`「当前进度」（见 E）
 
 **B. project_*.md 文件**
 - 若任务涉及某个活跃项目，找到对应的 `knowledge/project_*.md` 并更新进展/状态
@@ -106,7 +106,7 @@ agent: build
 
 ## 注意
 
-- `$TAO_ROOT/knowledge/MEMORY.md` 超过 200 行时把细节移入子文件，只留摘要行
+- `$TAO_ROOT/knowledge/MEMORY.md` 为**纯指针页**（≤20 行）；**只做导航**，任何事实以真源为准、不写入（复制必漂移）
 - 知识库章节号从现有最大章节号 +1 递增
 - 不写代码细节进 memory（代码在仓库里，memory 只写结论和规律）
 - 不写临时路径、临时文件名进 memory
