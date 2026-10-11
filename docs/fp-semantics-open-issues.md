@@ -80,13 +80,9 @@
 **规范落点**：`SimRISC-01 §存取RF寄存器` 已补入 t/o 宽度与 rf0 源/目的规则；`SimRISC-03 §Immediate constant` 的 `set.w` 保持规则不变。
 **保留边界**：块访存的动态 fault 部分提交仍由 FP-013 裁定；rf0 的 FCSR 写掩码仍由 FP-012 覆盖。
 
-## FP-015
-**现象**：conditional move 未选中的源是否读取，会影响 NaN、fault 和 FCSR 可观察行为。
-**受影响指令集合**：`cs.n/cs.z/cs.p/cs.eq/cs.ne`。
-**spec 已规定什么**：`SimRISC-07 §浮点条件赋值`规定条件选择与目标浮点寄存器。
-**spec 未规定什么**：未选源是否求值、是否检查其 NaN/fault、源读取顺序及任何 flags 副作用。
-**一个具体可观察例子**：条件选择普通值，而未选源是 sNaN；“不读”与“先读并置 NV”产生不同 FCSR。
-**待裁决问题**：未选源是否完全不读取？若读取，结果、fault、flags 和顺序是什么？
+## FP-015（已裁定）
+**裁定**：浮点条件赋值先判定 rd 条件，再从指令开始前状态捕获被选 rf 源的完整 64 位并写入目的；目的/源重名仍使用写前值。未选源不可观察：可被物理读取，但不得被解释为浮点操作数、quiet sNaN、修改状态或设置 flags。`cs.*-rf` 不设置任何 FCSR flags。
+**规范落点**：`SimRISC-02 §浮点条件赋值` 已补入该规则；rf0 作目的的 ILLI 与作源的完整读取规则保持不变。
 
 ## FP-016（已裁定）
 **裁定**：`ftcls` 仅分类 RF 低 32 位的 ft 位型，忽略高 32 位；`focls` 分类完整 64 位 fo 位型。sNaN 设置 bit 8，qNaN 设置 bit 9。classify 为纯读取：不 quiet sNaN、不修改源寄存器、不设置任何 FCSR flags；结果仍仅使用 rd[9:0]。

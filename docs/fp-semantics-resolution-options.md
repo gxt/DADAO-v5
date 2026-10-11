@@ -75,11 +75,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **依据**：SimRISC-03 的 `set.w` 保持其余 48 位规则；rf0 的 t-load 高 32 位保持规则；tetra/octa 的 32/64 位格式定义。
 **后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 t-load 高位保持、t-store 忽略高位、o 操作全宽及 rf0 路径；动态 fault 仍归 FP-013。
 
-## FP-015
-**候选 A**：只读取被选源，未选源不产生 NaN、fault 或 flags；优点是条件选择可短路，代价是实现需保证惰性。
-**候选 B**：先读取两个源，再选择结果；优点是数据通路统一，代价是未选 sNaN/fault 可见，需增加 flags/异常规则。
-**候选 C**：读取两个源但只对被选源产生 flags；优点是兼顾固定读取路径，代价是 oracle 与 QEMU 时序需明确。
-**后续影响**：contract/oracle 记录读取与 flags 的分离；LLVM/QEMU 保持同一副作用，vectors 增加未选 sNaN/fault 用例。
+## FP-015（已裁定：架构副作用采用候选 A）
+**采用规则**：条件先判定，再复制被选 rf 源的写前完整 64 位；未选源无架构副作用。实现可物理读取未选源，但不得将其作为浮点操作数处理或产生 flags；`cs.*-rf` 不设置 FCSR flags。
+**依据**：条件赋值为寄存器位串复制而非浮点运算；SimRISC-02 的条件选择语义与 rf0 目的 legality。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖选源/未选 sNaN、目的-源重名、rf0 源和无 flags；无动态访存 fault 路径。
 
 ## FP-016（已裁定：候选 A）
 **采用规则**：ftcls 仅读低 32 位，focls 读完整 64 位；sNaN/qNaN 分别置 bit 8/9。classify 不 quiet、不改源、不置 FCSR flags，结果仅使用 rd[9:0]。

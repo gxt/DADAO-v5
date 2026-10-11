@@ -496,6 +496,10 @@ review_projection:
     status: RESOLVED
     decision: classify_effective_width_signaling_nan_and_no_side_effects
     spec_reference: SimRISC-07 §浮点分类指令
+  - id: FP-015
+    status: RESOLVED
+    decision: conditional_rf_copy_selected_source_no_side_effects
+    spec_reference: SimRISC-02 §浮点条件赋值
   - id: FP-017
     status: RESOLVED
     decision: covered_by_fp003_nan_propagation
@@ -817,36 +821,35 @@ review_projection:
     issue_ids: *id008
   - id: cs.n_rrrr_rf
     family: cs_rf
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-02 §浮点条件赋值
     basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
-    issue_ids: &id009
-    - FP-015
+    issue_ids: &id009 []
   - id: cs.z_rrrr_rf
     family: cs_rf
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-02 §浮点条件赋值
     basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
     issue_ids: *id009
   - id: cs.p_rrrr_rf
     family: cs_rf
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-02 §浮点条件赋值
     basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
     issue_ids: *id009
   - id: cs.eq_rrrr_rf
     family: cs_rf
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-02 §浮点条件赋值
     basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
     issue_ids: *id009
   - id: cs.ne_rrrr_rf
     family: cs_rf
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-02 §浮点条件赋值
     basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
