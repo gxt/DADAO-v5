@@ -244,6 +244,8 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 | 8     | signalingNaN      |
 | 9     | quietNaN          |
 
+`ftcls` 仅使用 rfHC 的低 32 位按 ft 格式分类，忽略 `[63:32]`；`focls` 使用完整 64 位按 fo 格式分类。sNaN 设置 bit 8，qNaN 设置 bit 9。分类为纯读取操作：不 quiet sNaN、不修改源寄存器，也不设置 NV、DZ、OF、UF 或 NX；多寄存器分类的每一对均遵循本规则。
+
 限制如下：
 
 - `immu6` = 0 时触发 ILLI 异常

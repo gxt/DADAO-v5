@@ -88,13 +88,10 @@
 **一个具体可观察例子**：条件选择普通值，而未选源是 sNaN；“不读”与“先读并置 NV”产生不同 FCSR。
 **待裁决问题**：未选源是否完全不读取？若读取，结果、fault、flags 和顺序是什么？
 
-## FP-016
-**现象**：classify 对不同格式、sNaN 和寄存器高位的分类输入范围不清楚。
-**受影响指令集合**：`ftcls_orri_rf`、`focls_orri_rf`。
-**spec 已规定什么**：`SimRISC-07 §浮点分类指令`规定 classify 操作类别及结果写入。
-**spec 未规定什么**：分类只看目标格式有效位还是整个寄存器，sNaN 是否改变 quiet/NV，以及 f32 高位如何处理。
-**一个具体可观察例子**：低 32 位是 f32 正零而高 32 位编码 NaN；按低位或整寄存器分类会得到不同类别。
-**待裁决问题**：输入有效宽度、NaN 分类、flags 和结果编码的唯一规则是什么？
+## FP-016（已裁定）
+**裁定**：`ftcls` 仅分类 RF 低 32 位的 ft 位型，忽略高 32 位；`focls` 分类完整 64 位 fo 位型。sNaN 设置 bit 8，qNaN 设置 bit 9。classify 为纯读取：不 quiet sNaN、不修改源寄存器、不设置任何 FCSR flags；结果仍仅使用 rd[9:0]。
+**规范落点**：`SimRISC-07 §浮点分类指令` 已补入输入宽度、NaN 分类与无副作用规则。
+**保留边界**：f32 写入 RF 高 32 位仍由 FP-001 裁定，但不影响 ftcls。
 
 ## FP-017（已关闭：由 FP-003 覆盖）
 **关闭依据**：FP-003 已规定 S2D1 按 `rfHC→rfHD` 选择第一个 NaN，保持其 sign/payload；因此 qNaN 与普通值、双 qNaN、qNaN+sNaN 的结果来源和 flags 均已唯一确定。rootn 的唯一 qNaN 输入保持 sign/payload 返回。

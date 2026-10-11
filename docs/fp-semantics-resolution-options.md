@@ -81,11 +81,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **候选 C**：读取两个源但只对被选源产生 flags；优点是兼顾固定读取路径，代价是 oracle 与 QEMU 时序需明确。
 **后续影响**：contract/oracle 记录读取与 flags 的分离；LLVM/QEMU 保持同一副作用，vectors 增加未选 sNaN/fault 用例。
 
-## FP-016
-**候选 A**：只按 ft/fo 有效位分类，sNaN 单独分类且不 quiet、不置 NV；优点是 classify 无副作用，代价是高位必须清零/忽略。
-**候选 B**：sNaN 分类同时置 NV，其他分类无副作用；优点是异常可见，代价是 classify 不再纯读。
-**候选 C**：按完整寄存器位模式分类；优点是保留所有位信息，代价是 f32 高位影响结果，需与 load/write 规则联动。
-**后续影响**：contract/oracle 固定有效位和分类编码；LLVM/QEMU classify 与 vectors 必须同 FP-001/014 的高位规则联动。
+## FP-016（已裁定：候选 A）
+**采用规则**：ftcls 仅读低 32 位，focls 读完整 64 位；sNaN/qNaN 分别置 bit 8/9。classify 不 quiet、不改源、不置 FCSR flags，结果仅使用 rd[9:0]。
+**依据**：ft/fo 的 32/64 位格式定义与 SimRISC-07 分类位表；classify 作为纯读取分类操作。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 ft 高位忽略、fo 全宽、sNaN/qNaN 分类和无 flags；FP-001 不阻塞 ftcls。
 
 ## FP-017（已关闭：由 FP-003 覆盖）
 **采用规则**：不新增独立规则；采用 FP-003 的 S2D1 第一 NaN 源顺序、sign/payload 保持和任一 sNaN 置 NV 规则，以及 rootn 的唯一 NaN 传播规则。

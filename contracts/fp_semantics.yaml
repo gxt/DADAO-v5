@@ -492,6 +492,10 @@ review_projection:
     status: RESOLVED
     decision: correctly_rounded_integer_to_float_with_inexact
     spec_reference: SimRISC-07 §格式转换指令
+  - id: FP-016
+    status: RESOLVED
+    decision: classify_effective_width_signaling_nan_and_no_side_effects
+    spec_reference: SimRISC-07 §浮点分类指令
   - id: FP-017
     status: RESOLVED
     decision: covered_by_fp003_nan_propagation
@@ -804,7 +808,6 @@ review_projection:
     basis: SimRISC-07 §浮点分类指令；该条指令属于该族并具有对应可观察维度
     issue_ids: &id008
     - FP-001
-    - FP-016
   - id: focls_orri_rf
     family: classify
     status: UNSPECIFIED
