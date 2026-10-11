@@ -5,11 +5,11 @@
 
 通过制定ABI，使得独立编译、汇编得到的代码，可以被正确链接、执行。手工编写的汇编代码，也应遵循ABI规范。
 
-## 寄存器规范
+## 1. 寄存器规范
 
 Dadao提供了四组64个64位寄存器，所有这些寄存器对于一个运行中的进程而言都是全局可见的。
 
-### RD寄存器（Data registers）
+### 1.1 RD寄存器（Data registers）
 
 RD寄存器的约定如下：
 
@@ -23,7 +23,7 @@ RD寄存器的约定如下：
 | rd16 - rd31   | rda0 - rda15  | temporary regs    | No                |
 | rd32 - rd63   |               | callee saved regs | Yes               |
 
-### RB寄存器（Base registers）
+### 1.2 RB寄存器（Base registers）
 
 RB寄存器的约定如下：
 
@@ -43,7 +43,7 @@ RB寄存器的约定如下：
 
 因 `rb63` 是 RB 组最高编号寄存器，`ldm`/`stm` 的 `immu6` 连续寄存器区间不能从 `rb63` 向上展开：批量保存 callee-saved 寄存器时须排除 FP（`rb63`），或对 `rb63` 先保存再恢复。
 
-### RF寄存器（Floating-point registers）
+### 1.3 RF寄存器（Floating-point registers）
 
 RF寄存器的约定如下：
 
@@ -55,7 +55,7 @@ RF寄存器的约定如下：
 | rf16 - rf31   | rfa0 - rfa15  | temporary regs        | No                |
 | rf32 - rf63   |               | callee saved regs     | Yes               |
 
-### RA寄存器（Return address registers）
+### 1.4 RA寄存器（Return address registers）
 
 RA寄存器的约定如下。高 16 位/低 48 位的详细定义见 AEE §返回地址栈。
 
@@ -67,11 +67,11 @@ RA寄存器的约定如下。高 16 位/低 48 位的详细定义见 AEE §返�
 
 压栈溢出触发 RASOF 异常，弹栈下溢触发 RASUF 异常（详见 AEE）。
 
-## 数据表示
+## 2. 数据表示
 
 在Dadao中，我们使用术语`byte`表示8位的数据，`wyde`表示16位数据，`tetra`表示32位数据，`octa`表示64位数据。
 
-### Fundamental Types
+### 2.1 Fundamental Types
 
 DADAO 采用大端序（big-endian），多字节数据的最高有效字节存放在最低地址。
 
@@ -105,7 +105,7 @@ DADAO 采用大端序（big-endian），多字节数据的最高有效字节存�
 
 `size_t`类型的定义为`unsigned long long`。
 
-### Aggregates
+### 2.2 Aggregates
 
 聚合体（Aggregate）包括结构体（struct）和共用体（union），其内部的标量数据成员依照各自的规定对齐。
 
@@ -113,17 +113,17 @@ DADAO 采用大端序（big-endian），多字节数据的最高有效字节存�
 
 聚合体数据可能需要填充来满足大小限制和对齐量限制。如果未指定填充内容，则默认填充 `0` 。
 
-### Array type
+### 2.3 Array type
 
 array 的起始地址按照 8 字节方式对齐。
 
 数组的数据大小等于所有元素的数据大小之和。
 
-## 函数调用规范
+## 3. 函数调用规范
 
 本节描述标准的函数调用过程，包括栈帧的布局和参数传递等。
 
-### The Stack Frame
+### 3.1 The Stack Frame
 
 除了寄存器之外，每个函数都有一个属于自己的帧，该帧位于运行时的栈上。
 
@@ -143,11 +143,11 @@ array 的起始地址按照 8 字节方式对齐。
 这样做的好处在于函数的入口和出口可以缩减指令数量和访存行为，并且节省了一个寄存器。
 
 
-### 传参：Parameter Passing
+### 3.2 传参：Parameter Passing
 
 在参数值被计算出来后，这些参数值会放到寄存器中或压到栈上。
 
-#### 参数寄存器：Parameter registers
+#### 3.2.1 参数寄存器：Parameter registers
 
 Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使用栈传送。
 
@@ -163,7 +163,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 | buf (void *) | 指针 → rb | rb16 |
 | count (size_t) | 标量 → rd | rd17 |
 
-#### 标量参数：Scalar type parameter
+#### 3.2.2 标量参数：Scalar type parameter
 
 标量参数传参时，按照如下规则转换后传递：
 
@@ -171,7 +171,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 - 参数类型为float，double，属于浮点型，参数传递时使用浮点寄存器，单精和双精浮点都使用单个寄存器存放相应数据
 - 指针类参数传递时使用基址寄存器
 
-#### 聚合类型参数：Aggregate parameter
+#### 3.2.3 聚合类型参数：Aggregate parameter
 
 聚合类型按以下规则传递，最多消耗 8 个寄存器槽位（64 字节）。
 
@@ -226,7 +226,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 - ≤ 64 字节：拆分为 1-8 个 8 字节块，放入 RD bank，高位块先入高寄存器
 - > 64 字节：通过指针引用（caller 在栈上分配临时空间，callee 通过 RB bank 中的指针访问）
 
-#### 栈溢出规则
+#### 3.2.4 栈溢出规则
 
 当某 bank 的可用寄存器槽位用完时，该 bank 的后续参数使用栈传递。
 
@@ -243,7 +243,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 
 call 指令执行时 sp 必须 8 字节对齐。变参保存区同样 8 字节对齐。
 
-### 可变参数：Variable Arguments
+### 3.3 可变参数：Variable Arguments
 
 DADAO 采用 `va_list` 即为 `void*` 指针的极简实现，调用者在 call 指令前将所有参数按调用顺序依次写入栈上的连续保存区。
 
@@ -335,17 +335,17 @@ ap = (char*)sp + N * 8;
 - `va_arg(ap, long long)` ≡ `*(long long*)ap`（读全部 8 字节）。
 - `va_arg(ap, char)` 需用 `va_arg(ap, int)` 再截断（C 标准提升规则）。
 
-### 返回值：Returning of Values
+### 3.4 返回值：Returning of Values
 
 Dadao 使用**固定返回寄存器组**存放返回值：整数 `rd8`、指针 `rb8`、浮点 `rf8`。返回寄存器区（`rd8-rd15` / `rb8-rb15` / `rf8-rf15`）与参数寄存器区（`rd16-rd31` / `rb16-rb31` / `rf16-rf31`）**互不重叠**。
 
-#### 标量类型返回值：Scalar type return
+#### 3.4.1 标量类型返回值：Scalar type return
 
 - 当返回值为绝对地址时，采用rb8作为返回值寄存器
 - 当返回值为浮点数时，采用rf8作为返回值寄存器
 - 其它情况，采用rd8作为返回值寄存器
 
-#### 多返回值
+#### 3.4.2 多返回值
 
 需要返回多个标量时，按**返回值声明顺序**、在同一 bank 内自 `8` 起**递增**分配返回寄存器：
 
@@ -360,7 +360,7 @@ Dadao 使用**固定返回寄存器组**存放返回值：整数 `rd8`、指针 
 > 例：`(int a, double* p, float f)` → a 为 rd8，p 为 rb8，f 为 rf8。
 > 例：`(int x, int y, double* p)` → x 为 rd8，y 为 rd9，p 为 rb8。
 
-#### 聚合类型返回值：Aggregate return
+#### 3.4.3 聚合类型返回值：Aggregate return
 
 聚合类型的各成员同样按上述返回寄存器规则，依**声明顺序**占用返回寄存器（每 bank 自 8 起递增，各 bank 至多 8 个）。
 
@@ -378,7 +378,7 @@ void make_big(struct Big* sret_ptr, int a)
 // a        → RD16
 ```
 
-## 系统调用规范
+## 4. 系统调用规范
 
 系统调用通过 `trap cfxha, immu18` 指令发起，其中 `cfxha` 指定目标核芯功能扩展，`immu18` 为硬件事务编号（功能编号）。
 

@@ -4,9 +4,9 @@
 > **分类：寄存器复制**（18 条）— cs.*/ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd
 
 <!-- ASSEMBLY_LIST_START -->
-## 汇编指令速查
+## 1. 汇编指令速查
 
-### 寄存器复制（18 条）
+### 1.1 寄存器复制（18 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -32,7 +32,7 @@
 <!-- ASSEMBLY_LIST_END -->
 
 <!-- LEGALITY_START -->
-## 合法性检查
+## 2. 合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `cs.eq_rrrr_rd`, `cs.n_rrrr_rd`, `cs.ne_rrrr_rd`, `cs.p_rrrr_rd`, `cs.z_rrrr_rd`, `ra2rd_orri_ra`, `rb2rd_orri_rb`, `rd2rd_orri_rd`, `rf2rd_orri_rf`（9 条）
 * `dst_rb0`：目的 rb0 → ILLI — `rb2rb_orri_rb`, `rd2rb_orri_rb`（2 条）
@@ -43,11 +43,11 @@
 <!-- LEGALITY_END -->
 
 
-## 赋值类指令
+## 3. 赋值类指令
 
 > **立即数常数赋值**（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式，以及 set.rd/set.rb/set.ft/set.fo 伪指令）详见 SimRISC-03（16位立即数操作）。
 
-### 寄存器组之间块赋值
+### 3.1 寄存器组之间块赋值
 
 不同寄存器组或相同寄存器组之间，可以互相进行块传输，块传输过程中不进行数据类型的转换，保持64位二进制不变，但是必需是多个连续的寄存器。
 操作数类型为 `orri`，指令如下：
@@ -79,7 +79,7 @@ immu6为立即数，存在hd位域中，用来指定寄存器的个数，有效�
 
 > **注**：`rd2rf` 中 `rf0` 可作目的（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许），写入按 SimRISC-00 写语义（只更新舍入模式与异常状态，其余位写无效）；`rf2rd` 中 `rf0` 可作源，读出完整 64 位。
 
-### 条件赋值：Conditional Assignment
+### 3.2 条件赋值：Conditional Assignment
 
 第一类条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rdHC`或`rdHD`赋值给`rdHB`，即 `if (rdHA is negative/zero/positive) rdHB = rdHC; else rdHB = rdHD`。
 操作数类型为 `rrrr`，指令如下：
@@ -100,7 +100,7 @@ cs.ne   {rdHA, rdHB}?, rdHC, rdHD
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
 
-### 浮点条件赋值
+### 3.3 浮点条件赋值
 
 第一类浮点条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rfHC`或`rfHD`赋值给`rfHB`，即 `if (rdHA is negative/zero/positive) rfHB = rfHC; else rfHB = rfHD`。
 操作数类型为 `rrrr`，指令如下：

@@ -158,7 +158,7 @@ def render_chapter_legality(
     # If no rules and no non-M1 entries, still render an empty area
     # (per task: "该章无任何规则的 M1 指令时，仍渲染空区")
     if not applicable_rules and not fp_entries and not excluded_entries:
-        return f"{LEGALITY_START}\n## 合法性检查\n\n（本章无适用规则）\n{LEGALITY_END}"
+        return f"{LEGALITY_START}\n## 2. 合法性检查\n\n（本章无适用规则）\n{LEGALITY_END}"
 
     # Group rules by fault × semantic
     # Structure: fault → semantic → list of (rule, matching_entries)
@@ -175,7 +175,7 @@ def render_chapter_legality(
         )
 
     # Render
-    lines = [LEGALITY_START, "## 合法性检查", ""]
+    lines = [LEGALITY_START, "## 2. 合法性检查", ""]
 
     # Fault display order
     fault_order = ["ILLI", "UNDI", "MALIGN", "IALIGN", "RASOF", "RASUF"]

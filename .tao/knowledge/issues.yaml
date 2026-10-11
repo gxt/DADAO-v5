@@ -331,3 +331,12 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `INFRA-057t` 完成区「遗留问题①」+ reviewer 第 1 轮「heap/PT_LOAD」）】`tests/scripts/dadao.lds`（`QEMU-056t` 基址 `0xFC0000000000`，已核一致）**无 `__heap_*` PROVIDE**（grep 0 条）；picolibc `malloc`/`sbrk`（`libos/fallback/sbrk.c` weak 引用 `__heap_start`/`__heap_end`）**链接 rc=1**（实测 undefined `__heap_end`）。对照 `picolibc_noflash.ld`（单 `PT_LOAD MemSize=0x1000000`，`__heap_start/__heap_end` = `PROVIDE` 自 `__end`/`__stack`）⇒ 正解。**待办**：为 `dadao.lds` 补 `__heap_*` PROVIDE，或 testcases 侧改用 `picolibc_noflash.ld`；归 `TESTCASES-042t`。**性质 = 遗留缺口/技术债**（非 `INFRA-057t` 引入）。证据指针：`.tao/tasks/infra/INFRA-057t-*.md` 完成区「遗留问题①」+ reviewer 第 1 轮「heap/PT_LOAD」；`.work/evidence/<任务ID>/run.sh`。"
+
+
+- id: ISS-192
+  title: "spec_cite 悬挂（24 条）：SimRISC-08/09/10 的「比较操作」/「Bit manipulating：位操作指令」标题带「 — 值语义」后缀，而 `contracts/opcodes.yaml` 的 `spec_cite` 省略该后缀——既有问题，非 SPEC-133t 引入"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `SPEC-133t` reviewer 第 1 轮 F3，非阻断）】`contracts/opcodes.yaml` 共 **227** 条 `spec_cite`；其中 **24 条**引用 `SimRISC-08/09/10` 的 §「比较操作」（3 册 × 2 = 6 条）与 §「Bit manipulating：位操作指令」（3 册 × 6 = 18 条），而该两标题实际为 `### 3.2 比较操作 — 值语义` / `### 4.2 Bit manipulating：位操作指令 — 值语义`（**带「 — 值语义」后缀**）⇒ 按标题文本解析**失败**（实测 `opcodes.yaml` 行：SimRISC-08 L3516/3542/3568/3596/3625/3654 + L3785/3811；09 同形 L3993/4019/4045/4073/4102/4131 + L4262/4288；10 同形 L4470/4496/4522/4550/4579/4608 + L4739/4765）。**改造前/后失败集完全相同（24==24）**，非 `SPEC-133t`（21 册标题章节号统一）引入；`check_fp_contract` 的 `spec_cite` 只校验 `^SimRISC-0[0-7]\\b`（`RE_SPEC_CITE`）故 **L1 门控不红**。**待裁定/建议**：标题匹配容忍「 — …」尾缀，或 `spec_cite` 补后缀 / 改用值语义标题。**只登记，不建任务**。证据指针：`.tao/tasks/spec/SPEC-133t-*.md`「第 1 轮 reviewer 验收」F3 + 「遗留问题」。"

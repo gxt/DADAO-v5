@@ -265,7 +265,7 @@ A 位和 D 位为访问和修改标记，由硬件负责更新。硬件在更新
 
 cg0-cg7 为共有寄存器设计，不同的核芯功能扩展设计规范相同。
 
-### cg0 - user mode 寄存器
+### 3.1 cg0 - user mode 寄存器
 
 每个核芯功能扩展中针对用户模式（user）有以下12个寄存器（cg=0）：
 
@@ -288,7 +288,7 @@ cg0-cg7 为共有寄存器设计，不同的核芯功能扩展设计规范相同
 
 为支持用户程序通过系统调用陷入操作系统内核，硬件应至少支持 `cfx_umon_user_*` 这一组寄存器或 `cfx_smon_user_*` 这一组寄存器。
 
-### cg1 - jail mode 寄存器
+### 3.2 cg1 - jail mode 寄存器
 
 jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限规则（如禁止指令、二阶段翻译等）留待后续版本定义。
 
@@ -311,7 +311,7 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 
 `jail global` 开头的寄存器为全局寄存器，即所有核芯功能扩展共享同一个寄存器。
 
-### cg2 - supv mode 寄存器
+### 3.3 cg2 - supv mode 寄存器
 
 每个核芯功能扩展中针对主管模式（supv）有以下12个寄存器（cg=2）：
 
@@ -332,11 +332,11 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 
 `supv global` 开头的寄存器为全局寄存器，即所有核芯功能扩展共享同一个寄存器。
 
-### cg3 - hypv mode 寄存器
+### 3.4 cg3 - hypv mode 寄存器
 
 H-mode 寄存器（cg=3）定义见 HEE 文档 §1。
 
-### cg4 - 核芯功能扩展配置寄存器
+### 3.5 cg4 - 核芯功能扩展配置寄存器
 
 每个核芯功能扩展都有以下7个通用寄存器（cg=4）：
 
@@ -350,7 +350,7 @@ H-mode 寄存器（cg=3）定义见 HEE 文档 §1。
 | 4 | 5 | cfx escape num | cfx_⟨cfxname⟩_escape_num | 0 | HW | escape退出该核芯功能扩展的次数 |
 | 4 | 6 | cfx scratch regs num | cfx_⟨cfxname⟩_scratch_regs_num | HW | RO | 暂存寄存器数量，至少2，最多64 |
 
-### cg5 - 异常现场寄存器
+### 3.6 cg5 - 异常现场寄存器
 
 每个核芯功能扩展都有以下7个异常寄存器（cg=5）：
 
@@ -366,7 +366,7 @@ H-mode 寄存器（cg=3）定义见 HEE 文档 §1。
 
 所有异常原因编码为 one-hot（64 位），各核芯功能扩展的异常原因表定义该核芯功能扩展可处理的异常位。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 至 `1 << 7` 保留用于未来扩展（debug 异常等）。
 
-### cg6 - 暂存寄存器
+### 3.7 cg6 - 暂存寄存器
 
 每个核芯功能扩展都有暂存寄存器（cg=6），数量由 `cfx_⟨cfxname⟩_scratch_regs_num`（cg=4, rc=6）指定，硬件实现至少 2 个、最多 64 个。
 
@@ -376,7 +376,7 @@ H-mode 寄存器（cg=3）定义见 HEE 文档 §1。
 |----|----|---------|---------|--------|------|------|
 | 6 | 0−(N−1) | scratch regs | cfx_⟨cfxname⟩_scratch_regs[0..N−1] | 未定义 | RW | 暂存寄存器（软件用） |
 
-### cg7 - 内部存储控制寄存器
+### 3.8 cg7 - 内部存储控制寄存器
 
 每个核芯功能扩展可根据自身需求实现零个或多个内部存储块（SRAM），用于 cfxld/cfxst 指令在内存与核芯功能扩展内部之间的批量数据传输。
 
@@ -396,7 +396,7 @@ H-mode 寄存器（cg=3）定义见 HEE 文档 §1。
 
 cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不同。此外，不同核芯功能扩展的异常编号不同，也在这部分分别说明。
 
-### cfx_umon - user monitor
+### 4.1 cfx_umon - user monitor
 
 **异常原因表**
 
@@ -412,19 +412,19 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 | `1 << 12`  | MALIGN  | 非对齐访存    | 否 | 访存地址                        |
 | `1 << 13`  | IALIGN  | 取指未对齐    | 否 | PC 值                          |
 
-### cfx_jmon - jail monitor
+### 4.2 cfx_jmon - jail monitor
 
 异常原因编码与 cfx_umon 一致。
 
-### cfx_smon - supervisor monitor
+### 4.3 cfx_smon - supervisor monitor
 
 异常原因编码与 cfx_umon 一致。
 
-### cfx_hmon - hypervisor monitor
+### 4.4 cfx_hmon - hypervisor monitor
 
 异常原因编码与 cfx_umon 一致。详细定义见 HEE 文档 §2。
 
-### cfx_ptw - page table walker
+### 4.5 cfx_ptw - page table walker
 
 **专有寄存器表**
 
@@ -462,7 +462,7 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 | `1 << 22`  | DGPFTRAP | 数据读写普通页小页缺失 | 否 | 读写地址         |
 | `1 << 23`  | DSPFTRAP | 数据读写超页小页缺失 | 否 | 读写地址         |
 
-### cfx_tlb - TLB management
+### 4.6 cfx_tlb - TLB management
 
 **专有寄存器表**
 
@@ -496,7 +496,7 @@ TLB 操作的目标集合由 `tlb_addr_start[47:42]` 指定，集合内的 VA �
 
 TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通过调用 cfx_ptw 的功能（如 SBI_PTW_HANDLE_FAULT 等）来处理，并在 ptw 处理完成返回后，根据返回值对 TLB 表项执行相应的 invalid 或填充操作。
 
-### cfx_cache - cache organization
+### 4.7 cfx_cache - cache organization
 
 **专有寄存器表**
 
@@ -514,7 +514,7 @@ TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通�
 | `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 
-### cfx_hart - hart management
+### 4.8 cfx_hart - hart management
 
 管理独立的指令流水线（hart）。多核时每个 hart 有独立的 cfx_hart。
 
@@ -537,7 +537,7 @@ TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通�
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 | `1 << 8`   | IPI       | 核间中断      | 可 | 中断源 hart ID（低 6 位有效，高 58 位保留为 0） |
 
-### cfx_llc - last level cache
+### 4.9 cfx_llc - last level cache
 
 最后一级缓存（LLC）管理，跨 hart 共享。
 
@@ -556,7 +556,7 @@ TLB 产生的上述异常是 cfx_ptw 异常原因的子集。TLB handler 应通�
 | `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 
-### cfx_pmem - physical memory management
+### 4.10 cfx_pmem - physical memory management
 
 cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 个不连续 PM 区域。PM 仅指普通 DRAM 存储器，与 device 或 MMIO 无关——device 的存储空间由各设备核芯功能扩展自行管理。
 
@@ -581,7 +581,7 @@ cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 
 
 > shareability、inner/outer cacheability 等进阶属性留待多核 SMP 阶段再定义。当前单核 MVP 仅需 prefetchable 和 coherent 位即可满足。
 
-### cfx_timer - timer/counter
+### 4.11 cfx_timer - timer/counter
 
 **专有寄存器表**
 
@@ -599,7 +599,7 @@ cfx_pmem 管理物理存储器（Physical Memory, PM）区域，最多支持 64 
 | `1 << 2`   | CFXREG      | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 | `1 << 10`  | TIMER       | 本地定时器     | 可 | 全零         |
 
-### cfx_uart - uart
+### 4.12 cfx_uart - uart
 
 **专有寄存器表**
 
@@ -626,7 +626,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 | ...        | ...     | ...        | 可 | 全零              |
 | `1 << 63`  | UART31  | UART31中断   | 可 | 全零              |
 
-### cfx_power - power management
+### 4.13 cfx_power - power management
 
 **专有寄存器表**
 
@@ -657,7 +657,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 **异常嵌套由软件解决**：各核芯功能扩展如可能发生同 cfx 嵌套异常，应在进入功能处理函数前保存当前异常现场（`excp_prev_*`、`excp_cause_*`），退出时恢复。硬件不阻止同 cfx 嵌套，但若软件未保存现场，再次进入会覆盖上一次的现场数据。
 
-### 指令行为说明
+### 5.1 指令行为说明
 
 trap/escape/cfxld/cfxst/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha 为 reserved 核芯功能扩展（7-14、19-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好屏蔽位（缺省为屏蔽）。
 
@@ -673,7 +673,7 @@ escape指令的第二个参数：**编码层** `imms18`（指令字偏移），`
 
 **跨 cfx escape 的安全约束**：escape 指定非当前 cfxha 时，硬件不保存跳过的中间 cfx 现场。`excp_prev_run_mode` 和 `excp_prev_cfx_mask` 恢复的是**最初 trap 进入当前调用链时的值**（非最近一次 trap 的）。调用链 A→B→C 中，若 B 中使用 `escape cfx_A, [excp_cause_ip, N*4]`，硬件直接恢复到 A 的 prev 现场，B 的现场（excp_prev_*/excp_cause_*）被静默丢弃。软件必须保证被跳过的 cfx 不再需要返回（即 B 的调用链已终结，B 不会再次被 escape 回）。
 
-### 异常进入流程
+### 5.2 异常进入流程
 
 X-mode（任意运行模式）下发生异常时，硬件自动执行以下操作序列：
 
@@ -819,7 +819,7 @@ cfx_⟨cfxname⟩_excp_cause_info     <= inner_excp_cause_info   // 异常辅助
 inner_inst_pointer           <= cfx_⟨cfxname⟩_<mode>_excp_vector
 ```
 
-### 异常退出流程
+### 5.3 异常退出流程
 
 通过 `escape` 指令完成异常退出。`escape` 指令编码中指定了核芯功能扩展编号 `cfxha`。伪代码中 `⟨cfxname⟩` 指当前执行 escape 的 cfx（即 `inner_cfx_code`）。下面的步骤和伪代码描述 `escape` 指令的硬件语义：
 

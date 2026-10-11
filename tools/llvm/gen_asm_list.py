@@ -448,11 +448,16 @@ ASSEMBLY_LIST_END = "<!-- ASSEMBLY_LIST_END -->"
 
 
 def _section_content(cls: str, entries: list[dict]) -> str:
-    """Return the markdown table content for one category."""
+    """Return the markdown table content for one category.
+
+    SPEC-133t: the embedded block's headings carry the section numbers of their
+    fixed position inside every ``spec/SimRISC-XX`` chapter — ``## 1. 汇编指令速查``
+    is always chapter §1 and its single ``###`` child is §1.1.
+    """
     if cls in SECTION_BADGES:
-        header = f"### {cls}（{len(entries)} 条）｜ {SECTION_BADGES[cls]}"
+        header = f"### 1.1 {cls}（{len(entries)} 条）｜ {SECTION_BADGES[cls]}"
     else:
-        header = f"### {cls}（{len(entries)} 条）"
+        header = f"### 1.1 {cls}（{len(entries)} 条）"
     lines = [header, ""]
     lines.append("| 助记符 | format | feature | 汇编形式 | id |")
     lines.append("|---|---|---|---|---|")
@@ -497,7 +502,7 @@ def embed_spec(entries: list[dict]) -> int:
         section = section_contents.get(cls, "")
         new_block = (
             f"{ASSEMBLY_LIST_START}\n"
-            f"## 汇编指令速查\n\n"
+            f"## 1. 汇编指令速查\n\n"
             f"{section}\n"
             f"{ASSEMBLY_LIST_END}"
         )

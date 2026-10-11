@@ -32,6 +32,7 @@
 | LLVM-082t | 待开始 | — | 后端欠账收口 |
 | QEMU-056t | 已验证 | 2026-10-11 19:34 | RAM 基址改 cfx63 段（QEMU/tests/tools/spec 同步） |
 | SPEC-131t | 待开始 | — | 过渡 oracle 与 semihosting 口径 |
+| SPEC-133t | 已验证 | 2026-10-11 22:09 | 21 册标题章节号统一与引用同步 |
 | TESTCASES-042t | 待开始 | — | picolibc 自带 test 接入 |
 
 ## 当前进度

@@ -158,16 +158,40 @@ def load_spec_file(spec_dir: Path, prefix: str) -> str | None:
     return path.read_text(encoding="utf-8")
 
 
+# 标题前导章节号（SPEC-133t）：`N` / `N.M` / `N.M.K`，可带 `.`/`、` 分隔。
+# 标题加号后，按标题文本（如 `§存取RD寄存器`）的引用须先剥离前导编号再比对。
+_LEAD_NUM_RE = re.compile(r"^\d+(?:\.\d+)*[\.、]?\s+")
+
+
+def _strip_lead_number(text: str) -> str:
+    """Remove a leading section number (`N` / `N.M` / `N.M.K`) from heading/section text.
+
+    `3.1 存取RD寄存器` → `存取RD寄存器`; `1. 运行模式` → `运行模式`.
+    Text without a leading number (or a leading number not followed by a space,
+    e.g. `16位数据运算`, `0.5.0（…）`) is returned unchanged.
+    """
+    m = _LEAD_NUM_RE.match(text)
+    return text[m.end():] if m else text
+
+
 def _header_matches(header: str, section: str) -> bool:
     """Check if section_name matches a spec header.
 
     1. Exact / prefix (section：) via _text_matches
     2. Numeric section (INFRA-058t): header starts with `N.M ` or `N.M. `
     3. Split: header splits on '、' and section is one of the parts
+    4. SPEC-133t: strip leading section numbers from both sides, so a title-text
+       reference (`§存取RD寄存器`) still resolves to a now-numbered heading
+       (`### 3.1 存取RD寄存器`), and `§2.1 核内地址空间` resolves to
+       `### 2.1 核内地址空间`.
     """
     if _text_matches(header, section):
         return True
     if _num_section_matches(header, section):
+        return True
+    h = _strip_lead_number(header)
+    s = _strip_lead_number(section)
+    if (h, s) != (header, section) and _text_matches(h, s):
         return True
     if "、" in header and section in header.split("、"):
         return True
