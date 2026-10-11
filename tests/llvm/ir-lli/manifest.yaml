@@ -12,10 +12,10 @@
 #
 # Judgement: host exit == dadao exit for every `include` case.
 #
-# Structural closure (lessons §8.35): `include` ∪ `exclude` MUST equal every
+# Structural closure (lessons §2.21): `include` ∪ `exclude` MUST equal every
 #   `*.ll` found on disk under `corpus_roots`, and the two sets MUST be disjoint.
 #   An unclassified `*.ll` => FAIL => a manifest entry cannot be deleted to
-#   silently shrink coverage.  The driver reports per-case hits (§8.34).
+#   silently shrink coverage.  The driver reports per-case hits (§2.20).
 #
 # Boundary (hard constraint): VALUE-LEVEL only -- endianness / memory-layout
 #   class modules are excluded (classes `endianness` / `memory-layout`).  This
@@ -147,7 +147,7 @@ exclude:
   # (e) later M6 LLVM tasks (069t/071t/073t/074t/076t/077t/078t) added structural
   #     `llc | FileCheck` CodeGen tests under the corpus root without value
   #     channels; registered here so the structural-closure invariant stays green
-  #     (lessons §8.35).  Maintained during TESTCASES-040m milestone verification.
+  #     (lessons §2.21).  Maintained during TESTCASES-040m milestone verification.
   - ir: tests/llvm/lit/CodeGen/DADAO/br-jt.ll
     class: no-value-entry
     reason: "FileCheck structural test (br_jt jump-table lowering, LLVM-072t); no `@main` value channel."

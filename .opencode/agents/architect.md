@@ -215,7 +215,7 @@ permissions:
 
 > **提交信息与粒度**：提交信息格式本仓库用 **`<任务ID>: <subject>`**（中文短语；本项目任务号即标识），**不用**全局 `<type>: <subject>`（`feat`/`fix`/…）——该约定与本仓库任务号冲突，**不适用**；**一个提交只做一件事**（一个任务/分支），禁混合无关改动；本仓库**无 submodule**，「子模块先行提交」**不适用**。
 
-> **还原纪律（与 engineer/reviewer 一致）**：**禁** `git checkout`/`git restore`/`git stash`/`git show <commit>:<path>` 还原注入（会清掉未提交改动）；一律 `cp` 备份 + md5 对账，或临时树注入（`.tao/knowledge/lessons.md §2`）。
+> **还原纪律（与 engineer/reviewer 一致）**：**禁** `git checkout`/`git restore`/`git stash`/`git show <commit>:<path>` 还原注入（会清掉未提交改动）；一律 `cp` 备份 + md5 对账，或临时树注入（`.tao/knowledge/lessons.md §3.2`）。
 
 ## 验收规则（供主会话参考）
 

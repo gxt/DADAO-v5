@@ -1,6 +1,8 @@
 # DADAO 汇编语言规范
 
 > **状态**：**生效（0.5.0，2026-09-25，用户审核通过；修订：双目的/多寄存器语法，2026-09-28；完整版本记录见文末 changelog）**——语法已定稿；**实现待安排**（LLVM MC 的 parser/printer/disassembler 改动；当前汇编器实现的是旧语法）
+> **版本与 changelog 细则**：版本号 `x.y.z`（`x` 恒为 `0`）——**大改动 `y+1`、有影响的小改 `z+1`**；当前版本见上行「状态」。
+> **变更记录见文末 changelog**（格式 = 「版本（日期）」小标题 + 列表项；**不用表格、不写「依据」**）。
 > **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策由 **`ADR-0013`《DADAO 汇编语言语法》冻结（Accepted，2026-09-28）**
 > **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/knowledge/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现）、**待定**章为 deferred）
 > **说明**：本规范按 ADR-0012 D4 由 spec 模块任务修改上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）

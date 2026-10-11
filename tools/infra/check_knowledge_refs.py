@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """check-knowledge-refs: 被引用的 `.work/**` 材料不得悬空 (INFRA-058t / INTEG-037t)。
 
-背景（用户 2026-10-11 裁定「认 + 并入 INFRA-058t」，`lessons §8.55`）：
+背景（用户 2026-10-11 裁定「认 + 并入 INFRA-058t」，`lessons §3.16`）：
   - `.work/` 被 `.gitignore` 整体忽略、只在本机存在 ⇒ 仅放 `.work/` 的**被引用材料**
     会**悬空**、不可复现。
   - 归类判据（四分类）：`spec/` = 规范正文；`.tao/knowledge/` = 结论/设计/口径（含长文）；
@@ -11,7 +11,7 @@
   扫描 `AGENTS.md` / `spec/**/*.md` / `.tao/knowledge/**/*.md` / `.tao/tasks/**/*.md`
   中对 `.work/**` 的引用；对**可判定的具体路径**做存在性检查，不存在即 FAIL。
 
-引用形态口径（详见 AGENTS.md「文档分层与单一真源」与 lessons §8.55）：
+引用形态口径（详见 AGENTS.md「文档分层与单一真源」与 lessons §3.16）：
   - `<>` / `*` / `$` 形（占位或通配，如 `.work/log/<模块>/`、`.work/log/**`、
     `.work/log/testcases/TESTCASES-036t-*.log`）⇒ **不可判定，跳过**；
   - 以 `-` 结尾（前缀截断，如 `.work/log/testcases/TESTCASES-039t-`）⇒ **跳过**；
@@ -140,7 +140,7 @@ def audit(root: Path) -> int:
             print(f"    {rel}:{lineno}  {tok}")
     print("-" * 72)
 
-    # §8.34 自证命中：扫描面必须确有 `.work/` 引用被判定，否则判为「空转」而 FAIL。
+    # §2.20 自证命中：扫描面必须确有 `.work/` 引用被判定，否则判为「空转」而 FAIL。
     if checked == 0:
         print("ERROR: 无任何可校验的 `.work/**` 引用（扫描面为空 ⇒ 门控空转，fail-closed）",
               file=sys.stderr)

@@ -5,10 +5,10 @@
 `contracts/opcodes.yaml` 重新装载真源、重新分类（正例/反例）、重新解析
 `; @src <id> <enc>` 与 `; OBJ:` 行，并对生成物做：
 
-  1. **结构断言（成对/条数，§8.35）**：每个 `gen-<fmt>.s` 的 `@src` 集合必须
+  1. **结构断言（成对/条数，§2.21）**：每个 `gen-<fmt>.s` 的 `@src` 集合必须
      等于 `opcodes.yaml` 中该 format 的正例记录集合（删任一用例/整文件 ⇒ FAIL）；
      正例文件内 `@src` 与 `OBJ` 条数必须相等且 >0；全部正例记录必须被覆盖。
-  2. **正则命中自证（§8.34）**：逐文件打印 `@src`/`OBJ` 命中计数并断言 >0，
+  2. **正则命中自证（§2.20）**：逐文件打印 `@src`/`OBJ` 命中计数并断言 >0，
      不得「0 命中却全绿」。
   3. **编码一致性**：`; @src <id> <enc>` 的 enc 必须等于同行 `OBJ` 的 4 字节，
      且 `(enc & mask) == value`、`enc 匹配记录的 mnemonic`（独立自 opcodes.yaml）。
@@ -92,15 +92,15 @@ def check_positive_file(ck, path, ids_expected, by_id, tag):
     fname = os.path.basename(path)
     sources, objs = parse_file(path)
     src_ids = [s[1] for s in sources]
-    # §8.34 命中自证
+    # §2.20 命中自证
     ck.check("%s-src-hits[%s]" % (tag, fname), len(sources) > 0,
              "src=%d" % len(sources))
     ck.check("%s-obj-hits[%s]" % (tag, fname), len(objs) > 0,
              "obj=%d" % len(objs))
-    # §8.35 成对（条数相等）
+    # §2.21 成对（条数相等）
     ck.check("%s-paired[%s]" % (tag, fname), len(sources) == len(objs),
              "src=%d obj=%d" % (len(sources), len(objs)))
-    # §8.35 结构：@src 集合 == 真源该 format 正例集合
+    # §2.21 结构：@src 集合 == 真源该 format 正例集合
     if ids_expected is not None:
         got, want = set(src_ids), set(ids_expected)
         ck.check("%s-id-set[%s]" % (tag, fname), got == want,

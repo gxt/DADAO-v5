@@ -12,30 +12,31 @@
 
 ## 任务流水
 
-> 本表 = **当前里程碑（M7）**逐任务一行；列 = `| 编号 | 状态 | 日期 | 一句改动 |`。**每格单行**（不换行），一句改动仅留摘要，**细节指针到各任务书**；状态/日期取自任务书 `**状态**` 字段（`待开始` 记立项/分解日）。
+> 本表 = **当前里程碑（M7）**逐任务一行。**细则**：列 = `| 编号 | 状态 | 完成时间 | 一句改动 |`；**每格单行**（不换行）；`状态` 取值 = `待开始` / `待验收` / `待返工` / `已验证`（`m` 行另用 `里程碑`）；`完成时间` = 该任务**落地提交时间**（`git log --format='%h %ci'` 现场取证，**精确到分钟 `YYYY-MM-DD HH:MM`**），`待开始` 行写 `—`；`一句改动` ≤1 行、只留摘要，**细节指针到各任务书**。
 > M6 的 **46** 份任务流水（含实质改动）已随归档移入 `.tao/archive/M6/`（清单见 `.tao/archive/M6/README.md §1`）；M7 任务分解 `INTEG-033k` 已建立，逐任务流水见下表（按各模块现有最大号递增）。
 
-| 编号 | 状态 | 日期 | 一句改动 |
+| 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INTEG-033k | 待开始 | 2026-10-11 | M7 启动与任务分解（10 条裁定） |
-| INFRA-055t | 已验证 | 2026-10-11 | 接入 picolibc 组件 |
-| INFRA-056t | 已验证 | 2026-10-11 | 接入 clang++（软链）+ 核 2 个 .cpp 需求 |
-| INFRA-057t | 待开始 | 2026-10-11 | picolibc 移植与构建集成 |
-| INFRA-058t | 已验证 | 2026-10-11 | 门控分层 + check-spec-refs 修复 |
-| INFRA-060t | 已验证 | 2026-10-11 | 目录三分界 + 规范版本号 |
-| INFRA-061t | 已验证 | 2026-10-11 | changelog 并入 milestones |
-| INFRA-062t | 已验证 | 2026-10-11 | MEMORY 改纯指针页 |
-| LLVM-079t | 待开始 | 2026-10-11 | P0 后端补齐 |
-| LLVM-080t | 待开始 | 2026-10-11 | P1 后端补齐 |
-| LLVM-081t | 待开始 | 2026-10-11 | ISA↔后端覆盖矩阵 |
-| LLVM-082t | 待开始 | 2026-10-11 | 后端欠账收口 |
-| QEMU-056t | 已验证 | 2026-10-11 | RAM 基址改 cfx63 段（QEMU/tests/tools/spec 同步） |
-| SPEC-131t | 待开始 | 2026-10-11 | 过渡 oracle 与 semihosting 口径 |
-| TESTCASES-042t | 待开始 | 2026-10-11 | picolibc 自带 test 接入 |
+| INTEG-033k | 已验证 | 2026-10-11 14:46 | M7 启动与任务分解（10 条裁定） |
+| INFRA-055t | 已验证 | 2026-10-11 13:53 | 接入 picolibc 组件 |
+| INFRA-056t | 已验证 | 2026-10-11 18:43 | 接入 clang++（软链）+ 核 2 个 .cpp 需求 |
+| INFRA-057t | 待开始 | — | picolibc 移植与构建集成 |
+| INFRA-058t | 已验证 | 2026-10-11 16:04 | 门控分层 + check-spec-refs 修复 |
+| INFRA-060t | 已验证 | 2026-10-11 17:02 | 目录三分界 + 规范版本号 |
+| INFRA-061t | 已验证 | 2026-10-11 17:32 | changelog 并入 milestones |
+| INFRA-062t | 已验证 | 2026-10-11 18:10 | MEMORY 改纯指针页 |
+| INFRA-063t | 已验证 | 2026-10-11 20:14 | 规则与台账分工收敛（AGENTS 瘦身 / lessons 精简） |
+| LLVM-079t | 待开始 | — | P0 后端补齐 |
+| LLVM-080t | 待开始 | — | P1 后端补齐 |
+| LLVM-081t | 待开始 | — | ISA↔后端覆盖矩阵 |
+| LLVM-082t | 待开始 | — | 后端欠账收口 |
+| QEMU-056t | 已验证 | 2026-10-11 19:34 | RAM 基址改 cfx63 段（QEMU/tests/tools/spec 同步） |
+| SPEC-131t | 待开始 | — | 过渡 oracle 与 semihosting 口径 |
+| TESTCASES-042t | 待开始 | — | picolibc 自带 test 接入 |
 
 ## 当前进度
 
-- **里程碑**：M6（**达成 2026-10-11**）；**M7 规划启动**（`INTEG-033k`，`待开始`；任务分解见该 `k`）。
+- **里程碑**：M6（**达成 2026-10-11**）；**M7 规划启动**（`INTEG-033k`，`已验证`；任务分解见该 `k`）。
 - **M6 遗留（M6→M7，均已登记 = 已处置）**：
   - `ISS-187` 窄位指令利用不足（8/16/32 位算术未用；`mul32` 用 `mul.uo` 而非 `mul.ut`）——**M7 优化候选，非缺陷**（用户 2026-10-10「先只登记，暂不改」）；指针 `.tao/knowledge/pending-registrations.md §R3`。
   - `ISS-188` FP 完备性缺口（`fcmp` 取值 / `fabs`/`frem`/`copysign` / `fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` / `fpclass` / `f16` / `bitcast`(FP↔RD)；**全部显式失败、不产错码**）——**M7**；指针 `.tao/knowledge/pending-registrations.md §R4`。
@@ -51,7 +52,7 @@
   - **门控分层（用户 2026-10-09 裁定）——推迟到 M7**：三层 = **L1 完整性/可用性**（默认 `make check`，秒~几十秒）/ **L2 各模块功能代表集**（几十~几百秒）/ **L3 较完整**（几百~几千秒）+ **模块完整按需**；落地要点 = `check` 收缩为 L1（`check-qemu-semantics` 移出 + 新增 `check-qemu-smoke` 机械派生代表集）、每层须「能失败 + 结构断言」、触发点写 `AGENTS.md`；**第 0 步 = 逐门控计时**。**已立项 `INFRA-058t`**（`INTEG-036t §收口核对`，2026-10-11）。**追加（用户 2026-10-11「认 + 并入 `INFRA-058t`」）**：`.work/log/` **四分类判据**（`spec/`=规范正文／`.tao/knowledge/`=结论·设计·口径〔含长文〕／`.work/log/`=一次性过程〔可删〕／**被引用材料不得只放 `.work/`**）落 `AGENTS.md` + 新增门控 **`check-knowledge-refs`**（扫 `.work/**` 引用、悬空即红）+ **被引用材料搬迁升格**（详见 `INFRA-058t §追加范围`，`INTEG-037t`）。细节指针 `.tao/knowledge/gate-tiering-design.md`（gitignored，摘要自足）。
   - **`GOLDEN-*` 里程碑候选（M7 起，用户 2026-10-09 裁定）**：为 **golden model（结果级 / FP 独立 oracle）另立** `golden` 模块专用里程碑——承载 `ISS-019`（结果级 / FP 独立 oracle）、`ISS-026`（encoding `imm` 语义守卫依赖 golden）二者整体，以及 `ISS-081` 拆分后的 FP 独立 oracle 部分（`ISS-081` 的 FP 向量 / harness RF 部分**已在 M6 交付**：`LLVM-066t`/`TESTCASES-036t`/`041t`）。**仅登记归属，不在本轮立项**。
   - **GP（`rbgp`）候选（M7/优化期，M6 不做——用户 2026-10-09 裁定）**：`rb2=rbgp` 现由 M6 寄存器重排（`SPEC-128t`）列为 **reserved**；启用需：小数据区（`.sdata/.sbss` + 阈值）× 链接脚本聚到 `_gp` × 启动设 `rb2=_gp` × 后端 `getGlobalBaseReg`；**reloc 已备**——`ABS12`（基址 `rb1–rb63` 相对、字节）恰为 GP 相对所需、访存偏移 ±2 KiB = 小数据区自然上限。代价：**改变 `rb2` 的 ABI 语义**（独立裁定）。
-  - **`lessons.md` 瘦身**：下次里程碑归档时按新口径（新增条目 ≤3 行 + 指针，细节进 `.work/log/`；**不追溯重写**）瘦身（**行数现场统计、不写死**）。
+  - **`lessons.md` 瘦身**：**已执行**（`INFRA-063t`，2026-10-11）——判据层保留、过程叙事删/迁 `.tao/archive/`、按触发时机分 4 节；新增条目口径见 `lessons.md` 文件头（**不设行数/条数上限**，「关键是精简」）。
   - **目录三分界与规范版本号（用户 2026-10-11 裁定）**：`docs/` = 工程流程规范（`Process-0x`）+ 索引 + `DDLN/`（**给别人看**）；`.tao/knowledge/` = 结论/设计/口径（**给自己看**）；`.work/log/` **非默认落点**；`Process-0x` **迁入 `docs/`**、`Process` **不设版本号**；`Toolchain-01`/`Machine-01` **设 `0.x.y` 版本号**（`x=0`；大改 `y+1`、小改 `z+1`）+ 文末 changelog（不用表格、不写“依据”）；`docs/` 6 个过期文件**可删**。**草案任务书**：`.tao/tasks/infra/INFRA-060t-目录三分界与规范版本号落地.md`（**待用户逐条裁定**后方写 B 段版本号）。
   - **M7 主题（`INTEG-033k` 裁定，2026-10-11）**：M6 已交付「整数完整调用约定 + 欠账收口 + ELF 直载 + clang target + Embench」；M7 主题 = **picolibc 移植（自带 test 100%）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle**（见下「M7 裁定」；`Process-04 §1`，INTEG 开闭）。
 
@@ -60,7 +61,7 @@
   - **链接层**：**静态优先（含 musl 静态最小集）**；**动态链接独立后置**（`.so`/`ld.so`/`GOT`/`PLT`/`-fPIC`/`-shared` + loader `PT_INTERP`/`.dynamic`）；
   - **用户裁定原话**：「不想把 proxy kernel 和动态链接混到一起」；且 `/plan` 时按 `AGENTS.md` 新增规则**先检索 `DADAO-0628`** 经验；ADR 判据（外部契约/多方案/高代价）**逐条提醒用户裁定**。
 
-- **M7 裁定（用户 2026-10-11，10 条；落纸 + 指针）**——`INTEG-033k`（M7 启动）；原话/细节见该 `k`「裁定汇总」与 `lessons §7.3`：
+- **M7 裁定（用户 2026-10-11，10 条；落纸 + 指针）**——`INTEG-033k`（M7 启动）；原话/细节见该 `k`「裁定汇总」与 `lessons §3.3`：
   1. **`adr-0023` 立**（picolibc 上游 + 精确 commit 固化）：D1 上游 `https://github.com/picolibc/picolibc`；D2 commit `2ae376c6…`（= tag `1.8.12`；「保持 1.8.12」）；D3 `shallow_ref` 用 **tag**。指针 `.tao/adr/adr-0023-picolibc-upstream.md`。
   2. **picolibc test 验收 = 100%**（用户原话「要求 100%」）——归 `TESTCASES-042t`。
   3. **加 `clang++`** + 核 2 个 `.cpp` 测试需求——归 `INFRA-056t`。

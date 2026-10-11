@@ -40,7 +40,7 @@
 
 - `tasks/<module>/` — 任务文件 `<PREFIX>-nnn<suffix>-描述.md`（按模块分子目录）；状态机（按后缀 `k`/`t`/`m`）见 `.opencode/agents/architect.md`「任务状态机」
 - `archive/<里程碑>/` — 历史归档（**只读，不再活跃**）：`archive/M1/` 等，按里程碑归档已达成里程碑的任务书（按模块子目录）+ 该时期 changelog/MEMORY 摘录（`README.md`）；判据 = 任务书 `**项目里程碑**` 字段 + 状态终态（`已验证`/`里程碑`）
-- `knowledge/` — 知识库：`MEMORY.md`（**纯指针页/入口导航**）、`milestones.md`（项目里程碑路线图 + 任务流水/实质改动）、`contract-*.md`（归一化合约）、`project_*.md`、`lessons.md`（教训 §7 / 规范 §8），`issues.yaml`（异常登记）
+- `knowledge/` — 知识库：`MEMORY.md`（**纯指针页/入口导航**）、`milestones.md`（项目里程碑路线图 + 任务流水/实质改动）、`contract-*.md`（归一化合约）、`project_*.md`、`lessons.md`（按触发时机分 4 节（判据/规范）），`issues.yaml`（异常登记）
 - `adr/` — 架构决策记录（决策层）：`adr-<nnnn>-<slug>.md`（独立于知识库投影层）
 - **日志留存** — 复杂验证类命令（build/test/smoke 等）的完整输出留存到 `.work/log/<模块>/<任务ID>-<命令名>.log`（reviewer 重跑加 `-review-`）；命令正常结束时用 `tee` 同时输出到终端和日志
 - `.work/` 由根 `.gitignore` 整体忽略，不进 git

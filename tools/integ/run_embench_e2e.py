@@ -29,12 +29,12 @@ Judgement (fail-closed):
   * build-step non-zero / non-zero or faulted exit / timeout -> FAIL
   * source tree missing / zero benchmarks / missing tool -> setup error (2)
 
-Structural closure (lessons §8.35): the benchmark corpus IS ``<embench-src>/src/``
+Structural closure (lessons §2.21): the benchmark corpus IS ``<embench-src>/src/``
 (a manifest-locked component, so it cannot silently change).  The driver
 enumerates that directory live and requires *every* discovered benchmark to be
 compiled, linked and executed -- the executed set must equal the discovered set,
 so a driver bug cannot silently skip a benchmark.  Counts are reported live
-(never hardcoded; lessons §8.34).
+(never hardcoded; lessons §2.20).
 
 Exit status:
   0  every case PASS
@@ -343,7 +343,7 @@ def main():
 
     results = run_suite(benchmarks, opts, tools, work_dir, args.timeout, args.verbose)
 
-    # Structural closure (§8.35): executed set == discovered set (no silent skip).
+    # Structural closure (§2.21): executed set == discovered set (no silent skip).
     executed = sorted({r.bench for r in results})
     if executed != sorted(benchmarks):
         sys.stdout.write(

@@ -70,7 +70,7 @@ agent: build
 **B. project_*.md 文件**
 - 若任务涉及某个活跃项目，找到对应的 `knowledge/project_*.md` 并更新进展/状态
 
-**C. lessons.md 文件（教训 §7 / 规范 §8）**
+**C. lessons.md 文件（按触发时机分 4 节（判据/规范））**
 - 若任务暴露了新的教训或操作规范（"应该这样做"/"不该那样做"），追加到 `$TAO_ROOT/knowledge/lessons.md`（**不另建 `feedback_*.md`**；新增条目 ≤3 行 + 指针，细节进 `.work/log/`）
 
 **D. 知识库文件**（`$TAO_ROOT/knowledge/`）

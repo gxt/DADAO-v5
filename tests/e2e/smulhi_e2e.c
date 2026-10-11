@@ -23,7 +23,7 @@
  *                            multiply, i.e. mulhs of the 64-bit product)
  *         3 = hi - lo       (uses both halves -> keeps the 128-bit product;
  *                            NON-COMMUTATIVE, so a high/low half swap changes
- *                            the result — lessons §8.46)
+ *                            the result — lessons §2.26)
  *   CASE  index into the boundary input table
  *   BYTE  which byte of the 64-bit result to return (0 = least significant)
  */
@@ -86,7 +86,7 @@ long main(void) {
     signed __int128 p = (signed __int128)a * b;
     unsigned long lo = (unsigned long)p;
     unsigned long hi = (unsigned long)(p >> 64);
-    r = hi - lo; /* NON-COMMUTATIVE (lessons §8.46) */
+    r = hi - lo; /* NON-COMMUTATIVE (lessons §2.26) */
   }
 #endif
 

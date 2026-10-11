@@ -8,7 +8,7 @@
 `(class, mnemonic)` 分组——`class` = 用例的语义类别（encoding/semantic/boundary/
 legality），`mnemonic` = 指令语义类别——每组取文件序**第一条**为代表。
 
-结构断言（fail-closed，`lessons §8.34`「自证命中」/`§8.35`「断言结构」）：
+结构断言（fail-closed，`lessons §2.20`「自证命中」/`§2.21`「断言结构」）：
   - 代表集非空，且**每个源 `class` 与每个源 `mnemonic` 均有代表**（覆盖 ≥ 源集合）；
   - 运行结果 `total == 代表数`、`failed == errors == deferred == 0`。
 
@@ -92,7 +92,7 @@ def main() -> int:
             selected.append((vf, c))
             per_class[c.get("class")] = per_class.get(c.get("class"), 0) + 1
 
-    # ── 结构断言（§8.34 自证命中 / §8.35 断言结构）────────────────────
+    # ── 结构断言（§2.20 自证命中 / §2.21 断言结构）────────────────────
     sel_classes = {c.get("class") for _, c in selected}
     sel_mnemonics = {c.get("mnemonic") for _, c in selected}
 

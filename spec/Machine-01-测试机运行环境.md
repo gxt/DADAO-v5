@@ -2,6 +2,10 @@
 
 > **状态**：生效（0.3.0，2026-10-11，`QEMU-056t`；完整版本记录见文末 changelog）
 >
+> **版本与 changelog 细则**：版本号 `x.y.z`（`x` 恒为 `0`）——**大改动 `y+1`、有影响的小改 `z+1`**；当前版本见上行「状态」。
+>
+> **变更记录见文末 changelog**（格式 = 「版本（日期）」小标题 + 列表项；**不用表格、不写「依据」**）。
+>
 > **定位**：本册是 v5 自定规范，定义 **DADAO-v5 测试机（`dadao-m1`）运行环境与 semihosting** 的规范正文——面向 QEMU 机器模型、bootrom 固件、harness 与测试向量。上游 `spec/DADAO-*` 与 `spec/SimRISC-*` 仍为**上游基线**；本册不改其架构语义。
 >
 > **来源（决策层）**：`ADR-0020`（`.tao/adr/adr-0020-see-semihosting.md`，`D1`–`D15`）与 `ADR-0004`（`.tao/adr/adr-0004-test-machine.md`，含 rev. 2026-10-07 的 `R1`/`R2`/`R3`）。ADR 只记决策/理由/被否方案，本册承载规范正文（`ADR-0020 D13`）。semihosting 服务号值语义取自 Arm Semihosting（`Semihosting for AArch32 and AArch64`）。

@@ -14,7 +14,7 @@
 ; which is rdhb) and from the ISD::SMUL_LOHI result order (low, high), not from
 ; the emitted text.  The *semantics* (which half really is the high half) are
 ; checked by the non-commutative oracle in .work/evidence/LLVM-076t/run.sh --
-; an even/odd or XOR merge would be insensitive to a half swap (lessons §8.46).
+; an even/odd or XOR merge would be insensitive to a half swap (lessons §2.26).
 
 ; --- MULHS with a register operand (the i128 -> i64 arithmetic-shift path) ----
 ; `((__int128)a * b) >> 64` selects the signed high half only.
@@ -59,7 +59,7 @@ define i64 @muldiv3(i64 %a, i64 %b) {
 ; single `mul.so` with two real destinations (neither is rd0).  ISD::SMUL_LOHI's
 ; result order is (low, high) while mul.so's defs are (high, low), so the
 ; operand order is swapped by the pseudo expansion.
-; NOTE the merge is `hi - lo` (non-commutative, lessons §8.46): a `lo ^ hi`
+; NOTE the merge is `hi - lo` (non-commutative, lessons §2.26): a `lo ^ hi`
 ; would be insensitive to a high/low swap and could not detect the bug.
 ; CHECK-LABEL: smul128_delta:
 ; CHECK: mul.so {rd{{[1-9][0-9]*}}, rd{{[1-9][0-9]*}}}, rd{{[0-9]+}}, rd{{[0-9]+}}
