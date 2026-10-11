@@ -809,3 +809,8 @@
 
 - **规则**：注入脚本的还原目标须是**注入前的干净基线**（备份须在确认 workspace clean 时生成，或脚本**先校验/断言 clean 态、否则拒绝运行**）；若以「运行时现场」为锚，则在**已注入态**重跑时还原会回到**已注入态**（`md5` 虽一致但基线已脏、检查仍红）。
 - **依据/来源**：`INTEG-025t` reviewer C2 观察（`.work/evidence/INTEG-025t/run.sh` 的 `$O/Makefile.preinject` 取自运行现场）；同类 §2.5/§2.6。
+
+### 8.52 组件锁 `shallow_ref` 优先引用不可变 tag，而非可被上游移动的分支（`INFRA-055t`，2026-10-11）
+
+- **规则**：`manifests/components.lock.toml` 中 `shallow=true` 组件的 `shallow_ref`（供 `git clone --branch`）应取**不可变 tag**（如 `1.8.12`）而非**可变分支**（如 `release-1.8.12`）；选 tag 前用 `git ls-remote --tags` 核对 `refs/tags/<tag>^{}` 指向锁内 `commit`。**同一 commit 时改 ref 不触发重下**（`fetch.py` 的 `sync_mirror` 按 `has_commit(mirror, commit)` 短路；`--branch` 仅初始克隆用）。注意区分同名 tag（picolibc 另有 lightweight `1.8.12-1` 指向不同 commit）。
+- **依据/来源**：`INFRA-055t`（用户 2026-10-11 裁定保持 `1.8.12`）；细节 `.tao/tasks/infra/INFRA-055t-*.md` 审阅记录 §8。

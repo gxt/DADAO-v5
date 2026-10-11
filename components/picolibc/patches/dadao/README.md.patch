@@ -1,0 +1,16 @@
+diff --git a/dadao/README.md b/dadao/README.md
+new file mode 100644
+index 0000000..b7e6603
+--- /dev/null
++++ b/dadao/README.md
+@@ -0,0 +1,10 @@
++# DADAO port (skeleton placeholder)
++
++Placeholder for the DADAO-v5 port of picolibc.
++
++No behaviour is declared here. The real port (board/machine support, cross file,
++syscall stubs and build integration) belongs to M7 (see DADAO-v5 task
++`INFRA-055t` and the M7 planning task). This file exists only so that the
++component patch tree under `components/picolibc/` is a valid, rebuildable
++skeleton (`spec/Process-01-组件补丁组织与构建编排.md`: one patch per upstream
++file, `patches/` a pure mirror of the upstream tree).

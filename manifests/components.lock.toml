@@ -55,3 +55,14 @@ commit = "09c2ed8c3b7008c95d08b038de4a3f6dc103ed70"
 patch_dir = "components/embench-iot/patches"
 patch_series = "components/embench-iot/series"
 role = "IoT benchmark suite (M6 compilation-correctness tests)"
+
+[[component]]
+name = "picolibc"
+enabled = true
+repository = "https://github.com/picolibc/picolibc.git"
+commit = "2ae376c6cdf4fef90ca2388ecf7a07457fa63cff"
+shallow = true
+shallow_ref = "1.8.12"
+patch_dir = "components/picolibc/patches"
+patch_series = "components/picolibc/series"
+role = "C library for embedded systems + its upstream test suite (M7 test focus)"
