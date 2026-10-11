@@ -145,7 +145,7 @@ fosclb  rfHB, rfHC, rfHD
 
 当任一源操作数为 NaN 时，按源操作数顺序 `rfHC`、`rfHD` 选择第一个 NaN 作为结果来源，保持该 NaN 的符号位和 payload；若所选 NaN 为 sNaN，结果的 quiet 位设为 1。只要任一源为 sNaN，本次操作即设置 NV，即使结果来源为更早的 qNaN。该 NaN 路径不额外设置 DZ、OF、UF 或 NX；NV 与其他异常状态按浮点状态寄存器的累计规则写入。
 
-`ftrem`/`forem` 为 IEEE 754 remainder 操作（`rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数）。除数为零、Inf 或 NaN 行为遵循 IEEE 754。
+`ftrem`/`forem` 为 IEEE 754 remainder 操作（`rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数）。NaN 输入按本节的 NaN 规则处理。若被除数为 ±Inf 或除数为 ±0，返回目标格式的正 canonical qNaN 并设置 NV；ft 的 canonical qNaN 为 `0x7FC00000`，fo 的 canonical qNaN 为 `0x7FF8000000000000`。有限被除数除以 ±Inf 时原样返回被除数；被除数为 subnormal 时设置 UF，其他有限被除数不设置异常状态。有限被除数和非零有限除数的 remainder 为精确结果，不设置 DZ、OF、UF 或 NX；若结果为零，其符号位取自被除数。NV、UF 与其他异常状态按浮点状态寄存器的累计规则写入。IEEE 754 原文：`remainder(subnormal, ∞) signals underflow.`
 
 `ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfHC × 2^rfHD`（rfHD 取整数值），舍入模式由 rf0 控制。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
 

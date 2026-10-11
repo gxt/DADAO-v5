@@ -42,11 +42,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **候选 C**：固定向零并保留可表示邻居；优点是确定，代价是数值偏差，LLVM/QEMU 和向量均需采用该规则。
 **后续影响**：contract/oracle 固定舍入和 NX；LLVM/QEMU 的整数转浮点 lowering 与各 signedness/宽度 vectors 必须一致。
 
-## FP-008
-**候选 A**：特殊 rem 返回格式 canonical qNaN，非法零/无穷组合置 NV，有限结果保留被除数零符号；优点是边界闭合，代价是新增 NaN/符号表。
-**候选 B**：按数学 remainder 规则扩展特殊值，Inf/0 等全部返回 qNaN 并置 NV；优点是统一，代价是仍需明确每种零符号。
-**候选 C**：对特殊输入保持一个操作数或返回零；优点是硬件路径短，代价是非直观，contract/oracle 必须明确逐组合结果。
-**后续影响**：contract/oracle 加入 rem 特殊值表；LLVM/QEMU 统一零符号和 NV，vectors 覆盖零、Inf、NaN 及除零组合。
+## FP-008（已裁定：细化原候选 A）
+**采用规则**：非 NaN invalid（±Inf 被除数或 ±0 除数）返回目标格式正 canonical qNaN+NV；有限被除数/±Inf 原样返回，且 subnormal 被除数置 UF；有限非零除数的 remainder 精确，零结果保留被除数符号，不置 DZ/OF/UF/NX。NaN 输入按 FP-003。
+**依据**：IEEE 754 remainder 定义与原文 `remainder(subnormal, ∞) signals underflow.`；FP-003 NaN 传播及 FP-004 累计 flags 规则。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 ±0 除数、±Inf 被除数、有限值/±Inf（含 subnormal）和零结果符号。
 
 ## FP-009
 **候选 A**：有限 scale 先按 rounding_mode 缩放，特殊组合按固定 qNaN/Inf/zero 表处理并设置 OF/UF/NX；优点是可测，代价是表较大。
