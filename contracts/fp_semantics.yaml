@@ -472,6 +472,10 @@ review_projection:
     status: RESOLVED
     decision: compare_unordered_canonical_nan_and_quiet_signaling_nv
     spec_reference: SimRISC-00 §浮点状态寄存器 / SimRISC-07 §浮点比较指令
+  - id: FP-012
+    status: RESOLVED
+    decision: covered_by_existing_rf0_fcsr_alias_rules
+    spec_reference: SimRISC-00 §浮点状态寄存器 / SimRISC-01 §浮点数据存取 / SimRISC-02 §寄存器复制 / SimRISC-03 §16位立即数操作
   - id: FP-017
     status: RESOLVED
     decision: covered_by_fp003_nan_propagation
@@ -731,7 +735,6 @@ review_projection:
     basis: SimRISC-07 §浮点符号位操作指令；该条指令属于该族并具有对应可观察维度
     issue_ids: &id006
     - FP-001
-    - FP-012
   - id: ftsgnn_orrr_rf
     family: sign
     status: UNSPECIFIED
@@ -755,29 +758,28 @@ review_projection:
     issue_ids: *id006
   - id: ftqcmp_orrr_rf
     family: compare
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-07 §浮点比较指令
     basis: SimRISC-07 §浮点比较指令；该条指令属于该族并具有对应可观察维度
-    issue_ids: &id007
-    - FP-012
+    issue_ids: &id007 []
   - id: ftscmp_orrr_rf
     family: compare
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-07 §浮点比较指令
     basis: SimRISC-07 §浮点比较指令；该条指令属于该族并具有对应可观察维度
     issue_ids: *id007
   - id: foqcmp_orrr_rf
     family: compare
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-07 §浮点比较指令
     basis: SimRISC-07 §浮点比较指令；该条指令属于该族并具有对应可观察维度
     issue_ids: *id007
   - id: foscmp_orrr_rf
     family: compare
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-07 §浮点比较指令
     basis: SimRISC-07 §浮点比较指令；该条指令属于该族并具有对应可观察维度
@@ -805,7 +807,6 @@ review_projection:
     - SimRISC-02 §浮点条件赋值
     basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
     issue_ids: &id009
-    - FP-012
     - FP-015
   - id: cs.z_rrrr_rf
     family: cs_rf
@@ -843,7 +844,6 @@ review_projection:
     basis: SimRISC-01 §存取RF寄存器；该条指令属于该族并具有对应可观察维度
     issue_ids: &id010
     - FP-001
-    - FP-012
     - FP-013
     - FP-014
   - id: st.t_rrii_rf
@@ -902,7 +902,6 @@ review_projection:
     - SimRISC-02 §寄存器组之间块赋值
     basis: SimRISC-02 §寄存器组之间块赋值；该条指令属于该族并具有对应可观察维度
     issue_ids: &id011
-    - FP-012
     - FP-013
   - id: rf2rd_orri_rf
     family: rf_move
@@ -919,5 +918,4 @@ review_projection:
     basis: SimRISC-03 §立即数常数赋值：Immediate constant；该条指令属于该族并具有对应可观察维度
     issue_ids:
     - FP-001
-    - FP-012
     - FP-014

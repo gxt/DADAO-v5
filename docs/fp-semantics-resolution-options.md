@@ -62,11 +62,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **依据**：IEEE 754 quiet/signaling comparison 的 invalid 规则；SimRISC-00 的 canonical NaN 格式常量；FP-004 累计 flags 规则。
 **后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 qcmp/scmp、qNaN/sNaN、源交换以及 ft/fo 的 rd 编码。
 
-## FP-012
-**候选 A**：rf0 的 FCSR 字段使用专用读写掩码，浮点别名只触及允许位；优点是状态安全，代价是实现需分流访问。
-**候选 B**：rf0 作为普通 64 位寄存器读写，再由 FCSR 解释字段；优点是路径统一，代价是 SBZ/只读字段可能被污染。
-**候选 C**：禁止会同时触碰 rf0/FCSR 的别名组合；优点是无歧义，代价是新增 legality、LLVM/QEMU 拒绝路径和向量。
-**后续影响**：contract 增加字段/legality，oracle 拒绝非法组合；LLVM/QEMU 增加同一诊断，vectors 验证合法与拒绝路径。
+## FP-012（已关闭：既有规则覆盖）
+**采用规则**：不新增独立规则；采用 SimRISC-00 的 rf0 写掩码和显式写语义，以及 SimRISC-01/02/03 对 load/store、寄存器复制和 `set.w` 的路径规则。
+**关闭理由**：原候选 A 已由现有规范实现：rf0 读出完整 64 位，显式写仅更新 FCSR 可写字段，浮点结果路径与 rf0 目的的 legality 已单独明确。
+**后续影响**：contract、oracle、组件和 vectors 按既有章节覆盖 rf0 的完整读取、掩码写入、低 32 位 load 及 ILLI 路径；不新增 FP-012 专属实现要求。
 
 ## FP-013
 **候选 A**：块操作按地址递增，逐元素提交，fault 后保留已完成元素；优点是可恢复，代价是 partial-state oracle 和 fault 向量。
