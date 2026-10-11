@@ -54,11 +54,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **候选 C**：沿用通用乘幂模型，特殊值遵循统一 NaN/Inf 传播；优点是与算术共用 oracle，代价是零符号和下溢仍需补充规则。
 **后续影响**：contract/oracle 固定 scale 解释和 flags；LLVM/QEMU 复用或新增 scalb 路径，vectors 覆盖非有限 scale 与 OF/UF/NX。
 
-## FP-010
-**候选 A**：偶次根对负零返回正零，负有限数返回 canonical qNaN+NV；优点是数学直观，代价是需固定 rootn 特殊值表。
-**候选 B**：保留零符号，负数仍按 sign 规则产生 qNaN+NV；优点是符号信息保留，代价是与 A 的 `-0` 不同。
-**候选 C**：奇偶次数分别采用实数根规则，非实结果保持输入 sign 的 NaN；优点是统一符号路径，代价是 NaN 位形需另定。
-**后续影响**：contract/oracle 固定次数、零符号和 NaN；LLVM/QEMU 的 rootn 实现及 vectors 必须逐格式覆盖特殊输入。
+## FP-010（已裁定：细化原候选 A）
+**采用规则**：仅允许 n=2；`±0→+0`、`+∞→+∞`，均无新增 flags；`-∞` 与有限负数→目标格式正 canonical qNaN+NV（ft=`0x7FC00000`，fo=`0x7FF8000000000000`）。有限正数按当前舍入模式，NaN 输入按 FP-003。
+**依据**：IEEE 754 rootn 对 `±0`、`±∞` 和偶次根 invalid 的规则；SimRISC-07 的 n=2 限制与 rf0 qNaN 定义。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 `±0`、`±∞`、有限负数及两种格式；舍入/NX/UF 仍依赖 FP-005。
 
 ## FP-011
 **候选 A**：无序比较返回固定无序编码；sNaN 置 NV，qNaN 不置 NV；优点是区分两种 NaN，代价是比较器和 oracle 需分类。

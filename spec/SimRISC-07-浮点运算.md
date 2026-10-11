@@ -161,11 +161,11 @@ foroot  rfHB, rfHC, immu6
 
 ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 immu6 中。仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
 
-> 注意：`ftroot/foroot` 的运算基本等同于 `ftsqrt/fosqrt`，但是在 IEEE754-2019 中特意指出，`rootn(-0, 2)` 不等于 `squareRoot(-0)`，因此，对于 `rootn(-0, 2)` 的运算结果不做具体要求。
+按 IEEE 754 标准，rootn 的特殊值规则为：`rootn(±0, 2)` 返回 `+0` 且不设置异常状态；`rootn(+∞, 2)` 返回 `+∞` 且不设置异常状态；`rootn(-∞, 2)` 及任意有限负数返回目标格式的正 canonical qNaN 并设置 NV。ft 的 canonical qNaN 为 `0x7FC00000`，fo 的 canonical qNaN 为 `0x7FF8000000000000`，与 rf0 中定义的 qNaN 一致。
+
+若源操作数为 qNaN，rootn 保持其符号位和 payload 并返回该 qNaN；若源为 sNaN，保持其符号位和 payload、将 quiet 位设为 1 并设置 NV。该 NaN 路径不额外设置 DZ、OF、UF 或 NX；NV 与其他异常状态按浮点状态寄存器的累计规则写入。
 
 S1D1 指令硬件先读源操作数再写结果，源被覆盖前其值已捕获，行为确定。
-
-若源操作数为 qNaN，rootn 保持其符号位和 payload 并返回该 qNaN；若源为 sNaN，保持其符号位和 payload、将 quiet 位设为 1 并设置 NV。该 NaN 路径不额外设置 DZ、OF、UF 或 NX；NV 与其他异常状态按浮点状态寄存器的累计规则写入。`rootn(-0, 2)` 的规则不受本段影响。
 
 ## 浮点符号位操作指令
 
