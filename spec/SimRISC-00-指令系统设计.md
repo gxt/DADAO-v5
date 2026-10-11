@@ -100,6 +100,8 @@ RB 的高 16 位初值为全 0。`rb0[63:48]` 由控制流指令硬件写入（�
 - [21..5]：SBZ（Should Be Zero）
 - [4..0]：异常状态（Accured exception）
 
+本规范中的正 canonical NaN 常量如下：ft qNaN 为 `0x7FC00000`，fo qNaN 为 `0x7FF8000000000000`；ft sNaN 为 `0x7F800001`，fo sNaN 为 `0x7FF0000000000001`。sNaN 常量是供指令结果编码使用的格式定义，不存放于 rf0；rf0 的只读位型保持上述 qNaN。
+
 舍入模式定义如下：（舍入模式的设置单独放在wp2中，程序可以直接用set.w指令进行设置）
 
 | Rounding Mode | Mnemonic  | Meaning                           |

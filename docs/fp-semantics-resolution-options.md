@@ -57,11 +57,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **依据**：IEEE 754 rootn 对 `±0`、`±∞` 和偶次根 invalid 的规则；SimRISC-07 的 n=2 限制与 rf0 qNaN 定义。
 **后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 `±0`、`±∞`、有限负数及两种格式；舍入/NX/UF 仍依赖 FP-005。
 
-## FP-011
-**候选 A**：无序比较返回固定无序编码；sNaN 置 NV，qNaN 不置 NV；优点是区分两种 NaN，代价是比较器和 oracle 需分类。
-**候选 B**：任意 NaN 都返回同一无序编码并置 NV；优点是简单，代价是 qNaN 也产生副作用。
-**候选 C**：NaN 比较返回 false 编码且不置 NV；优点是条件使用方便，代价是丢失异常可见性，需改 FCSR 期望。
-**后续影响**：contract/oracle 固定无序编码和 NV；LLVM/QEMU compare lowering 与 vectors 的 qNaN/sNaN 期望同步。
+## FP-011（已裁定：细化原候选 A）
+**采用规则**：任一 NaN 为 unordered；qcmp 返回正 canonical qNaN，只有 sNaN 输入置 NV；scmp 返回正 canonical sNaN，任一 NaN 输入置 NV。ft 的 32 位 NaN 零扩展写 rd，fo 的 64 位 NaN 直接写 rd；不传播输入 payload/sign，不置 DZ/OF/UF/NX。
+**依据**：IEEE 754 quiet/signaling comparison 的 invalid 规则；SimRISC-00 的 canonical NaN 格式常量；FP-004 累计 flags 规则。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 qcmp/scmp、qNaN/sNaN、源交换以及 ft/fo 的 rd 编码。
 
 ## FP-012
 **候选 A**：rf0 的 FCSR 字段使用专用读写掩码，浮点别名只触及允许位；优点是状态安全，代价是实现需分流访问。

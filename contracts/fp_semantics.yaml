@@ -468,6 +468,10 @@ review_projection:
     status: RESOLVED
     decision: scaleb_integer_exponent_conversion_and_special_values
     spec_reference: SimRISC-07 §S2D1
+  - id: FP-011
+    status: RESOLVED
+    decision: compare_unordered_canonical_nan_and_quiet_signaling_nv
+    spec_reference: SimRISC-00 §浮点状态寄存器 / SimRISC-07 §浮点比较指令
   - id: FP-017
     status: RESOLVED
     decision: covered_by_fp003_nan_propagation
@@ -756,7 +760,6 @@ review_projection:
     - SimRISC-07 §浮点比较指令
     basis: SimRISC-07 §浮点比较指令；该条指令属于该族并具有对应可观察维度
     issue_ids: &id007
-    - FP-011
     - FP-012
   - id: ftscmp_orrr_rf
     family: compare

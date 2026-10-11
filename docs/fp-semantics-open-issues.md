@@ -67,13 +67,10 @@
 **规范落点**：`SimRISC-07 §S1D1` 已补入该规则；`±0`、`±∞` 的处理参考 IEEE 754 rootn 规则，并结合 SimRISC 的 n=2 限制。
 **保留边界**：有限正数的舍入、NX/UF 等触发条件仍由 FP-005 裁定；ft 结果写入 RF 的高 32 位仍由 FP-001 裁定。
 
-## FP-011
-**现象**：compare 对 qNaN、sNaN 和无序值的分类及 NV 触发条件不完整。
-**受影响指令集合**：`ftqcmp/ftscmp`、`foqcmp/foscmp`。
-**spec 已规定什么**：`SimRISC-07 §浮点比较指令`规定比较结果写入整数寄存器的操作族。
-**spec 未规定什么**：qNaN 与 sNaN 是否同样触发 NV、无序结果编码、多个 NaN 的优先级及旧 flags 合并。
-**一个具体可观察例子**：qNaN 与 1.0 比较；返回的无序编码可能固定为零/一或另一编码，NV 也可能不同。
-**待裁决问题**：每种 NaN/有限数比较的整数结果、NV 和 FCSR 更新规则是什么？
+## FP-011（已裁定）
+**裁定**：任一 NaN 比较均为 unordered，输入 payload/sign 不传播。ftqcmp/foqcmp 返回目标格式正 canonical qNaN，且仅 sNaN 输入置 NV；ftscmp/foscmp 返回目标格式正 canonical sNaN，任一 NaN 输入均置 NV。ft 结果零扩展写 rd，fo 结果直接写 rd；NaN 比较不置 DZ/OF/UF/NX。
+**规范落点**：`SimRISC-00 §浮点状态寄存器`定义 canonical qNaN/sNaN（sNaN 不存于 rf0）；`SimRISC-07 §浮点比较指令`定义 unordered 编码与 NV 规则；NV 按 FP-004 累积。
+**保留边界**：rd 写宽度/rd0 legality 与 rf0 别名仍由 FP-012 等问题裁定。
 
 ## FP-012
 **现象**：rf0 同时承担 FCSR 与浮点寄存器别名时，读写可能互相覆盖。
