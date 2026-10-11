@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..6a0f1d977
+index 000000000..88b14358b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1056 @@
+@@ -0,0 +1,1094 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -98,6 +98,19 @@ index 000000000..6a0f1d977
 +  setOperationAction(ISD::SETCC, MVT::i64, Custom);
 +  setOperationAction(ISD::SELECT_CC, MVT::i64, Custom);
 +  setOperationAction(ISD::SELECT, MVT::i64, Custom);
++  // FP compare-as-value / FP select (LLVM-079t).  A `fcmp` whose result is used
++  // as a value survives as a SETCC keyed by the *compared* FP type; an FP-armed
++  // select/select_cc (result f32/f64) is keyed by the *result* type.  Both are
++  // custom so they reuse LowerCmpSelect -- the same fp compare (foqcmp/ftqcmp)
++  // feeding a cs.* conditional assignment that the integer path uses -- which
++  // now returns a value of the arm type (the cs.*_rd form for integer arms, the
++  // cs.*_rrrr_rf form for FP arms; contract-fp.md §8/§10, contract-isa.md §6.5).
++  setOperationAction(ISD::SETCC, MVT::f32, Custom);
++  setOperationAction(ISD::SETCC, MVT::f64, Custom);
++  setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
++  setOperationAction(ISD::SELECT_CC, MVT::f64, Custom);
++  setOperationAction(ISD::SELECT, MVT::f32, Custom);
++  setOperationAction(ISD::SELECT, MVT::f64, Custom);
 +  // The lowered SETCC produces a *canonical* 0/1 boolean (the cmp* {-1,0,1}
 +  // normalised through cs.*), so declare ZeroOrOne: booleans that survive to
 +  // the legalizer are zero-extended, never any-extended, keeping a `false`
@@ -132,6 +145,16 @@ index 000000000..6a0f1d977
 +    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
 +    setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
 +  }
++
++  // f32 -> f64 "anyext" loads (LLVM-079t).  DAGCombiner::visitFP_EXTEND folds
++  // `fpext (load f32)` into a *widening* any-extend load to f64 whenever the
++  // (f64<-f32) EXTLOAD action is legal (the default), which this backend cannot
++  // select -- and, worse, an any-extending load is not the fpext the IR asked
++  // for (the high 32 bits are undefined, not the double's exponent).  Marking
++  // the extension illegal disables the fold and lets the fpext reach ISel,
++  // where it selects the hardware ft2fo conversion (contract-fp.md §2).  Same
++  // fix as AMDGPU/LoongArch/PPC/CSKY.
++  setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
 +
 +  // Varargs (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  DADAO's
 +  // va_list is a plain void*: va_start points just past the named arguments in
@@ -178,6 +201,17 @@ index 000000000..6a0f1d977
 +  setOperationAction({ISD::FP_TO_SINT, ISD::FP_TO_UINT, ISD::SINT_TO_FP,
 +                      ISD::UINT_TO_FP},
 +                     MVT::i64, Legal);
++
++  // Bit-manipulation builtins (LLVM-079t).  The ISA has no bit-scan / population
++  // count instruction (`contracts/opcodes.yaml` carries no cttz/ctlz/ctpop op),
++  // so the *generic* software expansions are used: they bottom out in ordinary
++  // i64 shift/and/or/sub/mul/not operations that this backend already selects
++  // (TargetLowering::expandCTTZ/expandCTLZ/expandCTPOP) and need no libcall or
++  // constant pool.  Without this a surviving `llvm.cttz`/`ctlz`/`ctpop` aborts
++  // ISel with "Cannot select: ... cttz" (the ISS-188 picolibc gap).
++  setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_POISON, ISD::CTLZ,
++                      ISD::CTLZ_ZERO_POISON, ISD::CTPOP},
++                     MVT::i64, Expand);
 +
 +  computeRegisterProperties(STI.getRegisterInfo());
 +
@@ -943,9 +977,11 @@ index 000000000..6a0f1d977
 +                                            SelectionDAG &DAG) const {
 +  // cs.* conditional assignment (contract-isa.md §6.5): the three tests cover
 +  // cond < 0 / == 0 / > 0 with the two arms selected explicitly, so <=0 / >=0
-+  // reuse a test with the arms swapped.
++  // reuse a test with the arms swapped.  The result type is the arms' type: i64
++  // for integer arms (cs.*_rd) and f64/f32 for FP arms (cs.*_rrrr_rf); the
++  // condition is always an i64 comparison result (LLVM-079t).
 +  auto Select = [&](DADAOISD::NodeType Cs, SDValue Cond, SDValue T, SDValue F) {
-+    return DAG.getNode(Cs, DL, MVT::i64, Cond, T, F);
++    return DAG.getNode(Cs, DL, T.getValueType(), Cond, T, F);
 +  };
 +
 +  // --- Floating-point compare selecting integer arms (M6 uniform path) ---
@@ -1053,10 +1089,12 @@ index 000000000..6a0f1d977
 +                                         SelectionDAG &DAG) const {
 +  // `select cond, true, false` with a non-setcc condition: a false condition
 +  // is exactly 0 (ZeroOrOne boolean content), so cs.z picks the false arm.
++  // The arms may be integer (cs.*_rd) or FP (cs.*_rrrr_rf, LLVM-079t), so the
++  // node's result type is the arms' type.
 +  const SDLoc DL(Op);
 +  SDValue Cond = Op.getOperand(0);
 +  if (Cond.getValueType() != MVT::i64)
 +    Cond = DAG.getZExtOrTrunc(Cond, DL, MVT::i64);
-+  return DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, Cond, Op.getOperand(2),
-+                     Op.getOperand(1));
++  return DAG.getNode(DADAOISD::CS_Z, DL, Op.getOperand(2).getValueType(), Cond,
++                     Op.getOperand(2), Op.getOperand(1));
 +}

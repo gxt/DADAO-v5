@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..1e04ec167
+index 000000000..4acc67c7d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,602 @@
+@@ -0,0 +1,630 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -134,13 +134,14 @@ index 000000000..1e04ec167
 +def SDT_DADAOBrJT : SDTypeProfile<0, 2, [SDTCisVT<0, i64>, SDTCisVT<1, i64>]>;
 +def DADAOBrJT : SDNode<"DADAOISD::BR_JT", SDT_DADAOBrJT, [SDNPHasChain]>;
 +
-+// Conditional assignment (LLVM-069t; contract-isa.md §6.5): (cond, true, false)
-+// -> selected value, all i64.  CS_N tests cond < 0, CS_Z cond == 0, CS_P
-+// cond > 0; the two arms are selected explicitly, so <=0 / >=0 reuse a test
-+// with the arms swapped.  Produced by LowerSETCC / LowerSELECT_CC / LowerSELECT
-+// and selected to the cs.n / cs.z / cs.p conditional-assign instructions.
-+def SDT_DADAOCS : SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>,
-+                                       SDTCisSameAs<0, 3>, SDTCisInt<0>]>;
++// Conditional assignment (LLVM-069t / LLVM-079t; contract-isa.md §6.5): (cond,
++// true, false) -> selected value.  The condition is always an i64 comparison
++// result (a cmp* {-1,0,1} or an fp compare result); the two arms share their
++// type, which is also the node's result type -- i64 for integer arms
++// (cs.*_rd) and f64/f32 for FP arms (cs.*_rrrr_rf, LLVM-079t).  Produced by
++// LowerSETCC / LowerSELECT_CC / LowerSELECT.
++def SDT_DADAOCS : SDTypeProfile<1, 3, [SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>,
++                                       SDTCisVT<1, i64>]>;
 +def DADAOCSN : SDNode<"DADAOISD::CS_N", SDT_DADAOCS>;
 +def DADAOCSZ : SDNode<"DADAOISD::CS_Z", SDT_DADAOCS>;
 +def DADAOCSP : SDNode<"DADAOISD::CS_P", SDT_DADAOCS>;
@@ -498,6 +499,24 @@ index 000000000..1e04ec167
 +def : Pat<(DADAOCSZ i64:$c, i64:$t, i64:$f), (cs_z_rd i64:$c, i64:$t, i64:$f)>;
 +def : Pat<(DADAOCSP i64:$c, i64:$t, i64:$f), (cs_p_rd i64:$c, i64:$t, i64:$f)>;
 +
++// FP arms (LLVM-079t): the same cs.n/z/p tests but selecting an rf destination
++// from two rf sources (cs.*_rrrr_rf; contract-isa.md §6.5).  The condition is
++// still an rd value, so this covers both an fp compare (foqcmp/ftqcmp) and an
++// integer cmp* feeding an FP-armed select (`d = (n < 0) ? a : b`), the two
++// mixed cases the plain cs.*_rd / DADAOFPSelCC patterns do not match.
++def : Pat<(DADAOCSN i64:$c, f64:$t, f64:$f),
++          (cs_n_rrrr_rf i64:$c, f64:$t, f64:$f)>;
++def : Pat<(DADAOCSZ i64:$c, f64:$t, f64:$f),
++          (cs_z_rrrr_rf i64:$c, f64:$t, f64:$f)>;
++def : Pat<(DADAOCSP i64:$c, f64:$t, f64:$f),
++          (cs_p_rrrr_rf i64:$c, f64:$t, f64:$f)>;
++def : Pat<(DADAOCSN i64:$c, f32:$t, f32:$f),
++          (cs_n_rrrr_rf i64:$c, f32:$t, f32:$f)>;
++def : Pat<(DADAOCSZ i64:$c, f32:$t, f32:$f),
++          (cs_z_rrrr_rf i64:$c, f32:$t, f32:$f)>;
++def : Pat<(DADAOCSP i64:$c, f32:$t, f32:$f),
++          (cs_p_rrrr_rf i64:$c, f32:$t, f32:$f)>;
++
 +// Unconditional branch -> jump (iiii, PC-relative 24-bit).
 +def : Pat<(br bb:$d), (jump_iiii bb:$d)>;
 +
@@ -606,3 +625,12 @@ index 000000000..1e04ec167
 +def : Pat<(f32 (sint_to_fp GPRD:$a)), (io2ft_orri_rf GPRD:$a, 1)>;
 +def : Pat<(f64 (uint_to_fp GPRD:$a)), (uo2fo_orri_rf GPRD:$a, 1)>;
 +def : Pat<(f32 (uint_to_fp GPRD:$a)), (uo2ft_orri_rf GPRD:$a, 1)>;
++
++// --- FP <-> integer bitcast (LLVM-079t) ---
++// `rd2rf` / `rf2rd` are the RD<->RF block moves (contract-fp.md §12): they copy
++// 64 bits unchanged, which is exactly a bitcast (no numeric conversion).  This
++// is what `double`<->`uint64_t` type punning lowers to -- and also the middle
++// step of the *generic* fabs/copysign/... expansions (bitcast to i64, mask,
++// bitcast back).
++def : Pat<(f64 (bitconvert i64:$a)), (rd2rf_orri_rf GPRD:$a, 1)>;
++def : Pat<(i64 (bitconvert f64:$a)), (rf2rd_orri_rf f64:$a, 1)>;
