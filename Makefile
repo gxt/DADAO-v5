@@ -40,6 +40,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
         test-picolibc-smoke install-host docker-image docker-shell check \
+        check-picolibc-tests check-picolibc-tests-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
@@ -77,6 +78,8 @@ help:
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
+	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
+	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
@@ -405,6 +408,21 @@ build-picolibc:
 test-picolibc-smoke: build-picolibc
 	@$(PYTHON) tools/infra/test_picolibc_smoke.py
 
+# check-picolibc-tests (TESTCASES-042t, L2): the picolibc upstream self-test
+# representative set — one test per Meson suite, mechanically derived by the
+# harness (no hand-picked list).  The harness configures the picolibc Meson test
+# build (for the authoritative test inventory), then compiles/links/runs each
+# test under qemu-system-dadao -machine dadao-m1 + semihosting.  Fails if any
+# representative reports a genuine test failure (fail=0); backend/library gaps
+# are reported separately as `blocked`, never as silent skips.
+check-picolibc-tests: build-picolibc
+	@$(PYTHON) tools/testcases/picolibc_tests.py --stage fast --jobs $(JOBS)
+
+# check-picolibc-tests-full (TESTCASES-042t): the full picolibc self-test set
+# (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
+check-picolibc-tests-full: build-picolibc
+	@$(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(JOBS)
+
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev
 
@@ -427,7 +445,7 @@ check: manifest-check validate-vectors check-spec-drift check-patch-tree check-i
 
 # L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
 # （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost
+check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests
 	@echo "module checks (L2): PASS"
 
 # L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
