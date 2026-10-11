@@ -4,17 +4,9 @@
 >
 > **M6 达成（2026-10-11，architect 实测核验）**：门槛 `make check` **EXIT=0** + **opt-in** `make test-m6` **EXIT=0**（`check-lit-full` 12/12 + `diff_ir_lli` 19/19 + Embench 38/38）；6 个模块 `m` 全置 `里程碑` ⇒ **项目里程碑 M6 = 达成**。M6 任务书/回顾/已关 issue 已归档至 `.tao/archive/M6/`（回顾 `m6-retrospective.md`、清单 `README.md`、快照 `issues-closed.md`）。核验命令/证据见各 `m`「核验」与 `.work/log/integ/INTEG-026m-*.log`。
 
-## 项目里程碑（当前）
+## 项目里程碑
 
-| 项目里程碑 | 主题 | 达成日 | 归档 |
-| --- | --- | --- | --- |
-| M1 | MC + QEMU 标量核心 + MC↔QEMU 集成 | 2026-09-22 | `.tao/archive/M1/` |
-| M2 | 规范与接口冻结（Normative Freeze） | 2026-10-04 | `.tao/archive/M2/` |
-| M3 | Basic CodeGen（纯整数） | 2026-10-05 | `.tao/archive/M3/` |
-| M4 | ELF 文件支持 + LLD 链接 + 汇编器遗留收口 | 2026-10-07 | `.tao/archive/M4/` |
-| M5 | SEE/HEE 运行环境 + semihosting | 2026-10-08 | `.tao/archive/M5/` |
-| **M6** | 整数完整调用约定 + LLVM 欠账收口 + ELF 直载 + clang target + Embench | **2026-10-11** | `.tao/archive/M6/` |
-| M7 | picolibc 移植（自带 test 100%）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle | — | — |
+> 项目里程碑（M1–M6 及达成日/主题/成就）见 README.md「项目里程碑」。
 
 **M6 模块里程碑**（均已 `里程碑`）：`INFRA-052m` / `SPEC-125m` / `LLVM-067m` / `QEMU-054m` / `TESTCASES-040m` / `INTEG-026m`。
 

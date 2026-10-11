@@ -49,7 +49,7 @@
 | 6 | **P1 后端纳入 M7**：`floor/ceil/trunc/round/rint/nearbyint`、`fmin/fmax`、`fabs`/`copysign` 双精度 | `LLVM-080t` |
 | 7 | **过渡 oracle 采用**：宿主机结果作参照 + **明确边界**（端序／`long double`=f64 vs 宿主 80-bit／`fenv`／UB／实现定义），**登记「非判据真源」**（将来 `GOLDEN-*` 替换） | `SPEC-131t` |
 | 8 | **M7 明确排除**：动态链接 / linux-user / pk / Chipyard / golden | 本 `k §排除项` |
-| 9 | **执行环境 `hypv`**；semihosting 用 `trap cfx3, 0x30000`（原话）；**须核 M6 探针 `cfx_umon` 是否为 cfx3，不一致要登记** | 本 `k §避坑`；`QEMU-056t`/`SPEC-131t` |
+| 9 | **执行环境 `hypv`**；semihosting 用 `trap cfx3, 0x30000`（原话）；**须核 M6 探针 `cfx_umon` 是否为 cfx3，不一致要登记**。**cfxha 口径已裁定**（用户 2026-10-11 追加：「**写成任意 cfxha**」）——semihosting 用哪个 `cfxha` **不指定**、**与 `cfxha` 取值无关**（`immu18[17:16]==2'b11` 判定）；落盘 `contract-semihosting §1`（`INTEG-034t`） | 本 `k §避坑`；`QEMU-056t`/`SPEC-131t` |
 | 10 | **RAM 基址改 `0xFC00_0000_0000`**（`[47:42]≡63` 的 cfx63 段；加 cfx 后不变）；**16 MiB 够用 ⇒ 不改大** | `ADR-0004` 就地修订 + `QEMU-056t` |
 
 ## 排除项（用户 2026-10-11 裁定 #8）
@@ -91,7 +91,7 @@
 
 ## 避坑（M7 起步清单）
 
-- **cfxha 不一致（裁定 #9，实测已核）**：用户原话「semihosting 用 `trap cfx3, 0x30000`」；但 M6/v5 实测用的是 **`trap cfx_umon, 0x30000`**——**`cfx_umon` = cfxha 0**（`spec/DADAO-12 §1`：0=`umon`/1=`jmon`/2=`smon`/**3=`hmon`**/…/63=`power`），而 **`cfx3` = `hmon`**，**二者不一致**。`contract-semihosting §1` 明确 tag 判定（`immu18[17:16]==2'b11`）**与 `cfxha` 无关**；QEMU 实现（`components/qemu/patches/…/trans_ctrl.c.inc`）**只查 `immu18[17:16]`、不查 `cfxha`** ⇒ 功能上 `cfx0/1/2/3` 均可。**结论**：不一致**已登记**，**须用户裁定**保留 `cfx0`（现状）还是改 `cfx3`（口径/文档统一）；处置归 `SPEC-131t`（口径）+ `QEMU-056t`（如改则含 crt0/向量/harness）。
+- **cfxha 不一致（裁定 #9，实测已核；口径已裁定 2026-10-11）**：用户原话「semihosting 用 `trap cfx3, 0x30000`」；但 M6/v5 实测用的是 **`trap cfx_umon, 0x30000`**——**`cfx_umon` = cfxha 0**（`spec/DADAO-12 §1`：0=`umon`/1=`jmon`/2=`smon`/**3=`hmon`**/…/63=`power`），而 **`cfx3` = `hmon`**，**二者不一致**。`contract-semihosting §1` 明确 tag 判定（`immu18[17:16]==2'b11`）**与 `cfxha` 无关**；QEMU 实现（`components/qemu/patches/…/trans_ctrl.c.inc`）**只查 `immu18[17:16]`、不查 `cfxha`** ⇒ 功能上 `cfx0/1/2/3` 均可。**处置（用户 2026-10-11 裁定「写成任意 cfxha」）**：semihosting 用哪个 `cfxha` **不指定**、**与 `cfxha` 取值无关**；**保留现状 `cfx_umon`（cfx0）**、`cfx3` 与 `cfx0` **等效**，**不改实现**（口径表述已落 `contract-semihosting §1`，`INTEG-034t`）。
 - **blast radius（RAM 基址）**：M6 `QEMU-053t` 刚把 RAM@0 收口（唯一 RAM 段），**本次要再改一遍**到 `0xFC00_0000_0000`；受影响面 = QEMU 机器映射/`cpu.h`/`helper.c`/`cpu.c`、`tests/scripts/{dadao.lds,codegen_crt0.s,bootrom*.S}`、`tools/testcases/build_test_binary.py`、`tools/qemu/min_rom_probe_*`/`gen_trampoline.py`、`tools/integ/check_interface_alignment.py`（断言 `RAM_BASE`）、`spec/Machine-01 §1` + 锁。**既有向量地址**须逐一跟改、**语义门控**须重跑。
 - **地址段语义**：新基址 `0xFC00_0000_0000` 与 boot ROM `0xffff_ffff_0000` **同属 cfxha 63 段**但**不同偏移**；越界分类（`umon` 段 `addr[47:42]==0` ⇒ `0x81`，其余含 power 段 ⇒ `0x87`）须随新基址复核——**旧「RAM@0 在 umon 段」的越界断言会失效**。
 - **`check-interface` 硬断言**：`tools/integ/check_interface_alignment.py` 现断言 `RAM_BASE=0`、`RAM_SIZE=16MiB`、旧 RAM 段已删；须改为新基址断言（**计数/地址派生自单一真源，不写死**）。
@@ -104,7 +104,7 @@
 
 - 本 `k` 为**规划/分解**；`/plan` 交叉审查通过后，各 `t`/`m` 任务书落地 `.tao/tasks/<module>/`（`m` 文件**本 `k` 未建**，待 `/plan` 后建）。
 - **M7 不新建 benchmark 套件**（Embench 已在 M6 接入）；picolibc 自带 test 为 M7 test 重心。
-- **ADR**：`adr-0023`（picolibc 上游）已 `Accepted`（用户逐条确认）；`ADR-0004` 经授权就地修订；`trap` `cfxha` 口径是否需更动**待用户裁定**（若需，另行处置）。
+- **ADR**：`adr-0023`（picolibc 上游）已 `Accepted`（用户逐条确认）；`ADR-0004` 经授权就地修订；`trap` `cfxha` 口径**已裁定**（用户 2026-10-11：「**写成任意 cfxha**」；**任意 `cfxha` 等效、与取值无关**，**不改实现**；落盘 `contract-semihosting §1`，`INTEG-034t`）。
 - 参考仓库检索**只读 `.cache/refs/**`、不写回、不复制代码**；引用项均标「**内容溯源，非执行必需**」。
 
 ## 审阅记录
