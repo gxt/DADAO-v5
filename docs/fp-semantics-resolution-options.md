@@ -4,10 +4,10 @@
 oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 
 ## FP-001
-**候选 A**：按目标格式写入，f32 清零高 32 位，store 只读其目标宽度；优点是边界简单，代价是改变 rf0/旧值观察，需更新 contract、oracle、组件和宽度向量。
-**候选 B**：窄写保留高位，store 仍只读目标宽度；优点是保留旧实现兼容性，代价是寄存器状态依赖历史，四层实现和回读向量都要明确。
-**候选 C**：窄写产生固定扩展模式并让 store 严格按格式取值；优点是可重复，代价是新增编码规则、contract 字段及全套回归向量。
-**后续影响**：选择 A/B/C 都要同步 contract 与独立 oracle；LLVM/QEMU 按同一写掩码实现，vectors 增加高位回读和 t/o store 用例。
+**候选 A**：ft 结果写入时清零 RF 高 32 位；优点是状态无历史依赖，代价是以 fo 读回会得到固定高半。
+**候选 B**：ft 窄写保持 RF 高 32 位；优点是与已裁定的 `ld.t/ldm.t` 一致，代价是以 fo 读回依赖先前寄存器状态。
+**候选 C**：ft 窄写产生固定扩展模式；优点是可重复，代价是新增编码规则、contract 字段及完整回归向量。
+**后续影响**：选择 A/B/C 都要同步 contract、独立 oracle、LLVM、QEMU 和 vectors；覆盖受影响 ft 结果路径及其后续 fo 观察。t/o 存取、`set.w`、分类和 RF 位串复制已由 FP-014/015/016 或既有规则覆盖。
 
 ## FP-002（已裁定：细化原候选 A）
 **采用规则**：qNaN 保持 sign；同格式保持 payload，ft→fo 将 payload 放入 fo payload 的低 22 位并将高 29 位清零，fo→ft 取低 22 位。选择低位布局是为保证 qNaN `f32→f64→f32` 往返保持相同 sign、quiet 位和 payload。sNaN 使用同一映射、quiet 化为 qNaN 并置 NV；qNaN 转换不新增 flags。
