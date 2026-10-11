@@ -20,7 +20,7 @@
 | INTEG-033k | 已验证 | 2026-10-11 14:46 | M7 启动与任务分解（10 条裁定） |
 | INFRA-055t | 已验证 | 2026-10-11 13:53 | 接入 picolibc 组件 |
 | INFRA-056t | 已验证 | 2026-10-11 18:43 | 接入 clang++（软链）+ 核 2 个 .cpp 需求 |
-| INFRA-057t | 待开始 | — | picolibc 移植与构建集成 |
+| INFRA-057t | 已验证 | 2026-10-11 21:16 | picolibc 移植与构建集成（build-picolibc + printf E2E） |
 | INFRA-058t | 已验证 | 2026-10-11 16:04 | 门控分层 + check-spec-refs 修复 |
 | INFRA-060t | 已验证 | 2026-10-11 17:02 | 目录三分界 + 规范版本号 |
 | INFRA-061t | 已验证 | 2026-10-11 17:32 | changelog 并入 milestones |

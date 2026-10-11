@@ -1,0 +1,18 @@
+diff --git a/libc/machine/dadao/machine/meson.build b/libc/machine/dadao/machine/meson.build
+new file mode 100644
+index 0000000..bde6f71
+--- /dev/null
++++ b/libc/machine/dadao/machine/meson.build
+@@ -0,0 +1,12 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# DADAO machine header hook.
++#
++# picolibc's per-architecture `machine/` subdirectory overrides the generic
++# <machine/fenv.h> / <machine/math.h> / <machine/_fpmath.h> when an
++# architecture needs different definitions.  DADAO does not: `long double` is
++# 64-bit IEEE-754 binary64 (identical to `double`), so the generic float-math
++# paths are already correct and nothing needs to be installed here.  The
++# directory exists as the arch hook the picolibc build layout expects.
++#

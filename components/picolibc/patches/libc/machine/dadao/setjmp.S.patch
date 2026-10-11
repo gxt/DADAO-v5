@@ -1,0 +1,44 @@
+diff --git a/libc/machine/dadao/setjmp.S b/libc/machine/dadao/setjmp.S
+new file mode 100644
+index 0000000..5929ab4
+--- /dev/null
++++ b/libc/machine/dadao/setjmp.S
+@@ -0,0 +1,38 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * DADAO setjmp/longjmp.
++ *
++ * NOT IMPLEMENTED YET — these two entry points fail explicitly.
++ *
++ * Rationale (why this is a deliberate, loud stub and not a silent one): DADAO
++ * uses a hardware return-address stack (RegRAS, contract-abi.md §2.3): `call`
++ * pushes the return address onto ra63 and `ret` pops it.  A correct longjmp
++ * must resume at the saved address *and* restore the RegRAS depth to what it
++ * was when setjmp returned; the ISA offers no instruction to pop (or restore)
++ * RegRAS entries other than `ret` (which also transfers control), so the depth
++ * cannot be repaired from software.  A partial implementation would corrupt
++ * the return-address stack after the first longjmp and return silently to the
++ * wrong place, so no partial implementation is provided.
++ *
++ * Contract-conformant behaviour for an unsupported feature: calling either
++ * function aborts the program (a guest process SYS_EXIT with a non-zero status
++ * through the semihosting `_exit` stub), never a silent success.
++ */
++
++#include <picolibc.h>
++
++	.text
++	.globl	setjmp
++	.type	setjmp, @function
++setjmp:
++	call	[rb0, abort]
++	swym	0
++	.size	setjmp, . - setjmp
++
++	.globl	longjmp
++	.type	longjmp, @function
++longjmp:
++	call	[rb0, abort]
++	swym	0
++	.size	longjmp, . - longjmp

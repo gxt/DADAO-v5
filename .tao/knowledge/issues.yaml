@@ -304,7 +304,7 @@
   scope: [llvm]
   blocks: []
   resolved_by: null
-  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.tao/knowledge/pending-registrations.md §R4`）】**M7**。**实测**：`fcmp` **取值**（含 ordered `oeq`）⇒ `Cannot select setcc`；`fabs`/`frem`/`copysign` ⇒ `Cannot select bitcast`；`fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` ⇒ `no libcall`；`fpclass` ⇒ `setcc setuo`；`f16` ⇒ `fp_to_fp16`；`bitcast double→i64`（FP↔RD）**缺 ISel 模式**（指令 `rf2rd`/`rd2rf` **已在**）。**全部显式失败、不产错码**（非静默降级）。**只登记，不建任务。**"
+  notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；源 `.tao/knowledge/pending-registrations.md §R4`）】**M7**。**实测**：`fcmp` **取值**（含 ordered `oeq`）⇒ `Cannot select setcc`；`fabs`/`frem`/`copysign` ⇒ `Cannot select bitcast`；`fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` ⇒ `no libcall`；`fpclass` ⇒ `setcc setuo`；`f16` ⇒ `fp_to_fp16`；`bitcast double→i64`（FP↔RD）**缺 ISel 模式**（指令 `rf2rd`/`rd2rf` **已在**）。**全部显式失败、不产错码**（非静默降级）。**只登记，不建任务。** **衍生待办（`INFRA-057t`，2026-10-11）**：该缺口的**消费侧变通** = picolibc `meson.build` 显式**源过滤表**（整个 `libm/` + 20 条 libc 浮点/换字节源）以换取构建确定成功；**`LLVM-079t`/`080t` 落地后须删表恢复全量**（切 `io-float-exact=false` engine 变体后 ryu 4 条为惰性条目、随之一并删）。细节指针：`.tao/tasks/infra/INFRA-057t-*.md` 完成区「遗留问题①②③」。"
 
 - id: ISS-189
   title: "其它 LLVM 内建数据指导符（`.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 等）仍被 `llvm-mc` 受理（裁定口径 4 名外的剩余面）"
@@ -322,3 +322,12 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `QEMU-056t` 完成区「遗留问题」+ reviewer 第 1 轮「遗留 st.*/rd0 判定」）】**既有问题、非 `QEMU-056t` 引入**（reviewer 已核该任务生成器重跑产物与已提交向量 **IDENTICAL**，不存在该任务引入的漂移）。**冲突**：`tools/testcases/generate_mem_vectors.py` 把 `st.*` 源 = `rd0` 作 **ILLI** 用例（`store_src_rd0`）并据以重派生已提交向量；而 `tools/testcases/validate_vectors.py` 按 `ADR-0012 D3.1/D5`（承 `ADR-0015 D3`：`st.*`/`stm.*` 的**源**为 `rd0`/`rb0` **MAY**（读出 0 / 当前指令地址）、**MUST NOT** 触发 ILLI）判其**合法** ⇒ 生成器 / 向量与合约口径**不一致**。**待裁定**：以合约（合法）为准修生成器并重派生相关向量，还是改契约口径；并明确是否需在 `spec`/`contract-*` 增显式引用。**性质 = 语义口径冲突（非缺陷）**。**只登记，不建任务**。证据指针：`QEMU-056t` 任务书「遗留问题」+ reviewer「遗留 st.*/rd0 判定」。"
+
+
+- id: ISS-191
+  title: "`tests/scripts/dadao.lds` 缺 `__heap_start`/`__heap_end` PROVIDE ⇒ `malloc`/`sbrk` 程序链接失败（undefined `__heap_end`）"
+  status: open
+  scope: [infra, testcases]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `INFRA-057t` 完成区「遗留问题①」+ reviewer 第 1 轮「heap/PT_LOAD」）】`tests/scripts/dadao.lds`（`QEMU-056t` 基址 `0xFC0000000000`，已核一致）**无 `__heap_*` PROVIDE**（grep 0 条）；picolibc `malloc`/`sbrk`（`libos/fallback/sbrk.c` weak 引用 `__heap_start`/`__heap_end`）**链接 rc=1**（实测 undefined `__heap_end`）。对照 `picolibc_noflash.ld`（单 `PT_LOAD MemSize=0x1000000`，`__heap_start/__heap_end` = `PROVIDE` 自 `__end`/`__stack`）⇒ 正解。**待办**：为 `dadao.lds` 补 `__heap_*` PROVIDE，或 testcases 侧改用 `picolibc_noflash.ld`；归 `TESTCASES-042t`。**性质 = 遗留缺口/技术债**（非 `INFRA-057t` 引入）。证据指针：`.tao/tasks/infra/INFRA-057t-*.md` 完成区「遗留问题①」+ reviewer 第 1 轮「heap/PT_LOAD」；`.work/evidence/<任务ID>/run.sh`。"

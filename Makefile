@@ -38,7 +38,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-qemu build-qemu-reconfig build-gem5 build-bootrom install-host docker-image docker-shell check \
+        build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
+        test-picolibc-smoke install-host docker-image docker-shell check \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
@@ -74,6 +75,8 @@ help:
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
+	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
+	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
@@ -383,6 +386,24 @@ build-bootrom:
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/scripts/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
 	@echo "build-bootrom: PASS (outputs under $(BOOTROM_DIR))"
+
+# build-picolibc (INFRA-057t): build the DADAO port of picolibc with Meson and
+# install it into the target sysroot (headers under $(TARGET_SYSROOT_DIR)/
+# include, libraries under .../lib).  The cross file, the machine directory and
+# the semihosting syscall stubs live in the component patch set
+# (components/picolibc/patches/**); run 'make fetch apply-series' first.
+# The target is idempotent (Meson reconfigure + incremental Ninja + install).
+# Requires the install-root clang (run 'make install-host' first).
+build-picolibc:
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-picolibc: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tools/infra/build_picolibc.py --jobs $(JOBS)
+
+# test-picolibc-smoke (INFRA-057t): minimal end-to-end check — a printf("hi")
+# program is compiled against the installed picolibc, linked with the project
+# crt0/linker script and run under QEMU via semihosting; the guest must print
+# "hi" and exit 0.  Needs 'make build-picolibc' + 'make install-host' first.
+test-picolibc-smoke: build-picolibc
+	@$(PYTHON) tools/infra/test_picolibc_smoke.py
 
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev
