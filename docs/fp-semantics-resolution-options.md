@@ -64,11 +64,12 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **关闭理由**：原候选 A 已由现有规范实现：rf0 读出完整 64 位，显式写仅更新 FCSR 可写字段，浮点结果路径与 rf0 目的的 legality 已单独明确。
 **后续影响**：contract、oracle、组件和 vectors 按既有章节覆盖 rf0 的完整读取、掩码写入、低 32 位 load 及 ILLI 路径；不新增 FP-012 专属实现要求。
 
-## FP-013
+## FP-013（已延后）
+**采用规则**：不选择候选 A/B/C；动态运行时 fault 的块访存提交语义保持未定义。关联投影维持 `UNSPECIFIED`，独立黄金 FP oracle 对此类输入返回 `UNSUPPORTED`。`rd2rf/rf2rd` 为已定义的跨组 64 位位串复制，不在本延后项内。
 **候选 A**：块操作按地址递增，逐元素提交，fault 后保留已完成元素；优点是可恢复，代价是 partial-state oracle 和 fault 向量。
 **候选 B**：块操作先检查全范围，成功后原子提交；优点是状态简单，代价是需要范围检查，组件实现更复杂。
 **候选 C**：按寄存器顺序处理重叠区域，未完成部分回滚；优点是确定，代价是需要临时缓冲和明确回滚语义。
-**后续影响**：contract/oracle 固定顺序、部分提交或回滚；LLVM/QEMU 的块路径和 vectors 必须覆盖 overlap 与 fault。
+**后续影响**：不为 contract/oracle/组件/vectors 固定 partial-commit 或回滚行为；待恢复裁定后，再覆盖 overlap 与动态 fault。
 
 ## FP-014（已裁定：候选 B）
 **采用规则**：t 操作严格读写 32 位，load 保持 RF 高 32 位，store 仅读 RF 低 32 位；o 操作严格读写完整 64 位。所有 store 不修改 RF，块指令逐元素采用相同宽度；`set.w` 保持其选定 16 位替换语义。

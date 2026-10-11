@@ -504,6 +504,10 @@ review_projection:
     status: RESOLVED
     decision: covered_by_fp003_nan_propagation
     spec_reference: SimRISC-07 §S2D1 / §S1D1
+  - id: FP-013
+    status: DEFERRED
+    decision: defer_dynamic_block_memory_fault_commit_semantics
+    spec_reference: SimRISC-01 §存取RF寄存器 / SimRISC-02 §寄存器组之间块赋值
   entries:
   - id: ft2fo_orri_rf
     family: convert_ff
@@ -911,15 +915,14 @@ review_projection:
     issue_ids: *id010
   - id: rd2rf_orri_rf
     family: rf_move
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-02 §寄存器组之间块赋值
     basis: SimRISC-02 §寄存器组之间块赋值；该条指令属于该族并具有对应可观察维度
-    issue_ids: &id011
-    - FP-013
+    issue_ids: &id011 []
   - id: rf2rd_orri_rf
     family: rf_move
-    status: UNSPECIFIED
+    status: RESOLVED
     spec_references:
     - SimRISC-02 §寄存器组之间块赋值
     basis: SimRISC-02 §寄存器组之间块赋值；该条指令属于该族并具有对应可观察维度
