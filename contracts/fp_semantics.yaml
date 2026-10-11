@@ -464,6 +464,10 @@ review_projection:
     status: RESOLVED
     decision: ieee754_remainder_special_values_subnormal_infinity_underflow
     spec_reference: SimRISC-07 §S2D1
+  - id: FP-009
+    status: RESOLVED
+    decision: scaleb_integer_exponent_conversion_and_special_values
+    spec_reference: SimRISC-07 §S2D1
   - id: FP-017
     status: RESOLVED
     decision: covered_by_fp003_nan_propagation
@@ -623,7 +627,6 @@ review_projection:
     issue_ids: &id004
     - FP-001
     - FP-005
-    - FP-009
   - id: ftsub_orrr_rf
     family: arith
     status: UNSPECIFIED

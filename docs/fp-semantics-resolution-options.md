@@ -47,11 +47,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **依据**：IEEE 754 remainder 定义与原文 `remainder(subnormal, ∞) signals underflow.`；FP-003 NaN 传播及 FP-004 累计 flags 规则。
 **后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 ±0 除数、±Inf 被除数、有限值/±Inf（含 subnormal）和零结果符号。
 
-## FP-009
-**候选 A**：有限 scale 先按 rounding_mode 缩放，特殊组合按固定 qNaN/Inf/zero 表处理并设置 OF/UF/NX；优点是可测，代价是表较大。
-**候选 B**：scale 只接受有限整数语义，非有限 scale 返回 canonical qNaN+NV；优点是边界清晰，代价是拒绝更多输入。
-**候选 C**：沿用通用乘幂模型，特殊值遵循统一 NaN/Inf 传播；优点是与算术共用 oracle，代价是零符号和下溢仍需补充规则。
-**后续影响**：contract/oracle 固定 scale 解释和 flags；LLVM/QEMU 复用或新增 scalb 路径，vectors 覆盖非有限 scale 与 OF/UF/NX。
+## FP-009（已裁定：细化原候选 A）
+**采用规则**：先按 FP-003 处理 NaN；再将 scale 源按 rf0 舍入为整数 N。有限非整数的值改变置 NX；±Inf/越界饱和为最大/最小整数并置 NV。N=0 返回原 rfHC；N≠0 时保留零和无穷的符号，有限非零值按 `x×2^N` 缩放并按 rf0 舍入。
+**依据**：SimRISC-07 格式转换的浮点→整数饱和规则；IEEE 754 scaleB 对 N=0、N≠0 时 ±0/±∞ 的规则；FP-003 和 FP-004。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖非整数 N、±Inf/越界 N、N=0 及 `±0/±∞` 被缩放数；缩放 OF/UF/NX 边界仍依赖 FP-005。
 
 ## FP-010（已裁定：细化原候选 A）
 **采用规则**：仅允许 n=2；`±0→+0`、`+∞→+∞`，均无新增 flags；`-∞` 与有限负数→目标格式正 canonical qNaN+NV（ft=`0x7FC00000`，fo=`0x7FF8000000000000`）。有限正数按当前舍入模式，NaN 输入按 FP-003。

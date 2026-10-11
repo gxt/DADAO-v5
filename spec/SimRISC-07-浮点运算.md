@@ -147,7 +147,7 @@ fosclb  rfHB, rfHC, rfHD
 
 `ftrem`/`forem` 为 IEEE 754 remainder 操作（`rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数）。NaN 输入按本节的 NaN 规则处理。若被除数为 ±Inf 或除数为 ±0，返回目标格式的正 canonical qNaN 并设置 NV；ft 的 canonical qNaN 为 `0x7FC00000`，fo 的 canonical qNaN 为 `0x7FF8000000000000`。有限被除数除以 ±Inf 时原样返回被除数；被除数为 subnormal 时设置 UF，其他有限被除数不设置异常状态。有限被除数和非零有限除数的 remainder 为精确结果，不设置 DZ、OF、UF 或 NX；若结果为零，其符号位取自被除数。NV、UF 与其他异常状态按浮点状态寄存器的累计规则写入。IEEE 754 原文：`remainder(subnormal, ∞) signals underflow.`
 
-`ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfHC × 2^rfHD`（rfHD 取整数值），舍入模式由 rf0 控制。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
+`ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作。NaN 输入先按本节的 NaN 规则处理；否则将 rfHD 按 rf0 的舍入模式转换为整数 N，再计算 `rfHC × 2^N`。该整数转换遵循格式转换指令的浮点→整数规则：有限非整数值的舍入结果与原值不同时设置 NX；±Inf 或超出整数范围时分别饱和为最大/最小整数并设置 NV。N=0 时原样返回 rfHC；N≠0 时，`scaleB(±0, N)` 返回 ±0，`scaleB(±∞, N)` 返回 ±∞。有限非零 rfHC 的缩放结果按 rf0 舍入模式写入；缩放本身的 OF、UF、NX 触发条件见浮点状态寄存器及其舍入规则。整数转换和缩放产生的异常状态均按浮点状态寄存器的累计规则写入。
 
 ### S1D1
 
