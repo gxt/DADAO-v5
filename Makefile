@@ -334,6 +334,12 @@ CLANG_RESOURCE_VER := $(shell ls -1 $(LLVM_BUILD)/lib/clang 2>/dev/null | head -
 CLANG_HEADERS_SRC  = $(LLVM_BUILD)/lib/clang/$(CLANG_RESOURCE_VER)/include
 CLANG_RESOURCE_DIR = $(HOST_TOOLCHAIN_DIR)/lib/clang/$(CLANG_RESOURCE_VER)
 
+# clang++ (INFRA-056t): the C++ driver is the *same binary* as the C driver
+# (upstream bin/clang++ is itself a symlink to clang-NN), so install it as a
+# relative symlink to the already-installed `clang` — mirroring the ld.lld -> lld
+# precedent above.  Deliberately NOT added to $(HOST_LLVM_TOOLS): the clang binary
+# is ~4 GB, so atomic-install would copy it a second time.  Being relative and
+# resolving to the installed `clang`, it is zero-copy and same-source/same-commit.
 install-host: build-mc build-lld build-qemu
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
@@ -341,6 +347,7 @@ install-host: build-mc build-lld build-qemu
 	done
 	@$(call atomic-install,$(LLVM_BUILD)/bin/lld,$(HOST_TOOLCHAIN_BIN)/lld)
 	@ln -sf lld $(HOST_TOOLCHAIN_BIN)/ld.lld
+	@ln -sf clang $(HOST_TOOLCHAIN_BIN)/clang++
 	@$(call atomic-install,$(LLVM_BUILD)/bin/lli,$(HOST_TOOLS_BIN)/lli)
 	@$(call atomic-install,$(QEMU_BUILD)/qemu-system-dadao,$(HOST_TOOLCHAIN_BIN)/qemu-system-dadao)
 	@rm -rf $(HOST_LIT_DIR)
