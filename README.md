@@ -38,9 +38,4 @@
 
 **M6 — 整数完整调用约定 + LLVM 欠账收口 + ELF 直载 + clang target + Embench**（已达成，2026-10-11）
 
-- **整数完整调用约定**：返回 `rd8`/`rb8`/`rf8`（每 bank K=8）、聚合 ≤64 B 寄存器 / `>64 B` 间接、`sret`、变参、间接调用；**FP/RF codegen**（FP ABI、HFA、RF 放开）。
-- **clang target**：`clang -target dadao-unknown-elf` 打通（DL 与后端一致），端到端 `clang → ld.lld → QEMU` 正确退出码。
-- **QEMU 改走 `load_elf()`**：ELF 直接加载（仅 RAM 落点，非 RAM 段加载期拒绝）。
-- **Embench 接入（编译正确性）**：19 个基准经「clang → ld.lld → QEMU」执行 **`-O0` 19/19、`-O2` 19/19 退出码 0**；`md5sum` 大端适配、最小运行时（不引 libc）。
-- **测试资产**：lit 量产（快档入 `make check`、全量档 opt-in `check-lit-full`）、上游 IR 的 `lli` 值级对拍；新增 opt-in 门控 **`make test-m6`**（lit 全量档 + `lli` 对拍 + Embench）。
-- 过程中收口：大常量比较/分支范围、跳转表、无符号/有符号乘高半、`-O2` `i1` 加载、可执行段 `.p2align` 崩溃，以及**数据指示符口径**（唯一集 `.dd.b08/.dd.w16/.dd.t32/.dd.o64`；禁 `.byte/.short/.long/.quad/.word/.octa` 与 `.align`，只留 `.p2align`）。
+整数完整调用约定（返回 `rd8`/`rb8`/`rf8`、聚合 ≤ 64 B、`sret`/变参/间接调用）与 FP/RF codegen 落地；**clang target** 打通、QEMU 改走 **`load_elf()`**；**Embench 19 基准 `-O0`/`-O2` 双 19/19**；新增 opt-in `make test-m6`（lit 全量档 + `lli` 值级对拍 + Embench）。
