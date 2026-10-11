@@ -1,6 +1,6 @@
 format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
-# 同一变更内更新此处哈希。见 spec/Process-06-spec目录保护规范.md。
+# 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
 
 # 清单 = 21 册只读册 = 20 册上游只读册（用户 2026-10-07 全选）+ 1 册 v5 自定册（spec/Machine-01，2026-10-08 纳入）：
@@ -10,7 +10,7 @@ policy = "readonly-requires-authorization"
 #   toolchain  Toolchain-01
 #   machine-01 Machine-01（v5 自定）
 # sha256 = 工作树基线（还原后）逐册实测；由 make check-spec-readonly 校验。
-# 注意：spec/Machine-01 已于 2026-10-08 纳入本锁（用户授权）；spec/Process-0x、
+# 注意：spec/Machine-01 已于 2026-10-08 纳入本锁（用户授权）；docs/Process-0x、
 # spec/README.md 为 v5 自定册，不在本锁内——其修订由 Process-06 §2 的授权流程约束。
 
 [[spec]]
@@ -131,7 +131,9 @@ group = "toolchain-01"
 # 2026-10-10（SPEC-130t，用户裁定数据指示符口径：只留 .dd.b08/.dd.w16/.dd.t32/.dd.o64、
 # .byte/.short/.long/.quad/.word/.octa 全禁、删 .align 只留 .p2align、.dd.128 暂不加、不立 ADR）：
 # §7 重写为 §7.1「数据指示符（唯一集合）」+ §7.2「对齐指示符」；删过时「v5 汇编器尚未实现」表述。
-sha256 = "3d129ba8c7391aea291059d788b015a6fb9a3f965728434d2530eeb144aa7a4a"
+# 2026-10-11（INFRA-060t，用户裁定「不用退回到历史状态，直接用新的版本号，然后写清楚 Changelog」）：
+# 册头状态行版本号 v1.1 → 0.5.0 + 文末 changelog（册内语义不变）。
+sha256 = "8bdef34ec066f4280fee4635babbe573bee3452937685a312db70ab09c13ca77"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"
@@ -139,4 +141,5 @@ group = "machine-01"
 # 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：semihosting 返回 rd31 → rd8（§5.2/§5.4；指针返回 rb31 → rb8）。
 # 2026-10-09（QEMU-053t，用户裁定「RAM@0 收口 + 删 exit port」）：§1.1 删旧 RAM 段与 exit-port 行、
 # 「并存/过渡」表述改为「RAM@0 唯一 RAM 段」；§1.2 去「并存」；§5.5/§7 记 exit-port 已删。
-sha256 = "60eb9a04e1b00d9db9d380ff433181953b4d1747fb849ff433a3de9951076d25"
+# 2026-10-11（INFRA-060t，用户裁定同上）：册头状态行新增版本号 0.2.1 + 文末 changelog（册内语义不变）。
+sha256 = "f003ac9849182ef79b0949c2468a0d251a4bb5cc83876f0965e0624f59133763"

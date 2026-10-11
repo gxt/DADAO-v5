@@ -32,8 +32,7 @@ R6  Operand shape from opcodes.yaml — for each mnemonic, ``opcodes.yaml`` list
 Scan scope
 ----------
 * ``spec/**/*.md``
-* ``docs/**/*.md``  (excl. ``m1-retrospective.md``, ``testcases-009t-audit.md``,
-  ``self-consistency.md``)
+* ``docs/**/*.md``
 * ``.tao/knowledge/contract-*.md`` + ``.tao/adr/*.md``  (excl. ``lessons.md``)
 
 Only fenced code blocks (```…```) are inspected; generated regions delimited by
@@ -56,9 +55,6 @@ ROOT = Path(__file__).resolve().parents[2]
 
 # Files explicitly excluded
 _EXCLUDE_FILES = {
-    ROOT / "docs" / "m1-retrospective.md",
-    ROOT / "docs" / "testcases-009t-audit.md",
-    ROOT / "docs" / "self-consistency.md",
     ROOT / ".tao" / "knowledge" / "lessons.md",
 }
 

@@ -74,7 +74,7 @@
 #   **已收敛（INTEG-028t，2026-10-11）**：上述 7 条已逐条独立核实（证据 `.work/log/integ/ISS-reconcile.md`）并回填
 #   `resolved_by` + 置 `closed`：ISS-043/045/148/159/162→LLVM-062t、ISS-138→LLVM-064t、ISS-156→SPEC-123t。
 #
-# M5 归档前置梳理（INTEG-022t，2026-10-08，`spec/Process-04 §3` 步骤 1–6）：
+# M5 归档前置梳理（INTEG-022t，2026-10-08，`docs/Process-04 §3` 步骤 1–6）：
 #   ① 关闭已消解项：M5 期无「已消解仍 open」项（边界交付部分按步骤 4 拆分、单独 closed）；
 #   ② 校正 scope：ISS-005/006（完整调用约定 / ABI [OPEN]）scope M5→M6；ISS-003/110 的**未交付余项** scope M5→M6；
 #   ③ 移出「教训/过程记录」类：M5 期无适用条目（M5 教训已沉淀 `lessons.md §7.14–§7.24` / `§8.6–§8.18`）；
@@ -89,7 +89,7 @@
 # C 校正 ISS-005/008/040/110 的 scope M2→M3；D 更新 ISS-081（含 INTEG-009t，余归 M3）；
 # E-1 ISS-024/032/035/055/066/072（教训/过程记录）移入 `lessons.md`（id 不复用）；E-2 M1 期 open 项逐条判定。
 #
-# 归档前置梳理（INFRA-042t，2026-10-05，`spec/Process-04 §3` 步骤 3–6；原 §2，2026-10-06 因新增 §1「里程碑生命周期」顺延）：头部里程碑状态同步
+# 归档前置梳理（INFRA-042t，2026-10-05，`docs/Process-04 §3` 步骤 3–6；原 §2，2026-10-06 因新增 §1「里程碑生命周期」顺延）：头部里程碑状态同步
 # （M2/M3 → ✅ 达成）；scope 枚举补 M4；M3 边界项按用户 2026-10-05 裁定「**交付部分单独 close、
 # 未交付部分留 open**」处置——ISS-005/008 拆出 closed 条目 ISS-149/150（交付部分），原 id 保留
 # open 表剩余（归 M4）；ISS-006/019/026/074/081/110 未交付本里程碑内容，保留 open、scope M3→M4；
@@ -102,7 +102,7 @@
 # **规划中 / 阻塞与待裁定**载体，本文件**只保留真 issue**（缺陷 defect / 欠账 debt / 技术债 tech-debt）。
 # 属**规划① / 阻塞② / 待裁定③**者已**整条移出**至 `milestones.md`；**id 不复用**（原 id 仅作历史指针，
 # 已迁 id 见下，**均列于本注释、非本文件条目**）。**未改**任何条目的 `scope` / `resolved_by` / 归属结论，
-# **未 close、未裁决**（裁决动作属 `spec/Process-04 §3`，非本任务）。
+# **未 close、未裁决**（裁决动作属 `docs/Process-04 §3`，非本任务）。
 #   已迁出 id（共 15 条，`id` 不复用）：
 #     · 规划①（7）：ISS-003 / ISS-005 / ISS-006 / ISS-110 / ISS-165 / ISS-168 / ISS-169
 #     · 阻塞·待裁定②③（8）：ISS-019 / ISS-026 / ISS-047 / ISS-074 / ISS-081 / ISS-163 / ISS-164 / ISS-167
@@ -171,7 +171,7 @@
   scope: [qemu, infra]
   blocks: []
   resolved_by: null
-  notes: "原 backlog L72/L143。spec/Process-01 §10 要求按任务一条。QEMU-041t（2026-10-05）已补 post-2026-10-04 条目（QEMU-040t 等）；但 issue 原文要求自 2026-09-23 起，QEMU-025t~033t 共 9 条历史行仍缺 ⇒ 未完整关闭，待另立任务补记。"
+  notes: "原 backlog L72/L143。docs/Process-01 §10 要求按任务一条。QEMU-041t（2026-10-05）已补 post-2026-10-04 条目（QEMU-040t 等）；但 issue 原文要求自 2026-09-23 起，QEMU-025t~033t 共 9 条历史行仍缺 ⇒ 未完整关闭，待另立任务补记。"
 
 - id: ISS-093
   title: "行内 code span 检测（INFRA-021t 评估，方案 b）——风险高于收益，登记 deferred"

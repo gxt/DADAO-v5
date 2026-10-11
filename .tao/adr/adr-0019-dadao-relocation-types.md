@@ -80,6 +80,6 @@
 - **D7** 本期禁用 relaxation；`RELA_PAGE/LO` 留后 ✅
 - **D8** 不做 ABS32 ✅
 
-> 实现前须先落 `contract-elf.md §2–§4` 正文（另立 spec 任务）；本 ADR 不含规范正文（`spec/Process-03`）。
+> 实现前须先落 `contract-elf.md §2–§4` 正文（另立 spec 任务）；本 ADR 不含规范正文（`docs/Process-03`）。
 
 - 2026-10-06：**D2/D3/D4/D5 就地澄清**（用户逐条确认）：`ABS48` 为**绝对 48 位地址**，**不区分指令与数据**——指令路径 = 3 片 wyde（固定 max 3）；数据路径 = 8 字节字段（单条 reloc）。依据 `LLVM-052t`（`.dd.o64 <sym>` 数据绝对地址）+ 用户裁定原话「ABS48 是绝对地址，不区分指令和数据；…REL12 可以放在 M4 之后」。

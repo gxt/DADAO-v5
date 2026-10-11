@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M7
 **依赖**：无（同改 `AGENTS.md` / `Makefile` / `spec/` / `tools/` ⇒ 与 `INFRA-056t` / `INFRA-057t`、`SPEC-131t` **串行**）
-**状态**：待开始
+**状态**：已验证
 
 > **草案声明**：本任务书为 architect 依用户 2026-10-11 裁定**起草的草案**；**A 段**（搬迁 / 删除 / 索引重建）可进入实现，**B 段**（两册版本号 + changelog + 下游同步）**须用户逐条确认后方可写入**（见 §B 与「待用户裁定清单」）。
 
@@ -112,6 +112,28 @@
 9. **`components/**` 补丁文本 / `tests/**` 附注**内 `spec/Process-` 引用是否同步（补丁改则须重建镜像/`check-patch-tree`）——**建议同步补丁内引用**（其影响可机械校验），待裁定。
 10. **`docs/README.md` 定位**：确认为「`DDLN/` + `Process-0x` 索引」，并作为「给别人看」入口。
 
+## 用户裁定（2026-10-11，主会话下发；**原话原样落纸**）
+
+> 「没看懂，你的A是要把文档退回到历史状态，然后重新升版吗？你的B是当前版是0.1.0吗？首先，我认为你的版本升级的Changelog总结的很好，**但是不用退回到历史状态，直接用新的版本号，然后写清楚Changelog即可**」
+
+**解读**：册正文一字不改（不回退、不动语义）；直接采用回推所得编号作为**当前版本**——`Toolchain-01` 册头 `0.5.0`、`Machine-01` 册头 `0.2.1`；**文末 changelog** 写清完整演进（**不用表格**、**不写「依据」**，形式 =「**版本 + 日期**」作小标题 + 列表）。
+**A 段 `spec/` 授权口径**（用户 2026-10-11 裁定 #4 `Process-0x` 迁入 `docs/` +「你确定没用就可以删」原话）**覆盖**：搬迁、6 文件删除、`spec/README.md` 更新。
+
+### 「待用户裁定清单」10 项裁定结果（主会话据用户裁定与建议定）
+
+| # | 裁定 |
+|---|------|
+| 1 | 按本任务书两张版本回推表执行（Toolchain 当前 `0.5.0`、Machine 当前 `0.2.1`）；表内「变更」经现场 `git log` **复核一致**（无修正） |
+| 2 | 起始版本号 = `0.1.0`（**不**把原 `v1.1` 平移为 `0.1.1`） |
+| 3 | 本任务**不生成新版本条目**（册内语义不变，仅写版本行 + 补历史 changelog）⇒ 当前版本即 `0.5.0` / `0.2.1` |
+| 4 | 下游同步：① `Toolchain` → `contract-asm.md` 头部 + 根 `README.md` 版本表；② `Machine-01` → 根 `README.md` 版本表**新增行** + **扩展** `check_spec_drift.py` 前缀映射（代码改动，须实测） |
+| 5 | A 段 `spec/` 授权口径 = 用户裁定 #4 +「你确定没用就可以删」⇒ 覆盖搬迁、6 删除、`spec/README.md` 更新 |
+| 6 | 6 文件**全删**；`docs/fp-oracle-design.md` **保留**（被投影表/`contract-fp.md`/`contracts/fp_semantics.yaml` 引用）；`docs/repository-layout.md` **保留并更新** |
+| 7 | `Process-06` 正文措辞**同步**为 `docs/Process-*` |
+| 8 | `.tao/tasks/**` 内 `spec/Process-` 引用**同步**（活文件）；`.tao/archive/**` 一律不动；本任务书自身**保留**描述所需指代 |
+| 9 | `components/**` **普通文件**（README/changelog 等）同步；**补丁文本 `patches/**/*.patch` 一律不动** ⇒ 登记为**遗留** |
+| 10 | `docs/README.md` 定位 = 「`DDLN/` + `Process-0x` 索引」，作为「**给别人看**」入口 |
+
 ## 验收标准
 
 1. **A 段搬迁**：`git grep -n 'spec/Process-'` 在**活文件**（排除 `.tao/archive/**` 与 `.tao/tasks/**`，见裁定 8）**0 命中**——留**真实 grep 输出 + rc**。
@@ -138,13 +160,63 @@
 - A 段（搬迁 + 删除 + 索引 + `AGENTS.md`）可独立落地；B 段（版本号 + 锁 + 下游同步）**以裁定为前置**，可在 A 段之后单独立项或作为本任务尾段。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`make check`(L1) rc=0；`make check-spec-readonly` rc=0（21 册 OK）；`check-asm-prose` 搬迁前/后各 rc=0；`check-spec-drift`/`check-scope`/`check-knowledge-refs` rc=0；证据脚本 `.work/evidence/<任务ID>/run.sh` RESULT: PASS（含注入→FAIL→还原→回绿）。
+**修改文件**：A 段——`git mv` 6 册 `spec/Process-0[1-6]`→`docs/`；`git rm` 6 过期 docs 文件（impact-matrix/m2-spec-planning/integ-interface-alignment/spec-065t-legality-proposal/testcases-009t-audit/self-consistency）；活引用同步（`spec/Process-`→`docs/Process-`，含 `AGENTS.md`/`Makefile`/8 个 `tools`/6 contracts/补丁外 `components`/`tests`/`adr`/`issues.yaml`/`MEMORY`/`lessons`/在办任务书）；重建 `docs/README.md`；更新 `spec/README.md`、`AGENTS.md`、`docs/repository-layout.md`、`docs/Process-06`；`check_scope.py`/`check_asm_prose.py` 常量清理。B 段——两册册头+changelog、`manifests/spec-readonly.lock.toml` 两册 `sha256`、`.tao/knowledge/contract-asm.md`、根 `README.md`、`check_spec_drift.py`；`lessons.md §8.56`。（全清单见 `git status --short`）
+**验收结果**：① 活引用 `git grep 'spec/Process-'`（排除 archive/tasks/patch/本任务书）=**0 命中**（C1）；② 6 文件全删（C2=6/6）；③ 常量清理命中=0（C3）；④ `docs/README.md` 含 `docs/Process-0[1-6]`×6 + `DDLN`×6、无陈旧条目（C4）；⑤ `AGENTS.md` 三分界三句 + 目录含 `docs/`（C5）；⑥ 两册册头 `0.5.0`/`0.2.1` + changelog + 锁 `sha256` 相符（C6：`Toolchain 8bdef34e…`、`Machine f003ac98…`；旧 `3d129ba8…`/`60eb9a04…`）；⑦ 下游 `contract-asm 0.5.0`/README `Toolchain 0.5.0`+`Machine 0.2.1`/`check_spec_drift` 映射（C7）；⑧ 迁移对 asm-prose 扫描面中性（前/后 rc=0）。
+**新发现/坑**：① **分支 `INFRA-060t` 下发时并不存在**（实为 `master`）⇒ 按「开工建分支」自建（未改历史、未提交）；② `git grep -l` 对非 ASCII 路径加引号 ⇒ 过滤须 `git -c core.quotepath=false`；③ `check_spec_drift.py` 仅加前缀 dict 不足以让 `Machine-01` 生效，须同时把 `Machine-\d+` 加入 `RE_SPEC_REF`；④ `lessons §8.56`（新门控上线后 `.work/` 示例须 `<>`/`*` 占位）。
+**遗留问题**：① `components/**/patches/**/*.patch` 内 2 处 `spec/Process-` 未同步（裁定 9：补丁文本一律不动 ⇒ 随下次该组件补丁重建顺带改）；② `ISS-160` 的「impact-matrix 悬空」子项因文件已删而消解，未改 issue 正文（另两项仍开放）；③ 越界披露：为自洽另改了根 `README.md` 第 3 行 Process-0x 指代 + `spec/README.md` 的 `Process-02/06` 无前缀指代（属 A 段引用同步同域）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
+
+**范围**：A 段（搬迁/引用/删除/常量/索引/AGENTS）+ B 段（两册册头/changelog/锁/下游）。自主逐行审查。
+- 搬迁 `git mv`，`git status` 显 `R`（保留 rename）；04/05/06 为 `RM`（rename+自引用改写），符合预期。
+- 纯替换文件 `git diff` 逐行核对：`+/-` 行**全部**含 `Process-`（除特意重写的 `docs/Process-06 §2` 措辞）。
+- 锁：两册新 `sha256` 与工作树实测一致；`check-spec-readonly` 21 册 OK。
+- 门控实测：`make check` rc=0；`Machine-01` 映射用临时 fixture 验证 PASS→(改错版本)FAIL→还原 PASS。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 证据脚本 C6 用 `grep -A1` 取 sha256 命中 `group` 行 ⇒ 误报 mismatch | ✅已修 | `run.sh` C6 改按 `[[spec]]` 块配对 path→sha256（awk） | 重跑 C6「相符=yes」，RESULT: PASS |
+| F2 `docs/Process-06 §2`「spec/ 目录下…含 docs/Process-*」语法矛盾 | ✅已修 | 改为「（含 …）；以及工程流程规范 `docs/Process-*` 的同类改动——均必须…」 | `make check` rc=0 |
+| F3 仅加两 dict 不足以让 `Machine-01` 漂移校验生效（`RE_SPEC_REF` 不含 `Machine-\d+`） | ✅已修 | `RE_SPEC_REF` 增 `Machine-\d+` | fixture 实测映射生效 |
+| F4 分支不存在（下发前提有误） | ✅已处置 | 自建 `INFRA-060t` 分支 | `git branch --show-current`=INFRA-060t |
+
 #### 第 1 轮 reviewer 验收
+
+**独立验证**（reviewer，本轮全部命令由 reviewer 亲自执行）。
+
+**门控**：
+- `make check` rc=0 ✓；`make check-spec-readonly` rc=0（21 册 OK）✓；`make check-asm-prose` rc=0 ✓
+
+**A 段核验**：
+- `git grep 'spec/Process-'`（排除 archive/tasks/patch）rc=1（0 命中）✓；`*.patch` 残留 2 处（裁定 9 保留，已登记遗留）✓
+- 6 文件全删（`ls` 确认）✓；`check_scope.py`/`check_asm_prose.py` 常量已清（grep 无残留）✓
+- `git mv` R/RM rename 保留 ✓；`docs/README.md` 重建（Process×6+DDLN，无陈旧条目）✓
+- `spec/README.md`：工程流程行已去 + "归 `docs/`" 注释 ✓；`AGENTS.md` 三分界三句 + 目录 docs/ ✓
+
+**B 段核验**：
+- 两册 sha256 独立重算 = lock 值（Toolchain `8bdef34e…`、Machine `f003ac98…`）✓；锁 diff 仅 2 册哈希 + 注释改，其余 19 册未动 ✓
+- 册头：Toolchain `0.5.0`、Machine `0.2.1` ✓；changelog 格式 = "### 版本（日期）"+ 列表，无表格/无"依据" ✓
+- `git diff -M` 两册：**仅**册头版本行 + 文末 changelog 新增，册正文一字不改 ✓
+- 版本回推逐条复核（10+4 条）：每条变更/日期与 `git log --follow` + ADR-0013/ADR-0020/ADR-0004 一致，无不符 ✓
+- 本任务不生成新版本条目（符合裁定 3）✓
+- 下游：`contract-asm` 版本 `0.5.0` ✓；README `Toolchain 0.5.0` + `Machine 0.2.1` ✓；`check_spec_drift` Machine-01 映射（fixture 独立验证 FAIL→回绿）✓
+
+**反例注入**：
+- ① Makefile `docs/Process-01`→`spec/Process-01`：`run.sh --inject` C1 FAIL → cp+md5 还原回绿 ✓
+- ② README Toolchain `0.5.0`→`0.5.1`：`check-spec-drift` rc=2 FAIL → cp+md5 还原回绿 ✓
+- ③ README Machine `0.2.1`→`0.2.2`：check-spec-drift 仍 PASS（**覆盖面缺口**：无合约头以 `[Machine-01 §…]` 引用；fixture 验证映射本身有效——见 finding F-A）
+
+**证据脚本**（`run.sh` 176 行）：一键可跑 PASS rc=0 ✓；能失败+可达 FAIL（selftest 注入）✓；结构断言 C6 ✓；计数不写死 ✓；捕获退出码 ✓。脚本 findings（非阻断）：C7 无条件 pass label；`--inject` 不注入仅报告。
+
+**越界/披露核**：根 README line3 + spec/README.md Process 指代改动合理（A 段同步域）✓；patch 2 处按裁定 9 遗留 ✓；ISS-160 已登记 ✓
+
+**Finding**：
+- **无阻断项**
+- [非阻断 F-A] README `Machine` 行无机械保护（无合约头 `[Machine-01 §…]` ⇒ drift check 不覆盖该行；映射已就位）——建议后续在 contract-see/semihosting 头部加 `[Machine-01 §N]` 引用，或补 README↔册头版本校验
+- [非阻断 F-B] patch 2 处未同步（裁定 9 保留，已登记遗留）
+- [非阻断 F-C] ISS-160 子项未在 issues.yaml 正文登记处置
+
+**判定：Accepted**——验收 1–9 全通过；册正文一字不改 ✓；版本号 `0.5.0`/`0.2.1` + changelog 格式符合用户裁定 ✓；所有门控 rc=0 ✓

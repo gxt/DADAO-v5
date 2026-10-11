@@ -2,7 +2,7 @@
 """Generate the complete DADAO assembly-instruction list.
 
 See ``.tao/knowledge/contract-asm-list.md`` (generated) and
-``spec/Process-01-组件补丁组织与构建编排.md`` (spec-writing conventions).
+``docs/Process-01-组件补丁组织与构建编排.md`` (spec-writing conventions).
 
 Sources
 -------

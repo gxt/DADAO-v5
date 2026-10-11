@@ -49,7 +49,6 @@ HISTORY_PREFIXES = (
     ".tao/knowledge/MEMORY.md",
     ".tao/knowledge/lessons.md",
     ".tao/knowledge/issues.yaml",
-    "docs/spec-065t-legality-proposal.md",
 )
 SKIP_PARTS = {"__pycache__", ".git", ".work", ".cache", "node_modules"}
 

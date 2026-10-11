@@ -2,7 +2,7 @@
 
 ## 这是什么
 
-DADAO-v5 基于 19 份上游 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，SimRISC 0.5.4）与 v5 自定规范（`spec/Toolchain-01`、`spec/Process-0x`；索引 `spec/README.md`），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见全局 `AGENTS.md` 与 `.tao/README.md`。
+DADAO-v5 基于 19 份上游 spec/ 规范文档（SimRISC-00~12 + DADAO-11~23，SimRISC 0.5.4）与 v5 自定规范（`spec/Toolchain-01`、`docs/Process-0x`；索引 `spec/README.md`），从零构建 LLVM/QEMU/Chipyard/Linux 全栈。核心方法是"Agent 写代码、你写约束"——角色分工见全局 `AGENTS.md` 与 `.tao/README.md`。
 
 ## 当前进度
 

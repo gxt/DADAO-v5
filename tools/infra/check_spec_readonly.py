@@ -9,7 +9,7 @@ authorization (recorded verbatim) and a lock update in the *same* change.
 This gate makes that rule mechanical: it recomputes each locked file's
 ``sha256`` and fails closed on any mismatch or missing file.
 
-See ``spec/Process-06-spec目录保护规范.md`` (§5).  Read-only: never writes.
+See ``docs/Process-06-spec目录保护规范.md`` (§5).  Read-only: never writes.
 
 ``--root DIR`` checks another tree (e.g. a temp copy used for injection
 self-tests); the lock is read from ``<root>/manifests/spec-readonly.lock.toml``

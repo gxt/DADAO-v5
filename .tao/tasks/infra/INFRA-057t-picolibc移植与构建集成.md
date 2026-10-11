@@ -13,7 +13,7 @@
 - **输入**：
   - 用户裁定（2026-10-11）：M7 test 重心 = **picolibc 自带 test**（`INTEG-033k §裁定汇总 #2`）；组件锁 = `manifests/components.lock.toml` 的 picolibc 条目（tag `1.8.12` @`2ae376c6`）。
   - 参考经验（**内容溯源，非执行必需**）：`DADAO-0628/docs/adr/0014-libc-syscall-charter.md` D5/D5.1（picolibc 先行、tinystdio、最小 syscall stub `_write`/`_exit`/`_sbrk`）；`docs/development-roadmap.md`（`__heap_start`/`__heap_end` sbrk fallback；heap 段与 `PT_LOAD` 关系）。
-  - 现行：`components/picolibc/{README.md,patches/dadao/README.md.patch(占位),series,changelog.md}`（`INFRA-055t`）；`components/picolibc/patches` 补丁集体例见 `spec/Process-01-组件补丁组织与构建编排.md`；`tests/scripts/dadao.lds`（`INFRA`/`QEMU-056t` 后为新基址）。
+  - 现行：`components/picolibc/{README.md,patches/dadao/README.md.patch(占位),series,changelog.md}`（`INFRA-055t`）；`components/picolibc/patches` 补丁集体例见 `docs/Process-01-组件补丁组织与构建编排.md`；`tests/scripts/dadao.lds`（`INFRA`/`QEMU-056t` 后为新基址）。
 - **输出**：
   1. **真移植补丁集**（`components/picolibc/patches/**`，一文件一补丁，`series` 非空）：cross file（`dadao` target）、machine/board 支持（`libc/machine/dadao` 头/`machine/` 目录、`picolibc.h` 配置）、**syscall stub**（`_write`→semihosting `SYS_WRITE`；`_exit`→`SYS_EXIT`；`_sbrk`→`SYS_HEAPINFO`/`__heap_*`）。
   2. **构建集成**（`Makefile` / `tools/infra/**`）：编 picolibc（`clang -target dadao-unknown-elf`）产出静态库 + 落 `.dadao` 安装点；target 可复跑。

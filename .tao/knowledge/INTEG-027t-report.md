@@ -115,7 +115,7 @@ EXIT=0
 - `make check-no-residue` → `check-no-residue: PASS`，**EXIT=0**
 
 ### 独立注入→FAIL→还原→回绿（cp+md5，未用 git 还原）
-- 注入：AGENTS.md 追加指向 `spec/Process-9X-不存在的规范.md`（与 engineer 的悬空目录指针不同）；`git diff --name-only AGENTS.md` 非空 → 重跑**同一脚本** **INJECT_RUN_EXIT=1**（`[FAIL] C3 … 悬空=1`、RESULT: FAIL）
+- 注入：AGENTS.md 追加指向 `docs/Process-9X-不存在的规范.md`（与 engineer 的悬空目录指针不同）；`git diff --name-only AGENTS.md` 非空 → 重跑**同一脚本** **INJECT_RUN_EXIT=1**（`[FAIL] C3 … 悬空=1`、RESULT: FAIL）
 - 还原：`cp /tmp/opencode/INTEG-027t-review/AGENTS.md.preinject AGENTS.md`；md5 前后均 `8cded70ec977a0a6b0ba7ac6334b7070` **相等** → 再重跑 **POST_RESTORE_EXIT=0**（RESULT: ALL PASS，回绿）
 
 ### 规则不丢抽查（12 条；原位置 → 新落点，均 grep 实证）

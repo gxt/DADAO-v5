@@ -29,7 +29,7 @@
   2. **三层切分（`Makefile`）**：`check` **收缩为 L1**（`check-qemu-semantics` **移出** L1）；新增 **`check-qemu-smoke`**（149 条按**语义类别机械派生**各抽代表，**禁手工挑**）、**`check-modules`**（L2）、**`check-full`**（L3）；**层间不重复**（同一检查只在一层跑）。组件可用性冒烟进 L1。
   3. **每层「能失败 + 结构断言」**：逐层给**注入反例 ⇒ 该层 FAIL** 的真实输出（改错期望值 / 编码、回退 ILLI 桩等），断言须含**成对 / 条数结构**（`§8.34` / `§8.35`）。
   4. **触发点写 `AGENTS.md`**（≤2 行 + 门控名）：**任务收尾跑 L2**、**里程碑 / `/complete` 跑 L3**（否则「按需层」**必腐烂**——分层后「L1 绿、L2/L3 红」会成常态，此条是**前提**、非可选）。
-  5. **`check-spec-refs` 处置（并入本任务）**：① **改匹配器认「§编号」**——`_PREFIX_ANCHOR` / `SPEC_PREFIX_MAP` 增补 `Toolchain-01`（及同类 `Machine-01`）；`_header_matches` / `_text_matches` 支持「标题以 `N.M ` 起始 ⇒ 命中 `N.M`」（**不得**放宽为任意子串匹配）；② **统一引用口径**——在合约编写规范（`spec/Process-02`）与 `contract-*` 侧明确 `[<册> §<节号|标题>]` 的规范写法（消除「§编号 vs 标题文本」双轨）；③ **决定是否纳入 `make check`**——纳入则**归层**（L1 或 L2，**择一并说明**）且须能失败；不纳入须写明理由 + 落独立 target 文档。
+  5. **`check-spec-refs` 处置（并入本任务）**：① **改匹配器认「§编号」**——`_PREFIX_ANCHOR` / `SPEC_PREFIX_MAP` 增补 `Toolchain-01`（及同类 `Machine-01`）；`_header_matches` / `_text_matches` 支持「标题以 `N.M ` 起始 ⇒ 命中 `N.M`」（**不得**放宽为任意子串匹配）；② **统一引用口径**——在合约编写规范（`docs/Process-02`）与 `contract-*` 侧明确 `[<册> §<节号|标题>]` 的规范写法（消除「§编号 vs 标题文本」双轨）；③ **决定是否纳入 `make check`**——纳入则**归层**（L1 或 L2，**择一并说明**）且须能失败；不纳入须写明理由 + 落独立 target 文档。
   6. **关联遗留（`TESTCASES-037t` reviewer 标注）**：`check-lit-full`（227 条全量，MC / `DADAO-gen`）**仅 opt-in** ⇒ `contracts/` 漂移在 `make check` 中**不报警**——**决定其进 L2 还是 L3 并落地**。
 - **约束**：
   - **先计时、后切分**（无实测不切）。

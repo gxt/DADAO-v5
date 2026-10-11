@@ -1,7 +1,7 @@
 # M5 L1/L3 向量对照表（`tests/llvm/lit/MC/DADAO/` + `tests/llvm/codegen/m5/`）
 
 > 任务：`TESTCASES-033t`（SEE/HEE + semihosting 向量：L1 MC 编码/往返 + L3 执行；独立 oracle）。
-> 规范：`spec/Process-05-里程碑TDD规范.md §2`（L1/L2/L3）、`§3`（一能力一向量）、
+> 规范：`docs/Process-05-里程碑TDD规范.md §2`（L1/L2/L3）、`§3`（一能力一向量）、
 > `§4`（期望值**独立派生**）、`§5`（反例门控）、`§6`（落点）。
 > 契约：`contracts/opcodes.yaml`（L1 期望编码）、`.tao/knowledge/contract-see.md`（cfx 权限）、
 > `.tao/knowledge/contract-semihosting.md`（服务表/调用约定/停机）、
@@ -10,7 +10,7 @@
 
 ## 1. L1 MC 向量（编码/往返）— 复用 `LLVM-060t` 产物
 
-M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**（`spec/Process-05` 分阶段），
+M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**（`docs/Process-05` 分阶段），
 本任务**复用**，不再引入重复文件（DRY）：
 
 | 向量文件 | 能力 | 期望值来源（独立派生） |

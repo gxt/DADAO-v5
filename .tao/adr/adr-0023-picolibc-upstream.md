@@ -43,4 +43,4 @@ picolibc 上游 = **`https://github.com/picolibc/picolibc`**（用户 2026-10-11
 **Accepted（2026-10-11）**：`D1`–`D3` 已由用户逐条判定，无否决未处置。
 
 - **判定来源与用户原话（2026-10-11，`lessons §7.3`）**：① 上游 —— 用户给 `https://github.com/picolibc/picolibc`；② commit —— 用户「**保持 1.8.12**」（= tag `1.8.12` 的 commit `2ae376c6cdf4fef90ca2388ecf7a07457fa63cff`）；③ `shallow_ref` —— 用户澄清其所说「tag」指 **tag `1.8.12`**（不可变）。原话落 `.tao/tasks/infra/INFRA-055t-picolibc组件接入.md` 完成区「版本裁定」与 `INTEG-033k §裁定汇总`。
-- **变更流程**：决策变更（如升级 commit）时**新增 ADR 或标注 `Superseded`**；经授权的就地修订须用户逐条确认（`spec/Process-03-ADR编写规范.md`）。
+- **变更流程**：决策变更（如升级 commit）时**新增 ADR 或标注 `Superseded`**；经授权的就地修订须用户逐条确认（`docs/Process-03-ADR编写规范.md`）。

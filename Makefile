@@ -99,7 +99,7 @@ help:
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
 	@echo "  make test-semihost    Run M5 SEE/semihosting E2E gate (bootrom+bin via -semihosting, console+SYS_EXIT, 25 svc; INTEG-020t)"
 	@echo "  make test-m6          Run M6 E2E gate (lli value-level diff + Embench all benches -O0/-O2 + full lit MC suite; opt-in, INTEG-025t)"
-	@echo "  make check-patch-tree  Check component patch tree (spec/Process-01, 9 assertions)"
+	@echo "  make check-patch-tree  Check component patch tree (docs/Process-01, 9 assertions)"
 	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-legality-invariants  Check ftroot/foroot n=2 + rule-rename gate (ISS-079)"
@@ -415,7 +415,7 @@ validate-vectors: contracts/opcodes.yaml
 check-spec-drift:
 	@$(PYTHON) tools/infra/check_spec_drift.py
 
-# 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 spec/Process-01-组件补丁组织与构建编排.md。
+# 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 docs/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:
 	@$(PYTHON) tools/infra/check_patch_tree.py
 
@@ -430,7 +430,7 @@ check-source-state:
 	@$(PYTHON) tools/infra/check_patch_tree.py --source-state
 
 # 组件源文件规模报告 (INFRA-028t): 仅报告（非强制），不进门控。
-# 规则见 spec/Process-01 §11「组件源文件规模约定」。
+# 规则见 docs/Process-01 §11「组件源文件规模约定」。
 size-report:
 	@$(PYTHON) tools/infra/size_report.py
 
@@ -471,7 +471,7 @@ check-components:
 	@$(PYTHON) tools/infra/check_components.py
 
 # spec 目录只读锁 (SPEC-119t): 只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
-# 规则见 spec/Process-06-spec目录保护规范.md §5。
+# 规则见 docs/Process-06-spec目录保护规范.md §5。
 check-spec-readonly:
 	@$(PYTHON) tools/infra/check_spec_readonly.py
 

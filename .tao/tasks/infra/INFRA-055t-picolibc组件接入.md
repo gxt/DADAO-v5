@@ -15,7 +15,7 @@
     > 「调整 test 重心为 **picolibc 自带的 test**；picolibc 网站 `https://github.com/picolibc/picolibc`，**可以浅克隆到 `.cache` 下**，增加 `components.lock.toml`，版本号 **`release-1.8.12`**。」
   - 已核实上游事实：picolibc 默认分支 = `main`；**`release-1.8.12` 是分支**（`refs/heads/release-1.8.12`），sha = **`2ae376c6cdf4fef90ca2388ecf7a07457fa63cff`**；`release-*` 分支仅此一个。
   - 组件锁体例 `manifests/components.lock.toml`（`llvm-project`/`qemu`/`embench-iot`）；`tools/infra/fetch.py` 支持 `shallow` + `shallow_ref`（浅裸镜像）。
-  - 补丁集规范 `spec/Process-01-组件补丁组织与构建编排.md`；上位决策 `ADR-0005`（多源锁）、`ADR-0006`（浅裸镜像）。
+  - 补丁集规范 `docs/Process-01-组件补丁组织与构建编排.md`；上位决策 `ADR-0005`（多源锁）、`ADR-0006`（浅裸镜像）。
 - **输出**：
   1. `manifests/components.lock.toml` **追加** picolibc 条目（不动其它条目）：`enabled=true`、`repository=https://github.com/picolibc/picolibc.git`、`commit=2ae376c6…`、`shallow=true`、`shallow_ref="release-1.8.12"`、`patch_dir`/`patch_series`/`role` 照体例。
   2. `components/picolibc/{README.md,patches/**,series,changelog.md}`：**骨架**（**1 个最小占位补丁** `dadao/README.md`，**声明无行为**，真移植归 **M7**）。

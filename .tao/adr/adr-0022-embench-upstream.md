@@ -42,4 +42,4 @@ Embench 上游 = **`https://github.com/embench/embench-iot.git`**（正式上游
 **Accepted（2026-10-08）**：`D1`–`D3` 已由用户逐条判定，无否决未处置。
 
 - **判定来源**：`INTEG-023k §C/§D`（`INFRA-051t` 前置 ADR「Embench 上游选择 + commit」）与主会话 2026-10-08 夜 Q4 ③ 复述确认——用户对「③ Embench ADR（上游选择 + commit，pin master `09c2ed8c…`）」答**「全部确认（推荐）」**；更早裁定原话：**「按正式镜像走，直接最新版本即可」**（⇒ pin 镜像 master HEAD `09c2ed8c3b7008c95d08b038de4a3f6dc103ed70`）。用户原话落 `.tao/tasks/spec/SPEC-122t-ADR决策落地.md` 完成区（`lessons §7.3`）。
-- **变更流程**：决策变更（如升级 commit）时**新增 ADR 或标注 `Superseded`**；经授权的就地修订须用户逐条确认（`spec/Process-03-ADR编写规范.md`）。
+- **变更流程**：决策变更（如升级 commit）时**新增 ADR 或标注 `Superseded`**；经授权的就地修订须用户逐条确认（`docs/Process-03-ADR编写规范.md`）。

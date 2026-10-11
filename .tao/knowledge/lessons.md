@@ -151,7 +151,7 @@
   3. **fail-closed 判据用 `if errors:` 而非 `if mismatches:`**：锁**残缺**（某条缺 `sha256` / 缺 `format` / 条目为空）时，若只判「被锁文件失配数」会 `mismatches==0` ⇒ 误返回 0（**fail-open**）。必须让**任何**锁解析错误 / 文件不符 / 缺失都计入 `errors`，并据 `errors` 非零退出——「锁本身坏掉」也必须 FAIL。
 - **反例门控须覆盖「锁残缺」类**（改册 / 删册 / 改锁值 / 缺 `format` / 空条目 / 缺 `sha256`），**不能只测「被锁文件被改」**——否则 fail-open 路径不被证伪。
 - **门控类任务的「变更集」定义 = tracked `git diff` ∪ untracked `git status`**：新建文件（untracked）不出现在 `git diff`，判断「改了哪些文件/是否越界」须用 `git status --porcelain -uall`（或并集），并加 `git -c core.quotePath=false`（否则非 ASCII 路径被转义致集合比较假失败）。
-- 落地见 `manifests/spec-readonly.lock.toml` + `tools/infra/check_spec_readonly.py` + `make check-spec-readonly` + `spec/Process-06-spec目录保护规范.md`（`SPEC-119t`）。
+- 落地见 `manifests/spec-readonly.lock.toml` + `tools/infra/check_spec_readonly.py` + `make check-spec-readonly` + `docs/Process-06-spec目录保护规范.md`（`SPEC-119t`）。
 
 ## 6. spec 开放点与过程记录
 
@@ -227,9 +227,9 @@
   - **哈希锁**：`manifests/spec-readonly.lock.toml`（上游 20 册逐册 `sha256`）+ `tools/infra/check_spec_readonly.py` + `make check-spec-readonly`（**纳入 `make check`**）⇒ 未更新锁而改册 ⇒ **门控 FAIL**；确需修改（先经用户授权）时同一变更内更新锁。
   - **下发前预检第 5 项**：`/dispatch` 前把**拟改文件清单 × `spec/` 清单**逐一对照——命中 `spec/` 而无**用户授权原话** ⇒ **BLOCKED**（`AGENTS.md`「下发前预检」由 4 项扩为 **5 项**）。
   - **reviewer / architect 固定检查**：验收/提交前固定执行 `git diff --name-only`（提交前 `git diff --cached --name-only`）与 `spec/` 清单交叉；有交集而缺用户授权证据 ⇒ reviewer 判 `Needs Revision` / architect 拒绝提交。
-  - **规则正文**入 `spec/Process-06-spec目录保护规范.md`：**`spec/` 下任何新增/修改/删除（含 v5 自定册 `Machine-*`/`Process-*`/`spec/README.md`）均须用户"事先"明确允许，授权原话落盘**；上游只读册只作**只读引用**（引 `§` 章节号，不改一字）。
+  - **规则正文**入 `docs/Process-06-spec目录保护规范.md`：**`spec/` 下任何新增/修改/删除（含 v5 自定册 `Machine-*`/`Process-*`/`spec/README.md`）均须用户"事先"明确允许，授权原话落盘**；上游只读册只作**只读引用**（引 `§` 章节号，不改一字）。
 - **已处置**：`DADAO-12`/`DADAO-22` 以 **`cp`+`md5` 还原**到 base `96f09f1`（md5 `83dec5ea…`/`a3070bd4…`，逐字一致；**未用** `git checkout/restore/stash`，见全局「注入/改动的还原纪律」）；`SPEC-114t` round2 返工后上游册**零改动**（20/20 md5 SAME），相关正文一律落新建 `spec/Machine-01-测试机运行环境.md`。
-- **✅ 已落地（`SPEC-119t`，2026-10-07）**：上「防复发」三处机制**全部实现并通过验收**——`manifests/spec-readonly.lock.toml`（上游 20 册 `sha256` 锁）+ `tools/infra/check_spec_readonly.py`（`if errors` **fail-closed**）+ `make check-spec-readonly`（**纳入 `make check`**）+ 规则正文 `spec/Process-06-spec目录保护规范.md`（①–⑤ 均 MUST）。reviewer **`Accepted`**、architect 交叉复核通过（20 册 `sha256` 独立重算全等、路径清单无多无漏、`spec/` 变更仅 `Process-06`+`README.md`〔无上游册〕、6 类反例注入均 FAIL 且 `cp`+md5 还原回绿）。范式见 §5.6。
+- **✅ 已落地（`SPEC-119t`，2026-10-07）**：上「防复发」三处机制**全部实现并通过验收**——`manifests/spec-readonly.lock.toml`（上游 20 册 `sha256` 锁）+ `tools/infra/check_spec_readonly.py`（`if errors` **fail-closed**）+ `make check-spec-readonly`（**纳入 `make check`**）+ 规则正文 `docs/Process-06-spec目录保护规范.md`（①–⑤ 均 MUST）。reviewer **`Accepted`**、architect 交叉复核通过（20 册 `sha256` 独立重算全等、路径清单无多无漏、`spec/` 变更仅 `Process-06`+`README.md`〔无上游册〕、6 类反例注入均 FAIL 且 `cp`+md5 还原回绿）。范式见 §5.6。
 
 ### 7.6 下发前预检第 2 项须核「本任务**验证手段**所需的全部前置」，非仅「任务书声明的依赖」（`SPEC-115t` BLOCKED，2026-10-07）
 
@@ -321,9 +321,9 @@
 
 ### 7.17 保护范围扩面（上游册 → 含 v5 自定册）须四处一致；立案前提「更新某册锁」须先实测锁实际包含哪些册（`SPEC-121t`，2026-10-08）
 
-- **事由**：`SPEC-121t` 承接 `ISS-166`（收口 `Machine-01 §1` 越界路由/RAM@0 容量口径）。立案时原拟「**更新**锁中该册（`Machine-01`）`sha256`（其余 **19** 册不得变）」——该表述隐含前提「**锁已含** `Machine-01`」（因 `§1` 改动会改变该册 `sha256`）。architect 立案**实测**发现 `manifests/spec-readonly.lock.toml` **仅 20 册上游册**（`SimRISC-00..12` / `DADAO-1x` / `DADAO-2x` / `Toolchain-01`），**不含** `spec/Machine-01`（`spec/Process-06 §6` 明文「**不在锁内**：`spec/Machine-01`…」）⇒ 原前提**错误**（应为「其余 **20** 册」，且操作为**新增**而非**更新**）。经用户裁定「把 `Machine-01` 新增进锁」改为**新增**条目（锁内 **20→21**）。
+- **事由**：`SPEC-121t` 承接 `ISS-166`（收口 `Machine-01 §1` 越界路由/RAM@0 容量口径）。立案时原拟「**更新**锁中该册（`Machine-01`）`sha256`（其余 **19** 册不得变）」——该表述隐含前提「**锁已含** `Machine-01`」（因 `§1` 改动会改变该册 `sha256`）。architect 立案**实测**发现 `manifests/spec-readonly.lock.toml` **仅 20 册上游册**（`SimRISC-00..12` / `DADAO-1x` / `DADAO-2x` / `Toolchain-01`），**不含** `spec/Machine-01`（`docs/Process-06 §6` 明文「**不在锁内**：`spec/Machine-01`…」）⇒ 原前提**错误**（应为「其余 **20** 册」，且操作为**新增**而非**更新**）。经用户裁定「把 `Machine-01` 新增进锁」改为**新增**条目（锁内 **20→21**）。
 - **根因**：① 「更新某册锁」类表述**隐含**「该册已在锁内」的**前提**，立案未先实测即沿用（同 §7.14/§8.8 同类：计数/集合类断言须全量实测）；② 把 v5 自定册纳入原「只保护上游册」的锁 = **保护范围扩面**，牵动**不止**锁清单——`Process-06 §5` 标题/正文「只保护上游 20 册」的**语义**、§6 **清单/计数/「不在锁内」注记**、**门控输出/help 措辞**（`upstream read-only spec volume(s)`）**四处**均须同步，否则规范与机制自相矛盾（「只覆盖上游」表述不再准确）。
-- **处置/闭合**：用户裁定 ②/④/⑤ 授权——**新增** `Machine-01` 锁条 + `spec/Process-06 §5/§6` 同步（**语义扩面**至「含 v5 自定册 `spec/Machine-01`」）+ 门控措辞去「upstream」（checker docstring/`--help`/成功行 + `Makefile` help/注释，**逻辑零改动**）；`ISS-166` 结案。reviewer `Accepted`（**独立注入**改真仓库 RAM@0 容量 ⇒ checker MISMATCH ⇒ `cp`+md5 还原回绿，有鉴别力）、architect 交叉复核通过（独立核 `§1.1`=16 MiB / `§1.2` 新条+末条 / 锁 **21** 条且 `Machine-01` `sha256` 相符 / 既有 20 册 `sha256` 集合**逐条未变** / `Process-06 §1` 未改 / checker 去 `upstream` / `check-spec-readonly` `21 … OK` **EXIT=0**）。
+- **处置/闭合**：用户裁定 ②/④/⑤ 授权——**新增** `Machine-01` 锁条 + `docs/Process-06 §5/§6` 同步（**语义扩面**至「含 v5 自定册 `spec/Machine-01`」）+ 门控措辞去「upstream」（checker docstring/`--help`/成功行 + `Makefile` help/注释，**逻辑零改动**）；`ISS-166` 结案。reviewer `Accepted`（**独立注入**改真仓库 RAM@0 容量 ⇒ checker MISMATCH ⇒ `cp`+md5 还原回绿，有鉴别力）、architect 交叉复核通过（独立核 `§1.1`=16 MiB / `§1.2` 新条+末条 / 锁 **21** 条且 `Machine-01` `sha256` 相符 / 既有 20 册 `sha256` 集合**逐条未变** / `Process-06 §1` 未改 / checker 去 `upstream` / `check-spec-readonly` `21 … OK` **EXIT=0**）。
 - **残留（授权边界外，未改）**：`Process-06 §1`「**上游只读册**（清单见 §6）」的括注在 §6 含 v5 自定册后**字面略不精确**——`§1` **不在**用户授权范围（授权明文仅 `§5`/`§6`），故**未改**，登记「遗留」待另授权一行措辞修正。
 
 ### 7.18 验证型任务（无实现改动）亦须交付**可失败的专证据**，且「基线无缺口」结论须有**覆盖依据**（`QEMU-045t`，2026-10-08）
@@ -507,7 +507,7 @@
   3. 任务书「输出」不得把上游只读册列为可改对象；需要的新正文一律落 **v5 自定册**。
   4. **三处固定检查**（下发前预检第 5 项 / reviewer 验收 / architect 提交）均以 `git diff --name-only`（提交前 `--cached`）与 `spec/` 清单交叉；有交集而缺授权证据 ⇒ 阻断。
 - **依据/来源**：`SPEC-114t` round1 擅改上游只读册事故，用户 2026-10-07 裁定；机制落地 `SPEC-119t`。
-- **教训指引**：见 §7.5；范式另见 §5.6；规则正文 `spec/Process-06-spec目录保护规范.md`。
+- **教训指引**：见 §7.5；范式另见 §5.6；规则正文 `docs/Process-06-spec目录保护规范.md`。
 
 ### 8.6 生成器随产物入库（产物入 git ⇒ 生成器不得只留 `.work/`）
 
@@ -556,7 +556,7 @@
   3. 规范覆盖缺口**一律不改 `spec/` 收口**（守 §8.5 / `Process-06`）；登记 issue 并请用户**事先**授权；授权后在**同一变更**内同步该册 `sha256` 锁（若涉上游册）。
   4. **区分两类**：「实现口径已在门控固化」（授权前可核验、不阻塞里程碑）vs「规范正文缺口」（须授权收口）——前者登记遗留、后者提请授权，二者**不得混为一次静默改 `spec/`**。
 - **依据/来源**：`QEMU-049t`（2026-10-08，`ISS-166`：`Machine-01 §1` 未覆盖越界路由口径与 RAM@0 容量，`spec/` 零改动）。
-- **教训指引**：见 §7.16；规则正文另见 §8.5 / `spec/Process-06-spec目录保护规范.md`。
+- **教训指引**：见 §7.16；规则正文另见 §8.5 / `docs/Process-06-spec目录保护规范.md`。
 
 ### 8.11 保护范围扩面（上游只读册 → 含 v5 自定册）须四处一致；立案前须实测锁文件实际包含哪些册
 
@@ -831,3 +831,8 @@
 
 - **规则**：**凡被引用的材料（文档/证据/结论），一律不得只放 `.work/`**——`.work/` 被 `.gitignore` 整体忽略、只在本机存在 ⇒ 引用会**悬空**、不可复现。归类判据（四分类）：`spec/` = **规范正文**；`.tao/knowledge/` = **结论/设计/口径（含长文**——它是"知识"不是"日志"）；`.work/log/` = **一次性过程**（分析/报告/日志，**可删**）；**能被门控机械判定的，不写文档**。被引用的 `.work/log/` 材料须**升格**到 `.tao/knowledge/`（或结论摘要 + 指针），由门控 `check-knowledge-refs` 机械保证（扫 `.work/**` 引用、**悬空即红**，须可达 FAIL）。
 - **依据/来源**：用户 2026-10-11 裁定「**认 + 并入 `INFRA-058t`**」；落点 `INFRA-058t §追加范围`（`INTEG-037t`）+ `AGENTS.md`「文档分层与单一真源」。同类 §8.6/§7.7（生成器随产物入库，判据 = 产物是否入库）。
+
+### 8.56 新门控上线后，文档 / 记录里的 `.work/` 示例路径必须用 `<>`（或 `*`）占位，否则门控自伤（`INFRA-060t`，2026-10-11）
+
+- **规则**：`check-knowledge-refs`（扫 `AGENTS.md`/`spec/`/`.tao/knowledge`/`.tao/tasks` 的 `.work/**` 引用、**悬空即红**）上线后，任务书 / 记录 / 文档中**举例** `.work/` 路径时**一律写可判定跳过的占位形态**（如 `.work/log/<模块>/<任务ID>-*.log`，含 `<>` 或 `*`），**禁**写具体路径——否则示例本身被当真实引用、门控**自伤**（本项目已两次踩到）。
+- **依据/来源**：`INFRA-060t` 任务书 §避坑①（`.tao/tasks/infra/INFRA-060t-*.md`）；同类 §8.55（被引用材料不得只放 `.work/`）。

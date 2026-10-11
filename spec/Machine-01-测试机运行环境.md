@@ -1,6 +1,6 @@
 # Machine-01：测试机运行环境（v5 自定）
 
-> **状态**：生效（2026-10-07，`SPEC-114t`）
+> **状态**：生效（0.2.1，2026-10-07，`SPEC-114t`；完整版本记录见文末 changelog）
 >
 > **定位**：本册是 v5 自定规范，定义 **DADAO-v5 测试机（`dadao-m1`）运行环境与 semihosting** 的规范正文——面向 QEMU 机器模型、bootrom 固件、harness 与测试向量。上游 `spec/DADAO-*` 与 `spec/SimRISC-*` 仍为**上游基线**；本册不改其架构语义。
 >
@@ -189,3 +189,25 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 
 - v5 测试机的程序停机协议为 semihosting **`SYS_EXIT`/`SYS_EXIT_EXTENDED`**（见 `§5.5`），**取代** exit port（`ADR-0004 D3`）。[ADR-0020 D8][ADR-0004 R2]
 - exit-port MMIO 设备已在 C1 step2（`QEMU-053t`）**随旧 RAM 段一并删除**。[ADR-0020 D8][ADR-0020 D15][ADR-0004 R2]
+
+---
+
+## 版本与变更记录（Changelog）
+
+> 版本号形如 `x.y.z`（`x` 恒为 0）：**大改动 `y+1`，有影响的小改 `z+1`**。当前版本见册头。
+
+### 0.2.1（2026-10-09）
+
+- §1.1 收敛为 RAM@0 唯一 RAM 段（删旧 RAM 段与 exit-port；§5.5/§7 记 exit-port 已删）。
+
+### 0.2.0（2026-10-09）
+
+- semihosting 返回寄存器统一为 `rd8`（§5.2/§5.4；指针返回 `rb31`→`rb8`）。
+
+### 0.1.1（2026-10-08）
+
+- §1 越界路由 / RAM@0 容量口径。
+
+### 0.1.0（2026-10-07）
+
+- 初版：测试机运行环境与 semihosting 正文（内存映射/复位、运行模式、cfx/权限、`trap`/`escape`/异常进入、semihosting 25 服务、加载/bootrom、退出）。

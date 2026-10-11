@@ -7,7 +7,7 @@
 - **工作范围**：仅在 DADAO-v5/ 目录内修改或创建文件，可读取其他目录。
 - **git 操作**：DADAO-v5 为**独立仓库**（`.git` 为目录、无 superproject；`origin = git@github.com:gxt/DADAO-v5.git`），所有 git 操作限于本仓库内。
 - **参考目录**：`DADAO-0628` 和 `DADAO` 作为工程经验参考，不复制其代码。两者 commit 已锁定在 `manifests/`，只读工作树检出在 **`.cache/refs/<id>/`**（`make fetch-refs` 幂等重建）。
-- **组件补丁**：组件补丁集的组织/生成/应用/校验以 **`spec/Process-01-组件补丁组织与构建编排.md`** 为准（树形补丁集 + 一文件一补丁 + `git apply`），由 `make check` 的 `check-patch-tree` 机械校验。
+- **组件补丁**：组件补丁集的组织/生成/应用/校验以 **`docs/Process-01-组件补丁组织与构建编排.md`** 为准（树形补丁集 + 一文件一补丁 + `git apply`），由 `make check` 的 `check-patch-tree` 机械校验。
 - **提交确认**：所有提交必须先经用户确认；architect 的 WIP / 正常提交为流程授权（见「任务收尾·分支—提交—push」），`push` 仍须用户/主会话。
 - **推送范围**：`push` 只推送 `gxt` 账号名下仓库（本项目 `origin = gxt/DADAO-v5`）；其它账号/域名的仓库禁止推送或先询问。
 - **push 检查**：**push 前**向用户列待推分支 + commit 清单（`git log origin/master..HEAD --oneline`）、核查 `git remote -v` 归属、`git pull --rebase` 同步远端确认无冲突；**push 后**验证（`git status` up-to-date 或 `git log origin/master..HEAD` 为空）。本仓库**无 submodule**，子模块「先子后主」提交/推送序 **不适用**。
@@ -22,25 +22,25 @@
 - **Spec-first**：所有编码/语义期望值来自 `.tao/knowledge/contract-*.md`，不从实现反推
 - **Independent oracle**：测试向量不能从 LLVM 或 QEMU 生成，必须独立派生自 `spec/`
 - **Component lock**：LLVM/QEMU/gem5 以 `manifests/` 中的精确 commit hash 锁定，不用 tag/branch
-- **里程碑 TDD**：自 M4 起，每个里程碑**先立测试向量/门控、再实现**（三层 L1 编码/L2 结构/L3 执行，见 `spec/Process-05-里程碑TDD规范.md`）；「一能力一向量」、规模 ∝ 能力，不超前建大套件
+- **里程碑 TDD**：自 M4 起，每个里程碑**先立测试向量/门控、再实现**（三层 L1 编码/L2 结构/L3 执行，见 `docs/Process-05-里程碑TDD规范.md`）；「一能力一向量」、规模 ∝ 能力，不超前建大套件
 
 ## 参考来源与任务自包含
 
 - 任务书必须**自包含**：执行所需的事实/格式/模板写入任务书或 v5 自身知识（`.tao/knowledge/`），不依赖外部仓库内容。
-- **模板/格式**以 v5 自身知识为准（如 `spec/Process-03-ADR编写规范.md`、`spec/Process-02-合约编写规范.md`），不引用外部仓库的模板文件。
+- **模板/格式**以 v5 自身知识为准（如 `docs/Process-03-ADR编写规范.md`、`docs/Process-02-合约编写规范.md`），不引用外部仓库的模板文件。
 - DADAO-0628 / DADAO 等参考仓库**仅作只读溯源/对照**，其文件**不得作为任务的执行依赖**；引用时标注「内容溯源，非执行必需」。
 - 参考仓库按 commit 锁定（`manifests/`）；如需核对内容，按锁定 commit 从外部获取，不 vendor 进仓库。
 
 ## ADR 提醒
 
-- 讨论 / 任务涉及 ADR 判据（高代价、跨模块、多方案、外部契约、结论固化、定位）时，**必须主动提醒用户是否生成 ADR**，不擅自决定、不静默略过。判据与格式见 `spec/Process-03-ADR编写规范.md`。ADR **不承载规范正文**——规范正文归 `spec/` 与 `contract-*`，ADR 只记决策/理由/被否方案与指向的规范章节。
+- 讨论 / 任务涉及 ADR 判据（高代价、跨模块、多方案、外部契约、结论固化、定位）时，**必须主动提醒用户是否生成 ADR**，不擅自决定、不静默略过。判据与格式见 `docs/Process-03-ADR编写规范.md`。ADR **不承载规范正文**——规范正文归 `spec/` 与 `contract-*`，ADR 只记决策/理由/被否方案与指向的规范章节。
 
 ## ADR decision 逐条确认
 
 - **写入 ADR 的每个 decision（D1、D2…）都必须逐条与用户确认**；**不得**因任务书 / 参考文档 / 子代理产出里已写有该决策，就默认其通过。
 - 任务书里的 decision 只是**提案**。固化进 ADR 之前，须由用户逐条判定（保留 / 修改 / 否决），确认后方可写入。
 - 主会话与子代理（architect / engineer / reviewer）均不得擅自把**未经用户逐条确认**的 decision 写为 `Accepted`。
-- 已 `Accepted` 的 ADR 若要改动其 decision，仍须逐条经用户确认（按 `spec/Process-03-ADR编写规范.md`：新增 ADR / 标注 `Superseded` / 经授权的就地修订）。
+- 已 `Accepted` 的 ADR 若要改动其 decision，仍须逐条经用户确认（按 `docs/Process-03-ADR编写规范.md`：新增 ADR / 标注 `Superseded` / 经授权的就地修订）。
 
 ## 目录结构
 
@@ -53,14 +53,20 @@ DADAO-v5/
 │   ├── knowledge/         # 合约（contract-*.md）与台账（MEMORY/changelog/deferred/milestones）
 │   └── adr/               # 架构决策记录 adr-<nnnn>-*.md（决策层）
 ├── manifests/             # 锁文件（规范/参考组件）
-├── spec/                  # 规范：上游 SimRISC/DADAO + v5 自定 Toolchain/Process；索引 spec/README.md（spec 模块任务可改，见 ADR-0012 D4）
+├── spec/                  # 技术规范：上游 SimRISC/DADAO + v5 自定 Toolchain/Machine；索引 spec/README.md（spec 模块任务可改，见 ADR-0012 D4）
+├── docs/                  # 工程流程规范（Process-0x）+ 仓库级索引 + DDLN/（别人看）；索引 docs/README.md
 ├── contracts/             # 机器可读合约数据（编码表/ABI/合法性规则）
 └── tools/<module>/        # 各模块工具脚本（infra/spec/llvm/qemu/testcases）
 ```
 
-## 文档分层与单一真源（2026-10-08；四分类 2026-10-11）
+## 文档分层与单一真源（2026-10-08；三分界 2026-10-11）
 
-- **四分类（单一真源）**：`spec/` = **规范正文**；`.tao/knowledge/` = **结论/设计/口径（含长文）**；`.work/log/` = **一次性过程**（分析/报告/日志，**可删**）；`AGENTS.md` = **只放可执行规则**（每条 ≤2 行 + 门控名/文件指针，不放叙述/复盘/历史）；**历史** → `.tao/archive/M*/`。
+- **三分界（主判据 = 给谁看）**：
+  - `docs/` = **工程流程规范（`Process-0x`）+ 仓库级索引 + `DDLN/`**；**给别人看**（读者 / 协作者）。
+  - `.tao/knowledge/` = **结论 / 设计 / 口径**（含长文）；**给自己看**（agent / 主会话）。
+  - `spec/` = **技术规范**（上游基线 `SimRISC-*`/`DADAO-*` + v5 自定技术册 `Toolchain-01`/`Machine-01`）；**规范正文的唯一真源**。
+- **`.work/log/` 不是默认落点**：放进 `.work/log/` = 随时可丢弃（`.work/` 整体 gitignored）；它只承载**一次性过程**（分析/报告/日志）。
+- **五分类（单一真源；2026-10-11 加入 `docs/`）**：`spec/` = **技术规范正文**；`docs/` = **工程流程规范 + 索引 + `DDLN/`**；`.tao/knowledge/` = **结论/设计/口径（含长文）**；`.work/log/` = **一次性过程**（分析/报告/日志，**可删**）；`AGENTS.md` = **只放可执行规则**（每条 ≤2 行 + 门控名/文件指针，不放叙述/复盘/历史）；**历史** → `.tao/archive/M*/`。
 - **被引用材料不得只放 `.work/`**（`.work/` 整体 gitignored ⇒ 引用会悬空）：升格到 `.tao/knowledge/`（或结论/口径摘要 + 指针）；由 `check-knowledge-refs` 机械保证（`.work/**` 引用悬空即红）。**能被门控机械判定的，不写文档**。
 - **新增文档三问**（**三者皆否**才允许新增到活 `knowledge/`）：① 能否被**门控机械判定**（能 ⇒ 只加门控 + 一行指针，**不写文档**）？② 是否与**既有文件重复**（是 ⇒ **改既有**）？③ 是否**只服务当前任务**（是 ⇒ 落 `.work/log/`）？
 - **新增台账条目口径**：`lessons.md` 等**新增教训/规范条目 ≤3 行 + 指针**，**细节进 `.work/log/`**；**不追溯重写**既有条目（历史条目保持原样）。
