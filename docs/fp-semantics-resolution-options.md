@@ -29,11 +29,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **依据**：IEEE 754 的定向舍入、overflow、underflow、inexact 与 tininess-after-rounding 模型；FP-004 的 accrued flags 规则。
 **后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖四种舍入模式、halfway、OF、舍入后 tiny/zero 及 NX；FP-008 remainder 特例、FP-009 指数转换、FP-006/007 保持各自规则。
 
-## FP-006
-**候选 A**：按 rounding_mode 舍入到零/无穷等，越界与 NaN/Inf 写目标格式的固定 sentinel，并分别置 NV/NX；优点是结果总可观察，代价是需逐 signedness 定义 sentinel。
-**候选 B**：整数转换截断小数，越界饱和到目标边界，NX 表示丢小数；优点是软件友好，代价是与异常型转换不同。
-**候选 C**：越界和 NaN 只置 NV，目标寄存器保持未定义但由 contract 标记；优点是硬件自由度大，代价是 oracle 不能比较结果位，后续向量受限。
-**后续影响**：contract/oracle 需表达 sentinel 或不可比较结果；LLVM/QEMU 对 signedness、宽度和 flags 对齐，vectors 只能验证可定义部分。
+## FP-006（已裁定：细化原候选 A）
+**采用规则**：按 FCSR 舍入为整数 n，范围内写 n 且仅在 n≠源值时置 NX；NaN/±Inf/舍入后越界返回按 source sign 选择的目标饱和值+NV，不额外置 NX。有符号/无符号及 32/64 位范围和 rd 扩展方式固定。
+**依据**：SimRISC-07 的浮点→整数饱和要求；FCSR 舍入模式；FP-004 accumulated flags 规则。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖四种舍入模式、signed/unsigned 32/64 位范围、NaN sign、±Inf、舍入前后边界、NX/NV 及多元素 flags 并集。
 
 ## FP-007
 **候选 A**：按 FCSR 舍入模式转目标格式，无法精确表示即置 NX，并按 FP-001 的目标写掩码；优点是与 f2i 对称，代价是需完整位级 oracle。
