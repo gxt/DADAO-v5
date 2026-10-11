@@ -121,10 +121,7 @@
 **一个具体可观察例子**：低 32 位是 f32 正零而高 32 位编码 NaN；按低位或整寄存器分类会得到不同类别。
 **待裁决问题**：输入有效宽度、NaN 分类、flags 和结果编码的唯一规则是什么？
 
-## FP-017
-**现象**：算术和 root 遇到 qNaN 时，即使不产生 NV，结果 NaN 的来源和 payload 仍不唯一。
-**受影响指令集合**：`add/sub/mul/div/rem/scalb` 的 ft/fo 形式，以及 `rootn` 的 ft/fo 形式。
-**spec 已规定什么**：`SimRISC-07 §S2D1`、`§S1D1`规定算术/root 操作族和操作数形式。
-**spec 未规定什么**：qNaN 与普通值、qNaN 与 qNaN 时的源优先级、sign、quiet 位、payload 截取/补位，以及 qNaN 与 sNaN 混合时的统一规则。
-**一个具体可观察例子**：左值 qNaN payload=0x12、右值 qNaN payload=0x34；取左、取右和 canonical 化会产生三种可回读结果。
-**待裁决问题**：每种格式、操作数组合和 root 输入的 qNaN 结果位形与 flags 如何唯一确定？
+## FP-017（已关闭：由 FP-003 覆盖）
+**关闭依据**：FP-003 已规定 S2D1 按 `rfHC→rfHD` 选择第一个 NaN，保持其 sign/payload；因此 qNaN 与普通值、双 qNaN、qNaN+sNaN 的结果来源和 flags 均已唯一确定。rootn 的唯一 qNaN 输入保持 sign/payload 返回。
+**规范落点**：`SimRISC-07 §S2D1`、`§S1D1`；不新增独立语义裁定。
+**保留边界**：f32 结果写入 RF 的高 32 位仍由 FP-001 裁定。

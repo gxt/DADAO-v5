@@ -460,6 +460,10 @@ review_projection:
     status: RESOLVED
     decision: rootn_n2_special_values_positive_zero_canonical_invalid_nan
     spec_reference: SimRISC-07 §S1D1
+  - id: FP-017
+    status: RESOLVED
+    decision: covered_by_fp003_nan_propagation
+    spec_reference: SimRISC-07 §S2D1 / §S1D1
   entries:
   - id: ft2fo_orri_rf
     family: convert_ff
@@ -617,7 +621,6 @@ review_projection:
     - FP-005
     - FP-008
     - FP-009
-    - FP-017
   - id: ftsub_orrr_rf
     family: arith
     status: UNSPECIFIED
@@ -703,7 +706,6 @@ review_projection:
     basis: SimRISC-07 §S1D1；该条指令属于该族并具有对应可观察维度
     issue_ids: &id005
     - FP-001
-    - FP-017
   - id: foroot_orri_rf
     family: root
     status: UNSPECIFIED

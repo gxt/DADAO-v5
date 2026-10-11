@@ -95,8 +95,7 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **候选 C**：按完整寄存器位模式分类；优点是保留所有位信息，代价是 f32 高位影响结果，需与 load/write 规则联动。
 **后续影响**：contract/oracle 固定有效位和分类编码；LLVM/QEMU classify 与 vectors 必须同 FP-001/014 的高位规则联动。
 
-## FP-017
-**候选 A**：二元操作按左到右取第一 NaN，root 取唯一 NaN；保留 sign/payload、置 quiet，qNaN 不新增 flags；优点是可追踪，代价是需按 ft/fo 截取/补位。
-**候选 B**：任一 qNaN 结果 canonical 化；双 qNaN 不依赖源顺序，优点是跨操作一致，代价是丢失 payload，contract/oracle/组件和 vectors 都要固定 canonical 位形。
-**候选 C**：sNaN 优先、qNaN 次之，结果保留被选源 payload；优点是异常优先级明确，代价是 qNaN+sNaN 与双 qNaN 要分别编码，后续规则最多。
-**后续影响**：contract/oracle 固定双源优先级、格式位形和 flags；LLVM/QEMU 算术/root 路径与 vectors 覆盖交换、双 qNaN 和混合 NaN。
+## FP-017（已关闭：由 FP-003 覆盖）
+**采用规则**：不新增独立规则；采用 FP-003 的 S2D1 第一 NaN 源顺序、sign/payload 保持和任一 sNaN 置 NV 规则，以及 rootn 的唯一 NaN 传播规则。
+**关闭理由**：原候选 A 已被 FP-003 作为算术/root 的统一 NaN 规则采纳，qNaN 的单独问题无剩余语义。
+**后续影响**：contract、oracle、组件和 vectors 按 FP-003 覆盖源交换、双 qNaN 与 qNaN/sNaN 混合；不新增 FP-017 专属实现要求。
