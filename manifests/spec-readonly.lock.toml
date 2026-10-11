@@ -16,17 +16,17 @@ policy = "readonly-requires-authorization"
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
 group = "simrisc-00..12"
-sha256 = "0822d9bfda20d6c58a5724fb1b71ff69ebd55dc25e3bc697a5cbd0012be52316"
+sha256 = "8eb7307a8c49ea171d57155cbcaf4e481d52d28b381103fea8fee1bfd432a9eb"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
 group = "simrisc-00..12"
-sha256 = "8e70b2879f4dfa13a68068b86ba8216562789f9c622d40d5316ef039d3ab8005"
+sha256 = "be3c09d02f869d1ae032c7b0a27e22f4ee780f5b5452a15fe0df2a0c415dbf19"
 
 [[spec]]
 path = "spec/SimRISC-02-寄存器复制.md"
 group = "simrisc-00..12"
-sha256 = "3d340657c72b2c148f8f43df6a5f333a474a4de2ecb97ae06e9f897f8380341c"
+sha256 = "6fec5d6b5128b708017b6fb1cf7b267f6c11991363e0755cd79f24c8215ef3b4"
 
 [[spec]]
 path = "spec/SimRISC-03-16位立即数操作.md"
@@ -51,7 +51,7 @@ sha256 = "d2432a722494e51143d7978e492de23ed9a7d4411b09799f95f818ce9a30592e"
 [[spec]]
 path = "spec/SimRISC-07-浮点运算.md"
 group = "simrisc-00..12"
-sha256 = "f16335c4a3f6c7871caa7ce4bf117d640ba14b5b1ce956640ed89886b8d5e949"
+sha256 = "09b295d2760524d2ffda38b8e0d838e7a1b73690d772c40aa01ed20417f00b17"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"

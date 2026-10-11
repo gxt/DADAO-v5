@@ -433,3 +433,504 @@ instructions:
     spec_cite: "SimRISC-03 §立即数常数赋值：Immediate constant"
     semantics_ref: "contract-fp.md#set_w_rf"
     legality_refs: []
+
+# SPEC-130t oracle review projection; only listed adjudications are decided.
+consumer_policy:
+  unspecified: UNSUPPORTED
+review_projection:
+  version: SPEC-130t
+  scope: fp
+  report_issues: docs/fp-semantics-open-issues.md
+  resolution_options: docs/fp-semantics-resolution-options.md
+  adjudications:
+  - id: FP-004
+    status: RESOLVED
+    decision: ieee754_accrued_flags_atomic_commit
+    spec_reference: SimRISC-00 §浮点状态寄存器
+  - id: FP-002
+    status: RESOLVED
+    decision: nan_conversion_preserve_sign_low_payload_quiet_snan
+    rationale: low payload placement preserves qNaN f32-to-f64-to-f32 round trips
+    spec_reference: SimRISC-07 §格式转换指令
+  - id: FP-003
+    status: RESOLVED
+    decision: first_nan_by_source_order_quiet_snan_any_snan_nv
+    spec_reference: SimRISC-07 §S2D1 / §S1D1
+  - id: FP-010
+    status: RESOLVED
+    decision: rootn_n2_special_values_positive_zero_canonical_invalid_nan
+    spec_reference: SimRISC-07 §S1D1
+  - id: FP-008
+    status: RESOLVED
+    decision: ieee754_remainder_special_values_subnormal_infinity_underflow
+    spec_reference: SimRISC-07 §S2D1
+  - id: FP-009
+    status: RESOLVED
+    decision: scaleb_integer_exponent_conversion_and_special_values
+    spec_reference: SimRISC-07 §S2D1
+  - id: FP-011
+    status: RESOLVED
+    decision: compare_unordered_canonical_nan_and_quiet_signaling_nv
+    spec_reference: SimRISC-00 §浮点状态寄存器 / SimRISC-07 §浮点比较指令
+  - id: FP-012
+    status: RESOLVED
+    decision: covered_by_existing_rf0_fcsr_alias_rules
+    spec_reference: SimRISC-00 §浮点状态寄存器 / SimRISC-01 §浮点数据存取 / SimRISC-02 §寄存器复制 / SimRISC-03 §16位立即数操作
+  - id: FP-014
+    status: RESOLVED
+    decision: rf_tetra_low_half_preserve_high_octa_full_width
+    spec_reference: SimRISC-01 §存取RF寄存器 / SimRISC-03 §Immediate constant
+  - id: FP-005
+    status: RESOLVED
+    decision: ieee754_correct_rounding_tininess_after_rounding
+    spec_reference: SimRISC-00 §浮点状态寄存器
+  - id: FP-006
+    status: RESOLVED
+    decision: rounded_integer_range_checked_sign_saturating_conversion
+    spec_reference: SimRISC-07 §格式转换指令
+  - id: FP-007
+    status: RESOLVED
+    decision: correctly_rounded_integer_to_float_with_inexact
+    spec_reference: SimRISC-07 §格式转换指令
+  - id: FP-016
+    status: RESOLVED
+    decision: classify_effective_width_signaling_nan_and_no_side_effects
+    spec_reference: SimRISC-07 §浮点分类指令
+  - id: FP-015
+    status: RESOLVED
+    decision: conditional_rf_copy_selected_source_no_side_effects
+    spec_reference: SimRISC-02 §浮点条件赋值
+  - id: FP-017
+    status: RESOLVED
+    decision: covered_by_fp003_nan_propagation
+    spec_reference: SimRISC-07 §S2D1 / §S1D1
+  - id: FP-013
+    status: DEFERRED
+    decision: defer_dynamic_block_memory_fault_commit_semantics
+    spec_reference: SimRISC-01 §存取RF寄存器 / SimRISC-02 §寄存器组之间块赋值
+  entries:
+  - id: ft2fo_orri_rf
+    family: convert_ff
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: ft2ft_orri_rf
+    family: convert_ff
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id001 [FP-001]
+  - id: fo2ft_orri_rf
+    family: convert_ff
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id001
+  - id: fo2fo_orri_rf
+    family: convert_ff
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: ft2it_orri_rf
+    family: convert_f2i
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id002 []
+  - id: ft2io_orri_rf
+    family: convert_f2i
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id002
+  - id: ft2ut_orri_rf
+    family: convert_f2i
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id002
+  - id: ft2uo_orri_rf
+    family: convert_f2i
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id002
+  - id: fo2it_orri_rf
+    family: convert_f2i
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id002
+  - id: fo2io_orri_rf
+    family: convert_f2i
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id002
+  - id: fo2ut_orri_rf
+    family: convert_f2i
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id002
+  - id: fo2uo_orri_rf
+    family: convert_f2i
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id002
+  - id: it2ft_orri_rf
+    family: convert_i2f
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id003
+    - FP-001
+  - id: io2ft_orri_rf
+    family: convert_i2f
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id003
+  - id: ut2ft_orri_rf
+    family: convert_i2f
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id003
+  - id: uo2ft_orri_rf
+    family: convert_i2f
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id003
+  - id: it2fo_orri_rf
+    family: convert_i2f
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: io2fo_orri_rf
+    family: convert_i2f
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: ut2fo_orri_rf
+    family: convert_i2f
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: uo2fo_orri_rf
+    family: convert_i2f
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §格式转换指令
+    basis: SimRISC-07 §格式转换指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: ftadd_orrr_rf
+    family: arith
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id004
+    - FP-001
+  - id: ftsub_orrr_rf
+    family: arith
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id004
+  - id: ftmul_orrr_rf
+    family: arith
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id004
+  - id: ftdiv_orrr_rf
+    family: arith
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id004
+  - id: ftrem_orrr_rf
+    family: arith
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id004
+  - id: ftsclb_orrr_rf
+    family: arith
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id004
+  - id: foadd_orrr_rf
+    family: arith
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: fosub_orrr_rf
+    family: arith
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: fomul_orrr_rf
+    family: arith
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: fodiv_orrr_rf
+    family: arith
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: forem_orrr_rf
+    family: arith
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: fosclb_orrr_rf
+    family: arith
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §S2D1
+    basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: ftroot_orri_rf
+    family: root
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §S1D1
+    basis: SimRISC-07 §S1D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id005
+    - FP-001
+  - id: foroot_orri_rf
+    family: root
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §S1D1
+    basis: SimRISC-07 §S1D1；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: ftsgnj_orrr_rf
+    family: sign
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §浮点符号位操作指令
+    basis: SimRISC-07 §浮点符号位操作指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id006
+    - FP-001
+  - id: ftsgnn_orrr_rf
+    family: sign
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-07 §浮点符号位操作指令
+    basis: SimRISC-07 §浮点符号位操作指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id006
+  - id: fosgnj_orrr_rf
+    family: sign
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §浮点符号位操作指令
+    basis: SimRISC-07 §浮点符号位操作指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: fosgnn_orrr_rf
+    family: sign
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §浮点符号位操作指令
+    basis: SimRISC-07 §浮点符号位操作指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: []
+  - id: ftqcmp_orrr_rf
+    family: compare
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §浮点比较指令
+    basis: SimRISC-07 §浮点比较指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id007 []
+  - id: ftscmp_orrr_rf
+    family: compare
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §浮点比较指令
+    basis: SimRISC-07 §浮点比较指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id007
+  - id: foqcmp_orrr_rf
+    family: compare
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §浮点比较指令
+    basis: SimRISC-07 §浮点比较指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id007
+  - id: foscmp_orrr_rf
+    family: compare
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §浮点比较指令
+    basis: SimRISC-07 §浮点比较指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id007
+  - id: ftcls_orri_rf
+    family: classify
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §浮点分类指令
+    basis: SimRISC-07 §浮点分类指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id008 []
+  - id: focls_orri_rf
+    family: classify
+    status: RESOLVED
+    spec_references:
+    - SimRISC-07 §浮点分类指令
+    basis: SimRISC-07 §浮点分类指令；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id008
+  - id: cs.n_rrrr_rf
+    family: cs_rf
+    status: RESOLVED
+    spec_references:
+    - SimRISC-02 §浮点条件赋值
+    basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id009 []
+  - id: cs.z_rrrr_rf
+    family: cs_rf
+    status: RESOLVED
+    spec_references:
+    - SimRISC-02 §浮点条件赋值
+    basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id009
+  - id: cs.p_rrrr_rf
+    family: cs_rf
+    status: RESOLVED
+    spec_references:
+    - SimRISC-02 §浮点条件赋值
+    basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id009
+  - id: cs.eq_rrrr_rf
+    family: cs_rf
+    status: RESOLVED
+    spec_references:
+    - SimRISC-02 §浮点条件赋值
+    basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id009
+  - id: cs.ne_rrrr_rf
+    family: cs_rf
+    status: RESOLVED
+    spec_references:
+    - SimRISC-02 §浮点条件赋值
+    basis: SimRISC-02 §浮点条件赋值；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id009
+  - id: ld.t_rrii_rf
+    family: rf_mem
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-01 §存取RF寄存器
+    basis: SimRISC-01 §存取RF寄存器；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id010
+    - FP-013
+  - id: st.t_rrii_rf
+    family: rf_mem
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-01 §存取RF寄存器
+    basis: SimRISC-01 §存取RF寄存器；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id010
+  - id: ld.o_rrii_rf
+    family: rf_mem
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-01 §存取RF寄存器
+    basis: SimRISC-01 §存取RF寄存器；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id010
+  - id: st.o_rrii_rf
+    family: rf_mem
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-01 §存取RF寄存器
+    basis: SimRISC-01 §存取RF寄存器；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id010
+  - id: ldm.t_rrri_rf
+    family: rf_mem
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-01 §存取RF寄存器
+    basis: SimRISC-01 §存取RF寄存器；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id010
+  - id: stm.t_rrri_rf
+    family: rf_mem
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-01 §存取RF寄存器
+    basis: SimRISC-01 §存取RF寄存器；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id010
+  - id: ldm.o_rrri_rf
+    family: rf_mem
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-01 §存取RF寄存器
+    basis: SimRISC-01 §存取RF寄存器；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id010
+  - id: stm.o_rrri_rf
+    family: rf_mem
+    status: UNSPECIFIED
+    spec_references:
+    - SimRISC-01 §存取RF寄存器
+    basis: SimRISC-01 §存取RF寄存器；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id010
+  - id: rd2rf_orri_rf
+    family: rf_move
+    status: RESOLVED
+    spec_references:
+    - SimRISC-02 §寄存器组之间块赋值
+    basis: SimRISC-02 §寄存器组之间块赋值；该条指令属于该族并具有对应可观察维度
+    issue_ids: &id011 []
+  - id: rf2rd_orri_rf
+    family: rf_move
+    status: RESOLVED
+    spec_references:
+    - SimRISC-02 §寄存器组之间块赋值
+    basis: SimRISC-02 §寄存器组之间块赋值；该条指令属于该族并具有对应可观察维度
+    issue_ids: *id011
+  - id: set.w_rwii_rf
+    family: set_w_rf
+    status: RESOLVED
+    spec_references:
+    - SimRISC-03 §立即数常数赋值：Immediate constant
+    basis: SimRISC-03 §立即数常数赋值：Immediate constant；该条指令属于该族并具有对应可观察维度
+    issue_ids: []

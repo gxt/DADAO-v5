@@ -107,7 +107,13 @@ uo2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
 
 其中it表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。immu6 指定连续转换的寄存器数量（1-63）。例如 `ft2fo {rf4:rf6}, {rf8:rf10}` 将 rf8→rf4、rf9→rf5、rf10→rf6。源范围与目的范围不可有任何交集（含完全重合），否则触发 ILLI 异常（与 SimRISC-02 §寄存器组之间块赋值 一致）；无交集时转换按序号递增逐对进行，先读后写。
 
-浮点格式转换遵循 IEEE 754 标准：浮点→浮点（fo2ft/ft2fo）溢出返回 ±Inf（设置 OF），下溢按舍入模式处理（设置 UF），NaN 传播 payload。整数→浮点转换可能 inexact（精度损失）。浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值（最大/最小），设置 NV 标志。sNaN 作为算术输入时设置 NV 并返回 qNaN。舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。
+浮点格式转换遵循 IEEE 754 标准：浮点→浮点（fo2ft/ft2fo）与整数→浮点转换均按指令开始时的 rf0[33:32] 正确舍入一次；其 NX、OF、UF 触发条件及溢出结果（无穷或最大有限值）遵循 SimRISC-00 §浮点状态寄存器的统一规则。NaN 传播 payload。整数→浮点转换可能 inexact（精度损失）。sNaN 作为算术输入时设置 NV 并返回 qNaN。异常标志在 rf0[4:0]。
+
+浮点→整数转换先将有限源值按指令开始时的 rf0[33:32] 舍入为数学整数 n，再检查 n 是否落在目标范围：it 为 `[-2^31, 2^31-1]`，io 为 `[-2^63, 2^63-1]`，ut 为 `[0, 2^32-1]`，uo 为 `[0, 2^64-1]`。范围内时写入 n；it 结果符号扩展至 rd 的 64 位，ut 结果零扩展至 rd 的 64 位，io/uo 写完整 64 位。有限有效转换中 n 与源值不相等时设置 NX，且不设置 OF、UF 或 DZ。NaN、±Inf 或舍入后的 n 超出目标范围时设置 NV 且不额外设置 NX：有符号目标按源 sign 位饱和到最大值（sign=0）或最小值（sign=1），无符号目标按源 sign 位饱和到最大值（sign=0）或 0（sign=1）；NaN 的 payload 忽略。多寄存器转换逐对执行，本指令各元素产生的异常位取并集后按浮点状态寄存器的累计规则原子写入。
+
+整数→浮点转换仅舍入一次；目标格式不能精确表示源整数时设置 NX，否则不新增异常状态；所有这些 32/64 位整数均在 ft/fo 的有限范围内，故不设置 NV、DZ、OF 或 UF。多寄存器转换逐对执行，本指令各元素产生的异常位取并集后按浮点状态寄存器的累计规则原子写入。ft 结果的高 32 位写入规则见 SimRISC-00 §浮点寄存器。
+
+浮点→浮点格式转换的 NaN 规则如下：qNaN 保持符号位并传播 payload；同格式转换保持 payload 不变，ft→fo 将 ft 的 22 位 payload 写入 fo payload 的低 22 位、其余 29 位补 0，fo→ft 取 fo payload 的低 22 位。该低位布局保证 qNaN 经 ft→fo→ft 往返后保持相同的符号位、quiet 位和 payload。sNaN 使用相同的符号位和 payload 映射，但目标结果 quiet 位设为 1 成为 qNaN，并设置 NV；qNaN 转换本身不新增异常状态。sNaN 的 NV 与其他异常状态按浮点状态寄存器的累计规则写入。ft 结果写入 rf 的高 32 位规则见 SimRISC-00 §浮点寄存器。
 
 限制如下：
 
@@ -141,9 +147,11 @@ fosclb  rfHB, rfHC, rfHD
 
 其中，rfHB为目的操作数，rfHC和rfHD分别为第一个源操作数和第二个源操作数。硬件先读全部源操作数再写结果，源寄存器被目的覆盖前其值已捕获，行为确定。
 
-`ftrem`/`forem` 为 IEEE 754 remainder 操作（`rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数）。除数为零、Inf 或 NaN 行为遵循 IEEE 754。
+当任一源操作数为 NaN 时，按源操作数顺序 `rfHC`、`rfHD` 选择第一个 NaN 作为结果来源，保持该 NaN 的符号位和 payload；若所选 NaN 为 sNaN，结果的 quiet 位设为 1。只要任一源为 sNaN，本次操作即设置 NV，即使结果来源为更早的 qNaN。该 NaN 路径不额外设置 DZ、OF、UF 或 NX；NV 与其他异常状态按浮点状态寄存器的累计规则写入。
 
-`ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfHC × 2^rfHD`（rfHD 取整数值），舍入模式由 rf0 控制。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
+`ftrem`/`forem` 为 IEEE 754 remainder 操作（`rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数）。NaN 输入按本节的 NaN 规则处理。若被除数为 ±Inf 或除数为 ±0，返回目标格式的正 canonical qNaN 并设置 NV；ft 的 canonical qNaN 为 `0x7FC00000`，fo 的 canonical qNaN 为 `0x7FF8000000000000`。有限被除数除以 ±Inf 时原样返回被除数；被除数为 subnormal 时设置 UF，其他有限被除数不设置异常状态。有限被除数和非零有限除数的 remainder 为精确结果，不设置 DZ、OF、UF 或 NX；若结果为零，其符号位取自被除数。NV、UF 与其他异常状态按浮点状态寄存器的累计规则写入。IEEE 754 原文：`remainder(subnormal, ∞) signals underflow.`
+
+`ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作。NaN 输入先按本节的 NaN 规则处理；否则将 rfHD 按 rf0 的舍入模式转换为整数 N，再计算 `rfHC × 2^N`。该整数转换遵循格式转换指令的浮点→整数规则：有限非整数值的舍入结果与原值不同时设置 NX；±Inf 或超出整数范围时分别饱和为最大/最小整数并设置 NV。N=0 时原样返回 rfHC；N≠0 时，`scaleB(±0, N)` 返回 ±0，`scaleB(±∞, N)` 返回 ±∞。有限非零 rfHC 的缩放结果按 rf0 舍入模式写入；缩放本身的 OF、UF、NX 触发条件见浮点状态寄存器及其舍入规则。整数转换和缩放产生的异常状态均按浮点状态寄存器的累计规则写入。
 
 ### 4.2 S1D1
 
@@ -157,7 +165,9 @@ foroot  rfHB, rfHC, immu6
 
 ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 immu6 中。仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
 
-> 注意：`ftroot/foroot` 的运算基本等同于 `ftsqrt/fosqrt`，但是在 IEEE754-2019 中特意指出，`rootn(-0, 2)` 不等于 `squareRoot(-0)`，因此，对于 `rootn(-0, 2)` 的运算结果不做具体要求。
+按 IEEE 754 标准，rootn 的特殊值规则为：`rootn(±0, 2)` 返回 `+0` 且不设置异常状态；`rootn(+∞, 2)` 返回 `+∞` 且不设置异常状态；`rootn(-∞, 2)` 及任意有限负数返回目标格式的正 canonical qNaN 并设置 NV。ft 的 canonical qNaN 为 `0x7FC00000`，fo 的 canonical qNaN 为 `0x7FF8000000000000`，与 rf0 中定义的 qNaN 一致。
+
+若源操作数为 qNaN，rootn 保持其符号位和 payload 并返回该 qNaN；若源为 sNaN，保持其符号位和 payload、将 quiet 位设为 1 并设置 NV。该 NaN 路径不额外设置 DZ、OF、UF 或 NX；NV 与其他异常状态按浮点状态寄存器的累计规则写入。
 
 S1D1 指令硬件先读源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
@@ -202,9 +212,11 @@ rdHB中的比较结果有四种情况：
 - 1：`rfHC > rfHD`
 - 0：`rfHC = rfHD`
 - -1：`rfHC < rfHD`
-- NaN：unordered，Quiet Compare的结果为qNaN（符号位为0），Signaling Compare的结果为sNaN（符号位为0）
+- NaN：unordered，Quiet Compare的结果为正 canonical qNaN，Signaling Compare的结果为正 canonical sNaN
 
-由于qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdHB的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
+任一源为 NaN 时比较结果为 unordered，不传播输入 NaN 的 sign 或 payload。ftqcmp 向 rdHB 写入零扩展的 `0x7FC00000`，ftscmp 写入零扩展的 `0x7F800001`；foqcmp 写入 `0x7FF8000000000000`，foscmp 写入 `0x7FF0000000000001`。Quiet Compare 仅当任一源为 sNaN 时设置 NV；Signaling Compare 在任一源为 qNaN 或 sNaN 时设置 NV。NaN 比较不设置 DZ、OF、UF 或 NX；NV 按浮点状态寄存器的累计规则写入。
+
+由于正 canonical qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdHB的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
 
 ## 7. 浮点分类指令
 
@@ -231,6 +243,8 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 | 7     | positiveInfinity  |
 | 8     | signalingNaN      |
 | 9     | quietNaN          |
+
+`ftcls` 仅使用 rfHC 的低 32 位按 ft 格式分类，忽略 `[63:32]`；`focls` 使用完整 64 位按 fo 格式分类。sNaN 设置 bit 8，qNaN 设置 bit 9。分类为纯读取操作：不 quiet sNaN、不修改源寄存器，也不设置 NV、DZ、OF、UF 或 NX；多寄存器分类的每一对均遵循本规则。
 
 限制如下：
 
