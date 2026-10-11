@@ -1,6 +1,6 @@
 # DADAO for SimRISC 0.5.4
 
-基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定规范（`Toolchain-01`、`Process-0x`，索引见 `spec/README.md`），实现 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持。
+基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定规范（`Toolchain-01`、`Process-0x`，索引见 `spec/README.md`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**当前进度以「项目里程碑」为准**）。
 
 ## 当前版本号
 
@@ -28,6 +28,19 @@
 
 `llc` 将标量整数/指针函数（LLVM IR）编译为 DADAO 汇编，经 MC → 单 TU obj/raw binary → `qemu-system-dadao` 执行结果正确（freestanding、单 TU 自包含、无链接器）。门槛 `make test-codegen` 全绿——算术 / 访存（含大端窄访存）/ 分支 / 调用四类函数，以及指针算术（含指针差）均端到端通过。浮点/浮点寄存器、完整调用约定与完整重定位留待后续里程碑。
 
-**M4 — ELF 文件支持 + LLD 链接 + 汇编器遗留收口**（规划中）
+**M4 — ELF 文件支持 + LLD 链接 + 汇编器遗留收口**（已达成，2026-10-07）
 
-工具链从 M3 的「单 TU raw-bin 捷径」升级为「规范 ELF 产出 + LLD 链接 + QEMU ELF 加载」，并补齐汇编器遗留（伪指令 / 指导符 / 汇编器选项 / 诊断）；采用测试驱动（TDD）。浮点、完整调用约定、clang 前端与完整系统软件留待后续里程碑。
+工具链从 M3 的「单 TU raw-bin 捷径」升级为「规范 ELF 产出 + `ld.lld` 链接 + QEMU ELF 加载」，并补齐汇编器遗留（伪指令 / 指导符 / 汇编器选项 / 诊断）；测试驱动（TDD）。
+
+**M5 — SEE/HEE 运行环境 + semihosting**（已达成，2026-10-08）
+
+`qemu-system-dadao` 具备 SEE/HEE 运行环境与 **semihosting**：console（`SYS_WRITE0`/`SYS_WRITEC`）、`SYS_EXIT` 停机与 25 项服务；端到端门控 `make test-semihosting`（bootrom + `-kernel` bin、半托管 console/`SYS_EXIT`）全绿。
+
+**M6 — 整数完整调用约定 + LLVM 欠账收口 + ELF 直载 + clang target + Embench**（已达成，2026-10-11）
+
+- **整数完整调用约定**：返回 `rd8`/`rb8`/`rf8`（每 bank K=8）、聚合 ≤64 B 寄存器 / `>64 B` 间接、`sret`、变参、间接调用；**FP/RF codegen**（FP ABI、HFA、RF 放开）。
+- **clang target**：`clang -target dadao-unknown-elf` 打通（DL 与后端一致），端到端 `clang → ld.lld → QEMU` 正确退出码。
+- **QEMU 改走 `load_elf()`**：ELF 直接加载（仅 RAM 落点，非 RAM 段加载期拒绝）。
+- **Embench 接入（编译正确性）**：19 个基准经「clang → ld.lld → QEMU」执行 **`-O0` 19/19、`-O2` 19/19 退出码 0**；`md5sum` 大端适配、最小运行时（不引 libc）。
+- **测试资产**：lit 量产（快档入 `make check`、全量档 opt-in `check-lit-full`）、上游 IR 的 `lli` 值级对拍；新增 opt-in 门控 **`make test-m6`**（lit 全量档 + `lli` 对拍 + Embench）。
+- 过程中收口：大常量比较/分支范围、跳转表、无符号/有符号乘高半、`-O2` `i1` 加载、可执行段 `.p2align` 崩溃，以及**数据指示符口径**（唯一集 `.dd.b08/.dd.w16/.dd.t32/.dd.o64`；禁 `.byte/.short/.long/.quad/.word/.octa` 与 `.align`，只留 `.p2align`）。
