@@ -26,6 +26,7 @@
 | INFRA-061t | 已验证 | 2026-10-11 17:32 | changelog 并入 milestones |
 | INFRA-062t | 已验证 | 2026-10-11 18:10 | MEMORY 改纯指针页 |
 | INFRA-063t | 已验证 | 2026-10-11 20:14 | 规则与台账分工收敛（AGENTS 瘦身 / lessons 精简） |
+| INFRA-064t | 已验证 | 2026-10-11 22:21 | 入口文档分工收敛（README 瘦身 / 规则上移 AGENTS / 导航归 MEMORY） |
 | LLVM-079t | 待开始 | — | P0 后端补齐 |
 | LLVM-080t | 待开始 | — | P1 后端补齐 |
 | LLVM-081t | 待开始 | — | ISA↔后端覆盖矩阵 |

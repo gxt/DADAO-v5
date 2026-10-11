@@ -9,7 +9,8 @@
 | 项目总览 / 里程碑 / 版本号 | 根 `README.md` |
 | 当前进度 / 任务流水 / 规划中 / 裁定 | `.tao/knowledge/milestones.md` |
 | 决策（ADR：架构 / 契约 / 流程） | `.tao/adr/` |
-| 交互目录 / 角色 / 命令 / 任务编号 | `.tao/README.md` |
+| 交互目录（`$TAO_ROOT` / 结构 / 模块表） | `.tao/README.md` |
+| 角色 / 流程 / 命令 | `AGENTS.md`「角色与流程」+ `.opencode/agents/`、`.opencode/commands/` |
 | 任务文件 | `.tao/tasks/<module>/` |
 | 技术规范（上游 + v5 自定；索引 / 投影表） | `spec/` + `spec/README.md` |
 | 工程流程规范 + 仓库级索引 | `docs/Process-0x` + `docs/README.md` |

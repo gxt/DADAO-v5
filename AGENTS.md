@@ -98,7 +98,8 @@ DADAO-v5/
 `task` 异常返回（`Task cancelled`/空结果）先核对落盘（完成区 + `git status`）；未落盘 ⇒ **重试同一任务 1 次**（附失败现场）；仍异常 ⇒ **停止重试、主动提醒用户并商定拆分任务**；每次异常登记 `issues.yaml`。主会话代行须经用户同意 + reviewer 验收。
 
 ## 角色与流程
-角色规则、任务编号（`<PREFIX>-nnn<suffix>`，模块内递增）、四态状态机与命令（`/plan` `/dispatch` `/complete` `/status`）见 `.tao/README.md`、`.opencode/agents/*.md`、`.opencode/commands/*.md`。
+主会话 = **协调者**；四命令 `/plan`（规划）→ `/dispatch`（下发）→ `/complete`（验收收尾）、`/status`（状态）。
+角色 / 任务编号（`<PREFIX>-nnn<suffix>`，模块内递增）/ 四态状态机真源见 `.opencode/agents/*.md`、`.opencode/commands/*.md`。
 
 ## 任务收尾（`/complete`）（强制）
 - **生命周期**：`/dispatch`（实现 + 填完成区，→ `待验收`）→ reviewer 独立重跑验收 → `/complete`（交叉复核 + 知识沉淀，→ `已验证`）→ 提交（须已含收尾）。**逐任务收尾，禁积压/批量**。
