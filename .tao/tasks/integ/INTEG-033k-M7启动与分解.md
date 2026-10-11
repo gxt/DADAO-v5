@@ -66,7 +66,7 @@
 | 编号 | 任务 | 模块 | 范围（草案） | 依赖 |
 |---|---|---|---|---|
 | `INTEG-033k` | M7 启动与分解（本文件） | integ | 本 `k` + `adr-0023` + `ADR-0004` 修订 + `milestones.md` 裁定落纸 | 无 |
-| `INFRA-058t` | **门控分层（L1/L2/L3）+ `check-spec-refs` 处置收口** | infra | 逐门控计时 → `check` 收缩 L1 + 新增 `check-qemu-smoke`/`check-modules`/`check-full`；每层「能失败 + 结构断言」；触发点写 `AGENTS.md`；`check-spec-refs` 匹配器认 `§编号` + 引用口径 + 是否纳入 `make check`（**M7 第 0 步**；`INTEG-036t §收口核对` 补立） | 无 |
+| `INFRA-058t` | **门控分层（L1/L2/L3）+ `check-spec-refs` 处置收口** | infra | 逐门控计时 → `check` 收缩 L1 + 新增 `check-qemu-smoke`/`check-modules`/`check-full`；每层「能失败 + 结构断言」；触发点写 `AGENTS.md`；`check-spec-refs` 匹配器认 `§编号` + 引用口径 + 是否纳入 `make check`（**M7 第 0 步**；`INTEG-036t §收口核对` 补立）；**追加（用户 2026-10-11「认 + 并入」）**：`.work/log/` 四分类判据落 `AGENTS.md` + 门控 `check-knowledge-refs`（悬空引用即红）+ **被引用材料搬迁升格**（详见该任务书「追加范围」） | 无 |
 | `INFRA-056t` | `clang++` 接入 + 2 个 `.cpp` 需求核实 | infra | cross-toolchain 落点加 `clang++`（随 `INFRA-050t` 构建）+ 实测 picolibc `test/` 中 2 个 `.cpp` 的编译需求（是否需 C++ 头/库）+ 证据 | `INFRA-050t`（已验证） |
 | `INFRA-057t` | picolibc 移植补丁集 + 构建集成 | infra | `components/picolibc/patches/**`（cross file / machine-board dir / syscall stub `_write`/`_exit`/`_sbrk`）+ `Makefile` 编 picolibc 库 + 落安装点；**真移植主任务** | `INFRA-055t`、`QEMU-056t`、`INFRA-056t` |
 | `SPEC-131t` | 过渡 oracle 约定 + semihosting `cfxha` 口径 + 锁同步 | spec | ① 过渡 oracle 约定（宿主参照 + 边界 + 「非判据真源」）正文/合约；② `trap` 的 `cfxha` 口径澄清（`contract-semihosting §1`/`Machine-01 §5.1`）与 `cfx3` vs `cfx_umon`(cfx0) 一致性处置；③ 相关 `sha256` 锁同步 | 无（RAM 相关项随 `QEMU-056t`） |
@@ -131,6 +131,7 @@
 
 - 本 `k` 为**规划/分解**；`/plan` 交叉审查通过后，各 `t`/`m` 任务书落地 `.tao/tasks/<module>/`（`m` 文件**本 `k` 未建**，待 `/plan` 后建）。
 - **M7 不新建 benchmark 套件**（Embench 已在 M6 接入）；picolibc 自带 test 为 M7 test 重心。
+- **`INFRA-058t` 追加**（用户 2026-10-11 裁定「**认 + 并入 `INFRA-058t`**」）：`.work/log/` 四分类判据（`spec/`=规范正文 / `.tao/knowledge/`=结论·设计·口径〔含长文〕/ `.work/log/`=一次性过程〔可删〕/ 被引用材料不得只放 `.work/`）**落 `AGENTS.md`** + 新增门控 **`check-knowledge-refs`**（扫 `.work/**` 引用、悬空即红）+ **被引用材料搬迁升格**，三项详见 `INFRA-058t §追加范围`（`INTEG-037t`）。
 - **ADR**：`adr-0023`（picolibc 上游）已 `Accepted`（用户逐条确认）；`ADR-0004` 经授权就地修订；`trap` `cfxha` 口径**已裁定**（用户 2026-10-11：「**写成任意 cfxha**」；**任意 `cfxha` 等效、与取值无关**，**不改实现**；落盘 `contract-semihosting §1`，`INTEG-034t`）。
 - 参考仓库检索**只读 `.cache/refs/**`、不写回、不复制代码**；引用项均标「**内容溯源，非执行必需**」。
 
@@ -145,3 +146,7 @@
 - 用户指出 M7 立项**漏「门控分层」**（本应进 M7）+ `check-spec-refs` 应**并入该任务**而非单列 ⇒ 补立任务 + 做「规划中/推迟项 → 任务表」**机械收口核对**（见本 `k §收口核对`）。
 - 新增任务 **`INFRA-058t`**（门控分层 + `check-spec-refs`，**Wave 0 最前**）、**`LLVM-082t`**（`ISS-189` + `LLVM-074t` 遗留，归批）；`components/qemu/README.md:10` 旧述**并入 `QEMU-056t`**；`m` 编号随 `t` 顺延（`INFRA-059m`/`LLVM-083m`）。
 - 分解表、Wave、编号说明同步；`lessons §8.54`（收口核对规范）新增；`milestones.md §规划中` 门控分层条目加「已立项 `INFRA-058t`」指针。
+
+#### 第 3 轮 architect 追加（`INTEG-037t`，2026-10-11）
+- 依用户 2026-10-11 裁定「**认 + 并入 `INFRA-058t`**」，在 `INFRA-058t §追加范围` 追加三项（判据落纸 `AGENTS.md` + 门控 `check-knowledge-refs` + 被引用材料搬迁）；本 `k §任务分解` 的 `INFRA-058t` 行 + `§说明` 同步指针。
+- `milestones.md §规划中`「门控分层」条目追加一句；`lessons §8.55` 追加。
