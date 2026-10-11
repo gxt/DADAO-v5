@@ -21,6 +21,7 @@
   3. `tools/testcases/build_test_binary.py`（`BINARY_BASE`/`EXIT_BLOCK`/`DUMP_BASE`）、`tools/qemu/min_rom_probe_*.py`（`SEMI_BLOCK`/栈/数据地址）、`tools/qemu/gen_trampoline.py`（`trampoline.bin`）随地址跟改。
   4. `tools/integ/check_interface_alignment.py`：`RAM_BASE` 断言改为新基址（**从单一真源派生、不写死**）。
   5. `spec/Machine-01-测试机运行环境.md §1`（地址图正文）+ 该册 `sha256` 锁同步。
+  6. **`components/qemu/README.md` 补丁规模刷新**（`INTEG-036t §收口核对` 并入的 M6 遗留）：`README.md:10` 现述「规模（2026-09-23 M1 重整后）：31 份 = 新增 25 + 修改 6」为**旧值**——**现场统计**（脚本从 `components/qemu/patches/` 实数）后刷新为实值，**计数不写死**。
 - **约束**：
   - **`ADR-0004 D5.8` fault 码表冻结不重排**（`0x81`–`0x8D`）；越界分类规则不变（`cfxha==0` 段 ⇒ `CFXMEM 0x81`、其余含 power 段 ⇒ `unmapped 0x87`），但**地址区间随新基址重算**。
   - **不改规范正文以外内容**；`ADR-0004` 正文（决策节点）不改写（`Process-03`）。

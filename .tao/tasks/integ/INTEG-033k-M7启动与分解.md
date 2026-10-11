@@ -66,27 +66,30 @@
 | 编号 | 任务 | 模块 | 范围（草案） | 依赖 |
 |---|---|---|---|---|
 | `INTEG-033k` | M7 启动与分解（本文件） | integ | 本 `k` + `adr-0023` + `ADR-0004` 修订 + `milestones.md` 裁定落纸 | 无 |
+| `INFRA-058t` | **门控分层（L1/L2/L3）+ `check-spec-refs` 处置收口** | infra | 逐门控计时 → `check` 收缩 L1 + 新增 `check-qemu-smoke`/`check-modules`/`check-full`；每层「能失败 + 结构断言」；触发点写 `AGENTS.md`；`check-spec-refs` 匹配器认 `§编号` + 引用口径 + 是否纳入 `make check`（**M7 第 0 步**；`INTEG-036t §收口核对` 补立） | 无 |
 | `INFRA-056t` | `clang++` 接入 + 2 个 `.cpp` 需求核实 | infra | cross-toolchain 落点加 `clang++`（随 `INFRA-050t` 构建）+ 实测 picolibc `test/` 中 2 个 `.cpp` 的编译需求（是否需 C++ 头/库）+ 证据 | `INFRA-050t`（已验证） |
 | `INFRA-057t` | picolibc 移植补丁集 + 构建集成 | infra | `components/picolibc/patches/**`（cross file / machine-board dir / syscall stub `_write`/`_exit`/`_sbrk`）+ `Makefile` 编 picolibc 库 + 落安装点；**真移植主任务** | `INFRA-055t`、`QEMU-056t`、`INFRA-056t` |
 | `SPEC-131t` | 过渡 oracle 约定 + semihosting `cfxha` 口径 + 锁同步 | spec | ① 过渡 oracle 约定（宿主参照 + 边界 + 「非判据真源」）正文/合约；② `trap` 的 `cfxha` 口径澄清（`contract-semihosting §1`/`Machine-01 §5.1`）与 `cfx3` vs `cfx_umon`(cfx0) 一致性处置；③ 相关 `sha256` 锁同步 | 无（RAM 相关项随 `QEMU-056t`） |
 | `LLVM-079t` | P0 后端补齐 | llvm | `f32→f64 anyext` 载入 / FP 比较取值 `setcc` / `f64↔i64 bitcast` / `f64 select_cc` / `i64 cttz`（**优先 ISA 现成指令**如 `ft2fo`）；范围 `components/llvm-project/patches/llvm/lib/Target/DADAO/**` | 无 |
 | `LLVM-080t` | P1 后端补齐 | llvm | `floor/ceil/trunc/round/rint/nearbyint`、`fmin/fmax`、`fabs`/`copysign` 双精度；同范围 | `LLVM-079t` |
 | `LLVM-081t` | ISA↔后端覆盖矩阵（生成式） | llvm | 落 `tools/llvm/**`（入库）；以 `contracts/opcodes.yaml` 全量为真源、**两层分列**（汇编器可受理／ISel 可用）、**禁手工挑拣** | `LLVM-079t`/`080t` |
+| `LLVM-082t` | **M7 后端欠账收口**（`ISS-189` 数据指导符唯一集 + `LLVM-074t` 遗留尾调用 relocation/栈实参） | llvm | `llvm-mc` 按 `Toolchain-01 §7.1` 唯一集收口（拒口径外数据指示符）+ `tailjmp` 纳入 `BranchRelaxation`；`INTEG-036t §收口核对` 补立（归批） | 同模块补丁集 ⇒ 与 `LLVM-079t`/`080t`/`081t` 串行 |
 | `QEMU-056t` | RAM 基址 → `0xFC00_0000_0000` | qemu | QEMU 机器映射 + `tests/scripts/dadao.lds`/`codegen_crt0.s`/异常向量 + harness（`tools/testcases/build_test_binary.py`、`tools/qemu/gen_trampoline.py`）+ `check-interface` 断言 + **`spec/Machine-01` 与锁同步** | 无 |
 | `TESTCASES-042t` | picolibc 自带 test 接入 + 100% 验收 | testcases | 以 picolibc 自带 test 为重心编/链/跑（QEMU semihosting），验收 = **100%**；harness 落 `tools/testcases/**`/`tests/**` | `INFRA-057t`、`QEMU-056t`、`LLVM-079t` |
-| `INFRA-058m` / `SPEC-132m` / `LLVM-082m` / `QEMU-057m` / `TESTCASES-043m` / `INTEG-034m` | 各模块 `m` / M7 里程碑（`INTEG-034m` ↔ 本 `k` 一一对应） | 各模块 | 轻量 `m` 文件；**待 `/plan` 交叉审查通过后建** | 各模块 `t` |
+| `INFRA-059m` / `SPEC-132m` / `LLVM-083m` / `QEMU-057m` / `TESTCASES-043m` / `INTEG-034m` | 各模块 `m` / M7 里程碑（`INTEG-034m` ↔ 本 `k` 一一对应） | 各模块 | 轻量 `m` 文件；**待 `/plan` 交叉审查通过后建** | 各模块 `t` |
 
-> **编号说明**：各模块**实测顺延**（`infra` 现最大 `055` → `056`；`spec` `130` → `131`；`llvm` `078` → `079`；`qemu` `055` → `056`；`testcases` `041` → `042`；`integ` 历史最大 `032` → `033`）。`INFRA-056t`/`QEMU-056t` **跨模块同 `nnn`**——**完整编号含模块前缀、全局唯一**（`INTEG-023k §E-1` 同款说明）。`m` 文件**不写死计数**：各模块任务数**现场统计**。
+> **编号说明**：各模块**实测顺延**（`infra` 现最大 `057` → `058`；`spec` `130` → `131`；`llvm` 现最大 `081` → `082`；`qemu` `055` → `056`；`testcases` `041` → `042`；`integ` 历史最大 `035` → `036`）。`INFRA-056t`/`QEMU-056t` **跨模块同 `nnn`**——**完整编号含模块前缀、全局唯一**（`INTEG-023k §E-1` 同款说明）。`m` 文件**不写死计数**：各模块任务数**现场统计**。
 
 ## Wave / 串行 / 依赖
 
-- **Wave 0（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-056t` → `INFRA-057t`。
-- **Wave 1（spec；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-131t`。
-- **Wave 2（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-079t` → `LLVM-080t` → `LLVM-081t`（`081t` 依赖 `079t`/`080t` 的已构建后端）。
-- **Wave 3（qemu；同改 `components/qemu/patches` + `tests/scripts` ⇒ 串行）**：`QEMU-056t`。
-- **Wave 4（testcases）**：`TESTCASES-042t`（依赖 `INFRA-057t`/`QEMU-056t`/`LLVM-079t`）。
-- **Wave 5（integ）**：`INTEG-034m`。
-- **关键串行**：**RAM 变更（`QEMU-056t`）先于 picolibc 移植（`INFRA-057t`/`TESTCASES-042t`）**；**LLVM 侧任务串行**（同改补丁集）。**ADR 未 `Accepted` 前不进实现**（`Process-03`；`adr-0023` 已 `Accepted`）。
+- **Wave 0（门控口径，M7 第 0 步；先做）**：`INFRA-058t`（门控分层 + `check-spec-refs`）——**产出 L1/L2/L3 门控口径，约束后续所有任务的收尾门控**；同改 `Makefile` ⇒ 与后续 infra 任务串行。
+- **Wave 1（infra；同改 `Makefile`/`manifests` ⇒ 串行）**：`INFRA-056t` → `INFRA-057t`。
+- **Wave 2（spec；同改 `spec/`/锁 ⇒ 串行）**：`SPEC-131t`。
+- **Wave 3（llvm；同改 `components/llvm-project/patches` ⇒ 串行）**：`LLVM-079t` → `LLVM-080t` → `LLVM-081t` → `LLVM-082t`（`081t` 依赖 `079t`/`080t` 的已构建后端；`082t` 同改补丁集 ⇒ 串行）。
+- **Wave 4（qemu；同改 `components/qemu/patches` + `tests/scripts` ⇒ 串行）**：`QEMU-056t`。
+- **Wave 5（testcases）**：`TESTCASES-042t`（依赖 `INFRA-057t`/`QEMU-056t`/`LLVM-079t`）。
+- **Wave 6（integ）**：`INTEG-034m`。
+- **关键串行**：**门控分层（`INFRA-058t`）先于其它 infra**（其产出定后续收尾门控）；**RAM 变更（`QEMU-056t`）先于 picolibc 移植（`INFRA-057t`/`TESTCASES-042t`）**；**LLVM 侧任务串行**（同改补丁集）。**ADR 未 `Accepted` 前不进实现**（`Process-03`；`adr-0023` 已 `Accepted`）。
 - **并行上限**：同 `Makefile`/`spec/`/`components/*/patches` 的任务**一律串行**（`AGENTS.md`）。
 
 ## 避坑（M7 起步清单）
@@ -99,6 +102,30 @@
 - **过渡 oracle 边界**（裁定 #7）：宿主机结果只作参照；**端序**（`ELFDATA2MSB` 大端 vs 宿主小端）、**`long double`**（f64 vs 宿主 80-bit）、**`fenv`**（v5 `machine/fenv.h` 退化为仅 `FE_TONEAREST`）、**UB/实现定义** 均须排除在判据外；登记为**「非判据真源」**。
 - **失败保留现场并继续推进**（`AGENTS.md`「最小安全设计」；用户 2026-10-10 裁定）：依据不足时保留现场、自行处置（查证/绕行/有据重试并记录次数）；**只在需用户语义裁定**（如 cfxha 口径）时留问。
 - **计数不写死**（`INTEG-023k §E-4`）：文档/注释/任务书/验收**不硬编码计数**；由脚本/门控**现场统计**或写「不下降/逐项相等」。
+
+## 收口核对（「规划中/推迟项 → 任务表」，机械核对；`INTEG-036t`，2026-10-11）
+
+> **事由**（用户 2026-10-11）：M7 立项 **漏「门控分层」**（本应进 M7 且被漏）；`check-spec-refs` 应**并入门控分层任务**而非单列。**"小事要归批、但不丢"** ⇒ 对 `milestones.md`「规划中」与「M6 遗留（→M7）」中**所有标 M7 / 推迟 M7 / 跨里程碑**的条目**逐条**对照任务分解表。
+> **术语**：**已覆盖** = 有任务承载；**已处置** = 经用户裁定排除/by-design，无需任务；**保持登记** = 有据推迟或候选（未排期，无遗漏）；**未覆盖→处置** = 需动作（并入 / 补任务）。
+
+| # | 条目（标 M7 / 推迟 M7） | 来源 | 覆盖 | 处置 |
+|---|---|---|---|---|
+| 1 | **门控分层（推迟到 M7）** | `milestones.md §规划中` | **未覆盖** | **补 `INFRA-058t`**（Wave 0 最前） |
+| 2 | `check-spec-refs` 1 违规（`contract-asm.md:206`） | M6 遗留 | **未覆盖** | **并入 `INFRA-058t`**（匹配器 + 引用口径 + 是否纳入 `make check`） |
+| 3 | `ISS-188` FP 完备性缺口 | M6 遗留 | 已覆盖 | `LLVM-079t`（P0）+ `LLVM-080t`（P1） |
+| 4 | `ISS-189` 数据指导符剩余面（唯一集口径收口） | M6 遗留 | **未覆盖** | **补 `LLVM-082t`** |
+| 5 | `LLVM-074t` 遗留（`tailjmp`/`BranchRelaxation`；栈实参尾调用） | M6 遗留 | **未覆盖** | **并入 `LLVM-082t`**（归批：同属 M7 非 FP 后端欠账） |
+| 6 | `components/qemu/README.md:10` 旧述（补丁规模 31→34） | M6 遗留 | **未覆盖** | **并入 `QEMU-056t`**（随补丁规模刷新） |
+| 7 | `ISS-187` 窄位指令利用不足 | M6 遗留 | 未覆盖（有据推迟） | **保持登记**（用户 2026-10-10「先只登记，暂不改」；指向 `LLVM-081t` 候补优化面） |
+| 8 | `ISS-108` 拆分（`DADAOInstrInfo.td`/`AsmParser`） | M6 遗留 | 未覆盖（有据推迟） | **保持登记**（用户 2026-10-09 裁定推迟；**非功能性重构**） |
+| 9 | `ISS-164` / `ISS-074` / `ISS-167` | M6 遗留 | 未覆盖（挂账） | **保持登记**（挂账，待相应实现/授权） |
+| 10 | `GOLDEN-*` 里程碑候选 | `milestones.md §规划中` | 已处置 | `§排除项 #8`（M7 排除 golden；另立 `GOLDEN-*` 里程碑） |
+| 11 | GP（`rbgp`）候选 | `milestones.md §规划中` | 未覆盖（候选） | **保持登记**（未排期；启用须改 `rb2` ABI 语义 = 独立裁定） |
+| 12 | `lessons.md` 瘦身 | `milestones.md §规划中` | 未覆盖（归档时） | **保持登记**（M7 归档时按新口径执行，`Process-04`） |
+| 13 | M7 主题（picolibc 移植 + FP + 覆盖矩阵 + 过渡 oracle） | `milestones.md §规划中` | 已覆盖 | 本 `k §任务分解`（`INFRA-056t`/`057t`/`SPEC-131t`/`LLVM-079t`–`082t`/`QEMU-056t`/`TESTCASES-042t`） |
+| 14 | M7 候选主题（musl / pk / 更完整向量 / benchmark） | `milestones.md §规划中` | 已处置 | `§排除项 #8`（pk/动态链接/linux-user 排除）+ `§说明`（musl 非 M7；**不新建 benchmark 套件**） |
+
+**小结（计数现场统计、不写死）**：**已覆盖 2 条**（#3、#13）+ **已处置 2 条**（#10、#14）+ **保持登记 5 条**（#7、#8、#9、#11、#12）+ **未覆盖 5 条 → 处置**（#1 补 `INFRA-058t`、#2 并入 `INFRA-058t`、#4 补 `LLVM-082t`、#5 并入 `LLVM-082t`、#6 并入 `QEMU-056t`）。**新任务 2 个**（`INFRA-058t`、`LLVM-082t`），**并入 3 处**（`INFRA-058t`、`LLVM-082t`、`QEMU-056t`）；**无遗漏项**。
 
 ## 说明
 
@@ -113,3 +140,8 @@
 - 依用户 2026-10-11 授权落纸 **10 条裁定** + **参考仓库检索**（7 条，标注溯源）+ **任务分解表（8 `t` + 6 `m`）** + **Wave/串行** + **避坑清单**（含 cfxha 不一致实测）。
 - 立 `adr-0023-picolibc-upstream.md`（`Accepted`，逐条引用用户原话）；`ADR-0004` 就地修订（RAM 基址 `0 → 0xFC00_0000_0000`）。
 - **待 `/plan` 交叉审查**。
+
+#### 第 2 轮 architect 收口（`INTEG-036t`，2026-10-11）
+- 用户指出 M7 立项**漏「门控分层」**（本应进 M7）+ `check-spec-refs` 应**并入该任务**而非单列 ⇒ 补立任务 + 做「规划中/推迟项 → 任务表」**机械收口核对**（见本 `k §收口核对`）。
+- 新增任务 **`INFRA-058t`**（门控分层 + `check-spec-refs`，**Wave 0 最前**）、**`LLVM-082t`**（`ISS-189` + `LLVM-074t` 遗留，归批）；`components/qemu/README.md:10` 旧述**并入 `QEMU-056t`**；`m` 编号随 `t` 顺延（`INFRA-059m`/`LLVM-083m`）。
+- 分解表、Wave、编号说明同步；`lessons §8.54`（收口核对规范）新增；`milestones.md §规划中` 门控分层条目加「已立项 `INFRA-058t`」指针。
