@@ -30,7 +30,7 @@
 | INFRA-066t | 已验证 | 2026-10-12 00:49 | 恢复 picolibc `libm`（删整目录过滤；41 条最小集 + `ISS-193`；`libc.a` 1.24→1.69 MB） |
 | LLVM-079t | 已验证 | 2026-10-11 23:07 | P0 后端补齐（f32→f64 载入/setcc/bitcast/select_cc/cttz 五类 ISel；convert_ff 早写约束） |
 | LLVM-080t | 已验证 | 2026-10-12 00:11 | P1 后端补齐（取整六项/fmin-fmax libcall；fabs-copysign 用 ISA `fosgnj`） |
-| LLVM-081t | 待开始 | — | ISA↔后端覆盖矩阵 |
+| LLVM-081t | 已验证 | 2026-10-12 01:12 | ISA↔后端覆盖矩阵（生成式两层分列；227 条，①受理 217/②ISel 86；缺口 141） |
 | LLVM-082t | 待开始 | — | 后端欠账收口 |
 | QEMU-056t | 已验证 | 2026-10-11 19:34 | RAM 基址改 cfx63 段（QEMU/tests/tools/spec 同步） |
 | SPEC-131t | 待开始 | — | 过渡 oracle 与 semihosting 口径 |
@@ -59,6 +59,7 @@
   - **目录三分界与规范版本号（用户 2026-10-11 裁定）**：`docs/` = 工程流程规范（`Process-0x`）+ 索引 + `DDLN/`（**给别人看**）；`.tao/knowledge/` = 结论/设计/口径（**给自己看**）；`.work/log/` **非默认落点**；`Process-0x` **迁入 `docs/`**、`Process` **不设版本号**；`Toolchain-01`/`Machine-01` **设 `0.x.y` 版本号**（`x=0`；大改 `y+1`、小改 `z+1`）+ 文末 changelog（不用表格、不写“依据”）；`docs/` 6 个过期文件**可删**。**草案任务书**：`.tao/tasks/infra/INFRA-060t-目录三分界与规范版本号落地.md`（**待用户逐条裁定**后方写 B 段版本号）。
   - **M7 主题（`INTEG-033k` 裁定，2026-10-11）**：M6 已交付「整数完整调用约定 + 欠账收口 + ELF 直载 + clang target + Embench」；M7 主题 = **picolibc 移植（自带 test 100%）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle**（见下「M7 裁定」；`Process-04 §1`，INTEG 开闭）。
   - **`ISS-193`(a) 类：无序谓词 `SETO`/`SETUO`/`SETUNO`（30/41 过滤条目）**——单独立 LLVM 任务可一次删 30 条过滤；**待用户裁定是否于 M7 内做**（`INFRA-066t` 收尾登记候选）。
+  - **`LLVM-081t` 矩阵 `--check` 纳入门控**（生成投影漂移防护，`lessons §5.1`）——`--check` 现已可对「矩阵与真源不一致」报 FAIL，但未进门控；**待排期**。
 
 - **M7 候选主题（用户 2026-10-11）**：`musl` + **`pk`(proxy kernel)** + **更完整测试向量** + **benchmark**；**须分层、不混**：
   - **运行环境层**：`pk`（加载 ELF + trap/异常/syscall 转发）；**linux-user（qemu-user）列候选/后置**；
