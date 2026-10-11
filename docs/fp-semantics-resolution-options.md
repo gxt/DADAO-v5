@@ -14,11 +14,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **依据**：SimRISC-07 的 NaN payload 传播要求；IEEE 754 的 signaling NaN invalid/quiet NaN 处理。
 **后续影响**：contract、独立 oracle、LLVM、QEMU 和 NaN 转换向量必须采用该映射；ft 结果的 RF 高 32 位仍依赖 FP-001。
 
-## FP-003
-**候选 A**：按操作数顺序选第一 NaN，quiet sNaN，保留 sign/payload，并为 sNaN 置 NV；优点是可追踪，代价是每个二元算术操作需统一双源逻辑。
-**候选 B**：sNaN 优先，结果 canonical qNaN，NV 只由 sNaN 触发；优点是异常规则醒目，代价是丢失 payload，contract/oracle/组件需同步。
-**候选 C**：单源操作保留 NaN 信息，双源操作 canonical 化；优点是实现分层，代价是规则不对称、向量数量增加。
-**后续影响**：contract/oracle 要按单源和双源分支；LLVM/QEMU 需一致实现，vectors 覆盖源交换与 sNaN/qNaN 混合。
+## FP-003（已裁定：原候选 A）
+**采用规则**：S2D1 按 `rfHC→rfHD` 取第一 NaN，保持 sign/payload，所选 sNaN quiet 化；任一源为 sNaN 均置 NV，即使结果来自更早 qNaN。rootn 保持 qNaN 的 sign/payload，或 quiet 化 sNaN 并置 NV。NaN 路径不额外置 DZ/OF/UF/NX。
+**依据**：SimRISC-07 的 NaN payload 传播要求；IEEE 754 对 signaling NaN 的 invalid/quiet NaN 处理。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖源交换、qNaN+sNaN、sNaN+qNaN、双 sNaN 与 rootn sNaN；`rootn(-0,2)` 仍属 FP-010。
 
 ## FP-004（已裁定：原候选 A）
 **采用规则**：一次操作先依据其各自语义计算完整结果与本次 IEEE exception flags 集合，再将该集合与旧 `rf0[4:0]` 按位 OR，并与结果原子提交；同次多个异常位均保留，无优先级覆盖。

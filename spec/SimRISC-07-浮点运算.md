@@ -143,6 +143,8 @@ fosclb  rfHB, rfHC, rfHD
 
 其中，rfHB为目的操作数，rfHC和rfHD分别为第一个源操作数和第二个源操作数。硬件先读全部源操作数再写结果，源寄存器被目的覆盖前其值已捕获，行为确定。
 
+当任一源操作数为 NaN 时，按源操作数顺序 `rfHC`、`rfHD` 选择第一个 NaN 作为结果来源，保持该 NaN 的符号位和 payload；若所选 NaN 为 sNaN，结果的 quiet 位设为 1。只要任一源为 sNaN，本次操作即设置 NV，即使结果来源为更早的 qNaN。该 NaN 路径不额外设置 DZ、OF、UF 或 NX；NV 与其他异常状态按浮点状态寄存器的累计规则写入。
+
 `ftrem`/`forem` 为 IEEE 754 remainder 操作（`rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数）。除数为零、Inf 或 NaN 行为遵循 IEEE 754。
 
 `ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfHC × 2^rfHD`（rfHD 取整数值），舍入模式由 rf0 控制。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
@@ -162,6 +164,8 @@ ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 
 > 注意：`ftroot/foroot` 的运算基本等同于 `ftsqrt/fosqrt`，但是在 IEEE754-2019 中特意指出，`rootn(-0, 2)` 不等于 `squareRoot(-0)`，因此，对于 `rootn(-0, 2)` 的运算结果不做具体要求。
 
 S1D1 指令硬件先读源操作数再写结果，源被覆盖前其值已捕获，行为确定。
+
+若源操作数为 qNaN，rootn 保持其符号位和 payload 并返回该 qNaN；若源为 sNaN，保持其符号位和 payload、将 quiet 位设为 1 并设置 NV。该 NaN 路径不额外设置 DZ、OF、UF 或 NX；NV 与其他异常状态按浮点状态寄存器的累计规则写入。`rootn(-0, 2)` 的规则不受本段影响。
 
 ## 浮点符号位操作指令
 

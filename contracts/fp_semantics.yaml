@@ -452,6 +452,10 @@ review_projection:
     decision: nan_conversion_preserve_sign_low_payload_quiet_snan
     rationale: low payload placement preserves qNaN f32-to-f64-to-f32 round trips
     spec_reference: SimRISC-07 §格式转换指令
+  - id: FP-003
+    status: RESOLVED
+    decision: first_nan_by_source_order_quiet_snan_any_snan_nv
+    spec_reference: SimRISC-07 §S2D1 / §S1D1
   entries:
   - id: ft2fo_orri_rf
     family: convert_ff
@@ -606,7 +610,6 @@ review_projection:
     basis: SimRISC-07 §S2D1；该条指令属于该族并具有对应可观察维度
     issue_ids: &id004
     - FP-001
-    - FP-003
     - FP-005
     - FP-008
     - FP-009
@@ -696,7 +699,6 @@ review_projection:
     basis: SimRISC-07 §S1D1；该条指令属于该族并具有对应可观察维度
     issue_ids: &id005
     - FP-001
-    - FP-003
     - FP-010
     - FP-017
   - id: foroot_orri_rf

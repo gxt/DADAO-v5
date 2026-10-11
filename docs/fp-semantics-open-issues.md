@@ -17,13 +17,10 @@
 **规范落点**：`SimRISC-07 §格式转换指令` 已补入该规则；裁定遵守该节的 payload 传播要求与 IEEE 754 对 signaling NaN 的 invalid/quiet NaN 处理。
 **保留边界**：ft 结果写入 RF 的高 32 位仍由 FP-001 裁定；算术/root 的 sNaN、多源 NaN 选择仍由 FP-003 裁定。
 
-## FP-003
-**现象**：sNaN 进入转换、算术或 root 时，quiet 处理和 NV 置位可能不同。
-**受影响指令集合**：`add/sub/mul/div/rem/scalb` 与 `rootn`。
-**spec 已规定什么**：`SimRISC-07 §S2D1`、`§S1D1`规定这些操作族和源目的关系；格式转换的 sNaN 规则已由 FP-002 裁定。
-**spec 未规定什么**：多个源中 sNaN 与 qNaN 的选择优先级、quiet 后 payload/sign 的来源，以及 NV 与结果写入的关系。
-**一个具体可观察例子**：算术左源为 qNaN、右源为 sNaN；交换两个源后，选择左源与选择 sNaN 优先会产生不同 payload 和 NV。
-**待裁决问题**：算术/root 的 sNaN quiet、源选择、payload/sign 传播和 NV 规则按哪一套唯一规则执行？
+## FP-003（已裁定）
+**裁定**：S2D1 指令按 `rfHC→rfHD` 选择第一个 NaN，保持其 sign/payload；所选 sNaN quiet 化。任一源为 sNaN 均置 NV，即使结果来自更早的 qNaN；该 NaN 路径不额外置 DZ/OF/UF/NX。rootn 对 qNaN 保持 sign/payload，对 sNaN quiet 化并置 NV。
+**规范落点**：`SimRISC-07 §S2D1`、`§S1D1` 已补入该规则；裁定遵守 SimRISC 的 NaN payload 传播要求及 IEEE 754 对 signaling NaN 的 invalid/quiet NaN 处理。
+**保留边界**：`rootn(-0,2)` 仍由 FP-010 裁定；f32 RF 高 32 位仍由 FP-001 裁定。
 
 ## FP-004（已裁定）
 **裁定**：采用 IEEE 754 的 exception flags / accrued status flags 模型。对产生 IEEE 异常的操作，本次异常位集合与指令开始时的 `rf0[4:0]` 按位 OR；同次多个异常均保留、无优先级覆盖；结果与 flags 原子提交。DADAO 无浮点 trap，flags 仅作累积状态记录；显式写 `rf0` 仍按写掩码覆盖相应位。
