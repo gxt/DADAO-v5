@@ -34,6 +34,7 @@ _start:
 
 	; pass: SYS_EXIT(0x50)
 	set.zw	rb16, wp0, 0x2000
+	or.w	rb16, wp2, 0xfc00
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
@@ -46,6 +47,7 @@ _start:
 fail:
 	; wrong cause -> SYS_EXIT(0xE1)
 	set.zw	rb16, wp0, 0x2000
+	or.w	rb16, wp2, 0xfc00
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

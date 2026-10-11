@@ -66,7 +66,7 @@ WORKDIR = "/tmp/opencode/QEMU-046t"
 TIMEOUT = 10
 
 ROM_BASE = 0xFFFF_FFFF_0000
-RAM_BASE = 0x0000_0000_0000
+RAM_BASE = 0xFC00_0000_0000
 H = ROM_BASE + 0x100            # vector handler slot in ROM
 TAG = 0x30000                  # immu18 with immu18[17:16] == 2'b11
 
@@ -153,7 +153,7 @@ def exit_seq(code):
     epilogue -- the same role the MMIO halt-device store used to play.
     """
     return ([jump_iiii(1)]
-            + [set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+            + [set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, 0xFC00)]
             + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
             + load_rd(9, code) + [st_o(9, 16, 8)]
             + load_rd(16, 0x18) + [trap(0, TAG)])
@@ -624,10 +624,12 @@ def _svc_get_cmdline():
       services=[0x16])
 def _svc_heapinfo():
     prog = set_addr(1, RAM_BASE)
-    prog += sh_call(0x16, RAM_BASE + K_SVC)    # {heap_base,..,stack_limit}
+    # HEAPINFO's single parameter (at args[0]) is the output block pointer
+    # (Arm Semihosting SYS_HEAPINFO); point it at a 4x u64 buffer in RAM.
+    prog += sh_call(0x16, RAM_BASE + K_SVC)    # args[0] = output pointer
     prog += [ld_o(50, 1, K_SVC + 0)]
     prog += exit_seq(0x73)
-    kern = build_kernel({K_SVC: blk(0, 0, 0, 0)})
+    kern = build_kernel({K_SVC: blk(RAM_BASE + K_BUF), K_BUF: blk(0, 0, 0, 0)})
     exp = {"exit": 0x73, "rd8": 0, "rd50": PRESENT}
     return _std_rom(prog), kern, b"", exp
 

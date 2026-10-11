@@ -29,7 +29,7 @@
 | LLVM-080t | 待开始 | 2026-10-11 | P1 后端补齐 |
 | LLVM-081t | 待开始 | 2026-10-11 | ISA↔后端覆盖矩阵 |
 | LLVM-082t | 待开始 | 2026-10-11 | 后端欠账收口 |
-| QEMU-056t | 待开始 | 2026-10-11 | RAM 基址改 cfx63 段 |
+| QEMU-056t | 已验证 | 2026-10-11 | RAM 基址改 cfx63 段（QEMU/tests/tools/spec 同步） |
 | SPEC-131t | 待开始 | 2026-10-11 | 过渡 oracle 与 semihosting 口径 |
 | TESTCASES-042t | 待开始 | 2026-10-11 | picolibc 自带 test 接入 |
 

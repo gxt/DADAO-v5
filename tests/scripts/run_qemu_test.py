@@ -10,7 +10,7 @@ Usage:
 Exit code protocol (ADR-0004 D5; SYS_EXIT per ADR-0020 D8):
   0x00       = PASS
   0x01-0x7F  = FAIL (test-defined, reported via semihosting SYS_EXIT)
-  0x80-0xFF  = Machine fault (0x87=unmapped, 0x88=ILLI, 0x89=UNDI, etc.)
+  0x80-0xFF  = Machine fault (0x81=CFXMEM, 0x87=unmapped, 0x88=ILLI, 0x89=UNDI, etc.)
 """
 
 import argparse
@@ -50,6 +50,7 @@ EXIT_FAULT_MAX = 0xFF
 
 # Fault code names (ADR-0004 D5.8)
 FAULT_NAMES = {
+    0x81: "CFXMEM",
     0x87: "UNMAPPED",
     0x88: "ILLI",
     0x89: "UNDI",

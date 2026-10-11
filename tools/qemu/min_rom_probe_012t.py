@@ -156,7 +156,7 @@ def trap_sys_exit():
 # rd16 = 0x18 (SYS_EXIT).  Each terminal store writes the exit code into
 # block[1] (offset 8) and traps; SYS_EXIT never returns.
 
-SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
@@ -174,20 +174,22 @@ UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
 
-    Trampoline sets rb1=SP, rb2=rb17=RAM@0 base, and primes the semihosting
+    Trampoline sets rb1=SP, rb2=rb17=RAM base, and primes the semihosting
     SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
         encode_rwii(0x4E, 1, 0, 0x0000),   # set.zw rb1, wp0, 0x0000 -> rb1 = 0
-        encode_rwii(0x4A, 1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0x00FF0000 (SP)
-        encode_rwii(0x4E, 2, 0, 0x0000),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
+        encode_rwii(0x4A, 1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0xFC00_00FF_0000 (SP)
+        encode_rwii(0x4A, 1, 2, 0xFC00),
+        encode_rwii(0x4E, 2, 2, 0xFC00),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
         encode_rwii(0x4E, 16, 0, 0x0000),  # set.zw rb16, wp0, 0x0000 -> rb16 = 0
         encode_rwii(0x4A, 16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF -> rb16 = 0x00FF0000
-        encode_rwii(0x4A, 16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0x00FFF000 (block)
+        encode_rwii(0x4A, 16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0xFC00_00FF_F000 (block)
+        encode_rwii(0x4A, 16, 2, 0xFC00),
         encode_rwii(0x4C, 8, 0, 0x0026),   # set.zw rd8, wp0, 0x0026
         encode_rwii(0x48, 8, 1, 0x0002),   # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
         st_o_rd(8, 16, 0),                 # block[0] = 0x20026 (ADP_Stopped_ApplicationExit)
         encode_rwii(0x4C, 16, 0, 0x0018),  # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
-        encode_rwii(0x4E, 17, 0, 0x0000),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
+        encode_rwii(0x4E, 17, 2, 0xFC00),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
     ]
     rom = b''
     for insn in trampoline:
@@ -227,7 +229,7 @@ RASOF_EXIT = 138   # 0x8A
 RASUF_EXIT = 139   # 0x8B
 
 # ── Test cases ────────────────────────────────────────────────────────
-# After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM@0 base
+# After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM base
 
 TESTS = [
     # ── Branch taken/not-taken tests ──────────────────────────────────

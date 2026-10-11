@@ -27,7 +27,7 @@
 |------|------|------|------|
 | `expected_state` | object 或 null | active `semantic`/`boundary`/`overlap` 必填；`encoding`/`legality` 及 deferred 必须为 `null` | 执行后的寄存器/内存状态 |
 | `expected_pc` | string 或 null | 可选（本任务中）；`legality`/`encoding` 不得为非 null | 执行后 PC（`rb0`）的期望值，48-bit 有效地址 hex |
-| `expected_fault` | string 或 null | 可选 | `null` / `ILLI` / `UNDI` / `MALIGN` / `IALIGN` / `RASOF` / `RASUF` / `UNMAPPED` |
+| `expected_fault` | string 或 null | 可选 | `null` / `ILLI` / `UNDI` / `MALIGN` / `IALIGN` / `RASOF` / `RASUF` / `UNMAPPED` / `CFXMEM` |
 | `status` | string | 可选，默认 `active` | `active` / `deferred` |
 | `deferred_reason` | string | `status=deferred` 时必填（非空） | 暂缓原因（如 `"C-27"`） |
 | `notes` | string | 可选 | 人类可读备注（如 `shamt = rd<k>`、PC 地址来源） |
@@ -130,11 +130,11 @@
   notes: ""
 ```
 
-### 内存地址范围（ADR-0004 R3 / ADR-0020 D15，C1 step2）
+### 内存地址范围（ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15）
 
-- RAM 窗口（RAM@0，唯一 RAM 段）：`[0x0000_0000_0000, 0x0000_00ff_ffff]`（16 MiB）。
+- RAM 窗口（唯一 RAM 段，cfxha 63）：`[0xFC00_0000_0000, 0xFC00_00ff_ffff]`（16 MiB）。
 - `semantic` 类的 `memory` 地址**必须**落在 RAM 窗口内（validator 阻断校验）。
-- `legality` 类可表达 unmapped（`expected_fault: UNMAPPED`）等越界地址，不受此限。
+- `legality` 类可表达越界地址（`expected_fault: CFXMEM` = umon 段 cfxha 0 越界，或 `UNMAPPED` = 其余段越界），不受此限。
 - 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`）须显式引用 ADR-0004 章节。
   （旧 exit-port MMIO 停机端口已随 C1 step2 删除；停机协议为 semihosting `SYS_EXIT`。）
 

@@ -11,7 +11,7 @@ dump plus the process exit code, that:
     exception vectors, switch_run_mode=user, global cfx mask cleared);
   * the bootrom handed off hypv -> user at the application entry;
   * supv is never entered this version;
-  * the bootrom supplies the application stack in RAM@0;
+  * the bootrom supplies the application stack in RAM;
   * the application reaches the configured user exception vector (handler);
   * the application exits with code 0.
 
@@ -53,9 +53,9 @@ TIMEOUT = 10
 
 # Memory map / handoff constants (from the firmware sources + ADRs above).
 ROM_BASE = 0xFFFF_FFFF_0000            # boot ROM base, reset PC (ADR-0004 D1/D2.1)
-APP_ENTRY = 0x0000_0000_0000           # legacy RAM base = path-B entry (ADR-0004 D2.2)
+APP_ENTRY = 0xFC00_0000_0000           # RAM base = path-B entry (ADR-0004 D2.2, rev. 2026-10-11)
 HANDLER = 0xFFFF_FFFF_0200             # bootrom user exception handler (ROM + 0x200)
-RAM0_STACK = 0x0000_0000_00F0_0000     # bootrom SP in RAM@0 (RAM@0 + 15 MiB)
+RAM0_STACK = 0xFC00_0000_00F0_0000     # bootrom SP in RAM (RAM + 15 MiB)
 EXIT_PASS = 0x00
 
 QEMU = DEFAULT_QEMU
@@ -231,7 +231,7 @@ def _no_supv(blocks, rc):
     return (not bad), ("no MODE=2 block" if not bad else "MODE=2 at %s" % [hex(x) for x in bad[:3]])
 
 
-@case("stack_in_ram0", "app entry SP (rb1) points into RAM@0")
+@case("stack_in_ram0", "app entry SP (rb1) points into RAM")
 def _stack_in_ram0(blocks, rc):
     b = _first(blocks, lambda b: b["pc"] == APP_ENTRY)
     if b is None:

@@ -12,7 +12,7 @@
 #   * every vector is a hand-written `*.s` assembled by the *own* toolchain
 #     (`llvm-mc --triple=dadao-unknown-elf -filetype=obj` then
 #     `llvm-objcopy -O binary --only-section=.text`) to a flat bin;
-#   * the bin is loaded at the RAM@0 base 0x0000_0000_0000 by `-kernel`
+#   * the bin is loaded at the RAM base 0xFC00_0000_0000 by `-kernel`
 #     (ADR-0004 D2.3 path B) and entered in *user* mode by the SEE bootrom
 #     (`-bios .dadao/tests/bootrom/bootrom.bin`, QEMU-047t / Machine-01 §2);
 #   * the reset PC is 0xffff_ffff_0000 (cfx_power_hypv_excp_vector), so the
@@ -32,7 +32,7 @@
 schema: m5-vectors-v1
 
 conventions:
-  load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at 0x0000_0000_0000"
+  load: "flat bin via llvm-mc -> llvm-objcopy -O binary; -kernel at 0xFC00_0000_0000"
   entry: "SEE bootrom (-bios) sets cfx vectors/masks then hands off to the app in user mode (Machine-01 §2)"
   reset_pc: "0xffff_ffff_0000 (cfx_power_hypv_excp_vector; DADAO-12 §2.1)"
   semihosting: "trap cfx_umon, 0x30000 (immu18[17:16]==2'b11); rd16=service, rb16=argument block, rd8=return (contract-semihosting.md §1/§2)"
@@ -49,7 +49,7 @@ programs:
     coverage: [semihosting.console, semihosting.writec, adr0020.d1, adr0020.d3]
     derivation: >-
       SYS_WRITEC (0x03) writes the single byte at rb16 (contract-semihosting.md
-      §3).  The vector stores 0x41 at RAM@0+0x1000, so the console output is
+      §3).  The vector stores 0x41 at RAM+0x1000, so the console output is
       exactly "A".  The pass token (SYS_EXIT subcode) is 0x40.
 
   - name: m5_semi_write0
@@ -60,7 +60,7 @@ programs:
     coverage: [semihosting.console, semihosting.write0, adr0020.d3]
     derivation: >-
       SYS_WRITE0 (0x04) writes the NUL-terminated string at rb16.  The vector
-      stores 4f 4b 0a 00 ("OK\n" + NUL) at RAM@0+0x1000, so the console output is
+      stores 4f 4b 0a 00 ("OK\n" + NUL) at RAM+0x1000, so the console output is
       the three bytes 4f 4b 0a.  Pass token 0x41.
 
   - name: m5_semi_write

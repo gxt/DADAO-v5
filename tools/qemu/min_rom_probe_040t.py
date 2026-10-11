@@ -105,7 +105,7 @@ def st_o_rd(rdha, rbhb, imms12):
 
 # ── Semihosting SYS_EXIT (ADR-0020 D8: replaces the legacy MMIO halt device) ──
 
-SEMI_BLOCK = 0x0000_00FF_F000       # argument block {reason, code}, in RAM
+SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
@@ -113,7 +113,9 @@ ADP_STOPPED_APPLICATION_EXIT = 0x20026
 def semi_exit(code_rd):
     """rb16 = SEMI_BLOCK; block = {0x20026, code_rd}; rd16 = 0x18; trap."""
     return ([encode_rwii(0x4E, 16, 0, 0x0000), encode_rwii(0x4A, 16, 1, 0x00FF),
-             encode_rwii(0x4A, 16, 0, 0xF000)]
+             encode_rwii(0x4A, 16, 0, 0xF000),
+             encode_rwii(0x4A, 16, 2, 0xFC00),
+             encode_rwii(0x4A, 16, 2, 0xFC00)]
             + [encode_rwii(0x4C, 8, 0, 0x0026), encode_rwii(0x48, 8, 1, 0x0002)]
             + [st_o_rd(8, 16, 0)]
             + [st_o_rd(code_rd, 16, 8)]
@@ -170,12 +172,13 @@ UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
 def build_rom(test_insns):
     trampoline = [
-        encode_rwii(0x4E, 1, 0, 0x0000),   # rb1 = 0x00000000FF0000 (stack)
-        encode_rwii(0x4A, 1, 1, 0x00FF),
-        encode_rwii(0x4E, 2, 0, 0x0000),   # rb2 = 0x000000000000 (RAM)
-        encode_rwii(0x4E, 16, 0, 0x0000),  # rb16 = 0x000000000000
-        encode_rwii(0x4A, 16, 1, 0x00FF),  # rb16 = 0xFFFF80000000 (dead; semi_exit rebuilds it)
-        encode_rwii(0x4E, 17, 0, 0x0000),  # rb17 = 0x000000000000
+        encode_rwii(0x4E, 1, 2, 0xFC00),   # rb1 = 0xFC0000000000 (stack)
+        encode_rwii(0x4A, 1, 1, 0x00FF),   # rb1 = 0xFC0000FF0000
+        encode_rwii(0x4A, 1, 2, 0xFC00),
+        encode_rwii(0x4E, 2, 2, 0xFC00),   # rb2 = 0xFC0000000000 (RAM)
+        encode_rwii(0x4E, 16, 2, 0xFC00),  # rb16 = 0xFC0000000000
+        encode_rwii(0x4A, 16, 1, 0x00FF),  # rb16 = 0xFC0000FF0000 (dead; semi_exit rebuilds it)
+        encode_rwii(0x4E, 17, 2, 0xFC00),  # rb17 = 0xFC0000000000
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:

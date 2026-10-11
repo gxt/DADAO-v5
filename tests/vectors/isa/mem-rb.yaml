@@ -11,7 +11,7 @@
     word: '0x22043000'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0xFC0000000000'
   expected_state: null
   expected_pc: null
   expected_fault: null
@@ -32,7 +32,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: rb0 as dest → ILLI (dst_rb0)
+  notes: rb0 as dest/src → ILLI (dst_rb0 / rb_base_rb0_store)
 - mnemonic: ld.o
   id: ld.o_rrii_rb
   format: rrii
@@ -41,14 +41,14 @@
     word: '0x22043007'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
   expected_state: null
   expected_pc: null
   expected_fault: MALIGN
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'legality MALIGN: EA=0x0000000000000007 (imms12=7), align=8B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=0x0000FC0000000007 (imms12=7), align=8B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ld.o
   id: ld.o_rrii_rb
@@ -61,11 +61,12 @@
       rb3: '0x0000000000000000'
   expected_state: null
   expected_pc: null
-  expected_fault: UNMAPPED
+  expected_fault: CFXMEM
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
+  notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
+    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
 - mnemonic: ld.o
   id: ld.o_rrii_rb
   format: rrii
@@ -74,10 +75,10 @@
     word: '0x22043100'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
       rb1: '0x0000000000000000'
     memory:
-    - address: '0x0000000000000100'
+    - address: '0x0000FC0000000100'
       value: '0x0000000000000042'
   expected_state:
     rd: {}
@@ -90,7 +91,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'ld.o: rb1 <- mem[0x0000000000000100] = 0x0000000000000042, result=0x0000000000000042,
+  notes: 'ld.o: rb1 <- mem[0x0000FC0000000100] = 0x0000000000000042, result=0x0000000000000042,
     imms12=0x100'
 - mnemonic: ld.o
   id: ld.o_rrii_rb
@@ -100,10 +101,10 @@
     word: '0x22043000'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
       rb1: '0x0000000000000000'
     memory:
-    - address: '0x0000000000000000'
+    - address: '0x0000FC0000000000'
       value: '0x00000000DEADBEEF'
   expected_state:
     rd: {}
@@ -116,7 +117,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'boundary: rb1 <- mem[0x0000000000000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
+  notes: 'boundary: rb1 <- mem[0x0000FC0000000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
     imms12=0x0'
 - mnemonic: st.o
   id: st.o_rrii_rb
@@ -126,7 +127,7 @@
     word: '0x23043000'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0xFC0000000000'
   expected_state: null
   expected_pc: null
   expected_fault: null
@@ -139,17 +140,31 @@
   format: rrii
   class: legality
   encoding:
+    word: '0x23003000'
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: ILLI
+  status: active
+  deferred_reason: null
+  spec_cite: SimRISC-01 §存取RB寄存器
+  notes: rb0 as dest/src → ILLI (dst_rb0 / rb_base_rb0_store)
+- mnemonic: st.o
+  id: st.o_rrii_rb
+  format: rrii
+  class: legality
+  encoding:
     word: '0x23043007'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
   expected_state: null
   expected_pc: null
   expected_fault: MALIGN
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'legality MALIGN: EA=0x0000000000000007 (imms12=7), align=8B → MALIGN (0x8C),
+  notes: 'legality MALIGN: EA=0x0000FC0000000007 (imms12=7), align=8B → MALIGN (0x8C),
     contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: st.o
   id: st.o_rrii_rb
@@ -162,11 +177,12 @@
       rb3: '0x0000000000000000'
   expected_state: null
   expected_pc: null
-  expected_fault: UNMAPPED
+  expected_fault: CFXMEM
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
+  notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
+    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
 - mnemonic: st.o
   id: st.o_rrii_rb
   format: rrii
@@ -175,7 +191,7 @@
     word: '0x23043100'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
       rb1: '0x0000000000000042'
     memory: []
   expected_state:
@@ -183,14 +199,14 @@
     rb: {}
     ra: {}
     memory:
-    - address: '0x0000000000000100'
+    - address: '0x0000FC0000000100'
       value: '0x0000000000000042'
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'st.o: mem[0x0000000000000100] <- rb1=0x0000000000000042, stored=0x0000000000000042,
+  notes: 'st.o: mem[0x0000FC0000000100] <- rb1=0x0000000000000042, stored=0x0000000000000042,
     imms12=0x100'
 - mnemonic: st.o
   id: st.o_rrii_rb
@@ -200,7 +216,7 @@
     word: '0x23043000'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
       rb1: '0x00000000DEADBEEF'
     memory: []
   expected_state:
@@ -208,32 +224,15 @@
     rb: {}
     ra: {}
     memory:
-    - address: '0x0000000000000000'
+    - address: '0x0000FC0000000000'
       value: '0x00000000DEADBEEF'
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'boundary: mem[0x0000000000000000] <- rb1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
+  notes: 'boundary: mem[0x0000FC0000000000] <- rb1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
     imms12=0x0'
-- mnemonic: st.o
-  id: st.o_rrii_rb
-  format: rrii
-  class: encoding
-  encoding:
-    word: '0x23003100'
-  input_state:
-    rb:
-      rb3: '0x0000000000000000'
-  expected_state: null
-  expected_pc: null
-  expected_fault: null
-  status: active
-  deferred_reason: null
-  spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'encoding: st.o rb0(source), [rb3(base), 0x100] — rbha=0 is source (LEGAL
-    per ADR-0015 D3), rbhb=3 is base; mask/value encoding check only'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
   format: rrri
@@ -242,7 +241,7 @@
     word: '0x3A043081'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0xFC0000000000'
   expected_state: null
   expected_pc: null
   expected_fault: null
@@ -263,7 +262,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: rb0 as dest → ILLI (dst_rb0)
+  notes: rb0 as dest/src → ILLI (dst_rb0)
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
   format: rrri
@@ -272,7 +271,7 @@
     word: '0x3A043081'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
     rd:
       rd2: '0x0000000000000007'
   expected_state: null
@@ -281,7 +280,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'legality MALIGN: EA=0x0000000000000007 (rd2 offset=7), align=8B → MALIGN
+  notes: 'legality MALIGN: EA=0x0000FC0000000007 (rd2 offset=7), align=8B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
@@ -294,11 +293,12 @@
       rb3: '0x0000000000000000'
   expected_state: null
   expected_pc: null
-  expected_fault: UNMAPPED
+  expected_fault: CFXMEM
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
+  notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
+    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
   format: rrri
@@ -309,10 +309,10 @@
     rd:
       rd2: '0x0000000000000100'
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
       rb1: '0x0000000000000000'
     memory:
-    - address: '0x0000000000000100'
+    - address: '0x0000FC0000000100'
       value: '0x0000000000000042'
   expected_state:
     rd: {}
@@ -325,7 +325,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'ldm.o: rb1 <- mem[0x0000000000000100] = 0x0000000000000042, result=0x0000000000000042,
+  notes: 'ldm.o: rb1 <- mem[0x0000FC0000000100] = 0x0000000000000042, result=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: ldm.o
   id: ldm.o_rrri_rb
@@ -337,10 +337,10 @@
     rd:
       rd2: '0x0000000000000000'
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
       rb1: '0x0000000000000000'
     memory:
-    - address: '0x0000000000000000'
+    - address: '0x0000FC0000000000'
       value: '0x00000000DEADBEEF'
   expected_state:
     rd: {}
@@ -353,7 +353,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'boundary: rb1 <- mem[0x0000000000000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
+  notes: 'boundary: rb1 <- mem[0x0000FC0000000000] = 0x00000000DEADBEEF, result=0x00000000DEADBEEF,
     zero offset, immu6=1'
 - mnemonic: stm.o
   id: stm.o_rrri_rb
@@ -363,7 +363,7 @@
     word: '0x3B043081'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0xFC0000000000'
   expected_state: null
   expected_pc: null
   expected_fault: null
@@ -376,10 +376,24 @@
   format: rrri
   class: legality
   encoding:
+    word: '0x3B003081'
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: ILLI
+  status: active
+  deferred_reason: null
+  spec_cite: SimRISC-01 §存取RB寄存器
+  notes: rb0 as dest/src → ILLI (dst_rb0)
+- mnemonic: stm.o
+  id: stm.o_rrri_rb
+  format: rrri
+  class: legality
+  encoding:
     word: '0x3B043081'
   input_state:
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
     rd:
       rd2: '0x0000000000000007'
   expected_state: null
@@ -388,7 +402,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'legality MALIGN: EA=0x0000000000000007 (rd2 offset=7), align=8B → MALIGN
+  notes: 'legality MALIGN: EA=0x0000FC0000000007 (rd2 offset=7), align=8B → MALIGN
     (0x8C), contract-isa §4.1.1, legality_rules excp_malign'
 - mnemonic: stm.o
   id: stm.o_rrri_rb
@@ -401,11 +415,12 @@
       rb3: '0x0000000000000000'
   expected_state: null
   expected_pc: null
-  expected_fault: UNMAPPED
+  expected_fault: CFXMEM
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), ADR-0004 D5.6'
+  notes: 'legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) no RAM → CFXMEM
+    (0x81), ADR-0020 D15 / ADR-0004 D5.8'
 - mnemonic: stm.o
   id: stm.o_rrri_rb
   format: rrri
@@ -416,24 +431,24 @@
     rd:
       rd2: '0x0000000000000100'
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
       rb1: '0x0000000000000042'
     memory:
-    - address: '0x0000000000000100'
+    - address: '0x0000FC0000000100'
       value: '0x0000000000000042'
   expected_state:
     rd: {}
     rb: {}
     ra: {}
     memory:
-    - address: '0x0000000000000100'
+    - address: '0x0000FC0000000100'
       value: '0x0000000000000042'
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'stm.o: mem[0x0000000000000100] <- rb1=0x0000000000000042, stored=0x0000000000000042,
+  notes: 'stm.o: mem[0x0000FC0000000100] <- rb1=0x0000000000000042, stored=0x0000000000000042,
     rd2(offset)=0x0000000000000100, immu6=1'
 - mnemonic: stm.o
   id: stm.o_rrri_rb
@@ -445,22 +460,22 @@
     rd:
       rd2: '0x0000000000000000'
     rb:
-      rb3: '0x0000000000000000'
+      rb3: '0x0000FC0000000000'
       rb1: '0x00000000DEADBEEF'
     memory:
-    - address: '0x0000000000000000'
+    - address: '0x0000FC0000000000'
       value: '0x00000000DEADBEEF'
   expected_state:
     rd: {}
     rb: {}
     ra: {}
     memory:
-    - address: '0x0000000000000000'
+    - address: '0x0000FC0000000000'
       value: '0x00000000DEADBEEF'
   expected_pc: null
   expected_fault: null
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RB寄存器
-  notes: 'boundary: mem[0x0000000000000000] <- rb1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
+  notes: 'boundary: mem[0x0000FC0000000000] <- rb1=0x00000000DEADBEEF, stored=0x00000000DEADBEEF,
     zero offset, immu6=1'

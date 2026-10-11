@@ -314,53 +314,65 @@ def check_adr_alignment():
         record(cat, 'machine_name="dadao-m1"', "FAIL",
                "QEMU patch 未找到 dadao-m1 机器名定义")
 
-    # --- RAM@0 = the single RAM segment: base 0x0, size 16 MiB ---
-    # Source: ADR-0004 R3 (RAM base -> all zero) + ADR-0020 D15 (C1 step2
-    # deletes the legacy 0xffff_0000_0000 RAM).  Tightened by QEMU-053t:
-    # RAM@0 is the ONLY RAM segment.
-    ram_base_exp = 0x0000_0000_0000
-    ram_size_exp = 16 * 1024 * 1024
+    # --- RAM = the single RAM segment (base/size) ---
+    # Source: ADR-0004 R3 + rev. 2026-10-11 (RAM base 0xFC00_0000_0000) +
+    # ADR-0020 D15 (C1 step2 deletes the legacy 0xffff_0000_0000 RAM; RAM is the
+    # ONLY RAM segment).  The expected value is NOT hardcoded: it is derived from
+    # the single-source-of-truth linker script (tests/scripts/dadao.lds
+    # MEMORY RAM ORIGIN/LENGTH) and cross-checked against the QEMU macro.
+    lds = load_file("tests/scripts/dadao.lds")
+    lds_ram = re.search(
+        r'RAM\s*\(rwx\)\s*:\s*ORIGIN\s*=\s*(0x[0-9a-fA-F]+)\s*,\s*LENGTH\s*=\s*(\d+)M',
+        lds)
+    ram_base_exp = int(lds_ram.group(1), 16) if lds_ram else None
+    ram_size_exp = int(lds_ram.group(2)) * 1024 * 1024 if lds_ram else None
     ram_base_match = re.search(r'DADAO_RAM_BASE\s+(0x[0-9a-fA-F]+)', patch_content)
     ram_size_match = re.search(r'DADAO_RAM_SIZE\s+\((\d+\s*\*\s*\d+\s*\*\s*\d+)\)', patch_content)
-    if ram_base_match:
+    if ram_base_exp is None:
+        record(cat, "RAM_BASE (lds ORIGIN)", "FAIL",
+               "tests/scripts/dadao.lds 未找到 RAM ORIGIN/LENGTH")
+    elif ram_base_match:
         actual = int(ram_base_match.group(1), 16)
         if actual == ram_base_exp:
             record(cat, f"RAM_BASE=0x{ram_base_exp:X}", "PASS",
-                   f"QEMU: DADAO_RAM_BASE = {hex(actual)}")
+                   f"QEMU DADAO_RAM_BASE = dadao.lds ORIGIN(RAM) = 0x{actual:X}")
         else:
             record(cat, f"RAM_BASE=0x{ram_base_exp:X}", "FAIL",
-                   f"期望 0x{ram_base_exp:X}, 实际 {hex(actual)}")
+                   f"QEMU DADAO_RAM_BASE 0x{actual:X} != dadao.lds ORIGIN(RAM) 0x{ram_base_exp:X}")
     else:
         record(cat, f"RAM_BASE=0x{ram_base_exp:X}", "FAIL",
                "QEMU patch 未找到 DADAO_RAM_BASE")
 
-    if ram_size_match:
+    if ram_size_exp is None:
+        record(cat, "RAM_SIZE (lds LENGTH)", "FAIL",
+               "tests/scripts/dadao.lds 未找到 RAM LENGTH")
+    elif ram_size_match:
         actual = 1
         for f in ram_size_match.group(1).split("*"):
             actual *= int(f.strip())
         if actual == ram_size_exp:
-            record(cat, "RAM_SIZE=16MiB", "PASS",
-                   f"QEMU: DADAO_RAM_SIZE = {actual} ({actual // (1024*1024)} MiB)")
+            record(cat, f"RAM_SIZE={ram_size_exp // (1024*1024)}MiB", "PASS",
+                   f"QEMU DADAO_RAM_SIZE = dadao.lds LENGTH(RAM) = {actual}")
         else:
-            record(cat, "RAM_SIZE=16MiB", "FAIL",
-                   f"期望 {ram_size_exp}, 实际 {actual}")
+            record(cat, f"RAM_SIZE={ram_size_exp // (1024*1024)}MiB", "FAIL",
+                   f"QEMU DADAO_RAM_SIZE {actual} != dadao.lds LENGTH(RAM) {ram_size_exp}")
     else:
-        record(cat, "RAM_SIZE=16MiB", "FAIL",
+        record(cat, f"RAM_SIZE={ram_size_exp // (1024*1024)}MiB", "FAIL",
                "QEMU patch 未找到 DADAO_RAM_SIZE")
 
     # --- legacy RAM segment removed (C1 step2) ---
     # Source: ADR-0020 D15 step2.  The legacy 0xffff_0000_0000 RAM segment
-    # must no longer be mapped: RAM@0 is the single RAM region.
+    # must no longer be mapped: RAM is the single RAM region.
     legacy_ram = re.search(r'DADAO_RAM_BASE\s+0xffff00000000', patch_content)
     if legacy_ram or 'DADAO_RAM0_BASE' in patch_content or 'dadao-ram0' in patch_content:
         record(cat, "legacy RAM segment removed", "FAIL",
                "QEMU patch 仍含 legacy RAM 段 (0xffff_0000_0000 / dadao-ram0 / RAM0)")
     else:
         record(cat, "legacy RAM segment removed", "PASS",
-               "旧 RAM 段 (0xffff_0000_0000) 已删，RAM@0 为唯一 RAM 段")
+               "旧 RAM 段 (0xffff_0000_0000) 已删，RAM 为唯一 RAM 段")
 
     # --- RAM hw registration in hw/dadao (init_ram + add_subregion) ---
-    # Source: ADR-0004 R3 / ADR-0020 D15: machine maps the single RAM@0.
+    # Source: ADR-0004 R3 / ADR-0020 D15: machine maps the single RAM.
     if re.search(r'memory_region_init_ram\(\s*ram\b[^;]*DADAO_RAM_SIZE',
                  patch_content, re.DOTALL):
         record(cat, "RAM hw registration (init_ram)", "PASS",

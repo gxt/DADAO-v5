@@ -11,7 +11,7 @@
 | SEE / SBI | 0.7.1 |
 | HEE / HBI | 0.1.2 |
 | Toolchain | 0.5.0 |
-| Machine | 0.2.1 |
+| Machine | 0.3.0 |
 
 版本号取自 `spec/` 各文档头部的 `> **版本：X.Y.Z**`。同步要求：AEE ↔ ABI、SEE ↔ SBI、HEE ↔ HBI 必须一致，全部基于同一 SimRISC 版本号。
 
