@@ -6,9 +6,9 @@
 > **FP 范围总账（`scope: fp` 共 60 条）**：本册 44 条（MISC-RF 子表）+ SimRISC-01 取数存数 8 条（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ SimRISC-02 寄存器复制 7 条（`cs.eq`/`cs.ne`/`cs.n`/`cs.z`/`cs.p` 的 `-rf` 与 `rd2rf`/`rf2rd`）+ SimRISC-03 16位立即数操作 1 条（`set.w-rf`）。`scope` 表范围、`deferred` 表状态，二者正交（用户裁定 2026-10-03）。
 
 <!-- ASSEMBLY_LIST_START -->
-## 汇编指令速查
+## 1. 汇编指令速查
 
-### 浮点运算（44 条）｜ **scope: fp（已实现）**
+### 1.1 浮点运算（44 条）｜ **scope: fp（已实现）**
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -60,7 +60,7 @@
 <!-- ASSEMBLY_LIST_END -->
 
 <!-- LEGALITY_START -->
-## 合法性检查
+## 2. 合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `foqcmp_orrr_rf`, `foscmp_orrr_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `ftqcmp_orrr_rf`, `ftscmp_orrr_rf`（14 条）
 * `dst_rf0`：浮点目的 rf0 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `foadd_orrr_rf`, `fodiv_orrr_rf`, `fomul_orrr_rf`, `forem_orrr_rf`, `foroot_orri_rf`, `fosclb_orrr_rf`, `fosgnj_orrr_rf`, `fosgnn_orrr_rf`, `fosub_orrr_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ftadd_orrr_rf`, `ftdiv_orrr_rf`, `ftmul_orrr_rf`, `ftrem_orrr_rf`, `ftroot_orri_rf`, `ftsclb_orrr_rf`, `ftsgnj_orrr_rf`, `ftsgnn_orrr_rf`, `ftsub_orrr_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（30 条）
@@ -73,7 +73,7 @@
 
 浮点格式的定义符合 IEEE754 标准。舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。浮点指令执行后，异常状态位（NV/DZ/OF/UF/NX）由硬件设置，软件可通过读取 rf0 检查异常状态。
 
-## 格式转换指令
+## 3. 格式转换指令
 
 格式转换指令包括不同格式之间以及同格式之间的数据转换，操作数类型为 `orri`，指令如下：
 
@@ -107,7 +107,7 @@ uo2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
 
 其中it表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。immu6 指定连续转换的寄存器数量（1-63）。例如 `ft2fo {rf4:rf6}, {rf8:rf10}` 将 rf8→rf4、rf9→rf5、rf10→rf6。源范围与目的范围不可有任何交集（含完全重合），否则触发 ILLI 异常（与 SimRISC-02 §寄存器组之间块赋值 一致）；无交集时转换按序号递增逐对进行，先读后写。
 
-浮点格式转换遵循 IEEE 754 标准：浮点→浮点（fo2ft/ft2fo）溢出返回 ±Inf（设置 OF），下溢按舍入模式处理（设置 UF），NaN 传播 payload。整数→浮点转换可能 inexact（精度损失）。sNaN 作为算术输入时设置 NV 并返回 qNaN。舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。
+浮点格式转换遵循 IEEE 754 标准：浮点→浮点（fo2ft/ft2fo）与整数→浮点转换均按指令开始时的 rf0[33:32] 正确舍入一次；其 NX、OF、UF 触发条件及溢出结果（无穷或最大有限值）遵循 SimRISC-00 §浮点状态寄存器的统一规则。NaN 传播 payload。整数→浮点转换可能 inexact（精度损失）。sNaN 作为算术输入时设置 NV 并返回 qNaN。异常标志在 rf0[4:0]。
 
 浮点→整数转换先将有限源值按指令开始时的 rf0[33:32] 舍入为数学整数 n，再检查 n 是否落在目标范围：it 为 `[-2^31, 2^31-1]`，io 为 `[-2^63, 2^63-1]`，ut 为 `[0, 2^32-1]`，uo 为 `[0, 2^64-1]`。范围内时写入 n；it 结果符号扩展至 rd 的 64 位，ut 结果零扩展至 rd 的 64 位，io/uo 写完整 64 位。有限有效转换中 n 与源值不相等时设置 NX，且不设置 OF、UF 或 DZ。NaN、±Inf 或舍入后的 n 超出目标范围时设置 NV 且不额外设置 NX：有符号目标按源 sign 位饱和到最大值（sign=0）或最小值（sign=1），无符号目标按源 sign 位饱和到最大值（sign=0）或 0（sign=1）；NaN 的 payload 忽略。多寄存器转换逐对执行，本指令各元素产生的异常位取并集后按浮点状态寄存器的累计规则原子写入。
 
@@ -121,11 +121,11 @@ uo2fo   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
 - 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
 - 源范围与目的范围有任何交集（含完全重合）时触发 ILLI 异常
 
-## 浮点运算指令
+## 4. 浮点运算指令
 
 根据操作数不同，浮点运算类指令可以分为以下几种：
 
-### S2D1
+### 4.1 S2D1
 
 一种是两个源操作数，一个目的操作数，即操作数类型为 `orrr`：
 
@@ -153,7 +153,7 @@ fosclb  rfHB, rfHC, rfHD
 
 `ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作。NaN 输入先按本节的 NaN 规则处理；否则将 rfHD 按 rf0 的舍入模式转换为整数 N，再计算 `rfHC × 2^N`。该整数转换遵循格式转换指令的浮点→整数规则：有限非整数值的舍入结果与原值不同时设置 NX；±Inf 或超出整数范围时分别饱和为最大/最小整数并设置 NV。N=0 时原样返回 rfHC；N≠0 时，`scaleB(±0, N)` 返回 ±0，`scaleB(±∞, N)` 返回 ±∞。有限非零 rfHC 的缩放结果按 rf0 舍入模式写入；缩放本身的 OF、UF、NX 触发条件见浮点状态寄存器及其舍入规则。整数转换和缩放产生的异常状态均按浮点状态寄存器的累计规则写入。
 
-### S1D1
+### 4.2 S1D1
 
 还有一种是一个源操作数，一个目的操作数，操作数类型为 `orri`。
 
@@ -171,7 +171,7 @@ ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 
 
 S1D1 指令硬件先读源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
-## 浮点符号位操作指令
+## 5. 浮点符号位操作指令
 
 该类指令实现了浮点sign-injection指令，操作数类型为 `orrr`。
 
@@ -195,7 +195,7 @@ ftsgnn和fosgnn指令是读取rfHC的除符号位之外的所有位数，和rfHD
 - 当rfHC与rfHD相等时，ftsgnj和fosgnj实现了`copy(rfHC)`操作
 - 当rfHC与rfHD相等时，ftsgnn和fosgnn实现了`negate(rfHC)`操作
 
-## 浮点比较指令
+## 6. 浮点比较指令
 
 浮点比较运算，参与比较运算的两个浮点数存放在rfHC和rfHD中，比较结果存放在rdHB中。操作数类型为 `orrr`。
 
@@ -218,7 +218,7 @@ rdHB中的比较结果有四种情况：
 
 由于正 canonical qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdHB的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
 
-## 浮点分类指令
+## 7. 浮点分类指令
 
 浮点分类指令对浮点数进行判断分类，并将分类结果写入数据寄存器，操作数类型为 `orri`，指令如下：
 

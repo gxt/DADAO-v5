@@ -1,7 +1,7 @@
 # M4 L1 MC 向量（`tests/llvm/lit/MC/DADAO/`）— 对照表
 
 > 任务：`TESTCASES-029t`（L1 向量 + 独立 oracle，**暂不接入门控**）。
-> 规范：`spec/Process-05-里程碑TDD规范.md §2`（L1 期望值来自 ISA 编码表）、
+> 规范：`docs/Process-05-里程碑TDD规范.md §2`（L1 期望值来自 ISA 编码表）、
 > `§4`（期望值独立派生）、`§5`（反例门控）、`§6`（落点）。
 > 权威源：`spec/Toolchain-01-汇编语言.md §6–§10`、`.tao/knowledge/contract-asm.md
 > §6–§10`、`contracts/opcodes.yaml`、`.tao/knowledge/contract-elf.md §1.1/§2.2`。
@@ -31,7 +31,7 @@
 | `m4-pseudo-set.s` | pseudo | `set.rd`/`set.rb`/`set.ft`/`set.fo` 的 imm/reg 展开 | `spec/Toolchain-01 §6.1`（展开规则）+ `contracts/opcodes.yaml`（各真实指令编码身份） |
 | `m4-pseudo-removed.s` | pseudo | 被删伪指令 `nop`/`return`/`not.*`/`neg.*` → `unrecognized` | `spec/Toolchain-01 §6.2`（删除集）+ `contracts/opcodes.yaml`（不在表中） |
 | `m4-directive-dd.s` | directive | `.dd.b08/w16/t32/o64` 宽度/大端、表达式、符号 | `spec/Toolchain-01 §7` + `contract-elf §1.1`（大端）+ `contract-elf §2.2`（`ABS48`） |
-| `m4-directive-reject.s` | directive | GAS `.word`/`.octa` 拒绝、超宽、窄字段重定位拒绝 | `spec/Toolchain-01 §7/§9` |
+| `m4-directive-reject.s` | directive | GAS `.word`/`.octa`/`.byte`/`.short`/`.long`/`.quad`/`.align` 拒绝、超宽、窄字段重定位拒绝 | `spec/Toolchain-01 §7/§9` |
 | `m4-option-mts.s` | option | `-multiple-to-single` 开/关对照（助记符不变、单寄存器序列） | `spec/Toolchain-01 §8` + `§4.2` + `contracts/opcodes.yaml`（默认形态编码） |
 | `m4-diagnostic.s` | diagnostic | 越界立即数、`%4!=0`、`ret rd0, 非0`、`#` 非法 | `spec/Toolchain-01 §9/§2.4/§2.2` + `contracts/opcodes.yaml`（字段位宽/legality） |
 | `m4-roundtrip.s` | roundtrip | 汇编↔反汇编；等价书写规范化 | `spec/Toolchain-01 §10` + `contracts/opcodes.yaml` |

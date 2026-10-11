@@ -133,6 +133,9 @@ COL_SUB = re.compile(r"^xxx-(\d{3})$")
 
 MISC_PTR = re.compile(r"^MISC-(.+)$")
 
+# QFC 主表区段标题（SPEC-133t：标题已带章节号 `N. `，故作前导号容忍）
+_QFC_HEAD_RE = re.compile(r"^##\s+(?:\d+(?:\.\d+)*[\.、]?\s+)?SimRISC QFC")
+
 
 def _split_sections(lines):
     """按 markdown 标题切分主表与 MISC 子表区段。
@@ -141,7 +144,7 @@ def _split_sections(lines):
     """
     main_start = None
     for i, line in enumerate(lines):
-        if line.strip().startswith("## SimRISC QFC"):
+        if _QFC_HEAD_RE.match(line):
             main_start = i
             break
     if main_start is None:

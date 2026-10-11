@@ -13,7 +13,7 @@
 ; SYS_WRITE writes the 4-byte buffer "WXYZ" into the host file "m5_write.txt"
 ; (relative to the QEMU working directory chosen by the driver).
 ;
-; Loaded as a flat bin at the RAM@0 base 0x0000_0000_0000 by `-kernel`
+; Loaded as a flat bin at the RAM base 0xFC00_0000_0000 by `-kernel`
 ; (ADR-0004 D2.3 path B) and entered in user mode by the SEE bootrom.
 ;
 ; Expected: host file m5_write.txt = "WXYZ"; host $? = 0x42 (SYS_EXIT pass token).
@@ -31,8 +31,9 @@
 	.text
 	.globl	_start
 _start:
-	; --- path "m5_write.txt\0" at RAM@0 + 0x3200 ---
+	; --- path "m5_write.txt\0" at RAM + 0x3200 ---
 	set.zw	rb16, wp0, 0x3200
+	or.w	rb16, wp2, 0xfc00
 	set.zw	rd8, wp0, 0x006D		; 'm'
 	st.b	rd8, [rb16, 0]
 	set.zw	rd8, wp0, 0x0035		; '5'
@@ -60,8 +61,9 @@ _start:
 	set.zw	rd8, wp0, 0x0000		; NUL
 	st.b	rd8, [rb16, 12]
 
-	; --- write buffer "WXYZ" at RAM@0 + 0x3300 ---
+	; --- write buffer "WXYZ" at RAM + 0x3300 ---
 	set.zw	rb16, wp0, 0x3300
+	or.w	rb16, wp2, 0xfc00
 	set.zw	rd8, wp0, 0x0057		; 'W'
 	st.b	rd8, [rb16, 0]
 	set.zw	rd8, wp0, 0x0058		; 'X'
@@ -71,9 +73,11 @@ _start:
 	set.zw	rd8, wp0, 0x005A		; 'Z'
 	st.b	rd8, [rb16, 3]
 
-	; --- SYS_OPEN: block at RAM@0 + 0x3000 = {path ptr, mode, len} ---
+	; --- SYS_OPEN: block at RAM + 0x3000 = {path ptr, mode, len} ---
 	set.zw	rb16, wp0, 0x3000
+	or.w	rb16, wp2, 0xfc00
 	set.zw	rd8, wp0, 0x3200
+	or.w	rd8, wp2, 0xfc00
 	st.o	rd8, [rb16, 0]
 	set.zw	rd9, wp0, 0x0004		; mode 4 = write
 	st.o	rd9, [rb16, 8]
@@ -82,10 +86,12 @@ _start:
 	set.zw	rd16, wp0, 0x0001		; SYS_OPEN
 	trap	cfx_umon, 0x30000
 
-	; --- SYS_WRITE: block at RAM@0 + 0x3100 = {handle, buf ptr, count} ---
+	; --- SYS_WRITE: block at RAM + 0x3100 = {handle, buf ptr, count} ---
 	set.zw	rb16, wp0, 0x3100
+	or.w	rb16, wp2, 0xfc00
 	st.o	rd8, [rb16, 0]			; handle returned in rd8 (§2/§4)
 	set.zw	rd8, wp0, 0x3300
+	or.w	rd8, wp2, 0xfc00
 	st.o	rd8, [rb16, 8]
 	set.zw	rd9, wp0, 0x0004
 	st.o	rd9, [rb16, 16]
@@ -99,6 +105,7 @@ _start:
 
 	; report success via SYS_EXIT (pass token 0x42)
 	set.zw	rb16, wp0, 0x2000
+	or.w	rb16, wp2, 0xfc00
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
@@ -111,6 +118,7 @@ _start:
 fail:
 	; SYS_WRITE did not consume the whole buffer -> distinct fail token 0xE1
 	set.zw	rb16, wp0, 0x2000
+	or.w	rb16, wp2, 0xfc00
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

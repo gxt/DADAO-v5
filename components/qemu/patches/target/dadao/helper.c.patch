@@ -1,6 +1,6 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..4c178e8
+index 0000000..b477805
 --- /dev/null
 +++ b/target/dadao/helper.c
 @@ -0,0 +1,981 @@
@@ -112,7 +112,7 @@ index 0000000..4c178e8
 +    /*
 +     * M1: no MMU, 1:1 virtual-to-physical mapping.
 +     * Check if address falls within known regions:
-+     *   RAM@0: 0x0000_0000_0000 .. +DADAO_RAM_SIZE (16 MiB, cfxha 0/umon)
++     *   RAM:   0xFC00_0000_0000 .. +DADAO_RAM_SIZE (16 MiB, cfxha 63/power)
 +     *   ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB)
 +     * Unmapped/illegal accesses are classified per ADR-0020 D15 (see below).
 +     */
@@ -120,8 +120,8 @@ index 0000000..4c178e8
 +    int prot;
 +    hwaddr paddr;
 +
-+    /* RAM@0 (C1 step2, ADR-0004 R3): the single 16 MiB RAM at
-+     * 0x0000_0000_0000 (cfxha 0, umon).  The legacy RAM segment and the
++    /* RAM (ADR-0004 R3 + rev. 2026-10-11): the single 16 MiB RAM at
++     * 0xFC00_0000_0000 (cfxha 63, power).  The legacy RAM segment and the
 +     * exit-port device were removed in step2. */
 +    if (addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) {
 +        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
@@ -152,7 +152,7 @@ index 0000000..4c178e8
 +
 +    /*
 +     * Machine-level fault classification (ADR-0020 D15 / ADR-0004 R3):
-+     *  - inside the umon segment (cfxha 0) but outside RAM@0 => illegal
++     *  - inside the umon segment (cfxha 0), which now holds no RAM => illegal
 +     *    access/fetch to the internal address space => CFXMEM (exit 0x81).
 +     *  - addresses elsewhere (including the power segment 63) keep the
 +     *    historical test-machine unmapped code 0x87 (ADR-0004 D5.8).

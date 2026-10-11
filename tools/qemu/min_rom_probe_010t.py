@@ -135,7 +135,7 @@ def trap_sys_exit():
 # Trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
 # rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
 
-SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 
 def semi_exit(code_rd):
@@ -151,20 +151,21 @@ UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
 
-    Trampoline sets rb1=SP, rb2=rb17=RAM@0 base, and primes the semihosting
+    Trampoline sets rb1=SP, rb2=rb17=RAM base, and primes the semihosting
     SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
-        set_zw_rb(1, 0, 0x0000),   # set.zw rb1, wp0, 0x0000 -> rb1 = 0
-        or_w_rb(1, 1, 0x00FF),     # or.w rb1, wp1, 0x00FF -> rb1 = 0x00FF0000 (SP)
-        set_zw_rb(2, 0, 0x0000),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
+        set_zw_rb(1, 2, 0xFC00),   # set.zw rb1, wp2, 0xFC00
+        or_w_rb(1, 1, 0x00FF),     # or.w rb1, wp1, 0x00FF -> rb1 = 0xFC0000FF0000 (SP)
+        set_zw_rb(2, 2, 0xFC00),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
         set_zw_rb(16, 0, 0x0000),  # set.zw rb16, wp0, 0x0000 -> rb16 = 0
         or_w_rb(16, 1, 0x00FF),    # or.w rb16, wp1, 0x00FF -> rb16 = 0x00FF0000
-        or_w_rb(16, 0, 0xF000),    # or.w rb16, wp0, 0xF000 -> rb16 = 0x00FFF000 (block)
+        or_w_rb(16, 0, 0xF000),    # or.w rb16, wp0, 0xF000 -> rb16 = 0xFC00_00FF_F000 (block)
+        or_w_rb(16, 2, 0xFC00),
         set_zw_rd(8, 0x0026),      # set.zw rd8, wp0, 0x0026
         or_w_rd(8, 1, 0x0002),     # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
         st_o(8, 16, 0),            # block[0] = 0x20026
         set_zw_rd(16, 0x0018),     # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
-        set_zw_rb(17, 0, 0x0000),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
+        set_zw_rb(17, 2, 0xFC00),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
     ]
     rom = b''
     for insn in trampoline:
@@ -203,7 +204,7 @@ UNMAPPED_EXIT = 135 # 0x87
 MALIGN_EXIT = 140  # 0x8C
 
 # ── Test cases ────────────────────────────────────────────────────────
-# After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM@0 base
+# After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM base
 # ldm.o-rb rbha, rbhb, rdhc, immu6: loads immu6 RB regs from EA=rbhb+rdhc
 
 TESTS = [
@@ -254,8 +255,8 @@ TESTS = [
 
     # T6: UNMAPPED — rb3=0, rd2=0, EA=0 → unmapped → 0x87
     # Covers: mem-rb.yaml legality UNMAPPED vector
-    # NOTE (ISS-165 step2): with RAM@0, EA=0 is now MAPPED, so the UNMAPPED case
-    # uses an address clearly outside RAM@0 (RAM = 0x0..0xFF_FFFF).
+    # NOTE (ISS-165 step2): with RAM, EA=0 is now MAPPED, so the UNMAPPED case
+    # uses an address clearly outside RAM (RAM = 0x0..0xFF_FFFF).
     ("T6 UNMAPPED: ldm.o-rb EA outside RAM",
      [set_zw_rb(3, 2, 0x0400),    # rb3 = 0x0000_0400_0000_0000 (cfxha=1)
       set_zw_rd(2, 0),            # rd2 = 0
@@ -412,7 +413,7 @@ TESTS = [
      "stm.o-rb unaligned not MALIGN"),
 
     # T18: UNMAPPED — rb3=0, rd2=0, EA=0 → unmapped → 0x87
-    # NOTE (ISS-165 step2): with RAM@0, EA=0 is now MAPPED — use an out-of-RAM EA.
+    # NOTE (ISS-165 step2): with RAM, EA=0 is now MAPPED — use an out-of-RAM EA.
     ("T18 UNMAPPED: stm.o-rb EA outside RAM",
      [set_zw_rb(3, 2, 0x0400),   # rb3 = 0x0000_0400_0000_0000 (cfxha=1)
       set_zw_rb(1, 0, 0x0042),   # rb1 = 0x42

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..8b4a08f
+index 0000000..00a8aa2
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,226 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -62,22 +62,26 @@ index 0000000..8b4a08f
 +    DADAO_EXIT_IALIGN = 0x8D,
 +};
 +
-+/* Memory map constants (per ADR-0004 R3 / ADR-0020 D15, C1 step2).
-+ * RAM@0 is the single RAM segment: base 0x0000_0000_0000, 16 MiB, cfxha 0
-+ * (umon).  The legacy 0xffff_0000_0000 RAM of C1 step1 was removed in step2,
-+ * and the legacy exit-port MMIO device was removed with it (halt is now the
-+ * semihosting SYS_EXIT service, ADR-0020 D8). */
-+#define DADAO_RAM_BASE      0x000000000000ULL
++/* Memory map constants (per ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15).
++ * RAM is the single RAM segment: base 0xFC00_0000_0000, 16 MiB, cfxha 63
++ * (power).  The base was moved from all-zero (cfxha 0 / umon) to
++ * 0xFC00_0000_0000 (rev. 2026-10-11) so the whole effective address space
++ * stays in the [47:42] == 63 segment while no other cfx is implemented (user
++ * decision, INTEG-033k #10); the 16 MiB capacity is unchanged.  The legacy
++ * 0xffff_0000_0000 RAM of C1 step1 and the legacy exit-port MMIO device were
++ * removed in step2 (halt is now the semihosting SYS_EXIT service, ADR-0020
++ * D8). */
++#define DADAO_RAM_BASE      0xFC0000000000ULL
 +#define DADAO_RAM_SIZE      (16 * 1024 * 1024)  /* 16 MiB */
 +#define DADAO_ROM_BASE      0xffffffff0000ULL
 +#define DADAO_ROM_SIZE      (64 * 1024)          /* 64 KiB */
 +
-+/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  RAM@0 is the
-+ * whole umon (cfxha 0) segment; an access/fetch inside that segment but
-+ * outside RAM@0 is an illegal internal-address-space access => CFXMEM (exit
-+ * 0x81, cause 1<<1, spec/DADAO-12 §2.1:73).  Addresses in the power segment
-+ * (63, incl. the boot ROM window) and other unmapped segments keep the
-+ * test-machine convention 0x87 (ADR-0004 D5.8). */
++/* Internal address space: cfxha = addr[47:42] (DADAO-12 §2.1).  RAM now lives
++ * in the power segment (cfxha 63), so the umon segment (cfxha 0) holds no
++ * mapped region: an access/fetch inside it is an illegal internal-address-space
++ * access => CFXMEM (exit 0x81, cause 1<<1, spec/DADAO-12 §2.1:73).  Addresses
++ * in every other unmapped segment (incl. the power segment 63, outside
++ * RAM/ROM) keep the test-machine convention 0x87 (ADR-0004 D5.8). */
 +#define DADAO_CFXHA_SHIFT   42
 +#define DADAO_CFXHA_MASK    0x3F
 +#define DADAO_CFXHA_UMON    0

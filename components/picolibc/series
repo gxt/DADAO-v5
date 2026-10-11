@@ -1,0 +1,14 @@
+libc/include/machine/endian.h.patch
+libc/include/machine/ieeefp.h.patch
+libc/include/machine/setjmp.h.patch
+libc/include/sys/cdefs.h.patch
+libc/machine/dadao/machine/meson.build.patch
+libc/machine/dadao/meson.build.patch
+libc/machine/dadao/setjmp.S.patch
+libc/string/fls.c.patch
+libc/string/flsl.c.patch
+libc/string/flsll.c.patch
+libos/semihost/machine/dadao/meson.build.patch
+libos/semihost/machine/dadao/semihost-dadao.S.patch
+meson.build.patch
+scripts/cross-dadao.txt.patch

@@ -94,7 +94,7 @@ def ld_o_rd(rdha, rbhb, imms12):
 # Trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
 # rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
 
-SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 
 def trap_sys_exit():
@@ -170,20 +170,22 @@ UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
 
-    Trampoline sets rb1=SP, rb2=rb17=RAM@0 base, and primes the semihosting
+    Trampoline sets rb1=SP, rb2=rb17=RAM base, and primes the semihosting
     SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
         encode_rwii(0x4E, 1, 0, 0x0000),   # set.zw rb1, wp0, 0x0000 -> rb1 = 0
-        encode_rwii(0x4A, 1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0x00FF0000 (SP)
-        encode_rwii(0x4E, 2, 0, 0x0000),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
+        encode_rwii(0x4A, 1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0xFC00_00FF_0000 (SP)
+        encode_rwii(0x4A, 1, 2, 0xFC00),
+        encode_rwii(0x4E, 2, 2, 0xFC00),   # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
         encode_rwii(0x4E, 16, 0, 0x0000),  # set.zw rb16, wp0, 0x0000 -> rb16 = 0
         encode_rwii(0x4A, 16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF -> rb16 = 0x00FF0000
-        encode_rwii(0x4A, 16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0x00FFF000 (block)
+        encode_rwii(0x4A, 16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0xFC00_00FF_F000 (block)
+        encode_rwii(0x4A, 16, 2, 0xFC00),
         encode_rwii(0x4C, 8, 0, 0x0026),   # set.zw rd8, wp0, 0x0026
         encode_rwii(0x48, 8, 1, 0x0002),   # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
         encode_rrii(0x21, 8, 16, 0, 0),    # st.o rd8, rb16, 0 -> block[0] = 0x20026
         encode_rwii(0x4C, 16, 0, 0x0018),  # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
-        encode_rwii(0x4E, 17, 0, 0x0000),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
+        encode_rwii(0x4E, 17, 2, 0xFC00),  # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
@@ -446,7 +448,7 @@ TESTS = [
      # exhaustion is NOT hardware-detected ("MemRAS 越界... 不由硬件检测，交 OS"),
      # so the spill proceeds without RASOF.  The positive expectation is that the
      # spill completes (no fault) and the program reaches its PASS terminal.
-     words((3, 0xFFFF), (2, 0x0000), (0, 0x8000)) +   # ra0 = racnt=63, MRPTR=RAM+0x8000
+     words((3, 0xFFFF), (2, 0xFC00), (0, 0x8000)) +   # ra0 = racnt=63, MRPTR=RAM+0x8000
      [rd2ra(0, 18, 1)] +
      [call_iiii(1)] * 64 +
      [set_zw_rd(18, 0x0000), *st_o_rd_pass()],
@@ -454,7 +456,7 @@ TESTS = [
 
     # X2: MemRAS refcount underflow at pop (ra0.hi16==0, low48!=0) → RASUF
     ("X2 MemRAS pop refcount underflow (ra0.hi16=0) → 0x8B",
-     words((3, 0x0000), (2, 0x0000), (0, 0x8000)) +   # ra0 = 0x0000_0000_0000_8000
+     words((3, 0x0000), (2, 0xFC00), (0, 0x8000)) +   # ra0 = 0x0000_FC00_0000_8000
      [rd2ra(0, 18, 1), ret_riii(0, 0),
       set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      RASUF_EXIT, "MemRAS refcount underflow didn't trigger RASUF"),
@@ -462,7 +464,7 @@ TESTS = [
     # X3: MemRAS invalid content (entry hi16==0) → RASUF, and ra0 must be UNCHANGED
     # (precise exception, §1.3.4 / ADR-0004 D5.5). Read-back via -d cpu.
     ("X3 MemRAS invalid content (entry hi16=0) → 0x8B",
-     words((3, 0x0001), (2, 0x0000), (0, 0x8000)) +   # ra0 = 0x0001_0000_0000_8000
+     words((3, 0x0001), (2, 0xFC00), (0, 0x8000)) +   # ra0 = 0x0001_0000_0000_8000
      [rd2ra(0, 18, 1), ret_riii(0, 0),
       set_zw_rd(18, 0x0001), *st_o_rd_pass()],
      RASUF_EXIT, "MemRAS invalid content didn't trigger RASUF"),
@@ -478,7 +480,7 @@ TESTS = [
      [rd2ra(5, 18, 1),          # ra5 = entry
       st_o_ra(5, 17, 0x7F8),    # MemRAS[0] (RAM+0x7F8, fits imms12) = entry
      ] +
-     words((3, 0x0000), (2, 0x0000), (0, 0x07F8)) +   # ra0: count=0, ptr=RAM+0x7F8 (D4b)
+     words((3, 0x0000), (2, 0xFC00), (0, 0x07F8)) +   # ra0: count=0, ptr=RAM+0x7F8 (D4b)
      [rd2ra(0, 18, 1),          # ra0 = MemRAS pointer/count
       ret_riii(0, 0),           # pop → ra63 = 0x0001_FFFF_FFFF_0044, PC = lo = 0x...0044
       ra2rd(18, 63, 1),         # read ra63 back (makes the store-back observable)
@@ -492,7 +494,7 @@ TESTS = [
 
 # X3 precise-exception read-back: ra0 must be 0x0001_FFFF_0000_8000 at fault time
 # (not the post-commit 0x0000_FFFF_0000_8008).
-X3_RA0_EXPECT = 0x0001000000008000
+X3_RA0_EXPECT = 0x0001FC0000008000
 
 # ── CTL self-check ────────────────────────────────────────────────────
 

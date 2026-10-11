@@ -11,16 +11,16 @@
 ;     (= cfx_power_hypv_excp_vector, spec/DADAO-12 §2.1) via `-bios`;
 ;   * reset PC (rb0) = 0xffff_ffff_0000 is unchanged, so the bootrom runs first
 ;     in hypv/CfxPower (cpu reset state, QEMU-044t);
-;   * the flat test application is loaded at the RAM@0 base
-;     0x0000_0000_0000 by `-kernel` (path B fixed entry, ADR-0004 D2.2/D2.3;
-;     RAM@0 is the single RAM segment since C1 step2, ADR-0004 R3);
+;   * the flat test application is loaded at the RAM base
+;     0xFC00_0000_0000 by `-kernel` (path B fixed entry, ADR-0004 D2.2/D2.3;
+;     RAM is the single RAM segment, ADR-0004 R3 + rev. 2026-10-11);
 ;   * the bootrom configures cfx then hands off to that entry in user mode.
 ; The M4 single-ELF path (ADR-0004 D2.2/D2.3 path A, no `-bios`) is untouched.
 ;
 ; What the bootrom configures (spec/Machine-01 §2/§3/§4, contract-see §1/§3):
-;   * rb1 (SP) -> RAM@0 (ADR-0004 R3 / ADR-0020 D15): the application's stack and
-;     data live in the new RAM@0 segment supplied by QEMU-049t, not in the
-;     legacy RAM segment (kept only for the M1-M4 tests);
+;   * rb1 (SP) -> RAM (ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15): the
+;     application's stack and data live in the single RAM segment supplied by
+;     QEMU (base 0xFC00_0000_0000), not in the legacy RAM segment;
 ;   * cfx_umon (cfxha 0) hypv cg3: switch_run_mode = user (0), switch_cfx_mask = 0,
 ;     excp_vector = application entry  ->  the `trap` below is the hypv -> user
 ;     direct jump (QEMU-044t cfx_enter steps 7/8/10; Machine-01 §2);
@@ -37,11 +37,12 @@
 	.text
 	.globl	_start
 _start:
-	; --- SP (rb1) -> RAM@0 top-ish (0x0000_0000_00f0_0000 = RAM@0 + 15 MiB) ---
+	; --- SP (rb1) -> RAM top-ish (0xFC00_0000_00f0_0000 = RAM base + 15 MiB) ---
 	set.zw	rb1, wp1, 0x00f0
+	or.w	rb1, wp2, 0xfc00
 
-	; --- rd2 = application entry = RAM@0 base 0x0000_0000_0000 ---
-	set.zw	rd2, wp0, 0x0000
+	; --- rd2 = application entry = RAM base 0xFC00_0000_0000 ---
+	set.zw	rd2, wp2, 0xfc00
 
 	; --- rd3 = user exception handler = 0xffff_ffff_0200 (ROM base + 0x200) ---
 	set.zw	rd3, wp2, 0xffff
@@ -74,8 +75,8 @@ _start:
 	;     read by the handler's SYS_EXIT (Machine-01 §5.3/§5.5) ---
 	.org 0x180
 _exit_block:
-	.quad 0x20026				; ADP_Stopped_ApplicationExit
-	.quad 0
+	.dd.o64 0x20026				; ADP_Stopped_ApplicationExit
+	.dd.o64 0
 
 	; --- user exception handler (cfx_umon.cg0.excp_vector target).  Returns to
 	;     the instruction after the caller's `trap` through `escape`

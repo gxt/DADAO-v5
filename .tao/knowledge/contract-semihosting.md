@@ -8,13 +8,14 @@
 >
 > **来源标注**：每条规范性断言句末以 `[DADAO-NN §章节名]` 标注 spec/ 来源；v5 架构自定义/测试机约定标 `[ADR-0020 DN]`/`[Machine-01 §N]`；不写行号。
 >
-> **说明**：本合约由 spec/ 归一化投影而来，面向实现；与 `ADR-0020`/`Machine-01` 冲突时阻断实现，走变更流程（见 `spec/Process-02-合约编写规范.md`）。
+> **说明**：本合约由 spec/ 归一化投影而来，面向实现；与 `ADR-0020`/`Machine-01` 冲突时阻断实现，走变更流程（见 `docs/Process-02-合约编写规范.md`）。
 
 ---
 
 ## §1 入口判定
 
 - `trap cfxHA, immu18` 中 **`immu18[17:16] == 2'b11`** ⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。[ADR-0020 D1][Machine-01 §5.1]
+- **调用形如 `trap <any cfxha>, 0x30000`**：semihosting 用哪个 `cfxha` **不指定**（**任意 `cfxha` 等效**），判定**只依赖 `immu18[17:16]`**，**与 `cfxha` 取值无关**。（用户 2026-10-11 裁定「**写成任意 cfxha**」）[ADR-0020 D1][Machine-01 §5.1]
 - 该 tag 判定**无上游 spec 依据、属架构自定义**：`DADAO-22` 只定义 `cfxha`=服务提供者、`immu18`=功能编号，`SimRISC-11 §陷入指令` 只定义 `immu18`=功能编号，二者均无 semihosting 语义。[ADR-0020 D1][DADAO-22 §1. 调用约定][SimRISC-11 §陷入指令]
 - **两条路**：`== 2'b11` 走 semihosting 短路；`≠ 2'b11` 走一般 trap 进入 cfx 向量。不得把 semihosting 混入向量路径。[ADR-0020 D10][Machine-01 §4]
 
@@ -84,7 +85,7 @@
 
 | 本合约 § | 内容 | 来源 |
 |----------|------|------|
-| §1 | 入口 tag 判定 / 架构自定义说明 / 两条路 | `ADR-0020 D1`/`D10`；`Machine-01 §5.1`/`§4`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §陷入指令` |
+| §1 | 入口 tag 判定（任意 `cfxha`）/ 架构自定义说明 / 两条路 | `ADR-0020 D1`/`D10`；`Machine-01 §5.1`/`§4`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §陷入指令` |
 | §2 | 传参/返回寄存器（rd16/rb16/rd8）、64 位大端 | `ADR-0020 D2`/`D6`/`D14`；`Machine-01 §5.2`；`DADAO-21 §参数寄存器：Parameter registers`；`DADAO-22 §1. 调用约定` |
 | §3 | 完整 25 服务表（号值 = Arm 号值） | `ADR-0020 D3`；`Machine-01 §5.3`；Arm Semihosting（Release 2.0） |
 | §4 | 无 `escape`、PC 步进返回 | `ADR-0020 D4`；`Machine-01 §5.4` |

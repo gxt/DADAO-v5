@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check a component's tree-shaped patch set against spec/Process-01-组件补丁组织与构建编排.md.
+"""Check a component's tree-shaped patch set against docs/Process-01-组件补丁组织与构建编排.md.
 
 Assertions (all fail-closed):
 
@@ -330,7 +330,7 @@ def run_source_state(enabled: list[dict]) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Check component patch sets against spec/Process-01."
+        description="Check component patch sets against docs/Process-01."
     )
     parser.add_argument(
         "--source-state",

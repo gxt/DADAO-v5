@@ -37,6 +37,7 @@ QEMU = ".work/build/qemu/qemu-system-dadao"
 
 # ROM base and test base addresses
 ROM_BASE = 0xFFFFFFFF0000
+RAM_BASE = 0xFC00_0000_0000        # single RAM segment (ADR-0004 R3, rev. 2026-10-11)
 TEST_BASE = ROM_BASE + 0x2C  # test instructions start after the 11-insn trampoline
 
 def addr_of(idx):
@@ -77,7 +78,7 @@ def ld_o_rd(rdha, rbhb, imms12):
 # ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
 # Trampoline sets rb16 = SEMI_BLOCK, writes block[0] = 0x20026 and sets
 # rd16 = 0x18 (SYS_EXIT).  Each terminal writes the code into block[1] and traps.
-SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 def trap_sys_exit(): return encode_riii(0x7F, 0x00, SEMIHOST_TAG)
 def semi_exit(code_rd): return [st_o_rd(code_rd, 16, 8), trap_sys_exit()]
@@ -137,20 +138,22 @@ def build_assertion(checks, fail_code):
 UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
 def build_rom(test_insns):
-    # 11-insn trampoline: SP=RAM@0, rb2=rb17=RAM@0 base, and the semihosting
+    # 11-insn trampoline: SP=RAM, rb2=rb17=RAM base, and the semihosting
     # SYS_EXIT argument block (rb16=SEMI_BLOCK, block[0]=0x20026, rd16=0x18).
     trampoline = [
         encode_rwii(0x4E, 1, 0, 0x0000),   # rb1 = 0
-        encode_rwii(0x4A, 1, 1, 0x00FF),   # rb1 = 0x00FF0000 (SP)
-        encode_rwii(0x4E, 2, 0, 0x0000),   # rb2 = 0 (RAM base)
+        encode_rwii(0x4A, 1, 1, 0x00FF),   # rb1 = 0xFC00_00FF_0000 (SP)
+        encode_rwii(0x4A, 1, 2, 0xFC00),
+        encode_rwii(0x4E, 2, 2, 0xFC00),   # rb2 = 0 (RAM base)
         encode_rwii(0x4E, 16, 0, 0x0000),  # rb16 = 0
         encode_rwii(0x4A, 16, 1, 0x00FF),  # rb16 = 0x00FF0000
-        encode_rwii(0x4A, 16, 0, 0xF000),  # rb16 = 0x00FFF000 (block)
+        encode_rwii(0x4A, 16, 0, 0xF000),  # rb16 = 0xFC00_00FF_F000 (block)
+        encode_rwii(0x4A, 16, 2, 0xFC00),
         encode_rwii(0x4C, 8, 0, 0x0026),   # rd8 = 0x26
         encode_rwii(0x48, 8, 1, 0x0002),   # rd8 = 0x20026
         encode_rrii(0x21, 8, 16, 0, 0),    # block[0] = 0x20026
         encode_rwii(0x4C, 16, 0, 0x0018),  # rd16 = 0x18 (SYS_EXIT)
-        encode_rwii(0x4E, 17, 0, 0x0000),  # rb17 = 0 (RAM base)
+        encode_rwii(0x4E, 17, 2, 0xFC00),  # rb17 = 0 (RAM base)
     ]
     rom = b''.join(trampoline) + b''.join(test_insns) + UNDI_TERMINATOR
     while len(rom) < 64:
@@ -297,7 +300,7 @@ TESTS.append(("C3b RASOF (RACNT=63, MRPTR=0 → 0x8A)", _t4(), RASOF_EXIT, "RASO
 
 # ── Test 5: C3b spill ────────────────────────────────────────────────
 def _t5():
-    OLD_MRPTR = 0x000000000100
+    OLD_MRPTR = RAM_BASE + 0x100
     NEW_MRPTR = OLD_MRPTR - 8
     MARKER = 0xBEEF
     EXPECTED_RA0 = (63 << 48) | NEW_MRPTR
@@ -305,7 +308,7 @@ def _t5():
     VERIFY_IDX = 15
     insns = [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0x0000),   # RAM@0: MRPTR high bits = 0
+        or_w_rd(18, 2, 0xFC00),   # RAM: MRPTR high bits = 0xFC00
         or_w_rd(18, 3, 0x003F),
         rd2ra(0, 18, 1),
         set_zw_rd(18, MARKER),
@@ -395,11 +398,11 @@ TESTS.append(("D4a RASUF (empty, MRPTR=0 → 0x8B)", _t9(), RASUF_EXIT, "D4a RAS
 
 # ── Test 10: D4b count=1 ─────────────────────────────────────────────
 def _t10():
-    OLD_MRPTR = 0x000000000100
+    OLD_MRPTR = RAM_BASE + 0x100
     NEW_MRPTR = OLD_MRPTR + 8
     insns = [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0x0000),   # RAM@0: MRPTR high bits = 0
+        or_w_rd(18, 2, 0xFC00),   # RAM: MRPTR high bits = 0xFC00
         rd2ra(0, 18, 1),
     ]
     RET_IDX = 3 + 4 + 1 + 1
@@ -419,11 +422,11 @@ TESTS.append(("D4b count=1 (MRPTR+=8)", _t10(), PASS_EXIT, "D4b count=1 failed")
 
 # ── Test 11: D4b count>1 ─────────────────────────────────────────────
 def _t11():
-    OLD_MRPTR = 0x000000000100
+    OLD_MRPTR = RAM_BASE + 0x100
     NEW_MRPTR = OLD_MRPTR + 8
     insns = [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0x0000),   # RAM@0: MRPTR high bits = 0
+        or_w_rd(18, 2, 0xFC00),   # RAM: MRPTR high bits = 0xFC00
         rd2ra(0, 18, 1),
     ]
     RET_IDX = 3 + 4 + 1 + 1
@@ -449,7 +452,7 @@ TESTS.append(("D4b count>1 (push RegRAS, RACNT=1, MRPTR+=8)", _t11(), PASS_EXIT,
 def _t12():
     return [
         set_zw_rd(18, 0x0100),
-        or_w_rd(18, 2, 0x0000),   # RAM@0: MRPTR high bits = 0
+        or_w_rd(18, 2, 0xFC00),   # RAM: MRPTR high bits = 0xFC00
         rd2ra(0, 18, 1),
         set_zw_rd(18, 0),
         rd2ra(5, 18, 1),

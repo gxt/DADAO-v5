@@ -159,7 +159,7 @@ def trap_sys_exit():
 # rd16 = 0x18 (SYS_EXIT).  Each terminal store writes the exit code into
 # block[1] (offset 8) and traps; SYS_EXIT never returns.
 
-SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 
 def semi_exit(code_rd):
@@ -175,20 +175,24 @@ UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
 
-    Trampoline sets rb1=SP, rb2=rb17=RAM@0 base, and primes the semihosting
+    Trampoline sets rb1=SP, rb2=rb17=RAM base, and primes the semihosting
     SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
         set_zw_rb(1, 0x0000),    # set.zw rb1, wp0, 0x0000 -> rb1 = 0
-        or_w_rb(1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0x00FF0000 (SP)
+        or_w_rb(1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF -> rb1 = 0xFC00_00FF_0000 (SP)
+        or_w_rb(1, 2, 0xFC00),
         set_zw_rb(2, 0x0000),    # set.zw rb2, wp0, 0x0000 -> rb2 = 0 (RAM base)
+        or_w_rb(2, 2, 0xFC00),
         set_zw_rb(16, 0x0000),   # set.zw rb16, wp0, 0x0000 -> rb16 = 0
         or_w_rb(16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF -> rb16 = 0x00FF0000
-        or_w_rb(16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0x00FFF000 (block)
+        or_w_rb(16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 -> rb16 = 0xFC00_00FF_F000 (block)
+        or_w_rb(16, 2, 0xFC00),
         set_zw_rd(8, 0x0026),    # set.zw rd8, wp0, 0x0026
         or_w_rd(8, 1, 0x0002),   # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
         st_o(8, 16, 0),          # block[0] = 0x20026 (ADP_Stopped_ApplicationExit)
         set_zw_rd(16, 0x0018),   # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
         set_zw_rb(17, 0x0000),   # set.zw rb17, wp0, 0x0000 -> rb17 = 0 (RAM base)
+        or_w_rb(17, 2, 0xFC00),
     ]
     rom = b''
     for insn in trampoline:
@@ -228,7 +232,7 @@ MALIGN_EXIT = 140  # 0x8C
 UNMAPPED_EXIT = 135 # 0x87
 
 # ── Test cases ────────────────────────────────────────────────────────
-# After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM@0 base
+# After trampoline: rb16=SYS_EXIT argument block, rb17=rb2=RAM base
 
 TESTS = [
     # T1: st.o 0 → SYS_EXIT code 0 (PASS)
@@ -263,7 +267,7 @@ TESTS = [
 
     # T5: Unaligned ld.o (RAM+1) → MALIGN
     ("T5 ld.o RAM+1 → MALIGN",
-     [set_zw_rb(18, 0x0001),    # rb18 = RAM+1 (RAM@0)
+     [set_zw_rb(18, 0x0001),    # rb18 = RAM+1 (RAM)
       ld_o(19, 18, 0)],         # ld.o rd19, rb18, 0 → unaligned
      MALIGN_EXIT,
      "ld.o unaligned not MALIGN"),
@@ -318,7 +322,7 @@ TESTS = [
     # obsolete (SPEC-066t: div-by-zero yields a defined value, no fault), so the
     # match is now reported with a br.nz/FAIL arm (present-ISA equivalent).
     ("T12 stm.o+ldm.o round-trip",
-     [set_zw_rb(18, 0x0100),             # rb18 = RAM+0x100 (RAM@0)
+     [set_zw_rb(18, 0x0100),             # rb18 = RAM+0x100 (RAM)
       set_zw_rd(20, 0x0042),             # rd20 = 0x42
       set_zw_rd(19, 0),                  # rd19 = 0 (offset)
       stm_o(20, 18, 19, 1),              # stm.o rd20, rb18, rd19, 1

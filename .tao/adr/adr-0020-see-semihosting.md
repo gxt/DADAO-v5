@@ -10,9 +10,9 @@ M1–M4 的 v5 工具链是**裸机、无 OS、无 syscall**：无 SEE（无四�
 
 M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE/HEE 运行环境 + semihosting**」：自有工具链编 bootrom（LLVM 新指令首个真实用户）→ QEMU 启动 bootrom（初始权限/向量配置）→ guest 经 `trap`（semihosting tag）→ 复用 QEMU 共享层 `do_common_semihosting`（ARM 号值）→ `SYS_EXIT`/控制台输出**替代** exit-port。
 
-本 ADR 命中 `spec/Process-03-ADR编写规范.md` 的 ADR 判据：**跨组件 / 需一致**（LLVM、QEMU、testcases、integ 多模块）、**有多方案且需记录取舍**（复用 vs 自建 responder；走向量 vs 译码短路）、**外部依赖 / 契约**（复用 QEMU 上游共享层）、**把结论固化为约束**（决策先行）。
+本 ADR 命中 `docs/Process-03-ADR编写规范.md` 的 ADR 判据：**跨组件 / 需一致**（LLVM、QEMU、testcases、integ 多模块）、**有多方案且需记录取舍**（复用 vs 自建 responder；走向量 vs 译码短路）、**外部依赖 / 契约**（复用 QEMU 上游共享层）、**把结论固化为约束**（决策先行）。
 
-**承载位置（`D13`）**：本 ADR **只记决策/理由/被否方案/指向规范章节的引用**；semihosting 服务号值↔入参/出参表、SEE/semihosting 调用约定、`switch_run_mode` 语义、`CFXMEM`/`NUPERM` 等异常语义的正文**入 `spec/`**（归 `SPEC-114t`；新建 `spec/Machine-01-测试机运行环境.md` 为正文落点）。ADR **不承载规范正文**（`spec/Process-03-ADR编写规范.md`「ADR 不承载规范正文」）。
+**承载位置（`D13`）**：本 ADR **只记决策/理由/被否方案/指向规范章节的引用**；semihosting 服务号值↔入参/出参表、SEE/semihosting 调用约定、`switch_run_mode` 语义、`CFXMEM`/`NUPERM` 等异常语义的正文**入 `spec/`**（归 `SPEC-114t`；新建 `spec/Machine-01-测试机运行环境.md` 为正文落点）。ADR **不承载规范正文**（`docs/Process-03-ADR编写规范.md`「ADR 不承载规范正文」）。
 
 **上游对照（只读、非执行依赖）**：QEMU 共享层 `semihosting/arm-compat-semi.c` 提供 `do_common_semihosting(cs)`（声明于 `include/semihosting/common-semi.h`）；target 钩子范式 `target/riscv/common-semi-target.c`；接入点 `target/riscv/tcg/insn_trans/trans_privileged.c.inc` 抛 `RISCV_EXCP_SEMIHOST` → `target/riscv/tcg/cpu_helper.c`：`do_common_semihosting(cs); env->pc += 4;`。v5 照搬此范式。
 
@@ -43,7 +43,7 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 
 - **D12**（新 bootrom）：M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配置**；bootrom 用**自有工具链**编译（LLVM 新指令首个真实用户）。加载模型：**用 `-bios`**、**复位向量不变**（`0xffff_ffff_0000`，`spec/DADAO-12 §2.1:68` = `cfx_power_hypv_excp_vector`，64 KiB）；bootrom **hypv → user 直跳、本版不启用 supv**（`smon` 不参与）。
 
-- **D13**（承载位置）：测试机/SEE/semihosting 的**规范正文入 `spec/`**（`SPEC-114t`）；**ADR 只记决策/理由/被否方案/指向规范章节的引用**，不承载规范正文（`spec/Process-03-ADR编写规范.md`）。
+- **D13**（承载位置）：测试机/SEE/semihosting 的**规范正文入 `spec/`**（`SPEC-114t`）；**ADR 只记决策/理由/被否方案/指向规范章节的引用**，不承载规范正文（`docs/Process-03-ADR编写规范.md`）。
 
 - **D14**（共享层适配点）：共享层 `common_semi_arg(cs, n)` 假定「同一组 `a0 + n`」（RISC-V 实测 `target/riscv/common-semi-target.c`：`gpr[xA0 + argno]`），而 v5 三组（`rd`/`rb`/`rf`）**各自独立计数、从 16 起递增**（`.tao/knowledge/contract-abi.md §4.1`）⇒ DADAO 钩子**按 `n` 选 bank**（`n=0`→`rd16`、`n=1`→`rb16`）、`common_semi_set_ret`→`rd31`。属**小适配（非重写）**，仅写 `target/dadao/common-semi-target.c`。
 
@@ -112,5 +112,5 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 
 - **判定方式**：用户 2026-10-07 以**总述 + 后续两问回答**给出裁定（原话见 `.tao/tasks/spec/SPEC-113t-ADR决策落地.md` 完成区与 §四「用户逐条裁定结果」）。
 - **本轮被特别指出的条目**：**`D1`**（决策保留；其语义说明移 `spec/Machine-01-*`，归 `SPEC-114t`）、**`D15`**（新增 decision）、以及 `ADR-0004` 的 `R1`/`R2`/`R3`。
-- **推定保留 + 用户明确确认**：`D2`–`D14` 未在总述中特别指出，按主会话声明「**未特别指出者视为保留**」推定保留，并**经用户明确确认**；该推定为默认推定，若用户对某条另有意见，按 `spec/Process-03` 处置（新增 ADR / 标 `Superseded` / 经授权就地修订）。
-- **决策变更**：**新增 ADR 或标注 `Superseded`**，不直接改写已 `Accepted` 的决策（`spec/Process-03`）。
+- **推定保留 + 用户明确确认**：`D2`–`D14` 未在总述中特别指出，按主会话声明「**未特别指出者视为保留**」推定保留，并**经用户明确确认**；该推定为默认推定，若用户对某条另有意见，按 `docs/Process-03` 处置（新增 ADR / 标 `Superseded` / 经授权就地修订）。
+- **决策变更**：**新增 ADR 或标注 `Superseded`**，不直接改写已 `Accepted` 的决策（`docs/Process-03`）。

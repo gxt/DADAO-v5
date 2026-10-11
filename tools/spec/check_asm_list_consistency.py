@@ -30,7 +30,7 @@ from gen_asm_list import (  # noqa: E402
 
 EXPECTED_START = "<!-- ASSEMBLY_LIST_START -->"
 EXPECTED_END = "<!-- ASSEMBLY_LIST_END -->"
-SECTION_HEADER = "## 汇编指令速查"
+SECTION_HEADER = "## 1. 汇编指令速查"
 
 
 def extract_embedded(spec_text: str) -> str | None:

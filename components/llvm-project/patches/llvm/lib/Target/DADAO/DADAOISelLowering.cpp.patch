@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..593880eb6
+index 000000000..88b14358b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,916 @@
+@@ -0,0 +1,1094 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -78,6 +78,14 @@ index 000000000..593880eb6
 +  setOperationAction(ISD::BR_CC, MVT::f32, Custom);
 +  setOperationAction(ISD::BR_CC, MVT::f64, Custom);
 +
++  // Dense switch dispatch (LLVM-072t, ISS-177/G3): DADAO has no dedicated
++  // jump-table instruction, so ISD::BR_JT is lowered to a target node that the
++  // custom selector expands into "materialize the table base, index, load the
++  // 8-byte absolute case address, jump through it" (jump_rrii).  Marking the
++  // operation Custom is also what enables jump-table formation
++  // (TargetLowering::areJTsAllowed).
++  setOperationAction(ISD::BR_JT, MVT::Other, Custom);
++
 +  // Compare-as-value (LLVM-069t): a comparison whose result is *used as a
 +  // value* (C `a == b`, `!x`, `a < b`, `?:`, `&&`/`||`) reaches us as a
 +  // surviving SETCC (the i1 result is promoted to i64) or a SELECT_CC (a
@@ -90,6 +98,19 @@ index 000000000..593880eb6
 +  setOperationAction(ISD::SETCC, MVT::i64, Custom);
 +  setOperationAction(ISD::SELECT_CC, MVT::i64, Custom);
 +  setOperationAction(ISD::SELECT, MVT::i64, Custom);
++  // FP compare-as-value / FP select (LLVM-079t).  A `fcmp` whose result is used
++  // as a value survives as a SETCC keyed by the *compared* FP type; an FP-armed
++  // select/select_cc (result f32/f64) is keyed by the *result* type.  Both are
++  // custom so they reuse LowerCmpSelect -- the same fp compare (foqcmp/ftqcmp)
++  // feeding a cs.* conditional assignment that the integer path uses -- which
++  // now returns a value of the arm type (the cs.*_rd form for integer arms, the
++  // cs.*_rrrr_rf form for FP arms; contract-fp.md §8/§10, contract-isa.md §6.5).
++  setOperationAction(ISD::SETCC, MVT::f32, Custom);
++  setOperationAction(ISD::SETCC, MVT::f64, Custom);
++  setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
++  setOperationAction(ISD::SELECT_CC, MVT::f64, Custom);
++  setOperationAction(ISD::SELECT, MVT::f32, Custom);
++  setOperationAction(ISD::SELECT, MVT::f64, Custom);
 +  // The lowered SETCC produces a *canonical* 0/1 boolean (the cmp* {-1,0,1}
 +  // normalised through cs.*), so declare ZeroOrOne: booleans that survive to
 +  // the legalizer are zero-extended, never any-extended, keeping a `false`
@@ -108,6 +129,32 @@ index 000000000..593880eb6
 +    setLoadExtAction(ISD::ZEXTLOAD, MVT::i64, VT, Legal);
 +    setTruncStoreAction(MVT::i64, VT, Legal);
 +  }
++
++  // i1 (boolean) loads (LLVM-077t, ISS-186).  The load-extension action for an
++  // i1 memory type defaults to Legal, but the byte/wyde/tetra load patterns
++  // above have no i1 form, so a surviving `zextloadi1` (an i1 in memory is a
++  // whole byte; the DAG prints its MMO as 8 bits) would fail ISel with
++  // "Cannot select: ... zext from i1".  Such nodes are produced whenever a
++  // value narrowed to a boolean is read back, e.g. the `(load i64) & 1`
++  // (GlobalOpt shrink-to-bool) pattern in aha-mont64.  Promote the i1 memory
++  // type to i8 so the existing byte-load patterns match: a well-defined i1 in
++  // memory is exactly 0 or 1, so the promoted byte load is exact (this is the
++  // standard trick documented in LegalizeDAG and used by SystemZ/Mips/MSP430).
++  for (MVT VT : MVT::integer_valuetypes()) {
++    setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
++    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
++    setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
++  }
++
++  // f32 -> f64 "anyext" loads (LLVM-079t).  DAGCombiner::visitFP_EXTEND folds
++  // `fpext (load f32)` into a *widening* any-extend load to f64 whenever the
++  // (f64<-f32) EXTLOAD action is legal (the default), which this backend cannot
++  // select -- and, worse, an any-extending load is not the fpext the IR asked
++  // for (the high 32 bits are undefined, not the double's exponent).  Marking
++  // the extension illegal disables the fold and lets the fpext reach ISel,
++  // where it selects the hardware ft2fo conversion (contract-fp.md §2).  Same
++  // fix as AMDGPU/LoongArch/PPC/CSKY.
++  setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
 +
 +  // Varargs (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  DADAO's
 +  // va_list is a plain void*: va_start points just past the named arguments in
@@ -155,6 +202,17 @@ index 000000000..593880eb6
 +                      ISD::UINT_TO_FP},
 +                     MVT::i64, Legal);
 +
++  // Bit-manipulation builtins (LLVM-079t).  The ISA has no bit-scan / population
++  // count instruction (`contracts/opcodes.yaml` carries no cttz/ctlz/ctpop op),
++  // so the *generic* software expansions are used: they bottom out in ordinary
++  // i64 shift/and/or/sub/mul/not operations that this backend already selects
++  // (TargetLowering::expandCTTZ/expandCTLZ/expandCTPOP) and need no libcall or
++  // constant pool.  Without this a surviving `llvm.cttz`/`ctlz`/`ctpop` aborts
++  // ISel with "Cannot select: ... cttz" (the ISS-188 picolibc gap).
++  setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_POISON, ISD::CTLZ,
++                      ISD::CTLZ_ZERO_POISON, ISD::CTPOP},
++                     MVT::i64, Expand);
++
 +  computeRegisterProperties(STI.getRegisterInfo());
 +
 +  // mem* builtins (M6, INTEG-023k §A #3, no libc): inline a constant-size
@@ -177,6 +235,8 @@ index 000000000..593880eb6
 +    return "DADAOISD::RET_GLUE";
 +  case DADAOISD::CALL:
 +    return "DADAOISD::CALL";
++  case DADAOISD::TAIL:
++    return "DADAOISD::TAIL";
 +  case DADAOISD::CMP:
 +    return "DADAOISD::CMP";
 +  case DADAOISD::CMPU:
@@ -205,6 +265,8 @@ index 000000000..593880eb6
 +    return "DADAOISD::CS_Z";
 +  case DADAOISD::CS_P:
 +    return "DADAOISD::CS_P";
++  case DADAOISD::BR_JT:
++    return "DADAOISD::BR_JT";
 +  default:
 +    return nullptr;
 +  }
@@ -412,6 +474,107 @@ index 000000000..593880eb6
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
 +  CCInfo.AnalyzeCallOperands(Outs, CC_DADAO);
 +
++  // Real tail call (LLVM-074t; contract-isa.md §8.3/§8.4, contract-abi.md
++  // §2.3/§4.6).  DADAO has no tail-call instruction, but it does have a plain
++  // `jump`: a tail call is lowered as a tail-jump that (a) tears down this
++  // frame and (b) jumps to the callee *without* pushing a return address, so
++  // the callee's `ret` pops the *caller's* RegRAS entry.  The frame teardown is
++  // not emitted here -- the selected tail-jump instruction (tailjmp_iiii /
++  // tailjmp_rrii) is isReturn, so PEI emits the standard epilogue before it.
++  // Only tail calls whose arguments all live in registers and in no memory of
++  // *this* frame are eligible (see the eligibility loop below).
++  if (CLI.IsTailCall) {
++    // Eligibility (LLVM-074t).  A tail-jump leaves SP at the caller's frame, so
++    // any argument that needs memory in *this* frame is unsafe:
++    //   - a varargs save area or an out-of-register (stack) argument needs the
++    //     outgoing argument area of this frame;
++    //   - a `byval` argument is a pointer to a caller-local copy, and an
++    //     `Indirect` (large aggregate) argument is a pointer to a caller-local
++    //     temporary -- both become dangling once the epilogue deallocates the
++    //     frame (same guards as RISCV/AArch64);
++    //   - an `sret` argument (callee returns through a pointer) points into the
++    //     caller's frame too.
++    bool Eligible = !VarArgSaveArea && CCInfo.getStackSize() == 0;
++    for (const ISD::OutputArg &Arg : Outs)
++      if (Arg.Flags.isByVal() || Arg.Flags.isSRet())
++        Eligible = false;
++    for (const CCValAssign &VA : ArgLocs)
++      if (VA.getLocInfo() == CCValAssign::Indirect)
++        Eligible = false;
++    if (Eligible) {
++      // Copy the outgoing register arguments (glued), materialising the
++      // caller-side sign/zero extension exactly as the normal path (C4 D2).
++      SDValue ArgGlue;
++      SmallVector<std::pair<Register, SDValue>, 8> TailRegs;
++      for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
++        CCValAssign &VA = ArgLocs[i];
++        SDValue Arg = OutVals[i];
++        switch (VA.getLocInfo()) {
++        case CCValAssign::Full:
++          break;
++        case CCValAssign::SExt:
++          Arg = DAG.getNode(ISD::SIGN_EXTEND, DL, VA.getLocVT(), Arg);
++          break;
++        case CCValAssign::ZExt:
++          Arg = DAG.getNode(ISD::ZERO_EXTEND, DL, VA.getLocVT(), Arg);
++          break;
++        case CCValAssign::AExt:
++          Arg = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Arg);
++          break;
++        default:
++          llvm_unreachable("DADAO: unsupported argument location info");
++        }
++        assert(VA.isRegLoc() && "tail call with an out-of-register argument");
++        Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), Arg, ArgGlue);
++        ArgGlue = Chain.getValue(1);
++        TailRegs.push_back(std::make_pair(VA.getLocReg(), Arg));
++      }
++
++      // Callee operand: a target global/external symbol (direct) or a GPRB
++      // virtual register holding the target address (indirect), as in CALL.
++      SDValue CalleeOp;
++      if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++        CalleeOp = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
++      } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
++        CalleeOp = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);
++      } else {
++        Register TargetReg =
++            MF.getRegInfo().createVirtualRegister(&DADAO::GPRBRegClass);
++        Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Callee, ArgGlue);
++        ArgGlue = Chain.getValue(1);
++        CalleeOp = DAG.getRegister(TargetReg, MVT::i64);
++      }
++
++      const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
++      const uint32_t *Mask = TRI->getCallPreservedMask(MF, CallConv);
++      assert(Mask &&
++             "DADAO: missing call-preserved mask for the calling convention");
++
++      SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
++      SmallVector<SDValue, 8> TailOps;
++      TailOps.push_back(Chain);
++      TailOps.push_back(CalleeOp);
++      TailOps.push_back(DAG.getRegisterMask(Mask));
++      for (auto &Reg : TailRegs)
++        TailOps.push_back(
++            DAG.getRegister(Reg.first, Reg.second.getValueType()));
++      if (ArgGlue.getNode())
++        TailOps.push_back(ArgGlue);
++      return DAG.getNode(DADAOISD::TAIL, DL, NodeTys, TailOps);
++    }
++
++    // Not eligible: a `musttail` call promises to reuse the frame, so it cannot
++    // be silently demoted -- fail loudly.  A plain (hint-only) `tail` may be
++    // demoted to an ordinary call+return (TargetLowering::CallLoweringInfo::
++    // IsTailCall is documented to be cleared by LowerCall implementations);
++    // that is correct, just not the tail-call optimisation (LLVM-070t).
++    if (CLI.CB && CLI.CB->isMustTailCall())
++      report_fatal_error("DADAO: 'musttail' call cannot be lowered: the tail "
++                         "call needs stack arguments, is variadic, or has a "
++                         "byval/indirect/sret argument");
++    CLI.IsTailCall = false;
++  }
++
 +  if (VarArgSaveArea && CCInfo.getStackSize() != 0)
 +    report_fatal_error("DADAO: a varargs call with register-exhausted "
 +                       "arguments is not supported yet");
@@ -590,6 +753,8 @@ index 000000000..593880eb6
 +    return LowerVASTART(Op, DAG);
 +  case ISD::VAARG:
 +    return LowerVAARG(Op, DAG);
++  case ISD::BR_JT:
++    return LowerBR_JT(Op, DAG);
 +  default:
 +    return SDValue();
 +  }
@@ -676,6 +841,22 @@ index 000000000..593880eb6
 +                    Dest, DL, DAG);
 +}
 +
++SDValue DADAOTargetLowering::LowerBR_JT(SDValue Op, SelectionDAG &DAG) const {
++  // Dense switch dispatch (LLVM-072t, ISS-177/G3).  The jump table itself is
++  // emitted by the generic AsmPrinter: EK_BlockAddress entries (one 8-byte
++  // absolute case address each) in a read-only data section, each `.quad LBB`
++  // becoming an R_DADAO_ABS48 field.  All this hook has to do is retag the
++  // ISD::BR_JT node so the custom selector (DADAOISelDAGToDAG::Select) can emit
++  // the materialize-index-load-jump sequence; the table symbol travels as a
++  // TargetJumpTable leaf, which InstrEmitter turns into an MO_JumpTableIndex.
++  SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  auto *JT = cast<JumpTableSDNode>(Op.getOperand(1));
++  SDValue Index = Op.getOperand(2);
++  SDValue TargetJT = DAG.getTargetJumpTable(JT->getIndex(), MVT::i64);
++  return DAG.getNode(DADAOISD::BR_JT, DL, MVT::Other, Chain, Index, TargetJT);
++}
++
 +SDValue DADAOTargetLowering::LowerBR_CC(SDValue Chain, ISD::CondCode CC,
 +                                        SDValue LHS, SDValue RHS, SDValue Dest,
 +                                        const SDLoc &DL,
@@ -692,16 +873,14 @@ index 000000000..593880eb6
 +  auto BrOn = [&](DADAOISD::NodeType Op, SDValue Val) {
 +    return DAG.getNode(Op, DL, MVT::Other, Chain, Val, Dest);
 +  };
-+  // Emit a compare + zero-test branch.  A constant RHS must fit the cmp
-+  // immediate (12-bit); otherwise the compare cannot be selected.
++  // Emit a compare + zero-test branch.  A constant RHS that fits the cmp*
++  // 12-bit immediate is folded into cmp.si/cmp.ui; a larger constant is
++  // materialised into a GPRD register (CONST_WYDE, C12 / ADR-0018) and compared
++  // with the register-register form cmp.so/cmp.uo (contract-isa.md §6.2).  The
++  // same DADAOISD::CMP/CMPU node carries either shape: ISel picks the immediate
++  // pattern when the constant fits and the register pattern otherwise, so a
++  // large constant is never rejected here.
 +  auto CmpThenBranch = [&](bool Unsigned, DADAOISD::NodeType Op) {
-+    if (auto *C = dyn_cast<ConstantSDNode>(RHS)) {
-+      const bool FitsU = isUInt<12>(C->getZExtValue());
-+      const bool FitsS = isInt<12>(C->getSExtValue());
-+      if (Unsigned ? !FitsU : !FitsS)
-+        report_fatal_error("DADAO: branch compare against a constant that does "
-+                           "not fit a 12-bit immediate is not supported yet");
-+    }
 +    return BrOn(Op, Cmp(Unsigned));
 +  };
 +
@@ -798,9 +977,11 @@ index 000000000..593880eb6
 +                                            SelectionDAG &DAG) const {
 +  // cs.* conditional assignment (contract-isa.md §6.5): the three tests cover
 +  // cond < 0 / == 0 / > 0 with the two arms selected explicitly, so <=0 / >=0
-+  // reuse a test with the arms swapped.
++  // reuse a test with the arms swapped.  The result type is the arms' type: i64
++  // for integer arms (cs.*_rd) and f64/f32 for FP arms (cs.*_rrrr_rf); the
++  // condition is always an i64 comparison result (LLVM-079t).
 +  auto Select = [&](DADAOISD::NodeType Cs, SDValue Cond, SDValue T, SDValue F) {
-+    return DAG.getNode(Cs, DL, MVT::i64, Cond, T, F);
++    return DAG.getNode(Cs, DL, T.getValueType(), Cond, T, F);
 +  };
 +
 +  // --- Floating-point compare selecting integer arms (M6 uniform path) ---
@@ -857,14 +1038,9 @@ index 000000000..593880eb6
 +  if (auto *C = dyn_cast<ConstantSDNode>(RHS))
 +    if (CC == ISD::SETEQ || CC == ISD::SETNE)
 +      Unsigned = isUInt<12>(C->getZExtValue());
-+  // A constant RHS must fit the cmp* 12-bit immediate (LowerBR_CC's limit).
-+  if (auto *C = dyn_cast<ConstantSDNode>(RHS)) {
-+    const bool FitsU = isUInt<12>(C->getZExtValue());
-+    const bool FitsS = isInt<12>(C->getSExtValue());
-+    if (Unsigned ? !FitsU : !FitsS)
-+      report_fatal_error("DADAO: select/setcc compare against a constant that "
-+                         "does not fit a 12-bit immediate is not supported yet");
-+  }
++  // A constant RHS that does not fit the cmp* 12-bit immediate is not rejected:
++  // ISel materialises it into a GPRD register (CONST_WYDE, C12 / ADR-0018) and
++  // uses the register-register cmp.so/cmp.uo form (contract-isa.md §6.2).
 +
 +  SDValue Cmp = DAG.getNode(Unsigned ? DADAOISD::CMPU : DADAOISD::CMP, DL,
 +                            MVT::i64, LHS, RHS);
@@ -913,10 +1089,12 @@ index 000000000..593880eb6
 +                                         SelectionDAG &DAG) const {
 +  // `select cond, true, false` with a non-setcc condition: a false condition
 +  // is exactly 0 (ZeroOrOne boolean content), so cs.z picks the false arm.
++  // The arms may be integer (cs.*_rd) or FP (cs.*_rrrr_rf, LLVM-079t), so the
++  // node's result type is the arms' type.
 +  const SDLoc DL(Op);
 +  SDValue Cond = Op.getOperand(0);
 +  if (Cond.getValueType() != MVT::i64)
 +    Cond = DAG.getZExtOrTrunc(Cond, DL, MVT::i64);
-+  return DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, Cond, Op.getOperand(2),
-+                     Op.getOperand(1));
++  return DAG.getNode(DADAOISD::CS_Z, DL, Op.getOperand(2).getValueType(), Cond,
++                     Op.getOperand(2), Op.getOperand(1));
 +}

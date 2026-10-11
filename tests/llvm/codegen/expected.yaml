@@ -3,7 +3,7 @@
 #
 # Entry / exit channel (frozen by INTEG-012t; MMIO halt device -> SYS_EXIT by TESTCASES-034t):
 #   * every program defines `i64 @main()`;
-#   * crt0 `_start` calls it and reports the returned value (rd31) through the
+#   * crt0 `_start` calls it and reports the returned value (rd8) through the
 #     semihosting SYS_EXIT service (ADR-0020 D8: SYS_EXIT replaces the exit
 #     port, ADR-0004 D3 superseded), then halts;
 #   * the guest process exit code is the low byte of that value.
@@ -144,7 +144,7 @@ programs:
     expected_exit_code: 42
     coverage: [C1, C5, call.ptr-bank]
     derivation: >-
-      buf[3] = 42 ; q = advance(buf, 3) = buf + 3 (pointer return, rb31) ;
+      buf[3] = 42 ; q = advance(buf, 3) = buf + 3 (pointer return, rb8) ;
       r = deref(q) = 42 (pointer argument, rb16).
 
   - name: ptr_add_offset.ll

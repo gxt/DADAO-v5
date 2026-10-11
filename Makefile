@@ -38,13 +38,15 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-qemu build-qemu-reconfig build-gem5 build-bootrom install-host docker-image docker-shell check \
+        build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
+        test-picolibc-smoke install-host docker-image docker-shell check \
+        check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-spec-readonly check-cfx-aliases check-asm-prose check-lit \
         check-lit-full \
-        test-codegen test-elf test-semihost \
+        test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants
 
@@ -73,17 +75,24 @@ help:
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
+	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
+	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
 	@echo "  make clean-work      Remove generated .work content only"
 	@echo "  make validate-vectors  Validate tests/vectors schema/inventory/coverage"
-	@echo "  make check           Run repository-level structural checks"
+	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
+	@echo "  make check-modules   Run L2 module functional representative set (check-lit + check-interface + check-qemu-smoke + test-codegen/elf/semihost)"
+	@echo "  make check-full      Run L3 fuller checks (check-qemu-semantics + test-m6; check-lit-full via test-m6)"
+	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
+	@echo "  make check-qemu-smoke  QEMU semantic smoke (representative subset; L2)"
+	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
-	@echo "  make check-spec-refs Audit spec references in contract-*.md (standalone)"
+	@echo "  make check-spec-refs Audit spec references in contract-*.md (L1; INFRA-011t/058t)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
@@ -92,7 +101,8 @@ help:
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t)"
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t)"
 	@echo "  make test-semihost    Run M5 SEE/semihosting E2E gate (bootrom+bin via -semihosting, console+SYS_EXIT, 25 svc; INTEG-020t)"
-	@echo "  make check-patch-tree  Check component patch tree (spec/Process-01, 9 assertions)"
+	@echo "  make test-m6          Run M6 E2E gate (lli value-level diff + Embench all benches -O0/-O2 + full lit MC suite; opt-in, INTEG-025t)"
+	@echo "  make check-patch-tree  Check component patch tree (docs/Process-01, 9 assertions)"
 	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
 	@echo "  make check-legality-drift  Check LEGALITY section drift gate (SPEC-074t)"
 	@echo "  make check-legality-invariants  Check ftroot/foroot n=2 + rule-rename gate (ISS-079)"
@@ -327,6 +337,12 @@ CLANG_RESOURCE_VER := $(shell ls -1 $(LLVM_BUILD)/lib/clang 2>/dev/null | head -
 CLANG_HEADERS_SRC  = $(LLVM_BUILD)/lib/clang/$(CLANG_RESOURCE_VER)/include
 CLANG_RESOURCE_DIR = $(HOST_TOOLCHAIN_DIR)/lib/clang/$(CLANG_RESOURCE_VER)
 
+# clang++ (INFRA-056t): the C++ driver is the *same binary* as the C driver
+# (upstream bin/clang++ is itself a symlink to clang-NN), so install it as a
+# relative symlink to the already-installed `clang` — mirroring the ld.lld -> lld
+# precedent above.  Deliberately NOT added to $(HOST_LLVM_TOOLS): the clang binary
+# is ~4 GB, so atomic-install would copy it a second time.  Being relative and
+# resolving to the installed `clang`, it is zero-copy and same-source/same-commit.
 install-host: build-mc build-lld build-qemu
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
@@ -334,6 +350,7 @@ install-host: build-mc build-lld build-qemu
 	done
 	@$(call atomic-install,$(LLVM_BUILD)/bin/lld,$(HOST_TOOLCHAIN_BIN)/lld)
 	@ln -sf lld $(HOST_TOOLCHAIN_BIN)/ld.lld
+	@ln -sf clang $(HOST_TOOLCHAIN_BIN)/clang++
 	@$(call atomic-install,$(LLVM_BUILD)/bin/lli,$(HOST_TOOLS_BIN)/lli)
 	@$(call atomic-install,$(QEMU_BUILD)/qemu-system-dadao,$(HOST_TOOLCHAIN_BIN)/qemu-system-dadao)
 	@rm -rf $(HOST_LIT_DIR)
@@ -370,6 +387,24 @@ build-bootrom:
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
 	@echo "build-bootrom: PASS (outputs under $(BOOTROM_DIR))"
 
+# build-picolibc (INFRA-057t): build the DADAO port of picolibc with Meson and
+# install it into the target sysroot (headers under $(TARGET_SYSROOT_DIR)/
+# include, libraries under .../lib).  The cross file, the machine directory and
+# the semihosting syscall stubs live in the component patch set
+# (components/picolibc/patches/**); run 'make fetch apply-series' first.
+# The target is idempotent (Meson reconfigure + incremental Ninja + install).
+# Requires the install-root clang (run 'make install-host' first).
+build-picolibc:
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-picolibc: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tools/infra/build_picolibc.py --jobs $(JOBS)
+
+# test-picolibc-smoke (INFRA-057t): minimal end-to-end check — a printf("hi")
+# program is compiled against the installed picolibc, linked with the project
+# crt0/linker script and run under QEMU via semihosting; the guest must print
+# "hi" and exit 0.  Needs 'make build-picolibc' + 'make install-host' first.
+test-picolibc-smoke: build-picolibc
+	@$(PYTHON) tools/infra/test_picolibc_smoke.py
+
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev
 
@@ -379,10 +414,25 @@ docker-shell:
 clean-work:
 	@$(PYTHON) tools/infra/clean_work.py
 
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants check-interface validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-qemu-semantics check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-lit
+# ── 门控分层 (INFRA-058t；用户 2026-10-09 裁定，落 milestones「规划中」) ─────────
+# L1 `make check`（默认，秒~几十秒）   = 仓库完整性（静态检查）+ 组件可用性冒烟
+# L2 `make check-modules`（几十~几百秒）= 各模块功能代表集
+# L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
+# 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
+# `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
-	@echo "repository checks: PASS"
+	@echo "repository checks (L1): PASS"
+
+# L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
+# （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
+check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost
+	@echo "module checks (L2): PASS"
+
+# L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
+check-full: check-qemu-semantics test-m6
+	@echo "full checks (L3): PASS"
 
 # Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1
 # encoding table (contracts/opcodes.yaml) to exist.
@@ -393,7 +443,7 @@ validate-vectors: contracts/opcodes.yaml
 check-spec-drift:
 	@$(PYTHON) tools/infra/check_spec_drift.py
 
-# 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 spec/Process-01-组件补丁组织与构建编排.md。
+# 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 docs/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:
 	@$(PYTHON) tools/infra/check_patch_tree.py
 
@@ -408,7 +458,7 @@ check-source-state:
 	@$(PYTHON) tools/infra/check_patch_tree.py --source-state
 
 # 组件源文件规模报告 (INFRA-028t): 仅报告（非强制），不进门控。
-# 规则见 spec/Process-01 §11「组件源文件规模约定」。
+# 规则见 docs/Process-01 §11「组件源文件规模约定」。
 size-report:
 	@$(PYTHON) tools/infra/size_report.py
 
@@ -418,9 +468,17 @@ check-tasks:
 	@$(PYTHON) tools/infra/check_tasks.py
 
 # spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
-# Standalone target, not part of `make check`.
+# L1 成员 (INFRA-058t): 静态引用完整性检查（改后 0 误报）。覆盖 SimRISC-/DADAO-/
+# Toolchain-01/Machine-01；数值节号 (§7.2) 命中标题 `7.2 …`；模板占位 (§x/§N) 跳过。
 check-spec-refs:
 	@$(PYTHON) tools/infra/check_spec_refs.py
+
+# 被引用 `.work/**` 材料悬空门控 (INFRA-058t / INTEG-037t): 扫 AGENTS.md/spec/
+# .tao/knowledge/.tao/tasks 中对 `.work/**` 的引用；悬空即红。L1 成员。
+# 口径 (见 AGENTS.md「文档分层与单一真源」): 占位/通配/前缀截断跳过；
+# `.work/build`/`.work/source` 豁免；删除语境引用不校验；其余具体路径要求存在。
+check-knowledge-refs:
+	@$(PYTHON) tools/infra/check_knowledge_refs.py
 
 # cfx alias drift gate (SPEC-075t): verify .tao/knowledge/contract-cfx-aliases.md is up-to-date.
 check-cfx-aliases:
@@ -435,8 +493,13 @@ check-dirs:
 check-no-residue:
 	@$(PYTHON) tools/infra/check_dirs.py --residue
 
+# 组件可用性冒烟 (INFRA-058t, L1): llc / clang --print-targets / qemu-system-dadao
+# 可执行且确实认识 `dadao` 目标；不跑被测语义（那是 L2/L3）。
+check-components:
+	@$(PYTHON) tools/infra/check_components.py
+
 # spec 目录只读锁 (SPEC-119t): 只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
-# 规则见 spec/Process-06-spec目录保护规范.md §5。
+# 规则见 docs/Process-06-spec目录保护规范.md §5。
 check-spec-readonly:
 	@$(PYTHON) tools/infra/check_spec_readonly.py
 
@@ -467,14 +530,16 @@ check-spec-codeblocks:
 # `make install-host`).
 # llvm-lit missing => explicit error (never silent skip).
 # INFRA-047t (ADR-0016 D9): tools are taken from the install root, not .work/build.
+# INFRA-058t: L2 成员（功能代表集，受控子集）——已从 L1 `make check` 移出。
 LIT_BIN = $(HOST_TOOLCHAIN_BIN)/llvm-lit
 check-lit:
 	@test -x $(LIT_BIN) || { echo "check-lit: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
 	$(LIT_BIN) tests/llvm/lit/MC/DADAO tests/llvm/lit/CodeGen/DADAO tests/e2e/lit -v
 
 # lit 全量档 (TESTCASES-037t): 由 contracts/opcodes.yaml 机械生成的全部 lit MC
-# 编码用例（快档受控子集已随 check-lit 进 `make check`；本目标承载规模，
-# **opt-in，不进 `make check`**）。先跑结构+编码检查器，再跑 lit。
+# 编码用例（快档受控子集已随 check-lit 进 L2；本目标承载规模）。
+# INFRA-058t: 归 **L3**（经 `check-full` → `test-m6` 步骤 [1/3] 承载；本目标亦可单独调）。
+# 先跑结构+编码检查器，再跑 lit。
 # 计数不写死：由 check_lit_gen.py / llvm-lit **现场统计**；本目标不设硬编码门限。
 check-lit-full:
 	@test -x $(LIT_BIN) || { echo "check-lit-full: ERROR: $(LIT_BIN) not found — run 'make install-host' first"; exit 1; }
@@ -595,6 +660,50 @@ test-semihost: install-host build-bootrom test-elf test-codegen check
 	  if [ $$rc -ne 0 ]; then echo "test-semihost: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
 	@echo "test-semihost: PASS (forward + permission + 25-service + no-regression + INTEG registration)"
 
+# M6 end-to-end gate (INTEG-025t).  Three components, all fail-closed:
+#   1. value-level differential: the same LLVM IR runs on the host `lli` (X86)
+#      and on the DADAO target; both must expose the same value channel
+#      (`@main` return low byte) -- tools/testcases/diff_ir_lli.py (038t).
+#   2. Embench-IoT E2E: every benchmark under <embench-src>/src/ is compiled,
+#      linked and run at -O0 and -O2; judgement = guest exit code 0
+#      (support/main.c returns !correct) -- tools/integ/run_embench_e2e.py.
+#   3. the full generated lit MC suite (check-lit-full, 037t), driven through a
+#      sub-make so its own exit code is captured.
+# opt-in: NOT part of `make check` (the fast lit subset is already in check-lit).
+# Tools come from the install root (ADR-0016 D9): run 'make install-host' first.
+# Landing: work dirs under the SDK test-artifacts root (ADR-0016 D6 /
+# Process-05 §6), resolved via paths.py (D7) -- never hardcoded.
+DIFF_IR_LLI = tools/testcases/diff_ir_lli.py
+EMBENCH_E2E = tools/integ/run_embench_e2e.py
+EMBENCH_SRC = .work/source/embench-iot
+IR_LLI_WORK = $(TEST_ARTIFACTS_DIR)/ir-lli-diff
+EMBENCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m6-embench
+IR_LLI_LOG = .work/log/integ/test-m6-ir-lli.log
+EMBENCH_E2E_LOG = .work/log/integ/test-m6-embench.log
+LIT_FULL_LOG = .work/log/integ/test-m6-lit-full.log
+test-m6: install-host
+	@test -x $(HOST_TOOLS_BIN)/lli || { echo "test-m6: ERROR: $(HOST_TOOLS_BIN)/lli not found — run 'make install-host'"; exit 1; }
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "test-m6: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
+	@test -d $(EMBENCH_SRC) || { echo "test-m6: ERROR: $(EMBENCH_SRC) not found — run 'make fetch'"; exit 1; }
+	@mkdir -p .work/log/integ
+	@echo "test-m6: [1/3] lit full MC suite (check-lit-full)"; \
+	  $(MAKE) --no-print-directory check-lit-full > $(LIT_FULL_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 5 $(LIT_FULL_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-m6: FAIL (check-lit-full rc=$$rc)"; exit $$rc; fi
+	@echo "test-m6: [2/3] lli value-level differential (host X86 vs DADAO target)"; \
+	  $(PYTHON) $(DIFF_IR_LLI) --work-dir $(IR_LLI_WORK) > $(IR_LLI_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 6 $(IR_LLI_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-m6: FAIL (diff_ir_lli rc=$$rc)"; exit $$rc; fi
+	@echo "test-m6: [3/3] Embench E2E (all benchmarks x -O0/-O2; judge guest exit 0)"; \
+	  $(PYTHON) $(EMBENCH_E2E) --embench-src $(EMBENCH_SRC) --work-dir $(EMBENCH_E2E_WORK) \
+	    > $(EMBENCH_E2E_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -n 8 $(EMBENCH_E2E_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "test-m6: FAIL (embench rc=$$rc)"; exit $$rc; fi
+	@echo "test-m6: PASS (lit full + lli value-level diff + Embench E2E)"
+
 # Legality drift gate (SPEC-074t): verifies LEGALITY sections in
 # spec/SimRISC-01..12 exactly match content rendered from contracts/.
 check-legality-drift:
@@ -672,6 +781,22 @@ check-qemu-semantics:
 	  fi; \
 	  rm -rf $(QEMU_SEM_DIR); \
 	  echo "check-qemu-semantics: PASS"
+
+# QEMU 语义**冒烟**门控 (INFRA-058t, L2): check-qemu-semantics 的代表子集。
+# 代表集按 (class, mnemonic) **机械派生**（各组取第一条，禁手工挑），计数现场统计。
+# 全量留在 L3 (`check-full` → check-qemu-semantics)。
+QEMU_SMOKE_WORK = $(TEST_ARTIFACTS_DIR)/harness/smoke
+QEMU_SMOKE_LOG = .work/log/qemu/check-qemu-smoke.log
+check-qemu-smoke:
+	@mkdir -p .work/log/qemu
+	@test -x $(QEMU_BIN) || { echo "check-qemu-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tests/scripts/run_qemu_smoke.py --qemu $(QEMU_BIN) \
+	    --trampoline tests/scripts/trampoline.bin --vector-dir tests/vectors/isa \
+	    --work-dir $(QEMU_SMOKE_WORK) --jobs $(JOBS) > $(QEMU_SMOKE_LOG) 2>&1; \
+	  rc=$$?; \
+	  tail -8 $(QEMU_SMOKE_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-qemu-smoke: FAIL (rc=$$rc)"; exit $$rc; fi; \
+	  echo "check-qemu-smoke: PASS"
 
 # 构建并行度（用户裁定 2026-10-01：限制 cc1plus 类进程）
 JOBS ?= 8

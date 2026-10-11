@@ -81,7 +81,7 @@ python3 tests/scripts/run_qemu_test.py --qemu /path/to/qemu-system-dadao ...
 
 ## Binary Layout
 
-The test binary is loaded at RAM@0 base `0x0000_0000_0000` (ADR-0004 D2.2/R3):
+The test binary is loaded at the RAM base `0xFC00_0000_0000` (ADR-0004 D2.2/R3, rev. 2026-10-11):
 
 ```
 [section 1] loader   - Set rd/rb/ra registers from input_state, write memory

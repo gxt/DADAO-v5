@@ -187,7 +187,7 @@ def trap_sys_exit():
 # every case faults UNDI before its terminal runs.  The exit channel is still
 # migrated off the (deleted) exit port to semihosting SYS_EXIT for consistency.
 
-SEMI_BLOCK = 0x0000_00FF_F000       # {reason, code} block inside RAM@0 (16 MiB)
+SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 
 def semi_exit(code_rd):
@@ -203,20 +203,22 @@ UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
 
-    Trampoline sets rb1=SP, rb2=rb17=RAM@0 base, and primes the semihosting
+    Trampoline sets rb1=SP, rb2=rb17=RAM base, and primes the semihosting
     SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
         encode_rwii(0x4E, 1, 0, 0x0000),   # set.zw rb1, wp0, 0x0000
         encode_rwii(0x4A, 1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF (SP)
-        encode_rwii(0x4E, 2, 0, 0x0000),   # set.zw rb2, wp0, 0x0000
+        encode_rwii(0x4A, 1, 2, 0xFC00),
+        encode_rwii(0x4E, 2, 2, 0xFC00),   # set.zw rb2, wp0, 0x0000
         encode_rwii(0x4E, 16, 0, 0x0000),  # set.zw rb16, wp0, 0x0000
         encode_rwii(0x4A, 16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF
         encode_rwii(0x4A, 16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 (block)
+        encode_rwii(0x4A, 16, 2, 0xFC00),
         encode_rwii(0x4C, 8, 0, 0x0026),   # set.zw rd8, wp0, 0x0026
         encode_rwii(0x48, 8, 1, 0x0002),   # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
         encode_rrii(0x21, 8, 16, 0, 0),    # block[0] = 0x20026
         encode_rwii(0x4C, 16, 0, 0x0018),  # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
-        encode_rwii(0x4E, 17, 0, 0x0000),  # set.zw rb17, wp0, 0x0000 (RAM base)
+        encode_rwii(0x4E, 17, 2, 0xFC00),  # set.zw rb17, wp0, 0x0000 (RAM base)
     ]
     rom = b''
     for insn in trampoline:
@@ -260,7 +262,7 @@ MALIGN_EXIT = 140  # 0x8C
 # rb18 = 0x0000_FFFF_0000_0100 (RAM + 0x100)
 
 SETUP_RB18 = [
-    encode_rwii(0x4E, 18, 2, 0xFFFF),  # set.zw rb18, wp2, 0xFFFF
+    encode_rwii(0x4E, 18, 2, 0xFC00),  # set.zw rb18, wp2, 0xFFFF
     encode_rwii(0x4A, 18, 0, 0x0100),  # or.w rb18, wp0, 0x0100 → RAM+0x100
 ]
 

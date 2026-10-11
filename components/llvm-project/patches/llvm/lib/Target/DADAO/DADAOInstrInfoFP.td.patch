@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
 new file mode 100644
-index 000000000..79d3405e4
+index 000000000..f9e135c16
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfoFP.td
-@@ -0,0 +1,498 @@
+@@ -0,0 +1,507 @@
 +//===-- DADAOInstrInfoFP.td - DADAO FP instruction defs ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -306,6 +306,12 @@ index 000000000..79d3405e4
 +def ft2fo_orri_rf : DADAOOrri<"ft2fo"> {
 +  let OutOperandList = (outs GPRF:$rb);
 +  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  // contract-fp.md §2: the source and destination register ranges of a
++  // convert_ff instruction must be disjoint, otherwise ILLI
++  // (mreg_range_overlap).  Model the destination as an early clobber so the
++  // register allocator never coalesces `ft2fo {rfN}, {rfN}` (which the hardware
++  // rejects); it inserts a copy instead.
++  let Constraints = "@earlyclobber $rb";
 +  let op = 0x44;
 +  let ha = 0x01;
 +  let Pattern = [];
@@ -314,6 +320,7 @@ index 000000000..79d3405e4
 +def ft2ft_orri_rf : DADAOOrri<"ft2ft"> {
 +  let OutOperandList = (outs GPRF:$rb);
 +  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let Constraints = "@earlyclobber $rb"; // convert_ff: dst range must not overlap src
 +  let op = 0x44;
 +  let ha = 0x02;
 +  let Pattern = [];
@@ -338,6 +345,7 @@ index 000000000..79d3405e4
 +def fo2ft_orri_rf : DADAOOrri<"fo2ft"> {
 +  let OutOperandList = (outs GPRF:$rb);
 +  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let Constraints = "@earlyclobber $rb"; // convert_ff: dst range must not overlap src
 +  let op = 0x44;
 +  let ha = 0x09;
 +  let Pattern = [];
@@ -346,6 +354,7 @@ index 000000000..79d3405e4
 +def fo2fo_orri_rf : DADAOOrri<"fo2fo"> {
 +  let OutOperandList = (outs GPRF:$rb);
 +  let InOperandList = (ins GPRF:$rc, immu6:$imm6);
++  let Constraints = "@earlyclobber $rb"; // convert_ff: dst range must not overlap src
 +  let op = 0x44;
 +  let ha = 0x0A;
 +  let Pattern = [];

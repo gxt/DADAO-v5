@@ -1,9 +1,9 @@
 diff --git a/lld/ELF/Arch/DADAO.cpp b/lld/ELF/Arch/DADAO.cpp
 new file mode 100644
-index 000000000..8f8be0165
+index 000000000..149f8f358
 --- /dev/null
 +++ b/lld/ELF/Arch/DADAO.cpp
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,222 @@
 +//===- DADAO.cpp - DADAO ELF Linker Target ----------------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -23,6 +23,11 @@ index 000000000..8f8be0165
 +//   R_DADAO_REL26 (1): field = (S + A - P) >> 2, imms24 (effective 26 bits)
 +//   R_DADAO_REL20 (2): field = (S + A - P) >> 2, imms18 (effective 20 bits)
 +//   R_DADAO_REL14 (3): field = (S + A - P) >> 2, imms12 (effective 14 bits)
++//   R_DADAO_REL12 (4): field = S + A - P, imms12 (BYTE offset, no >>2).  Used by
++//       ld.*/st.* with base rb0 (PC-relative: rb0 reads the current instruction
++//       address, so P is the reloc site itself).
++//   R_DADAO_ABS12 (5): field = S + A, imms12 (BYTE offset, no >>2).  Used by
++//       ld.*/st.* with base rb1..rb63 (base-relative/absolute).
 +//
 +// v5 has **no -4** pipeline offset: rb0 reads the address of the current
 +// instruction, so the PC-relative displacement is measured from P itself
@@ -105,8 +110,14 @@ index 000000000..8f8be0165
 +  case R_DADAO_REL26:
 +  case R_DADAO_REL20:
 +  case R_DADAO_REL14:
-+    // PC-relative word offset: (S + A - P) >> 2.
++  case R_DADAO_REL12:
++    // PC-relative.  For REL26/20/14 the field is a (S + A - P) >> 2 word
++    // offset; for REL12 it is the raw byte offset S + A - P (rb0 reads the
++    // current instruction address, contract-elf.md §3.1 / ADR-0021 §D1).
 +    return R_PC;
++  case R_DADAO_ABS12:
++    // Base-relative symbol displacement: S + A (byte offset, imms12).
++    return R_ABS;
 +  default:
 +    Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << type.v
 +             << ") against symbol " << &s;
@@ -167,10 +178,27 @@ index 000000000..8f8be0165
 +      insn = (insn & 0xFFFF0000u) | slice;
 +      write32be(loc, insn);
 +    } else {
-+      // Data path: a single 8-byte absolute address field, big-endian.
-+      write64be(loc, val);
++      // Data path: a single 8-byte absolute address field, big-endian with the
++      // top 16 bits zero (48-bit address; contract-elf.md §3.1 / ADR-0019 §D2).
++      // checkIntUInt above already proved val < 2^48, so masking is explicit
++      // documentation of the invariant.
++      write64be(loc, val & 0x0000FFFFFFFFFFFFULL);
 +    }
 +    return;
++  case R_DADAO_REL12:
++  case R_DADAO_ABS12: {
++    // ld.*/st.* symbol displacement: a single in-place imms12 BYTE offset
++    // (Inst{11:0}; rrii hc[5:0]+hd[5:0]).  REL12 is PC-relative (val = S + A -
++    // P), ABS12 is base-relative (val = S + A); neither is shifted by 2.
++    // Out of the signed 12-bit range (-2048..+2047) => link-time error, no
++    // truncation / wrap (contract-elf.md §3.2, ADR-0021 §D3).
++    int64_t disp = static_cast<int64_t>(val);
++    checkInt(ctx, loc, disp, 12, rel);
++    uint32_t insn = read32be(loc);
++    insn = (insn & ~0x00000FFFu) | (static_cast<uint32_t>(disp) & 0x00000FFFu);
++    write32be(loc, insn);
++    return;
++  }
 +  default:
 +    Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << rel.type.v
 +             << ") against symbol " << rel.sym;

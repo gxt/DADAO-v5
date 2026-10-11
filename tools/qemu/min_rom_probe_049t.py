@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
-"""Min ROM probe for QEMU-049t: RAM@0 mapping (C1 step2: single RAM segment) +
+"""Min ROM probe for QEMU-049t: RAM mapping (C1 step2: single RAM segment) +
 out-of-range access/fetch fault semantics (CFXMEM vs the test-machine unmapped
 convention).
 
 Spec sources (expectations derived by hand from spec/ + ADRs, never from the
 QEMU implementation):
   - spec/Machine-01-测试机运行环境.md §1.1 (internal-address-space split:
-    RAM@0 0x0000_0000_0000 16 MiB as the single RAM segment / boot ROM; C1
+    RAM 0xFC00_0000_0000 16 MiB as the single RAM segment / boot ROM; C1
     step2 removed the legacy 0xffff_0000_0000 RAM and the exit-port device)
     and §1.2 (out-of-range access AND fetch both fault; CFXMEM(0x81) vs
     test-machine unmapped(0x87)).
   - .tao/adr/adr-0020-see-semihosting.md D15 and adr-0004-test-machine.md
-    R3 (RAM base -> all zero; C1 two-step) + D5.8 (frozen fault-code table:
-    0x81 reserved for CFXMEM = 0x80 | (1<<1); 0x87 = unmapped convention).
+    R3 (rev. 2026-10-11: RAM base -> 0xFC00_0000_0000) + D5.8 (frozen
+    fault-code table: 0x81 reserved for CFXMEM = 0x80 | (1<<1); 0x87 =
+    unmapped convention).
   - spec/DADAO-12-SEE-主管系统运行环境.md §2.1 (cfxha = addr[47:42]; illegal
     internal-address-space access => CFXMEM).
   - contracts/opcodes.yaml (ld.o/st.o/jump/set.zw/or.w encodings).
 
 Routing implemented by QEMU-049t (ADR-0020 D15):
-  * address inside the umon segment (cfxha 0) but outside RAM@0 => CFXMEM 0x81
+  * address inside the umon segment (cfxha 0) but outside RAM => CFXMEM 0x81
     (both data access and instruction fetch).
   * any other unmapped address (incl. the power segment, cfxha 63, and the
     removed legacy RAM 0xffff_0000_0000) => unmapped 0x87.
@@ -51,8 +52,8 @@ WORKDIR = "/tmp/opencode/QEMU-049t"
 TIMEOUT = 10
 
 ROM_BASE = 0xFFFF_FFFF_0000
-RAM0_BASE = 0x0000_0000_0000
-RAM0_SIZE = 16 * 1024 * 1024          # 16 MiB (QEMU-049t decision)
+RAM_BASE = 0xFC00_0000_0000           # single RAM segment (ADR-0004 R3, rev. 2026-10-11)
+RAM_SIZE = 16 * 1024 * 1024           # 16 MiB
 OLD_RAM_BASE = 0xFFFF_0000_0000
 OLD_RAM_SIZE = 16 * 1024 * 1024
 
@@ -62,8 +63,8 @@ EXIT_CFXMEM = 0x81
 EXIT_UNMAPPED = 0x87
 
 # Out-of-range addresses
-CFX0_OOB = RAM0_BASE + RAM0_SIZE      # 0x0100_0000, cfxha 0, outside RAM@0
-CFX63_OOB = 0xFC00_0000_0000          # cfxha 63 (power), unmapped
+CFX0_OOB = 0x0000_0100_0000           # cfxha 0 (umon): no RAM there => CFXMEM 0x81
+CFX63_OOB = RAM_BASE + RAM_SIZE       # cfxha 63 (power): outside RAM/ROM => UNMAPPED 0x87
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +100,7 @@ def swym():              return 0x77880000
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
 SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
-SEMI_BLOCK = 0x0000_00FF_F000       # argument block {reason, code}, in RAM
+SEMI_BLOCK = 0xFC00_00FF_F000       # argument block {reason, code}, in RAM
 
 
 def load_rd(rd, val):
@@ -129,7 +130,7 @@ def exit_seq(code):
     {reason, code}; rd16 = 0x18 (SYS_EXIT); `trap` with the semihosting tag.
     """
     return ([jump_iiii(1)]
-            + [set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000)]
+            + [set_zw_rb(16, 0, 0x0000), or_w_rb(16, 1, 0x00FF), or_w_rb(16, 0, 0xF000), or_w_rb(16, 2, 0xFC00)]
             + load_rd(8, ADP_STOPPED_APPLICATION_EXIT) + [st_o(8, 16, 0)]
             + load_rd(9, code) + [st_o(9, 16, 8)]
             + load_rd(16, 0x18) + [trap(0, SEMIHOST_TAG)])
@@ -203,10 +204,10 @@ def case(name, desc):
     return deco
 
 
-# -- acc 2: RAM@0 read/write (offset 0x1000) --------------------------------
-@case("ram0_rw", "RAM@0 0x0000_0000_0000 read/write")
-def _ram0_rw():
-    prog = load_rb(3, RAM0_BASE + 0x1000) + load_rd(4, 0xCAFEF00D) + [st_o(4, 3, 0)]
+# -- acc 2: RAM read/write (offset 0x1000) --------------------------------
+@case("ram_rw", "RAM 0xFC00_0000_0000 read/write")
+def _ram_rw():
+    prog = load_rb(3, RAM_BASE + 0x1000) + load_rd(4, 0xCAFEF00D) + [st_o(4, 3, 0)]
     prog += [ld_o(5, 3, 0)] + exit_seq(0x00)
     return build_rom(prog), {"exit": 0x00, "rd5": 0xCAFEF00D}
 
@@ -219,42 +220,42 @@ def _old_ram_unmapped():
 
 
 # -- acc 2: no second mapped RAM region -------------------------------------
-@case("legacy_ram_gone", "write to 0xffff_0000_0000 => UNMAPPED 0x87 (RAM@0 is the only RAM)")
+@case("legacy_ram_gone", "write to 0xffff_0000_0000 => UNMAPPED 0x87 (RAM is the only RAM)")
 def _legacy_ram_gone():
     prog = load_rb(3, OLD_RAM_BASE + 0x2000) + load_rd(4, 0xAAAA_5555) + [st_o(4, 3, 0)]
     prog += exit_seq(0xEE)
     return build_rom(prog), {"exit": EXIT_UNMAPPED}
 
 
-# -- acc 2: RAM@0 top 8 bytes ------------------------------------------------
-@case("ram0_top", "RAM@0 last 8 bytes (top of 16 MiB) read/write")
-def _ram0_top():
-    prog = load_rb(3, RAM0_BASE + RAM0_SIZE - 8) + load_rd(4, 0xDEAD_BEEF) + [st_o(4, 3, 0)]
+# -- acc 2: RAM top 8 bytes ------------------------------------------------
+@case("ram_top", "RAM last 8 bytes (top of 16 MiB) read/write")
+def _ram_top():
+    prog = load_rb(3, RAM_BASE + RAM_SIZE - 8) + load_rd(4, 0xDEAD_BEEF) + [st_o(4, 3, 0)]
     prog += [ld_o(5, 3, 0)] + exit_seq(0x00)
     return build_rom(prog), {"exit": 0x00, "rd5": 0xDEAD_BEEF}
 
 
-# -- acc 2: RAM@0 is executable (fetch from RAM@0) ---------------------------
-@case("ram0_exec", "fetch/execute from RAM@0 (write code then jump)")
-def _ram0_exec():
-    # The fragment executed from RAM@0 is the semihosting SYS_EXIT trap: the
+# -- acc 2: RAM is executable (fetch from RAM) ---------------------------
+@case("ram_exec", "fetch/execute from RAM (write code then jump)")
+def _ram_exec():
+    # The fragment executed from RAM is the semihosting SYS_EXIT trap: the
     # main program pre-loads rd16 = 0x18, rb16 = SEMI_BLOCK and the {0x20026,
-    # 0x5A} block, then stores the trap word into RAM@0 and jumps to it.
-    fragment_word = trap(0, SEMIHOST_TAG)    # SYS_EXIT trap, executed from RAM@0
+    # 0x5A} block, then stores the trap word into RAM and jumps to it.
+    fragment_word = trap(0, SEMIHOST_TAG)    # SYS_EXIT trap, executed from RAM
     prog = load_rd(8, ADP_STOPPED_APPLICATION_EXIT)
     prog += load_rb(16, SEMI_BLOCK) + [st_o(8, 16, 0)]     # block[0] = 0x20026
     prog += load_rd(9, 0x5A) + [st_o(9, 16, 8)]            # block[1] = 0x5A
     prog += load_rd(16, 0x18)                # rd16 = SYS_EXIT service number
-    prog += load_rb(2, RAM0_BASE + 0x2000)   # code target in RAM@0
+    prog += load_rb(2, RAM_BASE + 0x2000)   # code target in RAM
     prog += load_rd(7, fragment_word << 32)  # place word in the high 32 bits
-    prog += [st_o(7, 2, 0)]                  # store word at RAM@0 0x2000
+    prog += [st_o(7, 2, 0)]                  # store word at RAM 0x2000
     prog += [jump_rrii(2, 0, 0)]             # fetch/execute it
     prog += exit_seq(0xEE)                   # not reached
     return build_rom(prog), {"exit": 0x5A}
 
 
 # -- acc 4: out-of-range DATA access ----------------------------------------
-@case("oob_data_cfxmem", "data access cfxha0 outside RAM@0 => CFXMEM 0x81")
+@case("oob_data_cfxmem", "data access cfxha0 outside RAM => CFXMEM 0x81")
 def _oob_data_cfxmem():
     prog = load_rb(3, CFX0_OOB) + [ld_o(5, 3, 0)] + exit_seq(0xEE)
     return build_rom(prog), {"exit": EXIT_CFXMEM}
@@ -267,7 +268,7 @@ def _oob_data_unmapped():
 
 
 # -- acc 4: out-of-range FETCH (instruction fetch path) ----------------------
-@case("oob_fetch_cfxmem", "fetch cfxha0 outside RAM@0 => CFXMEM 0x81")
+@case("oob_fetch_cfxmem", "fetch cfxha0 outside RAM => CFXMEM 0x81")
 def _oob_fetch_cfxmem():
     prog = load_rb(3, CFX0_OOB) + [jump_rrii(3, 0, 0)] + exit_seq(0xEE)
     return build_rom(prog), {"exit": EXIT_CFXMEM}

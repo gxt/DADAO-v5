@@ -34,10 +34,10 @@ _start:
 	.section	.data
 	.globl	ext
 ext:
-	.quad	0
+	.dd.o64	0
 	.globl	ext2
 ext2:
-	.quad	0
+	.dd.o64	0
 
 ; set.rd rd1, ext -> set.zw rd1, wp2, 0x0 ; or.w rd1, wp1, 0x0 ; or.w rd1, wp0, 0x0
 ; (0x4C060000, 0x48050000, 0x48040000); the immediates are relocated.

@@ -6,7 +6,7 @@
 ; the subcode becomes the process exit status (contract-semihosting.md §5;
 ; Machine-01 §5.5; ADR-0020 D8).
 ;
-; Loaded as a flat bin at the RAM@0 base 0x0000_0000_0000 by `-kernel`
+; Loaded as a flat bin at the RAM base 0xFC00_0000_0000 by `-kernel`
 ; (ADR-0004 D2.3 path B) and entered in user mode by the SEE bootrom.
 ;
 ; Expected: host $? = 0x43 (the subcode itself; this vector has no separate pass
@@ -23,8 +23,9 @@
 	.text
 	.globl	_start
 _start:
-	; argument block at RAM@0 + 0x2000 = {0x20026, 0x43}
+	; argument block at RAM + 0x2000 = {0x20026, 0x43}
 	set.zw	rb16, wp0, 0x2000
+	or.w	rb16, wp2, 0xfc00
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026		; rd8 = 0x0002_0026
 	st.o	rd8, [rb16, 0]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Export a component worktree as a tree-shaped patch set.
 
-See ``spec/Process-01-组件补丁组织与构建编排.md`` (v5 spec, effective 2026-09-23):
+See ``docs/Process-01-组件补丁组织与构建编排.md`` (v5 spec, effective 2026-09-23):
 
 * one patch per upstream file -- ``patches/<upstream-relative-path>.patch``
 * patch bodies are **raw** ``git diff`` output (no mbox headers, no numbering)
@@ -152,7 +152,7 @@ def main() -> int:
         )
 
     # E3: refuse to export unless the E1 invariant holds (clean worktree,
-    # head == base + exactly one commit).  See spec/Process-01 §6.3.
+    # head == base + exactly one commit).  See docs/Process-01 §6.3.
     violation = e1_violation(source, commit)
     if violation is not None:
         raise SystemExit(

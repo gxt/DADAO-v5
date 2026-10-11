@@ -4,9 +4,9 @@
 > **分类：16位立即数操作**（8 条）— set.zw/set.ow/set.w/or.w/andn.w（rwii 格式）
 
 <!-- ASSEMBLY_LIST_START -->
-## 汇编指令速查
+## 1. 汇编指令速查
 
-### 16位立即数操作（8 条）
+### 1.1 16位立即数操作（8 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -22,7 +22,7 @@
 <!-- ASSEMBLY_LIST_END -->
 
 <!-- LEGALITY_START -->
-## 合法性检查
+## 2. 合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `andn.w_rwii_rd`, `or.w_rwii_rd`, `set.ow_rwii_rd`, `set.zw_rwii_rd`（4 条）
 * `dst_rb0`：目的 rb0 → ILLI — `andn.w_rwii_rb`, `or.w_rwii_rb`, `set.zw_rwii_rb`（3 条）
@@ -32,7 +32,7 @@
 <!-- LEGALITY_END -->
 
 
-## 立即数常数赋值：Immediate constant
+## 3. 立即数常数赋值：Immediate constant
 
 立即数设置类指令直接用立即数对寄存器内的不同wyde进行赋值、或、与非、零扩展赋值。
 由于立即数域为16位，因此，需要指定具体的wyde的位置，分别采用 `wp3/wp2/wp1/wp0`，对应 `MSW..LSW`。
@@ -72,7 +72,7 @@ set.w    rfHA, wpN, immu16
 
 > **注**：`set.w rf0, wpN, immu16` 合法；写入按 SimRISC-00 写语义（`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效）。
 
-#### set.rd 伪指令
+### 3.1 set.rd 伪指令
 
 `set.rd` 不是硬件指令，而是汇编器提供的伪指令，用于将任意 64 位立即数加载到 rd 寄存器。汇编器将 `set.rd` 展开为 1~4 条 rwii 格式指令。
 
@@ -127,7 +127,7 @@ set.rd   rd8, rd3       ; 展开为 rd2rd {rd8}, {rd3}
 set.rd   rd4, ra10      ; 展开为 ra2rd {rd4}, {ra10}
 ```
 
-#### set.rb 伪指令
+### 3.2 set.rb 伪指令
 
 `set.rb` 是汇编器提供的伪指令，用于将立即数加载到 rb 寄存器，展开为 `set.zw-rb` 和 `or.w-rb` 的组合（rb 无 `set.ow` 变体，无需 `andn.w`）。
 
@@ -153,7 +153,7 @@ set.rb   rb2, rb7       ; 展开为 rb2rb {rb2}, {rb7}
 
 **注**：rb 高 16 位（bits[63:48]）可用于地址溢出检测。汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。
 
-### set.ft / set.fo 伪指令
+### 3.3 set.ft / set.fo 伪指令
 
 `set.ft` 和 `set.fo` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，分别对应单精（tetra，32 位）和双精（octa，64 位）浮点格式。伪指令展开为 `set.w` 的组合。
 

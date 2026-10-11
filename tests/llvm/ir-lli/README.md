@@ -67,13 +67,13 @@ the independent oracles / execution vectors (`tests/vectors/`,
 `tools/testcases/validate_*.py`, `make test-codegen` / `check-qemu-semantics`).
 The `lli` result must never be used as a substitute for those.
 
-## Structural closure (lessons §8.34 / §8.35)
+## Structural closure (lessons §2.20 / §2.21)
 
-- **§8.35 (set/structural):** `include` ∪ `exclude` **MUST equal** every `*.ll`
+- **§2.21 (set/structural):** `include` ∪ `exclude` **MUST equal** every `*.ll`
   found on disk under `corpus_roots`, and the two sets **MUST be disjoint**.
   Any unclassified `*.ll` ⇒ FAIL. ⇒ deleting a manifest entry cannot silently
   shrink coverage (the file becomes *unclassified* and the driver fails).
-- **§8.34 (hits must be proven):** the driver reports a **per-case hit**
+- **§2.20 (hits must be proven):** the driver reports a **per-case hit**
   (`host=… dadao=…`, both captured) and asserts `hits == len(include)`; a run
   that only "did not error" is not accepted.
 

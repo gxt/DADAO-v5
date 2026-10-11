@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
 new file mode 100644
-index 000000000..69404d6ca
+index 000000000..5127ac485
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
-@@ -0,0 +1,74 @@
+@@ -0,0 +1,92 @@
 +//===-- DADAOELFObjectWriter.cpp - DADAO ELF Writer -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -50,14 +50,32 @@ index 000000000..69404d6ca
 +    case llvm::DADAO::DADAO_FK_PCRel_12:
 +      return ELF::R_DADAO_REL14;
 +
++    // ld.*/st.* symbol displacement: the assembler picked the kind from the
++    // base register.  Both write the imms12 (byte) field.
++    //   DADAO_FK_REL12 -> R_DADAO_REL12 (rb0 base, PC-relative, S + A - P)
++    //   DADAO_FK_ABS12 -> R_DADAO_ABS12 (rb1..rb63 base, S + A)
++    // Source: contract-elf.md §2.2 (ADR-0021 §D1-D2).
++    case llvm::DADAO::DADAO_FK_REL12:
++      return ELF::R_DADAO_REL12;
++    case llvm::DADAO::DADAO_FK_ABS12:
++      return ELF::R_DADAO_ABS12;
++
 +    // A relocatable 8-byte data item (from `.dd.o64 <sym>`, `.quad <sym>`, ...)
 +    // is an absolute address: R_DADAO_ABS48 is an absolute relocation and does
 +    // not distinguish instruction from data (ADR-0019 §D2; user ruling
 +    // 2026-10-06).  The linker writes the 48-bit value into the 8-byte field.
-+    // Narrower data fields cannot carry a DADAO address and are rejected by the
-+    // assembler (DADAOAsmParser::parseDDDirective), so they never reach here.
 +    case llvm::FK_Data_8:
 +      return ELF::R_DADAO_ABS48;
++
++    // Narrower relocatable data items (FK_Data_1/2/4, i.e. `.byte/.short/.long
++    // <sym>`) cannot carry a 48-bit DADAO address and get an explicit
++    // assembler error from DADAOAsmBackend::applyFixup before a relocation is
++    // recorded, so they never reach here (no silent 0, contract-elf.md §2-
++    // §3/§3.2; ADR-0019 §D8 forbids ABS32/narrower data types).
++    case llvm::FK_Data_1:
++    case llvm::FK_Data_2:
++    case llvm::FK_Data_4:
++      llvm_unreachable("DADAO data field too narrow for a 48-bit address");
 +
 +    default:
 +      llvm_unreachable("Invalid DADAO fixup kind!");

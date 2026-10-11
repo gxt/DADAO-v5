@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..d88e338f0
+index 000000000..12fcc23d0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,557 @@
+@@ -0,0 +1,679 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -42,6 +42,7 @@ index 000000000..d88e338f0
 +#include "llvm/CodeGen/MachineFunction.h"
 +#include "llvm/CodeGen/MachineInstrBuilder.h"
 +#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/MathExtras.h"
 +
 +using namespace llvm;
 +
@@ -175,6 +176,70 @@ index 000000000..d88e338f0
 +    MI.eraseFromParent();
 +    return true;
 +  }
++  case DADAO::MULHU_PSEUDO: {
++    // High half of an unsigned 64x64 product (LLVM-073t, ISS-176/G2):
++    // `mul.uo rdha, rdhb, rdhc, rdhd` has rdha = high 64, rdhb = low 64
++    // (contract-isa.md §6.1.4), so the high half alone is
++    // `mul.uo dst, rd0, a, b` (the low half goes to the hardwired-zero rd0).
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_uo_rd))
++        .addDef(Dst)          // rdha = high 64 bits of the product
++        .addDef(DADAO::rd0)   // rdhb = rd0 (discard the low 64 bits)
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::UMUL_LOHI_PSEUDO: {
++    // Full unsigned 64x64 -> 128 product (ISD::UMUL_LOHI).  The node's results
++    // are (low, high) but mul.uo's defs are (rdha=high, rdhb=low), so the
++    // operand order is swapped here (LLVM-073t, ISS-176/G2).
++    Register Lo = MI.getOperand(0).getReg();
++    Register Hi = MI.getOperand(1).getReg();
++    Register Src1 = MI.getOperand(2).getReg();
++    Register Src2 = MI.getOperand(3).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_uo_rd))
++        .addDef(Hi)           // rdha = high 64 bits
++        .addDef(Lo)           // rdhb = low 64 bits
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::MULHS_PSEUDO: {
++    // High half of a signed 64x64 product (LLVM-076t, ISS-185):
++    // `mul.so rdha, rdhb, rdhc, rdhd` has rdha = high 64, rdhb = low 64
++    // (contract-isa.md §6.1.4), so the high half alone is
++    // `mul.so dst, rd0, a, b` (the low half goes to the hardwired-zero rd0).
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_so_rd))
++        .addDef(Dst)          // rdha = high 64 bits of the product
++        .addDef(DADAO::rd0)   // rdhb = rd0 (discard the low 64 bits)
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::SMUL_LOHI_PSEUDO: {
++    // Full signed 64x64 -> 128 product (ISD::SMUL_LOHI).  The node's results
++    // are (low, high) but mul.so's defs are (rdha=high, rdhb=low), so the
++    // operand order is swapped here (LLVM-076t, ISS-185).
++    Register Lo = MI.getOperand(0).getReg();
++    Register Hi = MI.getOperand(1).getReg();
++    Register Src1 = MI.getOperand(2).getReg();
++    Register Src2 = MI.getOperand(3).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_so_rd))
++        .addDef(Hi)           // rdha = high 64 bits
++        .addDef(Lo)           // rdhb = low 64 bits
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
 +  case DADAO::NEG_PSEUDO: {
 +    // iss-159: `neg dst = sub.so {rd0, dst}, rd0, src`.  rdha (high 64 bits)
 +    // goes to the hardwired-zero rd0, rdhb holds the low 64 bits; the minuend
@@ -273,6 +338,23 @@ index 000000000..d88e338f0
 +    auto AddSym = [&](MachineInstrBuilder MIB) {
 +      MIB.addGlobalAddress(Sym.getGlobal(), Sym.getOffset(),
 +                           Sym.getTargetFlags());
++    };
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::JT_ADDR: {
++    // Absolute address of a function's jump table (LLVM-072t, ISS-177/G3).
++    // Identical 3-slice materialization to GLOBAL_ADDR, except the symbol is the
++    // jump table's local label carried as an MO_JumpTableIndex (the AsmPrinter/
++    // MCInstLower resolves it to MF->getJTISymbol, the label emitJumpTableInfo
++    // defines in front of the table).  Each slice becomes R_DADAO_ABS48.
++    Register Dst = MI.getOperand(0).getReg();
++    const MachineOperand &Sym = MI.getOperand(1);
++    auto AddSym = [&](MachineInstrBuilder MIB) {
++      MIB.addJumpTableIndex(Sym.getIndex(), Sym.getTargetFlags());
 +    };
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
@@ -560,4 +642,44 @@ index 000000000..d88e338f0
 +unsigned DADAOInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
 +  // Every DADAO instruction is a fixed 32-bit word (DADAOInstrFormats.td).
 +  return MI.getDesc().getSize();
++}
++
++// ===--------------------------------------------------------------------=== //
++// Branch relaxation support (LLVM-071t)
++// ===--------------------------------------------------------------------=== //
++
++bool DADAOInstrInfo::isBranchOffsetInRange(unsigned BranchOpc,
++                                           int64_t BrOffset) const {
++  // BrOffset is a BYTE offset from the branch instruction (contract-isa.md
++  // §8.1/§8.2: `Addr = rb0 + (imms << 2)`, rb0 = the current instruction's PC).
++  // The immediate fields hold a WORD offset, so the field width applies to
++  // BrOffset / 4.
++  const bool Aligned = (BrOffset & 3) == 0;
++  const int64_t Words = BrOffset / 4;
++  switch (BranchOpc) {
++  case DADAO::br_eq_rd:
++  case DADAO::br_ne_rd:
++    // rrii two-register branches: 12-bit signed word immediate.
++    return Aligned && isInt<12>(Words);
++  case DADAO::br_n_rd:
++  case DADAO::br_nn_rd:
++  case DADAO::br_z_rd:
++  case DADAO::br_nz_rd:
++  case DADAO::br_p_rd:
++  case DADAO::br_np_rd:
++  case DADAO::br_z_rb:
++  case DADAO::br_nz_rb:
++    // riii one-register branches: 18-bit signed word immediate.
++    return Aligned && isInt<18>(Words);
++  case DADAO::jump_iiii:
++  case DADAO::call_iiii:
++    // 24-bit signed word immediate.  This covers the whole practical code size;
++    // it is treated as always in range so BranchRelaxation never asks us for an
++    // indirect-branch sequence (which DADAO does not implement).  The assembler
++    // (DADAOAsmBackend::applyFixup) still validates the actual field and turns a
++    // genuine overflow into a hard error, so this never silently miscompiles.
++    return true;
++  default:
++    return true;
++  }
 +}

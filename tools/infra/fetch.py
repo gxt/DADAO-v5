@@ -176,7 +176,7 @@ def main() -> int:
         head = head_of(target)
         if head == commit:
             # HEAD is exactly the pinned base commit.  Under commit-based patch
-            # application (E5, see spec/Process-01-组件补丁组织与构建编排.md)
+            # application (E5, see docs/Process-01-组件补丁组织与构建编排.md)
             # applying the series creates a local base+1 commit, so a clean
             # worktree at base means "already fetched, not yet patched" (this
             # is also the fresh-clone state).  Either way there is nothing to

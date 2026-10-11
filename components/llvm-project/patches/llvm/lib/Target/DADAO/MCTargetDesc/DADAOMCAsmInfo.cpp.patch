@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
 new file mode 100644
-index 000000000000..b6faaee9d1e2
+index 000000000..42514dc5e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,49 @@
 +//===-- DADAOMCAsmInfo.cpp - DADAO asm properties -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -28,6 +28,15 @@ index 000000000000..b6faaee9d1e2
 +    : MCAsmInfoELF(Options) {
 +  // DADAO is big endian (contract-elf.md §1.1: EI_DATA = ELFDATA2MSB).
 +  IsLittleEndian = false;
++
++  // Data directives (contract-asm.md §7.1 / Toolchain-01 §7.1): the ONLY data
++  // directives are the DADAO `.dd.*` set (Knuth/MMIX data lengths).  Without
++  // these overrides the backend inherits the MCAsmInfo defaults and emits the
++  // GAS names `.byte/.short/.long/.quad`, which MUST NOT be used.
++  Data8bitsDirective = "\t.dd.b08\t";
++  Data16bitsDirective = "\t.dd.w16\t";
++  Data32bitsDirective = "\t.dd.t32\t";
++  Data64bitsDirective = "\t.dd.o64\t";
 +
 +  // DADAO uses ';' as the comment character.
 +  CommentString = ";";

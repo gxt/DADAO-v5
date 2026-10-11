@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
 new file mode 100644
-index 000000000..b5ae047d1
+index 000000000..55c518e1d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,99 @@
 +//===-- DADAOTargetMachine.cpp - Define TargetMachine for DADAO ---------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -22,6 +22,7 @@ index 000000000..b5ae047d1
 +#include "TargetInfo/DADAOTargetInfo.h"
 +
 +#include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
++#include "llvm/CodeGen/Passes.h"
 +#include "llvm/CodeGen/TargetPassConfig.h"
 +#include "llvm/MC/TargetRegistry.h"
 +#include "llvm/PassRegistry.h"
@@ -53,6 +54,19 @@ index 000000000..b5ae047d1
 +  bool addInstSelector() override {
 +    addPass(createDADAOISelDag(getDADAOTargetMachine()));
 +    return false;
++  }
++
++  void addPreEmitPass() override {
++    // Relax conditional branches whose target does not fit the branch
++    // immediate (LLVM-071t).  A br.eq/br.ne reaches only a 12-bit word offset,
++    // so a large function body (e.g. Embench nsichneu -O2) can push the target
++    // out of range; BranchRelaxation then rewrites such a branch into the
++    // "island" form -- a short conditional branch over an unconditional `jump`
++    // (24-bit) to the far target -- using the DADAOInstrInfo branch hooks
++    // (isBranchOffsetInRange / analyzeBranch / insertBranch / removeBranch).
++    // This keeps every branch encoded within the existing MC fixup widths
++    // (DADAO_FK_PCRel_12/24) instead of failing at assembly time.
++    addPass(&BranchRelaxationPassID);
 +  }
 +};
 +

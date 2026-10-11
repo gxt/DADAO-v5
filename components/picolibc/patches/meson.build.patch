@@ -1,0 +1,72 @@
+diff --git a/meson.build b/meson.build
+index 93daa5d..c106fb3 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1924,6 +1924,43 @@ foreach libname : libnames
+   libsrcs += get_variable('src_' + libname, [])
+ endforeach
+ 
++# DADAO port scope (INFRA-057t).  The DADAO LLVM backend cannot yet select
++# several DAG nodes that the full C library needs: f64/i64 bitcast (float bit
++# manipulation), FP setcc / select_cc, floating-point branch conditions,
++# ctlz/cttz/bswap, and the FP rounding libcalls.  These are tracked by
++# LLVM-079t (P0) / LLVM-080t (P1); until they land, the sources that hit them
++# are left out of the library so that the build is deterministic instead of
++# failing halfway.  This scope is explicit and reported by `make build-picolibc`;
++# the list shrinks as the backend grows (delete entries, do not extend).
++_dadao_backend_blocked = []
++if host_cpu_family == 'dadao'
++  _dadao_backend_blocked = [
++    # libc float conversion / scanf / byte-swap / signbit users
++    'atod_ryu.c',
++    'atof_ryu.c',
++    'atold_engine.c',
++    'dtoa_ryu.c',
++    'ecvt_r.c',
++    'fcvt_r.c',
++    'fcvtf_r.c',
++    'hash_page.c',
++    'memset_explicit.c',
++    'memset_s.c',
++    'ryu_table.c',
++    'strtod.c',
++    'strtof.c',
++    'ubsan_val_to_string.c',
++    'vffscanf.c',
++    'vfscanf.c',
++    'vfwscanf.c',
++    'vstrfmon.c',
++    'wcstod.c',
++    'wcstof.c',
++  ]
++  message('DADAO port scope: excluding libm/ + @0@ backend-blocked libc sources (tracked by LLVM-079t/080t)'
++          .format(_dadao_backend_blocked.length()))
++endif
++
+ foreach params : targets
+   target = params['name']
+   target_dir = params['dir']
+@@ -1939,6 +1976,23 @@ foreach params : targets
+     libsrcs_target += get_variable('src_' + libname + target, [])
+   endforeach
+ 
++  if _dadao_backend_blocked != []
++    _dadao_filtered = []
++    foreach _s : libsrcs_target
++      _p = _s.full_path()
++      _drop = _p.contains('/libm/')
++      foreach _b : _dadao_backend_blocked
++        if _p.endswith('/' + _b)
++          _drop = true
++        endif
++      endforeach
++      if not _drop
++        _dadao_filtered += _s
++      endif
++    endforeach
++    libsrcs_target = _dadao_filtered
++  endif
++
+   instdir = join_paths(lib_dir, target_dir)
+ 
+   libc_name = 'c'

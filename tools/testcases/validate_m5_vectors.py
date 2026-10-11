@@ -2,7 +2,7 @@
 """Validate the M5 (SEE / semihosting) L3 execution vectors under
 ``tests/llvm/codegen/m5/``.
 
-This is the **independent oracle** required by ``spec/Process-05`` §2/§4 and the
+This is the **independent oracle** required by ``docs/Process-05`` §2/§4 and the
 project "Independent oracle" hard rule.  It **never** invokes ``llvm-mc``,
 ``llvm-objcopy`` or QEMU and imports no child-process module (the evidence
 script greps this file for any such import and requires no hit).  Expected

@@ -4,9 +4,9 @@
 > **分类：取数存数**（38 条）— ld/st/ldm/stm（RD/RB/RA/RF 各形式）
 
 <!-- ASSEMBLY_LIST_START -->
-## 汇编指令速查
+## 1. 汇编指令速查
 
-### 取数存数（38 条）
+### 1.1 取数存数（38 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -52,7 +52,7 @@
 <!-- ASSEMBLY_LIST_END -->
 
 <!-- LEGALITY_START -->
-## 合法性检查
+## 2. 合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `ld.o_rrii_rd`, `ld.sb_rrii_rd`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.ub_rrii_rd`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_rd`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`（14 条）
 * `dst_rb0`：目的 rb0 → ILLI — `ld.o_rrii_rb`, `ldm.o_rrri_rb`（2 条）
@@ -70,14 +70,14 @@
 
 用户态指令
 
-## 存取类指令
+## 3. 存取类指令
 
 装入指令是把数据从存储器带进寄存器中，进行零扩展或符号扩展。存储指令是把寄存器中的数据放入存储器中。
 
 操作数类型有两种，一种为：`rrii`，属于单load/store类型，地址计算公式为基址寄存器 + 立即数。
 另一种操作数类型为：`rrri`，属于多load/store类型，地址计算公式为基址寄存器 + 数据寄存器。
 
-### 存取RD寄存器
+### 3.1 存取RD寄存器
 
 单load/store类指令如下：
 
@@ -131,7 +131,7 @@ stm.o    {rdHA:rdHA+immu6-1}, [rbHB, rdHC]
 - 当多寄存器读写的范围包括`rdHC`时，地址计算仍然按照原始的`rdHC`中的数据进行
 - 装入类指令的源寄存器范围与目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中
 
-### 存取RB寄存器
+### 3.2 存取RB寄存器
 
 RB寄存器都是64位，因此不需要指定数据长度，共有4条指令如下：
 
@@ -152,7 +152,7 @@ stm.o    {rbHA:rbHA+immu6-1}, [rbHB, rdHC]
 - 源和目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中
 - 当多寄存器读写的范围包括`rbHB`时，地址计算仍然按照原始的`rbHB`中的数据进行
 
-### 存取RA寄存器
+### 3.3 存取RA寄存器
 
 RA寄存器都是64位，共有4条指令如下：
 
@@ -171,7 +171,7 @@ stm.o    {raHA:raHA+immu6-1}, [rbHB, rdHC]
 - `immu6` = 0 时触发 ILLI 异常
 - `raHA + immu6 > 64` 时触发 ILLI 异常（超出 ra63）
 
-### 存取RF寄存器
+### 3.4 存取RF寄存器
 
 RF寄存器分为tetra和octa两种情况，tetra为32位，octa为64位，对应单精和双精两种情况，共有8条指令如下：
 

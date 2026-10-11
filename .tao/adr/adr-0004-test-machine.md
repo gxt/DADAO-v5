@@ -1,6 +1,6 @@
 # ADR-0004: SimRISC M1 裸机测试机（Test Machine）
 
-**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步，见 `## 修订`）
+**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步；rev. 2026-10-11: RAM 基址改 `0xFC00_0000_0000`（cfx63 段），见 `## 修订`）
 **日期**：2026-09-13
 **关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）、`.tao/knowledge/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
 
@@ -395,3 +395,12 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
     - **step2（另立，M5 之外）**：既有向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段（`0xffff_0000_0000`）+ 收紧断言。
   - **依据**：`ADR-0020 D15`；`ADR-0004 D5.8` 码表**冻结不重排**；实测位置 `components/qemu/patches/target/dadao/cpu.h.patch:63-64`（`DADAO_RAM_BASE=0xffff00000000ULL`/`DADAO_RAM_SIZE=(16*1024*1024)`）、`hw/dadao/dadao-machine.c.patch:183`、`tools/integ/check_interface_alignment.py:319-320/351`。
 - **用户逐条确认（2026-10-07）**：主会话提案 `R1`（`-bios` bootrom 与 ELF 并存）、`R2`（`SYS_EXIT` 取代 exit-port）、`R3`（RAM 基址改全 0 + C1 双映射两步）三条及每条的实现归属，用户逐条确认（原话见 `.tao/tasks/spec/SPEC-113t-ADR决策落地.md` §四与完成区）。
+
+**rev. 2026-10-11（用户 2026-10-11 逐条确认；`INTEG-033k`/`QEMU-056t`）**：**RAM 基址由全 0（`0x0000_0000_0000`，`R3` 口径）改为 `0xFC00_0000_0000`**——`bits[47:42] ≡ 63`（cfxha 63 / `power` 段）的核内地址空间；**复位向量/ROM（`0xffff_ffff_0000`，64 KiB）与 RAM 容量（16 MiB）均不变**。**`D1`/`D2.1`/`D3`/`D4`/`D5`/`D6` 决策正文不改**——以下通过本 `## 修订` 条目表达**覆盖关系**（`Process-03`：不直接改写已 `Accepted` 的决策）。
+
+- **覆盖关系（覆盖 `R3` 的 RAM 基址口径）**：本 ADR `R3` 中「**RAM 基址改为全 0（`0x0000_0000_0000`）**」由本条目**覆盖**（新基址 `0xFC00_0000_0000`）；`D1` 内存映射表中「RAM 起始」、`D2.2`/`D2.3`/`D6.4`/`D6.5` 中以旧基址表述 RAM 入口/基址者，**本 rev 不改写其正文**（历史原文保留；**现行口径以本条目 + `spec/Machine-01` 为准**）。
+- **动机（用户原话，2026-10-11）**：「不想在此阶段引入其它 cfx 支持 ⇒ **有效地址空间只能在 `[47:42]` 为全 1 的情况下进行**；RAM 通常从 0 寻址 ⇒ **改为 `0xFC00_0000_0000`**；后续加 cfx 后此配置可不变」。即：不实现 cfx 的当前阶段，核内有效地址须落在 `[47:42]` 全 1（cfxha 63）的段内，故把 RAM 基址从核内全 0 段（cfxha 0）移到 cfxha 63 段内的 `0xFC00_0000_0000`。
+- **RAM 容量不变**：仍 **16 MiB**（用户原话：「**16 MiB 够用 ⇒ 不改大**」）；依据（用户 2026-10-11 提供）：Embench 最大基准静态占用 ≈43 KB、栈 ≤13 KB、堆 ≤8 KB，合计余量 ≥250×；picolibc 自带 test 更小。
+- **不改规范正文**：地址图正文归 `spec/Machine-01 §1`，其同步（含 `sha256` 锁）归 `QEMU-056t`（`Process-03`：ADR 不承载规范正文）。
+- **配套与下游**：`QEMU-056t`（QEMU 机器映射 + `dadao.lds`/`crt0`/异常向量/harness/`check-interface` 断言 + `Machine-01` 与锁同步）；`R3` 中「C1 双映射两步」**已收口**（`QEMU-053t`：RAM@0 为唯一 RAM 段），本次只是**把唯一 RAM 段的基址**从 `0` 移到 `0xFC00_0000_0000`。
+- **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-11`）。

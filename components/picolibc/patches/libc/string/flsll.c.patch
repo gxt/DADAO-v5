@@ -1,0 +1,22 @@
+diff --git a/libc/string/flsll.c b/libc/string/flsll.c
+index 9afc249..b49fd35 100644
+--- a/libc/string/flsll.c
++++ b/libc/string/flsll.c
+@@ -35,5 +35,17 @@ flsll(long long i)
+     if (i == 0)
+         return 0;
+ 
++#if defined(__dadao__)
++    /* DADAO's LLVM backend has no CTLZ lowering yet: portable scan. */
++    unsigned long long u = (unsigned long long)i;
++    int                r = 0;
++
++    while (u) {
++        u >>= 1;
++        r++;
++    }
++    return r;
++#else
+     return (sizeof(i) * CHAR_BIT - __builtin_clzll(i));
++#endif
+ }

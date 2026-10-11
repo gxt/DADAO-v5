@@ -4,9 +4,9 @@
 > **分类：32位数据运算**（26 条）— .st/.ut 运算
 
 <!-- ASSEMBLY_LIST_START -->
-## 汇编指令速查
+## 1. 汇编指令速查
 
-### 32位数据运算（18 条）
+### 1.1 32位数据运算（18 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -32,16 +32,16 @@
 <!-- ASSEMBLY_LIST_END -->
 
 <!-- LEGALITY_START -->
-## 合法性检查
+## 2. 合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `add.st_orrr_rd`, `add.ut_orrr_rd`, `cmp.st_orrr_rd`, `cmp.ut_orrr_rd`, `div.st_orrr_rd`, `div.ut_orrr_rd`, `mul.st_orrr_rd`, `mul.ut_orrr_rd`, `rem.st_orrr_rd`, `rem.ut_orrr_rd`, `shl.ut_orri_rd`, `shl.ut_orrr_rd`, `shr.st_orri_rd`, `shr.st_orrr_rd`, `shr.ut_orri_rd`, `shr.ut_orrr_rd`, `sub.st_orrr_rd`, `sub.ut_orrr_rd`（18 条）
 * `encode_sbz`：SBZ 非零 → ILLI — `shl.ut_orri_rd`, `shr.st_orri_rd`, `shr.ut_orri_rd`（3 条）
 <!-- LEGALITY_END -->
 
 
-## 算术运算类指令
+## 3. 算术运算类指令
 
-### 加减操作
+### 3.1 加减操作
 
 MISC-tetra 子表中的 `add`/`sub` 提供 32 位加减运算，按符号类型分为两个变体：
 
@@ -75,7 +75,7 @@ shr.st  rdHB, rdHC, rdHD
 shr.st  rdHB, rdHC, immu6
 ```
 
-#### neg 伪指令（已删除）
+#### 3.1.1 neg 伪指令（已删除）
 
 上游 `SimRISC-0.5.4` 曾定义 `neg.t` 伪指令；v5 **删除**（`ADR-0013 D11`）。32 位取负（符号扩展至 64 位）**直接书写真实指令 `sub.st rdHB, rd0, rdHC`**：
 
@@ -83,7 +83,7 @@ shr.st  rdHB, rdHC, immu6
 sub.st  rd1, rd0, rd2        ; rd1 = -rd2（低 32 位取负，符号扩展）
 ```
 
-### 比较操作 — 值语义
+### 3.2 比较操作 — 值语义
 
 MISC-tetra 子表中的 `cmp.s`/`cmp.u`（后缀 `.st`/`.ut`）提供 32 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
@@ -95,7 +95,7 @@ MISC-tetra 子表中的 `cmp.s`/`cmp.u`（后缀 `.st`/`.ut`）提供 32 位比�
 
 例如 `cmp.st rd1, rd2, rd3` 将 rd2 和 rd3 的低 32 位按有符号比较，结果符号扩展写入 rd1。
 
-### 乘除操作
+### 3.3 乘除操作
 
 MISC-tetra 子表中的 `mul`/`div`/`rem` 提供 32 位乘除余运算。`mul` 后缀为 `.ut`/`.st`；`div`/`rem` 后缀为 `.ut`/`.st`。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
@@ -110,17 +110,17 @@ MISC-tetra 子表中的 `mul`/`div`/`rem` 提供 32 位乘除余运算。`mul` �
 - **溢出 → 定值**（不触发异常）：`div.s` 中 tetra 对应的 −2147483648 ÷ −1 见定值表。`div.u`/`rem.u` 不存在溢出。
 - **定值表**：详见 SimRISC-04 §乘除操作定值表。
 
-## 逻辑运算类指令
+## 4. 逻辑运算类指令
 
-### Logic operators：逻辑运算 — 已删除
+### 4.1 Logic operators：逻辑运算 — 已删除
 
 **SPEC-069t**：`and.t`/`or.t`/`xor.t`/`xnor.t` 已从指令集中删除。64 位逻辑运算见 SimRISC-04。
 
-#### not 伪指令（已删除）
+#### 4.1.1 not 伪指令（已删除）
 
 **SPEC-069t**：`not.t` 已删除（窄位宽逻辑指令 `xnor.t` 已不存在）；v5 亦**不保留** `not.o`（`ADR-0013 D11`）。按位取反**直接书写真实指令 `xnor.o rd, rs, rd0`**（64 位）。
 
-### Bit manipulating：位操作指令 — 值语义
+### 4.2 Bit manipulating：位操作指令 — 值语义
 
 MISC-tetra 子表中的 `shl`/`shr`（后缀 `.ut`/`.st`）提供 32 位移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 

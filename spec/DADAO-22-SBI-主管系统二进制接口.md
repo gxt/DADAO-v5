@@ -57,7 +57,7 @@ cfx_smon 提供 SBI 版本查询和核芯功能扩展探测。
 | 0 | SBI_SMON_GET_VERSION | — | rd8 = version | 返回 SBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.7.1 = `0x00070001` |
 | 1 | SBI_SMON_PROBE_CFX | rd16 = cfx | rd8 = func_map | 探测 cfx 支持的 SBI 功能位图（bit i = 1 表示 func i 可用）。若 cfx 硬件不存在则触发 CFXREG 异常；rd8=0 表示 cfx 存在但未实现任何 SBI 功能。实现上通过读取 `cfx_*_cfx_id` 寄存器验证存在性 |
 
-### 初始化
+### 3.1 初始化
 
 ```simrisc
 ; 设置 cfx_smon 的 supv 异常向量
@@ -91,7 +91,7 @@ cfx_smon_unknown:
     escape cfx_smon, [excp_cause_ip, 4]
 ```
 
-### 内部实现代码
+### 3.2 内部实现代码
 
 ```simrisc
 cfx_smon_get_version:
@@ -105,7 +105,7 @@ cfx_smon_probe_cfx:
     escape cfx_smon, [excp_cause_ip, 4]
 ```
 
-### 功能调用示例
+### 3.3 功能调用示例
 
 ```simrisc
 #define SBI_SMON_GET_VERSION  0
@@ -138,7 +138,7 @@ cfx_ptw 为地址转换部件，管理页表和 PTBR。
 >
 > **页表访问**：cfx_ptw handler 通过正常虚拟地址访问 PTE。操作系统在启动阶段须将页表所在的物理区域映射到虚拟地址空间，handler 可直接对 PTE 所在虚拟地址执行 ld/st 来读写页表项，无需专门的物理内存直接访问机制。
 
-### 初始化
+### 4.1 初始化
 
 > 初始化方式与其他 cfx 一致：探测 cfx_ptw 的存在性，设置异常向量并清除 global_cfx_mask 对应位（bit 4）。cfx_ptw 为 per-hart cfx，每个 hart 独立初始化。
 
@@ -292,7 +292,7 @@ cfx_tlb 为 TLB 管理部件，提供 TLB 无效化服务。
 |--------|------|------|------|
 | 0 | SBI_TLB_INVALIDATE | rb16 = start, rd16 = size | 使 TLB 中 [start, start+size) 范围的表项无效 |
 
-### 初始化
+### 5.1 初始化
 
 ```simrisc
 ; 设置 cfx_tlb 的 supv 异常向量，允许 supv 内核调用
@@ -366,7 +366,7 @@ cfx_tlb_ptw_fail:
     escape cfx_tlb, [excp_cause_ip, 4] ; 跳过故障指令
 ```
 
-### 内部实现代码
+### 5.2 内部实现代码
 
 分发后的功能实现——通过 cfx_tlb_control 触发操作，cfx_tlb_addr_start/size 指定地址范围：
 
@@ -383,7 +383,7 @@ cfx_tlb_invalidate:
 
 页表异常委托处理（`cfx_tlb_ptw_delegate`）由 cfx_ptw 完成页表步进，cfx_tlb 根据返回结果 invalid 或填充对应 TLB 表项。
 
-### 功能调用示例
+### 5.3 功能调用示例
 
 ```simrisc
 #define SBI_TLB_INVALIDATE  0
@@ -512,7 +512,7 @@ cfx_timer 为定时器/计数器，提供定时器服务。
 | 0 | SBI_TIMER_SET_TIMER | rd16 = timeout | — | 设置定时器在 timeout（周期计数值）时触发中断 |
 | 1 | SBI_TIMER_GET_TIME | — | rd8 = value | 返回定时器当前计数值 |
 
-### 初始化
+### 10.1 初始化
 
 ```simrisc
 ; 设置 cfx_timer 的 supv 异常向量
@@ -554,7 +554,7 @@ cfx_timer_trap_dispatch:
     escape cfx_timer, [excp_cause_ip, 4]
 ```
 
-### 内部实现代码
+### 10.2 内部实现代码
 
 ```simrisc
 cfx_timer_set_timer:
@@ -574,7 +574,7 @@ cfx_timer_int:
     escape cfx_timer, [excp_cause_ip, 0]
 ```
 
-### 功能调用示例
+### 10.3 功能调用示例
 
 ```simrisc
 #define SBI_TIMER_SET_TIMER  0
@@ -600,7 +600,7 @@ cfx_uart 为 UART 控制器，提供控制台输入输出。
 | 2 | SBI_UART_WRITE | rb16 = buf, rd16 = len | rd8 = written | 向控制台写入 len 字节。返回实际写入字节数 |
 | 3 | SBI_UART_READ | rb16 = buf, rd16 = len | rd8 = read | 从控制台读取最多 len 字节。返回实际读取字节数 |
 
-### 初始化
+### 11.1 初始化
 
 ```simrisc
 ; 设置 cfx_uart 的 supv 异常向量
@@ -647,7 +647,7 @@ cfx_uart_unknown:
     escape cfx_uart, [excp_cause_ip, 4]
 ```
 
-### 内部实现代码
+### 11.2 内部实现代码
 
 ```simrisc
 cfx_uart_putchar:
@@ -673,7 +673,7 @@ cfx_uart_read:
     escape cfx_uart, [excp_cause_ip, 4]
 ```
 
-### 功能调用示例
+### 11.3 功能调用示例
 
 ```simrisc
 #define SBI_UART_PUTCHAR  0
@@ -700,7 +700,7 @@ cfx_power 为电源管理，提供关机和重启服务。`power_ctrl` 寄存器
 | 1 | SBI_POWER_HARD_RESET | — | 硬复位（冷复位），不返回 |
 | 2 | SBI_POWER_SOFT_RESET | — | 软复位（热复位），不返回 |
 
-### 初始化
+### 12.1 初始化
 
 ```simrisc
 ; 设置 cfx_power 的 supv 异常向量
@@ -753,7 +753,7 @@ cfx_power_trap_dispatch:
     escape cfx_power, [excp_cause_ip, 4]
 ```
 
-### 内部实现代码
+### 12.2 内部实现代码
 
 ```simrisc
 cfx_power_shutdown:
@@ -769,7 +769,7 @@ cfx_power_soft_reset:
     cfx2rc  cfx_power_ctrl, rd2                   ; 不返回
 ```
 
-### 功能调用示例
+### 12.3 功能调用示例
 
 ```simrisc
 #define SBI_POWER_SHUTDOWN     0
@@ -788,7 +788,7 @@ trap    cfx_power, SBI_POWER_SOFT_RESET
 
 ## 13. 代码示例
 
-### 示例：主管系统异常向量
+### 13.1 示例：主管系统异常向量
 
 cfx_umon、cfx_jmon、cfx_smon、cfx_hmon 为运行模式 monitor，配置方式同上（设置异常向量 + 清除 global_cfx_mask，允许当前运行模式同步异常进入对应 monitor）。
 

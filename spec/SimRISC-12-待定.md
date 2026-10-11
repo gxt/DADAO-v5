@@ -4,9 +4,9 @@
 > **分类：待定 [deferred]**（11 条）— cfxld/cfxst/fence/lr_*/sc_*
 
 <!-- ASSEMBLY_LIST_START -->
-## 汇编指令速查
+## 1. 汇编指令速查
 
-### 待定（11 条）｜ **deferred** — 暂不归类，待必须启用时
+### 1.1 待定（11 条）｜ **deferred** — 暂不归类，待必须启用时
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -25,7 +25,7 @@
 <!-- ASSEMBLY_LIST_END -->
 
 <!-- LEGALITY_START -->
-## 合法性检查
+## 2. 合法性检查
 
 
 **scope: excluded（decode ILLI）：**
@@ -43,9 +43,9 @@
 <!-- LEGALITY_END -->
 
 
-## 原子指令
+## 3. 原子指令
 
-### fence指令
+### 3.1 fence指令
 
 fence 指令对外部可见的访存请求,如设备 I/O 和内存访问等进行串行化。
 
@@ -66,7 +66,7 @@ fence   immu18
 
 bits[17:4] 应为零（SBZ），非零值行为保留。
 
-### LR-SC指令
+### 3.2 LR-SC指令
 
 LR 指令是 Load Reserved 的缩写，读取保留；SC 指令是 Store Conditional 的缩写，条件存储。设计参考 RISC-V RV64A 扩展（A 扩展）。
 
@@ -96,7 +96,7 @@ sc 指令会先判断 rbHD 内存地址是否有设置保留标记，如果设�
 
 > **保留机制**（参考 RISC-V RV64A）：一条 lr 指令在 hart 上设置保留标记。sc 指令在保留标记仍在时写入内存并返回 0，否则不写入并返回非 0 值。sc 可能偶发性失败（spurious failure），软件应在循环中重试。以下事件清除 hart 上的保留标记：另一 hart 对保留地址的 store（或另一 hart 对保留地址所在 cache line 的 store，取决于平台实现的保留粒度）、当前 hart 执行另一条 lr 指令、异常或中断进入。如果 hart 在 lr 和 sc 之间执行了异常处理程序，sc 必定失败。保留标记的粒度由平台定义（可实现为精确地址或 cache line）。
 
-## SRAM块传输指令
+## 4. SRAM块传输指令
 
 这类指令用于核芯功能扩展的内部存储与内存之间的块传输，要求 64 字节对齐，并且是 64 字节的倍数。
 

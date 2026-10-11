@@ -1,16 +1,16 @@
 # spec/ — 规范总索引
 
 > **状态**：生效（2026-10-03，文档分层改造 `SPEC-084t`）
-> **范围**：本目录是 DADAO-v5 的**规范（内容层 / 唯一真源）**——上游基线（`SimRISC-*`/`DADAO-*`）与 v5 自定规范（`Toolchain-01`/`Process-0x`）合一；索引与投影表见本文。
+> **范围**：本目录是 DADAO-v5 的**技术规范（内容层 / 唯一真源）**——上游基线（`SimRISC-*`/`DADAO-*`）与 v5 自定**技术规范**（`Toolchain-01`/`Machine-01`）合一；**工程流程规范（`Process-0x`）归 `docs/`**（见 `docs/README.md`）；索引与投影表见本文。
 
 ## 定位说明
 
-- **规范＝内容层 / 唯一真源**：描述"应当是什么"，面向人阅读，允许歧义与自然语言；v5 自定规范（`Toolchain-01`/`Process-0x`）属**持续修订**的活规范，由 spec 模块任务按变更流程修改（见 `ADR-0012 D4`）。
+- **规范＝内容层 / 唯一真源**：描述"应当是什么"，面向人阅读，允许歧义与自然语言；v5 自定**技术规范**（`Toolchain-01`/`Machine-01`）属**持续修订**的活规范，由 spec 模块任务按变更流程修改（见 `ADR-0012 D4`）。工程流程规范（`Process-0x`）不属本目录，归 `docs/`。
 - **投影＝实现依据**：投影把规范**归一化**为机器/agent 可精确消费的形态，是实现的直接依据。投影分两层：
   - `contracts/*`：**机器可读数据**（编码表/ABI/合法性规则等），供工具消费；
   - `.tao/knowledge/contract-*.md`：**叙述型合约**（§ 编号 + `[spec §x]` 引用），供人/agent 阅读。
-- **本目录同时含上游基线与 v5 自定规范**：`SimRISC-00…12`、`DADAO-11…23` 为**上游基线**（按 `ADR-0012 D4`，spec 模块任务可改上游并生成新版本）；`Toolchain-01`、`Process-01/02/03/05` 为 **v5 自定规范**。二者同处一目录，取消历史上"原始规范 vs v5 规范层"的二分。
-- **ADR 不在此目录**：架构决策记录（ADR）属**决策层**，落 `.tao/adr/`（见 `spec/Process-03-ADR编写规范.md`）；ADR 只记决策、理由、被否方案与指向规范章节的指针，**不承载规范正文**。
+- **本目录同时含上游基线与 v5 自定技术规范**：`SimRISC-00…12`、`DADAO-11…23` 为**上游基线**（按 `ADR-0012 D4`，spec 模块任务可改上游并生成新版本）；`Toolchain-01`、`Machine-01` 为 **v5 自定技术规范**（工程流程规范 `Process-0x` 已迁 `docs/`）。二者同处一目录，取消历史上"原始规范 vs v5 规范层"的二分。
+- **ADR 不在此目录**：架构决策记录（ADR）属**决策层**，落 `.tao/adr/`（见 `docs/Process-03-ADR编写规范.md`）；ADR 只记决策、理由、被否方案与指向规范章节的指针，**不承载规范正文**。
 
 ## 分册清单
 
@@ -62,16 +62,7 @@
 |------|------|
 | [`Toolchain-01-汇编语言.md`](Toolchain-01-汇编语言.md) | DADAO 汇编语言规范（词法/记号/寻址/寄存器组/条件/格式类语法/伪指令/诊断/往返）；含 cfx 系列记法约定正文 |
 
-### 工程流程
-
-| 分册 | 职责 |
-|------|------|
-| [`Process-01-组件补丁组织与构建编排.md`](Process-01-组件补丁组织与构建编排.md) | 组件补丁集组织（树形补丁集 + 一文件一补丁 + `git apply`）与构建编排 |
-| [`Process-02-合约编写规范.md`](Process-02-合约编写规范.md) | 合约（投影）文件组织、写法要点、版本管理 |
-| [`Process-03-ADR编写规范.md`](Process-03-ADR编写规范.md) | ADR 判据、提醒义务、落点命名与模板、流程 |
-| [`Process-04-里程碑归档规范.md`](Process-04-里程碑归档规范.md) | 里程碑达成后的任务书/台账归档（判据、落点、README 模板、原台账处理、验收） |
-| [`Process-05-里程碑TDD规范.md`](Process-05-里程碑TDD规范.md) | 里程碑测试驱动开发（三层向量 L1/L2/L3、规模与移植原则、反例门控、落点） |
-| [`Process-06-spec目录保护规范.md`](Process-06-spec目录保护规范.md) | spec 目录保护：上游只读册只读引用、`spec/` 改动须用户事先授权、下发/验收/提交三处固定检查、上游只读册 `sha256` 哈希锁门控 |
+> **工程流程规范不在此目录**：`Process-01…06`（组件补丁 / 合约 / ADR / 归档 / TDD / spec 目录保护）为**工程流程规范**，已迁至 `docs/`，索引见 `docs/README.md`——本目录只收**技术规范**（上游基线 + v5 自定技术册 `Toolchain-01`/`Machine-01`）。
 
 ## 投影表
 
@@ -90,13 +81,10 @@
 | `DADAO-23`（HBI） | `deferred`（`contract-exception.md`；归属 M3+，触发：HBI 消费方落地） | 据实 | 据实 | 据实 |
 | `Machine-01`（测试机，v5 自定） | `contract-see.md`（运行环境/权限/异常进入）+ `contract-semihosting.md`（tag/传参/25 服务/`SYS_EXIT`） | `缺口`（据实；测试机约定无 `contracts/*`） | `tools/integ/check_interface_alignment.py` | `缺口`（据实；向量归 `TESTCASES-*`） |
 | `Toolchain-01` | `contract-asm.md` + `contract-asm-list.md`（生成投影，已落位） | `contracts/opcodes.yaml`（format/汇编形式列） | `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py` | `tests/llvm/lit/MC/DADAO` |
-| `Process-01` | — | — | `tools/infra/check_patch_tree.py`（+ 报告，**非门控**：`tools/infra/size_report.py`，见 §11） | 不适用 |
-| `Process-02` | — | — | `tools/infra/check_spec_drift.py`（`check_spec_refs.py` 独立门控） | 不适用 |
-| `Process-03` | — | — | — | 不适用（人工遵守） |
-| `Process-05` | — | — | — | 不适用（人工遵守） |
-| `Process-06` | — | — | `tools/infra/check_spec_readonly.py`（`make check-spec-readonly`） | 不适用（人工遵守） |
 
-**登记缺口（显式 deferred）**（决策 8；T2 `SPEC-085t` 定稿并同步 `Process-02` 的合约清单；三类系统层缺口由 `SPEC-092t` 标显式 deferred）：
+> 工程流程规范 `docs/Process-0x` 不属本目录，故不在本表；其门控映射（`check_patch_tree` / `check_spec_drift` / `check_spec_readonly` 等）见各册正文与 `docs/README.md`。
+
+**登记缺口（显式 deferred）**（决策 8；T2 `SPEC-085t` 定稿并同步 `docs/Process-02` 的合约清单；三类系统层缺口由 `SPEC-092t` 标显式 deferred）：
 
 | 缺口（①叙述合约） | 来源册 | 状态 | deferred 理由 | 归属/触发 |
 |-------------------|--------|------|---------------|-----------|
@@ -104,7 +92,7 @@
 | `contract-exception.md` | `DADAO-13`（HEE）/ `DADAO-23`（HBI） | **deferred（部分落于 `contract-see.md`）** | `contract-see.md` 已覆盖 HEE cg3/hmon 运行环境部分（M5，`SPEC-114t`）；**完整系统态异常模型**（cfx_hmon 异常进入/退出全流程、HBI 接口）仍无 M5 消费方，未冻结后果可控；上游 `spec/DADAO-13/23` 已存在，补齐不需新造正文。 | 归属 M5+；触发：系统态异常/HBI 消费方落地时须先补齐 `contract-exception.md` 再实现。 |
 | `contract-mmu.md` | `DADAO-12`（SEE，地址转换） | **deferred** | M5 测试机 VA=PA、无地址转换消费方；M3 codegen 为 freestanding 单 TU，无 MMU，未冻结后果可控；上游 `spec/DADAO-12`（§2.2 虚实地址转换）已存在，补齐不需新造正文。`contract-see.md §3` 只提取 `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 权限层次，不含页表步进/转换公式。 | 归属 M5+；触发：MMU/地址转换消费方落地时须先补齐 `contract-mmu.md` 再实现。 |
 
-> 上述三项为**已登记、显式 deferred**（决策 8：缺失即登记，不臆造内容）；上游依据可回溯（`spec/DADAO-12/13/22/23`），触发条件满足后按 `Process-02` 归一化补齐，再按轻量修订流程（见下）更新本表。
+> 上述三项为**已登记、显式 deferred**（决策 8：缺失即登记，不臆造内容）；上游依据可回溯（`spec/DADAO-12/13/22/23`），触发条件满足后按 `docs/Process-02` 归一化补齐，再按轻量修订流程（见下）更新本表。
 
 ## 规范修订流程
 
@@ -118,7 +106,7 @@
 5. 不强制记 ADR —— 仅「多方案取舍 / 外部契约 / 取向改变」才记
 ```
 
-> **前置（MUST）**：改 `spec/` 任何册（含 v5 自定册与 `spec/README.md`）须**用户事先授权**（见 `Process-06`）；上游只读册另有 `sha256` 锁门控（`make check-spec-readonly`，已纳入 `make check`）。
+> **前置（MUST）**：改 `spec/` 任何册（含 v5 自定册与 `spec/README.md`）须**用户事先授权**（见 `docs/Process-06`）；上游只读册另有 `sha256` 锁门控（`make check-spec-readonly`，已纳入 `make check`）。
 
 ## Rationale
 

@@ -4,9 +4,9 @@
 > **分类：64位数据运算**（29 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o
 
 <!-- ASSEMBLY_LIST_START -->
-## 汇编指令速查
+## 1. 汇编指令速查
 
-### 64位数据运算（29 条）
+### 1.1 64位数据运算（29 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -43,16 +43,16 @@
 <!-- ASSEMBLY_LIST_END -->
 
 <!-- LEGALITY_START -->
-## 合法性检查
+## 2. 合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `shl.uo_orri_rd`, `shl.uo_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（23 条）
 * `dst_dual_same`：双目的同为 rd0 或同寄存器 → ILLI — `add.so_rrrr_rd`, `add.uo_rrrr_rd`, `mul.so_rrrr_rd`, `mul.uo_rrrr_rd`, `sub.so_rrrr_rd`, `sub.uo_rrrr_rd`（6 条）
 <!-- LEGALITY_END -->
 
 
-## 算术运算类指令
+## 3. 算术运算类指令
 
-### 加减操作
+### 3.1 加减操作
 
 加减操作需要两个源操作数，一个目的操作数。
 操作数类型为 `rrrr`。
@@ -74,7 +74,7 @@ sub.so  {rdHA, rdHB}, rdHC, rdHD    ; SX，rdHA = 高64位
 
 `rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
-### 自增自减
+### 3.2 自增自减
 
 自增自减指令需要一个寄存器和一个立即数，操作数类型为 `riii`。
 立即数为18位有符号数，经过符号扩展后与寄存器执行加法，结果写回同一寄存器。
@@ -87,7 +87,7 @@ add.si  rdHA, imms18
 
 `add.si` 为全 64 位运算，无法单独通过结果判断溢出，用户可结合 `add.uo`/`add.so` 的 rrrr 形式获取进位/符号信息。
 
-### 比较操作
+### 3.3 比较操作
 
 比较操作需要通过指令编码区分数据类型，对于整型，主要区分的是有符号数和无符号数。
 比较操作会根据两个源操作数的比较结果，小于、等于、大于，分别设置目的操作数为-1、0、1。
@@ -110,7 +110,7 @@ cmp.so  rdHB, rdHC, rdHD
 
 源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
 
-### 乘除操作
+### 3.4 乘除操作
 
 乘除运算都是四个操作数，操作数类型为 `rrrr`。
 
@@ -154,9 +154,9 @@ rem.so  rdHB, rdHC, rdHD
 | `rem.sb`/`rem.sw`/`rem.st`/`rem.so` | 被除数（符号扩展写满 64 位） | `0` |
 | `rem.ub`/`rem.uw`/`rem.ut`/`rem.uo` | 被除数（零扩展写满 64 位） | 不适用 |
 
-## 逻辑运算类指令
+## 4. 逻辑运算类指令
 
-### Logic operators：逻辑运算
+### 4.1 Logic operators：逻辑运算
 
 逻辑运算指令需要两个源操作数，一个目的操作数。MISC-octa 子表中的 `and`/`or`/`xor`/`xnor`（后缀 `.o`）提供 64 位逻辑运算。操作数格式为 `orrr`。
 
@@ -171,7 +171,7 @@ rem.so  rdHB, rdHC, rdHD
 
 无需提供专门的not指令，可以采用xnor指令实现相同的功能。当rdHC或rdHD为rd0时，xnor指令实现了另一操作数的取反操作，即逻辑非运算。逻辑非的运算规则：一变零，零变一。即操作数为1时结果为0，操作数为0时结果为1。
 
-#### not 伪指令（已删除）
+#### 4.1.1 not 伪指令（已删除）
 
 上游 `SimRISC-0.5.4` 曾定义 `not.{b,w,t,o}` 伪指令；v5 **删除**（`ADR-0013 D11`），**1:1 别名一律不保留**。64 位按位取反**直接书写真实指令 `xnor.o rd, rs, rd0`**（`rdHC`/`rdHD` 之一为 `rd0` 时 `xnor` 即取反；源与目的可为同一寄存器、原地取反）。窄位宽 `not.b`/`not.w`/`not.t` **无等宽替代**（`xnor.b/w/t` 已随 `SPEC-069t` 删除）。
 
@@ -179,7 +179,7 @@ rem.so  rdHB, rdHC, rdHD
 xnor.o  rd3, rd4, rd0     ; rd3 = ~rd4（64 位按位取反）
 ```
 
-#### neg 伪指令（已删除）
+#### 4.1.2 neg 伪指令（已删除）
 
 上游 `SimRISC-0.5.4` 曾定义 `neg.{b,w,t,o}` 伪指令；v5 **删除**（`ADR-0013 D11`）。按位宽取负**直接书写真实指令 `sub.sX`**：`neg.b`→`sub.sb`、`neg.w`→`sub.sw`、`neg.t`→`sub.st`、`neg.o`→`sub.so`。
 
@@ -189,7 +189,7 @@ sub.so  {rd0, rd3}, rd0, rd4     ; rd3 = -rd4（64 位取负，双目的写回 r
 
 > **注**：`neg.b`/`neg.w`/`neg.t` 的对应 `sub.sb`/`sub.sw`/`sub.st` 分别见 SimRISC-10、SimRISC-09、SimRISC-08。
 
-### Bit manipulating：位操作指令
+### 4.2 Bit manipulating：位操作指令
 
 位操作指令需要两个源操作数，一个目的操作数。
 

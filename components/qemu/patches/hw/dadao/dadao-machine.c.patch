@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..048aa1a
+index 0000000..f019b1d
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,501 @@
+@@ -0,0 +1,502 @@
 +/*
 + * DADAO M1 bare-metal test machine for QEMU
 + *
@@ -21,11 +21,12 @@ index 0000000..048aa1a
 + * You should have received a copy of the GNU General Public License along with
 + * this program.  If not, see <http://www.gnu.org/licenses/>.
 + *
-+ * Memory map per ADR-0004 R3 / ADR-0020 D15 (C1 step2): RAM@0 is the single
-+ * RAM segment.  The legacy 0xffff_0000_0000 RAM of C1 step1 and the legacy
-+ * exit-port MMIO device were removed in step2 (halt is now semihosting
-+ * SYS_EXIT, ADR-0020 D8).
-+ *   RAM@0:      0x0000_0000_0000 .. +DADAO_RAM_SIZE   (16 MiB, RWX; cfxha 0)
++ * Memory map per ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15: RAM is the
++ * single RAM segment at 0xFC00_0000_0000 (cfxha 63/power, 16 MiB; moved from
++ * all-zero in rev. 2026-10-11).  The legacy 0xffff_0000_0000 RAM of C1 step1
++ * and the legacy exit-port MMIO device were removed in step2 (halt is now
++ * semihosting SYS_EXIT, ADR-0020 D8).
++ *   RAM:        0xFC00_0000_0000 .. +DADAO_RAM_SIZE   (16 MiB, RWX; cfxha 63)
 + *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff  (64 KiB, RO+X)
 + *
 + * Loading paths per ADR-0004 D2.2/D2.3 (rev. 2026-10-06, SPEC-107t) and
@@ -385,9 +386,9 @@ index 0000000..048aa1a
 +
 +    system_memory = get_system_memory();
 +
-+    /* RAM@0 (C1 step2, ADR-0004 R3 / ADR-0020 D15): the single 16 MiB RAM
-+     * segment at 0x0000_0000_0000 (cfxha 0, umon).  The legacy RAM segment
-+     * and the exit-port device were removed in step2. */
++    /* RAM (ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15): the single 16 MiB
++     * RAM segment at 0xFC00_0000_0000 (cfxha 63, power).  The legacy RAM
++     * segment and the exit-port device were removed in step2. */
 +    ram = g_new(MemoryRegion, 1);
 +    memory_region_init_ram(ram, NULL, "dadao-ram", DADAO_RAM_SIZE, &error_fatal);
 +    memory_region_add_subregion(system_memory, DADAO_RAM_BASE, ram);

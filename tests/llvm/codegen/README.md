@@ -9,7 +9,7 @@ end-to-end test built by `INTEG-012t` (`make test-codegen`).
   no global variables / `.data` / `.rodata`, no varargs, no aggregates, no
   `sret`, no indirect calls).
 - Each program defines `define i64 @main()`.
-- The crt0 stub `_start` calls `@main` and reports the returned value (`rd31`)
+- The crt0 stub `_start` calls `@main` and reports the returned value (`rd8`)
   through the semihosting `SYS_EXIT` service (`ADR-0020 D8`: `SYS_EXIT` replaces
   the legacy MMIO halt device, `ADR-0004 D3` superseded), then halts (`swym`).  The **guest
   process exit code** is the low byte of that value.
@@ -42,10 +42,10 @@ Coverage points follow `SPEC-096k` §M3 / `ADR-0018` (C1/C4/C5/C12/C13/C14/C17).
 | `branch_loop_sum.ll`       | branch     | C17, branch.signed-loop | 45 | signed predicate (`icmp slt`) loop; taken + not-taken edges |
 | `branch_eq_ne.ll`          | branch     | C17, branch.eq-ne | 16 | `==` / `!=` compare-branch |
 | `branch_ptr.ll`            | branch     | C17, C14, C1, branch.ptr-null, branch.ptr-eq, ptr.cmp | 25 | `p==NULL` (`br.z/nz {rb}`), `p==q` (`cmp.uo` dbb) |
-| `call_direct_ret.ll`       | call       | call.direct-ret | 9 | direct `call`/`ret`, integer return in `rd31` |
+| `call_direct_ret.ll`       | call       | call.direct-ret | 9 | direct `call`/`ret`, integer return in `rd8` |
 | `call_multiarg_stack.ll`   | call       | C4, call.stack-args | 43 | 18 scalar args → 2 stack spill slots in declaration order |
 | `call_narrow_args.ll`      | call       | C4, call.narrow-args | 9 | i8/i16/i32 args, caller canonical extension |
-| `call_ptr_bank.ll`         | call       | C1, C5, call.ptr-bank | 42 | pointer argument (`rb16`), pointer return (`rb31`) |
+| `call_ptr_bank.ll`         | call       | C1, C5, call.ptr-bank | 42 | pointer argument (`rb16`), pointer return (`rb8`) |
 | `ptr_add_offset.ll`        | memory     | C14, ptr.add-offset | 43 | base pointer + runtime offset (C14 `add.o` computation) |
 | `ptr_diff_pos.ll`          | arithmetic | C14, ptr.diff-pos | 7 | `ptr−ptr` positive, selected as `sub.o_orrr_dbb` |
 | `ptr_diff_neg.ll`          | arithmetic | C14, ptr.diff-neg | 121 | `ptr−ptr` negative (raw −7), selected as `sub.o_orrr_dbb` |
