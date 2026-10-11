@@ -34,11 +34,10 @@ oracle、LLVM、QEMU 和 vectors；机器投影仍保留逐 id/条件关联。
 **依据**：SimRISC-07 的浮点→整数饱和要求；FCSR 舍入模式；FP-004 accumulated flags 规则。
 **后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖四种舍入模式、signed/unsigned 32/64 位范围、NaN sign、±Inf、舍入前后边界、NX/NV 及多元素 flags 并集。
 
-## FP-007
-**候选 A**：按 FCSR 舍入模式转目标格式，无法精确表示即置 NX，并按 FP-001 的目标写掩码；优点是与 f2i 对称，代价是需完整位级 oracle。
-**候选 B**：整数转浮点固定 RNE，NX 仅在丢失有效位时置位；优点是常见实现简单，代价是 rounding_mode 影响范围缩小。
-**候选 C**：固定向零并保留可表示邻居；优点是确定，代价是数值偏差，LLVM/QEMU 和向量均需采用该规则。
-**后续影响**：contract/oracle 固定舍入和 NX；LLVM/QEMU 的整数转浮点 lowering 与各 signedness/宽度 vectors 必须一致。
+## FP-007（已裁定：候选 A）
+**采用规则**：it/ut 的 rd 低 32 位、io/uo 的完整 rd 按各自 signedness 解释为精确整数，再按 FCSR rounding_mode 单次正确舍入到 ft/fo；不能精确表示时置 NX，不置 NV/DZ/OF/UF。多元素 flags 取并集后累积。
+**依据**：IEEE 754 整数→浮点正确舍入与 inexact；FCSR rounding_mode；FP-004 accumulated flags 规则。
+**后续影响**：contract、独立 oracle、LLVM、QEMU 和 vectors 均须覆盖 signed/unsigned 32/64 位、四种舍入模式、halfway 和 NX；ft 高 32 位仍依赖 FP-001。
 
 ## FP-008（已裁定：细化原候选 A）
 **采用规则**：非 NaN invalid（±Inf 被除数或 ±0 除数）返回目标格式正 canonical qNaN+NV；有限被除数/±Inf 原样返回，且 subnormal 被除数置 UF；有限非零除数的 remainder 精确，零结果保留被除数符号，不置 DZ/OF/UF/NX。NaN 输入按 FP-003。
