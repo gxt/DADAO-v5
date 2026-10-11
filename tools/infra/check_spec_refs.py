@@ -2,10 +2,13 @@
 """spec 引用审计器 — Check 1 引用有效性 + Check 2 无引用规范断言.
 
 审计对象: .tao/knowledge/contract-*.md
-引用目标: spec/*.md (SimRISC-00~04, DADAO-11~23)
+引用目标: spec/*.md (SimRISC-00~12, DADAO-11~23, Toolchain-01, Machine-01)
 
-Check 1: 每个 [SimRISC-XX §...] / [DADAO-XX §...] 可解析到 spec/ 真实内容。
+Check 1: 每个 [SimRISC-XX §...] / [DADAO-XX §...] / [Toolchain-01 §...] /
+         [Machine-01 §...] 可解析到 spec/ 真实内容。
          三类命中: 标题(#1~4) > 粗体引子(> **X**：/ **X**) > 正文行。
+         数值节号 (§7.2) 命中标题 `7.2 对齐指示符`（标题以 `N.M ` 起始）。
+         模板占位节名 (§x / §N) 跳过。
 Check 2: 含规范标记(ILLI/UNDI/MALIGN/IALIGN/保留/reserved/必须 等) 且既无
          spec 引用也无 [spec-decision]/ADR 引用的断言 → 报「无引用断言」。
 
@@ -61,12 +64,26 @@ SPEC_PREFIX_MAP = {
     "DADAO-21":   "DADAO-21-ABI-应用程序二进制接口.md",
     "DADAO-22":   "DADAO-22-SBI-主管系统二进制接口.md",
     "DADAO-23":   "DADAO-23-HBI-超管系统二进制接口.md",
+    # v5 自定册 (INFRA-058t): 与 SimRISC-/DADAO- 同等校验（此前缺席 ⇒ 引用不可见）。
+    "Toolchain-01": "Toolchain-01-汇编语言.md",
+    "Machine-01":   "Machine-01-测试机运行环境.md",
 }
 
 # ── regex patterns ────────────────────────────────────────────────────────────
 
 # Prefix search anchor: [SimRISC-XX § or [DADAO-XX § or [SimRISC-0X § (template)
-_PREFIX_ANCHOR = re.compile(r"\[(SimRISC-(?:\d+|0X)|DADAO-\d+) §")
+# 注意: _tpl 形如 SimRISC-XX / DADAO-NN 的模板占位不在此匹配 (XX/NN 非数字)。
+# v5 自定册 Toolchain-01 / Machine-01 亦纳入 (INFRA-058t)。
+_PREFIX_ANCHOR = re.compile(
+    r"\[(SimRISC-(?:\d+|0X)|DADAO-\d+|Toolchain-\d+|Machine-\d+) §"
+)
+
+# 数值节号（如 7.2 / 2 / 13.7）；用于「标题以 `N.M ` 起始 ⇒ 命中 `N.M`」的匹配。
+_NUMERIC_SECTION_RE = re.compile(r"\d+(?:\.\d+)*$")
+
+# 模板占位节名（纯 ASCII 字母，如 `x` / `N` / `XX`）——格式说明行里的占位，
+# 非真实引用，不作校验（与 [SimRISC-XX §] / [DADAO-NN §] 同性质）。
+_PLACEHOLDER_SECTION_RE = re.compile(r"[A-Za-z]+$")
 
 # Headers: # / ## / ### / ####  heading text
 _HEADER_RE = re.compile(r"^#{1,4}\s+(.+)$", re.MULTILINE)
@@ -145,13 +162,36 @@ def _header_matches(header: str, section: str) -> bool:
     """Check if section_name matches a spec header.
 
     1. Exact / prefix (section：) via _text_matches
-    2. Split: header splits on '、' and section is one of the parts
+    2. Numeric section (INFRA-058t): header starts with `N.M ` or `N.M. `
+    3. Split: header splits on '、' and section is one of the parts
     """
     if _text_matches(header, section):
+        return True
+    if _num_section_matches(header, section):
         return True
     if "、" in header and section in header.split("、"):
         return True
     return False
+
+
+def _num_section_matches(header: str, section: str) -> bool:
+    """Numeric-section match: section `7.2`命中标题 `7.2 对齐指示符`（INFRA-058t）。
+
+    Strict (NOT arbitrary substring): the header must start with the exact
+    section number, followed by a space (`2.1 空白`) or a number+dot+space
+    (`5. 指令语法`). This lets `§7.2` resolve the numeric header while
+    preventing `7.2` from matching `7.25 …`（后随数字）or from matching an
+    arbitrary later substring. Backticks in the header are ignored.
+    """
+    if not _NUMERIC_SECTION_RE.match(section):
+        return False
+    text = header.replace("`", "")
+    if text == section:
+        return True
+    if not text.startswith(section):
+        return False
+    rest = text[len(section):]
+    return rest.startswith(" ") or rest.startswith(". ")
 
 
 _TEXT_LEAD_IN = set("：:（(，,")
@@ -164,10 +204,15 @@ def _text_matches(text: str, section: str) -> bool:
     No arbitrary substring (§数据表 must NOT match 数据表示).
     Allows §版本 to match **版本：0.5.3** and §RD寄存器 to match
     RD寄存器（Data registers）.
+    Backticks are ignored (INFRA-058t): §附：与上游 spec/ 的关系 matches the
+    header `## 附：与上游 spec/ 的关系`.
     """
     if section == text:
         return True
-    if len(text) > len(section) and text.startswith(section) and text[len(section)] in _TEXT_LEAD_IN:
+    norm = text.replace("`", "")
+    if section == norm:
+        return True
+    if len(norm) > len(section) and norm.startswith(section) and norm[len(section)] in _TEXT_LEAD_IN:
         return True
     return False
 
@@ -332,6 +377,7 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
     check1_hit_stats = {"header": 0, "bold": 0, "text": 0}
     check1_total_refs = 0
     check1_ln_count = 0
+    check1_placeholder_count = 0
 
     # Cache spec contents
     spec_cache: dict[str, str] = {}
@@ -348,6 +394,11 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
                 if ln_match:
                     check1_ln_count += 1
                     section = section[: ln_match.start()].strip()
+
+                # 模板占位节名（§x / §N；格式说明行里的占位）不作校验（INFRA-058t）。
+                if _PLACEHOLDER_SECTION_RE.match(section):
+                    check1_placeholder_count += 1
+                    continue
 
                 # Load spec file
                 if prefix not in spec_cache:
@@ -486,6 +537,7 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
     print(f"  (Lnn) 行号形态: {check1_ln_count} 处")
     if check1_ln_count == 0:
         print(f"  注: 本轮无 (Lnn) 实例")
+    print(f"  模板占位节名 (§x/§N 等): {check1_placeholder_count} 处 (跳过校验)")
     print(f"  命中类型统计: 标题={check1_hit_stats['header']}, "
           f"粗体={check1_hit_stats['bold']}, 正文={check1_hit_stats['text']}")
     resolved = sum(check1_hit_stats.values())

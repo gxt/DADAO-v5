@@ -438,7 +438,7 @@
 ### 7.31 册内「可机械核对」的计数一律指向真源；「冻结 / 示例性」数字须显式标注依据（`SPEC-129t`，2026-10-09）
 
 - **事由/根因**：`Toolchain-01`/`contract-asm.md` 以数字陈述 M1 格式类数 / 指令条数（`228/227/152/155/11 类`），与真源 `contracts/opcodes.yaml` 漂移且**无法机械判定**——须改为**指向真源**（`opcodes.yaml` / 生成投影 `contract-asm-list.md`）或**去数字**；确需保留的「冻结 / 示例性」数字（伪指令枚举 / 展开细节，`ADR-0013 D11`）须**显式标注依据**，否则会被下次清理误伤。
-- **提示**：清理「写死计数」前先**判类**（可机械核对→去 / 指向真源 vs 冻结 / 示例性→保留 + 标依据），逐处列表对账（本例判类表见 `.work/log/spec/SPEC-129t-count-table.md`）。
+- **提示**：清理「写死计数」前先**判类**（可机械核对→去 / 指向真源 vs 冻结 / 示例性→保留 + 标依据），逐处列表对账（本例判类表见 `.tao/knowledge/SPEC-129t-count-table.md`）。
 
 ### 7.32 同一工作树内禁止并发会切分支 / 写工作树的子代理（分支指针与改动互相污染）；需要并行就开独立 `git worktree` 或串行（`INTEG-027t`，2026-10-10）
 
@@ -449,7 +449,7 @@
 
 - **事由/根因**：`TESTCASES-041t` 的分支从**旧 `master`** 拉，`git switch` 过去后 `.opencode/**` 与新 `AGENTS.md`（`INTEG-027t` 已落地的配置/规则改动）被从工作树**撤掉**（已恢复、无损失）。
 - **规则**：建分支前先对齐 `master`（`git fetch` 后 `git switch -c <任务号> master`）；**不**从过期提交切分支。
-- 指针：`.work/log/integ/INTEG-027t-report.md`。
+- 指针：`.tao/knowledge/INTEG-027t-report.md`。
 
 ### 7.34 任务书验收措辞可能与 `contracts/`/ADR 冲突 ⇒ 属任务书缺陷：按 Spec-first 以契约为准实现，并在收尾更正任务书该条（不留「不可达验收」）（`LLVM-065t`，2026-10-10）
 
@@ -763,12 +763,12 @@
 ### 8.42 真实语料 E2E 判据须含「运行期带超时的退出码」+ 优化级矩阵：编译 rc=0 ≠ 可运行（`-O2` 可静默误编译）（`TESTCASES-039t`，2026-10-10）
 
 - **规则**：真实程序（Embench 等）E2E 中「编译+链接 `rc=0`」**不足以**证明正确——编译器可能在**优化级**产生运行期错误代码（**静默错码**）；判据须含**运行期**（`timeout N`，`124` 判 **FAIL**，不得当"跑完"），且**逐优化级**（`-O0`/`-O1`/`-O2`）分别跑，以把两类分开：**编译期显式失败 = 缺能力**（可延后立任务）、**编译成功而运行错 = 缺陷**（**须优先**，污染该优化级**所有**交付）。
-- **依据/来源**：`TESTCASES-039t` 首验收暴露 G6（`ISS-180`，`-O2` 死循环 huffbench/matmult-int/nettle-sha256/statemate；`-O0` 正常）；细节 `.work/log/testcases/TESTCASES-039t-stage1-gaps.md §G6` + `ISS-180`、任务书完成区。同类 §8.39（trivial 程序不足以证「能编译真实 C」）。
+- **依据/来源**：`TESTCASES-039t` 首验收暴露 G6（`ISS-180`，`-O2` 死循环 huffbench/matmult-int/nettle-sha256/statemate；`-O0` 正常）；细节 `.tao/knowledge/TESTCASES-039t-stage1-gaps.md §G6` + `ISS-180`、任务书完成区。同类 §8.39（trivial 程序不足以证「能编译真实 C」）。
 
 ### 8.43 后端未处理的调用形态：某优化级「正常」≠无缺陷；同根缺陷可有「静默 hang」与「断言 crash」两态（`LLVM-070t`，2026-10-10）
 
 - **规则**：定位后端缺陷时，**不得以「某优化级正常」判其无缺陷**——同一根因（如 `LowerCall` 未处理尾调用形态）可在 `-O2` 表现为**静默死循环**（void 尾调用 ⇒ 有 `call` 无 `ret` ⇒ 返回自身入口）、`-O1` 因重入后寄存器被 clobber「**偶然退出**」、非-void 形态表现为 **ISel 断言 `crash`**（同根两态）。⇒ 须以**逐优化级的运行期退出码**（含 `timeout`）为判据、并**归并同根 issue**；对不支持的调用形态须**显式拒绝/降级**（不可依赖断言兜底）。
-- **依据/来源**：`LLVM-070t`（G6/`ISS-180` + G4/`ISS-178` **同根**；根因 = `LowerCall` 忽略 `CLI.IsTailCall`）；细节 `.tao/tasks/llvm/LLVM-070t-*.md`「新发现/坑」、`.work/log/llvm/LLVM-070t-rootcause.md`。同类 §8.42（逐优化级判据）、§8.30（手写集合须与生成一致）。
+- **依据/来源**：`LLVM-070t`（G6/`ISS-180` + G4/`ISS-178` **同根**；根因 = `LowerCall` 忽略 `CLI.IsTailCall`）；细节 `.tao/tasks/llvm/LLVM-070t-*.md`「新发现/坑」、`.tao/knowledge/LLVM-070t-rootcause.md`。同类 §8.42（逐优化级判据）、§8.30（手写集合须与生成一致）。
 
 ### 8.44 DADAO 分支放宽两坑：`reverseBranchCondition` 会改 CFG 形状触发既有 lit 回归；`BranchRelaxation` 的 `BrOffset` 是**字节**、须按各分支字段宽度换算为字（`LLVM-071t`，2026-10-10）
 
