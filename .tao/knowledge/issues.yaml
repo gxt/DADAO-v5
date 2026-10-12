@@ -331,11 +331,11 @@
 
 - id: ISS-201
   title: "未定义弱符号决策（`ADR-0019 D9` / `contract-elf §3.3`）的实现边界分支未入规范：`R_DADAO_REL26` 落点既非 `call-iiii`(0x74) 也非 `jump-iiii`(0x70) 时实现显式报错（本批 0 例）——既有边界编码，非 `SPEC-135t` 引入"
-  status: open
+  status: closed
   scope: [spec]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 `SPEC-135t` 完成区「新发现/坑①」+ 「第 1 轮 reviewer 验收」非阻断建议/遗留处置；architect 收尾复核，2026-10-12）】**现象**：`LLVM-085t` 的未定义弱符号解析实现另有 1 处**防御分支**——若 `R_DADAO_REL26` 的落点指令**既非 `call-iiii`（`0x74`）也非 `jump-iiii`（`0x70`）**，则实现**显式报错**（不放行）；该分支在本批 **0 例**暴露。**状态**：用户 2026-10-12 选项确认的 `D9` **五要点未含**此点 ⇒ 未写入 `ADR-0019 D9` / `contract-elf §3.3`（engineer/reviewer 均未自拟口径，正确）。**性质 = 规范覆盖边界（未授权扩大，非缺陷、非静默）**。**处理建议**：若要入规范 ⇒ 属**修改已用户确认的 `D9`** ⇒ 须**用户逐条确认**（`AGENTS.md`「ADR decision 逐条确认」）⇒ 故**只登记待裁定，不建任务**（engineer/reviewer 不得自拟自答）。**只登记**。证据指针：`.tao/tasks/spec/SPEC-135t-*.md`「新发现/坑①」+「第 1 轮 reviewer 验收」遗留处置；`.tao/tasks/llvm/LLVM-085t-*.md`。**【不阻断里程碑（2026-10-13 口径纠正）】**：本项属 **spec 模块内 backlog**（规范完备性 / 覆盖缺口等待裁定），`AGENTS.md`「不得置里程碑」**只针对未处置的跨模块影响** ⇒ 本项**不阻断** `SPEC-136m` / `INTEG-034m` 与**项目里程碑 M7 = 达成**（前判「ISS-201 阻断 M7」系**误阻断**）；保持 `open`（backlog，勿关）。"
+  resolved_by: SPEC-137t
+  notes: "【正式登记（源 `SPEC-135t` 完成区「新发现/坑①」+ 「第 1 轮 reviewer 验收」非阻断建议/遗留处置；architect 收尾复核，2026-10-12）】**现象**：`LLVM-085t` 的未定义弱符号解析实现另有 1 处**防御分支**——若 `R_DADAO_REL26` 的落点指令**既非 `call-iiii`（`0x74`）也非 `jump-iiii`（`0x70`）**，则实现**显式报错**（不放行）；该分支在本批 **0 例**暴露。**状态**：用户 2026-10-12 选项确认的 `D9` **五要点未含**此点 ⇒ 未写入 `ADR-0019 D9` / `contract-elf §3.3`（engineer/reviewer 均未自拟口径，正确）。**性质 = 规范覆盖边界（未授权扩大，非缺陷、非静默）**。**处理建议**：若要入规范 ⇒ 属**修改已用户确认的 `D9`** ⇒ 须**用户逐条确认**（`AGENTS.md`「ADR decision 逐条确认」）⇒ 故**只登记待裁定，不建任务**（engineer/reviewer 不得自拟自答）。**只登记**。证据指针：`.tao/tasks/spec/SPEC-135t-*.md`「新发现/坑①」+「第 1 轮 reviewer 验收」遗留处置；`.tao/tasks/llvm/LLVM-085t-*.md`。**【不阻断里程碑（2026-10-13 口径纠正）】**：本项属 **spec 模块内 backlog**（规范完备性 / 覆盖缺口等待裁定），`AGENTS.md`「不得置里程碑」**只针对未处置的跨模块影响** ⇒ 本项**不阻断** `SPEC-136m` / `INTEG-034m` 与**项目里程碑 M7 = 达成**（前判「ISS-201 阻断 M7」系**误阻断**）；保持 `open`（backlog，勿关）。**【关闭（2026-10-13，`SPEC-137t`）】**：用户逐条确认「**确认，照此写入（推荐）**」（经主会话问答，2026-10-13）⇒ 防御分支边界已入规范——`ADR-0019 D9` 追加第 ⑥ 条（非 `call-iiii`/`jump-iiii` 落点 ⇒ **link-time error**，不放行、不自循环）+ `contract-elf.md §3.3` 同步 bullet；本项 `closed`、`resolved_by: SPEC-137t`。"
 
 
 - id: ISS-202
