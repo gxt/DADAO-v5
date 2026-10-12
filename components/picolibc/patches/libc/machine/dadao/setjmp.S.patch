@@ -1,29 +1,65 @@
 diff --git a/libc/machine/dadao/setjmp.S b/libc/machine/dadao/setjmp.S
 new file mode 100644
-index 0000000..5929ab4
+index 0000000..8b86b66
 --- /dev/null
 +++ b/libc/machine/dadao/setjmp.S
-@@ -0,0 +1,38 @@
+@@ -0,0 +1,102 @@
 +/*
 + * SPDX-License-Identifier: BSD-3-Clause
 + *
 + * DADAO setjmp/longjmp.
 + *
-+ * NOT IMPLEMENTED YET — these two entry points fail explicitly.
++ * A real implementation, not a stub: DADAO can read and write the hardware
++ * return-address stack from software, so the RegRAS depth *can* be saved and
++ * restored.  See .tao/knowledge/contract-isa.md §1.3.4 / §3.3 and
++ * spec/SimRISC-01 "存取RA寄存器" and spec/SimRISC-02 "寄存器组之间块赋值":
 + *
-+ * Rationale (why this is a deliberate, loud stub and not a silent one): DADAO
-+ * uses a hardware return-address stack (RegRAS, contract-abi.md §2.3): `call`
-+ * pushes the return address onto ra63 and `ret` pops it.  A correct longjmp
-+ * must resume at the saved address *and* restore the RegRAS depth to what it
-+ * was when setjmp returned; the ISA offers no instruction to pop (or restore)
-+ * RegRAS entries other than `ret` (which also transfers control), so the depth
-+ * cannot be repaired from software.  A partial implementation would corrupt
-+ * the return-address stack after the first longjmp and return silently to the
-+ * wrong place, so no partial implementation is provided.
++ *   - ra0-ra63 are all readable and writable; ra0 as source or destination
++ *     does not trap ("ra0 作目的或源均不触发异常（可读写）");
++ *   - ld.o / st.o move one RA register, ldm.o / stm.o move a run of RA
++ *     registers, and ra2rd / rd2ra move RA<->RD blocks;
++ *   - ra0 carries the stack metadata: [53:48] = RACNT (number of valid RegRAS
++ *     entries, 0-63) and [47:0] = MRPTR (MemRAS top, 0 = MemRAS disabled);
++ *     ra1-ra63 hold the entries themselves (recursion count in [63:48], return
++ *     address in [47:0]), with ra63 the RegRAS top (ADR-0012 D7).
 + *
-+ * Contract-conformant behaviour for an unsupported feature: calling either
-+ * function aborts the program (a guest process SYS_EXIT with a non-zero status
-+ * through the semihosting `_exit` stub), never a silent success.
++ * Because ra0-ra63 are architecturally visible, setjmp saves the whole
++ * return-address stack (ra0-ra63) plus the callee-saved register set and the
++ * stack pointer; longjmp restores them and then performs *setjmp's* return
++ * (`ret`), landing back in setjmp's caller with the requested value in rd8.
++ * Restoring the saved ra0 restores RACNT, so the RegRAS is exactly as deep as
++ * it was inside setjmp (no leftover entries).
++ *
++ * Callee-saved set (contract-abi.md §4.5): the ABI's CSR is
++ *   rd32-rd63 ∪ rb32-rb63 ∪ rf32-rf63
++ * i.e. all four banks contribute a callee-saved block, including the FP bank
++ * (spec/DADAO-21 "callee saved regs", rf32-rf63).  So the FP block must be
++ * saved/restored too: a float/double local kept live across setjmp in rf32-rf63
++ * (which the compiler is entitled to do, since those registers are caller-
++ * preserved-visible / callee-saved) would otherwise be silently clobbered by
++ * any intervening frame that reuses the same RF bank and longjmps away without
++ * restoring it -- violating C 7.13.2.1.  The stm.o/ldm.o *RF* forms (scope:fp)
++ * carry the block in one instruction each.
++ *
++ * LIMITATION (registered, INFRA-068t): only the MRPTR == 0 case (pure RegRAS,
++ * depth <= 63) is supported.  When MRPTR != 0 (MemRAS overflow region in use)
++ * the MemRAS *contents* are not part of jmp_buf, so a longjmp that must cross
++ * a recursion deep enough to have spilled into MemRAS cannot be made exact.
++ * The M7 environment does not enable MemRAS (bootrom.S leaves ra0 at its reset
++ * value 0), so MRPTR == 0 on every supported path.
++ *
++ * jmp_buf layout (machine/setjmp.h, _JBLEN = 161, _JBTYPE = long long):
++ *   [  0 ..  63]  ra0 .. ra63   -- return-address stack (ra0 = RACNT/MRPTR)
++ *   [ 64]         rsp (rb1)     -- stack pointer
++ *   [ 65 ..  96]  rd32 .. rd63  -- callee-saved, contract-abi.md §4.5
++ *   [ 97 .. 128]  rb32 .. rb63  -- callee-saved (incl. rb63/frame pointer)
++ *   [129 .. 160]  rf32 .. rf63  -- callee-saved FP bank (contract-abi §4.5)
++ * Each entry is 8 bytes (long long); the rd/rb/rf blocks start at byte offsets
++ * 520 / 776 / 1032, all 8-byte aligned (required by stm.o/ldm.o).
++ *
++ * Only caller-saved scratch (rd17, rd18, rd19) and the incoming pointer
++ * argument register rb16 (the jmp_buf) are touched before the callee-saved
++ * set is saved; setjmp never modifies rsp.
 + */
 +
 +#include <picolibc.h>
@@ -32,13 +68,41 @@ index 0000000..5929ab4
 +	.globl	setjmp
 +	.type	setjmp, @function
 +setjmp:
-+	call	[rb0, abort]
-+	swym	0
++	/* Save the return-address stack (ra0 = RACNT/MRPTR metadata). */
++	st.o	ra0, [rb16, 0]
++	set.zw	rd17, wp0, 8
++	stm.o	{ra1:ra63}, [rb16, rd17]
++	/* Save the stack pointer (rb1). */
++	st.o	rb1, [rb16, 512]
++	/* Save the callee-saved register blocks (rd32-rd63, rb32-rb63, rf32-rf63). */
++	set.zw	rd18, wp0, 520
++	stm.o	{rd32:rd63}, [rb16, rd18]
++	set.zw	rd19, wp0, 776
++	stm.o	{rb32:rb63}, [rb16, rd19]
++	set.zw	rd19, wp0, 1032
++	stm.o	{rf32:rf63}, [rb16, rd19]
++	/* setjmp returns 0 (rd8 is the integer return register, contract-abi §4.4). */
++	ret	rd8, 0
 +	.size	setjmp, . - setjmp
 +
 +	.globl	longjmp
 +	.type	longjmp, @function
 +longjmp:
-+	call	[rb0, abort]
-+	swym	0
++	/* Restore the callee-saved register blocks. */
++	set.zw	rd17, wp0, 520
++	ldm.o	{rd32:rd63}, [rb16, rd17]
++	set.zw	rd18, wp0, 776
++	ldm.o	{rb32:rb63}, [rb16, rd18]
++	set.zw	rd19, wp0, 1032
++	ldm.o	{rf32:rf63}, [rb16, rd19]
++	/* Restore the stack pointer. */
++	ld.o	rb1, [rb16, 512]
++	/* rd8 = (val == 0) ? 1 : val  -- the C semantics of longjmp. */
++	set.zw	rd8, wp0, 1
++	cs.z	rd16, rd8, rd8, rd16
++	/* Restore the return-address stack, then perform setjmp's return. */
++	ld.o	ra0, [rb16, 0]
++	set.zw	rd19, wp0, 8
++	ldm.o	{ra1:ra63}, [rb16, rd19]
++	ret	rd0, 0
 +	.size	longjmp, . - longjmp

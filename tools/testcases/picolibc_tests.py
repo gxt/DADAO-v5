@@ -118,12 +118,11 @@ SHOULD_FAIL = {
 # the DADAO port: the stub aborts (SYS_EXIT with a non-zero status) rather than
 # silently succeed (a contract-conformant explicit failure).  These are
 # capability gaps, not test failures.
-UNSUPPORTED_TESTS = {
-    "test-setjmp":
-        "setjmp/longjmp are explicit unsupported stubs in the DADAO port "
-        "(libc/machine/dadao/setjmp.S: the RegRAS return-address depth cannot be "
-        "restored, so no partial impl is provided); abort() -> exit 134 by design",
-}
+#
+# Empty since INFRA-068t: `test-setjmp` is no longer a stub -- setjmp/longjmp
+# are a real implementation, so the test must be judged on its own exit status
+# (a regression that aborts must show up as `fail`, not be masked as `blocked`).
+UNSUPPORTED_TESTS = {}
 
 # Task-declared out-of-scope categories (INTEG-033k §排除项).  Name -> reason.
 EXCLUDED = {

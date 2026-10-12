@@ -205,13 +205,13 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 
 - **callee-saved（被调用者保存）**：`rd32–rd63` 与 `rb32–rb62`；**`rb63` 恒 callee-saved**（条件式 FP，见 §4.7）。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
 - **caller-saved（调用者保存 / temporary）**：`rd4–rd31` 与 `rb4–rb31`（`rd4–rd7`/`rb4–rb7` 为 spec temporary regs，与 `rd8–rd31`/`rb8–rb31` 连续）。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
-- **CSR（callee-saved / call-preserved 寄存器集合，M3 口径，C6）**：`CSR = rd32–rd63 ∪ rb32–rb63`（含 `rb63`；供 `getCalleeSavedRegs` 与 `getCallPreservedMask` 使用）。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
+- **CSR（callee-saved / call-preserved 寄存器集合，M3 口径 C6；M4 起并入 RF）**：`CSR = rd32–rd63 ∪ rb32–rb63 ∪ rf32–rf63`（含 `rb63`；`rf32–rf63` 自 **M4** 起启用、`rf0`（FCSR）不在 CSR；M3 期 RF 整层 `Excluded` 的历史见本节末条；供 `getCalleeSavedRegs` 与 `getCallPreservedMask` 使用）。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][DADAO-21 §寄存器规范 §RF寄存器][ADR-0018（C6）]（用户裁定 2026-10-12：CSR 以「含 RF」为准；RF 角色见 §1.4）
 - `SP`（`rb1`）**不属于 CSR**：spec 栏其 callee-saved 为 Yes（callee 必须保持其调用前后的值），但它由 prologue/epilogue 对称调整维护，**不列入通用 CSR 保存集合**。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
 - **`rb63`（条件式 FP）恒 callee-saved**：`hasFP` 为真时保留为 FP，由 prologue/epilogue 保存/恢复旧 `rbfp`；否则作通用 callee-saved 由编译器分配。两种占用下跨 `call` 存活的值均须按 callee-saved 处置。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C7）]
 - `rd1`/`rd2–rd3` / `rb2`/`rb3` 为 **reserved**（编译器不得分配）：`rd2–rd3` 由 spec 明文 reserved（**调试/测试保留**）；`rd1`（rderrno）、`rb2`（rbgp，GP）、`rb3`（rbtp，TP）spec 栏 callee-saved 为 `-`，M3 按 C6 一并**保留不分配**。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
 - `rd0`（rdzero，硬连零 / Immutable）与 `rb0`（rbip，PC，只读）为**特殊寄存器**，不参与通用分配。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
 - RA（`ra0–ra63`）由 `call`/`ret` 自动管理，不属 caller/callee-saved 框架（见 §2.3）。[DADAO-21 §寄存器规范 §RA寄存器]
-- RF（`rf0–rf63`）整层 `Excluded from M3`（→ M4）。[DADAO-21 §寄存器规范 §RF寄存器][ADR-0018（C1）]
+- RF（`rf0–rf63`）整层 `Excluded from M3`（→ M4）——**M3 历史陈述**；**M4 起 RF 已启用 ⇒ CSR 含 `rf32–rf63`**（见本节 CSR 条；`rf0`（FCSR）不在 CSR）。[DADAO-21 §寄存器规范 §RF寄存器][ADR-0018（C1）]
 
 ### §4.6 `call` 的寄存器效果与 RegMask（M3 口径，C16）
 

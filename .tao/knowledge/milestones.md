@@ -30,7 +30,7 @@
 | INFRA-065t | 待开始 | — | 子代理 workdir 作用域 + 权限 deny + canary |
 | INFRA-066t | 已验证 | 2026-10-12 00:49 | 恢复 picolibc `libm`（删整目录过滤；41 条最小集 + `ISS-193`；`libc.a` 1.24→1.69 MB） |
 | INFRA-067t | 已验证 | 2026-10-12 18:01 | 提供 `__muldc3`/`__mulsc3`（移植 compiler-rt 单文件；`libc.a` 两符号 `T`；pass 197→203 / blocked 16→10；解锁 6） |
-| INFRA-068t | 待开始 | — | `setjmp`/`longjmp` 真实现（RA 存取/块赋值） |
+| INFRA-068t | 已验证 | 2026-10-12 20:21 | `setjmp`/`longjmp` 真实现（RA 存取/块赋值；`_JBLEN` 161；pass 203→205 / blocked 10→8；解锁 2：`test-setjmp`、`test-double-free`） |
 | LLVM-079t | 已验证 | 2026-10-11 23:07 | P0 后端补齐（f32→f64 载入/setcc/bitcast/select_cc/cttz 五类 ISel；convert_ff 早写约束） |
 | LLVM-080t | 已验证 | 2026-10-12 00:11 | P1 后端补齐（取整六项/fmin-fmax libcall；fabs-copysign 用 ISA `fosgnj`） |
 | LLVM-081t | 已验证 | 2026-10-12 01:12 | ISA↔后端覆盖矩阵（生成式两层分列；227 条，①受理 217/②ISel 86；缺口 141） |
