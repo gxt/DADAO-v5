@@ -1,0 +1,47 @@
+# Undefined weak function references must link on DADAO (LLVM-085t / ISS-194).
+#
+# ELF gives an undefined weak symbol the value 0; the DADAO code image lives at
+# 0xFC00_0000_0000, so the PC-relative displacement to 0 cannot be encoded and a
+# veneer cannot bridge the 2^47 gap either.  lld now resolves such a reference
+# to the place itself (RISC-V convention for relative-only ISAs) -- a self-loop
+# -- and rewrites a `call` site to `jump` so that no RegRAS entry is pushed for
+# a callee that can never pop it.  Strong/defined out-of-range symbols are
+# unchanged (still a link-time error).
+#
+# 1) Undefined weak hook: links, the `&hook == 0` guard is taken (dead call),
+#    guest exits 0, and the call site was rewritten to `jump [rb0, 0]`.
+# RUN: %clang -target dadao-unknown-elf -nostdlib -Oz -c %e2e_dir/weak_undef_e2e.c -o %t.o
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.o -o %t.elf
+# RUN: timeout 30 %qemu -M dadao-m1 -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic -monitor none
+# RUN: %llvm_objdump -d %t.elf | %FileCheck %s --check-prefix=WEAK
+
+# 2) With a definition linked in, the same call is an ordinary in-range `call`
+#    and the hook's value (9) reaches the caller: the special case applies only
+#    to *undefined* weak symbols.
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/weak_hook_def.s -o %t.def.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.o %t.def.o -o %t.def.elf
+# RUN: %not timeout 30 %qemu -M dadao-m1 -kernel %t.def.elf -semihosting-config enable=on,target=native -display none -nographic -monitor none
+# RUN: %llvm_objdump -d %t.def.elf | %FileCheck %s --check-prefix=DEF
+
+# 3) Every PC-relative branch class to an undefined weak symbol becomes a
+#    self-loop (displacement 0), REL26 included.
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/weak_undef_forms.s -o %t.forms.o
+# RUN: %ld -T %linker_script %t.forms.o -o %t.forms.elf
+# RUN: %llvm_objdump -d %t.forms.elf | %FileCheck %s --check-prefix=FORMS
+
+# 4) Strictness is not relaxed: a strong undefined symbol is still an error, and
+#    a defined-but-far strong symbol is still an out-of-range error.
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/weak_undef_strong.s -o %t.strong.o
+# RUN: %not %ld -T %linker_script %t.strong.o -o %t.strong.elf 2>&1 | %FileCheck %s --check-prefix=STRONG
+# RUN: %not %ld -T %linker_script --defsym=strong_fn=0xFC0010000000 %t.strong.o -o %t.far.elf 2>&1 | %FileCheck %s --check-prefix=FAR
+
+# WEAK: jump [rb0, 0]
+# DEF: call [rb0,
+# DEF-NOT: jump [rb0, 0]
+# FORMS: jump [rb0, 0]
+# FORMS: br.z {{.*}}[rb0, 0]
+# FORMS: br.eq {{.*}}[rb0, 0]
+# STRONG: undefined symbol: strong_fn
+# FAR: relocation R_DADAO_REL26 out of range
+# FAR: references 'strong_fn'

@@ -1,9 +1,9 @@
 diff --git a/lld/ELF/Arch/DADAO.cpp b/lld/ELF/Arch/DADAO.cpp
 new file mode 100644
-index 000000000..149f8f358
+index 000000000..5e9c0a6af
 --- /dev/null
 +++ b/lld/ELF/Arch/DADAO.cpp
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,286 @@
 +//===- DADAO.cpp - DADAO ELF Linker Target ----------------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -36,6 +36,16 @@ index 000000000..149f8f358
 +// Out-of-range results are a link-time error (no truncation, no wrap;
 +// contract-elf.md §3.2, ADR-0019 §D6).  Relaxation is disabled: the linker
 +// only patches in place, never shortens or reorders (ADR-0019 §D7).
++//
++// One case is resolved instead of rejected (LLVM-085t): a PC-relative
++// branch/jump/call whose symbol is an *undefined weak* function.  ELF gives it
++// the value 0, which is unencodable from a 0xFC00_0000_0000 image (and no
++// veneer can bridge to address 0 either).  Following the RISC-V convention for
++// relative-only ISAs, the target becomes the place itself (self-loop); a `call`
++// is rewritten to `jump [rb0, 0]` so no RegRAS entry is pushed for a callee
++// that cannot pop it.  Unimplemented optional hooks are then a visible hang
++// rather than a link error.  Strong/defined out-of-range symbols are still
++// rejected, and the non-branch REL12 path is untouched.
 +//
 +// The instruction-vs-data distinction uses the target section's SHF_EXECINSTR
 +// flag (ADR-0019 §D5: "指令逐条挂 reloc ... 数据为单条 8 字节字段 reloc").
@@ -127,6 +137,46 @@ index 000000000..149f8f358
 +
 +void DADAO::relocateInSection(uint8_t *loc, const Relocation &rel,
 +                              uint64_t val, bool isExec) const {
++  // A PC-relative branch/jump/call to an *undefined weak* symbol (LLVM-085t).
++  //
++  // ELF weak semantics give such a symbol the value 0, and that displacement
++  // cannot be encoded from P: the DADAO image lives at 0xFC00_0000_0000, so
++  // "distance to 0" is ~2^47, far outside the 26-bit field.  No veneer fixes
++  // this either -- a thunk reachable from P cannot reach address 0 itself.
++  //
++  // Resolve the *place* instead, following the RISC-V convention for
++  // relative-only ISAs: the branch target is P + A itself, i.e. the
++  // instruction becomes a self-loop.  A stray call to an unimplemented weak
++  // hook (picolibc uses this for optional platform hooks such as
++  // `_user_strerror` / `gettimeofday` / `arc4random_abort`, all guarded by
++  // `&sym == 0`) is then visible as a hang instead of silently overflowing the
++  // immediate field.
++  //
++  // REL26 sites may be `call`, and DADAO `call` pushes a return address on the
++  // RegRAS that the never-defined callee can never pop -- an enclosing `ret`
++  // would pop that stale entry and corrupt the return chain.  The instruction
++  // is therefore rewritten to the non-calling `jump` form, i.e.
++  // `call [rb0, 0]` becomes `jump [rb0, 0]`.
++  //
++  // The exception covers exactly the undefined-weak case: a strong or defined
++  // symbol that is out of range is still a link-time error (contract-elf.md
++  // §3.2, ADR-0019 §D6).  Non-branch PC-relative relocations (REL12) keep the
++  // strict path.
++  //
++  // The test is `isUndefined()`, not `isUndefWeak()`: lld converts the binding
++  // of a *hidden* undefined symbol to local, so `isWeak()` is then false even
++  // though such a reference is an undefined weak reference in source.  This
++  // mirrors lld's own cross-target handling (`InputSection.cpp`, the R_PC case:
++  // ARM/AArch64/PPC/RISC-V all branch on `sym->isUndefined()`).  A *strong*
++  // undefined symbol never benefits: lld rejects it earlier with the ordinary
++  // "undefined symbol" error, and a defined-but-far symbol still fails the
++  // range check below.
++  const bool undefBranch =
++      rel.sym->isUndefined() && (rel.type == R_DADAO_REL26 ||
++                                 rel.type == R_DADAO_REL20 ||
++                                 rel.type == R_DADAO_REL14);
++  if (undefBranch)
++    val = static_cast<uint64_t>(rel.addend); // target = P + A (self-loop)
 +  switch (rel.type) {
 +  case R_DADAO_REL26:
 +  case R_DADAO_REL20:
@@ -161,6 +211,20 @@ index 000000000..149f8f358
 +    checkInt(ctx, loc, imm, width, rel);
 +
 +    uint32_t insn = read32be(loc);
++    if (undefBranch && rel.type == R_DADAO_REL26) {
++      // Undefined weak call: drop the RegRAS push by rewriting the opcode
++      // call-iiii (0x74) -> jump-iiii (0x70) (contracts/opcodes.yaml:
++      // call_iiii_ra op 0x74 / jump_iiii_rb op 0x70; both mask 0xFF000000).
++      uint32_t op = insn & 0xFF000000u;
++      if (op == 0x74000000u)
++        insn = (insn & 0x00FFFFFFu) | 0x70000000u;
++      else if (op != 0x70000000u) {
++        Err(ctx) << getErrorLoc(ctx, loc) << "undefined weak R_DADAO_REL26 on a "
++                    "non call/jump instruction (opcode 0x"
++                 << utohexstr(op) << ")";
++        return;
++      }
++    }
 +    insn = (insn & ~mask) | (static_cast<uint32_t>(imm) & mask);
 +    write32be(loc, insn);
 +    return;

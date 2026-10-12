@@ -58,11 +58,17 @@ llvm_mc = os.path.join(tools_dir, "llvm-mc")
 llvm_objcopy = os.path.join(tools_dir, "llvm-objcopy")
 clang = os.path.join(tools_dir, "clang")
 file_check = os.path.join(tools_dir, "FileCheck")
+# %not inverts a command's exit code and %llvm_objdump lets a test assert on the
+# linked encoding (used by the undefined-weak relocation tests, LLVM-085t).
+not_tool = os.path.join(tools_dir, "not")
+llvm_objdump = os.path.join(tools_dir, "llvm-objdump")
 
 config.substitutions.append(("%llvm_mc", llvm_mc))
 config.substitutions.append(("%llvm_objcopy", llvm_objcopy))
 config.substitutions.append(("%clang", clang))
 config.substitutions.append(("%FileCheck", file_check))
+config.substitutions.append(("%not", not_tool))
+config.substitutions.append(("%llvm_objdump", llvm_objdump))
 
 # Locate qemu-system-dadao.  In the install root it sits in the same bin/ as the
 # other host tools (ADR-0016 D4); when tools_dir is an LLVM build tree's bin/ it
