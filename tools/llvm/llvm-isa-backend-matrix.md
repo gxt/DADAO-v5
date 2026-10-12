@@ -3,7 +3,7 @@
 > **生成器**：`tools/llvm/gen_isa_coverage.py`（生成物，勿手工编辑；改生成器或真源后重跑）
 > **真源**：`contracts/opcodes.yaml`（**227** 条 = `m1` 155 + `fp` 60 + `excluded` 11 + `m3` 1；计数由脚本现场统计，不写死）
 > **重跑**：`python3 tools/llvm/gen_isa_coverage.py`　**门控（反例可失败）**：`python3 tools/llvm/gen_isa_coverage.py --check`
-> **机器可读**：`.tao/knowledge/llvm-isa-backend-matrix.tsv`（同源同批生成）
+> **机器可读**：`tools/llvm/llvm-isa-backend-matrix.tsv`（同源同批生成）
 
 ## 1. 两层口径
 

@@ -20,8 +20,8 @@
    每条证据给出 **补丁文件物理行号**（可直接 ``sed -n '<N>p'`` 复核）。
 
 输出（随产物入库、可重跑、幂等；计数一律现场统计）：
-  - ``.tao/knowledge/llvm-isa-backend-matrix.tsv``（机器可读）
-  - ``.tao/knowledge/llvm-isa-backend-matrix.md``（人类可读：口径 + 矩阵 + 缺口汇总）
+  - ``tools/llvm/llvm-isa-backend-matrix.tsv``（机器可读）
+  - ``tools/llvm/llvm-isa-backend-matrix.md``（人类可读：口径 + 矩阵 + 缺口汇总）
 
 ``--check`` 模式：由真源**重新派生**矩阵并与已入库产物逐字节比对；任一
 记录缺层取值、行数与真源不符、证据行复核失败 ⇒ 非零退出（反例门控）。
@@ -48,8 +48,8 @@ REPO = Path(__file__).resolve().parents[2]
 OPCODES_DEFAULT = REPO / "contracts" / "opcodes.yaml"
 BACKEND_DIR = REPO / "components/llvm-project/patches/llvm/lib/Target/DADAO"
 LIT_GEN_DIR = REPO / "tests/llvm/lit/MC/DADAO-gen"
-TSV_DEFAULT = REPO / ".tao/knowledge/llvm-isa-backend-matrix.tsv"
-MD_DEFAULT = REPO / ".tao/knowledge/llvm-isa-backend-matrix.md"
+TSV_DEFAULT = REPO / "tools/llvm/llvm-isa-backend-matrix.tsv"
+MD_DEFAULT = REPO / "tools/llvm/llvm-isa-backend-matrix.md"
 
 # TableGen 源（补丁）与角色。
 TD_FILES = [
@@ -498,7 +498,7 @@ def render_md(rows: list[dict], st: dict) -> str:
       f"`excluded` {scope.get('excluded', 0)} + `m3` {scope.get('m3', 0)}；"
       "计数由脚本现场统计，不写死）")
     a(f"> **重跑**：`{REGEN}`　**门控（反例可失败）**：`{CHECK}`")
-    a("> **机器可读**：`.tao/knowledge/llvm-isa-backend-matrix.tsv`（同源同批生成）")
+    a("> **机器可读**：`tools/llvm/llvm-isa-backend-matrix.tsv`（同源同批生成）")
     a("")
     a("## 1. 两层口径")
     a("")

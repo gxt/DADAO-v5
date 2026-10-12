@@ -32,6 +32,8 @@
 | INFRA-067t | 已验证 | 2026-10-12 18:01 | 提供 `__muldc3`/`__mulsc3`（移植 compiler-rt 单文件；`libc.a` 两符号 `T`；pass 197→203 / blocked 16→10；解锁 6） |
 | INFRA-068t | 已验证 | 2026-10-12 20:21 | `setjmp`/`longjmp` 真实现（RA 存取/块赋值；`_JBLEN` 161；pass 203→205 / blocked 10→8；解锁 2：`test-setjmp`、`test-double-free`） |
 | INFRA-069t | 已验证 | 2026-10-12 23:57 | LLVM 组件 changelog 补齐（现场统计缺口 9 条）+ 三检查（isa-coverage/spec-numbering/spec-changelog）并入 L1 |
+| INFRA-070t | 已验证 | 2026-10-13 00:47 | `.tao/knowledge/` 顶层收拢（立 `docs/Process-07-门控分层规范.md` + 9 文件处置 + 白名单门控 `check-knowledge-dir`）；**Phase B（`contract-*.md`→`contracts/`）转 `INFRA-071t` 待用户授权** |
+| INFRA-071t | 待开始 | — | `contract-*.md`→`contracts/`（Phase B）+ `check-contracts-dir` 白名单门控（**待用户授权 3 项**：只读锁册 / `contracts/` 内嵌字段 / 扩到 `tools`·`components`·`tests`） |
 | LLVM-079t | 已验证 | 2026-10-11 23:07 | P0 后端补齐（f32→f64 载入/setcc/bitcast/select_cc/cttz 五类 ISel；convert_ff 早写约束） |
 | LLVM-080t | 已验证 | 2026-10-12 00:11 | P1 后端补齐（取整六项/fmin-fmax libcall；fabs-copysign 用 ISA `fosgnj`） |
 | LLVM-081t | 已验证 | 2026-10-12 01:12 | ISA↔后端覆盖矩阵（生成式两层分列；227 条，①受理 217/②ISel 86；缺口 141） |
@@ -54,8 +56,8 @@
 
 - **里程碑**：M6（**达成 2026-10-11**）；**M7 规划启动**（`INTEG-033k`，`已验证`；任务分解见该 `k`）。
 - **M6 遗留（M6→M7，均已登记 = 已处置）**：
-  - `ISS-187` 窄位指令利用不足（8/16/32 位算术未用；`mul32` 用 `mul.uo` 而非 `mul.ut`）——**M7 优化候选，非缺陷**（用户 2026-10-10「先只登记，暂不改」）；指针 `.tao/knowledge/pending-registrations.md §R3`。
-  - `ISS-188` FP 完备性缺口（`fcmp` 取值 / `fabs`/`frem`/`copysign` / `fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` / `fpclass` / `f16` / `bitcast`(FP↔RD)；**全部显式失败、不产错码**）——**M7**；指针 `.tao/knowledge/pending-registrations.md §R4`。
+  - `ISS-187` 窄位指令利用不足（8/16/32 位算术未用；`mul32` 用 `mul.uo` 而非 `mul.ut`）——**M7 优化候选，非缺陷**（用户 2026-10-10「先只登记，暂不改」）；指针 `.tao/knowledge/issues.yaml`（`ISS-187`）。
+  - `ISS-188` FP 完备性缺口（`fcmp` 取值 / `fabs`/`frem`/`copysign` / `fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` / `fpclass` / `f16` / `bitcast`(FP↔RD)；**全部显式失败、不产错码**）——**M7**；指针 `.tao/knowledge/issues.yaml`（`ISS-188`）。
   - `ISS-189` 其它 LLVM 内建数据指导符（`.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 等）仍被 `llvm-mc` 受理——裁定口径外的剩余面（未授权扩大）；**M7** 按 `spec/Toolchain-01 §7` 唯一集口径收口；指针 `.tao/archive/M6/llvm/LLVM-078t-*.md`「遗留问题」。
   - `check-spec-refs` 1 违规（`contract-asm.md` 引 `Toolchain-01 §7.2` 被误判「无引用」）——根因 = `SPEC_PREFIX_MAP` 不认 `Toolchain-01`、匹配器 `_TEXT_LEAD_IN` 不含数值节号；**M7** 立 `tools/infra` 任务（补前缀映射 + 改数值节号解析；仅补前缀会把 1→91）。
   - `components/qemu/README.md:10` 旧述（「规模（2026-09-23 M1 重整后）：31 份 = 新增 25 + 修改 6」；实为 **34**）——**M7** 随补丁规模刷新。
@@ -65,7 +67,7 @@
   - **台账待收敛**：`ISS-043`/`045`/`138`/`148`/`156`/`159`/`162` 七条由 M6 任务完成区**声称已修/已收口**，但 `issues.yaml` 中 `resolved_by` 未回填、仍 `open`——**M7** 归档前置 `Process-04 §3` 梳理时回填 `closed`（或经用户裁定）；指针 `.tao/archive/M6/issues-closed.md`「待收敛」。
     - **已收敛（`INTEG-028t`，2026-10-11）**：7 条已逐条独立核实为「已修（可关）」并回填 `resolved_by` + `closed`（活台账 17 open / 7 closed，`check_issues` rc=0）；指针 `.work/log/integ/ISS-reconcile.md`、`.tao/tasks/integ/INTEG-028t-待收敛issue核实回填.md`。
 - **规划中（M7 起，跨里程碑）**：
-  - **门控分层（用户 2026-10-09 裁定）——推迟到 M7**：三层 = **L1 完整性/可用性**（默认 `make check`，秒~几十秒）/ **L2 各模块功能代表集**（几十~几百秒）/ **L3 较完整**（几百~几千秒）+ **模块完整按需**；落地要点 = `check` 收缩为 L1（`check-qemu-semantics` 移出 + 新增 `check-qemu-smoke` 机械派生代表集）、每层须「能失败 + 结构断言」、触发点写 `AGENTS.md`；**第 0 步 = 逐门控计时**。**已立项 `INFRA-058t`**（`INTEG-036t §收口核对`，2026-10-11）。**追加（用户 2026-10-11「认 + 并入 `INFRA-058t`」）**：`.work/log/` **四分类判据**（`spec/`=规范正文／`.tao/knowledge/`=结论·设计·口径〔含长文〕／`.work/log/`=一次性过程〔可删〕／**被引用材料不得只放 `.work/`**）落 `AGENTS.md` + 新增门控 **`check-knowledge-refs`**（扫 `.work/**` 引用、悬空即红）+ **被引用材料搬迁升格**（详见 `INFRA-058t §追加范围`，`INTEG-037t`）。细节指针 `.tao/knowledge/gate-tiering-design.md`（gitignored，摘要自足）。
+  - **门控分层（用户 2026-10-09 裁定）——推迟到 M7**：三层 = **L1 完整性/可用性**（默认 `make check`，秒~几十秒）/ **L2 各模块功能代表集**（几十~几百秒）/ **L3 较完整**（几百~几千秒）+ **模块完整按需**；落地要点 = `check` 收缩为 L1（`check-qemu-semantics` 移出 + 新增 `check-qemu-smoke` 机械派生代表集）、每层须「能失败 + 结构断言」、触发点写 `AGENTS.md`；**第 0 步 = 逐门控计时**。**已立项 `INFRA-058t`**（`INTEG-036t §收口核对`，2026-10-11）。**追加（用户 2026-10-11「认 + 并入 `INFRA-058t`」）**：`.work/log/` **四分类判据**（`spec/`=规范正文／`.tao/knowledge/`=结论·设计·口径〔含长文〕／`.work/log/`=一次性过程〔可删〕／**被引用材料不得只放 `.work/`**）落 `AGENTS.md` + 新增门控 **`check-knowledge-refs`**（扫 `.work/**` 引用、悬空即红）+ **被引用材料搬迁升格**（详见 `INFRA-058t §追加范围`，`INTEG-037t`）。**分层明细**见 `docs/Process-07-门控分层规范.md`（`INFRA-070t` 落地；原设计稿已归档 `.tao/archive/M7/notes/gate-tiering-design.md`）。
   - **`GOLDEN-*` 里程碑候选（M7 起，用户 2026-10-09 裁定）**：为 **golden model（结果级 / FP 独立 oracle）另立** `golden` 模块专用里程碑——承载 `ISS-019`（结果级 / FP 独立 oracle）、`ISS-026`（encoding `imm` 语义守卫依赖 golden）二者整体，以及 `ISS-081` 拆分后的 FP 独立 oracle 部分（`ISS-081` 的 FP 向量 / harness RF 部分**已在 M6 交付**：`LLVM-066t`/`TESTCASES-036t`/`041t`）。**仅登记归属，不在本轮立项**。
   - **GP（`rbgp`）候选（M7/优化期，M6 不做——用户 2026-10-09 裁定）**：`rb2=rbgp` 现由 M6 寄存器重排（`SPEC-128t`）列为 **reserved**；启用需：小数据区（`.sdata/.sbss` + 阈值）× 链接脚本聚到 `_gp` × 启动设 `rb2=_gp` × 后端 `getGlobalBaseReg`；**reloc 已备**——`ABS12`（基址 `rb1–rb63` 相对、字节）恰为 GP 相对所需、访存偏移 ±2 KiB = 小数据区自然上限。代价：**改变 `rb2` 的 ABI 语义**（独立裁定）。
   - **`lessons.md` 瘦身**：**已执行**（`INFRA-063t`，2026-10-11）——判据层保留、过程叙事删/迁 `.tao/archive/`、按触发时机分 4 节；新增条目口径见 `lessons.md` 文件头（**不设行数/条数上限**，「关键是精简」）。
@@ -78,6 +80,7 @@
   - **`ADR-0019`/`contract-elf` 增补「未定义弱符号」条款**（PC 相对分支/call 解析为**本位自循环**；`call-iiii`→`jump-iiii` 改写理由 = 免 RegRAS 失衡；含 `--noinhibit-exec` 下**未定义强亦落自循环**的情形）——待排期（**命中 ADR 判据：外部契约/结论固化**）。
   - **子代理 workdir 作用域 + 权限 fail-fast（用户 2026-10-11 裁定）**：越界 `cd`（绝对 / `~` / `..`）由"无人应答的 ask"改 **hard-deny**（fail-fast）；规则层钉 workdir **已落地 ✅**；**已立项 `INFRA-065t`**。权限层 = **agent frontmatter `external_directory` deny**（**当前服务下未生效 ⏳**，canary3 实为 `ask` + 用户人工 reject；`message` 字面不可区分、`POST /api/location/reload` 未见效）；`experimental.policies` 已撤销（v2.0.22 schema 不接受 `action:"permission"`）。
   - **`INFRA-065t` 待复验（待办 · 用户操作）**：出界 `cd` fail-fast 在当前服务下**未生效**（agent frontmatter `external_directory` deny + `POST /api/location/reload` 无效）⇒ **用户操作：`opencode service restart` → 越界 `cd` canary 复验**（期望：不弹询问、命令未执行 = 生效）；登记 `ISS-199`（open）。
+  - **`INFRA-070t` Phase B 待授权（待办 · 用户裁定）**：9 个 `contract-*.md` → `contracts/` 因引用冲突（只读锁册 / `contracts/` 内嵌字段 / 范围外目录）**需用户逐条授权** ⇒ 已立 **`INFRA-071t`**（`待开始`，依赖用户授权）；登记 **`ISS-202`**（open）。裁定后由主会话 `/dispatch`。
 
 - **M7 候选主题（用户 2026-10-11）**：`musl` + **`pk`(proxy kernel)** + **更完整测试向量** + **benchmark**；**须分层、不混**：
   - **运行环境层**：`pk`（加载 ELF + trap/异常/syscall 转发）；**linux-user（qemu-user）列候选/后置**；

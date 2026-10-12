@@ -75,6 +75,16 @@
 - **要"跑得多久/多准"** ⇒ 取决于 **时序精度**（`qemu` 非周期精确 ⇒ 计时类基准宜上 `gem5`/`fpga`）；
 - **要"语义对不对"** ⇒ 与平台无关的**独立 oracle**（`spec`/向量/lit）优先，平台只作**执行载体**。
 
+### 5.1 套件接入要点（Embench-IoT → DADAO）
+
+> 逐条要点提炼自 `embench-analysis.md`（原文已归档 `.tao/archive/M7/notes/embench-analysis.md`，含逐基准证据/脚本索引）；此处只留**接入判据**，不复述证据。
+
+- **平台接入面极窄**：Embench 只要求平台实现 **3 个 `void` 函数** `initialise_board` / `start_trigger` / `stop_trigger`（`support/support.h`）；**无** `uart_*`/`timer_*`/`power_*`/`exit` 钩子；计时为平台自选。
+- **无需 OS / varargs / libc malloc**：freestanding；所有 `printf/puts` 均在调试宏内（默认不编译）；堆 = BEEBS 自带静态 bump 堆（≤ 8 KiB）；停机由 crt0 走 semihosting `SYS_EXIT`。
+- **pass 判据 = 进程退出码 0**：`support/main.c` 返回 `!correct`（`verify_benchmark` 非 0 = 正确）⇒ **不靠打印 "correct"**；"可跑 + 语义对"由 L3 执行门控承载（见 §4 能力矩阵 / §5 表）。
+- **最小运行时 + 端序坑**：需 `memcpy/memset/memmove/memcmp` + `strlen/strchr` + ctype + 一个 double `sqrt`（`wikisort`）；DADAO **大端** ⇒ 仅 `md5sum` 用小端 `uint32_t*` 重解释（**唯一端序坑**，大端下 verify 失败），其余与端序无关。
+- **内存与工具链**：单最大基准 ≈ 64 KiB（`xgboost` 静态 43 KB + 栈 ≤13 KB + 堆 ≤8 KB），全 19 个常驻 ≈ 268 KiB ⇒ 现行 16 MiB RAM 余量 ≥ 250×；C 源码接入需 **clang DADAO `TargetInfo`**（接入时缺失，后已补）。
+
 ## 6. 变更记录
 
 - 2026-10-12：Draft 初稿（由主会话依用户 2026-10-12 口述分层起草）。
@@ -86,3 +96,4 @@
 - 2026-10-12：**#6 裁定**（用户原话「**不立 ADR，只写在册里**」）⇒ §2 末新增「各层后置顺序」条，§3 #6 标已裁定。**框架类 6 项讨论收敛**（#1 暂缓、#2–#6 已定）。
 - 2026-10-12：新增 **§4 平台 × 能力矩阵**（用户裁定「入库 + 先填 qemu 列」）⇒ `qemu` 列填现状（逐格带依据），`gem5`/`verilator`/`fpga` 标 `待定（依据待补）`。
 - 2026-10-12：新增 **§5「测试与基准 × 平台 × 功能点」**（用户 2026-10-12 指令：把 **Embench / `ansibench` / LLVM lit / picolibc test** 等列入，分析"能在哪个平台测、能测哪些功能点"）；`ansibench` = `nfinit/ansibench`（纯 ANSI C、~359 KB、**上游未声明许可** ⇒ 接入待定）。
+- 2026-10-13：新增 **§5.1「套件接入要点（Embench-IoT → DADAO）」**（`INFRA-070t`：`embench-analysis.md` 收敛，提炼 5 条接入判据；原文归档 `.tao/archive/M7/notes/`）。
