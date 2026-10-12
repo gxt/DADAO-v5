@@ -39,7 +39,7 @@
 | LLVM-085t | 已验证 | 2026-10-12 12:00 | 未定义弱函数 PC 相对引用可链接（REL26 自循环 + `call`→`jump`）；picolibc pass 152→174 / blocked 65→39 |
 | LLVM-086t | 已验证 | 2026-10-12 13:00 | 内联汇编 `"r"` 约束解锁（`ISS-193`(e)）：`getRegForInlineAsmConstraint` 只映射 `"r"`→GPRD + picolibc 过滤表删 (e) 两条；picolibc pass 174→176 / blocked 39→37 |
 | LLVM-087t | 已验证 | 2026-10-12 14:02 | f32 取整/极值 libcall 注册（`ISS-193`(b)：`RTLIB::{FLOOR,CEIL,TRUNC,ROUND,RINT,NEARBYINT,FMIN,FMAX}_F32`）+ 过滤表删 (b) 四条；picolibc pass 176→182 / blocked 37→31（解锁 6） |
-| LLVM-088t | 待开始 | — | 截断存储 `trunc f64→f32`（ISS-193(d)） |
+| LLVM-088t | 已验证 | 2026-10-12 15:09 | 截断存储 `trunc f64→f32`（`ISS-193`(d)：`setTruncStoreAction(f64,f32,Expand)`）+ 过滤表删 (d) 两条；picolibc pass 182→196 / blocked 31→17（解锁 14） |
 | QEMU-056t | 已验证 | 2026-10-11 19:34 | RAM 基址改 cfx63 段（QEMU/tests/tools/spec 同步） |
 | QEMU-058t | 待开始 | — | NaN 2-NaN 传播规则（参照宿主机实测） |
 | SPEC-131t | 已验证 | 2026-10-12 01:21 | 过渡 oracle 与 semihosting 口径 |

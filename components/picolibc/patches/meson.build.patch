@@ -1,8 +1,8 @@
 diff --git a/meson.build b/meson.build
-index 93daa5d..f8018b4 100644
+index 93daa5d..af03cd5 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1924,6 +1924,39 @@ foreach libname : libnames
+@@ -1924,6 +1924,38 @@ foreach libname : libnames
    libsrcs += get_variable('src_' + libname, [])
  endforeach
  
@@ -19,6 +19,9 @@ index 93daa5d..f8018b4 100644
 +# LLVM-087t removed the f32 rounding / min-max subset of the (b) group
 +# (sf_nearbyint / sf_scalb / sf_tgamma / srf_lgamma) after the f32 libcall
 +# family (frint / ftrunc / ffloor ...) was registered.
++# LLVM-088t removed the (d) group (vfscanf / vfwscanf) after the backend's
++# f64->f32 truncating store was fixed (setTruncStoreAction Expand); both
++# sources now compile.
 +_dadao_backend_blocked = []
 +if host_cpu_family == 'dadao'
 +  _dadao_backend_blocked = [
@@ -28,10 +31,6 @@ index 93daa5d..f8018b4 100644
 +    'sf_log10.c',
 +    # i64 bswap not selected; ISS-193 (c).
 +    'hash_page.c',
-+    # truncating store (i32 store of an f64 value, 'trunc to f32') not
-+    # selected; ISS-193 (d).
-+    'vfscanf.c',
-+    'vfwscanf.c',
 +    # long-double strtod engine libcall unsupported; ISS-193 (f).
 +    'atold_engine.c',
 +  ]
@@ -42,7 +41,7 @@ index 93daa5d..f8018b4 100644
  foreach params : targets
    target = params['name']
    target_dir = params['dir']
-@@ -1939,6 +1972,23 @@ foreach params : targets
+@@ -1939,6 +1971,23 @@ foreach params : targets
      libsrcs_target += get_variable('src_' + libname + target, [])
    endforeach
  

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..730b63dc9
+index 000000000..7dd5e6abb
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1235 @@
+@@ -0,0 +1,1248 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -155,6 +155,19 @@ index 000000000..730b63dc9
 +  // where it selects the hardware ft2fo conversion (contract-fp.md §2).  Same
 +  // fix as AMDGPU/LoongArch/PPC/CSKY.
 +  setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
++
++  // f64 -> f32 truncating stores (LLVM-088t).  The (f32<-f64) TRUNCSTORE action
++  // is legal by default (TargetLoweringBase::initActions zero-initialises every
++  // TruncStoreActions slot to Legal), so DAGCombiner folds `store (fptrunc f64)`
++  // into a truncating store node (visitSTORE, gated by canCombineTruncStore).
++  // This backend has no f64->f32 trunc-store pattern -- the ISA only stores
++  // whole 4B/8B words (st.t / st.o) -- so ISel aborts with
++  // "Cannot select: ... trunc to f32".  Marking the action Expand makes
++  // canCombineTruncStore return false (it requires Legal or Custom), disabling
++  // the fold: the `fptrunc` stays a FP_ROUND (Legal, matched by fo2ft) followed
++  // by a plain f32 store (st.t), both of which select.  Mirror of the
++  // (f64<-f32) EXTLOAD fix above (LLVM-079t); same setting as AMDGPU / Sparc.
++  setTruncStoreAction(MVT::f64, MVT::f32, Expand);
 +
 +  // Varargs (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  DADAO's
 +  // va_list is a plain void*: va_start points just past the named arguments in
