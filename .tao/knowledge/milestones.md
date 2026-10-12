@@ -2,7 +2,7 @@
 
 > 只承载**当前进度**；历史见 `.tao/archive/M<1..7>/m<i>-retrospective.md`。
 >
-> **M7 收尾归档（2026-10-13，`INTEG-035m`）**：M7 期（2026-10-11 ~ 2026-10-13）任务书/回顾/已关 issue **收尾归档**至 `.tao/archive/M7/`（`README.md` / `m7-retrospective.md` / `issues-closed.md`）；**项目里程碑 M7 尚未标记「达成」**——`SPEC-136m` 未通过（`ISS-201` 待用户逐条确认）、`INTEG-034m`（整体收敛）L3 已绿而残项同 `ISS-201` ⇒ **M7 达成待裁定**。**未决项**（`INFRA-071t` / `SPEC-136m` / `INTEG-034m`）仍留 `.tao/tasks/`，见本页「当前进度」与 `m7-retrospective.md §7`。
+> **M7 收尾归档（2026-10-13，`INTEG-035m`）**：M7 期（2026-10-11 ~ 2026-10-13）任务书/回顾/已关 issue **收尾归档**至 `.tao/archive/M7/`（`README.md` / `m7-retrospective.md` / `issues-closed.md`）；**项目里程碑 M7 = 达成**（2026-10-13 口径纠正：`AGENTS.md`「不得置里程碑」**只针对未处置的*跨模块*影响**，`ISS-201` 属 spec **模块内 backlog**、**不阻断** ⇒ `SPEC-136m`/`INTEG-034m` 置 `里程碑`）。**未决项**（`INFRA-071t` 待用户授权）仍留 `.tao/tasks/`，见本页「当前进度」。
 >
 > **M6 达成（2026-10-11，architect 实测核验）**：门槛 `make check` **EXIT=0** + **opt-in** `make test-m6` **EXIT=0**（`check-lit-full` 12/12 + `diff_ir_lli` 19/19 + Embench 38/38）；6 个模块 `m` 全置 `里程碑` ⇒ **项目里程碑 M6 = 达成**。M6 任务书/回顾/已关 issue 已归档至 `.tao/archive/M6/`（回顾 `m6-retrospective.md`、清单 `README.md`、快照 `issues-closed.md`）。核验命令/证据见各 `m`「核验」与 `.work/log/integ/INTEG-026m-*.log`。
 
@@ -12,23 +12,23 @@
 
 **M6 模块里程碑**（均已 `里程碑`）：`INFRA-052m` / `SPEC-125m` / `LLVM-067m` / `QEMU-054m` / `TESTCASES-040m` / `INTEG-026m`。
 
-**M7 模块里程碑**（**收尾归档 2026-10-13**；`里程碑` 4 = `INFRA-072m`/`LLVM-090m`/`QEMU-059m`/`TESTCASES-043m`；**未通过 2** = `SPEC-136m`〔`ISS-201` 阻断〕/ `INTEG-034m`〔整体收敛，L3 已绿、残项同〕）：`INFRA-072m` / `SPEC-136m` / `LLVM-090m` / `QEMU-059m` / `TESTCASES-043m` / `INTEG-034m`（整体收敛点）+ `INTEG-035m`（M7 收尾归档，`Process-04`；**`里程碑`**，任务书**已自归档**入 `.tao/archive/M7/integ/`）。
+**M7 模块里程碑**（**均 `里程碑`**：`INFRA-072m`/`SPEC-136m`/`LLVM-090m`/`QEMU-059m`/`TESTCASES-043m`/`INTEG-034m`〔整体收敛点〕）：`INFRA-072m` / `SPEC-136m` / `LLVM-090m` / `QEMU-059m` / `TESTCASES-043m` / `INTEG-034m`（整体收敛点）+ `INTEG-035m`（M7 收尾归档，`Process-04`；任务书**已自归档**入 `.tao/archive/M7/integ/`）。
 
 ## 任务流水
 
 > 本表 = **M7 未决项**逐任务一行（M7 已终态任务流水已随归档移入 `.tao/archive/M7/README.md §2`）。**细则**：列 = `| 编号 | 状态 | 完成时间 | 一句改动 |`；**每格单行**（不换行）；`状态` 取值 = `待开始` / `待验收` / `待返工` / `已验证`（`m` 行另用 `里程碑`）；`完成时间` = 该任务**落地提交时间**（`git log --format='%h %ci'` 现场取证，**精确到分钟 `YYYY-MM-DD HH:MM`**），`待开始` 行写 `—`；`一句改动` ≤1 行、只留摘要，**细节指针到各任务书**。**新立任务（任务书落盘）时即加 `待开始` 行**（不等到开工/落地），使队列始终可见。
-> M6 的 **46** 份任务流水（含实质改动）已随归档移入 `.tao/archive/M6/`（清单见 `.tao/archive/M6/README.md §1`）；M7 的**已终态任务流水（37 条）已随 M7 收尾归档移入 `.tao/archive/M7/README.md §2`**（2026-10-13）；下表列 M7 **未决 4 行**（`INFRA-071t` / `SPEC-136m` / `INTEG-034m` / `INTEG-035m`〔**`里程碑`**；任务书已自归档入 `.tao/archive/M7/integ/`〕）。
+> M6 的 **46** 份任务流水（含实质改动）已随归档移入 `.tao/archive/M6/`（清单见 `.tao/archive/M6/README.md §1`）；M7 的**已终态任务流水（37 条）已随 M7 收尾归档移入 `.tao/archive/M7/README.md §2`**（2026-10-13）；下表列 M7 **收尾行 4 行**（唯一未决 = `INFRA-071t`〔待用户授权〕；`SPEC-136m`/`INTEG-034m`/`INTEG-035m` 均已 `里程碑`）。
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
 | INFRA-071t | 待开始 | — | `contract-*.md`→`contracts/`（Phase B）+ `check-contracts-dir` 白名单门控（**待用户授权 3 项**：只读锁册 / `contracts/` 内嵌字段 / 扩到 `tools`·`components`·`tests`） |
-| SPEC-136m | 待开始 | — | M7 spec 模块里程碑核验（**未通过：`ISS-201` 待用户逐条确认**） |
-| INTEG-034m | 待开始 | — | M7 integ 模块里程碑核验（整体收敛点；L3 `check-full` 已绿；项目 M7 达成待 `ISS-201` 用户裁定） |
+| SPEC-136m | 里程碑 | 2026-10-13 07:04 | M7 spec 模块里程碑核验（4 条口径均达成；`ISS-201` 为模块内 backlog，**不阻断**） |
+| INTEG-034m | 里程碑 | 2026-10-13 07:04 | M7 integ 模块里程碑核验（整体收敛点；L3 `check-full` 已绿；**项目 M7 = 达成**） |
 | INTEG-035m | 里程碑 | 2026-10-13 03:16 | M7 归档与回顾（`Process-04`；任务书**已自归档**入 `.tao/archive/M7/integ/`） |
 
 ## 当前进度
 
-- **里程碑**：M6（**达成 2026-10-11**）；**M7 收尾归档（2026-10-13，`INTEG-035m`）**——M7 期任务书/回顾/已关 issue 已归档 `.tao/archive/M7/`；**项目里程碑 M7 尚未标记「达成」**（`SPEC-136m` 未通过 `ISS-201`、`INTEG-034m` 残项同 ⇒ **待用户裁定**；4 模块 `m` 已 `里程碑`）。M7 未决 4 行见上「任务流水」；待裁定/操作清单见 `.tao/archive/M7/m7-retrospective.md §7`。开启任务 `INTEG-033k`（`已验证`）已归档 `.tao/archive/M7/integ/`。
+- **里程碑**：M6（**达成 2026-10-11**）；**M7（达成 2026-10-13）**——主题 = picolibc 移植（自带 test 100%，用户 2026-10-12 裁定「记为达成（推荐）」）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle；6 模块 `m`（`INFRA-072m`/`SPEC-136m`/`LLVM-090m`/`QEMU-059m`/`TESTCASES-043m`/`INTEG-034m`）+ 归档 `INTEG-035m` 均 `里程碑`；M7 期任务书/回顾/已关 issue 已归档 `.tao/archive/M7/`。**口径纠正（2026-10-13，主会话经用户指正裁定）**：`ISS-201`（spec 模块内 backlog）**不阻断** ⇒ 项目 M7 = 达成。**唯一未决 = `INFRA-071t`**（待用户授权）见上「任务流水」。开启任务 `INTEG-033k`（`已验证`）已归档 `.tao/archive/M7/integ/`。
 - **M6 遗留（M6→M7，均已登记 = 已处置）**：
   - `ISS-187` 窄位指令利用不足（8/16/32 位算术未用；`mul32` 用 `mul.uo` 而非 `mul.ut`）——**M7 优化候选，非缺陷**（用户 2026-10-10「先只登记，暂不改」）；指针 `.tao/knowledge/issues.yaml`（`ISS-187`）。
   - `ISS-188` FP 完备性缺口（`fcmp` 取值 / `fabs`/`frem`/`copysign` / `fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` / `fpclass` / `f16` / `bitcast`(FP↔RD)；**全部显式失败、不产错码**）——**M7**；指针 `.tao/knowledge/issues.yaml`（`ISS-188`）。
@@ -55,8 +55,8 @@
   - **子代理 workdir 作用域 + 权限 fail-fast（用户 2026-10-11 裁定）**：越界 `cd`（绝对 / `~` / `..`）由"无人应答的 ask"改 **hard-deny**（fail-fast）；规则层钉 workdir **已落地 ✅**；**已立项 `INFRA-065t`**。权限层 = **agent frontmatter `external_directory` deny**（**当前服务下未生效 ⏳**，canary3 实为 `ask` + 用户人工 reject；`message` 字面不可区分、`POST /api/location/reload` 未见效）；`experimental.policies` 已撤销（v2.0.22 schema 不接受 `action:"permission"`）。
   - **`INFRA-065t` 待复验（待办 · 用户操作）**：出界 `cd` fail-fast 在当前服务下**未生效**（agent frontmatter `external_directory` deny + `POST /api/location/reload` 无效）⇒ **用户操作：`opencode service restart` → 越界 `cd` canary 复验**（期望：不弹询问、命令未执行 = 生效）；登记 `ISS-199`（open）。**核验归 `INFRA-072m`**。
   - **`INFRA-070t` Phase B 待授权（待办 · 用户裁定）**：9 个 `contract-*.md` → `contracts/` 因引用冲突（只读锁册 / `contracts/` 内嵌字段 / 范围外目录）**需用户逐条授权** ⇒ 已立 **`INFRA-071t`**（`待开始`，依赖用户授权）；登记 **`ISS-202`**（open）。裁定后由主会话 `/dispatch`。**核验归 `INFRA-072m`**。
-  - **`SPEC-136m` 待裁定（待办 · 用户裁定）**：M7 spec 模块里程碑核验**未通过**——`ISS-201`（open，`scope: spec`）未处置 ⇒ **待用户逐条确认**是否把未定义弱符号**防御分支**补入 **`ADR-0019 D9`** / **`contract-elf §3.3`**（改已确认 `D9` 须逐条确认）。裁定后由主会话 `/dispatch`。**核验归 `SPEC-136m`**。
-  - **`INTEG-034m` / M7 达成待裁定（待办 · 用户裁定）**：M7 integ 整体收敛核验 **L3 已绿**（`make check-full` rc=0，manifest 追加 13 条 exclude）；**唯一残项 = `ISS-201`**（open，`scope: spec`）待用户逐条确认 ⇒ **项目里程碑 M7 达成待 `ISS-201` 裁定**（指向 `ISS-201`）。**核验归 `INTEG-034m`**。
+  - **`SPEC-136m`（已置 `里程碑`；`ISS-201` 为 backlog，不阻断）**：M7 spec 模块里程碑 4 条口径**全部达成**（`SPEC-131t`/`133t`/`134t`/`135t` 均 `已验证`）。`ISS-201`（open，`scope: spec`，规范是否补记未定义弱符号**防御分支**）属 **spec 模块内 backlog**——`AGENTS.md`「不得置里程碑」**只针对未处置的*跨模块*影响** ⇒ **不阻断**。是否补入 `ADR-0019 D9`/`contract-elf §3.3`（改已确认 `D9` 须逐条确认）**待用户裁定、不阻断 M7**。**核验归 `SPEC-136m`**。
+  - **`INTEG-034m` / M7（已置 `里程碑`；项目 M7 = 达成）**：M7 integ 整体收敛核验 **L3 已绿**（`make check-full` rc=0，manifest 追加 13 条 exclude）；2026-10-13 口径纠正后 **项目里程碑 M7 = 达成**（`ISS-201` 为 spec 模块内 backlog、**不阻断**）。**核验归 `INTEG-034m`**。
 
 - **M7 候选主题（用户 2026-10-11）**：`musl` + **`pk`(proxy kernel)** + **更完整测试向量** + **benchmark**；**须分层、不混**：
   - **运行环境层**：`pk`（加载 ELF + trap/异常/syscall 转发）；**linux-user（qemu-user）列候选/后置**；
@@ -91,4 +91,4 @@
 
 > **M6 归档指针（2026-10-11）**：2026-10-09 ~ 2026-10-11 的 M6 条目（**1** 条）已归档至 `.tao/archive/M6/README.md §2`（历史指针，不再在此追加）；M6 逐任务的实质改动记录见归档任务书 `.tao/archive/M6/<模块>/`。
 
-> **M7 收尾归档指针（2026-10-13）**：M7 期（2026-10-11 ~ 2026-10-13）的**已终态任务流水（37 条）**已移入 `.tao/archive/M7/README.md §2`（历史指针，不再在此追加；归档任务 `INTEG-035m` **已自归档**入 `.tao/archive/M7/integ/`〔**`里程碑`**〕，其行留活表列**已达成**）；**里程碑回顾** `m7-retrospective.md`、**已关 issue 快照（12 条）** `issues-closed.md` 见同目录。**项目里程碑 M7 尚未标记「达成」**（`SPEC-136m` 未通过 `ISS-201` 待裁定）⇒ 活表保留 M7 未决 4 行（`INFRA-071t`/`SPEC-136m`/`INTEG-034m`/`INTEG-035m`）。
+> **M7 收尾归档指针（2026-10-13）**：M7 期（2026-10-11 ~ 2026-10-13）的**已终态任务流水（37 条）**已移入 `.tao/archive/M7/README.md §2`（历史指针，不再在此追加；归档任务 `INTEG-035m` **已自归档**入 `.tao/archive/M7/integ/`〔**`里程碑`**〕，其行留活表列**已达成**）；**里程碑回顾** `m7-retrospective.md`、**已关 issue 快照（12 条）** `issues-closed.md` 见同目录。**项目里程碑 M7 = 达成**（2026-10-13 口径纠正：`ISS-201` 属 spec 模块内 backlog、**不阻断**）⇒ 活表保留收尾行 4 行（唯一未决 `INFRA-071t`；`SPEC-136m`/`INTEG-034m`/`INTEG-035m` 均 `里程碑`）。

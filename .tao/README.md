@@ -11,7 +11,7 @@
 
 - `tasks/<module>/` — 任务文件 `<PREFIX>-nnn<suffix>-描述.md`（按模块分子目录）
 - 其余各子目录（`knowledge/`、`adr/`、`archive/<里程碑>/`）的**职责与真源索引**见 `.tao/knowledge/MEMORY.md`「入口指针」（`issues.yaml` = **issue 台账**）
-- `archive/<里程碑>/` — **历史归档**（`Process-04` 里程碑归档规范）：任务书按模块子目录（`git mv` 保留 `R`）+ `README.md` + `m<i>-retrospective.md` + `issues-closed.md`；现有 `M1`–`M7`（`M7` 为 2026-10-13 **收尾归档**，项目 M7 达成待裁定）
+- `archive/<里程碑>/` — **历史归档**（`Process-04` 里程碑归档规范）：任务书按模块子目录（`git mv` 保留 `R`）+ `README.md` + `m<i>-retrospective.md` + `issues-closed.md`；现有 `M1`–`M7`（`M7` 为 2026-10-13 **收尾归档**，项目 M7 达成）
 - **任务收尾自查** — 提交前可跑 `make check-tasks`（报告型，默认退出码 `0`；`--strict` 时命中 >0 则非零）：列出「`## 完成区` 已填但 `**状态**` 仍为 `待验收`」的任务书，用于自查漏 `/complete`；**不并入** `make check` 阻断路径
 
 ## 模块与任务编号

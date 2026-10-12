@@ -20,12 +20,13 @@
 #        不回归 / INTEG 开闭）；6/6 模块 m 全置：INFRA-049m / SPEC-118m / LLVM-061m / QEMU-048m /
 #        TESTCASES-035m / INTEG-021m；20 个 t + INTEG-019k 全 `已验证`；
 #        见 `.tao/knowledge/milestones.md` 与 `.tao/archive/M5/README.md`）
-#   M7 = ⏳ **待裁定（尚未标记「达成」）**——主题 = picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+
-#        ISA↔后端覆盖矩阵 + 过渡 oracle（用户 2026-10-11 裁定；`k` = INTEG-033k）；模块 m：
-#        INFRA-072m / LLVM-090m / QEMU-059m / TESTCASES-043m = `里程碑`，**SPEC-136m 未通过**、
-#        INTEG-034m（整体收敛）残项 ⇒ **M7 达成待 `ISS-201` 用户裁定**；M7 期任务书/回顾/已关 issue
-#        已**收尾归档** `.tao/archive/M7/`（2026-10-13，`INTEG-035m`；前置条件〔M7=达成〕未满足，见
-#        `m7-retrospective.md §1/§5`）
+#   M7 = ✅ **达成（2026-10-13 口径纠正，主会话经用户指正裁定）**——主题 = picolibc 移植（自带 test）+
+#        FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle（用户 2026-10-11 裁定；`k` = INTEG-033k）；
+#        模块 m：INFRA-072m / SPEC-136m / LLVM-090m / QEMU-059m / TESTCASES-043m / INTEG-034m（整体收敛）均
+#        `里程碑` + 归档 `INTEG-035m`；M7 期任务书/回顾/已关 issue 已**收尾归档** `.tao/archive/M7/`
+#        （2026-10-13，`INTEG-035m`）。**口径纠正**：`ISS-201`（spec 模块内 backlog，规范完备性待裁定）**不阻断**——
+#        `AGENTS.md`「不得置里程碑」**只针对未处置的跨模块影响** ⇒ 前判「ISS-201 阻断 M7」系**误阻断**；
+#        项目 M7 = 达成（见 `.tao/knowledge/milestones.md`）
 #
 # M1-gate 定义（历史注，2026-09-21 用户裁定）：
 #   blocks: [M1-gate] = 直接阻断「任一模块 M1 里程碑」的 open 项。
@@ -49,7 +50,7 @@
 #     - M1 = M1 范围项（已达成）；M2 = 规范与接口冻结（已达成）；M3 = Basic CodeGen（已达成）；
 #       M4 = ELF 文件支持 + LLD 链接 + 汇编器遗留收口（已达成）；M5 = SEE/HEE 运行环境 + semihosting（已达成，2026-10-08；门控 make test-semihost；**不再作 open 项 scope**——`INTEG-024t`，2026-10-08 已全部迁出）；
 #       M6 = 完整调用约定（整数）+ 欠账收口，追加「elf 加载」（**已达成 2026-10-11**；M6 自 M5 范围简化转入「-bios+ELF 组合语义 / ELF loader 扩展 / 组合 ADR」= ISS-168、step2 = ISS-165）；
-#       M7 = picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle（**待裁定「达成」**，2026-10-13 收尾归档；`ISS-201` 阻断 ⇒ **现无 open 项使用 `M7` scope**；M7 期见 `.tao/archive/M7/`）；
+#       M7 = picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle（**已达成 2026-10-13**，收尾归档；**现无 open 项使用 `M7` scope**；M7 期见 `.tao/archive/M7/`）；
 #     - post-M1 = 已不属 M1 范围、归后续里程碑的通用项，无明确单一里程碑归属
 #       （含义随 M2/M3 达成后指向 M4+）。
 #   blocks: 可空列表 (M1-gate 表示直接阻断 M1 里程碑)
@@ -334,7 +335,7 @@
   scope: [spec]
   blocks: []
   resolved_by: null
-  notes: "【正式登记（源 `SPEC-135t` 完成区「新发现/坑①」+ 「第 1 轮 reviewer 验收」非阻断建议/遗留处置；architect 收尾复核，2026-10-12）】**现象**：`LLVM-085t` 的未定义弱符号解析实现另有 1 处**防御分支**——若 `R_DADAO_REL26` 的落点指令**既非 `call-iiii`（`0x74`）也非 `jump-iiii`（`0x70`）**，则实现**显式报错**（不放行）；该分支在本批 **0 例**暴露。**状态**：用户 2026-10-12 选项确认的 `D9` **五要点未含**此点 ⇒ 未写入 `ADR-0019 D9` / `contract-elf §3.3`（engineer/reviewer 均未自拟口径，正确）。**性质 = 规范覆盖边界（未授权扩大，非缺陷、非静默）**。**处理建议**：若要入规范 ⇒ 属**修改已用户确认的 `D9`** ⇒ 须**用户逐条确认**（`AGENTS.md`「ADR decision 逐条确认」）⇒ 故**只登记待裁定，不建任务**（engineer/reviewer 不得自拟自答）。**只登记**。证据指针：`.tao/tasks/spec/SPEC-135t-*.md`「新发现/坑①」+「第 1 轮 reviewer 验收」遗留处置；`.tao/tasks/llvm/LLVM-085t-*.md`。"
+  notes: "【正式登记（源 `SPEC-135t` 完成区「新发现/坑①」+ 「第 1 轮 reviewer 验收」非阻断建议/遗留处置；architect 收尾复核，2026-10-12）】**现象**：`LLVM-085t` 的未定义弱符号解析实现另有 1 处**防御分支**——若 `R_DADAO_REL26` 的落点指令**既非 `call-iiii`（`0x74`）也非 `jump-iiii`（`0x70`）**，则实现**显式报错**（不放行）；该分支在本批 **0 例**暴露。**状态**：用户 2026-10-12 选项确认的 `D9` **五要点未含**此点 ⇒ 未写入 `ADR-0019 D9` / `contract-elf §3.3`（engineer/reviewer 均未自拟口径，正确）。**性质 = 规范覆盖边界（未授权扩大，非缺陷、非静默）**。**处理建议**：若要入规范 ⇒ 属**修改已用户确认的 `D9`** ⇒ 须**用户逐条确认**（`AGENTS.md`「ADR decision 逐条确认」）⇒ 故**只登记待裁定，不建任务**（engineer/reviewer 不得自拟自答）。**只登记**。证据指针：`.tao/tasks/spec/SPEC-135t-*.md`「新发现/坑①」+「第 1 轮 reviewer 验收」遗留处置；`.tao/tasks/llvm/LLVM-085t-*.md`。**【不阻断里程碑（2026-10-13 口径纠正）】**：本项属 **spec 模块内 backlog**（规范完备性 / 覆盖缺口等待裁定），`AGENTS.md`「不得置里程碑」**只针对未处置的跨模块影响** ⇒ 本项**不阻断** `SPEC-136m` / `INTEG-034m` 与**项目里程碑 M7 = 达成**（前判「ISS-201 阻断 M7」系**误阻断**）；保持 `open`（backlog，勿关）。"
 
 
 - id: ISS-202
