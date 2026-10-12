@@ -3,7 +3,7 @@
 **模块**：gem5
 **项目里程碑**：M8
 **依赖**：`GEM5-002t`、`ADR-0025` D1–D4 逐条确认并 Accepted
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -30,3 +30,20 @@
 ## 审阅记录
 
 2026-10-12 独立审阅先指出三项缺口：FCSR/rf0 双状态与错误复位值、取指未对齐未报 IALIGN、gem5 二进制路径硬编码。修复后复核：`rf0` 为 FCSR 唯一存储且固定 qNaN 位、写掩码双向验证；`Request::getPC()` 提供未对齐的架构 PC，16 号用例得到 `IALIGN/0x8d` 且 PC 不前进；`--gem5`/环境变量可指定二进制。复核结论为 gem5 003 范围无剩余阻断。仓库级非 gem5 门控缺失仍在完成区如实保留。
+
+#### 2026-10-12 收尾 reviewer 独立验收
+
+- `--profile skeleton` 退出 0，16/16；与 `ec9f281` 的历史 003 指令序列逐项一致。默认 `current` profile 退出 0，保持 50/50。
+- reviewer 在 `/tmp/opencode/GEM5-003t-reviewer` 的向量副本中注入错误期望，门控退出 1；副本恢复后 SHA256 与真源一致，重跑退出 0。
+- opcode 表检查、150/227 向量清单、DADAO build-info/help、33 补丁重放和源码 `base+1 clean` 均通过。
+- `--require-complete` 退出 1、`check-gem5-full` 退出 2，明确保留 77 项后续缺口，未冒充全量执行验收。
+- `make check`、`check-modules`、`check-full` 的非 gem5 失败分别为 60 个悬空引用、缺 `llvm-lit`、缺 `qemu-system-dadao`，按用户授权记外部阻断。
+- 修改范围未命中 `spec/` 或非 gem5 模块；未修改、提交或推送。
+- **判决：Accepted**。
+
+#### 2026-10-12 architect 交叉复核与统一报告
+
+- 新增 `skeleton` profile 只隔离 004 后追加的 scalar/control 向量；公共的 fixture、复位、异常和 FCSR 检查仍按当前实现执行，不回退修复。
+- `--vector-root` 使反例在临时副本完成，避免覆盖真源；缺目录和缺二进制均显式失败。默认 profile 行为保持兼容。
+- reviewer 的历史边界、运行结果、反例、完整覆盖缺口和外部阻断记录相互一致，任务四项 gem5 验收无剩余 finding。
+- **统一判决：Accepted，状态置为 `已验证`**。

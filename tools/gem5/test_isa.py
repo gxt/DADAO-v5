@@ -25,12 +25,21 @@ def main() -> int:
                         default=Path(os.environ.get(
                             "DADAO_GEM5_BINARY",
                             ROOT / ".work/source/gem5/build/DADAO/gem5.opt")))
+    parser.add_argument("--profile", choices=("current", "skeleton"),
+                        default="current",
+                        help="select the current suite or the GEM5-003t suite")
+    parser.add_argument("--vector-root", type=Path,
+                        default=ROOT / "tests/vectors/isa",
+                        help="read ISA YAML files from this directory")
     args = parser.parse_args()
     gem5 = args.gem5.resolve()
+    vector_root = args.vector_root.resolve()
     if not gem5.is_file():
         raise SystemExit(f"gem5-isa: missing {gem5}; run make build-gem5")
+    if not vector_root.is_dir():
+        raise SystemExit(f"gem5-isa: missing vector root {vector_root}")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    vectors = yaml.safe_load((ROOT / "tests/vectors/isa/reg-arith.yaml").read_text())
+    vectors = yaml.safe_load((vector_root / "reg-arith.yaml").read_text())
     cases = [
         x for x in vectors
         if x.get("id") == "add.si_riii_rd"
@@ -44,30 +53,31 @@ def main() -> int:
     arithmetic = [x for x in vectors if x.get("id") == "add.uo_rrrr_rd"
                   and x.get("class") in {"semantic", "boundary", "legality"}
                   and x.get("status") == "active"]
-    reserved = yaml.safe_load((ROOT / "tests/vectors/isa/reserved.yaml").read_text())
+    reserved = yaml.safe_load((vector_root / "reserved.yaml").read_text())
     rb_arithmetic = [x for x in vectors if x.get("id") == "add.si_riii_rb"
                      and x.get("class") in {"semantic", "legality"}
                      and x.get("status") == "active"]
-    scalar_ids = {
-        "or.w_rwii_rd", "andn.w_rwii_rd", "set.zw_rwii_rd",
-        "set.ow_rwii_rd", "cmp.ui_rrii_rd", "cmp.si_rrii_rd",
-    }
     scalar = []
-    for filename in ("reg-imm-block.yaml", "reg-compare.yaml"):
-        scalar.extend(x for x in yaml.safe_load(
-            (ROOT / "tests/vectors/isa" / filename).read_text())
-            if x.get("id") in scalar_ids
-            and x.get("class") in {"semantic", "legality"}
-            and x.get("status") == "active")
     control = []
-    for filename in ("ctrl-br.yaml", "ctrl-jump.yaml"):
-        control.extend(x for x in yaml.safe_load(
-            (ROOT / "tests/vectors/isa" / filename).read_text())
-            if x.get("class") == "semantic"
-            and x.get("status") == "active")
-    for case in control:
-        case["initial_pc"] = 0xFC0000000000
-        case["image_addr"] = 0xFC0000000000
+    if args.profile == "current":
+        scalar_ids = {
+            "or.w_rwii_rd", "andn.w_rwii_rd", "set.zw_rwii_rd",
+            "set.ow_rwii_rd", "cmp.ui_rrii_rd", "cmp.si_rrii_rd",
+        }
+        for filename in ("reg-imm-block.yaml", "reg-compare.yaml"):
+            scalar.extend(x for x in yaml.safe_load(
+                (vector_root / filename).read_text())
+                if x.get("id") in scalar_ids
+                and x.get("class") in {"semantic", "legality"}
+                and x.get("status") == "active")
+        for filename in ("ctrl-br.yaml", "ctrl-jump.yaml"):
+            control.extend(x for x in yaml.safe_load(
+                (vector_root / filename).read_text())
+                if x.get("class") == "semantic"
+                and x.get("status") == "active")
+        for case in control:
+            case["initial_pc"] = 0xFC0000000000
+            case["image_addr"] = 0xFC0000000000
     cases += arithmetic + rb_arithmetic + scalar + control + reserved
     # SimRISC-04: imms18 is signed; 0x3ffff sign-extends to -1.
     cases.append({"encoding": {"word": "0x5907ffff"},
@@ -109,7 +119,7 @@ def main() -> int:
         result = subprocess.run(command, timeout=30, check=False)
         if result.returncode:
             return result.returncode
-    print(f"gem5-isa: PASS {len(cases)} spec vectors")
+    print(f"gem5-isa: PASS {len(cases)} {args.profile} spec vectors")
     return 0
 
 

@@ -28,7 +28,7 @@
 
 **M7 模块里程碑**（**均 `里程碑`**：`INFRA-072m`/`SPEC-136m`/`LLVM-090m`/`QEMU-059m`/`TESTCASES-043m`/`INTEG-034m`〔整体收敛点〕）：`INFRA-072m` / `SPEC-136m` / `LLVM-090m` / `QEMU-059m` / `TESTCASES-043m` / `INTEG-034m`（整体收敛点）+ `INTEG-035m`（M7 收尾归档，`Process-04`；任务书**已自归档**入 `.tao/archive/M7/integ/`）。
 
-**M8 实施（gem5 裸机闭环，与 M7 并行）**：`GEM5-001k` 路线与分解已复核（`已验证`），`GEM5-002t`–`007t` 与 `GEM5-008m` 已分解且未执行；`ADR-0024`（基线）和 `ADR-0025`（测试机接入）均已逐条确认并 Accepted。M8 目标为 `AtomicSimpleCPU` 运行现有 DADAO ELF 并对齐 `Machine-01`，验收门槛见 `GEM5-001k §总体验收`。M7 的任务和验收范围不变。
+**M8 实施（gem5 裸机闭环，与 M7 并行）**：`GEM5-001k` 路线与分解、`GEM5-002t` 基线构建、`GEM5-003t` ISA 骨架均已复核（`已验证`）；`GEM5-004t` 为未验收的标量立即数与控制流 checkpoint，访存、其余整数／地址运算、调用返回与 RAS 尚未完成；`GEM5-005t`–`007t` 与 `GEM5-008m` 待开始。2026-10-12 续工实核：`make test-gem5` 退出 0，50/50 运行用例通过；003 skeleton profile 为 16/16，且错误期望反例按预期失败；编码清单覆盖 150/227，`vector_inventory.py --require-complete` 因缺少 77 项退出 1，不能视为全量执行通过。`ADR-0024`（基线）和 `ADR-0025`（测试机接入）均已逐条确认并 Accepted。M8 目标为 `AtomicSimpleCPU` 运行现有 DADAO ELF 并对齐 `Machine-01`，验收门槛见 `GEM5-001k §总体验收`；阶段性证据见 `components/gem5/evidence/GEM5-004t-checkpoint.md`。M7 的任务和验收范围不变。
 
 ## 任务流水
 
