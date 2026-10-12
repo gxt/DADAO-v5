@@ -382,3 +382,12 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `LLVM-086t` reviewer 第 1 轮非阻断发现 + architect 独立复现，2026-10-12）】**现象**：内联汇编**内存操作数**约束 `\"m\"` ⇒ 后端 `SelectionDAGISel::SelectInlineAsmMemoryOperands` 落 `report_fatal_error(\"Could not match memory address.  Inline asm failure!\")` ⇒ **硬崩溃**（`llc` rc=**134**（SIGABRT / core dumped）+ stack dump；`clang -c` 驱动 rc=1 + `fatal error: error in backend` + crash dump，同一 `report_fatal_error`）。**既有问题、非 `LLVM-086t` 引入**：以变更**前** llc 快照（`getRegForInlineAsmConstraint` hook 缺席）跑**纯** `\"m\"` 用例（`\"=*m,0\"`、无 `\"r\"`）⇒ **同样 rc=134 + 同一 fatal error**（before/after 同签名 ⇒ 非本次引入）。**对照（优雅失败）**：`\"f\"` **未**在 DADAO 约束集 ⇒ `clang` frontend `error: invalid input constraint 'f' in asm`（rc=1）、`llc` 验证期 `error: unknown asm constraint 'f'`（rc=1），**无崩溃、无 core**。**性质 = 健壮性缺陷**（应显式报错或明确「暂不支持内存操作数 inline asm」，不应 `report_fatal_error` + core）。**暴露面**：DADAO 构建的 picolibc 源 **0 处**使用 `\"m\"` 约束（`\"=*m\"` 仅见 `libc/machine/{sparc,…}` 目标专属目录、未编译）⇒ 无 test 暴露（**非阻塞**）。**登记，不建任务**。证据：`.tao/tasks/llvm/LLVM-086t-*.md`（architect 复核节）+ `.work/log/<模块>/`。"
+
+
+- id: ISS-198
+  title: "QEMU 2-NaN payload 选择（`float_2nan_prop_ab`）无任何测试覆盖——判别性错误规则（`ab→s_ba`）注入不触发 FAIL"
+  status: open
+  scope: [qemu, testcases]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `QEMU-058t` reviewer 第 1 轮非阻断建议① + architect 复核，2026-10-12）】**性质 = 测试覆盖缺口**（非缺陷；规则已按宿主实测设为 `float_2nan_prop_ab`，见 `QEMU-058t`）。**现象**：reviewer 独立注入**判别性错误规则** `ab→s_ba`（`cp`+md5，`fd16d8ee…→0f68de69…`）重建后，`ISS-195` 家族 **8 条 test 仍全 `pass`、不触发 FAIL** ⇒ 若该规则设错，**现有测试集不会发现**（picolibc 不观察 2-NaN payload 选谁）。**当前唯一背书** = 宿主（x86_64 标量 SSE，`addss/subss/mulss/divss`）实测：`(qNaN_a,sNaN_b)` 返回 **a** 的 NaN（sNaN 则 quiet）⇒ 等价 `float_2nan_prop_ab`（**非** IEEE 754-2019 §6.2.3 推荐的 `s_ab`）。**建议（独立 oracle）**：补 1 条 **payload 断言向量**——构造 `(qNaN_a, sNaN_b)` 的 FP 运算（add/sub/mul/div 各取一），断言结果 **payload = a 的 payload** 且 sNaN 被 quiet；该向量须**独立派生**、不依赖 QEMU/Python 实现。**只登记，不建任务**。证据指针：`.tao/tasks/qemu/QEMU-058t-*.md`「第 1 轮 reviewer 验收」第 8 条（注入 A 不触发）+ 判决「非阻断建议①」。"

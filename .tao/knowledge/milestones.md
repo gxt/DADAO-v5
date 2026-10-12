@@ -42,7 +42,7 @@
 | LLVM-088t | 已验证 | 2026-10-12 15:09 | 截断存储 `trunc f64→f32`（`ISS-193`(d)：`setTruncStoreAction(f64,f32,Expand)`）+ 过滤表删 (d) 两条；picolibc pass 182→196 / blocked 31→17（解锁 14） |
 | LLVM-089t | 已验证 | 2026-10-12 16:46 | f32 `log` libcall 注册（`ISS-193`(b) 残余：`RTLIB::LOG_F32`→`logf`）+ 过滤表删最后一条 (b) `sf_log10.c`；picolibc pass 196→197 / blocked 17→16（解锁 1：`test-log10`） |
 | QEMU-056t | 已验证 | 2026-10-11 19:34 | RAM 基址改 cfx63 段（QEMU/tests/tools/spec 同步） |
-| QEMU-058t | 待开始 | — | NaN 2-NaN 传播规则（参照宿主机实测） |
+| QEMU-058t | 已验证 | 2026-10-12 21:26 | NaN 2-NaN 规则设 `float_2nan_prop_ab`（宿主机 SSE 实测）；picolibc pass 205→213 / blocked 8→0（解锁 8，`ISS-195`） |
 | SPEC-131t | 已验证 | 2026-10-12 01:21 | 过渡 oracle 与 semihosting 口径 |
 | SPEC-133t | 已验证 | 2026-10-11 22:09 | 21 册标题章节号统一与引用同步 |
 | SPEC-134t | 已验证 | 2026-10-12 02:12 | 21 册「附录：版本与变更记录」+ `-rc` 版本口径 + `spec/README.md` 册维护约定 |

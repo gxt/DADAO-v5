@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..b477805
+index 0000000..d214ac5
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,981 @@
+@@ -0,0 +1,992 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -391,6 +391,17 @@ index 0000000..b477805
 +     * (the invalid-operation results of add/sub/mul/div/rem/scalb/sqrt would
 +     * otherwise be malformed or abort the assert). */
 +    set_float_default_nan_pattern(0b01000000, st);
++    /* 2-NaN propagation rule.  Which input NaN is propagated when both
++     * operands are NaN is implementation-defined: IEEE 754-2019 §6.2.3 only
++     * *recommends* the sNaN-first s_ab order, and SimRISC-07/contract-fp.md
++     * require merely "符合 IEEE 754" (payload selection is not specified).
++     * We match the current host (x86_64 scalar SSE, -mfpmath=sse): for
++     * +,-,*,/ with qNaN/sNaN operand pairs in both orders the host returns
++     * the FIRST operand's NaN (quieted if signalling) regardless of sNaN vs
++     * qNaN — i.e. float_2nan_prop_ab.  Without a rule here softfloat aborts
++     * (parts64_pick_nan g_assert_not_reached) as soon as any NaN operand
++     * reaches add/sub/mul/div/rem (ISS-195). */
++    set_float_2nan_prop_rule(float_2nan_prop_ab, st);
 +}
 +
 +/* Merge the softfloat exception flags into the accrued FCSR status bits.
