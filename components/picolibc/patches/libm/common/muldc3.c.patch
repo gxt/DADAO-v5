@@ -1,0 +1,85 @@
+diff --git a/libm/common/muldc3.c b/libm/common/muldc3.c
+new file mode 100644
+index 0000000..ec1e0d2
+--- /dev/null
++++ b/libm/common/muldc3.c
+@@ -0,0 +1,79 @@
++//===-- muldc3.c - Implement __muldc3 -------------------------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file implements __muldc3 for the compiler_rt library.
++//
++//===----------------------------------------------------------------------===//
++//
++// Vendored into picolibc's libm/common for the DADAO target, which ships no
++// compiler-rt/libgcc builtins (ISS-196).  Algorithm unchanged.
++//
++//   Source : llvm-project, compiler-rt/lib/builtins/muldc3.c
++//   Version: commit 6dfe1677ab8dffbc6ec13d53a1e0215d75147689 (llvmorg-23.1.1)
++//   License: Apache-2.0 WITH LLVM-exception
++//
++// Porting adaptation: the upstream `#include "int_lib.h"` / `int_math.h` lines
++// are replaced by the local support header `compiler_rt_builtins.h`, which maps
++// compiler-rt's intra-library macros (COMPILER_RT_ABI, Dcomplex, COMPLEX_*,
++// CRT_INFINITY, crt_*) onto compiler builtins.  No algorithmic change.
++//
++//===----------------------------------------------------------------------===//
++
++#define DOUBLE_PRECISION
++#include "compiler_rt_builtins.h"
++
++// Returns: the product of a + ib and c + id
++
++COMPILER_RT_ABI Dcomplex __muldc3(double __a, double __b, double __c,
++                                  double __d) {
++  double __ac = __a * __c;
++  double __bd = __b * __d;
++  double __ad = __a * __d;
++  double __bc = __b * __c;
++  Dcomplex z;
++  COMPLEX_REAL(z) = __ac - __bd;
++  COMPLEX_IMAGINARY(z) = __ad + __bc;
++  if (crt_isnan(COMPLEX_REAL(z)) && crt_isnan(COMPLEX_IMAGINARY(z))) {
++    int __recalc = 0;
++    if (crt_isinf(__a) || crt_isinf(__b)) {
++      __a = crt_copysign(crt_isinf(__a) ? 1 : 0, __a);
++      __b = crt_copysign(crt_isinf(__b) ? 1 : 0, __b);
++      if (crt_isnan(__c))
++        __c = crt_copysign(0, __c);
++      if (crt_isnan(__d))
++        __d = crt_copysign(0, __d);
++      __recalc = 1;
++    }
++    if (crt_isinf(__c) || crt_isinf(__d)) {
++      __c = crt_copysign(crt_isinf(__c) ? 1 : 0, __c);
++      __d = crt_copysign(crt_isinf(__d) ? 1 : 0, __d);
++      if (crt_isnan(__a))
++        __a = crt_copysign(0, __a);
++      if (crt_isnan(__b))
++        __b = crt_copysign(0, __b);
++      __recalc = 1;
++    }
++    if (!__recalc && (crt_isinf(__ac) || crt_isinf(__bd) || crt_isinf(__ad) ||
++                      crt_isinf(__bc))) {
++      if (crt_isnan(__a))
++        __a = crt_copysign(0, __a);
++      if (crt_isnan(__b))
++        __b = crt_copysign(0, __b);
++      if (crt_isnan(__c))
++        __c = crt_copysign(0, __c);
++      if (crt_isnan(__d))
++        __d = crt_copysign(0, __d);
++      __recalc = 1;
++    }
++    if (__recalc) {
++      COMPLEX_REAL(z) = CRT_INFINITY * (__a * __c - __b * __d);
++      COMPLEX_IMAGINARY(z) = CRT_INFINITY * (__a * __d + __b * __c);
++    }
++  }
++  return z;
++}

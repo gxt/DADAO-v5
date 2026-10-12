@@ -15,6 +15,7 @@ DADAO 的 C 库组件（**M7 test 重心**：picolibc 自带 test 套件）。�
 - **syscall stub**：`libos/semihost/machine/dadao/semihost-dadao.S` 提供 `sys_semihost(op,param)`（`rd2rb` 把参数块指针送入 `rb16`，`trap cfx_umon, 0x30000`，结果在 `rd8`）；picolibc 通用半托管客户端据此实现 `write`→`SYS_WRITE(0x05)`、`_exit`→`SYS_EXIT(0x18)`、`sbrk`→`__heap_*`（`libos/fallback/sbrk.c`）。服务号口径见 `.tao/knowledge/contract-semihosting.md`。
 - **大端**：clang 不为 `dadao` 预定义 `__FLOAT_WORD_ORDER__`，故在 `libc/include/machine/ieeefp.h` 显式 `__IEEE_BIG_ENDIAN`。
 - **`libm.a` 是空壳，数学符号在 `libc.a`（上游设计）**：picolibc 自 1.7 起把 libc/libm **合并为单一库**（上游 README「Picolibc version 1.7 §1」），`libm.a`/`libg.a`/`libnosys.a` 由 `empty-libs/meson.build` 生成**空库**以兼容 `-lm` 链接行。故**核对数学符号要查 `libc.a`**（`nm`），`libm.a` 只有 `empty.c.o` 的 876 B 空壳。
+- **compiler-rt 复数乘辅助（`ISS-196`）**：DADAO 工具链不带 compiler-rt/libgcc builtins，而 clang 对 C `_Complex` 乘法生成的 `__muldc3`/`__mulsc3` 是编译器辅助（缩放复乘，语义 ≠ 普通复乘）⇒ `libm/common/{muldc3,mulsc3}.c` **逐字移植** compiler-rt（`compiler_rt_builtins.h` 把其内部宏映射到 compiler builtins，算法未改）编入 `libc.a`。
 
 ### 当前移植范围（`INFRA-066t`）
 
