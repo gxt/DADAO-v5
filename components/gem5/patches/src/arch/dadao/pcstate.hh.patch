@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/pcstate.hh b/src/arch/dadao/pcstate.hh
 new file mode 100644
-index 0000000..fe7aae1
+index 0000000..56a1355
 --- /dev/null
 +++ b/src/arch/dadao/pcstate.hh
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,37 @@
 +#ifndef __ARCH_DADAO_PCSTATE_HH__
 +#define __ARCH_DADAO_PCSTATE_HH__
 +
@@ -14,10 +14,29 @@ index 0000000..fe7aae1
 +{
 +class PCState : public GenericISA::SimplePCState<4>
 +{
++  private:
++    bool _explicitBranch = false;
++
 +  public:
 +    using GenericISA::SimplePCState<4>::SimplePCState;
 +    PCStateBase *clone() const override { return new PCState(*this); }
 +    ByteOrder byteOrder() const { return ByteOrder::big; }
++    bool explicitBranch() const { return _explicitBranch; }
++    void explicitBranch(bool value) { _explicitBranch = value; }
++
++    void
++    update(const PCStateBase &other) override
++    {
++        GenericISA::SimplePCState<4>::update(other);
++        _explicitBranch = other.as<PCState>()._explicitBranch;
++    }
++
++    bool
++    equals(const PCStateBase &other) const override
++    {
++        return GenericISA::SimplePCState<4>::equals(other) &&
++               _explicitBranch == other.as<PCState>()._explicitBranch;
++    }
 +};
 +}
 +

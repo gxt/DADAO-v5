@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tlb.hh b/src/arch/dadao/tlb.hh
 new file mode 100644
-index 0000000..f8267a4
+index 0000000..3ddcf91
 --- /dev/null
 +++ b/src/arch/dadao/tlb.hh
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,49 @@
 +#ifndef __ARCH_DADAO_TLB_HH__
 +#define __ARCH_DADAO_TLB_HH__
 +
@@ -32,6 +32,9 @@ index 0000000..f8267a4
 +                                   req->getVaddr();
 +        if (mode == BaseMMU::Execute && (instruction_pc & 3))
 +            return std::make_shared<MachineFault>("IALIGN", 0x8d);
++        if (mode != BaseMMU::Execute &&
++            ((req->getVaddr() >> 42) & 0x3f) == 0)
++            return std::make_shared<MachineFault>("CFXMEM", 0x81);
 +        req->setPaddr(req->getVaddr());
 +        return NoFault;
 +    }

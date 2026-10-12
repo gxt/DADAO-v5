@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/bare_metal.cc b/src/arch/dadao/bare_metal.cc
 new file mode 100644
-index 0000000..61b9eb5
+index 0000000..7ecbac3
 --- /dev/null
 +++ b/src/arch/dadao/bare_metal.cc
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,160 @@
 +#include "arch/dadao/bare_metal.hh"
 +
 +#include <fstream>
@@ -85,12 +85,47 @@ index 0000000..61b9eb5
 +    return (*system->threads.begin())->getReg(intRegClass[int_reg::RaBase + index]);
 +}
 +
++void
++BareMetal::writeRa(unsigned index, uint64_t value)
++{
++    fatal_if(index >= 64, "DADAO ra destination out of range");
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    if (index == 0)
++        value &= 0x003fffffffffffffULL;
++    (*system->threads.begin())->setReg(intRegClass[int_reg::RaBase + index],
++            value);
++}
++
 +uint64_t
 +BareMetal::readRf(unsigned index) const
 +{
 +    fatal_if(index >= 64, "DADAO rf index out of range");
 +    fatal_if(system->threads.empty(), "DADAO has no thread");
 +    return (*system->threads.begin())->getReg(floatRegClass[index]);
++}
++
++uint64_t
++BareMetal::readMemory(Addr address, unsigned size) const
++{
++    fatal_if(size != 1 && size != 2 && size != 4 && size != 8,
++            "DADAO memory read size must be 1, 2, 4, or 8");
++    uint8_t bytes[8] = {};
++    system->physProxy.readBlob(address, bytes, size);
++    uint64_t value = 0;
++    for (unsigned i = 0; i < size; ++i)
++        value = (value << 8) | bytes[i];
++    return value;
++}
++
++void
++BareMetal::writeMemory(Addr address, uint64_t value, unsigned size)
++{
++    fatal_if(size != 1 && size != 2 && size != 4 && size != 8,
++            "DADAO memory write size must be 1, 2, 4, or 8");
++    uint8_t bytes[8] = {};
++    for (unsigned i = 0; i < size; ++i)
++        bytes[size - i - 1] = value >> (i * 8);
++    system->physProxy.writeBlob(address, bytes, size);
 +}
 +
 +uint64_t

@@ -1,4 +1,4 @@
-"""One-instruction full-system DADAO fixture for gem5's embedded Python."""
+"""Minimal full-system DADAO ISA fixture for gem5's embedded Python."""
 
 import argparse
 import json
@@ -31,12 +31,21 @@ parser.add_argument("--image-addr", type=lambda s: int(s, 0),
 parser.add_argument("--expected-pc", type=lambda s: int(s, 0))
 parser.add_argument("--initial-rb", default="{}")
 parser.add_argument("--expected-rb", default="{}")
+parser.add_argument("--initial-ra", default="{}")
+parser.add_argument("--expected-ra", default="{}")
+parser.add_argument("--initial-memory", default="[]")
+parser.add_argument("--expected-memory", default="[]")
+parser.add_argument("--ticks", type=int, default=1)
 args = parser.parse_args()
 FCSR_RESET = 0x7FF800007FC00000  # SimRISC-00 rf0 fixed qNaN fields.
 initial_rd = json.loads(args.initial_rd)
 expected_rd = json.loads(args.expected_rd)
 initial_rb = json.loads(args.initial_rb)
 expected_rb = json.loads(args.expected_rb)
+initial_ra = json.loads(args.initial_ra)
+expected_ra = json.loads(args.expected_ra)
+initial_memory = json.loads(args.initial_memory)
+expected_memory = json.loads(args.expected_memory)
 
 system = System()
 system.clk_domain = SrcClockDomain(clock="1GHz", voltage_domain=VoltageDomain())
@@ -82,9 +91,14 @@ if system.workload.readRf(0) != (FCSR_RESET | 0x30000001F):
 system.workload.writeRf0(0)
 if system.workload.readFcsr() != FCSR_RESET:
     raise SystemExit("gem5-isa: rf0 write did not update misc FCSR")
+for name, value in initial_ra.items():
+    system.workload.writeRa(int(name[2:]), int(value, 0))
+for entry in initial_memory:
+    system.workload.writeMemory(
+        int(entry["address"], 0), int(entry["value"], 0), entry["size"])
 # The first AtomicSimpleCPU tick executes the instruction at tick zero.
-# Stop before its second tick (one nanosecond later at this clock rate).
-event = m5.simulate(1)
+# The caller controls how many ticks are observed for instruction sequences.
+event = m5.simulate(args.ticks)
 actual = system.workload.readRd(1)
 pc = system.workload.readPc()
 rd0 = system.workload.readRd(0)
@@ -94,19 +108,27 @@ fcsr = system.workload.readFcsr()
 print(f"gem5-isa: cause={event.getCause()} rd1={actual:#018x} "
       f"pc={pc:#014x} rd0={rd0} rb0={rb0:#014x} mode={mode} fcsr={fcsr} "
       f"code={event.getCode()}")
-fault_codes = {"none": None, "ILLI": 0x88, "UNDI": 0x89,
+fault_codes = {"none": None, "CFXMEM": 0x81, "ILLI": 0x88, "UNDI": 0x89,
+               "RASOF": 0x8a, "RASUF": 0x8b, "MALIGN": 0x8c,
                "IALIGN": 0x8d}
 expected_code = fault_codes[args.expected_fault]
 if expected_code is None:
-    target_pc = args.expected_pc if args.expected_pc is not None else args.initial_pc + 4
+    target_pc = args.expected_pc if args.expected_pc is not None else \
+        (args.initial_pc + 4) & 0xFFFFFFFFFFFF
     ok = event.getCode() == 0 and pc == target_pc
 else:
     ok = event.getCode() == expected_code and pc == args.initial_pc
-ok &= actual == args.expected_rd1 and rd0 == 0 and rb0 == pc
+ok &= actual == args.expected_rd1 and rd0 == 0
+ok &= (rb0 & 0xFFFFFFFFFFFF) == pc
 ok &= mode == 3 and fcsr == FCSR_RESET
 for name, value in expected_rd.items():
     ok &= system.workload.readRd(int(name[2:])) == int(value, 0)
 for name, value in expected_rb.items():
     ok &= system.workload.readRb(int(name[2:])) == int(value, 0)
+for name, value in expected_ra.items():
+    ok &= system.workload.readRa(int(name[2:])) == int(value, 0)
+for entry in expected_memory:
+    ok &= system.workload.readMemory(
+        int(entry["address"], 0), entry["size"]) == int(entry["value"], 0)
 if not ok:
     raise SystemExit(1)

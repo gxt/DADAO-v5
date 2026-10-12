@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa/main.isa b/src/arch/dadao/isa/main.isa
 new file mode 100644
-index 0000000..0b9e018
+index 0000000..d62ab2a
 --- /dev/null
 +++ b/src/arch/dadao/isa/main.isa
-@@ -0,0 +1,57 @@
+@@ -0,0 +1,108 @@
 +// DADAO fixed-width, big-endian decode. Further formats are added as
 +// spec-derived execution vectors are enabled.
 +output header {{
@@ -39,15 +39,62 @@ index 0000000..0b9e018
 +}};
 +
 +decode OP default Dadao::unknown() {
++    0x10: Dadao::ld_ub();
++    0x11: Dadao::ld_uw();
++    0x12: Dadao::ld_ut();
++    0x13: Dadao::ld_sb();
++    0x14: Dadao::ld_sw();
++    0x15: Dadao::ld_st();
++    0x18: Dadao::st_b();
++    0x19: Dadao::st_w();
++    0x1a: Dadao::st_t();
++    0x20: Dadao::ld_o_rd();
++    0x21: Dadao::st_o_rd();
++    0x22: Dadao::ld_o_rb();
++    0x23: Dadao::st_o_rb();
++    0x24: Dadao::ld_o_ra();
++    0x25: Dadao::st_o_ra();
++    0x28: Dadao::ldm_ub();
++    0x29: Dadao::ldm_uw();
++    0x2a: Dadao::ldm_ut();
++    0x2b: Dadao::ldm_sb();
++    0x2c: Dadao::ldm_sw();
++    0x2d: Dadao::ldm_st();
++    0x30: Dadao::stm_b();
++    0x31: Dadao::stm_w();
++    0x32: Dadao::stm_t();
++    0x38: Dadao::ldm_o_rd();
++    0x39: Dadao::stm_o_rd();
++    0x3a: Dadao::ldm_o_rb();
++    0x3b: Dadao::stm_o_rb();
++    0x3c: Dadao::ldm_o_ra();
++    0x3d: Dadao::stm_o_ra();
++    0x40: Dadao::misc();
++    0x41: Dadao::misc_t();
++    0x42: Dadao::misc_w();
++    0x43: Dadao::misc_b();
 +    0x48: Dadao::or_w();
 +    0x49: Dadao::andn_w();
++    0x4a: Dadao::or_w_rb();
++    0x4b: Dadao::andn_w_rb();
 +    0x4c: Dadao::set_zw();
 +    0x4d: Dadao::set_ow();
++    0x4e: Dadao::set_zw_rb();
 +    0x50: Dadao::add_uo();
++    0x51: Dadao::add_so();
++    0x52: Dadao::sub_uo();
++    0x53: Dadao::sub_so();
++    0x54: Dadao::mul_uo();
++    0x55: Dadao::mul_so();
 +    0x59: Dadao::add_si();
 +    0x5b: Dadao::add_si_rb();
 +    0x5c: Dadao::cmp_ui();
 +    0x5d: Dadao::cmp_si();
++    0x60: Dadao::cs_n();
++    0x62: Dadao::cs_z();
++    0x64: Dadao::cs_p();
++    0x66: Dadao::cs_eq();
++    0x67: Dadao::cs_ne();
 +    0x68: Dadao::br_n();
 +    0x69: Dadao::br_nn();
 +    0x6a: Dadao::br_z();
@@ -60,4 +107,8 @@ index 0000000..0b9e018
 +    0x71: Dadao::jump_r();
 +    0x72: Dadao::br_z_rb();
 +    0x73: Dadao::br_nz_rb();
++    0x74: Dadao::call_i();
++    0x75: Dadao::call_r();
++    0x76: Dadao::ret();
++    0x77: Dadao::swym();
 +}

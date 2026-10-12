@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/bare_metal.hh b/src/arch/dadao/bare_metal.hh
 new file mode 100644
-index 0000000..a54fc18
+index 0000000..ff8c23c
 --- /dev/null
 +++ b/src/arch/dadao/bare_metal.hh
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,42 @@
 +#ifndef __ARCH_DADAO_BARE_METAL_HH__
 +#define __ARCH_DADAO_BARE_METAL_HH__
 +
@@ -33,7 +33,10 @@ index 0000000..a54fc18
 +    uint64_t readRb(unsigned index) const;
 +    void writeRb(unsigned index, uint64_t value);
 +    uint64_t readRa(unsigned index) const;
++    void writeRa(unsigned index, uint64_t value);
 +    uint64_t readRf(unsigned index) const;
++    uint64_t readMemory(Addr address, unsigned size) const;
++    void writeMemory(Addr address, uint64_t value, unsigned size);
 +    uint64_t readMode() const;
 +    uint64_t readFcsr() const;
 +    void writeFcsr(uint64_t value);
