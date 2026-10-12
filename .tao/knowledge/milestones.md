@@ -10,6 +10,8 @@
 
 **M6 模块里程碑**（均已 `里程碑`）：`INFRA-052m` / `SPEC-125m` / `LLVM-067m` / `QEMU-054m` / `TESTCASES-040m` / `INTEG-026m`。
 
+**M7 模块里程碑**（规划，均 `待开始`）：`INFRA-072m` / `SPEC-136m` / `LLVM-090m` / `QEMU-059m` / `TESTCASES-043m` / `INTEG-034m`（整体收敛点）+ `INTEG-035m`（M7 归档，`Process-04`）。
+
 ## 任务流水
 
 > 本表 = **当前里程碑（M7）**逐任务一行。**细则**：列 = `| 编号 | 状态 | 完成时间 | 一句改动 |`；**每格单行**（不换行）；`状态` 取值 = `待开始` / `待验收` / `待返工` / `已验证`（`m` 行另用 `里程碑`）；`完成时间` = 该任务**落地提交时间**（`git log --format='%h %ci'` 现场取证，**精确到分钟 `YYYY-MM-DD HH:MM`**），`待开始` 行写 `—`；`一句改动` ≤1 行、只留摘要，**细节指针到各任务书**。**新立任务（任务书落盘）时即加 `待开始` 行**（不等到开工/落地），使队列始终可见。
@@ -51,6 +53,13 @@
 | SPEC-134t | 已验证 | 2026-10-12 02:12 | 21 册「附录：版本与变更记录」+ `-rc` 版本口径 + `spec/README.md` 册维护约定 |
 | SPEC-135t | 已验证 | 2026-10-13 00:18 | 未定义弱符号口径固化（`ADR-0019` 就地追加 `D9` + `contract-elf §3.3` 正文） |
 | TESTCASES-042t | 已验证 | 2026-10-12 03:29 | picolibc 自带 test 接入 |
+| INFRA-072m | 待开始 | — | M7 infra 模块里程碑核验（6 模块 `m` 之一） |
+| SPEC-136m | 待开始 | — | M7 spec 模块里程碑核验 |
+| LLVM-090m | 待开始 | — | M7 llvm 模块里程碑核验 |
+| QEMU-059m | 待开始 | — | M7 qemu 模块里程碑核验 |
+| TESTCASES-043m | 待开始 | — | M7 testcases 模块里程碑核验（含用户裁定「记为达成」+ 现场四数） |
+| INTEG-034m | 待开始 | — | M7 integ 模块里程碑核验（整体收敛点；L3 `check-full`） |
+| INTEG-035m | 待开始 | — | M7 归档与回顾（`Process-04`） |
 
 ## 当前进度
 
@@ -76,11 +85,11 @@
   - **`ISS-193`(a) 类：无序谓词 `SETO`/`SETUO`/`SETUNO`（30/41 过滤条目）**——单独立 LLVM 任务可一次删 30 条过滤；**待用户裁定是否于 M7 内做**（`INFRA-066t` 收尾登记候选）。
   - **`LLVM-081t` 矩阵 `--check` 纳入门控**（生成投影漂移防护，`lessons §2.11`）——`--check` 现已可对「矩阵与真源不一致」报 FAIL，但未进门控；**待排期**。（**已由 `INFRA-069t` 落地，2026-10-12**：并入 L1 `make check` target `check-isa-coverage`；须现场重生成矩阵以消除 `081t` 后累积的漂移。）
   - **`check_numbering` / `check_spec_changelog` 并入 `make check`**（两器未入门控 ⇒ 附录后标题/变更记录**静默漂移**风险；`lessons §2.11`）——待排期。（**已由 `INFRA-069t` 落地，2026-10-12**：L1 target `check-spec-numbering` / `check-spec-changelog`。）
-  - **M7 test 现状（`TESTCASES-042t` 现场，2026-10-12）**：picolibc 自带 test total 235 / pass 132 / fail 0 / excluded 18 / blocked 85（解锁路径量化见 `TESTCASES-042t` 任务书「遗留问题」）——**是否 M7 内继续解锁待用户裁定**（blocked 85 = REL26 弱符号 26〔`ISS-194`〕+ `ISS-193` 57 + QEMU softfloat 1〔`ISS-195`〕+ `setjmp` 桩 1）。
+  - **M7 test 现状（`TESTCASES-042t` 现场，2026-10-12）**：picolibc 自带 test total 235 / pass 132 / fail 0 / excluded 18 / blocked 85（解锁路径量化见 `TESTCASES-042t` 任务书「遗留问题」）——**是否 M7 内继续解锁待用户裁定**（blocked 85 = REL26 弱符号 26〔`ISS-194`〕+ `ISS-193` 57 + QEMU softfloat 1〔`ISS-195`〕+ `setjmp` 桩 1）。**收口（2026-10-13）**：续解锁已完成（现场 total 235 / pass 213 / fail 0 / excluded 22 / blocked 0），用户 2026-10-12 裁定「**记为达成（推荐）**」；核验归 `TESTCASES-043m`。
   - **`ADR-0019`/`contract-elf` 增补「未定义弱符号」条款**（PC 相对分支/call 解析为**本位自循环**；`call-iiii`→`jump-iiii` 改写理由 = 免 RegRAS 失衡；含 `--noinhibit-exec` 下**未定义强亦落自循环**的情形）——待排期（**命中 ADR 判据：外部契约/结论固化**）。
   - **子代理 workdir 作用域 + 权限 fail-fast（用户 2026-10-11 裁定）**：越界 `cd`（绝对 / `~` / `..`）由"无人应答的 ask"改 **hard-deny**（fail-fast）；规则层钉 workdir **已落地 ✅**；**已立项 `INFRA-065t`**。权限层 = **agent frontmatter `external_directory` deny**（**当前服务下未生效 ⏳**，canary3 实为 `ask` + 用户人工 reject；`message` 字面不可区分、`POST /api/location/reload` 未见效）；`experimental.policies` 已撤销（v2.0.22 schema 不接受 `action:"permission"`）。
-  - **`INFRA-065t` 待复验（待办 · 用户操作）**：出界 `cd` fail-fast 在当前服务下**未生效**（agent frontmatter `external_directory` deny + `POST /api/location/reload` 无效）⇒ **用户操作：`opencode service restart` → 越界 `cd` canary 复验**（期望：不弹询问、命令未执行 = 生效）；登记 `ISS-199`（open）。
-  - **`INFRA-070t` Phase B 待授权（待办 · 用户裁定）**：9 个 `contract-*.md` → `contracts/` 因引用冲突（只读锁册 / `contracts/` 内嵌字段 / 范围外目录）**需用户逐条授权** ⇒ 已立 **`INFRA-071t`**（`待开始`，依赖用户授权）；登记 **`ISS-202`**（open）。裁定后由主会话 `/dispatch`。
+  - **`INFRA-065t` 待复验（待办 · 用户操作）**：出界 `cd` fail-fast 在当前服务下**未生效**（agent frontmatter `external_directory` deny + `POST /api/location/reload` 无效）⇒ **用户操作：`opencode service restart` → 越界 `cd` canary 复验**（期望：不弹询问、命令未执行 = 生效）；登记 `ISS-199`（open）。**核验归 `INFRA-072m`**。
+  - **`INFRA-070t` Phase B 待授权（待办 · 用户裁定）**：9 个 `contract-*.md` → `contracts/` 因引用冲突（只读锁册 / `contracts/` 内嵌字段 / 范围外目录）**需用户逐条授权** ⇒ 已立 **`INFRA-071t`**（`待开始`，依赖用户授权）；登记 **`ISS-202`**（open）。裁定后由主会话 `/dispatch`。**核验归 `INFRA-072m`**。
 
 - **M7 候选主题（用户 2026-10-11）**：`musl` + **`pk`(proxy kernel)** + **更完整测试向量** + **benchmark**；**须分层、不混**：
   - **运行环境层**：`pk`（加载 ELF + trap/异常/syscall 转发）；**linux-user（qemu-user）列候选/后置**；
