@@ -22,7 +22,7 @@
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
 | INFRA-071t | 待开始 | — | `contract-*.md`→`contracts/`（Phase B）+ `check-contracts-dir` 白名单门控（**待用户授权 3 项**：只读锁册 / `contracts/` 内嵌字段 / 扩到 `tools`·`components`·`tests`）；**项目里程碑 = `M8`**（用户 2026-10-13 裁定**改标**，仍留 `.tao/tasks/`） |
-| SPEC-137t | 待验收 | — | `ADR-0019 D9` 追加第 ⑥ 条（防御分支边界：`REL26` 落点非 `call-iiii`/`jump-iiii` ⇒ link-time error，不放行/不自循环）+ `contract-elf §3.3` 同步 bullet；关闭 `ISS-201`；**项目里程碑 = `M7`**（spec 模块内 backlog 收口，用户 2026-10-13 逐条确认） |
+| SPEC-137t | 已验证 | 2026-10-13 07:47 | `ADR-0019 D9` 追加第 ⑥ 条（防御分支边界：`REL26` 落点非 `call-iiii`/`jump-iiii` ⇒ link-time error，不放行/不自循环）+ `contract-elf §3.3` 同步 bullet；关闭 `ISS-201`；**项目里程碑 = `M7`**（spec 模块内 backlog 收口，用户 2026-10-13 逐条确认） |
 
 ## 当前进度
 

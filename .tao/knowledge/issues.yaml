@@ -345,3 +345,12 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `INFRA-070t` 完成区「遗留问题」+ 第 1 轮 reviewer 验收 §⑧；architect 收尾立项，2026-10-13）】**背景**：`INFRA-070t` Phase A（`.tao/knowledge/` 顶层收拢 + `Process-07` + `check-knowledge-dir`）已 `Accepted`；**Phase B**（9 个 `contract-*.md` 迁入 `contracts/`）因与硬约束「不改 `spec/`、`contracts/`、组件补丁」**冲突**停手 ⇒ 承接任务 = **`INFRA-071t`**（`.tao/tasks/infra/INFRA-071t-contract迁移至contracts目录.md`，状态 `待开始`，**依赖用户授权**）。**引用冲突逐类计数**（立项时 `git grep '\\.tao/knowledge/contract-'`，现场行数）：`spec/Toolchain-01-汇编语言.md` **5**（**只读哈希锁册** `manifests/spec-readonly.lock.toml` `path`+`sha256`，改须授权 `Process-06 §2`）+ `spec/README.md` **2** + `contracts/` **8**（含 `abi.yaml` `contract:`/`detail_contract:` **嵌套机器字段**，与「内容不动」冲突）+ `tools/**` **36**（`{testcases,qemu,integ}` = 17）+ `components/**` **13** + `tests/**` **12**。**待用户裁定 3 项**（逐条选项见 `INFRA-071t`）：① 是否授权改只读锁册（及是否重算哈希）；② `contracts/*.yaml` 内嵌旧路径字段如何处置（改/加映射/不动）；③ 只动范围是否扩到 `tools/**`/`components/**`/`tests/**`。**性质 = 待裁定（规划/阻塞类）**；`INFRA-071t` 立项后由主会话问用户。**不得臆造用户已授权**。证据指针：`.tao/tasks/infra/INFRA-070t-knowledge顶层收拢与Process-07.md`「遗留问题」+「第 1 轮 reviewer 验收」§⑧；`.tao/tasks/infra/INFRA-071t-contract迁移至contracts目录.md`。"
+
+
+- id: ISS-203
+  title: "门控覆盖缺口 2 项（`SPEC-137t` reviewer 非阻断发现）：`check-spec-refs` 不覆盖 `.tao/knowledge/**` 互指；`check_issues.py` 不校验 `closed` 条目必填 `resolved_by`（本次均靠人工核）"
+  status: open
+  scope: [infra, spec]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `SPEC-137t` 第 1 轮 reviewer 验收「非阻断发现」；architect 收尾立项，2026-10-13）】**性质 = 门控覆盖缺口**（非交付物缺陷，本次均靠人工核验）。**① `check-spec-refs` 不覆盖 `.tao/knowledge/**` 内互指**——`SPEC-137t` 的 `ADR-0019 D9` ↔ `contract-elf.md §3.3` **双向互指**完整性本次由 reviewer **人工 `grep -c`** 核对（`adr-0019`→`§3.3` = 3≥1、`contract-elf`→`ADR-0019 §D9` = 7≥1）；门控未机械校验（`check-spec-refs` 只审 `contract-*.md` 的 spec 引用）。**② `check_issues.py` 不校验 `closed` 必填 `resolved_by`**——文件头字段约束「`resolved_by`: closed 时必填, open 时 null」无对应断言（现仅校验 status 合法性与 `M1-gate` 阻断）⇒ `ISS-201` 的 `resolved_by: SPEC-137t` 本次由 reviewer **人工确认**。**建议**：为二者各补 1 条断言（互指完整性 + `resolved_by` 字段约束），纳入 L1/L2 分层由用户/后续裁定。**只登记，不建任务**。证据指针：`.tao/tasks/spec/SPEC-137t-*.md`「第 1 轮 reviewer 验收」非阻断发现 + 任务书 §⑤/§⑥。"

@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M7
 **依赖**：`SPEC-135t`（`已验证`，`D9` ①–⑤ 落地来源）；`INTEG-034m`（M7 整体收敛复核）
-**状态**：待验收
+**状态**：已验证
 
 > 立项来源：`ISS-201`（源 `SPEC-135t` 完成区「新发现/坑①」+「第 1 轮 reviewer 验收」非阻断遗留处置；`INTEG-034m` 复核点名）。**执行方式**：architect 自办（小文档增量）。
 
@@ -66,3 +66,16 @@
 - **用户原话落纸**：本任务书「用户裁定（2026-10-13，原话）」段 + `ADR-0019` 文末确认行 + `issues.yaml` `ISS-201` notes ✓。
 - **实施**：`D9` 于第 ⑤ 点（`REL12` 暂不纳入）后、"规范正文"指针前，追加第 ⑥ 条（`**边界（防御分支）**：…`，体例同 ①–⑤）；`✅` 清单 `D9` 行**追加**（不改既有）+ 文末追加 `2026-10-13` 行；`contract-elf §3.3` 末尾追加「边界」bullet；`ISS-201` 关闭；`milestones.md` 追加行。**未改** `D9` ①–⑤ 与 `§3.3` 既有 bullet ✗。
 - **状态**：architect 自办 ⇒ 置 `待验收`（待 reviewer 独立验收后由主会话/后续置 `已验证`）。
+
+#### 第 1 轮 reviewer 验收（2026-10-13）
+
+- **① 逐字一致性**：Python 脚本提取任务书①/②文本 vs 落地文本，byte-level 比对：① EXACT=True、② EXACT=True ✓。
+- **② D9 ①–⑤ / §3.3 既有 bullet 未改**：`new.replace(insertion,'') == old`（纯插入）✓；§3.3 old=4 bullet, new=5, existing unchanged ✓（`git diff` 仅 +1 行）。
+- **③ §3.3 无理由词**：`grep` 扫描边界 bullet + 整节（理由/被否/原因/优于/0 例/不可接受）均 rc=1（无命中）✓。
+- **④ 确认记录**：行 93 含用户原话「确认，照此写入（推荐）」+ 日期 `2026-10-13` + 渠道「经主会话问答」✓。
+- **⑤ 互指**：`grep -c 'contract-elf.md §3.3' adr-0019` = 3（≥1）✓；`grep -c 'ADR-0019 §D9' contract-elf` = 7（≥1）✓。
+- **⑥ ISS-201**：`status: closed` + `resolved_by: SPEC-137t` + notes 追加关闭说明 ✓；`check_issues.py` rc=0（24 open / 1 closed / 0 blocking）✓；`git diff` 确认仅动 ISS-201 条目 ✓。
+- **⑦ 门控**：`make check` rc=0；`check-spec-refs` rc=0（0 violations）；`check-knowledge-refs` rc=0（0 悬空）；`check-no-residue` rc=0；`check_issues.py` rc=0 ✓。
+- **⑧ 独立反例**：向 `contract-elf.md:133` 注入 `.work/log/SPEC-137t/<假文件>` 悬空引用 ⇒ `check-knowledge-refs` FAIL rc=2（1 悬空）；`cp`+md5 还原 ⇒ 回绿 rc=0 ✓。
+- **非阻断发现**：`check-spec-refs` 不扫描 `.tao/knowledge/` 互指完整性；`check_issues.py` 不校验 closed 须有 `resolved_by`——均为门控覆盖缺口，非交付物缺陷。
+- **判定：Accepted** ✓
