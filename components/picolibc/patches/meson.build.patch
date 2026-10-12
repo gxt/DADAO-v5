@@ -1,8 +1,8 @@
 diff --git a/meson.build b/meson.build
-index 93daa5d..7f5f595 100644
+index 93daa5d..82ad009 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1924,6 +1924,70 @@ foreach libname : libnames
+@@ -1924,6 +1924,39 @@ foreach libname : libnames
    libsrcs += get_variable('src_' + libname, [])
  endforeach
  
@@ -12,42 +12,11 @@ index 93daa5d..7f5f595 100644
 +# instead of failing halfway.  The list below is the *minimal* set obtained by
 +# compiling every source in this build (INFRA-066t); each entry, its failure
 +# signature and its root cause are registered in ISS-193.  Delete entries as the
-+# backend grows -- never extend the list.
++# backend grows -- never extend the list.  LLVM-084t removed the ISS-193 (a)
++# group (FP unordered-family predicates) after the backend lowered them.
 +_dadao_backend_blocked = []
 +if host_cpu_family == 'dadao'
 +  _dadao_backend_blocked = [
-+    # FP predicate SETO / SETUO / SETUNO missing (no explicit NaN / unordered
-+    # handling in the DADAO FP branch and select lowering); ISS-193 (a).
-+    'cacosh.c',
-+    'cacoshf.c',
-+    'cacoshl.c',
-+    'casin.c',
-+    'casinf.c',
-+    'casinh.c',
-+    'casinhf.c',
-+    'casinhl.c',
-+    'casinl.c',
-+    'catanh.c',
-+    'catanhf.c',
-+    'catanhl.c',
-+    'csqrt.c',
-+    'csqrtf.c',
-+    's_acos.c',
-+    's_acosh.c',
-+    's_asin.c',
-+    's_fma.c',
-+    's_hypot.c',
-+    's_j0.c',
-+    's_j1.c',
-+    's_jn.c',
-+    's_pow.c',
-+    'sf_acos.c',
-+    'sf_acosh.c',
-+    'sf_asin.c',
-+    'sf_hypot.c',
-+    'sf_j0.c',
-+    'sf_j1.c',
-+    'sf_pow.c',
 +    # f32 rounding / log libcalls (frint / flog / ftrunc) missing; ISS-193 (b).
 +    'sf_log10.c',
 +    'sf_nearbyint.c',
@@ -73,7 +42,7 @@ index 93daa5d..7f5f595 100644
  foreach params : targets
    target = params['name']
    target_dir = params['dir']
-@@ -1939,6 +2003,23 @@ foreach params : targets
+@@ -1939,6 +1972,23 @@ foreach params : targets
      libsrcs_target += get_variable('src_' + libname + target, [])
    endforeach
  

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..4e5457e06
+index 000000000..f83ea57a2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1115 @@
+@@ -0,0 +1,1209 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -909,12 +909,26 @@ index 000000000..4e5457e06
 +  // The DADAO FP compare writes -1 / 0 / 1 for ordered results (lhs <, ==, > rhs)
 +  // and a positive NaN value for unordered (contract-fp.md §8).  The same
 +  // register zero-test branches then implement the C predicates; `>`/`>=` are
-+  // expressed by swapping the operands into `<`/`<=`.  Predicates outside the
-+  // C set (unordered-family, ordered-not-equal, ord/uno) are not needed by C
-+  // and fail loudly rather than silently miscompile.
++  // expressed by swapping the operands into `<`/`<=`, and the unordered /
++  // ordered / ordered-not-equal predicates add one `cmp rd, rc, 1` (LLVM-084t,
++  // ISS-193 (a)).  A condition outside this set still fails loudly rather than
++  // silently miscompile.
 +  if (LHS.getValueType().isFloatingPoint()) {
 +    auto FCmp = [&](SDValue A, SDValue B) {
 +      return DAG.getNode(DADAOISD::FCMP, DL, MVT::i64, A, B);
++    };
++    // Predicates outside the plain 4-way sign test (unordered / ordered /
++    // ordered-not-equal) need one extra integer compare.  The FP compare writes
++    // a *positive* qNaN value for unordered (contract-fp.md §8: ordered results
++    // are exactly -1/0/1) whose integer value exceeds those, so `cmp rd, rc, 1`
++    // separates ordered (rc <= 1) from unordered (rc > 1).  Every step is an
++    // existing ISA instruction: foqcmp/ftqcmp (FCMP) + cmp.si + br.*/cs.*
++    // (contract-isa.md §6.2/§6.5).
++    auto One = DAG.getConstant(1, DL, MVT::i64);
++    auto Zero = DAG.getConstant(0, DL, MVT::i64);
++    // < 0 / == 0 / > 0 three-way flag; > 0 means unordered (either operand NaN).
++    auto Unordered = [&](SDValue A, SDValue B) {
++      return DAG.getNode(DADAOISD::CMP, DL, MVT::i64, FCmp(A, B), One);
 +    };
 +    switch (CC) {
 +    case ISD::SETOEQ: // == : rc == 0              (unordered NaN -> not 0)
@@ -937,6 +951,43 @@ index 000000000..4e5457e06
 +      return BrOn(DADAOISD::BRP, FCmp(RHS, LHS));
 +    case ISD::SETULE: // unordered or <= : (= uge(rhs, lhs))
 +      return BrOn(DADAOISD::BRNN, FCmp(RHS, LHS));
++    case ISD::SETUO: // unordered (isnan(a) | isnan(b)) : rc > 1
++      return BrOn(DADAOISD::BRP, Unordered(LHS, RHS));
++    case ISD::SETO: // ordered (neither NaN) : rc <= 1
++      return BrOn(DADAOISD::BRNP, Unordered(LHS, RHS));
++    case ISD::SETONE: { // ordered and != : ordered(rc) & (rc != 0)
++      SDValue Ord = DAG.getNode(DADAOISD::CS_P, DL, MVT::i64,
++                                Unordered(LHS, RHS), Zero, One);
++      SDValue Ne = DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, FCmp(LHS, RHS),
++                               Zero, One);
++      return BrOn(DADAOISD::BRNZ,
++                  DAG.getNode(ISD::AND, DL, MVT::i64, Ord, Ne));
++    }
++    case ISD::SETUEQ: { // unordered or == : unordered(rc) | (rc == 0)
++      SDValue Un = DAG.getNode(DADAOISD::CS_P, DL, MVT::i64,
++                               Unordered(LHS, RHS), One, Zero);
++      SDValue Eq = DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, FCmp(LHS, RHS),
++                               One, Zero);
++      return BrOn(DADAOISD::BRNZ,
++                  DAG.getNode(ISD::OR, DL, MVT::i64, Un, Eq));
++    }
++    // The "don't care" cond codes (ISDOpcodes.h CondCode: "undefined if the
++    // input is a nan") reach an FP branch when the DAG already knows the
++    // operands are ordered (e.g. `fmul nnan`).  Lower them as their ordered
++    // counterparts -- the unordered case is undefined, so the ordered result is
++    // a valid choice and no extra test is needed.
++    case ISD::SETEQ:  // ==  (unordered undefined) : rc == 0
++      return BrOn(DADAOISD::BRZ, FCmp(LHS, RHS));
++    case ISD::SETNE:  // !=  : rc != 0
++      return BrOn(DADAOISD::BRNZ, FCmp(LHS, RHS));
++    case ISD::SETLT:  // <   : rc < 0
++      return BrOn(DADAOISD::BRN, FCmp(LHS, RHS));
++    case ISD::SETLE:  // <=  : rc <= 0
++      return BrOn(DADAOISD::BRNP, FCmp(LHS, RHS));
++    case ISD::SETGT:  // >   : (rhs < lhs)
++      return BrOn(DADAOISD::BRN, FCmp(RHS, LHS));
++    case ISD::SETGE:  // >=  : (rhs <= lhs)
++      return BrOn(DADAOISD::BRNP, FCmp(RHS, LHS));
 +    default:
 +      report_fatal_error(
 +          "DADAO: unsupported floating-point branch condition");
@@ -1014,6 +1065,15 @@ index 000000000..4e5457e06
 +    auto FCmp = [&](SDValue A, SDValue B) {
 +      return DAG.getNode(DADAOISD::FCMP, DL, MVT::i64, A, B);
 +    };
++    // See LowerBR_CC: `cmp rd, rc, 1` separates ordered (rc <= 1) from unordered
++    // (the positive qNaN the FP compare writes for NaN operands, rc > 1); the
++    // unordered/ordered/ordered-not-equal predicates then combine that flag with
++    // the equal sign test via cs.* + and/or (all existing ISA instructions).
++    auto One = DAG.getConstant(1, DL, MVT::i64);
++    auto Zero = DAG.getConstant(0, DL, MVT::i64);
++    auto Unordered = [&](SDValue A, SDValue B) {
++      return DAG.getNode(DADAOISD::CMP, DL, MVT::i64, FCmp(A, B), One);
++    };
 +    switch (CC) {
 +    case ISD::SETOEQ: // ==  : rc == 0
 +      return Select(DADAOISD::CS_Z, FCmp(LHS, RHS), True, False);
@@ -1035,6 +1095,40 @@ index 000000000..4e5457e06
 +      return Select(DADAOISD::CS_P, FCmp(RHS, LHS), True, False);
 +    case ISD::SETULE: // unordered or <= : (= uge(rhs, lhs))
 +      return Select(DADAOISD::CS_N, FCmp(RHS, LHS), False, True);
++    case ISD::SETUO: // unordered : rc > 1
++      return Select(DADAOISD::CS_P, Unordered(LHS, RHS), True, False);
++    case ISD::SETO: // ordered : rc <= 1
++      return Select(DADAOISD::CS_P, Unordered(LHS, RHS), False, True);
++    case ISD::SETONE: { // ordered and != : ordered(rc) & (rc != 0)
++      SDValue Ord = DAG.getNode(DADAOISD::CS_P, DL, MVT::i64,
++                                Unordered(LHS, RHS), Zero, One);
++      SDValue Ne = DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, FCmp(LHS, RHS),
++                               Zero, One);
++      SDValue Pred = DAG.getNode(ISD::AND, DL, MVT::i64, Ord, Ne);
++      return Select(DADAOISD::CS_Z, Pred, False, True);
++    }
++    case ISD::SETUEQ: { // unordered or == : unordered(rc) | (rc == 0)
++      SDValue Un = DAG.getNode(DADAOISD::CS_P, DL, MVT::i64,
++                               Unordered(LHS, RHS), One, Zero);
++      SDValue Eq = DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, FCmp(LHS, RHS),
++                               One, Zero);
++      SDValue Pred = DAG.getNode(ISD::OR, DL, MVT::i64, Un, Eq);
++      return Select(DADAOISD::CS_Z, Pred, False, True);
++    }
++    // See LowerBR_CC: the "don't care if unordered" cond codes lower to their
++    // ordered counterparts.
++    case ISD::SETEQ: // ==  : rc == 0
++      return Select(DADAOISD::CS_Z, FCmp(LHS, RHS), True, False);
++    case ISD::SETNE: // !=  : rc != 0
++      return Select(DADAOISD::CS_Z, FCmp(LHS, RHS), False, True);
++    case ISD::SETLT: // <   : rc < 0
++      return Select(DADAOISD::CS_N, FCmp(LHS, RHS), True, False);
++    case ISD::SETLE: // <=  : rc <= 0
++      return Select(DADAOISD::CS_P, FCmp(LHS, RHS), False, True);
++    case ISD::SETGT: // >   : (rhs < lhs)
++      return Select(DADAOISD::CS_N, FCmp(RHS, LHS), True, False);
++    case ISD::SETGE: // >=  : (rhs <= lhs)
++      return Select(DADAOISD::CS_P, FCmp(RHS, LHS), False, True);
 +    default:
 +      report_fatal_error(
 +          "DADAO: unsupported floating-point select/setcc condition");

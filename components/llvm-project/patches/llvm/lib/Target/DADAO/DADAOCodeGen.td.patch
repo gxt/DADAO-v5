@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..7f5c09b7b
+index 000000000..f10a6fa1b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,637 @@
+@@ -0,0 +1,656 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -593,6 +593,25 @@ index 000000000..7f5c09b7b
 +            (CsP (Cmp CmpVT:$b, CmpVT:$a), ValVT:$t, ValVT:$f)>;
 +  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETULE),
 +            (CsN (Cmp CmpVT:$b, CmpVT:$a), ValVT:$f, ValVT:$t)>;
++  // LLVM-084t (ISS-193 (a)): unordered-family predicates.  The FP compare result
++  // is -1/0/1 when ordered and a positive qNaN whose integer value exceeds them
++  // when unordered (contract-fp.md §8), so `cmp.si rd, rc, 1` gives the
++  // unordered flag (< 0/== 0 ordered, > 0 unordered).  SETUO/SETO are one cs.p
++  // on it; SETONE/SETUEQ combine it with the not-equal / equal cs test through
++  // and.o / or.o (contract-isa.md §6.1/§6.5).  These mirror the custom lowering
++  // in DADAOISelLowering (LowerCmpSelect) as the post-legalisation fallback.
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETUO),
++            (CsP (cmp_si_rd (Cmp CmpVT:$a, CmpVT:$b), 1), ValVT:$t, ValVT:$f)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETO),
++            (CsP (cmp_si_rd (Cmp CmpVT:$a, CmpVT:$b), 1), ValVT:$f, ValVT:$t)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETONE),
++            (CsZ (and_o (cs_p_rd (cmp_si_rd (Cmp CmpVT:$a, CmpVT:$b), 1), 0, 1),
++                       (cs_z_rd (Cmp CmpVT:$a, CmpVT:$b), 0, 1)),
++                 ValVT:$f, ValVT:$t)>;
++  def : Pat<(selectcc CmpVT:$a, CmpVT:$b, ValVT:$t, ValVT:$f, SETUEQ),
++            (CsZ (or_o (cs_p_rd (cmp_si_rd (Cmp CmpVT:$a, CmpVT:$b), 1), 1, 0),
++                      (cs_z_rd (Cmp CmpVT:$a, CmpVT:$b), 1, 0)),
++                 ValVT:$f, ValVT:$t)>;
 +}
 +
 +defm FPSelCC_f64_rf
