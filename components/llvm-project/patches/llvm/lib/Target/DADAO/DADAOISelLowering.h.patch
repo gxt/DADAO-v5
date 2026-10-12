@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..ca2a59bd9
+index 000000000..7cbf9ffe1
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,178 @@
+@@ -0,0 +1,187 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -105,6 +105,15 @@ index 000000000..ca2a59bd9
 +                               const DADAOSubtarget &STI);
 +
 +  const char *getTargetNodeName(unsigned Opcode) const override;
++
++  /// Inline-assembly register constraints (ISS-193(e), LLVM-086t).  The DADAO
++  /// register banks are not interchangeable, so a lone `"r"` constrains to a
++  /// register class; map it to the data bank (GPRD), the canonical i64 class
++  /// registered with `addRegisterClass` in the constructor.  Every other
++  /// constraint falls back to the generic TargetLowering implementation.
++  std::pair<unsigned, const TargetRegisterClass *>
++  getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
++                               StringRef Constraint, MVT VT) const override;
 +
 +  /// M6 (contract-abi.md §6.1): a function's return can be lowered only if each
 +  /// return bank (rd/rb) carries at most K = 8 values; otherwise the return is

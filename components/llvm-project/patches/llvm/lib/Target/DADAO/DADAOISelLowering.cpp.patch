@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..f83ea57a2
+index 000000000..730b63dc9
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1209 @@
+@@ -0,0 +1,1235 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -291,6 +291,32 @@ index 000000000..f83ea57a2
 +  default:
 +    return nullptr;
 +  }
++}
++
++std::pair<unsigned, const TargetRegisterClass *>
++DADAOTargetLowering::getRegForInlineAsmConstraint(
++    const TargetRegisterInfo *TRI, StringRef Constraint, MVT VT) const {
++  // ISS-193(e) / LLVM-086t: the four DADAO banks are not interchangeable --
++  // integer values inside an asm body live in the data bank, pointers in the
++  // base bank, and only the explicit rd2rb / rb2rd instructions cross them --
++  // so a lone "r" must name a register class.  The generic implementation only
++  // understands brace-enclosed physical-register names, hence the override.
++  //
++  // "r" -> the data bank (GPRD): it is the canonical i64 class, registered as
++  // the type handler for i64 in the constructor (addRegisterClass(MVT::i64,
++  // GPRDRegClass)), so it is exactly what SelectionDAG creates an i64 virtual
++  // register in.  The allocator entry point is the full class, not
++  // GPRD_Allocatable: the reserved members rd0-rd3 are removed by
++  // DADAORegisterInfo::getReservedRegs, not by the class (DADAORegisterInfo.td
++  // "双保险"; the _Allocatable subset only affects getMinimalPhysRegClass
++  // determinism).
++  //
++  // Only "r" is mapped (LLVM-086t scope: unlock, do not define an inline-asm
++  // constraint convention); every other constraint keeps the generic handling.
++  if (Constraint.size() == 1 && Constraint[0] == 'r')
++    return std::make_pair(0u, &DADAO::GPRDRegClass);
++
++  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 +}
 +
 +bool DADAOTargetLowering::CanLowerReturn(

@@ -1,8 +1,8 @@
 diff --git a/meson.build b/meson.build
-index 93daa5d..82ad009 100644
+index 93daa5d..77c043e 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1924,6 +1924,39 @@ foreach libname : libnames
+@@ -1924,6 +1924,38 @@ foreach libname : libnames
    libsrcs += get_variable('src_' + libname, [])
  endforeach
  
@@ -13,7 +13,9 @@ index 93daa5d..82ad009 100644
 +# compiling every source in this build (INFRA-066t); each entry, its failure
 +# signature and its root cause are registered in ISS-193.  Delete entries as the
 +# backend grows -- never extend the list.  LLVM-084t removed the ISS-193 (a)
-+# group (FP unordered-family predicates) after the backend lowered them.
++# group (FP unordered-family predicates) after the backend lowered them, and
++# LLVM-086t removed the (e) group (the inline-asm "r" constraint now accepts
++# pointer values) after the backend's getRegForInlineAsmConstraint landed.
 +_dadao_backend_blocked = []
 +if host_cpu_family == 'dadao'
 +  _dadao_backend_blocked = [
@@ -29,9 +31,6 @@ index 93daa5d..82ad009 100644
 +    # selected; ISS-193 (d).
 +    'vfscanf.c',
 +    'vfwscanf.c',
-+    # inline-asm "r" constraint rejects pointer values; ISS-193 (e).
-+    'memset_explicit.c',
-+    'memset_s.c',
 +    # long-double strtod engine libcall unsupported; ISS-193 (f).
 +    'atold_engine.c',
 +  ]
@@ -42,7 +41,7 @@ index 93daa5d..82ad009 100644
  foreach params : targets
    target = params['name']
    target_dir = params['dir']
-@@ -1939,6 +1972,23 @@ foreach params : targets
+@@ -1939,6 +1971,23 @@ foreach params : targets
      libsrcs_target += get_variable('src_' + libname + target, [])
    endforeach
  

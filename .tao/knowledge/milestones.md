@@ -37,7 +37,7 @@
 | LLVM-082t | 已验证 | 2026-10-12 08:08 | 后端欠账收口（数据指导符唯一集 §7.1 全量收口 + 大小写洞 + 尾调用按裁定 A 登记） |
 | LLVM-084t | 已验证 | 2026-10-12 10:00 | FP 无序谓词收口（`ISS-193`(a)：`SETUO`/`SETO`/`SETONE`/`SETUEQ` + don't-care 码 lowering）；删 30 条源过滤（41→11） |
 | LLVM-085t | 已验证 | 2026-10-12 12:00 | 未定义弱函数 PC 相对引用可链接（REL26 自循环 + `call`→`jump`）；picolibc pass 152→174 / blocked 65→39 |
-| LLVM-086t | 待开始 | — | 内联汇编 `"r"` 约束解锁（ISS-193(e)） |
+| LLVM-086t | 已验证 | 2026-10-12 13:00 | 内联汇编 `"r"` 约束解锁（`ISS-193`(e)）：`getRegForInlineAsmConstraint` 只映射 `"r"`→GPRD + picolibc 过滤表删 (e) 两条；picolibc pass 174→176 / blocked 39→37 |
 | LLVM-087t | 待开始 | — | f32 取整/极值 libcall 注册（ISS-193(b)） |
 | LLVM-088t | 待开始 | — | 截断存储 `trunc f64→f32`（ISS-193(d)） |
 | QEMU-056t | 已验证 | 2026-10-11 19:34 | RAM 基址改 cfx63 段（QEMU/tests/tools/spec 同步） |
