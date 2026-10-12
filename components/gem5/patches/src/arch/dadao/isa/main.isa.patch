@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa/main.isa b/src/arch/dadao/isa/main.isa
 new file mode 100644
-index 0000000..d450a60
+index 0000000..0b9e018
 --- /dev/null
 +++ b/src/arch/dadao/isa/main.isa
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,57 @@
 +// DADAO fixed-width, big-endian decode. Further formats are added as
 +// spec-derived execution vectors are enabled.
 +output header {{
@@ -39,7 +39,25 @@ index 0000000..d450a60
 +}};
 +
 +decode OP default Dadao::unknown() {
++    0x48: Dadao::or_w();
++    0x49: Dadao::andn_w();
++    0x4c: Dadao::set_zw();
++    0x4d: Dadao::set_ow();
 +    0x50: Dadao::add_uo();
 +    0x59: Dadao::add_si();
 +    0x5b: Dadao::add_si_rb();
++    0x5c: Dadao::cmp_ui();
++    0x5d: Dadao::cmp_si();
++    0x68: Dadao::br_n();
++    0x69: Dadao::br_nn();
++    0x6a: Dadao::br_z();
++    0x6b: Dadao::br_nz();
++    0x6c: Dadao::br_p();
++    0x6d: Dadao::br_np();
++    0x6e: Dadao::br_eq();
++    0x6f: Dadao::br_ne();
++    0x70: Dadao::jump_i();
++    0x71: Dadao::jump_r();
++    0x72: Dadao::br_z_rb();
++    0x73: Dadao::br_nz_rb();
 +}

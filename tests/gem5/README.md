@@ -19,3 +19,8 @@ gem5 ISA 期望值读取 `tests/vectors/isa/*.yaml`，指令清单与编码掩�
 未就绪时门控必须失败。
 `make check-gem5-full` 额外要求全部 opcode 具备 active 编码向量；
 剩余执行覆盖将在后续 gem5 任务补足，当前门控不表示全量执行通过。
+
+`GEM5-004t` 的阶段性门控又纳入现有 `reg-imm-block.yaml`、
+`reg-compare.yaml`、`ctrl-br.yaml` 与 `ctrl-jump.yaml` 的代表向量，
+fixture 用可配置指令装载地址在 RAM 执行控制流。当前 50 条运行用例
+只证明已纳入的指令和状态；访存、返回地址栈、ELF 与 semihosting 仍待后续门控。

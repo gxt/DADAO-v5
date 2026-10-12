@@ -26,6 +26,9 @@ parser.add_argument("--expected-rd", default="{}")
 parser.add_argument("--expected-fault", default="none")
 parser.add_argument("--initial-pc", type=lambda s: int(s, 0),
                     default=0xFFFFFFFF0000)
+parser.add_argument("--image-addr", type=lambda s: int(s, 0),
+                    default=0xFFFFFFFF0000)
+parser.add_argument("--expected-pc", type=lambda s: int(s, 0))
 parser.add_argument("--initial-rb", default="{}")
 parser.add_argument("--expected-rb", default="{}")
 args = parser.parse_args()
@@ -55,7 +58,7 @@ system.ram.port = system.membus.mem_side_ports
 system.rom.port = system.membus.mem_side_ports
 system.workload = DadaoBareMetal(
     bootrom=args.rom, initial_rd1=args.initial_rd1,
-    initial_pc=args.initial_pc,
+    initial_pc=args.initial_pc, image_addr=args.image_addr,
 )
 root = Root(full_system=True, system=system)
 m5.instantiate()
@@ -95,7 +98,8 @@ fault_codes = {"none": None, "ILLI": 0x88, "UNDI": 0x89,
                "IALIGN": 0x8d}
 expected_code = fault_codes[args.expected_fault]
 if expected_code is None:
-    ok = event.getCode() == 0 and pc == args.initial_pc + 4
+    target_pc = args.expected_pc if args.expected_pc is not None else args.initial_pc + 4
+    ok = event.getCode() == 0 and pc == target_pc
 else:
     ok = event.getCode() == expected_code and pc == args.initial_pc
 ok &= actual == args.expected_rd1 and rd0 == 0 and rb0 == pc

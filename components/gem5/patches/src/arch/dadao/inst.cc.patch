@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..59dafdf
+index 0000000..ac7ab07
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,169 @@
 +#include "arch/dadao/inst.hh"
 +
 +#include "arch/dadao/regs/int.hh"
@@ -16,15 +16,41 @@ index 0000000..59dafdf
 +
 +namespace gem5::DadaoISAInst
 +{
++namespace
++{
++const char *
++instructionName(unsigned op)
++{
++    switch (op) {
++      case 0x48: return "or.w";
++      case 0x49: return "andn.w";
++      case 0x4c: return "set.zw";
++      case 0x4d: return "set.ow";
++      case 0x50: return "add.uo";
++      case 0x59: case 0x5b: return "add.si";
++      case 0x5c: return "cmp.ui";
++      case 0x5d: return "cmp.si";
++      case 0x68: return "br.n";
++      case 0x69: return "br.nn";
++      case 0x6a: case 0x72: return "br.z";
++      case 0x6b: case 0x73: return "br.nz";
++      case 0x6c: return "br.p";
++      case 0x6d: return "br.np";
++      case 0x6e: return "br.eq";
++      case 0x6f: return "br.ne";
++      case 0x70: case 0x71: return "jump";
++      default: return "unknown";
++    }
++}
++}
++
 +DadaoInst::DadaoInst(DadaoISA::ExtMachInst w)
-+    : StaticInst(((w >> 24) == 0x59 || (w >> 24) == 0x5b) ? "add.si" :
-+                 (w >> 24) == 0x50 ? "add.uo" : "unknown", IntAluOp),
++    : StaticInst(instructionName(w >> 24), IntAluOp),
 +      word(w)
 +{
 +    size(4);
 +    flags[IsInteger] = true;
-+    if ((w >> 24) != 0x59 && (w >> 24) != 0x5b &&
-+        (w >> 24) != 0x50) {
++    if (instructionName(w >> 24) == std::string("unknown")) {
 +        flags[IsInvalid] = true;
 +        flags[IsNonSpeculative] = true;
 +    }
@@ -58,7 +84,70 @@ index 0000000..59dafdf
 +            tc->setReg(DadaoISA::intRegClass[DadaoISA::int_reg::RdBase + i],
 +                    value);
 +    };
-+    if (op == 0x59 || op == 0x5b) {
++    auto rb = [tc](unsigned i) {
++        return tc->getReg(DadaoISA::intRegClass[DadaoISA::int_reg::RbBase + i]);
++    };
++    auto branch = [tc](uint64_t target) {
++        auto pc = tc->pcState().as<DadaoISA::PCState>();
++        pc.npc(target & 0xffffffffffffULL);
++        tc->pcState(pc);
++    };
++    if (op >= 0x68 && op <= 0x73) {
++        const unsigned hb = (word >> 12) & 63;
++        const int64_t imms18 = static_cast<int32_t>(word << 14) >> 14;
++        const int64_t imms12 = static_cast<int32_t>(word << 20) >> 20;
++        const int64_t imms24 = static_cast<int32_t>(word << 8) >> 8;
++        bool taken = false;
++        int64_t offset = imms18;
++        switch (op) {
++          case 0x68: taken = static_cast<int64_t>(rd(ha)) < 0; break;
++          case 0x69: taken = static_cast<int64_t>(rd(ha)) >= 0; break;
++          case 0x6a: taken = rd(ha) == 0; break;
++          case 0x6b: taken = rd(ha) != 0; break;
++          case 0x6c: taken = static_cast<int64_t>(rd(ha)) > 0; break;
++          case 0x6d: taken = static_cast<int64_t>(rd(ha)) <= 0; break;
++          case 0x6e: taken = rd(ha) == rd(hb); offset = imms12; break;
++          case 0x6f: taken = rd(ha) != rd(hb); offset = imms12; break;
++          case 0x70: taken = true; offset = imms24; break;
++          case 0x71:
++            taken = true;
++            branch(rb(ha) + rd(hb) + (uint64_t(imms12) << 2));
++            break;
++          case 0x72: taken = rb(ha) == 0; break;
++          case 0x73: taken = rb(ha) != 0; break;
++        }
++        if (taken && op != 0x71)
++            branch(rb(0) + (uint64_t(offset) << 2));
++    } else if (op == 0x48 || op == 0x49 || op == 0x4c || op == 0x4d) {
++        if (ha == 0)
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        const uint64_t value = uint64_t(word & 0xffff) <<
++                               (16 * ((word >> 16) & 3));
++        const uint64_t lane_mask = 0xffffULL <<
++                                   (16 * ((word >> 16) & 3));
++        uint64_t result = 0;
++        switch (op) {
++          case 0x48: result = rd(ha) | value; break;
++          case 0x49: result = rd(ha) & ~value; break;
++          case 0x4c: result = value; break;
++          case 0x4d: result = ~lane_mask | value; break;
++          default: break;
++        }
++        set_rd(ha, result);
++    } else if (op == 0x5c || op == 0x5d) {
++        if (ha == 0)
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        const unsigned hb = (word >> 12) & 63;
++        const uint64_t immu12 = word & 0xfff;
++        const int64_t imms12 = static_cast<int32_t>(word << 20) >> 20;
++        int cmp;
++        if (op == 0x5c)
++            cmp = (rd(hb) > immu12) - (rd(hb) < immu12);
++        else
++            cmp = (static_cast<int64_t>(rd(hb)) > imms12) -
++                  (static_cast<int64_t>(rd(hb)) < imms12);
++        set_rd(ha, static_cast<uint64_t>(cmp));
++    } else if (op == 0x59 || op == 0x5b) {
 +        if (ha == 0)
 +            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
 +        const int64_t imm = static_cast<int32_t>(word << 14) >> 14;

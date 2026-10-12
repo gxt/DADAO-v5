@@ -48,7 +48,27 @@ def main() -> int:
     rb_arithmetic = [x for x in vectors if x.get("id") == "add.si_riii_rb"
                      and x.get("class") in {"semantic", "legality"}
                      and x.get("status") == "active"]
-    cases += arithmetic + rb_arithmetic + reserved
+    scalar_ids = {
+        "or.w_rwii_rd", "andn.w_rwii_rd", "set.zw_rwii_rd",
+        "set.ow_rwii_rd", "cmp.ui_rrii_rd", "cmp.si_rrii_rd",
+    }
+    scalar = []
+    for filename in ("reg-imm-block.yaml", "reg-compare.yaml"):
+        scalar.extend(x for x in yaml.safe_load(
+            (ROOT / "tests/vectors/isa" / filename).read_text())
+            if x.get("id") in scalar_ids
+            and x.get("class") in {"semantic", "legality"}
+            and x.get("status") == "active")
+    control = []
+    for filename in ("ctrl-br.yaml", "ctrl-jump.yaml"):
+        control.extend(x for x in yaml.safe_load(
+            (ROOT / "tests/vectors/isa" / filename).read_text())
+            if x.get("class") == "semantic"
+            and x.get("status") == "active")
+    for case in control:
+        case["initial_pc"] = 0xFC0000000000
+        case["image_addr"] = 0xFC0000000000
+    cases += arithmetic + rb_arithmetic + scalar + control + reserved
     # SimRISC-04: imms18 is signed; 0x3ffff sign-extends to -1.
     cases.append({"encoding": {"word": "0x5907ffff"},
                   "input_state": {"rd": {"rd1": "0x0"}},
@@ -81,7 +101,10 @@ def main() -> int:
             "--expected-rb", json.dumps(expected_rb),
             "--expected-fault", case.get("expected_fault") or "none",
             "--initial-pc", hex(case.get("initial_pc", 0xFFFFFFFF0000)),
+            "--image-addr", hex(case.get("image_addr", 0xFFFFFFFF0000)),
         ]
+        if case.get("expected_pc") is not None:
+            command += ["--expected-pc", case["expected_pc"]]
         print(f"gem5-isa: vector {number} word={word:#010x}", flush=True)
         result = subprocess.run(command, timeout=30, check=False)
         if result.returncode:

@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/bare_metal.cc b/src/arch/dadao/bare_metal.cc
 new file mode 100644
-index 0000000..4bc81c6
+index 0000000..61b9eb5
 --- /dev/null
 +++ b/src/arch/dadao/bare_metal.cc
 @@ -0,0 +1,125 @@
@@ -32,7 +32,7 @@ index 0000000..4bc81c6
 +        std::istreambuf_iterator<char>(image), std::istreambuf_iterator<char>()};
 +    fatal_if(bytes.empty() || bytes.size() > 65536,
 +            "DADAO boot ROM must contain 1..65536 bytes");
-+    system->physProxy.writeBlob(p.reset_addr, bytes.data(), bytes.size());
++    system->physProxy.writeBlob(p.image_addr, bytes.data(), bytes.size());
 +
 +    for (auto *tc : system->threads) {
 +        tc->pcState(PCState(p.initial_pc));
