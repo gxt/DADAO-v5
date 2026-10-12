@@ -54,7 +54,7 @@
 | SPEC-135t | 已验证 | 2026-10-13 00:18 | 未定义弱符号口径固化（`ADR-0019` 就地追加 `D9` + `contract-elf §3.3` 正文） |
 | TESTCASES-042t | 已验证 | 2026-10-12 03:29 | picolibc 自带 test 接入 |
 | INFRA-072m | 里程碑 | 2026-10-13 02:00 | M7 infra 模块里程碑核验（6 模块 `m` 之一） |
-| SPEC-136m | 待开始 | — | M7 spec 模块里程碑核验 |
+| SPEC-136m | 待开始 | — | M7 spec 模块里程碑核验（**未通过：`ISS-201` 待用户逐条确认**） |
 | LLVM-090m | 里程碑 | 2026-10-13 01:32 | M7 llvm 模块里程碑核验 |
 | QEMU-059m | 里程碑 | 2026-10-13 01:50 | M7 qemu 模块里程碑核验 |
 | TESTCASES-043m | 里程碑 | 2026-10-13 01:13 | M7 testcases 模块里程碑核验（含用户裁定「记为达成」+ 现场四数） |
@@ -90,6 +90,7 @@
   - **子代理 workdir 作用域 + 权限 fail-fast（用户 2026-10-11 裁定）**：越界 `cd`（绝对 / `~` / `..`）由"无人应答的 ask"改 **hard-deny**（fail-fast）；规则层钉 workdir **已落地 ✅**；**已立项 `INFRA-065t`**。权限层 = **agent frontmatter `external_directory` deny**（**当前服务下未生效 ⏳**，canary3 实为 `ask` + 用户人工 reject；`message` 字面不可区分、`POST /api/location/reload` 未见效）；`experimental.policies` 已撤销（v2.0.22 schema 不接受 `action:"permission"`）。
   - **`INFRA-065t` 待复验（待办 · 用户操作）**：出界 `cd` fail-fast 在当前服务下**未生效**（agent frontmatter `external_directory` deny + `POST /api/location/reload` 无效）⇒ **用户操作：`opencode service restart` → 越界 `cd` canary 复验**（期望：不弹询问、命令未执行 = 生效）；登记 `ISS-199`（open）。**核验归 `INFRA-072m`**。
   - **`INFRA-070t` Phase B 待授权（待办 · 用户裁定）**：9 个 `contract-*.md` → `contracts/` 因引用冲突（只读锁册 / `contracts/` 内嵌字段 / 范围外目录）**需用户逐条授权** ⇒ 已立 **`INFRA-071t`**（`待开始`，依赖用户授权）；登记 **`ISS-202`**（open）。裁定后由主会话 `/dispatch`。**核验归 `INFRA-072m`**。
+  - **`SPEC-136m` 待裁定（待办 · 用户裁定）**：M7 spec 模块里程碑核验**未通过**——`ISS-201`（open，`scope: spec`）未处置 ⇒ **待用户逐条确认**是否把未定义弱符号**防御分支**补入 **`ADR-0019 D9`** / **`contract-elf §3.3`**（改已确认 `D9` 须逐条确认）。裁定后由主会话 `/dispatch`。**核验归 `SPEC-136m`**。
 
 - **M7 候选主题（用户 2026-10-11）**：`musl` + **`pk`(proxy kernel)** + **更完整测试向量** + **benchmark**；**须分层、不混**：
   - **运行环境层**：`pk`（加载 ELF + trap/异常/syscall 转发）；**linux-user（qemu-user）列候选/后置**；

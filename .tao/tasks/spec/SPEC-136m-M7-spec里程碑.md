@@ -42,14 +42,29 @@
 - 计数不写死：一律现场统计，或写「不下降 / 逐项相等」。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：L1 `make check` rc=0；L2 `make check-modules` rc=0；`check-no-residue` rc=0；`check_issues` rc=0（25 open / 12 closed）
+**修改文件**：无（核验类任务，无实现）
+**验收结果**：**未通过**——`ISS-201`（open, scope: spec）未处置，阻塞里程碑
+**新发现/坑**：无新发现
+**遗留问题**：`ISS-201` 须用户逐条确认是否将防御分支口径补入 `ADR-0019 D9` / `contract-elf §3.3`
 
 ## 审阅记录
 
 #### 第 1 轮 architect 规划（2026-10-13）
 - 立本 `m` 核验任务书（M7 spec 模块里程碑）；M7 口径 4 条逐条引用 `milestones.md` M7 段落 + `INTEG-033k`；含跨模块影响（点 `ISS-201`/`202` 等）与「有未处置 ⇒ 不得置里程碑」纪律；执行方式 = reviewer 独立核验 + architect 记录/提交。
 - **编号依据**：`spec` 现场最大 `SPEC-135t` ⇒ 本 `m` = `SPEC-136m`（模块内跨后缀递增）。
+
+#### 第 1 轮 reviewer 验收（2026-10-13）
+- **门控 rc**：L1 `make check` rc=0；L2 `make check-modules` rc=0；`check-no-residue` rc=0；`check_issues` rc=0（25 open / 12 closed）
+- **口径逐条核**：
+  - 口径1（过渡 oracle + semihosting cfxha）：`contract-semihosting.md §1` 含 cfxha/trap 判定（L17-20）；`Machine-01 §5` 含 semihosting 正文（L103-194）；`docs/Process-05 §2.1` 含过渡 oracle 四类边界（L23-36）；`SPEC-131t`=`已验证` ✅
+  - 口径2（21 册标题章节号）：`check-spec-numbering` PASS（21 册编号唯一且连续）；`SPEC-133t`=`已验证` ✅
+  - 口径3（21 册附录变更记录）：`check-spec-changelog` PASS（21 册附录存在/逆序/册头一致）；`SPEC-134t`=`已验证` ✅
+  - 口径4（ADR-0019 D9 + contract-elf §3.3）：`ADR-0019` D9 存在（L46-47）；`contract-elf.md §3.3` 存在（L125-132）；`SPEC-135t`=`已验证` ✅
+- **跨模块未处置项**：
+  - `ISS-201`（open, scope: spec）：未定义弱符号防御分支（`R_DADAO_REL26` 落点非 call/jump 时报错）未入 `D9`/`§3.3`；须**用户逐条确认**才能改已确认的 D9 ⇒ **不得置里程碑**
+  - `ISS-202`（open, scope: infra）：contract 迁移待用户授权，非 spec 模块阻塞
+  - `ISS-190`/`ISS-192`/`ISS-160`/`ISS-126`（open）：既有问题，非 M7 引入，不阻塞本里程碑
+- **反例注入**：改 `contract-semihosting.md` 版本 0.7.1→0.7.0 ⇒ `check-spec-drift` FAIL rc=1；`cp` 还原 md5=`f1145518…` 对账一致 ⇒ 回绿 rc=0；`git status` 干净
+- **里程碑核验结论**：**未通过**——`ISS-201`（open, scope: spec）未处置，按 `AGENTS.md`「模块里程碑与跨模块交互」不得置里程碑
+- **越界/遗留**：无越界；`ISS-201` 待用户裁定
