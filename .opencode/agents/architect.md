@@ -12,6 +12,14 @@ permissions:
   - action: shell
     resource: "git push *"
     effect: deny
+  # 【未生效（INFRA-065t）：canary3 实为 `ask` + 用户人工 reject（`message` 字面与"真 deny"不可区分）；原因 = 当前服务未吃进配置 ⇒ 待 `opencode service restart` 后复验】两条 deny 保留（作待验证规则）。
+  # 越界 `cd` 的 ask 来自 `external_directory` 动作（非 `shell`）；agent 规则叠加不替换全局。
+  - action: external_directory
+    resource: "/mnt/tao/*"
+    effect: deny
+  - action: external_directory
+    resource: "/home/ubuntu/tao/*"
+    effect: deny
 ---
 
 # 规则：架构师（规划）
@@ -237,5 +245,6 @@ permissions:
 ## 边界
 
 - 只做规划与拆解，不写实现代码
+- 命令一律在 **workdir（= 仓库根）** 内、用**相对路径**；**禁出界** `cd /*`、`cd ~*`、`cd ..*`；换目录用工具的 **`workdir` 参数**。
 - 任务拆分粒度：每个任务可独立验收、可被单个 engineer 完成
 - 需求不清晰时先提问澄清，不猜测

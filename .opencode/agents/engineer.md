@@ -9,6 +9,14 @@ permissions:
   - action: shell
     resource: "sudo *"
     effect: deny
+  # 【未生效（INFRA-065t）：canary3 实为 `ask` + 用户人工 reject（`message` 字面与"真 deny"不可区分）；原因 = 当前服务未吃进配置 ⇒ 待 `opencode service restart` 后复验】两条 deny 保留（作待验证规则）。
+  # 越界 `cd` 的 ask 来自 `external_directory` 动作（非 `shell`）；agent 规则叠加不替换全局。
+  - action: external_directory
+    resource: "/mnt/tao/*"
+    effect: deny
+  - action: external_directory
+    resource: "/home/ubuntu/tao/*"
+    effect: deny
 ---
 
 # 规则：工程师（实现子代理）
@@ -154,6 +162,7 @@ permissions:
 
 ## 禁止事项
 
+- 命令一律在 **workdir（= 仓库根）** 内、用**相对路径**；**禁出界** `cd /*`、`cd ~*`、`cd ..*`；换目录用工具的 **`workdir` 参数**。
 - 不得修改任务文档未列出的文件
 - 不得改变已有函数签名（除非明确要求）
 - 不得引入新的外部依赖

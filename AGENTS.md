@@ -131,3 +131,4 @@ DADAO-v5/
 9. **用户裁定落盘**：子代理取得用户裁定后须把**用户原话（或问答摘要）原样写入任务书**（子会话问答对父会话不可见）。
 10. **提交权归 architect**：engineer/reviewer 不提交；其每次返回后 architect 在本任务分支内判断并 `commit`（Accepted ⇒ 正常；否则 `WIP:`）；显式 staging + 与完成区「修改文件」对账；**禁 `push`**。
 11. **反例注入的还原纪律**：**禁** `git checkout`/`git restore`/`git stash`/`git show <commit>:<path>` 还原（会清未提交改动）；一律 `cp` 备份 + md5 对账，或优先临时树注入；`git status`/`git diff` 干净**不作**「已还原」证据。
+12. **命令作用域 = workdir（= 仓库根）**：命令一律在 workdir 内、用**相对路径**；**禁出界** `cd /*`、`cd ~*`、`cd ..*`；换目录用工具的 **`workdir` 参数**。

@@ -9,6 +9,14 @@ permissions:
   - action: shell
     resource: "sudo *"
     effect: deny
+  # 【未生效（INFRA-065t）：canary3 实为 `ask` + 用户人工 reject（`message` 字面与"真 deny"不可区分）；原因 = 当前服务未吃进配置 ⇒ 待 `opencode service restart` 后复验】两条 deny 保留（作待验证规则）。
+  # 越界 `cd` 的 ask 来自 `external_directory` 动作（非 `shell`）；agent 规则叠加不替换全局。
+  - action: external_directory
+    resource: "/mnt/tao/*"
+    effect: deny
+  - action: external_directory
+    resource: "/home/ubuntu/tao/*"
+    effect: deny
 ---
 
 # 规则：审查者（reviewer）
@@ -93,6 +101,7 @@ permissions:
 
 ## 边界
 
+- 命令一律在 **workdir（= 仓库根）** 内、用**相对路径**；**禁出界** `cd /*`、`cd ~*`、`cd ..*`；换目录用工具的 **`workdir` 参数**。
 - 你只审工程师本次任务的产出，对照任务的验收标准与约束
 - 发现设计层/路线层的阻断问题（不只是实现细节），在审查里标注为阻断，供架构师定夺，不要自行放行
 - **不要替架构师做最终接受决定**——你的 Accepted 是"工程师达标"的证据，架构师仍会终审

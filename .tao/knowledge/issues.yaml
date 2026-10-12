@@ -391,3 +391,12 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `QEMU-058t` reviewer 第 1 轮非阻断建议① + architect 复核，2026-10-12）】**性质 = 测试覆盖缺口**（非缺陷；规则已按宿主实测设为 `float_2nan_prop_ab`，见 `QEMU-058t`）。**现象**：reviewer 独立注入**判别性错误规则** `ab→s_ba`（`cp`+md5，`fd16d8ee…→0f68de69…`）重建后，`ISS-195` 家族 **8 条 test 仍全 `pass`、不触发 FAIL** ⇒ 若该规则设错，**现有测试集不会发现**（picolibc 不观察 2-NaN payload 选谁）。**当前唯一背书** = 宿主（x86_64 标量 SSE，`addss/subss/mulss/divss`）实测：`(qNaN_a,sNaN_b)` 返回 **a** 的 NaN（sNaN 则 quiet）⇒ 等价 `float_2nan_prop_ab`（**非** IEEE 754-2019 §6.2.3 推荐的 `s_ab`）。**建议（独立 oracle）**：补 1 条 **payload 断言向量**——构造 `(qNaN_a, sNaN_b)` 的 FP 运算（add/sub/mul/div 各取一），断言结果 **payload = a 的 payload** 且 sNaN 被 quiet；该向量须**独立派生**、不依赖 QEMU/Python 实现。**只登记，不建任务**。证据指针：`.tao/tasks/qemu/QEMU-058t-*.md`「第 1 轮 reviewer 验收」第 8 条（注入 A 不触发）+ 判决「非阻断建议①」。"
+
+
+- id: ISS-199
+  title: "出界 `cd` fail-fast 在当前服务下未生效（agent frontmatter `external_directory` deny + `POST /api/location/reload` 无效）⇒ 待 `opencode service restart` 后复验"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `INFRA-065t` 订正返工，2026-10-12；据用户更正 + canary 实测）】**现象**：`INFRA-065t` 加的 agent frontmatter `external_directory` deny（三 agent 各 `/mnt/tao/*`、`/home/ubuntu/tao/*`）**在当前服务下未生效**——越界 `cd /mnt/tao` 经子代理仍走 `ask`（`POST /api/location/reload` 执行后行为无变化）⇒ 夜跑无人应答仍会挂死。**判据更正（关键）**：`permission.rejected` 的 `message` 字面**不能**区分「真 `deny`」与「`ask` + 人工 reject」（人工 reject 同样返回 `message=\"Permission denied: external_directory\"`）⇒ **判生效唯一可靠依据 = 用户观察是否弹询问**；canary3 实为 `ask` + 用户人工 reject（用户更正），reviewer 自查拿到同一 `message` ⇒ 二者**均不作生效证据**（不采信）。**根因（当前判断）**：当前 harness/服务未吃进配置（`/api/config` 快照仍旧、`location.reload` 不够）⇒ **只能靠服务重启生效**。**待复验步骤（用户操作）**：`opencode service restart` → 起子代理跑越界 `cd /mnt/tao` → **用户观察是否弹询问**（不弹 + 命令未执行 ⇒ 生效）。**范围**：三 agent workdir 硬约束 + 权限 deny；全局层加固（`~/.config/opencode/opencode.jsonc` 加 `/mnt/*`、`/home/ubuntu/tao/*` deny，仓库外、主会话写入）**同样需服务重启生效**。**性质 = 配置生效途径缺口**（规则层已落地；权限层待复验）。**登记，不建任务**。证据：`.tao/tasks/infra/INFRA-065t-*.md`（§输出 1 纠正链 + 完成区）+ `.work/evidence/<任务ID>/run.sh`。"
