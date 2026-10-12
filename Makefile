@@ -49,7 +49,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-lit-full \
         test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
-        check-tasks check-spec-codeblocks check-legality-invariants
+        check-tasks check-spec-codeblocks check-legality-invariants \
+        check-isa-coverage check-spec-numbering check-spec-changelog
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -96,6 +97,9 @@ help:
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (L1; INFRA-011t/058t)"
+	@echo "  make check-isa-coverage  ISA<->backend coverage matrix drift gate (L1; LLVM-081t/INFRA-069t)"
+	@echo "  make check-spec-numbering  Check 21-volume heading numbering structure (L1; SPEC-133t/INFRA-069t)"
+	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
@@ -438,7 +442,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-spec-numbering check-spec-changelog check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -460,6 +464,17 @@ validate-vectors: contracts/opcodes.yaml
 # spec drift check (INFRA-012t): fail-closed provenance audit for contract-*.md.
 check-spec-drift:
 	@$(PYTHON) tools/infra/check_spec_drift.py
+
+# 21-volume heading numbering gate (SPEC-133t; INFRA-069t 并入 L1): depth <= 4,
+# `N`/`N.M`/`N.M.K` shape, per-volume uniqueness + contiguity, no orphan parent.
+check-spec-numbering:
+	@$(PYTHON) tools/spec/check_numbering.py
+
+# 21-volume appendix changelog gate (SPEC-134t; INFRA-069t 并入 L1): appendix
+# exists and is last, version segments strictly reversed, header consistency,
+# no table rows / task-ids.  Counts are recomputed live, never hardcoded.
+check-spec-changelog:
+	@$(PYTHON) tools/spec/check_spec_changelog.py
 
 # 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 docs/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:
@@ -748,6 +763,14 @@ validate-encoding: contracts/opcodes.yaml
 # no .work/source checkout needed.
 check-instrinfo:
 	@$(PYTHON) tools/llvm/validate_instrinfo.py
+
+# ISA<->backend coverage matrix drift gate (LLVM-081t; INFRA-069t 并入 L1):
+# regenerates the two-layer projection from contracts/opcodes.yaml + the DADAO
+# patch tree and byte-compares it against the committed matrix; drift => FAIL
+# (lessons §2.11: generated projections need a drift gate).  Needs llvm-mc
+# (run 'make install-host' first); counts are recomputed live, never hardcoded.
+check-isa-coverage:
+	@$(PYTHON) tools/llvm/gen_isa_coverage.py --check
 
 # Scope partition gate (SPEC-086t/089t): opcodes.yaml scope ∈ {m1,fp,excluded},
 # counts 152/60/15/227, excluded <=> decode ILLI (m1/fp carry none),

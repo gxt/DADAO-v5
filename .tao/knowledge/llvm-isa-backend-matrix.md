@@ -26,7 +26,7 @@
 | `pat-args` | `def`/`defm` 的 Pat 类实参（含 `multiclass` 经 `defm` 传入的指令） | `DADAOCodeGen.td.patch` |
 | `isel-cpp` | `DADAO::<def>` 显式引用（自定义选择器 / lowering 发射） | `DADAOISelDAGToDAG.cpp.patch`、`DADAOISelLowering.cpp.patch` |
 
-现场统计：证据条数 = isel-cpp 15 + pat 87 + pat-args 8；判「用得上」的记录 **86** 条。
+现场统计：证据条数 = isel-cpp 15 + pat 97 + pat-args 8；判「用得上」的记录 **86** 条。
 
 ### 提取方法的局限（盲区披露）
 
@@ -54,7 +54,7 @@
 | `add.uo_rrrr_rd` | `add.uo` | `rrrr` | `m1` | accept | no | — |
 | `add.ut_orrr_rd` | `add.ut` | `orrr` | `m1` | accept | no | — |
 | `add.uw_orrr_rd` | `add.uw` | `orrr` | `m1` | accept | no | — |
-| `and.o_orrr_rd` | `and.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:333:and_o |
+| `and.o_orrr_rd` | `and.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:333:and_o;pat:DADAOCodeGen.td.patch:608:and_o |
 | `andn.w_rwii_rb` | `andn.w` | `rwii` | `m1` | accept | no | — |
 | `andn.w_rwii_rd` | `andn.w` | `rwii` | `m1` | accept | no | — |
 | `br.eq_rrii_rd` | `br.eq` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:491:br_eq_rd |
@@ -74,7 +74,7 @@
 | `cfxld_crii_cfx` | `cfxld` | `crii` | `excluded` | reject | no | — |
 | `cfxst_crii_cfx` | `cfxst` | `crii` | `excluded` | reject | no | — |
 | `cmp.sb_orrr_rd` | `cmp.sb` | `orrr` | `m1` | accept | no | — |
-| `cmp.si_rrii_rd` | `cmp.si` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:472:cmp_si_rd |
+| `cmp.si_rrii_rd` | `cmp.si` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:472:cmp_si_rd;pat:DADAOCodeGen.td.patch:604:cmp_si_rd;pat:DADAOCodeGen.td.patch:606:cmp_si_rd;pat:DADAOCodeGen.td.patch:608:cmp_si_rd;pat:DADAOCodeGen.td.patch:612:cmp_si_rd |
 | `cmp.so_orrr_rd` | `cmp.so` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:471:cmp_so |
 | `cmp.st_orrr_rd` | `cmp.st` | `orrr` | `m1` | accept | no | — |
 | `cmp.sw_orrr_rd` | `cmp.sw` | `orrr` | `m1` | accept | no | — |
@@ -87,13 +87,13 @@
 | `cs.eq_rrrr_rd` | `cs.eq` | `rrrr` | `m1` | accept | no | — |
 | `cs.eq_rrrr_rf` | `cs.eq` | `rrrr` | `fp` | accept | no | — |
 | `cs.n_rrrr_rd` | `cs.n` | `rrrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:498:cs_n_rd |
-| `cs.n_rrrr_rf` | `cs.n` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:508:cs_n_rrrr_rf;pat:DADAOCodeGen.td.patch:514:cs_n_rrrr_rf;pat-args:DADAOCodeGen.td.patch:599:cs_n_rrrr_rf;pat-args:DADAOCodeGen.td.patch:602:cs_n_rrrr_rf |
+| `cs.n_rrrr_rf` | `cs.n` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:508:cs_n_rrrr_rf;pat:DADAOCodeGen.td.patch:514:cs_n_rrrr_rf;pat-args:DADAOCodeGen.td.patch:618:cs_n_rrrr_rf;pat-args:DADAOCodeGen.td.patch:621:cs_n_rrrr_rf |
 | `cs.ne_rrrr_rd` | `cs.ne` | `rrrr` | `m1` | accept | no | — |
 | `cs.ne_rrrr_rf` | `cs.ne` | `rrrr` | `fp` | accept | no | — |
-| `cs.p_rrrr_rd` | `cs.p` | `rrrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:500:cs_p_rd |
-| `cs.p_rrrr_rf` | `cs.p` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:512:cs_p_rrrr_rf;pat:DADAOCodeGen.td.patch:518:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:600:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:603:cs_p_rrrr_rf |
-| `cs.z_rrrr_rd` | `cs.z` | `rrrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:499:cs_z_rd |
-| `cs.z_rrrr_rf` | `cs.z` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:510:cs_z_rrrr_rf;pat:DADAOCodeGen.td.patch:516:cs_z_rrrr_rf;pat-args:DADAOCodeGen.td.patch:599:cs_z_rrrr_rf;pat-args:DADAOCodeGen.td.patch:602:cs_z_rrrr_rf |
+| `cs.p_rrrr_rd` | `cs.p` | `rrrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:500:cs_p_rd;pat:DADAOCodeGen.td.patch:608:cs_p_rd;pat:DADAOCodeGen.td.patch:612:cs_p_rd |
+| `cs.p_rrrr_rf` | `cs.p` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:512:cs_p_rrrr_rf;pat:DADAOCodeGen.td.patch:518:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:619:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:622:cs_p_rrrr_rf |
+| `cs.z_rrrr_rd` | `cs.z` | `rrrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:499:cs_z_rd;pat:DADAOCodeGen.td.patch:609:cs_z_rd;pat:DADAOCodeGen.td.patch:613:cs_z_rd |
+| `cs.z_rrrr_rf` | `cs.z` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:510:cs_z_rrrr_rf;pat:DADAOCodeGen.td.patch:516:cs_z_rrrr_rf;pat-args:DADAOCodeGen.td.patch:618:cs_z_rrrr_rf;pat-args:DADAOCodeGen.td.patch:621:cs_z_rrrr_rf |
 | `div.sb_orrr_rd` | `div.sb` | `orrr` | `m1` | accept | no | — |
 | `div.so_orrr_rd` | `div.so` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:361:div_so |
 | `div.st_orrr_rd` | `div.st` | `orrr` | `m1` | accept | no | — |
@@ -109,16 +109,16 @@
 | `ext.uo_orrr_rd` | `ext.uo` | `orrr` | `m1` | accept | no | — |
 | `fence_oiii_imm` | `fence` | `oiii` | `excluded` | accept | no | — |
 | `fo2fo_orri_rf` | `fo2fo` | `orri` | `fp` | accept | no | — |
-| `fo2ft_orri_rf` | `fo2ft` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:618:fo2ft_orri_rf |
-| `fo2io_orri_rf` | `fo2io` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:624:fo2io_orri_rf |
+| `fo2ft_orri_rf` | `fo2ft` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:637:fo2ft_orri_rf |
+| `fo2io_orri_rf` | `fo2io` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:643:fo2io_orri_rf |
 | `fo2it_orri_rf` | `fo2it` | `orri` | `fp` | accept | no | — |
-| `fo2uo_orri_rf` | `fo2uo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:626:fo2uo_orri_rf |
+| `fo2uo_orri_rf` | `fo2uo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:645:fo2uo_orri_rf |
 | `fo2ut_orri_rf` | `fo2ut` | `orri` | `fp` | accept | no | — |
 | `foadd_orrr_rf` | `foadd` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:533:foadd_orrr_rf |
 | `focls_orri_rf` | `focls` | `orri` | `fp` | accept | no | — |
 | `fodiv_orrr_rf` | `fodiv` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:536:fodiv_orrr_rf |
 | `fomul_orrr_rf` | `fomul` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:535:fomul_orrr_rf |
-| `foqcmp_orrr_rf` | `foqcmp` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:562:foqcmp_orrr_rf;pat-args:DADAOCodeGen.td.patch:599:foqcmp_orrr_rf |
+| `foqcmp_orrr_rf` | `foqcmp` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:562:foqcmp_orrr_rf;pat-args:DADAOCodeGen.td.patch:618:foqcmp_orrr_rf |
 | `forem_orrr_rf` | `forem` | `orrr` | `fp` | accept | no | — |
 | `foroot_orri_rf` | `foroot` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:538:foroot_orri_rf |
 | `fosclb_orrr_rf` | `fosclb` | `orrr` | `fp` | accept | no | — |
@@ -126,17 +126,17 @@
 | `fosgnj_orrr_rf` | `fosgnj` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:549:fosgnj_orrr_rf;pat:DADAOCodeGen.td.patch:551:fosgnj_orrr_rf |
 | `fosgnn_orrr_rf` | `fosgnn` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:540:fosgnn_orrr_rf |
 | `fosub_orrr_rf` | `fosub` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:534:fosub_orrr_rf |
-| `ft2fo_orri_rf` | `ft2fo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:617:ft2fo_orri_rf |
+| `ft2fo_orri_rf` | `ft2fo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:636:ft2fo_orri_rf |
 | `ft2ft_orri_rf` | `ft2ft` | `orri` | `fp` | accept | no | — |
-| `ft2io_orri_rf` | `ft2io` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:625:ft2io_orri_rf |
+| `ft2io_orri_rf` | `ft2io` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:644:ft2io_orri_rf |
 | `ft2it_orri_rf` | `ft2it` | `orri` | `fp` | accept | no | — |
-| `ft2uo_orri_rf` | `ft2uo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:627:ft2uo_orri_rf |
+| `ft2uo_orri_rf` | `ft2uo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:646:ft2uo_orri_rf |
 | `ft2ut_orri_rf` | `ft2ut` | `orri` | `fp` | accept | no | — |
 | `ftadd_orrr_rf` | `ftadd` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:554:ftadd_orrr_rf |
 | `ftcls_orri_rf` | `ftcls` | `orri` | `fp` | accept | no | — |
 | `ftdiv_orrr_rf` | `ftdiv` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:557:ftdiv_orrr_rf |
 | `ftmul_orrr_rf` | `ftmul` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:556:ftmul_orrr_rf |
-| `ftqcmp_orrr_rf` | `ftqcmp` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:563:ftqcmp_orrr_rf;pat-args:DADAOCodeGen.td.patch:602:ftqcmp_orrr_rf |
+| `ftqcmp_orrr_rf` | `ftqcmp` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:563:ftqcmp_orrr_rf;pat-args:DADAOCodeGen.td.patch:621:ftqcmp_orrr_rf |
 | `ftrem_orrr_rf` | `ftrem` | `orrr` | `fp` | accept | no | — |
 | `ftroot_orri_rf` | `ftroot` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:558:ftroot_orri_rf |
 | `ftsclb_orrr_rf` | `ftsclb` | `orrr` | `fp` | accept | no | — |
@@ -144,8 +144,8 @@
 | `ftsgnj_orrr_rf` | `ftsgnj` | `orrr` | `fp` | accept | no | — |
 | `ftsgnn_orrr_rf` | `ftsgnn` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:559:ftsgnn_orrr_rf |
 | `ftsub_orrr_rf` | `ftsub` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:555:ftsub_orrr_rf |
-| `io2fo_orri_rf` | `io2fo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:631:io2fo_orri_rf |
-| `io2ft_orri_rf` | `io2ft` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:632:io2ft_orri_rf |
+| `io2fo_orri_rf` | `io2fo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:650:io2fo_orri_rf |
+| `io2ft_orri_rf` | `io2ft` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:651:io2ft_orri_rf |
 | `it2fo_orri_rf` | `it2fo` | `orri` | `fp` | accept | no | — |
 | `it2ft_orri_rf` | `it2ft` | `orri` | `fp` | accept | no | — |
 | `jump_iiii_rb` | `jump` | `iiii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:426:tailjmp_iiii;pat:DADAOCodeGen.td.patch:521:jump_iiii |
@@ -153,11 +153,11 @@
 | `ld.o_rrii_ra` | `ld.o` | `rrii` | `m1` | accept | no | — |
 | `ld.o_rrii_rb` | `ld.o` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:329:ld_o_rb |
 | `ld.o_rrii_rd` | `ld.o` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:429:ld_o_rd |
-| `ld.o_rrii_rf` | `ld.o` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:607:ld_o_rrii_rf |
+| `ld.o_rrii_rf` | `ld.o` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:626:ld_o_rrii_rf |
 | `ld.sb_rrii_rd` | `ld.sb` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:436:ld_sb_rd |
 | `ld.st_rrii_rd` | `ld.st` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:448:ld_st_rd |
 | `ld.sw_rrii_rd` | `ld.sw` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:442:ld_sw_rd |
-| `ld.t_rrii_rf` | `ld.t` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:611:ld_t_rrii_rf |
+| `ld.t_rrii_rf` | `ld.t` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:630:ld_t_rrii_rf |
 | `ld.ub_rrii_rd` | `ld.ub` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:434:ld_ub_rd;pat:DADAOCodeGen.td.patch:435:ld_ub_rd |
 | `ld.ut_rrii_rd` | `ld.ut` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:446:ld_ut_rd;pat:DADAOCodeGen.td.patch:447:ld_ut_rd |
 | `ld.uw_rrii_rd` | `ld.uw` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:440:ld_uw_rd;pat:DADAOCodeGen.td.patch:441:ld_uw_rd |
@@ -184,7 +184,7 @@
 | `mul.uo_rrrr_rd` | `mul.uo` | `rrrr` | `m1` | accept | no | — |
 | `mul.ut_orrr_rd` | `mul.ut` | `orrr` | `m1` | accept | no | — |
 | `mul.uw_orrr_rd` | `mul.uw` | `orrr` | `m1` | accept | no | — |
-| `or.o_orrr_rd` | `or.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:334:or_o |
+| `or.o_orrr_rd` | `or.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:334:or_o;pat:DADAOCodeGen.td.patch:612:or_o |
 | `or.w_rwii_rb` | `or.w` | `rwii` | `m1` | accept | no | — |
 | `or.w_rwii_rd` | `or.w` | `rwii` | `m1` | accept | no | — |
 | `ra2rd_orri_ra` | `ra2rd` | `orri` | `m1` | accept | no | — |
@@ -193,7 +193,7 @@
 | `rd2ra_orri_ra` | `rd2ra` | `orri` | `m1` | accept | no | — |
 | `rd2rb_orri_rb` | `rd2rb` | `orri` | `m1` | accept | no | — |
 | `rd2rd_orri_rd` | `rd2rd` | `orri` | `m1` | accept | no | — |
-| `rd2rf_orri_rf` | `rd2rf` | `orri` | `fp` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:239:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:551:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:642:rd2rf_orri_rf |
+| `rd2rf_orri_rf` | `rd2rf` | `orri` | `fp` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:239:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:551:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:661:rd2rf_orri_rf |
 | `rem.sb_orrr_rd` | `rem.sb` | `orrr` | `m1` | accept | no | — |
 | `rem.so_orrr_rd` | `rem.so` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:363:rem_so |
 | `rem.st_orrr_rd` | `rem.st` | `orrr` | `m1` | accept | no | — |
@@ -203,7 +203,7 @@
 | `rem.ut_orrr_rd` | `rem.ut` | `orrr` | `m1` | accept | no | — |
 | `rem.uw_orrr_rd` | `rem.uw` | `orrr` | `m1` | accept | no | — |
 | `ret_riii_ra` | `ret` | `riii` | `m1` | accept | no | — |
-| `rf2rd_orri_rf` | `rf2rd` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:643:rf2rd_orri_rf |
+| `rf2rd_orri_rf` | `rf2rd` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:662:rf2rd_orri_rf |
 | `sc_an.o_orrr_rd` | `sc_an.o` | `orrr` | `excluded` | reject | no | — |
 | `sc_ar.o_orrr_rd` | `sc_ar.o` | `orrr` | `excluded` | reject | no | — |
 | `sc_nn.o_orrr_rd` | `sc_nn.o` | `orrr` | `excluded` | reject | no | — |
@@ -240,9 +240,9 @@
 | `st.o_rrii_ra` | `st.o` | `rrii` | `m1` | accept | no | — |
 | `st.o_rrii_rb` | `st.o` | `rrii` | `m1` | accept | no | — |
 | `st.o_rrii_rd` | `st.o` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:430:st_o_rd |
-| `st.o_rrii_rf` | `st.o` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:609:st_o_rrii_rf |
+| `st.o_rrii_rf` | `st.o` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:628:st_o_rrii_rf |
 | `st.t_rrii_rd` | `st.t` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:449:st_t_rd |
-| `st.t_rrii_rf` | `st.t` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:613:st_t_rrii_rf |
+| `st.t_rrii_rf` | `st.t` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:632:st_t_rrii_rf |
 | `st.w_rrii_rd` | `st.w` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:443:st_w_rd |
 | `stm.b_rrri_rd` | `stm.b` | `rrri` | `m1` | accept | no | — |
 | `stm.o_rrri_ra` | `stm.o` | `rrri` | `m1` | accept | no | — |
@@ -264,8 +264,8 @@
 | `sub.uw_orrr_rd` | `sub.uw` | `orrr` | `m1` | accept | no | — |
 | `swym_oiii_imm` | `swym` | `oiii` | `m1` | accept | no | — |
 | `trap_ciii_cfx` | `trap` | `ciii` | `m1` | accept | no | — |
-| `uo2fo_orri_rf` | `uo2fo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:633:uo2fo_orri_rf |
-| `uo2ft_orri_rf` | `uo2ft` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:634:uo2ft_orri_rf |
+| `uo2fo_orri_rf` | `uo2fo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:652:uo2fo_orri_rf |
+| `uo2ft_orri_rf` | `uo2ft` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:653:uo2ft_orri_rf |
 | `ut2fo_orri_rf` | `ut2fo` | `orri` | `fp` | accept | no | — |
 | `ut2ft_orri_rf` | `ut2ft` | `orri` | `fp` | accept | no | — |
 | `xnor.o_orrr_rd` | `xnor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:340:xnor_o |

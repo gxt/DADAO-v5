@@ -159,7 +159,7 @@ components/<name>/
 ## 10. 文档约定
 
 - `components/<name>/README.md`：**简明扼要**，供人查阅；说明该组件是什么、补丁集概况（不写逐补丁开发史）。
-- `components/<name>/changelog.md`：记录**每次改动**，简洁；**按任务一条**，追加式。
+- `components/<name>/changelog.md`：记录**每次改动**，简洁；**按任务一条**，追加式。**组件补丁变更后，任务收尾须在「同一变更」内追加一行**（即与补丁改动同批提交，不留断档；`INFRA-069t`）。
 - 补丁的开发脉络**不**在补丁集内叙述；必要时写入代码注释、组件 README/changelog 或仓库级文档。
 
 ## 11. 组件源文件规模约定
@@ -201,4 +201,5 @@ components/<name>/
 - **rev. 2026-10-03**（E1–E8，T3 文档分层改造）：确立「提交式流程」——E1 不变量（worktree 干净 + HEAD = base + 恰好 1 个 commit）；E2 任务起点；E3 导出前校验 E1、不满足拒绝导出、废止 `git add -N`；E4 收敛为 1 个 commit；E5 应用后自动提交（不固定 author/日期，message 固定 `dadao: <component> patch series`）、重复应用幂等、HEAD 校验放宽为 `{base, base+1 且内容 == 补丁集}`；E6 断言追加 ⑦⑧⑨（不重排 ①–⑥）；E7 模块改动前/后自检 `--source-state`（并入 `check_patch_tree.py`）；E8 澄清补丁仍为裸 `git diff`、本地 commit 永不推送上游。相应改造 `tools/infra/{make_patch,apply_series,check_patch_tree}.py`。**不改 decision 语义**，为 D4 的派生实现细节。
 - **rev. 2026-10-03（INFRA-027t 收尾）**：§7 补「本地 commit 已存在后再改补丁」的**恢复步骤**（`reset --hard <base>` → 重放 → `--source-state` 复核 E1），属 E5 的直接推论、**不改 E5 决策**；§8.1 补「路径类 grep/遍历检查须排除 `__pycache__`」的实现注意。
 - **rev. 2026-10-03（INFRA-028t）**：新增 §11「组件源文件规模约定」（口径 A＝我们新增文件的整文件行数；口径 B＝修改上游文件只看我们的增量行；**非强制、不进门控**），并新增报告工具 `make size-report`（`tools/infra/size_report.py`，报告型、退出码恒 0）；原 §11 边界情况、§12 迁移与变更记录顺延为 §12、§13。属**新增约定**，**不改**原有各节正文与 `ADR-0002 D4`。
+- **rev. 2026-10-12（INFRA-069t）**：§10 增维护规则「组件补丁变更后，任务收尾须在同一变更内追加一行」；配套把三道机械检查 `check-isa-coverage`（`tools/llvm/gen_isa_coverage.py --check`）/`check-spec-numbering`（`tools/spec/check_numbering.py`）/`check-spec-changelog`（`tools/spec/check_spec_changelog.py`）并入 L1 `make check`。属**新增约定/门控**，**不改**原有各节正文与 `ADR-0002 D4`。
 - 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。

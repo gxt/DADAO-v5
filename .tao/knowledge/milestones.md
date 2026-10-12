@@ -31,6 +31,7 @@
 | INFRA-066t | 已验证 | 2026-10-12 00:49 | 恢复 picolibc `libm`（删整目录过滤；41 条最小集 + `ISS-193`；`libc.a` 1.24→1.69 MB） |
 | INFRA-067t | 已验证 | 2026-10-12 18:01 | 提供 `__muldc3`/`__mulsc3`（移植 compiler-rt 单文件；`libc.a` 两符号 `T`；pass 197→203 / blocked 16→10；解锁 6） |
 | INFRA-068t | 已验证 | 2026-10-12 20:21 | `setjmp`/`longjmp` 真实现（RA 存取/块赋值；`_JBLEN` 161；pass 203→205 / blocked 10→8；解锁 2：`test-setjmp`、`test-double-free`） |
+| INFRA-069t | 已验证 | 2026-10-12 23:57 | LLVM 组件 changelog 补齐（现场统计缺口 9 条）+ 三检查（isa-coverage/spec-numbering/spec-changelog）并入 L1 |
 | LLVM-079t | 已验证 | 2026-10-11 23:07 | P0 后端补齐（f32→f64 载入/setcc/bitcast/select_cc/cttz 五类 ISel；convert_ff 早写约束） |
 | LLVM-080t | 已验证 | 2026-10-12 00:11 | P1 后端补齐（取整六项/fmin-fmax libcall；fabs-copysign 用 ISA `fosgnj`） |
 | LLVM-081t | 已验证 | 2026-10-12 01:12 | ISA↔后端覆盖矩阵（生成式两层分列；227 条，①受理 217/②ISel 86；缺口 141） |
@@ -70,8 +71,8 @@
   - **目录三分界与规范版本号（用户 2026-10-11 裁定）**：`docs/` = 工程流程规范（`Process-0x`）+ 索引 + `DDLN/`（**给别人看**）；`.tao/knowledge/` = 结论/设计/口径（**给自己看**）；`.work/log/` **非默认落点**；`Process-0x` **迁入 `docs/`**、`Process` **不设版本号**；`Toolchain-01`/`Machine-01` **设 `0.x.y` 版本号**（`x=0`；大改 `y+1`、小改 `z+1`）+ 文末 changelog（不用表格、不写“依据”）；`docs/` 6 个过期文件**可删**。**草案任务书**：`.tao/tasks/infra/INFRA-060t-目录三分界与规范版本号落地.md`（**待用户逐条裁定**后方写 B 段版本号）。
   - **M7 主题（`INTEG-033k` 裁定，2026-10-11）**：M6 已交付「整数完整调用约定 + 欠账收口 + ELF 直载 + clang target + Embench」；M7 主题 = **picolibc 移植（自带 test 100%）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle**（见下「M7 裁定」；`Process-04 §1`，INTEG 开闭）。
   - **`ISS-193`(a) 类：无序谓词 `SETO`/`SETUO`/`SETUNO`（30/41 过滤条目）**——单独立 LLVM 任务可一次删 30 条过滤；**待用户裁定是否于 M7 内做**（`INFRA-066t` 收尾登记候选）。
-  - **`LLVM-081t` 矩阵 `--check` 纳入门控**（生成投影漂移防护，`lessons §2.11`）——`--check` 现已可对「矩阵与真源不一致」报 FAIL，但未进门控；**待排期**。
-  - **`check_numbering` / `check_spec_changelog` 并入 `make check`**（两器未入门控 ⇒ 附录后标题/变更记录**静默漂移**风险；`lessons §2.11`）——待排期。
+  - **`LLVM-081t` 矩阵 `--check` 纳入门控**（生成投影漂移防护，`lessons §2.11`）——`--check` 现已可对「矩阵与真源不一致」报 FAIL，但未进门控；**待排期**。（**已由 `INFRA-069t` 落地，2026-10-12**：并入 L1 `make check` target `check-isa-coverage`；须现场重生成矩阵以消除 `081t` 后累积的漂移。）
+  - **`check_numbering` / `check_spec_changelog` 并入 `make check`**（两器未入门控 ⇒ 附录后标题/变更记录**静默漂移**风险；`lessons §2.11`）——待排期。（**已由 `INFRA-069t` 落地，2026-10-12**：L1 target `check-spec-numbering` / `check-spec-changelog`。）
   - **M7 test 现状（`TESTCASES-042t` 现场，2026-10-12）**：picolibc 自带 test total 235 / pass 132 / fail 0 / excluded 18 / blocked 85（解锁路径量化见 `TESTCASES-042t` 任务书「遗留问题」）——**是否 M7 内继续解锁待用户裁定**（blocked 85 = REL26 弱符号 26〔`ISS-194`〕+ `ISS-193` 57 + QEMU softfloat 1〔`ISS-195`〕+ `setjmp` 桩 1）。
   - **`ADR-0019`/`contract-elf` 增补「未定义弱符号」条款**（PC 相对分支/call 解析为**本位自循环**；`call-iiii`→`jump-iiii` 改写理由 = 免 RegRAS 失衡；含 `--noinhibit-exec` 下**未定义强亦落自循环**的情形）——待排期（**命中 ADR 判据：外部契约/结论固化**）。
   - **子代理 workdir 作用域 + 权限 fail-fast（用户 2026-10-11 裁定）**：越界 `cd`（绝对 / `~` / `..`）由"无人应答的 ask"改 **hard-deny**（fail-fast）；规则层钉 workdir **已落地 ✅**；**已立项 `INFRA-065t`**。权限层 = **agent frontmatter `external_directory` deny**（**当前服务下未生效 ⏳**，canary3 实为 `ask` + 用户人工 reject；`message` 字面不可区分、`POST /api/location/reload` 未见效）；`experimental.policies` 已撤销（v2.0.22 schema 不接受 `action:"permission"`）。
