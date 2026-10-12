@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M7
 **依赖**：`QEMU-056t`/`058t`（均 `已验证`）
-**状态**：待开始
+**状态**：里程碑
 
 ## 执行环境
 **执行环境**：本地
@@ -40,13 +40,47 @@
 
 ## 完成区
 **测试结果**：
-**修改文件**：
-**验收结果**：
+- L1 `make check`: EXIT=0（全绿）
+- L2 `make check-modules`: EXIT=0（含 check-qemu-smoke 86/86 + picolibc-tests fast 20/20）
+- `make check-interface`: EXIT=0（83/83 PASS，RAM_BASE=0xFC0000000000 ✓）
+- `make check-picolibc-tests-full`: total=235 pass=213 fail=0 excluded=22 blocked=0
+- `make check-no-residue`: PASS
+- `check_issues`: 26 open / 11 closed，0 blocking
+
+**修改文件**：无（核验类任务，无实现）
+
+**验收结果**：M7 口径 2 条均达成；跨模块无未处置阻断项；门控全绿
+
 **新发现/坑**：
-**遗留问题**：
+- `ISS-195`（QEMU 2-NaN）仍 `open`+`resolved_by: null`，但 `QEMU-058t`（`已验证`）已交付修复且 picolibc blocked=0 ⇒ **台账需 architect 回填 `closed`+`resolved_by: QEMU-058t`**
+- `ISS-198`（2-NaN payload 测试覆盖缺口）保持 `open`，建议转遗留（缺独立 oracle）
+
+**遗留问题**：无阻断遗留
 
 ## 审阅记录
 
 #### 第 1 轮 architect 规划（2026-10-13）
 - 立本 `m` 核验任务书（M7 qemu 模块里程碑）；M7 口径 2 条逐条引用 `milestones.md` M7 段落 + `INTEG-033k §裁定汇总 #10`；含跨模块影响（点 `ISS-198` + 挂账）与「有未处置 ⇒ 不得置里程碑」纪律；执行方式 = reviewer 独立核验 + architect 记录/提交。
 - **编号依据**：`qemu` 现场最大 `QEMU-058t` ⇒ 本 `m` = `QEMU-059m`（模块内跨后缀递增）。
+
+#### 第 1 轮 reviewer 验收（2026-10-13）
+**重跑记录**：
+- `make check` L1: EXIT=0（全绿，含 check-no-residue/check_issues/check-components）
+- `make check-modules` L2: EXIT=0（check-qemu-smoke 86/86 PASS + picolibc-tests fast 20/20）
+- `make check-interface`: EXIT=0（83/83 PASS；RAM_BASE=0xFC0000000000 ✓）
+- `make check-picolibc-tests-full`: total=235 / pass=213 / fail=0 / excluded=22 / blocked=0
+- `make check-no-residue`: PASS
+- `check_issues.py`: 26 open / 11 closed / 0 blocking
+
+**口径逐条核**：
+1. **RAM 基址 `0xFC00_0000_0000`**：grep 现场复核——`cpu.h.patch` L74 `DADAO_RAM_BASE=0xFC0000000000ULL`、`dadao.lds` L28 `ORIGIN=0xFC0000000000`、`codegen_crt0.s` L27 `rb0=0xFC00_0000_0000`、`spec/Machine-01` L29+L32 一致；`check-interface` 2.ADR RAM_BASE PASS。**达成** ✓
+2. **NaN 规则 `float_2nan_prop_ab`**：`helper.c.patch` L404 `set_float_2nan_prop_rule(float_2nan_prop_ab, st)`；picolibc-tests-full blocked=0（before QEMU-058t: blocked≥5 → after: 0）。`QEMU-056t`/`058t` 均 `已验证`。**达成** ✓（台账 ISS-195 仍 `open`，需 architect 回填 `closed`）
+
+**跨模块未处置项**：无阻断。`ISS-198`（2-NaN 测试覆盖缺口）保持 open，建议转遗留；`ISS-054/058/064/090/098/120` 均为挂账，非 M7 未处置阻断。
+
+**反例注入**：
+- 注入：`dadao.lds` RAM ORIGIN 改 `0xAB0000000000` → `check-interface` 报 2 FAIL（RAM_BASE + BINARY_BASE），make rc=2 ✓
+- 还原：`cp` 备份还原，md5=92c4b01ac5e3412904f85f388ed8bf15 一致 ✓
+- 回绿：`check-interface` 83/83 PASS ✓
+
+**里程碑核验结论**：**通过**。M7 口径 2 条均达成（证据逐条对齐）；跨模块无未处置阻断；门控全绿。唯一待办 = architect 回填 ISS-195 `closed`（台账收尾，非功能阻断）。
