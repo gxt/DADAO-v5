@@ -8,6 +8,7 @@
 | --- | --- |
 | 项目总览 / 里程碑 / 版本号 | 根 `README.md` |
 | 当前进度 / 任务流水 / 规划中 / 裁定 | `.tao/knowledge/milestones.md` |
+| M7 收尾 / 待用户裁定 · 操作清单 | `.tao/knowledge/milestones.md`「当前进度」+ `.tao/archive/M7/m7-retrospective.md §7` |
 | 决策（ADR：架构 / 契约 / 流程） | `.tao/adr/` |
 | 交互目录（`$TAO_ROOT` / 结构 / 模块表） | `.tao/README.md` |
 | 角色 / 流程 / 命令 | `AGENTS.md`「角色与流程」+ `.opencode/agents/`、`.opencode/commands/` |
@@ -17,7 +18,7 @@
 | 合约（归一化叙述 / 机器可读数据） | `.tao/knowledge/contract-*.md` / `contracts/` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | issue / 教训 | `.tao/knowledge/issues.yaml` / `.tao/knowledge/lessons.md` |
-| 历史归档 | `.tao/archive/M*/` |
+| 历史归档 | `.tao/archive/M*/`（M1–M7；含 `README.md` + `m<i>-retrospective.md` + `issues-closed.md`） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
 
 ## 上游 ↔ v5 偏离台账

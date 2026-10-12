@@ -20,6 +20,12 @@
 #        不回归 / INTEG 开闭）；6/6 模块 m 全置：INFRA-049m / SPEC-118m / LLVM-061m / QEMU-048m /
 #        TESTCASES-035m / INTEG-021m；20 个 t + INTEG-019k 全 `已验证`；
 #        见 `.tao/knowledge/milestones.md` 与 `.tao/archive/M5/README.md`）
+#   M7 = ⏳ **待裁定（尚未标记「达成」）**——主题 = picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+
+#        ISA↔后端覆盖矩阵 + 过渡 oracle（用户 2026-10-11 裁定；`k` = INTEG-033k）；模块 m：
+#        INFRA-072m / LLVM-090m / QEMU-059m / TESTCASES-043m = `里程碑`，**SPEC-136m 未通过**、
+#        INTEG-034m（整体收敛）残项 ⇒ **M7 达成待 `ISS-201` 用户裁定**；M7 期任务书/回顾/已关 issue
+#        已**收尾归档** `.tao/archive/M7/`（2026-10-13，`INTEG-035m`；前置条件〔M7=达成〕未满足，见
+#        `m7-retrospective.md §1/§5`）
 #
 # M1-gate 定义（历史注，2026-09-21 用户裁定）：
 #   blocks: [M1-gate] = 直接阻断「任一模块 M1 里程碑」的 open 项。
@@ -43,6 +49,7 @@
 #     - M1 = M1 范围项（已达成）；M2 = 规范与接口冻结（已达成）；M3 = Basic CodeGen（已达成）；
 #       M4 = ELF 文件支持 + LLD 链接 + 汇编器遗留收口（已达成）；M5 = SEE/HEE 运行环境 + semihosting（已达成，2026-10-08；门控 make test-semihost；**不再作 open 项 scope**——`INTEG-024t`，2026-10-08 已全部迁出）；
 #       M6 = 完整调用约定（整数）+ 欠账收口，追加「elf 加载」（**已达成 2026-10-11**；M6 自 M5 范围简化转入「-bios+ELF 组合语义 / ELF loader 扩展 / 组合 ADR」= ISS-168、step2 = ISS-165）；
+#       M7 = picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle（**待裁定「达成」**，2026-10-13 收尾归档；`ISS-201` 阻断 ⇒ **现无 open 项使用 `M7` scope**；M7 期见 `.tao/archive/M7/`）；
 #     - post-M1 = 已不属 M1 范围、归后续里程碑的通用项，无明确单一里程碑归属
 #       （含义随 M2/M3 达成后指向 M4+）。
 #   blocks: 可空列表 (M1-gate 表示直接阻断 M1 里程碑)
@@ -73,6 +80,18 @@
 #   完成区声称已修/已收口，但 `resolved_by` 未回填（仍 open）——建议 M7 归档前置 `Process-04 §3` 梳理时回填/关闭。
 #   **已收敛（INTEG-028t，2026-10-11）**：上述 7 条已逐条独立核实（证据 `.work/log/integ/ISS-reconcile.md`）并回填
 #   `resolved_by` + 置 `closed`：ISS-043/045/148/159/162→LLVM-062t、ISS-138→LLVM-064t、ISS-156→SPEC-123t。
+#
+# M7 阶段关闭项（INTEG-035m，2026-10-13）：M7 期（2026-10-11 ~ 2026-10-13）的 closed issue（12 条 =
+#   M7 期 5 条 ISS-189/191/194/195/196 + M6 遗留台账收敛 7 条 ISS-043/045/138/148/156/159/162）已提取至
+#   `.tao/archive/M7/issues-closed.md`；本文件仅保留 open 项（现场 25 条）。
+#   **范围说明（如实）**：**项目里程碑 M7 尚未标记「达成」**（待 `ISS-201` 用户裁定）⇒ 无「≤ 达成日」机械界，
+#   本归档以「M7 期 = 开启日 2026-10-11 ~ 归档日 2026-10-13」为上界（相对 `Process-04 §4.4` 的已披露偏离）。
+# M7 归档前置梳理（INTEG-035m，2026-10-13，`docs/Process-04 §3` 步骤 1–6）：
+#   ① 关闭已消解项：M7 期已消解者（ISS-189/191/194/195/196）均由对应 M7 任务关闭，无「已消解仍 open」遗漏；
+#   ② 校正 scope：无适用项（无 `M7` 前缀 scope 项、无 `post-M1` 模糊项）；
+#   ③ 移出「教训/过程记录」类：无适用项（M7 教训已沉淀 `lessons.md`）；
+#   ④ moot/过期项：无（余 25 条 open 均现行：缺陷/欠账/技术债/待裁定）；
+#   ⑤ 头部同步：本文件顶部 M7 状态行 + 本块；⑥ 逐条判定表见 `.tao/archive/M7/issues-closed.md`。
 #
 # M5 归档前置梳理（INTEG-022t，2026-10-08，`docs/Process-04 §3` 步骤 1–6）：
 #   ① 关闭已消解项：M5 期无「已消解仍 open」项（边界交付部分按步骤 4 拆分、单独 closed）；
@@ -116,21 +135,6 @@
 # ── testcases ─────────────────────────────────────────────────────────────────
 
 # ── llvm / qemu / integ ──────────────────────────────────────────────────────
-
-- id: ISS-043
-  title: "越界立即数静默截断（LLVM-006t reviewer ②）：分支/跳转 fixup 越界无诊断"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-062t
-
-- id: ISS-045
-  title: "getFixupKindForInstr 的 default 分支未白名单化：非分支符号操作数按 PCRel_18 处理"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-062t
-
 - id: ISS-054
   title: "探针手算分支偏移易错 → 建议标签化框架（tools/qemu/ 基于标签的探针框架）"
   status: open
@@ -236,23 +240,6 @@
   blocks: []
   resolved_by: null
   notes: "原 backlog L244/L245/L250。位级：ft 高 32 位符号注入 + classify/compare 只看低 32 位；转换：ft2ft/fo2fo 全 64 位搬移、f2i 向零截断 + 饱和 + NV 不置 NX、NaN payload 加宽；算术：rem=IEEE remainder（平局取偶）、scalb 的 n 取整、rootn(-0,2) 不设期望。若用户另有裁定须同步改实现与探针。"
-
-- id: ISS-138
-  title: ">128K 帧（C7 D4 方案1：rd 存偏移 + ldm/stm）未实现，当前显式失败"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-064t
-  notes: "LLVM-038t 实现 SP-only/FP + 大帧方案2（rb2rb+add.si，≤±128K）；>128K 显式 'scheme 1 not implemented'。per ADR-0018 C7 D4，方案1 仅 >128K，M3 可后补。"
-
-- id: ISS-148
-  title: "tools/llvm/gen_m1_asm.py / test_m1_asm.py docstring 仍写「177 条」（实 152）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-062t
-  notes: "INFRA-041t reviewer 披露：docstring 计数陈旧，超 ISS-134 范围未改。建议随 llvm 文档/工具刷新一并修。"
-
 - id: ISS-160
   title: "SPEC-106t 范围外残留：contract-isa 投影层仍列已删伪指令 + impact-matrix 悬空 + check_spec_codeblocks PSEUDO_INSTRUCTIONS 陈旧"
   status: open
@@ -260,31 +247,6 @@
   blocks: []
   resolved_by: null
   notes: "【2026-10-06 改号：原误用 M3 已归档的 ISS-149，改为 ISS-160】SPEC-106t reviewer 判：`contract-isa.md` §6.6/§8.7/§10.5/§11.5/§12.5/§13.3 仍列已删伪指令（投影层）；`docs/impact-matrix.md` 悬空引用；`tools/spec/check_spec_codeblocks.py` 的 `PSEUDO_INSTRUCTIONS` 仍含 10 条已删项。`check-spec-refs` 靠小节头『（已删除）』保持绿，均非阻塞；建议另立 spec/tools 任务统一刷新。"
-
-- id: ISS-156
-  title: "set.fo rf,0 的 rd2rf 特例与 Toolchain-01 §6.1「4×set.w」口径不一"
-  status: closed
-  scope: [llvm, spec]
-  blocks: []
-  resolved_by: SPEC-123t
-  notes: "TESTCASES-029t reviewer 建议登记：伪指令展开 `set.fo rf,0` 走 `rd2rf`（move rf0）而非 spec §6.1 的「4×set.w」口径。非阻塞 M4（向量只取非 0 值回避）。需核 spec 或实现择一。"
-
-- id: ISS-159
-  title: "M4 后端 lower IR not/neg 未走 xnor.o / sub.sX 路径（走 xor.o+常数 / sub.uo+ext.so）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-062t
-  notes: "TESTCASES-032t reviewer 判真实缺口但不阻断：IR `xor x,-1`/`sub iN 0,x` 经后端 lower 为 `xor.o`+常数 / `sub.uo`+`ext.so`，而非伪指令实现路径的 `xnor.o`/`sub.sX`。L1 覆盖 `xnor.o`/`sub.sX` 编码、L3 覆盖 not/neg 语义，分工仍成立；属 LLVM 优化/CSE 议题，INTEG-016t 接入时需确认。"
-
-- id: ISS-162
-  title: "DADAOAsmParser 诊断枚举缺 FIRST_TARGET_MATCH_RESULT_TY 偏移（新增诊断名会挤动基类 MatchResultTy 数值）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-062t
-  notes: "LLVM-060t 新发现（属任务外范围、本任务未修）：`DADAOAsmParser` 的 `GET_OPERAND_DIAGNOSTIC_TYPES` 匿名 `enum` **无** `= FIRST_TARGET_MATCH_RESULT_TY` 偏移（对照 X86：`enum X86MatchResultTy { Match_Unsupported = FIRST_TARGET_MATCH_RESULT_TY; ... }`）。只新增一个诊断类型名（字母序在 `InvalidImmediate` 前）即把 `Match_InvalidImmediate` 由 **0** 挤到 **1**（= `Match_InvalidTiedOperand`），使 `wpn_err_*` 三条既有 lit 由「invalid operand」变「invalid tied operand」而 FAIL。本任务规避：3 个 cfx 操作数类复用 `DiagnosticType = \"InvalidImmediate\"`（`std::set` 去重 ⇒ 枚举项数与数值与改前逐字节相同）。建议后续按 X86 加 `FIRST_TARGET_MATCH_RESULT_TY` 偏移 + 在 `matchAndEmitInstruction` 显式加 `case Match_Invalid…:`，消除该隐患。"
-
 # ── 新登记（2026-10-10，TESTCASES-039t 首验收达标后暴露的 6 类后端缺口）──────────
 # 性质区分：G6 = 缺陷（编译成功但运行期静默错码）；G1–G5 = 缺能力（均显式失败，非静默）。
 # 逐基准矩阵 + 最小复现 = `ISS-175`–`180`（均 closed，已归档 `.tao/archive/M6/issues-closed.md`；
@@ -306,16 +268,6 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（用户 2026-10-10 裁定「先只登记，暂不改」；原待登记稿 §R4 随 `INFRA-070t` 收拢删除，内容以本 issue 为准）】**M7**。**实测**：`fcmp` **取值**（含 ordered `oeq`）⇒ `Cannot select setcc`；`fabs`/`frem`/`copysign` ⇒ `Cannot select bitcast`；`fma`/`fminnum`/`fmaxnum`/`floor`/`ceil`/`round`/`trunc` ⇒ `no libcall`；`fpclass` ⇒ `setcc setuo`；`f16` ⇒ `fp_to_fp16`；`bitcast double→i64`（FP↔RD）**缺 ISel 模式**（指令 `rf2rd`/`rd2rf` **已在**）。**全部显式失败、不产错码**（非静默降级）。**只登记，不建任务。** **衍生待办（`INFRA-057t`，2026-10-11）**：该缺口的**消费侧变通** = picolibc `meson.build` 显式**源过滤表**（整个 `libm/` + 20 条 libc 浮点/换字节源）以换取构建确定成功；**`LLVM-079t`/`080t` 落地后须删表恢复全量**（切 `io-float-exact=false` engine 变体后 ryu 4 条为惰性条目、随之一并删）。细节指针：`.tao/tasks/infra/INFRA-057t-*.md` 完成区「遗留问题①②③」。 **【收口进展（`LLVM-079t`，2026-10-11）】P0 五类已由 `LLVM-079t` 收口**（探针 `BACKEND_CANNOT_SELECT` **64→0**：`f32→f64 anyext 载入`/FP `setcc`/`f64↔i64 bitcast`/`f64 select_cc`/`i64 cttz`）；**剩余 P1 归 `LLVM-080t`**（取整/min-max/`fabs`/`copysign`）；**无序族 FP 谓词（`SETUO`/`isnan`）与 `dcvt.c` `BACKEND_OTHER` 仍缺**。 **【收口进展（`LLVM-080t`，2026-10-12）】P1 类已收口**（取整六项 + `fmin`/`fmax` ⇒ RTLIB libcall；`fabs`/`copysign`(f64) ⇒ ISA `fosgnj`；探针 O0/O1/O2 全 OK；`check-lit` 99/99）。 **跨任务缺口（实测）**：sysroot `libm.a` = **876 B 空壳**（仅 `empty.c.o`），根因 = `INFRA-057t` 显式源过滤表**整目录排除 `libm/`** ⇒ **恢复 `libm`（删过滤表并重建）为 `TESTCASES-042t` 前置**；恢复后须 `nm` 复核 8 符号（`floor`/`ceil`/`trunc`/`round`/`rint`/`nearbyint`/`fmin`/`fmax`）。 P0（`LLVM-079t`）/P1（`LLVM-080t`）均已收口 ⇒ **该前置可执行**；指针 = `LLVM-080t` 任务书「遗留问题」+ `.work/evidence/<任务ID>/run.sh`。 **【收口进展（`INFRA-066t`，2026-10-12）】过滤表已删/最小化，`libm` 主体已恢复**：实测**更正**上文口径——`libm.a` = **876 B 空壳是 picolibc 上游设计**（`empty-libs/meson.build` 生成 `libm.a`/`libg.a`/`libnosys.a` 空壳以兼容 `-lm`；上游 README「Picolibc version 1.7 §1」：libc 与 libm **合并为单一库**），**非**过滤表产物；真正的恢复目标是 **`libc.a`**（数学对象并入其中）。现状：`libc.a` 1,241,616 → **1,686,214 B**，8 符号（`floor`/`ceil`/`trunc`/`round`/`rint`/`nearbyint`/`fmin`/`fmax`）**全命中**；`TESTCASES-042t` 前置满足。**剩余缺口另立 `ISS-193`**（6 类 41 源：`SETO`/`SETUO`/`SETUNO` 谓词 30、f32 `frint`/`flog`/`ftrunc` 5、i64 `bswap` 1、截断存储 2、`\"r\"` 约束 2、`long double` strtod 1）⇒ **`pow`/`hypot`/`j0`/`y0`/复数/`scanf` 族仍不可链接**。证据指针：`.tao/tasks/infra/INFRA-066t-*.md` 完成区。"
-
-- id: ISS-189
-  title: "其它 LLVM 内建数据指导符（`.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 等）仍被 `llvm-mc` 受理（裁定口径 4 名外的剩余面）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-082t
-  notes: "【关闭（`LLVM-090m` M7 llvm 模块里程碑核验，2026-10-13，reviewer 独立核验）】**关闭依据**：`LLVM-082t` 已按 `spec/Toolchain-01 §7.1` 唯一集口径收口数据指导符——reviewer 现场对 8 名 GAS 指导符（`.2byte`/`.4byte`/`.8byte`/`.value`/`.int`/`.dc.b`/`.single`/`.double`）逐一 `llvm-mc` 实测**全被拒绝 rc=1**（对应 M7 口径 4 达成）。**原登记（源 `LLVM-078t` 完成区「遗留问题」；engineer + reviewer 双实测）】`LLVM-078t` 仅按用户 2026-10-10 裁定拒 **7 名**（`.byte/.short/.long/.quad/.word/.octa/.align`），裁定范围**外**的其它 LLVM 内建 / GAS 数据指导符仍经通用 parser 受理（实测 `.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 全 rc=0）。**性质 = 口径未覆盖（未授权扩大，非缺陷）**。**只登记，不建任务**：建议后续按 `spec/Toolchain-01 §7` 唯一集口径一并收口（受理侧按 `DADAOAsmParser::parseDirective` target 级 shadow 同机制扩拒即可，无需改 `llvm/lib/MC/**`）。证据指针：`.tao/tasks/llvm/LLVM-078t-*.md`「遗留问题」；`.work/evidence/LLVM-078t/run.sh`。"
-
-
 - id: ISS-190
   title: "生成器 ↔ 已提交向量语义漂移（`st.*` 源 = `rd0`）——既有问题，非 QEMU-056t 引入"
   status: open
@@ -323,16 +275,6 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `QEMU-056t` 完成区「遗留问题」+ reviewer 第 1 轮「遗留 st.*/rd0 判定」）】**既有问题、非 `QEMU-056t` 引入**（reviewer 已核该任务生成器重跑产物与已提交向量 **IDENTICAL**，不存在该任务引入的漂移）。**冲突**：`tools/testcases/generate_mem_vectors.py` 把 `st.*` 源 = `rd0` 作 **ILLI** 用例（`store_src_rd0`）并据以重派生已提交向量；而 `tools/testcases/validate_vectors.py` 按 `ADR-0012 D3.1/D5`（承 `ADR-0015 D3`：`st.*`/`stm.*` 的**源**为 `rd0`/`rb0` **MAY**（读出 0 / 当前指令地址）、**MUST NOT** 触发 ILLI）判其**合法** ⇒ 生成器 / 向量与合约口径**不一致**。**待裁定**：以合约（合法）为准修生成器并重派生相关向量，还是改契约口径；并明确是否需在 `spec`/`contract-*` 增显式引用。**性质 = 语义口径冲突（非缺陷）**。**只登记，不建任务**。证据指针：`QEMU-056t` 任务书「遗留问题」+ reviewer「遗留 st.*/rd0 判定」。"
-
-
-- id: ISS-191
-  title: "`tests/scripts/dadao.lds` 缺 `__heap_start`/`__heap_end` PROVIDE ⇒ `malloc`/`sbrk` 程序链接失败（undefined `__heap_end`）"
-  status: closed
-  scope: [infra, testcases]
-  blocks: []
-  resolved_by: TESTCASES-042t
-  notes: "【关闭（`TESTCASES-043m` M7 模块里程碑核验，2026-10-13，reviewer 独立核验）】**关闭依据**：① 现场 `grep __heap_start tests/scripts/dadao.lds` 已有 PROVIDE（`TESTCASES-043m` reviewer 核验记录）；② `TESTCASES-042t`（`已验证`，picolibc 自带 test 接入）含 heap 测试通过 ⇒ 缺口已消解。**原登记（源 `INFRA-057t` 完成区「遗留问题①」+ reviewer 第 1 轮「heap/PT_LOAD」）**：`tests/scripts/dadao.lds`（`QEMU-056t` 基址 `0xFC0000000000`）当时**无 `__heap_*` PROVIDE**（grep 0 条）；picolibc `malloc`/`sbrk` weak 引用 `__heap_start`/`__heap_end` 致链接 rc=1（undefined `__heap_end`）。**遗留登记时性质 = 遗留缺口/技术债**（非 `INFRA-057t` 引入）；**处置 = 补 `__heap_*` PROVIDE（归 `TESTCASES-042t`）已完成**。证据指针：`.tao/tasks/testcases/TESTCASES-043m-*.md` 审阅记录「跨模块影响核验 `ISS-191`」；`.tao/tasks/infra/INFRA-057t-*.md` 完成区「遗留问题①」。"
-
 
 - id: ISS-192
   title: "spec_cite 悬挂（24 条）：SimRISC-08/09/10 的「比较操作」/「Bit manipulating：位操作指令」标题带「 — 值语义」后缀，而 `contracts/opcodes.yaml` 的 `spec_cite` 省略该后缀——既有问题，非 SPEC-133t 引入"
@@ -350,32 +292,6 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `INFRA-066t`，2026-10-12；删 `INFRA-057t` 过滤表后逐源实测）】**性质 = 消费侧缺口的剩余面，非 `INFRA-066t` 引入**。方法：以 `.work/build/picolibc/compile_commands.json` 的**全部 1120 条**编译项逐条重编（**全量、非抽样**）⇒ `non-OK = 41`（现场统计），据此把 `meson.build` 的 DADAO 过滤表**最小化到 41 条**（原表 = 整目录 `libm/` + 20 条 libc 源；现仅 41 条、无目录级排除）。六类根因（每类给失败签名 + 代表源）：**(a) FP 谓词 `SETO`/`SETUO`/`SETUNO` 缺 lowering（30 源，最大类）**——`error in backend: DADAO: unsupported floating-point branch condition`（`libm/math/s_pow.c`、`s_hypot.c`、`s_acos.c`、`s_j0.c` 等）与 `... unsupported floating-point select/setcc condition`（`libm/common/s_fma.c`）；同根因亦解释 FP 探针 `isnan_d`/`isfinite_d`=`ERROR` 与 `test/testsuite/newlib.math/dcvt.c`=`BACKEND_OTHER`（`LLVM-079t` 已覆盖 10 个有序/无序谓词，**缺的正是 `SETO`/`SETUO`/`SETUNO`**，见 `DADAOISelLowering.cpp` 的 `default: report_fatal_error`）。**(b) f32 libcall 缺（5 源）**——`no libcall available for frint`（`libm/math/sf_scalb.c`、`sf_tgamma.c`、`common/sf_nearbyint.c`）、`ftrunc`（`srf_lgamma.c`）、`flog`（`sf_log10.c`）；与 `LLVM-080t`「P1 仅双精度」口径一致（f32 未纳入）。**(c) i64 `bswap`（1 源）**——`Cannot select: t45: i64 = bswap`（`libc/search/hash_page.c`）。**(d) 截断存储（2 源）**——`Cannot select: ... store<(store (s32) ..., trunc to f32>`（`libc/stdio/vfscanf.c`、`vfwscanf.c`）。**(e) `\"r\"` 内联汇编约束不收指针（2 源）**——`could not allocate input reg for constraint 'r'`（`libc/string/memset_explicit.c`、`memset_s.c` ⇒ `memset_s`/`memset_explicit` 不可用）。**(f) `long double` strtod libcall（1 源）**——`unsupported library call operation`（`libc/stdio/atold_engine.c`）。**影响**：`pow`/`hypot`/`j0`/`y0`/复数函数/`scanf` 族/`memset_s` 仍不可链接；**`libm` 主体（f64 三角/指数/对数/取整/fmin-fmax）已恢复**（8 符号 `nm` 全命中，见 `INFRA-066t` 完成区）。**建议**：(a) 单独立 LLVM 任务（预计一次改动即可删 30/41 条），(b)(c)(d)(e)(f) 视 M7 需要分批。**只登记**。证据指针：`.tao/tasks/infra/INFRA-066t-*.md` 完成区 + `.work/evidence/<任务ID>/run.sh` + `.work/log/<模块>/`（全量扫描 TSV 与逐源日志）。 **【picolibc test 使用量化（`TESTCASES-042t` 现场，2026-10-12）】**本 6 类缺口对应 picolibc 自带 test **blocked 85 条中的 57 条**（余 28 = 另立 issue 的 REL26 弱符号 26 + `setjmp` 桩 1 + QEMU softfloat 1）：**(a) 33**（harness 直接标记 29 + 经（a）过滤源符号 `_pow`×2 / `fma`×1 / `hypotl`×1）、**(b) 8**（直接 4 + `log10f` / `lgammaf_r` / `tgammaf` / `nearbyintf`）、**(d) 14**（`vfscanf`×11 / `vfwscanf`×3，经过滤源符号）、**(e) 2**（`memset_s` / `memset_explicit`）；**(c) `bswap` 当前无对应 test（0 条）**。计数取自 `full-report.json` 逐条 `reason` 机械分桶（`TESTCASES-042t` 完成区 blocker 溯源）。 **【收口进展（`LLVM-084t`，2026-10-12）】(a) 类已收口**——后端补 `SETUO`/`SETO`/`SETONE`/`SETUEQ` 与 6 个整型 don't-care 码 lowering（`components/llvm-project/patches/llvm/lib/Target/DADAO/**`），过滤表 **41→11**（删 30、逐条可编、未多删）。**计数更正**：上文「(a) 33」为估算 ⇒ 实测解锁 **20**（`picolibc-tests-full` pass 132→152 / blocked 85→65 / fail 0 / excluded 18），余 13 条移因其它缺口（`__muldc3` 6〔新立 `ISS-196`〕、QEMU 2-NaN 4〔`ISS-195`〕、(b) 2、REL26 1〔`ISS-194`〕）；**(b) 计数 8→10**（现直接 5 + `log10f` / `lgammaf_r`×2 / `tgammaf` / `nearbyintf`）；(d) 14 / (e) 2 不变。证据：`.work/evidence/<任务ID>/run.sh` + `.work/log/<模块>/`（full-after 报告逐条 reason）；`.tao/tasks/llvm/LLVM-084t-*.md`。 **【收口进展（`LLVM-086t`，2026-10-12）】(e) 类已收口**——后端补 `DADAOTargetLowering::getRegForInlineAsmConstraint`（`components/llvm-project/patches/llvm/lib/Target/DADAO/**`），**只**把单字母 `\"r\"` 映射到**数据寄存器类** `GPRD`（指针类参数经 `rb2rd` 桥接 GPRB→GPRD），其余约束回落基类；**未**新增 `\"b\"`/`\"f\"`（用户 2026-10-12 裁定 C「只解锁，不立约定」）。消费侧同步：`components/picolibc/patches/meson.build.patch` 删 (e) 两条（`memset_explicit.c`/`memset_s.c`）⇒ 过滤表 11→**9**（= (b)5+(c)1+(d)2+(f)1）。实测 `picolibc-tests-full` **pass 174→176 / blocked 39→37 / fail 0 / excluded 22**（total 235），解锁 = `test-malloc`、`test-memset_s`。**本 issue 保持 `open`**（六类未全清 ⇒ 依字段约束「open 时 `resolved_by` null」不回填），(e) 的 `resolved_by` = `LLVM-086t` 记于此；剩余 **(b)/(c)/(d)/(f) 仍开放**（architect 复核：过滤表仍 9 条、`full-after` 逐条分桶与上文一致 ⇒ 口径准确）。证据：`.tao/tasks/llvm/LLVM-086t-*.md` + `.work/evidence/<任务ID>/run.sh` + `.work/log/<模块>/`。 **【收口进展（LLVM-087t，2026-10-12）】(b) 类 f32 取整/极值已收口**——后端 `initLibcallLoweringInfo` 补 f32 八条 `RTLIB::{FLOOR,CEIL,TRUNC,ROUND,RINT,NEARBYINT,FMIN,FMAX}_F32`（与 f64 块逐字对称；符号 `floorf`/`ceilf`/`truncf`/`roundf`/`rintf`/`nearbyintf`/`fminf`/`fmaxf`），消费侧 `components/picolibc/patches/meson.build.patch` 删 (b) 四条（`sf_nearbyint`/`sf_scalb`/`sf_tgamma`/`srf_lgamma`）⇒ 过滤表 **9→5**。实测 `picolibc-tests-full` **pass 176→182 / blocked 37→31 / fail 0 / excluded 22**（total 235；`newly_blocked=∅`），解锁 **6** = `test-ceil`/`test-floor`/`test-round`/`test-lgamma`/`test-rounding-mode`/`test-tgamma`。**(b) 计数 10→0**（6 条解锁 + 4 条移因：`test-math-funcs`/`math_test` ⇒ (d)〔`LLVM-088t`〕、`test-log10`/`test-math-errhandling` ⇒ 缺 `log10f`）。**`FLOG_F32`（`log10f`）是否纳入「f32 全族」待用户裁定**（`sf_log10.c` 调 public `logf` ⇒ `llvm.log.f32`；engineer 未擅自扩范围、正确；architect 追认/待裁落点见 `.tao/tasks/llvm/LLVM-087t-*.md`「architect 追认」+「遗留问题①」）。nm 复核：sysroot `libc.a` 8 f32 符号全 `T` 命中。**本 issue 保持 `open`**（(b) 收口、(c)/(d)/(f) 仍开放 ⇒ `resolved_by` 不回填），(b) 的 `resolved_by` = `LLVM-087t` 记于此（architect 复核：过滤表现 5 条、`full-after` 逐条分桶一致）。证据：`.tao/tasks/llvm/LLVM-087t-*.md` + `.work/evidence/<任务ID>/run.sh` + `.work/log/<模块>/`。"
-
-- id: ISS-194
-  title: "LLD 不为指向未定义弱函数的 `R_DADAO_REL26` 生成 veneer/弱桩 ⇒ 相对 `call` 链接失败（`relocation R_DADAO_REL26 out of range`）"
-  status: closed
-  scope: [llvm]
-  blocks: []
-  resolved_by: LLVM-085t
-  notes: "【正式登记（源 `TESTCASES-042t` 完成区「新发现/坑④」；engineer/reviewer 实测 + architect 独立复跑，2026-10-12）】**现象**：链接 picolibc 自带 test 时 26 条在 LLD 阶段失败，原始错误 = `relocation R_DADAO_REL26 out of range`（`lld/ELF/Arch/DADAO.cpp` 的 `checkInt(ctx, loc, imm, /*width=*/24, rel)`：`(S+A-P)>>2` 的 24 位字偏移越界 ⇒ 按 `contract-elf.md §3.2` / `ADR-0019 §D6` 作链接期错误，不截断、不 wrap）。**根因**：这些 test 引用**未定义弱函数**（`_user_strerror`、`gettimeofday` 等）；弱未定义符号解析为**值 0**，而 P 落在 `0xFC00_0000_0000` 段 ⇒ `S+A-P` 远超 ±32 MiB（24 位字偏移 = ±2^23 字）；LLD 现**不为 REL26 生成 veneer、也不为弱未定义函数发射本地弱桩**，故相对 `call` 链接报错。**范围**：26 条 blocked（`test-iconv` / `test-access` / `test-ftrunc` / `test-grp` / `test-dirent` / `test-pwd` / `test-rename` / `test-statvfs` 等）。**解锁条件（择一或并用）**：为 REL26→越界目标生成 veneer（trampoline），或为弱未定义函数发射本地弱桩 —— 二者均属链接器/工具链面（`patches/lld/ELF/Arch/DADAO.cpp`）。**性质 = 工具链能力缺口（非缺陷、非静默）**。**登记，不建任务**。证据：`TESTCASES-042t` 任务书完成区 + `.work/evidence/<任务ID>/full-report.json`；architect 复跑 `python3 tools/testcases/picolibc_tests.py --stage fast --only test-iconv` ⇒ `blocked  linker: R_DADAO_REL26 ...`（harness 由原始 LLD stderr 正则 `relocation R_DADAO_REL26 out of range` 映射）。 **【收口进展（`LLVM-084t`，2026-10-12）】计数更正 26→27**：删 (a) 类 FP 谓词过滤条目后对 `picolibc-tests-full` 全量重跑，本缺口 blocked 由 26 升为 **27**（新增 1 条原归 (a) 类者 `test-rand` 移因本缺口；**非 `LLVM-084t` 引入**）。根因/范围/解锁条件口径不变。证据：`.work/evidence/<任务ID>/run.sh` + `.work/log/<模块>/`（full-after 报告逐条 reason）。 **【收口（`LLVM-085t`，2026-10-12）】**未定义弱符号的 PC 相对分支/call 改按**本位自循环**解析（`call-iiii`→`jump-iiii`，免 RegRAS 失衡），`picolibc-tests-full` blocked 65→39、pass 152→174（22 pass + 4 self-skip + 1 移因 RASOF）；强符号越界仍严格报错。 **【REL12 未纳入（`LLVM-085t`，2026-10-12）】**`R_DADAO_REL12`（PC 相对访存）的未定义弱**未纳入**（本批 0 例），**保持严格报错**；待有实例再议。"
-
-- id: ISS-195
-  title: "DADAO QEMU `float_status` 未设 2-NaN 传播规则（`float_2nan_prop_rule == none`）⇒ 任一含 NaN 操作数的 FP 运算触发软浮点断言（`parts64_pick_nan` `g_assert_not_reached`），`test-remquo-quo` rc=-6"
-  status: closed
-  scope: [qemu]
-  blocks: []
-  resolved_by: QEMU-058t
-  notes: "【正式登记（源 `TESTCASES-042t` 完成区「新发现/坑④」；reviewer 抽验 + architect 独立复跑并 gdb 定位，2026-10-12）】**现象**：`test-remquo-quo`（`test-math`）在 QEMU 中崩溃 `rc=-6`，`ERROR:../../source/qemu/fpu/softfloat-parts.c.inc:108:parts64_pick_nan: code should not be reached`（1 条 blocked）。**根因（architect gdb 回溯实测）**：DADAO 的 `target/dadao/helper.c: fp_status_init()` 仅 `memset(st,0,sizeof(*st))` + 设 `float_rounding_mode` / `float_default_nan_pattern`，**未调用 `set_float_2nan_prop_rule`、也未启用 `default_nan_mode`** ⇒ `float_2nan_prop_rule == float_2nan_prop_none (0)`；而 softfloat 契约明示「非 default-NaN 模式下目标未设 2-NaN 规则时，一旦需传播输入 NaN 即断言」（`include/fpu/softfloat-types.h` `Float2NaNPropRule` 注释）。触发链：picolibc `remquof` 的 `return (x*y)/(x*y)`（非有限输入 idiom）⇒ `Inf*(-0)=NaN` ⇒ `float32_div(NaN,NaN)` ⇒ `soft_f32_div` → `parts64_div` → `parts64_pick_nan`，`switch(get_float_2nan_prop_rule)` 落 `default: g_assert_not_reached()`（`softfloat-parts.c.inc:108`）⇒ abort。gdb 帧：`#11 helper_fp_arith (helper.c:550)` ← `#10 float32_gen2` ← `#8 parts64_div (softfloat-parts.c.inc:826)` ← `#7 parts64_pick_nan (softfloat-parts.c.inc:108)`。**影响面注意**：非仅 `rem` —— 任何把 NaN 操作数送入 add/sub/mul/div/rem 的 guest 运算都会中止模拟器，现存测试集恰好大多避开 NaN 故仅 1 条暴露。**解锁**：在 `fp_status_init()` 设传播规则（如 `set_float_2nan_prop_s_ab`，与既有 `set_float_default_nan_pattern(0b01000000)` 搭配；**注意 f32 运算在 QEMU 内部经 `FloatParts64` 走 `parts64_*`**）。**性质 = DADAO 目标移植缺口（非上游缺陷、非静默）**。**登记，不建任务**。证据：`TESTCASES-042t` 任务书完成区 + `.work/evidence/<任务ID>/full-report.json`（`test-remquo-quo` log）；architect 复跑 `--only test-remquo-quo` ⇒ `blocked  QEMU terminated by signal 6`；`.work/log/<模块>/` 存 gdb 回溯。 **【收口进展（`LLVM-084t`，2026-10-12）】计数更正 1→5**：删 (a) 类 FP 谓词过滤条目后对 `picolibc-tests-full` 全量重跑，本缺口 blocked 由 1 升为 **5**（`test-remquo-quo` + 新增 4 条原归 (a) 类者 `test-ctan` / `test-ctanh` / `test-cpow` / `test-fma`；**非 `LLVM-084t` 引入**，根因同本 issue），印证上文「任何把 NaN 操作数送入 add/sub/mul/div/rem 的 guest 运算都会中止模拟器」——暴露面随可编源增多而扩大。证据：`.work/evidence/<任务ID>/run.sh` + `.work/log/<模块>/`（full-after 报告逐条 reason）。 **【收口（`QEMU-059m`，2026-10-13）】已关闭**（architect 台账收尾；源 = `QEMU-059m` reviewer 独立核验）。**依据**：`components/qemu/patches/helper.c.patch` 设 `set_float_2nan_prop_rule(float_2nan_prop_ab, st)`（现场 grep 复核）；`make check-picolibc-tests-full` 本缺口 blocked 由 ≥5（`LLVM-084t` 口径）→ **0**（现场 pass 213 / fail 0 / blocked 0）。上游 `test-remquo-quo` 已不再中止模拟器。指针：`.tao/tasks/qemu/QEMU-058t-*.md` + `QEMU-059m-*.md` 审阅记录。"
-
-- id: ISS-196
-  title: "DADAO 工具链未构建/安装 compiler-rt builtins ⇒ `__muldc3`/`__mulsc3` 未定义，6 条 picolibc 复数函数 test 链接失败"
-  status: closed
-  scope: [llvm, infra]
-  blocks: []
-  resolved_by: INFRA-067t
-  notes: "【正式登记（源 `LLVM-084t` 完成区「新发现/坑④」+ reviewer 复验，2026-10-12）】**现象**：链接 picolibc 自带 test 时 **6 条**（`test-cacos` / `test-cacosh` / `test-casin` / `test-casinh` / `test-catanh` / `test-complex-funcs`）失败，原始错误 = `ld.lld: error: undefined symbol: __muldc3`（并 `__mulsc3`），引用者 = `libm_complex_{cacosh,casin,casinh,catanh}.c.o`（在 `.dadao/dadao-unknown-elf/lib/libc.a` 内）。**根因**：`__muldc3` / `__mulsc3` 属 **compiler runtime（compiler-rt builtins / libgcc）** 提供的复数乘辅助函数；DADAO 工具链**未构建、未安装**该运行时（`Makefile` 明示 resource-dir `lib/` 的 compiler-rt builtins『has no consumer in M6 and is deliberately not installed』；`components/llvm-project/patches/` 仅 `clang`/`lld`/`llvm`，无 `compiler-rt`）⇒ 链接期缺符号。**归属**：工具链运行时面（`components/llvm-project` 的 `compiler-rt`）+ 构建/安装（infra；目标 sysroot 依 `ADR-0016` D5/D11）。**性质 = 工具链能力缺口（非缺陷、非静默降级）**。**暴露语境**：`LLVM-084t` 删 (a) 类 FP 谓词过滤条目后，这 6 条由（a）类 blocked 转为归本缺口 ⇒ **非 `LLVM-084t` 引入**（before/after 逐条对账见 `LLVM-084t` 返工表 #14）。**解锁条件（待定）**：为 `dadao-unknown-elf` 构建并安装 compiler-rt builtins（或提供等价 DADAO 复数乘运行时）。**登记，不建任务**。证据：`.tao/tasks/llvm/LLVM-084t-*.md` 完成区 + `.work/evidence/<任务ID>/run.sh` + `.work/log/<模块>/`（full-after 报告逐条 `log` 含 LLD stderr）。 **【收口（INFRA-067t，2026-10-12）】已修复**（architect 交叉复核）。**实现方式**：未按原「解锁条件」构建/安装 compiler-rt builtins，而是**移植 compiler-rt 单文件**入 `components/picolibc/patches/libm/common/`（`muldc3.c`/`mulsc3.c` + shim `compiler_rt_builtins.h`；两源加入 `srcs_common`）⇒ 两符号进 `libc.a`（**用户 2026-10-12 裁定 (a)**）。**计数更正 6→7**：本缺口 blocker 面实为 **7** 条（原记 6 条，漏 `test-math-funcs`）。**实测**（`make check-picolibc-tests-full`，total 235；before `pass 197 / blocked 16` ⇒ after `pass 203 / blocked 10`，+6/−6，`fail 0`）：**解锁 6** = `test-cacos`/`test-cacosh`/`test-casin`/`test-casinh`/`test-catanh`/`test-complex-funcs`（均 rc=0）；**移因 1** = `test-math-funcs`（链接已通，撞 `ISS-195` QEMU 软浮点 2-NaN）。**证据**：出处/许可/版本与锁定 commit 逐字一致、算法未改（`cmp` 逐字）、`nm -u` undef=0。指针：`.tao/tasks/infra/INFRA-067t-*.md` 完成区 + `.work/evidence/<任务ID>/run.sh`。"
-
-
 - id: ISS-197
   title: "内联汇编 `\"m\"` 约束触发后端 ISel 硬崩溃（`Could not match memory address.  Inline asm failure!` + core）——对照 `\"f\"` 为优雅失败；既有问题，非 LLVM-086t 引入"
   status: open

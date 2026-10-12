@@ -49,14 +49,48 @@ M7 达成后按 `Process-04`（里程碑归档规范）**归档 M7**——把 M7
 - 计数不写死：一律现场统计，或写「不下降 / 逐项相等」。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：L1 `make check` rc=0（`repository checks (L1): PASS`；`check-patch-tree: 4 component(s), 127 patches OK`）；L2 `make check-modules` rc=0（`check-lit` 107/107、`check-qemu-smoke` 86/86、`check-interface` 83/83、`check-picolibc-tests` 快档 20/18pass/0fail/2excluded/0blocked）；L3 `make check-full` **FULL_EXIT=0**（`setsid nohup`+`JOBS=8`；`check-qemu-semantics` 149/149 + `test-m6`：`check-lit-full` 12/12 + `diff_ir_lli` PASS + Embench 38/38）；`check-no-residue` rc=0；`check-knowledge-refs` rc=0（42 文件 / 16 具体路径 / **0 悬空**）；`check_issues.py` rc=0（**25 open / 0 closed**）；`check-knowledge-dir` PASS。
+**修改文件**：`.tao/archive/M7/{README.md,m7-retrospective.md,issues-closed.md}`（新建）+ `git mv` **37** 份 M7 终态任务书 → `.tao/archive/M7/<模块>/`（`R` rename）+ `.tao/knowledge/{issues.yaml,milestones.md,MEMORY.md}` + `.tao/README.md` + 本任务书（完成区 + 审阅记录）。**范围外**：`spec/`/`contracts/`/`components/`/`Makefile`/`tools/`/`tests/` 交集为空。
+**验收结果**：归档（37 份，真进 `.tao/archive/M7/`）✓；`README.md`/`m7-retrospective.md`/`issues-closed.md` 结构合 `Process-04 §6` ✓；`m7-retrospective.md` 原样含用户 2026-10-12 裁定「记为达成（推荐）」+ 现场四数（`total 235 / pass 213 / fail 0 / excluded 22 / blocked 0`）✓；台账收敛（`milestones.md` 流水行移入 README §2 + M7 归档指针；`MEMORY.md` 入口指针新增；`issues.yaml` 提取 12 条 `closed` + 头指针）✓；§3 梳理逐条判定表 ✓；门控全绿 ✓。
+**新发现/坑**：① `INTEG-028t`（字段 `M6`、提交晚于 M6 归档）为 **M6 归档遗漏**，非 M7 判据 ⇒ 未归档、待回溯补入（见 `README §4`）；② **项目 M7 未标记「达成」**（`SPEC-136m`/`ISS-201`）⇒ 本归档无「≤ 达成日」机械界，以归档日为上界（**已披露偏离** `Process-04 §4.4`）；③ `m7-retrospective.md §5` 引用的行内 `\|` 需转义（已处理）。
+**遗留问题**：① `ISS-201` 待用户逐条确认（决定 `SPEC-136m` 与**项目 M7 达成**）；② `INTEG-035m` **自归档**（`Process-04 §4.1` 末条）**待置 `里程碑` 后执行**（本次状态非终态，据主会话指示保留于 `.tao/tasks/`）；③ `INTEG-028t` 归属待裁定；④ 其余待裁定/操作项见 `m7-retrospective.md §7`（≥8 条）。
 
 ## 审阅记录
 
 #### 第 1 轮 architect 规划（2026-10-13）
 - 立本 M7 归档任务书；按 `Process-04 §3/§4/§5/§6/§7/§8` 执行（§3 台账梳理前置 → §4 判据 → `git mv` 入 `.tao/archive/M7/` → 回顾/快照/指针/自归档）；**原样引用**用户 2026-10-12 裁定「记为达成（推荐）」+ 现场四数入 `m7-retrospective.md`；含并行纪律与「归档 = 真进 `.tao/archive/`」。
 - **编号依据**：归档 = M7 生命周期终环（`Process-04 §1` 归档阶段），属 `integ` 模块里程碑级活动；`integ` 现场最大（`INTEG-034m` 顺延）⇒ 本 `m` = `INTEG-035m`（模块内跨后缀递增）。
+
+#### 第 1 轮 architect 执行（2026-10-13，归档 + 收敛）
+
+**分支/环境**：`git switch -c INTEG-035m`（基线 = `master` 干净）；workdir = 仓库根、相对路径；临时目录 `/tmp/opencode/arch-INTEG-035m/`；全程未越界、未用 `question`、未 `push`。
+
+**§3 台账梳理（`Process-04 §3` 步骤 1–6）逐条判定**：
+| # | 步骤 | 动作 | 依据 |
+|---|---|---|---|
+| 1 | 关闭已消解 `open` | 无 | M7 期已消解者（`ISS-189`/`191`/`194`/`195`/`196`）均已 `closed`；无「已消解仍 open」 |
+| 2 | 校正 `scope` | 无 | 无 `M7` 前缀 scope 项、无 `post-M1` 模糊项 |
+| 3 | 移出「教训/过程记录」类 | 无 | M7 教训已沉淀 `lessons.md`；余项均真 issue/待裁定 |
+| 4 | `moot`/过期判定 | 无 | 余 25 条 `open` 均现行（缺陷/欠债/技术债/待裁定） |
+| 5 | 头部同步 | ✓ | `issues.yaml` 顶部 M7 状态行 + M7 归档前置梳理块；`M7` scope 说明行 |
+| 6 | 交付 | ✓ | 逐条判定表（本表）+ `check_issues.py` **rc=0** |
+
+**§4 归档判据（机械可判）**：任务书 `**项目里程碑**：M7` 且终态 = **37**（现场统计，逐文件核字段+状态）；`milestones.md` 流水 ≤ 归档日终态行 = **37**；`MEMORY.md` 纯 M7 行 = **0**；`issues.yaml` `closed` = **12**（M7 期 5 + M6 遗留收敛 7）。
+
+**执行记录**：
+1. §3 梳理 → `issues.yaml` 提取 12 条 `closed` 入 `issues-closed.md` + 活台账仅留 25 `open`（YAML 解析校验通过）。
+2. `git mv` **37** 份 → `.tao/archive/M7/<模块>/`（`git status` 显示 `R` rename；逐条对账）。
+3. 建 `.tao/archive/M7/README.md`（§1 清单 / §2 任务流水 37 条原样搬入 / §3 MEMORY 摘录 / §4 指针）；`m7-retrospective.md`（含 §7 待裁定清单）；`issues-closed.md`。
+4. 台账指针：`milestones.md`（M7 流水行移入 README §2 + M7 归档指针 + 未决 3 行保留 + 状态如实）；`MEMORY.md`（入口指针 2 行）；`.tao/README.md`（`archive/<里程碑>/` 约定）。
+5. 门控：L1/L2/L3 + `check-no-residue` + `check-knowledge-refs` + `check_issues` **全绿**（见完成区）。
+
+**如实披露（偏离/未决）**：
+- **项目 M7 未标记「达成」**（`SPEC-136m` 未通过 `ISS-201`）⇒ 归档为**收尾归档**，前置条件（M7=达成）未满足；相对 `Process-04 §4.2/§4.4` 的「≤ 达成日」以**归档日 2026-10-13** 为上界。
+- **`INTEG-035m` 未自归档**：其状态非终态（待 reviewer 核验 + 主会话置 `里程碑`）；据**主会话指示**（"保留未完结者，含 `INTEG-035m` 自身"）保留于 `.tao/tasks/integ/`，**自归档待置 `里程碑` 后执行**（与任务书 §接口规范的"末步自归档"为**已披露的偏离**，理由：主会话指令优先 + 状态未终态）。
+- **跨文件历史引用未改写**（`Process-04 §6` + M1–M6 先例）：`issues.yaml` 注/`milestones.md` 中指向原 `.tao/tasks/<module>/<task>.md` 的 M7 任务指针**保留原样**，以 `README.md §4`「跨文件引用说明」统一指向归档路径；`check-knowledge-refs`（仅校验 `.work/**`）**0 悬空**。
+- **`INTEG-028t` 未归档**（字段 `M6`、非 M7 判据）；建议 M6 历史遗漏回溯补入或用户裁定。
+
+**判决（architect 执行结论）**：归档与台账收敛**完成**；门控全绿；**待 reviewer 独立核验**。
+
+**提交留痕（architect）**：档位 = **正常提交**（非 WIP；归档/收敛类任务，主会话指定提交信息）；提交号 = `afc2c80`；**文件集对账**：显式 staging **45** 路径 = `R` rename **37** + `A` 新增 **3**（`archive/M7/{README,m7-retrospective,issues-closed}.md`）+ `M` **5**（`.tao/README.md`、`knowledge/{MEMORY,issues,milestones}`、本任务书），与完成区「**修改文件**」声明**逐项一致**，**无漏提/多提/越界**（`spec/`/`contracts/`/`components/`/`Makefile`/`tools/`/`tests/` 交集空）；**未 `push`**。
+
