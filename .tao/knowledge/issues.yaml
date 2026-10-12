@@ -409,3 +409,12 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `INFRA-069t` 完成区「新发现/坑②」+「遗留问题」+ reviewer 第 1 轮「非阻断发现①」；architect 收尾复核，2026-10-12）】**事实**：`components/llvm-project/changelog.md` 条目最早回溯至 `LLVM-026t`，其前的组件补丁任务无条目——早期未立「组件补丁变更后，任务收尾须在同一变更内追一行」口径（该口径由 `INFRA-069t` 定案，落 changelog 头部 + `docs/Process-01 §10`）。**准确清单（reviewer 现场核）**：`LLVM-013t`/`014t`/`019t`–`025t`/`028t`/`060t` 缺条目；**`LLVM-046t` 除外**——其未触碰 `patches/`（仅 `series` 重建）⇒ 非同类、无追行义务。**性质 = 历史截断 / 早期口径缺失**（非缺陷、非静默；`INFRA-069t` 已按 M7 断档补 9 条，本清单属 M7 范围外的历史面）。**建议**：M7 归档（`Process-04 §3`）时按需补录，或明确「历史不补」——二者择一，勿悬空。**只登记，不建任务**。证据指针：`.tao/tasks/infra/INFRA-069t-*.md`「新发现/坑②」+「遗留问题」；`.work/evidence/<任务ID>/run.sh`。"
+
+
+- id: ISS-201
+  title: "未定义弱符号决策（`ADR-0019 D9` / `contract-elf §3.3`）的实现边界分支未入规范：`R_DADAO_REL26` 落点既非 `call-iiii`(0x74) 也非 `jump-iiii`(0x70) 时实现显式报错（本批 0 例）——既有边界编码，非 `SPEC-135t` 引入"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `SPEC-135t` 完成区「新发现/坑①」+ 「第 1 轮 reviewer 验收」非阻断建议/遗留处置；architect 收尾复核，2026-10-12）】**现象**：`LLVM-085t` 的未定义弱符号解析实现另有 1 处**防御分支**——若 `R_DADAO_REL26` 的落点指令**既非 `call-iiii`（`0x74`）也非 `jump-iiii`（`0x70`）**，则实现**显式报错**（不放行）；该分支在本批 **0 例**暴露。**状态**：用户 2026-10-12 选项确认的 `D9` **五要点未含**此点 ⇒ 未写入 `ADR-0019 D9` / `contract-elf §3.3`（engineer/reviewer 均未自拟口径，正确）。**性质 = 规范覆盖边界（未授权扩大，非缺陷、非静默）**。**处理建议**：若要入规范 ⇒ 属**修改已用户确认的 `D9`** ⇒ 须**用户逐条确认**（`AGENTS.md`「ADR decision 逐条确认」）⇒ 故**只登记待裁定，不建任务**（engineer/reviewer 不得自拟自答）。**只登记**。证据指针：`.tao/tasks/spec/SPEC-135t-*.md`「新发现/坑①」+「第 1 轮 reviewer 验收」遗留处置；`.tao/tasks/llvm/LLVM-085t-*.md`。"
