@@ -1,0 +1,64 @@
+diff --git a/src/arch/dadao/DadaoBareMetal.py b/src/arch/dadao/DadaoBareMetal.py
+new file mode 100644
+index 0000000..1c5e6ce
+--- /dev/null
++++ b/src/arch/dadao/DadaoBareMetal.py
+@@ -0,0 +1,58 @@
++from m5.objects.Workload import Workload
++from m5.params import *
++from m5.SimObject import cxxMethod
++
++
++class DadaoBareMetal(Workload):
++    type = "DadaoBareMetal"
++    cxx_class = "gem5::DadaoISA::BareMetal"
++    cxx_header = "arch/dadao/bare_metal.hh"
++
++    bootrom = Param.String("", "Raw big-endian boot ROM image")
++    reset_addr = Param.Addr(0xFFFFFFFF0000, "Machine-01 reset address")
++    initial_pc = Param.Addr(0xFFFFFFFF0000, "Initial PC for ISA fixture")
++    initial_rd1 = Param.UInt64(0, "Initial rd1 for ISA fixture")
++
++    @cxxMethod
++    def readRd(self, index):
++        pass
++
++    @cxxMethod
++    def writeRd(self, index, value):
++        pass
++
++    @cxxMethod
++    def readRb(self, index):
++        pass
++
++    @cxxMethod
++    def writeRb(self, index, value):
++        pass
++
++    @cxxMethod
++    def readRa(self, index):
++        pass
++
++    @cxxMethod
++    def readRf(self, index):
++        pass
++
++    @cxxMethod
++    def readMode(self):
++        pass
++
++    @cxxMethod
++    def readFcsr(self):
++        pass
++
++    @cxxMethod
++    def writeFcsr(self, value):
++        pass
++
++    @cxxMethod
++    def writeRf0(self, value):
++        pass
++
++    @cxxMethod
++    def readPc(self):
++        pass

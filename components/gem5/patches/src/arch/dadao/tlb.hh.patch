@@ -1,0 +1,52 @@
+diff --git a/src/arch/dadao/tlb.hh b/src/arch/dadao/tlb.hh
+new file mode 100644
+index 0000000..f8267a4
+--- /dev/null
++++ b/src/arch/dadao/tlb.hh
+@@ -0,0 +1,46 @@
++#ifndef __ARCH_DADAO_TLB_HH__
++#define __ARCH_DADAO_TLB_HH__
++
++#include "arch/generic/tlb.hh"
++#include "arch/dadao/faults.hh"
++#include "params/DadaoTLB.hh"
++
++namespace gem5::DadaoISA
++{
++// Machine-01 initially uses physical addresses. CFX permission and fault
++// routing are added with the test-machine integration task.
++class TLB : public BaseTLB
++{
++  public:
++    using Params = DadaoTLBParams;
++    TLB(const Params &p) : BaseTLB(p) {}
++    void demapPage(Addr, uint64_t) override {}
++    void flushAll() override {}
++    void takeOverFrom(BaseTLB *) override {}
++    Fault translateAtomic(const RequestPtr &req, ThreadContext *,
++            BaseMMU::Mode mode) override
++    {
++        // gem5 rounds the fetch address to the decoder word boundary, while
++        // Request::getPC retains the architectural instruction pointer.
++        const Addr instruction_pc = req->hasPC() ? req->getPC() :
++                                   req->getVaddr();
++        if (mode == BaseMMU::Execute && (instruction_pc & 3))
++            return std::make_shared<MachineFault>("IALIGN", 0x8d);
++        req->setPaddr(req->getVaddr());
++        return NoFault;
++    }
++    void translateTiming(const RequestPtr &req, ThreadContext *tc,
++            BaseMMU::Translation *translation, BaseMMU::Mode mode) override
++    {
++        translation->finish(translateAtomic(req, tc, mode), req, tc, mode);
++    }
++    Fault translateFunctional(const RequestPtr &req, ThreadContext *tc,
++            BaseMMU::Mode mode) override
++    { return translateAtomic(req, tc, mode); }
++    Fault finalizePhysical(const RequestPtr &, ThreadContext *,
++            BaseMMU::Mode) const override
++    { return NoFault; }
++};
++}
++
++#endif

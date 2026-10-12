@@ -1,0 +1,74 @@
+diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
+new file mode 100644
+index 0000000..6bdca4f
+--- /dev/null
++++ b/src/arch/dadao/isa.cc
+@@ -0,0 +1,68 @@
++#include "arch/dadao/isa.hh"
++
++#include "arch/dadao/regs/float.hh"
++#include "arch/dadao/regs/int.hh"
++#include "cpu/thread_context.hh"
++#include "debug/MatRegs.hh"
++#include "params/DadaoISA.hh"
++
++namespace gem5::DadaoISA
++{
++namespace
++{
++RegClass vecRegClass(VecRegClass, VecRegClassName, 1, debug::IntRegs);
++RegClass vecElemClass(VecElemClass, VecElemClassName, 2, debug::IntRegs);
++RegClass vecPredRegClass(VecPredRegClass, VecPredRegClassName, 1,
++        debug::IntRegs);
++RegClass matRegClass(MatRegClass, MatRegClassName, 0, debug::MatRegs);
++RegClass ccRegClass(CCRegClass, CCRegClassName, 0, debug::IntRegs);
++}
++
++ISA::ISA(const Params &p) : BaseISA(p, "dadao")
++{
++    _regClasses = {&intRegClass, &floatRegClass, &vecRegClass,
++        &vecElemClass, &vecPredRegClass, &matRegClass,
++        &ccRegClass, &miscRegClass};
++    clear();
++}
++
++RegVal
++ISA::readMiscRegNoEffect(RegIndex i) const
++{
++    if (i == misc_reg::Fcsr)
++        return tc->getReg(floatRegClass[0]);
++    return miscRegs[i];
++}
++
++RegVal
++ISA::readMiscReg(RegIndex i)
++{
++    return readMiscRegNoEffect(i);
++}
++
++void
++ISA::setMiscRegNoEffect(RegIndex i, RegVal value)
++{
++    if (i == misc_reg::Fcsr)
++        tc->setReg(floatRegClass[0], FcsrReset | (value & FcsrWritable));
++    else
++        miscRegs[i] = value;
++}
++
++void
++ISA::setMiscReg(RegIndex i, RegVal value)
++{
++    setMiscRegNoEffect(i, value);
++}
++
++void
++ISA::copyRegsFrom(ThreadContext *src)
++{
++    for (auto &id : intRegClass)
++        tc->setReg(id, src->getReg(id));
++    for (auto &id : floatRegClass)
++        tc->setReg(id, src->getReg(id));
++    miscRegs[misc_reg::Mode] = src->readMiscRegNoEffect(misc_reg::Mode);
++    tc->pcState(src->pcState());
++}
++}

@@ -1,0 +1,29 @@
+diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
+new file mode 100644
+index 0000000..108f15c
+--- /dev/null
++++ b/src/arch/dadao/SConscript
+@@ -0,0 +1,23 @@
++# DADAO-v5 bare-metal ISA. Keep its sources under the ISA build tag.
++Import('*')
++
++if not env['CONF']['USE_DADAO_ISA']:
++    Return()
++
++env.TagImplies('dadao isa', 'gem5 lib')
++env.TagImplies('isa', 'dadao isa')
++
++Source('decoder.cc', tags=['dadao isa'])
++Source('isa.cc', tags=['dadao isa'])
++Source('inst.cc', tags=['dadao isa'])
++Source('bare_metal.cc', tags=['dadao isa'])
++
++SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
++SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])
++SimObject('DadaoInterrupts.py', sim_objects=['DadaoInterrupts'], tags=['dadao isa'])
++SimObject('DadaoMMU.py', sim_objects=['DadaoMMU'], tags=['dadao isa'])
++SimObject('DadaoTLB.py', sim_objects=['DadaoTLB'], tags=['dadao isa'])
++SimObject('DadaoCPU.py', sim_objects=[], tags=['dadao isa'])
++SimObject('DadaoBareMetal.py', sim_objects=['DadaoBareMetal'], tags=['dadao isa'])
++
++ISADesc('isa/main.isa', tags=['dadao isa'])

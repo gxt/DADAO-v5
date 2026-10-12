@@ -1,0 +1,18 @@
+diff --git a/src/arch/dadao/types.hh b/src/arch/dadao/types.hh
+new file mode 100644
+index 0000000..50ac891
+--- /dev/null
++++ b/src/arch/dadao/types.hh
+@@ -0,0 +1,12 @@
++#ifndef __ARCH_DADAO_TYPES_HH__
++#define __ARCH_DADAO_TYPES_HH__
++
++#include <cstdint>
++
++namespace gem5::DadaoISA
++{
++using MachInst = uint32_t;
++using ExtMachInst = uint32_t;
++}
++
++#endif

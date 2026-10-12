@@ -1,0 +1,30 @@
+diff --git a/src/arch/dadao/interrupts.hh b/src/arch/dadao/interrupts.hh
+new file mode 100644
+index 0000000..b20b0d8
+--- /dev/null
++++ b/src/arch/dadao/interrupts.hh
+@@ -0,0 +1,24 @@
++#ifndef __ARCH_DADAO_INTERRUPTS_HH__
++#define __ARCH_DADAO_INTERRUPTS_HH__
++
++#include "arch/generic/interrupts.hh"
++#include "base/logging.hh"
++#include "params/DadaoInterrupts.hh"
++
++namespace gem5::DadaoISA
++{
++class Interrupts : public BaseInterrupts
++{
++  public:
++    using Params = DadaoInterruptsParams;
++    Interrupts(const Params &p) : BaseInterrupts(p) {}
++    void post(int, int) override { panic("DADAO interrupt unsupported"); }
++    void clear(int, int) override {}
++    void clearAll() override {}
++    bool checkInterrupts() const override { return false; }
++    Fault getInterrupt() override { return NoFault; }
++    void updateIntrInfo() override {}
++};
++}
++
++#endif

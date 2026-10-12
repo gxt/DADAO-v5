@@ -1,0 +1,41 @@
+diff --git a/src/arch/dadao/inst.hh b/src/arch/dadao/inst.hh
+new file mode 100644
+index 0000000..5b4be26
+--- /dev/null
++++ b/src/arch/dadao/inst.hh
+@@ -0,0 +1,35 @@
++#ifndef __ARCH_DADAO_INST_HH__
++#define __ARCH_DADAO_INST_HH__
++
++#include "arch/dadao/pcstate.hh"
++#include "arch/dadao/types.hh"
++#include "cpu/static_inst.hh"
++
++namespace gem5::DadaoISAInst
++{
++class DadaoInst : public StaticInst
++{
++  private:
++    DadaoISA::ExtMachInst word;
++    std::string generateDisassembly(Addr,
++            const loader::SymbolTable *) const override;
++
++  public:
++    explicit DadaoInst(DadaoISA::ExtMachInst word);
++    Fault execute(ExecContext *xc, trace::InstRecord *traceData) const override;
++    void advancePC(PCStateBase &pc) const override
++    { pc.as<DadaoISA::PCState>().advance(); }
++    void advancePC(ThreadContext *tc) const override;
++    std::unique_ptr<PCStateBase> buildRetPC(const PCStateBase &,
++            const PCStateBase &call) const override
++    {
++        auto result = std::unique_ptr<PCStateBase>(call.clone());
++        result->as<DadaoISA::PCState>().advance();
++        return result;
++    }
++    size_t asBytes(void *buf, size_t max_size) override
++    { return simpleAsBytes(buf, max_size, word); }
++};
++}
++
++#endif

@@ -1,0 +1,28 @@
+diff --git a/src/arch/dadao/mmu.hh b/src/arch/dadao/mmu.hh
+new file mode 100644
+index 0000000..0551ccf
+--- /dev/null
++++ b/src/arch/dadao/mmu.hh
+@@ -0,0 +1,22 @@
++#ifndef __ARCH_DADAO_MMU_HH__
++#define __ARCH_DADAO_MMU_HH__
++
++#include "arch/generic/mmu.hh"
++#include "params/DadaoMMU.hh"
++
++namespace gem5::DadaoISA
++{
++class MMU : public BaseMMU
++{
++  public:
++    MMU(const DadaoMMUParams &p) : BaseMMU(p) {}
++    TranslationGenPtr translateFunctional(Addr start, Addr size,
++            ThreadContext *tc, Mode mode, Request::Flags flags) override
++    {
++        return TranslationGenPtr(new MMUTranslationGen(
++                4096, start, size, tc, this, mode, flags));
++    }
++};
++}
++
++#endif

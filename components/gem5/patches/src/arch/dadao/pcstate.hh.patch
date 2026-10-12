@@ -1,0 +1,24 @@
+diff --git a/src/arch/dadao/pcstate.hh b/src/arch/dadao/pcstate.hh
+new file mode 100644
+index 0000000..fe7aae1
+--- /dev/null
++++ b/src/arch/dadao/pcstate.hh
+@@ -0,0 +1,18 @@
++#ifndef __ARCH_DADAO_PCSTATE_HH__
++#define __ARCH_DADAO_PCSTATE_HH__
++
++#include "arch/generic/pcstate.hh"
++#include "enums/ByteOrder.hh"
++
++namespace gem5::DadaoISA
++{
++class PCState : public GenericISA::SimplePCState<4>
++{
++  public:
++    using GenericISA::SimplePCState<4>::SimplePCState;
++    PCStateBase *clone() const override { return new PCState(*this); }
++    ByteOrder byteOrder() const { return ByteOrder::big; }
++};
++}
++
++#endif

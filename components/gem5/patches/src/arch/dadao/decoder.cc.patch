@@ -1,0 +1,12 @@
+diff --git a/src/arch/dadao/decoder.cc b/src/arch/dadao/decoder.cc
+new file mode 100644
+index 0000000..1b2be61
+--- /dev/null
++++ b/src/arch/dadao/decoder.cc
+@@ -0,0 +1,6 @@
++#include "arch/dadao/decoder.hh"
++
++namespace gem5::DadaoISA
++{
++GenericISA::BasicDecodeCache<Decoder, ExtMachInst> Decoder::defaultCache;
++}

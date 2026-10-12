@@ -1,0 +1,21 @@
+diff --git a/src/arch/dadao/regs/float.hh b/src/arch/dadao/regs/float.hh
+new file mode 100644
+index 0000000..03113e2
+--- /dev/null
++++ b/src/arch/dadao/regs/float.hh
+@@ -0,0 +1,15 @@
++#ifndef __ARCH_DADAO_REGS_FLOAT_HH__
++#define __ARCH_DADAO_REGS_FLOAT_HH__
++
++#include "cpu/reg_class.hh"
++#include "debug/FloatRegs.hh"
++
++namespace gem5::DadaoISA
++{
++inline constexpr uint64_t FcsrReset = 0x7ff800007fc00000ULL;
++inline constexpr uint64_t FcsrWritable = (3ULL << 32) | 0x1fULL;
++inline constexpr RegClass floatRegClass(FloatRegClass, FloatRegClassName,
++        64, debug::FloatRegs);
++}
++
++#endif

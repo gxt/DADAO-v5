@@ -1,0 +1,31 @@
+diff --git a/src/arch/dadao/faults.hh b/src/arch/dadao/faults.hh
+new file mode 100644
+index 0000000..c9182b7
+--- /dev/null
++++ b/src/arch/dadao/faults.hh
+@@ -0,0 +1,25 @@
++#ifndef __ARCH_DADAO_FAULTS_HH__
++#define __ARCH_DADAO_FAULTS_HH__
++
++#include "sim/faults.hh"
++#include "sim/sim_exit.hh"
++
++namespace gem5::DadaoISA
++{
++// Machine-01 converts unhandled precise faults into process exit codes.
++class MachineFault : public FaultBase
++{
++  private:
++    const FaultName faultName;
++    const int exitCode;
++
++  public:
++    MachineFault(FaultName name, int code)
++        : faultName(name), exitCode(code) {}
++    FaultName name() const override { return faultName; }
++    void invoke(ThreadContext *, const StaticInstPtr &) override
++    { exitSimLoopNow(faultName, exitCode); }
++};
++}
++
++#endif

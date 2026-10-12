@@ -1,0 +1,86 @@
+diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
+new file mode 100644
+index 0000000..59dafdf
+--- /dev/null
++++ b/src/arch/dadao/inst.cc
+@@ -0,0 +1,80 @@
++#include "arch/dadao/inst.hh"
++
++#include "arch/dadao/regs/int.hh"
++#include "arch/dadao/faults.hh"
++#include "arch/dadao/opcode_table.hh"
++#include "base/cprintf.hh"
++#include "base/logging.hh"
++#include "cpu/exec_context.hh"
++#include "cpu/thread_context.hh"
++
++namespace gem5::DadaoISAInst
++{
++DadaoInst::DadaoInst(DadaoISA::ExtMachInst w)
++    : StaticInst(((w >> 24) == 0x59 || (w >> 24) == 0x5b) ? "add.si" :
++                 (w >> 24) == 0x50 ? "add.uo" : "unknown", IntAluOp),
++      word(w)
++{
++    size(4);
++    flags[IsInteger] = true;
++    if ((w >> 24) != 0x59 && (w >> 24) != 0x5b &&
++        (w >> 24) != 0x50) {
++        flags[IsInvalid] = true;
++        flags[IsNonSpeculative] = true;
++    }
++}
++
++std::string
++DadaoInst::generateDisassembly(Addr, const loader::SymbolTable *) const
++{
++    return csprintf("%s 0x%08x", mnemonic, word);
++}
++
++void
++DadaoInst::advancePC(ThreadContext *tc) const
++{
++    StaticInst::advancePC(tc);
++    tc->setReg(DadaoISA::intRegClass[DadaoISA::int_reg::RbBase],
++            tc->pcState().instAddr());
++}
++
++Fault
++DadaoInst::execute(ExecContext *xc, trace::InstRecord *) const
++{
++    const unsigned op = word >> 24;
++    const unsigned ha = (word >> 18) & 63;
++    auto *tc = xc->tcBase();
++    auto rd = [tc](unsigned i) {
++        return tc->getReg(DadaoISA::intRegClass[DadaoISA::int_reg::RdBase + i]);
++    };
++    auto set_rd = [tc](unsigned i, uint64_t value) {
++        if (i)
++            tc->setReg(DadaoISA::intRegClass[DadaoISA::int_reg::RdBase + i],
++                    value);
++    };
++    if (op == 0x59 || op == 0x5b) {
++        if (ha == 0)
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        const int64_t imm = static_cast<int32_t>(word << 14) >> 14;
++        const auto id = DadaoISA::intRegClass[
++                (op == 0x59 ? DadaoISA::int_reg::RdBase :
++                 DadaoISA::int_reg::RbBase) + ha];
++        tc->setReg(id, tc->getReg(id) + imm);
++    } else if (op == 0x50) {
++        const unsigned hb = (word >> 12) & 63;
++        const unsigned hc = (word >> 6) & 63;
++        const unsigned hd = word & 63;
++        if (ha == hb)
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        const uint64_t lhs = rd(hc), rhs = rd(hd);
++        const uint64_t low = lhs + rhs;
++        set_rd(ha, low < lhs);
++        set_rd(hb, low);
++    } else {
++        if (DadaoISA::isDefinedEncoding(word))
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        return std::make_shared<DadaoISA::MachineFault>("UNDI", 0x89);
++    }
++    return NoFault;
++}
++}

@@ -1,0 +1,131 @@
+diff --git a/src/arch/dadao/bare_metal.cc b/src/arch/dadao/bare_metal.cc
+new file mode 100644
+index 0000000..4bc81c6
+--- /dev/null
++++ b/src/arch/dadao/bare_metal.cc
+@@ -0,0 +1,125 @@
++#include "arch/dadao/bare_metal.hh"
++
++#include <fstream>
++#include <iterator>
++#include <vector>
++
++#include "arch/dadao/pcstate.hh"
++#include "arch/dadao/regs/float.hh"
++#include "arch/dadao/regs/int.hh"
++#include "arch/dadao/regs/misc.hh"
++#include "base/logging.hh"
++#include "cpu/thread_context.hh"
++#include "mem/port_proxy.hh"
++#include "sim/system.hh"
++
++namespace gem5::DadaoISA
++{
++void
++BareMetal::initState()
++{
++    Workload::initState();
++    const auto &p = params();
++    std::ifstream image(p.bootrom, std::ios::binary);
++    fatal_if(!image, "Cannot open DADAO boot ROM %s", p.bootrom);
++    const std::vector<uint8_t> bytes{
++        std::istreambuf_iterator<char>(image), std::istreambuf_iterator<char>()};
++    fatal_if(bytes.empty() || bytes.size() > 65536,
++            "DADAO boot ROM must contain 1..65536 bytes");
++    system->physProxy.writeBlob(p.reset_addr, bytes.data(), bytes.size());
++
++    for (auto *tc : system->threads) {
++        tc->pcState(PCState(p.initial_pc));
++        tc->setReg(floatRegClass[0], FcsrReset);
++        tc->setReg(intRegClass[int_reg::RbBase], p.initial_pc);
++        tc->setReg(intRegClass[int_reg::RdBase + 1], p.initial_rd1);
++        tc->activate();
++    }
++}
++
++uint64_t
++BareMetal::readRd(unsigned index) const
++{
++    fatal_if(index >= 64, "DADAO rd index out of range");
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    return (*system->threads.begin())->getReg(intRegClass[int_reg::RdBase + index]);
++}
++
++void
++BareMetal::writeRd(unsigned index, uint64_t value)
++{
++    fatal_if(index == 0 || index >= 64, "DADAO rd destination out of range");
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    (*system->threads.begin())->setReg(intRegClass[int_reg::RdBase + index],
++            value);
++}
++
++uint64_t
++BareMetal::readRb(unsigned index) const
++{
++    fatal_if(index >= 64, "DADAO rb index out of range");
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    return (*system->threads.begin())->getReg(intRegClass[int_reg::RbBase + index]);
++}
++
++void
++BareMetal::writeRb(unsigned index, uint64_t value)
++{
++    fatal_if(index == 0 || index >= 64, "DADAO rb destination out of range");
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    (*system->threads.begin())->setReg(intRegClass[int_reg::RbBase + index],
++            value);
++}
++
++uint64_t
++BareMetal::readRa(unsigned index) const
++{
++    fatal_if(index >= 64, "DADAO ra index out of range");
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    return (*system->threads.begin())->getReg(intRegClass[int_reg::RaBase + index]);
++}
++
++uint64_t
++BareMetal::readRf(unsigned index) const
++{
++    fatal_if(index >= 64, "DADAO rf index out of range");
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    return (*system->threads.begin())->getReg(floatRegClass[index]);
++}
++
++uint64_t
++BareMetal::readMode() const
++{
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    return (*system->threads.begin())->readMiscRegNoEffect(misc_reg::Mode);
++}
++
++uint64_t
++BareMetal::readFcsr() const
++{
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    return (*system->threads.begin())->readMiscRegNoEffect(misc_reg::Fcsr);
++}
++
++void
++BareMetal::writeFcsr(uint64_t value)
++{
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    (*system->threads.begin())->setMiscRegNoEffect(misc_reg::Fcsr, value);
++}
++
++void
++BareMetal::writeRf0(uint64_t value)
++{
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    auto *tc = *system->threads.begin();
++    tc->setReg(floatRegClass[0], FcsrReset | (value & FcsrWritable));
++}
++
++Addr
++BareMetal::readPc() const
++{
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    return (*system->threads.begin())->pcState().instAddr();
++}
++}

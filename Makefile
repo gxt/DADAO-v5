@@ -36,10 +36,11 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .DEFAULT_GOAL := help
 
-.PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
+.PHONY: help manifest-check doctor status fetch fetch-gem5 fetch-refs apply-series apply-gem5 prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
-        build-musl build-musl-shared test-picolibc-smoke install-host docker-image docker-shell check \
+        build-musl build-musl-shared test-gem5 check-gem5-full \
+        test-picolibc-smoke install-host docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
@@ -69,8 +70,10 @@ help:
 	@echo "  make doctor          Check host or container build prerequisites"
 	@echo "  make status          Show locked components and references"
 	@echo "  make fetch           Fetch enabled components at exact commits"
+	@echo "  make fetch-gem5      Fetch only the pinned gem5 component"
 	@echo "  make fetch-refs      Fetch locked reference repositories"
 	@echo "  make apply-series    Apply ordered patch series then auto-commit (E5)"
+	@echo "  make apply-gem5      Apply only the gem5 patch series"
 	@echo "  make prepare         Fetch enabled components and apply their patch series"
 	@echo "  make check-source-state  Report each source tree's E1 state (clean + base+1)"
 	@echo "  make build-mc        Build LLVM MC+CodeGen+clang+lli from one config (targets DADAO;X86, projects clang;lld)"
@@ -79,7 +82,9 @@ help:
 	@echo "  make build-lld       Build LLD linker (bin/ld.lld); shares the one-shot LLVM config"
 	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
-	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
+	@echo "  make build-gem5      Build gem5 DADAO AtomicSimpleCPU target"
+	@echo "  make test-gem5       Run representative gem5 ISA execution vectors"
+	@echo "  make check-gem5-full Run complete gem5 ISA coverage and execution gates"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
@@ -153,6 +158,12 @@ status:
 
 fetch: manifest-check
 	@$(PYTHON) tools/infra/fetch.py
+
+fetch-gem5: manifest-check
+	@$(PYTHON) tools/gem5/fetch.py
+
+apply-gem5: manifest-check
+	@$(PYTHON) tools/gem5/apply_series.py
 
 fetch-refs: manifest-check
 	@$(PYTHON) tools/infra/fetch_refs.py
@@ -278,16 +289,24 @@ build-qemu-reconfig: manifest-check
 	$(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
 	@echo "build-qemu-reconfig: PASS"
 
-# gem5 is a v5 addition and has no build command yet (the gem5 module owns it).
-# This target is a deliberate skeleton: even once the component is enabled it
-# must not claim success until a real recipe exists.
+# Build only the locked, patched DADAO source. SCons writes build/DADAO under
+# the disposable gem5 source tree; its package dependencies may be project-local.
 build-gem5: manifest-check
 	@$(call component-enabled,gem5) || { \
 	  echo "build-gem5: component 'gem5' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
 	  exit 1; \
 	}
-	@echo "build-gem5: gem5 build command is not defined yet (owned by the gem5 module); refusing to fake success"
-	@exit 1
+	@./tools/gem5/run-scons.sh build/DADAO/gem5.opt -j8
+	@$(GEM5_SRC)/build/DADAO/gem5.opt --build-info
+	@echo "build-gem5: PASS"
+
+test-gem5:
+	@$(PYTHON) tools/gem5/generate_opcode_table.py --check
+	@$(PYTHON) tools/gem5/vector_inventory.py
+	@$(PYTHON) tools/gem5/test_isa.py --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt"
+
+check-gem5-full: test-gem5
+	@$(PYTHON) tools/gem5/vector_inventory.py --require-complete
 
 # install-host (INFRA-047t, ADR-0016 D3/D4/D5/D11): stage only the needed host
 # tool set from the .work/ build trees into the install root's bin/, install the

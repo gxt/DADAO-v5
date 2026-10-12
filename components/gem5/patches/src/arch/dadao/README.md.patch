@@ -1,0 +1,16 @@
+diff --git a/src/arch/dadao/README.md b/src/arch/dadao/README.md
+new file mode 100644
+index 0000000..3ecfaa8
+--- /dev/null
++++ b/src/arch/dadao/README.md
+@@ -0,0 +1,10 @@
++# DADAO target for gem5
++
++This directory holds the DADAO-v5 ISA implementation for the gem5
++`v25.1.0.1` baseline. The source of truth is the DADAO-v5 project's `spec/`
++and `contracts/` trees, especially `spec/Machine-01-测试机运行环境.md` for
++the bare-metal machine interface. The gem5 implementation is a separate
++functional execution model; QEMU results are diagnostic, not expected values.
++
++Build and test commands, patch provenance, and coverage are documented in
++`components/gem5/README.md` and `.tao/tasks/gem5/` in the DADAO-v5 project.

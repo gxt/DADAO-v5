@@ -1,0 +1,8 @@
+diff --git a/src/arch/dadao/Kconfig b/src/arch/dadao/Kconfig
+new file mode 100644
+index 0000000..0c7167e
+--- /dev/null
++++ b/src/arch/dadao/Kconfig
+@@ -0,0 +1,2 @@
++config USE_DADAO_ISA
++    bool "DADAO ISA support"

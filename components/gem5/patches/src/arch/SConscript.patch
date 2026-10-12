@@ -1,0 +1,12 @@
+diff --git a/src/arch/SConscript b/src/arch/SConscript
+index 630330f..adde3b4 100644
+--- a/src/arch/SConscript
++++ b/src/arch/SConscript
+@@ -59,6 +59,7 @@ Import('*')
+ if env['CONF']['BUILD_ISA']:
+     if (
+         not env['CONF']['USE_ARM_ISA'] and
++        not env['CONF']['USE_DADAO_ISA'] and
+         not env['CONF']['USE_MIPS_ISA'] and
+         not env['CONF']['USE_POWER_ISA'] and
+         not env['CONF']['USE_RISCV_ISA'] and

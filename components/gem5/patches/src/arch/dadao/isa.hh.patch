@@ -1,0 +1,43 @@
+diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
+new file mode 100644
+index 0000000..ebfc003
+--- /dev/null
++++ b/src/arch/dadao/isa.hh
+@@ -0,0 +1,37 @@
++#ifndef __ARCH_DADAO_ISA_HH__
++#define __ARCH_DADAO_ISA_HH__
++
++#include "arch/dadao/pcstate.hh"
++#include "arch/dadao/regs/misc.hh"
++#include "arch/generic/isa.hh"
++
++namespace gem5
++{
++struct DadaoISAParams;
++class ThreadContext;
++namespace DadaoISA
++{
++class ISA : public BaseISA
++{
++  private:
++    RegVal miscRegs[misc_reg::NumRegs] = {};
++
++  public:
++    using Params = DadaoISAParams;
++    ISA(const Params &p);
++    PCStateBase *newPCState(Addr addr=0) const override
++    { return new PCState(addr); }
++    void clear() override
++    { miscRegs[misc_reg::Mode] = 3; }
++    RegVal readMiscRegNoEffect(RegIndex i) const override;
++    RegVal readMiscReg(RegIndex i) override;
++    void setMiscRegNoEffect(RegIndex i, RegVal value) override;
++    void setMiscReg(RegIndex i, RegVal value) override;
++    bool inUserMode() const override
++    { return miscRegs[misc_reg::Mode] == 0; }
++    void copyRegsFrom(ThreadContext *src) override;
++};
++}
++}
++
++#endif

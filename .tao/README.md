@@ -27,7 +27,7 @@
 | `llvm` | `LLVM` | LLVM MC + CodeGen |
 | `qemu` | `QEMU` | QEMU |
 | `integ` | `INTEG` | 集成验证（E2E 套件与回归 + 跨模块接口对齐） |
-| `gem5` | `GEM5` | gem5（**未开工**） |
+| `gem5` | `GEM5` | gem5（**M8，与 M7 并行实施**） |
 | `sail` | `SAIL` | Sail（**未开工**） |
 
 **文档三分界**：`spec/`（技术规范正文）/ `docs/`（工程流程规范 + 索引 + `DDLN/`）/ `.tao/knowledge/`（结论·设计·口径）——主判据与落点见 `AGENTS.md`「文档分层与单一真源」。

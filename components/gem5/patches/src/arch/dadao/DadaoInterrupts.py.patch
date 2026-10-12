@@ -1,0 +1,13 @@
+diff --git a/src/arch/dadao/DadaoInterrupts.py b/src/arch/dadao/DadaoInterrupts.py
+new file mode 100644
+index 0000000..58ef4cb
+--- /dev/null
++++ b/src/arch/dadao/DadaoInterrupts.py
+@@ -0,0 +1,7 @@
++from m5.objects.BaseInterrupts import BaseInterrupts
++
++
++class DadaoInterrupts(BaseInterrupts):
++    type = "DadaoInterrupts"
++    cxx_class = "gem5::DadaoISA::Interrupts"
++    cxx_header = "arch/dadao/interrupts.hh"

@@ -1,0 +1,25 @@
+diff --git a/src/arch/dadao/regs/misc.hh b/src/arch/dadao/regs/misc.hh
+new file mode 100644
+index 0000000..68a6264
+--- /dev/null
++++ b/src/arch/dadao/regs/misc.hh
+@@ -0,0 +1,19 @@
++#ifndef __ARCH_DADAO_REGS_MISC_HH__
++#define __ARCH_DADAO_REGS_MISC_HH__
++
++#include "cpu/reg_class.hh"
++#include "debug/MiscRegs.hh"
++
++namespace gem5::DadaoISA
++{
++namespace misc_reg
++{
++inline constexpr RegIndex Mode = 0;
++inline constexpr RegIndex Fcsr = 1;
++inline constexpr RegIndex NumRegs = 2;
++}
++inline constexpr RegClass miscRegClass(MiscRegClass, MiscRegClassName,
++        misc_reg::NumRegs, debug::MiscRegs);
++}
++
++#endif

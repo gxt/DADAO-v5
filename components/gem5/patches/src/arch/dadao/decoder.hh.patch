@@ -1,0 +1,45 @@
+diff --git a/src/arch/dadao/decoder.hh b/src/arch/dadao/decoder.hh
+new file mode 100644
+index 0000000..726c4d1
+--- /dev/null
++++ b/src/arch/dadao/decoder.hh
+@@ -0,0 +1,39 @@
++#ifndef __ARCH_DADAO_DECODER_HH__
++#define __ARCH_DADAO_DECODER_HH__
++
++#include "arch/dadao/pcstate.hh"
++#include "arch/dadao/types.hh"
++#include "arch/generic/decode_cache.hh"
++#include "arch/generic/decoder.hh"
++#include "cpu/static_inst.hh"
++#include "sim/byteswap.hh"
++#include "params/DadaoDecoder.hh"
++
++namespace gem5::DadaoISA
++{
++class Decoder : public InstDecoder
++{
++  protected:
++    ExtMachInst emi = 0;
++    static GenericISA::BasicDecodeCache<Decoder, ExtMachInst> defaultCache;
++    friend class GenericISA::BasicDecodeCache<Decoder, ExtMachInst>;
++    StaticInstPtr decodeInst(ExtMachInst mach_inst);
++
++  public:
++    Decoder(const DadaoDecoderParams &p) : InstDecoder(p, &emi) {}
++    void moreBytes(const PCStateBase &, Addr) override
++    {
++        emi = gtoh(emi, ByteOrder::big);
++        instDone = true;
++    }
++    StaticInstPtr decode(PCStateBase &next_pc) override
++    {
++        if (!instDone)
++            return nullptr;
++        instDone = false;
++        return defaultCache.decode(this, emi, next_pc.instAddr());
++    }
++};
++}
++
++#endif

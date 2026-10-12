@@ -1,0 +1,13 @@
+diff --git a/src/arch/dadao/DadaoDecoder.py b/src/arch/dadao/DadaoDecoder.py
+new file mode 100644
+index 0000000..a47061c
+--- /dev/null
++++ b/src/arch/dadao/DadaoDecoder.py
+@@ -0,0 +1,7 @@
++from m5.objects.InstDecoder import InstDecoder
++
++
++class DadaoDecoder(InstDecoder):
++    type = "DadaoDecoder"
++    cxx_class = "gem5::DadaoISA::Decoder"
++    cxx_header = "arch/dadao/decoder.hh"

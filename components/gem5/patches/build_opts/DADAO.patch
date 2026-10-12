@@ -1,0 +1,9 @@
+diff --git a/build_opts/DADAO b/build_opts/DADAO
+new file mode 100644
+index 0000000..3077a3f
+--- /dev/null
++++ b/build_opts/DADAO
+@@ -0,0 +1,3 @@
++BUILD_ISA=y
++USE_DADAO_ISA=y
++USE_SYSTEMC=n

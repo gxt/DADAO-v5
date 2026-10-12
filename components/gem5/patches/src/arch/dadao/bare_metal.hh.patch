@@ -1,0 +1,45 @@
+diff --git a/src/arch/dadao/bare_metal.hh b/src/arch/dadao/bare_metal.hh
+new file mode 100644
+index 0000000..a54fc18
+--- /dev/null
++++ b/src/arch/dadao/bare_metal.hh
+@@ -0,0 +1,39 @@
++#ifndef __ARCH_DADAO_BARE_METAL_HH__
++#define __ARCH_DADAO_BARE_METAL_HH__
++
++#include "params/DadaoBareMetal.hh"
++#include "sim/workload.hh"
++
++namespace gem5::DadaoISA
++{
++class BareMetal : public Workload
++{
++  private:
++    loader::SymbolTable symbols;
++
++  public:
++    PARAMS(DadaoBareMetal);
++    BareMetal(const Params &p) : Workload(p) {}
++    void initState() override;
++    Addr getEntry() const override { return params().reset_addr; }
++    ByteOrder byteOrder() const override { return ByteOrder::big; }
++    loader::Arch getArch() const override { return loader::UnknownArch; }
++    const loader::SymbolTable &symtab(ThreadContext *) override
++    { return symbols; }
++    bool insertSymbol(const loader::Symbol &s) override
++    { return symbols.insert(s); }
++    uint64_t readRd(unsigned index) const;
++    void writeRd(unsigned index, uint64_t value);
++    uint64_t readRb(unsigned index) const;
++    void writeRb(unsigned index, uint64_t value);
++    uint64_t readRa(unsigned index) const;
++    uint64_t readRf(unsigned index) const;
++    uint64_t readMode() const;
++    uint64_t readFcsr() const;
++    void writeFcsr(uint64_t value);
++    void writeRf0(uint64_t value);
++    Addr readPc() const;
++};
++}
++
++#endif
