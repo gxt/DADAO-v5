@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M7
 **依赖**：`TESTCASES-042t`（`已验证`）
-**状态**：待开始
+**状态**：里程碑
 
 ## 执行环境
 **执行环境**：本地
@@ -43,12 +43,59 @@
 
 ## 完成区
 **测试结果**：
-**修改文件**：
+- L2 (`make check-modules`) rc=0；快档 total=20 / pass=18 / fail=0 / excluded=2 / blocked=0。
+- 全量 (`make check-picolibc-tests-full`) rc=0；**现场四数** total=235 / pass=213 / fail=0 / excluded=22 / blocked=0。
+- 逐用例与 `QEMU-058t` 快照 235 条**完全一致**（名称+状态精确匹配，0 差异）。
+- L1 (`make check`) rc=0；`check-no-residue` rc=0；`check_issues.py` rc=0。
+**修改文件**：本任务书（完成区 + 审阅记录）+ `.work/evidence/<任务ID>/`（gitignored 证据脚本）。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+1. **口径 1**：`tools/testcases/**` 共 20 文件，均在 git（`git ls-files` 证）；`check-picolibc-tests` 在 L2 目标行（`make -n check-modules` 证）。**达成** ✓。
+2. **口径 2/3**：`make check-picolibc-tests-full` rc=0，现场四数 total=235 / pass=213 / fail=0 / excluded=22 / blocked=0；逐用例比对 `QEMU-058t` 快照 = 0 差异。**达成** ✓。
+3. **用户裁定原样引用**：「**记为达成（推荐）**」（2026-10-12，经主会话问答取得）；现场四数 total=235 / pass=213 / fail=0 / excluded=22 / blocked=0。
+4. **跨模块影响**：7 条点名 issue 均**已处置**（逐条见 §审阅记录）。**无未处置项**。
+5. **issue 动作**：`ISS-191` 关闭（依据：`__heap_*` PROVIDE 现场 grep 证 + `TESTCASES-042t` 已验证）；其余 6 条转遗留。
+6. **门控反例注入**：`picolibc_tests.py` 注入 `return 1`（md5 `63e7740a…→<injected>`）⇒ fast 档 rc=1（FAIL）；`cp` 还原（md5 `63e7740a…` 等价）⇒ rc=0（回绿）。
+7. **里程碑核验结论**：**通过**（口径 1–3 全部达成；跨模块无未处置项）。
+**新发现/坑**：无。
+**遗留问题**：无（`ISS-198` 已登记转遗留，非本 m 范围）。
 
 ## 审阅记录
+
+#### 第 1 轮 reviewer 核验（2026-10-13）
+
+**重跑记录**（真实命令 + 退出码）：
+1. `make check-modules`（L2）→ **rc=0**；含 `check-picolibc-tests` 快档 total=20 / pass=18 / fail=0 / excluded=2 / blocked=0。
+2. `make check-picolibc-tests-full` → **rc=0**（`setsid nohup` + `FULL_EXIT=$?` 落盘）；**现场四数** total=**235** / pass=**213** / fail=**0** / excluded=**22** / blocked=**0**（总四数 = pass+fail+excluded+blocked = 213+0+22+0 = 235 ✓）。
+3. 逐用例比对：我的 235 条（name+status）与 `QEMU-058t` 快照（`.work/evidence/QEMU-058t/`）**精确匹配，0 差异**。
+4. `make check`（L1）→ **rc=0**（含 `repository checks (L1): PASS`）。
+5. `make check-no-residue` → **rc=0**。
+6. `python3 tools/infra/check_issues.py` → **rc=0**（28 open / 9 closed / 0 blocking M1-gate）。
+
+**口径逐条核验**：
+- **口径 1**（harness 入库 + L2）：`git ls-files tools/testcases/` = 20 文件（含 `picolibc_tests.py`、probe 脚本、crt0 等）✓；`make -n check-modules` 输出含 `check-picolibc-tests` ✓。**达成**。
+- **口径 2**（test 验收 = 100%）：现场 total=235 / fail=0 ⇒ **100% pass（含 excluded 22）** ✓。**达成**。
+- **口径 3**（现场达成口径）：四数 = pass 213 / fail 0 / excluded 22 / blocked 0，total 235（现场统计）✓。用户 2026-10-12 裁定「**记为达成（推荐）**」（原样引用；取得渠道 = 经主会话问答）✓。**达成**。
+
+**跨模块影响核验**（7 条点名 issue）：
+- `ISS-191`（`__heap_*`）：现场 `grep __heap_start tests/scripts/dadao.lds` 已有 PROVIDE ✓ + `TESTCASES-042t`（`已验证`）含 heap 测试通过 ⇒ **可关闭**（依据充分）。
+- `ISS-198`（2-NaN payload）：**转遗留**（测试覆盖缺口，非缺陷；见 `QEMU-058t` 审阅记录非阻断建议①）。
+- `ISS-190`（st.*/rd0 漂移）：**转遗留**（语义口径冲突，只登记不建任务）。
+- `ISS-102`（覆盖门控粒度）：**转遗留**（validator 增强候选）。
+- `ISS-125`（生成器↔向量漂移）：**转遗留**（债务，testcases 专任务）。
+- `ISS-098`（ctrl-ret 失败）：**转遗留**（pre-existing，归后续 harness 清理）。
+- `ISS-120`（min_rom_probe FAIL）：**转遗留**（pre-existing，归后续清理）。
+- **结论：7 条全部已处置（1 关闭 + 6 转遗留）；无未处置项 ⇒ 不阻塞里程碑**。
+
+**反例注入**（`cp`+md5，禁 `git checkout/restore/stash`）：
+- 注入：`picolibc_tests.py` 最末 `return 0` → `return 1`；原文件 md5 `63e7740a…`。
+- 运行：`python3 tools/testcases/picolibc_tests.py --stage fast --jobs 8` → **rc=1**（FAIL，输出含 `PASS (fail=0)` 但退出码被篡改）。
+- 还原：`cp` 还原 ⇒ md5 `63e7740a…` 等价 ✓。
+- 回绿：再次运行 → **rc=0** ✓；`git status --porcelain -uall` 干净 ✓。
+
+**约束核验**（逐条）：
+① 临时物仅 `/tmp/opencode/TESTCASES-043m/` ✓；② 未提交 git ✓；③ 禁 `cmd | tee` 吞码（所有 rc 用 `cmd; echo rc=$?` 捕获）✓；④ 只动本任务书 + `.work/evidence/<任务ID>/` ✓；⑤ 失败保留现场继续推进（无待裁定项）✓；⑥ 记录无字面 `.work/` 具体路径（均用 `<>` 占位）✓；⑦ 计数现场统计不写死 ✓。
+
+**里程碑核验结论**：**通过** —— 口径 1–3 全部达成；跨模块 7 条 issue 全部已处置（无未处置项）；门控全绿；反例可达 FAIL 并回绿。主会话可置 `**状态**` = `里程碑`。
 
 #### 第 1 轮 architect 规划（2026-10-13）
 - 立本 `m` 核验任务书（M7 testcases 模块里程碑）；M7 口径逐条引用 `milestones.md` M7 段落 + `INTEG-033k §裁定汇总 #2`；**原样引用**用户 2026-10-12 裁定「记为达成（推荐）」+ 现场四数（`pass 213 / fail 0 / excluded 22 / blocked 0`，total 现场统计）；含跨模块影响（点 `ISS-198`）与「有未处置 ⇒ 不得置里程碑」纪律；执行方式 = reviewer 独立核验 + architect 记录/提交。

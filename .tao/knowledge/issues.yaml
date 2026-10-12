@@ -327,11 +327,11 @@
 
 - id: ISS-191
   title: "`tests/scripts/dadao.lds` 缺 `__heap_start`/`__heap_end` PROVIDE ⇒ `malloc`/`sbrk` 程序链接失败（undefined `__heap_end`）"
-  status: open
+  status: closed
   scope: [infra, testcases]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 `INFRA-057t` 完成区「遗留问题①」+ reviewer 第 1 轮「heap/PT_LOAD」）】`tests/scripts/dadao.lds`（`QEMU-056t` 基址 `0xFC0000000000`，已核一致）**无 `__heap_*` PROVIDE**（grep 0 条）；picolibc `malloc`/`sbrk`（`libos/fallback/sbrk.c` weak 引用 `__heap_start`/`__heap_end`）**链接 rc=1**（实测 undefined `__heap_end`）。对照 `picolibc_noflash.ld`（单 `PT_LOAD MemSize=0x1000000`，`__heap_start/__heap_end` = `PROVIDE` 自 `__end`/`__stack`）⇒ 正解。**待办**：为 `dadao.lds` 补 `__heap_*` PROVIDE，或 testcases 侧改用 `picolibc_noflash.ld`；归 `TESTCASES-042t`。**性质 = 遗留缺口/技术债**（非 `INFRA-057t` 引入）。证据指针：`.tao/tasks/infra/INFRA-057t-*.md` 完成区「遗留问题①」+ reviewer 第 1 轮「heap/PT_LOAD」；`.work/evidence/<任务ID>/run.sh`。"
+  resolved_by: TESTCASES-042t
+  notes: "【关闭（`TESTCASES-043m` M7 模块里程碑核验，2026-10-13，reviewer 独立核验）】**关闭依据**：① 现场 `grep __heap_start tests/scripts/dadao.lds` 已有 PROVIDE（`TESTCASES-043m` reviewer 核验记录）；② `TESTCASES-042t`（`已验证`，picolibc 自带 test 接入）含 heap 测试通过 ⇒ 缺口已消解。**原登记（源 `INFRA-057t` 完成区「遗留问题①」+ reviewer 第 1 轮「heap/PT_LOAD」）**：`tests/scripts/dadao.lds`（`QEMU-056t` 基址 `0xFC0000000000`）当时**无 `__heap_*` PROVIDE**（grep 0 条）；picolibc `malloc`/`sbrk` weak 引用 `__heap_start`/`__heap_end` 致链接 rc=1（undefined `__heap_end`）。**遗留登记时性质 = 遗留缺口/技术债**（非 `INFRA-057t` 引入）；**处置 = 补 `__heap_*` PROVIDE（归 `TESTCASES-042t`）已完成**。证据指针：`.tao/tasks/testcases/TESTCASES-043m-*.md` 审阅记录「跨模块影响核验 `ISS-191`」；`.tao/tasks/infra/INFRA-057t-*.md` 完成区「遗留问题①」。"
 
 
 - id: ISS-192
