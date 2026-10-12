@@ -17,7 +17,7 @@
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M6）；当前进度见 `.tao/knowledge/milestones.md`。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M7）；当前进度见 `.tao/knowledge/milestones.md`。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -27,6 +27,7 @@
 | M4 | 2026-10-07 | ELF 文件支持 + LLD 链接 + 汇编器遗留收口 |
 | M5 | 2026-10-08 | SEE/HEE 运行环境 + semihosting |
 | M6 | 2026-10-11 | 整数完整调用约定 + LLVM 欠账收口 + ELF 直载 + clang target + Embench |
+| M7 | 2026-10-13 | picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -64,4 +65,12 @@
 - FP/RF codegen 落地；reloc 体系（`REL12`/`ABS12`）+ ABI 寄存器布局重排。
 - 测试资产与门控：opt-in `make test-m6`（`check-lit-full` 12/12 + `diff_ir_lli` 19/19 + Embench 38/38）。
 - LLVM 欠账 / 缺口收口（大帧寻址、分支放宽、跳转表、对齐 NOP、clang 小聚合 ABI 等）。
+
+### M7（2026-10-13）picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle
+
+- picolibc 全量移植并集成（`build-picolibc`）；自带 test 达成 **`total 235 / pass 213 / fail 0 / excluded 22 / blocked 0`**（用户 2026-10-12 裁定「记为达成（推荐）」）。
+- FP 后端 P0/P1 补齐（`f32→f64` 载入 / `setcc` / `bitcast` / `select_cc` / `cttz`；取整六项 / `fmin-fmax` / `fabs-copysign`）+ 谓词 / `"r"` 内联汇编 / f32 libcall / 截断存储分批收口。
+- 生成式 **ISA↔后端覆盖矩阵**（227 条：①受理 217 / ②ISel yes 86）。
+- **门控分层 L1/L2/L3**（`docs/Process-07`）+ **过渡 oracle**（宿主机参照，登记「非判据真源」）。
+- 归档与回顾见 `.tao/archive/M7/`（`README.md` / `m7-retrospective.md`）。
 
