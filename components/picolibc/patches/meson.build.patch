@@ -1,8 +1,8 @@
 diff --git a/meson.build b/meson.build
-index 93daa5d..77c043e 100644
+index 93daa5d..f8018b4 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1924,6 +1924,38 @@ foreach libname : libnames
+@@ -1924,6 +1924,39 @@ foreach libname : libnames
    libsrcs += get_variable('src_' + libname, [])
  endforeach
  
@@ -16,15 +16,16 @@ index 93daa5d..77c043e 100644
 +# group (FP unordered-family predicates) after the backend lowered them, and
 +# LLVM-086t removed the (e) group (the inline-asm "r" constraint now accepts
 +# pointer values) after the backend's getRegForInlineAsmConstraint landed.
++# LLVM-087t removed the f32 rounding / min-max subset of the (b) group
++# (sf_nearbyint / sf_scalb / sf_tgamma / srf_lgamma) after the f32 libcall
++# family (frint / ftrunc / ffloor ...) was registered.
 +_dadao_backend_blocked = []
 +if host_cpu_family == 'dadao'
 +  _dadao_backend_blocked = [
-+    # f32 rounding / log libcalls (frint / flog / ftrunc) missing; ISS-193 (b).
++    # f32 `flog` libcall still missing: sf_log10.c calls the public `logf`,
++    # which clang lowers to `llvm.log.f32` (not the f64 `log64` internal used
++    # by s_log10.c); ISS-193 (b).
 +    'sf_log10.c',
-+    'sf_nearbyint.c',
-+    'sf_scalb.c',
-+    'sf_tgamma.c',
-+    'srf_lgamma.c',
 +    # i64 bswap not selected; ISS-193 (c).
 +    'hash_page.c',
 +    # truncating store (i32 store of an f64 value, 'trunc to f32') not
@@ -41,7 +42,7 @@ index 93daa5d..77c043e 100644
  foreach params : targets
    target = params['name']
    target_dir = params['dir']
-@@ -1939,6 +1971,23 @@ foreach params : targets
+@@ -1939,6 +1972,23 @@ foreach params : targets
      libsrcs_target += get_variable('src_' + libname + target, [])
    endforeach
  

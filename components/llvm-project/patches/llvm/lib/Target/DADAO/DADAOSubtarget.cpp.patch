@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..472079ae9
+index 000000000..159425c6e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,78 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -55,7 +55,6 @@ index 000000000..472079ae9
 +  // ffloor" and abort codegen (the ISS-188 picolibc gap).  The symbols are the
 +  // picolibc ones (`floor`/`ceil`/...); the f64 implementations are pure
 +  // bit-manipulation (libm/math/s_floor.c) and compile with the DADAO backend.
-+  // f32 (`*f`) and other FP ops stay out of P1 scope.
 +  Info.setLibcallImpl(RTLIB::FLOOR_F64, RTLIB::impl_floor);
 +  Info.setLibcallImpl(RTLIB::CEIL_F64, RTLIB::impl_ceil);
 +  Info.setLibcallImpl(RTLIB::TRUNC_F64, RTLIB::impl_trunc);
@@ -64,4 +63,22 @@ index 000000000..472079ae9
 +  Info.setLibcallImpl(RTLIB::NEARBYINT_F64, RTLIB::impl_nearbyint);
 +  Info.setLibcallImpl(RTLIB::FMIN_F64, RTLIB::impl_fmin);
 +  Info.setLibcallImpl(RTLIB::FMAX_F64, RTLIB::impl_fmax);
++
++  // LLVM-087t (ISS-193(b)): the identical f32 family.  Same rationale as the
++  // f64 block above — the ISA has no f32 rounding-direction / min-max
++  // instruction either, so `ffloor`/`fceil`/`ftrunc`/`fround`/`frint`/
++  // `fnearbyint`/`fminnum`/`fmaxnum` on f32 must lower to an out-of-line call
++  // to the standard C routine.  Without these, picolibc sources that compute on
++  // float values (libm/math/sf_*.c, libm/common/sf_*.c) abort with "no libcall
++  // available for frint/ftrunc/ffloor/flog" (ISS-193 class (b)).  The picolibc
++  // f32 implementations are defined by the `sf_*` sources and compile with the
++  // DADAO backend once the call is emitted.
++  Info.setLibcallImpl(RTLIB::FLOOR_F32, RTLIB::impl_floorf);
++  Info.setLibcallImpl(RTLIB::CEIL_F32, RTLIB::impl_ceilf);
++  Info.setLibcallImpl(RTLIB::TRUNC_F32, RTLIB::impl_truncf);
++  Info.setLibcallImpl(RTLIB::ROUND_F32, RTLIB::impl_roundf);
++  Info.setLibcallImpl(RTLIB::RINT_F32, RTLIB::impl_rintf);
++  Info.setLibcallImpl(RTLIB::NEARBYINT_F32, RTLIB::impl_nearbyintf);
++  Info.setLibcallImpl(RTLIB::FMIN_F32, RTLIB::impl_fminf);
++  Info.setLibcallImpl(RTLIB::FMAX_F32, RTLIB::impl_fmaxf);
 +}
