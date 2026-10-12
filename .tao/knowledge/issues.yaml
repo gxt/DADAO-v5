@@ -309,11 +309,11 @@
 
 - id: ISS-189
   title: "其它 LLVM 内建数据指导符（`.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 等）仍被 `llvm-mc` 受理（裁定口径 4 名外的剩余面）"
-  status: open
+  status: closed
   scope: [llvm]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 `LLVM-078t` 完成区「遗留问题」；engineer + reviewer 双实测）】`LLVM-078t` 仅按用户 2026-10-10 裁定拒 **7 名**（`.byte/.short/.long/.quad/.word/.octa/.align`），裁定范围**外**的其它 LLVM 内建 / GAS 数据指导符仍经通用 parser 受理（实测 `.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 全 rc=0）。**性质 = 口径未覆盖（未授权扩大，非缺陷）**。**只登记，不建任务**：建议后续按 `spec/Toolchain-01 §7` 唯一集口径一并收口（受理侧按 `DADAOAsmParser::parseDirective` target 级 shadow 同机制扩拒即可，无需改 `llvm/lib/MC/**`）。证据指针：`.tao/tasks/llvm/LLVM-078t-*.md`「遗留问题」；`.work/evidence/LLVM-078t/run.sh`。"
+  resolved_by: LLVM-082t
+  notes: "【关闭（`LLVM-090m` M7 llvm 模块里程碑核验，2026-10-13，reviewer 独立核验）】**关闭依据**：`LLVM-082t` 已按 `spec/Toolchain-01 §7.1` 唯一集口径收口数据指导符——reviewer 现场对 8 名 GAS 指导符（`.2byte`/`.4byte`/`.8byte`/`.value`/`.int`/`.dc.b`/`.single`/`.double`）逐一 `llvm-mc` 实测**全被拒绝 rc=1**（对应 M7 口径 4 达成）。**原登记（源 `LLVM-078t` 完成区「遗留问题」；engineer + reviewer 双实测）】`LLVM-078t` 仅按用户 2026-10-10 裁定拒 **7 名**（`.byte/.short/.long/.quad/.word/.octa/.align`），裁定范围**外**的其它 LLVM 内建 / GAS 数据指导符仍经通用 parser 受理（实测 `.2byte/.4byte/.8byte/.value/.int/.dc.b/.single/.double` 全 rc=0）。**性质 = 口径未覆盖（未授权扩大，非缺陷）**。**只登记，不建任务**：建议后续按 `spec/Toolchain-01 §7` 唯一集口径一并收口（受理侧按 `DADAOAsmParser::parseDirective` target 级 shadow 同机制扩拒即可，无需改 `llvm/lib/MC/**`）。证据指针：`.tao/tasks/llvm/LLVM-078t-*.md`「遗留问题」；`.work/evidence/LLVM-078t/run.sh`。"
 
 
 - id: ISS-190
