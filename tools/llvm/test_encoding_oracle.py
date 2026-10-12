@@ -208,7 +208,7 @@ TESTS = [
     ("st.o ra63, [rb63, 0]", encode_rrii(0x25, 63, 63, 0)),
     # Boundary: ldm.o immu6=1 → single register (count=1)
     # NOTE: immu6=0 (count=0, encoding 0x3c000000) → ILLI, new syntax cannot express.
-    #       Covered by .4byte 0x3c000000 in ra.s lit test.
+    #       Covered by .dd.t32 0x3c000000 in ra.s lit test.
     ("ldm.o {ra0}, [rb0, rd0]", encode_rrri(0x3C, 0, 0, 0, 1)),
     # Boundary: rd2ra {ra0:ra62}, {rd0:rd62} (op=0x40, ha=0x2D, hb=0, hc=0, hd=63)
     ("rd2ra {ra0:ra62}, {rd0:rd62}", encode_orri(0x40, 0x2D, 0, 0, 63)),

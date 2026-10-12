@@ -31,7 +31,7 @@
 | LLVM-079t | 已验证 | 2026-10-11 23:07 | P0 后端补齐（f32→f64 载入/setcc/bitcast/select_cc/cttz 五类 ISel；convert_ff 早写约束） |
 | LLVM-080t | 已验证 | 2026-10-12 00:11 | P1 后端补齐（取整六项/fmin-fmax libcall；fabs-copysign 用 ISA `fosgnj`） |
 | LLVM-081t | 已验证 | 2026-10-12 01:12 | ISA↔后端覆盖矩阵（生成式两层分列；227 条，①受理 217/②ISel 86；缺口 141） |
-| LLVM-082t | 待开始 | — | 后端欠账收口 |
+| LLVM-082t | 已验证 | 2026-10-12 08:08 | 后端欠账收口（数据指导符唯一集 §7.1 全量收口 + 大小写洞 + 尾调用按裁定 A 登记） |
 | QEMU-056t | 已验证 | 2026-10-11 19:34 | RAM 基址改 cfx63 段（QEMU/tests/tools/spec 同步） |
 | SPEC-131t | 已验证 | 2026-10-12 01:21 | 过渡 oracle 与 semihosting 口径 |
 | SPEC-133t | 已验证 | 2026-10-11 22:09 | 21 册标题章节号统一与引用同步 |

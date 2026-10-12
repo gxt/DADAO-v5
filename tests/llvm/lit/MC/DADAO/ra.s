@@ -68,7 +68,7 @@ st.o ra63, [rb63, 0]
 ; === Boundary: immu6=0 → ILLI, new syntax cannot express (count=0) ===
 
 ; word = (0x3C<<24)|0 = 0x3C000000
-.4byte 0x3c000000
+.dd.t32 0x3c000000
 
 ; === Boundary: immu6=1 (single register) ===
 

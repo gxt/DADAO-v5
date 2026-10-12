@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..2669ae6bd
+index 000000000..3c8f33044
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2367 @@
+@@ -0,0 +1,2423 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -26,6 +26,7 @@ index 000000000..2669ae6bd
 +#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +#include "TargetInfo/DADAOTargetInfo.h"
 +#include "llvm/ADT/STLExtras.h"
++#include "llvm/ADT/StringSwitch.h"
 +#include "llvm/MC/MCAsmInfo.h"
 +#include "llvm/MC/MCContext.h"
 +#include "llvm/MC/MCExpr.h"
@@ -1164,35 +1165,90 @@ index 000000000..2669ae6bd
 +// MUST NOT be used (contract-asm.md §7); it is rejected explicitly here (the
 +// generic parser would otherwise accept it).  `.word` is not a known directive
 +// and keeps its existing "unknown directive" rejection.
++//
++// §7.1 ("唯一集合") is closed over the WHOLE set of data directives LLVM's
++// generic parser knows, not just the GAS names §7.1 spells out (ISS-189):
++//   * the table below is derived mechanically -- NOT hand-picked -- as
++//     (names registered in llvm/lib/MC/MCParser/AsmParser.cpp's
++//      initializeDirectiveKindMap() whose `switch (DirKind)` case calls
++//      parseDirectiveValue / parseDirectiveOctaValue / parseDirectiveRealValue
++//      / parseDirectiveLEB128 / parseDirectiveDCB / parseDirectiveRealDCB --
++//      i.e. every generic directive that DEFINES A FIXED-WIDTH DATA ITEM)
++//     MINUS the four §7.1 `.dd.*` names;
++//     the reproducible derivation + the resulting counts live with the task
++//     evidence (`.work/evidence/<task>/derive_directive_sets.sh`).
++//   * the generic directive lookup lowercases the name
++//     (`DirectiveKindMap.find(IDVal.lower())`), so the checks below lower-case
++//     too -- otherwise `.BYTE` / `.QUAD` / `.Octa` would still slip through.
++//     The four accepted `.dd.*` names stay case-sensitive: directives are
++//     case-sensitive (contract-asm.md §2.1), so `.DD.B08` is NOT a spelling.
++//   * directives that only RESERVE space (`.zero`/`.space`/`.skip`/`.fill`/
++//     `.org`/`.ds*`) or emit a string (`.ascii`/`.asciz`/`.string`/`.base64`)
++//     are not part of the MMIX "data length" family of §7.1 and are emitted by
++//     generated code (llc emits `.asciz`/`.zero`), so they stay accepted.
 +//===----------------------------------------------------------------------===//
++
++/// Returns the DADAO spelling suggested for an out-of-set data directive, an
++/// empty string when the value has no `.dd.*` equivalent (floating point /
++/// LEB128), or nullptr when \p ID is not an out-of-set data directive.
++/// \p ID must already be lower-cased (see the case note above).
++static const char *outOfSetDataDirectiveHint(StringRef ID) {
++  return StringSwitch<const char *>(ID)
++      // 1-byte value -> .dd.b08
++      .Cases({".byte", ".dc.b", ".dcb.b"}, ".dd.b08")
++      // 2-byte value -> .dd.w16
++      .Cases({".short", ".value", ".2byte", ".dc", ".dc.w", ".dcb", ".dcb.w"},
++             ".dd.w16")
++      // 4-byte value -> .dd.t32
++      .Cases({".long", ".int", ".4byte", ".dc.l", ".dcb.l"}, ".dd.t32")
++      // 8-byte value -> .dd.o64 (`.dc.a` is a code-pointer-sized value)
++      .Cases({".quad", ".8byte", ".dcb.d", ".dc.a"}, ".dd.o64")
++      // no `.dd.*` equivalent (floating point / LEB128)
++      .Cases({".single", ".float", ".dc.s", ".dcb.s", ".double", ".dc.d",
++              ".sleb128", ".uleb128"},
++             "")
++      .Default(nullptr);
++}
 +
 +ParseStatus DADAOAsmParser::parseDirective(AsmToken DirectiveID) {
 +  StringRef ID = DirectiveID.getString();
++  // NOTE: StringRef::lower() returns a std::string by value -- it must be held
++  // by value here (binding the temporary to a StringRef would dangle).
++  std::string LowerID = ID.lower();
 +
 +  // GAS `.octa` (16-byte octa) MUST NOT be used: DADAO's octa is 8 bytes
 +  // (contract-asm.md §7 / DADAO-11 §指导符).  Point at the DADAO spelling.
-+  if (ID == ".octa")
-+    return Error(DirectiveID.getLoc(),
-+                 "unsupported directive '.octa' (GAS 16-byte octa); DADAO's "
-+                 "octa is 8 bytes -- use '.dd.o64'");
-+
-+  // GAS data directives MUST NOT be accepted (contract-asm.md §7.1 /
-+  // Toolchain-01 §7.1): the only data directives are the DADAO `.dd.*` set.
-+  // The target parser runs before the generic (target-independent) directive
-+  // parser, so returning an error here shadows LLVM's built-in `.byte`/`.short`/
-+  // `.long`/`.quad` handlers without touching the shared MC layer.
-+  if (ID == ".byte" || ID == ".short" || ID == ".long" || ID == ".quad")
++  if (LowerID == ".octa")
 +    return Error(DirectiveID.getLoc(),
 +                 Twine("unsupported directive '") + ID +
-+                     "' (GAS data directive); use '.dd.b08'/'.dd.w16'/"
-+                     "'.dd.t32'/'.dd.o64'");
++                     "' (GAS 16-byte octa); DADAO's octa is 8 bytes -- use "
++                     "'.dd.o64'");
++
++  // Every out-of-set data directive MUST NOT be accepted (contract-asm.md
++  // §7.1 / Toolchain-01 §7.1): the only data directives are the DADAO `.dd.*`
++  // set of §7.1.  The target parser runs before the generic
++  // (target-independent) directive parser, so an error here shadows LLVM's
++  // built-in handlers without touching the shared MC layer.
++  if (const char *Hint = outOfSetDataDirectiveHint(LowerID)) {
++    std::string Msg =
++        ("unsupported directive '" + ID + "' (data directive outside the "
++         "DADAO unique set: only '.dd.b08'/'.dd.w16'/'.dd.t32'/'.dd.o64' are "
++         "accepted; spec/Toolchain-01 §7.1)").str();
++    if (Hint[0])
++      Msg += std::string("; use '") + Hint + "'";
++    else
++      Msg += "; no DADAO equivalent (encode the value as an integer and use "
++             "'.dd.t32'/'.dd.o64')";
++    return Error(DirectiveID.getLoc(), Msg);
++  }
 +
 +  // `.align` uses byte-count semantics, which conflicts with GAS's `2^N`
 +  // (contract-asm.md §7.2).  The only alignment directive is `.p2align`.
-+  if (ID == ".align")
++  if (LowerID == ".align")
 +    return Error(DirectiveID.getLoc(),
-+                 "unsupported directive '.align' (byte-count semantics); use "
-+                 "'.p2align N' to align to 2^N bytes");
++                 Twine("unsupported directive '") + ID +
++                     "' (byte-count semantics); use '.p2align N' to align to "
++                     "2^N bytes");
 +
 +  unsigned Size;
 +  if (ID == ".dd.b08")
