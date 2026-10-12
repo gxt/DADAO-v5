@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..159425c6e
+index 000000000..a8d5ed2e4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,90 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -81,4 +81,16 @@ index 000000000..159425c6e
 +  Info.setLibcallImpl(RTLIB::NEARBYINT_F32, RTLIB::impl_nearbyintf);
 +  Info.setLibcallImpl(RTLIB::FMIN_F32, RTLIB::impl_fminf);
 +  Info.setLibcallImpl(RTLIB::FMAX_F32, RTLIB::impl_fmaxf);
++
++  // LLVM-089t (ISS-193(b) residual): f32 `log`.  The ISA has no `flog`
++  // instruction either (`contracts/opcodes.yaml`, scope `fp`), so `llvm.log.f32`
++  // (opcode `flog`) must lower to an out-of-line call to the standard C `logf`.
++  // Without it, picolibc `libm/math/sf_log10.c` -- whose fdlibm body computes
++  // `log10f` from the public `logf` -- aborts codegen with "no libcall available
++  // for flog", which leaves `log10f` out of the built libc and blocks every test
++  // that calls it.  Only `LOG_F32` is registered: a live compile scan of all 707
++  // `libm/**/*.c` sources reports `flog` as the sole missing f32 math libcall
++  // (no `flog2`/`fexp`/`fpow`), so the rest of the f32 math family stays
++  // unregistered until a source actually needs it.
++  Info.setLibcallImpl(RTLIB::LOG_F32, RTLIB::impl_logf);
 +}

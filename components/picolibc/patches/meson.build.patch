@@ -2,7 +2,7 @@ diff --git a/meson.build b/meson.build
 index 93daa5d..af03cd5 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1924,6 +1924,38 @@ foreach libname : libnames
+@@ -1924,6 +1924,37 @@ foreach libname : libnames
    libsrcs += get_variable('src_' + libname, [])
  endforeach
  
@@ -22,13 +22,12 @@ index 93daa5d..af03cd5 100644
 +# LLVM-088t removed the (d) group (vfscanf / vfwscanf) after the backend's
 +# f64->f32 truncating store was fixed (setTruncStoreAction Expand); both
 +# sources now compile.
++# LLVM-089t removed the last (b) entry (sf_log10.c) after the f32 `log` libcall
++# (RTLIB::LOG_F32 -> logf) was registered: the fdlibm `log10f` body computes in
++# terms of the public `logf`, which clang lowers to `llvm.log.f32`.
 +_dadao_backend_blocked = []
 +if host_cpu_family == 'dadao'
 +  _dadao_backend_blocked = [
-+    # f32 `flog` libcall still missing: sf_log10.c calls the public `logf`,
-+    # which clang lowers to `llvm.log.f32` (not the f64 `log64` internal used
-+    # by s_log10.c); ISS-193 (b).
-+    'sf_log10.c',
 +    # i64 bswap not selected; ISS-193 (c).
 +    'hash_page.c',
 +    # long-double strtod engine libcall unsupported; ISS-193 (f).
@@ -41,7 +40,7 @@ index 93daa5d..af03cd5 100644
  foreach params : targets
    target = params['name']
    target_dir = params['dir']
-@@ -1939,6 +1971,23 @@ foreach params : targets
+@@ -1939,6 +1970,23 @@ foreach params : targets
      libsrcs_target += get_variable('src_' + libname + target, [])
    endforeach
  
