@@ -3,7 +3,7 @@
 **模块**：integ
 **项目里程碑**：M7
 **依赖**：`INTEG-034m`（M7 整体收敛，`里程碑`）⇒ 前置条件 = **项目里程碑 M7 = 达成**
-**状态**：待开始
+**状态**：里程碑
 
 ## 执行环境
 **执行环境**：本地
@@ -93,4 +93,43 @@ M7 达成后按 `Process-04`（里程碑归档规范）**归档 M7**——把 M7
 **判决（architect 执行结论）**：归档与台账收敛**完成**；门控全绿；**待 reviewer 独立核验**。
 
 **提交留痕（architect）**：档位 = **正常提交**（非 WIP；归档/收敛类任务，主会话指定提交信息）；提交号 = `afc2c80`；**文件集对账**：显式 staging **45** 路径 = `R` rename **37** + `A` 新增 **3**（`archive/M7/{README,m7-retrospective,issues-closed}.md`）+ `M` **5**（`.tao/README.md`、`knowledge/{MEMORY,issues,milestones}`、本任务书），与完成区「**修改文件**」声明**逐项一致**，**无漏提/多提/越界**（`spec/`/`contracts/`/`components/`/`Makefile`/`tools/`/`tests/` 交集空）；**未 `push`**。
+
+#### 第 1 轮 reviewer 验收（2026-10-13）
+
+**重跑记录（workdir=仓库根，未切分支，全程未越界；tmp = `/tmp/opencode/INTEG-035m-review/`）**：
+- `make check`（L1）→ **rc=0**（`repository checks (L1): PASS`）；`make check-modules`（L2，`setsid nohup`+`JOBS=8`）→ **L2_EXIT=0**（`module checks (L2): PASS`；现场计数：lit `Total Discovered Tests: 107` Passed 107、`check-qemu-smoke` `total=86 passed=86 failed=0`、`check-interface` `总计: 83 项 | PASS: 83 | FAIL: 0`、picolibc 快档 `total=20 pass=18 fail=0 excluded=2 blocked=0`）；L3 **未重跑**（归档/文档类任务，未动编译输入/测试；`INTEG-034m` 的 `FULL_EXIT=0` 采信、非本任务产出）。
+- `make check-no-residue` → **rc=0**；`python3 tools/infra/check_knowledge_refs.py` → **rc=0**（42 文件 / 具体路径 16 / **悬空 0**）；`python3 tools/infra/check_issues.py` → **rc=0**（**25 open / 0 closed**）；`git status --porcelain -uall` → 空（工作树干净）。
+
+**归档完整性（★防丢失）**：`git show --name-status -M bc4745d` = **37 `R100`**（100% 相似 ⇒ 零内容改动）+ `A` 3 + `M` 5 = 45；`git diff-tree … | grep '^D'` 无命中（**无删除**）；37 份逐项 `**项目里程碑**：M7`（现场计 37）且状态全终态（`已验证`/`里程碑`）；`ls .tao/archive/M7/{infra,integ,llvm,qemu,spec,testcases}` 真在（16/1/11/3/4/2=37），**真进 `.tao/archive/M7/<模块>/`**，非子目录假装；`.tao/tasks/` 仅余 5 份（`INFRA-071t`/`SPEC-136m`/`INTEG-034m`/`INTEG-035m`/`INTEG-028t`）与声明一致。
+
+**M7 状态如实核（★）**：`README.md §头部/§6`、`m7-retrospective.md §1.2`、`issues-closed.md 判据注`、`milestones.md` 均明写「**项目里程碑 M7 尚未标记「达成」**」；全归档物 grep 无「项目 M7 达成」式结论，仅见 test/模块口径达成（`TESTCASES-043m`、`QEMU-059m` 等「M7 口径 N 条达成」）与条件句（§7 #1「裁定通过 ⇒ … M7 = 达成」）——**test 项达成 vs 项目 M7 未达成未混淆** ✓。
+
+**用户裁定原样引用核**：`m7-retrospective.md:37-38` = 「**记为达成（推荐）**」（2026-10-12）+ `total 235 / pass 213 / fail 0 / excluded 22 / blocked 0`，与 `components/qemu/changelog.md`（`QEMU-058t`）及 `TESTCASES-043m` 逐字一致、**无扩写** ✓。
+
+**§7 清单完整性**：逐项核——① `ISS-201`（决定 `SPEC-136m`/项目 M7）✓ ② `ISS-199`（用户操作）✓ ③ `ISS-202`/`INFRA-071t`（3 项待授权子项齐：只读锁册+`sha256` / `contracts/*.yaml` 内嵌字段 / 扩 `tools`·`components`·`tests`）✓ ④ `ISS-198` ✓ ⑤ `ISS-200` ✓ ⑥ `INTEG-028t` 归属 ✓（另含 2 条可选项）；**无漏项** ✓。
+
+**指针/悬空核**：`README §2` 37 行与 `milestones.md` 原流水终态行 **`diff` 逐字相等（rc=0，各 37 行）**（非静默丢失）；活表留未决 4 行 + M7 归档指针；`MEMORY.md` 入口指针 2 行、`.tao/README.md` `archive/<里程碑>/` 约定，指向路径全部真实存在；`check-knowledge-refs` rc=0 ✓。格式纪律（无表内空行/`|---|` 后必跟数据行/尾无残留空行）6 文件机械核 **OK**。
+
+**独立反例（可达 FAIL）**：注入 = 删 `check-knowledge-refs` 的一个具体引用目标（`.work/` 下被 4 处引用的对账记录，`cp` 备份 + md5 `52952df3e907318d698efb94674a9850`）⇒ **rc=1（FAIL，悬空 4）**；还原 = `cp` 回 + md5 相等 ⇒ **rc=0（PASS，悬空 0）**；`git status` 干净；未用 `git checkout/restore/stash` ✓。
+
+**偏离披露核**：5 条均在归档物/任务书如实记录——① 前置（M7=达成）未满足⇒收尾归档（`README §6`+`issues-closed` 判据注+任务书 87-88）✓ ② `INTEG-035m` 未自归档（`README §1`/`retrospective §2`/`milestones`）✓ ③ 历史跨文件引用未改写（`README §4`）✓ ⑤ `INTEG-028t` M6 遗漏（`README §4` 末条+§6 #7+§7 #6）✓；④ 分支提交号 `afc2c80`（`git cat-file` 在库但 `--all` 不可达）——**squash 落地 master = `bc4745d`**，本记录补正留痕（非阻断）。**reviewer 无异议**（①⑤ 属需用户裁定项，已登记 §7，不构成工程师违规）。
+
+**非阻断 finding（建议随自归档一并修）**：`milestones.md`「当前进度」写「M7 未决 **3 行**」，与同文件「下表列 M7 未决 **4 行**」及实表 4 行不一致（计数不写死纪律）⇒ 建议改为「未决 4 行」或删计数（1 词修正）。
+
+**判决：Accepted**——验收命令块在独立重跑下全绿、归档 37 份零丢失、M7 状态如实、用户裁定原样、§7 无漏项、指针可用、偏离已披露；阻断项 **无**。状态机收尾（置 `里程碑` + 自归档 + push）归主会话。
+
+#### 第 1 轮 architect 终态收尾（2026-10-13，自归档 + 提交 + 落地）
+
+**状态**：`**状态**` → **`里程碑`**（交付物〔归档 + 回顾〕已 reviewer `Accepted`，0 阻断）。
+**项目 M7 达成状态**：**项目里程碑 M7 仍未达成**（待 `ISS-201`）——本记录**未改写**该事实（`milestones.md` 与各归档物保持「M7 尚未标记『达成』」原述）。
+
+**计数修正（reviewer 非阻断 finding）**：`milestones.md`「当前进度」`M7 未决 3 行` → **`4 行`**（与实表 4 行一致）。
+
+**自归档**：`git mv .tao/tasks/integ/INTEG-035m-M7归档与回顾.md .tao/archive/M7/integ/`（**真进 archive**；`git diff --cached --name-status -M` = **`R071`**）。**引用同步**：现场 `grep` **无**指向该任务书**字面路径**（`tasks/integ/INTEG-035m-*.md`）的引用；`INTEG-035m` 的**状态/位置**表述在 `milestones.md`（行 15/20/27/31/94）已同步为「**`里程碑`**；已自归档入 `.tao/archive/M7/integ/`」。`check-knowledge-refs` **rc=0（悬空 0）**。
+
+**提交留痕（architect）**：档位 = **正常提交**（reviewer `Accepted`）；分支 = `INTEG-035m-final`；分支提交号 = `5521b3c`（本记录之前）；落地 `master` = `merge --squash`（同提交信息）。**文件集对账**：显式 staging = **`R` 自归档 1**（任务书状态改动随 `R` 计入）+ **`M` `.tao/knowledge/milestones.md` 1**，与终态收尾范围（自归档 + 台账状态回填）一致，**无漏提 / 多提 / 越界**（`spec/`/`contracts/`/`components/`/`Makefile`/`tools/`/`tests/` 交集空）。**未 `push`**。
+
+**交叉复核（architect 自主重跑）**：`make check`（L1）**rc=0**；`make check-modules`（L2）**rc=0**（lit 107/107、qemu-smoke 86/86、接口 83/83、picolibc 快档 20/18pass/0fail/2excluded/0blocked）；`make check-no-residue` **rc=0**；`check_knowledge_refs.py` **rc=0**（悬空 0）；`check_issues.py` **rc=0**（25 open / 0 closed）。
+
+**说明（如实）**：`.tao/archive/M7/README.md`（§1/§2/特别项）与 `m7-retrospective.md` 中「`INTEG-035m` 未自归档」的表述属 **M7 归档事件的历史记录**（`Process-04 §6`：归档不改历史），本次**未改写**；其自归档完成以本记录 + `milestones.md` 活台账为准。
 
