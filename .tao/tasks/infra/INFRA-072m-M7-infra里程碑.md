@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M7
 **依赖**：`INFRA-055t`/`056t`/`057t`/`058t`/`060t`/`061t`/`062t`/`063t`/`064t`/`065t`/`066t`/`067t`/`068t`/`069t`/`070t`（均 `已验证`）；`INFRA-071t`（`待开始`，依赖用户授权）
-**状态**：待开始
+**状态**：里程碑
 
 ## 执行环境
 **执行环境**：本地
@@ -47,14 +47,26 @@
 - 计数不写死：一律现场统计，或写「不下降 / 逐项相等」。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：L1 `make check` EXIT=0；L2 `make check-modules` EXIT=0；`test-picolibc-smoke` EXIT=0（printf+libm E2E）；`check-knowledge-refs`/`check-knowledge-dir`/`check-no-residue` 均 EXIT=0。
+**修改文件**：无（核验类任务，仅任务书审阅记录）。
+**验收结果**：8 条 M7 口径逐条核验通过（证据见审阅记录）；15 个前置任务均 `已验证`；反例注入 2 项均可达 FAIL + 还原回绿。
+**新发现/坑**：无。
+**遗留问题**：`ISS-199`（权限 fail-fast 待用户 `opencode service restart` 复验）、`ISS-202`（contract 迁移待用户授权）——均为待用户操作/裁定项，非代码缺陷，不阻断里程碑。
 
 ## 审阅记录
 
 #### 第 1 轮 architect 规划（2026-10-13）
 - 立本 `m` 核验任务书（M7 infra 模块里程碑）；M7 口径 8 条逐条引用 `milestones.md` M7 段落 + `INTEG-033k §任务分解`；含跨模块影响（点 `ISS-199`/`202`/`200`）与「有未处置 ⇒ 不得置里程碑」纪律；执行方式 = reviewer 独立核验 + architect 记录/提交。
 - **编号依据**：`infra` 现场最大 `INFRA-071t` ⇒ 本 `m` = `INFRA-072m`（模块内跨后缀递增）。
+
+#### 第 1 轮 reviewer 验收（2026-10-13）
+**门控/专项 rc**：L1 `make check` EXIT=0；L2 `make check-modules` EXIT=0；`test-picolibc-smoke` EXIT=0；`check-knowledge-refs` EXIT=0；`check-knowledge-dir` EXIT=0；`check-no-residue` EXIT=0；`check_issues` 25 open / 12 closed / 0 blocking。
+**口径逐条核**（8 条，证据 = 真实命令输出/退出码）：
+① picolibc 接入 + printf E2E：`make test-picolibc-smoke` EXIT=0，输出 `42\n` + `libm 0\n` ✓；② 门控分层 L1/L2/L3：`Makefile` 目标行 `check`(L1)/`check-modules`(L2)/`check-full`(L3) 均存在；`check-knowledge-refs`/`check-knowledge-dir` 在 L1 中；`docs/Process-07-门控分层规范.md` 存在（6249 B）✓；③ 目录三分界 + 规范版本号：`INFRA-060t` `已验证` ✓；④ 台账/文档减重：`INFRA-061t`–`064t` 均 `已验证` ✓；⑤ workdir 作用域 + 权限 fail-fast：规则层已落地（`INFRA-065t` `已验证`）；权限层待服务重启复验（`ISS-199` `open`）——见跨模块判定 ✓；⑥ picolibc 运行时：`libc.a` `nm` 复核 floor/ceil/fmax/fmin/nearbyint/round/trunc/rint（8 符号）+ `__muldc3`/`__mulsc3` + `setjmp`/`longjmp = 全 12 符号命中（`llvm-objdump -t` 现场统计）✓；⑦ LLVM changelog + 三检查并入 L1：`check-isa-coverage`/`check-spec-numbering`/`check-spec-changelog` 均在 `Makefile` L1 目标行，L1 全 PASS ✓；⑧ `.tao/knowledge/` 顶层收拢 + `Process-07`：knowledge 顶层 15 文件全在白名单；`docs/Process-07-门控分层规范.md` 存在 ✓。
+**关联任务态核**：INFRA-055t–070t（15 个）均 `已验证`；INFRA-071t `待开始`（依赖用户授权，非阻断）。
+**跨模块判定**：① `ISS-199`（权限 fail-fast 待用户重启服务复验）——**性质 = 配置生效途径缺口，非代码缺陷**；规则层已落地、权限层待用户操作 `opencode service restart`；**不阻断里程碑**（据任务书口径「已知待用户操作项」+ `milestones.md`「INFRA-065t 待复验」）；② `ISS-200`（pre-M6 changelog 历史截断）——性质 = 历史/口径缺失，M7 范围外；**不阻断**；③ `ISS-202`（contract 迁移待用户授权）——性质 = 规划/待裁定，`INFRA-071t` 已立项待用户裁定；**不阻断**。**结论：无代码层面未处置阻断项**。
+**issue 动作建议**：`ISS-191` 已 `closed`（`TESTCASES-043m` 核验关闭）；`ISS-193` 保持 `open`（6 类缺口余 4 类，(b)/(c)/(d)/(f) 仍开放）；`ISS-196` 已 `closed`（`INFRA-067t`）；`ISS-199` 保持 `open`（待用户重启服务复验）；`ISS-200` 保持 `open`（历史截断，M7 归档时按需补录或明确「不补」）；`ISS-202` 保持 `open`（待用户授权迁移）。**均不擅自 close**。
+**反例注入**：① `check-knowledge-dir`：注入 `.tao/knowledge/INJECTED_TEST_FILE.txt` ⇒ FAIL（EXIT=2，1 个白名单外文件）；`rm` 还原 ⇒ PASS（EXIT=0）；② `check-knowledge-refs`：`mirrors.md` 追加 `.work/nonexistent_file_xyz.md` 引用 ⇒ FAIL（EXIT=2，1 悬空引用）；删除还原 ⇒ PASS（EXIT=0）。工作区 `git status --porcelain` 干净。
+**里程碑核验结论**：**通过**——8 条 M7 口径逐条达成（证据 = 真实命令输出/退出码）；15 个前置任务均 `已验证`；跨模块无代码层面未处置阻断项（`ISS-199`/`200`/`202` 均为待用户操作/裁定，非代码缺陷）；门控全绿；反例注入可达 FAIL + 还原回绿。建议 architect 将 `**状态**` 置 `里程碑`。
+**越界/遗留披露**：无越界；`ISS-199`/`ISS-202` 为遗留待用户操作/裁定项（已登记，不阻断）。
+**关键数字**：L1 rc=0（全部 25+ 项检查 PASS）；L2 rc=0（107 lit + 86 qemu-smoke + 15 codegen + 5 elf + 10 semihost + 20 picolibc-tests = 全 PASS）；libc.a 符号 12/12 命中；knowledge 顶层 15/15 白名单命中；issues 25 open / 12 closed / 0 blocking。
