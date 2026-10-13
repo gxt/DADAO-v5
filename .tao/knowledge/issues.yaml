@@ -354,3 +354,12 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `SPEC-137t` 第 1 轮 reviewer 验收「非阻断发现」；architect 收尾立项，2026-10-13）】**性质 = 门控覆盖缺口**（非交付物缺陷，本次均靠人工核验）。**① `check-spec-refs` 不覆盖 `.tao/knowledge/**` 内互指**——`SPEC-137t` 的 `ADR-0019 D9` ↔ `contract-elf.md §3.3` **双向互指**完整性本次由 reviewer **人工 `grep -c`** 核对（`adr-0019`→`§3.3` = 3≥1、`contract-elf`→`ADR-0019 §D9` = 7≥1）；门控未机械校验（`check-spec-refs` 只审 `contract-*.md` 的 spec 引用）。**② `check_issues.py` 不校验 `closed` 必填 `resolved_by`**——文件头字段约束「`resolved_by`: closed 时必填, open 时 null」无对应断言（现仅校验 status 合法性与 `M1-gate` 阻断）⇒ `ISS-201` 的 `resolved_by: SPEC-137t` 本次由 reviewer **人工确认**。**建议**：为二者各补 1 条断言（互指完整性 + `resolved_by` 字段约束），纳入 L1/L2 分层由用户/后续裁定。**只登记，不建任务**。证据指针：`.tao/tasks/spec/SPEC-137t-*.md`「第 1 轮 reviewer 验收」非阻断发现 + 任务书 §⑤/§⑥。"
+
+
+- id: ISS-204
+  title: "`.cache/embench-iot` 为 checkout（非裸仓库），与「`.cache/` 只放裸仓库」约定不符——建议后续清理/迁移"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `INFRA-074t` 第 2 轮 reviewer 验收「非阻断建议②」；architect 交叉复核登记，2026-10-14）】**事实（architect 现场核）**：`.cache/embench-iot/` 含 `.git/` 目录、`git -C .cache/embench-iot rev-parse --is-bare-repository` = `false` ⇒ 是 **checkout（非裸仓库）**，与用户 2026-10-13 约定「`.cache` 下面应该是裸仓库，然后在 `.work` 下面有 `source` 和 `build`」（落 `AGENTS.md`「工作区落点」+ `lessons §3.19`）**不符**——同处 `.cache/embench-iot.git` 才是裸仓库。**性质 = 历史遗留 / 落点不合约定**（非缺陷、非静默）。**建议**：后续任务清理或迁移（工作树迁至 `.work` 构建源区，`.cache/` 只留裸仓库）。**本次未动该目录**（`INFRA-074t` 落点修正范围外）⇒ **只登记，不建任务**。证据指针：`.tao/tasks/infra/INFRA-074t-*.md`「第 2 轮 reviewer 验收」非阻断建议②。"

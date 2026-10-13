@@ -1,6 +1,6 @@
 format = 1
 # Chipyard 1.14.0 submodule snapshot (pinned commits).
-# Generated from the pinned checkout (.cache/chipyard @ 0acc1e1de2d3284bcd4d876956932a013ffe1949) via
+# Generated from the pinned checkout (.work/source/chipyard @ 0acc1e1de2d3284bcd4d876956932a013ffe1949) via
 # `git submodule status --recursive`; `url` from the owning `.gitmodules`.
 # `lite = true` marks the submodules actually initialized by the lite
 # build set (upstream scripts/init-submodules-no-riscv-tools.sh minimal set;

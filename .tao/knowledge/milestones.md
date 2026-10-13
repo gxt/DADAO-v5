@@ -24,7 +24,7 @@
 | INFRA-071t | 待开始 | — | `contract-*.md`→`contracts/`（Phase B）+ `check-contracts-dir` 白名单门控（**待用户授权 3 项**：只读锁册 / `contracts/` 内嵌字段 / 扩到 `tools`·`components`·`tests`）；**项目里程碑 = `M8`**（用户 2026-10-13 裁定**改标**，仍留 `.tao/tasks/`） |
 | SPEC-137t | 已验证 | 2026-10-13 07:47 | `ADR-0019 D9` 追加第 ⑥ 条（防御分支边界：`REL26` 落点非 `call-iiii`/`jump-iiii` ⇒ link-time error，不放行/不自循环）+ `contract-elf §3.3` 同步 bullet；关闭 `ISS-201`；**项目里程碑 = `M7`**（spec 模块内 backlog 收口，用户 2026-10-13 逐条确认） |
 | INFRA-073t | 已验证 | 2026-10-13 10:33 | Chipyard 1.14.0 预研（锁定方案/镜像测速/成本/(3) 复用清单；**只探测未下载**，待用户定源）；**项目里程碑 = `M8`**（用户 2026-10-13 裁定「先预研」） |
-| INFRA-074t | 待开始 | — | Chipyard 1.14.0 落地准备 + (1) 参考平台跑通（P1 环境〔conda/mamba/sbt + Verilator ≥5.022〕/ P2 拉取〔主仓 + lite 子模块 + 子模块锁册〕/ P3 最小构建〔RocketConfig Verilator〕/ P4 (1) 冒烟〔`pk` + 可选 Linux〕）；前置 = 用户授权下载 + `ADR-0024` 逐条确认；**进度：P1/P2 + 门控扩展 已完成；P3（RocketConfig Verilator 构建）/ P4（`pk` 冒烟）未做**；**项目里程碑 = `M8`** |
+| INFRA-074t | 待验收 | — | Chipyard 1.14.0 落地准备 + (1) 参考平台跑通（P1 环境〔conda/mamba/sbt + Verilator ≥5.022〕/ P2 拉取〔主仓 + lite 子模块 + 子模块锁册〕/ P3 最小构建〔RocketConfig Verilator〕/ P4 (1) 冒烟〔`pk` + 可选 Linux〕）；前置 = 用户授权下载 + `ADR-0024` 逐条确认；**进度：P1/P2 + P3/P4（参考平台跑通）+ 落点修正 已完成；待收尾**；**项目里程碑 = `M8`** |
 
 ## 当前进度
 
@@ -84,6 +84,7 @@
 - **Chipyard 基线 ADR（2026-10-13，**`Accepted`（用户逐条确认「可以，ADR没问题」）**）**：`ADR-0024`（Chipyard 上游基线 = commit + 子模块快照）。**决策 D1–D5（已逐条确认成立）**：D1 基线 `1.14.0`（commit `0acc1e1…`）+ 用途定位（(1) 优先 / (3) 次之 / 暂不做 (2)）；D2 锁定方式（`components.lock.toml` 加 `chipyard` + 新增 `manifests/chipyard-submodules.lock.toml`）；D3 lite 子集原则；D4 工具链隔离 + Verilator 自装 ≥5.022；D5 验收口径（`pk` + 可选 Linux，与 QEMU 对照）。**已 `Accepted`；`manifests/` 改动由 `INFRA-074t` 执行**（`AGENTS.md`「ADR decision 逐条确认」）。指针 `.tao/adr/adr-0024-chipyard-baseline.md`。
 - **`INFRA-074t`（2026-10-13 立，`待开始`）**：Chipyard `1.14.0` 落地准备与 (1) 参考平台跑通（P1 环境 / P2 拉取 / P3 最小构建 / P4 (1) 冒烟）；前置 = **用户授权下载** + `ADR-0024` 逐条确认 + **FireMarshal ref 交叉确认**（⚠ 仅 P4 可选 Linux 依赖）；下载源已裁定（指针 → `INFRA-073t §4.5`）。指针 `.tao/tasks/infra/INFRA-074t-chipyard-落地准备与参考平台.md`。
 - **`INFRA-074t` 进度（2026-10-13）**：**P1（环境：conda/mamba/sbt + Verilator `5.022`）/ P2（主仓 `0acc1e1…` + lite 子模块 29 + 子模块锁册）已完成**；FireMarshal 实仓订正为 `firesim/FireMarshal`（前置 3 已解决）；**门控扩展** = 新增布尔字段 **`patchless`** 支持「参考型/无补丁集」组件（落地关闭遗留①，**未放宽**其余组件）。**P3（RocketConfig Verilator 构建）/ P4（`pk` 冒烟）未做**（待用户定谁跑）。
+- **`INFRA-074t` 进度·续（2026-10-14）**：**P3（RocketConfig Verilator 构建）/ P4（参考平台跑通：裸机 `hello.riscv`，含 `Hello world from core 0, a rocket`）已完成**（P3/P4 系**主会话代行**）；**落点修正**（用户 2026-10-13 约定）已落地 = `.cache/chipyard` → `.work` 构建源区（约定入 `AGENTS.md` + `lessons §3.19`）。**`pk` 冒烟未跑通**（`PK_EXIT=2`）、pk↔QEMU 对照 / Linux 未做；reviewer 第 2 轮 **`Accepted`**（0 阻断）；**待收尾** ⇒ 登记 `ISS-204`（`.cache/embench-iot` 非裸仓库）。指针 `.tao/tasks/infra/INFRA-074t-chipyard-落地准备与参考平台.md`。
 
 ## 历史台账指针
 
