@@ -66,3 +66,29 @@ shallow_ref = "1.8.12"
 patch_dir = "components/picolibc/patches"
 patch_series = "components/picolibc/series"
 role = "C library for embedded systems + its upstream test suite (M7 test focus)"
+
+# Chipyard is a *reference platform* (ADR-0024 D1), not a v5 delivered
+# component: it carries NO patch set (ADR-0024 "Chipyard does not enter the v5
+# component patch set"). Its exact baseline is the pinned commit plus the
+# submodule snapshot in manifests/chipyard-submodules.lock.toml (ADR-0024 D2).
+[[component]]
+name = "chipyard"
+enabled = true
+repository = "https://github.com/ucb-bar/chipyard.git"
+commit = "0acc1e1de2d3284bcd4d876956932a013ffe1949"
+shallow = true
+shallow_ref = "1.14.0"
+# Explicit "reference-only, no patch set" flag (ADR-0024 D1): it is what lets
+# the gates accept the ABSENCE of patch_dir/patch_series for this component
+# only. Declaring patch_dir/patch_series alongside it is rejected (no smuggling
+# patches into a component the patch-tree gate skips).
+patchless = true
+role = "RTL SoC simulation (Verilator/RTL reference platform)"
+
+[[component.source]]
+name = "gitclone"
+url = "https://gitclone.com/github.com/ucb-bar/chipyard"
+
+[[component.source]]
+name = "ghfast"
+url = "https://ghfast.top/https://github.com/ucb-bar/chipyard"

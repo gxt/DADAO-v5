@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`INFRA-073t`（预研，`已验证`；结论/测速/清单**只引用不复制**）+ `ADR-0024`（Chipyard 基线，**提案 Candidate、待用户逐条确认**）+ **用户授权开始下载**（源已裁定）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -86,18 +86,84 @@
 - **测速 / 镜像候选排序 / 定源理由** → `INFRA-073t §4`（**内容溯源，非执行必需**）。
 - **(3) 复用清单** → `INFRA-073t §6`；**(2) 结论** → `INFRA-073t §7`；**lite 候选子集** → `INFRA-073t §5.4`（**推测**）；**成本量级** → `INFRA-073t §5.2/§5.3`（**推测**）。
 
+## P1/P2 执行记录（2026-10-13，本地）
+
+> **申报（估算，开工前）**：P1 ≈25–45 min / 磁盘 ≈3–5 GB；P2 ≈30–60 min / 磁盘 ≈6–10 GB。**实测**（非估算）：P1 conda env ≈6 min、1.9 GB；P2 主仓 clone **160 s**、子模块 init **2963 s**、修复 ≈3 min，落盘 **≈304 MB**（`.git` 250 MB + 工作树 54 MB）。**一次只跑一个长任务**；均 `setsid nohup` 脱离 + `*_EXIT` 标记。
+
+### P1 环境
+- **conda/mamba**：`$HOME/miniforge3` **预先已存在**（2026‑01 预装）⇒ **未重装**；实测 `conda 25.11.1`、`mamba 2.4.0`、solver = libmamba。日志 `<日志>`。
+- **sbt**：`2.0.9`（conda‑forge 经 **TUNA**；独立 env `cy`）。
+- **Verilator**：`5.022`（conda‑forge 经 **TUNA**）⇒ **≥5.022 ✓**；与 chipyard `conda-reqs/chipyard-base.yaml` 的 **`verilator==5.022` 逐字一致**。原始输出 `<日志>`。
+- **工具链隔离（D4）** ✓：conda 工具链**不在**默认 `PATH`（`command -v verilator` 仍 = `/usr/bin/verilator 5.020`）；**未**改 `~/.bashrc`；v5 `components/`（llvm‑project/qemu/picolibc/embench‑iot）**未动** ⇒ 未覆盖 v5 工具链。证据 `<日志>`。
+
+### P2 拉取
+- **FireMarshal ref 交叉确认（前置 3，✅ 已解决）**：仓库实为 **`firesim/FireMarshal`**（`ucb-bar/firemarshal` 直连 `Repository not found`；`INFRA-073t` 的「0 refs」= 查错仓名）⇒ 主 `gitclone.com` / 备 `ghfast.top` / **直连** 三路 **均 rc=0、392 refs** ✓。日志 `<日志>`。
+- **主仓**：主源 `gitclone.com`、`--depth 1 --branch 1.14.0` ⇒ **HEAD = `0acc1e1de2d3284bcd4d876956932a013ffe1949`（与预期逐位一致 ✓）**、`describe=1.14.0`、160 s、16 MB。日志 `<日志>`。
+- **lite 子模块**：按上游 `scripts/init-submodules-no-riscv-tools.sh`（**minimal set**）初始化；**未** `--recursive` 全量 ✗。`gitclone.com` 对部分 pinned commit 报 *unadvertised object* / 空仓 ⇒ 改备源 **`ghfast.top`**（可服任意 commit）修复。**终态 `git submodule status`：55 顶层，`+`（错 commit）0 处、lite 子集 29 个全部命中 pinned commit** ✓。
+- **实际 lite 子集（29，现场导出）**：`fpga/fpga-shells`；`generators/`{bar‑fetchers, boom, constellation, diplomacy, hardfloat, icenet, rerocc, rocc‑acc‑utils, rocket‑chip, rocket‑chip‑blocks, rocket‑chip‑inclusive‑cache, shuttle, testchipip}；`sims/firesim`；`software/`{baremetal‑ide, embench/embench‑iot, firemarshal, firesim‑paper‑workloads, tacit_decoder}；`tools/`{DRAMSim2, axe, cde, dsptools, firrtl2, fixedpoint, install‑circt, rocket‑dsp‑utils, torture}。**排除 26**（riscv‑tools 工具链 / 可选核 cva6·ibex·sodor·vexiiriscv·ara·gemmini·nvdla·mempress·saturn·tacit·fft·radiance·caliptra·compress‑acc / coremark·spec2017·zephyr·nvdla‑workload / libgloss / tools/circt）——见锁册 `lite=false`。
+
+### P1/P2 门控扩展 + `INFRA-073t` 订正（追加，2026-10-13，分支 `INFRA-074t-gate`）
+
+> **背景**：P2 使 `chipyard`（ADR-0024 D1「不入 v5 组件补丁集」）以 `enabled=true` 缺补丁集入锁 ⇒ `make check` 红（遗留①）。经主会话裁定走 **(a) 门控支持「参考型组件」**（**不选** (b) `enabled=false`——与其「ADR 后 flip enabled」政策冲突）。**注**：完成区「测试结果」所述 `make check rc=2` 系本小节之前的现场，已被本节取代。
+
+- **门控假定点（定位）**：`tools/infra/manifest_check.py::check_components`（对每个 enabled 组件逐查 `patch_dir` 为目录 + `patch_series` 为文件）；`tools/infra/check_patch_tree.py`（改动前 `main` 第 354 行、`check_component` 第 163/164 行、`run_source_state`）**直取** `component["patch_series"]`/`["patch_dir"]` ⇒ 假定「每个 enabled 组件都有补丁集」。`check-index-blobs` 已用 `if patch_dir:` 容缺（**本次未改**）。
+- **体例依据（字段命名）**：新增**布尔**字段 **`patchless = true`**——对齐本文件既有布尔字段 `enabled`/`shallow` 体例。**未**选 `role = "reference"`：`role` 现为**自由文本描述**（如 gem5 的 `"functional second reference"`），复用作控制标志构成**语义重载**（且 gem5 该值 `reference` 与「有补丁集」并存 ⇒ 不能用它判别）。
+- **门控改动（最小面）**：① `manifests/components.lock.toml` 的 `chipyard` 条目加 `patchless = true`；② `manifest_check.py`：enabled 且 `patchless` ⇒ **允许**缺 `patch_dir`/`patch_series`，**但若同时声明二者则报错**；**非** `patchless` 组件**仍照旧必查**（**未放宽**）；③ `check_patch_tree.py`：`main`/`run_source_state` **跳过** `patchless` 组件，打印计数改为按「实际检查的补丁组件数」**现场统计**（不写死）。
+- **可达 FAIL（两条，均 `cp`+md5 还原）**：① 去掉 `patchless = true` ⇒ `manifest-check` `ERROR: component chipyard: missing patch series …`（rc=2）、`check-patch-tree` `KeyError: 'patch_series'`（rc=2）——回到当前行为 ✓；② `patchless=true` **夹带** `patch_dir`/`patch_series` ⇒ `manifest-check` `ERROR: component chipyard: patchless component must not declare patch_dir/patch_series`（rc=2）✓。两条还原后锁册 **md5 逐位复原**、门控**回绿**。
+- **门控结果**：`make check` **rc=0** ✓（**本任务达成判据**）；`check-modules`(L2)、`check-no-residue`、`check_issues.py`、`check-knowledge-refs` 各 **rc=0**。
+- **`INFRA-073t` 订正（只追加）**：§4.4 表后**追加**「订正」行——FireMarshal 实仓 = **`firesim/FireMarshal`**（`gitclone`/`ghfast`/直连三路均 rc=0、**392 refs**）⇒ 遗留⑤「0 refs」系**查错仓名**，**原 ⚠ 不成立**（§4 原文与审阅记录**未改写**）。
+- **证据**：`.work/evidence/<任务ID>/run.sh`（green **7/7**、`--inject` **13/13**，均 rc=0）；日志 `.work/log/<模块>/`。
+- **遗留① 处置**：**(a) 已落地 ⇒ 关闭**（`chipyard` 保持 `enabled=true`，门控显式识别「参考型/无补丁集」）。
+
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：一键证据脚本 `run.sh` 基线 **8/8 PASS（rc=0）**；`--inject` 注反例 → **可达 FAIL**（`lite_pinned` rc=1）→ `cp`+md5 还原 → **回绿（rc=0）**。门控：`check-no-residue` **rc=0**、`check_issues.py` **rc=0**（24 open/2 closed）、`check-index-blobs` **rc=0**；**`manifest-check` rc=2、`check-patch-tree` rc=2 ⇒ `make check` rc=2（红，预期，见遗留①）**。
+**修改文件**：`manifests/components.lock.toml`（+ `chipyard` 条目）；`manifests/chipyard-submodules.lock.toml`（**新增**，79 条）；本任务书；`.work/evidence/<任务ID>/run.sh`（新）；`.work/log/<模块>/*`（日志）。**未提交 git**（提交权归 architect）；`git status` = `M components.lock.toml` + `?? chipyard-submodules.lock.toml`（`.cache/chipyard/**` 已 gitignore ✓）。
+**验收结果**：见 §P1/P2 执行记录 + 审阅记录·engineer 自审。P1 四项工具原始输出、P2 主仓 commit 逐位一致、锁册 schema/计数/pinned 命中**均由 `run.sh` 现场断言**（非抄录）。
+**新发现/坑**：① **FireMarshal 仓名 = `firesim/FireMarshal`**（`ucb-bar/firemarshal` 不存在）——`INFRA-073t` 遗留⑤「0 refs」系查错仓名；**ref 三路可用**。② **`gitclone.com` 是缓存代理，服不了任意 pinned commit**（`unadvertised object`／空仓；`DRAMSim2` 首次得空仓）⇒ 子模块 pinned commit **须走 `ghfast.top`/直连**；主仓 tag clone 用 `gitclone.com` 仍可。③ **chipyard 1.14.0 pin `verilator==5.022`**（已对齐 P1）。④ 上游 `init-submodules-no-riscv-tools.sh`：递归更新**任一子模块失败即 `|| exit 1` 中止**，且 `set -u` 下 ERR 陷阱引用未绑定 `$submodule_name` ⇒ 需自建续跑/修复。⑤ **`enabled=true` 的「无补丁」组件使 `manifest-check`+`check-patch-tree` 红**（见遗留①）。
+**遗留问题**：① **[需裁定]** `chipyard` 置 `enabled=true`（遵 `components.lock.toml` 头「ADR 后 flip」政策），但 ADR-0024 明确 chipyard**不入 v5 组件补丁集** ⇒ 触发 `manifest-check`（缺 `patch_series`）与 `check-patch-tree`（`KeyError: 'patch_series'`）**红**；**未为过闸改门控/改判定**。**候选解**：(a) 门控支持「无补丁/参考型组件」（后续任务）；(b) 置 `enabled=false`（不改门控，本任务**未**采纳，因疑与「不得为过闸改判定」冲突）。**请 architect/用户裁定 (a)/(b)**。② **P3（RocketConfig Verilator 构建）/ P4（pk 冒烟）未做**——本任务仅授权 P1+P2。③ lite 子集 = 上游 **minimal set**（非「首次成功构建现场」，P3 未跑）⇒ P3 起可据需收紧。④ 拉取期间换源/重试见日志（`gitclone.com` TLS/early‑EOF/504 瞬时失败多次 + `DRAMSim2` 空仓 1 次 ⇒ 换 `ghfast.top`）。⑤ **`patchless` 未全覆盖**：`tools/infra/apply_series.py`（`component["patch_dir"]`/`["patch_series"]` 直取）与 `tools/infra/make_patch.py` 对 `patchless` 组件**仍会直取** `patch_dir`/`patch_series`（**非 L1/L2 门控、当前不触发**，因 `.work/<source>/<chipyard>` 工作树不存在）⇒ **建议后续任务对齐**（本任务未改，登记待排期）。
 
 ## 审阅记录
+
+#### 第 1 轮 engineer 自审（2026-10-13）
+- **范围**：仅 P1+P2。逐行审 ① `gen-submodules-lock.py`、② `manifests/*` 两文件、③ `run.sh`。
+- **逻辑正确性**：锁册 `commit` 一律取 **pinned**（`git submodule status --recursive` 首列 = 索引记录值，非工作树检出态）→ 与 `git ls-tree HEAD` 抽核**一致**；`url` 按 **path**（非 submodule name）取自属主 `.gitmodules`；lite 标记 = 顶层已初始化集（`^[ +]`），与 `git submodule status` **现场计数对账一致（29）**。
+- **防造假**：`run.sh` 每条断言有**可达 FAIL**（`--inject` 实测 `lite_pinned` rc=1）；计数**现场统计**（`lite_count_live`，不写死）；`make check` 红为**现场 rc**，未改门控。
+- **finding 处置**：
+
+  | finding | 处置 | 改了什么 | 复验证据 |
+  |---|---|---|---|
+  | 子模块 url 按 `name` 解析漏 firemarshal `opensbi`/`linux`（name≠path） | ✅已修 | 改为**按 path** 解析属主 `.gitmodules` | 79 条 **0 空 url** |
+  | `DRAMSim2` 空克隆致 `.git/modules` 损坏 | ✅已修 | `rm` 空 gitdir 后 re‑init（ghfast） | 命中 pinned `44322e2f` |
+  | 首次 clone 与残留进程竞争 → `invalid index-pack` | ✅已修 | 杀残进程 + 清目录 + 单进程重跑 | `CLONE_EXIT=0` |
+  | 子模块 init 因单个失败中止、未跑 phase‑2 | ✅已修 | 自建续跑脚本（ghfast） | 16 路径中 15 rc=0 + 1 单修 |
+  | chipyard `enabled=true` → 2 门控红 | ⏸延后 | **未改**（遵「不得为过闸改判定」） | 登记遗留①，**待裁定** |
+
+- **判决**：15/16 目标子模块经 ghfast 修复、`DRAMSim2` 单独修复 ⇒ **lite 29 个全命中 pinned**；主仓 commit 逐位一致。**P1/P2 达成**；遗留①（门控冲突，**需裁定**）、②（P3/P4 未授权）**如实登记**。状态 → `待验收`（**注**：遗留①虽为未决 finding，但属**任务设计冲突、需用户/架构师裁定**，非可实现侧修复项；按下发指令置 `待验收` 并显式上报）。
 
 #### architect 提交留痕（2026-10-13）
 - **档位**：规划产出提交（新任务书 `待开始`，无 `WIP:` 前缀）。
 - **任务内容提交**：**`3055be6`**（信息 `M8 规划：Chipyard 基线 ADR（提案，待逐条确认）+ 立 INFRA-074t（下载/环境/参考平台）`）；**本留痕为其 follow-up 提交**（**未 `--amend`**，避免 `INFRA-073t` F2 类留痕 hash 不一致）。
 - **文件集对账**：`git diff --cached --name-status` = `A .tao/adr/adr-0024-chipyard-baseline.md` + `A .tao/tasks/infra/INFRA-074t-chipyard-落地准备与参考平台.md` + `M .tao/knowledge/milestones.md`（**显式 staging**，未用 `git add -A`/`.`）——与本任务「规划产出 = ADR + 任务书 + `milestones.md`」**逐条一致**（无漏提 / 多提 / 越界）。
 - **未 push**（`origin/master..HEAD` = 1 条；分支 `M8-规划`）。
+
+#### 第 2 轮 engineer 自审（门控扩展，2026-10-13，分支 `INFRA-074t-gate`）
+- **范围**：仅门控扩展 + `INFRA-073t` 订正。逐行审 ① `tools/infra/manifest_check.py`、② `tools/infra/check_patch_tree.py`（`main`/`check_component`/`run_source_state`）、③ `manifests/components.lock.toml`、④ `.work/evidence/<任务ID>/run.sh`。
+- **逻辑正确性**：`patchless` 为**显式声明**才放行；**非** `patchless` 分支与改动前**逐行一致**（未放宽）；`patchless` 路径**主动拒绝** `patch_dir`/`patch_series`（防夹带）；`check_patch_tree` 打印计数已改**现场统计**（`checked` 变量）。边界：`patchless` 且 `patch_dir=""`（空串）**不触发**报错——属退化写法，可接受。
+- **防造假**：`run.sh` green **7/7**、`--inject` **13/13** 均 rc=0；两条注入均有**可达 FAIL**（真实 `rc=2` + 错误文本匹配）；注入后 `git diff --name-only` 非空；还原用 `cp`+md5（**禁** `git checkout/restore/stash`）；计数 `printed==live`（现场，不写死）。
+- **finding 处置**：
+
+  | finding | 处置 | 改了什么 | 复验证据 |
+  |---|---|---|---|
+  | 计数断言误用被覆盖的 `LAST_OUT`（首轮 harness bug，误报 FAIL） | ✅已修 | 显式捕获 `check-patch-tree` 输出到 `patch_tree_out` | green 7/7（含计数 PASS） |
+  | `run_source_state` 对 `patchless` 组件仍套「base+1」不变量 | ✅已修 | 显式跳过 + 打印 `patchless; skipped` | `--source-state` rc=0 |
+
+- **判决**：门控**只加一条明确例外**（显式 `patchless` 参考型），**未放宽**其余组件；`make check` **rc=0**；两条 FAIL 路径可达且还原回绿；遗留① **(a) 落地 ⇒ 关闭**。状态保持 `待验收`（本追加小节 + 订正随 `INFRA-074t` 一并受验）。
+
+#### architect 交叉复核 + 提交留痕（2026-10-13，分支 `INFRA-074t-land`）
+- **档位**：**architect 交叉复核**（**reviewer 未跑本轮**）⇒ 任务**保持 `待验收`**、**待 reviewer 独立验收**（本留痕**不构成**独立验收，不置 `已验证`）。
+- **交叉复核（architect 自跑，均现场 rc）**：`make check` **rc=0**；`make check-modules`(L2) **rc=0**；`check-no-residue` / `check-knowledge-refs` / `check-patch-tree` / `check-index-blobs` / `check_issues.py` 各 **rc=0**。日志 `/tmp/opencode/arch-INFRA-074t-land/*.log`（临时）。
+- **提交**：**`105cb31`**（信息 `INFRA-074t(P1/P2): Chipyard 1.14.0 拉取（lite 29）+ 锁册 + 门控支持 patchless 参考型组件`）；**本留痕为其 follow-up 提交**（**未 `--amend`**，避免 hash 不一致）。
+- **文件集对账**：`git diff --cached --name-status` = `A manifests/chipyard-submodules.lock.toml` + `M manifests/components.lock.toml` + `M tools/infra/check_patch_tree.py` + `M tools/infra/manifest_check.py` + `M .tao/tasks/infra/INFRA-073t-*.md` + `M .tao/tasks/infra/INFRA-074t-*.md` + `M .tao/knowledge/milestones.md`（**显式 staging**，未用 `git add -A`/`.`）——与本任务范围**逐条一致**（**无漏提 / 多提 / 越界**）。
+- **遗留追加**：见「完成区·遗留问题」**⑤**（`patchless` **未覆盖** `apply_series.py`/`make_patch.py`，**非门控、当前不触发**，建议后续对齐）。
+- **未 push**（`push` 只由主会话在 `/complete` 后执行）。

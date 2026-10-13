@@ -1,0 +1,482 @@
+format = 1
+# Chipyard 1.14.0 submodule snapshot (pinned commits).
+# Generated from the pinned checkout (.cache/chipyard @ 0acc1e1de2d3284bcd4d876956932a013ffe1949) via
+# `git submodule status --recursive`; `url` from the owning `.gitmodules`.
+# `lite = true` marks the submodules actually initialized by the lite
+# build set (upstream scripts/init-submodules-no-riscv-tools.sh minimal set;
+# riscv-tools / optional cores / firesim / VLSI excluded). Others are listed
+# for completeness with lite = false (nested = pinned by their parent).
+
+[[submodule]]
+path = "fpga/fpga-shells"
+url = "https://github.com/chipsalliance/rocket-chip-fpga-shells.git"
+commit = "17bd8d286297468a0256b15f908be08396cf804e"
+lite = true
+
+[[submodule]]
+path = "generators/ara"
+url = "https://github.com/ucb-bar/ara-wrapper.git"
+commit = "96daf15d3c54ac4975ea2bdc869f95bccdf90a1e"
+lite = false
+
+[[submodule]]
+path = "generators/bar-fetchers"
+url = "https://github.com/ucb-bar/bar-fetchers.git"
+commit = "bd02692fe6cb5197df90dc39051d31369ef61fcd"
+lite = true
+
+[[submodule]]
+path = "generators/boom"
+url = "https://github.com/riscv-boom/riscv-boom.git"
+commit = "5223e44cfeb26f41380057a2eb4d651197475f69"
+lite = true
+
+[[submodule]]
+path = "generators/caliptra-aes-acc"
+url = "https://github.com/ucb-bar/caliptra-aes-acc.git"
+commit = "642dbdf07b59c96059142e3e9b9d4ad89097a5a6"
+lite = false
+
+[[submodule]]
+path = "generators/compress-acc"
+url = "https://github.com/ucb-bar/compress-acc.git"
+commit = "bf5123307d7b5bc932dc9192355d28ae30b27835"
+lite = false
+
+[[submodule]]
+path = "generators/constellation"
+url = "https://github.com/ucb-bar/constellation.git"
+commit = "c1b42cd0c7c7d6e4fc1ed9bf1f86fbd3b31ac510"
+lite = true
+
+[[submodule]]
+path = "generators/cva6"
+url = "https://github.com/ucb-bar/cva6-wrapper.git"
+commit = "187ed3cd126c68659f446c963599525c2bf58420"
+lite = false
+
+[[submodule]]
+path = "generators/diplomacy"
+url = "https://github.com/chipsalliance/diplomacy.git"
+commit = "fe5e131d4fc8adec14a3ce4a4935bb5c0a269871"
+lite = true
+
+[[submodule]]
+path = "generators/fft-generator"
+url = "https://github.com/ucb-bar/FFTGenerator.git"
+commit = "e361f229b5574931f555b10e1b48f2769c07832c"
+lite = false
+
+[[submodule]]
+path = "generators/gemmini"
+url = "https://github.com/ucb-bar/gemmini.git"
+commit = "8c3f9923a44a2fe2c7930587be297d6d4f8c09ca"
+lite = false
+
+[[submodule]]
+path = "generators/hardfloat"
+url = "https://github.com/ucb-bar/berkeley-hardfloat.git"
+commit = "0ecaef097ce2accbd16a61613699450ed5533f29"
+lite = true
+
+[[submodule]]
+path = "generators/hardfloat/berkeley-softfloat-3"
+url = "https://github.com/ucb-bar/berkeley-softfloat-3.git"
+commit = "5c06db33fc1e2130f67c045327b0ec949032df1d"
+lite = false
+
+[[submodule]]
+path = "generators/hardfloat/berkeley-testfloat-3"
+url = "https://github.com/ucb-bar/berkeley-testfloat-3.git"
+commit = "06b20075dd3c1a5d0dd007a93643282832221612"
+lite = false
+
+[[submodule]]
+path = "generators/ibex"
+url = "https://github.com/ucb-bar/ibex-wrapper.git"
+commit = "5129576841529ee5581e038e0678de972baf1e76"
+lite = false
+
+[[submodule]]
+path = "generators/icenet"
+url = "https://github.com/firesim/icenet.git"
+commit = "61d2925b9d57df189ab8d801eb81185040251249"
+lite = true
+
+[[submodule]]
+path = "generators/mempress"
+url = "https://github.com/ucb-bar/mempress.git"
+commit = "de90faa3b4e01f4ca76c592367c5c19b774ac8e8"
+lite = false
+
+[[submodule]]
+path = "generators/nvdla"
+url = "https://github.com/ucb-bar/nvdla-wrapper.git"
+commit = "d99ffdc79bbf9b86c6cad0c278a785d5802c8209"
+lite = false
+
+[[submodule]]
+path = "generators/radiance"
+url = "https://github.com/ucb-bar/radiance.git"
+commit = "917c95cdb6d698c4fd267ccab2602e283d2ca6c3"
+lite = false
+
+[[submodule]]
+path = "generators/rerocc"
+url = "https://github.com/ucb-bar/rerocc.git"
+commit = "8b672f4e836c111d09e135e8981b611d120692de"
+lite = true
+
+[[submodule]]
+path = "generators/riscv-sodor"
+url = "https://github.com/ucb-bar/riscv-sodor.git"
+commit = "910a2e83ce206e86372927ec3e0b8056953f7d95"
+lite = false
+
+[[submodule]]
+path = "generators/rocc-acc-utils"
+url = "https://github.com/ucb-bar/rocc-acc-utils.git"
+commit = "33ea77110ca9c28c5c7eb3c6b67ae74096ea8b37"
+lite = true
+
+[[submodule]]
+path = "generators/rocket-chip"
+url = "https://github.com/chipsalliance/rocket-chip.git"
+commit = "55bcad0f59436de98ea510334121de8546b9e9d7"
+lite = true
+
+[[submodule]]
+path = "generators/rocket-chip/dependencies/cde"
+url = "https://github.com/chipsalliance/cde.git"
+commit = "52768c97a27b254c0cc0ac9401feb55b29e18c28"
+lite = false
+
+[[submodule]]
+path = "generators/rocket-chip/dependencies/chisel"
+url = "https://github.com/chipsalliance/chisel.git"
+commit = "e3bcc90db37f1aec9f8048813f4f0666098d9bee"
+lite = false
+
+[[submodule]]
+path = "generators/rocket-chip/dependencies/diplomacy"
+url = "https://github.com/chipsalliance/diplomacy.git"
+commit = "fe5e131d4fc8adec14a3ce4a4935bb5c0a269871"
+lite = false
+
+[[submodule]]
+path = "generators/rocket-chip/dependencies/hardfloat"
+url = "https://github.com/ucb-bar/berkeley-hardfloat.git"
+commit = "d93aa570806013dea479a92ba9bb33d1f2d4f69f"
+lite = false
+
+[[submodule]]
+path = "generators/rocket-chip-blocks"
+url = "https://github.com/chipsalliance/rocket-chip-blocks.git"
+commit = "f8c7fddbd7639b15fefc968af59fcc4a8f7df73b"
+lite = true
+
+[[submodule]]
+path = "generators/rocket-chip-inclusive-cache"
+url = "https://github.com/chipsalliance/rocket-chip-inclusive-cache.git"
+commit = "85420cf26f9abcebf685f0d68d14189598943c19"
+lite = true
+
+[[submodule]]
+path = "generators/saturn"
+url = "https://github.com/ucb-bar/saturn-vectors.git"
+commit = "dfe75de2a8868d51d42c20612821431a9fcf645e"
+lite = false
+
+[[submodule]]
+path = "generators/shuttle"
+url = "https://github.com/ucb-bar/shuttle.git"
+commit = "622f08b9fd3697e3fd75e7799885ecdf9e2f13f2"
+lite = true
+
+[[submodule]]
+path = "generators/tacit"
+url = "https://github.com/riscv-tacit/tacit.git"
+commit = "fe61365292ef1fa60410a2a91c48a3e3d22b1a75"
+lite = false
+
+[[submodule]]
+path = "generators/testchipip"
+url = "https://github.com/ucb-bar/testchipip.git"
+commit = "26f821be94252b9c4c83511a3376a51ffc138551"
+lite = true
+
+[[submodule]]
+path = "generators/vexiiriscv"
+url = "https://github.com/ucb-bar/vexiiriscv-tile.git"
+commit = "c82fcfcd5cad4a416987ed12aef75b45a7892b5c"
+lite = false
+
+[[submodule]]
+path = "sims/firesim"
+url = "https://github.com/firesim/firesim.git"
+commit = "da2a1cbcebbb96e21c551ebef513fd95a9d73403"
+lite = true
+
+[[submodule]]
+path = "sims/firesim/platforms/f1/aws-fpga"
+url = "https://github.com/firesim/aws-fpga-firesim"
+commit = "53223d71ce20f02925c74b81da3e6ff0deb79fe2"
+lite = false
+
+[[submodule]]
+path = "sims/firesim/platforms/f2/aws-fpga-firesim-f2"
+url = "https://github.com/firesim/aws-fpga-firesim-f2.git"
+commit = "80b34d3c25aff03353c0b4f2d304bb6067a5011d"
+lite = false
+
+[[submodule]]
+path = "sims/firesim/platforms/rhsresearch_nitefury_ii/NiteFury-and-LiteFury-firesim"
+url = "https://github.com/firesim/NiteFury-and-LiteFury-firesim.git"
+commit = "dfed09d33196ba4c96bca0ca2b078ce1bdb16c8c"
+lite = false
+
+[[submodule]]
+path = "sims/firesim/platforms/xilinx_vcu118/garnet-firesim"
+url = "https://github.com/firesim/garnet-firesim"
+commit = "e0bb020ac0ff6c3731cb82cfc9789963a0e1c382"
+lite = false
+
+[[submodule]]
+path = "sims/firesim/sim/berkeley-hardfloat"
+url = "https://github.com/ucb-bar/berkeley-hardfloat.git"
+commit = "26f00d00c3f3f57480065e02bfcfde3d3b41ec51"
+lite = false
+
+[[submodule]]
+path = "sims/firesim/sim/cde"
+url = "https://github.com/chipsalliance/cde.git"
+commit = "2bcaeae2b9914bd25497ce3c6fa62dc5ca80e09f"
+lite = false
+
+[[submodule]]
+path = "sims/firesim/sim/diplomacy"
+url = "https://github.com/chipsalliance/diplomacy.git"
+commit = "a042ff6df083624ceba471367d4292c91b43f7e6"
+lite = false
+
+[[submodule]]
+path = "sims/firesim/sim/rocket-chip"
+url = "https://github.com/chipsalliance/rocket-chip.git"
+commit = "1b9f43352c7fd6e4e81cb244b422f6c605ffd3df"
+lite = false
+
+[[submodule]]
+path = "software/baremetal-ide"
+url = "https://github.com/ucb-bar/Baremetal-IDE.git"
+commit = "6e01715bea3e4a4015138e9583e40caa08205408"
+lite = true
+
+[[submodule]]
+path = "software/coremark"
+url = "https://github.com/ucb-bar/coremark-workload.git"
+commit = "cf8b8f7d82e085b3ecb31865fa40fb3dd62554f2"
+lite = false
+
+[[submodule]]
+path = "software/embench/embench-iot"
+url = "https://github.com/embench/embench-iot.git"
+commit = "d9b30cdf805133bef9db5f7ecf84ae1ce8124291"
+lite = true
+
+[[submodule]]
+path = "software/firemarshal"
+url = "https://github.com/firesim/FireMarshal.git"
+commit = "21119e5ce922ff9302f0bc9d2d7349c77f7ac064"
+lite = true
+
+[[submodule]]
+path = "software/firemarshal/boards/default/distros/br/buildroot"
+url = "https://github.com/buildroot/buildroot.git"
+commit = "2555f47788964d796c8a49e81ce1f5d63b9cb9ac"
+lite = false
+
+[[submodule]]
+path = "software/firemarshal/boards/default/firmware/opensbi"
+url = "https://github.com/riscv/opensbi.git"
+commit = "5ccebf0a7ec79d0bbef36d6dcdc2717f25d40767"
+lite = false
+
+[[submodule]]
+path = "software/firemarshal/boards/default/linux"
+url = "https://github.com/firesim/linux.git"
+commit = "67bc4513761f09952a5d5f5c899630ed91ce6442"
+lite = false
+
+[[submodule]]
+path = "software/firemarshal/boards/firechip/drivers/iceblk-driver"
+url = "https://github.com/firesim/iceblk-driver.git"
+commit = "e2b1d25aef89601d52a70784401796a1d2845721"
+lite = false
+
+[[submodule]]
+path = "software/firemarshal/boards/firechip/drivers/icenet-driver"
+url = "https://github.com/firesim/icenet-driver.git"
+commit = "72022daf314ad45391e3b6398418c072091b51d1"
+lite = false
+
+[[submodule]]
+path = "software/firemarshal/wlutil/busybox"
+url = "https://github.com/mirror/busybox.git"
+commit = "70f77e4617e06077231b8b63c3fb3406d7f8865d"
+lite = false
+
+[[submodule]]
+path = "software/firesim-paper-workloads"
+url = "https://github.com/firesim/firesim-paper-workloads.git"
+commit = "172265a3c74fc6dcd492cb3753ee21a319cffdcc"
+lite = true
+
+[[submodule]]
+path = "software/nvdla-workload"
+url = "https://github.com/ucb-bar/nvdla-workload.git"
+commit = "30290c3ed8014577fa2ad234fa1b731a082299fb"
+lite = false
+
+[[submodule]]
+path = "software/spec2017"
+url = "https://github.com/ucb-bar/spec2017-workload.git"
+commit = "83e33110472c47aaa762257ed7c053ff1278834c"
+lite = false
+
+[[submodule]]
+path = "software/tacit_decoder"
+url = "https://github.com/riscv-tacit/tacit_decoder.git"
+commit = "acbbd2e2e5344548a464460bff9ee9b9ff437209"
+lite = true
+
+[[submodule]]
+path = "software/zephyrproject/zephyr"
+url = "https://github.com/ucb-bar/zephyr.git"
+commit = "cd45a528d3bf81f9c7aa2a63f9fe512eee0881b0"
+lite = false
+
+[[submodule]]
+path = "toolchains/libgloss"
+url = "https://github.com/ucb-bar/libgloss-htif.git"
+commit = "39234a16247ab1fa234821b251f1f1870c3de343"
+lite = false
+
+[[submodule]]
+path = "toolchains/riscv-tools/riscv-isa-sim"
+url = "https://github.com/riscv-software-src/riscv-isa-sim.git"
+commit = "9c190a07c6838f6392bafa4ad83acea462c7f759"
+lite = false
+
+[[submodule]]
+path = "toolchains/riscv-tools/riscv-openocd"
+url = "https://github.com/riscv/riscv-openocd.git"
+commit = "8f59570468edcf53854d2fd6dabf57b8db7d23c9"
+lite = false
+
+[[submodule]]
+path = "toolchains/riscv-tools/riscv-pk"
+url = "https://github.com/riscv-software-src/riscv-pk.git"
+commit = "abadfdc507d5a75b6272dc360e70a80a510c758a"
+lite = false
+
+[[submodule]]
+path = "toolchains/riscv-tools/riscv-spike-devices"
+url = "https://github.com/ucb-bar/spike-devices.git"
+commit = "887b868db313805c7163f7cc519a7b9e74d92c98"
+lite = false
+
+[[submodule]]
+path = "toolchains/riscv-tools/riscv-tests"
+url = "https://github.com/riscv-software-src/riscv-tests.git"
+commit = "0494f954a3d8d2ca9e4972da7a01e94b6a909bce"
+lite = false
+
+[[submodule]]
+path = "toolchains/riscv-tools/riscv-tools-feedstock"
+url = "https://github.com/ucb-bar/riscv-tools-feedstock.git"
+commit = "56c29e01ba3e705c563edd1271a387119bddb5a5"
+lite = false
+
+[[submodule]]
+path = "tools/DRAMSim2"
+url = "https://github.com/firesim/DRAMSim2.git"
+commit = "44322e2f935d7dac83b7adf8dd270b41a54c6acb"
+lite = true
+
+[[submodule]]
+path = "tools/axe"
+url = "https://github.com/CTSRD-CHERI/axe.git"
+commit = "4a7cf86960425fbf0b6224865b745ff511dc5742"
+lite = true
+
+[[submodule]]
+path = "tools/cde"
+url = "https://github.com/chipsalliance/cde.git"
+commit = "2bcaeae2b9914bd25497ce3c6fa62dc5ca80e09f"
+lite = true
+
+[[submodule]]
+path = "tools/circt"
+url = "https://github.com/llvm/circt.git"
+commit = "481cb60add7358934414a3c6b396f5d29ad934fe"
+lite = false
+
+[[submodule]]
+path = "tools/dsptools"
+url = "https://github.com/ucb-bar/dsptools.git"
+commit = "a310a157cab6e569d30741eae4ca5592069cab7c"
+lite = true
+
+[[submodule]]
+path = "tools/dsptools/fixedpoint"
+url = "https://github.com/ucb-bar/fixedpoint.git"
+commit = "ef164009e40ce5a5abe61ebcc11c12ff82e34014"
+lite = false
+
+[[submodule]]
+path = "tools/firrtl2"
+url = "https://github.com/ucb-bar/firrtl2.git"
+commit = "09156cae09cb37c530322c6005649d2380c3eb0e"
+lite = true
+
+[[submodule]]
+path = "tools/fixedpoint"
+url = "https://github.com/ucb-bar/fixedpoint.git"
+commit = "ef164009e40ce5a5abe61ebcc11c12ff82e34014"
+lite = true
+
+[[submodule]]
+path = "tools/install-circt"
+url = "https://github.com/circt/install-circt.git"
+commit = "3f8dda6e1c1965537b5801a43c81c287bac4eae4"
+lite = true
+
+[[submodule]]
+path = "tools/rocket-dsp-utils"
+url = "https://github.com/ucb-bar/rocket-dsp-utils.git"
+commit = "6ee2309f80a54b404795f227793d2a54e1dfadf8"
+lite = true
+
+[[submodule]]
+path = "tools/rocket-dsp-utils/tools/dsptools"
+url = "https://github.com/ucb-bar/dsptools.git"
+commit = "8f4336639578d2e2dbaf61e542ee1f0fa8d79e63"
+lite = false
+
+[[submodule]]
+path = "tools/rocket-dsp-utils/tools/rocket-chip"
+url = "https://github.com/chipsalliance/rocket-chip.git"
+commit = "281e5c8f2e1cca68439fe04799d7be855db92517"
+lite = false
+
+[[submodule]]
+path = "tools/torture"
+url = "https://github.com/ucb-bar/riscv-torture.git"
+commit = "b2b66a66d51b360e0ae95017774d03377c78c574"
+lite = true
+
+[[submodule]]
+path = "tools/torture/env"
+url = "https://github.com/riscv/riscv-test-env.git"
+commit = "1b76fd1f1c63dfe4cea93f426434a7384d2bf801"
+lite = false

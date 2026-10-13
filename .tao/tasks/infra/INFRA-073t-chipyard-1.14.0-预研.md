@@ -94,6 +94,8 @@
 | `cdn.kernel.org` | **200**（3 连，0.377/0.252/0.265 s） | 可用 |
 | FireMarshal（`ucb-bar/firemarshal`） | `gitclone.com` rc=0 但 **0 refs（空）**（3 连）；直连 GitHub rc=**124**（3 连，02:13:40Z）⇒ **本次未能确认其 ref 可取**（首轮「30.4 s 后成功」未留原始输出，存疑，见遗留） | 走 GitHub 代理（**待确认**） |
 
+> **订正（2026-10-13，`INFRA-074t` 实测）**：§4 中「`gitclone.com` 对 `ucb-bar/firemarshal` rc=0 但 **0 refs（空）**」系**查错仓名**——实际仓为 **`firesim/FireMarshal`**，三路（`gitclone`/`ghfast`/直连）均 rc=0、**392 refs** 正常 ✓；原 ⚠（= 本任务遗留⑤）**不成立**。（本节原文与审阅记录不改写。）
+
 ### 4.5 候选排序 + 建议（**定源 = 用户裁定**）
 
 > **下载源已由用户裁定（2026-10-13，经主会话转述）**：GitHub 主仓 + 全部子模块 = **主 `gitclone.com`、备 `ghfast.top`**；conda = **TUNA**（conda-forge/defaults），ucb-bar 通道走 **`conda.anaconda.org` 直连**。
