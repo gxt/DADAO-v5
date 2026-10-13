@@ -1,10 +1,10 @@
 # ADR-0024: Chipyard 上游基线（commit + 子模块快照）
 
-**状态**：Candidate（**提案，待用户逐条确认**）
+**状态**：Accepted
 **日期**：2026-10-13
 **关联**：`ADR-0005`（组件锁多源；`manifests/components.lock.toml`）、`ADR-0002`（构建编排：`.cache/<name>.git` bare mirror + `.work/source/<name>` 工作树）、`INFRA-073t`（Chipyard `1.14.0` 预研，`已验证`）、`INFRA-074t`（落地准备与 (1) 参考平台，`待开始`）、`manifests/components.lock.toml` / `manifests/chipyard-submodules.lock.toml`（拟新增）
 
-> **本 ADR 为「提案（Candidate）」**：`D1`–`D5` 均为**草案**，**未经用户逐条确认**，**不得**写作 `Accepted`（`AGENTS.md`「ADR decision 逐条确认」）。确认后由主会话置 `Accepted`（`docs/Process-03` 流程）。
+> **本 ADR 已 `Accepted`（2026-10-13）**：`D1`–`D5` 经用户**逐条确认**成立（`AGENTS.md`「ADR decision 逐条确认」；`docs/Process-03` 流程）。
 > **ADR 不承载规范正文**（`docs/Process-03`）：本文件只记**决策 / 理由 / 被否方案**；锁字段填写由 `INFRA-074t` 执行。
 
 ## Context（背景）
@@ -17,7 +17,7 @@
 
 **承载位置**：本 ADR 只记**决策/理由/被否方案**；`components.lock.toml` 条目新增、子模块锁册生成、`enabled` 翻转**由 `INFRA-074t` 执行**。本 ADR **不改** `manifests/`。
 
-## Decision（决策）— 逐条草案（**待用户逐条确认**）
+## Decision（决策）— 逐条（**用户已逐条确认，2026-10-13**）
 
 **D1 — 基线版本与用途定位**
 基线 = Chipyard **`1.14.0`**，commit **`0acc1e1de2d3284bcd4d876956932a013ffe1949`**（annotated tag `1.14.0` = `ff2d01f3da2490e7f7216d5bbbe3c8d96a960a03` 的 peeled commit；两路解引用一致）。
@@ -62,7 +62,9 @@ M8 以「**参考平台能跑通 `pk`（+ **可选** Linux）并与我们 QEMU �
 
 ## 状态说明
 
-**Candidate（提案，2026-10-13）**：`D1`–`D5` 为**草案**，**待用户逐条确认**后方可置 `Accepted`（`docs/Process-03` 流程：先置 `Candidate`；评审通过后由主会话置 `Accepted`）。
+**Accepted（2026-10-13）**：`D1`–`D5` 已由用户逐条确认成立，无否决未处置（`docs/Process-03` 流程：先置 `Candidate`；评审通过后由主会话置 `Accepted`）。
 
-- **判定来源**：用户已确认的上游裁定 = ① 用途「**1/2/3**」；② 落法「**先预研（推荐）**」；③ **立 ADR**（「立 ADR（推荐）」）；④ 下载源「按建议定源 + 开工」（主 `gitclone.com` / 备 `ghfast.top` / conda TUNA）。**其余（D2–D5 细则）为架构师草案，不得视为已确认**。
+**逐条确认**（2026-10-13，用户原话「可以，ADR没问题」，经主会话问答）：D1–D5 全部成立
+
+- **判定来源**：用户已确认的上游裁定 = ① 用途「**1/2/3**」；② 落法「**先预研（推荐）**」；③ **立 ADR**（「立 ADR（推荐）」）；④ 下载源「按建议定源 + 开工」（主 `gitclone.com` / 备 `ghfast.top` / conda TUNA）。**D2–D5 细则已随 D1–D5 于 2026-10-13 逐条确认成立**。
 - **变更流程**：决策变更（如升级 commit / 调整 lite 子集）时**新增 ADR 或标注 `Superseded`**；经授权的就地修订须用户逐条确认。
