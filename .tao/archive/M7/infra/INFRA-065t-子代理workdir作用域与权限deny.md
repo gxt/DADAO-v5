@@ -201,3 +201,14 @@
 **证据脚本**：`/g` 修复后 `--selftest` 6 条均可达 FAIL（含上轮恒真的 c3 现 rc=1）✓。
 **门控**：`make check`/`check-knowledge-refs`/`check-no-residue` 各 rc=0 ✓。
 **判定**：**Accepted**（规则层 ✅ / 权限层 ⏳ BLOCKED〔待 `opencode service restart` 复验，`ISS-199`〕）。
+
+---
+
+## 更正（2026-10-13）
+
+> **只追加、不改写上文原结论**（原结论：「权限层 ⏳ 未生效，待服务重启复验」）。
+
+- **服务重启后全局 deny 生效 ✓**：用户执行 `opencode service restart`（2026-10-13）并复验——出界 `cd /mnt/tao` / `cd ..` ⇒ `{"type":"permission.rejected","message":"Permission denied: external_directory"}`、**无人工介入**（用户确认仅弹过一条）；`/mnt/*`、`/home/ubuntu/tao/*` 均无人工介入即拒绝；对照仓内 `cd .work` 与 `/tmp/opencode/**` 正常放行 ✓。
+- **已知局限**：`cd ~`（`/home/ubuntu/*`）**仍 ask** ⇒ 属已知设计（若罩 `/home/ubuntu/*` 会误伤既有放行 `~/.cache`/`~/.config/opencode`/`~/.local/share/opencode`/`~/t.a.o`）⇒ 靠**规则层兜底**（`AGENTS.md` 子代理硬约束禁 `cd ~*`）+ **夜跑冒烟含该项**。
+- **规则层同日均已落地**（三 agent workdir 硬约束 + `AGENTS.md` 第 12 条）。
+- **依据** = 用户确认观察 + canary4 逐字返回（系统固定文案不可反推，见 `lessons §3.18`）；`ISS-199` 已 `closed`（`resolved_by` = 用户重启 + 复验）。

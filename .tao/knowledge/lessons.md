@@ -357,6 +357,7 @@
 - `permission.rejected` 的 `message` **不能**区分真 `deny` 与 `ask` + 人工 reject（人工 reject 同样返回 `message="Permission denied: external_directory"`）⇒ **判「deny 是否生效」唯一可靠依据 = 用户观察是否弹询问**；**子代理无该视角、不得就此下结论**。
 - 改项目/agent 级配置后 `POST /api/location/reload` 通常令其生效（**本任务实测未见效，待复验**）；**全局配置文件改动不在重载范围 ⇒ 需重启服务**。
 - `experimental.policies` 在 v2.0.22 **不被 schema 接受**（`Experimental.Policy.action` 枚举仅 `provider.use`）⇒ **不要用它做 deny**。
+- **单向判据（2026-10-13 补）**：`message` **含人工输入文本**（如用户 reject 时点评「是我点的」）⇒ **必为 `ask` + 人工介入** ✓；但**系统固定文案不可反推**（人工 reject 与规则 `deny` 可产同一 `message`）⇒ **判 `deny` 是否生效仍须用户观察**（重启后复验口径：越界 `cd /mnt/tao` **不弹询问、无人工即 reject = 生效**；`cd ~` **仍 ask = 已知局限**，靠 `AGENTS.md` 禁 `cd ~*` 规则层兜底）。
 
 ---
 
