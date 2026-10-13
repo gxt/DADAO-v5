@@ -4,7 +4,8 @@ format = 1
 # `git submodule status --recursive`; `url` from the owning `.gitmodules`.
 # `lite = true` marks the submodules actually initialized by the lite
 # build set (upstream scripts/init-submodules-no-riscv-tools.sh minimal set;
-# riscv-tools / optional cores / firesim / VLSI excluded). Others are listed
+# riscv-tools / optional cores / VLSI excluded; firesim itself is included,
+# but its nested submodules (sim/*, platforms/*) are excluded). Others are listed
 # for completeness with lite = false (nested = pinned by their parent).
 
 [[submodule]]
