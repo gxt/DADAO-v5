@@ -9,7 +9,7 @@ Spec-first：所有判定依据 `contracts/opcodes.yaml`、`contracts/legality_r
    2. `class` ∈ {encoding, legality, semantic, boundary, overlap}
    3. `status` ∈ {active, deferred}
    4. deferred 一致性（`expected_state`/`expected_pc` 为 null，`deferred_reason` 非空）
-   5. `expected_fault` ∈ {null, ILLI, UNDI, MALIGN, IALIGN, RASOF, RASUF, UNMAPPED}
+   5. `expected_fault` ∈ {null, ILLI, UNDI, MALIGN, IALIGN, RASOF, RASUF, UNMAPPED, CFXMEM}
    6. `encoding.word` 合法 hex 且 ≤ 0xFFFFFFFF
    7. `id` 存在于 `opcodes.yaml` 的 M1 身份集
    8. `encoding.word` 与对应 opcode 的 `(word & mask) == value` 一致
@@ -45,14 +45,21 @@ except ImportError:  # pragma: no cover
 ALLOWED_CLASSES = {"encoding", "legality", "semantic", "boundary", "overlap"}
 ALLOWED_STATUS = {"active", "deferred"}
 ALLOWED_FAULTS = {None, "ILLI", "UNDI", "MALIGN", "IALIGN",
-                  "RASOF", "RASUF", "UNMAPPED"}
+                  "RASOF", "RASUF", "UNMAPPED", "CFXMEM"}
 REQUIRED_FIELDS = ["mnemonic", "id", "format", "class", "encoding",
                    "input_state", "spec_cite"]
 
-# ADR-0004 D1：RAM 窗口（16 MiB）与 48-bit 有效地址上限
-RAM_BASE = 0xFFFF_0000_0000
-RAM_END = 0xFFFF_00FF_FFFF
+# ADR-0004 R3 + rev. 2026-10-11（RAM 基址 0xFC00_0000_0000）：RAM 窗口（16 MiB）
+# 与 48-bit 有效地址上限
+RAM_BASE = 0xFC00_0000_0000
+RAM_END = 0xFC00_00FF_FFFF
 ADDR48_MAX = 0xFFFF_FFFF_FFFF
+
+# ADR-0004 D2.2 + tests/vectors/isa/ctrl-br.yaml 头部约定：
+# 向量中指令地址 = RAM 入口 rb0 = 0xFC00_0000_0000；
+# br.* 非跳转（not-taken）后继 PC = rb0 + 4。ISS-025 结构性守卫据此分类 taken/not-taken。
+RB0_PC = 0xFC00_0000_0000
+BR_NOT_TAKEN_PC = RB0_PC + 4
 
 HEX_RE = re.compile(r"^0x[0-9a-fA-F]+$")
 REG_RE = re.compile(r"^(rd|rb|ra)\d+$")
@@ -75,15 +82,24 @@ def _unquote(cell):
     return cell.strip().strip("`").strip()
 
 
+def _field_val(word_int, fld):
+    """从编码字中取命名字段的值（按 opcodes.yaml 的 bits=[hi:lo]）。"""
+    m = re.match(r"\[(\d+):(\d+)\]", fld.get("bits", ""))
+    if not m:
+        return None
+    hi, lo = int(m.group(1)), int(m.group(2))
+    return (word_int >> lo) & ((1 << (hi - lo + 1)) - 1)
+
+
 def load_opcodes(path):
     """返回 (m1_records, by_id, duplicate_ids, all_records)。
-    M1 判据 excluded_m1 != true；all_records 含全部 256 条（含 excluded_m1）。
+    M1 判据 scope == "m1"；all_records 含全部 228 条（含 scope fp/excluded/m3）。
     """
     with open(path) as fh:
         records = _yaml.safe_load(fh)
     if not isinstance(records, list):
         raise ValueError("opcodes.yaml top-level must be a list")
-    m1 = [r for r in records if not r.get("excluded_m1")]
+    m1 = [r for r in records if r.get("scope") == "m1"]
     by_id = {}
     dups = []
     for rec in m1:
@@ -280,8 +296,8 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
             if word is None:
                 errors.append("%s: reserved encoding must have encoding.word "
                               "(non-null)" % tag)
-            # R4: word 不得为 0x00000000（全零字 → illi → ILLI，§8.3）
-            # R8: word 不得匹配 opcodes.yaml 中任何已定义记录（含 excluded_m1）
+            # R4: word 不得为 0x00000000（全零字 = 保留编码，op=0x00 → UNDI，§2.9）
+            # R8: word 不得匹配 opcodes.yaml 中任何已定义记录（含 scope fp/excluded）
             if word is not None:
                 try:
                     wval_r = int(word, 16) if isinstance(word, str) else word
@@ -290,9 +306,9 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                 if wval_r is not None:
                     if wval_r == 0:
                         errors.append("%s: reserved encoding word must not be "
-                                      "0x00000000 (全零字 → illi → ILLI, §8.3)"
+                                      "0x00000000 (全零字 = 保留编码，op=0x00 → UNDI, §2.9)"
                                       % tag)
-                    # R8: 遍历 opcodes.yaml 全部记录（含 excluded_m1），
+                    # R8: 遍历 opcodes.yaml 全部记录（含 scope fp/excluded），
                     # 若 (word & mask) == value 命中则说明该 word 是已定义编码，
                     # 不得标 reserved
                     for rec in all_records:
@@ -305,11 +321,11 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                             errors.append(
                                 "%s: reserved encoding word %s matches defined "
                                 "encoding in opcodes.yaml (id=%s, format=%s, "
-                                "excluded_m1=%s); reserved only for QFC/子表 "
+                                "scope=%s); reserved only for QFC/子表 "
                                 "blank cells"
                                 % (tag, word, rec.get("id"),
                                    rec.get("format"),
-                                   rec.get("excluded_m1", False)))
+                                   rec.get("scope", "?")))
                             break
             # R5: notes 必须非空（须给出 reserved 依据）
             notes_val = case.get("notes")
@@ -433,6 +449,40 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                     errors.append("%s: %s case expected_fault must be null or "
                                   "ILLI, got %r" % (tag, cls, fault))
 
+        # ── ISS-097: overlap 同组块赋值的语义门控（mreg_range_overlap）──
+        # 依据 contract-isa.md §寄存器组之间块赋值 / legality_rules.yaml::mreg_range_overlap：
+        # 同寄存器组块赋值（rd2rd/rb2rb，及 scope fp 的 convert_ff 四条）源范围与目的
+        # 范围有任何交集（含完全重合）→ ILLI。此处按 word 的 dst/src 字段 + immu6
+        # 机械重算 [start..start+immu6-1] 区间交集；有交集而 expected_fault != ILLI ⇒ 报错。
+        # 跨组块赋值（ra2rd/rd2ra/rd2rb/rb2rd 等）源与目的分属不同 bank，结构性不可能
+        # 重叠，不适用本规则（由 bank 相等判据自动排除）。
+        if cls == "overlap" and key is not None and key in by_key \
+                and isinstance(word, str) and HEX_RE.match(word.strip()):
+            rec = by_key[key]
+            flds = rec.get("fields", [])
+            dst_f = next((f for f in flds if f.get("role") == "dst"), None)
+            src_f = next((f for f in flds if f.get("role") == "src"), None)
+            imm_f = next((f for f in flds if f.get("name") == "immu6"), None)
+            if dst_f is not None and src_f is not None and imm_f is not None \
+                    and dst_f.get("bank") == src_f.get("bank") \
+                    and dst_f.get("bank") in ("rd", "rb", "rf"):
+                wval_o = int(word, 16)
+                dst_i = _field_val(wval_o, dst_f)
+                src_i = _field_val(wval_o, src_f)
+                cnt = _field_val(wval_o, imm_f)
+                if dst_i is not None and src_i is not None \
+                        and cnt is not None and cnt > 0:
+                    dst_lo, dst_hi = dst_i, dst_i + cnt - 1
+                    src_lo, src_hi = src_i, src_i + cnt - 1
+                    if not (dst_hi < src_lo or src_hi < dst_lo):
+                        if fault != "ILLI":
+                            errors.append(
+                                "%s: overlap %s same-bank ranges "
+                                "[%d..%d] ∩ [%d..%d] ≠ ∅ but expected_fault=%r "
+                                "(must be ILLI per mreg_range_overlap)"
+                                % (tag, key, dst_lo, dst_hi, src_lo, src_hi,
+                                   fault))
+
         # F9①: active semantic/boundary src field register pre-set guard
         if status == "active" and cls in ("semantic", "boundary") and \
                 isinstance(input_state, dict) and \
@@ -549,13 +599,14 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                                 return (wval >> lo) & ((1 << (hi - lo + 1)) - 1)
                     return None
 
-                # F10①: base field (rbhb) != rb0, rb1, rb2
+                # F10①: base field (rbhb) != rb1, rb2
+                # rb0 allowed as base for ld.*/st.* (PC-relative, ADR-0015 D4)
                 hb_val = _extract_field("rbhb")
                 if hb_val is not None:
                     if hb_val == 0:
-                        errors.append(
-                            "%s: F10: encoding base field hb=0 (rb0=PC), "
-                            "must use unused rb register" % tag)
+                        # rb0 as base is valid for ld/st (PC-relative addressing)
+                        # Per ADR-0015 D4: ld/st may use rb0 as base register
+                        pass  # rb0 allowed; no error
                     elif hb_val in (1, 2):
                         errors.append(
                             "%s: F10: encoding base field hb=%d (rb%d occupied "
@@ -564,8 +615,11 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
 
                     # F10②: base register must be preset in input_state.rb
                     # with value in RAM window
+                    # Skip for rb0 (hardwired to PC, ADR-0015 D1)
                     base_name = "rb%d" % hb_val
-                    if base_name not in rb_preset:
+                    if hb_val == 0:
+                        pass  # rb0 is hardwired; no preset needed
+                    elif base_name not in rb_preset:
                         errors.append(
                             "%s: F10: encoding base register %s not preset "
                             "in input_state.rb" % (tag, base_name))
@@ -591,12 +645,31 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
                             "%s: F10: rrri encoding immu6=%d, must be >= 1"
                             % (tag, immu6_val))
 
-                # F10④: dest/src ha != rd0/ra0
-                ha_val = _extract_field("rdha")
-                if ha_val is not None and ha_val == 0:
-                    errors.append(
-                        "%s: F10: encoding dest/src ha=0 (rd0/ra0), "
-                        "must use non-zero register" % tag)
+                # F10④: dest ha != rd0/ra0 (role=dst only; src allowed)
+                # Per ADR-0015 D2/D3: rd0 as source reads 0 (LEGAL for st.*/stm.*)
+                # Check rdha field: only flag if role=dst and value=0
+                for fld in fields:
+                    if fld["name"] == "rdha" and fld.get("role") == "dst":
+                        ha_val = _extract_field("rdha")
+                        if ha_val is not None and ha_val == 0:
+                            errors.append(
+                                "%s: F10: encoding dest rdha=0 (rd0), "
+                                "must use non-zero register for destination"
+                                % tag)
+                        break
+
+                # F10④b: RB variant — rbha as dest must not be rb0
+                # Only for ld.o-rb (rbha=dst) and ldm.o-rb (rbha=dst)
+                # st.o-rb/stm.o-rb have rbha=src, which is LEGAL (ADR-0015 D3)
+                for fld in fields:
+                    if fld["name"] == "rbha" and fld.get("role") == "dst":
+                        rbha_val = _extract_field("rbha")
+                        if rbha_val is not None and rbha_val == 0:
+                            errors.append(
+                                "%s: F10: encoding dest rbha=0 (rb0=PC), "
+                                "must use non-zero register for destination"
+                                % tag)
+                        break
 
     return len(cases)
 
@@ -677,6 +750,10 @@ def main():
     total_cases = 0
     # Data-level coverage map: (id, class) -> count of active cases
     data_coverage = {}
+    # ISS-025: br.* 双路径覆盖图 — id -> set{taken, not-taken}
+    # 分类依据 expected_pc（结构字段，不读 notes/文本）：
+    #   not-taken ⇔ expected_pc == BR_NOT_TAKEN_PC（rb0+4）；否则视为 taken。
+    br_paths = {}
     for fpath in yaml_files:
         total_cases += validate_file(fpath, by_id, m1_keys, all_records, errors)
         # Build data-level coverage from this file
@@ -703,6 +780,32 @@ def main():
                 continue
             cov_key = (c_id, c_cls)
             data_coverage[cov_key] = data_coverage.get(cov_key, 0) + 1
+
+            # ISS-025: 收集 br.* 的 taken / not-taken 语义覆盖
+            if isinstance(c_id, str) and c_id.startswith("br.") \
+                    and c_cls == "semantic":
+                epc = c.get("expected_pc")
+                if isinstance(epc, str) and HEX_RE.match(epc.strip()) \
+                        and int(epc, 16) == BR_NOT_TAKEN_PC:
+                    path = "not-taken"
+                else:
+                    path = "taken"
+                br_paths.setdefault(c_id, set()).add(path)
+
+    # ── ISS-025: br.* 双路径（taken + not-taken）结构性守卫 ────────────
+    # 每个 M1 br.* 指令须同时存在 taken 与非 taken 的 active semantic 用例；
+    # 删任一条 ⇒ 报错。分类仅依赖 expected_pc（结构字段），不依赖注释/文本。
+    for rid in sorted(m1_keys):
+        if not rid.startswith("br."):
+            continue
+        paths = br_paths.get(rid, set())
+        missing = [p for p in ("taken", "not-taken") if p not in paths]
+        if missing:
+            errors.append(
+                "BR DUAL-PATH GAP: id='%s' missing %s active semantic "
+                "case(s) (need both taken=rb0+(imm<<2) and "
+                "not-taken=rb0+4; ADR-0004 D2.2)"
+                % (rid, ", ".join(missing)))
 
     # ── Data-level coverage gate (TESTCASES-009t 验收标准 7) ──────────
     # For each id in inventory with ✓ for some class,

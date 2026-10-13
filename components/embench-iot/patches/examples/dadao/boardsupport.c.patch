@@ -1,0 +1,66 @@
+diff --git a/examples/dadao/boardsupport.c b/examples/dadao/boardsupport.c
+new file mode 100644
+index 0000000..0f82ef5
+--- /dev/null
++++ b/examples/dadao/boardsupport.c
+@@ -0,0 +1,60 @@
++/* Copyright (C) 2019 Clemson University
++   Copyright (C) 2026 DADAO-v5
++
++   Contributor Ola Jeppsson <ola.jeppsson@gmail.com>
++
++   This file is part of Embench.
++
++   SPDX-License-Identifier: GPL-3.0-or-later */
++
++/* DADAO board support for Embench-iot (DADAO-v5 task TESTCASES-039t).
++ *
++ * The framework requires exactly these three functions (support/support.h):
++ *
++ *   initialise_board()  board bring-up         (before timing)
++ *   start_trigger()     timing window starts
++ *   stop_trigger()      timing window ends
++ *
++ * No timing device is required to establish *correctness*; each trigger emits a
++ * short marker through the semihosting SYS_WRITE0 (0x04) service
++ * (contract-semihosting.md §3) so that a run's console output proves the three
++ * hooks were actually invoked by support/main.c.  The marker is inert with
++ * respect to the benchmark result (main returns !correct; the exit code is the
++ * guest process status, contract-semihosting.md §5).
++ */
++
++#include <support.h>
++
++/* Semihosting SYS_WRITE0: rd16 = 0x04, rb16 = NUL-terminated string pointer;
++ * `trap cfx_umon, 0x30000` (immu18[17:16] == 2'b11) is the semihosting tag
++ * (contract-semihosting.md §1-§2).  The service writes its (unused) return
++ * value to rd8, so rd8 is declared as an output to keep the compiler honest. */
++static void
++dadao_semihost_write0 (const char *s)
++{
++  register long op __asm__ ("rd16") = 0x04;
++  register const char *p __asm__ ("rb16") = s;
++  register long ret __asm__ ("rd8");
++  __asm__ volatile ("trap cfx_umon, 0x30000"
++		    : "=r" (ret)
++		    : "r" (op), "r" (p)
++		    : "memory");
++}
++
++void
++initialise_board (void)
++{
++  dadao_semihost_write0 ("[board:init]\n");
++}
++
++void __attribute__ ((noinline))
++start_trigger (void)
++{
++  dadao_semihost_write0 ("[board:start]\n");
++}
++
++void __attribute__ ((noinline))
++stop_trigger (void)
++{
++  dadao_semihost_write0 ("[board:stop]\n");
++}

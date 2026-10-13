@@ -11,9 +11,9 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > `file` 列为目标文件名，下游重组任务负责更新为最终文件名。
 >
 > `validate_vectors.py` 机械校验本表的 M1 行集与 `contracts/opcodes.yaml`
-> 的 M1 身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）。
+> 中 `scope == "m1"` 的身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）。
 
-## M1 覆盖矩阵（178 条）
+## M1 覆盖矩阵（155 条）
 
 | id | format | file | encoding | legality | semantic | boundary | overlap | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -61,7 +61,6 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `mul.uo_rrrr_rd` | `rrrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `mul.so_rrrr_rd` | `rrrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `add.si_riii_rd` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `rela.si_riii_rb` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `add.si_riii_rb` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `cmp.ui_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cmp.si_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
@@ -85,9 +84,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `call_iiii_ra` | `iiii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `call_rrii_ra` | `rrii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `ret_riii_ra` | `riii` | `ctrl-ret.yaml` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`） |
-| `swym_oiii_imm` | `oiii` | `misc.yaml` | ✓ | — | ✓ | — | — | 占位指令（§7），无 fault，legality 不适用 |
-| `illi_oiii_imm` | `oiii` | `misc.yaml` | — | ✓ | — | — | — | 恒 ILLI（§9.1）；encoding/semantic 豁免（F6），覆盖率由 legality 满足 |
-| `fence_oiii_imm` | `oiii` | `misc.yaml` | deferred fence 实现缺失（ISS-056） | deferred fence 实现缺失（ISS-056） | deferred fence 实现缺失（ISS-056） | — | — | `fence` 属 M1（§7.3）但 QEMU `trans_fence` 仍为 ILLI 桩（`ISS-056`）；用户 2026-09-21 裁定 deferred ⇒ 3 类覆盖均暂缓 |
+| `swym_oiii_imm` | `oiii` | `misc.yaml` | ✓ | — | ✓ | — | — | 占位指令（§13.1），无 fault，legality 不适用 |
 | `and.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `or.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `xor.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
@@ -102,9 +99,9 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `shr.uo_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.so_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.uo_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `add.so_orrr_rb` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `sub.so_orrr_rb` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `cmp.uo_orrr_rb` | `orrr` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
+| `add.o_orrr_bbd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `sub.o_orrr_bbd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `cmp.uo_orrr_dbb` | `orrr` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cmp.uo_orrr_rd` | `orrr` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cmp.so_orrr_rd` | `orrr` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `rd2rd_orri_rd` | `orri` | `reg-imm-block.yaml` | ✓ | ✓ | ✓ | — | ✓ |  |
@@ -117,17 +114,9 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `div.so_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.uo_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.so_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `and.t_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `or.t_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xor.t_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xnor.t_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ext.ut_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.st_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ut_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.st_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.ut_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.ut_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.st_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ut_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.st_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.ut_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
@@ -143,17 +132,9 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `div.st_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.ut_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.st_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `and.w_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `or.w_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xor.w_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xnor.w_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ext.uw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.sw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.uw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.uw_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.uw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.sw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.uw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.uw_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
@@ -169,17 +150,9 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `div.sw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.uw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.sw_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `and.b_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `or.b_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xor.b_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `xnor.b_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ext.ub_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.sb_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ub_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sb_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.ub_orrr_rd` | `orrr` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.ub_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ext.sb_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.ub_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shr.sb_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `shl.ub_orri_rd` | `orri` | `reg-shift-extend.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
@@ -195,3 +168,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `div.sb_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.ub_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `rem.sb_orrr_rd` | `orrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `cfx2rc_crrr_cfx` | `crrr` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 特权 cfx；SPEC-115t re-scope excluded→m1（已实现，MC 可汇编），向量待 TESTCASES-033t |
+| `cfx2rd_crrr_cfx` | `crrr` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |
+| `escape_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上（位宽：汇编 imms20 ⇔ 编码 imms18=bytes>>2） |
+| `trap_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |

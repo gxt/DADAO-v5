@@ -1,0 +1,18 @@
+# p2align_e2e -- LLVM-075t (ISS-182) end-to-end: a `.text`-internal `.p2align`
+# must assemble, link (ld.lld) and run correctly.
+#
+# Pipeline (linked ELF, contract-elf.md §6.1.2):
+#   llvm-mc tests/scripts/codegen_crt0.s -> crt0.o   (_start calls @main)
+#   llvm-mc p2align_e2e.s               -> main.o    (falls through `swym 0`)
+#   ld.lld -T dadao.lds crt0.o main.o   -> prog.elf
+#   qemu-system-dadao -M dadao-m1 -kernel prog.elf ...
+#
+# @main returns 0 through rd8; crt0 reports it via the semihosting SYS_EXIT
+# service, so the qemu process exit code (the lit result) is 0 iff the aligned
+# program ran and returned 0.  A non-instruction/illegal padding byte would trap
+# and fail the run.
+
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/p2align_e2e.s -o %t.main.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.main.o -o %t.elf
+# RUN: timeout 30 %qemu -M dadao-m1 -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic

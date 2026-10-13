@@ -1,0 +1,16 @@
+diff --git a/llvm/include/llvm/Object/ELFObjectFile.h b/llvm/include/llvm/Object/ELFObjectFile.h
+index 6d72741c3..b444d6464 100644
+--- a/llvm/include/llvm/Object/ELFObjectFile.h
++++ b/llvm/include/llvm/Object/ELFObjectFile.h
+@@ -1442,6 +1442,11 @@ template <class ELFT> Triple::ArchType ELFObjectFile<ELFT>::getArch() const {
+     return Triple::ve;
+   case ELF::EM_CSKY:
+     return Triple::csky;
++  case ELF::EM_DADAO:
++    // DADAO SimRISC (project-custom, binary-format ELF.h).  Mapping this lets
++    // llvm-objdump/-readobj derive the target triple from e_machine instead of
++    // requiring an explicit --triple (ISS-047).
++    return Triple::dadao;
+ 
+   case ELF::EM_LOONGARCH:
+     switch (EF.getHeader().e_ident[ELF::EI_CLASS]) {

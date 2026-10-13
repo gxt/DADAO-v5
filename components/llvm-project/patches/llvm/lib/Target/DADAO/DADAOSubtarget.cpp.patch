@@ -1,0 +1,96 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
+new file mode 100644
+index 000000000..a8d5ed2e4
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
+@@ -0,0 +1,90 @@
++//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOSubtarget.h"
++#include "DADAOTargetMachine.h"
++
++#include "llvm/CodeGen/LibcallLoweringInfo.h"
++#include "llvm/IR/RuntimeLibcalls.h"
++
++using namespace llvm;
++
++#define DEBUG_TYPE "dadao-subtarget"
++
++#define GET_SUBTARGETINFO_TARGET_DESC
++#define GET_SUBTARGETINFO_CTOR
++#include "DADAOGenSubtargetInfo.inc"
++
++DADAOSubtarget::DADAOSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
++                               const DADAOTargetMachine &TM)
++    : DADAOGenSubtargetInfo(TT, CPU, /*TuneCPU=*/CPU, FS), TM(TM),
++      RegisterInfo(), InstrInfo(*this, RegisterInfo), FrameLowering(),
++      TLInfo(TM, *this) {}
++
++DADAOSubtarget::~DADAOSubtarget() = default;
++
++void DADAOSubtarget::initLibcallLoweringInfo(LibcallLoweringInfo &Info) const {
++  // M6 / INTEG-023k §A #3 (no libc): select the standard C `mem*` libcalls so
++  // an out-of-line llvm.memcpy/memset/memmove/memcmp lowers to `call memcpy`
++  // (etc.) instead of an IR loop.  Small constant-size intrinsics remain
++  // inlined by ISel up to MaxStoresPerMem* (16).  The symbols are resolved by
++  // the freestanding runtime (tests/scripts/dadao_mem_runtime.s).
++  Info.setLibcallImpl(RTLIB::MEMCPY, RTLIB::impl_memcpy);
++  Info.setLibcallImpl(RTLIB::MEMSET, RTLIB::impl_memset);
++  Info.setLibcallImpl(RTLIB::MEMMOVE, RTLIB::impl_memmove);
++  Info.setLibcallImpl(RTLIB::MEMCMP, RTLIB::impl_memcmp);
++
++  // P1 FP rounding / min-max libcalls (LLVM-080t; INTEG-033k §裁定汇总 #6,
++  // double precision).  The ISA has no rounding-direction or min/max FP
++  // instruction (`contracts/opcodes.yaml` scope `fp` carries only
++  // convert/arith/root/sign/compare/classify — no floor/ceil/trunc/round/rint/
++  // nearbyint/fmin/fmax), so these DAG nodes are `Expand`ed to an out-of-line
++  // call to the standard C math routine (`DADAOISelLowering.cpp`).  Leaving
++  // them unregistered makes ExpandLibCall report "no libcall available for
++  // ffloor" and abort codegen (the ISS-188 picolibc gap).  The symbols are the
++  // picolibc ones (`floor`/`ceil`/...); the f64 implementations are pure
++  // bit-manipulation (libm/math/s_floor.c) and compile with the DADAO backend.
++  Info.setLibcallImpl(RTLIB::FLOOR_F64, RTLIB::impl_floor);
++  Info.setLibcallImpl(RTLIB::CEIL_F64, RTLIB::impl_ceil);
++  Info.setLibcallImpl(RTLIB::TRUNC_F64, RTLIB::impl_trunc);
++  Info.setLibcallImpl(RTLIB::ROUND_F64, RTLIB::impl_round);
++  Info.setLibcallImpl(RTLIB::RINT_F64, RTLIB::impl_rint);
++  Info.setLibcallImpl(RTLIB::NEARBYINT_F64, RTLIB::impl_nearbyint);
++  Info.setLibcallImpl(RTLIB::FMIN_F64, RTLIB::impl_fmin);
++  Info.setLibcallImpl(RTLIB::FMAX_F64, RTLIB::impl_fmax);
++
++  // LLVM-087t (ISS-193(b)): the identical f32 family.  Same rationale as the
++  // f64 block above — the ISA has no f32 rounding-direction / min-max
++  // instruction either, so `ffloor`/`fceil`/`ftrunc`/`fround`/`frint`/
++  // `fnearbyint`/`fminnum`/`fmaxnum` on f32 must lower to an out-of-line call
++  // to the standard C routine.  Without these, picolibc sources that compute on
++  // float values (libm/math/sf_*.c, libm/common/sf_*.c) abort with "no libcall
++  // available for frint/ftrunc/ffloor/flog" (ISS-193 class (b)).  The picolibc
++  // f32 implementations are defined by the `sf_*` sources and compile with the
++  // DADAO backend once the call is emitted.
++  Info.setLibcallImpl(RTLIB::FLOOR_F32, RTLIB::impl_floorf);
++  Info.setLibcallImpl(RTLIB::CEIL_F32, RTLIB::impl_ceilf);
++  Info.setLibcallImpl(RTLIB::TRUNC_F32, RTLIB::impl_truncf);
++  Info.setLibcallImpl(RTLIB::ROUND_F32, RTLIB::impl_roundf);
++  Info.setLibcallImpl(RTLIB::RINT_F32, RTLIB::impl_rintf);
++  Info.setLibcallImpl(RTLIB::NEARBYINT_F32, RTLIB::impl_nearbyintf);
++  Info.setLibcallImpl(RTLIB::FMIN_F32, RTLIB::impl_fminf);
++  Info.setLibcallImpl(RTLIB::FMAX_F32, RTLIB::impl_fmaxf);
++
++  // LLVM-089t (ISS-193(b) residual): f32 `log`.  The ISA has no `flog`
++  // instruction either (`contracts/opcodes.yaml`, scope `fp`), so `llvm.log.f32`
++  // (opcode `flog`) must lower to an out-of-line call to the standard C `logf`.
++  // Without it, picolibc `libm/math/sf_log10.c` -- whose fdlibm body computes
++  // `log10f` from the public `logf` -- aborts codegen with "no libcall available
++  // for flog", which leaves `log10f` out of the built libc and blocks every test
++  // that calls it.  Only `LOG_F32` is registered: a live compile scan of all 707
++  // `libm/**/*.c` sources reports `flog` as the sole missing f32 math libcall
++  // (no `flog2`/`fexp`/`fpow`), so the rest of the f32 math family stays
++  // unregistered until a source actually needs it.
++  Info.setLibcallImpl(RTLIB::LOG_F32, RTLIB::impl_logf);
++}

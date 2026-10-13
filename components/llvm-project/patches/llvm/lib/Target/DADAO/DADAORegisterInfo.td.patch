@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.td b/llvm/lib/Target/DADAO/DADAORegisterInfo.td
 new file mode 100644
-index 000000000000..124eef2999b2
+index 000000000..bd1d1b820
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.td
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,195 @@
 +//===-- DADAORegisterInfo.td - DADAO Register defs ----------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -17,14 +17,16 @@ index 000000000000..124eef2999b2
 +// Register banks (contract-isa.md §1.1):
 +//   RD  (data)    rd0–rd63   64-bit, general-purpose
 +//   RB  (base)    rb0–rb63   64-bit, address/pointer
-+//   RF  (float)   rf0–rf63   64-bit, floating-point (Excluded from M1)
++//   RF  (float)   rf0–rf63   64-bit, floating-point (M6)
 +//   RA  (retaddr) ra0–ra63   64-bit, return address stack
 +//
-+// M1 allocatable sets (contract-abi.md §1.6):
-+//   RD: rd8–rd63   (rd0 immutable, rd1 callee-saved undefined, rd2–rd7 reserved)
-+//   RB: rb8–rb63   (rb0=PC, rb1=SP, rb2=FP, rb3/rb4 callee-saved undefined,
-+//                    rb5–rb7 reserved)
-+//   RF: none        (Excluded from M1)
++// Allocatable sets (contract-abi.md §1.6; ADR-0018 C7 D6 rev. 2026-10-09;
++// RF 实现侧放开 M6/LLVM-066t):
++//   RD: rd4–rd63   (rd0 immutable, rd1 reserved, rd2–rd3 reserved/debug-test)
++//   RB: rb4–rb62, rb63 conditional (rb0=PC, rb1=SP, rb2=GP, rb3=TP reserved;
++//                    rb63 = FP when hasFP else general callee-saved)
++//   RF: rf1–rf63   (rf0 = FCSR reserved; rf1–rf31 temporary/caller-saved,
++//                    rf32–rf63 callee-saved)
 +//   RA: none        (managed by call/ret)
 +//
 +//===----------------------------------------------------------------------===//
@@ -42,7 +44,8 @@ index 000000000000..124eef2999b2
 +// RD bank: rd0–rd63 (data registers)
 +//
 +// contract-isa.md §1.3.1: rd0 is hardwired zero, read-only.
-+// contract-abi.md §1.2: rd0=rdzero(Immutable), rd1=rderrno, rd2–rd7=reserved,
++// contract-abi.md §1.2: rd0=rdzero(Immutable), rd1=rderrno,
++//                        rd2–rd3=reserved (debug/test), rd4–rd7=temporary,
 +//                        rd8–rd15=rdt0–rdt7(temp), rd16–rd31=rda0–rda15(temp),
 +//                        rd32–rd63=callee-saved.
 +//===----------------------------------------------------------------------===//
@@ -57,10 +60,11 @@ index 000000000000..124eef2999b2
 +// RB bank: rb0–rb63 (base/address registers)
 +//
 +// contract-isa.md §1.3.2: rb0 is PC, read-only.
-+// contract-abi.md §1.3: rb0=rbip(PC), rb1=rbsp(SP), rb2=rbfp(FP),
-+//                        rb3=rbgp(GP), rb4=rbtp(TP), rb5–rb7=reserved,
++// contract-abi.md §1.3: rb0=rbip(PC), rb1=rbsp(SP), rb2=rbgp(GP),
++//                        rb3=rbtp(TP), rb4–rb7=temporary,
 +//                        rb8–rb15=rbt0–rbt7(temp), rb16–rb31=rba0–rba15(temp),
-+//                        rb32–rb63=callee-saved.
++//                        rb32–rb62=callee-saved, rb63=rbfp(FP, conditional,
++//                        always callee-saved).
 +//===----------------------------------------------------------------------===//
 +
 +foreach i = 0-63 in
@@ -70,8 +74,11 @@ index 000000000000..124eef2999b2
 +// RF bank: rf0–rf63 (floating-point registers)
 +//
 +// contract-isa.md §1.3.3: rf0 is FCSR (floating-point status/control).
-+// contract-abi.md §1.4: RF is Excluded from M1 entirely.
-+// All RF registers are non-allocatable in M1; defined for completeness.
++// contract-abi.md §1.4 / §1.6 (M6): rf1–rf7 temporary, rf8–rf15 rft0–rft7
++// temporary, rf16–rf31 rfa0–rfa15 temporary, rf32–rf63 callee-saved.
++// rf0 (FCSR) is reserved (never a write destination of an FP op); every other
++// RF register is allocatable.  f64 and f32 share this one 64-bit class: an
++// `ft` (32-bit float) value occupies the low 32 bits of the register.
 +//===----------------------------------------------------------------------===//
 +
 +foreach i = 0-63 in
@@ -91,23 +98,33 @@ index 000000000000..124eef2999b2
 +//===----------------------------------------------------------------------===//
 +// Register aliases (ABI names)
 +//
-+// contract-abi.md §1.2/§1.3: rb1=rbsp(SP), rb2=rbfp(FP).
++// contract-abi.md §1.2/§1.3: rb1=rbsp(SP), rb63=rbfp(FP, conditional).
 +//===----------------------------------------------------------------------===//
 +
 +def RBSP : DADAOReg<1, "rbsp">, DwarfRegAlias<rb1>;
-+def RBFP : DADAOReg<2, "rbfp">, DwarfRegAlias<rb2>;
++def RBFP : DADAOReg<63, "rbfp">, DwarfRegAlias<rb63>;
 +
 +//===----------------------------------------------------------------------===//
 +// Register classes
 +//
-+// GPRD              : all 64 RD (for MC encoding/disasm)
-+// GPRD_Allocatable  : allocatable subset rd8–rd63 (56 regs)
-+// GPRB              : all 64 RB (for MC encoding/disasm)
-+// GPRB_Allocatable  : allocatable subset rb8–rb63 (56 regs)
-+// GPRF              : all 64 RF (non-allocatable, M1 defer)
++// GPRD              : all 64 RD; the M3 CodeGen register class for i64
++// GPRD_Allocatable  : rd4–rd63 subset
++// GPRB              : all 64 RB; the M3 CodeGen register class for pointers
++// GPRB_Allocatable  : rb4–rb63 subset (rb63 conditional)
++// GPRF              : all 64 RF; the M6 CodeGen register class for f64/f32
 +// GPRA              : all 64 RA (non-allocatable, M1 defer)
 +//
-+// contract-abi.md §1.6: rd1/rb3/rb4 callee-saved spec '-' → M1 不分配.
++// contract-abi.md §1.6 (ADR-0018 C7 D6 rev. 2026-10-09): rd1/rd2–rd3 and
++// rb2(GP)/rb3(TP) are reserved (not allocatable); rd4–rd7/rb4–rb7 are temporary
++// (caller-saved) and allocatable.  RF (M6, LLVM-066t): rf0 (FCSR) is reserved,
++// rf1–rf63 are allocatable (rf1–rf31 caller-saved, rf32–rf63 callee-saved).
++//
++// GPRD/GPRB are allocatable so that SelectionDAG can create i64 virtual
++// registers (MIR prints these as `%N:gprd` / `%N:gprb`).  The reserved members
++// (rd0–rd3, rb0–rb3, and rb63 when a frame pointer is built) are additionally
++// reserved explicitly in DADAORegisterInfo::getReservedRegs (ADR-0018 C7 D6
++// "双保险"); the allocator skips reserved registers, so listing them in the
++// `_Allocatable` classes only affects getMinimalPhysRegClass determinism.
 +//===----------------------------------------------------------------------===//
 +
 +def GPRD : RegisterClass<"DADAO", [i64], 64,
@@ -119,12 +136,11 @@ index 000000000000..124eef2999b2
 +         rd40, rd41, rd42, rd43, rd44, rd45, rd46, rd47,
 +         rd48, rd49, rd50, rd51, rd52, rd53, rd54, rd55,
 +         rd56, rd57, rd58, rd59, rd60, rd61, rd62, rd63
-+    )> {
-+  let isAllocatable = 0;  // contains non-allocatable regs (rd0–rd7); MC use only
-+}
++    )>;
 +
 +def GPRD_Allocatable : RegisterClass<"DADAO", [i64], 64,
-+    (add rd8, rd9, rd10, rd11, rd12, rd13, rd14, rd15,
++    (add rd4, rd5, rd6, rd7,
++         rd8, rd9, rd10, rd11, rd12, rd13, rd14, rd15,
 +         rd16, rd17, rd18, rd19, rd20, rd21, rd22, rd23,
 +         rd24, rd25, rd26, rd27, rd28, rd29, rd30, rd31,
 +         rd32, rd33, rd34, rd35, rd36, rd37, rd38, rd39,
@@ -142,12 +158,11 @@ index 000000000000..124eef2999b2
 +         rb40, rb41, rb42, rb43, rb44, rb45, rb46, rb47,
 +         rb48, rb49, rb50, rb51, rb52, rb53, rb54, rb55,
 +         rb56, rb57, rb58, rb59, rb60, rb61, rb62, rb63
-+    )> {
-+  let isAllocatable = 0;  // contains non-allocatable regs (rb0–rb7); MC use only
-+}
++    )>;
 +
 +def GPRB_Allocatable : RegisterClass<"DADAO", [i64], 64,
-+    (add rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15,
++    (add rb4, rb5, rb6, rb7,
++         rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15,
 +         rb16, rb17, rb18, rb19, rb20, rb21, rb22, rb23,
 +         rb24, rb25, rb26, rb27, rb28, rb29, rb30, rb31,
 +         rb32, rb33, rb34, rb35, rb36, rb37, rb38, rb39,
@@ -156,9 +171,10 @@ index 000000000000..124eef2999b2
 +         rb56, rb57, rb58, rb59, rb60, rb61, rb62, rb63
 +    )>;
 +
-+// RF: non-allocatable in M1 (contract-abi.md §1.6, contract-isa.md §6).
-+// Defined for completeness; M1 does not allocate/emit RF instructions.
-+def GPRF : RegisterClass<"DADAO", [i64], 64,
++// RF: allocatable in M6 (LLVM-066t; contract-abi.md §1.6).  rf0 (FCSR) is
++// reserved in DADAORegisterInfo::getReservedRegs; the allocator therefore only
++// ever hands out rf1–rf63.  f64 and f32 share this single 64-bit class.
++def GPRF : RegisterClass<"DADAO", [f64, f32], 64,
 +    (add rf0, rf1, rf2, rf3, rf4, rf5, rf6, rf7,
 +         rf8, rf9, rf10, rf11, rf12, rf13, rf14, rf15,
 +         rf16, rf17, rf18, rf19, rf20, rf21, rf22, rf23,
@@ -167,9 +183,7 @@ index 000000000000..124eef2999b2
 +         rf40, rf41, rf42, rf43, rf44, rf45, rf46, rf47,
 +         rf48, rf49, rf50, rf51, rf52, rf53, rf54, rf55,
 +         rf56, rf57, rf58, rf59, rf60, rf61, rf62, rf63
-+    )> {
-+  let isAllocatable = 0;  // M1 defer: RF Excluded from M1
-+}
++    )>;
 +
 +// RA: non-allocatable in M1 (contract-abi.md §1.6).
 +// Managed by call/ret (contract-isa.md §5.4–§5.6); not general-purpose.

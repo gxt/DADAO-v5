@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.h b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
 new file mode 100644
-index 000000000000..96dc0e9f8fd4
+index 000000000..8254eadbe
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,100 @@
 +//===-- DADAOFrameLowering.h - Define frame lowering for DADAO -*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,14 +12,22 @@ index 000000000000..96dc0e9f8fd4
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// Minimal DADAO frame lowering stub for M1.
-+// Full prologue/epilogue generation deferred to M2.
++// DADAO frame lowering for M3 (LLVM-038t, ADR-0018 C7/C8):
++//   - SP-only by default (frame register rb1); a frame pointer (rb63) is built
++//     only when hasFPImpl holds (var-sized objects / frame address taken /
++//     stack realignment / -fno-omit-frame-pointer).
++//   - prologue/epilogue adjust SP with `add.si` (in-place, 18-bit immediate)
++//     and save/restore the old FP with `st.o`/`ld.o`.
++//   - callee-saved register sets (CSR) are LLVM-039t; this task only reserves
++//     the frame structure for them.
 +//
 +//===----------------------------------------------------------------------===//
 +
 +#ifndef LLVM_LIB_TARGET_DADAO_DADAOFRAMELOWERING_H
 +#define LLVM_LIB_TARGET_DADAO_DADAOFRAMELOWERING_H
 +
++#include "llvm/ADT/ArrayRef.h"
++#include "llvm/CodeGen/MachineFrameInfo.h"
 +#include "llvm/CodeGen/TargetFrameLowering.h"
 +
 +namespace llvm {
@@ -30,6 +38,67 @@ index 000000000000..96dc0e9f8fd4
 +      : TargetFrameLowering(StackGrowsDown,
 +                            /*StackAlignment=*/Align(8),
 +                            /*LocalAreaOffset=*/0) {}
++
++  void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
++
++  void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
++
++  /// hasFPImpl (ADR-0018 C7 D1): standard conditional form.  Default SP-only;
++  /// build FP = rb63 for variable-sized objects, taken frame address, stack
++  /// realignment or when frame pointer elimination is disabled.
++  bool hasFPImpl(const MachineFunction &MF) const override;
++
++  /// getFrameIndexReference (ADR-0018 C7/C8).  With FP, objects are indexed
++  /// directly from the entry SP (FP points at the entry SP); SP-only adds the
++  /// frame size back because SP has been decremented by it.
++  StackOffset getFrameIndexReference(const MachineFunction &MF, int FI,
++                                     Register &FrameReg) const override;
++
++  /// Finalize the total frame size (8-byte aligned; contract-abi.md §2.2).
++  void determineFrameLayout(MachineFunction &MF) const;
++
++  /// Reserve the fixed slot used to save the old frame pointer (only when FP
++  /// is built).  Runs before PEI assigns object offsets.
++  void processFunctionBeforeFrameFinalized(MachineFunction &MF,
++                                           RegScavenger *RS = nullptr) const override;
++
++  /// Callee-saved register save / restore (ADR-0018 C7 D4 form 4, LLVM-064t).
++  /// Handled here (not by the per-register default) so that contiguous
++  /// same-bank runs can be emitted as a single `stm.o`/`ldm.o`.  The actual
++  /// code is emitted from emitPrologue/emitEpilogue, where the frame-object
++  /// offsets are final; these hooks return true to suppress the default path.
++  bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
++                                 MachineBasicBlock::iterator MI,
++                                 ArrayRef<CalleeSavedInfo> CSI,
++                                 const TargetRegisterInfo *TRI) const override;
++
++  bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
++                                   MachineBasicBlock::iterator MI,
++                                   MutableArrayRef<CalleeSavedInfo> CSI,
++                                   const TargetRegisterInfo *TRI) const override;
++
++  /// Expand / drop the call-frame pseudos (ADJCALLSTACKDOWN/UP, LLVM-039t).
++  /// SP-only functions reserve the outgoing argument area in the prologue
++  /// (`hasReservedCallFrame`), so the pseudo is simply dropped; a frame pointer
++  /// function adjusts SP around the call site instead.
++  MachineBasicBlock::iterator
++  eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
++                                MachineBasicBlock::iterator MI) const override;
++
++private:
++  /// Emit `add.si reg, <amount>` (splitting into chunks when the amount does
++  /// not fit the 18-bit immediate field).
++  void emitAddImm(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
++                  const DebugLoc &DL, Register Reg, int64_t Amount,
++                  bool IsEpilogue) const;
++
++  /// Emit the callee-saved register saves (IsEpilogue == false) or restores
++  /// (IsEpilogue == true).  Contiguous same-bank runs whose frame slots are
++  /// also consecutive are emitted as a single `stm.o`/`ldm.o` batch (form 4);
++  /// everything else uses the per-register `st.o`/`ld.o` path.
++  void emitCalleeSavedRegs(MachineFunction &MF, MachineBasicBlock &MBB,
++                           MachineBasicBlock::iterator MBBI,
++                           bool IsEpilogue) const;
 +};
 +
 +} // namespace llvm

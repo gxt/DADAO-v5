@@ -1,0 +1,44 @@
+# tests/llvm/codegen/m6/expected-elf.yaml
+# TESTCASES-036t: M6 L3 (execution) vector that needs the ELF / linker flow.
+#
+# m6_indirect_call.ll takes the address of a function and calls through the
+# resulting pointer.  The absolute 48-bit address of a text symbol is an
+# R_DADAO_ABS48 relocation (absolute; never resolved in place) and can only be
+# fixed up by the linker -- the flat-binary flow has no link step.  This
+# program therefore uses the M4 ELF mechanism (llc -> llvm-mc -> ld.lld ->
+# QEMU `-kernel image.elf`, contract-elf.md §6.1.2) and is run with:
+#
+#   python3 tools/integ/run_elf_e2e.py \
+#       --vectors-dir tests/llvm/codegen/m6 \
+#       --expected    tests/llvm/codegen/m6/expected-elf.yaml \
+#       --work-dir    .dadao/tests/elf-m6
+#
+# It is the M6 reloc end-to-end vector: the R_DADAO_ABS48 data/instruction
+# address construction plus the R_DADAO_REL26 call must both resolve correctly
+# at link time.  (The ld/st symbol-offset relocs R_DADAO_REL12 / R_DADAO_ABS12
+# are not yet emitted by the assembler -- LLVM-065t -- so their vector is
+# temporarily deferred; see tests/llvm/lit/MC/DADAO/m6-ldst-symbol.s.)
+#
+# Independent oracle: see tools/testcases/validate_m6_vectors.py (host-side IR
+# semantics; never llc / ld.lld / QEMU).
+schema: m6-elf-vectors-v1
+
+conventions:
+  entry: "define i64 @main() -- linked with crt0 via ld.lld -T dadao.lds"
+  exit_channel: "guest exit code = low byte of @main return value (0x00..0x7F)"
+  link: "llc -march=dadao -filetype=obj per TU; ld.lld -T dadao.lds"
+  oracle: "host-side IR-semantics model; not llc / ld.lld / QEMU"
+
+programs:
+  - name: m6_indirect_call.ll
+    category: call
+    sources: [m6_indirect_call.ll]
+    expected_exit_code: 42
+    coverage: [reloc.abs48, reloc.rel26, call.indirect, contract-elf-2]
+    derivation: >-
+      add3(x, y, z) = x + y + z.  main stores &add3 into a stack slot (a
+      volatile load prevents folding), then calls through the pointer:
+      fp(10, 20, 12) = 10 + 20 + 12 = 42; r = 42 & 127 = 42.  The address of
+      @add3 is an R_DADAO_ABS48 relocation (set.zw/or.w address construction,
+      contract-elf.md §2.2/§3.1) resolved by the linker; the call itself is an
+      R_DADAO_REL26.

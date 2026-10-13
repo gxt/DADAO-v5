@@ -1,0 +1,23 @@
+diff --git a/libc/include/sys/cdefs.h b/libc/include/sys/cdefs.h
+index dc72e19..c4e0a9c 100644
+--- a/libc/include/sys/cdefs.h
++++ b/libc/include/sys/cdefs.h
+@@ -383,6 +383,18 @@
+ #define __HAVE_BUILTIN_MUL_OVERFLOW 1
+ #endif
+ 
++/* DADAO (dadao-unknown-elf): clang knows __builtin_ctz/__builtin_ffs but the
++ * DADAO LLVM backend does not lower CTTZ (nor CTLZ/CTPOP/BSWAP) yet, so the
++ * library must take the portable software fallbacks in ffs / fls. */
++#if defined(__dadao__)
++#undef __HAVE_BUILTIN_CTZ
++#undef __HAVE_BUILTIN_CTZL
++#undef __HAVE_BUILTIN_CTZLL
++#undef __HAVE_BUILTIN_FFS
++#undef __HAVE_BUILTIN_FFSL
++#undef __HAVE_BUILTIN_FFSLL
++#endif
++
+ #if !__has_builtin(__builtin_expect)
+ #define __builtin_expect(cond, exp) (cond)
+ #endif

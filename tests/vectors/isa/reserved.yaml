@@ -33,3 +33,19 @@
   status: active
   spec_cite: "SimRISC-00 §SimRISC QFC; contract-isa §2.9/§8.2"
   notes: "QFC 主表 op=0x1B（0001-1xxx row, column 011）。该行 op=0x18~0x1F: 0x18=st.b-rd, 0x19=st.w-rd, 0x1A=st.t-rd, 0x1B~0x1F 均为 reserved 空白单元格。"
+
+# ── Case 2: QFC 主表 op=0x5A（0101-1xxx row, column 010 = rela.si deleted → UNDI）──
+- class: legality
+  encoding:
+    word: "0x5A040001"
+    reserved: true
+  mnemonic: null
+  id: null
+  format: null
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: UNDI
+  status: active
+  spec_cite: "SimRISC-00 §SimRISC QFC; ADR-0012 D5"
+  notes: "QFC 主表 op=0x5A（0101-1xxx row, column 010）。原为 rela.si_riii_rb，已删除（ADR-0012 D5），编码保留→UNDI。word=0x5A040001: op[7:0]=0x5A, ha=0x01。"

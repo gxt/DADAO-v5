@@ -1,0 +1,26 @@
+diff --git a/llvm/include/llvm/BinaryFormat/ELF.h b/llvm/include/llvm/BinaryFormat/ELF.h
+index 3f1889f23..de7d7c3e7 100644
+--- a/llvm/include/llvm/BinaryFormat/ELF.h
++++ b/llvm/include/llvm/BinaryFormat/ELF.h
+@@ -325,6 +325,7 @@ enum {
+   EM_VE = 251,            // NEC SX-Aurora VE
+   EM_CSKY = 252,          // C-SKY 32-bit processor
+   EM_LOONGARCH = 258,     // LoongArch
++  EM_DADAO = 0x0DA0,      // DADAO SimRISC (project-custom; not registered)
+ };
+ 
+ // Object file classes.
+@@ -1103,6 +1104,13 @@ enum {
+ #include "ELFRelocs/Xtensa.def"
+ };
+ 
++// ELF Relocation types for DADAO.  Numbered in the e_flags[7:0] = 1 namespace,
++// independent of the legacy Dadao.def numbering.
++// Source: contract-elf.md §2.2 (ADR-0019 §D2).
++enum {
++#include "ELFRelocs/DADAO.def"
++};
++
+ #undef ELF_RELOC
+ 
+ // Section header.

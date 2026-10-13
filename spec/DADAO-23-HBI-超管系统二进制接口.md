@@ -1,10 +1,10 @@
 # HBI（超管系统二进制接口）
 
-> **版本：0.1.2**（与 HEE 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
+> **版本：0.1.3-rc**（与 HEE 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
 
 HBI 定义 H-mode（超管模式）核芯功能扩展提供的功能调用，供 S-mode 内核或其它核芯功能扩展请求需要 H-mode 权限的系统服务。
 
-`trap cfxcode, immu18` 中 cfxcode 即为服务提供者，immu18 为功能编号。每个核芯功能扩展独立提供一组功能，按照实际需求进行调用。
+`trap cfxha, immu18` 中 cfxha 即为服务提供者，immu18 为功能编号。每个核芯功能扩展独立提供一组功能，按照实际需求进行调用。
 
 ## 1. 调用约定
 
@@ -16,7 +16,7 @@ cfx_hmon 为 hypv 的 monitor，提供 HBI 版本查询和硬件信息。
 
 | immu18 | 名称 | 入参 | 出参 | 说明 |
 |--------|------|------|------|------|
-| 0 | HBI_GET_VERSION | — | rd31 = version | 返回 HBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.1.2 = `0x00010002` |
+| 0 | HBI_GET_VERSION | — | rd8 = version | 返回 HBI 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.1.2 = `0x00010002` |
 
 ## 3. 启动与引导移交约定
 
@@ -60,7 +60,24 @@ cfx2rc  cfx_power_excp_cause_ip, rd2
 set.rb   rb16, fdt_addr
 
 ; 执行 escape 跳转到 supv 入口
-escape cfx_power, 0
+escape cfx_power, [excp_cause_ip, 0]
 ```
 
 S-mode 内核入口通过 rb16 获取设备树指针。
+
+---
+
+## 附录：版本与变更记录
+
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+
+### 0.1.3-rc（未发布）
+
+- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`，寄存器名改 `cfx_<name>_<mode>`。
+- `global_cfx_mask` 由全 1 改为 hypv 例外全 0。
+- 服务返回寄存器统一为 `rd8`。
+- 与上游 SimRISC 0.5.4 基线对齐。
+
+### 0.1.2（上游基线；导入日 2026-07-14，发布日不详）
+
+- 上游 DADAO 超管系统二进制接口（HBI）基线（基于 SimRISC 0.4.1）。

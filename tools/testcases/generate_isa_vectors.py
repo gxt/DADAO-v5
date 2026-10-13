@@ -7,7 +7,7 @@ Reads contracts/opcodes.yaml and produces:
 
 All encoding words, expected values, and spec_cite are derived from
 contracts/opcodes.yaml, .tao/knowledge/contract-isa.md, and
-.tao/knowledge/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
+.tao/adr/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
 """
 
 import os, sys, yaml, copy
@@ -23,7 +23,7 @@ def _int(v):
 with open(os.path.join(REPO, "contracts", "opcodes.yaml")) as f:
     ALL = yaml.safe_load(f)
 
-M1 = [r for r in ALL if not r.get("excluded_m1")]
+M1 = [r for r in ALL if r.get("scope") == "m1"]
 
 # ── Map (insn, format) → file ─────────────────────────────────────────
 FILE_MAP = {
@@ -45,12 +45,12 @@ COMPARE = {"cmp"}
 COND = {"cs"}
 IMM_BLOCK_RWII = {"set.zw", "set.ow", "or.w", "andn.w"}  # rwii format
 BLOCK = {"rd2rd", "rb2rb", "rb2rd", "rd2rb", "ra2rd", "rd2ra"}
-ARITH_MISC_OCTA = {"add.so_orrr_rb", "sub.so_orrr_rb"}
+ARITH_MISC_OCTA = {"add.o_orrr_bbd", "sub.o_orrr_bbd"}
 ARITH_DIVREM = {"div", "rem"}
 
 def _bank_from_id(insn):
     """Extract bank suffix from instruction id.
-    'ext.uo_orrr_rd' → 'rd', 'add.so_orrr_rb' → 'rb', 'rd2rd_orri_rd' → 'rd'
+    'ext.uo_orrr_rd' → 'rd', 'add.o_orrr_bbd' → 'bbd', 'rd2rd_orri_rd' → 'rd'
     Old format: 'add.uo-rd' → 'rd'"""
     if '_' in insn:
         parts = insn.split('_')
@@ -64,7 +64,7 @@ def _base_mnem(insn):
     """Extract base mnemonic from insn string.
     'add.uo_orrr_rd' → 'add', 'and.o_orrr_rd' → 'and', 'shl.uo_orrr_rd' → 'shl',
     'set.zw_rwii_rd' → 'set.zw', 'cs.n_rrrr_rd' → 'cs', 'rd2rd_orri_rd' → 'rd2rd',
-    'cmp.uo_orrr_rb' → 'cmp'
+    'cmp.uo_orrr_dbb' → 'cmp'
     Old format also supported: 'add.uo-rd' → 'add'
     """
     # Strip bank suffix: new format _bank, old format -bank
@@ -120,13 +120,13 @@ def _classify(insn, fmt):
 
     # Check if this is a QFC main table entry that belongs to reg-* files
     # rrrr: add.uo/so-rd, sub.uo/so-rd, mul.uo/so-rd, cs.n/z/p/eq/ne-rd
-    # riii: add.si-rd, add.si-rb, rela.si-rb
+    # riii: add.si-rd, add.si-rb
     # rrii: cmp.ui/si-rd
     # rwii: or.w/andn.w/set.zw/set.ow -rd/-rb
     is_qfc_reg = False
     if fmt == "rrrr" and op in ("add", "sub", "mul", "cs"):
         is_qfc_reg = True
-    if fmt == "riii" and op in ("add", "rela"):
+    if fmt == "riii" and op in ("add",):
         is_qfc_reg = True
     if fmt == "rrii" and op == "cmp":
         is_qfc_reg = True
@@ -371,7 +371,7 @@ def gen_semantic_orrr_arith(rec, a_val, b_val, rdhb_old=0):
                  "active", None, None, sc, notes)
 
 def gen_semantic_orrr_arith_rb(rec, a_val, b_val, rbhb_old=0):
-    """Semantic for add.so-rb / sub.so-rb (orrr, rb dst)."""
+    """Semantic for add.o / sub.o (orrr, rb dst)."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = rec["format"]
@@ -420,7 +420,7 @@ def gen_boundary_orrr_arith(rec, a_val, b_val, rdhb_old=0):
                  "active", None, None, sc, notes)
 
 def gen_boundary_orrr_arith_rb(rec, a_val, b_val, rbhb_old=0):
-    """Boundary for add.so-rb / sub.so-rb."""
+    """Boundary for add.o / sub.o."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = rec["format"]
@@ -575,16 +575,18 @@ def gen_compare_semantic(rec, a_val, b_val, rdha_old=0):
     if fmt == "orrr":
         word = _build_word_orrr(rec, 1, 2, 3)
         expected = _cmp_result(a_val, b_val, bits, signed)
-        bank = _bank_from_id(insn) or "rd"
-        # cmp.uo_orrr_rb: rbhc(rb2)=src, rbhd(rb3)=src; others: rdhc(rd2), rdhd(rd3)
-        if bank == "rb":
+        # Derive the source bank from the record's src fields (D9.3: the id suffix
+        # is a bank *signature*, not a single bank).  cmp.uo_orrr_dbb presets
+        # rbhc(rb2)/rbhd(rb3); cmp.uo_orrr_rd presets rdhc(rd2)/rdhd(rd3).
+        src_fields = [f for f in rec.get("fields", []) if f.get("role") == "src"]
+        src_bank = src_fields[0]["bank"] if src_fields else "rd"
+        if src_bank == "rb":
             inp = {"rb": {"rb2": _hex64(a_val), "rb3": _hex64(b_val)}}
         else:
             inp = {"rd": {"rd2": _hex64(a_val), "rd3": _hex64(b_val)}}
         out = {"rd": {"rd1": _hex64(expected)}, "rb": {}, "ra": {}, "memory": []}
-        notes = "%s: %s=%s, %s=%s, bits=%d, signed=%s" % (
-            mnem, "rb2" if bank == "rb" else "rd2", hex(a_val),
-            "rb3" if bank == "rb" else "rd3", hex(b_val), bits, signed)
+        notes = "%s: %s2=%s, %s3=%s, bits=%d, signed=%s" % (
+            mnem, src_bank, hex(a_val), src_bank, hex(b_val), bits, signed)
     else:  # rrii
         imm = b_val & 0xFFF
         word = _build_word_rrii(rec, 1, 2, imm)
@@ -747,7 +749,7 @@ def gen_block_semantic(rec, dst_reg, src_reg, count, src_bank, dst_bank):
     fmt = rec["format"]
     sc = rec.get("spec_cite", "")
 
-    # For orri: ha(minor_op)|hb(dst)|hc(src)|hd(immu6)
+    # For orri: ha(opx)|hb(dst)|hc(src)|hd(immu6)
     word = _build_word_orri(rec, dst_reg, src_reg, count)
 
     # Build source values
@@ -781,32 +783,6 @@ def gen_block_semantic(rec, dst_reg, src_reg, count, src_bank, dst_bank):
     notes = "%s: %s%d..%d → %s%d..%d, count=%d" % (
         mnem, src_bank, src_reg, src_reg + count - 1,
         dst_bank, dst_reg, dst_reg + count - 1, count)
-
-    return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
-                 "active", None, None, sc, notes)
-
-# ── rela.si-rb special case ───────────────────────────────────────────
-def gen_rela_si_semantic(rec, rbha_old, imm18, pc_addr):
-    """Semantic for rela.si-rb: rbha = (PC & ~0xfff) + (sign_ext(imms18) << 12).
-    rbha[63:48] preserved."""
-    mnem = rec["mnemonic"]
-    insn = rec["id"]
-    fmt = "riii"
-    sc = "SimRISC-12 §PC相对寻址; ADR-0004 D6.5"
-
-    word = _build_word_riii(rec, 1, imm18 & 0x3FFFF)
-
-    # PC = rb0 = current instruction address (ADR-0004 D6.5)
-    pc_base = pc_addr & ~0xFFF
-    imm_s = _sext(imm18, 18)
-    result_low48 = (pc_base + (imm_s << 12)) & 0xFFFFFFFFFFFF
-    # Preserve rbha[63:48]
-    result = (rbha_old & 0xFFFF000000000000) | result_low48
-
-    inp = {"rb": {"rb1": _hex64(rbha_old)}}
-    out = {"rd": {}, "rb": {"rb1": _hex64(result)}, "ra": {}, "memory": []}
-    notes = "rela.si: PC=0x%012X (RAM entry, ADR-0004 D2.2), imms18=%d, (PC&~0xfff)=0x%012X, (imms18<<12)=0x%012X, result_low48=0x%012X, rb1[63:48] preserved" % (
-        pc_addr, imm_s, pc_base, imm_s << 12, result_low48)
 
     return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
                  "active", None, None, sc, notes)
@@ -996,18 +972,18 @@ def gen_cs_overlap_deferred(rec):
 # Rule spec_cite values come from contracts/legality_rules.yaml.
 
 _ILLI_RULES = {
-    # orrr single-dest (rdhb): rd_dest_rd0
-    "rd_dest_rd0": "SimRISC-01 §rd0 为目的寄存器约定",
-    # rrrr dual-dest (rdha, rdhb): dual_dest_both_rd0
-    "dual_dest_both_rd0": "SimRISC-01 §加减操作",
-    # orrr rb-dest (rbhb): rb_dest_rb0
-    "rb_dest_rb0": "SimRISC-02 §rb0 为目的寄存器约定",
-    # orri block move immu6=0
-    "multi_immu6_zero": "SimRISC-01 §存取RD寄存器",
-    # ra2rd dest rdhb=rd0
-    "ra2rd_dest_rd0": "SimRISC-02 §寄存器组之间块赋值",
-    # ra block immu6=0
-    "ra_multi_immu6_zero": "SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值",
+    # AUTHORITY: each rule spec_cite MUST match the corresponding `rules[].spec_cite`
+    # in contracts/legality_rules.yaml (kept as literals only because mreg_zero is
+    # intentionally narrowed to its RD sub-section anchor; do NOT edit here without
+    # updating that file).
+    # orrr single-dest (rdhb) / orri/rrii/riii/rwii rd-dest / ra2rd rdhb=rd0: dst_rd0
+    "dst_rd0": "SimRISC-00 §数据寄存器",
+    # rrrr dual-dest (rdha, rdhb): dst_dual_same
+    "dst_dual_same": "SimRISC-04 §加减操作",
+    # orrr rb-dest (rbhb): dst_rb0
+    "dst_rb0": "SimRISC-00 §基址寄存器",
+    # orri block move immu6=0 (RD/RB + RA): mreg_zero
+    "mreg_zero": "SimRISC-01 §存取RD寄存器",
 }
 
 
@@ -1016,14 +992,14 @@ def _get_illi_rule_id(rec):
     Routes by the destination field's bank in opcodes.yaml, NOT by insn name."""
     fmt = rec["format"]
     if fmt == "rrrr":
-        return "dual_dest_both_rd0"
+        return "dst_dual_same"
     # Check destination field bank from opcodes.yaml
     for field in rec.get("fields", []):
         if field.get("role") == "dst":
             if field.get("bank") == "rb":
-                return "rb_dest_rb0"
+                return "dst_rb0"
             break
-    return "rd_dest_rd0"
+    return "dst_rd0"
 
 
 def gen_legality_rd0(rec):
@@ -1037,10 +1013,10 @@ def gen_legality_rd0(rec):
     sc = rec.get("spec_cite", "")
 
     if fmt == "rrrr":
-        # rdha=0, rdhb=0 → both rd0 → ILLI (dual_dest_both_rd0)
+        # rdha=0, rdhb=0 → both rd0 → ILLI (dst_dual_same)
         word = _build_word_rrrr(rec, 0, 0, 0, 0)
     elif fmt == "orrr":
-        # rdhb=0 → rd0 as dest → ILLI (rd_dest_rd0 or rb_dest_rb0)
+        # rdhb=0 → rd0 as dest → ILLI (dst_rd0 or dst_rb0)
         op_base = _base_mnem(insn)
         is_divrem = op_base in ("div", "rem")
         rdhd = 1 if is_divrem else 0  # avoid div-by-zero fault
@@ -1091,18 +1067,18 @@ def gen_riii_boundary_overflow(rec, bank):
 
 
 # ── Block move legality (TESTCASES-011t) ──────────────────────────────
-def gen_block_legality_multi_immu6_zero(rec):
-    """Legality case for block move (orri): immu6=0 → ILLI.
-    rd2rd/rb2rb/rb2rd/rd2rb: multi_immu6_zero.
-    ra2rd/rd2ra: ra_multi_immu6_zero."""
+def gen_block_legality_mreg_zero(rec):
+    """Legality case for block move (orri): immu6=0 → ILLI (mreg_zero).
+    rd2rd/rb2rb/rb2rd/rd2rb/ra2rd/rd2ra: mreg_zero."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "orri"
-    if mnem in ("ra2rd", "rd2ra"):
-        rule_id = "ra_multi_immu6_zero"
-    else:
-        rule_id = "multi_immu6_zero"
+    rule_id = "mreg_zero"
     rule_cite = _ILLI_RULES[rule_id]
+    # RA-involved block moves cite the RA sections (manual correction tracked
+    # as pre-existing generator↔vector drift, issues.yaml; reproduce verbatim).
+    if mnem in ("ra2rd", "rd2ra"):
+        rule_cite = "SimRISC-02 §存取RA寄存器、§寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 1, 3, 0)
     notes = "legality %s: immu6=0 → ILLI (%s)" % (mnem, rule_id)
@@ -1111,12 +1087,14 @@ def gen_block_legality_multi_immu6_zero(rec):
 
 
 def gen_ra2rd_legality_dest_rd0(rec):
-    """Legality case for ra2rd: rdhb=rd0 → ILLI (ra2rd_dest_rd0)."""
+    """Legality case for ra2rd: rdhb=rd0 → ILLI (dst_rd0)."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "orri"
-    rule_id = "ra2rd_dest_rd0"
-    rule_cite = _ILLI_RULES[rule_id]
+    rule_id = "dst_rd0"
+    # Manual spec_cite correction tracked as pre-existing generator↔vector
+    # drift (issues.yaml); reproduce verbatim so regeneration is faithful.
+    rule_cite = "SimRISC-02 §寄存器组之间块赋值"
     sc = rec.get("spec_cite", "")
     word = _build_word_orri(rec, 0, 3, 1)
     notes = "legality %s: rdhb=rd0 → ILLI (%s)" % (mnem, rule_id)
@@ -1125,11 +1103,11 @@ def gen_ra2rd_legality_dest_rd0(rec):
 
 
 def gen_rwii_legality_dest_rd0(rec):
-    """Legality case for rwii (rd-dest): rdha=rd0 → ILLI (rd_dest_rd0)."""
+    """Legality case for rwii (rd-dest): rdha=rd0 → ILLI (dst_rd0)."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "rwii"
-    rule_id = "rd_dest_rd0"
+    rule_id = "dst_rd0"
     rule_cite = _ILLI_RULES[rule_id]
     sc = rec.get("spec_cite", "")
     word = _build_word_rwii(rec, 0, 0, 0)
@@ -1139,11 +1117,11 @@ def gen_rwii_legality_dest_rd0(rec):
 
 
 def gen_rwii_legality_dest_rb0(rec):
-    """Legality case for rwii (rb-dest): rbha=rb0 → ILLI (rb_dest_rb0)."""
+    """Legality case for rwii (rb-dest): rbha=rb0 → ILLI (dst_rb0)."""
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "rwii"
-    rule_id = "rb_dest_rb0"
+    rule_id = "dst_rb0"
     rule_cite = _ILLI_RULES[rule_id]
     sc = rec.get("spec_cite", "")
     word = _build_word_rwii(rec, 0, 0, 0)
@@ -1154,11 +1132,14 @@ def gen_rwii_legality_dest_rb0(rec):
 
 def gen_block_overlap(rec):
     """Generate overlap case for block move (orri).
-    Sequential semantics (contract-isa.md:467): ascending order, each pair
-    read-then-write. For same-bank overlapping ranges (rd2rd, rb2rb with
-    dst=src+1, count=2), later reads see earlier writes.
-    For cross-bank (rb2rd, rd2rb, ra2rd, rd2ra): no register aliasing,
-    verifies basic block move semantics."""
+
+    Same-bank (rd2rd, rb2rb): the source range [src, src+count) and the
+    destination range [dst, dst+count) share at least one register (partial
+    overlap here) ⇒ ILLI (mreg_range_overlap, SimRISC-02 §寄存器组之间块赋值).
+    Cross-bank (rb2rd, rd2rb, ra2rd, rd2ra): source and destination belong to
+    different register banks, so they structurally cannot overlap; the case
+    verifies basic block move semantics (ascending order, read-before-write).
+    """
     mnem = rec["mnemonic"]
     insn = rec["id"]
     fmt = "orri"
@@ -1192,19 +1173,19 @@ def gen_block_overlap(rec):
     elif src_bank == "ra":
         inp["ra"] = {"ra%d" % (src_reg + i): _hex64(src_vals[i]) for i in range(count)}
 
-    # Sequential semantics: ascending order, read-then-write per pair.
-    # For same-bank overlap (dst=src+1, count=2):
-    #   pair0: read src[0], write dst[0]  → dst[0] = src[0]
-    #   pair1: read src[1] (overlaps dst[0], now has new value), write dst[1]
-    # So dst[1] gets the VALUE JUST WRITTEN to dst[0], not the original src[1].
     if is_same_bank:
-        # After pair0: dst[0] = original src[0]
-        # pair1: read src[1] which IS dst[0] → reads new value = original src[0]
-        # So dst[1] = original src[0] too
-        final_vals = [src_vals[0], src_vals[0]]  # both get src[0]
-    else:
-        # No aliasing: each dst gets its corresponding src
-        final_vals = list(src_vals)
+        # Partial overlap (dst = src + 1, count = 2): the ranges intersect
+        # ⇒ statically illegal (ILLI). No sequential read-before-write semantics
+        # exist for this encoding (mreg_range_overlap, SPEC-088t).
+        notes = ("overlap %s: %s%d..%d ↔ %s%d..%d, count=%d, "
+                 "范围有交集（含部分/完全重合）→ ILLI (mreg_range_overlap)" % (
+                     mnem, dst_bank, dst_reg, dst_reg + count - 1,
+                     src_bank, src_reg, src_reg + count - 1, count))
+        return _case(mnem, insn, fmt, "overlap", word, inp, None, "ILLI",
+                     "active", None, None, sc, notes)
+
+    # Cross-bank: no register aliasing, each dst gets its corresponding src.
+    final_vals = list(src_vals)
 
     out = {"rd": {}, "rb": {}, "ra": {}, "memory": []}
     if dst_bank == "rd":
@@ -1217,19 +1198,38 @@ def gen_block_overlap(rec):
         for i in range(count):
             out["ra"]["ra%d" % (dst_reg + i)] = _hex64(final_vals[i])
 
-    if is_same_bank:
-        notes = ("overlap %s: %s%d..%d → %s%d..%d, count=%d, "
-                 "sequential semantics: dst overlaps src → "
-                 "dst[1] reads dst[0]'s new value" % (
-                     mnem, src_bank, src_reg, src_reg + count - 1,
-                     dst_bank, dst_reg, dst_reg + count - 1, count))
-    else:
-        notes = ("overlap %s: %s%d..%d → %s%d..%d, count=%d, "
-                 "cross-bank no aliasing, verifies basic block move semantics" % (
-                     mnem, src_bank, src_reg, src_reg + count - 1,
-                     dst_bank, dst_reg, dst_reg + count - 1, count))
+    notes = ("overlap %s: %s%d..%d → %s%d..%d, count=%d, "
+             "cross-bank no aliasing, verifies basic block move semantics" % (
+                 mnem, src_bank, src_reg, src_reg + count - 1,
+                 dst_bank, dst_reg, dst_reg + count - 1, count))
 
     return _case(mnem, insn, fmt, "overlap", word, inp, out, None,
+                 "active", None, None, sc, notes)
+
+
+def gen_block_overlap_complete(rec):
+    """Generate a complete-overlap case for same-bank block move (orri).
+
+    rd2rd/rb2rb with identical single-register source and destination
+    ({rdN:rdN}, {rdN:rdN}, count=1): the two ranges fully coincide
+    ⇒ ILLI (mreg_range_overlap, SimRISC-02 §寄存器组之间块赋值).
+    Cross-bank instructions structurally cannot overlap ⇒ returns None.
+    """
+    mnem = rec["mnemonic"]
+    if mnem not in ("rd2rd", "rb2rb"):
+        return None
+    insn = rec["id"]
+    fmt = "orri"
+    sc = rec.get("spec_cite", "")
+    bank = "rd" if mnem == "rd2rd" else "rb"
+    reg = 3
+    count = 1
+    word = _build_word_orri(rec, reg, reg, count)
+    inp = {bank: {"%s%d" % (bank, reg): _hex64(0x10)}}
+    notes = ("overlap %s: %s%d..%d ↔ %s%d..%d, count=%d, "
+             "范围完全重合 → ILLI (mreg_range_overlap)" % (
+                 mnem, bank, reg, reg, bank, reg, reg, count))
+    return _case(mnem, insn, fmt, "overlap", word, inp, None, "ILLI",
                  "active", None, None, sc, notes)
 
 
@@ -1239,9 +1239,9 @@ _TARGET_FILES_010T = {"reg-arith.yaml", "reg-logic.yaml", "reg-shift-extend.yaml
 
 def _op_from_insn(insn):
     """Get the operation name from insn for matching.
-    'and.o_orrr_rd' → 'and.o', 'add.so_orrr_rb' → 'add.so', 'rd2rd_orri_rd' → 'rd2rd',
+    'and.o_orrr_rd' → 'and.o', 'add.o_orrr_bbd' → 'add.o', 'rd2rd_orri_rd' → 'rd2rd',
     'set.zw_rwii_rd' → 'set.zw', 'cs.n_rrrr_rd' → 'cs.n'
-    Old format: 'add.so-rb' → 'add.so'
+    Old format: 'add.o-bbd' → 'add.o'
     """
     if '_' in insn:
         # New format: mnemonic_format_bank — extract mnemonic part
@@ -1276,8 +1276,7 @@ def generate_file(filename, recs):
         is_shift = op.split('.')[0] in SHIFT if '.' in op else op in SHIFT
         is_compare = op.split('.')[0] in COMPARE if '.' in op else op in COMPARE
         is_cond = op.split('.')[0] in COND if '.' in op else op in COND
-        is_arith_rb = op in ("add.so", "sub.so") and fmt == "orrr"
-        is_rela = "rela.si" in insn
+        is_arith_rb = op in ("add.o", "sub.o") and fmt == "orrr"
         is_divrem = op.split('.')[0] in ("div", "rem") if '.' in op else False
         is_mul = op.split('.')[0] == "mul" if '.' in op else False
 
@@ -1291,7 +1290,7 @@ def generate_file(filename, recs):
         elif fmt == "orrr":
             if is_divrem:
                 enc_word = _build_word_orrr(rec, 1, 0, 1)  # rdhd=1 (rd1=divisor)
-                enc_input_state = {"rd": {"rd1": "0x0000000000000001"}}  # non-zero to avoid div_by_zero
+                enc_input_state = {"rd": {"rd1": "0x0000000000000001"}}  # rd1 non-zero (normal case; rdhd=rd0 now legal per SPEC-066t)
             else:
                 enc_word = _build_word_orrr(rec, 1, 0, 0)
         elif fmt == "orri":
@@ -1372,9 +1371,6 @@ def generate_file(filename, recs):
                 cases.append(gen_block_semantic(rec, 1, 3, 1, "ra", "rd"))
             elif mnem == "rd2ra":
                 cases.append(gen_block_semantic(rec, 1, 3, 1, "rd", "ra"))
-        elif is_rela:
-            c = gen_rela_si_semantic(rec, 0, 1, 0xFFFF00000000)
-            if c: cases.append(c)
         elif is_arith_rb:
             c = gen_semantic_orrr_arith_rb(rec, 100, 30, 0)
             if c: cases.append(c)
@@ -1389,9 +1385,7 @@ def generate_file(filename, recs):
             c = gen_semantic_orrr_arith(rec, 50, 30, 0)
             if c: cases.append(c)
         elif fmt == "riii":
-            if is_rela:
-                pass  # handled above
-            elif _bank_from_id(insn) == "rb":
+            if _bank_from_id(insn) == "rb":
                 c = gen_riii_semantic(rec, 0x10000, 1, "rb")
                 if c: cases.append(c)
             else:
@@ -1411,7 +1405,7 @@ def generate_file(filename, recs):
         elif is_logic:
             c = gen_boundary_orrr_arith(rec, 0xFFFF0000FFFF0000, 0x0000FFFF0000FFFF, 0)
             if c: cases.append(c)
-        elif is_compare or is_cond or is_imm_block or is_block or is_rela:
+        elif is_compare or is_cond or is_imm_block or is_block:
             pass  # boundary not required per inventory for these
         elif is_arith_rb:
             c = gen_boundary_orrr_arith_rb(rec, 0x8000000000000000, 1, 0)
@@ -1436,7 +1430,7 @@ def generate_file(filename, recs):
             else:
                 c = gen_boundary_orrr_arith(rec, 0x80, 0x80, 0)
             if c: cases.append(c)
-        elif fmt == "riii" and not is_rela:
+        elif fmt == "riii":
             bank = _bank_from_id(insn) or "rd"
             c = gen_riii_semantic(rec, 0x7FFFFFFFFFFFFFFF, 1, bank)
             if c: cases.append(c)
@@ -1459,13 +1453,13 @@ def generate_file(filename, recs):
 
         # ── Legality case (TESTCASES-011t: cs.* rdhb=rd0 → ILLI) ──
         if is_cond and filename == "reg-cond-assign.yaml":
-            # cs.n/z/p: rdhb is dst → rdhb=0 → ILLI (rd_dest_rd0)
-            # cs.eq/ne: rdhc is dst → rdhc=0 → ILLI (rd_dest_rd0)
+            # cs.n/z/p: rdhb is dst → rdhb=0 → ILLI (dst_rd0)
+            # cs.eq/ne: rdhc is dst → rdhc=0 → ILLI (dst_rd0)
             if mnem in ("cs.eq", "cs.ne"):
                 word = _build_word_rrrr(rec, 1, 2, 0, 3)  # rdhc=0 (dst=rd0)
             else:
                 word = _build_word_rrrr(rec, 1, 0, 3, 4)  # rdhb=0 (dst=rd0)
-            rule_id = "rd_dest_rd0"
+            rule_id = "dst_rd0"
             rule_cite = _ILLI_RULES[rule_id]
             sc = rec.get("spec_cite", "")
             notes = "legality %s: dest=rd0 → ILLI (%s)" % (mnem, rule_id)
@@ -1475,7 +1469,7 @@ def generate_file(filename, recs):
         # ── Legality case (TESTCASES-011t: reg-imm-block) ──
         if is_block and filename == "reg-imm-block.yaml":
             # orri block moves: immu6=0 → ILLI
-            cases.append(gen_block_legality_multi_immu6_zero(rec))
+            cases.append(gen_block_legality_mreg_zero(rec))
             # ra2rd additional: rdhb=rd0 → ILLI
             if mnem == "ra2rd":
                 cases.append(gen_ra2rd_legality_dest_rd0(rec))
@@ -1491,9 +1485,12 @@ def generate_file(filename, recs):
         if is_block and filename == "reg-imm-block.yaml":
             c = gen_block_overlap(rec)
             if c: cases.append(c)
+            # TESTCASES-023t: extra complete-overlap case for same-bank moves
+            c = gen_block_overlap_complete(rec)
+            if c: cases.append(c)
 
         # ── Boundary overflow case for add.si-rd / add.si-rb (TESTCASES-010t) ──
-        if filename == "reg-arith.yaml" and fmt == "riii" and not is_rela and mnem.startswith("add.si"):
+        if filename == "reg-arith.yaml" and fmt == "riii" and mnem.startswith("add.si"):
             bank = _bank_from_id(insn) or "rd"
             c = gen_riii_boundary_overflow(rec, bank)
             if c: cases.append(c)
@@ -1504,10 +1501,17 @@ def generate_file(filename, recs):
 
 
 # ── Generate all files ────────────────────────────────────────────────
+# Optional CLI filter: `generate_isa_vectors.py [file.yaml ...]` regenerates
+# only the named files. Default (no args) regenerates all six. The filter is
+# needed because five of the six committed files carry known pre-existing
+# generator↔vector drift (issues.yaml) and must not be overwritten wholesale.
 os.makedirs(OUT, exist_ok=True)
 
+_SELECTED = set(sys.argv[1:])
 for fname, recs in FILE_MAP.items():
     if not recs:
+        continue
+    if _SELECTED and fname not in _SELECTED:
         continue
     cases = generate_file(fname, recs)
     path = os.path.join(OUT, fname)

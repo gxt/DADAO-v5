@@ -1,0 +1,15 @@
+diff --git a/examples/dadao/README.md b/examples/dadao/README.md
+new file mode 100644
+index 0000000..b906f14
+--- /dev/null
++++ b/examples/dadao/README.md
+@@ -0,0 +1,9 @@
++# DADAO port (skeleton placeholder)
++
++Placeholder directory for the DADAO-v5 port of Embench-iot.
++
++The board shim (`initialise_board` / `start_trigger` / `stop_trigger`) and the
++minimal freestanding runtime (`mem*` / `str*` / `ctype` / `sqrt`) are added by
++DADAO-v5 task `TESTCASES-039t`.  This file declares no behaviour; it exists only
++so the component patch tree under `components/embench-iot/` is a valid,
++rebuildable skeleton (see `spec/Process-01-组件补丁组织与构建编排.md`).

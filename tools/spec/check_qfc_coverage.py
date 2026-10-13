@@ -133,6 +133,9 @@ COL_SUB = re.compile(r"^xxx-(\d{3})$")
 
 MISC_PTR = re.compile(r"^MISC-(.+)$")
 
+# QFC 主表区段标题（SPEC-133t：标题已带章节号 `N. `，故作前导号容忍）
+_QFC_HEAD_RE = re.compile(r"^##\s+(?:\d+(?:\.\d+)*[\.、]?\s+)?SimRISC QFC")
+
 
 def _split_sections(lines):
     """按 markdown 标题切分主表与 MISC 子表区段。
@@ -141,7 +144,7 @@ def _split_sections(lines):
     """
     main_start = None
     for i, line in enumerate(lines):
-        if line.strip().startswith("## SimRISC QFC"):
+        if _QFC_HEAD_RE.match(line):
             main_start = i
             break
     if main_start is None:
@@ -267,6 +270,7 @@ def classify_m1(op, ha, name, misc_name=None):
       - 浮点 RF：MISC-RF 子表，或名称含 -rf / ft*/fo* / rd2rf / rf2rd
       - 特权 cfx：cfx2rd/cfx2rc/cfxld/cfxst/escape/trap
       - LR-SC 原子：MISC-AMO 子表的 lr_*/sc_*
+      - fence：MISC-AMO 子表的 fence（Excluded from M1，SPEC-039t）
 
     misc_name 是该 (op) 对应的 MISC 子表名（由主表指针给出，不硬编码）；
     主表指令为 None。返回 (in_m1: bool, category: str)。
@@ -276,6 +280,8 @@ def classify_m1(op, ha, name, misc_name=None):
         return False, "浮点（MISC-RF）"
     if misc_name == "MISC-AMO" and re.match(r"^(lr_|sc_)", n):
         return False, "LR-SC 原子"
+    if misc_name == "MISC-AMO" and (n == "fence" or n.startswith("fence_")):
+        return False, "待定指令（fence excluded）"
     if (re.match(r"^(ft|fo)", n) or "-rf-" in n or n.endswith("-rf")
             or "2rf" in n or "rf2" in n):
         return False, "浮点（RF）"
@@ -351,8 +357,8 @@ def main():
     for op, ha in sorted(yaml_only, key=lambda x: (x[0], -1 if x[1] is None else x[1])):
         rec = yaml_records[(op, ha)]
         name = rec.get("id", "?")
-        if rec.get("excluded_m1"):
-            in_m1, cat = False, "M1 外（yaml excluded_m1）"
+        if rec.get("scope") != "m1":
+            in_m1, cat = False, f"M1 外（yaml scope: {rec.get('scope')}）"
         else:
             in_m1, cat = classify_m1(op, ha, name,
                                      misc_name=spec["pointers"].get(op))
@@ -369,12 +375,12 @@ def main():
         if not in_m1:
             qfc_m1_out.append((op, ha))
             qfc_cats[cat] = qfc_cats.get(cat, 0) + 1
-    yaml_excl = {k for k, r in yaml_records.items() if r.get("excluded_m1")}
+    yaml_excl = {k for k, r in yaml_records.items() if r.get("scope") != "m1"}
     print("[M1 范围]")
     print(f"  QFC 中 M1 外条目: {len(qfc_m1_out)}"
           + (f"（{', '.join(f'{k}={v}' for k, v in sorted(qfc_cats.items()))}）"
              if qfc_cats else ""))
-    print(f"  yaml 中 excluded_m1 条目: {len(yaml_excl)}")
+    print(f"  yaml 中 scope != m1 条目: {len(yaml_excl)}")
     if set(qfc_m1_out) == yaml_excl:
         print("  → QFC 与 yaml 的 M1 外条目集合一致")
     else:

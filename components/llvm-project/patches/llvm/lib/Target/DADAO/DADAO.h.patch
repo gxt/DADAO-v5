@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
 new file mode 100644
-index 000000000000..a3e9da95dbec
+index 000000000..fdc6a62ef
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.h
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,58 @@
 +//===-- DADAO.h - Top-level interface for DADAO representation --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -28,9 +28,10 @@ index 000000000000..a3e9da95dbec
 +class DADAOTargetMachine;
 +class PassRegistry;
 +
-+FunctionPass *createDADAOISelDagLegacyPass(DADAOTargetMachine &TM);
++FunctionPass *createDADAOISelDag(DADAOTargetMachine &TM);
 +
-+void initializeDADAOISelDAGLegacyPass(PassRegistry &);
++void initializeDADAODAGToDAGISelLegacyPass(PassRegistry &);
++void initializeDADAOAsmPrinterPass(PassRegistry &);
 +
 +} // namespace llvm
 +
@@ -50,9 +51,11 @@ index 000000000000..a3e9da95dbec
 +  FK_riii = 3,  // one reg + imm18: add.si, br.*, ret
 +  FK_iiii = 4,  // imm24 only: jump-iiii, call-iiii
 +  FK_rwii = 5,  // reg + wydepos + imm16: set.zw, or.w, ...
-+  FK_orrr = 6,  // minor-op + three regs: and.o, or.o, ...
-+  FK_orri = 7,  // minor-op + two regs + imm6: ext.*, shr.*, ra2rd, ...
-+  FK_oiii = 8,  // minor-op + imm18: illi, fence
++  FK_orrr = 6,  // opx + three regs: and.o, or.o, ...
++  FK_orri = 7,  // opx + two regs + imm6: ext.*, shr.*, ra2rd, ...
++  FK_oiii = 8,  // opx + imm18: fence, swym
++  FK_crrr = 9,  // cfx code + cg + rc + rd: cfx2rd, cfx2rc
++  FK_ciii = 10, // cfx code + imm18: trap, escape
 +};
 +
 +} // namespace DADAO

@@ -1,6 +1,6 @@
 # DADAO Hypervisor Execution Environment
 
-> **版本：0.1.2**（与 HBI 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
+> **版本：0.1.3-rc**（与 HBI 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
 
 本文档定义 DADAO 超管系统运行环境（Hypervisor Execution Environment, HEE）的体系结构规范。
 
@@ -11,16 +11,16 @@
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
 | 3 | 0 | hypv global version | cfx_⟨cfxname⟩_hypv_global_version | 0x00010002 | RO | HEE 版本号：`(major<<32)\|(minor<<16)\|patch`，当前 0.1.2。全局寄存器 |
-| 3 | 1 | hypv global cfx mask | cfx_⟨cfxname⟩_hypv_global_cfx_mask | 全0 | RW | 全局核芯功能扩展掩码，0=可触发，1=屏蔽。自身 cfxcode 对应位硬件忽略 |
-| 3 | 2 | hypv cfx2rd cfx mask | cfx_⟨cfxname⟩_hypv_cfx2rd_cfx_mask | 全0 | RW | cfx2rd 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxcode 对应位硬件忽略 |
-| 3 | 3 | hypv cfx2rc cfx mask | cfx_⟨cfxname⟩_hypv_cfx2rc_cfx_mask | 全0 | RW | cfx2rc 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxcode 对应位硬件忽略 |
-| 3 | 4 | hypv cfxld cfx mask | cfx_⟨cfxname⟩_hypv_cfxld_cfx_mask | 全0 | RW | cfxld 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxcode 对应位硬件忽略 |
-| 3 | 5 | hypv cfxst cfx mask | cfx_⟨cfxname⟩_hypv_cfxst_cfx_mask | 全0 | RW | cfxst 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxcode 对应位硬件忽略 |
-| 3 | 6 | hypv trap cfx mask | cfx_⟨cfxname⟩_hypv_trap_cfx_mask | 全0 | RW | trap 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxcode 对应位硬件忽略 |
-| 3 | 7 | hypv escape cfx mask | cfx_⟨cfxname⟩_hypv_escape_cfx_mask | 全0 | RW | escape 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxcode 对应位硬件忽略 |
+| 3 | 1 | hypv global cfx mask | cfx_⟨cfxname⟩_hypv_global_cfx_mask | 全0 | RW | 全局核芯功能扩展掩码，0=可触发，1=屏蔽。自身 cfxha 对应位硬件忽略 |
+| 3 | 2 | hypv cfx2rd cfx mask | cfx_⟨cfxname⟩_hypv_cfx2rd_cfx_mask | 全0 | RW | cfx2rd 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
+| 3 | 3 | hypv cfx2rc cfx mask | cfx_⟨cfxname⟩_hypv_cfx2rc_cfx_mask | 全0 | RW | cfx2rc 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
+| 3 | 4 | hypv cfxld cfx mask | cfx_⟨cfxname⟩_hypv_cfxld_cfx_mask | 全0 | RW | cfxld 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
+| 3 | 5 | hypv cfxst cfx mask | cfx_⟨cfxname⟩_hypv_cfxst_cfx_mask | 全0 | RW | cfxst 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
+| 3 | 6 | hypv trap cfx mask | cfx_⟨cfxname⟩_hypv_trap_cfx_mask | 全0 | RW | trap 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
+| 3 | 7 | hypv escape cfx mask | cfx_⟨cfxname⟩_hypv_escape_cfx_mask | 全0 | RW | escape 指令是否可从其他 cfx 执行，0=可，1=不可。自身 cfxha 对应位硬件忽略 |
 | 3 | 8 | hypv switch run mode | cfx_⟨cfxname⟩_hypv_switch_run_mode | 3 (hypv) | RW | 从hypv陷入时切换的运行模式 |
 | 3 | 9 | hypv switch cfx mask | cfx_⟨cfxname⟩_hypv_switch_cfx_mask | 全1 | RW | 从hypv陷入时采用的异常掩码，0=可触发，1=屏蔽 |
-| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | cfxcode<<42 + 0x3ff_ffff_0000 | RW | 从hypv陷入时的异常向量入口地址 |
+| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | cfxha<<42 + 0x3ff_ffff_0000 | RW | 从hypv陷入时的异常向量入口地址 |
 | 3 | 11 | hypv excp mask | cfx_⟨cfxname⟩_hypv_excp_cause_mask | 全1 | RW | 异常原因掩码，0=可触发，1=屏蔽 |
 | 3 | 12 | hypv cg reg delegation | cfx_⟨cfxname⟩_hypv_cg_reg_deleg | 全1 | RW | cg访问授权，bit=0时允许supv访问。bit3固定为1 |
 
@@ -45,3 +45,21 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 ## 3. 启动与引导移交
 
 详见 HBI 文档 §3。
+
+---
+
+## 附录：版本与变更记录
+
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+
+### 0.1.3-rc（未发布）
+
+- 汇编格式迁移新格式；术语 `cfxcode`→`cfxha`。
+- 为 cg0–cg3 增加 `rc0` 版本号寄存器。
+- cg3 寄存器 `rc1`–`rc7` 初始值由全 1 改为全 0，删除 `cfx_power` 例外。
+- 删除 FPEXCP 异常；术语「储存块」→「存储块」。
+- 与上游 SimRISC 0.5.4 基线对齐。
+
+### 0.1.2（上游基线；导入日 2026-07-14，发布日不详）
+
+- 上游 DADAO 超管系统运行环境（HEE）基线（基于 SimRISC 0.4.1）。

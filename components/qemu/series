@@ -7,8 +7,10 @@ hw/dadao/meson.build.patch
 hw/meson.build.patch
 include/qemu/base-arch-defs.h.patch
 qapi/machine.json.patch
+qemu-options.hx.patch
 target/Kconfig.patch
 target/dadao/Kconfig.patch
+target/dadao/common-semi-target.c.patch
 target/dadao/cpu-param.h.patch
 target/dadao/cpu-qom.h.patch
 target/dadao/cpu.c.patch
@@ -22,6 +24,7 @@ target/dadao/insn_trans/trans_compare.c.inc.patch
 target/dadao/insn_trans/trans_cond_assign.c.inc.patch
 target/dadao/insn_trans/trans_ctrl.c.inc.patch
 target/dadao/insn_trans/trans_extend.c.inc.patch
+target/dadao/insn_trans/trans_fp.c.inc.patch
 target/dadao/insn_trans/trans_imm.c.inc.patch
 target/dadao/insn_trans/trans_logic.c.inc.patch
 target/dadao/insn_trans/trans_mem.c.inc.patch

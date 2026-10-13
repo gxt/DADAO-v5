@@ -27,10 +27,10 @@ KERNFILE=$(mktemp /tmp/opencode/QEMU-022t/exec-kern-XXXXXX.bin)
 python3 -c "
 import struct, sys
 sys.path.insert(0, '.')
-from tools.qemu.min_rom_probe_022t import build_rom, make_st_o_rd_sequence, illi
+from tools.qemu.min_rom_probe_022t import build_rom, make_st_o_rd_sequence, fence
 rom = build_rom(make_st_o_rd_sequence(100))
 with open('$ROMFILE', 'wb') as f: f.write(rom)
-with open('$KERNFILE', 'wb') as f: f.write(illi() * 4)
+with open('$KERNFILE', 'wb') as f: f.write(fence() * 4)
 "
 
 cleanup() {

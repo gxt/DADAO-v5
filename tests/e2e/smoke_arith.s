@@ -1,37 +1,46 @@
-# smoke_arith: E2E smoke test — add.si arithmetic
-# Tests: set.zw (RD immediate), add.si (riii add-immediate), cmp.so (orrr compare)
-# Exit code: 0x00 = PASS, 0x01 = FAIL
-#
-# NOTE: llvm-mc AsmParser bug — wpN named constants (wp0/wp1/wp2/wp3) are
-#       silently ignored, always encoding wp0. Use numeric wyde positions
-#       (0/1/2/3) as workaround. See LLVM-013t for tracking.
-#
-# Entry state (ADR-0004 D6.5):
-#   rb0=0xffff_0000_0000 (PC), rb1=0xffff_00ff_0000 (SP), rb2=0xffff_0000_0000
-#   rd0=0 (hardwired), all other rd/rb/ra = 0
+; smoke_arith: E2E smoke test — add.si arithmetic
+; Tests: set.zw (RD immediate), add.si (riii add-immediate), cmp.so (orrr compare)
+; Exit channel: semihosting SYS_EXIT (ADR-0020 D8; replaces the legacy MMIO halt device).
+;   rd16 = service number 0x18 (SYS_EXIT); rb16 = argument-block pointer.
+; Exit code: 0x00 = PASS, 0x01 = FAIL
+;
+; NOTE: the wyde position must be written as a named token wp0/wp1/wp2/wp3.
+;       Bare numeric 0/1/2/3 is rejected by the assembler (Error); wpN is
+;       encoded verbatim (LLVM-045t / ISS-128, superseding the old LLVM-013t note).
+;
+; Entry state (ADR-0004 D6.5):
+;   rb0=0xFC00_0000_0000 (PC), rb1=0xFC00_0000_00ff_0000 (SP), rb2=0xFC00_0000_0000
+;   rd0=0 (hardwired), all other rd/rb/ra = 0
 
 _start:
-    # 1. Construct exit port address rb3 = 0xffff_8000_0000
-    set.zw  rb3, 2, 0xffff       # rb3[47:32] = 0xffff, rest = 0
-    or.w    rb3, 1, 0x8000       # rb3[31:16] |= 0x8000 → 0x0000_ffff_8000_0000
+    ; 0. Build the SYS_EXIT argument block at rb16 = 0xFC00_0000_00ff_f000.
+    or.w    rb16, wp1, 0x00ff
+    or.w    rb16, wp0, 0xf000
+    or.w    rb16, wp2, 0xfc00
+    set.zw  rd6, wp1, 0x0002
+    or.w    rd6, wp0, 0x0026
+    st.o    rd6, [rb16, 0]
 
-    # 2. Arithmetic under test: rd1 = 42 + 7 = 49
-    set.zw  rd1, 0, 42
+    ; 1. Arithmetic under test: rd1 = 42 + 7 = 49
+    set.zw  rd1, wp0, 42
     add.si  rd1, 7
 
-    # 3. Expected value
-    set.zw  rd2, 0, 49
+    ; 2. Expected value
+    set.zw  rd2, wp0, 49
 
-    # 4. Compare: cmp.so rd3, rd1, rd2 → rd3 = 0 if equal
+    ; 3. Compare: cmp.so rd3, rd1, rd2 → rd3 = 0 if equal
     cmp.so  rd3, rd1, rd2
     br.nz   {rd3}?, [rb0, Lfail]
 
-    # 5. PASS: write 0x00 → exit port
-    #    rd3 = 0 from cmp.so equality result
-    st.o    rd3, [rb3, 0]
+    ; 4. PASS: report 0x00 via SYS_EXIT (rd3 = 0 from cmp.so equality result)
+    st.o    rd3, [rb16, 8]
+    set.zw  rd16, wp0, 0x0018
+    trap    cfx_umon, 0x30000
 
 Lfail:
-    # 6. FAIL: write 0x01 → exit port
-    set.zw  rd4, 0, 1
-    st.o    rd4, [rb3, 0]
+    ; 5. FAIL: report 0x01 via SYS_EXIT
+    set.zw  rd4, wp0, 1
+    st.o    rd4, [rb16, 8]
+    set.zw  rd16, wp0, 0x0018
+    trap    cfx_umon, 0x30000
     swym    0

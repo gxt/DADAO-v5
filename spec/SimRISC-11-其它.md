@@ -1,25 +1,31 @@
 # SimRISC其它指令
 
-> **版本：0.5.4**（与 SimRISC-00 一致）
-> **分类：其它**（6 条）— cfx2rc/cfx2rd/escape/illi/swym/trap
+> **版本：0.5.5-rc**（与 SimRISC-00 一致）
+> **分类：其它**（5 条）— cfx2rc/cfx2rd/escape/swym/trap
 
 <!-- ASSEMBLY_LIST_START -->
-## 汇编指令速查
+## 1. 汇编指令速查
 
-### 其它（6 条）
+### 1.1 其它（5 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
-| `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxcode, hb, hc, hd` | `cfx2rc_crrr_cfx` |
-| `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxcode, hb, hc, hd` | `cfx2rd_crrr_cfx` |
-| `escape` | `ciii` | `cfx` | `escape cfxcode, [excp_cause_ip, imms18i]` | `escape_ciii_cfx` |
-| `illi` | `oiii` | `imm` | `illi immu18` | `illi_oiii_imm` |
+| `cfx2rc` | `crrr` | `cfx` | `cfx2rc cfxHA, cgHB, rcHC, rdHD` | `cfx2rc_crrr_cfx` |
+| `cfx2rd` | `crrr` | `cfx` | `cfx2rd cfxHA, cgHB, rcHC, rdHD` | `cfx2rd_crrr_cfx` |
+| `escape` | `ciii` | `cfx` | `escape cfxHA, [excp_cause_ip, imms20]` | `escape_ciii_cfx` |
 | `swym` | `oiii` | `imm` | `swym immu18` | `swym_oiii_imm` |
-| `trap` | `ciii` | `cfx` | `trap cfxcode, immu18` | `trap_ciii_cfx` |
+| `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 
 <!-- ASSEMBLY_LIST_END -->
 
-## 占位指令
+<!-- LEGALITY_START -->
+## 2. 合法性检查
+
+（本章无适用规则）
+<!-- LEGALITY_END -->
+
+
+## 3. 占位指令
 
 当指令地址需要对齐或特意留出空白时，需要使用到占位指令。通常需要的占位指令是 no-operation 指令。SimRISC借鉴Knuth的创意，采用了 swym 助记符作为占位指令，可称之为"划水"指令。Swym一词参考Knuth的MMIX中的定义，含义为 sympathize with your machinery，Knuth是这样描述的：
 
@@ -28,38 +34,32 @@
 操作数类型为 `oiii`：
 
 ```simrisc
-swym    0
+swym    immu18
 ```
 
-- `swym 0` 除 PC 自增外无任何架构副作用，等同于其它指令系统中的 nop 指令（汇编器提供 `nop` 伪指令，等价于 `swym 0`）
+- `swym 0` 除 PC 自增外无任何架构副作用，等价于其它指令系统中的「空操作」；需要空操作/对齐时**直接书写真实指令 `swym 0`**（`nop` 伪指令已删除，见 `ADR-0013 D11`）
 - `swym N` 可作为硬件时延指令，后18位立即数为时延参数：具体时延由硬件实现确定，其时延约为 `swym 0` 的 N+1 倍。
   - 硬件可设时延上限，N 超过阈值后时延不再增加。
   - 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。
+- `swym` 的 op 为 0111-0111（0x77），`ha` 为 100-010（0x22），`swym 0` 的编码为 **0x77880000**。
 
-#### nop 伪指令
+### 3.1 nop 伪指令（已删除）
 
-`nop` 是汇编器提供的伪指令，用于占位或对齐，等价于 `swym 0`。
-
-```simrisc
-nop                     ; 展开为 swym 0
-```
-
-## 非法指令
-
-SimRISC 采用 illi 助记符作为专门的非法指令，即 illegal instruction。
-
-操作数类型为 `oiii`：
+上游 `SimRISC-0.5.4` 曾定义 `nop` 伪指令；v5 **删除**（`ADR-0013 D11`），不再作为伪指令。需要空操作/对齐时，**直接书写真实指令 `swym 0`**：
 
 ```simrisc
-illi    0
+swym    0                ; 空操作（旧 `nop`）
 ```
 
-- illi指令会引发 ILLI 异常，即非法指令异常。
-- illi指令的后18位立即数并无特殊含义，完全由用户或软件自行定义，用户可通过操作系统的相关机制捕获该异常，并进行功能扩展。
-  - 不建议用户或软件捕获并使用其它指令产生的非法指令异常做功能扩展，例如很多指令不允许目的操作数为 rd0，否则就会引发非法指令异常。
-- illi 的 opcode 和 minor-opcode 均为全0，当参数也为0时，即为 32 位全零指令字。因此未初始化的指令内存（全零）将触发 ILLI 异常，便于在程序跑飞时快速捕获错误。
+## 4. 非法指令
 
-## 特权指令
+ILLI（illegal instruction，非法指令）异常由**非法操作数、非法条件**或**已定义但本机器未实现的编码**触发；SimRISC 0.5.4 **不再**提供专门的非法指令助记符（原 `op=0x77, ha=0x00`）。
+
+- 已定义编码但操作数/字段非法时触发 ILLI，例如很多指令不允许目的操作数为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等。
+- `scope: excluded` 的已定义编码（特权 cfx、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI。
+- 保留编码（QFC 主表 / MISC 子表空白单元格）触发 UNDI 异常，而非 ILLI；32 位全零指令字（0x00000000）为保留编码，触发 UNDI 异常。
+
+## 5. 特权指令
 
 用户态指令用于提供一个完备的应用程序运行环境，特权态指令用来进行资源管理和状态配置等功能。
 
@@ -67,57 +67,57 @@ illi    0
 一个32位的指令会被分解为5个部分：8/6/6/6/6，即op/ha/hb/hc/hd，其中ha专门用来指定核芯功能扩展编号。
 
 指令中核芯功能扩展编号可以有两种写法：
-- `cfx<cfxcode>`：直接使用编号，如 `cfx63`、`cfx0`
+- `cfx<cfxha>`：直接使用编号，如 `cfx63`、`cfx0`
 - `cfx_<cfxname>`：使用名称，如 `cfx_power`、`cfx_umon`
 
-汇编器对两种写法等价处理，均编码为 6 位的 cfxcode。
+汇编器对两种写法等价处理，均编码为 6 位的 cfxha。
 
 trap/escape/cfx2rd/cfx2rc/cfxld/cfxst 指令可以在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。详细异常路由规则见 SEE §5 异常进入流程。
 
-### 陷入指令
+### 5.1 陷入指令
 
 陷入指令用于将控制权转移到相应核芯功能扩展的异常向量地址。
 
 操作数类型为：`ciii`
 
 ```simrisc
-trap    cfx_<cfxname>, immu18
+trap    cfxHA, immu18
 ```
 
-其中，cfx_<cfxname>指定核芯功能扩展名称；immu18指定具体功能编号。
+其中，cfx_<cfxname> 指定核芯功能扩展名称；immu18指定具体功能编号。
 
-### 退出指令
+### 5.2 退出指令
 
 退出指令用于退出当前的特权态，将控制权交还给陷入异常前的状态。
 
 操作数类型为：`ciii`
 
 ```simrisc
-escape  cfx_<cfxname>, imms18
+escape  cfxHA, [excp_cause_ip, imms20]
 ```
 
-其中，cfx_<cfxname>指定核芯功能扩展名称；imms18指定目标地址偏移（指令字偏移，实际地址 = excp_cause_ip + (imms18 << 2)）。
+其中，cfx_\<cfxname\> 指定核芯功能扩展名称；imms20 指定目标地址偏移（字节，须 `%4==0`；实际地址 = excp_cause_ip + imms20；编码层 `Addr = excp_cause_ip + (imms18 << 2)`）。
 
-### 寄存器传输指令
+### 5.3 寄存器传输指令
 
 这类指令用于核芯功能扩展的寄存器与rd寄存器之间进行相互赋值。
 
 操作数类型为：`crrr`
 
 ```simrisc
-cfx2rd    cfx_<cfxname>, cghb, rchc, rdhd
-cfx2rc    cfx_<cfxname>, cghb, rchc, rdhd
+cfx2rd    cfxHA, cgHB, rcHC, rdHD
+cfx2rc    cfxHA, cgHB, rcHC, rdHD
 ```
 
-其中，cfx_<cfxname>指定核芯功能扩展名称，cghb和rchc指定该核芯功能扩展的寄存器组和寄存器号。
-cfx2rc 是将 rdhd 的值设置到 cfx_<cfxname>_cghb_rchc 中。
-cfx2rd 是将 cfx_<cfxname>_cghb_rchc 的值设置到 rdhd 中。
+其中，cfx_<cfxname> 指定核芯功能扩展名称，cgHB和rcHC指定该核芯功能扩展的寄存器组和寄存器号。
+cfx2rc 是将 rdHD 的值设置到 cfx_<cfxname>_cgHB_rcHC 中。
+cfx2rd 是将 cfx_<cfxname>_cgHB_rcHC 的值设置到 rdHD 中。
 
-读写不存在的 cfx_<cfxname>_cghb_rchc 组合时触发 CFXREG 异常；cfx_<cfxname> 为 reserved 核芯功能扩展（7-14、19-61）时触发 ILLI 异常；读写权限不匹配时，触发非法核芯功能扩展寄存器访问异常（CFXREG）。
+读写不存在的 cfx_<cfxname>_cgHB_rcHC 组合时触发 CFXREG 异常；cfx_<cfxname> 为 reserved 核芯功能扩展（7-14、19-61）时触发 ILLI 异常；读写权限不匹配时，触发非法核芯功能扩展寄存器访问异常（CFXREG）。
 
 > **注意**：cfx2rd/cfx2rc 的数据通路仅连接 rd 寄存器组。若需要将 rb 或 rf 寄存器的值写入核芯功能扩展寄存器，须先通过 `rb2rd rd, rb, 1` 或 `rf2rd rd, rf, 1` 中转至 rd 寄存器。汇编器提供 `set.rd rd, rs` 伪指令简化此操作（展开为 `rb2rd`/`rf2rd`/`rd2rd`）。
 
-为简化汇编代码的编写，寄存器传输指令支持一种简化的操作数写法，将 `cfx_<cfxname>, cghb, rchc` 三个参数合并为 `cfx_⟨cfxname⟩_regname` 的形式，其中 `regname` 为寄存器名称（即 SEE 文档 regname 列中的名称）。汇编器会根据寄存器名称自动查找对应的 cg 和 rc 编号，展开为标准的三个操作数格式。
+为简化汇编代码的编写，寄存器传输指令支持一种简化的操作数写法，将 `cfx_<cfxname>, cgHB, rcHC` 三个参数合并为 `cfx_⟨cfxname⟩_regname` 的形式，其中 `regname` 为寄存器名称（即 SEE 文档 regname 列中的名称）。汇编器会根据寄存器名称自动查找对应的 cg 和 rc 编号，展开为标准的三个操作数格式。
 
 ```simrisc
 ; 简化写法（推荐）
@@ -125,8 +125,51 @@ cfx2rd  cfx_umon_excp_cause_ip, rd2    ; 读取 cfx_umon 的 excp_cause_ip
 cfx2rc  cfx_power_ctrl, rd2             ; 写入 cfx_power 的 power_ctrl
 
 ; 等价的标准写法
-cfx2rd  cfx_umon, 5, 3, rd2
-cfx2rc  cfx_power, 8, 1, rd2
+cfx2rd  cfx_umon, cg5, rc3, rd2
+cfx2rc  cfx_power, cg8, rc1, rd2
 ```
 
 这种简化写法使代码更具可读性，程序员无需记忆每个寄存器的cg和rc编号，直接通过寄存器名称即可定位目标寄存器。
+
+---
+
+## 附录：版本与变更记录
+
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+
+### 0.5.5-rc（未发布）
+
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- `trap`/`escape`/`cfx2rc`/`cfx2rd` 重新划分 scope（M5）。
+- 伪指令集收缩：删除 `nop` 等 1:1 别名伪指令。
+- 删除 `illi` 指令；`fence` 编码改 `0x00`、`swym` 编码改 `0x22`；引入 `scope` 标注。
+- 汇编规范文档更新。
+- 迁移新汇编格式、术语 `cfxcode`→`cfxha`。
+- 新增「合法性检查」章（生成区）。
+- `MISC-AMO` 编码移至 `0111-0111`；术语 `major-op`→`opc`、`minor-op`→`opx`。
+- cfx 系列记法约定；cfx 字段重命名（`cfxha`/`cghb`/`rchc`/`rdhd`）。
+- 新增「汇编指令速查」章（生成区）。
+
+### 0.5.4（2026-09-28）
+
+- 本册由原《SimRISC 系统类指令》演进（占位 / 非法 / 特权指令部分）；`swym`/`illi` 独立成二级标题，`nop` 伪指令归入本册。
+
+### 0.5.3（2026-07-19）
+
+- `MISC` 表重排，`illi` 移入 MISC-octa。
+
+### 0.5.2（2026-07-18）
+
+- `swym` 改 iiii 格式、`unimp`→`illi`（并为二者设独立二级标题）。
+
+### 0.5.1（2026-07-16）
+
+- `RASUP`→`RASUF`；特权模型与 SEE 对齐，删冗余 ILLI 声明。
+
+### 0.5.0（2026-07-15）
+
+- `swym`/`unimp` 编码整理（`swym`→iiii、`unimp`→MISC-Norm）。
+
+### 0.4.1（2026-07-14）
+
+- 初版：同步上游系统类指令（占位 / 非法 / 特权）。

@@ -1,0 +1,21 @@
+diff --git a/libos/semihost/machine/dadao/meson.build b/libos/semihost/machine/dadao/meson.build
+new file mode 100644
+index 0000000..da56df8
+--- /dev/null
++++ b/libos/semihost/machine/dadao/meson.build
+@@ -0,0 +1,15 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# DADAO semihosting primitive.
++#
++# Enabling `has_arm_semihost` makes the picolibc build include the generic
++# semihosting client (libos/semihost/common/), which implements the complete
++# Arm-semihosting service table on top of the single arch hook
++# `sys_semihost(op, param)` defined in semihost-dadao.S.  That client supplies
++# the POSIX `write` (-> SYS_WRITE 0x05) and `_exit` (-> SYS_EXIT 0x18) stubs
++# used by stdio and exit(), mapping onto the DADAO-v5 contract-semihosting
++# service numbers.
++
++src_semihost += files('semihost-dadao.S')
++has_arm_semihost = true

@@ -1,0 +1,160 @@
+diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOCfxAlias.inc b/llvm/lib/Target/DADAO/AsmParser/DADAOCfxAlias.inc
+new file mode 100644
+index 000000000..392d53913
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/AsmParser/DADAOCfxAlias.inc
+@@ -0,0 +1,154 @@
++//===-- DADAOCfxAlias.inc - DADAO cfx alias lookup tables --*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM
++// Exceptions. See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// cfx assembly alias tables (ADR-0017 D3/D4/D8; Toolchain-01 §13).
++// MECHANICALLY GENERATED from spec/DADAO-12/13 register tables through the
++// committed projector tools/spec/gen_cfx_aliases.py (the same source that
++// produces the drift-gated .tao/knowledge/contract-cfx-aliases.md).
++// Generator: tools/llvm/gen_cfx_alias_table.py
++//
++//   cfx_<cfxname>           <=> cfx<code>            (13 scalar aliases)
++//   cfx_<cfxname>_<tail>    ->  (cfxha, cg, rc)      (66 generic tails)
++//   cfx_<cfxname>_<regname> ->  (cfxha, cg, rc)      (34 cfx-specific)
++//
++// Array registers (ADR-0017 D10) have RcCount > 1 and are addressed by the
++// single-subscript form cfx_<...>[N] (rc = RcBase + N, 0 <= N < RcCount).
++//===----------------------------------------------------------------------===//
++
++namespace {
++
++// Scalar aliases: cfx_<cfxname> <=> cfx<code> (ADR-0017 D3).
++struct CfxScalarAlias { const char *Name; unsigned Code; };
++static const CfxScalarAlias CfxScalarAliases[] = {
++  {"cfx_umon", 0},
++  {"cfx_jmon", 1},
++  {"cfx_smon", 2},
++  {"cfx_hmon", 3},
++  {"cfx_ptw", 4},
++  {"cfx_tlb", 5},
++  {"cfx_cache", 6},
++  {"cfx_hart", 15},
++  {"cfx_llc", 16},
++  {"cfx_pmem", 17},
++  {"cfx_timer", 18},
++  {"cfx_uart", 62},
++  {"cfx_power", 63},
++};
++
++// Generic register tails: cfx_<cfxname>_<tail> -> (cg, rc); cfxha comes
++// from the cfxname (ADR-0017 D4).  RcCount > 1 => array.
++struct CfxRegTail { const char *Tail; unsigned Cg; unsigned RcBase; unsigned RcCount; };
++static const CfxRegTail CfxRegTails[] = {
++  {"user_global_version", 0, 0, 1},
++  {"user_global_cfx_mask", 0, 1, 1},
++  {"user_cfx2rd_cfx_mask", 0, 2, 1},
++  {"user_cfx2rc_cfx_mask", 0, 3, 1},
++  {"user_cfxld_cfx_mask", 0, 4, 1},
++  {"user_cfxst_cfx_mask", 0, 5, 1},
++  {"user_trap_cfx_mask", 0, 6, 1},
++  {"user_escape_cfx_mask", 0, 7, 1},
++  {"user_switch_run_mode", 0, 8, 1},
++  {"user_switch_cfx_mask", 0, 9, 1},
++  {"user_excp_vector", 0, 10, 1},
++  {"user_excp_cause_mask", 0, 11, 1},
++  {"jail_global_version", 1, 0, 1},
++  {"jail_global_cfx_mask", 1, 1, 1},
++  {"jail_cfx2rd_cfx_mask", 1, 2, 1},
++  {"jail_cfx2rc_cfx_mask", 1, 3, 1},
++  {"jail_cfxld_cfx_mask", 1, 4, 1},
++  {"jail_cfxst_cfx_mask", 1, 5, 1},
++  {"jail_trap_cfx_mask", 1, 6, 1},
++  {"jail_escape_cfx_mask", 1, 7, 1},
++  {"jail_switch_run_mode", 1, 8, 1},
++  {"jail_switch_cfx_mask", 1, 9, 1},
++  {"jail_excp_vector", 1, 10, 1},
++  {"jail_excp_cause_mask", 1, 11, 1},
++  {"supv_global_version", 2, 0, 1},
++  {"supv_global_cfx_mask", 2, 1, 1},
++  {"supv_cfx2rd_cfx_mask", 2, 2, 1},
++  {"supv_cfx2rc_cfx_mask", 2, 3, 1},
++  {"supv_cfxld_cfx_mask", 2, 4, 1},
++  {"supv_cfxst_cfx_mask", 2, 5, 1},
++  {"supv_trap_cfx_mask", 2, 6, 1},
++  {"supv_escape_cfx_mask", 2, 7, 1},
++  {"supv_switch_run_mode", 2, 8, 1},
++  {"supv_switch_cfx_mask", 2, 9, 1},
++  {"supv_excp_vector", 2, 10, 1},
++  {"supv_excp_cause_mask", 2, 11, 1},
++  {"cfx_id", 4, 0, 1},
++  {"version", 4, 1, 1},
++  {"trap_num", 4, 2, 1},
++  {"excp_sync_num", 4, 3, 1},
++  {"excp_async_num", 4, 4, 1},
++  {"escape_num", 4, 5, 1},
++  {"scratch_regs_num", 4, 6, 1},
++  {"excp_prev_run_mode", 5, 0, 1},
++  {"excp_prev_cfx_mask", 5, 1, 1},
++  {"excp_cause_id", 5, 2, 1},
++  {"excp_cause_ip", 5, 3, 1},
++  {"excp_cause_info", 5, 4, 1},
++  {"excp_pending", 5, 5, 1},
++  {"excp_cause_nonmaskable", 5, 63, 1},
++  {"scratch_regs", 6, 0, 64},
++  {"sram_block_sel", 7, 0, 1},
++  {"sram_addr", 7, 1, 1},
++  {"hypv_global_version", 3, 0, 1},
++  {"hypv_global_cfx_mask", 3, 1, 1},
++  {"hypv_cfx2rd_cfx_mask", 3, 2, 1},
++  {"hypv_cfx2rc_cfx_mask", 3, 3, 1},
++  {"hypv_cfxld_cfx_mask", 3, 4, 1},
++  {"hypv_cfxst_cfx_mask", 3, 5, 1},
++  {"hypv_trap_cfx_mask", 3, 6, 1},
++  {"hypv_escape_cfx_mask", 3, 7, 1},
++  {"hypv_switch_run_mode", 3, 8, 1},
++  {"hypv_switch_cfx_mask", 3, 9, 1},
++  {"hypv_excp_vector", 3, 10, 1},
++  {"hypv_excp_cause_mask", 3, 11, 1},
++  {"hypv_cg_reg_deleg", 3, 12, 1},
++};
++
++// cfx-specific register aliases (cg >= 8): full alias -> (cfxha, cg, rc).
++struct CfxSpecificAlias { const char *Name; unsigned Cfxha; unsigned Cg; unsigned RcBase; unsigned RcCount; };
++static const CfxSpecificAlias CfxSpecificAliases[] = {
++  {"cfx_ptw_user_perm", 4, 8, 0, 1},
++  {"cfx_ptw_jail_perm", 4, 8, 1, 1},
++  {"cfx_ptw_supv_perm", 4, 8, 2, 1},
++  {"cfx_ptw_hypv_perm", 4, 8, 3, 1},
++  {"cfx_ptw_ptbr_enable", 4, 8, 8, 1},
++  {"cfx_ptw_ptbr", 4, 9, 0, 64},
++  {"cfx_ptw_pthi", 4, 10, 0, 64},
++  {"cfx_ptw_pahi", 4, 11, 0, 64},
++  {"cfx_tlb_exist", 5, 8, 0, 1},
++  {"cfx_tlb_enable", 5, 8, 8, 1},
++  {"cfx_tlb_control", 5, 12, 0, 1},
++  {"cfx_tlb_addr_start", 5, 12, 2, 1},
++  {"cfx_tlb_addr_size", 5, 12, 3, 1},
++  {"cfx_cache_exist", 6, 8, 0, 1},
++  {"cfx_cache_enable", 6, 8, 8, 1},
++  {"cfx_cache_ctrl", 6, 8, 9, 1},
++  {"cfx_hart_hart_id", 15, 8, 0, 1},
++  {"cfx_hart_cycle_lo", 15, 8, 2, 1},
++  {"cfx_hart_cycle_hi", 15, 8, 3, 1},
++  {"cfx_hart_insn_lo", 15, 8, 4, 1},
++  {"cfx_hart_insn_hi", 15, 8, 5, 1},
++  {"cfx_llc_exist", 16, 8, 0, 1},
++  {"cfx_llc_ctrl", 16, 8, 8, 1},
++  {"cfx_pmem_exist", 17, 8, 0, 1},
++  {"cfx_pmem_start", 17, 12, 0, 64},
++  {"cfx_pmem_size", 17, 13, 0, 64},
++  {"cfx_pmem_attr", 17, 14, 0, 64},
++  {"cfx_timer_ctrl", 18, 10, 7, 1},
++  {"cfx_timer_regs", 18, 10, 8, 8},
++  {"cfx_uart_exist", 62, 8, 1, 1},
++  {"cfx_uart_uart0_regs", 62, 32, 0, 64},
++  {"cfx_uart_uart1_regs", 62, 33, 0, 64},
++  {"cfx_uart_uart31_regs", 62, 63, 0, 64},
++  {"cfx_power_ctrl", 63, 8, 1, 1},
++};
++
++} // namespace

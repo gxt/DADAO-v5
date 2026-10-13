@@ -8,19 +8,19 @@ Reads contracts/opcodes.yaml and produces:
 
 All encoding words, expected values, and spec_cite are derived from
 contracts/opcodes.yaml, .tao/knowledge/contract-isa.md, and
-.tao/knowledge/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
+.tao/adr/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
 
 F10 design (方案B):
   - encoding class: base=rb3 (unused register), dest=rd1/ra1 (not rd0/ra0),
     store src=rd1/ra1 (not rd0/ra0), immu6=1 for multi.
-  - input_state presets rb3=0x0000ffff00000000 (RAM base, 48-bit).
+  - input_state presets rb3=0xFC0000000000 (single RAM base, 48-bit).
   - All encoding cases: expected_state=null, expected_pc=null,
     expected_fault=null, status=active.
 
 Legality cases per instruction:
   - ILLI: rd0 dest / store src rd0 / rb0 base / immu6=0 (for RA)
   - MALIGN: misaligned address (only for instructions with align > 0)
-  - UNMAPPED: addr=0 (base rb3=0 or rb0=0)
+  - CFXMEM: addr=0 (base rb3=0 → umon segment cfxha 0, no RAM there ⇒ 0x81)
 
 Boundary cases per instruction:
   - Valid edge addresses (zero offset, near RAM end), expected_fault=null,
@@ -40,13 +40,13 @@ def _int(v):
 with open(os.path.join(REPO, "contracts", "opcodes.yaml")) as f:
     ALL = yaml.safe_load(f)
 
-M1 = [r for r in ALL if not r.get("excluded_m1")]
+M1 = [r for r in ALL if r.get("scope") == "m1"]
 BY_KEY = {(r["id"], r["format"]): r for r in M1}
 
 # ── Constants ─────────────────────────────────────────────────────────
-RAM_BASE = 0x0000FFFF00000000  # rb3 preset value
-RAM_BASE_HEX = "0x0000ffff00000000"
-RAM_END = 0x0000FFFF00FFFFFF   # RAM end (16 MiB)
+RAM_BASE = 0xFC00_0000_0000      # rb3 preset value (single RAM base, cfxha 63)
+RAM_BASE_HEX = "0xFC0000000000"
+RAM_END = 0xFC00_00FF_FFFF       # RAM end (16 MiB)
 
 # Register assignments for F10 encoding vectors
 RB_BASE = 3   # rb3
@@ -55,7 +55,7 @@ RA_DEST = 1   # ra1 (not ra0)
 RD_OFF  = 2   # rd2 for multi rdhc
 IMMU6   = 1   # multi count
 
-# ── Memory instruction identities (M1, excluded_m1 != true) ─────────
+# ── Memory instruction identities (M1, scope == m1) ──────────────────
 MEM_INSNS = [
     # (id, mnemonic, format, op, bank, role_ha, align, is_multi)
     # ── RD bank, single load/store (rrii) ──
@@ -218,17 +218,17 @@ def gen_legality_illi(rec):
             ha = 0  # rd0
             hb = RB_BASE
             word = build_word_rrii(op, ha, hb, 0)
-            reason = "rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)"
+            reason = "rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)"
         elif bank == "rb":
             ha = 0  # rb0
             hb = RB_BASE
             word = build_word_rrii(op, ha, hb, 0)
-            reason = "rb0 as dest/src → ILLI (rb_dest_rb0 / rb_base_rb0_store)"
+            reason = "rb0 as dest/src → ILLI (dst_rb0 / rb_base_rb0_store)"
         else:  # ra
             # RA rrii has no rd0/rb0 destination constraint (ra无此约束).
             # rb0=PC≠0 (ADR-0004 D2.1/D6.5), so base=rb0 does NOT give addr=0.
             # ILLI coverage for RA is via rrri immu6=0 (below).
-            # UNMAPPED coverage is via gen_legality_unmapped (rb3=0).
+            # CFXMEM coverage is via gen_legality_cfxmem (rb3=0 → umon).
             return None
     else:  # rrri
         if bank == "rd":
@@ -236,19 +236,19 @@ def gen_legality_illi(rec):
             hb = RB_BASE
             hc = RD_OFF
             word = build_word_rrri(op, ha, hb, hc, IMMU6)
-            reason = "rd0 as dest/src → ILLI (rd_dest_rd0 / store_src_rd0)"
+            reason = "rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)"
         elif bank == "rb":
             ha = 0  # rb0
             hb = RB_BASE
             hc = RD_OFF
             word = build_word_rrri(op, ha, hb, hc, IMMU6)
-            reason = "rb0 as dest/src → ILLI (rb_dest_rb0)"
+            reason = "rb0 as dest/src → ILLI (dst_rb0)"
         else:  # ra
             ha = RA_DEST
             hb = RB_BASE
             hc = RD_OFF
             word = build_word_rrri(op, ha, hb, hc, 0)  # immu6=0
-            reason = "immu6=0 → ILLI (ra_multi_immu6_zero)"
+            reason = "immu6=0 → ILLI (mreg_zero)"
             return make_case(mnem, insn, fmt, "legality", word, {}, None,
                              "ILLI", "active", None, None, sc, reason)
 
@@ -276,7 +276,7 @@ def gen_legality_malign(rec):
         inp = {"rb": {f"rb{RB_BASE}": hex64(RAM_BASE)}}
         notes = (f"legality MALIGN: EA={hex64(RAM_BASE + misalign_off)} "
                  f"(imms12={misalign_off}), align={align}B → MALIGN (0x8C), "
-                 f"contract-isa §4.1.1, legality_rules data_malign")
+                 f"contract-isa §4.1.1, legality_rules excp_malign")
     else:
         # rrri: EA = rb3 + rd2; rd2 preset to misalignment offset
         word = _build_encoding_word(rec)
@@ -286,13 +286,13 @@ def gen_legality_malign(rec):
         }
         notes = (f"legality MALIGN: EA={hex64(RAM_BASE + misalign_off)} "
                  f"(rd{RD_OFF} offset={misalign_off}), align={align}B → MALIGN (0x8C), "
-                 f"contract-isa §4.1.1, legality_rules data_malign")
+                 f"contract-isa §4.1.1, legality_rules excp_malign")
     return make_case(mnem, insn, fmt, "legality", word, inp, None,
                      "MALIGN", "active", None, None, sc, notes)
 
 
-def gen_legality_unmapped(rec):
-    """Legality UNMAPPED case: addr=0 (rb3 not preset)."""
+def gen_legality_cfxmem(rec):
+    """Legality CFXMEM case: addr=0 (rb3 not preset) → umon segment (cfxha 0)."""
     insn, mnem, fmt, op, bank, role, align, is_multi = rec
     key = (insn, fmt)
     oprec = BY_KEY[key]
@@ -300,12 +300,14 @@ def gen_legality_unmapped(rec):
 
     word = _build_encoding_word(rec)
 
-    # rb3 not preset → default 0 → EA=0 → unmapped
+    # rb3 not preset → default 0 → EA=0 → cfxha 0 (umon); the single RAM segment
+    # is now in the power segment (cfxha 63), so a umon access is an illegal
+    # internal-address-space access => CFXMEM (0x81, ADR-0020 D15 / ADR-0004 D5.8).
     inp = {"rb": {f"rb{RB_BASE}": "0x0000000000000000"}}
-    notes = (f"legality UNMAPPED: base=rb3=0 → addr=0 → unmapped (0x87), "
-             f"ADR-0004 D5.6")
+    notes = (f"legality CFXMEM: base=rb3=0 → addr=0 → umon segment (cfxha 0) "
+             f"no RAM → CFXMEM (0x81), ADR-0020 D15 / ADR-0004 D5.8")
     return make_case(mnem, insn, fmt, "legality", word, inp, None,
-                     "UNMAPPED", "active", None, None, sc, notes)
+                     "CFXMEM", "active", None, None, sc, notes)
 
 
 def gen_semantic(rec, addr_offset=0x100, mem_val=0x42):
@@ -539,17 +541,17 @@ def main():
         files[fname].append(gen_encoding(rec))
 
         # 2. Legality: ILLI (rd0/rb0/immu6=0)
-        illi = gen_legality_illi(rec)
-        if illi is not None:
-            files[fname].append(illi)
+        illi_case = gen_legality_illi(rec)
+        if illi_case is not None:
+            files[fname].append(illi_case)
 
         # 3. Legality: MALIGN (if alignment required)
         malign = gen_legality_malign(rec)
         if malign is not None:
             files[fname].append(malign)
 
-        # 4. Legality: UNMAPPED (addr=0)
-        files[fname].append(gen_legality_unmapped(rec))
+        # 4. Legality: CFXMEM (addr=0 → umon segment)
+        files[fname].append(gen_legality_cfxmem(rec))
 
         # 5. Semantic case
         files[fname].append(gen_semantic(rec))

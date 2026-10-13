@@ -1,0 +1,14 @@
+diff --git a/clang/lib/CodeGen/CodeGenModule.cpp b/clang/lib/CodeGen/CodeGenModule.cpp
+index 313a364e8..b24a4347b 100644
+--- a/clang/lib/CodeGen/CodeGenModule.cpp
++++ b/clang/lib/CodeGen/CodeGenModule.cpp
+@@ -229,6 +229,9 @@ createTargetCodeGenInfo(CodeGenModule &CGM) {
+   case llvm::Triple::msp430:
+     return createMSP430TargetCodeGenInfo(CGM);
+ 
++  case llvm::Triple::dadao:
++    return createDADAOTargetCodeGenInfo(CGM);
++
+   case llvm::Triple::riscv32:
+   case llvm::Triple::riscv64:
+   case llvm::Triple::riscv32be:

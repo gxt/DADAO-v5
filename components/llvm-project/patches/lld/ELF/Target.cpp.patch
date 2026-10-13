@@ -1,0 +1,13 @@
+diff --git a/lld/ELF/Target.cpp b/lld/ELF/Target.cpp
+index 89e4dbeed..592f92858 100644
+--- a/lld/ELF/Target.cpp
++++ b/lld/ELF/Target.cpp
+@@ -63,6 +63,8 @@ void elf::setTarget(Ctx &ctx) {
+     return setARMTargetInfo(ctx);
+   case EM_AVR:
+     return setAVRTargetInfo(ctx);
++  case EM_DADAO:
++    return setDADAOTargetInfo(ctx);
+   case EM_HEXAGON:
+     return setHexagonTargetInfo(ctx);
+   case EM_LOONGARCH:

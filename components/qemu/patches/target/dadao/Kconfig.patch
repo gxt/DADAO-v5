@@ -1,8 +1,9 @@
 diff --git a/target/dadao/Kconfig b/target/dadao/Kconfig
 new file mode 100644
-index 0000000000..17c07d0b14
+index 0000000..4b2ec4b
 --- /dev/null
 +++ b/target/dadao/Kconfig
-@@ -0,0 +1,2 @@
+@@ -0,0 +1,3 @@
 +config DADAO
 +    bool
++    select ARM_COMPATIBLE_SEMIHOSTING if TCG

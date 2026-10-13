@@ -1,0 +1,12 @@
+# P0 FP/bit-codegen end-to-end (LLVM-079t).
+#
+# Compiles tests/e2e/p0_fp_e2e.c with the DADAO clang, links it against the
+# project crt0 + linker script, and runs it on qemu dadao-m1 with semihosting.
+# The guest exit code is the test result: p0_fp_e2e.c returns 0 only when all
+# five P0 ISel classes (f32->f64 load / FP setcc / f64<->i64 bitcast /
+# integer-compare-selecting-f64 / i64 cttz) compute the correct value, and a
+# distinct non-zero code otherwise.  qemu's process exit code is the lit result.
+# RUN: %clang -target dadao-unknown-elf -nostdlib -Oz -x c -c %e2e_dir/p0_fp_e2e.c -o %t.o
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.o -o %t.elf
+# RUN: timeout 30 %qemu -M dadao-m1 -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic

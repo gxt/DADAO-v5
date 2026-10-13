@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build test binary from ISA vector YAML for dadao-m1 QEMU testing.
 
-Binary layout (loaded at BINARY_BASE = 0xffff_0000_0000):
+Binary layout (loaded at BINARY_BASE = 0xFC00_0000_0000, the single RAM segment):
   [section 1] loader   - Set rd/rb/ra registers from input_state, write memory
   [section 2] test     - Raw encoding word (struct.pack('>I', word))
   [section 3] dumper   - Dump state to state-dump region (diagnostics only)
@@ -12,6 +12,15 @@ Design decisions (ADR-0009):
   D2: guest-internal comparison via XOR+ORR accumulator
   D4: RD scratch=rd60-63, RB scratch=rb60-63, RA not scratch
   D5: exit code 0x00=PASS, 0x01-0x7F=FAIL, 0x80+=machine fault
+
+Exit channel (ADR-0020 D8: semihosting SYS_EXIT replaces the legacy MMIO halt device):
+  the PASS/FAIL epilogue writes the 64-bit argument block
+  {ADP_Stopped_ApplicationExit, code} into RAM and issues
+  `rd16 = 0x18 (SYS_EXIT); rb16 = block; trap` -- the reported status is the
+  low byte of `code` (contract-semihosting.md §3/§5).  The harness must run
+  QEMU with `-semihosting-config enable=on,target=native` (ADR-0020 D7).
+  Machine faults still surface as QEMU's own exit code (0x80|cause_bit), not
+  through SYS_EXIT.
 
 Instruction encodings from contracts/opcodes.yaml (SimRISC 0.5.3):
   Wyde positions: wp0=bits[15:0], wp1=bits[31:16], wp2=bits[47:32], wp3=bits[63:48]
@@ -26,21 +35,28 @@ import yaml
 # Constants
 # ---------------------------------------------------------------------------
 
-# Memory map (ADR-0004 D1)
-BINARY_BASE = 0xFFFF_0000_0000       # RAM entry point
-EXIT_PORT   = 0xFFFF_8000_0000       # Exit port address
-DUMP_BASE   = 0xFFFF_00FE_0000       # State-dump region base
+# Memory map (ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15): the single RAM
+# segment is at 0xFC00_0000_0000 (16 MiB, cfxha 63).
+BINARY_BASE = 0xFC00_0000_0000        # RAM entry point
+# SYS_EXIT argument block {reason, code} (ADR-0020 D8).  Writable RAM near the
+# top, above the downward-growing stack (SP starts at RAM + 0x00ff_0000).
+EXIT_BLOCK  = 0xFC00_00FD_0000        # SYS_EXIT argument-block address
+DUMP_BASE   = 0xFC00_00FE_0000        # State-dump region base
 DUMP_SIZE   = 0x408                  # 1032 bytes: rd[0]+rd[1..63]+rb[0]+rb[1..63]+pc
 RD_DUMP_OFF = 0x008                  # rd[1] starts at +0x008 (rd[0] slot at +0x000 is reserved)
 RB_DUMP_OFF = 0x208                  # rb[1] starts at +0x208 (rb[0] slot at +0x200 is reserved)
 PC_DUMP_OFF = 0x400                  # pc (rb0 via rb2rd→st.o-rd) at +0x400
+
+# Semihosting SYS_EXIT (contract-semihosting.md §1/§3/§5; ADR-0020 D1/D8)
+SEMIHOST_TAG = 0x30000               # immu18[17:16] == 2'b11 -> semihosting trap
+SYS_EXIT = 0x18                      # SYS_EXIT service number
+ADP_STOPPED_APPLICATION_EXIT = 0x20026
 
 # Register conventions (ADR-0009 D4)
 TEMP_RD     = 60                      # rd60: temp for loading expected values
 ACCUM_RD    = 61                      # rd61: XOR+ORR accumulator
 EXIT_RD     = 62                      # rd62: exit code / temp
 DUMP_RD     = 63                      # rd63: temp for dump
-TEMP_RB     = 60                      # rb60: exit port address
 MEM_RB      = 61                      # rb61: temp for memory address
 DUMP_RB     = 62                      # rb62: dump pointer
 
@@ -125,17 +141,27 @@ def encode_ld_o(rdha, rbhb, imms12):
     return (0x20 << 24) | (rdha << 18) | (rbhb << 12) | (imms12 & 0xFFF)
 
 def encode_swym():
-    """swym (oiii, op=0x00, ha=0x02). No-op / placeholder."""
-    return 0x00080000
+    """swym (oiii, op=0x77, ha=0x22). No-op / placeholder. word=0x77880000."""
+    return 0x77880000
 
-def encode_illi():
-    """illi (oiii, op=0x00, ha=0x00). Illegal instruction → ILLI fault (0x88)."""
-    return 0x00000000
+def encode_fence():
+    """fence 0 (oiii, op=0x77, ha=0x00). scope: excluded → ILLI fault (0x88).
+
+    0x77000000 现为 `fence 0`（ADR-0012 D3.5 删除了原专门非法指令、
+    `fence` 由 ha=0x01 移至 0x00）；`scope: excluded`，decode ILLI，用作 ILLI poison。
+    """
+    return 0x77000000
 
 def encode_jump_iiii(imms24):
     """jump imms24 (iiii, op=0x70). PC = rb0 + (imms24 << 2).
     Fields: imms24 split into 4 × 6-bit chunks at [23:18],[17:12],[11:6],[5:0]."""
     return (0x70 << 24) | (imms24 & 0xFFFFFF)
+
+def encode_trap(cfxha, immu18):
+    """trap cfxha, immu18 (ciii, op=0x7F).
+    Fields: cfxha[23:18], immu18[17:0].  immu18[17:16]==2'b11 selects the
+    semihosting short-circuit (contract-semihosting.md §1; ADR-0020 D1)."""
+    return (0x7F << 24) | (cfxha << 18) | (immu18 & 0x3FFFF)
 
 
 # Width lookup: mnemonic suffix -> (byte_width, encode_ld_fn)
@@ -212,6 +238,29 @@ def emit_load_imm64_rb(rb, value):
         words.append(encode_or_w_rb(rb, 2, w2))
     if w3 != 0:
         words.append(encode_or_w_rb(rb, 3, w3))
+    return words
+
+def emit_sys_exit(code_rd):
+    """Emit the semihosting SYS_EXIT epilogue (ADR-0020 D8).
+
+    Writes the 64-bit argument block {ADP_Stopped_ApplicationExit, code} to
+    EXIT_BLOCK in RAM, then issues
+        rd16 = 0x18 (SYS_EXIT); rb16 = EXIT_BLOCK; trap (semihosting tag).
+    `code_rd` is the register holding the exit code; its low byte becomes the
+    host process status (contract-semihosting.md §3/§5).  SYS_EXIT never
+    returns, so the emitted block must end the program.
+    """
+    words = []
+    # rb16 = EXIT_BLOCK (argument-block pointer)
+    words.extend(emit_load_imm64_rb(16, EXIT_BLOCK))
+    # block[0] = 0x20026 (ADP_Stopped_ApplicationExit)
+    words.extend(emit_load_imm64_rd(16, ADP_STOPPED_APPLICATION_EXIT))
+    words.append(encode_st_o_rd(16, 16, 0))
+    # block[1] = exit code (low byte = host status)
+    words.append(encode_st_o_rd(code_rd, 16, 8))
+    # rd16 = SYS_EXIT; trap with the semihosting tag
+    words.extend(emit_load_imm64_rd(16, SYS_EXIT))
+    words.append(encode_trap(0, SEMIHOST_TAG))
     return words
 
 # ---------------------------------------------------------------------------
@@ -325,12 +374,17 @@ def build_dumper_section():
 
 
 def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra=False):
-    """Build exit section: compare expected state and write exit code.
+    """Build exit section: compare expected state and report via SYS_EXIT.
 
-    For encoding/overlap class: write 0x00 (PASS) directly.
-    For semantic/boundary class: compare expected vs actual, write PASS/FAIL.
-    For legality class with expected_fault: write safety net FAIL (if fault
+    For encoding/overlap class: report 0x00 (PASS) directly.
+    For semantic/boundary class: compare expected vs actual, report PASS/FAIL.
+    For legality class with expected_fault: report safety-net FAIL (if fault
     doesn't happen, we want to know).
+
+    The exit channel is the semihosting SYS_EXIT service (ADR-0020 D8): the
+    epilogue writes {ADP_Stopped_ApplicationExit, code} to RAM and traps with
+    the semihosting tag, so the host `$?` is `code`'s low byte.  Machine faults
+    still surface as QEMU's own exit code (0x80|cause_bit).
 
     Args:
         loader_words: Number of 32-bit words in the loader section.
@@ -342,9 +396,6 @@ def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra
     words = []
     expected_state = vector_case.get("expected_state")
     expected_fault = vector_case.get("expected_fault")
-
-    # Set up exit port address in TEMP_RB
-    words.extend(emit_load_imm64_rb(TEMP_RB, EXIT_PORT))
 
     # Initialize accumulator
     words.extend(emit_load_imm64_rd(ACCUM_RD, 0))
@@ -425,38 +476,26 @@ def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra
                 # OR into accumulator
                 words.append(encode_or_o(ACCUM_RD, ACCUM_RD, TEMP_RD))
 
-    # Write exit code based on comparison result
+    # Report via SYS_EXIT based on the comparison result.
     if expected_fault:
         # Legality case: expect fault, safety net if fault doesn't happen
         words.extend(emit_load_imm64_rd(EXIT_RD, 1))  # FAIL code
-        words.append(encode_st_o_rd(EXIT_RD, TEMP_RB, 0))
+        words.extend(emit_sys_exit(EXIT_RD))
     elif dump_mode:
-        # Dump mode: spin instead of writing exit port
+        # Dump mode: spin instead of exiting
         # jump rb0, rd0, 0 -> spin at current PC
         words.append(encode_jump_rrii(0, 0, 0))
     else:
-        # Normal mode: compare and write exit code
-        # If ACCUM_RD != 0 -> FAIL
-        num_cmp_instrs = len(words)
-        # br.nz rd61, offset_to_fail
+        # Normal mode: compare and exit via SYS_EXIT
         # Layout:
-        #   [here] br.nz rd61, N    -> if != 0, jump to fail
-        #   [here+1] set.zw rd62, 0 -> PASS
-        #   [here+2] st.o rd62, rb60, 0 -> write 0x00
-        #   [here+3] jump rb0, rd0, M -> jump to done
-        #   [here+4] set.zw rd62, 1 -> FAIL
-        #   [here+5] st.o rd62, rb60, 0 -> write 0x01
-        #   [here+6] done
-        # br.nz offset = 4 (jump to [here+4])
-        words.append(encode_br_nz_rd(ACCUM_RD, 4))
-        # PASS
-        words.extend(emit_load_imm64_rd(EXIT_RD, 0))
-        words.append(encode_st_o_rd(EXIT_RD, TEMP_RB, 0))
-        # Jump over FAIL section (offset = 3 -> jump to [here+6])
-        words.append(encode_jump_rrii(0, 0, 3))
-        # FAIL
-        words.extend(emit_load_imm64_rd(EXIT_RD, 1))
-        words.append(encode_st_o_rd(EXIT_RD, TEMP_RB, 0))
+        #   [here]    br.nz rd61, N   -> if != 0, jump to FAIL block
+        #   [here+1]  PASS block: EXIT_RD = 0; SYS_EXIT
+        #   [here+1+N] FAIL block: EXIT_RD = 1; SYS_EXIT
+        pass_block = emit_load_imm64_rd(EXIT_RD, 0) + emit_sys_exit(EXIT_RD)
+        fail_block = emit_load_imm64_rd(EXIT_RD, 1) + emit_sys_exit(EXIT_RD)
+        words.append(encode_br_nz_rd(ACCUM_RD, len(pass_block)))
+        words.extend(pass_block)
+        words.extend(fail_block)
 
     return words
 
@@ -468,15 +507,15 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     delta = expected_pc - BINARY_BASE (ADR-0009 D6).
 
     TAKEN layout (delta=8):
-      [loader] [branch] [illi] [exit section]
-      - branch target (imm=2, PC+8) = illi+1 = exit section start → PASS
-      - if branch wrongly NOT taken → falls into illi → ILLI(0x88) → FAIL
+      [loader] [branch] [fence→ILLI poison] [exit section]
+      - branch target (imm=2, PC+8) = poison+1 = exit section start → PASS
+      - if branch wrongly NOT taken → falls into poison → ILLI(0x88) → FAIL
 
     NOT-TAKEN layout (delta=4):
-      [loader] [branch] [trampoline jump→exit] [illi] [exit section]
-      - branch target (imm=2, PC+8) = illi → ILLI(0x88) if wrongly taken
+      [loader] [branch] [trampoline jump→exit] [fence→ILLI poison] [exit section]
+      - branch target (imm=2, PC+8) = poison → ILLI(0x88) if wrongly taken
       - if branch correctly NOT taken → falls through to trampoline → jumps
-        over illi to exit section → PASS
+        over poison to exit section → PASS
 
     v5 branch base = instruction's own PC (Addr = rb0 + (imm<<2)).
     trampoline: jump-iiii with imms24=2 → target = PC + 8 = exit section.
@@ -514,15 +553,15 @@ def build_branch_test_binary(vector_case, dump_mode=False):
     words.extend(build_test_section(vector_case))
 
     if delta == 8:
-        # TAKEN: [branch] [illi] [exit section]
-        # branch jumps over illi to exit; not-taken falls into illi
-        words.append(encode_illi())
+        # TAKEN: [branch] [fence→ILLI poison] [exit section]
+        # branch jumps over poison to exit; not-taken falls into poison
+        words.append(encode_fence())
     elif delta == 4:
-        # NOT-TAKEN: [branch] [trampoline] [illi] [exit section]
-        # branch target = PC+8 = illi (poison)
-        # falls through → trampoline jumps over illi to exit
+        # NOT-TAKEN: [branch] [trampoline] [fence→ILLI poison] [exit section]
+        # branch target = PC+8 = poison
+        # falls through → trampoline jumps over poison to exit
         words.append(encode_jump_iiii(2))  # PC + (2<<2) = PC+8 = exit section
-        words.append(encode_illi())
+        words.append(encode_fence())
     else:
         raise ValueError(f"Unexpected delta={delta} (expected_pc={expected_pc}, BINARY_BASE=0x{BINARY_BASE:X})")
 
@@ -556,7 +595,7 @@ def build_call_ret_binary(vector_case, dump_mode=False):
       1. call at w0: push ra63=<1>(w1_addr), jump to w2
       2. ret at w2: pop ra63 → return addr = w1 → jump to w1
       3. jump at w1: jump to w3 (exit section)
-      4. exit section: compare expected_state, write exit port → PASS
+      4. exit section: compare expected_state, report PASS via SYS_EXIT
 
     Why this layout:
       - call pushes return address = call_addr + 4 = w1 (NOT w2, the target).
@@ -612,7 +651,7 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
         vector_case: Vector case dict from YAML
         trusted_instrs: (unused) Trusted instruction encodings from contracts/opcodes.yaml
             Kept for API compatibility with task spec; encodings are hardcoded in helpers.
-        dump_mode: If True, exit section spins instead of writing exit port
+        dump_mode: If True, exit section spins instead of exiting via SYS_EXIT
 
     Returns bytes to be loaded at BINARY_BASE.
     """
@@ -666,7 +705,7 @@ def main():
     parser.add_argument("--case", type=int, default=None,
                         help="Case index to build (0-based). If omitted, builds first semantic case.")
     parser.add_argument("--dump", action="store_true",
-                        help="Build in dump mode (spin after dumper, no exit port write)")
+                        help="Build in dump mode (spin after dumper, no SYS_EXIT)")
     parser.add_argument("-o", "--output", default=None,
                         help="Output binary file path")
     args = parser.parse_args()

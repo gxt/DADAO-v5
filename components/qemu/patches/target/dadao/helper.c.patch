@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000000..0dacd5b543
+index 0000000..d214ac5
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,152 @@
+@@ -0,0 +1,992 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -35,6 +35,8 @@ index 0000000000..0dacd5b543
 +#include "exec/target_page.h"
 +#include "accel/tcg/cpu-ldst.h"
 +#include "exec/helper-proto.h"
++#include "fpu/softfloat.h"
++#include "semihosting/common-semi.h"
 +
 +/* Map QEMU-internal exception index to ADR-0004 exit code */
 +static int dadao_excp_to_exit_code(int excp)
@@ -54,6 +56,8 @@ index 0000000000..0dacd5b543
 +        return DADAO_EXIT_IALIGN;     /* 0x8D */
 +    case DADAO_EXCP_UNMAPPED:
 +        return DADAO_EXIT_UNMAPPED;   /* 0x87 */
++    case DADAO_EXCP_CFXMEM:
++        return DADAO_EXIT_CFXMEM;     /* 0x81 (ADR-0020 D15) */
 +    default:
 +        return DADAO_EXIT_ILLI;       /* fallback */
 +    }
@@ -61,6 +65,24 @@ index 0000000000..0dacd5b543
 +
 +void dadao_cpu_do_interrupt(CPUState *cs)
 +{
++    /*
++     * Semihosting short-circuit (ADR-0020 D4/D5/D10; Machine-01 §5): the trap
++     * tag immu18[17:16] == 2'b11 is raised from the decode layer
++     * (trans_trap_ciii_cfx) as DADAO_EXCP_SEMIHOST.  Serve the call through
++     * the shared responder do_common_semihosting() and advance PC past the
++     * trap -- semihosting never enters a cfx vector and is not a fault (same
++     * shape as RISCV_EXCP_SEMIHOST).  cpu_loop_exit_restore has already set
++     * env->pc to the trapping instruction, so += 4 is the return step.
++     */
++    if (cs->exception_index == DADAO_EXCP_SEMIHOST) {
++        CPUDADAOState *env = cpu_env(cs);
++
++        do_common_semihosting(cs);
++        env->pc += 4;       /* no `escape`; return by stepping past the trap */
++        env->rb[0] = env->pc;
++        return;
++    }
++
 +    /*
 +     * M1: no guest exception handler. QEMU directly maps fault → exit code
 +     * and exits. Per ADR-0004 D6.1, this avoids pre-setting future exception
@@ -90,24 +112,19 @@ index 0000000000..0dacd5b543
 +    /*
 +     * M1: no MMU, 1:1 virtual-to-physical mapping.
 +     * Check if address falls within known regions:
-+     *   RAM:  0xffff_0000_0000 .. 0xffff_00ff_ffff (16 MiB)
-+     *   Exit: 0xffff_8000_0000 .. 0xffff_8000_0007 (8 B)
-+     *   ROM:  0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB)
-+     * Unmapped accesses cause UNMAPPED exception.
++     *   RAM:   0xFC00_0000_0000 .. +DADAO_RAM_SIZE (16 MiB, cfxha 63/power)
++     *   ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB)
++     * Unmapped/illegal accesses are classified per ADR-0020 D15 (see below).
 +     */
 +    uint64_t addr = address;
 +    int prot;
 +    hwaddr paddr;
 +
++    /* RAM (ADR-0004 R3 + rev. 2026-10-11): the single 16 MiB RAM at
++     * 0xFC00_0000_0000 (cfxha 63, power).  The legacy RAM segment and the
++     * exit-port device were removed in step2. */
 +    if (addr >= DADAO_RAM_BASE && addr < DADAO_RAM_BASE + DADAO_RAM_SIZE) {
 +        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
-+        paddr = addr;
-+        goto map;
-+    }
-+
-+    if (addr >= DADAO_EXIT_PORT_BASE &&
-+        addr < DADAO_EXIT_PORT_BASE + DADAO_EXIT_PORT_SIZE) {
-+        prot = PAGE_READ | PAGE_WRITE;
 +        paddr = addr;
 +        goto map;
 +    }
@@ -133,8 +150,22 @@ index 0000000000..0dacd5b543
 +        return false;
 +    }
 +
-+    /* Trigger unmapped access fault */
-+    cs->exception_index = DADAO_EXCP_UNMAPPED;
++    /*
++     * Machine-level fault classification (ADR-0020 D15 / ADR-0004 R3):
++     *  - inside the umon segment (cfxha 0), which now holds no RAM => illegal
++     *    access/fetch to the internal address space => CFXMEM (exit 0x81).
++     *  - addresses elsewhere (including the power segment 63) keep the
++     *    historical test-machine unmapped code 0x87 (ADR-0004 D5.8).
++     * Data accesses and instruction fetches are treated identically here: the
++     * fetch path reaches this function through get_page_addr_code ->
++     * cpu_ldl_code_mmu (MMU_INST_FETCH), so no `access_type` special case is
++     * needed and an out-of-range fetch never silently continues.
++     */
++    if (DADAO_ADDR_CFXHA(addr) == DADAO_CFXHA_UMON) {
++        cs->exception_index = DADAO_EXCP_CFXMEM;
++    } else {
++        cs->exception_index = DADAO_EXCP_UNMAPPED;
++    }
 +    cpu_loop_exit_restore(cs, retaddr);
 +    /* not reached */
 +    return false;
@@ -156,4 +187,812 @@ index 0000000000..0dacd5b543
 +    cs->exception_index = excp;
 +    cpu_loop_exit_restore(cs, GETPC());
 +}
-\ No newline at end of file
++
++/* ── Ring-buffer RA access helpers (ADR-0012 D7) ──────────────────── */
++
++/* Compute physical index for logical RA register n (1..63).
++ * ra0 is always at physical 0 (metadata). */
++static inline int ra_phys(CPUDADAOState *env, int n)
++{
++    if (n == 0) return 0;
++    int r = (env->ras_base + n) % 63;
++    if (r < 0) r += 63;
++    return 1 + r;
++}
++
++/* Store val into ra[logical_n] (ring-buffer view). */
++void helper_ra_store(CPUDADAOState *env, uint64_t logical_idx, uint64_t val)
++{
++    int phys = ra_phys(env, (int)logical_idx);
++    env->ra[phys] = val;
++}
++
++/* Load from ra[logical_n] (ring-buffer view). */
++uint64_t helper_ra_load(CPUDADAOState *env, uint64_t logical_idx)
++{
++    int phys = ra_phys(env, (int)logical_idx);
++    return env->ra[phys];
++}
++
++/* ── RAS push (ADR-0012 D7 §3) ───────────────────────────────────── */
++void helper_ras_push(CPUDADAOState *env, uint64_t ret_addr)
++{
++    uint64_t ra0 = env->ra[0];
++    int racnt = (int)((ra0 >> 48) & 0x3F);
++    uint64_t mrptr = ra0 & 0x0000FFFFFFFFFFFFULL;
++
++    /* Read stack top (logical 63) */
++    int top_phys = ra_phys(env, 63);
++    uint64_t top_val = env->ra[top_phys];
++    uint16_t top_hi = (uint16_t)(top_val >> 48);
++    uint64_t top_lo = top_val & 0x0000FFFFFFFFFFFFULL;
++
++    ret_addr &= 0x0000FFFFFFFFFFFFULL;
++
++    if (racnt == 0) {
++        /* C1: empty stack → push, RACNT = 1 */
++        env->ra[top_phys] = (1ULL << 48) | ret_addr;
++        env->ra[0] = (ra0 & ~0x003F000000000000ULL) | (1ULL << 48);
++        return;
++    }
++
++    if (ret_addr == top_lo && top_hi < 0xFFFF) {
++        /* C2: recursive fold */
++        env->ra[top_phys] = ((uint64_t)(top_hi + 1) << 48) | top_lo;
++        return;
++    }
++
++    if (racnt < 63) {
++        /* C3a: advance ras_base, push new entry, RACNT++ */
++        env->ras_base = (env->ras_base + 1) % 63;
++        int new_top = ra_phys(env, 63);
++        env->ra[new_top] = (1ULL << 48) | ret_addr;
++        env->ra[0] = (ra0 & ~0x003F000000000000ULL) | ((uint64_t)(racnt + 1) << 48);
++        return;
++    }
++
++    /* C3b: RACNT == 63, overflow path */
++    if (mrptr == 0) {
++        /* RASOF: precise — no side effects */
++        CPUState *cs = env_cpu(env);
++        cs->exception_index = DADAO_EXCP_RASOF;
++        cpu_loop_exit_restore(cs, GETPC());
++        return;
++    }
++
++    /* Spill bottom to MemRAS */
++    int bottom_phys = ra_phys(env, 1); /* logical 1 = 64-63 */
++    uint64_t bottom_val = env->ra[bottom_phys];
++    uint64_t new_mrptr = mrptr - 8;
++    /* Write to MemRAS (guest memory, big-endian) */
++    cpu_stq_be_data_ra(env, new_mrptr, bottom_val, GETPC());
++
++    /* Advance ras_base, write new entry */
++    env->ras_base = (env->ras_base + 1) % 63;
++    int new_top = ra_phys(env, 63);
++    env->ra[new_top] = (1ULL << 48) | ret_addr;
++
++    /* Update ra0: new MRPTR, RACNT stays 63 */
++    env->ra[0] = (ra0 & 0x003F000000000000ULL) | (new_mrptr & 0x0000FFFFFFFFFFFFULL);
++}
++
++/* ── RAS pop (ADR-0012 D7 §4) ────────────────────────────────────── */
++/* Pop return address from RAS. Result stored in env->ras_tmp. */
++void helper_ras_pop(CPUDADAOState *env)
++{
++    uint64_t ra0 = env->ra[0];
++    int racnt = (int)((ra0 >> 48) & 0x3F);
++    uint64_t mrptr = ra0 & 0x0000FFFFFFFFFFFFULL;
++
++    int top_phys = ra_phys(env, 63);
++    uint64_t top_val = env->ra[top_phys];
++    uint16_t top_hi = (uint16_t)(top_val >> 48);
++    uint64_t top_lo = top_val & 0x0000FFFFFFFFFFFFULL;
++
++    if (racnt > 0) {
++        if (top_hi == 0) {
++            /* D1: RASUF — precise, no side effects */
++            CPUState *cs = env_cpu(env);
++            cs->exception_index = DADAO_EXCP_RASUF;
++            cpu_loop_exit_restore(cs, GETPC());
++            return;
++        }
++
++        if (top_hi > 1) {
++            /* D2: decrement recursive count */
++            env->ra[top_phys] = ((uint64_t)(top_hi - 1) << 48) | top_lo;
++            env->ras_tmp = top_lo;
++            return;
++        }
++
++        /* D3: top_hi == 1 → pop, rotate ras_base backward */
++        env->ras_tmp = top_lo;
++        env->ras_base = (env->ras_base + 62) % 63;
++        env->ra[0] = (ra0 & ~0x003F000000000000ULL) | ((uint64_t)(racnt - 1) << 48);
++        return;
++    }
++
++    /* D4: RACNT == 0 */
++    if (mrptr == 0) {
++        /* D4a: RASUF */
++        CPUState *cs = env_cpu(env);
++        cs->exception_index = DADAO_EXCP_RASUF;
++        cpu_loop_exit_restore(cs, GETPC());
++        return;
++    }
++
++    /* D4b: read from MemRAS */
++    uint64_t mem_val = cpu_ldq_be_data_ra(env, mrptr, GETPC());
++    uint16_t mem_hi = (uint16_t)(mem_val >> 48);
++    uint64_t mem_lo = mem_val & 0x0000FFFFFFFFFFFFULL;
++
++    if (mem_hi == 0) {
++        /* Invalid entry → RASUF */
++        CPUState *cs = env_cpu(env);
++        cs->exception_index = DADAO_EXCP_RASUF;
++        cpu_loop_exit_restore(cs, GETPC());
++        return;
++    }
++
++    /* Commit: MRPTR += 8 */
++    env->ra[0] = (mrptr + 8) & 0x0000FFFFFFFFFFFFULL;
++
++    if (mem_hi == 1) {
++        /* D4b count==1: return address, RACNT stays 0 */
++        env->ras_tmp = mem_lo;
++        return;
++    }
++
++    /* D4b count>1: decrement, push to RegRAS, RACNT=1 */
++    int top_phys2 = ra_phys(env, 63);
++    env->ra[top_phys2] = ((uint64_t)(mem_hi - 1) << 48) | mem_lo;
++    env->ra[0] = (env->ra[0] & ~0x003F000000000000ULL) | (1ULL << 48);
++    env->ras_tmp = mem_lo;
++}
++
++/* ── FP softfloat conversion family (QEMU-036t) ──────────────────────── */
++/*
++ * First use of the upstream softfloat in the DADAO target.  A local
++ * float_status is built from the FCSR on every call (no CPUArchState field
++ * is added): the rf0[33:32] rounding mode is mapped to a softfloat round
++ * mode and accrued exception flags are merged back into rf0[4:0].
++ *
++ * Sources:
++ *   spec/SimRISC-07 §格式转换指令
++ *   .tao/knowledge/contract-fp.md §1/§2/§3/§4
++ *   spec/SimRISC-00 §浮点状态寄存器
++ */
++
++/* rf0[33:32] → softfloat rounding mode:
++ *   00 RNE, 01 RTZ, 10 RDN, 11 RUP  (SimRISC-00 §浮点状态寄存器) */
++static FloatRoundMode rf0_round_mode(uint64_t rf0)
++{
++    switch ((rf0 >> 32) & 0x3) {
++    case 0:
++        return float_round_nearest_even;
++    case 1:
++        return float_round_to_zero;
++    case 2:
++        return float_round_down;
++    default:
++        return float_round_up;
++    }
++}
++
++/* Build a local softfloat status from the current FCSR value. */
++static void fp_status_init(CPUDADAOState *env, float_status *st)
++{
++    memset(st, 0, sizeof(*st));
++    set_float_rounding_mode(rf0_round_mode(env->rf[0]), st);
++    set_float_detect_tininess(float_tininess_after_rounding, st);
++    /* Default generated qNaN = the FCSR qNaN(ft)/qNaN(fo) pattern (mantissa
++     * MSB set, rest zero ⇒ 0x7FC00000 / 0x7FF8000000000000).  memset() alone
++     * leaves default_nan_pattern == 0, which parts64_default_nan() rejects
++     * (the invalid-operation results of add/sub/mul/div/rem/scalb/sqrt would
++     * otherwise be malformed or abort the assert). */
++    set_float_default_nan_pattern(0b01000000, st);
++    /* 2-NaN propagation rule.  Which input NaN is propagated when both
++     * operands are NaN is implementation-defined: IEEE 754-2019 §6.2.3 only
++     * *recommends* the sNaN-first s_ab order, and SimRISC-07/contract-fp.md
++     * require merely "符合 IEEE 754" (payload selection is not specified).
++     * We match the current host (x86_64 scalar SSE, -mfpmath=sse): for
++     * +,-,*,/ with qNaN/sNaN operand pairs in both orders the host returns
++     * the FIRST operand's NaN (quieted if signalling) regardless of sNaN vs
++     * qNaN — i.e. float_2nan_prop_ab.  Without a rule here softfloat aborts
++     * (parts64_pick_nan g_assert_not_reached) as soon as any NaN operand
++     * reaches add/sub/mul/div/rem (ISS-195). */
++    set_float_2nan_prop_rule(float_2nan_prop_ab, st);
++}
++
++/* Merge the softfloat exception flags into the accrued FCSR status bits.
++ * softfloat's NV/DZ/OF/UF/NX occupy the low 5 bits, bit-for-bit identical to
++ * rf0[4:0], so the merge is a masked OR. */
++static void fp_status_commit(CPUDADAOState *env, float_status *st)
++{
++    env->rf[0] |= (uint64_t)(get_float_exception_flags(st) & 0x1F);
++}
++
++/* Only the IEEE invalid (NV) flag is propagated for float→int conversions.
++ * Per contract-fp.md §16 the spec does not say whether precision loss also
++ * raises NX, so we do not invent one: only the saturation/NV behaviour is
++ * observable. */
++static void fp_status_commit_nv_only(CPUDADAOState *env, float_status *st)
++{
++    env->rf[0] |= (uint64_t)(get_float_exception_flags(st) & float_flag_invalid);
++}
++
++/* convert_ff (float→float):
++ *   kind 0 ft2fo (widening, exact)
++ *   kind 1 fo2ft (narrowing, rf0 rounding mode; result zero-extended to 64b)
++ * ft is held in the low 32 bits of the rf register. */
++uint64_t helper_fp_cvt_ff(CPUDADAOState *env, uint64_t src, uint32_t kind)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    if (kind == 0) {
++        res = (uint64_t)float32_to_float64((float32)src, &st);
++    } else {
++        res = (uint64_t)(uint32_t)float64_to_float32((float64)src, &st);
++    }
++    fp_status_commit(env, &st);
++    return res;
++}
++
++/* convert_f2i (float→int): saturating, round-toward-zero, NV on NaN/Inf/
++ * out-of-range (spec §格式转换指令).  The 32-bit results are sign- or
++ * zero-extended to the 64-bit rd width following the SimRISC convention.
++ *
++ * kind: 0 ft2it, 1 ft2io, 2 ft2ut, 3 ft2uo,
++ *       4 fo2it, 5 fo2io, 6 fo2ut, 7 fo2uo */
++uint64_t helper_fp_cvt_f2i(CPUDADAOState *env, uint64_t src, uint32_t kind)
++{
++    float_status st;
++    uint64_t res;
++    float32 f32 = (float32)src;
++    float64 f64 = (float64)src;
++
++    fp_status_init(env, &st);
++    switch (kind) {
++    case 0:  /* ft2it */
++        res = (uint64_t)(int64_t)float32_to_int32_round_to_zero(f32, &st);
++        break;
++    case 1:  /* ft2io */
++        res = (uint64_t)float32_to_int64_round_to_zero(f32, &st);
++        break;
++    case 2:  /* ft2ut */
++        res = (uint64_t)(uint32_t)float32_to_uint32_round_to_zero(f32, &st);
++        break;
++    case 3:  /* ft2uo */
++        res = (uint64_t)float32_to_uint64_round_to_zero(f32, &st);
++        break;
++    case 4:  /* fo2it */
++        res = (uint64_t)(int64_t)float64_to_int32_round_to_zero(f64, &st);
++        break;
++    case 5:  /* fo2io */
++        res = (uint64_t)float64_to_int64_round_to_zero(f64, &st);
++        break;
++    case 6:  /* fo2ut */
++        res = (uint64_t)(uint32_t)float64_to_uint32_round_to_zero(f64, &st);
++        break;
++    default: /* fo2uo */
++        res = (uint64_t)float64_to_uint64_round_to_zero(f64, &st);
++        break;
++    }
++    fp_status_commit_nv_only(env, &st);
++    return res;
++}
++
++/* convert_i2f (int→float): rf0 rounding mode, IEEE flags (may be inexact).
++ * 32-bit source integers live in the low 32 bits of rd and are sign- or
++ * zero-extended according to signedness; ft results are zero-extended to 64b.
++ *
++ * kind: 0 it2ft, 1 io2ft, 2 ut2ft, 3 uo2ft,
++ *       4 it2fo, 5 io2fo, 6 ut2fo, 7 uo2fo */
++uint64_t helper_fp_cvt_i2f(CPUDADAOState *env, uint64_t src, uint32_t kind)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    switch (kind) {
++    case 0:  /* it2ft: int32 (sign-extend low 32) */
++        res = (uint64_t)(uint32_t)int32_to_float32((int32_t)(uint32_t)src, &st);
++        break;
++    case 1:  /* io2ft: int64 */
++        res = (uint64_t)(uint32_t)int64_to_float32((int64_t)src, &st);
++        break;
++    case 2:  /* ut2ft: uint32 */
++        res = (uint64_t)(uint32_t)uint32_to_float32((uint32_t)src, &st);
++        break;
++    case 3:  /* uo2ft: uint64 */
++        res = (uint64_t)(uint32_t)uint64_to_float32(src, &st);
++        break;
++    case 4:  /* it2fo */
++        res = (uint64_t)int32_to_float64((int32_t)(uint32_t)src, &st);
++        break;
++    case 5:  /* io2fo */
++        res = (uint64_t)int64_to_float64((int64_t)src, &st);
++        break;
++    case 6:  /* ut2fo */
++        res = (uint64_t)uint32_to_float64((uint32_t)src, &st);
++        break;
++    default: /* uo2fo */
++        res = (uint64_t)uint64_to_float64(src, &st);
++        break;
++    }
++    fp_status_commit(env, &st);
++    return res;
++}
++
++/* ── FP softfloat arithmetic + root family (QEMU-037t) ───────────────── */
++/*
++ * S2D1 (addition/subtraction/multiplication/division/remainder/scaleB) and
++ * S1D1 (square root) reused from the upstream softfloat.
++ *
++ * Sources:
++ *   spec/SimRISC-07 §S2D1 / §S1D1
++ *   .tao/knowledge/contract-fp.md §5/§6
++ *   spec/SimRISC-00 §浮点状态寄存器
++ *
++ * kind (helper_fp_arith): 0..5  = ft add/sub/mul/div/rem/scalb
++ *                         6..11 = fo add/sub/mul/div/rem/scalb
++ * The rf0 rounding mode and accrued flags are handled by fp_status_init() /
++ * fp_status_commit() exactly as for the conversion family.
++ */
++
++/* scaleB's second source is an integer-valued floating-point operand; the
++ * exponent n is its rounded integer value (spec §S2D1: "rfHD 取整数值").
++ * Softfloat's float-to-int conversion follows the same status rounding mode,
++ * so an inexact/exotic rfHD is reflected in the accrued flags. */
++uint64_t helper_fp_arith(CPUDADAOState *env, uint64_t a, uint64_t b,
++                         uint32_t kind)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    switch (kind) {
++    case 0:  /* ftadd */
++        res = (uint64_t)(uint32_t)float32_add((float32)a, (float32)b, &st);
++        break;
++    case 1:  /* ftsub */
++        res = (uint64_t)(uint32_t)float32_sub((float32)a, (float32)b, &st);
++        break;
++    case 2:  /* ftmul */
++        res = (uint64_t)(uint32_t)float32_mul((float32)a, (float32)b, &st);
++        break;
++    case 3:  /* ftdiv */
++        res = (uint64_t)(uint32_t)float32_div((float32)a, (float32)b, &st);
++        break;
++    case 4:  /* ftrem: IEEE 754 remainder (nearest quotient, ties to even) */
++        res = (uint64_t)(uint32_t)float32_rem((float32)a, (float32)b, &st);
++        break;
++    case 5:  /* ftsclb: rfHC * 2^rfHD */
++        res = (uint64_t)(uint32_t)float32_scalbn((float32)a,
++                                                 float32_to_int32((float32)b,
++                                                                  &st),
++                                                 &st);
++        break;
++    case 6:  /* foadd */
++        res = (uint64_t)float64_add((float64)a, (float64)b, &st);
++        break;
++    case 7:  /* fosub */
++        res = (uint64_t)float64_sub((float64)a, (float64)b, &st);
++        break;
++    case 8:  /* fomul */
++        res = (uint64_t)float64_mul((float64)a, (float64)b, &st);
++        break;
++    case 9:  /* fodiv */
++        res = (uint64_t)float64_div((float64)a, (float64)b, &st);
++        break;
++    case 10: /* forem */
++        res = (uint64_t)float64_rem((float64)a, (float64)b, &st);
++        break;
++    default: /* 11 fosclb */
++        res = (uint64_t)float64_scalbn((float64)a,
++                                       float64_to_int32((float64)b, &st),
++                                       &st);
++        break;
++    }
++    fp_status_commit(env, &st);
++    return res;
++}
++
++/* rootn(x, 2): the translate layer has already enforced n == 2 and selects
++ * the format via isdbl (0 = ft/float32, 1 = fo/float64). */
++uint64_t helper_fp_root(CPUDADAOState *env, uint64_t x, uint32_t isdbl)
++{
++    float_status st;
++    uint64_t res;
++
++    fp_status_init(env, &st);
++    if (isdbl) {
++        res = (uint64_t)float64_sqrt((float64)x, &st);
++    } else {
++        res = (uint64_t)(uint32_t)float32_sqrt((float32)x, &st);
++    }
++    fp_status_commit(env, &st);
++    return res;
++}
++
++/* ===================================================================
++ * SEE/HEE run mode + cfx register file + exception flow (QEMU-044t)
++ *
++ * Sources (spec-first):
++ *   spec/DADAO-12-SEE-主管系统运行环境.md §1 (run modes / cfxha table),
++ *     §3 (cg0-cg7 shared registers), §4 (per-cfx registers / monitor exception
++ *     tables), §5 (exception entry steps 1-10 + exception exit).
++ *   spec/DADAO-13-HEE-超管系统运行环境.md §1 (cg3 / hypv reset values).
++ *   spec/SimRISC-11-其它.md §特权指令 (trap/escape/cfx2rd/cfx2rc; reserved =>
++ *     ILLI; non-existent register combination => CFXREG).
++ *   .tao/knowledge/contract-see.md §1/§3/§4; spec/Machine-01-测试机运行环境.md.
++ *
++ * Test-machine scope (ADR-0020 D9, Machine-01 §3): only cfx0/1/2/3/63 are
++ * implemented; access to any other allocated-but-unimplemented cfx => CFXREG.
++ * =================================================================== */
++
++const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 63 };
++
++/* cfxha -> compact index into env->cfx[], or -1 if not implemented here. */
++static int cfx_idx(int cfxha)
++{
++    int i;
++    for (i = 0; i < DADAO_NUM_CFX; i++) {
++        if (dadao_cfxha_map[i] == cfxha) {
++            return i;
++        }
++    }
++    return -1;
++}
++
++/* cg0-cg3 (rc2..rc12) shared per-mode register -> pointer. */
++static uint64_t *cfx_mode_reg(int ci, DADAOCfxModeRegs *m, int rc)
++{
++    switch (rc) {
++    case 2:  return &m->cfx2rd_mask;
++    case 3:  return &m->cfx2rc_mask;
++    case 4:  return &m->cfxld_mask;
++    case 5:  return &m->cfxst_mask;
++    case 6:  return &m->trap_mask;
++    case 7:  return &m->escape_mask;
++    case 8:  return &m->switch_run_mode;
++    case 9:  return &m->switch_cfx_mask;
++    case 10: return &m->excp_vector;
++    case 11: return &m->excp_cause_mask;
++    case 12: return (ci >= 0) ? &m->cg_reg_deleg : NULL;   /* cg3 only */
++    default: return NULL;
++    }
++}
++
++/*
++ * Resolve (cfxha, cg, rc) to a register pointer.  Returns NULL for any
++ * non-existent register combination or a read/write permission mismatch
++ * (DADAO-12 §3: rc >= scratch_regs_num => CFXREG; SimRISC-11 §特权指令:
++ * "读写权限不匹配时触发 CFXREG").  cg3 is only accessible in hypv
++ * (DADAO-13 §1).  Callers must handle reserved/unimplemented cfxha first.
++ */
++static uint64_t *cfx_reg_ptr(CPUDADAOState *env, int ci, int cg, int rc,
++                             bool write)
++{
++    DADAOCfxRegs *r = &env->cfx[ci];
++
++    if (cg <= 2) {
++        if (rc == 0) {
++            return write ? NULL : &env->cfx_global_version[cg]; /* RO */
++        }
++        if (rc == 1) {
++            return &env->global_cfx_mask[cg]; /* global RW */
++        }
++        if (rc <= 11) {
++            return cfx_mode_reg(ci, &r->mode[cg], rc);
++        }
++        return NULL;
++    }
++    if (cg == 3) {
++        if (env->inner_run_mode != DADAO_MODE_HYPV) {
++            return NULL;   /* cg3 only in hypv (DADAO-13 §1) => CFXREG */
++        }
++        if (rc == 0) {
++            return write ? NULL : &env->cfx_global_version[3];
++        }
++        if (rc == 1) {
++            return &env->global_cfx_mask[3];
++        }
++        if (rc <= 12) {
++            return cfx_mode_reg(ci, &r->mode[3], rc);
++        }
++        return NULL;
++    }
++    switch (cg) {
++    case 4:
++        switch (rc) {
++        case 0: return write ? NULL : &r->cfx_id;
++        case 1: return write ? NULL : &r->version;
++        case 2: return write ? NULL : &r->trap_num;
++        case 3: return write ? NULL : &r->excp_sync_num;
++        case 4: return write ? NULL : &r->excp_async_num;
++        case 5: return write ? NULL : &r->escape_num;
++        case 6: return write ? NULL : &r->scratch_regs_num;
++        default: return NULL;
++        }
++    case 5:
++        switch (rc) {
++        case 0: return &r->prev_run_mode;
++        case 1: return &r->prev_cfx_mask;
++        case 2: return write ? NULL : &r->cause_id;
++        case 3: return &r->cause_ip;
++        case 4: return write ? NULL : &r->cause_info;
++        case 5: return &r->pending;
++        case 63: return write ? NULL : &r->cause_nonmaskable;
++        default: return NULL;
++        }
++    case 6:
++        if ((uint64_t)rc >= r->scratch_regs_num) {
++            return NULL;   /* rc >= N => CFXREG (DADAO-12 §3) */
++        }
++        return &r->scratch[rc];
++    case 7:
++        switch (rc) {
++        case 0: return &r->sram_block_sel;
++        case 1: return &r->sram_addr;
++        default: return NULL;
++        }
++    default:
++        return NULL;
++    }
++}
++
++/*
++ * DADAO-12 §5 exception-entry flow (steps 1-10).  `target` is the initially
++ * determined target cfxha (from step 1); `sync` selects the sync/async
++ * masking behaviour.  Returns the exception vector to jump to; *entered is
++ * set to false when the exception is masked and only records `pending`.
++ *
++ * Deviation note (documented): spec §5 step 3/4 "goto check_nonmaskable"
++ * after an ILLI redirect would re-apply the inner/global mask to the
++ * redirect target (the current-mode monitor) forever; hardware must terminate,
++ * so a single redirect is performed and the monitor (current-mode cfx0-3) is
++ * then entered without re-checking the inner/global mask.
++ */
++static uint64_t cfx_enter(CPUDADAOState *env, uint64_t cause, int target,
++                          uint64_t cause_ip, uint64_t cause_info,
++                          bool sync, bool *entered)
++{
++    uint8_t entry_mode = env->inner_run_mode;
++    bool redirected = false;
++    int ci;
++    uint64_t vec;
++
++    for (;;) {
++        ci = cfx_idx(target);
++        if (ci < 0) {
++            /* A frame can only exist for an implemented cfx. */
++            *entered = false;
++            return 0;
++        }
++        if (!redirected && !(env->cfx[ci].cause_nonmaskable & cause)) {
++            /* step 3: inner_cfx_mask (self cfxha is not checked) */
++            if (target != env->inner_cfx_code &&
++                (env->inner_cfx_mask & (1ULL << target))) {
++                if (sync) {
++                    cause = DADAO_CAUSE_ILLI;
++                    target = entry_mode;      /* redirect to current monitor */
++                    redirected = true;
++                    continue;
++                }
++                env->cfx[ci].pending |= cause;
++                *entered = false;
++                return 0;
++            }
++            /* step 4: global_cfx_mask (self cfxha is not checked) */
++            if (target != env->inner_cfx_code &&
++                (env->global_cfx_mask[entry_mode] & (1ULL << target))) {
++                if (sync) {
++                    cause = DADAO_CAUSE_ILLI;
++                    target = entry_mode;
++                    redirected = true;
++                    continue;
++                }
++                env->cfx[ci].pending |= cause;
++                *entered = false;
++                return 0;
++            }
++            /* step 5: exception-cause mask */
++            if (env->cfx[ci].mode[entry_mode].excp_cause_mask & cause) {
++                env->cfx[ci].pending |= cause;
++                *entered = false;
++                return 0;
++            }
++        }
++        break;
++    }
++
++    /* step 6: increment the trap / sync / async counter (keyed on the
++     * (possibly redirected) cause, per §5 step 6). */
++    if (cause == DADAO_CAUSE_CFXTRAP) {
++        env->cfx[ci].trap_num++;
++    } else if (!sync) {
++        env->cfx[ci].excp_async_num++;
++    } else {
++        env->cfx[ci].excp_sync_num++;
++    }
++    /* step 7: save the previous run mode / cfx mask */
++    env->cfx[ci].prev_run_mode = entry_mode;
++    env->cfx[ci].prev_cfx_mask = env->inner_cfx_mask;
++    /* step 8: switch run mode / cfx mask to the <entry_mode> switch values */
++    vec = env->cfx[ci].mode[entry_mode].excp_vector;
++    env->inner_run_mode = env->cfx[ci].mode[entry_mode].switch_run_mode & 0x3;
++    env->inner_cfx_mask = env->cfx[ci].mode[entry_mode].switch_cfx_mask;
++    env->inner_cfx_code = (uint8_t)target;
++    /* step 9: record cause ip / id / info */
++    env->cfx[ci].cause_ip = cause_ip;
++    env->cfx[ci].cause_id = cause;
++    env->cfx[ci].cause_info = cause_info;
++    /* step 10: jump to the exception vector */
++    *entered = true;
++    return vec;
++}
++
++/* Enter the flow and set the next PC (vector on entry, pc+4 when masked). */
++static void cfx_raise(CPUDADAOState *env, uint64_t cause, int target,
++                      uint64_t pc, uint64_t cause_info)
++{
++    bool entered;
++    uint64_t vec = cfx_enter(env, cause, target, pc, cause_info, true, &entered);
++    env->pc = entered ? vec : pc + 4;
++    env->rb[0] = env->pc;
++}
++
++/* trap cfxha, immu18 : general trap (immu18[17:16] != 2'b11) -> §5 flow.
++ * Semihosting (immu18[17:16] == 2'b11) is handled by the decode-layer
++ * short-circuit (trans_trap_ciii_cfx -> DADAO_EXCP_SEMIHOST, QEMU-046t) and
++ * therefore never reaches this helper; the tag check below is a defensive
++ * explicit failure only. */
++void helper_cfx_trap(CPUDADAOState *env, uint32_t cfxha, uint32_t immu18,
++                     uint64_t pc)
++{
++    uint64_t info = ((uint64_t)0x7F << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
++                    (uint64_t)(immu18 & 0x3FFFF);
++    uint64_t cause;
++    int target;
++    int ci;
++
++    if (((immu18 >> 16) & 0x3) == 0x3) {
++        /* Semihosting tag (immu18[17:16] == 2'b11, QEMU-046t): short-circuited
++         * at the decode layer (trans_trap_ciii_cfx -> DADAO_EXCP_SEMIHOST) and
++         * must never reach this general-trap helper.  Fail explicitly (ILLI)
++         * if it does, rather than silently entering a cfx vector. */
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (DADAO_CFX_IS_RESERVED(cfxha)) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    ci = cfx_idx(cfxha);
++    if (ci < 0) {
++        /* allocated but not implemented by the test machine => CFXREG */
++        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (cfxha != env->inner_cfx_code &&
++        (env->cfx[ci].mode[env->inner_run_mode].trap_mask & (1ULL << cfxha))) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    target = cfxha;
++    cause = DADAO_CAUSE_CFXTRAP;
++
++    {
++        bool entered;
++        uint64_t vec = cfx_enter(env, cause, target, pc, info, true, &entered);
++        env->pc = entered ? vec : pc + 4;
++        env->rb[0] = env->pc;
++    }
++}
++
++/* escape cfxha, imms18 : §5 exception-exit flow (steps 0-4).  State is taken
++ * from the current cfx (inner_cfx_code); the target cfxha only participates in
++ * the escape-mask check (cross-cfx escape). */
++void helper_cfx_escape(CPUDADAOState *env, uint32_t cfxha, uint32_t imms18,
++                       uint64_t pc)
++{
++    uint8_t mode = env->inner_run_mode;
++    int ci = cfx_idx(env->inner_cfx_code);
++    int32_t imm = (int32_t)(imms18 & 0x3FFFF);
++
++    if (imm & (1 << 17)) {
++        imm |= ~0x1FFFF;    /* sign-extend from 18 bits */
++    }
++
++    /* step 0: escape cfx mask (non-self target only) */
++    if (ci < 0 || (cfxha != env->inner_cfx_code &&
++                   (env->cfx[ci].mode[mode].escape_mask & (1ULL << cfxha)))) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, mode, pc, 0);
++        return;
++    }
++
++    /* step 1: restore cfx mask; step 2: restore run mode */
++    env->inner_cfx_mask = env->cfx[ci].prev_cfx_mask;
++    env->inner_run_mode = env->cfx[ci].prev_run_mode & 0x3;
++    /* step 3: increment the escape counter */
++    env->cfx[ci].escape_num++;
++    /* step 4: return address = cause_ip + (imms18 << 2) */
++    {
++        uint64_t ret = env->cfx[ci].cause_ip + ((int64_t)imm << 2);
++        env->pc = ret;
++        env->rb[0] = ret;
++    }
++}
++
++/* cfx2rd cfxha, cghb, rchc, rdhd */
++void helper_cfx2rd(CPUDADAOState *env, uint32_t cfxha, uint32_t cg,
++                   uint32_t rc, uint32_t rd, uint64_t pc)
++{
++    uint64_t info = ((uint64_t)0x7A << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
++                    ((uint64_t)(cg & 0x3F) << 12) | ((uint64_t)(rc & 0x3F) << 6) |
++                    (rd & 0x3F);
++    uint64_t *p;
++    int ci;
++
++    if (DADAO_CFX_IS_RESERVED(cfxha)) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    ci = cfx_idx(cfxha);
++    if (ci >= 0 && cfxha != env->inner_cfx_code &&
++        (env->cfx[ci].mode[env->inner_run_mode].cfx2rd_mask & (1ULL << cfxha))) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (ci < 0) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
++    p = cfx_reg_ptr(env, ci, cg, rc, false);
++    if (!p) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++        return;
++    }
++    if (rd != 0) {
++        env->rd[rd] = *p;
++    }
++    env->pc = pc + 4;
++    env->rb[0] = pc + 4;
++}
++
++/* cfx2rc cfxha, cghb, rchc, rdhd */
++void helper_cfx2rc(CPUDADAOState *env, uint32_t cfxha, uint32_t cg,
++                   uint32_t rc, uint32_t rd, uint64_t pc)
++{
++    uint64_t info = ((uint64_t)0x7B << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
++                    ((uint64_t)(cg & 0x3F) << 12) | ((uint64_t)(rc & 0x3F) << 6) |
++                    (rd & 0x3F);
++    uint64_t *p;
++    int ci;
++
++    if (DADAO_CFX_IS_RESERVED(cfxha)) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    ci = cfx_idx(cfxha);
++    if (ci >= 0 && cfxha != env->inner_cfx_code &&
++        (env->cfx[ci].mode[env->inner_run_mode].cfx2rc_mask & (1ULL << cfxha))) {
++        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (ci < 0) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
++    p = cfx_reg_ptr(env, ci, cg, rc, true);
++    if (!p) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, cfxha, pc, info);
++        return;
++    }
++    *p = (rd == 0) ? 0 : env->rd[rd];
++    env->pc = pc + 4;
++    env->rb[0] = pc + 4;
++}

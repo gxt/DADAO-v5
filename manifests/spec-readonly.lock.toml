@@ -1,0 +1,161 @@
+format = 1
+# 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
+# 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
+policy = "readonly-requires-authorization"
+
+# 2026-10-12（SPEC-134t，用户 2026-10-11 裁定「对 spec 目录下的 SimRISC-* 和 DADAO-* 文档，增加一个结尾的
+#   Changelog…」）：21 册文末追加「## 附录：版本与变更记录」；19 册册头版本行加 `-rc`
+#   （SimRISC-00..12=0.5.5-rc、AEE/ABI=0.9.3-rc、SEE/SBI=0.7.2-rc、HEE/HBI=0.1.3-rc；
+#   Toolchain-01/Machine-01 本次不变号）+ Toolchain/Machine 版本号细则 `x=0` 口径回改；
+#   册内语义不变（仅追加附录 + 册头版本行/细则）；21 册 sha256 于同一变更内同步重算。
+#   返工 1（SPEC-134t，同授权内）：Toolchain-01 §0.2.2 段补「全量删除 rela.si」条目（reviewer B1，
+#   与 git 史——含改名前的 docs/spec/assembly-language.md——核对后补齐）；DADAO 六册基线段补导入日
+#   2026-07-14；Toolchain-01/Machine-01 册头「文末 changelog」措辞改为「附录：版本与变更记录」
+#   （reviewer N2）；上述 8 册 sha256 于同一变更内同步重算。
+
+# 清单 = 21 册只读册 = 20 册上游只读册（用户 2026-10-07 全选）+ 1 册 v5 自定册（spec/Machine-01，2026-10-08 纳入）：
+#   dadao-1x   DADAO-11/12/13
+#   dadao-2x   DADAO-21/22/23
+#   simrisc    SimRISC-00..12
+#   toolchain  Toolchain-01
+#   machine-01 Machine-01（v5 自定）
+# sha256 = 工作树基线（还原后）逐册实测；由 make check-spec-readonly 校验。
+# 注意：spec/Machine-01 已于 2026-10-08 纳入本锁（用户授权）；docs/Process-0x、
+# spec/README.md 为 v5 自定册，不在本锁内——其修订由 Process-06 §2 的授权流程约束。
+
+[[spec]]
+path = "spec/SimRISC-00-指令系统设计.md"
+group = "simrisc-00..12"
+sha256 = "94cac249d5992f076dde378fa66027247c0be8ae8dc8cf6a400bef6e4816ad74"
+
+[[spec]]
+path = "spec/SimRISC-01-取数存数.md"
+group = "simrisc-00..12"
+sha256 = "0b142635e462c2bc774630434d54da578e06d3965fb8009d88cc308f0fa54f1f"
+
+[[spec]]
+path = "spec/SimRISC-02-寄存器复制.md"
+group = "simrisc-00..12"
+sha256 = "ecce63bea40283e9067b4dde7de89b29cbc436ca056c54668e42641e4d29b1d2"
+
+[[spec]]
+path = "spec/SimRISC-03-16位立即数操作.md"
+group = "simrisc-00..12"
+sha256 = "d59f4b124621c31945525d5d5a964949f7486f86db560cac228dc5c8780d3968"
+
+[[spec]]
+path = "spec/SimRISC-04-64位数据运算.md"
+group = "simrisc-00..12"
+sha256 = "fe1992e2d9ab19a628f35cd573d6dfdee86298b9711d2f875d5c143404394236"
+
+[[spec]]
+path = "spec/SimRISC-05-64位地址运算.md"
+group = "simrisc-00..12"
+sha256 = "cb67f19a3c24d059c799bf0bb42250b04bee866b4c84e2f0302119f930e744ce"
+
+[[spec]]
+path = "spec/SimRISC-06-控制流.md"
+group = "simrisc-00..12"
+sha256 = "393511a4d94dd51f7e5e45ca7e2ebf9306d051e516fad70b6b872e00bdd5d5fe"
+
+[[spec]]
+path = "spec/SimRISC-07-浮点运算.md"
+group = "simrisc-00..12"
+sha256 = "d5bbe35e4cedc23a174cc5d83569214de56055253ea84da68d6bd3cc472eb764"
+
+[[spec]]
+path = "spec/SimRISC-08-32位数据运算.md"
+group = "simrisc-00..12"
+sha256 = "6cd7ad333b967846f9c4b6076adfea4a65f9afadb901991867e6ffe1f11377b9"
+
+[[spec]]
+path = "spec/SimRISC-09-16位数据运算.md"
+group = "simrisc-00..12"
+sha256 = "fb9212f75982f188430b2107fc3ea318d022fa7eb4e269fb1238d6a7aa0eeb31"
+
+[[spec]]
+path = "spec/SimRISC-10-8位数据运算.md"
+group = "simrisc-00..12"
+sha256 = "da2475714f56370a8c3fb5116b853146c0d8b38c76f509c691e3bb0e3426e5a5"
+
+[[spec]]
+path = "spec/SimRISC-11-其它.md"
+group = "simrisc-00..12"
+sha256 = "0f6d2fd4029b65b179de25ca90ea1cc6004d414b0f7a46dd793689ea158a6ad5"
+
+[[spec]]
+path = "spec/SimRISC-12-待定.md"
+group = "simrisc-00..12"
+sha256 = "904a51d16749b777a2c7a05da2b3116b2f321b657e224e3781f4d95c48c16d3a"
+
+[[spec]]
+path = "spec/DADAO-11-AEE-应用程序运行环境.md"
+group = "dadao-1x"
+sha256 = "317b01ba3c29ff5b1edc03a63fc324394905c7025ed4a779c85c2a837ac634fc"
+
+[[spec]]
+path = "spec/DADAO-12-SEE-主管系统运行环境.md"
+group = "dadao-1x"
+sha256 = "bd07f59b53735594cbd1fdb63969e35d5c9399ff199b4b41dcaef2e8966f4fb9"
+
+[[spec]]
+path = "spec/DADAO-13-HEE-超管系统运行环境.md"
+group = "dadao-1x"
+sha256 = "7a4779fbab72d4bf177fa4015aa5db7fad3faa4cb910dab7c201f8a103dd52eb"
+
+[[spec]]
+path = "spec/DADAO-21-ABI-应用程序二进制接口.md"
+group = "dadao-2x"
+# 2026-10-09（SPEC-124t，用户授权改册「不立 ADR，但要修改 spec，然后重新生成 contract」）：
+# 返回值寄存器 rd31/rb31/rf31 → rd8/rb8/rf8，多返回值/聚合按声明顺序自 8 递增、每 bank K=8。
+# 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：系统调用规范返回值 RD31 → RD8（§系统调用规范）。
+# 2026-10-09（SPEC-127t，用户裁定 B「hfa/hpa也调整为：最多消耗 8个寄存器槽位（64字节）」+「B，补充spec」）：
+# §传参 §聚合类型参数 —— 通用/HFA/HPA 统一「最多消耗 8 个寄存器槽位（64 字节）」；计数检查 ≤4 → ≤8；
+# 「不满足 HFA/HPA」阈值 ≤32B 拆 RD 块 / >32B 间接指针 → ≤64B / >64B 间接指针。
+# 2026-10-09（SPEC-128t，用户裁定「把fp改为rb63…rb63自身就是callee saved」「rb4-rb7 作为 caller saved regs…rbgp/rbtp 改为 rb2/rb3」「只放开 rd4-rd7，rd2 和 rd3…调试/测试保留」；「不立 ADR，只改册+契约」）：
+# §寄存器规范 —— rb2=GP、rb3=TP、rb4–rb7=temporary、rb32–rb62=callee saved、rb63=rbfp（条件占用）；
+# rd2–rd3=reserved（调试/测试保留）、rd4–rd7=temporary；RF 表不变。
+sha256 = "536f701acbb88e5aaecfe828757be5a02b74e7a6ec30d4c4f224c746c0126665"
+
+[[spec]]
+path = "spec/DADAO-22-SBI-主管系统二进制接口.md"
+group = "dadao-2x"
+# 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：SBI 各 cfx 服务返回 rd31 → rd8（返回表 + 代码示例）。
+# 2026-10-09（SPEC-129t，用户裁定 8）：示例 5 处 rb3 当 scratch（改布局后 rb3=TP）→ 真临时寄存器 rb8
+# （§4 cfx_ptw 各 dispatch 的 set.rb/jump 中转）；仅改示例寄存器选择，其余口径不动。
+sha256 = "95c406c8783160db063820b039d42c0e90c4ceeb1d11a066bf8ff36d3118088b"
+
+[[spec]]
+path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
+group = "dadao-2x"
+# 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：HBI 服务返回 rd31 → rd8（HBI_GET_VERSION）。
+sha256 = "5823faa3c937b111d9611bd81df67a09b7693cf7ef4cce9ecab5ff383606dd4d"
+
+[[spec]]
+path = "spec/Toolchain-01-汇编语言.md"
+group = "toolchain-01"
+# 2026-10-09（SPEC-129t，用户裁定「消除写死」+「台账 + 门控清单，ADR 只指向（推荐）」）：
+# §5「scope: excluded」格式列表改为仅 crii（crrr/ciii 注明 m1）；§13「cfx 属 excluded」改为
+# cfx2rd/cfx2rc/trap/escape=m1、cfxld/cfxst=excluded；§11/§12 内容移出（指针 → contract-asm.md §11 /
+# spec/README.md 门控列）；消除写死计数（M1 格式类数/指令条数改为指向 contracts/opcodes.yaml）。
+# 2026-10-10（SPEC-130t，用户裁定数据指示符口径：只留 .dd.b08/.dd.w16/.dd.t32/.dd.o64、
+# .byte/.short/.long/.quad/.word/.octa 全禁、删 .align 只留 .p2align、.dd.128 暂不加、不立 ADR）：
+# §7 重写为 §7.1「数据指示符（唯一集合）」+ §7.2「对齐指示符」；删过时「v5 汇编器尚未实现」表述。
+# 2026-10-11（INFRA-060t，用户裁定「不用退回到历史状态，直接用新的版本号，然后写清楚 Changelog」）：
+# 册头状态行版本号 v1.1 → 0.5.0 + 文末 changelog（册内语义不变）。
+# 2026-10-11（INFRA-063t，用户裁定「产物细则写在该文档里…放在文件头部，简要几列就可以记录很清楚」）：
+# 册头补 2 行「版本号 / changelog 细则」（约定声明，册内语义不变）。
+sha256 = "7ea766ccd94ffdf86984d0fdeb2913b6d59277f027571c0446aacc6e06380ae1"
+
+[[spec]]
+path = "spec/Machine-01-测试机运行环境.md"
+group = "machine-01"
+# 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：semihosting 返回 rd31 → rd8（§5.2/§5.4；指针返回 rb31 → rb8）。
+# 2026-10-09（QEMU-053t，用户裁定「RAM@0 收口 + 删 exit port」）：§1.1 删旧 RAM 段与 exit-port 行、
+# 「并存/过渡」表述改为「RAM@0 唯一 RAM 段」；§1.2 去「并存」；§5.5/§7 记 exit-port 已删。
+# 2026-10-11（INFRA-060t，用户裁定同上）：册头状态行新增版本号 0.2.1 + 文末 changelog（册内语义不变）。
+# 2026-10-11（QEMU-056t，用户裁定 `INTEG-033k #10`「RAM 改为 0xFC00_0000_0000；16 MiB 够用不改大」）：
+# §1.1 唯一 RAM 段基址全 0 → 0xFC00_0000_0000（cfxha 63）；册头版本号 0.2.1 → 0.3.0 + changelog（用户授权就地改 spec + 同步锁）。
+# 2026-10-11（INFRA-063t，用户裁定同上「产物细则写在该文档里…放在文件头部」）：
+# 册头补 2 行「版本号 / changelog 细则」（约定声明，册内语义不变）。
+sha256 = "47c06ffdc37dd039f5e08e0fd7643ec5ed3507cfb957ac1f82b9d9ddf4725913"

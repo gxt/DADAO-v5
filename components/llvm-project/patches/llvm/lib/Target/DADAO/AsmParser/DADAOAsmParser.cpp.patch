@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000000..90db68ae6371
+index 000000000..3c8f33044
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,1084 @@
+@@ -0,0 +1,2423 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,8 +16,8 @@ index 000000000000..90db68ae6371
 +//
 +// New assembly syntax (assembly-language.md):
 +//   Register groups: {rd8}, {rd8:rd11}, {rd8, rd9}, {rd8, rd0}?
-+//   Address expressions: [rb2, 1], [rb0, 2i], [rb3, rd0, 24i]
-+//   Unit suffix 'i': instruction-word offset (4 bytes per unit)
++//   Address expressions: [rb2, 1], [rb0, 16], [rb3, rd0, 64]
++//   Address immediates are byte offsets (no unit suffix); must be %4==0
 +//   Condition marker '?': after }
 +//
 +//===----------------------------------------------------------------------===//
@@ -26,6 +26,7 @@ index 000000000000..90db68ae6371
 +#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +#include "TargetInfo/DADAOTargetInfo.h"
 +#include "llvm/ADT/STLExtras.h"
++#include "llvm/ADT/StringSwitch.h"
 +#include "llvm/MC/MCAsmInfo.h"
 +#include "llvm/MC/MCContext.h"
 +#include "llvm/MC/MCExpr.h"
@@ -36,10 +37,12 @@ index 000000000000..90db68ae6371
 +#include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 +#include "llvm/MC/MCParser/MCTargetAsmParser.h"
 +#include "llvm/MC/MCRegister.h"
++#include "llvm/MC/MCRegisterInfo.h"
 +#include "llvm/MC/MCStreamer.h"
 +#include "llvm/MC/MCSubtargetInfo.h"
 +#include "llvm/MC/MCTargetOptions.h"
 +#include "llvm/MC/TargetRegistry.h"
++#include "llvm/Support/MathExtras.h"
 +#include "llvm/Support/raw_ostream.h"
 +
 +using namespace llvm;
@@ -59,10 +62,12 @@ index 000000000000..90db68ae6371
 +// DADAOOperand — represents a parsed assembly operand.
 +//
 +// In addition to the basic kinds (token, register, immediate), we add:
++//   kWydePos      — wp0/wp1/wp2/wp3 (explicit wyde-position token; distinct
++//                   from a bare immediate so that numeric 0-3 is rejected)
 +//   kRegGroup     — {rd8:rd11} or {rd8} (decomposed to flat operands)
 +//   kRegGroupCond — {rd8, rd0}? or {rd3}? (condition marker)
 +//   kRegPair      — {rd8, rd9} (dual-purpose, no ?)
-+//   kAddress      — [rb2, 1] or [rb0, 2i] or [rb3, rd0, 24i]
++//   kAddress      — [rb2, 1] or [rb0, 16] or [rb3, rd0, 64]
 +//
 +// At matchAndEmitInstruction time, complex operands are decomposed into
 +// the flat register/immediate operands expected by the auto-generated
@@ -75,10 +80,14 @@ index 000000000000..90db68ae6371
 +    kToken,
 +    kRegister,
 +    kImmediate,
++    kWydePos,       // wp0/wp1/wp2/wp3 (only from parseWydePosToken)
 +    kRegGroup,      // {start:end} or {single}
 +    kRegGroupCond,  // {...}?
 +    kRegPair,       // {rd, rd} (no ?)
-+    kAddress        // [base, offset] or [base, reg, offset]
++    kAddress,       // [base, offset] or [base, reg, offset]
++    kCfxha,         // cfx<ha> / cfx_<name> (6-bit cfx code; crrr/ciii)
++    kCfxCg,         // cg<N> (cfx cg code; crrr)
++    kCfxRc          // rc<N> (cfx rc code; crrr)
 +  } Kind;
 +
 +private:
@@ -97,13 +106,11 @@ index 000000000000..90db68ae6371
 +  MCRegister AddrIndex; // 0 if not present
 +  int64_t AddrOffset;
 +  const MCExpr *AddrOffsetExpr;
-+  // For kAddress: whether the offset uses 'i' suffix (instruction-word unit).
-+  bool AddrIsInsnOffset;
 +
 +public:
 +  DADAOOperand(KindTy K)
 +      : Kind(K), ImmVal(0), ImmExpr(nullptr), GroupCount(0),
-+        AddrOffset(0), AddrOffsetExpr(nullptr), AddrIsInsnOffset(false) {}
++        AddrOffset(0), AddrOffsetExpr(nullptr) {}
 +
 +  // Factory methods for basic kinds.
 +  static std::unique_ptr<DADAOOperand> createToken(StringRef T, SMLoc L) {
@@ -138,6 +145,43 @@ index 000000000000..90db68ae6371
 +    Op->ImmVal = 0;
 +    Op->StartLoc = L;
 +    Op->EndLoc = EL;
++    return Op;
++  }
++
++  // Factory for an explicit wyde-position token (wp0/wp1/wp2/wp3).  It is a
++  // distinct kind from a bare immediate so the wydepos predicate can reject
++  // numeric 0-3 (LLVM-045t / ISS-128).
++  static std::unique_ptr<DADAOOperand> createWydePos(int64_t Val, SMLoc L,
++                                                     SMLoc E) {
++    auto Op = std::make_unique<DADAOOperand>(kWydePos);
++    Op->ImmVal = Val;
++    Op->StartLoc = L;
++    Op->EndLoc = E;
++    return Op;
++  }
++
++  // Factory for a cfx field operand (cfxha / cg / rc; crrr/ciii, LLVM-060t).
++  // Distinct kinds from a bare immediate so a numeric literal is rejected and
++  // so the three fields cannot be silently interchanged in the matcher.
++  static std::unique_ptr<DADAOOperand> createCfxha(int64_t Val, SMLoc L) {
++    auto Op = std::make_unique<DADAOOperand>(kCfxha);
++    Op->ImmVal = Val;
++    Op->StartLoc = L;
++    Op->EndLoc = L;
++    return Op;
++  }
++  static std::unique_ptr<DADAOOperand> createCfxCg(int64_t Val, SMLoc L) {
++    auto Op = std::make_unique<DADAOOperand>(kCfxCg);
++    Op->ImmVal = Val;
++    Op->StartLoc = L;
++    Op->EndLoc = L;
++    return Op;
++  }
++  static std::unique_ptr<DADAOOperand> createCfxRc(int64_t Val, SMLoc L) {
++    auto Op = std::make_unique<DADAOOperand>(kCfxRc);
++    Op->ImmVal = Val;
++    Op->StartLoc = L;
++    Op->EndLoc = L;
 +    return Op;
 +  }
 +
@@ -178,12 +222,11 @@ index 000000000000..90db68ae6371
 +  // Factory for address expression: [base, offset] or [base, reg, offset].
 +  static std::unique_ptr<DADAOOperand>
 +  createAddress(MCRegister Base, MCRegister Index, int64_t Offset,
-+                bool IsInsnOffset, SMLoc Start, SMLoc End) {
++                SMLoc Start, SMLoc End) {
 +    auto Op = std::make_unique<DADAOOperand>(kAddress);
 +    Op->AddrBase = Base;
 +    Op->AddrIndex = Index;
 +    Op->AddrOffset = Offset;
-+    Op->AddrIsInsnOffset = IsInsnOffset;
 +    Op->StartLoc = Start;
 +    Op->EndLoc = End;
 +    return Op;
@@ -191,13 +234,12 @@ index 000000000000..90db68ae6371
 +
 +  static std::unique_ptr<DADAOOperand>
 +  createAddress(MCRegister Base, MCRegister Index, const MCExpr *OffsetExpr,
-+                bool IsInsnOffset, SMLoc Start, SMLoc End) {
++                SMLoc Start, SMLoc End) {
 +    auto Op = std::make_unique<DADAOOperand>(kAddress);
 +    Op->AddrBase = Base;
 +    Op->AddrIndex = Index;
 +    Op->AddrOffsetExpr = OffsetExpr;
 +    Op->AddrOffset = 0;
-+    Op->AddrIsInsnOffset = IsInsnOffset;
 +    Op->StartLoc = Start;
 +    Op->EndLoc = End;
 +    return Op;
@@ -214,7 +256,6 @@ index 000000000000..90db68ae6371
 +  MCRegister getAddrIndex() const { return AddrIndex; }
 +  int64_t getAddrOffset() const { return AddrOffset; }
 +  const MCExpr *getAddrOffsetExpr() const { return AddrOffsetExpr; }
-+  bool isAddrInsnOffset() const { return AddrIsInsnOffset; }
 +
 +  // MCParsedAsmOperand interface.
 +  bool isToken() const override { return Kind == kToken; }
@@ -239,27 +280,103 @@ index 000000000000..90db68ae6371
 +    }
 +  }
 +
++  // cfx field operands (cfxha/cg/rc; crrr/ciii) all render as a 6-bit imm.
++  void addCfxFieldOperands(MCInst &Inst, unsigned N) const {
++    assert(N == 1 && "Invalid number of operands!");
++    Inst.addOperand(MCOperand::createImm(getImm()));
++  }
++
 +  void print(raw_ostream &OS, const MCAsmInfo &) const override {
 +    switch (Kind) {
 +    case kToken:       OS << "Token:" << Tok; break;
 +    case kRegister:    OS << "Reg:" << RegNo; break;
 +    case kImmediate:   if (ImmExpr) OS << "ImmExpr"; else OS << "Imm:" << ImmVal; break;
++    case kWydePos:     OS << "WydePos:" << ImmVal; break;
 +    case kRegGroup:    OS << "RegGroup:" << RegList.size(); break;
 +    case kRegGroupCond: OS << "RegGroupCond:" << RegList.size(); break;
 +    case kRegPair:     OS << "RegPair"; break;
 +    case kAddress:     OS << "Address"; break;
++    case kCfxha:       OS << "Cfxha:" << ImmVal; break;
++    case kCfxCg:       OS << "CfxCg:" << ImmVal; break;
++    case kCfxRc:       OS << "CfxRc:" << ImmVal; break;
 +    }
 +  }
 +
-+  // Predicate for wyde-position: immediate in range [0, 3].
++  // Predicate for wyde-position: only an explicit wp0/wp1/wp2/wp3 token
++  // matches.  A bare immediate 0-3 (Kind == kImmediate) is rejected
++  // (LLVM-045t / ISS-128).
 +  bool isWydePosImm() const {
-+    if (Kind != kImmediate)
-+      return false;
-+    if (ImmExpr)
++    if (Kind != kWydePos)
 +      return false;
 +    return ImmVal >= 0 && ImmVal <= 3;
 +  }
++
++  // Predicates for the cfx field operands (crrr/ciii; LLVM-060t): each kind
++  // only matches its own token form, and all values are 6-bit (0..63).
++  bool isCfxhaImm() const {
++    return Kind == kCfxha && ImmVal >= 0 && ImmVal <= 63;
++  }
++  bool isCfxCgImm() const {
++    return Kind == kCfxCg && ImmVal >= 0 && ImmVal <= 63;
++  }
++  bool isCfxRcImm() const {
++    return Kind == kCfxRc && ImmVal >= 0 && ImmVal <= 63;
++  }
 +};
++
++//===----------------------------------------------------------------------===//
++// cfx alias tables + lookup (ADR-0017 D3/D4/D8/D10; Toolchain-01 §13).
++//
++// DADAOCfxAlias.inc is mechanically generated from the same spec sources as
++// the committed alias projection (.tao/knowledge/contract-cfx-aliases.md);
++// see the header of that file for provenance.
++//===----------------------------------------------------------------------===//
++
++#include "DADAOCfxAlias.inc"
++
++// Resolve a scalar alias `cfx_<cfxname>` -> 6-bit cfx code (ADR-0017 D3).
++static bool lookupCfxScalarAlias(StringRef Name, unsigned &Code) {
++  for (const CfxScalarAlias &A : CfxScalarAliases)
++    if (Name == A.Name) {
++      Code = A.Code;
++      return true;
++    }
++  return false;
++}
++
++// Resolve a register alias (bare name, no subscript) -> (cfxha, cg, rcBase,
++// rcCount).  cfx-specific aliases (cg >= 8) are matched by full name first;
++// the remaining `cfx_<cfxname>_<tail>` forms use the generic tail table
++// (ADR-0017 D4).  rcCount > 1 marks an array register (D10).
++static bool lookupCfxRegAlias(StringRef Name, unsigned &Cfxha, unsigned &Cg,
++                              unsigned &RcBase, unsigned &RcCount) {
++  for (const CfxSpecificAlias &S : CfxSpecificAliases)
++    if (Name == S.Name) {
++      Cfxha = S.Cfxha;
++      Cg = S.Cg;
++      RcBase = S.RcBase;
++      RcCount = S.RcCount;
++      return true;
++    }
++  for (const CfxScalarAlias &A : CfxScalarAliases) {
++    StringRef Prefix(A.Name);
++    if (!Name.starts_with(Prefix))
++      continue;
++    StringRef Tail = Name.drop_front(Prefix.size());
++    if (!Tail.starts_with("_"))
++      continue;
++    Tail = Tail.drop_front(1);
++    for (const CfxRegTail &T : CfxRegTails)
++      if (Tail == T.Tail) {
++        Cfxha = A.Code;
++        Cg = T.Cg;
++        RcBase = T.RcBase;
++        RcCount = T.RcCount;
++        return true;
++      }
++  }
++  return false;
++}
 +
 +//===----------------------------------------------------------------------===//
 +// DADAOAsmParser
@@ -277,9 +394,21 @@ index 000000000000..90db68ae6371
 +#include "DADAOGenAsmMatcher.inc"
 +
 +  enum {
++    // Reserve the target diagnostic range before the generated operand-class
++    // diagnostic names (ISS-162): without this offset the first generated name
++    // (e.g. Match_InvalidImmediate) would be 0 and collide with
++    // MCTargetAsmParser::Match_InvalidOperand, so adding any diagnostic name
++    // alphabetically before it would silently renumber the existing names.
++    Match_Dummy = FIRST_TARGET_MATCH_RESULT_TY,
 +#define GET_OPERAND_DIAGNOSTIC_TYPES
 +#include "DADAOGenAsmMatcher.inc"
 +  };
++
++  // Guard (ISS-162): the operand-class diagnostic names must sit above the base
++  // MatchResultTy range, so they can never alias Match_InvalidOperand.
++  static_assert(Match_InvalidImmediate >= FIRST_TARGET_MATCH_RESULT_TY,
++                "target diagnostic MatchResultTy must be offset by "
++                "FIRST_TARGET_MATCH_RESULT_TY");
 +
 +  // MCTargetAsmParser interface.
 +  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc,
@@ -295,16 +424,40 @@ index 000000000000..90db68ae6371
 +                                uint64_t &ErrorInfo,
 +                                bool MatchingInlineAsm) override;
 +
++  ParseStatus parseDirective(AsmToken DirectiveID) override;
++
 +private:
 +  ParseStatus parseRegisterImpl(MCRegister &Reg, SMLoc &StartLoc,
 +                                 SMLoc &EndLoc);
++  ParseStatus parseDDDirective(unsigned Size, SMLoc Loc);
 +  bool parseOperand(OperandVector &Operands);
 +  bool parseImmediate(OperandVector &Operands);
 +  bool parseWydePosToken(OperandVector &Operands);
++  int parseCfxOperand(OperandVector &Operands);
 +  bool parseRegGroup(OperandVector &Operands);
 +  bool parseAddressExpr(OperandVector &Operands);
 +  static unsigned matchRegisterName(StringRef Name);
 +  static bool isRegBankPrefix(StringRef Name);
++
++  // Synthetic pseudo-instruction expansion (ADR-0013 D11 / Toolchain-01 §6).
++  // Returns true on error, mirroring matchAndEmitInstruction.
++  bool expandPseudoInstruction(SMLoc IDLoc, StringRef Mnem,
++                               OperandVector &Operands, MCStreamer &Out,
++                               unsigned &Opcode, uint64_t &ErrorInfo,
++                               bool MatchingInlineAsm);
++
++  // `-multiple-to-single` expansion (DADAO-11 §汇编器选项; contract-asm §8).
++  // Returns true on error, mirroring matchAndEmitInstruction.
++  bool expandMultiRegisterInstruction(SMLoc IDLoc, StringRef Mnem,
++                                      OperandVector &Operands, MCStreamer &Out,
++                                      unsigned &Opcode, uint64_t &ErrorInfo,
++                                      bool MatchingInlineAsm);
++
++  // Range validation for assembly immediate encoding fields (LLVM-054t;
++  // contract-asm §2.4/§9/§11).  Returns true on error, mirroring
++  // matchAndEmitInstruction.
++  bool checkImmediateRanges(unsigned Opcode, StringRef Mnem,
++                            const OperandVector &Flat);
 +};
 +
 +// Include the auto-generated AsmMatcher implementation.
@@ -421,8 +574,121 @@ index 000000000000..90db68ae6371
 +  SMLoc StartLoc = Tok.getLoc();
 +  SMLoc EndLoc = Tok.getEndLoc();
 +  getParser().Lex();
-+  Operands.push_back(DADAOOperand::createImm(N, StartLoc, EndLoc));
++  Operands.push_back(DADAOOperand::createWydePos(N, StartLoc, EndLoc));
 +  return true;
++}
++
++//===----------------------------------------------------------------------===//
++// cfx operand tokens (crrr/ciii; LLVM-060t).
++//
++// Accepted forms (Toolchain-01 §13; ADR-0017 D3/D4/D10):
++//   cfx<N>                    scalar code (0..63)
++//   cfx_<cfxname>             scalar alias  -> cfx code
++//   cfx_<cfxname>_<regname>   register alias -> cfxha, cg, rc
++//   cfx_<...>[N]              array register alias -> cfxha, cg, rcBase + N
++//   cg<N>                     cfx cg register code (0..63)
++//   rc<N>                     cfx rc register code (0..63)
++//
++// A bare numeric literal is NOT accepted (distinct operand kinds; cf. wyde
++// position, LLVM-045t).  Returns -1 on error (diagnostic already emitted),
++// 0 if no cfx token was present, 1 if one was consumed.
++//===----------------------------------------------------------------------===//
++
++int DADAOAsmParser::parseCfxOperand(OperandVector &Operands) {
++  const AsmToken &Tok = getParser().getTok();
++  if (Tok.isNot(AsmToken::Identifier))
++    return 0;
++
++  StringRef Name = Tok.getString();
++  SMLoc StartLoc = Tok.getLoc();
++
++  if (Name.starts_with("cfx")) {
++    // cfx_<cfxname> (scalar) or cfx_<cfxname>_<regname> (register alias).
++    if (Name.starts_with("cfx_")) {
++      unsigned Code;
++      if (lookupCfxScalarAlias(Name, Code)) {
++        getParser().Lex();
++        Operands.push_back(DADAOOperand::createCfxha(Code, StartLoc));
++        return 1;
++      }
++
++      unsigned Cfxha, Cg, RcBase, RcCount;
++      if (lookupCfxRegAlias(Name, Cfxha, Cg, RcBase, RcCount)) {
++        getParser().Lex();
++        int64_t Sub = -1;
++        if (RcCount > 1) {
++          // Array register: the single-subscript form is required (D10).
++          if (getParser().getTok().isNot(AsmToken::LBrac)) {
++            Error(StartLoc, "'" + Name + "' is an array cfx register; a single "
++                            "subscript is required, e.g. " + Name + "[0]");
++            return -1;
++          }
++          getParser().Lex(); // consume '['
++          const MCExpr *SubExpr;
++          SMLoc SubEnd;
++          if (getParser().parseExpression(SubExpr, SubEnd))
++            return -1;
++          if (!SubExpr->evaluateAsAbsolute(Sub)) {
++            Error(SubEnd, "cfx register subscript must be a constant");
++            return -1;
++          }
++          if (getParser().getTok().isNot(AsmToken::RBrac)) {
++            Error(getParser().getTok().getLoc(),
++                  "expected ']' to close cfx register subscript");
++            return -1;
++          }
++          getParser().Lex(); // consume ']'
++          if (Sub < 0 || Sub >= (int64_t)RcCount) {
++            Error(StartLoc, "cfx register subscript " + std::to_string(Sub) +
++                                " out of range [0, " +
++                                std::to_string(RcCount - 1) + "]");
++            return -1;
++          }
++        } else if (getParser().getTok().is(AsmToken::LBrac)) {
++          Error(StartLoc, "'" + Name + "' is not an array cfx register; a "
++                          "subscript is not allowed");
++          return -1;
++        }
++        Operands.push_back(DADAOOperand::createCfxha(Cfxha, StartLoc));
++        Operands.push_back(DADAOOperand::createCfxCg(Cg, StartLoc));
++        Operands.push_back(
++            DADAOOperand::createCfxRc(RcBase + (Sub < 0 ? 0 : Sub), StartLoc));
++        return 1;
++      }
++      return 0; // unknown cfx_* symbol -> let parseImmediate report it
++    }
++
++    // cfx<N>.
++    unsigned N;
++    if (Name.size() > 3 && !Name.substr(3).getAsInteger(10, N) && N < 64) {
++      getParser().Lex();
++      Operands.push_back(DADAOOperand::createCfxha(N, StartLoc));
++      return 1;
++    }
++    return 0;
++  }
++
++  if (Name.starts_with("cg")) {
++    unsigned N;
++    if (Name.size() > 2 && !Name.substr(2).getAsInteger(10, N) && N < 64) {
++      getParser().Lex();
++      Operands.push_back(DADAOOperand::createCfxCg(N, StartLoc));
++      return 1;
++    }
++    return 0;
++  }
++
++  if (Name.starts_with("rc")) {
++    unsigned N;
++    if (Name.size() > 2 && !Name.substr(2).getAsInteger(10, N) && N < 64) {
++      getParser().Lex();
++      Operands.push_back(DADAOOperand::createCfxRc(N, StartLoc));
++      return 1;
++    }
++    return 0;
++  }
++
++  return 0;
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -549,15 +815,11 @@ index 000000000000..90db68ae6371
 +//
 +// Syntax (assembly-language.md §3):
 +//   [rb2, 1]           — memory: base + byte offset
-+//   [rb0, 2i]          — iiii jump: base + instruction-word offset
-+//   [rb3, rd0, 24i]    — rrii jump: base + reg offset + instruction-word offset
++//   [rb0, 16]          — iiii jump: base + byte offset (%4==0)
++//   [rb3, rd0, 64]     — rrii jump: base + reg offset + byte offset (%4==0)
 +//
-+// The 'i' suffix means the immediate is in instruction-word units (×4 bytes).
-+//
-+// Pushes as flat operands:
-+//   [rb2, 1]        → Reg(rb2), Imm(1)
-+//   [rb0, 2i]       → Reg(rb0), Imm(2)
-+//   [rb3, rd0, 24i] → Reg(rb3), Reg(rd0), Imm(24)
++// Address immediates are byte offsets (no unit suffix).
++// Validation of %4==0 and range + encoding >>2 is done in matchAndEmitInstruction.
 +//
 +// matchAndEmitInstruction handles stripping the base register for iiii jumps.
 +//===----------------------------------------------------------------------===//
@@ -590,90 +852,48 @@ index 000000000000..90db68ae6371
 +
 +  if (AfterComma.is(AsmToken::Identifier) &&
 +      matchRegisterName(AfterComma.getString()) != 0) {
-+    // Could be [base, reg, offset] or [base, reg] (no offset).
-+    // Look ahead: if next after reg is ']', it's [base, reg] with no offset.
-+    // If next after reg is ',', it's [base, reg, offset].
 +    SMLoc IdxStart, IdxEnd;
 +    parseRegisterImpl(Index, IdxStart, IdxEnd);
 +    HasIndexReg = true;
 +
 +    if (getParser().getTok().is(AsmToken::Comma)) {
-+      // [base, reg, offset]
 +      getParser().Lex(); // consume ','
 +    } else if (getParser().getTok().is(AsmToken::RBrac)) {
-+      // [base, reg] — no offset, offset=0.
 +      getParser().Lex(); // consume ']'
 +      SMLoc EndLoc = getParser().getTok().getLoc();
 +      Operands.push_back(DADAOOperand::createReg(Base, RStart));
 +      Operands.push_back(DADAOOperand::createReg(Index, IdxStart));
 +      Operands.push_back(DADAOOperand::createImm(0, EndLoc, EndLoc));
-+      return false; // success
++      return false;
 +    } else {
 +      return Error(getParser().getTok().getLoc(),
 +                   "expected ',' or ']' after register in address expression");
 +    }
 +  }
 +
-+  // Parse offset (immediate expression).
-+  // The offset may be a number followed by 'i' suffix (instruction-word unit).
-+  // If there's no space between the number and 'i', the lexer produces a
-+  // single identifier token like "2i". We handle both cases:
-+  //   1. Number and 'i' are separate tokens: parse expression, then check for 'i'
-+  //   2. '2i' is a single token: parse as identifier, strip 'i', convert number
-+  const AsmToken &OffsetTok = getParser().getTok();
-+  int64_t OffsetVal = 0;
-+  bool IsInsnOffset = false;
-+  SMLoc EndLoc;
++  // Parse offset (immediate expression). Address offsets are byte values.
++  const MCExpr *OffsetExpr;
++  SMLoc ExprEnd;
++  if (getParser().parseExpression(OffsetExpr, ExprEnd))
++    return true;
++  SMLoc EndLoc = ExprEnd;
 +
-+  if (OffsetTok.is(AsmToken::Identifier)) {
-+    // Case 2: '2i' is a single identifier token.
-+    StringRef OffsetStr = OffsetTok.getString();
-+    if (OffsetStr.size() > 1 && OffsetStr.back() == 'i') {
-+      StringRef NumPart = OffsetStr.drop_back();
-+      if (!NumPart.getAsInteger(10, OffsetVal)) {
-+        IsInsnOffset = true;
-+        EndLoc = OffsetTok.getEndLoc();
-+        getParser().Lex(); // consume the token
-+        // Skip to ']' check below.
-+      } else {
-+        // Not a valid number+i combo — could be a label.
-+        goto parse_offset_expr;
-+      }
-+    } else {
-+      // Identifier without 'i' suffix — could be a label.
-+      goto parse_offset_expr;
-+    }
-+  } else {
-+  parse_offset_expr:
-+    const MCExpr *OffsetExpr;
-+    SMLoc ExprEnd;
-+    if (getParser().parseExpression(OffsetExpr, ExprEnd))
-+      return true;
-+    EndLoc = ExprEnd;
-+
-+    // Check for 'i' suffix (instruction-word unit) as a separate token.
-+    if (getParser().getTok().is(AsmToken::Identifier) &&
-+        getParser().getTok().getString() == "i") {
-+      IsInsnOffset = true;
-+      getParser().Lex(); // consume 'i'
-+    }
-+
-+    // Evaluate the expression.
-+    if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
-+      // Non-constant expression (label reference) — push as expr.
-+      // Expect ']'.
-+      if (!getParser().getTok().is(AsmToken::RBrac))
-+        return Error(getParser().getTok().getLoc(),
-+                     "expected ']' to close address expression");
-+      getParser().Lex(); // consume ']'
-+      EndLoc = getParser().getTok().getLoc();
-+      Operands.push_back(DADAOOperand::createReg(Base, RStart));
-+      if (HasIndexReg)
-+        Operands.push_back(DADAOOperand::createReg(Index, RStart));
-+      Operands.push_back(
-+          DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLoc));
-+      return false; // success
-+    }
++  // Evaluate the expression. If non-constant (label/symbol), push as expr
++  // for fixup generation. If constant, validate and encode.
++  int64_t OffsetVal;
++  if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
++    // Non-constant expression — push as expr (fixup).
++    if (!getParser().getTok().is(AsmToken::RBrac))
++      return Error(getParser().getTok().getLoc(),
++                   "expected ']' to close address expression");
++    getParser().Lex(); // consume ']'
++    EndLoc = getParser().getTok().getLoc();
++    Operands.push_back(DADAOOperand::createReg(Base, RStart));
++    if (HasIndexReg)
++      Operands.push_back(DADAOOperand::createReg(Index, RStart));
++    Operands.push_back(
++        DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLoc));
++    return false;
 +  }
 +
 +  // Expect ']'.
@@ -683,13 +903,13 @@ index 000000000000..90db68ae6371
 +  getParser().Lex(); // consume ']'
 +  EndLoc = getParser().getTok().getLoc();
 +
-+  // Push as flat operands: base register, [index register], offset.
++  // Push as flat operands: base register, [index register], byte offset.
 +  Operands.push_back(DADAOOperand::createReg(Base, RStart));
 +  if (HasIndexReg)
 +    Operands.push_back(DADAOOperand::createReg(Index, RStart));
 +  Operands.push_back(DADAOOperand::createImm(OffsetVal, StartLoc, EndLoc));
 +
-+  return false; // success
++  return false;
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -719,6 +939,13 @@ index 000000000000..90db68ae6371
 +  if (Tok.is(AsmToken::Identifier)) {
 +    // Try wyde-position token first (wp0/wp1/wp2/wp3).
 +    if (parseWydePosToken(Operands))
++      return false;
++
++    // Try cfx operand tokens (cfx<ha>/cfx_<name>, cg<N>, rc<N>; crrr/ciii).
++    int Cfx = parseCfxOperand(Operands);
++    if (Cfx < 0)
++      return true; // diagnostic already emitted
++    if (Cfx > 0)
 +      return false;
 +
 +    // Try register.
@@ -770,65 +997,32 @@ index 000000000000..90db68ae6371
 +  const AsmToken &AfterComma = Parser.getTok();
 +  if (AfterComma.is(AsmToken::Identifier)) {
 +    StringRef Name = AfterComma.getString();
-+    // Quick check: could be a register name.
 +    if (Name.starts_with("rd") || Name.starts_with("rb") ||
 +        Name.starts_with("rf") || Name.starts_with("ra")) {
-+      // Parse as register (we don't push it — it's the condition register
-+      // for rrii branches, already handled by the register group).
 +      Parser.Lex(); // consume register
-+      // Expect ','.
 +      if (Parser.getTok().is(AsmToken::Comma))
 +        Parser.Lex(); // consume ','
 +    }
 +  }
 +
-+  // Parse offset expression.
-+  // Handle '2i' as single token (no space between number and 'i').
-+  const AsmToken &OffsetTok = Parser.getTok();
-+  int64_t OffsetVal = 0;
-+  SMLoc EndLoc;
++  // Parse offset expression. Branch offsets are byte values.
++  const MCExpr *OffsetExpr;
++  SMLoc ExprEnd;
++  if (Parser.parseExpression(OffsetExpr, ExprEnd))
++    return true;
 +
-+  if (OffsetTok.is(AsmToken::Identifier)) {
-+    StringRef OffsetStr = OffsetTok.getString();
-+    if (OffsetStr.size() > 1 && OffsetStr.back() == 'i') {
-+      StringRef NumPart = OffsetStr.drop_back();
-+      if (!NumPart.getAsInteger(10, OffsetVal)) {
-+        // '2i' → offset=2, IsInsnOffset=true.
-+        EndLoc = OffsetTok.getEndLoc();
-+        Parser.Lex(); // consume the token
-+      } else {
-+        // Not a valid number+i combo — try as label expression.
-+        goto parse_branch_expr;
-+      }
-+    } else {
-+      // Identifier without 'i' suffix — could be a label.
-+      goto parse_branch_expr;
-+    }
-+  } else {
-+  parse_branch_expr:
-+    const MCExpr *OffsetExpr;
-+    SMLoc ExprEnd;
-+    if (Parser.parseExpression(OffsetExpr, ExprEnd))
++  // Evaluate the expression. If non-constant (label/symbol), push as expr
++  // for fixup generation. If constant, validate and encode.
++  int64_t OffsetVal;
++  if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
++    // Non-constant expression — push as expr (fixup).
++    if (!Parser.getTok().is(AsmToken::RBrac))
 +      return true;
-+    EndLoc = ExprEnd;
-+
-+    // Check for 'i' suffix as separate token.
-+    if (Parser.getTok().is(AsmToken::Identifier) &&
-+        Parser.getTok().getString() == "i") {
-+      Parser.Lex(); // consume 'i'
-+    }
-+
-+    if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
-+      // Non-constant expression (label reference) — push as expr.
-+      // Expect ']'.
-+      if (!Parser.getTok().is(AsmToken::RBrac))
-+        return true;
-+      Parser.Lex(); // consume ']'
-+      SMLoc EndLocFinal = Parser.getTok().getLoc();
-+      Operands.push_back(
-+          DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLocFinal));
-+      return false; // success
-+    }
++    Parser.Lex(); // consume ']'
++    SMLoc EndLocFinal = Parser.getTok().getLoc();
++    Operands.push_back(
++        DADAOOperand::createImmExpr(OffsetExpr, StartLoc, EndLocFinal));
++    return false;
 +  }
 +
 +  // Expect ']'.
@@ -840,7 +1034,7 @@ index 000000000000..90db68ae6371
 +  // Push only the offset (base register is implicit).
 +  Operands.push_back(DADAOOperand::createImm(OffsetVal, StartLoc, EndLocFinal));
 +
-+  return false; // success
++  return false;
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -898,6 +1092,49 @@ index 000000000000..90db68ae6371
 +        if (getParser().getTok().is(AsmToken::RBrac))
 +          getParser().Lex();
 +      }
++    } else if (Name == "escape") {
++      // escape cfxHA, [excp_cause_ip, imms20]
++      // The base `excp_cause_ip` is NOT encoded (like rb0 for jump-iiii), so it
++      // is written explicitly and dropped here; the byte offset is shifted
++      // right by 2 into the 18-bit encoding field (Toolchain-01 §3.2).
++      if (parseOperand(Operands))
++        return true;
++      if (getParser().getTok().isNot(AsmToken::Comma))
++        return Error(getParser().getTok().getLoc(),
++                     "expected ',' in 'escape cfxHA, [excp_cause_ip, imms20]'");
++      getParser().Lex(); // consume ','
++      if (getParser().getTok().isNot(AsmToken::LBrac))
++        return Error(getParser().getTok().getLoc(),
++                     "expected '[' in 'escape cfxHA, [excp_cause_ip, imms20]'");
++      getParser().Lex(); // consume '['
++      if (getParser().getTok().isNot(AsmToken::Identifier) ||
++          getParser().getTok().getString() != "excp_cause_ip")
++        return Error(getParser().getTok().getLoc(),
++                     "escape base must be 'excp_cause_ip'");
++      getParser().Lex(); // consume 'excp_cause_ip'
++      if (getParser().getTok().isNot(AsmToken::Comma))
++        return Error(getParser().getTok().getLoc(),
++                     "expected ',' after 'excp_cause_ip'");
++      getParser().Lex(); // consume ','
++      SMLoc OffStart = getParser().getTok().getLoc();
++      const MCExpr *OffExpr;
++      SMLoc OffEnd;
++      if (getParser().parseExpression(OffExpr, OffEnd))
++        return true;
++      int64_t Bytes;
++      if (!OffExpr->evaluateAsAbsolute(Bytes))
++        return Error(OffStart, "escape offset must be a constant (imms20)");
++      if (Bytes % 4 != 0)
++        return Error(OffStart,
++                     "escape offset must be a multiple of 4 bytes (imms20)");
++      if (Bytes < -524288 || Bytes > 524284)
++        return Error(OffStart,
++                     "escape byte offset out of range: expected "
++                     "[-524288, 524284] (imms20, %4==0)");
++      if (getParser().getTok().isNot(AsmToken::RBrac))
++        return Error(getParser().getTok().getLoc(), "expected ']'");
++      getParser().Lex(); // consume ']'
++      Operands.push_back(DADAOOperand::createImm(Bytes >> 2, OffStart, OffEnd));
 +    } else {
 +      // Normal instruction: parse operands sequentially.
 +      if (parseOperand(Operands)) {
@@ -913,6 +1150,747 @@ index 000000000000..90db68ae6371
 +  }
 +
 +  return false;
++}
++
++//===----------------------------------------------------------------------===//
++// Data directives: .dd.b08 / .dd.w16 / .dd.t32 / .dd.o64
++//
++// DADAO data-length directives use Knuth/MMIX length names (spec/DADAO-11
++// §汇编兼容性 §指导符; contract-asm.md §7): .dd.b08 = 1 byte, .dd.w16 = 2 bytes,
++// .dd.t32 = 4 bytes, .dd.o64 = 8 bytes.  Values are emitted in the target byte
++// order (big endian; contract-elf.md §1.1).  Each directive accepts a comma-
++// separated list of expressions.
++//
++// GAS `.octa` is 16 bytes while DADAO's octa is 8 bytes, so the GAS directive
++// MUST NOT be used (contract-asm.md §7); it is rejected explicitly here (the
++// generic parser would otherwise accept it).  `.word` is not a known directive
++// and keeps its existing "unknown directive" rejection.
++//
++// §7.1 ("唯一集合") is closed over the WHOLE set of data directives LLVM's
++// generic parser knows, not just the GAS names §7.1 spells out (ISS-189):
++//   * the table below is derived mechanically -- NOT hand-picked -- as
++//     (names registered in llvm/lib/MC/MCParser/AsmParser.cpp's
++//      initializeDirectiveKindMap() whose `switch (DirKind)` case calls
++//      parseDirectiveValue / parseDirectiveOctaValue / parseDirectiveRealValue
++//      / parseDirectiveLEB128 / parseDirectiveDCB / parseDirectiveRealDCB --
++//      i.e. every generic directive that DEFINES A FIXED-WIDTH DATA ITEM)
++//     MINUS the four §7.1 `.dd.*` names;
++//     the reproducible derivation + the resulting counts live with the task
++//     evidence (`.work/evidence/<task>/derive_directive_sets.sh`).
++//   * the generic directive lookup lowercases the name
++//     (`DirectiveKindMap.find(IDVal.lower())`), so the checks below lower-case
++//     too -- otherwise `.BYTE` / `.QUAD` / `.Octa` would still slip through.
++//     The four accepted `.dd.*` names stay case-sensitive: directives are
++//     case-sensitive (contract-asm.md §2.1), so `.DD.B08` is NOT a spelling.
++//   * directives that only RESERVE space (`.zero`/`.space`/`.skip`/`.fill`/
++//     `.org`/`.ds*`) or emit a string (`.ascii`/`.asciz`/`.string`/`.base64`)
++//     are not part of the MMIX "data length" family of §7.1 and are emitted by
++//     generated code (llc emits `.asciz`/`.zero`), so they stay accepted.
++//===----------------------------------------------------------------------===//
++
++/// Returns the DADAO spelling suggested for an out-of-set data directive, an
++/// empty string when the value has no `.dd.*` equivalent (floating point /
++/// LEB128), or nullptr when \p ID is not an out-of-set data directive.
++/// \p ID must already be lower-cased (see the case note above).
++static const char *outOfSetDataDirectiveHint(StringRef ID) {
++  return StringSwitch<const char *>(ID)
++      // 1-byte value -> .dd.b08
++      .Cases({".byte", ".dc.b", ".dcb.b"}, ".dd.b08")
++      // 2-byte value -> .dd.w16
++      .Cases({".short", ".value", ".2byte", ".dc", ".dc.w", ".dcb", ".dcb.w"},
++             ".dd.w16")
++      // 4-byte value -> .dd.t32
++      .Cases({".long", ".int", ".4byte", ".dc.l", ".dcb.l"}, ".dd.t32")
++      // 8-byte value -> .dd.o64 (`.dc.a` is a code-pointer-sized value)
++      .Cases({".quad", ".8byte", ".dcb.d", ".dc.a"}, ".dd.o64")
++      // no `.dd.*` equivalent (floating point / LEB128)
++      .Cases({".single", ".float", ".dc.s", ".dcb.s", ".double", ".dc.d",
++              ".sleb128", ".uleb128"},
++             "")
++      .Default(nullptr);
++}
++
++ParseStatus DADAOAsmParser::parseDirective(AsmToken DirectiveID) {
++  StringRef ID = DirectiveID.getString();
++  // NOTE: StringRef::lower() returns a std::string by value -- it must be held
++  // by value here (binding the temporary to a StringRef would dangle).
++  std::string LowerID = ID.lower();
++
++  // GAS `.octa` (16-byte octa) MUST NOT be used: DADAO's octa is 8 bytes
++  // (contract-asm.md §7 / DADAO-11 §指导符).  Point at the DADAO spelling.
++  if (LowerID == ".octa")
++    return Error(DirectiveID.getLoc(),
++                 Twine("unsupported directive '") + ID +
++                     "' (GAS 16-byte octa); DADAO's octa is 8 bytes -- use "
++                     "'.dd.o64'");
++
++  // Every out-of-set data directive MUST NOT be accepted (contract-asm.md
++  // §7.1 / Toolchain-01 §7.1): the only data directives are the DADAO `.dd.*`
++  // set of §7.1.  The target parser runs before the generic
++  // (target-independent) directive parser, so an error here shadows LLVM's
++  // built-in handlers without touching the shared MC layer.
++  if (const char *Hint = outOfSetDataDirectiveHint(LowerID)) {
++    std::string Msg =
++        ("unsupported directive '" + ID + "' (data directive outside the "
++         "DADAO unique set: only '.dd.b08'/'.dd.w16'/'.dd.t32'/'.dd.o64' are "
++         "accepted; spec/Toolchain-01 §7.1)").str();
++    if (Hint[0])
++      Msg += std::string("; use '") + Hint + "'";
++    else
++      Msg += "; no DADAO equivalent (encode the value as an integer and use "
++             "'.dd.t32'/'.dd.o64')";
++    return Error(DirectiveID.getLoc(), Msg);
++  }
++
++  // `.align` uses byte-count semantics, which conflicts with GAS's `2^N`
++  // (contract-asm.md §7.2).  The only alignment directive is `.p2align`.
++  if (LowerID == ".align")
++    return Error(DirectiveID.getLoc(),
++                 Twine("unsupported directive '") + ID +
++                     "' (byte-count semantics); use '.p2align N' to align to "
++                     "2^N bytes");
++
++  unsigned Size;
++  if (ID == ".dd.b08")
++    Size = 1;
++  else if (ID == ".dd.w16")
++    Size = 2;
++  else if (ID == ".dd.t32")
++    Size = 4;
++  else if (ID == ".dd.o64")
++    Size = 8;
++  else
++    return ParseStatus::NoMatch;
++
++  return parseDDDirective(Size, DirectiveID.getLoc());
++}
++
++ParseStatus DADAOAsmParser::parseDDDirective(unsigned Size, SMLoc Loc) {
++  MCAsmParser &Parser = getParser();
++  do {
++    SMLoc ValueLoc = Parser.getTok().getLoc();
++    const MCExpr *Value;
++    if (Parser.parseExpression(Value))
++      return ParseStatus::Failure;
++
++    // A relocatable (symbol / cross-section) operand of a data directive needs
++    // an absolute data relocation.  Only the 8-byte field can carry a DADAO
++    // 48-bit address (R_DADAO_ABS48, ADR-0019 §D2); narrower fields are
++    // rejected explicitly rather than silently truncated (contract-asm.md §9).
++    int64_t AbsValue;
++    if (Size != 8 &&
++        !Value->evaluateAsAbsolute(AbsValue,
++                                   Parser.getStreamer().getAssemblerPtr()))
++      return Error(ValueLoc,
++                   "relocatable operand in '.dd.b08/.dd.w16/.dd.t32' is not "
++                   "supported (a DADAO address needs an 8-byte field; use "
++                   "'.dd.o64')");
++
++    getParser().getStreamer().emitValue(Value, Size, ValueLoc);
++  } while (Parser.getTok().is(AsmToken::Comma) && (Parser.Lex(), true));
++
++  return ParseStatus::Success;
++}
++
++// FP block mnemonics (scope: fp) whose orri form carries a single immu6 that
++// encodes the element count shared by both `{start:end}` groups.  `rd2rf` and
++// `rf2rd` are FP block moves too and are handled alongside these 22 mnemonics
++// at the two call sites below.
++static bool isFPBlockMnemonic(StringRef Mnem) {
++  return Mnem == "ft2fo" || Mnem == "fo2ft" || Mnem == "ft2ft" ||
++         Mnem == "fo2fo" || Mnem == "ft2it" || Mnem == "ft2io" ||
++         Mnem == "ft2ut" || Mnem == "ft2uo" || Mnem == "fo2it" ||
++         Mnem == "fo2io" || Mnem == "fo2ut" || Mnem == "fo2uo" ||
++         Mnem == "it2ft" || Mnem == "io2ft" || Mnem == "ut2ft" ||
++         Mnem == "uo2ft" || Mnem == "it2fo" || Mnem == "io2fo" ||
++         Mnem == "ut2fo" || Mnem == "uo2fo" || Mnem == "ftcls" ||
++         Mnem == "focls";
++}
++
++// FP instructions subject to the `dst_rf0` rule (SPEC-088t) whose destination
++// operand immediately follows the mnemonic: the 16 scalar orrr arith/sign
++// instructions plus the 14 orri RF-destination convert/root instructions.
++// `rd2rf` and the RF loads/stores (ld.*/ldm.*/stm.*) are intentionally NOT
++// listed: there rf0 as a destination is legal (FCSR write mask).  The
++// convert_f2i / classify / compare groups have an RD destination and are not
++// listed either.
++static bool isFPDstRfMnemonic(StringRef M) {
++  return M == "ftadd" || M == "ftsub" || M == "ftmul" || M == "ftdiv" ||
++         M == "ftrem" || M == "ftsclb" || M == "ftsgnj" || M == "ftsgnn" ||
++         M == "foadd" || M == "fosub" || M == "fomul" || M == "fodiv" ||
++         M == "forem" || M == "fosclb" || M == "fosgnj" || M == "fosgnn" ||
++         M == "ft2fo" || M == "fo2ft" || M == "ft2ft" || M == "fo2fo" ||
++         M == "it2ft" || M == "io2ft" || M == "ut2ft" || M == "uo2ft" ||
++         M == "it2fo" || M == "io2fo" || M == "ut2fo" || M == "uo2fo" ||
++         M == "ftroot" || M == "foroot";
++}
++
++// FP instructions subject to the `dst_rd0` rule (SPEC-089t) whose destination
++// is an RD register, i.e. `rd0` is illegal.  These are the 15 FP rd-destination
++// forms: convert_f2i (8), classify (2), compare (4) and rf2rd (1).  rf2rd's
++// destination is an RD register; rd2rf's destination is RF (rf0 legal) and is
++// NOT listed.
++static bool isFPDstRdMnemonic(StringRef M) {
++  return M == "ft2it" || M == "ft2io" || M == "ft2ut" || M == "ft2uo" ||
++         M == "fo2it" || M == "fo2io" || M == "fo2ut" || M == "fo2uo" ||
++         M == "ftcls" || M == "focls" ||
++         M == "ftqcmp" || M == "ftscmp" || M == "foqcmp" || M == "foscmp" ||
++         M == "rf2rd";
++}
++
++// FP convert_ff instructions (SPEC-088t `mreg_range_overlap`): two same-bank
++// RF `{start:end}` groups that share one immu6 element count and must not
++// overlap (any intersection, including complete coincidence, is illegal).
++static bool isFPConvertFFMnemonic(StringRef M) {
++  return M == "ft2fo" || M == "fo2ft" || M == "ft2ft" || M == "fo2fo";
++}
++
++// FP multi-register instructions subject to `mreg_range_overflow` (SPEC-088t):
++// every `{start:end}` group they carry is checked for an element count > 63.
++// The four FP ldm.*/stm.* forms are handled separately because their mnemonic
++// is shared with the M1 RD forms, which are out of this task's scope.
++static bool isFPMregMnemonic(StringRef M) {
++  return isFPConvertFFMnemonic(M) || M == "ft2it" || M == "ft2io" ||
++         M == "ft2ut" || M == "ft2uo" || M == "fo2it" || M == "fo2io" ||
++         M == "fo2ut" || M == "fo2uo" || M == "it2ft" || M == "io2ft" ||
++         M == "ut2ft" || M == "uo2ft" || M == "it2fo" || M == "io2fo" ||
++         M == "ut2fo" || M == "uo2fo" || M == "ftcls" || M == "focls" ||
++         M == "rd2rf" || M == "rf2rd";
++}
++
++// M1 block moves that carry *two* `{start:end}` groups sharing a single immu6
++// element count (ISS-104): the same-bank rd2rd/rb2rb and the cross-bank
++// rd2rb/rb2rd/rd2ra/ra2rd (contract-isa.md §3.3.2/§3.3.3).  Both written groups
++// must therefore have the same size.
++static bool isM1BlockMnemonic(StringRef M) {
++  return M == "rd2rd" || M == "rb2rb" || M == "rd2rb" || M == "rb2rd" ||
++         M == "rd2ra" || M == "ra2rd";
++}
++
++// M1 multi-register instructions subject to `mreg_range_overflow`: the ldm.*/
++// stm.* loads/stores (RD, RB and RA destinations) and the orri block moves.  A
++// written `{start:end}` group may hold at most a full bank (64 registers), but
++// the shared immu6 count field only covers 1..63, so a count-64 group such as
++// `{rd0:rd63}` (ISS-106) would silently truncate to immu6 = 0.  ldm.t/stm.t are
++// RF-only (scope: fp) and are handled with the FP groups instead.
++static bool isM1MregMnemonic(StringRef M) {
++  return M == "ldm.ub" || M == "ldm.uw" || M == "ldm.ut" ||
++         M == "ldm.sb" || M == "ldm.sw" || M == "ldm.st" ||
++         M == "ldm.o" || M == "stm.b" || M == "stm.w" ||
++         M == "stm.t" || M == "stm.o" || isM1BlockMnemonic(M);
++}
++
++// orri block moves / floating-point format conversions that carry *two*
++// `{start:end}` groups sharing one immu6 element count: the 8 register copies
++// (ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd) and the 20 FP conversions
++// (contract-asm.md §4.2).  Classify (ftcls/focls) also has two groups, but it
++// is deliberately excluded: the spec's multi-to-single scope is 8+20.  The
++// FP root instructions are excluded too (their immu6 is the root order n, not
++// a register count).
++static bool isMultiToSingleOrriMnemonic(StringRef M) {
++  return M == "ra2rd" || M == "rb2rb" || M == "rb2rd" || M == "rd2ra" ||
++         M == "rd2rb" || M == "rd2rd" || M == "rd2rf" || M == "rf2rd" ||
++         (isFPBlockMnemonic(M) && M != "ftcls" && M != "focls");
++}
++
++// Element width (bytes) of a multi-register load/store mnemonic, i.e. the
++// amount the offset register advances between consecutive elements
++// (contract-isa.md §3.1.2: ".dd" widths b=1/w=2/t=4/o=8, signed/unsigned alike).
++static unsigned ldmStmElemWidth(StringRef M) {
++  if (M.ends_with(".ub") || M.ends_with(".sb") || M.ends_with(".b"))
++    return 1;
++  if (M.ends_with(".uw") || M.ends_with(".sw") || M.ends_with(".w"))
++    return 2;
++  if (M.ends_with(".ut") || M.ends_with(".st") || M.ends_with(".t"))
++    return 4;
++  if (M.ends_with(".o"))
++    return 8;
++  return 0;
++}
++
++// First register of a flat register operand or of a `{start:end}` group;
++// returns the no-register sentinel (0) for any other operand kind.
++static MCRegister firstRegisterOf(const DADAOOperand *Op) {
++  if (!Op)
++    return MCRegister();
++  if (Op->Kind == DADAOOperand::kRegister)
++    return Op->getReg();
++  if (Op->Kind == DADAOOperand::kRegGroup && !Op->getRegList().empty())
++    return Op->getRegList()[0];
++  return MCRegister();
++}
++
++// True iff the register belongs to the RF bank (rf0..rf63).
++static bool isRFRegister(MCRegister R) {
++  return R.id() >= DADAO::rf0 && R.id() <= DADAO::rf63;
++}
++
++// Register-bank predicates used by pseudo-instruction expansion.
++static bool isGPRDRegister(MCRegister R) {
++  return R.id() >= DADAO::rd0 && R.id() <= DADAO::rd63;
++}
++static bool isGPRBRegister(MCRegister R) {
++  return R.id() >= DADAO::rb0 && R.id() <= DADAO::rb63;
++}
++static bool isGPRARegister(MCRegister R) {
++  return R.id() >= DADAO::ra0 && R.id() <= DADAO::ra63;
++}
++
++// Build a single-register `{r}` group operand (range of length 1).  The pseudo
++// expansions are single-register block moves, so the shared immu6 count is 1.
++static std::unique_ptr<DADAOOperand> singleRegGroup(MCRegister R, SMLoc L) {
++  SmallVector<MCRegister, 1> Regs{R};
++  return DADAOOperand::createRegGroup(Regs, 1, L, L);
++}
++
++//===----------------------------------------------------------------------===//
++// Pseudo-instruction expansion (ADR-0013 D11 / spec/Toolchain-01 §6).
++//
++// The eight retained synthetic pseudo-forms are expanded here, in the front
++// end, into real hardware instructions; pseudo text never reaches the printer
++// or the disassembler.  Each expanded instruction is fed back through
++// matchAndEmitInstruction so the existing legality checks and the auto-
++// generated matcher apply unchanged.
++//
++//   set.rd rd, imm64 : constant -> minimal set.zw/set.ow + or.w/andn.w
++//                      symbol   -> fixed 3 slices (wp2/wp1/wp0) + ABS48
++//   set.rd rd, rs    : rb2rd / rf2rd / ra2rd / rd2rd
++//   set.rb rb, imm64 : set.zw-rb + or.w-rb (no set.ow-rb; all-ones = 4 insns)
++//   set.rb rb, rs    : rd2rb / rb2rb
++//   set.ft rf, imm32 : 2x set.w (never touches the high 32 bits)
++//   set.ft rf, rs    : rd2rf / ft2ft
++//   set.fo rf, imm64 : imm==0 -> rd2rf from rd0; else 4x set.w
++//   set.fo rf, rs    : rd2rf / fo2fo
++//===----------------------------------------------------------------------===//
++
++bool DADAOAsmParser::expandPseudoInstruction(
++    SMLoc IDLoc, StringRef Mnem, OperandVector &Operands, MCStreamer &Out,
++    unsigned &Opcode, uint64_t &ErrorInfo, bool MatchingInlineAsm) {
++  if (Operands.size() != 3)
++    return Error(IDLoc,
++                 "'" + Mnem.str() + "' requires exactly two operands");
++
++  auto *Dst = static_cast<DADAOOperand *>(Operands[1].get());
++  auto *Src = static_cast<DADAOOperand *>(Operands[2].get());
++  if (!Dst || !Src)
++    return Error(IDLoc, "invalid operand for '" + Mnem.str() + "'");
++  SMLoc DstLoc = Operands[1]->getStartLoc();
++  SMLoc SrcLoc = Operands[2]->getStartLoc();
++
++  if (Dst->Kind != DADAOOperand::kRegister)
++    return Error(DstLoc, "invalid '" + Mnem.str() +
++                             "': destination must be a register");
++  MCRegister DstReg = Dst->getReg();
++
++  // The destination bank is fixed by the pseudo mnemonic.
++  bool DstOK = (Mnem == "set.rd")
++                   ? isGPRDRegister(DstReg)
++                   : (Mnem == "set.rb")
++                         ? isGPRBRegister(DstReg)
++                         : /* set.ft / set.fo */ isRFRegister(DstReg);
++  if (!DstOK)
++    return Error(DstLoc, "invalid '" + Mnem.str() +
++                             "': destination register is in the wrong bank");
++
++  // Emit one already-expanded instruction through the normal path so that all
++  // existing checks (block counts, overlap, RF/RD destination rules, matching)
++  // apply exactly as if the real instruction had been written by hand.
++  auto emitSub = [&](OperandVector &SubOps) -> bool {
++    return matchAndEmitInstruction(IDLoc, Opcode, SubOps, Out, ErrorInfo,
++                                   MatchingInlineAsm);
++  };
++  auto emitRegInst = [&](StringRef Real, MCRegister A, MCRegister B) -> bool {
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++    SubOps.push_back(DADAOOperand::createToken(Real, IDLoc));
++    SubOps.push_back(singleRegGroup(A, DstLoc));
++    SubOps.push_back(singleRegGroup(B, SrcLoc));
++    return emitSub(SubOps);
++  };
++  auto emitWii = [&](StringRef Real, unsigned Wp, int64_t Val) -> bool {
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++    SubOps.push_back(DADAOOperand::createToken(Real, IDLoc));
++    SubOps.push_back(DADAOOperand::createReg(DstReg, DstLoc));
++    SubOps.push_back(DADAOOperand::createWydePos(Wp, SrcLoc, SrcLoc));
++    SubOps.push_back(
++        DADAOOperand::createImm(Val & 0xFFFF, SrcLoc, Operands[2]->getEndLoc()));
++    return emitSub(SubOps);
++  };
++  auto emitWiiExpr = [&](StringRef Real, unsigned Wp, const MCExpr *E) -> bool {
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++    SubOps.push_back(DADAOOperand::createToken(Real, IDLoc));
++    SubOps.push_back(DADAOOperand::createReg(DstReg, DstLoc));
++    SubOps.push_back(DADAOOperand::createWydePos(Wp, SrcLoc, SrcLoc));
++    SubOps.push_back(
++        DADAOOperand::createImmExpr(E, SrcLoc, Operands[2]->getEndLoc()));
++    return emitSub(SubOps);
++  };
++
++  // --- Register-source form ------------------------------------------------
++  if (Src->Kind == DADAOOperand::kRegister) {
++    MCRegister S = Src->getReg();
++    StringRef Real;
++    if (Mnem == "set.rd") {
++      if (isGPRBRegister(S))      Real = "rb2rd";
++      else if (isRFRegister(S))   Real = "rf2rd";
++      else if (isGPRARegister(S)) Real = "ra2rd";
++      else if (isGPRDRegister(S)) Real = "rd2rd";
++    } else if (Mnem == "set.rb") {
++      if (isGPRDRegister(S))      Real = "rd2rb";
++      else if (isGPRBRegister(S)) Real = "rb2rb";
++    } else if (Mnem == "set.ft") {
++      if (isGPRDRegister(S))      Real = "rd2rf";
++      else if (isRFRegister(S))   Real = "ft2ft";
++    } else { // set.fo
++      if (isGPRDRegister(S))      Real = "rd2rf";
++      else if (isRFRegister(S))   Real = "fo2fo";
++    }
++    if (Real.empty())
++      return Error(SrcLoc, "invalid '" + Mnem.str() +
++                               "': unsupported source register bank");
++    return emitRegInst(Real, DstReg, S);
++  }
++
++  // --- Immediate / symbol form ---------------------------------------------
++  if (Src->Kind != DADAOOperand::kImmediate)
++    return Error(SrcLoc, "invalid '" + Mnem.str() +
++                             "': expected a register or an immediate");
++
++  const MCExpr *SymExpr = Src->getImmExpr();
++  int64_t Imm = Src->getImm();
++
++  // Symbol / relocatable: fixed 3 slices + R_DADAO_ABS48.  A DADAO address is
++  // 48 bits, so the slices are wp2/wp1/wp0; set.zw seeds the high slice and
++  // zeroes the remaining bits.  Only set.rd/set.rb materialize addresses.
++  if (SymExpr) {
++    if (Mnem == "set.ft" || Mnem == "set.fo")
++      return Error(SrcLoc, "invalid '" + Mnem.str() +
++                               "': a symbol/relocatable operand is not "
++                               "supported (only set.rd/set.rb)");
++    if (emitWiiExpr("set.zw", 2, SymExpr))
++      return true;
++    if (emitWiiExpr("or.w", 1, SymExpr))
++      return true;
++    if (emitWiiExpr("or.w", 0, SymExpr))
++      return true;
++    return false;
++  }
++
++  // set.ft: exactly two set.w, low tetra only.  set.ft never uses rd2rf (that
++  // would clear the high 32 bits).
++  if (Mnem == "set.ft") {
++    if (!isUInt<32>(Imm) && !isInt<32>(Imm))
++      return Error(SrcLoc,
++                   "immediate out of range for 'set.ft' (must fit in 32 bits)");
++    uint32_t V32 = static_cast<uint32_t>(static_cast<uint64_t>(Imm));
++    if (emitWii("set.w", 1, (V32 >> 16) & 0xFFFF))
++      return true;
++    return emitWii("set.w", 0, V32 & 0xFFFF);
++  }
++
++  // set.fo: zero is materialized from rd0 (constant zero) with one rd2rf;
++  // otherwise four set.w cover the full octa.
++  if (Mnem == "set.fo") {
++    uint64_t V = static_cast<uint64_t>(Imm);
++    if (V == 0)
++      return emitRegInst("rd2rf", DstReg, DADAO::rd0);
++    for (int I = 3; I >= 0; --I)
++      if (emitWii("set.w", I, (V >> (16 * I)) & 0xFFFF))
++        return true;
++    return false;
++  }
++
++  // set.rd / set.rb constants: minimize the instruction count over the 4
++  // wydes.  A seed instruction (set.zw fills the other wydes with 0, set.ow
++  // with 0xFFFF) fixes one wyde; each remaining wyde needs one correction
++  // (or.w to set bits when the fill is 0, andn.w to clear bits when 0xFFFF).
++  // The seed is the highest-index wyde differing from the fill (wp0 if all
++  // match); corrections are emitted high-to-low.
++  uint64_t V = static_cast<uint64_t>(Imm);
++  uint16_t W[4];
++  for (int I = 0; I < 4; ++I)
++    W[I] = (V >> (16 * I)) & 0xFFFF;
++
++  // set.rb has no set.ow-rb variant: always seed with set.zw (fill 0).
++  if (Mnem == "set.rb") {
++    unsigned Base = 0;
++    for (int I = 3; I >= 0; --I)
++      if (W[I] != 0) {
++        Base = I;
++        break;
++      }
++    if (emitWii("set.zw", Base, W[Base]))
++      return true;
++    for (int I = 3; I >= 0; --I)
++      if (I != static_cast<int>(Base) && W[I] != 0)
++        if (emitWii("or.w", I, W[I]))
++          return true;
++    return false;
++  }
++
++  // set.rd: choose the cheaper fill (set.zw vs set.ow); ties prefer set.zw.
++  int Nz = 0, Nf = 0;
++  for (int I = 0; I < 4; ++I) {
++    if (W[I] != 0)
++      ++Nz;
++    if (W[I] != 0xFFFF)
++      ++Nf;
++  }
++  int CostZw = Nz > 0 ? Nz : 1;
++  int CostOw = Nf > 0 ? Nf : 1;
++  if (CostZw <= CostOw) {
++    unsigned Base = 0;
++    for (int I = 3; I >= 0; --I)
++      if (W[I] != 0) {
++        Base = I;
++        break;
++      }
++    if (emitWii("set.zw", Base, W[Base]))
++      return true;
++    for (int I = 3; I >= 0; --I)
++      if (I != static_cast<int>(Base) && W[I] != 0)
++        if (emitWii("or.w", I, W[I]))
++          return true;
++  } else {
++    unsigned Base = 0;
++    for (int I = 3; I >= 0; --I)
++      if (W[I] != 0xFFFF) {
++        Base = I;
++        break;
++      }
++    if (emitWii("set.ow", Base, W[Base]))
++      return true;
++    for (int I = 3; I >= 0; --I)
++      if (I != static_cast<int>(Base) && W[I] != 0xFFFF)
++        if (emitWii("andn.w", I, (~W[I]) & 0xFFFF))
++          return true;
++  }
++  return false;
++}
++
++//===----------------------------------------------------------------------===//
++// -multiple-to-single expansion (spec/DADAO-11 §汇编器选项; contract-asm §8).
++//
++// When the option is enabled, a multi-register instruction is converted into a
++// series of single-register instructions that keep the same mnemonic:
++//
++//   ldm.*/stm.* (rrri) : {d0:dN-1}, [rb, rc]
++//                        -> N x {di}, [rb, rc], advancing the offset register
++//                           with `add.si rc, +W` between elements and a final
++//                           `add.si rc, -(N-1)*W` restoring it
++//                           (W = element width of the mnemonic).
++//   orri block moves / : {d0:dN-1}, {s0:sN-1}  ->  N x {di}, {si}
++//   FP format converts
++//
++// The original multi-register instruction has already passed the static checks
++// above, so illegal ranges/overlaps are still rejected first.  Four cases
++// cannot be expanded safely and are rejected here (hard errors):
++//   * rb0 base — PC-relative, and each expanded instruction has a different
++//     address, so the effective address would change;
++//   * rd0 as the offset register — `add.si rd0` cannot change it;
++//   * the offset register lies inside the accessed range — the expansion would
++//     overwrite the value it needs to keep advancing;
++//   * an ldm.* base inside the written destination range — the group is written
++//     element by element, so the base would be overwritten before later reads.
++//===----------------------------------------------------------------------===//
++
++bool DADAOAsmParser::expandMultiRegisterInstruction(
++    SMLoc IDLoc, StringRef Mnem, OperandVector &Operands, MCStreamer &Out,
++    unsigned &Opcode, uint64_t &ErrorInfo, bool MatchingInlineAsm) {
++  auto emit = [&](OperandVector &SubOps) -> bool {
++    return matchAndEmitInstruction(IDLoc, Opcode, SubOps, Out, ErrorInfo,
++                                   MatchingInlineAsm);
++  };
++
++  if (Mnem.starts_with("ldm.") || Mnem.starts_with("stm.")) {
++    // Operand layout (parseInstruction): Token, {d0:dN-1}, rb, rc.
++    auto *G = static_cast<DADAOOperand *>(Operands[1].get());
++    MCRegister First = G->getRegList()[0];
++    MCRegister Base = static_cast<DADAOOperand *>(Operands[2].get())->getReg();
++    MCRegister Offset = static_cast<DADAOOperand *>(Operands[3].get())->getReg();
++    unsigned Count = G->getGroupCount();
++    SMLoc Loc = G->getStartLoc();
++
++    if (Base == DADAO::rb0)
++      return Error(IDLoc,
++                   "'-multiple-to-single' cannot expand '" + Mnem.str() +
++                       "': base register rb0 is PC-relative, but the expansion "
++                       "changes the instruction address");
++    if (Offset == DADAO::rd0)
++      return Error(IDLoc,
++                   "'-multiple-to-single' cannot expand '" + Mnem.str() +
++                       "': the offset register rd0 cannot be advanced");
++    if (Offset.id() >= First.id() && Offset.id() < First.id() + Count)
++      return Error(IDLoc,
++                   "'-multiple-to-single' cannot expand '" + Mnem.str() +
++                       "': the offset register is inside the accessed register "
++                       "range");
++    // ldm.* writes each element of the group in turn, and every element re-reads
++    // the base for its address, so a base inside the (written) destination group
++    // would be overwritten before a later element reads it.  The ISA allows this
++    // case (addresses use the original base), but the expansion cannot preserve
++    // it.  stm.* only reads its group, so a base inside it is harmless.
++    if (Mnem.starts_with("ldm.") && Base.id() >= First.id() &&
++        Base.id() < First.id() + Count)
++      return Error(IDLoc,
++                   "'-multiple-to-single' cannot expand '" + Mnem.str() +
++                       "': the base register is inside the written destination "
++                       "register range");
++
++    unsigned W = ldmStmElemWidth(Mnem);
++    for (unsigned I = 0; I < Count; ++I) {
++      if (I > 0) {
++        SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> AddOps;
++        AddOps.push_back(DADAOOperand::createToken("add.si", IDLoc));
++        AddOps.push_back(DADAOOperand::createReg(Offset, Loc));
++        AddOps.push_back(DADAOOperand::createImm(W, Loc, Loc));
++        if (emit(AddOps))
++          return true;
++      }
++      SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++      SubOps.push_back(DADAOOperand::createToken(Mnem, IDLoc));
++      SubOps.push_back(singleRegGroup(MCRegister(First.id() + I), Loc));
++      SubOps.push_back(DADAOOperand::createReg(Base, Loc));
++      SubOps.push_back(DADAOOperand::createReg(Offset, Loc));
++      if (emit(SubOps))
++        return true;
++    }
++
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> RestoreOps;
++    RestoreOps.push_back(DADAOOperand::createToken("add.si", IDLoc));
++    RestoreOps.push_back(DADAOOperand::createReg(Offset, Loc));
++    RestoreOps.push_back(DADAOOperand::createImm(
++        -static_cast<int64_t>(W) * (Count - 1), Loc, Loc));
++    return emit(RestoreOps);
++  }
++
++  // orri block move / FP conversion: Token, {d0:dN-1}, {s0:sN-1}.
++  auto *DstG = static_cast<DADAOOperand *>(Operands[1].get());
++  auto *SrcG = static_cast<DADAOOperand *>(Operands[2].get());
++  MCRegister DstFirst = DstG->getRegList()[0];
++  MCRegister SrcFirst = SrcG->getRegList()[0];
++  unsigned Count = DstG->getGroupCount();
++  SMLoc Loc = DstG->getStartLoc();
++  for (unsigned I = 0; I < Count; ++I) {
++    SmallVector<std::unique_ptr<MCParsedAsmOperand>, 8> SubOps;
++    SubOps.push_back(DADAOOperand::createToken(Mnem, IDLoc));
++    SubOps.push_back(singleRegGroup(MCRegister(DstFirst.id() + I), Loc));
++    SubOps.push_back(singleRegGroup(MCRegister(SrcFirst.id() + I), Loc));
++    if (emit(SubOps))
++      return true;
++  }
++  return false;
++}
++
++//===----------------------------------------------------------------------===//
++// Immediate field range validation (LLVM-054t; contract-asm §2.4/§9/§11).
++//
++// Every assembly immediate maps to a fixed-width encoding field.  The MC code
++// emitter drops the high bits by width (value & mask), so a value outside the
++// field's range would silently wrap (contract-asm §11: `add.si rd8, 131072`
++// encodes as -131072; `cmp.ui …, 4096` encodes as 0).  The assembler MUST
++// reject such values instead.
++//
++// The field range is known exactly from the matched instruction's format
++// (TSFlags[3:0], see DADAO::FormatKind), so this runs after MatchInstructionImpl
++// picks the concrete opcode and before the instruction is emitted.  Address
++// immediates (jump/call/br.* byte offsets) are validated earlier, together with
++// their %4==0 constraint (contract-asm §2.4 / ADR-0013 D3), and are skipped
++// here.  A symbolic / relocatable operand (ImmExpr) is not a constant and MUST
++// NOT be range-checked (contract-asm §3.1: addresses may be symbols; the value
++// is only known to the linker).
++//===----------------------------------------------------------------------===//
++
++enum class ImmFieldKind {
++  None,   // no immediate field, or an address field checked elsewhere
++  SImm12, // imms12: signed 12-bit (ld.*/st.*/cmp.si)
++  UImm12, // immu12: unsigned 12-bit (cmp.ui)
++  SImm18, // imms18: signed 18-bit (add.si / ret)
++  UImm18, // immu18: unsigned 18-bit (swym / fence)
++  UImm16, // immu16: unsigned 16-bit (rwii: or.w/andn.w/set.zw/set.ow/set.w)
++  UImm6   // immu6: unsigned 6-bit (rrri/orri)
++};
++
++struct ImmFieldRange {
++  int64_t Min, Max;
++  const char *Name;
++};
++
++// Field kind of the single immediate operand of a matched instruction, derived
++// from its format kind.  FormatKind values match DADAO::FormatKind (DADAO.h):
++//   0 rrrr, 1 rrri, 2 rrii, 3 riii, 4 iiii, 5 rwii, 6 orrr, 7 orri, 8 oiii,
++//   9 crrr, 10 ciii.
++static ImmFieldKind getImmediateFieldKind(unsigned FormatKind,
++                                          StringRef Mnem) {
++  switch (FormatKind) {
++  case 1: // rrri — shared immu6 register count
++  case 7: // orri — immu6
++    return ImmFieldKind::UImm6;
++  case 2: // rrii
++    if (Mnem == "cmp.ui")
++      return ImmFieldKind::UImm12;
++    if (Mnem == "jump" || Mnem == "call" || Mnem.starts_with("br."))
++      return ImmFieldKind::None; // branch/jump byte offset (checked earlier)
++    return ImmFieldKind::SImm12; // ld.*/st.*/cmp.si
++  case 3: // riii
++    if (Mnem.starts_with("br."))
++      return ImmFieldKind::None; // branch byte offset (checked earlier)
++    return ImmFieldKind::SImm18; // add.si / ret
++  case 4: // iiii — jump/call byte offset (checked earlier)
++    return ImmFieldKind::None;
++  case 5: // rwii
++    return ImmFieldKind::UImm16;
++  case 8: // oiii
++    return ImmFieldKind::UImm18;
++  case 9: // crrr — cfxha/cg/rc are 6-bit fields validated at parse time
++    return ImmFieldKind::None;
++  case 10: // ciii — trap (immu18) / escape (imms18; byte offset pre-shifted)
++    return Mnem == "escape" ? ImmFieldKind::SImm18 : ImmFieldKind::UImm18;
++  default: // rrrr (0) / orrr (6) — no immediate
++    return ImmFieldKind::None;
++  }
++}
++
++// Allowed inclusive range of an immediate field (contract-asm-list.md
++// 「立即数范围速查」).  Returns false for None.
++static bool getImmediateFieldRange(ImmFieldKind K, ImmFieldRange &R) {
++  switch (K) {
++  case ImmFieldKind::SImm12: R = {-2048, 2047, "imms12 (signed 12-bit)"}; return true;
++  case ImmFieldKind::UImm12: R = {0, 4095, "immu12 (unsigned 12-bit)"}; return true;
++  case ImmFieldKind::SImm18: R = {-131072, 131071, "imms18 (signed 18-bit)"}; return true;
++  case ImmFieldKind::UImm18: R = {0, 262143, "immu18 (unsigned 18-bit)"}; return true;
++  case ImmFieldKind::UImm16: R = {0, 65535, "immu16 (unsigned 16-bit)"}; return true;
++  case ImmFieldKind::UImm6:  R = {0, 63, "immu6 (unsigned 6-bit)"}; return true;
++  case ImmFieldKind::None:   return false;
++  }
++  return false;
++}
++
++bool DADAOAsmParser::checkImmediateRanges(unsigned Opcode, StringRef Mnem,
++                                          const OperandVector &Flat) {
++  ImmFieldKind K = getImmediateFieldKind(MII.get(Opcode).TSFlags & 0xF, Mnem);
++  if (K == ImmFieldKind::None)
++    return false;
++
++  // The user-visible immediate is the last flat operand (the shared register
++  // count appended for block moves is also in range by construction).
++  if (Flat.empty())
++    return false;
++  auto *Op = static_cast<DADAOOperand *>(Flat.back().get());
++  if (!Op || Op->Kind != DADAOOperand::kImmediate || Op->getImmExpr())
++    return false; // symbolic/relocatable operands are resolved at link time
++
++  ImmFieldRange R;
++  if (!getImmediateFieldRange(K, R))
++    return false;
++  int64_t Val = Op->getImm();
++  if (Val >= R.Min && Val <= R.Max)
++    return false;
++
++  return Error(Op->getStartLoc(),
++               "immediate out of range for '" + Mnem.str() + "': " +
++                   std::to_string(Val) + " is outside the " + R.Name +
++                   " range [" + std::to_string(R.Min) + ", " +
++                   std::to_string(R.Max) + "]");
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -937,6 +1915,16 @@ index 000000000000..90db68ae6371
 +                                              MCStreamer &Out,
 +                                              uint64_t &ErrorInfo,
 +                                              bool MatchingInlineAsm) {
++  // Synthetic pseudo-instructions (ADR-0013 D11): expand here into real
++  // hardware instructions before any of the real-instruction checks run.
++  if (Operands.size() >= 1 && Operands[0]->isToken()) {
++    StringRef Mnem = static_cast<DADAOOperand *>(Operands[0].get())->getToken();
++    if (Mnem == "set.rd" || Mnem == "set.rb" || Mnem == "set.ft" ||
++        Mnem == "set.fo")
++      return expandPseudoInstruction(IDLoc, Mnem, Operands, Out, Opcode,
++                                     ErrorInfo, MatchingInlineAsm);
++  }
++
 +  // Reject old flat syntax for dual-purpose rrrr instructions.
 +  // add.uo rd8, rd9, rd10, rd11 → must use add.uo {rd8, rd9}, rd10, rd11
 +  // Only applies to rrrr format (4 operands), not orrr format (3 operands).
@@ -957,6 +1945,151 @@ index 000000000000..90db68ae6371
 +        }
 +      }
 +    }
++  }
++
++  // Static legality check for mreg_range_overflow (ISS-106 / SPEC-088t;
++  // SimRISC-01 §存取RD寄存器 / §存取RF寄存器 / SimRISC-02 §寄存器组之间块赋值 /
++  // SimRISC-07 §格式转换指令): a `{start:end}` group in a multi-register
++  // instruction may name up to a full bank (64 registers), but the shared immu6
++  // field is only 6 bits (0..63), so `{rd0:rd63}` (M1 RD) and `{rf0:rf63}` (FP)
++  // — both count 64 — would silently truncate to 0 (the illegal `mreg_zero`
++  // encoding).  Reject any group whose element count exceeds 63, for the FP
++  // multi-register mnemonics and for the M1 RD/RB/RA ones (ldm.*/stm.*, shared
++  // ldm.o/stm.o included, plus the orri block moves).  This runs before the
++  // LLVM-029t "group counts differ" hardening below so that the specific
++  // `mreg_range_overflow` rule is reported when both would apply.
++  if (Operands.size() >= 2) {
++    auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
++    if (TokOp && TokOp->isToken()) {
++      StringRef Mnem = TokOp->getToken();
++      bool CheckAllGroups = isFPMregMnemonic(Mnem) || isM1MregMnemonic(Mnem);
++      bool CheckRFGroups = Mnem == "ldm.t" || Mnem == "stm.t";
++      if (CheckAllGroups || CheckRFGroups) {
++        for (size_t I = 1; I < Operands.size(); ++I) {
++          auto *G = static_cast<DADAOOperand *>(Operands[I].get());
++          if (!G || G->Kind != DADAOOperand::kRegGroup)
++            continue;
++          if (CheckRFGroups && !isRFRegister(firstRegisterOf(G)))
++            continue;
++          if (G->getGroupCount() > 63)
++            return Error(G->getStartLoc(),
++                         "invalid '" + Mnem.str() +
++                             "': register range too long "
++                             "(mreg_range_overflow); element count must be "
++                             "1..63");
++        }
++      }
++    }
++  }
++
++  // Static legality check for mreg_range_overlap (SPEC-088t;
++  // SimRISC-02 §寄存器组之间块赋值): `rd2rd` and `rb2rb` copy a block of
++  // registers *within the same bank*, so the source range and the destination
++  // range may overlap.  Any intersection (including complete coincidence) makes
++  // the instruction illegal, and the assembler MUST hard-error (Error level,
++  // never a warning).  Cross-bank block moves (ra2rd/rd2ra/rd2rb/rb2rd) and
++  // RD<->RF moves cannot overlap by construction, so they are not checked here.
++  // This runs *before* the complex-operand decomposition below, which keeps
++  // only the first register of each group and would lose the range sizes.
++  if (Operands.size() == 3) {
++    auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
++    auto *DstOp = static_cast<DADAOOperand *>(Operands[1].get());
++    auto *SrcOp = static_cast<DADAOOperand *>(Operands[2].get());
++    if (TokOp && TokOp->isToken() && DstOp && SrcOp &&
++        DstOp->Kind == DADAOOperand::kRegGroup &&
++        SrcOp->Kind == DADAOOperand::kRegGroup) {
++      StringRef Mnem = TokOp->getToken();
++      if (Mnem == "rd2rd" || Mnem == "rb2rb") {
++        // {start:end} is contiguous within the bank (see parseRegGroup), so the
++        // half-open interval [start, start+count) intersects [s, s+count2) iff
++        // start < s+count2 && s < start+count.
++        unsigned DstStart = DstOp->getRegList()[0].id();
++        unsigned SrcStart = SrcOp->getRegList()[0].id();
++        unsigned DstEnd = DstStart + DstOp->getGroupCount();
++        unsigned SrcEnd = SrcStart + SrcOp->getGroupCount();
++        if (DstStart < SrcEnd && SrcStart < DstEnd)
++          return Error(DstOp->getStartLoc(),
++                       "invalid '" + Mnem.str() + "': source and destination "
++                       "register ranges overlap (mreg_range_overlap); source "
++                       "and destination must be disjoint");
++      }
++
++      // Hardening for block instructions (LLVM-029t, extended by ISS-104): the
++      // orri conversion / classify / rd2rf / rf2rd forms and the M1
++      // rd2rd/rb2rb/rd2rb/rb2rd/rd2ra/ra2rd forms carry a *single* immu6 that
++      // encodes the element count shared by both `{start:end}` groups.  If the
++      // two written groups have different sizes the instruction is ill-formed,
++      // so reject it with a hard error instead of silently taking one of the
++      // two counts (previously the last group won).
++      if ((isFPBlockMnemonic(Mnem) || Mnem == "rd2rf" || Mnem == "rf2rd" ||
++           isM1BlockMnemonic(Mnem)) &&
++          DstOp->getGroupCount() != SrcOp->getGroupCount())
++        return Error(DstOp->getStartLoc(),
++                     "invalid '" + Mnem.str() + "': source and destination "
++                     "register group counts differ (they share a single immu6 "
++                     "element count)");
++    }
++  }
++
++  // Static legality checks for FP (scope: fp) instructions (SPEC-088t;
++  // contracts/legality_rules.yaml).  All are hard errors (Error level, never a
++  // warning) and run *before* the decomposition below, which keeps only the
++  // first register of each group and would lose the ranges/counts.
++  if (Operands.size() >= 2) {
++    auto *TokOp = static_cast<DADAOOperand *>(Operands[0].get());
++    if (TokOp && TokOp->isToken()) {
++      StringRef Mnem = TokOp->getToken();
++
++      // mreg_range_overlap: the two same-bank RF `{start:end}` groups of a
++      // convert_ff instruction share one immu6 element count and must be
++      // disjoint.  Any intersection (including complete coincidence) is
++      // illegal (SimRISC-07 §格式转换指令; same rule as rd2rd/rb2rb).
++      if (isFPConvertFFMnemonic(Mnem) && Operands.size() == 3) {
++        auto *DstOp = static_cast<DADAOOperand *>(Operands[1].get());
++        auto *SrcOp = static_cast<DADAOOperand *>(Operands[2].get());
++        if (DstOp && SrcOp && DstOp->Kind == DADAOOperand::kRegGroup &&
++            SrcOp->Kind == DADAOOperand::kRegGroup) {
++          // {start:end} is contiguous within the bank (see parseRegGroup), so
++          // [start, start+count) intersects [s, s+count2) iff
++          // start < s+count2 && s < start+count.
++          unsigned DstStart = firstRegisterOf(DstOp).id();
++          unsigned SrcStart = firstRegisterOf(SrcOp).id();
++          unsigned DstEnd = DstStart + DstOp->getGroupCount();
++          unsigned SrcEnd = SrcStart + SrcOp->getGroupCount();
++          if (DstStart < SrcEnd && SrcStart < DstEnd)
++            return Error(DstOp->getStartLoc(),
++                         "invalid '" + Mnem.str() + "': source and destination "
++                         "register ranges overlap (mreg_range_overlap); source "
++                         "and destination must be disjoint");
++        }
++      }
++    }
++  }
++
++  // -multiple-to-single (spec/DADAO-11 §汇编器选项; contract-asm §8): expand a
++  // multi-register instruction into single-register instructions.  The flag is
++  // set by llvm-mc's `-multiple-to-single` (MCTargetOptions; see llvm-mc.cpp)
++  // and read here via getTargetOptions().  Placed after the static checks above
++  // (so illegal ranges/overlaps are still reported on the original) and before
++  // the decomposition below (which keeps only the first register of each
++  // group).  Default off -> behaviour unchanged.
++  if (getTargetOptions().DADAOMultipleToSingle && !Operands.empty() &&
++      Operands[0]->isToken()) {
++    StringRef Mnem = static_cast<DADAOOperand *>(Operands[0].get())->getToken();
++    bool Applies = false;
++    if ((Mnem.starts_with("ldm.") || Mnem.starts_with("stm.")) &&
++        Operands.size() == 4) {
++      auto *G = static_cast<DADAOOperand *>(Operands[1].get());
++      Applies = G->Kind == DADAOOperand::kRegGroup && G->getGroupCount() > 1;
++    } else if (isMultiToSingleOrriMnemonic(Mnem) && Operands.size() == 3) {
++      auto *D = static_cast<DADAOOperand *>(Operands[1].get());
++      auto *S = static_cast<DADAOOperand *>(Operands[2].get());
++      Applies = D->Kind == DADAOOperand::kRegGroup &&
++                S->Kind == DADAOOperand::kRegGroup && D->getGroupCount() > 1;
++    }
++    if (Applies)
++      return expandMultiRegisterInstruction(IDLoc, Mnem, Operands, Out, Opcode,
++                                            ErrorInfo, MatchingInlineAsm);
 +  }
 +
 +  // Decompose complex operands into flat operands.
@@ -1050,7 +2183,8 @@ index 000000000000..90db68ae6371
 +      (Mnemonic.starts_with("ldm.") || Mnemonic.starts_with("stm.") ||
 +       Mnemonic == "ra2rd" || Mnemonic == "rb2rb" || Mnemonic == "rb2rd" ||
 +       Mnemonic == "rd2ra" || Mnemonic == "rd2rb" || Mnemonic == "rd2rd" ||
-+       Mnemonic == "rd2rf" || Mnemonic == "rf2rd")) {
++       Mnemonic == "rd2rf" || Mnemonic == "rf2rd" ||
++       isFPBlockMnemonic(Mnemonic))) {
 +    Flat.push_back(DADAOOperand::createImm(SavedGroupCount, GroupLoc, GroupLoc));
 +  }
 +
@@ -1058,12 +2192,207 @@ index 000000000000..90db68ae6371
 +  // For rrii jump: jump [rb, rd, imm] → Token, rb, rd, imm (already flat).
 +  // These are handled by the general decomposition above.
 +
++  // For iiii jump/call with expression offset: bypass auto-generated matcher.
++  // The matcher's converter loses the ImmExpr pointer during operand movement.
++  if ((Mnemonic == "jump" || Mnemonic == "call") && Flat.size() == 2 &&
++      Flat[1]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[1].get());
++    if (DOp->getImmExpr()) {
++      unsigned Opcode = (Mnemonic == "jump") ? DADAO::jump_iiii : DADAO::call_iiii;
++      MCInst Inst;
++      Inst.setOpcode(Opcode);
++      Inst.addOperand(MCOperand::createExpr(DOp->getImmExpr()));
++      Out.emitInstruction(Inst, getSTI());
++      return false;
++    }
++    int64_t ByteOff = DOp->getImm();
++    if (ByteOff % 4 != 0)
++      return Error(Flat[1]->getStartLoc(),
++                   "jump/call offset must be a multiple of 4 bytes");
++    int64_t Encoded = ByteOff >> 2;
++    if (Encoded < -8388608 || Encoded > 8388607)
++      return Error(Flat[1]->getStartLoc(),
++                   "jump/call byte offset out of range: expected "
++                   "[-33554432, 33554428] (imms26, %4==0)");
++    Flat[1] = DADAOOperand::createImm(Encoded, Flat[1]->getStartLoc(),
++                                       Flat[1]->getEndLoc());
++  }
++
++  // For riii br.* with expression offset: bypass matcher.  Unlike the numeric
++  // offset path (which funnels through MatchInstructionImpl and is therefore
++  // bank-aware), this bypass builds the MCInst directly and must pick the
++  // variant itself: `br.z`/`br.nz` have both an RD (GPRD) and an RB (GPRB)
++  // variant, while `br.n`/`br.nn`/`br.p`/`br.np` only have the RD variant.
++  // Selecting purely from the mnemonic silently mis-encodes `br.z {rbN}?` /
++  // `br.nz {rbN}?` as the RD variant (op 0x6A/0x6B) even though the operand is
++  // a base register; the hardware then tests the wrong bank.
++  if (Mnemonic.starts_with("br.") && Flat.size() == 3 && Flat[2]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[2].get());
++    if (DOp->getImmExpr()) {
++      MCRegister Reg = static_cast<DADAOOperand *>(Flat[1].get())->getReg();
++      const MCRegisterInfo *RI = getContext().getRegisterInfo();
++      bool IsGPRB = RI->getRegClass(DADAO::GPRBRegClassID).contains(Reg);
++      bool IsGPRD = RI->getRegClass(DADAO::GPRDRegClassID).contains(Reg);
++
++      // Map mnemonic + operand bank to opcode.  0 means "no variant accepts
++      // this operand", mirroring the matcher's rejection of e.g. an RF/RA
++      // operand or an RB operand on a single-variant branch.
++      unsigned Opcode;
++      if (Mnemonic == "br.z")
++        Opcode = IsGPRB ? DADAO::br_z_rb : (IsGPRD ? DADAO::br_z_rd : 0);
++      else if (Mnemonic == "br.nz")
++        Opcode = IsGPRB ? DADAO::br_nz_rb : (IsGPRD ? DADAO::br_nz_rd : 0);
++      else if (Mnemonic == "br.n")
++        Opcode = IsGPRD ? DADAO::br_n_rd : 0;
++      else if (Mnemonic == "br.nn")
++        Opcode = IsGPRD ? DADAO::br_nn_rd : 0;
++      else if (Mnemonic == "br.p")
++        Opcode = IsGPRD ? DADAO::br_p_rd : 0;
++      else if (Mnemonic == "br.np")
++        Opcode = IsGPRD ? DADAO::br_np_rd : 0;
++      else
++        return Error(IDLoc, "unrecognized branch mnemonic");
++      if (Opcode == 0)
++        return Error(Flat[1]->getStartLoc(),
++                     "invalid operand for '" + Mnemonic.str() + "'");
++
++      MCInst Inst;
++      Inst.setOpcode(Opcode);
++      Inst.addOperand(MCOperand::createReg(Reg));
++      Inst.addOperand(MCOperand::createExpr(DOp->getImmExpr()));
++      Out.emitInstruction(Inst, getSTI());
++      return false;
++    }
++    int64_t ByteOff = DOp->getImm();
++    if (ByteOff % 4 != 0)
++      return Error(Flat[2]->getStartLoc(),
++                   "branch offset must be a multiple of 4 bytes");
++    int64_t Encoded = ByteOff >> 2;
++    if (Encoded < -131072 || Encoded > 131071)
++      return Error(Flat[2]->getStartLoc(),
++                   "branch byte offset out of range: expected "
++                   "[-524288, 524284] (imms20, %4==0)");
++    Flat[2] = DADAOOperand::createImm(Encoded, Flat[2]->getStartLoc(),
++                                       Flat[2]->getEndLoc());
++  }
++
++  // For rrii br.*/jump/call with expression offset: bypass matcher.
++  if ((Mnemonic == "jump" || Mnemonic == "call" ||
++       Mnemonic.starts_with("br.")) && Flat.size() == 4 && Flat[3]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[3].get());
++    if (DOp->getImmExpr()) {
++      unsigned Opcode;
++      if (Mnemonic == "jump") Opcode = DADAO::jump_rrii;
++      else if (Mnemonic == "call") Opcode = DADAO::call_rrii;
++      else if (Mnemonic == "br.eq") Opcode = DADAO::br_eq_rd;
++      else if (Mnemonic == "br.ne") Opcode = DADAO::br_ne_rd;
++      else return Error(IDLoc, "unrecognized branch/jump mnemonic");
++      MCInst Inst;
++      Inst.setOpcode(Opcode);
++      Inst.addOperand(MCOperand::createReg(
++          static_cast<DADAOOperand *>(Flat[1].get())->getReg()));
++      Inst.addOperand(MCOperand::createReg(
++          static_cast<DADAOOperand *>(Flat[2].get())->getReg()));
++      Inst.addOperand(MCOperand::createExpr(DOp->getImmExpr()));
++      Out.emitInstruction(Inst, getSTI());
++      return false;
++    }
++    int64_t ByteOff = DOp->getImm();
++    if (ByteOff % 4 != 0)
++      return Error(Flat[3]->getStartLoc(),
++                   "branch/jump offset must be a multiple of 4 bytes");
++    int64_t Encoded = ByteOff >> 2;
++    if (Encoded < -2048 || Encoded > 2047)
++      return Error(Flat[3]->getStartLoc(),
++                   "branch/jump byte offset out of range: expected "
++                   "[-8192, 8188] (imms14, %4==0)");
++    Flat[3] = DADAOOperand::createImm(Encoded, Flat[3]->getStartLoc(),
++                                       Flat[3]->getEndLoc());
++  }
++
++  // Static legality checks for FP instructions (SPEC-088t): `dst_rf0` (rf0 is
++  // the FCSR and cannot be an FP destination; rf0 as a source is legal) and
++  // `encode_fp_root_n` (ftroot/foroot only support n == 2).  Operand positions
++  // follow the assembly operand order:
++  //   scalar orrr / orri convert / root : destination = Flat[1];
++  //   cs.n/cs.z/cs.p (one condition reg) : destination = Flat[2];
++  //   cs.eq/cs.ne (two condition regs)   : destination = Flat[3].
++  if (isFPDstRfMnemonic(Mnemonic) && Flat.size() >= 2 && Flat[1]->isReg() &&
++      Flat[1]->getReg() == DADAO::rf0)
++    return Error(Flat[1]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rf0 is the FCSR and cannot be a floating-point "
++                     "destination (dst_rf0)");
++
++  if ((Mnemonic == "cs.n" || Mnemonic == "cs.z" || Mnemonic == "cs.p") &&
++      Flat.size() >= 3 && Flat[2]->isReg() && Flat[2]->getReg() == DADAO::rf0)
++    return Error(Flat[2]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rf0 is the FCSR and cannot be a floating-point "
++                     "destination (dst_rf0)");
++
++  if ((Mnemonic == "cs.eq" || Mnemonic == "cs.ne") && Flat.size() >= 4 &&
++      Flat[3]->isReg() && Flat[3]->getReg() == DADAO::rf0)
++    return Error(Flat[3]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rf0 is the FCSR and cannot be a floating-point "
++                     "destination (dst_rf0)");
++
++  // `dst_rd0` (SPEC-089t): the FP rd-destination forms (convert_f2i 8,
++  // classify 2, compare 4, rf2rd 1) must not write rd0 (the hard-wired zero
++  // register).  The destination start register is Flat[1] for both the orri
++  // group forms and the orrr single-destination compare (see decomposition).
++  if (isFPDstRdMnemonic(Mnemonic) && Flat.size() >= 2 && Flat[1]->isReg() &&
++      Flat[1]->getReg() == DADAO::rd0)
++    return Error(Flat[1]->getStartLoc(),
++                 "invalid '" + Mnemonic.str() +
++                     "': rd0 is the hard-wired zero register and cannot be a "
++                     "destination (dst_rd0)");
++
++  if ((Mnemonic == "ftroot" || Mnemonic == "foroot") && Flat.size() >= 4 &&
++      Flat[3]->isImm()) {
++    // A non-constant operand (symbol/relocation) is also Kind == kImmediate
++    // (see createImmExpr) and cannot be proven to be 2, so it is rejected too.
++    auto *NOp = static_cast<DADAOOperand *>(Flat[3].get());
++    if (NOp->getImmExpr() != nullptr || NOp->getImm() != 2)
++      return Error(Flat[3]->getStartLoc(),
++                   "invalid '" + Mnemonic.str() +
++                       "': root order n must be the constant 2 "
++                       "(encode_fp_root_n)");
++  }
++
++  // Static legality check for `ret` (SPEC-083t; SimRISC-06 §函数返回):
++  // `ret rdHA, imms18` with rdHA == rd0 requires imms18 == 0; otherwise the
++  // instruction is illegal.  This is a static (assemble-time) rule and MUST be
++  // a hard error (Error level), never a warning.  Applies to `ret` only.
++  // A non-constant operand (symbol/relocation) cannot be proven to be 0, so it
++  // is rejected as well (otherwise the illegal encoding would silently reach
++  // the linker).
++  if (Mnemonic == "ret" && Flat.size() == 3 && Flat[1]->isReg()) {
++    MCRegister RdHA = Flat[1]->getReg();
++    if (RdHA == DADAO::rd0) {
++      // Note: a symbol/relocatable operand is also Kind == kImmediate (see
++      // createImmExpr), so it is distinguished by a non-null ImmExpr.
++      auto *ImmOp = static_cast<DADAOOperand *>(Flat[2].get());
++      bool IsZero = Flat[2]->isImm() && ImmOp->getImmExpr() == nullptr &&
++                    ImmOp->getImm() == 0;
++      if (!IsZero)
++        return Error(Flat[2]->getStartLoc(),
++                     "invalid 'ret': rdHA is rd0, so imms18 must be the "
++                     "constant 0 (use 'ret rd0, 0')");
++    }
++  }
++
 +  MCInst Inst;
 +  unsigned MatchResult =
 +      MatchInstructionImpl(Flat, Inst, ErrorInfo, MatchingInlineAsm);
 +
 +  switch (MatchResult) {
 +  case Match_Success:
++    // Reject out-of-range immediates instead of letting the code emitter
++    // silently truncate them (contract-asm §2.4/§9/§11; LLVM-054t).
++    if (checkImmediateRanges(Inst.getOpcode(), Mnemonic, Flat))
++      return true;
 +    Out.emitInstruction(Inst, getSTI());
 +    return false;
 +  case Match_MissingFeature:
@@ -1071,6 +2400,16 @@ index 000000000000..90db68ae6371
 +  case Match_MnemonicFail:
 +    return Error(IDLoc, "unrecognized instruction mnemonic");
 +  case Match_InvalidOperand: {
++    SMLoc ErrorLoc = IDLoc;
++    if (ErrorInfo < Flat.size())
++      ErrorLoc = Flat[ErrorInfo]->getStartLoc();
++    return Error(ErrorLoc, "invalid operand for instruction");
++  }
++  case Match_InvalidImmediate: {
++    // Target operand-class mismatch (wyde position / cfx field / immediate):
++    // same wording as the base diagnostic (the wpn_err_* lit tests rely on it).
++    // Reaching this case at all is guarded by the FIRST_TARGET_MATCH_RESULT_TY
++    // offset (ISS-162): without it this value would alias Match_InvalidOperand.
 +    SMLoc ErrorLoc = IDLoc;
 +    if (ErrorInfo < Flat.size())
 +      ErrorLoc = Flat[ErrorInfo]->getStartLoc();

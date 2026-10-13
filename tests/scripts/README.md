@@ -45,6 +45,18 @@ python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml
 python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ --batch
 ```
 
+Batch mode runs cases serially by default. `--jobs N` runs `N` cases in
+parallel (threads: each case spawns an I/O-bound QEMU subprocess, and the
+parsed vector YAML is cached so the main loop is not GIL-bound); when
+omitted, `N` is taken from `$JOBS`, falling back to `1` (serial):
+
+```bash
+python3 tests/scripts/run_qemu_test.py tests/vectors/isa/ --batch --jobs 8
+```
+
+Parallel execution does not change the summary counts or the `fail_details`
+ordering: results are aggregated in `(file order, case order)`.
+
 ### Run with diagnostics (dump mode)
 
 ```bash
@@ -53,7 +65,11 @@ python3 tests/scripts/run_qemu_test.py tests/vectors/isa/reg-arith.yaml --dump
 
 ## QEMU Binary
 
-The harness expects `qemu-system-dadao` at `.work/build/qemu/qemu-system-dadao` (out-of-tree build). Override with:
+The harness resolves `qemu-system-dadao` from the **install root** (ADR-0016 D9)
+via `tools/infra/paths.py` (`host_toolchain_bin()/qemu-system-dadao`, i.e. the
+`.dadao/cross-toolchain/bin/` prefix — run `make install-host` to populate it).
+The install path is never hardcoded (D7). Lookup order in `find_qemu()` is:
+`$QEMU_SYSTEM_DADAO` → install-root default → `$PATH`. Override with:
 
 ```bash
 # Environment variable
@@ -65,7 +81,7 @@ python3 tests/scripts/run_qemu_test.py --qemu /path/to/qemu-system-dadao ...
 
 ## Binary Layout
 
-The test binary is loaded at RAM base `0xffff_0000_0000` (ADR-0004 D2.2):
+The test binary is loaded at the RAM base `0xFC00_0000_0000` (ADR-0004 D2.2/R3, rev. 2026-10-11):
 
 ```
 [section 1] loader   - Set rd/rb/ra registers from input_state, write memory
@@ -93,7 +109,7 @@ Dumps `rd[1..63]`, `rb[1..63]`, and `rb0` (PC) to state-dump region for diagnost
 
 **PC dump mechanism**: `st.o-rb` requires `rbha != rb0` (legality constraint), so `rb0` (PC) cannot be stored directly. The harness uses `rb2rd rd63, rb0, 1` to copy PC into scratch register `rd63`, then `st.o rd63, rb62, 0x400` to store it at the dump region. Encoding from `contracts/opcodes.yaml` (`rb2rd`, format `orri`, op=0x40, ha=0x36).
 
-**State-dump region** (at `0xffff_00fe_0000`, total 1032 bytes):
+**State-dump region** (at `0x0000_00fe_0000`, total 1032 bytes):
 
 | Offset | Content | Size | Notes |
 |--------|---------|------|-------|
@@ -111,22 +127,28 @@ For **semantic/boundary** cases with `expected_state`:
 3. For RB: `rb2rd` copies actual RB into scratch RD, then XOR with expected
 4. For RA: `ra2rd` copies actual RA into scratch RD, then XOR with expected
 5. OR all differences into accumulator
-6. If accumulator == 0 → write `0x00` (PASS) to exit port
-7. If accumulator != 0 → write `0x01` (FAIL) to exit port
+6. If accumulator == 0 → report `0x00` (PASS) via semihosting `SYS_EXIT`
+7. If accumulator != 0 → report `0x01` (FAIL) via semihosting `SYS_EXIT`
 
 For **encoding** cases (no expected_state, no expected_fault):
-- Write `0x00` (PASS) to exit port after test instruction
+- Report `0x00` (PASS) via `SYS_EXIT` after the test instruction
 
 For **legality** cases with `expected_fault`:
-- Write safety-net FAIL code (if fault doesn't happen)
-- QEMU handles the fault and writes fault code to exit port
+- Report a safety-net FAIL code if the fault doesn't happen
+- QEMU handles the fault and exits with its own fault code (e.g. `0x88`)
 
-## Exit Code Protocol (ADR-0004 D3/D5)
+The `SYS_EXIT` epilogue writes the 64-bit argument block
+`{ADP_Stopped_ApplicationExit (0x20026), code}` into RAM at
+`0x0000_00fd_0000`, then issues `rd16 = 0x18 (SYS_EXIT)`, `rb16 = block`,
+`trap` (semihosting tag).  The harness runs QEMU with
+`-semihosting-config enable=on,target=native` (ADR-0020 D7/D8).
+
+## Exit Code Protocol (ADR-0004 D5.7/D5.8; SYS_EXIT per ADR-0020 D8)
 
 | Range | Source | Meaning |
 |-------|--------|---------|
-| `0x00` | Exit port | PASS |
-| `0x01`-`0x7F` | Exit port | FAIL (test-defined) |
+| `0x00` | `SYS_EXIT` (guest) | PASS |
+| `0x01`-`0x7F` | `SYS_EXIT` (guest) | FAIL (test-defined) |
 | `0x80`-`0xFF` | Machine fault | See below |
 
 Machine fault codes (ADR-0004 D5.8):
@@ -149,7 +171,6 @@ Machine fault codes (ADR-0004 D5.8):
 | `rd61` | XOR+ORR accumulator |
 | `rd62` | Exit code |
 | `rd63` | Temp for dump |
-| `rb60` | Exit port address |
 | `rb61` | Temp for memory address |
 | `rb62` | Dump pointer |
 
@@ -159,7 +180,7 @@ Machine fault codes (ADR-0004 D5.8):
 
 **Normal mode**: Dumper section dumps state to memory, then continues to exit section. Host reads exit code from `$?`.
 
-**Dump mode** (`--dump` flag): After dumper section, guest spins (`jump rb0, rd0, 0`) instead of writing to exit port. Host uses QMP to dump memory. The harness starts QEMU with `-S` (frozen CPU), connects to QMP Unix socket, sends `cont` to resume guest, waits for guest to reach spin, then issues `pmemsave` and `quit`:
+**Dump mode** (`--dump` flag): After dumper section, guest spins (`jump rb0, rd0, 0`) instead of exiting via `SYS_EXIT`. Host uses QMP to dump memory. The harness starts QEMU with `-S` (frozen CPU), connects to QMP Unix socket, sends `cont` to resume guest, waits for guest to reach spin, then issues `pmemsave` and `quit`:
 
 ```bash
 # The harness does this automatically. For manual testing:

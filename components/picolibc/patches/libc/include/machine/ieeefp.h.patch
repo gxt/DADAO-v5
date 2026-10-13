@@ -1,0 +1,19 @@
+diff --git a/libc/include/machine/ieeefp.h b/libc/include/machine/ieeefp.h
+index 1994005..00278fc 100644
+--- a/libc/include/machine/ieeefp.h
++++ b/libc/include/machine/ieeefp.h
+@@ -90,6 +90,14 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ #endif
+ #endif
+ 
++/* DADAO (dadao-unknown-elf) is big-endian (DADAO-v5 contract-abi.md §1.7).
++ * clang does not predefine __FLOAT_WORD_ORDER__ for this target, so the
++ * generic detection above does not fire and the endianness must be stated
++ * explicitly here. */
++#if defined(__dadao__)
++#define __IEEE_BIG_ENDIAN
++#endif
++
+ #if (defined(__arm__) || defined(__thumb__)) && !defined(__MAVERICK__)
+ /* arm with hard fp and soft dp cannot use new float code */
+ #if (__ARM_FP & 4) && !(__ARM_FP & 8)

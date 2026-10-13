@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Generate 178 M1 assembly test lines (new syntax) from contracts/opcodes.yaml.
+"""Generate the M1 assembly test lines (new syntax) from contracts/opcodes.yaml.
+
+The number of lines is whatever the single source of truth (contracts/opcodes.yaml)
+yields; it is never hard-coded here or in the docstring.
 
 Each line is a valid DADAO new-syntax assembly instruction for llvm-mc.
 Register bank per id is derived from opcodes.yaml field definitions.
@@ -63,14 +66,14 @@ def gen_rrii(e):
     m = e['mnemonic']
     fs = e['fields']
     if m in ('jump', 'call'):
-        return f"{m} [rb3, rd0, 24i]"
+        return f"{m} [rb3, rd0, 96]"
     if m.startswith('br.'):
         # Two-register branch: rdha, rdhb
         rd_fields = [f for f in fs if f.get('bank') == 'rd']
         if len(rd_fields) == 1:
             # Should not happen for rrii, but guard
-            return f"{m} {{rd8}}?, [rb0, 4i]"
-        return f"{m} {{rd8, rd0}}?, [rb0, 4i]"
+            return f"{m} {{rd8}}?, [rb0, 16]"
+        return f"{m} {{rd8, rd0}}?, [rb0, 16]"
     if m.startswith('cmp.'):
         dst = _dst_bank(fs)
         src = _src_bank(fs)
@@ -98,13 +101,13 @@ def gen_riii(e):
         return "ret rd0, 0"
     r = _dst_bank(fs)
     if m.startswith('br.'):
-        return f"{m} {{{r}8}}?, [rb0, 4i]"
+        return f"{m} {{{r}8}}?, [rb0, 16]"
     return f"{m} {r}8, 1"
 
 
 def gen_iiii(e):
     m = e['mnemonic']
-    return f"{m} [rb0, 2i]"
+    return f"{m} [rb0, 8]"
 
 
 def gen_rwii(e):
@@ -176,7 +179,7 @@ def main():
     args = parser.parse_args()
 
     entries = yaml.safe_load(open(args.opcodes))
-    m1 = [e for e in entries if not e.get('excluded_m1')]
+    m1 = [e for e in entries if e.get('scope') == 'm1']
 
     lines = []
     for e in m1:

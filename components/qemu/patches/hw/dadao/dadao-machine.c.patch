@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000000..34dfe04da6
+index 0000000..f019b1d
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,221 @@
+@@ -0,0 +1,502 @@
 +/*
 + * DADAO M1 bare-metal test machine for QEMU
 + *
@@ -21,10 +21,39 @@ index 0000000000..34dfe04da6
 + * You should have received a copy of the GNU General Public License along with
 + * this program.  If not, see <http://www.gnu.org/licenses/>.
 + *
-+ * Memory map per ADR-0004 D1:
-+ *   RAM:        0xffff_0000_0000 .. 0xffff_00ff_ffff  (16 MiB, RWX)
-+ *   Exit port:  0xffff_8000_0000 .. 0xffff_8000_0007  (8 B, MMIO, write-only)
++ * Memory map per ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15: RAM is the
++ * single RAM segment at 0xFC00_0000_0000 (cfxha 63/power, 16 MiB; moved from
++ * all-zero in rev. 2026-10-11).  The legacy 0xffff_0000_0000 RAM of C1 step1
++ * and the legacy exit-port MMIO device were removed in step2 (halt is now
++ * semihosting SYS_EXIT, ADR-0020 D8).
++ *   RAM:        0xFC00_0000_0000 .. +DADAO_RAM_SIZE   (16 MiB, RWX; cfxha 63)
 + *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff  (64 KiB, RO+X)
++ *
++ * Loading paths per ADR-0004 D2.2/D2.3 (rev. 2026-10-06, SPEC-107t) and
++ * contract-elf.md §5/§6 -- two paths coexist, selected by the kernel's ELF
++ * magic (0x7f 'E' 'L' 'F'):
++ *
++ *   path A (ELF):   qemu-system-dadao -machine dadao-m1 -kernel image.elf
++ *                   before loading, the caller validates the ELF header rules
++ *                   and the PT_LOAD consistency/range rules the upstream
++ *                   loader does not enforce (e_type == ET_EXEC, e_flags
++ *                   version 1 / reserved bits 0, p_filesz <= p_memsz,
++ *                   p_vaddr == p_paddr, segment interval inside RAM;
++ *                   contract-elf.md §1.3/§5.2/§6.1.2).  An ELF loaded over
++ *                   -kernel is a RAM image, so a segment in the boot ROM
++ *                   window is a load-stage error (user decision D, 2026-10-09).
++ *                   The segment placement (VA=PA, .bss zero-fill) and the
++ *                   entry point (e_entry -> PC) are then delegated to the
++ *                   upstream loader (hw/core/loader.c: load_elf(), the standard
++ *                   API).  No external -bios ROM is used on this path.
++ *
++ *   path B (raw):   qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin
++ *                   flat ROM trampoline + flat test binary, entry fixed at the
++ *                   RAM base (M1-M3 path, unchanged; M3 test-codegen depends on it).
++ *
++ * Load-stage errors (malformed/oversize images) are reported and cause a
++ * non-zero process exit; they are a different layer from guest faults
++ * (ADR-0004 D4/D5) and never use the exit-port code channel.
 + */
 +
 +#include "qemu/osdep.h"
@@ -32,9 +61,10 @@ index 0000000000..34dfe04da6
 +#include "qemu/error-report.h"
 +#include "qemu/module.h"
 +#include "qemu/datadir.h"
++#include "elf.h"
 +#include "hw/core/loader.h"
++#include "hw/core/cpu.h"
 +#include "hw/core/qdev-properties.h"
-+#include "hw/core/sysbus.h"
 +#include "hw/core/boards.h"
 +#include "system/memory.h"
 +#include "system/address-spaces.h"
@@ -42,80 +72,288 @@ index 0000000000..34dfe04da6
 +#include "system/runstate.h"
 +#include "qom/object.h"
 +#include "target/dadao/cpu.h"
-+#include "accel/tcg/cpu-loop.h"
 +
-+/* Exit port MMIO handler */
-+typedef struct DadaoExitPort {
-+    SysBusDevice parent_obj;
-+    MemoryRegion mr;
-+} DadaoExitPort;
++/* ---------------------------------------------------------------------------
++ * Image loading
++ *
++ * Path selection is governed by contract-elf.md §5/§6 and ADR-0004 D2.2/D2.3.
++ * On the ELF path the segment load (every PT_LOAD, VA=PA, with the
++ * (p_memsz - p_filesz) tail zero-filled) and the entry point (e_entry) are
++ * delegated to the upstream loader in hw/core/loader.c (the standard
++ * load_elf() API) rather than re-implemented here.  The ELF header rules
++ * (e_type == ET_EXEC, e_flags version 1 / reserved bits zero) and the segment
++ * consistency/range rules (p_filesz <= p_memsz, p_vaddr == p_paddr, segment
++ * interval inside RAM -- RAM-only, a ROM-window segment is a load error; user
++ * decision D, 2026-10-09) that the upstream loader does not enforce
++ * -- contract-elf.md §1.3/§5.2/§6.1.2 -- are checked here before the load.
++ * ------------------------------------------------------------------------- */
 +
-+#define TYPE_DADAO_EXIT_PORT "dadao-exit-port"
-+OBJECT_DECLARE_SIMPLE_TYPE(DadaoExitPort, DADAO_EXIT_PORT)
++/* EM_DADAO is project-custom and not defined by QEMU's include/elf.h. */
++#define DADAO_EM_MACHINE            0x0DA0
 +
-+static uint64_t dadao_exit_port_read(void *opaque, hwaddr addr, unsigned size)
++/* contract-elf.md §1.3: e_flags bits 0-7 = object/ABI format version (M1 = 1),
++ * bits 8-31 reserved and must be 0. */
++#define DADAO_EFLAGS_VERSION_MASK   0x000000FFu
++#define DADAO_EFLAGS_RESERVED_MASK  0xFFFFFF00u
++#define DADAO_EFLAGS_VERSION_1      0x00000001u
++
++/*
++ * Regions an ELF PT_LOAD interval may occupy (contract-elf.md §5/§6.1.2).
++ *
++ * User decision D (2026-10-09): an ELF loaded over -kernel is a RAM image --
++ * only RAM is allowed.  A segment whose interval falls in the boot ROM window
++ * (0xffff_ffff_0000, 64 KiB) is a load-stage error (non-zero exit), never a
++ * ROM load.  This table is used only to validate a segment interval before the
++ * load; the placement itself is still done by the upstream loader.
++ */
++typedef struct DadaoMappedRegion {
++    uint64_t base;
++    uint64_t size;
++} DadaoMappedRegion;
++
++static const DadaoMappedRegion dadao_mapped_regions[] = {
++    { DADAO_RAM_BASE, DADAO_RAM_SIZE },
++};
++
++/* Big-endian field readers (ELFDATA2MSB, contract-elf.md §1.1): the ELF is
++ * always big-endian regardless of host byte order. */
++static uint16_t dadao_rd_be16(const uint8_t *p)
 +{
-+    /* Exit port is write-only; reads trigger ILLI */
-+    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
-+                                           DADAO_EXIT_ILLI);
++    return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
++}
++
++static uint32_t dadao_rd_be32(const uint8_t *p)
++{
++    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
++           ((uint32_t)p[2] << 8) | (uint32_t)p[3];
++}
++
++static uint64_t dadao_rd_be64(const uint8_t *p)
++{
++    return ((uint64_t)dadao_rd_be32(p) << 32) | (uint64_t)dadao_rd_be32(p + 4);
++}
++
++/*
++ * Explicit size-limit guards (ADR-0004 D2.3).  Kept behind a single switch so
++ * the evidence script can inject a "guards removed" counterexample.
++ */
++#define DADAO_ENFORCE_SIZE_LIMITS   1
++static const bool dadao_enforce_size_limits = DADAO_ENFORCE_SIZE_LIMITS;
++
++/* True if the buffer starts with the ELF magic number (contract-elf §6.1.2). */
++static bool dadao_is_elf_magic(const uint8_t *buf, gsize len)
++{
++    return len >= SELFMAG &&
++           buf[0] == ELFMAG0 && buf[1] == ELFMAG1 &&
++           buf[2] == ELFMAG2 && buf[3] == ELFMAG3;
++}
++
++/*
++ * Path selector (ADR-0004 D2.3, SPEC-107t): read only the leading magic so a
++ * large raw-bin kernel is not slurped into host memory just to classify it.
++ * Returns false when the file is unreadable or is not an ELF.
++ */
++static bool dadao_kernel_is_elf(const char *filename)
++{
++    uint8_t magic[SELFMAG];
++    ssize_t n;
++    int fd = qemu_open(filename, O_RDONLY | O_BINARY, NULL);
++
++    if (fd < 0) {
++        return false;
++    }
++    n = read(fd, magic, sizeof(magic));
++    close(fd);
++    return n == (ssize_t)sizeof(magic) &&
++           dadao_is_elf_magic(magic, sizeof(magic));
++}
++
++/*
++ * ELF header checks the upstream loader does not perform (contract-elf.md
++ * §1.3/§6.1.2): e_type must be ET_EXEC and e_flags must carry format version 1
++ * in bits 0-7 with reserved bits 8-31 clear.  Halts the process on a violation
++ * (load-stage error layer, ADR-0004 D2.3).  A file too short to hold
++ * Elf64_Ehdr is malformed and rejected here as well.  Fields are read
++ * big-endian (ELFDATA2MSB, §1.1); EI_DATA/EI_CLASS/e_machine are still left to
++ * the loader.
++ */
++static void dadao_elf_check_header(const char *filename)
++{
++    uint8_t hdr[sizeof(Elf64_Ehdr)];
++    uint16_t e_type;
++    uint32_t e_flags;
++    const size_t t_off = offsetof(Elf64_Ehdr, e_type);
++    const size_t f_off = offsetof(Elf64_Ehdr, e_flags);
++    ssize_t n;
++    int fd = qemu_open(filename, O_RDONLY | O_BINARY, NULL);
++
++    if (fd < 0) {
++        return; /* unreadable: let the loader report the real open error */
++    }
++    n = read(fd, hdr, sizeof(hdr));
++    close(fd);
++    if (n != (ssize_t)sizeof(hdr)) {
++        error_report("dadao-m1: ELF kernel '%s' is smaller than Elf64_Ehdr",
++                     filename);
++        exit(1);
++    }
++
++    e_type = (uint16_t)((hdr[t_off] << 8) | hdr[t_off + 1]);
++    e_flags = ((uint32_t)hdr[f_off] << 24) | ((uint32_t)hdr[f_off + 1] << 16) |
++              ((uint32_t)hdr[f_off + 2] << 8) | (uint32_t)hdr[f_off + 3];
++
++    if (e_type != ET_EXEC) {
++        error_report("dadao-m1: ELF kernel '%s' has e_type %u, expected "
++                     "ET_EXEC (%u)", filename, e_type, ET_EXEC);
++        exit(1);
++    }
++    if ((e_flags & DADAO_EFLAGS_VERSION_MASK) != DADAO_EFLAGS_VERSION_1) {
++        error_report("dadao-m1: ELF kernel '%s' has e_flags %#x: version "
++                     "(e_flags[7:0]) %u is not 1",
++                     filename, e_flags, e_flags & DADAO_EFLAGS_VERSION_MASK);
++        exit(1);
++    }
++    if (e_flags & DADAO_EFLAGS_RESERVED_MASK) {
++        error_report("dadao-m1: ELF kernel '%s' has e_flags %#x with reserved "
++                     "bits [31:8] set (must be 0)", filename, e_flags);
++        exit(1);
++    }
++}
++
++/*
++ * Raw-bin size guard (ADR-0004 D2.3): reject a blob larger than its region
++ * before loading, with the actual size and the limit in the message.  Returns
++ * 0 if within the limit or unreadable (the load reports the real error), -1 if
++ * oversize (message already reported).
++ */
++static int dadao_check_image_limit(const char *filename, const char *what,
++                                   uint64_t limit)
++{
++    int64_t size = get_image_size(filename, NULL);
++
++    if (size < 0) {
++        return 0;
++    }
++    if ((uint64_t)size > limit) {
++        error_report("dadao-m1: %s image '%s' is %" PRId64 " bytes, exceeds the "
++                     "%s region size limit of %" PRIu64 " bytes",
++                     what, filename, size, what, limit);
++        return -1;
++    }
 +    return 0;
 +}
 +
-+static void dadao_exit_port_write(void *opaque, hwaddr addr,
-+                                  uint64_t data, unsigned size)
++/*
++ * PT_LOAD consistency and range checks the upstream loader does not enforce
++ * (contract-elf.md §5.2/§6.1.2, ADR-0004 D2.3): p_filesz <= p_memsz, VA == PA
++ * (p_vaddr == p_paddr), and the segment interval [p_vaddr, p_vaddr + p_memsz)
++ * fitting inside RAM with no arithmetic overflow.  An ELF loaded over -kernel
++ * is a RAM image, so a segment in the boot ROM window is a load-stage error
++ * too (user decision D, 2026-10-09).  A violation is a load-stage error
++ * (non-zero process exit), a different layer from guest faults (ADR-0004
++ * D4/D5).  The check is read-only and leaves the actual placement to the
++ * upstream loader.  A malformed file (short header, program header table out
++ * of file bounds, ...) is left to the loader, which reports it and returns an
++ * error.
++ */
++static void dadao_elf_check_segments(const char *filename)
 +{
-+    /*
-+     * Per ADR-0004 D3:
-+     * - Only 8-byte (octa) writes are valid exit port accesses
-+     * - Write value & 0xFF = exit code propagated to host $?
-+     * - Non-8B writes trigger ILLI (0x88)
-+     *
-+     * .impl.max_access_size = 8 prevents TCG from splitting 64-bit MMIO
-+     * writes into two 32-bit writes. Without this, a guest st.o would be
-+     * split into two 4-byte writes, neither of which is a valid exit.
-+     */
-+    if (size != 8) {
-+        qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
-+                                               DADAO_EXIT_ILLI);
-+        cpu_loop_exit(current_cpu);
-+        return;
++    uint8_t ehdr[sizeof(Elf64_Ehdr)];
++    uint8_t phdr[sizeof(Elf64_Phdr)];
++    uint64_t phoff;
++    uint16_t phentsize, phnum;
++    ssize_t n;
++    int fd;
++    unsigned i;
++
++    fd = qemu_open(filename, O_RDONLY | O_BINARY, NULL);
++    if (fd < 0) {
++        return; /* unreadable: let the loader report the real open error */
++    }
++    n = read(fd, ehdr, sizeof(ehdr));
++    if (n != (ssize_t)sizeof(ehdr)) {
++        close(fd);
++        return; /* too short: dadao_elf_check_header already rejected it */
 +    }
 +
-+    int exit_code = (int)(data & 0xFF);
-+    qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_SHUTDOWN,
-+                                           exit_code);
-+    /* Per ADR-0011 D1: cpu_loop_exit longjmps back to cpu_exec's setjmp
-+     * point, guaranteeing no further guest instructions execute after the
-+     * exit port write. This prevents subsequent instructions (e.g. FAIL
-+     * stores, UNDI terminators) from overriding the locked exit code. */
-+    cpu_loop_exit(current_cpu);
++    phoff = dadao_rd_be64(ehdr + offsetof(Elf64_Ehdr, e_phoff));
++    phentsize = dadao_rd_be16(ehdr + offsetof(Elf64_Ehdr, e_phentsize));
++    phnum = dadao_rd_be16(ehdr + offsetof(Elf64_Ehdr, e_phnum));
++    if (phentsize != sizeof(Elf64_Phdr)) {
++        close(fd);
++        return; /* unexpected entry size: let the loader handle the file */
++    }
++
++    for (i = 0; i < phnum; i++) {
++        uint64_t off = phoff + (uint64_t)i * phentsize;
++        uint64_t p_vaddr, p_paddr, p_filesz, p_memsz, end;
++        uint32_t p_type;
++        bool mapped = false;
++        unsigned r;
++
++        if (lseek(fd, (off_t)off, SEEK_SET) != (off_t)off) {
++            break; /* malformed: let the loader report it */
++        }
++        if (read(fd, phdr, sizeof(phdr)) != (ssize_t)sizeof(phdr)) {
++            break;
++        }
++        p_type = dadao_rd_be32(phdr + offsetof(Elf64_Phdr, p_type));
++        if (p_type != PT_LOAD) {
++            continue;
++        }
++        p_vaddr = dadao_rd_be64(phdr + offsetof(Elf64_Phdr, p_vaddr));
++        p_paddr = dadao_rd_be64(phdr + offsetof(Elf64_Phdr, p_paddr));
++        p_filesz = dadao_rd_be64(phdr + offsetof(Elf64_Phdr, p_filesz));
++        p_memsz = dadao_rd_be64(phdr + offsetof(Elf64_Phdr, p_memsz));
++
++        /* consistency: p_filesz <= p_memsz (contract-elf.md §6.1.2) */
++        if (p_filesz > p_memsz) {
++            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u has "
++                         "p_filesz %#" PRIx64 " > p_memsz %#" PRIx64,
++                         filename, i, p_filesz, p_memsz);
++            close(fd);
++            exit(1);
++        }
++        /* VA=PA (contract-elf.md §5.2): the loader places at p_paddr */
++        if (p_vaddr != p_paddr) {
++            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u has "
++                         "p_vaddr %#" PRIx64 " != p_paddr %#" PRIx64
++                         " (VA=PA required)",
++                         filename, i, p_vaddr, p_paddr);
++            close(fd);
++            exit(1);
++        }
++        /* range + overflow (contract-elf.md §6.1.2) */
++        end = p_vaddr + p_memsz;
++        if (end < p_vaddr) {
++            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u "
++                         "interval [%#" PRIx64 ", %#" PRIx64 ") overflows",
++                         filename, i, p_vaddr, end);
++            close(fd);
++            exit(1);
++        }
++        for (r = 0; r < ARRAY_SIZE(dadao_mapped_regions); r++) {
++            uint64_t rbase = dadao_mapped_regions[r].base;
++            uint64_t rend = rbase + dadao_mapped_regions[r].size;
++
++            if (p_vaddr >= rbase && end <= rend) {
++                mapped = true;
++                break;
++            }
++        }
++        if (!mapped) {
++            error_report("dadao-m1: ELF kernel '%s': PT_LOAD segment %u "
++                         "interval [%#" PRIx64 ", %#" PRIx64 ") is outside the "
++                         "mapped regions (only RAM 0x%" PRIx64 " + %" PRIu64
++                         " bytes is allowed; the boot ROM window is rejected)",
++                         filename, i, p_vaddr, end, (uint64_t)DADAO_RAM_BASE,
++                         (uint64_t)DADAO_RAM_SIZE);
++            close(fd);
++            exit(1);
++        }
++    }
++    close(fd);
 +}
-+
-+static const MemoryRegionOps dadao_exit_port_ops = {
-+    .read = dadao_exit_port_read,
-+    .write = dadao_exit_port_write,
-+    .endianness = DEVICE_BIG_ENDIAN,
-+    .valid.min_access_size = 1,
-+    .valid.max_access_size = 8,
-+    .impl.max_access_size = 8,
-+};
-+
-+static void dadao_exit_port_init(Object *obj)
-+{
-+    DadaoExitPort *s = DADAO_EXIT_PORT(obj);
-+    SysBusDevice *sbd = SYS_BUS_DEVICE(obj);
-+
-+    memory_region_init_io(&s->mr, obj, &dadao_exit_port_ops, s,
-+                          "dadao-exit-port", DADAO_EXIT_PORT_SIZE);
-+    sysbus_init_mmio(sbd, &s->mr);
-+}
-+
-+static const TypeInfo dadao_exit_port_info = {
-+    .name = TYPE_DADAO_EXIT_PORT,
-+    .parent = TYPE_SYS_BUS_DEVICE,
-+    .instance_size = sizeof(DadaoExitPort),
-+    .instance_init = dadao_exit_port_init,
-+};
 +
 +/* DADAO M1 machine */
 +typedef struct DadaoMachineState {
@@ -133,16 +371,11 @@ index 0000000000..34dfe04da6
 +{
 +    DadaoCPU *cpu;
 +    MemoryRegion *ram, *rom, *system_memory;
-+    DadaoExitPort *exit_port;
 +    Error *err = NULL;
 +    ssize_t bios_size, kernel_size;
++    const char *kernel = machine->kernel_filename;
 +
-+    /* Validate: both -bios and -kernel are required */
-+    if (!machine->firmware) {
-+        error_report("dadao-m1: -bios rom.bin is required");
-+        exit(1);
-+    }
-+    if (!machine->kernel_filename) {
++    if (!kernel) {
 +        error_report("dadao-m1: -kernel test.bin is required");
 +        exit(1);
 +    }
@@ -153,7 +386,9 @@ index 0000000000..34dfe04da6
 +
 +    system_memory = get_system_memory();
 +
-+    /* RAM: 0xffff_0000_0000, 16 MiB */
++    /* RAM (ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15): the single 16 MiB
++     * RAM segment at 0xFC00_0000_0000 (cfxha 63, power).  The legacy RAM
++     * segment and the exit-port device were removed in step2. */
 +    ram = g_new(MemoryRegion, 1);
 +    memory_region_init_ram(ram, NULL, "dadao-ram", DADAO_RAM_SIZE, &error_fatal);
 +    memory_region_add_subregion(system_memory, DADAO_RAM_BASE, ram);
@@ -163,10 +398,57 @@ index 0000000000..34dfe04da6
 +    memory_region_init_rom(rom, NULL, "dadao-rom", DADAO_ROM_SIZE, &error_fatal);
 +    memory_region_add_subregion(system_memory, DADAO_ROM_BASE, rom);
 +
-+    /* Exit port: 0xffff_8000_0000, 8 B */
-+    exit_port = DADAO_EXIT_PORT(qdev_new(TYPE_DADAO_EXIT_PORT));
-+    sysbus_realize_and_unref(SYS_BUS_DEVICE(exit_port), &error_fatal);
-+    sysbus_mmio_map(SYS_BUS_DEVICE(exit_port), 0, DADAO_EXIT_PORT_BASE);
++    /* The kernel's magic selects the loading path (ADR-0004 D2.3). */
++    if (dadao_kernel_is_elf(kernel)) {
++        /*
++         * Path A: ELF.  First apply the rules the upstream loader does not
++         * enforce -- ELF header (e_type/e_flags, contract-elf.md §1.3/§6.1.2)
++         * and PT_LOAD consistency/range (§5.2/§6.1.2, RAM-only) -- then
++         * delegate parsing and segment placement to the upstream loader
++         * (hw/core/loader.c): it walks every PT_LOAD, loads p_filesz bytes at
++         * VA=PA and zero-fills the (p_memsz - p_filesz) tail, and reports
++         * e_entry.  An ELF loaded over -kernel is a RAM image: a segment in
++         * the boot ROM window is rejected above (user decision D, 2026-10-09),
++         * so load_elf() never sees one.  No external -bios ROM is used on this
++         * path.
++         */
++        uint64_t entry = 0;
++        ssize_t elf_size;
++
++        dadao_elf_check_header(kernel);
++        dadao_elf_check_segments(kernel);
++
++        elf_size = load_elf(kernel, NULL, NULL, NULL, &entry, NULL,
++                            NULL, NULL, ELFDATA2MSB, DADAO_EM_MACHINE, 0, 0);
++        if (elf_size < 0) {
++            error_report("dadao-m1: could not load ELF kernel '%s': %s",
++                         kernel, load_elf_strerror(elf_size));
++            exit(1);
++        }
++        /* Entry: PC = e_entry (path A; rb0 reset value is the ROM base). */
++        cpu_set_pc(CPU(cpu), entry);
++        return;
++    }
++
++    /*
++     * Path B: raw-bin dual image (M1-M3).  Both a ROM trampoline (-bios) and
++     * the flat test binary (-kernel) are required; entry is the RAM base.
++     */
++    if (!machine->firmware) {
++        error_report("dadao-m1: kernel image '%s' is not an ELF (bad magic); "
++                     "-bios rom.bin is required for the raw-bin path", kernel);
++        exit(1);
++    }
++
++    if (dadao_enforce_size_limits) {
++        if (dadao_check_image_limit(machine->firmware, "ROM",
++                                    DADAO_ROM_SIZE) < 0) {
++            exit(1);
++        }
++        if (dadao_check_image_limit(kernel, "RAM", DADAO_RAM_SIZE) < 0) {
++            exit(1);
++        }
++    }
 +
 +    /* Load BIOS (ROM trampoline) into ROM region */
 +    bios_size = load_image_targphys_as(machine->firmware,
@@ -183,14 +465,14 @@ index 0000000000..34dfe04da6
 +
 +    /* Load kernel (test binary) into RAM region */
 +    err = NULL;
-+    kernel_size = load_image_targphys_as(machine->kernel_filename,
++    kernel_size = load_image_targphys_as(kernel,
 +                                         DADAO_RAM_BASE,
 +                                         DADAO_RAM_SIZE,
 +                                         &address_space_memory,
 +                                         &err);
 +    if (kernel_size < 0) {
 +        error_report("dadao-m1: could not load kernel image '%s': %s",
-+                     machine->kernel_filename,
++                     kernel,
 +                     err ? error_get_pretty(err) : "unknown error");
 +        exit(1);
 +    }
@@ -220,7 +502,6 @@ index 0000000000..34dfe04da6
 +
 +static void dadao_m1_machine_init(void)
 +{
-+    type_register_static(&dadao_exit_port_info);
 +    type_register_static(&dadao_m1_type);
 +}
 +

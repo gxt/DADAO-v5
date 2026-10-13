@@ -1,0 +1,66 @@
+diff --git a/meson.build b/meson.build
+index 93daa5d..af03cd5 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1924,6 +1924,37 @@ foreach libname : libnames
+   libsrcs += get_variable('src_' + libname, [])
+ endforeach
+ 
++# DADAO port scope (INFRA-057t; minimized by INFRA-066t).  The DADAO LLVM
++# backend still cannot select a handful of DAG nodes / lower some libcalls that
++# a few sources need.  Those sources are excluded so the build is deterministic
++# instead of failing halfway.  The list below is the *minimal* set obtained by
++# compiling every source in this build (INFRA-066t); each entry, its failure
++# signature and its root cause are registered in ISS-193.  Delete entries as the
++# backend grows -- never extend the list.  LLVM-084t removed the ISS-193 (a)
++# group (FP unordered-family predicates) after the backend lowered them, and
++# LLVM-086t removed the (e) group (the inline-asm "r" constraint now accepts
++# pointer values) after the backend's getRegForInlineAsmConstraint landed.
++# LLVM-087t removed the f32 rounding / min-max subset of the (b) group
++# (sf_nearbyint / sf_scalb / sf_tgamma / srf_lgamma) after the f32 libcall
++# family (frint / ftrunc / ffloor ...) was registered.
++# LLVM-088t removed the (d) group (vfscanf / vfwscanf) after the backend's
++# f64->f32 truncating store was fixed (setTruncStoreAction Expand); both
++# sources now compile.
++# LLVM-089t removed the last (b) entry (sf_log10.c) after the f32 `log` libcall
++# (RTLIB::LOG_F32 -> logf) was registered: the fdlibm `log10f` body computes in
++# terms of the public `logf`, which clang lowers to `llvm.log.f32`.
++_dadao_backend_blocked = []
++if host_cpu_family == 'dadao'
++  _dadao_backend_blocked = [
++    # i64 bswap not selected; ISS-193 (c).
++    'hash_page.c',
++    # long-double strtod engine libcall unsupported; ISS-193 (f).
++    'atold_engine.c',
++  ]
++  message('DADAO port scope: excluding @0@ backend-blocked libc sources (ISS-193)'
++          .format(_dadao_backend_blocked.length()))
++endif
++
+ foreach params : targets
+   target = params['name']
+   target_dir = params['dir']
+@@ -1939,6 +1970,23 @@ foreach params : targets
+     libsrcs_target += get_variable('src_' + libname + target, [])
+   endforeach
+ 
++  if _dadao_backend_blocked != []
++    _dadao_filtered = []
++    foreach _s : libsrcs_target
++      _p = _s.full_path()
++      _drop = false
++      foreach _b : _dadao_backend_blocked
++        if _p.endswith('/' + _b)
++          _drop = true
++        endif
++      endforeach
++      if not _drop
++        _dadao_filtered += _s
++      endif
++    endforeach
++    libsrcs_target = _dadao_filtered
++  endif
++
+   instdir = join_paths(lib_dir, target_dir)
+ 
+   libc_name = 'c'

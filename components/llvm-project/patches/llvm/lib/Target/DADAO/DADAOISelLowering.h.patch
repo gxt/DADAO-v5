@@ -1,0 +1,193 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
+new file mode 100644
+index 000000000..7cbf9ffe1
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
+@@ -0,0 +1,187 @@
++//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file defines the interfaces that DADAO uses to lower LLVM code into a
++// selection DAG.  M3: i64 register class registration, minimal
++// LowerReturn/LowerFormalArguments (LLVM-033t), and integer compare/branch
++// lowering to cmp* + br.* (LLVM-037t; C17/C14).  The SelectionDAG framework is
++// the M3 choice (C11, ADR-0018).
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOISELLOWERING_H
++#define LLVM_LIB_TARGET_DADAO_DADAOISELLOWERING_H
++
++#include "llvm/CodeGen/TargetLowering.h"
++
++namespace llvm {
++
++class DADAOSubtarget;
++class DADAOTargetMachine;
++
++namespace DADAOISD {
++
++enum NodeType : unsigned {
++  FIRST_NUMBER = ISD::BUILTIN_OP_END,
++
++  /// Return terminator: (chain, [return-value registers...], [glue]).
++  /// Produced by LowerReturn, matched by the RET_PSEUDO instruction
++  /// (see DADAOCodeGen.td).
++  RET_GLUE,
++
++  /// Direct call: (chain, callee, [regmask], [argument registers...], [glue]).
++  /// Produced by LowerCall, selected to call_iiii (LLVM-039t).
++  CALL,
++
++  /// Tail call (real tail-jump): (chain, callee, [regmask],
++  /// [argument registers...], [glue]).  Produced by LowerCall when a tail call
++  /// is eligible (LLVM-074t: all arguments in registers, non-variadic);
++  /// selected to TAILJMP/TAILJMPIND.  The pseudo is isReturn, so PEI emits the
++  /// standard epilogue before it, and the jump reuses the caller's RegRAS
++  /// return address (contract-isa.md §8.3/§8.4: a plain `jump` does not push
++  /// a return address, so the callee's `ret` returns to our caller).
++  TAIL,
++
++  /// Signed / unsigned compare: (lhs, rhs) -> i64 in {-1, 0, 1}.
++  /// No condition flags (C17); the result is an ordinary data register value.
++  CMP,
++  CMPU,
++
++  /// Floating-point compare: (lhs, rhs) -> i64.  The DADAO FP compare writes
++  /// -1 / 0 / 1 for ordered results (lhs <, ==, > rhs) and a positive NaN value
++  /// for unordered; the result feeds the same br.* machinery as CMP (M6,
++  /// LLVM-066t; contract-fp.md §8).
++  FCMP,
++
++  /// Branch on a compare result (or any value) against zero:
++  ///   (chain, val, dest).  val < 0 / <= 0 / > 0 / >= 0 / == 0 / != 0.
++  BRN,
++  BRNP,
++  BRP,
++  BRNN,
++  BRZ,
++  BRNZ,
++
++  /// Two-register ==/!= branch: (chain, lhs, rhs, dest).  C17: used directly
++  /// for integer ==/!= so no compare instruction is needed.
++  BREQ,
++  BRNE,
++
++  /// Conditional assignment (contract-isa.md §6.5): (cond, true, false) -> i64,
++  /// selected to cs.n / cs.z / cs.p.  CS_N takes the true arm when cond < 0,
++  /// CS_Z when cond == 0 and CS_P when cond > 0.  Produced by LowerSETCC (to
++  /// turn the cmp* result {-1,0,1} into the C boolean 0/1), LowerSELECT_CC and
++  /// LowerSELECT (LLVM-069t).  A compare whose result feeds an FP select can
++  /// drive the same nodes (the FP setcc stage of LowerCmpSelect), which is why
++  /// the FP side no longer carries its own selectcc patterns for i64 results.
++  CS_N,
++  CS_Z,
++  CS_P,
++
++  /// Dense switch dispatch (LLVM-072t, ISS-177/G3).  Lowered from ISD::BR_JT:
++  /// (chain, index, TargetJumpTable).  Selected by DADAOISelDAGToDAG to load an
++  /// entry from the read-only jump table and jump through it (jump_rrii); the
++  /// table itself is emitted by the generic AsmPrinter as one 8-byte absolute
++  /// address per case (EK_BlockAddress -> R_DADAO_ABS48).
++  BR_JT,
++};
++
++} // namespace DADAOISD
++
++class DADAOTargetLowering : public TargetLowering {
++public:
++  explicit DADAOTargetLowering(const DADAOTargetMachine &TM,
++                               const DADAOSubtarget &STI);
++
++  const char *getTargetNodeName(unsigned Opcode) const override;
++
++  /// Inline-assembly register constraints (ISS-193(e), LLVM-086t).  The DADAO
++  /// register banks are not interchangeable, so a lone `"r"` constrains to a
++  /// register class; map it to the data bank (GPRD), the canonical i64 class
++  /// registered with `addRegisterClass` in the constructor.  Every other
++  /// constraint falls back to the generic TargetLowering implementation.
++  std::pair<unsigned, const TargetRegisterClass *>
++  getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
++                               StringRef Constraint, MVT VT) const override;
++
++  /// M6 (contract-abi.md §6.1): a function's return can be lowered only if each
++  /// return bank (rd/rb) carries at most K = 8 values; otherwise the return is
++  /// demoted to a hidden sret pointer by SelectionDAGBuilder.
++  bool CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
++                      bool IsVarArg,
++                      const SmallVectorImpl<ISD::OutputArg> &Outs,
++                      LLVMContext &Context, const Type *RetTy) const override;
++
++  SDValue
++  LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
++                       const SmallVectorImpl<ISD::InputArg> &Ins,
++                       const SDLoc &DL, SelectionDAG &DAG,
++                       SmallVectorImpl<SDValue> &InVals) const override;
++
++  SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
++                      const SmallVectorImpl<ISD::OutputArg> &Outs,
++                      const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
++                      SelectionDAG &DAG) const override;
++
++  /// Direct call lowering (LLVM-039t): assign argument locations via CC_DADAO,
++  /// emit CALLSEQ_START/END, the DADAOISD::CALL node (with getCallPreservedMask
++  /// as a RegisterMask operand) and LowerCallResult.
++  SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
++                    SmallVectorImpl<SDValue> &InVals) const override;
++
++  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
++
++private:
++  /// Copy call results out of the return registers (RetCC_DADAO) into virtual
++  /// registers (LLVM-039t).
++  SDValue LowerCallResult(SDValue Chain, SDValue InGlue,
++                          CallingConv::ID CallConv, bool IsVarArg,
++                          const SmallVectorImpl<ISD::InputArg> &Ins,
++                          const SDLoc &DL, SelectionDAG &DAG,
++                          SmallVectorImpl<SDValue> &InVals) const;
++
++  /// Lower an integer compare+branch to DADAO cmp* + br.* (C17, ADR-0018).
++  SDValue LowerBR_CC(SDValue Chain, ISD::CondCode CC, SDValue LHS, SDValue RHS,
++                     SDValue Dest, const SDLoc &DL, SelectionDAG &DAG) const;
++  SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
++
++  /// Compare-as-value lowering (LLVM-069t).  `icmp` used as a value (SETCC
++  /// surviving the i1 -> i64 promotion) selects constants 1/0; a ternary /
++  /// if-conversion SELECT_CC selects its two arms.  Both compute a cmp* result
++  /// (-1/0/1) and normalise it through cs.* (contract-isa.md §6.2/§6.5).
++  SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
++
++  /// Shared driver for SETCC / SELECT_CC: emit the compare (CMP/CMPU for
++  /// integers, FCMP for floating point, both yielding {-1,0,1}) and a cs.*
++  /// conditional assignment picking True/False (contract-isa.md §6.5).
++  SDValue LowerCmpSelect(ISD::CondCode CC, SDValue LHS, SDValue RHS,
++                         SDValue True, SDValue False, const SDLoc &DL,
++                         SelectionDAG &DAG) const;
++
++  /// Lower a dense `switch` (ISD::BR_JT) to a DADAOISD::BR_JT node carrying the
++  /// jump-table index and the (TargetJumpTable) table symbol (LLVM-072t,
++  /// ISS-177/G3); the indirect load+jump is selected in DADAOISelDAGToDAG.
++  SDValue LowerBR_JT(SDValue Op, SelectionDAG &DAG) const;
++
++  /// Varargs lowering (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  The
++  /// caller writes every argument into a contiguous 8-byte-slot save area at
++  /// incoming SP; va_start points just past the named arguments and va_arg
++  /// walks the slots one at a time.
++  SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerVAARG(SDValue Op, SelectionDAG &DAG) const;
++
++  /// True if V is an i64 value held in the GPRB (pointer/address) bank, i.e. a
++  /// CopyFromReg of a GPRB virtual register created by LowerFormalArguments.
++  bool isPointerBankValue(SDValue V, const SelectionDAG &DAG) const;
++};
++
++} // namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOISELLOWERING_H

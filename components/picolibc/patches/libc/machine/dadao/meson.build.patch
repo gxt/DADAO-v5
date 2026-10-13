@@ -1,0 +1,44 @@
+diff --git a/libc/machine/dadao/meson.build b/libc/machine/dadao/meson.build
+new file mode 100644
+index 0000000..b03a41c
+--- /dev/null
++++ b/libc/machine/dadao/meson.build
+@@ -0,0 +1,38 @@
++#
++# SPDX-License-Identifier: BSD-3-Clause
++#
++# DADAO (dadao-unknown-elf) machine-specific libc bits.
++#
++# Meson requires libc/machine/<cpu_family>/meson.build to exist for every
++# supported architecture (see the "Supported Architectures" section of
++# README.md).  The DADAO port deliberately keeps this directory minimal:
++#
++#   * the architecture-independent C fallbacks supply mem*/str*/... (no
++#     hand-written DADAO assembly mem routines are needed);
++#   * setjmp/longjmp are provided by setjmp.S in this directory;
++#   * the semihosting client (libos/semihost) supplies write/_exit and the
++#     fallback sbrk supplies the heap.
++#
++# Target configuration facts that are set outside this directory:
++#   * big-endian        -> libc/include/machine/ieeefp.h (__dadao__ stanza);
++#   * long double == f64 -> clang predefines __SIZEOF_LONG_DOUBLE__=8;
++#   * jmp_buf shape      -> libc/include/machine/setjmp.h (__dadao__ stanza).
++
++srcs_machine = [
++  'setjmp.S',
++]
++
++subdir('machine')
++
++foreach params : targets
++  target = params['name']
++  target_dir = params['dir']
++  target_c_args = params['c_args']
++
++  set_variable('lib_machine' + target,
++               static_library('machine' + target,
++                              srcs_machine,
++                              pic: false,
++                              include_directories: inc,
++                              c_args: target_c_args + c_args + arg_fnobuiltin))
++endforeach

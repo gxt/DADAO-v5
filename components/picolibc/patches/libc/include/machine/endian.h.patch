@@ -1,0 +1,20 @@
+diff --git a/libc/include/machine/endian.h b/libc/include/machine/endian.h
+index b9eb8d3..297ff31 100644
+--- a/libc/include/machine/endian.h
++++ b/libc/include/machine/endian.h
+@@ -21,11 +21,13 @@
+ #define BYTE_ORDER    _BYTE_ORDER
+ #endif
+ 
+-#ifdef __GNUC__
++/* DADAO: the LLVM backend has no BSWAP lowering yet, so use the portable
++ * byte-rearranging definitions below instead of the compiler builtins. */
++#if defined(__GNUC__) && !defined(__dadao__)
+ #define __bswap16(_x) __builtin_bswap16(_x)
+ #define __bswap32(_x) __builtin_bswap32(_x)
+ #define __bswap64(_x) __builtin_bswap64(_x)
+-#else  /* __GNUC__ */
++#else  /* !__GNUC__ (or __dadao__) */
+ static __inline __uint16_t
+ __bswap16(__uint16_t _x)
+ {

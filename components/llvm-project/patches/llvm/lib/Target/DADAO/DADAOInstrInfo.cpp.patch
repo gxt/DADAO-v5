@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000000..4f58d4a99db3
+index 000000000..12fcc23d0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,679 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,25 +13,673 @@ index 000000000000..4f58d4a99db3
 +//===----------------------------------------------------------------------===//
 +//
 +// DADAO instruction info implementation. Includes the TableGen-generated
-+// instruction info tables (DADAOGenInstrInfo.inc).
++// instruction info tables (DADAOGenInstrInfo.inc).  Custom overrides:
++//   copyPhysReg         - bank-aware register moves (LLVM-034t)
++//   expandPostRAPseudo  - i64 arithmetic / constant pseudos (LLVM-035t)
++//   analyzeBranch / removeBranch / insertBranch / getBranchDestBlock
++//                       - CFG branch support (LLVM-059t)
 +//
 +//===----------------------------------------------------------------------===//
 +
 +#include "DADAOInstrInfo.h"
++#include "DADAORegisterInfo.h"
 +
-+// Include the generated instruction info tables.
-+#define GET_INSTRINFO_MC_DESC
++// Include the generated instruction info tables.  The descriptor tables
++// (DADAODescs / DADAOInstrNameIndices / DADAOInstrNameData) are emitted once in
++// DADAOMCTargetDesc.cpp (GET_INSTRINFO_MC_DESC); here we only need the
++// DADAOGenInstrInfo constructor (GET_INSTRINFO_CTOR_DTOR).
++#define GET_INSTRINFO_CTOR_DTOR
 +#include "DADAOGenInstrInfo.inc"
++
++// Instruction opcode enum (DADAO::rd2rd, DADAO::rb2rb, ...) used by
++// copyPhysReg.  DADAOInstrInfo.h only defines GET_INSTRINFO_HEADER.
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
++#undef GET_INSTRINFO_ENUM
++
++#include "llvm/CodeGen/MachineBasicBlock.h"
++#include "llvm/CodeGen/MachineFrameInfo.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/MathExtras.h"
 +
 +using namespace llvm;
 +
-+// Constructor is provided by the generated base class.
-+// DADAOInstrInfo is currently a thin wrapper; no custom overrides yet.
++// Constructor is provided by the generated base class.  The custom overrides
++// are copyPhysReg (bank-aware register moves, LLVM-034t) and
++// expandPostRAPseudo (i64 arithmetic / constant pseudos, LLVM-035t).
++// The call-frame setup/destroy opcodes are registered here (LLVM-039t) so
++// PrologEpilogInserter/FinalizeISel recognise ADJCALLSTACKDOWN/UP.
 +DADAOInstrInfo::DADAOInstrInfo(const TargetSubtargetInfo &STI,
 +                               const TargetRegisterInfo &TRI,
-+                               unsigned CFSetupOpcode,
-+                               unsigned CFDestroyOpcode,
++                               unsigned /*CFSetupOpcode*/,
++                               unsigned /*CFDestroyOpcode*/,
 +                               unsigned CatchRetOpcode,
 +                               unsigned ReturnOpcode)
-+    : DADAOGenInstrInfo(STI, TRI, CFSetupOpcode, CFDestroyOpcode,
-+                        CatchRetOpcode, ReturnOpcode) {}
++    : DADAOGenInstrInfo(STI, TRI, DADAO::ADJCALLSTACKDOWN,
++                        DADAO::ADJCALLSTACKUP, CatchRetOpcode, ReturnOpcode) {}
++
++void DADAOInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
++                                 MachineBasicBlock::iterator MI,
++                                 const DebugLoc &DL, Register DestReg,
++                                 Register SrcReg, bool KillSrc,
++                                 bool RenamableDest, bool RenamableSrc) const {
++  (void)RenamableDest;
++  (void)RenamableSrc;
++
++  // Banks (C1/C2, ADR-0018; RF M6/LLVM-066t): RD = i64 data, RB =
++  // pointers/addresses, RF = f64/f32.
++  const bool DestRB = DADAO::GPRBRegClass.contains(DestReg);
++  const bool SrcRB = DADAO::GPRBRegClass.contains(SrcReg);
++  const bool DestRF = DADAO::GPRFRegClass.contains(DestReg);
++  const bool SrcRF = DADAO::GPRFRegClass.contains(SrcReg);
++
++  // No single DADAO instruction moves between the RF and RB banks (RF<->RD uses
++  // rd2rf/rf2rd, RD<->RB uses rd2rb/rb2rd, RF<->RF uses fo2fo).  Fail loudly
++  // rather than silently misencoding a cross-bank copy.
++  if ((DestRF && SrcRB) || (DestRB && SrcRF))
++    report_fatal_error(
++        "DADAO: no single-instruction copy between the RF and RB banks");
++
++  unsigned Opc;
++  if (DestRF && SrcRF)
++    Opc = DADAO::fo2fo_orri_rf; // RF -> RF (64-bit bit copy; immu6 = 1)
++  else if (DestRF)
++    Opc = DADAO::rd2rf_orri_rf; // RD -> RF
++  else if (SrcRF)
++    Opc = DADAO::rf2rd_orri_rf; // RF -> RD
++  else if (DestRB && SrcRB)
++    Opc = DADAO::rb2rb; // RB -> RB
++  else if (!DestRB && !SrcRB)
++    Opc = DADAO::rd2rd; // RD -> RD
++  else if (DestRB)
++    Opc = DADAO::rd2rb; // RD -> RB
++  else
++    Opc = DADAO::rb2rd; // RB -> RD
++
++  // The bank-copy instructions are orri block copies whose immu6 operand is
++  // the register count, valid range 1..63 (0 is illegal).  A physical
++  // register copy is exactly one register.
++  BuildMI(MBB, MI, DL, get(Opc), DestReg)
++      .addReg(SrcReg, getKillRegState(KillSrc))
++      .addImm(1);
++}
++
++void DADAOInstrInfo::materializeImm64(MachineBasicBlock &MBB,
++                                      MachineBasicBlock::iterator MBBI,
++                                      const DebugLoc &DL, Register DstReg,
++                                      int64_t Value,
++                                      MachineInstr::MIFlag Flag) const {
++  assert(Value != 0 && "zero does not need large-immediate materialization");
++  const uint64_t UValue = static_cast<uint64_t>(Value);
++  bool First = true;
++
++  for (unsigned WydePos = 0; WydePos != 4; ++WydePos) {
++    const uint16_t Wyde =
++        static_cast<uint16_t>((UValue >> (WydePos * 16)) & 0xffff);
++    if (Wyde == 0)
++      continue;
++
++    // The first (lowest nonzero) wyde goes through set.zw, which zeroes the
++    // other 48 bits; every later wyde is OR-ed in place with or.w.
++    MachineInstrBuilder MIB =
++        BuildMI(MBB, MBBI, DL,
++                get(First ? DADAO::set_zw_rd : DADAO::or_w_rd), DstReg)
++            .addImm(WydePos)
++            .addImm(Wyde);
++    if (Flag != MachineInstr::NoFlags)
++      MIB.setMIFlag(Flag);
++    First = false;
++  }
++  assert(!First && "nonzero immediate must contain a nonzero wyde");
++}
++
++bool DADAOInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
++  MachineBasicBlock &MBB = *MI.getParent();
++  const DebugLoc &DL = MI.getDebugLoc();
++
++  switch (MI.getOpcode()) {
++  case DADAO::RET_PSEUDO: {
++    // The return value(s) have already been placed in rd8..rd15 / rb8..rb15
++    // by LowerReturn (M6, contract-abi.md §6.1); `ret` only restores PC from
++    // the return-address stack.  The register field is the fixed encoding-format
++    // slot: `ret rd0, 0` (rdHA == rd0 requires imms18 == 0; SPEC-083t).
++    // Preserve the implicit operands so the return-value register stays live
++    // for the verifier.
++    MachineInstrBuilder MIB = BuildMI(MBB, MI, DL, get(DADAO::ret_riii));
++    MIB.addDef(DADAO::rd0);
++    MIB.addImm(0);
++    for (const MachineOperand &MO : MI.implicit_operands())
++      MIB.add(MO);
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::ADD_PSEUDO:
++  case DADAO::SUB_PSEUDO:
++  case DADAO::MUL_PSEUDO: {
++    // The rrrr add/sub/mul instructions produce 128 bits: rdha = high 64,
++    // rdhb = low 64.  CodeGen only needs the low half, so the high half is
++    // written to the hardwired-zero rd0 (contract-isa.md §6.1.1; the two
++    // destinations must not both be rd0 — rdhb is the result here).
++    unsigned Opc = MI.getOpcode() == DADAO::ADD_PSEUDO ? DADAO::add_uo_rd
++                 : MI.getOpcode() == DADAO::SUB_PSEUDO ? DADAO::sub_uo_rd
++                                                       : DADAO::mul_uo_rd;
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(Opc))
++        .addDef(DADAO::rd0) // rdha = rd0 (discard the high 64 bits)
++        .addDef(Dst)        // rdhb = low 64 bits of the result
++        .addReg(Src1)       // rdhc = src1
++        .addReg(Src2);      // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::MULHU_PSEUDO: {
++    // High half of an unsigned 64x64 product (LLVM-073t, ISS-176/G2):
++    // `mul.uo rdha, rdhb, rdhc, rdhd` has rdha = high 64, rdhb = low 64
++    // (contract-isa.md §6.1.4), so the high half alone is
++    // `mul.uo dst, rd0, a, b` (the low half goes to the hardwired-zero rd0).
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_uo_rd))
++        .addDef(Dst)          // rdha = high 64 bits of the product
++        .addDef(DADAO::rd0)   // rdhb = rd0 (discard the low 64 bits)
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::UMUL_LOHI_PSEUDO: {
++    // Full unsigned 64x64 -> 128 product (ISD::UMUL_LOHI).  The node's results
++    // are (low, high) but mul.uo's defs are (rdha=high, rdhb=low), so the
++    // operand order is swapped here (LLVM-073t, ISS-176/G2).
++    Register Lo = MI.getOperand(0).getReg();
++    Register Hi = MI.getOperand(1).getReg();
++    Register Src1 = MI.getOperand(2).getReg();
++    Register Src2 = MI.getOperand(3).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_uo_rd))
++        .addDef(Hi)           // rdha = high 64 bits
++        .addDef(Lo)           // rdhb = low 64 bits
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::MULHS_PSEUDO: {
++    // High half of a signed 64x64 product (LLVM-076t, ISS-185):
++    // `mul.so rdha, rdhb, rdhc, rdhd` has rdha = high 64, rdhb = low 64
++    // (contract-isa.md §6.1.4), so the high half alone is
++    // `mul.so dst, rd0, a, b` (the low half goes to the hardwired-zero rd0).
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src1 = MI.getOperand(1).getReg();
++    Register Src2 = MI.getOperand(2).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_so_rd))
++        .addDef(Dst)          // rdha = high 64 bits of the product
++        .addDef(DADAO::rd0)   // rdhb = rd0 (discard the low 64 bits)
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::SMUL_LOHI_PSEUDO: {
++    // Full signed 64x64 -> 128 product (ISD::SMUL_LOHI).  The node's results
++    // are (low, high) but mul.so's defs are (rdha=high, rdhb=low), so the
++    // operand order is swapped here (LLVM-076t, ISS-185).
++    Register Lo = MI.getOperand(0).getReg();
++    Register Hi = MI.getOperand(1).getReg();
++    Register Src1 = MI.getOperand(2).getReg();
++    Register Src2 = MI.getOperand(3).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::mul_so_rd))
++        .addDef(Hi)           // rdha = high 64 bits
++        .addDef(Lo)           // rdhb = low 64 bits
++        .addReg(Src1)         // rdhc = src1
++        .addReg(Src2);        // rdhd = src2
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::NEG_PSEUDO: {
++    // iss-159: `neg dst = sub.so {rd0, dst}, rd0, src`.  rdha (high 64 bits)
++    // goes to the hardwired-zero rd0, rdhb holds the low 64 bits; the minuend
++    // is rd0 (0) and the subtrahend is the source.
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src = MI.getOperand(1).getReg();
++    BuildMI(MBB, MI, DL, get(DADAO::sub_so_rd))
++        .addDef(DADAO::rd0)
++        .addDef(Dst)
++        .addReg(DADAO::rd0)
++        .addReg(Src);
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::ADD_IMM_PSEUDO: {
++    // `add.si rd, imm18` is in-place: copy the source into the result first
++    // (unless RA already coalesced them), then add.  The bank copy is a
++    // single-register rd2rd block move.
++    Register Dst = MI.getOperand(0).getReg();
++    Register Src = MI.getOperand(1).getReg();
++    const int64_t Imm = MI.getOperand(2).getImm();
++    if (Dst != Src)
++      BuildMI(MBB, MI, DL, get(DADAO::rd2rd), Dst).addReg(Src).addImm(1);
++    BuildMI(MBB, MI, DL, get(DADAO::add_si_rd), Dst).addImm(Imm);
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::CONST_WYDE: {
++    // C12 (ADR-0018): pick a basis wyde by sign, then fix the other wydes.
++    //   - non-negative: set.zw basis (other wydes = 0), or.w adds 1-bits.
++    //   - negative:     set.ow basis (other wydes = 0xFFFF), andn.w clears
++    //                   the 0-bits.  (RB has no set.ow; these are RD.)
++    Register Dst = MI.getOperand(0).getReg();
++    int64_t SExt = MI.getOperand(1).getImm();
++    uint64_t Val = static_cast<uint64_t>(SExt);
++    const bool Neg = SExt < 0;
++
++    auto Wyde = [&](int W) -> uint16_t {
++      return static_cast<uint16_t>((Val >> (W * 16)) & 0xFFFF);
++    };
++
++    // Basis = a wyde that already differs from the fill value, so it does not
++    // need a fixup afterwards (highest for negative, lowest for positive).
++    int Basis = -1;
++    if (Neg) {
++      for (int W = 3; W >= 0; --W)
++        if (Wyde(W) != 0xFFFF) { Basis = W; break; }
++    } else {
++      for (int W = 0; W < 4; ++W)
++        if (Wyde(W) != 0) { Basis = W; break; }
++    }
++
++    if (Basis < 0) {
++      // All-zero (non-negative) or all-ones (negative).
++      if (Neg)
++        BuildMI(MBB, MI, DL, get(DADAO::set_ow_rd), Dst)
++            .addImm(0).addImm(0xFFFF);
++      else
++        BuildMI(MBB, MI, DL, get(DADAO::set_zw_rd), Dst).addImm(0).addImm(0);
++      MI.eraseFromParent();
++      return true;
++    }
++
++    BuildMI(MBB, MI, DL, get(Neg ? DADAO::set_ow_rd : DADAO::set_zw_rd), Dst)
++        .addImm(Basis)
++        .addImm(Wyde(Basis));
++    for (int W = 0; W < 4; ++W) {
++      if (W == Basis)
++        continue;
++      const uint16_t T = Wyde(W);
++      if (Neg) {
++        if (T == 0xFFFF)
++          continue;
++        BuildMI(MBB, MI, DL, get(DADAO::andn_w_rd), Dst)
++            .addImm(W)
++            .addImm(static_cast<uint16_t>(~T));
++      } else {
++        if (T == 0)
++          continue;
++        BuildMI(MBB, MI, DL, get(DADAO::or_w_rd), Dst).addImm(W).addImm(T);
++      }
++    }
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::GLOBAL_ADDR: {
++    // Absolute 48-bit global-address materialization (LLVM-055t): one set.zw
++    // for the low wyde plus two or.w to OR in the middle/high wydes -- fixed 3
++    // slices, relaxation disabled (ADR-0019 D4/D5/D7).  Every instruction
++    // carries the same symbol; the DADAO MCCodeEmitter turns each into an
++    // R_DADAO_ABS48 relocation on that instruction's immu16 field, and the
++    // linker selects the 16-bit slice from the instruction's wyde-position
++    // (wp).  The constant offset is part of the symbol expression (r_addend).
++    Register Dst = MI.getOperand(0).getReg();
++    const MachineOperand &Sym = MI.getOperand(1);
++    auto AddSym = [&](MachineInstrBuilder MIB) {
++      MIB.addGlobalAddress(Sym.getGlobal(), Sym.getOffset(),
++                           Sym.getTargetFlags());
++    };
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::JT_ADDR: {
++    // Absolute address of a function's jump table (LLVM-072t, ISS-177/G3).
++    // Identical 3-slice materialization to GLOBAL_ADDR, except the symbol is the
++    // jump table's local label carried as an MO_JumpTableIndex (the AsmPrinter/
++    // MCInstLower resolves it to MF->getJTISymbol, the label emitJumpTableInfo
++    // defines in front of the table).  Each slice becomes R_DADAO_ABS48.
++    Register Dst = MI.getOperand(0).getReg();
++    const MachineOperand &Sym = MI.getOperand(1);
++    auto AddSym = [&](MachineInstrBuilder MIB) {
++      MIB.addJumpTableIndex(Sym.getIndex(), Sym.getTargetFlags());
++    };
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    MI.eraseFromParent();
++    return true;
++  }
++  default:
++    return false;
++  }
++}
++
++void DADAOInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
++                                         MachineBasicBlock::iterator MI,
++                                         Register SrcReg, bool isKill,
++                                         int FrameIndex,
++                                         const TargetRegisterClass *RC,
++                                         Register /*VReg*/,
++                                         MachineInstr::MIFlag Flags) const {
++  // Route by bank (C16 D3, ADR-0018): GPRD -> st.o (rd value), GPRB -> st.o
++  // (rb value).  Both take the base register and a simm12 offset; the base is
++  // a frame index that PEI replaces (LLVM-038t).  Use hasSubClassEq (not ==):
++  // callee-save spills go through getMinimalPhysRegClass, which yields the
++  // smaller GPRD_Allocatable / GPRB_Allocatable class (LLVM-039t).
++  unsigned Opc;
++  if (DADAO::GPRDRegClass.hasSubClassEq(RC))
++    Opc = DADAO::st_o_rd;
++  else if (DADAO::GPRBRegClass.hasSubClassEq(RC))
++    Opc = DADAO::st_o_rb;
++  else if (DADAO::GPRFRegClass.hasSubClassEq(RC))
++    Opc = DADAO::st_o_rrii_rf; // RF bank store (contract-isa.md §11)
++  else
++    llvm_unreachable("DADAO: cannot spill this register class to a stack slot");
++
++  MachineFunction &MF = *MBB.getParent();
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  Align Alignment = MFI.getObjectAlign(FrameIndex);
++  MachineMemOperand *MMO = MF.getMachineMemOperand(
++      MachinePointerInfo::getFixedStack(MF, FrameIndex),
++      MachineMemOperand::MOStore, MFI.getObjectSize(FrameIndex), Alignment);
++
++  DebugLoc DL;
++  if (MI != MBB.end())
++    DL = MI->getDebugLoc();
++
++  BuildMI(MBB, MI, DL, get(Opc))
++      .addReg(SrcReg, getKillRegState(isKill))
++      .addFrameIndex(FrameIndex)
++      .addImm(0)
++      .addMemOperand(MMO)
++      .setMIFlag(Flags);
++}
++
++void DADAOInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
++                                          MachineBasicBlock::iterator MI,
++                                          Register DestReg, int FrameIndex,
++                                          const TargetRegisterClass *RC,
++                                          Register /*VReg*/, unsigned /*SubReg*/,
++                                          MachineInstr::MIFlag Flags) const {
++  unsigned Opc;
++  if (DADAO::GPRDRegClass.hasSubClassEq(RC))
++    Opc = DADAO::ld_o_rd;
++  else if (DADAO::GPRBRegClass.hasSubClassEq(RC))
++    Opc = DADAO::ld_o_rb;
++  else if (DADAO::GPRFRegClass.hasSubClassEq(RC))
++    Opc = DADAO::ld_o_rrii_rf; // RF bank load (contract-isa.md §11)
++  else
++    llvm_unreachable(
++        "DADAO: cannot reload this register class from a stack slot");
++
++  MachineFunction &MF = *MBB.getParent();
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  Align Alignment = MFI.getObjectAlign(FrameIndex);
++  MachineMemOperand *MMO = MF.getMachineMemOperand(
++      MachinePointerInfo::getFixedStack(MF, FrameIndex),
++      MachineMemOperand::MOLoad, MFI.getObjectSize(FrameIndex), Alignment);
++
++  DebugLoc DL;
++  if (MI != MBB.end())
++    DL = MI->getDebugLoc();
++
++  BuildMI(MBB, MI, DL, get(Opc), DestReg)
++      .addFrameIndex(FrameIndex)
++      .addImm(0)
++      .addMemOperand(MMO)
++      .setMIFlag(Flags);
++}
++
++// ===--------------------------------------------------------------------=== //
++// Branch analysis / insertion / removal (LLVM-059t / ISS-158)
++// ===--------------------------------------------------------------------=== //
++
++// The DADAO conditional branches whose operand layout is understood by
++// analyzeBranch / insertBranch.  This is an explicit list (rather than
++// isConditionalBranch()) so that any future or unknown conditional branch is
++// reported as "cannot analyze" instead of being silently mis-modelled:
++//   * riii (one non-target reg): br.n / br.nn / br.z / br.nz / br.p / br.np on
++//     a GPRD, plus br.z / br.nz on a GPRB;
++//   * rrii (two non-target regs): br.eq / br.ne on two GPRDs.
++// The branch target is always the last explicit operand (DADAOInstrInfo.td).
++bool DADAOInstrInfo::isSupportedCondBranchOpcode(unsigned Opcode) {
++  switch (Opcode) {
++  case DADAO::br_eq_rd:
++  case DADAO::br_ne_rd:
++  case DADAO::br_n_rd:
++  case DADAO::br_nn_rd:
++  case DADAO::br_z_rd:
++  case DADAO::br_nz_rd:
++  case DADAO::br_p_rd:
++  case DADAO::br_np_rd:
++  case DADAO::br_z_rb:
++  case DADAO::br_nz_rb:
++    return true;
++  default:
++    return false;
++  }
++}
++
++// Parse a fall-through conditional branch into the convention shared with
++// insertBranch: Cond[0] = Imm(opcode), Cond[1..] = the branch's non-target
++// explicit operands (the target is always the last explicit operand).
++static void parseCondBranch(MachineInstr &LastInst, MachineBasicBlock *&Target,
++                            SmallVectorImpl<MachineOperand> &Cond) {
++  assert(LastInst.getDesc().isConditionalBranch() &&
++         "Unknown conditional branch");
++  const unsigned NumExplicit = LastInst.getNumExplicitOperands();
++  Target = LastInst.getOperand(NumExplicit - 1).getMBB();
++  Cond.push_back(MachineOperand::CreateImm(LastInst.getOpcode()));
++  for (unsigned i = 0, e = NumExplicit - 1; i != e; ++i)
++    Cond.push_back(LastInst.getOperand(i));
++}
++
++bool DADAOInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
++                                   MachineBasicBlock *&TBB,
++                                   MachineBasicBlock *&FBB,
++                                   SmallVectorImpl<MachineOperand> &Cond,
++                                   bool AllowModify) const {
++  TBB = FBB = nullptr;
++  Cond.clear();
++
++  // If the block has no terminators, it just falls into the block after it.
++  MachineBasicBlock::iterator I = MBB.getLastNonDebugInstr();
++  if (I == MBB.end() || !isUnpredicatedTerminator(*I))
++    return false;
++
++  // Count the contiguous terminators at the end and remember the first
++  // unconditional (or indirect) branch among them.
++  MachineBasicBlock::iterator FirstUncondOrIndirectBr = MBB.end();
++  int NumTerminators = 0;
++  for (auto J = I.getReverse(); J != MBB.rend() && isUnpredicatedTerminator(*J);
++       J++) {
++    NumTerminators++;
++    if (J->getDesc().isUnconditionalBranch() ||
++        J->getDesc().isIndirectBranch())
++      FirstUncondOrIndirectBr = J.getReverse();
++  }
++
++  // If AllowModify is true, we can erase any terminators after the first
++  // unconditional/indirect branch.
++  if (AllowModify && FirstUncondOrIndirectBr != MBB.end()) {
++    while (std::next(FirstUncondOrIndirectBr) != MBB.end()) {
++      std::next(FirstUncondOrIndirectBr)->eraseFromParent();
++      NumTerminators--;
++    }
++    I = FirstUncondOrIndirectBr;
++  }
++
++  // Indirect branches and pre-ISel generic branches are not understood.
++  if (I->getDesc().isIndirectBranch() || I->isPreISelOpcode())
++    return true;
++
++  // We can't handle blocks with more than two terminators.
++  if (NumTerminators > 2)
++    return true;
++
++  // A single unconditional branch.
++  if (NumTerminators == 1 && I->getDesc().isUnconditionalBranch()) {
++    TBB = getBranchDestBlock(*I);
++    return false;
++  }
++
++  // A single conditional branch (fall-through to the next block).
++  if (NumTerminators == 1 && I->getDesc().isConditionalBranch()) {
++    if (!isSupportedCondBranchOpcode(I->getOpcode()))
++      return true;
++    parseCondBranch(*I, TBB, Cond);
++    return false;
++  }
++
++  // A conditional branch followed by an unconditional branch.
++  if (NumTerminators == 2 && std::prev(I)->getDesc().isConditionalBranch() &&
++      I->getDesc().isUnconditionalBranch()) {
++    if (!isSupportedCondBranchOpcode(std::prev(I)->getOpcode()))
++      return true;
++    parseCondBranch(*std::prev(I), TBB, Cond);
++    FBB = getBranchDestBlock(*I);
++    return false;
++  }
++
++  // Anything else (e.g. a block ending in `ret`): cannot analyze.
++  return true;
++}
++
++unsigned DADAOInstrInfo::removeBranch(MachineBasicBlock &MBB,
++                                      int *BytesRemoved) const {
++  if (BytesRemoved)
++    *BytesRemoved = 0;
++
++  MachineBasicBlock::iterator I = MBB.getLastNonDebugInstr();
++  if (I == MBB.end())
++    return 0;
++
++  if (!I->getDesc().isUnconditionalBranch() &&
++      !isSupportedCondBranchOpcode(I->getOpcode()))
++    return 0;
++
++  // Remove the unconditional branch.
++  if (BytesRemoved)
++    *BytesRemoved += getInstSizeInBytes(*I);
++  I->eraseFromParent();
++
++  I = MBB.end();
++  if (I == MBB.begin())
++    return 1;
++  --I;
++  if (!isSupportedCondBranchOpcode(I->getOpcode()))
++    return 1;
++
++  // Remove the conditional branch.
++  if (BytesRemoved)
++    *BytesRemoved += getInstSizeInBytes(*I);
++  I->eraseFromParent();
++  return 2;
++}
++
++unsigned DADAOInstrInfo::insertBranch(MachineBasicBlock &MBB,
++                                      MachineBasicBlock *TBB,
++                                      MachineBasicBlock *FBB,
++                                      ArrayRef<MachineOperand> Cond,
++                                      const DebugLoc &DL,
++                                      int *BytesAdded) const {
++  if (BytesAdded)
++    *BytesAdded = 0;
++
++  // Shouldn't be a fall through.
++  assert(TBB && "insertBranch must not be told to insert a fallthrough");
++  assert((Cond.empty() || isSupportedCondBranchOpcode(Cond[0].getImm())) &&
++         "unsupported DADAO branch condition");
++
++  // Unconditional branch.
++  if (Cond.empty()) {
++    MachineInstr &MI = *BuildMI(&MBB, DL, get(DADAO::jump_iiii)).addMBB(TBB);
++    if (BytesAdded)
++      *BytesAdded += getInstSizeInBytes(MI);
++    return 1;
++  }
++
++  // Either a one- or two-way conditional branch: rebuild the conditional
++  // branch from its opcode and non-target operands, then append the target.
++  MachineInstrBuilder MIB = BuildMI(&MBB, DL, get(Cond[0].getImm()));
++  for (unsigned i = 1, e = Cond.size(); i != e; ++i)
++    MIB.add(Cond[i]);
++  MIB.addMBB(TBB);
++  if (BytesAdded)
++    *BytesAdded += getInstSizeInBytes(*MIB);
++
++  // One-way conditional branch.
++  if (!FBB)
++    return 1;
++
++  // Two-way conditional branch: conditional first, unconditional second.
++  MachineInstr &JmpMI = *BuildMI(&MBB, DL, get(DADAO::jump_iiii)).addMBB(FBB);
++  if (BytesAdded)
++    *BytesAdded += getInstSizeInBytes(JmpMI);
++  return 2;
++}
++
++MachineBasicBlock *
++DADAOInstrInfo::getBranchDestBlock(const MachineInstr &MI) const {
++  assert(MI.getDesc().isBranch() && "Unexpected opcode!");
++  // The branch target is always the last explicit operand.
++  return MI.getOperand(MI.getNumExplicitOperands() - 1).getMBB();
++}
++
++unsigned DADAOInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
++  // Every DADAO instruction is a fixed 32-bit word (DADAOInstrFormats.td).
++  return MI.getDesc().getSize();
++}
++
++// ===--------------------------------------------------------------------=== //
++// Branch relaxation support (LLVM-071t)
++// ===--------------------------------------------------------------------=== //
++
++bool DADAOInstrInfo::isBranchOffsetInRange(unsigned BranchOpc,
++                                           int64_t BrOffset) const {
++  // BrOffset is a BYTE offset from the branch instruction (contract-isa.md
++  // §8.1/§8.2: `Addr = rb0 + (imms << 2)`, rb0 = the current instruction's PC).
++  // The immediate fields hold a WORD offset, so the field width applies to
++  // BrOffset / 4.
++  const bool Aligned = (BrOffset & 3) == 0;
++  const int64_t Words = BrOffset / 4;
++  switch (BranchOpc) {
++  case DADAO::br_eq_rd:
++  case DADAO::br_ne_rd:
++    // rrii two-register branches: 12-bit signed word immediate.
++    return Aligned && isInt<12>(Words);
++  case DADAO::br_n_rd:
++  case DADAO::br_nn_rd:
++  case DADAO::br_z_rd:
++  case DADAO::br_nz_rd:
++  case DADAO::br_p_rd:
++  case DADAO::br_np_rd:
++  case DADAO::br_z_rb:
++  case DADAO::br_nz_rb:
++    // riii one-register branches: 18-bit signed word immediate.
++    return Aligned && isInt<18>(Words);
++  case DADAO::jump_iiii:
++  case DADAO::call_iiii:
++    // 24-bit signed word immediate.  This covers the whole practical code size;
++    // it is treated as always in range so BranchRelaxation never asks us for an
++    // indirect-branch sequence (which DADAO does not implement).  The assembler
++    // (DADAOAsmBackend::applyFixup) still validates the actual field and turns a
++    // genuine overflow into a hard error, so this never silently miscompiles.
++    return true;
++  default:
++    return true;
++  }
++}

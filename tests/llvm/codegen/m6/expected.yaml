@@ -1,0 +1,112 @@
+# tests/llvm/codegen/m6/expected.yaml
+# TESTCASES-036t: M6 L3 (execution) vectors -- the complete integer calling
+# convention (multi-return / sret / aggregate args / varargs), large-frame
+# addressing, and FP/RF codegen.
+#
+# This is the **independent M6 manifest**, kept in its own directory (like
+# tests/llvm/codegen/m4/ and m5/) so the M3 driver
+# (tools/integ/run_codegen_e2e.py, whose default manifest is
+# tests/llvm/codegen/expected.yaml) never picks these programs up.  The M6
+# raw-bin programs are run by reusing that same driver with an explicit
+# manifest:
+#
+#   python3 tools/integ/run_codegen_e2e.py \
+#       --vectors-dir tests/llvm/codegen/m6 \
+#       --expected    tests/llvm/codegen/m6/expected.yaml \
+#       --work-dir    .dadao/tests/codegen-m6
+#
+# The ELF-only program (m6_indirect_call.ll, which needs the linker to resolve
+# an R_DADAO_ABS48 function-pointer address and therefore cannot use the
+# flat-binary flow) lives in tests/llvm/codegen/m6/expected-elf.yaml and is run
+# with tools/integ/run_elf_e2e.py against that manifest.
+#
+# Entry / exit channel (frozen by the M3 gate, ADR-0004 D3 superseded by
+# ADR-0020 D8): every program defines `define i64 @main()`; the crt0 `_start`
+# stub (tests/scripts/codegen_crt0.s) calls it, reports the returned value from
+# rd8 (contract-abi.md §6.1, SPEC-124t) through the semihosting SYS_EXIT
+# service, then halts.  The guest process exit code is the low byte of that
+# value, constrained to 0x00..0x7F so it can never collide with a machine-fault
+# code (0x80..0xFF; ADR-0004 D5.7/D5.8; ISS-147).
+#
+# Independent oracle (project hard rule): every `expected_exit_code` is derived
+# on the host from the LLVM IR semantics (64-bit two's-complement integer
+# arithmetic, IEEE-754 double arithmetic, big-endian memory per
+# contract-abi.md §1.7); it is NOT produced by llc / ld.lld / QEMU.
+# tools/testcases/validate_m6_vectors.py re-derives every value from the actual
+# `*.ll` sources and rejects mismatches; it never invokes a tool.
+schema: m6-vectors-v1
+
+conventions:
+  entry: "define i64 @main() -- linked with crt0 via cat (flat-binary flow)"
+  exit_channel: "guest exit code = low byte of @main return value (0x00..0x7F)"
+  memory: "big-endian; 8-byte pointer; 48-bit effective address"
+  abi: "return rd8/rb8/rf8, K=8 per bank; aggregates <= 64 B in registers, > 64 B byval; sret via rb16 (contract-abi.md §6)"
+  oracle: "host-side IR-semantics model; not llc / ld.lld / QEMU"
+
+programs:
+  - name: m6_multi_return.ll
+    category: call
+    expected_exit_code: 16
+    coverage: [call.multi-return, contract-abi-6.1]
+    derivation: >-
+      pair(a, b) = { a + b, a - b }.  main: p = pair(50, 8) = {58, 42}.
+      The two return values travel in rd8 (58) and rd9 (42) (contract-abi.md
+      §6.1, declaration order, same bank); r = 58 - 42 = 16; & 127 = 16.
+
+  - name: m6_sret.ll
+    category: call
+    expected_exit_code: 3
+    coverage: [call.sret, contract-abi-6.1]
+    derivation: >-
+      fill(x) returns a 9-field struct (> 8 return slots = 64 bytes), so
+      CanLowerReturn is false (contract-abi.md §6.1: at most K = 8 per bank)
+      and the whole return is demoted to a hidden sret pointer passed as the
+      first address argument in rb16; main reads the result back from its own
+      stack slot.  Every field equals x = 3; r = field[8] & 127 = 3.
+
+  - name: m6_aggregate_arg.ll
+    category: call
+    expected_exit_code: 51
+    coverage: [call.aggregate-arg, call.byval, contract-abi-6.4]
+    derivation: >-
+      small = {40, 2}; sum_small(small) = 40 + 2 = 42 (16-byte aggregate splits
+      into two 8-byte chunks in rd16, rd17).  big.field[8] = 9;
+      sum_big(big) = 9 (72-byte struct is > 64 bytes, so it is passed
+      indirectly as a byval pointer in rb16).  r = (42 + 9) & 127 = 51.
+
+  - name: m6_varargs.ll
+    category: call
+    expected_exit_code: 42
+    coverage: [call.varargs, contract-abi-6]
+    derivation: >-
+      vsum(n=3, ...) reads 3 slots from va_start (past the single named
+      argument `n`): {10, 20, 12}; sum = 42; r = 42 & 127 = 42.  The variadic
+      call writes every argument into a contiguous 8-byte-slot save area at the
+      call-site SP (spec DADAO-21 §可变参数).
+
+  - name: m6_large_frame.ll
+    category: memory
+    expected_exit_code: 2
+    coverage: [frame.form2, frame.form3, adr0018-c7-d4]
+    derivation: >-
+      big1(): store i8 1 into mid[0] (~60000-byte frame -> form 2 rb2rb+add.si),
+      load it back -> 1.  big2(): store i8 1 into big[0] (~200000-byte frame ->
+      form 3 set.zw/or.w+add.o), load it back -> 1.
+      r = (big1() + big2()) & 127 = (1 + 1) & 127 = 2.
+
+  - name: m6_fp_arith.ll
+    category: fp
+    expected_exit_code: 42
+    coverage: [fp.arith, contract-fp-2]
+    derivation: >-
+      a = 3.0, b = 2.0; m = a * b = 6.0; d = a / b = 1.5; s = m + d = 7.5
+      (IEEE-754 double).  s > 6.0 -> branch taken -> 42.
+
+  - name: m6_fp_hfa.ll
+    category: fp
+    expected_exit_code: 42
+    coverage: [fp.hfa, fp.abi, contract-abi-6.4]
+    derivation: >-
+      mk(1.5, 2.5) = {1.5, 2.5} (HFA {double,double} travels in the RF bank:
+      args rf16/rf17, return rf8/rf9); sum(v) = 1.5 + 2.5 = 4.0;
+      4.0 > 3.0 -> 42.

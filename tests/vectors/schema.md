@@ -2,7 +2,7 @@
 
 `tests/vectors/isa/*.yaml` 的向量 schema。所有字段与语义期望值**独立派生自**锁定的
 规范与合约（`spec/`、`.tao/knowledge/contract-isa.md`、`contracts/opcodes.yaml`、
-`contracts/legality_rules.yaml`、`.tao/knowledge/adr-0004-test-machine.md`），
+`contracts/legality_rules.yaml`、`.tao/adr/adr-0004-test-machine.md`），
 **不得**从 LLVM 汇编输出或 QEMU 运行结果反推。
 
 每个 `isa/*.yaml` 文件是一个 YAML 列表，每个元素是一条 test case。
@@ -27,7 +27,7 @@
 |------|------|------|------|
 | `expected_state` | object 或 null | active `semantic`/`boundary`/`overlap` 必填；`encoding`/`legality` 及 deferred 必须为 `null` | 执行后的寄存器/内存状态 |
 | `expected_pc` | string 或 null | 可选（本任务中）；`legality`/`encoding` 不得为非 null | 执行后 PC（`rb0`）的期望值，48-bit 有效地址 hex |
-| `expected_fault` | string 或 null | 可选 | `null` / `ILLI` / `UNDI` / `MALIGN` / `IALIGN` / `RASOF` / `RASUF` / `UNMAPPED` |
+| `expected_fault` | string 或 null | 可选 | `null` / `ILLI` / `UNDI` / `MALIGN` / `IALIGN` / `RASOF` / `RASUF` / `UNMAPPED` / `CFXMEM` |
 | `status` | string | 可选，默认 `active` | `active` / `deferred` |
 | `deferred_reason` | string | `status=deferred` 时必填（非空） | 暂缓原因（如 `"C-27"`） |
 | `notes` | string | 可选 | 人类可读备注（如 `shamt = rd<k>`、PC 地址来源） |
@@ -69,7 +69,7 @@
 | `class` 必须为 `legality` | 保留编码 case 只能是 fault 期望 |
 | `expected_fault` 必须为 `UNDI` | 保留编码触发 UNDI（§8.2），**不是** ILLI |
 | `status` 必须为 `active` | 保留编码 case 不可 deferred |
-| `word` 不得为 `0x00000000` | 全零字 = `illi` → ILLI（§8.3），非 UNDI |
+| `word` 不得为 `0x00000000` | 全零字 = 保留编码（op=0x00）→ UNDI（§2.9），非 ILLI 语义 |
 | `mnemonic` / `id` 为 `null` | 无已定义身份 |
 | `format` 可为 `null` 或字符串 | 可选，用于定位子表 |
 | `notes` 非空 | 须给出该 word 在 QFC/子表中的具体位置作为 reserved 依据 |
@@ -80,7 +80,7 @@
 | 场景 | fault | 依据 |
 |------|-------|------|
 | QFC/子表空白单元格（reserved 编码） | **UNDI** | §2.9/§8.2 |
-| 全零字 `0x00000000`（`illi 0`） | **ILLI** | §8.3 |
+| 全零字 `0x00000000`（保留编码） | **UNDI** | §2.9（MISC-AMO 编码变更后，op=0x00 为保留编码） |
 | 已定义编码 + 非法操作数/SBZ 违规 | **ILLI** | §9.1 |
 | M1 排除但已定义的编码（RF/cfx/LR-SC） | **ILLI** | ADR-0004 D5.1 |
 
@@ -112,9 +112,9 @@
     rd:
       rd1: "0x0000000000000001"
     rb:
-      rb1: "0x0000ffff00000000"
+      rb1: "0x0000000000000000"
     memory:
-      - address: "0x0000ffff00000000"
+      - address: "0x0000000000000000"
         value: "0x0000000000000002"
   expected_state:
     rd:
@@ -130,13 +130,13 @@
   notes: ""
 ```
 
-### 内存地址范围（ADR-0004 D1）
+### 内存地址范围（ADR-0004 R3 + rev. 2026-10-11 / ADR-0020 D15）
 
-- RAM 窗口：`[0xffff_0000_0000, 0xffff_00ff_ffff]`（16 MiB）。
+- RAM 窗口（唯一 RAM 段，cfxha 63）：`[0xFC00_0000_0000, 0xFC00_00ff_ffff]`（16 MiB）。
 - `semantic` 类的 `memory` 地址**必须**落在 RAM 窗口内（validator 阻断校验）。
-- `legality` 类可表达 unmapped（`expected_fault: UNMAPPED`）等越界地址，不受此限。
-- 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`、Exit port
-  `0xffff_8000_0000`–`0xffff_8000_0007`）须显式引用 ADR-0004 章节。
+- `legality` 类可表达越界地址（`expected_fault: CFXMEM` = umon 段 cfxha 0 越界，或 `UNMAPPED` = 其余段越界），不受此限。
+- 非 RAM 地址（ROM `0xffff_ffff_0000`–`0xffff_ffff_ffff`）须显式引用 ADR-0004 章节。
+  （旧 exit-port MMIO 停机端口已随 C1 step2 删除；停机协议为 semihosting `SYS_EXIT`。）
 
 ### `expected_pc`（本版新增）
 
@@ -167,12 +167,11 @@
 ### `encoding` 类对恒 fault 指令的豁免（F6）
 
 `encoding` 类的定义是「**可解码执行无 fault**」，因此**恒 fault 指令无法构造
-`encoding` case**：
+`encoding` case**。
 
-- **`illi`**（`oiii`）：恒触发 ILLI（`contract-isa.md` §8.2/§9.1；全零字
-  `0x00000000` 即 `illi 0` → ILLI，§8.3，**不是** UNDI）。故 `illi` **豁免**
-  `encoding`（及 `semantic`）类，其覆盖率由 `legality` active
-  （`expected_fault: ILLI`）满足；inventory 显式记 `—`。
+- 原专门非法指令（原 `oiii`，恒 ILLI）已于 `ADR-0012 D3.5` 删除；`ILLI` 异常保留，
+  由非法操作数/条件/已定义未实现编码触发。故 M1 范围内**当前无**恒 fault 指令，
+  F6 豁免暂无适用对象；`fence`（`scope: excluded`，decode ILLI）不属 M1，不在此列。
 
 **例外（理由不同，不得混同）**：`ret-riii` 亦无 `encoding` case，但**并非**恒 fault
 ——`ret` 的返回目标依赖 harness 布局、单指令不可构造。其理由与处置见
@@ -198,8 +197,8 @@
 
 ## 覆盖率要求
 
-- **M1 scope**：`contracts/opcodes.yaml` 中 `excluded_m1 != true` 的 **178 条**。
-  不得排除 RA 存取/块赋值或 `swym`/`illi`/`fence`。
+- **M1 scope**：`contracts/opcodes.yaml` 中 `scope == "m1"` 的 **151 条**。
+  不得排除 RA 存取/块赋值或 `swym`；`fence` 已排除（ADR-0014 D1）；原专门非法指令已删除（ADR-0012 D3.5）。
 - **主键 `id`**（对应 `contracts/opcodes.yaml` 的 `id`，**唯一**）。
   `format` 保留为普通字段，不入覆盖率主键。
 - 每个 M1 身份 `id` 至少 1 条对应 class 的 case；算术/移位类还需
@@ -224,4 +223,4 @@ tests/vectors/isa/
 `tools/testcases/validate_vectors.py` 对上述字段、class/fault 取值、`id`
 存在性与 mask/value 一致性、`expected_pc`、`inventory` 同步、覆盖率等做机械校验；
 有错误时 `exit(1)` 并列出文件 + case 序号。完整语义期望值重算属 golden model
-模块（见 `.tao/knowledge/deferred.md`），不在 schema validator 能力内。
+模块（见 `.tao/knowledge/issues.yaml`），不在 schema validator 能力内。

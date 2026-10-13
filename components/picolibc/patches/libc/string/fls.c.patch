@@ -1,0 +1,22 @@
+diff --git a/libc/string/fls.c b/libc/string/fls.c
+index 8c39a2c..22223f1 100644
+--- a/libc/string/fls.c
++++ b/libc/string/fls.c
+@@ -35,5 +35,17 @@ fls(int i)
+     if (i == 0)
+         return 0;
+ 
++#if defined(__dadao__)
++    /* DADAO's LLVM backend has no CTLZ lowering yet: portable scan. */
++    unsigned int u = (unsigned int)i;
++    int          r = 0;
++
++    while (u) {
++        u >>= 1;
++        r++;
++    }
++    return r;
++#else
+     return (sizeof(i) * CHAR_BIT - __builtin_clz(i));
++#endif
+ }

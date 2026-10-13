@@ -1,0 +1,12 @@
+diff --git a/clang/lib/Basic/CMakeLists.txt b/clang/lib/Basic/CMakeLists.txt
+index 21851e79b..1f5e241a7 100644
+--- a/clang/lib/Basic/CMakeLists.txt
++++ b/clang/lib/Basic/CMakeLists.txt
+@@ -102,6 +102,7 @@ add_clang_library(clangBasic
+   Targets/AVR.cpp
+   Targets/BPF.cpp
+   Targets/CSKY.cpp
++  Targets/DADAO.cpp
+   Targets/DirectX.cpp
+   Targets/Hexagon.cpp
+   Targets/Lanai.cpp

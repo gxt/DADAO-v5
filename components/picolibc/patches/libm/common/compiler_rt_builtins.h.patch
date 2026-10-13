@@ -1,0 +1,59 @@
+diff --git a/libm/common/compiler_rt_builtins.h b/libm/common/compiler_rt_builtins.h
+new file mode 100644
+index 0000000..2dd8350
+--- /dev/null
++++ b/libm/common/compiler_rt_builtins.h
+@@ -0,0 +1,53 @@
++/*
++ * compiler_rt_builtins.h - support shim for bundled compiler-rt builtins.
++ *
++ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++ *
++ * Minimal support header for the compiler-rt builtins vendored into this
++ * library (muldc3.c / mulsc3.c).  The DADAO toolchain ships no
++ * compiler-rt/libgcc builtins (ISS-196), so the few symbols clang's codegen
++ * expects for C `_Complex` are provided here.
++ *
++ * Derived (subset) from the upstream LLVM compiler-rt headers
++ *
++ *   Source : llvm-project, compiler-rt/lib/builtins/int_math.h
++ *            llvm-project, compiler-rt/lib/builtins/int_types.h
++ *   Version: commit 6dfe1677ab8dffbc6ec13d53a1e0215d75147689 (llvmorg-23.1.1)
++ *   License: Apache-2.0 WITH LLVM-exception
++ *
++ * Only the macros the vendored builtins use are kept, mapped onto compiler
++ * builtins exactly as upstream int_math.h does (no libm/math.h dependency).
++ * This is a porting adaptation only -- the vendored algorithms are unmodified.
++ */
++
++#ifndef COMPILER_RT_BUILTINS_H
++#define COMPILER_RT_BUILTINS_H
++
++/* int_lib.h: ABI attribute; empty for non-ARM-EABI targets. */
++#define COMPILER_RT_ABI
++
++/* int_types.h: complex scalar types (C99 `_Complex` path). */
++typedef float _Complex Fcomplex;
++typedef double _Complex Dcomplex;
++#define COMPLEX_REAL(x) __real__(x)
++#define COMPLEX_IMAGINARY(x) __imag__(x)
++
++/* int_math.h: libm substitutes implemented with compiler builtins. */
++#if defined(DOUBLE_PRECISION)
++#define CRT_INFINITY __builtin_huge_val()
++#else
++#define CRT_INFINITY __builtin_huge_valf()
++#endif
++
++#define crt_isnan(x) __builtin_isnan((x))
++#define crt_isinf(x) __builtin_isinf((x))
++#define crt_copysign(x, y) __builtin_copysign((x), (y))
++#define crt_copysignf(x, y) __builtin_copysignf((x), (y))
++
++/* Entry points of the vendored builtins (compiler-rt declares the runtime ABI
++ * in its own int_lib.h; declaring them here keeps a prototype visible to the
++ * defining translation units, as -Wmissing-prototypes expects). */
++COMPILER_RT_ABI Dcomplex __muldc3(double, double, double, double);
++COMPILER_RT_ABI Fcomplex __mulsc3(float, float, float, float);
++
++#endif /* COMPILER_RT_BUILTINS_H */

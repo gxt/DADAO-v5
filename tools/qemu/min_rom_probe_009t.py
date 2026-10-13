@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-009t: rela.si base address verification.
 
+.. OBSOLETE: rela.si has been deleted (ADR-0012 D5, SPEC-057t).
+   op=0x5A is now UNDI. This file is retained as historical artifact
+   of QEMU-009t verification. DO NOT RUN — all tests will fail with UNDI.
+
 Architecture: test code runs from ROM (same as 005t/006t/008t probe pattern).
 Kernel binary provides test data (loaded at RAM base).
 
@@ -22,6 +26,16 @@ import subprocess
 import sys
 import os
 import tempfile
+
+# D6 compliance: resolve probe artifact dir via paths.py
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(_REPO_ROOT, 'tools', 'infra'))
+import paths as _paths
+
+def _probe_artifact_dir():
+    d = str(_paths.test_artifacts_dir() / 'probes')
+    os.makedirs(d, exist_ok=True)
+    return d
 
 QEMU = ".work/build/qemu/qemu-system-dadao"
 
@@ -73,21 +87,21 @@ def add_si_rd(rd, imms18):
 def add_si_rb(rb, imms18):
     return encode_riii(0x5B, rb, imms18 & 0x3FFFF)
 
-def add_so_rb(rbhb, rbhc, rdhd):
-    """add.so rbhb, rbhc, rdhd (MISC-octa, ha=0x20)"""
-    return encode_orrr(0x40, 0x20, rbhb, rbhc, rdhd)
+def add_o_bbd(rbhb, rbhc, rdhd):
+    """add.o rbhb, rbhc, rdhd (MISC-octa, ha=0x30)"""
+    return encode_orrr(0x40, 0x30, rbhb, rbhc, rdhd)
 
-def sub_so_rb(rbhb, rbhc, rdhd):
-    """sub.so rbhb, rbhc, rdhd (MISC-octa, ha=0x28)"""
-    return encode_orrr(0x40, 0x28, rbhb, rbhc, rdhd)
+def sub_o_bbd(rbhb, rbhc, rdhd):
+    """sub.o rbhb, rbhc, rdhd (MISC-octa, ha=0x31)"""
+    return encode_orrr(0x40, 0x31, rbhb, rbhc, rdhd)
 
 def cmp_uo_rd(rdhb, rdhc, rdhd):
     """cmp.uo rdhb, rdhc, rdhd (MISC-octa, ha=0x2A)"""
     return encode_orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
 
-def cmp_uo_rb(rdhb, rbhc, rbhd):
-    """cmp.uo-rb rdhb, rbhc, rbhd (MISC-octa, ha=0x29)"""
-    return encode_orrr(0x40, 0x29, rdhb, rbhc, rbhd)
+def cmp_uo_dbb(rdhb, rbhc, rbhd):
+    """cmp.uo rdhb, rbhc, rbhd (MISC-octa, ha=0x32)"""
+    return encode_orrr(0x40, 0x32, rdhb, rbhc, rbhd)
 
 def xor_o(rdhb, rdhc, rdhd):
     """xor.o rdhb, rdhc, rdhd (MISC-octa, ha=0x0A)"""
@@ -158,11 +172,27 @@ def br_ne(rdha, rdhb, imms12):
         hc |= 0x20
     return encode_rrii(0x6F, rdha, rdhb, hc, hd)
 
-def illi():
-    return encode_oiii(0x00, 0x00, 0)
+def fence():
+    return encode_oiii(0x77, 0x00, 0)
 
 def swym():
-    return encode_oiii(0x77, 0x00, 0)
+    return encode_oiii(0x77, 0x22, 0)
+
+def trap_sys_exit():
+    """trap cfx_umon, 0x30000 — semihosting tag (immu18[17:16]==2'b11)."""
+    return encode_oiii(0x7F, 0x00, SEMIHOST_TAG)
+
+# ── Semihosting SYS_EXIT (ADR-0020 D8: exit port removed) ──────────────
+# NOTE: this probe is OBSOLETE (rela.si deleted, ADR-0012 D5 / SPEC-057t);
+# every case faults UNDI before its terminal runs.  The exit channel is still
+# migrated off the (deleted) exit port to semihosting SYS_EXIT for consistency.
+
+SEMI_BLOCK = 0xFC00_00FF_F000       # {reason, code} block inside RAM (16 MiB)
+SEMIHOST_TAG = 0x30000              # immu18[17:16] == 2'b11 -> semihosting trap
+
+def semi_exit(code_rd):
+    """store code_rd into SEMI_BLOCK[1] then `trap` (SYS_EXIT); +1 insn."""
+    return [st_o_rd(code_rd, 16, 8), trap_sys_exit()]
 
 # ── Terminators ───────────────────────────────────────────────────────
 
@@ -172,14 +202,23 @@ UNDI_TERMINATOR = b'\x08\x04\x00\x01'
 
 def build_rom(test_insns):
     """Build ROM: [trampoline | test_insns | UNDI | padding].
-    Trampoline sets rb1=SP, rb2=RAM base, rb16=exit port, rb17=RAM base."""
+
+    Trampoline sets rb1=SP, rb2=rb17=RAM base, and primes the semihosting
+    SYS_EXIT argument block (ADR-0020 D8)."""
     trampoline = [
-        encode_rwii(0x4E, 1, 2, 0xFFFF),  # set.zw rb1, wp2, 0xFFFF → 0x0000_FFFF_0000_0000
-        encode_rwii(0x4A, 1, 1, 0x00FF),  # or.w rb1, wp1, 0x00FF → 0x0000_FFFF_00FF_0000 (SP)
-        encode_rwii(0x4E, 2, 2, 0xFFFF),  # set.zw rb2, wp2, 0xFFFF → 0x0000_FFFF_0000_0000
-        encode_rwii(0x4E, 16, 2, 0xFFFF), # set.zw rb16, wp2, 0xFFFF → 0x0000_FFFF_0000_0000
-        encode_rwii(0x4A, 16, 1, 0x8000), # or.w rb16, wp1, 0x8000 → exit port
-        encode_rwii(0x4E, 17, 2, 0xFFFF), # set.zw rb17, wp2, 0xFFFF → RAM base
+        encode_rwii(0x4E, 1, 0, 0x0000),   # set.zw rb1, wp0, 0x0000
+        encode_rwii(0x4A, 1, 1, 0x00FF),   # or.w rb1, wp1, 0x00FF (SP)
+        encode_rwii(0x4A, 1, 2, 0xFC00),
+        encode_rwii(0x4E, 2, 2, 0xFC00),   # set.zw rb2, wp0, 0x0000
+        encode_rwii(0x4E, 16, 0, 0x0000),  # set.zw rb16, wp0, 0x0000
+        encode_rwii(0x4A, 16, 1, 0x00FF),  # or.w rb16, wp1, 0x00FF
+        encode_rwii(0x4A, 16, 0, 0xF000),  # or.w rb16, wp0, 0xF000 (block)
+        encode_rwii(0x4A, 16, 2, 0xFC00),
+        encode_rwii(0x4C, 8, 0, 0x0026),   # set.zw rd8, wp0, 0x0026
+        encode_rwii(0x48, 8, 1, 0x0002),   # or.w rd8, wp1, 0x0002 -> rd8 = 0x20026
+        encode_rrii(0x21, 8, 16, 0, 0),    # block[0] = 0x20026
+        encode_rwii(0x4C, 16, 0, 0x0018),  # set.zw rd16, wp0, 0x0018 (SYS_EXIT)
+        encode_rwii(0x4E, 17, 2, 0xFC00),  # set.zw rb17, wp0, 0x0000 (RAM base)
     ]
     rom = b''
     for insn in trampoline:
@@ -188,20 +227,21 @@ def build_rom(test_insns):
         rom += insn
     rom += UNDI_TERMINATOR
     while len(rom) < 64:
-        rom += illi()
+        rom += fence()
     return rom
 
 def run_test(rom_data, kernel_data=None, timeout=10):
     if kernel_data is None:
-        kernel_data = illi() * 4
-    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
+        kernel_data = fence() * 4
+    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(rom_data); rom_path = f.name
-    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix='.bin', delete=False, dir=_probe_artifact_dir()) as f:
         f.write(kernel_data); kernel_path = f.name
     try:
         result = subprocess.run(
             [QEMU, '-M', 'dadao-m1', '-nographic',
-             '-bios', rom_path, '-kernel', kernel_path],
+             '-bios', rom_path, '-kernel', kernel_path,
+             '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return result.returncode, result.stderr
     except subprocess.TimeoutExpired:
@@ -222,7 +262,7 @@ MALIGN_EXIT = 140  # 0x8C
 # rb18 = 0x0000_FFFF_0000_0100 (RAM + 0x100)
 
 SETUP_RB18 = [
-    encode_rwii(0x4E, 18, 2, 0xFFFF),  # set.zw rb18, wp2, 0xFFFF
+    encode_rwii(0x4E, 18, 2, 0xFC00),  # set.zw rb18, wp2, 0xFFFF
     encode_rwii(0x4A, 18, 0, 0x0100),  # or.w rb18, wp0, 0x0100 → RAM+0x100
 ]
 
@@ -232,7 +272,7 @@ SETUP_RB18 = [
 # PC = ROM_BASE + (TRAMPOLINE_LEN + rela_idx) * 4（rela 在本测试内的下标）
 
 ROM_BASE = 0xFFFFFFFF0000
-TRAMPOLINE_LEN = 6          # see build_rom()
+TRAMPOLINE_LEN = 11         # see build_rom()
 EXACT_EXP_RB = 20           # scratch RB holding the expected value
 EXACT_RD_CMP = 21           # scratch RD holding the cmp result
 EXACT_RD_ZERO = 22          # scratch RD holding 0
@@ -262,11 +302,11 @@ def rela_exact_test(dest_rb, imm_signed, dest_high16, dest_low48=None):
     seq.append(rela_si_rb(dest_rb, imm_signed & 0x3FFFF))
     seq += load_rb64(EXACT_EXP_RB, expected)
     seq += [
-        cmp_uo_rb(EXACT_RD_CMP, dest_rb, EXACT_EXP_RB),   # 0 if equal
+        cmp_uo_dbb(EXACT_RD_CMP, dest_rb, EXACT_EXP_RB),   # 0 if equal
         set_zw_rd(EXACT_RD_ZERO, 0x0000),
         br_ne(EXACT_RD_CMP, EXACT_RD_ZERO, 3),            # != 0 (not equal) -> branch to FAIL
-        set_zw_rd(18, 0x0000), st_o_rd(18, 16, 0),        # equal: PASS (fall-through)
-        set_zw_rd(18, 0x0001), st_o_rd(18, 16, 0),        # not-equal: FAIL (branch target)
+        set_zw_rd(18, 0x0000), *semi_exit(18),        # equal: PASS (fall-through)
+        set_zw_rd(18, 0x0001), *semi_exit(18),        # not-equal: FAIL (branch target)
     ]
     return seq
 
@@ -387,9 +427,9 @@ TESTS = [
       set_zw_rd(15, 0x0000),     # expected: not equal (0)
       br_ne(14, 15, 3),          # if not equal, skip 3 → PASS
       set_zw_rd(18, 0x0001),     # equal: FAIL (self-reference detected!)
-      st_o_rd(18, 16, 0),
+      *semi_exit(18),
       set_zw_rd(18, 0x0000),     # not-equal: PASS
-      st_o_rd(18, 16, 0)],
+      *semi_exit(18)],
      PASS_EXIT,
      "rela.si base is self-reference (should be PC)"),
 
@@ -418,9 +458,9 @@ TESTS = [
       set_zw_rd(17, 0x0000),     # expected: not equal → cmp result ≠ 0
       br_ne(16, 17, 3),          # if rd16≠0 (not equal), skip 3 → PASS
       set_zw_rd(18, 0x0001),     # rd16==0 (equal): FAIL (high bits truncated!)
-      st_o_rd(18, 16, 0),
+      *semi_exit(18),
       set_zw_rd(18, 0x0000),     # rd16≠0 (not-equal): PASS
-      st_o_rd(18, 16, 0)],
+      *semi_exit(18)],
      PASS_EXIT,
      "rela.si high 16 bits truncated (should be preserved)"),
 ]
@@ -429,11 +469,11 @@ TESTS = [
 
 CTL_CHECKS = [
     ("CTL: st.o PASS but expect ILLI (wrong)",
-     [set_zw_rd(18, 0x0000), st_o_rd(18, 16, 0)],
+     [set_zw_rd(18, 0x0000), *semi_exit(18)],
      ILLI_EXIT,
      "Self-check FAILED: probe cannot detect wrong values"),
     ("CTL: ILLI but expect PASS (wrong)",
-     [illi()],
+     [fence()],
      PASS_EXIT,
      "Self-check FAILED: probe cannot detect ILLI"),
 ]

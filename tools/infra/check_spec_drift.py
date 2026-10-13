@@ -12,9 +12,7 @@ fail-closed: 缺来源 / 来源格式损坏 / 未知 ADR / 版本不匹配 → e
 
 Usage:
     python3 tools/infra/check_spec_drift.py [--contract-dir DIR] [--knowledge-dir DIR]
-                                             [--spec-dir DIR] [--repo-root DIR]
-                                             [--test-mode {version_mismatch,source_missing,
-                                                           source_bad_format,unknown_adr}]
+                                             [--adr-dir DIR] [--spec-dir DIR] [--repo-root DIR]
 """
 
 import argparse
@@ -24,10 +22,11 @@ import sys
 from pathlib import Path
 
 # ── 显式排除名单（P1: 不得用宽泛模式）─────────────────────────────────────────
-EXCLUDED_CONTRACTS = frozenset({
-    "contract-authoring.md",  # 合约编写规范/模板，无来源头，非合约
-})
-EXCLUDE_REASON = "合约编写规范/模板（非合约，无来源头）"
+# 机械生成的投影合约：无来源头（非 spec-sourced/adr-sourced），不参与漂移审计。
+EXCLUDED_CONTRACTS = {
+    "contract-cfx-aliases.md": "cfx 别名表（机械生成投影，无来源头，非合约）",
+    "contract-asm-list.md":    "汇编指令表（机械生成投影，无来源头，非合约）",
+}
 
 # ── spec 前缀 → README 组件名映射（P3: 显式定义）─────────────────────────────
 SPEC_PREFIX_TO_COMPONENT = {
@@ -50,6 +49,8 @@ SPEC_PREFIX_TO_COMPONENT = {
     "DADAO-21":   "AEE / ABI",
     "DADAO-22":   "SEE / SBI",
     "DADAO-23":   "HEE / HBI",
+    "Toolchain-01": "Toolchain",
+    "Machine-01":  "Machine",
 }
 
 # ── spec 前缀 → spec/ 文件名 ─────────────────────────────────────────────────
@@ -73,15 +74,17 @@ SPEC_PREFIX_TO_FILENAME = {
     "DADAO-21":   "DADAO-21-ABI-应用程序二进制接口.md",
     "DADAO-22":   "DADAO-22-SBI-主管系统二进制接口.md",
     "DADAO-23":   "DADAO-23-HBI-超管系统二进制接口.md",
+    "Toolchain-01": "Toolchain-01-汇编语言.md",
+    "Machine-01":  "Machine-01-测试机运行环境.md",
 }
 
 # ── 正则 ─────────────────────────────────────────────────────────────────────
-# 版本头: "> **版本：X.Y.Z**" 或 "> **版本：X.Y.Z** [...]"
+# 版本头: "> **版本：X.Y.Z**" / "> **版本：X.Y** [...]"（v5 自定规范 Toolchain-01 为两段版本）
 RE_VERSION_HEADER = re.compile(
-    r"^>\s*\*\*版本[：:]\s*(\d+\.\d+\.\d+)\s*\*\*"
+    r"^>\s*\*\*版本[：:]\s*(\d+(?:\.\d+){1,2})\s*\*\*"
 )
-# 来源引用: [SimRISC-XX §...] 或 [DADAO-XX §...]
-RE_SPEC_REF = re.compile(r"\[(SimRISC-\d+|DADAO-\d+)\s+§")
+# 来源引用: [SimRISC-XX §...] / [DADAO-XX §...] / [Toolchain-XX §...] / [Machine-XX §...]
+RE_SPEC_REF = re.compile(r"\[(SimRISC-\d+|DADAO-\d+|Toolchain-\d+|Machine-\d+)\s+§")
 # ADR 引用: adr-XXXX-*.md
 RE_ADR_REF = re.compile(r"adr-(\d{4})-[\w-]+\.md")
 # ADR 状态: **状态**：Accepted 或 Status: Accepted（P2: 兼容中文 + 英文）
@@ -130,9 +133,8 @@ def check_adr_accepted(adr_path: Path) -> tuple[bool, str]:
 def classify_contract(
     contract_path: Path,
     readme_versions: dict[str, str],
-    knowledge_dir: Path,
+    adr_dir: Path,
     spec_dir: Path,
-    test_mode: str | None = None,
 ) -> tuple[str, list[str]]:
     """分类单个合约文件. 返回 (status, details).
 
@@ -142,14 +144,6 @@ def classify_contract(
     text = contract_path.read_text(encoding="utf-8")
     details: list[str] = []
     name = contract_path.name
-
-    # ── 负测试注入（前置：在分类逻辑之前强制 ERROR）──────────────────────────
-    if test_mode == "source_missing":
-        details.append("  ERROR: 来源缺失（负测试注入）")
-        return ("error", details)
-    if test_mode == "source_bad_format":
-        details.append("  ERROR: 来源格式错误（负测试注入）")
-        return ("error", details)
 
     # 尝试 spec-sourced: 查找版本头
     version_match = None
@@ -185,13 +179,6 @@ def classify_contract(
                 details.append(f"  ERROR: README 版本表无组件 '{component}'")
                 return ("error", details)
             expected_version = readme_versions[component]
-            if test_mode == "version_mismatch":
-                # 负测试: 注入版本不匹配
-                details.append(
-                    f"  ERROR: 版本不匹配 — {name}: 合约版本 {version} "
-                    f"≠ README '{component}' 版本 {expected_version}（负测试注入）"
-                )
-                return ("error", details)
             if version != expected_version:
                 details.append(
                     f"  ERROR: 版本不匹配 — {name}: 合约版本 {version} "
@@ -214,17 +201,14 @@ def classify_contract(
     # 尝试 ADR-sourced: 查找 ADR 引用
     adr_refs = RE_ADR_REF.findall(text)
     if adr_refs:
-        if test_mode == "unknown_adr":
-            details.append("  ERROR: 未知 ADR（负测试注入）")
-            return ("error", details)
         for adr_num in adr_refs:
             adr_filename = None
-            for candidate in knowledge_dir.glob(f"adr-{adr_num}-*.md"):
+            for candidate in adr_dir.glob(f"adr-{adr_num}-*.md"):
                 adr_filename = candidate.name
                 adr_path = candidate
                 break
             if adr_filename is None:
-                details.append(f"  ERROR: ADR 文件 adr-{adr_num}-*.md 不存在于 {knowledge_dir}")
+                details.append(f"  ERROR: ADR 文件 adr-{adr_num}-*.md 不存在于 {adr_dir}")
                 return ("error", details)
             accepted, status = check_adr_accepted(adr_path)
             if not accepted:
@@ -255,18 +239,14 @@ def main() -> int:
         help="规范目录（默认: spec/）",
     )
     parser.add_argument(
+        "--adr-dir", type=Path, default=None,
+        help="ADR 目录（默认: .tao/adr）",
+    )
+    parser.add_argument(
         "--contract-dir", type=Path, default=None,
         help="合约目录（默认: .tao/knowledge）",
     )
-    parser.add_argument(
-        "--test-mode", type=str, default=None,
-        choices=["version_mismatch", "source_missing", "source_bad_format", "unknown_adr"],
-        help="负测试模式",
-    )
-    parser.add_argument(
-        "--test-contract", type=str, default=None,
-        help="负测试目标合约文件名（配合 --test-mode）",
-    )
+
     args = parser.parse_args()
 
     # 确定路径
@@ -277,6 +257,7 @@ def main() -> int:
 
     knowledge_dir = args.knowledge_dir or repo_root / ".tao" / "knowledge"
     spec_dir = args.spec_dir or repo_root / "spec"
+    adr_dir = args.adr_dir or repo_root / ".tao" / "adr"
     contract_dir = args.contract_dir or knowledge_dir
 
     readme_path = repo_root / "README.md"
@@ -297,8 +278,8 @@ def main() -> int:
 
     # 报告排除文件
     print(f"排除文件（显式名单）:")
-    for excluded in sorted(EXCLUDED_CONTRACTS):
-        print(f"  {excluded} — {EXCLUDE_REASON}")
+    for excluded, reason in sorted(EXCLUDED_CONTRACTS.items()):
+        print(f"  {excluded} — {reason}")
     print()
 
     # 枚举 contract-*.md
@@ -316,12 +297,9 @@ def main() -> int:
             continue
 
         checked += 1
-        test_mode = None
-        if args.test_mode and args.test_contract == name:
-            test_mode = args.test_mode
 
         status, details = classify_contract(
-            contract_path, readme_versions, knowledge_dir, spec_dir, test_mode
+            contract_path, readme_versions, adr_dir, spec_dir
         )
 
         if status == "error":

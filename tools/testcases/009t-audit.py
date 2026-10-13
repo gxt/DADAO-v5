@@ -12,7 +12,7 @@
   - orrr fixed-width add/sub/mul/div/rem/cmp (§3.1.2/§3.1.5/§3.2.2)
   - orrr logic and/or/xor/xnor .b/.w/.t/.o (§3.3)
   - orrr/orri shift/extend .ub/.sb/.uw/.sw/.ut/.st/.uo/.so (§3.4.1/§3.4.2)
-  - riii add.si/rela.si (§3.1.3/§4.7)
+  - riii add.si (§3.1.3)
   - rrii cmp.ui/cmp.si (§3.2.1)
   - rrrr cs.n/z/p/eq/ne (§3.5)
   - rwii set.zw/set.ow/or.w/andn.w -rd/-rb (§3.6)
@@ -147,9 +147,9 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
     inp_rb = input_state.get("rb", {})
     inp_ra = input_state.get("ra", {})
 
-    # rb0 = PC (hardwired). Test vectors use rb0 = 0xFFFF00000000 (RAM entry, ADR-0004 D2.2)
+    # rb0 = PC (hardwired). Test vectors use rb0 = 0xFC0000000000 (RAM entry, ADR-0004 D2.2)
     # This is not in input_state; read from notes or use convention.
-    RB0_PC = 0xFFFF_0000_0000  # Default convention for test vectors
+    RB0_PC = 0xFC00_0000_0000  # Default convention for test vectors
 
     def get_rd(name):
         if name == "rd0":
@@ -589,8 +589,8 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
                     if rdhb != 0:
                         expected_rd["rd%d" % rdhb] = _hex64(result)
 
-    # ── riii add.si / rela.si (§3.1.3/§4.7) ───────────────────────────
-    elif fmt == "riii" and insn in ("add.si-rd", "add.si-rb", "rela.si-rb"):
+    # ── riii add.si (§3.1.3) ────────────────────────────────────────────
+    elif fmt == "riii" and insn in ("add.si-rd", "add.si-rb"):
         # ha = dest register
         # immediate: hb[5:0] + hc[5:0] + hd[5:0] = 18 bits signed
         imm18_raw = ((word >> 12) & 0x3F) << 12 | ((word >> 6) & 0x3F) << 6 | (word & 0x3F)
@@ -608,15 +608,6 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
             src_a = get_rb("rb%d" % rbha) if rbha else None
             if src_a is not None:
                 result = (src_a + imm18) & 0xFFFFFFFFFFFFFFFF
-                expected_rb["rb%d" % rbha] = _hex64(result)
-        elif insn == "rela.si-rb":
-            rbha = ha
-            src_a = get_rb("rb%d" % rbha) if rbha else None
-            if src_a is not None:
-                # rela.si: rbha = rb0 + (imms18 << 12)
-                # PC = rb0 (current instruction address)
-                shifted = imm18 << 12
-                result = (RB0_PC + shifted) & 0xFFFFFFFFFFFFFFFF
                 expected_rb["rb%d" % rbha] = _hex64(result)
 
     # ── rrii cmp.ui/cmp.si (§3.2.1) ────────────────────────────────────
@@ -886,7 +877,9 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
             _do_ra_push(inp_ra, expected_ra, return_addr)
 
     # ── riii ret (§5.5) ────────────────────────────────────────────────
-    elif fmt == "riii" and insn == "ret-riii":
+    # ISS-099: 向量 id 为 M1 身份名 `ret_riii_ra`（contracts/opcodes.yaml），
+    # 旧的连字符判据匹配不上导致 ctrl-ret 全部 skip；此处改用 M1 身份名。
+    elif fmt == "riii" and insn == "ret_riii_ra":
         # ret: PC = ra63 low 48 bits
         ra63 = get_ra("ra63")
         if ra63 is not None:
@@ -900,11 +893,13 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
                     expected_rd["rd%d" % rdha_idx] = _hex64(imm18 & 0xFFFFFFFFFFFFFFFF)
 
     # ── orri block assignment rd2rd/rd2ra/ra2rd/rb2rb/rd2rb/rb2rd (§3.7/§4.3/§4.9.3) ──
-    elif fmt == "orri" and insn in ("rd2rd", "rd2ra", "ra2rd", "rb2rb", "rd2rb", "rb2rd"):
-        # Block assignment: copy immu6 registers from src to dst
-        # Sequential semantics (contract-isa.md:467): ascending order,
-        # each pair read-then-write. Overlapping writes are visible to
-        # later reads.
+    # Note: `id` is a full identity (e.g. rd2rd_orri_rd); match on `mnemonic`.
+    elif fmt == "orri" and mnemonic in ("rd2rd", "rd2ra", "ra2rd", "rb2rb", "rd2rb", "rb2rd"):
+        # Block assignment: copy immu6 registers from src to dst.
+        # Only non-fault cases reach here (expected_fault cases are skipped).
+        # Same-bank overlapping moves are ILLI (mreg_range_overlap) and are
+        # therefore skipped too; for the remaining legal cases (disjoint
+        # same-bank or cross-bank) ascending read-then-write order is used.
         dst_idx = hb  # bits[17:12]
         src_idx = hc  # bits[11:6]
         immu6 = extract_field(word, fields, "immu6")
@@ -917,7 +912,7 @@ def recompute_expected(case, word, fields, by_key, verbose=False):
                 "rd2rb": ("rd", "rb"),
                 "rb2rd": ("rb", "rd"),
             }
-            src_bank, dst_bank = bank_map[insn]
+            src_bank, dst_bank = bank_map[mnemonic]
             # Sequential: read-then-write per pair in ascending order.
             # Track writes so overlapping reads see updated values.
             for i in range(immu6):

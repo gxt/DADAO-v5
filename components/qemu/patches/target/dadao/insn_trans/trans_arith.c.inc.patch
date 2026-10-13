@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_arith.c.inc b/target/dadao/insn_trans/trans_arith.c.inc
 new file mode 100644
-index 0000000000..7821ab214b
+index 0000000..7d7ac40
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_arith.c.inc
-@@ -0,0 +1,941 @@
+@@ -0,0 +1,648 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §3.1.1 add.uo/add.so/sub.uo/sub.so (rrrr): 128-bit add/sub */
@@ -146,9 +146,9 @@ index 0000000000..7821ab214b
 +    return true;
 +}
 +
-+/* §4.5.1 add.so rbhb, rbhc, rdhd (orrr): rbhb = rbhc + rdhd (full 64-bit)
++/* §4.5.1 add.o rbhb, rbhc, rdhd (orrr): rbhb = rbhc + rdhd (full 64-bit)
 + * ILLI: rbhb == rb0 */
-+static bool trans_add_so_orrr_rb(DisasContext *ctx, arg_misc *a)
++static bool trans_add_o_orrr_bbd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rbhc = load_rb(ctx, a->hc);
@@ -159,9 +159,9 @@ index 0000000000..7821ab214b
 +    return true;
 +}
 +
-+/* §4.5.1 sub.so rbhb, rbhc, rdhd (orrr): rbhb = rbhc - rdhd (full 64-bit)
++/* §4.5.1 sub.o rbhb, rbhc, rdhd (orrr): rbhb = rbhc - rdhd (full 64-bit)
 + * ILLI: rbhb == rb0 */
-+static bool trans_sub_so_orrr_rb(DisasContext *ctx, arg_misc *a)
++static bool trans_sub_o_orrr_bbd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
 +    TCGv_i64 rbhc = load_rb(ctx, a->hc);
@@ -172,8 +172,22 @@ index 0000000000..7821ab214b
 +    return true;
 +}
 +
++/* §7.1 sub.o rdhb, rbhc, rbhd (orrr, MISC-octa): 64-bit RB − RB → RD
++ * result = rbhc - rbhd (full 64-bit two's-complement), written to rdhb.
++ * ILLI: rdhb == 0 */
++static bool trans_sub_o_orrr_dbb(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) { gen_exception_illegal(ctx); return true; }
++    TCGv_i64 rbhc = load_rb(ctx, a->hc);
++    TCGv_i64 rbhd = load_rb(ctx, a->hd);
++    TCGv_i64 result = tcg_temp_new_i64();
++    tcg_gen_sub_i64(result, rbhc, rbhd);
++    store_rd(a->hb, result);
++    return true;
++}
++
 +/* §3.1.5 div.uo/div.so/rem.uo/rem.so (orrr, MISC-octa)
-+ * ILLI: rdhb==0, divisor==0, signed: INT_MIN÷-1 */
++ * ILLI: rdhb==0. divisor==0 / signed overflow → defined values (no ILLI). */
 +static bool trans_div_uo_orrr_rd(DisasContext *ctx, arg_misc *a)
 +{
 +    if (a->hb == 0) {
@@ -638,310 +652,3 @@ index 0000000000..7821ab214b
 +    return true;
 +}
 +
-+static bool trans_ftcls_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftcls - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ft2fo_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ft2fo - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ft2ft_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ft2ft - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftroot_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftroot - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftlog_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftlog - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_focls_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* focls - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fo2ft_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fo2ft - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fo2fo_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fo2fo - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_foroot_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* foroot - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_folog_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* folog - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ft2it_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ft2it - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ft2io_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ft2io - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ft2ut_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ft2ut - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ft2uo_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ft2uo - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_it2ft_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* it2ft - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_io2ft_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* io2ft - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ut2ft_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ut2ft - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_uo2ft_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* uo2ft - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fo2it_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fo2it - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fo2io_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fo2io - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fo2ut_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fo2ut - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fo2uo_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fo2uo - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_it2fo_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* it2fo - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_io2fo_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* io2fo - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ut2fo_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ut2fo - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_uo2fo_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* uo2fo - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftadd_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftadd - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftsub_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftsub - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftmul_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftmul - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftdiv_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftdiv - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftrem_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftrem - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftsclb_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftsclb - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftsgnn_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftsgnn - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftsgnj_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftsgnj - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_foadd_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* foadd - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fosub_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fosub - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fomul_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fomul - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fodiv_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fodiv - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_forem_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* forem - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fosclb_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fosclb - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fosgnn_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fosgnn - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_fosgnj_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* fosgnj - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_ftqcmp_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* ftqcmp - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}
-+
-+static bool trans_foqcmp_orrr_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    /* foqcmp - stub: ILLI */
-+    gen_exception_illegal(ctx);
-+    return true;
-+}

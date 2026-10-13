@@ -1,12 +1,12 @@
 # SimRISC16位立即数操作指令
 
-> **版本：0.5.4**（与 SimRISC-00 一致）
+> **版本：0.5.5-rc**（与 SimRISC-00 一致）
 > **分类：16位立即数操作**（8 条）— set.zw/set.ow/set.w/or.w/andn.w（rwii 格式）
 
 <!-- ASSEMBLY_LIST_START -->
-## 汇编指令速查
+## 1. 汇编指令速查
 
-### 16位立即数操作（8 条）
+### 1.1 16位立即数操作（8 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -21,7 +21,18 @@
 
 <!-- ASSEMBLY_LIST_END -->
 
-## 立即数常数赋值：Immediate constant
+<!-- LEGALITY_START -->
+## 2. 合法性检查
+
+* `dst_rd0`：目的 rd0 → ILLI — `andn.w_rwii_rd`, `or.w_rwii_rd`, `set.ow_rwii_rd`, `set.zw_rwii_rd`（4 条）
+* `dst_rb0`：目的 rb0 → ILLI — `andn.w_rwii_rb`, `or.w_rwii_rb`, `set.zw_rwii_rb`（3 条）
+
+**scope: fp（无附加合法性规则）：**
+* `set.w_rwii_rf`
+<!-- LEGALITY_END -->
+
+
+## 3. 立即数常数赋值：Immediate constant
 
 立即数设置类指令直接用立即数对寄存器内的不同wyde进行赋值、或、与非、零扩展赋值。
 由于立即数域为16位，因此，需要指定具体的wyde的位置，分别采用 `wp3/wp2/wp1/wp0`，对应 `MSW..LSW`。
@@ -29,37 +40,39 @@
 操作数类型为 `rwii`，指令如下：
 
 ```simrisc
-set.ow   rdha, wpN, immu16
-set.zw   rdha, wpN, immu16
-or.w     rdha, wpN, immu16
-andn.w   rdha, wpN, immu16
+set.ow   rdHA, wpN, immu16
+set.zw   rdHA, wpN, immu16
+or.w     rdHA, wpN, immu16
+andn.w   rdHA, wpN, immu16
 ```
 
 由于rd寄存器为64位，而set.ow/set.zw指令只设置了其中16位，两者的区别在于set.ow指令则将其余48位置1，set.zw指令将其余48位置0。
 
-`or.w` 指令（rwii 格式）：将 `rdha` 中由 `wpN` 指定的 wyde 替换为 `(rdha[wyde] | immu16)`，其余 wyde 保持不变。
+`or.w` 指令（rwii 格式）：将 `rdHA` 中由 `wpN` 指定的 wyde 替换为 `(rdHA[wyde] | immu16)`，其余 wyde 保持不变。
 
-> **注意**：`or.w` 同时是 MISC-wyde 表的三寄存器逻辑 OR 指令（`or.w rdhb, rdhc, rdhd`），汇编器按操作数格式区分。
-`andn.w` 指令：将 `rdha` 中由 `wpN` 指定的 wyde 替换为 `(rdha[wyde] & ~immu16)`，其余 wyde 保持不变。
+> **注意**：`or.w` 同时是 MISC-wyde 表的三寄存器逻辑 OR 指令（`or.w rdHB, rdHC, rdHD`），汇编器按操作数格式区分。
+`andn.w` 指令：将 `rdHA` 中由 `wpN` 指定的 wyde 替换为 `(rdHA[wyde] & ~immu16)`，其余 wyde 保持不变。
 
 针对rb寄存器，提供了or.w/andn.w/set.zw指令，操作数类型为 `rwii`，指令如下：
 
 ```simrisc
-set.zw  rbha, wpN, immu16
-or.w    rbha, wpN, immu16
-andn.w  rbha, wpN, immu16
+set.zw  rbHA, wpN, immu16
+or.w    rbHA, wpN, immu16
+andn.w  rbHA, wpN, immu16
 ```
 
 针对rf寄存器，SimRISC提供了set.w指令，操作数类型为 `rwii` ，指令如下：
 
 ```simrisc
-set.w    rfha, wpN, immu16
+set.w    rfHA, wpN, immu16
 ```
 
 `set.w` 指令只设置相应的16位，其余48位不变。
 因此，32位单精浮点（tetra）需要两条指令设置立即数的值，64位双精浮点（octa）则需要四条指令。
 
-#### set.rd 伪指令
+> **注**：`set.w rf0, wpN, immu16` 合法；写入按 SimRISC-00 写语义（`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效）。
+
+### 3.1 set.rd 伪指令
 
 `set.rd` 不是硬件指令，而是汇编器提供的伪指令，用于将任意 64 位立即数加载到 rd 寄存器。汇编器将 `set.rd` 展开为 1~4 条 rwii 格式指令。
 
@@ -108,13 +121,13 @@ set.rd   rd1, 0xDEADBEEF_CAFEBABE  ; 展开为：
 **寄存器传值**：`set.rd rd, rs` 也可用于从 rb、rf、ra 寄存器传值至 rd，汇编器根据源寄存器类型展开为单条块赋值指令：
 
 ```simrisc
-set.rd   rd5, rb3       ; 展开为 rb2rd rd5, rb3, 1
-set.rd   rd2, rf7       ; 展开为 rf2rd rd2, rf7, 1
-set.rd   rd8, rd3       ; 展开为 rd2rd rd8, rd3, 1
-set.rd   rd4, ra10      ; 展开为 ra2rd rd4, ra10, 1
+set.rd   rd5, rb3       ; 展开为 rb2rd {rd5}, {rb3}
+set.rd   rd2, rf7       ; 展开为 rf2rd {rd2}, {rf7}
+set.rd   rd8, rd3       ; 展开为 rd2rd {rd8}, {rd3}
+set.rd   rd4, ra10      ; 展开为 ra2rd {rd4}, {ra10}
 ```
 
-#### set.rb 伪指令
+### 3.2 set.rb 伪指令
 
 `set.rb` 是汇编器提供的伪指令，用于将立即数加载到 rb 寄存器，展开为 `set.zw-rb` 和 `or.w-rb` 的组合（rb 无 `set.ow` 变体，无需 `andn.w`）。
 
@@ -134,13 +147,13 @@ set.rb   rb1, 0x123456789ABC         ; 展开为：
 **寄存器传值**：`set.rb rb, rs` 也可用于从 rd 或 rb 寄存器传值至 rb，汇编器根据源寄存器类型展开为单条块赋值指令：
 
 ```simrisc
-set.rb   rb5, rd3       ; 展开为 rd2rb rb5, rd3, 1
-set.rb   rb2, rb7       ; 展开为 rb2rb rb2, rb7, 1
+set.rb   rb5, rd3       ; 展开为 rd2rb {rb5}, {rd3}
+set.rb   rb2, rb7       ; 展开为 rb2rb {rb2}, {rb7}
 ```
 
 **注**：rb 高 16 位（bits[63:48]）可用于地址溢出检测。汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。
 
-### set.ft / set.fo 伪指令
+### 3.3 set.ft / set.fo 伪指令
 
 `set.ft` 和 `set.fo` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，分别对应单精（tetra，32 位）和双精（octa，64 位）浮点格式。伪指令展开为 `set.w` 的组合。
 
@@ -158,16 +171,52 @@ set.fo   rf1, 0x3FF0000000000000     ; 展开为：
                                       ;   set.w rf1, wp0, 0x0000
 
 ; 加载零 → 将 rd0（恒为 0）赋值给 rf
-set.ft   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
-set.fo   rf1, 0                       ; 展开为 rd2rf rf1, rd0, 1
+set.ft   rf1, 0                       ; 展开为 rd2rf {rf1}, {rd0}
+set.fo   rf1, 0                       ; 展开为 rd2rf {rf1}, {rd0}
 ```
 
 **寄存器传值**：`set.ft`/`set.fo` 也可用于从 rd 或 rf 寄存器传值至 rf，汇编器展开为 `rd2rf` 或 `ft2ft`/`fo2fo`：
 
 ```simrisc
-set.ft   rf1, rd5       ; 展开为 rd2rf rf1, rd5, 1
-set.ft   rf1, rf2       ; 展开为 ft2ft rf1, rf2, 1
-set.fo   rf2, rf7       ; 展开为 fo2fo rf2, rf7, 1
+set.ft   rf1, rd5       ; 展开为 rd2rf {rf1}, {rd5}
+set.ft   rf1, rf2       ; 展开为 ft2ft {rf1}, {rf2}
+set.fo   rf2, rf7       ; 展开为 fo2fo {rf2}, {rf7}
 ```
 
 **注**：加载全零时汇编器自动使用 `rd2rf` 从 `rd0` 拷贝。
+
+---
+
+## 附录：版本与变更记录
+
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+
+### 0.5.5-rc（未发布）
+
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 浮点合法性规则（`rule_refs`）回填；引入 `scope` 标注。
+- 新增「合法性检查」章（生成区）。
+- `rf0` 位域与访问规则调整。
+- 正文改用新汇编格式。
+- 新增「汇编指令速查」章（生成区）。
+
+### 0.5.4（2026-09-28）
+
+- 本册自原《SimRISC 数据类指令》的立即数赋值部分拆出，独立成「16 位立即数操作」分册。
+- 伪指令（`set.rd`/`set.rb`/`set.ft`/`set.fo`）自 ABI 迁回并归入本册；新增 `neg.b/w/t/o` 伪指令。
+
+### 0.5.3（2026-07-19）
+
+- `setrd`/`setrb`/`setrf` 改名为 `set.rd`/`set.rb`/`set.rf`。
+
+### 0.5.2（2026-07-18）
+
+- `rwii` 指令名改为 `or.w`/`andn.w`/`set.ow`/`set.zw`/`set.w`；新增 `setrd`/`setrb`/`setrf` 伪指令定义。
+
+### 0.5.0（2026-07-15）
+
+- `ww`→`wpN`（wyde position）重命名，16 位立即数按 `wp0`–`wp3` 定位。
+
+### 0.4.1（2026-07-14）
+
+- 初版：同步上游立即数常数赋值指令（`set.zw`/`set.ow`/`set.w` 等）。

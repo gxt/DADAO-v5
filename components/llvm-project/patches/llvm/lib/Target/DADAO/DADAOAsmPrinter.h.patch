@@ -1,0 +1,53 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.h b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
+new file mode 100644
+index 000000000..05f279b97
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
+@@ -0,0 +1,47 @@
++//===-- DADAOAsmPrinter.h - DADAO LLVM Assembly Printer --------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// DADAO assembly printer: lowers each MachineInstr to an MCInst and emits it
++// through the MC streamer (LLVM-040t).  CodeGen-only pseudos are expanded
++// before this pass (DADAOInstrInfo::expandPostRAPseudo, PrologEpilogInserter),
++// so no `*_PSEUDO` may reach emitInstruction.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_LIB_TARGET_DADAO_DADAOASMPRINTER_H
++#define LLVM_LIB_TARGET_DADAO_DADAOASMPRINTER_H
++
++#include "llvm/CodeGen/AsmPrinter.h"
++#include "llvm/MC/MCStreamer.h"
++
++#include <memory>
++
++namespace llvm {
++
++class DADAOMCInstLower;
++class MachineFunction;
++
++class DADAOAsmPrinter : public AsmPrinter {
++  std::unique_ptr<DADAOMCInstLower> MCInstLowering;
++
++public:
++  static char ID;
++
++  DADAOAsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer)
++      : AsmPrinter(TM, std::move(Streamer), ID) {}
++
++  StringRef getPassName() const override { return "DADAO Assembly Printer"; }
++
++  bool runOnMachineFunction(MachineFunction &MF) override;
++
++  void emitInstruction(const MachineInstr *MI) override;
++};
++
++} // end namespace llvm
++
++#endif // LLVM_LIB_TARGET_DADAO_DADAOASMPRINTER_H

@@ -93,7 +93,7 @@ def main():
         ("inject1: expected_fault=null", INJECT1, "R2"),
         ("inject2: expected_fault=ILLI", INJECT2, "R2"),
         ("inject3: reserved:true + word=M1 (0x10041000=ld.ub-rd)", INJECT3, "R8/M1"),
-        ("inject4: reserved:true + word=excluded_m1 (0x16000000=ld.t-rf)", INJECT4, "R8/excluded"),
+        ("inject4: reserved:true + word=scope:fp (0x16000000=ld.t-rf)", INJECT4, "R8/scope-fp"),
         ("inject5: word=0x00000000", INJECT5, "R4"),
     ]
     for name, lines, rule in tests:

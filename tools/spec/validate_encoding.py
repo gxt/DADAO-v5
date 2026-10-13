@@ -118,7 +118,7 @@ def check_bank_consistency(rec):
 
 
 # legality 中允许出现的非字段标识符（常量/函数）
-ALLOWED_NON_FIELD = {"rd0", "rb0", "ra0", "rf0", "aligned"}
+ALLOWED_NON_FIELD = {"rd0", "rb0", "ra0", "rf0", "aligned", "no_overlap"}
 
 
 def check_legality_refs(rec):

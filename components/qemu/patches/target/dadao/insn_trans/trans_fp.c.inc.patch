@@ -1,0 +1,1012 @@
+diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
+new file mode 100644
+index 0000000..82b0d51
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_fp.c.inc
+@@ -0,0 +1,1006 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/*
++ * DADAO FP (rf) instruction translation routines.
++ *
++ * Introduced by QEMU-034t: this single file owns all 60 scope:fp trans.
++ *   - QEMU-034t implements the RF data-movement family (16):
++ *       rf_mem  (8): ld.t/st.t/ld.o/st.o/ldm.t/stm.t/ldm.o/stm.o (-rf)
++ *       rf_move (2): rd2rf/rf2rd
++ *       set_w   (1): set.w (-rf)
++ *       cs_rf   (5): cs.n/z/p/eq/ne (-rf)
++ *   - QEMU-035t implements the bit-level semantics (10):
++ *       sign    (4): ftsgnj/ftsgnn/fosgnj/fosgnn
++ *       classify(2): ftcls/focls
++ *       compare (4): ftqcmp/ftscmp/foqcmp/foscmp
++ *   - QEMU-036t implements the conversion family (20, first softfloat use):
++ *       convert_ff (4): ft2ft/ft2fo/fo2ft/fo2fo
++ *       convert_f2i(8): ft2it/ft2io/ft2ut/ft2uo/fo2it/fo2io/fo2ut/fo2uo
++ *       convert_i2f(8): it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo
++ *   - QEMU-037t implements the remaining 14 trans (softfloat):
++ *       arith  (12): ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb
++ *                    foadd/fosub/fomul/fodiv/forem/fosclb
++ *       root    (2): ftroot/foroot (rootn(x, 2) == sqrt; other n ⇒ ILLI)
++ *
++ * rf0 is the FCSR: reads expose the full 64 bits, writes go through
++ * store_rf() which applies RF0_WRITE_MASK for rf0.
++ */
++
++/* ── FP legality helpers (translate-time ILLI, ADR-0004 0x88) ─────────── */
++
++/* dst_rf0: a floating-point *compute* destination of rf0 ⇒ ILLI (rf0 is the
++ * FCSR, not a compute destination). Not used for ld/ldm (rf0 is a legal
++ * destination), nor for st/stm/rf2rd (rf is only a source there). */
++static bool fp_check_dst_rf0(DisasContext *ctx, int rfidx)
++{
++    if (rfidx == 0) {
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    return true;
++}
++
++/* dst_rd0 (SPEC-089t): the FP rd-destination forms (convert_f2i 8, classify 2,
++ * compare 4, rf2rd 1) must not write rd0 (the hard-wired zero register).
++ * rf0 as a *source* is unaffected; rd2rf's destination is RF and is not
++ * checked here. */
++static bool fp_check_dst_rd0(DisasContext *ctx, int rdstart)
++{
++    if (rdstart == 0) {
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    return true;
++}
++
++/* mreg_zero / mreg_range_overflow (shared with the RD/RB/RA families):
++ *   count == 0            ⇒ ILLI
++ *   start + count > 64    ⇒ ILLI (no wrap, no truncation)
++ * Callers check both the destination and the source start register. */
++static bool fp_check_mreg(DisasContext *ctx, int start, int count)
++{
++    if (count == 0 || start + count > 64) {
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    return true;
++}
++
++/* mreg_range_overlap (shared with the RD family): the two half-open ranges
++ * [dst_start, dst_start+count) and [src_start, src_start+count) must be
++ * disjoint (complete coincidence included) ⇒ ILLI. Not used by QEMU-034t
++ * (the RF data-movement family is structurally non-overlapping); provided
++ * here for the FP convert_ff family implemented by QEMU-036t. */
++static inline bool fp_check_mreg_overlap(DisasContext *ctx,
++                                         int dst_start, int src_start, int count)
++{
++    if (!(dst_start + count <= src_start || src_start + count <= dst_start)) {
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    return true;
++}
++
++/* ── Shared RF helpers ───────────────────────────────────────────────── */
++
++/* EA base for the rrri RF forms: (rb[rbhb] + rd[rdhc]) & mask48. */
++static TCGv_i64 fp_multi_base(DisasContext *ctx, int rbhb, int rdhc)
++{
++    TCGv_i64 base = load_rb(ctx, rbhb);
++    TCGv_i64 offset = load_rd(rdhc);
++    tcg_gen_add_i64(base, base, offset);
++    tcg_gen_andi_i64(base, base, 0x0000FFFFFFFFFFFFULL);
++    return base;
++}
++
++/* tetra (32-bit) RF destination write, e.g. ld.t / ldm.t.
++ * Per SimRISC-01 §存取RF寄存器, when the destination is rf0 the whole low
++ * 32 bits are written and [63:32] is preserved (this intentionally overrides
++ * the read-only qNaN(ft) field; the "write-invalid" rule of SimRISC-00 only
++ * covers explicit rf0 writes). Non-zero rf destinations store the value. */
++static void store_rf_tetra_dst(int n, TCGv_i64 val)
++{
++    if (n != 0) {
++        store_rf(n, val);
++        return;
++    }
++    TCGv_i64 old = load_rf(0);
++    TCGv_i64 lo = tcg_temp_new_i64();
++    tcg_gen_andi_i64(old, old, 0xFFFFFFFF00000000ULL);
++    tcg_gen_andi_i64(lo, val, 0xFFFFFFFFULL);
++    tcg_gen_or_i64(old, old, lo);
++    tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
++}
++
++/* ── QEMU-035t: bit-level FP helpers (sign / classify / compare) ─────── */
++/*
++ * QEMU-035t implements the bit-level FP semantics with pure integer/bit
++ * operations; no softfloat is involved.  Semantics come from
++ * spec/SimRISC-07 §浮点符号位操作指令 / §浮点比较指令 / §浮点分类指令 and
++ * .tao/knowledge/contract-fp.md §7/§8/§9.
++ *
++ * ft is a 32-bit format held in the low half of the 64-bit rf register.
++ * Per the QEMU-034t/035t agreed convention, sign injection operates on the
++ * full 64-bit rf register (only the format sign bit is replaced, all other
++ * bits are preserved), and rd results are written as full 64-bit integers.
++ */
++
++/* Exactly-0/1 boolean helpers (TCG values are 0 or 1). */
++static TCGv_i64 fp_bool_not(TCGv_i64 a)
++{
++    TCGv_i64 r = tcg_temp_new_i64();
++    tcg_gen_xori_i64(r, a, 1);
++    return r;
++}
++
++static TCGv_i64 fp_and2(TCGv_i64 a, TCGv_i64 b)
++{
++    TCGv_i64 r = tcg_temp_new_i64();
++    tcg_gen_and_i64(r, a, b);
++    return r;
++}
++
++static TCGv_i64 fp_and3(TCGv_i64 a, TCGv_i64 b, TCGv_i64 c)
++{
++    return fp_and2(fp_and2(a, b), c);
++}
++
++static TCGv_i64 fp_or2(TCGv_i64 a, TCGv_i64 b)
++{
++    TCGv_i64 r = tcg_temp_new_i64();
++    tcg_gen_or_i64(r, a, b);
++    return r;
++}
++
++static void fp_set_bit_if(TCGv_i64 acc, TCGv_i64 pred, int bit)
++{
++    TCGv_i64 t = tcg_temp_new_i64();
++    tcg_gen_shli_i64(t, pred, bit);
++    tcg_gen_or_i64(acc, acc, t);
++}
++
++/* sign-injection:
++ *   result = (rfHC & ~signmask) | ((rfHD & signmask) ^ (invert ? signmask : 0))
++ * rfHD == rf0 ⇒ sign 0 ⇒ abs(); rfHC == rfHD ⇒ copy/negate.  No special
++ * cases are needed, matching SimRISC-07 §浮点符号位操作指令. */
++static void gen_fp_sign(arg_misc *a, int signpos, bool invert)
++{
++    const uint64_t signmask = 1ULL << signpos;
++    TCGv_i64 hc = load_rf(a->hc);
++    TCGv_i64 hd = load_rf(a->hd);
++    TCGv_i64 res = tcg_temp_new_i64();
++    TCGv_i64 si = tcg_temp_new_i64();
++
++    tcg_gen_andi_i64(res, hc, ~signmask);
++    tcg_gen_andi_i64(si, hd, signmask);
++    if (invert) {
++        tcg_gen_xori_i64(si, si, signmask);
++    }
++    tcg_gen_or_i64(res, res, si);
++    store_rf(a->hb, res);
++}
++
++/* True (1) iff v is a NaN (exp all ones and mantissa non-zero). */
++static TCGv_i64 fp_is_nan(TCGv_i64 v, bool isdbl)
++{
++    const int mantbits = isdbl ? 52 : 23;
++    const uint64_t expall = (1ULL << (isdbl ? 11 : 8)) - 1;
++    const uint64_t mantmask = (1ULL << mantbits) - 1;
++    TCGv_i64 exp = tcg_temp_new_i64();
++    TCGv_i64 man = tcg_temp_new_i64();
++    TCGv_i64 e_all = tcg_temp_new_i64();
++    TCGv_i64 m_nz = tcg_temp_new_i64();
++
++    tcg_gen_shri_i64(exp, v, mantbits);
++    tcg_gen_andi_i64(exp, exp, expall);
++    tcg_gen_andi_i64(man, v, mantmask);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, e_all, exp, expall);
++    tcg_gen_setcondi_i64(TCG_COND_NE, m_nz, man, 0);
++    return fp_and2(e_all, m_nz);
++}
++
++/* Classify one raw value into the [9:0] category mask
++ * (SimRISC-07 §浮点分类指令).  isdbl selects fo(64)/ft(low 32). */
++static TCGv_i64 fp_classify_one(TCGv_i64 raw, bool isdbl)
++{
++    const int mantbits = isdbl ? 52 : 23;
++    const int signpos = isdbl ? 63 : 31;
++    const uint64_t expall = (1ULL << (isdbl ? 11 : 8)) - 1;
++    const uint64_t mantmask = (1ULL << mantbits) - 1;
++    TCGv_i64 v = tcg_temp_new_i64();
++    TCGv_i64 sgn = tcg_temp_new_i64();
++    TCGv_i64 exp = tcg_temp_new_i64();
++    TCGv_i64 man = tcg_temp_new_i64();
++    TCGv_i64 mmsb = tcg_temp_new_i64();
++    TCGv_i64 exp_zero = tcg_temp_new_i64();
++    TCGv_i64 exp_all = tcg_temp_new_i64();
++    TCGv_i64 man_zero = tcg_temp_new_i64();
++
++    if (isdbl) {
++        tcg_gen_mov_i64(v, raw);
++    } else {
++        tcg_gen_andi_i64(v, raw, 0xFFFFFFFFULL);
++    }
++
++    tcg_gen_shri_i64(sgn, v, signpos);
++    tcg_gen_andi_i64(sgn, sgn, 1);
++    tcg_gen_shri_i64(exp, v, mantbits);
++    tcg_gen_andi_i64(exp, exp, expall);
++    tcg_gen_andi_i64(man, v, mantmask);
++    tcg_gen_shri_i64(mmsb, v, mantbits - 1);
++    tcg_gen_andi_i64(mmsb, mmsb, 1);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, exp_zero, exp, 0);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, exp_all, exp, expall);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, man_zero, man, 0);
++
++    TCGv_i64 ns = fp_bool_not(sgn);
++    TCGv_i64 nz = fp_bool_not(exp_zero);
++    TCGv_i64 na = fp_bool_not(exp_all);
++    TCGv_i64 nmz = fp_bool_not(man_zero);
++    TCGv_i64 nmb = fp_bool_not(mmsb);
++
++    TCGv_i64 acc = tcg_temp_new_i64();
++    tcg_gen_movi_i64(acc, 0);
++    fp_set_bit_if(acc, fp_and3(sgn, exp_all, man_zero), 0);   /* negInfinity */
++    fp_set_bit_if(acc, fp_and3(sgn, nz, na), 1);              /* negNormal   */
++    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, nmz), 2);       /* negSubnormal*/
++    fp_set_bit_if(acc, fp_and3(sgn, exp_zero, man_zero), 3);  /* negZero     */
++    fp_set_bit_if(acc, fp_and3(ns, exp_zero, man_zero), 4);   /* posZero     */
++    fp_set_bit_if(acc, fp_and3(ns, exp_zero, nmz), 5);        /* posSubnormal*/
++    fp_set_bit_if(acc, fp_and3(ns, nz, na), 6);               /* posNormal   */
++    fp_set_bit_if(acc, fp_and3(ns, exp_all, man_zero), 7);    /* posInfinity */
++    fp_set_bit_if(acc, fp_and3(exp_all, nmz, nmb), 8);        /* signalingNaN*/
++    fp_set_bit_if(acc, fp_and3(exp_all, nmz, mmsb), 9);       /* quietNaN    */
++    return acc;
++}
++
++/* IEEE three-way compare of two raw values (already width-masked):
++ *   rfHC > rfHD → 1, == → 0, < → -1; unordered → nan_const.
++ * ±0 compare equal; the compare family sets no exception flags. */
++static void gen_fp_cmp(arg_misc *a, bool isdbl, uint64_t nan_const)
++{
++    const int signpos = isdbl ? 63 : 31;
++    const uint64_t signmask = 1ULL << signpos;
++    const uint64_t magmask = signmask - 1;
++    TCGv_i64 zero = tcg_constant_i64(0);
++    TCGv_i64 va = load_rf(a->hc);
++    TCGv_i64 vb = load_rf(a->hd);
++    TCGv_i64 sa = tcg_temp_new_i64();
++    TCGv_i64 sb = tcg_temp_new_i64();
++    TCGv_i64 ma = tcg_temp_new_i64();
++    TCGv_i64 mb = tcg_temp_new_i64();
++    TCGv_i64 unord;
++    TCGv_i64 same_sign = tcg_temp_new_i64();
++    TCGv_i64 mag_gt = tcg_temp_new_i64();
++    TCGv_i64 mag_lt = tcg_temp_new_i64();
++    TCGv_i64 gt_ss = tcg_temp_new_i64();
++    TCGv_i64 lt_ss = tcg_temp_new_i64();
++    TCGv_i64 a_zero = tcg_temp_new_i64();
++    TCGv_i64 b_zero = tcg_temp_new_i64();
++    TCGv_i64 not_both = tcg_temp_new_i64();
++    TCGv_i64 gt_ds;
++    TCGv_i64 lt_ds;
++    TCGv_i64 gt = tcg_temp_new_i64();
++    TCGv_i64 lt = tcg_temp_new_i64();
++    TCGv_i64 cmp = tcg_temp_new_i64();
++    TCGv_i64 res = tcg_temp_new_i64();
++
++    if (!isdbl) {
++        tcg_gen_andi_i64(va, va, 0xFFFFFFFFULL);
++        tcg_gen_andi_i64(vb, vb, 0xFFFFFFFFULL);
++    }
++    unord = fp_or2(fp_is_nan(va, isdbl), fp_is_nan(vb, isdbl));
++
++    tcg_gen_shri_i64(sa, va, signpos);
++    tcg_gen_andi_i64(sa, sa, 1);
++    tcg_gen_shri_i64(sb, vb, signpos);
++    tcg_gen_andi_i64(sb, sb, 1);
++    tcg_gen_andi_i64(ma, va, magmask);
++    tcg_gen_andi_i64(mb, vb, magmask);
++
++    tcg_gen_setcond_i64(TCG_COND_EQ, same_sign, sa, sb);
++    tcg_gen_setcond_i64(TCG_COND_GTU, mag_gt, ma, mb);
++    tcg_gen_setcond_i64(TCG_COND_LTU, mag_lt, ma, mb);
++
++    /* same sign: non-negative → magnitude order; negative → reversed. */
++    tcg_gen_movcond_i64(TCG_COND_EQ, gt_ss, sa, zero, mag_gt, mag_lt);
++    tcg_gen_movcond_i64(TCG_COND_EQ, lt_ss, sa, zero, mag_lt, mag_gt);
++
++    /* different sign: positive > negative, except ±0 which are equal. */
++    tcg_gen_setcondi_i64(TCG_COND_EQ, a_zero, ma, 0);
++    tcg_gen_setcondi_i64(TCG_COND_EQ, b_zero, mb, 0);
++    tcg_gen_and_i64(not_both, a_zero, b_zero);
++    tcg_gen_xori_i64(not_both, not_both, 1);
++    gt_ds = fp_and2(fp_bool_not(sa), not_both);
++    lt_ds = fp_and2(sa, not_both);
++
++    tcg_gen_movcond_i64(TCG_COND_NE, gt, same_sign, zero, gt_ss, gt_ds);
++    tcg_gen_movcond_i64(TCG_COND_NE, lt, same_sign, zero, lt_ss, lt_ds);
++
++    tcg_gen_sub_i64(cmp, gt, lt);          /* 1 / 0 / -1 (two's complement) */
++    tcg_gen_movcond_i64(TCG_COND_NE, res, unord, zero,
++                        tcg_constant_i64(nan_const), cmp);
++    store_rd(a->hb, res);
++}
++
++/* ── rf_mem: ld.t / st.t / ld.o / st.o (rrii) ────────────────────────── */
++
++static bool trans_ld_t_rrii_rf(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
++    TCGv_i64 val = tcg_temp_new_i64();
++    tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BESL | MO_ALIGN_4);
++    store_rf_tetra_dst(a->ha, val);
++    return true;
++}
++
++static bool trans_st_t_rrii_rf(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
++    TCGv_i64 val = load_rf(a->ha);
++    tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUL | MO_ALIGN_4);
++    return true;
++}
++
++static bool trans_ld_o_rrii_rf(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
++    TCGv_i64 val = tcg_temp_new_i64();
++    tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
++    store_rf(a->ha, val);
++    return true;
++}
++
++static bool trans_st_o_rrii_rf(DisasContext *ctx, arg_main *a)
++{
++    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
++    TCGv_i64 val = load_rf(a->ha);
++    tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
++    return true;
++}
++
++/* ── rf_mem: ldm.t / stm.t / ldm.o / stm.o (rrri) ────────────────────── */
++
++static bool trans_ldm_t_rrri_rf(DisasContext *ctx, arg_main *a)
++{
++    if (!fp_check_mreg(ctx, a->ha, a->hd)) {
++        return true;
++    }
++    TCGv_i64 base = fp_multi_base(ctx, a->hb, a->hc);
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 ea = tcg_temp_new_i64();
++        tcg_gen_addi_i64(ea, base, i * 4);
++        tcg_gen_andi_i64(ea, ea, 0x0000FFFFFFFFFFFFULL);
++        TCGv_i64 val = tcg_temp_new_i64();
++        tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BESL | MO_ALIGN_4);
++        store_rf_tetra_dst(a->ha + i, val);
++    }
++    return true;
++}
++
++static bool trans_stm_t_rrri_rf(DisasContext *ctx, arg_main *a)
++{
++    if (!fp_check_mreg(ctx, a->ha, a->hd)) {
++        return true;
++    }
++    TCGv_i64 base = fp_multi_base(ctx, a->hb, a->hc);
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 ea = tcg_temp_new_i64();
++        tcg_gen_addi_i64(ea, base, i * 4);
++        tcg_gen_andi_i64(ea, ea, 0x0000FFFFFFFFFFFFULL);
++        TCGv_i64 val = load_rf(a->ha + i);
++        tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUL | MO_ALIGN_4);
++    }
++    return true;
++}
++
++static bool trans_ldm_o_rrri_rf(DisasContext *ctx, arg_main *a)
++{
++    if (!fp_check_mreg(ctx, a->ha, a->hd)) {
++        return true;
++    }
++    TCGv_i64 base = fp_multi_base(ctx, a->hb, a->hc);
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 ea = tcg_temp_new_i64();
++        tcg_gen_addi_i64(ea, base, i * 8);
++        tcg_gen_andi_i64(ea, ea, 0x0000FFFFFFFFFFFFULL);
++        TCGv_i64 val = tcg_temp_new_i64();
++        tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
++        store_rf(a->ha + i, val);
++    }
++    return true;
++}
++
++static bool trans_stm_o_rrri_rf(DisasContext *ctx, arg_main *a)
++{
++    if (!fp_check_mreg(ctx, a->ha, a->hd)) {
++        return true;
++    }
++    TCGv_i64 base = fp_multi_base(ctx, a->hb, a->hc);
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 ea = tcg_temp_new_i64();
++        tcg_gen_addi_i64(ea, base, i * 8);
++        tcg_gen_andi_i64(ea, ea, 0x0000FFFFFFFFFFFFULL);
++        TCGv_i64 val = load_rf(a->ha + i);
++        tcg_gen_qemu_st_i64(val, ea, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
++    }
++    return true;
++}
++
++/* ── rf_move: rd2rf / rf2rd (orri) ───────────────────────────────────── */
++
++static bool trans_rd2rf_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    /* Destination rf0 (including {rf0:rf0+immu6-1}) is legal. */
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rdHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 tmp = load_rd(a->hc + i);
++        store_rf(a->hb + i, tmp);
++    }
++    return true;
++}
++
++static bool trans_rf2rd_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    /* Source rf0 is legal (reads the full 64 bits); dst_rd0 forbids rd0 as the
++     * destination start register (SPEC-089t). */
++    if (!fp_check_dst_rd0(ctx, a->hb)) {
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 tmp = load_rf(a->hc + i);
++        store_rd(a->hb + i, tmp);
++    }
++    return true;
++}
++
++/* ── set.w-rf (rwii) ─────────────────────────────────────────────────── */
++
++static bool trans_set_w_rwii_rf(DisasContext *ctx, arg_main *a)
++{
++    /* Only the selected 16-bit wyde is written, the other 48 bits keep their
++     * value. Writes to rf0 go through store_rf(), so wp1/wp3 land outside the
++     * FCSR write mask and are complete no-ops. */
++    int wp = a->hb >> 4;
++    uint64_t immu16 = ((uint64_t)(a->hb & 0xF) << 12) |
++                      ((uint64_t)a->hc << 6) | a->hd;
++    TCGv_i64 old = load_rf(a->ha);
++    tcg_gen_andi_i64(old, old, ~(0xFFFFULL << (wp * 16)));
++    tcg_gen_ori_i64(old, old, immu16 << (wp * 16));
++    store_rf(a->ha, old);
++    return true;
++}
++
++/* ── cs.*-rf (rrrr) ──────────────────────────────────────────────────── */
++
++static bool trans_cs_n_rrrr_rf(DisasContext *ctx, arg_main *a)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rfhc = load_rf(a->hc);
++    TCGv_i64 rfhd = load_rf(a->hd);
++    TCGv_i64 zero = tcg_constant_i64(0);
++    TCGv_i64 res = tcg_temp_new_i64();
++    tcg_gen_movcond_i64(TCG_COND_LT, res, rdha, zero, rfhc, rfhd);
++    store_rf(a->hb, res);
++    return true;
++}
++
++static bool trans_cs_z_rrrr_rf(DisasContext *ctx, arg_main *a)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rfhc = load_rf(a->hc);
++    TCGv_i64 rfhd = load_rf(a->hd);
++    TCGv_i64 zero = tcg_constant_i64(0);
++    TCGv_i64 res = tcg_temp_new_i64();
++    tcg_gen_movcond_i64(TCG_COND_EQ, res, rdha, zero, rfhc, rfhd);
++    store_rf(a->hb, res);
++    return true;
++}
++
++static bool trans_cs_p_rrrr_rf(DisasContext *ctx, arg_main *a)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rfhc = load_rf(a->hc);
++    TCGv_i64 rfhd = load_rf(a->hd);
++    TCGv_i64 zero = tcg_constant_i64(0);
++    TCGv_i64 res = tcg_temp_new_i64();
++    tcg_gen_movcond_i64(TCG_COND_GT, res, rdha, zero, rfhc, rfhd);
++    store_rf(a->hb, res);
++    return true;
++}
++
++static bool trans_cs_eq_rrrr_rf(DisasContext *ctx, arg_main *a)
++{
++    if (!fp_check_dst_rf0(ctx, a->hc)) {
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 rfhc = load_rf(a->hc);
++    TCGv_i64 rfhd = load_rf(a->hd);
++    TCGv_i64 res = tcg_temp_new_i64();
++    tcg_gen_movcond_i64(TCG_COND_EQ, res, rdha, rdhb, rfhd, rfhc);
++    store_rf(a->hc, res);
++    return true;
++}
++
++static bool trans_cs_ne_rrrr_rf(DisasContext *ctx, arg_main *a)
++{
++    if (!fp_check_dst_rf0(ctx, a->hc)) {
++        return true;
++    }
++    TCGv_i64 rdha = load_rd(a->ha);
++    TCGv_i64 rdhb = load_rd(a->hb);
++    TCGv_i64 rfhc = load_rf(a->hc);
++    TCGv_i64 rfhd = load_rf(a->hd);
++    TCGv_i64 res = tcg_temp_new_i64();
++    tcg_gen_movcond_i64(TCG_COND_NE, res, rdha, rdhb, rfhd, rfhc);
++    store_rf(a->hc, res);
++    return true;
++}
++
++/* ── Remaining FP trans (real: classify; stub: QEMU-036t/037t) ───────── */
++
++/* classify */
++static bool trans_ftcls_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        store_rd(a->hb + i, fp_classify_one(load_rf(a->hc + i), false));
++    }
++    return true;
++}
++
++static bool trans_focls_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        store_rd(a->hb + i, fp_classify_one(load_rf(a->hc + i), true));
++    }
++    return true;
++}
++
++/* ── QEMU-036t: conversion family (softfloat) ────────────────────────── */
++/*
++ * All convert_* forms are `orri`: a destination start register in a->hb, a
++ * source start register in a->hc and a 1..63 element count in a->hd.  The
++ * per-element conversions themselves live in helper.c (softfloat); the
++ * helpers receive the FCSR-derived rounding mode and merge their flags back
++ * into rf0[4:0].  convert_ff additionally applies the shared
++ * mreg_range_overlap rule (source and destination ranges must be disjoint,
++ * complete coincidence included).
++ */
++
++/* convert_ff kind selectors (helper_fp_cvt_ff). */
++enum {
++    FP_FF_FT2FO = 0,
++    FP_FF_FO2FT = 1,
++};
++
++/* convert_f2i kind selectors (helper_fp_cvt_f2i). */
++enum {
++    FP_F2I_FT2IT = 0, FP_F2I_FT2IO, FP_F2I_FT2UT, FP_F2I_FT2UO,
++    FP_F2I_FO2IT,    FP_F2I_FO2IO, FP_F2I_FO2UT, FP_F2I_FO2UO,
++};
++
++/* convert_i2f kind selectors (helper_fp_cvt_i2f). */
++enum {
++    FP_I2F_IT2FT = 0, FP_I2F_IO2FT, FP_I2F_UT2FT, FP_I2F_UO2FT,
++    FP_I2F_IT2FO,    FP_I2F_IO2FO, FP_I2F_UT2FO, FP_I2F_UO2FO,
++};
++
++/* convert_ff: destination rf (a->hb), source rf (a->hc). `move` selects the
++ * same-format register move (ft2ft/fo2fo), which is a plain 64-bit move. */
++static bool gen_convert_ff(DisasContext *ctx, arg_misc *a,
++                           uint32_t kind, bool move)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    if (!fp_check_mreg_overlap(ctx, a->hb, a->hc, a->hd)) {
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 src = load_rf(a->hc + i);
++        TCGv_i64 res = tcg_temp_new_i64();
++        if (move) {
++            tcg_gen_mov_i64(res, src);
++        } else {
++            gen_helper_fp_cvt_ff(res, tcg_env, src,
++                                 tcg_constant_i32(kind));
++        }
++        store_rf(a->hb + i, res);
++    }
++    return true;
++}
++
++/* convert_f2i: destination rd (a->hb), source rf (a->hc). */
++static bool gen_convert_f2i(DisasContext *ctx, arg_misc *a, uint32_t kind)
++{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rdHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 src = load_rf(a->hc + i);
++        TCGv_i64 res = tcg_temp_new_i64();
++        gen_helper_fp_cvt_f2i(res, tcg_env, src, tcg_constant_i32(kind));
++        store_rd(a->hb + i, res);
++    }
++    return true;
++}
++
++/* convert_i2f: destination rf (a->hb), source rd (a->hc). */
++static bool gen_convert_i2f(DisasContext *ctx, arg_misc *a, uint32_t kind)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rdHC */
++        return true;
++    }
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 src = load_rd(a->hc + i);
++        TCGv_i64 res = tcg_temp_new_i64();
++        gen_helper_fp_cvt_i2f(res, tcg_env, src, tcg_constant_i32(kind));
++        store_rf(a->hb + i, res);
++    }
++    return true;
++}
++
++static bool trans_ft2ft_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_ff(ctx, a, 0, true);
++}
++
++static bool trans_ft2fo_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_ff(ctx, a, FP_FF_FT2FO, false);
++}
++
++static bool trans_fo2ft_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_ff(ctx, a, FP_FF_FO2FT, false);
++}
++
++static bool trans_fo2fo_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_ff(ctx, a, 0, true);
++}
++
++/* ── QEMU-037t: arithmetic (S2D1) + root (S1D1) families ─────────────── */
++/*
++ * Real TCG implementations backed by the upstream softfloat, reusing the
++ * QEMU-036t fp_status_init()/fp_status_commit() rounding+flag plumbing:
++ *   - S2D1 (orrr): add/sub/mul/div/rem/scalb, ft (32) and fo (64) forms.
++ *   - S1D1 (orri): rootn(x, n) with n in immu6; n == 2 only (sqrt).
++ * Sources: spec/SimRISC-07 §S2D1/§S1D1, contract-fp.md §5/§6.
++ */
++
++/* arith kind selectors (helper_fp_arith): 0..5 ft, 6..11 fo. */
++enum {
++    FP_AR_FTADD = 0, FP_AR_FTSUB, FP_AR_FTMUL, FP_AR_FTDIV,
++    FP_AR_FTREM,     FP_AR_FTSCLB,
++    FP_AR_FOADD,     FP_AR_FOSUB, FP_AR_FOMUL, FP_AR_FODIV,
++    FP_AR_FOREM,     FP_AR_FOSCLB,
++};
++
++static bool gen_fp_arith(DisasContext *ctx, arg_misc *a, uint32_t kind)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    /* S2D1: hardware reads both sources before writing the result, so the
++     * destination may alias a source. Both loads are emitted first. */
++    TCGv_i64 src1 = load_rf(a->hc);
++    TCGv_i64 src2 = load_rf(a->hd);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_arith(res, tcg_env, src1, src2, tcg_constant_i32(kind));
++    store_rf(a->hb, res);
++    return true;
++}
++
++static bool gen_fp_root(DisasContext *ctx, arg_misc *a, bool isdbl)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    /* encode_fp_root_n: rootn(x, n) is only defined for n == 2; immu6 holds
++     * n (not a register count), so mreg_zero/mreg_range_* do not apply. */
++    if (a->hd != 2) {
++        gen_exception_illegal(ctx);
++        return true;
++    }
++    /* S1D1: read the source before writing the result. */
++    TCGv_i64 src = load_rf(a->hc);
++    TCGv_i64 res = tcg_temp_new_i64();
++    gen_helper_fp_root(res, tcg_env, src, tcg_constant_i32(isdbl ? 1 : 0));
++    store_rf(a->hb, res);
++    return true;
++}
++
++/* root */
++static bool trans_ftroot_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_root(ctx, a, false);
++}
++
++static bool trans_foroot_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_root(ctx, a, true);
++}
++
++/* convert_f2i */
++static bool trans_ft2it_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_f2i(ctx, a, FP_F2I_FT2IT);
++}
++
++static bool trans_ft2io_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_f2i(ctx, a, FP_F2I_FT2IO);
++}
++
++static bool trans_ft2ut_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_f2i(ctx, a, FP_F2I_FT2UT);
++}
++
++static bool trans_ft2uo_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_f2i(ctx, a, FP_F2I_FT2UO);
++}
++
++static bool trans_fo2it_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_f2i(ctx, a, FP_F2I_FO2IT);
++}
++
++static bool trans_fo2io_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_f2i(ctx, a, FP_F2I_FO2IO);
++}
++
++static bool trans_fo2ut_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_f2i(ctx, a, FP_F2I_FO2UT);
++}
++
++static bool trans_fo2uo_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_f2i(ctx, a, FP_F2I_FO2UO);
++}
++
++/* convert_i2f */
++static bool trans_it2ft_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_i2f(ctx, a, FP_I2F_IT2FT);
++}
++
++static bool trans_io2ft_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_i2f(ctx, a, FP_I2F_IO2FT);
++}
++
++static bool trans_ut2ft_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_i2f(ctx, a, FP_I2F_UT2FT);
++}
++
++static bool trans_uo2ft_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_i2f(ctx, a, FP_I2F_UO2FT);
++}
++
++static bool trans_it2fo_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_i2f(ctx, a, FP_I2F_IT2FO);
++}
++
++static bool trans_io2fo_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_i2f(ctx, a, FP_I2F_IO2FO);
++}
++
++static bool trans_ut2fo_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_i2f(ctx, a, FP_I2F_UT2FO);
++}
++
++static bool trans_uo2fo_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_convert_i2f(ctx, a, FP_I2F_UO2FO);
++}
++
++/* arith */
++static bool trans_ftadd_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FTADD);
++}
++
++static bool trans_ftsub_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FTSUB);
++}
++
++static bool trans_ftmul_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FTMUL);
++}
++
++static bool trans_ftdiv_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FTDIV);
++}
++
++static bool trans_ftrem_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FTREM);
++}
++
++static bool trans_ftsclb_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FTSCLB);
++}
++
++static bool trans_foadd_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FOADD);
++}
++
++static bool trans_fosub_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FOSUB);
++}
++
++static bool trans_fomul_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FOMUL);
++}
++
++static bool trans_fodiv_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FODIV);
++}
++
++static bool trans_forem_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FOREM);
++}
++
++static bool trans_fosclb_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    return gen_fp_arith(ctx, a, FP_AR_FOSCLB);
++}
++
++/* sign */
++static bool trans_ftsgnj_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    gen_fp_sign(a, 31, false);
++    return true;
++}
++
++static bool trans_ftsgnn_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    gen_fp_sign(a, 31, true);
++    return true;
++}
++
++static bool trans_fosgnj_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    gen_fp_sign(a, 63, false);
++    return true;
++}
++
++static bool trans_fosgnn_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    gen_fp_sign(a, 63, true);
++    return true;
++}
++
++/* compare */
++/* Unordered result constants (sign bit 0):
++ *   quiet compare     → qNaN  0x7FC00000 (ft) / 0x7FF8000000000000 (fo)
++ *   signaling compare → sNaN  0x7F800001 (ft) / 0x7FF0000000000001 (fo)
++ * The qNaN values match the FCSR qNaN(ft/fo) fields (SimRISC-00). */
++#define FP_FT_QNAN  0x000000007FC00000ULL
++#define FP_FT_SNAN  0x000000007F800001ULL
++#define FP_FO_QNAN  0x7FF8000000000000ULL
++#define FP_FO_SNAN  0x7FF0000000000001ULL
++
++static bool trans_ftqcmp_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
++    gen_fp_cmp(a, false, FP_FT_QNAN);
++    return true;
++}
++
++static bool trans_ftscmp_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
++    gen_fp_cmp(a, false, FP_FT_SNAN);
++    return true;
++}
++
++static bool trans_foqcmp_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
++    gen_fp_cmp(a, true, FP_FO_QNAN);
++    return true;
++}
++
++static bool trans_foscmp_orrr_rf(DisasContext *ctx, arg_misc *a)
++{
++    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
++        return true;
++    }
++    gen_fp_cmp(a, true, FP_FO_SNAN);
++    return true;
++}

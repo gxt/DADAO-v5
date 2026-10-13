@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import Optional
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -48,6 +49,43 @@ def load_file(rel_path: str) -> str:
         return ""
     with open(path, encoding="utf-8") as f:
         return f.read()
+
+
+def count_inventory_m1_rows() -> tuple[Optional[int], Optional[set[str]]]:
+    """解析 tests/vectors/inventory.md 的 M1 覆盖矩阵表。
+
+    返回 (m1_row_count, m1_id_set)。
+    解析失败时返回 (None, None)。
+    """
+    path = os.path.join(REPO_ROOT, "tests", "vectors", "inventory.md")
+    if not os.path.isfile(path):
+        return None, None
+    with open(path, encoding="utf-8") as f:
+        lines = f.readlines()
+    ids: set[str] = set()
+    in_table = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            if in_table:
+                break  # 表结束
+            continue
+        cells = [c.strip() for c in stripped.split("|")]
+        # 去掉首尾空元素（| 分割产生）
+        cells = [c for c in cells if c]
+        if not cells:
+            continue
+        # 跳过表头行和分隔行
+        if cells[0] == "id" or all(c == "---" for c in cells):
+            in_table = True
+            continue
+        if in_table and len(cells) >= 1:
+            row_id = cells[0].strip("`")
+            if row_id:
+                ids.add(row_id)
+    if not ids:
+        return None, None
+    return len(ids), ids
 
 
 def run_tool(rel_path: str, args: list[str] | None = None) -> tuple[int, str]:
@@ -137,19 +175,68 @@ def check_elf_fields():
     actual = None
     method = ""
 
-    def _is_comment(s: str) -> bool:
-        """判断一行是否为 C/C++ 注释行（行首去空白后以注释标记开头）。"""
+    def _strip_inline_comment(line: str) -> str:
+        """去除 C/C++ 行尾注释，正确处理字符串字面量。
+
+        遍历字符：跟踪 '...' / "..." 状态，遇到未转义且不在字符串中的
+        '//' 则截断；'/*' 同理截断到行尾（块注释跨行时仅去本行尾部，
+        不匹配 '*/' —— 够用且安全）。
+        """
+        result = []
+        i = 0
+        in_single = False  # inside '...'
+        in_double = False  # inside "..."
+        while i < len(line):
+            c = line[i]
+            if in_single:
+                result.append(c)
+                if c == "\\" and i + 1 < len(line):
+                    i += 1
+                    result.append(line[i])
+                elif c == "'":
+                    in_single = False
+            elif in_double:
+                result.append(c)
+                if c == "\\" and i + 1 < len(line):
+                    i += 1
+                    result.append(line[i])
+                elif c == '"':
+                    in_double = False
+            else:
+                if c == "'" and not in_double:
+                    in_single = True
+                    result.append(c)
+                elif c == '"' and not in_single:
+                    in_double = True
+                    result.append(c)
+                elif c == "/" and i + 1 < len(line):
+                    nxt = line[i + 1]
+                    if nxt == "/":
+                        break  # rest is line comment
+                    if nxt == "*":
+                        break  # block comment starts; just cut rest of line
+                    else:
+                        result.append(c)
+                else:
+                    result.append(c)
+            i += 1
+        return "".join(result)
+
+    def _is_comment_line(s: str) -> bool:
+        """判断一行是否为纯注释行（行首去空白后以注释标记开头）。"""
         s = s.strip()
         return (s.startswith("//") or s.startswith("/*")
                 or s.startswith("*") or s.startswith("*/"))
 
-    # 提取 diff '+' 非注释代码行（排除 '+++' 文件头行、注释行）
+    # 提取 diff '+' 非纯注释代码行，去除行尾注释后再保留
+    # （排除 '+++' 文件头行、纯注释行、行尾注释中的误导文本）。
     # 用于 setELFHeaderEFlags / getEFlags 调用搜索和常量定义回查。
     code_lines = "\n".join(
-        ln[1:] for ln in patch_content.splitlines()
+        _strip_inline_comment(ln[1:])
+        for ln in patch_content.splitlines()
         if (ln.startswith("+")
             and not ln.startswith("+++")
-            and not _is_comment(ln[1:]))
+            and not _is_comment_line(ln[1:]))
     )
 
     # 所有 '+' 行（含注释），仅用于不涉及常量值比对的简单存在性检查
@@ -227,67 +314,124 @@ def check_adr_alignment():
         record(cat, 'machine_name="dadao-m1"', "FAIL",
                "QEMU patch 未找到 dadao-m1 机器名定义")
 
-    # --- RAM base = 0xffff_0000_0000, size = 16 MiB ---
-    # Source: ADR-0004 §D1
-    ram_base_exp = 0xFFFF_0000_0000
-    ram_size_exp = 16 * 1024 * 1024
+    # --- RAM = the single RAM segment (base/size) ---
+    # Source: ADR-0004 R3 + rev. 2026-10-11 (RAM base 0xFC00_0000_0000) +
+    # ADR-0020 D15 (C1 step2 deletes the legacy 0xffff_0000_0000 RAM; RAM is the
+    # ONLY RAM segment).  The expected value is NOT hardcoded: it is derived from
+    # the single-source-of-truth linker script (tests/scripts/dadao.lds
+    # MEMORY RAM ORIGIN/LENGTH) and cross-checked against the QEMU macro.
+    lds = load_file("tests/scripts/dadao.lds")
+    lds_ram = re.search(
+        r'RAM\s*\(rwx\)\s*:\s*ORIGIN\s*=\s*(0x[0-9a-fA-F]+)\s*,\s*LENGTH\s*=\s*(\d+)M',
+        lds)
+    ram_base_exp = int(lds_ram.group(1), 16) if lds_ram else None
+    ram_size_exp = int(lds_ram.group(2)) * 1024 * 1024 if lds_ram else None
     ram_base_match = re.search(r'DADAO_RAM_BASE\s+(0x[0-9a-fA-F]+)', patch_content)
     ram_size_match = re.search(r'DADAO_RAM_SIZE\s+\((\d+\s*\*\s*\d+\s*\*\s*\d+)\)', patch_content)
-    if ram_base_match:
+    if ram_base_exp is None:
+        record(cat, "RAM_BASE (lds ORIGIN)", "FAIL",
+               "tests/scripts/dadao.lds 未找到 RAM ORIGIN/LENGTH")
+    elif ram_base_match:
         actual = int(ram_base_match.group(1), 16)
         if actual == ram_base_exp:
             record(cat, f"RAM_BASE=0x{ram_base_exp:X}", "PASS",
-                   f"QEMU: DADAO_RAM_BASE = {hex(actual)}")
+                   f"QEMU DADAO_RAM_BASE = dadao.lds ORIGIN(RAM) = 0x{actual:X}")
         else:
             record(cat, f"RAM_BASE=0x{ram_base_exp:X}", "FAIL",
-                   f"期望 0x{ram_base_exp:X}, 实际 {hex(actual)}")
+                   f"QEMU DADAO_RAM_BASE 0x{actual:X} != dadao.lds ORIGIN(RAM) 0x{ram_base_exp:X}")
     else:
         record(cat, f"RAM_BASE=0x{ram_base_exp:X}", "FAIL",
                "QEMU patch 未找到 DADAO_RAM_BASE")
 
-    if ram_size_match:
+    if ram_size_exp is None:
+        record(cat, "RAM_SIZE (lds LENGTH)", "FAIL",
+               "tests/scripts/dadao.lds 未找到 RAM LENGTH")
+    elif ram_size_match:
         actual = 1
         for f in ram_size_match.group(1).split("*"):
             actual *= int(f.strip())
         if actual == ram_size_exp:
-            record(cat, "RAM_SIZE=16MiB", "PASS",
-                   f"QEMU: DADAO_RAM_SIZE = {actual} ({actual // (1024*1024)} MiB)")
+            record(cat, f"RAM_SIZE={ram_size_exp // (1024*1024)}MiB", "PASS",
+                   f"QEMU DADAO_RAM_SIZE = dadao.lds LENGTH(RAM) = {actual}")
         else:
-            record(cat, "RAM_SIZE=16MiB", "FAIL",
-                   f"期望 {ram_size_exp}, 实际 {actual}")
+            record(cat, f"RAM_SIZE={ram_size_exp // (1024*1024)}MiB", "FAIL",
+                   f"QEMU DADAO_RAM_SIZE {actual} != dadao.lds LENGTH(RAM) {ram_size_exp}")
     else:
-        record(cat, "RAM_SIZE=16MiB", "FAIL",
+        record(cat, f"RAM_SIZE={ram_size_exp // (1024*1024)}MiB", "FAIL",
                "QEMU patch 未找到 DADAO_RAM_SIZE")
 
-    # --- Exit port base = 0xffff_8000_0000, size = 8 ---
-    # Source: ADR-0004 §D3
-    exit_base_exp = 0xFFFF_8000_0000
-    exit_size_exp = 8
-    exit_base_match = re.search(r'DADAO_EXIT_PORT_BASE\s+(0x[0-9a-fA-F]+)', patch_content)
-    exit_size_match = re.search(r'DADAO_EXIT_PORT_SIZE\s+(\d+)', patch_content)
-    if exit_base_match:
-        actual = int(exit_base_match.group(1), 16)
-        if actual == exit_base_exp:
-            record(cat, f"EXIT_PORT_BASE=0x{exit_base_exp:X}", "PASS",
-                   f"QEMU: DADAO_EXIT_PORT_BASE = {hex(actual)}")
-        else:
-            record(cat, f"EXIT_PORT_BASE=0x{exit_base_exp:X}", "FAIL",
-                   f"期望 0x{exit_base_exp:X}, 实際 {hex(actual)}")
+    # --- legacy RAM segment removed (C1 step2) ---
+    # Source: ADR-0020 D15 step2.  The legacy 0xffff_0000_0000 RAM segment
+    # must no longer be mapped: RAM is the single RAM region.
+    legacy_ram = re.search(r'DADAO_RAM_BASE\s+0xffff00000000', patch_content)
+    if legacy_ram or 'DADAO_RAM0_BASE' in patch_content or 'dadao-ram0' in patch_content:
+        record(cat, "legacy RAM segment removed", "FAIL",
+               "QEMU patch 仍含 legacy RAM 段 (0xffff_0000_0000 / dadao-ram0 / RAM0)")
     else:
-        record(cat, f"EXIT_PORT_BASE=0x{exit_base_exp:X}", "FAIL",
-               "QEMU patch 未找到 DADAO_EXIT_PORT_BASE")
+        record(cat, "legacy RAM segment removed", "PASS",
+               "旧 RAM 段 (0xffff_0000_0000) 已删，RAM 为唯一 RAM 段")
 
-    if exit_size_match:
-        actual = int(exit_size_match.group(1))
-        if actual == exit_size_exp:
-            record(cat, "EXIT_PORT_SIZE=8", "PASS",
-                   f"QEMU: DADAO_EXIT_PORT_SIZE = {actual}")
-        else:
-            record(cat, "EXIT_PORT_SIZE=8", "FAIL",
-                   f"期望 {exit_size_exp}, 实際 {actual}")
+    # --- RAM hw registration in hw/dadao (init_ram + add_subregion) ---
+    # Source: ADR-0004 R3 / ADR-0020 D15: machine maps the single RAM.
+    if re.search(r'memory_region_init_ram\(\s*ram\b[^;]*DADAO_RAM_SIZE',
+                 patch_content, re.DOTALL):
+        record(cat, "RAM hw registration (init_ram)", "PASS",
+               "hw/dadao: memory_region_init_ram(ram, ..., DADAO_RAM_SIZE)")
     else:
-        record(cat, "EXIT_PORT_SIZE=8", "FAIL",
-               "QEMU patch 未找到 DADAO_EXIT_PORT_SIZE")
+        record(cat, "RAM hw registration (init_ram)", "FAIL",
+               "QEMU patch 未找到 RAM 的 memory_region_init_ram 注册")
+
+    if re.search(r'memory_region_add_subregion\(\s*system_memory\s*,\s*'
+                 r'DADAO_RAM_BASE\s*,\s*ram\s*\)', patch_content):
+        record(cat, "RAM hw registration (add_subregion)", "PASS",
+               "hw/dadao: add_subregion(system_memory, DADAO_RAM_BASE, ram)")
+    else:
+        record(cat, "RAM hw registration (add_subregion)", "FAIL",
+               "QEMU patch 未找到 RAM 的 memory_region_add_subregion 注册")
+
+    # --- CFXMEM exit code = 0x81 (ADR-0004 D5.8; ADR-0020 D15) ---
+    cfxmem_match = re.search(r'DADAO_EXIT_CFXMEM\s*=\s*(0x[0-9a-fA-F]+|\d+)',
+                             patch_content)
+    if cfxmem_match:
+        raw = cfxmem_match.group(1)
+        actual = int(raw, 16) if raw.startswith("0x") else int(raw)
+        if actual == 0x81:
+            record(cat, "EXIT_CFXMEM=0x81", "PASS",
+                   f"QEMU: DADAO_EXIT_CFXMEM = 0x{actual:02X}")
+        else:
+            record(cat, "EXIT_CFXMEM=0x81", "FAIL",
+                   f"期望 0x81, 实际 0x{actual:02X}")
+    else:
+        record(cat, "EXIT_CFXMEM=0x81", "FAIL",
+               "QEMU patch 未找到 DADAO_EXIT_CFXMEM")
+
+    # --- CFXMEM routing boundary: umon segment cfxha == 0 ---
+    # Source: ADR-0020 D15 (routing: cfxha-0 OOB => CFXMEM; others => 0x87).
+    umon_match = re.search(r'DADAO_CFXHA_UMON\s+(\d+)', patch_content)
+    if umon_match:
+        actual = int(umon_match.group(1))
+        if actual == 0:
+            record(cat, "CFXHA_UMON=0 (CFXMEM routing)", "PASS",
+                   f"QEMU: DADAO_CFXHA_UMON = {actual}")
+        else:
+            record(cat, "CFXHA_UMON=0 (CFXMEM routing)", "FAIL",
+                   f"期望 0, 实际 {actual}")
+    else:
+        record(cat, "CFXHA_UMON=0 (CFXMEM routing)", "FAIL",
+               "QEMU patch 未找到 DADAO_CFXHA_UMON")
+
+    # --- exit port device removed (C1 step2; ADR-0020 D8) ---
+    # Source: ADR-0020 D8/D15 + spec/Machine-01 §7.  The legacy exit-port MMIO
+    # device is deleted in step2; the halt protocol is semihosting SYS_EXIT.
+    # QEMU-053t therefore asserts the constants/device are GONE (was: the
+    # retained QEMU-046t device constant).
+    if 'DADAO_EXIT_PORT_BASE' in patch_content or 'DADAO_EXIT_PORT_SIZE' in patch_content \
+       or 'dadao-exit-port' in patch_content:
+        record(cat, "exit port device removed", "FAIL",
+               "QEMU patch 仍含 exit port 设备 (DADAO_EXIT_PORT_* / dadao-exit-port)")
+    else:
+        record(cat, "exit port device removed", "PASS",
+               "旧 exit-port MMIO 设备已删除（停机 = semihosting SYS_EXIT）")
 
     # --- Boot ROM base = 0xffff_ffff_0000, size = 64 KiB ---
     # Source: ADR-0004 §D1
@@ -383,7 +527,6 @@ def check_adr_alignment():
     harness_content = load_file("tests/scripts/build_test_binary.py")
     if harness_content:
         h_binary_match = re.search(r'BINARY_BASE\s*=\s*(0x[0-9a-fA-F_]+)', harness_content)
-        h_exit_match = re.search(r'EXIT_PORT\s*=\s*(0x[0-9a-fA-F_]+)', harness_content)
         if h_binary_match:
             actual = int(h_binary_match.group(1).replace("_", ""), 16)
             if actual == ram_base_exp:
@@ -392,14 +535,10 @@ def check_adr_alignment():
             else:
                 record(cat, "harness.BINARY_BASE=RAM_BASE", "FAIL",
                        f"期望 0x{ram_base_exp:X}, 实際 0x{actual:X}")
-        if h_exit_match:
-            actual = int(h_exit_match.group(1).replace("_", ""), 16)
-            if actual == exit_base_exp:
-                record(cat, "harness.EXIT_PORT=EXIT_PORT_BASE", "PASS",
-                       f"build_test_binary.py: EXIT_PORT = 0x{actual:X}")
-            else:
-                record(cat, "harness.EXIT_PORT=EXIT_PORT_BASE", "FAIL",
-                       f"期望 0x{exit_base_exp:X}, 实際 0x{actual:X}")
+        # NOTE (TESTCASES-034t): build_test_binary.py no longer carries an
+        # EXIT_PORT constant — the ISA-vector harness signals pass/fail through
+        # the semihosting SYS_EXIT service (ADR-0020 D8), so the former
+        # harness.EXIT_PORT=EXIT_PORT_BASE cross-check is retired here.
 
     # --- Harness fault code mapping (run_qemu_test.py) ---
     # Source: ADR-0004 §D5.8
@@ -570,19 +709,24 @@ def check_opcodes_cross():
     with open(opcodes_path, encoding="utf-8") as f:
         records = _yaml.safe_load(f)
 
-    # --- opcodes.yaml 条目数（真断言：期望 254 总计 / 178 M1） ---
-    # Source: contracts/opcodes.yaml 结构约定
+    # --- opcodes.yaml 条目数（跨载体推导） ---
+    # Source: contracts/opcodes.yaml 条目总数 + M1 身份数
+    # M1 身份数与 inventory.md（独立载体）交叉校验；总计 = len(records)（契约当前值）
     total = len(records)
-    m1_count = sum(1 for r in records if not r.get("excluded_m1", False))
-    EXPECTED_TOTAL = 254
-    EXPECTED_M1 = 178
-    if total == EXPECTED_TOTAL and m1_count == EXPECTED_M1:
-        record(cat, "opcodes.yaml 条目数", "PASS",
-               f"总计 {total}, M1 内 {m1_count}")
+    m1_count = sum(1 for r in records if r.get("scope") == "m1")
+
+    inv_m1_count, inv_m1_ids = count_inventory_m1_rows()
+    if inv_m1_count is not None:
+        if m1_count == inv_m1_count:
+            record(cat, "opcodes.yaml 条目数", "PASS",
+                   f"总计 {total}, M1 内 {m1_count}（inventory.md 独立计数 {inv_m1_count} 一致）")
+        else:
+            record(cat, "opcodes.yaml 条目数", "FAIL",
+                   f"opcodes.yaml M1={m1_count}，"
+                   f"inventory.md M1={inv_m1_count}（跨载体不一致）")
     else:
         record(cat, "opcodes.yaml 条目数", "FAIL",
-               f"期望 总计{EXPECTED_TOTAL}/M1{EXPECTED_M1}，"
-               f"实际 总计{total}/M1{m1_count}")
+               "tests/vectors/inventory.md 未找到或解析失败（无法交叉校验 M1 身份数）")
 
     # --- 结构完整性 ---
     missing = []
@@ -613,7 +757,7 @@ def check_opcodes_cross():
                f"全部 {total} 条 (value & mask) == value")
 
     # --- 真跨模块交叉：LLVM lit 字节 ↔ opcodes.yaml ---
-    # 调用 check_lit_bytes.py，其比对 # OBJ: 字节 ↔ opcodes.yaml mask/value
+    # 调用 check_lit_bytes.py，其比对 ; OBJ: 字节 ↔ opcodes.yaml mask/value
     rc, out = run_tool("tools/llvm/check_lit_bytes.py")
     if rc == 0:
         record(cat, "LLVM lit ↔ opcodes.yaml", "PASS", out.split("\n")[0])
@@ -634,43 +778,73 @@ def check_opcodes_cross():
     else:
         record(cat, "QEMU trans ↔ opcodes.yaml", "FAIL", out)
 
-    # --- LLVM lit pattern 数量（真断言：期望 53） ---
-    # Source: tests/lit/MC/Dadao/*.s 中 # OBJ: 行数
-    EXPECTED_LIT = 53
-    lit_dir = os.path.join(REPO_ROOT, "tests", "lit", "MC", "Dadao")
-    if os.path.isdir(lit_dir):
-        lit_count = sum(
-            1 for sf in glob.glob(os.path.join(lit_dir, "*.s"))
-            for line in open(sf) if re.search(r"#\s*OBJ:", line)
-        )
-        if lit_count == EXPECTED_LIT:
-            record(cat, "LLVM lit # OBJ: patterns", "PASS",
-                   f"{lit_count} patterns")
-        else:
-            record(cat, "LLVM lit # OBJ: patterns", "FAIL",
-                   f"期望 {EXPECTED_LIT} patterns，实际 {lit_count}")
+    # --- LLVM lit format 族覆盖（跨载体交叉：opcodes.yaml M1 format 集 ↔ lit patterns） ---
+    # Source: contracts/opcodes.yaml M1 条目的 format 字段（契约）；tests/llvm/lit/MC/DADAO/*.s（实现）
+    # 断言：每个 M1 format 族至少有 1 条 lit ; OBJ: pattern（其 opcode 匹配该族的 opcodes 条目）
+    # 判定法：提取 ; OBJ: 行的 4 字节 opcode word，在 opodes.yaml 中找 (word & mask)==value
+    #         的唯一匹配条目，取其 format 字段作为该 pattern 的族归属
+    lit_dir = os.path.join(REPO_ROOT, "tests", "llvm", "lit", "MC", "DADAO")
+    if not os.path.isdir(lit_dir):
+        record(cat, "LLVM lit format 族覆盖", "FAIL",
+               "tests/llvm/lit/MC/DADAO/ 目录不存在")
     else:
-        record(cat, "LLVM lit # OBJ: patterns", "FAIL",
-               "tests/lit/MC/Dadao/ 目录不存在")
+        # 收集 M1 format 族（从契约推导）
+        m1_formats = set(
+            r["format"] for r in records if r.get("scope") == "m1"
+        )
+        # 提取 lit patterns 的 opcode word 并映射到 format
+        lit_obj_re = re.compile(
+            r";\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
+            r"([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})"
+        )
+        lit_formats: dict[str, list[str]] = {}  # format → [source files]
+        for sf in sorted(glob.glob(os.path.join(lit_dir, "*.s"))):
+            fname = os.path.basename(sf)
+            with open(sf) as f:
+                for line in f:
+                    m = lit_obj_re.search(line)
+                    if not m:
+                        continue
+                    b0, b1, b2, b3 = m.groups()
+                    word = int(b0 + b1 + b2 + b3, 16)
+                    # 查找匹配的 opodes 条目
+                    matches = [
+                        r for r in records
+                        if (word & int(r["mask"], 16)) == int(r["value"], 16)
+                    ]
+                    if len(matches) == 1:
+                        fmt = matches[0]["format"]
+                        lit_formats.setdefault(fmt, []).append(fname)
+        # 检查覆盖
+        covered = set(lit_formats.keys())
+        missing = m1_formats - covered
+        if not missing:
+            summary = ", ".join(
+                f"{f}({len(lit_formats[f])})" for f in sorted(m1_formats)
+            )
+            record(cat, "LLVM lit format 族覆盖", "PASS",
+                   f"{len(covered)}/{len(m1_formats)} 族有 lit 覆盖（{summary}）")
+        else:
+            record(cat, "LLVM lit format 族覆盖", "FAIL",
+                   f"M1 format 族缺少 lit 覆盖: {sorted(missing)}")
 
-    # --- QEMU trans_* 定义数（真断言：期望与 opcodes.yaml 条目数一致 = 254） ---
+    # --- QEMU trans_* 定义数（跨载体推导：应等于 opcodes.yaml 条目数） ---
     # Source: components/qemu/patches/*.patch 中 trans_* 函数定义数
-    EXPECTED_TRANS = 254
+    # 期望值 = total（从契约 opcodes.yaml 推导），不硬编码
     qemu_patches_dir = os.path.join(REPO_ROOT, "components", "qemu", "patches")
     trans_defs = set()
-    if os.path.isdir(qemu_patches_dir):
-        for pf in iter_patch_files(qemu_patches_dir):
-            with open(pf, encoding="utf-8") as f:
-                for line in f:
-                    m = re.search(r'static\s+bool\s+(trans_\w+)\s*\(', line)
-                    if m:
-                        trans_defs.add(m.group(1))
-    if len(trans_defs) == EXPECTED_TRANS:
+    for pf in iter_patch_files(qemu_patches_dir):
+        with open(pf, encoding="utf-8") as f:
+            for line in f:
+                m = re.search(r'static\s+bool\s+(trans_\w+)\s*\(', line)
+                if m:
+                    trans_defs.add(m.group(1))
+    if len(trans_defs) == total:
         record(cat, "QEMU trans_* 定义数", "PASS",
-               f"{len(trans_defs)} trans_* 函数")
+               f"{len(trans_defs)} trans_* 函数（与 opcodes.yaml 条目数 {total} 一致）")
     else:
         record(cat, "QEMU trans_* 定义数", "FAIL",
-               f"期望 {EXPECTED_TRANS} trans_*，实际 {len(trans_defs)}")
+               f"期望 {total} trans_*（=opcodes.yaml 条目数），实际 {len(trans_defs)}")
 
 
 # ---------------------------------------------------------------------------

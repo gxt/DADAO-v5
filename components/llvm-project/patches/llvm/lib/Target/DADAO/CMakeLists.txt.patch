@@ -1,35 +1,45 @@
 diff --git a/llvm/lib/Target/DADAO/CMakeLists.txt b/llvm/lib/Target/DADAO/CMakeLists.txt
 new file mode 100644
-index 000000000000..cc007518e98a
+index 000000000..8ce835db2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/CMakeLists.txt
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,46 @@
 +add_llvm_component_group(DADAO)
 +
 +set(LLVM_TARGET_DEFINITIONS DADAO.td)
 +
 +tablegen(LLVM DADAOGenRegisterInfo.inc -gen-register-info)
++tablegen(LLVM DADAOGenCallingConv.inc -gen-callingconv)
 +tablegen(LLVM DADAOGenInstrInfo.inc -gen-instr-info)
 +tablegen(LLVM DADAOGenMCCodeEmitter.inc -gen-emitter)
 +tablegen(LLVM DADAOGenDisassemblerTables.inc -gen-disassembler)
 +tablegen(LLVM DADAOGenAsmWriter.inc -gen-asm-writer)
 +tablegen(LLVM DADAOGenAsmMatcher.inc -gen-asm-matcher)
 +tablegen(LLVM DADAOGenSubtargetInfo.inc -gen-subtarget)
++tablegen(LLVM DADAOGenDAGISel.inc -gen-dag-isel)
 +# DADAOGen*.inc are build artifacts, not committed to git.
 +
 +add_public_tablegen_target(DADAOCommonTableGen)
 +
 +add_llvm_target(DADAOCodeGen
++  DADAOAsmPrinter.cpp
 +  DADAOFrameLowering.cpp
 +  DADAOInstrInfo.cpp
++  DADAOISelDAGToDAG.cpp
++  DADAOISelLowering.cpp
++  DADAOMCInstLower.cpp
 +  DADAORegisterInfo.cpp
++  DADAOSubtarget.cpp
 +  DADAOTargetMachine.cpp
 +
 +  LINK_COMPONENTS
++  AsmPrinter
 +  CodeGen
 +  Core
 +  MC
++  SelectionDAG
 +  Support
++  Target
 +  TargetParser
 +
 +  ADD_TO_COMPONENT

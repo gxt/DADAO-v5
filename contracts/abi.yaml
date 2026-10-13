@@ -1,14 +1,26 @@
-# DADAO SimRISC ABI — M1 最小 ABI 事实（机器可读）
+# DADAO SimRISC ABI — 机器可读事实（M1 最小 ABI + M3 标量调用约定）
 #
 # 来源：
 #   spec/DADAO-21-ABI-应用程序二进制接口.md  (0.9.2)
 #   spec/DADAO-11-AEE-应用程序运行环境.md    (0.9.2)
 # 归一化合约：.tao/knowledge/contract-abi.md (0.9.2)
+# M3 决策：.tao/adr/adr-0018-m3-codegen-choices.md (ADR-0018, Accepted)
 #
-# 范围：M1 最小 ABI 事实 —— 寄存器角色 + SP + 栈方向/对齐 + call/ret 与 RegRAS。
-# 完整调用约定（参数寄存器分配 / 返回值 / 栈帧布局 / 三 bank 共享溢出区 /
-# prologue-epilogue）见 deferred_to_m2，M1 不作为规范性事实；
-# 高级 ABI（varargs / HFA / HPA / 聚合 / 多返回值）见 excluded_from_m1。
+# 范围：
+#   - M1 最小 ABI 事实 —— 寄存器角色 + SP + 栈方向/对齐 + call/ret 与 RegRAS。
+#   - M3 标量调用约定（非变参 / 非聚合）—— 见 scalar_calling_convention：
+#     参数寄存器 / 标量提升 / 栈溢出区 / 返回值 / callee-saved（CSR） /
+#     栈帧布局 / prologue-epilogue / call Defs+RegMask。
+#   - 高级 ABI（varargs / 聚合返回 sret）与 i128 / RF / 动态链接-TLS → M4，见 deferred_to_m4。
+#   - HFA / HPA / 聚合传参已由用户 2026-10-09 裁定于 M6 收口（SPEC-127t，rev. 2026-10-09）：
+#     统一「最多 8 个寄存器槽位（64 字节）」，>64B 间接指针；口径见 contract-abi.md §6.4，
+#     权威正文 spec/DADAO-21 §传参 §聚合类型参数；deferred_to_m4 中的 hfa/hpa/
+#     aggregate_arguments 仅作 M3 边界登记（其 M6 口径已定）。
+#   - M3 的未决项（多返回值/聚合返回、red zone、i128）已由用户逐条裁定于 M6 消解
+#     （见 contract-abi.md §6，SPEC-124t，rev. 2026-10-09）；open_items 随之为空。
+#   - 返回值寄存器 rd8/rb8/rf8 + 多返回值/聚合「按声明顺序自 8 递增、每 bank K=8」
+#     已写入 spec/DADAO-21 §返回值（用户 2026-10-09 授权改册；同变更内更新只读锁 sha256）。
+#     权威正文见 contract-abi.md §4.4/§4.6/§6.1。
 
 format: dadao-abi
 version: "0.9.2"
@@ -22,15 +34,17 @@ data_layout:
   endianness: big
   pointer_size: 8          # 指针 = unsigned octa（8 字节）
   octa_size: 8
+  llvm_datalayout: "E-m:e-p:64:64-i64:64-i128:128-n8:16:32:64-S128"   # C9（LLVM-033t 落地）
+  stack_natural_alignment_bits: 128   # S128；与 call 时 SP 8B 对齐不矛盾（16B ⊃ 8B），不做 8/16 裁定
   spec_cite: "DADAO-21 §数据表示"
 
 # ── 栈（M1 事实）─────────────────────────────────────────────────────────────
 stack:
   stack_pointer: rb1
   stack_pointer_abi_name: rbsp
-  frame_pointer: rb2
+  frame_pointer: rb63
   frame_pointer_abi_name: rbfp
-  frame_pointer_optional: true
+  frame_pointer_optional: true   # 条件式：hasFP 为真时才用 rb63 作 FP；否则 rb63 可作通用 callee-saved 分配
   growth_direction: downward
   stack_alignment: 8       # call 执行时 SP 必须 8 字节对齐
   spec_cite: "DADAO-21 §函数调用规范 §The Stack Frame; §传参 §栈溢出规则"
@@ -43,7 +57,7 @@ call_ret:
   overflow_exception: RASOF
   underflow_exception: RASUF
   detail_contract: ".tao/knowledge/contract-isa.md §5.4-§5.6"
-  spec_cite: "SimRISC-02 §函数调用; SimRISC-02 §函数返回"
+  spec_cite: "SimRISC-06 §函数调用; SimRISC-06 §函数返回"
 
 # ── 寄存器角色（M1 事实）─────────────────────────────────────────────────────
 # 每条：range=[lo,hi]；abi_name 为区间时写作 [首,末]；callee_saved 为
@@ -52,20 +66,22 @@ registers:
   rd:
     - {range: [0, 0],   abi_name: rdzero, role: zero,            callee_saved: immutable}
     - {range: [1, 1],   abi_name: rderrno, role: error_number,   callee_saved: null}
-    - {range: [2, 7],                      role: reserved,       callee_saved: null}
+    - {range: [2, 3],                      role: reserved,       callee_saved: null}   # 调试/测试保留
+    - {range: [4, 7],                      role: temporary,      callee_saved: false}
     - {range: [8, 15],  abi_name: [rdt0, rdt7],  role: temporary, callee_saved: false}
     - {range: [16, 31], abi_name: [rda0, rda15], role: temporary, callee_saved: false}
     - {range: [32, 63],                    role: callee_saved,   callee_saved: true}
   rb:
-    - {range: [0, 0],   abi_name: rbip,   role: instruction_pointer, callee_saved: null}
+    - {range: [0, 0],   abi_name: rbip,   role: current_instruction_address, callee_saved: null}
     - {range: [1, 1],   abi_name: rbsp,   role: stack_pointer,       callee_saved: true}
-    - {range: [2, 2],   abi_name: rbfp,   role: frame_pointer,       callee_saved: true}
-    - {range: [3, 3],   abi_name: rbgp,   role: global_pointer,      callee_saved: null}
-    - {range: [4, 4],   abi_name: rbtp,   role: thread_pointer,      callee_saved: null}
-    - {range: [5, 7],                     role: reserved,            callee_saved: null}
+    - {range: [2, 2],   abi_name: rbgp,   role: global_pointer,      callee_saved: null}
+    - {range: [3, 3],   abi_name: rbtp,   role: thread_pointer,      callee_saved: null}
+    - {range: [4, 7],                     role: temporary,           callee_saved: false}
     - {range: [8, 15],  abi_name: [rbt0, rbt7],  role: temporary,    callee_saved: false}
     - {range: [16, 31], abi_name: [rba0, rba15], role: temporary,    callee_saved: false}
-    - {range: [32, 63],                   role: callee_saved,        callee_saved: true}
+    - {range: [32, 62],                   role: callee_saved,        callee_saved: true}
+    # rb63：条件式 FP —— hasFP 为真时保留为 FP；否则可作通用 callee-saved 分配。恒 callee-saved。
+    - {range: [63, 63], abi_name: rbfp,   role: frame_pointer,       callee_saved: true,   conditional: true}
   rf:
     - {range: [0, 0],   role: fp_status,  callee_saved: null}    # rf0 = FCSR
     - {range: [1, 7],   role: temporary,  callee_saved: false}
@@ -79,62 +95,145 @@ registers:
 
 # ── M1 可分配 / 不可分配集合（保守策略）─────────────────────────────────────
 allocatable:
-  rd: [[8, 15], [16, 31], [32, 63]]
-  rb: [[8, 15], [16, 31], [32, 63]]
+  rd: [[4, 7], [8, 15], [16, 31], [32, 63]]
+  # [32, 62] 无条件；rb63 条件式（仅 hasFP 为假时可作通用 callee-saved 分配）
+  rb: [[4, 7], [8, 15], [16, 31], [32, 62], [63, 63]]
   rf: []
 
 non_allocatable:
   - {reg: rd0,        reason: hardwired_zero}
-  - {reg: rd1,        reason: "callee-saved undefined (spec '-'); M1 保守不分配", status: OPEN}
-  - {reg: "rd2-rd7",  reason: reserved}
+  - {reg: rd1,        reason: "reserved (C6; spec callee-saved '-')"}
+  - {reg: "rd2-rd3",  reason: "reserved (debug/test-reserved)"}
   - {reg: rb0,        reason: pc}
   - {reg: rb1,        reason: stack_pointer}
-  - {reg: rb2,        reason: frame_pointer}
-  - {reg: rb3,        reason: "callee-saved undefined (spec '-'); M1 保守不分配", status: OPEN}
-  - {reg: rb4,        reason: "callee-saved undefined (spec '-'); M1 保守不分配", status: OPEN}
-  - {reg: "rb5-rb7",  reason: reserved}
+  - {reg: rb2,        reason: global_pointer}
+  - {reg: rb3,        reason: thread_pointer}
   - {reg: "ra0-ra63", reason: managed_by_call_ret}
-  - {reg: "rf0-rf63", reason: excluded_from_m1}
+  - {reg: "rf0-rf63", reason: excluded_from_m3}
+  # 注：rb63 不在本表——它仅条件式保留（hasFP 为真时为 FP），见 registers / callee_saved。
 
 # ── 分类索引（便于消费者直接读取的派生视图）────────────────────────────────
-# 语义：`callee_saved` 给出「各 bank 的通用 callee-saved 块（32–63）」。
-# 对 rd/rb，该块即编译器可分配的 callee-saved 区间（与上方 `allocatable` 的 [32, 63] 一致）；
-# **RF 整体 `Excluded from M1`（`allocatable.rf` 为空）**，其 32–63 仅作 spec 事实登记，M1 不可分配。
-# 它**不含** SP(rb1)/FP(rb2) 等由帧管理专用的 callee-saved 寄存器
-# （这些见 `non_allocatable`）；逐寄存器的权威分类以上方 `registers` 表为准
-# （rb1/rb2 在表中标 `callee_saved: true`）。
+# 语义：`callee_saved` 给出「各 bank 的通用 callee-saved 块」。
+# 对 rd，该块为 32–63（与上方 `allocatable` 的 [32, 63] 一致）；
+# 对 rb，该块为 **32–62**（上界由 63 收到 62）：**rb63 不在通用块内**——它是**条件式 FP**，
+# `hasFP` 为真时保留为 FP、否则可作通用 callee-saved 分配，且**恒 callee-saved**
+# （见上方 `registers` 的 [63,63] 与下方 `stack_frame`）。
+# **RF 整体 `Excluded from M3`（`allocatable.rf` 为空）**，其 32–63 仅作 spec 事实登记，M3 不可分配。
+# 通用块**不含** SP(rb1)；逐寄存器的权威分类以上方 `registers` 表为准
+# （rb1/rb63 在表中标 `callee_saved: true`）。
 callee_saved:
   rd: [32, 63]
-  rb: [32, 63]   # 通用块；SP=rb1 / FP=rb2 见 registers 表（callee_saved: true）
+  rb: [32, 62]   # 通用块；SP=rb1 / 条件式 FP=rb63 见 registers 表（callee_saved: true）
   rf: [32, 63]
+# reserved 区间（M3 口径 C6）：rd1–rd3 / rb2–rb3。rb1=SP、rb0=PC、rb63 另见 non_allocatable / registers。
+# rd2–rd3 为 spec 明文 reserved（调试/测试保留）；rb2=GP、rb3=TP spec 栏 `-`，M3 按 C6 保留不分配。
 reserved_registers:
-  rd: [2, 7]
-  rb: [5, 7]
+  rd: [1, 3]
+  rb: [2, 3]
 
-# ── Deferred to M2：完整调用约定（M1 不作为规范性事实）──────────────────────
-deferred_to_m2:
+# ── M3 标量调用约定（非变参 / 非聚合；SPEC-097t 提取）──────────────────────
+# 权威正文见 .tao/knowledge/contract-abi.md §4；决策依据 ADR-0018（C1/C4/C5/C6/C7/C9/C16）。
+scalar_calling_convention:
+  milestone: M3
+  scope: non_variadic_scalar
+
   parameter_registers:
-    rd: [16, 31]
-    rb: [16, 31]
-    rf: [16, 31]        # RF Excluded from M1
-    note: "三 bank 独立计数、从 16 开始、不共享槽位"
-  return_registers:
-    rd: 31
-    rb: 31
-    rf: 31              # RF Excluded from M1
-  stack_frame_layout: deferred
-  shared_overflow_area: deferred
-  prologue_epilogue: deferred
-  scalar_argument_promotion: deferred
-  system_call_convention: deferred
-  spec_cite: "DADAO-21 §传参 / §返回值 / §函数调用规范 §The Stack Frame / §栈溢出规则 / §系统调用规范"
+    rd: [16, 31]        # 数据参数
+    rb: [16, 31]        # 地址（指针）参数
+    rf: [16, 31]        # 浮点参数（M3 Excluded → M4）
+    independent_counting: true
+    start: 16
+    shared_slots: false
+    example: "read(int fd, void *buf, size_t count) -> fd=rd16, buf=rb16, count=rd17"
 
-# ── Excluded from M1：高级 ABI ───────────────────────────────────────────────
-excluded_from_m1:
-  - rf_all
-  - varargs
-  - hfa
-  - hpa
-  - aggregate_arguments
-  - aggregate_return_sret
-  - multiple_return_values
+  scalar_argument_promotion:
+    narrow_below: 8       # <8B 提升到 8B
+    preserve_sign: true
+    pointer_uses: rb
+    extended_by: caller   # C4 D2
+
+  stack_overflow_area:
+    organization: global_declaration_order   # C4 D1：单栈区、按全局声明序
+    slot_size: 8
+    base: "incoming_sp + 0"
+    narrow_extended_by: caller
+    note: "spec §栈溢出规则 同句两读；M3 取全局声明序（用户判定 C4）"
+
+  return_values:
+    integer: rd8                # M6 rev. 2026-10-09（spec/DADAO-21 §返回值 改册）：返回值寄存器
+    pointer: rb8
+    floating_point: rf8         # M3 Excluded → M4
+    return_window:              # 返回寄存器区（各 bank 低编号区；与参数区不重叠）
+      rd: [8, 15]
+      rb: [8, 15]
+      rf: [8, 15]
+    multiple_values:
+      order: declaration_order  # 按声明顺序
+      direction: ascending      # 自 8 递增：第 1 个 → 8，第 2 个 → 9 …
+      per_bank_limit: 8         # K = 8（rd8–rd15 / rb8–rb15 / rf8–rf15，各 bank 独立计数）
+      overflow: sret            # 任一 bank 超 8（或无法承载）⇒ sret
+      observable: true          # 顺序属 ABI 可观测语义
+    pointer_direct_rb8: true    # C5 D1（原 pointer_direct_rb31，随返回寄存器改 rb8）
+    narrow_extension: callee_canonical   # C5 D2；caller 不截断
+
+  callee_saved:                 # CSR（C6）
+    csr_rd: [32, 63]
+    csr_rb: [32, 63]            # rb63（条件式 FP，恒 callee-saved）∈ CSR
+    sp_in_csr: false            # SP(rb1) ∉ CSR
+    fp_in_csr: true             # FP(rb63) ∈ CSR：rb63 恒 callee-saved；作 FP 时由 prologue 保存旧值
+    caller_saved_rd: [4, 31]    # rd4–rd7 + rd8–rd31（连续）
+    caller_saved_rb: [4, 31]    # rb4–rb7 + rb8–rb31（连续）
+    reserved_rd: [1, 3]         # rd1（rderrno）+ rd2–rd3（调试/测试保留）
+    reserved_rb: [2, 3]         # rb2=GP + rb3=TP
+    special: [rd0, rb0]
+
+  stack_frame:
+    stack_pointer: rb1
+    frame_pointer: rb63
+    growth_direction: downward
+    frame_pointer_strategy: conditional   # C7：hasFPImpl 条件式，默认 SP-only
+    has_fp_impl: "DisableFramePointerElim || hasVarSizedObjects || isFrameAddressTaken || hasStackRealignment"
+    get_frame_register: "hasFP ? rb63 : rb1"
+    frame_pointer_always_reserved: false  # rb63 条件式：hasFP 为真时保留为 FP，否则可作通用 callee-saved
+    param_overflow_base: "rbfp + 8"       # 溢出参数 0；SP-only 等价 incoming_sp + 0
+
+  prologue_epilogue:
+    variants: [sp_only, fp]
+    sp_only_default: true
+    symmetric_release: true
+    call_sp_alignment: 8
+    ra_managed_by: call_ret
+    sequence_owner: [LLVM-038t, LLVM-039t]
+
+  call_defs_regmask:            # C16（M6 rev. 2026-10-09：返回寄存器区 rd/rb 8–15）
+    call_defs: ["rd8-rd15", "rb8-rb15"]   # 返回寄存器区间；浮点 rf8-rf15 在 M3 Excluded
+    call_preserved_mask_includes_rb_callee_saved: true
+    ret_defs: []
+
+  spec_cite: "DADAO-21 §传参 §参数寄存器 / §传参 §标量参数 / §传参 §栈溢出规则 / §返回值 §标量类型返回值 / §返回值 §多返回值 / §返回值 §聚合类型返回值 / §寄存器规范 / §函数调用规范 §The Stack Frame"
+  adr_cite: "ADR-0018 (C1,C4,C5,C6,C7,C9,C16)"
+
+# ── open_items（M3 未决项；M6 已由用户逐条裁定消解 ⇒ 空）────────────────────
+# 原各项已消解：多返回值声明顺序（用户 2026-10-09 裁定，已写入 spec/DADAO-21
+# §返回值）、red zone（用户 2026-10-08 裁定）、i128（用户 2026-10-08 裁定）；
+# 正文见 contract-abi.md §6（SPEC-124t）；§6 不再有未决项，此派生索引随之为空。
+open_items: []
+
+# ── M3 范围外的高级 ABI 边界索引（历史字段名 deferred_to_m4）────────────────
+# 注：M6 已对 `aggregate_return_sret`/`multiple_return_values`（口径见
+# contract-abi.md §6.1）与 `i128`（不支持，见 §6.3）作出裁定；本索引按「M3 边界」保留登记。
+deferred_to_m4:
+  # 注（SPEC-127t，2026-10-09）：`hfa`/`hpa`/`aggregate_arguments` 的 M6 口径已定
+  # （统一 ≤8 槽位/64B；>64B 间接指针，见 contract-abi.md §6.4），仅作 M3 边界登记。
+  items:
+    - varargs
+    - hfa
+    - hpa
+    - aggregate_arguments
+    - aggregate_return_sret
+    - multiple_return_values
+    - i128
+    - floating_point_rf
+    - dynamic_linking_tls
+    - system_call_convention
+  spec_cite: "DADAO-21 §传参 §聚合类型参数 / §可变参数 / §返回值 §聚合类型返回值 / §返回值 §多返回值 / §系统调用规范"

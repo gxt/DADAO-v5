@@ -1,0 +1,1254 @@
+diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
+new file mode 100644
+index 000000000..7dd5e6abb
+--- /dev/null
++++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
+@@ -0,0 +1,1248 @@
++//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// M3 SelectionDAG lowering (LLVM-033t skeleton + LLVM-034t value types):
++//   - register MVT::i64 with the GPRD (data) register class (C1/C2, ADR-0018)
++//   - force pointer/address formal arguments into GPRB virtual registers
++//   - mark narrow (i8/i16/i32) extending loads and truncating stores as Legal
++//     so the corresponding ISel patterns match them (LLVM-036t; C13, ADR-0018)
++//   - minimal LowerFormalArguments / LowerReturn sufficient to lower a
++//     `ret`-only scalar/pointer function to MIR.
++//   - lower integer compare+branch to DADAO cmp* + br.* (LLVM-037t; C17/C14):
++//     no condition flags, so the compare writes -1/0/1 into a virtual GPRD
++//     and the branch tests it; ==/!= use br.eq/ne, p==NULL uses br.z/nz {rb},
++//     p==q uses cmp.uo-rb + br.z.
++//
++// The full calling convention (spill slots, bank-aware CC, byval/varargs)
++// is LLVM-039t (with SPEC-097t); only register arguments are handled here.
++//
++//===----------------------------------------------------------------------===//
++
++#include "DADAOISelLowering.h"
++#include "DADAOSubtarget.h"
++#include "DADAOTargetMachine.h"
++
++#include "llvm/CodeGen/CallingConvLower.h"
++#include "llvm/CodeGen/MachineFrameInfo.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/CodeGen/SelectionDAG.h"
++#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/MathExtras.h"
++
++using namespace llvm;
++
++// Generated calling-convention assigners CC_DADAO / RetCC_DADAO
++// (DADAOCallingConv.td).  Included after `using namespace llvm;` like the
++// other DADAO/M68k-style targets.
++#define GET_CALLING_CONV_IMPL
++#include "DADAOGenCallingConv.inc"
++
++DADAOTargetLowering::DADAOTargetLowering(const DADAOTargetMachine &TM,
++                                         const DADAOSubtarget &STI)
++    : TargetLowering(TM, STI) {
++  // M3 skeleton: i64 covers both data and pointers (C2, ADR-0018); pointers
++  // are forced into GPRB by the calling convention / ISel in LLVM-034t.
++  addRegisterClass(MVT::i64, &DADAO::GPRDRegClass);
++
++  // M6 (LLVM-066t): FP values live in the RF bank.  f64 and f32 share the one
++  // 64-bit GPRF class (an ft value occupies the low 32 bits).
++  addRegisterClass(MVT::f64, &DADAO::GPRFRegClass);
++  addRegisterClass(MVT::f32, &DADAO::GPRFRegClass);
++
++  // SP = rb1: needed by the calling convention (LowerCall reads it for the
++  // outgoing stack-argument area) and the call-frame pseudos (LLVM-039t).
++  setStackPointerRegisterToSaveRestore(DADAO::rb1);
++
++  // Conditional control flow (LLVM-037t; C17, ADR-0018): DADAO has no condition
++  // flags, so an integer compare+branch is lowered to a cmp* (result -1/0/1 in
++  // a virtual GPRD) followed by a br.* that tests it.  BR_CC is keyed by the
++  // comparison operand type (i64); BRCOND by its chain type.  SelectionDAGBuilder
++  // hands `br (icmp ...)` to us as SETCC + BRCOND, which LowerBRCOND folds back
++  // into a BR_CC.
++  setOperationAction(ISD::BR_CC, MVT::i64, Custom);
++  setOperationAction(ISD::BRCOND, MVT::Other, Custom);
++  // FP compare+branch reaches us as BR_CC (DAGCombiner fuses fcmp+br) or as
++  // BRCOND over an FP setcc; both are custom (M6, LLVM-066t).
++  setOperationAction(ISD::BR_CC, MVT::f32, Custom);
++  setOperationAction(ISD::BR_CC, MVT::f64, Custom);
++
++  // Dense switch dispatch (LLVM-072t, ISS-177/G3): DADAO has no dedicated
++  // jump-table instruction, so ISD::BR_JT is lowered to a target node that the
++  // custom selector expands into "materialize the table base, index, load the
++  // 8-byte absolute case address, jump through it" (jump_rrii).  Marking the
++  // operation Custom is also what enables jump-table formation
++  // (TargetLowering::areJTsAllowed).
++  setOperationAction(ISD::BR_JT, MVT::Other, Custom);
++
++  // Compare-as-value (LLVM-069t): a comparison whose result is *used as a
++  // value* (C `a == b`, `!x`, `a < b`, `?:`, `&&`/`||`) reaches us as a
++  // surviving SETCC (the i1 result is promoted to i64) or a SELECT_CC (a
++  // ternary / -O2 if-conversion).  Both are custom: the cmp* result {-1,0,1}
++  // is normalised to 0/1 and the select is a cs.* conditional assignment
++  // (contract-isa.md §6.2/§6.5).  SETCC is keyed by the *compared* type (i64),
++  // SELECT_CC/SELECT by the *result* type (i64) -- the i64 result also covers
++  // an FP comparison selecting integer arms, handled uniformly by
++  // LowerCmpSelect.
++  setOperationAction(ISD::SETCC, MVT::i64, Custom);
++  setOperationAction(ISD::SELECT_CC, MVT::i64, Custom);
++  setOperationAction(ISD::SELECT, MVT::i64, Custom);
++  // FP compare-as-value / FP select (LLVM-079t).  A `fcmp` whose result is used
++  // as a value survives as a SETCC keyed by the *compared* FP type; an FP-armed
++  // select/select_cc (result f32/f64) is keyed by the *result* type.  Both are
++  // custom so they reuse LowerCmpSelect -- the same fp compare (foqcmp/ftqcmp)
++  // feeding a cs.* conditional assignment that the integer path uses -- which
++  // now returns a value of the arm type (the cs.*_rd form for integer arms, the
++  // cs.*_rrrr_rf form for FP arms; contract-fp.md §8/§10, contract-isa.md §6.5).
++  setOperationAction(ISD::SETCC, MVT::f32, Custom);
++  setOperationAction(ISD::SETCC, MVT::f64, Custom);
++  setOperationAction(ISD::SELECT_CC, MVT::f32, Custom);
++  setOperationAction(ISD::SELECT_CC, MVT::f64, Custom);
++  setOperationAction(ISD::SELECT, MVT::f32, Custom);
++  setOperationAction(ISD::SELECT, MVT::f64, Custom);
++  // The lowered SETCC produces a *canonical* 0/1 boolean (the cmp* {-1,0,1}
++  // normalised through cs.*), so declare ZeroOrOne: booleans that survive to
++  // the legalizer are zero-extended, never any-extended, keeping a `false`
++  // exactly 0 for the cs.z-based select test.
++  setBooleanContents(ZeroOrOneBooleanContent);
++
++  // Narrow memory accesses (LLVM-036t; C13, ADR-0018).  All load extension
++  // kinds and truncating stores between i64 and i8/i16/i32 are legal: the
++  // DADAO narrow loads/stores (ld.ub/sb/uw/sw/ut/st, st.b/w/t) perform the
++  // byte/wyde/tetra access and the (zero/sign) extension in one instruction,
++  // writing all 64 bits of the destination.  This keeps the extload/truncstore
++  // nodes intact so the DADAOCodeGen.td patterns can select them.
++  for (MVT VT : {MVT::i8, MVT::i16, MVT::i32}) {
++    setLoadExtAction(ISD::EXTLOAD, MVT::i64, VT, Legal);
++    setLoadExtAction(ISD::SEXTLOAD, MVT::i64, VT, Legal);
++    setLoadExtAction(ISD::ZEXTLOAD, MVT::i64, VT, Legal);
++    setTruncStoreAction(MVT::i64, VT, Legal);
++  }
++
++  // i1 (boolean) loads (LLVM-077t, ISS-186).  The load-extension action for an
++  // i1 memory type defaults to Legal, but the byte/wyde/tetra load patterns
++  // above have no i1 form, so a surviving `zextloadi1` (an i1 in memory is a
++  // whole byte; the DAG prints its MMO as 8 bits) would fail ISel with
++  // "Cannot select: ... zext from i1".  Such nodes are produced whenever a
++  // value narrowed to a boolean is read back, e.g. the `(load i64) & 1`
++  // (GlobalOpt shrink-to-bool) pattern in aha-mont64.  Promote the i1 memory
++  // type to i8 so the existing byte-load patterns match: a well-defined i1 in
++  // memory is exactly 0 or 1, so the promoted byte load is exact (this is the
++  // standard trick documented in LegalizeDAG and used by SystemZ/Mips/MSP430).
++  for (MVT VT : MVT::integer_valuetypes()) {
++    setLoadExtAction(ISD::EXTLOAD, VT, MVT::i1, Promote);
++    setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);
++    setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i1, Promote);
++  }
++
++  // f32 -> f64 "anyext" loads (LLVM-079t).  DAGCombiner::visitFP_EXTEND folds
++  // `fpext (load f32)` into a *widening* any-extend load to f64 whenever the
++  // (f64<-f32) EXTLOAD action is legal (the default), which this backend cannot
++  // select -- and, worse, an any-extending load is not the fpext the IR asked
++  // for (the high 32 bits are undefined, not the double's exponent).  Marking
++  // the extension illegal disables the fold and lets the fpext reach ISel,
++  // where it selects the hardware ft2fo conversion (contract-fp.md §2).  Same
++  // fix as AMDGPU/LoongArch/PPC/CSKY.
++  setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
++
++  // f64 -> f32 truncating stores (LLVM-088t).  The (f32<-f64) TRUNCSTORE action
++  // is legal by default (TargetLoweringBase::initActions zero-initialises every
++  // TruncStoreActions slot to Legal), so DAGCombiner folds `store (fptrunc f64)`
++  // into a truncating store node (visitSTORE, gated by canCombineTruncStore).
++  // This backend has no f64->f32 trunc-store pattern -- the ISA only stores
++  // whole 4B/8B words (st.t / st.o) -- so ISel aborts with
++  // "Cannot select: ... trunc to f32".  Marking the action Expand makes
++  // canCombineTruncStore return false (it requires Legal or Custom), disabling
++  // the fold: the `fptrunc` stays a FP_ROUND (Legal, matched by fo2ft) followed
++  // by a plain f32 store (st.t), both of which select.  Mirror of the
++  // (f64<-f32) EXTLOAD fix above (LLVM-079t); same setting as AMDGPU / Sparc.
++  setTruncStoreAction(MVT::f64, MVT::f32, Expand);
++
++  // Varargs (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  DADAO's
++  // va_list is a plain void*: va_start points just past the named arguments in
++  // the caller-written save area, and va_arg walks the 8-byte slots.  VACOPY
++  // expands to a memcpy and VAEND is a no-op.
++  setOperationAction(ISD::VASTART, MVT::Other, Custom);
++  setOperationAction(ISD::VAARG, MVT::Other, Custom);
++  setOperationAction(ISD::VACOPY, MVT::Other, Expand);
++  setOperationAction(ISD::VAEND, MVT::Other, Expand);
++
++  // Floating point (M6, LLVM-066t).  Natively supported (Legal; patterns in
++  // DADAOCodeGen.td): + - * /, sqrt, negate, absolute value, and the
++  // int<->fp / fp<->fp conversions.  Every other FP op is expanded; a few of
++  // those expansions are libcalls (e.g. frem -> fmod), which a freestanding
++  // program must avoid or supply itself.
++  for (MVT VT : {MVT::f32, MVT::f64}) {
++    setOperationAction(
++        {ISD::FADD, ISD::FSUB, ISD::FMUL, ISD::FDIV, ISD::FSQRT, ISD::FNEG},
++        VT, Legal);
++    setOperationAction(
++        {ISD::FABS, ISD::FREM, ISD::FMA, ISD::FCOPYSIGN, ISD::FSIN, ISD::FCOS,
++         ISD::FTAN, ISD::FASIN, ISD::FACOS, ISD::FATAN, ISD::FATAN2,
++         ISD::FSINH, ISD::FCOSH, ISD::FTANH, ISD::FPOW, ISD::FPOWI, ISD::FEXP,
++         ISD::FEXP2, ISD::FEXP10, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
++         ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FRINT, ISD::FNEARBYINT,
++         ISD::FROUND, ISD::FROUNDEVEN, ISD::FMINNUM, ISD::FMAXNUM,
++         ISD::FMINIMUM, ISD::FMAXIMUM, ISD::FCANONICALIZE, ISD::FLDEXP,
++         ISD::FFREXP, ISD::FGETSIGN, ISD::FP_TO_SINT_SAT, ISD::FP_TO_UINT_SAT},
++        VT, Expand);
++  }
++  // P1 (LLVM-080t; INTEG-033k §裁定汇总 #6) -- double-precision copysign/fabs
++  // use the ISA sign-injection instruction `fosgnj` (contract-fp.md §7:
++  // sgnj(rfHC, rfHD) = copySign(rfHC, rfHD)).  Both are made Legal and matched
++  // by a direct pattern (DADAOCodeGen.td): copysign(a, b) is `fosgnj(a, b)`,
++  // and fabs(x) is `fosgnj(x, +0.0)` against a sign source of all-zero bits
++  // (contract-fp.md §7: the sign bit of the sign operand is copied, so a zero
++  // sign source gives the absolute value).
++  //
++  // NB: FABS must be Legal, NOT left as Expand.  If FABS is Expand while
++  // FCOPYSIGN is Legal, LegalizeDAG::ExpandFABS rewrites `fabs(x)` as
++  // `fcopysign(x, +0.0)` and DAGCombiner canonicalises `fcopysign(x, +const)`
++  // straight back to `fabs(x)` -- an infinite legalize/combine loop (observed
++  // hanging codegen).  Matching both directly avoids it.
++  //
++  // The other P1 operations -- the rounding family (floor/ceil/trunc/round/
++  // rint/nearbyint) and fmin/fmax -- have no ISA instruction
++  // (contracts/opcodes.yaml scope `fp`), so they stay `Expand`: the resulting
++  // out-of-line calls are registered in DADAOSubtarget (initLibcallLoweringInfo).
++  // f32 stays Expand (P1 is double precision).
++  setOperationAction(ISD::FCOPYSIGN, MVT::f64, Legal);
++  setOperationAction(ISD::FABS, MVT::f64, Legal);
++  // f64 <-> f32 conversions (ft2fo / fo2ft).  FP_ROUND is keyed on the smaller
++  // (result) type, FP_EXTEND on the larger (result) type.
++  setOperationAction(ISD::FP_ROUND, MVT::f32, Legal);
++  setOperationAction(ISD::FP_EXTEND, MVT::f64, Legal);
++  // A floating-point constant is materialized natively (bit pattern in GPRD +
++  // rd2rf, DADAOISelDAGToDAG::Select), so tell the DAG it is legal: this keeps
++  // DAGCombiner::convertSelectOfFPConstantsToLoadOffset from reaching for a
++  // constant pool, which this backend does not have.
++  setOperationAction(ISD::ConstantFP, MVT::f32, Legal);
++  setOperationAction(ISD::ConstantFP, MVT::f64, Legal);
++  // Integer <-> FP conversions.  FP_TO_* are keyed on the integer result;
++  // SINT/UINT_TO_FP on the integer operand.  The integer side is always i64
++  // (narrower integers are promoted by the type legalizer first).
++  setOperationAction({ISD::FP_TO_SINT, ISD::FP_TO_UINT, ISD::SINT_TO_FP,
++                      ISD::UINT_TO_FP},
++                     MVT::i64, Legal);
++
++  // Bit-manipulation builtins (LLVM-079t).  The ISA has no bit-scan / population
++  // count instruction (`contracts/opcodes.yaml` carries no cttz/ctlz/ctpop op),
++  // so the *generic* software expansions are used: they bottom out in ordinary
++  // i64 shift/and/or/sub/mul/not operations that this backend already selects
++  // (TargetLowering::expandCTTZ/expandCTLZ/expandCTPOP) and need no libcall or
++  // constant pool.  Without this a surviving `llvm.cttz`/`ctlz`/`ctpop` aborts
++  // ISel with "Cannot select: ... cttz" (the ISS-188 picolibc gap).
++  setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_POISON, ISD::CTLZ,
++                      ISD::CTLZ_ZERO_POISON, ISD::CTPOP},
++                     MVT::i64, Expand);
++
++  computeRegisterProperties(STI.getRegisterInfo());
++
++  // mem* builtins (M6, INTEG-023k §A #3, no libc): inline a constant-size
++  // memcpy/memset/memmove/memcmp as up to 16 stores/loads; anything larger
++  // lowers to a libcall resolved by the freestanding runtime
++  // (tests/scripts/dadao_mem_runtime.s) at link time.  The 0628 pitfall:
++  // leaving these at UINT_MAX makes a real `llvm.memcpy` lowering expand an
++  // unbounded store sequence and blow up -- the cap must be finite.  Both the
++  // normal and the OptSize (minsize) thresholds are set to the same value so
++  // the behaviour does not depend on the optimisation level.
++  MaxStoresPerMemset = MaxStoresPerMemsetOptSize = 16;
++  MaxStoresPerMemcpy = MaxStoresPerMemcpyOptSize = 16;
++  MaxStoresPerMemmove = MaxStoresPerMemmoveOptSize = 16;
++  MaxLoadsPerMemcmp = MaxLoadsPerMemcmpOptSize = 16;
++}
++
++const char *DADAOTargetLowering::getTargetNodeName(unsigned Opcode) const {
++  switch (static_cast<DADAOISD::NodeType>(Opcode)) {
++  case DADAOISD::RET_GLUE:
++    return "DADAOISD::RET_GLUE";
++  case DADAOISD::CALL:
++    return "DADAOISD::CALL";
++  case DADAOISD::TAIL:
++    return "DADAOISD::TAIL";
++  case DADAOISD::CMP:
++    return "DADAOISD::CMP";
++  case DADAOISD::CMPU:
++    return "DADAOISD::CMPU";
++  case DADAOISD::FCMP:
++    return "DADAOISD::FCMP";
++  case DADAOISD::BRN:
++    return "DADAOISD::BRN";
++  case DADAOISD::BRNP:
++    return "DADAOISD::BRNP";
++  case DADAOISD::BRP:
++    return "DADAOISD::BRP";
++  case DADAOISD::BRNN:
++    return "DADAOISD::BRNN";
++  case DADAOISD::BRZ:
++    return "DADAOISD::BRZ";
++  case DADAOISD::BRNZ:
++    return "DADAOISD::BRNZ";
++  case DADAOISD::BREQ:
++    return "DADAOISD::BREQ";
++  case DADAOISD::BRNE:
++    return "DADAOISD::BRNE";
++  case DADAOISD::CS_N:
++    return "DADAOISD::CS_N";
++  case DADAOISD::CS_Z:
++    return "DADAOISD::CS_Z";
++  case DADAOISD::CS_P:
++    return "DADAOISD::CS_P";
++  case DADAOISD::BR_JT:
++    return "DADAOISD::BR_JT";
++  default:
++    return nullptr;
++  }
++}
++
++std::pair<unsigned, const TargetRegisterClass *>
++DADAOTargetLowering::getRegForInlineAsmConstraint(
++    const TargetRegisterInfo *TRI, StringRef Constraint, MVT VT) const {
++  // ISS-193(e) / LLVM-086t: the four DADAO banks are not interchangeable --
++  // integer values inside an asm body live in the data bank, pointers in the
++  // base bank, and only the explicit rd2rb / rb2rd instructions cross them --
++  // so a lone "r" must name a register class.  The generic implementation only
++  // understands brace-enclosed physical-register names, hence the override.
++  //
++  // "r" -> the data bank (GPRD): it is the canonical i64 class, registered as
++  // the type handler for i64 in the constructor (addRegisterClass(MVT::i64,
++  // GPRDRegClass)), so it is exactly what SelectionDAG creates an i64 virtual
++  // register in.  The allocator entry point is the full class, not
++  // GPRD_Allocatable: the reserved members rd0-rd3 are removed by
++  // DADAORegisterInfo::getReservedRegs, not by the class (DADAORegisterInfo.td
++  // "双保险"; the _Allocatable subset only affects getMinimalPhysRegClass
++  // determinism).
++  //
++  // Only "r" is mapped (LLVM-086t scope: unlock, do not define an inline-asm
++  // constraint convention); every other constraint keeps the generic handling.
++  if (Constraint.size() == 1 && Constraint[0] == 'r')
++    return std::make_pair(0u, &DADAO::GPRDRegClass);
++
++  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
++}
++
++bool DADAOTargetLowering::CanLowerReturn(
++    CallingConv::ID /*CallConv*/, MachineFunction & /*MF*/, bool /*IsVarArg*/,
++    const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext & /*Context*/,
++    const Type * /*RetTy*/) const {
++  // M6 (contract-abi.md §6.1): the return registers are rd8..rd15 / rb8..rb15,
++  // i.e. at most K = 8 values per bank.  Each bank is counted independently;
++  // as soon as any bank would need a 9th value the whole return is demoted to
++  // a hidden sret pointer (SelectionDAGBuilder inserts it as the first address
++  // argument, which lands in rb16 through CC_DADAO's CCIfSRet rule).
++  //
++  // Outs here comes from GetReturnInfo (FunctionLoweringInfo::CanLowerReturn
++  // and SelectionDAGBuilder::LowerCallTo), whose ArgFlags do *not* carry the
++  // pointer bit; the per-element OrigTy is the authoritative bank witness
++  // (GetReturnInfo sets OrigTy to the flattened element type).  The three
++  // return banks rd/rb/rf (contract-abi.md §6.1) are counted independently.
++  unsigned NumInt = 0, NumPtr = 0, NumFP = 0;
++  for (const ISD::OutputArg &Arg : Outs) {
++    const Type *Ty = Arg.OrigTy;
++    if (Ty && Ty->isPointerTy()) {
++      if (++NumPtr > 8)
++        return false;
++    } else if (Ty && Ty->isFloatingPointTy()) {
++      // rf8..rf15 (M6, contract-abi.md §4.4/§6.1, LLVM-066t).
++      if (++NumFP > 8)
++        return false;
++    } else {
++      if (++NumInt > 8)
++        return false;
++    }
++  }
++  return true;
++}
++
++SDValue DADAOTargetLowering::LowerFormalArguments(
++    SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
++    const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
++    SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
++  // M3 scalar calling convention (contract-abi.md §4, ADR-0018 C4/C2):
++  //   - scalar args -> rd16..rd31, pointer args -> rb16..rb31, each bank
++  //     counted independently (CC_DADAO);
++  //   - register-exhausted args come from the shared, declaration-ordered
++  //     stack area at incoming_sp + 0 (C4 D1);
++  //   - the caller has already canonicalised a narrow (<8B) argument (C4 D2),
++  //     so the callee only records the asserted extension.
++  // M6 (contract-abi.md §6): varargs, byval (>64B aggregate passed indirectly)
++  // and sret (hidden return pointer) are all supported.  byval and sret arrive
++  // as pointer arguments and CC_DADAO routes them to the RB bank (sret via the
++  // CCIfSRet rule to rb16); nest remains unsupported.
++  if (CallConv != CallingConv::C && CallConv != CallingConv::Fast)
++    report_fatal_error("DADAO: only the C calling convention is supported");
++  for (const ISD::InputArg &Arg : Ins)
++    if (Arg.Flags.isNest())
++      report_fatal_error("DADAO: nest arguments are not supported");
++
++  MachineFunction &MF = DAG.getMachineFunction();
++  MachineFrameInfo &MFI = MF.getFrameInfo();
++  MachineRegisterInfo &RegInfo = MF.getRegInfo();
++
++  SmallVector<CCValAssign, 16> ArgLocs;
++  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
++  CCInfo.AnalyzeFormalArguments(Ins, CC_DADAO);
++
++  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
++    CCValAssign &VA = ArgLocs[i];
++    const EVT LocVT = VA.getLocVT();
++    if (LocVT != MVT::i64 && LocVT != MVT::f32 && LocVT != MVT::f64)
++      report_fatal_error(
++          "DADAO: only scalar/pointer/floating-point arguments are supported");
++
++    SDValue ArgValue;
++    if (VA.isRegLoc()) {
++      // Bank comes from the register CC_DADAO actually assigned (rb* for
++      // pointers, rd* for scalars, rf* for floating point); the vreg class must
++      // match it so the register allocator cannot put a value in the wrong bank
++      // (C1/C2; FP: contract-abi.md §4.1).
++      const TargetRegisterClass *RC =
++          DADAO::GPRBRegClass.contains(VA.getLocReg())   ? &DADAO::GPRBRegClass
++          : DADAO::GPRFRegClass.contains(VA.getLocReg()) ? &DADAO::GPRFRegClass
++                                                         : &DADAO::GPRDRegClass;
++      Register VReg = RegInfo.createVirtualRegister(RC);
++      RegInfo.addLiveIn(VA.getLocReg(), VReg);
++      ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, LocVT);
++      Chain = ArgValue.getValue(1);
++    } else {
++      assert(VA.isMemLoc() && "expected a register or stack argument");
++      // Shared stack overflow area: incoming_sp + LocMemOffset (C4 D1).  The
++      // fixed object offset is relative to the entry SP; PEI resolves it.
++      int FI = MFI.CreateFixedObject(8, VA.getLocMemOffset(),
++                                     /*IsImmutable=*/true);
++      SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
++      SDValue L = DAG.getLoad(LocVT, DL, Chain, FIN,
++                              MachinePointerInfo::getFixedStack(MF, FI));
++      Chain = L.getValue(1);
++      ArgValue = L.getValue(0);
++    }
++
++    // The caller canonicalised a narrow (<8B) argument; record the asserted
++    // extension and truncate back to the IR type (C4 D2).
++    if (VA.getLocInfo() == CCValAssign::SExt)
++      ArgValue = DAG.getNode(ISD::AssertSext, DL, LocVT, ArgValue,
++                             DAG.getValueType(VA.getValVT()));
++    else if (VA.getLocInfo() == CCValAssign::ZExt)
++      ArgValue = DAG.getNode(ISD::AssertZext, DL, LocVT, ArgValue,
++                             DAG.getValueType(VA.getValVT()));
++    if (VA.getLocInfo() != CCValAssign::Full)
++      ArgValue = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), ArgValue);
++
++    InVals.push_back(ArgValue);
++  }
++  return Chain;
++}
++
++SDValue DADAOTargetLowering::LowerReturn(
++    SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
++    const SmallVectorImpl<ISD::OutputArg> &Outs,
++    const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
++    SelectionDAG &DAG) const {
++  // M6 scalar/multi returns (contract-abi.md §4.4/§6.1, ADR-0018 C5):
++  //   - integer/scalar -> rd8..rd15, pointer -> rb8..rb15 (first value at
++  //     index 8, each subsequent value +1 in its own bank);
++  //   - a narrow (<8B) return value is canonicalised by the callee; the caller
++  //     does not truncate (C5 D2).
++  // Whether the values fit the return registers (K = 8 per bank) is decided by
++  // CanLowerReturn; a return that does not fit was already demoted to sret, so
++  // here every value must be a register.
++
++  SmallVector<CCValAssign, 16> RVLocs;
++  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
++                 *DAG.getContext());
++  CCInfo.AnalyzeReturn(Outs, RetCC_DADAO);
++
++  SDValue Glue;
++  SmallVector<SDValue, 4> RetOps(1, Chain);
++  for (unsigned i = 0, e = RVLocs.size(); i != e; ++i) {
++    CCValAssign &VA = RVLocs[i];
++    if (!VA.isRegLoc())
++      report_fatal_error(
++          "DADAO: only register return values are supported in M3");
++
++    SDValue Val = OutVals[i];
++    // Callee-side canonical extension of a narrow return value (C5 D2).
++    if (VA.getLocInfo() == CCValAssign::SExt)
++      Val = DAG.getNode(ISD::SIGN_EXTEND, DL, VA.getLocVT(), Val);
++    else if (VA.getLocInfo() == CCValAssign::ZExt)
++      Val = DAG.getNode(ISD::ZERO_EXTEND, DL, VA.getLocVT(), Val);
++    else if (VA.getLocInfo() == CCValAssign::AExt)
++      Val = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Val);
++
++    Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), Val, Glue);
++    Glue = Chain.getValue(1);
++    RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
++  }
++  RetOps[0] = Chain;
++  if (Glue.getNode())
++    RetOps.push_back(Glue);
++
++  return DAG.getNode(DADAOISD::RET_GLUE, DL, MVT::Other, RetOps);
++}
++
++SDValue DADAOTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
++                                       SmallVectorImpl<SDValue> &InVals) const {
++  // M6 call lowering (contract-abi.md §4/§6, ADR-0018 C4/C16):
++  //   - arguments assigned by CC_DADAO (bank split, shared overflow area);
++  //   - sret/byval arrive as pointer arguments and are routed to the RB bank;
++  //   - a direct callee is a target global/external symbol (call_iiii); an
++  //     indirect callee (function pointer) is materialized into GPRB and
++  //     selected to call_rrii (Addr = rbha + rdhb + (imms12 << 2));
++  //   - for a variadic call every argument is also written into an 8-byte-slot
++  //     save area at the call-site SP (spec DADAO-21 §可变参数);
++  //   - CALLSEQ_START/END bracket the outgoing argument area;
++  //   - the DADAOISD::CALL node carries the call-preserved mask
++  //     (getCallPreservedMask: includes rb32..rb63, ML-004c) and the live-in
++  //     argument registers of this call site (DL-065a).
++  SelectionDAG &DAG = CLI.DAG;
++  const SDLoc &DL = CLI.DL;
++  SmallVectorImpl<ISD::OutputArg> &Outs = CLI.Outs;
++  SmallVectorImpl<SDValue> &OutVals = CLI.OutVals;
++  SmallVectorImpl<ISD::InputArg> &Ins = CLI.Ins;
++  SDValue Chain = CLI.Chain;
++  SDValue Callee = CLI.Callee;
++  CallingConv::ID CallConv = CLI.CallConv;
++  bool IsVarArg = CLI.IsVarArg;
++
++  if (CallConv != CallingConv::C && CallConv != CallingConv::Fast)
++    report_fatal_error("DADAO: only the C calling convention is supported");
++  for (const ISD::OutputArg &Arg : Outs)
++    if (Arg.Flags.isNest())
++      report_fatal_error("DADAO: nest arguments are not supported");
++
++  MachineFunction &MF = DAG.getMachineFunction();
++
++  // Varargs (M6): in addition to the register assignment, every argument is
++  // written into a contiguous save area at the call-site SP (slot i at
++  // SP + i*8, 8 bytes each, declaration order).  All arguments must currently
++  // fit the register banks so that the save area starts at SP + 0 and the
++  // callee can compute the first-variadic address as entry_SP + N_named*8.
++  const bool VarArgSaveArea = IsVarArg;
++
++  SmallVector<CCValAssign, 16> ArgLocs;
++  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
++  CCInfo.AnalyzeCallOperands(Outs, CC_DADAO);
++
++  // Real tail call (LLVM-074t; contract-isa.md §8.3/§8.4, contract-abi.md
++  // §2.3/§4.6).  DADAO has no tail-call instruction, but it does have a plain
++  // `jump`: a tail call is lowered as a tail-jump that (a) tears down this
++  // frame and (b) jumps to the callee *without* pushing a return address, so
++  // the callee's `ret` pops the *caller's* RegRAS entry.  The frame teardown is
++  // not emitted here -- the selected tail-jump instruction (tailjmp_iiii /
++  // tailjmp_rrii) is isReturn, so PEI emits the standard epilogue before it.
++  // Only tail calls whose arguments all live in registers and in no memory of
++  // *this* frame are eligible (see the eligibility loop below).
++  if (CLI.IsTailCall) {
++    // Eligibility (LLVM-074t).  A tail-jump leaves SP at the caller's frame, so
++    // any argument that needs memory in *this* frame is unsafe:
++    //   - a varargs save area or an out-of-register (stack) argument needs the
++    //     outgoing argument area of this frame;
++    //   - a `byval` argument is a pointer to a caller-local copy, and an
++    //     `Indirect` (large aggregate) argument is a pointer to a caller-local
++    //     temporary -- both become dangling once the epilogue deallocates the
++    //     frame (same guards as RISCV/AArch64);
++    //   - an `sret` argument (callee returns through a pointer) points into the
++    //     caller's frame too.
++    bool Eligible = !VarArgSaveArea && CCInfo.getStackSize() == 0;
++    for (const ISD::OutputArg &Arg : Outs)
++      if (Arg.Flags.isByVal() || Arg.Flags.isSRet())
++        Eligible = false;
++    for (const CCValAssign &VA : ArgLocs)
++      if (VA.getLocInfo() == CCValAssign::Indirect)
++        Eligible = false;
++    if (Eligible) {
++      // Copy the outgoing register arguments (glued), materialising the
++      // caller-side sign/zero extension exactly as the normal path (C4 D2).
++      SDValue ArgGlue;
++      SmallVector<std::pair<Register, SDValue>, 8> TailRegs;
++      for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
++        CCValAssign &VA = ArgLocs[i];
++        SDValue Arg = OutVals[i];
++        switch (VA.getLocInfo()) {
++        case CCValAssign::Full:
++          break;
++        case CCValAssign::SExt:
++          Arg = DAG.getNode(ISD::SIGN_EXTEND, DL, VA.getLocVT(), Arg);
++          break;
++        case CCValAssign::ZExt:
++          Arg = DAG.getNode(ISD::ZERO_EXTEND, DL, VA.getLocVT(), Arg);
++          break;
++        case CCValAssign::AExt:
++          Arg = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Arg);
++          break;
++        default:
++          llvm_unreachable("DADAO: unsupported argument location info");
++        }
++        assert(VA.isRegLoc() && "tail call with an out-of-register argument");
++        Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), Arg, ArgGlue);
++        ArgGlue = Chain.getValue(1);
++        TailRegs.push_back(std::make_pair(VA.getLocReg(), Arg));
++      }
++
++      // Callee operand: a target global/external symbol (direct) or a GPRB
++      // virtual register holding the target address (indirect), as in CALL.
++      SDValue CalleeOp;
++      if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++        CalleeOp = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
++      } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
++        CalleeOp = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);
++      } else {
++        Register TargetReg =
++            MF.getRegInfo().createVirtualRegister(&DADAO::GPRBRegClass);
++        Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Callee, ArgGlue);
++        ArgGlue = Chain.getValue(1);
++        CalleeOp = DAG.getRegister(TargetReg, MVT::i64);
++      }
++
++      const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
++      const uint32_t *Mask = TRI->getCallPreservedMask(MF, CallConv);
++      assert(Mask &&
++             "DADAO: missing call-preserved mask for the calling convention");
++
++      SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
++      SmallVector<SDValue, 8> TailOps;
++      TailOps.push_back(Chain);
++      TailOps.push_back(CalleeOp);
++      TailOps.push_back(DAG.getRegisterMask(Mask));
++      for (auto &Reg : TailRegs)
++        TailOps.push_back(
++            DAG.getRegister(Reg.first, Reg.second.getValueType()));
++      if (ArgGlue.getNode())
++        TailOps.push_back(ArgGlue);
++      return DAG.getNode(DADAOISD::TAIL, DL, NodeTys, TailOps);
++    }
++
++    // Not eligible: a `musttail` call promises to reuse the frame, so it cannot
++    // be silently demoted -- fail loudly.  A plain (hint-only) `tail` may be
++    // demoted to an ordinary call+return (TargetLowering::CallLoweringInfo::
++    // IsTailCall is documented to be cleared by LowerCall implementations);
++    // that is correct, just not the tail-call optimisation (LLVM-070t).
++    if (CLI.CB && CLI.CB->isMustTailCall())
++      report_fatal_error("DADAO: 'musttail' call cannot be lowered: the tail "
++                         "call needs stack arguments, is variadic, or has a "
++                         "byval/indirect/sret argument");
++    CLI.IsTailCall = false;
++  }
++
++  if (VarArgSaveArea && CCInfo.getStackSize() != 0)
++    report_fatal_error("DADAO: a varargs call with register-exhausted "
++                       "arguments is not supported yet");
++
++  const uint64_t NumBytes =
++      VarArgSaveArea ? static_cast<uint64_t>(Outs.size()) * 8
++                     : CCInfo.getStackSize();
++  Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, DL);
++
++  SmallVector<std::pair<Register, SDValue>, 8> RegsToPass;
++  SmallVector<SDValue, 8> MemOpChains;
++  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
++    CCValAssign &VA = ArgLocs[i];
++    SDValue Arg = OutVals[i];
++
++    // The caller materialises the sign/zero extension of a narrow argument
++    // (C4 D2); the callee may assume the register is canonical.
++    switch (VA.getLocInfo()) {
++    case CCValAssign::Full:
++      break;
++    case CCValAssign::SExt:
++      Arg = DAG.getNode(ISD::SIGN_EXTEND, DL, VA.getLocVT(), Arg);
++      break;
++    case CCValAssign::ZExt:
++      Arg = DAG.getNode(ISD::ZERO_EXTEND, DL, VA.getLocVT(), Arg);
++      break;
++    case CCValAssign::AExt:
++      Arg = DAG.getNode(ISD::ANY_EXTEND, DL, VA.getLocVT(), Arg);
++      break;
++    default:
++      llvm_unreachable("DADAO: unsupported argument location info");
++    }
++
++    if (VarArgSaveArea) {
++      // Store the promoted argument into its 8-byte save slot SP + i*8.
++      SDValue StackPtr = DAG.getRegister(DADAO::rb1, MVT::i64);
++      SDValue SlotAddr = DAG.getNode(
++          ISD::ADD, DL, MVT::i64, StackPtr,
++          DAG.getIntPtrConstant(static_cast<int64_t>(i) * 8, DL));
++      MemOpChains.push_back(DAG.getStore(
++          Chain, DL, Arg, SlotAddr, MachinePointerInfo::getStack(MF, i * 8)));
++    }
++
++    if (VA.isRegLoc()) {
++      RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
++      continue;
++    }
++
++    assert(VA.isMemLoc() && "expected a register or stack argument");
++    // Outgoing stack argument: SP + getLocMemOffset().  The Address complex
++    // pattern folds `SP + simm12` into `[rbsp, off]`.
++    SDValue StackPtr = DAG.getRegister(DADAO::rb1, MVT::i64);
++    SDValue DstAddr = DAG.getNode(
++        ISD::ADD, DL, MVT::i64, StackPtr,
++        DAG.getIntPtrConstant(VA.getLocMemOffset(), DL));
++    MemOpChains.push_back(DAG.getStore(
++        Chain, DL, Arg, DstAddr,
++        MachinePointerInfo::getStack(MF, VA.getLocMemOffset())));
++  }
++
++  if (!MemOpChains.empty())
++    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
++
++  // Copy the outgoing register arguments, chained by glue (DL-065a: these
++  // become the call's implicit uses).
++  SDValue ArgGlue;
++  for (auto &Reg : RegsToPass) {
++    Chain = DAG.getCopyToReg(Chain, DL, Reg.first, Reg.second, ArgGlue);
++    ArgGlue = Chain.getValue(1);
++  }
++
++  // Turn the callee into the call operand: a target global/external symbol for
++  // a direct call, or a GPRB virtual register for an indirect one.
++  SDValue CalleeOp;
++  if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
++    CalleeOp = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i64);
++  } else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
++    CalleeOp = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i64);
++  } else {
++    // Indirect call: materialize the target address into a GPRB register so
++    // call_rrii's base operand (rb) is satisfied.
++    Register TargetReg =
++        MF.getRegInfo().createVirtualRegister(&DADAO::GPRBRegClass);
++    Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Callee, ArgGlue);
++    ArgGlue = Chain.getValue(1);
++    CalleeOp = DAG.getRegister(TargetReg, MVT::i64);
++  }
++
++  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
++  const uint32_t *Mask = TRI->getCallPreservedMask(MF, CallConv);
++  assert(Mask && "DADAO: missing call-preserved mask for the calling convention");
++
++  SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
++  SmallVector<SDValue, 8> CallOps;
++  CallOps.push_back(Chain);
++  CallOps.push_back(CalleeOp);
++  // Call-clobbered set (inv: preserved includes rb32..rb63, C16/ML-004c).
++  CallOps.push_back(DAG.getRegisterMask(Mask));
++  // The live-in argument registers of this call site (InstrEmitter turns these
++  // RegisterSDNodes into implicit-use operands).
++  for (auto &Reg : RegsToPass)
++    CallOps.push_back(DAG.getRegister(Reg.first, Reg.second.getValueType()));
++  if (ArgGlue.getNode())
++    CallOps.push_back(ArgGlue);
++
++  Chain = DAG.getNode(DADAOISD::CALL, DL, NodeTys, CallOps);
++  SDValue Glue = Chain.getValue(1);
++
++  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, Glue, DL);
++  Glue = Chain.getValue(1);
++
++  return LowerCallResult(Chain, Glue, CallConv, IsVarArg, Ins, DL, DAG, InVals);
++}
++
++SDValue DADAOTargetLowering::LowerCallResult(
++    SDValue Chain, SDValue InGlue, CallingConv::ID CallConv, bool IsVarArg,
++    const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
++    SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
++  SmallVector<CCValAssign, 16> RVLocs;
++  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
++                 *DAG.getContext());
++  CCInfo.AnalyzeCallResult(Ins, RetCC_DADAO);
++
++  for (unsigned i = 0, e = RVLocs.size(); i != e; ++i) {
++    CCValAssign &VA = RVLocs[i];
++    if (!VA.isRegLoc())
++      report_fatal_error(
++          "DADAO: only register call results are supported in M3");
++    SDValue Copy =
++        DAG.getCopyFromReg(Chain, DL, VA.getLocReg(), VA.getLocVT(), InGlue);
++    Chain = Copy.getValue(1);
++    InGlue = Copy.getValue(2);
++    SDValue Val = Copy.getValue(0);
++    // The callee canonicalised a narrow return value; the caller only
++    // truncates to the IR type (C5 D2: caller does not re-extend).
++    if (VA.getValVT() != VA.getLocVT())
++      Val = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), Val);
++    InVals.push_back(Val);
++  }
++  return Chain;
++}
++
++bool DADAOTargetLowering::isPointerBankValue(SDValue V,
++                                             const SelectionDAG &DAG) const {
++  // Pointers are legalized to i64 (C2) and only carry their bank in the virtual
++  // register created for the formal argument (LowerFormalArguments).  At
++  // lowering time a pointer argument therefore appears as a CopyFromReg of a
++  // GPRB virtual register; that register class is the bank witness.
++  if (V.getOpcode() != ISD::CopyFromReg)
++    return false;
++  const auto *RegNode = cast<RegisterSDNode>(V.getOperand(1));
++  const Register R = RegNode->getReg();
++  if (!R.isVirtual())
++    return false;
++  const MachineRegisterInfo &MRI = DAG.getMachineFunction().getRegInfo();
++  return MRI.getRegClass(R) == &DADAO::GPRBRegClass;
++}
++
++SDValue DADAOTargetLowering::LowerOperation(SDValue Op,
++                                            SelectionDAG &DAG) const {
++  switch (Op.getOpcode()) {
++  case ISD::BR_CC:
++    return LowerBR_CC(Op.getOperand(0),
++                      cast<CondCodeSDNode>(Op.getOperand(1))->get(),
++                      Op.getOperand(2), Op.getOperand(3), Op.getOperand(4),
++                      SDLoc(Op), DAG);
++  case ISD::BRCOND:
++    return LowerBRCOND(Op, DAG);
++  case ISD::SETCC:
++    return LowerSETCC(Op, DAG);
++  case ISD::SELECT_CC:
++    return LowerSELECT_CC(Op, DAG);
++  case ISD::SELECT:
++    return LowerSELECT(Op, DAG);
++  case ISD::VASTART:
++    return LowerVASTART(Op, DAG);
++  case ISD::VAARG:
++    return LowerVAARG(Op, DAG);
++  case ISD::BR_JT:
++    return LowerBR_JT(Op, DAG);
++  default:
++    return SDValue();
++  }
++}
++
++SDValue DADAOTargetLowering::LowerVASTART(SDValue Op,
++                                          SelectionDAG &DAG) const {
++  // `llvm.va_start(ptr %ap)` (M6, spec DADAO-21 §可变参数).  DADAO's va_list is
++  // a plain void*: va_start sets it to the address of the first variadic
++  // argument, i.e. entry SP + N_named*8, where the caller's save area holds
++  // slot i at entry SP + i*8.  N_named is the number of named arguments of the
++  // variadic function.
++  MachineFunction &MF = DAG.getMachineFunction();
++  const DataLayout &DLayout = DAG.getDataLayout();
++  MVT PtrVT = getPointerTy(DLayout);
++  SDLoc DL(Op);
++
++  const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
++  const unsigned NumNamed =
++      static_cast<unsigned>(MF.getFunction().arg_size());
++  int FI = MF.getFrameInfo().CreateFixedObject(
++      /*Size=*/8, /*Offset=*/static_cast<int64_t>(NumNamed) * 8,
++      /*IsImmutable=*/true);
++  SDValue FIN = DAG.getFrameIndex(FI, PtrVT);
++  return DAG.getStore(Op.getOperand(0), DL, FIN, Op.getOperand(1),
++                      MachinePointerInfo(SV));
++}
++
++SDValue DADAOTargetLowering::LowerVAARG(SDValue Op, SelectionDAG &DAG) const {
++  // `llvm.va_arg(ptr %ap, T)` (M6, spec DADAO-21 §可变参数).  The va_list holds
++  // the address of the next slot; read the value, then advance by one 8-byte
++  // slot.  DADAO is big-endian, so a narrow value is right-aligned in the slot:
++  // read it at slot + (8 - sizeof(T)).
++  SDLoc DL(Op);
++  const DataLayout &DLayout = DAG.getDataLayout();
++  MVT PtrVT = getPointerTy(DLayout);
++  SDValue Chain = Op.getOperand(0);
++  SDValue VAListPtr = Op.getOperand(1);
++  EVT VT = Op.getValueType();
++
++  SDValue Slot =
++      DAG.getLoad(PtrVT, DL, Chain, VAListPtr, MachinePointerInfo());
++  Chain = Slot.getValue(1);
++
++  SDValue Addr = Slot;
++  const unsigned Size = VT.getSizeInBits() / 8;
++  if (Size < 8)
++    Addr = DAG.getNode(ISD::ADD, DL, PtrVT, Slot,
++                       DAG.getConstant(8 - Size, DL, PtrVT));
++  SDValue Val = DAG.getLoad(VT, DL, Chain, Addr, MachinePointerInfo());
++  Chain = Val.getValue(1);
++
++  SDValue Next = DAG.getNode(ISD::ADD, DL, PtrVT, Slot,
++                             DAG.getConstant(8, DL, PtrVT));
++  Chain = DAG.getStore(Chain, DL, Next, VAListPtr, MachinePointerInfo());
++  return DAG.getMergeValues({Val, Chain}, DL);
++}
++
++SDValue DADAOTargetLowering::LowerBRCOND(SDValue Op, SelectionDAG &DAG) const {
++  SDValue Chain = Op.getOperand(0);
++  SDValue CondV = Op.getOperand(1);
++  SDValue Dest = Op.getOperand(2);
++  SDLoc DL(Op);
++
++  // `br (icmp ...)` / `br (fcmp ...)` reaches us as SETCC + BRCOND
++  // (SelectionDAGBuilder no longer builds BR_CC directly).  Fold the setcc back
++  // into a compare + branch.  The integer path (i64) and the FP path
++  // (f32/f64, M6/LLVM-066t) are both handled by LowerBR_CC.
++  if (CondV.getOpcode() == ISD::SETCC) {
++    const EVT OpVT = CondV.getOperand(0).getValueType();
++    if (OpVT == MVT::i64 || OpVT == MVT::f32 || OpVT == MVT::f64) {
++      ISD::CondCode CC = cast<CondCodeSDNode>(CondV.getOperand(2))->get();
++      return LowerBR_CC(Chain, CC, CondV.getOperand(0), CondV.getOperand(1),
++                        Dest, DL, DAG);
++    }
++  }
++
++  // Generic `br i1 %c`: test the low bit against zero (setne 0).  Zero-extend
++  // so the high bits do not poison the != 0 test.
++  SDValue Cond = CondV;
++  if (Cond.getValueType() != MVT::i64)
++    Cond = DAG.getZExtOrTrunc(Cond, DL, MVT::i64);
++  return LowerBR_CC(Chain, ISD::SETNE, Cond, DAG.getConstant(0, DL, MVT::i64),
++                    Dest, DL, DAG);
++}
++
++SDValue DADAOTargetLowering::LowerBR_JT(SDValue Op, SelectionDAG &DAG) const {
++  // Dense switch dispatch (LLVM-072t, ISS-177/G3).  The jump table itself is
++  // emitted by the generic AsmPrinter: EK_BlockAddress entries (one 8-byte
++  // absolute case address each) in a read-only data section, each `.quad LBB`
++  // becoming an R_DADAO_ABS48 field.  All this hook has to do is retag the
++  // ISD::BR_JT node so the custom selector (DADAOISelDAGToDAG::Select) can emit
++  // the materialize-index-load-jump sequence; the table symbol travels as a
++  // TargetJumpTable leaf, which InstrEmitter turns into an MO_JumpTableIndex.
++  SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  auto *JT = cast<JumpTableSDNode>(Op.getOperand(1));
++  SDValue Index = Op.getOperand(2);
++  SDValue TargetJT = DAG.getTargetJumpTable(JT->getIndex(), MVT::i64);
++  return DAG.getNode(DADAOISD::BR_JT, DL, MVT::Other, Chain, Index, TargetJT);
++}
++
++SDValue DADAOTargetLowering::LowerBR_CC(SDValue Chain, ISD::CondCode CC,
++                                        SDValue LHS, SDValue RHS, SDValue Dest,
++                                        const SDLoc &DL,
++                                        SelectionDAG &DAG) const {
++  auto IsZero = [](SDValue V) {
++    if (auto *C = dyn_cast<ConstantSDNode>(V))
++      return C->isZero();
++    return false;
++  };
++  auto Cmp = [&](bool Unsigned) {
++    return DAG.getNode(Unsigned ? DADAOISD::CMPU : DADAOISD::CMP, DL, MVT::i64,
++                       LHS, RHS);
++  };
++  auto BrOn = [&](DADAOISD::NodeType Op, SDValue Val) {
++    return DAG.getNode(Op, DL, MVT::Other, Chain, Val, Dest);
++  };
++  // Emit a compare + zero-test branch.  A constant RHS that fits the cmp*
++  // 12-bit immediate is folded into cmp.si/cmp.ui; a larger constant is
++  // materialised into a GPRD register (CONST_WYDE, C12 / ADR-0018) and compared
++  // with the register-register form cmp.so/cmp.uo (contract-isa.md §6.2).  The
++  // same DADAOISD::CMP/CMPU node carries either shape: ISel picks the immediate
++  // pattern when the constant fits and the register pattern otherwise, so a
++  // large constant is never rejected here.
++  auto CmpThenBranch = [&](bool Unsigned, DADAOISD::NodeType Op) {
++    return BrOn(Op, Cmp(Unsigned));
++  };
++
++  // --- Floating-point compare + branch (M6, LLVM-066t) ---
++  // The DADAO FP compare writes -1 / 0 / 1 for ordered results (lhs <, ==, > rhs)
++  // and a positive NaN value for unordered (contract-fp.md §8).  The same
++  // register zero-test branches then implement the C predicates; `>`/`>=` are
++  // expressed by swapping the operands into `<`/`<=`, and the unordered /
++  // ordered / ordered-not-equal predicates add one `cmp rd, rc, 1` (LLVM-084t,
++  // ISS-193 (a)).  A condition outside this set still fails loudly rather than
++  // silently miscompile.
++  if (LHS.getValueType().isFloatingPoint()) {
++    auto FCmp = [&](SDValue A, SDValue B) {
++      return DAG.getNode(DADAOISD::FCMP, DL, MVT::i64, A, B);
++    };
++    // Predicates outside the plain 4-way sign test (unordered / ordered /
++    // ordered-not-equal) need one extra integer compare.  The FP compare writes
++    // a *positive* qNaN value for unordered (contract-fp.md §8: ordered results
++    // are exactly -1/0/1) whose integer value exceeds those, so `cmp rd, rc, 1`
++    // separates ordered (rc <= 1) from unordered (rc > 1).  Every step is an
++    // existing ISA instruction: foqcmp/ftqcmp (FCMP) + cmp.si + br.*/cs.*
++    // (contract-isa.md §6.2/§6.5).
++    auto One = DAG.getConstant(1, DL, MVT::i64);
++    auto Zero = DAG.getConstant(0, DL, MVT::i64);
++    // < 0 / == 0 / > 0 three-way flag; > 0 means unordered (either operand NaN).
++    auto Unordered = [&](SDValue A, SDValue B) {
++      return DAG.getNode(DADAOISD::CMP, DL, MVT::i64, FCmp(A, B), One);
++    };
++    switch (CC) {
++    case ISD::SETOEQ: // == : rc == 0              (unordered NaN -> not 0)
++      return BrOn(DADAOISD::BRZ, FCmp(LHS, RHS));
++    case ISD::SETUNE: // != : rc != 0              (unordered NaN -> true)
++      return BrOn(DADAOISD::BRNZ, FCmp(LHS, RHS));
++    case ISD::SETOLT: // <  : rc < 0
++      return BrOn(DADAOISD::BRN, FCmp(LHS, RHS));
++    case ISD::SETOLE: // <= : rc <= 0
++      return BrOn(DADAOISD::BRNP, FCmp(LHS, RHS));
++    case ISD::SETOGT: // >  : ordered (rhs < lhs)
++      return BrOn(DADAOISD::BRN, FCmp(RHS, LHS));
++    case ISD::SETOGE: // >= : ordered (rhs <= lhs)
++      return BrOn(DADAOISD::BRNP, FCmp(RHS, LHS));
++    case ISD::SETUGT: // unordered or >  : rc > 0
++      return BrOn(DADAOISD::BRP, FCmp(LHS, RHS));
++    case ISD::SETUGE: // unordered or >= : rc >= 0
++      return BrOn(DADAOISD::BRNN, FCmp(LHS, RHS));
++    case ISD::SETULT: // unordered or <  : (= ugt(rhs, lhs))
++      return BrOn(DADAOISD::BRP, FCmp(RHS, LHS));
++    case ISD::SETULE: // unordered or <= : (= uge(rhs, lhs))
++      return BrOn(DADAOISD::BRNN, FCmp(RHS, LHS));
++    case ISD::SETUO: // unordered (isnan(a) | isnan(b)) : rc > 1
++      return BrOn(DADAOISD::BRP, Unordered(LHS, RHS));
++    case ISD::SETO: // ordered (neither NaN) : rc <= 1
++      return BrOn(DADAOISD::BRNP, Unordered(LHS, RHS));
++    case ISD::SETONE: { // ordered and != : ordered(rc) & (rc != 0)
++      SDValue Ord = DAG.getNode(DADAOISD::CS_P, DL, MVT::i64,
++                                Unordered(LHS, RHS), Zero, One);
++      SDValue Ne = DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, FCmp(LHS, RHS),
++                               Zero, One);
++      return BrOn(DADAOISD::BRNZ,
++                  DAG.getNode(ISD::AND, DL, MVT::i64, Ord, Ne));
++    }
++    case ISD::SETUEQ: { // unordered or == : unordered(rc) | (rc == 0)
++      SDValue Un = DAG.getNode(DADAOISD::CS_P, DL, MVT::i64,
++                               Unordered(LHS, RHS), One, Zero);
++      SDValue Eq = DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, FCmp(LHS, RHS),
++                               One, Zero);
++      return BrOn(DADAOISD::BRNZ,
++                  DAG.getNode(ISD::OR, DL, MVT::i64, Un, Eq));
++    }
++    // The "don't care" cond codes (ISDOpcodes.h CondCode: "undefined if the
++    // input is a nan") reach an FP branch when the DAG already knows the
++    // operands are ordered (e.g. `fmul nnan`).  Lower them as their ordered
++    // counterparts -- the unordered case is undefined, so the ordered result is
++    // a valid choice and no extra test is needed.
++    case ISD::SETEQ:  // ==  (unordered undefined) : rc == 0
++      return BrOn(DADAOISD::BRZ, FCmp(LHS, RHS));
++    case ISD::SETNE:  // !=  : rc != 0
++      return BrOn(DADAOISD::BRNZ, FCmp(LHS, RHS));
++    case ISD::SETLT:  // <   : rc < 0
++      return BrOn(DADAOISD::BRN, FCmp(LHS, RHS));
++    case ISD::SETLE:  // <=  : rc <= 0
++      return BrOn(DADAOISD::BRNP, FCmp(LHS, RHS));
++    case ISD::SETGT:  // >   : (rhs < lhs)
++      return BrOn(DADAOISD::BRN, FCmp(RHS, LHS));
++    case ISD::SETGE:  // >=  : (rhs <= lhs)
++      return BrOn(DADAOISD::BRNP, FCmp(RHS, LHS));
++    default:
++      report_fatal_error(
++          "DADAO: unsupported floating-point branch condition");
++    }
++  }
++
++  switch (CC) {
++  default:
++    report_fatal_error("DADAO: unsupported integer branch condition");
++  case ISD::SETEQ:
++  case ISD::SETNE: {
++    const bool IsEQ = CC == ISD::SETEQ;
++    const DADAOISD::NodeType BrZ = IsEQ ? DADAOISD::BRZ : DADAOISD::BRNZ;
++    // Equality is symmetric: swap so the non-constant operand is on the left.
++    if (isa<ConstantSDNode>(LHS) && !isa<ConstantSDNode>(RHS))
++      std::swap(LHS, RHS);
++    // x == 0 / p == NULL: a single zero-test branch (br.z {rb} for pointers;
++    // C17).  Also covers `0 == x`.
++    if (IsZero(RHS))
++      return BrOn(BrZ, LHS);
++    // Pointer vs pointer: cmp.uo rd, rb, rb + br.z/nz (C14 D2 / C17 `p==q`).
++    if (isPointerBankValue(LHS, DAG) || isPointerBankValue(RHS, DAG))
++      return BrOn(BrZ, Cmp(/*Unsigned=*/true));
++    // Two integers in registers: br.eq/ne directly (C17: no cmp needed).
++    if (!isa<ConstantSDNode>(LHS) && !isa<ConstantSDNode>(RHS))
++      return DAG.getNode(IsEQ ? DADAOISD::BREQ : DADAOISD::BRNE, DL, MVT::Other,
++                         Chain, LHS, RHS, Dest);
++    // Non-zero constant: choose cmp.si/cmp.ui so the constant is reproduced
++    // exactly, then br.z/nz (--- but prefer the format that fits).
++    {
++      const auto *C = cast<ConstantSDNode>(RHS);
++      const bool FitsU = isUInt<12>(C->getZExtValue());
++      return CmpThenBranch(/*Unsigned=*/FitsU, BrZ);
++    }
++  }
++  case ISD::SETLT:
++    return CmpThenBranch(/*Unsigned=*/false, DADAOISD::BRN);
++  case ISD::SETLE:
++    return CmpThenBranch(/*Unsigned=*/false, DADAOISD::BRNP);
++  case ISD::SETGT:
++    return CmpThenBranch(/*Unsigned=*/false, DADAOISD::BRP);
++  case ISD::SETGE:
++    return CmpThenBranch(/*Unsigned=*/false, DADAOISD::BRNN);
++  case ISD::SETULT:
++    return CmpThenBranch(/*Unsigned=*/true, DADAOISD::BRN);
++  case ISD::SETULE:
++    return CmpThenBranch(/*Unsigned=*/true, DADAOISD::BRNP);
++  case ISD::SETUGT:
++    return CmpThenBranch(/*Unsigned=*/true, DADAOISD::BRP);
++  case ISD::SETUGE:
++    return CmpThenBranch(/*Unsigned=*/true, DADAOISD::BRNN);
++  }
++  llvm_unreachable("DADAO: unreachable branch condition");
++}
++
++SDValue DADAOTargetLowering::LowerCmpSelect(ISD::CondCode CC, SDValue LHS,
++                                            SDValue RHS, SDValue True,
++                                            SDValue False, const SDLoc &DL,
++                                            SelectionDAG &DAG) const {
++  // cs.* conditional assignment (contract-isa.md §6.5): the three tests cover
++  // cond < 0 / == 0 / > 0 with the two arms selected explicitly, so <=0 / >=0
++  // reuse a test with the arms swapped.  The result type is the arms' type: i64
++  // for integer arms (cs.*_rd) and f64/f32 for FP arms (cs.*_rrrr_rf); the
++  // condition is always an i64 comparison result (LLVM-079t).
++  auto Select = [&](DADAOISD::NodeType Cs, SDValue Cond, SDValue T, SDValue F) {
++    return DAG.getNode(Cs, DL, T.getValueType(), Cond, T, F);
++  };
++
++  // --- Floating-point compare selecting integer arms (M6 uniform path) ---
++  // The FP compare result is -1/0/1 for ordered results and a positive NaN for
++  // unordered (contract-fp.md §8), so every C predicate is one cs test, with
++  // possible operand and/or arm swapping; `>`/`>=` compare the operands the
++  // other way round (rc' = cmp(rhs, lhs)).
++  if (LHS.getValueType().isFloatingPoint()) {
++    auto FCmp = [&](SDValue A, SDValue B) {
++      return DAG.getNode(DADAOISD::FCMP, DL, MVT::i64, A, B);
++    };
++    // See LowerBR_CC: `cmp rd, rc, 1` separates ordered (rc <= 1) from unordered
++    // (the positive qNaN the FP compare writes for NaN operands, rc > 1); the
++    // unordered/ordered/ordered-not-equal predicates then combine that flag with
++    // the equal sign test via cs.* + and/or (all existing ISA instructions).
++    auto One = DAG.getConstant(1, DL, MVT::i64);
++    auto Zero = DAG.getConstant(0, DL, MVT::i64);
++    auto Unordered = [&](SDValue A, SDValue B) {
++      return DAG.getNode(DADAOISD::CMP, DL, MVT::i64, FCmp(A, B), One);
++    };
++    switch (CC) {
++    case ISD::SETOEQ: // ==  : rc == 0
++      return Select(DADAOISD::CS_Z, FCmp(LHS, RHS), True, False);
++    case ISD::SETUNE: // !=  : rc != 0
++      return Select(DADAOISD::CS_Z, FCmp(LHS, RHS), False, True);
++    case ISD::SETOLT: // <   : rc < 0
++      return Select(DADAOISD::CS_N, FCmp(LHS, RHS), True, False);
++    case ISD::SETOLE: // <=  : rc <= 0
++      return Select(DADAOISD::CS_P, FCmp(LHS, RHS), False, True);
++    case ISD::SETOGT: // >   : (rhs < lhs)
++      return Select(DADAOISD::CS_N, FCmp(RHS, LHS), True, False);
++    case ISD::SETOGE: // >=  : (rhs <= lhs)
++      return Select(DADAOISD::CS_P, FCmp(RHS, LHS), False, True);
++    case ISD::SETUGT: // unordered or >  : rc > 0
++      return Select(DADAOISD::CS_P, FCmp(LHS, RHS), True, False);
++    case ISD::SETUGE: // unordered or >= : rc >= 0
++      return Select(DADAOISD::CS_N, FCmp(LHS, RHS), False, True);
++    case ISD::SETULT: // unordered or <  : (= ugt(rhs, lhs))
++      return Select(DADAOISD::CS_P, FCmp(RHS, LHS), True, False);
++    case ISD::SETULE: // unordered or <= : (= uge(rhs, lhs))
++      return Select(DADAOISD::CS_N, FCmp(RHS, LHS), False, True);
++    case ISD::SETUO: // unordered : rc > 1
++      return Select(DADAOISD::CS_P, Unordered(LHS, RHS), True, False);
++    case ISD::SETO: // ordered : rc <= 1
++      return Select(DADAOISD::CS_P, Unordered(LHS, RHS), False, True);
++    case ISD::SETONE: { // ordered and != : ordered(rc) & (rc != 0)
++      SDValue Ord = DAG.getNode(DADAOISD::CS_P, DL, MVT::i64,
++                                Unordered(LHS, RHS), Zero, One);
++      SDValue Ne = DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, FCmp(LHS, RHS),
++                               Zero, One);
++      SDValue Pred = DAG.getNode(ISD::AND, DL, MVT::i64, Ord, Ne);
++      return Select(DADAOISD::CS_Z, Pred, False, True);
++    }
++    case ISD::SETUEQ: { // unordered or == : unordered(rc) | (rc == 0)
++      SDValue Un = DAG.getNode(DADAOISD::CS_P, DL, MVT::i64,
++                               Unordered(LHS, RHS), One, Zero);
++      SDValue Eq = DAG.getNode(DADAOISD::CS_Z, DL, MVT::i64, FCmp(LHS, RHS),
++                               One, Zero);
++      SDValue Pred = DAG.getNode(ISD::OR, DL, MVT::i64, Un, Eq);
++      return Select(DADAOISD::CS_Z, Pred, False, True);
++    }
++    // See LowerBR_CC: the "don't care if unordered" cond codes lower to their
++    // ordered counterparts.
++    case ISD::SETEQ: // ==  : rc == 0
++      return Select(DADAOISD::CS_Z, FCmp(LHS, RHS), True, False);
++    case ISD::SETNE: // !=  : rc != 0
++      return Select(DADAOISD::CS_Z, FCmp(LHS, RHS), False, True);
++    case ISD::SETLT: // <   : rc < 0
++      return Select(DADAOISD::CS_N, FCmp(LHS, RHS), True, False);
++    case ISD::SETLE: // <=  : rc <= 0
++      return Select(DADAOISD::CS_P, FCmp(LHS, RHS), False, True);
++    case ISD::SETGT: // >   : (rhs < lhs)
++      return Select(DADAOISD::CS_N, FCmp(RHS, LHS), True, False);
++    case ISD::SETGE: // >=  : (rhs <= lhs)
++      return Select(DADAOISD::CS_P, FCmp(RHS, LHS), False, True);
++    default:
++      report_fatal_error(
++          "DADAO: unsupported floating-point select/setcc condition");
++    }
++  }
++
++  if (LHS.getValueType() != MVT::i64)
++    report_fatal_error("DADAO: unsupported setcc/select_cc operand type");
++
++  // Canonicalise so a constant is on the right (the cmp* immediate formats
++  // take the constant in rdhb).
++  if (isa<ConstantSDNode>(LHS) && !isa<ConstantSDNode>(RHS)) {
++    std::swap(LHS, RHS);
++    CC = ISD::getSetCCSwappedOperands(CC);
++  }
++
++  bool Unsigned = CC == ISD::SETULT || CC == ISD::SETULE ||
++                  CC == ISD::SETUGT || CC == ISD::SETUGE;
++  // == / != are order- and format-independent, so pick the cmp format whose
++  // 12-bit immediate the constant fits (mirrors LowerBR_CC); the ordered
++  // predicates keep the format fixed by the (un)signedness of the CC.
++  if (auto *C = dyn_cast<ConstantSDNode>(RHS))
++    if (CC == ISD::SETEQ || CC == ISD::SETNE)
++      Unsigned = isUInt<12>(C->getZExtValue());
++  // A constant RHS that does not fit the cmp* 12-bit immediate is not rejected:
++  // ISel materialises it into a GPRD register (CONST_WYDE, C12 / ADR-0018) and
++  // uses the register-register cmp.so/cmp.uo form (contract-isa.md §6.2).
++
++  SDValue Cmp = DAG.getNode(Unsigned ? DADAOISD::CMPU : DADAOISD::CMP, DL,
++                            MVT::i64, LHS, RHS);
++  switch (CC) {
++  case ISD::SETEQ: // == : rc == 0
++    return Select(DADAOISD::CS_Z, Cmp, True, False);
++  case ISD::SETNE: // != : rc != 0
++    return Select(DADAOISD::CS_Z, Cmp, False, True);
++  case ISD::SETLT:
++  case ISD::SETULT: // <  : rc < 0
++    return Select(DADAOISD::CS_N, Cmp, True, False);
++  case ISD::SETLE:
++  case ISD::SETULE: // <= : not (rc > 0)
++    return Select(DADAOISD::CS_P, Cmp, False, True);
++  case ISD::SETGT:
++  case ISD::SETUGT: // >  : rc > 0
++    return Select(DADAOISD::CS_P, Cmp, True, False);
++  case ISD::SETGE:
++  case ISD::SETUGE: // >= : not (rc < 0)
++    return Select(DADAOISD::CS_N, Cmp, False, True);
++  default:
++    report_fatal_error("DADAO: unsupported integer setcc/select_cc condition");
++  }
++  llvm_unreachable("DADAO: unreachable compare condition");
++}
++
++SDValue DADAOTargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
++  // Integer `icmp` used as a value: compare into {-1,0,1} then select 1/0
++  // (the promoted i1 result is a 0/1 i64; contract-isa.md §6.2/§6.5).
++  const SDLoc DL(Op);
++  SDValue One = DAG.getConstant(1, DL, MVT::i64);
++  SDValue Zero = DAG.getConstant(0, DL, MVT::i64);
++  return LowerCmpSelect(cast<CondCodeSDNode>(Op.getOperand(2))->get(),
++                        Op.getOperand(0), Op.getOperand(1), One, Zero, DL, DAG);
++}
++
++SDValue DADAOTargetLowering::LowerSELECT_CC(SDValue Op,
++                                            SelectionDAG &DAG) const {
++  const SDLoc DL(Op);
++  return LowerCmpSelect(cast<CondCodeSDNode>(Op.getOperand(4))->get(),
++                        Op.getOperand(0), Op.getOperand(1), Op.getOperand(2),
++                        Op.getOperand(3), DL, DAG);
++}
++
++SDValue DADAOTargetLowering::LowerSELECT(SDValue Op,
++                                         SelectionDAG &DAG) const {
++  // `select cond, true, false` with a non-setcc condition: a false condition
++  // is exactly 0 (ZeroOrOne boolean content), so cs.z picks the false arm.
++  // The arms may be integer (cs.*_rd) or FP (cs.*_rrrr_rf, LLVM-079t), so the
++  // node's result type is the arms' type.
++  const SDLoc DL(Op);
++  SDValue Cond = Op.getOperand(0);
++  if (Cond.getValueType() != MVT::i64)
++    Cond = DAG.getZExtOrTrunc(Cond, DL, MVT::i64);
++  return DAG.getNode(DADAOISD::CS_Z, DL, Op.getOperand(2).getValueType(), Cond,
++                     Op.getOperand(2), Op.getOperand(1));
++}

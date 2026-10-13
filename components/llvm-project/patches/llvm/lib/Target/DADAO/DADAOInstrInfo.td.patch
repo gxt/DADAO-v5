@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000000..8238bd692eec
+index 000000000..1938af289
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1501 @@
+@@ -0,0 +1,1509 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -40,6 +40,34 @@ index 000000000000..8238bd692eec
 +  let RenderMethod = "addImmOperands";
 +  let DiagnosticType = "InvalidImmediate";
 +  let PredicateMethod = "isWydePosImm";
++  let SuperClasses = [DADAOImmAsmOperand];
++}
++
++// cfx field operands (crrr/ciii; LLVM-060t): 6-bit cfx code / cg / rc fields.
++// The parser produces distinct operand kinds from the cfx<N>/cfx_<name>,
++// cg<N>, rc<N> tokens (see DADAOAsmParser::parseCfxOperand); a bare number is
++// therefore rejected (same rationale as DADAOWydePos, LLVM-045t).
++def DADAOCfxhaAsmOperand : AsmOperandClass {
++  let Name = "DADAOCfxha";
++  let RenderMethod = "addCfxFieldOperands";
++  let DiagnosticType = "InvalidImmediate";
++  let PredicateMethod = "isCfxhaImm";
++  let SuperClasses = [DADAOImmAsmOperand];
++}
++
++def DADAOCfxCgAsmOperand : AsmOperandClass {
++  let Name = "DADAOCfxCg";
++  let RenderMethod = "addCfxFieldOperands";
++  let DiagnosticType = "InvalidImmediate";
++  let PredicateMethod = "isCfxCgImm";
++  let SuperClasses = [DADAOImmAsmOperand];
++}
++
++def DADAOCfxRcAsmOperand : AsmOperandClass {
++  let Name = "DADAOCfxRc";
++  let RenderMethod = "addCfxFieldOperands";
++  let DiagnosticType = "InvalidImmediate";
++  let PredicateMethod = "isCfxRcImm";
 +  let SuperClasses = [DADAOImmAsmOperand];
 +}
 +
@@ -128,6 +156,69 @@ index 000000000000..8238bd692eec
 +  let MIOperandInfo = (ops);
 +}
 +
++// cfx field operands (crrr/ciii; LLVM-060t): 6-bit cfxha / cg / rc values.
++// Encoded like any 6-bit immediate by the shared getMachineOpValue().
++def cfxCfxha : Operand<i64> {
++  let ParserMatchClass = DADAOCfxhaAsmOperand;
++  let EncoderMethod = "";
++  let DecoderMethod = "DecodeUImm6";  // 6-bit value 0..63
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++def cfxCg : Operand<i64> {
++  let ParserMatchClass = DADAOCfxCgAsmOperand;
++  let EncoderMethod = "";
++  let DecoderMethod = "DecodeUImm6";
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++def cfxRc : Operand<i64> {
++  let ParserMatchClass = DADAOCfxRcAsmOperand;
++  let EncoderMethod = "";
++  let DecoderMethod = "DecodeUImm6";
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++//===----------------------------------------------------------------------===//
++// Branch-target operands (CodeGen, LLVM-037t)
++//
++// Conditional/unconditional branch instructions carry a PC-relative target.
++// For CodeGen the operand is a MachineBasicBlock (Operand<OtherVT>) so the
++// selector can build a CFG edge; the MCSymbol reference becomes a PC-relative
++// fixup at object emission (DADAO_FK_PCRel_12/18/24, contract-isa.md §8;
++// imms = (target - current) >> 2, no +4 pipeline offset).  For the assembler
++// path a numeric byte offset / label expression is still accepted (the
++// parser bypasses the matcher for expressions; the DADAOImmAsmOperand
++// predicate is reused so the numeric matcher path is unchanged).
++//===----------------------------------------------------------------------===//
++
++def brtarget12 : Operand<OtherVT> {
++  let ParserMatchClass = DADAOImmAsmOperand;
++  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
++  let DecoderMethod = "DecodeSImm12";  // LLVM-007t implements
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++def brtarget18 : Operand<OtherVT> {
++  let ParserMatchClass = DADAOImmAsmOperand;
++  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
++  let DecoderMethod = "DecodeSImm18";  // LLVM-007t implements
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
++def brtarget24 : Operand<OtherVT> {
++  let ParserMatchClass = DADAOImmAsmOperand;
++  let EncoderMethod = "";  // Handled by C++ getMachineOpValue()
++  let DecoderMethod = "DecodeSImm24";  // LLVM-007t implements
++  let PrintMethod = "printOperand";
++  let MIOperandInfo = (ops);
++}
++
 +//===----------------------------------------------------------------------===//
 +// M1 instruction definitions (178 total)
 +//===----------------------------------------------------------------------===//
@@ -138,6 +229,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x10;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -145,6 +237,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x11;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -152,6 +245,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x12;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -159,6 +253,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x13;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -166,6 +261,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x14;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -173,6 +269,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x15;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -180,6 +277,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRD:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x18;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -187,6 +285,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRD:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x19;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -194,6 +293,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRD:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x1A;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -201,6 +301,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x20;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -208,6 +309,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRD:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x21;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -215,6 +317,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRB:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x22;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -222,6 +325,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRB:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x23;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -229,6 +333,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRA:$ra);
 +  let InOperandList = (ins GPRB:$rb, imms12:$imm12);
 +  let op = 0x24;
++  let mayLoad = 1;
 +  let Pattern = [];
 +}
 +
@@ -236,6 +341,7 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRA:$ra, GPRB:$rb, imms12:$imm12);
 +  let op = 0x25;
++  let mayStore = 1;
 +  let Pattern = [];
 +}
 +
@@ -255,18 +361,29 @@ index 000000000000..8238bd692eec
 +
 +def br_eq_rd : DADAORrii<"br.eq"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, GPRD:$rb, imms12:$imm12);
++  let InOperandList = (ins GPRD:$ra, GPRD:$rb, brtarget12:$imm12);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6E;
 +  let Pattern = [];
 +}
 +
 +def br_ne_rd : DADAORrii<"br.ne"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, GPRD:$rb, imms12:$imm12);
++  let InOperandList = (ins GPRD:$ra, GPRD:$rb, brtarget12:$imm12);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6F;
 +  let Pattern = [];
 +}
 +
++// `jump rb, rd, imm12` (LLVM-072t, ISS-177/G3): the generic form is the
++// rrii two-register-plus-immediate jump (Addr = rbha + rdhb + (imms12 << 2);
++// contract-isa.md §8.3).  CodeGen uses it only as the indirect jump-table
++// dispatch (base read from the table, rd0 supplies a zero offset), so it also
++// carries the terminator / barrier / indirect-branch attributes; the assembler
++// path (jump [rbN, rdM, imm]) is unaffected by these CodeGen-only flags.
++let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1 in
 +def jump_rrii : DADAORrii<"jump"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRB:$ra, GPRD:$rb, imms12:$imm12);
@@ -278,6 +395,15 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins GPRB:$ra, GPRD:$rb, imms12:$imm12);
 +  let op = 0x75;
++  // C16 (ADR-0018) / M6 (contract-abi.md §6.1): a call writes the return-value
++  // registers rd8..rd15 / rb8..rb15 (integer/pointer banks; the callee writes
++  // up to 8 per bank, from index 8 upward).  The Defs must declare the whole
++  // return range or MachineVerifier reports "undefined physical register" for
++  // the caller-side copy of a return value (DL-070a).  This form is the
++  // indirect call: Addr = rbha + rdhb + (imms12 << 2) (contract-isa.md §8.5).
++  let isCall = 1;
++  let Defs = [rd8, rd9, rd10, rd11, rd12, rd13, rd14, rd15,
++              rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15];
 +  let Pattern = [];
 +}
 +
@@ -476,12 +602,7 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def rela_si_rb : DADAORiii<"rela.si"> {
-+  let OutOperandList = (outs GPRB:$ra);
-+  let InOperandList = (ins imms18:$imm18);
-+  let op = 0x5A;
-+  let Pattern = [];
-+}
++// 0x5A: rela.si deleted (ADR-0012 D5) -> reserved -> UNDI
 +
 +def add_si_rb : DADAORiii<"add.si"> {
 +  let OutOperandList = (outs GPRB:$ra);
@@ -492,56 +613,72 @@ index 000000000000..8238bd692eec
 +
 +def br_n_rd : DADAORiii<"br.n"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x68;
 +  let Pattern = [];
 +}
 +
 +def br_nn_rd : DADAORiii<"br.nn"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x69;
 +  let Pattern = [];
 +}
 +
 +def br_z_rd : DADAORiii<"br.z"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6A;
 +  let Pattern = [];
 +}
 +
 +def br_nz_rd : DADAORiii<"br.nz"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6B;
 +  let Pattern = [];
 +}
 +
 +def br_p_rd : DADAORiii<"br.p"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6C;
 +  let Pattern = [];
 +}
 +
 +def br_np_rd : DADAORiii<"br.np"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRD:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRD:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x6D;
 +  let Pattern = [];
 +}
 +
 +def br_z_rb : DADAORiii<"br.z"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRB:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRB:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x72;
 +  let Pattern = [];
 +}
 +
 +def br_nz_rb : DADAORiii<"br.nz"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins GPRB:$ra, imms18:$imm18);
++  let InOperandList = (ins GPRB:$ra, brtarget18:$imm18);
++  let isBranch = 1;
++  let isTerminator = 1;
 +  let op = 0x73;
 +  let Pattern = [];
 +}
@@ -550,6 +687,14 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs GPRD:$ra);
 +  let InOperandList = (ins imms18:$imm18);
 +  let op = 0x76;
++  // C16 (ADR-0018): `ret` is a terminator/barrier and does NOT declare Defs —
++  // the return value is defined earlier by LowerReturn's CopyToReg + glue
++  // chain; `ret`'s $ra slot is the fixed encoding-format field (rd0 in the
++  // expanded RET_PSEUDO, LLVM-040t).  Declaring Defs here would clash with
++  // the reaching definition the verifier needs at the call site.
++  let isReturn = 1;
++  let isTerminator = 1;
++  let isBarrier = 1;
 +  let Pattern = [];
 +}
 +
@@ -557,7 +702,10 @@ index 000000000000..8238bd692eec
 +
 +def jump_iiii : DADAOIiii<"jump"> {
 +  let OutOperandList = (outs );
-+  let InOperandList = (ins imms24:$imm24);
++  let InOperandList = (ins brtarget24:$imm24);
++  let isBranch = 1;
++  let isTerminator = 1;
++  let isBarrier = 1;
 +  let op = 0x70;
 +  let Pattern = [];
 +}
@@ -566,6 +714,17 @@ index 000000000000..8238bd692eec
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins imms24:$imm24);
 +  let op = 0x74;
++  // C16 (ADR-0018) / M6 (contract-abi.md §6.1): direct call.  isCall=1 +
++  // Defs=[rd8..rd15, rb8..rb15] (DL-070a; the whole return range of both
++  // banks).  The per-call-site argument registers are attached as implicit
++  // uses by InstrEmitter from the DADAOISD::CALL node (LowerCall's glued
++  // CopyToReg chain + explicit RegisterSDNodes), and the call-clobbered set is
++  // carried as a RegisterMask operand (getCallPreservedMask, ML-004c) -- no
++  // static Uses=[...] list here, which would over-claim argument registers and
++  // trip the verifier at -O1+.
++  let isCall = 1;
++  let Defs = [rd8, rd9, rd10, rd11, rd12, rd13, rd14, rd15,
++              rb8, rb9, rb10, rb11, rb12, rb13, rb14, rb15];
 +  let Pattern = [];
 +}
 +
@@ -694,27 +853,36 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def add_so_rb : DADAOOrrr<"add.so"> {
++def add_o_bbd : DADAOOrrr<"add.o"> {
 +  let OutOperandList = (outs GPRB:$rb);
 +  let InOperandList = (ins GPRB:$rc, GPRD:$rd);
 +  let op = 0x40;
-+  let ha = 0x20;
++  let ha = 0x30;
 +  let Pattern = [];
 +}
 +
-+def sub_so_rb : DADAOOrrr<"sub.so"> {
++def sub_o_bbd : DADAOOrrr<"sub.o"> {
 +  let OutOperandList = (outs GPRB:$rb);
 +  let InOperandList = (ins GPRB:$rc, GPRD:$rd);
 +  let op = 0x40;
-+  let ha = 0x28;
++  let ha = 0x31;
 +  let Pattern = [];
 +}
 +
-+def cmp_uo_rb : DADAOOrrr<"cmp.uo"> {
++def cmp_uo_dbb : DADAOOrrr<"cmp.uo"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRB:$rc, GPRB:$rd);
 +  let op = 0x40;
-+  let ha = 0x29;
++  let ha = 0x32;
++  let Pattern = [];
++}
++
++// M3 (ADR-0012 D9.1): rd = rb - rb, all 64 bits. No ISel pattern (LLVM-035t).
++def sub_o_dbb : DADAOOrrr<"sub.o"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRB:$rc, GPRB:$rd);
++  let op = 0x40;
++  let ha = 0x33;
 +  let Pattern = [];
 +}
 +
@@ -763,54 +931,6 @@ index 000000000000..8238bd692eec
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x40;
 +  let ha = 0x3B;
-+  let Pattern = [];
-+}
-+
-+def and_t : DADAOOrrr<"and.t"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x08;
-+  let Pattern = [];
-+}
-+
-+def or_t : DADAOOrrr<"or.t"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x09;
-+  let Pattern = [];
-+}
-+
-+def xor_t : DADAOOrrr<"xor.t"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x0A;
-+  let Pattern = [];
-+}
-+
-+def xnor_t : DADAOOrrr<"xnor.t"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x0B;
-+  let Pattern = [];
-+}
-+
-+def ext_ut_orrr : DADAOOrrr<"ext.ut"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x10;
-+  let Pattern = [];
-+}
-+
-+def ext_st_orrr : DADAOOrrr<"ext.st"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x41;
-+  let ha = 0x11;
 +  let Pattern = [];
 +}
 +
@@ -934,54 +1054,6 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def and_w : DADAOOrrr<"and.w"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x08;
-+  let Pattern = [];
-+}
-+
-+def or_w : DADAOOrrr<"or.w"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x09;
-+  let Pattern = [];
-+}
-+
-+def xor_w : DADAOOrrr<"xor.w"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x0A;
-+  let Pattern = [];
-+}
-+
-+def xnor_w : DADAOOrrr<"xnor.w"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x0B;
-+  let Pattern = [];
-+}
-+
-+def ext_uw_orrr : DADAOOrrr<"ext.uw"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x10;
-+  let Pattern = [];
-+}
-+
-+def ext_sw_orrr : DADAOOrrr<"ext.sw"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x42;
-+  let ha = 0x11;
-+  let Pattern = [];
-+}
-+
 +def shr_uw_orrr : DADAOOrrr<"shr.uw"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
@@ -1099,54 +1171,6 @@ index 000000000000..8238bd692eec
 +  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
 +  let op = 0x42;
 +  let ha = 0x3B;
-+  let Pattern = [];
-+}
-+
-+def and_b : DADAOOrrr<"and.b"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x08;
-+  let Pattern = [];
-+}
-+
-+def or_b : DADAOOrrr<"or.b"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x09;
-+  let Pattern = [];
-+}
-+
-+def xor_b : DADAOOrrr<"xor.b"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x0A;
-+  let Pattern = [];
-+}
-+
-+def xnor_b : DADAOOrrr<"xnor.b"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x0B;
-+  let Pattern = [];
-+}
-+
-+def ext_ub_orrr : DADAOOrrr<"ext.ub"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x10;
-+  let Pattern = [];
-+}
-+
-+def ext_sb_orrr : DADAOOrrr<"ext.sb"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, GPRD:$rd);
-+  let op = 0x43;
-+  let ha = 0x11;
 +  let Pattern = [];
 +}
 +
@@ -1360,22 +1384,6 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def ext_ut_orri : DADAOOrri<"ext.ut"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x41;
-+  let ha = 0x18;
-+  let Pattern = [];
-+}
-+
-+def ext_st_orri : DADAOOrri<"ext.st"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x41;
-+  let ha = 0x19;
-+  let Pattern = [];
-+}
-+
 +def shr_ut_orri : DADAOOrri<"shr.ut"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
@@ -1397,22 +1405,6 @@ index 000000000000..8238bd692eec
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x41;
 +  let ha = 0x1C;
-+  let Pattern = [];
-+}
-+
-+def ext_uw_orri : DADAOOrri<"ext.uw"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x42;
-+  let ha = 0x18;
-+  let Pattern = [];
-+}
-+
-+def ext_sw_orri : DADAOOrri<"ext.sw"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x42;
-+  let ha = 0x19;
 +  let Pattern = [];
 +}
 +
@@ -1440,22 +1432,6 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+def ext_ub_orri : DADAOOrri<"ext.ub"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x43;
-+  let ha = 0x18;
-+  let Pattern = [];
-+}
-+
-+def ext_sb_orri : DADAOOrri<"ext.sb"> {
-+  let OutOperandList = (outs GPRD:$rb);
-+  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
-+  let op = 0x43;
-+  let ha = 0x19;
-+  let Pattern = [];
-+}
-+
 +def shr_ub_orri : DADAOOrri<"shr.ub"> {
 +  let OutOperandList = (outs GPRD:$rb);
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
@@ -1480,28 +1456,60 @@ index 000000000000..8238bd692eec
 +  let Pattern = [];
 +}
 +
-+// --- oiii format (3 instructions) ---
-+
-+def illi : DADAOOiii<"illi"> {
-+  let OutOperandList = (outs );
-+  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x00;
-+  let ha = 0x00;
-+  let Pattern = [];
-+}
++// --- oiii format (2 instructions) ---
 +
 +def fence : DADAOOiii<"fence"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x00;
-+  let ha = 0x01;
++  let op = 0x77;
++  let ha = 0x00;
 +  let Pattern = [];
 +}
 +
 +def swym_oiii : DADAOOiii<"swym"> {
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
-+  let op = 0x00;
-+  let ha = 0x02;
++  let op = 0x77;
++  let ha = 0x22;
 +  let Pattern = [];
 +}
++
++// --- crrr/ciii format (privileged cfx; scope: excluded; MC layer only) ---
++// LLVM-060t: op/format per contracts/opcodes.yaml.  MC assemble/disassemble
++// without semantics (execution traps with ILLI, see SimRISC-11 §寄存器传输指令).
++// No CodeGen patterns (Pattern = []): these stay out of M1 codegen.
++//
++// Both crrr defs share the operand layout [rdhd, cfxha, cghb, rchc]; for
++// cfx2rc rdhd is architecturally a source, but the MC layer only encodes /
++// decodes the field value, so a uniform layout keeps printer/disassembler
++// symmetric (cf. ld.ub / st.b sharing one layout).
++
++def cfx2rd_crrr : DADAOCrrr<"cfx2rd"> {
++  let OutOperandList = (outs GPRD:$rdhd);
++  let InOperandList = (ins cfxCfxha:$cfxha, cfxCg:$cghb, cfxRc:$rchc);
++  let op = 0x7A;
++  let Pattern = [];
++}
++
++def cfx2rc_crrr : DADAOCrrr<"cfx2rc"> {
++  let OutOperandList = (outs GPRD:$rdhd);
++  let InOperandList = (ins cfxCfxha:$cfxha, cfxCg:$cghb, cfxRc:$rchc);
++  let op = 0x7B;
++  let Pattern = [];
++}
++
++def escape_ciii : DADAOCiii<"escape"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins cfxCfxha:$cfxha, imms18:$imm18);
++  let op = 0x7E;
++  let Pattern = [];
++}
++
++def trap_ciii : DADAOCiii<"trap"> {
++  let OutOperandList = (outs );
++  let InOperandList = (ins cfxCfxha:$cfxha, immu18:$imm18);
++  let op = 0x7F;
++  let Pattern = [];
++}
++
++include "DADAOInstrInfoFP.td"

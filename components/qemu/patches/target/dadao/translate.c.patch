@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000000..c42c8075ee
+index 0000000..74364f5
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,458 @@
+@@ -0,0 +1,485 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -74,40 +74,6 @@ index 0000000000..c42c8075ee
 +static void gen_raise_exception_illi(DisasContext *ctx)
 +{
 +    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI));
-+}
-+
-+/* Check if EA falls in exit port range [0xffff80000000, 0xffff80000008).
-+ * If EA is naturally aligned for element size N AND in exit port range,
-+ * raise ILLI at runtime. Unaligned EAs are let through so that MO_ALIGN_N
-+ * triggers MALIGN (0x8C) with higher priority per ADR-0004 D5.6.
-+ *
-+ * Used by trans_stm_* to enforce: ALL multi-store (stm.*) to exit port
-+ * triggers ILLI (aligned) or MALIGN (unaligned).
-+ *
-+ * N must be a power of 2: 1 (byte), 2 (wyde), 4 (tetra), 8 (octa). */
-+static void gen_check_exit_port_illi(DisasContext *ctx, TCGv_i64 ea, int N)
-+{
-+    TCGLabel *ok = gen_new_label();
-+    TCGv_i64 diff = tcg_temp_new_i64();
-+    /* Alignment gate: if N > 1, skip ILLI when EA is unaligned (let
-+     * MO_ALIGN_N trigger MALIGN instead). For N==1 (byte), always aligned. */
-+    if (N > 1) {
-+        TCGLabel *unaligned = gen_new_label();
-+        tcg_gen_andi_i64(diff, ea, N - 1);
-+        tcg_gen_brcondi_i64(TCG_COND_NE, diff, 0, unaligned);
-+        /* EA aligned → fall through to exit-port range check */
-+        tcg_gen_subi_i64(diff, ea, 0xffff80000000ULL);
-+        tcg_gen_brcondi_i64(TCG_COND_GEU, diff, 8, ok);
-+        gen_raise_exception_illi(ctx);
-+        gen_set_label(unaligned);
-+        /* EA unaligned → skip ILLI, let store's MO_ALIGN_N trigger MALIGN */
-+    } else {
-+        /* N==1: byte stores have no alignment requirement */
-+        tcg_gen_subi_i64(diff, ea, 0xffff80000000ULL);
-+        tcg_gen_brcondi_i64(TCG_COND_GEU, diff, 8, ok);
-+        gen_raise_exception_illi(ctx);
-+    }
-+    gen_set_label(ok);
 +}
 +
 +static void gen_exception_undi(DisasContext *ctx)
@@ -235,14 +201,18 @@ index 0000000000..c42c8075ee
 +    gen_set_label(label_done);
 +}
 +
-+/* ── Division helper (runtime ILLI for div-by-zero / INT_MIN÷-1) ─────── */
++/* ── Division helper (defined-value semantics for div-by-zero / INT_MIN÷-1) ─ */
 +
-+/* Generate division with runtime ILLI checks.
-+ * quotient = a / b (or rem), with checks for:
-+ *   b == 0 → ILLI
-+ *   signed && a == INT_MIN && b == -1 → ILLI
-+ * Returns quotient/remainder via 'result'. Caller must NOT write result
-+ * until after all checks pass (precise exception: no side-effect on fault).
++/* Generate division with defined-value semantics (no ILLI for div-by-zero
++ * or signed overflow).  Replaces the old ILLI-based checks per user ruling
++ * 2026-10-01: div/rem produce defined values instead of raising exceptions
++ * for divide-by-zero and signed overflow (INT_MIN ÷ −1), aligning with
++ * RISC-V DIV/REM/DIVU/REMU conventions.
++ *
++ * Defined values (per operation width, sign-extended or zero-extended to 64b):
++ *   div-by-zero:  signed div → −1, unsigned div → (2^(N+1)−1), rem → dividend
++ *   signed overflow: div → INT_MIN(N), rem → 0
++ *
 + * 'size' = 7/15/31/63 for byte/wyde/tetra/octa.
 + * 'is_signed' = true for signed div.
 + * 'is_rem' = true for remainder instead of quotient. */
@@ -251,14 +221,15 @@ index 0000000000..c42c8075ee
 +                                TCGv_i64 src_a, TCGv_i64 src_b,
 +                                int size, bool is_signed, bool is_rem)
 +{
++    uint64_t mask = (2ULL << size) - 1;
 +    TCGv_i64 a = tcg_temp_new_i64();
 +    TCGv_i64 b = tcg_temp_new_i64();
 +    TCGv_i64 q = tcg_temp_new_i64();
-+    TCGLabel *label_ok = gen_new_label();
++    TCGLabel *label_normal = gen_new_label();
 +
 +    /* Truncate sources to size bits */
-+    tcg_gen_andi_i64(a, src_a, (2ULL << size) - 1);
-+    tcg_gen_andi_i64(b, src_b, (2ULL << size) - 1);
++    tcg_gen_andi_i64(a, src_a, mask);
++    tcg_gen_andi_i64(b, src_b, mask);
 +
 +    if (is_signed) {
 +        /* Sign-extend truncated values */
@@ -268,33 +239,52 @@ index 0000000000..c42c8075ee
 +        tcg_gen_sari_i64(b, b, 63 - size);
 +    }
 +
-+    /* Check b == 0 → ILLI */
-+    tcg_gen_brcondi_i64(TCG_COND_NE, b, 0, label_ok);
-+    gen_raise_exception_illi(ctx); /* runtime: don't set is_jmp */
++    /* Check b == 0 → defined value (skip normal division) */
++    tcg_gen_brcondi_i64(TCG_COND_NE, b, 0, label_normal);
 +
-+    gen_set_label(label_ok);
++    /* b == 0: produce defined value */
++    if (is_rem) {
++        /* rem-by-zero → dividend (already sign/zero extended in a) */
++        tcg_gen_mov_i64(result, a);
++    } else {
++        /* div-by-zero: signed → −1, unsigned → (2^(N+1)−1) */
++        if (is_signed) {
++            tcg_gen_movi_i64(result, -1ULL);
++        } else {
++            tcg_gen_movi_i64(result, mask);
++        }
++    }
++    /* Jump to end (skip normal division path) */
++    TCGLabel *label_done = gen_new_label();
++    tcg_gen_br(label_done);
++
++    gen_set_label(label_normal);
 +
 +    if (is_signed) {
-+        /* Check INT_MIN ÷ -1 → ILLI
-+         * Combined setcond+brcond for reliable runtime check.
-+         * gen_raise_exception_illi raises the exception at runtime.
-+         * helper_raise_exception uses cpu_loop_exit_restore(GETPC())
-+         * to restore precise exception state (prevents TB replay). */
-+        int64_t int_min = (size >= 63) ? INT64_MIN : -(1LL << size);
++        /* Check INT_MIN ÷ −1 → defined value */
++        int64_t int_min = (size >= 63) ? (int64_t)INT64_MIN : -(1LL << size);
 +        TCGLabel *label_no_overflow = gen_new_label();
 +        TCGv_i64 c1 = tcg_temp_new_i64();
 +        TCGv_i64 c2 = tcg_temp_new_i64();
 +        TCGv_i64 combined = tcg_temp_new_i64();
 +
 +        tcg_gen_setcondi_i64(TCG_COND_EQ, c1, a, int_min);
-+        tcg_gen_setcondi_i64(TCG_COND_EQ, c2, b, -1);
++        tcg_gen_setcondi_i64(TCG_COND_EQ, c2, b, -1LL);
 +        tcg_gen_and_i64(combined, c1, c2);
 +        tcg_gen_brcondi_i64(TCG_COND_EQ, combined, 0, label_no_overflow);
-+        gen_raise_exception_illi(ctx);
++
++        /* Signed overflow: div → INT_MIN(N), rem → 0 */
++        if (is_rem) {
++            tcg_gen_movi_i64(result, 0);
++        } else {
++            /* INT_MIN(N) already sign-extended to 64 bits */
++            tcg_gen_movi_i64(result, int_min);
++        }
++        tcg_gen_br(label_done);
 +
 +        gen_set_label(label_no_overflow);
 +
-+        /* Signed division */
++        /* Signed division (normal path) */
 +        if (is_rem) {
 +            /* remainder = a - (a/b)*b (truncate-toward-zero, per C99) */
 +            TCGv_i64 quot = tcg_temp_new_i64();
@@ -304,23 +294,22 @@ index 0000000000..c42c8075ee
 +        } else {
 +            tcg_gen_div_i64(q, a, b);
 +        }
++        /* Sign-extend result */
++        TCGv_i64 ext = gen_sign_extend(q, size);
++        tcg_gen_mov_i64(result, ext);
 +    } else {
-+        /* Unsigned division */
++        /* Unsigned division (normal path, no overflow possible) */
 +        if (is_rem) {
 +            tcg_gen_remu_i64(q, a, b);
 +        } else {
 +            tcg_gen_divu_i64(q, a, b);
 +        }
-+    }
-+
-+    /* Truncate result to size bits, then sign/zero extend */
-+    if (is_signed) {
-+        TCGv_i64 ext = gen_sign_extend(q, size);
-+        tcg_gen_mov_i64(result, ext);
-+    } else {
++        /* Zero-extend result */
 +        TCGv_i64 ext = gen_zero_extend(q, size);
 +        tcg_gen_mov_i64(result, ext);
 +    }
++
++    gen_set_label(label_done);
 +}
 +
 +/* ── DADAO decodetree trans_* implementations ────────────────────────── */
@@ -369,25 +358,58 @@ index 0000000000..c42c8075ee
 +    tcg_gen_st_i64(val, tcg_env, offsetof(CPUDADAOState, rb[n]));
 +}
 +
-+/* ── RA register access helpers ──────────────────────────────────────── */
++/* ── RA register access helpers (ring buffer, ADR-0012 D7 §5) ────────── */
++/* Ring-buffer index translation is performed by C helper functions in
++ * helper.c (helper_ra_load, helper_ra_store) to avoid TCG type-safety
++ * issues with tcg_env (TCGv_ptr vs TCGv_i64). */
 +
-+/* Load ra[n] into a TCG temp. All ra registers (including ra0) are
-+ * directly addressable. §4.9.1: ra0 can be read without exception. */
++/* Load ra[logical_n] into a TCG temp (ring-buffer view). */
 +static TCGv_i64 load_ra(int n)
 +{
++    TCGv_i64 idx = tcg_constant_i64(n);
++    TCGv_i64 result = tcg_temp_new_i64();
++    gen_helper_ra_load(result, tcg_env, idx);
++    return result;
++}
++
++/* Store val into ra[logical_n] (ring-buffer view). */
++static void store_ra(int n, TCGv_i64 val)
++{
++    TCGv_i64 idx = tcg_constant_i64(n);
++    gen_helper_ra_store(tcg_env, idx, val);
++}
++
++/* ── RF register access helpers (rf0 = FCSR) ─────────────────────────── */
++/* FCSR write mask: only [33:32] (rounding mode) and [4:0] (exception status)
++ * are writable; read-only qNaN bits and SBZ fields keep their value.
++ * See SimRISC-00 §浮点状态寄存器 and .tao/knowledge/contract-fp.md §1. */
++#define RF0_WRITE_MASK  0x000000030000001FULL   /* [33:32] + [4:0] */
++
++/* Load rf[n] into a TCG temp. rf0 reads as the full 64-bit FCSR value. */
++static TCGv_i64 load_rf(int n)
++{
 +    TCGv_i64 t = tcg_temp_new_i64();
-+    tcg_gen_ld_i64(t, tcg_env, offsetof(CPUDADAOState, ra[n]));
++    tcg_gen_ld_i64(t, tcg_env, offsetof(CPUDADAOState, rf[n]));
 +    return t;
 +}
 +
-+/* Store val into ra[n]. All ra registers (including ra0) are
-+ * directly addressable. §4.9.1: ra0 can be written without exception. */
-+static void store_ra(int n, TCGv_i64 val)
++/* Store val into rf[n]. For rf0 the FCSR write mask is applied
++ * (new = (old & ~RF0_WRITE_MASK) | (val & RF0_WRITE_MASK)); other rf
++ * registers are written in full. */
++static void store_rf(int n, TCGv_i64 val)
 +{
-+    tcg_gen_st_i64(val, tcg_env, offsetof(CPUDADAOState, ra[n]));
++    if (n == 0) {
++        TCGv_i64 old = tcg_temp_new_i64();
++        TCGv_i64 masked = tcg_temp_new_i64();
++        tcg_gen_ld_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
++        tcg_gen_andi_i64(old, old, ~RF0_WRITE_MASK);
++        tcg_gen_andi_i64(masked, val, RF0_WRITE_MASK);
++        tcg_gen_or_i64(old, old, masked);
++        tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
++    } else {
++        tcg_gen_st_i64(val, tcg_env, offsetof(CPUDADAOState, rf[n]));
++    }
 +}
-+
-+
 +
 +#include "insn_trans/trans_arith.c.inc"
 +#include "insn_trans/trans_compare.c.inc"
@@ -399,6 +421,7 @@ index 0000000000..c42c8075ee
 +#include "insn_trans/trans_block.c.inc"
 +#include "insn_trans/trans_mem.c.inc"
 +#include "insn_trans/trans_ctrl.c.inc"
++#include "insn_trans/trans_fp.c.inc"
 +
 +static void dadao_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
 +{
@@ -431,6 +454,10 @@ index 0000000000..c42c8075ee
 +    case DISAS_TOO_MANY:
 +    case DISAS_NEXT:
 +        dest = ctx->base.pc_next;
++        /* ADR-0012 D8.3: sequential/not-taken → rb0 = PC+4 (64-bit).
++         * Store pc_next to rb[0] so next TB sees correct rb0. */
++        tcg_gen_st_i64(tcg_constant_i64(dest),
++                       tcg_env, offsetof(CPUDADAOState, rb[0]));
 +        if (translator_use_goto_tb(&ctx->base, dest)) {
 +            gen_update_pc(ctx, dest);
 +            tcg_gen_goto_tb(0);

@@ -1,15 +1,15 @@
 
 # ABI
 
-> **版本：0.9.2**（与 AEE 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
+> **版本：0.9.3-rc**（与 AEE 版本号一致，同步更新。基于 SimRISC 0.5.4 指令系统设计）
 
 通过制定ABI，使得独立编译、汇编得到的代码，可以被正确链接、执行。手工编写的汇编代码，也应遵循ABI规范。
 
-## 寄存器规范
+## 1. 寄存器规范
 
 Dadao提供了四组64个64位寄存器，所有这些寄存器对于一个运行中的进程而言都是全局可见的。
 
-### RD寄存器（Data registers）
+### 1.1 RD寄存器（Data registers）
 
 RD寄存器的约定如下：
 
@@ -17,12 +17,13 @@ RD寄存器的约定如下：
 |   ---         | ---           | ---               | ---               |
 | rd0           | rdzero        | Zero              | Immutable         |
 | rd1           | rderrno       | error number      | -                 |
-| rd2 - rd7     |               | reserved（编译器不得分配使用） | -                 |
+| rd2 - rd3     |               | reserved（调试/测试保留，编译器不得分配使用） | -                 |
+| rd4 - rd7     |               | temporary regs    | No                |
 | rd8 - rd15    | rdt0 - rdt7   | temporary regs    | No                |
 | rd16 - rd31   | rda0 - rda15  | temporary regs    | No                |
 | rd32 - rd63   |               | callee saved regs | Yes               |
 
-### RB寄存器（Base registers）
+### 1.2 RB寄存器（Base registers）
 
 RB寄存器的约定如下：
 
@@ -30,15 +31,19 @@ RB寄存器的约定如下：
 |   ---         | ---           | ---                   | ---               |
 | rb0           | rbip          | instruction pointer   | -                 |
 | rb1           | rbsp          | stack pointer         | Yes               |
-| rb2           | rbfp          | frame pointer         | Yes               |
-| rb3           | rbgp          | global pointer        | -                 |
-| rb4           | rbtp          | thread pointer        | -                 |
-| rb5 - rb7     |               | reserved              | -                 |
+| rb2           | rbgp          | global pointer        | -                 |
+| rb3           | rbtp          | thread pointer        | -                 |
+| rb4 - rb7     |               | temporary regs        | No                |
 | rb8 - rb15    | rbt0 - rbt7   | temporary regs        | No                |
 | rb16 - rb31   | rba0 - rba15  | temporary regs        | No                |
-| rb32 - rb63   |               | callee saved regs     | Yes               |
+| rb32 - rb62   |               | callee saved regs     | Yes               |
+| rb63          | rbfp          | frame pointer（条件占用；hasFP 为真时为 FP，否则可作通用 callee-saved 分配） | Yes |
 
-### RF寄存器（Floating-point registers）
+`rb63` 作 frame pointer 是**条件式**的：hasFP 为真时保留为 `rbfp`（即函数需要帧指针时），由 prologue 保存其旧值、epilogue 恢复；否则 `rb63` 可作通用 callee-saved 寄存器由编译器分配。`rb63` 恒为 callee-saved。
+
+因 `rb63` 是 RB 组最高编号寄存器，`ldm`/`stm` 的 `immu6` 连续寄存器区间不能从 `rb63` 向上展开：批量保存 callee-saved 寄存器时须排除 FP（`rb63`），或对 `rb63` 先保存再恢复。
+
+### 1.3 RF寄存器（Floating-point registers）
 
 RF寄存器的约定如下：
 
@@ -50,7 +55,7 @@ RF寄存器的约定如下：
 | rf16 - rf31   | rfa0 - rfa15  | temporary regs        | No                |
 | rf32 - rf63   |               | callee saved regs     | Yes               |
 
-### RA寄存器（Return address registers）
+### 1.4 RA寄存器（Return address registers）
 
 RA寄存器的约定如下。高 16 位/低 48 位的详细定义见 AEE §返回地址栈。
 
@@ -62,11 +67,11 @@ RA寄存器的约定如下。高 16 位/低 48 位的详细定义见 AEE §返�
 
 压栈溢出触发 RASOF 异常，弹栈下溢触发 RASUF 异常（详见 AEE）。
 
-## 数据表示
+## 2. 数据表示
 
 在Dadao中，我们使用术语`byte`表示8位的数据，`wyde`表示16位数据，`tetra`表示32位数据，`octa`表示64位数据。
 
-### Fundamental Types
+### 2.1 Fundamental Types
 
 DADAO 采用大端序（big-endian），多字节数据的最高有效字节存放在最低地址。
 
@@ -100,7 +105,7 @@ DADAO 采用大端序（big-endian），多字节数据的最高有效字节存�
 
 `size_t`类型的定义为`unsigned long long`。
 
-### Aggregates
+### 2.2 Aggregates
 
 聚合体（Aggregate）包括结构体（struct）和共用体（union），其内部的标量数据成员依照各自的规定对齐。
 
@@ -108,17 +113,17 @@ DADAO 采用大端序（big-endian），多字节数据的最高有效字节存�
 
 聚合体数据可能需要填充来满足大小限制和对齐量限制。如果未指定填充内容，则默认填充 `0` 。
 
-### Array type
+### 2.3 Array type
 
 array 的起始地址按照 8 字节方式对齐。
 
 数组的数据大小等于所有元素的数据大小之和。
 
-## 函数调用规范
+## 3. 函数调用规范
 
 本节描述标准的函数调用过程，包括栈帧的布局和参数传递等。
 
-### The Stack Frame
+### 3.1 The Stack Frame
 
 除了寄存器之外，每个函数都有一个属于自己的帧，该帧位于运行时的栈上。
 
@@ -138,11 +143,11 @@ array 的起始地址按照 8 字节方式对齐。
 这样做的好处在于函数的入口和出口可以缩减指令数量和访存行为，并且节省了一个寄存器。
 
 
-### 传参：Parameter Passing
+### 3.2 传参：Parameter Passing
 
 在参数值被计算出来后，这些参数值会放到寄存器中或压到栈上。
 
-#### 参数寄存器：Parameter registers
+#### 3.2.1 参数寄存器：Parameter registers
 
 Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使用栈传送。
 
@@ -158,7 +163,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 | buf (void *) | 指针 → rb | rb16 |
 | count (size_t) | 标量 → rd | rd17 |
 
-#### 标量参数：Scalar type parameter
+#### 3.2.2 标量参数：Scalar type parameter
 
 标量参数传参时，按照如下规则转换后传递：
 
@@ -166,15 +171,15 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 - 参数类型为float，double，属于浮点型，参数传递时使用浮点寄存器，单精和双精浮点都使用单个寄存器存放相应数据
 - 指针类参数传递时使用基址寄存器
 
-#### 聚合类型参数：Aggregate parameter
+#### 3.2.3 聚合类型参数：Aggregate parameter
 
-聚合类型按以下规则传递，最多消耗 4 个寄存器槽位（32 字节）。
+聚合类型按以下规则传递，最多消耗 8 个寄存器槽位（64 字节）。
 
 **HFA/HPA 递归判定流程**
 
 1. **展开（flatten）**：递归展开聚合类型的所有嵌套 struct 成员，得到叶子字段列表。union 直接判定为不满足条件。
 2. **同质检查**：HFA 要求所有叶子字段为同一浮点类型（float 或 double）；HPA 要求所有叶子字段为指针类型（指针指向的具体类型可以不同）。
-3. **计数检查**：叶子字段总数 ≤ 4。
+3. **计数检查**：叶子字段总数 ≤ 8。
 
 **同质浮点聚合（HFA, Homogeneous Floating-point Aggregate）**
 
@@ -186,6 +191,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 | `struct { double x, y; }` | 2×double | 16B | RF16, RF17 |
 | `struct { float a, b, c; }` | 3×float | 12B | RF16-18 |
 | `struct { struct { double x,y; } a, b; }` | 4×double | 32B | RF16-19 |
+| `struct { double a, b, c, d, e, f, g, h; }` | 8×double | 64B | RF16-23 |
 | `struct { double x; }` | 1×double | 8B | RF16 |
 
 以下情况不是 HFA：
@@ -195,7 +201,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 | `struct { float f; int i; }` | 混合类型（float + int） |
 | `struct { double x; char c; }` | 含非浮点类型（char） |
 | `union { float f; int i; }` | union 不展开 |
-| `struct { double a,b,c,d,e; }` | 叶子字段 > 4 |
+| `struct { double a,b,c,d,e,f,g,h,i; }` | 叶子字段 > 8 |
 
 **同质指针聚合（HPA, Homogeneous Pointer Aggregate）**
 
@@ -206,6 +212,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 |---------|--------|------|---------|
 | `struct { void *p, *q; }` | 2×void* | 16B | RB16, RB17 |
 | `struct { int *a, *b, *c, *d; }` | 4×int* | 32B | RB16-19 |
+| `struct { int *a, *b, *c, *d, *e, *f, *g, *h; }` | 8×int* | 64B | RB16-23 |
 | `struct { struct { char *x; } a; char *b; }` | 2×char* | 16B | RB16, RB17 |
 | `struct { int *p; void *q; }` | 2×指针 | 16B | RB16, RB17 |
 
@@ -213,12 +220,13 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 | 聚合类型 | 原因 |
 |---------|------|
 | `struct { void *p; int i; }` | 混合类型（指针 + int） |
+| `struct { int *a, *b, *c, *d, *e, *f, *g, *h, *i; }` | 叶子字段 > 8 |
 
 **不满足 HFA/HPA 条件**：
-- ≤ 32 字节：拆分为 1-4 个 8 字节块，放入 RD bank，高位块先入高寄存器
-- > 32 字节：通过指针引用（caller 在栈上分配临时空间，callee 通过 RB bank 中的指针访问）
+- ≤ 64 字节：拆分为 1-8 个 8 字节块，放入 RD bank，高位块先入高寄存器
+- > 64 字节：通过指针引用（caller 在栈上分配临时空间，callee 通过 RB bank 中的指针访问）
 
-#### 栈溢出规则
+#### 3.2.4 栈溢出规则
 
 当某 bank 的可用寄存器槽位用完时，该 bank 的后续参数使用栈传递。
 
@@ -235,7 +243,7 @@ Dadao使用以下寄存器传送参数，当参数超过寄存器数量时，使
 
 call 指令执行时 sp 必须 8 字节对齐。变参保存区同样 8 字节对齐。
 
-### 可变参数：Variable Arguments
+### 3.3 可变参数：Variable Arguments
 
 DADAO 采用 `va_list` 即为 `void*` 指针的极简实现，调用者在 call 指令前将所有参数按调用顺序依次写入栈上的连续保存区。
 
@@ -327,38 +335,40 @@ ap = (char*)sp + N * 8;
 - `va_arg(ap, long long)` ≡ `*(long long*)ap`（读全部 8 字节）。
 - `va_arg(ap, char)` 需用 `va_arg(ap, int)` 再截断（C 标准提升规则）。
 
-### 返回值：Returning of Values
+### 3.4 返回值：Returning of Values
 
-Dadao中，通常采用最后一个参数寄存器存放返回值。
-当需要多个返回值时，可以以参数寄存器的逆序提供多个返回值寄存器。
+Dadao 使用**固定返回寄存器组**存放返回值：整数 `rd8`、指针 `rb8`、浮点 `rf8`。返回寄存器区（`rd8-rd15` / `rb8-rb15` / `rf8-rf15`）与参数寄存器区（`rd16-rd31` / `rb16-rb31` / `rf16-rf31`）**互不重叠**。
 
-#### 标量类型返回值：Scalar type return
+#### 3.4.1 标量类型返回值：Scalar type return
 
-- 当返回值为绝对地址时，采用rb31作为返回值寄存器
-- 当返回值为浮点数时，采用rf31作为返回值寄存器
-- 其它情况，采用rd31作为返回值寄存器
+- 当返回值为绝对地址时，采用rb8作为返回值寄存器
+- 当返回值为浮点数时，采用rf8作为返回值寄存器
+- 其它情况，采用rd8作为返回值寄存器
 
-#### 多返回值
+#### 3.4.2 多返回值
 
-需要返回多个标量时，按参数寄存器的逆序使用：
+需要返回多个标量时，按**返回值声明顺序**、在同一 bank 内自 `8` 起**递增**分配返回寄存器：
 
-- 第 1 个返回值：rd31（或 rb31/rf31，依类型而定）
-- 第 2 个返回值：rd30
-- 第 3 个返回值：rd29，依次至 rd16
+- 第 1 个返回值：rd8（或 rb8/rf8，依类型而定）
+- 第 2 个返回值：rd9
+- 第 3 个返回值：rd10，依次至 rd15
 
-> **混合类型多返回值**：从声明顺序的最后一个返回值向前扫描，每个值按其类型分配到对应 bank（整数→rd，指针/地址→rb，浮点→rf）。各 bank 独立逆序分配，从各自 bank 的最高编号寄存器开始占用，互不干扰。同一 bank 内的多返回值连续占用递减编号。
+> **混合类型多返回值**：按声明顺序扫描，每个值按其类型分配到对应 bank（整数→rd，指针/地址→rb，浮点→rf）。各 bank 独立计数、自各自 bank 的第 8 号寄存器起**递增**分配，互不干扰。返回值顺序（第 1 个 → rd8/rb8/rf8）属 **ABI 可观测语义**，调用方与被调方必须一致。
 >
-> 例：`(int a, double* p, float f)` → a 为 rd31，p 为 rb31，f 为 rf31。
-> 例：`(int x, int y, double* p)` → x 为 rd31，y 为 rd30，p 为 rb31。
+> **每 bank 上限 K = 8**：任一 bank 的返回值占用至多 8 个（`rd8-rd15` / `rb8-rb15` / `rf8-rf15`）；任一 bank 超过 8 个，或无法用上述规则承载时，改用 **sret（隐藏指针）** 模式（见下）。
 >
-> 聚合类型 > 64 位仍采用 sret 模式，不适用多返回值。
+> 例：`(int a, double* p, float f)` → a 为 rd8，p 为 rb8，f 为 rf8。
+> 例：`(int x, int y, double* p)` → x 为 rd8，y 为 rd9，p 为 rb8。
 
-#### 聚合类型返回值：Aggregate return
+#### 3.4.3 聚合类型返回值：Aggregate return
 
-长度大于 64 位的聚合类型，采用 **hidden sret（structure return）模式**：
+聚合类型的各成员同样按上述返回寄存器规则，依**声明顺序**占用返回寄存器（每 bank 自 8 起递增，各 bank 至多 8 个）。
+
+当聚合类型（或多返回值整体）无法用返回寄存器承载时——任一 bank 的占用超过 8 个（超出 `rd8-rd15` / `rb8-rb15` / `rf8-rf15`），或无法按上述规则分配——采用 **hidden sret（structure return）模式**：
 
 - caller 在栈上预分配返回值空间，将空间地址作为隐藏的第一个参数，通过 **RB16** 传入 callee
 - callee 将聚合返回值写入 `sret_ptr` 指向的地址，返回时 `RB16` 仍保存该地址供 caller 读取
+- sret 指针占用 **RB16**，其后地址参数自 **RB17** 起计数
 
 例如 `struct Big make_big(int a)` 展开为：
 
@@ -368,16 +378,35 @@ void make_big(struct Big* sret_ptr, int a)
 // a        → RD16
 ```
 
-长度 ≤ 64 位的聚合类型，使用标量返回值规则（通过 RD31 返回）。
+## 4. 系统调用规范
 
-## 系统调用规范
+系统调用通过 `trap cfxha, immu18` 指令发起，其中 `cfxha` 指定目标核芯功能扩展，`immu18` 为硬件事务编号（功能编号）。
 
-系统调用通过 `trap cfxcode, immu18` 指令发起，其中 `cfxcode` 指定目标核芯功能扩展，`immu18` 为硬件事务编号（功能编号）。
-
-系统调用号存放在 RD15 寄存器中，参数使用 RD16 - RD31、RB16 - RB31 和 RF16 - RF31 传参，返回值放在 RD31 寄存器中。参数按类型分配到对应 寄存器组，三组寄存器各自独立计数。
+系统调用号存放在 RD15 寄存器中，参数使用 RD16 - RD31、RB16 - RB31 和 RF16 - RF31 传参，返回值放在 RD8 寄存器中。参数按类型分配到对应 寄存器组，三组寄存器各自独立计数。
 
 `trap` 指令的 `immu18` 与 RD15 为两个独立层次：
 - `immu18`：指令编码层的硬件事务编号，用于硬件异常分发，决定"是什么调用"
 - RD15：软件调用约定层的系统调用号，作为附加参数传递具体子功能
 
 两者互不覆盖，操作系统可根据 `immu18` 分类后再依 RD15 进一步分发。
+
+---
+
+## 附录：版本与变更记录
+
+> **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
+
+### 0.9.3-rc（未发布）
+
+- 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 寄存器布局重排：`rb2`=GP、`rb3`=TP，`rb4`–`rb7` caller-saved，`rb63`=FP（条件保留）；`rd2`/`rd3` 保留，`rd4`–`rd7` caller-saved。
+- 返回值契约收口：返回寄存器 `rd8`/`rb8`/`rf8`，按声明序每 bank 递增 K=8，超出者经 `rb16`（sret）。
+- 系统调用 / semihosting 返回值统一为 `rd8`。
+- 聚合传参收口：通用 / HFA / HPA 统一「最多 8 个寄存器槽位（64 字节）」，>64 B 走间接指针。
+- 栈布局以 `rbfp` 为界描述，移除 red zone。
+- 汇编格式迁移新格式；`LD`/`ST`/`cs.`/`br.` 等指令名统一；伪指令迁回 SimRISC。
+- 与上游 SimRISC 0.5.4 基线对齐。
+
+### 0.9.2（上游基线；导入日 2026-07-14，发布日不详）
+
+- 上游 DADAO 应用程序二进制接口（ABI）基线（基于 SimRISC 0.4.1）。

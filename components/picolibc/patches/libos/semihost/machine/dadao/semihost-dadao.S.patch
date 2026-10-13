@@ -1,0 +1,47 @@
+diff --git a/libos/semihost/machine/dadao/semihost-dadao.S b/libos/semihost/machine/dadao/semihost-dadao.S
+new file mode 100644
+index 0000000..6d4c3e5
+--- /dev/null
++++ b/libos/semihost/machine/dadao/semihost-dadao.S
+@@ -0,0 +1,41 @@
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ *
++ * DADAO semihosting primitive for the picolibc semihosting client.
++ *
++ * The generic client (libos/semihost/common/) implements every service with
++ * three helpers, sys_semihost1/2/3, that all funnel into the arch-specific
++ * `sys_semihost(op, param)` defined here.  It issues one semihosting `trap`
++ * and returns the service result.
++ *
++ * DADAO convention (DADAO-v5 contract-semihosting.md §1/§2/§4):
++ *   * the service number goes in rd16 (rda0);
++ *   * the argument-block pointer goes in rb16 (rba0);
++ *   * the result comes back in rd8;
++ *   * the call is `trap <any cfxha>, 0x30000` — the tag test is
++ *     immu18[17:16] == 2'b11 and is independent of the cfxha value, so
++ *     cfx_umon is used here exactly as in the M5 vectors;
++ *   * semihosting has no `escape`: the implementation advances pc and writes
++ *     rd8.
++ *
++ * C prototype (libos/semihost/common/semihost-private.h):
++ *   uintptr_t sys_semihost(uintptr_t op, uintptr_t param);
++ * Under the DADAO scalar ABI both arguments are integers, so they arrive in
++ * rd16 (op) and rd17 (param) respectively (contract-abi.md §4.1: rd16-rd31 are
++ * the data-argument registers).  op is already in the rd16 slot the trap
++ * expects; only param must be moved into the base-bank argument register rb16,
++ * which `rd2rb {rb16}, {rd17}` does.  The result lands in rd8, which is also
++ * the integer return register (contract-abi.md §4.4), so no further move is
++ * needed.
++ */
++
++#include <picolibc.h>
++
++	.text
++	.globl	sys_semihost
++	.type	sys_semihost, @function
++sys_semihost:
++	rd2rb	{rb16}, {rd17}		; param -> rb16 (argument block pointer)
++	trap	cfx_umon, 0x30000	; immu18[17:16] == 2'b11 => semihosting
++	ret	rd0, 0			; result already in rd8
++	.size	sys_semihost, . - sys_semihost

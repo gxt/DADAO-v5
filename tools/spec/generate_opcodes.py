@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""从 SimRISC 0.5.4 规范生成 M1 范围机器可读编码表 contracts/opcodes.yaml。
+"""从 SimRISC 0.5.4 规范生成范围机器可读编码表 contracts/opcodes.yaml。
 
-M1 范围：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统。
-M1 范围外（浮点 RF 全部 / 特权 cfx / LR-SC 原子）保留其编码条目并标
-`excluded_m1: true`，解码按 ILLI 处理（`decode: ILLI`）——编码已定义但 M1 不实现，
-执行即非法指令；UNDI 仅用于架构显式留空的编码（空白单元格）。
+每条记录带 `scope` 字段（互斥、穷尽，用户裁定 2026-10-03）：
+  - `scope: m1`（155 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
+  - `scope: fp`（60 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
+    独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
+  - `scope: excluded`（11 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC / fence，
+    暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`）；
+  - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
+    **非 M1 身份**，不要求 M1 向量覆盖。
+约定 `scope == "excluded"` ⇒ `decode: ILLI`——编码已定义但尚未实现，执行即非法指令；
+`m1`/`fp` 不携带 `decode`（已实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
 
 来源：
   - spec/SimRISC-00-指令系统设计.md  （QFC 主表 + 6 个 MISC 子表：编码权威）
@@ -13,6 +19,7 @@ M1 范围外（浮点 RF 全部 / 特权 cfx / LR-SC 原子）保留其编码条
 
 import os
 import yaml
+from collections import OrderedDict
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_PATH = os.path.join(REPO_ROOT, "contracts", "opcodes.yaml")
@@ -92,20 +99,20 @@ def f_oiii(imm):
 
 
 def f_crrr():
-    return [_field("cfxcode", "[23:18]", "cfxcode", "imm"),
-            R("hb", "[17:12]", "cfx_cg", "rb"),
-            R("hc", "[11:6]", "cfx_rc", "rc"),
-            R("hd", "[5:0]", "dst", "rd")]
+    return [_field("cfxha", "[23:18]", "cfxcode", "imm"),
+            R("cghb", "[17:12]", "cfx_cg", "rb"),
+            R("rchc", "[11:6]", "cfx_rc", "rc"),
+            R("rdhd", "[5:0]", "dst", "rd")]
 
 
 def f_crii(imm="immu12"):
-    return [_field("cfxcode", "[23:18]", "cfxcode", "imm"),
+    return [_field("cfxha", "[23:18]", "cfxcode", "imm"),
             R("rbhb", "[17:12]", "src"),
             I(imm, "[11:0]")]
 
 
 def f_ciii(imm):
-    return [_field("cfxcode", "[23:18]", "cfxcode", "imm"),
+    return [_field("cfxha", "[23:18]", "cfxcode", "imm"),
             I(imm, "[17:0]")]
 
 
@@ -123,8 +130,8 @@ _SPECIAL_IDS = {
     # 控制流
     "call": "ra", "jump": "rb", "ret": "ra",
     # 浮点运算/比较（fo*/ft* 前缀 → rf）
-    "ftcls": "rf", "ft2fo": "rf", "ft2ft": "rf", "ftroot": "rf", "ftlog": "rf",
-    "focls": "rf", "fo2ft": "rf", "fo2fo": "rf", "foroot": "rf", "folog": "rf",
+    "ftcls": "rf", "ft2fo": "rf", "ft2ft": "rf", "ftroot": "rf",
+    "focls": "rf", "fo2ft": "rf", "fo2fo": "rf", "foroot": "rf",
     "ft2it": "rf", "ft2io": "rf", "ft2ut": "rf", "ft2uo": "rf",
     "it2ft": "rf", "io2ft": "rf", "ut2ft": "rf", "uo2ft": "rf",
     "fo2it": "rf", "fo2io": "rf", "fo2ut": "rf", "fo2uo": "rf",
@@ -172,9 +179,11 @@ def _infer_feature(fields, fmt=None):
 
 # ────────────────────────────── 记录构造 ──────────────────────────────
 
-def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, excluded=False):
+def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1"):
     """构造一条编码记录。ha 为 None 时为主表指令，否则为 MISC 子表指令。
 
+    scope ∈ {"m1", "fp", "excluded", "m3"}（必填语义，缺省 m1）。scope == "excluded" 时附
+    `decode: ILLI`（编码已定义但尚未实现）；`m1`/`fp`/`m3` 不携带 `decode`。
     对于 orrr/orri/oiii 格式，ha 并入 op（op 变为14位）。
     对于其余格式，ha 作为独立操作数 field（由调用方加入 fields 列表）。
     """
@@ -192,8 +201,8 @@ def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, excluded=
     r["fields"] = fields
     r["legality"] = legality
     r["spec_cite"] = spec_cite
-    if excluded:
-        r["excluded_m1"] = True
+    r["scope"] = scope
+    if scope == "excluded":
         r["decode"] = "ILLI"
     return r
 
@@ -233,12 +242,10 @@ S06_RET = "SimRISC-06 §函数返回"
 
 # 其它（SimRISC-11）
 S11_SWYM = "SimRISC-11 §占位指令"
-S11_ILLI = "SimRISC-11 §非法指令"
 
 # 待定（SimRISC-12）
 S12_FENCE = "SimRISC-12 §fence指令"
 S12_LRSC = "SimRISC-12 §LR-SC指令"
-S12_RELA = "SimRISC-12 §PC相对寻址"
 
 # QFC/MISC-RF（SimRISC-00）
 S00_QFC = "SimRISC-00 §SimRISC QFC"
@@ -248,6 +255,8 @@ S00_MISCRF = "SimRISC-00 §MISC-RF指令编码"
 LEG_RD_DST = "rdha != rd0"
 LEG_RB_DST = "rbha != rb0"
 LEG_IMMU6 = "immu6 != 0"
+# 仅 ret 适用：rdha == rd0 时 imms18 必须为 0（等价于 !(rdha == rd0 && imms18 != 0)）
+LEG_RET_RD0_IMMS18 = "!(rdha == rd0 && imms18 != 0)"
 
 
 def aligned(n):
@@ -270,10 +279,10 @@ def build_main_table(records):
 
     # ── 0001-0xxx 末：RF load/store（excluded）──
     records.append(rec("ld.t-rf", "ld.t", "rrii", 0x16,
-                       f_rrii("rfha", "rbhb", "imms12"), [], S00_QFC, excluded=True))
+                       f_rrii("rfha", "rbhb", "imms12"), [], S00_QFC, scope="fp"))
     records.append(rec("st.t-rf", "st.t", "rrii", 0x17,
                        f_rrii("rfha", "rbhb", "imms12", roles=("src", "src")), [],
-                       S00_QFC, excluded=True))
+                       S00_QFC, scope="fp"))
 
     # ── 0001-1xxx：RD 单 store（rrii）──
     # 语义变更：st 的 rdha != rd0 已删除（store 的 ha 是源操作数，允许 rd0）
@@ -305,10 +314,10 @@ def build_main_table(records):
                        f_rrii("raha", "rbhb", "imms12", roles=("src", "src")),
                        [aligned(8)], S01_RA_LD))
     records.append(rec("ld.o-rf", "ld.o", "rrii", 0x26,
-                       f_rrii("rfha", "rbhb", "imms12"), [], S00_QFC, excluded=True))
+                       f_rrii("rfha", "rbhb", "imms12"), [], S00_QFC, scope="fp"))
     records.append(rec("st.o-rf", "st.o", "rrii", 0x27,
                        f_rrii("rfha", "rbhb", "imms12", roles=("src", "src")), [],
-                       S00_QFC, excluded=True))
+                       S00_QFC, scope="fp"))
 
     # ── 0010-1xxx：RD 多 load（rrri）──
     for op, mnem, align in [
@@ -321,11 +330,12 @@ def build_main_table(records):
         records.append(rec(f"{mnem}-rd", mnem, "rrri", op,
                            f_rrri("rdha", "rbhb", "rdhc", "immu6"), leg, S01_LD))
     records.append(rec("ldm.t-rf", "ldm.t", "rrri", 0x2E,
-                       f_rrri("rfha", "rbhb", "rdhc", "immu6"), [],
-                       S00_QFC, excluded=True))
+                       f_rrri("rfha", "rbhb", "rdhc", "immu6"),
+                       [LEG_IMMU6, "rfha + immu6 <= 64"],
+                       S00_QFC, scope="fp"))
     records.append(rec("stm.t-rf", "stm.t", "rrri", 0x2F,
                        f_rrri("rfha", "rbhb", "rdhc", "immu6", roles=("src", "src", "src")),
-                       [], S00_QFC, excluded=True))
+                       [LEG_IMMU6, "rfha + immu6 <= 64"], S00_QFC, scope="fp"))
 
     # ── 0011-0xxx：RD 多 store（rrri）──
     # 语义变更：stm 的 rdha != rd0 已删除
@@ -360,11 +370,12 @@ def build_main_table(records):
                               roles=("src", "src", "src")),
                        [LEG_IMMU6, "raha + immu6 <= 64", aligned(8)], S01_RA_LD))
     records.append(rec("ldm.o-rf", "ldm.o", "rrri", 0x3E,
-                       f_rrri("rfha", "rbhb", "rdhc", "immu6"), [],
-                       S00_QFC, excluded=True))
+                       f_rrri("rfha", "rbhb", "rdhc", "immu6"),
+                       [LEG_IMMU6, "rfha + immu6 <= 64"],
+                       S00_QFC, scope="fp"))
     records.append(rec("stm.o-rf", "stm.o", "rrri", 0x3F,
                        f_rrri("rfha", "rbhb", "rdhc", "immu6", roles=("src", "src", "src")),
-                       [], S00_QFC, excluded=True))
+                       [LEG_IMMU6, "rfha + immu6 <= 64"], S00_QFC, scope="fp"))
 
     # ── 0100-1xxx：立即数赋值（rwii）──
     records.append(rec("or.w-rd", "or.w", "rwii", 0x48,
@@ -382,7 +393,7 @@ def build_main_table(records):
     records.append(rec("set.zw-rb", "set.zw", "rwii", 0x4E,
                        f_rwii("rbha", "immu16"), [LEG_RB_DST], S03_IMM))
     records.append(rec("set.w-rf", "set.w", "rwii", 0x4F,
-                       f_rwii("rfha", "immu16"), [], S00_QFC, excluded=True))
+                       f_rwii("rfha", "immu16"), [], S00_QFC, scope="fp"))
 
     # ── 0101-0xxx：加减乘（rrrr，双目的）──
     dual_leg = ["!(rdha == rd0 && rdhb == rd0)", "!(rdha == rdhb && rdha != rd0)"]
@@ -399,8 +410,7 @@ def build_main_table(records):
     # ── 0101-1xxx：自增/相对/比较 ──
     records.append(rec("add.si-rd", "add.si", "riii", 0x59,
                        f_riii("rdha", "imms18"), [LEG_RD_DST], S04_INC))
-    records.append(rec("rela.si-rb", "rela.si", "riii", 0x5A,
-                       f_riii("rbha", "imms18"), [LEG_RB_DST], S12_RELA))
+    # 0x5A: rela.si deleted (ADR-0012 D5) → reserved → UNDI
     records.append(rec("add.si-rb", "add.si", "riii", 0x5B,
                        f_riii("rbha", "imms18"), [LEG_RB_DST], S05_INC))
     records.append(rec("cmp.ui-rd", "cmp.ui", "rrii", 0x5C,
@@ -409,12 +419,12 @@ def build_main_table(records):
                        f_rrii("rdha", "rdhb", "imms12"), [LEG_RD_DST], S04_CMP))
     records.append(rec("cs.eq-rf", "cs.eq", "rrrr", 0x5E,
                        f_rrrr("rdha", "rdhb", "rfhc", "rfhd",
-                              roles=("src", "src", "dst", "src")), [],
-                       S00_QFC, excluded=True))
+                              roles=("src", "src", "dst", "src")),
+                       ["rfhc != rf0"], S00_QFC, scope="fp"))
     records.append(rec("cs.ne-rf", "cs.ne", "rrrr", 0x5F,
                        f_rrrr("rdha", "rdhb", "rfhc", "rfhd",
-                              roles=("src", "src", "dst", "src")), [],
-                       S00_QFC, excluded=True))
+                              roles=("src", "src", "dst", "src")),
+                       ["rfhc != rf0"], S00_QFC, scope="fp"))
 
     # ── 0110-0xxx：条件赋值（rrrr）──
     records.append(rec("cs.n-rd", "cs.n", "rrrr", 0x60,
@@ -423,24 +433,24 @@ def build_main_table(records):
                        ["rdhb != rd0"], S02_CS))
     records.append(rec("cs.n-rf", "cs.n", "rrrr", 0x61,
                        f_rrrr("rdha", "rfhb", "rfhc", "rfhd",
-                              roles=("src", "dst", "src", "src")), [],
-                       S00_QFC, excluded=True))
+                              roles=("src", "dst", "src", "src")),
+                       ["rfhb != rf0"], S00_QFC, scope="fp"))
     records.append(rec("cs.z-rd", "cs.z", "rrrr", 0x62,
                        f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
                               roles=("src", "dst", "src", "src")),
                        ["rdhb != rd0"], S02_CS))
     records.append(rec("cs.z-rf", "cs.z", "rrrr", 0x63,
                        f_rrrr("rdha", "rfhb", "rfhc", "rfhd",
-                              roles=("src", "dst", "src", "src")), [],
-                       S00_QFC, excluded=True))
+                              roles=("src", "dst", "src", "src")),
+                       ["rfhb != rf0"], S00_QFC, scope="fp"))
     records.append(rec("cs.p-rd", "cs.p", "rrrr", 0x64,
                        f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
                               roles=("src", "dst", "src", "src")),
                        ["rdhb != rd0"], S02_CS))
     records.append(rec("cs.p-rf", "cs.p", "rrrr", 0x65,
                        f_rrrr("rdha", "rfhb", "rfhc", "rfhd",
-                              roles=("src", "dst", "src", "src")), [],
-                       S00_QFC, excluded=True))
+                              roles=("src", "dst", "src", "src")),
+                       ["rfhb != rf0"], S00_QFC, scope="fp"))
     records.append(rec("cs.eq-rd", "cs.eq", "rrrr", 0x66,
                        f_rrrr("rdha", "rdhb", "rdhc", "rdhd",
                               roles=("src", "src", "dst", "src")),
@@ -476,44 +486,46 @@ def build_main_table(records):
                        f_rrii("rbha", "rdhb", "imms12", roles=("src", "src")),
                        [], S06_CALL))
     records.append(rec("ret-riii", "ret", "riii", 0x76,
-                       f_riii("rdha", "imms18"), [], S06_RET))
+                       f_riii("rdha", "imms18"), [LEG_RET_RD0_IMMS18], S06_RET))
 
-    # ── 0111-1xxx：特权 cfx（excluded）──
+    # ── 0111-1xxx：特权 cfx ──
+    # SPEC-115t：trap/escape/cfx2rd/cfx2rc re-scope excluded → m1（已实现，MC 可汇编）。
+    # cfxld/cfxst 保持 scope: excluded（SimRISC-12 待定，decode ILLI）。
     records.append(rec("cfx2rd-crrr", "cfx2rd", "crrr", 0x7A,
-                       f_crrr(), [], S00_QFC, excluded=True))
+                       f_crrr(), [], S00_QFC, scope="m1"))
     records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
-                       f_crrr(), [], S00_QFC, excluded=True))
+                       f_crrr(), [], S00_QFC, scope="m1"))
     records.append(rec("cfxld-crii", "cfxld", "crii", 0x7C,
-                       f_crii("immu12"), [], S00_QFC, excluded=True))
+                       f_crii("immu12"), [], S00_QFC, scope="excluded"))
     records.append(rec("cfxst-crii", "cfxst", "crii", 0x7D,
-                       f_crii("immu12"), [], S00_QFC, excluded=True))
+                       f_crii("immu12"), [], S00_QFC, scope="excluded"))
     records.append(rec("escape-ciii", "escape", "ciii", 0x7E,
-                       f_ciii("imms18"), [], S00_QFC, excluded=True))
+                       f_ciii("imms18"), [], S00_QFC, scope="m1"))
     records.append(rec("trap-ciii", "trap", "ciii", 0x7F,
-                       f_ciii("immu18"), [], S00_QFC, excluded=True))
+                       f_ciii("immu18"), [], S00_QFC, scope="m1"))
 
 
 # ────────────────────────────── MISC-AMO ──────────────────────────────
 
 def build_misc_amo(records):
-    op = 0x00
-    records.append(rec("illi", "illi", "oiii", op, f_oiii("immu18"),
-                       [], S11_ILLI, ha=0x00))
+    op = 0x77
+    # ADR-0012 D3.5：删除原专门非法指令（ILLI 异常保留，由非法操作数/条件/保留编码触发）；
+    # fence 移至 000-000（ha=0x00）；swym 移至 100-010（ha=0x22）。
     records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
                        ["immu18[17:12] == 0", "immu18[11:6] == 0", "immu18[5:4] == 0"],
-                       S12_FENCE, ha=0x01))
-    # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 MISC-AMO 000-010
+                       S12_FENCE, ha=0x00, scope="excluded"))
+    # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 MISC-AMO 100-010（ha=0x22）
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
-                       [], S11_SWYM, ha=0x02))
+                       [], S11_SWYM, ha=0x22))
     # spec MISC-AMO 表：行 010-xxx（lr）/ 011-xxx（sc）→ ha 0x10-0x13 / 0x18-0x1B
     for i, mnem in enumerate(["lr_nn.o", "lr_nr.o", "lr_an.o", "lr_ar.o"]):
         records.append(rec(mnem, mnem, "orrr", op,
                            f_orrr("rdhb", "rdhc", "rbhd"), [],
-                           S12_LRSC, ha=0x10 + i, excluded=True))
+                           S12_LRSC, ha=0x10 + i, scope="excluded"))
     for i, mnem in enumerate(["sc_nn.o", "sc_nr.o", "sc_an.o", "sc_ar.o"]):
         records.append(rec(mnem, mnem, "orrr", op,
                            f_orrr("rdhb", "rdhc", "rbhd"), [],
-                           S12_LRSC, ha=0x18 + i, excluded=True))
+                           S12_LRSC, ha=0x18 + i, scope="excluded"))
 
 
 # ────────────────────────────── MISC-octa ──────────────────────────────
@@ -528,16 +540,22 @@ def build_misc_octa(records):
                            ["rdhb != rd0"], S04_BIT, ha=0x10 + i))
     for i, mnem in enumerate(["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0", "immu6 <= 63"], S04_BIT, ha=0x18 + i))
-    records.append(rec("add.so-rb", "add.so", "orrr", op,
+                           ["rdhb != rd0"], S04_BIT, ha=0x18 + i))
+    # D9.2/D9.3：orrr 单目的 id 后缀 = 操作数 bank 签名（bbd/dbb）
+    records.append(rec("add.o-bbd", "add.o", "orrr", op,
                        f_orrr("rbhb", "rbhc", "rdhd"), ["rbhb != rb0"],
-                       S05_ADD, ha=0x20))
-    records.append(rec("sub.so-rb", "sub.so", "orrr", op,
+                       S05_ADD, ha=0x30))
+    records.append(rec("sub.o-bbd", "sub.o", "orrr", op,
                        f_orrr("rbhb", "rbhc", "rdhd"), ["rbhb != rb0"],
-                       S05_ADD, ha=0x28))
-    records.append(rec("cmp.uo-rb", "cmp.uo", "orrr", op,
+                       S05_ADD, ha=0x31))
+    records.append(rec("cmp.uo-dbb", "cmp.uo", "orrr", op,
                        f_orrr("rdhb", "rbhc", "rbhd"), ["rdhb != rd0"],
-                       S05_CMP, ha=0x29))
+                       S05_CMP, ha=0x32))
+    # D9.1：新增 sub.o rdhb, rbhc, rbhd（RB − RB → RD，orrr，dbb 形态）
+    # scope: m3（M3 CodeGen 新增，非 M1 身份，不要求 M1 向量覆盖）
+    records.append(rec("sub.o-dbb", "sub.o", "orrr", op,
+                       f_orrr("rdhb", "rbhc", "rbhd"), ["rdhb != rd0"],
+                       S05_ADD, ha=0x33, scope="m3"))
     records.append(rec("cmp.uo", "cmp.uo", "orrr", op,
                        f_orrr("rdhb", "rdhc", "rdhd"), ["rdhb != rd0"],
                        S04_CMP, ha=0x2A))
@@ -568,40 +586,39 @@ def build_misc_octa(records):
                        S02_BLK, ha=0x36))
     for i, mnem in enumerate(["div.uo", "div.so", "rem.uo", "rem.so"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0", "rdhd != 0"], S04_MUL, ha=0x38 + i))
+                           ["rdhb != rd0"], S04_MUL, ha=0x38 + i))
     # RF 块赋值（excluded）
     records.append(rec("rd2rf", "rd2rf", "orri", op, f_orri("rfhb", "rdhc", "immu6"),
-                       [], S00_MISCRF, ha=0x3D, excluded=True))
+                       [LEG_IMMU6, "rfhb + immu6 <= 64", "rdhc + immu6 <= 64"],
+                       S00_MISCRF, ha=0x3D, scope="fp"))
     records.append(rec("rf2rd", "rf2rd", "orri", op, f_orri("rdhb", "rfhc", "immu6"),
-                       [], S00_MISCRF, ha=0x3E, excluded=True))
+                       ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64",
+                        "rfhc + immu6 <= 64"],
+                       S00_MISCRF, ha=0x3E, scope="fp"))
 
 
 # ────────────────────────────── MISC 固定位宽子表 ──────────────────────────────
 
 def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
-    """suffix: 't'/'w'/'b'；nbits: 31/15/7；sdoc: 对应 SimRISC 文档（SimRISC-08/09/10）。"""
+    """suffix: 't'/'w'/'b'；nbits: 31/15/7；sdoc: 对应 SimRISC 文档（SimRISC-08/09/10）。
+
+    SPEC-069t：窄位宽逻辑（and/or/xor/xnor）与窄位宽扩展（ext）已删除（24 条），
+    仅保留 shr/shl（位操作）、add/sub（算术）、cmp（比较）、mul/div/rem（乘除余）。
+    """
     cite_add = f"{sdoc} §加减操作"
     cite_cmp = f"{sdoc} §比较操作"
     cite_mul = f"{sdoc} §乘除操作"
-    cite_log = f"{sdoc} §Logic operators：逻辑运算"
     cite_bit = f"{sdoc} §Bit manipulating：位操作指令"
-    # 逻辑运算 orrr（ha 0x08-0x0B）
-    for i, base in enumerate(["and", "or", "xor", "xnor"]):
-        mnem = f"{base}.{suffix}"
-        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0"], cite_log, ha=0x08 + i))
-    # ext/shr/shl orrr（ha 0x10-0x14）
-    for i, mnem in enumerate([f"ext.u{suffix}", f"ext.s{suffix}",
-                              f"shr.u{suffix}", f"shr.s{suffix}",
+    # shr/shl orrr（ha 0x12-0x14）——SPEC-069t：ext 已删除，shr/shl 从 0x12 开始
+    for i, mnem in enumerate([f"shr.u{suffix}", f"shr.s{suffix}",
                               f"shl.u{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0"], cite_bit, ha=0x10 + i))
-    # ext/shr/shl orri（ha 0x18-0x1C）
-    for i, mnem in enumerate([f"ext.u{suffix}", f"ext.s{suffix}",
-                              f"shr.u{suffix}", f"shr.s{suffix}",
+                           ["rdhb != rd0"], cite_bit, ha=0x12 + i))
+    # shr/shl orri（ha 0x1A-0x1C）——SPEC-069t：ext 已删除，shr/shl 从 0x1A 开始
+    for i, mnem in enumerate([f"shr.u{suffix}", f"shr.s{suffix}",
                               f"shl.u{suffix}"]):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0", f"immu6 <= {nbits}"], cite_bit, ha=0x18 + i))
+                           ["rdhb != rd0", f"immu6 <= {nbits}"], cite_bit, ha=0x1A + i))
     # add（ha 0x20-0x21）
     for i, mnem in enumerate([f"add.u{suffix}", f"add.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
@@ -622,46 +639,54 @@ def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
     for i, mnem in enumerate([f"div.u{suffix}", f"div.s{suffix}",
                               f"rem.u{suffix}", f"rem.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0", "rdhd != 0"], cite_mul, ha=0x38 + i))
+                           ["rdhb != rd0"], cite_mul, ha=0x38 + i))
 
 
 # ────────────────────────────── MISC-RF（全 excluded）──────────────────────────────
 
 def build_misc_rf(records):
     op = 0x44
+    # 各族 legality（来源：contract-fp.md §15 + fp_semantics.yaml；SPEC-089t 回填）
+    leg_convert_ff = ["rfhb != rf0", LEG_IMMU6, "rfhb + immu6 <= 64",
+                      "rfhc + immu6 <= 64", "no_overlap(rfhb, rfhc, immu6)"]
+    leg_convert_f2i = ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64",
+                       "rfhc + immu6 <= 64"]
+    leg_convert_i2f = ["rfhb != rf0", LEG_IMMU6, "rfhb + immu6 <= 64",
+                       "rdhc + immu6 <= 64"]
+    leg_root = ["rfhb != rf0", "immu6 == 2"]
+    leg_classify = ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64",
+                    "rfhc + immu6 <= 64"]
     # orri 单目/格式转换类（rf -> rd 或 rd -> rf）
     orri_entries = [
-        (0x00, "ftcls", "rdhb", "rfhc"),
-        (0x01, "ft2fo", "rfhb", "rfhc"),
-        (0x02, "ft2ft", "rfhb", "rfhc"),
-        (0x06, "ftroot", "rfhb", "rfhc"),
-        (0x07, "ftlog", "rfhb", "rfhc"),
-        (0x08, "focls", "rdhb", "rfhc"),
-        (0x09, "fo2ft", "rfhb", "rfhc"),
-        (0x0A, "fo2fo", "rfhb", "rfhc"),
-        (0x0E, "foroot", "rfhb", "rfhc"),
-        (0x0F, "folog", "rfhb", "rfhc"),
-        (0x30, "ft2it", "rdhb", "rfhc"),
-        (0x31, "ft2io", "rdhb", "rfhc"),
-        (0x32, "ft2ut", "rdhb", "rfhc"),
-        (0x33, "ft2uo", "rdhb", "rfhc"),
-        (0x34, "it2ft", "rfhb", "rdhc"),
-        (0x35, "io2ft", "rfhb", "rdhc"),
-        (0x36, "ut2ft", "rfhb", "rdhc"),
-        (0x37, "uo2ft", "rfhb", "rdhc"),
-        (0x38, "fo2it", "rdhb", "rfhc"),
-        (0x39, "fo2io", "rdhb", "rfhc"),
-        (0x3A, "fo2ut", "rdhb", "rfhc"),
-        (0x3B, "fo2uo", "rdhb", "rfhc"),
-        (0x3C, "it2fo", "rfhb", "rdhc"),
-        (0x3D, "io2fo", "rfhb", "rdhc"),
-        (0x3E, "ut2fo", "rfhb", "rdhc"),
-        (0x3F, "uo2fo", "rfhb", "rdhc"),
+        (0x00, "ftcls", "rdhb", "rfhc", leg_classify),
+        (0x01, "ft2fo", "rfhb", "rfhc", leg_convert_ff),
+        (0x02, "ft2ft", "rfhb", "rfhc", leg_convert_ff),
+        (0x06, "ftroot", "rfhb", "rfhc", leg_root),
+        (0x08, "focls", "rdhb", "rfhc", leg_classify),
+        (0x09, "fo2ft", "rfhb", "rfhc", leg_convert_ff),
+        (0x0A, "fo2fo", "rfhb", "rfhc", leg_convert_ff),
+        (0x0E, "foroot", "rfhb", "rfhc", leg_root),
+        (0x30, "ft2it", "rdhb", "rfhc", leg_convert_f2i),
+        (0x31, "ft2io", "rdhb", "rfhc", leg_convert_f2i),
+        (0x32, "ft2ut", "rdhb", "rfhc", leg_convert_f2i),
+        (0x33, "ft2uo", "rdhb", "rfhc", leg_convert_f2i),
+        (0x34, "it2ft", "rfhb", "rdhc", leg_convert_i2f),
+        (0x35, "io2ft", "rfhb", "rdhc", leg_convert_i2f),
+        (0x36, "ut2ft", "rfhb", "rdhc", leg_convert_i2f),
+        (0x37, "uo2ft", "rfhb", "rdhc", leg_convert_i2f),
+        (0x38, "fo2it", "rdhb", "rfhc", leg_convert_f2i),
+        (0x39, "fo2io", "rdhb", "rfhc", leg_convert_f2i),
+        (0x3A, "fo2ut", "rdhb", "rfhc", leg_convert_f2i),
+        (0x3B, "fo2uo", "rdhb", "rfhc", leg_convert_f2i),
+        (0x3C, "it2fo", "rfhb", "rdhc", leg_convert_i2f),
+        (0x3D, "io2fo", "rfhb", "rdhc", leg_convert_i2f),
+        (0x3E, "ut2fo", "rfhb", "rdhc", leg_convert_i2f),
+        (0x3F, "uo2fo", "rfhb", "rdhc", leg_convert_i2f),
     ]
-    for ha, mnem, dst, src in orri_entries:
+    for ha, mnem, dst, src, leg in orri_entries:
         records.append(rec(mnem, mnem, "orri", op, f_orri(dst, src, "immu6"),
-                           [], S00_MISCRF, ha=ha, excluded=True))
-    # orrr 双目运算/比较类
+                           leg, S00_MISCRF, ha=ha, scope="fp"))
+    # orrr 双目运算/符号位操作类（目的 rfHB；无 immu6）
     orrr_entries = [
         (0x10, "ftadd"), (0x11, "ftsub"), (0x12, "ftmul"), (0x13, "ftdiv"),
         (0x14, "ftrem"), (0x15, "ftsclb"), (0x16, "ftsgnn"), (0x17, "ftsgnj"),
@@ -670,13 +695,93 @@ def build_misc_rf(records):
     ]
     for ha, mnem in orrr_entries:
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rfhb", "rfhc", "rfhd"),
-                           [], S00_MISCRF, ha=ha, excluded=True))
+                           ["rfhb != rf0"], S00_MISCRF, ha=ha, scope="fp"))
     # 比较类：目的为 rd
     cmp_entries = [(0x20, "ftqcmp"), (0x21, "ftscmp"), (0x28, "foqcmp"), (0x29, "foscmp")]
     for ha, mnem in cmp_entries:
         records.append(rec(mnem, mnem, "orrr", op,
-                           f_orrr("rdhb", "rfhc", "rfhd"), [],
-                           S00_MISCRF, ha=ha, excluded=True))
+                           f_orrr("rdhb", "rfhc", "rfhd"), ["rdhb != rd0"],
+                           S00_MISCRF, ha=ha, scope="fp"))
+
+
+# ────────────────────────────── rule_refs 映射 ──────────────────────────────
+
+# legality 表达式 → legality_rules.yaml id 的完整映射。
+# 来源：contracts/legality_rules.yaml（SPEC-070t 定稿 15 条 + SPEC-083t 新增 dst_rd0_nonzero = 16 条）。
+# 仅映射 opcodes.yaml legality 中实际出现的表达式；
+# 运行时/兜底规则（excp_ialign/excp_rasof/excp_rasuf/excp_undi）不由 legality 表达式触发，
+# 在 check_rule_refs.py 中通过显式豁免清单处理。
+EXPR_TO_RULE = OrderedDict([
+    # ── 目的寄存器 ──
+    ("rdha != rd0",                               "dst_rd0"),
+    ("rdhb != rd0",                               "dst_rd0"),
+    ("rdhc != rd0",                               "dst_rd0"),
+    ("rbha != rb0",                               "dst_rb0"),
+    ("rbhb != rb0",                               "dst_rb0"),
+    # ret rdha==rd0 时 imms18 必须为 0（仅 ret 适用）
+    ("!(rdha == rd0 && imms18 != 0)",             "dst_rd0_nonzero"),
+    # ── 双目的约束 ──
+    ("!(rdha == rd0 && rdhb == rd0)",             "dst_dual_same"),
+    ("!(rdha == rdhb && rdha != rd0)",            "dst_dual_same"),
+    # ── 多寄存器/块赋值范围 ──
+    ("immu6 != 0",                                "mreg_zero"),
+    ("raha + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rahb + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rahc + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rbha + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rbhb + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rbhc + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rdha + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rdhb + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rdhc + immu6 <= 64",                        "mreg_range_overflow"),
+    # ── 块赋值重叠 ──
+    ("no_overlap(rdhb, rdhc, immu6)",             "mreg_range_overlap"),
+    ("no_overlap(rbhb, rbhc, immu6)",             "mreg_range_overlap"),
+    # ── FP（scope: fp）目的/范围（SPEC-089t；来源 contract-fp.md §15 + fp_semantics.yaml）──
+    ("rfhb != rf0",                               "dst_rf0"),
+    ("rfhc != rf0",                               "dst_rf0"),
+    ("rfha + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rfhb + immu6 <= 64",                        "mreg_range_overflow"),
+    ("rfhc + immu6 <= 64",                        "mreg_range_overflow"),
+    ("no_overlap(rfhb, rfhc, immu6)",             "mreg_range_overlap"),
+    ("immu6 == 2",                                "encode_fp_root_n"),
+    # ── 对齐 ──
+    ("aligned(2)",                                "excp_malign"),
+    ("aligned(4)",                                "excp_malign"),
+    ("aligned(8)",                                "excp_malign"),
+    # ── SBZ / 位域 ──
+    ("immu18[17:12] == 0",                        "encode_sbz"),
+    ("immu18[11:6] == 0",                         "encode_sbz"),
+    ("immu18[5:4] == 0",                          "encode_sbz"),
+    ("immu6 <= 7",                                "encode_sbz"),
+    ("immu6 <= 15",                               "encode_sbz"),
+    ("immu6 <= 31",                               "encode_sbz"),
+    ("immu6 <= 63",                               "encode_sbz"),
+])
+
+def _compute_rule_refs(records):
+    """为每条记录计算 rule_refs 字段（list[str]，去重保序）。
+
+    规则：
+    - scope == "excluded" ⇒ rule_refs: []（excluded 恒空，含 fence）
+    - legality 为空 ⇒ rule_refs: []
+    - 否则按 EXPR_TO_RULE 映射每条 legality 表达式；未知表达式触发 RuntimeError。
+    """
+    for r in records:
+        if r.get("scope") == "excluded" or not r.get("legality"):
+            r["rule_refs"] = []
+            continue
+        seen = set()
+        refs = []
+        for expr in r["legality"]:
+            if expr not in EXPR_TO_RULE:
+                raise RuntimeError(
+                    f"指令 {r['id']}：legality 表达式 {expr!r} 无映射（请更新 EXPR_TO_RULE）")
+            rid = EXPR_TO_RULE[expr]
+            if rid not in seen:
+                seen.add(rid)
+                refs.append(rid)
+        r["rule_refs"] = refs
 
 
 # ────────────────────────────── 主流程 ──────────────────────────────
@@ -691,19 +796,29 @@ def main():
     build_misc_fixed_width(records, 0x43, "b", 7, "SimRISC-10")
     build_misc_rf(records)
 
-    n_m1 = sum(1 for r in records if not r.get("excluded_m1"))
-    n_ex = len(records) - n_m1
+    _compute_rule_refs(records)
+
+    n_m1 = sum(1 for r in records if r.get("scope") == "m1")
+    n_fp = sum(1 for r in records if r.get("scope") == "fp")
+    n_ex = sum(1 for r in records if r.get("scope") == "excluded")
+    n_m3 = sum(1 for r in records if r.get("scope") == "m3")
+    n_with_refs = sum(1 for r in records if r.get("rule_refs"))
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
-        f.write("# SimRISC 0.5.4 指令编码表（M1 范围）\n")
+        f.write("# SimRISC 0.5.4 指令编码表（按 scope 划分范围）\n")
         f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/knowledge/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
-        f.write("# excluded_m1: true 的条目属 M1 范围外（浮点 RF / 特权 cfx / LR-SC），\n")
-        f.write("#   M1 不实现但编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
-        f.write(f"# 共 {len(records)} 条：M1 内 {n_m1} 条，excluded_m1 {n_ex} 条\n\n")
+        f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
+        f.write("# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，\n")
+        f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
+        f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
+        f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
+                f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条\n")
+        f.write(f"# 有 rule_refs 的指令：{n_with_refs} 条\n\n")
         yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
-    print(f"生成完成：{len(records)} 条（M1 内 {n_m1}，excluded_m1 {n_ex}）-> {OUT_PATH}")
+    print(f"生成完成：{len(records)} 条（M1 {n_m1}，scope fp {n_fp}，scope excluded {n_ex}，"
+          f"scope m3 {n_m3}，有 rule_refs {n_with_refs}）-> {OUT_PATH}")
 
 
 if __name__ == "__main__":

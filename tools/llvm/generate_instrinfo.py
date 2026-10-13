@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-"""Generate DADAOInstrInfo.td from contracts/opcodes.yaml.
+"""DEPRECATED / HISTORICAL — 请勿使用（退役于 LLVM-046t，ISS-103）。
 
-Reads the M1 instruction encoding table (opcodes.yaml) and produces:
-  1. DADAOInstrInfo.td — Operand classes + 178 M1 instruction defs
+本脚本是 M1 时期的 DADAOInstrInfo.td 生成器，自 SPEC-019t（2026-09-28，
+opcodes.yaml 的 `insn` 字段被 `id`（`{mnemonic}_{format}_{feature}`）取代）起
+已 **陈旧、非真源**：
 
-Only M1 entries (excluded_m1 absent or false) are emitted. Each instruction
-inherits the appropriate format class from DADAOInstrFormats.td and binds
-its operands to the format's bits<> fields via `let` statements.
+  - 它按 `sanitize_name(op["id"])` 派生 def 名（如 `add_so_rrrr_rd`），而实际
+    被 LLVM 编译的 DADAOInstrInfo.td 使用 legacy 名（如 `add_so_rd`），且这些
+    legacy 名是 DADAO CodeGen 直接引用的 API（DADAOInstrInfo.cpp 用
+    DADAO::rb2rb / DADAO::rd2rd）；名字无法由 `id` 反推（旧 `insn` 字段手工命名）。
+  - 它也不会生成 AsmOperandClass / ParserMatchClass / PrintMethod / FP include
+    等 LLVM-006t/029t 之后人工加入的内容。
 
-Bit encoding (contract-isa.md §2.1):
-  32-bit instruction, big-endian:
-    bits[31:24] = op[7:0]    (8 bits)
-    bits[23:18] = ha[5:0]    (6 bits)
-    bits[17:12] = hb[5:0]    (6 bits)
-    bits[11:6]  = hc[5:0]    (6 bits)
-    bits[5:0]   = hd[5:0]    (6 bits)
+因此本脚本 **不能** 再生当前的 DADAOInstrInfo.td；若误运行会把真源文件覆盖为
+不匹配的名字与缺失内容。真源与门控如下：
+
+  - .td 真源：components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOInstrInfo.td.patch
+    （提交物，由人工维护；其正确性由 `make check-lit` +
+     tools/llvm/test_encoding_oracle.py 端到端把关）。
+  - 编码真源：contracts/opcodes.yaml（生成器 tools/spec/generate_opcodes.py）。
+  - 交叉校验：tools/llvm/validate_instrinfo.py（`make check-instrinfo`，并入 `make check`）。
+
+历史实现保留于本文件以便溯源；`main()` 已加 guard，拒绝运行（退出码 2）。
 """
 from __future__ import annotations
 
@@ -28,10 +35,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_m1_opcodes():
-    """Load M1 opcodes from contracts/opcodes.yaml, filtering excluded."""
+    """Load M1 opcodes from contracts/opcodes.yaml, filtering non-M1."""
     with open(ROOT / "contracts" / "opcodes.yaml") as f:
         opcodes = yaml.safe_load(f)
-    return [op for op in opcodes if not op.get("excluded_m1", False)]
+    return [op for op in opcodes if op.get("scope") == "m1"]
 
 
 def sanitize_name(insn_name: str) -> str:
@@ -96,8 +103,6 @@ def get_operands_and_bindings(op: dict) -> list[dict]:
         role = field["role"]
         bank = field["bank"]
 
-        if role == "minor_op":
-            continue
         if role in ("cfxcode", "cfx_cg", "cfx_rc"):
             continue
 
@@ -138,14 +143,14 @@ def get_operands_and_bindings(op: dict) -> list[dict]:
 def _get_reg_field_name(fmt: str, reg_idx: int) -> str:
     """Get the format field name for the reg_idx-th register operand.
 
-    For formats with minor-op (orrr/orri/oiii), registers start from rb.
+    For formats with opx (orrr/orri/oiii), registers start from rb.
     For other formats, registers start from ra.
     """
     if fmt in ("orrr", "orri"):
-        # minor-op in ha, registers in hb, hc, (hd for orrr)
+        # opx in ha, registers in hb, hc, (hd for orrr)
         return ["rb", "rc", "rd"][reg_idx]
     elif fmt == "oiii":
-        # minor-op in ha, no registers (only imm18)
+        # opx in ha, no registers (only imm18)
         return "rb"  # shouldn't be called for oiii with registers
     else:
         # rrrr/rrri/rrii/riii: registers start from ra
@@ -198,7 +203,7 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
     lines.append("//")
     lines.append("//===----------------------------------------------------------------------===//")
     lines.append("//")
-    lines.append("// DADAO M1 instruction definitions (178 instructions).")
+    lines.append("// DADAO M1 instruction definitions (177 instructions).")
     lines.append("// Auto-generated from contracts/opcodes.yaml by tools/llvm/generate_instrinfo.py.")
     lines.append("// DO NOT EDIT MANUALLY.")
     lines.append("//")
@@ -240,7 +245,7 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
         lines.append("")
 
     lines.append("//===----------------------------------------------------------------------===//")
-    lines.append("// M1 instruction definitions (178 total)")
+    lines.append("// M1 instruction definitions (177 total)")
     lines.append("//===----------------------------------------------------------------------===//")
     lines.append("")
 
@@ -293,7 +298,7 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
             op_val = int(op["op"], 16)
             lines.append(f"  let op = 0x{op_val:02X};")
 
-            # For MISC sub-table instructions, set ha (minor-op)
+            # For MISC sub-table instructions, set ha (opx)
             if "ha" in op:
                 ha_val = int(op["ha"], 16)
                 lines.append(f"  let ha = 0x{ha_val:02X};")
@@ -311,6 +316,21 @@ def generate_instrinfo_td(m1_opcodes: list) -> str:
 
 
 def main() -> int:
+    # DO NOT use: this generator is stale/non-truthful (see module docstring).
+    # It emits def names that do not match the committed DADAOInstrInfo.td and
+    # would overwrite the real source.  Refuse to run.
+    print(
+        "DEPRECATED: tools/llvm/generate_instrinfo.py is retired (ISS-103, "
+        "LLVM-046t).\n"
+        "It cannot regenerate the committed DADAOInstrInfo.td (legacy def names "
+        "are CodeGen API).\n"
+        "Use tools/llvm/validate_instrinfo.py (`make check-instrinfo`) for the "
+        "cross-check.",
+        file=sys.stderr,
+    )
+    return 2
+
+    # ---- historical implementation below (kept for provenance) ----
     m1_opcodes = load_m1_opcodes()
     print(f"Loaded {len(m1_opcodes)} M1 opcodes")
 

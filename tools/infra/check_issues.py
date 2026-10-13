@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """M1-gate issue blocker check.
 
-Reads docs/issues.yaml and checks that no open issue blocks M1-gate.
+Reads .tao/knowledge/issues.yaml and checks that no open issue blocks M1-gate.
 Fail-closed: if the file is missing, exit 1.
 
 Usage: python3 tools/infra/check_issues.py
@@ -12,7 +12,7 @@ import os
 
 import yaml
 
-ISSUES_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "issues.yaml")
+ISSUES_PATH = os.path.join(os.path.dirname(__file__), "..", "..", ".tao", "knowledge", "issues.yaml")
 
 
 def main():

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.h b/llvm/lib/Target/DADAO/DADAOTargetMachine.h
 new file mode 100644
-index 000000000000..0ac773b9eec8
+index 000000000..c1feee7e6
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.h
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,50 @@
 +//===-- DADAOTargetMachine.h - Define TargetMachine for DADAO --- C++ ----===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -15,18 +15,40 @@ index 000000000000..0ac773b9eec8
 +#ifndef LLVM_LIB_TARGET_DADAO_DADAOTARGETMACHINE_H
 +#define LLVM_LIB_TARGET_DADAO_DADAOTARGETMACHINE_H
 +
++#include "DADAOSubtarget.h"
++
++#include "llvm/ADT/StringMap.h"
 +#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
++
++#include <memory>
 +#include <optional>
 +
 +namespace llvm {
 +
 +class DADAOTargetMachine : public CodeGenTargetMachineImpl {
++  std::unique_ptr<TargetLoweringObjectFile> TLOF;
++  DADAOSubtarget Subtarget;
++
++  mutable StringMap<std::unique_ptr<DADAOSubtarget>> SubtargetMap;
++
 +public:
 +  DADAOTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
 +                     StringRef FS, const TargetOptions &Options,
 +                     std::optional<Reloc::Model> RM,
 +                     std::optional<CodeModel::Model> CM,
 +                     CodeGenOptLevel OL, bool JIT);
++
++  ~DADAOTargetMachine() override;
++
++  const DADAOSubtarget *getSubtargetImpl() const { return &Subtarget; }
++
++  const DADAOSubtarget *getSubtargetImpl(const Function &F) const override;
++
++  TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
++
++  TargetLoweringObjectFile *getObjFileLowering() const override {
++    return TLOF.get();
++  }
 +};
 +
 +} // namespace llvm

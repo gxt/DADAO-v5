@@ -2,12 +2,25 @@
 """spec 引用审计器 — Check 1 引用有效性 + Check 2 无引用规范断言.
 
 审计对象: .tao/knowledge/contract-*.md
-引用目标: spec/*.md (SimRISC-00~04, DADAO-11~23)
+引用目标: spec/*.md (SimRISC-00~12, DADAO-11~23, Toolchain-01, Machine-01)
 
-Check 1: 每个 [SimRISC-XX §...] / [DADAO-XX §...] 可解析到 spec/ 真实内容。
+Check 1: 每个 [SimRISC-XX §...] / [DADAO-XX §...] / [Toolchain-01 §...] /
+         [Machine-01 §...] 可解析到 spec/ 真实内容。
          三类命中: 标题(#1~4) > 粗体引子(> **X**：/ **X**) > 正文行。
+         数值节号 (§7.2) 命中标题 `7.2 对齐指示符`（标题以 `N.M ` 起始）。
+         模板占位节名 (§x / §N) 跳过。
 Check 2: 含规范标记(ILLI/UNDI/MALIGN/IALIGN/保留/reserved/必须 等) 且既无
-         spec 引用也无 [spec-decision]/ADR 引用的行 → 报「无引用断言」。
+         spec 引用也无 [spec-decision]/ADR 引用的断言 → 报「无引用断言」。
+
+         引用作用域（block scope，非逐行）: 合约以「前导行 + 块」方式标注来源。
+         一条规范断言满足以下任一即视为已引用：
+           (a) 本行含 spec 引用 / [spec-decision] / ADR 引用；
+           (b) 同块内、**本行之前**已有引用行（前导继承；不含后置继承）；
+           (c) 本块为 **表格/引用块**（其紧邻前导块的结构化投影/附注），且紧邻
+               前一块为非标题的带引用块。**列表不参与 (c)**——空行分隔的列表
+               视为独立断言序列，须逐条自带引用。
+         节标题（#1~6）是结构而非断言，不参与 Check 2。
+         详见 INFRA-011t 审阅记录「行级误报率评估」与下方 Check 2 作用域实现。
 
 fail-closed: 有违规 → exit 1; 无违规 → exit 0.
 
@@ -20,6 +33,14 @@ import os
 import re
 import sys
 from pathlib import Path
+
+# ── 显式排除名单（机械生成投影，非叙述合约，无来源头/§ 引用）──────────────
+# 与 tools/infra/check_spec_drift.py 的 EXCLUDED_CONTRACTS 同步：
+# 新增任何生成投影务必同步两处排除名单。
+_EXCLUDED_CONTRACTS = frozenset({
+    "contract-cfx-aliases.md",  # cfx 别名表（生成物，见 spec/README.md 投影表）
+    "contract-asm-list.md",     # 汇编指令表（生成物，见 spec/README.md 投影表）
+})
 
 # ── prefix → spec file mapping ───────────────────────────────────────────────
 
@@ -43,12 +64,26 @@ SPEC_PREFIX_MAP = {
     "DADAO-21":   "DADAO-21-ABI-应用程序二进制接口.md",
     "DADAO-22":   "DADAO-22-SBI-主管系统二进制接口.md",
     "DADAO-23":   "DADAO-23-HBI-超管系统二进制接口.md",
+    # v5 自定册 (INFRA-058t): 与 SimRISC-/DADAO- 同等校验（此前缺席 ⇒ 引用不可见）。
+    "Toolchain-01": "Toolchain-01-汇编语言.md",
+    "Machine-01":   "Machine-01-测试机运行环境.md",
 }
 
 # ── regex patterns ────────────────────────────────────────────────────────────
 
 # Prefix search anchor: [SimRISC-XX § or [DADAO-XX § or [SimRISC-0X § (template)
-_PREFIX_ANCHOR = re.compile(r"\[(SimRISC-(?:\d+|0X)|DADAO-\d+) §")
+# 注意: _tpl 形如 SimRISC-XX / DADAO-NN 的模板占位不在此匹配 (XX/NN 非数字)。
+# v5 自定册 Toolchain-01 / Machine-01 亦纳入 (INFRA-058t)。
+_PREFIX_ANCHOR = re.compile(
+    r"\[(SimRISC-(?:\d+|0X)|DADAO-\d+|Toolchain-\d+|Machine-\d+) §"
+)
+
+# 数值节号（如 7.2 / 2 / 13.7）；用于「标题以 `N.M ` 起始 ⇒ 命中 `N.M`」的匹配。
+_NUMERIC_SECTION_RE = re.compile(r"\d+(?:\.\d+)*$")
+
+# 模板占位节名（纯 ASCII 字母，如 `x` / `N` / `XX`）——格式说明行里的占位，
+# 非真实引用，不作校验（与 [SimRISC-XX §] / [DADAO-NN §] 同性质）。
+_PLACEHOLDER_SECTION_RE = re.compile(r"[A-Za-z]+$")
 
 # Headers: # / ## / ### / ####  heading text
 _HEADER_RE = re.compile(r"^#{1,4}\s+(.+)$", re.MULTILINE)
@@ -123,17 +158,64 @@ def load_spec_file(spec_dir: Path, prefix: str) -> str | None:
     return path.read_text(encoding="utf-8")
 
 
+# 标题前导章节号（SPEC-133t）：`N` / `N.M` / `N.M.K`，可带 `.`/`、` 分隔。
+# 标题加号后，按标题文本（如 `§存取RD寄存器`）的引用须先剥离前导编号再比对。
+_LEAD_NUM_RE = re.compile(r"^\d+(?:\.\d+)*[\.、]?\s+")
+
+
+def _strip_lead_number(text: str) -> str:
+    """Remove a leading section number (`N` / `N.M` / `N.M.K`) from heading/section text.
+
+    `3.1 存取RD寄存器` → `存取RD寄存器`; `1. 运行模式` → `运行模式`.
+    Text without a leading number (or a leading number not followed by a space,
+    e.g. `16位数据运算`, `0.5.0（…）`) is returned unchanged.
+    """
+    m = _LEAD_NUM_RE.match(text)
+    return text[m.end():] if m else text
+
+
 def _header_matches(header: str, section: str) -> bool:
     """Check if section_name matches a spec header.
 
     1. Exact / prefix (section：) via _text_matches
-    2. Split: header splits on '、' and section is one of the parts
+    2. Numeric section (INFRA-058t): header starts with `N.M ` or `N.M. `
+    3. Split: header splits on '、' and section is one of the parts
+    4. SPEC-133t: strip leading section numbers from both sides, so a title-text
+       reference (`§存取RD寄存器`) still resolves to a now-numbered heading
+       (`### 3.1 存取RD寄存器`), and `§2.1 核内地址空间` resolves to
+       `### 2.1 核内地址空间`.
     """
     if _text_matches(header, section):
+        return True
+    if _num_section_matches(header, section):
+        return True
+    h = _strip_lead_number(header)
+    s = _strip_lead_number(section)
+    if (h, s) != (header, section) and _text_matches(h, s):
         return True
     if "、" in header and section in header.split("、"):
         return True
     return False
+
+
+def _num_section_matches(header: str, section: str) -> bool:
+    """Numeric-section match: section `7.2`命中标题 `7.2 对齐指示符`（INFRA-058t）。
+
+    Strict (NOT arbitrary substring): the header must start with the exact
+    section number, followed by a space (`2.1 空白`) or a number+dot+space
+    (`5. 指令语法`). This lets `§7.2` resolve the numeric header while
+    preventing `7.2` from matching `7.25 …`（后随数字）or from matching an
+    arbitrary later substring. Backticks in the header are ignored.
+    """
+    if not _NUMERIC_SECTION_RE.match(section):
+        return False
+    text = header.replace("`", "")
+    if text == section:
+        return True
+    if not text.startswith(section):
+        return False
+    rest = text[len(section):]
+    return rest.startswith(" ") or rest.startswith(". ")
 
 
 _TEXT_LEAD_IN = set("：:（(，,")
@@ -146,10 +228,15 @@ def _text_matches(text: str, section: str) -> bool:
     No arbitrary substring (§数据表 must NOT match 数据表示).
     Allows §版本 to match **版本：0.5.3** and §RD寄存器 to match
     RD寄存器（Data registers）.
+    Backticks are ignored (INFRA-058t): §附：与上游 spec/ 的关系 matches the
+    header `## 附：与上游 spec/ 的关系`.
     """
     if section == text:
         return True
-    if len(text) > len(section) and text.startswith(section) and text[len(section)] in _TEXT_LEAD_IN:
+    norm = text.replace("`", "")
+    if section == norm:
+        return True
+    if len(norm) > len(section) and norm.startswith(section) and norm[len(section)] in _TEXT_LEAD_IN:
         return True
     return False
 
@@ -272,11 +359,39 @@ def check_line_has_decision(line: str) -> bool:
     return bool(_SPEC_DECISION_RE.search(line) or _ADR_REF_RE.search(line))
 
 
+def line_has_cite(line: str) -> bool:
+    """Line carries a spec reference or an explicit decision marker."""
+    return check_line_has_spec_ref(line) or check_line_has_decision(line)
+
+
+# Heading (#1~6): structural, never a normative assertion.
+_HEADING_RE = re.compile(r"^\s*#{1,6}\s")
+
+
+def is_inheriting_child_line(line: str) -> bool:
+    """Whether `line` opens a block that may inherit its immediately-preceding
+    cited lead-in's citation.
+
+    Scope is deliberately narrow (architect xcheck G1/EXP-B): only a **table**
+    (a structured projection of its caption) or a **blockquote** (an annotation
+    attached to the preceding block) may inherit across a blank line. A bare
+    **list** is treated as a sequence of independent assertions and thus must
+    carry its own citation per line — a blank-separated list does not inherit.
+    """
+    if not line.strip():
+        return False
+    s = line.lstrip()
+    return s.startswith("|") or s.startswith(">")
+
+
 # ── main audit ───────────────────────────────────────────────────────────────
 
 def audit(contract_dir: Path, spec_dir: Path) -> int:
     """Run both checks. Returns violation count (0 = pass)."""
-    contract_files = sorted(contract_dir.glob("contract-*.md"))
+    contract_files = sorted(
+        p for p in contract_dir.glob("contract-*.md")
+        if p.name not in _EXCLUDED_CONTRACTS
+    )
     if not contract_files:
         print("ERROR: no contract-*.md files found", file=sys.stderr)
         return 1
@@ -286,6 +401,7 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
     check1_hit_stats = {"header": 0, "bold": 0, "text": 0}
     check1_total_refs = 0
     check1_ln_count = 0
+    check1_placeholder_count = 0
 
     # Cache spec contents
     spec_cache: dict[str, str] = {}
@@ -302,6 +418,11 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
                 if ln_match:
                     check1_ln_count += 1
                     section = section[: ln_match.start()].strip()
+
+                # 模板占位节名（§x / §N；格式说明行里的占位）不作校验（INFRA-058t）。
+                if _PLACEHOLDER_SECTION_RE.match(section):
+                    check1_placeholder_count += 1
+                    continue
 
                 # Load spec file
                 if prefix not in spec_cache:
@@ -336,28 +457,93 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
                     })
 
     # ── Check 2: normative assertions without spec reference ─────────────
+    # 作用域模型: 逐行判定取代为「引用块作用域」判定（见 INFRA-011t 审阅记录
+    # 「行级误报率评估」）。一条规范断言满足以下任一即视为已引用:
+    #   (a) 本行含 spec 引用 / [spec-decision] / ADR 引用;
+    #   (b) 同一块（连续非空行）内、**本行之前**的引用行（前导继承，不含后置）;
+    #   (c) 本块为 table/blockquote（其前导块的结构化投影/附注），且紧邻前一块为
+    #       非标题的带引用块。列表不参与 (c)。
+    # 节标题（#1~6）是结构，不参与 Check 2。
     check2_violations: list[dict] = []
 
     for cfile in contract_files:
         content = cfile.read_text(encoding="utf-8")
-        in_code = False
-        for lineno, line in enumerate(content.splitlines(), 1):
-            in_code = is_in_code_block(line, in_code)
-            if in_code:
-                continue
+        raw_lines = content.splitlines()
+        n_lines = len(raw_lines)
 
-            # Does the line have normative markers?
+        # Code-block tracking (skipped by Check 2).
+        in_code = [False] * n_lines
+        cur_code = False
+        for i, line in enumerate(raw_lines):
+            cur_code = is_in_code_block(line, cur_code)
+            in_code[i] = cur_code
+
+        # Block ids: a block = maximal run of consecutive non-blank lines.
+        block_id = [-1] * n_lines
+        block_first: dict[int, int] = {}
+        bid = -1
+        prev_blank = True
+        for i, line in enumerate(raw_lines):
+            if line.strip() == "":
+                prev_blank = True
+                continue
+            if prev_blank:
+                bid += 1
+            block_id[i] = bid
+            block_first.setdefault(bid, i)
+            prev_blank = False
+
+        # Per-block citation presence (code lines excluded) — used by rule (c).
+        block_has_cite: dict[int, bool] = {}
+        for i, line in enumerate(raw_lines):
+            if block_id[i] >= 0 and not in_code[i] and line_has_cite(line):
+                block_has_cite[block_id[i]] = True
+
+        # Rule (b) is LEADING-only: for each line, whether an earlier line of the
+        # same block already carried a citation (a later citation must NOT
+        # retroactively cover this line — see architect xcheck G1 / EXP-D).
+        preceding_cite = [False] * n_lines
+        _seen_cite: dict[int, bool] = {}
+        for i, line in enumerate(raw_lines):
+            bid_i = block_id[i]
+            if bid_i < 0:
+                continue
+            preceding_cite[i] = _seen_cite.get(bid_i, False)
+            if not in_code[i] and line_has_cite(line):
+                _seen_cite[bid_i] = True
+
+        def _preceding_block_has_cite(idx: int) -> bool:
+            """Immediately preceding non-blank block carries a citation, and is
+            not a heading (heading cannot serve as a source lead-in)."""
+            fb = block_first[block_id[idx]]
+            p = fb - 1
+            while p >= 0 and raw_lines[p].strip() == "":
+                p -= 1
+            if p < 0 or _HEADING_RE.match(raw_lines[p]):
+                return False
+            pb = block_id[p]
+            return pb >= 0 and block_has_cite.get(pb, False)
+
+        for i, line in enumerate(raw_lines):
+            if in_code[i]:
+                continue
             if not _NORMATIVE_RE.search(line):
                 continue
+            if line_has_cite(line):
+                continue  # (a)
+            if _HEADING_RE.match(line):
+                continue  # headings are structure, not assertions
+            bid_i = block_id[i]
+            if preceding_cite[i]:
+                continue  # (b) LEADING citation earlier in the same block
+            block_first_line = raw_lines[block_first[bid_i]]
+            if is_inheriting_child_line(block_first_line) and _preceding_block_has_cite(i):
+                continue  # (c) table/blockquote introduced by a cited lead-in
 
-            # Does the line have a spec reference or decision marker?
-            if check_line_has_spec_ref(line) or check_line_has_decision(line):
-                continue
-
-            # This line has normative markers but no spec reference → violation
+            # Normative assertion without any spec reference → violation
             check2_violations.append({
                 "file": str(cfile),
-                "line": lineno,
+                "line": i + 1,
                 "text": line.rstrip(),
             })
 
@@ -375,6 +561,7 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
     print(f"  (Lnn) 行号形态: {check1_ln_count} 处")
     if check1_ln_count == 0:
         print(f"  注: 本轮无 (Lnn) 实例")
+    print(f"  模板占位节名 (§x/§N 等): {check1_placeholder_count} 处 (跳过校验)")
     print(f"  命中类型统计: 标题={check1_hit_stats['header']}, "
           f"粗体={check1_hit_stats['bold']}, 正文={check1_hit_stats['text']}")
     resolved = sum(check1_hit_stats.values())

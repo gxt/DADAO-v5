@@ -34,6 +34,8 @@ def collect_trans_defs(src_dir):
     """从 patch 文件中收集所有 trans_* 函数定义名（精确匹配）。
 
     补丁集为树形（`patches/<上游相对路径>.patch`），故须**递归**搜索。
+    只计 '+'（新增行）和 ' '（上下文行），忽略 '-'（已删除行），
+    防止前序 patch 的 '+' 行在后序 patch 删除后仍被误判为存在。
     返回 (定义名集合, 补丁文件数)。
     """
     trans_defs = set()
@@ -43,8 +45,10 @@ def collect_trans_defs(src_dir):
     for pf in patch_files:
         with open(pf, encoding="utf-8") as f:
             for line in f:
-                # patch 格式：+ 前缀表示新增行；匹配定义
-                # 但也搜索上下文行，因为有些定义在旧代码中
+                # 只处理 '+'（新增）和 ' '（上下文）行；
+                # 跳过 '-'（删除）行及 diff 头（'---'/'+++'/'@@'/'\ '）
+                if line.startswith('-'):
+                    continue
                 m = pattern.search(line)
                 if m:
                     trans_defs.add(m.group(1))
@@ -78,21 +82,21 @@ def main():
         sys.exit(f"ERROR: 在 {args.src} 下未找到任何 .patch 文件；"
                  "无法校验（补丁集为树形，请检查 --src 是否为 patches/ 根）")
 
-    # 比对
+    # 比对（is_m1 仅用于分类统计；全部 228 条均须有 trans_* 或作为未实现 MISSING）
     missing = []
     for rec, func_name in zip(records, func_names):
         expected = f"trans_{func_name}"
         if expected not in trans_defs:
-            is_m1 = not rec.get("excluded_m1", False)
+            is_m1 = rec.get("scope") == "m1"
             missing.append({
                 "insn": rec["id"],
                 "func": expected,
                 "is_m1": is_m1,
             })
 
-    # 分 M1 / excluded 统计
+    # 分 M1 / 非 M1 统计
     total = len(records)
-    m1_total = sum(1 for r in records if not r.get("excluded_m1", False))
+    m1_total = sum(1 for r in records if r.get("scope") == "m1")
 
     missing_total = len(missing)
     found_total = total - missing_total
