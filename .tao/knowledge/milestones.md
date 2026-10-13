@@ -24,6 +24,7 @@
 | INFRA-071t | 待开始 | — | `contract-*.md`→`contracts/`（Phase B）+ `check-contracts-dir` 白名单门控（**待用户授权 3 项**：只读锁册 / `contracts/` 内嵌字段 / 扩到 `tools`·`components`·`tests`）；**项目里程碑 = `M8`**（用户 2026-10-13 裁定**改标**，仍留 `.tao/tasks/`） |
 | SPEC-137t | 已验证 | 2026-10-13 07:47 | `ADR-0019 D9` 追加第 ⑥ 条（防御分支边界：`REL26` 落点非 `call-iiii`/`jump-iiii` ⇒ link-time error，不放行/不自循环）+ `contract-elf §3.3` 同步 bullet；关闭 `ISS-201`；**项目里程碑 = `M7`**（spec 模块内 backlog 收口，用户 2026-10-13 逐条确认） |
 | INFRA-073t | 已验证 | 2026-10-13 10:33 | Chipyard 1.14.0 预研（锁定方案/镜像测速/成本/(3) 复用清单；**只探测未下载**，待用户定源）；**项目里程碑 = `M8`**（用户 2026-10-13 裁定「先预研」） |
+| INFRA-074t | 待开始 | — | Chipyard 1.14.0 落地准备 + (1) 参考平台跑通（P1 环境〔conda/mamba/sbt + Verilator ≥5.022〕/ P2 拉取〔主仓 + lite 子模块 + 子模块锁册〕/ P3 最小构建〔RocketConfig Verilator〕/ P4 (1) 冒烟〔`pk` + 可选 Linux〕）；前置 = 用户授权下载 + `ADR-0024` 逐条确认；**项目里程碑 = `M8`** |
 
 ## 当前进度
 
@@ -80,6 +81,8 @@
 
 - **Chipyard 1.14.0 预研（先预研，用户 2026-10-13 裁定）**：M8 第一件 = 立并执行 **`INFRA-073t`**（Chipyard `1.14.0` = latest，commit `0acc1e1…`；用途 = **1/2/3**；落法 = **先预研**）。产出 = 锁定方案（`manifests/` 承载：主仓 commit+tag + 子模块递归快照）+ 镜像测速（**未下载**）+ 成本评估 + (3) 复用清单 + 结论/后续任务建议。**前置**：下载源须用户裁定后方可开工落地。指针 `.tao/tasks/infra/INFRA-073t-chipyard-1.14.0-预研.md`。
 - **`INFRA-071t`**（`contract-*.md`→`contracts/` Phase B）亦属 **`M8`**（用户 2026-10-13 改标），**待用户授权**，见上「任务流水」。
+- **Chipyard 基线 ADR（2026-10-13，**提案 Candidate、待用户逐条确认**）**：`ADR-0024`（Chipyard 上游基线 = commit + 子模块快照）。**决策 D1–D5 为草案**：D1 基线 `1.14.0`（commit `0acc1e1…`）+ 用途定位（(1) 优先 / (3) 次之 / 暂不做 (2)）；D2 锁定方式（`components.lock.toml` 加 `chipyard` + 新增 `manifests/chipyard-submodules.lock.toml`）；D3 lite 子集原则；D4 工具链隔离 + Verilator 自装 ≥5.022；D5 验收口径（`pk` + 可选 Linux，与 QEMU 对照）。**未逐条确认前不得置 `Accepted`、不得改 `manifests/`**（`AGENTS.md`「ADR decision 逐条确认」）。指针 `.tao/adr/adr-0024-chipyard-baseline.md`。
+- **`INFRA-074t`（2026-10-13 立，`待开始`）**：Chipyard `1.14.0` 落地准备与 (1) 参考平台跑通（P1 环境 / P2 拉取 / P3 最小构建 / P4 (1) 冒烟）；前置 = **用户授权下载** + `ADR-0024` 逐条确认 + **FireMarshal ref 交叉确认**（⚠ 仅 P4 可选 Linux 依赖）；下载源已裁定（指针 → `INFRA-073t §4.5`）。指针 `.tao/tasks/infra/INFRA-074t-chipyard-落地准备与参考平台.md`。
 
 ## 历史台账指针
 
