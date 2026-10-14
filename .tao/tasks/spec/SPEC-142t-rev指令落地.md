@@ -24,6 +24,7 @@
   - 「2、你来定」⇒ **实现分阶段由主会话定**（定案见「分阶段实现（定案）」）。
   - 「`D10.1-D10.8` 认可」⇒ **逐条确认完成 ✓**（**`D10.6b` 后于 2026-10-14 定案 = `scope: m8`**）。
 - **本任务 = 执行落点**：把上列 **已确认** 的 `D10` 决策**逐条落到全链**（`spec/` + `contracts/` + 生成器 + 向量 + MC + QEMU + 门控）。**`D10.6b` 已定案 = `scope: m8`**（见「`D10.6a` 定案 / `scope` 定案」）。
+- **新增硬要求（用户 2026-10-14；原话原样引录，渠道 = 经主会话问答）**：「**关于scope的事情，增加指令与里程碑并没有绑定关系，不必纠结类似问题，甚至于不必额外记录，只需在SimRISC版本记录中写明即可**」⇒ ① 新增指令与里程碑**无绑定关系**；② **不必额外记录**（**不**新增 `scope` 说明段；`scope` 只按 `m8` 落 `contracts/`）；③ **新增的 4 条 `rev` 指令须在 `SimRISC` 的「版本与变更记录」区写明**（`SimRISC-00` 及各相关分册 `04/08/09/10`）。
 
 ## 目的
 
@@ -76,13 +77,13 @@
 ## `D10.6a` 定案 / `scope` 定案
 
 1. **`D10.6a` 正文分册归位 = 定案 (b) 分册**（用户 2026-10-14 裁定原话「**1、分册写**」）：`.o`→`spec/SimRISC-04`、`.t`→`08`、`.w`→`09`、`.b`→`10`；逐块语义**总述置于 `04 §4.2`**、其余三册（`08/09/10`）**引用**。**据此可动 `spec/` 正文（分册 = `04/08/09/10`）。**
-2. **`D10.6b` `scope` 取值 —— 已定案 = `scope: m8`**（**用户 2026-10-14 裁定原话**「**m8，里程碑只是个标识，并不是在划定严格的范围**」，渠道 = 经主会话问答；见 `adr-0012 §D10.6b` / `§状态说明`）。**口径** = `scope` 是「**该指令由哪个里程碑引入**」的**标识**，**不构成范围约束**（`m1`/`m3`/`m8` 分区计数只是统计、不是限制）。**须同步** `tools/spec/check_scope.py` 的 `ALLOWED_SCOPES` + 分区计数 + 注释，及 `generate_opcodes.py` 的 scope 说明。**可写 `opcodes.yaml` / `check_scope.py`（按 `m8`）。**
+2. **`D10.6b` `scope` 取值 —— 已定案 = `scope: m8`**（用户 2026-10-14；见 `adr-0012 §D10.6b`）。**须同步** `tools/spec/check_scope.py` 的 `ALLOWED_SCOPES` + 分区计数 + 注释，及 `generate_opcodes.py` 的 scope 说明。**可写 `opcodes.yaml` / `check_scope.py`（按 `m8`）。**
 
 ## 分阶段实现（**定案**）
 
 > 落地方案由主会话定（**用户 2026-10-14 裁定原话「2、你来定」授权**）。原「分阶段分解建议（建议，待用户确认）」**已随该裁定转为定案**。方案 = **一个任务书、三阶段验收**。
 
-- **阶段 A（契约 / 编码层，单任务可验收）**：`spec/SimRISC-00` QFC 四子表 + `SimRISC-04/08/09/10` 分册正文（依 `D10.6a` 定案 (b)）+ 各册 `LEGALITY` 生成区（`tools/spec/gen_legality_list.py --apply`）+ `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）+ `contracts/legality_rules.yaml`（`encode_onehot`）+ `.tao/knowledge/contract-isa.md` / `contract-asm-list.md`（`tools/llvm/gen_asm_list.py`）+ `tests/vectors/**` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`。
+- **阶段 A（契约 / 编码层，单任务可验收）**：`spec/SimRISC-00` QFC 四子表 + `SimRISC-04/08/09/10` 分册正文（依 `D10.6a` 定案 (b)）+ **各册「附录：版本与变更记录」区写明本批 4 条指令**（硬要求）+ 各册 `LEGALITY` 生成区（`tools/spec/gen_legality_list.py --apply`）+ `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）+ `contracts/legality_rules.yaml`（`encode_onehot`）+ `.tao/knowledge/contract-isa.md` / `contract-asm-list.md`（`tools/llvm/gen_asm_list.py`）+ `tests/vectors/**` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`。
 - **阶段 B（MC）**：`DADAOInstrInfo.td`（def/mnemonic/编码）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode；`check-instrinfo` / `check-isa-coverage` 回绿。
 - **阶段 C（QEMU）**：`insn.decode`（四条 token）+ `trans_rev.c.inc`（`trans_rev_o`/`_t`/`_w`/`_b`）+ `translate.c` 分派（`helper.c` 如需）；语义向量经 QEMU 跑通。
 - **定案理由**（主会话，2026-10-14，授权 = 用户原话「2、你来定」）：① 与 `D9`（新增 `sub.o`）「全链单任务」惯例一致；② 三部分共享**同一编码真源**，拆开易漂移；③ 阶段化验收让**契约层先独立可验**（Spec-first），问题早暴露。
@@ -107,6 +108,7 @@
 8. **`spec/` 授权与锁**：`git diff --name-only` 与 `spec/` 清单交集**均为本任务书授权范围**；变动的只读册 `sha256` 已在**同一变更**内更新（`make check-spec-readonly` rc=0）。
 9. **一键证据脚本**（`.work/evidence/<本任务ID>/`）：非交互、任一失败非零退出、逐项打印「检查名 + 期望/实际 + rc」、含**可达 FAIL** 自检（**计数不写死**，现场统计）。
 10. 完成区（**≤30 行**）与真实输出**逐条对齐**；长输出留 `.work/log/spec/**`（指针给出）；**禁** `cmd | tee` 吞码。
+11. **版本记录（硬要求，用户 2026-10-14 原话「只需在SimRISC版本记录中写明即可」）**：新增的 4 条 `rev` 指令须在 `spec/SimRISC-00` 与各相关分册（`04/08/09/10`）的「**附录：版本与变更记录**」区**写明**（指令名 / 条数 / 日期），可 `grep` 核（门控 `tools/spec/check_spec_changelog.py` 保持 rc=0）。
 
 ## 硬约束（下发提示必带）
 
@@ -120,6 +122,7 @@
 8. **补丁导出纪律**：MC/QEMU 改动按 `docs/Process-01` 树形补丁集（一文件一补丁 + `git apply`），`check-patch-tree` 须绿。
 9. **反例注入还原纪律**：**禁** `git checkout`/`restore`/`stash`/`git show <commit>:<path>`；一律 `cp` 备份 + md5 对账，或临时树注入。
 10. 文本**不写**字面 `.work/<具体路径>`（用 `<>` 占位）；任务书**自包含**。
+11. **版本记录（硬要求）**：新增指令须在 `spec/SimRISC-00` 及各相关分册的「**附录：版本与变更记录**」区**写明**（用户 2026-10-14 原话）；与「**不必额外记录**」并列——**不**新增 `scope` 说明段。
 
 ## 参考检索（`DADAO-0628`，**内容溯源，非执行必需**）
 
