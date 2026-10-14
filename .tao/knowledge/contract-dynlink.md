@@ -4,9 +4,9 @@
 >
 > **范围**：M8 P0 契约②——动态链接 ABI 的 v5 口径：角色与口径（§1）、PIC/PIE 与地址无关模型（§2）、GOT/PLT（§3）、动态重定位（§4）、动态段与符号表（§5）、`PT_INTERP` 与启动 auxv（§6）、TLS（§7）、独立 oracle 口径（§8）、裁定清单（§9，已定）、失败与越界策略（§10）。
 >
-> **来源标注**：每条规范性断言句末以 `[DADAO-NN §章节名]` 标注 spec/ 来源（spec/ 未定者不标）；ADR 决策补足者标 `[ADR-NNNN DN]`；**ELF 动态链接通用语义**（`PT_INTERP`/`PT_DYNAMIC`/`AT_*`/GOT/PLT/`DT_*` 等，非 v5 规范正文）标 `[外部权威 …]` 并在 §1.3 给**可核出处**；spec/、ADR 均未定者标 `[spec-decision]`。**2026-10-14 用户逐条确认**的动态链接口径（类型号 / 公式 / 语义等）标 `[spec-decision]（用户 2026-10-14 逐条确认）`，其规范正文**待 architect 在 `ADR-0019` 就地追加 `D10…` 落地**（本合约标 `[ADR-0019 D10…（待 architect 落地）]`，**本合约不改该 ADR、不建新 ADR**）；行为类口径（`ld.so` 用法 / `PT_INTERP` / `DT_*` / 绑定时机 / 越界）**待 architect 另立新 ADR**。不写行号。
+> **来源标注**：每条规范性断言句末以 `[DADAO-NN §章节名]` 标注 spec/ 来源（spec/ 未定者不标）；ADR 决策补足者标 `[ADR-NNNN DN]`；**ELF 动态链接通用语义**（`PT_INTERP`/`PT_DYNAMIC`/`AT_*`/GOT/PLT/`DT_*` 等，非 v5 规范正文）标 `[外部权威 …]` 并在 §1.3 给**可核出处**；spec/、ADR 均未定者标 `[spec-decision]`。**2026-10-14 用户逐条确认**的动态链接口径（类型号 / 公式 / 语义等）标 `[spec-decision]（用户 2026-10-14 逐条确认）`，其**规范正文已落地**：**类型号 / 公式 / 语义** ⇒ `[ADR-0019 D10]`；**行为类口径**（`ld.so` 用法 / `PT_INTERP` / `DT_*` / 绑定时机 / 越界）⇒ `[ADR-0026 D1–D8]`（二者均 **`Accepted`**，2026-10-14 由 architect 落地）。不写行号。
 >
-> **说明**：本合约**不复制**上游 `spec/` 正文（只**指针**）；**外部权威**（System V ABI / ELF gABI、musl、QEMU 上游）只提供**通用语义**与**行为参照**，**不构成本项目规范正文**；与本合约或既有 ADR 冲突时阻断实现，走变更流程（`docs/Process-02-合约编写规范.md`）。**不属于本合约**：`ADR-0019 D10…` / 新 ADR 的**决策正文**（本合约只承载契约口径）、TLS 模型的**逐 arch 定值**（§7，归 musl 移植任务）、syscall 语义映射（`contract-syscall.md`）。
+> **说明**：本合约**不复制**上游 `spec/` 正文（只**指针**）；**外部权威**（System V ABI / ELF gABI、musl、QEMU 上游）只提供**通用语义**与**行为参照**，**不构成本项目规范正文**；与本合约或既有 ADR 冲突时阻断实现，走变更流程（`docs/Process-02-合约编写规范.md`）。**不属于本合约**：`ADR-0019 D10` / `ADR-0026` 的**决策正文**（本合约只承载契约口径）、TLS 模型的**逐 arch 定值**（§7，归 musl 移植任务）、syscall 语义映射（`contract-syscall.md`）。
 >
 > **落点**：本合约暂落 `.tao/knowledge/`（`check-knowledge-dir` 白名单允许 `contract-*.md`）。若 `INFRA-071t`（`contract-*.md` → `contracts/`，**待用户授权**）获批，本合约随之**整体迁移**；引用方按文件名 `contract-dynlink.md` 解析，不硬编码目录。[ADR-0025]
 
@@ -38,7 +38,7 @@
 1. **外部权威**（ELF 通用语义 / 上游行为，**非 v5 规范正文**）——标 `[外部权威 …]`；
 2. **上游 spec/**（只指针，不复制正文）——标 `[DADAO-NN §章节名]`；
 3. **v5 既有决策**（已 `Accepted`）——标 `[ADR-NNNN DN]`；
-4. **v5 契约口径**（本合约承载的动态链接口径）——标 `[spec-decision]`；其中**2026-10-14 用户逐条确认**者标 `[spec-decision]（用户 2026-10-14 逐条确认）`，规范正文待 `ADR-0019 D10…` / 新 ADR 落地；§9 为**裁定清单（已定）**。
+4. **v5 契约口径**（本合约承载的动态链接口径）——标 `[spec-decision]`；其中**2026-10-14 用户逐条确认**者标 `[spec-decision]（用户 2026-10-14 逐条确认）`，规范正文**已落地**（`ADR-0019 D10` / `ADR-0026`）；§9 为**裁定清单（已定）**。
 
 | 主题 | 权威 | 可核出处（2026-10-14 现场取回；路径为上游树内路径） |
 |------|------|------------------------------------------------------|
@@ -78,7 +78,7 @@
 
 - **通路①：PC 相对**。`R_DADAO_REL26` / `REL20` / `REL14`（字偏移，`(S + A − P) >> 2`）服务 `call`/`jump`/分支；`R_DADAO_REL12`（**字节**偏移、`rb0` 基址）服务 `ld/st` 符号偏移。v5 **无 `−4`** 修正（`rb0` 读出即 `P`）。[ADR-0019 D3][ADR-0021 D1]
 - **通路②：绝对 / 基址相对**。`R_DADAO_ABS48`（指令 3 片 `immu16` **或**数据 8 字节字段、高 16 位 = 0）、`R_DADAO_ABS12`（`rb1–rb63` 基址、字节偏移、`S + A`）。[ADR-0019 D2][ADR-0021 D1]
-- **推导（非决策）**：PIC/PIE 的**指令域**无须新增重定位类型——GOT 槽相对访问点的偏移在**链接期**即为常量，可直接编码进既有访存立即数（`imms12`；超出范围时的具体形态由 LLVM 依 `ADR-0018 C7 D4` 的形态选择机制决定）；需要动态装配的是 **GOT 槽内容**（§4）。此推导的最终归属（类型集 / 编号）见 §4.3–§4.4（**已定**，用户 2026-10-14 逐条确认）。[ADR-0019 D2][ADR-0021 D3][ADR-0018 C7 D4][spec-decision]
+- **推导（非决策）**：PIC/PIE 的**指令域**无须新增重定位类型——GOT 槽相对访问点的偏移在**链接期**即为常量，可直接编码进既有访存立即数（`imms12`；超出范围时的具体形态由 LLVM 依 `ADR-0018 C7 D4` 的形态选择机制决定）；需要动态装配的是 **GOT 槽内容**（§4）。此推导的最终归属（类型集 / 编号）见 §4.3–§4.4（**已定**，用户 2026-10-14 逐条确认）。[ADR-0019 D2][ADR-0019 D10][ADR-0021 D3][ADR-0018 C7 D4][spec-decision]
 
 ### §2.3 `-fPIC` / `-pie` / `-shared` 的对象形态
 
@@ -103,6 +103,10 @@
 - **访问路径（PIC；裁定 8：不经 GP）**：取 GOT 槽地址 = **PC 相对（`rb0`）+ 链接期常量偏移**（`imms12` 字节偏移，约 ±2 KiB；**超出**范围的形态由 LLVM 依 `ADR-0018 C7 D4` 的形态选择机制决定），再以 `ld.o`/`st.o` 做 8 字节访存；**不需要**为「访问 GOT」本身新增重定位类型，**也不引入 GOT 固定基址寄存器**。[ADR-0021 D3][ADR-0018 C7 D4][spec-decision]（用户 2026-10-14 逐条确认）
 - **`DT_PLTGOT` 必须提供**：musl `ldso` 读 `dso->got`，构造 PLT/GOT 时必须发出 `DT_PLTGOT`。[外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
 - **不得**把 GOT 槽地址的链接期常量偏移当作动态重定位（二者分工：**偏移**链接期定、**内容**运行期定）。[ADR-0019 D2]
+- **GOT 语义（已定）**：GOT 的**模块内偏移固定**（= `DT_PLTGOT` 记的值；musl `ldso` 装载期读 `dso->got`），**绝对地址不固定**（= **装载基址 `B`** + 模块内偏移）——即「槽地址 = 链接期常量偏移 + 运行期装载基址」。[ADR-0019 D10][ADR-0026 D5][外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
+- **超 ±2 KiB 的两段式路径（已定）**：若 GOT 槽超出 `R_DADAO_REL12`（PC 相对、`imms12`）的 **±2 KiB** 单指令范围 ⇒ 由 `R_DADAO_ABS48` 序列把地址 / 偏移**算进 `rd`**，再以 **`ldm.o_rrri_rb`**（**目的 bank = `rb`**，`immu6 = 1` 当单寄存器用）**把值直接落 `rb`**，随后 **`jump rbX, rd0, 0`** 跳转；**跳转用途必须落 `rb`**——`jump-rrii` 基址只能取 `rb`、且**无「零 `rb`」**（`rb0` 不可作目的）。**不新增 ISA 指令**、**只加长不缩短**（与 `ADR-0019 D7` 禁 relaxation 一致）。[ADR-0019 D7][ADR-0019 D10][ADR-0021 D1][ADR-0026 D5][contract-isa.md §3.2][spec-decision]（用户 2026-10-14 逐条确认）
+- **PLT 只读（eager 收益，已定）**：首版 **eager**（`BIND_NOW`）下 PLT / `.got.plt` **装载后即可只读** ⇒ 可做 **full `RELRO`**；`JUMP_SLOT` 槽内容在装载后固定。[ADR-0026 D6][spec-decision]（用户 2026-10-14 逐条确认）
+- **icache 与绑定时机无关（已定）**：`JUMP_SLOT` 槽是**数据**（非代码）⇒ eager / lazy **均不**因绑定而需刷新 icache；只有「**写入或新映射代码**」的场景（`ifunc` resolver、`dlopen` 新映射段、JIT）才需刷新 icache。[ADR-0026 D5][外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
 
 ---
 
@@ -119,13 +123,19 @@
 - `ldso/dynlink.c` 实际消费的类别：`REL_SYMBOLIC`、`REL_GOT`、`REL_PLT`、`REL_RELATIVE`、`REL_COPY`、`REL_DTPMOD` / `REL_DTPOFF` / `REL_TPOFF`（+ 可选 `REL_TLSDESC`）。[外部权威 musl `ldso/dynlink.c`]
 - ⇒ **DADAO 至少须为「符号地址 / PLT / 相对 / COPY」四类各给一个类型**（否则 ldso 无法处理对应重定位）；**类型集 / 编号已定**（§4.3–§4.4，用户 2026-10-14 逐条确认）；TLS 三类与 `TLSDESC` **纳入**（§7）。[ADR-0025 D3][spec-decision]（用户 2026-10-14 逐条确认）
 
-### §4.3 DADAO 动态重定位类型集（**已定：8 项；2026-10-14 用户逐条确认**）
+### §4.3 DADAO 重定位类型总表（**最终编号，全密无空档；2026-10-14 用户逐条确认**）
 
-名与公式 = gABI 通用语义（外部权威）+ v5 裁定；类型名以既有静态类型前缀 **`R_DADAO_`** 承接。[contract-elf.md §2.2][外部权威 ELF gABI 第 4 章][spec-decision]（用户 2026-10-14 逐条确认）
+名与公式 = gABI 通用语义（外部权威）+ v5 裁定；类型名以既有静态类型前缀 **`R_DADAO_`** 承接。**下表为最终编号总表**（编号 **全密无空档**）：编号 `1`–`5` = 既有**静态**类型（规范正文归 `contract-elf.md §2.2`，此处仅列示占位）、`6` 起为**动态 / TLS** 类型（正文 = `ADR-0019 D10`）、`0` 为 **no-op 占位**、`14` 为**类型计数**。[ADR-0019 D2][ADR-0019 D10][ADR-0021 D2][contract-elf.md §2.2][外部权威 ELF gABI 第 4 章][spec-decision]（用户 2026-10-14 逐条确认）
 
 | 编号 | 名 | 场景（落点） | musl 类别 | 公式 |
 |------|----|-------------|-----------|------|
-| 0 | `R_DADAO_ABS48` | **数据 / GOT 槽复用**（8 字节字段） | `REL_SYMBOLIC` / `REL_GOT` | `S + A`（**无符号 48 位**） |
+| 0 | `R_DADAO_NONE` | **no-op**（占位，**不参与动态段语义**） | `REL_NONE`（加载期跳过） | 无（ldso `continue`） |
+| 1 | `R_DADAO_REL26` | **静态**：`call` / `jump`（iiii） | — | `(S + A − P) >> 2` |
+| 2 | `R_DADAO_REL20` | **静态**：`br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np`（riii） | — | `(S + A − P) >> 2` |
+| 3 | `R_DADAO_REL14` | **静态**：`br.eq` / `br.ne`（rrii） | — | `(S + A − P) >> 2` |
+| 4 | `R_DADAO_REL12` | **静态**：`ld/st [rb0, sym]`（PC 相对、字节） | — | `S + A − P`（字节） |
+| 5 | `R_DADAO_ABS12` | **静态**：`ld/st [rbN, sym]`（`rb1–rb63` 基址相对、字节） | — | `S + A`（字节） |
+| 6 | `R_DADAO_ABS48` | **数据 / GOT 槽**（8 字节字段）**或**地址构造序列（3 片 wyde） | `REL_SYMBOLIC` / `REL_GOT` | `S + A`（**无符号 48 位**） |
 | 7 | `R_DADAO_JUMP_SLOT` | PLT 的 GOT 槽（8 字节字段） | `REL_PLT` | `S + A`（**无符号 48 位**） |
 | 8 | `R_DADAO_RELATIVE` | 相对重定位（8 字节字段） | `REL_RELATIVE` | `B + A`（**无符号 48 位**） |
 | 9 | `R_DADAO_COPY` | 运行期副本 | `REL_COPY` | `memcpy(副本, S, st_size)` |
@@ -133,8 +143,10 @@
 | 11 | `R_DADAO_TLS_DTPREL` | 模块内偏置 | `REL_DTPOFF` | `DTPOFF(sym) + A`（**补码**） |
 | 12 | `R_DADAO_TLS_TPREL` | TP 相对偏置 | `REL_TPOFF` | `TPOFF(sym) + A`（**补码，可负**） |
 | 13 | `R_DADAO_TLSDESC` | TLS 描述符（**两格**） | `REL_TLSDESC` | 格① = resolver 地址（**基址**）；格② = `arg`（**由 resolver 约定**） |
+| 14 | `R_DADAO_NUM` | 类型计数（**非实际重定位**） | — | —（**冻结值 = 14**） |
 
-- **值类规则（裁定 2）**：**偏移**类（`R_DADAO_TLS_DTPREL` / `R_DADAO_TLS_TPREL`）**不带位宽后缀**、按**补码（有符号）加法**计算；**基址 / 绝对地址**类（`ABS48` / `JUMP_SLOT` / `RELATIVE` 的 `S` / `B` 及其结果）按**无符号 48 位**解释。[spec-decision]（用户 2026-10-14 逐条确认）
+- **动态类型 = 8 项**：`R_DADAO_ABS48`（编号 `6`，数据 / GOT 槽**复用**）+ `JUMP_SLOT`=7 / `RELATIVE`=8 / `COPY`=9 / `TLS_DTPMOD`=10 / `TLS_DTPREL`=11 / `TLS_TPREL`=12 / `TLSDESC`=13；`R_DADAO_NONE`=0 为 **no-op 占位**（**不参与动态段语义**，musl `ldso` 遇即跳过）、`R_DADAO_NUM`=14 为**类型计数**（**非实际重定位**）。[ADR-0019 D10][spec-decision]（用户 2026-10-14 逐条确认）
+- **值类规则（裁定 2）**：**偏移**类（`REL26`/`REL20`/`REL14`/`REL12`/`TLS_DTPREL`/`TLS_TPREL`）**不带位宽后缀**、按**补码（有符号）加法**计算；**基址 / 绝对地址**类（`ABS48` / `JUMP_SLOT` / `RELATIVE` 的 `S` / `B` 及其结果）按**无符号 48 位**解释、名**带 `48` 后缀**。[ADR-0019 D10][spec-decision]（用户 2026-10-14 逐条确认）
 - **公式符号**：`B` = 装载基址、`S` = 符号运行时地址、`A` = `r_addend`（显式）；`*slot` = **8 字节**槽（§1.4）。[ADR-0019 D3][contract-elf.md §3.1]
 - **数据 / GOT 槽形态**：复用既有 `R_DADAO_ABS48` 的**数据形式**（8 字节字段、大端、高 16 位 = 0）；**不新增**独立 `GLOB_DAT` 类型——数据符号地址与 GOT 槽**一律经 `ABS48`**。[contract-elf.md §3.1][spec-decision]（用户 2026-10-14 逐条确认）
 - **落点字段**：动态重定位值落 **8 字节槽**（v5 有效虚拟地址 48 位 ⇒ 高 16 位 = 0，与 `R_DADAO_ABS48` 数据形式同型）。[contract-elf.md §3.1][contract-isa.md §1.5][spec-decision]
@@ -142,12 +154,13 @@
 
 ### §4.4 编号方案（**已定：2026-10-14 用户逐条确认**）
 
-- **事实（既有占用）**：`e_flags[7:0] = 1` namespace 内既有 `R_DADAO_*` 占用 `0–5`：`ABS48`=0、`REL26`=1、`REL20`=2、`REL14`=3、`REL12`=4、`ABS12`=5；`R_DADAO_NUM`=6 为**类型计数**（非实际重定位）。[contract-elf.md §2.2][ADR-0019 D2][ADR-0021 D2]
-- **已定（裁定 1）**：动态重定位类型固定在**同一** `e_flags[7:0] = 1` namespace 内编号——**`ABS48` 复用 `0`（不新增）**，其余 7 项编号 `7`–`13`（逐项号值见 §4.3 表）；**不复用** legacy `Dadao.def` 的编号 / 公式；编号 `6`（`R_DADAO_NUM`）**不占作**动态类型。[contract-elf.md §2.2][ADR-0019 D2][spec-decision]（用户 2026-10-14 逐条确认）
-- **`R_DADAO_NUM`（类型计数）**：保持「类型计数」语义，其**冻结值随新编号表顺延**——由 `ADR-0019 D10…` 落定时确定（本合约**不写死数值**，避免臆造）。[contract-elf.md §2.2][spec-decision]（用户 2026-10-14 逐条确认）
+- **事实（本裁定前的既有占用）**：本裁定**前**，`e_flags[7:0] = 1` namespace 内的静态 `R_DADAO_*` 占用 `0`–`5`：`ABS48`=0、`REL26`=1、`REL20`=2、`REL14`=3、`REL12`=4、`ABS12`=5；另有 `R_DADAO_NUM`=6（**类型计数**、非实际重定位）。[contract-elf.md §2.2][ADR-0019 D2][ADR-0021 D2]
+- **已定（裁定 1，最终编号）**：动态重定位类型固定在**同一** `e_flags[7:0] = 1` namespace 内编号——`R_DADAO_NONE`=**0**（**no-op 占位**、不参与动态段语义）、`R_DADAO_ABS48` **由 `0` 改为 `6`**（**改号**；数据 / GOT 槽**复用**）、其余动态 7 项编号 `7`–`13`（逐项号值见 §4.3 总表）；`R_DADAO_NUM` 冻结为 **`14`**；**不复用** legacy `Dadao.def` 的编号 / 公式。[ADR-0019 D10][contract-elf.md §2.2][spec-decision]（用户 2026-10-14 逐条确认）
+- **改号影响面（已定）**：`ABS48` `0→6` 属**改号** ⇒ 须同步 `llvm/…/BinaryFormat/ELFRelocs/DADAO.def`（lld 生产者侧）、`contract-elf.md §2.2`、本合约 §4.3；并**排查既有 ELF 产物 / 测试向量**里写死的类型字段。**实际代码改动 = P2 工作**（登记 issue 跟踪）。[ADR-0019 D10][spec-decision]（用户 2026-10-14 逐条确认）
+- **`R_DADAO_NUM`（类型计数）**：保持「类型计数」语义，其**冻结值 = `14`**（= 类型总数 ⇒ 类型号必须**密集无空档**）。[ADR-0019 D10][contract-elf.md §2.2][spec-decision]（用户 2026-10-14 逐条确认）
 - **不沿用第三方编号**：编号取值由本裁定直接给定，**不**取自第三方 psABI（如 RISC-V）编号表。[spec-decision]（用户 2026-10-14 逐条确认）
-- **载体（已定，裁定 4 = 混合 (c)）**：**类型号 / 公式 / 语义** ⇒ **就地扩 `ADR-0019`（追加 `D10…`）**承载**决策正文**；**行为类口径**（`ld.so` 用法 / `PT_INTERP` / `DT_*` / 绑定时机 / 越界）⇒ **另立新 ADR**。二者**均由 architect 落地**；本合约只承载**契约正文**并标注来源。[ADR-0025][spec-decision]（用户 2026-10-14 逐条确认）
-- **落地状态**：上列编号 / 公式已由用户逐条确认，其 `ADR-0019 D10…` 规范正文**待 architect 落地**（本任务**不改** `ADR-0019`、**不建**新 ADR）。[ADR-0019 D10…（待 architect 落地）][spec-decision]（用户 2026-10-14 逐条确认）
+- **载体（已定，裁定 4 = 混合 (c)）**：**类型号 / 公式 / 语义** ⇒ **就地扩 `ADR-0019`（追加 `D10`）**承载**决策正文**；**行为类口径**（`ld.so` 用法 / `PT_INTERP` / `DT_*` / 绑定时机 / 越界）⇒ **新 ADR `ADR-0026`**。二者**均已由 architect 落地（2026-10-14，均 `Accepted`）**；本合约只承载**契约正文**并标注来源。[ADR-0019 D10][ADR-0026 D1–D8][ADR-0025][spec-decision]（用户 2026-10-14 逐条确认）
+- **落地状态**：上列编号 / 公式 / 行为口径**已落地**——`ADR-0019 D10`（类型号 / 公式 / 语义）+ `ADR-0026 D1–D8`（行为类口径）。[ADR-0019 D10][ADR-0026 D1–D8][spec-decision]（用户 2026-10-14 逐条确认）
 - **禁止**：**不得**自拟编号或公式（无用户确认即写入编号 = 违规）。[spec-decision]
 
 ### §4.5 越界与未解析策略
@@ -160,7 +173,7 @@
 
 - **动态段**：`PT_DYNAMIC` + `.dynamic`（`SHT_DYNAMIC`）承载 `DT_*` 标签；必备子集受**两条**约束：①「musl ldso 实际消费的标签」（源码事实：`DT_SYMTAB` / `DT_STRTAB` / `DT_HASH` / `DT_GNU_HASH` / `DT_RELA` / `DT_RELASZ` / `DT_REL` / `DT_RELSZ` / `DT_JMPREL` / `DT_PLTRELSZ` / `DT_PLTREL` / `DT_PLTGOT` / `DT_NEEDED` / `DT_INIT` / `DT_INIT_ARRAY` / `DT_INIT_ARRAYSZ` / `DT_FINI` / `DT_FINI_ARRAY` / `DT_FINI_ARRAYSZ` / `DT_RPATH` / `DT_RUNPATH` / `DT_TEXTREL` / `DT_FLAGS` / `DT_FLAGS_1` / `DT_BIND_NOW` / `DT_RELR` / `DT_RELRSZ` / `DT_VERSYM` / `DT_DEBUG`）；② gABI 的标签通用语义（含 `DT_STRSZ` 等 strtab 尺寸类标签——其是否为 v5 必备项由 LLVM 侧定）。[外部权威 ELF gABI 第 5 章][外部权威 musl `ldso/dynlink.c`][spec-decision]
 - **符号表 / 字符串表**：`.dynsym`（`DT_SYMTAB`）与 `.dynstr`（`DT_STRTAB`，尺寸标签 `DT_STRSZ`）为**必备**（gABI 要求；musl ldso 据此解析符号名）。[外部权威 ELF gABI 第 5 章][外部权威 musl `ldso/dynlink.c`]
-- **哈希表口径（已定，裁定 6）**：**SysV Hash（`DT_HASH`）与 GNU Hash（`DT_GNU_HASH`）都提供**（≡ `--hash-style=both`，即上游 lld 默认）——**不得省略任一**。[外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
+- **哈希表口径（已定，裁定 6；修订）**：**只发射 GNU Hash（`DT_GNU_HASH`）**（≡ `--hash-style=gnu`）；**不**双发 SysV Hash（`DT_HASH`）。musl `ldso` 两套 hash 均支持 ⇒ **只发 GNU 侧即可**。**用户原话**：「只支持 GNU hash，无需提供 both」。【修订（2026-10-14）】本条**修订**早前记录的「双发（SysV + GNU，≡ `--hash-style=both`）」口径（同次会话由用户重新裁定为「仅 GNU」）。[ADR-0026 D3][外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
 - **符号版本 / `DT_RELR`（已定，裁定 7：都不做）**：
   - **不发射版本段**（不做符号版本化）；契约**留位**并写明**启用条件**（若将来启用，须一并定 `.gnu.version*` / `DT_VERNEED` / `DT_VERDEF` 完整约定）。[外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
   - **`DT_RELR` 默认关**（= `--pack-dyn-relocs=none`）；契约**留位**并写明**启用条件**（与 §4.4 编号方案联动，启用时另定紧凑相对重定位编码）。[外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
@@ -175,8 +188,8 @@
 
 - `PT_INTERP` 承载解释器**字符串路径**（gABI 第 5 章）；本项目的解释器 = musl ldso。[ADR-0025 D3][外部权威 ELF gABI 第 5 章]
 - **事实（musl 命名规则）**：musl 的安装名规则为 `<syslibdir>/ld-musl-<arch><subarch>.so.1`（`Makefile` 中 `LDSO_PATHNAME`），各目标以 `LDSO_ARCH` 标识（如 riscv64 为 `"riscv64"`）。[外部权威 musl `Makefile`][外部权威 musl `arch/riscv64/reloc.h`]
-- **已定（裁定 5）**：`PT_INTERP` = **`/lib/ld-musl-dadao.so.1`**，该路径为**符号链接 → `libc.so`**（主流 musl 做法）；写的是 **guest 视角路径**（由 QEMU user-mode + guest root 解析，§6.4）。[外部权威 musl `Makefile`][ADR-0025 D3][spec-decision]（用户 2026-10-14 逐条确认）
-- **构建侧（裁定 5）**：须**显式传 `-dynamic-linker /lib/ld-musl-dadao.so.1`**（lld 无默认值）；**建议不改** lld 默认（由构建调用处显式给出）。[spec-decision]（用户 2026-10-14 逐条确认）
+- **已定（裁定 5）**：`PT_INTERP` = **`/lib/ld-musl-dadao.so.1`**，该路径为**符号链接 → `libc.so`**（主流 musl 做法）；写的是 **guest 视角路径**（由 QEMU user-mode + guest root 解析，§6.4）。[外部权威 musl `Makefile`][ADR-0025 D3][ADR-0026 D2][spec-decision]（用户 2026-10-14 逐条确认）
+- **构建侧（裁定 5）**：须**显式传 `-dynamic-linker /lib/ld-musl-dadao.so.1`**（lld 无默认值）；**建议不改** lld 默认（由构建调用处显式给出）。[ADR-0026 D2][spec-decision]（用户 2026-10-14 逐条确认）
 
 ### §6.2 启动 auxv：musl ldso 消费的 `AT_*` 集合（事实）
 
@@ -214,7 +227,7 @@
 - **事实（v5 寄存器 + `D5` 查证）**：spec 已定义 `rb3` = `rbtp`（thread pointer），v5 M3 起保留不分配；`ADR-0025 D5` 查证结论 = musl **硬依赖** TP（含 `struct pthread` 的 TCB/TLS 区**无条件**、静态单线程亦不可省）⇒ **TLS 自动纳入 M8**。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018 C6][ADR-0025 D5]
 - **已定（裁定 1 / 8）**：TLS **纳入 M8**，类型集含 4 个 TLS 类（`R_DADAO_TLS_DTPMOD` / `R_DADAO_TLS_DTPREL` / `R_DADAO_TLS_TPREL` / `R_DADAO_TLSDESC`，编号见 §4.3 表）。[spec-decision]（用户 2026-10-14 逐条确认）
 - **依赖记录（裁定 8）**：TP 的**方向与偏置**（`TLS_ABOVE_TP` / `TP_OFFSET` / `DTP_OFFSET` / `__get_tp`）归 **musl arch 宏**，**逐 arch 定值在 musl 移植任务**；本合约**只记录该依赖**、不写死值。[外部权威 musl `arch/riscv64/reloc.h`][ADR-0025 D5][spec-decision]（用户 2026-10-14 逐条确认）
-- **禁止**：`ADR-0019 D10…` 落定前**不得**自拟 TLS 类型编号 / 模型（本合约的类型号已由用户 2026-10-14 确认，不得增改）。[spec-decision]（用户 2026-10-14 逐条确认）
+- **禁止**：**不得**自拟 TLS 类型编号 / 模型（类型号已由 `ADR-0019 D10` 落定、用户 2026-10-14 确认，**不得增改**）。[ADR-0019 D10][spec-decision]（用户 2026-10-14 逐条确认）
 
 ---
 
@@ -229,15 +242,15 @@
 
 ## §9 裁定清单（**已定：2026-10-14 用户逐条确认，渠道 = 经主会话问答**）
 
-> 原「待确认清单」十项**已由用户 2026-10-14 逐条确认**，全部转为「**已定**」；原候选与选项标签见 §9.1「历史」。类型号 / 公式 / 语义的**规范正文**待 `ADR-0019 D10…` 落地，行为类口径**待新 ADR**（§4.4）。[spec-decision]（用户 2026-10-14 逐条确认）
+> 原「待确认清单」十项**已由用户 2026-10-14 逐条确认**，全部转为「**已定**」；原候选与选项标签见 §9.1「历史」。**规范正文已落地**：类型号 / 公式 / 语义 ⇒ `[ADR-0019 D10]`；行为类口径 ⇒ `[ADR-0026 D1–D8]`（§4.4）。**修订（2026-10-14）**：裁定 5（哈希表）由「**双发**」改为「**仅 GNU hash**」（用户原话「只支持 GNU hash，无需提供 both」；`ADR-0026 D3`）；其余 9 项不变。[ADR-0019 D10][ADR-0026 D1–D8][spec-decision]（用户 2026-10-14 逐条确认）
 
 | # | 项 | 状态 | 裁定（用户 2026-10-14 逐条确认；选项标签见 §9.1） |
 |---|----|------|--------------------------------------------------|
-| 1 | 动态重定位**类型集**（名 / 编号 / 公式 / 落点字段） | **已定** | **定满 8 项**：`ABS48` 复用 `0`（数据 / GOT 槽，**不新增**）+ `JUMP_SLOT`=7 / `RELATIVE`=8 / `COPY`=9 / `TLS_DTPMOD`=10 / `TLS_DTPREL`=11 / `TLS_TPREL`=12 / `TLSDESC`=13（§4.3）；值类：**偏移**按补码加法、**基址 / 绝对地址**按无符号 48 位（§4.3） |
-| 2 | `R_DADAO_*` 编号分配 / `R_DADAO_NUM` 顺延 | **已定** | 编号分配见 #1；`R_DADAO_NUM` 保持**类型计数**、其冻结值随新编号表**顺延**（待 `ADR-0019 D10…` 落定，本合约**不写死**） |
+| 1 | 动态重定位**类型集**（名 / 编号 / 公式 / 落点字段） | **已定** | **动态 8 项**：`R_DADAO_ABS48`=**6**（数据 / GOT 槽；**由 `0` 改号**）+ `JUMP_SLOT`=7 / `RELATIVE`=8 / `COPY`=9 / `TLS_DTPMOD`=10 / `TLS_DTPREL`=11 / `TLS_TPREL`=12 / `TLSDESC`=13；`R_DADAO_NONE`=**0**（no-op 占位）、`R_DADAO_NUM`=**14**（计数）（§4.3）；值类：**偏移**按补码加法、**基址 / 绝对地址**按无符号 48 位（§4.3） |
+| 2 | `R_DADAO_*` 编号分配 / `R_DADAO_NUM` 冻结值 | **已定** | 编号分配见 #1；`R_DADAO_NUM` 保持**类型计数**，**冻结值 = `14`**（= 类型总数；§4.4） |
 | 3 | 是否沿用第三方（如 RISC-V psABI）编号 | **已定** | **不沿用**——编号取值由 #1 直接给定 |
 | 4 | `PT_INTERP` 路径与命名 | **已定** | **`/lib/ld-musl-dadao.so.1`**（符号链接 → `libc.so`，guest 视角路径）；构建须**显式传** `-dynamic-linker`（§6.1） |
-| 5 | 哈希表口径（SysV / GNU / 双发） | **已定** | **双发**（SysV + GNU，≡ `--hash-style=both`），**不得省略任一**（§5） |
+| 5 | 哈希表口径（SysV / GNU / 双发） | **已定**（**修订**） | **仅 GNU hash**（`--hash-style=gnu`）——**不**双发 SysV；musl `ldso` 两套均支持，只发 GNU 侧即可（§5）。**修订 2026-10-14：原「双发」→「仅 GNU」** |
 | 6 | 符号版本 / `DT_RELR` 是否纳入 | **已定** | **都不做**（不发射版本段；`DT_RELR` 默认关 = `--pack-dyn-relocs=none`）；契约留位并写明启用条件；登记 musl 不支持 glibc 式版本化解析（§5） |
 | 7 | GOT 基址寄存器（`rbgp`）与 `rbtp` 的初值 / 设置者 | **已定** | **不引入** GOT 固定基址寄存器（PC 相对访问槽）；`DT_PLTGOT` 必须提供；TP 方向 / 偏置归 musl arch 宏（§2.4 / §3 / §6.5 / §7） |
 | 8 | TLS / 线程归属 ⇒ TLS 模型与类型 | **已定** | TLS **纳入 M8**（类型含 4 个 TLS 类）；TP 方向 / 偏置**逐 arch 定值**归 musl 移植任务（§7） |
@@ -247,15 +260,16 @@
 ### §9.1 历史（原候选 / 选项标签；保留备查）
 
 - 原「待确认清单」（用户 2026-10-14 逐条确认**前**）的候选类型名（**占位**，以 `…_<后缀>` 表示）：`…_RELATIVE` / `…_GLOB_DAT` / `…_JUMP_SLOT` / `…_COPY` / `…_TLS_DTPMOD64` / `…_TLS_DTPREL64` / `…_TLS_TPREL64`——**已被裁定取代**（数据 / GOT 槽复用 `ABS48`、**无**独立 `GLOB_DAT`、偏移类名**不带**位宽后缀）。[spec-decision]
-- 原载体候选：**(a) 就地扩 `ADR-0019`（`D10…`）** vs **(b) 另立新 ADR**（二选一或并列）——**裁定为混合 (c)**：类型号 / 公式 / 语义就地扩 `ADR-0019`（`D10…`），行为类另立新 ADR（§4.4）。[spec-decision]
+- 原载体候选：**(a) 就地扩 `ADR-0019`（`D10`）** vs **(b) 另立新 ADR**（二选一或并列）——**裁定为混合 (c)**：类型号 / 公式 / 语义就地扩 `ADR-0019`（`D10`），行为类另立新 ADR（= **`ADR-0026`**）（§4.4）。[ADR-0019 D10][ADR-0026][spec-decision]
+- **哈希口径修订（2026-10-14）**：裁定 5 原「双发（SysV + GNU，≡ `--hash-style=both`）」由用户**重新裁定**为「**仅 GNU hash**」——原「双发」作为历史记录保留于此；正文以 §5 为准。[ADR-0026 D3][spec-decision]（用户 2026-10-14 逐条确认）
 - 原「未定项」现全部转为「已定」（上表）；每项已按 `docs/Process-03-ADR编写规范.md` 与 `AGENTS.md`「ADR decision 逐条确认」流程归属载体（就地修订 / 新 ADR / 落本合约正文）。[ADR-0025][spec-decision]
-- **落纸规则**：编号 / 公式 / 命名类确认后，若属「就地修订 `ADR-0019`」则须用户逐条确认后方可改该 ADR；**本任务不改**任何既有 ADR 文件、**不建**新 ADR。[ADR-0025][spec-decision]
+- **落纸规则**：编号 / 公式 / 命名类确认后，若属「就地修订 `ADR-0019`」则须用户逐条确认后方可改该 ADR。**本批次已由 architect 落地（2026-10-14）**：`ADR-0019` **就地追加 `D10`**（含 `D2` 就地修订注记）+ **新建 `ADR-0026`**（行为类口径）。[ADR-0019 D10][ADR-0026][ADR-0025][spec-decision]
 
 ---
 
 ## §10 失败与越界策略（**已定：2026-10-14 用户逐条确认，裁定 10**）
 
-- **总则（裁定 10 ⑤）**：下述失败形态**只要求「必须报错、不得继续」**，**不改 musl 行为**；错误文案不作约束。[spec-decision]（用户 2026-10-14 逐条确认）
+- **总则（裁定 10 ⑤）**：下述失败形态**只要求「必须报错、不得继续」**，**不改 musl 行为**；错误文案不作约束。本节 = `ADR-0026 D7`。[ADR-0026 D7][spec-decision]（用户 2026-10-14 逐条确认）
 - **① 48 位约束**：`S`（符号运行时地址）/ `B`（装载基址）/ 重定位**结果**若越出 **48 位**有效虚拟地址范围 ⇒ **装载期（ld.so / 加载器）报错**——**不截断、不 wrap**。[contract-isa.md §1.5][spec-decision]（用户 2026-10-14 逐条确认）
 - **② 未支持 / 未定义类型或结构**：遇**未支持或未定义**的重定位类型 / 结构（含某实现尚未实现的 `COPY` / `TLSDESC`，以及**未启用**的版本段 / `DT_RELR`）⇒ **显式报错，不静默**（不得静默跳过 / 静默出 0）。[ADR-0019 D6][spec-decision]（用户 2026-10-14 逐条确认）
 - **③ 偏移与 TP 越界**：偏移类（`R_DADAO_TLS_DTPREL` / `R_DADAO_TLS_TPREL`）按**补码**（有符号）计算；`TP + TPOFF` 越界 ⇒ **报错**。[spec-decision]（用户 2026-10-14 逐条确认）
@@ -273,23 +287,23 @@
 | §1.3 | 来源四分层；外部权威出处（gABI / musl / qemu，可核） | 外部权威（gABI 第4/5章、musl v1.2.6、qemu `c3d48b7d…`）；`ADR-0025 D3` |
 | §1.4 | 术语与公式符号（`S`/`A`/`P`/`B`） | `ADR-0019 D3`；gABI 第 5 章 |
 | §2.1 | `rb0`/`rbgp`/`rbtp` 角色；48 位地址 | `DADAO-21 §寄存器规范 §RB寄存器`；`SimRISC-00 §基址寄存器`；`contract-isa.md §1.5`；`ADR-0018 C6`；`ADR-0015 D1` |
-| §2.2 | 两条寻址通路（PC 相对 / 绝对·基址相对）；PIC 指令域无须新类型的推导 | `ADR-0019 D2`/`D3`；`ADR-0021 D1`/`D3`；`ADR-0018 C7 D4` |
+| §2.2 | 两条寻址通路（PC 相对 / 绝对·基址相对）；PIC 指令域无须新类型的推导 | `ADR-0019 D2`/`D3`/`D10`；`ADR-0021 D1`/`D3`；`ADR-0018 C7 D4` |
 | §2.3 | `ET_DYN`（`-fPIC`/`-pie`/`-shared`）；与 M4 VA=PA 路径并存 | gABI 第 5 章；`ADR-0003 D5`；`contract-elf.md §5.2` |
-| §2.4 | GOT 基址寄存器与 TP 口径（**已定**：不引入 GOT 基址寄存器；TP 归 arch 宏） | `DADAO-21 §寄存器规范 §RB寄存器`；`ADR-0018 C6`；`ADR-0021 D3`；musl `ldso/dynlink.c`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
-| §3 | GOT 槽 8 字节；PLT 绑定时机（**已定**：eager / `BIND_NOW`）；`DT_PLTGOT`；访问路径（不经 GP） | `contract-abi.md §1.7`；gABI 第 5 章；musl `ldso/dynlink.c`；`ADR-0021 D3`；`ADR-0018 C7 D4`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §2.4 | GOT 基址寄存器与 TP 口径（**已定**：不引入 GOT 基址寄存器；TP 归 arch 宏） | `DADAO-21 §寄存器规范 §RB寄存器`；`ADR-0018 C6`；`ADR-0021 D3`；`ADR-0026 D5`；musl `ldso/dynlink.c`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §3 | GOT 槽 8 字节；GOT 语义（偏移固定 / 绝对不固定）；PLT 绑定时机（**已定**：eager / `BIND_NOW`、full `RELRO`）；`DT_PLTGOT`；访问路径（不经 GP）；超 ±2 KiB 两段式（`ABS48` + `ldm.o_rrri_rb`）；icache 澄清 | `contract-abi.md §1.7`；gABI 第 5 章；musl `ldso/dynlink.c`；`ADR-0021 D3`；`ADR-0018 C7 D4`；`ADR-0019 D10`；`ADR-0026 D5`/`D6`；`contract-isa.md §3.2`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
 | §4.1 | `SHT_RELA` 记录型态；`Elf64_Rela` 布局与 `r_info` 位宽 | `ADR-0019 D1`；gABI 第 4 章；musl `src/internal/dynlink.h` |
 | §4.2 | musl 类别集与默认不可命中；须映射的四类 | musl `src/internal/dynlink.h` / `ldso/dynlink.c` / `arch/riscv64/reloc.h`；`ADR-0025 D3` |
-| §4.3 | **已定**类型集（8 项：`ABS48` 复用 0 + 7–13）与公式（无符号 48 位 / 补码） | gABI 第 4 章；musl；`contract-elf.md §3.1`；`[ADR-0019 D10…（待 architect 落地）]`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
-| §4.4 | 既有编号占用 0–5 / `NUM`=6；**已定**编号 0、7–13；载体 (c) 混合（就地扩 + 新 ADR） | `contract-elf.md §2.2`；`ADR-0019 D2`；`ADR-0021 D2`；`ADR-0025`；`[ADR-0019 D10…（待 architect 落地）]`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §4.3 | **已定**重定位总表（`0`=`NONE` 占位 / `1`–`5` 静态 / `6`=`ABS48` / `7`–`13` 动态 / `14`=`NUM`）与公式（无符号 48 位 / 补码） | gABI 第 4 章；musl；`contract-elf.md §3.1`；`ADR-0019 D10`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §4.4 | 编号方案（`NONE`=0 / `ABS48` **0→6 改号** / 动态 7–13 / `NUM`=14）；载体 (c) 混合（就地扩 `ADR-0019 D10` + 新 ADR `ADR-0026`） | `contract-elf.md §2.2`；`ADR-0019 D2`/`D10`；`ADR-0021 D2`；`ADR-0025`；`ADR-0026`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
 | §4.5 | 越界 / 未解析策略（指针 → §10） | `ADR-0019 D6`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
-| §5 | 动态段 `DT_*` 消费集；`dynsym`/`dynstr`；Hash **已定**（双发）；版本 / `DT_RELR` **已定**（都不做） | gABI 第 5 章；musl `ldso/dynlink.c`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
-| §6.1 | `PT_INTERP` 字符串；musl 安装名规则；**已定**命名 `/lib/ld-musl-dadao.so.1` | `ADR-0025 D3`；gABI 第 5 章；musl `Makefile` / `arch/riscv64/reloc.h`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §5 | 动态段 `DT_*` 消费集；`dynsym`/`dynstr`；Hash **已定**（**修订：仅 GNU hash**）；版本 / `DT_RELR` **已定**（都不做） | gABI 第 5 章；musl `ldso/dynlink.c`；`ADR-0026 D3`/`D4`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §6.1 | `PT_INTERP` 字符串；musl 安装名规则；**已定**命名 `/lib/ld-musl-dadao.so.1`（符号链接 → `libc.so`；构建显式传 `-dynamic-linker`） | `ADR-0025 D3`；gABI 第 5 章；musl `Makefile` / `arch/riscv64/reloc.h`；`ADR-0026 D2`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
 | §6.2 | musl 消费的 `AT_*` 集合 | musl `ldso/dynlink.c` / `ldso/dlstart.c`；gABI 第 5 章 |
 | §6.3 | 注入者 = QEMU user-mode；`create_elf_tables` / `load_elf_interp` / `AT_BASE` | `ADR-0025 D2`/`D6`；qemu `linux-user/elfload.c` |
 | §6.4 | 解释器路径解析（guest-root 前缀） | `ADR-0025 D2`/`D6`；qemu `linux-user/main.c` / `elfload.c` |
 | §6.5 | 入口栈向量；SP/8B 对齐；`rbgp`/`rbtp` 初值（**已定**：无 GP；TP 归 arch 宏） | musl `ldso/dlstart.c`；qemu `linux-user/elfload.c`；`contract-abi.md §2.1`；`DADAO-21 §函数调用规范 §The Stack Frame`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
 | §6.6 | P3 边界；不得作 oracle；不引入内核目标 | `ADR-0025 D2`/`D6`/`D7` |
-| §7 | TLS **已定纳入 M8**（4 个 TLS 类）；TP 方向 / 偏置归 musl arch 宏（依赖记录） | `ADR-0025 D5`；musl `reloc.h`；`DADAO-21 §寄存器规范 §RB寄存器`；`ADR-0018 C6`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
-| §8 | oracle 口径与禁止项；P4 归属 | `ADR-0025 D6`/`D7`；gABI；musl |
-| §9 | **裁定清单（已定）**与历史 / 落纸规则 | `ADR-0025`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
-| §10 | **失败与越界策略**（48 位约束 / 未支持类型 / 补码越界 / lld 侧 / 分层） | `ADR-0019 D6`/`D7`；`ADR-0021 D3`；`contract-isa.md §1.5`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §7 | TLS **已定纳入 M8**（4 个 TLS 类）；TP 方向 / 偏置归 musl arch 宏（依赖记录） | `ADR-0025 D5`；musl `reloc.h`；`DADAO-21 §寄存器规范 §RB寄存器`；`ADR-0018 C6`；`ADR-0019 D10`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §8 | oracle 口径与禁止项；P4 归属 | `ADR-0025 D6`/`D7`；`ADR-0026 D8`；gABI；musl |
+| §9 | **裁定清单（已定）**与历史 / 落纸规则（裁定 5 修订为仅 GNU hash） | `ADR-0025`；`ADR-0026 D3`；`ADR-0019 D10`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
+| §10 | **失败与越界策略**（48 位约束 / 未支持类型 / 补码越界 / lld 侧 / 分层） | `ADR-0026 D7`；`ADR-0019 D6`/`D7`；`ADR-0021 D3`；`contract-isa.md §1.5`；`[spec-decision]`（用户 2026-10-14 逐条确认） |

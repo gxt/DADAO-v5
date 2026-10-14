@@ -371,3 +371,12 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `LLVM-091t` 主会话协调现场〔**主会话转述，architect 未直接持有 reviewer 返回**〕；architect 提交/文件集审核时立项，2026-10-14）】**现象**：`LLVM-091t`（llvm-project 23.1.1 → 23.1.3 升级）的 reviewer 子代理**未返回最终判定**——返回仅**列 13 项已核**并声明**在等 picolibc 全量结果**，**未给 `Accepted`/`Needs Revision`**；**非** `Task cancelled`/空结果，属**判定缺位**（`AGENTS.md`『子代理返回异常处理』）。**现场（主会话核 + architect 复核）**：picolibc 全量 log **已在盘**（前 = 后 = `235/213/0/22/0`，**无回归**）⇒ 复审所需证据齐备，**非**证据缺失问题；`LLVM-091t` 任务书 `**状态**` 保持 **`待验收`**（**未**置 `已验证`），已随本批提交落地（`milestones.md` 流水行同口径）。**处置（主会话）**：按「异常返回 ⇒ 附失败现场**重试同一任务 1 次**」**重派 reviewer 1 次**（附现场 = 缺最终判定 + 已核 13 项清单 + picolibc log 路径）；**仍异常 ⇒ 停止重试、提请用户拆分**。**性质 = 子代理返回异常 / 判定缺位**（非交付物缺陷、非静默）。证据指针：`.tao/tasks/llvm/LLVM-091t-*.md`「审阅记录」+ `.work/evidence/<任务ID>/picolibc-full-{before,after}.log` + `.work/log/<模块>/LLVM-091t-*.log`。"
+
+
+- id: ISS-206
+  title: "`DADAO.def`（lld 生产者）须随 `ADR-0019 D10` 重编号（`NONE=0` / `ABS48` 0→6 / 动态 7–13 / `NUM=14`）+ `contract-elf.md §2.2` 同步 + 排查既有 ELF 产物·向量里写死的类型字段——属 P2 必做"
+  status: open
+  scope: [spec, llvm, testcases]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `ADR-0019 D10` + `ADR-0026` 落纸，architect 2026-10-14）】**事实**：`ADR-0019 D10` 把重定位类型号重排为 `0=R_DADAO_NONE`（no-op 占位）/ `1`–`5` 静态不变 / **`6=R_DADAO_ABS48`（由 `0` 改号）** / `7`–`13` 动态 / **`14=R_DADAO_NUM`（计数）**；`ADR-0026` 落行为类口径。**待办（P2 必做）**：① `components/llvm-project` 侧 `llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def` 重编号（**现状**：`ABS48=0` … `NUM=6`，与 `D10` 不一致）；② `.tao/knowledge/contract-elf.md §2.2` 静态类型表同步（现仍 `ABS48=0` / `NUM=6`）；③ **排查既有 ELF 产物 / 测试向量**（`tests/vectors/**`、`tools/testcases/*`）里写死的类型号字段并随之下调。**性质 = 规范已冻结、实现待同步（改号影响面）**；**本次落纸不改任何代码 / 产物**（`ADR-0019 D10`(d) 明示属 P2）。**只登记，不建任务**（P2 开工时立）。"
