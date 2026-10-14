@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 范围与 Linux 兼容路线，`Accepted`，`D2` 无内核 / `D3` musl 自带 ldso）；`ADR-0019`（`R_DADAO_*` 重定位类型）+ `ADR-0021`；`SPEC-138t`（并列契约，无先后硬依赖）
-**状态**：已验证
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -122,3 +122,47 @@
 - **非阻断 finding（我独立注入新发现，已达「契约自身行文式」外）**：⑤`` `R_DADAO_COPY` = `9` ``(数字带反引号)、⑥`` ``R_DADAO_COPY`` = 9 ``(双反引号名) ⇒ **rc=0 漏捕**。判非阻断：契约**0 处**用反引号包纯数字、**0 处**双反引号（现场 grep），即非契约自身行文式——按上轮 F2 的同一阻断标准（漏掉**契约自身写法**才阻断）判非阻断；且 `run.sh` 属 `.work/` 任务级证据（非常驻门控）。**建议加固**（可选）：数字侧 `[[:space:]]*`?[0-9]+`?`、名侧 `` `+ ``；**若 C3 拟转常驻门控**，则此二项升为阻断（改法同上 + 补注入反例）。
 - 无其它阻断；`run.sh`/契约均由 reviewer 只读核验，未改动。**Accepted 供架构师终审**（⑤/⑥ 阻断权重由架构师定夺）。
 
+
+## 表 A 九项裁定落纸（2026-10-14，用户逐条确认 ✓；渠道 = 经主会话问答）
+
+> 本节为**追加**（**不改写**既有完成区 / 审阅记录）；契约 `.tao/knowledge/contract-dynlink.md` 由「待确认」全部转为「**已定**」。
+
+**用户裁定（逐条确认原话 / 选项标签，2026-10-14）**：
+1. **类型集**：**定满 8 项** —— ① 数据/GOT 槽复用 `ABS48`（编号 **0**，不新增）；② `JUMP_SLOT`=**7**；③ `RELATIVE`=**8**；④ `COPY`=**9**；⑤ `TLS_DTPMOD`=**10**；⑥ `TLS_DTPREL`=**11**；⑦ `TLS_TPREL`=**12**；⑧ `TLSDESC`=**13**。
+2. **值类规则**（用户原话要点）：**偏移** ⇒ **不带位宽后缀**（`…_DTPREL`/`…_TPREL`）+ **按补码（有符号）加法**；**基址/绝对地址** ⇒ **无符号 48 位**。
+3. **公式**（`B`=装载基址、`S`=符号运行时地址、`A`=`r_addend`、`*slot`=8 字节）：`ABS48`(数据槽)=`S+A`；`JUMP_SLOT`=`S+A`；`RELATIVE`=`B+A`；`COPY`=`memcpy(副本,S,st_size)`；`DTPMOD`=**定义该符号的模块**的 `tls_id`（加载器分配、**≥1**、容纳于 8 字节槽）；`DTPREL`=`DTPOFF(sym)+A`（补码）；`TPREL`=`TPOFF(sym)+A`（补码、**可负**）；`TLSDESC`=两格（`resolver 地址`=基址、`arg`=**由 resolver 约定**）。
+4. **载体 = (c) 混合**：「**类型号/公式/语义 ⇒ 就地扩 `ADR-0019`（`D10…`，由 architect 另做）**；**行为类**（`ld.so` 用法/`PT_INTERP`/`DT_*`/绑定时机/越界）⇒ **另立新 ADR（architect 另做）**」 ⇒ 本任务**只写契约正文 + 标注来源**，**不改** `ADR-0019`、**不建**新 ADR。
+5. **`PT_INTERP`** = **`/lib/ld-musl-dadao.so.1`**（**符号链接 → `libc.so`**，主流 musl 做法）；**guest 视角路径**（由 QEMU user-mode + guest root 解析）；构建须**显式传** `-dynamic-linker`（lld 无默认、建议不改其默认）。
+6. **Hash**：**SysV + GNU 都提供**（≡ `--hash-style=both` = 上游 lld 默认）；**不得省略任一**。
+7. **符号版本 / `DT_RELR`**：**都不做**（不发射版本段；`DT_RELR` 默认关 = `--pack-dyn-relocs=none`；契约**留位**并写明启用条件）；**登记**：musl 不支持 glibc 式版本化解析 ⇒ 第三方带版本段时**以 musl 行为为准**（已知限制）。
+8. **GOT/TP**：**不引入 GOT 固定基址寄存器**（PC 相对访问槽）；**`DT_PLTGOT` 必须提供**；**TP 方向/偏置归 arch 宏**（`TLS_ABOVE_TP`/`TP_OFFSET`/`DTP_OFFSET`/`__get_tp`）⇒ 契约**只记录依赖**（逐 arch 定值在 musl 移植任务）。
+9. **绑定时机**：**首版 eager（`BIND_NOW`）**（lazy 留后续）。
+10. **失败与越界策略（新增 §10）**：① 48 位约束（`S`/`B`/结果越界 ⇒ **装载期报错**、不截断不 wrap）；② 未支持/未定义类型（含 `COPY`/`TLSDESC`/版本段/`DT_RELR`）⇒ **显式报错不静默**；③ 偏移按**补码**、`TP+TPOFF` 越界 ⇒ 报错；④ **lld 侧**：**经 GOT 间接访问解决远处符号**（无需 relaxation）；`REL12` **直接形式**仍限 ±2 KB ⇒ 越界 ⇒ **链接期报错**；relaxation 维持 `ADR-0019 D7` 禁用；⑤ 报错形态只要求「必须报错、不得继续」+ **不改 musl 行为**。
+
+**契约改动章节**：§2.4（GOT/TP 口径）、§3（eager / `DT_PLTGOT` / 不经 GP）、§4.2–§4.5（类型集 / 编号 / 载体 / 指针）、§5（Hash / 版本·`DT_RELR`）、§6.1（`PT_INTERP`）、§6.5、§7（TLS 纳入）、§9（**裁定清单已定** + §9.1 历史）、**新增 §10 失败与越界策略**、附录 A。**来源标注**：类型号/公式 ⇒ `[ADR-0019 D10…（待 architect 落地）]` + `[spec-decision]（用户 2026-10-14 逐条确认）`；**引用非复制**（不抄上游正文）。
+
+**测试结果**：一键证据脚本 `.work/evidence/<任务ID>/run.sh` 常模 **110 PASS / 0 FAIL（rc=0）**；`--inject` **11 PASS / bad=0（rc=0）**——注入①（类型表赋错编号 `RELATIVE`=6 + 散文赋号 `` `R_DADAO_JUMP_SLOT` = 7 `` + `#define REL_RELATIVE 7` + 复制 `SimRISC-00` 的 `rb0` 正文句）⇒ `check_invariants` **rc=1**，命中 `C3.type-map-matches-decision` / `C3.no-prose-equality-number` / `C3.no-arch-reloc-h-macro` / `C5.no-copy-S00-rb0-sentence` ⇒ `cp`+md5 还原（`445cda0f…`）⇒ 回绿；注入②（篡改 qemu 锁定 commit 末位 hex）⇒ **rc=1**（`C6.qemu-commit`）⇒ 还原 ⇒ 回绿。
+
+**验收结果**（现场 rc，各捕被检命令自身退出码）：`make check`=0 / `check-knowledge-refs`=0 / `check-knowledge-dir`=0 / `check-no-residue`=0 / `check_issues.py`=0 / `check_spec_refs.py`=0 / `check_spec_drift.py`=0。
+
+**修改文件**：`.tao/knowledge/contract-dynlink.md`、本任务书（状态 + 本节追加）、`.tao/knowledge/milestones.md`（`SPEC-139t` 行状态→`待验收`）、`.work/evidence/<任务ID>/{run.sh,foreign-paths.txt}`。**未提交 git**；**未动** `ADR-0019` / **不建**新 ADR / **未改** `spec/`·`contracts/`·组件。
+
+**遗留问题**：类型号 / 公式的**决策正文**待 architect 在 `ADR-0019` 就地追加 `D10…`；行为类口径待 architect 另立新 ADR（§4.4）；`R_DADAO_NUM` 顺延值随 `D10` 冻结（**契约不写死**，避免臆造）。
+
+**新发现/坑**：①「契约自身行文式」＝**表格行**（`| N | \`R_DADAO_名\` |`）承载号值——证据脚本按该式**现场解析并与裁定号值逐项对账**（含反例可达 FAIL）；散文 `名=N` 式另设负向断言，二者覆盖两形态。② §9 裁定清单里 `| 2 | \`R_DADAO_*\` …` 行会被宽松正则误捕为类型行 ⇒ 名须限定 `` `R_DADAO_[A-Z0-9_]+` ``（含尾反引号 + 后随 `|`）。③ 共享树上 C8 的 `components/` 改动来自并发 `LLVM-091t` ⇒ 该断言改为「**未声明**的 `spec/contracts/tests/components` 改动」计数（foreign 声明过滤），避免并发误红。
+
+#### 第 2 轮 engineer 自审（表 A 九项裁定落纸）
+
+**范围**（自主逐行审查）：`.tao/knowledge/contract-dynlink.md` 改动（§1.3/§1.4、§2.2/§2.4、§3、§4.1–§4.5、§5、§6.1/§6.5、§7、§9/§9.1、**新增 §10**、附录 A）、`run.sh`（C2/C3/C9 + 新增 C12–C19 + `--inject` ①）、`foreign-paths.txt`、本任务书、`milestones.md`（1 行）。事实逐条回源：`ADR-0019 D1/D2/D3/D6/D7`、`ADR-0021 D3`、`ADR-0025 D3/D5`、`contract-elf §2.2/§3.1`、`contract-isa §1.5`、`contract-abi §1.7`、musl `ldso/dynlink.c`/`arch/riscv64/reloc.h`/`Makefile`。**类型号/公式一处未自拟**（8 项 = 裁定号值 0,7..13，现场解析逐项对账）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| S1 §5 首条残留旧引用「其**是否/如何**落入 v5 待 §9 确认」（§9 已转已定） | ✅已修 | 改为「其是否为 v5 必备项由 LLVM 侧定」 | `grep '§9 确认'` 命中 0；`check_spec_refs` rc=0 |
+| S2 §2.2/§4.1/§4.2 三处旧口径残留（「待 §9 #1 确认」/节名「待确认」） | ✅已修 | 分别改为「见 §4.3–§4.4（已定）」「节名由 LLVM 侧定」「类型集/编号已定」 | 契约 grep 无残留；C3 现场解析 8 条 |
+| S3 §7 曾以散文式 `` `R_DADAO_TLS_DTPMOD`=10 `` 赋号（会触碰自设正向断言 `C3.no-prose-equality-number`） | ✅已修 | 改为「编号见 §4.3 表」（散文不写 `名=数字`） | `grep -cE` 命中 0 |
+| S4 C3 解析正则过宽：误捕 §9 裁定清单行 `\| 2 \| \`R_DADAO_*\` …` | ✅已修 | 收窄为 `` \| N \| `R_DADAO_[A-Z0-9_]+` \| ``（名含尾反引号 + 后随 `\|`） | 现场统计 = 8（= 裁定 8 项）；注入错号 ⇒ rc=1 |
+| S5 共享树上 `C8.no-spec/contracts/tests/components-change` 因并发 `LLVM-091t` 补丁误红 | ✅已修 | 改为「**未声明**的 `spec/contracts/tests/components` 改动」计数（foreign 声明过滤） | 常模 C8 rc=0；`foreign-paths.txt` 声明 3 条并发改动 |
+| S6 新增节内 `.work/evidence/SPEC-139t/…` 字面路径 | ✅已修 | 改 `<任务ID>` 占位（遵「文本不写 `.work/<具体路径>` 字面」） | 新增节 grep 无 `.work/evidence/SPEC-139t` |
+| S7 C3 负向散文断言漏捕前轮 reviewer ⑤/⑥（反引号包数字 / 双反引号名） | ✅已修（加固） | 正则名侧 `` `* ``、数字侧 `` `?[0-9] `` | pristine **0 误报**；三形态探针（含 ⑤/⑥）**3/3 命中** |
+
+**判决**：无未修 finding（S1–S7 全部处置并复验）；判据对账 = 状态 `待验收`。**未取得新用户裁定**（本节仅落纸既有裁定）；**未越界**（未改 `ADR-0019`、不建新 ADR、未改 `spec/`/`contracts/`/组件）。
