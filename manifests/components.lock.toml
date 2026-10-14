@@ -123,7 +123,15 @@ shallow_ref = "v7.2.10"
 patchless = true
 role = "Linux syscall numbering-table source (reference input; no v5 patch set)"
 
-# Backup source (repository above = TUNA, the primary mirror).
+# Primary mirror = TUNA (user ruling 2026-10-14: TUNA 主). It is listed as an
+# explicit source[0] -- not just via `repository` -- because
+# tools/infra/fetch.py::select_source prefers source[0] over `repository` when
+# a source list is present. The URL is identical to `repository` above.
+[[component.source]]
+name = "tuna"
+url = "https://mirrors.tuna.tsinghua.edu.cn/git/linux-stable.git"
+
+# Backup source.
 [[component.source]]
 name = "kernel-org"
 url = "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
