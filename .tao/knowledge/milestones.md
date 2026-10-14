@@ -118,6 +118,17 @@
 - **待办（M8，登记）**：① **`pk` 排障**（`ADR-0024 §D5` 判据未达，`PK_EXIT=2`；未处置前不得判 `ADR-0024` 闭环）——源 `INFRA-074t`「遗留问题」；② **`E` 的查证**（musl 是否**硬依赖** TLS/线程 ⇒ 决定 TLS 是否自动纳入 M8，`ADR-0025 D5`）；③ **`ISS-204`**（`.cache/embench-iot` 为 checkout、非裸仓库，与「`.cache/` 只放裸仓库」约定不符 ⇒ 后续清理/迁移）；④ **`firtool` 恢复**（CIRCT `firtool` 未在重建 env 中恢复 ⇒ 仅当需「重新生成 RTL」时单立任务恢复；无需时维持现状）；⑤ **`ISS-206`**（`DADAO.def` 随 `ADR-0019 D10` 重编号（`NONE=0`/`ABS48` 0→6/动态 7–13/`NUM`=14）+ `contract-elf.md §2.2` 同步 + 既有 ELF 产物·向量里写死的类型字段排查，**P2 必做**）——源 `INFRA-074t`「遗留问题」+「新发现/坑」+ 本轮落纸。
 - **compiler-rt builtins 支持口径落纸（2026-10-14，architect）**：新建 **`ADR-0027`**（`Accepted`；`D1`–`D5` = 用户 2026-10-14 **逐条确认**，渠道 = 经主会话问答；来源 = `INFRA-078t §5` 草案）：`D1` 范围 **只 `builtins`**（sanitizer / profiling / unwind / `libatomic` **暂不做**、按需单独立项）/ `D2` 形态 = **`llvm-project` 补丁接入**（`components/llvm-project/patches/compiler-rt/**`；版本随 `llvm-project 23.1.3` **天然同步**）/ `D3` 策略 = **通用 C 优先**（hw 特化后置、需数据支撑）+「ISA 指令扩展」**另立预研**（用户**原话要点**：「分析主流 ISA 已有专门支持，**可以增加部分指令**」）/ `D4` 验证 = **代表集 + 独立 oracle**（上游 `compiler-rt/test/builtins` 作现成 oracle + 算法定义 / Python 大整数独立算期望）+ **额外补端序敏感用例**（**我们是大端**、上游测试多在 LE 跑）/ `D5` 归属 = **独立「DADAO compiler-rt builtins」库、picolibc / musl 共用**（不属任何 libc）。**Consequences**：① 移除 picolibc vendored 副本（`components/picolibc/patches/libm/common/**` ⇒ 改链接独立库）+ 连带 `meson.build.patch`/`series` 现场判；② install 落点按 `ADR-0016`；③ 与 `ADR-0025`（M8 路线）/ `ADR-0026`（动态链接）**三层互不覆盖**。**执行落点 = `INFRA-079t`**（`待开始`）；**ISA 指令扩展预研 = `SPEC-141t`**（`待开始`，**只读**、产出 + 待裁定项**交用户裁定**）。指针 `.tao/adr/adr-0027-compiler-rt-builtins.md` / `.tao/tasks/infra/INFRA-079t-compiler-rt-builtins接入.md` / `.tao/tasks/spec/SPEC-141t-ISA指令扩展预研.md`。
 
+### M8 状态快照（2026-10-14）
+
+> 本节为**记录性快照**（防上下文丢失）；**只做记录、不改既有结论**，事实/口径以各任务书、ADR、契约正文为准。
+
+1. **已完成（已验证）**：`SPEC-138t`（syscall 契约）｜`SPEC-139t`（动态链接契约 + 表 A 九项 + `ADR-0019 D10` 同步）｜`SPEC-140t`（musl TLS 硬依赖查证 ⇒ TLS 纳入 M8）｜`LLVM-091t`（llvm-project → 23.1.3；picolibc 四数 `235/213/0/22/0` 无回归）｜`INFRA-075t`（内核 7.2.10 git 基线）｜`INFRA-076t`（musl 定源已定）｜`INFRA-077t`（llvm-test-suite 取源）｜`TESTCASES-043m`/`LLVM-090m`/`QEMU-059m`/`INFRA-072m`/`INTEG-034m`/`INTEG-035m`（M7 侧，已归档）。
+2. **已落纸的决策载体**：`adr-0024`（Chipyard 基线）· `adr-0025`（M8 范围 A–G）· `adr-0026`（动态链接行为 D1–D8）· `adr-0027`（compiler-rt builtins D1–D5）· `ADR-0019` `D10`（动态类型集 `NONE=0`/`ABS48=6`/`7–13`/`NUM=14`）；契约 `contract-syscall.md`/`contract-dynlink.md`。
+3. **待用户裁定（3 项，均已有 issue）**：① `ISS-202`/`INFRA-071t` 授权 3 子项（只读锁册可否改＋重算 `sha256`／`contracts/*.yaml` 内嵌旧路径字段处置／范围是否扩到 `tools`·`components`·`tests`）② `ISS-200`（pre-M6 changelog 补录 vs 历史不补）③ `ISS-203`（两个门控覆盖缺口：补断言并入 L1 vs 登记不补）。
+4. **在办/队列**：`INFRA-078t`（compiler-rt 预研，**待终验**）｜`INFRA-079t`（builtins 接入，`待开始`）｜`SPEC-141t`（ISA 指令扩展预研，`待开始`，产出后**待用户裁定**）｜`INFRA-076t`（musl 锁定，`待开始`）｜`libc-test` 取源（源已定 `kraj/libc-test`，另立任务）｜`pk` 排障（`ADR-0024 D5` 未达）｜`ISS-204`（`.cache/embench-iot` 清理）｜`firtool` 恢复（需要重生成 RTL 时）。
+5. **口径记录（供后续）**：**`long double` ≡ `binary64`（= `double`）**——现状与主流「=double 派」一致；**待**明文写进 `contract-fp`/`contract-abi`（**尚未写入** ⇒ 建议后续小任务补）；不涉及 `binary128`（quad）。
+6. **已知限制/遗留**：`contract-elf §2.2` 仍为旧号（`ABS48=0`/`NUM=6`）⇒ 随 `ISS-206`（P2）同步；`adr-0026 D3` 已把 Hash 改为**仅 GNU**；`ISS-207`（服务商拦截）已登记。
+
 ## 历史台账指针
 
 > 各里程碑的**逐任务实质改动记录**（原 `changelog.md`）已随归档移入 `.tao/archive/M*/README.md`；本文件「任务流水」为**当前里程碑**流水，不再另设 `changelog.md`。
