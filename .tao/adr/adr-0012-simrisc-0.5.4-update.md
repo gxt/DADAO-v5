@@ -1,6 +1,6 @@
 # ADR-0012: SimRISC 0.5.3→0.5.4 规范更新
 
-**状态**：Accepted（rev. 2026-09-30 D3.1 修订 + D5/D6/D7 新增；2026-10-14 新增 D10 并经用户逐条确认——**确认范围含 `D10`**，唯 `D10.6b`（`scope` 取值）**仍待用户确认**，见 `## 状态说明`）
+**状态**：Accepted（rev. 2026-09-30 D3.1 修订 + D5/D6/D7 新增；2026-10-14 新增 D10 并经用户逐条确认——**确认范围含 `D10`**，`D10.6b`（`scope` 取值）亦已于 2026-10-14 **定案 = `m8`**〔用户口径：`scope` = 引入里程碑的**标识**、**非**范围约束〕，见 `## 状态说明`）
 **日期**：2026-09-27
 **决策者**：用户
 
@@ -143,7 +143,7 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 
 ### D10：新增 `rev.{o,t,w,b}`（逐块反转）——**（2026-10-14 新增；用户逐条确认 ✓）**
 
-> **确认状态**：`D10` 及其子项 `D10.1`–`D10.8` 已经用户 **2026-10-14 逐条确认**（原话见 `D10.0` 与 `§状态说明`）⇒ **视为 `Accepted`**；本 ADR 顶部 `**状态**：Accepted` 的确认范围**含 `D10`**。**唯 `D10.6b`（`scope` 取值）仍待用户确认**（见下），确认前不得写其 `scope`。
+> **确认状态**：`D10` 及其子项 `D10.1`–`D10.8` 已经用户 **2026-10-14 逐条确认**（原话见 `D10.0` 与 `§状态说明`）⇒ **视为 `Accepted`**；本 ADR 顶部 `**状态**：Accepted` 的确认范围**含 `D10`**。`D10.6b`（`scope` 取值）亦已于 2026-10-14 **定案 = `m8`**（用户口径：`scope` = 引入里程碑的**标识**、**非**范围约束，见下）。
 
 **D10.0（授权与用户裁定原话，原样引录；渠道 = 经主会话问答，2026-10-14）**
 
@@ -210,10 +210,10 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 1. `spec/SimRISC-00`：QFC 四子表（`§4.2 MISC-octa`／`§4.3 MISC-tetra`／`§4.4 MISC-wyde`／`§4.5 MISC-byte`）各补 `xxx-100` 列一条 + 相关**计数**（如子表条数）+ 文末 changelog。
 2. **`rev` 正文分册归位**：**已定案 (b) 分册**（用户 2026-10-14 裁定原话「1、分册写」，见 `D10.6a`）。
 3. `spec/SimRISC-0x` 各册 **`LEGALITY` 生成区**（`tools/spec/gen_legality_list.py --apply`，随归位落定）。
-4. `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；**含 `scope` 取值与总数——待用户确认**，见 `D10.6b`。
+4. `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；含 `scope` 取值（**已定案 = `m8`**，见 `D10.6b`）与总数。
 5. `contracts/legality_rules.yaml`（新增 `encode_onehot`）。
 6. `.tao/knowledge/contract-isa.md`（QFC/编码表 + 语义 + 合法集）、`contract-asm-list.md`（生成投影，`tools/llvm/gen_asm_list.py`）。
-7. `tests/vectors/**` + `tests/vectors/inventory.md` + `tools/testcases/generate_isa_vectors.py`（**注**：`inventory.md` 的 M1 矩阵由 `validate_vectors.py` 与 `scope == "m1"` 集合**机械对齐** ⇒ 若 `rev` 非 `m1` 则**不入 M1 矩阵**，向量落独立文件）。
+7. `tests/vectors/**` + `tests/vectors/inventory.md` + `tools/testcases/generate_isa_vectors.py`（**注**：`inventory.md` 的 M1 矩阵由 `validate_vectors.py` 按 `scope == "m1"` 集合**机械对齐** ⇒ `rev` 为 `scope: m8` **不入 M1 矩阵**是**机械后果、非范围排斥**（`scope` 只是引入里程碑的标识、不构成范围约束，见 `D10.6b`）；**`M1 身份数（152）不变**；向量落独立文件）。
 8. **MC**：`DADAOInstrInfo.td`（def / mnemonic）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode、`DADAOMCInstLower`（如需）。
 9. **QEMU**：`insn.decode`（四条 token）+ `trans_rev.c.inc`（`trans_rev_o`/`_t`/`_w`/`_b`）+ `translate.c` 分派 + `helper.c`（如需）。
 10. **门控**：L1（`validate-encoding`／`check-scope`／`check-rule-refs`／`check-instrinfo`／`check-isa-coverage`／`check-asm-list-drift`／`check-legality-drift`／`check-legality-invariants`／`check-spec-readonly` 等）+ L2/L3。
@@ -224,10 +224,12 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - **已否 (a)**：四条同归 `04 §4.2`（一处写全）——**不采用**（用户裁定分册写）。
 - **现场**（判据溯源，非定案依据）：`spec/SimRISC-04 §4.2「Bit manipulating：位操作指令」`已承载 `shl.uo`/`shr.uo`/`ext.uo` 与 `§4.1` 的 `and.o`/`or.o`/`xor.o`/`xnor.o`；窄位宽分册（`SimRISC-08/09/10`）按后缀 `t/w/b` 承载且口径为"值语义写满 64 位"。
 
-**D10.6b（`scope` 取值——待用户确认）**
+**D10.6b（`scope` 取值——**定案 = `scope: m8`**，2026-10-14 用户裁定 ✓）**
 
-- `contracts/opcodes.yaml` 每条须带 `scope`（现允许 `m1`/`fp`/`excluded`/`m3`，见 `tools/spec/check_scope.py`）。
-- `rev` **非 M1 身份**；建议 **`scope: m8`**（仿 `scope: m3` 先例：新增非 M1 指令自成一档），须同步 `check_scope.py` 的 `ALLOWED_SCOPES` + 分区计数 + 注释，及 `generate_opcodes.py` 的 scope 说明。**本项待用户确认，确认前不得写入 `opcodes.yaml` / `check_scope.py`。**
+- **用户裁定原话（原样引录，渠道 = 经主会话问答，2026-10-14）**：「**m8，里程碑只是个标识，并不是在划定严格的范围**」。
+- **定案**：`rev.{o,t,w,b}`（及同批 `ctlz`/`cttz`/`ctpop`，见 `D11.9` 第 4 项）的 `scope` = **`m8`**（新增允许值；须同步 `tools/spec/check_scope.py` 的 `ALLOWED_SCOPES` + 分区计数 + 注释，及 `generate_opcodes.py` 的 scope 说明）。
+- **口径（本次定案的口径，后续同类新增指令同此）**：`scope` = 「**该指令由哪个里程碑引入**」的**标识**，**不构成范围约束**——`m1`/`m3`/`m8` 等分区计数只是**统计**，不是对指令适用范围/能力的限制。
+- **原「待用户确认」状态解除** ⇒ `contracts/opcodes.yaml` / `check_scope.py` 的 `scope` 写入**可执行**（`m8`）。
 
 **D10.7（用途 / 映射）**
 
@@ -240,11 +242,11 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - **R1**：为 `k = S`（恒等档：块内仅 1 个单元，反转即自身）分配编码 ⇒ **不分配**。理由：恒等无语义价值，且收窄合法集能把编码错误暴露为 `ILLI`。
 - **R2**：「仅低 N 位反转 + 高位保持 / 清零」的窄位宽语义 ⇒ **被逐块语义取代**。理由：① 无需读目的寄存器（纯 `src → dst`）；② 无"块大小 × 高位数"的边界情形；③ 与主流逐块做法（ARM `REV` 系列按定宽单位反转）一致。
 
-**关联任务**：`SPEC-142t`（`rev.{o,t,w,b}` 落地，**前置 = `D10` 逐条确认 ✓ 已完成；唯 `D10.6b` 仍待确认**）——**已确认，可实现 / 下发**。
+**关联任务**：`SPEC-142t`（`rev.{o,t,w,b}` 落地，**前置 = `D10` 逐条确认 ✓ 已完成；`D10.6b` 亦已定案 = `scope: m8` ✓**）——**已确认，可实现 / 下发**。
 
 ### D11：新增 `ctlz` / `cttz` / `ctpop`（位扫描与计数）——**（2026-10-14 新增；提案，待用户逐条确认 ✗）**
 
-> **确认状态**：`D11` 及其子项 `D11.1`–`D11.10` **均为提案**，尚未经用户逐条确认 ⇒ **不得视为 `Accepted`**；本 ADR 顶部 `**状态**：Accepted` 的确认范围**不含 `D11`**（照 `D10` 提案期先例：顶部 `**状态**` 行**待逐条确认后**再更新）。**显式待确认项**：`D11.4`（`cttz` 的 `hd` 语义）、`D11.9`（正文分册归位、`scope` 取值）、**`spec/` 修改授权**（`docs/Process-06 §2`；须在任务书中留存授权原话）。
+> **确认状态**：`D11` 及其子项 `D11.1`–`D11.10` **均为提案**，尚未经用户逐条确认 ⇒ **不得视为 `Accepted`**；本 ADR 顶部 `**状态**：Accepted` 的确认范围**不含 `D11`**（照 `D10` 提案期先例：顶部 `**状态**` 行**待逐条确认后**再更新）。**显式待确认项**：`D11.4`（`cttz` 的 `hd` 语义）、`D11.9`（正文分册归位）、**`spec/` 修改授权**（`docs/Process-06 §2`；须在任务书中留存授权原话）。（`scope` 取值**已随 `D10.6b` 定案 = `m8`**，**不再**列为待确认项。）
 
 **D11.0（用户裁定原话，原样引录；渠道 = 经主会话问答，2026-10-14）**
 
@@ -322,10 +324,10 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 1. `spec/SimRISC-00`：QFC `§4.2 MISC-octa` 补 `011-101`/`011-110`/`011-111` **三格** + **例外说明一句**（"子表 ⇔ 位宽后缀"规则的例外，见 `D11.3`）+ 相关**计数** + 文末 changelog。
 2. **正文分册归位 —— 建议 `spec/SimRISC-04 §4.2`（`Bit manipulating：位操作指令`，与 `rev` 总述同处）⇒ 标「待用户确认」**（现场：`ext.uo_orri_rd` 的 `spec_cite` 即该节）。
 3. `spec/SimRISC-0x` 各册 **`LEGALITY` 生成区**（`tools/spec/gen_legality_list.py --apply`）。
-4. `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；**含 `scope` 取值——待用户确认**（与 `D10.6b` 同一未决项 ⇒ 引用之）。
+4. `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；含 `scope` 取值（**已随 `D10.6b` 定案 = `m8`**）。
 5. `contracts/legality_rules.yaml`：**不新增**规则（`D11.6`）。
 6. `.tao/knowledge/contract-isa.md`（QFC/编码表 + 语义 + 定值 + 合法集 + `§2.5`/`§2.8` 的例外说明）、`contract-asm-list.md`（生成投影，`tools/llvm/gen_asm_list.py`）。
-7. `tests/vectors/**` + `tests/vectors/inventory.md` + `tools/testcases/generate_isa_vectors.py`（**注**：`inventory.md` 的 M1 矩阵由 `validate_vectors.py` 与 `scope == "m1"` 集合**机械对齐** ⇒ 若三条**非 `m1`** 则**不入 M1 矩阵**，向量落独立文件）。
+7. `tests/vectors/**` + `tests/vectors/inventory.md` + `tools/testcases/generate_isa_vectors.py`（**注**：`inventory.md` 的 M1 矩阵由 `validate_vectors.py` 按 `scope == "m1"` 集合**机械对齐** ⇒ 三条（`scope: m8`）**不入 M1 矩阵**是**机械后果、非范围排斥**（`scope` 只是引入里程碑的标识、不构成范围约束，见 `D10.6b`）；**`M1 身份数（152）不变**；向量落独立文件）。
 8. **MC**：`DADAOInstrInfo.td`（def / mnemonic）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode。
 9. **QEMU**：`insn.decode`（三条 token）+ `trans_ctlz`/`trans_cttz`/`trans_ctpop` + `translate.c` 分派。
 10. **门控**：L1（`validate-encoding`／`check-scope`／`check-rule-refs`／`check-instrinfo`／`check-isa-coverage`／`check-asm-list-drift`／`check-legality-drift`／`check-legality-invariants`／`check-spec-readonly` 等）+ L2/L3。
@@ -366,4 +368,5 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - 2026-10-06：**D3 就地增补第 5 项**（用户逐条确认）：**删除 `illi` 指令**（**ILLI 异常保留**，由非法操作数/条件触发）、**`fence` `ha` `0x01`→`0x00`**（`value` `0x77040000`→`0x77000000`）、**`swym` `ha` `0x02`→`0x22`**（`value` `0x77080000`→`0x77880000`）；`op=0x77` 不变。关联 M4 前置任务 `SPEC-109t`（跨组件原子落地）。
 - 2026-10-14：**新增 `D10`（提案）**——`rev.{o,t,w,b}` 逐块反转（新增 4 条 `orri` 指令，`opx=001100`，`immu6` = one-hot 位单元大小，新增 `encode_onehot` 合法性规则）。**⚠ `D10` 及其子项 `D10.1`–`D10.8` 均为提案，尚未经用户逐条确认；未确认前不得视为 `Accepted`**，本 ADR 顶部 `**状态**：Accepted` **不含 `D10`**。用户**授权**与**裁定原话**（Q1–Q4，渠道 = 经主会话问答）**原样引录于 `D10.0`**；落地任务 = `SPEC-142t`（`待开始`，**前置 = `D10` 逐条确认完成**）。**待确认项**：`D10.6a`（正文分册归位）与 `D10.6b`（`scope` 取值）。
 - 2026-10-14：**`D10` 由提案转 `Accepted`（用户逐条确认 ✓）**——**用户裁定原话（原样引录，渠道 = 经主会话问答，2026-10-14）**：「**1、分册写；2、你来定；D10.1-D10.8 认可**」。**结果**：① 「`D10.1-D10.8` 认可」⇒ `D10` 及其子项 `D10.1`–`D10.8` **逐条确认完成**；本 ADR 顶部 `**状态**：Accepted` 的确认范围**含 `D10`**（上一条同日记述的「不含 `D10`」**已被本条取代**）。② 「1、分册写」⇒ **`D10.6a` 定案 = 备选 (b) 分册**（`.o`→`SimRISC-04`、`.t`→`08`、`.w`→`09`、`.b`→`10`；逐块语义总述置于 `04 §4.2`、其余三册引用）；「建议 (a)」**已否**。③ 「2、你来定」⇒ **实现分阶段由主会话决定**，已定案为「一个任务书、三阶段验收（A 契约/编码层 → B MC → C QEMU）」，写入 `SPEC-142t`。**仍待确认**：**`D10.6b`（`scope` 取值；建议 `scope: m8`）**——**未确认前不得写入 `opcodes.yaml` / `check_scope.py`**。
-- 2026-10-14：**新增 `D11`（提案，待用户逐条确认 ✗）**——`ctlz`/`cttz`/`ctpop`（**位扫描与计数**：新增 **3 条** `orri` 指令；`opx` = `011-101`/`011-110`/`011-111`（29/30/31）、主 op `0x40`（`MISC-octa`）、`value` = `0x40740000`/`0x40780000`/`0x407C0000`、`mask` = `0xFFFC0000`；`hd` = **有效位上界**（有效位 `[hd:0]`）、全 0 定值 = **`hd+1`**、**无新合法性规则**（沿用 `dst_rd0`）；**不带位宽后缀**）。**⚠ `D11` 及其子项 `D11.1`–`D11.10` 均为提案，尚未经用户逐条确认；未确认前不得视为 `Accepted`**，本 ADR 顶部 `**状态**：Accepted` **不含 `D11`**（照 `D10` 提案期先例：顶部 `**状态**` 行**待逐条确认后**再更新）。用户**指令名 / 范围 / 编码 / 前序四项**的**裁定原话**（渠道 = 经主会话问答）**原样引录于 `D11.0`**；落地任务 = `SPEC-143t`（`待开始`，**前置 = `D11` 逐条确认完成 + `spec/` 修改授权**；**与 `SPEC-142t` 须串行**）。**待确认项**：`D11.4`（`cttz` 的 `hd` 语义）／`D11.9`（正文分册归位、`scope` 取值〔与 `D10.6b` 同一未决项〕）。
+- 2026-10-14：**新增 `D11`（提案，待用户逐条确认 ✗）**——`ctlz`/`cttz`/`ctpop`（**位扫描与计数**：新增 **3 条** `orri` 指令；`opx` = `011-101`/`011-110`/`011-111`（29/30/31）、主 op `0x40`（`MISC-octa`）、`value` = `0x40740000`/`0x40780000`/`0x407C0000`、`mask` = `0xFFFC0000`；`hd` = **有效位上界**（有效位 `[hd:0]`）、全 0 定值 = **`hd+1`**、**无新合法性规则**（沿用 `dst_rd0`）；**不带位宽后缀**）。**⚠ `D11` 及其子项 `D11.1`–`D11.10` 均为提案，尚未经用户逐条确认；未确认前不得视为 `Accepted`**，本 ADR 顶部 `**状态**：Accepted` **不含 `D11`**（照 `D10` 提案期先例：顶部 `**状态**` 行**待逐条确认后**再更新）。用户**指令名 / 范围 / 编码 / 前序四项**的**裁定原话**（渠道 = 经主会话问答）**原样引录于 `D11.0`**；落地任务 = `SPEC-143t`（`待开始`，**前置 = `D11` 逐条确认完成 + `spec/` 修改授权**；**与 `SPEC-142t` 须串行**）。**待确认项**：`D11.4`（`cttz` 的 `hd` 语义）／`D11.9`（正文分册归位）〔`scope` 取值**已随 `D10.6b` 定案 = `m8`**，见下条〕。
+- 2026-10-14：**`D10.6b` 关闭——`scope` 定案 = `m8`（用户裁定）**。**用户裁定原话（原样引录，渠道 = 经主会话问答，2026-10-14）**：「**m8，里程碑只是个标识，并不是在划定严格的范围**」。**结果**：① `rev.{o,t,w,b}` 与同批 `ctlz`/`cttz`/`ctpop`（见 `D11.9` 第 4 项）的 `scope` = **`m8`**；② **口径** = `scope` 是「**该指令由哪个里程碑引入**」的**标识**，**不构成范围约束**——`m1`/`m3`/`m8` 分区计数只是**统计**、不是限制；③ 据此修订 `D10.6` 第 7 项与 `D11.9` 第 7 项的「非 `m1` ⇒ 不入 M1 矩阵」表述为「**矩阵按 `scope == 'm1'` 机械对齐** ⇒ **不入是机械后果、非范围排斥**；**`M1 身份数（152）不变**」；④ `D10.6b` 原「待用户确认」状态**解除** ⇒ `opcodes.yaml` / `check_scope.py` 的 `scope` 写入**可执行**（2026-10-14 `D10.6b` 关闭）。
