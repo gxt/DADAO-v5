@@ -389,3 +389,12 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 `SPEC-139t` 收尾落地现场〔**主会话转述，architect 未直接持有被拦截的返回体**〕；architect 提交/文件集审核时立项，2026-10-14）】**现象**：`SPEC-139t` **第 4 轮 reviewer** 子代理返回被**服务商拦截**（错误串 `Provider blocked the response`）——**非** `Task cancelled`/空结果、**非交付物缺陷**，属**子代理返回异常 / 服务商侧拦截**（`AGENTS.md`『子代理返回异常处理』）。**现场（主会话核 + architect 复核）**：被拦截的一轮**未产出任何判定**；被测物（`contract-dynlink.md`）与 `.work/evidence/<任务ID>/run.sh` **均未被改动** ⇒ **无中间态污染**，可直接重试。**处置（主会话）**：按「异常返回 ⇒ 附失败现场**重试同一任务 1 次**」**重派 reviewer 1 次**；**重试即成功** ⇒ 返回 **`Accepted`**（0 阻断；上轮唯一阻断 F1 已修并经独立复验）⇒ **未达「仍异常 ⇒ 停止重试、提请用户拆分」阈值**（重试次数 = **1**）。**性质 = 子代理返回异常 / 服务商拦截**（非交付物缺陷、非静默；重试有据且已记录次数，未以重试掩盖根因）。证据指针：`.tao/tasks/spec/SPEC-139t-*.md`「第 4 轮 reviewer 验收」+ `.work/evidence/<任务ID>/run.sh` + `.work/log/<模块>/SPEC-139t-*.log`。"
+
+
+- id: ISS-208
+  title: "【P3】`ADR-0012 D9.5` 与 `tools/spec/check_scope.py` 注释称 `total 227→228`，而实测 `contracts/opcodes.yaml` 与门控期望值均为 **227**——仅 docstring/注释算术笔误、非门控缺陷"
+  status: open
+  scope: [spec, infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（architect 提交/文件集审核时现场发现，2026-10-14；源 = `ADR-0012 D10` 转 `Accepted` 任务）】**事实（现场核对）**：`ADR-0012 D9.5` 正文述「新增 1 条（`scope: m3`）⇒ `contracts/opcodes.yaml` **227→228**」（`.tao/adr/adr-0012-simrisc-0.5.4-update.md` L133）；`tools/spec/check_scope.py` 头部历史注亦述「新增 scope: m3，total 227→228，M1 不变」（L18）。**实测**：`contracts/opcodes.yaml` 条目数 = **227**（`grep -c '^- id:'`）、`tools/spec/check_scope.py` 的 `EXPECTED_TOTAL = 227`、`make check-scope` 输出「total 计数: 期望=227 实际=227」且 **rc=0** ⇒ **基线计数 = 227**；`D9.5` / 注释的「227→228」系**算术笔误**（应为 `226→227`）。**性质 = 文档/注释层算术笔误（非门控缺陷）**——门控期望值 `EXPECTED_TOTAL` 自身 = 227、与 `opcodes.yaml` 一致，`check-scope` 绿灯。**处置**：**本任务不改** `ADR-0012 D9.5` 正文与工具注释（**避免动已 `Accepted` 内容**，`AGENTS.md`「ADR decision 逐条确认」）⇒ **只登记，不建任务**。证据：`make check-scope`（total 期望=227/实际=227，rc=0）+ `grep -c '^- id:' contracts/opcodes.yaml` = 227。"

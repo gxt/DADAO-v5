@@ -2,24 +2,28 @@
 
 **模块**：spec
 **项目里程碑**：M8
-**依赖**：`ADR-0012 D10`（**前置：`D10.1`–`D10.8` 须经用户逐条确认完成** —— 「`ADR-0012` 新增 `D10`」当前为**提案**，**未确认前不得开工、不得下发**）；`SPEC-141t`（ISA 指令扩展预研，**只读**来源）；`INFRA-078t`（compiler-rt 预研：`bswap` 缺口来源，**只读**）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）
+**依赖**：`ADR-0012 D10`（**前置：`D10.1`–`D10.8` 已逐条确认完成 ✓** —— 用户 2026-10-14 原话「**D10.1-D10.8 认可**」，见 `adr-0012 §D10.0` / `§状态说明`；`D10.6a` 已定案 (b)，**唯 `D10.6b` 仍待确认**）；`SPEC-141t`（ISA 指令扩展预研，**只读**来源）；`INFRA-078t`（compiler-rt 预研：`bswap` 缺口来源，**只读**）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）
 **状态**：待开始
 
 ## 执行环境
 **执行环境**：本地
 
-> ⚠ **开工前置（硬性）**：本任务书对应 `ADR-0012 D10`，该 `D10` **目前是提案**（`adr-0012 §D10` 首行已标「提案，待用户逐条确认；未确认前不得视为 `Accepted`」）。**用户逐条确认 `D10.1`–`D10.8` 之前：本任务不得下发、不得开工**。确认后由主会话把用户原话/日期补入本任务书「用户裁定落纸」段再 `/dispatch`。
+> ✅ **开工前置（已满足）**：本任务书对应 `ADR-0012 D10`；用户 **2026-10-14 已逐条确认** `D10.1`–`D10.8`（原话「**D10.1-D10.8 认可**」）⇒ `D10` 已 `Accepted`（**唯 `D10.6b` 仍待确认**，见「`D10.6a` 定案 / 待用户确认项」）。用户原话/日期已补入本任务书「立项来源 / 用户裁定落纸」段与 `adr-0012 §状态说明`，可 `/dispatch`。
 
 ## 立项来源 / 用户裁定落纸
 
-- **来源**：`ADR-0012 D10`（2026-10-14 新增，**提案**）——`SPEC-141t` 预研候选 `C1`（`bswap` 类，主流 ISA 均有专门支持）的**落地路径 = 新增 ISA 指令**（用户 2026-10-14 经主会话问答裁定「可以增加部分指令」，见 `D10.0`）。
+- **来源**：`ADR-0012 D10`（2026-10-14 新增，**已由用户逐条确认 ✓**，见下）——`SPEC-141t` 预研候选 `C1`（`bswap` 类，主流 ISA 均有专门支持）的**落地路径 = 新增 ISA 指令**（用户 2026-10-14 经主会话问答裁定「可以增加部分指令」，见 `D10.0`）。
 - **授权**（满足 `docs/Process-06 §2`）：用户原话「**a/b授权**」——授权修改 `ADR-0012` ✓，**且**授权修改 `spec/SimRISC-00` + `contracts/opcodes.yaml` + `contracts/legality_rules.yaml` ✓（**授权原话留存于 `adr-0012 §D10.0`**）。
 - **用户裁定原话（Q1–Q4，原样，渠道 = 经主会话问答，2026-10-14；完整引录见 `adr-0012 §D10.0`）**：
   - Q1：「前者，你的理解很正确」（`immu6` = **单元序反转、单元内位序不变**）
   - Q2：「按 `t/w/b` 做划分……以 `w` 为例，每个 64 位寄存器，划分为四个 `w`，如果 `immu6` 为 4，每个 `w` 内部的 4 个 4 位进行翻转；所以，如果 `rdHC` 高 48 位为 0，则 `rdHB` 的高 48 位也为 0，否则，也进行类似运算」（**逐块语义**）
   - Q3：「ILLI；需要增加 `encode_onehot` 合法性规则，配合 `encode_sbz` 合法性规则；此外，还有 `dst_rd0`」
   - Q4：「`rdHC` 可以为 `rd0`，`rdHB` 可以和 `rdHC` 是同一个寄存器」
-- **本任务 = 执行落点**：把上列 **已确认** 的 `D10` 决策**逐条落到全链**（`spec/` + `contracts/` + 生成器 + 向量 + MC + QEMU + 门控）。**未确认的 `D10.6a`/`D10.6b` 不得自行选定**（见「待用户确认项」）。
+- **用户 2026-10-14 逐条确认裁定（原话原样引录，渠道 = 经主会话问答）**：「**1、分册写；2、你来定；D10.1-D10.8 认可**」
+  - 「1、分册写」⇒ **`D10.6a` 定案 = 备选 (b) 分册**：`.o`→`spec/SimRISC-04`、`.t`→`08`、`.w`→`09`、`.b`→`10`；逐块语义**总述置于 `04 §4.2`**、其余三册**引用**。
+  - 「2、你来定」⇒ **实现分阶段由主会话定**（定案见「分阶段实现（定案）」）。
+  - 「`D10.1-D10.8` 认可」⇒ **逐条确认完成 ✓**（**唯 `D10.6b` 仍待确认**）。
+- **本任务 = 执行落点**：把上列 **已确认** 的 `D10` 决策**逐条落到全链**（`spec/` + `contracts/` + 生成器 + 向量 + MC + QEMU + 门控）。**`D10.6b` 未确认 ⇒ 不得自行选定**（见「`D10.6a` 定案 / 待用户确认项」）。
 
 ## 目的
 
@@ -69,36 +73,36 @@
 - `bswap16/32/64` = `rev.w`/`rev.t`/`rev.o` + `k=8`。**前提：源的高 `(64−S)` 位为 0**（否则其余块也被逐字节反转）⇒ **后端待核实项**。
 - `bitreverse` = `rev.o` + `k=1`；**注意 `rev.t`+`k=1` ≠ 64 位全位反序**（仅每 32 位块内），`rev.w`+`k=1` 同理——**须在正文写明防误用**。
 
-## 待用户确认项（**不得自行选定**）
+## `D10.6a` 定案 / 待用户确认项
 
-1. **`D10.6a` 正文分册归位**：建议 (a) 四条**同归 `spec/SimRISC-04 §4.2`**（逐块语义 + 合法集一处写全）+ `08/09/10` 加指针；备选 (b) 按后缀分册（`.o`→04 / `.t`→08 / `.w`→09 / `.b`→10），语义总述在 04 §4.2、其余引用。**须用户确认后方可动 `spec/` 正文。**
-2. **`D10.6b` `scope` 取值**：建议 `scope: m8`（仿 `scope: m3` 先例；须同步 `tools/spec/check_scope.py` 的 `ALLOWED_SCOPES` + 分区计数 + 注释）。**须用户确认**；确认前不得写 `opcodes.yaml`。
+1. **`D10.6a` 正文分册归位 = 定案 (b) 分册**（用户 2026-10-14 裁定原话「**1、分册写**」）：`.o`→`spec/SimRISC-04`、`.t`→`08`、`.w`→`09`、`.b`→`10`；逐块语义**总述置于 `04 §4.2`**、其余三册（`08/09/10`）**引用**。**据此可动 `spec/` 正文（分册 = `04/08/09/10`）。**
+2. **`D10.6b` `scope` 取值（待用户确认 ✗，不得自行选定）**：建议 `scope: m8`（仿 `scope: m3` 先例；须同步 `tools/spec/check_scope.py` 的 `ALLOWED_SCOPES` + 分区计数 + 注释）。**确认前不得写 `opcodes.yaml` / `check_scope.py`。**
 
-## 分阶段分解建议（**建议，待用户确认**）
+## 分阶段实现（**定案**）
 
-> **本项仅为分解建议，不是已确认的执行方案**；落地方案（阶段划分/合并/串并行）**须用户确认**后由主会话决定下发粒度。
+> 落地方案由主会话定（**用户 2026-10-14 裁定原话「2、你来定」授权**）。原「分阶段分解建议（建议，待用户确认）」**已随该裁定转为定案**。方案 = **一个任务书、三阶段验收**。
 
-- **阶段 1（编码 / 契约层，单任务可验收）**：`spec/SimRISC-00` 四子表 + 正文归位（依 `D10.6a` 裁定）、`contracts/legality_rules.yaml`（`encode_onehot`）、`contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）、各册 `LEGALITY` 生成区（`gen_legality_list.py --apply`）、`contract-isa.md` / `contract-asm-list.md`、`tests/vectors/**` + `inventory.md` + `generate_isa_vectors.py`。
-- **阶段 2（MC）**：`DADAOInstrInfo.td`（def/mnemonic/编码）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode；`check-instrinfo` / `check-isa-coverage` 回绿。
-- **阶段 3（QEMU）**：`insn.decode`（四条 token）+ `trans_rev.c.inc`（`trans_rev_o/_t/_w/_b`）+ `translate.c` 分派；语义向量经 QEMU 跑通。
-- **依赖关系**：**阶段 1 → 阶段 2 / 阶段 3**（编码/契约先行）；阶段 2 与阶段 3 可并行（**不同补丁树**），但若同改 `contracts/` 或 `tests/vectors/` 则**串行**（`AGENTS.md` 并行任务上限）。
-- **建议任务切分**（编号占位，实际编号由主会话/架构师现场取号）：`<PREFIX>-1t`（编码/契约层）、`<PREFIX>-2t`（MC）、`<PREFIX>-3t`（QEMU）、`<PREFIX>-4m`（里程碑）。
+- **阶段 A（契约 / 编码层，单任务可验收）**：`spec/SimRISC-00` QFC 四子表 + `SimRISC-04/08/09/10` 分册正文（依 `D10.6a` 定案 (b)）+ 各册 `LEGALITY` 生成区（`tools/spec/gen_legality_list.py --apply`）+ `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）+ `contracts/legality_rules.yaml`（`encode_onehot`）+ `.tao/knowledge/contract-isa.md` / `contract-asm-list.md`（`tools/llvm/gen_asm_list.py`）+ `tests/vectors/**` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`。
+- **阶段 B（MC）**：`DADAOInstrInfo.td`（def/mnemonic/编码）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode；`check-instrinfo` / `check-isa-coverage` 回绿。
+- **阶段 C（QEMU）**：`insn.decode`（四条 token）+ `trans_rev.c.inc`（`trans_rev_o`/`_t`/`_w`/`_b`）+ `translate.c` 分派（`helper.c` 如需）；语义向量经 QEMU 跑通。
+- **定案理由**（主会话，2026-10-14，授权 = 用户原话「2、你来定」）：① 与 `D9`（新增 `sub.o`）「全链单任务」惯例一致；② 三部分共享**同一编码真源**，拆开易漂移；③ 阶段化验收让**契约层先独立可验**（Spec-first），问题早暴露。
+- **依赖关系**：**阶段 A → 阶段 B / 阶段 C**（编码 / 契约先行）；阶段 B 与阶段 C 可并行（**不同补丁树**），但若同改 `contracts/` 或 `tests/vectors/` 则**串行**（`AGENTS.md` 并行任务上限）。
 
 ## 接口规范
 
-- **输入**：`adr-0012 §D10`（**提案 → 确认后为决策**，含用户原话）；`spec/SimRISC-00 §3.1/§4.2–§4.5`（QFC 子表，**只读**）；`contracts/opcodes.yaml` / `contracts/legality_rules.yaml`（**真源**）；`spec/Toolchain-01`（`orri` 汇编语法）；`tools/spec/generate_opcodes.py`、`tools/spec/gen_legality_list.py`、`tools/llvm/gen_asm_list.py`、`tools/testcases/generate_isa_vectors.py`；`components/llvm-project/patches/llvm/lib/Target/DADAO/**`、`components/qemu/patches/target/dadao/**`。
-- **输出**：`spec/SimRISC-00`（+ 归位分册，依 `D10.6a` 裁定）、`contracts/opcodes.yaml`（**生成**）、`contracts/legality_rules.yaml`、`.tao/knowledge/contract-isa.md`、`contract-asm-list.md`（**生成**）、`tests/vectors/**` + `inventory.md`、MC 补丁、QEMU 补丁、门控；完成区（**≤30 行**）+ 一键证据脚本。
-- **越界声明（硬性）**：改 `spec/**` **仅限**本任务书授权的四子表/归位分册/生成区（授权原话见上）；**同一变更内**须更新 `manifests/spec-readonly.lock.toml` 对应册 `sha256`（`Process-06 §5`）；**未经确认不得**动 `spec/` 正文。
+- **输入**：`adr-0012 §D10`（**决策（已由用户逐条确认 ✓）**，含用户原话）；`spec/SimRISC-00 §3.1/§4.2–§4.5`（QFC 子表，**只读**）；`contracts/opcodes.yaml` / `contracts/legality_rules.yaml`（**真源**）；`spec/Toolchain-01`（`orri` 汇编语法）；`tools/spec/generate_opcodes.py`、`tools/spec/gen_legality_list.py`、`tools/llvm/gen_asm_list.py`、`tools/testcases/generate_isa_vectors.py`；`components/llvm-project/patches/llvm/lib/Target/DADAO/**`、`components/qemu/patches/target/dadao/**`。
+- **输出**：`spec/SimRISC-00`（+ `04/08/09/10` 分册正文，依 `D10.6a` 定案 (b)）、`contracts/opcodes.yaml`（**生成**）、`contracts/legality_rules.yaml`、`.tao/knowledge/contract-isa.md`、`contract-asm-list.md`（**生成**）、`tests/vectors/**` + `inventory.md`、MC 补丁、QEMU 补丁、门控；完成区（**≤30 行**）+ 一键证据脚本。
+- **越界声明（硬性）**：改 `spec/**` **仅限**本任务书授权的四子表 / 分册正文（`04/08/09/10`，依 `D10.6a` 定案 (b)）/ 生成区（授权原话见上）；**同一变更内**须更新 `manifests/spec-readonly.lock.toml` 对应册 `sha256`（`Process-06 §5`）；**未经确认不得**动 `spec/` 正文。
 
 ## 验收标准
 
 1. `**状态**` = `待开始`（开工前）→ `待验收`（实现后）；本任务书**自包含**（执行不需依赖外部仓库内容）；`**项目里程碑**` = `M8`。
-2. **前置已满足**：`adr-0012 §D10` 的 `D10.1`–`D10.8` **已逐条确认**（用户原话/日期已落纸于本任务书 + ADR `§状态说明`），且 `D10.6a`/`D10.6b` 已裁定。
+2. **前置状态**：`adr-0012 §D10` 的 `D10.1`–`D10.8` **已逐条确认**（用户 2026-10-14 原话「**D10.1-D10.8 认可**」已落纸于本任务书 + `ADR §状态说明`）；`D10.6a` **已定案 (b) 分册**；**`D10.6b`（`scope` 取值）仍待用户确认 ⇒ 涉及 `scope` 的写入**（`contracts/opcodes.yaml` / `check_scope.py`）**须待确认后方执行**（其余阶段可先落地）。
 3. **编码逐条**：四条 `value`/`mask`/`op`/`ha` 与「指令契约 §1」**逐字一致**；`tools/spec/generate_opcodes.py` 生成结果与 `contracts/opcodes.yaml` **幂等**（`--check`/重生成 diff = 0）；`validate-encoding` rc=0。
 4. **语义逐条（独立 oracle，禁从 LLVM/QEMU 反推）**：以 Python 大整数**独立实现**逐块反转，对**每条指令 × 每个合法 `k`**（见下）以及边界（`rdHC=0`、`rdHC` 全 1、`rdHB==rdHC`、`rdHC=rd0`）产出期望值；向量经 QEMU 实跑**全部一致**。**端序 = 大端（本项目为大端）**，端序敏感用例须显式覆盖。
    - 合法集覆盖：`.o` `k∈{1,2,4,8,16,32}` / `.t` `k∈{1,2,4,8,16}` / `.w` `k∈{1,2,4,8}` / `.b` `k∈{1,2,4}` —— **计数现场统计、不写死**。
 5. **合法性逐条**：`k` 非 one-hot 或 `k ≥ S` ⇒ **ILLI**（含 `k=0`、`k=S` 恒等档）；`rdhb == rd0` ⇒ ILLI；`rdhc == rd0` / `rdhb == rdhc` ⇒ **不**报 ILLI。每条断言均有**可达 FAIL 路径**（独立注入一次反例：注入 ⇒ FAIL ⇒ `cp`+md5 还原 ⇒ 回绿）。
-6. **同步面齐备**（`D10.6` 逐项，缺项须显式标「本环不涉及 + 理由」）：四子表 + 计数、归位分册正文、各册 `LEGALITY` 生成区、`opcodes.yaml`、`legality_rules.yaml`、`contract-isa.md`、`contract-asm-list.md`、`tests/vectors/**` + `inventory.md`、MC、QEMU、门控。
+6. **同步面齐备**（`D10.6` 逐项，缺项须显式标「本环不涉及 + 理由」）：四子表 + 计数、分册正文（`04/08/09/10`，依 `D10.6a` 定案 (b)）、各册 `LEGALITY` 生成区、`opcodes.yaml`、`legality_rules.yaml`、`contract-isa.md`、`contract-asm-list.md`、`tests/vectors/**` + `inventory.md`、MC、QEMU、门控。
 7. **门控**：`make check`(L1)、`make check-modules`(L2) 各 **rc=0**；语义向量（`check-qemu-semantics` 或等价，含新增 `rev` 向量）rc=0；`check-isa-coverage` / `check-instrinfo` / `check-asm-list-drift` / `check-legality-drift` / `check-legality-invariants` / `check-rule-refs` / `check-spec-readonly` 各 rc=0；`check-no-residue` / `check-knowledge-refs` / `tools/infra/check_issues.py` 各 rc=0。
 8. **`spec/` 授权与锁**：`git diff --name-only` 与 `spec/` 清单交集**均为本任务书授权范围**；变动的只读册 `sha256` 已在**同一变更**内更新（`make check-spec-readonly` rc=0）。
 9. **一键证据脚本**（`.work/evidence/<本任务ID>/`）：非交互、任一失败非零退出、逐项打印「检查名 + 期望/实际 + rc」、含**可达 FAIL** 自检（**计数不写死**，现场统计）。
@@ -108,7 +112,7 @@
 
 1. **临时目录** `/tmp/opencode/<本任务ID>/`；命令一律在 **workdir（= 仓库根）** 内、用**相对路径**；**禁**出界 `cd`（绝对 / `~` / `..`）；禁仓库内临时文件。
 2. **不提交 git**（提交权归 architect）；显式 staging（**禁** `git add -A`/`.`）。
-3. **前置未满足即停**：`D10` 未经用户逐条确认 / `D10.6a`/`D10.6b` 未裁定 ⇒ **停下报告**，不自行选定、不动 `spec/` 正文。
+3. **前置边界**：`D10` 已逐条确认、`D10.6a` 已定案 (b)；**`D10.6b` 未确认 ⇒ 涉及 `scope` 的写入（`opcodes.yaml` / `check_scope.py`）停下报告**，不自行选定。
 4. **Spec-first**：期望值来自 `contracts/`/`contract-isa.md` 与本任务书契约，**不从 LLVM/QEMU 反推**；**独立 oracle** 用 Python 大整数算法定义独立派生。
 5. **`spec/` 保护**：改 `spec/**` 仅限授权范围；同一变更内更新 `manifests/spec-readonly.lock.toml` 的 `sha256`（`Process-06 §5`）。
 6. **完成区与真实输出逐条对齐**；**计数不写死**；事实与推测分开；复杂命令输出留 `.work/log/spec/**`。
