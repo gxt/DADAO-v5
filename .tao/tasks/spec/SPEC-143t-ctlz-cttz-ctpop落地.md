@@ -33,16 +33,17 @@
 
 三条统一 `orri` 格式：`opx`（= `ha`，`bits[23:18]`）+ 两个寄存器 + 6 位立即数在 `hd[5:0]`；主 op = `MISC-octa` = `0x40`。
 
-| 指令 | `id` | 子表 | `op` | `opx` | `mask` | `value` |
-|---|---|---|---|---|---|---|
-| `ctpop` | `ctpop_orri_rd` | `MISC-octa` | `0x40` | `011-101`（`0x1D` = 29） | `0xFFFC0000` | `0x40740000` |
-| `ctlz` | `ctlz_orri_rd` | `MISC-octa` | `0x40` | `011-110`（`0x1E` = 30） | `0xFFFC0000` | `0x40780000` |
-| `cttz` | `cttz_orri_rd` | `MISC-octa` | `0x40` | `011-111`（`0x1F` = 31） | `0xFFFC0000` | `0x407C0000` |
+| 指令 | `id` | 子表 | `op` | `opx` | `mask` |
+|---|---|---|---|---|---|
+| `ctpop` | `ctpop_orri_rd` | `MISC-octa` | `0x40` | `011-101`（`0x1D` = 29） | `0xFFFC0000` |
+| `ctlz` | `ctlz_orri_rd` | `MISC-octa` | `0x40` | `011-110`（`0x1E` = 30） | `0xFFFC0000` |
+| `cttz` | `cttz_orri_rd` | `MISC-octa` | `0x40` | `011-111`（`0x1F` = 31） | `0xFFFC0000` |
 
-- `value = op<<24 | opx<<18`；`mask` 锁 `op` + `opx`。
+- **`value` 以 `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py` 产出）为唯一真源，本任务书不复写**（用户 2026-10-15 口径：按位域写清楚，派生值由生成器算）。
+- `opx` 在 `bits[23:18]`（= `ha`）；`value = op<<24 | opx<<18` **由生成器计算**（本任务书**不写具体值**）；`mask = 0xFFFC0000`（锁 `op` + `opx`）。
 - 字段：`rdhb`（**目的**，`bits[17:12]`，bank `rd`）／`rdhc`（**源**，`bits[11:6]`，bank `rd`）／`hd`（`bits[5:0]`，**无符号立即数**，**有效位上界**）。**注**：`opcodes.yaml` 中该立即数字段惯用名 **`immu6`**（`role: imm`、`bank: imm`、`signed: false`，先例 `ext.uo_orri_rd`）。
 - 汇编语法（`spec/Toolchain-01 §5` 的 `orri` 行 = `助记符 dst, src, immu6`）：`ctlz rdHB, rdHC, hd`（例：`ctlz rd8, rd9, 63`）。
-- **不冲突**（现场已核，三条实证）：① `spec/SimRISC-00 §4.2 MISC-octa` 第 `011-xxx` 行**仅** `000`–`100` 有条目，`101`/`110`/`111` **三格为空**（reserved）；② `SPEC-069t` 的 reserved/已删集 = 每子表 8 条（`001-000…011` 4 逻辑 + `010/011-000/001` 2 ext × 2 格式），**不含 `011-101/110/111`**；③ `contracts/opcodes.yaml` 中 `op: '0x40'` 的 32 条，`ha` 集合 = `{8–11, 16–20, 24–28, 42–46, 48–54, 56–59, 61–62}` ⇒ **29/30/31 无条目**（`0x40740000`/`0x40780000`/`0x407C0000` 全文 0 命中）。
+- **不冲突**（现场已核，三条实证）：① `spec/SimRISC-00 §4.2 MISC-octa` 第 `011-xxx` 行**仅** `000`–`100` 有条目，`101`/`110`/`111` **三格为空**（reserved）；② `SPEC-069t` 的 reserved/已删集 = 每子表 8 条（`001-000…011` 4 逻辑 + `010/011-000/001` 2 ext × 2 格式），**不含 `011-101/110/111`**；③ `contracts/opcodes.yaml` 中 `op: '0x40'` 的 32 条，`ha` 集合 = `{8–11, 16–20, 24–28, 42–46, 48–54, 56–59, 61–62}` ⇒ **29/30/31 无条目**（对应 `value` 见真源，本任务书不复写）。
 
 ### 2. 语义（`hd` = 有效位上界，三条统一）
 
@@ -99,7 +100,7 @@
 
 1. `**状态**` = `待开始`（开工前）→ `待验收`（实现后）；本任务书**自包含**；`**项目里程碑**` = `M8`。
 2. **前置状态（已满足 ✓）**：`adr-0012 §D11` 的 `D11.1`–`D11.10` **已逐条确认**（原话「`D11全部认可`」）；**`spec/` 修改授权原话已在本任务书留存**（原话「`同样授权`」）；`D11.4`（`cttz` 上界）/`D11.9`（归位 = `SimRISC-04 §4.2`）**已裁决**（`scope` 已随 `D10.6b` 定案 = `m8`）——**本任务无未决项**。
-3. **编码逐条**：三条 `value`/`mask`/`op`/`opx` 与「指令契约 §1」**逐字一致**；`generate_opcodes.py` 生成结果与 `contracts/opcodes.yaml` **幂等**（重生成 diff = 0）；`validate-encoding` rc=0。
+3. **编码逐条**：三条 `op`/`opx`/`mask` 与「指令契约 §1」**逐字一致**；三条 `value` 以 `contracts/opcodes.yaml`（生成器产出）为**唯一真源**（本任务书**不复写**，用户 2026-10-15 口径）；`generate_opcodes.py` 生成结果与 `contracts/opcodes.yaml` **幂等**（重生成 diff = 0）；`validate-encoding` rc=0。
 4. **语义逐条（独立 oracle，禁从 LLVM/QEMU 反推）**：以 **Python 大整数**独立实现三条语义（含 `hd` 边界），对**每条指令 × `hd` 代表集**（至少 `hd` = 7/15/31/63 与 `0`）以及边界（`rdHC=0`、`rdHC` 全 1、`rdHB==rdHC`、`rdHC=rd0`、`hd=0`、`hd=63`）产出期望值；向量经 QEMU 实跑**全部一致**。**端序 = 大端**（本项目为大端），端序敏感用例须显式覆盖。**计数现场统计、不写死**。
 5. **定值逐条**：`rdHC[hd:0]` 全 0 ⇒ `ctlz` = `cttz` = **`hd+1`**（对 `hd` 各取值均验，含 `hd=63` ⇒ 64）；`ctpop(0)` = 0。
 6. **合法性逐条**：`hd ∈ 0..63` **全部合法**（**无 `hd` 值触发 ILLI**——须含可达 FAIL 反例：把断言改成「存在非法 `hd`」应 FAIL）；`rdhb == rd0` ⇒ ILLI；`rdhc == rd0` / `rdhb == rdhc` ⇒ **不**报 ILLI；`contracts/legality_rules.yaml` **未新增**规则（diff 证）。每条断言均有**可达 FAIL 路径**（注入 ⇒ FAIL ⇒ `cp`+md5 还原 ⇒ 回绿）。

@@ -398,3 +398,11 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（architect 提交/文件集审核时现场发现，2026-10-14；源 = `ADR-0012 D10` 转 `Accepted` 任务）】**事实（现场核对）**：`ADR-0012 D9.5` 正文述「新增 1 条（`scope: m3`）⇒ `contracts/opcodes.yaml` **227→228**」（`.tao/adr/adr-0012-simrisc-0.5.4-update.md` L133）；`tools/spec/check_scope.py` 头部历史注亦述「新增 scope: m3，total 227→228，M1 不变」（L18）。**实测**：`contracts/opcodes.yaml` 条目数 = **227**（`grep -c '^- id:'`）、`tools/spec/check_scope.py` 的 `EXPECTED_TOTAL = 227`、`make check-scope` 输出「total 计数: 期望=227 实际=227」且 **rc=0** ⇒ **基线计数 = 227**；`D9.5` / 注释的「227→228」系**算术笔误**（应为 `226→227`）。**性质 = 文档/注释层算术笔误（非门控缺陷）**——门控期望值 `EXPECTED_TOTAL` 自身 = 227、与 `opcodes.yaml` 一致，`check-scope` 绿灯。**处置**：**本任务不改** `ADR-0012 D9.5` 正文与工具注释（**避免动已 `Accepted` 内容**，`AGENTS.md`「ADR decision 逐条确认」）⇒ **只登记，不建任务**。证据：`make check-scope`（total 期望=227/实际=227，rc=0）+ `grep -c '^- id:' contracts/opcodes.yaml` = 227。"
+
+- id: ISS-209
+  title: "【P3】后台子代理回报可能静默丢失——主会话若以「等回报」作为停顿理由会空窗；对策 = 以盘上事实判断 + `AGENTS.md` 三条规则（队列续链 / 长任务归属 / 通知核对）"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（architect 提交/文件集审核现场；源 = 主会话协调现场，**转述**——architect 未直接持有丢失的回报体；2026-10-15）】**现象**：**后台子代理的回报可能静默丢失**（无 `Task cancelled`、无错误串、无返回体）——主会话若以「等回报」为停顿理由，会在任务实际已落地（或即将落地）后**空窗**。**实例**：`INFRA-071t` 收尾后主会话空窗（现场；architect 复核 = 该任务书 `**状态**` 与 `milestones.md` 流水行均已落盘 ⇒ 属**回报缺失，而非工作未做**）。**先例（同类）**：`ISS-205`（reviewer 未返回最终判定）、`ISS-207`（返回被服务商拦截）——同属 `AGENTS.md`『子代理返回异常处理』族；本条补的是**「主会话侧不得依赖回报驱动」**这一面。**性质 = 协调层 / 流程**（非交付物缺陷、非静默错码）。**对策（本笔已落）**：① 以**盘上事实**判断是否完成（`git log` / 任务书 `**状态**` / `milestones.md`），不假设「它还在继续」；② `AGENTS.md`「命令与任务执行纪律」新增 **队列续链归主会话**（子代理返回或已落地后立即派下一件，不得以「等回报」停顿）+ **收到通知先核盘上事实**；③ `AGENTS.md`「长任务（长构建 / 长命令）」新增 **长任务归主会话**（`setsid nohup` + 落 `XXX_EXIT=$rc`；子代理不得在会话内等待长任务）；④ `.opencode/commands/complete.md` 收尾检查增「已按队列派出下一件，或说明为何停」；⑤ `tools/infra/check_tasks.py` 扩为**报告型清单**（另列「已立但仍 `待开始`」，供收尾 / `/status` 判队列）。**status 取 `open`（architect 判断）**：对策 = **规则 + 报告**、无机械门控；回报丢失属基础设施行为、**可复发**，留 `open` 便于再次复现时挂证（**不以伪造任务号填 `resolved_by`**）。证据指针：`AGENTS.md`「命令与任务执行纪律」与「长任务（长构建 / 长命令）」；`.opencode/commands/complete.md`；`tools/infra/check_tasks.py`；本文件 `ISS-205` / `ISS-207`。"
