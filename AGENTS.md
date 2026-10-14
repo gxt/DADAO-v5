@@ -40,7 +40,7 @@
 DADAO-v5/
 ├── AGENTS.md              # 本文件（可执行规则）
 ├── README.md              # 项目总览
-├── .tao/                  # 交互目录（任务/知识/ADR/日志）
+├── .tao/                  # 交互目录（任务/知识/ADR/日志/契约）
 │   ├── tasks/<module>/    # 任务文件 <PREFIX>-nnn<suffix>-描述.md
 │   ├── knowledge/         # 合约（contract-*.md）与台账（MEMORY/milestones/issues/lessons）
 │   └── adr/               # 架构决策记录 adr-<nnnn>-*.md（决策层）
