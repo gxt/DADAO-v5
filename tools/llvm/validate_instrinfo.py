@@ -24,12 +24,13 @@
 Checks
   1. baseline：每条 scope:m1 记录恰有一个匹配的 .td def
      （计数由 opcodes.yaml 派生，绝无硬编码 178/152）。
-  2. coverage：每条 scope:m3 记录（M3 CodeGen 指令）也须有匹配的 .td def。
+  2. coverage：每条 scope:m3（M3 CodeGen 指令）/ scope:m8（新增 ISA 指令，
+     ADR-0012 D10 / SPEC-142t）记录也须有匹配的 .td def。
   3. no orphan：每个 .td def 恰映射到一条 opcodes.yaml 记录
      （可捕获凭空编码与注入的 mnemonic/op 漂移）。
   4. mapping：join key 在两侧均唯一（无歧义映射）。
   5. non-m1 policy：.td 中的非 m1 def 仅限显式 allow-list
-     （scope:m3，以及 MC 层仍需的个别 scope:excluded，如 fence）。
+     （scope:m3、scope:m8，以及 MC 层仍需的个别 scope:excluded，如 fence）。
   6. format：.td 中 m1 def 用到的格式类集合 == scope:m1 记录的格式集合。
 
 退出码 0 当且仅当全部检查通过。
@@ -205,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
 
     m1 = [r for r in records if r.get("scope") == "m1"]
     m3 = [r for r in records if r.get("scope") == "m3"]
+    m8 = [r for r in records if r.get("scope") == "m8"]
 
     print("=== Validation: DADAOInstrInfo.td vs contracts/opcodes.yaml ===")
     print(f"opcodes.yaml     : {args.opcodes}")
@@ -212,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"records total    : {len(records)}")
     print(f"M1 records       : {len(m1)}  (baseline derived from opcodes.yaml)")
     print(f"M3 records       : {len(m3)}")
+    print(f"M8 records       : {len(m8)}")
     print(f".td instr defs   : {len(defs)}")
     print()
 
@@ -261,6 +264,20 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"FAIL: coverage — {matched_m3}/{len(m3)} 条 M3 记录匹配到 .td def")
 
+    # Check 2b: every M8 record (new ISA instructions, ADR-0012 D10) has exactly
+    # one matching def — they are MC-layer instructions (SPEC-142t phase B).
+    matched_m8 = 0
+    for r in m8:
+        hits = def_idx.get(rec_key(r), [])
+        if len(hits) != 1:
+            errors.append(f"M8 记录 {r['id']} 的 .td def 数 = {len(hits)}（期望 1）")
+        else:
+            matched_m8 += 1
+    if matched_m8 == len(m8):
+        print(f"PASS: coverage — {len(m8)}/{len(m8)} 条 M8 记录各有唯一 .td def")
+    else:
+        print(f"FAIL: coverage — {matched_m8}/{len(m8)} 条 M8 记录匹配到 .td def")
+
     # Check 3: no orphans — every def maps to exactly one record.
     orphan = 0
     non_m1_defs = []
@@ -281,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     # Check 5: non-m1 defs limited to the declared allow-list.
     bad_non_m1 = []
     for name, rid, scope in non_m1_defs:
-        if scope == "m3":
+        if scope in ("m3", "m8"):
             continue
         if scope == "excluded" and rid in MC_ONLY_EXCLUDED_IDS:
             continue

@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D10`（**前置：`D10.1`–`D10.8` 已逐条确认完成 ✓** —— 用户 2026-10-14 原话「**D10.1-D10.8 认可**」，见 `adr-0012 §D10.0` / `§状态说明`；`D10.6a` 已定案 (b)，**`D10.6b` 亦已定案 = `scope: m8`**）；`SPEC-141t`（ISA 指令扩展预研，**只读**来源）；`INFRA-078t`（compiler-rt 预研：`bswap` 缺口来源，**只读**）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）
 **状态**：待验收
-**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`）；B MC ⏳ 待做；C QEMU ⏳ 待做
+**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`）；B MC ⏳ **静态完成 + 重建已启动**（2026-10-15，**第二阶段 = `llvm-mc` 行为验证待重建后另行派发**，见「完成区 §阶段 B」）；C QEMU ⏳ 待做
 
 > **`**状态**` 口径说明**：本任务 = **一个任务书、三阶段验收** ⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 验收」）。
 
@@ -156,6 +156,15 @@
 **新发现/坑**：①任务书 §1 `value` 算术笔误（上）；②L2 `check-interface` 要求**每条** `opcodes.yaml` 记录都有 `trans_*` 且「定义数 == 条目数」⇒ 契约层单独先行（阶段 A）**必然**让 L2 红，直到阶段 C 落地（跨阶段结构性耦合，须架构裁定）；③`spec/SimRISC-0{4,8,9,10}` 册头「分类…（N 条）」为**手工**行、08/09/10 早已漂移（26 vs 生成区 18），本环按生成区现场值校正（30/19/19/19）；④改 `opcodes.yaml` 须同步重生成 `llvm-isa-backend-matrix.{tsv,md}`（L1 硬校验）；⑤`check_qfc_coverage` 的 `classify_m1` 不认识 `scope: m8`，会提示「M1 外集合不一致 +4」（informational、exit 0）；⑥legality 用显式枚举式（`immu6 == 1 || …`）避开 `validate_encoding.ALLOWED_NON_FIELD` 白名单改动。
 **遗留问题**：①**阶段 B（MC）/阶段 C（QEMU）未做** ⇒ L2 `check-interface` 唯一 2 FAIL（`trans_rev_*` 缺失）+ 任务书验收 4「向量经 QEMU 实跑一致」待阶段 C；②L3 `check-lit-full` 的 `check_lit_gen.py` 待阶段 B 重跑 `generate_lit_vectors.py`（`gen-*.s` 现不含 `rev.*`）；③`tools/testcases/generate_isa_vectors.py` 保持 M1-only（`rev ∉ M1`，仅加 docstring 指针），`rev` 向量改由独立生成器 `generate_rev_vectors.py` 产出（与任务书同步面列名有差异，理由见自审 F6）。
 
+### 阶段 B（MC）—— 静态完成 + 重建已启动（2026-10-15；第二阶段待验）
+
+**测试结果**：`./.work/evidence/SPEC-142t/run-b.sh` **PASS=12 FAIL=0**（rc=0）；`run-b.sh --inject` **PASS=11 FAIL=0**（3 组注入各在**临时副本/临时树**内使目标断言 FAIL，仓库 4 文件 md5 前后逐一相同）。`make check`(L1) rc=0；`make check-modules`(L2) rc=2（失败项**恰 2**，同阶段 A，均 `check-interface` 的 QEMU `trans_rev_*` 缺失）。
+**修改文件**（`git status --porcelain -uall` = 4）：`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOInstrInfo.td.patch`（`+4` def，1509→1549 行，`tools/infra/make_patch.py` 导出）；`tools/llvm/validate_instrinfo.py`（新增 Check 2b + non-m1 策略纳入 `scope: m8`）；`tools/llvm/llvm-isa-backend-matrix.tsv`（重生成：`rev.*` 的 `td_def` 列 0→`rev_*_orri_rd`；`.md` 未变）；`components/llvm-project/changelog.md`（`Process-01 §10` 追加一行）。`series` 不变（71）。
+**验收结果**（真实 rc；日志 `.work/log/llvm/SPEC-142t-b-phB.log`、`.work/evidence/SPEC-142t/log/`）：`check-patch-tree`=0（4 组件 127 补丁）；`check-index-blobs`=0（91 新增补丁，`index 000000000..972e9f815`）；`check-instrinfo`=0（`M8 records: 4` / `4/4 条 M8 记录各有唯一 .td def` / non-m1 6 个均在 allow-list）；`check-isa-coverage`=0（重生成后）；`check-asm-list`/`check-asm-list-drift`/`check-scope`/`check-rule-refs`/`check-fp-contract`/`check-no-residue`/`check-spec-readonly` 各 =0。
+**重建（启动证据）**：`setsid nohup bash -c 'JOBS=8 make build-mc > .work/log/llvm/SPEC-142t-b-phB.log 2>&1; rc=$?; echo "SPEC-142t_B_EXIT=$rc" > .work/log/llvm/SPEC-142t-b-phB.<EXIT 标记>'`；外层 PID **910488** / `make` **910490** / `ninja -j8` **910507**（16 核机器、**未**用全核）；**启动后即返回、未等待**；启动现场 41/45 步 ⇒ **预计 ≪72 min**（72 min = 上次**全量** `build-mc` 实测；本次为增量：TableGen `.inc` 再生 + DADAO 目标 + 重链接）。
+**新发现/坑**：①`check-isa-coverage` 的 `td_def` 列取自 `.td` 补丁树 ⇒ **改 `.td` 必重生成矩阵**；而第①层须 `llvm-mc` ⇒ `accept` 值**随重建再变**（重建后须再生成，见遗留①c）。②`.td` 分节计数注释**本就漂移**（`orri format (26)` 实际 20、`orrr format (81)` 实际 64）——本环**未改**（最小改动），`rev` 块另起注释段。③`validate_instrinfo.py` 的 non-m1 策略原仅放行 `m3`（+`excluded` 白名单）⇒ 新 `scope`（`m8`）一进 `.td` 即红，须同步门控（本环加 Check 2b + 策略，属 **MC 门控面**、**非弱化**）。
+**遗留问题**：①**第二阶段（`.EXIT` 就绪后）**：①a `llvm-mc` 汇编 `rev.{o,t,w,b}` 四条 + 编码比对（期望 `0x40300000`/`0x41300000`/`0x42300000`/`0x43300000`）+ `llvm-objdump` 反汇编往返；①b **非法 `immu6`**（非 one-hot / `k ≥ S`）**汇编期是否报错未定**——**任务书阶段 B 未要求汇编期实现**，本环**未加**汇编期 `encode_onehot`（见自审 F7，须架构裁定）；①c `python3 tools/llvm/gen_isa_coverage.py` 重生成 + `--check` 回绿（第①层 `rev.*` reject→accept）；①d `generate_lit_vectors.py` 重跑（L3 `check_lit_gen`）。②L2 `check-interface` 的 2 FAIL 仍待阶段 C。③**未提交**（提交权归 architect）；**未越界**（未触 QEMU / `spec/` / `contracts/` / compiler-rt）。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -246,3 +255,32 @@
 - **本笔内容**：① `**阶段进度**` 行 + `**状态**` 口径说明（任务级 `待验收`，**不**置 `已验证`）；② §1 表/正文 `value` 复写 → **位域 + 引真源**（删具体值）+ §1 勘误条（主会话 `0x400C0000` 系列算术笔误：6 位 `opx` 落 `bits[23:18]` 需 `<<2`，`0x0C→0x30`）；③ §1「不冲突」③ 的 `0x??0C0000`（笔误模式）→ `ha: '0x0C'`；④ 验收 3 同步「`value` 以 `contracts/opcodes.yaml` 为唯一真源」；⑤ `milestones.md` `SPEC-142t` 流水行补阶段 A 已完成并验收（2026-10-15）+ 状态/完成时间同步（`value` 改引真源）。
 - **finding 处置回应**：**R1**（§1 `value` 笔误未标勘误待办）⇒ **已处置**（§1 勘误条 + 引真源）；**R2**（完成区 19+2 vs 实际 22）⇒ **不阻塞、不改完成区**（原样留证）。
 - **门控（本笔后）**：`make check`(L1)=0、`check-knowledge-refs`=0、`check-knowledge-dir`=0、`check-dirs`=0、`check-no-residue`=0、`make check-tasks`=**0**（**报告列出本任务** = 预期：完成区已填 + 任务级 `待验收`；报告型、不阻断）。
+
+#### 第 2 轮 engineer 自审（阶段 B / MC）
+
+（自主逐行审查；对象 = 本环新增/改动的 `.td` 补丁、`tools/llvm/validate_instrinfo.py`、矩阵 `tsv`、组件 `changelog.md`、证据脚本。全局 `subagent_depth=1`，无法起嵌套子代理，故为自主逐行审查。）
+
+**逐行审查意见与判决**
+
+1. `DADAOInstrInfo.td` 四个 def：格式类 `DADAOOrri`（`FormatKind=7` ⇒ `ha=opx, hb=rb, hc=rc, hd=imm6`），`op=0x40..0x43`、`ha=0x0C` 逐条取自 `contracts/opcodes.yaml` 的 `rev.{o,t,w,b}_orri_rd`（`op/ha/mask` 一致，见 `check_mc_static` 现场核对）。编码 = `op<<24 | ha<<18 | rdhb<<12 | rdhc<<6 | immu6` ⇒ `0x40300000` 系列，与 `value` 一致。**正确**。
+2. 操作数形态 `(outs GPRD:$rb)` + `(ins GPRD:$rc, immu6:$imm6)` 与真源 `fields`（`rdhb` dst/rd、`rdhc` src/rd、`immu6` imm/无符号）逐字段对应；`Pattern = []`（MC 层，不进 CodeGen）与 `sub_o_dbb`/cfx 先例一致。**正确**。
+3. **未改** `DADAOAsmParser`/`DADAOMCInstPrinter`/`MCCodeEmitter`/`Disassembler`：逐行核对了两处 mnemonic 白名单（`isMultiToSingleOrriMnemonic`、instprinter `FK_orri` 分组渲染表）——`rev.*` **不在**其中，故走通用 `orri` 路径（解析 `dst, src, imm`、flat 打印、TableGen 生成的匹配器/解码表）。**正确且最小**。
+4. 补丁导出用 `tools/infra/make_patch.py`（E1 校验 + §6.2 幂等写），hunk 头 `+1,1549` 与 `index ..972e9f815` 由 `git diff` 生成，**非手改**（`check-patch-tree` 断言⑥/⑨ + `check-index-blobs` 独立复算）。**正确**。
+5. `validate_instrinfo.py`：Check 2b 与策略放行 `m8`，行为与 `m3` 对称；反例（临时 `.td` 改 `rev.t` 的 `op`）实测 FAIL ⇒ 该断言有**可达 FAIL 路径**。**正确**。
+6. 矩阵 `tsv`：仅 `rev.*` 4 行的 `td_def` 列变化（其余 227 行逐字节不变，`git diff` 仅 4 行）；`.md` 未变。**正确**。
+7. **反例注入纪律**：3 组注入全部落在 `/tmp/opencode/SPEC-142t/` 临时副本/临时树，**未**用 `git checkout/restore/stash`，**未**改仓库内文件；`--inject` 末尾以 md5 逐文件对账（4 个仓库文件）不变。**符合**。
+8. 越界自查：`git diff --name-only` = 4 项，与 `spec/` 交集 **空**；未触 `components/qemu/**`、`contracts/**`、`compiler-rt`；`.tao/knowledge/` 未改（知识沉淀归 `/complete`）。**符合**。
+9. `changelog.md` 追加行属 `Process-01 §10`「组件补丁变更须同一变更内追加」的**强制项**（虽不在任务书文件清单内，属规则要求 ⇒ 披露）。**正确**。
+
+**Finding 处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 改 `.td` 使 `check-isa-coverage` 的 `td_def` 列漂移（必然） | ✅已修 | 重生成 `llvm-isa-backend-matrix.tsv`（4 行） | `make check-isa-coverage` rc=0；`gen_isa_coverage --check` PASS |
+| F2 新 `scope: m8` 不在 `validate_instrinfo` 的 non-m1 策略内 ⇒ `check-instrinfo` 红 | ✅已修（MC 门控面，非弱化） | 加 Check 2b + 策略放行 `m8`（+docstring） | `make check-instrinfo` rc=0（`4/4 M8 记录各有唯一 .td def`） |
+| F3 矩阵第①层 `rev.*` 仍为 `reject`（重建前 `llvm-mc` 尚不识别） | ⏸延后（须重建） | 未伪造 `accept`；重生成后按现状落盘 | 见「遗留问题①c」（第二阶段重生成 + `--check` 回绿） |
+| F4 任务书阶段 B **未要求**汇编期 `encode_onehot`（`immu6` 非 one-hot / `k≥S`） | ⏸延后（须架构裁定） | **未加**汇编期静态合法性（若加则须改 `AsmParser` 且属行为新增） | 自审披露 + 「遗留问题①b」；`immu6` 仅按 `uint6` 范围校验（既有 `checkImmediateRanges`） |
+| F5 `.td` 分节注释计数本就漂移（orri 26/实际 20、orrr 81/实际 64） | ⏸披露不改（最小改动） | 未改这两行；`rev` 块另起独立注释段 | 「新发现/坑」② |
+| F6 组件 `changelog.md` 不在任务书文件清单内 | ✅已做（规则强制项，须披露） | 追加 SPEC-142t 一行 | `make check`（含 `check-components`）rc=0 |
+
+**判决**：全部 finding 已处置（F1/F2/F6 已做，F3/F4/F5 为显式披露/延后，其中 F4 属**行为新增**、须架构裁定）。阶段 B **静态部分**无未处置代码缺陷；`llvm-mc` 行为验证与矩阵再生成属**本任务第二阶段**（重建完成、`.EXIT` 就绪后另行派发）。阶段级状态：**待第二阶段**（任务级 `**状态**` 维持 `待验收`，口径同阶段 A）。

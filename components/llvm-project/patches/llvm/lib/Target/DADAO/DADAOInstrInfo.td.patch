@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..1938af289
+index 000000000..972e9f815
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1509 @@
+@@ -0,0 +1,1549 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1453,6 +1453,46 @@ index 000000000..1938af289
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x43;
 +  let ha = 0x1C;
++  let Pattern = [];
++}
++
++// --- rev.* per-block element reversal (ADR-0012 D10 / SPEC-142t; scope: m8) ---
++//
++// rev.o/rev.t/rev.w/rev.b rdHB, rdHC, immu6: reverse the order of the S/k
++// k-bit elements inside every 64-bit block (block size S = 64/32/16/8 by
++// suffix; k = immu6 must be a power of two and k < S, see
++// contracts/legality_rules.yaml `encode_onehot`).  MC layer only for now:
++// no ISel patterns, so they never reach CodeGen.
++
++def rev_o_orri_rd : DADAOOrri<"rev.o"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x40;
++  let ha = 0x0C;
++  let Pattern = [];
++}
++
++def rev_t_orri_rd : DADAOOrri<"rev.t"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x41;
++  let ha = 0x0C;
++  let Pattern = [];
++}
++
++def rev_w_orri_rd : DADAOOrri<"rev.w"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x42;
++  let ha = 0x0C;
++  let Pattern = [];
++}
++
++def rev_b_orri_rd : DADAOOrri<"rev.b"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x43;
++  let ha = 0x0C;
 +  let Pattern = [];
 +}
 +
