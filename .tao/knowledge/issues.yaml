@@ -326,7 +326,7 @@
   scope: [infra, llvm]
   blocks: []
   resolved_by: null
-  notes: "【正式登记（源 `INFRA-069t` 完成区「新发现/坑②」+「遗留问题」+ reviewer 第 1 轮「非阻断发现①」；architect 收尾复核，2026-10-12）】**事实**：`components/llvm-project/changelog.md` 条目最早回溯至 `LLVM-026t`，其前的组件补丁任务无条目——早期未立「组件补丁变更后，任务收尾须在同一变更内追一行」口径（该口径由 `INFRA-069t` 定案，落 changelog 头部 + `docs/Process-01 §10`）。**准确清单（reviewer 现场核）**：`LLVM-013t`/`014t`/`019t`–`025t`/`028t`/`060t` 缺条目；**`LLVM-046t` 除外**——其未触碰 `patches/`（仅 `series` 重建）⇒ 非同类、无追行义务。**性质 = 历史截断 / 早期口径缺失**（非缺陷、非静默；`INFRA-069t` 已按 M7 断档补 9 条，本清单属 M7 范围外的历史面）。**建议**：M7 归档（`Process-04 §3`）时按需补录，或明确「历史不补」——二者择一，勿悬空。**只登记，不建任务**。证据指针：`.tao/tasks/infra/INFRA-069t-*.md`「新发现/坑②」+「遗留问题」；`.work/evidence/<任务ID>/run.sh`。"
+  notes: "【正式登记（源 `INFRA-069t` 完成区「新发现/坑②」+「遗留问题」+ reviewer 第 1 轮「非阻断发现①」；architect 收尾复核，2026-10-12）】**事实**：`components/llvm-project/changelog.md` 条目最早回溯至 `LLVM-026t`，其前的组件补丁任务无条目——早期未立「组件补丁变更后，任务收尾须在同一变更内追一行」口径（该口径由 `INFRA-069t` 定案，落 changelog 头部 + `docs/Process-01 §10`）。**准确清单（reviewer 现场核）**：`LLVM-013t`/`014t`/`019t`–`025t`/`028t`/`060t` 缺条目；**`LLVM-046t` 除外**——其未触碰 `patches/`（仅 `series` 重建）⇒ 非同类、无追行义务。**性质 = 历史截断 / 早期口径缺失**（非缺陷、非静默；`INFRA-069t` 已按 M7 断档补 9 条，本清单属 M7 范围外的历史面）。**建议**：M7 归档（`Process-04 §3`）时按需补录，或明确「历史不补」——二者择一，勿悬空。**只登记，不建任务**。证据指针：`.tao/tasks/infra/INFRA-069t-*.md`「新发现/坑②」+「遗留问题」；`.work/evidence/<任务ID>/run.sh`。**【裁定落纸（2026-10-14，architect 追加；只追加）】**用户 2026-10-14 裁定 = **(A) 补录**（原话「A」；渠道 = 经主会话问答）⇒ 本项由「只登记」**转执行**，落点 = `LLVM-092t`（`.tao/tasks/llvm/LLVM-092t-llvm-changelog历史补录.md`，`M8`、`待开始`）。`status` **暂保持 `open`**（**待补录完成并 reviewer 通过后再 `closed` + 回填 `resolved_by`**）。"
 
 
 - id: ISS-201
@@ -353,7 +353,7 @@
   scope: [infra, spec]
   blocks: []
   resolved_by: null
-  notes: "【正式登记（源 `SPEC-137t` 第 1 轮 reviewer 验收「非阻断发现」；architect 收尾立项，2026-10-13）】**性质 = 门控覆盖缺口**（非交付物缺陷，本次均靠人工核验）。**① `check-spec-refs` 不覆盖 `.tao/knowledge/**` 内互指**——`SPEC-137t` 的 `ADR-0019 D9` ↔ `contract-elf.md §3.3` **双向互指**完整性本次由 reviewer **人工 `grep -c`** 核对（`adr-0019`→`§3.3` = 3≥1、`contract-elf`→`ADR-0019 §D9` = 7≥1）；门控未机械校验（`check-spec-refs` 只审 `contract-*.md` 的 spec 引用）。**② `check_issues.py` 不校验 `closed` 必填 `resolved_by`**——文件头字段约束「`resolved_by`: closed 时必填, open 时 null」无对应断言（现仅校验 status 合法性与 `M1-gate` 阻断）⇒ `ISS-201` 的 `resolved_by: SPEC-137t` 本次由 reviewer **人工确认**。**建议**：为二者各补 1 条断言（互指完整性 + `resolved_by` 字段约束），纳入 L1/L2 分层由用户/后续裁定。**只登记，不建任务**。证据指针：`.tao/tasks/spec/SPEC-137t-*.md`「第 1 轮 reviewer 验收」非阻断发现 + 任务书 §⑤/§⑥。"
+  notes: "【正式登记（源 `SPEC-137t` 第 1 轮 reviewer 验收「非阻断发现」；architect 收尾立项，2026-10-13）】**性质 = 门控覆盖缺口**（非交付物缺陷，本次均靠人工核验）。**① `check-spec-refs` 不覆盖 `.tao/knowledge/**` 内互指**——`SPEC-137t` 的 `ADR-0019 D9` ↔ `contract-elf.md §3.3` **双向互指**完整性本次由 reviewer **人工 `grep -c`** 核对（`adr-0019`→`§3.3` = 3≥1、`contract-elf`→`ADR-0019 §D9` = 7≥1）；门控未机械校验（`check-spec-refs` 只审 `contract-*.md` 的 spec 引用）。**② `check_issues.py` 不校验 `closed` 必填 `resolved_by`**——文件头字段约束「`resolved_by`: closed 时必填, open 时 null」无对应断言（现仅校验 status 合法性与 `M1-gate` 阻断）⇒ `ISS-201` 的 `resolved_by: SPEC-137t` 本次由 reviewer **人工确认**。**建议**：为二者各补 1 条断言（互指完整性 + `resolved_by` 字段约束），纳入 L1/L2 分层由用户/后续裁定。**只登记，不建任务**。证据指针：`.tao/tasks/spec/SPEC-137t-*.md`「第 1 轮 reviewer 验收」非阻断发现 + 任务书 §⑤/§⑥。**【裁定落纸（2026-10-14，architect 追加；只追加）】**用户 2026-10-14 裁定 = **(A) 两条都补、并入 L1**（原话「A」；渠道 = 经主会话问答）⇒ 本项由「只登记」**转执行**，落点 = `INFRA-080t`（`.tao/tasks/infra/INFRA-080t-门控覆盖补齐.md`，`M8`、`待开始`）。`status` **保持 `open`**（**待两条断言落地 + 可达 FAIL 证据齐备后再 `closed`**）。"
 
 
 - id: ISS-204
