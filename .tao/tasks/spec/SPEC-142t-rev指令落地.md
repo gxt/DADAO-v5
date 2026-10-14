@@ -4,6 +4,9 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D10`（**前置：`D10.1`–`D10.8` 已逐条确认完成 ✓** —— 用户 2026-10-14 原话「**D10.1-D10.8 认可**」，见 `adr-0012 §D10.0` / `§状态说明`；`D10.6a` 已定案 (b)，**`D10.6b` 亦已定案 = `scope: m8`**）；`SPEC-141t`（ISA 指令扩展预研，**只读**来源）；`INFRA-078t`（compiler-rt 预研：`bswap` 缺口来源，**只读**）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）
 **状态**：待验收
+**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`）；B MC ⏳ 待做；C QEMU ⏳ 待做
+
+> **`**状态**` 口径说明**：本任务 = **一个任务书、三阶段验收** ⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 验收」）。
 
 ## 执行环境
 **执行环境**：本地
@@ -36,17 +39,19 @@
 
 四条统一 `orri` 格式：`opx`（= `ha`，`bits[23:18]`）+ 两个寄存器 + 6 位立即数在 `hd[5:0]`。
 
-| 指令 | `id` | 子表 | `op` | `ha` | `mask` | `value` |
-|---|---|---|---|---|---|---|
-| `rev.o` | `rev.o_orri_rd` | `MISC-octa` | `0x40` | `0x0C` | `0xFFFC0000` | `0x400C0000` |
-| `rev.t` | `rev.t_orri_rd` | `MISC-tetra` | `0x41` | `0x0C` | `0xFFFC0000` | `0x410C0000` |
-| `rev.w` | `rev.w_orri_rd` | `MISC-wyde` | `0x42` | `0x0C` | `0xFFFC0000` | `0x420C0000` |
-| `rev.b` | `rev.b_orri_rd` | `MISC-byte` | `0x43` | `0x0C` | `0xFFFC0000` | `0x430C0000` |
+| 指令 | `id` | 子表 | `op` | `opx`（= `ha`） | `mask` |
+|---|---|---|---|---|---|
+| `rev.o` | `rev.o_orri_rd` | `MISC-octa` | `0x40` | `001100`（`0x0C`；行`001`×列`100`） | `0xFFFC0000` |
+| `rev.t` | `rev.t_orri_rd` | `MISC-tetra` | `0x41` | 同上（四子表各一格 `001-100`） | `0xFFFC0000` |
+| `rev.w` | `rev.w_orri_rd` | `MISC-wyde` | `0x42` | 同上 | `0xFFFC0000` |
+| `rev.b` | `rev.b_orri_rd` | `MISC-byte` | `0x43` | 同上 | `0xFFFC0000` |
 
-- `opx = 001100`（行 `001-xxx` × 列 `xxx-100`）；`value = op<<24 | ha<<18`。
+- **`value` 以 `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py` 产出）为唯一真源，本任务书不复写**（用户 2026-10-15 口径：按位域写清楚，派生值由生成器算）。
+- `opx = 001100`（行 `001-xxx` × 列 `xxx-100`）；`value = op<<24 | opx<<18` **由生成器计算**（本任务书**不写具体值**）。
+- **勘误（2026-10-15）**：本表原复写的 `0x400C0000`/`0x410C0000`/`0x420C0000`/`0x430C0000` 系列系**主会话算术笔误** ✗ —— 6 位 `opx` 落 `bits[23:18]` 放进字节需 `<<2`（`0x0C → 0x30`）；**现改为「位域 + 引真源」以杜绝此类复写笔误**。用户 2026-10-15 确认原话「**可以**」×2 + 位域口径原话「**无需计算 mask 后的值，就按位域写清楚就行，是谁的责任，谁来认真计算**」（渠道 = 经主会话问答）。
 - 字段：`rdhb`（**目的**，`bits[17:12]`，bank `rd`）/ `rdhc`（**源**，`bits[11:6]`，bank `rd`）/ `immu6`（`bits[5:0]`，**无符号**）。
 - 汇编语法（`spec/Toolchain-01 §…` `orri` 行）：`rev.o rdHB, rdHC, immu6`（例：`rev.o rd8, rd9, 8`）。
-- **不冲突**（现场已核）：`001-100` 在四个子表均为空；`SPEC-069t` 的 reserved/已删集 = 每子表 8 条（`001-000…011` 4 逻辑 + `010/011-000/001` 2 ext×2 格式），**不含 `001-100`**；`contracts/opcodes.yaml` 无 `ha: '0x0C'` / `0x??0C0000` 条目。
+- **不冲突**（现场已核）：`001-100` 在四个子表均为空；`SPEC-069t` 的 reserved/已删集 = 每子表 8 条（`001-000…011` 4 逻辑 + `010/011-000/001` 2 ext×2 格式），**不含 `001-100`**；`contracts/opcodes.yaml` 无 `ha: '0x0C'` 条目（现场 `grep` 0 命中）。
 
 ### 2. 语义（逐块）
 
@@ -99,7 +104,7 @@
 
 1. `**状态**` = `待开始`（开工前）→ `待验收`（实现后）；本任务书**自包含**（执行不需依赖外部仓库内容）；`**项目里程碑**` = `M8`。
 2. **前置状态**：`adr-0012 §D10` 的 `D10.1`–`D10.8` **已逐条确认**（用户 2026-10-14 原话「**D10.1-D10.8 认可**」已落纸于本任务书 + `ADR §状态说明`）；`D10.6a` **已定案 (b) 分册**；**`D10.6b`（`scope` 取值）已定案 = `m8` ⇒ 涉及 `scope` 的写入**（`contracts/opcodes.yaml` / `check_scope.py`）**可执行**。
-3. **编码逐条**：四条 `value`/`mask`/`op`/`ha` 与「指令契约 §1」**逐字一致**；`tools/spec/generate_opcodes.py` 生成结果与 `contracts/opcodes.yaml` **幂等**（`--check`/重生成 diff = 0）；`validate-encoding` rc=0。
+3. **编码逐条**：四条 `op`/`opx`（= `ha`）/`mask` 与「指令契约 §1」**逐字一致**；四条 `value` 以 `contracts/opcodes.yaml`（生成器产出）为**唯一真源**（本任务书**不复写**，见 §1 勘误）；`tools/spec/generate_opcodes.py` 生成结果与 `contracts/opcodes.yaml` **幂等**（`--check`/重生成 diff = 0）；`validate-encoding` rc=0。
 4. **语义逐条（独立 oracle，禁从 LLVM/QEMU 反推）**：以 Python 大整数**独立实现**逐块反转，对**每条指令 × 每个合法 `k`**（见下）以及边界（`rdHC=0`、`rdHC` 全 1、`rdHB==rdHC`、`rdHC=rd0`）产出期望值；向量经 QEMU 实跑**全部一致**。**端序 = 大端（本项目为大端）**，端序敏感用例须显式覆盖。
    - 合法集覆盖：`.o` `k∈{1,2,4,8,16,32}` / `.t` `k∈{1,2,4,8,16}` / `.w` `k∈{1,2,4,8}` / `.b` `k∈{1,2,4}` —— **计数现场统计、不写死**。
 5. **合法性逐条**：`k` 非 one-hot 或 `k ≥ S` ⇒ **ILLI**（含 `k=0`、`k=S` 恒等档）；`rdhb == rd0` ⇒ ILLI；`rdhc == rd0` / `rdhb == rdhc` ⇒ **不**报 ILLI。每条断言均有**可达 FAIL 路径**（独立注入一次反例：注入 ⇒ FAIL ⇒ `cp`+md5 还原 ⇒ 回绿）。
@@ -193,4 +198,51 @@
 **判决**：全部 finding 已处置（F1/F4 已修；F2/F3/F5/F6 为显式披露/延后，其中 F3 属跨阶段结构性耦合、需架构裁定）。无未处置的代码缺陷 ⇒ 状态置 `待验收`。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑记录**（全部在 workdir，相对路径）
+
+| 检查项 | 命令 | rc | 结论 |
+|--------|------|-----|------|
+| L1 `make check` | `make check` | 0 | ✅ 全绿 |
+| L2 `make check-modules` | `make check-modules` | 2 | ✅ 恰 2 FAIL，均 `check-interface` 内 `QEMU trans_rev_{o,t,w,b}` 缺失 |
+| L2 逐子目标 | check-lit/check-qemu-smoke/test-codegen/test-elf/test-semihost/check-picolibc-tests | 各 0 | ✅ 全绿 |
+| 证据脚本全量 | `run.sh` | 0 | ✅ PASS=40 FAIL=0 |
+| 证据脚本注入 | `run.sh --inject` | 0 | ✅ 6/6 PASS |
+| 新反例注入 | 改 SimRISC-10 legality ⇒ `check-legality-drift` | 2→0 | ✅ 注入 FAIL→cp 还原→回绿 |
+
+**独立重算①–⑥**
+
+| # | 内容 | 结论 |
+|---|------|------|
+| ① | opx=001100→ha=0x0C→value=op<<24\|ha<<18=0x40300000 系列 | ✅ 非 0x400C0000；yaml 实际值一致 |
+| ② | QFC 四子表 ↔ opcodes.yaml rev.* 双向核对（自写 parse，4 条） | ✅ 差异=0 |
+| ③ | encode_onehot 可达 FAIL：k=3/5/0/8 ⇒ ILLI；四指令 legal_k 全量 eval | ✅ 一致 |
+| ④ | 独立 oracle（第四种：逐块位操作法）39 例 semantic/boundary + 19 legality + 4 encoding | ✅ 差异=0 |
+| ⑤ | 分册 04 §4.2.1 总述 + 08/09/10 §4.2.1 引用；5 册版本记录含 rev.* | ✅ |
+| ⑥ | 锁册 sha256：受改 5 册逐册重算与 lock.toml 一致 | ✅ |
+
+**约束核验**
+
+- L1 全绿 ✅；L2 恰 2 FAIL 且均 rev.* trans_* 缺失 ✅；L3 非阶段 A 触发点 ✅
+- 编码 value 与真源公式一致 ✅；任务书 §1 表 0x400C0000 为笔误（完成区 F2 披露）✅
+- 版本记录硬要求：5 册附录均写明 ✅
+- spec/ 改动限授权范围（00/04/08/09/10）✅；锁册 sha256 同步 ✅
+- 反例注入可达 FAIL ✅（engineer 2 组 + reviewer 新 1 组）
+
+**Finding**
+
+| # | 描述 | 严重度 | 处置 |
+|---|------|--------|------|
+| R1 | 任务书 §1 value 笔误 0x400C0000 未标勘误待办 | 低 | 建议 /complete 时补勘误条目 |
+| R2 | 修改文件数完成区写 19+2=21，git diff 实际 22（含任务书） | 信息 | 不阻塞 |
+
+**判决**：**Accepted** — L1 全绿、L2 恰 2 FAIL（均为阶段 C 依赖的 rev.* trans_* 缺失）、证据脚本 40/0 + 6/6、独立重算①–⑥全部通过、无阻断缺陷。
+
+#### architect 提交与文件集审核留痕（2026-10-15；**只追加**）
+
+- **档位**：**正常提交**（依据 = 上「第 1 轮 reviewer 验收」判决 `Accepted`；**阶段级**，见 `**阶段进度**`）。
+- **提交**：分支 `SPEC-142t-A` 头提交（提交信息 = `SPEC-142t A: 阶段A收尾（已验证）+ value 改引真源（勘误主会话笔误）+ 阶段进度行`；**只 `commit`，未 `merge`、未 `push`**）。**注**：本留痕与提交同体 ⇒ **不内嵌 SHA**（SHA 随留痕内容变化而变、会自指失真）；SHA 以分支头 / 父会话回报为准。
+- **文件集对账**（`git diff --cached --name-only` ↔ 本笔范围）：**2** 项 = 本任务书 + `.tao/knowledge/milestones.md` ⇒ **无漏提、无越界**（阶段 A 实改文件已于 `19d7c57` 落地；本笔仅收尾文书）。
+- **本笔内容**：① `**阶段进度**` 行 + `**状态**` 口径说明（任务级 `待验收`，**不**置 `已验证`）；② §1 表/正文 `value` 复写 → **位域 + 引真源**（删具体值）+ §1 勘误条（主会话 `0x400C0000` 系列算术笔误：6 位 `opx` 落 `bits[23:18]` 需 `<<2`，`0x0C→0x30`）；③ §1「不冲突」③ 的 `0x??0C0000`（笔误模式）→ `ha: '0x0C'`；④ 验收 3 同步「`value` 以 `contracts/opcodes.yaml` 为唯一真源」；⑤ `milestones.md` `SPEC-142t` 流水行补阶段 A 已完成并验收（2026-10-15）+ 状态/完成时间同步（`value` 改引真源）。
+- **finding 处置回应**：**R1**（§1 `value` 笔误未标勘误待办）⇒ **已处置**（§1 勘误条 + 引真源）；**R2**（完成区 19+2 vs 实际 22）⇒ **不阻塞、不改完成区**（原样留证）。
+- **门控（本笔后）**：`make check`(L1)=0、`check-knowledge-refs`=0、`check-knowledge-dir`=0、`check-dirs`=0、`check-no-residue`=0、`make check-tasks`=**0**（**报告列出本任务** = 预期：完成区已填 + 任务级 `待验收`；报告型、不阻断）。
