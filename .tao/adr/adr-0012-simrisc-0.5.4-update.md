@@ -141,6 +141,107 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 
 **关联任务**：`SPEC-100t`（新增指令）、`SPEC-101t`（三条既有指令改名+改编码）、`LLVM-043t`（新指令 MC）、`QEMU-040t`（新指令 trans）、`LLVM-035t`（ISel）。
 
+### D10：新增 `rev.{o,t,w,b}`（逐块反转）——**（提案，待用户逐条确认；未确认前不得视为 `Accepted`）**（2026-10-14 新增）
+
+> ⚠ **提案状态**：`D10` 及其子项 `D10.1`–`D10.8` **均为提案**，**尚未经用户逐条确认**；**未确认前不得视为 `Accepted`**，不得据此开工。本 ADR 顶部 `**状态**：Accepted` 的确认范围**不含 `D10`**；`§状态说明` 中 2026-10-14 条目亦**只登记该提案**（非确认）。
+
+**D10.0（授权与用户裁定原话，原样引录；渠道 = 经主会话问答，2026-10-14）**
+
+- **授权**：用户原话「**a/b授权**」——即授权修改**本 ADR** ✓ 且授权修改 **`spec/SimRISC-00` + `contracts/opcodes.yaml` + `contracts/legality_rules.yaml`** ✓（满足 `docs/Process-06 §2`「`spec/` 下任何新增/修改须用户事先明确允许」✓）。
+- **设计确认（Q1/Q3/Q4）**：
+  - Q1（`immu6` 语义 = **单元序反转、单元内位序不变**）⇒ 用户原话：「**前者，你的理解很正确**」。
+  - Q3（非法 `immu6` 的异常与规则落点）⇒ 用户原话：「**ILLI；需要增加 `encode_onehot` 合法性规则，配合 `encode_sbz` 合法性规则；此外，还有 `dst_rd0`**」。
+  - Q4（零寄存器 / 同寄存器边界）⇒ 用户原话：「**`rdHC` 可以为 `rd0`，`rdHB` 可以和 `rdHC` 是同一个寄存器**」。
+- **语义（Q2 最终确认）** ⇒ 用户原话：「**按 `t/w/b` 做划分……以 `w` 为例，每个 64 位寄存器，划分为四个 `w`，如果 `immu6` 为 4，每个 `w` 内部的 4 个 4 位进行翻转；所以，如果 `rdHC` 高 48 位为 0，则 `rdHB` 的高 48 位也为 0，否则，也进行类似运算**」⇒ **逐块语义**。
+
+**D10.1（新增指令）**
+
+- 新增 **4 条**：`rev.o` / `rev.t` / `rev.w` / `rev.b`，格式统一为 **`orri`**。
+- 操作数：`rdhb`（**目的**，`hb[5:0]` = bits`[17:12]`，bank `rd`）、`rdhc`（**源**，`hc[5:0]` = bits`[11:6]`，bank `rd`）、`immu6`（bits`[5:0]`，**无符号**）。
+- id 沿用既有 `mnemonic_format_feature` 约定（`orri` 变体如 `shl.ub_orri_rd`/`ext.uo_orri_rd`）：`rev.o_orri_rd` / `rev.t_orri_rd` / `rev.w_orri_rd` / `rev.b_orri_rd`。
+- `ha` 为 `opx`（见 D10.2），故不在操作数之列。
+
+**D10.2（编码位置）**
+
+`opx = 001100`（即 `ha[5:0] = 0b001100 = 0x0C`；行 `001-xxx` × 列 `xxx-100`），四子表**各一条**：
+
+| 指令 | 子表 | `op` | `ha` | `mask` | `value` |
+|---|---|---|---|---|---|
+| `rev.o_orri_rd` | `MISC-octa`（`§4.2`） | `0x40` | `0x0C` | `0xFFFC0000` | `0x400C0000` |
+| `rev.t_orri_rd` | `MISC-tetra`（`§4.3`） | `0x41` | `0x0C` | `0xFFFC0000` | `0x410C0000` |
+| `rev.w_orri_rd` | `MISC-wyde`（`§4.4`） | `0x42` | `0x0C` | `0xFFFC0000` | `0x420C0000` |
+| `rev.b_orri_rd` | `MISC-byte`（`§4.5`） | `0x43` | `0x0C` | `0xFFFC0000` | `0x430C0000` |
+
+- `value = op<<24 | ha<<18`；`ha` 布局 = 行 `ha[5:3]` × 列 `ha[2:0]`（实证：`and.o` 行`001`列`000` ⇒ `ha=0x08`、`value=0x40200000`；`add.o` 行`110`列`000` ⇒ `ha=0x30`、`value=0x40C00000`）。
+- **为何不冲突**（2026-10-14 现场核对）：① `001-100` 在四个子表**均为空**（`spec/SimRISC-00 §4.2–§4.5` 第 5 列全空）；② `SPEC-069t` 的 reserved / 已删条目集 = 每子表 **8 条** = `001-000…011`（4 逻辑）+ `010-000/001` 与 `011-000/001`（2 ext × 2 格式），**不含 `001-100`**；③ `contracts/opcodes.yaml` 中**无任何** `ha: '0x0C'` 或形如 `0x??0C0000` 的条目（现场 `grep` **0 命中**）。
+- 四条均为 `orri`（`opx` + 两个寄存器 + 6 位立即数在 `hd[5:0]`），与 `§3.1` 的 `orri` 定义一致。
+
+**D10.3（语义：逐块）**
+
+- 后缀 ⇒ **块大小 `S`**：`.o`=64、`.t`=32、`.w`=16、`.b`=8。
+- 每个 64 位寄存器 ⇒ **`64/S` 个块**：`.o` 1 块、`.t` 2 块、`.w` 4 块、`.b` 8 块。
+- `immu6 = k` ⇒ **每块内部**按 `k` 位切分为 `S/k` 个**单元**，**反转单元顺序**；**单元内部的位序不变**。
+- **所有块一律同样处理**：不存在"范围之外的更高位保持原值 / 清零"的情形（即 `.t` 的两个 32 位块都做、`.w` 的四个 16 位块都做、`.b` 的八个 8 位块都做）。
+- 伪代码：`for i in 0..(64/S)−1: out_block[i] = 把 in_block[i] 的 S/k 个 k 位单元按下标倒序拼接`（单元内位序保持）。
+- 例（用户原话场景）：`.w` + `k=4` ⇒ 每个 16 位块切成 4 个 4 位单元，块内这 4 个单元**顺序翻转**；故若 `rdHC[63:16] == 0`，则 `rdHB[63:16] == 0`。
+
+**D10.4（`immu6` = one-hot）**
+
+| 后缀 | `S` | 块数 `64/S` | 合法 `k`（`immu6`） |
+|---|---|---|---|
+| `.o` | 64 | 1 | `{1, 2, 4, 8, 16, 32}` |
+| `.t` | 32 | 2 | `{1, 2, 4, 8, 16}` |
+| `.w` | 16 | 4 | `{1, 2, 4, 8}` |
+| `.b` | 8 | 8 | `{1, 2, 4}` |
+
+- 判据：`k` 必须为 **2 的幂（one-hot）且 `k < S`**（即 `k ∈ {S/2, S/4, …, 1}`）；**排除 `k = S` 的恒等档**。
+- **非 one-hot（`0`、`3`、`5`、`6`、…、`63`）或 `k ≥ S`（越范围）⇒ `ILLI`**。
+
+**D10.5（合法性规则）**
+
+- 新增规则 **`encode_onehot`**，写入 `contracts/legality_rules.yaml`，**与 `encode_sbz` 并列**（同属"字段编码合法性"类；`fault: ILLI`、`kind: static`）。
+- 四条指令 `rule_refs = ['dst_rd0', 'encode_onehot']`；`legality` 表达式 = `rdhb != rd0` + 该后缀的 one-hot 约束。
+- **`rdHC` 可为 `rd0`**（源，合法；读出 0 ⇒ 结果为 0），**不**触发 ILLI（`dst_rd0` 只约束**目的**）。
+- **`rdHB == rdHC` 允许**（源与目的为同一寄存器，原地反转），**不**触发 ILLI。
+- 参照先例：`shl.ub_orri_rd` = `rule_refs: [dst_rd0, encode_sbz]` + `legality: [rdhb != rd0, immu6 <= 7]`（`contracts/opcodes.yaml` 现场）。
+
+**D10.6（同步面；照 D9.6 形式逐项列）**
+
+1. `spec/SimRISC-00`：QFC 四子表（`§4.2 MISC-octa`／`§4.3 MISC-tetra`／`§4.4 MISC-wyde`／`§4.5 MISC-byte`）各补 `xxx-100` 列一条 + 相关**计数**（如子表条数）+ 文末 changelog。
+2. **`rev` 正文分册归位**：**待用户确认**（建议与备选见 `D10.6a`）。
+3. `spec/SimRISC-0x` 各册 **`LEGALITY` 生成区**（`tools/spec/gen_legality_list.py --apply`，随归位落定）。
+4. `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；**含 `scope` 取值与总数——待用户确认**，见 `D10.6b`。
+5. `contracts/legality_rules.yaml`（新增 `encode_onehot`）。
+6. `.tao/knowledge/contract-isa.md`（QFC/编码表 + 语义 + 合法集）、`contract-asm-list.md`（生成投影，`tools/llvm/gen_asm_list.py`）。
+7. `tests/vectors/**` + `tests/vectors/inventory.md` + `tools/testcases/generate_isa_vectors.py`（**注**：`inventory.md` 的 M1 矩阵由 `validate_vectors.py` 与 `scope == "m1"` 集合**机械对齐** ⇒ 若 `rev` 非 `m1` 则**不入 M1 矩阵**，向量落独立文件）。
+8. **MC**：`DADAOInstrInfo.td`（def / mnemonic）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode、`DADAOMCInstLower`（如需）。
+9. **QEMU**：`insn.decode`（四条 token）+ `trans_rev.c.inc`（`trans_rev_o`/`_t`/`_w`/`_b`）+ `translate.c` 分派 + `helper.c`（如需）。
+10. **门控**：L1（`validate-encoding`／`check-scope`／`check-rule-refs`／`check-instrinfo`／`check-isa-coverage`／`check-asm-list-drift`／`check-legality-drift`／`check-legality-invariants`／`check-spec-readonly` 等）+ L2/L3。
+
+**D10.6a（`rev` 正文分册归位——现场判 + 建议，均待用户确认）**
+
+- 现场：`spec/SimRISC-04 §4.2「Bit manipulating：位操作指令」`已承载 `shl.uo`/`shr.uo`/`ext.uo` 与 `§4.1` 的 `and.o`/`or.o`/`xor.o`/`xnor.o`；窄位宽分册（`SimRISC-08/09/10`）按后缀 `t/w/b` 承载且口径为"值语义写满 64 位"。
+- **建议 (a)**（推荐）：四条 **同归 `SimRISC-04 §4.2`**（逐块语义总述 + 各后缀 one-hot 合法集**一处写全**），并在 `SimRISC-08/09/10` 相应节点加**指针**。理由：逐块语义是"**整 64 位寄存器**"层面的操作（`.t`/`.w`/`.b` **不**把结果截断/写满到窄位宽），与窄位宽分册口径不同（放 08/09/10 易被误读为窄位宽运算）；且 DRY（避免四册重复同一段语义）。
+- **备选 (b)**：按既有后缀约定分册（`.o`→`04`、`.t`→`08`、`.w`→`09`、`.b`→`10`），逐块语义总述置于 `04 §4.2`、其余三册引用。
+
+**D10.6b（`scope` 取值——待用户确认）**
+
+- `contracts/opcodes.yaml` 每条须带 `scope`（现允许 `m1`/`fp`/`excluded`/`m3`，见 `tools/spec/check_scope.py`）。
+- `rev` **非 M1 身份**；建议 **`scope: m8`**（仿 `scope: m3` 先例：新增非 M1 指令自成一档），须同步 `check_scope.py` 的 `ALLOWED_SCOPES` + 分区计数 + 注释，及 `generate_opcodes.py` 的 scope 说明。
+
+**D10.7（用途 / 映射）**
+
+- **`bswap`**：`bswap16` = `rev.w` + `k=8`；`bswap32` = `rev.t` + `k=8`；`bswap64` = `rev.o` + `k=8`。**前提：源的高 `(64−S)` 位为 0**（否则其余块也被逐字节反转）⇒ **列为后端待核实项**（`__bswapsi2`/`__bswapdi2` 接入时须核该前提是否成立；见 `INFRA-079t`、`ISS-193`(c)）。
+- **位反转**：`bitreverse` = `rev.o` + `k=1`（整 64 位位序反转）。**`rev.t` + `k=1` ≠ 64 位全位反序**（只在**每个 32 位块内**反转）、`rev.w` + `k=1` 同理（**每个 16 位块内**）⇒ **须在正文写明以防误用**。
+- 上述映射**各只需一条指令**（对比 ARM `REV*`/`RBIT`、RISC-V `rev8` 等需 2 条组合）。
+
+**D10.8（被否方案）**
+
+- **R1**：为 `k = S`（恒等档：块内仅 1 个单元，反转即自身）分配编码 ⇒ **不分配**。理由：恒等无语义价值，且收窄合法集能把编码错误暴露为 `ILLI`。
+- **R2**：「仅低 N 位反转 + 高位保持 / 清零」的窄位宽语义 ⇒ **被逐块语义取代**。理由：① 无需读目的寄存器（纯 `src → dst`）；② 无"块大小 × 高位数"的边界情形；③ 与主流逐块做法（ARM `REV` 系列按定宽单位反转）一致。
+
+**关联任务**：`SPEC-142t`（`rev.{o,t,w,b}` 落地，**前置 = `D10` 逐条确认完成**）——**提案，未确认前不得下发**。
+
 ## 影响
 
 - ~~256 条指令 → 254 条（删除 ftmadd/fomadd）~~（2026-09-30 修订：254 条 → 253 条，删除 `rela.si`）
@@ -165,3 +266,4 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 - 2026-10-04：新增 **D9**（新增指令 `sub.o`（RB−RB→RD，`sub.o_orrr_dbb`，`ha=0x33`，`scope:m3`）+ 三条既有 RB 算术指令改名/改编码槽 `add.so_orrr_rb`→`add.o_orrr_bbd`(0x30)、`sub.so_orrr_rb`→`sub.o_orrr_bbd`(0x31)、`cmp.uo_orrr_rb`→`cmp.uo_orrr_dbb`(0x32) + id 后缀 bank 签名约定）。**用户 2026-10-04 逐条确认追加**。关联 `SPEC-100t`/`SPEC-101t`/`LLVM-043t`/`QEMU-040t`/`LLVM-035t`。
   - **算术修正（用户 2026-10-04 已确认）**：D9.1 定 `ha=0x33 ⇒ value=0x40CC0000`；旧 id 清零验收**仅覆盖活载体**（`spec/`/`contracts/`/`tests/`/`tools/`/`components/`），**映射记录豁免**。
 - 2026-10-06：**D3 就地增补第 5 项**（用户逐条确认）：**删除 `illi` 指令**（**ILLI 异常保留**，由非法操作数/条件触发）、**`fence` `ha` `0x01`→`0x00`**（`value` `0x77040000`→`0x77000000`）、**`swym` `ha` `0x02`→`0x22`**（`value` `0x77080000`→`0x77880000`）；`op=0x77` 不变。关联 M4 前置任务 `SPEC-109t`（跨组件原子落地）。
+- 2026-10-14：**新增 `D10`（提案）**——`rev.{o,t,w,b}` 逐块反转（新增 4 条 `orri` 指令，`opx=001100`，`immu6` = one-hot 位单元大小，新增 `encode_onehot` 合法性规则）。**⚠ `D10` 及其子项 `D10.1`–`D10.8` 均为提案，尚未经用户逐条确认；未确认前不得视为 `Accepted`**，本 ADR 顶部 `**状态**：Accepted` **不含 `D10`**。用户**授权**与**裁定原话**（Q1–Q4，渠道 = 经主会话问答）**原样引录于 `D10.0`**；落地任务 = `SPEC-142t`（`待开始`，**前置 = `D10` 逐条确认完成**）。**待确认项**：`D10.6a`（正文分册归位）与 `D10.6b`（`scope` 取值）。
