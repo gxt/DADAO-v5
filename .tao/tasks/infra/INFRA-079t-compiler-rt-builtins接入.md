@@ -27,6 +27,8 @@
 8. **`LibcallLoweringInfo` 根因**：默认全 `Unsupported`，且 `setTargetRuntimeLibcallSets` **无 `else` 分支** ⇒ 非表内 arch（dadao）可用集为空 ⇒ **任何** backend libcall 都须在 `initLibcallLoweringInfo` **显式注册**（解释 i128 除法 / FP↔i128 的 fatal codegen）。
 9. **`shl_parts`（`ISD::SHL_PARTS`）= 公共根因**（i128 变址移位 / i128↔FP / `udivmodti4`）。
 10. **唯三引 libc 的源**（`enable_execute_stack.c`→`mprotect`/`sysconf`、`eprintf.c`→`fprintf`/`fflush`/`stderr`、`int_util.c`→`abort`）**均非 core**。
+11. **`int_util.c` 属 `GENERIC_SOURCES`（core）且引 `abort`**（`-ffreestanding` 下亦然）⇒ 接入时须由环境提供（**订正上条 #10 末句「均非 core」**；影响 freestanding 预期）（源 `INFRA-078t`）。
+12. **简单原子 load 亦 lower 成 `__atomic_load` libcall**（链接期 `undefined symbol`）⇒ 原子依赖不止读改写；`ADR-0027 D1` 已把原子排除在范围外（源 `INFRA-078t`）。
 
 ## 接口规范
 
