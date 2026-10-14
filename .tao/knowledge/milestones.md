@@ -17,7 +17,7 @@
 ## 任务流水
 
 > 本表 = **M7 未决项**逐任务一行（M7 已终态任务流水已随归档移入 `.tao/archive/M7/README.md §2`）。**细则**：列 = `| 编号 | 状态 | 完成时间 | 一句改动 |`；**每格单行**（不换行）；`状态` 取值 = `待开始` / `待验收` / `待返工` / `已验证`（`m` 行另用 `里程碑`）；`完成时间` = 该任务**落地提交时间**（`git log --format='%h %ci'` 现场取证，**精确到分钟 `YYYY-MM-DD HH:MM`**），`待开始` 行写 `—`；`一句改动` ≤1 行、只留摘要，**细节指针到各任务书**。**新立任务（任务书落盘）时即加 `待开始` 行**（不等到开工/落地），使队列始终可见。
-> M6 的 **46** 份任务流水（含实质改动）已随归档移入 `.tao/archive/M6/`（清单见 `.tao/archive/M6/README.md §1`）；M7 的**已终态任务流水（40 条）已随 M7 收尾归档移入 `.tao/archive/M7/README.md §2`**（2026-10-13；含 `SPEC-136m`/`INTEG-034m`/`INTEG-035m` 三个 `m`）；下表列 M7 **未决行 1 行**（`INFRA-071t`〔待用户授权〕）+ **M8 任务行**（2026-10-14 追加 `SPEC-138t`/`SPEC-139t` P0 契约书；`INFRA-073t`/`INFRA-074t` 亦属 M8）。
+> M6 的 **46** 份任务流水（含实质改动）已随归档移入 `.tao/archive/M6/`（清单见 `.tao/archive/M6/README.md §1`）；M7 的**已终态任务流水（40 条）已随 M7 收尾归档移入 `.tao/archive/M7/README.md §2`**（2026-10-13；含 `SPEC-136m`/`INTEG-034m`/`INTEG-035m` 三个 `m`）；下表列 M7 **未决行 1 行**（`INFRA-071t`〔待用户授权〕）+ **M8 任务行**（2026-10-14 追加 `SPEC-138t`/`SPEC-139t` P0 契约书；`INFRA-075t` Linux 内核 7.2.10 取源与锁定；`INFRA-073t`/`INFRA-074t` 亦属 M8）。
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
@@ -25,7 +25,8 @@
 | SPEC-137t | 已验证 | 2026-10-13 07:47 | `ADR-0019 D9` 追加第 ⑥ 条（防御分支边界：`REL26` 落点非 `call-iiii`/`jump-iiii` ⇒ link-time error，不放行/不自循环）+ `contract-elf §3.3` 同步 bullet；关闭 `ISS-201`；**项目里程碑 = `M7`**（spec 模块内 backlog 收口，用户 2026-10-13 逐条确认） |
 | INFRA-073t | 已验证 | 2026-10-13 10:33 | Chipyard 1.14.0 预研（锁定方案/镜像测速/成本/(3) 复用清单；**只探测未下载**，待用户定源）；**项目里程碑 = `M8`**（用户 2026-10-13 裁定「先预研」） |
 | INFRA-074t | 已验证 | 2026-10-14 00:09 | Chipyard 1.14.0 落地准备 + (1) 参考平台跑通（P1 环境〔conda/mamba/sbt + Verilator ≥5.022〕/ P2 拉取〔主仓 + lite 子模块 + 子模块锁册〕/ P3 最小构建〔RocketConfig Verilator〕/ P4 (1) 冒烟〔`pk` + 可选 Linux〕）；前置 = 用户授权下载 + `ADR-0024` 逐条确认；**进度：P1/P2 + P3/P4（参考平台跑通）+ 落点修正 已完成；待收尾**；**项目里程碑 = `M8`** |
-| SPEC-138t | 待开始 | — | M8 P0 契书①：Linux syscall 映射契约（落 `.tao/knowledge/contract-syscall.md`；`rd15` 号 + 沿用 RISC-V 编号〔`ADR-0025 D1`〕/ `trap cfxha`·`umon` 入口 / 参数·返回 `rd8` / errno〔`rderrno` `rd1`，待定〕/ 对 `DADAO-21 §4`·`DADAO-22 §2` **指针不复制** / 独立 oracle 口径）；**项目里程碑 = `M8`** |
+| SPEC-138t | 待验收 | — | M8 P0 契书①：Linux syscall 映射契约（落 `.tao/knowledge/contract-syscall.md`；`rd15` 号 + 沿用 RISC-V 编号〔`ADR-0025 D1`〕/ `trap cfxha`·`umon` 入口 / 参数·返回 `rd8` / errno〔`rderrno` `rd1`，待定〕/ 对 `DADAO-21 §4`·`DADAO-22 §2` **指针不复制** / 独立 oracle 口径）；**项目里程碑 = `M8`** |
+| INFRA-075t | 待验收 | — | Linux 内核 **7.2.10** 取源与锁定：TUNA 整包（`sha256` = `2feaa7…`，与 `sha256sums.asc` 独立一致）+ GPG 验签 **完成**（Greg KH `647F…693E`，`Good signature`）+ 解包版本核 **7/2/10 ✓** + `components.lock.toml` 加 `linux-kernel`（`patchless=true`，`enabled=false`〔无 git commit〕）+ 号表来源指针（供 `SPEC-138t`）；**项目里程碑 = `M8`** |
 | SPEC-139t | 待开始 | — | M8 P0 契书②：动态链接 ABI 契约（落 `.tao/knowledge/contract-dynlink.md`；PIC/PIE / GOT·PLT / 动态重定位类型集〔`RELATIVE`/`JUMP_SLOT`/`GLOB_DAT`/`TLS_*` 候选待定〕/ `PT_INTERP`·`AT_*`〔无内核，谁注入待定〕/ musl `ldso` 路径〔`ADR-0025 D3`〕/ `R_DADAO_*` 编号扩展方案〔就地扩 `ADR-0019` vs 新 ADR ⇒ **待用户逐条确认**〕）；**项目里程碑 = `M8`** |
 
 ## 当前进度
@@ -101,6 +102,7 @@
 
 - **范围与 Linux 兼容路线 ADR（2026-10-14，`Accepted`）**：`ADR-0025`（M8 范围与 Linux 兼容路线 = 无内核的 Linux 用户态栈）——`D1`–`D7` = 上表 A–G 逐条落地（**用户原话 + 日期 + 渠道「经主会话问答」**见其 `§状态说明`「逐条确认记录」）。指针 `.tao/adr/adr-0025-m8-scope-linux-compat.md`。
 - **P0–P4 路线（判据 = `ADR-0025 D6`）**：`P0 契约 → P1 musl 静态 → P2 动态链接 → P3 qemu-linux-user → P4 对照/回归`。**P0 已立**：`SPEC-138t`（Linux syscall 映射契约 → `.tao/knowledge/contract-syscall.md`）、`SPEC-139t`（动态链接 ABI 契约 → `.tao/knowledge/contract-dynlink.md`）（均 `待开始`，见上「任务流水」）；P1–P4 待 P0 落地后另立。指针 `ADR-0025 §Consequences`。
+- **Linux 内核 `7.2.10` 取源与锁定（2026-10-14，`INFRA-075t`）**：用户裁定「**linux kernel 版本号定为：7.2.10**」，取源路线 = 「**整包 7.2.10 + 验签（推荐）**」（不走 base+patch）、源 = **TUNA 主**。**已取源**（160,425,804 B，1 s；`sha256` = `2feaa70453e91f541be6a5c9078d8168e081af45a3d9718054850538cff2ebf3`，与 TUNA `sha256sums.asc` **独立一致**）、**GPG 验签完成**（Greg KH `647F2865…6092693E`，`Good signature`）、**解包版本核 7/2/10 ✓**；`components.lock.toml` 加 `linux-kernel`（**参考型/无补丁集**，`patchless=true`；`enabled=false`——门控的 `enabled` 语义要求 40 位 git commit，签名 tarball 无 commit，**未**为过闸伪造）。号表来源指针（`asm-generic/unistd.h` 915 行 + `arch/riscv/…/unistd.h` 23 行 + 各自 sha256）供 `SPEC-138t`。**待裁定**：是否为门控新增「非 git（tarball）组件」类别（使可 `enabled=true`）。指针 `.tao/tasks/infra/INFRA-075t-linux内核7.2.10取源与锁定.md`。
 - **待办（M8，登记）**：① **`pk` 排障**（`ADR-0024 §D5` 判据未达，`PK_EXIT=2`；未处置前不得判 `ADR-0024` 闭环）——源 `INFRA-074t`「遗留问题」；② **`E` 的查证**（musl 是否**硬依赖** TLS/线程 ⇒ 决定 TLS 是否自动纳入 M8，`ADR-0025 D5`）；③ **`ISS-204`**（`.cache/embench-iot` 为 checkout、非裸仓库，与「`.cache/` 只放裸仓库」约定不符 ⇒ 后续清理/迁移）；④ **`firtool` 恢复**（CIRCT `firtool` 未在重建 env 中恢复 ⇒ 仅当需「重新生成 RTL」时单立任务恢复；无需时维持现状）——源 `INFRA-074t`「遗留问题」+「新发现/坑」。
 
 ## 历史台账指针
