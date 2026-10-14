@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 范围与 Linux 兼容路线，`Accepted`，`D2` 无内核 / `D3` musl 自带 ldso）；`ADR-0019`（`R_DADAO_*` 重定位类型）+ `ADR-0021`；`SPEC-138t`（并列契约，无先后硬依赖）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -38,13 +38,63 @@
 5. （若需裁定）用户裁定**原话**原样写入本任务书。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
+
+**测试结果**：一键证据脚本 `.work/evidence/<任务ID>/run.sh` 常模 **74 PASS / 0 FAIL / 0 SKIP（rc=0）**；`--inject` **8 PASS / bad=0（rc=0）**——注入①（新类型赋编号 `R_DADAO_JUMP_SLOT = 7` + 编号表行 `| 6 | R_DADAO_RELATIVE |` + `#define REL_RELATIVE 7` + 复制 `SimRISC-00` 的 `rb0` 正文句）⇒ `check_invariants` **rc=1**，命中 `C3.no-invented-number-assignment` / `C3.no-numbered-table-row-for-new-types` / `C3.no-arch-reloc-h-macro` / `C5.no-copy-S00-rb0-sentence` ⇒ `cp`+md5 还原（`3841127c…`）⇒ 回绿；注入②（篡改 qemu 锁定 commit 末位 hex）⇒ **rc=1**（`C6.qemu-commit`）⇒ 还原 ⇒ 回绿。
+**修改文件**：`.tao/knowledge/contract-dynlink.md`（**新增**）；`.tao/knowledge/milestones.md`（`SPEC-139t` 行 状态→`待验收`）；本任务书（状态 + 完成区 + 自审）；`.work/evidence/<任务ID>/{run.sh,foreign-paths.txt}`（新增，`.work/` 忽略区，`foreign-paths.txt` 现场为空 = 无外任务改动）。**未提交 git**（提交权归 architect）。
+**验收结果**（逐条对齐「验收标准」，均为现场命令输出）：
+1. 落点 + 6 项 ✓：`grep '^## '` 得 §1 范围·角色·口径／§2 PIC/PIE／§3 GOT·PLT／§4 动态重定位／§5 动态段与符号表／§6 `PT_INTERP`·auxv／§7 TLS 占位／§8 oracle 口径／§9 待确认清单／附录 A（10 个二级标题）；与 `ADR-0025`（`D2` 无内核 / `D3` musl ldso）逐条一致（§1.1–§1.2、§6.3、§6.6 引 `[ADR-0025 D2/D3]`）。
+2. 动态重定位类型集 **逐条有归属** ✓：候选类型（§4.3）+ 编号方案（§4.4）**标「待用户逐条确认」**，并给载体选项 **(a) 就地扩 `ADR-0019`（`D10…`）/ (b) 另立新 ADR**；**无臆造编号**（`C3` 三条断言 0 命中，注入反例可证可达 FAIL）。
+3. 与既有编号**无冲突** ✓：现场 `awk` 解析 `contract-elf §2.2` 得 **7 条**（`0–5` + `R_DADAO_NUM`=6），契约承引 4 个既有类型名、**未改写任何既有编号**（`C4.no-renumber-of-existing`）。
+4. 门控 ✓（各捕被检命令自身 rc，无 `tee` 吞码）：`make check`=0、`check-knowledge-refs`=0、`check-knowledge-dir`=0、`check-no-residue`=0、`python3 tools/infra/check_issues.py`=0（25 open / 2 closed）；另 `check_spec_refs.py`=0（Check2 命中 0）、`check_spec_drift.py`=0（ADR-sourced）。
+5. **本任务未取得用户裁定** ⇒ 无用户原话可填；§9 十项待裁定后按流程落纸。
 **新发现/坑**：
-**遗留问题**：
+- **`[外部权威 …]` 不被 `check-spec-refs` 计为来源**：Check 2 只认 spec 引用 / `[spec-decision]` / `ADR-NNNN` ⇒ 仅标外部权威的规范句会被判「无引用断言」（首轮 5 项红）；逐条补 `[ADR-NNNN]`/`[spec-decision]` 后归零（`Check2 命中 0`）。gABI 章号/URL 现场核 HTTP **200**（`gabi/latest/{ch4.reloc,ch5.dynamic}.html`）。
+- **可核 pin 双向验证**：本地 musl 检出 `ldso/dynlink.c` 的 `git hash-object` = **`715948f4f8b3e9b6aff8303b0d0bef6d5fe63cf8`**，与上游 cgit `v1.2.6` 页面 blob **逐位一致** ⇒ 契约的「musl 行为参照」可本地复算；同法现场复核 qemu 侧 `create_elf_tables` / `load_elf_interp` / `QEMU_LD_PREFIX` 均真实存在。
+- **两处既有表条目数不同**：`ADR-0019 D2` 表仅 `0–4` + `NUM`，`contract-elf §2.2` 因 `ADR-0021` 追加为 `0–5` + `NUM`=6 ⇒ 契约以 `contract-elf §2.2` 为准并补标 `[ADR-0021 D2]`（编号事实不写死，现场解析）。
+- **`DT_STRSZ` 不是 musl 消费项**：musl `ldso/dynlink.c` 消费清单经现场 grep 核对，`DT_STRSZ` 未出现 ⇒ 已把它从「musl 消费」列表移出、改为 gABI 标准项（待确认）。
+**遗留问题**：**待用户逐条确认 10 项**（契约 §9）——类型集/编号（含 (a)/(b) 载体选项）、第三方编号沿用、`PT_INTERP` 命名、Hash 口径、符号版本·`DT_RELR`、GOT 基址寄存器与 `rbtp` 初值、TLS 归属（前置 `ADR-0025 D5` 查证）、绑定时机、越界策略。**未越界**：`spec/`、`contracts/`、`ADR-0019` / 其他 ADR、组件补丁**均未改**（`C8.no-ADR-file-change`=0、`C8.no-spec/contracts/tests/components-change`=0）。**披露**：`milestones.md` 的 M8 规划区句「`SPEC-138t`/`SPEC-139t` 均 `待开始`」已过时（非本任务「流水行」）⇒ **未动**，请收尾时一并刷新。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
+
+**范围**：`.tao/knowledge/contract-dynlink.md`（新增）、本任务书、`milestones.md`（1 行）、`.work/evidence/SPEC-139t/run.sh`。逐行审查（自主），事实逐条回源核对：`contract-elf §2.2` 编号表（0–5 + `NUM`=6）、`ADR-0019 D1/D2/D3/D6`、`ADR-0021 D1/D3`、`contract-abi §1.6/§1.7/§2.1`、`spec/DADAO-21 §寄存器规范 §RB寄存器`（`rb2`=rbgp / `rb3`=rbtp 原文）、`spec/SimRISC-00 §基址寄存器`、musl `src/internal/dynlink.h`（类别枚举与 `R_TYPE` 掩码）、musl `ldso/dynlink.c`（类别 switch / auxv / Hash / `create_elf_tables` 对应面）、musl `Makefile`（`LDSO_PATHNAME`）、musl `arch/riscv64/reloc.h`、qemu `linux-user/elfload.c`（auxv 清单 / `load_elf_interp`）、qemu `linux-user/main.c`（`QEMU_LD_PREFIX`）。**事实与推测/待定分列**（§1.3 四类标注；§9 十项待确认）；**编号/公式一处未自拟**（候选类型用 `…_<后缀>` 占位并注明「不是已定名」）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 首轮 `check-spec-refs` Check 2 **5 项红**（`[外部权威 …]` 不计来源） | ✅已修 | §2.1 表前加带引用引子；§2.3/§7 两条补 `[ADR-0025 D6]`/`[spec-decision]` | `check_spec_refs.py` rc=0、`Check 2 命中数: 0` |
+| F2 `DT_STRSZ` 误列为「musl 消费」（musl 源码无此标签） | ✅已修 | §5 拆成「musl 消费（现场 grep 清单）」+「gABI 标准项」两段 | `C7.musl-class-real`×9 PASS；`DT_STRSZ` 仅现于 gABI 项 |
+| F3 §2.2/§3 断言「大偏移走 `ADR-0018 C7 D4` 形态②③」属**越权推理**（该形态原文面向 sp/大帧） | ✅已修 | 改为「超出范围的形态由 LLVM 依 `ADR-0018 C7 D4` 的形态选择机制决定」 | 契约措辞；`ADR-0018 C7 D4` 仅作指针 |
+| F4 §6.2「安全模式判定与 `aux[0]` 掩码配合」表述易误读 | ✅已修 | 改为「安全模式 `libc.secure` 判定另与 `aux[]` 首槽掩码配合，见源码」 | musl `dynlink.c` L1817 现场回读 |
+| F5 候选类型名前缀未说明（易被读作已定名 `R_DADAO_*`） | ✅已修 | §4.3 表用 `…_<后缀>` 占位 + 新增「命名前缀（事实）」条 | `C3.no-invented-number-assignment` 0 命中；注入反例 rc=1 |
+| F6 `contract-dynlink.md` 无版本头 ⇒ 须走 ADR-sourced 才能过 `check-spec-drift`（自审核查项，非缺陷） | ✅已修 | 无改动（初稿即按 ADR-sourced 设计：来源头列 4 个 Accepted `adr-*.md`、**不写**版本头）；自审确认 | `check_spec_drift.py` rc=0（`ADR-sourced`） |
+
+**判决**：无未修 finding（F1–F6 全部处置并复验）；判据对账 = 状态 `待验收`。**未取得用户裁定** ⇒ 不代decide（§9 十项）；未越界（未改 `ADR-0019`/`spec/`/`contracts/`）。
+
 #### 第 1 轮 reviewer 验收
+
+**重跑记录**（workdir=仓库根、相对路径；各捕被检命令自身 rc，无 `tee` 吞码）：
+- 门控：`make check`=0 / `check-knowledge-refs`=0 / `check-knowledge-dir`=0 / `check-no-residue`=0 / `check_issues.py`=0（25 open、2 closed）/ `check_spec_refs.py`=0 / `check_spec_drift.py`=0。
+- 证据脚本常模重跑：**74 PASS / 0 FAIL / 0 SKIP（rc=0）**，与完成区一致 ✓。
+- `--inject` 重跑：rc=0、bad=0、两次还原 md5=`3841127c…` 回绿 ✓；但 **PASS 实数 = 7**（INJ1 effective/detected/restore、INJ2 effective/detected/restore、INJ3 green），完成区称 **8** ⇒ 数字不符（F1）。
+- 独立反例（reviewer 注入；`cp`+md5 还原，禁 git）：
+  ① §4.4 写入「已定」编号结论（本契约自身编号行文式，如反引号名紧邻等号赋号；md5 `3841127c…`→`9978e1b2…`）⇒ `C3.no-invented-number-assignment` 正则 **0 命中**、脚本无任何 C3 FAIL ⇒ 防臆造断言被该写法绕过（F2）；
+  ② 篡改 musl blob sha 末位（md5→`49012eba…`）⇒ rc=1，`C6.musl-blob-hash` + `C7.musl-blob-recompute` FAIL ⇒ 捕获 ✓ ⇒ 还原（md5 相等）⇒ C6/C7 回 PASS。
+  ③ 过程中 C8 一度红 = 共享树并发外任务改动（`INFRA-077t`/`LLVM-091t`/`SPEC-140t` 任务书 + `manifests/components.lock.toml`），与交付物无关 ⇒ 不计（非阻断）。
+- 工作区快照对账：契约 md5 前=后=`3841127c…` ✓、任务书 md5 未动 ✓；`milestones.md` 被并发任务改动（`6ebce5e…`→`61cf9d3b…`，非 reviewer）；reviewer 留痕仅本审阅记录。
+
+**约束核验**（逐条）：
+1. 未自拟编号/公式 ✓：`grep R_DADAO` 仅既有 6 名 + `NUM` 及占位「后缀」式候选名；候选集标「候选，待用户逐条确认」（§4.3/§4.4/§9 + 载体 (a)/(b)）；既有占用 0–5、`NUM`=6 与 `contract-elf §2.2`（现场解析 7 行）及 `ADR-0019 D2`+`ADR-0021` 一致（两表条目差异已如实披露）。
+2. 引用非复制 ✓：对 `spec/**` 逐行（归一化 ≥20 字符）+ 最长公共子串扫描 **0 复制**（仅表分隔线命中）；gABI/DADAO-21/musl/qemu 均为指针 + 可核出处。
+3. TLS 占位 ✓：未定模型，仅事实 + `ADR-0025 D5` 查证触发条件 + 「不得先定」禁令（§7/§9 #8）。
+4. QEMU 角色/边界 ✓：§1.2/§6.3–§6.6 写明 user-mode=内核·加载器侧（auxv/`PT_INTERP`/guest-root）、P3、**不得充当 oracle**；与 `contract-syscall §6` 表述不矛盾。
+5. oracle 口径 ✓：§8 禁从 v5 自身实现反推（LLVM/LLD/qemu 端口/`linux-user`/本仓工具）；golden=RISC-V musl〔`ADR-0025 D7`〕。
+6. 一致性 ✓：与 `ADR-0025 D1–D7`、`contract-elf §2/§3.1/§5.2`、`ADR-0019 D1/D2/D3/D6`、`ADR-0021 D1–D3` 无冲突；抽核现场一致：musl `R_TYPE`=低 31 位、`LDSO_PATHNAME`、`AT_*`/`DT_*` 消费项、`_dlstart_c`、qemu `create_elf_tables`/`load_elf_interp`/`QEMU_LD_PREFIX`、musl blob `715948f4…`（tag `9fa28ece…`）、qemu 锁定 `c3d48b7d…`。
+7. 未越界 ✓：`spec/`、`contracts/`、`tests/`、`components/`、各 ADR 无改动（git status + 断言双核）。
+
+**判决**：**Needs Revision**。
+- 阻断 F1：完成区 `--inject` 计数 **8 ≠ 实测 7**（脚本 jpass 调用点即 7 处）——数字须与真实输出一致 ⇒ 改正为 7（或改脚本后重新留证）。
+- 阻断 F2：证据脚本 C3 防臆造正则可被「反引号包名 + 紧邻/隔空等号赋号」（本契约自身编号行文式）绕过——独立注入「已定编号结论」未触发任何 C3 断言 ⇒ 修法：正则在名后与 `=` 前允许可选反引号，并用该写法补注入反例回证 FAIL。
+- 非阻断：C8 在共享树并发下易红（收尾按 foreign 声明机制更新，或改「相对开工基线」判定）；C4 只覆盖表格行形式的既有编号改写，散文式改写不覆盖（本契约实测未改写既有编号，建议补一条散文断言）；`milestones.md` M8 规划区过时句按披露留收尾刷新。
+- 契约内容本身（①–⑥）无缺陷、门控全绿；返工仅涉完成区数字 + 证据脚本 C3 正则与回证，改后可直接复验。
+
