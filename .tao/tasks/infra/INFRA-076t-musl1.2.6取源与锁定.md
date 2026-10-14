@@ -13,9 +13,13 @@
 - **用户裁定（2026-10-14，原话 / 选项标签）**：
   - 「**用最新 1.2.6**」——musl 版本 = **`1.2.6`**（tag `v1.2.6`）；
   - 源 = `https://git.musl-libc.org/git/musl`（**实测可直连**）。
+- **用户裁定·放行入锁（2026-10-14，原话；渠道 = 经主会话问答）**：
+  - 「**三个新组件，我记得都已经定好了的，可以入锁，libc-test取最新版本即可**」
+  - ⇒ musl **放行入锁**（`manifests/components.lock.toml` 新增 `musl` 条目**已获授权**，见「输出 3」）；**本任务前置已满足 ⇒ 可开工**（**不放宽**既有验收标准与门控）。
+  - 同一裁定的另两句落点：`llvm-test-suite` 放行 = `INFRA-077t`；`libc-test`「取最新版本」= **`INFRA-081t`**（本任务§libc-test 定源的旧快照**作废**）。
 - **动机**：M8 主线 = **无内核的 Linux 用户态栈**（`ADR-0025 D2`）；`P1 musl 静态`（`ADR-0025 D6`）与 `P2 动态链接`（`D3` = musl 自带 ldso）**均以 musl 源码为唯一底座** ⇒ 须先在 v5 内把 musl **取源 + 锁定**，使其**可 `git diff`**（组件源一律 git 基线，见 `AGENTS.md`「工作区落点」/`lessons §3.19`）。
 - **已顺手落盘（主会话代行）**：`.cache/<name>.git`（**bare**，**1.5 MB**）+ `.work/source/<name>/`（**15 MB**，HEAD = `9fa28ece75d8a2191de7c5bb53bed224c5947417`）。**本任务须先核验其真实性**（见「验收标准 1」）。
-- **`libc-test` 定源 = 已定**（用户 2026-10-14 原话，见「§libc-test 定源」）：**只登记、不下载**。
+- **`libc-test` 定源 = 已定**（用户 2026-10-14 原话，见「§libc-test 定源」）：**只登记、不下载**；**锁定移交 `INFRA-081t`**（取**最新 commit**；旧登记的 2022-03 快照 `b7ec4679…` **已作废** ✗）。
 
 ## 接口规范
 
@@ -34,7 +38,7 @@
 3. **tag 形态核**（参照 `INFRA-075t` 的 `tag≠commit` 经验）：`git cat-file -t refs/tags/v1.2.6` + `git rev-parse refs/tags/v1.2.6` + `rev-parse 'refs/tags/v1.2.6^{}'`——**现场判** lightweight tag（tag sha = commit sha）还是 annotated tag（须 peel）；据此定锁 `commit` 记 **peel 后 commit**（**对齐 `qemu` 体例**），并**记录是否需改 `--depth` / `shallow_ref` 形态**（现场结论）。
 4. `manifests/components.lock.toml` 新增 **`musl`** 条目（字段见上「输出 3」，**体例对齐 `qemu`**）；`make check`(L1) **rc=0**。
 5. **参考对照落纸**：`DADAO-0628` 用 **1.2.5**（commit `0784374d…`）+ 其 **12 个 `arch/dadao` 补丁**的**教训清单**（**只借教训、不复制实现**；见「§参考对照」）；并记录**实测移植面**（riscv64 = **12 个 `.s`/`.S`** + `arch/riscv64/*`）。
-6. **libc-test 定源**（**只登记、不下载**）：源 / 取源通道 / 锁 `commit` / 快照日期 / 体积 / 构成写入本任务书（见「§libc-test 定源」）。
+6. **libc-test 定源**（**只登记、不下载**）：源 / 取源通道 / 锁 `commit` / 快照日期 / 体积 / 构成写入本任务书（见「§libc-test 定源」）；**旧快照已作废、锁定移交 `INFRA-081t`**（本任务**不下载** `libc-test`）。
 7. 门控：`make check`(L1) / `check-modules`(L2) / `check-no-residue` / `check-knowledge-refs` / `check_issues.py` 各 **rc=0**。
 8. `milestones.md`：`INFRA-076t` 流水行 + M8 规划区登记（**已由 architect 预置**，本任务复核）。
 
@@ -62,20 +66,21 @@
 - **`arch/riscv64/` = 13 文件**（顶层 **6**：`atomic_arch.h`/`crt_arch.h`/`kstat.h`/`pthread_arch.h`/`reloc.h`/`syscall_arch.h`；`bits/` **7**：`alltypes.h.in`/`fenv.h`/`float.h`/`setjmp.h`/`signal.h`/`syscall.h.in`/`user.h`）——即题述「12 + 7（`bits/`）」口径的事实来源。
 - **用途**：DADAO 的移植面**预计与 riscv64 同形**（`arch/dadao/` + `src/*/dadao/`），故上表 = **后续 `arch/dadao` 骨架任务的清单真源**（本任务只测量、不移植）。
 
-## libc-test 定源（**只登记，不下载**）
+## libc-test 定源（**只登记，不下载**；**2026-10-14 收窄**）
 
 > **用户裁定（2026-10-14，原话）**：「**libc-test: https://github.com/kraj/libc-test**」
+> **用户裁定（2026-10-14，原话；经主会话问答）**：「**…libc-test取最新版本即可**」⇒ 由 `INFRA-081t` **取最新 commit 并锁死**；下表「锁」列的旧快照**作废** ✗。
 
 | 项 | 值 |
 |---|---|
 | 源 | `github.com/kraj/libc-test`（用户指定） |
-| 取源通道 | **`ghfast.top` 代理主 / 直连备**（直连 `git ls-remote` 超时 ✗；经代理可用 ✓；`gitclone.com` 不服此仓 ✗） |
-| 锁 | **`commit b7ec467969a53756258778fa7d9b045f912d1c93`**（经代理探得 HEAD ✓） |
-| 快照日期 | **2022-03-19**（最后推送；**快照性质、非最新**） |
+| 取源通道 | `ghfast.top` 代理主 / 直连备（本任务登记时的探测口径；**实际通道以 `INFRA-081t` 现场实测为准**） |
+| 锁 | ~~`commit b7ec467969a53756258778fa7d9b045f912d1c93`~~ ⇒ **已作废** ✗（2022-03 快照，**非最新**）；**改由 `INFRA-081t` 取最新 commit** |
+| 快照日期 | **2022-03-19**（最后推送；**快照性质、非最新** ⇒ 已作废 ✗） |
 | 体积 | ≈**2.3 MB**（2341 KB，GitHub API 实测） |
 | 顶层构成 | `Makefile` / `config.mak.def` / `src/{api,common,functional,math,musl,regression}` / `README` / `AUTHORS` / `COPYRIGHT` |
 
-⇒ **本任务只登记、不下载**（定源已定；取源执行另立任务）。
+⇒ **本任务只登记、不下载**；取源与锁定执行 = **`INFRA-081t`**（`.tao/tasks/infra/INFRA-081t-libc-test取源与锁定.md`）。
 
 ## 硬约束
 

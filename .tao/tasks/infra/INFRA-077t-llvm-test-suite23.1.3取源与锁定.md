@@ -13,6 +13,9 @@
 - **用户裁定（2026-10-14，原话）**：
   - 「**取源：https://github.com/llvm/llvm-test-suite**」；
   - 「**取源，tag：23.1.3**」；取得渠道 = **经主会话问答**。
+- **用户裁定·放行入锁（2026-10-14，原话；渠道 = 经主会话问答）**：
+  - 「**三个新组件，我记得都已经定好了的，可以入锁，libc-test取最新版本即可**」
+  - ⇒ `llvm-test-suite` **放行入锁**（`manifests/components.lock.toml` 条目可写）；**本任务该条目已落地**（锁册现场已有 `[[component]] name = "llvm-test-suite"`，见「完成区」）⇒ 本句为本任务的**补记**，**无待办**；同句另两落点 = `musl`（`INFRA-076t`）、`libc-test`（**`INFRA-081t`**）。
 - **动机**：M8 需要 LLVM 官方 **test-suite** 作为**基线 / benchmark 语料**（可与 Embench / Chipyard 跑分对照）。按 v5 约定「**组件源一律 git 基线**」（`AGENTS.md`「工作区落点」/`lessons §3.19`），须先在本仓库内**取源 + 锁定**，使其**可 `git diff`**（tarball 不作组件源）。
 - **取源通道（实测，见「§实测记录」）**：`ghfast.top` / `gitclone.com` / 直连在 **`ls-remote` 可用**，但**大包**（≈294 MB shallow packfile）全部失败（HTTP 504 / curl 124）；**`gh-proxy.com` 成功**。
 - **基线跑暂缓**：用户 **2026-10-14** 裁定「**暂缓，等 musl 跑通**」⇒ 本任务**只取源 + 锁定**，**不跑基线**（触发条件见「§基线跑触发条件」）。
