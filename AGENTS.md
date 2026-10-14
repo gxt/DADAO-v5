@@ -49,7 +49,8 @@ DADAO-v5/
 ├── contracts/             # 机器可读合约数据（编码表/ABI/合法性规则）
 └── tools/<module>/        # 各模块工具脚本（infra/spec/llvm/qemu/testcases）
 ```
-- **工作区落点**：`.cache/` 只放**裸仓库**（+ `refs/` 只读工作树）；`.work/` 下放 **`source/`（构建源）与 `build/`（构建产物）**；**大体积构建树不得放 `.cache/` 或仓库跟踪区**。
+- **工作区落点**：`.cache/` 放**裸仓库**（`<name>.git`）+ `refs/` 只读工作树 + **下载原件（tarball / 签名，仅作校验物）**；`.work/source/<name>/` = **源码检出**（**直接放 `<name>/`，不再套同名包装层**）；`.work/build/` = 构建产物；**大体积构建树不得放 `.cache/` 或仓库跟踪区**。
+- **组件源一律 git 基线**：`.cache/<name>.git` 裸仓库 + `.work/source/<name>/` = **可 `git diff` 的干净检出**（改动随时可产 patch/diff）；**tarball 只作校验物 / 下载原件，不得作组件源**。
 
 ## 文档分层与单一真源
 - **三分界（主判据 = 给谁看）**：`spec/` = **技术规范正文**（唯一真源）；`docs/` = **工程流程规范 + 索引 + `DDLN/`**（给别人看）；`.tao/knowledge/` = **结论/设计/口径**（含长文，给自己看）。

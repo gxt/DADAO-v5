@@ -359,9 +359,11 @@
 - `experimental.policies` 在 v2.0.22 **不被 schema 接受**（`Experimental.Policy.action` 枚举仅 `provider.use`）⇒ **不要用它做 deny**。
 - **单向判据（2026-10-13 补）**：`message` **含人工输入文本**（如用户 reject 时点评「是我点的」）⇒ **必为 `ask` + 人工介入** ✓；但**系统固定文案不可反推**（人工 reject 与规则 `deny` 可产同一 `message`）⇒ **判 `deny` 是否生效仍须用户观察**（重启后复验口径：越界 `cd /mnt/tao` **不弹询问、无人工即 reject = 生效**；`cd ~` **仍 ask = 已知局限**，靠 `AGENTS.md` 禁 `cd ~*` 规则层兜底）。
 
-### 3.19 `.cache/` 只放裸仓库；构建树 / 环境归 `.work/`
-- **目录分工**：`.cache/` 只放**裸仓库**（+ `refs/` 只读工作树）；**检出 / 构建源**与**构建产物 / 环境**分别放 `.work/source`、`.work/build`。
+### 3.19 `.cache/` 放裸仓库 + 下载原件；组件源 / 构建树归 `.work/`
+- **目录分工**：`.cache/` 放**裸仓库**（+ `refs/` 只读工作树）与**下载原件（tarball / 签名）**；**源码检出**、**构建产物 / 环境**分放 `.work/source`、`.work/build`。
 - 构建树 / conda 环境放错位置会与「**可幂等重建**」的清理契约冲突（清 `.cache/` 时连构建成果一并删），且大体积产物污染持久对象库。
+- **源码检出直接以组件名落地**（`.work/source/<name>/`），**不再套同名 / 分类包装层**。**反例**：为「整齐」多套一层目录（如 `source/<分类>/<name>/`）⇒ 按 `source/<name>` 定位的门控与脚本全部失配，且易被误当「未解包」重做；同一物**只存一份**（下载原件归 `.cache/`，组件源归 `.work/source`）。
+- **组件源一律 git 基线**：`.cache/<name>.git` 裸仓库 + `.work/source/<name>/` = **可 `git diff` 的干净检出** ⇒ 任何改动随时可产 patch/diff。**tarball 只作校验物 / 下载原件，不得作组件源**——解包树无 git 元数据，改动**产不出 diff**（要产 patch 时才发现，返工代价高）。`patchless`（无 v5 补丁集）与「源码形态」**正交**：tarball 源同样必须落 `.work/source/<name>/`，只是仍需可 diff。
 
 ---
 

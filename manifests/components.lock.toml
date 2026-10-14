@@ -93,31 +93,37 @@ url = "https://gitclone.com/github.com/ucb-bar/chipyard"
 name = "ghfast"
 url = "https://ghfast.top/https://github.com/ucb-bar/chipyard"
 
-# Linux kernel source — a *signed-tarball reference input* for M8's Linux
-# user-space stack (ADR-0025 D2: no kernel target). It supplies the syscall
-# number table that SPEC-138t pins against (asm-generic/unistd.h +
+# Linux kernel source — a *reference input* for M8's Linux user-space stack
+# (ADR-0025 D2: no kernel target). It supplies the syscall number table that
+# SPEC-138t pins against (asm-generic/unistd.h +
 # arch/riscv/include/uapi/asm/unistd.h); v5 neither builds nor patches any of
-# it, so it carries NO patch set. Its reproducibility identity is the tarball
-# sha256, NOT a git commit: user ruling 2026-10-14 chose the signed whole-package
-# route (tarball + .tar.sign over TUNA) over base+patch.
-# enabled = false: this schema's `enabled` means "a fetchable Git component with
-# an exact 40-hex commit" (manifest_check.py). A tarball has no such commit, so
-# the entry stays disabled until the gate learns a non-Git (tarball) kind; the
-# `patchless = true` marker (same class as chipyard / ADR-0024 D1) is recorded
-# now so the entry is already legal in that class.
+# it, so it carries NO patch set (see `patchless` below, same class as
+# chipyard / ADR-0024 D1).
+#
+# Source form: a git baseline (user ruling 2026-10-14), so any local change can
+# always be turned into a diff/patch. The signed tarball in .cache/
+# (linux-7.2.10.tar.xz, sha256 2feaa70453e91f541be6a5c9078d8168e081af45a3d971
+# 8054850538cff2ebf3, plus .tar.sign) is kept as a *verification artefact* only
+# and must never be used as the component source (a tarball cannot produce a
+# git diff).
+#
+# `commit` is the commit that the annotated tag object `v7.2.10` peels to
+# (`git rev-parse v7.2.10^{}`); the tag object itself
+# (57eee103859fa039a1f2bf343c4453ef40661be8, what `git ls-remote` reports for
+# refs/tags/v7.2.10) is NOT a commit and must not be recorded here — same
+# convention as qemu, whose recorded commit is likewise the peeled commit and
+# not its tag object.
 [[component]]
-name = "linux-kernel"
-enabled = false
-repository = "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.2.10.tar.xz"
-version = "7.2.10"
-sha256 = "2feaa70453e91f541be6a5c9078d8168e081af45a3d9718054850538cff2ebf3"
+name = "linux"
+enabled = true
+repository = "https://mirrors.tuna.tsinghua.edu.cn/git/linux-stable.git"
+commit = "7b20d05fd38de8e0be168956f6fd241d750c7d69"
+shallow = true
+shallow_ref = "v7.2.10"
 patchless = true
 role = "Linux syscall numbering-table source (reference input; no v5 patch set)"
 
-[[component.source]]
-name = "tuna"
-url = "https://mirrors.tuna.tsinghua.edu.cn/kernel/v7.x/linux-7.2.10.tar.xz"
-
+# Backup source (repository above = TUNA, the primary mirror).
 [[component.source]]
 name = "kernel-org"
-url = "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.2.10.tar.xz"
+url = "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
