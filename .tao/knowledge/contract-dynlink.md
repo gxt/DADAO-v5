@@ -146,11 +146,11 @@
 | 14 | `R_DADAO_NUM` | 类型计数（**非实际重定位**） | — | —（**冻结值 = 14**） |
 
 - **动态类型 = 8 项**：`R_DADAO_ABS48`（编号 `6`，数据 / GOT 槽**复用**）+ `JUMP_SLOT`=7 / `RELATIVE`=8 / `COPY`=9 / `TLS_DTPMOD`=10 / `TLS_DTPREL`=11 / `TLS_TPREL`=12 / `TLSDESC`=13；`R_DADAO_NONE`=0 为 **no-op 占位**（**不参与动态段语义**，musl `ldso` 遇即跳过）、`R_DADAO_NUM`=14 为**类型计数**（**非实际重定位**）。[ADR-0019 D10][spec-decision]（用户 2026-10-14 逐条确认）
-- **值类规则（裁定 2）**：**偏移**类（`REL26`/`REL20`/`REL14`/`REL12`/`TLS_DTPREL`/`TLS_TPREL`）**不带位宽后缀**、按**补码（有符号）加法**计算；**基址 / 绝对地址**类（`ABS48` / `JUMP_SLOT` / `RELATIVE` 的 `S` / `B` 及其结果）按**无符号 48 位**解释、名**带 `48` 后缀**。[ADR-0019 D10][spec-decision]（用户 2026-10-14 逐条确认）
+- **值类规则（裁定 2）**：**偏移**类（`REL26`/`REL20`/`REL14`/`REL12`/`TLS_DTPREL`/`TLS_TPREL`）**不带位宽后缀**、按**补码（有符号）加法**计算；**基址 / 绝对地址**类（`ABS48` / `JUMP_SLOT` / `RELATIVE` 的 `S` / `B` 及其结果）按**无符号 48 位**解释。**命名后缀与值类解耦**：带 `48` 后缀者**仅**既有项 `ABS48` 一名（同类中 `JUMP_SLOT` / `RELATIVE` 的**名不含** `48`），偏移类名**一律不带**位宽后缀。[ADR-0019 D10][spec-decision]（用户 2026-10-14 逐条确认）
 - **公式符号**：`B` = 装载基址、`S` = 符号运行时地址、`A` = `r_addend`（显式）；`*slot` = **8 字节**槽（§1.4）。[ADR-0019 D3][contract-elf.md §3.1]
 - **数据 / GOT 槽形态**：复用既有 `R_DADAO_ABS48` 的**数据形式**（8 字节字段、大端、高 16 位 = 0）；**不新增**独立 `GLOB_DAT` 类型——数据符号地址与 GOT 槽**一律经 `ABS48`**。[contract-elf.md §3.1][spec-decision]（用户 2026-10-14 逐条确认）
 - **落点字段**：动态重定位值落 **8 字节槽**（v5 有效虚拟地址 48 位 ⇒ 高 16 位 = 0，与 `R_DADAO_ABS48` 数据形式同型）。[contract-elf.md §3.1][contract-isa.md §1.5][spec-decision]
-- **`COPY` / `TLSDESC` 纳入**：二者均纳入类型集（`9` / `13`）；`COPY` 由 ldso 运行期自符号定义处拷贝 `st_size` 字节；`TLSDESC` 为两格描述符（见上表）。[外部权威 ELF gABI 第 4 章][外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
+- **`COPY` / `TLSDESC` 纳入**：二者均纳入类型集（`9` / `13`）；`COPY` 由 ldso 运行期自符号定义处拷贝 `st_size` 字节；`TLSDESC` 为两格描述符（见上表）。**首版 `COPY` / `TLSDESC` 不发射**——lld 遇即**报错**（§10②）。[外部权威 ELF gABI 第 4 章][外部权威 musl `ldso/dynlink.c`][ADR-0019 D10][ADR-0026 D7][spec-decision]（用户 2026-10-14 逐条确认）
 
 ### §4.4 编号方案（**已定：2026-10-14 用户逐条确认**）
 

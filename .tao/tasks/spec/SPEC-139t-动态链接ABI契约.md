@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 范围与 Linux 兼容路线，`Accepted`，`D2` 无内核 / `D3` musl 自带 ldso）；`ADR-0019`（`R_DADAO_*` 重定位类型）+ `ADR-0021`；`SPEC-138t`（并列契约，无先后硬依赖）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -166,3 +166,59 @@
 | S7 C3 负向散文断言漏捕前轮 reviewer ⑤/⑥（反引号包数字 / 双反引号名） | ✅已修（加固） | 正则名侧 `` `* ``、数字侧 `` `?[0-9] `` | pristine **0 误报**；三形态探针（含 ⑤/⑥）**3/3 命中** |
 
 **判决**：无未修 finding（S1–S7 全部处置并复验）；判据对账 = 状态 `待验收`。**未取得新用户裁定**（本节仅落纸既有裁定）；**未越界**（未改 `ADR-0019`、不建新 ADR、未改 `spec/`/`contracts/`/组件）。
+
+#### 第 3 轮 reviewer 验收（最终一致性复核；被测物只读 + 注入即还原）
+
+**重跑记录**（workdir=仓库根；各捕被检命令自身 rc）：
+- 门控 7 项全 **0** ✓：`make check`=0 / `check-modules`=0 / `check-knowledge-refs`=0 / `check-knowledge-dir`=0 / `check-spec-refs`=0 / `check-no-residue`=0 / `check_issues.py`=0。
+- 证据脚本常模**重跑 = rc=1，105 PASS / 6 FAIL**（pristine 契约 md5 `647d94e2…`）：`C3.type-count==8 (actual=15)`、`C3.type-map-matches-decision`、`C4.no-renumber-of-existing (ABS48:6≠0 / NUM:14≠6)`、`C12.D10-pending-architect`、`C14.hash-no-omit` ⇒ **阻断 F1**。
+- `--inject` 重跑 = rc=1、10 PASS / 1 FAIL（bad=1）：**`INJ3.green-after-restore (rc=1/0)` FAIL**（还原后回不了绿）；INJ1/INJ2 注入与 md5 还原（`647d94e2…`）正常。
+
+**三处一致核（★ 契约 ↔ `ADR-0019 D10` ↔ `adr-0026`）**：① 编号表 **15 行机械 diff 全同**（awk 现场解析对账：`0=NONE/1–5 静态/6=ABS48/7–13 动态/14=NUM`；`adr-0026` L74「`NONE=0`/`ABS48` `0→6`/`7`–`13`/`NUM=14`」同）✓；② 8 条公式逐字同（`S+A` 无符号48／`B+A`／`memcpy(副本,S,st_size)`／`tls_id`≥1／`DTPOFF+A` 补码／`TPOFF+A` 可负／TLSDESC 两格）✓；③ 值类规则（偏移补码·无后缀／基址绝对·无符号 48）同 ✓；④ Hash=仅 GNU（契约 §5 修订注记 ↔ `D3` 修订，用户原话同）✓；⑤ GOT 语义+两段式（`ABS48`+`ldm.o_rrri_rb` 落 `rb`+`jump rbX,rd0,0`）↔ `D5` 同 ✓；⑥ PLT 只读/full RELRO、icache 澄清 ↔ `D5/D6` 同 ✓；⑦ eager ↔ `D6` 同 ✓；⑧ 越界 5 条（48 位／未支持显式报错／补码·TP／lld GOT 间接+REL12±2KB／分层不互放宽）↔ `D7` 逐条同 ✓。**内容层无 finding**。
+
+**历史未篡改核**：`git diff e7afe81 HEAD -- adr-0019` = **+41 / −0**（删除行 0）⇒ `D1–D9` 逐字未变，新增仅 `D10` 块+状态说明+changelog ✓；`ADR-0026` 在 `ADR-0019` 内仅 L86/L134 两处**指针**、无改写 ✓。
+
+**事实回归核**：`DADAO.def` 现仍 `R_DADAO_ABS48=0`/`R_DADAO_NUM=6`（现场 grep）= **预期未同步**（`ISS-206` open/P2 已登记 `issues.yaml`）——记差异、**不计 finding**；三条事实抽核 ✓：musl `dynlink.c:406` `if (type == REL_NONE) continue;`、`:986-987` `DT_PLTGOT → p->got`、`contract-isa.md:299` `ldm.o rdha, rbhb, rdhc, immu6`。
+
+**用户原话核**：「增加 `R_DADAO_NONE`，编号 0，`R_DADAO_ABS48` 改为 6」（ADR-0019 L70/L134）、「只支持 GNU hash，无需提供 both」（adr-0026 L29/L97 + 契约 §5/§9）、「直接把相对偏移写进 `rdhc`…无需多一条 `rd2rb`」（adr-0026 L40/L99）、「用 musl 自带 ldso（推荐）」（adr-0026 L95）——两 ADR 原样存在、**无臆造/扩写** ✓。
+
+**独立反例**（reviewer 注入；`cp`+md5 还原、禁 git）：① 编号表 `| 6 | R_DADAO_ABS48 |`→`| 0 |…`（md5 `647d94e2…`→`28f663dc…`）⇒ 脚本响应（C3 diff 显示 `ABS48=0`）**但 FAILS 6→5、`C4` ABS48 反转 PASS** ⇒ 实证 F2 反向激励；② 散文 `` `R_DADAO_COPY` = 9 ``（md5→`54fee101…`）⇒ `C3.no-prose-equality-number` **PASS→FAIL（1 match，可达 FAIL ✓）** ⇒ 还原 ⇒ 该断言回 PASS、FAIL 集回基线 6 条、md5=`647d94e2…`（**相等 ✓**）。**「注入→FAIL→还原→回绿」整体无法闭环**——根因即 F1（pristine 已红）。
+
+**约束核验**：① 被测文件除注入（已还原、md5 对账）外未改 ✓；② 完成区未动 ✓；③ 未提交 git ✓；④ 门控 7 项全 0 ✓；⑤ 三处一致 ✓；⑥ `D1–D9` 未篡改 ✓；⑦ 快照对账：开工 `git status`=空、5 文件 md5 已录；结束 `git status` 仅本任务书（本审阅记录）。
+
+**判决：Needs Revision**（仅证据脚本层；契约 / 两 ADR **内容层达标**、门控全绿）。
+- **阻断 F1**：`.work/evidence/<任务ID>/run.sh` 未随 D10 同步 ⇒ 常模 rc=1（6 FAIL）：(a) `C3` 期望表仍为旧 8 项（`ABS48=0`）且 `type-count==8` ⇒ 改为终表 15 行（`0=NONE…14=NUM`）或「动态 8 项按新号 `6,7–13` + `NONE=0` + `NUM=14`」；(b) `C4` 以 `contract-elf §2.2`（旧号、`ISS-206` 待同步）为基线 ⇒ **判反**（错号反而 PASS，见反例①）⇒ 改以 `ADR-0019 D10` 表为基线、对 `contract-elf` 差异显式挂 `ISS-206`；(c) `C12.D10-pending-architect`（断「待 architect 落地」）已过时 ⇒ 改断「已落地」（`[ADR-0019 D10]` + `[ADR-0026 D1–D8]`）；(d) `C14` 仍断「双发」（`不得省略任一` 已随修订删除）⇒ 改断「仅 GNU」（`--hash-style=gnu` + 修订注记）。改后须**常模全绿 + `--inject` `INJ3` 回绿**再复验。
+- **非阻断**：N1 `D10`「`COPY`/`TLSDESC` 不发射、lld 遇即报错」契约 §4.3 未明说（§10② 近似覆盖，建议补一句对齐）；N2 值类规则「名带 `48` 后缀」与 `JUMP_SLOT`/`RELATIVE` 实名不符（三处同文，仅措辞易误读）；N3 `--inject` ② 建议补 `fired.C6.qemu-commit` 断言（现仅判 rc≠0）。
+
+#### 第 3 轮返工（F1 + N1–N3，engineer；契约只改 §4 两句，编号表 / 公式 / ADR / `contract-elf` **未动**）
+
+- **F1（阻断）已修——证据脚本随 `D10` 同步**：**C3** ⇒ 断**新编号总表**（现场解析 15 行 = `0=NONE`／`1–5` 静态／`6=ABS48`／`7–13` 动态／`14=NUM`；计数改「与裁定表行数**现场对账**」、不再写死 8）+ 三条号值锚 `0`/`6`/`14`；**C4** ⇒ 基线改「**契约 + `ADR-0019 D10`**」（两表逐行机械 diff），`contract-elf §2.2` 旧号转为**预期状态**断言（`ABS48=0`／`NUM=6` 且 `ISS-206` 须 `open`），另加 `1–5` 静态类两侧号值一致；**C12** ⇒ 断「**已落地**」（`均已由 architect 落地` + 两 ADR 节现场存在 + 旧「待 architect 落地」须 0 命中）；**C14** ⇒ 断「**仅 GNU**」（`--hash-style=gnu` + 修订注记 + `ADR-0026 D3`），删「双发 / 不得省略任一」断言。
+- **现场输出（口径 = 现场统计）**：常模 **rc=0、127 PASS / 0 FAIL**（旧 105 PASS / 6 FAIL 全消）；`--inject` **rc=0、12 PASS / bad=0**，**`INJ3.green-after-restore` PASS** ⇒「注入 → 还原 → 回绿」闭环恢复。契约 md5 = `7ff243263e07527faadc460a3e8ebee0`。
+- **N1**：契约 §4.3 补一句原文——`**首版 `COPY` / `TLSDESC` 不发射**——lld 遇即**报错**（§10②）。`（脚本加 `C3.copy-tlsdesc-not-emitted`）。**N2**：§4.3 值类规则改为「**命名后缀与值类解耦**：带 `48` 后缀者**仅**既有项 `ABS48`（同类中 `JUMP_SLOT` / `RELATIVE` 的**名不含** `48`），偏移类名**一律不带**位宽后缀」。**N3**：`--inject` ② 补 `INJ2.fired.C6.qemu-commit`（读 `inject2.log` 真实 `FAIL` 行判据）。
+- **可达 FAIL 复核**（**临时树** `/tmp` 内注入，禁 git 还原；harness = 抽 `run.sh` prelude + `check_invariants`）：6 例逐条命中该断言 ⇒ `C4.contract-matches-D10`／`C4.contract-elf-expected-stale-ABS48`／`C14.hash-style-gnu`／`C12.D10-landed`／`C12.no-pending-phrase`／`C3.copy-tlsdesc-not-emitted`，且 `cp` 还原后复跑 **rc=0**（汇总 `bad=0`）。
+- **坑（探针自身）**：临时树 harness 若以 `check_invariants; echo …` 收尾，脚本退出码 = 末条 `echo`（恒 0）⇒ **已 FAIL 仍 rc=0 假绿**；须 `check_invariants; rc=$?; exit $rc`（同 `cmd | tail` 吞码一类）。
+- **门控（现场 rc）**：`make check` = 0 / `check-knowledge-refs` = 0 / `check-knowledge-dir` = 0 / `check-no-residue` = 0 / `check_issues.py` = 0 / `check_spec_refs.py` = 0 / `check_spec_drift.py` = 0。**未提交 git**（提交权归 architect）；状态保持 **`待验收`**（待 reviewer 复验）。
+
+#### 第 4 轮 reviewer 验收（F1 返工复核；**被测物只读**，run.sh/md5 前后一致）
+
+**重跑记录**（workdir=仓库根；各捕被检命令自身 rc）：
+- 常模：**rc=0 / 127 PASS / 0 FAIL / 0 SKIP** ✓
+- `--inject`：**rc=0 / 12 PASS / bad=0**；`INJ3.green-after-restore` **PASS** ✓（闭环恢复）
+- 门控 7 项全 **0** ✓：`make check`=0 / `check-knowledge-refs`=0 / `check-knowledge-dir`=0 / `check-no-residue`=0 / `check_issues.py`=0 / `check_spec_refs.py`=0 / `check_spec_drift.py`=0
+- **F1 四断言核**：C3 ⇒ 15 行总表（`0=NONE/1–5/6=ABS48/7–13/14=NUM`）；C4 ⇒ 基线=契约+D10 + `contract-elf` 预期未同步（`ABS48=0`/`NUM=6` + `ISS-206 open`）——三断言联动可判反 ✓；C12 ⇒ `均已由 architect 落地` + 旧句 0 命中；C14 ⇒ `只发射 GNU Hash` + `--hash-style=gnu` + `不得省略任一` 0 命中
+- **假绿修复核**：`check_invariants` 末 `rc=$?; exit $rc` + inject 尾 `[ "$jbad" -eq 0 ] && exit 0; exit 1`；独立注入（临时树删 `只发射 GNU Hash`）⇒ harness **rc=1** ✓
+- **越界核**：`ADR-0019` / `ADR-0026` / `contract-elf` / `spec/` / `contracts/` **未改**（git diff 空）；快照前后 md5 逐文件对账一致 ✓（run.sh=`2647606d…` / contract-elf=`95918495…` 前=后）
+
+**判决：Accepted**（上轮唯一阻断 F1 已修并经独立复验；契约/两 ADR 内容层达标；门控全绿）。
+- 非阻断：前轮 N1/N2/N3 已处置（`COPY`/`TLSDESC` 不发射一句 + 名后缀解耦 + `INJ2.fired`），本轮未发现新 finding。
+
+#### 第 3 轮 engineer 自审（返工后；自主逐行）
+
+**范围**：`run.sh`（C3 / C4 / C12 / C14 与 `INJ2` 断言逐行读）、契约 §4.3 两句、本任务书。D10 表 15 行由 `C4.contract-matches-D10` 从 ADR 文件**机械解析对账**（非硬编码比对）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| S1 临时树探针 harness 以 `echo` 收尾 ⇒ 脚本退出码恒 0（**已 FAIL 仍 rc=0 假绿**） | ✅已修 | harness 末行改 `check_invariants; rc=$?; exit $rc` | 同一次注入：修前 rc=0 / 修后 rc=1；`tt-inject.sh` 汇总 bad=0 |
+| S2 C4/C12 若只断契约**措辞**，「已落地」可在 ADR 被回退时仍全绿 | ✅已修（加固） | 断言直接 grep 两 ADR 文件真实节标题（`D10 — …` / `D1 — …`） | `C12.ADR0019-D10-section` / `C12.ADR0026-D1` 现场 PASS（命中真实文件） |
+
+**判决**：无未修 finding；判据对账 = 状态 `待验收`；**未动** 编号表 / 公式 / ADR / `contract-elf`（契约仅 §4.3 改两句）。
