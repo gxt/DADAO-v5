@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：无
-**状态**：待开始
+**状态**：待验收
 
 > **本任务分两段**：**第一段 = 差异调查（只调查、不升级，已完成，见下）**；**第二段 = 升级执行（← 须用户确认后才另行下发，本任务书尚未授权执行）**。
 
@@ -101,15 +101,65 @@
 5. **无回归**：既有 `check-*` 结果与升级前一致或更优（现场统计，计数不写死）。
 6. **登记**：`milestones.md` 流水行 + 完成区（≤30 行）与真实输出逐条对齐。
 
+## 第二段：升级执行记录（2026-10-14，**已执行**；**不改写**既有 §D1–D6 与确认表）
+
+> **授权**：用户 2026-10-14 经主会话确认「**可升级**」（原话见主会话记录；本段为执行实测事实）。
+> **证据落盘**（`.work/` 已 gitignore）：门控/构建日志 `.work/log/<模块>/`（`LLVM-091t-*.log` + `*.EXIT`）；一键证据脚本 `.work/evidence/<任务ID>/run.sh`（`--full` 全量回归 / `--inject` 反例自检）。
+
+### E1 差异核实（本地浅仓库独立复算，非引用 API）
+- `git diff --numstat <23.1.1> <23.1.3>`（两个 shallow 边界树均在场）⇒ **172 files / +6036 −1236**，与 §D1（GitHub compare API）**逐项一致** ✓。
+- **A/B/C 复算**：A=2（与 §D2 同两文件）/ B=170 / C=69；分区自检 `A+B=172`、`A+C=71` 成立 ✓。
+- `compiler-rt` 变更集仅 3 文件（`lib/builtins/clear_cache.c`、`lib/interception/interception_win.cpp`、`lib/interception/tests/interception_win_test.cpp`）⇒ **`muldc3.c`/`mulsc3.c` 不在内**，不重移植（同 §D3）✓。
+- **边界**：`63 commits` **无法本地复算**（浅仓库 `rev-list --count` 见不到中间提交）⇒ 沿用 §D1 的 API 结论，**未独立复现**（如实标注）。
+
+### E2 锁 + 取源（实测）
+- 锁改动**恰 2 行**：`commit` → `0d261d1c…`、`shallow_ref` → `llvmorg-23.1.3`（`patch_dir`/`patch_series`/`enabled`/`repository`/`shallow` 均未动；`git diff --stat` = 2 insertions / 2 deletions）。
+- 镜像增量取源：`git -C .cache/llvm-project.git fetch --depth 1 origin tag llvmorg-23.1.3` ⇒ **rc=0，63 s，+5.4 MiB**（395,600,999 → 401,224,987 B；远低于 §D4 最坏「0.3–0.4 GiB」；通道 = **SJTU 主**，未动用备源）。
+- 源检出：`fetch --depth 1 <commit>` + `checkout --detach` ⇒ rc=0（2 s）；HEAD = `0d261d1c…`、`status` 干净、`git diff` 可用。
+- `make fetch` **复跑 rc=0 且幂等**：镜像 `already has 0d261d1ca552; skipping fetch`；源 `already has … as an ancestor (patches applied on top) -- leaving it alone`。
+
+### E3 补丁集处置（A 类 2 个）
+- `make apply-series` 的 **`llvm-project` 段 ⇒ `71 applied, 0 skipped`**：71 补丁（**含 A 类 2 个**）在 23.1.3 上**全部干净应用**（`git apply` 按偏移），**零冲突** ⇒ **无补丁需弃**。（**整条 target 仍 rc=2** —— 非补丁冲突，而是其后 `patchless` 组件触发既有缺陷，见「遗留问题①」。）
+- A 类语义共存复核（实测）：补丁后 `Triple.h`/`Triple.cpp` **同时**含上游 `AArch64SubArch_arm64e_x1`/`isArm64e_x1()`/`arm64e.x1` 与我方 `dadao`；未打补丁的 23.1.3 base 含 `arm64e.x1`（5 处）而 `dadao` 计数 **0** ⇒ 两侧改动互不吞噬 ✓。
+- **重导出**（`tools/infra/make_patch.py`）：`1 written, 70 unchanged` —— 仅 `llvm/lib/TargetParser/Triple.cpp.patch` 被重写（9 行改 = `index` 行 + 各 hunk 头 **+2 行偏移**，无语义变化）；`Triple.h.patch` 正文逐字节一致 ⇒ **未重写**（其 `index` 行仍为 23.1.1 base blob，见「遗留问题②」）。`series` 未变、一文件一补丁保持。
+- 门控：`make check-patch-tree` rc=0（`4 component(s), 127 patches OK`）；`make check-index-blobs` rc=0；`--source-state` 全 OK（`llvm-project: HEAD=844ca6b38374 count=1 clean=True`）。
+
+### E4 重建（实测，`JOBS=8` 单次一个）
+- `make build-mc` **rc=0，4320 s（≈72 min）**；`make install-host` **rc=0，298 s（≈5 min）**；合计 4618 s。⚠ **超 §D5 申报的「10–40 min」**——根因 = 版本 bump 落在 `cmake/Modules/LLVMVersion.cmake` ⇒ cmake 重配置 + 版本头被广泛包含 ⇒ 近全量重编（3244 目标）；**申报偏低**，教训进「新发现/坑」。
+- 产物核：`.work/build/llvm/bin/clang` 与 `.dadao/cross-toolchain/bin/{clang,llvm-mc}` 均报 **`23.1.3`**（`clang version 23.1.3 (<mirror> 844ca6b38374…)`）。
+
+### E5 回归（★无回归）
+- **L1** `make check` rc=0（升级前基线亦 rc=0）；**L2** `make check-modules` rc=0（含 `check-lit` 107/107 = 100%、`check-interface` 83/83 FAIL 0、`check-qemu-smoke`/`test-codegen`/`test-elf`/`test-semihost` 全 PASS、picolibc 快档 18/0/2/0）。
+- `make check-patch-tree` / `check-index-blobs` / `check-no-residue` / `check_issues.py` ⇒ 各 **rc=0**。
+- **picolibc 全量（M7 达成口径）**：升级前本地实测基线 = `total 235 / pass 213 / fail 0 / excluded 22 / blocked 0`（rc=0）；升级后 = **同值**（rc=0）⇒ **无回归** ✓（计数现场统计，未写死）。
+- 证据脚本 `.work/evidence/<任务ID>/run.sh`：`--full` ⇒ **PASS（rc=0）**；`--inject` ⇒ **PASS（rc=0）**（I1 锁值 / I2 补丁截断 / I3 工作树脏 / I4 越界文件 各自「注入→FAIL→cp+md5 还原→回绿」；I5 证明版本断言非恒真）。
+
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：L1 rc=0（升级前/后）；L2 rc=0（lit 107/107、interface 83/83 FAIL 0、codegen/elf/semihost smoke 全 PASS）；picolibc 全量 前=后=**235/213/0/22/0**（fail=0，无回归）；check-patch-tree / check-index-blobs / check-no-residue / check_issues 各 rc=0；证据脚本 `--full` 与 `--inject` 均 rc=0。
+**修改文件**：`manifests/components.lock.toml`（2 行）、`components/llvm-project/patches/llvm/lib/TargetParser/Triple.cpp.patch`（重导出 9 行）、本任务书、`.tao/knowledge/milestones.md`（1 行）；**未改** `spec/`、`contracts/`、`tests/vectors/`、任何 `tools/`。
+**验收结果**：源 `.work/source/<组件>` HEAD=`844ca6b38374`（base `0d261d1c` + 1 提交）、干净；镜像 `llvmorg-23.1.3^{commit}` = `0d261d1ca552…`；`build-mc` 4320 s rc=0、`install-host` 298 s rc=0，装出的 clang/llvm-mc 报 `23.1.3`；`make fetch` 复跑 rc=0 幂等。日志见 `.work/log/<模块>/`，脚本见 `.work/evidence/<任务ID>/`。
+**新发现/坑**：① `make apply-series` rc=2 —— `tools/infra/apply_series.py:108` 对 **`patchless` 组件**（chipyard/linux/llvm-test-suite）取 `component["patch_dir"]` ⇒ `KeyError`；**既有缺陷、与本升级无关**（用未改动的脚本 + 仅 chipyard 的临时 manifest 已单独复现，见遗留①）。② 版本 bump 提交改 `cmake/Modules/LLVMVersion.cmake` ⇒ 触发**近全量重编**，申报耗时须按此量级（≈72 min）。③ 浅镜像跨 tag 切换可用 `fetch --depth 1 <tag>` + 双 shallow 边界，无需 `--unshallow`（增量仅 5.4 MiB）。④ `make_patch.py` 的 §6.2 比较**归一化 `index` 行** ⇒ 上游变而正文等价者**不重写**（`Triple.h.patch` 的 `index` 行因此陈旧，但全部门控均归一化该行）。⑤ 运行 `make fetch` 会顺带重建缺失的 `.cache/chipyard.git`（5.5 MB bare，本地镜像；非本任务目标，已披露）。⑥ **自审抓到**：门控脚本用 `git status --porcelain` 时**非 ASCII 路径被引号转义** ⇒ 需 `-c core.quotepath=false`（同 `lessons §2.19`）；另「预期 FAIL 的反例探针」不可复用会置全局失败的 `record()`。
+**遗留问题**：① **`make apply-series`（含 `make prepare`）对 `patchless` 组件 crash**（`KeyError: 'patch_dir'`，rc=2）⇒ 验收标准②的「rc=0」**BLOCKED by 既有缺陷**；替代证据 = 本次 71 补丁实际全部干净应用 + `check-source-state` 全 OK + `check-patch-tree` rc=0。建议（**越界未改，待 architect 决定**）：在 `tools/infra/apply_series.py` 源树存在性检查后加 `if component.get("patchless"): continue`（对齐 `check_patch_tree.py:310` 的既有写法）。② `Triple.h.patch` 的 `index` 行仍指向 23.1.1 base blob（工具按 §6.2 判为「未变」而未重写；门控归一化该行、`check-index-blobs` 只查 new-file 补丁）⇒ 保持工具产出、未手工改；如需刷新请 architect 定夺。③ `63 commits`（§D1）未能本地复算（浅仓库无中间提交）。
 
 ## 审阅记录
 
 #### 第 1 轮 architect 差异调查（2026-10-14）
 （第一段只读调查产出见上 §D1–D6；证据 `.work/log/llvm/llvm-2313-diff-*`；**未升级、未拉大仓库、未提交**。第二段升级执行待用户确认后另行下发。）
+
+#### 第 2 轮 engineer 自审（2026-10-14，LLVM-091t 升级执行）
+自主逐行审查对象 = 我的改动集（锁 2 行、`Triple.cpp.patch` 重导出、证据脚本 `run.sh`）+ 全部真实验收输出。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `make apply-series` rc=2（`KeyError: 'patch_dir'`） | ⏸**延后**（越界，未改 `tools/`） | 无（记录根因+建议修法） | 未改动脚本的隔离复现：仅 chipyard 的临时 manifest ⇒ 同一 `KeyError`（rc=1）；本仓库 rc=2（traceback 指向 `apply_series.py:108`） |
+| F2 `Triple.h.patch` 的 `index` 行陈旧（23.1.1 base blob） | ❌**不修**（工具既定语义） | 无 | `make_patch` `1 written, 70 unchanged`（§6.2 归一化比较）；`check-patch-tree` rc=0、`check-index-blobs` rc=0（该行被归一化 / 仅查 new-file 补丁） |
+| F3 证据脚本 `--inject` 模式缺陷：直接复用 `record()` ⇒ 「预期 FAIL」会污染脚本退出码 | ✅**已修** | 新增 `probe()`（只打印不改 `rc_all`），由调用方判定 | `--inject` rc=0（改前 rc=1，实际输出留 `.work/log/<模块>/LLVM-091t-evidence-inject.log`） |
+| F4 证据脚本 `check_patch_tree` 用相对 `patch_series` ⇒ 依赖调用方 cwd | ✅**已修** | 传入 `ROOT` 并在 python 内 `os.path.join` | 从仓库根运行 `make check-patch-tree` 段 rc=0、`series_total=127` 现场统计 |
+| F5 证据脚本 I5 与「期望版本」耦合 ⇒ 重建前误报（非恒真验证失败） | ✅**已修** | I5 改为自足判别（真实子串必须命中、两个伪造版本号必须不命中） | 重建后 `--inject` rc=0，I5 `act=yes/no` |
+| F6 A 类「2 个补丁重导出」预期 vs 实际只重写 1 个 | ✅**已核**（非缺陷） | 无 | A 类两文件均**干净应用**；`Triple.h` 正文与 base diff 逐字节一致故按 §6.2 不重写；语义共存实测（`dadao` 与 `arm64e.x1` 同时在场） |
+| F7 `build-mc` 实测 72 min，超申报 10–40 min | ⏸**延后**（估算问题，非代码） | 无 | 实测 `elapsed_s=4320`（`.work/log/<模块>/LLVM-091t-build-timing.log`）；教训已入「新发现/坑」② |
+| F8 剥离过程纪律：改用绝对 `cd` 的分离包裹脚本（冗余） | ✅**已修** | 后续命令一律用工具 `workdir` + 相对路径，不再 `cd` | 其后所有证据/门控命令均相对路径执行；本项为过程披露 |
+| F9 证据脚本 `check_scope` 未加 `core.quotepath=false` ⇒ 任务书**非 ASCII 路径被引号转义** ⇒ 误报「越界」 | ✅**已修** | `git -C "$ROOT" -c core.quotepath=false status --porcelain -uall` + 路径去引号归一化 | 修前 `evidence(LLVM-091t, mode=fast): FAIL — repo: changes within task scope`（留日志）；修后同命令 **rc=0**（`scope OK (4 path(s) changed)`）；`--inject` rc=0 |
+| F10 脚本改动后，先前 `--full` 记录已非最终版 | ✅**已做**（重跑） | 无 | 最终版（`md5 d27c3307…`）`--full` 与 `--inject` 均 **rc=0** |
+
