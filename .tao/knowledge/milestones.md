@@ -122,10 +122,10 @@
 
 > 本节为**记录性快照**（防上下文丢失）；**只做记录、不改既有结论**，事实/口径以各任务书、ADR、契约正文为准。
 
-1. **已完成（已验证）**：`SPEC-138t`（syscall 契约）｜`SPEC-139t`（动态链接契约 + 表 A 九项 + `ADR-0019 D10` 同步）｜`SPEC-140t`（musl TLS 硬依赖查证 ⇒ TLS 纳入 M8）｜`LLVM-091t`（llvm-project → 23.1.3；picolibc 四数 `235/213/0/22/0` 无回归）｜`INFRA-075t`（内核 7.2.10 git 基线）｜`INFRA-076t`（musl 定源已定）｜`INFRA-077t`（llvm-test-suite 取源）｜`TESTCASES-043m`/`LLVM-090m`/`QEMU-059m`/`INFRA-072m`/`INTEG-034m`/`INTEG-035m`（M7 侧，已归档）。
+1. **已完成（已验证）**：`SPEC-138t`（syscall 契约）｜`SPEC-139t`（动态链接契约 + 表 A 九项 + `ADR-0019 D10` 同步）｜`SPEC-140t`（musl TLS 硬依赖查证 ⇒ TLS 纳入 M8）｜`LLVM-091t`（llvm-project → 23.1.3；picolibc 四数 `235/213/0/22/0` 无回归）｜`INFRA-075t`（内核 7.2.10 git 基线）｜`TESTCASES-043m`/`LLVM-090m`/`QEMU-059m`/`INFRA-072m`/`INTEG-034m`/`INTEG-035m`（M7 侧，已归档）。
 2. **已落纸的决策载体**：`adr-0024`（Chipyard 基线）· `adr-0025`（M8 范围 A–G）· `adr-0026`（动态链接行为 D1–D8）· `adr-0027`（compiler-rt builtins D1–D5）· `ADR-0019` `D10`（动态类型集 `NONE=0`/`ABS48=6`/`7–13`/`NUM=14`）；契约 `contract-syscall.md`/`contract-dynlink.md`。
 3. **待用户裁定（3 项，均已有 issue）**：① `ISS-202`/`INFRA-071t` 授权 3 子项（只读锁册可否改＋重算 `sha256`／`contracts/*.yaml` 内嵌旧路径字段处置／范围是否扩到 `tools`·`components`·`tests`）② `ISS-200`（pre-M6 changelog 补录 vs 历史不补）③ `ISS-203`（两个门控覆盖缺口：补断言并入 L1 vs 登记不补）。
-4. **在办/队列**：`INFRA-078t`（compiler-rt 预研，**待终验**）｜`INFRA-079t`（builtins 接入，`待开始`）｜`SPEC-141t`（ISA 指令扩展预研，`待开始`，产出后**待用户裁定**）｜`INFRA-076t`（musl 锁定，`待开始`）｜`libc-test` 取源（源已定 `kraj/libc-test`，另立任务）｜`pk` 排障（`ADR-0024 D5` 未达）｜`ISS-204`（`.cache/embench-iot` 清理）｜`firtool` 恢复（需要重生成 RTL 时）。
+4. **在办/队列**：`INFRA-078t`（compiler-rt 预研，**待终验**）｜`INFRA-079t`（builtins 接入，`待开始`）｜`SPEC-141t`（ISA 指令扩展预研，`待开始`，产出后**待用户裁定**）｜`INFRA-076t`（musl 锁定，`待开始`）｜`INFRA-077t`（llvm-test-suite 取源与锁定，`待开始`）｜`libc-test` 取源（源已定 `kraj/libc-test`，另立任务）｜`pk` 排障（`ADR-0024 D5` 未达）｜`ISS-204`（`.cache/embench-iot` 清理）｜`firtool` 恢复（需要重生成 RTL 时）。
 5. **口径记录（供后续）**：**`long double` ≡ `binary64`（= `double`）**——现状与主流「=double 派」一致；**待**明文写进 `contract-fp`/`contract-abi`（**尚未写入** ⇒ 建议后续小任务补）；不涉及 `binary128`（quad）。
 6. **已知限制/遗留**：`contract-elf §2.2` 仍为旧号（`ABS48=0`/`NUM=6`）⇒ 随 `ISS-206`（P2）同步；`adr-0026 D3` 已把 Hash 改为**仅 GNU**；`ISS-207`（服务商拦截）已登记。
 
