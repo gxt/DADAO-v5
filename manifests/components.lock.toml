@@ -135,3 +135,49 @@ url = "https://mirrors.tuna.tsinghua.edu.cn/git/linux-stable.git"
 [[component.source]]
 name = "kernel-org"
 url = "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
+
+# LLVM test-suite — a *benchmark/baseline suite* input for M8 (user ruling
+# 2026-10-14: source github.com/llvm/llvm-test-suite, tag 23.1.3). A reference
+# input, not a v5-patched component, so it carries NO patch set (`patchless`,
+# same class as chipyard ADR-0024 D1 / linux).
+#
+# Tag form (2026-10-14, `git cat-file -t`): `llvmorg-23.1.3` is an *annotated*
+# tag (type = tag, PGP-signed); its tag object is
+# 7fa03005193c4cc9b882e0b70f9f43a088c52033. The `commit` below is the commit it
+# peels to (`git rev-parse 'llvmorg-23.1.3^{}'`) — a tag object is NOT a commit
+# and must not be recorded here (same convention as qemu / linux).
+#
+# Version delta note: every `llvmorg-23.1.{0,1,2,3}` tag peels to the SAME
+# commit 2919e551..., so the 23.1.3 tag yields exactly the tree of the 23.1.1
+# tag; our llvm-project delta (built at `llvmorg-23.1.1`) causes no test-suite
+# content delta.
+#
+# Mirror reality (2026-10-14): ghfast.top and gitclone.com answer `ls-remote`
+# but both returned HTTP 504 on the ~294 MB single-tag packfile; direct github
+# timed out (curl 124). gh-proxy.com completed the shallow bare clone
+# (294 MB, 252 s) and is listed first so `make fetch` stays reproducible; the
+# other two stay as backups.
+[[component]]
+name = "llvm-test-suite"
+enabled = true
+repository = "https://github.com/llvm/llvm-test-suite.git"
+commit = "2919e55176a572ee085cb46b291c47b7092c363e"
+shallow = true
+shallow_ref = "llvmorg-23.1.3"
+patchless = true
+role = "LLVM test-suite 23.1.3 (benchmark/baseline input; External/ = SPEC, excluded; baseline run deferred until musl static/dynamic works)"
+
+# Primary mirror = the channel that actually completed the packfile fetch
+# (see the mirror-reality note above).
+[[component.source]]
+name = "gh-proxy"
+url = "https://gh-proxy.com/https://github.com/llvm/llvm-test-suite.git"
+
+# Backups: answer ls-remote but returned HTTP 504 on the shallow packfile.
+[[component.source]]
+name = "ghfast"
+url = "https://ghfast.top/https://github.com/llvm/llvm-test-suite.git"
+
+[[component.source]]
+name = "gitclone"
+url = "https://gitclone.com/github.com/llvm/llvm-test-suite.git"
