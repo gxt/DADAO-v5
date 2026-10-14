@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：无
-**状态**：待验收
+**状态**：已验证
 
 > **本任务分两段**：**第一段 = 差异调查（只调查、不升级，已完成，见下）**；**第二段 = 升级执行（← 须用户确认后才另行下发，本任务书尚未授权执行）**。
 
@@ -162,4 +162,51 @@
 | F8 剥离过程纪律：改用绝对 `cd` 的分离包裹脚本（冗余） | ✅**已修** | 后续命令一律用工具 `workdir` + 相对路径，不再 `cd` | 其后所有证据/门控命令均相对路径执行；本项为过程披露 |
 | F9 证据脚本 `check_scope` 未加 `core.quotepath=false` ⇒ 任务书**非 ASCII 路径被引号转义** ⇒ 误报「越界」 | ✅**已修** | `git -C "$ROOT" -c core.quotepath=false status --porcelain -uall` + 路径去引号归一化 | 修前 `evidence(LLVM-091t, mode=fast): FAIL — repo: changes within task scope`（留日志）；修后同命令 **rc=0**（`scope OK (4 path(s) changed)`）；`--inject` rc=0 |
 | F10 脚本改动后，先前 `--full` 记录已非最终版 | ✅**已做**（重跑） | 无 | 最终版（`md5 d27c3307…`）`--full` 与 `--inject` 均 **rc=0** |
+
+#### 第 1 轮 reviewer 验收（重派接续，2026-10-14；前位 reviewer 未落判定 = ISS-205）
+
+> 全部判定依据 = reviewer 亲跑命令的真实输出/退出码（日志留 `.work/log/<模块>/` 的 `LLVM-091t-reviewer-*` 系列）；未重建 llvm。
+
+**重跑记录（亲跑）**：
+- 门控 6 项各 rc=0：`make check`(L1) 尾行 `repository checks (L1): PASS`；`make check-modules`(L2) = lit `107/107 Passed 100%` + interface `83 项 PASS 83 FAIL 0` + picolibc 快档 18/0/2/0 + `module checks (L2): PASS`；`check-patch-tree` = `4 component(s), 127 patches OK`；`check-index-blobs` = `91 new-file patch(es) OK; 36 modification patch(es) skipped`；`check-no-residue` = PASS；`check_issues.py` = `27 open, 2 closed`。退出码均直接捕获（无 tee 吞码）。
+- 锁/源/镜像：对提交 `6502abb` 逐行核 `components.lock.toml` **恰 2 行**（`commit=0d261d1c…`、`shallow_ref=llvmorg-23.1.3`，余字段未动）；源 HEAD=`844ca6b3…`=base+1、脏行 0、净 diff 71 = `series` 71（series↔补丁树 diff rc=0）；镜像 `cat-file -t 0d261d1c…`=commit、`llvmorg-23.1.3^{commit}`=`0d261d1c…`、tag obj `856f0005…`=tag。
+- `Triple.cpp.patch` **逐行核**（`git show 6502abb -- <该补丁>`）：18 行改动 = `index` 1 行 + 8 个 `@@` 头（各 hunk 两侧同增偏移 +2…+5、行数不变、正文零改动）⇒ **零语义变化** ✓；`series` 不在改动集 ✓。A 类语义共存抽验：`Triple.h` 同含 `AArch64SubArch_arm64e_x1`/`isArm64e_x1()` 与 `dadao`（`LastArchType = dadao`）、`Triple.cpp` 含 `arm64e.x1` 与我方 dadao ⇒ 互不吞噬 ✓。
+- 版本+抽验：`clang --version` = `clang version 23.1.3 (…844ca6b3…)`、`llvm-mc --version` = `LLVM version 23.1.3`；`llc -march=dadao` 产 `add.uo {rd0, rd8}, rd16, rd17`/`ret rd0, 0`（rc=0）；`llvm-mc --show-encoding` = `[0x50,0x00,0x84,0x11]`/`[0x76,0x00,0x00,0x00]`，`0x50` 对上 `contracts/opcodes.yaml` `add.uo` op ✓。
+- ★picolibc：before/after 四数均 `213 pass / 0 fail / 22 excluded / 0 blocked`（total 235，rc=0），**逐用例 diff 0 行**；**reviewer 自跑全量一次**（长任务规则）rc=0 = 同四数、与 after 逐用例 diff 0 行 ✓（harness 以工具链 clang 逐例现编，after 运行时该二进制已 = 23.1.3；前基线 L1 rc=0 采信既有日志）。
+- 遗留复现：`make apply-series` **rc=2**，traceback `apply_series.py:108 KeyError: 'patch_dir'`（crash 于第 5 个 enabled 组件 chipyard=patchless；前 4 组件 `already applied … skipped` 幂等无副作用）⇒ **既有缺陷、与升级无关**（脚本不在改动集），任务书遗留①如实登记 ✓。
+- 反例（独立注入，`cp`+md5 还原，未用 git 还原）：① 锁 `commit` 末位 c→d ⇒ `check-patch-tree` **rc=2**（`read-tree …128`）⇒ 还原 md5 `27dc6790…` 前后一致 ⇒ 回绿 `127 patches OK`；② `Triple.cpp.patch` 正文 `.Case("dadao", dadao)`→`dadaoX` ⇒ **rc=2**（断言⑥⑨双命中 ⇒ 门控真查语义、非恒真）⇒ 还原 md5 `8db4ad5b…` 一致 ⇒ 回绿 ✓。
+- 收尾对账：验收前后 `git status --porcelain -uall` 均 0 行、4 关键文件 md5 逐项一致（注入无残留）；改动集与完成区「修改文件」逐一对账 ✓。
+
+**约束核验**：只动锁 2 行 + `Triple.cpp.patch` 重导出 + 任务书 + milestones（`6502abb` 文件集核对，`spec/`/`contracts/`/`tests/vectors/`/`tools/` 零改动 ✓）；未重建 llvm；完成区 ≤30 行且与真实输出逐条对齐 ✓。
+
+**判定：Accepted**（验收①③④⑤⑥ 亲跑全通过；验收② 的 `apply-series rc=0` 按替代证据口径满足 = 71 补丁全净应用 + `check-patch-tree` rc=0 + source-state OK）。
+- **阻断项：无**（`apply-series` rc=2 属既有缺陷、不在本任务改动集；建议 architect 单立小任务给 `apply_series.py` 补 `patchless` 守卫，对齐 `check_patch_tree.py:310`）。
+- **非阻断项**：① `Triple.h.patch` 的 `index` 行陈旧（实测 `d819c4975b13…` = 23.1.1 blob，23.1.3 应为 `c5af2325…`）——门控归一化该行、维持工具产出即可（遗留②）；② **reviewer 新发现**：picolibc 库本体（`libc.a` mtime 10-12）未随 23.1.3 重编（meson 缓存编译器检测仍报 23.1.1）⇒ 无回归实证面 = 新编译器现编 235 测试 + 既有库，建议 architect 决定是否补「工具链变更后强制重建 picolibc 库」；③ `63 commits` 浅仓库无法本地复算（沿用 API 结论）。
+
+#### 第 1 轮 architect 收尾（2026-10-14；picolibc 强制重建 + 提交落地）
+
+> **只追加**，不改写既有结论（§D/§E/完成区/前轮审阅记录原样保留）。触发 = reviewer `Accepted` 的**非阻断项②**（picolibc 库本体未随 23.1.3 重编）。
+
+**① picolibc 强制重建（处置非阻断项②）**
+- **做法**（申报 = 秒~分钟级）：`meson --reconfigure` **复用** `coredata.dat` 内既有 compiler 对象、**不重跑**编译器检测（实测缓存仍报 `23.1.1`）⇒ 改**删 `.work/build/picolibc`** 后 `make build-picolibc`（走**全新 `meson setup`**，重跑检测）；旧树先 `mv` 至 `<临时目录>` 留存（可还原，**非** `rm`）。**未改**任何 `components/picolibc/**`。
+- **实测**：重建 **rc=0 / 15 s**（1120 条 `Compiling C object`）；全量复核 **rc=0 / 367 s**。日志 = `.work/log/<模块>/LLVM-091t-arch-*`。
+- **「libc.a 属新工具链产物」可核证据**：装出 `libc.a` md5 `c5617aa7…` / 1802210 B / mtime `10-14 17:24`（基线 `816fb4fb…` / 1803426 B / `10-12 20:15`）；**归档内成员** `libc_argz_argz_add.c.o` 的 `.comment` = `clang version 23.1.3 (…844ca6b3…)`（基线同成员 = `23.1.1`）；`meson-log` 检测行 = `clang 23.1.3`、`coredata.dat` = `Clang 23.1.3`。
+- **复核四数**：`stage=full total=235 pass=213 fail=0 excluded=22 blocked=0`（rc=0）⇒ **与升级前基线同值**；与「重编前」**逐用例 diff 0 行**（235 行）⇒ **不回归** ✓。
+
+**② 非阻断项登记（四条，追加）**
+- ① `Triple.h.patch` 的 `index` 行仍指 23.1.1 blob（`make_patch.py §6.2` 归一化 `index` 行 ⇒ 正文等价者不重写；门控均归一化该行、`check-index-blobs` 只查 new-file 补丁）⇒ **不影响门控**，维持工具产出（同「遗留②」）。
+- ② `63 commits`（§D1）浅仓库**不可本地复算**（仅 `172 files / +6036 −1236` 可复算）；沿用 API 结论（同「遗留③」）。
+- ③ picolibc 强制重建的**做法与证据** = 上①（本轮）。
+- ④ `make apply-series` 对 `patchless` 组件 `KeyError: 'patch_dir'`（`tools/infra/apply_series.py:108`，rc=2）= **既有缺陷**；**建议**在其源树存在性检查后加 `if component.get("patchless"): continue`（对齐 `check_patch_tree.py:310`）。**本次不改**（独立小任务，待用户/后续立项）。
+
+**③ `ISS-205`**：其触发事实（reviewer 判定缺位）已由本轮重派 reviewer `Accepted` **消解**；是否 `close`（补 `resolved_by`）由主会话 `/complete` 处置（**本次未改** `issues.yaml`）。
+
+**④ 交叉复核（architect 自跑，均现场 rc）**：`make check`(L1) **rc=0**；`make check-modules`(L2) **rc=0**；`check-no-residue` **rc=0**；`check-knowledge-refs` **rc=0**；`check_issues.py` **rc=0**。日志 `.work/log/<模块>/LLVM-091t-arch-*`。
+
+#### architect 提交留痕（LLVM-091t 收尾，分支 `LLVM-091t-final`）
+
+- **档位**：**正常提交**（reviewer 最新判决 `Accepted`，**无** `WIP:` 前缀）。
+- **提交信息**：`LLVM-091t: llvm-project 23.1.3 升级收尾（强制重建 picolibc、四数复核 235/213/0/22/0）（已验证）`。
+- **提交号**：随本条同 commit 落地 ⇒ **不内嵌自身 hash**（避免 `--amend` 造成悬空 hash，对照 `INFRA-073t` F2）；现场取证 = `git log --oneline -1`。**只 `commit`、未 `push`**；`merge --ff-only` 落地 `master`。
+- **文件集对账**（显式 staging，逐个路径，**禁** `git add -A`/`.`）：`M`×2 = 本任务书 + `.tao/knowledge/milestones.md`——与完成区「修改文件」+ 本任务范围**逐条对齐**（**无漏提 / 多提 / 越界**）。
 
