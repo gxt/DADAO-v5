@@ -159,6 +159,10 @@ rem.uo_orrr_rd	rem.uo	orrr	m1	rem_uo	accept	ok	rem.uo rd8, rd9, rd10	yes	pat:DAD
 rem.ut_orrr_rd	rem.ut	orrr	m1	rem_ut	accept	ok	rem.ut rd8, rd9, rd10	no		
 rem.uw_orrr_rd	rem.uw	orrr	m1	rem_uw	accept	ok	rem.uw rd8, rd9, rd10	no		
 ret_riii_ra	ret	riii	m1	ret_riii	accept	ok	ret rd8, 8	no		DADAOInstrInfo.cpp.patch:150
+rev.b_orri_rd	rev.b	orri	m8		reject	—	rev.b rd8, rd9, 1	no		
+rev.o_orri_rd	rev.o	orri	m8		reject	—	rev.o rd8, rd9, 1	no		
+rev.t_orri_rd	rev.t	orri	m8		reject	—	rev.t rd8, rd9, 1	no		
+rev.w_orri_rd	rev.w	orri	m8		reject	—	rev.w rd8, rd9, 1	no		
 rf2rd_orri_rf	rf2rd	orri	fp	rf2rd_orri_rf	accept	ok	rf2rd {rd8}, {rf9}	yes	pat:DADAOCodeGen.td.patch:662:rf2rd_orri_rf	DADAOInstrInfo.cpp.patch:91
 sc_an.o_orrr_rd	sc_an.o	orrr	excluded		reject	—	sc_an.o rd8, rd9, [rb1, 0]	no		
 sc_ar.o_orrr_rd	sc_ar.o	orrr	excluded		reject	—	sc_ar.o rd8, rd9, [rb1, 0]	no		

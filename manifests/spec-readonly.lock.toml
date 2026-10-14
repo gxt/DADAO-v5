@@ -13,6 +13,13 @@ policy = "readonly-requires-authorization"
 #   2026-07-14；Toolchain-01/Machine-01 册头「文末 changelog」措辞改为「附录：版本与变更记录」
 #   （reviewer N2）；上述 8 册 sha256 于同一变更内同步重算。
 
+# 2026-10-15（SPEC-142t 阶段 A，用户 2026-10-14 裁定「a/b授权」+「1、分册写」；授权原话落纸于
+#   .tao/tasks/spec/SPEC-142t-rev指令落地.md 与 .tao/adr/adr-0012 §D10.0）：新增 ISA 指令
+#   rev.o/rev.t/rev.w/rev.b（逐块反转，ADR-0012 D10）——SimRISC-00 的 MISC-octa/tetra/wyde/byte
+#   四子表各补 001-100 单元格 + 附录；SimRISC-04（§4.2.1 逐块反转总述 + 生成区）、
+#   SimRISC-08/09/10（§4.2.1 分册 + 生成区）各补正文与变更记录条目。
+#   上述 5 册 sha256 于同一变更内同步重算（其余只读册不变）。
+
 # 清单 = 21 册只读册 = 20 册上游只读册（用户 2026-10-07 全选）+ 1 册 v5 自定册（spec/Machine-01，2026-10-08 纳入）：
 #   dadao-1x   DADAO-11/12/13
 #   dadao-2x   DADAO-21/22/23
@@ -26,7 +33,7 @@ policy = "readonly-requires-authorization"
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
 group = "simrisc-00..12"
-sha256 = "94cac249d5992f076dde378fa66027247c0be8ae8dc8cf6a400bef6e4816ad74"
+sha256 = "a9ec70cfb2b9c3eb365296ccdcfd168c0ef9ece5e318895a8c59f480bcdc7ceb"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -46,7 +53,7 @@ sha256 = "d59f4b124621c31945525d5d5a964949f7486f86db560cac228dc5c8780d3968"
 [[spec]]
 path = "spec/SimRISC-04-64位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "fe1992e2d9ab19a628f35cd573d6dfdee86298b9711d2f875d5c143404394236"
+sha256 = "7d59f96030146a0abd8c4538b4bcfad29e84939d4a1b71107ae91cf4be0613ef"
 
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"
@@ -66,17 +73,17 @@ sha256 = "d5bbe35e4cedc23a174cc5d83569214de56055253ea84da68d6bd3cc472eb764"
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "6cd7ad333b967846f9c4b6076adfea4a65f9afadb901991867e6ffe1f11377b9"
+sha256 = "7c20c5c964ea5e2227b3705be4e7169e852a6ed7aa0922e9e452a4b1ad93a5c2"
 
 [[spec]]
 path = "spec/SimRISC-09-16位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "fb9212f75982f188430b2107fc3ea318d022fa7eb4e269fb1238d6a7aa0eeb31"
+sha256 = "c106cab3449b2ad04dedc5546bad01327daed69b02d2fd088995681edd1b13c3"
 
 [[spec]]
 path = "spec/SimRISC-10-8位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "da2475714f56370a8c3fb5116b853146c0d8b38c76f509c691e3bb0e3426e5a5"
+sha256 = "7af12b98fdc9f5622fa100a1774ffc65c9fe165b52a932f48cdc127886164594"
 
 [[spec]]
 path = "spec/SimRISC-11-其它.md"

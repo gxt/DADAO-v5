@@ -3,8 +3,8 @@
 
 Sources
 -------
-* ``contracts/legality_rules.yaml`` -- 15 rules (active + deferred)
-* ``contracts/opcodes.yaml`` -- 228 entries, 191 with ``rule_refs``
+* ``contracts/legality_rules.yaml`` -- 16 rules (active + deferred)
+* ``contracts/opcodes.yaml`` -- 231 entries, 195 with ``rule_refs``
 
 Reuses ``classify()``, ``SECTION_ORDER``, ``CLASS_TO_SPEC`` from
 ``tools/llvm/gen_asm_list.py`` (DRY: no duplicated classification logic).
@@ -47,6 +47,7 @@ SEMANTIC_MAP: dict[str, str] = {
     "excp_malign":       "数据对齐",
     "excp_ialign":       "指令对齐",
     "encode_sbz":        "编码合法性",
+    "encode_onehot":     "编码合法性",
     "encode_fp_root_n":  "编码合法性",
     "excp_undi":         "编码合法性",
     "excp_rasof":        "控制流",
@@ -75,6 +76,7 @@ RULE_SUMMARY: dict[str, str] = {
     "excp_malign":       "未对齐访问 → MALIGN",
     "excp_ialign":       "PC[1:0]≠0 → IALIGN",
     "encode_sbz":        "SBZ 非零 → ILLI",
+    "encode_onehot":     "immu6 非 one-hot 或 ≥ S → ILLI",
     "encode_fp_root_n":  "ftroot/foroot n≠2 → ILLI",
     "excp_undi":         "保留编码 → UNDI",
     "excp_rasof":        "RAS 上溢 → RASOF",

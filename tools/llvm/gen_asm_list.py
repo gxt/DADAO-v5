@@ -599,12 +599,13 @@ def main() -> int:
     n_fp = sum(1 for e in entries if e.get("scope") == "fp")
     n_excluded = sum(1 for e in entries if e.get("scope") == "excluded")
     n_m3 = sum(1 for e in entries if e.get("scope") == "m3")
+    n_m8 = sum(1 for e in entries if e.get("scope") == "m8")
 
     if args.plain:
         header = (
             f"// DADAO 指令清单（{'新语法（规范草案，待实现）' if args.syntax == 'new' else '旧语法（当前已实现）'}）\n"
             f"// 生成器：tools/llvm/gen_asm_list.py --plain --syntax {args.syntax}\n"
-            f"// 来源：contracts/opcodes.yaml（{total} 条 = M1 {n_m1} + scope fp {n_fp} + scope excluded {n_excluded} + scope m3 {n_m3}）\n"
+            f"// 来源：contracts/opcodes.yaml（{total} 条 = M1 {n_m1} + scope fp {n_fp} + scope excluded {n_excluded} + scope m3 {n_m3} + scope m8 {n_m8}）\n"
             f"// 新语法规范：spec/Toolchain-01-汇编语言.md\n\n"
         )
         text = header + "\n".join(plain_lines(entries, args.syntax)) + "\n"
@@ -658,7 +659,7 @@ def main() -> int:
     header = f"""# DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `scope: fp` {n_fp} + `scope: excluded` {n_excluded} + `scope: m3` {n_m3}）
+> **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `scope: fp` {n_fp} + `scope: excluded` {n_excluded} + `scope: m3` {n_m3} + `scope: m8` {n_m8}）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
 > **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）为 `scope: fp`（已实现）；**待定**（{_pending_chapter} 条）为 **deferred**（暂不归类）；其余 {n_m1} 条为 `scope: m1` 当前有效书写形式

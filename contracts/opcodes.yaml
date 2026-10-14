@@ -5,8 +5,9 @@
 # scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
-# 共 227 条：M1 155 条 + scope fp 60 条 + scope excluded 11 条 + scope m3 1 条
-# 有 rule_refs 的指令：191 条
+# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b），非 M1 身份
+# 共 231 条：M1 155 条 + scope fp 60 条 + scope excluded 11 条 + scope m3 1 条 + scope m8 4 条
+# 有 rule_refs 的指令：195 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -3491,6 +3492,36 @@
   - dst_rd0
   - mreg_zero
   - mreg_range_overflow
+- id: rev.o_orri_rd
+  mnemonic: rev.o
+  format: orri
+  op: '0x40'
+  ha: '0x0C'
+  mask: '0xFFFC0000'
+  value: '0x40300000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
+    32
+  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  scope: m8
+  rule_refs:
+  - dst_rd0
+  - encode_onehot
 - id: shr.ut_orrr_rd
   mnemonic: shr.ut
   format: orrr
@@ -3968,6 +3999,35 @@
   scope: m1
   rule_refs:
   - dst_rd0
+- id: rev.t_orri_rd
+  mnemonic: rev.t
+  format: orri
+  op: '0x41'
+  ha: '0x0C'
+  mask: '0xFFFC0000'
+  value: '0x41300000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16
+  spec_cite: SimRISC-08 §Bit manipulating：位操作指令
+  scope: m8
+  rule_refs:
+  - dst_rd0
+  - encode_onehot
 - id: shr.uw_orrr_rd
   mnemonic: shr.uw
   format: orrr
@@ -4445,6 +4505,35 @@
   scope: m1
   rule_refs:
   - dst_rd0
+- id: rev.w_orri_rd
+  mnemonic: rev.w
+  format: orri
+  op: '0x42'
+  ha: '0x0C'
+  mask: '0xFFFC0000'
+  value: '0x42300000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8
+  spec_cite: SimRISC-09 §Bit manipulating：位操作指令
+  scope: m8
+  rule_refs:
+  - dst_rd0
+  - encode_onehot
 - id: shr.ub_orrr_rd
   mnemonic: shr.ub
   format: orrr
@@ -4922,6 +5011,35 @@
   scope: m1
   rule_refs:
   - dst_rd0
+- id: rev.b_orri_rd
+  mnemonic: rev.b
+  format: orri
+  op: '0x43'
+  ha: '0x0C'
+  mask: '0xFFFC0000'
+  value: '0x43300000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  - immu6 == 1 || immu6 == 2 || immu6 == 4
+  spec_cite: SimRISC-10 §Bit manipulating：位操作指令
+  scope: m8
+  rule_refs:
+  - dst_rd0
+  - encode_onehot
 - id: ftcls_orri_rf
   mnemonic: ftcls
   format: orri

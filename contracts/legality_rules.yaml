@@ -15,8 +15,8 @@
 #   fields[].name 一致（例如块赋值目的字段为 rdhb/rbhb/rahb，而非 rdha/rbha）。
 #
 # 范围：
-#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（228 条：
-#     152 条 M1 + 60 条 scope: fp + 15 条 scope: excluded + 1 条 scope: m3）
+#   - M1 指令 = contract-isa.md 附录 A.1~A.6；编码见 contracts/opcodes.yaml（231 条：
+#     155 条 M1 + 60 条 scope: fp + 11 条 scope: excluded + 1 条 scope: m3 + 4 条 scope: m8）
 #   - M1 范围外（deferred）：LR-SC 原子（SimRISC-12 §LR-SC指令）、特权 cfx（SimRISC-04 §特权指令）；
 #     按 ADR-0004 D5 执行这些编码触发 ILLI；RF 浮点已实现（scope: fp，60 条）
 #   - SBZ 非零 → ILLI 由 ADR-0004 D5.3 冻结（架构自定义；spec 未规定 fault 类型）
@@ -184,6 +184,21 @@ rules:
       ext.uw/ext.sw、ext.ut/ext.st 已删除）；
       lr 指令的 hb（rdhb）固定为 rd0，手工编码时 hb ≠ 0（LR-SC 原子指令属 M1 范围外，
       M1 不提取其语义）。
+
+  - id: encode_onehot
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-04 §Bit manipulating：位操作指令"
+    status: active
+    description: >
+      逐块反转指令 rev.o/rev.t/rev.w/rev.b 的 immu6（块内单元位数 k）须为 one-hot
+      （2 的幂）且不超过该后缀可用档：.o {1,2,4,8,16,32}、.t {1,2,4,8,16}、
+      .w {1,2,4,8}、.b {1,2,4}；即 k 须为 2 的幂且 k < S（S = 该后缀块大小：
+      .o 64 / .t 32 / .w 16 / .b 8），排除 k = S 恒等档。
+      非 one-hot（0/3/5/6/…/63）或 k ≥ S 时触发 ILLI 异常（静态）。
+      本规则 active；由 scope: m8 记录的 rule_refs 覆盖（4 条）。
+      来源：ADR-0012 D10（用户 2026-10-14 裁定 Q3：「ILLI；需要增加 encode_onehot
+      合法性规则，配合 encode_sbz 合法性规则；此外，还有 dst_rd0」）。
 
   - id: excp_undi
     fault: UNDI

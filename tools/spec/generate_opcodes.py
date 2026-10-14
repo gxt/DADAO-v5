@@ -8,9 +8,11 @@
   - `scope: excluded`（11 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC / fence，
     暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
-    **非 M1 身份**，不要求 M1 向量覆盖。
+    **非 M1 身份**，不要求 M1 向量覆盖；
+  - `scope: m8`（4 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`），
+    **非 M1 身份**，与里程碑无绑定（用户 2026-10-14：新增指令与里程碑无绑定关系），不要求 M1 向量覆盖。
 约定 `scope == "excluded"` ⇒ `decode: ILLI`——编码已定义但尚未实现，执行即非法指令；
-`m1`/`fp` 不携带 `decode`（已实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
+`m1`/`fp`/`m3`/`m8` 不携带 `decode`（已实现或按各自里程碑实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
 
 来源：
   - spec/SimRISC-00-指令系统设计.md  （QFC 主表 + 6 个 MISC 子表：编码权威）
@@ -182,8 +184,8 @@ def _infer_feature(fields, fmt=None):
 def rec(insn, mnemonic, fmt, op, fields, legality, spec_cite, ha=None, scope="m1"):
     """构造一条编码记录。ha 为 None 时为主表指令，否则为 MISC 子表指令。
 
-    scope ∈ {"m1", "fp", "excluded", "m3"}（必填语义，缺省 m1）。scope == "excluded" 时附
-    `decode: ILLI`（编码已定义但尚未实现）；`m1`/`fp`/`m3` 不携带 `decode`。
+    scope ∈ {"m1", "fp", "excluded", "m3", "m8"}（必填语义，缺省 m1）。scope == "excluded" 时附
+    `decode: ILLI`（编码已定义但尚未实现）；`m1`/`fp`/`m3`/`m8` 不携带 `decode`。
     对于 orrr/orri/oiii 格式，ha 并入 op（op 变为14位）。
     对于其余格式，ha 作为独立操作数 field（由调用方加入 fields 列表）。
     """
@@ -261,6 +263,17 @@ LEG_RET_RD0_IMMS18 = "!(rdha == rd0 && imms18 != 0)"
 
 def aligned(n):
     return f"aligned({n})"
+
+
+def onehot_expr(S):
+    """`rev.*`（ADR-0012 D10）的 one-hot 合法集表达式（immu6 的合法档位）。
+
+    合法 `k` = 2 的幂且 `k < S`（排除 `k = S` 恒等档）；`S` = 该后缀的块大小
+    （`.o` 64 / `.t` 32 / `.w` 16 / `.b` 8）。表达式只用 `immu6` 一个标识符
+    （显式枚举合法档），故 `validate_encoding.py` 的字段引用检查无需豁免函数名。
+    """
+    vals = [v for v in (1, 2, 4, 8, 16, 32) if v < S]
+    return " || ".join(f"immu6 == {v}" for v in vals)
 
 
 # ────────────────────────────── 主表指令 ──────────────────────────────
@@ -595,6 +608,11 @@ def build_misc_octa(records):
                        ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64",
                         "rfhc + immu6 <= 64"],
                        S00_MISCRF, ha=0x3E, scope="fp"))
+    # ADR-0012 D10：新增 rev.o（逐块反转；orri，ha=0x0C → opx `001-100`）
+    # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
+    records.append(rec("rev.o", "rev.o", "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                       ["rdhb != rd0", onehot_expr(64)], S04_BIT,
+                       ha=0x0C, scope="m8"))
 
 
 # ────────────────────────────── MISC 固定位宽子表 ──────────────────────────────
@@ -640,6 +658,12 @@ def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
                               f"rem.u{suffix}", f"rem.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
                            ["rdhb != rd0"], cite_mul, ha=0x38 + i))
+    # ADR-0012 D10：新增 rev.<suffix>（逐块反转；orri，ha=0x0C → opx `001-100`）
+    # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
+    records.append(rec(f"rev.{suffix}", f"rev.{suffix}", "orri", op,
+                       f_orri("rdhb", "rdhc", "immu6"),
+                       ["rdhb != rd0", onehot_expr(nbits + 1)], cite_bit,
+                       ha=0x0C, scope="m8"))
 
 
 # ────────────────────────────── MISC-RF（全 excluded）──────────────────────────────
@@ -757,6 +781,13 @@ EXPR_TO_RULE = OrderedDict([
     ("immu6 <= 15",                               "encode_sbz"),
     ("immu6 <= 31",                               "encode_sbz"),
     ("immu6 <= 63",                               "encode_sbz"),
+    # ── one-hot（ADR-0012 D10 rev.*）：immu6 须为 2 的幂且 k < S（排除 k = S 恒等档）──
+    ("immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32",
+     "encode_onehot"),
+    ("immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16",
+     "encode_onehot"),
+    ("immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8", "encode_onehot"),
+    ("immu6 == 1 || immu6 == 2 || immu6 == 4",    "encode_onehot"),
 ])
 
 def _compute_rule_refs(records):
@@ -802,6 +833,7 @@ def main():
     n_fp = sum(1 for r in records if r.get("scope") == "fp")
     n_ex = sum(1 for r in records if r.get("scope") == "excluded")
     n_m3 = sum(1 for r in records if r.get("scope") == "m3")
+    n_m8 = sum(1 for r in records if r.get("scope") == "m8")
     n_with_refs = sum(1 for r in records if r.get("rule_refs"))
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
@@ -812,13 +844,14 @@ def main():
         f.write("# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，\n")
         f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
+        f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b），非 M1 身份\n")
         f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
-                f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条\n")
+                f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条 + scope m8 {n_m8} 条\n")
         f.write(f"# 有 rule_refs 的指令：{n_with_refs} 条\n\n")
         yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     print(f"生成完成：{len(records)} 条（M1 {n_m1}，scope fp {n_fp}，scope excluded {n_ex}，"
-          f"scope m3 {n_m3}，有 rule_refs {n_with_refs}）-> {OUT_PATH}")
+          f"scope m3 {n_m3}，scope m8 {n_m8}，有 rule_refs {n_with_refs}）-> {OUT_PATH}")
 
 
 if __name__ == "__main__":

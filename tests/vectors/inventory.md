@@ -172,3 +172,25 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `cfx2rd_crrr_cfx` | `crrr` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |
 | `escape_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上（位宽：汇编 imms20 ⇔ 编码 imms18=bytes>>2） |
 | `trap_ciii_cfx` | `ciii` | — | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | deferred TESTCASES-033t | 同上 |
+
+## 非 M1 向量（独立文件，不入本矩阵）
+
+`rev.o`/`rev.t`/`rev.w`/`rev.b`（逐块反转）为 `scope: m8`（`ADR-0012 D10`），**不是 M1 身份**，
+故**不**在本文 M1 覆盖矩阵中登记（矩阵的 id 行集须与 `contracts/opcodes.yaml` 的 `scope == "m1"`
+身份集**严格一致**——多一行即 `validate_vectors.py` 报 `INVENTORY EXTRA`，缺一行报
+`INVENTORY MISSING`）。
+
+它们的向量落在独立文件 `tests/vectors/rev/rev.yaml`（由 `tools/testcases/generate_rev_vectors.py`
+机械生成 + 独立 oracle 校验，**非** `tools/testcases/generate_isa_vectors.py`——后者只遍历
+`scope == "m1"` 的记录）。覆盖范围：
+
+| 指令 | 向量文件 | 覆盖 |
+|------|---------|------|
+| `rev.o` | `tests/vectors/rev/rev.yaml` | encoding + 每个合法 `k`（1/2/4/8/16/32）的 semantic + 边界（`rdHC=0`/全 1/`rdHB==rdHC`/`rdHC=rd0`）+ legality（非 one-hot / `k≥S` / 目的 `rd0`） |
+| `rev.t` | 同上 | 同上（合法 `k` = 1/2/4/8/16） |
+| `rev.w` | 同上 | 同上（合法 `k` = 1/2/4/8） |
+| `rev.b` | 同上 | 同上（合法 `k` = 1/2/4） |
+
+> 端序：本项目为**大端**；`k = 8` 档的语义用例同时由「块内单元倒序」与「大端字节序 →
+> 块内字节倒序」两条独立派生路径给出，须逐例一致（见生成器 `--self-check`）。
+

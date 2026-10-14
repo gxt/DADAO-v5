@@ -495,7 +495,8 @@ def render_md(rows: list[dict], st: dict) -> str:
     a(f"> {RENDER}")
     a(f"> **真源**：`contracts/opcodes.yaml`（**{st['total']}** 条 = "
       f"`m1` {scope.get('m1', 0)} + `fp` {scope.get('fp', 0)} + "
-      f"`excluded` {scope.get('excluded', 0)} + `m3` {scope.get('m3', 0)}；"
+      f"`excluded` {scope.get('excluded', 0)} + `m3` {scope.get('m3', 0)} + "
+      f"`m8` {scope.get('m8', 0)}；"
       "计数由脚本现场统计，不写死）")
     a(f"> **重跑**：`{REGEN}`　**门控（反例可失败）**：`{CHECK}`")
     a("> **机器可读**：`tools/llvm/llvm-isa-backend-matrix.tsv`（同源同批生成）")

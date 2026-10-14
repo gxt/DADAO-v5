@@ -1,12 +1,12 @@
 # SimRISC64位数据运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：64位数据运算**（29 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o
+> **分类：64位数据运算**（30 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 64位数据运算（29 条）
+### 1.1 64位数据运算（30 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -29,6 +29,7 @@
 | `or.o` | `orrr` | `rd` | `or.o rdHB, rdHC, rdHD` | `or.o_orrr_rd` |
 | `rem.so` | `orrr` | `rd` | `rem.so rdHB, rdHC, rdHD` | `rem.so_orrr_rd` |
 | `rem.uo` | `orrr` | `rd` | `rem.uo rdHB, rdHC, rdHD` | `rem.uo_orrr_rd` |
+| `rev.o` | `orri` | `rd` | `rev.o rdHB, rdHC, immu6` | `rev.o_orri_rd` |
 | `shl.uo` | `orri` | `rd` | `shl.uo rdHB, rdHC, immu6` | `shl.uo_orri_rd` |
 | `shl.uo` | `orrr` | `rd` | `shl.uo rdHB, rdHC, rdHD` | `shl.uo_orrr_rd` |
 | `shr.so` | `orri` | `rd` | `shr.so rdHB, rdHC, immu6` | `shr.so_orri_rd` |
@@ -45,8 +46,9 @@
 <!-- LEGALITY_START -->
 ## 2. 合法性检查
 
-* `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `shl.uo_orri_rd`, `shl.uo_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（23 条）
+* `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `rev.o_orri_rd`, `shl.uo_orri_rd`, `shl.uo_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（24 条）
 * `dst_dual_same`：双目的同为 rd0 或同寄存器 → ILLI — `add.so_rrrr_rd`, `add.uo_rrrr_rd`, `mul.so_rrrr_rd`, `mul.uo_rrrr_rd`, `sub.so_rrrr_rd`, `sub.uo_rrrr_rd`（6 条）
+* `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `rev.o_orri_rd`（1 条）
 <!-- LEGALITY_END -->
 
 
@@ -191,7 +193,7 @@ sub.so  {rd0, rd3}, rd0, rd4     ; rd3 = -rd4（64 位取负，双目的写回 r
 
 ### 4.2 Bit manipulating：位操作指令
 
-位操作指令需要两个源操作数，一个目的操作数。
+移位/扩展指令需要两个源操作数，一个目的操作数。
 
 `shl` 是左移，`shr` 是右移，后缀中的 `s` 表示算术移位（符号扩展）、`u` 表示逻辑移位（零扩展）。MISC-octa 子表中的 `shl`/`shr`（后缀 `.uo`/`.so`）提供 64 位移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
@@ -247,6 +249,53 @@ xor.o   rdHB, rdHC, rdHD        ; 逻辑异或
 xnor.o  rdHB, rdHC, rdHD        ; 逻辑同或
 ```
 
+#### 4.2.1 逐块反转 rev.o/rev.t/rev.w/rev.b（orri 格式）
+
+`rev` 提供**逐块反转**能力，指令名后缀决定块大小 `S`：把 64 位源寄存器切成 `64/S`
+个块，每块内部再按 `k` 位切分成 `S/k` 个**单元**，然后**反转单元顺序**
+（单元内部位序不变）；**所有块一律同样处理**，不存在"块外更高位保持"或"清零"的例外。
+
+| 指令 | 后缀 | 块大小 S | 块数 64/S | 合法 k（one-hot 且 k < S） |
+|------|------|---------|----------|---------------------------|
+| `rev.o` | octa | 64 | 1 | 1, 2, 4, 8, 16, 32 |
+| `rev.t` | tetra | 32 | 2 | 1, 2, 4, 8, 16 |
+| `rev.w` | wyde | 16 | 4 | 1, 2, 4, 8 |
+| `rev.b` | byte | 8 | 8 | 1, 2, 4 |
+
+操作数格式为 `orri`：`rev.X rdHB, rdHC, immu6`（目的 `rdHB`、源 `rdHC`、立即数 `k`）。
+`rdHB` 的**全部 64 位**都是 `rdHC` 的逐块反转结果。
+
+```
+for i in 0 .. (64/S - 1):
+    units = 把 in_block[i] 切成 S/k 个 k 位单元
+    out_block[i] = 把 units 按下标倒序拼接
+rdHB = out_block[0] .. out_block[64/S - 1]
+```
+
+例（`.w` + `k=4`）：每个 16 位块切成 4 个 4 位单元并翻转单元顺序；
+故 `rdHC[63:16] == 0` 时 `rdHB[63:16] == 0`。
+
+`k` 须为 **one-hot（2 的幂）且 `k < S`**（排除 `k = S` 恒等档）；非 one-hot
+（`0`/`3`/`5`/`6`/…/`63`）或 `k ≥ S` 触发 **ILLI**（规则 `encode_onehot`）。
+`rdHC` 允许为 `rd0`（读出 0）；`rdHB` 允许与 `rdHC` 相同（原地反转）；
+`rdHB` 为目的，不得为 `rd0`（规则 `dst_rd0`）。
+
+用途映射（供后端参考）：
+
+- `bswap64`/`bswap32`/`bswap16` = `rev.o`/`rev.t`/`rev.w` + `k=8`；**前提**是源的
+  高 `64 − S` 位为 0（否则其余块也会被逐字节反转）。
+- `bitreverse`（64 位整体位反序）= `rev.o` + `k=1`。**注意**：`rev.t`/`rev.w` + `k=1`
+  **不是** 64 位整体位反序，只反转各块内部的位序，不可误用。
+
+```simrisc
+rev.o   rdHB, rdHC, immu6       ; 64 位逐块反转（k=8 → bswap64；k=1 → bitreverse）
+rev.t   rdHB, rdHC, immu6       ; 32 位块内反转（k=8 → bswap32，须源高 32 位为 0）
+rev.w   rdHB, rdHC, immu6       ; 16 位块内反转（k=8 → bswap16，须源高 48 位为 0）
+rev.b   rdHB, rdHC, immu6       ; 8 位块内反转（k ∈ {1,2,4}）
+```
+
+`rev.t`/`rev.w`/`rev.b` 分册语义见 SimRISC-08/09/10 §4.2.1；本节为逐块反转的总述。
+
 ---
 
 ## 附录：版本与变更记录
@@ -256,6 +305,7 @@ xnor.o  rdHB, rdHC, rdHD        ; 逻辑同或
 ### 0.5.5-rc（未发布）
 
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 新增 `rev.o`（逐块反转，orri）及逐块反转语义总述（`§4.2.1`）。
 - 伪指令集收缩：删除 `not.*`/`neg.*` 1:1 别名（改由 `xnor`/`sub.sX` 展开）。
 - 合法性生成器真空约束修正（`.o` orri 的 `immu6 <= 63`）。
 - 新增「合法性检查」章（生成区）。

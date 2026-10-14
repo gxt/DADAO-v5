@@ -5,6 +5,10 @@ Reads contracts/opcodes.yaml and produces:
   reg-arith.yaml, reg-logic.yaml, reg-shift-extend.yaml,
   reg-compare.yaml, reg-cond-assign.yaml, reg-imm-block.yaml
 
+本脚本只覆盖 **M1**（`scope == "m1"`）。非 M1 的新增指令（`scope: m8` 的
+`rev.o`/`rev.t`/`rev.w`/`rev.b`）由独立生成器 `tools/testcases/generate_rev_vectors.py`
+产出到 `tests/vectors/rev/rev.yaml`（不带 M1 覆盖矩阵约束）。
+
 All encoding words, expected values, and spec_cite are derived from
 contracts/opcodes.yaml, .tao/contracts/contract-isa.md, and
 .tao/adr/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.

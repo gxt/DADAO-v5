@@ -1,12 +1,12 @@
 # SimRISC8位数据运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：8位数据运算**（26 条）— .sb/.ub 运算
+> **分类：8位数据运算**（19 条）— .sb/.ub 运算 + rev.b（逐块反转）
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 8位数据运算（18 条）
+### 1.1 8位数据运算（19 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -20,6 +20,7 @@
 | `mul.ub` | `orrr` | `rd` | `mul.ub rdHB, rdHC, rdHD` | `mul.ub_orrr_rd` |
 | `rem.sb` | `orrr` | `rd` | `rem.sb rdHB, rdHC, rdHD` | `rem.sb_orrr_rd` |
 | `rem.ub` | `orrr` | `rd` | `rem.ub rdHB, rdHC, rdHD` | `rem.ub_orrr_rd` |
+| `rev.b` | `orri` | `rd` | `rev.b rdHB, rdHC, immu6` | `rev.b_orri_rd` |
 | `shl.ub` | `orri` | `rd` | `shl.ub rdHB, rdHC, immu6` | `shl.ub_orri_rd` |
 | `shl.ub` | `orrr` | `rd` | `shl.ub rdHB, rdHC, rdHD` | `shl.ub_orrr_rd` |
 | `shr.sb` | `orri` | `rd` | `shr.sb rdHB, rdHC, immu6` | `shr.sb_orri_rd` |
@@ -34,8 +35,9 @@
 <!-- LEGALITY_START -->
 ## 2. 合法性检查
 
-* `dst_rd0`：目的 rd0 → ILLI — `add.sb_orrr_rd`, `add.ub_orrr_rd`, `cmp.sb_orrr_rd`, `cmp.ub_orrr_rd`, `div.sb_orrr_rd`, `div.ub_orrr_rd`, `mul.sb_orrr_rd`, `mul.ub_orrr_rd`, `rem.sb_orrr_rd`, `rem.ub_orrr_rd`, `shl.ub_orri_rd`, `shl.ub_orrr_rd`, `shr.sb_orri_rd`, `shr.sb_orrr_rd`, `shr.ub_orri_rd`, `shr.ub_orrr_rd`, `sub.sb_orrr_rd`, `sub.ub_orrr_rd`（18 条）
+* `dst_rd0`：目的 rd0 → ILLI — `add.sb_orrr_rd`, `add.ub_orrr_rd`, `cmp.sb_orrr_rd`, `cmp.ub_orrr_rd`, `div.sb_orrr_rd`, `div.ub_orrr_rd`, `mul.sb_orrr_rd`, `mul.ub_orrr_rd`, `rem.sb_orrr_rd`, `rem.ub_orrr_rd`, `rev.b_orri_rd`, `shl.ub_orri_rd`, `shl.ub_orrr_rd`, `shr.sb_orri_rd`, `shr.sb_orrr_rd`, `shr.ub_orri_rd`, `shr.ub_orrr_rd`, `sub.sb_orrr_rd`, `sub.ub_orrr_rd`（19 条）
 * `encode_sbz`：SBZ 非零 → ILLI — `shl.ub_orri_rd`, `shr.sb_orri_rd`, `shr.ub_orri_rd`（3 条）
+* `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `rev.b_orri_rd`（1 条）
 <!-- LEGALITY_END -->
 
 
@@ -145,6 +147,16 @@ shr.sb:  rdHB[7:0]   = (rdHC[7:0] >> shamt) with sign(7),  rdHB[63:8] = sign_ext
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
 
+#### 4.2.1 逐块反转 rev.b（orri 格式）
+
+`rev.b` 对 64 位源寄存器**按 8 位块逐块反转**：每块（S = 8）按 `k` 位切成
+`8/k` 个单元，反转单元顺序（单元内部位序不变），八个块一律同样处理。
+操作数格式 `orri`：`rev.b rdHB, rdHC, immu6`。
+
+- 合法 `k` = `{1,2,4}`（one-hot 且 `k < S = 8`）；非 one-hot 或 `k ≥ 8`（含 `k = 8` 恒等档）触发 **ILLI**（规则 `encode_onehot`）。
+- `rev.b` 无 `bswap` 对应档（`k=8` 即恒等，**非法**）；`k=1` 只反转**块内**位序，**不是** 64 位整体位反序。
+- 逐块反转的总述与伪代码见 SimRISC-04 §4.2.1。
+
 ---
 
 ## 附录：版本与变更记录
@@ -154,6 +166,7 @@ shr.sb:  rdHB[7:0]   = (rdHC[7:0] >> shamt) with sign(7),  rdHB[63:8] = sign_ext
 ### 0.5.5-rc（未发布）
 
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- 新增 `rev.b`（逐块反转，orri，`§4.2.1`）。
 - 伪指令集收缩：删除 `not.*`/`neg.*` 1:1 别名。
 - 新增「合法性检查」章（生成区）。
 - 窄位宽指令精简、高位规则统一为值语义；`div`/`rem` 定值语义。

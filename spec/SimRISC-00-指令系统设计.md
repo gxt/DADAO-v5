@@ -313,7 +313,7 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 |           | xxx-000         | xxx-001         | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---             | ---             | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |                 |                 |               |               |               |               |               |               |
-| 001-xxx   | and.o_orrr_rd      | or.o_orrr_rd       | xor.o_orrr_rd    | xnor.o_orrr_rd   |               |               |               |               |
+| 001-xxx   | and.o_orrr_rd      | or.o_orrr_rd       | xor.o_orrr_rd    | xnor.o_orrr_rd   | rev.o_orri_rd  |               |               |               |
 | 010-xxx   | ext.uo_orrr_rd     | ext.so_orrr_rd     | shr.uo_orrr_rd   | shr.so_orrr_rd   | shl.uo_orrr_rd   |               |               |               |
 | 011-xxx   | ext.uo_orri_rd     | ext.so_orri_rd     | shr.uo_orri_rd   | shr.so_orri_rd   | shl.uo_orri_rd   |               |               |               |
 | 100-xxx   |                 |                 |               |               |               |               |               |               |
@@ -329,7 +329,7 @@ tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
-| 001-xxx   |               |               |               |               |               |               |               |               |
+| 001-xxx   |               |               |               |               | rev.t_orri_rd  |               |               |               |
 | 010-xxx   |               |               | shr.ut_orrr_rd   | shr.st_orrr_rd   | shl.ut_orrr_rd   |               |               |               |
 | 011-xxx   |               |               | shr.ut_orri_rd   | shr.st_orri_rd   | shl.ut_orri_rd   |               |               |               |
 | 100-xxx   | add.ut_orrr_rd   | add.st_orrr_rd   |               |               |               |               |               |               |
@@ -347,7 +347,7 @@ wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
-| 001-xxx   |               |               |               |               |               |               |               |               |
+| 001-xxx   |               |               |               |               | rev.w_orri_rd  |               |               |               |
 | 010-xxx   |               |               | shr.uw_orrr_rd   | shr.sw_orrr_rd   | shl.uw_orrr_rd   |               |               |               |
 | 011-xxx   |               |               | shr.uw_orri_rd   | shr.sw_orri_rd   | shl.uw_orri_rd   |               |               |               |
 | 100-xxx   | add.uw_orrr_rd   | add.sw_orrr_rd   |               |               |               |               |               |               |
@@ -365,7 +365,7 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 |           | xxx-000       | xxx-001       | xxx-010       | xxx-011       | xxx-100       | xxx-101       | xxx-110       | xxx-111       |
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
-| 001-xxx   |               |               |               |               |               |               |               |               |
+| 001-xxx   |               |               |               |               | rev.b_orri_rd  |               |               |               |
 | 010-xxx   |               |               | shr.ub_orrr_rd   | shr.sb_orrr_rd   | shl.ub_orrr_rd   |               |               |               |
 | 011-xxx   |               |               | shr.ub_orri_rd   | shr.sb_orri_rd   | shl.ub_orri_rd   |               |               |               |
 | 100-xxx   | add.ub_orrr_rd   | add.sb_orrr_rd   |               |               |               |               |               |               |
@@ -417,6 +417,7 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 - 伪指令集收缩：删除 `nop`/`return`/`not.*`/`neg.*` 等 1:1 别名伪指令，仅保留需多指令合成的伪指令。
 - 删除 `illi` 指令；`fence` 编码改 `0x00`、`swym` 编码改 `0x22`。
 - 新增 `sub.o`（RB−RB→RD）；RB 算术三条指令改名并调整编码槽。
+- 新增 `rev.o`/`rev.t`/`rev.w`/`rev.b`（逐块反转）4 条指令，占 `MISC-octa`/`tetra`/`wyde`/`byte` 四子表的 `001-100`（opx = `001100`）。
 - 浮点范围口径引入 `scope`（`m1` / `fp` / `excluded`）标注。
 - `cmp.uo-rb` 改为整 64 位比较；RB / 控制流地址语义修正。
 - 窄位宽指令精简、高位处理统一为值语义；`MISC-AMO` 编码移至 `0111-0111`。
