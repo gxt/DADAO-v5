@@ -21,7 +21,7 @@
 - `.cache/llvm-project.git` = **shallow**（378 MB，仅 1 个 commit、仅 `llvmorg-23.1.1` tag；remote = `https://mirror.sjtu.edu.cn/git/llvm-project.git`）。
 - 目标 tag = **`llvmorg-23.1.3`**：annotated tag object = `856f0005e57023e63664c560a829c620360ea1f1` ⇒ peel ⇒ **commit `0d261d1ca552c95a8f007e061c787ac7132fbcbc`**。
   - **三方独立一致**（① GitHub API `GET /git/refs/tags/llvmorg-23.1.3` 的 object.sha；② GitHub API `GET /git/tags/856f0005…` 的 object.sha；③ SJTU 镜像 `git ls-remote` 返回同一 tag object sha）。
-  - ⚠ **订正（重要，已查明根因）**：主会话给出的 `7fa03005193c4cc9b882e0b70f9f43a088c52033` **不是 `llvm/llvm-project` 中的任何对象**（API `GET /commits/7fa03005…` = `No commit found`）；它实为 **`llvm-test-suite`** 的 `llvmorg-23.1.3` **annotated tag object**（见并行任务 `INFRA-077t`：test-suite tag object `7fa03005…` ⇒ peel commit `2919e551…`）——即**混库/混字段订正**（把 test-suite 的 *tag object* sha 误当 llvm-project 的 *commit*）。**本任务一律采用 llvm-project 的 `0d261d1c…`（tag object `856f0005…`）**。
+  - ⚠ **订正（重要，已查明根因）**：主会话给出的 `7fa03005193c4cc9b882e0b70f9f43a088c52033` **不是 `llvm/llvm-project` 中的任何对象**（API `GET /commits/7fa03005…` = `No commit found`）；它实为 **`llvm-test-suite`** 的 `llvmorg-23.1.3` **annotated tag object**（见并行任务 `LLVM-093t`：test-suite tag object `7fa03005…` ⇒ peel commit `2919e551…`）——即**混库/混字段订正**（把 test-suite 的 *tag object* sha 误当 llvm-project 的 *commit*）。**本任务一律采用 llvm-project 的 `0d261d1c…`（tag object `856f0005…`）**。
   - 简称 `23.1.3` 不是合法 ref；tag 名 **带 `llvmorg-` 前缀**（本仓库锁的 23.1.1 亦然）。
 
 ## 第一段：差异调查（已完成，2026-10-14；只读，未拉仓库、未升级）

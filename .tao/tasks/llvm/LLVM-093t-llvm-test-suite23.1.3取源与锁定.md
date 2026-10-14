@@ -1,6 +1,6 @@
-# INFRA-077t: llvm-test-suite 23.1.3 取源与锁定
+# LLVM-093t: llvm-test-suite 23.1.3 取源与锁定
 
-**模块**：infra
+**模块**：llvm
 **项目里程碑**：M8
 **依赖**：无（用户 2026-10-14 裁定取源 URL 与版本）；消费方 = 未来 M8 **基线 / benchmark 跑**（触发条件见「§基线跑触发条件」）
 **状态**：待验收
@@ -15,7 +15,7 @@
   - 「**取源，tag：23.1.3**」；取得渠道 = **经主会话问答**。
 - **用户裁定·放行入锁（2026-10-14，原话；渠道 = 经主会话问答）**：
   - 「**三个新组件，我记得都已经定好了的，可以入锁，libc-test取最新版本即可**」
-  - ⇒ `llvm-test-suite` **放行入锁**（`manifests/components.lock.toml` 条目可写）；**本任务该条目已落地**（锁册现场已有 `[[component]] name = "llvm-test-suite"`，见「完成区」）⇒ 本句为本任务的**补记**，**无待办**；同句另两落点 = `musl`（`INFRA-076t`）、`libc-test`（**`INFRA-081t`**）。
+  - ⇒ `llvm-test-suite` **放行入锁**（`manifests/components.lock.toml` 条目可写）；**本任务该条目已落地**（锁册现场已有 `[[component]] name = "llvm-test-suite"`，见「完成区」）⇒ 本句为本任务的**补记**，**无待办**；同句另两落点 = `musl`（`INFRA-076t`）、`libc-test`（**`TESTCASES-044t`**）。
 - **动机**：M8 需要 LLVM 官方 **test-suite** 作为**基线 / benchmark 语料**（可与 Embench / Chipyard 跑分对照）。按 v5 约定「**组件源一律 git 基线**」（`AGENTS.md`「工作区落点」/`lessons §3.19`），须先在本仓库内**取源 + 锁定**，使其**可 `git diff`**（tarball 不作组件源）。
 - **取源通道（实测，见「§实测记录」）**：`ghfast.top` / `gitclone.com` / 直连在 **`ls-remote` 可用**，但**大包**（≈294 MB shallow packfile）全部失败（HTTP 504 / curl 124）；**`gh-proxy.com` 成功**。
 - **基线跑暂缓**：用户 **2026-10-14** 裁定「**暂缓，等 musl 跑通**」⇒ 本任务**只取源 + 锁定**，**不跑基线**（触发条件见「§基线跑触发条件」）。
@@ -40,7 +40,7 @@
 6. **记录**：体积 / 耗时 / 顶层构成 ✓、**`External/`（含 `SPEC/`）须排除** ✗、与 `llvm-project`（= `llvmorg-23.1.1`）的**版本关系**如实标注 ✓（见「§版本关系」「§构成与排除」）。
 7. **参考对照落纸**：`DADAO-0628` 对 llvm-test-suite 的用法与**教训清单**（**只借教训、不复制实现**）。
 8. 门控：`make check`(L1) / `check-modules`(L2) / `check-no-residue` / `check-knowledge-refs` / `check_issues.py` 各 **rc=0**。
-9. `milestones.md`：`INFRA-077t` 流水行 + M8 规划区登记。
+9. `milestones.md`：`LLVM-093t` 流水行 + M8 规划区登记。
 
 ## 实测记录
 
@@ -99,7 +99,7 @@
 
 ## 硬约束
 
-1. 临时目录 `/tmp/opencode/INFRA-077t/`；命令一律在 workdir（= 仓库根）内、**相对路径**；**禁**出界 `cd`；禁仓库内临时文件。
+1. 临时目录 `/tmp/opencode/LLVM-093t/`；命令一律在 workdir（= 仓库根）内、**相对路径**；**禁**出界 `cd`；禁仓库内临时文件。
 2. **不**用 `git add -A`/`.`；**禁** `git checkout`/`restore`/`stash` 还原（一律 `cp` + md5）。
 3. 文本**不写** `.work/<具体路径>` 字面（用 `<>` 占位）。
 4. **只动**：`.cache/<name>.git`、`.work/source/<name>/**`、`.work/log/<模块>/`、`manifests/components.lock.toml`、本任务书、`.tao/knowledge/milestones.md`。**不跑基线**。
@@ -117,7 +117,7 @@
 - 工作树：`rev-parse HEAD` = `2919e551…`、`describe --tags` = `llvmorg-23.1.3`、`status --porcelain` 空、`is-shallow` = `true`。
 - `git diff` 可用性：注入探针行 ⇒ `status` 报 ` M README.txt`、`diff --quiet` rc=1；`cp` 回写 + `md5sum -c` = `OK` ⇒ `status` 回空。
 - 取源：`gh-proxy.com` 浅克隆 rc=0（**252 s / 294 MB**）；`ghfast.top`·`gitclone.com` 大包 **HTTP 504**、直连 curl **124**（三者 `ls-remote` 均 ✓）。
-**修改文件**：`manifests/components.lock.toml`（+`llvm-test-suite` 条目）；`.tao/knowledge/milestones.md`（+INFRA-077t 流水行 + M8 区条目）；本任务书。
+**修改文件**：`manifests/components.lock.toml`（+`llvm-test-suite` 条目）；`.tao/knowledge/milestones.md`（+LLVM-093t 流水行 + M8 区条目）；本任务书。
 **验收结果**：（待 reviewer / 主会话）由 architect 按主会话指示「立并执行」完成，**未走独立 reviewer 轮次**。
 **新发现/坑**：
 - **`ls-remote` ✓ ≠ 大包可取**：`ghfast.top`/`gitclone.com` 探测正常，但 ≈294 MB 单 tag packfile 皆 `HTTP 504`；唯 `gh-proxy.com` 成功。

@@ -1,8 +1,8 @@
-# INFRA-081t: libc-test 取源与锁定（取最新 commit）
+# TESTCASES-044t: libc-test 取源与锁定（取最新 commit）
 
-**模块**：infra
+**模块**：testcases
 **项目里程碑**：M8
-**依赖**：无（用户 2026-10-14 裁定源 + 版本口径）；前置登记 = `INFRA-076t §libc-test 定源`（只登记不下载，旧快照 `b7ec4679…` **已作废** ✗）；消费方 = 未来 M8 `P1 musl 静态` / `P2 动态链接` 的 **libc 一致性测试**（`ADR-0025 D6`，触发条件同 `INFRA-077t §基线跑触发条件`）
+**依赖**：无（用户 2026-10-14 裁定源 + 版本口径）；前置登记 = `INFRA-076t §libc-test 定源`（只登记不下载，旧快照 `b7ec4679…` **已作废** ✗）；消费方 = 未来 M8 `P1 musl 静态` / `P2 动态链接` 的 **libc 一致性测试**（`ADR-0025 D6`，触发条件同 `LLVM-093t §基线跑触发条件`）
 **状态**：待开始
 
 ## 执行环境
@@ -38,11 +38,11 @@
 
 | 通道 | URL 形态 | 状态（2026-10-14 预核） |
 |---|---|---|
-| **`gh-proxy.com`（主）** | `https://gh-proxy.com/https://github.com/kraj/libc-test.git` | **✓ `ls-remote` rc=0**（同 `INFRA-077t` 实测可用通道） |
+| **`gh-proxy.com`（主）** | `https://gh-proxy.com/https://github.com/kraj/libc-test.git` | **✓ `ls-remote` rc=0**（同 `LLVM-093t` 实测可用通道） |
 | `ghfast.top`（备） | `https://ghfast.top/https://github.com/kraj/libc-test.git` | 待现场实测 |
 | 直连 `github.com` | — | `INFRA-076t` 记直连 `ls-remote` 超时 ✗（本仓体量小 ≈2.3 MB，可现场再试，**结果如实记录**） |
 
-> 小包（≈2.3 MB）预计各代理均可用；**实际所用通道以现场实测为准**，`source[0]` 填**实际成功者**（口径同 `INFRA-077t`：镜像列首位者为 `make fetch` 的默认源）。
+> 小包（≈2.3 MB）预计各代理均可用；**实际所用通道以现场实测为准**，`source[0]` 填**实际成功者**（口径同 `LLVM-093t`：镜像列首位者为 `make fetch` 的默认源）。
 
 ## 锁条目与镜像形态
 
@@ -73,14 +73,14 @@ url = "https://gh-proxy.com/https://github.com/kraj/libc-test.git"
 2. `.cache/<name>.git` 为 **bare**（`git rev-parse --is-bare-repository` = `true`）；`git cat-file -e <锁commit>^{commit}` **rc=0**；形态（`shallow` 取值 + 是否 `--mirror`）与锁条目**一致**。
 3. `.work/source/<name>/` 为 **git 检出**，`rev-parse HEAD` = 锁 `commit`、`status --porcelain` 空；`rev-parse --is-shallow-repository` 现场记录。
 4. **`git diff` 可用性证明**：向工作树任一源文件注入探针行 ⇒ `status --porcelain` 报 ` M`、`git diff --quiet` **rc≠0**；还原用 `cp` 备份回写 + **md5 逐位对账**（**禁** `git checkout`/`restore`/`stash`）⇒ `status` 回空、md5 回记录值（注入态「干净」断言须**可达 FAIL**）。
-5. **pin 可复现性（独立目录核验）**：在 `/tmp/opencode/INFRA-081t/` 下**按锁条目字段**（同 URL、同形态）复跑一次 `clone` + `checkout --detach <锁commit>` ⇒ `rev-parse HEAD` **逐位等于**锁 `commit`。**不要求**整仓 `make fetch`（避免触发其它组件的网络开销/风险）。
+5. **pin 可复现性（独立目录核验）**：在 `/tmp/opencode/TESTCASES-044t/` 下**按锁条目字段**（同 URL、同形态）复跑一次 `clone` + `checkout --detach <锁commit>` ⇒ `rev-parse HEAD` **逐位等于**锁 `commit`。**不要求**整仓 `make fetch`（避免触发其它组件的网络开销/风险）。
 6. `manifests/components.lock.toml` 新增 **`libc-test`** 条目（字段/注释见「§锁条目与镜像形态」）；`make manifest-check` **rc=0** + `make check`(L1) **rc=0**。
 7. **旧登记作废落纸**：`INFRA-076t §libc-test 定源` 旧的「锁 `commit b7ec4679…`（2022-03 快照）」标注为**作废** ✗，并指向本任务（**本任务书与 `milestones.md` 已预置，本任务复核**）；若现场最新 commit **确实**等于 `b7ec4679…` ⇒ **如实写明「值与旧登记相同、口径已由『快照』改为『最新 commit 锁死』」**（**不得**伪造成不同值）。
 8. **记录**：体积（bare / 工作树 `du -sh`）、耗时、顶层构成（`Makefile`/`config.mak.def`/`src/**` 等，现场 `ls`）如实落纸。
 9. **参考对照**：`DADAO-0628` / `DADAO` 对 libc-test 的用法（**现场 `grep` 取证**；**无则写明「无命中」**，只借教训、不复制实现）。
 10. 门控：`make check`(L1) / `check-modules`(L2) / `check-no-residue` / `check-knowledge-refs` / `tools/infra/check_issues.py` 各 **rc=0**。
 11. 一键证据脚本（`.work/evidence/<任务ID>/run.sh`）：非交互、任一失败非零退出、逐项打印「检查名 + 期望/实际 + rc」、含**可达 FAIL** 自检（**计数不写死**）。
-12. `milestones.md`：`INFRA-081t` 流水行 + M8 规划区登记（**已由 architect 预置**，本任务复核）。
+12. `milestones.md`：`TESTCASES-044t` 流水行 + M8 规划区登记（**已由 architect 预置**，本任务复核）。
 13. 完成区（**≤30 行**）与真实输出逐条对齐。
 
 ## 参考对照（`DADAO-0628` / `DADAO`；**只读、只借教训、不复制实现**）
@@ -90,12 +90,12 @@ url = "https://gh-proxy.com/https://github.com/kraj/libc-test.git"
 
 ## 用途（**推断，待用户确认**）
 
-- **推断**：libc-test 用于 M8 **musl 侧 libc 一致性测试**（`P1 musl 静态` → `P2 动态链接` 之后的验证语料），与 `INFRA-077t` 的 llvm-test-suite（编译/性能基线）**分工不同**。
-- **未经用户确认的部分**：具体**跑法 / 子集 / 判据**（是否用其自带 `Makefile`、是否只取 `src/regression` 等）**本任务不做**；触发条件同 `INFRA-077t §基线跑触发条件`（musl 静态/动态链跑通后另立任务）。**若用户对此推断有异议 ⇒ 停下报告**。
+- **推断**：libc-test 用于 M8 **musl 侧 libc 一致性测试**（`P1 musl 静态` → `P2 动态链接` 之后的验证语料），与 `LLVM-093t` 的 llvm-test-suite（编译/性能基线）**分工不同**。
+- **未经用户确认的部分**：具体**跑法 / 子集 / 判据**（是否用其自带 `Makefile`、是否只取 `src/regression` 等）**本任务不做**；触发条件同 `LLVM-093t §基线跑触发条件`（musl 静态/动态链跑通后另立任务）。**若用户对此推断有异议 ⇒ 停下报告**。
 
 ## 硬约束
 
-1. 临时目录 `/tmp/opencode/INFRA-081t/`；命令一律在 workdir（= 仓库根）内、**相对路径**；**禁**出界 `cd`；禁仓库内临时文件。
+1. 临时目录 `/tmp/opencode/TESTCASES-044t/`；命令一律在 workdir（= 仓库根）内、**相对路径**；**禁**出界 `cd`；禁仓库内临时文件。
 2. **不**用 `git add -A`/`.`；**禁** `git checkout`/`restore`/`stash` 还原注入（一律 `cp` + md5）。
 3. 文本**不写** `.work/<具体路径>` 字面（用 `<>` 占位）。
 4. **只动**：`.cache/<name>.git`、`.work/source/<name>/**`、`.work/log/<模块>/`、`.work/evidence/<任务ID>/`、`manifests/components.lock.toml`、本任务书、`.tao/knowledge/milestones.md`（若需订正）。**不动** `spec/` / `contracts/` / `tools/` / `components/`。

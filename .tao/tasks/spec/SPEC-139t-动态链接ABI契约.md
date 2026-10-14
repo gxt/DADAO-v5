@@ -82,7 +82,7 @@
 - 独立反例（reviewer 注入；`cp`+md5 还原，禁 git）：
   ① §4.4 写入「已定」编号结论（本契约自身编号行文式，如反引号名紧邻等号赋号；md5 `3841127c…`→`9978e1b2…`）⇒ `C3.no-invented-number-assignment` 正则 **0 命中**、脚本无任何 C3 FAIL ⇒ 防臆造断言被该写法绕过（F2）；
   ② 篡改 musl blob sha 末位（md5→`49012eba…`）⇒ rc=1，`C6.musl-blob-hash` + `C7.musl-blob-recompute` FAIL ⇒ 捕获 ✓ ⇒ 还原（md5 相等）⇒ C6/C7 回 PASS。
-  ③ 过程中 C8 一度红 = 共享树并发外任务改动（`INFRA-077t`/`LLVM-091t`/`SPEC-140t` 任务书 + `manifests/components.lock.toml`），与交付物无关 ⇒ 不计（非阻断）。
+  ③ 过程中 C8 一度红 = 共享树并发外任务改动（`LLVM-093t`/`LLVM-091t`/`SPEC-140t` 任务书 + `manifests/components.lock.toml`），与交付物无关 ⇒ 不计（非阻断）。
 - 工作区快照对账：契约 md5 前=后=`3841127c…` ✓、任务书 md5 未动 ✓；`milestones.md` 被并发任务改动（`6ebce5e…`→`61cf9d3b…`，非 reviewer）；reviewer 留痕仅本审阅记录。
 
 **约束核验**（逐条）：
