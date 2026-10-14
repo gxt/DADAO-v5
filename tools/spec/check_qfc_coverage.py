@@ -29,7 +29,7 @@ QFC 表结构（SimRISC 0.5.3）：
      （ha 统一转为整数比较；主表指令无 ha 记为 None）
   3. 报告双向差异，并对每条差异按 M1 内/外分类
      （M1 范围定义见 `contracts/opcodes.yaml` 头部与
-      `.tao/knowledge/contract-isa.md`：M1 外 = 浮点 RF / 特权 cfx / LR-SC）
+      `.tao/contracts/contract-isa.md`：M1 外 = 浮点 RF / 特权 cfx / LR-SC）
   4. 数量汇总；exit 0（lint 警告不阻断）
 """
 

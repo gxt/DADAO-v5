@@ -1,6 +1,6 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..74364f5
+index 0000000..bc11770
 --- /dev/null
 +++ b/target/dadao/translate.c
 @@ -0,0 +1,485 @@
@@ -382,7 +382,7 @@ index 0000000..74364f5
 +/* ── RF register access helpers (rf0 = FCSR) ─────────────────────────── */
 +/* FCSR write mask: only [33:32] (rounding mode) and [4:0] (exception status)
 + * are writable; read-only qNaN bits and SBZ fields keep their value.
-+ * See SimRISC-00 §浮点状态寄存器 and .tao/knowledge/contract-fp.md §1. */
++ * See SimRISC-00 §浮点状态寄存器 and .tao/contracts/contract-fp.md §1. */
 +#define RF0_WRITE_MASK  0x000000030000001FULL   /* [33:32] + [4:0] */
 +
 +/* Load rf[n] into a TCG temp. rf0 reads as the full 64-bit FCSR value. */

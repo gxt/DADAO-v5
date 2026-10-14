@@ -4,7 +4,7 @@
 Spec sources (expectations derived by hand from these, never from QEMU/LLVM):
   - spec/SimRISC-07 §S2D1 (arith) / §S1D1 (root)
   - spec/SimRISC-00 §浮点寄存器 / §浮点状态寄存器
-  - .tao/knowledge/contract-fp.md §1 / §5 / §6 / §16
+  - .tao/contracts/contract-fp.md §1 / §5 / §6 / §16
 Encodings: contracts/opcodes.yaml.  Exit codes: ADR-0004 D5.8 (PASS=0x00,
 ILLI=0x88).
 

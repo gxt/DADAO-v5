@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..3c8f33044
+index 000000000..8c64b4daf
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 @@ -0,0 +1,2423 @@
@@ -328,7 +328,7 @@ index 000000000..3c8f33044
 +// cfx alias tables + lookup (ADR-0017 D3/D4/D8/D10; Toolchain-01 §13).
 +//
 +// DADAOCfxAlias.inc is mechanically generated from the same spec sources as
-+// the committed alias projection (.tao/knowledge/contract-cfx-aliases.md);
++// the committed alias projection (.tao/contracts/contract-cfx-aliases.md);
 +// see the header of that file for provenance.
 +//===----------------------------------------------------------------------===//
 +

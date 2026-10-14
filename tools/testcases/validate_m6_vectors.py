@@ -7,7 +7,7 @@
 
 A. **L1 MC 编码/reloc**（``tests/llvm/lit/MC/DADAO/m6-callconv.s`` 与
    ``m6-ldst-symbol.s``）：从 ``contracts/opcodes.yaml``（``value``/``fields``
-   位域）**独立派生**每条指令的编码，从 ``.tao/knowledge/contract-elf.md §2.2``
+   位域）**独立派生**每条指令的编码，从 ``.tao/contracts/contract-elf.md §2.2``
    （重定位类型表，**机械解析**）独立派生其重定位类型，再与行内
    ``; @enc <8hex>`` / ``; @reloc <NAME>`` 注释比对。
 
@@ -39,7 +39,7 @@ except ImportError:  # pragma: no cover
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OPCODES = os.path.join(ROOT, "contracts", "opcodes.yaml")
-CONTRACT_ELF = os.path.join(ROOT, ".tao", "knowledge", "contract-elf.md")
+CONTRACT_ELF = os.path.join(ROOT, ".tao", "contracts", "contract-elf.md")
 MC_DIR = os.path.join(ROOT, "tests", "llvm", "lit", "MC", "DADAO")
 M6_DIR = os.path.join(ROOT, "tests", "llvm", "codegen", "m6")
 

@@ -6,7 +6,7 @@
 `escape`/`cfx2rd`/`cfx2rc` 向量的期望编码，再与向量内联 ``@enc`` 比对：
 
   - 编码来源：``contracts/opcodes.yaml``（``value``/``fields`` 位域）；
-  - 别名来源：``.tao/knowledge/contract-cfx-aliases.md``（标量 / 通用模板 /
+  - 别名来源：``.tao/contracts/contract-cfx-aliases.md``（标量 / 通用模板 /
     专有寄存器，含单下标数组，ADR-0017 D3/D4/D10）。
 
 因此改一条期望字节、或改一条 ``.s`` 书写，本脚本都会**非零退出**。它测的是
@@ -35,7 +35,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.dirname(HERE)))))
 OPCODES = os.path.join(REPO, "contracts", "opcodes.yaml")
-ALIASES = os.path.join(REPO, ".tao", "knowledge", "contract-cfx-aliases.md")
+ALIASES = os.path.join(REPO, ".tao", "contracts", "contract-cfx-aliases.md")
 # 向量目录默认 = 本目录；CFX_VEC_DIR 仅用于反例注入自检（在临时副本上运行，
 # 避免污染真实仓库）。OPCODES/ALIASES 仍取仓库真源。
 VEC_DIR = os.environ.get("CFX_VEC_DIR") or HERE

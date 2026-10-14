@@ -9,7 +9,7 @@
 
 本门控机械做的事（**悬空即红**）：
   扫描 `AGENTS.md` / `spec/**/*.md` / `.tao/knowledge/**/*.md` / `.tao/tasks/**/*.md`
-  中对 `.work/**` 的引用；对**可判定的具体路径**做存在性检查，不存在即 FAIL。
+  / `.tao/contracts/**/*.md` 中对 `.work/**` 的引用；对**可判定的具体路径**做存在性检查，不存在即 FAIL。
 
 引用形态口径（详见 AGENTS.md「文档分层与单一真源」与 lessons §3.16）：
   - `<>` / `*` / `$` 形（占位或通配，如 `.work/log/<模块>/`、`.work/log/**`、
@@ -73,7 +73,7 @@ def _scan_files(root: Path) -> list[Path]:
     agents = root / "AGENTS.md"
     if agents.is_file():
         files.append(agents)
-    for sub in ("spec", ".tao/knowledge", ".tao/tasks"):
+    for sub in ("spec", ".tao/knowledge", ".tao/contracts", ".tao/tasks"):
         d = root / sub
         if d.is_dir():
             files.extend(sorted(d.rglob("*.md")))
@@ -83,7 +83,7 @@ def _scan_files(root: Path) -> list[Path]:
 def audit(root: Path) -> int:
     files = _scan_files(root)
     if not files:
-        print("ERROR: no scannable files found (AGENTS.md / spec / .tao/knowledge / .tao/tasks)",
+        print("ERROR: no scannable files found (AGENTS.md / spec / .tao/knowledge / .tao/contracts / .tao/tasks)",
               file=sys.stderr)
         return 1
 

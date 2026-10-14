@@ -26,7 +26,7 @@ def norm(s):
 files = {
     's00': 'spec/SimRISC-00-指令系统设计.md',
     's06': 'spec/SimRISC-06-控制流.md',
-    'cis': '.tao/knowledge/contract-isa.md',
+    'cis': '.tao/contracts/contract-isa.md',
 }
 
 raw = {}

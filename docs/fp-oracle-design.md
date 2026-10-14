@@ -12,7 +12,7 @@
 
 - 目标：为 `scope: fp` 全部 60 条指令建立**独立于实现**的参考语义模型，用于反哺 LLVM/QEMU 差分验证。
 - 铁律：
-  - 语义**只**取自 `spec/SimRISC-07` 正文与 `.tao/knowledge/contract-fp.md`（经 `contracts/fp_semantics.yaml` 的 `family → semantics_ref` 分派）。
+  - 语义**只**取自 `spec/SimRISC-07` 正文与 `.tao/contracts/contract-fp.md`（经 `contracts/fp_semantics.yaml` 的 `family → semantics_ref` 分派）。
   - **不得**以 LLVM/QEMU 的任何输出作为语义来源、校准锚点或「对拍通过」依据。
   - spec 未明处（见 §3 末）标 `UNSPECIFIED`，**不臆造**。
 
@@ -88,4 +88,4 @@ tools/golden/fp_ref.py
 
 - 本文档**不含实现**（`tools/golden/**` 不创建代码）、**不含任何期望值或测试向量**。
 - oracle 的期望值产出属后续 `GOLDEN-*` 任务；FP 向量/lit、LLVM/QEMU 实现分别属 `TESTCASES-*` / `LLVM-*` / `QEMU-*` / `INTEG-*`。
-- 语义真源 = `spec/SimRISC-07` 正文 + `.tao/knowledge/contract-fp.md`；机器可读输入 = `contracts/fp_semantics.yaml`。
+- 语义真源 = `spec/SimRISC-07` 正文 + `.tao/contracts/contract-fp.md`；机器可读输入 = `contracts/fp_semantics.yaml`。

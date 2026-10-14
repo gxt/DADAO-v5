@@ -18,7 +18,7 @@
 首读 `.tao/README.md`（角色/命令/流程/结构）+ `.tao/knowledge/MEMORY.md`（当前状态），再读 `.tao/tasks/` 下当前模块任务。
 
 ## 核心原则
-- **Spec-first**：编码/语义期望值来自 `.tao/knowledge/contract-*.md`，不从实现反推。
+- **Spec-first**：编码/语义期望值来自 `.tao/contracts/contract-*.md`，不从实现反推。
 - **Independent oracle**：测试向量不从 LLVM/QEMU 生成，须独立派生自 `spec/`。
 - **Component lock**：LLVM/QEMU/gem5 以 `manifests/` 精确 commit 锁定，不用 tag/branch。
 - **里程碑 TDD**：自 M4 起每里程碑先立测试向量/门控、再实现（L1 编码/L2 结构/L3 执行，见 `docs/Process-05`）；「一能力一向量」、规模 ∝ 能力。
@@ -42,8 +42,9 @@ DADAO-v5/
 ├── README.md              # 项目总览
 ├── .tao/                  # 交互目录（任务/知识/ADR/日志/契约）
 │   ├── tasks/<module>/    # 任务文件 <PREFIX>-nnn<suffix>-描述.md
-│   ├── knowledge/         # 合约（contract-*.md）与台账（MEMORY/milestones/issues/lessons）
-│   └── adr/               # 架构决策记录 adr-<nnnn>-*.md（决策层）
+│   ├── knowledge/         # 台账（MEMORY/milestones/issues/lessons）
+│   ├── contracts/         # 人读契约正文 contract-*.md（归一化叙述；INFRA-071t）
+│   ├── adr/               # 架构决策记录 adr-<nnnn>-*.md（决策层）
 ├── manifests/             # 锁文件（规范/参考组件）
 ├── spec/                  # 技术规范：上游 SimRISC/DADAO + v5 自定 Toolchain/Machine；索引 spec/README.md
 ├── docs/                  # 工程流程规范（Process-0x）+ 仓库级索引 + DDLN/（别人看）；索引 docs/README.md

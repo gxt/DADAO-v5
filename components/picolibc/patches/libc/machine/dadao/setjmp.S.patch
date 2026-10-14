@@ -1,6 +1,6 @@
 diff --git a/libc/machine/dadao/setjmp.S b/libc/machine/dadao/setjmp.S
 new file mode 100644
-index 0000000..8b86b66
+index 0000000..73d4984
 --- /dev/null
 +++ b/libc/machine/dadao/setjmp.S
 @@ -0,0 +1,102 @@
@@ -11,7 +11,7 @@ index 0000000..8b86b66
 + *
 + * A real implementation, not a stub: DADAO can read and write the hardware
 + * return-address stack from software, so the RegRAS depth *can* be saved and
-+ * restored.  See .tao/knowledge/contract-isa.md §1.3.4 / §3.3 and
++ * restored.  See .tao/contracts/contract-isa.md §1.3.4 / §3.3 and
 + * spec/SimRISC-01 "存取RA寄存器" and spec/SimRISC-02 "寄存器组之间块赋值":
 + *
 + *   - ra0-ra63 are all readable and writable; ra0 as source or destination

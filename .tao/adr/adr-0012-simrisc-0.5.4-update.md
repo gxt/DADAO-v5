@@ -132,7 +132,7 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 
 **D9.5（计数影响）**：新增 1 条（`scope: m3`）⇒ `contracts/opcodes.yaml` **227→228**；**M1 身份数不变（152）**；`tools/spec/check_scope.py` 须纳入 `m3`（`ALLOWED_SCOPES`、计数 `m3=1`/`total=228`）。
 
-**D9.6（同步面）**：`spec/SimRISC-00` QFC `MISC-octa` 子表 + `spec/SimRISC-05` 正文/计数；`contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；`.tao/knowledge/contract-isa.md`、`contract-asm-list.md`；`tests/vectors/{reg-arith,reg-compare}.yaml` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`；MC（`DADAOInstrInfo.td` mnemonic/def、`DADAOAsmParser`/`DADAOInstPrinter`/decode）；QEMU（`insn.decode` token + `trans_*` 函数名）；`tools/qemu/check_005t_coverage.py`。D8.6 中 `trans_cmp_uo_orrr_rb` 的引用由本 D9 更名（`trans_cmp_uo_orrr_dbb`）**取代**；**D8.6 原文不改写**。
+**D9.6（同步面）**：`spec/SimRISC-00` QFC `MISC-octa` 子表 + `spec/SimRISC-05` 正文/计数；`contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；`.tao/contracts/contract-isa.md`、`contract-asm-list.md`；`tests/vectors/{reg-arith,reg-compare}.yaml` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`；MC（`DADAOInstrInfo.td` mnemonic/def、`DADAOAsmParser`/`DADAOInstPrinter`/decode）；QEMU（`insn.decode` token + `trans_*` 函数名）；`tools/qemu/check_005t_coverage.py`。D8.6 中 `trans_cmp_uo_orrr_rb` 的引用由本 D9 更名（`trans_cmp_uo_orrr_dbb`）**取代**；**D8.6 原文不改写**。
 
 **备选（否决）**：
 - R1：新指令沿用 `sub.so` 名 → 与既有 `sub.so_orrr_rb` 重名/重 id、易混；否决。
@@ -212,7 +212,7 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 3. `spec/SimRISC-0x` 各册 **`LEGALITY` 生成区**（`tools/spec/gen_legality_list.py --apply`，随归位落定）。
 4. `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；含 `scope` 取值（**已定案 = `m8`**，见 `D10.6b`）与总数。
 5. `contracts/legality_rules.yaml`（新增 `encode_onehot`）。
-6. `.tao/knowledge/contract-isa.md`（QFC/编码表 + 语义 + 合法集）、`contract-asm-list.md`（生成投影，`tools/llvm/gen_asm_list.py`）。
+6. `.tao/contracts/contract-isa.md`（QFC/编码表 + 语义 + 合法集）、`contract-asm-list.md`（生成投影，`tools/llvm/gen_asm_list.py`）。
 7. `tests/vectors/**` + `tests/vectors/inventory.md` + `tools/testcases/generate_isa_vectors.py`（**注**：`inventory.md` 的 M1 矩阵由 `validate_vectors.py` 按 `scope == "m1"` 集合**机械对齐** ⇒ `rev`（`scope: m8`）**不入 M1 矩阵**是**机械后果、非范围排斥**；**`M1 身份数（152）不变**；向量落独立文件）。
 8. **MC**：`DADAOInstrInfo.td`（def / mnemonic）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode、`DADAOMCInstLower`（如需）。
 9. **QEMU**：`insn.decode`（四条 token）+ `trans_rev.c.inc`（`trans_rev_o`/`_t`/`_w`/`_b`）+ `translate.c` 分派 + `helper.c`（如需）。
@@ -324,7 +324,7 @@ SimRISC-00（指令系统设计）保持独立，版本号更新为 0.5.4。
 3. `spec/SimRISC-0x` 各册 **`LEGALITY` 生成区**（`tools/spec/gen_legality_list.py --apply`）。
 4. `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py`）；含 `scope` 取值（**已随 `D10.6b` 定案 = `m8`**）。
 5. `contracts/legality_rules.yaml`：**不新增**规则（`D11.6`）。
-6. `.tao/knowledge/contract-isa.md`（QFC/编码表 + 语义 + 定值 + 合法集 + `§2.5`/`§2.8` 的例外说明）、`contract-asm-list.md`（生成投影，`tools/llvm/gen_asm_list.py`）。
+6. `.tao/contracts/contract-isa.md`（QFC/编码表 + 语义 + 定值 + 合法集 + `§2.5`/`§2.8` 的例外说明）、`contract-asm-list.md`（生成投影，`tools/llvm/gen_asm_list.py`）。
 7. `tests/vectors/**` + `tests/vectors/inventory.md` + `tools/testcases/generate_isa_vectors.py`（**注**：`inventory.md` 的 M1 矩阵由 `validate_vectors.py` 按 `scope == "m1"` 集合**机械对齐** ⇒ 三条（`scope: m8`）**不入 M1 矩阵**是**机械后果、非范围排斥**；**`M1 身份数（152）不变**；向量落独立文件）。
 8. **MC**：`DADAOInstrInfo.td`（def / mnemonic）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode。
 9. **QEMU**：`insn.decode`（三条 token）+ `trans_ctlz`/`trans_cttz`/`trans_ctpop` + `translate.c` 分派。

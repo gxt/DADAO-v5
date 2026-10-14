@@ -83,7 +83,7 @@
 
 ## 分阶段实现（照 `SPEC-142t` 三阶段；**一个任务书、三阶段验收**）
 
-- **阶段 A（契约 / 编码层，单任务可验收）**：`spec/SimRISC-00` QFC `§4.2` 三格 + 例外说明一句 + 计数 + **「附录：版本与变更记录」区写明本批 3 条指令**（硬要求）；`spec/SimRISC-04 §4.2` 正文（**已确认**）+ 各册 `LEGALITY` 生成区（`tools/spec/gen_legality_list.py --apply`）+ `contracts/opcodes.yaml`（`tools/spec/generate_opcodes.py`）+ `.tao/knowledge/contract-isa.md` / `contract-asm-list.md`（`tools/llvm/gen_asm_list.py`）+ `tests/vectors/**` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`。
+- **阶段 A（契约 / 编码层，单任务可验收）**：`spec/SimRISC-00` QFC `§4.2` 三格 + 例外说明一句 + 计数 + **「附录：版本与变更记录」区写明本批 3 条指令**（硬要求）；`spec/SimRISC-04 §4.2` 正文（**已确认**）+ 各册 `LEGALITY` 生成区（`tools/spec/gen_legality_list.py --apply`）+ `contracts/opcodes.yaml`（`tools/spec/generate_opcodes.py`）+ `.tao/contracts/contract-isa.md` / `contract-asm-list.md`（`tools/llvm/gen_asm_list.py`）+ `tests/vectors/**` + `inventory.md` + `tools/testcases/generate_isa_vectors.py`。
 - **阶段 B（MC）**：`DADAOInstrInfo.td`（def/mnemonic/编码）、`DADAOAsmParser`（`orri` 受理）、`DADAOInstPrinter`、`MCCodeEmitter`/decode；`check-instrinfo` / `check-isa-coverage` 回绿。
 - **阶段 C（QEMU）**：`insn.decode`（三条 token）+ `trans_ctlz`/`trans_cttz`/`trans_ctpop` + `translate.c` 分派；语义向量经 QEMU 跑通。
 - **依赖关系**：**阶段 A → 阶段 B / 阶段 C**（编码/契约先行）；B/C 可并行（不同补丁树），同改 `contracts/` 或 `tests/vectors/` 时**串行**。
@@ -92,7 +92,7 @@
 ## 接口规范
 
 - **输入**：`adr-0012 §D11`（**决策（已由用户逐条确认 ✓）**，含用户原话）；`spec/SimRISC-00 §3.1/§4.2`（QFC 子表，**只读**，改须授权）；`contracts/opcodes.yaml` / `contracts/legality_rules.yaml`（**真源**）；`spec/Toolchain-01 §5`（`orri` 汇编语法）；`tools/spec/generate_opcodes.py`、`tools/spec/gen_legality_list.py`、`tools/llvm/gen_asm_list.py`、`tools/testcases/generate_isa_vectors.py`；`components/llvm-project/patches/llvm/lib/Target/DADAO/**`、`components/qemu/patches/target/dadao/**`。
-- **输出**：`spec/SimRISC-00` + `spec/SimRISC-04`（**已授权 / 已确认**）、`contracts/opcodes.yaml`（**生成**）、`.tao/knowledge/contract-isa.md`、`contract-asm-list.md`（**生成**）、`tests/vectors/**` + `inventory.md`、MC 补丁、QEMU 补丁、门控；完成区（**≤30 行**）+ 一键证据脚本（`.work/evidence/<本任务ID>/`）。
+- **输出**：`spec/SimRISC-00` + `spec/SimRISC-04`（**已授权 / 已确认**）、`contracts/opcodes.yaml`（**生成**）、`.tao/contracts/contract-isa.md`、`contract-asm-list.md`（**生成**）、`tests/vectors/**` + `inventory.md`、MC 补丁、QEMU 补丁、门控；完成区（**≤30 行**）+ 一键证据脚本（`.work/evidence/<本任务ID>/`）。
 - **越界声明（硬性）**：改 `spec/**` **仅限**授权的 `SimRISC-00 §4.2` 三格 + 例外说明 + 计数 + `SimRISC-04 §4.2` 正文 / 生成区（**均已确认**），**以及** `SimRISC-00` / `SimRISC-04` 的「**附录：版本与变更记录**」区（硬要求）；**同一变更内**须更新 `manifests/spec-readonly.lock.toml` 对应册 `sha256`（`Process-06 §5`）。
 
 ## 验收标准

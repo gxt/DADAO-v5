@@ -3,8 +3,8 @@
 > 任务：`TESTCASES-029t`（L1 向量 + 独立 oracle，**暂不接入门控**）。
 > 规范：`docs/Process-05-里程碑TDD规范.md §2`（L1 期望值来自 ISA 编码表）、
 > `§4`（期望值独立派生）、`§5`（反例门控）、`§6`（落点）。
-> 权威源：`spec/Toolchain-01-汇编语言.md §6–§10`、`.tao/knowledge/contract-asm.md
-> §6–§10`、`contracts/opcodes.yaml`、`.tao/knowledge/contract-elf.md §1.1/§2.2`。
+> 权威源：`spec/Toolchain-01-汇编语言.md §6–§10`、`.tao/contracts/contract-asm.md
+> §6–§10`、`contracts/opcodes.yaml`、`.tao/contracts/contract-elf.md §1.1/§2.2`。
 
 ## 门控时序（用户裁定 2026-10-06；INTEG-016t 接入）
 

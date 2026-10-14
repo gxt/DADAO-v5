@@ -17,7 +17,7 @@ The bin is loaded at the RAM base 0xFC00_0000_0000 by `-kernel`
 0xffff_ffff_0000, configures the
 cfx user exception vector/masks and hands off to the app in *user* mode
 (Machine-01 §2).  Every vector carries a hand-derived expectation in the
-manifest; the expected values come from `.tao/knowledge/contract-*.md` +
+manifest; the expected values come from `.tao/contracts/contract-*.md` +
 `spec/`, never from QEMU (see ``tools/testcases/validate_m5_vectors.py``).
 
 Judgement (fail-closed), per case:

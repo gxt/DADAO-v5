@@ -2,7 +2,7 @@
 
 **状态**：Accepted
 **日期**：2026-10-07
-**关联**：ADR-0004（测试机；本 ADR `D8` 取代其 `D3` 作为停机协议，`D15` 修订其核内地址空间划分口径）、ADR-0011（exit-port 可靠 halt）、ADR-0003（object ABI：大端 / ELF 头）、`INTEG-019k`（M5 规划）、`SPEC-113t`（本 ADR）、`SPEC-114t`（规范正文落点）、`QEMU-044t`/`045t`/`046t`/`047t`/`049t`、`LLVM-060t`、`TESTCASES-033t`/`034t`、`INTEG-020t`；`spec/DADAO-12`、`spec/DADAO-22-SBI-主管系统二进制接口.md`、`spec/SimRISC-11-其它.md`、`.tao/knowledge/contract-abi.md`
+**关联**：ADR-0004（测试机；本 ADR `D8` 取代其 `D3` 作为停机协议，`D15` 修订其核内地址空间划分口径）、ADR-0011（exit-port 可靠 halt）、ADR-0003（object ABI：大端 / ELF 头）、`INTEG-019k`（M5 规划）、`SPEC-113t`（本 ADR）、`SPEC-114t`（规范正文落点）、`QEMU-044t`/`045t`/`046t`/`047t`/`049t`、`LLVM-060t`、`TESTCASES-033t`/`034t`、`INTEG-020t`；`spec/DADAO-12`、`spec/DADAO-22-SBI-主管系统二进制接口.md`、`spec/SimRISC-11-其它.md`、`.tao/contracts/contract-abi.md`
 
 ## Context（背景）
 
@@ -20,7 +20,7 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 
 - **D1**（入口判定）：`trap cfxHA, immu18` 中 **`immu18[17:16] == 2'b11`** ⇒ semihosting（**与 `cfxha` 无关**）。本 tag 属**架构自定义**——`spec/DADAO-22-SBI-主管系统二进制接口.md:7`（`trap cfxha, immu18`：`cfxha` 为服务提供者、`immu18` 为功能编号）与 `spec/SimRISC-11-其它.md:89`（`immu18` 功能编号）**均无 semihosting 语义**；其语义/理由说明落 `spec/Machine-01-*`（归 `SPEC-114t`），本 ADR 只留决策。
 
-- **D2**（传参/返回寄存器）：号（标量）→ **`rd16`（=`rda0`）**；参数块指针（地址）→ **`rb16`**；返回值 → **`rd31`**（指针返回才用 `rb31`，semihosting 不用）。对齐共享层 `common_semi_arg(cs,0)` = 号、`common_semi_arg(cs,1)` = 参数块指针。**不另设 `rd15`**（`rd15` 是 umon/jmon 系统调用号）。依据 `.tao/knowledge/contract-abi.md §4.1`（`rd16–rd31` 数据参数、`rb16–rb31` 地址参数）、`§4.4`（`rd31` 标量返回、`rb31` 指针返回）、`spec/DADAO-22-SBI-主管系统二进制接口.md:13`（参数传递与 ABI 一致）。
+- **D2**（传参/返回寄存器）：号（标量）→ **`rd16`（=`rda0`）**；参数块指针（地址）→ **`rb16`**；返回值 → **`rd31`**（指针返回才用 `rb31`，semihosting 不用）。对齐共享层 `common_semi_arg(cs,0)` = 号、`common_semi_arg(cs,1)` = 参数块指针。**不另设 `rd15`**（`rd15` 是 umon/jmon 系统调用号）。依据 `.tao/contracts/contract-abi.md §4.1`（`rd16–rd31` 数据参数、`rb16–rb31` 地址参数）、`§4.4`（`rd31` 标量返回、`rb31` 指针返回）、`spec/DADAO-22-SBI-主管系统二进制接口.md:13`（参数传递与 ABI 一致）。
 
 - **D3**（号值 / 服务集）：号值采用 **ARM semihosting 号值**；**服务集 = 完整 25 个**（含文件档 `OPEN`/`CLOSE`/`READ`/`SEEK`/`FLEN`/`TMPNAM`/`REMOVE`/`RENAME`；`SYSTEM`、`HEAPINFO` 均做）。`SYSTEM`（执行宿主命令）为**已登记的已知安全风险**（见 Consequences），不因此拒服务。服务号值↔入参/出参的**权威表**属规范正文，落 `spec/`（`SPEC-114t`）。
 
@@ -45,7 +45,7 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 
 - **D13**（承载位置）：测试机/SEE/semihosting 的**规范正文入 `spec/`**（`SPEC-114t`）；**ADR 只记决策/理由/被否方案/指向规范章节的引用**，不承载规范正文（`docs/Process-03-ADR编写规范.md`）。
 
-- **D14**（共享层适配点）：共享层 `common_semi_arg(cs, n)` 假定「同一组 `a0 + n`」（RISC-V 实测 `target/riscv/common-semi-target.c`：`gpr[xA0 + argno]`），而 v5 三组（`rd`/`rb`/`rf`）**各自独立计数、从 16 起递增**（`.tao/knowledge/contract-abi.md §4.1`）⇒ DADAO 钩子**按 `n` 选 bank**（`n=0`→`rd16`、`n=1`→`rb16`）、`common_semi_set_ret`→`rd31`。属**小适配（非重写）**，仅写 `target/dadao/common-semi-target.c`。
+- **D14**（共享层适配点）：共享层 `common_semi_arg(cs, n)` 假定「同一组 `a0 + n`」（RISC-V 实测 `target/riscv/common-semi-target.c`：`gpr[xA0 + argno]`），而 v5 三组（`rd`/`rb`/`rf`）**各自独立计数、从 16 起递增**（`.tao/contracts/contract-abi.md §4.1`）⇒ DADAO 钩子**按 `n` 选 bank**（`n=0`→`rd16`、`n=1`→`rb16`）、`common_semi_set_ret`→`rd31`。属**小适配（非重写）**，仅写 `target/dadao/common-semi-target.c`。
 
 - **D15**（核内地址空间划分 + 越界报异常）：M5 测试机使用的核内地址空间划分如下（均为 48 位核内有效地址；地址区间为**测试机约定**，`spec/` 只规定 `cfxha 63` 的复位向量）：
 

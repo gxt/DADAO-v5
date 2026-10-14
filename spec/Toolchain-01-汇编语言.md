@@ -4,7 +4,7 @@
 > **版本与变更记录细则**：版本号 `x.y.z`——**`x=0` 表示尚未正式发布；正式发布后 `x≥1`**；**大改动 `y+1`、有影响的小改 `z+1`**；当前版本见上行「状态」。
 > **变更记录见文末「附录：版本与变更记录」**（格式 = 「版本（日期）」小标题 + 列表项；**不用表格、不写「依据」**）。
 > **上位依据**：`ADR-0002 D4`（组件补丁与构建编排）；本规范的语法决策由 **`ADR-0013`《DADAO 汇编语言语法》冻结（Accepted，2026-09-28）**
-> **依赖**：`.tao/knowledge/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/knowledge/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现）、**待定**章为 deferred）
+> **依赖**：`.tao/contracts/contract-isa.md`（ISA 语义）、`contracts/opcodes.yaml`（编码表，指令条数以此表为准）、`.tao/contracts/contract-asm-list.md`（指令全表，自动生成自 `contracts/opcodes.yaml`；其中**浮点**章为 `scope: fp`（已实现）、**待定**章为 deferred）
 > **说明**：本规范按 ADR-0012 D4 由 spec 模块任务修改上游 `spec/`（SimRISC 系列）——上游将按本规定生成**新版本**文档（另行安排）
 > **关键词**：MUST / SHOULD / MAY 按 RFC 2119 解释
 
@@ -39,7 +39,7 @@
 - 立即数**MAY**写为十进制、`0x…`（十六进制）、`0b…`（二进制）、负数（前导 `-`）；下划线分隔符**MUST NOT** 使用。
 - 立即数位置接受完整的常量表达式（`+ - * / % & | ^ << >> == != < <= > >= && ||` 与一元 `! ~ - +`、括号分组）。
 - **地址立即数**：跳转/分支目标偏移与 escape 偏移的单位为**字节**，**不含任何单位标记**。装配器将其右移 2 位写入编码字段；汇编器**校验** `%4==0` 与范围。字段名映射见 §3.1。
-- **取值范围**：各立即数字段的位宽与取值范围见 `.tao/knowledge/contract-asm-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 `contract-asm.md §11`）。
+- **取值范围**：各立即数字段的位宽与取值范围见 `.tao/contracts/contract-asm-list.md` 的「立即数范围速查」（标注 `u`/`s`）。**越界 MUST 报错**（当前实现为静默环绕，属缺陷，见 `contract-asm.md §11`）。
 
 ### 2.5 寄存器名
 - 四组：`rd0`–`rd63`、`rb0`–`rb63`、`ra0`–`ra63`、`rf0`–`rf63`（RF 属 `scope: fp`）。
@@ -268,7 +268,7 @@ sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 r
 
 ## 11. 实现状态与缺口
 
-> **内容已移出**：实现状态见 `.tao/knowledge/contract-asm.md §11`（状态表）；缺口登记见 `.tao/knowledge/issues.yaml`。
+> **内容已移出**：实现状态见 `.tao/contracts/contract-asm.md §11`（状态表）；缺口登记见 `.tao/knowledge/issues.yaml`。
 
 ---
 
@@ -280,7 +280,7 @@ sub.so  {rd0, rd3}, rd0, rd4    ; 旧 `neg.o`（64 位取负，双目的写回 r
 
 ## 13. cfx 别名约定
 
-> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/knowledge/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`；`cfxld`/`cfxst`（`crii`）为 `scope: excluded`。本节约定随 M2 落地。
+> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）；其**决策与理由**见 `ADR-0017`（`.tao/adr/adr-0017-cfx-assembly-aliases.md`）。**别名表**为机械生成的**投影**——`.tao/contracts/contract-cfx-aliases.md`（生成器 `tools/spec/gen_cfx_aliases.py`；门控 `tools/spec/check_cfx_aliases.py`），**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`；`cfxld`/`cfxst`（`crii`）为 `scope: excluded`。本节约定随 M2 落地。
 
 ### 13.1 归属与形态（D1/D2）
 - cfx 别名属**汇编规范**：由汇编器内置**符号表**解析，**不引入** cpp 头文件/宏。
@@ -322,7 +322,7 @@ cfx2rd cfx_timer_regs[0], rd2                ; 数组单下标
 escape cfx_smon, [excp_cause_ip, 4]          ; cfxha 写作标量别名
 ```
 
-> 别名表投影（`.tao/knowledge/contract-cfx-aliases.md`）随 spec 寄存器表机械重算，**禁止手工维护**；上述示例均由该表展开所得。
+> 别名表投影（`.tao/contracts/contract-cfx-aliases.md`）随 spec 寄存器表机械重算，**禁止手工维护**；上述示例均由该表展开所得。
 
 ---
 

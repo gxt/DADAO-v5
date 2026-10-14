@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """spec 引用审计器 — Check 1 引用有效性 + Check 2 无引用规范断言.
 
-审计对象: .tao/knowledge/contract-*.md
+审计对象: .tao/contracts/contract-*.md
 引用目标: spec/*.md (SimRISC-00~12, DADAO-11~23, Toolchain-01, Machine-01)
 
 Check 1: 每个 [SimRISC-XX §...] / [DADAO-XX §...] / [Toolchain-01 §...] /
@@ -611,8 +611,8 @@ def main():
     parser.add_argument(
         "--contract-dir",
         type=Path,
-        default=default_root / ".tao" / "knowledge",
-        help="合约文件目录 (default: .tao/knowledge)",
+        default=default_root / ".tao" / "contracts",
+        help="合约文件目录 (default: .tao/contracts)",
     )
     parser.add_argument(
         "--spec-dir",

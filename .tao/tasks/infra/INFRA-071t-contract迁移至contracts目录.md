@@ -6,7 +6,7 @@
 **项目里程碑**：M8
 **依赖**：**用户授权**——**已得（2026-10-14）**：裁定 ①a/②a/③a + 目标目录 `.tao/contracts/`（「改主意」+「同意」）；落纸见 §用户授权落纸。**可 `/dispatch`**。
 
-**状态**：待开始
+**状态**：待验收
 
 > **立项来源**：`INFRA-070t`（`.tao/knowledge/` 顶层收拢）**Phase A 已完成并 reviewer `Accepted`（主会话收尾）**；**Phase B**（立项时口径：9 个 `contract-*.md` → `contracts/`）因**硬约束冲突**停手 ⇒ 本任务承接（`INFRA-070t` 完成区「遗留问题」+ 第 1 轮 reviewer §⑧）。
 > **现状校正（2026-10-14）**：待迁份数 **9 ⇒ 11**（新增 `contract-dynlink.md`〔`SPEC-139t`〕/ `contract-syscall.md`〔`SPEC-138t`〕）；目标目录 **`contracts/` ⇒ `.tao/contracts/`**（用户 2026-10-14 二问裁定）。**份数以现场 `ls` 实测为准**（**计数不写死**）。
@@ -151,11 +151,22 @@
 
 ## 完成区
 
-**测试结果**：
+**测试结果**：一键证据脚本 `.work/evidence/INFRA-071t/run.sh` 全量 **ALL PASS / rc=0**（结构断言 A–E + 注入反例 F1–F7 + 门控 G/H；逐项「期望/实际/rc」原始输出 = `.work/log/infra/INFRA-071t-evidence-run-full.log`）。失败：**无**。
+逐门控真实 rc（均现场直捕）：`make check`(L1)=**0**；`make check-modules`(L2)=**0**；`check-spec-refs`=0；`check-spec-drift`=0（枚举 9+2=**11**）；`check-knowledge-refs`=0；`check-knowledge-dir`=0；`check-contracts-dir`=0；`check-spec-readonly`=0；`check-patch-tree`=0（4 组件/127 补丁）；`check-index-blobs`=0；`check-no-residue`=0；`check_issues.py`=0；`check-tasks`=0；`check-source-state`=0；`test_spec_drift_fixtures`=4/4；`check_spec_refs_selftest`=8/8。
+
 **修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 迁移：11 份 `git mv` `.tao/knowledge/`→`.tao/contracts/`（`git diff -M` 呈 **R099–R100**，11/11）；**新增** `.tao/contracts/README.md`、`tools/infra/check_contracts_dir.py`（**未跟踪 ⇒ architect 须显式 staging**）。
+- 引用同步 77 文件（`.tao/adr` 10 / `.tao/knowledge` 正文 7 / 活任务书 3 / `tools` 30 / `tests` 7 / `components` 7 / `contracts` 5 / `docs` 2 / `spec` 2 / `Makefile`+`README.md`+`AGENTS.md` 3）。
+- 门控/基础设施：`check_spec_refs`/`check_spec_drift` 默认合约目录→`.tao/contracts`；`check_knowledge_refs` 加 `.tao/contracts` 扫描根；`check_knowledge_dir` 的 `contract-*.md` 通配**作废**；`Makefile` 新目标 `check-contracts-dir` **入 L1**；`AGENTS.md` + `.tao/README.md` 目录树；`tools/infra/test_spec_drift_fixtures.py` 探针落点。
+- 锁册：`manifests/spec-readonly.lock.toml` `sha256` `7ea766cc…`→`cd90beed…`（同变更重算）。
+- 组件（授权 ③a）：9 份补丁注释 + `.work/source/{qemu,picolibc,llvm-project}` 9 文件（**仅注释 ⇒ 不重建**；`git commit --amend --no-edit` 保 base+1/clean）+ 9 个 new-file 补丁 `index` 新 hash。
+- 台账：`milestones.md`（`INFRA-071t` 行 状态 + 2 流水行迁移注记）、`issues.yaml`（`ISS-202` notes 迁移注记）。
+
+**验收结果**：`.tao/contracts/` 顶层 = 11 `contract-*.md` + `README.md`（12 条目）；旧落点残留 **0**；**非归档旧路径残留 = 22 处 / 6 文件（逐条判定）**：本任务书 7 处〔**豁免**：描述迁移动作〕+ `SPEC-137t` 1 / `SPEC-138t` 4 / `SPEC-139t` 6 处〔**已验证任务书 = 历史快照**；「追加注记」须落在完成区，与「不得改写既有完成区」冲突 ⇒ 保持原样〕+ `milestones.md` 2 处 + `issues.yaml` 2 处〔**历史记录类**：保留原路径 + **已追加迁移注记**〕；`.tao/archive/**` 182 文件/741 处**未改**（`git diff --quiet` rc=0）⇒ **同号误伤核查**：只替换旧路径串、未动任务号/文件名。新路径引用 146 处已落地。可达 FAIL 现场：**F3**（`.tao/contracts/` 内注入悬空 `.work/**` 引用 ⇒ `check-knowledge-refs` rc=1 ⇒ `cp`+md5 还原 ⇒ rc=0 —— **新增覆盖的关键验证点**）；F1/F2/F4 rc=1；F5 残留白名单断言 FAIL；F6 锁册改 1 位 ⇒ rc=2 ⇒ 还原 ⇒ 0；F7 补丁注释改 ⇒ `check-patch-tree` rc=1 + `check-index-blobs` rc=1 ⇒ 还原双双 rc=0；**C2 反证非空转**（`--contract-dir .tao/knowledge` ⇒ rc=1）。
+
+**新发现/坑**：① 改组件补丁**注释**会连带 `check-patch-tree`（⑨ patch↔源树 / ⑥ patched-index blob）与 `check-index-blobs`（new-file `index` 新 hash）变红 ⇒ 必须**同改 `.work/source/<name>` 同注释**并重算（本次：源树 9 文件 + `commit --amend --no-edit` + `check_index_blobs.py --fix`）；「仅注释 ⇒ 不重建」成立。② `make apply-series` 对 `patchless` 组件 `KeyError`（既有缺陷、`LLVM-091t` 遗留）⇒ **无法**用它重生成组件本地提交。③ 迁移注记 / 锁册注释**不得**含字面旧路径串（否则被自己的残留白名单门控判「未同步」——首次即在 `manifests/spec-readonly.lock.toml` 命中，已改措辞）。④ 任务书立项口径「非归档 162 处」现场实测 **166 处**（+4 = `.tao/tasks/` 活任务书期间新增）⇒ **计数以现场重测为准**。⑤ `contracts/README.md` 原**无**「扁平锁/清单 → TOML」分工行（任务书写「保留」）⇒ 按意图**补入**（披露）。⑥ 三要素之「许可」= **用户授权链留纸**（非随附许可文件；本仓库无 `LICENSE` 惯例），落 `.tao/contracts/README.md §迁移授权链`。
+
+**遗留问题**：① **L3（`make check-full`）未跑**——派单门控清单 = L1+L2；`make check-full` 属里程碑 / `/complete` 触发点，建议 `/complete` 时跑。② 3 份**已验证任务书**（`SPEC-137t`/`SPEC-138t`/`SPEC-139t`，11 处）保留旧路径**未加迁移注记**（注记须落完成区/审阅记录 ⇒ 与「不得改写既有完成区」冲突）⇒ 保持历史快照原样，如需注记请 architect / 用户裁定。③ `README.md:40`「投影（`contracts/*`、`contract-*.md`）」未加目录前缀（不含旧路径串 ⇒ 不在同步范围；如需消歧可另改）。④ 本任务文件名仍含旧措辞（任务书 §文件名说明明文**不改名**）。⑤ 未发现其它失准指针。
 
 ## 用户授权落纸（2026-10-14，architect 追加；**只追加**）
 
@@ -186,3 +197,36 @@
 | `.tao/knowledge/milestones.md` | `INFRA-071t` 流水行/规划区同步新目标目录 + 本条裁定 |
 
 ## 审阅记录
+
+#### 第 1 轮 engineer 自审（2026-10-14）
+
+**审查方式**：自主逐行审查（`git diff HEAD -M` 全量 92 条目 + 2 个新增交付物 + 组件源树 `--amend` + 证据脚本自读）。
+
+**审查意见（逐条）**：
+
+| # | 审查点 | 结论 |
+|---|--------|------|
+| 1 | `check_contracts_dir.py` fail-closed 四类（目录缺失 / 顶层空 / 无白名单命中 / 白名单外） | ✅ 各自独立分支；F1/F2 实证「白名单外 ⇒ 非零」 |
+| 2 | 新门控是否存在恒真 / 无鉴别力断言 | ✅ 无：`errors` 由缺失、vacuous、空转、违例四来源汇聚，均可达 |
+| 3 | `check_knowledge_dir` 清空 glob 后是否假绿 | ✅ 无：台账自证命中 6；F4 注入 `contract-*.md` ⇒ rc=1 |
+| 4 | `check-knowledge-refs` 加扫描根是否引误报 | ✅ 无：25 具体引用 / 0 悬空；C4b 用 live 重算扫描面（59）对账 |
+| 5 | 两门控默认目录改后是否空转假绿 | ✅ 无：C2 反证（旧目录 ⇒ rc=1）；C1b drift 枚举 11 == `ls` 实数 |
+| 6 | 组件补丁注释改动是否被 ⑨/⑥ + index-blobs 抓住 | ✅ F7 实证；源树同改后双双回绿 |
+| 7 | 锁册 sha256 同变更重算 | ✅ E1/E2（现场重算 == 锁册值）；F6 反证 rc=2 |
+| 8 | 注入还原纪律（禁 `git checkout/restore/stash`） | ✅ 全部 `cp` 备份 + `md5` 对账（F3m/F5m/F6m/F7m 逐对上） |
+| 9 | 越界核查 | ✅ 未越界：改动 = 任务书 §引用同步范围 ∪ 授权 ③a ∪ architect 同步点清单；组件源树改动为「补丁↔源树一致」的必要连带（已披露） |
+| 10 | 临时残留 | ✅ `git status -uall` 仅 2 个新增交付物 + 92 改动/rename，无 `*_tmp*`/`*.orig`/`*.rej` |
+| 11 | 计数是否写死 | ✅ 份数/引用数/扫描数/枚举数均现场统计并与 live 重算对账 |
+| 12 | 历史语境判定逐条有据 | ✅ 22 处残留逐文件列行数与理由（完成区「验收结果」） |
+| 13 | 两边 README 互指真落地 | ✅ D2a/D2b 精确串匹配（非模糊） |
+| 14 | 命名 / 格式未动 | ✅ D1（`contracts/` 下 R=0）/D1b（A/D=0）；4 `*.yaml` 名未变、仅字段值/注释改值 |
+
+**finding 处置**：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| E1 首跑：`manifests/spec-readonly.lock.toml` 新注释含字面旧路径串 ⇒ 残留白名单断言 FAIL（B1、F5r 红） | ✅已修 | 锁册注释改写为「同步为 `.tao/contracts/contract-*`」，不再含旧路径串 | 全量重跑 B1 / F5r 均 PASS（`INFRA-071t-evidence-run-full.log`） |
+| E2 首跑 `make check`：`check-index-blobs` 9 处 new-hash 失配（改注释未重算） | ✅已修 | `python3 tools/infra/check_index_blobs.py --fix` 重写 9 个 new-file `index` 新 hash | 复跑 `91 new-file patch(es) OK`；全量脚本 G1 rc=0 |
+| E3 首跑 `check-patch-tree`：18 problem（⑨/⑥ patch↔源树失配） | ✅已修 | `.work/source/{qemu,picolibc,llvm-project}` 9 文件同注释 + `git commit --amend --no-edit`（保 base+1 / clean） | `check-patch-tree` rc=0（4 组件/127 补丁）；`make check-source-state` 4 源树 OK |
+
+**判决**：3 条 finding **全部已修**，无未修项 ⇒ 状态标 `待验收`，返回主会话交 reviewer 独立复验。

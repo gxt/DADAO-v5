@@ -3,7 +3,7 @@
 # 来源：
 #   spec/DADAO-21-ABI-应用程序二进制接口.md  (0.9.2)
 #   spec/DADAO-11-AEE-应用程序运行环境.md    (0.9.2)
-# 归一化合约：.tao/knowledge/contract-abi.md (0.9.2)
+# 归一化合约：.tao/contracts/contract-abi.md (0.9.2)
 # M3 决策：.tao/adr/adr-0018-m3-codegen-choices.md (ADR-0018, Accepted)
 #
 # 范围：
@@ -27,7 +27,7 @@ version: "0.9.2"
 source:
   - spec/DADAO-21-ABI-应用程序二进制接口.md
   - spec/DADAO-11-AEE-应用程序运行环境.md
-contract: .tao/knowledge/contract-abi.md
+contract: .tao/contracts/contract-abi.md
 
 # ── DataLayout（M1 基础事实）────────────────────────────────────────────────
 data_layout:
@@ -56,7 +56,7 @@ call_ret:
   pop_on_ret: true
   overflow_exception: RASOF
   underflow_exception: RASUF
-  detail_contract: ".tao/knowledge/contract-isa.md §5.4-§5.6"
+  detail_contract: ".tao/contracts/contract-isa.md §5.4-§5.6"
   spec_cite: "SimRISC-06 §函数调用; SimRISC-06 §函数返回"
 
 # ── 寄存器角色（M1 事实）─────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ reserved_registers:
   rb: [2, 3]
 
 # ── M3 标量调用约定（非变参 / 非聚合；SPEC-097t 提取）──────────────────────
-# 权威正文见 .tao/knowledge/contract-abi.md §4；决策依据 ADR-0018（C1/C4/C5/C6/C7/C9/C16）。
+# 权威正文见 .tao/contracts/contract-abi.md §4；决策依据 ADR-0018（C1/C4/C5/C6/C7/C9/C16）。
 scalar_calling_convention:
   milestone: M3
   scope: non_variadic_scalar

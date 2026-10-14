@@ -245,15 +245,15 @@
 
 ## 指向的规范章节（汇总）
 
-- **C1/C2**：`spec/DADAO-21 §寄存器规范`、`§传参 §参数寄存器`、`§数据表示`、`§标量参数`；`spec/SimRISC-00 §基址寄存器`；合约 `.tao/knowledge/contract-abi.md §1`/`§4`、`.tao/knowledge/contract-isa.md §7`。
-- **C4**：`spec/DADAO-21 §传参 §栈溢出规则`、`§传参 §标量参数`；合约 `.tao/knowledge/contract-abi.md §4`。
-- **C5**：`spec/DADAO-21 §返回值 §标量类型返回值`、`§返回值 §多返回值`（M4）；合约 `.tao/knowledge/contract-abi.md §4`、`§6 [OPEN] #2`。
-- **C7**：`spec/DADAO-21 §函数调用规范 §The Stack Frame`、`§寄存器规范 §RB寄存器`；合约 `.tao/knowledge/contract-abi.md §2.1`/`§4`、`§6 [OPEN] #5`。
+- **C1/C2**：`spec/DADAO-21 §寄存器规范`、`§传参 §参数寄存器`、`§数据表示`、`§标量参数`；`spec/SimRISC-00 §基址寄存器`；合约 `.tao/contracts/contract-abi.md §1`/`§4`、`.tao/contracts/contract-isa.md §7`。
+- **C4**：`spec/DADAO-21 §传参 §栈溢出规则`、`§传参 §标量参数`；合约 `.tao/contracts/contract-abi.md §4`。
+- **C5**：`spec/DADAO-21 §返回值 §标量类型返回值`、`§返回值 §多返回值`（M4）；合约 `.tao/contracts/contract-abi.md §4`、`§6 [OPEN] #2`。
+- **C7**：`spec/DADAO-21 §函数调用规范 §The Stack Frame`、`§寄存器规范 §RB寄存器`；合约 `.tao/contracts/contract-abi.md §2.1`/`§4`、`§6 [OPEN] #5`。
 - **C9**：`spec/DADAO-21 §数据表示`、`§传参 §栈溢出规则`；实现落点 `llvm/lib/TargetParser/TargetDataLayout.cpp`（`case Triple::dadao`）。
 - **C11**：无对应 spec 章节（纯实现机制）；实现落点 `DADAOTargetMachine`/`DADAOPassConfig`/`DADAOISelDAGToDAG`。
-- **C13**：`.tao/knowledge/contract-isa.md §3`/`§10`–`§12`；`spec/DADAO-21 §数据表示`（大端）；溯源教训 0628 `DL-068a`。
-- **C14**：`.tao/knowledge/contract-isa.md §7`；`spec/SimRISC-05 §比较`、`spec/SimRISC-00 §基址寄存器`；台账 `ISS-129`/`ISS-130`。
-- **C16**：`.tao/knowledge/contract-abi.md §1.5`/`§1.6`/`§4`；`spec/DADAO-21 §寄存器规范`、`§函数调用规范`；溯源教训 0628 `DL-070a`、`ML-004c`。
+- **C13**：`.tao/contracts/contract-isa.md §3`/`§10`–`§12`；`spec/DADAO-21 §数据表示`（大端）；溯源教训 0628 `DL-068a`。
+- **C14**：`.tao/contracts/contract-isa.md §7`；`spec/SimRISC-05 §比较`、`spec/SimRISC-00 §基址寄存器`；台账 `ISS-129`/`ISS-130`。
+- **C16**：`.tao/contracts/contract-abi.md §1.5`/`§1.6`/`§4`；`spec/DADAO-21 §寄存器规范`、`§函数调用规范`；溯源教训 0628 `DL-070a`、`ML-004c`。
 
 ## 修订
 
@@ -278,7 +278,7 @@
 - **⑤ 用户裁定原话摘要（2026-10-09）**：「我想把fp改为rb63，在明确需要的时候，rb63是fp，否则，rb63可以由llvm分配；且rb63自身就是callee saved」；「想把 rb4-rb7 作为 caller saved regs，交给 llvm 使用，现有的 rbgp/rbtp 改为 rb2/rb3；这样的规整性是极好的」；「同样的，rd4-rd7/rf1-rf7 也改为 caller-saved，由 llvm 分配使用」→ 追问后「只放开 rd4-rd7，rd2 和 rd3 可以加说明：调试/测试保留」；「不立 ADR（只改册+契约）」。
 - **变更范围**：`**状态**` 行 rev 日期、`§C7 D6` 正文（追加修订子条）、本 `## 修订` 条目、`## 状态说明` 追加一行。**不变**：`C7` 的 `D1`/`D2`/`D3`/`D4`/`D5` 及其余全部 decision（`D2`/`D3` 的 FP 寄存器号以本条目 ③ 声明为准）。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（一般规则「决策变更时新增 ADR 或标注 `Superseded`」，此处为经授权的例外；用户裁定「**不立 ADR**（只改册+契约）」，但 `D6` 现文在新布局下**事实失真**，不改则与册/契约矛盾，故按 `docs/Process-03` 经授权的就地修订处理）。
-- **依据**：`spec/DADAO-21 §寄存器规范`（同变更内改册 + 同步只读锁 `sha256`）、`.tao/knowledge/contract-abi.md`、`contracts/abi.yaml`；任务 `SPEC-128t`。
+- **依据**：`spec/DADAO-21 §寄存器规范`（同变更内改册 + 同步只读锁 `sha256`）、`.tao/contracts/contract-abi.md`、`contracts/abi.yaml`；任务 `SPEC-128t`。
 - **实现落点**：后端（调用约定 / FP 策略 / CSR）归 **`LLVM-068t`** 同步。
 
 ## 状态说明

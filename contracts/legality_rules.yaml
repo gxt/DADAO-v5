@@ -1,6 +1,6 @@
 # DADAO SimRISC 0.5.4 — 合法性规则目录（M1）
 #
-# 来源：spec/ 规范文档（SimRISC-00~04）经 .tao/knowledge/contract-isa.md 归一化投影，
+# 来源：spec/ 规范文档（SimRISC-00~04）经 .tao/contracts/contract-isa.md 归一化投影，
 #       不从实现反推；M1 范围见 contract-isa.md §6/§7.4/§7.5 与附录 A。
 #
 # 每条规则：

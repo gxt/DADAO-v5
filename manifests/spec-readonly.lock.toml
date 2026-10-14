@@ -145,7 +145,10 @@ group = "toolchain-01"
 # 册头状态行版本号 v1.1 → 0.5.0 + 文末 changelog（册内语义不变）。
 # 2026-10-11（INFRA-063t，用户裁定「产物细则写在该文档里…放在文件头部，简要几列就可以记录很清楚」）：
 # 册头补 2 行「版本号 / changelog 细则」（约定声明，册内语义不变）。
-sha256 = "7ea766ccd94ffdf86984d0fdeb2913b6d59277f027571c0446aacc6e06380ae1"
+# 2026-10-14（INFRA-071t，用户裁定 ①a「授权改 + 重算 sha256」）：册内 6 处合约路径引用
+# 同步为 `.tao/contracts/contract-*`（**引用同步，非语义改动**）；
+# sha256 于同一变更内重算回填。
+sha256 = "cd90beeddceadf8cbc370532f3f73adada7b5d8218af4e63e872914c0f215717"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"

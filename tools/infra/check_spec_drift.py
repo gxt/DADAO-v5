@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """fail-closed 规格漂移检查.
 
-校验 .tao/knowledge/contract-*.md 的来源与 README.md 版本表一致。
+校验 .tao/contracts/contract-*.md 的来源与 README.md 版本表一致。
 每个合约必须被分类为以下之一，否则 ERROR：
   - spec-sourced: 含 `> **版本：X.Y.Z**` → 版本须与 README 版本表对应项一致；引用的 spec/ 文件须存在
   - ADR-sourced:  来源标注引用 `adr-XXXX-*.md` → ADR 文件须存在且状态为 Accepted
@@ -244,7 +244,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--contract-dir", type=Path, default=None,
-        help="合约目录（默认: .tao/knowledge）",
+        help="合约目录（默认: .tao/contracts）",
     )
 
     args = parser.parse_args()
@@ -258,7 +258,7 @@ def main() -> int:
     knowledge_dir = args.knowledge_dir or repo_root / ".tao" / "knowledge"
     spec_dir = args.spec_dir or repo_root / "spec"
     adr_dir = args.adr_dir or repo_root / ".tao" / "adr"
-    contract_dir = args.contract_dir or knowledge_dir
+    contract_dir = args.contract_dir or repo_root / ".tao" / "contracts"
 
     readme_path = repo_root / "README.md"
     if not readme_path.exists():

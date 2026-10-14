@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..00a8aa2
+index 0000000..32681f1
 --- /dev/null
 +++ b/target/dadao/cpu.h
 @@ -0,0 +1,226 @@
@@ -95,7 +95,7 @@ index 0000000..00a8aa2
 + * SEE/HEE run mode + cfx register file (QEMU-044t)
 + * Spec sources: spec/DADAO-12 §1/§3/§4 ("共有/专有寄存器"), §5 (异常进入/退出
 + * 流程), spec/DADAO-13 §1 (cg3/hypv), spec/SimRISC-11 §特权指令.  See also
-+ * .tao/knowledge/contract-see.md §1/§3/§4 and spec/Machine-01-测试机运行环境.md.
++ * .tao/contracts/contract-see.md §1/§3/§4 and spec/Machine-01-测试机运行环境.md.
 + * =================================================================== */
 +
 +/* Run modes: 0b00 user / 0b01 jail / 0b10 supv / 0b11 hypv (DADAO-12 §1). */

@@ -57,7 +57,7 @@
 ## Consequences（影响）
 
 - **任务分解（P0–P4 路线指针）**：
-  - **P0 契约**：`SPEC-138t`（Linux syscall 映射契约 → `.tao/knowledge/contract-syscall.md`）、`SPEC-139t`（动态链接 ABI 契约）。
+  - **P0 契约**：`SPEC-138t`（Linux syscall 映射契约 → `.tao/contracts/contract-syscall.md`）、`SPEC-139t`（动态链接 ABI 契约）。
   - **P1 musl 静态**：musl 静态最小集移植（crt/loader 骨架 + syscall stub ⇒ 静态可运行）。
   - **P2 动态链接**：`.so` / `ld.so` / `GOT`/`PLT` / `-fPIC`/`-shared` + `PT_INTERP`/`.dynamic`。
   - **P3 qemu-linux-user**：QEMU user-mode（`linux-user`）宿主 syscall 转发。

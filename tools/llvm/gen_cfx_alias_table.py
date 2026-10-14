@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Emit the DADAO LLVM ``DADAOCfxAlias.inc`` cfx alias lookup tables.
 
-See ``.tao/knowledge/contract-cfx-aliases.md`` (generated) for the alias
+See ``.tao/contracts/contract-cfx-aliases.md`` (generated) for the alias
 contract and ``ADR-0017`` D3/D4/D8 (Toolchain-01 §13) for the decisions.
 
 The tables are derived from the *same* spec sources as
 ``tools/spec/gen_cfx_aliases.py`` -- the committed projector whose output
-``.tao/knowledge/contract-cfx-aliases.md`` is drift-gated by
+``.tao/contracts/contract-cfx-aliases.md`` is drift-gated by
 ``tools/spec/check_cfx_aliases.py``.  This script reuses that projector's
 functions verbatim, so the C++ table cannot drift from the v5 alias contract.
 
@@ -113,7 +113,7 @@ def render() -> tuple[str, int, int, int]:
     L.append("// cfx assembly alias tables (ADR-0017 D3/D4/D8; Toolchain-01 \u00a713).")
     L.append("// MECHANICALLY GENERATED from spec/DADAO-12/13 register tables through the")
     L.append("// committed projector tools/spec/gen_cfx_aliases.py (the same source that")
-    L.append("// produces the drift-gated .tao/knowledge/contract-cfx-aliases.md).")
+    L.append("// produces the drift-gated .tao/contracts/contract-cfx-aliases.md).")
     L.append("// Generator: tools/llvm/gen_cfx_alias_table.py")
     L.append("//")
     L.append("//   cfx_<cfxname>           <=> cfx<code>            (13 scalar aliases)")

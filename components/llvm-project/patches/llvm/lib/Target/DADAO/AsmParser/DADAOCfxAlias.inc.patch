@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOCfxAlias.inc b/llvm/lib/Target/DADAO/AsmParser/DADAOCfxAlias.inc
 new file mode 100644
-index 000000000..392d53913
+index 000000000..2be5f5713
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOCfxAlias.inc
 @@ -0,0 +1,154 @@
@@ -15,7 +15,7 @@ index 000000000..392d53913
 +// cfx assembly alias tables (ADR-0017 D3/D4/D8; Toolchain-01 §13).
 +// MECHANICALLY GENERATED from spec/DADAO-12/13 register tables through the
 +// committed projector tools/spec/gen_cfx_aliases.py (the same source that
-+// produces the drift-gated .tao/knowledge/contract-cfx-aliases.md).
++// produces the drift-gated .tao/contracts/contract-cfx-aliases.md).
 +// Generator: tools/llvm/gen_cfx_alias_table.py
 +//
 +//   cfx_<cfxname>           <=> cfx<code>            (13 scalar aliases)

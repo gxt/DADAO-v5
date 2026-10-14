@@ -23,7 +23,7 @@
 退出 0 = 通过；退出 1 = 失败。输出「检查名 + 期望/实际 + 退出码」。
 
 Spec-first：判据来自 contracts/opcodes.yaml、contracts/legality_rules.yaml、
-.tao/knowledge/contract-fp.md 与 SPEC-087t（不从 LLVM/QEMU 反推）。
+.tao/contracts/contract-fp.md 与 SPEC-087t（不从 LLVM/QEMU 反推）。
 
 Usage: python3 tools/spec/check_fp_contract.py [--repo-root .]
 """
@@ -105,7 +105,7 @@ def main() -> int:
     opcodes_path = repo / "contracts" / "opcodes.yaml"
     rules_path = repo / "contracts" / "legality_rules.yaml"
     sem_path = repo / "contracts" / "fp_semantics.yaml"
-    contract_path = repo / ".tao" / "knowledge" / "contract-fp.md"
+    contract_path = repo / ".tao" / "contracts" / "contract-fp.md"
 
     for path in (opcodes_path, rules_path, sem_path, contract_path):
         if not path.is_file():

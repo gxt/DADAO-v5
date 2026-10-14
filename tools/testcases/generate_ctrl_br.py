@@ -8,7 +8,7 @@ br.p-rd, br.np-rd, br.eq-rd, br.ne-rd, br.z-rb, br.nz-rb) with:
   - 1 semantic not-taken case per identity (expected_pc = rb0 + 4)
 
 Spec-first: all encoding words, expected values, and spec_cite derived from
-contracts/opcodes.yaml, .tao/knowledge/contract-isa.md §5, and
+contracts/opcodes.yaml, .tao/contracts/contract-isa.md §5, and
 .knowledge/adr-0004-test-machine.md (D6.5: rb0 = current instruction address).
 
 PC convention: instruction address = 0xFC00_0000_0000 (RAM entry, ADR-0004 D2.2).

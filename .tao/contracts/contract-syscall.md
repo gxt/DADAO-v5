@@ -2,7 +2,7 @@
 
 > **版本：0.9.2** [DADAO-21 §4. 系统调用规范]
 >
-> **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）§4 系统调用规范、§1 寄存器规范、§3.2 传参、§3.4 返回值；`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）§1 调用约定、§2 用户态异常处理（umon / jmon）；决策 `.tao/adr/adr-0025-m8-scope-linux-compat.md`（`ADR-0025`，Accepted，`D1`/`D2`/`D6`/`D7`）；端序与 ELF machine id 引用 `.tao/knowledge/contract-abi.md`（§1.7）、`.tao/knowledge/contract-elf.md`。号表口径之**上游参照** = Linux 内核 `7.2.10`（**内容溯源，非执行依赖**，锁定见 §1.2）。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）][ADR-0025]
+> **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）§4 系统调用规范、§1 寄存器规范、§3.2 传参、§3.4 返回值；`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）§1 调用约定、§2 用户态异常处理（umon / jmon）；决策 `.tao/adr/adr-0025-m8-scope-linux-compat.md`（`ADR-0025`，Accepted，`D1`/`D2`/`D6`/`D7`）；端序与 ELF machine id 引用 `.tao/contracts/contract-abi.md`（§1.7）、`.tao/contracts/contract-elf.md`。号表口径之**上游参照** = Linux 内核 `7.2.10`（**内容溯源，非执行依赖**，锁定见 §1.2）。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）][ADR-0025]
 >
 > **版本基准**：版本头取 **ABI 册（0.9.2）** 为投影基准（syscall 的**寄存器约定本体**在 `DADAO-21 §4`）；SBI 册（0.7.1）为**入口 / 分发**参照。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）]
 >

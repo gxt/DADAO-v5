@@ -14,7 +14,7 @@
 
 来源：
   - spec/SimRISC-00-指令系统设计.md  （QFC 主表 + 6 个 MISC 子表：编码权威）
-  - .tao/knowledge/contract-isa.md   （M1 范围与字段/legality 语义）
+  - .tao/contracts/contract-isa.md   （M1 范围与字段/legality 语义）
 """
 
 import os
@@ -806,7 +806,7 @@ def main():
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         f.write("# SimRISC 0.5.4 指令编码表（按 scope 划分范围）\n")
-        f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/knowledge/contract-isa.md\n")
+        f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
         f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
         f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
         f.write("# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，\n")

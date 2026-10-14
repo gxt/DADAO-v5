@@ -8,10 +8,10 @@ project "Independent oracle" hard rule.  It **never** invokes ``llvm-mc``,
 script greps this file for any such import and requires no hit).  Expected
 values are re-derived on the host from
 
-  * ``.tao/knowledge/contract-semihosting.md`` §3 (the authoritative service
+  * ``.tao/contracts/contract-semihosting.md`` §3 (the authoritative service
     table: number -> name -> behaviour) and §1/§4/§5 (entry tag / return /
     SYS_EXIT), and
-  * ``.tao/knowledge/contract-see.md`` §3 (cfx permission rules: reserved cfxha
+  * ``.tao/contracts/contract-see.md`` §3 (cfx permission rules: reserved cfxha
     and instruction-mask forbids => ILLI; unimplemented cfx / non-existent or
     over-count register combination => CFXREG),
 
@@ -52,7 +52,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 VEC_DIR = ROOT / "tests" / "llvm" / "codegen" / "m5"
 EXPECTED_PATH = VEC_DIR / "expected.yaml"
-CONTRACT_SEMIHOSTING = ROOT / ".tao" / "knowledge" / "contract-semihosting.md"
+CONTRACT_SEMIHOSTING = ROOT / ".tao" / "contracts" / "contract-semihosting.md"
 
 SCHEMA = "m5-vectors-v1"
 CATEGORIES = {"semihosting", "permission", "trap"}

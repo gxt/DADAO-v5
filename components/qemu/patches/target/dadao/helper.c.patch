@@ -1,6 +1,6 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..d214ac5
+index 0000000..41e7f64
 --- /dev/null
 +++ b/target/dadao/helper.c
 @@ -0,0 +1,992 @@
@@ -359,7 +359,7 @@ index 0000000..d214ac5
 + *
 + * Sources:
 + *   spec/SimRISC-07 §格式转换指令
-+ *   .tao/knowledge/contract-fp.md §1/§2/§3/§4
++ *   .tao/contracts/contract-fp.md §1/§2/§3/§4
 + *   spec/SimRISC-00 §浮点状态寄存器
 + */
 +
@@ -533,7 +533,7 @@ index 0000000..d214ac5
 + *
 + * Sources:
 + *   spec/SimRISC-07 §S2D1 / §S1D1
-+ *   .tao/knowledge/contract-fp.md §5/§6
++ *   .tao/contracts/contract-fp.md §5/§6
 + *   spec/SimRISC-00 §浮点状态寄存器
 + *
 + * kind (helper_fp_arith): 0..5  = ft add/sub/mul/div/rem/scalb
@@ -627,7 +627,7 @@ index 0000000..d214ac5
 + *   spec/DADAO-13-HEE-超管系统运行环境.md §1 (cg3 / hypv reset values).
 + *   spec/SimRISC-11-其它.md §特权指令 (trap/escape/cfx2rd/cfx2rc; reserved =>
 + *     ILLI; non-existent register combination => CFXREG).
-+ *   .tao/knowledge/contract-see.md §1/§3/§4; spec/Machine-01-测试机运行环境.md.
++ *   .tao/contracts/contract-see.md §1/§3/§4; spec/Machine-01-测试机运行环境.md.
 + *
 + * Test-machine scope (ADR-0020 D9, Machine-01 §3): only cfx0/1/2/3/63 are
 + * implemented; access to any other allocated-but-unimplemented cfx => CFXREG.

@@ -24,7 +24,7 @@ QEMU implementation):
     reset vector, hypv -> user) and .tao/adr/adr-0004-test-machine.md R1 (the
     `-bios` bootrom path), R3 (RAM base -> 0; C1 dual mapping), D1/D2.1
     (memory map, reset values), D2.3 (raw-bin dual-image path B).
-  - .tao/knowledge/contract-see.md §1/§2/§3/§4 and contract-semihosting.md §5.
+  - .tao/contracts/contract-see.md §1/§2/§3/§4 and contract-semihosting.md §5.
 
 Observation channel: `-d cpu` dumps the CPU state (incl. MODE/CFXCODE and the
 cfx register file) at each translated-block boundary; the last block (and every

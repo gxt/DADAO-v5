@@ -27,9 +27,9 @@ multi-TU ELF is used (ELF loading moved to M6, `ISS-168`).
 ## Independent oracle
 
 `tools/testcases/validate_m5_vectors.py` re-derives every expectation from
-`.tao/knowledge/contract-semihosting.md §3` (service table), the vector's own
+`.tao/contracts/contract-semihosting.md §3` (service table), the vector's own
 machine-readable `; @m5` header (service number, console data bytes, fault rule,
-tokens) and `.tao/knowledge/contract-see.md §3` (cfx permission rules).  It
+tokens) and `.tao/contracts/contract-see.md §3` (cfx permission rules).  It
 never invokes `llvm-mc`, `llvm-objcopy` or QEMU.  A green validator is necessary
 but not sufficient — the end-to-end run is owned by `run_m5_e2e.py`.
 

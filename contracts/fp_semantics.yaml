@@ -11,7 +11,7 @@
 # 说明：
 #   * 本文件**不含编码**（编码唯一真源 = contracts/opcodes.yaml）。
 #   * 本文件**不含任何期望值**（oracle 方案见 docs/fp-oracle-design.md，本任务不实现）。
-#   * 叙述合约 = .tao/knowledge/contract-fp.md；semantics_ref 指向其族锚点。
+#   * 叙述合约 = .tao/contracts/contract-fp.md；semantics_ref 指向其族锚点。
 #   * 合法性规则 = contracts/legality_rules.yaml；legality_refs 引用其 id。
 #   * 每次指令记录必须含其族声明的 required_keys（由 tools/spec/check_fp_contract.py 门控）。
 

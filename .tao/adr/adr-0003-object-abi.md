@@ -2,7 +2,7 @@
 
 **状态**：Accepted（rev. 2026-09-13: `e_flags` 版本字段；rev. 2026-10-06: M4 ELF 路径 `dadao.lds` 去 `FILEHDR PHDRS` + `p_align` 目标默认 64 KiB，见 `## 修订`）
 **日期**：2026-09-13
-**关联**：ADR-0001（greenfield 重建）、ADR-0002（构建编排）、ADR-0004（test machine，`SPEC-006t`）、`SPEC-005t`（本 ADR 任务）、`SPEC-007t`（ELF 合约，下游规范化）、`.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）、`.tao/knowledge/contract-abi.md`（0.9.2）
+**关联**：ADR-0001（greenfield 重建）、ADR-0002（构建编排）、ADR-0004（test machine，`SPEC-006t`）、`SPEC-005t`（本 ADR 任务）、`SPEC-007t`（ELF 合约，下游规范化）、`.tao/contracts/contract-isa.md`（SimRISC 0.5.4）、`.tao/contracts/contract-abi.md`（0.9.2）
 
 ## Context（背景）
 
@@ -17,7 +17,7 @@ M1 范围为单翻译单元（single TU）、freestanding、自包含：无跨 o
 
 **`Deferred to M2`**：重定位类型表（D2）、重定位溢出策略（D3）、重定位松弛策略（D4）。M1 的 `.s` 标签在同一段内由汇编器就地解析，**不产生重定位**；M1 无 link 步骤，故 M1 不冻结任何重定位编号/公式/溢出/松弛策略，完整 relocation 由 M2 决策（另见 `LLVM-012t`）。
 
-依赖 oracle：`.tao/knowledge/contract-isa.md`（0.5.4，指令格式/字段宽度/对齐/地址模型）与 `.tao/knowledge/contract-abi.md`（0.9.2，端序/指针宽度）。遗留 DADAO toolchain（`Dadao.def`/`ELF.h`）仅作**只读对照**，本 ADR **不采用**其重定位编号或公式；`EM_DADAO` 的取值沿用 legacy 命名以便生态识别，但其注册状态由本 ADR 明确为 project-custom（见 D1）。
+依赖 oracle：`.tao/contracts/contract-isa.md`（0.5.4，指令格式/字段宽度/对齐/地址模型）与 `.tao/contracts/contract-abi.md`（0.9.2，端序/指针宽度）。遗留 DADAO toolchain（`Dadao.def`/`ELF.h`）仅作**只读对照**，本 ADR **不采用**其重定位编号或公式；`EM_DADAO` 的取值沿用 legacy 命名以便生态识别，但其注册状态由本 ADR 明确为 project-custom（见 D1）。
 
 ## Decision（决策）
 
@@ -164,5 +164,5 @@ M1 采用 **raw / section extraction** 路径，**不引入 target linker（LLD�
 - **scope 限定**：本决策仅约束 **M4 路径级脚本 `dadao.lds`** 与 **可覆写的目标默认值**（`p_align`），**不约束完整 linker 实现**；`p_offset` 不做正反两向要求。
 - **不变项**：§D5 段最小对齐 / VA=PA / M1 raw-bin pipeline；`ADR-0004` 全部 decision；`ADR-0019` 的「本期禁用 relaxation / 4 类 reloc」。
 - **用户逐条确认（2026-10-06）**：主会话提案（B1 去掉 `FILEHDR PHDRS`；页大小并入本波 `defaultMaxPageSize = 0x10000`；落点 `ADR-0003 §D5` 且不影响后续完整 linker）经用户逐条确认；用户原话（问答摘要）见 `.tao/tasks/spec/SPEC-112t-去FILEHDR-PHDRS与64KiB页大小决策.md` §用户裁定。
-- **变更范围**：`**状态**` 行 rev 日期、§D5 新增「M4 ELF 路径补充」小节、本 `## 修订` 条目；配套同步 `.tao/knowledge/contract-elf.md §5/§6.1.2` 与附录 A、`.tao/knowledge/milestones.md`。**不变**：D1、D2/D3/D4 登记、§D5 段最小对齐/VA=PA/M1 raw-bin pipeline。
+- **变更范围**：`**状态**` 行 rev 日期、§D5 新增「M4 ELF 路径补充」小节、本 `## 修订` 条目；配套同步 `.tao/contracts/contract-elf.md §5/§6.1.2` 与附录 A、`.tao/knowledge/milestones.md`。**不变**：D1、D2/D3/D4 登记、§D5 段最小对齐/VA=PA/M1 raw-bin pipeline。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03`/`adr-authoring` 的一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-06`）。

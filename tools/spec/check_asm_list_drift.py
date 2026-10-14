@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drift gate: verify ``.tao/knowledge/contract-asm-list.md`` is up-to-date.
+"""Drift gate: verify ``.tao/contracts/contract-asm-list.md`` is up-to-date.
 
 Regenerates the assembly-instruction list with
 ``tools/llvm/gen_asm_list.py`` into a **temporary file** (never overwriting the
@@ -23,7 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = ROOT / "tools/llvm/gen_asm_list.py"
 OPCODES = ROOT / "contracts/opcodes.yaml"
-CHECKED_IN = ROOT / ".tao/knowledge/contract-asm-list.md"
+CHECKED_IN = ROOT / ".tao/contracts/contract-asm-list.md"
 
 
 def main() -> int:

@@ -15,7 +15,7 @@
 | 任务文件 | `.tao/tasks/<module>/` |
 | 技术规范（上游 + v5 自定；索引 / 投影表） | `spec/` + `spec/README.md` |
 | 工程流程规范 + 仓库级索引 | `docs/Process-0x` + `docs/README.md` |
-| 合约（归一化叙述 / 机器可读数据） | `.tao/knowledge/contract-*.md` / `contracts/` |
+| 合约（归一化叙述 / 机器可读数据） | `.tao/contracts/contract-*.md` / `contracts/` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | issue / 教训 | `.tao/knowledge/issues.yaml` / `.tao/knowledge/lessons.md` |
 | 历史归档 | `.tao/archive/M*/`（M1–M7；含 `README.md` + `m<i>-retrospective.md` + `issues-closed.md`） |

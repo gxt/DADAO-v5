@@ -6,7 +6,7 @@ Spec sources (expectations are derived by hand from these, never from QEMU):
   - spec/SimRISC-01 §存取RF寄存器
   - spec/SimRISC-02 §寄存器组之间块赋值 / §浮点条件赋值
   - spec/SimRISC-03 §立即数常数赋值：Immediate constant
-  - .tao/knowledge/contract-fp.md §1 / §10 / §11 / §12 / §13
+  - .tao/contracts/contract-fp.md §1 / §10 / §11 / §12 / §13
 Encodings: contracts/opcodes.yaml.
 Exit codes: ADR-0004 D5.8 (PASS=0x00, ILLI=0x88, MALIGN=0x8C).
 

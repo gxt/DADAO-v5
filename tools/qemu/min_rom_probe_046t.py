@@ -8,8 +8,8 @@ never from the QEMU implementation):
     immu18[17:16]==2'b11, calling convention rd16/rb16/rd8, the authoritative
     25-service table, pc+=4 return, SYS_EXIT replaces the legacy MMIO halt device).
   - .tao/adr/adr-0020-see-semihosting.md D1/D2/D3/D4/D5/D6/D8/D10/D14.
-  - .tao/knowledge/contract-semihosting.md §1-§6.
-  - .tao/knowledge/contract-abi.md §2.1 (SP = rb1 / rbsp), §4.1/§4.4.
+  - .tao/contracts/contract-semihosting.md §1-§6.
+  - .tao/contracts/contract-abi.md §2.1 (SP = rb1 / rbsp), §4.1/§4.4.
   - Arm Semihosting (AArch32/AArch64, Release 2.0): service number values and
     the argument-block field layouts used by the shared responder.
 

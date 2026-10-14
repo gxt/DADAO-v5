@@ -1,6 +1,6 @@
 diff --git a/clang/lib/Basic/Targets/DADAO.h b/clang/lib/Basic/Targets/DADAO.h
 new file mode 100644
-index 000000000..ffdb1b90f
+index 000000000..de0464801
 --- /dev/null
 +++ b/clang/lib/Basic/Targets/DADAO.h
 @@ -0,0 +1,96 @@
@@ -16,7 +16,7 @@ index 000000000..ffdb1b90f
 +//
 +// DADAO is a 64-bit big-endian, freestanding (ELF, no libc/OS) target.  The
 +// scalar type model follows spec/DADAO-21 §数据表示 §Fundamental Types and the
-+// contract in .tao/knowledge/contract-abi.md §1.7/§4.9.  The DataLayout is
++// contract in .tao/contracts/contract-abi.md §1.7/§4.9.  The DataLayout is
 +// deliberately *derived from the triple* (never a literal here) so that clang
 +// and the DADAO backend (DADAOTargetMachine -> Triple::computeDataLayout) can
 +// never drift (ADR-0018 §C9 D1).

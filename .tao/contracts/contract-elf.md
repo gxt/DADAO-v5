@@ -4,7 +4,7 @@
 >
 > **来源**：`.tao/adr/adr-0003-object-abi.md`（ADR-0003，`SPEC-005t` 产出，Status: Accepted，rev. 2026-09-13 `e_flags`、rev. 2026-09-14 D2 登记补充、rev. 2026-10-06 M4 ELF 路径补充〔去 `FILEHDR PHDRS` / `p_align` 目标默认 64 KiB，`SPEC-112t`〕）。本合约的 M1 决策（D1 头字段 + D5 段对齐/VA=PA/artifact pipeline）是 ADR-0003 的归一化投影；**§2–§4（重定位）另有来源 `.tao/adr/adr-0019-dadao-relocation-types.md`（ADR-0019，Status: Accepted，用户 2026-10-05 逐条确认 D1–D8；2026-10-12 就地追加 `D9`，见 `§3.3`）与 `.tao/adr/adr-0021-ldst-symbol-reloc.md`（ADR-0021，Status: Accepted，2026-10-08 用户逐条确认 D1–D3；扩展 `ld/st` 符号偏移体系 `R_DADAO_REL12` + `R_DADAO_ABS12`，rev. 2026-10-09）**；**§5/§6 的加载/启动（ELF + raw-bin 双路径）并来源 `.tao/adr/adr-0004-test-machine.md`（ADR-0004，Status: Accepted，rev. 2026-10-06，用户逐条确认，`SPEC-107t`）§D2.2/§D2.3**。
 >
-> **引用**：指令格式/字段宽度/对齐/地址模型引用 `.tao/knowledge/contract-isa.md`（SimRISC 0.5.4）；端序/指针宽度引用 `.tao/knowledge/contract-abi.md`（0.9.2）。本合约不重复定义这些内容。
+> **引用**：指令格式/字段宽度/对齐/地址模型引用 `.tao/contracts/contract-isa.md`（SimRISC 0.5.4）；端序/指针宽度引用 `.tao/contracts/contract-abi.md`（0.9.2）。本合约不重复定义这些内容。
 >
 > **M1 范围**：§1 ELF 文件头字段、§5 段对齐与 VA=PA、§6 端到端 artifact pipeline（raw-bin 路径）。
 >

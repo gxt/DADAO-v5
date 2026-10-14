@@ -1,6 +1,6 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..82b0d51
+index 0000000..3091b47
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
 @@ -0,0 +1,1006 @@
@@ -122,7 +122,7 @@ index 0000000..82b0d51
 + * QEMU-035t implements the bit-level FP semantics with pure integer/bit
 + * operations; no softfloat is involved.  Semantics come from
 + * spec/SimRISC-07 §浮点符号位操作指令 / §浮点比较指令 / §浮点分类指令 and
-+ * .tao/knowledge/contract-fp.md §7/§8/§9.
++ * .tao/contracts/contract-fp.md §7/§8/§9.
 + *
 + * ft is a 32-bit format held in the low half of the 64-bit rf register.
 + * Per the QEMU-034t/035t agreed convention, sign injection operates on the

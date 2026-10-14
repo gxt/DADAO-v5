@@ -3,7 +3,7 @@
 
 Contract sources (spec-first; encodings NOT taken from QEMU):
   - contracts/opcodes.yaml            (instruction op/ha/masks)
-  - .tao/knowledge/contract-elf.md §1/§5/§6
+  - .tao/contracts/contract-elf.md §1/§5/§6
   - .tao/adr/adr-0004-test-machine.md (D1 memory map, D2.2/D2.3 load paths)
 
 What it checks (each printed as "[PASS]/[FAIL] name: expected -> actual"):

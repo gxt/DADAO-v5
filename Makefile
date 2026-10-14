@@ -50,7 +50,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants \
-        check-isa-coverage check-spec-numbering check-spec-changelog
+        check-isa-coverage check-spec-numbering check-spec-changelog check-contracts-dir
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -92,6 +92,7 @@ help:
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
 	@echo "  make check-qemu-smoke  QEMU semantic smoke (representative subset; L2)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
+	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
@@ -442,7 +443,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-spec-numbering check-spec-changelog check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -507,19 +508,25 @@ check-spec-refs:
 	@$(PYTHON) tools/infra/check_spec_refs.py
 
 # 被引用 `.work/**` 材料悬空门控 (INFRA-058t / INTEG-037t): 扫 AGENTS.md/spec/
-# .tao/knowledge/.tao/tasks 中对 `.work/**` 的引用；悬空即红。L1 成员。
+# .tao/knowledge/.tao/contracts/.tao/tasks 中对 `.work/**` 的引用；悬空即红。L1 成员。
 # 口径 (见 AGENTS.md「文档分层与单一真源」): 占位/通配/前缀截断跳过；
 # `.work/build`/`.work/source` 豁免；删除语境引用不校验；其余具体路径要求存在。
 check-knowledge-refs:
 	@$(PYTHON) tools/infra/check_knowledge_refs.py
 
 # `.tao/knowledge/` 顶层白名单门控 (INFRA-070t, L1 成员): 顶层只允许既定模式
-# （台账集合 / contract-*.md〔迁入 contracts/ 后作废〕/ 子目录）；白名单外文件即 FAIL。
+# （台账集合 / 子目录）；`contract-*.md` 已随 INFRA-071t 迁出 ⇒ 顶层再出现即白名单外 FAIL。
 # 计数现场统计、不写死。规则见 AGENTS.md「文档分层与单一真源」+ docs/Process-07。
 check-knowledge-dir:
 	@$(PYTHON) tools/infra/check_knowledge_dir.py
 
-# cfx alias drift gate (SPEC-075t): verify .tao/knowledge/contract-cfx-aliases.md is up-to-date.
+# 契约目录顶层白名单门控 (INFRA-071t, L1 成员; 守两处): `.tao/contracts/` 顶层只允许
+# `contract-*.md` / `README.md` / 子目录; `contracts/` 顶层只允许 `*.yaml` / `README.md` /
+# 子目录（`contract-*.md` 随 Phase B 迁出作废）。白名单外文件 / 目录缺失 / vacuous 即 FAIL。
+check-contracts-dir:
+	@$(PYTHON) tools/infra/check_contracts_dir.py
+
+# cfx alias drift gate (SPEC-075t): verify .tao/contracts/contract-cfx-aliases.md is up-to-date.
 check-cfx-aliases:
 	@$(PYTHON) tools/spec/check_cfx_aliases.py
 
@@ -546,7 +553,7 @@ check-spec-readonly:
 check-asm-list:
 	@$(PYTHON) tools/spec/check_asm_list_consistency.py
 
-# Assembly-list drift gate (INFRA-027t): verify .tao/knowledge/contract-asm-list.md
+# Assembly-list drift gate (INFRA-027t): verify .tao/contracts/contract-asm-list.md
 # is up-to-date (regenerates to a temp file, byte-diff; never overwrites).
 check-asm-list-drift:
 	@$(PYTHON) tools/spec/check_asm_list_drift.py

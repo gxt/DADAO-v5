@@ -6,7 +6,7 @@ Reads contracts/opcodes.yaml and produces:
   reg-compare.yaml, reg-cond-assign.yaml, reg-imm-block.yaml
 
 All encoding words, expected values, and spec_cite are derived from
-contracts/opcodes.yaml, .tao/knowledge/contract-isa.md, and
+contracts/opcodes.yaml, .tao/contracts/contract-isa.md, and
 .tao/adr/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
 """
 

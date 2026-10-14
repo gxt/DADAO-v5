@@ -3,8 +3,8 @@
 > 任务：`TESTCASES-033t`（SEE/HEE + semihosting 向量：L1 MC 编码/往返 + L3 执行；独立 oracle）。
 > 规范：`docs/Process-05-里程碑TDD规范.md §2`（L1/L2/L3）、`§3`（一能力一向量）、
 > `§4`（期望值**独立派生**）、`§5`（反例门控）、`§6`（落点）。
-> 契约：`contracts/opcodes.yaml`（L1 期望编码）、`.tao/knowledge/contract-see.md`（cfx 权限）、
-> `.tao/knowledge/contract-semihosting.md`（服务表/调用约定/停机）、
+> 契约：`contracts/opcodes.yaml`（L1 期望编码）、`.tao/contracts/contract-see.md`（cfx 权限）、
+> `.tao/contracts/contract-semihosting.md`（服务表/调用约定/停机）、
 > `spec/Machine-01-测试机运行环境.md`。决策：`.tao/adr/adr-0020-see-semihosting.md`、
 > `adr-0004`（`R1`/`R3`）。
 
@@ -15,7 +15,7 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 
 | 向量文件 | 能力 | 期望值来源（独立派生） |
 |---|---|---|
-| `cfx2-trap-escape.s` | `trap` / `escape`（ciii）+ `cfx2rd` / `cfx2rc`（crrr）的编码与**往返**；`cfx_<name>`/`cfxHA` 等价；`cfx_<cfxname>_<regname>` 简写展开；数组寄存器单下标 | `contracts/opcodes.yaml`（`value`/`mask`/`fields`，行内 `; @enc` + `; OBJ:` 双写）+ `.tao/knowledge/contract-cfx-aliases.md`（别名） |
+| `cfx2-trap-escape.s` | `trap` / `escape`（ciii）+ `cfx2rd` / `cfx2rc`（crrr）的编码与**往返**；`cfx_<name>`/`cfxHA` 等价；`cfx_<cfxname>_<regname>` 简写展开；数组寄存器单下标 | `contracts/opcodes.yaml`（`value`/`mask`/`fields`，行内 `; @enc` + `; OBJ:` 双写）+ `.tao/contracts/contract-cfx-aliases.md`（别名） |
 | `cfx2-trap-escape-err.s` | 反例：`escape` 偏移 `%4!=0`/越界/非常量、非 `excp_cause_ip` 基址、`trap` 立即数越界、`cfx2rd` 裸数字/无下标/越界下标 → **硬报错（非零退出）** | `spec/Toolchain-01 §3.2` + `contracts/opcodes.yaml` |
 
 - 独立 oracle：`tests/llvm/lit/MC/DADAO/validate_cfx_vectors.py`（从 `opcodes.yaml` + 别名表
@@ -76,7 +76,7 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 
 ### 2.2 独立 oracle 与驱动
 
-- 独立 oracle：`tools/testcases/validate_m5_vectors.py` —— 从 `.tao/knowledge/contract-semihosting.md §3`
+- 独立 oracle：`tools/testcases/validate_m5_vectors.py` —— 从 `.tao/contracts/contract-semihosting.md §3`
   （服务表）与 `contract-see.md §3`（cfx 权限规则）**独立派生**每个向量的期望（服务号/名称、
   控制台字节、cause id、pass/fail token），并与 `expected.yaml`、向量 `; @m5` 头部、向量源文本
   **三方交叉核对**；**不调用** `llvm-mc`/`llvm-objcopy`/QEMU（无子进程导入）。

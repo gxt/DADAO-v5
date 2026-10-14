@@ -2,7 +2,7 @@
 
 > **版本：0.9.2** [DADAO-21 §版本][DADAO-11 §版本]
 >
-> **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/DADAO-11-AEE-应用程序运行环境.md`（0.9.2）；指令语义与寄存器模型基础引用 `.tao/knowledge/contract-isa.md`（0.5.4）；M3 调用约定的取舍项固化于 `.tao/adr/adr-0018-m3-codegen-choices.md`（`ADR-0018`，Accepted）。
+> **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/DADAO-11-AEE-应用程序运行环境.md`（0.9.2）；指令语义与寄存器模型基础引用 `.tao/contracts/contract-isa.md`（0.5.4）；M3 调用约定的取舍项固化于 `.tao/adr/adr-0018-m3-codegen-choices.md`（`ADR-0018`，Accepted）。
 >
 > **范围**：M1 最小 ABI 事实（寄存器角色、`SP=rb1`、栈向下增长 / `call` 时 SP 8B 对齐、`call`/`ret` 与 RegRAS；§1–§3）+ **M3 标量调用约定**（非变参、非聚合：参数寄存器、标量提升、栈溢出区、返回值、callee-saved / CSR、栈帧布局、prologue/epilogue、`call` 的 `Defs`/RegMask；§4）+ **M6 口径**（多返回值/聚合返回 §6.1、聚合传参/HFA/HPA §6.4）。供 test machine（`SPEC-006t`）、M1/M3 集成、M3 BasicCodeGen（`LLVM-039t`）、聚合传参实现（`LLVM-062t`/`LLVM-066t`）使用。
 >

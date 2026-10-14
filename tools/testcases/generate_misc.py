@@ -5,7 +5,7 @@ Covers the M1 identity in tests/vectors/isa/misc.yaml:
   - swym_oiii_imm (oiii): encoding + semantic (nop-like, no architectural state change)
 
 Spec-first: all encoding words, expected values, and spec_cite derived from
-contracts/opcodes.yaml, .tao/knowledge/contract-isa.md §13,
+contracts/opcodes.yaml, .tao/contracts/contract-isa.md §13,
 contracts/legality_rules.yaml (encode_sbz rule), and
 .tao/adr/adr-0004-test-machine.md.
 

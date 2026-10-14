@@ -2,16 +2,16 @@
 
 **状态**：Accepted
 **日期**：2026-10-14
-**关联**：`ADR-0025`（M8 范围与 Linux 兼容路线；`D2` 无内核 / `D3` musl ldso / `D6` 顺序 / `D7` golden 对照）、`ADR-0019`（DADAO 重定位类型；本轮**就地追加 `D10`** 承载动态类型号 / 公式 / 语义）、`ADR-0021`（`ld/st` 符号偏移重定位：`R_DADAO_REL12`）、`ADR-0018`（`C6` `rbgp`/`rbtp` 保留不分配、`C7 D4` 访存形态选择）、`ADR-0003`（Object ABI；`ET_DYN`）、任务 `SPEC-139t`（动态链接 ABI 契约 → `.tao/knowledge/contract-dynlink.md`）
+**关联**：`ADR-0025`（M8 范围与 Linux 兼容路线；`D2` 无内核 / `D3` musl ldso / `D6` 顺序 / `D7` golden 对照）、`ADR-0019`（DADAO 重定位类型；本轮**就地追加 `D10`** 承载动态类型号 / 公式 / 语义）、`ADR-0021`（`ld/st` 符号偏移重定位：`R_DADAO_REL12`）、`ADR-0018`（`C6` `rbgp`/`rbtp` 保留不分配、`C7 D4` 访存形态选择）、`ADR-0003`（Object ABI；`ET_DYN`）、任务 `SPEC-139t`（动态链接 ABI 契约 → `.tao/contracts/contract-dynlink.md`）
 
 > **本 ADR 已 `Accepted`（2026-10-14）**：`D1`–`D8` = 用户对动态链接**行为类**口径的逐条选择，经**主会话问答**取得并**逐条确认**（`AGENTS.md`「ADR decision 逐条确认」；`docs/Process-03`）。
-> **ADR 不承载规范正文**（`docs/Process-03`）：本文件只记**决策 / 理由 / 被否方案**；**契约正文**归 `.tao/knowledge/contract-dynlink.md`，**类型号 / 公式 / 语义**归 `ADR-0019 D10`。
+> **ADR 不承载规范正文**（`docs/Process-03`）：本文件只记**决策 / 理由 / 被否方案**；**契约正文**归 `.tao/contracts/contract-dynlink.md`，**类型号 / 公式 / 语义**归 `ADR-0019 D10`。
 > **载体分工**（来源 = `ADR-0025 Consequences` + `contract-dynlink.md §4.4` 裁定 4 = **混合 (c)**）：类型号 / 公式 / 语义 ⇒ **就地扩 `ADR-0019`（`D10`）**；行为类口径（`ld.so` 用法 / `PT_INTERP` / `DT_*` / 绑定时机 / 越界）⇒ **本 ADR**。
 
 ## Context（背景）
 
 - M8 = 「**无内核的 Linux 用户态栈**」（`ADR-0025`）：`ld.so` 用 **musl 自带 ldso**（`ADR-0025 D3`），「内核 / 加载器侧」（auxv 注入、`PT_INTERP` 解释器装载、加载偏置分配、路径解析）由 **QEMU user-mode** 扮演（`ADR-0025 D2`/`D6`）。
-- `SPEC-139t` 落 `.tao/knowledge/contract-dynlink.md`（契约正文）；其中「类型号 / 公式 / 语义」与「行为类口径」的**规范正文载体**须 **architect 落地**（该契约 §4.4 裁定 4 = 混合 (c)）——本 ADR 承载后者。
+- `SPEC-139t` 落 `.tao/contracts/contract-dynlink.md`（契约正文）；其中「类型号 / 公式 / 语义」与「行为类口径」的**规范正文载体**须 **architect 落地**（该契约 §4.4 裁定 4 = 混合 (c)）——本 ADR 承载后者。
 - 约束：**不改** `spec/`（上游只读册）、`contracts/` 机器数据、既有组件补丁（`ADR-0025`）。
 - **事实（musl `ldso` 行为）**：`ldso/dynlink.c` 已实现 `REL_NONE` 跳过（`continue`）、GNU / SysV **两套** hash、以及 `DT_RELR` / 版本段 / 延迟绑定的处理路径 ⇒ 本 ADR 只定**本项目发射 / 依赖哪些**，不新增 musl 行为。
 - 命中 ADR 判据（`docs/Process-03`）：**外部依赖 / 契约**（musl ldso、ELF gABI、QEMU user-mode）、**跨模块 / 需一致**（spec / llvm / qemu / infra）、**把结论固化为约束**（行为口径须长期遵循）。
