@@ -1,12 +1,12 @@
 # INFRA-071t: `contract-*.md` 迁入 `.tao/contracts/`（Phase B）+ `check-contracts-dir` 白名单门控
 
-> **文件名说明**：文件名仍含旧措辞 `迁移至contracts目录`（`issues.yaml` `ISS-202` notes 按**文件名**引用）⇒ **不改名**（改名会牵动归档/台账指针）；**目标目录以本任务书正文为准 = `.tao/contracts/`**（见 §目标目录变更）。
+> **文件名说明（2026-10-14 收尾更新）**：本文件原文件名含旧措辞 `迁移至contracts目录`（立项时顾虑牵动台账指针 ⇒ 曾定「不改名」）；**收尾时已 `git mv` 为 `INFRA-071t-contract迁移至tao-contracts目录.md`**（新名体现目标目录 = **`.tao/contracts/`**），全仓引用同步改新名。完成区「遗留问题④」保留下旧措辞（**历史快照**，不改写）。**目标目录以本任务书正文为准 = `.tao/contracts/`**（见 §目标目录变更）。
 
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：**用户授权**——**已得（2026-10-14）**：裁定 ①a/②a/③a + 目标目录 `.tao/contracts/`（「改主意」+「同意」）；落纸见 §用户授权落纸。**可 `/dispatch`**。
 
-**状态**：待验收
+**状态**：已验证
 
 > **立项来源**：`INFRA-070t`（`.tao/knowledge/` 顶层收拢）**Phase A 已完成并 reviewer `Accepted`（主会话收尾）**；**Phase B**（立项时口径：9 个 `contract-*.md` → `contracts/`）因**硬约束冲突**停手 ⇒ 本任务承接（`INFRA-070t` 完成区「遗留问题」+ 第 1 轮 reviewer §⑧）。
 > **现状校正（2026-10-14）**：待迁份数 **9 ⇒ 11**（新增 `contract-dynlink.md`〔`SPEC-139t`〕/ `contract-syscall.md`〔`SPEC-138t`〕）；目标目录 **`contracts/` ⇒ `.tao/contracts/`**（用户 2026-10-14 二问裁定）。**份数以现场 `ls` 实测为准**（**计数不写死**）。
@@ -230,3 +230,54 @@
 | E3 首跑 `check-patch-tree`：18 problem（⑨/⑥ patch↔源树失配） | ✅已修 | `.work/source/{qemu,picolibc,llvm-project}` 9 文件同注释 + `git commit --amend --no-edit`（保 base+1 / clean） | `check-patch-tree` rc=0（4 组件/127 补丁）；`make check-source-state` 4 源树 OK |
 
 **判决**：3 条 finding **全部已修**，无未修项 ⇒ 状态标 `待验收`，返回主会话交 reviewer 独立复验。
+
+#### 第 1 轮 reviewer 审阅（2026-10-14）
+
+**门控逐项真实 rc**（reviewer 独立重跑）：
+
+| 门控 | rc | 备注 |
+|---|---|---|
+| `make check` (L1) | 0 | 含 check-contracts-dir PASS |
+| `make check-modules` (L2) | 0 | picolibc 18 pass / 2 excluded |
+| `check-spec-refs` | 0 | 939 引用 |
+| `check-spec-drift` | 0 | 枚举 11 == 实数 |
+| `check-spec-readonly` | 0 | — |
+| `check-knowledge-refs` | 0 | 59 文件 / 0 悬空 |
+| `check-knowledge-dir` | 0 | — |
+| `check-contracts-dir` | 0 | 两处白名单均 PASS |
+| `check-patch-tree` | 0 | — |
+| `check-index-blobs` | 0 | — |
+| `check-no-residue` | 0 | — |
+| `check-tasks` | 0 | — |
+| `check_issues.py` | 0 | — |
+
+**证据脚本**：`run.sh` ALL PASS / rc=0（46 断言 + 7 组注入反例）。
+
+**我的新反例**（不在 F1–F7）：往 `.tao/contracts/contract-fp.md` 注入 `.work/` 悬空引用 ⇒ `check-knowledge-refs` rc=1（悬空=1）⇒ cp+md5 还原（`99d07863…` 前后一致）⇒ rc=0 ✓。
+
+**语义核查**：
+
+| # | 核查项 | 结论 |
+|---|--------|------|
+| ① | 非归档旧路径残留 | 22 处 / 6 文件，与 engineer 白名单**完全一致**；逐条豁免/注记站得住（任务书豁免 7 / 已验证任务书历史快照 11 / 台账历史记录+注记 4） |
+| ② | 归档未改 | `git diff --quiet e1a6227 -- .tao/archive` rc=0 ✓ |
+| ③ | 11 份 rename | R099–R100；抽查 asm-list(R100) + see(R100) + abi(R099) 内容一致（abi 仅改内部引用串） |
+| ④ | 锁册 sha256 | LIVE=`cd90beed…` == LOCK=`cd90beed…` ✓ |
+| ⑤ | yaml 内嵌字段 | 8 处全指向 `.tao/contracts/`；旧路径 0 残留 ✓ |
+| ⑥ | 新覆盖真报 | `contract-fp.md` 注入 `.work/` 悬空 ⇒ FAIL；F3 同理（`contract-abi.md`） |
+| ⑦ | 同号误伤 | 归档零改动；任务号未被替换 ✓ |
+
+**完成区对齐**：22 处残留计数、11 份 R099–R100、新路径 147 处引用（B2 测得）、锁册 sha256 值、门控 rc——均与真实输出一致。遗留 5 项均为合理（L3 不属本轮触发点；3 份已验证任务书未注记 = 历史快照约束；文件名不改名 = 任务书明文）。
+
+**判决**：**Accepted**。验收命令块全部通过、约束无违反、新反例可达 FAIL、语义核查 ①–⑦ 全绿。
+
+#### architect `/complete` 收尾 + 提交留痕（2026-10-15，分支 `INFRA-071t`）
+
+- **收尾检查 4 项**：① 门控按改动类型**全绿**（现场 rc）——`make check`(L1)=**0**、`make check-modules`(L2)=**0**、**`make check-full`(L3)=0**（本任务书「遗留问题①」建议 `/complete` 跑 ⇒ **已跑**，`test-m6: PASS` 38/38 + Embench）、`check-spec-readonly`=0、`check-knowledge-refs`=0、`check-contracts-dir`=0、`check-no-residue`=0、`check_issues.py`=0；日志 `.work/log/<模块>/INFRA-071t-complete-*`；② **无临时残留**（`git status -uall` 仅本任务 4 项改动，无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`）；③ 证据在 `.work/evidence/<任务ID>/` + 报告正文/结论在**版本化**任务书内；④ **无未提交**的任务结果（随本提交落地）。
+- **档位**：**正常提交**（reviewer 第 1 轮判决 `Accepted`，**无** `WIP:` 前缀）。**提交号**：随本条同 commit 落地 ⇒ **不内嵌自身 hash**（避免 `--amend` 悬空 hash，对照 `LLVM-091t` 留痕）；现场取证 = `git log --oneline -1`。**只 `commit`、未 `push`**；`merge --ff-only` 落地 `master`（`AGENTS.md`「分支—提交—push」）。
+- **文件集对账**（显式 staging，逐个路径，**禁** `git add -A`/`.`）：`R`×1 = 本任务书**改名**（`…迁移至contracts目录.md` → `…迁移至tao-contracts目录.md`）+ `M`×3 = `.tao/knowledge/milestones.md` / `.tao/knowledge/issues.yaml` / `.tao/contracts/README.md`——与收尾范围**逐条对齐**（**无漏提 / 多提 / 越界**）。
+- **改名与指针同步**：`git grep -n 'INFRA-071t-contract'` 现场查得 2 处外部引用 ⇒ 已同步 `.tao/contracts/README.md:27` + `.tao/knowledge/issues.yaml`（`ISS-202` notes 2 处）；本任务书 §文件名说明同步更新；`milestones.md` / `.tao/README.md` **无**按文件名引用（`git grep` 证）。
+- **`ISS-202`**：**`closed`** + `resolved_by: INFRA-071t`（3 项授权已逐条裁定 + 迁移已落地且 `Accepted` ⇒ 达成）；notes 内指向 `INFRA-070t` 的**失准指针就地订正**为归档实路径 `.tao/archive/M7/infra/INFRA-070t-knowledge顶层收拢与Process-07.md` + 追加关闭注记。
+- **沉淀（先查重）**：`lessons.md` **不新增**——查重依据 = **§4.1「历史快照旧路径保留、不回溯更新」**已明文含「**已验收任务书** / `.tao/archive/**`」的旧路径保留判据，与本次「批量改共享路径时归档 / 已完成任务书完成区不改」同类。
+- **ADR 待裁登记（不擅自立）**：`milestones.md` M8 规划区新增「**【待用户裁定】是否就『契约目录定位（`.tao/contracts/` vs `contracts/`）』补 ADR**」（命中 `docs/Process-03` 判据：定位 / 跨模块）+ 现行结论一句（`.tao/contracts/` = 人读契约正文；`contracts/` = 机器可读数据）。
+- **遗留披露（收尾范围外，待裁定）**：`adr-0025:66`、`.tao/contracts/contract-syscall.md:15`、`.tao/contracts/contract-dynlink.md:11`（共 3 处）落点注仍写「暂落 `.tao/knowledge/`… 若 `INFRA-071t` 获批则迁移」，**未改**——改契约正文 / 已 `Accepted` ADR 属**验收后内容变更**（须另立任务 + 重验），本次仅披露；此外完成区/审阅记录内字面 `.work/<具体路径>` 依「历史快照不改写」保留。
