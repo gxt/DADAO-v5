@@ -365,6 +365,10 @@
 - **源码检出直接以组件名落地**（`.work/source/<name>/`），**不再套同名 / 分类包装层**。**反例**：为「整齐」多套一层目录（如 `source/<分类>/<name>/`）⇒ 按 `source/<name>` 定位的门控与脚本全部失配，且易被误当「未解包」重做；同一物**只存一份**（下载原件归 `.cache/`，组件源归 `.work/source`）。
 - **组件源一律 git 基线**：`.cache/<name>.git` 裸仓库 + `.work/source/<name>/` = **可 `git diff` 的干净检出** ⇒ 任何改动随时可产 patch/diff。**tarball 只作校验物 / 下载原件，不得作组件源**——解包树无 git 元数据，改动**产不出 diff**（要产 patch 时才发现，返工代价高）。`patchless`（无 v5 补丁集）与「源码形态」**正交**：tarball 源同样必须落 `.work/source/<name>/`，只是仍需可 diff。
 
+### 3.20 切分支 / 提交前须核当前分支与工作树
+- 任何 `git switch` / `commit` **之前**必须核 `git branch --show-current` + `git status --porcelain -uall`；**脏树 / 共享工作树上禁 `switch -c`**——否则 `switch` 把未提交改动一并带过去、提交**误落兄弟分支**（实例：并发子代理共用同一工作树，**提交误落兄弟分支**）。
+- 大任务优先**独立 `git worktree`**，从源头消除共享工作树的串扰（同 §3.8）。
+
 ---
 
 ## §4 里程碑与归档
