@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 范围与 Linux 兼容路线，`Accepted`，`D2` 无内核 / `D3` musl 自带 ldso）；`ADR-0019`（`R_DADAO_*` 重定位类型）+ `ADR-0021`；`SPEC-138t`（并列契约，无先后硬依赖）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -39,7 +39,7 @@
 
 ## 完成区
 
-**测试结果**：一键证据脚本 `.work/evidence/<任务ID>/run.sh` 常模 **74 PASS / 0 FAIL / 0 SKIP（rc=0）**；`--inject` **8 PASS / bad=0（rc=0）**——注入①（新类型赋编号 `R_DADAO_JUMP_SLOT = 7` + 编号表行 `| 6 | R_DADAO_RELATIVE |` + `#define REL_RELATIVE 7` + 复制 `SimRISC-00` 的 `rb0` 正文句）⇒ `check_invariants` **rc=1**，命中 `C3.no-invented-number-assignment` / `C3.no-numbered-table-row-for-new-types` / `C3.no-arch-reloc-h-macro` / `C5.no-copy-S00-rb0-sentence` ⇒ `cp`+md5 还原（`3841127c…`）⇒ 回绿；注入②（篡改 qemu 锁定 commit 末位 hex）⇒ **rc=1**（`C6.qemu-commit`）⇒ 还原 ⇒ 回绿。
+**测试结果**：一键证据脚本 `.work/evidence/<任务ID>/run.sh` 常模 **74 PASS / 0 FAIL / 0 SKIP（rc=0）**；`--inject` **8 PASS / bad=0（rc=0）**——注入①（新类型赋编号 `` `R_DADAO_JUMP_SLOT` = 7 ``（**反引号包名 + 隔空等号**，F2 写法）+ 编号表行 `| 6 | R_DADAO_RELATIVE |` + `#define REL_RELATIVE 7` + 复制 `SimRISC-00` 的 `rb0` 正文句）⇒ `check_invariants` **rc=1**，命中 `C3.no-invented-number-assignment` / `C3.no-numbered-table-row-for-new-types` / `C3.no-arch-reloc-h-macro` / `C5.no-copy-S00-rb0-sentence` ⇒ `cp`+md5 还原（`3841127c…`）⇒ 回绿；注入②（篡改 qemu 锁定 commit 末位 hex）⇒ **rc=1**（`C6.qemu-commit`）⇒ 还原 ⇒ 回绿；另含第 8 条 jpass `INJ1.c3-backtick-form-detected`（**反引号包名 + 等号赋号**写法须被 `C3` 命中，F2 专属断言）。
 **修改文件**：`.tao/knowledge/contract-dynlink.md`（**新增**）；`.tao/knowledge/milestones.md`（`SPEC-139t` 行 状态→`待验收`）；本任务书（状态 + 完成区 + 自审）；`.work/evidence/<任务ID>/{run.sh,foreign-paths.txt}`（新增，`.work/` 忽略区，`foreign-paths.txt` 现场为空 = 无外任务改动）。**未提交 git**（提交权归 architect）。
 **验收结果**（逐条对齐「验收标准」，均为现场命令输出）：
 1. 落点 + 6 项 ✓：`grep '^## '` 得 §1 范围·角色·口径／§2 PIC/PIE／§3 GOT·PLT／§4 动态重定位／§5 动态段与符号表／§6 `PT_INTERP`·auxv／§7 TLS 占位／§8 oracle 口径／§9 待确认清单／附录 A（10 个二级标题）；与 `ADR-0025`（`D2` 无内核 / `D3` musl ldso）逐条一致（§1.1–§1.2、§6.3、§6.6 引 `[ADR-0025 D2/D3]`）。
@@ -53,6 +53,8 @@
 - **两处既有表条目数不同**：`ADR-0019 D2` 表仅 `0–4` + `NUM`，`contract-elf §2.2` 因 `ADR-0021` 追加为 `0–5` + `NUM`=6 ⇒ 契约以 `contract-elf §2.2` 为准并补标 `[ADR-0021 D2]`（编号事实不写死，现场解析）。
 - **`DT_STRSZ` 不是 musl 消费项**：musl `ldso/dynlink.c` 消费清单经现场 grep 核对，`DT_STRSZ` 未出现 ⇒ 已把它从「musl 消费」列表移出、改为 gABI 标准项（待确认）。
 **遗留问题**：**待用户逐条确认 10 项**（契约 §9）——类型集/编号（含 (a)/(b) 载体选项）、第三方编号沿用、`PT_INTERP` 命名、Hash 口径、符号版本·`DT_RELR`、GOT 基址寄存器与 `rbtp` 初值、TLS 归属（前置 `ADR-0025 D5` 查证）、绑定时机、越界策略。**未越界**：`spec/`、`contracts/`、`ADR-0019` / 其他 ADR、组件补丁**均未改**（`C8.no-ADR-file-change`=0、`C8.no-spec/contracts/tests/components-change`=0）。**披露**：`milestones.md` 的 M8 规划区句「`SPEC-138t`/`SPEC-139t` 均 `待开始`」已过时（非本任务「流水行」）⇒ **未动**，请收尾时一并刷新。
+
+**遗留（追加，2026-10-14 终态收尾）**：reviewer 复验另发现 `C3`（防臆造编号）仍漏捕**两种形态**——「反引号包纯数字」（数字带反引号）与「双反引号名」⇒ **判为非阻断**（契约 **0 处**使用该形态，现场 grep 实证 ✓，即非本契约行文式）；**判据（升级条件）**：**若 `C3` 将来转为常驻门控（入 L1/L2），则须先把这两种形态收紧（数字侧允许可选反引号、名侧允许连续反引号）并把该升级判定为阻断** ✓。
 
 ## 审阅记录
 
@@ -97,4 +99,26 @@
 - 阻断 F2：证据脚本 C3 防臆造正则可被「反引号包名 + 紧邻/隔空等号赋号」（本契约自身编号行文式）绕过——独立注入「已定编号结论」未触发任何 C3 断言 ⇒ 修法：正则在名后与 `=` 前允许可选反引号，并用该写法补注入反例回证 FAIL。
 - 非阻断：C8 在共享树并发下易红（收尾按 foreign 声明机制更新，或改「相对开工基线」判定）；C4 只覆盖表格行形式的既有编号改写，散文式改写不覆盖（本契约实测未改写既有编号，建议补一条散文断言）；`milestones.md` M8 规划区过时句按披露留收尾刷新。
 - 契约内容本身（①–⑥）无缺陷、门控全绿；返工仅涉完成区数字 + 证据脚本 C3 正则与回证，改后可直接复验。
+
+#### 第 1 轮返工（F1/F2，engineer；契约正文未动）
+
+- **F1 计数**：完成区称 `--inject` 8、实测 7 ⇒ 按任务书允许的「补齐第 8 条」在 `--inject` 增加 1 条 jpass（反引号写法**专属**断言 `INJ1.c3-backtick-form-detected`）⇒ **实测 `--inject` 8 PASS / bad=0（rc=0）**，与完成区数字对齐。
+- **F2 正则**：`C3.no-invented-number-assignment` 由 ``R_DADAO_(…)[[:space:]]*[=＝][[:space:]]*[0-9]`` 收紧为 ``R_DADAO_(…)[[:space:]]*`?[[:space:]]*[=＝:：][[:space:]]*[0-9]``（名后可选反引号 + 可选空格 + `=`/`:`/`：` + 数字）；对既有合法正文 **0 命中**（无误报）。
+- **F2 回证**：注入 `` `R_DADAO_JUMP_SLOT` = 7 ``（反引号包名 + 隔空等号，契约自身行文式）⇒ `check_invariants` **rc=1**、命中 `C3.no-invented-number-assignment` ⇒ `cp`+md5 还原（`3841127c…`）⇒ 回绿；**可达 FAIL 已证**（旧正则对该行 rc=1 漏捕 / 新正则 rc=0 捕获）。
+- **未动**：`contract-dynlink.md` **未改**（md5 前=后=`3841127c…`）；未越界（`spec/`/`contracts/`/各 ADR 未动）；状态保持 **`待验收`**。
+
+#### 第 2 轮 reviewer 验收（复验轮；只读，未改被测实现 `run.sh`=md5 `485fea8f…` 前后一致）
+
+**重跑记录**（workdir=仓库根；各捕被检命令自身 rc）：
+- 证据脚本常模：**74 PASS / 0 FAIL / 0 SKIP（rc=0）**；`--inject`：**8 PASS / bad=0（rc=0）**，两次还原 md5=`3841127c…` 回绿。
+- 门控：`make check`=0 / `check-modules`=0 / `check-no-residue`=0 / `check-knowledge-refs`=0 / `check-knowledge-dir`=0 / `check_issues.py`=0。
+- **F1 核**：`--inject` 实测 **8** 与完成区一致 ✓（第 8 条 = `INJ1.c3-backtick-form-detected`）；该断言**非恒真/非空转**——读真实 `inject1.log`，且旧正则对①=0 漏/新=1 捕（有可达 FAIL 路径）。
+- **F2 核（★，逐形式 cp+md5 注入 `check_invariants`）**：①`` `R_DADAO_JUMP_SLOT` = 7 ``、②`R_DADAO_GLOB_DAT: 8`、③全角冒号、④`R_DADAO_RELATIVE = 5`、⑦全角等号 ⇒ **均 rc=1 / C3=FAIL（捕获✓）**；对 pristine 契约全量扫 **0 命中（0 误报✓）**；旧/新对照**可复现**（旧漏①②③⑦、新全捕，④两者皆捕）。
+- **独立反例**（reviewer 自注入，engineer `--inject` 未覆盖的②冒号式）：md5 `3841127c…`→`04fe4b06…` ⇒ `check_invariants` **rc=1**（`C3` FAIL = 可达 FAIL 已证）⇒ `cp`+md5 还原 ⇒ `3841127c…`（md5 相等，回绿✓；禁 git）。
+- **契约正文未触**：`contract-dynlink.md` md5=`3841127cab9b7b8379a33eab968fd700`（=上轮）✓。
+- **台账核**：`SPEC-140t` 流水行置 `已验证` **依据成立**（其任务书 `**状态**：已验证` L6 + reviewer `判决：Accepted` L197，非凭自述）；`milestones.md` M8 路线过时句已改准（`SPEC-138t 已验证`/`SPEC-139t 待验收`）；131→132 行 = 净 +1（新增 SPEC-140t 行 + 路线句就地改），**无丢行/无重复行**（任务 ID `uniq -d` 空）。
+
+**判决：Accepted**（上轮两阻断 F1/F2 均已修并经我独立复验；契约内容/门控/台账均达标）。
+- **非阻断 finding（我独立注入新发现，已达「契约自身行文式」外）**：⑤`` `R_DADAO_COPY` = `9` ``(数字带反引号)、⑥`` ``R_DADAO_COPY`` = 9 ``(双反引号名) ⇒ **rc=0 漏捕**。判非阻断：契约**0 处**用反引号包纯数字、**0 处**双反引号（现场 grep），即非契约自身行文式——按上轮 F2 的同一阻断标准（漏掉**契约自身写法**才阻断）判非阻断；且 `run.sh` 属 `.work/` 任务级证据（非常驻门控）。**建议加固**（可选）：数字侧 `[[:space:]]*`?[0-9]+`?`、名侧 `` `+ ``；**若 C3 拟转常驻门控**，则此二项升为阻断（改法同上 + 补注入反例）。
+- 无其它阻断；`run.sh`/契约均由 reviewer 只读核验，未改动。**Accepted 供架构师终审**（⑤/⑥ 阻断权重由架构师定夺）。
 
