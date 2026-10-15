@@ -188,3 +188,14 @@
 - **改号**：`INFRA-081t` ✗ ⇒ **`INFRA-082t`** ✓（`git mv` 任务书 + 全文件编号同步）。**理由**：避**历史同号**——`INFRA-081t` 历史上曾指 `libc-test` 任务（`1dc0570` 内 `INFRA-081t-libc-test取源与锁定.md`，经 `R089` 改名 `TESTCASES-044t` 离开 `master`）⇒ 沿用 `081` 即**同一编号在历史中指两件事**，违背 `.tao/knowledge/lessons.md §3.21`「编号须**全仓（含历史）唯一**」；`082` 全仓（工作树 + 全历史）复核**从未被占用** ✓。
 - **同步面**（`git grep -n 'INFRA-081t'` 现场全仓查证，共 **7 处**）：任务书内 **4 处**（① 标题 ② 文件集对账的路径引用 ③ 取号依据 ④ 门控日志名）+ `milestones.md` **3 处**（① 任务流水行 ② 「新组件模块归属裁定」历史行 ③ `P1` 立项行 + 指针）。**处置**：**现存/前瞻引用 → `082`**；**历史留档引用**（立项提交 `159bc42` 的路径、留档日志名、`1dc0570` 的 `libc-test` 历史号）**保留原字 + 就地加注**（`lessons §4.1`：历史快照旧路径保留不回溯；保「可审计」——与 `git show <commit> --name-status` 一致）。
 - **范围**：**仅编号**变更，任务书目标/范围/验收标准**一字未改** ✓。
+
+#### architect 提交/文件集审核留痕（2026-10-15，分支 `INFRA-082t-A1`）
+
+- **档位**：**正常提交**（**主会话 2026-10-15 指令「不带 `WIP:`」**，渠道 = 经主会话下发；留痕备查：本分支 `HEAD` 时点 reviewer 第 1 轮验收**尚未进行**、任务书 `**状态**` = `待验收`）。
+- **提交号 ①** `0986dc9`（「INFRA-082t A1: QEMU 侧 SYS_UMON_SYSCALL 服务（write/writev/exit/exit_group；未实现⇒ENOSYS；149/149 不回归）」）。
+  - **文件集对账**（`git diff --cached --name-status` = **3 项**）：`M components/qemu/patches/target/dadao/helper.c.patch`、`A tools/qemu/min_rom_probe_082t.py`、`M` 本任务书 ⇒ 与「完成区·阶段 A1·修改文件」①②③**逐条相符**；`A` 一项 = 完成区**已披露的越界新增**（先例 `tools/qemu/min_rom_probe_04xt.py`；`AGENTS.md`「**生成器/脚本随产物保留** 于 `tools/<module>/`」）⇒ **无漏提、无多提、无未披露越界**；**未动** `spec/` / `contracts/` / `.tao/contracts/` / `manifests/`。
+- **提交号 ②** `0fa839d`（「登记 issue：Machine-01 §4.3 未覆盖 user trap cfx0,0 路由（P1-A1 实现，待授权落规范）」）。
+  - **文件集对账**：`git diff --cached --name-status` = **1 项** —— `M .tao/knowledge/issues.yaml`（**只追加** `ISS-221`，`status: open`，`scope: [spec, qemu, infra]`）⇒ 无漏提/多提/越界；`spec/**` **零改动**（现场 `git status --porcelain -uall -- spec/` = 0 行；本册为 `spec/` 只读册 ⇒ **须用户原话授权**方可落纸，见 `ISS-221` 处置建议）。
+- **本分支工作树**（开工前 + 提交后各核一次）：`git status --porcelain -uall` 首检 = **恰 3 项**（= ① 两改 + 一新增，与主会话指令一致）；现检 = **干净**。
+- **只读核对（供验收；各捕自身 rc，无 `tee` 吞码）**：`make check`(**L1**)=**0**（`repository checks (L1): PASS`）／`make check-patch-tree`=**0**（`4 component(s), 129 patches OK`）／`make check-source-state`=**0**（`musl`/`libc-test`/`llvm-test-suite` = `patchless; skipped`）／`make check-qemu-semantics`=**0**（`149 total, 149 passed, 0 failed`）；`python3 tools/infra/check_issues.py`=**0**（`35 open, 9 closed`，`resolved_by` 约束 OK）；`issues.yaml` `yaml.safe_load` 通过（44 条）。日志：`.work/log/infra/INFRA-082t-a1-verify-{L1,patch-tree,source-state,qemu-sem}.log`（`.work/` 可删区）。
+- **`merge` / `push`**：**均未做**（本角色**禁** `push`；`master` 落地由主会话在 `/complete` 后执行）。`master` 未动（仍 `761dfa3`）。
