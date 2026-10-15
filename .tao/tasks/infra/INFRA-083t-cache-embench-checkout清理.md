@@ -101,3 +101,10 @@
 **约束核验**：① 只读核验 `.cache`，未做任何删除/移动（`make fetch` 幂等后 bare HEAD 与目录状态不变）✓；② 相对路径、未出界 ✓；③ 未 `git add`/`commit`/`push` ✓；④ 还原一律 `cp`+md5 ✓；⑤ 完成区未改（12 行原样）✓；⑥ 完成区「修改文件」对齐：`git show --stat 16c3e71` 仅任务书，`issues.yaml` 未动（转执行句 `grep -c`=1，来在 `7c3080b`；`status: open`/`resolved_by: null` 未变）✓；⑦ 遗留「无」成立（`ISS-204` 关闭归 `/complete`）✓。
 **非阻断备注**：验收口径「`git clone --local` ⇒ rc=0」在 `/tmp` 跨设备场景不可达（EXDEV 硬链失败），建议口径改「clone（允许 copy 回退）」。
 **判决**：**Accepted**——验收标准 1–6 全过、无未修 finding；独有悬空 blob 判「可字节重建、无不可复现损失」证据充分、删掉可接受。
+
+#### architect 收尾提交留痕（INFRA-083t，分支 `INFRA-083t-exec`；**只追加**）
+
+- **档位**：**正常提交**（reviewer 最新判决 `Accepted`，**无** `WIP:` 前缀）。
+- **提交信息**：`INFRA-083t: /complete 收尾（已验证）—— .cache/embench-iot checkout 清理 + 关 ISS-204 + milestones`。
+- **提交号**：`752b246`（2026-10-15 16:18 +0800，= `milestones.md` 记的完成时间）；本条留痕随**其后**的 `只追加` commit 落地（**不用 `--amend`**，对照 `INFRA-073t` F2 悬空 hash 教训）；**只 `commit`、未 `push`**；随后 `merge --ff-only` 落地 `master`。
+- **文件集对账**（显式 staging，逐个路径，**禁** `git add -A`/`.`）：`M`×4 = 本任务书（`**状态**` ⇒ `已验证` + reviewer 审阅记录）+ `.tao/knowledge/{issues.yaml, lessons.md, milestones.md}`——与收尾范围（状态 / 关 `ISS-204` / 沉淀 / 流水行）**逐条对齐**：**无漏提 / 多提 / 越界**（`git diff --cached --name-status` 实见 4 项）。
