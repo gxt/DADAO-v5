@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：无（用户 2026-10-14 裁定取源 URL 与版本）；消费方 = 未来 M8 **基线 / benchmark 跑**（触发条件见「§基线跑触发条件」）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -118,7 +118,7 @@
 - `git diff` 可用性：注入探针行 ⇒ `status` 报 ` M README.txt`、`diff --quiet` rc=1；`cp` 回写 + `md5sum -c` = `OK` ⇒ `status` 回空。
 - 取源：`gh-proxy.com` 浅克隆 rc=0（**252 s / 294 MB**）；`ghfast.top`·`gitclone.com` 大包 **HTTP 504**、直连 curl **124**（三者 `ls-remote` 均 ✓）。
 **修改文件**：`manifests/components.lock.toml`（+`llvm-test-suite` 条目）；`.tao/knowledge/milestones.md`（+LLVM-093t 流水行 + M8 区条目）；本任务书。
-**验收结果**：（待 reviewer / 主会话）由 architect 按主会话指示「立并执行」完成，**未走独立 reviewer 轮次**。
+**验收结果**：**已由 reviewer 第 1 轮独立验收 ⇒ `Accepted`**（判定见「审阅记录」第 1 轮 reviewer 审阅）；原记载「由 architect 按主会话指示『立并执行』完成、未走独立 reviewer 轮次」已由该轮取代（2026-10-15）。
 **新发现/坑**：
 - **`ls-remote` ✓ ≠ 大包可取**：`ghfast.top`/`gitclone.com` 探测正常，但 ≈294 MB 单 tag packfile 皆 `HTTP 504`；唯 `gh-proxy.com` 成功。
 - **版本关系（证伪担忧）**：test-suite `llvmorg-23.1.{0,1,2,3}` **四 tag 同 peel commit** ⇒ 与 `llvm-project 23.1.1` **无内容差**（原记「小版本差」实为**不存在**，如实标注）。
@@ -130,3 +130,16 @@
 
 #### 第 1 轮 architect 执行（主会话直派，无独立 engineer/reviewer 轮次）
 （本任务由 architect 按主会话指示「立并执行」完成取源 + 锁定；记录见下「完成区」与会话回报。）
+
+#### 第 1 轮 reviewer 审阅（首次独立验收）
+**远端 tag**：`ls-remote` 输出两行——`7fa0300… refs/tags/llvmorg-23.1.3` + `2919e55…^{}` → **annotated** ✓、peel = 锁值 ✓。
+**锁条目**：`enabled=true`/`commit=2919e55…`(40-hex)/`shallow=true`/`shallow_ref="llvmorg-23.1.3"`/`patchless=true`/`role` 含"deferred" ✓；`cat-file -e <commit>` rc=0 ✓。
+**.cache 裸仓库**：`is-bare=true`/`is-shallow=true`/commit 可定位/294M/29 文件 ✓。
+**工作树**：`HEAD=2919e55…`/`describe=llvmorg-23.1.3`/`status --porcelain` 空/`is-shallow=true` ✓。
+**git diff 探针**：注入→`status`报` M`→`diff --quiet` rc=1→cp还原→md5对账OK→status回空 ✓。
+**幂等**：`make fetch`×2 均"skipping fetch"+"already at"；du=294M/find|wc=29 前后不变 ✓。
+**status.py**：`llvm-test-suite enabled 2919e55…` ✓。
+**门控**：`make check`(L1) rc=0 ✓；`check-patch-tree` rc=0（4 component, 129 patches; patchless 豁免）✓；`check-no-residue`/`check-knowledge-refs`(0 悬空)/`check_issues`(34 open, 0 blocking) rc=0 ✓；`make check-modules`(L2) rc=0 ✓。
+**反例注入**：改锁 `commit` 末位+"X" + `shallow_ref` 加"x" → `manifest-check` FAIL(rc=2) → cp 还原 + md5 对账 → `manifest-check` PASS(rc=0) ✓。
+**完成区对齐**：逐条吻合。两处判定：①日志路径为占位符 `<L1 log>`/`<L2 log>` 无具体文件名——**非阻塞**，验收命令均已独立重跑、证据可复现；②基线跑未跑与 `role`("deferred until musl static/dynamic works")及触发条件一致——**可接受**。
+**判定：Accepted**
