@@ -235,3 +235,11 @@
 - `git status --porcelain -uall` = 空（未改任何受审文件；`.work/**` 被 `.gitignore`）。
 
 **判决**：**Accepted** —— 4 项核心全部满足（`ET_DYN`+动态段逐条 ✓、`PT_INTERP` 逐字节 ✓、编号同步逐条+旧号复核 ✓、门控 rc=0+反例 FAIL→还原回绿 ✓）。遗留项（`spec/Toolchain-01` 旧 `NUM=6`、`contract-elf.md §2.2` 旧号、`ISS-206②` 须授权）已如实登记，不阻断阶段 B 验收。
+
+#### architect 阶段级收尾 / 提交 / merge 留痕（2026-10-16，阶段 B）
+
+- **阶段级收尾**（照 `INFRA-082t`/`SPEC-142t`/阶段 A 先例；阶段 B 已 `Accepted`、**C–E 待做** ⇒ 任务级 `**状态**` **保持 `待验收`** ✓，**不置** `已验证`）：L1 `make check` **rc=0**（尾行 `repository checks (L1): PASS`；内含 `check_issues: 39 open, 13 closed`）+ `check-patch-tree`（`5 component(s), 146 patches OK`）/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`python3 tools/infra/check_issues.py` 各 **rc=0**（各留**自身** rc；日志 `.work/log/llvm/LLVM-094t-architect-stageBfin-*.log`）；**L2/L3 归任务整体收尾**（阶段 C–E 完成后跑，`ISS-229` ⇒ 串行、不并发）；临时残留 = 无（`check-no-residue` rc=0）；证据在 `.work/evidence/LLVM-094t/`（`run-a.sh`/`run-b.sh`/`elfinfo.py`/`dyncheck.py`/`inject.py`/`objdiff.py`；`.work/**` 被 `.gitignore` ⇒ 不入 git，沿用阶段 A 先例）。
+- **文件集对账**（逐路径显式 staging、**未用** `git add -A`）：`git diff --cached --name-status` = **3 `M`**（+16/−4 = `issues.yaml` 1 行 / `milestones.md` 1 行 / 本任务书）⇒ 与交办范围逐条对齐（`ISS-228` **仅追加 notes**、`status` 仍 `open`〔`check_issues.py` rc=0 复核〕；`milestones.md` 仅改 `LLVM-094t` 流水行的「阶段 B 已验证」；本任务书 = `**阶段进度**`×2〔含 `ISS-206②` 现场范围〕+ 本轮留痕）⇒ **无漏提 / 多提 / 越界**（`spec/` / `contracts/` / `.tao/contracts/` 越界 = 0）。档位 = **正常提交**（reviewer 判决 `Accepted`）。
+- **笔 1** = `84c4ee5`（阶段级收尾：`阶段进度` + `ISS-206②` 现场范围 + `milestones.md` + `ISS-228` notes 追加）；**笔 2** = 本留痕块（1 文件）。
+- **随后（同次收尾）**：`git switch master` → 核干净 → `git merge --ff-only LLVM-094t-B` → `git branch -D LLVM-094t-B`；**不 push** ✗。
+- **下一件（队列）**：**阶段 C** —— 两段式 `ABS48` 序列（`immu16` ×3 / `ldm.o_rrri_rb` 落 `rb`）解决 `GOT` 距 `.text` **65592 B** > ±2 KiB 的可及性 + `COPY`/IFUNC **主动拒绝** + A7 基线重定（主会话裁定 2／裁定 3）；**交主会话派发**。
