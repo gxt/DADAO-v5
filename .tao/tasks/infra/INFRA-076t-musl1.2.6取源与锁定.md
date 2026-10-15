@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 范围与 Linux 兼容路线，`Accepted`；`D3` = 用 musl 自带 ldso、`D4` = musl 与 picolibc 并存）；消费方 `SPEC-139t`（动态链接 ABI 契约，musl `ldso` 路径）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -93,16 +93,39 @@
 7. **不提交**（提交权归 architect）；取得用户裁定须把**原话**写入本任务书。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+
+**测试结果**：`.work/evidence/<任务ID>/run.sh` **rc=0**（现场统计 **checks=108 / failed=0**）：A 落盘 18 项、B tag 形态 8 项、C 锁条目 20 项、D 取源幂等 11 项、E `git diff` 可用性 11 项、F 门控 35 项、G 台账复核 5 项。**反例闭环**：C 段 2 个 patchless 反例（**临时树副本**注入：去 `patchless` ⇒ `manifest-check`「component musl: missing patch series」rc=1；`commit` 截短 ⇒「enabled components require a full commit」rc=1；未注入副本回绿 rc=0）；E 段注入探针 ⇒ `status` 报 ` M`、`git diff` 10 行、**「工作树干净」断言可达 FAIL** ⇒ `cp`+md5 还原 ⇒ `status` 回空、sha256 回 `git blob` 值；`run.sh --inject 1`（真锁册注入 → 预期 FAIL → `cp`+md5 还原 → 预期回绿）**闭环 PASS**。
+**修改文件**：`manifests/components.lock.toml`（**+33 行 / -0 行**，仅追加 `musl` 条目，其余 8 组件逐行未动）；本任务书（状态 + 完成区 + 自审）；`.work/evidence/<任务ID>/{run.sh,lockedit.py}`；`.work/log/<模块>/INFRA-076t-*.log`。**未提交**（提交权归 architect）；**未越界**（未动 `spec/`/`contracts/`/组件补丁/`tools/`）。
+**验收结果**：以下均为现场真实输出/退出码、逐条对齐 ——
+- **落盘**：`.cache/<musl>.git` `is-bare=true`、`is-shallow=true`、`origin=git.musl-libc.org/git/musl`、`HEAD=9fa28ece…`、`du -sh`=**1.5M**；`.work/source/<musl>` `--show-toplevel`=该目录、`HEAD=9fa28ece…`、`status --porcelain`=**0 行**、`is-shallow=true`、`origin`=本地 mirror、`du -sh`=**15M**、`VERSION`=**1.2.6**（文件 + `HEAD:VERSION` blob 双证）。
+- **tag 形态**：`cat-file -t refs/tags/v1.2.6`=**commit**、`rev-parse`=`…9fa28ece…`、`rev-parse '…^{}'`=**同值** ⇒ **lightweight**；远端 `ls-remote`（**直连** git.musl-libc.org **rc=0**）**仅 1 行 / 无 `^{}` peel 行 / sha 同** ⇒ 锁 `commit` 无需 peel、`--depth 1 --branch v1.2.6` 形态成立（**与内核 `v7.2.10`、test-suite `llvmorg-23.1.3` 的 annotated 相反**）。
+- **取源幂等**：`make fetch` **两次 rc=0**，均打印 `fetch: mirror musl.git already has 9fa28ece75d8; skipping fetch` + `fetch: musl already at 9fa28ece…`；mirror `objects` 文件数 **3→3**、字节 **1457303→1457303**（**未重下**、无网络）；`tools/infra/status.py` **rc=0** 列出 `musl enabled 9fa28ece…`。
+- **移植面（现场 `find`）**：`src/*/riscv64/*.s|.S`=**12**、`arch/riscv64/`=**13**（顶层 6 + `bits/` 7）⇒ 与「实测移植面」节一致。
+- **门控**：L1 的 **27 个非 `check-patch-tree` 目标逐个 rc=0**（`check-knowledge-refs` / `check-no-residue` / `check-components` 均在其中）；`check_issues.py` **rc=0**（28 open / 4 closed）；`make check-tasks` **rc=0**；`compileall` **rc=0**。
+- **L1 聚合 `make check` rc=2**（唯一失败 = `check-patch-tree`）——**与本次改动无关，双重证据**：① 该门控输出**不含 `musl`**，且在「**master 锁册（无 musl 条目）**」临时树上**输出逐字节一致 / rc 相同** ⇒ musl 条目零影响；② 归属 = 换分支后仓库侧补丁表回退 master 版（blob `78648ec`）而共享 `.work/source/<llvm-project>` 工作树仍停在 `SPEC-142t-B` 的 base+1 提交（`24881a6b5`，07:46），同一临时树**仅**把该补丁换成 `SPEC-142t-B` 版（blob `010a9b6`）即 `check-patch-tree: 4 component(s), 127 patches OK` **rc=0**（A/B 落 `.work/log/<模块>/INFRA-076t-cpt-branch-ab.log`）。
+**新发现/坑**：① musl `v1.2.6` = **lightweight tag**（tag sha = commit sha、`ls-remote` 无 `^{}` 行）⇒ 锁 `commit` 无需 peel，与 annotated tag 相反 ⇒ **每条目的 tag 形态须现场判、两种都合法**。② `patchless` 是「无补丁集」组件的**唯一放行开关**，与 `patch_dir`/`patch_series` **互斥**（`manifest_check` 双向拒）⇒ 落第一份 `arch/dadao` 补丁时须**同一提交内**去 `patchless` 并补两字段。③ `check-patch-tree` 同时读「仓库侧补丁表」与「**共享** `.work/source/<name>` 工作树」，工作树**不随分支切换重建** ⇒ 换分支即可能变红；**判定法 = 同门控跑「master 锁册临时树」差分对照**（勿用 `git checkout`/`stash` 复位）。④ `make fetch` 对已存在工作树先 `git fetch --no-tags origin <sha>`（origin = **本地 mirror** ⇒ 离线秒级）再按「HEAD==commit / commit 是 HEAD 祖先」决定 leave alone ⇒ 幂等、对 `patchless` 组件无副作用。（建议沉淀 `.tao/knowledge/lessons.md`）
+**遗留问题**：① 【**非本任务，未处置**】L1 非全绿：唯一失败 `check-patch-tree` = `SPEC-142t-B` 分支态 × 共享 llvm 工作树错配（`components/llvm-project/patches/**` 属他模块，本任务**不得**改）⇒ 待该分支收尾/合并后自然回绿；本次已用 A/B 证明**与 musl 条目零关联**。② `milestones.md` 流水行仍写 `待开始`（状态机由主会话 `/complete` 收尾改写）；本轮只**复核**其内容与锁 `commit` 一致（G1–G3 PASS），未改动。③ 任务书「参考对照（`DADAO-0628`）」教训清单与「实测移植面」原文经现场复核（12/13）**无订正**。
 
 ## 审阅记录
 
-#### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+#### 第 1 轮 engineer 自审（2026-10-15，分支 `INFRA-076t`；自主逐行审查）
+
+- **范围**：`manifests/components.lock.toml` 的 `musl` 条目、 `.work/evidence/<任务ID>/{run.sh,lockedit.py}`、本任务书。
+- **逐行审查**：lock 仅追加 **+33/-0** 行（`git diff --numstat master` 现场值），其余 8 组件段与注释**逐行未动**；新条目字段与 `qemu`/`linux`/`llvm-test-suite` 体例一致（`enabled` / `repository` / 40-hex `commit` / `shallow` / `shallow_ref` / `patchless` / `role`），**未**声明 `patch_dir`/`patch_series`（`patchless` 不变量）、**未**加 `source[]`（直连可用，同 `picolibc`/`embench-iot` 形态，注释已写明理由）。`run.sh`：无 `set -e`（失败继续、末尾统一判定）、无 `tee`、计数现场统计、还原一律 `cp`+md5（**无** `git checkout/restore/stash`）、注入用**临时树副本**（C 段）/真锁册 + `trap` 还原（`--inject`）；`lockedit.py` 对「未命中目标行」显式非零退出（防**空注入假绿**）。时序审查：D/E/F 段均在锁条目落盘后执行，`make fetch` 只写 `.work/source/**/.git` 与 `.cache/**`，**未触** `.work/build/**` 与安装/产物根（并发重建约束满足）；`make -n check` 31 条命令**无** `cmake/ninja/build-*` ⇒ L1 取证不触发构建。
+- **防造假**：E 段用 **`git blob` sha256 作独立 oracle**（非自证），并含「注入态下工作树干净断言**必判 FAIL**」的可达 FAIL 路径；C 段两个反例均在临时树注入并在**未注入副本**上验证回绿；B 段 tag 形态用**远端 `ls-remote`** 独立佐证；D 段用 mirror 对象数/字节数**双不变**证「未重下」。
+- **finding 处置**：
+
+  | finding | 处置 | 改了什么 | 复验证据 |
+  |---------|------|---------|---------|
+  | A6 断言误写：`--show-toplevel` 期望写成了仓库根 | ✅已修 | 期望改为 `$ROOT/$WT`（工作树自身 toplevel） | `--sections AB` 首跑 FAIL ⇒ 修后 `ABE` 37/37 PASS |
+  | A13/A14 期望值误用 tag 名（`v1.2.6`），而 `VERSION` 内容是 `1.2.6` | ✅已修 | 期望改 `1.2.6`；标签名只用于 ref 断言 | 同上（FAIL→PASS 现场） |
+  | G5/INJ2 断言写法错（`grep -c … >/dev/null`、`grep -qc`） | ✅已修 | 改五字段循环 + `grep -q` | `--sections C` 20/20、`--inject 1` 闭环 PASS |
+  | F1/F2 原断言「聚合日志恰好 1 条 Error 且是 check-patch-tree」= **依赖并发/分支态的易碎断言**（若他方修好即误红） | ✅已修 | 改为**状态无关**断言「聚合日志中 musl 相关错误行=0」；红归属改由 **A/B 差分**（info + 落盘日志）证明 | `--sections DF` 47/47 PASS；A/B 日志 `…cpt-branch-ab.log` |
+  | `make check`(L1) 当前非全绿（`check-patch-tree`） | ⏸延后（**非本任务**：属 `components/llvm-project/patches/**` 他模块 + `SPEC-142t-B` 分支态；本任务文件集不含） | 未改 | 双重无关联证据见完成区「验收结果」；A/B：`A_RC=1` / `B_RC=0`（`4 component(s), 127 patches OK`） |
+  | `milestones.md` 流水行仍是 `待开始` | ⏸延后（状态机归主会话 `/complete`） | 未改 | G1–G3 PASS（行内容 + 锁 `commit` 一致） |
+
+- **判决**：**无本任务范围内未修 finding**（表中 ⏸ 两项均为「超文件集 / 归主会话」的登记项，已入「遗留问题」）⇒ 状态置 **`待验收`**。
+
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决）
