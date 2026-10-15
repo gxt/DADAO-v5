@@ -176,7 +176,7 @@
   scope: [qemu, infra]
   blocks: []
   resolved_by: null
-  notes: "原 backlog L72/L143。docs/Process-01 §10 要求按任务一条。QEMU-041t（2026-10-05）已补 post-2026-10-04 条目（QEMU-040t 等）；但 issue 原文要求自 2026-09-23 起，QEMU-025t~033t 共 9 条历史行仍缺 ⇒ 未完整关闭，待另立任务补记。"
+  notes: "原 backlog L72/L143。docs/Process-01 §10 要求按任务一条。QEMU-041t（2026-10-05）已补 post-2026-10-04 条目（QEMU-040t 等）；但 issue 原文要求自 2026-09-23 起，QEMU-025t~033t 共 9 条历史行仍缺 ⇒ 未完整关闭，待另立任务补记。【体例变更（2026-10-15，`INFRA-084t`）】组件 `changelog.md` 由**表格**改为**列表式 + 按里程碑分节**（用户 2026-10-15 裁定；`docs/Process-01 §10` 同步）⇒ 补记上述 9 条时按**新体例**并归入对应 `## M<k>` 节；该任务只换形态、不改内容、不补记录 ⇒ 本 issue **保持 `open`**。"
 
 - id: ISS-093
   title: "行内 code span 检测（INFRA-021t 评估，方案 b）——风险高于收益，登记 deferred"
