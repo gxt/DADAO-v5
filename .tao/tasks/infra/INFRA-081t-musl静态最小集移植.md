@@ -96,3 +96,12 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### architect 立项提交留痕（2026-10-15，分支 `p1-taskbook`）
+
+- **档位**：**正常提交**——本提交为**规划产物立档**（用户 2026-10-15 原话「**立**」，渠道 = 经主会话问答），**非 engineer 实现、无 reviewer 判决适用**；提交信息按用户指定。
+- **提交号**：`159bc42`（「立 P1：musl 静态最小集移植任务书（ADR-0025 D6）+ 登记后续两大测试集全量（用户裁定）」）。
+- **文件集对账**（`git diff --cached --name-status` = **2 项** vs 本任务书范围）：① **新增**本任务书 `.tao/tasks/infra/INFRA-081t-musl静态最小集移植.md`；② **修改** `.tao/knowledge/milestones.md`（流水行 + M8 规划区条目，**architect 台账职责**）⇒ **无漏提、无多提、无越界**（**未动** `spec/` / `.tao/contracts/` / `manifests/` / 组件补丁 / `tools/`；`.work/**` gitignored 不入库）。
+- **取号依据**（`INFRA-081t`）：扫 `.tao/tasks/infra/**` + `.tao/archive/**` 全量，**占用最大 = `INFRA-080t`** ⇒ 取 **`081`**；**`master` 现状无 `INFRA-081*` 文件 ⇒ 未被占用**（注：该号**历史**上曾被 `libc-test` 任务占用、后经 `1dc0570`（`R089`）改名释放为 `TESTCASES-044t` ⇒ 本册与其**无关联**）。
+- **门控**（各捕**自身** rc，无 `tee` 吞码）：`make check`（L1）= **0** / `check-knowledge-refs` = **0** / `check-knowledge-dir` = **0** / `check-no-residue` = **0** / `check-tasks` = **0**（②「已立未开工」计数含本任务）/ `python3 tools/infra/check_issues.py` = **0**；日志落 `.work/log/infra/INFRA-081t-gate-*.log`（`.work/` 可删区）。
+- **`push`**：**未做**（本角色**禁** `push`；`master` 落地由主会话在 `/complete` 后执行）。
