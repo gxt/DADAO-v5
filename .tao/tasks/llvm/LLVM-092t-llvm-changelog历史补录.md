@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`INFRA-069t`（口径来源，落 `changelog.md` 头部 + `docs/Process-01 §10`；本任务沿用其表体例，并**订正**头部 L5 字面口径）；`ISS-200`（立项来源 + 用户裁定）；**被补录任务号由机械枚举现场派生**（`.work/evidence/LLVM-092t/enumerate_gaps.py`，第三轮起取代手工清单，见下「第三轮裁定留痕」；任务书均为归档 / 已提交 / 在册文件，**只读**）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -231,3 +231,22 @@
 | T9 计数是否写死 | ✅已核 | 枚举/断言/完成区计数均**现场派生**（`grep -c .`/`numstat`），脚本内无写死条数 | `--text` INFO「表内任务列计数 ^LLVM- = 80 / 非 LLVM- 有证据 = 15」为现场值 |
 
 **判决**：T1–T9 全部 ✅已修/已核；第 1–4 轮 F/R/G/S 处置**保留不变**（其结论在最终判据基准下重跑仍成立：既有行零删改、抽查日期、门控 rc）。证据脚本默认 **106/106 PASS（rc=0）**、`--inject` **134/134 PASS（rc=0，8 组注入）**；门控 5 项 + 6 项 spec/knowledge 检查各 **rc=0**；越界=3 类文件（`changelog.md` + `Process-01` + 本任务书）。**可标「待验收」**（reviewer 首轮验收仍未执行，占位区保持原样）。
+
+#### 第 3 轮 reviewer 验收（实录）
+
+（轮次号按主会话下发；任务书内既有 reviewer 轮次仅「第 1 轮」占位未执行，占位保持原样。日志 `.work/log/llvm/LLVM-092t-review3-*.log`；工作区快照对账：审阅前后 `git status --porcelain -uall` 均空、目标文件 md5 与注入前一致（changelog `e4c04a69…`），仅本审阅记录为 reviewer 唯一改动。）
+
+**重跑记录**（workdir=仓库根，逐条真实 rc）：
+1. **枚举（自跑）** `python3 .work/evidence/LLVM-092t/enumerate_gaps.py` ⇒ rc=**0**：U'=110、A'=95（LLVM 80 + 本组件 15）、T=95，`A'−T`=0、`T−A'`=0。**逐号比对**（独立写 python 抽表内任务列，不复用脚本函数）：独立抽 95 号 == JSON `table_all_ids` == `should_be_in_table`（`==` 为 True），逐号差集两侧均空；md5 现场复算与完成区 `d8892f34…` 一致 ⇒ **表内==全集 ✓、多集空 ✓**。判据独立核对：R5 = 「`^LLVM-` 且落地提交命中 LLVM 模块路径」∪「落地提交改过 `components/llvm-project/**`（台账除外、不限模块）」，与定案口径一致 ✓。
+2. **抽查 ≥5（实抽 13+2 条，含各类）**：表内日期 == `git log -1 --format=%ad --date=short <落地提交>` 全对——`SPEC-038t` c3769f22 09-29（patches）、`SPEC-109t` 4b865c43 10-06（5 份 patches）、`INFRA-071t` 61a497e2 10-14（3 份 patches）、`SPEC-084t` 93ba173b 10-03（README-only）、`INFRA-060t` 9a45fca9 10-11（README-only）、`LLVM-002t` 0877bee 09-17、`LLVM-016t` 0847713 09-28、`LLVM-091t` 6502abb 10-14 等；**`SPEC-142t` fd885eb4 / `SPEC-143t` d2acf4af 按判据（落地改 `DADAOInstrInfo.td.patch`）确在表内 ✓**；非 LLVM-* 行的 `components/llvm-project/**` 证据逐条可回溯（`comp_files` 现场列出）✓；摘要与提交主题/归档任务书无矛盾 ✓。
+3. **既有表行零删改**：`git diff 557446c -- changelog.md | grep -c '^-| '` = **0** ✓；`numstat`=`39/1`、`grep -cE '^\+\| 20'`=**38** == 新增任务号 **38**（独立计数）✓；**唯一 1 处删除** = `-> **维护规则**：组件补丁变更后…`（L5 口径行，非表行，确系维护规则订正）✓。
+4. **口径三处一致**：`changelog.md` L5 ↔ `Process-01 §10` L162+L204 ↔ 任务书「最终口径裁定留痕」均含「模块 = …」∪「落地提交改过 `components/<name>/**`」+「未动本组件目录者不入本表」排除句，表述等价 ✓（旧三串现场清零）。
+5. **门控（自跑）**：`make check`(L1)=**0**、`check-patch-tree`=**0**、`check-no-residue`=**0**、`check-tasks`=**0**、`tools/infra/check_issues.py`=**0**；`check-spec-numbering`/`check-spec-changelog`/`check-isa-coverage`/`check-knowledge-refs`/`check-contracts-dir`/`check-spec-refs` 各=**0** ✓。
+6. **证据脚本**：`./.work/evidence/LLVM-092t/run.sh` rc=**0**、`--inject` rc=**0**（8 组注入均「注入⇒FAIL>0⇒cp+md5 还原⇒回绿」，最终 md5 回 `e4c04a69…`）✓；逐断言审读确认均有可达 FAIL 路径、计数现场派生无写死 ✓。
+7. **我的新反例（不在 A–H）**：把表内 `LLVM-023t` 行任务号改为判据不入表的 `LLVM-032m`（有任务书无落地提交）⇒ `run.sh --text` rc=**9**、FAIL=9（①缺口/多集/A'≠T md5、⑥多集、HEAD 行逐字比对等）⇒ `cp`+md5 还原（`e4c04a69…` 相等）⇒ `--text` rc=**0** FAIL=0 **回绿** ✓。
+
+**数字差异（非阻断 finding F-R1）**：完成区「默认 106/106、`--inject` 134/134」核为**真实历史输出**（原始日志 `/tmp/opencode/LLVM-092t/final-{default,inject}.log`，含「删除表行=0 删除非表行=1 新增表行=38 新增任务号 38 条」，与我对 `557446c` 的独立计数一致，非重写/估算）；但 architect 提交 `fb74615` 后 **HEAD 已含改动** ⇒ 脚本以 `git diff`（对 HEAD）锚定「本次变更」，diff 类断言（②③④ 部分）提交后退化恒真/空跑，本次重跑默认仅 PASS=30、`--inject` PASS=58（rc 均=0）。根因 = **脚本未锚定任务基线 `557446c`**，非伪造、非凑绿（日志 + 独立复核俱在）；建议后续把 diff 基线改为任务基线（不阻断本次，交 architect 定夺）。
+**遗留判定**：L2 `check-modules` 未跑（写 `.work/build/**`，并发纪律 BLOCKED，以 L1+6 检查替代）✓可接受；`ISS-200` 留 `/complete` 关闭 ✓；4 条仅改 `README.md` 者按字面路径集入表——判据显式、已披露、有收紧路径 ✓可接受（边界张力保留披露）。
+**约束核验**：越界=0（`git show --name-only fb74615` = changelog + Process-01 + 任务书 3 文件）✓；未动 `patches/**`/`series`/`spec/`/`contracts/`/`tools/` ✓；「粒度」行与 HEAD 逐字一致 ✓；还原全程 `cp`+md5、无 `git checkout/restore/stash` ✓。
+
+**判决**：**Accepted**。验收标准 1–8 在我的独立重跑下成立（计数类以 `git diff 557446c` 独立复核 + engineer 原始日志取证为准，差异见 F-R1，不阻断）。
