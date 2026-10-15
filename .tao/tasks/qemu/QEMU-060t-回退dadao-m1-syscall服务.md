@@ -119,3 +119,16 @@
 
 
 #### 第 1 轮 reviewer 验收
+
+#### architect 提交与文件集审核（2026-10-15；**只追加**）
+**档位**：正常提交（**不带 `WIP:`**，按父会话批次指令）。**如实披露**：本笔提交时本册「第 1 轮 reviewer 验收」为**空**、`**状态**` = `待验收` ⇒ 该档位系**父会话指令**，非已落盘的 reviewer 判决；若后续判 `Needs Revision`，返工提交仍落本分支（本笔不回滚）。
+**文件集对账**（**显式 staging**，未用 `git add -A`/`.`）：`git diff --cached --name-status -M` = **7 项**，与完成区「修改文件」①–⑦ **逐项一致**（无漏提 / 无多提 / 无越界）：
+- `M components/qemu/patches/target/dadao/helper.c.patch`（①）
+- `D tools/qemu/min_rom_probe_082t.py`（②）、`D tools/infra/test_musl_static.py`（③）
+- `M tools/testcases/run_suite.py`（④）、`M components/musl/README.md`（⑤）
+- `M .tao/tasks/infra/INFRA-082t-musl静态最小集移植.md`（⑥，只追加）
+- `M .tao/tasks/qemu/QEMU-060t-回退dadao-m1-syscall服务.md`（⑦）
+**范围外检查**：`spec/**`、`contracts/**`、`.tao/contracts/**`、`manifests/**`、`Makefile`、`components/musl/patches/**` **零改动**（开工前 `status --porcelain -uall` 现场核 ⇒ 未列入）。
+**提交**：`a0705e6`（笔 1 = 本任务交付，7 files，`73 insertions / 1179 deletions`）；`aabac51`（笔 2 = 登记 `ISS-224`〔`P3`，现场取号〕，`check_issues.py` rc=0、35 open / 12 closed）；本段留痕 = 笔 3（仅追加本节）。**只 `commit`，未 `push`、未 merge**。
+**只读核对（供验收，2026-10-15 现场真实 rc）**：`check-qemu-semantics` **rc=0「149 total, 149 passed」**；`make check`(L1) **rc=0**（`check-components: PASS` + `repository checks (L1): PASS`）；`check-patch-tree` **rc=0「5 component(s), 145 patches OK」**；`check-tasks` **rc=0**（附报告型计数，不阻断）。日志 `/tmp/opencode/QEMU-060t/ro-*.log`。
+**另（非本任务判据，供 `ISS-224` 取证）**：`make apply-series` 现场 **rc=2**（`KeyError: 'patch_dir'`，崩于首个 `patchless` 组件 `chipyard`；前 4 组件 `already applied … skipped` ⇒ 幂等无副作用）⇒ 与本笔 `ISS-224` 登记一致，**非本任务引入、不影响本册验收**。日志 `/tmp/opencode/QEMU-060t/repro-apply-series.log`。
