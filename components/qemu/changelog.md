@@ -88,3 +88,11 @@
 - **2026-10-15 `SPEC-143t`**
   - 摘要：**新增指令 `ctlz`/`cttz`/`ctpop`（前导零 / 末尾零 / 置位数）的 decode + trans（QEMU 侧，`ADR-0012 D11`）**。`insn.decode`：`@misc` 子表新增 3 条 pattern（`ctpop/ctlz/cttz_orri_rd` = `01000000` + `011101/011110/011111`，即 op `0x40` + ha `0x1D/0x1E/0x1F`；value `0x40740000`/`0x40780000`/`0x407C0000`，mask `0xFFFC0000`），头部计数 231→234。新建 `target/dadao/insn_trans/trans_bitcnt.c.inc`：3 条 `trans_{ctpop,ctlz,cttz}_orri_rd` + `bitcnt_mask`（有效位掩码，`>> (63-hd)` 避开 `1ULL<<64` 的 UB）与 `bitcnt_legal`（`rdhb==rd0` ⇒ `ILLI`/`dst_rd0`，照既有 `orri` 先例 `gen_exception_illegal`）。语义（`hd` = **有效位上界**，`rdHC[hd:0]` 共 `hd+1` 位）：`ctlz` = 左移 `63-hd` 后 `tcg_gen_clzi_i64(..., hd+1)`、`cttz` = 掩码后 `tcg_gen_ctzi_i64(..., hd+1)`、`ctpop` = 掩码后 `tcg_gen_ctpop_i64` ⇒ 全 0 时 `ctlz`/`cttz` 得定值 `hd+1`（`hd=63` ⇒ 64）、`ctpop` = 0；结果写满 64 位。**`hd ∈ 0..63` 全部合法**（无 `hd` 相关 ILLI 分支）。`translate.c` 增 `#include "insn_trans/trans_bitcnt.c.inc"`（486→487 行）。依据 `ADR-0012 D11` + `contracts/opcodes.yaml` + `contracts/legality_rules.yaml`（`dst_rd0`）。补丁 **35 → 36**（qemu = 新增 29 + 修改 7）；`check_qemu_trans` **234/234 (M1 155/155)**、`check-interface` 83/83、`check-patch-tree`(129)/`check-index-blobs` EXIT=0。
   - 执行者：engineer
+
+- **2026-10-15 `INFRA-082t`**
+  - 摘要：**在 `dadao-m1` 上新增 `umon` syscall 服务（识别条件含 user 模式）**：`write`/`writev`/`exit`/`exit_group`/`set_tid_address` 五服务（未实现者 ⇒ `-ENOSYS`）；`helper.c.patch` 于 `helper_cfx_trap` 内接管 user `trap cfx0,0`；`check-qemu-semantics` **149/149** 不回归。
+  - 执行者：engineer
+
+- **2026-10-15 `QEMU-060t`**
+  - 摘要：**按用户 2026-10-15 裁定撤回上述 `umon` syscall 服务**（`helper.c.patch` 还原 `761dfa3` 基线；删 2 个专用探针/测试；`check-qemu-semantics` **149/149** 不回归）⇒ `dadao-m1` 回到 semihosting-only 两条路由。
+  - 执行者：engineer
