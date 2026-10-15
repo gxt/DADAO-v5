@@ -176,5 +176,13 @@
 
 **判决**：12 条 finding **全部已修/已核**，无 ⏸/❌ ⇒ 任务状态置 **`待验收`**，返回主会话交 reviewer 独立验收。
 
+#### 第 1 轮 architect 提交与文件集审核（2026-10-15；分支 `INFRA-084t`）
+- **档位**：**正常提交（不带 `WIP:`）**，**提交号 `970217e`**，落在本任务分支内（**未 merge、未 push**）。**档位差异披露**：本任务书 `**状态**` 仍为 `待验收`、reviewer 第 1 轮尚未落记录，按 architect 默认规则应为 `WIP:` 前缀；本次按**主会话 2026-10-15 明确指示**（不带 `WIP:`）执行 —— 差异如实留痕。
+- **开工前 `git status --porcelain -uall`** = **9 项**（4 `components/*/changelog.md` + `Makefile` + `docs/Process-01…md` + `docs/Process-07…md` + 新 `tools/infra/check_component_changelog.py` + 本任务书）；**范围外 0**（`spec/` / `contracts/` / `components/*/patches/**` 均无）。
+- **显式 staging**（**禁** `git add -A`，逐路径 `git add -- <path>`）⇒ `git diff --cached --name-status` = **8 `M` + 1 `A`**，与完成区「修改文件」逐条对账：**多提 0 / 漏提 0 / 越界 0**。
+- **术语统一（architect 顺手，属本次体例变更收尾；越任务书范围的 1 处小改，如实披露）**：`docs/Process-01 §10` 的 `入表判据`→`入本文件判据`、`不入本表`→`不入本文件`（**只改措辞、判据语义零改**）；同文件 §13 rev 行补记该措辞统一。llvm changelog 本已同名 ⇒ 两处用词一致；**遗留问题第 2 项（待裁定）由此闭合**。范围外同类扫描：`docs/` 内仅 `Process-04 §5` 的「表内/表头之上」指 **`milestones.md`/`MEMORY.md` 表格**（非本 changelog）⇒ **不动**，登记为观察项。
+- **只读核对（真实 rc；日志 `.work/log/infra/INFRA-084t-architect2-*.log`）**：`make check`=**0**、`make check-component-changelog`=**0**（16 项 ①–④ + ⑤ 覆盖，计数现场派生）、`check-patch-tree`=**0**、`check-knowledge-refs`=**0**、`check-no-residue`=**0**、`check-tasks`=**0**、`check_issues.py`=**0**；`make check` 日志含 `check-component-changelog: PASS` + `repository checks (L1): PASS`。
+- **对账脚本基线核验**：`.work/evidence/INFRA-084t/table2list_check.py` 的 `DEFAULT_BASE = 60a75bddabe98f65c1b97d6a91cfceeb0a0555d3`（**非 `HEAD`**；脚本内 `HEAD` 仅出现于「禁以 `HEAD` 为基线」注释与 `ROW_HEADER` 字面）⇒ 现场复跑 rc=**0**、首行打印基线 `60a75bd…` ✓。
+
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
