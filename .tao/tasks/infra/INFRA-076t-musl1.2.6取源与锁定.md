@@ -134,6 +134,6 @@
 
 - **档位**：**`WIP:`**（reviewer 未验收；L1 聚合 `check-patch-tree` 红 = **他分支 `SPEC-142t-B` × 共享 `.work/source/<llvm-project>` 错配**，非本任务问题）⇒ **挂起**：先提交、待其合并后回绿再验收；**未 merge、未 push**。
 - **提交 1（`04891a0`）**：`WIP: INFRA-076t: musl 1.2.6 入锁（commit 9fa28ece…, shallow_ref=v1.2.6, patchless）——L1 check-patch-tree 红属 SPEC-142t-B 分支错配（双重证据与 musl 无关），待其合并后回绿再收尾`。显式 staging = `manifests/components.lock.toml` + 本任务书（`2 files changed, 64 insertions(+), 8 deletions(-)`）。
-- **提交 2（`60817c9`）**：「登记 issue：分支×共享源树 patch-tree 错配（INFRA-076t 现场）」——**单独一笔**，仅 `M .tao/knowledge/issues.yaml`（+8 行，`ISS-210`）。
-- **文件集对账**（`git diff --cached --name-status` vs 完成区「修改文件」）：提交 1 = **逐条对齐**（完成区声明 lock + 本任务书；`.work/evidence/**`、`.work/log/**` 为 gitignored、不入库，符合声明）；**多提 = 1 项**（提交 2 的 `.tao/knowledge/issues.yaml`，**architect 登记职责**、非 engineer 交付物，已在 `ISS-210` 留证）；**无漏提、无越界**。开工前 `status --porcelain -uall` = 恰 **2 项**（lock + 任务书），与他方分支 `SPEC-142t-B`（`fd885eb`）**未被触碰**。
+- **提交 2（`60817c9`）**：「登记 issue：分支×共享源树 patch-tree 错配（INFRA-076t 现场）」——**单独一笔**，仅 `M .tao/knowledge/issues.yaml`（+8 行，`ISS-212`）。
+- **文件集对账**（`git diff --cached --name-status` vs 完成区「修改文件」）：提交 1 = **逐条对齐**（完成区声明 lock + 本任务书；`.work/evidence/**`、`.work/log/**` 为 gitignored、不入库，符合声明）；**多提 = 1 项**（提交 2 的 `.tao/knowledge/issues.yaml`，**architect 登记职责**、非 engineer 交付物，已在 `ISS-212` 留证）；**无漏提、无越界**。开工前 `status --porcelain -uall` = 恰 **2 项**（lock + 任务书），与他方分支 `SPEC-142t-B`（`fd885eb`）**未被触碰**。
 - **只 `commit`、未 `push`**；提交落在本任务分支 `INFRA-076t` 内。
