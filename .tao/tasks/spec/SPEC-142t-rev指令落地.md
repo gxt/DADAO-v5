@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D10`（**前置：`D10.1`–`D10.8` 已逐条确认完成 ✓** —— 用户 2026-10-14 原话「**D10.1-D10.8 认可**」，见 `adr-0012 §D10.0` / `§状态说明`；`D10.6a` 已定案 (b)，**`D10.6b` 亦已定案 = `scope: m8`**）；`SPEC-141t`（ISA 指令扩展预研，**只读**来源）；`INFRA-078t`（compiler-rt 预研：`bswap` 缺口来源，**只读**）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）
 **状态**：待验收
-**阶段进度**：A ✅ 已验证（2026-10-15）；B MC ✅ 已验证（2026-10-15，reviewer Accepted）；C QEMU ⏳ 待做
+**阶段进度**：A ✅ 已验证（2026-10-15）；B MC ✅ 已验证（2026-10-15，reviewer Accepted）；C QEMU ✅ 已完成（2026-10-15，待验收）
 
 > **`**状态**` 口径说明**：本任务 = **一个任务书、三阶段验收** ⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 验收」）。
 
@@ -175,6 +175,18 @@
 - ⑤ 工具链联动与门控：`gen_isa_coverage.py` 重生成 + `--check` **rc=0**（`rev.*=accept ok`）；`generate_lit_vectors.py` 重跑（正例 221 / 反例 10，现场统计）；`check_lit_gen.py` **rc=0**（64 passed）；`make check-lit-full` **rc=0**（12/12，含 `gen-orri.s`）；L1 `make check` **rc=0**；`make check-modules`(L2) **rc=2** —— **恰 2 FAIL，均 `check-interface` 的 `trans_rev_*` 缺失**（去重 4 条）；L2 其余子目标（`check-lit`/`check-qemu-smoke`/`test-codegen`/`test-elf`/`test-semihost`/`check-picolibc-tests`）**逐项 rc=0**（`check-interface` 是 L2 首个前置 ⇒ make 早停，故逐项单跑）。
 **新发现/坑**：①**"工具已重建"只完成一半**：`.work/build/llvm/bin/**` 为新（07:51），但**门控/lit 实际用的安装根** `.dadao/cross-toolchain/bin/llvm-mc` 仍是**重建前**的（md5 `655d7ab…` ≠ `750a449…`，且**不识别 `rev.o`**）⇒ 按 `Makefile` 既有口径（`check-isa-coverage` 注释："Needs llvm-mc (run 'make install-host' first)"）执行 `make install-host`（rc=0，**127 s**）后二者 md5 相同。**未做此步**时 `gen_isa_coverage` 重生成得回 `reject`（与阶段 B 目标不符），而 L1 仍全绿（旧工具 + 旧生成物自洽）⇒ **无门控可发现安装根滞后**。②`llvm-mc --disassemble` 对本目标**端序不符**（`40 30 82 48` 解成 `ldm.ub …`）⇒ 往返以 `llvm-objdump` 为准（防误用）。③`check_mc_dynamic.py` 的 `ILLEGAL_SNAPSHOT` 为**现状快照**：B-b 落地汇编期 `encode_onehot` 后**必须同步更新**（否则脚本报 FAIL 提示）。
 **遗留问题**：①**B-b 未做**（汇编期 `encode_onehot`：非 one-hot / `k≥S` ⇒ 报错；现状静默接受）——须架构裁定是否纳入；②阶段 C（QEMU `trans_rev_*`）未做 ⇒ L2 2 FAIL 仍在；③新增待办：**安装根滞后应可判**（建议加一致性门控或收尾纪律"重建后必 `make install-host`"）；④`.dadao/`（gitignore 内）已刷新，非仓库改动，但复现步骤须含 `make install-host`。
+### 阶段 C（QEMU `rev.*` 执行支持，2026-10-15；重建 + 行为验证）
+
+**测试结果**：`.work/evidence/SPEC-142t/run-c.sh` **PASS=21 FAIL=0**（rc=0）；`run-c.sh --inject` **PASS=13 FAIL=0**（3 组注入各使目标断言 FAIL ⇒ 回绿；注入 C 为组件源树 `cp` 备份 + md5 还原，还原后 `git -C .work/source/qemu status` 干净）。**`make check-modules`(L2) rc=0**（= 本阶段核心指标：`check-interface` 83/83 PASS，`QEMU trans ↔ opcodes.yaml` = **231/231**，`QEMU trans_* 定义数 231`）。`make check`(L1)=0；`check-qemu-semantics`(L3 语义)=0（**149/149，无回归**）；`check-lit-full`=0（12/12）。
+**修改文件**（`git status --porcelain -uall` 除**本任务书**外 = 6，**全在 `components/qemu/**`**）：`patches/target/dadao/insn.decode.patch`（+4 pattern，246→250 行；头计数 227→231）、`patches/target/dadao/insn_trans/trans_rev.c.inc.patch`（**新**，105 行）、`patches/target/dadao/translate.c.patch`（+1 `#include`，485→486 行）、`series`（+1）、`changelog.md`、`README.md`（规模 34→35）。**未触** `spec/`、`contracts/`、`components/llvm-project/**`；`helper.c` 无需改。
+**验收结果**（真实 rc；原始日志 `.work/log/qemu/SPEC-142t-c-*.log`、`SPEC-142t-C-*.log`）：
+- **编码 / 接口**：4 条 pattern（`rev_{o,t,w,b}_orri_rd` = `01000000/01/10/11` + `001100` = op `0x40..0x43` + ha `0x0C`）与 `opcodes.yaml` `value`/`mask` 逐条一致（`validate_decodetree` 231/231 PASS）；`check_qemu_trans --strict` **231/231 (M1 155/155)**；`check-interface` **83/83 PASS**；`check-patch-tree`（4 组件 128 补丁）/`check-index-blobs`（92 新增）rc=0。
+- **语义 e2e（独立 oracle）**：`.work/evidence/SPEC-142t/check_rev_qemu.py` 以**第三种**独立实现（MSB-first bit 串逐块单元倒序）派生期望值（`--self-check`：与阶段 A 两条路径 90 例**三方全等**）⇒ 生成 80 例（semantic 36 / boundary 16 / legality 28，**现场统计**；非平凡例 36）经 QEMU 实跑 **80/80 PASS**；阶段 A 向量 `tests/vectors/rev` **62/62 PASS**；覆盖 4 条 × **全部合法 `k`**（含 `k=1`、`k=S/2`、`k=8`）。
+- **`ILLI`（真实 QEMU 退出码）**：非 one-hot（`k=0/3/5/6/63`）、`k ≥ S`（`.t k=32` / `.w k=16` / `.b k=8`）、`rdhb=rd0` ⇒ **`Exit code: 0x88`（ILLI）**，**非** UNDI(`0x89`)、**非**静默；`rdhc=rd0`、`rdhb=rdhc` ⇒ **不**报错（PASS）。
+- **重建（启动证据）**：`setsid nohup bash -c 'JOBS=8 make build-qemu …'`（外层 PID **1024816** / `make` **1024818**）⇒ `.work/log/qemu/SPEC-142t-c-phC.EXIT` = **`SPEC-142t_C_EXIT=0`**（22/22 步、**<1 min**，增量）；随后 `make install-host` rc=0，安装根与构建树 QEMU md5 相同（`682aac9d18b03ea89b804c4ff53d9f02`）。
+**新发现/坑**：① `trans_*` 函数名由 `opcodes.yaml` 的 `id` 派生（`rev.o_orri_rd` ⇒ **`trans_rev_o_orri_rd`**），**非**任务书简写 `trans_rev_o`（`check_qemu_trans`/`check-interface` 按派生名精确匹配）；② `insn.decode` 由 `tools/qemu/generate_decodetree.py` 生成，其头计数**硬编码 256**（提交版按现场数维护 ⇒ `231`），插入位置须与生成器输出一致（本环逐条插在生成器对应位置并 diff 核对）；③ `make check-modules`/`check-qemu-semantics` 用**安装根** QEMU ⇒ 改 QEMU 后**必须** `make install-host`，否则门控测旧二进制（承阶段 B-a G6）；④ `ILLI` 判据因 `immu6` 是**立即数**而属**翻译期静态**判定，照既有 `trans_*_orri_rd` 惯例用 `gen_exception_illegal`（与 F4 裁定一致：MC 层不查、执行层查）。
+**遗留问题**：① `make check-full`(L3) 未跑——其两组件已单跑（`check-qemu-semantics` 149/149 rc=0、`check-lit-full` 12/12 rc=0）；`test-m6` 非本任务触发点（归 `/complete` 的 L3）；② **`ISS-211` 可闭合**（执行层 `ILLI` 已落地并复核；闭合动作归主会话/architect）；③ 任务书 §1 表 `value` 笔误见阶段 A 自审 F2（本阶段按真源 `0x40300000` 系列落地）；④ **未提交**（提交权归 architect）；**未越界**（未触 `spec/`/`contracts/`/LLVM/compiler-rt）。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -374,3 +386,32 @@
 **Finding**：无。无阻断缺陷。
 
 **判决**：**Accepted** —— L1 全绿、L2 恰 2 FAIL（阶段 C 依赖的 `trans_rev_*` 缺失）、四条编码三方一致、往返字节一致、`immu6` 现状与 F4 裁定一致、既有 `orri` 独立支撑「不分层一致」、工具链联动全绿、证据脚本 14/0 + 9/0、我的新反例注入 FAIL→回绿、编号唯一性无重复。
+
+#### 第 4 轮 engineer 自审（阶段 C / QEMU，2026-10-15）
+
+（自主逐行审查；对象 = 本环新增/改动的 `insn.decode` 4 条 pattern、`insn_trans/trans_rev.c.inc`（105 行）、`translate.c` 的 1 行 `#include`、`series`/`changelog.md`/`README.md`、证据脚本 `check_rev_qemu.py` + `run-c.sh`。全局 `subagent_depth=1`，无法起嵌套子代理，故为自主逐行审查。）
+
+**逐行审查意见与判决**
+
+1. `gen_rev_units`（`trans_rev.c.inc`）：编译期展开的**位位置置换**——`for b in 0..64/S-1`（块）× `for u in 0..S/k-1`（块内单元），`src` 取 `src>>(b*S+u*k) & unit_mask` 后左移到镜像位 `b*S+(n_units-1-u)*k`；`src_shift` 最大 `64-k < 64`、`dst_shift < 64` ⇒ 无 UB/无 64 位移位；`unit_mask=(1ULL<<k)-1` 且 `k<=32`（合法集内 `k<S<=64` 且 one-hot ⇒ `k<=32`）⇒ 无 64 位溢出。`k=0` 会除零，但 `rev_legal` 在**全部 4 个**调用点先行否决（`k<1`）⇒ 不可达；保持最小改动（不另加断言）。**正确**。
+2. 语义 ↔ 契约（`ADR-0012 D10.3`）：块按 LSB 起 `b*S..b*S+S-1` 切分、块内 `S/k` 个 `k` 位单元倒序、单元内位序不变、**所有块同样处理**——与 `spec/SimRISC-04 §4.2.1` 逐条一致；`rdHB` 全 64 位为结果，无「范围外高位」特例。**正确**。
+3. `rev_legal`：`rdhb==rd0` ⇒ `ILLI`（`dst_rd0`）；`k<1 || (k&(k-1))!=0 || k>=S` ⇒ `ILLI`（`encode_onehot`）；`k=0` 由 `k<1` 短路（避免 `(k&(k-1))` 的 one-hot 误判）；`immu6` 为**立即数** ⇒ 翻译期静态判定，用 `gen_exception_illegal`（照 `trans_shr_uw_orri_rd` 等既有 `orri` 先例），**未**新增运行期分支。**正确**。
+4. `insn.decode`：4 条 pattern 逐条与 `generate_decodetree.py` **现场产出一致**（本环 diff 生成物 vs 提交版：除头计数外**零差异**）⇒ 无插入位置漂移；`validate_decodetree` 231/231 PASS（mask/value/格式双向）。**正确**。
+5. `translate.c`：`#include "insn_trans/trans_rev.c.inc"` 紧随 `trans_fp.c.inc`（与该文件既有 include 群一致）；hunk 头 `@@ -0,0 +1,486 @@` 与 `index` 行由 `tools/infra/make_patch.py` 自动生成（**非**手改），`check-patch-tree` 断言⑥/⑨ 与 `check-index-blobs` 独立复算通过。**正确**。
+6. 独立 oracle（`check_rev_qemu.py`）：与阶段 A 生成器**代码独立**（MSB-first 字符位串 vs 整数移位/大端字节序），`--self-check` 90 例三方全等；**无** subprocess、不调用 LLVM/QEMU。**符合 Spec-first / independent oracle**。
+7. **可达 FAIL（逐断言）**：注入 A（篡改 semantic 期望值）⇒ 1 FAIL；注入 B（把**合法 `k`** 标为「期望 `ILLI`」）⇒ FAIL（证明 `ILLI` 断言非恒真）；注入 C（组件源树去掉单元倒序 `(n_units-1-u)→(u)` 并重建）⇒ **40 FAIL**（证明 QEMU **实现本身**被比对，非空跑）。还原后回绿。**符合**。
+8. 证据脚本纪律：全量 21 项、注入 13 项；`cmd >log 2>&1` 后取 `$?`（**无** `tee`）；覆盖/计数**现场统计**（cases/cases.json/`trans 231/231` 从日志抓取）；收尾 `rc=0; [ FAIL = 0 ] || rc=1; exit $rc`。**符合**。
+9. 还原纪律：注入 C 用 `cp` 备份 + md5 对账（`5edb643e…`），**未**用 `git checkout/restore/stash`；还原后源树 md5 复原 + `git -C .work/source/qemu status --porcelain` 为空（**不以** `git status` 干净单独作证据，另有 md5）。**符合**。
+10. 防造假：`ILLI` 结论取**真实 QEMU 退出码**（`Exit code: 0x88`，逐条 5 例）；安装根与构建树 QEMU md5 一致（`682aac9d…`）⇒ 门控测的是新二进制而非旧件。**符合**。
+11. 越界自查：`git status --porcelain -uall` = 6 项，与 `spec/`、`contracts/`、`components/llvm-project/**` 交集**空**；未改 `helper.c`（纯 TCG，无需 helper）。**符合**。
+
+**Finding 处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `trans_*` 名与任务书简写（`trans_rev_o`）不一致；门控按 `opcodes.yaml.id` 派生名精确匹配 | ✅已按真源落地并披露 | 用 `trans_rev_{o,t,w,b}_orri_rd` | `check_qemu_trans --strict` 231/231；`check-interface` 83/83 |
+| F2 改 QEMU 后若未 `make install-host`，门控测**旧**二进制（旧件+旧生成物自洽、门控不可察） | ✅已处置（按 `Makefile` 既有前置） | 重建后执行 `make install-host`（rc=0） | 安装根/构建树 QEMU md5 相同（`682aac9d…`）；L2 231/231 |
+| F3 仅「向量级」注入不足以证明 QEMU **实现**被比对 | ✅已补（新增注入 C） | 源树去单元倒序 + 重建 ⇒ 40 FAIL；`cp`+md5 还原 ⇒ 回绿 | `run-c.sh --inject` PASS=13 FAIL=0；还原后 `git status` 干净 |
+| F4 `insn.decode` 头计数由脚本硬编码（`256`）与现场数（`231`）不一致 | ⏸披露不改（既有惯例：提交版按现场数维护） | 未改生成器（改生成器属越界/另立任务） | 「新发现/坑」② |
+
+**判决**：全部 finding 已处置（F1/F2/F3 已处置，F4 为显式披露/延后）。本环**未发现** `rev.{o,t,w,b}` 的 QEMU 执行**缺陷**（语义 80/80 + 62/62 双向量经独立 oracle 全等；`ILLI` 真实退出码 0x88）。阶段级状态：**C 完成 → 待验收**（任务级 `**状态**` = `待验收`）。

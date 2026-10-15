@@ -6,8 +6,8 @@ DADAO 的 QEMU 目标（CPU 模型 + 解码 + 标量执行 + 裸机测试机）�
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），清单见 `series`。
 - 规范：`docs/Process-01-组件补丁组织与构建编排.md`；上位决策：`ADR-0002 D4`（rev. 2026-09-23）。
-- 规模（2026-10-11 现场统计）：**34 份** = 新增 27 + 修改 7。
-- 主要内容：`target/dadao` 骨架、`insn.decode` 解码、RD/RB/RA 指令语义、`translate.c` 拆分（10 个 `insn_trans/*.c.inc`）、控制流、TB 续接修复、SEE/semihosting（含唯一 RAM 段与 boot ROM 映射）；另有 7 处对上游既有文件的修改（`hw/Kconfig`、`hw/meson.build`、`include/qemu/base-arch-defs.h`、`qapi/machine.json`、`qemu-options.hx`、`target/Kconfig`、`target/meson.build`）。
+- 规模（2026-10-15 现场统计）：**35 份** = 新增 28 + 修改 7。
+- 主要内容：`target/dadao` 骨架、`insn.decode` 解码、RD/RB/RA 指令语义、`translate.c` 拆分（11 个 `insn_trans/*.c.inc`）、控制流、TB 续接修复、SEE/semihosting（含唯一 RAM 段与 boot ROM 映射）；另有 7 处对上游既有文件的修改（`hw/Kconfig`、`hw/meson.build`、`include/qemu/base-arch-defs.h`、`qapi/machine.json`、`qemu-options.hx`、`target/Kconfig`、`target/meson.build`）。
 
 ## 校验
 

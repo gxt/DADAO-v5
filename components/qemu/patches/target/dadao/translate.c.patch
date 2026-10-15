@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..bc11770
+index 0000000..72c2bb8
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,485 @@
+@@ -0,0 +1,486 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -422,6 +422,7 @@ index 0000000..bc11770
 +#include "insn_trans/trans_mem.c.inc"
 +#include "insn_trans/trans_ctrl.c.inc"
 +#include "insn_trans/trans_fp.c.inc"
++#include "insn_trans/trans_rev.c.inc"
 +
 +static void dadao_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
 +{

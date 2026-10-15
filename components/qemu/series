@@ -28,6 +28,7 @@ target/dadao/insn_trans/trans_fp.c.inc.patch
 target/dadao/insn_trans/trans_imm.c.inc.patch
 target/dadao/insn_trans/trans_logic.c.inc.patch
 target/dadao/insn_trans/trans_mem.c.inc.patch
+target/dadao/insn_trans/trans_rev.c.inc.patch
 target/dadao/insn_trans/trans_shift.c.inc.patch
 target/dadao/meson.build.patch
 target/dadao/translate.c.patch

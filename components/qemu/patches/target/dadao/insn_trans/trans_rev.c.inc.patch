@@ -1,0 +1,111 @@
+diff --git a/target/dadao/insn_trans/trans_rev.c.inc b/target/dadao/insn_trans/trans_rev.c.inc
+new file mode 100644
+index 0000000..3b675dc
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_rev.c.inc
+@@ -0,0 +1,105 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++/* §Bit manipulating: rev.o / rev.t / rev.w / rev.b (orri, MISC octa/tetra/
++ * wyde/byte) — 逐块反转 (ADR-0012 D10; SimRISC-04 §4.2.1 总述, 08/09/10 引用).
++ *
++ * 后缀定块大小 S：.o=64 / .t=32 / .w=16 / .b=8 ⇒ 64/S 个块；一个块是寄存器
++ * 中 S 个连续位（bit b*S .. b*S+S-1，LSB 起算）。
++ * immu6 = k ⇒ 每块内部按 k 位切成 S/k 个单元，反转单元顺序；单元内位序不变。
++ * 所有块一律同样处理 ⇒ rdHB 全 64 位 = rdHC 的逐块反转结果（不存在「范围外
++ * 高位保持/清零」）。端序无关的位位置置换（本项目为大端）。
++ *
++ * 合法性（translation 期；immu6 是编码中的立即数，故为静态判据）：
++ *   - rdhb == rd0 ⇒ ILLI（dst_rd0）
++ *   - k 非 one-hot（0/3/5/6/...）或 k >= S ⇒ ILLI（encode_onehot）
++ * 合法集：.o{1,2,4,8,16,32} / .t{1,2,4,8,16} / .w{1,2,4,8} / .b{1,2,4}。 */
++
++/* Generation-time unit reversal: dst = reverse_units_in_blocks(src, S, k).
++ * k 与 S 均为编译期常量（k 来自立即数字段）⇒ 展开为定值位搬运，
++ * 无需运行期循环或数据相关分支。 */
++static void gen_rev_units(TCGv_i64 dst, TCGv_i64 src, int S, int k)
++{
++    int n_units = S / k;
++    uint64_t unit_mask = (1ULL << k) - 1;
++    TCGv_i64 acc = tcg_temp_new_i64();
++    TCGv_i64 tmp = tcg_temp_new_i64();
++
++    tcg_gen_movi_i64(acc, 0);
++    for (int b = 0; b < 64 / S; b++) {
++        for (int u = 0; u < n_units; u++) {
++            int src_shift = b * S + u * k;
++            int dst_shift = b * S + (n_units - 1 - u) * k;
++            tcg_gen_shri_i64(tmp, src, src_shift);
++            tcg_gen_andi_i64(tmp, tmp, unit_mask);
++            if (dst_shift != 0) {
++                tcg_gen_shli_i64(tmp, tmp, dst_shift);
++            }
++            tcg_gen_or_i64(acc, acc, tmp);
++        }
++    }
++    tcg_gen_mov_i64(dst, acc);
++}
++
++/* Shared legality check; returns false (ILLI already raised) when illegal. */
++static bool rev_legal(DisasContext *ctx, arg_misc *a, int S)
++{
++    int k = a->hd;
++
++    if (a->hb == 0) {                              /* dst_rd0 */
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    if (k < 1 || (k & (k - 1)) != 0 || k >= S) {   /* encode_onehot */
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    return true;
++}
++
++static bool trans_rev_o_orri_rd(DisasContext *ctx, arg_misc *a)
++{
++    if (!rev_legal(ctx, a, 64)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = tcg_temp_new_i64();
++    gen_rev_units(rdhb, rdhc, 64, a->hd);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_rev_t_orri_rd(DisasContext *ctx, arg_misc *a)
++{
++    if (!rev_legal(ctx, a, 32)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = tcg_temp_new_i64();
++    gen_rev_units(rdhb, rdhc, 32, a->hd);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_rev_w_orri_rd(DisasContext *ctx, arg_misc *a)
++{
++    if (!rev_legal(ctx, a, 16)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = tcg_temp_new_i64();
++    gen_rev_units(rdhb, rdhc, 16, a->hd);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_rev_b_orri_rd(DisasContext *ctx, arg_misc *a)
++{
++    if (!rev_legal(ctx, a, 8)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = tcg_temp_new_i64();
++    gen_rev_units(rdhb, rdhc, 8, a->hd);
++    store_rd(a->hb, rdhb);
++    return true;
++}
