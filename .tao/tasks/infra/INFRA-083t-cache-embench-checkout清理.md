@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`INFRA-074t`（来源 = 其第 2 轮 reviewer「非阻断建议②」，`已验证`）；`INFRA-051t`（embench-iot 组件接入——`.cache/embench-iot.git` 裸镜像与该工作树由其建立，`已验证`；**只读**引用其结论）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -57,16 +57,35 @@
 6. 完成区与审阅记录按规范填写（完成区 ≤30 行）；长输出留 `.work/log/infra/`；临时产物一律 `/tmp/opencode/<任务ID>/`。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`.work/evidence/INFRA-083t/run.sh` 默认 23/23 PASS rc=0；`--inject` 14/14 PASS rc=0（3 条真注入 FAIL 路径 + `cp`+md5 还原回绿）；`--gate-only` 删除前 6/6 PASS / 删除后 8/8 PASS rc=0；`preflight.sh` 删除前 rc=0（`total=1480 missing=0 unique=1 unknown=0`）。
+**修改文件**：① `.cache/embench-iot/`（**删除**；`.gitignore` 含 `.cache/` ⇒ `git status` 无变化）；② 新增 `.work/evidence/INFRA-083t/{run.sh, preflight.sh, unique-objects/8cfb515b….content}`；③ 新增 `.work/log/infra/INFRA-083t-{preflight,objects,unique-objects,gate-predelete,gate-postdelete,delete,run-final,inject}.log`；④ 本任务书（完成区 + 自审 + 状态）；⑤ `.tao/knowledge/issues.yaml` **未改**——`ISS-204` 的「转执行：落点 = `INFRA-083t`（2026-10-15，architect）」句已由 architect 于 `7c3080b` 追加（实测出现 1 次；`status: open` / `resolved_by: null` 未变）⇒ 不重复追加。
+**验收结果**：①安全核验（删除前真跑，逐条留 `.work/log/infra/INFRA-083t-preflight.log`）：S1 `is-bare-repository`=`false` rc=0；S2 `status --porcelain --ignored` 空 rc=0；S3 checkout HEAD = bare HEAD = 锁册 `commit` = `09c2ed8c3b7008c95d08b038de4a3f6dc103ed70`；S4a `rev-list --objects --all`=1480，裸镜像 `cat-file -e` **全命中 missing=0**；S4b **强核验**（可达∪悬空=2418，其中悬空 938）：独有对象 **1 个**（见「新发现①」，已留证）。
+②删除前后：`.cache/embench-iot` `30M` → `ls` rc=2（不存在）；`.cache/embench-iot.git` `2.3M`（apparent 2.2M）不变、HEAD 同值；`.cache/` 仅余 `*.git/` + `refs/`。
+③重建：`make fetch` rc=0，日志含 `fetch: mirror embench-iot.git already has 09c2ed8c3b70; skipping fetch`；裸镜像 clone 到 `/tmp/opencode/INFRA-083t/` rc=0 且 `cat-file -e 09c2ed8c…^{commit}` rc=0；`.work/source/embench-iot` 仍可用 rc=0（未动）。
+④`make status` rc=0，列出 `embench-iot enabled 09c2ed8c3b70…`，无新增 `unavailable`。
+⑤门控 rc 全 0：`make check`=0（尾部 `repository checks (L1): PASS`）/ `check-patch-tree`=0（`129 patches OK`）/ `check-no-residue`=0 / `check-tasks`=0 / `check_issues.py`=0（`35 open, 8 closed`）。
+**新发现/坑**：① **独有对象强核验（可达∪悬空）发现 1 个悬空 blob** `8cfb515b17cd4db472d511a78b5570f4f42c916d`（20 B，内容 `# DADAO placeholder`，`git hash-object -w` 遗留）——architect 预核「无独有对象」只覆盖 `rev-list --objects --all`；已留证 + OID 重算一致（内容→OID 同值、字节可重建）⇒ 无不可复现损失、不阻塞；已把该口径固化为 `run.sh` 的 S4b 永久检查（建议核验口径补「∪ `fsck --unreachable`」）。② `fetch` 日志 `From …/.cache/embench-iot`（无 `.git`）**不是**依赖被删 checkout：git 显示 remote URL 时剥掉尾 `.git`（对照实验已证），`origin` 实为 `.cache/embench-iot.git`。③ `du` 单次调用按 inode 去重：`du -sh A B` 把硬链接块记给先出现者（bare 曾假显示 132K，实为 2.3M）⇒ 测量须**逐路径单独调用**。④ checkout 与 `.work/source/embench-iot`、bare 的 pack 是**硬链接同 inode（link=3）**⇒ 删 checkout 只减链，不释放裸镜像对象。
+**遗留问题**：无。`ISS-204` 保持 `open`、`resolved_by: null`（**关闭归 `/complete`**）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+**范围**：本轮改动 = 删除 `.cache/embench-iot` + 新增 2 个脚本（`run.sh` 安全门/删除后不变量/注入自检；`preflight.sh` 删除前取证）+ 证据/日志。逐行审查后自纠 6 项、披露 2 项：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| F1 首轮 `--inject` 汇总 `FAIL=2`：安全门内部 `chk` 计数把**预期注入**的 FAIL 重复计入全局 | ✅已修 | 注入用例调用 gate 前后保存/恢复 `n_pass`/`n_fail`，判定只由外层 `chk` 承担 | `--inject` 由 `FAIL=2` ⇒ `PASS=14 FAIL=0` rc=0（`.work/log/infra/INFRA-083t-inject.log`） |
+| F2 `du -sh A B` 单次调用按 inode 去重 ⇒ preflight 首版日志 bare 假显示 `132K`（与预核 2.3MB 不符） | ✅已修 | 改为**逐路径单独调用**并记录 apparent-size | 复测 `co=30M bare=2.3M`、`apparent bare=2.2M`（与预核一致，见 preflight 日志） |
+| F3 preflight 的 `du(disk) co=… bare=…` 曾用同次去重值（误导） | ✅已修 | 同行改用独立调用结果并加注 | 同 F2 日志 |
+| F4 `printf '[INFO ] P2 .cache/$NAME.git …'` 变量未展开（输出字面 `$NAME`） | ✅已修 | 改 `printf '… %s …' "$NAME"`，实跑核对 | `run-final.log` 打印 `.cache/embench-iot.git du -sh = 2.3M` |
+| F5 `awk '{print $3}'` 解析 `git fsck --unreachable` 输出不鲁棒（非「unreachable <type> <oid>」行会被误取） | ✅已修 | 两脚本改 `grep -oE '[0-9a-f]{40}$'` | 临时 checkout 上等价性校验 `938 = 938`，且能捕获注入对象（`grep -c` = 1） |
+| F6 `INJ0` 曾硬编码 `rc=0`（恒真，违反「禁恒真」） | ✅已修 | 捕获 `git clone` 真实 rc 后判定 | `--inject` 输出 `INJ0 … rc=0`（来自真实编码） |
+| F7 `preflight.sh` 系**删除前一次性**脚本，删除后重跑会报错、易被误判为坏 | ✅已修 | 加显式守卫（`[ ! -d "$CO" ]` ⇒ 说明 + `exit 2` + 指路 `run.sh`） | 实测：`rc=2` + 说明输出（未产生误导性日志） |
+| F8 悬空独有 blob（见「新发现①」）——非本轮引入，属**核验口径缺口** | ✅已处置（继续推进 + 披露） | 内容留证 + OID 重算校验；口径固化为 `run.sh` S4b 永久检查（未留证 ⇒ STOP） | `S4b unique=1 unknown=0 rc=0`；`--inject` 注入未留证对象 ⇒ STOP 且 FAIL 指名 S4b |
+| F9 任务书「`ISS-204` notes 只追加一句」已由 architect 于 `7c3080b` 完成 | ❌不重复执行 | **不改** `issues.yaml`（重复追加会造成重复句） | `grep -c` = 1；`git show 7c3080b -- issues.yaml` 见该句；`status: open`/`resolved_by: null` 未变；`check_issues.py` rc=0 |
+| F10 越界/副作用自查 | ✅无越界 | 仅删 `.cache/embench-iot`；未动裸镜像 / `components/embench-iot/**` / 锁册 / `.work/source/embench-iot`；未 `git add`/`commit`；注入还原一律 `cp`+md5（无 `git checkout/restore/stash`） | `git status --porcelain -uall` 仅本任务书 1 项；`.cache/` 仅余 `*.git/`+`refs/`；`INJ4/INJ5/INJ6` PASS；objects 日志 md5 注入前=还原后=`9cd0bd…` |
+
+**判决**：F1–F8 已修/已处置、F9 不重复执行（附证据）、F10 无越界 ⇒ 无未修 finding；任务状态置 **`待验收`**。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决）
