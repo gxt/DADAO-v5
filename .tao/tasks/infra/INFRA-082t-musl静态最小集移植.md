@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 路线；`D6` = `P0 契约 → P1 musl 静态 → P2 动态 → P3 linux-user → P4 对照/回归`、`D2` = **无内核目标**、`D3` = musl 自带 `ldso`〔**P2**〕、`D4` = musl 与 picolibc **并存**）；`ADR-0027 D5`（compiler-rt builtins = **独立库、picolibc/musl 共用**）；`INFRA-076t`（musl 1.2.6 取源与锁定，`已验证`）；`SPEC-138t`（syscall 映射契约，`已验证`）；`SPEC-140t`（TLS 硬依赖查证，`已验证`）；`ISS-216`（`dadao-m1` 无 `SYS_UMON_SYSCALL` 服务方；**已由主会话 2026-10-15 裁定并入本任务** ⇒ 见「前置结论 2」）；`INFRA-079t`（compiler-rt builtins 接入，`待开始`——**已由主会话结论 ① 定为「不必先做」**，见「前置结论 1」）；`INFRA-057t`（picolibc 移植/构建集成的**形态先例**，**只读**）；`docs/Process-01`（组件补丁组织与构建编排）
-**状态**：待开始
+**状态**：待验收（**仅阶段 A 第 1 步**：QEMU 侧 `SYS_UMON_SYSCALL` 服务；A2/A3/B/C 未做 ⇒ **任务整体未完成**，见完成区「阶段 A1」）
 
 > **改号留痕（2026-10-15，architect；分支 `p1-renumber`）**：本任务书**原号 `INFRA-081t` ✗ ⇒ 今号 `INFRA-082t` ✓**。
 > **理由 = 避「git 历史同号」**：`INFRA-081t` **历史上**曾指 `libc-test` 任务（`1dc0570` 内 `.tao/tasks/infra/INFRA-081t-libc-test取源与锁定.md`，后经 `R089` 改名 `TESTCASES-044t` 而离开 `master`）⇒ 若本册沿用 `081`，则**同一编号在仓库历史中指两件事**，违背 `.tao/knowledge/lessons.md §3.21`「编号须**全仓（含历史）唯一**」精神；`082` 经 `git grep`（工作树）+ `git log --all --name-only`（全历史）复核**从未被占用** ✓。
@@ -52,6 +52,15 @@
 | **C** | **条件触发** | **缺符号 ⇒ 转 `INFRA-079t`**（前置结论 1）：**当场登记 `issues.yaml` + 转任务**，**不得** silently 跳过 | 触发即登记 + 转出；`INFRA-079t` 收口后回阶段 B |
 
 - **不含**：`P2` 动态链接 / `ldso`（✗）、`P3` `linux-user`（✗）——见「范围」做项 4。
+
+## 实现约束与阶段 A1 遗留（2026-10-15 补录；**供阶段 B**）
+
+> **来源** = 阶段 A1 实测（见完成区「阶段 A1」坑② / 遗留②④）；**本节为规范性约束，阶段 B 执行须遵循**。
+
+1. **实现约束（重要）：阶段 B 必须走 `-bios` + 原始镜像（「path B」）** —— **禁用** `-kernel <ELF>`（「path A」）：`-kernel <ELF>` **复位态 = `hypv`**（`inner_cfx_mask = ~0`）⇒ **不触达本服务**（`trap cfx0, 0` 走 §5 向量路径 `CFXMEM 0x81`）。进 `user` 模式须经 firmware 交接（`Machine-01 §6` 既有范式；`tests/scripts/bootrom.S` 即此用法）。**依据 = 本步实测**（`min_rom_probe_082t.py` 不回归用例 + 完成区坑②）。
+2. **阶段 A1 遗留（阶段 B 输入）**：
+   - **服务集仍缺（显式 `-ENOSYS`，非静默）**：`read`(63)／`brk`(214)／`set_tid_address`(96)／`set_robust_list`(99) 等 ⇒ **阶段 B 按 musl 实测需要补**（证据：musl `src/env/__init_tls.c:22` **启动即调 `set_tid_address`(96)**）。
+   - **探针未接门控**（本任务**未改** `Makefile`，避免越界）⇒ 记为「**阶段 B 后评估**」；**本任务不接门控**。
 
 ## 依据（口径真源；**引用，不复制正文**）
 
@@ -118,16 +127,41 @@
 - **触发条件**：以上两项**均在 `P1`（或 `P2`）跑通之后**（用户原话「**musl 移植如果顺利完成的话，可以把新增的两个大型测试集都测完**」）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+
+### 阶段 A1：QEMU 侧 `SYS_UMON_SYSCALL` 服务（2026-10-15，分支 `INFRA-082t-A1`）
+
+**测试结果**：`tools/qemu/min_rom_probe_082t.py` **12/12 PASS**（服务集 write/writev/exit/exit_group + ENOSYS/EBADF/EINVAL + 不回归：hypv 交接 / jmon 不服务 / semihosting）✓；`--inject` **0/12 FAIL（rc=1）** ✓；一键证据 `.work/evidence/INFRA-082t/run-a1.sh` = **27 checks passed / 0 failed，rc=0** ✓；门控各捕自身 rc：`make check`(L1)=**0** ／ `check-qemu-semantics`=**0**（**149/149**，现场统计）／ `check-qemu-smoke`(L2)=**0** ／ `test-semihost`(L2)=**0**（M5 e2e：bootrom `hypv→user` 交接 + `trap`/`escape` + 25 服务）／ `check-patch-tree`=**0**（129 patches / 4 组件）／ `check-index-blobs`=**0**（93 new-file）／ `check-source-state`=**0**。
+**修改文件**：①（M）`components/qemu/patches/target/dadao/helper.c.patch`（`tools/infra/make_patch.py qemu` 重导出：新增 `umon` 服务段 + `helper_cfx_trap` 接管分支；`series` 36 项**未变**）；②（**新增，越界披露**）`tools/qemu/min_rom_probe_082t.py`（先例 `min_rom_probe_04xt.py`，随产物入库）；③（M）本任务书（状态 + 完成区「阶段 A1」+ 第 1 轮 engineer 自审）。**未提交**（`git status --porcelain -uall` = ①②③ 三项）；`spec/`/`contracts/`/`.tao/knowledge/`/`manifests/` **未动**。
+**验收结果**：**识别** = `trap cfxha=0(umon), immu18=0`（`SBI_UMON_SYSCALL`）**且 `inner_run_mode == user`**（`contract-syscall §2` + `DADAO-22 §2`「`umon` = user 模式异常入口」）；**位置** = `helper_cfx_trap` 内、**指令类型 trap mask 检查之后**、§5 向量流程之前（掩码语义不被绕过）。**接管** = QEMU 服务后按 `escape cfxha,[excp_cause_ip,4]` 语义回 `pc+4`（不写 cfx 帧/计数器：探针 `trapn0==1` 实测印证）。**最小服务集（现场定）** = `write`(64)／`writev`(66)／`exit`(93)／`exit_group`(94)，**号值取自锁定号表**（`.work/source/qemu/linux-headers/asm-generic/unistd.h`，`contract-syscall §1.2`）；fd 1/2 ⇒ 宿主 stdout/stderr（「无内核」下宿主侧转发，`contract-syscall §6`）；退出码经 `qemu_system_shutdown_request_with_code(GUEST_SHUTDOWN, code)` **忠实传 `$?`**（实测 `$?=42`／`7`；**不复用** semihosting `SYS_EXIT`，§6 停机协议不混用）。**未实现 ⇒ 显式失败**：`qemu_log_mask(LOG_GUEST_ERROR)` + **`rd8 = -ENOSYS`**（实测 `0xFFFF_FFFF_FFFF_FFDA`；不支持 fd ⇒ `-EBADF`；`iovcnt>1024` ⇒ `-EINVAL`）。**重建 + 安装**：`build-qemu` rc=0、**`install-host` rc=0**（日志 `.work/log/{qemu,infra}/INFRA-082t-*`；`/tmp/opencode/INFRA-082t/*.EXIT`），两处二进制 md5 一致 = `f21edd71d5a4352d3e0c5fdc64afbb3e`；**产品级反例**（禁服务 + 重建）⇒ 探针 **3/12（恰 9 条服务用例 FAIL，3 条不回归用例仍 PASS）** ⇒ `cp`+md5 还原 + 重建 ⇒ **12/12** 且二进制 md5 回到原值。
+**新发现/坑**：① **`trap cfx0,0` 双重身份**：`immu18=0` 既是 `SBI_UMON_SYSCALL`，又被 `tests/scripts/bootrom.S` 用作 **hypv→user 交接** ⇒ 任何「解码层 / 全模式短路」都会破坏 `test-semihost` 的 bootrom 交接（app 进不了 user 模式）与 `min_rom_probe_044t/045t` 的 hypv 向量用例 ⇒ 服务**限定 user 模式**。② **无 firmware 的 `-kernel <ELF>`（path A）复位态 = hypv**（`inner_cfx_mask=~0`）⇒ 不触达本服务；进 user 模式须 firmware 交接（`Machine-01 §6` 既有范式）⇒ **阶段 B 须走 `-bios` + 原始镜像（path B）**（或 crt0 自清掩码）；否则 `trap cfx0,0` 走 §5 向量路径（`CFXMEM 0x81`）。③ 改补丁后 `make apply-series` 会因「HEAD=base+1 但内容 ≠ 新补丁集」**拒绝应用**；本步改用「编辑 `.work/source/qemu` 文件 + `commit --amend`（仍 base+1、内容 == 新补丁集）+ `make_patch.py` 导出」**不丢弃任何改动**，由断言⑥/⑨ + `--source-state` 机械核对。④ musl 现场核对（`.work/source/musl/`）：stdio 缓冲写用 **`writev`**（`src/stdio/__stdio_write.c:20`）、退出 `exit_group`→`exit`（`src/exit/_Exit.c:6-7`）、**启动即调 `set_tid_address`(96)**（`src/env/__init_tls.c:22`）。⑤ `-d cpu` 的 `MODE:` 行解析须 `re.MULTILINE`（`min_rom_probe_046t.py::_lasthex` 未加，复用其 `observe()` 取不到 MODE）。
+**遗留问题**：① **A2/A3/B/C 未做**（musl 补丁集骨架／锁条目补丁化／静态程序可编出／`hello`·`exit` E2E）⇒ **本任务整体未完成**。② **服务集仍缺**（显式 `-ENOSYS`，非静默）：`set_tid_address`(96)／`set_robust_list`(99)／`read`(63)／`brk`(214) 等 ⇒ **阶段 B 按 musl 实测需要补**（上条④为预判证据）。③ **spec 覆盖缺口（未改 `spec/`，只读）**：`Machine-01 §4.3` 现只列两条路由，本步新增**第三条行为**（user 模式 `trap cfx0,0` 由 QEMU 接管、不进 guest 向量）⇒ **建议主会话登记 issue + 后续（授权后）落 `Machine-01`/ADR**（先例 `QEMU-049t`⇒`ISS-166`⇒`SPEC-121t`）。④ 探针**未接门控**（未改 `Makefile`，避免越界）⇒ 建议主会话裁定是否并入 L2。⑤ `jmon`(cfx1) `immu18=0` 未服务（保持既有向量路径）——本次范围只 `umon`。⑥ `ISS-216` **未关**（归本任务收尾）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**范围**：阶段 A1（QEMU 侧 `SYS_UMON_SYSCALL` 服务）。diff = `helper.c.patch`（+~150 行）+ 新探针 `tools/qemu/min_rom_probe_082t.py`。
+
+**逐行审查（要点 + 判决）**：
+1. **拦截位置**（`helper_cfx_trap` 内、`trap_mask` 检查之后、§5 向量之前）：放解码层则看不到运行模式，且会绕过掩码语义（`min_rom_probe_044t` `mask_illi` / `045t` `trap_mask_illi` 依赖「掩码 ⇒ ILLI」）⇒ **判决：正确**。
+2. **user 模式限定 vs 全模式服务**：`tests/scripts/bootrom.S` 用 hypv `trap cfx0,0` 做 `hypv→user` 交接，全模式短路会使 `test-semihost` 的 bootrom 断言失败 ⇒ **判决：必须 user 限定**（`DADAO-22 §2` 亦如此定义 `umon`）。
+3. **返回语义**：`pc+4` + `rd8`（= `escape cfxha,[excp_cause_ip,4]` 落点）；不写 cfx 帧/计数器 —— 判决：**合 `contract-syscall §2`**，探针 `trapn0==1`（仅交接那一次）实测印证。
+4. **`write` 宿主转发**：4 KiB 分块（避免按 `count` 大分配）、按字节读 guest（BE 无关）、`EINTR` 重试、短写如实返回 —— 判决：**正确**；`n<=0` 时**不读脏 errno**（见 F1）。
+5. **`writev`**：iovcnt 上限 1024（Linux `IOV_MAX`）、iov = 16 B BE、部分写返回已写字节、无进展才返 `-errno` —— 判决：**正确**。
+6. **未实现号** ⇒ `LOG_GUEST_ERROR` 日志 + `-ENOSYS`（不静默）—— 判决：**合任务要求**（实测 `0xFFFF…FFDA`）。
+7. **`exit`/`exit_group`** ⇒ `qemu_system_shutdown_request_with_code(GUEST_SHUTDOWN, code)` + `cpu_exit`（**不复用** semihosting `exit()`；`contract-syscall §6` 停机协议不混用）—— 判决：**正确**（`$?` = 42／7 实测）。
+8. **防造假**：12/12 与 `--inject` 0/12、门控 rc 均真命令输出；产品级反例（禁服务 + 重建）恰 9 条服务用例 FAIL、3 条不回归用例仍 PASS ⇒ 断言有鉴别力、**非恒真**；`--inject` 覆盖 12/12 用例。
+
+**finding 处置**：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `umon_host_write` 在宿主 `write` 返 0 时可能用上一次 `errno` 误判 `-EBADF` | ✅已修 | 条件收紧为 `n < 0 && errno == EBADF`，否则 `-EIO` | 重建 rc=0；探针 12/12 |
+| F2 探针 `build_kernel` 按 `max(offset)` 定尺寸，长 blob 会静默截断 | ✅已修 | 改为 `max(off + len(blob))` | 探针 12/12；`--list` 12 == 运行 12 |
+| F3 `--inject` 下 `stdout_absent` 期望被置空 ⇒ 该断言注入时静默跳过 | ✅已修 | 注入时转为 `stdout_has` presence 断言 | `--inject` 0/12（12 条用例全 FAIL） |
+| F4 hypv 无 firmware 路径不触达服务（阶段 B 风险） | ⏸延后 | 不改实现（全模式服务会破坏既有路径） | 完成区坑②+遗留②；阶段 B 指引已写 |
+
+**判决**：finding 均 `✅已修`（附复验）或 `⏸延后`（附原因/证据）⇒ 状态置 `待验收`；**仅阶段 A1**，A2/A3/B/C 未做 ⇒ 任务整体未完成。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）

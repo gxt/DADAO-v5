@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..41e7f64
+index 0000000..cc16c04
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,992 @@
+@@ -0,0 +1,1230 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -845,11 +845,233 @@ index 0000000..41e7f64
 +    env->rb[0] = env->pc;
 +}
 +
++/* ===================================================================
++ * umon syscall service (INFRA-082t / ISS-216)
++ *
++ * Spec sources (spec-first):
++ *   spec/DADAO-22-SBI §2: `umon` (cfx0) is the *user-mode* exception entry;
++ *     user-mode syscalls are dispatched with `immu18 = 0`
++ *     (SBI_UMON_SYSCALL, `rd15 = nr` in, `rd8 = result` out).
++ *   .tao/contracts/contract-syscall.md §1.1 (number in `rd15`, RISC-V Linux
++ *     numbering) / §2 (`immu18 = 0` entry, return resumes at the instruction
++ *     after the trap, i.e. `excp_cause_ip + 4`) / §3 (data arguments
++ *     `rd16-rd31`, address arguments `rb16-rb31`, result `rd8`) / §4 (errno =
++ *     negative `rd8`) / §6 (QEMU is the host-side syscall forwarding layer of
++ *     the kernel-less model).
++ *   .tao/adr/adr-0025-m8-scope-linux-compat.md D2 (no kernel target).
++ *
++ * Division of labour: the test machine has no kernel and no guest OS, so a
++ * user-mode syscall trap is served *by QEMU* instead of entering the firmware's
++ * umon vector -- the same shape as the semihosting short-circuit (ADR-0020
++ * D4/D10).  Everything else keeps the DADAO-12 §5 vector flow unchanged, in
++ * particular a `trap cfx_umon, 0` issued from another run mode (the bootrom's
++ * hypv -> user hand-off in tests/scripts/bootrom.S is exactly such a call) and
++ * any trap the instruction-type trap mask forbids (the mask check below still
++ * runs first).
++ *
++ * Service set (minimal, fixed on the spot for INFRA-082t stage A1): the two
++ * host-output paths musl's stdio uses, plus process exit --
++ *   write (64) / writev (66) / exit (93) / exit_group (94).
++ * Every other number fails explicitly with -ENOSYS (never silently succeeds);
++ * further services are added once a real musl program needs them (stage B).
++ * Numbers come from the pinned RISC-V Linux uapi table (contract-syscall
++ * §1.2; `asm-generic/unistd.h`), never invented here.
++ * =================================================================== */
++
++/* Syscall numbers (contract-syscall §1.1: RISC-V Linux numbering). */
++#define DADAO_NR_write       64
++#define DADAO_NR_writev      66
++#define DADAO_NR_exit        93
++#define DADAO_NR_exit_group  94
++
++/* SBI_UMON_SYSCALL dispatch tag (DADAO-22 §2: immu18 = 0). */
++#define DADAO_SBI_UMON_SYSCALL 0
++
++/* Register roles (contract-syscall §2/§3). */
++#define DADAO_UMON_NR_REG    15   /* rd15: syscall number           */
++#define DADAO_UMON_RET_REG    8   /* rd8 : result (negative errno)  */
++#define DADAO_UMON_ARG0      16   /* rd16: first data argument      */
++#define DADAO_UMON_ARG1      17   /* rd17: second data argument     */
++#define DADAO_UMON_PTR0      16   /* rb16: first address argument   */
++
++/* Linux errno values (asm-generic errno.h; contract-syscall §4 carries the
++ * negated value in rd8). */
++#define DADAO_ERRNO_EIO       5
++#define DADAO_ERRNO_EBADF     9
++#define DADAO_ERRNO_EINVAL   22
++#define DADAO_ERRNO_ENOSYS   38
++
++/* Guest fds the minimal set forwards: no fd table exists (no VFS, ADR-0025
++ * D2), so every other descriptor is -EBADF. */
++#define DADAO_UMON_STDOUT     1
++#define DADAO_UMON_STDERR     2
++
++/* writev iovec limit (Linux IOV_MAX). */
++#define DADAO_UMON_IOV_MAX 1024
++
++static void umon_set_ret(CPUDADAOState *env, uint64_t ret)
++{
++    env->rd[DADAO_UMON_RET_REG] = ret;
++}
++
++/* Negative errno in rd8 (contract-syscall §4, user decision 2026-10-14 (A)). */
++static void umon_set_errno(CPUDADAOState *env, int err)
++{
++    umon_set_ret(env, (uint64_t)-(int64_t)err);
++}
++
++/* Forward [buf, buf + count) of guest memory to a host stream.  Returns the
++ * number of bytes written, or a negative *guest* errno.  The address mapping
++ * is identity (no MMU, ADR-0004 D1) and the machine is big-endian, so the
++ * guest buffer is read byte-wise (endian-neutral); an invalid guest address
++ * faults through the normal machine path. */
++static int64_t umon_host_write(CPUDADAOState *env, int host_fd,
++                               uint64_t buf, uint64_t count)
++{
++    uint8_t tmp[4096];
++    uint64_t done = 0;
++
++    while (done < count) {
++        uint64_t chunk = MIN(count - done, (uint64_t)sizeof(tmp));
++        uint64_t i;
++        ssize_t n;
++
++        for (i = 0; i < chunk; i++) {
++            tmp[i] = cpu_ldub_data_ra(env, buf + done + i, GETPC());
++        }
++        do {
++            n = write(host_fd, tmp, chunk);
++        } while (n < 0 && errno == EINTR);
++
++        if (n <= 0) {
++            if (done == 0) {
++                return -(int64_t)(n < 0 && errno == EBADF
++                                  ? DADAO_ERRNO_EBADF : DADAO_ERRNO_EIO);
++            }
++            break;      /* report what was written, like Linux write(2) */
++        }
++        done += (uint64_t)n;
++        if ((uint64_t)n < chunk) {
++            break;      /* short host write: report it as a short write */
++        }
++    }
++    return (int64_t)done;
++}
++
++/* Resolve a guest fd to a host stream; -1 when unsupported. */
++static int umon_host_fd(uint64_t fd)
++{
++    switch (fd) {
++    case DADAO_UMON_STDOUT:
++        return STDOUT_FILENO;
++    case DADAO_UMON_STDERR:
++        return STDERR_FILENO;
++    default:
++        return -1;
++    }
++}
++
++/* write(2): fd = rd16, buf = rb16, count = rd17 (contract-syscall §3). */
++static void umon_sys_write(CPUDADAOState *env)
++{
++    int host_fd = umon_host_fd(env->rd[DADAO_UMON_ARG0]);
++
++    if (host_fd < 0) {
++        umon_set_errno(env, DADAO_ERRNO_EBADF);
++        return;
++    }
++    umon_set_ret(env, (uint64_t)umon_host_write(env, host_fd,
++                                                env->rb[DADAO_UMON_PTR0],
++                                                env->rd[DADAO_UMON_ARG1]));
++}
++
++/* writev(2): fd = rd16, iovec array = rb16, iovcnt = rd17.  The guest is
++ * 64-bit, so every struct iovec is { void *iov_base; size_t iov_len; }
++ * = 16 bytes, read big-endian. */
++static void umon_sys_writev(CPUDADAOState *env)
++{
++    int host_fd = umon_host_fd(env->rd[DADAO_UMON_ARG0]);
++    uint64_t iov = env->rb[DADAO_UMON_PTR0];
++    uint64_t cnt = env->rd[DADAO_UMON_ARG1];
++    uint64_t i, done = 0;
++
++    if (host_fd < 0) {
++        umon_set_errno(env, DADAO_ERRNO_EBADF);
++        return;
++    }
++    if (cnt > DADAO_UMON_IOV_MAX) {
++        umon_set_errno(env, DADAO_ERRNO_EINVAL);
++        return;
++    }
++
++    for (i = 0; i < cnt; i++) {
++        uint64_t base = cpu_ldq_be_data_ra(env, iov + 16 * i, GETPC());
++        uint64_t len = cpu_ldq_be_data_ra(env, iov + 16 * i + 8, GETPC());
++        int64_t n = umon_host_write(env, host_fd, base, len);
++
++        if (n < 0) {
++            if (done == 0) {
++                umon_set_ret(env, (uint64_t)n);
++                return;
++            }
++            break;      /* report the bytes already written, as Linux does */
++        }
++        done += (uint64_t)n;
++    }
++    umon_set_ret(env, done);
++}
++
++/* Dispatch one SBI_UMON_SYSCALL.  Returns true when the call terminates the
++ * process (exit / exit_group), i.e. when the machine must halt. */
++static bool umon_serve_syscall(CPUDADAOState *env)
++{
++    uint64_t nr = env->rd[DADAO_UMON_NR_REG];
++
++    switch (nr) {
++    case DADAO_NR_write:
++        umon_sys_write(env);
++        return false;
++    case DADAO_NR_writev:
++        umon_sys_writev(env);
++        return false;
++    case DADAO_NR_exit:
++    case DADAO_NR_exit_group:
++        /* Process exit: halt the test machine with the guest's status code so
++         * that it reaches the host $? deterministically (the same shutdown
++         * mechanism the machine's fault exits use; ADR-0011 / ADR-0020 D8).
++         * The semihosting SYS_EXIT *protocol* is deliberately not reused
++         * (contract-syscall §6: the halting protocols must not be mixed). */
++        qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_SHUTDOWN,
++                                               (int)env->rd[DADAO_UMON_ARG0]);
++        return true;
++    default:
++        /* Not implemented: fail explicitly, never silently succeed. */
++        qemu_log_mask(LOG_GUEST_ERROR,
++                      "dadao-m1: umon syscall %" PRIu64 " not implemented "
++                      "(-ENOSYS)\n", nr);
++        umon_set_errno(env, DADAO_ERRNO_ENOSYS);
++        return false;
++    }
++}
++
++/* A user-mode `trap cfx0, 0` is the SBI_UMON_SYSCALL dispatch: umon is the
++ * *user-mode* exception entry (DADAO-22 §2), so the service is limited to that
++ * run mode.  cfx0 traps from any other mode keep the general-trap flow. */
++static bool is_umon_user_syscall(CPUDADAOState *env, uint32_t cfxha,
++                                 uint32_t immu18)
++{
++    return cfxha == DADAO_CFXHA_UMON &&
++           immu18 == DADAO_SBI_UMON_SYSCALL &&
++           env->inner_run_mode == DADAO_MODE_USER;
++}
++
 +/* trap cfxha, immu18 : general trap (immu18[17:16] != 2'b11) -> §5 flow.
 + * Semihosting (immu18[17:16] == 2'b11) is handled by the decode-layer
 + * short-circuit (trans_trap_ciii_cfx -> DADAO_EXCP_SEMIHOST, QEMU-046t) and
 + * therefore never reaches this helper; the tag check below is a defensive
-+ * explicit failure only. */
++ * explicit failure only.
++ * A user-mode `trap cfx0, 0` (SBI_UMON_SYSCALL) is served by QEMU instead of
++ * entering the umon vector (INFRA-082t / ISS-216, see the section above). */
 +void helper_cfx_trap(CPUDADAOState *env, uint32_t cfxha, uint32_t immu18,
 +                     uint64_t pc)
 +{
@@ -880,6 +1102,22 @@ index 0000000..41e7f64
 +    if (cfxha != env->inner_cfx_code &&
 +        (env->cfx[ci].mode[env->inner_run_mode].trap_mask & (1ULL << cfxha))) {
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
++        return;
++    }
++    if (is_umon_user_syscall(env, cfxha, immu18)) {
++        /*
++         * User-mode umon syscall (INFRA-082t): served by QEMU, the kernel-less
++         * model's host-side semantics provider, instead of entering the
++         * firmware's umon vector.  The return lands on the instruction after
++         * the trap -- exactly where `escape cfxha, [excp_cause_ip, 4]` would
++         * resume (contract-syscall §2).
++         */
++        if (umon_serve_syscall(env)) {
++            cpu_exit(env_cpu(env));   /* exit / exit_group: machine halts */
++            return;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = env->pc;
 +        return;
 +    }
 +    target = cfxha;
