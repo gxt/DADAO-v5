@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ISS-203`（立项来源 = `SPEC-137t` reviewer 第 1 轮「非阻断发现」+ 用户裁定）；分层真源 = `docs/Process-07-门控分层规范.md`（**L1 = `make check`**）；被扩展门控 = `tools/infra/check_knowledge_refs.py`（源 `INFRA-058t`/`INTEG-037t`）、`tools/infra/check_issues.py`
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -80,4 +80,19 @@
 **防造假**：本区全部反例、还原（`cp`+md5，**未用** `git checkout/restore/stash`）与回绿均为真跑，逐条日志在 `.work/log/infra/`；证据脚本可 `--inject` 单独复跑。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+**独立重跑**（workdir=仓库根；快照对账：验收前后 `git status --porcelain -uall` 均空 ✓）：
+1. **① 我自己的注入**（`cp`+md5 还原，未用 git 还原；日志 `/tmp/opencode/INFRA-080t/review/`）：
+   - 真实引用改错：`milestones.md:40` `ADR-0025 D6`→`D60` ⇒ rc=1 `milestones.md:40 ADR-0025 D60 (目标小节不存在)`；`MEMORY.md:36` `contract-elf.md §1.3`→`§1.39` ⇒ rc=1 指名；还原 md5 一致 ⇒ rc=0 ✓
+   - 不存在引用：注入 `[ADR-0026 D9]`+`[contract-isa.md §5.6]` ⇒ rc=1 逐条指名（2 悬空）；还原回绿 ✓
+   - 占位/围栏：`[ADR-0003 §DN]`/`[ADR-0019 §N]` ⇒ **rc=0** 且计入「占位/示意 (跳过)」明细（2 条逐条列名）；围栏内 `[ADR-0019 D99]`/`[contract-elf.md §9.9]` ⇒ 不计不报 ✓
+   - **非恒真证明**：上述 4 例（engineer 用例之外）改坏即红、指名 token、还原回绿 ⇒ 两断言均有可达 FAIL 路径。
+2. **② 我自己的注入**：`ISS-205`(closed) `resolved_by`→null ⇒ rc=1 `MISSING resolved_by: ISS-205`；`ISS-219`(open)→文本 ⇒ rc=1 `UNEXPECTED resolved_by: ISS-219`；md5 还原 ⇒ rc=0 ✓（双向均非恒真）
+3. **make check 路径内**：`make check` rc=0，输出 L171 `[INFRA-080t] 小节级互指存在性（…文件 5）` + L215 `check_issues: resolved_by 约束 OK (7 closed → 非空 / 35 open → null)`；`Makefile:446` `check:` 依赖含 `check-knowledge-refs`、`:447` recipe 跑 `check_issues.py`；`Makefile` 0 改动（`git diff HEAD~2 HEAD -- Makefile` 空）✓
+4. **现网统计**（现场、非写死）：`.tao/knowledge/**` 5 文件；ADR 61（无小节 23/占位 0/无法判定 0/校验 38）；contract 57（无 § 23/校验 34）；**悬空 0**；issues 35 open/7 closed、**违规 0**（注：完成区引文「34 open」系 ISS-219 登记前的当时实况，良性漂移）
+5. **诊断面复核 ≥2 条**（均亲核目标确不存在）：`contract-abi.md:144/345→contract-isa.md §5.6`（isa 仅 §5.1/5.2/5.4，`grep -c §5.6`=0 ✓）；`contract-elf.md:84→§4.7`、`:113/154→§4.1.1`（isa 无 ✓）；`contract-dynlink.md`×8→`ADR-0018 C6`（adr-0018 无 C6 标签 ✓）。诊断命令复跑 = **13 条** ✓。判定：**只报告未改 + 已登记 ISS-219**（bd11564）⇒ **可接受**（符合「不静默改正文/不加白名单」；契约侧扩面属 ISS-219 范围）
+6. **门控逐项**：`make check`(L1)=0、`make check-modules`(L2，完整真跑非 `-o` 短路)=0（`module checks (L2): PASS`）、`check-knowledge-refs`=0、`check_issues.py`(python3)=0、`check-patch-tree`=0、`check-no-residue`=0、`check-tasks`=0 ✓
+7. **证据脚本**：`./.work/evidence/INFRA-080t/run.sh` rc=0（PASS=52/FAIL=0，与完成区一致）；`--inject` rc=0（PASS=39/FAIL=0）✓。脚本审读：`expect_rc`/`expect_grep` 均可达 FAIL、注入 `assert n==1` 非空、`cp`+md5 还原、计数现场统计、无 `git checkout/restore/stash` ✓
+8. **完成区对齐**：`+288/−7`、`+33/−2` 与 `git diff --stat`（295/35 行）对账 ✓；删除行仅文案/格式（`git diff` 核 −7/−2），既有判定（`.work/**` 悬空、空转守卫原文案、`M1-gate`、`INVALID STATUS`）逐条保留 ✓。**遗留判定**：①已由 ISS-219 消解；②`-o install-host` 可接受（我完整 L2 rc=0）；③`Makefile` help 文案未同步 ⇒ **可接受**（非功能性、最小改动，建议后续顺手带上）
+9. **ISS-203 闭合建议**（只建议）：两条断言已落地、可达 FAIL 证据齐备（本审独立注入复证）⇒ **建议 `closed` + `resolved_by: INFRA-080t`**。非阻断观察 2 条：`check_issues.py` 无 shebang 须 `python3` 调（既有形态）；`（Cn）` 全角括号设计符形不被小节识别（当前 knowledge 面 0 命中，非现实缺口）。
+
+**判决：Accepted** —— 验收命令块在本人独立重跑下全部通过（rc 逐条如上），硬约束逐条守住（限改两 `.py`、未放宽既有判定、未改知识正文/`spec/`/`contracts/`、计数不写死、L1 装配不动 `Makefile`）。
