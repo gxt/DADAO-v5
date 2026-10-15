@@ -1,0 +1,88 @@
+diff --git a/target/dadao/insn_trans/trans_bitcnt.c.inc b/target/dadao/insn_trans/trans_bitcnt.c.inc
+new file mode 100644
+index 0000000..760c0e6
+--- /dev/null
++++ b/target/dadao/insn_trans/trans_bitcnt.c.inc
+@@ -0,0 +1,82 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++
++/* §Bit manipulating: ctlz / cttz / ctpop (orri, MISC octa) — 位扫描 / 位计数
++ * (ADR-0012 D11; SimRISC-04 §4.2.2；契约 .tao/contracts/contract-isa.md §6.4.4).
++ *
++ * hd（= orri 的 6 位立即数 immu6，0..63）是**有效位上界**：参与运算的是
++ * rdHC[hd:0]（共 hd+1 位），hd 以上的位**不参与**。
++ *   - ctlz  = 从 bit hd 向下数的前导零个数；
++ *   - cttz  = 从 bit 0 向上数的末尾零个数（到 bit hd 止）；
++ *   - ctpop = rdHC[hd:0] 内 1 的个数。
++ * 定值：rdHC[hd:0] 全 0 ⇒ ctlz = cttz = hd + 1（消除 UB），ctpop = 0。
++ * 结果 ∈ 0..64，写满 64 位（值语义，非「只写低位」）。
++ *
++ * 合法性（translation 期；hd 是编码中的立即数 ⇒ 静态判据）：
++ *   - hd ∈ 0..63 **全部合法** ⇒ 本族**无** hd 相关的 ILLI 分支；
++ *   - rdhb == rd0 ⇒ ILLI（dst_rd0，照既有 trans_*_orri_rd 先例）。
++ * rdhc 可为 rd0（读出 0 ⇒ 结果 = hd+1 或 0，合法）；rdhb == rdhc 允许（原地运算）。 */
++
++/* rdHC[hd:0] 的位掩码（hd+1 位）：hd=0 ⇒ 1，hd=63 ⇒ 全 64 位。
++ * 用 `>> (63 - hd)` 统一表达，避免 `1ULL << 64` 的未定义行为。 */
++static uint64_t bitcnt_mask(int hd)
++{
++    return ~(uint64_t)0 >> (63 - hd);
++}
++
++/* Shared legality check; returns false (ILLI already raised) when illegal. */
++static bool bitcnt_legal(DisasContext *ctx, arg_misc *a)
++{
++    if (a->hb == 0) {                              /* dst_rd0 */
++        gen_exception_illegal(ctx);
++        return false;
++    }
++    return true;
++}
++
++static bool trans_ctlz_orri_rd(DisasContext *ctx, arg_misc *a)
++{
++    if (!bitcnt_legal(ctx, a)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = tcg_temp_new_i64();
++    TCGv_i64 t = tcg_temp_new_i64();
++
++    /* 把有效位 rdHC[hd:0] 顶到 bit63 起 ⇒ 64 位前导零个数 == 有效位内前导零个数；
++     * 全 0 时 clz 变体按 xlen = hd+1 返回范围宽度（定值，而非 64）。 */
++    tcg_gen_shli_i64(t, rdhc, 63 - a->hd);
++    tcg_gen_clzi_i64(rdhb, t, a->hd + 1);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_cttz_orri_rd(DisasContext *ctx, arg_misc *a)
++{
++    if (!bitcnt_legal(ctx, a)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = tcg_temp_new_i64();
++    TCGv_i64 t = tcg_temp_new_i64();
++
++    /* 掩到 rdHC[hd:0] ⇒ 末尾零个数（全 0 时 ctz 变体按 xlen = hd+1 定值）。 */
++    tcg_gen_andi_i64(t, rdhc, bitcnt_mask(a->hd));
++    tcg_gen_ctzi_i64(rdhb, t, a->hd + 1);
++    store_rd(a->hb, rdhb);
++    return true;
++}
++
++static bool trans_ctpop_orri_rd(DisasContext *ctx, arg_misc *a)
++{
++    if (!bitcnt_legal(ctx, a)) {
++        return true;
++    }
++    TCGv_i64 rdhc = load_rd(a->hc);
++    TCGv_i64 rdhb = tcg_temp_new_i64();
++
++    /* 掩到 rdHC[hd:0] 后数 1 的个数（自然值，无特例）。 */
++    tcg_gen_andi_i64(rdhb, rdhc, bitcnt_mask(a->hd));
++    tcg_gen_ctpop_i64(rdhb, rdhb);
++    store_rd(a->hb, rdhb);
++    return true;
++}

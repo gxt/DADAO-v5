@@ -19,6 +19,7 @@ target/dadao/helper.c.patch
 target/dadao/helper.h.patch
 target/dadao/insn.decode.patch
 target/dadao/insn_trans/trans_arith.c.inc.patch
+target/dadao/insn_trans/trans_bitcnt.c.inc.patch
 target/dadao/insn_trans/trans_block.c.inc.patch
 target/dadao/insn_trans/trans_compare.c.inc.patch
 target/dadao/insn_trans/trans_cond_assign.c.inc.patch

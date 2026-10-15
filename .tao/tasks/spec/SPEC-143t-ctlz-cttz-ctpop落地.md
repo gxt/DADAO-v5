@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D11`（**前置已全部满足 ✓**：`D11.1`–`D11.10` 用户 2026-10-14 **逐条确认** ✓〔原话「**D11全部认可**」〕+ **改 `spec/` 授权** ✓〔原话「**同样授权**」，与 `SPEC-142t` 的「a/b授权」同样〕——见「开工前置」与 `adr-0012 §状态说明`；`D11` 已 `Accepted`）；`SPEC-141t`（ISA 指令扩展预研，候选 `C2` = `clz`/`ctz`/`popcount`，**只读**来源）；`INFRA-078t`（compiler-rt 预研：缺口来源，**只读**）；`LLVM-079t`（现状：`CTLZ`/`CTTZ`/`CTPOP` 走 `Expand`，**只读**溯源）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）。**串行**：与 `SPEC-142t`（`rev.{o,t,w,b}` 落地）**须串行**（同改 `contracts/opcodes.yaml` / `tests/vectors/**`），先后由主会话排定。
 **状态**：待验收
-**阶段进度**：A ✅ 已验证；B MC ✅ 已验证（2026-10-15，reviewer `Accepted`；`check-instrinfo` 转绿 ✓ / L1 全绿 ✓；L2 仅 `check-interface` 2 项〔缺 3 条 QEMU `trans_*`，`ISS-215` 待阶段 C 消除〕）；C QEMU ⏳ 待做
+**阶段进度**：A ✅ 已验证；B MC ✅ 已验证（2026-10-15，reviewer `Accepted`；`check-instrinfo` 转绿 ✓ / L1 全绿 ✓）；C QEMU ✅ 完成（2026-10-15，实现 + 重建/`install-host` + 语义 e2e **798/798** + **`check-interface` 转绿 ✓ / L2 全绿 rc=0 ✓**；待 reviewer 验收）
 
 > **`**状态**` 口径**：本任务 = **一个任务书、三阶段验收**（照 `SPEC-142t`）⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 审阅」）。
 
@@ -317,3 +317,48 @@
 - **收尾检查**：① 门控 = **仅剩 1 类已知红**（`check-interface`，阶段 C 消除；`check-instrinfo` 已转绿、L1 全绿、`test-semihost` 随 L1 转绿）✓；② 无临时残留（`git status --porcelain -uall` 仅本笔；无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`）✓；③ 证据在 `.work/evidence/SPEC-143t/`（`run-b.sh` / `run-b-*.log` / `*.EXIT` / `log/**`）✓；④ 无未提交结果 ✓；⑤ 下一件 = **阶段 C（QEMU）**，由父会话续链 ✓。
 - **merge 落地**：`git merge --ff-only SPEC-143t-B` FF 落地 `master`，随后删分支 `SPEC-143t-B`（**未 `push`**）。
 
+### 阶段 C（QEMU `ctlz`/`cttz`/`ctpop` 执行支持，2026-10-15；`check-interface` 转绿 ✓）
+
+**测试结果**：`./.work/evidence/SPEC-143t/run-c.sh` **PASS=29 FAIL=0**（rc=0，`run-c.EXIT`）；`run-c.sh --inject` **PASS=19 FAIL=0**（rc=0；4 组注入**各有可达 FAIL**：①向量副本篡改 semantic 期望 ⇒ `failed=1` ②合法 `hd` 例改标「期望 ILLI」⇒ rc=1 ③源树 `ctlz` 左移量固定（忽略 `hd`）+ 重建 ⇒ **`failed=98`** ④源树关掉 `dst_rd0` + 重建 ⇒ **`failed=3`**（恰 3 条 ILLI）；③④均 `cp`+md5 还原（前后双 `3a62874d…`）⇒ 重建 ⇒ 回绿 ⇒ 组件源树 `git status` 空）。独立 oracle `check_bitcnt_qemu.py --self-check` **1728 例**（**第三种实现**：SWAR popcount / 平移·掩码二分 clz·ctz / 大端掩码 ↔ 生成器三路径 = **四路一致** + 定值 + 值域）。
+**修改文件**（`git status --porcelain -uall` = **6**，除本任务书）：`components/qemu/patches/target/dadao/insn.decode.patch`（M，256→259 行：+3 pattern、头计数 231→234）、`components/qemu/patches/target/dadao/insn_trans/trans_bitcnt.c.inc.patch`（**新**，88 行 = 全文 82 行）、`components/qemu/patches/target/dadao/translate.c.patch`（M，492→493 行 = +1 `#include`）、`components/qemu/series`（35→36）、`components/qemu/changelog.md`（+1 行）、`components/qemu/README.md`（规模 35→36、`insn_trans` 11→12）。
+**验收结果**（真实 rc；日志 `.work/log/qemu/SPEC-143t-C-*.log` + `.EXIT`、`.work/evidence/SPEC-143t/`）：
+- **重建（长任务）**：`setsid nohup bash -c 'JOBS=8 make build-qemu …'`（外层 PID **1193177**；22 步**增量**，16 核未用全核）`.EXIT` = **`SPEC-143t_C_EXIT=0`**；随后 **`make install-host`**（`ISS-210` 强制）`setsid nohup`（PID 1193623）`.EXIT` = **`SPEC-143t_C_INSTALL_EXIT=0`**。
+- **两处二进制**（`ISS-210` 防假绿）：安装根与构建树 `qemu-system-dadao` md5 **同为 `131de0aedb6ec5e67574e1c0750eb9c2`**（注入③④各两次重建后仍相同 ⇒ 还原字节精确）。
+- **核心指标**：**`make check-modules`(L2) rc=0**（`module checks (L2): PASS`；`check-interface` **83/83**，`QEMU trans_* 定义数 234 == opcodes.yaml 条目数 234`）**＝ 阶段 C 核心指标转绿 ✓（最后 2 项红消除）**；`check_qemu_trans --strict` ⇒ **234/234 (M1 155/155)** rc=0；`make check`(L1) rc=0 全绿；`check-qemu-semantics`(L3) rc=0（**149/149**，无回归）。
+- **语义 e2e（独立期望，全量不抽样）**：798 例（semantic **576** = 3 条 × `hd` 0..63 **全量** × 3 源值；boundary 219 含 **192 例全 0 定值**；legality 3）⇒ QEMU 实跑 **798/798 passed**（`hd` 敏感例 **365**）；阶段 A 向量 `tests/vectors/bitcnt` **414/414 passed**。
+- **定值/边界**：全 0 ⇒ `ctlz` = `cttz` = `hd+1`（**含 `hd=63` ⇒ 64**）、`ctpop` = 0（192 例）；`hd=0`（bit0=0/1）、`hd=63`（全 1 / 仅 bit0 / 仅 bit63）、`rdhc=rd0`、`rdhb==rdhc`、大端锚点 `0x0123456789ABCDEF`（结果写满 64 位）逐例通过。
+- **`ILLI`**：`rdhb=rd0`（`dst_rd0`，照既有 `rev`/`orri` 先例 `gen_exception_illegal`）三条逐条单跑**真实退出码** = **`0x88`**；反向对照 `rdhc=rd0` 三条 rc=0 且退出码 **≠ `0x88`**（证 `hd ∈ 0..63` / `rdhc` 均不触发 ILLI ⇒ 无 `hd` 相关 ILLI 分支）。
+- **静态/一致性**：`validate_decodetree.py`（YAML 234 ↔ pattern 234、错误 0）rc=0；`make_patch.py qemu` ⇒ `3 written, 33 unchanged`（幂等）；`check-patch-tree`（4 组件 **129** 补丁）/`check-index-blobs`(93)/`check-source-state`（qemu HEAD `c3a1edaebbaa`、count=1、clean=True）/`check-no-residue`/`check-knowledge-refs` 各 rc=0。
+**新发现/坑**：①**自审抓到 oracle 自身 bug**：第三方 `clz_bisect` 未把有效窗口顶到 bit63 ⇒ `hd=0,src=1` 误得 63（`--self-check` **真实 FAIL**）⇒ 修（先 `v <<= 64-width` 再二分）；②`insn.decode` 头计数由生成器**硬编码 `256`**、提交版按**现场数**（今 234）维护（承 `SPEC-142t` 阶段 C F4 惯例）——**未改生成器**（越界/另立）；③证据脚本计数若用**多字节正则**抓取会返回多行（`63`/`365`）而失真 ⇒ 改由生成器输出**机器可读 `STATS …` 行** + 「STATS == cases.json」交叉断言；④组件源树导出走 `Process-01 §6.4` 的 `git reset --soft HEAD~` + `git add -A` + `git commit`（E4 收敛，**非**注入还原手段；注入还原一律 `cp`+md5）；⑤QEMU 侧**零 helper 改动**（`tcg_gen_clzi/ctzi/ctpop_i64` 均为 TCG 内置，含软件回退）。
+**遗留问题**：①**未提交**（提交权归 architect；分支 = `SPEC-143t-C`）；**未越界**（只 `components/qemu/**`：补丁 + `series` + `changelog` + `README`；未触 `spec/**`、`contracts/**`、`components/llvm-project/**`、compiler-rt）；②**ISel 接入**（`int_ctlz/cttz/ctpop` → 单指令）不在本任务（`D11.9` 未列，另立）；③`ISS-215`（`check-interface` 2 FAIL）本阶段已转绿 ⇒ **建议主会话/architect 闭合**；④阶段 C 待 reviewer 独立验收（任务级 `**状态**` 维持 `待验收`）。
+
+
+#### 第 3 轮 engineer 自审（阶段 C / QEMU，2026-10-15）
+
+（自主逐行审查；对象 = 本环 `insn.decode` 3 条 pattern、`insn_trans/trans_bitcnt.c.inc`（82 行）、`translate.c` 的 1 行 `#include`、`series`/`changelog.md`/`README.md`、证据脚本 `check_bitcnt_qemu.py` + `run-c.sh`。全局 `subagent_depth=1`，无法起嵌套子代理，故为自主逐行审查。）
+
+**逐行审查意见与判决**
+
+1. `bitcnt_mask(hd)` = `~(uint64_t)0 >> (63 - hd)`：`hd ∈ 0..63` ⇒ 位移量 `0..63` ⇒ **无** `1ULL << 64` 的 UB；`hd=0` ⇒ `1`、`hd=63` ⇒ 全 64 位。**正确**。
+2. `bitcnt_legal`：**仅** `a->hb == 0` ⇒ `gen_exception_illegal`（`dst_rd0`，照 `rev_legal`/既有 `orri` 先例）；**无** `hd` 相关分支（契约：`hd` 全合法）。**正确**。
+3. `trans_ctlz_orri_rd`：`shli(t, rdhc, 63 - hd)` 把有效窗口顶到 bit63 后 `tcg_gen_clzi_i64(rdhb, t, hd + 1)` ⇒ 非零 = 窗口内前导零（`≤ hd`）、全 0 时按 `xlen = hd+1` 取**定值**（非 64）；`hd=63` ⇒ 位移 0 = 全 64 位。**正确**（64 个 `hd` × 全 0 的 192 例实证）。
+4. `trans_cttz_orri_rd`：`andi` 掩码 + `tcg_gen_ctzi_i64(rdhb, t, hd + 1)` ⇒ 全 0 得 `hd+1`；`trans_ctpop_orri_rd`：掩码 + `tcg_gen_ctpop_i64` ⇒ 自然值、无特例。**正确**。
+5. **值语义**：三条均 `store_rd(a->hb, rdhb)` 写满 64 位（非「只写低位」）；`store_rd` 对 `rd0` 静默忽略——但 `rd0` 作目的已被 `bitcnt_legal` 先行 ILLI（静默路径不可达）。**正确**。
+6. `translate.c`：`#include` 紧随 `trans_rev.c.inc`（与该文件既有 include 群一致）；hunk 头/`index` 行由 `make_patch.py` 自动生成（**非**手改），`check-patch-tree` 断言⑥/⑨ 与 `check-index-blobs` 独立复算通过。**正确**。
+7. `insn.decode`：3 条 pattern 与 `generate_decodetree.py` **现场产出逐字节一致**（仅头计数与既有 `# 0x5A` 人工注记不同）⇒ 无插入位置漂移；`validate_decodetree` 234/234。**正确**。
+8. 独立 oracle（`check_bitcnt_qemu.py`）：与阶段 A 生成器**代码独立**（SWAR / 平移·掩码二分 / 大端掩码 vs 逐位 / 整数性质 / 位串）；**无** subprocess、不读 QEMU 产物。**符合 Spec-first / independent oracle**。
+9. **可达 FAIL（逐断言）**：注入 A（篡改 semantic 期望）⇒ `failed=1`；注入 B（合法 `hd` 标为「期望 ILLI」）⇒ rc≠0（证 ILLI 断言非恒真）；注入 C（源树 `ctlz` 忽略 `hd` + 重建）⇒ **98 FAIL**（证 QEMU **实现本身**被比对）；注入 D（源树关 `dst_rd0` + 重建）⇒ **3 FAIL**（证 ILLI 路径被比对）。**符合**。
+10. 证据脚本纪律：无 `tee`；收尾 `rc=0; [ FAIL = 0 ] || rc=1; exit $rc`；覆盖/计数**现场统计**（`STATS` 行 + `cases.json` + 日志抓取）；两处 md5 相等判（防 `ISS-210` 假绿）。**符合**。
+11. 还原纪律：注入③④用 `cp` 备份 + md5 对账（前后 `3a62874d…`），**未**用 `git checkout/restore/stash`；导出走 `Process-01 §6.4` 的 E4 收敛（**非**还原手段，已披露）。**符合**。
+12. 越界自查：`git status --porcelain -uall` = 6 项，与 `spec/`、`contracts/`、`components/llvm-project/**` 交集**空**；未改 `helper.c`（TCG 内置，无 helper 需求）。**符合**。
+
+**Finding 处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 第三方 oracle `clz_bisect` 未把有效窗口顶到 bit63 ⇒ `hd=0,src=1` 误得 63（**自检真实报错**） | ✅已修 | 二分前先 `v = (v << (64 - width)) & MASK64` | `--self-check` rc=0（**1728 例**四路一致 + 定值 + 值域） |
+| F2 `run-c.sh` 用**多字节正则**抓计数 ⇒ `grep -oE` 返回两行（`63`/`365`），打印失真 | ✅已修 | 生成器新增机器可读 `STATS cases=… hd_sensitive=…` 行；脚本改抓该行 + 加「STATS == cases.json」断言 | 现场打印 `cases=798（STATS 798），hd 敏感=365`；`run-c.sh` PASS=29 FAIL=0 |
+| F3 `insn.decode` 头计数生成器硬编码 `256` vs 现场 `234` | ⏸披露不改（既有惯例；改生成器越界/另立） | 提交版按现场数维护（231→**234**） | `validate_decodetree` 234/234；「新发现/坑」② |
+| F4 组件元数据随补丁集变化（`README.md` 规模、`insn_trans` 计数） | ✅已更新（`Process-01 §2`：README 须简明反映补丁集） | 35→36 份、11→12 个 `insn_trans/*.c.inc` | 现场 `wc -l series` = 36；与 `SPEC-142t` 阶段 C 同例 |
+
+**判决**：全部 finding 已处置（F1/F2/F4 已修，F3 为既有惯例披露）。本环**未发现** `ctlz`/`cttz`/`ctpop` 的 QEMU 执行**缺陷**（798/798 独立向量 + 414/414 阶段 A 向量经独立 oracle 全等；`ILLI` 真实退出码 `0x88`）。核心指标（**`check-interface` 234/234 + L2 rc=0 + L1 rc=0**）已由真实 rc 达成，阶段 C 完成 ⇒ 状态置 `待验收`（任务级维持 `待验收`，待 reviewer 独立验收）。
