@@ -1,0 +1,126 @@
+diff --git a/arch/dadao/crt_arch.h b/arch/dadao/crt_arch.h
+new file mode 100644
+index 0000000..a1891a1
+--- /dev/null
++++ b/arch/dadao/crt_arch.h
+@@ -0,0 +1,120 @@
++/*
++ * DADAO program entry point for crt1.c (START = "_start") and for
++ * ldso/dlstart.c / crt/rcrt1.c (SHARED defined, START = "_dlstart" / "_start").
++ *
++ * Argument registers (contract-abi.md §4.1/§4.4): a pointer argument goes to
++ * the RB bank, an integer/pointer *return* value to rd8.  Both entry helpers
++ * take pointer arguments only, so:
++ *
++ *     _start_c(long *p)                      -- p in rb16
++ *     _dlstart_c(size_t *sp, size_t *dynv)   -- sp in rb16, dynv in rb17
++ *
++ * Two bodies, selected by SHARED (dlstart.c sets it before including this
++ * file):
++ *
++ *   * SHARED (dynamic loader / PIE-with-relocations entry): the caller has
++ *     already supplied a Linux-shaped initial stack, so sp IS `p` and the
++ *     dynamic vector is `_DYNAMIC`.  This is the ordinary musl shape; the
++ *     dynamic path is P2 (ADR-0025 D6) and is NOT exercised by P1.
++ *
++ *   * !SHARED (static executable): there is no kernel and therefore no
++ *     kernel-built initial stack -- the DADAO test machine enters the program
++ *     with rb1 = stack pointer and nothing else (ADR-0004 D6.5; Machine-01
++ *     §6).  So `_start` hands _start_c a **statically built** argc/argv/envp/
++ *     auxv frame from .data instead of reading the incoming stack.  Only the
++ *     entries musl's __init_libc actually consumes are present, each one
++ *     derived rather than invented:
++ *
++ *       AT_PAGESZ  4096 -- there is no MMU and no kernel page size to ask for
++ *                          (ADR-0025 D2); 4096 is the conventional Linux value
++ *                          and is what libc.page_size (malloc / stdio buffer
++ *                          rounding) sees.  Registered as a target constant,
++ *                          not read from the machine.
++ *       AT_UID/EUID/GID/EGID 0, AT_SECURE absent (0), AT_HWCAP 0 -- a
++ *                          uid==euid==gid==egid==0 and not-secure process, which
++ *                          makes __init_libc return *before* its poll()/open()
++ *                          path (no service needed at startup).  With no
++ *                          kernel there is no privilege model to report.
++ *       AT_EXECFN  __dadao_progname -- argv[0] doubles as the program name.
++ *
++ *     AT_PHDR/AT_PHNUM/AT_PHENT are deliberately ABSENT: they exist only so
++ *     static_init_tls can find a PT_TLS segment, and a bare-metal entry has no
++ *     program-header address to hand over without a linker-script-provided
++ *     symbol.  Consequence, stated so it cannot surprise anyone: libc.tls_cnt
++ *     stays 0, i.e. **static TLS variables (`__thread`) are not yet
++ *     discoverable**.  That is exactly the P1 boundary (P1 has no `__thread`,
++ *     so no TLS relocation is generated -- task book "TLS/TP" bullet), and it
++ *     is registered as a known gap.  The TCB/TP itself is still established
++ *     unconditionally by __init_tls, so `errno` works.
++ *
++ * The frame lives in .data (writable) at a link-time address; nothing in musl
++ * mutates argv/envp/auxv, and the argument pointer is passed explicitly, so the
++ * machine-provided stack pointer is left untouched (8-byte aligned as ADR-0004
++ * D6.5 guarantees).
++ *
++ * Conventions used here (spec/Toolchain-01-汇编语言.md): `;` starts a comment
++ * (`#` is reserved for cpp), only `.dd.b08/.dd.w16/.dd.t32/.dd.o64` data
++ * directives and `.p2align` are legal, and an absolute symbol address is
++ * produced by `set.rb rbN, symbol` (3 wyde slices + R_DADAO_ABS48).
++ */
++
++#include <elf.h>
++
++#define DADAO_STR2(x) #x
++#define DADAO_STR(x) DADAO_STR2(x)
++
++#ifdef SHARED
++#define DADAO_ENTRY_BODY						\
++	"	rb2rb	{rb16}, {rb1}\n"			\
++	"	set.rb	rb17, _DYNAMIC\n"			\
++	"	call	[rb0, " START "_c]\n"			\
++	"	swym	0\n"
++#else
++#define DADAO_ENTRY_BODY						\
++	"	set.rb	rb16, __dadao_init_stack\n"		\
++	"	call	[rb0, " START "_c]\n"			\
++	"	swym	0\n"
++#endif
++
++__asm__(
++".section .data\n"
++".p2align 3\n"
++"__dadao_progname:\n"
++"	.dd.b08 0x64\n"	/* 'd' */
++"	.dd.b08 0x61\n"	/* 'a' */
++"	.dd.b08 0x64\n"	/* 'd' */
++"	.dd.b08 0x61\n"	/* 'a' */
++"	.dd.b08 0x6f\n"	/* 'o' */
++"	.dd.b08 0x00\n"
++".p2align 3\n"
++"__dadao_init_stack:\n"
++"	.dd.o64 1\n"
++"	.dd.o64 __dadao_progname\n"
++"	.dd.o64 0\n"
++"	.dd.o64 0\n"
++"	.dd.o64 " DADAO_STR(AT_PAGESZ) "\n"
++"	.dd.o64 4096\n"
++"	.dd.o64 " DADAO_STR(AT_UID) "\n"
++"	.dd.o64 0\n"
++"	.dd.o64 " DADAO_STR(AT_EUID) "\n"
++"	.dd.o64 0\n"
++"	.dd.o64 " DADAO_STR(AT_GID) "\n"
++"	.dd.o64 0\n"
++"	.dd.o64 " DADAO_STR(AT_EGID) "\n"
++"	.dd.o64 0\n"
++"	.dd.o64 " DADAO_STR(AT_HWCAP) "\n"
++"	.dd.o64 0\n"
++"	.dd.o64 " DADAO_STR(AT_EXECFN) "\n"
++"	.dd.o64 __dadao_progname\n"
++"	.dd.o64 " DADAO_STR(AT_NULL) "\n"
++"	.dd.o64 0\n"
++".text\n"
++".p2align 2\n"
++".global " START "\n"
++".type " START ",%function\n"
++START ":\n"
++DADAO_ENTRY_BODY
++".size " START ", . - " START "\n"
++".weak _DYNAMIC\n"
++".hidden _DYNAMIC\n"
++);

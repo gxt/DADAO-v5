@@ -1,0 +1,44 @@
+diff --git a/arch/dadao/bits/alltypes.h.in b/arch/dadao/bits/alltypes.h.in
+new file mode 100644
+index 0000000..e8c9c1b
+--- /dev/null
++++ b/arch/dadao/bits/alltypes.h.in
+@@ -0,0 +1,38 @@
++/*
++ * DADAO (dadao-unknown-elf) type model.
++ *
++ * 64-bit LP64 with 64-bit long/pointer -- the same shape as every other pure
++ * LP64 musl port (riscv64 is the closest one: no 32-on-64 historical baggage,
++ * same "frozen LP64 ABI" story).  The only deliberate difference is the byte
++ * order.
++ *
++ * __BYTE_ORDER = 4321 (__BIG_ENDIAN) is NOT copied from a little-endian arch:
++ * v5 is big-endian by contract -- EI_DATA = ELFDATA2MSB (ADR-0003 D1,
++ * .tao/contracts/contract-elf.md), and .tao/contracts/contract-abi.md §1.7
++ * ("采用大端序... 多字节数据的最高有效字节存放在最低地址").  arch/s390x
++ * writes the same 4321 value for the same reason.
++ *
++ * blksize_t / nlink_t are narrowed to int / unsigned int exactly as riscv64
++ * does, because both v5 and riscv64 consume the asm-generic 64-bit kernel
++ * object layouts (kstat.h below is the asm-generic one: `unsigned int
++ * st_nlink`, `int st_blksize`).
++ */
++
++#define _Addr long
++#define _Int64 long
++#define _Reg long
++
++#define __BYTE_ORDER 4321
++#define __LONG_MAX 0x7fffffffffffffffL
++
++#ifndef __cplusplus
++TYPEDEF int wchar_t;
++#endif
++
++TYPEDEF int blksize_t;
++TYPEDEF unsigned int nlink_t;
++
++TYPEDEF float float_t;
++TYPEDEF double double_t;
++
++TYPEDEF struct { long long __ll; long double __ld; } max_align_t;

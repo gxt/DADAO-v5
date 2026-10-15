@@ -1,0 +1,12 @@
+diff --git a/configure b/configure
+index bc9fbe4..93fd701 100755
+--- a/configure
++++ b/configure
+@@ -323,6 +323,7 @@ case "$target" in
+ # Catch these early to simplify matching for 32-bit archs
+ arm*) ARCH=arm ;;
+ aarch64*) ARCH=aarch64 ;;
++dadao*) ARCH=dadao ;;
+ i?86-nt32*) ARCH=nt32 ;;
+ i?86*) ARCH=i386 ;;
+ x86_64-x32*|x32*|x86_64*x32) ARCH=x32 ;;

@@ -1,0 +1,118 @@
+diff --git a/arch/dadao/reloc.h b/arch/dadao/reloc.h
+new file mode 100644
+index 0000000..494b737
+--- /dev/null
++++ b/arch/dadao/reloc.h
+@@ -0,0 +1,112 @@
++/*
++ * DADAO runtime relocation classes for musl's dynamic linker.
++ *
++ * musl enumerates relocation CLASSES in src/internal/dynlink.h with
++ * deliberately unmatchable default values, and each arch maps the classes it
++ * uses onto its own ELF relocation type numbers (musl's own mechanism; see
++ * .tao/contracts/contract-dynlink.md §4.2).  The numbers below are the v5
++ * DADAO relocations as frozen by ADR-0019 D10 / ADR-0021 and tabulated in
++ * .tao/contracts/contract-dynlink.md §4.3 ("最终编号，全密无空档", user
++ * confirmed 2026-10-14) -- they are NOT defined by the compiler's <elf.h>
++ * (there is no DADAO arch/reloc.h upstream), so they are spelled out here and
++ * must stay in step with that table.
++ *
++ * Classes deliberately left unmapped (they keep musl's unmatchable defaults, so
++ * a relocation carrying them is never "handled" -- the same mechanism every
++ * port relies on): REL_NONE is exactly 0 == R_DADAO_NONE; REL_GOT, REL_USYMBOLIC,
++ * REL_OFFSET, REL_OFFSET32, REL_SYM_OR_REL, REL_TPOFF_NEG, REL_FUNCDESC and
++ * REL_FUNCDESC_VAL are not produced by the DADAO toolchain.  (R_DADAO_ABS48
++ * serves both the "symbol address" and the "GOT slot" roles; musl treats the
++ * GOT-slot case through the same REL_SYMBOLIC class, see the §4.3 table's
++ * 动态 column for type 6.)
++ */
++
++#define LDSO_ARCH "dadao"
++
++/* TP-relative values are not measured from the end of the TLS block, so the
++ * adjustment constant is 0 -- consistent with GAP_ABOVE_TP 0 and DTP_OFFSET 0
++ * in arch/dadao/pthread_arch.h. */
++#define TPOFF_K 0
++
++/* v5 relocation type numbers: contract-dynlink.md §4.3 / contract-elf.md §2.2 */
++#define R_DADAO_NONE         0
++#define R_DADAO_ABS48        6
++#define R_DADAO_JUMP_SLOT    7
++#define R_DADAO_RELATIVE     8
++#define R_DADAO_COPY         9
++#define R_DADAO_TLS_DTPMOD  10
++#define R_DADAO_TLS_DTPREL  11
++#define R_DADAO_TLS_TPREL   12
++#define R_DADAO_TLSDESC     13
++
++#define REL_SYMBOLIC	R_DADAO_ABS48
++#define REL_PLT		R_DADAO_JUMP_SLOT
++#define REL_RELATIVE	R_DADAO_RELATIVE
++#define REL_COPY	R_DADAO_COPY
++#define REL_DTPMOD	R_DADAO_TLS_DTPMOD
++#define REL_DTPOFF	R_DADAO_TLS_DTPREL
++#define REL_TPOFF	R_DADAO_TLS_TPREL
++#define REL_TLSDESC	R_DADAO_TLSDESC
++
++/*
++ * CRTJMP(pc, sp): set the stack pointer and jump to an absolute address.
++ *
++ * A DADAO jump needs its target in a base register (jump takes
++ * base + RD offset + immediate; a base of rb0 would make it PC-relative, which
++ * is not what callers want here).  So: pc -> rb4 via rd4, sp -> rb1 via rd5,
++ * jump through rb4 with a zero offset.  rb4 is a caller-saved scratch base
++ * register and the jump never returns, so clobbering it is safe; the macro
++ * declares no clobbers beyond "memory" because control never comes back.
++ *
++ * Written with local register variables, not `%N` operands: clang's DADAO
++ * target prints an operand reference inside an inline-asm template as the
++ * EMPTY string, so a template must not contain one (see
++ * arch/dadao/pthread_arch.h for the demonstration).
++ *
++ * Used by src/thread/__unmapself.c (single-threaded cleanup path) and
++ * ldso/dynlink.c (the dynamic entry jump, P2).
++ */
++#define CRTJMP(pc,sp) do { \
++	register void *dadao_crtjmp_pc __asm__("rd4") = (void *)(pc); \
++	register void *dadao_crtjmp_sp __asm__("rd5") = (void *)(sp); \
++	__asm__ __volatile__( \
++		"rd2rb	{rb4}, {rd4}\n" \
++		"rd2rb	{rb1}, {rd5}\n" \
++		"jump	[rb4, rd0, 0]\n" \
++		: : "r"(dadao_crtjmp_pc), "r"(dadao_crtjmp_sp) : "memory" ); \
++} while (0)
++
++/*
++ * GETFUNCSYM(fp, sym, got): write the address of the hidden function `sym`
++ * into `*fp`.
++ *
++ * musl's default implementation passes the static function pointer to an empty
++ * asm block as a MEMORY operand (`"+m"`).  That cannot be built for DADAO: the
++ * backend's instruction selector aborts on any inline asm with a memory
++ * operand for this target ("fatal error: error in backend: Could not match
++ * memory address.  Inline asm failure!", reproducible with the minimal
++ * `void f(void){int x; __asm__("" : "+m"(x));}`), and ldso/dlstart.c is the one
++ * file in the tree that uses one.  Defining GETFUNCSYM here is the extension
++ * point musl provides for exactly this situation -- twelve other arches define
++ * it in their reloc.h (see arch/loongarch64/reloc.h for the same
++ * "compute the address, hand it out through an output register" shape).
++ *
++ * `set.rd rd, symbol` is the assembler's symbol form: it expands to three wyde
++ * slices plus R_DADAO_ABS48 (Toolchain-01 §6.1), which is how a DADAO absolute
++ * symbol address is materialised.
++ *
++ * SCOPE / LIMITATION (registered): this yields the link-time absolute address.
++ * That is correct for the static case, which is what P1 has.  The *dynamic*
++ * path (P2) will need the symbol address to be computed from the load base
++ * (PC-relative or via the GOT argument `got`, which this form ignores) --
++ * whoever implements the DADAO ldso must revisit this macro.  Nothing reachable
++ * in P1 uses it: _dlstart_c is only entered by the dynamic loader entry, which
++ * this port does not have yet.
++ */
++#define GETFUNCSYM(fp, sym, got) do { \
++	register void (*dadao_getfuncsym_fn)() __asm__("rd8"); \
++	__asm__ (".hidden " #sym "\n" \
++		"set.rd	rd8, " #sym "\n" \
++		: "=r"(dadao_getfuncsym_fn) : : "memory"); \
++	*(fp) = dadao_getfuncsym_fn; \
++} while (0)

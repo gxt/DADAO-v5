@@ -1,0 +1,64 @@
+diff --git a/src/setjmp/dadao/setjmp.S b/src/setjmp/dadao/setjmp.S
+new file mode 100644
+index 0000000..82251d9
+--- /dev/null
++++ b/src/setjmp/dadao/setjmp.S
+@@ -0,0 +1,58 @@
++/* DADAO setjmp.
++ *
++ * int setjmp(jmp_buf env);   -- env is a pointer argument, delivered in rb16
++ *                               (contract-abi.md §4.1).
++ *
++ * The frame saved here is byte-for-byte the layout documented in
++ * arch/dadao/bits/setjmp.h (161 octas):
++ *
++ *   [   0 ..  503]  ra0 .. ra63   -- the hardware return-address stack
++ *   [ 512]          rb1           -- stack pointer
++ *   [ 520 ..  775]  rd32 .. rd63  -- callee-saved, contract-abi.md §4.5
++ *   [ 776 .. 1031]  rb32 .. rb63  -- callee-saved (incl. rb63 = FP)
++ *   [1032 .. 1287]  rf32 .. rf63  -- callee-saved FP bank
++ *
++ * Saving the return-address stack is possible because DADAO makes it
++ * architecturally visible (ra0-ra63 are readable and writable,
++ * contract-isa.md §3.3); ra0 carries RACNT/MRPTR, ra1-ra63 the entries, with
++ * ra63 the RegRAS top (contract-abi.md §1.5, ADR-0012 D7).  Restoring the saved
++ * ra0 also restores RACNT, so the RegRAS ends up exactly as deep as it was
++ * inside setjmp, with no leftover entries; the `ret` in longjmp then pops
++ * setjmp's own return address and lands in setjmp's caller.
++ *
++ * The same save/restore sequence (and the same MRPTR == 0 limitation) is used
++ * by the picolibc port, components/picolibc/patches/libc/machine/dadao/
++ * setjmp.S (INFRA-068t, including its 返工 1 that added the FP bank after a
++ * measured FP-local clobber).
++ *
++ * Registers used before the callee-saved set has been stored: only the
++ * caller-saved rd17 scratch (the byte offset for stm) and the incoming rb16.
++ * setjmp never modifies rb1.
++ *
++ * The FP forms of stm.o are used unconditionally: the RF bank and its block
++ * move instructions are part of the implemented machine (contract-fp.md), and
++ * the callee-saved set genuinely includes rf32-rf63 (contract-abi.md §4.5).
++ */
++
++	.text
++	.global __setjmp
++	.global _setjmp
++	.global setjmp
++	.type __setjmp, %function
++	.type _setjmp, %function
++	.type setjmp, %function
++__setjmp:
++_setjmp:
++setjmp:
++	st.o	ra0, [rb16, 0]
++	set.zw	rd17, wp0, 8
++	stm.o	{ra1:ra63}, [rb16, rd17]
++	st.o	rb1, [rb16, 512]
++	set.zw	rd17, wp0, 520
++	stm.o	{rd32:rd63}, [rb16, rd17]
++	set.zw	rd17, wp0, 776
++	stm.o	{rb32:rb63}, [rb16, rd17]
++	set.zw	rd17, wp0, 1032
++	stm.o	{rf32:rf63}, [rb16, rd17]
++	ret	rd8, 0
++	.size setjmp, . - setjmp

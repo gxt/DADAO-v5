@@ -3,8 +3,8 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 路线；`D6` = `P0 契约 → P1 musl 静态 → P2 动态 → P3 linux-user → P4 对照/回归`、`D2` = **无内核目标**、`D3` = musl 自带 `ldso`〔**P2**〕、`D4` = musl 与 picolibc **并存**）；`ADR-0027 D5`（compiler-rt builtins = **独立库、picolibc/musl 共用**）；`INFRA-076t`（musl 1.2.6 取源与锁定，`已验证`）；`SPEC-138t`（syscall 映射契约，`已验证`）；`SPEC-140t`（TLS 硬依赖查证，`已验证`）；`ISS-216`（`dadao-m1` 无 `SYS_UMON_SYSCALL` 服务方；**已由主会话 2026-10-15 裁定并入本任务** ⇒ 见「前置结论 2」）；`INFRA-079t`（compiler-rt builtins 接入，`待开始`——**已由主会话结论 ① 定为「不必先做」**，见「前置结论 1」）；`INFRA-057t`（picolibc 移植/构建集成的**形态先例**，**只读**）；`docs/Process-01`（组件补丁组织与构建编排）
-**状态**：待验收（**仅阶段 A 第 1 步**：QEMU 侧 `SYS_UMON_SYSCALL` 服务；A2/A3/B/C 未做 ⇒ **任务整体未完成**，见完成区「阶段 A1」）
-**阶段进度**：A1 ✅ 已验证（2026-10-15，reviewer Accepted）；A2/A3、B、C ⏳ 待做
+**状态**：待验收（**仅阶段 A**：A1 = QEMU 侧 `SYS_UMON_SYSCALL` 服务；A2 = musl 补丁集骨架 + 锁条目补丁化；A3 = 静态最小程序可编出；B/C 未做 ⇒ **任务整体未完成**，见完成区「阶段 A1」/「阶段 A2+A3」）
+**阶段进度**：A1 ✅ 已验证（2026-10-15，reviewer Accepted）；A2/A3 ✅ 已完成（2026-10-15，分支 `INFRA-082t-A2`，待验收）；B、C ⏳ 待做
 
 > **`**状态**` 口径说明**：本任务 = **一个任务书、多阶段验收**（照 `SPEC-142t`/`SPEC-143t` 先例）⇒ `**状态**` 表**任务级**进度（**阶段全部验收通过后**才置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（A1 见「第 1 轮 reviewer 验收」）。
 
@@ -64,6 +64,19 @@
 2. **阶段 A1 遗留（阶段 B 输入）**：
    - **服务集仍缺（显式 `-ENOSYS`，非静默）**：`read`(63)／`brk`(214)／`set_tid_address`(96)／`set_robust_list`(99) 等 ⇒ **阶段 B 按 musl 实测需要补**（证据：musl `src/env/__init_tls.c:22` **启动即调 `set_tid_address`(96)**）。
    - **探针未接门控**（本任务**未改** `Makefile`，避免越界）⇒ 记为「**阶段 B 后评估**」；**本任务不接门控**。
+
+## 阶段 A2+A3 遗留（2026-10-15 补录；**供阶段 B/C**）
+
+> **来源** = 阶段 A2+A3 实测（见完成区「阶段 A2+A3」的「新发现/坑」与「遗留问题」④–⑧/⑩/⑪，**只追加、不改写**）；**本节与「阶段 A1 遗留」同为规范性输入**，阶段 B/C 执行须遵循。**逐条落纸 = 8 条**（7 条遗留 + 1 条待收尾裁定）。
+
+1. **原子非真（单线程语义）**：机器无 LR-SC/`fence`（`contract-isa §14` = `excluded`；QEMU 侧为 ILLI 桩）⇒ `a_cas` 只给**单线程**语义（`arch/dadao/atomic_arch.h` 已写明）。**阶段 B 单线程 E2E 不受影响；开线程/`P2` 之前必须换真原子。**
+2. **`GETFUNCSYM` 给链接期绝对地址**（`arch/dadao/reloc.h` 覆盖 `ldso/dlstart.c` 的唯一用户）：**静态（`P1`）成立**；**`P2` 动态须改为基址相关**（随 `ldso` 真重定位）。
+3. **`bits/signal.h` 的 `mcontext_t` = `[OPEN]` 占位**：v5 无 DADAO 信号帧 ABI（`ADR-0025 D2` 无内核/信号）⇒ **仅保证编译**、头文件已标 `[OPEN]`；谁定真帧布局谁重写。
+4. **无 `AT_PHDR`/`PHNUM`/`PHENT`** ⇒ `libc.tls_cnt = 0` ⇒ **静态 `__thread` 未打通**（`errno`/TP/TCB 正常）；阶段 B 若需 `__thread`，须先在 crt 侧补 auxv 注入。
+5. **`sigsetjmp` 未实现**（`src/signal/sigsetjmp.c` 是上游空槽）⇒ **用之即链接失败**（非静默）；`siglongjmp` 存在但无可用缓冲。
+6. **（不变量）阶段 B 加服务须同步 `arch/dadao/syscall_arch.h` 的 `__dadao_argmask` 表项**：未列号默认 mask = 0（`rb16` 被置 0），今日因服务方对未实现号一律 `-ENOSYS` 而**可证无害**，但**新增「读指针参数」的服务必须同步加表项**（已写入头文件注释 + `components/musl/README.md`）。服务集仍缺：`read`(63)／`brk`(214)／`set_tid_address`(96)／`set_robust_list`(99) 等。
+7. **阶段 C（条件触发）：libcall 缺口未触发**（**显式声明，非默认通过**）—— `P1` 静态最小集全程未撞 i128 除法 / FP↔i128 / `bswap` / `*_PARTS` 等 ⇒ **本阶段无 `INFRA-079t` 转出**；阶段 B/C 若撞上须**当场登记 `issues.yaml` + 转 `INFRA-079t`**（**不得** silently 跳过）。
+8. **待收尾裁定（`make build-musl`）**：构建**未接 `Makefile`**（只有 `tools/infra/build_musl.py`）⇒ **是否加 `make build-musl` target 由主会话收尾时裁定**（本阶段未改 `Makefile`，避免越界）。
 
 ## 依据（口径真源；**引用，不复制正文**）
 
@@ -138,6 +151,14 @@
 **验收结果**：**识别** = `trap cfxha=0(umon), immu18=0`（`SBI_UMON_SYSCALL`）**且 `inner_run_mode == user`**（`contract-syscall §2` + `DADAO-22 §2`「`umon` = user 模式异常入口」）；**位置** = `helper_cfx_trap` 内、**指令类型 trap mask 检查之后**、§5 向量流程之前（掩码语义不被绕过）。**接管** = QEMU 服务后按 `escape cfxha,[excp_cause_ip,4]` 语义回 `pc+4`（不写 cfx 帧/计数器：探针 `trapn0==1` 实测印证）。**最小服务集（现场定）** = `write`(64)／`writev`(66)／`exit`(93)／`exit_group`(94)，**号值取自锁定号表**（`.work/source/qemu/linux-headers/asm-generic/unistd.h`，`contract-syscall §1.2`）；fd 1/2 ⇒ 宿主 stdout/stderr（「无内核」下宿主侧转发，`contract-syscall §6`）；退出码经 `qemu_system_shutdown_request_with_code(GUEST_SHUTDOWN, code)` **忠实传 `$?`**（实测 `$?=42`／`7`；**不复用** semihosting `SYS_EXIT`，§6 停机协议不混用）。**未实现 ⇒ 显式失败**：`qemu_log_mask(LOG_GUEST_ERROR)` + **`rd8 = -ENOSYS`**（实测 `0xFFFF_FFFF_FFFF_FFDA`；不支持 fd ⇒ `-EBADF`；`iovcnt>1024` ⇒ `-EINVAL`）。**重建 + 安装**：`build-qemu` rc=0、**`install-host` rc=0**（日志 `.work/log/{qemu,infra}/INFRA-082t-*`；`/tmp/opencode/INFRA-082t/*.EXIT`），两处二进制 md5 一致 = `f21edd71d5a4352d3e0c5fdc64afbb3e`；**产品级反例**（禁服务 + 重建）⇒ 探针 **3/12（恰 9 条服务用例 FAIL，3 条不回归用例仍 PASS）** ⇒ `cp`+md5 还原 + 重建 ⇒ **12/12** 且二进制 md5 回到原值。
 **新发现/坑**：① **`trap cfx0,0` 双重身份**：`immu18=0` 既是 `SBI_UMON_SYSCALL`，又被 `tests/scripts/bootrom.S` 用作 **hypv→user 交接** ⇒ 任何「解码层 / 全模式短路」都会破坏 `test-semihost` 的 bootrom 交接（app 进不了 user 模式）与 `min_rom_probe_044t/045t` 的 hypv 向量用例 ⇒ 服务**限定 user 模式**。② **无 firmware 的 `-kernel <ELF>`（path A）复位态 = hypv**（`inner_cfx_mask=~0`）⇒ 不触达本服务；进 user 模式须 firmware 交接（`Machine-01 §6` 既有范式）⇒ **阶段 B 须走 `-bios` + 原始镜像（path B）**（或 crt0 自清掩码）；否则 `trap cfx0,0` 走 §5 向量路径（`CFXMEM 0x81`）。③ 改补丁后 `make apply-series` 会因「HEAD=base+1 但内容 ≠ 新补丁集」**拒绝应用**；本步改用「编辑 `.work/source/qemu` 文件 + `commit --amend`（仍 base+1、内容 == 新补丁集）+ `make_patch.py` 导出」**不丢弃任何改动**，由断言⑥/⑨ + `--source-state` 机械核对。④ musl 现场核对（`.work/source/musl/`）：stdio 缓冲写用 **`writev`**（`src/stdio/__stdio_write.c:20`）、退出 `exit_group`→`exit`（`src/exit/_Exit.c:6-7`）、**启动即调 `set_tid_address`(96)**（`src/env/__init_tls.c:22`）。⑤ `-d cpu` 的 `MODE:` 行解析须 `re.MULTILINE`（`min_rom_probe_046t.py::_lasthex` 未加，复用其 `observe()` 取不到 MODE）。
 **遗留问题**：① **A2/A3/B/C 未做**（musl 补丁集骨架／锁条目补丁化／静态程序可编出／`hello`·`exit` E2E）⇒ **本任务整体未完成**。② **服务集仍缺**（显式 `-ENOSYS`，非静默）：`set_tid_address`(96)／`set_robust_list`(99)／`read`(63)／`brk`(214) 等 ⇒ **阶段 B 按 musl 实测需要补**（上条④为预判证据）。③ **spec 覆盖缺口（未改 `spec/`，只读）**：`Machine-01 §4.3` 现只列两条路由，本步新增**第三条行为**（user 模式 `trap cfx0,0` 由 QEMU 接管、不进 guest 向量）⇒ **建议主会话登记 issue + 后续（授权后）落 `Machine-01`/ADR**（先例 `QEMU-049t`⇒`ISS-166`⇒`SPEC-121t`）。④ 探针**未接门控**（未改 `Makefile`，避免越界）⇒ 建议主会话裁定是否并入 L2。⑤ `jmon`(cfx1) `immu18=0` 未服务（保持既有向量路径）——本次范围只 `umon`。⑥ `ISS-216` **未关**（归本任务收尾）。
+
+### 阶段 A2+A3：musl 补丁集 + 锁条目补丁化 + 静态最小程序可编出（2026-10-15，分支 `INFRA-082t-A2`）
+
+**测试结果**：`tools/infra/build_musl.py`（configure + `make -j8` + 链接 + ELF 核对）**10/10 checks，rc=0**（**全量净构建 9.4 s**，`.work/log/musl/INFRA-082t-a23-build-musl-clean.log`）；一键证据 `.work/evidence/INFRA-082t/run-a23.sh` = **44 checks passed / 0 failed，rc=0** ✓，`--inject` = **rc=1**（4 条期望被污染 + 2 条注入断言 ⇒ 必失败）✓；门控各捕**自身** rc：`make check`(**L1**)=**0** ／ `check-patch-tree`=**0**（**5 components / 145 patches**，含 musl 16）／ `check-index-blobs`=**0** ／ `check-source-state`=**0** ／ `check-no-residue`=**0** ／ `check-tasks`=**0** ／ `check-component-changelog`=**0** ／ `python3 tools/infra/check_issues.py`=**0**（35 open / 9 closed / 0 blocking）。
+**修改文件**：①（A，16 文件）`components/musl/{README.md,changelog.md,series,patches/**}`（**树形补丁、一文件一补丁**：`arch/dadao/**` 12 + `src/setjmp/dadao/**` 2 + `src/thread/dadao/__set_thread_area.s` 1 + `configure` 1）；②（M）`manifests/components.lock.toml`（musl：去 `patchless`、补 `patch_dir`/`patch_series`、`role` 同步，**同批**）；③（A，**越界披露**）`tools/infra/build_musl.py`（构建+链接+ELF 核对；先例 `tools/infra/{build_picolibc,test_picolibc_smoke}.py`，落点由本册「输出 3/4」指定）；④（M）本任务书（状态/阶段进度 + 本区块 + 第 2 轮自审）。**未提交**；`.work/source/musl` 工作树 = **base+1 且干净**（组件侧本地 commit，E1 成立）；`spec/`/`contracts/`/`.tao/contracts/`/`.tao/knowledge/`/`Makefile` **未动**。
+**验收结果**：**补丁集形态** = `series` 16 行 ↔ `patches/**` 16 文件（现场统计），每份恰 1 个 `diff --git`、`patches/` 纯镜像。**A3 出口（静态最小程序）**：`clang --target=dadao-unknown-elf` 编 `write(1,"hi\n",3); return 0;` + `crt1.o` + `libc.a` → `ld.lld -T tests/scripts/dadao.lds` ⇒ `file`：**`ELF 64-bit MSB executable, *unknown arch 0xda0*, statically linked`**；自解析 ELF：ELFCLASS64 / ELFDATA2MSB / `ET_EXEC` / `e_machine=0x0DA0` / **无 `PT_INTERP`、无 `PT_DYNAMIC`** / `e_entry=0xfc0000000000`（= `dadao.lds` 的 RAM 基址）；反汇编含 `trap cfx0, 0`；`libc.a` 1336 成员（`write`/`read`/`setjmp`/`longjmp`/`__libc_start_main`/`__set_thread_area`/`malloc`(W)/`printf` 均在）。**契约对齐（静态可证）**：`write()` 生成序列 —— `sccp` 内 `rd2rd {rd15},{rd16}`（号→**`rd15`**）+ 跳表按 `__dadao_argmask` 分派 + 公共尾 `rd16=a0(fd)`／`rd17=a2(count)`／**`rd2rb {rb16},{rd4}`（指针→`rb16`）** + `trap cfx0, 0`（`immu18=0`）⇒ 与 `contract-syscall §3` 的「`read`：fd→rd16、buf→rb16、count→rd17」**逐槽一致**（跳表 71 项现场读出：`nr=63/64/65/66` → 指针槽=1 体，`nr=29` → 指针槽=2 体，`nr=96/98/99` → 指针槽=0 体）。**号表**：`bits/syscall.h.in` ↔ 锁定的 RISC-V `linux-user/riscv/syscall.tbl` **共同名 314 / 0 冲突**，关键 14 号 **14/14** 同值。**启动帧**：从产物 ELF 读 `__dadao_init_stack` 18 octa = `{1, argv0, NULL, NULL, AT_PAGESZ 6→4096, AT_UID/EUID/GID/EGID 11-14→0, AT_HWCAP 16→0, AT_EXECFN 31→argv0, AT_NULL 0→0}` ✓。**注**：A3 只到「编出/链出」，**未运行**（E2E 属阶段 B）。
+**新发现/坑**：① **clang 的 DADAO target 不能把 `%N` 代进 inline asm**（代入为空串：`rb2rd %0, rb3, 1` → `rb2rd , rb3, 1`）⇒ 本端口 inline asm **一律只写字面寄存器名** + C 侧「局部寄存器变量」绑定（`register … __asm__("rd8")` + `"=r"(x)`）。② **任何 `"m"`/`"+m"` inline asm 都令后端 ISel 崩**（`Could not match memory address. Inline asm failure!`，最小复现 `void f(void){int x;__asm__("" : "+m"(x));}`）⇒ 全树唯一用户 `ldso/dlstart.c` 的 `GETFUNCSYM` 必须 arch 覆盖（musl 给 arch 留的口子，12 个 arch 均如此）否则整树编不过。③ 后端另缺 `rotl/rotr`、`bswap`、`dynamic_stackalloc`（alloca/VLA）⇒ 13 个源文件不可编译。④ **`arch/<arch>/arch.mak` 是 musl 的 per-arch Makefile 钩子**（`-include` 在 `BASE_SRCS` 之后）⇒ 用 `BASE_SRCS := $(filter-out …)` 过滤受阻源，**无需改上游 Makefile**。⑤ 构造「符号地址进寄存器」用 `set.rd rdX, sym`（展开 `set.zw`+2×`or.w` + 3×`R_DADAO_ABS48`）；大端 `.dd.o64 symbol` 亦落 `R_DADAO_ABS48`；`ld.lld -T dadao.lds` 对二者均能解析（残留重定位 0）。⑥ musl 的 `write()` 是**取消点**（`syscall_cp`）⇒ 实调链 `write → __syscall_cp → sccp → __dadao_trap`；静态核寄存器流即可验「指针进 rb16」，无需运行。⑦ `--disable-shared` 下 `SHARED_LIBS=` 为空，但 `crt/rcrt1.o` 仍必编（含 `dlstart.c`）⇒ ②不解决则「只编静态」也过不去。
+**遗留问题**：① **B/C 未做** ⇒ 任务整体未完成（B = `-bios` + 原始镜像 E2E、独立 oracle、BE 敏感例）。② **后端缺口 4 类**（`%N` 代入 / `m` 操作数 ISel 崩 / `rotl`·`rotr` / `bswap` / `dynamic_stackalloc`）**未登记 issue、未转 LLVM 模块**（本册范围外）⇒ 建议主会话登记并派 LLVM 侧任务；它们是「修掉即可解锁 13 源 + 简化 GETFUNCSYM」的直接项。③ **13 源文件被显式排除**（`arch/dadao/arch.mak`，每次构建 `$(info …)` 打印）⇒ `crypt()/crypt_r()`、`exec*`、`getcwd`、`sigdelset`、`.mo` 本地化、`getgrouplist`、`nscd_query`、resolver **链接期显式失败**（不静默）。④ **原子非真**（LR-SC/`fence` = `scope: excluded`/ILLI）⇒ `a_cas` 为单线程语义；开线程前必须换。⑤ `GETFUNCSYM` 给**链接期绝对地址**（静态成立；P2 须改基址相关）。⑥ `bits/signal.h` 的 `mcontext_t` 为 **`[OPEN]` 占位**（无 DADAO 信号帧 ABI）。⑦ **无 `AT_PHDR/PHNUM/PHENT`** ⇒ `libc.tls_cnt=0`，静态 `__thread` 未打通（TP/TCB/`errno` 正常）。⑧ `sigsetjmp` 未实现（`src/signal/sigsetjmp.c` 是上游空槽）⇒ 用之即链接失败。⑨ 构建**未接 `Makefile`**（只有 `tools/infra/build_musl.py`）⇒ 是否加 `make build-musl` 建议收尾时定。⑩ 服务集仍缺（`read`/`brk`/`set_tid_address`/`set_robust_list` 等）⇒ **阶段 B 补服务时须同步 `arch/dadao/syscall_arch.h` 的 `__dadao_argmask` 表项**（不变量，已在头文件与 README 写明）。⑪ **阶段 C：libcall 缺口未触发**（显式声明，非默认通过）。
 
 ## 审阅记录
 
@@ -222,3 +243,36 @@
 - **文件集对账**（`git diff --cached --name-status -M` ↔ 本笔范围）：**2** 项 = **2 M**，即 `.tao/tasks/infra/INFRA-082t-musl静态最小集移植.md`（reviewer 第 1 轮验收记录 + `**阶段进度**` 行 + `**状态**` 口径说明 + 本留痕）、`.tao/knowledge/milestones.md`（`INFRA-082t` 流水行状态与阶段说明）⇒ **无漏提、无多提、无越界**（未触 `spec/**`、`components/**`、`contracts/**`、`.tao/contracts/**`、`manifests/**`、`tools/**`）。
 - **收尾检查（阶段级口径）**：**门控**（各捕**自身** rc，无 `tee` 吞码）`make check`(**L1**)=**0** ／ `check-patch-tree`=**0**（4 组件 129 补丁）／ `check-source-state`=**0** ／ `check-qemu-semantics`=**0**（**149/149**）／ `check-no-residue`=**0** ／ `check-knowledge-refs`=**0** ／ `check-knowledge-dir`=**0** ／ `check-tasks`=**0** ／ `python3 tools/infra/check_issues.py`=**0**（35 open / 9 closed / 0 blocking）；**L2/L3 归本任务整体收尾**（阶段级不跑）。**证据** = `.work/evidence/INFRA-082t/run-a1.sh` ✓。**无临时残留**（`git status --porcelain -uall` 仅 1 项 = reviewer 审阅记录）。日志 `.work/log/infra/INFRA-082t-a1-closeout-*.log`（`.work/` 可删区）。
 - **下一件**：**A2**（musl 补丁集骨架 + 锁条目补丁化）。**`merge` / `push`**：本笔**未** `merge`、**未** `push`（`merge --ff-only` 落地由主会话/本角色按指令执行；`push` 由主会话在 `/complete` 后执行）。
+
+#### 第 2 轮 engineer 自审（阶段 A2+A3，2026-10-15，分支 `INFRA-082t-A2`）
+
+**范围**：musl 补丁集 16 份（`arch/dadao/**` 12 + `src/**/dadao/**` 3 + `configure` 1）+ 锁条目 1 处 + `tools/infra/build_musl.py` + 证据脚本。
+
+**逐行审查（要点 + 判决）**：
+1. `arch/dadao/syscall_arch.h`：`__dadao_trap` 只把「按 mask 选源」放在 C、把物理寄存器绑定交给局部寄存器变量 ⇒ 反汇编核对（**两次独立取证**：① `sccp` 内 71 项跳表现场读出，`nr=63/64/65/66` 指到「指针槽=1」体；② 产物 `write()` 的公共尾 `rd16=a0/rd17=a2/rd2rb {rb16},{rd4}`）⇒ 与 `contract-syscall §3` 逐槽一致。**判决：正确**。
+2. `__dadao_argmask` 的 `default: p0 = 0`：未列号会把 `rb16` 置 0 —— 今日**可证无害**（服务方对未实现号一律 `-ENOSYS`，参数不被读），但它是「加服务必须同步加表项」这条不变量的落点 ⇒ 已写入头文件注释 + README。**判决：可接受（延后项 F9）**。
+3. `arch/dadao/crt_arch.h`：静态帧（argc/argv/envp/auxv）**从产物 ELF 回读核对** 18 octa 全对（`AT_PAGESZ 6→4096`、`AT_UID/EUID/GID/EGID`、`AT_HWCAP`、`AT_EXECFN`、`AT_NULL` 终止）；`#ifdef SHARED` 分流使 `dlstart.c`/`rcrt1.c` 走「栈即 p」的正统形态。**判决：正确**。
+4. `arch/dadao/pthread_arch.h` + `__set_thread_area.s`：TP=`rb3` 读（`rb2rd {rd8},{rb3}`）/写（`rb2rb {rb3},{rb16}`）成对；`TLS_ABOVE_TP`+零偏置与 `R_DADAO_TLS_*` 公式自洽（无 0x800 之类遗留偏置）。**判决：正确**。
+5. `src/setjmp/dadao/*`：帧 161 octa 与 `bits/setjmp.h` 逐段对齐（0/512/520/776/1032，末 1288）；`cs.z {rd16}?, rd8, rd18(1), rd16` 按 `contract-isa §6.5` 实现 `val==0⇒1`（**不沿用 picolibc 端口那条等价于 no-op 的写法**）；仅 `MRPTR==0` 精确（与 `INFRA-068t` 同限度）。**判决：正确**。
+6. `arch/dadao/atomic_arch.h`：机器无原子（`contract-isa §14` excluded + QEMU ILLI 桩）⇒ 单线程语义 + 头文件写明「开线程前必须换」；`__clone` 由上游通用实现返回 `-ENOSYS`（线程显式失败，非静默）。**判决：可接受（延后项 F10）**。
+7. `arch/dadao/arch.mak`：`$(info …)` 每次构建打印被排除的 13 源；`check-patch-tree` 断言③/⑤/⑥/⑨ 全绿证明补丁集与工作树一致；`ar t` 复核被排除目标确不在 `libc.a`。**判决：正确**。
+8. `bits/signal.h` 的 `mcontext_t`：`[OPEN]` 占位（v5 无 DADAO 信号帧 ABI；`D2` 无内核）—— 只服务编译，且**不静默**（头文件写明「谁定真帧布局谁重写」）。**判决：可接受（延后项 F11）**。
+9. 证据/自审的**防造假**：`run-a23.sh` 44 条断言逐条打印「名/期望/实际」；`--inject` rc=1；两条**产物级反例**（EI_DATA 翻转后的 ELF 被同一 checker 判 FAIL；`__NR_write` 改 65 后号表 checker 退非零）⇒ 断言非恒真；注入一律在 **scratch 副本**上进行（`mktemp -d`），**未触碰**任何仓库/工作树文件 ⇒ 无需还原（更无 `git checkout`/`restore`）。**判决：合格**。
+
+**finding 处置**：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `bits/signal.h` 与 `pthread_arch.h` 重复定义 `MC_PC` | ✅已修 | 删 `bits/signal.h` 那份（保留 musl 惯例位 = `pthread_arch.h`，唯一用户 `pthread_cancel.c` 经 `pthread_impl.h` 取） | `make -j8` rc=0；`build_musl.py` 10/10；`check-patch-tree` rc=0 |
+| F2 `build_musl.py::compile_program` 的 `inject` 形参未使用 | ✅已修 | 删形参 + 调用点 | `--inject` 仍 rc=1；正常 rc=0 |
+| F3 `bits/setjmp.h` 写「`sigsetjmp`/`siglongjmp` 均未提供」不准确（实则仅前者缺） | ✅已修 | 改为「`sigsetjmp` 缺（上游空槽）⇒ 用之链接失败；`siglongjmp` 存在但无可用缓冲」 | 同上 |
+| F4 README 写「用 `crypt()` 即链接失败」缺精度 | ✅已修 | 写明 `crypt_r.o` 引用被排除的 `__crypt_sha512`（`nm` 实测 `U __crypt_sha512`） | `nm lib/libc.a` 复算 |
+| F5 证据 A 段 `grep -c` 多文件求和写法取不到计数（`patches/*.patch` 不是顶层 glob） | ✅已修 | 改 `grep -rh` 求和 + 逐文件循环判 `==1` | `run-a23.sh` 44/0 rc=0 |
+| F6 证据 D 段 `%N` 检查命中**自己文档里引用的** `%0` | ✅已修 | 先剥注释（helper `no_pct_operand.py`）再计数 | 同上（计数=0） |
+| F7 `build_musl.py` 遇损坏 ELF 抛 traceback 而非报 FAIL | ✅已修 | `parse_elf` 捕获并回 `parse_error`，新增「program headers parseable」断言 | 反例：EI_DATA 翻转 ⇒ 6 条 FAIL、rc=1（G 段） |
+| F8 `__dadao_argmask` 未列号默认 mask=0（有指针的未列号会错放） | ⏸延后 | 不改行为（今日服务端一律 `-ENOSYS` ⇒ 可证无害）；写入「加服务同步加表项」不变量 | 头文件/README 注明；A1 服务集 4 号全在表内 |
+| F9 原子非真（单线程语义） | ⏸延后 | 机器无 LR-SC/`fence`（`§14` excluded）⇒ P1 内无替代；头文件写明与重访触发条件 | `contract-isa §14` + QEMU 桩源码 |
+| F10 `mcontext_t` 为 `[OPEN]` 占位 | ⏸延后 | 无 DADAO 信号帧 ABI 可依（`D2` 无内核/信号）⇒ 只保证编译 | 头文件 `[OPEN]` 标注 + 遗留⑨ |
+| F11 `__syscall7` 未定义（上游定义了宏） | ❌不修 | 与 riscv64 及所有上游 arch 一致，且全树无 7 参调用 | `grep` 全树无 7 参 `__syscall` 调用 |
+
+**判决**：finding 全部 `✅已修`（附复验）或 `⏸延后`/`❌不修`（附理由与证据）⇒ 状态可置 `待验收`；**仅阶段 A（A1+A2+A3）**，B/C 未做 ⇒ 任务整体未完成。

@@ -1,0 +1,38 @@
+diff --git a/arch/dadao/bits/float.h b/arch/dadao/bits/float.h
+new file mode 100644
+index 0000000..a8cd1ad
+--- /dev/null
++++ b/arch/dadao/bits/float.h
+@@ -0,0 +1,32 @@
++/*
++ * DADAO floating-point model: IEEE-754 binary64 throughout.
++ *
++ * The DADAO toolchain has no extended-precision format: clang predefines
++ * __SIZEOF_LONG_DOUBLE__ == 8 and __LDBL_MANT_DIG__ == 53 for
++ * --target=dadao-unknown-elf (verified with `clang -dM -E`), so `long double`
++ * is identically `double` (the same "long double == double" shape used by
++ * arch/or1k, which has no extended format either).  The values below are
++ * therefore the IEEE-754 binary64 ones, with DECIMAL_DIG = 17.
++ *
++ * FLT_EVAL_METHOD 0: evaluate in the type of the operands (no excess
++ * precision).  This is not an assumption about the RF bank -- it is the
++ * C-semantics answer for a target whose float type is exactly binary32 and
++ * whose double is exactly binary64.
++ */
++
++#define FLT_EVAL_METHOD 0
++
++#define LDBL_TRUE_MIN 4.94065645841246544177e-324L
++#define LDBL_MIN 2.22507385850720138309e-308L
++#define LDBL_MAX 1.79769313486231570815e+308L
++#define LDBL_EPSILON 2.22044604925031308085e-16L
++
++#define LDBL_MANT_DIG 53
++#define LDBL_MIN_EXP (-1021)
++#define LDBL_MAX_EXP 1024
++
++#define LDBL_DIG 15
++#define LDBL_MIN_10_EXP (-307)
++#define LDBL_MAX_10_EXP 308
++
++#define DECIMAL_DIG 17

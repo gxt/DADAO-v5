@@ -1,0 +1,128 @@
+diff --git a/arch/dadao/bits/signal.h b/arch/dadao/bits/signal.h
+new file mode 100644
+index 0000000..fd520af
+--- /dev/null
++++ b/arch/dadao/bits/signal.h
+@@ -0,0 +1,122 @@
++/*
++ * DADAO signal numbers, SA_* flags and _NSIG.
++ *
++ * The numbers below are the standard Linux numbering shared verbatim by every
++ * modern 64-bit musl port (a quick check: arch/riscv64/bits/signal.h and
++ * arch/aarch64/bits/signal.h agree on every value here).  They are a Linux ABI
++ * constant, not a DADAO register/ABI decision, so the same values apply to a
++ * port that follows the RISC-V/asm-generic syscall table (see
++ * arch/dadao/bits/syscall.h.in and .tao/contracts/contract-syscall.md §1).
++ *
++ * [OPEN] mcontext_t / gregset_t / struct sigcontext below are a PROVISIONAL,
++ * COMPILE-ONLY definition.  There is no DADAO signal-frame ABI yet: the test
++ * machine has no kernel and delivers no signals (ADR-0025 D2, "no kernel
++ * target (VFS / MM / scheduling / signals are not done)"), and no v5 contract
++ * defines a saved-register layout or a sigreturn sequence.  What is defined
++ * here is exactly enough for <signal.h> and musl's generic signal sources to
++ * compile:
++ *
++ *   * __gregs[0] is the program counter slot, which is what MC_PC names and
++ *     the only slot any upstream source actually reads today
++ *     (src/thread/pthread_cancel.c reads uc_mcontext.MC_PC);
++ *   * __gregs[1 .. 64] / [65 .. 128] hold the RD and RB banks respectively.
++ *
++ * NO field offset or array size below is load-bearing: whoever specifies real
++ * DADAO signal delivery (a later phase) MUST define the frame layout from the
++ * register model and replace this file.  Do not size anything against it.
++ */
++
++#if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE) \
++ || defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
++
++#if defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
++# define MINSIGSTKSZ 2048
++# define SIGSTKSZ 8192
++#endif
++
++typedef unsigned long __dadao_mc_gp_state[129]; /* [OPEN]: see file header */
++
++typedef struct mcontext_t {
++	__dadao_mc_gp_state __gregs;
++} mcontext_t;
++
++/* MC_PC (the program-counter slot referenced by musl's own sources) is defined
++ * in arch/dadao/pthread_arch.h, where musl's ports conventionally put it: the
++ * only in-tree user is src/thread/pthread_cancel.c, which reaches mcontext_t
++ * through pthread_impl.h. */
++
++#if defined(_GNU_SOURCE)
++#define REG_PC 0
++#endif
++
++#if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
++typedef unsigned long greg_t;
++typedef unsigned long gregset_t[64]; /* [OPEN]: see file header */
++typedef unsigned long fpregset_t[64]; /* [OPEN]: see file header */
++struct sigcontext {
++	gregset_t gregs;
++	fpregset_t fpregs;
++};
++#endif
++
++struct sigaltstack {
++	void *ss_sp;
++	int ss_flags;
++	size_t ss_size;
++};
++
++typedef struct __ucontext
++{
++	unsigned long uc_flags;
++	struct __ucontext *uc_link;
++	stack_t uc_stack;
++	sigset_t uc_sigmask;
++	mcontext_t uc_mcontext;
++} ucontext_t;
++
++#define SA_NOCLDSTOP 1
++#define SA_NOCLDWAIT 2
++#define SA_SIGINFO   4
++#define SA_ONSTACK   0x08000000
++#define SA_RESTART   0x10000000
++#define SA_NODEFER   0x40000000
++#define SA_RESETHAND 0x80000000
++
++#endif
++
++#define SIGHUP     1
++#define SIGINT     2
++#define SIGQUIT    3
++#define SIGILL     4
++#define SIGTRAP    5
++#define SIGABRT    6
++#define SIGIOT     SIGABRT
++#define SIGBUS     7
++#define SIGFPE     8
++#define SIGKILL    9
++#define SIGUSR1   10
++#define SIGSEGV   11
++#define SIGUSR2   12
++#define SIGPIPE   13
++#define SIGALRM   14
++#define SIGTERM   15
++#define SIGSTKFLT 16
++#define SIGCHLD   17
++#define SIGCONT   18
++#define SIGSTOP   19
++#define SIGTSTP   20
++#define SIGTTIN   21
++#define SIGTTOU   22
++#define SIGURG    23
++#define SIGXCPU   24
++#define SIGXFSZ   25
++#define SIGVTALRM 26
++#define SIGPROF   27
++#define SIGWINCH  28
++#define SIGIO     29
++#define SIGPOLL   SIGIO
++#define SIGPWR    30
++#define SIGSYS    31
++#define SIGUNUSED SIGSYS
++
++#define _NSIG     65

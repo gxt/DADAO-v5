@@ -1,0 +1,40 @@
+diff --git a/src/thread/dadao/__set_thread_area.s b/src/thread/dadao/__set_thread_area.s
+new file mode 100644
+index 0000000..634dfed
+--- /dev/null
++++ b/src/thread/dadao/__set_thread_area.s
+@@ -0,0 +1,34 @@
++; DADAO __set_thread_area: install the thread pointer.
++;
++; int __set_thread_area(void *p);
++;
++;   * p is a POINTER argument, so the ABI delivers it in the RB bank, rb16
++;     (.tao/contracts/contract-abi.md §4.1: rd16-rd31 = data, rb16-rb31 =
++;     address arguments);
++;   * the return value is an integer, so it goes to rd8 (contract-abi.md §4.4).
++;
++; Why this is a piece of assembly and not the generic C fallback: musl's
++; src/thread/__set_thread_area.c either issues a SYS_set_thread_area syscall or
++; returns -ENOSYS.  DADAO has no such syscall (neither has any arch musl
++; supports -- the TP is a register, not a kernel object), so the arch provides
++; the pure register write, exactly the shape of
++; src/thread/riscv64/__set_thread_area.s.  TP on DADAO is rb3 (rbtp;
++; contract-abi.md §1.2, and see arch/dadao/pthread_arch.h).
++;
++; Returning 0 means "TP installed", which makes __init_tp() set
++; libc.can_do_threads = 1.  Threads are still unreachable on this port: there
++; is no src/thread/dadao/clone.s, so the generic src/thread/clone.c answers
++; __clone() with -ENOSYS and pthread_create() fails loudly rather than running
++; without working atomics (see arch/dadao/atomic_arch.h).
++;
++; musl compiles `.s` files through `cc -x assembler`, and DADAO assembly uses
++; `;` for comments ('#' is reserved for cpp, Toolchain-01 §2.2).
++
++	.text
++	.global __set_thread_area
++	.hidden __set_thread_area
++	.type __set_thread_area, %function
++__set_thread_area:
++	rb2rb	{rb3}, {rb16}
++	ret	rd8, 0
++	.size __set_thread_area, . - __set_thread_area

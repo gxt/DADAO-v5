@@ -1,0 +1,16 @@
+arch/dadao/arch.mak.patch
+arch/dadao/atomic_arch.h.patch
+arch/dadao/bits/alltypes.h.in.patch
+arch/dadao/bits/float.h.patch
+arch/dadao/bits/setjmp.h.patch
+arch/dadao/bits/signal.h.patch
+arch/dadao/bits/syscall.h.in.patch
+arch/dadao/crt_arch.h.patch
+arch/dadao/kstat.h.patch
+arch/dadao/pthread_arch.h.patch
+arch/dadao/reloc.h.patch
+arch/dadao/syscall_arch.h.patch
+configure.patch
+src/setjmp/dadao/longjmp.S.patch
+src/setjmp/dadao/setjmp.S.patch
+src/thread/dadao/__set_thread_area.s.patch

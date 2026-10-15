@@ -1,0 +1,76 @@
+diff --git a/arch/dadao/atomic_arch.h b/arch/dadao/atomic_arch.h
+new file mode 100644
+index 0000000..640f910
+--- /dev/null
++++ b/arch/dadao/atomic_arch.h
+@@ -0,0 +1,70 @@
++/*
++ * DADAO atomic primitives -- SINGLE-THREADED, NOT REAL ATOMICS.
++ *
++ * ---------------------------------------------------------------------------
++ * Why there is no real atomic here (facts, both verifiable in-tree)
++ * ---------------------------------------------------------------------------
++ * The DADAO instruction set has atomics -- `lr_nn/lr_nr/lr_an/lr_ar` and
++ * `sc_nn/sc_nr/sc_an/sc_ar` (MISC-AMO) -- but they are outside the implemented
++ * machine, together with `fence`:
++ *
++ *   * .tao/contracts/contract-isa.md §14 (and §11): "LR-SC 原子指令" and
++ *     "fence" are `scope: excluded` -- "未实现，decode ILLI";
++ *   * the test machine agrees: components/qemu's trans_mem.c.inc
++ *     (trans_lr_nn_o_orrr_rd / trans_sc_nn_o_orrr_rd) and trans_ctrl.c.inc
++ *     (trans_fence_oiii_imm) raise ILLI with a "stub" comment.
++ *
++ * So this port cannot express a real read-modify-write or a hardware barrier;
++ * there is no instruction that would make one.  `__sync_*`/`__atomic_*`
++ * builtins are not an alternative either -- the backend does not lower them
++ * (atomics are `scope: excluded`, and this milestone must not change the
++ * backend).
++ *
++ * ---------------------------------------------------------------------------
++ * Consequence, and why it is stated up front rather than hidden
++ * ---------------------------------------------------------------------------
++ * P1 is the STATIC SINGLE-THREADED subset (ADR-0025 D2/D6: no kernel, and
++ * src/thread/dadao has no working __clone -- the generic src/thread/clone.c
++ * returns -ENOSYS, so pthread_create() fails loudly instead of silently
++ * running without real atomics).  In a single execution flow nothing can race
++ * with these operations, so a plain load / compare / store IS the correct
++ * semantics for this milestone -- it is not a "pretend success" stub for a
++ * feature that is reachable.
++ *
++ * The moment multithreading becomes reachable (P2+), this file MUST be
++ * replaced by real atomics -- either the machine implements LR-SC/fence, or a
++ * serializing mechanism is specified.  Do not reuse these implementations past
++ * that point.
++ *
++ * ---------------------------------------------------------------------------
++ * Revisit trigger (registered, see the INFRA-082t task book)
++ * ---------------------------------------------------------------------------
++ * a_barrier() below is a COMPILER barrier only (empty asm with a "memory"
++ * clobber).  It stops the compiler from moving accesses across it; it emits no
++ * hardware fence.  In a single-threaded flow there is nothing else to order.
++ */
++
++#define a_cas a_cas
++static inline int a_cas(volatile int *p, int t, int s)
++{
++	/* see the file header: single-threaded compare-and-store */
++	int old = *p;
++	if (old == t) *p = s;
++	return old;
++}
++
++#define a_cas_p a_cas_p
++static inline void *a_cas_p(volatile void *p, void *t, void *s)
++{
++	/* see the file header: single-threaded compare-and-store */
++	void *old = *(void *volatile *)p;
++	if (old == t) *(void *volatile *)p = s;
++	return old;
++}
++
++#define a_barrier a_barrier
++static inline void a_barrier(void)
++{
++	/* compiler barrier only -- no hardware fence exists (see the header) */
++	__asm__ __volatile__ ("" : : : "memory");
++}

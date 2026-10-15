@@ -1,0 +1,43 @@
+diff --git a/arch/dadao/bits/setjmp.h b/arch/dadao/bits/setjmp.h
+new file mode 100644
+index 0000000..24e6455
+--- /dev/null
++++ b/arch/dadao/bits/setjmp.h
+@@ -0,0 +1,37 @@
++/*
++ * DADAO jmp_buf.
++ *
++ * Sized to the exact frame that src/setjmp/dadao/{setjmp.S,longjmp.S} save,
++ * in octas (8 bytes each), in this order:
++ *
++ *   [  0 ..  63]  ra0 .. ra63   -- the hardware return-address stack.
++ *                                  ra0 carries RACNT/MRPTR (contract-abi.md
++ *                                  §1.5, ADR-0012 D7): [53:48] = RACNT,
++ *                                  [47:0] = MRPTR.
++ *   [ 64]         rb1           -- stack pointer (SP)
++ *   [ 65 ..  96]  rd32 .. rd63  -- callee-saved, contract-abi.md §4.5
++ *   [ 97 .. 128]  rb32 .. rb63  -- callee-saved (incl. rb63 = FP)
++ *   [129 .. 160]  rf32 .. rf63  -- callee-saved FP bank, contract-abi.md §4.5
++ *
++ * Total = 64 + 1 + 32 + 32 + 32 = 161 octas.  This is a *real* save/restore of
++ * every callee-saved register (CSR = rd32-rd63 ∪ rb32-rb63 ∪ rf32-rf63,
++ * contract-abi.md §4.5) plus the return-address stack, which DADAO makes
++ * architecturally readable/writable (contract-isa.md §3.3); it is not a
++ * size-only placeholder.
++ *
++ * LIMITATION (registered): only the MRPTR == 0 case (pure RegRAS, depth <= 63)
++ * is exact.  When MRPTR != 0 the MemRAS *contents* are not part of jmp_buf, so
++ * a longjmp spanning a recursion deep enough to have spilled into MemRAS
++ * cannot be restored exactly.  The same limitation is carried by the picolibc
++ * port (INFRA-068t) and is not exercised by the P1 static target, whose
++ * startup leaves ra0 at its reset value 0.
++ *
++ * sigsetjmp is NOT provided by this port: src/signal/sigsetjmp.c is the upstream
++ * *empty* slot that every arch fills with own assembly, and P1 has no signal
++ * support (ADR-0025 D2 "no kernel"), so nothing fills it -- a program using
++ * sigsetjmp fails to link rather than getting a silently wrong frame.
++ * (siglongjmp does exist -- it is an ordinary .c file -- but it can only be
++ * used with a buffer that sigsetjmp filled, i.e. not at all here.)
++ */
++
++typedef unsigned long __jmp_buf[161];

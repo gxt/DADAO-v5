@@ -212,8 +212,14 @@ repository = "https://git.musl-libc.org/git/musl"
 commit = "9fa28ece75d8a2191de7c5bb53bed224c5947417"
 shallow = true
 shallow_ref = "v1.2.6"
-patchless = true
-role = "C library base for the M8 Linux user-space stack (musl static + musl ldso dynamic); no v5 patch set yet"
+# `patchless` removed and the two fields added by INFRA-082t (2026-10-15, stage
+# A2), i.e. in the same commit that lands the first `arch/dadao` patch -- as the
+# note above requires. The patch set is the DADAO port itself: arch/dadao/**,
+# src/{setjmp,thread}/dadao/**, plus the one upstream file that must know the
+# arch (configure).
+patch_dir = "components/musl/patches"
+patch_series = "components/musl/series"
+role = "C library base for the M8 Linux user-space stack (musl static + musl ldso dynamic); carries the v5 DADAO port patch set (static minimal set, P1)"
 
 # libc-test -- the musl/Linux user-space *conformance test suite* feeding M8
 # (ADR-0025 D6): a corpus independent of our own implementation, used to judge

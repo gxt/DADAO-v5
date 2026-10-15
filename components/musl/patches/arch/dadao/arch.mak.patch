@@ -1,0 +1,68 @@
+diff --git a/arch/dadao/arch.mak b/arch/dadao/arch.mak
+new file mode 100644
+index 0000000..79ac704
+--- /dev/null
++++ b/arch/dadao/arch.mak
+@@ -0,0 +1,62 @@
++# DADAO per-arch build overrides.
++#
++# The musl Makefile includes this file (`-include $(srcdir)/arch/$(ARCH)/arch.mak`,
++# Makefile line 79) after `BASE_SRCS` is set up, which is the upstream-blessed
++# place for an arch to adjust the source list (several arches use it for
++# COMPAT_SRC_DIRS).
++#
++# ---------------------------------------------------------------------------
++# Backend-blocked sources
++# ---------------------------------------------------------------------------
++# The sources below cannot be compiled for dadao-unknown-elf at all: the LLVM
++# backend's instruction selector aborts on them ("fatal error: error in
++# backend: Cannot select: ..."), which is a compiler gap, not a libc port
++# issue.  They are therefore excluded from the build, exactly the way the
++# picolibc port excludes its backend-blocked set (see
++# `components/picolibc/README.md`, the INFRA-066t/ISS-193 paragraph).  Every
++# entry carries the selector node that fails, so it can be re-checked (and
++# removed) as soon as the backend grows the pattern:
++#
++#   * `rotl`/`rotr`  (rotate)
++#       src/crypt/crypt_sha512.c
++#       src/signal/sigdelset.c
++#   * `bswap`        (byte swap)
++#       src/locale/__mo_lookup.c
++#       src/locale/dcngettext.c
++#       src/passwd/getgrouplist.c
++#       src/passwd/nscd_query.c
++#   * `dynamic_stackalloc` (alloca / VLA)
++#       src/process/execlp.c
++#       src/process/execle.c
++#       src/process/execl.c
++#       src/process/execvp.c
++#       src/unistd/getcwd.c
++#       src/network/res_msend.c
++#
++# Consequence, stated so it cannot surprise anyone: these files are ABSENT from
++# libc.a, so a program that uses `crypt()` (SHA-512), `sigdelset`, `.mo` locale
++# lookup / `dcngettext`, `getgrouplist` / `getgr_a`, `nscd_query`, the `exec*`
++# family, `getcwd` or the resolver FAILS TO LINK -- an explicit failure, not a
++# silent stub.  None of them is reachable from the P1 static minimal set
++# (`write` + `exit`).
++#
++# Report once per build so the exclusion is never invisible.
++
++DADAO_BACKEND_BLOCKED_SRCS = \
++	src/crypt/crypt_sha512.c \
++	src/locale/__mo_lookup.c \
++	src/locale/dcngettext.c \
++	src/network/res_msend.c \
++	src/passwd/getgr_a.c \
++	src/passwd/getgrouplist.c \
++	src/passwd/nscd_query.c \
++	src/process/execl.c \
++	src/process/execle.c \
++	src/process/execlp.c \
++	src/process/execvp.c \
++	src/signal/sigdelset.c \
++	src/unistd/getcwd.c
++
++BASE_SRCS := $(filter-out $(addprefix $(srcdir)/,$(DADAO_BACKEND_BLOCKED_SRCS)),$(BASE_SRCS))
++
++$(info dadao: excluding $(words $(DADAO_BACKEND_BLOCKED_SRCS)) backend-blocked source(s) (see arch/dadao/arch.mak))
