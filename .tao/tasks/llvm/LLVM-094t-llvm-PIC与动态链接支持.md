@@ -130,3 +130,11 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### architect 提交 / 文件集审核留痕（2026-10-16）
+
+- **分支现场勘误**：主会话交办称分支 `LLVM-094t-A` **已建** ⇒ 现场核 `git branch -vv` / `git worktree list` / `.git/HEAD` / reflog（`fe26263 HEAD@{0}: merge llvm-094t-taskbook`）**均无该分支**（仅 `master` = `fe26263` = `origin/master`）；**未用 `switch -c`**，以 `git branch LLVM-094t-A` + `git symbolic-ref HEAD refs/heads/LLVM-094t-A` 建于 `fe26263`（**工作树 / 索引零改动**：`git diff --cached` 仍 15 项）⇒ 两笔提交落该分支，`master` 未动。
+- **文件集对账**（显式 staging、**未用** `git add -A`）：`git status --porcelain -uall` **15 项 / 0 untracked**、无 `spec/` / `contracts/` / `.tao/contracts/` 越界；与完成区「修改文件」逐条对齐 —— 11 补丁 + `tools/llvm/llvm-isa-backend-matrix.{md,tsv}` + `components/llvm-project/changelog.md` + 本任务书 = **15** ✓（④ `.work/**` 被 `.gitignore` 排除、不入 git）⇒ **无漏提 / 多提 / 越界**。
+- **笔 1** = `d92927e`（15 文件、`M`×15、+380/−85）；**笔 2** = `5ba6547`（`ISS-229` notes 追加，仅 1 行变更）。**档位披露**：阶段 A = `待验收`、reviewer 未验收 ⇒ 按 `architect.md` 常规应为 `WIP:` 前缀；**主会话本次明确指令「笔 1 不带 `WIP:`」** ⇒ 从指令执行并在此披露。
+- **只读核对（真实 rc）**：`make check`(L1) **rc=0**（尾行 `repository checks (L1): PASS`；内含 `check_issues: 39 open, 13 closed`）、`make check-patch-tree` **rc=0**（`5 component(s), 145 patches OK`；`components/llvm-project/series` = **71** 行）、`make check-index-blobs` **rc=0**（`108 new-file / 37 modification`）、`make check-source-state` **rc=0**（`musl HEAD=d31bf832… clean=True`）、`check_issues.py` **rc=0**。日志 `.work/log/llvm/LLVM-094t-architect-*.log`。
+- **未** `merge`、**未** `push`（`git ls-remote origin refs/heads/master` = `fe26263`；无 `LLVM-094t-A` 远端分支）；收尾后工作树 `git status --porcelain -uall` = 空。
