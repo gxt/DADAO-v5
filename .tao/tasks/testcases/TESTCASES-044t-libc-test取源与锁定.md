@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：无（用户 2026-10-14 裁定源 + 版本口径）；前置登记 = `INFRA-076t §libc-test 定源`（只登记不下载，旧快照 `b7ec4679…` **已作废** ✗）；消费方 = 未来 M8 `P1 musl 静态` / `P2 动态链接` 的 **libc 一致性测试**（`ADR-0025 D6`，触发条件同 `LLVM-093t §基线跑触发条件`）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -105,16 +105,45 @@ url = "https://gh-proxy.com/https://github.com/kraj/libc-test.git"
 8. **失败保留现场并继续推进**（自行处置：查证 / 换通道 / 有据重试并记录次数 / 登记后跳过）；**只在需用户语义裁定**时留问。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+
+**测试结果**：证据脚本 `./.work/evidence/<任务ID>/run.sh` 全量 **A..H rc=0（103/103 检查通过，现场统计〔脚本内计数不写死〕，0 failed；连续两次同值）**；`--inject 1` rc=0 闭环（注入 ⇒ **3 条可达 FAIL**〔C4/C25/C26〕⇒ `cp`+md5 还原 ⇒ 回绿）。门控：`make check`(L1) rc=0（末行 `repository checks (L1): PASS`）、`make check-patch-tree` rc=0（`4 component(s), 129 patches OK`；输出**不含** `libc-test` = patchless 豁免）、`check-dirs`/`check-no-residue`/`check-knowledge-refs`/`check-tasks`/`tools/infra/check_issues.py`/`python3 -m compileall -q tools` 各 rc=0。**`check-modules`(L2) 未跑**（含 `check-picolibc-tests: build-picolibc` ⇒ 写 `.work/build/**`，与下发约束「只跑不触发构建的目标」冲突）⇒ 见"遗留问题"。
+**修改文件**：`manifests/components.lock.toml`（新增 `libc-test` 条目 + 注释；相对 `master` **+45 −0** 行）；本任务书（完成区 + 自审 + `**状态**`）。证据（gitignored）：`.work/evidence/<任务ID>/`（`run.sh`、`lockedit.py`）、`.work/log/<模块>/`。**未越界**（未动 `spec/`/`contracts/`/`tools/`/`components/`）。
+**验收结果**：（真实输出）① **锁值 = `b7ec467969a53756258778fa7d9b045f912d1c93`**（40-hex）；三通道 `git ls-remote` 均 `rc=0` 且 `HEAD` = `refs/heads/master` = 该值、**0 个 tag**；GitHub API `default_branch=master`、`pushed_at=2022-03-19T20:38:52Z`；`git log -1 --format=%cI` = `2021-10-23T16:14:41+00:00`、主题 `fix regression/pthread_once-deadlock` ⇒ **「取最新」值与旧登记 `b7ec4679…` 相同**（master 自 2021-10 未推进），变化在**口径**（快照 ⇒ 最新 commit 锁死），**如实记录、未伪造差异**。② `.cache/<name>.git`：`--is-bare-repository=true`、`is-shallow=false`、`origin=<source[0] gh-proxy>`、`cat-file -e <pin>^{commit}` rc=0、`refs/heads/master`=pin、tag=0。③ `.work/source/<name>`：`rev-parse HEAD`=pin、`status --porcelain` **0 行**、`--is-shallow-repository=false`、`origin`=本地 mirror。④ **`git diff` 可用**：注入探针 ⇒ `status` 报 ` M`（1 行）、`git diff --quiet` rc≠0、diff 含探针行 ⇒ `cp` 还原 + md5 对账（`abc7c2ea…` 逐位一致）⇒ status 回 0 行。⑤ **`make fetch` 幂等**：二次运行 `fetch: mirror libc-test.git already has b7ec467969a5; skipping fetch` + `fetch: libc-test already at <pin>`，镜像对象文件数 `3→3`、字节 `2573051→2573051`、in-pack `4623→4623`（前后逐项不变）。⑥ **pin 可复现**：`/tmp` 独立目录按锁字段（同 `source[0]` URL、`shallow=false`）复跑 `clone --mirror` + `--no-checkout` + `checkout --detach` ⇒ `rev-parse HEAD` 逐位 == pin。⑦ 体积/耗时（现场统计）：mirror **2.6M**、worktree **14M**、首取 **3 s**、二次 **1 s**；顶层 = `.gitignore AUTHORS COPYRIGHT Makefile README config.mak.def src/`，`src/` = `api common functional math musl regression`，`src/**/*.c` = **462**。⑧ `tools/infra/status.py` 列出 `libc-test enabled b7ec4679…`。⑨ 参考对照：`grep -rIl 'libc.test' .cache/refs/{DADAO-0628,DADAO}` = **0 命中**（无用法可借）。⑩ **旧登记作废**：`INFRA-076t §libc-test 定源` 已标「旧快照 `b7ec4679…` 已作废 ✗」（H7 现场核）。
+**新发现/坑**：① **`pushed_at` ≠ 默认分支推进**：该仓 `pushed_at`（2022-03-19）晚于 `master` tip 提交日期（2021-10-23）⇒ 判「是否最新」应以 `ls-remote HEAD`/`refs/heads/*` 为准，`pushed_at` 只作旁证（预核表把 `pushed_at` 注成"最后活动"易被读成 commit 日期）。② **无 tag + pin=分支 tip ⇒ 必须 `shallow=false`**：浅裸镜像只跟被跟踪 ref，上游一推进即丢失锁 commit（`fetch.py` 注释已述；本仓仅 2.6 MB，全量成本可忽略）。③ **直连不稳定**：本次直连 github 可用（`ls-remote` rc=0、`--mirror` 7 s），但 `INFRA-076t`（2026-10-14）记同仓直连超时 ⇒ 主源仍取 `gh-proxy`（2 s）、直连登记为具名备源（`COMPONENT_SOURCE_LIBC-TEST=github`）。④ **`patchless` 双向封口**：`check_patch_tree` 对 `patchless` **只跳过**、`manifest_check` 对 `patchless` **拒绝** `patch_dir`/`patch_series` ⇒ 防「参考型组件偷塞补丁」（C18–C23 注入证可达 FAIL）。
+**遗留问题**：① **`check-modules`(L2) 未跑**（唯一未执行项）：该目标含 `check-picolibc-tests: build-picolibc`⇒写 `.work/build/**`，与本任务下发约束「**只跑不触发构建的目标**」冲突；本任务只改锁册 + 取源、不动构建输入 ⇒ L2 判定不受影响；**留 `/complete` 由 architect 按需补跑**（已在下发提示中显式豁免，非静默跳过）。② 任务书 §用途的**跑法/子集/判据**仍为推断（未定），触发条件 = musl 静态/动态链跑通后另立任务 ⇒ 本任务不做。
+
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+**审查范围**（自主逐行）：`manifests/components.lock.toml`（新增 `libc-test` 块，逐行）、`.work/evidence/<任务ID>/run.sh`（逐行）、`.work/evidence/<任务ID>/lockedit.py`（逐行）。
+
+**意见/问题**
+1. `E4` 原写 `check ... "$([ "$?" -ne 0 ] ...)"`：`$?` 落在**命令替换子 shell** 内，语义依赖 bash 继承规则、易脆 ⇒ 改为显式 `local drc=$?` 后再判。
+2. `F2` 循环内 `check ... "$?"` 依赖「上一命令恰为被检命令」这一隐式前提 ⇒ 改为显式 `local trc=$?`。
+3. `--inject 1` 首版只触发 **1 条** FAIL（C4）⇒ 「可达 FAIL」覆盖偏薄；补 **C25/C26**（以**锁册现场值**〔非常量〕反查镜像/工作树，即锁↔产物互指）⇒ 注入态 3 条 FAIL。
+4. `A4` 用常量 `EXPECT_PIN` 而非锁册值 ⇒ **有意为之**：A 节视角 = 「镜像是否含*已记录*的锁值」，锁册错值由 C4/C25/C26 抓（分工不重叠，记此以免误判为漏检）。
+5. `--inject` 注入**真锁册**：以 `cp` 备份 + md5 + `trap ... EXIT INT TERM` 还原；INJ5/INJ6 现场证「md5 逐位一致 + `git diff --numstat master` 删除 = 0」⇒ 无残留（**未**用 `git checkout`/`restore`/`stash`）。
+6. 注入态递归复跑 `bash "$0" --sections AC`：因未传 `--inject` ⇒ 走正常路径，递归深度 1，无自激（INJ3/INJ7 证）。
+7. 计数/体积**现场统计**（`4623`、`2573051`、`462`、`129` 等均运行时取，不写死）；`FAILED/CHECKS` 收尾现场统计。
+8. 网络侧断言（B3–B11、G3–G9）首版**降级为 `[SKIP]`** ⇒ **检查总数随网络可达性漂移**（95/100 两种），且「不可达 ⇒ 判不了」有退化风险 ⇒ 改为**硬断言**（本任务 = 取源任务，通道不可达即 FAIL）：两次连跑稳定 **103**。
+9. 边界复核：`check_field` 对 `False`/`None` 打印为 `False`/`None`（与 git 的 `false` 区分），A2/A10 用 git 小写值、C6/C7 用 python repr ⇒ 期望串各自对齐，无「两支写同一结果」。
+10. 未测项：`check-modules`(L2) 未跑（约束见完成区遗留①）；无其它未测面（取源/锁定/幂等/可复现/门控均已现场取证）。
+
+**判决**：finding 1/2/3/8 已修并复验；4/5/6/7/9 为「已核实-无需改动」；无未修 finding ⇒ 状态置 `待验收`。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 1 E4 `$?` 在命令替换内 | ✅已修 | `run.sh` E4 改显式 `drc=$?` | 全量 A..H 中 E4 PASS；注入态亦 PASS |
+| 2 F2 循环隐式 `$?` | ✅已修 | `run.sh` F2 改显式 `trc=$?` | 全量跑中 F2 六项均 rc=0 |
+| 3 注入仅 1 条可达 FAIL | ✅已修 | 新增 C25（锁册值 → 镜像 `cat-file -e`）、C26（锁册值 == 工作树 HEAD） | `--inject 1` 现场打印 3 条 `[FAIL]`（C4/C25/C26）⇒ 还原回绿 |
+| 8 网络断言 `[SKIP]` ⇒ 计数漂移（95/100） | ✅已修 | B3–B11、G3–G9 全改**硬断言**（不降级 SKIP） | 连续两次全量跑均 `checks=103 failed=0`（同值） |
+| 4 A4 用常量而非锁册值 | ❌不修 | 无（分工：常量=镜像含已记录锁值；锁册错值由 C4/C25/C26 抓） | C4 在注入态 FAIL 即证分工有效 |
+| 5 真锁册注入的还原 | ❌不修 | 无（已按纪律 `cp`+md5+trap） | INJ5 md5 一致（`216e8797…`）、INJ6 删除 0 行 |
+| 6 注入态递归深度 | ❌不修 | 无（深度 1，无自激） | INJ3 rc≠0 / INJ7 rc=0 |
+| 7 计数是否写死 | ❌不修 | 无（均现场统计） | `checks=103`/对象数/字节数运行期取值 |
+| 9 `False`/`None` vs `false` | ❌不修 | 无（期望串已对齐） | A2/A10（git 小写）与 C6/C7（repr）各自 PASS |
+
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）

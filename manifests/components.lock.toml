@@ -214,3 +214,48 @@ shallow = true
 shallow_ref = "v1.2.6"
 patchless = true
 role = "C library base for the M8 Linux user-space stack (musl static + musl ldso dynamic); no v5 patch set yet"
+
+# libc-test -- the musl/Linux user-space *conformance test suite* feeding M8
+# (ADR-0025 D6): a corpus independent of our own implementation, used to judge
+# whether the musl port (P1 static / P2 dynamic) holds. A reference/test input,
+# not a v5-patched component, so it carries NO patch set (`patchless`, same
+# class as chipyard ADR-0024 D1 / linux / llvm-test-suite / musl).
+#
+# User ruling (2026-10-15, original words): "libc-test取最新版本即可" -- with the
+# source fixed on 2026-10-14 ("libc-test: https://github.com/kraj/libc-test").
+# So the pin below is the CURRENT tip of the default branch at fetch time,
+# locked as an exact commit. The earlier registration in INFRA-076t (the 2022-03
+# snapshot b7ec4679...) is SUPERSEDED: the value is in fact identical, because
+# upstream master has not moved -- what changed is the policy ("snapshot" ->
+# "latest commit, locked"), not the sha. Recorded as-is, no invented delta.
+#
+# Reproducibility note (2026-10-15, live): the repo has NO tags and its default
+# branch is `master`, so the pin is a *branch tip* commit. A shallow bare mirror
+# (`--depth 1 --branch master`, ADR-0006 D2) only follows the tracked ref and
+# would lose the pin as soon as upstream advances, i.e. the pin would stop being
+# reproducible. Hence `shallow = false`: a full `git clone --mirror`, which here
+# costs only ~2.6 MB (upstream has been dormant since 2022-03).
+#
+# Channel reality (2026-10-15, live): `git ls-remote` answered on direct github,
+# gh-proxy.com and ghfast.top (all three reported the same HEAD); a full
+# `--mirror` clone completed on gh-proxy.com (2 s) and on direct github (7 s).
+# INFRA-076t recorded a direct `ls-remote` timeout on 2026-10-14 for this same
+# repo, so gh-proxy.com stays source[0] (the default for `make fetch`); direct
+# github is registered as a named backup
+# (`COMPONENT_SOURCE_LIBC-TEST=github`).
+[[component]]
+name = "libc-test"
+enabled = true
+repository = "https://github.com/kraj/libc-test.git"
+commit = "b7ec467969a53756258778fa7d9b045f912d1c93"
+shallow = false
+patchless = true
+role = "musl/Linux user-space conformance test suite (M8 P1/P2 validation input; no v5 patch set)"
+
+[[component.source]]
+name = "gh-proxy"
+url = "https://gh-proxy.com/https://github.com/kraj/libc-test.git"
+
+[[component.source]]
+name = "github"
+url = "https://github.com/kraj/libc-test.git"
