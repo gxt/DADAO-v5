@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：无（用户 2026-10-14 裁定源 + 版本口径）；前置登记 = `INFRA-076t §libc-test 定源`（只登记不下载，旧快照 `b7ec4679…` **已作废** ✗）；消费方 = 未来 M8 `P1 musl 静态` / `P2 动态链接` 的 **libc 一致性测试**（`ADR-0025 D6`，触发条件同 `LLVM-093t §基线跑触发条件`）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -146,4 +146,37 @@ url = "https://gh-proxy.com/https://github.com/kraj/libc-test.git"
 
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑记录**（全部独立执行，不采信 engineer 完成区叙述）：
+
+| 核验项 | 命令 | 真实输出/退出码 | 结论 |
+|---|---|---|---|
+| 远端(gh-proxy) | `git ls-remote gh-proxy…/kraj/libc-test.git` | HEAD=master=`b7ec4679…`、0 tag、rc=0 | ✓ |
+| 远端(direct-github) | `timeout 180 git ls-remote github.com/…` | TLS error rc=128（本机持续不通）；engineer 日志证当时 rc=0（非编造） | ⚠ 环境限制 |
+| 锁条目 | python3 tomllib 解析 | commit=`b7ec4679…`(40-hex)、enabled=True、shallow=False、shallow_ref=None、patchless=True、patch_keys=[]、source0=gh-proxy、source1=github | ✓ |
+| `.cache` 镜像 | bare/浅/cat-file/HEAD/tag/origin/in-pack | bare=true、shallow=false、cat-file rc=0、HEAD=pin、0 tag、origin=gh-proxy、in-pack=4623 | ✓ |
+| 工作树 | HEAD/status/shallow/origin/顶层 | HEAD=pin、0行 clean、shallow=false、origin=本地mirror | ✓ |
+| 独立重建 | mirror→clone→checkout→rev-parse | HEAD=b7ec4679… 逐位一致 | ✓ |
+| 幂等 fetch ×2 | `make fetch` 两次 | 均 rc=0、"already has/already at"、mirror counts 3→3 / 2573051→2573051 / 4623→4623 | ✓ |
+| status.py | `python3 tools/infra/status.py` | `libc-test enabled b7ec4679…`、rc=0 | ✓ |
+| make check (L1) | timeout 1800 | `repository checks (L1): PASS`、rc=0 | ✓ |
+| check-patch-tree | timeout 600 | `4 component(s), 129 patches OK`、无 libc-test（patchless 豁免）、rc=0 | ✓ |
+| check-knowledge-refs | timeout 600 | rc=0 | ✓ |
+| check-no-residue | timeout 600 | rc=0 | ✓ |
+| check-dirs | timeout 600 | rc=0 | ✓ |
+| check-tasks | timeout 600 | rc=0 | ✓ |
+| check_issues.py | python3 | rc=0 | ✓ |
+| manifest-check | `make manifest-check` | enabled components 列含 libc-test、rc=0 | ✓ |
+| L2 未跑 | — | 含 `check-picolibc-tests: build-picolibc`（写 `.work/build/**`），与下发约束一致 | 可接受 |
+| 证据脚本全量 | `run.sh` | 103 checks / 3 failed（B3–B5 direct-github timeout rc=124） | ⚠ 见下 |
+| 证据脚本注入 | `run.sh --inject 1` | rc=0、3 FAIL（C4/C25/C26）→ restore 回绿、md5=`216e8797…` 一致 | ✓ |
+
+**约束核验**：锁册只新增 `libc-test`（相对 master +45 −0）；未动 spec/contracts/tools/components；临时目录 `/tmp/opencode/TESTCASES-044t/review/`；未提交；注入还原用 cp+md5（未用 git checkout/restore/stash）；完成区 ≤30 行。
+
+**新反例注入**（独立于 engineer 清单）：`shallow=false` → `true`（sed 改真实锁册）→ run.sh --sections AC → C6 FAIL（`exp=shallow=False act=shallow=True`）、rc=1 → cp 还原 md5=`216e8797…` → 复跑 --sections AC rc=0、41/41 pass。**可达 FAIL 有效**。
+
+**完成区对齐**：5 字段均非空；修改文件声明与 `git diff master --stat` 一致；验收结果中 lock/mirror/worktree/幂等/repro/status/门控均真实可复现；「值与旧登记相同、口径由快照改最新 commit 锁死」陈述如实；H7 旧登记作废标注已核实。
+
+**finding**：证据脚本 B3–B5 对 `direct-github` 硬断言，导致本机（github.com 不可达）全量跑 100/103（非 103/103）。这是脚本设计缺陷（任务规范仅要求代理通道、直连「如实记录」）——**不影响交付物本身**（锁/镜像/工作树/幂等/可复现均 ✓），建议后续版本将 direct-github 改为 INFO 或 SKIP 以提高可移植性。
+
+**判决**：**Accepted** — 交付物（锁条目 + 镜像 + 工作树）完全满足验收标准，交付物缺陷=0。1 项 finding（脚本 direct-github 硬断言致环境依赖）建议后续优化，不阻塞验收。
