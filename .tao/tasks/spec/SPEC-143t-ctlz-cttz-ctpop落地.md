@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D11`（**前置已全部满足 ✓**：`D11.1`–`D11.10` 用户 2026-10-14 **逐条确认** ✓〔原话「**D11全部认可**」〕+ **改 `spec/` 授权** ✓〔原话「**同样授权**」，与 `SPEC-142t` 的「a/b授权」同样〕——见「开工前置」与 `adr-0012 §状态说明`；`D11` 已 `Accepted`）；`SPEC-141t`（ISA 指令扩展预研，候选 `C2` = `clz`/`ctz`/`popcount`，**只读**来源）；`INFRA-078t`（compiler-rt 预研：缺口来源，**只读**）；`LLVM-079t`（现状：`CTLZ`/`CTTZ`/`CTPOP` 走 `Expand`，**只读**溯源）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）。**串行**：与 `SPEC-142t`（`rev.{o,t,w,b}` 落地）**须串行**（同改 `contracts/opcodes.yaml` / `tests/vectors/**`），先后由主会话排定。
 **状态**：待验收
-**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`；**含 3 项结构性 known-red**〔`ISS-215`〕，见「完成区」⚠）；B MC ✅ 实现完成 + 全部门控实测（`check-instrinfo` 转绿 ✓ / L1 全绿 ✓ / L2 仅 `check-interface` 2 项），**待验收**；C QEMU ⏳ 待做
+**阶段进度**：A ✅ 已验证；B MC ✅ 已验证（2026-10-15，reviewer `Accepted`；`check-instrinfo` 转绿 ✓ / L1 全绿 ✓；L2 仅 `check-interface` 2 项〔缺 3 条 QEMU `trans_*`，`ISS-215` 待阶段 C 消除〕）；C QEMU ⏳ 待做
 
 > **`**状态**` 口径**：本任务 = **一个任务书、三阶段验收**（照 `SPEC-142t`）⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 审阅」）。
 
@@ -286,4 +286,34 @@
 | F4 `gen-fast.s`（**快档**，L2 `check-lit` 用）因新增记录**代表变更**而 4 行改写 | ⏸不改判据（**生成物按生成器输出为准**），仅登记 | 未手工编辑；由 `generate_lit_vectors.py` 重生成 | 重跑 md5 不变（幂等）；`make check-lit` rc=0 |
 
 **判决**：全部 finding 已处置（F1/F2 已修；F3/F4 为显式披露/生成物口径登记）。阶段 B **无未处置代码缺陷**；核心指标（`check-instrinfo` 转绿 + L1 全绿）已由真实 rc 达成，L2 唯一失败项 = 阶段 C 工作项 ⇒ 状态置 `待验收`。
+
+#### 第 2 轮 reviewer 审阅（阶段 B / MC，2026-10-15）
+
+（独立验收；判定全部基于 reviewer 自跑命令与退出码，非转述；日志 `/tmp/opencode/<任务ID>/review-b/`。）
+
+**重跑记录（真实 rc）**
+- 核心指标：`make check-instrinfo` rc=**0**（`M8 records: 7`、7/7 各有唯一 `.td` def）；`make check`(L1) rc=**0** 全绿（`repository checks (L1): PASS`）。
+- L2：`make -k check-modules` rc=**2**，全日志 `Error` **仅 1 处** = `check-interface`（FAIL 恰 2 项 = `QEMU trans ↔ opcodes.yaml`/`trans_* 定义数`、`MISSING` **恰 3 条** = `trans_ctpop/ctlz/cttz_orri_rd`）⇒ **唯一 FAIL 目标 = `check-interface`**，无多出红；其余 6 子目标逐项 PASS（`check-lit` 107/107、`check-qemu-smoke`/`test-codegen`/`test-elf`/`test-semihost`（含 L1 无回归前置）/`check-picolibc-tests` 各 PASS）。
+- 两处二进制（`ISS-210` 破假绿）：安装根与构建树 `llvm-mc` md5 **同 = `94559d13…`**，`--show-encoding` 三条各 rc=0、编码逐字节相同。
+- 编码三方（reviewer 自算脚本，未复用 engineer 解析）：`ctpop/ctlz/cttz` `word & 0xFFFC0000` = **`0x40740000/0x40780000/0x407C0000`** == `op<<24|opx<<18`（opx 29/30/31）== `opcodes.yaml` `value` == 验收口径给定；字段 `(op,ha,rdhb,rdhc,hd)=(0x40, 29/30/31, 8, 9, 63)` 逐位 ✓。
+- 往返：`-filetype=obj` ⇒ `llvm-objdump -d` 3/3 助记符+操作数+字节与 `--show-encoding` 一致；再汇编文本/字节幂等 ✓。
+- `hd` 边界：三条 × 0..63 **accept 64/64、reject 0**（契约：无非法 `hd` ✓）；`hd=64`/`-1` rc=1 拒绝（既有 `immu6` 范围检查）；`rd0` 作目的 rc=0 **受理**（`ISS-211` 口径：MC 层不查合法性 ✓）；`rdhc=rd0`/`rdhb==rdhc` 受理 ✓。
+- 证据脚本重跑：`run-b.sh` rc=0 **PASS=26 FAIL=0**、`run-b.sh --inject` rc=0 **PASS=14 FAIL=0**（与完成区逐字一致；注入①–④各命中不同目标断言、仓库 5 文件 md5 前后不变）；`check_bitcnt_mc.py` PASS=93 FAIL=0。
+- **reviewer 新反例（engineer 清单外）**：矩阵 `llvm-isa-backend-matrix.tsv` 的 `ctlz_orri_rd` 行 `td_def` 改 `…_INJECT` ⇒ `check_bitcnt_mc.py` rc=**1**（FAIL 恰 1 条 = §6 矩阵断言注入点）⇒ `cp`+md5 还原（前后双 `fc0ca400…`）⇒ 复验 rc=**0**（93/0）回绿 ✓。
+- 门控联动：`check-asm-list`/`check-asm-list-drift`/`check-isa-coverage`/`validate-encoding`/`check-patch-tree`/`check-index-blobs`/`check-spec-readonly` 逐项 rc=**0** ✓。
+
+**约束核验**：越界 0（`git diff HEAD~1 HEAD` = 6 文件 + 本任务书，均 MC 面 + 生成物 + 组件 `changelog.md`；未触 `spec/**`/`contracts/**`/QEMU/compiler-rt）；补丁纪律（`series`=71、一文件一补丁、`check-patch-tree` 绿、未手工编辑补丁）；注入还原全 `cp`+md5（无 `git checkout/restore/stash`）；工作区前后快照对账（5 目标文件 md5 全相等、`git status` 干净、完成区「修改文件」6 项与提交集逐一对上）；未提交（提交权归 architect）✓。
+
+**遗留判定**：L2 `check-interface` 2 FAIL = 缺 3 条 QEMU `trans_*` ⇒ **归阶段 C**（与「阶段 A 验收口径」收口要求一致，非缺陷）；`ISS-215` 保持 `open`、待阶段 C 转绿后关闭 ✓；ISel 接入不在本任务（`D11.9` 未列）✓；无新增遗留、无未处置 finding。
+
+**判决：Accepted（阶段 B / MC）**——核心指标（`check-instrinfo` 转绿 + L1 全绿）与 L2 唯一 FAIL 目标均经 reviewer 独立重跑证实、无多出红、无未处置缺陷；任务级 `**状态**` 维持 `待验收`（阶段 C 未做，3 项转绿前不得置 `已验证`）。
+
+#### 阶段 B architect 收尾提交留痕（2026-10-15；**只追加**）
+
+- **档位**：**正常提交**（**不带 `WIP:`**；依据 = 上「第 2 轮 reviewer 审阅」判决 `Accepted`〔**阶段级**〕）；任务级 `**状态**` **维持 `待验收`**、不置 `已验证`（阶段 C 未做）。
+- **提交**：分支 `SPEC-143t-B` 头提交（提交信息 = `SPEC-143t B: 阶段B收尾（reviewer Accepted；check-instrinfo 转绿、L1 全绿）+ 阶段进度更新`；**只 `commit`，未 `push`**）。**注**：本留痕与提交同体 ⇒ **不内嵌 SHA**（SHA 以分支头 / 父会话回报为准）。
+- **文件集对账**（`git diff --cached --name-status -M` ↔ 本笔范围）：**2** 项 = **2 M**，即 `.tao/tasks/spec/SPEC-143t-ctlz-cttz-ctpop落地.md`（第 2 轮 reviewer 审阅记录 + `**阶段进度**` 行 + 本留痕）、`.tao/knowledge/milestones.md`（`SPEC-143t` 流水行补「阶段 B（MC）已完成并验收（2026-10-15）」）⇒ **无漏提、无多提、无越界**（未触 `spec/**`、`components/**`、`contracts/**`、`tools/**`）。
+- **门控（架构 2026-10-15 现场自跑，非转述；日志 = `/tmp/opencode/SPEC-143t/arch-b/`）**：`make check`(L1) rc=**0** 全绿（`repository checks (L1): PASS`）；`make check-instrinfo` rc=**0**（`Result: 0 errors`、164 def 唯一）；`make -k check-modules`(L2) rc=**2**——全日志 `Error` **恰 1 处** = `check-interface`（FAIL **恰 2 项**、`MISSING trans_*` **恰 3 条** = `trans_ctpop/ctlz/cttz_orri_rd`），其余 6 子目标逐项 PASS（`check-lit` **107/107**、`check-qemu-smoke`/`test-codegen`/`test-elf`/`test-semihost`/`check-picolibc-tests`（fail=0））；证据脚本 `run-b.sh` rc=**0**（`PASS=26 FAIL=0`）、`run-b.sh --inject` rc=0。**不弱化**任何门控。
+- **收尾检查**：① 门控 = **仅剩 1 类已知红**（`check-interface`，阶段 C 消除；`check-instrinfo` 已转绿、L1 全绿、`test-semihost` 随 L1 转绿）✓；② 无临时残留（`git status --porcelain -uall` 仅本笔；无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`）✓；③ 证据在 `.work/evidence/SPEC-143t/`（`run-b.sh` / `run-b-*.log` / `*.EXIT` / `log/**`）✓；④ 无未提交结果 ✓；⑤ 下一件 = **阶段 C（QEMU）**，由父会话续链 ✓。
+- **merge 落地**：`git merge --ff-only SPEC-143t-B` FF 落地 `master`，随后删分支 `SPEC-143t-B`（**未 `push`**）。
 
