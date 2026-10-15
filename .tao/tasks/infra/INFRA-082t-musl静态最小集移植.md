@@ -4,6 +4,9 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 路线；`D6` = `P0 契约 → P1 musl 静态 → P2 动态 → P3 linux-user → P4 对照/回归`、`D2` = **无内核目标**、`D3` = musl 自带 `ldso`〔**P2**〕、`D4` = musl 与 picolibc **并存**）；`ADR-0027 D5`（compiler-rt builtins = **独立库、picolibc/musl 共用**）；`INFRA-076t`（musl 1.2.6 取源与锁定，`已验证`）；`SPEC-138t`（syscall 映射契约，`已验证`）；`SPEC-140t`（TLS 硬依赖查证，`已验证`）；`ISS-216`（`dadao-m1` 无 `SYS_UMON_SYSCALL` 服务方；**已由主会话 2026-10-15 裁定并入本任务** ⇒ 见「前置结论 2」）；`INFRA-079t`（compiler-rt builtins 接入，`待开始`——**已由主会话结论 ① 定为「不必先做」**，见「前置结论 1」）；`INFRA-057t`（picolibc 移植/构建集成的**形态先例**，**只读**）；`docs/Process-01`（组件补丁组织与构建编排）
 **状态**：待验收（**仅阶段 A 第 1 步**：QEMU 侧 `SYS_UMON_SYSCALL` 服务；A2/A3/B/C 未做 ⇒ **任务整体未完成**，见完成区「阶段 A1」）
+**阶段进度**：A1 ✅ 已验证（2026-10-15，reviewer Accepted）；A2/A3、B、C ⏳ 待做
+
+> **`**状态**` 口径说明**：本任务 = **一个任务书、多阶段验收**（照 `SPEC-142t`/`SPEC-143t` 先例）⇒ `**状态**` 表**任务级**进度（**阶段全部验收通过后**才置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（A1 见「第 1 轮 reviewer 验收」）。
 
 > **改号留痕（2026-10-15，architect；分支 `p1-renumber`）**：本任务书**原号 `INFRA-081t` ✗ ⇒ 今号 `INFRA-082t` ✓**。
 > **理由 = 避「git 历史同号」**：`INFRA-081t` **历史上**曾指 `libc-test` 任务（`1dc0570` 内 `.tao/tasks/infra/INFRA-081t-libc-test取源与锁定.md`，后经 `R089` 改名 `TESTCASES-044t` 而离开 `master`）⇒ 若本册沿用 `081`，则**同一编号在仓库历史中指两件事**，违背 `.tao/knowledge/lessons.md §3.21`「编号须**全仓（含历史）唯一**」精神；`082` 经 `git grep`（工作树）+ `git log --all --name-only`（全历史）复核**从未被占用** ✓。
@@ -163,8 +166,19 @@
 
 **判决**：finding 均 `✅已修`（附复验）或 `⏸延后`（附原因/证据）⇒ 状态置 `待验收`；**仅阶段 A1**，A2/A3/B/C 未做 ⇒ 任务整体未完成。
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+#### 第 1 轮 reviewer 验收（2026-10-15，分支 `INFRA-082t-A1`）
+
+**两处二进制**：`f21edd71d5a4352d3e0c5fdc64afbb3e`（`.work/build/qemu` == `.dadao/cross-toolchain/bin/qemu-system-dadao`）✓；安装位行为验证（probe `--qemu .dadao/.../qemu-system-dadao` 2/2 PASS）✓。
+**识别条件（独立构造 R1/R2）**：
+- R1 正例（user `trap cfx0,0`）：连续 write+exit_group(42) ⇒ stdout `R1\nR2\n`、rd8=3、$?=42、mode=0、trapn0=1 — 被接管，pc+4 由顺序两道 trap 证明 ✓。
+- R2 反例（hypv 同一 `trap cfx0,0`）：未被接管 → §5 向量 handler exit(0x91)、$?=145、stdout 不含 `HS\n`、trapn0=1 ✓（若被接管：`HS\n` + 0x92）。
+**最小服务集**：write(64)→stdout ✓ / writev(66)→2 iovec BE ✓ / exit(93)→$?=7 ✓ / exit_group(94)→$?=42 ✓；未实现⇒-ENOSYS（rd8=-38=0xFFFFFFDA）✓ / -EBADF（rd8=-9）✓ / -EINVAL（iovcnt>1024，rd8=-22）✓；号值与锁定表一致（sha256=9ec1fadd…）✓。
+**不回归**：`check-qemu-semantics` 149/149 rc=0 ✓；`test-semihost` rc=0 ✓（25-service + bootrom hand-off + semihosting + no-regression）。
+**门控**（各捕自身 rc）：`make check`(L1)=0 / `check-patch-tree`=0（4 组件 129 补丁）/ `check-source-state`=0 / `check-no-residue`=0 / `check-tasks`=0 / `check_issues.py`=0。
+**证据脚本**：`run-a1.sh` rc=0（27 PASS / 0 FAIL）✓；`--inject` rc=1（0/12）✓。
+**我的新反例**（不在 engineer F/G）：补丁级注入（`helper.c.patch` 内 `inner_run_mode == DADAO_MODE_USER` → `!= DADAO_MODE_JAIL`）⇒ `check-patch-tree` 断言⑥+⑨ FAIL（rc=2：`patched-index blob ≠ worktree` + `HEAD diff differs`）；cp+md5 还原 ⇒ `check-patch-tree` rc=0 回绿 ✓。行为级 R2_hypv_vector 断言需重建 ⇒ 按纪律「停下报告」未重建（已通过 R2_hypv_vector 间接证明识别条件在交付二进制中正确生效）。
+**完成区对齐**：文件①②③与 commit 0986dc9 逐项相符 ✓；未动 spec/contracts/manifests ✓。**遗留判定**：§实现约束 path B ✓；服务缺项（read/brk/set_tid_address/set_robust_list ⇒ 阶段 B 补）✓；探针未接门控 ✓；越界新增探针脚本可接受（先例 `min_rom_probe_04xt.py`）✓。
+**判决**：**Accepted**（仅 A1 子步骤；A2/A3/B/C 未做 ⇒ 任务整体未完成）。工作区快照：review 前后 md5 全一致，`git status` 空 ✓。
 
 #### architect 立项提交留痕（2026-10-15，分支 `p1-taskbook`）
 
@@ -199,3 +213,12 @@
 - **本分支工作树**（开工前 + 提交后各核一次）：`git status --porcelain -uall` 首检 = **恰 3 项**（= ① 两改 + 一新增，与主会话指令一致）；现检 = **干净**。
 - **只读核对（供验收；各捕自身 rc，无 `tee` 吞码）**：`make check`(**L1**)=**0**（`repository checks (L1): PASS`）／`make check-patch-tree`=**0**（`4 component(s), 129 patches OK`）／`make check-source-state`=**0**（`musl`/`libc-test`/`llvm-test-suite` = `patchless; skipped`）／`make check-qemu-semantics`=**0**（`149 total, 149 passed, 0 failed`）；`python3 tools/infra/check_issues.py`=**0**（`35 open, 9 closed`，`resolved_by` 约束 OK）；`issues.yaml` `yaml.safe_load` 通过（44 条）。日志：`.work/log/infra/INFRA-082t-a1-verify-{L1,patch-tree,source-state,qemu-sem}.log`（`.work/` 可删区）。
 - **`merge` / `push`**：**均未做**（本角色**禁** `push`；`master` 落地由主会话在 `/complete` 后执行）。`master` 未动（仍 `761dfa3`）。
+
+#### architect 阶段级 A1 收尾/提交/文件集审核留痕（2026-10-15，分支 `INFRA-082t-A1`）
+
+- **档位**：**正常提交**（依据 = 上「第 1 轮 reviewer 验收」判决 `Accepted`，**仅 A1 子步骤**；**阶段级**，见 `**阶段进度**`）。
+- **提交**：分支 `INFRA-082t-A1` 头提交（提交信息 = `INFRA-082t A1: 阶段级收尾（reviewer Accepted；QEMU SYS_UMON_SYSCALL 服务 + 149/149 不回归）+ 阶段进度`；**只 `commit`，未 `push`**）。**注**：本留痕与提交同体 ⇒ **不内嵌 SHA**（SHA 随留痕内容变化而变、会自指失真）；SHA 以分支头 / 父会话回报为准。
+- **本笔内容**：① `**阶段进度**` 行 + `**状态**` 口径说明（任务级 `待验收`，**不**置 `已验证`；**P1 整体未完**）；② reviewer 第 1 轮验收记录（A1）落纸；③ `milestones.md` `INFRA-082t` 流水行：`状态` `待开始` → **`待验收`** + 补「**阶段 A1（QEMU `SYS_UMON_SYSCALL` 服务）已完成并验收（2026-10-15，reviewer `Accepted`）**，A2/A3、B、C 待做 ⇒ 任务级 `待验收`」（照 `SPEC-142t`/`SPEC-143t` 阶段级先例）。
+- **文件集对账**（`git diff --cached --name-status -M` ↔ 本笔范围）：**2** 项 = **2 M**，即 `.tao/tasks/infra/INFRA-082t-musl静态最小集移植.md`（reviewer 第 1 轮验收记录 + `**阶段进度**` 行 + `**状态**` 口径说明 + 本留痕）、`.tao/knowledge/milestones.md`（`INFRA-082t` 流水行状态与阶段说明）⇒ **无漏提、无多提、无越界**（未触 `spec/**`、`components/**`、`contracts/**`、`.tao/contracts/**`、`manifests/**`、`tools/**`）。
+- **收尾检查（阶段级口径）**：**门控**（各捕**自身** rc，无 `tee` 吞码）`make check`(**L1**)=**0** ／ `check-patch-tree`=**0**（4 组件 129 补丁）／ `check-source-state`=**0** ／ `check-qemu-semantics`=**0**（**149/149**）／ `check-no-residue`=**0** ／ `check-knowledge-refs`=**0** ／ `check-knowledge-dir`=**0** ／ `check-tasks`=**0** ／ `python3 tools/infra/check_issues.py`=**0**（35 open / 9 closed / 0 blocking）；**L2/L3 归本任务整体收尾**（阶段级不跑）。**证据** = `.work/evidence/INFRA-082t/run-a1.sh` ✓。**无临时残留**（`git status --porcelain -uall` 仅 1 项 = reviewer 审阅记录）。日志 `.work/log/infra/INFRA-082t-a1-closeout-*.log`（`.work/` 可删区）。
+- **下一件**：**A2**（musl 补丁集骨架 + 锁条目补丁化）。**`merge` / `push`**：本笔**未** `merge`、**未** `push`（`merge --ff-only` 落地由主会话/本角色按指令执行；`push` 由主会话在 `/complete` 后执行）。
