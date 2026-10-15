@@ -362,7 +362,7 @@
   scope: [infra]
   blocks: []
   resolved_by: null
-  notes: "【正式登记（源 `INFRA-074t` 第 2 轮 reviewer 验收「非阻断建议②」；architect 交叉复核登记，2026-10-14）】**事实（architect 现场核）**：`.cache/embench-iot/` 含 `.git/` 目录、`git -C .cache/embench-iot rev-parse --is-bare-repository` = `false` ⇒ 是 **checkout（非裸仓库）**，与用户 2026-10-13 约定「`.cache` 下面应该是裸仓库，然后在 `.work` 下面有 `source` 和 `build`」（落 `AGENTS.md`「工作区落点」+ `lessons §3.19`）**不符**——同处 `.cache/embench-iot.git` 才是裸仓库。**性质 = 历史遗留 / 落点不合约定**（非缺陷、非静默）。**建议**：后续任务清理或迁移（工作树迁至 `.work` 构建源区，`.cache/` 只留裸仓库）。**本次未动该目录**（`INFRA-074t` 落点修正范围外）⇒ **只登记，不建任务**。证据指针：`.tao/tasks/infra/INFRA-074t-*.md`「第 2 轮 reviewer 验收」非阻断建议②。"
+  notes: "【正式登记（源 `INFRA-074t` 第 2 轮 reviewer 验收「非阻断建议②」；architect 交叉复核登记，2026-10-14）】**事实（architect 现场核）**：`.cache/embench-iot/` 含 `.git/` 目录、`git -C .cache/embench-iot rev-parse --is-bare-repository` = `false` ⇒ 是 **checkout（非裸仓库）**，与用户 2026-10-13 约定「`.cache` 下面应该是裸仓库，然后在 `.work` 下面有 `source` 和 `build`」（落 `AGENTS.md`「工作区落点」+ `lessons §3.19`）**不符**——同处 `.cache/embench-iot.git` 才是裸仓库。**性质 = 历史遗留 / 落点不合约定**（非缺陷、非静默）。**建议**：后续任务清理或迁移（工作树迁至 `.work` 构建源区，`.cache/` 只留裸仓库）。**本次未动该目录**（`INFRA-074t` 落点修正范围外）⇒ **只登记，不建任务**。证据指针：`.tao/tasks/infra/INFRA-074t-*.md`「第 2 轮 reviewer 验收」非阻断建议②。**【转执行（2026-10-15，architect）】**转执行：落点 = `INFRA-083t`（2026-10-15，architect）——任务书 `.tao/tasks/infra/INFRA-083t-cache-embench-checkout清理.md`（`M8`、`待开始`）；范围 = 删该 checkout、**保留** `.cache/embench-iot.git`（现场预核：checkout 工作树 `status` 空、1480 对象逐个在裸镜像 `git cat-file -e` 全命中 ⇒ **无独有内容**）。`status` **保持 `open`**（待清理落地 + 重建验证 + 门控通过后由 `/complete` 关闭）。"
 
 - id: ISS-205
   title: "`LLVM-091t` reviewer 子代理未返回最终判定（只报 13 项已核 + 等 picolibc）——任务书保持 `待验收`，处置 = 重派 reviewer 1 次"
