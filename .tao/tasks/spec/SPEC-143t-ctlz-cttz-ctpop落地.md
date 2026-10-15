@@ -4,9 +4,9 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D11`（**前置已全部满足 ✓**：`D11.1`–`D11.10` 用户 2026-10-14 **逐条确认** ✓〔原话「**D11全部认可**」〕+ **改 `spec/` 授权** ✓〔原话「**同样授权**」，与 `SPEC-142t` 的「a/b授权」同样〕——见「开工前置」与 `adr-0012 §状态说明`；`D11` 已 `Accepted`）；`SPEC-141t`（ISA 指令扩展预研，候选 `C2` = `clz`/`ctz`/`popcount`，**只读**来源）；`INFRA-078t`（compiler-rt 预研：缺口来源，**只读**）；`LLVM-079t`（现状：`CTLZ`/`CTTZ`/`CTPOP` 走 `Expand`，**只读**溯源）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）。**串行**：与 `SPEC-142t`（`rev.{o,t,w,b}` 落地）**须串行**（同改 `contracts/opcodes.yaml` / `tests/vectors/**`），先后由主会话排定。
 **状态**：待验收
-**阶段进度**：A 契约/编码层 ✅ 待验收（2026-10-15；**含 3 项结构性 known-red**，见「完成区」⚠）；B MC / C QEMU 未开始
+**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`；**含 3 项结构性 known-red**〔`ISS-215`〕，见「完成区」⚠）；B MC ⏳ 待做；C QEMU ⏳ 待做
 
-> **`**状态**` 口径**：本任务 = **一个任务书、三阶段验收**（照 `SPEC-142t`）⇒ `**状态**` 表**阶段 A** 的工程进度（A 实现完成、待 reviewer 验收）；**B/C 完成前不得置 `已验证`**。
+> **`**状态**` 口径**：本任务 = **一个任务书、三阶段验收**（照 `SPEC-142t`）⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 审阅」）。
 
 ## 执行环境
 **执行环境**：本地
@@ -183,8 +183,32 @@
 
 **判决**：全部 finding 已处置（F1/F2 已修；F3–F6 为**显式披露 / 结构性延后 / 越界不改**，其中 **F3 属跨阶段结构性冲突、须架构裁定**）。阶段 A 无未处置的**代码缺陷** ⇒ 状态置 `待验收`；**并请架构/用户裁定 F3**（接受阶段 A known-red，或将 3 条 `.td` def 提前进阶段 A）。
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+#### 第 1 轮 reviewer 审阅
+
+（独立验收；全部判定基于 reviewer 自跑命令与退出码，非转述；长日志留 `/tmp/opencode/<任务ID>/review-a/`。）
+
+**重跑记录（真实 rc）**
+- `make check`(L1) rc=**2**：`ERROR` **恰 3 条**（`ctpop/ctlz/cttz_orri_rd` 的 `.td def 数 = 0`）、无其它失败（`=== Result: 3 errors ===`）⇒ 与口径①一致；独立判定器 `check_instrinfo_knownred.py` PASS。
+- L2 逐子目标：`check-interface` rc=**2**（FAIL 恰 2 项、`MISSING trans_*` 恰 3 条，判定器 PASS）；`check-lit`/`check-qemu-smoke`/`test-codegen`/`test-elf`/`check-picolibc-tests` 各 rc=0；`test-semihost` rc=2（日志唯一失败=同 3 条 m8 缺 def）；`make -o check test-semihost` rc=**0** ⇒ 连带证实（口径③）。
+- 其余指名门控 24 项逐项 rc=0：`check-scope`（现场 m8=7、total=234）、`check-rule-refs`、`validate-encoding`、`check-isa-coverage`、`check-spec-{changelog,refs,readonly,numbering,codeblocks,drift}`、`check-no-residue`、`check-tasks`、`check_issues.py`（33 open/5 closed）等。
+- 证据脚本重跑：`run.sh` rc=0 **PASS=54 FAIL=0**、`run.sh --inject` rc=0 **PASS=11 FAIL=0**（与完成区逐字一致，输出真实性 ✓）。
+- ⇒ **已知红恰为口径 3 项，多出红 0**。
+
+**编码/位置（reviewer 自写 QFC 解析器，未复用 engineer 解析器）**：`op=0x40`（MISC-octa）；`opx`=`011-101/110/111`=29/30/31（`ha` 0x1D/0x1E/0x1F）；`mask=0xFFFC0000` 与 `value=op<<24|ha<<18` 自算 = yaml 实值；spec §4.2 单元格 ↔ `opcodes.yaml` **双向差异 0**（36↔36）；同 opx 在 tetra/wyde/byte **9 格全空** ✓。
+
+**「只写位域」口径**：`ADR-0012 D11` 正文表、任务书 §1 表、`contract-isa` A.9 均无 `value` 列且明指真源 `contracts/opcodes.yaml` ✓。2 处 value 字面命中**定性非契约复写**（ADR 2026-10-14 历史流水行引录提案原文 + 任务书完成区机器核实记录带真源指针）⇒ 记 observation 供终审知悉，不计违规。
+
+**语义/定值（第四种 oracle：256 项字节查表 + 高/低字节扫描，与三条既有路径不同实现）**：`bitcnt.yaml` **414 例全量**重算（3+192+216+3，现场统计）**差异 0**（不抽样）；`hd` 3×64 全量覆盖、全合法；定值 `ctlz/cttz(0)=hd+1`（含 `hd=63`⇒64）、`ctpop(0)=0`；结果 `0..64` 写满 64 位；大端（op 字节在前）逐例断言 ✓；oracle 自身经 2 万随机例对朴素参照差异 0（防我方实现 bug）。
+
+**合法性**：`hd∈0..63` 全合法（逐例无 ILLI 标注）；legality 例唯一 ILLI 依据=`rdhb==rd0`（`dst_rd0`）；`rdhc==rd0`（读 0）/`rdhb==rdhc` 逐例不报错；`contracts/legality_rules.yaml` **不在** `git diff ef74e12 567ff21` 改动集（18 项=16M+2A，与 architect 留痕一致）⇒ 未新增规则 ✓。
+
+**例外说明/版本记录/锁册**：`SimRISC-00` 表下例外说明（含与 `rd2rd`/`rb2rb` 的区分）+ `SimRISC-04 §4.2.2` + `contract-isa §2.8` 三处口径一致（F2 修复在位）；两册附录 `-rc` 均写明本批 3 条指令（`check-spec-changelog` rc=0）；锁册 `sha256` 独立重算 `05b965ee…`/`000a12d0…` 与 `spec-readonly.lock.toml` 一致（`check-spec-readonly` rc=0）。
+
+**reviewer 新反例（engineer 5 组清单外：删覆盖用例）**：删 `cttz semantic hd=42` 1 例 ⇒ `generate_bitcnt_vectors --check` rc=**1**（「与真源重派生结果不一致」）⇒ `cp`+md5 还原（前后双 `61ed5ffa…`）⇒ 复验 rc=**0** 回绿 ✓。
+
+**约束核验**：越界 0（`spec/` 改动交集=授权 2 册；未触 `components/**`/`legality_rules.yaml`/compiler-rt）；README 陈旧计数未改=越界披露合理（F6，`SPEC-142t` 同例）；`ISS-215` 已登记 open（待 B/C 转绿关闭）；工作区前后快照对账一致（`git status` 0 行、6 目标文件 md5 相等、`check-no-residue` rc=0）；未提交（提交权归 architect）✓。
+
+**判决：Accepted（阶段 A）**——验收口径 3 项已知红之外全绿、无多出红、无未处置代码缺陷；F3/F4 属结构性延后（阶段 B/C 消除，`ISS-215` 跟踪），不计缺陷；任务级 `**状态**` 维持 `待验收`（B/C 未做，完成前不得置 `已验证`）。
 
 ## 阶段 A 验收口径（**架构裁定，2026-10-15**）
 
@@ -206,3 +230,11 @@
 - **提交**：分支 `SPEC-143t-A` 头提交（提交信息 = `SPEC-143t A: ctlz/cttz/ctpop 契约/编码层（MISC-octa 三格 + 例外说明 + hd 三统一语义 + 定值 hd+1 + 独立 oracle 向量；已知红：check-instrinfo/check-interface 待 B/C）`；**只 `commit`，未 `merge`、未 `push`**）。**注**：本留痕与提交同体 ⇒ **不内嵌 SHA**（SHA 随留痕内容变化而变、会自指失真）；SHA 以分支头 / 父会话回报为准。
 - **文件集对账**（`git diff --cached --name-status -M` ↔ 完成区「修改文件」声明）：**18** 项 = **16 M + 2 A**，其中 **17** 项 = 完成区声明（**15 M + 2 新**：`tests/vectors/bitcnt/bitcnt.yaml`、`tools/testcases/generate_bitcnt_vectors.py`），**+1** 项 = architect 立项登记（`.tao/knowledge/issues.yaml` 增 `ISS-215`）⇒ **无漏提、无多提、无越界**（未触 `components/**` / `contracts/legality_rules.yaml` / compiler-rt）。
 - **门控（架构 2026-10-15 现场复核，非转述）**：`check-instrinfo`(L1) rc=**2**（失败项**恰 3 条** = m8 缺 `.td` def）、`check-interface`(L2) rc=**2**（失败项**恰 2 项**）、`check-scope` rc=0（`m8=7`、`total=234`）、`check-rule-refs` rc=0、`check-isa-coverage` rc=0、`validate-encoding` rc=0、`check-spec-readonly` rc=0、`check-no-residue` rc=0、`check-tasks` rc=0、`tools/infra/check_issues.py` rc=0（33 open / 5 closed）。**不弱化**任何门控。
+
+#### 阶段 A 收尾提交留痕（2026-10-15；**只追加**）
+
+- **档位**：**正常提交**（**不带 `WIP:`**；依据 = 上「第 1 轮 reviewer 审阅」判决 `Accepted`〔**阶段级**〕；任务级 `**状态**` 维持 `待验收`、**不**置 `已验证`——与 `SPEC-142t` 阶段 A 收尾同例）。
+- **提交**：分支 `SPEC-143t-A` 头提交（提交信息 = `SPEC-143t A: 阶段A收尾（reviewer Accepted；契约/编码层 + 独立 oracle 向量）+ 阶段进度更新`；**只 `commit`，未 `push`**）。**注**：本留痕与提交同体 ⇒ **不内嵌 SHA**（SHA 随留痕内容变化而变、会自指失真）；SHA 以分支头 / 父会话回报为准。
+- **文件集对账**（`git diff --cached --name-status -M` ↔ 本笔范围）：**2** 项 = **2 M**，即 `.tao/tasks/spec/SPEC-143t-ctlz-cttz-ctpop落地.md`（第 1 轮 reviewer 审阅记录 + `**阶段进度**` 行 + `**状态**` 口径说明 + 本留痕）、`.tao/knowledge/milestones.md`（`SPEC-143t` 流水行：`**状态**` → `待验收` + 补「阶段 A 已完成并验收（2026-10-15，reviewer `Accepted`）」）⇒ **无漏提、无多提、无越界**（未触 `spec/**`、`components/**`、`contracts/**`、`tools/**`）。
+- **门控（架构 2026-10-15 现场自跑，非转述；日志 = `/tmp/opencode/SPEC-143t/arch-*.log`）**：`make check`(L1) rc=**2**——`ERROR` **恰 3 条**（`ctpop_orri_rd`/`ctlz_orri_rd`/`cttz_orri_rd` 的 `M8` 记录 `.td def 数 = 0`）、无其它失败（`=== Result: 3 errors ===`）；`make check-interface`(L2) rc=**2**——FAIL **恰 2 项**、`MISSING trans_*` **恰 3 条**（`trans_ctpop/ctlz/cttz_orri_rd`）；`check-scope`（`m8=7`、`total=234`）/ `check-rule-refs` / `check-isa-coverage` / `validate-encoding` / `check-spec-readonly` / `check-no-residue` / `check-tasks` / `tools/infra/check_issues.py`（33 open / 5 closed）各 rc=**0** ⇒ 与「阶段 A 验收口径」逐条一致（**3 项已知红之外全绿**）。**不弱化**任何门控。
+- **收尾检查**：① 门控 = 口径内 3 项已知红之外全绿 ✓；② 无临时残留（`git status --porcelain -uall` 仅本笔 2 项、无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`）✓；③ 证据在 `.work/evidence/SPEC-143t/`（`run.sh` / `run-full.log` / `log/**`）✓；④ 无未提交结果（提交后工作树干净）✓；⑤ 下一件 = **阶段 B（MC）**，由父会话续链 ✓。
