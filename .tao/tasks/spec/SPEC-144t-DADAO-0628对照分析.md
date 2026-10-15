@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（`§Rationale`「与 `DADAO-0628` 的对照」= 现有**最小**对照，本任务 = 系统化扩写，**不改** ADR 正文）；`ADR-0019 D10` / `ADR-0026`（动态链接）/ `ADR-0027`（compiler-rt）（**只读**交叉引用）；`manifests/references.lock.toml`（`DADAO-0628` 锁条目 = 只读来源真源）；`.cache/refs/DADAO-0628/**`（**只读**工作树，`make fetch-refs` 幂等重建）
-**状态**：待验收
+**状态**：已验证
 
 > **模块判定（architect，2026-10-15）**：归 **`spec`** —— 产出是**规范/口径层面的对照**（syscall 号表与入口、ABI、动态链接/TLS 的承担方式、libc 移植口径、测试体系口径、工程流程口径），v5 侧对应载体全在 spec 面：`.tao/contracts/contract-syscall.md`、`ADR-0019 D10`、`ADR-0025`/`ADR-0026`/`ADR-0027`、`docs/Process-0x`；且**现有**对照文字已落在 spec 侧载体（`ADR-0025 §与 DADAO-0628 的对照`）。本任务**不改** `spec/`（只读册）⇒ **无需** `docs/Process-06 §2` 的改 `spec/` 授权。
 
@@ -280,3 +280,32 @@
 **判决**：**全部 17 条 finding 已修/已核**，无遗留未修项 ⇒ 状态可置 **`待验收`**。**真实性声明**：全节引文/行号/计数均来自**本次真实读取**（脚本可复现），无凭记忆、无转述；不利证据（如 0628 ADR 文字滞后、两侧 `make check` 均不跑语义、v5 自造 `__dadao_argmask()` 风险）**如实保留**，未为"好看"省略。**未提交**（提交权归 architect）。
 
 #### 第 1 轮 reviewer 验收
+
+**判定**：**Accepted** ✅
+
+**重跑记录**（真实命令 + 输出 + rc）：
+
+| 步骤 | 命令 | 结果 |
+|---|---|---|
+| 引文抽查 | `sed -n '<line>p' <path>` × 12+ 条（跨 6 项） | 全部命中，内容支持结论 |
+| 数字重算 | `ls *.patch\|wc -l` / `find tests/* -type f\|wc -l` × 8 处 | 15/171/54/13/174/34/25/20 全部一致 |
+| 号表同源 | 0628 musl patch:327–333 + v5 kernel 5 条链 | 两侧均派生自 asm-generic，write=64 一致 |
+| 越界 | `git diff 1aa1135..169edda --name-only` | 仅 milestones.md + 任务书 |
+| `.cache/refs` | `git -C .cache/refs/DADAO-0628 status --porcelain` | 空；HEAD=2d270604… ✓ |
+| 门控 | `make check` / `check-knowledge-refs` / `check-knowledge-dir` / `check-tasks` / `check-component-changelog` / `check_issues.py` | 各 rc=0 |
+| 证据脚本 | `bash .work/evidence/SPEC-144t/run.sh` | PASS=57 FAIL=1（E3：报告写时51条，后续commit加至52；脚本 rc=0） |
+| 反例注入 | 改行67引用计数72→71 → B5 FAIL → cp+md5还原 → 回绿 | 注入→FAIL→还原→回绿 ✓ |
+| 完成区对齐 | 3项待确认均标"待用户裁定" | 如实标出，未写成已定 |
+
+**约束核验**：
+- 6 项 × 5 列齐备、无空列 ✓
+- 每项 0628 侧溯源 ≥1 条 `文件:行`、全文72条实读 ✓
+- 每条附「内容溯源，非执行必需」✓（12处）
+- 只读自证（`.cache/refs` 空 + HEAD 锁定）✓
+- 可达 FAIL 证据（H1假引用/H3篡改计数/H2改refs + cp+md5还原）✓
+- 无规范正文新增（无 spec/contracts/.tao/contracts/components/manifests 改动）✓
+- 3项待确认如实标"待用户裁定" ✓
+
+**E3说明**：报告写时 issues.yaml 共51条（commit 169edda），后续 ebbb95d 新增1条至52条。脚本比对的是实时计数。报告本身准确，非缺陷。
+
+**未改完成区** ✓；**未提交**（提交权归 architect）。
