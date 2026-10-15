@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`INFRA-074t`（来源 = 其第 2 轮 reviewer「非阻断建议②」，`已验证`）；`INFRA-051t`（embench-iot 组件接入——`.cache/embench-iot.git` 裸镜像与该工作树由其建立，`已验证`；**只读**引用其结论）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -88,4 +88,16 @@
 **判决**：F1–F8 已修/已处置、F9 不重复执行（附证据）、F10 无越界 ⇒ 无未修 finding；任务状态置 **`待验收`**。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+**分支/快照**：`INFRA-083t-exec`（`16c3e71`）；审查前后 `git status --porcelain -uall` 均空、6 个目标文件 md5 逐一对账一致（含我注入还原后）；本次审查唯一写入 = 本审阅记录。
+**重跑记录**（真实输出/退出码，workdir=仓库根）：
+- 现状：`ls -d .cache/embench-iot` ⇒ rc=2（不存在 ✓）；`.cache/embench-iot.git` 在（`du -sh` = 2.3M ✓）；`.cache/*/` 9 个 `*.git` 逐个 `--is-bare-repository` = `true`，仅 `refs/` 非 git（只读参照树，既有正常形态）⇒ 无非裸目录 ✓。
+- 可重建：bare `rev-parse HEAD` = `09c2ed8c3b7008c95d08b038de4a3f6dc103ed70` = 锁册 `commit`；`cat-file -e …^{commit}` rc=0。`git clone --local` rc=128（`failed to create link: Invalid cross-device link`，`/tmp`=`/dev/sda1` vs 仓=`/dev/sdc1`，**环境因素**）⇒ 等价取证 `git clone` rc=0 且 `git clone --local --no-hardlinks` rc=0，克隆内 `cat-file -e 09c2ed8c…^{commit}` rc=0、HEAD 同值 ⇒ **可从裸镜像重建** ✓。
+- `make fetch` rc=0，含 `fetch: mirror embench-iot.git already has 09c2ed8c3b70; skipping fetch`；`make status` rc=0 ⇒ `embench-iot enabled  09c2ed8c3b70…`，无 `unavailable` ✓。复核 finding②：`git -C .work/source/embench-iot remote -v` ⇒ `origin=/mnt/tao/DADAO-v5/.cache/embench-iot.git`（git 显示剥尾 `.git`）⇒ **不依赖被删 checkout**，成立 ✓。
+- 门控：`make check` rc=0（`repository checks (L1): PASS`）/ `check-patch-tree` rc=0（`4 component(s), 129 patches OK`）/ `check-no-residue` rc=0 / `check-tasks` rc=0（2 条报告型提示、不阻断）/ `check_issues.py` rc=0（`35 open, 8 closed`）。
+- 证据脚本：`run.sh` rc=0（PASS=23 FAIL=0）；`--inject` rc=0（PASS=14 FAIL=0，`[FAIL] S2 dirty`/`S4b unique`/`EV objects` 三条真 FAIL 路径实见）；`--gate-only` rc=0（PASS=8 FAIL=0，删后 8 项与完成区一致）。
+- **reviewer 独立反例注入**：篡改留证内容文件（+1 字节）⇒ `--gate-only` **rc=1**、`[FAIL ] EV unique: 留证对象可重建`（`missing=1`，指名 `8cfb515b…`）；`cp`+md5 还原（`db1be3fa…` 前后一致）⇒ 重跑 rc=0（PASS=8 FAIL=0）⇒ 可达 FAIL 路径真实。
+**脚本审核**：`run.sh` 逐条核 S1–S4b 均有可达 FAIL 路径（`gfail`/`chk` 按真实 rc 判定，无恒真；INJ0 捕真实 clone rc）；覆盖计数现场统计（`wc -l`/循环）非写死；注入还原 `cp`+md5（INJ7/INJ9/INJ10）无 `git checkout/restore/stash`；`preflight.sh` 有删除后守卫（rc=2 + 指路 `run.sh`）✓。
+**独有悬空 blob 独立结论**：留证日志记 `all-oids=2418（reachable=1480 ∪ unreachable=938）unique=1`；内容文件 20 B `# DADAO placeholder\n`，`git hash-object --stdin` 重算 = `8cfb515b17cd4db472d511a78b5570f4f42c916d`（= OID ✓）；裸镜像 `cat-file -e` rc=1（确为独有 ✓）；临时树 `printf '# DADAO placeholder\n' | git hash-object -w --stdin` 重得同 OID（**字节可重建** ✓）。**删掉可接受**：内容全量留证且可字节重建，无不可复现损失 ⇒ 非 finding；口径已固化 S4b ✓。
+**约束核验**：① 只读核验 `.cache`，未做任何删除/移动（`make fetch` 幂等后 bare HEAD 与目录状态不变）✓；② 相对路径、未出界 ✓；③ 未 `git add`/`commit`/`push` ✓；④ 还原一律 `cp`+md5 ✓；⑤ 完成区未改（12 行原样）✓；⑥ 完成区「修改文件」对齐：`git show --stat 16c3e71` 仅任务书，`issues.yaml` 未动（转执行句 `grep -c`=1，来在 `7c3080b`；`status: open`/`resolved_by: null` 未变）✓；⑦ 遗留「无」成立（`ISS-204` 关闭归 `/complete`）✓。
+**非阻断备注**：验收口径「`git clone --local` ⇒ rc=0」在 `/tmp` 跨设备场景不可达（EXDEV 硬链失败），建议口径改「clone（允许 copy 回退）」。
+**判决**：**Accepted**——验收标准 1–6 全过、无未修 finding；独有悬空 blob 判「可字节重建、无不可复现损失」证据充分、删掉可接受。
