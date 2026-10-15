@@ -268,3 +268,11 @@
 7. **reviewer 新反例（不在 engineer 三条内）**：注入分类判据「无上游参照用例期望退出码 0→1」⇒ 同一 `run-p1.sh` **`rc=1`、`passed=41 failed=7`**（`fast stage: fail count expected=0 actual=9`；F 段 `malloc-0 expected=fail actual=pass` 连带红）⇒ `cp`+md5 还原（`4463b909…` 前后相等）⇒ 复跑 `rc=0`、`48/48` **回绿**；终态两套件源树仍空、HEAD 未变。
 
 **判决：Accepted**（阶段 1 达标；阶段 2/3 留后续，`(C)` 两步走建议维持「待用户裁定」）。
+
+#### architect 收尾提交留痕（TESTCASES-045t，分支 `TESTCASES-045t-P1`；**只追加**）
+
+- **档位**：**正常提交**（reviewer 最新判决 `Accepted`，**无** `WIP:` 前缀）。
+- **提交信息**：`TESTCASES-045t: /complete 收尾（已验证）——范围重定为 P1 能力边界度量；阶段 2/3 取消⇒P3 承接；落任务链；关 ISS-210/212；沉淀“运行环境是决策点”`。
+- **提交号**：`4bc7c5a`（2026-10-15 21:46:37 +0800，= `milestones.md` 流水行记的完成时间）；本条留痕随**其后**的「只追加」commit 落地（**不用 `--amend`**，对照 `INFRA-073t` F2 悬空 hash 教训）；**只 `commit`、未 `push`**；随后 `merge --ff-only` 落地 `master`。
+- **文件集对账**（显式 staging，逐个路径，**禁** `git add -A`/`.`）：`M`×5 = 本任务书（`**状态**` ⇒ `已验证` + 范围重定义 + 第 1 轮 reviewer 审阅记录）+ `.tao/knowledge/{issues.yaml（关 `ISS-210`/`ISS-212`）, lessons.md（§1.54）, milestones.md（流水行 + M8 任务链）}` + `AGENTS.md`（改 MC 后须补跑 `install-host` = `ISS-210` 对策**补落**）——与收尾范围**逐条对齐**，**无漏提 / 多提 / 越界**；**未动** `components/qemu/**` ✗（`dadao-m1` 服务回退**待用户确认后另立任务**）。
+- **门控（真实 rc）**：`make check`(L1) `rc=0`（`repository checks (L1): PASS`）；`check-knowledge-refs` / `check-knowledge-dir` / `check-no-residue` / `check-tasks` / `check-component-changelog` 各 `rc=0`；`python3 tools/infra/check_issues.py` `rc=0`（`34 open, 12 closed`）。日志 `.work/log/testcases/TESTCASES-045t-close-*.log`（本机留档、不入库）。
