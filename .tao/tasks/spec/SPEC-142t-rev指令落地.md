@@ -3,10 +3,10 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D10`（**前置：`D10.1`–`D10.8` 已逐条确认完成 ✓** —— 用户 2026-10-14 原话「**D10.1-D10.8 认可**」，见 `adr-0012 §D10.0` / `§状态说明`；`D10.6a` 已定案 (b)，**`D10.6b` 亦已定案 = `scope: m8`**）；`SPEC-141t`（ISA 指令扩展预研，**只读**来源）；`INFRA-078t`（compiler-rt 预研：`bswap` 缺口来源，**只读**）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）
-**状态**：待验收
-**阶段进度**：A ✅ 已验证（2026-10-15）；B MC ✅ 已验证（2026-10-15，reviewer Accepted）；C QEMU ✅ 已完成（2026-10-15，待验收）
+**状态**：已验证
+**阶段进度**：A ✅ 已验证（2026-10-15）；B MC ✅ 已验证（2026-10-15，reviewer Accepted）；C QEMU ✅ 已验证（2026-10-15，reviewer Accepted）
 
-> **`**状态**` 口径说明**：本任务 = **一个任务书、三阶段验收** ⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 验收」）。
+> **`**状态**` 口径说明**：本任务 = **一个任务书、三阶段验收** ⇒ `**状态**` 表**任务级**进度（**A/B/C 三阶段全部验收通过 ⇒ `已验证`**）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 见「第 1 轮 reviewer 验收」、B 见「第 2 轮 reviewer 验收」、C 见「第 4 轮 reviewer 审阅」）。
 
 ## 执行环境
 **执行环境**：本地
@@ -415,3 +415,29 @@
 | F4 `insn.decode` 头计数由脚本硬编码（`256`）与现场数（`231`）不一致 | ⏸披露不改（既有惯例：提交版按现场数维护） | 未改生成器（改生成器属越界/另立任务） | 「新发现/坑」② |
 
 **判决**：全部 finding 已处置（F1/F2/F3 已处置，F4 为显式披露/延后）。本环**未发现** `rev.{o,t,w,b}` 的 QEMU 执行**缺陷**（语义 80/80 + 62/62 双向量经独立 oracle 全等；`ILLI` 真实退出码 0x88）。阶段级状态：**C 完成 → 待验收**（任务级 `**状态**` = `待验收`）。
+
+#### 第 4 轮 reviewer 审阅（阶段 C / QEMU，2026-10-15）
+
+**重跑记录**（workdir=仓库根；分支 `SPEC-142t-C`=3d9ce4b；首尾 `git status --porcelain -uall` 均空）
+
+| # | 项 | 命令 | 实测 rc / 真实输出 |
+|---|----|------|--------------------|
+| 1 | L2 | `make check-modules` | **0**（`check-interface` 5+29+41+8=83 项 PASS=83；`QEMU trans ↔ opcodes.yaml … 231/231 (M1 155/155)`；`trans_* 定义数 231 == 条目数 231`） |
+| 2 | trans | `python3 tools/qemu/check_qemu_trans.py --strict` | **0**（`231/231 insns have trans impl`） |
+| 3 | L1 | `make check` | **0**（`repository checks (L1): PASS`） |
+| 4 | 补丁树/索引 | `check_patch_tree.py` / `check_index_blobs.py` | **0/0**（4 组件 128 补丁；92 新增 / 36 修改跳过） |
+| 5 | decode↔yaml | `validate_decodetree.py .work/source/qemu/target/dadao/insn.decode contracts/opcodes.yaml` | **0**（YAML 231 ↔ pattern 231，错误数 0） |
+| 6 | 无回归 | `check-qemu-semantics`/`check-lit-full`/`test-codegen`/`test-elf`/`test-semihost`/`check-picolibc-tests` | **0/0/0/0/0/0**（149/149；12/12；15/15；5/5；PASS；fast total=20 fail=0） |
+| 7 | engineer 证据脚本 | `run-c.sh` / `run-c.sh --inject` | **0/0**（PASS=21 FAIL=0 / PASS=13 FAIL=0，逐条输出与完成区一致） |
+
+**独立语义核验（自建 oracle，未复用 engineer 三路径）**：方法 A「相邻对换网络（1,2,4,… 步长对换相邻两半）」× 方法 B「LSB-first divmod 取单元+reverse」全量互核 **108 例全等**；大端敏感锚点 6 例全等（`rev.o k=8`=bswap64 `0x0123456789ABCDEF→0xEFCDAB8967452301`、`k=1`=bitreverse `→0xF7B3D591E6A2C480`、`.t k=8`/`.w k=8`/`.b k=4`/`.t k=4`）。QEMU 实跑 e2e（**全量不抽样**）：`r4-semantic` **108/108** = 4 后缀 × 全部 18 合法 (id,k) × 6 源（含 `k=1`/`k=S/2`/`k=8`）；`r4-legal` **24/24**（rdhc=rd0 / rdhb==rdhc / 全 1 × k∈{1,S/2} ⇒ 合法 `k` **无误判**）。
+
+**ILLI 自建用例（不在 engineer 清单）**：`r4-illi` **26/26**，逐例单跑取**真实退出码**：非 one-hot `k=0/3/5/63`×4 条 + `k≥S`（`.b` 8/16/32、`.w` 16/32、`.t` 32）+ `rdhb=rd0` ⇒ **全部 `Exit code: 0x88`（ILLI）**，非 `0x89` UNDI、非静默（`.o` 的 k=64 不可编码——`immu6` 仅 6 位，如实说明）。
+
+**我的新反例注入（不在 engineer 注入 A/B/C 内）**：组件源树 `trans_rev.c.inc` 去掉 `rev_legal` 的 `|| k >= S` 分支（`cp` 备份 + md5 `5edb643e…`）⇒ `make build-qemu` rc=0 ⇒ `r4-illi` **rc=1、恰 6 FAIL**（`.t k=32`/`.w k=16,32`/`.b k=8,16,32`，`Expected fault ILLI` 未触发）⇒ `cp` 还原（md5 复原 `5edb643e…`）+ 重建 ⇒ `r4-illi` **26/26 回绿 rc=0**；安装根 QEMU md5 全程 `682aac9d…`（== 构建树）未动，组件源树 `git status` 干净（未用 git 还原）。
+
+**约束核验**：① 阶段 C 改动 = HEAD 提交 7 项 = `components/qemu/**` 6 项 + 本任务书，与完成区「修改文件」逐项对齐（`trans_rev.c.inc.patch` 新增 105 行/全文 111 行、`insn.decode.patch` 246→250+头计数 227→231、`translate.c.patch` 485→486、`series` 34→35、`changelog.md`、`README.md`）；与 `spec/`/`contracts/`/`components/llvm-project/**` 交集**空** ✓ ② 补丁纪律 `check-patch-tree`/`check-index-blobs` 绿 ✓ ③ 独立 oracle 无 subprocess、不读 QEMU 产物（Spec-first）✓ ④ 还原一律 `cp`+md5、禁 git 还原 ✓ ⑤ 现场计数（见 F1 例外）✓ ⑥ 完成区与我重跑逐条一致（含 `SPEC-142t_C_EXIT=0` 留档、安装根==构建树 md5）✓。（过程披露：1 次 shell 内 `cd` 至 `/tmp/opencode/SPEC-142t/review-c` 整理临时文件，未触仓库，后改绝对路径。）
+
+**Finding**：F1（低）`run-c.sh` L199 期望计数**写死** `"231/231"`（覆盖类计数未现场派生）——有可达 FAIL、**不会**假绿「定义数==条目数」，但未来新增指令会假红；建议期望值现场取自 `opcodes.yaml` 条目数。F2（信息）完成区「validate_decodetree 231/231」无留档日志，已由我独立重跑复现（rc=0）。均**非阻断**。
+
+**判决**：**Accepted** —— 核心指标（L2=0 / L1=0 / `check_qemu_trans` 231/231 / `check-patch-tree`=0 / `check-index-blobs`=0）在我重跑下全过；语义 e2e 自建 oracle 全量 108/108（+24/24 合法不误判、6 锚点）；ILLI 自建 26 例逐条真实退出码 `0x88`；无回归 6 项逐项 rc=0；新反例注入 → FAIL(6) → `cp` 还原 → 回绿；完成区对齐。**遗留判定**：L3 `check-full` 未跑**成立**（两组件已单跑全绿；L3 属 `/complete` 触发点）；`insn.decode` 头计数硬编码（生成器 `256` vs 现场 `231`）属既有惯例且已披露 ✓。**`ISS-211` 建议闭合**（执行期 `ILLI` 已落地并经独立复核 26×`0x88`；建议 `resolved_by` 回填 `SPEC-142t` 阶段 C）——**不自行关闭**，闭合动作归主会话/architect。
