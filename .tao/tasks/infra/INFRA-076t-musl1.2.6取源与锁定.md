@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 范围与 Linux 兼容路线，`Accepted`；`D3` = 用 musl 自带 ldso、`D4` = musl 与 picolibc 并存）；消费方 `SPEC-139t`（动态链接 ABI 契约，musl `ldso` 路径）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -127,8 +127,18 @@
 - **判决**：**无本任务范围内未修 finding**（表中 ⏸ 两项均为「超文件集 / 归主会话」的登记项，已入「遗留问题」）⇒ 状态置 **`待验收`**。
 
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+#### 第 1 轮 reviewer 验收（2026-10-15，分支 `INFRA-076t` = `be55c88`，rebase 到 `bab267e`）
+
+- **锁条目 vs `.cache/musl.git` 独立对照**：`enabled=true` / `repository=git.musl-libc.org` / `commit=9fa28ece…`（40-hex）/ `shallow=true` / `shallow_ref="v1.2.6"` / `patchless=true` / `role` 非空 ✓；bare repo `HEAD=9fa28ece…` 与锁一致 ✓；tag `v1.2.6` = lightweight（`cat-file -t` = commit、`ls-remote` 无 `^{}` 行）✓；工作树 HEAD 一致、status 空、VERSION=1.2.6 ✓。
+- **`make fetch` 幂等**：rc=0，打印 `already has 9fa28ece75d8; skipping fetch` + `already at` ✓；对象字节数 1457303→1457303 不变 ✓。
+- **`status.py`**：rc=0，列 `musl enabled 9fa28ece…` ✓。
+- **证据脚本**：全量 rc=0、108 checks / 0 failed ✓；`--inject 1`（drop-patchless）闭环 PASS（注入 FAIL → md5 还原 → 回绿）✓。
+- **我的新反例**：移除 `enabled = true` ⇒ `status.py` 报 `disabled`（有意义检测点）；`cp`+md5 还原回绿 ✓。
+- **门控**：L1 `make check` **rc=0**（全绿）✓；L2 `make check-modules` **rc=2**（恰 2 项红 = `check-interface` 的 `trans_rev_*` 4 条缺失，属 `SPEC-142t` 阶段 C，与本任务无关）✓；`check-patch-tree` **rc=0**（4 component(s), 127 patches OK）✓；`check_issues.py` **rc=0**（31 open / 4 closed）✓。
+- **编号唯一性**：ISS-200–ISS-212 各出现 1 次，无重复 ✓；ISS-212 内容 = 「分支×共享源树错配」✓。
+- **完成区对齐**：`git diff --numstat master..HEAD` = 4 文件（lock +33/-0、任务书 +49/-8、issues.yaml +7/-1、lessons.md +3/-0）；`.work/**` gitignored 不入库 ✓；多提 2 项（issues.yaml + lessons.md）属 architect 登记职责 ✓。
+- **约束核验**：未动 `spec/`/`contracts/`/组件补丁/`tools/` ✓；未提交 git ✓；未用 `git checkout/restore/stash` ✓。
+- **判决**：**Accepted**——全部验收命令在独立重跑下通过、约束无违反。
 
 #### architect 提交（挂起：WIP）+ 文件集审核（2026-10-15，分支 `INFRA-076t`）
 
