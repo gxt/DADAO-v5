@@ -137,3 +137,13 @@
 - **提交 2（`60817c9`）**：「登记 issue：分支×共享源树 patch-tree 错配（INFRA-076t 现场）」——**单独一笔**，仅 `M .tao/knowledge/issues.yaml`（+8 行，`ISS-212`）。
 - **文件集对账**（`git diff --cached --name-status` vs 完成区「修改文件」）：提交 1 = **逐条对齐**（完成区声明 lock + 本任务书；`.work/evidence/**`、`.work/log/**` 为 gitignored、不入库，符合声明）；**多提 = 1 项**（提交 2 的 `.tao/knowledge/issues.yaml`，**architect 登记职责**、非 engineer 交付物，已在 `ISS-212` 留证）；**无漏提、无越界**。开工前 `status --porcelain -uall` = 恰 **2 项**（lock + 任务书），与他方分支 `SPEC-142t-B`（`fd885eb`）**未被触碰**。
 - **只 `commit`、未 `push`**；提交落在本任务分支 `INFRA-076t` 内。
+
+#### architect rebase 留痕（2026-10-15，`INFRA-076t` rebase 到 `bab267e`）
+
+- **背景**：本任务挂起时 L1 红（`check-patch-tree`）= 他分支 `SPEC-142t-B` × 共享源树错配；`SPEC-142t-B` 已并入 `master`（`bab267e`）⇒ 本分支 rebase 到 `master` 使门控回绿（**未 merge、未 push**）。
+- **rebase 后提交链**（old → new，逐笔等价、内容不变）：`04891a0` → **`9f405ce`**（`WIP:` musl 1.2.6 入锁）；`60817c9` → **`1a9a6af`**（登记 `ISS-212`）；`98c0c24` → **`c50683c`**（提交留痕）；`c83a3f3` → **`1f0389f`**（撞号修复 + lessons §3.21）。
+- **冲突与解决**（**仅** `.tao/knowledge/issues.yaml`，手工解、未用 `checkout --ours/--theirs`）：① 两侧新增 issue **撞号** ⇒ **保留 `master` 的 `ISS-210`（install-host 假绿）/ `ISS-211`（MC 口径）**，本分支「分支×共享源树错配」条目**改号 `ISS-212`**（内容原样保留）；② `c83a3f3` 的「`ISS-210`→`ISS-212`」改名 hunk 在①处**已等价应用** ⇒ 取 ours、丢弃该**已成空**的 theirs 侧（`lessons.md` / 本任务书改动照常应用）；`manifests/` 无冲突。
+- **门控复核（现场 rc）**：`make check-patch-tree` **rc=0**（`4 component(s), 127 patches OK`，原红消失）；L1 `make check` **rc=0**（`repository checks (L1): PASS`）；`tools/infra/check_issues.py` **rc=0**（31 open / 4 closed）且 `ISS-200`–`ISS-212` **全仓无重复**、YAML 可解析；`git merge-base --is-ancestor master HEAD` = **rc=0**。
+- **文件集对账**（`git diff --name-only master..HEAD` = **4 项**）：`manifests/components.lock.toml` + 本任务书 = 完成区「修改文件」声明**逐条对齐**；**多提 2 项** = `.tao/knowledge/issues.yaml` + `.tao/knowledge/lessons.md`（**architect 登记/沉淀职责**，非 engineer 交付物，已在 `ISS-212` 留证）；**无漏提、无越界**（未动 `spec/` / `contracts/` / 组件补丁 / `tools/`）。
+- **遗留问题① 状态更新**：rebase 后 L1 **已全绿** ⇒ 该遗留**已解除**（原文保留、不改写）；②（`milestones.md` 流水行 / 状态机）仍归主会话 `/complete`。
+- **只 `commit`、未 merge、未 push**；未触碰其它分支。
