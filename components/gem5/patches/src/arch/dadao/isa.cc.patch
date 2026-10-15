@@ -1,13 +1,16 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..6bdca4f
+index 0000000..78948dc
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,271 @@
 +#include "arch/dadao/isa.hh"
++
++#include <algorithm>
 +
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
++#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
 +#include "debug/MatRegs.hh"
 +#include "params/DadaoISA.hh"
@@ -30,6 +33,45 @@ index 0000000..6bdca4f
 +        &vecElemClass, &vecPredRegClass, &matRegClass,
 +        &ccRegClass, &miscRegClass};
 +    clear();
++}
++
++void
++ISA::clear()
++{
++    std::fill(std::begin(miscRegs), std::end(miscRegs), 0);
++    miscRegs[misc_reg::Mode] = 3;
++    constexpr std::array<RegVal, 4> modeVersions{
++        0x00090002, 0x00090002, 0x00070001, 0x00010002};
++    constexpr RegVal monitorNonmaskable =
++        (RegVal(1) << 0) | (RegVal(1) << 1) | (RegVal(1) << 2) |
++        (RegVal(1) << 8) | (RegVal(1) << 9) | (RegVal(1) << 10) |
++        (RegVal(1) << 11) | (RegVal(1) << 12) | (RegVal(1) << 13);
++
++    for (unsigned cfxIndex = 0; cfxIndex < cfxRegs.size(); ++cfxIndex) {
++        auto &cfx = cfxRegs[cfxIndex];
++        for (auto &cg : cfx)
++            cg.fill(0);
++        for (unsigned mode = 0; mode < 4; ++mode) {
++            cfx[mode][0] = modeVersions[mode];
++            if (mode == 3) {
++                for (unsigned rc = 1; rc <= 7; ++rc)
++                    cfx[mode][rc] = 0;
++                cfx[mode][8] = 3;
++            } else {
++                for (unsigned rc = 1; rc <= 7; ++rc)
++                    cfx[mode][rc] = ~RegVal(0);
++                cfx[mode][8] = 2;
++            }
++            cfx[mode][9] = ~RegVal(0);
++            cfx[mode][11] = ~RegVal(0);
++        }
++        cfx[4][0] = cfxIndex;
++        cfx[4][1] = 0x00010000;
++        cfx[4][6] = 4;
++        cfx[5][63] = monitorNonmaskable;
++    }
++    currentCfx = 63;
++    currentCfxMask = ~RegVal(0);
 +}
 +
 +RegVal
@@ -69,6 +111,167 @@ index 0000000..6bdca4f
 +    for (auto &id : floatRegClass)
 +        tc->setReg(id, src->getReg(id));
 +    miscRegs[misc_reg::Mode] = src->readMiscRegNoEffect(misc_reg::Mode);
++    if (auto *src_isa = dynamic_cast<ISA *>(src->getIsaPtr())) {
++        cfxRegs = src_isa->cfxRegs;
++        currentCfx = src_isa->currentCfx;
++        currentCfxMask = src_isa->currentCfxMask;
++    }
 +    tc->pcState(src->pcState());
++}
++
++bool
++ISA::isReservedCfx(unsigned cfx)
++{
++    return (cfx >= 7 && cfx <= 14) || (cfx >= 19 && cfx <= 61);
++}
++
++bool
++ISA::isImplementedCfx(unsigned cfx)
++{
++    return cfx <= 3 || cfx == 63;
++}
++
++bool
++ISA::isValidCfxRegister(unsigned cg, unsigned rc)
++{
++    if (cg <= 2)
++        return rc < 12;
++    if (cg == 3)
++        return rc < 13;
++    if (cg == 4)
++        return rc < 7;
++    if (cg == 5)
++        return rc < 6 || rc == 63;
++    if (cg == 6)
++        return rc < 4;
++    return cg == 7 && rc < 2;
++}
++
++bool
++ISA::isWritableCfxRegister(unsigned cg, unsigned rc)
++{
++    if (cg <= 3)
++        return rc > 0 && isValidCfxRegister(cg, rc);
++    if (cg == 5)
++        return rc == 0 || rc == 1 || rc == 3 || rc == 5;
++    return cg == 6 || cg == 7;
++}
++
++RegVal
++ISA::readCfxReg(unsigned cfx, unsigned cg, unsigned rc) const
++{
++    panic_if(cfx >= 64 || cg >= 8 || rc >= 64,
++            "DADAO cfx register index out of range");
++    return cfxRegs[cfx][cg][rc];
++}
++
++void
++ISA::writeCfxReg(unsigned cfx, unsigned cg, unsigned rc, RegVal value)
++{
++    panic_if(cfx >= 64 || cg >= 8 || rc >= 64,
++            "DADAO cfx register index out of range");
++    if (cg <= 3 && rc == 1) {
++        for (auto &registers : cfxRegs)
++            registers[cg][rc] = value;
++        return;
++    }
++    cfxRegs[cfx][cg][rc] = value;
++}
++
++bool
++ISA::cfxAccessAllowed(unsigned target, unsigned maskReg) const
++{
++    panic_if(target >= 64 || maskReg >= 8,
++            "DADAO cfx permission index out of range");
++    if (target == currentCfx)
++        return true;
++    const unsigned mode = miscRegs[misc_reg::Mode] & 3;
++    const RegVal targetBit = RegVal(1) << target;
++    return !(cfxRegs[target][mode][maskReg] & targetBit);
++}
++
++bool
++ISA::trapAllowed(unsigned target) const
++{
++    return cfxAccessAllowed(target, 6);
++}
++
++bool
++ISA::enterTrap(
++        ThreadContext *thread, unsigned target, RegVal cause, Addr pc,
++        RegVal info)
++{
++    const unsigned mode = miscRegs[misc_reg::Mode] & 3;
++    const Addr vector = cfxRegs[target][mode][10] & 0xffffffffffffULL;
++    if (!vector)
++        return false;
++
++    cfxRegs[target][4][2]++;
++    cfxRegs[target][5][0] = mode;
++    cfxRegs[target][5][1] = currentCfxMask;
++    cfxRegs[target][5][2] = cause;
++    cfxRegs[target][5][3] = pc & 0xffffffffffffULL;
++    cfxRegs[target][5][4] = info;
++    miscRegs[misc_reg::Mode] = cfxRegs[target][mode][8] & 3;
++    currentCfxMask = cfxRegs[target][mode][9];
++    currentCfx = target;
++
++    thread->setReg(intRegClass[int_reg::RbBase], vector);
++    auto state = thread->pcState().as<PCState>();
++    state.npc(vector);
++    state.explicitBranch(true);
++    thread->pcState(state);
++    return true;
++}
++
++bool
++ISA::enterFault(
++        ThreadContext *thread, RegVal cause, Addr pc, RegVal info, int target)
++{
++    const unsigned mode = miscRegs[misc_reg::Mode] & 3;
++    const unsigned destination = target < 0 ? mode :
++                                 static_cast<unsigned>(target);
++    if (!isImplementedCfx(destination))
++        return false;
++    const Addr vector =
++        cfxRegs[destination][mode][10] & 0xffffffffffffULL;
++    if (!vector)
++        return false;
++
++    cfxRegs[destination][4][3]++;
++    cfxRegs[destination][5][0] = mode;
++    cfxRegs[destination][5][1] = currentCfxMask;
++    cfxRegs[destination][5][2] = cause;
++    cfxRegs[destination][5][3] = pc & 0xffffffffffffULL;
++    cfxRegs[destination][5][4] = info;
++    miscRegs[misc_reg::Mode] = cfxRegs[destination][mode][8] & 3;
++    currentCfxMask = cfxRegs[destination][mode][9];
++    currentCfx = destination;
++
++    thread->pcState(PCState(vector));
++    thread->setReg(intRegClass[int_reg::RbBase], vector);
++    return true;
++}
++
++bool
++ISA::escape(ThreadContext *thread, unsigned target, int64_t wordOffset)
++{
++    const unsigned mode = miscRegs[misc_reg::Mode] & 3;
++    if (target != currentCfx &&
++        (cfxRegs[currentCfx][mode][7] & (RegVal(1) << target)))
++        return false;
++
++    auto &current = cfxRegs[currentCfx];
++    current[4][5]++;
++    miscRegs[misc_reg::Mode] = current[5][0] & 3;
++    currentCfxMask = current[5][1];
++    const Addr address = (current[5][3] + wordOffset * 4) &
++                         0xffffffffffffULL;
++    thread->setReg(intRegClass[int_reg::RbBase], address);
++    auto state = thread->pcState().as<PCState>();
++    state.npc(address);
++    state.explicitBranch(true);
++    thread->pcState(state);
++    return true;
 +}
 +}

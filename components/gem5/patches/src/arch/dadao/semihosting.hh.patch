@@ -1,0 +1,132 @@
+diff --git a/src/arch/dadao/semihosting.hh b/src/arch/dadao/semihosting.hh
+new file mode 100644
+index 0000000..eb0550b
+--- /dev/null
++++ b/src/arch/dadao/semihosting.hh
+@@ -0,0 +1,126 @@
++#ifndef __ARCH_DADAO_SEMIHOSTING_HH__
++#define __ARCH_DADAO_SEMIHOSTING_HH__
++
++#include <map>
++#include <type_traits>
++
++#include "arch/dadao/regs/int.hh"
++#include "arch/generic/semihosting.hh"
++#include "cpu/thread_context.hh"
++#include "params/DadaoSemihosting.hh"
++
++namespace gem5::DadaoISA
++{
++
++class DadaoSemihosting : public BaseSemihosting
++{
++  public:
++    enum Operation
++    {
++        SYS_OPEN = 0x01,
++        SYS_CLOSE = 0x02,
++        SYS_WRITEC = 0x03,
++        SYS_WRITE0 = 0x04,
++        SYS_WRITE = 0x05,
++        SYS_READ = 0x06,
++        SYS_READC = 0x07,
++        SYS_ISERROR = 0x08,
++        SYS_ISTTY = 0x09,
++        SYS_SEEK = 0x0a,
++        SYS_FLEN = 0x0c,
++        SYS_TMPNAM = 0x0d,
++        SYS_REMOVE = 0x0e,
++        SYS_RENAME = 0x0f,
++        SYS_CLOCK = 0x10,
++        SYS_TIME = 0x11,
++        SYS_SYSTEM = 0x12,
++        SYS_ERRNO = 0x13,
++        SYS_GET_CMDLINE = 0x15,
++        SYS_HEAPINFO = 0x16,
++        SYS_EXIT = 0x18,
++        SYS_SYNCCACHE = 0x19,
++        SYS_EXIT_EXTENDED = 0x20,
++        SYS_ELAPSED = 0x30,
++        SYS_TICKFREQ = 0x31
++    };
++
++    static PortProxy &portProxyImpl(ThreadContext *tc);
++    PortProxy &portProxy(ThreadContext *tc) const override
++    { return portProxyImpl(tc); }
++    ByteOrder byteOrder(ThreadContext *) const override
++    { return ByteOrder::big; }
++
++    struct Abi64 : public AbiBase
++    {
++        using UintPtr = uint64_t;
++
++        class State : public StateBase<uint64_t, DadaoSemihosting>
++        {
++          public:
++            explicit State(const ThreadContext *tc)
++                : StateBase<uint64_t, DadaoSemihosting>(
++                        tc,
++                        tc->getReg(intRegClass[int_reg::RbBase + 16]),
++                        [](const ThreadContext *) { return ByteOrder::big; })
++            {}
++        };
++    };
++
++    using SemiCall = SemiCallBase<DadaoSemihosting, Abi64, Abi64>;
++
++    explicit DadaoSemihosting(const DadaoSemihostingParams &p);
++    bool call(ThreadContext *tc);
++
++    RetErrno callSystemEnabled(
++            ThreadContext *tc, Addr command, size_t commandSize);
++    RetErrno callSyncCache(ThreadContext *tc);
++
++  private:
++    static const std::map<uint32_t, SemiCall> calls;
++};
++
++} // namespace gem5::DadaoISA
++
++namespace gem5::guest_abi
++{
++
++template <typename Arg>
++struct Argument<DadaoISA::DadaoSemihosting::Abi64, Arg,
++        typename std::enable_if_t<std::is_integral_v<Arg>>>
++{
++    static Arg
++    get(ThreadContext *tc,
++            DadaoISA::DadaoSemihosting::Abi64::State &state)
++    {
++        return state.get(tc);
++    }
++};
++
++template <>
++struct Argument<DadaoISA::DadaoSemihosting::Abi64,
++                DadaoISA::DadaoSemihosting::InPlaceArg>
++{
++    static DadaoISA::DadaoSemihosting::InPlaceArg
++    get(ThreadContext *,
++            DadaoISA::DadaoSemihosting::Abi64::State &state)
++    {
++        return {state.getAddr(), sizeof(uint64_t)};
++    }
++};
++
++template <>
++struct Result<DadaoISA::DadaoSemihosting::Abi64,
++              DadaoISA::DadaoSemihosting::RetErrno>
++{
++    static void
++    store(ThreadContext *tc,
++            const DadaoISA::DadaoSemihosting::RetErrno &result)
++    {
++        tc->setReg(DadaoISA::intRegClass[DadaoISA::int_reg::RdBase + 8],
++                result.first);
++    }
++};
++
++} // namespace gem5::guest_abi
++
++#endif

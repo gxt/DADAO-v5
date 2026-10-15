@@ -1,0 +1,21 @@
+diff --git a/src/base/loader/object_file.cc b/src/base/loader/object_file.cc
+index 287f910..9dcff4b 100644
+--- a/src/base/loader/object_file.cc
++++ b/src/base/loader/object_file.cc
+@@ -83,6 +83,8 @@ archToString(Arch arch)
+         return "riscv64";
+       case Riscv32:
+         return "riscv32";
++      case Dadao:
++        return "dadao";
+       default:
+         panic("Unrecognized arch %d.", arch);
+     }
+@@ -156,6 +158,7 @@ archIs64Bit(const loader::Arch arch)
+       case Arm64:
+       case Power64:
+       case Riscv64:
++      case Dadao:
+         return true;
+       default:
+         return false;

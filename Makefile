@@ -39,7 +39,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
 .PHONY: help manifest-check doctor status fetch fetch-gem5 fetch-refs apply-series apply-gem5 prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
-        build-musl build-musl-shared test-gem5 check-gem5-full \
+        build-musl build-musl-shared test-gem5 test-gem5-machine \
+        test-gem5-toolchain check-gem5-full \
         test-picolibc-smoke install-host docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full \
         check-testcases-suites check-testcases-suites-full \
@@ -84,6 +85,8 @@ help:
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
 	@echo "  make build-gem5      Build gem5 DADAO AtomicSimpleCPU target"
 	@echo "  make test-gem5       Run representative gem5 ISA execution vectors"
+	@echo "  make test-gem5-machine  Run Machine-01 ELF, trap, and semihosting gates"
+	@echo "  make test-gem5-toolchain  Run generated boot ROM + DADAO ELF on gem5"
 	@echo "  make check-gem5-full Run complete gem5 ISA coverage and execution gates"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
@@ -304,6 +307,28 @@ test-gem5:
 	@$(PYTHON) tools/gem5/generate_opcode_table.py --check
 	@$(PYTHON) tools/gem5/vector_inventory.py
 	@$(PYTHON) tools/gem5/test_isa.py --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt"
+	@$(MAKE) --no-print-directory test-gem5-machine
+
+test-gem5-machine:
+	@$(PYTHON) tools/gem5/test_machine.py --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt"
+
+GEM5_TOOLCHAIN_BOOTROM ?= $(TEST_ARTIFACTS_DIR)/bootrom/bootrom.bin
+GEM5_TOOLCHAIN_ELF ?= $(TEST_ARTIFACTS_DIR)/elf-e2e/multi_tu_call.elf
+
+test-gem5-toolchain:
+	@test -f "$(GEM5_TOOLCHAIN_BOOTROM)" || { \
+	  echo "test-gem5-toolchain: missing $(GEM5_TOOLCHAIN_BOOTROM); run make build-bootrom"; \
+	  exit 1; \
+	}
+	@test -f "$(GEM5_TOOLCHAIN_ELF)" || { \
+	  echo "test-gem5-toolchain: missing $(GEM5_TOOLCHAIN_ELF); run make test-elf"; \
+	  exit 1; \
+	}
+	@$(PYTHON) tools/gem5/test_machine.py \
+	  --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt" \
+	  --toolchain-bootrom "$(GEM5_TOOLCHAIN_BOOTROM)" \
+	  --toolchain-elf "$(GEM5_TOOLCHAIN_ELF)" \
+	  --toolchain-exit 42
 
 check-gem5-full: test-gem5
 	@$(PYTHON) tools/gem5/vector_inventory.py --require-complete

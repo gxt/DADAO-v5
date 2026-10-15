@@ -1,12 +1,14 @@
 diff --git a/src/arch/dadao/faults.hh b/src/arch/dadao/faults.hh
 new file mode 100644
-index 0000000..c9182b7
+index 0000000..4794c89
 --- /dev/null
 +++ b/src/arch/dadao/faults.hh
-@@ -0,0 +1,25 @@
+@@ -0,0 +1,46 @@
 +#ifndef __ARCH_DADAO_FAULTS_HH__
 +#define __ARCH_DADAO_FAULTS_HH__
 +
++#include "arch/dadao/isa.hh"
++#include "cpu/thread_context.hh"
 +#include "sim/faults.hh"
 +#include "sim/sim_exit.hh"
 +
@@ -18,13 +20,32 @@ index 0000000..c9182b7
 +  private:
 +    const FaultName faultName;
 +    const int exitCode;
++    const RegVal cause;
++    const RegVal causeInfo;
++    const int targetCfx;
 +
 +  public:
-+    MachineFault(FaultName name, int code)
-+        : faultName(name), exitCode(code) {}
++    MachineFault(FaultName name, int code, RegVal cause_id=0,
++                 RegVal cause_info=0, int target=-1)
++        : faultName(name), exitCode(code),
++          cause(cause_id ? cause_id :
++                ((code >= 0x81 && code <= 0x86) ||
++                 (code >= 0x88 && code <= 0x8d)) ?
++                    (RegVal(1) << (code & 0x7f)) : 0),
++          causeInfo(cause_info), targetCfx(target)
++    {}
 +    FaultName name() const override { return faultName; }
-+    void invoke(ThreadContext *, const StaticInstPtr &) override
-+    { exitSimLoopNow(faultName, exitCode); }
++    void
++    invoke(ThreadContext *tc, const StaticInstPtr &) override
++    {
++        auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
++        if (cause && isa &&
++            isa->enterFault(tc, cause, tc->pcState().instAddr(),
++                            causeInfo, targetCfx)) {
++            return;
++        }
++        exitSimLoopNow(faultName, exitCode);
++    }
 +};
 +}
 +

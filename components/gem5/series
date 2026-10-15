@@ -7,6 +7,7 @@ src/arch/dadao/DadaoDecoder.py.patch
 src/arch/dadao/DadaoISA.py.patch
 src/arch/dadao/DadaoInterrupts.py.patch
 src/arch/dadao/DadaoMMU.py.patch
+src/arch/dadao/DadaoSemihosting.py.patch
 src/arch/dadao/DadaoTLB.py.patch
 src/arch/dadao/Kconfig.patch
 src/arch/dadao/README.md.patch
@@ -28,6 +29,12 @@ src/arch/dadao/pcstate.hh.patch
 src/arch/dadao/regs/float.hh.patch
 src/arch/dadao/regs/int.hh.patch
 src/arch/dadao/regs/misc.hh.patch
+src/arch/dadao/semihosting.cc.patch
+src/arch/dadao/semihosting.hh.patch
 src/arch/dadao/tlb.hh.patch
 src/arch/dadao/types.hh.patch
+src/arch/generic/SConscript.patch
+src/base/loader/elf_object.cc.patch
+src/base/loader/object_file.cc.patch
+src/base/loader/object_file.hh.patch
 src/cpu/simple/AtomicSimpleCPU.py.patch

@@ -1,21 +1,25 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..4ee218b
+index 0000000..a755f11
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,709 @@
+@@ -0,0 +1,781 @@
 +#include "arch/dadao/inst.hh"
 +
 +#include <array>
 +
-+#include "arch/dadao/regs/int.hh"
 +#include "arch/dadao/faults.hh"
++#include "arch/dadao/isa.hh"
 +#include "arch/dadao/opcode_table.hh"
++#include "arch/dadao/regs/int.hh"
++#include "arch/dadao/semihosting.hh"
 +#include "base/cprintf.hh"
 +#include "base/logging.hh"
 +#include "cpu/exec_context.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/request.hh"
++#include "sim/system.hh"
++#include "sim/workload.hh"
 +
 +namespace gem5::DadaoISAInst
 +{
@@ -84,6 +88,10 @@ index 0000000..4ee218b
 +      case 0x74: case 0x75: return "call";
 +      case 0x76: return "ret";
 +      case 0x77: return "swym";
++      case 0x7a: return "cfx2rd";
++      case 0x7b: return "cfx2rc";
++      case 0x7e: return "escape";
++      case 0x7f: return "trap";
 +      default: return "unknown";
 +    }
 +}
@@ -140,6 +148,8 @@ index 0000000..4ee218b
 +    const unsigned op = word >> 24;
 +    const unsigned ha = (word >> 18) & 63;
 +    auto *tc = xc->tcBase();
++    auto *isa = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++    panic_if(!isa, "DADAO instruction executed without DADAO ISA state");
 +    auto rd = [tc](unsigned i) {
 +        return tc->getReg(DadaoISA::intRegClass[DadaoISA::int_reg::RdBase + i]);
 +    };
@@ -703,6 +713,68 @@ index 0000000..4ee218b
 +        else if ((op == 0x66 && rd(ha) == rd(hb)) ||
 +                 (op == 0x67 && rd(ha) != rd(hb)))
 +            set_rd(hc, rd(hd));
++    } else if (op == 0x7a || op == 0x7b) {
++        const unsigned cg = (word >> 12) & 63;
++        const unsigned rc = (word >> 6) & 63;
++        const unsigned reg = word & 63;
++        if (DadaoISA::ISA::isReservedCfx(ha)) {
++            return std::make_shared<DadaoISA::MachineFault>(
++                    "ILLI", 0x88, RegVal(1) << 8, word);
++        }
++        if (!DadaoISA::ISA::isImplementedCfx(ha) ||
++            !DadaoISA::ISA::isValidCfxRegister(cg, rc) ||
++            (cg == 3 && isa->readMiscRegNoEffect(
++                    DadaoISA::misc_reg::Mode) != 3) ||
++            (op == 0x7b &&
++             !DadaoISA::ISA::isWritableCfxRegister(cg, rc))) {
++            return std::make_shared<DadaoISA::MachineFault>(
++                    "CFXREG", 0x82, RegVal(1) << 2, word, ha);
++        }
++        if (!isa->cfxAccessAllowed(ha, op == 0x7a ? 2 : 3)) {
++            return std::make_shared<DadaoISA::MachineFault>(
++                    "ILLI", 0x88, RegVal(1) << 8, word);
++        }
++        if (op == 0x7a)
++            set_rd(reg, isa->readCfxReg(ha, cg, rc));
++        else
++            isa->writeCfxReg(ha, cg, rc, rd(reg));
++    } else if (op == 0x7e) {
++        const int64_t offset = static_cast<int32_t>(word << 14) >> 14;
++        if (DadaoISA::ISA::isReservedCfx(ha) ||
++            !isa->escape(tc, ha, offset)) {
++            return std::make_shared<DadaoISA::MachineFault>(
++                    "ILLI", 0x88, RegVal(1) << 8, word);
++        }
++    } else if (op == 0x7f) {
++        const uint64_t function = word & 0x3ffff;
++        if ((function >> 16) == 3) {
++            auto *semihosting =
++                dynamic_cast<DadaoISA::DadaoSemihosting *>(
++                    tc->getSystemPtr()->workload->getSemihosting());
++            if (!semihosting) {
++                return std::make_shared<DadaoISA::MachineFault>(
++                        "ILLI", 0x88, RegVal(1) << 8);
++            }
++            semihosting->call(tc);
++        } else {
++            if (DadaoISA::ISA::isReservedCfx(ha)) {
++                return std::make_shared<DadaoISA::MachineFault>(
++                        "ILLI", 0x88, RegVal(1) << 8, word);
++            }
++            if (!DadaoISA::ISA::isImplementedCfx(ha)) {
++                return std::make_shared<DadaoISA::MachineFault>(
++                        "CFXREG", 0x82, RegVal(1) << 2, word, ha);
++            }
++            if (!isa->trapAllowed(ha)) {
++                return std::make_shared<DadaoISA::MachineFault>(
++                        "ILLI", 0x88, RegVal(1) << 8, word);
++            }
++            if (!isa->enterTrap(tc, ha, RegVal(1),
++                                tc->pcState().instAddr(), word)) {
++                return std::make_shared<DadaoISA::MachineFault>(
++                        "CFXTRAP", 0x80, RegVal(1), word, ha);
++            }
++        }
 +    } else if (op == 0x77 && ha == 0x22) {
 +        // Architectural placeholder; timing detail is not observable here.
 +    } else {

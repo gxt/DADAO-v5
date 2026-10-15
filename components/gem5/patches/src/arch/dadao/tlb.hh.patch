@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tlb.hh b/src/arch/dadao/tlb.hh
 new file mode 100644
-index 0000000..3ddcf91
+index 0000000..dfea88e
 --- /dev/null
 +++ b/src/arch/dadao/tlb.hh
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,66 @@
 +#ifndef __ARCH_DADAO_TLB_HH__
 +#define __ARCH_DADAO_TLB_HH__
 +
@@ -26,16 +26,33 @@ index 0000000..3ddcf91
 +    Fault translateAtomic(const RequestPtr &req, ThreadContext *,
 +            BaseMMU::Mode mode) override
 +    {
++        constexpr Addr AddressMask = 0xffffffffffffULL;
++        constexpr Addr RamBase = 0xfc0000000000ULL;
++        constexpr uint64_t RamSize = 16 * 1024 * 1024;
++        constexpr Addr RomBase = 0xffffffff0000ULL;
++        constexpr uint64_t RomSize = 64 * 1024;
 +        // gem5 rounds the fetch address to the decoder word boundary, while
 +        // Request::getPC retains the architectural instruction pointer.
 +        const Addr instruction_pc = req->hasPC() ? req->getPC() :
 +                                   req->getVaddr();
 +        if (mode == BaseMMU::Execute && (instruction_pc & 3))
-+            return std::make_shared<MachineFault>("IALIGN", 0x8d);
-+        if (mode != BaseMMU::Execute &&
-+            ((req->getVaddr() >> 42) & 0x3f) == 0)
-+            return std::make_shared<MachineFault>("CFXMEM", 0x81);
-+        req->setPaddr(req->getVaddr());
++            return std::make_shared<MachineFault>(
++                    "IALIGN", 0x8d, 0, instruction_pc);
++        const Addr address = (mode == BaseMMU::Execute ?
++                instruction_pc : req->getVaddr()) & AddressMask;
++        const uint64_t size = mode == BaseMMU::Execute ? 4 : req->getSize();
++        auto in_range = [address, size](Addr base, uint64_t length) {
++            return address >= base && size <= length &&
++                   address - base <= length - size;
++        };
++        if (!in_range(RamBase, RamSize) && !in_range(RomBase, RomSize)) {
++            if (((address >> 42) & 0x3f) == 0) {
++                return std::make_shared<MachineFault>(
++                        "CFXMEM", 0x81, RegVal(1) << 1, address, 0);
++            }
++            return std::make_shared<MachineFault>("UNMAPPED", 0x87);
++        }
++        req->setPaddr(address);
 +        return NoFault;
 +    }
 +    void translateTiming(const RequestPtr &req, ThreadContext *tc,

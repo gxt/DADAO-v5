@@ -1,0 +1,14 @@
+diff --git a/src/base/loader/object_file.hh b/src/base/loader/object_file.hh
+index 0215f6e..49e342b 100644
+--- a/src/base/loader/object_file.hh
++++ b/src/base/loader/object_file.hh
+@@ -72,7 +72,8 @@ enum Arch
+     Power,
+     Power64,
+     Riscv64,
+-    Riscv32
++    Riscv32,
++    Dadao
+ };
+ 
+ const char *archToString(Arch arch);

@@ -1,0 +1,99 @@
+diff --git a/src/arch/dadao/semihosting.cc b/src/arch/dadao/semihosting.cc
+new file mode 100644
+index 0000000..8b32c0a
+--- /dev/null
++++ b/src/arch/dadao/semihosting.cc
+@@ -0,0 +1,93 @@
++#include "arch/dadao/semihosting.hh"
++
++#include <cstdlib>
++#include <memory>
++
++#include "mem/translating_port_proxy.hh"
++#include "sim/full_system.hh"
++
++namespace gem5::DadaoISA
++{
++
++const std::map<uint32_t, DadaoSemihosting::SemiCall>
++DadaoSemihosting::calls{
++    {SYS_OPEN, {"SYS_OPEN", &DadaoSemihosting::callOpen}},
++    {SYS_CLOSE, {"SYS_CLOSE", &DadaoSemihosting::callClose}},
++    {SYS_WRITEC, {"SYS_WRITEC", &DadaoSemihosting::callWriteC}},
++    {SYS_WRITE0, {"SYS_WRITE0", &DadaoSemihosting::callWrite0}},
++    {SYS_WRITE, {"SYS_WRITE", &DadaoSemihosting::callWrite}},
++    {SYS_READ, {"SYS_READ", &DadaoSemihosting::callRead}},
++    {SYS_READC, {"SYS_READC", &DadaoSemihosting::callReadC}},
++    {SYS_ISERROR, {"SYS_ISERROR", &DadaoSemihosting::callIsError}},
++    {SYS_ISTTY, {"SYS_ISTTY", &DadaoSemihosting::callIsTTY}},
++    {SYS_SEEK, {"SYS_SEEK", &DadaoSemihosting::callSeek}},
++    {SYS_FLEN, {"SYS_FLEN", &DadaoSemihosting::callFLen}},
++    {SYS_TMPNAM, {"SYS_TMPNAM", &DadaoSemihosting::callTmpNam}},
++    {SYS_REMOVE, {"SYS_REMOVE", &DadaoSemihosting::callRemove}},
++    {SYS_RENAME, {"SYS_RENAME", &DadaoSemihosting::callRename}},
++    {SYS_CLOCK, {"SYS_CLOCK", &DadaoSemihosting::callClock}},
++    {SYS_TIME, {"SYS_TIME", &DadaoSemihosting::callTime}},
++    {SYS_SYSTEM, {"SYS_SYSTEM", &DadaoSemihosting::callSystemEnabled}},
++    {SYS_ERRNO, {"SYS_ERRNO", &DadaoSemihosting::callErrno}},
++    {SYS_GET_CMDLINE,
++        {"SYS_GET_CMDLINE", &DadaoSemihosting::callGetCmdLine}},
++    {SYS_HEAPINFO,
++        {"SYS_HEAPINFO", &DadaoSemihosting::callHeapInfo64}},
++    {SYS_EXIT, {"SYS_EXIT", &DadaoSemihosting::callExit64}},
++    {SYS_SYNCCACHE,
++        {"SYS_SYNCCACHE", &DadaoSemihosting::callSyncCache}},
++    {SYS_EXIT_EXTENDED,
++        {"SYS_EXIT_EXTENDED", &DadaoSemihosting::callExitExtended}},
++    {SYS_ELAPSED, {"SYS_ELAPSED", &DadaoSemihosting::callElapsed64}},
++    {SYS_TICKFREQ, {"SYS_TICKFREQ", &DadaoSemihosting::callTickFreq}},
++};
++
++DadaoSemihosting::DadaoSemihosting(const DadaoSemihostingParams &p)
++    : BaseSemihosting(p)
++{}
++
++bool
++DadaoSemihosting::call(ThreadContext *tc)
++{
++    const RegVal operation =
++        tc->getReg(intRegClass[int_reg::RdBase + 16]) & 0xffffffffULL;
++    const auto it = calls.find(operation);
++    if (it == calls.end()) {
++        unrecognizedCall<Abi64>(
++                tc, "Unknown DADAO semihosting call: op = 0x%x", operation);
++        return false;
++    }
++
++    const auto result = it->second.call64(this, tc);
++    semiErrno = result.second;
++    return true;
++}
++
++PortProxy &
++DadaoSemihosting::portProxyImpl(ThreadContext *tc)
++{
++    static std::unique_ptr<PortProxy> proxy(
++            new TranslatingPortProxy(tc));
++    return *proxy;
++}
++
++DadaoSemihosting::RetErrno
++DadaoSemihosting::callSystemEnabled(
++        ThreadContext *tc, Addr command, size_t commandSize)
++{
++    const auto value = readString(tc, command, commandSize);
++    if (!value)
++        return retError(EINVAL);
++    const int status = std::system(value->c_str());
++    if (status < 0)
++        return retError(errno);
++    return retOK(status);
++}
++
++DadaoSemihosting::RetErrno
++DadaoSemihosting::callSyncCache(ThreadContext *)
++{
++    return retOK(0);
++}
++
++} // namespace gem5::DadaoISA

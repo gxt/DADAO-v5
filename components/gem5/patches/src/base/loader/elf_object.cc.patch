@@ -1,0 +1,31 @@
+diff --git a/src/base/loader/elf_object.cc b/src/base/loader/elf_object.cc
+index 26fb443..39bca61 100644
+--- a/src/base/loader/elf_object.cc
++++ b/src/base/loader/elf_object.cc
+@@ -64,6 +64,11 @@ namespace gem5
+ namespace loader
+ {
+ 
++namespace
++{
++constexpr uint16_t EmDadao = 0x0da0;
++}
++
+ ObjectFile *
+ ElfObjectFormat::load(ImageFileDataPtr ifd)
+ {
+@@ -274,6 +279,14 @@ ElfObject::determineArch()
+         arch = Arm64;
+     } else if (emach == EM_RISCV) {
+         arch = (eclass == ELFCLASS64) ? Riscv64 : Riscv32;
++    } else if (emach == EmDadao) {
++        fatal_if(eclass != ELFCLASS64,
++                "DADAO ELF must use ELFCLASS64");
++        fatal_if(edata != ELFDATA2MSB,
++                "DADAO ELF must use ELFDATA2MSB");
++        fatal_if(ehdr.e_flags != 1,
++                "DADAO ELF e_flags must equal 0x00000001");
++        arch = Dadao;
+     } else if (emach == EM_PPC && eclass == ELFCLASS32) {
+         arch = Power;
+     } else if (emach == EM_PPC64 && eclass == ELFCLASS64) {

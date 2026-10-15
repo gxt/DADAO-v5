@@ -58,3 +58,10 @@ spec/ + contracts/ → 独立向量 ───────┤→ gem5 DADAO ISA +
 用户于 2026-10-12 明确裁定「现在并行启动 gem5。记住，你只能负责gem5 部分代码和对应的文档/spec/adr/task等，其余部分你无权修改」。因此 M7 不是 gem5 实施前置，工作范围限 gem5 代码及直接相关文档、规范、ADR、任务和构建配置，M7 验收范围不变。`ADR-0024` 与 `ADR-0025` 均已 Accepted；任务书是待执行交付清单，不能把计划内容记为已实现。官方资料：<https://github.com/gem5/gem5/releases/tag/v25.1.0.1>、<https://www.gem5.org/documentation/general_docs/building>、<https://www.gem5.org/documentation/general_docs/architecture_support/isa_parser/>。
 
 规划复核（2026-10-12）：独立审查发现并修正空补丁集门控、最小执行 fixture、ADR 状态标题、里程碑对 `k` 状态的核验和构建目标任务归属；修订后无剩余 finding。此处的 `已验证` 只表示路线和分解经过复核，不表示 `GEM5-002t`–`008m` 已执行。
+
+## 2026-10-15 实施快照
+
+- `GEM5-002t`–`004t` 已验证；`GEM5-005t` 的实现、反例与证据已补齐，等待独立 reviewer。
+- 当前门控：ISA current 517/517、003 skeleton 61/61、smoke 3/3、Machine-01 47/47；真实工具链 `bootrom.bin + multi_tu_call.elf` 在 gem5 退出 42。
+- gem5 组件保持官方基线 `c8222cc...` 上 base+1 单提交 `7703f2c...`，40 份逐文件补丁可重放。
+- 余下路线不变：`006t`（FP/剩余 ISA）→`007t`（集成收口）→`008m`（M8 核验）。

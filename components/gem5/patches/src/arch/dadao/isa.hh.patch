@@ -1,11 +1,13 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..ebfc003
+index 0000000..249ec9e
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,61 @@
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
++
++#include <array>
 +
 +#include "arch/dadao/pcstate.hh"
 +#include "arch/dadao/regs/misc.hh"
@@ -20,15 +22,21 @@ index 0000000..ebfc003
 +class ISA : public BaseISA
 +{
 +  private:
++    using CfxRegisterBank = std::array<RegVal, 64>;
++    using CfxRegisterGroup = std::array<CfxRegisterBank, 8>;
++    using CfxRegisterFile = std::array<CfxRegisterGroup, 64>;
++
 +    RegVal miscRegs[misc_reg::NumRegs] = {};
++    CfxRegisterFile cfxRegs = {};
++    unsigned currentCfx = 63;
++    RegVal currentCfxMask = 0;
 +
 +  public:
 +    using Params = DadaoISAParams;
 +    ISA(const Params &p);
 +    PCStateBase *newPCState(Addr addr=0) const override
 +    { return new PCState(addr); }
-+    void clear() override
-+    { miscRegs[misc_reg::Mode] = 3; }
++    void clear() override;
 +    RegVal readMiscRegNoEffect(RegIndex i) const override;
 +    RegVal readMiscReg(RegIndex i) override;
 +    void setMiscRegNoEffect(RegIndex i, RegVal value) override;
@@ -36,6 +44,22 @@ index 0000000..ebfc003
 +    bool inUserMode() const override
 +    { return miscRegs[misc_reg::Mode] == 0; }
 +    void copyRegsFrom(ThreadContext *src) override;
++
++    static bool isReservedCfx(unsigned cfx);
++    static bool isImplementedCfx(unsigned cfx);
++    static bool isValidCfxRegister(unsigned cg, unsigned rc);
++    static bool isWritableCfxRegister(unsigned cg, unsigned rc);
++    RegVal readCfxReg(unsigned cfx, unsigned cg, unsigned rc) const;
++    void writeCfxReg(unsigned cfx, unsigned cg, unsigned rc, RegVal value);
++    unsigned getCurrentCfx() const { return currentCfx; }
++    void setCurrentCfx(unsigned value) { currentCfx = value; }
++    bool cfxAccessAllowed(unsigned target, unsigned maskReg) const;
++    bool trapAllowed(unsigned target) const;
++    bool enterTrap(ThreadContext *tc, unsigned target, RegVal cause, Addr pc,
++                   RegVal info);
++    bool enterFault(ThreadContext *tc, RegVal cause, Addr pc, RegVal info=0,
++                    int target=-1);
++    bool escape(ThreadContext *tc, unsigned target, int64_t wordOffset);
 +};
 +}
 +}

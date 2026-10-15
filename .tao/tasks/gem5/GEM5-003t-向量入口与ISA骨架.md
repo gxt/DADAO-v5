@@ -23,9 +23,9 @@
 ## 完成区
 **测试结果**：`make build-gem5` 退出 0，构建官方 25.1.0.1 的 DADAO `gem5.opt`；`make test-gem5` 16 条运行用例通过，含独立审阅要求的 FCSR 复位/别名与 IALIGN。合约生成表的 `--check`、33 个逐文件补丁的重放与 base+1 源码状态检查通过。结果见 `components/gem5/evidence/GEM5-003t.md`。
 **修改文件**：`build_opts/DADAO`、`src/arch/dadao/` 与上游 `src/arch/{Kconfig,SConscript}`、`src/cpu/simple/AtomicSimpleCPU.py` 经 `components/gem5/` 一文件一补丁导出；仓库 `Makefile` 的 gem5 入口、`tools/gem5/{test_isa.py,vector_inventory.py,generate_opcode_table.py}`、`tests/gem5/`、gem5 文档与本任务书。
-**验收结果**：RD/RB `add.si`、双目的 `add.uo`、32 位大端取指、PC/复位及 `ILLI`/`UNDI`/`IALIGN` 初步闭环；缺失寄存器接口和错误期望均能使门控非零退出。独立审阅发现的 FCSR 初值/别名、IALIGN、二进制路径三个缺口已修正并复测，待再次审阅。
+**验收结果**：RD/RB `add.si`、双目的 `add.uo`、32 位大端取指、PC/复位及 `ILLI`/`UNDI`/`IALIGN` 初步闭环；缺失寄存器接口和错误期望均能使门控非零退出。独立审阅发现的 FCSR 初值/别名、IALIGN、二进制路径三个缺口已修正并通过复审。
 **新发现/坑**：gem5 `sim/tags.cc` 被上游强制重建，增量 SCons 每次仍链接；`m5.simulate(1)` 可精确执行一次 CPU tick 并在下一次取指前停机。gem5 把 fetch 请求地址对齐到译码块，故 IALIGN 必须检查请求保存的架构 PC。
-**遗留问题**：其余 224 个 opcode 的执行语义及完整 Machine-01 仍待后续任务；`make check-modules` 受非 gem5 的 `llvm-lit` 安装缺失阻断，`make check` 另受已有知识引用悬空阻断，均不修改越界模块。
+**遗留问题**：003 只定义 ISA 骨架历史边界；标量与 Machine-01 已分别由 004/005 接续，FP、M8 新指令与全量收口仍归 006–008。仓库级知识引用阻断不在 gem5 修改范围。
 
 ## 审阅记录
 
@@ -47,3 +47,8 @@
 - `--vector-root` 使反例在临时副本完成，避免覆盖真源；缺目录和缺二进制均显式失败。默认 profile 行为保持兼容。
 - reviewer 的历史边界、运行结果、反例、完整覆盖缺口和外部阻断记录相互一致，任务四项 gem5 验收无剩余 finding。
 - **统一判决：Accepted，状态置为 `已验证`**。
+
+#### 2026-10-15 工具链恢复后复核
+
+- `--profile skeleton` 再次退出 0，61/61；默认 current 517/517，证明后续 005 修复未回归 ISA 骨架。
+- 安装后的 `llvm-lit` 107/107、接口对齐 83/83 均通过；旧“缺 llvm-lit”说明只保留为历史记录。

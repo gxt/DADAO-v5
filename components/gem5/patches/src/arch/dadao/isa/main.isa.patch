@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa/main.isa b/src/arch/dadao/isa/main.isa
 new file mode 100644
-index 0000000..d62ab2a
+index 0000000..244d3bd
 --- /dev/null
 +++ b/src/arch/dadao/isa/main.isa
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,112 @@
 +// DADAO fixed-width, big-endian decode. Further formats are added as
 +// spec-derived execution vectors are enabled.
 +output header {{
@@ -111,4 +111,8 @@ index 0000000..d62ab2a
 +    0x75: Dadao::call_r();
 +    0x76: Dadao::ret();
 +    0x77: Dadao::swym();
++    0x7a: Dadao::cfx2rd();
++    0x7b: Dadao::cfx2rc();
++    0x7e: Dadao::escape();
++    0x7f: Dadao::trap();
 +}

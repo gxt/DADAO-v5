@@ -1,0 +1,13 @@
+diff --git a/src/arch/dadao/DadaoSemihosting.py b/src/arch/dadao/DadaoSemihosting.py
+new file mode 100644
+index 0000000..c131ab6
+--- /dev/null
++++ b/src/arch/dadao/DadaoSemihosting.py
+@@ -0,0 +1,7 @@
++from m5.objects.BaseSemihosting import BaseSemihosting
++
++
++class DadaoSemihosting(BaseSemihosting):
++    type = "DadaoSemihosting"
++    cxx_header = "arch/dadao/semihosting.hh"
++    cxx_class = "gem5::DadaoISA::DadaoSemihosting"

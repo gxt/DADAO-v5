@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/opcode_table.hh b/src/arch/dadao/opcode_table.hh
 new file mode 100644
-index 0000000..0267d7d
+index 0000000..b7e5a97
 --- /dev/null
 +++ b/src/arch/dadao/opcode_table.hh
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,246 @@
 +// Generated from contracts/opcodes.yaml by
 +// tools/gem5/generate_opcode_table.py. Do not edit by hand.
 +#ifndef __ARCH_DADAO_OPCODE_TABLE_HH__
@@ -104,6 +104,7 @@ index 0000000..0267d7d
 +        ((word & 0xfffc0000U) == 0x40240000U) ||
 +        ((word & 0xfffc0000U) == 0x40280000U) ||
 +        ((word & 0xfffc0000U) == 0x402c0000U) ||
++        ((word & 0xfffc0000U) == 0x40300000U) ||
 +        ((word & 0xfffc0000U) == 0x40400000U) ||
 +        ((word & 0xfffc0000U) == 0x40440000U) ||
 +        ((word & 0xfffc0000U) == 0x40480000U) ||
@@ -114,6 +115,9 @@ index 0000000..0267d7d
 +        ((word & 0xfffc0000U) == 0x40680000U) ||
 +        ((word & 0xfffc0000U) == 0x406c0000U) ||
 +        ((word & 0xfffc0000U) == 0x40700000U) ||
++        ((word & 0xfffc0000U) == 0x40740000U) ||
++        ((word & 0xfffc0000U) == 0x40780000U) ||
++        ((word & 0xfffc0000U) == 0x407c0000U) ||
 +        ((word & 0xfffc0000U) == 0x40a80000U) ||
 +        ((word & 0xfffc0000U) == 0x40ac0000U) ||
 +        ((word & 0xfffc0000U) == 0x40b00000U) ||
@@ -132,6 +136,7 @@ index 0000000..0267d7d
 +        ((word & 0xfffc0000U) == 0x40ec0000U) ||
 +        ((word & 0xfffc0000U) == 0x40f40000U) ||
 +        ((word & 0xfffc0000U) == 0x40f80000U) ||
++        ((word & 0xfffc0000U) == 0x41300000U) ||
 +        ((word & 0xfffc0000U) == 0x41480000U) ||
 +        ((word & 0xfffc0000U) == 0x414c0000U) ||
 +        ((word & 0xfffc0000U) == 0x41500000U) ||
@@ -150,6 +155,7 @@ index 0000000..0267d7d
 +        ((word & 0xfffc0000U) == 0x41e40000U) ||
 +        ((word & 0xfffc0000U) == 0x41e80000U) ||
 +        ((word & 0xfffc0000U) == 0x41ec0000U) ||
++        ((word & 0xfffc0000U) == 0x42300000U) ||
 +        ((word & 0xfffc0000U) == 0x42480000U) ||
 +        ((word & 0xfffc0000U) == 0x424c0000U) ||
 +        ((word & 0xfffc0000U) == 0x42500000U) ||
@@ -168,6 +174,7 @@ index 0000000..0267d7d
 +        ((word & 0xfffc0000U) == 0x42e40000U) ||
 +        ((word & 0xfffc0000U) == 0x42e80000U) ||
 +        ((word & 0xfffc0000U) == 0x42ec0000U) ||
++        ((word & 0xfffc0000U) == 0x43300000U) ||
 +        ((word & 0xfffc0000U) == 0x43480000U) ||
 +        ((word & 0xfffc0000U) == 0x434c0000U) ||
 +        ((word & 0xfffc0000U) == 0x43500000U) ||

@@ -1,12 +1,17 @@
 diff --git a/src/arch/dadao/bare_metal.hh b/src/arch/dadao/bare_metal.hh
 new file mode 100644
-index 0000000..ff8c23c
+index 0000000..38aaffc
 --- /dev/null
 +++ b/src/arch/dadao/bare_metal.hh
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,58 @@
 +#ifndef __ARCH_DADAO_BARE_METAL_HH__
 +#define __ARCH_DADAO_BARE_METAL_HH__
 +
++#include <memory>
++
++#include "arch/dadao/semihosting.hh"
++#include "base/loader/memory_image.hh"
++#include "base/loader/object_file.hh"
 +#include "params/DadaoBareMetal.hh"
 +#include "sim/workload.hh"
 +
@@ -16,14 +21,18 @@ index 0000000..ff8c23c
 +{
 +  private:
 +    loader::SymbolTable symbols;
++    std::unique_ptr<loader::ObjectFile> application;
++    loader::MemoryImage applicationImage;
 +
 +  public:
 +    PARAMS(DadaoBareMetal);
-+    BareMetal(const Params &p) : Workload(p) {}
++    BareMetal(const Params &p);
 +    void initState() override;
 +    Addr getEntry() const override { return params().reset_addr; }
 +    ByteOrder byteOrder() const override { return ByteOrder::big; }
-+    loader::Arch getArch() const override { return loader::UnknownArch; }
++    loader::Arch getArch() const override { return loader::Dadao; }
++    SimObject *getSemihosting() const override
++    { return params().semihosting; }
 +    const loader::SymbolTable &symtab(ThreadContext *) override
 +    { return symbols; }
 +    bool insertSymbol(const loader::Symbol &s) override
@@ -42,6 +51,13 @@ index 0000000..ff8c23c
 +    void writeFcsr(uint64_t value);
 +    void writeRf0(uint64_t value);
 +    Addr readPc() const;
++    void setPc(Addr value);
++    void setMode(uint64_t value);
++    void setCurrentCfx(uint64_t value);
++    uint64_t readCurrentCfx() const;
++    uint64_t readCfxReg(unsigned cfx, unsigned cg, unsigned rc) const;
++    void writeCfxReg(
++            unsigned cfx, unsigned cg, unsigned rc, uint64_t value);
 +};
 +}
 +

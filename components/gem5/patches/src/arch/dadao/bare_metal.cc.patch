@@ -1,15 +1,16 @@
 diff --git a/src/arch/dadao/bare_metal.cc b/src/arch/dadao/bare_metal.cc
 new file mode 100644
-index 0000000..7ecbac3
+index 0000000..4fccb7f
 --- /dev/null
 +++ b/src/arch/dadao/bare_metal.cc
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,251 @@
 +#include "arch/dadao/bare_metal.hh"
 +
 +#include <fstream>
 +#include <iterator>
 +#include <vector>
 +
++#include "arch/dadao/isa.hh"
 +#include "arch/dadao/pcstate.hh"
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
@@ -21,6 +22,39 @@ index 0000000..7ecbac3
 +
 +namespace gem5::DadaoISA
 +{
++BareMetal::BareMetal(const Params &p) : Workload(p)
++{
++    if (p.application.empty())
++        return;
++
++    application.reset(loader::createObjectFile(p.application));
++    fatal_if(!application, "Cannot parse DADAO ELF %s", p.application);
++    fatal_if(application->getArch() != loader::Dadao,
++            "ELF %s is not a valid DADAO object", p.application);
++    fatal_if(application->getByteOrder() != ByteOrder::big,
++            "DADAO ELF %s is not big-endian", p.application);
++
++    const Addr ram_base = p.ram_base;
++    const uint64_t ram_size = p.ram_size;
++    auto in_ram = [ram_base, ram_size](Addr base, uint64_t size) {
++        return base >= ram_base && size <= ram_size &&
++               base - ram_base <= ram_size - size;
++    };
++
++    applicationImage = application->buildImage();
++    fatal_if(applicationImage.segments().empty(),
++            "DADAO ELF %s has no PT_LOAD segments", p.application);
++    for (const auto &segment : applicationImage.segments()) {
++        fatal_if(!in_ram(segment.base, segment.size),
++                "DADAO ELF segment %s [%#x, %#x) is outside Machine-01 RAM",
++                segment.name, segment.base, segment.base + segment.size);
++    }
++    fatal_if(!in_ram(application->entryPoint(), 1),
++            "DADAO ELF entry %#x is outside Machine-01 RAM",
++            application->entryPoint());
++    symbols = application->symtab();
++}
++
 +void
 +BareMetal::initState()
 +{
@@ -33,6 +67,8 @@ index 0000000..7ecbac3
 +    fatal_if(bytes.empty() || bytes.size() > 65536,
 +            "DADAO boot ROM must contain 1..65536 bytes");
 +    system->physProxy.writeBlob(p.image_addr, bytes.data(), bytes.size());
++    fatal_if(application && !applicationImage.write(system->physProxy),
++            "Could not load DADAO ELF PT_LOAD segments");
 +
 +    for (auto *tc : system->threads) {
 +        tc->pcState(PCState(p.initial_pc));
@@ -162,5 +198,60 @@ index 0000000..7ecbac3
 +{
 +    fatal_if(system->threads.empty(), "DADAO has no thread");
 +    return (*system->threads.begin())->pcState().instAddr();
++}
++
++void
++BareMetal::setPc(Addr value)
++{
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    auto *tc = *system->threads.begin();
++    tc->pcState(PCState(value));
++    tc->setReg(intRegClass[int_reg::RbBase], value);
++}
++
++void
++BareMetal::setMode(uint64_t value)
++{
++    fatal_if(value > 3, "DADAO mode out of range");
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    (*system->threads.begin())->setMiscRegNoEffect(misc_reg::Mode, value);
++}
++
++void
++BareMetal::setCurrentCfx(uint64_t value)
++{
++    fatal_if(value >= 64, "DADAO cfx code out of range");
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    auto *isa = dynamic_cast<ISA *>((*system->threads.begin())->getIsaPtr());
++    fatal_if(!isa, "DADAO ISA unavailable");
++    isa->setCurrentCfx(value);
++}
++
++uint64_t
++BareMetal::readCurrentCfx() const
++{
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    auto *isa = dynamic_cast<ISA *>((*system->threads.begin())->getIsaPtr());
++    fatal_if(!isa, "DADAO ISA unavailable");
++    return isa->getCurrentCfx();
++}
++
++uint64_t
++BareMetal::readCfxReg(unsigned cfx, unsigned cg, unsigned rc) const
++{
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    auto *isa = dynamic_cast<ISA *>((*system->threads.begin())->getIsaPtr());
++    fatal_if(!isa, "DADAO ISA unavailable");
++    return isa->readCfxReg(cfx, cg, rc);
++}
++
++void
++BareMetal::writeCfxReg(
++        unsigned cfx, unsigned cg, unsigned rc, uint64_t value)
++{
++    fatal_if(system->threads.empty(), "DADAO has no thread");
++    auto *isa = dynamic_cast<ISA *>((*system->threads.begin())->getIsaPtr());
++    fatal_if(!isa, "DADAO ISA unavailable");
++    isa->writeCfxReg(cfx, cg, rc, value);
 +}
 +}
