@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M8
 **依赖**：`INFRA-082t`（`已验证`；**本任务 = 回退其阶段 A1/B 的 QEMU 侧服务**——其任务书**保留**、只追加指针，`**状态**` 不改）；`TESTCASES-045t`（`已验证`；其 runner 在服务撤回后**不再可跑** ⇒ 本任务按「连带面」最小处置）；`ADR-0020`（`D10` 两条 trap 路由口径）；`ADR-0025 D2`（无内核）；`.tao/contracts/contract-syscall.md`（**保留不动**）；`spec/DADAO-22-SBI §2`（`umon`/`jmon` 模型，**只读**）；`ISS-210`（`install-host` 纪律：改组件输入后安装根须同步，否则门控读旧二进制**假绿**）
-**状态**：待开始
+**状态**：待验收
 
 > **模块判定（architect，2026-10-15）**：归 **`qemu`** 而非 `infra` —— 本任务的**实质改动与判据全在 qemu 面**：① 改 `components/qemu/patches/target/dadao/helper.c.patch`（组件补丁树）；② 删 `tools/qemu/min_rom_probe_082t.py`（`tools/<模块>/` 落点约定 ⇒ qemu 面）；③ 重建 QEMU + `install-host`；④ 验收主判据 = `check-qemu-semantics` **149/149**。infra 侧只余**连带清理**（`tools/infra/test_musl_static.py` 删除、`components/musl/README.md` 一句指代），可并入同一 engineer 范围。
 
@@ -77,16 +77,45 @@
 8. 完成区「修改文件」与实际 `git diff` 逐条一致（含越界披露项）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`check-qemu-semantics` = **`149 total, 149 passed, 0 failed, 0 deferred, 0 errors` rc=0**（独立跑 + `make check-full` 内复跑同值）；**L1** `make check` rc=0（`repository checks (L1): PASS`）／**L2** `make check-modules` rc=0（`module checks (L2): PASS`；`picolibc-tests total=20 pass=18 fail=0 excluded=2`）／**L3** `make check-full` rc=0（`test-m6: PASS (lit full + lli value-level diff + Embench E2E)`；Embench `38/38 passed`）；`check-patch-tree` rc=0（**5 组件 / 145 补丁**）／`check-index-blobs` rc=0（`108 new-file`；`37 modification` 跳过）／`check-source-state` rc=0（`qemu: OK HEAD=cd6697e443e1 count=1 clean=True`）／`check-no-residue` rc=0／`check-knowledge-refs` rc=0／`check_issues.py` rc=0（`34 open / 12 closed / 0 blocking`）／`check_tasks.py` rc=0。一键证据 `./.work/evidence/QEMU-060t/run.sh` rc=**0**（**52 PASS / 0 FAIL**，含反例注入节；首跑 rc=1 = 我自己的 3 处断言 bug〔quotepath 未关／上下文正则过窄／`WITHDRAWN` 计数写 2〕⇒ 已修，二跑全绿，见自审 F8）。
+**修改文件**：①（M）`components/qemu/patches/target/dadao/helper.c.patch`（还原 `761dfa3` 基线：md5 `2b1665e99ed4736fc6579c386a3850f1`、`git diff 761dfa3 -- <path>` 空、`series` **36 项未变**、`diff` 恰删 A1/B 的 3 组 hunk）；②（D）`tools/qemu/min_rom_probe_082t.py`；③（D）`tools/infra/test_musl_static.py`（均 `git rm`，删前 `git grep` 复核无门控/脚本调用方）；④（M）`tools/testcases/run_suite.py`（docstring 首部「WITHDRAWN」边界声明 + `main()` 入口硬失败 `rc=2`〔含 `QEMU-060t`/`P3` 提示〕+ 订正一处指向已删文件的陈旧注释；`+28/−1`，3 hunk，度量/统计主体零改动）；⑤（M）`components/musl/README.md`（「服务方」指代改指 `P3`（`qemu-user`）；1 行，syscall stub 口径未动）；⑥（M）`.tao/tasks/infra/INFRA-082t-musl静态最小集移植.md`（**只追加** `+7/−0`：文末「服务回退指针」节；`**状态**：已验证` 与既有完成区/审阅记录**未改**）；⑦（M）本任务书（`**状态**` + 完成区 + 自审）。**未动**：`spec/**`、`contracts/**`、`.tao/contracts/**`、`manifests/**`、`components/musl/patches/**`（16 补丁）、`components/qemu/changelog.md`、`Makefile`、`tools/infra/build_musl.py`、`.tao/knowledge/**`（含 `ISS-221`，见遗留②）。
+**验收结果**：`make build-qemu` rc=0（无 `nohup` 会话内等待；`setsid nohup` + 落盘 `.work/log/qemu/*.EXIT`，见遗留⑥）；`make install-host` rc=0（`install-host: PASS`，`JOBS=8`）；**两处二进制 md5 一致** = `3ede8ad829f50d5a8f43bf0f948a879d`（`.work/build/qemu/qemu-system-dadao` × `.dadao/cross-toolchain/bin/qemu-system-dadao`，安装根 mtime 21:59:20 晚于编译输入 mtime 21:58:15）；安装根 `qemu-system-dadao --version` = **`QEMU emulator version 11.1.1 (v11.1.1-1-gcd6697e)`** ⇒ 产品级证明「安装二进制含撤回后源码 revision `cd6697e`」（ISS-210 安装根同步已闭环）。
+**新发现/坑**：① **`make apply-series` 在 patchless 组件上崩（pre-existing，与本改动无关）**：处理完 qemu 后 `KeyError: 'patch_dir'`（`chipyard` 无该键；`linux`/`llvm-test-suite`/`libc-test` 同）⇒ rc=2；现场按 `docs/Process-01 §7` 文档化恢复步骤重放（`git -C .work/source/qemu reset --hard <base>`〔前置 `status --porcelain`=0 行〕→ `make apply-series` → 36 项全落地 → `--source-state` 绿）；`manifests/**` 与 `apply_series.py` 本任务**零改动** ⇒ **建议另立 issue**（非本任务范围）。② **任务书验收 2「全仓 0 命中」不可达且自相矛盾**（第 5 项本身要求把 `SYS_UMON_SYSCALL` 写进 `INFRA-082t` 正文；台账与其它任务书亦含该 token）⇒ 落实为**可机械判定版**：实现符号（`umon_serve_syscall`/`is_umon_user_syscall`/`DADAO_NR_write`/`umon_sys_*`/`umon_host_*`/`umon_set_*`）在 `components/qemu`+`tools`+补丁+已应用源 **0 命中**；`SYS_UMON` 仅存于 `run_suite.py` 撤回说明 3 行（逐行断言为撤回散文）与 `.tao/**` 散文 29 行（信封式列出）。③ **`check-qemu-semantics` 对服务不敏感**（A1 加服务前后均 149/149，`INFRA-082t` 完成区）⇒ 服务**不可**由该门控判 FAIL；可达 FAIL 落在补丁/索引层：注入 1 行 `DADAO_NR_write_INJECTED` ⇒ `check-index-blobs` rc=1（点名 `helper.c.patch` blob 失配）+ `check-patch-tree` rc=1（`HEAD diff differs from target/dadao/helper.c.patch`），`cp` 还原后双回绿；`run_suite.py` 侧 rc=2 现场已证。④ **`ISS-216` 语义回潮**：其标题「`dadao-m1` 机体现**无** `SYS_UMON_SYSCALL` 服务方」在服务撤回后**字面重新为真**（其 `closed` 系「已补服务」所致）⇒ 提请 `/complete` 追加一句口径（本任务未动 `.tao/knowledge/**`）。⑤ **A1/B 未在 `components/qemu/changelog.md` 留条目**（`check-component-changelog` 仅查形态，L1 绿）⇒ 本次还原亦未加条目（与基线一致）⇒ 提请 architect 裁定是否补历史条目。⑥ 环境：长任务期间 opencode 服务**重启**，`install-host` 进程被杀（无 `.EXIT` 标记）⇒ 原样重跑 **1 次**（retry #1）得 rc=0；非产品失败，现场留 `.work/log/qemu/`。⑦ 非 ASCII 路径下 `git grep`/`git diff` 计数须 `-c core.quotepath=false`（本证据脚本自身踩中 ⇒ 印证 `lessons §2.19`）；`git grep` 输出行首路径比较须容忍引号。
+**遗留问题**：① **`ISS-221` 未关闭**（父会话裁定「归 `/complete`」；本任务未动 `.tao/knowledge/**`）⇒ 可直接套用片段见下（`notes` 为**追加**段）。② `TESTCASES-045t` 任务书第 7 行仍以「含 QEMU 侧 `SYS_UMON_SYSCALL` 服务」为依赖（服务撤回后**语义悬挂**）⇒ **登记不改**（该册正文/`**状态**`不在本任务范围，交 architect 裁定；其 runner 已由本任务加硬失败，运行验证移交 `P3`）。③ `components/musl/README.md` 的「服务方 = `P3`（`qemu-user`）」为**规范性指代**，`P3` 尚未开立 ⇒ 随 `P3` 落地复核。④ `.work/source/qemu` 重建走 `reset --hard <base>` + `apply-series`（`Process-01 §7` 文档化流程，非禁用还原；仅影响该组件检出，仓库工作树未受影响）⇒ 已披露。⑤ 服务撤回的**产品级回归哨兵**随两个文件被删（`check-qemu-semantics` 不覆盖该路由）⇒ 若日后需防「服务悄悄复活」，宜在 L1 加一条形态门控（建议，非本任务）。⑥ 长任务均按纪律脱离会话（`setsid nohup` + `.EXIT`）：`.work/log/qemu/QEMU-060t-{build-qemu,install-host,check-full,gates}.EXIT`、`/tmp/opencode/QEMU-060t/{rebuild,gates,l3,evidence}.EXIT`。
+
+**`ISS-221` 关闭片段（供 `/complete` 直接套用；本任务未改 `.tao/knowledge/issues.yaml`）**：
+```yaml
+- id: ISS-221
+  status: closed
+  resolved_by: QEMU-060t
+  notes: "<既有 notes 原样保留> …【关闭（2026-10-15，`QEMU-060t`）】第三条路由（user `trap cfx0,0` 由 QEMU 接管 = `SYS_UMON_SYSCALL` 服务）已由用户 2026-10-15 裁定撤回（执行 = `QEMU-060t`：`helper.c.patch` 还原 `761dfa3` 基线、md5 `2b1665e99ed4736fc6579c386a3850f1`）⇒ `spec/Machine-01 §4.3` 的两条路由**重新完备**、规范缺口**不存在**；`spec/` 全程**零改动**、无需授权（`check-spec-readonly` rc=0）。"
+```
+
 
 ## 审阅记录
 
 按轮次追加，每次返工新增一轮。
 
 #### 第 1 轮 engineer 自审
+
+**审查对象**：本任务全部改动（补丁还原 / 两文件删除 / `run_suite.py` 边界 / `musl/README.md` 一句 / `INFRA-082t` 只追加）；**自主逐行审查**（无嵌套子代理）。每 finding 给处置 + 复验证据。
+
+| # | finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| F1 | `run_suite.py` 硬失败取 `rc=2` 是否恰当、是否「在 `main()` 入口」（任务书 §3a）；`--list` 一并被挡是否过宽 | ✅已修（按任务书口径定型，理由写入 docstring） | 守卫置于 `args = ap.parse_args()` 之后、一切子命令之前；`rc=2` = 该脚本既有「setup error」码（与 `--only` 未知名同码同体例） | `python3 tools/testcases/run_suite.py --list` **rc=2** + stderr 含 `withdrawn`/`QEMU-060t`/`P3`；`make check-testcases-suites` rc=2 |
+| F2 | 边界声明须**不重写主体**（任务书 §3a/不属本任务） | ✅已修 | docstring 首部新增 WITHDRAWN 块 + `main()` 一处守卫；度量口径/分类/统计主体**零改动** | `git diff master -- tools/testcases/run_suite.py` = 3 hunk / `+28 −1`；分类函数未触 |
+| F3 | `run_suite.py` 内仍指向**已删** `tools/infra/test_musl_static.py` 的注释（悬挂引用，任务书 §3c） | ✅已修 | 改为「the same set `tools/infra/build_musl.py` uses」（现场核 `build_musl.py:115` 为同一元组） | `git grep test_musl_static -- tools/` = **0**；全仓仅本册 + `INFRA-082t` 散文命中 |
+| F4 | A1/B 是否**只**改了 `helper.c.patch`（防漏还原） | ❌不修（无漏，无需改） | 无 | `git show --stat 0986dc9 -- components/qemu/` 与 `7255af8 -- components/qemu/` **均仅** `helper.c.patch`；`diff` 恰 3 组 hunk（= 任务书 §现场事实②） |
+| F5 | 还原手段合规（禁 `git checkout/restore/stash/show>` 回写） | ✅已修（合规） | `git show 761dfa3:<path>` **只落 `/tmp`** 比对，落位用 `cp`；注入还原亦 `cp`+md5 | md5 `2b1665e9…`；`git diff 761dfa3` 空、`diff` 0 行 |
+| F6 | `musl/README.md` 是否越改（应只动「服务方」指代） | ✅已修 | 仅改该从句；syscall stub 口径（`rd15` 号 / RISC-V 编号 / `rd8` 返回 / errno 负值）**一字未动** | `git diff` = 1 行；L1 `check-component-changelog` 绿 |
+| F7 | `INFRA-082t` 是否确为「只追加」（`**状态**`/完成区/审阅记录不可改） | ✅已修 | 文末新增「服务回退指针」节 | `git diff --numstat master -- <册>` = **`7 0`**（零删除）；`**状态**：已验证` 不变 |
+| F8 | 证据脚本自身 3 处断言 bug（首跑 rc=1） | ✅已修 | ①`git grep` 加 `-c core.quotepath=false`（非 ASCII 路径陷阱）②`SYS_UMON` 上下文正则放宽（3 行撤回散文）③`WITHDRAWN` 计数 2→1 | 二跑 `./.work/evidence/QEMU-060t/run.sh` **52 PASS / 0 FAIL** rc=0；`bash -n` 通过 |
+| F9 | 验收 2「全仓 0 命中」是否可达 | ❌不修（**不可达**且与第 5 项自相矛盾） | 改为可机械判定版并全量披露 | 证据 B 节 6 条断言；全仓 32 命中 = `.tao/**` 散文 29 + `run_suite.py` 撤回说明 3（逐行断言为散文） |
+| F10 | 验收 5「语义门控必须 FAIL」是否有可达路径 | ⏸延后（该路径**不存在**，附证） | 无 | A1 加服务前后 `check-qemu-semantics` 均 `149/149`（`INFRA-082t` 完成区）⇒ 该门控对服务不敏感；可达 FAIL 改在 `check-index-blobs` rc=1 + `check-patch-tree` rc=1 + grep>0（注入实测）+ `run_suite.py` rc=2 |
+| F11 | `ISS-221` 未关闭（父会话裁定归 `/complete`） | ⏸延后（附可直接套用片段） | 完成区给 YAML 片段（`notes` 追加段） | `check_issues.py` rc=0 |
+| F12 | `.work/source/qemu` 用 `reset --hard <base>` 是否违禁用还原清单 | ⏸延后（合规：`docs/Process-01 §7` 文档化步骤，仅组件检出） | 无（未触碰仓库工作树） | 前置 `status --porcelain`=0 行；重放后 `--source-state` `qemu: OK … clean=True` |
+
+**判决**：F1–F3/F5–F8 `✅已修` 且附复验；F4/F9 `❌不修` 均有现场证据（**非缺陷**）；F10–F12 `⏸延后` 理由/证据成立（F11 附片段）。无阻断 finding ⇒ `**状态**` → **`待验收`**。遗留（`ISS-221` 关闭、`TESTCASES-045t` 悬挂、`apply-series` KeyError 另立 issue）见完成区，**不写「遗留：无」**。
+
 
 #### 第 1 轮 reviewer 验收

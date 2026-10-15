@@ -2,6 +2,18 @@
 """Reference-suite runner for DADAO-v5: ``libc-test`` + ``llvm-test-suite``
 (TESTCASES-045t stage 1).
 
+WITHDRAWN (2026-10-15; user ruling "1、删", executed by ``QEMU-060t``)
+--------------------------------------------------------------------
+The ``dadao-m1`` syscall service (``SYS_UMON_SYSCALL``) that this runner drove
+has been withdrawn: in user mode ``trap cfx0, 0`` goes down the generic cfx
+vector again (``dadao-m1`` is semihosting-only, ``Machine-01 §4.3`` /
+``ADR-0020 D10``) and the musl syscall stubs have no backend left.  The
+``-M dadao-m1`` path B below is therefore *not runnable*, and ``main()``
+refuses to run (exit 2) instead of reporting every case as a failure.  Running
+verification is now ``P3`` (``qemu-user``).  This file is kept as the record of
+the stage-1 methodology and of the withdrawn path; it is **not** rewritten into
+a ``qemu-user`` harness (that is ``P3``).
+
 What it does
 ------------
 For every selected case (one ``.c`` translation unit that carries ``main``) it
@@ -106,7 +118,7 @@ DEFAULT_BOOTROM = TEST_ARTIFACTS / "bootrom" / "bootrom.bin"
 TARGET = "dadao-unknown-elf"
 DEFAULT_TIMEOUT = 30
 
-# musl port include dirs (same set as tools/infra/test_musl_static.py).
+# musl port include dirs (the same set tools/infra/build_musl.py uses).
 MUSL_INCLUDE_DIRS = ("arch/dadao", "arch/generic", "obj/src/internal",
                      "src/include", "src/internal", "obj/include", "include")
 
@@ -559,6 +571,20 @@ def main() -> int:
     ap.add_argument("--json-out", default="")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
+
+    # Hard boundary (QEMU-060t, 2026-10-15).  The dadao-m1 syscall service
+    # (SYS_UMON_SYSCALL) was withdrawn by user ruling, so path B below
+    # (-M dadao-m1) has no backend for the musl syscall stubs any more: user-mode
+    # trap cfx0, 0 takes the generic cfx vector again (semihosting-only).  Fail
+    # closed with a clear message instead of turning every case into a failure;
+    # rc=2 is this tool's "setup error" code.  Running verification is P3
+    # (qemu-user).
+    print("run_suite: ERROR: the dadao-m1 syscall service (SYS_UMON_SYSCALL) "
+          "was withdrawn by the user ruling of 2026-10-15 (QEMU-060t): the "
+          "-M dadao-m1 path B is no longer runnable (no backend for the musl "
+          "syscall stubs; semihosting-only). Running verification is now P3 "
+          "(qemu-user). Refusing to run.", file=sys.stderr)
+    raise SystemExit(2)
 
     suites = (["libc-test", "llvm-test-suite"] if args.suite == "all"
               else [args.suite])
