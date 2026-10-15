@@ -1,9 +1,9 @@
 diff --git a/lld/ELF/Arch/DADAO.cpp b/lld/ELF/Arch/DADAO.cpp
 new file mode 100644
-index 000000000..5e9c0a6af
+index 000000000..b87453a33
 --- /dev/null
 +++ b/lld/ELF/Arch/DADAO.cpp
-@@ -0,0 +1,286 @@
+@@ -0,0 +1,449 @@
 +//===- DADAO.cpp - DADAO ELF Linker Target ----------------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -14,8 +14,10 @@ index 000000000..5e9c0a6af
 +//
 +// DADAO (SimRISC) ELF linker target.
 +//
-+// Relocation model (contract-elf.md §2–§4, ADR-0019):
-+//   R_DADAO_ABS48 (0): absolute 48-bit address.  Two encodings share the type:
++// Relocation model (contract-elf.md §2–§4, ADR-0019 D10, contract-dynlink.md
++// §4.3):
++//   R_DADAO_NONE (0): no-op placeholder (not part of dynamic-section semantics).
++//   R_DADAO_ABS48 (6): absolute 48-bit address.  Two encodings share the type:
 +//       * instruction (set.zw/or.w/andn.w in an executable section): one
 +//         16-bit wyde per instruction, selected by wyde-position (wp = hb[5:4]);
 +//       * data (`.dd.o64 <sym>` / `.quad <sym>`, non-executable section): a
@@ -28,6 +30,25 @@ index 000000000..5e9c0a6af
 +//       address, so P is the reloc site itself).
 +//   R_DADAO_ABS12 (5): field = S + A, imms12 (BYTE offset, no >>2).  Used by
 +//       ld.*/st.* with base rb1..rb63 (base-relative/absolute).
++//   R_DADAO_JUMP_SLOT (7): PLT GOT slot, 8-byte field, S + A unsigned 48-bit
++//       (musl REL_PLT).
++//   R_DADAO_RELATIVE (8): 8-byte slot, B + A unsigned 48-bit (musl
++//       REL_RELATIVE; B = load bias, added by the loader).
++//   R_DADAO_COPY (9) / R_DADAO_TLSDESC (13) / R_DADAO_TLS_DTPMOD|DTPREL|TPREL
++//       (10–12): reserved by ADR-0019 D10 but **not emitted** by this
++//       implementation; encountering one is an explicit error (ADR-0026 D7②,
++//       contract-dynlink.md §10②).
++//
++// Dynamic output (contract-dynlink.md §3/§5/§6, ADR-0026 D2–D6): the DADAO
++// target produces ET_DYN via lld's generic machinery —
++//   * a data/GOT slot holding a symbol address is a dynamic relocation of type
++//     ABS48 (REL_SYMBOLIC/REL_GOT) against the symbol, or RELATIVE when the
++//     symbol is non-preemptible (the module-relative address is the addend);
++//   * calls/jumps (REL26) to preemptible or undefined functions go through a
++//     PLT entry (R_PLT_PC), so a shared object resolves them through
++//     .got.plt/JUMP_SLOT;
++//   * binding is **eager** (ADR-0026 D6): there is no lazy resolver, hence no
++//     PLT header, and every slot is loader-filled before the program starts.
 +//
 +// v5 has **no -4** pipeline offset: rb0 reads the address of the current
 +// instruction, so the PC-relative displacement is measured from P itself
@@ -75,15 +96,40 @@ index 000000000..5e9c0a6af
 +  DADAO(Ctx &ctx) : TargetInfo(ctx) {
 +    // DADAO has no IRELATIVE-style (symbol-based) relocation: "recompile with
 +    // -fPIC" would otherwise be triggered for every R_DADAO_ABS48 because the
-+    // default iRelSymbolicRel sentinel is 0 and ABS48 is numbered 0.  Use the
-+    // R_DADAO_NUM count value as a sentinel that never matches a real reloc.
++    // default iRelSymbolicRel sentinel is 0 and 0 is R_DADAO_NONE.  Use the
++    // R_DADAO_NUM count value as a sentinel that never matches a real reloc
++    // (ADR-0019 D10: R_DADAO_NUM = 14).
 +    iRelSymbolicRel = R_DADAO_NUM;
 +    defaultMaxPageSize = 0x10000;  // DADAO page = 64 KiB (DADAO-12 §2.2.2)
++
++    // Dynamic relocation types (ADR-0019 D10, contract-dynlink.md §4.3).
++    // A slot holding an absolute 48-bit symbol address reuses ABS48 in its data
++    // form; there is no separate GLOB_DAT (contract-dynlink.md §4.3).
++    symbolicRel = R_DADAO_ABS48;
++    gotRel = R_DADAO_ABS48;
++    pltRel = R_DADAO_JUMP_SLOT;
++    relativeRel = R_DADAO_RELATIVE;
++    copyRel = R_DADAO_COPY;
++
++    // PLT: eager binding only (ADR-0026 D6).  The loader fills every .got.plt
++    // slot before the program starts, so there is no lazy resolver and hence no
++    // PLT header (PltSection::writeTo calls writePltHeader() into the buffer and
++    // then starts the entries at headerSize == 0).  gotPltHeaderEntriesNum
++    // keeps the psABI GOT[0]/GOT[1] reservation: index 0 names .dynamic, index
++    // 1 is unused without lazy binding.
++    pltEntrySize = 24;
++    pltHeaderSize = 0;
++    gotPltHeaderEntriesNum = 2;
 +  }
 +
 +  uint32_t calcEFlags() const override;
 +  RelExpr getRelExpr(RelType type, const Symbol &s,
 +                     const uint8_t *loc) const override;
++  RelType getDynRel(RelType type) const override;
++  void writeGotPltHeader(uint8_t *buf) const override;
++  void writeGotPlt(uint8_t *buf, const Symbol &s) const override;
++  void writePlt(uint8_t *buf, const Symbol &sym,
++                uint64_t pltEntryAddr) const override;
 +  void relocate(uint8_t *loc, const Relocation &rel,
 +                uint64_t val) const override;
 +  void relocateAlloc(InputSection &sec, uint8_t *buf) const override;
@@ -93,6 +139,10 @@ index 000000000..5e9c0a6af
 +                         bool isExec) const;
 +};
 +} // namespace
++
++// PLT entry layout (pltEntrySize == 24, see writePlt): the byte offset of the
++// in-entry constant that carries the distance to the symbol's .got.plt slot.
++static constexpr unsigned pltDataOffset = 16;
 +
 +static uint32_t getEFlags(Ctx &ctx, InputFile *f) {
 +  return cast<ObjFile<ELF64BE>>(f)->getObj().getHeader().e_flags;
@@ -118,12 +168,18 @@ index 000000000..5e9c0a6af
 +    // Absolute 48-bit address (S + A); never PC-relative.
 +    return R_ABS;
 +  case R_DADAO_REL26:
++    // `call` / `jump` (iiii).  Modelled as R_PLT_PC so that a call to a
++    // preemptible or imported function is routed through a PLT entry (a shared
++    // object cannot encode the final address in a PC-relative field).  lld
++    // lowers R_PLT_PC back to R_PC for non-preemptible symbols, so ordinary
++    // intra-module branches are unaffected (Relocations.cpp `fromPlt`).
++    return R_PLT_PC;
 +  case R_DADAO_REL20:
 +  case R_DADAO_REL14:
 +  case R_DADAO_REL12:
-+    // PC-relative.  For REL26/20/14 the field is a (S + A - P) >> 2 word
-+    // offset; for REL12 it is the raw byte offset S + A - P (rb0 reads the
-+    // current instruction address, contract-elf.md §3.1 / ADR-0021 §D1).
++    // PC-relative.  For REL20/14 the field is a (S + A - P) >> 2 word offset;
++    // for REL12 it is the raw byte offset S + A - P (rb0 reads the current
++    // instruction address, contract-elf.md §3.1 / ADR-0021 §D1).
 +    return R_PC;
 +  case R_DADAO_ABS12:
 +    // Base-relative symbol displacement: S + A (byte offset, imms12).
@@ -133,6 +189,80 @@ index 000000000..5e9c0a6af
 +             << ") against symbol " << &s;
 +    return R_NONE;
 +  }
++}
++
++RelType DADAO::getDynRel(RelType type) const {
++  // An input relocation that carries an absolute 48-bit address in a data/GOT
++  // slot has to be resolved at load time unless the symbol is non-preemptible
++  // (in which case lld turns it into a RELATIVE relocation, see
++  // Relocations.cpp processAux()).  The dynamic type is ABS48 itself: the data
++  // form is shared by symbol and GOT slots (contract-dynlink.md §4.3).
++  if (type == R_DADAO_ABS48)
++    return R_DADAO_ABS48;
++  return 0;
++}
++
++void DADAO::writeGotPltHeader(uint8_t *buf) const {
++  // GOT[0] names the .dynamic section (psABI convention); GOT[1] is only used
++  // by lazy resolvers, which DADAO does not have (ADR-0026 D6).
++  write64be(buf, ctx.in.dynamic ? ctx.in.dynamic->getVA() : 0);
++  write64be(buf + 8, 0);
++}
++
++void DADAO::writeGotPlt(uint8_t *buf, const Symbol &s) const {
++  // Eager binding: the loader overwrites every PLT slot with the resolved
++  // address before the program starts, so there is no resolver back-pointer to
++  // store here (unlike lazy-binding targets).  Write a deterministic zero.
++  write64be(buf, 0);
++}
++
++void DADAO::writePlt(uint8_t *buf, const Symbol &sym,
++                     uint64_t pltEntryAddr) const {
++  // Eager PLT entry (ADR-0026 D6).  The stub loads the resolved address from
++  // the symbol's .got.plt slot and jumps to it:
++  //
++  //   +0   ld.o rd5, [rb0, 16]      ; rd5 = &slot - &(entry + 4)
++  //   +4   ldm.o {rb4}, [rb0, rd5]  ; rb4 = *(&(entry + 4) + rd5) = *(slot)
++  //   +8   jump [rb4, rd0, 0]       ; jump to the resolved address
++  //   +12  padding (never executed: the jump above is unconditional)
++  //   +16  .quad &slot - &(entry + 4)
++  //
++  // Two ISA properties shape this sequence (ADR-0026 D5): there is no GP
++  // register, and the only PC-relative memory access (`ld.o`/`st.o` with base
++  // rb0, R_DADAO_REL12) carries a 12-bit immediate.  .plt and .got.plt live in
++  // different segments, so the distance to the slot cannot be assumed to fit
++  // that immediate (and it is way outside it in the default layout).  The
++  // distance is therefore carried as an 8-byte constant inside the entry
++  // itself and consumed through `ldm.o`, whose base is rb0 (PC) and whose
++  // offset register is an rd register -- exactly the two-stage form of
++  // contract-dynlink.md §3.  Both ends of the distance are in this module, so
++  // the run-time load bias cancels out and the constant is a plain link-time
++  // value (no dynamic relocation, hence no text relocation).
++  //
++  // rd5/rb4 are spec temporary registers (rd4-rd7 / rb4-rb7, caller-saved), so
++  // the stub clobbers nothing that a caller or callee relies on; it never
++  // touches RB, RegRAS or SP, so the return address pushed by the caller's
++  // `call` is popped correctly by the callee's `ret`.
++  //
++  // Entry size 24 keeps every entry 8-byte aligned, which both `ld.o` (the
++  // in-entry constant at entry+16) and `ldm.o` (the slot) require; .plt itself
++  // is 16-byte aligned (PltSection).
++  static_assert(pltDataOffset == 16, "PLT constant offset");
++  assert((pltEntryAddr % 8) == 0 && "PLT entry must be 8-byte aligned");
++
++  // offset = &slot - (address of the ldm.o instruction), which is the value
++  // loaded by the first instruction and used as the ldm.o offset register.
++  uint64_t offset = sym.getGotPltVA(ctx) - (pltEntryAddr + 4);
++
++  // ld.o rd5, [rb0, pltDataOffset]: op 0x20, rdha = rd5, rbhb = rb0.
++  write32be(buf + 0, 0x20000000u | (5u << 18) | (pltDataOffset & 0xFFFu));
++  // ldm.o rb4, [rb0, rd5]: op 0x3A, rbha = rb4, rbhb = rb0, rdhc = rd5,
++  // immu6 = 1 (one register).
++  write32be(buf + 4, 0x3A000000u | (4u << 18) | (5u << 6) | 1u);
++  // jump [rb4, rd0, 0]: op 0x71, rbha = rb4, rdhb = rd0 (reads 0), imms12 = 0.
++  write32be(buf + 8, 0x71000000u | (4u << 18));
++  write32be(buf + 12, 0);  // padding: unreachable
++  write64be(buf + pltDataOffset, offset);
 +}
 +
 +void DADAO::relocateInSection(uint8_t *loc, const Relocation &rel,
@@ -171,10 +301,15 @@ index 000000000..5e9c0a6af
 +  // undefined symbol never benefits: lld rejects it earlier with the ordinary
 +  // "undefined symbol" error, and a defined-but-far symbol still fails the
 +  // range check below.
++  //
++  // The rewrite is restricted to `rel.expr == R_PC`: in a dynamic link an
++  // undefined function is reached through its PLT entry (R_PLT_PC, see
++  // getRelExpr), and `val` there is the PLT address, not a symbol address --
++  // rewriting that to a self-loop would discard a perfectly resolvable call.
 +  const bool undefBranch =
-+      rel.sym->isUndefined() && (rel.type == R_DADAO_REL26 ||
-+                                 rel.type == R_DADAO_REL20 ||
-+                                 rel.type == R_DADAO_REL14);
++      rel.expr == R_PC && rel.sym->isUndefined() &&
++      (rel.type == R_DADAO_REL26 || rel.type == R_DADAO_REL20 ||
++       rel.type == R_DADAO_REL14);
 +  if (undefBranch)
 +    val = static_cast<uint64_t>(rel.addend); // target = P + A (self-loop)
 +  switch (rel.type) {
@@ -248,6 +383,34 @@ index 000000000..5e9c0a6af
 +      // documentation of the invariant.
 +      write64be(loc, val & 0x0000FFFFFFFFFFFFULL);
 +    }
++    return;
++  case R_DADAO_JUMP_SLOT:
++  case R_DADAO_RELATIVE:
++    // Dynamic slots in .got.plt / .got: both are single 8-byte fields holding an
++    // absolute 48-bit address, so the data form of ABS48 applies verbatim
++    // (contract-dynlink.md §4.3: `JUMP_SLOT` = S + A, `RELATIVE` = B + A, both
++    // unsigned 48-bit).  lld only reaches this through the addend-writing path
++    // (--apply-dynamic-relocs) or a static-PIE link; the loader is otherwise
++    // the one that applies these.
++    checkIntUInt(ctx, loc, val, 48, rel);
++    write64be(loc, val & 0x0000FFFFFFFFFFFFULL);
++    return;
++  case R_DADAO_COPY:
++  case R_DADAO_TLSDESC:
++    // Reserved by ADR-0019 D10, but this implementation must not emit them: a
++    // silent skip (or a silent zero) would only surface at load time.  Fail
++    // loudly instead (ADR-0026 D7②, contract-dynlink.md §10②).
++    Err(ctx) << getErrorLoc(ctx, loc) << "relocation type " << rel.type
++             << " is not emitted by the DADAO linker (ADR-0026 D7)";
++    return;
++  case R_DADAO_TLS_DTPMOD:
++  case R_DADAO_TLS_DTPREL:
++  case R_DADAO_TLS_TPREL:
++    // TLS types are numbered by ADR-0019 D10 but their semantics depend on the
++    // musl arch macros (contract-dynlink.md §7), which are not wired up yet.
++    Err(ctx) << getErrorLoc(ctx, loc)
++             << "TLS dynamic relocation " << rel.type
++             << " is not supported yet (contract-dynlink.md §7)";
 +    return;
 +  case R_DADAO_REL12:
 +  case R_DADAO_ABS12: {

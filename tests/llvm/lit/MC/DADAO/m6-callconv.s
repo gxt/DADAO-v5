@@ -32,9 +32,9 @@
 ; REL: Offset: 0xC
 ; REL: Type: R_DADAO_REL14 (3)
 ; REL: Offset: 0x10
-; REL: Type: R_DADAO_ABS48 (0)
+; REL: Type: R_DADAO_ABS48 (6)
 ; REL: Offset: 0x14
-; REL: Type: R_DADAO_ABS48 (0)
+; REL: Type: R_DADAO_ABS48 (6)
 
 ; OBJ: {{[0-9a-f]+:}} 74 00 00 00{{.*}}call [rb0,
 ; OBJ: {{[0-9a-f]+:}} 70 00 00 00{{.*}}jump [rb0,

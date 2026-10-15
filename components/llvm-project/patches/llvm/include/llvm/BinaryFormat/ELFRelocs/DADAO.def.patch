@@ -1,18 +1,23 @@
 diff --git a/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def b/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def
 new file mode 100644
-index 000000000..d4bbd37a2
+index 000000000..cb11536d9
 --- /dev/null
 +++ b/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,65 @@
 +
 +#ifndef ELF_RELOC
 +#error "ELF_RELOC must be defined"
 +#endif
 +
-+// Absolute 48-bit address built by a set.zw/or.w/andn.w wyde sequence.
-+// One relocation per instruction; the wyde-position (wp, hb[5:4]) selects
-+// which 16-bit slice of (S + A) the instruction carries.
-+ELF_RELOC(R_DADAO_ABS48, 0)
++// DADAO relocation types.  Numbering = ADR-0019 D10 / contract-dynlink.md §4.3
++// (final, dense, no gaps; the legacy Dadao.def numbering is not reused).
++//
++//   0      no-op placeholder (not part of dynamic-section semantics)
++//   1-5    static types (contract-elf.md §2.2)
++//   6      absolute 48-bit address (data/GOT slot or instruction wyde series)
++//   7-13   dynamic / TLS types (contract-dynlink.md §4.3)
++//   14     type count (R_DADAO_NUM)
++ELF_RELOC(R_DADAO_NONE, 0)
 +// PC-relative word offset for call/jump (imms24 field, 26 effective bits).
 +// field = (S + A - P) >> 2.
 +ELF_RELOC(R_DADAO_REL26, 1)
@@ -30,5 +35,37 @@ index 000000000..d4bbd37a2
 +// The base is a general register, so the displacement is base-relative
 +// (absolute): field = S + A, in BYTES (no >>2; contract-elf.md §3.1).
 +ELF_RELOC(R_DADAO_ABS12, 5)
-+// Number of relocation types (not a relocation).
-+ELF_RELOC(R_DADAO_NUM, 6)
++// Absolute 48-bit address, unsigned.  Two encodings share the type
++// (contract-dynlink.md §4.3):
++//   * data: a single 8-byte field (data symbol address / GOT slot content);
++//   * instruction: one relocation per instruction of a set.zw/or.w/andn.w
++//     wyde series; the wyde-position (wp, hb[5:4]) selects which 16-bit slice
++//     of (S + A) the instruction carries.
++// Dynamic use (data form) maps to the musl REL_SYMBOLIC / REL_GOT categories;
++// there is no separate GLOB_DAT type.
++ELF_RELOC(R_DADAO_ABS48, 6)
++// PLT GOT slot: a single 8-byte field.  field = S + A (unsigned 48 bits);
++// musl category REL_PLT.
++ELF_RELOC(R_DADAO_JUMP_SLOT, 7)
++// Relative relocation: a single 8-byte field.  field = B + A (unsigned 48
++// bits, B = load bias); musl category REL_RELATIVE.
++ELF_RELOC(R_DADAO_RELATIVE, 8)
++// Runtime copy of a symbol definition.  musl category REL_COPY.  Reserved but
++// **not emitted** by this implementation: encountering one is an explicit
++// error (ADR-0026 D7②, contract-dynlink.md §10②).
++ELF_RELOC(R_DADAO_COPY, 9)
++// TLS module id (8-byte slot); musl category REL_DTPMOD.
++ELF_RELOC(R_DADAO_TLS_DTPMOD, 10)
++// TLS module-relative offset; field = DTPOFF(sym) + A (two's complement);
++// musl category REL_DTPOFF.
++ELF_RELOC(R_DADAO_TLS_DTPREL, 11)
++// TLS TP-relative offset; field = TPOFF(sym) + A (two's complement, may be
++// negative); musl category REL_TPOFF.
++ELF_RELOC(R_DADAO_TLS_TPREL, 12)
++// TLS descriptor (two slots: resolver address, then its argument).  musl
++// category REL_TLSDESC.  Reserved but **not emitted** by this implementation:
++// encountering one is an explicit error (ADR-0026 D7②).
++ELF_RELOC(R_DADAO_TLSDESC, 13)
++// Number of relocation types (not a relocation).  Frozen at 14
++// (ADR-0019 D10 / contract-dynlink.md §4.4).
++ELF_RELOC(R_DADAO_NUM, 14)

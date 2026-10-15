@@ -1,0 +1,53 @@
+diff --git a/lld/ELF/Driver.cpp b/lld/ELF/Driver.cpp
+index 51d9e3241..040a030e4 100644
+--- a/lld/ELF/Driver.cpp
++++ b/lld/ELF/Driver.cpp
+@@ -1327,8 +1327,9 @@ static SmallVector<StringRef, 0> getSymbolOrderingFile(Ctx &ctx,
+ 
+ static bool getIsRela(Ctx &ctx, opt::InputArgList &args) {
+   // The psABI specifies the default relocation entry format.
+-  bool rela = is_contained({EM_AARCH64, EM_AMDGPU, EM_HEXAGON, EM_LOONGARCH,
+-                            EM_PPC, EM_PPC64, EM_RISCV, EM_S390, EM_X86_64},
++  bool rela = is_contained({EM_AARCH64, EM_AMDGPU, EM_DADAO, EM_HEXAGON,
++                            EM_LOONGARCH, EM_PPC, EM_PPC64, EM_RISCV, EM_S390,
++                            EM_X86_64},
+                            ctx.arg.emachine);
+   // If -z rel or -z rela is specified, use the last option.
+   for (auto *arg : args.filtered(OPT_z)) {
+@@ -1341,6 +1342,12 @@ static bool getIsRela(Ctx &ctx, opt::InputArgList &args) {
+       continue;
+     arg->claim();
+   }
++  // DADAO keeps the SHT_RELA record format for both dynamic tables
++  // (contract-dynlink.md §4.1, ADR-0019 §D1): the implicit-addend (SHT_REL)
++  // path is not implemented, so an explicit -z rel is rejected instead of
++  // producing a table the implementation cannot fill in.
++  if (!rela && ctx.arg.emachine == EM_DADAO)
++    ErrAlways(ctx) << "DADAO uses SHT_RELA dynamic relocations only (-z rela)";
+   return rela;
+ }
+ 
+@@ -2076,10 +2083,23 @@ static void setConfigs(Ctx &ctx, opt::InputArgList &args) {
+   if (!args.hasArg(OPT_hash_style)) {
+     if (ctx.arg.emachine == EM_MIPS)
+       ctx.arg.sysvHash = true;
++    else if (ctx.arg.emachine == EM_DADAO)
++      // contract-dynlink.md §5 / ADR-0026 D3: a DADAO object emits **GNU hash
++      // only** (musl ldso reads both tables, so SysV hash would be pure
++      // overhead).  Unlike other targets there is no "both" default, so that a
++      // forgotten --hash-style cannot silently produce a DT_HASH section.
++      ctx.arg.gnuHash = true;
+     else
+       ctx.arg.sysvHash = ctx.arg.gnuHash = true;
+   }
+ 
++  // DADAO binding is **eager** (ADR-0026 D6): the target's PLT entry has no
++  // lazy resolver, so the slots must be filled at load time.  Make that the
++  // default, so a forgotten -z now cannot silently produce a lazily-bound
++  // object; an explicit -z now / -z lazy still wins.
++  if (m == EM_DADAO)
++    ctx.arg.zNow = getZFlag(args, "now", "lazy", true);
++
+   // Set default entry point and output file if not specified by command line or
+   // linker scripts.
+   ctx.arg.warnMissingEntry =

@@ -12,7 +12,7 @@
 ; SEC-NOT: Type: SHT_REL (0x9)
 ;
 ; REL: Offset: 0x0
-; REL: Type: R_DADAO_ABS48 (0)
+; REL: Type: R_DADAO_ABS48 (6)
 ; REL: Symbol: ext
 ; REL: Offset: 0x8
 ;

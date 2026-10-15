@@ -6,9 +6,9 @@
 ;   REL*:  field = (S + A - P) >> 2  (no -4, contract-elf.md §3.1)
 ; A = 0x15/0x16 for the two ABS48 slices, 0x4/0x8/0xC for the REL* records.
 
-; CHECK: Type: R_DADAO_ABS48 (0)
+; CHECK: Type: R_DADAO_ABS48 (6)
 ; CHECK: Addend: 0x15
-; CHECK: Type: R_DADAO_ABS48 (0)
+; CHECK: Type: R_DADAO_ABS48 (6)
 ; CHECK: Addend: 0x16
 ; CHECK: Type: R_DADAO_REL26 (1)
 ; CHECK: Addend: 0x4

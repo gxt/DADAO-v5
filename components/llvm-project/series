@@ -12,6 +12,7 @@ clang/lib/Driver/ToolChains/DADAO.cpp.patch
 clang/lib/Driver/ToolChains/DADAO.h.patch
 lld/ELF/Arch/DADAO.cpp.patch
 lld/ELF/CMakeLists.txt.patch
+lld/ELF/Driver.cpp.patch
 lld/ELF/Target.cpp.patch
 lld/ELF/Target.h.patch
 llvm/CMakeLists.txt.patch

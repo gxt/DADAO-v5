@@ -3,9 +3,9 @@
 ; RUN: %llvm_readobj --sections %t.o | %FileCheck %s --check-prefix=SEC
 ; RUN: %llvm_readobj -r %t.o | %FileCheck %s --check-prefix=REL
 
-; M4 relocations (contract-elf.md §2, ADR-0019 §D1/§D2/§D5):
+; M4 relocations (contract-elf.md §2, ADR-0019 §D1/§D2/§D5, ADR-0019 §D10):
 ; references to another section produce SHT_RELA (not SHT_REL) records.
-; Type numbering: ABS48=0, REL26=1, REL20=2, REL14=3.
+; Type numbering (ADR-0019 D10): ABS48=6, REL26=1, REL20=2, REL14=3.
 ;   ABS48 -> set.zw / or.w / andn.w (rwii address construction)
 ;   REL26 -> call / jump (iiii, imms24)
 ;   REL20 -> br.n/br.nn/br.z/br.nz/br.p/br.np (riii, imms18)
