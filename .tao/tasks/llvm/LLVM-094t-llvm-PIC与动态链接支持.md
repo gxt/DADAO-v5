@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`LLVM-091t`（llvm-project = **23.1.3**，`已验证` 2026-10-14；本册基线）；**口径真源** = `.tao/contracts/contract-dynlink.md`（`§1`–`§10`，用户 **2026-10-14 逐条确认**）、`ADR-0019 D10`（类型号 / 公式 / 值类规则）、`ADR-0026 D1–D8`（行为类口径：`PT_INTERP`、**仅 GNU hash**、不做版本段 / `DT_RELR`、eager、不固定 GOT 基址、超 ±2 KiB 两段式、§10 越界 5 条）；`ADR-0003`（Object ABI）、`ADR-0021`（`ld/st` 符号偏移重定位）、`ADR-0018 C6`/`C7 D4`；`ISS-206`（本册**阶段 E** 的执行落点）；`docs/Process-01`（组件补丁组织与构建编排）
 **状态**：待验收
-**阶段进度**：**A ✅（待验收）** ／ B ⏳ ／ C ⏳ ／ D ⏳ ／ E ⏳
+**阶段进度**：**A CodeGen PIC ✅ 已验证（2026-10-16，reviewer `Accepted`）**；**B/C/D/E ⏳ 待做**
 
 > **`**状态**` 口径**：本任务 = **一个任务书、多阶段验收**（照 `INFRA-082t`/`SPEC-142t`/`INFRA-085t` 先例）⇒ `**状态**` 表**任务级**（**阶段全部验收通过**才置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`。
 
@@ -101,7 +101,7 @@
 
 **修改文件**：① **组件补丁树 11 份**（`components/llvm-project/patches/**`，**一文件一补丁**、`series` 仍 71）＝ `clang/lib/Driver/ToolChains/DADAO.h`、`llvm/lib/Target/DADAO/{DADAO.h,DADAOTargetMachine.cpp,DADAOISelDAGToDAG.cpp,DADAOISelLowering.{cpp,h},DADAOInstrInfo.cpp,DADAOMCInstLower.cpp,DADAOAsmPrinter.{cpp,h},MCTargetDesc/DADAOMCInstPrinter.cpp}`（源树 `.work/source/llvm-project` HEAD `93af153b` = base+1 且干净，`check-patch-tree`/`--source-state` rc=0）；② `tools/llvm/llvm-isa-backend-matrix.{md,tsv}` 重生成（`gen_isa_coverage.py`；仅行号引用与 `isel-cpp` 证据计数 15→18，**判据 yes/no 未变、86 条不变**）；③ `components/llvm-project/changelog.md` 追加 M8 一条（changelog 维护规则要求）；④ `.work/evidence/<任务ID>/{run-a.sh,elfinfo.py,baseline-pre/,baseline-pre-raw.md5,baseline-pre-nocomment.md5,toolchain-pre.md5}` 与 `.work/log/llvm/LLVM-094t-*.log`（**披露**：`.work/**` 为 `.gitignore` ⇒ 证据**不入 git**、留在工作区，沿用既有 `.work/evidence/` 先例）；⑤ 本任务书（完成区 + 自审）。
 
-**阶段进度**：**A ✅（待验收）** ／ B ⏳ ／ C ⏳ ／ D ⏳ ／ E ⏳
+**阶段进度**：**A CodeGen PIC ✅ 已验证（2026-10-16，reviewer `Accepted`）**；**B/C/D/E ⏳ 待做**
 
 **验收结果**（阶段 A 出口，真实输出摘录）：**`-fPIC`/`-fPIE` 目标文件**：`.rela.text` **零**条 `R_DADAO_ABS48`（`P1[pic]/[pie].no-ABS48-in-.text` expect=0 actual=0）、仅 `R_DADAO_REL12`→`.got`；`.got` **4 槽 × 8 B**，槽内容 **4** 条 `R_DADAO_ABS48` 数据重定位（`P2.got-slot-ABS48-relocs` expect=4 actual=4）；指令域 **6** 处 `ld.o rb, [rb0, <slot>]` + **6** 条 `R_DADAO_REL12 .got`（P3，`-dr` 可见）⇒ **偏移为链接期常量**；**无 `rb2`/GP 操作数**（P4 expect=0 actual=0）⇒ 满足「不固定 GOT 基址、不安排专用寄存器」。**生效性**：`-fPIC`/`-fPIE` 与 static 产物 md5 **不同**（A2）⇒ 不再静默压平。**`-S`**：含 `.got` 段 + `[rb0, .Lgot.N]`，`llvm-mc` **可再汇编**（A5 rc=0）；`llc -relocation-model=pic` 同判据。**跳表**：含 2 个 switch 的模块两块表各得**独立**槽 `.LJTI0_0`(+0)/`.LJTI1_0`(+0x10)（A6b）。**大端**：`dataenc=2`（`ELFDATA2MSB`）+ `.data` 常量 `0x01020304` 字节序 = `01 02 03 04`（A8，大端敏感）。**不回归**：静态路径 6 例（`t`/`sw` × O0/O1/O2）剥 `.comment` 后 md5 与**改动前**逐字节相同（A7；`NOTE` 记录原 md5 差异 = 内嵌组件 commit `152cfb15`→`93af153b`）；`-fno-pic` 仍无 `.got`、`.text` 仍 3 片 `ABS48`。**重建/安装**：`build-mc` 单写者 **200 s PASS**（此前 241/210 s 亦 PASS）、`install-host` **PASS**（312 s；前次 129 s）；构建树与安装根 **7 个二进制 md5 全同**（`clang`/`llc`/`llvm-mc`/`llvm-objdump`/`llvm-readobj`/`llvm-objcopy`/`ld.lld`），`clang --version` 报组件 HEAD `93af153b` ⇒ 无 `ISS-210` 假绿。**编号静态核（记录，本次不动）**：`DADAO.def` 现 `R_DADAO_ABS48=0`、`R_DADAO_REL12=4`；`ADR-0019 D10` 期望 `ABS48=6` ⇒ **未同步 = 阶段 E（`ISS-206`）**（A9 NOTE）。
 
@@ -128,8 +128,27 @@
 
 **判决**：F1–F8 **全部 ✅已修**（无 ⏸延后、无 ❌不修）；每条断言/用例均有**可达 FAIL 路径**（`--inject` 10 项现场证明：静态对象被 PIC 判据逐项拒收 + 副本注入 `ABS48` 被检出 + `cp` 还原后 md5 对账 + 剥注释比较可失败）；无猜测填值、`[OPEN]` 无新增。**自审结论 ⇒ 状态置 `待验收`**（阶段 A 完成；B–E 由后续阶段承接）。
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+#### 第 1 轮 reviewer 验收（2026-10-16）
+
+**重跑记录**：`run-a.sh` **84 PASS / 0 FAIL / rc=0**；`--inject` **10/10 PASS / rc=0**；`make check`（L1）**rc=0**；`check-patch-tree` **rc=0**（5 component, 145 patches）；`check-instrinfo` **rc=0**；`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check_issues.py` 各 **rc=0**。7 个二进制 build/install md5 **全同**。
+
+**独立验证**（reviewer 自行编译 + elfinfo.py）：
+- ⭐**破静默压平**：`-fPIC` 与 `-fno-pic` 产物 md5 **不同**（9a87… vs d3c6…）✓
+- PIC `.text`：0 条 `ABS48`、3 条 `REL12`→`.got`；`.got`：3 槽×8B、3 条 `ABS48` 数据重定位
+- 反汇编：`ld.o rb4, [rb0, ...]` + `R_DADAO_REL12 .got`（PC 相对）；**无** `rb2`/`rbgp` 操作数
+- `-fPIE`：同判据，rc=0、`.got` 存在、`REL12`→`.got`、产物与 static 不同 ✓
+- **不回归**：6 例静态对象剥 `.comment` 后 md5 **逐字节同** baseline ✓
+- **大端**：`dataenc=2`、`.data` 偏移 4 处 `01 02 03 04`（BE 敏感）✓
+- `-fPIC -S`：含 `.got` 段 + `[rb0, .Lgot.N]`；`llvm-mc` rc=0（可再汇编）✓
+- **旧编号未误改**：`DADAO.def.patch` 仍 `ABS48=0/NUM=6`；`d92927e` 未改 `DADAO.def`/`ELF.h`/`lld` ✓
+- **契约符合**：`selectRelocModel` 仅接受 `Static`/`PIC_`；`isPICDefaultForced()=false`；无 `rbgp` GOT 访问 ✓
+- **新反例注入**（临时树）：篡改 `DADAO.def.patch` REL12 编号 4→7 ⇒ 6 FAIL → 还原 md5=444f… ⇒ 0 FAIL / rc=0 ✓
+
+**发现（非阻断）**：
+① 完成区写「11 份补丁」但 `git show` 统计 d92927e 含 12 份 `.patch` 文件（漏计 1 份）；
+② 证据脚本 A9 为常真断言（两支均 `PASS`），不符合「禁恒真」规则——但 A9 声明为「record only」且不影响阶段 A 出口判据（`REL12`/`GOT` 槽等核心断言均有可达 FAIL 路径）；建议后续阶段修正 A9 结构（else 分支仅 NOTE、不 PASS）。
+
+**判决**：**Accepted** —— 阶段 A 出口判据全部满足（`-fPIC` 破静默压平、GOT 槽+PC 相对 `REL12`、无 `rbgp`/专用寄存器、静态不回归、大端、旧编号未动、门控全绿）；遗留项（B–E / PLT / 跳表 / lit）已如实登记。
 
 #### architect 提交 / 文件集审核留痕（2026-10-16）
 
@@ -138,3 +157,11 @@
 - **笔 1** = `d92927e`（15 文件、`M`×15、+380/−85）；**笔 2** = `5ba6547`（`ISS-229` notes 追加，仅 1 行变更）。**档位披露**：阶段 A = `待验收`、reviewer 未验收 ⇒ 按 `architect.md` 常规应为 `WIP:` 前缀；**主会话本次明确指令「笔 1 不带 `WIP:`」** ⇒ 从指令执行并在此披露。
 - **只读核对（真实 rc）**：`make check`(L1) **rc=0**（尾行 `repository checks (L1): PASS`；内含 `check_issues: 39 open, 13 closed`）、`make check-patch-tree` **rc=0**（`5 component(s), 145 patches OK`；`components/llvm-project/series` = **71** 行）、`make check-index-blobs` **rc=0**（`108 new-file / 37 modification`）、`make check-source-state` **rc=0**（`musl HEAD=d31bf832… clean=True`）、`check_issues.py` **rc=0**。日志 `.work/log/llvm/LLVM-094t-architect-*.log`。
 - **未** `merge`、**未** `push`（`git ls-remote origin refs/heads/master` = `fe26263`；无 `LLVM-094t-A` 远端分支）；收尾后工作树 `git status --porcelain -uall` = 空。
+
+#### architect 阶段级收尾 / 提交 / merge 留痕（2026-10-16，阶段 A）
+
+- **阶段级收尾**（照 `INFRA-082t`/`SPEC-142t` 先例；阶段 A 已 `Accepted`、**B–E 待做** ⇒ 任务级 `**状态**` **保持 `待验收`** ✓，**不置 `已验证`**）：L1 `make check` **rc=0**（尾行 `repository checks (L1): PASS`；内含 `check_issues: 39 open, 13 closed`）+ `check-patch-tree`（`5 component(s), 145 patches OK`）/`check-index-blobs`/`check-instrinfo`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-knowledge-dir` + `python3 tools/infra/check_issues.py` 各 **rc=0**（各留**自身** rc；日志 `.work/log/llvm/LLVM-094t-architect-stageA-*.log`）；**L2/L3 归任务整体收尾**（阶段 B–E 完成后跑）；临时残留 = 无（`check-no-residue` rc=0）；证据在 `.work/evidence/LLVM-094t/`（`run-a.sh`/`elfinfo.py`/`baseline-pre*`；`.work/**` 被 `.gitignore` ⇒ 不入 git，沿用既有先例）。
+- **补丁计数复核（reviewer 发现 ① 的处置）**：reviewer 记「`git show` 统计 `d92927e` 含 **12** 份 `.patch`」⇒ architect **独立复核**：`git diff-tree -r --no-commit-id --name-status d92927e` = **15 项**（**11** `.patch` + `llvm-isa-backend-matrix.{md,tsv}` + `changelog.md` + 本任务书）、`git diff --name-only fe26263..HEAD | grep -c '\.patch$'` = **11**、`git status --porcelain --ignored -uall components/llvm-project/patches` = **0**（无 ignored / untracked 第 12 份）⇒ 完成区「**11 份补丁**」**与 `--name-status` 一致**，reviewer ①「12 / 漏计 1 份」**无法复现、不成立** ⇒ **保持 11、不改写为 12**（改写即与 diff 矛盾）；本条**留痕待主会话裁定**。
+- **reviewer 发现 ②**（证据脚本 A9 常真断言）**非阻断** ⇒ 转 **B–E 阶段遗留**（后续阶段改 A9 结构：else 分支仅 `NOTE` 不 `PASS`）；本次**未动** `run-a.sh`（不触碰已验收证据）。
+- **提交**：显式 staging（本任务书 + `.tao/knowledge/milestones.md`）、**未** `git add -A`；档位 = **正常提交**（reviewer 判决 `Accepted`）；**只 `commit`、未 `push`**。
+- **随后（同次收尾）**：`git switch master` → `git merge --ff-only LLVM-094t-A` → `git branch -D LLVM-094t-A`；**不 push** ✗。
