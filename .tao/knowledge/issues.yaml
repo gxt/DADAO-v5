@@ -407,7 +407,6 @@
   resolved_by: null
   notes: "【正式登记（architect 提交/文件集审核现场；源 = 主会话协调现场，**转述**——architect 未直接持有丢失的回报体；2026-10-15）】**现象**：**后台子代理的回报可能静默丢失**（无 `Task cancelled`、无错误串、无返回体）——主会话若以「等回报」为停顿理由，会在任务实际已落地（或即将落地）后**空窗**。**实例**：`INFRA-071t` 收尾后主会话空窗（现场；architect 复核 = 该任务书 `**状态**` 与 `milestones.md` 流水行均已落盘 ⇒ 属**回报缺失，而非工作未做**）。**先例（同类）**：`ISS-205`（reviewer 未返回最终判定）、`ISS-207`（返回被服务商拦截）——同属 `AGENTS.md`『子代理返回异常处理』族；本条补的是**「主会话侧不得依赖回报驱动」**这一面。**性质 = 协调层 / 流程**（非交付物缺陷、非静默错码）。**对策（本笔已落）**：① 以**盘上事实**判断是否完成（`git log` / 任务书 `**状态**` / `milestones.md`），不假设「它还在继续」；② `AGENTS.md`「命令与任务执行纪律」新增 **队列续链归主会话**（子代理返回或已落地后立即派下一件，不得以「等回报」停顿）+ **收到通知先核盘上事实**；③ `AGENTS.md`「长任务（长构建 / 长命令）」新增 **长任务归主会话**（`setsid nohup` + 落 `XXX_EXIT=$rc`；子代理不得在会话内等待长任务）；④ `.opencode/commands/complete.md` 收尾检查增「已按队列派出下一件，或说明为何停」；⑤ `tools/infra/check_tasks.py` 扩为**报告型清单**（另列「已立但仍 `待开始`」，供收尾 / `/status` 判队列）。**status 取 `open`（architect 判断）**：对策 = **规则 + 报告**、无机械门控；回报丢失属基础设施行为、**可复发**，留 `open` 便于再次复现时挂证（**不以伪造任务号填 `resolved_by`**）。证据指针：`AGENTS.md`「命令与任务执行纪律」与「长任务（长构建 / 长命令）」；`.opencode/commands/complete.md`；`tools/infra/check_tasks.py`；本文件 `ISS-205` / `ISS-207`。"
 
-
 - id: ISS-210
   title: "【P2】改 MC（`.td` / InstrInfo）后**只重建、未 `make install-host`** ⇒ 门控 / lit 走**旧安装根** `llvm-mc`，与旧生成物**互相自洽而照绿**（假绿）；对策 = 把 `install-host` 纳入「改 MC 后」必跑步骤（纪律与/或一致性门控）"
   status: open
@@ -425,3 +424,10 @@
   resolved_by: null
   notes: "【正式登记（源 `SPEC-142t` 阶段 B-a 实测 + 主会话 **F4 裁定**，architect 提交与文件集审核时立项，2026-10-15）】**事实（B-a 实测）**：`rev.o` 的 `immu6` 取 `k=0/3/5/63`、`rev.b k=8`、`rev.t k=32`（**非 one-hot 或 `k ≥ S`**）`llvm-mc` **全部 rc=0 静默接受**；`rd0` 作目的亦 rc=0（MC 层无 `dst_rd0`）；仅越出既有 `immu6` 类型范围（`k=64` / `-1`）才 rc=1 拒绝。**依据（既有层对照）**：`contracts/legality_rules.yaml` 的 `encode_onehot` 与 `dst_rd0` **落在契约 / 生成器与执行层**；既有 **120 条**指令同样**不在 MC 层**查 `dst_rd0` ⇒ 属**既有分层口径**（`ADR-0012 D10` + 主会话 **F4 裁定 = 不加汇编期 `encode_onehot` 检查**），**非**本任务缺陷。`ILLI`（非法编码异常）属**执行期**、由**阶段 C（QEMU）**承担。**status = open（architect 判断，作留档）**：①口径的另一半（`ILLI` 执行期异常）待**阶段 C** 落地后才**完整闭环**；②「MC 层未做合法性检查」**无机械门控可判**（分层口径、非可测断言）⇒ 留 `open` 便于阶段 C / 后续复核**挂证**；阶段 C 落地并复核口径后可由 `SPEC-142t` 关闭（`resolved_by` 届时回填）；③本项目 P3 留档**先例同取 `open`**（`ISS-208` / `ISS-209`）。证据指针：`.tao/tasks/spec/SPEC-142t-*.md`「阶段 B-a」验收③ + 「architect 裁定留痕（F4）」。"
 
+- id: ISS-212
+  title: "【P2】长期未合并的分支 × 共享 `.work/source/<组件>` 会致 `check-patch-tree` 错配红——换分支后仓库补丁表回退而源树仍停旧分支 base+1"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `INFRA-076t` 收尾现场〔architect 直接持有 A/B 差分证据〕；2026-10-15）】**现象**：`check-patch-tree` 同时读「**仓库侧补丁表**」与「**共享** `.work/source/<name>` 工作树」；工作树**不随分支切换重建** ⇒ 存在长期未合并的分支时，切到另一分支后仓库侧补丁表回退到旧版（blob 变化），而共享源树仍停在**旧分支**的 `base+1` 提交 ⇒ 二者错配、门控 **rc=2**。**本次实例（`INFRA-076t` 现场）**：切到 `INFRA-076t` 后仓库侧 `components/llvm-project` 补丁表 = master 版（blob `78648ec`），而共享 `.work/source/<llvm-project>` 仍停 `SPEC-142t-B` 的 `base+1` 提交（`24881a6b5`，07:46）⇒ `check-patch-tree` 红；**双重证据**：① 该门控红**不含 `musl`**、在「master 锁册（无 musl）临时树」上输出逐字节一致 / rc 相同 ⇒ 与 `INFRA-076t` 改动零关联；② 同一临时树**仅**把该补丁换成 `SPEC-142t-B` 版（blob `010a9b6`）即 `4 component(s), 127 patches OK` **rc=0**（A/B 落 `.work/log/infra/INFRA-076t-cpt-branch-ab.log`）。**性质 = 流程隐患 / 共享工作区与分支态耦合**（非交付物缺陷；**无机械门控可判** —— 门控本身只能看到错配结果，判不了根因）。**对策（本笔已落判断，未落代码）**：① 任务收口**及时合并**（禁积压未合并分支）；② 跨阶段长期分支应**先收口再开他任务**，或切换后**同步源树**（`make apply-series`）；③ 诊断可用「换补丁为当前分支版即回绿」作**双重证据**（本次实例）。**status 取 `open`（architect 判断）**：属流程隐患、**可复发**（任一长期分支 × 任一共享源树即可复现），留 `open` 便于再次复现时挂证（**不以伪造任务号填 `resolved_by`**）。证据指针：`.tao/tasks/infra/INFRA-076t-*.md`「完成区·新发现/坑 ③」+「验收结果·L1 聚合」；`.work/log/infra/INFRA-076t-cpt-branch-ab.log`。"
