@@ -1,9 +1,14 @@
-# INFRA-081t: musl 静态最小集移植（`P1`：静态可运行）
+# INFRA-082t: musl 静态最小集移植（`P1`：静态可运行）
 
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 路线；`D6` = `P0 契约 → P1 musl 静态 → P2 动态 → P3 linux-user → P4 对照/回归`、`D2` = **无内核目标**、`D3` = musl 自带 `ldso`〔**P2**〕、`D4` = musl 与 picolibc **并存**）；`ADR-0027 D5`（compiler-rt builtins = **独立库、picolibc/musl 共用**）；`INFRA-076t`（musl 1.2.6 取源与锁定，`已验证`）；`SPEC-138t`（syscall 映射契约，`已验证`）；`SPEC-140t`（TLS 硬依赖查证，`已验证`）；`INFRA-079t`（compiler-rt builtins 接入，**`待开始`**——**可能须先于本任务**，见「依赖与先后」）；`INFRA-057t`（picolibc 移植/构建集成的**形态先例**，**只读**）；`docs/Process-01`（组件补丁组织与构建编排）
 **状态**：待开始
+
+> **改号留痕（2026-10-15，architect；分支 `p1-renumber`）**：本任务书**原号 `INFRA-081t` ✗ ⇒ 今号 `INFRA-082t` ✓**。
+> **理由 = 避「git 历史同号」**：`INFRA-081t` **历史上**曾指 `libc-test` 任务（`1dc0570` 内 `.tao/tasks/infra/INFRA-081t-libc-test取源与锁定.md`，后经 `R089` 改名 `TESTCASES-044t` 而离开 `master`）⇒ 若本册沿用 `081`，则**同一编号在仓库历史中指两件事**，违背 `.tao/knowledge/lessons.md §3.21`「编号须**全仓（含历史）唯一**」精神；`082` 经 `git grep`（工作树）+ `git log --all --name-only`（全历史）复核**从未被占用** ✓。
+> **范围未变**：仅**编号**变更，任务目标/范围/验收标准**一字未改**。
+> **下文「architect 立项提交留痕」中出现的 `INFRA-081t-*`（立项提交 `159bc42` 时的文件路径 / 门控日志名）属历史留档**，按 `lessons §4.1`（历史快照旧路径**保留、不回溯更新**）**保留原字** ✓——即**可审计**（与 `git show 159bc42 --name-status` 一致）。
 
 ## 执行环境
 **执行环境**：本地
@@ -101,7 +106,13 @@
 
 - **档位**：**正常提交**——本提交为**规划产物立档**（用户 2026-10-15 原话「**立**」，渠道 = 经主会话问答），**非 engineer 实现、无 reviewer 判决适用**；提交信息按用户指定。
 - **提交号**：`159bc42`（「立 P1：musl 静态最小集移植任务书（ADR-0025 D6）+ 登记后续两大测试集全量（用户裁定）」）。
-- **文件集对账**（`git diff --cached --name-status` = **2 项** vs 本任务书范围）：① **新增**本任务书 `.tao/tasks/infra/INFRA-081t-musl静态最小集移植.md`；② **修改** `.tao/knowledge/milestones.md`（流水行 + M8 规划区条目，**architect 台账职责**）⇒ **无漏提、无多提、无越界**（**未动** `spec/` / `.tao/contracts/` / `manifests/` / 组件补丁 / `tools/`；`.work/**` gitignored 不入库）。
-- **取号依据**（`INFRA-081t`）：扫 `.tao/tasks/infra/**` + `.tao/archive/**` 全量，**占用最大 = `INFRA-080t`** ⇒ 取 **`081`**；**`master` 现状无 `INFRA-081*` 文件 ⇒ 未被占用**（注：该号**历史**上曾被 `libc-test` 任务占用、后经 `1dc0570`（`R089`）改名释放为 `TESTCASES-044t` ⇒ 本册与其**无关联**）。
-- **门控**（各捕**自身** rc，无 `tee` 吞码）：`make check`（L1）= **0** / `check-knowledge-refs` = **0** / `check-knowledge-dir` = **0** / `check-no-residue` = **0** / `check-tasks` = **0**（②「已立未开工」计数含本任务）/ `python3 tools/infra/check_issues.py` = **0**；日志落 `.work/log/infra/INFRA-081t-gate-*.log`（`.work/` 可删区）。
+- **文件集对账**（`git diff --cached --name-status` = **2 项** vs 本任务书范围）：① **新增**本任务书 `.tao/tasks/infra/INFRA-081t-musl静态最小集移植.md`〔**立项提交 `159bc42` 时的历史路径**；2026-10-15 改号为 `INFRA-082t-musl静态最小集移植.md`，见文件头「改号留痕」〕；② **修改** `.tao/knowledge/milestones.md`（流水行 + M8 规划区条目，**architect 台账职责**）⇒ **无漏提、无多提、无越界**（**未动** `spec/` / `.tao/contracts/` / `manifests/` / 组件补丁 / `tools/`；`.work/**` gitignored 不入库）。
+- **取号依据**（**立项时取 `INFRA-081t` ⇒ 2026-10-15 改号 `INFRA-082t`**，见文件头「改号留痕」）：扫 `.tao/tasks/infra/**` + `.tao/archive/**` 全量，**占用最大 = `INFRA-080t`** ⇒ 取 **`081`**；**`master` 现状无 `INFRA-081*` 文件 ⇒ 未被占用**（注：该号**历史**上曾被 `libc-test` 任务占用、后经 `1dc0570`（`R089`）改名释放为 `TESTCASES-044t` ⇒ 本册与其**无关联**；**改号后 `081` 不再被任何现存任务占用** ✓）。
+- **门控**（各捕**自身** rc，无 `tee` 吞码）：`make check`（L1）= **0** / `check-knowledge-refs` = **0** / `check-knowledge-dir` = **0** / `check-no-residue` = **0** / `check-tasks` = **0**（②「已立未开工」计数含本任务）/ `python3 tools/infra/check_issues.py` = **0**；日志落 `.work/log/infra/INFRA-081t-gate-*.log`（**立项时留档名**，`.work/` 可删区）。
 - **`push`**：**未做**（本角色**禁** `push`；`master` 落地由主会话在 `/complete` 后执行）。
+
+#### architect 改号留痕（2026-10-15，分支 `p1-renumber`）
+
+- **改号**：`INFRA-081t` ✗ ⇒ **`INFRA-082t`** ✓（`git mv` 任务书 + 全文件编号同步）。**理由**：避**历史同号**——`INFRA-081t` 历史上曾指 `libc-test` 任务（`1dc0570` 内 `INFRA-081t-libc-test取源与锁定.md`，经 `R089` 改名 `TESTCASES-044t` 离开 `master`）⇒ 沿用 `081` 即**同一编号在历史中指两件事**，违背 `.tao/knowledge/lessons.md §3.21`「编号须**全仓（含历史）唯一**」；`082` 全仓（工作树 + 全历史）复核**从未被占用** ✓。
+- **同步面**（`git grep -n 'INFRA-081t'` 现场全仓查证，共 **7 处**）：任务书内 **4 处**（① 标题 ② 文件集对账的路径引用 ③ 取号依据 ④ 门控日志名）+ `milestones.md` **3 处**（① 任务流水行 ② 「新组件模块归属裁定」历史行 ③ `P1` 立项行 + 指针）。**处置**：**现存/前瞻引用 → `082`**；**历史留档引用**（立项提交 `159bc42` 的路径、留档日志名、`1dc0570` 的 `libc-test` 历史号）**保留原字 + 就地加注**（`lessons §4.1`：历史快照旧路径保留不回溯；保「可审计」——与 `git show <commit> --name-status` 一致）。
+- **范围**：**仅编号**变更，任务书目标/范围/验收标准**一字未改** ✓。
