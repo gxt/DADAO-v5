@@ -141,6 +141,14 @@
 - **门控**（各捕**自身** rc，无 `tee` 吞码）：`make check`（L1）= **0** / `check-knowledge-refs` = **0** / `check-knowledge-dir` = **0** / `check-no-residue` = **0** / `check-tasks` = **0**（②「已立未开工」计数含本任务）/ `python3 tools/infra/check_issues.py` = **0**；日志落 `.work/log/infra/INFRA-081t-gate-*.log`（**立项时留档名**，`.work/` 可删区）。
 - **`push`**：**未做**（本角色**禁** `push`；`master` 落地由主会话在 `/complete` 后执行）。
 
+#### architect 补定提交留痕（2026-10-15，分支 `infra-082t-spec`）
+
+- **档位**：**正常提交**——本提交为**规划产物补定**（主会话 2026-10-15 三条结论 + 分期结构，渠道 = 经主会话问答），**非 engineer 实现、无 reviewer 判决适用**。
+- **提交号**：`8bba126`（「INFRA-082t 任务书补定：三条前置结论（builtins 后置/ISS-216 并入/补丁集化）+ 分期结构」）。
+- **文件集对账**（`git diff --cached --name-status` = **3 项** vs 本任务书范围）：① **修改** 本任务书（「§前置结论」/「§分期结构」新增 + 「§范围」做项 3（QEMU 侧，**范围决定**标注）+ 「§依赖与先后」/「§已知事实 4」/「§接口规范 输出 1–2」/「§验收标准」1–10/「§待确认项」闭合标注）；② **修改** `.tao/knowledge/milestones.md`（`INFRA-082t` 流水行 + `P1` 规划区新增补定条，**architect 台账职责**）；③ **修改** `.tao/knowledge/issues.yaml`（`ISS-216` `notes` **只追加**裁定句，`status` 保持 `open`）⇒ **无漏提、无多提、无越界**（**未动** `spec/` / `.tao/contracts/` / `manifests/` / 组件补丁 / `tools/`；`.work/**` gitignored 不入库）。
+- **门控**（各捕**自身** rc，无 `tee` 吞码）：`make check`（L1）= **0** / `make check-patch-tree` = **0** / `check-knowledge-refs` = **0** / `check-knowledge-dir` = **0** / `check-no-residue` = **0** / `make check-tasks` = **0** / `python3 tools/infra/check_issues.py` = **0**（34 open / 9 closed，0 blocking）；`issues.yaml` `yaml.safe_load` 通过；日志落 `.work/log/infra/INFRA-082t-spec-*.log`。
+- **`push`**：**未做**（本角色**禁** `push`；`master` 落地由主会话在 `/complete` 后执行）。
+
 #### architect 改号留痕（2026-10-15，分支 `p1-renumber`）
 
 - **改号**：`INFRA-081t` ✗ ⇒ **`INFRA-082t`** ✓（`git mv` 任务书 + 全文件编号同步）。**理由**：避**历史同号**——`INFRA-081t` 历史上曾指 `libc-test` 任务（`1dc0570` 内 `INFRA-081t-libc-test取源与锁定.md`，经 `R089` 改名 `TESTCASES-044t` 离开 `master`）⇒ 沿用 `081` 即**同一编号在历史中指两件事**，违背 `.tao/knowledge/lessons.md §3.21`「编号须**全仓（含历史）唯一**」；`082` 全仓（工作树 + 全历史）复核**从未被占用** ✓。
