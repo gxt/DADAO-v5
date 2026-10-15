@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..cc16c04
+index 0000000..8bbb8b5
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,1230 @@
+@@ -0,0 +1,1256 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -869,11 +869,13 @@ index 0000000..cc16c04
 + * any trap the instruction-type trap mask forbids (the mask check below still
 + * runs first).
 + *
-+ * Service set (minimal, fixed on the spot for INFRA-082t stage A1): the two
-+ * host-output paths musl's stdio uses, plus process exit --
-+ *   write (64) / writev (66) / exit (93) / exit_group (94).
-+ * Every other number fails explicitly with -ENOSYS (never silently succeeds);
-+ * further services are added once a real musl program needs them (stage B).
++ * Service set: the two host-output paths musl's stdio uses, plus process exit
++ * -- write (64) / writev (66) / exit (93) / exit_group (94) -- chosen on the
++ * spot for INFRA-082t stage A1, plus set_tid_address (96), added in stage B
++ * because musl calls it unconditionally while starting up
++ * (`src/env/__init_tls.c`, __init_tp).  Every other number fails explicitly
++ * with -ENOSYS (never silently succeeds); further services are added once a
++ * real musl program needs them.
 + * Numbers come from the pinned RISC-V Linux uapi table (contract-syscall
 + * §1.2; `asm-generic/unistd.h`), never invented here.
 + * =================================================================== */
@@ -883,6 +885,7 @@ index 0000000..cc16c04
 +#define DADAO_NR_writev      66
 +#define DADAO_NR_exit        93
 +#define DADAO_NR_exit_group  94
++#define DADAO_NR_set_tid_address 96
 +
 +/* SBI_UMON_SYSCALL dispatch tag (DADAO-22 §2: immu18 = 0). */
 +#define DADAO_SBI_UMON_SYSCALL 0
@@ -908,6 +911,13 @@ index 0000000..cc16c04
 +
 +/* writev iovec limit (Linux IOV_MAX). */
 +#define DADAO_UMON_IOV_MAX 1024
++
++/* Thread id returned by set_tid_address(2).  There is no kernel, no scheduler
++ * and no task table (contract-syscall §6 / ADR-0025 D2): the machine runs
++ * exactly one process, and this is its fixed thread id.  Linux returns the
++ * caller's tid here, and musl stores it as the thread id of the main thread
++ * (src/env/__init_tls.c, __init_tp). */
++#define DADAO_UMON_TID 1
 +
 +static void umon_set_ret(CPUDADAOState *env, uint64_t ret)
 +{
@@ -1021,6 +1031,19 @@ index 0000000..cc16c04
 +    umon_set_ret(env, done);
 +}
 +
++/* set_tid_address(2): tidptr = rb16 (contract-syscall §3: the pointer argument
++ * goes to the address bank; musl mirrors the placement with
++ * __dadao_argmask(96) == 0x01).  Linux registers the pointer and clears
++ * *tidptr when the thread exits; with no kernel and no thread table
++ * (ADR-0025 D2) there is no thread-exit hook to fire and nothing to clear, so
++ * the pointer is accepted and never dereferenced -- this is a kernel-less
++ * model boundary, not a silently ignored argument.  The return value is the
++ * machine's single thread id (DADAO_UMON_TID). */
++static void umon_sys_set_tid_address(CPUDADAOState *env)
++{
++    umon_set_ret(env, DADAO_UMON_TID);
++}
++
 +/* Dispatch one SBI_UMON_SYSCALL.  Returns true when the call terminates the
 + * process (exit / exit_group), i.e. when the machine must halt. */
 +static bool umon_serve_syscall(CPUDADAOState *env)
@@ -1033,6 +1056,9 @@ index 0000000..cc16c04
 +        return false;
 +    case DADAO_NR_writev:
 +        umon_sys_writev(env);
++        return false;
++    case DADAO_NR_set_tid_address:
++        umon_sys_set_tid_address(env);
 +        return false;
 +    case DADAO_NR_exit:
 +    case DADAO_NR_exit_group:

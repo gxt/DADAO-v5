@@ -16,7 +16,7 @@ never from the QEMU implementation -- contract-syscall §5):
     protocols of Machine-01 §5.5 / ADR-0004 D3 must not be mixed into it).
   - Syscall numbers and errno values: the pinned RISC-V Linux uapi
     (`asm-generic/unistd.h`, `asm-generic/errno.h`) --
-    write 64, writev 66, exit 93, exit_group 94, brk 214;
+    write 64, writev 66, exit 93, exit_group 94, set_tid_address 96, brk 214;
     EIO 5, EBADF 9, EINVAL 22, ENOSYS 38.
   - spec/Machine-01 §4 (trap/escape and the two pre-existing routes of §4.3),
     §6 (bootrom hands off to user mode; `-bios` + raw `-kernel` path B).
@@ -34,6 +34,7 @@ Cases (each has a reachable FAIL path; the comparisons are proved live by the
   umon_write_stderr        write(2) goes to the host stderr stream
   umon_writev_stdout       writev(2) gathers both iovecs (64-bit BE iovecs)
   umon_writev_einval       iovcnt > IOV_MAX => -EINVAL
+  umon_set_tid_address     set_tid_address(96) -> rd8 = the machine's tid
   umon_enosys_unknown_nr   unknown number => -ENOSYS + explicit guest error
   umon_enosys_known_nr     known-but-unimplemented number => -ENOSYS
   umon_ebadf_fd            unsupported fd => -EBADF
@@ -80,6 +81,11 @@ NR_write = 64
 NR_writev = 66
 NR_exit = 93
 NR_exit_group = 94
+NR_set_tid_address = 96
+
+# The machine has one process (no kernel/scheduler), so the thread id returned
+# by set_tid_address(2) is the fixed DADAO_UMON_TID of the service.
+UMON_TID = 1
 
 ENOSYS = 38
 EBADF = 9
@@ -96,6 +102,7 @@ K_MSG_A1 = 0x400
 K_MSG_E2 = 0x410
 K_BUF_V1 = 0x420
 K_BUF_V2 = 0x430
+K_TIDPTR = 0x440
 K_IOV = 0x500
 
 
@@ -297,6 +304,20 @@ def _writev_einval():
     return build_rom(bootrom(0)), kernel(app_writev(K_IOV, 1025, 0x2D)), exp
 
 
+@case("umon_set_tid_address",
+      "set_tid_address(96) served; rd8 = the machine's single-process tid")
+def _set_tid_address():
+    # tidptr = rb16 (a pointer argument; contract-syscall §3).  There is no
+    # thread-exit hook to clear it in the kernel-less model, so the service
+    # answers with the fixed DADAO_UMON_TID instead of -ENOSYS (musl calls this
+    # unconditionally during startup: src/env/__init_tls.c, __init_tp).
+    app = (sys_call(NR_set_tid_address, [("a", RAM_BASE + K_TIDPTR)])
+           + umon_exit_group(0x3E))
+    exp = {"exit": 0x3E, "rd8": UMON_TID,
+           "log_absent": "umon syscall 96 not implemented"}
+    return build_rom(bootrom(0)), kernel(app), exp
+
+
 @case("umon_enosys_unknown_nr", "unknown number => -ENOSYS (+ guest error log)")
 def _enosys_unknown():
     app = (sys_call(0x1234, []) + umon_exit_group(0x5A))
@@ -439,6 +460,8 @@ def verify(exp, obs, inject=False):
             # Turn the absence expectation into a presence one so that the
             # comparison stays live under --inject as well.
             exp["stdout_has"] = exp.pop("stdout_absent")
+        if "log_absent" in exp:
+            exp["log_has"] = exp.pop("log_absent")
 
     bad = []
     if "exit" in exp and obs["exit"] != exp["exit"]:
@@ -455,6 +478,9 @@ def verify(exp, obs, inject=False):
                    % (exp["stderr_has"], obs["stderr"]))
     if "log_has" in exp and exp["log_has"] not in obs["log"]:
         bad.append("log: expected to contain %r" % (exp["log_has"],))
+    if "log_absent" in exp and exp["log_absent"] and \
+            exp["log_absent"] in obs["log"]:
+        bad.append("log: expected NOT to contain %r" % (exp["log_absent"],))
     for key in ("rd8", "mode", "trapn0", "syncn0", "escn0"):
         if key not in exp:
             continue

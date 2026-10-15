@@ -39,7 +39,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
-        test-picolibc-smoke install-host docker-image docker-shell check \
+        build-musl test-picolibc-smoke install-host docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
@@ -79,6 +79,7 @@ help:
 	@echo "  make build-gem5      Build gem5 (stub; command owned by the gem5 module)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
+	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
@@ -429,6 +430,19 @@ check-picolibc-tests: build-picolibc
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
 check-picolibc-tests-full: build-picolibc
 	@$(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(JOBS)
+
+# build-musl (INFRA-082t): configure and build the static musl libc for
+# dadao-unknown-elf inside .work/source/musl (the DADAO port lives as a
+# tree-shaped patch set, components/musl/patches/**; run 'make fetch
+# apply-series' first).  P1 is the STATIC subset: --disable-shared is
+# deliberate (the dynamic linker is P2, ADR-0025 D6).  Products:
+# lib/libc.a + lib/crt{1,i,n}.o.  The target is idempotent (configure is
+# skipped once config.mak exists) and, by default, also links and verifies a
+# minimal static program (see tools/infra/build_musl.py).  Requires the
+# install-root clang (run 'make install-host' first).
+build-musl:
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS)
 
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev
