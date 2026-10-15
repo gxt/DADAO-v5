@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`LLVM-091t`（llvm-project = **23.1.3**，`已验证` 2026-10-14；本册基线）；**口径真源** = `.tao/contracts/contract-dynlink.md`（`§1`–`§10`，用户 **2026-10-14 逐条确认**）、`ADR-0019 D10`（类型号 / 公式 / 值类规则）、`ADR-0026 D1–D8`（行为类口径：`PT_INTERP`、**仅 GNU hash**、不做版本段 / `DT_RELR`、eager、不固定 GOT 基址、超 ±2 KiB 两段式、§10 越界 5 条）；`ADR-0003`（Object ABI）、`ADR-0021`（`ld/st` 符号偏移重定位）、`ADR-0018 C6`/`C7 D4`；`ISS-206`（本册**阶段 E** 的执行落点）；`docs/Process-01`（组件补丁组织与构建编排）
 **状态**：待验收
-**阶段进度**：**A CodeGen PIC ✅ 已验证（2026-10-16，reviewer `Accepted`）**；**B LLD 动态产出 ✅ 实现完成（2026-10-16，`run-b.sh` 103 PASS/0 FAIL + `--inject` 113 PASS/0 FAIL，**待 reviewer 验收**）**；**C/D/E ⏳ 待做**
+**阶段进度**：**A CodeGen PIC ✅ 已验证（2026-10-16，reviewer `Accepted`）**；**B LLD 动态产出 ✅ 已完成（2026-10-16，`run-b.sh` 103 PASS/0 FAIL + `--inject` 113 PASS/0 FAIL，**待 reviewer 验收**）**；**C/D/E ⏳ 待做**（**E 范围已收窄**：仅余 `ISS-206②`〔须用户授权〕+ `③` 收尾，见下「主会话裁定」）
 
 > **`**状态**` 口径**：本任务 = **一个任务书、多阶段验收**（照 `INFRA-082t`/`SPEC-142t`/`INFRA-085t` 先例）⇒ `**状态**` 表**任务级**（**阶段全部验收通过**才置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`。
 
@@ -101,7 +101,7 @@
 
 **修改文件**：① **组件补丁树 11 份**（`components/llvm-project/patches/**`，**一文件一补丁**、`series` 仍 71）＝ `clang/lib/Driver/ToolChains/DADAO.h`、`llvm/lib/Target/DADAO/{DADAO.h,DADAOTargetMachine.cpp,DADAOISelDAGToDAG.cpp,DADAOISelLowering.{cpp,h},DADAOInstrInfo.cpp,DADAOMCInstLower.cpp,DADAOAsmPrinter.{cpp,h},MCTargetDesc/DADAOMCInstPrinter.cpp}`（源树 `.work/source/llvm-project` HEAD `93af153b` = base+1 且干净，`check-patch-tree`/`--source-state` rc=0）；② `tools/llvm/llvm-isa-backend-matrix.{md,tsv}` 重生成（`gen_isa_coverage.py`；仅行号引用与 `isel-cpp` 证据计数 15→18，**判据 yes/no 未变、86 条不变**）；③ `components/llvm-project/changelog.md` 追加 M8 一条（changelog 维护规则要求）；④ `.work/evidence/<任务ID>/{run-a.sh,elfinfo.py,baseline-pre/,baseline-pre-raw.md5,baseline-pre-nocomment.md5,toolchain-pre.md5}` 与 `.work/log/llvm/LLVM-094t-*.log`（**披露**：`.work/**` 为 `.gitignore` ⇒ 证据**不入 git**、留在工作区，沿用既有 `.work/evidence/` 先例）；⑤ 本任务书（完成区 + 自审）。
 
-**阶段进度**：**A CodeGen PIC ✅ 已验证（2026-10-16，reviewer `Accepted`）**；**B LLD 动态产出 ✅ 实现完成（2026-10-16，`run-b.sh` 103 PASS/0 FAIL + `--inject` 113 PASS/0 FAIL，**待 reviewer 验收**）**；**C/D/E ⏳ 待做**
+**阶段进度**：**A CodeGen PIC ✅ 已验证（2026-10-16，reviewer `Accepted`）**；**B LLD 动态产出 ✅ 已完成（2026-10-16，`run-b.sh` 103 PASS/0 FAIL + `--inject` 113 PASS/0 FAIL，**待 reviewer 验收**）**；**C/D/E ⏳ 待做**（**E 范围已收窄**：仅余 `ISS-206②`〔须用户授权〕+ `③` 收尾，见下「主会话裁定」）
 
 **验收结果**（阶段 A 出口，真实输出摘录）：**`-fPIC`/`-fPIE` 目标文件**：`.rela.text` **零**条 `R_DADAO_ABS48`（`P1[pic]/[pie].no-ABS48-in-.text` expect=0 actual=0）、仅 `R_DADAO_REL12`→`.got`；`.got` **4 槽 × 8 B**，槽内容 **4** 条 `R_DADAO_ABS48` 数据重定位（`P2.got-slot-ABS48-relocs` expect=4 actual=4）；指令域 **6** 处 `ld.o rb, [rb0, <slot>]` + **6** 条 `R_DADAO_REL12 .got`（P3，`-dr` 可见）⇒ **偏移为链接期常量**；**无 `rb2`/GP 操作数**（P4 expect=0 actual=0）⇒ 满足「不固定 GOT 基址、不安排专用寄存器」。**生效性**：`-fPIC`/`-fPIE` 与 static 产物 md5 **不同**（A2）⇒ 不再静默压平。**`-S`**：含 `.got` 段 + `[rb0, .Lgot.N]`，`llvm-mc` **可再汇编**（A5 rc=0）；`llc -relocation-model=pic` 同判据。**跳表**：含 2 个 switch 的模块两块表各得**独立**槽 `.LJTI0_0`(+0)/`.LJTI1_0`(+0x10)（A6b）。**大端**：`dataenc=2`（`ELFDATA2MSB`）+ `.data` 常量 `0x01020304` 字节序 = `01 02 03 04`（A8，大端敏感）。**不回归**：静态路径 6 例（`t`/`sw` × O0/O1/O2）剥 `.comment` 后 md5 与**改动前**逐字节相同（A7；`NOTE` 记录原 md5 差异 = 内嵌组件 commit `152cfb15`→`93af153b`）；`-fno-pic` 仍无 `.got`、`.text` 仍 3 片 `ABS48`。**重建/安装**：`build-mc` 单写者 **200 s PASS**（此前 241/210 s 亦 PASS）、`install-host` **PASS**（312 s；前次 129 s）；构建树与安装根 **7 个二进制 md5 全同**（`clang`/`llc`/`llvm-mc`/`llvm-objdump`/`llvm-readobj`/`llvm-objcopy`/`ld.lld`），`clang --version` 报组件 HEAD `93af153b` ⇒ 无 `ISS-210` 假绿。**编号静态核（记录，本次不动）**：`DADAO.def` 现 `R_DADAO_ABS48=0`、`R_DADAO_REL12=4`；`ADR-0019 D10` 期望 `ABS48=6` ⇒ **未同步 = 阶段 E（`ISS-206`）**（A9 NOTE）。
 
@@ -199,3 +199,27 @@
 | F10 并发风险（`ISS-229`）：L2 会自行 `install-host→build-mc` 重建构建树 | ✅已防 | 全程单写者：先 `build-lld`/`build-mc`/`install-host` 串行，再跑证据，最后单独跑 L2（期间无其它写 `.work/build/**`） | 构建日志连续无交叉；安装根/构建树 md5 全同 |
 
 **判决**：F1–F10 **全部 ✅已修**（无 ⏸延后、无 ❌不修）；每条断言/用例均有**可达 FAIL 路径**（`--inject` 8 项现场证明：注入只作用于**副本**，原件 md5 前后对账一致 ⇒ 无需 `git checkout`/`restore`）；无猜测填值、`[OPEN]` 未新增。**自审结论 ⇒ 状态置 `待验收`**（阶段 B 完成；C–E 由后续阶段承接）。
+
+#### 主会话裁定（2026-10-16，阶段 B）
+
+**裁定 1 —— `DADAO.def` 编号同步并入阶段 B**：**接受**。原话要点：「**"阶段 B 被迫含 `DADAO.def` 编号同步" ⇒ 接受**（理由：旧编号下 `ABS48=0` = `R_NONE` ⇒ **任何动态重定位都发不出**（实测 `-shared` 报 `recompile with -fPIC`）⇒ **逻辑必然**；且值**全取自用户已确认的 `ADR-0019 D10`**，无自拟）⇒ ⇒ **阶段 E 范围收窄** 为 `ISS-206` 的**其余部分**（②契约正文**须用户授权**；③既有 ELF 产物·向量排查 ✓ —— **现场核对 E 还剩什么并写明**）」。⇒ 与遗留 ① 闭合（不再构成边界冲突）。
+
+**裁定 2 —— GOT 可及性归属**：**归阶段 C**。原话要点：「**GOT 可及性 = 布局义务**（默认 `.got` 距 `.text` **65592 B** > ±2 KB）⇒ **归阶段 C**（两段式 `ABS48` 序列 + `ldm.o_rrri_rb` 落 `rb`）」。
+
+**裁定 3 —— 阶段 A 证据基线重定**：**授权**。原话要点：「**阶段 A 证据基线重定 = 授权**（`run-a.sh` 现 78 PASS/6 FAIL，6 条为 A7 对象级 md5 **因预期编号同步而过期** 且差异**已证"仅类型字段"**）⇒ **授权**在 `LLVM-094t` 的**后续阶段**（C 或 D）**重定 A7 基线**；**记录**"属预期变化、已证仅类型字段"（**待用户追认**）」。⇒ 遗留 ② 处置已定（**本次不动** `baseline-pre*/`）。
+
+**E 范围收窄后的现场核对结论（architect 现场核，2026-10-16；只读）**：
+
+- **`DADAO.def` 改号 = 已在阶段 B 落地**（`DADAO.def.patch`：`NONE`=0 / 静态 1–5 / `ABS48`=**6** / `JUMP_SLOT`=7 / `RELATIVE`=8 / `COPY`=9 / TLS 10–12 / `TLSDESC`=13 / `NUM`=**14**，与 `ADR-0019 D10` 逐条一致）⇒ **E 无待办**。
+- **`lld/ELF/Arch/DADAO.cpp` 头注释同号 = 已随阶段 B 的 `DADAO.cpp.patch` 同步**（现 `R_DADAO_ABS48 (6)`；`grep` 旧串 `ABS48 (0)` 于 `components/llvm-project/patches/` **0 命中**）⇒ **E 无待办**。
+- **`ELF.h` 枚举**：`ELF.h.patch` 的 DADAO 枚举体 = `#include "ELFRelocs/DADAO.def"`（另 `EM_DADAO = 0x0DA0`）——**不含写死类型号** ⇒ 随 `DADAO.def` **自动同步**（该 patch 本阶段**未改**即正确）⇒ **E 无独立待办**。
+- **`ISS-206③`（既有 ELF 产物·向量排查）= 阶段 B 首次命中 4 处 lit 向量注记**（`dd-symbol`/`m6-callconv`/`rela-addend`/`rela.s`）**已同步**；全仓复核：`tests/vectors/**` **0 命中**、`contracts/**` **0 命中**、`tools/testcases/*` 仅 5 处**类型名**非数字（`R_DADAO_REL26` 报错串 / `@reloc` 正则）⇒ **无写死旧号残留**；旧号仅存 **`.tao/archive/M4|M6/**`（历史层，**不得改**）** + `ADR-0019` D2 正文（`D10` **就地修订注记**已在）。
+- ⇒ **E 剩余实际待办 = `ISS-206②`**（`.tao/contracts/contract-elf.md §2.2` 契约正文，现场仍 `| 0 | R_DADAO_ABS48 |` / `NUM=6`）——**须用户授权**；**未授权 ⇒ `ISS-206` 保持 `open`（部分收口）**、完成区已显式声明，**不得**写成已关。
+
+#### architect 提交 / 文件集审核留痕（2026-10-16，阶段 B）
+
+- **开工前现场（核）**：分支 `LLVM-094t-B`；`master` = `da20a09`；`git status --porcelain -uall` = **9 `M` + 2 `??`**（`?? ` = `lld/ELF/Driver.cpp.patch`、`tests/scripts/dadao-dyn.lds`）；`spec/` / `contracts/` / `.tao/contracts/` 越界 = **0**。
+- **文件集对账**（逐路径显式 staging、**未用** `git add -A`）：`git diff --cached --name-status` = **11**（9 `M` + 2 `A`），与完成区「修改文件（阶段 B）」逐条对齐（④ `.work/**` 被 `.gitignore` ⇒ 证据不入 git）⇒ **无漏提 / 多提 / 越界**。
+- **笔 1** = `36eebcd`（11 文件、+384/−30）。**档位披露**：阶段 B = `待验收`、reviewer 未验收 ⇒ 常规应为 `WIP:` 前缀；**主会话本次明确指令「笔 1 不带 `WIP:`」** ⇒ 从指令执行并在此披露（同阶段 A 先例）。
+- **只读核对（真实 rc）**：`make check`（L1）**rc=0**（尾行 `repository checks (L1): PASS`；内含 `check_issues: 39 open, 13 closed`）；`check-patch-tree` **rc=0**（`5 component(s), 146 patches`）；`check-index-blobs` **rc=0**（`108 new-file / 38 modification`）；`check-source-state` **rc=0**（`musl HEAD=d31bf832… clean=True`）；`python3 tools/infra/check_issues.py` **rc=0**（日志 `.work/log/llvm/LLVM-094t-architect-stageB-*.log`）。
+- **未** `merge`、**未** `push`（详见主会话回报）。
