@@ -1,12 +1,12 @@
 # SimRISC64位数据运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：64位数据运算**（30 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）
+> **分类：64位数据运算**（33 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）+ ctlz/cttz/ctpop（位扫描/位计数）
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 64位数据运算（30 条）
+### 1.1 64位数据运算（33 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -18,6 +18,9 @@
 | `cmp.so` | `orrr` | `rd` | `cmp.so rdHB, rdHC, rdHD` | `cmp.so_orrr_rd` |
 | `cmp.ui` | `rrii` | `rd` | `cmp.ui rdHA, rdHB, immu12` | `cmp.ui_rrii_rd` |
 | `cmp.uo` | `orrr` | `rd` | `cmp.uo rdHB, rdHC, rdHD` | `cmp.uo_orrr_rd` |
+| `ctlz` | `orri` | `rd` | `ctlz rdHB, rdHC, immu6` | `ctlz_orri_rd` |
+| `ctpop` | `orri` | `rd` | `ctpop rdHB, rdHC, immu6` | `ctpop_orri_rd` |
+| `cttz` | `orri` | `rd` | `cttz rdHB, rdHC, immu6` | `cttz_orri_rd` |
 | `div.so` | `orrr` | `rd` | `div.so rdHB, rdHC, rdHD` | `div.so_orrr_rd` |
 | `div.uo` | `orrr` | `rd` | `div.uo rdHB, rdHC, rdHD` | `div.uo_orrr_rd` |
 | `ext.so` | `orri` | `rd` | `ext.so rdHB, rdHC, immu6` | `ext.so_orri_rd` |
@@ -46,7 +49,7 @@
 <!-- LEGALITY_START -->
 ## 2. 合法性检查
 
-* `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `rev.o_orri_rd`, `shl.uo_orri_rd`, `shl.uo_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（24 条）
+* `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `rev.o_orri_rd`, `shl.uo_orri_rd`, `shl.uo_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（27 条）
 * `dst_dual_same`：双目的同为 rd0 或同寄存器 → ILLI — `add.so_rrrr_rd`, `add.uo_rrrr_rd`, `mul.so_rrrr_rd`, `mul.uo_rrrr_rd`, `sub.so_rrrr_rd`, `sub.uo_rrrr_rd`（6 条）
 * `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `rev.o_orri_rd`（1 条）
 <!-- LEGALITY_END -->
@@ -296,6 +299,54 @@ rev.b   rdHB, rdHC, immu6       ; 8 位块内反转（k ∈ {1,2,4}）
 
 `rev.t`/`rev.w`/`rev.b` 分册语义见 SimRISC-08/09/10 §4.2.1；本节为逐块反转的总述。
 
+#### 4.2.2 位扫描与位计数 ctlz/cttz/ctpop（orri 格式）
+
+`ctlz`/`cttz`/`ctpop` 提供**位扫描与位计数**。三条指令**没有位宽后缀**（指令名不指示
+8/16/32/64 位）——有效位宽由操作数给出的**有效位上界 `hd`** 在运行时确定：参与运算的
+是源的**低 `hd+1` 位** `rdHC[hd:0]`，`hd` 以上的位**不参与**运算。
+
+`hd` = `orri` 立即数（`immu6`，6 位无符号，`0..63`）= **有效位上界**：
+
+```
+valid = rdHC[hd:0]        // 共 hd+1 位；rdHC[63:hd+1] 不参与运算
+```
+
+| 指令 | 语义（均在有效位 `rdHC[hd:0]` 内） | 定值（`rdHC[hd:0]` 全 0） |
+|------|-----------------------------------|--------------------------|
+| `ctlz` | 从 bit `hd` **向下**数的**前导零**个数 | `hd + 1` |
+| `cttz` | 从 bit 0 **向上**数的**末尾零**个数（到 bit `hd` 止） | `hd + 1` |
+| `ctpop` | `rdHC[hd:0]` 内 **1 的个数** | `0` |
+
+```
+n = 0; for i = hd down to 0:  if rdHC[i] == 1: break;  n++    // ctlz → n
+n = 0; for i = 0  up to   hd: if rdHC[i] == 1: break;  n++    // cttz → n
+n = 0; for i = 0  to      hd: n += rdHC[i]                    // ctpop → n
+```
+
+- **结果 ∈ `0..64`，写满 64 位**（值语义，高位置 0；非「只写低位」）。
+- **定值**：`rdHC[hd:0]` **全 0** 时 `ctlz` = `cttz` = **`hd + 1`**（= 有效位范围宽度，
+  **消除未定义行为**）；口径与 RISC-V `clz`/`ctz`（返回 XLEN）、x86 `lzcnt`/`tzcnt`
+  （返回操作数宽度）、ARM `CLZ(0)`（= 32/64）一致。对比 C 的 `__builtin_clz(0)` 为 **UB**，
+  本指令**不是** UB。`ctpop(0)` = `0`（自然值，无特例）。
+- **合法性**：`hd ∈ 0..63`（6 位立即数域）⇒ **全部合法**，**无非法 `hd` 值**，**不新增**
+  合法性规则；沿用既有规则 `dst_rd0` —— `rdHB`（目的）不得为 `rd0`。`rdHC` **可为 `rd0`**
+  （读出 0 ⇒ 结果 = `hd+1` 或 `0`，合法）；`rdHB == rdHC` **允许**（原地运算）。
+
+用途映射（供后端参考）：`ctlz` **单条**即覆盖 `clz8`/`clz16`/`clz32`/`clz64`
+（`hd` = 7/15/31/63），对比 RISC-V 需 `clz` + `clzw` 两条才覆盖到 32 位；`ctlz`/`cttz`/`ctpop`
+分别与 LLVM `int_ctlz`/`int_cttz`/`int_ctpop`、C++20 `std::countl_zero`/`countr_zero`/`popcount`
+一一对应。
+
+```simrisc
+ctlz    rdHB, rdHC, immu6       ; 前导零（immu6=63 → 64 位；immu6=31 → 32 位；全 0 → immu6+1）
+cttz    rdHB, rdHC, immu6       ; 末尾零（immu6=63 → 64 位；全 0 → immu6+1）
+ctpop   rdHB, rdHC, immu6       ; 1 的个数（immu6=63 → 64 位）
+```
+
+**编码**：三条为 `orri` 格式但**无位宽后缀**，借用 `MISC-octa` 子表的格位
+（`011-101`/`011-110`/`011-111`，opx = `011101`/`011110`/`011111`），是本手册
+「**子表 ⇔ 位宽后缀**」规则的**例外**（见 SimRISC-00 §MISC-octa指令编码）。
+
 ---
 
 ## 附录：版本与变更记录
@@ -306,6 +357,7 @@ rev.b   rdHB, rdHC, immu6       ; 8 位块内反转（k ∈ {1,2,4}）
 
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
 - 新增 `rev.o`（逐块反转，orri）及逐块反转语义总述（`§4.2.1`）。
+- 新增 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数，orri，**无位宽后缀**）及语义（`§4.2.2`）。
 - 伪指令集收缩：删除 `not.*`/`neg.*` 1:1 别名（改由 `xnor`/`sub.sX` 展开）。
 - 合法性生成器真空约束修正（`.o` orri 的 `immu6 <= 63`）。
 - 新增「合法性检查」章（生成区）。

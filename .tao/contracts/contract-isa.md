@@ -6,7 +6,7 @@
 >
 > **M1 范围外**（`scope: fp` / `scope: excluded`，本合约不提取其规范内容）：浮点（**RF 全部**，`scope: fp`：RF 寄存器存取与浮点运算，含 FCSR/rf0 的指令语义）、`scope: excluded`（特权 cfx 系统指令 `cfxld`/`cfxst`、LR-SC 原子指令、fence）。**（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`，见 §13.6。）**
 >
-> **`scope: m8`（非 M1）**：逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b` 4 条——编码见 §2.8 / 附录 A.8，语义见 §6.4.3。新增指令与里程碑**无绑定**；本合约只同步其编码 / 语义 / 合法集，**不作 M1 身份**。[SimRISC-00 §MISC-octa指令编码]
+> **`scope: m8`（非 M1）**：逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b` 4 条——编码见 §2.8 / 附录 A.8，语义见 §6.4.3；位扫描 / 位计数 `ctlz`/`cttz`/`ctpop` 3 条（**无位宽后缀**，借 `MISC-octa` 格位）——编码见 §2.8 / 附录 A.9，语义见 §6.4.4。新增指令与里程碑**无绑定**；本合约只同步其编码 / 语义 / 合法集，**不作 M1 身份**。[SimRISC-00 §MISC-octa指令编码]
 >
 > **来源标注**：每条规范性断言在句末以 `[SimRISC-XX §章节名]` 标注来源 spec/ 章节，不写行号。SimRISC-07 仅用于确认浮点边界。
 >
@@ -256,6 +256,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 - `MISC-AMO`（op = 0111-0111）承载 `fence`、`swym` 与 LR-SC 原子指令。[SimRISC-00 §MISC-AMO 指令编码]
 - `MISC-RF`（op = 0100-0100）承载浮点指令，Excluded from M1。[SimRISC-00 §MISC-RF指令编码]
 - 各子表的 `001-100`（opx = `001100`）承载逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`（`scope: m8`，非 M1，见 §6.4.3）。[SimRISC-00 §MISC-octa指令编码]
+- **例外**：位扫描 / 位计数 `ctlz`/`cttz`/`ctpop` **无位宽后缀**（指令名不指示位宽），却借用 `MISC-octa` 子表的 `011-101`/`011-110`/`011-111`（opx = `011101`/`011110`/`011111`）——这是「子表 ⇔ 位宽后缀」规则的**例外**（同子表 `rd2rd`/`rb2rb` 等寄存器组复制指令亦无后缀，但位宽恒为整寄存器 64 位）；这三条的**有效位宽**由立即数 `hd`（**有效位上界**）在运行时给出（`scope: m8`，非 M1，见 §6.4.4）。[SimRISC-00 §MISC-octa指令编码]
 
 ### §2.9 保留编码
 
@@ -662,6 +663,24 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 - `rev.t`/`rev.w`/`rev.b` + `k=1` **不是** 64 位整体位反序（只反转各块内部位序），不可误用。[SimRISC-04 §Bit manipulating：位操作指令]
 
 逐块语义的伪代码与示例见 `spec/SimRISC-04 §4.2.1`。[SimRISC-04 §Bit manipulating：位操作指令]
+
+#### §6.4.4 位扫描 / 位计数 ctlz/cttz/ctpop（orri 格式）— scope: m8（非 M1）
+
+`ctlz`/`cttz`/`ctpop` 提供**位扫描与位计数**；三者**无位宽后缀**（指令名不指示 8/16/32/64 位）。`hd`（= `orri` 的 6 位立即数 `immu6`，`bits[5:0]`，取值 `0..63`）是**有效位上界**：参与运算的是源的**低 `hd+1` 位** `rdHC[hd:0]`，`hd` 以上的位**不参与**运算。[SimRISC-04 §Bit manipulating：位操作指令]
+
+操作数格式 `orri`（opx = `011-101`/`011-110`/`011-111`，见 §2.8）：`ctlz rdHB, rdHC, immu6`；字段 = `rdhb`（目的，`bits[17:12]`）/ `rdhc`（源，`bits[11:6]`）/ `immu6`（`= hd`，立即数，`bits[5:0]`）。[SimRISC-00 §MISC-octa指令编码]
+
+| 指令 | 语义（均在有效位 `rdHC[hd:0]` 内） | 定值（`rdHC[hd:0]` 全 0） |
+|------|-----------------------------------|--------------------------|
+| `ctlz` | 从 bit `hd` 向下数的前导零个数 | `hd + 1` |
+| `cttz` | 从 bit 0 向上数的末尾零个数（到 bit `hd` 止） | `hd + 1` |
+| `ctpop` | `rdHC[hd:0]` 内 1 的个数 | `0` |
+[SimRISC-04 §Bit manipulating：位操作指令]
+
+- 结果 ∈ `0..64`，**写满 64 位**（值语义，高位置 0；非「只写低位」）。[SimRISC-04 §Bit manipulating：位操作指令]
+- `rdHC[hd:0]` **全 0** ⇒ `ctlz` = `cttz` = `hd + 1`（= 有效位范围宽度，**消除未定义行为**），`ctpop` = `0`。[SimRISC-04 §Bit manipulating：位操作指令]
+- **合法性**：`hd ∈ 0..63` **全部合法**（无非法 `hd` 值，**不新增**合法性规则）；`rdHB` 为 `rd0` → **ILLI**（规则 `dst_rd0`）；`rdHC` 可为 `rd0`（读出 0，合法）；`rdHB == rdHC` 允许（原地运算）。[SimRISC-00 §数据寄存器]
+- **用途映射**：`ctlz` ↔ LLVM `int_ctlz` ≈ C++20 `std::countl_zero`（`hd` = 7/15/31/63 ⇒ `clz8`/`clz16`/`clz32`/`clz64`，**单条**覆盖，对比 RISC-V 需 `clz` + `clzw`）；`cttz` ↔ `int_cttz` / `countr_zero`；`ctpop` ↔ `int_ctpop` / `popcount`。[SimRISC-04 §Bit manipulating：位操作指令]
 
 ### §6.5 条件赋值（rrrr 格式）
 
@@ -1336,6 +1355,9 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 011-010 | `shr.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 011-011 | `shr.so` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 011-100 | `shl.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 011-101 | `ctpop` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 011-110 | `ctlz` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 011-111 | `cttz` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 101-010 | `cmp.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 101-011 | `cmp.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 101-100 | `rd2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |
@@ -1481,6 +1503,18 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | `rev.b` | 0x43 | 001-100 | orri | 0x43300000 | 0xFFFC0000 | [SimRISC-00 §MISC-byte指令编码] |
 
 > `value = op << 24 | opx << 18`（opx 域占 `bits[23:18]`，与 A.2~A.5 同惯例）。`rev.o` 见 A.2、`rev.t` 见 A.3、`rev.w` 见 A.4、`rev.b` 见 A.5 的 `001-100` 单元格。
+
+### A.9 `scope: m8` 编码清单（位扫描 / 位计数 `ctlz`/`cttz`/`ctpop`，非 M1）
+
+> `scope: m8`（3 条；与 A.8 的 `rev.*` 合计 7 条）：`MISC-octa` 子表的 `011-101`/`011-110`/`011-111`（opx = `011101`/`011110`/`011111`）。三条**无位宽后缀**（「子表 ⇔ 位宽后缀」规则的**例外**；**有效位宽**由立即数 `hd` 在运行时给出）。语义见 §6.4.4；**非 M1 身份**（与里程碑无绑定）。[SimRISC-00 §MISC-octa指令编码]
+
+| 指令 | op (hex) | opx | 格式 | mask | 字段 | 来源 |
+|------|----------|-----|------|------|------|------|
+| `ctpop` | 0x40 | 011-101 | orri | 0xFFFC0000 | `rdhb`(dst) / `rdhc`(src) / `immu6`(= hd) | [SimRISC-00 §MISC-octa指令编码] |
+| `ctlz` | 0x40 | 011-110 | orri | 0xFFFC0000 | 同上 | [SimRISC-00 §MISC-octa指令编码] |
+| `cttz` | 0x40 | 011-111 | orri | 0xFFFC0000 | 同上 | [SimRISC-00 §MISC-octa指令编码] |
+
+> `value = op << 24 | opx << 18`（opx 域占 `bits[23:18]`，与 A.2~A.8 同惯例）；**不在本表复写派生值**，以 `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py` 产出）为唯一真源。三条见 A.2 的 `011-101`/`011-110`/`011-111` 单元格。
 
 ---
 

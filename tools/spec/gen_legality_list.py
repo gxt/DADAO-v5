@@ -4,7 +4,7 @@
 Sources
 -------
 * ``contracts/legality_rules.yaml`` -- 16 rules (active + deferred)
-* ``contracts/opcodes.yaml`` -- 231 entries, 195 with ``rule_refs``
+* ``contracts/opcodes.yaml`` -- 234 entries, 198 with ``rule_refs``
 
 Reuses ``classify()``, ``SECTION_ORDER``, ``CLASS_TO_SPEC`` from
 ``tools/llvm/gen_asm_list.py`` (DRY: no duplicated classification logic).

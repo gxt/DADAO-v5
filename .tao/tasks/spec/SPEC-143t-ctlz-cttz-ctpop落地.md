@@ -3,7 +3,10 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D11`（**前置已全部满足 ✓**：`D11.1`–`D11.10` 用户 2026-10-14 **逐条确认** ✓〔原话「**D11全部认可**」〕+ **改 `spec/` 授权** ✓〔原话「**同样授权**」，与 `SPEC-142t` 的「a/b授权」同样〕——见「开工前置」与 `adr-0012 §状态说明`；`D11` 已 `Accepted`）；`SPEC-141t`（ISA 指令扩展预研，候选 `C2` = `clz`/`ctz`/`popcount`，**只读**来源）；`INFRA-078t`（compiler-rt 预研：缺口来源，**只读**）；`LLVM-079t`（现状：`CTLZ`/`CTTZ`/`CTPOP` 走 `Expand`，**只读**溯源）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）。**串行**：与 `SPEC-142t`（`rev.{o,t,w,b}` 落地）**须串行**（同改 `contracts/opcodes.yaml` / `tests/vectors/**`），先后由主会话排定。
-**状态**：待开始
+**状态**：待验收
+**阶段进度**：A 契约/编码层 ✅ 待验收（2026-10-15；**含 3 项结构性 known-red**，见「完成区」⚠）；B MC / C QEMU 未开始
+
+> **`**状态**` 口径**：本任务 = **一个任务书、三阶段验收**（照 `SPEC-142t`）⇒ `**状态**` 表**阶段 A** 的工程进度（A 实现完成、待 reviewer 验收）；**B/C 完成前不得置 `已验证`**。
 
 ## 执行环境
 **执行环境**：本地
@@ -135,16 +138,71 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**⚠ 阶段 A 已知红（结构性；须架构裁定，见「新发现/坑」①）**：`check-instrinfo`(L1) rc=**2**（失败项**恰为** 3 条 `scope: m8` 记录缺 `.td` def ＝ 阶段 B 工作）；`check-interface`(L2) rc=**2**（缺 QEMU `trans_*` **恰为** 3 条 ＝ 阶段 C 工作）；`test-semihost` 依赖整个 `check`(L1) ⇒ **继承同一 red**（`make -o check test-semihost` rc=0，证 semihost 内容全绿）。**其余全部门控 rc=0**。根因：`validate_instrinfo.py` 的 **Check 2b** 系 `SPEC-142t` 阶段 B（2026-10-15 07:55）新增，要求「每条 `scope: m8` 记录恰有一个 `.td` def」——**晚于本任务书定稿**（2026-10-14 / 2026-10-15 07:40）⇒ 三阶段拆分与 Check 2b **结构性冲突**（`SPEC-142t` 阶段 A 无此冲突，因当时 Check 2b 尚不存在）。
+**测试结果**：`./.work/evidence/SPEC-143t/run.sh` **PASS=54 FAIL=0**（rc=0）；`run.sh --inject` **PASS=11 FAIL=0**（5 组注入：①向量错值 ②spec 子表单元格改名 ③向量 `expected_fault` 置 ILLI ④`/tmp` opcodes 额外失败 ⑤合成日志多一 FAIL 项 —— 各使**目标断言** FAIL ⇒ `cp`+md5 还原 / 临时树 ⇒ 回绿）。
+**修改文件**（`git diff --name-status -M`：14 M + 2 新 + 本任务书 = 17）：`spec/SimRISC-00`（MISC-octa `011-101/110/111` 三格 + 表下例外说明 + 附录）、`spec/SimRISC-04`（`§4.2.2` 语义 + `ASSEMBLY_LIST`/`LEGALITY` 生成区 + 册头分类计数 30→33 + 附录）；`contracts/opcodes.yaml`（生成，234 条）；`.tao/contracts/contract-isa.md`（`§2.8` 例外条 + `§6.4.4` + 附录 A.2 三行 + 新 A.9）+ `.tao/contracts/contract-asm-list.md`（生成）；`tests/vectors/bitcnt/bitcnt.yaml`（**新**）+ `tests/vectors/inventory.md`（非 M1 节）；`tools/testcases/generate_bitcnt_vectors.py`（**新**）+ `tools/testcases/generate_isa_vectors.py`（docstring 指针）；`tools/spec/generate_opcodes.py`、`check_scope.py`、`gen_legality_list.py`；`tools/llvm/gen_asm_list.py` + `llvm-isa-backend-matrix.{tsv,md}`（生成）；`manifests/spec-readonly.lock.toml`（2 册 sha256）。
+**验收结果**（逐条对齐真实输出；日志 `.work/evidence/SPEC-143t/log/`、`.work/log/spec/SPEC-143t-*`）：
+- **编码（现场机器核实；3 条逐条不抽样）**：`op=0x40`；`ha`= `0x1D`/`0x1E`/`0x1F`（= 行 `011-xxx` × 列 `xxx-101`/`110`/`111`）；`mask=0xFFFC0000`；`value` 由生成器派生 = `0x40740000`/`0x40780000`/`0x407C0000`（= `op<<24|opx<<18`；**本任务书未复写，真源 = `contracts/opcodes.yaml`**）；字段 = `rdhb`(dst,rd,`[17:12]`)/`rdhc`(src,rd,`[11:6]`)/`immu6`(imm,imm,`[5:0]`)；`scope=m8`；`rule_refs=['dst_rd0']`；**无** `decode`。QFC 子表单元格 ↔ yaml **差异 0**；同 opx 在 tetra/wyde/byte 三子表**均为空**（例外性核实）。
+- **语义（独立 oracle，禁从 LLVM/QEMU 反推）**：`generate_bitcnt_vectors.py` 以 Python 大整数 **三条代码独立路径**（逐位循环 / 整数性质 `bit_length`+`x&-x` / MSB-first 位串）逐例互证，`--self-check` **1344 例全等**；向量 **414 cases**（encoding 3 + semantic 192 + boundary 216 + legality 3），`hd` **全量** 3×`0..63`（**192/192，不抽样**）、`hd` 全 64 取值**无 ILLI**；定值 `ctlz(0)=cttz(0)=hd+1`（含 `hd=63` ⇒ 64）、`ctpop(0)=0`；**大端**：逐 case 断言编码字大端字节序往返 + `op` 字节在最前；生成器 `--check` 逐字节一致（幂等）。
+- **合法性**：`hd ∈ 0..63` **全部合法**（无非法 `hd` 值）；`rdhb=rd0` ⇒ ILLI（规则 `dst_rd0`）；`rdhc=rd0` / `rdhb==rdhc` **不**报错；`contracts/legality_rules.yaml` **无改动**（`git diff` 证）⇒ **未新增**任何合法性规则。
+- **同步面**：`check-spec-readonly` rc=0（2 册 sha256 同变更内更新：SimRISC-00 `a9ec70cf…`→`05b965ee…`；SimRISC-04 `7d59f960…`→`000a12d0…`）；`check-spec-changelog`/`check-spec-refs`/`check-asm-list`/`check-asm-list-drift`/`check-asm-prose`/`check-spec-codeblocks`/`check-legality-drift`/`check-legality-invariants`/`check-scope`（m8=7、total=234）/`validate-encoding`/`check-rule-refs`/`check-isa-coverage`（矩阵重生成；三条 `td_def` 空 + ①层 `reject` = 阶段 B 依赖）/`check-spec-drift`/`check-patch-tree`/`check-index-blobs`/`check-cfx-aliases`/`check-dirs`/`check-no-residue`/`check-knowledge-*`/`check-contracts-dir`/`check-spec-numbering`/`check-components`/`check_issues`/`check-tasks` 各 rc=0。L2 其余子目标（`check-lit`/`check-qemu-smoke`/`test-codegen`/`test-elf`/`check-picolibc-tests`）逐项 rc=0。
+- **版本记录（硬要求）**：`SimRISC-00`/`SimRISC-04` 附录 `-rc` 段均写明本批 3 条指令（`check-spec-changelog` rc=0）。
+**新发现/坑**：①**`SPEC-142t` 阶段 B 新增的 Check 2b 与本任务书的三阶段拆分结构性冲突**（`m8` 记录被要求在同一变更内即有 `.td` def）⇒ 契约层（阶段 A）先行**必然**让 L1 `check-instrinfo` 红、且 `test-semihost` 因依赖 `check`(L1) 连带红；**须架构裁定**：接受阶段 A known-red（同 `SPEC-142t` 的 L2 口径）或把 3 条 `.td` def 提前进阶段 A。②`spec/SimRISC-00` 的例外说明须与**同子表无后缀**的 `rd2rd`/`rb2rb` 等寄存器组复制指令区分（首版误写「唯一例外」，自审已修）。③`gen_asm_list.classify()` **必须**显式接纳三条（否则落「其它」⇒ SimRISC-11，与正文归位 SimRISC-04 `§4.2.2` 及生成区矛盾）。④`README.md:73`「矩阵（227 条：①受理 217）」已陈旧（现 234 / ①221），本环**未改**（越界；`SPEC-142t` 亦未改）。⑤`check-isa-coverage` 的 ①层须 `llvm-mc`：三条现为 `reject`（阶段 B 后须 `make install-host` 再重生成矩阵，承 `SPEC-142t` B-a G1/G6 教训）。
+**遗留问题**：①`check-instrinfo`(L1) / `check-interface`(L2) / `test-semihost` 三项 red **属阶段 B/C**（3 条 `.td` def / 3 条 QEMU `trans_*`）——**须架构裁定**（见「新发现/坑」①），本环**未弱化**任何门控；②阶段 B（MC）/阶段 C（QEMU）**未做**（任务书明确 ✗）；③`README.md` 陈旧计数未改（越界，见 ④）；④**未提交**（提交权归 architect）；**未越界**（未触 `components/**` / `contracts/legality_rules.yaml` / compiler-rt）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+（自主逐行审查；对象 = 本环**新增/改动**的 `tools/**` 源码、`spec/` 正文与生成区、`contracts/`、向量与证据脚本。全局 `subagent_depth=1`，engineer 无法起嵌套子代理，故为自主逐行审查。）
+
+**逐行审查意见与判决**
+
+1. `generate_opcodes.py`（`build_misc_octa`）：`rec(mnem, mnem, "orri", op, f_orri("rdhb","rdhc","immu6"), ["rdhb != rd0"], S04_BIT, ha=ha, scope="m8")` ⇒ `id = {mnem}_orri_rd`；`op=0x40`、`ha=0x1D/0x1E/0x1F` ⇒ `mask=0xFFFC0000`、`value=op<<24|ha<<18` **由生成器派生**（未手写任何 value）。与「指令契约 §1」逐字一致。**正确**。
+2. **未复写 `value`**：`spec/`/`.tao/contracts/`/本任务书只写**位域**（op/opx/mask/字段位置）；派生值仅由生成器产出、真源 = `contracts/opcodes.yaml`（用户 2026-10-15 口径 + `lessons §1.45`）。故 A.9 表**不含** `value` 列（与 A.8 的 `rev.*` 旧做法不同 ⇒ **披露**，见 F5）。**符合**。
+3. `check_scope.py`：`EXPECTED_M8` 4→7、`EXPECTED_TOTAL` 231→234 + docstring 计数与 ADR 溯源同步；现场统计一致（`check-scope` PASS）。
+4. `gen_asm_list.py::classify()` 新增 `ctlz/cttz/ctpop → "64位数据运算"`：**必需**（否则三条落「其它」⇒ SimRISC-11，与正文归位 SimRISC-04 `§4.2.2` / 生成区矛盾）。位置在 `.o` 后缀判据之前、其余分支之后 ⇒ 对既有 231 条**无副作用**（diff 仅 +4 行；`check-asm-list-drift`/`check-legality-drift` 逐字节 PASS）。**正确且最小**。
+5. `generate_bitcnt_vectors.py` oracle：三条**代码独立**路径（逐位循环 / 整数性质 / MSB-first 位串）+ 定值断言 + 大端断言；无 `subprocess`（不调 LLVM/QEMU）；计数现场统计（414/192/64 均不写死）。**符合 Spec-first / 独立 oracle**。
+6. 断言可达 FAIL：①向量错值 ⇒ `--check` FAIL；②spec 子表改名 ⇒ 单元格核对 FAIL；③向量 fault 化 ⇒ `check_bitcnt_hd.py` FAIL；④`/tmp` opcodes 额外失败 ⇒ `check_instrinfo_knownred.py` FAIL；⑤合成日志多一 FAIL 项 ⇒ `check_interface_knownred.py` FAIL。**五组各有可达 FAIL 且互不重复**（`--inject` 11/11 PASS）。
+7. 还原纪律：①②③ 用 `cp` 备份 + md5 对账（**未**用 `git checkout`/`restore`/`stash`）；④⑤ 仅落 `/tmp/opencode/SPEC-143t/`（**不触仓库文件**）。**符合**。
+8. 越界自查：`git diff --name-only` 与 `spec/` 交集 = `SimRISC-00`/`SimRISC-04`（**授权范围**）；未触 `components/**`（MC/QEMU 未动）、`contracts/legality_rules.yaml`（diff 证）、compiler-rt；`.tao/knowledge/` 未改（知识沉淀归 `/complete`）。**符合**。
+9. `spec/` 保护（`Process-06 §5`）：变动的 2 册 sha256 **同一变更内**更新；`check-spec-readonly` rc=0。
+10. 版本记录硬要求：2 册附录 `-rc` 段写明本批 3 条指令；`check-spec-changelog` rc=0。
+11. `contract-isa.md` 新增文本逐段带 `[SimRISC-XX §…]` 引用；`check-spec-refs`（Check1+Check2）rc=0。
+
+**Finding 处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 首版 oracle 自检的不变式 `ctlz+cttz+ctpop == hd+1` **数学上不成立**（非连续全 1 值，如 `valid=0b101111,width=6` ⇒ 0+0+5=5≠6）⇒ `--self-check` 真实报错 | ✅已修 | 删该不变式，改为**第三条独立路径** `oracle_str()`（MSB-first 位串）+ 定值断言；docstring 同步「三条路径」 | `--self-check` rc=0（**1344 例**三路径逐例一致）；`--check` rc=0 |
+| F2 SimRISC-00 例外说明初版写「**唯一例外**」，但同子表 `rd2rd`/`rb2rb`/`rd2ra`/`ra2rd` 等寄存器组复制指令**亦无位宽后缀** ⇒ 事实不准确 | ✅已修 | 3 处（`SimRISC-00` 表下说明 / `contract-isa §2.8` / `A.9`）改为「**例外**」并补区分（后者位宽**恒为整寄存器 64 位**，不随操作数变化） | 3 处 grep 复核；`check-spec-readonly` rc=0（sha256 同步重算：`05b965ee…`）；`check-spec-refs` rc=0 |
+| F3 `check-instrinfo`(L1) 因 Check 2b 要求每条 `m8` 记录有 `.td` def 而红（= 阶段 B 工作），而任务书 §验收标准 8 要求其 rc=0 | ⏸延后（**结构性**；任务书定稿早于 Check 2b 引入 ⇒ **须架构裁定**） | **未改**任何门控（弱化需授权）；以「期望 rc=2 + 独立判定器核对**恰为** 3 项」显式断言 | `run.sh` §3 rc=2 且判定器 PASS；`--inject` ④ 证判定器可达 FAIL；`test-semihost` 连带红同源（`-o check` 则 rc=0） |
+| F4 `check-interface`(L2) 因缺 3 条 QEMU `trans_*` 而红（= 阶段 C 工作） | ⏸延后（同上；同 `SPEC-142t` 阶段 A 的 L2 口径） | **未改**门控 | `run.sh` §3 rc=2 且「FAIL 恰 2 项、缺 `trans_*` 恰 3 条」判定器 PASS；`--inject` ⑤ 证可达 FAIL |
+| F5 `A.9` 无 `value` 列（与既有 `A.8` 的 `rev.*` 表不一致） | ⏸披露不改 A.8（最小改动） | A.9 只列位域 + 真源指针（遵用户 2026-10-15 位域口径） | `--inject` ①/§1 编码核对 3/3；A.9 表 grep 无 value 列 |
+| F6 `README.md:73` 陈旧计数（227/①217；现 234/①221） | ⏸不修（**越界**：不在本任务文件清单；`SPEC-142t` 亦未改） | 未改 | `git diff --name-only` 不含 `README.md` |
+
+**判决**：全部 finding 已处置（F1/F2 已修；F3–F6 为**显式披露 / 结构性延后 / 越界不改**，其中 **F3 属跨阶段结构性冲突、须架构裁定**）。阶段 A 无未处置的**代码缺陷** ⇒ 状态置 `待验收`；**并请架构/用户裁定 F3**（接受阶段 A known-red，或将 3 条 `.td` def 提前进阶段 A）。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+## 阶段 A 验收口径（**架构裁定，2026-10-15**）
+
+> **裁定对象** = 完成区「新发现/坑 ①」（F3：`check-instrinfo` 的 Check 2b 与三阶段拆分结构性冲突）+ F4（`check-interface`）。**裁定 = 接受「阶段 A 已知红」并用口径登记**（= 候选对策 **ⓒ**，见 `ISS-215`）；**不**弱化 / 修改任何门控。
+
+**已知红（结构性必然，非缺陷）—— 恰 3 项**：
+
+1. **L1 `check-instrinfo` rc=2**：失败项**恰 3 条** `scope: m8` 记录（`ctlz`/`cttz`/`ctpop`）**尚无 `.td` def** ⇒ **阶段 B 消除**。
+2. **L2 `check-interface` rc=2**：失败项**恰 2 项**（缺 QEMU `trans_ctlz`/`trans_cttz`/`trans_ctpop` **恰 3 条**）⇒ **阶段 C 消除**。
+3. **`test-semihost` rc=2 属连带**：其前置含 `check`(L1)，继承同一 red；`make -o check test-semihost` **rc=0** 已证 semihost 内容与本法无关（证据 = `.work/evidence/SPEC-143t/log/`）。
+
+**阶段 A 验收口径** = **上述 3 项之外全绿**：L1 其余 + L2 其余 + 全部 `check-spec-*` / `validate-encoding` / **`check-scope`（`m8=7`、`total=234`）** / `check-rule-refs` / `check-isa-coverage` / `check-spec-readonly` / `check-no-residue` / `tools/infra/check_issues.py` / `check-tasks` 各 **rc=0**（架构 2026-10-15 现场复核：`check-instrinfo`/`check-interface` rc=2 且失败项恰如上、`check-scope`/`check-rule-refs`/`check-isa-coverage`/`validate-encoding`/`check-spec-readonly`/`check-no-residue`/`check-tasks`/`check_issues.py` 全 rc=0）。**不弱化**任何门控。
+
+**阶段收口要求**：**阶段 B 完成后 `check-instrinfo` 须转绿**、**阶段 C 完成后 `check-interface` 须转绿**（`test-semihost` 随之转绿）；**此 3 项未全部转绿前不得置 `已验证`**（`ISS-215` 相应关闭）。
+
+#### 阶段 A architect 提交与文件集审核留痕（2026-10-15；**只追加**）
+
+- **档位**：**正常提交**（**不带 `WIP:`**，供 reviewer 独立验收；依据 = 完成区「测试结果 PASS=54 FAIL=0」+ 上「阶段 A 验收口径（架构裁定）」；**阶段级**，任务级 `**状态**` 维持 `待验收`、**不**置 `已验证`）。
+- **提交**：分支 `SPEC-143t-A` 头提交（提交信息 = `SPEC-143t A: ctlz/cttz/ctpop 契约/编码层（MISC-octa 三格 + 例外说明 + hd 三统一语义 + 定值 hd+1 + 独立 oracle 向量；已知红：check-instrinfo/check-interface 待 B/C）`；**只 `commit`，未 `merge`、未 `push`**）。**注**：本留痕与提交同体 ⇒ **不内嵌 SHA**（SHA 随留痕内容变化而变、会自指失真）；SHA 以分支头 / 父会话回报为准。
+- **文件集对账**（`git diff --cached --name-status -M` ↔ 完成区「修改文件」声明）：**18** 项 = **16 M + 2 A**，其中 **17** 项 = 完成区声明（**15 M + 2 新**：`tests/vectors/bitcnt/bitcnt.yaml`、`tools/testcases/generate_bitcnt_vectors.py`），**+1** 项 = architect 立项登记（`.tao/knowledge/issues.yaml` 增 `ISS-215`）⇒ **无漏提、无多提、无越界**（未触 `components/**` / `contracts/legality_rules.yaml` / compiler-rt）。
+- **门控（架构 2026-10-15 现场复核，非转述）**：`check-instrinfo`(L1) rc=**2**（失败项**恰 3 条** = m8 缺 `.td` def）、`check-interface`(L2) rc=**2**（失败项**恰 2 项**）、`check-scope` rc=0（`m8=7`、`total=234`）、`check-rule-refs` rc=0、`check-isa-coverage` rc=0、`validate-encoding` rc=0、`check-spec-readonly` rc=0、`check-no-residue` rc=0、`check-tasks` rc=0、`tools/infra/check_issues.py` rc=0（33 open / 5 closed）。**不弱化**任何门控。

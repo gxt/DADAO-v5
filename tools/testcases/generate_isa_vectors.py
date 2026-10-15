@@ -7,7 +7,9 @@ Reads contracts/opcodes.yaml and produces:
 
 本脚本只覆盖 **M1**（`scope == "m1"`）。非 M1 的新增指令（`scope: m8` 的
 `rev.o`/`rev.t`/`rev.w`/`rev.b`）由独立生成器 `tools/testcases/generate_rev_vectors.py`
-产出到 `tests/vectors/rev/rev.yaml`（不带 M1 覆盖矩阵约束）。
+产出到 `tests/vectors/rev/rev.yaml`（不带 M1 覆盖矩阵约束）；`ctlz`/`cttz`/`ctpop` 由
+独立生成器 `tools/testcases/generate_bitcnt_vectors.py` 产出到
+`tests/vectors/bitcnt/bitcnt.yaml`。
 
 All encoding words, expected values, and spec_cite are derived from
 contracts/opcodes.yaml, .tao/contracts/contract-isa.md, and

@@ -182,6 +182,10 @@ def classify(entry: dict) -> str:
         return "16位数据运算"
     if re.search(r"\.(ut|st|t)$", m):
         return "32位数据运算"
+    if m in ("ctlz", "cttz", "ctpop"):
+        # 位扫描 / 位计数（ADR-0012 D11）：**无位宽后缀**，借 MISC-octa 格位；
+        # 按「64位数据运算」归类，与正文 SimRISC-04 §4.2.2 同处。
+        return "64位数据运算"
     if re.search(r"\.(uo|so|o)$", m) or m == "add.si" or m.startswith("cmp."):
         # 64 位运算按寄存器组分：rb（地址）→ 地址运算；其余 → 数据运算
         return "64位地址运算" if any(f.get("bank") == "rb" for f in entry["fields"]) else "64位数据运算"

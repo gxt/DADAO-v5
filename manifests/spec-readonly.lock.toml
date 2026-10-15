@@ -20,6 +20,13 @@ policy = "readonly-requires-authorization"
 #   SimRISC-08/09/10（§4.2.1 分册 + 生成区）各补正文与变更记录条目。
 #   上述 5 册 sha256 于同一变更内同步重算（其余只读册不变）。
 
+# 2026-10-15（SPEC-143t 阶段 A，用户 2026-10-14 裁定「同样授权」；授权原话落纸于
+#   .tao/tasks/spec/SPEC-143t-ctlz-cttz-ctpop落地.md 与 .tao/adr/adr-0012 §D11.0）：新增 ISA 指令
+#   ctlz/cttz/ctpop（位扫描/位计数，ADR-0012 D11；**无位宽后缀** ⇒ 借 MISC-octa 格位，为
+#   「子表 ⇔ 位宽后缀」规则的例外）——SimRISC-00 的 MISC-octa 子表补 011-101/110/111 三格
+#   + 表下例外说明 + 附录条目；SimRISC-04（§4.2.2 语义 + 生成区 + 册头分类计数）各补正文与
+#   变更记录条目。上述 2 册 sha256 于同一变更内同步重算（其余只读册不变）。
+
 # 清单 = 21 册只读册 = 20 册上游只读册（用户 2026-10-07 全选）+ 1 册 v5 自定册（spec/Machine-01，2026-10-08 纳入）：
 #   dadao-1x   DADAO-11/12/13
 #   dadao-2x   DADAO-21/22/23
@@ -33,7 +40,7 @@ policy = "readonly-requires-authorization"
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
 group = "simrisc-00..12"
-sha256 = "a9ec70cfb2b9c3eb365296ccdcfd168c0ef9ece5e318895a8c59f480bcdc7ceb"
+sha256 = "05b965ee48d63c1210dc4325fa9253439bbc1c7a369b3930604ed630369a12a3"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -53,7 +60,7 @@ sha256 = "d59f4b124621c31945525d5d5a964949f7486f86db560cac228dc5c8780d3968"
 [[spec]]
 path = "spec/SimRISC-04-64位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "7d59f96030146a0abd8c4538b4bcfad29e84939d4a1b71107ae91cf4be0613ef"
+sha256 = "000a12d036ff3893acedd86a85ef6f830b64bf0278c3149cac3a9362934cc7ac"
 
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"

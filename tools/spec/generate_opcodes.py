@@ -9,7 +9,8 @@
     暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
     **非 M1 身份**，不要求 M1 向量覆盖；
-  - `scope: m8`（4 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`），
+  - `scope: m8`（7 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`
+    + D11 位扫描/计数 `ctlz`/`cttz`/`ctpop`），
     **非 M1 身份**，与里程碑无绑定（用户 2026-10-14：新增指令与里程碑无绑定关系），不要求 M1 向量覆盖。
 约定 `scope == "excluded"` ⇒ `decode: ILLI`——编码已定义但尚未实现，执行即非法指令；
 `m1`/`fp`/`m3`/`m8` 不携带 `decode`（已实现或按各自里程碑实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
@@ -613,6 +614,14 @@ def build_misc_octa(records):
     records.append(rec("rev.o", "rev.o", "orri", op, f_orri("rdhb", "rdhc", "immu6"),
                        ["rdhb != rd0", onehot_expr(64)], S04_BIT,
                        ha=0x0C, scope="m8"))
+    # ADR-0012 D11：新增 ctlz/cttz/ctpop（位扫描 / 位计数；orri，ha=0x1D/0x1E/0x1F →
+    # opx `011-101`/`011-110`/`011-111`）。**无位宽后缀** ⇒ 借用 MISC-octa 格位，是
+    # 「子表 ⇔ 位宽后缀」规则的**例外**（见 spec/SimRISC-00 §4.2 表下说明）。
+    # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
+    # 合法性：hd ∈ 0..63 全部合法 ⇒ 不新增规则；沿用 dst_rd0（rdhb != rd0）。
+    for mnem, ha in (("ctpop", 0x1D), ("ctlz", 0x1E), ("cttz", 0x1F)):
+        records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                           ["rdhb != rd0"], S04_BIT, ha=ha, scope="m8"))
 
 
 # ────────────────────────────── MISC 固定位宽子表 ──────────────────────────────
@@ -844,7 +853,8 @@ def main():
         f.write("# scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，\n")
         f.write("#   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
-        f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b），非 M1 身份\n")
+        f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "
+                "D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份\n")
         f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
                 f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条 + scope m8 {n_m8} 条\n")
         f.write(f"# 有 rule_refs 的指令：{n_with_refs} 条\n\n")

@@ -194,3 +194,18 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > 端序：本项目为**大端**；`k = 8` 档的语义用例同时由「块内单元倒序」与「大端字节序 →
 > 块内字节倒序」两条独立派生路径给出，须逐例一致（见生成器 `--self-check`）。
 
+`ctlz`/`cttz`/`ctpop`（位扫描 / 位计数）同为 `scope: m8`（`ADR-0012 D11`），**不是 M1 身份**（同上，
+不入本矩阵）。向量落在独立文件 `tests/vectors/bitcnt/bitcnt.yaml`（由
+`tools/testcases/generate_bitcnt_vectors.py` 机械生成 + 独立 oracle 校验）：
+
+| 指令 | 向量文件 | 覆盖 |
+|------|---------|------|
+| `ctlz` | `tests/vectors/bitcnt/bitcnt.yaml` | encoding + **全量** `hd ∈ 0..63` 的 semantic（不抽样）+ 定值（有效位全 0 ⇒ `hd+1`，`hd` 全量）+ 边界（`hd=0`/`hd=63`/`rdHC=rd0`/`rdHB==rdHC`/高位掩码/单 bit 位编号）+ legality（仅目的 `rd0` ⇒ ILLI） |
+| `cttz` | 同上 | 同上（定值同 `hd+1`） |
+| `ctpop` | 同上 | 同上（定值 = 0） |
+
+> 语义口径：`hd` = **有效位上界**，参与运算的是 `rdHC[hd:0]`（`hd+1` 位）；`hd ∈ 0..63`
+> **全部合法**（**无** `hd` 触发 ILLI）。端序：大端；编码字按大端字节序落盘（`op` 字节在最前），
+> 由生成器 `--check` 逐 case 断言。oracle 用 **三条**代码独立的派生路径（逐位循环 / 整数性质 /
+> MSB-first 位串）逐例互证（见生成器 `--self-check`）。
+

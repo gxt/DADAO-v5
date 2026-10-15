@@ -315,11 +315,13 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | 000-xxx   |                 |                 |               |               |               |               |               |               |
 | 001-xxx   | and.o_orrr_rd      | or.o_orrr_rd       | xor.o_orrr_rd    | xnor.o_orrr_rd   | rev.o_orri_rd  |               |               |               |
 | 010-xxx   | ext.uo_orrr_rd     | ext.so_orrr_rd     | shr.uo_orrr_rd   | shr.so_orrr_rd   | shl.uo_orrr_rd   |               |               |               |
-| 011-xxx   | ext.uo_orri_rd     | ext.so_orri_rd     | shr.uo_orri_rd   | shr.so_orri_rd   | shl.uo_orri_rd   |               |               |               |
+| 011-xxx   | ext.uo_orri_rd     | ext.so_orri_rd     | shr.uo_orri_rd   | shr.so_orri_rd   | shl.uo_orri_rd   | ctpop_orri_rd | ctlz_orri_rd  | cttz_orri_rd  |
 | 100-xxx   |                 |                 |               |               |               |               |               |               |
 | 101-xxx   |                 |                 | cmp.uo_orrr_rd   | cmp.so_orrr_rd   | rd2rd_orri_rd    | rd2ra_orri_ra    | ra2rd_orri_ra    |               |
 | 110-xxx   | add.o_orrr_bbd   | sub.o_orrr_bbd   | cmp.uo_orrr_dbb | sub.o_orrr_dbb | rb2rb_orri_rb    | rd2rb_orri_rb    | rb2rd_orri_rb    |               |
 | 111-xxx   | div.uo_orrr_rd     | div.so_orrr_rd     | rem.uo_orrr_rd   | rem.so_orrr_rd   |               | rd2rf_orri_rf    | rf2rd_orri_rf    |               |
+
+> **无位宽后缀指令的例外（`ADR-0012 D11`）**：`ctpop`/`ctlz`/`cttz`（位计数 / 位扫描）**不带位宽后缀**，其指令名不指示位宽；它们**借用本 `MISC-octa` 子表的格位**（`011-101`/`011-110`/`011-111`），是本手册「**子表 ⇔ 位宽后缀**」规则的**例外**——**有效位宽**由操作数的 `hd` 字段（**有效位上界** `[hd:0]`，共 `hd+1` 位）在运行时给出（同子表中 `rd2rd`/`rb2rb` 等寄存器组复制指令亦无后缀，但其位宽**恒为整寄存器 64 位**，不随操作数变化）。逐条语义见 SimRISC-04 §Bit manipulating：位操作指令。
 
 ### 4.3 MISC-tetra指令编码
 
@@ -418,6 +420,7 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 - 删除 `illi` 指令；`fence` 编码改 `0x00`、`swym` 编码改 `0x22`。
 - 新增 `sub.o`（RB−RB→RD）；RB 算术三条指令改名并调整编码槽。
 - 新增 `rev.o`/`rev.t`/`rev.w`/`rev.b`（逐块反转）4 条指令，占 `MISC-octa`/`tetra`/`wyde`/`byte` 四子表的 `001-100`（opx = `001100`）。
+- 新增 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数）3 条**无位宽后缀**指令，借 `MISC-octa` 子表格位 `011-101`/`011-110`/`011-111`（「子表 ⇔ 位宽后缀」规则的例外）。
 - 浮点范围口径引入 `scope`（`m1` / `fp` / `excluded`）标注。
 - `cmp.uo-rb` 改为整 64 位比较；RB / 控制流地址语义修正。
 - 窄位宽指令精简、高位处理统一为值语义；`MISC-AMO` 编码移至 `0111-0111`。

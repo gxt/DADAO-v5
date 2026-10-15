@@ -50,6 +50,9 @@ cs.p_rrrr_rd	cs.p	rrrr	m1	cs_p_rd	accept	ok	cs.p {rd8}?, rd9, rd10, rd11	yes	pat
 cs.p_rrrr_rf	cs.p	rrrr	fp	cs_p_rrrr_rf	accept	ok	cs.p {rd8}?, rf9, rf10, rf11	yes	pat:DADAOCodeGen.td.patch:512:cs_p_rrrr_rf;pat:DADAOCodeGen.td.patch:518:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:619:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:622:cs_p_rrrr_rf	
 cs.z_rrrr_rd	cs.z	rrrr	m1	cs_z_rd	accept	ok	cs.z {rd8}?, rd9, rd10, rd11	yes	pat:DADAOCodeGen.td.patch:499:cs_z_rd;pat:DADAOCodeGen.td.patch:609:cs_z_rd;pat:DADAOCodeGen.td.patch:613:cs_z_rd	
 cs.z_rrrr_rf	cs.z	rrrr	fp	cs_z_rrrr_rf	accept	ok	cs.z {rd8}?, rf9, rf10, rf11	yes	pat:DADAOCodeGen.td.patch:510:cs_z_rrrr_rf;pat:DADAOCodeGen.td.patch:516:cs_z_rrrr_rf;pat-args:DADAOCodeGen.td.patch:618:cs_z_rrrr_rf;pat-args:DADAOCodeGen.td.patch:621:cs_z_rrrr_rf	
+ctlz_orri_rd	ctlz	orri	m8		reject	—	ctlz rd8, rd9, 1	no		
+ctpop_orri_rd	ctpop	orri	m8		reject	—	ctpop rd8, rd9, 1	no		
+cttz_orri_rd	cttz	orri	m8		reject	—	cttz rd8, rd9, 1	no		
 div.sb_orrr_rd	div.sb	orrr	m1	div_sb	accept	ok	div.sb rd8, rd9, rd10	no		
 div.so_orrr_rd	div.so	orrr	m1	div_so	accept	ok	div.so rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:361:div_so	
 div.st_orrr_rd	div.st	orrr	m1	div_st	accept	ok	div.st rd8, rd9, rd10	no		

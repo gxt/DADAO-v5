@@ -5,9 +5,9 @@
 # scope: excluded 为特权 cfx / LR-SC / fence，尚未实现，
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
-# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b），非 M1 身份
-# 共 231 条：M1 155 条 + scope fp 60 条 + scope excluded 11 条 + scope m3 1 条 + scope m8 4 条
-# 有 rule_refs 的指令：195 条
+# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
+# 共 234 条：M1 155 条 + scope fp 60 条 + scope excluded 11 条 + scope m3 1 条 + scope m8 7 条
+# 有 rule_refs 的指令：198 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -3522,6 +3522,87 @@
   rule_refs:
   - dst_rd0
   - encode_onehot
+- id: ctpop_orri_rd
+  mnemonic: ctpop
+  format: orri
+  op: '0x40'
+  ha: '0x1D'
+  mask: '0xFFFC0000'
+  value: '0x40740000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  scope: m8
+  rule_refs:
+  - dst_rd0
+- id: ctlz_orri_rd
+  mnemonic: ctlz
+  format: orri
+  op: '0x40'
+  ha: '0x1E'
+  mask: '0xFFFC0000'
+  value: '0x40780000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  scope: m8
+  rule_refs:
+  - dst_rd0
+- id: cttz_orri_rd
+  mnemonic: cttz
+  format: orri
+  op: '0x40'
+  ha: '0x1F'
+  mask: '0xFFFC0000'
+  value: '0x407C0000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rdhb != rd0
+  spec_cite: SimRISC-04 §Bit manipulating：位操作指令
+  scope: m8
+  rule_refs:
+  - dst_rd0
 - id: shr.ut_orrr_rd
   mnemonic: shr.ut
   format: orrr
