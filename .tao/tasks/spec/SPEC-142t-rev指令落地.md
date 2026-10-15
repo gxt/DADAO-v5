@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D10`（**前置：`D10.1`–`D10.8` 已逐条确认完成 ✓** —— 用户 2026-10-14 原话「**D10.1-D10.8 认可**」，见 `adr-0012 §D10.0` / `§状态说明`；`D10.6a` 已定案 (b)，**`D10.6b` 亦已定案 = `scope: m8`**）；`SPEC-141t`（ISA 指令扩展预研，**只读**来源）；`INFRA-078t`（compiler-rt 预研：`bswap` 缺口来源，**只读**）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）
 **状态**：待验收
-**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`）；B MC ⏳ **静态 + B-a 行为验证完成**（2026-10-15，B-a 见「完成区 §阶段 B-a」；**B-b 汇编期合法性检查未做**）；C QEMU ⏳ 待做
+**阶段进度**：A ✅ 已验证（2026-10-15）；B MC ✅ 已验证（2026-10-15，reviewer Accepted）；C QEMU ⏳ 待做
 
 > **`**状态**` 口径说明**：本任务 = **一个任务书、三阶段验收** ⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 验收」）。
 
@@ -338,3 +338,39 @@
   - **口径全条落纸** = `ISS-211`（`open`、留档；阶段 C 落地 `ILLI` 并复核后可闭合）。
 - **连带裁定：B-b 取消** ⇒ 阶段 B **无需第二次重建**（`.dadao/` 安装根已 `install-host` 刷新、与构建树 md5 一致）；阶段 B 完成门槛 = B-a ①a–①d 全绿 + 本裁定口径落纸。**副作用（如实说明）**：`check_mc_dynamic.py` 的 `ILLEGAL_SNAPSHOT`（6 例「静默接受」快照）**因 B-b 取消而即当前口径的固定断言**（非「待同步的临时快照」）；engineer「B-a 遗留问题①」不再待派。若后续有人给 MC 层加合法性检查，该断言会 FAIL ⇒ 提示「口径变更须先走裁定」。
 - **未做（按纪律）**：**未** merge `SPEC-142t-B`、**未** push（`push` 只在 `/complete` 后由主会话执行）；分支 `INFRA-076t` **未动**（仍未合并，原样保留）。
+
+#### 第 2 轮 reviewer 验收（阶段 B-a / MC 行为验证，2026-10-15）
+
+**重跑记录**（独立执行，workdir 仓库根，相对路径；分支 `SPEC-142t-B`=`6950a58`）
+
+| # | 检查项 | 命令/方式 | 实测 rc | 结论 |
+|---|--------|-----------|---------|------|
+| 1 | 两处二进制测 rev.o（假绿陷阱） | `.dadao/cross-toolchain/bin/llvm-mc` + `.work/build/llvm/bin/llvm-mc` | 0/0 | 两者 md5=`750a449f…` 相同，均输出 `encoding: [0x40,0x30,0x82,0x48]` ✓ |
+| 2 | 四条编码逐条 + 三方比对（机器） | Python 独立脚本实测 vs yaml `value` vs `op<<24\|ha<<18` | 0 | 4/4 三方一致；ha=0x0C=0b001100 ✓；期望值 `0x40300000/0x41300000/0x42300000/0x43300000` |
+| 3 | 反汇编往返 | `llvm-mc -filetype=obj` → `llvm-objdump -d` → 再汇编 `cmp` | 0 | 4/4 助记符+操作数正确；再汇编 `cmp rc=0`（字节一致） |
+| 3b | 独立位域解码 | Python 按位取 rdhb/rdhc/immu6 | 0 | 4/4 与 objdump 显示一致（含 k=3/5/1 非 one-hot） |
+| 4a | rev.* immu6 现状 | k=0/3/5/63 rc=0（静默）；k=64/-1 rc=1（类型范围） | — | 与完成区③/F4 裁定一致 ✓ |
+| 4b | 既有 orri 对照（dst_rd0/encode_sbz） | `ext.uo/shr.uo/shl.uo rd0,rd9,8` + `shr.ub rd8,rd9,63` + `shl.ut rd8,rd9,40` | 0（全部静默） | **既有 orri 同样不做** MC 层合法性检查（仅 immu6 类型范围 [0,63]），独立支撑「与既有分层一致」✓ |
+| 5a | gen_isa_coverage 重生成+幂等+--check | `gen_isa_coverage.py` 重跑 md5 不变 → `--check rc=0` | 0 | accept=221/reject=10 ✓ |
+| 5b | generate_lit_vectors 重跑+幂等 | `generate_lit_vectors.py` + md5 对比 | 0 | gen-orri.s md5 不变；rev.* 行=16 ✓ |
+| 5c | check_lit_gen + make check-lit-full | 各自独立 | 0/0 | 64 passed / 12 of 12 ✓ |
+| 6 | L1 `make check` | `make check` | 0 | 全绿 ✓ |
+| 6b | L2 `make check-modules` | `make check-modules` | 2 | 恰 2 FAIL：check-interface QEMU trans_rev_{o,t,w,b} 缺失（去重 4 条）✓ |
+| 6c | L2 逐子目标 | 7 项各自独立 | 2/0/0/0/0/0/0 | check-interface=2（预期），其余 6 项均 0 ✓ |
+| 7 | **我的新反例**（不在 engineer 清单） | 注入矩阵 tsv rev.o `td_def`→`WRONG_DEF` → `--check` | 1→0 | 注入 FAIL；cp+md5 恢复回绿；仓库文件 md5 前后一致 ✓ |
+| 8a | 证据脚本 run-b2.sh 重跑 | 全量 + --inject | 0/0 | PASS=14/0 + PASS=9/0 ✓ |
+| 8b | issues.yaml ISS-2xx 编号唯一性 | Python 统计 | 0 | 12 条无重复 ✓ |
+| 8c | 完成区对账 | git diff vs 完成区声明 | — | B-a 产物 4 项 + 提交链 4 笔一致 ✓ |
+
+**约束核验**（逐条）
+
+- F4 裁定与实测一致：`rev.*` 非 one-hot `immu6` 均 rc=0 静默接受（k=0/3/5/63/8/32）；既有 `orri`（`ext.uo/shr.uo/shl.uo`/`shr.ub`/`shl.ut`）同样不做 `dst_rd0`/合法性检查 ✓
+- 两处二进制 md5 相同（`750a449f…`）且均识别 `rev.*`（安装根无假绿）✓
+- L1 全绿；L2 恰 2 FAIL（均 `check-interface` 的 `trans_rev_*` 缺失，阶段 C 依赖）✓
+- 工具链联动全绿（gen_isa_coverage/check_lit_gen/check-lit-full）✓
+- 证据脚本可达 FAIL（engineer 2 组 + reviewer 1 组独立注入）✓
+- 完成区 ≤30 行，与真实输出逐条对齐 ✓
+
+**Finding**：无。无阻断缺陷。
+
+**判决**：**Accepted** —— L1 全绿、L2 恰 2 FAIL（阶段 C 依赖的 `trans_rev_*` 缺失）、四条编码三方一致、往返字节一致、`immu6` 现状与 F4 裁定一致、既有 `orri` 独立支撑「不分层一致」、工具链联动全绿、证据脚本 14/0 + 9/0、我的新反例注入 FAIL→回绿、编号唯一性无重复。
