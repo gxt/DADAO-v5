@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D11`（**前置已全部满足 ✓**：`D11.1`–`D11.10` 用户 2026-10-14 **逐条确认** ✓〔原话「**D11全部认可**」〕+ **改 `spec/` 授权** ✓〔原话「**同样授权**」，与 `SPEC-142t` 的「a/b授权」同样〕——见「开工前置」与 `adr-0012 §状态说明`；`D11` 已 `Accepted`）；`SPEC-141t`（ISA 指令扩展预研，候选 `C2` = `clz`/`ctz`/`popcount`，**只读**来源）；`INFRA-078t`（compiler-rt 预研：缺口来源，**只读**）；`LLVM-079t`（现状：`CTLZ`/`CTTZ`/`CTPOP` 走 `Expand`，**只读**溯源）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）。**串行**：与 `SPEC-142t`（`rev.{o,t,w,b}` 落地）**须串行**（同改 `contracts/opcodes.yaml` / `tests/vectors/**`），先后由主会话排定。
 **状态**：待验收
-**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`；**含 3 项结构性 known-red**〔`ISS-215`〕，见「完成区」⚠）；B MC ⏳ 待做；C QEMU ⏳ 待做
+**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`；**含 3 项结构性 known-red**〔`ISS-215`〕，见「完成区」⚠）；B MC ✅ 实现完成 + 全部门控实测（`check-instrinfo` 转绿 ✓ / L1 全绿 ✓ / L2 仅 `check-interface` 2 项），**待验收**；C QEMU ⏳ 待做
 
 > **`**状态**` 口径**：本任务 = **一个任务书、三阶段验收**（照 `SPEC-142t`）⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 审阅」）。
 
@@ -150,6 +150,26 @@
 **新发现/坑**：①**`SPEC-142t` 阶段 B 新增的 Check 2b 与本任务书的三阶段拆分结构性冲突**（`m8` 记录被要求在同一变更内即有 `.td` def）⇒ 契约层（阶段 A）先行**必然**让 L1 `check-instrinfo` 红、且 `test-semihost` 因依赖 `check`(L1) 连带红；**须架构裁定**：接受阶段 A known-red（同 `SPEC-142t` 的 L2 口径）或把 3 条 `.td` def 提前进阶段 A。②`spec/SimRISC-00` 的例外说明须与**同子表无后缀**的 `rd2rd`/`rb2rb` 等寄存器组复制指令区分（首版误写「唯一例外」，自审已修）。③`gen_asm_list.classify()` **必须**显式接纳三条（否则落「其它」⇒ SimRISC-11，与正文归位 SimRISC-04 `§4.2.2` 及生成区矛盾）。④`README.md:73`「矩阵（227 条：①受理 217）」已陈旧（现 234 / ①221），本环**未改**（越界；`SPEC-142t` 亦未改）。⑤`check-isa-coverage` 的 ①层须 `llvm-mc`：三条现为 `reject`（阶段 B 后须 `make install-host` 再重生成矩阵，承 `SPEC-142t` B-a G1/G6 教训）。
 **遗留问题**：①`check-instrinfo`(L1) / `check-interface`(L2) / `test-semihost` 三项 red **属阶段 B/C**（3 条 `.td` def / 3 条 QEMU `trans_*`）——**须架构裁定**（见「新发现/坑」①），本环**未弱化**任何门控；②阶段 B（MC）/阶段 C（QEMU）**未做**（任务书明确 ✗）；③`README.md` 陈旧计数未改（越界，见 ④）；④**未提交**（提交权归 architect）；**未越界**（未触 `components/**` / `contracts/legality_rules.yaml` / compiler-rt）。
 
+### 阶段 B（MC）—— 完成（2026-10-15；`check-instrinfo` 转绿 ✓）
+
+**测试结果**：`./.work/evidence/SPEC-143t/run-b.sh` **PASS=26 FAIL=0**（rc=0）；`run-b.sh --inject` **PASS=14 FAIL=0**（4 组注入，均在**临时副本/临时目录**：①还原的**纯 `.td`** 删 `ctlz_orri_rd` def ⇒ `validate_instrinfo --td` rc=1（`ERROR` **恰 1 条** = 注入点）；以「未注入的同一还原文本 ⇒ rc=0」作回绿基线 ✓；②MC 检查器期望值改 1 位 ⇒ **恰 1 条** `[FAIL]`；③临时目录 `gen-orri.s` 删 ctlz 用例 ⇒ `check_lit_gen` rc=1（`missing=['ctlz_orri_rd']`）；④临时副本 `check-interface` 日志删 1 条 `MISSING:` ⇒ 判定器 rc=1。5 个仓库文件 md5 前后逐字节相同）。子检查器 `check_bitcnt_mc.py` **PASS=93 FAIL=0**。
+
+**修改文件**（`git status --porcelain -uall` = **6**，除本任务书）：`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOInstrInfo.td.patch`（**+36 行**，`make_patch.py` 导出；`new file` hunk `1549→1585`）；`components/llvm-project/changelog.md`（`Process-01 §10` 追加一行）；`tools/llvm/llvm-isa-backend-matrix.tsv`（3 条 `td_def`/①层重生成）；`tools/llvm/llvm-isa-backend-matrix.md`（同计数 + 3 行）；`tests/llvm/lit/MC/DADAO-gen/gen-orri.s`（+3 用例，生成器重生成）；`tests/llvm/lit/MC/DADAO/gen-fast.s`（快档代表 4 行，生成器重生成）。`series` 仍 **71**（一文件一补丁）。**未改** AsmParser/InstPrinter/MCCodeEmitter/Disassembler（既有 `orri` 路径复用）。
+
+**验收结果**（真实 rc；日志 `.work/log/llvm/SPEC-143t-b-*.log`、`SPEC-143t-B-*.log`、`.work/evidence/SPEC-143t/log/`）：
+- **重建（启动证据，长任务）**：`setsid nohup bash -c 'JOBS=8 make build-mc …'`（外层 PID **1132045** / `make` **1132047** / `ninja -j8` **1132079**，16 核**未**用全核）；`.EXIT` = **`SPEC-143t_B_EXIT=0`**（45/45 步 + `build-mc: PASS`；11:18:13→11:22:2x ≈ **4 min**，**增量**）。随后 `make install-host`（`ISS-210` 强制）rc=0（`.EXIT` = `SPEC-143t_B_INSTALL_EXIT=0`，≈**130 s**）。
+- **两处二进制**（`ISS-210` 防假绿）：构建树与安装根 `llvm-mc` md5 **同为 `94559d13…`**，且**两处都**以 rc=0 汇编三条（逐条）。
+- **编码逐条（三方，不抽样）**：`ctpop rd8, rd9, 63` 字 `0x4074827F`、`& 0xFFFC0000` = **`0x40740000`**；`ctlz` `0x4078827F` ⇒ **`0x40780000`**；`cttz` `0x407C827F` ⇒ **`0x407C0000`** —— 与 `op<<24|ha<<18` 派生、`opcodes.yaml` `value`、任务书 §1 给定**三方相等**；字段逐位核对（`op=0x40`、`ha=29/30/31`、`rdhb=8`、`rdhc=9`、`hd=63`）。
+- **往返**：`llvm-mc -filetype=obj` ⇒ `llvm-objdump -d` 3/3 文本 + 字节 == `--show-encoding`；再汇编 ⇒ 文本/字节幂等。
+- **`hd` 合法域**：三条 × **全 64 取值**逐例汇编 **accept 64/64、reject 0**（契约：无非法 `hd`）；`hd=64`/`-1` rc=1 拒绝（既有 `immu6` 范围）；`rdhc=rd0`/`rdhb==rdhc` 受理；`rd0` 作目的 MC 层受理——**未新增**汇编期合法性检查（`ISS-211` 口径 ⇒ 归阶段 C 执行层）。
+- **门控**：**`check-instrinfo` rc=0（`M8 records: 7` / 7/7 各有唯一 `.td` def）＝ 本阶段核心指标转绿 ✓**；**L1 `make check` rc=0（全绿 ✓）**；L2 `make check-modules` rc=**2** —— **仅** `check-interface`（FAIL 恰 2 项、缺 `trans_*` 恰为本任务 3 条，判定器 rc=0）；L2 其余 6 子目标（`check-lit`/`check-qemu-smoke`/`test-codegen`/`test-elf`/`test-semihost`/`check-picolibc-tests`）**逐项 rc=0**（**`test-semihost` 随 L1 转绿 ✓**）。
+- **生成物同步**：`check-isa-coverage` rc=0（① accept **221→224**、reject 13→10；三条 ①层 `reject`→`accept ok`、`td_def` 空→id）；`check_lit_gen` rc=0（**64 passed / 0 failed**）；`check-patch-tree`（4 组件 128 补丁）/`check-index-blobs`/`validate-encoding`/`check-asm-list`/`check-asm-list-drift`/`check-scope`/`check-rule-refs`/`check-legality-drift`/`check-legality-invariants`/`check-spec-readonly`/`check-spec-changelog`/`check-fp-contract`/`check-no-residue` 各 rc=0；`check-source-state` OK（source HEAD `152cfb152b68`、count=1、clean=True）。
+- **幂等**：`make_patch.py llvm-project` ⇒ `0 written, 71 unchanged`；`gen_isa_coverage.py` / `generate_lit_vectors.py` 重跑后 **6 个仓库文件 md5 全不变**。
+
+**新发现/坑**：①`generate_lit_vectors.py` 的**快档**代表按「形态排序首条」机械选取 ⇒ 新增记录会**改变代表**（本环 `orri` 立即数形态 `ext.so`→`ctlz`，`gen-fast.s` 4 行替换）——该文件是**生成物**，须随生成器重生成（非手工挑拣）。②`check_lit_gen`（L3 面）在本环前**即为红**（阶段 A 新增 3 条后 `gen-orri.s` 缺 3 用例，62/2）⇒ 属阶段 A 完成区**未列**的第 4 项 known-red（阶段 A 口径仅覆盖 L1/L2）；本阶段随生成物重生成转绿。③`validate_instrinfo.py --td` 收**纯 `.td`**（非补丁）⇒ 反例注入须先按 `parse_patch` 口径还原纯文本（本环注入①如此，并以「未注入 ⇒ rc=0」双向验证）。④`check-instrinfo` 的 join key 是 `(mnemonic,format,op,ha)`、**不**校验 def 名 == `opcodes.yaml` `id`；本环 def 名按 id 命名（`<id>`）以便矩阵 `td_def` 列可读。
+
+**遗留问题**：①L2 `check-interface` 2 FAIL 仍待**阶段 C**（QEMU `trans_*(231/234)`）+ 任务书验收 4「向量经 QEMU 实跑一致」待阶段 C；②**ISel 接入**不在本任务（`D11.9` 未列，另立）；③`ISS-215` 待阶段 C 完成后一并关闭；④`ISS-210`（重建后必 `make install-host`）本环已执行、issue 状态归主会话；⑤**未提交**（提交权归 architect）；**未越界**（只 MC：`.td` 补丁 + 生成物 + `changelog.md`；未触 QEMU / `spec/**` / `contracts/**` / compiler-rt）。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -238,3 +258,32 @@
 - **文件集对账**（`git diff --cached --name-status -M` ↔ 本笔范围）：**2** 项 = **2 M**，即 `.tao/tasks/spec/SPEC-143t-ctlz-cttz-ctpop落地.md`（第 1 轮 reviewer 审阅记录 + `**阶段进度**` 行 + `**状态**` 口径说明 + 本留痕）、`.tao/knowledge/milestones.md`（`SPEC-143t` 流水行：`**状态**` → `待验收` + 补「阶段 A 已完成并验收（2026-10-15，reviewer `Accepted`）」）⇒ **无漏提、无多提、无越界**（未触 `spec/**`、`components/**`、`contracts/**`、`tools/**`）。
 - **门控（架构 2026-10-15 现场自跑，非转述；日志 = `/tmp/opencode/SPEC-143t/arch-*.log`）**：`make check`(L1) rc=**2**——`ERROR` **恰 3 条**（`ctpop_orri_rd`/`ctlz_orri_rd`/`cttz_orri_rd` 的 `M8` 记录 `.td def 数 = 0`）、无其它失败（`=== Result: 3 errors ===`）；`make check-interface`(L2) rc=**2**——FAIL **恰 2 项**、`MISSING trans_*` **恰 3 条**（`trans_ctpop/ctlz/cttz_orri_rd`）；`check-scope`（`m8=7`、`total=234`）/ `check-rule-refs` / `check-isa-coverage` / `validate-encoding` / `check-spec-readonly` / `check-no-residue` / `check-tasks` / `tools/infra/check_issues.py`（33 open / 5 closed）各 rc=**0** ⇒ 与「阶段 A 验收口径」逐条一致（**3 项已知红之外全绿**）。**不弱化**任何门控。
 - **收尾检查**：① 门控 = 口径内 3 项已知红之外全绿 ✓；② 无临时残留（`git status --porcelain -uall` 仅本笔 2 项、无 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`）✓；③ 证据在 `.work/evidence/SPEC-143t/`（`run.sh` / `run-full.log` / `log/**`）✓；④ 无未提交结果（提交后工作树干净）✓；⑤ 下一件 = **阶段 B（MC）**，由父会话续链 ✓。
+
+#### 第 2 轮 engineer 自审（阶段 B / MC，2026-10-15）
+
+（自主逐行审查；对象 = 本环 `.td` 补丁增量、`changelog.md` 一行、生成物（矩阵/lit）、以及本环**新写**的 3 个证据脚本。全局 `subagent_depth=1`，engineer 无法起嵌套子代理，故为自主逐行审查。）
+
+**逐行审查意见与判决**
+
+1. `.td` 三条 def：`DADAOOrri<"ctpop">/<"ctlz">/<"cttz">`，`op=0x40`、`ha=0x1D/0x1E/0x1F`、操作数 `(outs GPRD:$rb)/(ins GPRD:$rc, immu6:$imm6)`、`Pattern=[]` —— 与 `contracts/opcodes.yaml` 三条记录的 `op`/`ha`/`format=orri` 及 `ext.uo_orri_rd` 先例**逐字一致**；**无**位宽后缀（D11.3）；三处**独立**于 yaml 的数值核对：汇编码字 `& mask` == `op<<24|ha<<18` == yaml `value`（§2，逐条）。**正确**。
+2. **未新增汇编期合法性检查**：注释显式写明「every 6-bit `hd` legal；`contracts/legality_rules.yaml` unchanged；`dst_rd0` 归执行层」——与 `ISS-211` 口径一致；实测 `hd=64/-1` 仅被**既有** `immu6` 范围检查拒绝、`rd0` 作目的 MC 层受理（§4）。**符合**（未改 AsmParser）。
+3. 复用面核实：AsmParser（`orri` matcher 由 TableGen 生成，无需白名单）/InstPrinter（flat 打印）/MCCodeEmitter（通用 `getMachineOpValue`）/Disassembler 均**未改**；实测 `--show-encoding` + `objdump -d` 双路径字节一致（§1/§3）⇒ 「不需改即可工作」有实证，非假设。
+4. 补丁纪律（`Process-01 §6`）：改动在 `.work/source/llvm-project` 进行 → E4 收敛 `base+1` → `make_patch.py` 导出（`0 written, 71 unchanged` 幂等）→ `check-patch-tree`/`check-index-blobs`/`check-source-state` 全绿；`series` 未变、**一文件一补丁**、**未手工编辑补丁**。**符合**。
+5. 生成物同步：「改 `opcodes.yaml`/`.td` ⇒ 必须重生成矩阵与 lit 生成物」——两生成器重跑后 **6 文件 md5 不变**（幂等）+ `--check` 类门控 rc=0。**符合**（承 `SPEC-142t` 阶段 B 教训）。
+6. 证据脚本可达 FAIL：4 组注入各命中**不同**目标断言（①`check-instrinfo` ②MC 编码 ③`check_lit_gen` 覆盖 ④`check-interface` 判定器），且**各有回绿基线**（①还原文本 rc=0；②先验 pristine rc=0；③未注入目录由全量模式 rc=0 佐证；④全量模式判定器 rc=0）。**无恒真断言**；计数全部现场统计（`len(MNEMONICS)`、`accept=64/64`、`PASS/FAIL` 由脚本计数）。
+7. 还原纪律：注入**只**落 `/tmp/opencode/SPEC-143t/`（临时副本/临时目录），**无** `git checkout/restore/stash`；另以 5 个仓库文件 **md5 前后对账**证明未被触碰。**符合**。
+8. 防造假：`check_bitcnt_mc.py` 期望值三方来源（位域公式 / yaml / 任务书），**不**从 `llvm-mc` 输出反推；`hd` 域 192 例**全量**（非抽样）；工具一致性以 **md5** 判（防 `ISS-210` 假绿）。**符合**。
+9. 越界自查：`git diff --name-only` = 6 文件，**均**属「MC 面 + 其生成物 + 组件 changelog」；**未触** `spec/**`、`contracts/**`、QEMU、compiler-rt；`.tao/knowledge/` 未改（沉淀归 `/complete`）。**符合**。
+10. 首版自审发现并当场修（见下表 F1/F2）。
+
+**Finding 处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 注入①把**补丁文件**直接喂 `validate_instrinfo.py --td` ⇒ 解析出 0 个 def、165 条 `ERROR`（**FAIL 理由失真**，属"假红"而非目标反例） | ✅已修 | `run-b.sh` 注入①改为先按 `parse_patch` 口径还原**纯 `.td`**，再删 `ctlz_orri_rd` def；加「未注入的还原文本 ⇒ rc=0」回绿基线 | 注入① `ERROR` **恰 1 条**且 = `M8 记录 ctlz_orri_rd 的 .td def 数 = 0`；基线 rc=0（`--inject` PASS=14 FAIL=0） |
+| F2 证据脚本把 `3`/`ctlz_orri_rd` 等**字面**写进断言（计数硬编码、def 名与 id 约定重复） | ✅已修 | 改 `len(MNEMONICS)`；`td_def` 期望改取记录 `id`（现场派生） | `check_bitcnt_mc.py` PASS=93 FAIL=0；§6 打印现场值 |
+| F3 阶段 A 完成区列「known-red 恰 3 项」，但本环发现 `check_lit_gen`（L3 面）**亦**为红（阶段 A 新增记录后生成物未重生成） | ⏸披露（**不**改阶段 A 记录，只追加本阶段说明） | 未改阶段 A 文本；在本阶段「新发现/坑」②如实写明口径差异 | `check_lit_gen` 本环 rc=1→**rc=0（64 passed）**；阶段 A 口径原文仍可查 |
+| F4 `gen-fast.s`（**快档**，L2 `check-lit` 用）因新增记录**代表变更**而 4 行改写 | ⏸不改判据（**生成物按生成器输出为准**），仅登记 | 未手工编辑；由 `generate_lit_vectors.py` 重生成 | 重跑 md5 不变（幂等）；`make check-lit` rc=0 |
+
+**判决**：全部 finding 已处置（F1/F2 已修；F3/F4 为显式披露/生成物口径登记）。阶段 B **无未处置代码缺陷**；核心指标（`check-instrinfo` 转绿 + L1 全绿）已由真实 rc 达成，L2 唯一失败项 = 阶段 C 工作项 ⇒ 状态置 `待验收`。
+

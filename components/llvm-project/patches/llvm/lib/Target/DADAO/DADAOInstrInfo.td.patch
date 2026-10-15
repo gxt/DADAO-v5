@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..972e9f815
+index 000000000..a8469e157
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1549 @@
+@@ -0,0 +1,1585 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1493,6 +1493,42 @@ index 000000000..972e9f815
 +  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
 +  let op = 0x43;
 +  let ha = 0x0C;
++  let Pattern = [];
++}
++
++// --- ctlz/cttz/ctpop bit scan & population count (ADR-0012 D11 / SPEC-143t; scope: m8) ---
++//
++// ctpop/ctlz/cttz rdHB, rdHC, immu6: hd = immu6 is the upper bound of the
++// valid bits (rdHC[hd:0]); ctpop counts the set bits in that range, ctlz
++// counts leading zeros downwards from bit hd, cttz counts trailing zeros
++// upwards from bit 0.  Every 6-bit hd (0..63) is legal -- there is no
++// illegal hd value, so the MC layer adds no assembly-time legality check
++// (contracts/legality_rules.yaml is unchanged; the dst_rd0 rule is
++// enforced at execution time, see ISS-211).  An all-zero field yields hd+1
++// for ctlz/cttz and 0 for ctpop (contracts/opcodes.yaml).  MC layer only for
++// now: no ISel patterns, so they never reach CodeGen.
++
++def ctpop_orri_rd : DADAOOrri<"ctpop"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x40;
++  let ha = 0x1D;
++  let Pattern = [];
++}
++
++def ctlz_orri_rd : DADAOOrri<"ctlz"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x40;
++  let ha = 0x1E;
++  let Pattern = [];
++}
++
++def cttz_orri_rd : DADAOOrri<"cttz"> {
++  let OutOperandList = (outs GPRD:$rb);
++  let InOperandList = (ins GPRD:$rc, immu6:$imm6);
++  let op = 0x40;
++  let ha = 0x1F;
 +  let Pattern = [];
 +}
 +

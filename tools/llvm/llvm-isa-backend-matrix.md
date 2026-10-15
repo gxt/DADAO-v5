@@ -13,7 +13,7 @@
 
 - 形态来源：`tools/testcases/generate_lit_vectors.py` 的 `build_case()`（与现有 lit 全量档 `tests/llvm/lit/MC/DADAO-gen/gen-*.s` **同一口径、同一行文本**；本工具不另立操作数拼装逻辑）。
 - 受理后**另做编码复核**：由对象 `.text` 取 4 字节大端字，要求「按真源 `(word & mask) == value` 唯一命中本记录」且等于真源派生编码（`L1_encoding = ok / mismatch`）。这一列把第①层钉在真源上，而非只看 `llvm-mc` 自洽。
-- 现场统计：`accept` **221** / `reject` **13**；编码复核不符 **0**。
+- 现场统计：`accept` **224** / `reject` **10**；编码复核不符 **0**。
 - `scope: excluded` 且后端未实现者（`cfxld`/`cfxst`/`lr_*`/`sc_*`）由汇编器**显式拒绝**（`reject`），与 `tests/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。
 
 ### 第②层「ISel 用得上」（机械提取，非人工判读）
@@ -94,9 +94,9 @@
 | `cs.p_rrrr_rf` | `cs.p` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:512:cs_p_rrrr_rf;pat:DADAOCodeGen.td.patch:518:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:619:cs_p_rrrr_rf;pat-args:DADAOCodeGen.td.patch:622:cs_p_rrrr_rf |
 | `cs.z_rrrr_rd` | `cs.z` | `rrrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:499:cs_z_rd;pat:DADAOCodeGen.td.patch:609:cs_z_rd;pat:DADAOCodeGen.td.patch:613:cs_z_rd |
 | `cs.z_rrrr_rf` | `cs.z` | `rrrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:510:cs_z_rrrr_rf;pat:DADAOCodeGen.td.patch:516:cs_z_rrrr_rf;pat-args:DADAOCodeGen.td.patch:618:cs_z_rrrr_rf;pat-args:DADAOCodeGen.td.patch:621:cs_z_rrrr_rf |
-| `ctlz_orri_rd` | `ctlz` | `orri` | `m8` | reject | no | — |
-| `ctpop_orri_rd` | `ctpop` | `orri` | `m8` | reject | no | — |
-| `cttz_orri_rd` | `cttz` | `orri` | `m8` | reject | no | — |
+| `ctlz_orri_rd` | `ctlz` | `orri` | `m8` | accept | no | — |
+| `ctpop_orri_rd` | `ctpop` | `orri` | `m8` | accept | no | — |
+| `cttz_orri_rd` | `cttz` | `orri` | `m8` | accept | no | — |
 | `div.sb_orrr_rd` | `div.sb` | `orrr` | `m1` | accept | no | — |
 | `div.so_orrr_rd` | `div.so` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:361:div_so |
 | `div.st_orrr_rd` | `div.st` | `orrr` | `m1` | accept | no | — |

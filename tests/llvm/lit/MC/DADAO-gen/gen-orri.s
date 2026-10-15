@@ -11,6 +11,21 @@
 
 .text
 
+; @src ctlz_orri_rd 40788241 | SimRISC-04 §Bit manipulating：位操作指令
+; OBJ: {{[0-9a-f]+:}} 40 78 82 41{{.*}}ctlz
+; ASM: ctlz rd8, rd9, 1
+ctlz rd8, rd9, 1
+
+; @src ctpop_orri_rd 40748241 | SimRISC-04 §Bit manipulating：位操作指令
+; OBJ: {{[0-9a-f]+:}} 40 74 82 41{{.*}}ctpop
+; ASM: ctpop rd8, rd9, 1
+ctpop rd8, rd9, 1
+
+; @src cttz_orri_rd 407c8241 | SimRISC-04 §Bit manipulating：位操作指令
+; OBJ: {{[0-9a-f]+:}} 40 7c 82 41{{.*}}cttz
+; ASM: cttz rd8, rd9, 1
+cttz rd8, rd9, 1
+
 ; @src ext.so_orri_rd 40648241 | SimRISC-04 §Bit manipulating：位操作指令
 ; OBJ: {{[0-9a-f]+:}} 40 64 82 41{{.*}}ext.so
 ; ASM: ext.so rd8, rd9, 1

@@ -41,10 +41,10 @@ fence 0
 ; ASM: swym 8
 swym 8
 
-; @src ext.so_orri_rd 40648241 | SimRISC-04 §Bit manipulating：位操作指令
-; OBJ: {{[0-9a-f]+:}} 40 64 82 41{{.*}}ext.so
-; ASM: ext.so rd8, rd9, 1
-ext.so rd8, rd9, 1
+; @src ctlz_orri_rd 40788241 | SimRISC-04 §Bit manipulating：位操作指令
+; OBJ: {{[0-9a-f]+:}} 40 78 82 41{{.*}}ctlz
+; ASM: ctlz rd8, rd9, 1
+ctlz rd8, rd9, 1
 
 ; @src fo2fo_orri_rf 44288241 | SimRISC-00 §MISC-RF指令编码
 ; OBJ: {{[0-9a-f]+:}} 44 28 82 41{{.*}}fo2fo
