@@ -180,11 +180,18 @@ def main() -> int:
                         default=Path(os.environ.get(
                             "DADAO_GEM5_BINARY",
                             ROOT / ".work/source/gem5/build/DADAO/gem5.opt")))
-    parser.add_argument("--profile", choices=("current", "skeleton", "sequences"),
+    parser.add_argument("--profile",
+                        choices=("current", "skeleton", "sequences",
+                                 "remaining"),
                         default="current",
                         help="select current, GEM5-003t, or smoke sequences")
     parser.add_argument("--inject", action="store_true",
                         help="corrupt a smoke expectation for reverse testing")
+    parser.add_argument(
+        "--inject-excluded",
+        action="store_true",
+        help="replace one excluded encoding with accepted swym; gate must fail",
+    )
     parser.add_argument("--vector-root", type=Path,
                         default=ROOT / "tests/vectors/isa",
                         help="read ISA YAML files from this directory")
@@ -197,6 +204,9 @@ def main() -> int:
         raise SystemExit(f"gem5-isa: missing vector root {vector_root}")
     if args.inject and args.profile != "sequences":
         raise SystemExit("gem5-isa: --inject requires --profile sequences")
+    if args.inject_excluded and args.profile != "remaining":
+        raise SystemExit(
+            "gem5-isa: --inject-excluded requires --profile remaining")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     vectors = yaml.safe_load((vector_root / "reg-arith.yaml").read_text())
     cases = [
@@ -303,8 +313,12 @@ def main() -> int:
                   "expected_state": {"rd": {"rd1": "0xffffffffffffffff"}}})
     cases.append({"encoding": {"word": "0x00000000"},
                   "expected_fault": "UNDI", "input_state": {}})
-    cases.append({"encoding": {"word": "0x40cc1083"},
-                  "expected_fault": "ILLI", "input_state": {}})
+    cases.append({
+        "id": "sub.o_orrr_dbb",
+        "encoding": {"word": "0x40cc1083"},
+        "input_state": {"rb": {"rb2": "0x64", "rb3": "0x1e"}},
+        "expected_state": {"rd": {"rd1": "0x46"}},
+    })
     cases.append({"encoding": {"word": "0x59040001"},
                   "initial_pc": 0xFFFFFFFF0002,
                   "expected_fault": "IALIGN", "input_state": {}})
@@ -359,6 +373,33 @@ def main() -> int:
         cases += review_cases + smoke_sequences()
     elif args.profile == "sequences":
         cases = smoke_sequences()
+    elif args.profile == "remaining":
+        for filename in (
+                ROOT / "tests/vectors/rev/rev.yaml",
+                ROOT / "tests/vectors/bitcnt/bitcnt.yaml"):
+            cases.extend(
+                case for case in yaml.safe_load(filename.read_text())
+                if case.get("status") == "active"
+                and case.get("class") in {
+                    "semantic", "boundary", "legality",
+                }
+            )
+        opcodes = yaml.safe_load(
+            (ROOT / "contracts/opcodes.yaml").read_text())
+        cases.extend({
+            "id": opcode["id"],
+            "encoding": {"word": opcode["value"]},
+            "input_state": {},
+            "expected_fault": "ILLI",
+        } for opcode in opcodes if opcode["scope"] == "excluded")
+        if args.inject_excluded:
+            excluded_ids = {
+                opcode["id"] for opcode in opcodes
+                if opcode["scope"] == "excluded"
+            }
+            case = next(case for case in cases
+                        if case.get("id") in excluded_ids)
+            case["encoding"]["word"] = "0x77880000"
     if args.inject:
         cases[0]["expected_state"]["rd"]["rd1"] = "0xdead"
     for number, case in enumerate(cases):

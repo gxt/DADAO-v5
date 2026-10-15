@@ -1,16 +1,19 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..a755f11
+index 0000000..cbe2300
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,781 @@
+@@ -0,0 +1,1245 @@
 +#include "arch/dadao/inst.hh"
 +
++#include <algorithm>
 +#include <array>
++#include <climits>
 +
 +#include "arch/dadao/faults.hh"
 +#include "arch/dadao/isa.hh"
 +#include "arch/dadao/opcode_table.hh"
++#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
 +#include "arch/dadao/semihosting.hh"
 +#include "base/cprintf.hh"
@@ -20,11 +23,93 @@ index 0000000..a755f11
 +#include "mem/request.hh"
 +#include "sim/system.hh"
 +#include "sim/workload.hh"
++#include "softfloat.h"
 +
 +namespace gem5::DadaoISAInst
 +{
 +namespace
 +{
++constexpr uint64_t FtQNaN = 0x000000007fc00000ULL;
++constexpr uint64_t FtSNaN = 0x000000007f800001ULL;
++constexpr uint64_t FoQNaN = 0x7ff8000000000000ULL;
++constexpr uint64_t FoSNaN = 0x7ff0000000000001ULL;
++
++uint_fast8_t
++fpRoundingMode(uint64_t fcsr)
++{
++    constexpr std::array<uint_fast8_t, 4> modes{
++        softfloat_round_near_even,
++        softfloat_round_minMag,
++        softfloat_round_min,
++        softfloat_round_max,
++    };
++    return modes[(fcsr >> 32) & 3];
++}
++
++void
++startFp(uint64_t fcsr)
++{
++    softfloat_roundingMode = fpRoundingMode(fcsr);
++    softfloat_detectTininess = softfloat_tininess_afterRounding;
++    softfloat_exceptionFlags = 0;
++}
++
++uint64_t
++dadaoFpFlags(bool invalid_only=false)
++{
++    const uint_fast8_t flags = softfloat_exceptionFlags;
++    if (invalid_only)
++        return (flags & softfloat_flag_invalid) ? 1 : 0;
++    return ((flags & softfloat_flag_invalid) ? 1 : 0) |
++           ((flags & softfloat_flag_infinite) ? 2 : 0) |
++           ((flags & softfloat_flag_overflow) ? 4 : 0) |
++           ((flags & softfloat_flag_underflow) ? 8 : 0) |
++           ((flags & softfloat_flag_inexact) ? 16 : 0);
++}
++
++float32_t
++scaleF32(float32_t value, int exponent)
++{
++    exponent = std::clamp(exponent, -512, 512);
++    while (exponent) {
++        const int step = std::clamp(exponent, -126, 127);
++        value = f32_mul(value, float32_t{
++            static_cast<uint32_t>(step + 127) << 23});
++        exponent -= step;
++    }
++    return value;
++}
++
++float64_t
++scaleF64(float64_t value, int exponent)
++{
++    exponent = std::clamp(exponent, -4096, 4096);
++    while (exponent) {
++        const int step = std::clamp(exponent, -1022, 1023);
++        value = f64_mul(value, float64_t{
++            static_cast<uint64_t>(step + 1023) << 52});
++        exponent -= step;
++    }
++    return value;
++}
++
++uint64_t
++reverseUnits(uint64_t value, unsigned block_width, unsigned unit_width)
++{
++    const unsigned units = block_width / unit_width;
++    const uint64_t mask = (1ULL << unit_width) - 1;
++    uint64_t result = 0;
++    for (unsigned block = 0; block < 64 / block_width; ++block) {
++        for (unsigned unit = 0; unit < units; ++unit) {
++            const unsigned source = block * block_width + unit * unit_width;
++            const unsigned target =
++                block * block_width + (units - unit - 1) * unit_width;
++            result |= ((value >> source) & mask) << target;
++        }
++    }
++    return result;
++}
++
 +const char *
 +instructionName(unsigned op)
 +{
@@ -35,26 +120,35 @@ index 0000000..a755f11
 +      case 0x13: return "ld.sb";
 +      case 0x14: return "ld.sw";
 +      case 0x15: return "ld.st";
++      case 0x16: return "ld.t";
++      case 0x17: return "st.t";
 +      case 0x18: return "st.b";
 +      case 0x19: return "st.w";
 +      case 0x1a: return "st.t";
 +      case 0x20: case 0x22: case 0x24: return "ld.o";
 +      case 0x21: case 0x23: case 0x25: return "st.o";
++      case 0x26: return "ld.o";
++      case 0x27: return "st.o";
 +      case 0x28: return "ldm.ub";
 +      case 0x29: return "ldm.uw";
 +      case 0x2a: return "ldm.ut";
 +      case 0x2b: return "ldm.sb";
 +      case 0x2c: return "ldm.sw";
 +      case 0x2d: return "ldm.st";
++      case 0x2e: return "ldm.t";
++      case 0x2f: return "stm.t";
 +      case 0x30: return "stm.b";
 +      case 0x31: return "stm.w";
 +      case 0x32: return "stm.t";
 +      case 0x38: case 0x3a: case 0x3c: return "ldm.o";
 +      case 0x39: case 0x3b: case 0x3d: return "stm.o";
++      case 0x3e: return "ldm.o";
++      case 0x3f: return "stm.o";
 +      case 0x40: return "misc";
 +      case 0x41: return "misc.t";
 +      case 0x42: return "misc.w";
 +      case 0x43: return "misc.b";
++      case 0x44: return "fp";
 +      case 0x48: return "or.w";
 +      case 0x49: return "andn.w";
 +      case 0x4a: return "or.w";
@@ -62,6 +156,7 @@ index 0000000..a755f11
 +      case 0x4c: return "set.zw";
 +      case 0x4d: return "set.ow";
 +      case 0x4e: return "set.zw";
++      case 0x4f: return "set.w";
 +      case 0x50: return "add.uo";
 +      case 0x51: return "add.so";
 +      case 0x52: return "sub.uo";
@@ -71,9 +166,14 @@ index 0000000..a755f11
 +      case 0x59: case 0x5b: return "add.si";
 +      case 0x5c: return "cmp.ui";
 +      case 0x5d: return "cmp.si";
++      case 0x5e: return "cs.eq";
++      case 0x5f: return "cs.ne";
 +      case 0x60: return "cs.n";
++      case 0x61: return "cs.n";
 +      case 0x62: return "cs.z";
++      case 0x63: return "cs.z";
 +      case 0x64: return "cs.p";
++      case 0x65: return "cs.p";
 +      case 0x66: return "cs.eq";
 +      case 0x67: return "cs.ne";
 +      case 0x68: return "br.n";
@@ -90,6 +190,8 @@ index 0000000..a755f11
 +      case 0x77: return "swym";
 +      case 0x7a: return "cfx2rd";
 +      case 0x7b: return "cfx2rc";
++      case 0x7c: return "cfxld";
++      case 0x7d: return "cfxst";
 +      case 0x7e: return "escape";
 +      case 0x7f: return "trap";
 +      default: return "unknown";
@@ -103,16 +205,21 @@ index 0000000..a755f11
 +{
 +    size(4);
 +    flags[IsInteger] = true;
-+    if ((w >> 24) >= 0x10 && (w >> 24) <= 0x3d) {
++    if ((w >> 24) >= 0x10 && (w >> 24) <= 0x3f) {
 +        const unsigned op = w >> 24;
 +        flags[IsLoad] = (op >= 0x10 && op <= 0x15) ||
++                        op == 0x16 ||
 +                        op == 0x20 || op == 0x22 || op == 0x24 ||
-+                        (op >= 0x28 && op <= 0x2d) ||
-+                        op == 0x38 || op == 0x3a || op == 0x3c;
++                        op == 0x26 || (op >= 0x28 && op <= 0x2e) ||
++                        op == 0x38 || op == 0x3a || op == 0x3c ||
++                        op == 0x3e;
 +        flags[IsStore] = (op >= 0x18 && op <= 0x1a) ||
++                         op == 0x17 ||
 +                         op == 0x21 || op == 0x23 || op == 0x25 ||
++                         op == 0x27 || op == 0x2f ||
 +                         (op >= 0x30 && op <= 0x32) ||
-+                         op == 0x39 || op == 0x3b || op == 0x3d;
++                         op == 0x39 || op == 0x3b || op == 0x3d ||
++                         op == 0x3f;
 +    }
 +    if (instructionName(w >> 24) == std::string("unknown")) {
 +        flags[IsInvalid] = true;
@@ -175,6 +282,18 @@ index 0000000..a755f11
 +        tc->setReg(DadaoISA::intRegClass[DadaoISA::int_reg::RaBase + i],
 +                value);
 +    };
++    auto rf = [tc](unsigned i) {
++        return tc->getReg(DadaoISA::floatRegClass[i]);
++    };
++    auto set_rf = [tc](unsigned i, uint64_t value) {
++        if (i == 0)
++            value = DadaoISA::FcsrReset |
++                    (value & DadaoISA::FcsrWritable);
++        tc->setReg(DadaoISA::floatRegClass[i], value);
++    };
++    auto commit_fp = [&rf, &set_rf](bool invalid_only=false) {
++        set_rf(0, rf(0) | dadaoFpFlags(invalid_only));
++    };
 +    auto branch = [tc](uint64_t target) {
 +        tc->setReg(DadaoISA::intRegClass[DadaoISA::int_reg::RbBase], target);
 +        auto pc = tc->pcState().as<DadaoISA::PCState>();
@@ -182,32 +301,43 @@ index 0000000..a755f11
 +        pc.explicitBranch(true);
 +        tc->pcState(pc);
 +    };
-+    const bool single_mem = (op >= 0x10 && op <= 0x15) ||
++    const bool single_mem = (op >= 0x10 && op <= 0x18) ||
 +                            (op >= 0x18 && op <= 0x1a) ||
-+                            (op >= 0x20 && op <= 0x25);
++                            (op >= 0x20 && op <= 0x27);
 +    const bool block_mem = (op >= 0x28 && op <= 0x2d) ||
-+                           (op >= 0x30 && op <= 0x32) ||
-+                           (op >= 0x38 && op <= 0x3d);
++                           (op >= 0x2e && op <= 0x32) ||
++                           (op >= 0x38 && op <= 0x3f);
 +    if (single_mem || block_mem) {
 +        const unsigned hb = (word >> 12) & 63;
-+        const bool load = (op >= 0x10 && op <= 0x15) ||
++        const bool load = (op >= 0x10 && op <= 0x16) ||
 +                          op == 0x20 || op == 0x22 || op == 0x24 ||
-+                          (op >= 0x28 && op <= 0x2d) ||
-+                          op == 0x38 || op == 0x3a || op == 0x3c;
-+        const bool rd_bank = op <= 0x21 ||
-+                             (op >= 0x28 && op <= 0x32) ||
++                          op == 0x26 || (op >= 0x28 && op <= 0x2e) ||
++                          op == 0x38 || op == 0x3a || op == 0x3c ||
++                          op == 0x3e;
++        const bool rd_bank = (op >= 0x10 && op <= 0x15) ||
++                             (op >= 0x18 && op <= 0x1a) ||
++                             op == 0x20 || op == 0x21 ||
++                             (op >= 0x28 && op <= 0x2d) ||
++                             (op >= 0x30 && op <= 0x32) ||
 +                             op == 0x38 || op == 0x39;
 +        const bool rb_bank = op == 0x22 || op == 0x23 ||
 +                             op == 0x3a || op == 0x3b;
++        const bool rf_bank = op == 0x16 || op == 0x17 ||
++                             op == 0x26 || op == 0x27 ||
++                             op == 0x2e || op == 0x2f ||
++                             op == 0x3e || op == 0x3f;
 +        const unsigned size =
 +            (op == 0x10 || op == 0x13 || op == 0x18 ||
 +             op == 0x28 || op == 0x2b || op == 0x30) ? 1 :
 +            (op == 0x11 || op == 0x14 || op == 0x19 ||
 +             op == 0x29 || op == 0x2c || op == 0x31) ? 2 :
 +            (op == 0x12 || op == 0x15 || op == 0x1a ||
-+             op == 0x2a || op == 0x2d || op == 0x32) ? 4 : 8;
++             op == 0x2a || op == 0x2d || op == 0x2e ||
++             op == 0x2f || op == 0x32 || op == 0x16 ||
++             op == 0x17) ? 4 : 8;
 +        const bool sign_extend = op == 0x13 || op == 0x14 || op == 0x15 ||
-+                                 op == 0x2b || op == 0x2c || op == 0x2d;
++                                 op == 0x16 || op == 0x2b || op == 0x2c ||
++                                 op == 0x2d || op == 0x2e;
 +        const unsigned count = block_mem ? (word & 63) : 1;
 +        if ((load && ((rd_bank || rb_bank) && ha == 0)) ||
 +            (block_mem && (count == 0 || ha + count > 64)))
@@ -246,9 +376,19 @@ index 0000000..a755f11
 +            }
 +            for (unsigned i = 0; i < count; ++i) {
 +                uint64_t value = values[i];
-+                if (!rd_bank && !rb_bank && ha + i == 0)
++                if (!rd_bank && !rb_bank && !rf_bank && ha + i == 0)
 +                    value &= 0x003fffffffffffffULL;
-+                tc->setReg(reg_id(ha + i), value);
++                if (rf_bank) {
++                    if (size == 4 && ha + i == 0) {
++                        tc->setReg(DadaoISA::floatRegClass[0],
++                            (rf(0) & 0xffffffff00000000ULL) |
++                            (value & 0xffffffffULL));
++                    } else {
++                        set_rf(ha + i, value);
++                    }
++                } else {
++                    tc->setReg(reg_id(ha + i), value);
++                }
 +            }
 +        } else {
 +            std::vector<std::array<uint8_t, 8>> old_values;
@@ -266,7 +406,8 @@ index 0000000..a755f11
 +                }
 +            }
 +            for (unsigned i = 0; i < count; ++i) {
-+                uint64_t value = tc->getReg(reg_id(ha + i));
++                uint64_t value = rf_bank ? rf(ha + i) :
++                                           tc->getReg(reg_id(ha + i));
 +                uint8_t bytes[8] = {};
 +                for (unsigned j = 0; j < size; ++j)
 +                    bytes[size - j - 1] = value >> (j * 8);
@@ -288,6 +429,329 @@ index 0000000..a755f11
 +                    return fault;
 +                }
 +            }
++        }
++    } else if ((op >= 0x40 && op <= 0x43) &&
++               ((op == 0x40 && (ha == 0x0c ||
++                                (ha >= 0x1d && ha <= 0x1f))) ||
++                (op != 0x40 && ha == 0x0c))) {
++        const unsigned hb = (word >> 12) & 63;
++        const unsigned hc = (word >> 6) & 63;
++        const unsigned hd = word & 63;
++        if (hb == 0)
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        if (ha == 0x0c) {
++            const unsigned width =
++                op == 0x40 ? 64 : op == 0x41 ? 32 : op == 0x42 ? 16 : 8;
++            if (hd == 0 || (hd & (hd - 1)) || hd >= width)
++                return std::make_shared<DadaoISA::MachineFault>(
++                        "ILLI", 0x88);
++            set_rd(hb, reverseUnits(rd(hc), width, hd));
++        } else {
++            const uint64_t mask =
++                hd == 63 ? ~0ULL : (1ULL << (hd + 1)) - 1;
++            const uint64_t value = rd(hc) & mask;
++            if (ha == 0x1d) {
++                set_rd(hb, __builtin_popcountll(value));
++            } else if (ha == 0x1e) {
++                set_rd(hb, value ?
++                    __builtin_clzll(value) - (63 - hd) : hd + 1);
++            } else {
++                set_rd(hb, value ? __builtin_ctzll(value) : hd + 1);
++            }
++        }
++    } else if (op == 0x40 && ha == 0x33) {
++        const unsigned hb = (word >> 12) & 63;
++        const unsigned hc = (word >> 6) & 63;
++        const unsigned hd = word & 63;
++        if (hb == 0)
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        set_rd(hb, rb(hc) - rb(hd));
++    } else if (op == 0x40 && (ha == 0x3d || ha == 0x3e)) {
++        const unsigned hb = (word >> 12) & 63;
++        const unsigned hc = (word >> 6) & 63;
++        const unsigned count = word & 63;
++        if (count == 0 || hb + count > 64 || hc + count > 64 ||
++            (ha == 0x3e && hb == 0))
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        std::vector<uint64_t> values(count);
++        for (unsigned i = 0; i < count; ++i)
++            values[i] = ha == 0x3d ? rd(hc + i) : rf(hc + i);
++        for (unsigned i = 0; i < count; ++i) {
++            if (ha == 0x3d)
++                set_rf(hb + i, values[i]);
++            else
++                set_rd(hb + i, values[i]);
++        }
++    } else if (op == 0x4f) {
++        const unsigned lane = (word >> 16) & 3;
++        const uint64_t mask = 0xffffULL << (lane * 16);
++        const uint64_t value = uint64_t(word & 0xffff) << (lane * 16);
++        set_rf(ha, (rf(ha) & ~mask) | value);
++    } else if (op == 0x5e || op == 0x5f ||
++               op == 0x61 || op == 0x63 || op == 0x65) {
++        const unsigned hb = (word >> 12) & 63;
++        const unsigned hc = (word >> 6) & 63;
++        const unsigned hd = word & 63;
++        const unsigned dst = op <= 0x5f ? hc : hb;
++        if (dst == 0)
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        if (op == 0x5e) {
++            if (rd(ha) == rd(hb))
++                set_rf(hc, rf(hd));
++        } else if (op == 0x5f) {
++            if (rd(ha) != rd(hb))
++                set_rf(hc, rf(hd));
++        } else if (op == 0x61) {
++            set_rf(hb, static_cast<int64_t>(rd(ha)) < 0 ? rf(hc) : rf(hd));
++        } else if (op == 0x63) {
++            set_rf(hb, rd(ha) == 0 ? rf(hc) : rf(hd));
++        } else {
++            set_rf(hb, static_cast<int64_t>(rd(ha)) > 0 ? rf(hc) : rf(hd));
++        }
++    } else if (op == 0x44) {
++        const unsigned hb = (word >> 12) & 63;
++        const unsigned hc = (word >> 6) & 63;
++        const unsigned hd = word & 63;
++        auto illi = [] {
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        };
++        auto valid_range = [](unsigned start, unsigned count) {
++            return count != 0 && start + count <= 64;
++        };
++        auto is_nan = [](uint64_t value, bool wide) {
++            const unsigned mantissa = wide ? 52 : 23;
++            const uint64_t exponent = wide ? 0x7ff : 0xff;
++            const uint64_t fraction = (1ULL << mantissa) - 1;
++            return ((value >> mantissa) & exponent) == exponent &&
++                   (value & fraction);
++        };
++        auto compare = [&is_nan](uint64_t lhs, uint64_t rhs, bool wide,
++                                 uint64_t unordered) {
++            const unsigned sign_bit = wide ? 63 : 31;
++            const uint64_t width_mask =
++                wide ? ~0ULL : 0xffffffffULL;
++            lhs &= width_mask;
++            rhs &= width_mask;
++            if (is_nan(lhs, wide) || is_nan(rhs, wide))
++                return unordered;
++            const uint64_t sign_mask = 1ULL << sign_bit;
++            const uint64_t magnitude = sign_mask - 1;
++            if ((lhs & magnitude) == 0 && (rhs & magnitude) == 0)
++                return uint64_t(0);
++            const bool lhs_sign = lhs & sign_mask;
++            const bool rhs_sign = rhs & sign_mask;
++            bool greater;
++            bool less;
++            if (lhs_sign != rhs_sign) {
++                greater = !lhs_sign;
++                less = lhs_sign;
++            } else if (!lhs_sign) {
++                greater = (lhs & magnitude) > (rhs & magnitude);
++                less = (lhs & magnitude) < (rhs & magnitude);
++            } else {
++                greater = (lhs & magnitude) < (rhs & magnitude);
++                less = (lhs & magnitude) > (rhs & magnitude);
++            }
++            return greater ? uint64_t(1) :
++                   less ? ~uint64_t(0) : uint64_t(0);
++        };
++
++        if (ha == 0x00 || ha == 0x08) {
++            const bool wide = ha == 0x08;
++            if (hb == 0 || !valid_range(hb, hd) ||
++                !valid_range(hc, hd))
++                return illi();
++            for (unsigned i = 0; i < hd; ++i) {
++                const uint64_t value = rf(hc + i);
++                set_rd(hb + i, wide ?
++                    f64_classify(float64_t{value}) :
++                    f32_classify(float32_t{
++                        static_cast<uint32_t>(value)}));
++            }
++        } else if (ha == 0x01 || ha == 0x02 ||
++                   ha == 0x09 || ha == 0x0a) {
++            if (hb == 0 || !valid_range(hb, hd) ||
++                !valid_range(hc, hd) ||
++                (hb < hc + hd && hc < hb + hd))
++                return illi();
++            std::vector<uint64_t> values(hd);
++            for (unsigned i = 0; i < hd; ++i) {
++                const uint64_t source = rf(hc + i);
++                if (ha == 0x02 || ha == 0x0a) {
++                    values[i] = source;
++                    continue;
++                }
++                startFp(rf(0));
++                if (ha == 0x01) {
++                    const uint32_t bits = source;
++                    const uint32_t mantissa = bits & 0x7fffff;
++                    if ((bits & 0x7f800000) == 0x7f800000 && mantissa) {
++                        if (!(mantissa & 0x400000))
++                            softfloat_raiseFlags(softfloat_flag_invalid);
++                        values[i] =
++                            (uint64_t(bits >> 31) << 63) |
++                            0x7ff0000000000000ULL |
++                            (uint64_t(mantissa | 0x400000) << 29);
++                    } else {
++                        values[i] = f32_to_f64(float32_t{bits}).v;
++                    }
++                } else {
++                    const uint64_t mantissa =
++                        source & 0x000fffffffffffffULL;
++                    if ((source & 0x7ff0000000000000ULL) ==
++                            0x7ff0000000000000ULL && mantissa) {
++                        if (!(mantissa & 0x0008000000000000ULL))
++                            softfloat_raiseFlags(softfloat_flag_invalid);
++                        values[i] =
++                            ((source >> 32) & 0x80000000ULL) |
++                            0x7f800000ULL |
++                            ((mantissa >> 29) | 0x400000ULL);
++                    } else {
++                        values[i] = f64_to_f32(float64_t{source}).v;
++                    }
++                }
++                commit_fp();
++            }
++            for (unsigned i = 0; i < hd; ++i)
++                set_rf(hb + i, values[i]);
++        } else if (ha == 0x06 || ha == 0x0e) {
++            if (hb == 0 || hd != 2)
++                return illi();
++            startFp(rf(0));
++            const uint64_t result = ha == 0x06 ?
++                f32_sqrt(float32_t{static_cast<uint32_t>(rf(hc))}).v :
++                f64_sqrt(float64_t{rf(hc)}).v;
++            set_rf(hb, result);
++            commit_fp();
++        } else if (ha >= 0x10 && ha <= 0x1f) {
++            if (hb == 0)
++                return illi();
++            const bool wide = ha >= 0x18;
++            const unsigned kind = ha & 7;
++            if (kind == 6 || kind == 7) {
++                const unsigned sign_bit = wide ? 63 : 31;
++                const uint64_t sign = 1ULL << sign_bit;
++                uint64_t result = (rf(hc) & ~sign) | (rf(hd) & sign);
++                if (kind == 6)
++                    result ^= sign;
++                set_rf(hb, result);
++            } else {
++                startFp(rf(0));
++                uint64_t result;
++                if (!wide) {
++                    const float32_t lhs{
++                        static_cast<uint32_t>(rf(hc))};
++                    const float32_t rhs{
++                        static_cast<uint32_t>(rf(hd))};
++                    if (kind == 0)
++                        result = f32_add(lhs, rhs).v;
++                    else if (kind == 1)
++                        result = f32_sub(lhs, rhs).v;
++                    else if (kind == 2)
++                        result = f32_mul(lhs, rhs).v;
++                    else if (kind == 3)
++                        result = f32_div(lhs, rhs).v;
++                    else if (kind == 4)
++                        result = f32_rem(lhs, rhs).v;
++                    else {
++                        const int exponent = f32_to_i32(
++                            rhs, softfloat_roundingMode, true);
++                        result = scaleF32(lhs, exponent).v;
++                    }
++                } else {
++                    const float64_t lhs{rf(hc)};
++                    const float64_t rhs{rf(hd)};
++                    if (kind == 0)
++                        result = f64_add(lhs, rhs).v;
++                    else if (kind == 1)
++                        result = f64_sub(lhs, rhs).v;
++                    else if (kind == 2)
++                        result = f64_mul(lhs, rhs).v;
++                    else if (kind == 3)
++                        result = f64_div(lhs, rhs).v;
++                    else if (kind == 4)
++                        result = f64_rem(lhs, rhs).v;
++                    else {
++                        const int exponent = f64_to_i32(
++                            rhs, softfloat_roundingMode, true);
++                        result = scaleF64(lhs, exponent).v;
++                    }
++                }
++                set_rf(hb, result);
++                commit_fp();
++            }
++        } else if (ha == 0x20 || ha == 0x21 ||
++                   ha == 0x28 || ha == 0x29) {
++            if (hb == 0)
++                return illi();
++            const bool wide = ha >= 0x28;
++            const bool signaling = ha & 1;
++            set_rd(hb, compare(rf(hc), rf(hd), wide,
++                wide ? (signaling ? FoSNaN : FoQNaN) :
++                       (signaling ? FtSNaN : FtQNaN)));
++        } else if (ha >= 0x30 && ha <= 0x3f) {
++            const bool to_float = (ha >= 0x34 && ha <= 0x37) ||
++                                  ha >= 0x3c;
++            if ((!to_float && hb == 0) || (to_float && hb == 0) ||
++                !valid_range(hb, hd) || !valid_range(hc, hd))
++                return illi();
++            std::vector<uint64_t> values(hd);
++            for (unsigned i = 0; i < hd; ++i) {
++                startFp(rf(0));
++                const unsigned kind = ha & 7;
++                if (!to_float) {
++                    const bool wide = ha >= 0x38;
++                    const auto f32v =
++                        float32_t{static_cast<uint32_t>(rf(hc + i))};
++                    const auto f64v = float64_t{rf(hc + i)};
++                    if (kind == 0)
++                        values[i] = static_cast<int64_t>(wide ?
++                            f64_to_i32_r_minMag(f64v, false) :
++                            f32_to_i32_r_minMag(f32v, false));
++                    else if (kind == 1)
++                        values[i] = wide ?
++                            f64_to_i64_r_minMag(f64v, false) :
++                            f32_to_i64_r_minMag(f32v, false);
++                    else if (kind == 2)
++                        values[i] = wide ?
++                            f64_to_ui32_r_minMag(f64v, false) :
++                            f32_to_ui32_r_minMag(f32v, false);
++                    else
++                        values[i] = wide ?
++                            f64_to_ui64_r_minMag(f64v, false) :
++                            f32_to_ui64_r_minMag(f32v, false);
++                    commit_fp(true);
++                } else {
++                    const bool wide = ha >= 0x3c;
++                    const uint64_t source = rd(hc + i);
++                    uint64_t result;
++                    if (kind == 4) {
++                        result = wide ?
++                            i32_to_f64(static_cast<int32_t>(source)).v :
++                            i32_to_f32(static_cast<int32_t>(source)).v;
++                    } else if (kind == 5) {
++                        result = wide ?
++                            i64_to_f64(static_cast<int64_t>(source)).v :
++                            i64_to_f32(static_cast<int64_t>(source)).v;
++                    } else if (kind == 6) {
++                        result = wide ? ui32_to_f64(source).v :
++                                        ui32_to_f32(source).v;
++                    } else {
++                        result = wide ? ui64_to_f64(source).v :
++                                        ui64_to_f32(source).v;
++                    }
++                    values[i] = result;
++                    commit_fp();
++                }
++            }
++            for (unsigned i = 0; i < hd; ++i) {
++                if (to_float)
++                    set_rf(hb + i, values[i]);
++                else
++                    set_rd(hb + i, values[i]);
++            }
++        } else {
++            return std::make_shared<DadaoISA::MachineFault>("UNDI", 0x89);
 +        }
 +    } else if (op >= 0x68 && op <= 0x73) {
 +        const unsigned hb = (word >> 12) & 63;

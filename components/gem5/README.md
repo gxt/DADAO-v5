@@ -28,8 +28,11 @@ M1 指令 ID，包括整数/地址运算、RD/RB/RA 访存、控制流和 RegRAS
 current 517 条、003 skeleton 61 条及三条 smoke 序列均通过。005 已实现
 Machine-01 的 ELF/PT_LOAD、boot ROM、16 MiB RAM、模式移交、cfx
 trap/escape/异常路由和 25 项 semihosting，47 项机器门控通过；工具链生成的
-真实 boot ROM + ELF 集成探针亦通过，已验收为 `已验证`。任务 006–008 的
-FP、剩余指令与全量集成仍未完成。状态和复现
+真实 boot ROM + ELF 集成探针亦通过，已验收为 `已验证`。006 已补齐
+RF/FCSR、60 条 FP、M3 `sub.o`、7 条 M8 指令，并保持 11 条 excluded
+编码触发 `ILLI`；静态覆盖为 234/234，完整门控包含 329 条独立 FP
+oracle 用例和 541 条 remaining 执行用例。任务 007–008 的
+跨程序全量集成仍未完成。状态和复现
 证据见 `evidence/GEM5-003t.md`、`evidence/GEM5-004t.md`、
-`evidence/GEM5-005t.md`；早期 50 条阶段结果保留在
+`evidence/GEM5-005t.md`、`evidence/GEM5-006t.md`；早期 50 条阶段结果保留在
 `evidence/GEM5-004t-checkpoint.md`。

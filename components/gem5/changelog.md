@@ -4,3 +4,4 @@
 - `GEM5-003t`：注册 DADAO SCons ISA 构建，加入裸机单核状态、定长大端译码、首批算术和异常路径、规范向量运行夹具。
 - `GEM5-004t`：完成 151 个有 active 向量的 M1 指令 ID，包括整数/地址运算、RD/RB/RA 访存与块操作、控制流、`call`/`ret`、RegRAS/MemRAS 和 `swym`；517 条 current、61 条 skeleton 和三条 smoke 序列通过，独立审阅 `Accepted`。
 - `GEM5-005t`：加入 Machine-01 ELF/PT_LOAD、boot ROM、RAM/ROM 地址图、规范 cfx 现场与 trap/escape、完整 25 项 semihosting；47 项机器门控、真实工具链 boot ROM+ELF 及错误期望反例通过。
+- `GEM5-006t`：实现 RF/FCSR、60 条 FP、M3 `sub.o` 和 7 条 M8 位操作；11 条 excluded 编码保持 `ILLI`，234/234 opcode 覆盖、329 条 FP oracle 与 541 条 remaining 用例通过。

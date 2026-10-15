@@ -61,7 +61,7 @@ spec/ + contracts/ → 独立向量 ───────┤→ gem5 DADAO ISA +
 
 ## 2026-10-15 实施快照
 
-- `GEM5-002t`–`004t` 已验证；`GEM5-005t` 的实现、反例与证据已补齐，等待独立 reviewer。
-- 当前门控：ISA current 517/517、003 skeleton 61/61、smoke 3/3、Machine-01 47/47；真实工具链 `bootrom.bin + multi_tu_call.elf` 在 gem5 退出 42。
-- gem5 组件保持官方基线 `c8222cc...` 上 base+1 单提交 `7703f2c...`，40 份逐文件补丁可重放。
+- `GEM5-002t`–`006t` 已验证；下一项为 `GEM5-007t` 集成回归与能力矩阵。
+- 当前门控：ISA current 517/517、Machine-01 47/47、remaining 541/541、FP 329/329、opcode 覆盖 234/234；真实工具链 `bootrom.bin + multi_tu_call.elf` 在 gem5 退出 42。
+- gem5 组件保持官方基线 `c8222cc...` 上 base+1 单提交 `2d3d0d4...`，40 份逐文件补丁可重放。
 - 余下路线不变：`006t`（FP/剩余 ISA）→`007t`（集成收口）→`008m`（M8 核验）。

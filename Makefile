@@ -40,7 +40,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
         build-musl build-musl-shared test-gem5 test-gem5-machine \
-        test-gem5-toolchain check-gem5-full \
+        test-gem5-toolchain test-gem5-fp \
+        check-gem5-full \
         test-picolibc-smoke install-host docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full \
         check-testcases-suites check-testcases-suites-full \
@@ -87,6 +88,7 @@ help:
 	@echo "  make test-gem5       Run representative gem5 ISA execution vectors"
 	@echo "  make test-gem5-machine  Run Machine-01 ELF, trap, and semihosting gates"
 	@echo "  make test-gem5-toolchain  Run generated boot ROM + DADAO ELF on gem5"
+	@echo "  make test-gem5-fp    Run spec-derived RF/FCSR and FP execution cases"
 	@echo "  make check-gem5-full Run complete gem5 ISA coverage and execution gates"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
@@ -330,8 +332,15 @@ test-gem5-toolchain:
 	  --toolchain-elf "$(GEM5_TOOLCHAIN_ELF)" \
 	  --toolchain-exit 42
 
+test-gem5-fp:
+	@$(PYTHON) tools/gem5/test_fp.py \
+	  --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt"
+
 check-gem5-full: test-gem5
 	@$(PYTHON) tools/gem5/vector_inventory.py --require-complete
+	@$(PYTHON) tools/gem5/test_isa.py \
+	  --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt" --profile remaining
+	@$(MAKE) --no-print-directory test-gem5-fp
 
 # install-host (INFRA-047t, ADR-0016 D3/D4/D5/D11): stage only the needed host
 # tool set from the .work/ build trees into the install root's bin/, install the
