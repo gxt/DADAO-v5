@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：无（独立；4 个 `components/*/changelog.md` 均已在库、`docs/Process-01 §10` 在位、无生成器/门控依赖其形态——见「现场事实」）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -185,4 +185,18 @@
 - **对账脚本基线核验**：`.work/evidence/INFRA-084t/table2list_check.py` 的 `DEFAULT_BASE = 60a75bddabe98f65c1b97d6a91cfceeb0a0555d3`（**非 `HEAD`**；脚本内 `HEAD` 仅出现于「禁以 `HEAD` 为基线」注释与 `ROW_HEADER` 字面）⇒ 现场复跑 rc=**0**、首行打印基线 `60a75bd…` ✓。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+（长输出留 `.work/log/infra/INFRA-084t-review1-*.out`；工作区验收前后 md5 快照逐字节一致、`git status` 干净；未提交 git。）
+**重跑记录**（全部 reviewer 亲跑，真实 rc）：
+- 对账 `python3 .work/evidence/INFRA-084t/table2list_check.py` **rc=0**；首行基线 `60a75bddabe98f65c1b97d6a91cfceeb0a0555d3`（**非 HEAD** ✓）；4 文件 × 8 断言 = 32 项 PASS；摘要 multiset 逐字相等 **2+96+6+18=122/122**；任务号/日期/执行者 multiset 相等（qemu 执行者 17）。
+- **独立抽验 9 条**（自写 `indep_cmp.py`，锚定前后缀剥离、非工程师解析器；`git show 60a75bd:` 原文行 ⇒ 现列表条目）**9/9 逐字 MATCH**：llvm `LLVM-016t`/`LLVM-062t`/`LLVM-069t`（后两条 = 含字面 `|` 行 L74/L79）、qemu `—` 行/`QEMU-034t`/`QEMU-044t`（执行者+字面 `|`）、picolibc `INFRA-068t` 及 `INFRA-068t`（返工 1）、embench `TESTCASES-039t`。
+- **形态（4 文件，自跑 grep/awk）**：条目头 122 条全 `- **YYYY-MM-DD …**` 顶格、以 `**` 收尾、越形 0；摘要行数==条目数且**全 2 空格** + 标签 `摘要：`；qemu `执行者：` 17 行；`变更` 作列名/标签 **0**（仅正文普通词）；`^\|` 行 **0**；节序 M1…M8 递增、节内日期非降序、无节外条目；反引号保留源行（qemu/picolibc 带、llvm 源行本无）✓。
+- **里程碑归属抽查 7 条跨 4 组件**（独立查任务书 `**项目里程碑**`/归档目录）**7/7 与所在节一致**：LLVM-002t M1、LLVM-062t M6、QEMU-034t M2、QEMU-044t M5、INFRA-068t（返工 1）M7、TESTCASES-039t M6、LLVM-016t（任务书缺失 ⇒ README 达成日 09-22/10-04 区间兜底 ⇒ M2）；分节计数独立统计与预核逐项一致（llvm 12/22/20/10/1/16/11/4、qemu 1/5/1/1/3/3/2/2、picolibc M7 6、embench M6 2）。
+- **新 checker 5 断言·我的注入**（临时树 + cp/md5，未用 engineer 用例）：① 插 `|---|---|` ⇒ rc=1 命中①；② 条目头去 `**` ⇒ rc=1 命中②；③ 删摘要行 ⇒ rc=1 命中③；④ 乱节序 M8→M0 ⇒ rc=1 命中④（另有误删 `## M6` ⇒ ④ 缺节 FAIL 旁证）；⑤ `--root` 空目录 ⇒ rc=1 vacuous FAIL；逐例 `cp` 还原 md5 相等 ⇒ rc=0 回绿。
+- **L1 路径**：`make check` **rc=0**，日志含 `check-component-changelog: PASS` + `repository checks (L1): PASS`；`Makefile` target+`.PHONY`+help+`check` 依赖、`Process-07 §1` 登记三者对齐。
+- **门控逐项**：`make check`=**0**、`make check-component-changelog`=**0**（16+⑤=17 项）、`check-patch-tree`=**0**、`check-knowledge-refs`=**0**、`check-no-residue`=**0**、`check-tasks`=**0**、`check_issues.py`=**0**。
+- **证据脚本**：`run.sh` **rc=0**（28 项 0 失败，复跑）；`--inject` **rc=0**（5 谓词「破坏⇒判≠期望」+ 真实文件 md5 前后一致）；**独立反例注入**（改被测产物、重跑同一脚本）：真仓 picolibc 追加表格分隔行 ⇒ `run.sh` **rc=1**（FAIL 8 项）⇒ `cp` 还原 md5=`ed6bb85…` 相等 ⇒ 复跑 **rc=0** 回绿。
+- **未受影响复核**：`grep -rln 'changelog.md' tools/ Makefile tests/` 仅命中新 checker ✓；`check_spec_changelog.lock_entries()` 只遍历 `spec-readonly.lock.toml`（21 条全 `spec/`）✓。ISS-090 `status=open`/`resolved_by=None`、notes 含体例变更指针 1 处 ✓。
+**约束核验**：信息无损 ✓（122/122 + 9 条独立抽验）｜只换形态不改内容 ✓｜`spec/**`/`contracts/**` 零触碰 ✓｜门控仅形态断言、计数现场派生 ✓｜临时产物在 `/tmp/opencode/INFRA-084t/` ✓｜不提交 git ✓｜完成区 ≤30 行/审阅记录限长 ✓。
+**遗留判定**：① `Process-01 §10` 术语已统一（`入表判据/不入本表` 残留 0、`入本文件判据/不入本文件` 在位）——architect 越范围 1 处已披露、遗留第 2 项闭合 ✓；② `Process-04` 的「表内」实指 `milestones.md`/`MEMORY.md` 表（L125 明文）、§9 为 M1 归档**历史教训** ⇒ **「不必改」判定成立** ✓；③ 字面 `|` 行 llvm **4**（L74/79/103/104）vs 预核 3 已在「新发现/坑」如实记录，reviewer 独立计数一致 ✓。
+**观察项（非阻断）**：① 分支纪律——「漏开工建分支、完成后补建」**未在任务书落盘**（盘上 grep 无痕，此处置痕）；对交付物**零影响**：验收前后 md5 逐字节一致、`master` 仍旧表形态/无新 checker/无该 target，`master..INFRA-084t`=仅 `970217e`+`11f5c32`、反向为空（实现改动只在任务分支）；② checker ③ 用 `^ +`（≥1 空格）较体例 2 空格略松（合「宁松勿紧」，供知悉）；③ 完成区遗留第 2 项已被 architect 后续提交闭合，收尾时按「只改状态」不再回改。
+**判决：Accepted** —— 验收命令块全部在 reviewer 亲自重跑下通过（含独立抽验与独立反例注入→FAIL→还原→回绿），硬约束无违反；观察项 3 条不阻断。
