@@ -309,3 +309,13 @@
 **E3说明**：报告写时 issues.yaml 共51条（commit 169edda），后续 ebbb95d 新增1条至52条。脚本比对的是实时计数。报告本身准确，非缺陷。
 
 **未改完成区** ✓；**未提交**（提交权归 architect）。
+
+#### architect 提交 / 文件集审核（2026-10-16，`/complete`）
+
+- **判决档位**：reviewer 第 1 轮 = **`Accepted`** ⇒ **正常提交**（非 `WIP:`）。
+- **笔 1**：提交号 **`3da5901`**（`SPEC-144t: /complete 收尾（已验证）—— …`；落在本任务分支 `SPEC-144t`，**未 push**）。
+- **文件集对账**（显式逐路径 staging；`git diff --cached --name-status` = 3 文件）：本任务书 + `.tao/knowledge/milestones.md` + `.tao/knowledge/lessons.md`。
+  - 与完成区「修改文件」声明（**2 文件**：本任务书、`milestones.md`）对账 ⇒ **多提 1** = `lessons.md`（`/complete` 沉淀，查重后新增 1 条判据）；**漏提 0**；**越界 0**（无 `spec/`、`contracts/`、`.tao/contracts/`、`components/`、`manifests/`）。
+  - 本笔另含 reviewer 第 1 轮审阅记录（reviewer 追加，属正常）+ `**状态**` `待验收` ⇒ `已验证`（收尾只改状态）。
+- **未入 git（`.work/**` gitignore）**：证据脚本 `.work/evidence/SPEC-144t/run.sh` 的 **E3 派生订正**（台账总数不再与「当日活计数」耦合，改为在脚本 `$REPORT_REV` 版本上现场派生）+ 重跑日志 `.work/log/spec/SPEC-144t-*.log`。
+- **`push`**：**未执行** ✗（按流程只 `commit`；`push` 归主会话在 `/complete` 后）。
