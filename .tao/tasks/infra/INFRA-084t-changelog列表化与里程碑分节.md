@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：无（独立；4 个 `components/*/changelog.md` 均已在库、`docs/Process-01 §10` 在位、无生成器/门控依赖其形态——见「现场事实」）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -122,11 +122,30 @@
 - 本任务**不触碰** `spec/`（`check-spec-readonly` 无影响），故无 `AGENTS.md`「下发前预检⑤」BLOCKED 项。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
+**测试结果**：**通过 28/28**（`.work/evidence/INFRA-084t/run.sh` rc=0；计数现场统计）；失败原因：无。
+- 对账 `table2list_check.py`：4 文件 × 8 断言 = **32 项 PASS**（rc=0）；`--self-test` rc=0（删条目/改摘要/挪节/插表格行 4 注入各 rc=1，`cp`+md5 还原后 rc=0）。
+- 新 L1 门控 `check_component_changelog.py`：4 文件 × 4 断言 + ⑤覆盖 = **17 项 PASS**（rc=0）；`--self-test` rc=0（①表格分隔行 ②条目头 ③摘要行 ④乱节序 ④b缺节 ⑤空树 6 注入各 rc=1，还原后 rc=0）。
+- 门控：`make check`(L1) / `check-patch-tree` / `check-no-residue` / `check-knowledge-refs` / `check-tasks` / `check_issues.py` / `check_spec_changelog.py` 各 **rc=0**（`make check` 日志含 `check-component-changelog: PASS`）。
+- 证据脚本 `run.sh --inject` rc=0（5 谓词抽样「破坏 ⇒ 判 FAIL」+ 真实文件 md5 前后对账一致）。
+**修改文件**（7 改 + 1 新；证据另落 `.work/`，**本任务不提交 git**）：
+- `components/{llvm-project,qemu,picolibc,embench-iot}/changelog.md`（96/18/6/2 = **122** 行 → 列表式 + `## M<k>` 分节）
+- `tools/infra/check_component_changelog.py`（**新增**）｜`Makefile`（target + `.PHONY` + help 一行 + 并入 `check`）｜`docs/Process-07-门控分层规范.md`（§1 登记）
+- `docs/Process-01-组件补丁组织与构建编排.md`（§10 体例 / §2 目录树注 / §13 rev 行）｜`.work/evidence/INFRA-084t/{run.sh,table2list_check.py,table2list_migrate.py}`
+**验收结果**（真实输出，全文 `.work/log/infra/INFRA-084t-run.out`）：
+- **形态实例**：llvm `` - **2026-09-17 LLVM-002t** `` + `  - 摘要：**LLVM 组件基线**：…`；qemu `` - **2026-10-03 `QEMU-034t`** `` + 摘要 + `  - 执行者：engineer`；picolibc `` - **2026-10-11 `INFRA-055t`** ``；embench `` - **2026-10-09 `INFRA-051t`** ``（后二者无第 4 列）。
+- **对账**（锚定 `60a75bd`，现场计数）：行数 96/18/6/2 == 新条目 96/18/6/2；**摘要 multiset 逐字相等 122/122**；任务号/日期/执行者 multiset 相等（执行者 17 条：`engineer` / `engineer + reviewer`）；`^\|` 行 **0**；`变更` 作标签 **0**。
+- **里程碑归属**：llvm M1 12 / M2 22 / M3 20 / M4 10 / M5 1 / M6 16 / M7 11 / M8 4；qemu 1/5/1/1/3/3/2/2；picolibc M7 6；embench M6 2（与任务书预核**逐项一致**）；**不可判 0**（无 `## 未归属` 节）。
+- **验收 5**：`grep -rln --exclude-dir=__pycache__ 'changelog.md' tools/ Makefile tests/` **只**命中 `tools/infra/check_component_changelog.py`。
 **新发现/坑**：
+- 含**字面 `|`** 的行实测 **llvm 4 行**（预核写 3；L74/79/103/104）+ qemu 1 行（`cfxha<<42\|0x3ff…`）⇒ 计数按现场修正；「禁朴素 `split('|')`」结论不变。
+- 归属特例：`LLVM-016t` 任务书不存在 ⇒ 达成日区间兜底（首个「达成日 > 日期」= **M2**）；2 条 `—` 行 ⇒ 行内括注 **M1**；`` `INFRA-068t`（返工 1） `` token 含附注 ⇒ 抽 ID 按任务书归 **M7**。
+- `Process-01 §10` 只按任务书把「追加一行」→「追加一条」，**未**动 `入表判据` 标签；llvm changelog 内同判据按任务书改称「入本文件判据」⇒ 两处用词轻微不一致（见遗留，未越界擅改）。
+- §2 目录树注在代码围栏内 ⇒ 未加 `**`（避免字面 `**`），取「（按任务一条，追加式；列表式 + 按里程碑分节）」。
+- 验收 6 前置（`ISS-090.notes` 体例变更指针）**已由 architect 立任务时写入**（`ce72fda`）⇒ 现场核对后**未重复追加**；`status=open` / `resolved_by=null` 不变。
+- 门控 ④ 只认 `## M\d+`（按任务书字面）；将来若出现 `## 未归属` 且**无任何** M 节则 ④ FAIL（现实总存在 M 节，登记为观察点）。
 **遗留问题**：
+- 无未完成项：4 changelog + `Process-01`/`Process-07` + `Makefile` + 新 checker + 证据脚本全部落地且门控 rc=0。
+- 非阻塞待裁定（**未越界改**）：`Process-01 §10` 的 `入表判据` 标签是否统一为「入本文件判据」——任务书未列入本任务范围，留待 architect/用户裁定。
 
 ## 审阅记录
 
@@ -138,7 +157,24 @@
 - **未立 ADR**（裁定 3）；**未 push**。
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+（自主逐行审查范围：`tools/infra/check_component_changelog.py`、`.work/evidence/INFRA-084t/{run.sh,table2list_check.py,table2list_migrate.py}`、4 个 changelog 抽样、`Makefile`/`Process-01`/`Process-07` 改动；证据 = 每次修复后重跑 `run.sh` + 两个 `--self-test`。）
+
+| # | finding（自审意见） | 处置 | 改了什么 | 复验证据 |
+|---|---------------------|------|---------|---------|
+| 1 | `table2list_check.py` 重构残留死代码 `_nth_section` | ✅已修 | 删除该函数 | `py_compile` OK；默认模式 rc=0 |
+| 2 | `milestone_achieved_dates()` 用 walrus-in-generator，可读性差/易错 | ✅已修 | 改显式 for 循环 | rc=0；`--self-test` rc=0 |
+| 3 | L1 门控 `check_tree()` 对同一文件重复读 3 次 | ✅已修 | 读一次后复用 | rc=0；17 项 PASS |
+| 4 | 任务号 token 含附注（`` `INFRA-068t`（返工 1） ``）⇒ 误走区间兜底（规则 1 未生效） | ✅已修 | 新增 `task_id_of()` 抽 ID（③ 仍按整 token 归一比对） | migrate 输出「特例归属 · … ⇒ M7（token 含附注，按 ID 归属）」；4 文件 md5 **幂等不变**；⑦ PASS |
+| 5 | Makefile 注释含字面 `changelog.md` ⇒ 使验收 5 扫描多命中 Makefile | ✅已修 | 注释改「`components/*/` 下的组件变更记录」 | `grep -rln … tools/ Makefile tests/` 仅命中新 checker |
+| 6 | `run.sh` 断言「L1 含新门控 PASS」把 standalone 与 `make check` 计成 2 | ✅已修 | per-check 日志 + 专用 grep `make check` 日志 | 实际=1 → PASS |
+| 7 | `run.sh` 断言「§10 体例」因 §13 同短语计成 2 | ✅已修 | 改 `awk '/^## 10\./,/^## 11\./'` 限定区间 | 实际=1 → PASS |
+| 8 | `run.sh` 标签内反引号触发命令替换报错（`变更: command not found`） | ✅已修 | 标签去反引号 | 断言 25 实际=0 → PASS |
+| 9 | `run.sh` ISS-090 断言误用 `d['issue']`（yaml 顶层为 list） | ✅已修 | `[i for i in issues if …]` | 实际=`open/None`、notes 指针=1 → PASS |
+| 10 | 对账 `--self-test` 的「挪节」注入坐标错位 ⇒ 连带 ② FAIL（隔离度不足） | ✅已修 | 用删除后的坐标重算 `last_sec` | ③ 注入**只**命中 ⑦；还原后 rc=0 |
+| 11 | 防造假核查：rc/输出是否全为真实执行 | ✅通过 | — | 28 项检查日志留 `.work/log/infra/`；**未用** `git checkout/restore/stash`（还原一律 `cp`+md5） |
+| 12 | 越界核查：是否只动任务书列出的文件 | ✅通过 | — | `git status --porcelain -uall` = 7 改 + 1 新（均在本任务范围） |
+
+**判决**：12 条 finding **全部已修/已核**，无 ⏸/❌ ⇒ 任务状态置 **`待验收`**，返回主会话交 reviewer 独立验收。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）

@@ -50,7 +50,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants \
-        check-isa-coverage check-spec-numbering check-spec-changelog check-contracts-dir
+        check-isa-coverage check-spec-numbering check-spec-changelog check-contracts-dir \
+        check-component-changelog
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -93,6 +94,7 @@ help:
 	@echo "  make check-qemu-smoke  QEMU semantic smoke (representative subset; L2)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
+	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
@@ -443,7 +445,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -525,6 +527,14 @@ check-knowledge-dir:
 # 子目录（`contract-*.md` 随 Phase B 迁出作废）。白名单外文件 / 目录缺失 / vacuous 即 FAIL。
 check-contracts-dir:
 	@$(PYTHON) tools/infra/check_contracts_dir.py
+
+# 组件 changelog 形态门控 (INFRA-084t, L1 成员): `components/*/` 下的组件变更记录必须为
+# 「列表式（无表格）+ 按里程碑分节」形态（体例真源 docs/Process-01 §10）——① 无表格分隔行
+# ② 条目 `- **<日期> …**` ③ 条目紧接 `  - 摘要：` 缩进行 ④ `## M<k>` 节序严格递增
+# ⑤ 覆盖全部（glob 现场派生；空集 vacuous FAIL）。**只做形态断言**，不做内容校验；
+# 计数现场统计、不写死。可达 FAIL 见 `--self-test`。
+check-component-changelog:
+	@$(PYTHON) tools/infra/check_component_changelog.py
 
 # cfx alias drift gate (SPEC-075t): verify .tao/contracts/contract-cfx-aliases.md is up-to-date.
 check-cfx-aliases:

@@ -13,7 +13,7 @@
 
 | 层 | 目标（真源：`Makefile`） | 各层组成 | 目标耗时 |
 |---|---|---|---|
-| **L1 完整性 / 可用性** | `make check`（**默认**） | **仓库完整性静态检查**（不跑被测语义：patch-tree / spec-drift / 索引卫生 / 编码·合法性·scope·fp 一致性 / ISA 覆盖矩阵漂移 / 引用审计 / 目录·残留·只读等）**+ 组件可用性冒烟**（`llc` / `clang --print-targets` / `qemu-system-dadao` 可执行且认识 `dadao`；**不跑被测语义**）**+ issue 台账校验 / `compileall tools`** | 秒 ~ 几十秒 |
+| **L1 完整性 / 可用性** | `make check`（**默认**） | **仓库完整性静态检查**（不跑被测语义：patch-tree / spec-drift / 索引卫生 / 编码·合法性·scope·fp 一致性 / ISA 覆盖矩阵漂移 / 引用审计 / 目录·残留·只读 / **组件 changelog 形态**（`check-component-changelog`：列表式 + 按里程碑分节）等）**+ 组件可用性冒烟**（`llc` / `clang --print-targets` / `qemu-system-dadao` 可执行且认识 `dadao`；**不跑被测语义**）**+ issue 台账校验 / `compileall tools`** | 秒 ~ 几十秒 |
 | **L2 模块功能代表集** | `make check-modules` | 各模块的**功能代表集**（受控子集）：`check-lit`（MC/CodeGen/E2E 受控子集）+ `check-interface` + `check-qemu-smoke`（语义**类别代表**子集）+ `test-codegen`/`test-elf`/`test-semihost`/`check-picolibc-tests` | 几十 ~ 几百秒 |
 | **L3 较完整** | `make check-full` | **较完整**：`check-qemu-semantics` **全量** + `check-lit-full`（全量生成档）+ Embench（`test-m6`）+ 全量向量回放 | 几百 ~ 几千秒 |
 | **按需（模块完整）** | 各 `test-*`/`check-*` **单独调** | 模块**全量**、profiling | 不定 |

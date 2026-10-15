@@ -20,7 +20,7 @@
 ```
 components/<name>/
 ├── README.md      # 简明扼要，供人查阅（该组件是什么、补丁集概况）
-├── changelog.md   # 每次改动，简洁（按任务一条，追加式）
+├── changelog.md   # 每次改动，简洁（按任务一条，追加式；列表式 + 按里程碑分节）
 ├── series         # 补丁清单：一行一个，路径**相对 patches/**（如 target/dadao/translate.c.patch）
 └── patches/       # 路径镜像树（**纯镜像**：只含 <上游相对路径>.patch）
     └── <上游相对路径>.patch
@@ -159,7 +159,7 @@ components/<name>/
 ## 10. 文档约定
 
 - `components/<name>/README.md`：**简明扼要**，供人查阅；说明该组件是什么、补丁集概况（不写逐补丁开发史）。
-- `components/<name>/changelog.md`：记录**每次改动**，简洁；**按任务一条**，追加式。**入表判据 = 「模块 = `<name>` 的任务」∪「落地提交改过 `components/<name>/**` 的任务（本组件本体/生成物；台账本文件除外，不限模块字段）」**——两类任务收尾均须在「同一变更」内追加一行（即与改动同批提交，不留断档；早期任务书无 `**模块**` 字段者按该任务「变更主体是否本模块」判；**仅顺带改 `tests/**`/`docs/**`/其它模块的 `tools/**` 等、未动本组件目录者不入本表**，属各自模块台账；口径由 `INFRA-069t` 定、2026-10-15 `LLVM-092t` 订正）。
+- `components/<name>/changelog.md`：记录**每次改动**，简洁；**按任务一条**，追加式。**体例 = 列表式（不用表格）+ 按里程碑分节**：每条 = `- **<日期> <任务号或 —>**` + **摘要另起缩进行** `  - 摘要：<正文，逐字保留>`（原表其余列各占一条缩进行）；节 = `## M<k>`（节序 M1→M2→…，**节内按日期升序**；**新里程碑到来时在文末开新节**，不留空节）。形态由 L1 门控 `check-component-changelog`（`tools/infra/check_component_changelog.py`）机械校验。**入本文件判据 = 「模块 = `<name>` 的任务」∪「落地提交改过 `components/<name>/**` 的任务（本组件本体/生成物；台账本文件除外，不限模块字段）」**——两类任务收尾均须在「同一变更」内追加一条（即与改动同批提交，不留断档；早期任务书无 `**模块**` 字段者按该任务「变更主体是否本模块」判；**仅顺带改 `tests/**`/`docs/**`/其它模块的 `tools/**` 等、未动本组件目录者不入本文件**，属各自模块台账；口径由 `INFRA-069t` 定、2026-10-15 `LLVM-092t` 订正）。
 - 补丁的开发脉络**不**在补丁集内叙述；必要时写入代码注释、组件 README/changelog 或仓库级文档。
 
 ## 11. 组件源文件规模约定
@@ -202,4 +202,5 @@ components/<name>/
 - **rev. 2026-10-03（INFRA-027t 收尾）**：§7 补「本地 commit 已存在后再改补丁」的**恢复步骤**（`reset --hard <base>` → 重放 → `--source-state` 复核 E1），属 E5 的直接推论、**不改 E5 决策**；§8.1 补「路径类 grep/遍历检查须排除 `__pycache__`」的实现注意。
 - **rev. 2026-10-03（INFRA-028t）**：新增 §11「组件源文件规模约定」（口径 A＝我们新增文件的整文件行数；口径 B＝修改上游文件只看我们的增量行；**非强制、不进门控**），并新增报告工具 `make size-report`（`tools/infra/size_report.py`，报告型、退出码恒 0）；原 §11 边界情况、§12 迁移与变更记录顺延为 §12、§13。属**新增约定**，**不改**原有各节正文与 `ADR-0002 D4`。
 - **rev. 2026-10-12（INFRA-069t）**：§10 增维护规则「模块 = `<name>` 的任务，任务收尾须在同一变更内追加一行」（该规则口径于 2026-10-15 经 `LLVM-092t` 由路径式口径订正，并最终定案为「模块 = `<name>` 的任务 ∪ 落地提交改过 `components/<name>/**` 的任务」，见 §10）；配套把三道机械检查 `check-isa-coverage`（`tools/llvm/gen_isa_coverage.py --check`）/`check-spec-numbering`（`tools/spec/check_numbering.py`）/`check-spec-changelog`（`tools/spec/check_spec_changelog.py`）并入 L1 `make check`。属**新增约定/门控**，**不改**原有各节正文与 `ADR-0002 D4`。
+- **rev. 2026-10-15（INFRA-084t）**：§10 补明组件 changelog **体例 = 列表式（不用表格）+ 按里程碑分节 + 摘要另起缩进行 + 新里程碑文末开新节**（4 个 `components/*/changelog.md` 由表格迁为列表、照旧信息无损；判据内容不变，仅「追加一行」改「追加一条」、判据标签「入表判据/不入本表」统一为「入本文件判据/不入本文件」）；§2 目录树注同步。新增 **L1 形态门控** `check-component-changelog`（`tools/infra/check_component_changelog.py`，并入 `make check`，`docs/Process-07 §1` 登记；**只做形态断言**）。属**新增约定/门控**，**不改**原有各节正文与 `ADR-0002 D4`。
 - 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。
