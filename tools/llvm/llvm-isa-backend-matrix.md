@@ -13,7 +13,7 @@
 
 - 形态来源：`tools/testcases/generate_lit_vectors.py` 的 `build_case()`（与现有 lit 全量档 `tests/llvm/lit/MC/DADAO-gen/gen-*.s` **同一口径、同一行文本**；本工具不另立操作数拼装逻辑）。
 - 受理后**另做编码复核**：由对象 `.text` 取 4 字节大端字，要求「按真源 `(word & mask) == value` 唯一命中本记录」且等于真源派生编码（`L1_encoding = ok / mismatch`）。这一列把第①层钉在真源上，而非只看 `llvm-mc` 自洽。
-- 现场统计：`accept` **217** / `reject` **14**；编码复核不符 **0**。
+- 现场统计：`accept` **221** / `reject` **10**；编码复核不符 **0**。
 - `scope: excluded` 且后端未实现者（`cfxld`/`cfxst`/`lr_*`/`sc_*`）由汇编器**显式拒绝**（`reject`），与 `tests/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。
 
 ### 第②层「ISel 用得上」（机械提取，非人工判读）
@@ -203,10 +203,10 @@
 | `rem.ut_orrr_rd` | `rem.ut` | `orrr` | `m1` | accept | no | — |
 | `rem.uw_orrr_rd` | `rem.uw` | `orrr` | `m1` | accept | no | — |
 | `ret_riii_ra` | `ret` | `riii` | `m1` | accept | no | — |
-| `rev.b_orri_rd` | `rev.b` | `orri` | `m8` | reject | no | — |
-| `rev.o_orri_rd` | `rev.o` | `orri` | `m8` | reject | no | — |
-| `rev.t_orri_rd` | `rev.t` | `orri` | `m8` | reject | no | — |
-| `rev.w_orri_rd` | `rev.w` | `orri` | `m8` | reject | no | — |
+| `rev.b_orri_rd` | `rev.b` | `orri` | `m8` | accept | no | — |
+| `rev.o_orri_rd` | `rev.o` | `orri` | `m8` | accept | no | — |
+| `rev.t_orri_rd` | `rev.t` | `orri` | `m8` | accept | no | — |
+| `rev.w_orri_rd` | `rev.w` | `orri` | `m8` | accept | no | — |
 | `rf2rd_orri_rf` | `rf2rd` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:662:rf2rd_orri_rf |
 | `sc_an.o_orrr_rd` | `sc_an.o` | `orrr` | `excluded` | reject | no | — |
 | `sc_ar.o_orrr_rd` | `sc_ar.o` | `orrr` | `excluded` | reject | no | — |

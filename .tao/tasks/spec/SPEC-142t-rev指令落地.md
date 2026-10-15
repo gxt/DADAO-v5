@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0012 D10`（**前置：`D10.1`–`D10.8` 已逐条确认完成 ✓** —— 用户 2026-10-14 原话「**D10.1-D10.8 认可**」，见 `adr-0012 §D10.0` / `§状态说明`；`D10.6a` 已定案 (b)，**`D10.6b` 亦已定案 = `scope: m8`**）；`SPEC-141t`（ISA 指令扩展预研，**只读**来源）；`INFRA-078t`（compiler-rt 预研：`bswap` 缺口来源，**只读**）；`docs/Process-06`（`spec/` 目录保护）；`ADR-0012 D4`（`spec/` 只读策略）
 **状态**：待验收
-**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`）；B MC ⏳ **静态完成 + 重建已启动**（2026-10-15，**第二阶段 = `llvm-mc` 行为验证待重建后另行派发**，见「完成区 §阶段 B」）；C QEMU ⏳ 待做
+**阶段进度**：A 契约/编码层 ✅ 已验证（2026-10-15，reviewer `Accepted`）；B MC ⏳ **静态 + B-a 行为验证完成**（2026-10-15，B-a 见「完成区 §阶段 B-a」；**B-b 汇编期合法性检查未做**）；C QEMU ⏳ 待做
 
 > **`**状态**` 口径说明**：本任务 = **一个任务书、三阶段验收** ⇒ `**状态**` 表**任务级**进度（**整体未完成**，故**不**置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`（阶段 A 已由 reviewer `Accepted`，见「第 1 轮 reviewer 验收」）。
 
@@ -164,7 +164,17 @@
 **重建（启动证据）**：`setsid nohup bash -c 'JOBS=8 make build-mc > .work/log/llvm/SPEC-142t-b-phB.log 2>&1; rc=$?; echo "SPEC-142t_B_EXIT=$rc" > .work/log/llvm/SPEC-142t-b-phB.<EXIT 标记>'`；外层 PID **910488** / `make` **910490** / `ninja -j8` **910507**（16 核机器、**未**用全核）；**启动后即返回、未等待**；启动现场 41/45 步 ⇒ **预计 ≪72 min**（72 min = 上次**全量** `build-mc` 实测；本次为增量：TableGen `.inc` 再生 + DADAO 目标 + 重链接）。
 **新发现/坑**：①`check-isa-coverage` 的 `td_def` 列取自 `.td` 补丁树 ⇒ **改 `.td` 必重生成矩阵**；而第①层须 `llvm-mc` ⇒ `accept` 值**随重建再变**（重建后须再生成，见遗留①c）。②`.td` 分节计数注释**本就漂移**（`orri format (26)` 实际 20、`orrr format (81)` 实际 64）——本环**未改**（最小改动），`rev` 块另起注释段。③`validate_instrinfo.py` 的 non-m1 策略原仅放行 `m3`（+`excluded` 白名单）⇒ 新 `scope`（`m8`）一进 `.td` 即红，须同步门控（本环加 Check 2b + 策略，属 **MC 门控面**、**非弱化**）。
 **遗留问题**：①**第二阶段（`.EXIT` 就绪后）**：①a `llvm-mc` 汇编 `rev.{o,t,w,b}` 四条 + 编码比对（期望 `0x40300000`/`0x41300000`/`0x42300000`/`0x43300000`）+ `llvm-objdump` 反汇编往返；①b **非法 `immu6`**（非 one-hot / `k ≥ S`）**汇编期是否报错未定**——**任务书阶段 B 未要求汇编期实现**，本环**未加**汇编期 `encode_onehot`（见自审 F7，须架构裁定）；①c `python3 tools/llvm/gen_isa_coverage.py` 重生成 + `--check` 回绿（第①层 `rev.*` reject→accept）；①d `generate_lit_vectors.py` 重跑（L3 `check_lit_gen`）。②L2 `check-interface` 的 2 FAIL 仍待阶段 C。③**未提交**（提交权归 architect）；**未越界**（未触 QEMU / `spec/` / `contracts/` / compiler-rt）。
-
+### 阶段 B-a（MC 行为验证，2026-10-15；①a–①d 完成）
+**测试结果**：`.work/evidence/SPEC-142t/run-b2.sh` **PASS=14 FAIL=0**（rc=0，156 s）；`run-b2.sh --inject` **PASS=9 FAIL=0**（2 组注入各在**临时副本**内使目标断言 FAIL⇒回绿；4 个仓库文件 md5 前后逐字节相同）。子检查器 `check_mc_dynamic.py` **PASS=72 FAIL=0**（日志 `.work/log/llvm/SPEC-142t-Ba-*.log`、`MC-behavior-check.log`）。
+**修改文件**（`git status --porcelain -uall` = 4 = 本任务书 + 3 个产物，**产物均为任务书第 5 项生成物**）：`tools/llvm/llvm-isa-backend-matrix.tsv`（`rev.*` 4 行 `reject`→`accept ok`；第①层 217→221 / 14→10）、`llvm-isa-backend-matrix.md`（同计数 + 4 行）、`tests/llvm/lit/MC/DADAO-gen/gen-orri.s`（+4 条 `rev.*` 向量）。**未改** MC 源码 / QEMU / `spec/` / `contracts/`。
+**验收结果**（真实命令 + rc）：
+- ① 编码逐条（`llvm-mc --show-encoding`，四条**逐条不抽样**）：`rev.o rd8,rd9,8`→`0x40308248`／`rev.t`→`0x41308248`／`rev.w`→`0x42308248`／`rev.b rd8,rd9,4`→`0x43308244`；`& mask=0xFFFC0000` ⇒ **`0x40300000`／`0x41300000`／`0x42300000`／`0x43300000`**，与 §1 给定期望**逐条一致**，且与 `op<<24|ha<<18` 派生值、`opcodes.yaml` `value` **三方相等**。
+- ② 反汇编往返：`llvm-mc -filetype=obj` ⇒ `llvm-objdump -d` ⇒ 4/4 **文本 + 字节一致**；反汇编结果再汇编 ⇒ 文本/字节幂等。
+- ③ `immu6` 边界/非法**现状**：`rev.o k=0/3/5/63`、`rev.b k=8`、`rev.t k=32` **全部 rc=0 静默接受**；`k=64`／`-1` **rc=1 拒绝**（既有 `immu6` 范围 `[0,63]`）；`rd0` 作目的 **rc=0**（MC 层无 `dst_rd0`）；`rd0` 作源 / `rd8,rd8` **rc=0**（契约合法）。
+- ④ `immu6` 语义映射（MC 可观测投影）：同一 `k=8` 四条**仅第 0 字节（`op`）不同**；`.o` 32/16、`.t` 16/8、`.w` 8/4、`.b` 4/2 各取值下 `op` 与 `immu6` **原样透传**；**逐块语义本身 MC 层不可观测** ⇒ 归阶段 C。
+- ⑤ 工具链联动与门控：`gen_isa_coverage.py` 重生成 + `--check` **rc=0**（`rev.*=accept ok`）；`generate_lit_vectors.py` 重跑（正例 221 / 反例 10，现场统计）；`check_lit_gen.py` **rc=0**（64 passed）；`make check-lit-full` **rc=0**（12/12，含 `gen-orri.s`）；L1 `make check` **rc=0**；`make check-modules`(L2) **rc=2** —— **恰 2 FAIL，均 `check-interface` 的 `trans_rev_*` 缺失**（去重 4 条）；L2 其余子目标（`check-lit`/`check-qemu-smoke`/`test-codegen`/`test-elf`/`test-semihost`/`check-picolibc-tests`）**逐项 rc=0**（`check-interface` 是 L2 首个前置 ⇒ make 早停，故逐项单跑）。
+**新发现/坑**：①**"工具已重建"只完成一半**：`.work/build/llvm/bin/**` 为新（07:51），但**门控/lit 实际用的安装根** `.dadao/cross-toolchain/bin/llvm-mc` 仍是**重建前**的（md5 `655d7ab…` ≠ `750a449…`，且**不识别 `rev.o`**）⇒ 按 `Makefile` 既有口径（`check-isa-coverage` 注释："Needs llvm-mc (run 'make install-host' first)"）执行 `make install-host`（rc=0，**127 s**）后二者 md5 相同。**未做此步**时 `gen_isa_coverage` 重生成得回 `reject`（与阶段 B 目标不符），而 L1 仍全绿（旧工具 + 旧生成物自洽）⇒ **无门控可发现安装根滞后**。②`llvm-mc --disassemble` 对本目标**端序不符**（`40 30 82 48` 解成 `ldm.ub …`）⇒ 往返以 `llvm-objdump` 为准（防误用）。③`check_mc_dynamic.py` 的 `ILLEGAL_SNAPSHOT` 为**现状快照**：B-b 落地汇编期 `encode_onehot` 后**必须同步更新**（否则脚本报 FAIL 提示）。
+**遗留问题**：①**B-b 未做**（汇编期 `encode_onehot`：非 one-hot / `k≥S` ⇒ 报错；现状静默接受）——须架构裁定是否纳入；②阶段 C（QEMU `trans_rev_*`）未做 ⇒ L2 2 FAIL 仍在；③新增待办：**安装根滞后应可判**（建议加一致性门控或收尾纪律"重建后必 `make install-host`"）；④`.dadao/`（gitignore 内）已刷新，非仓库改动，但复现步骤须含 `make install-host`。
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -284,3 +294,33 @@
 | F6 组件 `changelog.md` 不在任务书文件清单内 | ✅已做（规则强制项，须披露） | 追加 SPEC-142t 一行 | `make check`（含 `check-components`）rc=0 |
 
 **判决**：全部 finding 已处置（F1/F2/F6 已做，F3/F4/F5 为显式披露/延后，其中 F4 属**行为新增**、须架构裁定）。阶段 B **静态部分**无未处置代码缺陷；`llvm-mc` 行为验证与矩阵再生成属**本任务第二阶段**（重建完成、`.EXIT` 就绪后另行派发）。阶段级状态：**待第二阶段**（任务级 `**状态**` 维持 `待验收`，口径同阶段 A）。
+
+#### 第 3 轮 engineer 自审（阶段 B-a / MC 行为验证，2026-10-15）
+
+（自主逐行审查；对象 = 本环**新增证据脚本** `check_mc_dynamic.py` / `run-b2.sh` + **重生成产物**（矩阵 `tsv`/`md`、`gen-orri.s`）+ 为满足门控一致性执行的 `make install-host`。全局 `subagent_depth=1`，故为自主逐行审查。）
+
+**逐行审查意见与判决**
+
+1. `check_mc_dynamic.py` 的 `word_be()`（大端拼字）**非假定**：§2 以三方交叉（`op<<24|ha<<18` 派生 / yaml `value` / `llvm-mc` 实测字）互证 ⇒ 端序若有误，四条会**同时** FAIL（有可达 FAIL 路径）。**正确**。
+2. `parse_encoding()` 只取**首处** `encoding: [` ⇒ 所有调用均传**单条**汇编输入（逐条调用）⇒ 无隐含截断。**正确**。
+3. §3 反汇编：`OBJ_RE` 要求「4 字节 hex + `rev.` 助记符」锚定整行 ⇒ 不会把 `...rev4.o: file format` 头行误当指令（首版曾误匹配，首跑 FAIL=3 暴露，见 G2）。往返以**两条独立路径**互证（`objdump` 字节 vs `--show-encoding` 字节）+ 再汇编幂等。**正确**。
+4. §4 现状断言**两类分开**：`ILLEGAL_SNAPSHOT`（6 例，现状快照、B-b 落地后必改）与「超 6 位范围被拒」（2 例，既有类型范围检查、真断言）；注入②实测可达 FAIL。**正确且诚实**（未把「静默接受」粉饰为合规）。
+5. §5 语义映射**只断言 MC 可观测投影**（`op` 选块大小 + `immu6` 原样透传），并**显式声明**逐块语义在 MC 层不可观测、归阶段 C ⇒ **不越权冒充语义验证**。**正确**。
+6. `--root` 参数：首版以 `parents[3]` 推导仓库根 ⇒ 临时副本（`/tmp`）下 ROOT 解析错误、`--inject` 先验基线假 FAIL（实测暴露，见 G3）；改显式 `--root` 后干净。**已修**。
+7. 反例注入纪律：2 组注入全在 `/tmp/opencode/SPEC-142t/` **临时副本**；`--inject` 末尾对 4 个仓库文件 md5 前后对账（**未**用 `git checkout/restore/stash`；不以 `git status` 干净作还原证据）。**符合**。
+8. `run-b2.sh` 退出码：`run_gate` 直取 `$?`（**无** `tee`）；两模式均以 `if [ "$FAIL" != 0 ]; then exit 1; fi; exit 0` 收尾；L2 单跑 `check-interface` 并以「表内 FAIL 行数 == 2」+「缺失 `trans_rev_*` 去重 == 4」双断言（计数现场统计）。**正确**。
+9. `make install-host` **正当性**：非仓库改动（`.dadao/` 在 `.gitignore`），且 `Makefile` 对 `check-isa-coverage` 明确要求先做；不做则矩阵只能落 `reject`（与阶段 B 目标冲突）。处置留痕：rc=0 / **127 s**；`git status --porcelain -uall` 仍为 3 个生成物（无额外污染）。**符合**。
+10. 越界自查：本环 `git status` = 3 项（`matrix.tsv`/`matrix.md`/`gen-orri.s`）**均为任务书第 5 项生成物**；未触 `components/llvm-project/**`、`components/qemu/**`、`spec/**`、`contracts/**`。**符合**。
+
+**Finding 处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| G1 安装根 `.dadao/cross-toolchain/bin/llvm-mc` 滞后于重建（不识别 `rev.o`）⇒ 矩阵只能 `reject`，且 L1 无法发现 | ✅已处置（按 `Makefile` 既有前置） | `make install-host`（rc=0，127 s）；随后重生成矩阵 | 安装根/构建树 md5 相同（`750a449f…`）；`gen_isa_coverage --check` rc=0；`rev.*=accept ok` |
+| G2 首版 `OBJ_RE` 误匹配 objdump 头行（`rev4.o: file format`）⇒ §3 假 FAIL=3 | ✅已修 | 正则改为「4 字节 hex + `rev.`」整行锚定 | 重跑 §3 全 PASS；`check_mc_dynamic.py` PASS=72 FAIL=0 |
+| G3 临时副本下 `parents[3]` 推导 ROOT 失败 ⇒ `--inject` 先验基线假红 | ✅已修 | 加 `--root`（默认仍按脚本位置推导）；注入时传 `--root "$ROOT"` | `--inject` 首版 8/1 → 修后 **9/0 PASS** |
+| G4 `ILLEGAL_SNAPSHOT` 为现状快照（B-b 落地后必改） | ⏸披露不改（设计如此） | 常量注释 + 脚本打印 + 「新发现/坑」③ | 注入②证明该断言可达 FAIL |
+| G5 `llvm-mc --disassemble` 端序不符（喂大端字节解错） | ⏸披露不改（非本环范围） | 未改任何工具；往返改用 `llvm-objdump` | 「新发现/坑」② |
+| G6 安装根滞后**无门控可判**（旧工具 + 旧生成物互相自洽） | ⏸延后（建议新门控/纪律，跨任务） | **未**加门控（新增/弱化门控须授权） | 「遗留问题」③ |
+
+**判决**：全部 finding 已处置（G1/G2/G3 已修，G4/G5/G6 为显式披露/延后，其中 G6 属**新增门控**、须架构裁定）。本环**未发现** `rev.{o,t,w,b}` 的 MC 编码/反汇编**缺陷**（四条编码与真源、任务书期望三方一致；往返文本/字节一致）。阶段级状态：**B-a 完成 → 待验收**（任务级 `**状态**` 维持 `待验收`，口径同阶段 A）。

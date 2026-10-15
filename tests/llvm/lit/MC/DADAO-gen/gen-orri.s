@@ -156,6 +156,26 @@ rd2rd {rd8}, {rd9}
 ; ASM: rd2rf {rf8}, {rd9}
 rd2rf {rf8}, {rd9}
 
+; @src rev.b_orri_rd 43308241 | SimRISC-10 §Bit manipulating：位操作指令
+; OBJ: {{[0-9a-f]+:}} 43 30 82 41{{.*}}rev.b
+; ASM: rev.b rd8, rd9, 1
+rev.b rd8, rd9, 1
+
+; @src rev.o_orri_rd 40308241 | SimRISC-04 §Bit manipulating：位操作指令
+; OBJ: {{[0-9a-f]+:}} 40 30 82 41{{.*}}rev.o
+; ASM: rev.o rd8, rd9, 1
+rev.o rd8, rd9, 1
+
+; @src rev.t_orri_rd 41308241 | SimRISC-08 §Bit manipulating：位操作指令
+; OBJ: {{[0-9a-f]+:}} 41 30 82 41{{.*}}rev.t
+; ASM: rev.t rd8, rd9, 1
+rev.t rd8, rd9, 1
+
+; @src rev.w_orri_rd 42308241 | SimRISC-09 §Bit manipulating：位操作指令
+; OBJ: {{[0-9a-f]+:}} 42 30 82 41{{.*}}rev.w
+; ASM: rev.w rd8, rd9, 1
+rev.w rd8, rd9, 1
+
 ; @src rf2rd_orri_rf 40f88241 | SimRISC-00 §MISC-RF指令编码
 ; OBJ: {{[0-9a-f]+:}} 40 f8 82 41{{.*}}rf2rd
 ; ASM: rf2rd {rd8}, {rf9}
