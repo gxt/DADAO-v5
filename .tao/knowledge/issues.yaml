@@ -406,3 +406,22 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（architect 提交/文件集审核现场；源 = 主会话协调现场，**转述**——architect 未直接持有丢失的回报体；2026-10-15）】**现象**：**后台子代理的回报可能静默丢失**（无 `Task cancelled`、无错误串、无返回体）——主会话若以「等回报」为停顿理由，会在任务实际已落地（或即将落地）后**空窗**。**实例**：`INFRA-071t` 收尾后主会话空窗（现场；architect 复核 = 该任务书 `**状态**` 与 `milestones.md` 流水行均已落盘 ⇒ 属**回报缺失，而非工作未做**）。**先例（同类）**：`ISS-205`（reviewer 未返回最终判定）、`ISS-207`（返回被服务商拦截）——同属 `AGENTS.md`『子代理返回异常处理』族；本条补的是**「主会话侧不得依赖回报驱动」**这一面。**性质 = 协调层 / 流程**（非交付物缺陷、非静默错码）。**对策（本笔已落）**：① 以**盘上事实**判断是否完成（`git log` / 任务书 `**状态**` / `milestones.md`），不假设「它还在继续」；② `AGENTS.md`「命令与任务执行纪律」新增 **队列续链归主会话**（子代理返回或已落地后立即派下一件，不得以「等回报」停顿）+ **收到通知先核盘上事实**；③ `AGENTS.md`「长任务（长构建 / 长命令）」新增 **长任务归主会话**（`setsid nohup` + 落 `XXX_EXIT=$rc`；子代理不得在会话内等待长任务）；④ `.opencode/commands/complete.md` 收尾检查增「已按队列派出下一件，或说明为何停」；⑤ `tools/infra/check_tasks.py` 扩为**报告型清单**（另列「已立但仍 `待开始`」，供收尾 / `/status` 判队列）。**status 取 `open`（architect 判断）**：对策 = **规则 + 报告**、无机械门控；回报丢失属基础设施行为、**可复发**，留 `open` 便于再次复现时挂证（**不以伪造任务号填 `resolved_by`**）。证据指针：`AGENTS.md`「命令与任务执行纪律」与「长任务（长构建 / 长命令）」；`.opencode/commands/complete.md`；`tools/infra/check_tasks.py`；本文件 `ISS-205` / `ISS-207`。"
+
+
+- id: ISS-210
+  title: "【P2】改 MC（`.td` / InstrInfo）后**只重建、未 `make install-host`** ⇒ 门控 / lit 走**旧安装根** `llvm-mc`，与旧生成物**互相自洽而照绿**（假绿）；对策 = 把 `install-host` 纳入「改 MC 后」必跑步骤（纪律与/或一致性门控）"
+  status: open
+  scope: [llvm, infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `SPEC-142t` 阶段 B / B-a 现场，architect 提交与文件集审核时立项，2026-10-15）】**现象（实测）**：阶段 B **重建完成**（`.work/build/llvm/bin/**` 07:51、`.EXIT=0`）后，**门控 / lit 实际调用的安装根** `.dadao/cross-toolchain/bin/llvm-mc` 仍是**重建前**二进制（md5 `655d7ab…` ≠ 构建树 `750a449…`，且**不识别 `rev.o`**）；此时 `gen_isa_coverage.py` 重生成只能得回 `reject`（与阶段 B 目标不符），而 **L1 `make check` 仍全绿** —— 原因 = 「**旧工具 + 旧生成物**」**互相自洽**。**性质 = 门控覆盖缺口（构建树与安装根两段产物脱节）**，**非**本任务交付物缺陷、**非**静默错码。**对策**：把 `make install-host` 纳入「**改 MC 后**」的**必跑步骤**（建议：收尾纪律明文 + 与/或加「安装根 ↔ 构建树」一致性门控；`Makefile` 既有注释已述 `check-isa-coverage` 需先 `install-host`，但**无门控强制**）。**本次实例** = `SPEC-142t` 阶段 B（现场按 `Makefile` 既有口径补跑 `make install-host`，rc=0 / 127 s ⇒ 矩阵 `reject`→`accept ok`）。**status = open（无机械门控可判 ⇒ 留 open）**：对策**未落地**（新增 / 弱化门控须用户授权），且同类情形**可复发**。证据指针：`.tao/tasks/spec/SPEC-142t-*.md`「阶段 B-a」新发现 / 坑① + 遗留③；md5 记录见 `.work/log/llvm/SPEC-142t-Ba-*.log`。"
+
+
+- id: ISS-211
+  title: "【P3】口径记录：**MC 层不实现合法性规则**（`dst_rd0` / `encode_onehot` 等落在**契约 / 生成器**与**执行层**；`ILLI` 属**执行期**异常）——`rev.*` 非 one-hot / 越范围被 MC **静默接受**属**既有分层口径**、非本任务缺陷"
+  status: open
+  scope: [spec, llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 `SPEC-142t` 阶段 B-a 实测 + 主会话 **F4 裁定**，architect 提交与文件集审核时立项，2026-10-15）】**事实（B-a 实测）**：`rev.o` 的 `immu6` 取 `k=0/3/5/63`、`rev.b k=8`、`rev.t k=32`（**非 one-hot 或 `k ≥ S`**）`llvm-mc` **全部 rc=0 静默接受**；`rd0` 作目的亦 rc=0（MC 层无 `dst_rd0`）；仅越出既有 `immu6` 类型范围（`k=64` / `-1`）才 rc=1 拒绝。**依据（既有层对照）**：`contracts/legality_rules.yaml` 的 `encode_onehot` 与 `dst_rd0` **落在契约 / 生成器与执行层**；既有 **120 条**指令同样**不在 MC 层**查 `dst_rd0` ⇒ 属**既有分层口径**（`ADR-0012 D10` + 主会话 **F4 裁定 = 不加汇编期 `encode_onehot` 检查**），**非**本任务缺陷。`ILLI`（非法编码异常）属**执行期**、由**阶段 C（QEMU）**承担。**status = open（architect 判断，作留档）**：①口径的另一半（`ILLI` 执行期异常）待**阶段 C** 落地后才**完整闭环**；②「MC 层未做合法性检查」**无机械门控可判**（分层口径、非可测断言）⇒ 留 `open` 便于阶段 C / 后续复核**挂证**；阶段 C 落地并复核口径后可由 `SPEC-142t` 关闭（`resolved_by` 届时回填）；③本项目 P3 留档**先例同取 `open`**（`ISS-208` / `ISS-209`）。证据指针：`.tao/tasks/spec/SPEC-142t-*.md`「阶段 B-a」验收③ + 「architect 裁定留痕（F4）」。"
+
