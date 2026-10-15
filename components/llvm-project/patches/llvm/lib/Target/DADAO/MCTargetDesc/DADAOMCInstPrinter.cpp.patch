@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000..8c47bdc25
+index 000000000..c9d2889a4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,419 @@
+@@ -0,0 +1,426 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -250,7 +250,14 @@ index 000000000..8c47bdc25
 +        O << ", [";
 +        printRegName(O, MI->getOperand(1).getReg());
 +        O << ", ";
-+        O << MI->getOperand(2).getImm();
++        // The displacement is normally an immediate, but a PIC access to a GOT
++        // slot (LLVM-094t, `ld.o rb, [rb0, <gotslot>]`) carries a symbol
++        // expression filled in at link time; print it as an expression rather
++        // than asserting on getImm().
++        if (MI->getOperand(2).isImm())
++          O << MI->getOperand(2).getImm();
++        else if (MI->getOperand(2).isExpr())
++          MAI.printExpr(O, *MI->getOperand(2).getExpr());
 +        O << "]";
 +      }
 +    } else {

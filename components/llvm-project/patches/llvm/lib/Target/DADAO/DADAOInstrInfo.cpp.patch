@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..12fcc23d0
+index 000000000..db3eb1f84
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,679 @@
+@@ -0,0 +1,681 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -351,6 +351,8 @@ index 000000000..12fcc23d0
 +    // jump table's local label carried as an MO_JumpTableIndex (the AsmPrinter/
 +    // MCInstLower resolves it to MF->getJTISymbol, the label emitJumpTableInfo
 +    // defines in front of the table).  Each slice becomes R_DADAO_ABS48.
++    // PIC (-fPIC / -fPIE) never reaches this pseudo: the selector takes the
++    // table base from a GOT slot instead (LLVM-094t).
 +    Register Dst = MI.getOperand(0).getReg();
 +    const MachineOperand &Sym = MI.getOperand(1);
 +    auto AddSym = [&](MachineInstrBuilder MIB) {

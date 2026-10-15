@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
 new file mode 100644
-index 000000000..55c518e1d
+index 000000000..4a64536cb
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
-@@ -0,0 +1,99 @@
+@@ -0,0 +1,132 @@
 +//===-- DADAOTargetMachine.cpp - Define TargetMachine for DADAO ---------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -27,6 +27,7 @@ index 000000000..55c518e1d
 +#include "llvm/MC/TargetRegistry.h"
 +#include "llvm/PassRegistry.h"
 +#include "llvm/Support/Compiler.h"
++#include "llvm/Support/ErrorHandling.h"
 +
 +using namespace llvm;
 +
@@ -41,6 +42,38 @@ index 000000000..55c518e1d
 +}
 +
 +namespace {
++
++// Relocation model selection (LLVM-094t).  The DADAO ABI defines exactly two
++// models:
++//   * `Static` -- the M4 bare-metal path (VA = PA, absolute 48-bit address
++//     materialization), and the default when no -fPIC/-fPIE is given;
++//   * `PIC_`   -- position-independent code: every global address is taken
++//     from a GOT slot addressed PC-relatively through `rb0` + a link-time
++//     constant displacement, with no global-pointer register reserved
++//     (contract-dynlink.md §2-§3, ADR-0026 D5).  Both `-fPIC` and `-fPIE`
++//     select this model (clang carries PIE-ness as a PIELevel, not as a
++//     relocation model), so there is no separate `PIE` model to accept.
++// `ROPI`/`RWPI`/`ROPI_RWPI` would change the data addressing model (read-only /
++// read-write segment split) which the v5 baseline does not define, and
++// `DynamicNoPIC` is the Darwin "dynamic data, static code" model, which has no
++// meaning for this ELF ABI.  Both are rejected loudly rather than silently
++// lowered as static code (contract-dynlink.md §2).
++Reloc::Model selectRelocModel(std::optional<Reloc::Model> RM) {
++  const Reloc::Model M = RM.value_or(Reloc::Static);
++  switch (M) {
++  case Reloc::Static:
++  case Reloc::PIC_:
++    return M;
++  case Reloc::DynamicNoPIC:
++  case Reloc::ROPI:
++  case Reloc::RWPI:
++  case Reloc::ROPI_RWPI:
++    report_fatal_error("DADAO: unsupported relocation model (only static and "
++                       "PIC are defined; ROPI/RWPI and dynamic-no-pic have no "
++                       "ABI definition)");
++  }
++  llvm_unreachable("unknown relocation model");
++}
 +
 +class DADAOPassConfig : public TargetPassConfig {
 +public:
@@ -77,7 +110,7 @@ index 000000000..55c518e1d
 +    const TargetOptions &Options, std::optional<Reloc::Model> RM,
 +    std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT)
 +    : CodeGenTargetMachineImpl(T, TT.computeDataLayout(), TT, CPU, FS, Options,
-+                               RM.value_or(Reloc::Static),
++                               selectRelocModel(RM),
 +                               CM.value_or(CodeModel::Small), OL),
 +      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
 +      Subtarget(TT, CPU, FS, *this) {

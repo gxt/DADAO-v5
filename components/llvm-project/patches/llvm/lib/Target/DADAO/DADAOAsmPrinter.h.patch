@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.h b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
 new file mode 100644
-index 000000000..05f279b97
+index 000000000..a7115bc38
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,93 @@
 +//===-- DADAOAsmPrinter.h - DADAO LLVM Assembly Printer --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -22,18 +22,49 @@ index 000000000..05f279b97
 +#ifndef LLVM_LIB_TARGET_DADAO_DADAOASMPRINTER_H
 +#define LLVM_LIB_TARGET_DADAO_DADAOASMPRINTER_H
 +
++#include "llvm/ADT/DenseMap.h"
++#include "llvm/ADT/SmallVector.h"
 +#include "llvm/CodeGen/AsmPrinter.h"
 +#include "llvm/MC/MCStreamer.h"
 +
++#include <cstdint>
 +#include <memory>
++#include <utility>
 +
 +namespace llvm {
 +
 +class DADAOMCInstLower;
++class GlobalValue;
++class MCExpr;
 +class MachineFunction;
 +
 +class DADAOAsmPrinter : public AsmPrinter {
 +  std::unique_ptr<DADAOMCInstLower> MCInstLowering;
++
++  /// One PIC GOT slot (LLVM-094t): an 8-byte absolute data field in `.got`,
++  /// emitted once per referenced symbol (and per referenced jump table).
++  struct GOTSlot {
++    MCSymbol *Slot;      ///< Label defined in `.got`.
++    const MCExpr *Value; ///< Slot content (`sym (+ offset)`, or the table label).
++  };
++
++  /// Slots keyed by (global value, constant offset) and by the jump-table
++  /// label.  The jump table is keyed by its *symbol* rather than by its index:
++  /// `MachineJumpTableInfo` indices restart at 0 for every function, so two
++  /// functions with a switch each would collide on index 0 and the second one
++  /// would silently receive the first table's address.
++  /// `mutable` because the (const) MCInstLower asks for a slot while lowering
++  /// an instruction; the slots are emitted in `emitEndOfAsmFile`.
++  mutable DenseMap<std::pair<const GlobalValue *, int64_t>, GOTSlot> GOTSlots;
++  mutable DenseMap<const MCSymbol *, GOTSlot> GOTJumpTableSlots;
++  /// Emission order (= order of first reference), so the output is stable.
++  mutable SmallVector<GOTSlot, 8> GOTSlotOrder;
++  /// Slot-name counter.  Deliberately *not* reset per module: one MCContext may
++  /// serve several modules (LTO), and reusing a name would define a symbol
++  /// twice in the same object.
++  mutable unsigned GOTSlotNextId = 0;
++
++  MCSymbol *createGOTSlot(const MCExpr *Value) const;
 +
 +public:
 +  static char ID;
@@ -46,6 +77,21 @@ index 000000000..05f279b97
 +  bool runOnMachineFunction(MachineFunction &MF) override;
 +
 +  void emitInstruction(const MachineInstr *MI) override;
++
++  /// Label of the `.got` slot that holds `GV + Offset` (PIC; LLVM-094t).
++  /// Creates the slot (and its data-field expression) on first use.  `rb0`-
++  /// relative accesses to this label become R_DADAO_REL12 relocations, so the
++  /// displacement is a link-time constant while the slot content is fixed up at
++  /// load time (contract-dynlink.md §3, ADR-0026 D5).
++  MCSymbol *getGOTSlotSymbol(const GlobalValue *GV, int64_t Offset) const;
++
++  /// Label of the `.got` slot holding the address of jump table `JTIndex`
++  /// (PIC; LLVM-094t).  The table itself is unchanged; only its base address
++  /// stops being a link-time absolute value.
++  MCSymbol *getGOTSlotSymbolForJumpTable(unsigned JTIndex) const;
++
++  /// Emit the `.got` section with every referenced slot (no-op when empty).
++  void emitEndOfAsmFile(Module &M) override;
 +};
 +
 +} // end namespace llvm

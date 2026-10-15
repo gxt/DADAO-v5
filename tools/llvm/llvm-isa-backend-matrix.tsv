@@ -1,5 +1,5 @@
 id	mnemonic	format	scope	td_def	L1_assembler	L1_encoding	L1_asm	L2_isel	L2_evidence	backend_post_isel
-add.o_orrr_bbd	add.o	orrr	m1	add_o_bbd	accept	ok	add.o rb8, rb9, rd10	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:142:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:166:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:327:add_o_bbd	DADAORegisterInfo.cpp.patch:196
+add.o_orrr_bbd	add.o	orrr	m1	add_o_bbd	accept	ok	add.o rb8, rb9, rd10	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:144:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:170:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:371:add_o_bbd	DADAORegisterInfo.cpp.patch:196
 add.sb_orrr_rd	add.sb	orrr	m1	add_sb	accept	ok	add.sb rd8, rd9, rd10	no		
 add.si_riii_rb	add.si	riii	m1	add_si_rb	accept	ok	add.si rb8, 8	no		DADAOFrameLowering.cpp.patch:76;DADAOFrameLowering.cpp.patch:161;DADAOFrameLowering.cpp.patch:321;DADAOFrameLowering.cpp.patch:446;DADAORegisterInfo.cpp.patch:31;DADAORegisterInfo.cpp.patch:215;DADAORegisterInfo.cpp.patch:265
 add.si_riii_rd	add.si	riii	m1	add_si_rd	accept	ok	add.si rd8, 8	no		DADAOInstrInfo.cpp.patch:266
@@ -13,18 +13,18 @@ add.uw_orrr_rd	add.uw	orrr	m1	add_uw	accept	ok	add.uw rd8, rd9, rd10	no
 and.o_orrr_rd	and.o	orrr	m1	and_o	accept	ok	and.o rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:333:and_o;pat:DADAOCodeGen.td.patch:608:and_o	
 andn.w_rwii_rb	andn.w	rwii	m1	andn_w_rb	accept	ok	andn.w rb8, wp1, 0x1234	no		
 andn.w_rwii_rd	andn.w	rwii	m1	andn_w_rd	accept	ok	andn.w rd8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:316
-br.eq_rrii_rd	br.eq	rrii	m1	br_eq_rd	accept	ok	br.eq {rd8, rd9}?, [rb0, 16]	yes	pat:DADAOCodeGen.td.patch:491:br_eq_rd	DADAOInstrInfo.cpp.patch:460;DADAOInstrInfo.cpp.patch:660
-br.n_riii_rd	br.n	riii	m1	br_n_rd	accept	ok	br.n {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:485:br_n_rd	DADAOInstrInfo.cpp.patch:462;DADAOInstrInfo.cpp.patch:664
-br.ne_rrii_rd	br.ne	rrii	m1	br_ne_rd	accept	ok	br.ne {rd8, rd9}?, [rb0, 16]	yes	pat:DADAOCodeGen.td.patch:492:br_ne_rd	DADAOInstrInfo.cpp.patch:461;DADAOInstrInfo.cpp.patch:661
-br.nn_riii_rd	br.nn	riii	m1	br_nn_rd	accept	ok	br.nn {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:486:br_nn_rd	DADAOInstrInfo.cpp.patch:463;DADAOInstrInfo.cpp.patch:665
-br.np_riii_rd	br.np	riii	m1	br_np_rd	accept	ok	br.np {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:488:br_np_rd	DADAOInstrInfo.cpp.patch:467;DADAOInstrInfo.cpp.patch:669
-br.nz_riii_rb	br.nz	riii	m1	br_nz_rb	accept	ok	br.nz {rb8}?, [rb0, 12]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:452:br_nz_rb	DADAOInstrInfo.cpp.patch:469;DADAOInstrInfo.cpp.patch:671
-br.nz_riii_rd	br.nz	riii	m1	br_nz_rd	accept	ok	br.nz {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:484:br_nz_rd	DADAOInstrInfo.cpp.patch:465;DADAOInstrInfo.cpp.patch:667
-br.p_riii_rd	br.p	riii	m1	br_p_rd	accept	ok	br.p {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:487:br_p_rd	DADAOInstrInfo.cpp.patch:466;DADAOInstrInfo.cpp.patch:668
-br.z_riii_rb	br.z	riii	m1	br_z_rb	accept	ok	br.z {rb8}?, [rb0, 12]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:451:br_z_rb	DADAOInstrInfo.cpp.patch:468;DADAOInstrInfo.cpp.patch:670
-br.z_riii_rd	br.z	riii	m1	br_z_rd	accept	ok	br.z {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:483:br_z_rd	DADAOInstrInfo.cpp.patch:464;DADAOInstrInfo.cpp.patch:666
-call_iiii_ra	call	iiii	m1	call_iiii	accept	ok	call [rb0, 12]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:381:call_iiii	DADAOInstrInfo.cpp.patch:675
-call_rrii_ra	call	rrii	m1	call_rrii	accept	ok	call [rb8, rd9, 96]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:381:call_rrii	
+br.eq_rrii_rd	br.eq	rrii	m1	br_eq_rd	accept	ok	br.eq {rd8, rd9}?, [rb0, 16]	yes	pat:DADAOCodeGen.td.patch:491:br_eq_rd	DADAOInstrInfo.cpp.patch:462;DADAOInstrInfo.cpp.patch:662
+br.n_riii_rd	br.n	riii	m1	br_n_rd	accept	ok	br.n {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:485:br_n_rd	DADAOInstrInfo.cpp.patch:464;DADAOInstrInfo.cpp.patch:666
+br.ne_rrii_rd	br.ne	rrii	m1	br_ne_rd	accept	ok	br.ne {rd8, rd9}?, [rb0, 16]	yes	pat:DADAOCodeGen.td.patch:492:br_ne_rd	DADAOInstrInfo.cpp.patch:463;DADAOInstrInfo.cpp.patch:663
+br.nn_riii_rd	br.nn	riii	m1	br_nn_rd	accept	ok	br.nn {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:486:br_nn_rd	DADAOInstrInfo.cpp.patch:465;DADAOInstrInfo.cpp.patch:667
+br.np_riii_rd	br.np	riii	m1	br_np_rd	accept	ok	br.np {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:488:br_np_rd	DADAOInstrInfo.cpp.patch:469;DADAOInstrInfo.cpp.patch:671
+br.nz_riii_rb	br.nz	riii	m1	br_nz_rb	accept	ok	br.nz {rb8}?, [rb0, 12]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:496:br_nz_rb	DADAOInstrInfo.cpp.patch:471;DADAOInstrInfo.cpp.patch:673
+br.nz_riii_rd	br.nz	riii	m1	br_nz_rd	accept	ok	br.nz {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:484:br_nz_rd	DADAOInstrInfo.cpp.patch:467;DADAOInstrInfo.cpp.patch:669
+br.p_riii_rd	br.p	riii	m1	br_p_rd	accept	ok	br.p {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:487:br_p_rd	DADAOInstrInfo.cpp.patch:468;DADAOInstrInfo.cpp.patch:670
+br.z_riii_rb	br.z	riii	m1	br_z_rb	accept	ok	br.z {rb8}?, [rb0, 12]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:495:br_z_rb	DADAOInstrInfo.cpp.patch:470;DADAOInstrInfo.cpp.patch:672
+br.z_riii_rd	br.z	riii	m1	br_z_rd	accept	ok	br.z {rd8}?, [rb0, 12]	yes	pat:DADAOCodeGen.td.patch:483:br_z_rd	DADAOInstrInfo.cpp.patch:466;DADAOInstrInfo.cpp.patch:668
+call_iiii_ra	call	iiii	m1	call_iiii	accept	ok	call [rb0, 12]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:425:call_iiii	DADAOInstrInfo.cpp.patch:677
+call_rrii_ra	call	rrii	m1	call_rrii	accept	ok	call [rb8, rd9, 96]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:425:call_rrii	
 cfx2rc_crrr_cfx	cfx2rc	crrr	m1	cfx2rc_crrr	accept	ok	cfx2rc cfx63, cg8, rc1, rd8	no		
 cfx2rd_crrr_cfx	cfx2rd	crrr	m1	cfx2rd_crrr	accept	ok	cfx2rd cfx63, cg8, rc1, rd8	no		
 cfxld_crii_cfx	cfxld	crii	excluded		reject	—	cfxld cfx63, [rb2, 1]	no		
@@ -36,7 +36,7 @@ cmp.st_orrr_rd	cmp.st	orrr	m1	cmp_st	accept	ok	cmp.st rd8, rd9, rd10	no
 cmp.sw_orrr_rd	cmp.sw	orrr	m1	cmp_sw	accept	ok	cmp.sw rd8, rd9, rd10	no		
 cmp.ub_orrr_rd	cmp.ub	orrr	m1	cmp_ub	accept	ok	cmp.ub rd8, rd9, rd10	no		
 cmp.ui_rrii_rd	cmp.ui	rrii	m1	cmp_ui_rd	accept	ok	cmp.ui rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:480:cmp_ui_rd	
-cmp.uo_orrr_dbb	cmp.uo	orrr	m1	cmp_uo_dbb	accept	ok	cmp.uo rd8, rb9, rb10	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:437:cmp_uo_dbb	
+cmp.uo_orrr_dbb	cmp.uo	orrr	m1	cmp_uo_dbb	accept	ok	cmp.uo rd8, rb9, rb10	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:481:cmp_uo_dbb	
 cmp.uo_orrr_rd	cmp.uo	orrr	m1	cmp_uo	accept	ok	cmp.uo rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:479:cmp_uo	
 cmp.ut_orrr_rd	cmp.ut	orrr	m1	cmp_ut	accept	ok	cmp.ut rd8, rd9, rd10	no		
 cmp.uw_orrr_rd	cmp.uw	orrr	m1	cmp_uw	accept	ok	cmp.uw rd8, rd9, rd10	no		
@@ -107,12 +107,12 @@ io2fo_orri_rf	io2fo	orri	fp	io2fo_orri_rf	accept	ok	io2fo {rf8}, {rd9}	yes	pat:D
 io2ft_orri_rf	io2ft	orri	fp	io2ft_orri_rf	accept	ok	io2ft {rf8}, {rd9}	yes	pat:DADAOCodeGen.td.patch:651:io2ft_orri_rf	
 it2fo_orri_rf	it2fo	orri	fp	it2fo_orri_rf	accept	ok	it2fo {rf8}, {rd9}	no		
 it2ft_orri_rf	it2ft	orri	fp	it2ft_orri_rf	accept	ok	it2ft {rf8}, {rd9}	no		
-jump_iiii_rb	jump	iiii	m1	jump_iiii;tailjmp_iiii	accept	ok	jump [rb0, 12]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:426:tailjmp_iiii;pat:DADAOCodeGen.td.patch:521:jump_iiii	DADAOInstrInfo.cpp.patch:609;DADAOInstrInfo.cpp.patch:629;DADAOInstrInfo.cpp.patch:674
-jump_rrii_rb	jump	rrii	m1	jump_rrii;tailjmp_rrii	accept	ok	jump [rb8, rd9, 96]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:336:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:426:tailjmp_rrii	
+jump_iiii_rb	jump	iiii	m1	jump_iiii;tailjmp_iiii	accept	ok	jump [rb0, 12]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:470:tailjmp_iiii;pat:DADAOCodeGen.td.patch:521:jump_iiii	DADAOInstrInfo.cpp.patch:611;DADAOInstrInfo.cpp.patch:631;DADAOInstrInfo.cpp.patch:676
+jump_rrii_rb	jump	rrii	m1	jump_rrii;tailjmp_rrii	accept	ok	jump [rb8, rd9, 96]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:380:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:470:tailjmp_rrii	
 ld.o_rrii_ra	ld.o	rrii	m1	ld_o_ra	accept	ok	ld.o ra8, [rb9, 8]	no		
-ld.o_rrii_rb	ld.o	rrii	m1	ld_o_rb	accept	ok	ld.o rb8, [rb9, 8]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:329:ld_o_rb	DADAOFrameLowering.cpp.patch:414;DADAOInstrInfo.cpp.patch:421
-ld.o_rrii_rd	ld.o	rrii	m1	ld_o_rd	accept	ok	ld.o rd8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:429:ld_o_rd	DADAOInstrInfo.cpp.patch:419
-ld.o_rrii_rf	ld.o	rrii	fp	ld_o_rrii_rf	accept	ok	ld.o rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:626:ld_o_rrii_rf	DADAOInstrInfo.cpp.patch:423
+ld.o_rrii_rb	ld.o	rrii	m1	ld_o_rb	accept	ok	ld.o rb8, [rb9, 8]	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:146:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:280:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:362:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:373:ld_o_rb	DADAOFrameLowering.cpp.patch:414;DADAOInstrInfo.cpp.patch:423
+ld.o_rrii_rd	ld.o	rrii	m1	ld_o_rd	accept	ok	ld.o rd8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:429:ld_o_rd	DADAOInstrInfo.cpp.patch:421
+ld.o_rrii_rf	ld.o	rrii	fp	ld_o_rrii_rf	accept	ok	ld.o rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:626:ld_o_rrii_rf	DADAOInstrInfo.cpp.patch:425
 ld.sb_rrii_rd	ld.sb	rrii	m1	ld_sb_rd	accept	ok	ld.sb rd8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:436:ld_sb_rd	
 ld.st_rrii_rd	ld.st	rrii	m1	ld_st_rd	accept	ok	ld.st rd8, [rb9, 4]	yes	pat:DADAOCodeGen.td.patch:448:ld_st_rd	
 ld.sw_rrii_rd	ld.sw	rrii	m1	ld_sw_rd	accept	ok	ld.sw rd8, [rb9, 2]	yes	pat:DADAOCodeGen.td.patch:442:ld_sw_rd	
@@ -144,7 +144,7 @@ mul.uo_rrrr_rd	mul.uo	rrrr	m1	mul_uo_rd	accept	ok	mul.uo {rd8, rd9}, rd10, rd11	
 mul.ut_orrr_rd	mul.ut	orrr	m1	mul_ut	accept	ok	mul.ut rd8, rd9, rd10	no		
 mul.uw_orrr_rd	mul.uw	orrr	m1	mul_uw	accept	ok	mul.uw rd8, rd9, rd10	no		
 or.o_orrr_rd	or.o	orrr	m1	or_o	accept	ok	or.o rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:334:or_o;pat:DADAOCodeGen.td.patch:612:or_o	
-or.w_rwii_rb	or.w	rwii	m1	or_w_rb	accept	ok	or.w rb8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:343;DADAOInstrInfo.cpp.patch:344;DADAOInstrInfo.cpp.patch:360;DADAOInstrInfo.cpp.patch:361
+or.w_rwii_rb	or.w	rwii	m1	or_w_rb	accept	ok	or.w rb8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:343;DADAOInstrInfo.cpp.patch:344;DADAOInstrInfo.cpp.patch:362;DADAOInstrInfo.cpp.patch:363
 or.w_rwii_rd	or.w	rwii	m1	or_w_rd	accept	ok	or.w rd8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:128;DADAOInstrInfo.cpp.patch:322
 ra2rd_orri_ra	ra2rd	orri	m1	ra2rd	accept	ok	ra2rd {rd8}, {ra9}	no		
 rb2rb_orri_rb	rb2rb	orri	m1	rb2rb	accept	ok	rb2rb {rb8}, {rb9}	no		DADAOFrameLowering.cpp.patch:76;DADAOFrameLowering.cpp.patch:317;DADAOFrameLowering.cpp.patch:379;DADAOFrameLowering.cpp.patch:410;DADAOInstrInfo.cpp.patch:34;DADAOInstrInfo.cpp.patch:93;DADAORegisterInfo.cpp.patch:31;DADAORegisterInfo.cpp.patch:211;DADAORegisterInfo.cpp.patch:220;DADAORegisterInfo.cpp.patch:262
@@ -152,7 +152,7 @@ rb2rd_orri_rb	rb2rd	orri	m1	rb2rd	accept	ok	rb2rd {rd8}, {rb9}	no		DADAOInstrInf
 rd2ra_orri_ra	rd2ra	orri	m1	rd2ra	accept	ok	rd2ra {ra8}, {rd9}	no		
 rd2rb_orri_rb	rd2rb	orri	m1	rd2rb	accept	ok	rd2rb {rb8}, {rd9}	no		DADAOInstrInfo.cpp.patch:97
 rd2rd_orri_rd	rd2rd	orri	m1	rd2rd	accept	ok	rd2rd {rd8}, {rd9}	no		DADAOInstrInfo.cpp.patch:34;DADAOInstrInfo.cpp.patch:95;DADAOInstrInfo.cpp.patch:265
-rd2rf_orri_rf	rd2rf	orri	fp	rd2rf_orri_rf	accept	ok	rd2rf {rf8}, {rd9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:239:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:551:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:661:rd2rf_orri_rf	DADAOInstrInfo.cpp.patch:89
+rd2rf_orri_rf	rd2rf	orri	fp	rd2rf_orri_rf	accept	ok	rd2rf {rf8}, {rd9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:243:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:551:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:661:rd2rf_orri_rf	DADAOInstrInfo.cpp.patch:89
 rem.sb_orrr_rd	rem.sb	orrr	m1	rem_sb	accept	ok	rem.sb rd8, rd9, rd10	no		
 rem.so_orrr_rd	rem.so	orrr	m1	rem_so	accept	ok	rem.so rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:363:rem_so	
 rem.st_orrr_rd	rem.st	orrr	m1	rem_st	accept	ok	rem.st rd8, rd9, rd10	no		
@@ -173,11 +173,11 @@ sc_nn.o_orrr_rd	sc_nn.o	orrr	excluded		reject	—	sc_nn.o rd8, rd9, [rb1, 0]	no
 sc_nr.o_orrr_rd	sc_nr.o	orrr	excluded		reject	—	sc_nr.o rd8, rd9, [rb1, 0]	no		
 set.ow_rwii_rd	set.ow	rwii	m1	set_ow_rd	accept	ok	set.ow rd8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:298;DADAOInstrInfo.cpp.patch:306
 set.w_rwii_rf	set.w	rwii	fp	set_w_rwii_rf	accept	ok	set.w rf8, wp1, 0x1234	no		
-set.zw_rwii_rb	set.zw	rwii	m1	set_zw_rb	accept	ok	set.zw rb8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:342;DADAOInstrInfo.cpp.patch:359
+set.zw_rwii_rb	set.zw	rwii	m1	set_zw_rb	accept	ok	set.zw rb8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:342;DADAOInstrInfo.cpp.patch:361
 set.zw_rwii_rd	set.zw	rwii	m1	set_zw_rd	accept	ok	set.zw rd8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:128;DADAOInstrInfo.cpp.patch:301;DADAOInstrInfo.cpp.patch:306
 shl.ub_orri_rd	shl.ub	orri	m1	shl_ub_orri	accept	ok	shl.ub rd8, rd9, 1	no		
 shl.ub_orrr_rd	shl.ub	orrr	m1	shl_ub_orrr	accept	ok	shl.ub rd8, rd9, rd10	no		
-shl.uo_orri_rd	shl.uo	orri	m1	shl_uo_orri	accept	ok	shl.uo rd8, rd9, 1	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:325:shl_uo_orri	
+shl.uo_orri_rd	shl.uo	orri	m1	shl_uo_orri	accept	ok	shl.uo rd8, rd9, 1	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:369:shl_uo_orri	
 shl.uo_orrr_rd	shl.uo	orrr	m1	shl_uo_orrr	accept	ok	shl.uo rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:353:shl_uo_orrr	
 shl.ut_orri_rd	shl.ut	orri	m1	shl_ut_orri	accept	ok	shl.ut rd8, rd9, 1	no		
 shl.ut_orrr_rd	shl.ut	orrr	m1	shl_ut_orrr	accept	ok	shl.ut rd8, rd9, rd10	no		
@@ -201,9 +201,9 @@ shr.uw_orri_rd	shr.uw	orri	m1	shr_uw_orri	accept	ok	shr.uw rd8, rd9, 1	no
 shr.uw_orrr_rd	shr.uw	orrr	m1	shr_uw_orrr	accept	ok	shr.uw rd8, rd9, rd10	no		
 st.b_rrii_rd	st.b	rrii	m1	st_b_rd	accept	ok	st.b rd8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:437:st_b_rd	
 st.o_rrii_ra	st.o	rrii	m1	st_o_ra	accept	ok	st.o ra8, [rb9, 8]	no		
-st.o_rrii_rb	st.o	rrii	m1	st_o_rb	accept	ok	st.o rb8, [rb9, 8]	no		DADAOFrameLowering.cpp.patch:76;DADAOFrameLowering.cpp.patch:366;DADAOInstrInfo.cpp.patch:386
-st.o_rrii_rd	st.o	rrii	m1	st_o_rd	accept	ok	st.o rd8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:430:st_o_rd	DADAOInstrInfo.cpp.patch:384
-st.o_rrii_rf	st.o	rrii	fp	st_o_rrii_rf	accept	ok	st.o rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:628:st_o_rrii_rf	DADAOInstrInfo.cpp.patch:388
+st.o_rrii_rb	st.o	rrii	m1	st_o_rb	accept	ok	st.o rb8, [rb9, 8]	no		DADAOFrameLowering.cpp.patch:76;DADAOFrameLowering.cpp.patch:366;DADAOInstrInfo.cpp.patch:388
+st.o_rrii_rd	st.o	rrii	m1	st_o_rd	accept	ok	st.o rd8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:430:st_o_rd	DADAOInstrInfo.cpp.patch:386
+st.o_rrii_rf	st.o	rrii	fp	st_o_rrii_rf	accept	ok	st.o rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:628:st_o_rrii_rf	DADAOInstrInfo.cpp.patch:390
 st.t_rrii_rd	st.t	rrii	m1	st_t_rd	accept	ok	st.t rd8, [rb9, 4]	yes	pat:DADAOCodeGen.td.patch:449:st_t_rd	
 st.t_rrii_rf	st.t	rrii	fp	st_t_rrii_rf	accept	ok	st.t rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:632:st_t_rrii_rf	
 st.w_rrii_rd	st.w	rrii	m1	st_w_rd	accept	ok	st.w rd8, [rb9, 2]	yes	pat:DADAOCodeGen.td.patch:443:st_w_rd	
@@ -216,7 +216,7 @@ stm.t_rrri_rd	stm.t	rrri	m1	stm_t_rd	accept	ok	stm.t {rd8}, [rb0, rd9]	no
 stm.t_rrri_rf	stm.t	rrri	fp	stm_t_rrri_rf	accept	ok	stm.t {rf8}, [rb0, rd9]	no		
 stm.w_rrri_rd	stm.w	rrri	m1	stm_w_rd	accept	ok	stm.w {rd8}, [rb0, rd9]	no		
 sub.o_orrr_bbd	sub.o	orrr	m1	sub_o_bbd	accept	ok	sub.o rb8, rb9, rd10	no		
-sub.o_orrr_dbb	sub.o	orrr	m3	sub_o_dbb	accept	ok	sub.o rd8, rb9, rb10	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:174:sub_o_dbb	
+sub.o_orrr_dbb	sub.o	orrr	m3	sub_o_dbb	accept	ok	sub.o rd8, rb9, rb10	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:178:sub_o_dbb	
 sub.sb_orrr_rd	sub.sb	orrr	m1	sub_sb	accept	ok	sub.sb rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:348:sub_sb	
 sub.so_rrrr_rd	sub.so	rrrr	m1	sub_so_rd	accept	ok	sub.so {rd8, rd9}, rd10, rd11	no		DADAOInstrInfo.cpp.patch:249
 sub.st_orrr_rd	sub.st	orrr	m1	sub_st	accept	ok	sub.st rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:350:sub_st	

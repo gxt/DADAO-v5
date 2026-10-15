@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.h b/clang/lib/Driver/ToolChains/DADAO.h
 new file mode 100644
-index 000000000..c0f439039
+index 000000000..fcddfecce
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.h
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,84 @@
 +//===--- DADAO.h - DADAO ToolChain Implementations --------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -40,9 +40,17 @@ index 000000000..c0f439039
 +                             llvm::opt::ArgStringList &CC1Args, BoundArch BA,
 +                             Action::OffloadKind DeviceOffloadKind) const override;
 +
++  // Position independence (LLVM-094t): the default stays static (M4 bare-metal
++  // path), but -fPIC/-fPIE are honoured instead of being silently ignored.
++  // Forcing static here (isPICDefaultForced() == true) made `clang -fPIC` emit
++  // *static* code -- an absolute-address materialization that cannot be loaded
++  // at a non-zero base -- while still exiting 0.  Both flags select
++  // Reloc::PIC_ (PIE-ness is a clang PIELevel, not a relocation model), which
++  // is the only position-independent model the DADAO ABI maps onto
++  // (contract-dynlink.md §2-§3, ADR-0026 D5).
 +  bool isPICDefault() const override { return false; }
 +  bool isPIEDefault(const llvm::opt::ArgList &) const override { return false; }
-+  bool isPICDefaultForced() const override { return true; }
++  bool isPICDefaultForced() const override { return false; }
 +  UnwindLibType GetUnwindLibType(const llvm::opt::ArgList &) const override {
 +    return UNW_None;
 +  }

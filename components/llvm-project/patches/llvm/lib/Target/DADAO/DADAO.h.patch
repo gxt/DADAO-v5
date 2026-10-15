@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
 new file mode 100644
-index 000000000..fdc6a62ef
+index 000000000..61624edc7
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.h
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,75 @@
 +//===-- DADAO.h - Top-level interface for DADAO representation --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -43,6 +43,23 @@ index 000000000..fdc6a62ef
 +
 +namespace llvm {
 +namespace DADAO {
++
++//===----------------------------------------------------------------------===//
++// Target flags carried on a symbol operand (LLVM-094t).
++//===----------------------------------------------------------------------===//
++
++enum TargetFlags : unsigned {
++  MO_NO_FLAG = 0,
++  // The operand denotes the *GOT slot* of the symbol rather than the symbol
++  // itself: position-independent code (-fPIC / -fPIE) loads the slot with a
++  // PC-relative (`rb0`) access and the slot's 8-byte data field is fixed up at
++  // load time, so no link-time absolute address ever reaches the instruction
++  // stream and no global-pointer register is reserved (contract-dynlink.md §3,
++  // ADR-0026 D5).  The AsmPrinter defines one slot per referenced symbol in
++  // `.got`; the assembler records the access as R_DADAO_REL12 against the slot
++  // (link-time constant displacement).
++  MO_GOT_ADDR = 1,
++};
 +
 +enum FormatKind : uint8_t {
 +  FK_rrrr = 0,  // four registers: add.uo, cs.n, cs.eq, ...

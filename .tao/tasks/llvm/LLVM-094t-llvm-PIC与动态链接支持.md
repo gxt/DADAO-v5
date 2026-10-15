@@ -3,8 +3,8 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-091t`（llvm-project = **23.1.3**，`已验证` 2026-10-14；本册基线）；**口径真源** = `.tao/contracts/contract-dynlink.md`（`§1`–`§10`，用户 **2026-10-14 逐条确认**）、`ADR-0019 D10`（类型号 / 公式 / 值类规则）、`ADR-0026 D1–D8`（行为类口径：`PT_INTERP`、**仅 GNU hash**、不做版本段 / `DT_RELR`、eager、不固定 GOT 基址、超 ±2 KiB 两段式、§10 越界 5 条）；`ADR-0003`（Object ABI）、`ADR-0021`（`ld/st` 符号偏移重定位）、`ADR-0018 C6`/`C7 D4`；`ISS-206`（本册**阶段 E** 的执行落点）；`docs/Process-01`（组件补丁组织与构建编排）
-**状态**：待开始
-**阶段进度**：A ⏳ ／ B ⏳ ／ C ⏳ ／ D ⏳ ／ E ⏳
+**状态**：待验收
+**阶段进度**：**A ✅（待验收）** ／ B ⏳ ／ C ⏳ ／ D ⏳ ／ E ⏳
 
 > **`**状态**` 口径**：本任务 = **一个任务书、多阶段验收**（照 `INFRA-082t`/`SPEC-142t`/`INFRA-085t` 先例）⇒ `**状态**` 表**任务级**（**阶段全部验收通过**才置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`。
 
@@ -97,17 +97,36 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**阶段进度**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**（阶段 A）：`.work/evidence/<任务ID>/run-a.sh` **84 PASS / 0 FAIL（rc=0）**；`--inject` **10/10（rc=0）**；`make check`（**L1**）**rc=0**；`make check-modules`（**L2**，单独跑）**rc=0**（90 s；`check-lit`/`check-interface`/`test-codegen`/`test-elf`/`test-semihost`/`check-qemu-smoke`/`picolibc-tests` 均 PASS）；`check-patch-tree`/`check-index-blobs`/`check-instrinfo`/`check-source-state`/`check-no-residue`/`check-tasks`/`check_issues.py` 各 **rc=0**。全文 `.work/log/llvm/LLVM-094t-*.log`；证据脚本 + 独立 ELF 解析器 `.work/evidence/<任务ID>/{run-a.sh,elfinfo.py}`（解析用 `struct` 自解 ELF64-BE，**不经** LLVM 读取器）。
+
+**修改文件**：① **组件补丁树 11 份**（`components/llvm-project/patches/**`，**一文件一补丁**、`series` 仍 71）＝ `clang/lib/Driver/ToolChains/DADAO.h`、`llvm/lib/Target/DADAO/{DADAO.h,DADAOTargetMachine.cpp,DADAOISelDAGToDAG.cpp,DADAOISelLowering.{cpp,h},DADAOInstrInfo.cpp,DADAOMCInstLower.cpp,DADAOAsmPrinter.{cpp,h},MCTargetDesc/DADAOMCInstPrinter.cpp}`（源树 `.work/source/llvm-project` HEAD `93af153b` = base+1 且干净，`check-patch-tree`/`--source-state` rc=0）；② `tools/llvm/llvm-isa-backend-matrix.{md,tsv}` 重生成（`gen_isa_coverage.py`；仅行号引用与 `isel-cpp` 证据计数 15→18，**判据 yes/no 未变、86 条不变**）；③ `components/llvm-project/changelog.md` 追加 M8 一条（changelog 维护规则要求）；④ `.work/evidence/<任务ID>/{run-a.sh,elfinfo.py,baseline-pre/,baseline-pre-raw.md5,baseline-pre-nocomment.md5,toolchain-pre.md5}` 与 `.work/log/llvm/LLVM-094t-*.log`（**披露**：`.work/**` 为 `.gitignore` ⇒ 证据**不入 git**、留在工作区，沿用既有 `.work/evidence/` 先例）；⑤ 本任务书（完成区 + 自审）。
+
+**阶段进度**：**A ✅（待验收）** ／ B ⏳ ／ C ⏳ ／ D ⏳ ／ E ⏳
+
+**验收结果**（阶段 A 出口，真实输出摘录）：**`-fPIC`/`-fPIE` 目标文件**：`.rela.text` **零**条 `R_DADAO_ABS48`（`P1[pic]/[pie].no-ABS48-in-.text` expect=0 actual=0）、仅 `R_DADAO_REL12`→`.got`；`.got` **4 槽 × 8 B**，槽内容 **4** 条 `R_DADAO_ABS48` 数据重定位（`P2.got-slot-ABS48-relocs` expect=4 actual=4）；指令域 **6** 处 `ld.o rb, [rb0, <slot>]` + **6** 条 `R_DADAO_REL12 .got`（P3，`-dr` 可见）⇒ **偏移为链接期常量**；**无 `rb2`/GP 操作数**（P4 expect=0 actual=0）⇒ 满足「不固定 GOT 基址、不安排专用寄存器」。**生效性**：`-fPIC`/`-fPIE` 与 static 产物 md5 **不同**（A2）⇒ 不再静默压平。**`-S`**：含 `.got` 段 + `[rb0, .Lgot.N]`，`llvm-mc` **可再汇编**（A5 rc=0）；`llc -relocation-model=pic` 同判据。**跳表**：含 2 个 switch 的模块两块表各得**独立**槽 `.LJTI0_0`(+0)/`.LJTI1_0`(+0x10)（A6b）。**大端**：`dataenc=2`（`ELFDATA2MSB`）+ `.data` 常量 `0x01020304` 字节序 = `01 02 03 04`（A8，大端敏感）。**不回归**：静态路径 6 例（`t`/`sw` × O0/O1/O2）剥 `.comment` 后 md5 与**改动前**逐字节相同（A7；`NOTE` 记录原 md5 差异 = 内嵌组件 commit `152cfb15`→`93af153b`）；`-fno-pic` 仍无 `.got`、`.text` 仍 3 片 `ABS48`。**重建/安装**：`build-mc` 单写者 **200 s PASS**（此前 241/210 s 亦 PASS）、`install-host` **PASS**（312 s；前次 129 s）；构建树与安装根 **7 个二进制 md5 全同**（`clang`/`llc`/`llvm-mc`/`llvm-objdump`/`llvm-readobj`/`llvm-objcopy`/`ld.lld`），`clang --version` 报组件 HEAD `93af153b` ⇒ 无 `ISS-210` 假绿。**编号静态核（记录，本次不动）**：`DADAO.def` 现 `R_DADAO_ABS48=0`、`R_DADAO_REL12=4`；`ADR-0019 D10` 期望 `ABS48=6` ⇒ **未同步 = 阶段 E（`ISS-206`）**（A9 NOTE）。
+
+**新发现/坑**：① **「PIC 不支持」的真相 = 驱动静默压平**：`clang/lib/Driver/ToolChains/DADAO.h` 的 `isPICDefaultForced()` 原为 `true` ⇒ `-fPIC` 被**静默**忽略（cc1 实收 `-mrelocation-model static`），产出非 PIC 代码且 **exit 0、无任何报错** —— **不是**「报错不支持」；修前 `-fPIC` 与 static 产物**逐字节相同**。② LLVM **23 无 `Reloc::PIE`**（`Reloc::Model = {Static, PIC_, DynamicNoPIC, ROPI, RWPI, ROPI_RWPI}`）：`-fPIC`/`-fPIE` **均落 `Reloc::PIC_`**（PIE-ness 走 clang `PIELevel`）⇒ 任务书「`Reloc::PIC_`/`PIE`」写法应按此校正；`ROPI`/`RWPI`/`DynamicNoPIC` 在本后端**显式报错**（不静默降 static）。③ **通用 PIC 会改跳表编码**：`TargetLowering::getJumpTableEncoding()` 在 `isPositionIndependent()` 时返 `EK_LabelDifference32`（4 B label difference）⇒ DADAO 无 32 位数据重定位，汇编期硬错 9 条（「cannot carry a 48-bit DADAO address」）⇒ 覆写恒返 `EK_BlockAddress`（8 B 绝对表项 = 契约 §4.3「数据」形态）。④ **MC 文本路径两处缺陷**（仅 `-S` 暴露）：`DADAOMCInstPrinter` 的 `ld./st.` 无条件 `getImm()`（遇符号表达式操作数即断言）；`MCContext::getELFSection(..., EntrySize=8)` 触发 `MCAsmInfoELF::printSwitchToSection` 断言（非 `SHF_MERGE` 不得带 entsize）⇒ 去 `EntrySize` 并改用 `emitValueToAlignment(Align(8))`。⑤ **设计取舍（跨阶段披露）**：契约**禁新增重定位类型**（`ADR-0026 D5`/`contract-dynlink §3`）且 ISA 无「`rb0`+符号偏移 → 寄存器」形态 ⇒ **GOT 槽由编译器自出**（`.got`：每引用符号/跳表一 8 B `R_DADAO_ABS48` 数据槽），指令域用**既有** `R_DADAO_REL12`（`rb0` PC 相对）寻址 ⇒ **阶段 B/C** 的 lld 须**保留/合并输入 `.got`**、把槽 ABS48 转为动态重定位（`REL_GOT`/`RELATIVE`）、并按 `D5` 保证槽「就近 ±2 KiB」。⑥ **并发坑（本次自犯，已修复留证）**：`make check-modules` 经 `check-picolibc-tests → build-picolibc → install-host → build-mc` **会自行重建**；我同时手动 `make build-mc` ⇒ **两个 ninja 写同一构建树**，`bin/clang-23` 被写坏（4.29 GB、`--version` segfault）并被 `install-host` 装入安装根 ⇒ `ISS-229` 的同类风险**不止安装根、构建树同样**（「手动重建」须与 L2 串行）；已单写者重建 + 重装 + 复验（`--version` rc=0、md5 7/7 同）并于终态重跑 L1/L2。⑦ 既有派生投影 `llvm-isa-backend-matrix` 会因后端源码**行号/证据计数**变化而 drift ⇒ 改后端须连带重生成（本次由 L1 现场暴露并修复）。
+
+**遗留问题**：① **阶段 B–E 未做**（LLD `ET_DYN`/`.dynamic`/GNU hash/`GOT`·`PLT`/动态重定位；`ADR-0019 D10` 新编号；契约逐条；`ISS-206`）——本册其余阶段承接。② **PIC 下外部函数调用仍为直接 `REL26`**（PC 相对）：未走 PLT（`JUMP_SLOT`/`.plt` = 阶段 B/C）⇒ `.so` 场景该调用点须链接器改写。③ **PIC 跳表内容仍为绝对地址**（8 B 数据 `ABS48`，契约 §4.3 允许）：共享对象需装载期 `RELATIVE` 修正（阶段 B/C）。④ **未新增 lit / PIC 回归用例**（本阶段判据由 `run-a.sh` 覆盖）；`tests/llvm/codegen/m6/README.md` 现仍写「`REL12`/`ABS12` 仅汇编层、CodeGen 未发射」，PIC 后该口径已过时（建议后续并入 `check-lit`/`expected-elf`）。⑤ `milestones.md` 流水行交 `/complete` 收尾（本册按规则**未**写 `milestones.md`；组件 changelog 已按维护规则在同一变更内追加）。⑥ **未撞** `ISS-222`（无 inline asm / `dynamic_stackalloc`）/ `ISS-223`。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**逐行审查范围**（自主）：11 份补丁逐文件复核 —— ISel（`Select` 的 `GlobalAddress` PIC 分支、`isPointerBankValue`、`BR_JT` 跳表基址）、`MCInstLower` 目标标志分派、`AsmPrinter` 槽生成/`.got` 发射/跨模块状态、`DADAOTargetMachine` reloc 模型选取、驱动 `isPICDefaultForced`、`InstPrinter` 表达式打印、`getJumpTableEncoding` 覆写；并核对「判据独立」（自写 ELF64-BE 解析器，**不走 LLVM 读取器**）、每条断言的**可达 FAIL 路径**、期望值来源（`DADAO.def` + ELF gABI，**不**从本实现反推）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 跳表 GOT 槽按 **index** 键 —— `MachineJumpTableInfo` index **逐函数归零** ⇒ 同模块两 switch 时**第二个函数静默拿到第一张表地址** | ✅已修 | `GOTJumpTableSlots` 改按 `GetJTISymbol(index)` 的 `MCSymbol *` 键 | 新增 `src/two.c`（两 switch）+ A6b；实测 `.rela.got` = `.LJTI0_0`(+0) 与 `.LJTI1_0`(+0x10) **两槽**（修前同槽）；`A6b.distinct-jt-slots >=2` PASS |
+| F2 槽名计数取 `GOTSlotOrder.size()`，`emitEndOfAsmFile` 清表后**归零** ⇒ 同 `MCContext` 多模块（LTO）**重名 ⇒ 重定义** | ✅已修 | 独立计数 `GOTSlotNextId`（**不随模块重置**；只清槽表不清计数） | 代码级审查 + 全量重建；`run-a.sh` P1–P4/A5–A8 全绿；`-S` 标签 `.Lgot.0..3` 唯一。**披露**：多模块/LTO 场景**未现场构造**（按代码路径判定，非实测） |
+| F3 `-fPIC -S` 崩：`DADAOMCInstPrinter` 的 `ld./st.` 无条件 `getImm()`（操作数为符号表达式） | ✅已修 | 打印改 `isImm()/isExpr()` 分支（与 `br.*`/`jump`/`call` 既有写法一致） | `A5.clang-fPIC-S rc=0`；`asm-has-gotslot-operand`、`reassemble-S-output rc=0`、`P3[asm-rt]` 全绿 |
+| F4 `getELFSection(".got",…,EntrySize=8)` 触发 `MCAsmInfoELF::printSwitchToSection` 断言（非 `SHF_MERGE` 不得带 entsize） | ✅已修 | 去 `EntrySize`；改 `emitValueToAlignment(Align(8))` 显式对齐 | 同上 A5 三项；`P2[asm-rt].got-slots`；对象侧 `.got` 无 `sh_entsize` |
+| F5 `sw.c -fPIC` 汇编期 9 错（4 B 数据域承载 48 位地址）—— 通用 PIC 换 `EK_LabelDifference32` | ✅已修 | 覆写 `getJumpTableEncoding()` 恒返 `EK_BlockAddress`（保持 8 B 绝对表项 = 数据形态） | `A6.sw-pic.compile rc=0`；`P1[sw-pic].no-ABS48-in-.text=0` |
+| F6 证据脚本缺陷：A7 以**原 md5** 比静态基线 ⇒ **误报 6 条 FAIL**（真实差异仅 `.comment` 内嵌组件 commit） | ✅已修 | A7 改「剥 `.comment` 后比 md5」+ `NOTE` 记录原 md5 差异原因；基线对象入库 `baseline-pre/`（自包含） | 修后 A7 6/6 PASS；`--inject.A7-strip-compare-discriminates=differ`（证明该比较**可失败**） |
+| F7 证据脚本缺陷：`check` 传字面量 `>=1` 当期望值；`grep 'R_DADAO_REL12 .*got'` 空格模式**不匹配制表符**；`-static` tag 名带前导 `-` | ✅已修 | 改 `if [ n -ge 1 ]`；模式改 `R_DADAO_REL12[[:space:]]+.*got`；tag 修 `static` | `run-a.sh` **84 PASS/0 FAIL**；`--inject` **10/10**（含静态对象被 PIC 判据逐项拒收） |
+| F8 并发写入（**自犯**）：手动 `make build-mc` 与 L2 内触发的 `install-host→build-mc` 并发 ⇒ 构建树两写者，`clang-23` 写坏（4.29 GB/segfault）并被装机 | ✅已修 | `rm` 坏 `clang-23` → 单写者 `build-mc`（200 s PASS）→ `install-host`（312 s PASS）；复验版本串/`--version`/两处 md5 | 「SAME clang/llc/llvm-mc/llvm-objdump/llvm-readobj/llvm-objcopy/ld.lld」7/7；`.work/log/llvm/LLVM-094t-{build-mc,install-host}.log`；L1、L2 于**终态**重跑均 rc=0 |
+
+**判决**：F1–F8 **全部 ✅已修**（无 ⏸延后、无 ❌不修）；每条断言/用例均有**可达 FAIL 路径**（`--inject` 10 项现场证明：静态对象被 PIC 判据逐项拒收 + 副本注入 `ABS48` 被检出 + `cp` 还原后 md5 对账 + 剥注释比较可失败）；无猜测填值、`[OPEN]` 无新增。**自审结论 ⇒ 状态置 `待验收`**（阶段 A 完成；B–E 由后续阶段承接）。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）

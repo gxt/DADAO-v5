@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..7cbf9ffe1
+index 000000000..04273f0a5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,187 @@
+@@ -0,0 +1,199 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -105,6 +105,18 @@ index 000000000..7cbf9ffe1
 +                               const DADAOSubtarget &STI);
 +
 +  const char *getTargetNodeName(unsigned Opcode) const override;
++
++  /// Jump-table entry encoding (LLVM-094t).  The generic implementation switches
++  /// to `EK_LabelDifference32` (32-bit label differences) as soon as the module
++  /// is position independent, but the DADAO relocation set has no 32-bit data
++  /// relocation and no label-difference type (ADR-0019 D2/D8: ABS48 is the only
++  /// data form; offset classes are instruction fields) -- a 4-byte relocatable
++  /// field is rejected by the assembler.  Keep the absolute 8-byte entry
++  /// (`EK_BlockAddress` -> R_DADAO_ABS48 data field) for static and PIC alike:
++  /// the entry is data, so an absolute address there is allowed even under PIC
++  /// (contract-dynlink.md §4.3), and only the *table base* moves behind a GOT
++  /// slot (ADR-0026 D5).  A shared object fixes those entries up at load time.
++  unsigned getJumpTableEncoding() const override;
 +
 +  /// Inline-assembly register constraints (ISS-193(e), LLVM-086t).  The DADAO
 +  /// register banks are not interchangeable, so a lone `"r"` constrains to a

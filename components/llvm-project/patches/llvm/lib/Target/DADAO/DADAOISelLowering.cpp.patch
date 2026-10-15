@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..7dd5e6abb
+index 000000000..000b0dd50
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1248 @@
+@@ -0,0 +1,1256 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -36,6 +36,7 @@ index 000000000..7dd5e6abb
 +#include "llvm/CodeGen/CallingConvLower.h"
 +#include "llvm/CodeGen/MachineFrameInfo.h"
 +#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineJumpTableInfo.h"
 +#include "llvm/CodeGen/MachineRegisterInfo.h"
 +#include "llvm/CodeGen/SelectionDAG.h"
 +#include "llvm/Support/ErrorHandling.h"
@@ -261,6 +262,13 @@ index 000000000..7dd5e6abb
 +  MaxStoresPerMemcpy = MaxStoresPerMemcpyOptSize = 16;
 +  MaxStoresPerMemmove = MaxStoresPerMemmoveOptSize = 16;
 +  MaxLoadsPerMemcmp = MaxLoadsPerMemcmpOptSize = 16;
++}
++
++unsigned DADAOTargetLowering::getJumpTableEncoding() const {
++  // Always absolute 8-byte entries (see DADAOISelLowering.h): the generic PIC
++  // choice (EK_LabelDifference32) would need a 4-byte data relocation, which
++  // the DADAO relocation set does not define (ADR-0019 D2/D8).
++  return MachineJumpTableInfo::EK_BlockAddress;
 +}
 +
 +const char *DADAOTargetLowering::getTargetNodeName(unsigned Opcode) const {
