@@ -41,6 +41,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
         build-musl test-picolibc-smoke install-host docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full \
+        check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
@@ -83,6 +84,8 @@ help:
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
+	@echo "  make check-testcases-suites  Run the two upstream reference suites (libc-test + llvm-test-suite) fast subset (opt-in, not L2; TESTCASES-045t)"
+	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
@@ -430,6 +433,38 @@ check-picolibc-tests: build-picolibc
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
 check-picolibc-tests-full: build-picolibc
 	@$(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(JOBS)
+
+# check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
+# *reference* suites -- libc-test and llvm-test-suite -- through the static musl
+# flow (compile -> ld.lld -T dadao.lds -> flat image -> qemu-system-dadao
+# -machine dadao-m1, "path B").  Upstream's own harnesses are unusable here
+# (libc-test's runtest.exe needs fork/waitpid/signals; llvm-test-suite's
+# CMake/lit driver assumes a hosted OS), so tools/testcases/run_suite.py drives
+# the corpora directly and classifies every case live.
+#
+# OPT-IN LEVEL: this target is deliberately NOT listed in L1/L2/L3.  The stage-1
+# case list is a *curated* stratified subset (each entry records its tier and
+# why), and docs/Process-07 §3 requires an L2 "representative set" to be
+# *mechanically* derived; assigning a curated list to L2 would violate that.  It
+# stays an on-demand target ("按需" level) until stage 3 replaces the curation
+# with a mechanical derivation and the cost/FAIL story has been measured.
+#
+# Exit status follows tools/testcases/run_suite.py: non-zero on any `fail` or
+# `timeout` (a genuine wrong result / hang).  `enosys`, `compile-error` and
+# `unsupported` are counted and listed, never silently skipped, and do not turn
+# the target red -- they are the documented state of an unfinished port.
+check-testcases-suites:
+	@$(PYTHON) tools/testcases/run_suite.py --stage fast \
+		--json-out .work/log/testcases/runs/fast.json
+
+# check-testcases-suites-full (TESTCASES-045t): every enumerable C case with
+# main() in both suites (upstream `External/`, C++/Fortran/ObjC sources and
+# helper TUs without main() are counted as `unsupported` with their reason).
+# Opt-in, L3-like: hundreds of compile/link/QEMU runs; `--timeout` is raised for
+# the benchmarks whose default problem size exceeds the fast-stage budget.
+check-testcases-suites-full:
+	@$(PYTHON) tools/testcases/run_suite.py --stage full --timeout 300 \
+		--json-out .work/log/testcases/runs/full.json
 
 # build-musl (INFRA-082t): configure and build the static musl libc for
 # dadao-unknown-elf inside .work/source/musl (the DADAO port lives as a

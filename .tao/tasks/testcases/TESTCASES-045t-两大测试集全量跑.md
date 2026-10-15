@@ -3,8 +3,8 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：`INFRA-082t`（musl 静态最小集移植＝`ADR-0025 D6` 的 `P1` 段，**`已验证` 2026-10-15**；含 QEMU 侧 `SYS_UMON_SYSCALL` 服务〔`ISS-216` 已关〕）；`TESTCASES-044t`（`libc-test` 取源与锁定，**`已验证` 2026-10-15**）；`LLVM-093t`（`llvm-test-suite` 取源与锁定，**`已验证` 2026-10-15**）；`SPEC-138t`（`.tao/contracts/contract-syscall.md`，**`已验证`**）；`ADR-0025`（`D1`/`D2`/`D6`/`D7`）；`INFRA-079t`（compiler-rt builtins，`待开始`——**按需转出**，见「纪律」6）
-**状态**：待开始
-**阶段进度**：阶段 1（基础设施 + 首份统计）待开始；阶段 2（按统计补服务）待开始；阶段 3（全量 + 报告）待开始
+**状态**：待验收
+**阶段进度**：阶段 1（基础设施 + 首份统计）**实现完成待验收**；阶段 2（按统计补服务）待开始；阶段 3（全量 + 报告）待开始
 
 > **`**状态**` 口径**：本任务书 = **一册多阶段验收**（照 `SPEC-142t`/`SPEC-143t`/`INFRA-082t` 先例）⇒ `**状态**` 表**任务级**进度（**三阶段全部验收通过后**才置 `已验证`）；阶段级进度见上行 `**阶段进度**`。
 
@@ -138,17 +138,49 @@
 
 ## 完成区
 
-**测试结果**：（待填写）
-**修改文件**：（待填写）
-**验收结果**：（待填写）
-**新发现/坑**：（待填写）
-**遗留问题**：（待填写）
+**测试结果**：阶段 1（只做本阶段）——fast 档 18 例：`pass 16 / fail 0 / enosys 2 / compile-error 0 / timeout 0`，`unsupported 3291`（运行期现场派生）；一键证据 48/48 断言 `rc=0`；L1 `rc=0`、L2 `rc=0`。
+**修改文件**：新增 `tools/testcases/run_suite.py`；改 `Makefile`（+2 target `check-testcases-suites`/`check-testcases-suites-full`、`.PHONY`、分层归属注释）。**非入库留档**：`.work/evidence/TESTCASES-045t/run-p1.sh`、`.work/log/testcases/TESTCASES-045t-p1-report.md`、`.work/log/testcases/runs/fast.json`、`.work/log/testcases/TESTCASES-045t-p1-*.log`。
+**验收结果**（真实输出节选）：
+- `make check-testcases-suites` → `rc=0`；`[libc-test] attempted=9 pass=7 fail=0 enosys=2 compile-error=0 timeout=0 unsupported=116`；`[llvm-test-suite] attempted=9 pass=9 fail=0 enosys=0 compile-error=0 timeout=0 unsupported=3175`；`[enosys-census] syscall:count 29x6 214x2 222x2 56x2 79x1 113x1 169x1`
+- `./.work/evidence/TESTCASES-045t/run-p1.sh` → `rc=0`；`TESTCASES-045t/P1 evidence: checks passed=48 failed=0` / `PASS`
+- 门控：`make check`(L1) `rc=0`（证据 G 段）；`make check-modules`(L2) `rc=0`（78 s，`module checks (L2): PASS`）；`check-patch-tree`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-dirs`/`check_issues.py` 全 `rc=0`
+- 二次复跑逐例（id,status,stdout_sha256,exit）与计数**完全一致**（证据 C 段 `yes`）
+**新发现/坑**：
+1. ENOSYS 的唯一可信信号 = `qemu -d guest_errors`（默认不打印）；但 **`ioctl`(29) 是 musl stdio 的 tty 探测 ⇒ 良性**（6 例照常 `pass`）⇒ 判据必须「以用例自身裁决为主、`ENOSYS` 只作根因归因」，**不得**用「stderr 有 ENOSYS」当判据。
+2. 链接 libc-test 的 `src/common/*.o` 必须用**归档语义**（`--start-lib … --end-lib`，等价上游 `-ltest`）：强制包含全部 `.o` 会把 `locale_map.o` 拉进 ⇒ `__mo_lookup` **未定义**（该源被 `arch/dadao/arch.mak` 按 `bswap` 后端缺口排除 = `ISS-223`，**已登记，非新问题**）。
+3. 上游语料含 **`.reference_output.small`（93 个）**＝ `SMALL_PROBLEM_SIZE` 的**专属参照**；用错参照会**假 MISMATCH**（`random.c` 首轮即撞）。BE 机器另须优先 `.reference_output.big-endian`（17 个）；`.little-endian`/`.AIX` 面向他机、不查。
+4. `int\nmain(`（`ackermann.c` 等）存在 ⇒ 枚举「有无 main」不能用 `"int main"` 字面量；已改用正则 + 「curated 成员必在可尝试面内」一致性断言（当场抓到并修）。
+5. 上游 benchmark 默认规模在 dadao-m1 上过大（`fib2` LENGTH=43 >180 s、SMALL(40) ≈48 s；`nestedloop`/`sieve` ≈32 s）⇒ fast 档只收 runnable 项，余者留给 `--stage full --timeout 300`（**非**放宽判据，仅规模/预算）。
+6. 建议沉淀知识库：①「用例自身裁决为主 + `ENOSYS` 作根因归因」的分类口径；②「libc-test harness 必须归档语义链接」；③ 上游 `reference_output` 变体优先级（`.small` > `.big-endian` > 默认）。来源 = 本任务（`tools/testcases/run_suite.py`）。
+**遗留问题**：阶段 2（按统计补服务）/ 阶段 3（全量 + 报告）**未做**（本步按要求只做阶段 1）；阶段 2 首批建议见报告「阶段 2 信号」（`brk`+`mmap` 解锁面最宽）。`llvm-test-suite` 中无上游参照的 3 个 gcc-c-torture 例 `pass` 口径 = 「跑到退出 0」，非输出等价（阶段 3 固定参照）。
 
 ## 阶段记录
 
 ### 阶段 1｜基础设施 + 首份统计
 
-（待填写：runner 路径 / 两条可复跑命令 / 首份分类统计（现场派生）/ 门控 rc）
+**runner（新建、入库）**：`tools/testcases/run_suite.py`（自建：`clang -target dadao-unknown-elf` → `ld.lld -T tests/scripts/dadao.lds` → `llvm-objcopy -O binary` → `qemu-system-dadao -M dadao-m1` **path B**）。Makefile 新增两 target：`check-testcases-suites`（fast 档）/ `check-testcases-suites-full`（全量 opt-in，`--timeout 300`）；**刻意不入 L1/L2/L3**（理由见 Makefile 注释：curated 子集 ≠ `docs/Process-07 §3` 要求的「机械派生」L2 代表集）。
+
+**两条可复跑命令**（仓库根）：
+- `make check-testcases-suites` —— 两套件 fast 档，本机 ~6 s；结果 JSON `.work/log/testcases/runs/fast.json`
+- `./.work/evidence/TESTCASES-045t/run-p1.sh` —— 一键证据（48 项断言，`rc=0`）
+
+**首份分类统计（runner 运行期派生、**不写死**；18 例 curated，按依赖分层 tier1 纯计算 → tier5 文件系统）**：
+
+| suite | attempted | pass | fail | enosys | compile-error | timeout | unsupported |
+|---|---|---|---|---|---|---|---|
+| `libc-test` | 9 | 7 | 0 | 2 | 0 | 0 | 116 |
+| `llvm-test-suite` | 9 | 9 | 0 | 0 | 0 | 0 | 3175 |
+| **total** | **18** | **16** | **0** | **2** | **0** | **0** | **3291** |
+
+- **`enosys` 2 例**：`libc-test:src/regression/malloc-0.c`（`brk`/`mmap`）、`libc-test:src/functional/stat.c`（`openat`/`newfstatat`/`clock_gettime`/`gettimeofday`）。
+- **`ENOSYS` 普查**（号→名取自端口自身 `obj/include/bits/syscall.h`）：`ioctl`(29)×6、`brk`(214)×2、`mmap`(222)×2、`openat`(56)×2、`newfstatat`(79)×1、`clock_gettime`(113)×1、`gettimeofday`(169)×1。**`ioctl`(29) = 良性**（musl stdio 的 stdout tty 探测，6 例照常 `pass`）。
+- **`unsupported` 逐条理由**（现场 glob/普查派生，**无空类**）：`no main()`（helper/kernel TU）2218、C++ 956、Fortran 28、ObjC 4 + ObjC++ 4、`libc-test` harness 支撑 TU 10、`External/`（含 SPEC，用户口径排除）17、无内核类（线程/进程/IPC/socket/信号）与动态链接/TLS 类（逐条计数见报告表）。
+- **子集选择依据**：两套件各按「依赖从简到难」分层取样（tier1 纯计算 / tier2 stdio+FP / tier3 堆 / tier4 时间 / tier5 文件系统），逐例 `why` 记录在 runner 内 + 报告表；判据 = 用例自身（`t_status`）或上游 `.reference_output`（BE 优先 `.reference_output.big-endian`；`SMALL_PROBLEM_SIZE` 构建用 `.reference_output.small`）——**不作任何期望放松**。
+- 逐例结果 / `excluded` 逐条理由 / 覆盖边界声明 / 阶段 2 信号：`.work/log/testcases/TESTCASES-045t-p1-report.md`（**本机留档，不入库**）。
+- **门控**：`make check`(L1) `rc=0`；`check-patch-tree` / `check-source-state` / `check-no-residue` / `check-tasks` / `check-knowledge-refs` / `check-dirs` / `tools/infra/check_issues.py` 全 `rc=0`（证据脚本 G 段）；`make check-modules`(L2) `rc=0`（78 s）。
+- **可达 FAIL（三条独立路径，真实输出）**：① `--inject` ⇒ `pass=0 / fail=18 / rc=1`；② 「参考输出读取器」注入 ⇒ `hello` 由 `pass` 变 `enosys`（`matched=False`），`cp`+md5 还原 ⇒ 回 `pass`；③ 「ENOSYS 匹配器」注入 ⇒ `malloc-0` 由 `enosys` 变 `fail` 且 `rc=1`，还原 ⇒ 回 `enosys`+`rc=0`。
+- **未撞 `ISS-222`**（fast 档 `compile-error=0`）⇒ 无新 `issues.yaml` 登记；现场观察「`libc.a` 含 `locale_map.o` 但缺 `__mo_lookup.o` ⇒ 用到即链接期未定义」**已被 `ISS-223` 覆盖**（arch.mak 显式排除的 `bswap` 后端缺口，非新问题）。
+- **阶段 3 规模判断**：`--stage full --list` = libc-test 346 + llvm-test-suite 2133 = **2479 例**可尝试面；本机单例 ≈ 0.02 s（QEMU）+ ≈ 0.1 s（编译）量级 ⇒ 全量一轮约 **10~20 min**（与 `check-picolibc-tests-full` 同量级），适合 opt-in 而非 L2。
 
 ### 阶段 2｜按统计补服务
 
@@ -158,13 +190,41 @@
 
 （待填写：全量命令 / 分类统计 / `excluded` 清单与逐条理由 / 覆盖边界声明 / 门控 rc）
 
+### 阶段 1 规模度量与下一步建议（architect 追加，2026-10-15；**只追加**）
+
+**规模判断（针对阶段 3 `full` 档）**：`--stage full --list` 可尝试面 = libc-test 346 + llvm-test-suite 2133 = **2479 例**；本机量级单例 ≈ **0.02 s（QEMU 运行）+ ≈ 0.1 s（编译）** ⇒ 全量一轮约 **10–20 min**（与 `check-picolibc-tests-full` 同量级）⇒ **适合 opt-in，不入 L1/L2/L3**（与 `docs/Process-07 §3`「L2 代表集须机械派生」一致）✓。
+
+**阶段 2 批序建议（首份统计的直接推论）**：**最宽收益的下一步 = 补 `brk` + `mmap`** ✓（`malloc-0` 一例即同时吃这两号，可连带解锁「堆类」用例）；**含进程 / 信号类的用例（`fork`/`waitpid`/信号）永远需 `P3`** ✗ —— 非本任务（`P1` 静态 / `P2` 动态）所能覆盖，须作为 `excluded` 的**逐条理由**之一。
+
+**（C）两步走建议 —— 待用户裁定 ✗（未定；不得据此改范围 / 改契约 / 改 `excluded` 口径）**
+主会话 2026-10-15 提出、**尚未取得用户裁定**：
+1. 阶段 2 **只补 `brk` + `mmap`**，并把本任务**收窄为「`P1` 边界度量」**（产出口径 = 首份分类统计 + 服务缺口排序 + 覆盖边界声明，**不以「全量通过」为目标**）；
+2. **另立 `P3`（`qemu-user`）任务**承接进程 / 信号 / 文件系统类语义，与 `P1`（`system` 模式静态）/ `P2`（动态）分工。
+**裁定前处置**：用户未裁定前**仍按本任务书原「三阶段」结构与「范围」执行**；本建议**只是提案**，不得静默生效。
+
 ## 审阅记录
 
 （按轮次追加；每轮 ≤40 行）
 
 #### 第 1 轮 engineer 自审
 
-（待填写）
+**方式**：自主逐行审查（全文）`tools/testcases/run_suite.py` + `.work/evidence/TESTCASES-045t/run-p1.sh`，并以实机复跑取证。**判决**：无未修 finding（下表 11 条）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 死常量 `FAST_STAGE_BENCH_BUDGET_S` 定义未用 | ✅已修 | 删除，理由并入 `SMALL_PROBLEM_CFLAGS` 注释（含实测 48 s/32 s） | 删后 fast/full `--list` 与运行 `rc=0` |
+| F2 `reference_for` docstring 列 LE/AIX 变体却只查 3 种，易误导 | ✅已修 | docstring 写明各变体现场计数与「LE/AIX 面向他机、刻意不查」 | 同上 |
+| F3 `.small` 与 `.big-endian` 若同存则优先级歧义 | ✅已修（无需改序） | 现场核对两集合**无交集**，结论写入 docstring | `for f in *reference_output.small; do [ -f "${f%.small}.big-endian" ]` ⇒ 0 命中 |
+| F4 `--only` 的 unknown 判定在过滤之后计算 ⇒ **任何** `--only` 都报 unknown | ✅已修 | 改为按全体 suite 选择面的**并集**判定，过滤移到 `main` | 跨 suite `--only` `rc=0`（1 例 `pass`）；未知 id `rc=2` |
+| F5 「参考比对是否真读上游文件」验证方式（避免改只读语料） | ✅已证 | 不改 `.work/source/**`，改为对 **runner 自身**注入（E/F 段） | 注入 ⇒ `matched=False`、`hello` 不再 `pass`；`cp`+md5 还原 ⇒ `matched=True`、`rc=0` |
+| F6 枚举「有无 main」用 `"int main"` 字面量 ⇒ 漏 `int\nmain(`（`ackermann.c`） | ✅已修 | 引入 `MAIN_RE = \b(?:int\|void)\s+main\s*\(` +「curated 成员必须在可尝试面内」断言（缺失即 exit 2） | 断言当场抓到 `ackermann.c`；修后 full 枚举 1058 → **2133** |
+| F7 guest stdout/stderr 走 PIPE ⇒ 超时/巨量输出丢现场、内存无界 | ✅已修 | 落盘 `<case>.stdout/.stderr`；超时也保留 partial 并写入 JSON | `--timeout 1` ⇒ `rc=1` 且 JSON 含 `detail/stdout_len/stdout_sha256`；证据新增「failure scene kept on disk」PASS |
+| F8 `--inject` 用固定哨兵期望值会与真实退出码撞车（2 例真 `exit 1` ⇒ 假 `pass`） | ✅已修 | 注入期望改为**运行后派生** `(exit_code+1)&0xFF`（构造上必不等） | 注入态由 `pass=2/fail=16` → **`pass=0/fail=18`、`rc=1`** |
+| F9 `unsupported` per-file 记录不含 scan face 之外的 `External/`（与类别计数不一致） | ✅已修 | `enumerate_all` 先并入声明 glob 命中（含 `External/`）再补 scan face 普查 | 计数 3158 → **3175**，与类别表 17 条对齐；报告直方图合计 3291 |
+| F10 `--stage full` 文件命名 stem 会否超长 | ❌不修（无需） | — | 现场测最长 stem **98** 字符（限 255） |
+| F11 杂项：`import os` 在函数内、`common_log` 未使用、`--strict` help 文案错 | ✅已修 | `os` 移模块头；`common_log` 写入 JSON；help 文案改正 | `python3 -m compileall tools` + L1 `rc=0` |
+
+**自审后复验**：改毕重跑 `run-p1.sh` ⇒ `checks passed=48 failed=0`、`PASS`；`make check-testcases-suites` ⇒ `rc=0`。
 
 #### 第 1 轮 reviewer 验收
 
