@@ -1,14 +1,31 @@
 # TESTCASES-045t: 两大测试集全量跑（libc-test + llvm-test-suite baseline）
 
+> **收尾重定义（2026-10-15）**：本任务**收窄为「`P1` 能力边界度量」**；**阶段 2/3 取消** ✗ ⇒ 「全量」改由 **`P3`（`qemu-user`）承接** ✓（标题保留原名以维持引用稳定）。见「§收尾裁定与范围重定义」。
+
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：`INFRA-082t`（musl 静态最小集移植＝`ADR-0025 D6` 的 `P1` 段，**`已验证` 2026-10-15**；含 QEMU 侧 `SYS_UMON_SYSCALL` 服务〔`ISS-216` 已关〕）；`TESTCASES-044t`（`libc-test` 取源与锁定，**`已验证` 2026-10-15**）；`LLVM-093t`（`llvm-test-suite` 取源与锁定，**`已验证` 2026-10-15**）；`SPEC-138t`（`.tao/contracts/contract-syscall.md`，**`已验证`**）；`ADR-0025`（`D1`/`D2`/`D6`/`D7`）；`INFRA-079t`（compiler-rt builtins，`待开始`——**按需转出**，见「纪律」6）
-**状态**：待验收
-**阶段进度**：阶段 1（基础设施 + 首份统计）**实现完成待验收**；阶段 2（按统计补服务）待开始；阶段 3（全量 + 报告）待开始
+**状态**：已验证
+**阶段进度**：阶段 1（基础设施 + 首份统计）**已验证**（2026-10-15；reviewer `Accepted`）；阶段 2（按统计补服务）/ 阶段 3（全量 + 报告）**已取消** ✗（2026-10-15 用户裁定；「全量」改由 `P3`（`qemu-user`）承接 ✓）
 
-> **`**状态**` 口径**：本任务书 = **一册多阶段验收**（照 `SPEC-142t`/`SPEC-143t`/`INFRA-082t` 先例）⇒ `**状态**` 表**任务级**进度（**三阶段全部验收通过后**才置 `已验证`）；阶段级进度见上行 `**阶段进度**`。
+> **`**状态**` 口径**：本任务书 = **一册多阶段验收**（照 `SPEC-142t`/`SPEC-143t`/`INFRA-082t` 先例）⇒ `**状态**` 表**任务级**进度；**收尾（2026-10-15）**：范围重定义后本任务 = 「**`P1` 能力边界度量**」、**阶段 2/3 取消** ⇒ 按**新范围**置 `已验证`（见「§收尾裁定与范围重定义」）。
 
-> **⚠ 大任务申报（规模可能显著，须分阶段）**：本任务**必然包含「补 QEMU syscall 服务」**（见「现实预期」）⇒ 工作量可能远超一般 `t` 任务。**执行纪律**：分期推进、**每批各自留证**；**一旦实际规模大幅超出预期，停下报告**（不蛮干）。
+> **⚠ 大任务申报（规模可能显著，须分阶段）**：本任务**必然包含「补 QEMU syscall 服务」**（见「现实预期」）⇒ 工作量可能远超一般 `t` 任务。**执行纪律**：分期推进、**每批各自留证**；**一旦实际规模大幅超出预期，停下报告**（不蛮干）。**〔2026-10-15 收尾：本节「必然包含补服务」的预判已由用户裁定推翻 —— 不在 `dadao-m1` 上补服务、阶段 2/3 取消 ⇒ 以「§收尾裁定与范围重定义」为准〕**
+
+## 收尾裁定与范围重定义（2026-10-15，`/complete`；architect）
+
+**用户裁定（2026-10-15，渠道 = 经主会话问答；原话，原样引录）**：
+
+- 「**我不需要在dadao-m1上实现另外一套syscall的模拟，没有意义！！！从一开始就没有意义！！！**」
+- 「**1、删；2、P1/P2/P3/P4解释一下，我已经不记得了**」（第 1 项 = **撤掉 `dadao-m1` 上的 syscall 服务** ✓；第 2 项 = 主会话已解释 ✓）
+
+**范围重定义（本任务收尾口径；取代本册「三阶段 / 补服务 / 全量」相关表述）**：
+
+1. **本任务 = 「`P1` 能力边界度量」** ✓（产出口径 = 首份分类统计 + 服务缺口归因 + 覆盖边界声明）；**不以「全量通过」为目标** ✗。
+2. **阶段 2（按统计补服务）/ 阶段 3（全量 + 报告）取消** ✗；「**全量**」改由 **`P3`（`qemu-user`）承接** ✓（两大测试集全量在 `qemu-user` 上跑 ⇒ 「补服务」需求 ≈ 0；`tools/testcases/run_suite.py` **复用** ✓）。
+3. **阶段 1 成果保留为交付** ✓：runner（`tools/testcases/run_suite.py`，**入库**）+ 分类统计（**现场派生、不写死**）+ 报告（逐例结果 / `excluded` 逐条理由 / 覆盖边界声明）。
+4. **`dadao-m1` 上的 syscall 服务回退**（用户第 1 项「**删**」）：**实施待落任务**（**本轮未动 `components/qemu/**`** ✗）——明细见 `milestones.md`「M8 任务链」**【待实施】ⓑ**。
+5. `ADR-0025 D6` 顺序调整（`P1` → `P3` → `P2` → `P4`）为**待用户确认**项（改已 `Accepted` 的 ADR ⇒ 须**逐条确认**）——见 `milestones.md`「M8 任务链」**【待用户确认】ⓐ**。
 
 ## 执行环境
 **执行环境**：本地
@@ -54,6 +71,8 @@
 - **不为通过而改测试期望 / 放宽判据** ✗（见「纪律」1）。
 
 ## 分期结构（三阶段；**每阶段各自验收**）
+
+> **〔2026-10-15 收尾〕阶段 2 / 3 **已取消** ✗（用户裁定；见「§收尾裁定与范围重定义」）——下表阶段 2/3 行**仅供参考**；只有阶段 1 属本任务交付。**
 
 | 阶段 | 名称 | 内容 | 出口判据 |
 |---|---|---|---|
@@ -152,7 +171,7 @@
 4. `int\nmain(`（`ackermann.c` 等）存在 ⇒ 枚举「有无 main」不能用 `"int main"` 字面量；已改用正则 + 「curated 成员必在可尝试面内」一致性断言（当场抓到并修）。
 5. 上游 benchmark 默认规模在 dadao-m1 上过大（`fib2` LENGTH=43 >180 s、SMALL(40) ≈48 s；`nestedloop`/`sieve` ≈32 s）⇒ fast 档只收 runnable 项，余者留给 `--stage full --timeout 300`（**非**放宽判据，仅规模/预算）。
 6. 建议沉淀知识库：①「用例自身裁决为主 + `ENOSYS` 作根因归因」的分类口径；②「libc-test harness 必须归档语义链接」；③ 上游 `reference_output` 变体优先级（`.small` > `.big-endian` > 默认）。来源 = 本任务（`tools/testcases/run_suite.py`）。
-**遗留问题**：阶段 2（按统计补服务）/ 阶段 3（全量 + 报告）**未做**（本步按要求只做阶段 1）；阶段 2 首批建议见报告「阶段 2 信号」（`brk`+`mmap` 解锁面最宽）。`llvm-test-suite` 中无上游参照的 3 个 gcc-c-torture 例 `pass` 口径 = 「跑到退出 0」，非输出等价（阶段 3 固定参照）。
+**遗留问题**：阶段 2（按统计补服务）/ 阶段 3（全量 + 报告）**已取消**（**2026-10-15 收尾裁定**，取代原文「未做」；见「§收尾裁定与范围重定义」）——原「阶段 2 首批建议」（`brk`+`mmap` 解锁面最宽）**转为边界度量产出**；`llvm-test-suite` 中无上游参照的 3 个 gcc-c-torture 例 `pass` 口径 = 「跑到退出 0」、非输出等价（**阶段 3 取消** ⇒ 保留为**披露事项**）。
 
 ## 阶段记录
 
@@ -184,9 +203,13 @@
 
 ### 阶段 2｜按统计补服务
 
+**（已取消 ✗ —— 2026-10-15 裁定：不在 `dadao-m1` 上补 syscall 服务；见「§收尾裁定与范围重定义」）**
+
 （待填写：**逐批**记录——批内容 / 服务号 / `__dadao_argmask` 同步 / 探针与回归 / 统计前后对比）
 
 ### 阶段 3｜全量 + 报告
+
+**（已取消 ✗ —— 2026-10-15 裁定：「全量」改由 `P3`（`qemu-user`）承接；见「§收尾裁定与范围重定义」）**
 
 （待填写：全量命令 / 分类统计 / `excluded` 清单与逐条理由 / 覆盖边界声明 / 门控 rc）
 
@@ -196,11 +219,10 @@
 
 **阶段 2 批序建议（首份统计的直接推论）**：**最宽收益的下一步 = 补 `brk` + `mmap`** ✓（`malloc-0` 一例即同时吃这两号，可连带解锁「堆类」用例）；**含进程 / 信号类的用例（`fork`/`waitpid`/信号）永远需 `P3`** ✗ —— 非本任务（`P1` 静态 / `P2` 动态）所能覆盖，须作为 `excluded` 的**逐条理由**之一。
 
-**（C）两步走建议 —— 待用户裁定 ✗（未定；不得据此改范围 / 改契约 / 改 `excluded` 口径）**
-主会话 2026-10-15 提出、**尚未取得用户裁定**：
-1. 阶段 2 **只补 `brk` + `mmap`**，并把本任务**收窄为「`P1` 边界度量」**（产出口径 = 首份分类统计 + 服务缺口排序 + 覆盖边界声明，**不以「全量通过」为目标**）；
-2. **另立 `P3`（`qemu-user`）任务**承接进程 / 信号 / 文件系统类语义，与 `P1`（`system` 模式静态）/ `P2`（动态）分工。
-**裁定前处置**：用户未裁定前**仍按本任务书原「三阶段」结构与「范围」执行**；本建议**只是提案**，不得静默生效。
+**（C）两步走建议 —— 已裁定（2026-10-15）✓（原「**待用户裁定**」已解除；原话见「§收尾裁定与范围重定义」）**
+1. **阶段 2 不再「只补 `brk` + `mmap`」** ✗：**不在 `dadao-m1` 上补任何 syscall 服务**（用户原话「**我不需要在dadao-m1上实现另外一套syscall的模拟，没有意义！！！从一开始就没有意义！！！**」）⇒ `brk`/`mmap` 等 `enosys` 归因**保留为边界度量产出**（正是本任务第 1 项的用途）。
+2. **本任务收窄为「`P1` 边界度量」** ✓（产出口径 = 首份分类统计 + 服务缺口排序 + 覆盖边界声明，**不以「全量通过」为目标**）；**另立 `P3`（`qemu-user`）任务**承接进程 / 信号 / 文件系统类语义 ✓。
+3. **阶段 2/3 取消** ✗、「全量」改由 `P3` 承接 ✓、「`dadao-m1` 服务回退」**待实施**（用户「**1、删**」）⇒ 明细见「## 收尾裁定与范围重定义」+ `milestones.md`「M8 任务链」。
 
 ## 审阅记录
 
@@ -228,4 +250,21 @@
 
 #### 第 1 轮 reviewer 验收
 
-（待填写）
+**方式**：`TESTCASES-045t-P1`@`a3a7aea`（验收前 `git status --porcelain -uall` 空）；fast 档/门控/证据脚本全部**自跑**；还原一律 `cp`+md5（无 git 还原）。注：复跑会按脚本同名重写 `.work/log/testcases/TESTCASES-045t-p1-*`（原件已备份 `/tmp/opencode/TESTCASES-045t/review-p1/eng-logs-backup/`）。
+
+**重跑记录（真实输出/rc）**：
+- `make check-testcases-suites` → `rc=0`；`[libc-test] attempted=9 pass=7 fail=0 enosys=2 compile-error=0 timeout=0 unsupported=116`；`[llvm-test-suite] attempted=9 pass=9 … unsupported=3175`；`[total] attempted=18 pass=16 … unsupported=3291`；`[enosys-census] 29x6 214x2 222x2 56x2 79x1 113x1 169x1` ⇒ 与完成区 `7/9`、`9/9`、`16/18`、census **逐项一致**；计数由 runner 运行期 `counts[status]+=1` + glob 派生（核源码：无写死）。
+- `--stage full --list` → `2479`（libc-test 346 + llvm-test-suite 2133，`cut|uniq -c` 现场数）= 规模度量 ✓。
+- 门控自跑：`make check`(L1) `rc=0`（`repository checks (L1): PASS`）；`check-patch-tree`/`check-source-state`/`check-component-changelog`/`check-no-residue`/`check-tasks`/`check_issues.py` 各 `rc=0`；`make check-modules`(L2) `rc=0`（79 s，`module checks (L2): PASS`）。
+- `./.work/evidence/TESTCASES-045t/run-p1.sh` → `rc=0`；`checks passed=48 failed=0`/`PASS`（48 条 `[PASS]` 自数核）。
+
+**约束核验**：
+1. **不改测试集源码** ✓：`git -C .work/source/{libc-test,llvm-test-suite} status --porcelain` 均**空**、HEAD = `b7ec467…`/`2919e551…` = 锁 commit（跑前跑后各核一次）；runner 写路径仅 `.work/build/**` 与 `--json-out`（grep `write_text/open/mkdir` 核），套件树只读。
+2. **enosys 归因** ✓：与 QEMU `guest_errors` 现场逐例对齐——`malloc-0`→`[214,222]`(brk/mmap)、`stat`→`[56,79,113,169]`(openat/newfstatat/clock_gettime/gettimeofday)；`ioctl(29)×6` **良性**（6 例照常 pass；`time.c` 带 `[56,214,222]` 亦 pass）⇒ 「用例自身裁决为主、ENOSYS 仅归因」口径正确。
+3. **unsupported 逐条有据** ✓（≥4 类抽查 + 独立重数对齐）：no-main 2218 / C++ 956（`find`=956）/ Fortran 28（=28）/ ObjC 22+4 / `External/` 17（=17）/ harness TU 10（=10）；每类均有明确理由、无空类（`[exclusion-empty]` 0 条）。
+4. **oracle 独立** ✓：llvm 例用**上游 `.reference_output*`**（现场 ls 确在；`random` 按 SMALL 用 `.small`，比对=逐字节 stdout+exit）；`libc-test` 以用例自身 `return t_status`（`print.c: volatile int t_status`）为准；3 个 gcc-c-torture 无上游参照 ⇒ 「exit 0 即跑完」口径已在报告+遗留**显式披露**，非我方私定期望值。
+5. **opt-in 定位** ✓：两 target 未入 `check`(L1)/`check-modules`(L2)/`check-full`(L3)（行 497/504/508 核）；注释理由与 `docs/Process-07` line 40「代表集必须机械派生，禁止手工挑」相符。
+6. **完成区对齐** ✓：统计/census/48 断言/rc 与我自跑一致；「修改文件」= Makefile + `tools/testcases/run_suite.py` + 任务书，与 `git show --stat a3a7aea` 一致；阶段 2/3 确未做（阶段记录留白）；`(C)` 确标「**待用户裁定**（未定）」。
+7. **reviewer 新反例（不在 engineer 三条内）**：注入分类判据「无上游参照用例期望退出码 0→1」⇒ 同一 `run-p1.sh` **`rc=1`、`passed=41 failed=7`**（`fast stage: fail count expected=0 actual=9`；F 段 `malloc-0 expected=fail actual=pass` 连带红）⇒ `cp`+md5 还原（`4463b909…` 前后相等）⇒ 复跑 `rc=0`、`48/48` **回绿**；终态两套件源树仍空、HEAD 未变。
+
+**判决：Accepted**（阶段 1 达标；阶段 2/3 留后续，`(C)` 两步走建议维持「待用户裁定」）。
