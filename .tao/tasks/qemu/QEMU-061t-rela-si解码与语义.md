@@ -173,3 +173,40 @@
 - **issue**：`ISS-233`（L3 载体未含 `aip-si.yaml`；**现场核** `Makefile:880` 的 `for v in …` 仅两册、`check-qemu-semantics` 日志 `aip` 命中 **0**）/ `ISS-232`（`--show-encoding` 低半 SIGABRT rc=134，**须裁定**）/ `ISS-234`（`min_rom_probe_009t.py` 顶注仍称 `0x5A`=UNDI；`009t-audit.py` 对 `aip.si` 无 oracle，两件均**非门控**）—— 三条**现场复现**后登记；`check_issues.py` **rc=0（44 open / 13 closed）**。
 - **门控（本笔重跑，真值 = 自身 rc）**：`make check`(L1) **rc=0**（末行 `repository checks (L1): PASS`）、`check-patch-tree` rc=0（**147**）/`check-index-blobs` rc=0/`check-source-state` rc=0/`check-no-residue` rc=0/`check-tasks` rc=0/`check-knowledge-refs` rc=0/`check-knowledge-dir` rc=0/`check-component-changelog` rc=0；日志 `.work/log/qemu/QEMU-061t-commit-make-check-L1.log`。
 - **落盘**：`master` 由 `merge --ff-only` 落地、分支 `qemu-061t-commit` 已删；**未 push** ✗（`origin/master` 不动）。
+
+### L3 载体补齐 完成记录（2026-10-17；`ISS-233` 处置 —— `aip-si.yaml` 纳入 L3 门控载体）
+
+**背景 / 判据边界**：主会话**修正裁定** —— `ISS-233` 属**真覆盖缺口**（上一轮「已覆盖」判断不成立；现场 `Makefile:880` 的 `for v in …` **不含** `aip-si.yaml`、门控日志 `aip` **命中 0**）。本笔**只加载体这一项** ✗（不改清单其它项）、**未重建**、**未** commit/push、**未改**任务 `**状态**` ✗。
+
+**① 载体改动（逐处原文；`git diff Makefile` = 2 hunk）**：㈠ **载体清单（唯一枚举点）** `Makefile:881`：原 `	  for v in reg-shift-extend.yaml reg-compare.yaml; do \` ⇒ 现 `	  for v in reg-shift-extend.yaml reg-compare.yaml aip-si.yaml; do \`。**别处是否另枚举**：现场 `grep -rn 'for v in reg-shift-extend.yaml'` = **1 处**（仅 `Makefile`）、`Makefile` 内 `reg-compare.yaml` 仅此 1 处 ⇒ **无第二枚举点** ✓（`tests/scripts/run_qemu_smoke.py::GATE_VECTORS` 是 **L2** 载体，早已含 `aip-si.yaml`）。㈡ **注记同步（非清单项）**：原 `# Runs all semantic/boundary cases in reg-shift-extend + reg-compare.` ⇒ `# Runs all cases in reg-shift-extend + reg-compare + aip-si (ISS-233: aip.si` / `# must be in the L3 carrier set, not only the L2 smoke set).`（防「注记 ↔ 清单」漂移）。**未改**清单其它项、未改 L2 载体、未改 `tests/vectors/**`。
+
+**② 复跑 L3（真 rc + 现场计数）**：`make check-qemu-semantics` **rc=0**、`Results: 161 total, 161 passed, 0 failed`（**149 → 161** = `reg-shift-extend` 113 + `reg-compare` 36 + `aip-si` 12，**现场统计、不写死**）；`make check-full`(**L3**) **rc=0**（`CHECK_FULL_EXIT=0`；50 s；末行 `full checks (L3): PASS` —— `check-qemu-semantics` **161/161**、`check-lit-full` 12/12、`diff_ir_lli` 19/19、`run_embench_e2e` 38/38）。日志 `.work/log/qemu/QEMU-061t-L3carrier-L3-make-check-full.log`、marker `.work/log/qemu/QEMU-061t-L3carrier-L3-full.EXIT`。
+
+**③ `aip` 命中（真值 / 分档披露）**：① 门控**默认摘要档**日志 `.work/log/qemu/check-qemu-semantics.log`（3 行）⇒ `grep -c aip .work/log/qemu/check-qemu-semantics.log` = **0**——该档**非 verbose（不逐例打印）**，非静默；② **同载体集 / 同命令 / 同安装根二进制 + `-v`** 的 verbose 镜像 ⇒ `grep -c 'aip-si.yaml' .work/log/qemu/QEMU-061t-L3-semantics-verbose.log` = **12**（12/12 `PASS aip-si.yaml[*]`）；③ **注入态真门控** ⇒ `grep -c aip .work/log/qemu/check-qemu-semantics.log` = **1**（`FAIL aip-si.yaml[7]`）。⇒ 覆盖**确实生效**（据 ②③ + 计数 149→161）。
+
+**④ L2 复核**：`tests/scripts/run_qemu_smoke.py::GATE_VECTORS` = `(reg-shift-extend.yaml, reg-compare.yaml, aip-si.yaml)` **已含**；`make check-modules`(**L2**) **rc=0**（`check-qemu-smoke` **90/90**、`module checks (L2): PASS`）。日志 `.work/log/qemu/QEMU-061t-L3carrier-L2-make-check-modules.log`。
+
+**⑤ 证据脚本（`cp`+md5 还原纪律）**：`.work/evidence/QEMU-061t-L3carrier/run.sh` ⇒ 默认 **7/7 rc=0**、`--inject` **14/14 rc=0**（C5：注入 `aip-si.yaml` case[7] 期望值 `0xFC0000001000→…2000` ⇒ 真门控 rc≠0 且日志 `aip` 命中 ≥1 ⇒ `cp` 还原（`cmp` 一致、md5 `8249984794c2ad04b01f48a11b7f79de`）⇒ 回绿）。日志 `.work/log/qemu/QEMU-061t-L3carrier-runsh.log`、`.work/log/qemu/QEMU-061t-L3carrier-runsh-inject.log`（**未**用 `git checkout`/`restore`/`stash`）。
+
+**⑥ 未重建证明**：安装根二进制 md5 与 18:3x 记录**逐件相同**（`qemu-system-dadao` = `a11b2a4e4885c37393736f0ba0feaacf`、`clang` = `457f62b093c6a60daeb359b9e5758aa8`、`llvm-mc` = `59f5b7f20780bcc0618880aaebcb0b75`）、`qemu-system-dadao` mtime 未变（`Oct 16 18:35`）；`make check-full` 顺带 `install-host` = `ninja: no work to do`（llvm 两次）+ `build-qemu` 仅 `[1/20] Generating qemu-version.h` ⇒ **零重编译**（单跑、无并发；`ISS-229` 未犯）。
+
+**测试结果**：见 ②④⑤（L3 真门控 rc=0 / 161-161；L3 全卷 rc=0；L2 rc=0 / 90-90；证据脚本 7/7 与 14/14）。失败原因：无。
+**修改文件**：`Makefile`（唯一 v5 跟踪面代码改动 = 载体清单 +1 项 + 注记 2 行）；`.tao/knowledge/issues.yaml`（`ISS-233`：`status→closed` + `resolved_by: QEMU-061t` + notes 追加）；本任务书（**追加**本块与自审轮）。**未改** `spec/`·`contracts/`·`.tao/contracts/`·`components/**`·`tests/**`·`tools/**`。`git status -uall` = 3 项（`Makefile` + `issues.yaml` + 本任务书），无残留。
+**验收结果**（门控，真值 = 自身 rc；日志 `.work/log/qemu/QEMU-061t-L3carrier-<gate>.log`）：`make check`(L1) **rc=0**（末行 `repository checks (L1): PASS`）、`check-patch-tree` **rc=0（5 comp / 147 patches）**、`check-index-blobs` rc=0（108 new + 39 modification）、`check-source-state` rc=0、`check-no-residue` rc=0、`check-tasks` rc=0、`check-knowledge-refs` rc=0（0 悬空）、`check-component-changelog` rc=0；`check_issues.py` rc=0（**43 open / 14 closed**；`open ⇒ resolved_by null` 断言满足）。
+**新发现/坑**：① **L3 门控日志「不逐例」**：`check-qemu-semantics` 默认档日志 = **3 行摘要**（对比 L2 `check-qemu-smoke` 打印载体名 + 现场计数 = **自证命中**）⇒ 想从门控日志直接看「跑了哪些向量 / 命中数」**须**加 `-v` 或另做 verbose 镜像；本笔**不改**门控 verbose（超出「只加一项」）。② **计数是强证据**：「门控是否消费某向量」可用「计数增量（现场）+ 定点注入（可达 FAIL）」双证，**不必**依赖逐例日志。③ **同族漂移点**：`tests/scripts/run_qemu_smoke.py:4` 的 docstring 仍称「全量 **149** 用例」（本笔后应为 161）——行文漂移（非门控）⇒ 登记，本笔**不改**（任务未授权改该文件）。④ **载体清单唯一真源**：L3 载体仅 `Makefile` 一处 `for v in …`；新增指令须同时考虑 L2（`GATE_VECTORS`）与 L3（`Makefile`）两处载体，否则「一能力一向量」在某一层零覆盖。
+**遗留问题**：① `run_qemu_smoke.py:4` 「149」字面（行文漂移，见新发现③）——登记待裁定；② 本册原遗留 ②③（`--show-encoding` 低半不修；`min_rom_probe_009t.py` 顶注 + `009t-audit` 无 oracle = `ISS-234`）**仍未处置**；③ 按指令**未改任务 `**状态**`** ✗（仍 `待开始`）。
+
+#### 第 4 轮 engineer 自审（L3 载体补齐）
+
+**自审方式**：自主逐行审查本笔改动（`Makefile` 2 hunk；`issues.yaml` 的 `ISS-233` 三字段；证据脚本 `run.sh` 全部检查的**可达 FAIL**）+ 逐条反查真值取自当次输出（本卷 `subagent_depth=1` ⇒ 不另起子代理）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1（自审发现·**可达 FAIL**）门控扩载体是否**真消费** `aip-si.yaml`（非仅计数） | ✅已证 | 不改：定点注入 = 唯一解释 | 注入 `aip-si.yaml[7]` 期望值 ⇒ 真门控 `make check-qemu-semantics` **rc=1**（make rc=2）、日志 `FAIL aip-si.yaml[7]`；`cp` 还原 ⇒ **rc=0 / 161-161** |
+| F2（自审发现·**任务书要求 vs 现场**）要求「门控日志 `aip` 命中 > 0」但默认档仅摘要 | ✅已披露 + 替代证据 | 不改门控 verbose（超范围） | verbose 镜像 `grep -c 'aip-si.yaml'` = **12**；注入态真门控日志 `grep -c aip` = **1**；默认档 = 0（3 行摘要，非静默） |
+| F3（核过·无第二枚举点）载体清单是否别处另有一份 | ✅已核 | 不改 | `grep -rn 'for v in reg-shift-extend.yaml'` = 1 处（仅 `Makefile:881`）；`run_qemu_smoke.py::GATE_VECTORS` 是 L2 载体（已成三册） |
+| F4（核过·未重建）`make check-full` 顺带 `install-host` 是否等于重建 | ✅已核（附对账） | 不改 | 安装根 md5 `a11b2a4e…`/`457f62b0…`/`59f5b7f2…` 与 18:3x 记录相同、mtime 未变；`ninja: no work to do` |
+| F5（自审发现·还原纪律）注入后是否留残留 | ✅已核 | 不改 | `cp` 还原 + `cmp` 一致 + md5 = `8249984794c2ad04b01f48a11b7f79de`；`git status -uall` 无 `aip-si.yaml`；**未**用 `git checkout`/`restore`/`stash` |
+| F6（核过·门控）`check_issues` 对 `closed` 条目的 `resolved_by` 约束 | ✅已核 | 不改 | `python3 tools/infra/check_issues.py` **rc=0**（43 open / 14 closed；`resolved_by 约束 OK`） |
+
+**判决**：F1/F3/F4/F5/F6 核过（附现场证据）；F2 = **任务书要求与现场门控日志形态不符**，已**分档披露 + 给等价 ≥1 证据**（verbose 镜像 12 / 注入态真门控 1），**不擅自改门控 verbose**。**无未修 finding**（遗留①–③ = 登记项 / 裁定项，非本笔授权面）。按指令**不改任务 `**状态**`** ✗。

@@ -863,7 +863,8 @@ check-fp-contract:
 # QEMU semantic execution gate (SPEC-069t): runs ISA semantic test vectors
 # through QEMU. The QEMU binary is taken from the install root (ADR-0016 D9;
 # INFRA-047t): run 'make install-host' first.
-# Runs all semantic/boundary cases in reg-shift-extend + reg-compare.
+# Runs all cases in reg-shift-extend + reg-compare + aip-si (ISS-233: aip.si
+# must be in the L3 carrier set, not only the L2 smoke set).
 # Uses symlinked temp dir + --batch for full coverage; cases run in parallel
 # via --jobs $(JOBS) (JOBS defaults to 8; never nproc/full-core).
 # Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
@@ -877,7 +878,7 @@ QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors/isa
 check-qemu-semantics:
 	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }; \
 	  mkdir -p $(QEMU_SEM_DIR) || { echo "check-qemu-semantics: ERROR: cannot create gate dir $(QEMU_SEM_DIR) (path occupied?)"; exit 1; }; \
-	  for v in reg-shift-extend.yaml reg-compare.yaml; do \
+	  for v in reg-shift-extend.yaml reg-compare.yaml aip-si.yaml; do \
 	    [ -e $(QEMU_SEM_VEC_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: vector $(QEMU_SEM_VEC_DIR)/$$v not found"; exit 1; }; \
 	    ln -sf $(QEMU_SEM_VEC_DIR)/$$v $(QEMU_SEM_DIR)/$$v || { echo "check-qemu-semantics: ERROR: failed to symlink $$v into $(QEMU_SEM_DIR)"; exit 1; }; \
 	    [ -L $(QEMU_SEM_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$v is not a symlink (stale/occupied path?)"; exit 1; }; \
