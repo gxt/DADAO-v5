@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
 new file mode 100644
-index 000000000..a16d7447c
+index 000000000..521e0ac29
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,137 @@
 +//===-- DADAOMCInstLower.cpp - DADAO MachineInstr to MCInst ----*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -25,6 +25,7 @@ index 000000000..a16d7447c
 +
 +#include "DADAO.h"
 +#include "DADAOAsmPrinter.h"
++#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +
 +#include "llvm/CodeGen/AsmPrinter.h"
 +#include "llvm/CodeGen/MachineBasicBlock.h"
@@ -91,10 +92,12 @@ index 000000000..a16d7447c
 +    return MCOperand::createImm(MO.getImm());
 +  case MachineOperand::MO_MachineBasicBlock:
 +  case MachineOperand::MO_GlobalAddress:
-+    // PIC GOT reference (LLVM-094t): the operand denotes the symbol's GOT slot
-+    // and the slot's data field already carries `sym + offset`, so the
-+    // instruction operand must be the bare slot label (adding the offset here
-+    // would load from inside the slot).
++    // PIC GOT reference (LLVM-094t; reached through the `aip.si`/`ld.o` pair
++    // since ADR-0029 D4): the operand denotes the symbol's GOT slot and the
++    // slot's data field already carries `sym + offset`, so the instruction
++    // operand must be the bare slot label (adding the offset here would load
++    // from inside the slot).  It is the *high* half's target; the emitter picks
++    // R_DADAO_PCREL_HI from the `aip.si` opcode plus a bare symbol.
 +    if (MO.getTargetFlags() & DADAO::MO_GOT_ADDR)
 +      return MCOperand::createExpr(MCSymbolRefExpr::create(
 +          Printer.getGOTSlotSymbol(MO.getGlobal(), MO.getOffset()), Ctx));
@@ -113,6 +116,18 @@ index 000000000..a16d7447c
 +    return MCOperand::createExpr(
 +        MCSymbolRefExpr::create(Printer.GetJTISymbol(MO.getIndex()), Ctx));
 +  case MachineOperand::MO_MCSymbol:
++    // Low half of a PC-relative hi/lo pair (ADR-0029 D2/D4): the operand names
++    // the *pairing site* -- the temporary label DADAOInstrInfo::
++    // expandPostRAPseudo emits in front of the paired `aip.si` -- not a data
++    // target, so it is wrapped in the `%pcrel_lo(...)` specifier (RISC-V's
++    // `%pcrel_lo(label)` form).  The emitter turns that into R_DADAO_PCREL_LO,
++    // and the ELF writer folds the local label into section symbol + addend =
++    // site address, which is the pairing information the linker needs
++    // (contract-elf.md §3.1/§3.2).  A bare MO_MCSymbol use (jump-table labels)
++    // keeps the plain expression as before.
++    if (MO.getTargetFlags() & DADAO::MO_PCREL_LO)
++      return MCOperand::createExpr(MCSpecifierExpr::create(
++          MO.getMCSymbol(), DADAO::S_PCREL_LO, Ctx));
 +    return LowerSymbolOperand(MO, MO.getMCSymbol());
 +  }
 +}

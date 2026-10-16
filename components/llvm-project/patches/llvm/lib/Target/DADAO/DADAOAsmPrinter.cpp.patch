@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
 new file mode 100644
-index 000000000..a09129e33
+index 000000000..dfe5274c5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,139 @@
 +//===-- DADAOAsmPrinter.cpp - DADAO LLVM Assembly Printer ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -99,13 +99,15 @@ index 000000000..a09129e33
 +    return;
 +
 +  // PIC GOT (LLVM-094t, contract-dynlink.md §3): writeable, allocated, 8-byte
-+  // slots.  `rb0`-relative accesses are R_DADAO_REL12 relocations against these
-+  // labels, so a slot must be placed within +/-2 KiB of every access; the
-+  // linker owns that layout (ADR-0026 D5), and the object file only records the
-+  // relocation.  No ELF `entsize` is set: it is only meaningful for mergeable
-+  // sections (MCAsmInfoELF::printSwitchToSection asserts on a nonzero entry size
-+  // without SHF_MERGE), and the 8-byte width is an ABI convention here, not a
-+  // section property.
++  // slots.  Since ADR-0029 D3/D4 the accesses are the PC-relative hi/lo pair
++  // (`aip.si` + `ld.o`, R_DADAO_PCREL_HI/_LO) against these labels, which
++  // reaches ±512 MiB, so **no** `.got`-beside-`.text` layout obligation is
++  // imposed on the linker (the pre-ADR-0029 `rb0`-relative R_DADAO_REL12 access
++  // was limited to ±2 KiB).  The object file only records the relocation.  No
++  // ELF `entsize` is set: it is only meaningful for mergeable sections
++  // (MCAsmInfoELF::printSwitchToSection asserts on a nonzero entry size without
++  // SHF_MERGE), and the 8-byte width is an ABI convention here, not a section
++  // property.
 +  MCSection *GOT = OutContext.getELFSection(
 +      ".got", ELF::SHT_PROGBITS, ELF::SHF_ALLOC | ELF::SHF_WRITE);
 +  OutStreamer->switchSection(GOT);

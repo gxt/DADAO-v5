@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..a8469e157
+index 000000000..036c0b7f2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
-@@ -0,0 +1,1585 @@
+@@ -0,0 +1,1606 @@
 +//===-- DADAOInstrInfo.td - DADAO Instruction defs -----*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -602,7 +602,28 @@ index 000000000..a8469e157
 +  let Pattern = [];
 +}
 +
-+// 0x5A: rela.si deleted (ADR-0012 D5) -> reserved -> UNDI
++// IP-relative address formation (ADR-0029 D1 + §修订注记; the instruction is
++// named aip.si since the 2026-10-16 rename, formerly rela.si): rbHA = IP +
++// (sign_extend(imms18) << 12), IP low bits NOT cleared (auipc-style) and IP =
++// the aip.si instruction's own address (= rb0).  Format/bit order follow the
++// existing riii defs (add.si: op + ha[23:18] + imms18[17:0]).
++// The destination is an rb register, so the fetched address reuses the very
++// register of the pair below (`aip.si rbX, hi` + `ld.o rbX, [rbX, lo]`).
++// A destination of rb0 is ILLI at execution time (contracts/legality_rules.yaml
++// dst_rb0); the MC layer does not reject it (no static MC legality for GPR
++// destinations -- contracts/legality_rules.yaml + SimRISC-05 §3.4 IP 相对寻址).
++// The assembler-level operand is in BYTES (imms30; Toolchain-01 §3.2/§5) and
++// the encoded field is the 4 KiB block count (field = bytes >> 12, i.e. the
++// x4096 group of the x4 jump/branch fields): the AsmParser converts the byte
++// operand into the block field and rejects a non-multiple of 4096 plus an
++// out-of-range value (no truncation); the printer prints the byte value back.
++// The symbol operand is an R_DADAO_PCREL_HI relocation (contract-elf.md §2.2).
++def aip_si_rb : DADAORiii<"aip.si"> {
++  let OutOperandList = (outs GPRB:$ra);
++  let InOperandList = (ins imms18:$imm18);
++  let op = 0x5A;
++  let Pattern = [];
++}
 +
 +def add_si_rb : DADAORiii<"add.si"> {
 +  let OutOperandList = (outs GPRB:$ra);

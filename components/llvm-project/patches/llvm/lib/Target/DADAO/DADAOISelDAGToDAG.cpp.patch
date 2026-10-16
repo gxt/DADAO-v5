@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..56af06d6d
+index 000000000..03e0f2b93
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,507 @@
+@@ -0,0 +1,513 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -134,15 +134,22 @@ index 000000000..56af06d6d
 +  // Machine nodes whose result already lives in the GPRB bank: a frame object
 +  // address materialized for a *value* use (FRAME_ADDR, LLVM-038t, e.g. an
 +  // alloca used as a pointer), the result of a pointer add already selected
-+  // to add.o (chained GEPs), and the PIC GOT-slot load (ld.o rb) that replaces
-+  // a GlobalAddress under -fPIC/-fPIE (LLVM-094t).  Keeping these on the
-+  // single-instruction path is what turns `base + offset` into one add.o
-+  // instead of `rb2rd` + GPRD add + `rd2rb`.
++  // to add.o (chained GEPs), and the PIC GOT access that replaces a
++  // GlobalAddress under -fPIC/-fPIE (LLVM-094t; the `aip.si`/`ld.o` pair
++  // PCREL_LOAD since ADR-0029 D4).  Keeping these on the single-instruction
++  // path is what turns `base + offset` into one add.o instead of `rb2rd` +
++  // GPRD add + `rd2rb`.
 +  if (V.getNode()->isMachineOpcode()) {
 +    switch (V.getMachineOpcode()) {
 +    case DADAO::FRAME_ADDR:
 +    case DADAO::add_o_bbd:
-+    // PIC GOT load (LLVM-094t): `ld.o rb, [rb0, <gotslot>]` writes GPRB.
++    // PIC GOT access (LLVM-094t; since ADR-0029 D4 the `aip.si`/`ld.o` pair
++    // inside PCREL_LOAD): the pair's result is the slot content, i.e. the
++    // symbol's address, and it lands in GPRB.
++    case DADAO::PCREL_LOAD:
++    // A GPRB reload from a stack slot (`ld.o rb, [frame, 0]`): the value comes
++    // back into the address bank, so a following `+ offset` stays on the single
++    // add.o path instead of round-tripping through GPRD.
 +    case DADAO::ld_o_rb:
 +      return true;
 +    default:
@@ -261,13 +268,15 @@ index 000000000..56af06d6d
 +    auto *GA = cast<GlobalAddressSDNode>(Node);
 +    const SDLoc DL(Node);
 +
-+    // PIC (-fPIC / -fPIE, LLVM-094t): the address comes from the symbol's GOT
-+    // slot -- never from a link-time absolute materialization, because the load
-+    // base of a shared object / PIE is unknown at link time.  The slot address
-+    // is PC-relative (`rb0`) plus a link-time constant displacement, so no
-+    // global-pointer register is reserved (contract-dynlink.md §3, ADR-0026
-+    // D5): the emitter records the access as R_DADAO_REL12 against the slot and
-+    // the linker patches the 12-bit byte displacement.  The slot itself is a
++    // PIC (-fPIC / -fPIE, LLVM-094t; address formation ADR-0029 D4): the
++    // address comes from the symbol's GOT slot -- never from a link-time
++    // absolute materialization, because the load base of a shared object / PIE
++    // is unknown at link time.  Since ADR-0029 the slot is reached through the
++    // PC-relative hi/lo pair (PCREL_LOAD -> `aip.si rbX, <slot>` +
++    // `ld.o rbX, [rbX, %pcrel_lo(site)]`): the pair materializes the slot
++    // address as IP + (hi << 12) and loads through it, so no global-pointer
++    // register is reserved and no `.got`-beside-`.text` layout is required
++    // (contract-dynlink.md §3, ADR-0026 D5, ADR-0026 D7).  The slot itself is a
 +    // plain 8-byte absolute data field in `.got` (R_DADAO_ABS48 data form,
 +    // emitted by the AsmPrinter): *content* fixed at load time, *displacement*
 +    // fixed at link time -- the two are never confused (ADR-0019 D2).  A
@@ -276,9 +285,7 @@ index 000000000..56af06d6d
 +    if (TM.getRelocationModel() == Reloc::PIC_) {
 +      SDValue Sym = CurDAG->getTargetGlobalAddress(
 +          GA->getGlobal(), DL, MVT::i64, GA->getOffset(), DADAO::MO_GOT_ADDR);
-+      SDNode *M = CurDAG->getMachineNode(
-+          DADAO::ld_o_rb, DL, MVT::i64,
-+          CurDAG->getRegister(DADAO::rb0, MVT::i64), Sym);
++      SDNode *M = CurDAG->getMachineNode(DADAO::PCREL_LOAD, DL, MVT::i64, Sym);
 +      ReplaceNode(Node, M);
 +      return;
 +    }
@@ -348,20 +355,19 @@ index 000000000..56af06d6d
 +    SDValue Scale = CurDAG->getTargetConstant(3, DL, MVT::i64);
 +    SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i64);
 +
-+    // PIC (-fPIC / -fPIE, LLVM-094t): the table base must not be a link-time
-+    // absolute address, so it is taken from a GOT slot (`.got`, 8-byte
-+    // absolute data field) reached PC-relatively through `rb0` -- the same rule
-+    // as for a global address (ADR-0026 D5).  The table contents (one 8-byte
-+    // absolute case address per entry) are unchanged; only the base moves
-+    // behind the base-relative slot access.
++    // PIC (-fPIC / -fPIE, LLVM-094t; address formation ADR-0029 D4): the table
++    // base must not be a link-time absolute address, so it is taken from a GOT
++    // slot (`.got`, 8-byte absolute data field) reached through the same
++    // PC-relative hi/lo pair as a global address (ADR-0026 D5, ADR-0026 D7):
++    // `aip.si rbX, <slot>` + `ld.o rbX, [rbX, %pcrel_lo(site)]`.  The table
++    // contents (one 8-byte absolute case address per entry) are unchanged; only
++    // the base moves behind the base-relative slot access.
 +    SDNode *Base;
 +    if (TM.getRelocationModel() == Reloc::PIC_) {
 +      auto *JT = cast<JumpTableSDNode>(TargetJT);
 +      SDValue JTSlot = CurDAG->getTargetJumpTable(JT->getIndex(), MVT::i64,
 +                                                  DADAO::MO_GOT_ADDR);
-+      Base = CurDAG->getMachineNode(DADAO::ld_o_rb, DL, MVT::i64,
-+                                    CurDAG->getRegister(DADAO::rb0, MVT::i64),
-+                                    JTSlot);
++      Base = CurDAG->getMachineNode(DADAO::PCREL_LOAD, DL, MVT::i64, JTSlot);
 +    } else {
 +      Base = CurDAG->getMachineNode(DADAO::JT_ADDR, DL, MVT::i64, TargetJT);
 +    }

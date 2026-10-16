@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000..c9d2889a4
+index 000000000..a21a6f303
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,426 @@
+@@ -0,0 +1,439 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -282,6 +282,19 @@ index 000000000..c9d2889a4
 +          MAI.printExpr(O, *MI->getOperand(1).getExpr());
 +        O << "]";
 +      }
++    } else if (MnemStr == "aip.si") {
++      // aip.si: the encoded 18-bit field is a 4 KiB block count, but the
++      // assembler-level operand is a byte count (imms30), so print BYTES
++      // (field << 12) -- the same "print the assembler byte offset"
++      // convention as the <<2 for jump/branch/escape, which keeps the
++      // assembler round trip (print -> re-assemble) exact.
++      O << " ";
++      printRegName(O, MI->getOperand(0).getReg());
++      O << ", ";
++      if (MI->getOperand(1).isImm())
++        O << (MI->getOperand(1).getImm() << 12);
++      else if (MI->getOperand(1).isExpr())
++        MAI.printExpr(O, *MI->getOperand(1).getExpr());
 +    } else {
 +      O << " ";
 +      printRegName(O, MI->getOperand(0).getReg());

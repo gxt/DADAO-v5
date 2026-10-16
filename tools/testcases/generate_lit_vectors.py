@@ -131,11 +131,13 @@ def _build_positive(rec):
             return ("add.si %s, 8" % _reg(f0["bank"], 8),
                     {f0["name"]: 8, "imms18": 8}, "riii-alu")
         if mn == "aip.si":
-            # IP 相对寻址（ADR-0029 D1）：`riii` 的「dst, imm」形态（非分支形态）；
-            # 指令名 `rela.si` → `aip.si`（用户 2026-10-16 裁定）。此处立即数仍按**编码层**
-            # `imms18`（4 KiB 块）书写——汇编层改按**字节**（`imms30`）受理属代码侧改动
-            # （见 `LLVM-095t` 待确认项），届时本处改为字节值（如 `32768` = 8 块）。
-            return ("aip.si %s, 8" % _reg(f0["bank"], 8),
+            # IP 相对寻址（ADR-0029 D1 / SimRISC-05 §3.4）：`riii` 的「dst, imm」
+            # 形态（非分支形态）；指令名 `rela.si` → `aip.si`（用户 2026-10-16 裁定）。
+            # 汇编层操作数按**字节**书写（字段名 `imms30`，须为 4 KiB 整数倍，
+            # 范围 ±512 MiB；Toolchain-01 §3.2/§5）⇒ 编码层 `imms18 = bytes >> 12`
+            # （4 KiB 块）。故示例写字节值 `32768`（= 8 块），`assigns` 的
+            # `imms18` 仍为 8 —— 期望编码与 SPEC-145t 的块单位写法**逐字节相同**。
+            return ("aip.si %s, 32768" % _reg(f0["bank"], 8),
                     {f0["name"]: 8, "imms18": 8}, "riii-alu")
         if mn == "ret":
             return "ret rd8, 8", {"rdha": 8, "imms18": 8}, "riii-ret"

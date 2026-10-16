@@ -1,9 +1,9 @@
 diff --git a/lld/ELF/Arch/DADAO.cpp b/lld/ELF/Arch/DADAO.cpp
 new file mode 100644
-index 000000000..1ae638954
+index 000000000..8b7f6e721
 --- /dev/null
 +++ b/lld/ELF/Arch/DADAO.cpp
-@@ -0,0 +1,481 @@
+@@ -0,0 +1,683 @@
 +//===- DADAO.cpp - DADAO ELF Linker Target ----------------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -30,6 +30,18 @@ index 000000000..1ae638954
 +//       address, so P is the reloc site itself).
 +//   R_DADAO_ABS12 (5): field = S + A, imms12 (BYTE offset, no >>2).  Used by
 +//       ld.*/st.* with base rb1..rb63 (base-relative/absolute).
++//   R_DADAO_PCREL_HI (14) / R_DADAO_PCREL_LO (15): the PC-relative hi/lo pair
++//       (ADR-0029 D2, contract-elf.md §2.2/§3.1).  The high half patches the
++//       `aip.si` imms18 field, the low half the paired `ld.o` imms12 field;
++//       both derive from the *same* (S + A - P), where P is the `aip.si` site
++//       address.  The high field is rounded to the nearest 4 KiB multiple
++//       ((S + A - P + 0x800) >> 12) and the low field is the signed residual,
++//       so the reach is ±512 MiB and no `.got`-beside-`.text` layout is needed
++//       (ADR-0029 D3/D4).  The low record carries the *pairing information*:
++//       its symbol+addend resolve to the site address, whose own record is the
++//       high half (RISC-V's `%pcrel_lo(label)` form) -- the linker therefore
++//       recovers the high half's target instead of using the low record's
++//       symbol as a data address.
 +//   R_DADAO_JUMP_SLOT (7): PLT GOT slot, 8-byte field, S + A unsigned 48-bit
 +//       (musl REL_PLT).
 +//   R_DADAO_RELATIVE (8): 8-byte slot, B + A unsigned 48-bit (musl
@@ -98,7 +110,7 @@ index 000000000..1ae638954
 +    // -fPIC" would otherwise be triggered for every R_DADAO_ABS48 because the
 +    // default iRelSymbolicRel sentinel is 0 and 0 is R_DADAO_NONE.  Use the
 +    // R_DADAO_NUM count value as a sentinel that never matches a real reloc
-+    // (ADR-0019 D10: R_DADAO_NUM = 14).
++    // (ADR-0019 D10/D12: R_DADAO_NUM = 16).
 +    iRelSymbolicRel = R_DADAO_NUM;
 +    defaultMaxPageSize = 0x10000;  // DADAO page = 64 KiB (DADAO-12 §2.2.2)
 +
@@ -117,7 +129,12 @@ index 000000000..1ae638954
 +    // then starts the entries at headerSize == 0).  gotPltHeaderEntriesNum
 +    // keeps the psABI GOT[0]/GOT[1] reservation: index 0 names .dynamic, index
 +    // 1 is unused without lazy binding.
-+    pltEntrySize = 24;
++    //
++    // Entry size 12 = the three instructions of writePlt, i.e. one 4-byte
++    // instruction word per entry slot (ADR-0029 D5).  There is no in-entry data
++    // slot any more: the stub's PC-relative hi/lo pair reaches ±512 MiB, so the
++    // entry no longer has to carry the `.got.plt` distance in a constant.
++    pltEntrySize = 12;
 +    pltHeaderSize = 0;
 +    gotPltHeaderEntriesNum = 2;
 +  }
@@ -140,9 +157,73 @@ index 000000000..1ae638954
 +};
 +} // namespace
 +
-+// PLT entry layout (pltEntrySize == 24, see writePlt): the byte offset of the
-+// in-entry constant that carries the distance to the symbol's .got.plt slot.
-+static constexpr unsigned pltDataOffset = 16;
++// Pairing lookup for the PC-relative hi/lo pair (ADR-0029 D2/D3,
++// contract-elf.md §3.1/§3.2).
++//
++// The low record is not an address of its own: its symbol+addend carry the
++// *pairing information*, i.e. they locate the `aip.si` site whose record is the
++// high half (the RISC-V `%pcrel_lo(label)` convention -- the assembler folds the
++// site label into section symbol + addend = site address, and a named local
++// label would resolve to the same section offset, so both shapes work here).
++// Both halves then share the same P = that site address; the low half's own
++// instruction address never enters the formula, which is why it cannot be
++// resolved from the low record alone.
++//
++// Every way of failing is an error: pairing information that does not point into
++// a section / points into a different section / has no high record / reaches a
++// high record that is not a `aip.si`.  Staying silent would encode a wrong
++// address (ADR-0019 D6; ADR-0029 D3).
++static const Relocation *findPcrelHi(Ctx &ctx, const InputSection &sec,
++                                     const Relocation &loRel) {
++  const auto *d = dyn_cast<Defined>(loRel.sym);
++  if (!d || !d->section) {
++    Err(ctx) << sec.getLocation(loRel.offset)
++             << ": R_DADAO_PCREL_LO pairing information does not point into a "
++                "section (expected the paired `aip.si` site)";
++    return nullptr;
++  }
++  if (d->section != &sec) {
++    Err(ctx) << sec.getLocation(loRel.offset)
++             << ": R_DADAO_PCREL_LO pairing information points into section '"
++             << d->section->name << "' instead of '" << sec.name << "'";
++    return nullptr;
++  }
++  const uint64_t site = d->value + loRel.addend;
++  for (const Relocation &rel : sec.relocs()) {
++    if (rel.offset != site)
++      continue;
++    if (rel.type != R_DADAO_PCREL_HI) {
++      Err(ctx) << sec.getLocation(loRel.offset)
++               << ": R_DADAO_PCREL_LO pairs with relocation " << rel.type
++               << " at the site; expected R_DADAO_PCREL_HI";
++      return nullptr;
++    }
++    // "落点不符" (landing mismatch, contract-elf.md §3.2): the site must
++    // really be an `aip.si` (op 8-bit = 0x5A), i.e. the high field must live
++    // in an imms18 (contract-elf.md §2.2/§3.2).  The instruction-word test
++    // doubles as a guard against a site label that landed in data or in the
++    // middle of an instruction.
++    const uint32_t siteInsn =
++        read32be(sec.content().data() + rel.offset);
++    if ((siteInsn >> 24) != 0x5A) {
++      Err(ctx) << sec.getLocation(loRel.offset)
++               << ": R_DADAO_PCREL_LO points at the PC-relative high half of "
++                  "location 0x"
++               << utohexstr(site) << ", which is not a `aip.si` instruction "
++                                    "(opcode 0x"
++               << utohexstr(siteInsn >> 24) << ")";
++      return nullptr;
++    }
++    return &rel;
++  }
++  Err(ctx) << sec.getLocation(loRel.offset)
++           << ": R_DADAO_PCREL_LO points at offset 0x" << utohexstr(site)
++           << " without an associated R_DADAO_PCREL_HI relocation";
++  return nullptr;
++}
++
++// PLT entry layout (pltEntrySize == 12, see writePlt): three 4-byte
++// instructions, no in-entry constant (ADR-0029 D5).
 +
 +static uint32_t getEFlags(Ctx &ctx, InputFile *f) {
 +  return cast<ObjFile<ELF64BE>>(f)->getObj().getHeader().e_flags;
@@ -200,6 +281,34 @@ index 000000000..1ae638954
 +  case R_DADAO_ABS12:
 +    // Base-relative symbol displacement: S + A (byte offset, imms12).
 +    return R_ABS;
++  case R_DADAO_PCREL_HI:
++  case R_DADAO_PCREL_LO:
++    // PC-relative hi/lo pair (ADR-0029 D2/D4).
++    //
++    // The high record's own value is S + A - P (P = the `aip.si` site), so it
++    // is an ordinary PC-relative relocation and is modelled as R_PC; its target
++    // is the GOT slot the assembler/compiler named.
++    //
++    // The low record is *also* reported as R_PC (it is a PC-relative byte
++    // residual), but its value is not taken from its own symbol: relocateAlloc
++    // resolves it through the pairing information (findPcrelHi) and reuses the
++    // high half's S + A - P, since both halves must use the same P
++    // (contract-elf.md §3.1).  Reporting R_PC is what keeps the pair a static
++    // link-time constant in PIC links too (R_PC is a "sym - position"
++    // expression), so no dynamic relocation is created for it.
++    //
++    // A preemptible symbol cannot be encoded here: the pair patches instruction
++    // fields in the module's own text, which no loader can do (there is no
++    // dynamic relocation type for it, and an interposable address is not a
++    // link-time constant).  Fail loudly instead of emitting a dynamic record
++    // that would be ignored (ADR-0026 D7②, ADR-0029 D3).
++    if (s.isPreemptible)
++      Err(ctx) << getErrorLoc(ctx, loc) << "relocation " << type
++               << " against preemptible symbol '" << s.getName()
++               << "' cannot be encoded: the PC-relative hi/lo pair patched into "
++                  "instructions must resolve at link time (ADR-0029 D2/D3); "
++                  "reference the symbol's GOT slot instead";
++    return R_PC;
 +  case R_DADAO_COPY:
 +  case R_DADAO_TLSDESC:
 +    // Numbered by ADR-0019 D10 but **not emitted** by this implementation; a
@@ -250,51 +359,60 @@ index 000000000..1ae638954
 +
 +void DADAO::writePlt(uint8_t *buf, const Symbol &sym,
 +                     uint64_t pltEntryAddr) const {
-+  // Eager PLT entry (ADR-0026 D6).  The stub loads the resolved address from
-+  // the symbol's .got.plt slot and jumps to it:
++  // Eager PLT entry (ADR-0026 D6): three instructions / 12 bytes, no in-entry
++  // data slot (ADR-0029 D5).  The stub forms the slot address PC-relatively
++  // through the auipc-style pair and jumps to the value loaded from it:
 +  //
-+  //   +0   ld.o rd5, [rb0, 16]      ; rd5 = &slot - &(entry + 4)
-+  //   +4   ldm.o {rb4}, [rb0, rd5]  ; rb4 = *(&(entry + 4) + rd5) = *(slot)
-+  //   +8   jump [rb4, rd0, 0]       ; jump to the resolved address
-+  //   +12  padding (never executed: the jump above is unconditional)
-+  //   +16  .quad &slot - &(entry + 4)
++  //   +0   aip.si rb4, hi         ; rb4 = IP + (hi << 12)  (hi = 4 KiB blocks)
++  //   +4   ld.o    rb4, [rb4, lo]  ; rb4 = *(rb4 + lo) = *(slot)
++  //   +8   jump    [rb4, rd0, 0]   ; jump to the resolved address
 +  //
-+  // Two ISA properties shape this sequence (ADR-0026 D5): there is no GP
-+  // register, and the only PC-relative memory access (`ld.o`/`st.o` with base
-+  // rb0, R_DADAO_REL12) carries a 12-bit immediate.  .plt and .got.plt live in
-+  // different segments, so the distance to the slot cannot be assumed to fit
-+  // that immediate (and it is way outside it in the default layout).  The
-+  // distance is therefore carried as an 8-byte constant inside the entry
-+  // itself and consumed through `ldm.o`, whose base is rb0 (PC) and whose
-+  // offset register is an rd register -- exactly the two-stage form of
-+  // contract-dynlink.md §3.  Both ends of the distance are in this module, so
-+  // the run-time load bias cancels out and the constant is a plain link-time
-+  // value (no dynamic relocation, hence no text relocation).
++  // The linker synthesizes the entry -- it owns both ends of the distance -- so
++  // it computes hi/lo itself and no relocation record is involved, exactly as
++  // ADR-0028 D7 prescribed for the removed data-slot form (ADR-0029 D5).  Here
++  // P = the entry address = the `aip.si` site, and the 18-bit high field gives
++  // the pair a ±512 MiB reach.  That reach is what makes the in-entry constant
++  // unnecessary: `.plt` and `.got.plt` live in different segments and their
++  // distance is a link-time constant far beyond the 12-bit immediate the old
++  // form had to work around by carrying it inside the entry (and beyond the
++  // ±2 KiB of DADAO's only single-instruction PC-relative access, `ld.o` with
++  // base rb0 -- see ADR-0029 D3/D4).
 +  //
-+  // rd5/rb4 are spec temporary registers (rd4-rd7 / rb4-rb7, caller-saved), so
-+  // the stub clobbers nothing that a caller or callee relies on; it never
-+  // touches RB, RegRAS or SP, so the return address pushed by the caller's
-+  // `call` is popped correctly by the callee's `ret`.
-+  //
-+  // Entry size 24 keeps every entry 8-byte aligned, which both `ld.o` (the
-+  // in-entry constant at entry+16) and `ldm.o` (the slot) require; .plt itself
-+  // is 16-byte aligned (PltSection).
-+  static_assert(pltDataOffset == 16, "PLT constant offset");
-+  assert((pltEntryAddr % 8) == 0 && "PLT entry must be 8-byte aligned");
++  // rb4 is a spec temporary register (rb4-rb7, caller-saved), so the stub
++  // clobbers nothing that a caller or callee relies on; it never touches RB
++  // other than rb4, RegRAS or SP, so the return address pushed by the caller's
++  // `call` is popped correctly by the callee's `ret`.  rb4 is allocatable and
++  // not reserved (rb0-rb3 = IP/SP/GP/TP), so it may appear as a destination.
++  assert((pltEntryAddr % 4) == 0 && "PLT entry must be 4-byte aligned");
 +
-+  // offset = &slot - (address of the ldm.o instruction), which is the value
-+  // loaded by the first instruction and used as the ldm.o offset register.
-+  uint64_t offset = sym.getGotPltVA(ctx) - (pltEntryAddr + 4);
++  // P = the aip.si site, so this is the same "distance to the slot" the pair
++  // encodes at run time (contract-elf.md §3.1).  The +0x800 rounds the high
++  // field to the nearest 4 KiB multiple so the residual always fits the signed
++  // 12-bit low field.
++  const int64_t disp = static_cast<int64_t>(sym.getGotPltVA(ctx) - pltEntryAddr);
++  const int64_t hi = (disp + 0x800) >> 12;
++  const int64_t lo = disp - (hi << 12);
++  if (!isInt<18>(hi) || !isInt<12>(lo)) {
++    // Out of reach is a link-time error, never a truncated stub (ADR-0019 D6,
++    // ADR-0029 D3).
++    Err(ctx) << "PLT entry for " << &sym
++             << " is out of the +/-512 MiB reach of the PC-relative stub "
++                "(ADR-0029 D3/D5)";
++    return;
++  }
 +
-+  // ld.o rd5, [rb0, pltDataOffset]: op 0x20, rdha = rd5, rbhb = rb0.
-+  write32be(buf + 0, 0x20000000u | (5u << 18) | (pltDataOffset & 0xFFFu));
-+  // ldm.o rb4, [rb0, rd5]: op 0x3A, rbha = rb4, rbhb = rb0, rdhc = rd5,
-+  // immu6 = 1 (one register).
-+  write32be(buf + 4, 0x3A000000u | (4u << 18) | (5u << 6) | 1u);
++  // aip.si rb4, imms18: op 0x5A, ha (dst) = rb4 at bits[23:18], imms18 at
++  // bits[17:0] (DADAORiii, contract-isa.md §2).  The field is the 4 KiB block
++  // count (the assembler-level operand is the byte value: imms30 = hi << 12).
++  write32be(buf + 0,
++            0x5A000000u | (4u << 18) | (static_cast<uint32_t>(hi) & 0x3FFFFu));
++  // ld.o rb4, [rb4, imms12]: op 0x22, ha (dst) = rb4 at bits[23:18], hb (base)
++  // = rb4 at bits[17:12], imms12 at bits[11:0] (DADAORrii).  The pair's `rbX`
++  // is the same register as the high half's destination (ADR-0029 D4).
++  write32be(buf + 4, 0x22000000u | (4u << 18) | (4u << 12) |
++                         (static_cast<uint32_t>(lo) & 0xFFFu));
 +  // jump [rb4, rd0, 0]: op 0x71, rbha = rb4, rdhb = rd0 (reads 0), imms12 = 0.
 +  write32be(buf + 8, 0x71000000u | (4u << 18));
-+  write32be(buf + 12, 0);  // padding: unreachable
-+  write64be(buf + pltDataOffset, offset);
 +}
 +
 +void DADAO::relocateInSection(uint8_t *loc, const Relocation &rel,
@@ -458,6 +576,64 @@ index 000000000..1ae638954
 +    write32be(loc, insn);
 +    return;
 +  }
++  case R_DADAO_PCREL_HI:
++  case R_DADAO_PCREL_LO: {
++    // PC-relative hi/lo pair (ADR-0029 D2; contract-elf.md §3.1/§3.2).
++    //
++    //   field(hi) = ((S + A - P) + 0x800) >> 12   [aip.si imms18, rounded]
++    //   field(lo) = (S + A - P) - (field(hi) << 12)   [ld.o imms12, signed]
++    //
++    // Both halves see the same val = S + A - P with P = the `aip.si` site: for
++    // the high half val comes from its own record, for the low half from the
++    // paired high record (see relocateAlloc/findPcrelHi).  The +0x800 rounding
++    // is what makes the residual fit the signed 12-bit low field -- truncation
++    // would reach +4095 and overflow it (ADR-0029 D2).
++    const int64_t disp = static_cast<int64_t>(val);
++    const int64_t hi = (disp + 0x800) >> 12;
++    const int64_t lo = disp - (hi << 12);
++
++    if (rel.type == R_DADAO_PCREL_HI) {
++      // "越界" (out of range, contract-elf.md §3.2): the high field must fit
++      // imms18 (18-bit signed) -- also the ±512 MiB reach limit of the pair
++      // (ADR-0029 D3).
++      checkInt(ctx, loc, hi, 18, rel);
++      uint32_t insn = read32be(loc);
++      // "落点不符" (landing mismatch, contract-elf.md §3.2): the high half
++      // only exists in `aip.si`'s imms18 (op 0x5A, bits[17:0]); anywhere else
++      // there is no field to patch.
++      if ((insn >> 24) != 0x5A) {
++        Err(ctx) << getErrorLoc(ctx, loc)
++                 << "R_DADAO_PCREL_HI is not at an `aip.si` site (opcode 0x"
++                 << utohexstr(insn >> 24) << "); the high field is the "
++                 << "imms18 of `aip.si` (ADR-0029 D2/§3.2)";
++        return;
++      }
++      insn = (insn & ~0x0003FFFFu) | (static_cast<uint32_t>(hi) & 0x0003FFFFu);
++      write32be(loc, insn);
++      return;
++    }
++
++    // "越界" (out of range, contract-elf.md §3.2): the residual must fit the
++    // signed 12-bit low field (it does by construction; checked so an
++    // inconsistency is never silently masked).
++    checkInt(ctx, loc, lo, 12, rel);
++    uint32_t insn = read32be(loc);
++    // "落点不符" (landing mismatch, contract-elf.md §3.2): the low half lives
++    // in the imms12 of the paired `ld.o`/`st.o` base-register form (op 0x22 /
++    // 0x23), whose base is the same rbX the high half wrote (ADR-0029 D4).
++    const unsigned op = insn >> 24;
++    if (op != 0x22 && op != 0x23) {
++      Err(ctx) << getErrorLoc(ctx, loc)
++               << "R_DADAO_PCREL_LO is not at a paired `ld.o`/`st.o` site "
++                  "(opcode 0x"
++               << utohexstr(op) << "); the low field is that instruction's "
++               << "imms12 (ADR-0029 D2/§3.2)";
++      return;
++    }
++    insn = (insn & ~0x00000FFFu) | (static_cast<uint32_t>(lo) & 0x00000FFFu);
++    write32be(loc, insn);
++    return;
++  }
 +  default:
 +    Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << rel.type.v
 +             << ") against symbol " << rel.sym;
@@ -469,6 +645,17 @@ index 000000000..1ae638954
 +  // Entry point used by relocateNoSym()/non-alloc sections.  DADAO ABS48
 +  // relocations in allocatable sections go through relocateAlloc() below,
 +  // which knows whether the target section is executable.
++  //
++  // The PC-relative hi/lo pair patches instruction fields, so it can only live
++  // in an allocatable executable section: reaching this path (non-alloc, e.g.
++  // `.debug_*` or a data section) means the pair is malformed -- report it
++  // rather than patch an arbitrary byte (ADR-0029 D3, contract-elf.md §3.2).
++  if (rel.type == R_DADAO_PCREL_HI || rel.type == R_DADAO_PCREL_LO) {
++    Err(ctx) << getErrorLoc(ctx, loc) << "relocation " << rel.type
++             << " is only valid in an executable section (the PC-relative "
++                "pair patches `aip.si`/`ld.o` instruction fields)";
++    return;
++  }
 +  relocateInSection(loc, rel, val, /*isExec=*/false);
 +}
 +
@@ -479,6 +666,21 @@ index 000000000..1ae638954
 +    if (rel.expr == R_RELAX_HINT)
 +      continue;
 +    uint8_t *loc = buf + rel.offset;
++    if (rel.type == R_DADAO_PCREL_LO) {
++      // The low half's value is the *high* half's S + A - P: both halves share
++      // P = the `aip.si` site address, so the low record's own symbol (the
++      // pairing site) is a pointer to the high record, not a data target
++      // (contract-elf.md §3.1).  Computing its own val (site - low address)
++      // would encode the wrong residual, so the paired high record is looked
++      // up first and its value -- which is exactly S + A - P with the right P
++      // -- is reused.
++      if (const Relocation *hi = findPcrelHi(ctx, sec, rel)) {
++        const uint64_t val =
++            sec.getRelocTargetVA(ctx, *hi, secAddr + hi->offset);
++        relocateInSection(loc, rel, val, isExec);
++      }
++      continue;
++    }
 +    uint64_t val = sec.getRelocTargetVA(ctx, rel, secAddr + rel.offset);
 +    relocateInSection(loc, rel, val, isExec);
 +  }

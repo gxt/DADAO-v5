@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..6b4dc3500
+index 000000000..88bbe7daa
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,334 @@
+@@ -0,0 +1,381 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -74,11 +74,18 @@ index 000000000..6b4dc3500
 +      {"DADAO_FK_REL12", 0, 32, 0},
 +      // DADAO_FK_ABS12: 12-bit signed BYTE offset, base-relative (rrii: hc+hd)
 +      // Used by ld.*/st.* with base rb1..rb63
-+      {"DADAO_FK_ABS12", 0, 32, 0}
++      {"DADAO_FK_ABS12", 0, 32, 0},
++      // DADAO_FK_PCREL_HI: 18-bit PC-relative high part (riii: hb+hc+hd);
++      // the field width is the encoding field width (contract-elf.md §2.2).
++      // Used by aip.si
++      {"DADAO_FK_PCREL_HI", 0, 18, 0},
++      // DADAO_FK_PCREL_LO: 12-bit signed PC-relative low part (rrii: hc+hd)
++      // Used by the paired ld.*/st.* (imms12)
++      {"DADAO_FK_PCREL_LO", 0, 12, 0}
 +    };
 +
 +    if (Kind >= llvm::DADAO::DADAO_FK_PCRel_12 &&
-+        Kind <= llvm::DADAO::DADAO_FK_ABS12)
++        Kind <= llvm::DADAO::DADAO_FK_PCREL_LO)
 +      return Infos[Kind - llvm::DADAO::DADAO_FK_PCRel_12];
 +
 +    return MCAsmBackend::getFixupKindInfo(Kind);
@@ -102,6 +109,28 @@ index 000000000..6b4dc3500
 +                                    MCValue &Target,
 +                                    uint64_t &Value) override {
 +    unsigned Kind = Fixup.getKind();
++
++    // The PC-relative hi/lo pair (ADR-0029 D2/D3) is never resolved in the
++    // assembler: both halves are link-time values and the low half is derived
++    // from the high half's *link-time* field value, so folding either half in
++    // place would leave the linker without the pairing record it needs
++    // (contract-elf.md §3.1/§3.2).  Reporting "unresolved" makes applyFixup()
++    // record the relocation instead of patching the instruction.
++    if (Kind == llvm::DADAO::DADAO_FK_PCREL_HI ||
++        Kind == llvm::DADAO::DADAO_FK_PCREL_LO) {
++      // Both halves are defined on *symbolic* operands: a constant operand has
++      // no symbol to carry in the relocation (and, for the low half, no site to
++      // point back at), so it is an explicit error instead of a symbol-less
++      // relocation record (a relocation always needs a symbol index).
++      if (!Target.getAddSym()) {
++        Asm->getContext().reportError(
++            Fixup.getLoc(),
++            "PC-relative hi/lo requires a symbol operand (R_DADAO_PCREL_HI / "
++            "R_DADAO_PCREL_LO address formation)");
++      }
++      return false;
++    }
++
 +    // PC-relative branch/jump kinds, and the ld/st PC-relative byte kind
 +    // (DADAO_FK_REL12) which is also resolved in place when the target symbol
 +    // lives in the same section.  DADAO_FK_ABS48 / DADAO_FK_ABS12 are absolute
@@ -189,8 +218,26 @@ index 000000000..6b4dc3500
 +
 +    // Only process our custom fixup kinds.
 +    if (Kind < llvm::DADAO::DADAO_FK_PCRel_12 ||
-+        Kind > llvm::DADAO::DADAO_FK_ABS12)
++        Kind > llvm::DADAO::DADAO_FK_PCREL_LO)
 +      return;
++
++    // PC-relative hi/lo pair (ADR-0029 D2/D3; contract-elf.md §2.2/§3.1): the
++    // assembler never folds these -- the pair is resolved by the linker (see
++    // evaluateFixup()), which reuses the high part's value for the low part.
++    // An "already resolved" pair would produce a wrong address, so it is an
++    // explicit error rather than a silent in-place patch (ADR-0019 D6 spirit).
++    if (Kind == llvm::DADAO::DADAO_FK_PCREL_HI ||
++        Kind == llvm::DADAO::DADAO_FK_PCREL_LO) {
++      if (IsResolved) {
++        Asm->getContext().reportError(
++            Fixup.getLoc(),
++            "PC-relative hi/lo pair must be resolved by the linker "
++            "(R_DADAO_PCREL_HI / R_DADAO_PCREL_LO)");
++        return;
++      }
++      maybeAddReloc(F, Fixup, Target, Value, IsResolved);
++      return;
++    }
 +
 +    // M4: an unresolved fixup (target symbol in another section, or undefined)
 +    // must be recorded as a relocation -- never write a pre-link placeholder

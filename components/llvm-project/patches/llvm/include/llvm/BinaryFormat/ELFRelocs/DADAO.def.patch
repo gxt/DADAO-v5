@@ -1,9 +1,9 @@
 diff --git a/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def b/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def
 new file mode 100644
-index 000000000..cb11536d9
+index 000000000..10d76ed6d
 --- /dev/null
 +++ b/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,82 @@
 +
 +#ifndef ELF_RELOC
 +#error "ELF_RELOC must be defined"
@@ -16,7 +16,8 @@ index 000000000..cb11536d9
 +//   1-5    static types (contract-elf.md §2.2)
 +//   6      absolute 48-bit address (data/GOT slot or instruction wyde series)
 +//   7-13   dynamic / TLS types (contract-dynlink.md §4.3)
-+//   14     type count (R_DADAO_NUM)
++//   14-15  PC-relative hi/lo pair for aip.si + ld.o (contract-elf.md §2.2)
++//   16     type count (R_DADAO_NUM)
 +ELF_RELOC(R_DADAO_NONE, 0)
 +// PC-relative word offset for call/jump (imms24 field, 26 effective bits).
 +// field = (S + A - P) >> 2.
@@ -66,6 +67,22 @@ index 000000000..cb11536d9
 +// category REL_TLSDESC.  Reserved but **not emitted** by this implementation:
 +// encountering one is an explicit error (ADR-0026 D7②).
 +ELF_RELOC(R_DADAO_TLSDESC, 13)
-+// Number of relocation types (not a relocation).  Frozen at 14
-+// (ADR-0019 D10 / contract-dynlink.md §4.4).
-+ELF_RELOC(R_DADAO_NUM, 14)
++// PC-relative high part for `aip.si rbX, <sym>` (riii imms18 field): the
++// +0x800 rounding makes the low part (below) fit a signed 12-bit field, so the
++// two halves always reconstruct the same address (contract-elf.md §3.1,
++// ADR-0029 D2).  P is the aip.si site address (rb0 reads the address of the
++// current instruction), shared by both halves -- NOT each instruction's own
++// address.  value = (S + A - P + 0x800) >> 12.
++ELF_RELOC(R_DADAO_PCREL_HI, 14)
++// PC-relative low part for the paired `ld.o rbX, [rbX, imms12]` (rrii imms12
++// field, signed bytes): value = (S + A - P) - (high part << 12), which is in
++// [-2048, +2047] by construction.  The record carries the pairing information
++// pointing back at the aip.si site (the explicit RISC-V `%pcrel_lo(label)`
++// form: the record's symbol/addend locate the hi instruction), so the linker
++// recovers the already-computed high part of that site instead of recomputing
++// it from a second P (contract-elf.md §3.1/§3.2, ADR-0029 D2/D3).
++ELF_RELOC(R_DADAO_PCREL_LO, 15)
++// Number of relocation types (not a relocation).  Frozen at 16
++// (ADR-0019 D10/D12 / contract-dynlink.md §4.4); the numbering is dense with
++// no gaps (14/15 above fill the range left by the withdrawn REL32).
++ELF_RELOC(R_DADAO_NUM, 16)

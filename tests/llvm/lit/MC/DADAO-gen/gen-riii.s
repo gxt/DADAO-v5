@@ -21,6 +21,11 @@ add.si rb8, 8
 ; ASM: add.si rd8, 8
 add.si rd8, 8
 
+; @src aip.si_riii_rb 5a200008 | SimRISC-05 §IP 相对寻址
+; OBJ: {{[0-9a-f]+:}} 5a 20 00 08{{.*}}aip.si
+; ASM: aip.si rb8, 32768
+aip.si rb8, 32768
+
 ; @src br.n_riii_rd 68200003 | SimRISC-06 §条件跳转指令
 ; OBJ: {{[0-9a-f]+:}} 68 20 00 03{{.*}}br.n
 ; ASM: br.n {rd8}?, [rb0, 12]

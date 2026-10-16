@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..8c64b4daf
+index 000000000..169208a21
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2423 @@
+@@ -0,0 +1,2495 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -432,6 +432,9 @@ index 000000000..8c64b4daf
 +  ParseStatus parseDDDirective(unsigned Size, SMLoc Loc);
 +  bool parseOperand(OperandVector &Operands);
 +  bool parseImmediate(OperandVector &Operands);
++  // Expression with an optional relocation specifier: `expr` or
++  // `%pcrel_hi(expr)` / `%pcrel_lo(expr)` (ADR-0029 D2).
++  bool parseExprWithSpecifier(const MCExpr *&Res, SMLoc &EndLoc);
 +  bool parseWydePosToken(OperandVector &Operands);
 +  int parseCfxOperand(OperandVector &Operands);
 +  bool parseRegGroup(OperandVector &Operands);
@@ -539,7 +542,7 @@ index 000000000..8c64b4daf
 +
 +  const MCExpr *Expr;
 +  SMLoc EndLoc;
-+  if (getParser().parseExpression(Expr, EndLoc))
++  if (parseExprWithSpecifier(Expr, EndLoc))
 +    return true;
 +
 +  int64_t Val;
@@ -548,6 +551,38 @@ index 000000000..8c64b4daf
 +  } else {
 +    Operands.push_back(DADAOOperand::createImmExpr(Expr, StartLoc, EndLoc));
 +  }
++  return false;
++}
++
++//===----------------------------------------------------------------------===//
++// Relocation specifiers: `%pcrel_hi(expr)` / `%pcrel_lo(expr)` (ADR-0029 D2).
++//
++// A leading '%' selects a DADAO relocation specifier; the result is an
++// MCSpecifierExpr, which the code emitter turns into the corresponding PCREL
++// fixup kind.  Everything else is a plain expression.
++//===----------------------------------------------------------------------===//
++
++bool DADAOAsmParser::parseExprWithSpecifier(const MCExpr *&Res,
++                                            SMLoc &EndLoc) {
++  if (getLexer().isNot(AsmToken::Percent))
++    return getParser().parseExpression(Res, EndLoc);
++
++  SMLoc Loc = getParser().getTok().getLoc();
++  getParser().Lex(); // consume '%'
++  if (getLexer().getKind() != AsmToken::Identifier)
++    return Error(Loc, "expected a relocation specifier after '%'");
++  StringRef Name = getParser().getTok().getIdentifier();
++  DADAO::Specifier Spec = DADAO::parseSpecifierName(Name);
++  if (Spec == DADAO::S_None)
++    return Error(Loc, Twine("invalid relocation specifier '%") + Name + "'");
++  getParser().Lex(); // consume the specifier name
++  if (getParser().getTok().isNot(AsmToken::LParen))
++    return Error(getParser().getTok().getLoc(),
++                 Twine("expected '(' after '%") + Name + "'");
++  const MCExpr *SubExpr;
++  if (getParser().parseParenExpression(SubExpr, EndLoc))
++    return true;
++  Res = MCSpecifierExpr::create(SubExpr, Spec, getContext(), Loc);
 +  return false;
 +}
 +
@@ -872,9 +907,11 @@ index 000000000..8c64b4daf
 +  }
 +
 +  // Parse offset (immediate expression). Address offsets are byte values.
++  // A `%pcrel_lo(label)` offset selects the paired PC-relative low part
++  // (R_DADAO_PCREL_LO) instead of a base-relative byte offset (ADR-0029 D2).
 +  const MCExpr *OffsetExpr;
 +  SMLoc ExprEnd;
-+  if (getParser().parseExpression(OffsetExpr, ExprEnd))
++  if (parseExprWithSpecifier(OffsetExpr, ExprEnd))
 +    return true;
 +  SMLoc EndLoc = ExprEnd;
 +
@@ -1834,6 +1871,10 @@ index 000000000..8c64b4daf
 +  case 3: // riii
 +    if (Mnem.starts_with("br."))
 +      return ImmFieldKind::None; // branch byte offset (checked earlier)
++    if (Mnem == "aip.si")
++      // Byte operand (imms30) converted to the 4 KiB block field, with its own
++      // multiple-of-4096 / +-512 MiB checks (see matchAndEmitInstruction).
++      return ImmFieldKind::None;
 +    return ImmFieldKind::SImm18; // add.si / ret
 +  case 4: // iiii — jump/call byte offset (checked earlier)
 +    return ImmFieldKind::None;
@@ -2171,6 +2212,37 @@ index 000000000..8c64b4daf
 +    Iiii.push_back(std::move(Flat[0])); // Token
 +    Iiii.push_back(std::move(Flat[2])); // Imm (offset)
 +    Flat = std::move(Iiii);
++  }
++
++  // For aip.si (riii): the assembler-level operand is in BYTES (imms30) while
++  // the encoded 18-bit field is a 4 KiB block count, so the operand is
++  // converted here exactly like the x4 jump/branch byte offsets below --
++  // validate first, then hand the matcher the encoded block value
++  // (field = bytes >> 12; Toolchain-01 §3.2/§5, ADR-0029 §修订注记 ④).
++  //   * the value MUST be a multiple of 4096 (low 12 bits zero); otherwise the
++  //     block field could not represent it and the assembler MUST hard-error
++  //     (no truncation, no silent round-down);
++  //   * it MUST fit the +-512 MiB reachable range of the 18-bit signed block
++  //     field (max = 131071 * 4096 = 536866816 bytes).
++  // A symbolic operand carries a relocation (R_DADAO_PCREL_HI) and is left
++  // untouched: its value and legality are decided at link time.
++  if (Mnemonic == "aip.si" && Flat.size() == 3 && Flat[2]->isImm()) {
++    auto *DOp = static_cast<DADAOOperand *>(Flat[2].get());
++    if (!DOp->getImmExpr()) {
++      int64_t Bytes = DOp->getImm();
++      if (Bytes % 4096 != 0)
++        return Error(Flat[2]->getStartLoc(),
++                     "aip.si offset must be a multiple of 4096 bytes: the "
++                     "operand is a byte count (imms30) and the encoded field "
++                     "is a 4 KiB block (field = bytes >> 12)");
++      int64_t Encoded = Bytes >> 12;
++      if (Encoded < -131072 || Encoded > 131071)
++        return Error(Flat[2]->getStartLoc(),
++                     "aip.si byte offset out of range: expected "
++                     "[-536870912, 536866816] (imms30, %4096==0, +-512 MiB)");
++      Flat[2] = DADAOOperand::createImm(Encoded, Flat[2]->getStartLoc(),
++                                        Flat[2]->getEndLoc());
++    }
 +  }
 +
 +  // For rrii jump/call: [rb, rd, imm] → keep all (base is in encoding).

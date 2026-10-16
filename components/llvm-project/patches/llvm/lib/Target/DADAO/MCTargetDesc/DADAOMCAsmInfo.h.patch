@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.h
 new file mode 100644
-index 000000000000..2c1b9cf92870
+index 000000000..9b359de01
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.h
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,59 @@
 +//===-- DADAOMCAsmInfo.h - DADAO asm properties -----------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -30,7 +30,35 @@ index 000000000000..2c1b9cf92870
 +public:
 +  explicit DADAOMCAsmInfo(const Triple &TheTriple,
 +                          const MCTargetOptions &Options);
++
++  // Print a relocation-specifier expression: `%pcrel_hi(...)` / `%pcrel_lo(...)`
++  // (ADR-0029 D2).  Required so MCSpecifierExpr round-trips through the asm
++  // printer (`llvm-mc -filetype=asm`, MCInstPrinter::printOperand).
++  void printSpecifierExpr(raw_ostream &OS,
++                          const MCSpecifierExpr &Expr) const override;
 +};
++
++namespace DADAO {
++
++// Relocation specifiers carried by MCSpecifierExpr (the `%name(expr)` assembly
++// form).  They select the relocation type of an expression operand that would
++// otherwise be ambiguous -- the explicit pairing of ADR-0029 D2/D3:
++//   %pcrel_hi(sym)   -- high part, only on `aip.si`
++//   %pcrel_lo(site)  -- low part, paired with the high part at local label
++//                       `site` (the RISC-V `%pcrel_lo(label)` form)
++// Consumers: DADAOAsmParser (parsing), DADAOMCCodeEmitter (fixup kind),
++// DADAOMCAsmInfo (printing).
++using Specifier = uint16_t;
++enum {
++  S_None,
++  S_PCREL_HI,
++  S_PCREL_LO,
++};
++
++Specifier parseSpecifierName(StringRef Name);
++StringRef getSpecifierName(Specifier S);
++
++} // namespace DADAO
 +
 +} // namespace llvm
 +

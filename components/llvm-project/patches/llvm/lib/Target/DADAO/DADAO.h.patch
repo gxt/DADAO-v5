@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
 new file mode 100644
-index 000000000..61624edc7
+index 000000000..82ae05236
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.h
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,84 @@
 +//===-- DADAO.h - Top-level interface for DADAO representation --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -45,20 +45,29 @@ index 000000000..61624edc7
 +namespace DADAO {
 +
 +//===----------------------------------------------------------------------===//
-+// Target flags carried on a symbol operand (LLVM-094t).
++// Target flags carried on a symbol operand (LLVM-094t; ADR-0029 for the pair).
 +//===----------------------------------------------------------------------===//
 +
 +enum TargetFlags : unsigned {
 +  MO_NO_FLAG = 0,
 +  // The operand denotes the *GOT slot* of the symbol rather than the symbol
 +  // itself: position-independent code (-fPIC / -fPIE) loads the slot with a
-+  // PC-relative (`rb0`) access and the slot's 8-byte data field is fixed up at
-+  // load time, so no link-time absolute address ever reaches the instruction
-+  // stream and no global-pointer register is reserved (contract-dynlink.md §3,
++  // PC-relative access and the slot's 8-byte data field is fixed up at load
++  // time, so no link-time absolute address ever reaches the instruction stream
++  // and no global-pointer register is reserved (contract-dynlink.md §3,
 +  // ADR-0026 D5).  The AsmPrinter defines one slot per referenced symbol in
-+  // `.got`; the assembler records the access as R_DADAO_REL12 against the slot
-+  // (link-time constant displacement).
++  // `.got`; the access is recorded as R_DADAO_REL12 (before ADR-0029) or as the
++  // PC-relative hi/lo pair R_DADAO_PCREL_HI/_LO (since ADR-0029 D4: the pair is
++  // what reaches ±512 MiB instead of the ±2 KiB of a bare `[rb0, slot]`).
 +  MO_GOT_ADDR = 1,
++  // The operand is the *pairing site* of the low half of a PC-relative hi/lo
++  // address formation, not a data target: it is an MO_MCSymbol naming the
++  // temporary label emitted in front of the paired `aip.si` (ADR-0029 D2, the
++  // RISC-V `%pcrel_lo(label)` form).  DADAOMCInstLower wraps it in the
++  // `%pcrel_lo(...)` specifier so the emitter selects R_DADAO_PCREL_LO and the
++  // record's symbol+addend locate the high instruction (contract-elf.md §3.1).
++  // Created by DADAOInstrInfo::expandPostRAPseudo together with the label.
++  MO_PCREL_LO = 2,
 +};
 +
 +enum FormatKind : uint8_t {

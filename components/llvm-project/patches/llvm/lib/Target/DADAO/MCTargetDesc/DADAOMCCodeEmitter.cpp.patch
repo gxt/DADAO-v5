@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
 new file mode 100644
-index 000000000..0ed721422
+index 000000000..39db21ab2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,299 @@
 +//===-- DADAOMCCodeEmitter.cpp - DADAO MC Code Emitter --------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -21,10 +21,12 @@ index 000000000..0ed721422
 +#include "MCTargetDesc/DADAOFixupKinds.h"
 +#include "llvm/MC/MCCodeEmitter.h"
 +#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCExpr.h"
 +#include "llvm/MC/MCInst.h"
 +#include "llvm/MC/MCInstrInfo.h"
 +#include "llvm/MC/MCFixup.h"
 +#include "llvm/MC/MCSubtargetInfo.h"
++#include "llvm/Support/Casting.h"
 +#include "llvm/Support/Endian.h"
 +#include "llvm/Support/ErrorHandling.h"
 +
@@ -88,6 +90,10 @@ index 000000000..0ed721422
 +  // whose memory operand may carry a symbol displacement.  The base register is
 +  // operand 1; the symbol displacement (imms12) is the expression operand.
 +  static bool isLoadStoreInstr(unsigned Opcode);
++
++  // DADAO relocation specifier of an expression operand (`%pcrel_hi(...)` /
++  // `%pcrel_lo(...)`, ADR-0029 D2), or DADAO::S_None for a bare expression.
++  static DADAO::Specifier getExprSpecifier(const MCExpr *E);
 +};
 +
 +} // end anonymous namespace
@@ -171,6 +177,12 @@ index 000000000..0ed721422
 +  }
 +}
 +
++DADAO::Specifier DADAOMCCodeEmitter::getExprSpecifier(const MCExpr *E) {
++  if (const auto *SE = dyn_cast<MCSpecifierExpr>(E))
++    return SE->getSpecifier();
++  return DADAO::S_None;
++}
++
 +unsigned DADAOMCCodeEmitter::getMachineOpValue(
 +    const MCInst &Inst, const MCOperand &MCOp,
 +    SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
@@ -180,11 +192,59 @@ index 000000000..0ed721422
 +    unsigned HW = dadaoRegHW(MCOp.getReg().id());
 +    return HW == ~0u ? 0 : HW;
 +  }
++  // `aip.si`'s immediate is already the encoded 4 KiB block count: the AsmParser
++  // converts the byte operand (imms30) into it, exactly like the x4
++  // jump/branch byte offsets (Toolchain-01 §3.2/§5).  Nothing to shift here.
 +  if (MCOp.isImm())
 +    return static_cast<unsigned>(MCOp.getImm());
 +
 +  // MCOp must be an expression (symbol reference).
 +  assert(MCOp.isExpr() && "Unexpected operand type");
++  const MCExpr *Expr = MCOp.getExpr();
++  const unsigned Opcode = Inst.getOpcode();
++  const DADAO::Specifier Spec = getExprSpecifier(Expr);
++
++  // IP-relative hi/lo pair (ADR-0029 D2/D3; ADR-0019 D12; contract-elf.md
++  // §2.2/§3.1) -- the explicit pairing of the GOT/PLT address formation:
++  //   aip.si rbX, <sym>                   -> R_DADAO_PCREL_HI (imms18)
++  //   ld.o rbX, [rbX, %pcrel_lo(<site>)]  -> R_DADAO_PCREL_LO (imms12, the
++  //                                          record carries the pairing site)
++  // `aip.si` is the high instruction by construction, so a bare symbol
++  // operand selects the high type there.  The low half must be explicit:
++  // `ld.o rbX, [rbX, sym]` without a specifier stays a base-relative access
++  // (R_DADAO_ABS12 / R_DADAO_REL12) -- selecting the paired type implicitly
++  // would silently change the meaning of existing code (contract-elf.md §2.2:
++  // the two kinds must be distinguishable from the assembly alone).
++  // Diagnostics below point at the operand's own source location: an MCOperand
++  // carries no location, and `MCExpr::getLoc()` is exactly what the fixup
++  // reports downstream (MCAssembler.cpp: MCFixup::getLoc() is the location of
++  // its value expression), so the message lands where the assembler would blame
++  // the fixup.
++  if (Opcode == DADAO::aip_si_rb || Spec == DADAO::S_PCREL_HI ||
++      Spec == DADAO::S_PCREL_LO) {
++    if (Spec == DADAO::S_PCREL_LO) {
++      if (!isLoadStoreInstr(Opcode)) {
++        Ctx.reportError(Expr->getLoc(),
++                        "%pcrel_lo(...) is only valid as the displacement of a "
++                        "paired load/store (ld.o/st.o)");
++        return 0;
++      }
++      Fixups.push_back(MCFixup::create(
++          0, Expr, MCFixupKind(llvm::DADAO::DADAO_FK_PCREL_LO),
++          /*PCRel=*/true));
++      return 0;
++    }
++    // A high part: `aip.si` (bare symbol or explicit %pcrel_hi) only.
++    if (Opcode != DADAO::aip_si_rb) {
++      Ctx.reportError(Expr->getLoc(),
++                      "%pcrel_hi(...) is only valid on 'aip.si'");
++      return 0;
++    }
++    Fixups.push_back(MCFixup::create(
++        0, Expr, MCFixupKind(llvm::DADAO::DADAO_FK_PCREL_HI),
++        /*PCRel=*/true));
++    return 0;
++  }
 +
 +  // Address construction (set.zw / or.w / andn.w): the symbol expression is an
 +  // absolute 48-bit address.  Emit an ABS48 fixup (PCRel=false); the explicit

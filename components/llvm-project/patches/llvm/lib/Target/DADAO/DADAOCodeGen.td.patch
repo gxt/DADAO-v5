@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..f10a6fa1b
+index 000000000..589542548
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,656 @@
+@@ -0,0 +1,681 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -321,6 +321,31 @@ index 000000000..f10a6fa1b
 +// instruction carrying the jump-table symbol so the MCCodeEmitter attaches
 +// R_DADAO_ABS48.  The result lives in GPRB (the address bank).
 +def JT_ADDR : DADAOPseudo<(outs GPRB:$dst), (ins unknown:$sym), []>;
++
++// PC-relative GOT-slot load (ADR-0029 D4/D5): the PIC address of a global
++// object -- and, under PIC, the base of its jump table -- is taken out of the
++// symbol's `.got` slot through the auipc-style hi/lo pair
++//   aip.si rbX, <slot>                   ; R_DADAO_PCREL_HI
++//   ld.o    rbX, [rbX, %pcrel_lo(site)]  ; R_DADAO_PCREL_LO
++//   -> rbX = *(slot) = the symbol's address
++// Two instructions and **no extra register**: the same rbX carries the high
++// part, is the load base and receives the loaded address (ADR-0029 D4; no GP
++// register is reserved, ADR-0026 D5 / ADR-0018 C6).  Only the 18-bit high part
++// bounds the reach, i.e. ±512 MiB -- independent of the `.got`/`.text` layout
++// (ADR-0029 D3), which is what makes the old ±2 KiB `[rb0, slot]` form
++// unnecessary.
++//
++// The operand is the *slot* (a TargetGlobalAddress / TargetJumpTable carrying
++// MO_GOT_ADDR, which DADAOMCInstLower resolves to the `.got` label).  The pair
++// is materialized by DADAOInstrInfo::expandPostRAPseudo, which is also what
++// creates the pairing label for the low half: SelectionDAG carries no symbol
++// for "the address of the following instruction", so the label is attached to
++// the `aip.si` MachineInstr afterwards (setPreInstrSymbol).  The result lives
++// in GPRB (the address bank); rb0 is a reserved register, so the destination
++// can never be the PC alias.  It is a load (the expansion's second instruction
++// reads the slot), hence mayLoad.
++let mayLoad = 1 in
++def PCREL_LOAD : DADAOPseudo<(outs GPRB:$dst), (ins unknown:$sym), []>;
 +
 +//===----------------------------------------------------------------------===//
 +// Single-result i64 patterns (orrr, contract-isa.md §6.3–§6.4, §7)

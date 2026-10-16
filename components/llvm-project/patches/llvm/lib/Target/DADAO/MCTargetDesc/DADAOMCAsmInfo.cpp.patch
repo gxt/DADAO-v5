@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
 new file mode 100644
-index 000000000..42514dc5e
+index 000000000..1e7327468
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,84 @@
 +//===-- DADAOMCAsmInfo.cpp - DADAO asm properties -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -17,6 +17,10 @@ index 000000000..42514dc5e
 +//===----------------------------------------------------------------------===//
 +
 +#include "DADAOMCAsmInfo.h"
++#include "llvm/ADT/StringSwitch.h"
++#include "llvm/MC/MCExpr.h"
++#include "llvm/Support/ErrorHandling.h"
++#include "llvm/Support/raw_ostream.h"
 +#include "llvm/TargetParser/Triple.h"
 +
 +using namespace llvm;
@@ -52,4 +56,35 @@ index 000000000..42514dc5e
 +
 +  // Target supports emission of debugging information.
 +  SupportsDebugInformation = true;
++}
++
++//===----------------------------------------------------------------------===//
++// Relocation specifiers (ADR-0029 D2: explicit hi/lo pairing, the RISC-V
++// `%pcrel_hi`/`%pcrel_lo` assembly form).
++//===----------------------------------------------------------------------===//
++
++DADAO::Specifier DADAO::parseSpecifierName(StringRef Name) {
++  return StringSwitch<DADAO::Specifier>(Name)
++      .Case("pcrel_hi", DADAO::S_PCREL_HI)
++      .Case("pcrel_lo", DADAO::S_PCREL_LO)
++      .Default(DADAO::S_None);
++}
++
++StringRef DADAO::getSpecifierName(Specifier S) {
++  switch (S) {
++  case DADAO::S_PCREL_HI:
++    return "pcrel_hi";
++  case DADAO::S_PCREL_LO:
++    return "pcrel_lo";
++  case DADAO::S_None:
++    break;
++  }
++  llvm_unreachable("not a %specifier() that can be printed");
++}
++
++void DADAOMCAsmInfo::printSpecifierExpr(raw_ostream &OS,
++                                        const MCSpecifierExpr &Expr) const {
++  OS << '%' << DADAO::getSpecifierName(Expr.getSpecifier()) << '(';
++  printExpr(OS, *Expr.getSubExpr());
++  OS << ')';
 +}

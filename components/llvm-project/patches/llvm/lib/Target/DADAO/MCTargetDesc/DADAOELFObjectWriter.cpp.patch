@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
 new file mode 100644
-index 000000000..5127ac485
+index 000000000..074017f89
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,106 @@
 +//===-- DADAOELFObjectWriter.cpp - DADAO ELF Writer -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -59,6 +59,20 @@ index 000000000..5127ac485
 +      return ELF::R_DADAO_REL12;
 +    case llvm::DADAO::DADAO_FK_ABS12:
 +      return ELF::R_DADAO_ABS12;
++
++    // PC-relative hi/lo pair (ADR-0029 D2/D3; ADR-0019 D12; contract-elf.md
++    // §2.2/§3.1): the high half patches the aip.si imms18 field, the low half
++    // the paired ld.o/st.o imms12 field.  The low record's symbol+addend carry
++    // the *pairing information* (the high part's site address): the emitter
++    // wraps the lo operand in `%pcrel_lo(local-label)`, and the generic writer
++    // folds that label into the section symbol + addend (this target does not
++    // request a symbol-based relocation for this type -- see
++    // needsRelocateWithSymbol()), which is exactly the address the linker
++    // searches for the matching high record.
++    case llvm::DADAO::DADAO_FK_PCREL_HI:
++      return ELF::R_DADAO_PCREL_HI;
++    case llvm::DADAO::DADAO_FK_PCREL_LO:
++      return ELF::R_DADAO_PCREL_LO;
 +
 +    // A relocatable 8-byte data item (from `.dd.o64 <sym>`, `.quad <sym>`, ...)
 +    // is an absolute address: R_DADAO_ABS48 is an absolute relocation and does

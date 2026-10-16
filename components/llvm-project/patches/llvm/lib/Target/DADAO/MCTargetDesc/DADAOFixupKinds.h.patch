@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
 new file mode 100644
-index 000000000..cf3be4625
+index 000000000..7aec1989f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOFixupKinds.h
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,99 @@
 +//===-- DADAOFixupKinds.h - DADAO Fixup Kind Info ---------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -20,11 +20,16 @@ index 000000000..cf3be4625
 +//   DADAO_FK_ABS48:    absolute 48-bit address (set.zw/or.w/andn.w rwii)
 +//   DADAO_FK_REL12:    12-bit signed BYTE offset, PC-relative (ld.*/st.* [rb0, sym])
 +//   DADAO_FK_ABS12:    12-bit signed BYTE offset, base-relative (ld.*/st.* [rbN, sym])
++//   DADAO_FK_PCREL_HI: 18-bit PC-relative high part (aip.si imms18)
++//   DADAO_FK_PCREL_LO: 12-bit signed PC-relative low part (paired ld.o imms12)
 +//
 +// All PCRel fixups: imms = (target - current) >> 2 (no +4 pipeline offset),
 +// except DADAO_FK_REL12 whose imms12 holds a BYTE offset (no >>2).
 +// ABS48: value = S + A, sliced by the instruction's wyde-position (wp).
 +// ABS12: value = S + A (byte offset).
++// PCREL_HI/PCREL_LO: the PC-relative hi/lo pair ((S + A - P + 0x800) >> 12 and
++// the signed 12-bit remainder); both are link-time values (contract-elf.md
++// §3.1, ADR-0029 §D2) -- the assembler only records the relocations.
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -75,8 +80,24 @@ index 000000000..cf3be4625
 +    // Source: contract-elf.md §2.2/§3.1 (ADR-0021 §D1-D3).
 +    DADAO_FK_ABS12,
 +
++    // PC-relative high part for `aip.si rbHA, <sym>` (riii: hb+hc+hd, 18-bit
++    // signed field).  Never resolved in the assembler: the value is
++    // ((S + A - P) + 0x800) >> 12 with P = the aip.si site address, and the
++    // paired low part (DADAO_FK_PCREL_LO) reuses the value the linker computes
++    // here, so both halves must be link-time values.
++    // Source: contract-elf.md §2.2/§3.1/§3.2 (ADR-0029 §D2/D3; ADR-0019 §D12).
++    DADAO_FK_PCREL_HI,
++
++    // PC-relative low part for the paired `ld.o rbHA, [rbHA, %pcrel_lo(site)]`
++    // (rrii: hc+hd, 12-bit signed byte field).  The operand is the *site* of
++    // the matching high part, not the final target: the record carries that
++    // pairing information (site address) and the linker derives the value from
++    // the high part's already-computed field -- both halves then share one P.
++    // Source: contract-elf.md §2.2/§3.1/§3.2 (ADR-0029 §D2/D3).
++    DADAO_FK_PCREL_LO,
++
 +    // Sentinel
-+    LastTargetFixupKind = DADAO_FK_ABS12
++    LastTargetFixupKind = DADAO_FK_PCREL_LO
 +  };
 +} // end namespace DADAO
 +} // end namespace llvm
