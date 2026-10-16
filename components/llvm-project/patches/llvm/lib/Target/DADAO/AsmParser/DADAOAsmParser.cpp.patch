@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..169208a21
+index 000000000..0c4291ace
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2495 @@
+@@ -0,0 +1,2500 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -579,6 +579,11 @@ index 000000000..169208a21
 +  if (getParser().getTok().isNot(AsmToken::LParen))
 +    return Error(getParser().getTok().getLoc(),
 +                 Twine("expected '(' after '%") + Name + "'");
++  // MCAsmParser::parseParenExpression assumes the leading '(' has already been
++  // consumed ("Parse an arbitrary expression, assuming that an initial '(' has
++  // already been consumed", MCAsmParser.h); eat it here so that the ')' is
++  // matched against this '(' instead of the next token.
++  getParser().Lex(); // consume '('
 +  const MCExpr *SubExpr;
 +  if (getParser().parseParenExpression(SubExpr, EndLoc))
 +    return true;
