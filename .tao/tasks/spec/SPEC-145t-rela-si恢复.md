@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0029`（**`Accepted`**，2026-10-16 用户逐条确认；本册 = `D1` / `D2`（命名编号面）/ `D7①` / `D8` 的**执行落点**）、`ADR-0012 D5`（**被本册回退**的删除项：`rela.si` → UNDI、`254 → 253`、M1 `177 → 176`）、`ADR-0003`（`rela.si` **旧口径**：PC 低 12 位清零 / 4 KB 页对齐 —— **本册不回退该口径** ✗，见「接口规范」）、`SPEC-057t`（历史删除任务）、`SPEC-142t`/`SPEC-143t`（同改 `contracts/opcodes.yaml` / 生成区 / 向量的**近例**，各自与前置串行）；**串行链**：本册 → `LLVM-095t`（前置 = 本册编码冻结）→ `QEMU-061t`（`AGENTS.md`「同改共享文件一律串行」）；`ISS-230`（本册 = 其缺口的**编码面**起点）；纪律 = `docs/Process-06`（`spec/` 只读册哈希锁）、`docs/Process-05`（L1 编码向量）、`docs/Process-01`（补丁树，本册**不涉**）
-**状态**：待开始
+**状态**：已验证
 
 > **改名注记（2026-10-16，追加；**本册正文与完成区 / 审阅记录一概不改写** ✗）**：本册叙述的交付物 `rela.si` 于同日经用户裁定**改名 `aip.si`**（另：正文术语 `PC` → **`IP`**；汇编层操作数按**字节**、字段名 `imms30`）⇒ **本册正文中出现的 `rela.si` / `rela_si_rb` 一律按 `aip.si` / `aip_si_rb` 读**（用户原话逐字：「**改为：aip.si，在正文中，避免使用pc，应该用ip；而且，在SimRISC中，ip明确是当前正在执行的指令的地址，而非主流ISA的下一条指令地址**」）。改名落纸见 `ADR-0029` §修订注记、`spec/SimRISC-00` QFC 主表、`spec/SimRISC-05 §3.4`、`spec/Toolchain-01 §3.2`/`§5`、`.tao/contracts/contract-isa.md §7.4`（生成投影 `contracts/opcodes.yaml` / `contract-asm-list.md` 已随生成器重生成）。
 
@@ -134,3 +134,28 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### 第 1 轮 reviewer 验收（SPEC-145t，2026-10-17）
+
+**重跑记录**（独立执行，非采信完成区）：
+- `contracts/opcodes.yaml`：235 条记录、M1 scope 156 ✓；`aip.si_riii_rb` 逐字段：op=0x5A/mask=0xFF000000/value=0x5A000000/riii/rbha[23:18]dst·rb/imms18[17:0]signed/legality rbha!=rb0/scope m1/rule_refs [dst_rb0] ✓
+- `python3 tools/spec/validate_encoding.py`：rc=0（235 条 OK）
+- `python3 tools/spec/check_qfc_coverage.py`：QFC 235/YAML 235/差异 0（rc=0）
+- `python3 tools/spec/check_scope.py`：m1=156/total=235（rc=0）
+- `python3 tools/testcases/validate_vectors.py`：156/156 M1、712 cases、0 gap（rc=0）
+- `make check`(L1)：**rc=0**（末行 `repository checks (L1): PASS`）
+
+**端到端验证**（亲自执行）：
+- `aip.si rb8, 32768` → encoding `[0x5a,0x20,0x00,0x08]` = `5a200008` ✓（反汇编 `aip.si rb8, 32768` 按字节打印 ✓）
+- 负例 `aip.si rb8, 1`（低位非 0）→ rc=1 + `multiple of 4096 bytes` ✓
+- 负例越界 → rc=1 + `byte offset out of range` ✓
+
+**契约↔实现一致**：DADAO.def.patch PCREL_HI=14/PCREL_LO=15/NUM=16 ↔ contract-elf.md §2.2 终表逐行一致 ✓
+
+**反例注入**（独立执行）：改 opcodes.yaml value 0x5A→0x5B ⇒ `validate_encoding` rc=1（解码冲突）+ `validate_vectors` 12 errors ⇒ `cp` 还原（md5 `190c538c…` 三态一致）⇒ rc=0 ✓（未用 git checkout/restore/stash）
+
+**证据脚本**：`.work/evidence/SPEC-145t/run.sh` 因改名（rela→aip）有 14 项 stale（引用 `rela-si.yaml` / grep `rela.si` / 期望 `check-instrinfo` 已知红但已修复），属历史留证不追改；核心交付（编码/向量/门控）均已独立重验通过。
+
+**约束核验**：① `spec/` 只动授权范围（SimRISC-00/05 + Toolchain-01）✓ ② 未改 ADR 正文 ✓ ③ 未改 components/** ✓ ④ 234→235 计数正确 ✓ ⑤ reserved.yaml Case 2 已改指向 op=0x58 ✓
+
+**判决**：**Accepted**（SPEC-145t）。编码冻结自洽、门控全绿、契约一致、反例可达 FAIL。

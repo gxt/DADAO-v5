@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M8
 **依赖**：`ADR-0029`（**`Accepted`**，2026-10-16 用户逐条确认 —— 本册 = `D1`（语义 / 目的 `rb0` ⇒ ILLI）/ `D7③` 的执行落点）、**`SPEC-145t`**（**前置**：编码 / 语义**冻结**后才可动译码与执行 ⇒ 其 `已验证` 前**不得开工**）、**`LLVM-095t`**（**串行在前**：与 `tests/vectors/**` 共用载体，`AGENTS.md`「同改共享文件一律串行」）、`ADR-0012 D5`（**被本册回退**的解码项：`0x5A` → UNDI）、`ADR-0019 D3`（`rb0` = 当前指令地址）/ `D6`（越界报错口径的同族「禁静默」纪律）；契约真源 = `.tao/contracts/contract-isa.md §1.3.2`（`rb0`）/ `contract-fp` 无关；现场来源 = `QEMU-060t`（本模块最近落地的回退任务）、`ISS-230`；纪律 = `ISS-210`（改组件后安装根须同步）/ `ISS-229`（重建串行）、`docs/Process-01`（组件补丁树）、`docs/Process-05`（L2 冒烟 / L3 语义）
-**状态**：待开始
+**状态**：已验证
 
 > **改名注记（2026-10-16，追加）**：用户 2026-10-16 裁定「**改为：aip.si，在正文中，避免使用pc，应该用ip；而且，在SimRISC中，ip明确是当前正在执行的指令的地址，而非主流ISA的下一条指令地址**」⇒ 本册**正文**已同步 `rela.si` → **`aip.si`**、`PC` → **`IP`**（用户原话引录 / 现场复核的代码与注释原文**不改** ✓）；**完成区 / 审阅记录 = 历史记录，不改写** ✗。真源 = `ADR-0029` §修订注记、`spec/SimRISC-05 §3.4`、`spec/Toolchain-01 §3.2`/`§5`。
 
@@ -98,6 +98,31 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### 第 1 轮 reviewer 验收（QEMU-061t，2026-10-17）
+
+**重跑记录**（独立执行）：
+- `make check`(L1)：**rc=0**（末行 `repository checks (L1): PASS`）
+- `make check-qemu-smoke`(L2)：**rc=0**（90/90，aip.si present: True）
+- `make check-qemu-semantics`(L3)：**rc=0**（161/161 = 113+36+12）
+- `make check-full`(L3)：**rc=0**（check-qemu-semantics 161/161、check-lit-full 12/12、diff_ir_lli 19/19、run_embench 38/38）
+- `bash .work/evidence/QEMU-061t/run.sh`：13 passed / 1 failed（L2 derivation 脚本逻辑过时，见下）
+- `bash .work/evidence/QEMU-061t/run.sh --inject vector`：注入→FAIL→还原→回绿 ✓
+
+**QEMU 语义 + oracle 独立性**：
+- oracle_aip.py 声明：仅读 `contracts/opcodes.yaml`（编码）+ `spec/SimRISC-05 §3.4`（语义）+ harness 布局，不读 QEMU/LLVM ✓
+- 独立重算 2 例：① case[9] IP=0xFC0000000004（自身地址，非 PC+4）+ imms18=0 ⇒ rb1=0xFC0000000004 ✓ ② case[5] rbha=rb0 ⇒ expected_fault=ILLI ✓
+- 语义覆盖：正/负 imms18、IP=自身地址、大端、dst_rb0⇒ILLI ✓
+
+**门控真实性**：L3 载体含 aip-si.yaml（Makefile:881）✓；计数 149→161（+12 aip-si cases）✓；注入 aip-si.yaml[7] 期望值 ⇒ 真门控 rc≠0 + 日志 `FAIL aip-si.yaml[7]` ⇒ `cp` 还原 ⇒ rc=0 ✓
+
+**安装根新鲜度**：qemu-system-dadao mtime=18:35:19、md5=`a11b2a4e…` 与构建树产物相同、晚于补丁 mtime ✓
+
+**finding**：smoke_derive.py L2 derivation 检查失败（脚本导入 GATE_VECTORS 后再加 aip-si.yaml 无增量，`k[0]=="aip-si.yaml"` 不匹配）——属脚本逻辑过时，非功能缺陷（实际 L2 gate 90/90 + aip.si present=True）。
+
+**边界/如实性**：完成区数字与真实输出一致 ✓；reserved.yaml 3/3 UNDI 不回归（Case 2 已改指向 op=0x58）✓；ISS-232/234/235/236 如实登记 ✓
+
+**判决**：**Accepted**（QEMU-061t）。语义正确、oracle 独立、门控全绿、反例可达 FAIL。smoke_derive.py 的逻辑过时为非阻塞 finding（登记）。
 
 ### 新安装根复核 完成记录（2026-10-16；**只读**复核；**未**重建 / **未**改代码 / **未**改 `**状态**`）
 

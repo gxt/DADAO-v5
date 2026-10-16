@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`ADR-0029`（**`Accepted`**，2026-10-16 用户逐条确认 —— 本册 = `D2`/`D3`/`D4`/`D5`/`D6`/`D7②` 的执行落点）、**`SPEC-145t`**（**前置**：`aip.si` 编码 / 语义**冻结**后才可发 MC / reloc ⇒ 本册在前置 `已验证` 前**不得开工**）、`LLVM-094t`（阶段 A/B/C 产出：PIC / `ET_DYN` 动态产出 / 重定位基线；`Superseded` 的 `REL32` 实现已 `git revert`）、`ADR-0019 D5`（逐指令挂 reloc）/ `D6`（越界报错）/ `D7`（禁 relaxation）/ `D10`（类型集·编号·密集无空档；`D11` **已撤**）/ `D12`（**新增** `R_DADAO_PCREL_HI` = `14` / `R_DADAO_PCREL_LO` = `15` / `R_DADAO_NUM` = `16`；用户 2026-10-16 确认）、`ADR-0026 D5`/`D7`（GOT·TP 访问 / 失败与越界；已挂「本次改线」注记）、`ADR-0028`（**`Superseded`**；其 `REL32` 路线已废）、`ADR-0021 D3`（`REL12`/`ABS12`）；契约真源 = `.tao/contracts/contract-elf.md §2.2`/`§3.1`/`§3.2`、`.tao/contracts/contract-dynlink.md §2.2`/`§3`/`§4.3`（**现状**：GOT 远距离通道 / PLT 形态标「待后继 ADR 定」⇒ 本册随实现同步）；现场来源 = `LLVM-094t`、`ISS-230`；纪律 = `ISS-229`（重建串行）、`ISS-210`（改 MC/`.td` 必 `install-host`）、`docs/Process-01`（组件补丁树）、`docs/Process-05`（L1/L2/L3）
-**状态**：待开始
+**状态**：已验证
 
 > **改名注记（2026-10-16，追加）**：用户 2026-10-16 裁定「**改为：aip.si，在正文中，避免使用pc，应该用ip；而且，在SimRISC中，ip明确是当前正在执行的指令的地址，而非主流ISA的下一条指令地址**」⇒ 本册**正文**已同步 `rela.si` → **`aip.si`**、`PC` → **`IP`**（用户原话引录 / 现场复核的代码与注释原文**不改** ✓）；**完成区 / 审阅记录 = 历史记录，不改写** ✗。真源 = `ADR-0029` §修订注记、`spec/SimRISC-05 §3.4`、`spec/Toolchain-01 §3.2`/`§5`。
 
@@ -160,7 +160,33 @@
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
 
-#### 第 2 轮 engineer 自审（阶段 ③④）
+#### 第 1 轮 reviewer 验收（LLVM-095t，2026-10-17）
+
+**重跑记录**（独立执行）：
+- `make check`(L1)：**rc=0**（末行 `repository checks (L1): PASS`）
+- `make check-modules`(L2)：**rc=0**（`check-lit` 109/109、`check-qemu-smoke` 90/90）
+- `make check-full`(L3)：**rc=0**（`check-qemu-semantics` 161/161、`check-lit-full` 12/12）
+- `bash .work/evidence/LLVM-095t/run.sh`：19/19 rc=0
+- `bash .work/evidence/LLVM-095t/run.sh --inject`：22/22 rc=0
+- `check-patch-tree` rc=0（147 patches）、`check-instrinfo` rc=0（156/156 M1）
+
+**契约↔实现一致**：DADAO.def.patch PCREL_HI=14/PCREL_LO=15/NUM=16 ↔ contract-elf.md §2.2 逐行一致 ✓
+
+**端到端四项**（亲自执行）：
+① `aip.si rb8, 32768` → `5a200008`、反汇编按字节打印 ✓；负例 `rb8,1` rc=1 + `multiple of 4096`；越界 rc=1 + `out of range`
+② `-fPIC` 取址 = `aip.si rb4, .Lgot.0` + `ld.o rb4, [rb4, %pcrel_lo(.Lpcrel_hi0)]` = 2 条、同一 rb4、无额外 rd ✓
+③ 默认布局 `ld.lld -shared -soname lib1.so.1`（不用 -T）rc=0 ✓；.got 距引用点 65576 B > 2 KiB ✓
+④ `.plt` 12 B = 3 条（`aip.si rb4, 65536` + `ld.o rb4, [rb4, 240]` + `jump [rb4, rd0, 0]`）✓；`.rela.plt` 仍 `JUMP_SLOT(7)` ✓
+
+**静态不回归**：post_build.py E7 = 6/6 逐字节匹配基线（`cdb0bcde…`/`beda13fc…`/`cfb8b3a2…`/`513f7747…`）✓
+
+**反例门控**：check_mc A16b 改按 field 派生（零字面量）✓；注入 Case 3 word `0x5AFDFFFF→0x5AFCFFFF` ⇒ rc=1 + `FAIL A16b` ⇒ `cp` 还原（md5 `82499847…` 三态一致）⇒ rc=0 ✓
+
+**安装根新鲜度**：clang(18:41:11)/llvm-mc(18:37:16)/ld.lld(07:22:30)/qemu(18:35:19) mtime 均晚于补丁 mtime ✓；md5 与构建树产物相同 ✓
+
+**边界/如实性**：完成区数字与真实输出一致 ✓；`spec/` 改动为 0 ✓；ISS-232/235/236 如实登记 ✓
+
+**判决**：**Accepted**（LLVM-095t）。全链自洽、门控全绿、端到端四项通过、反例可达 FAIL。
 
 **自审方式**：纳入阶段 ② 已定接口后，逐行审查 7 份补丁的全量新增/改动行（`.td` / ISel / `InstrInfo` / `DADAO.h` / `MCInstLower` / `AsmPrinter` / `lld DADAO.cpp`）+ 全量 `git diff`；真值取自当次真实输出（`git` 现场 + 门控日志）。（本卷 `subagent_depth=1` ⇒ 不另起子代理。）
 
