@@ -39,6 +39,8 @@ RB寄存器的约定如下：
 | rb32 - rb62   |               | callee saved regs     | Yes               |
 | rb63          | rbfp          | frame pointer（条件占用；hasFP 为真时为 FP，否则可作通用 callee-saved 分配） | Yes |
 
+`rb0`（ABI 名 `rbip`）即 **`IP`**：读出为**当前正在执行的指令的地址**（**非**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**），只读，任何指令以其为显式目的时触发 ILLI（见 `SimRISC-00 §基址寄存器`）。
+
 `rb63` 作 frame pointer 是**条件式**的：hasFP 为真时保留为 `rbfp`（即函数需要帧指针时），由 prologue 保存其旧值、epilogue 恢复；否则 `rb63` 可作通用 callee-saved 寄存器由编译器分配。`rb63` 恒为 callee-saved。
 
 因 `rb63` 是 RB 组最高编号寄存器，`ldm`/`stm` 的 `immu6` 连续寄存器区间不能从 `rb63` 向上展开：批量保存 callee-saved 寄存器时须排除 FP（`rb63`），或对 `rb63` 先保存再恢复。
@@ -406,6 +408,7 @@ void make_big(struct Big* sret_ptr, int a)
 - 栈布局以 `rbfp` 为界描述，移除 red zone。
 - 汇编格式迁移新格式；`LD`/`ST`/`cs.`/`br.` 等指令名统一；伪指令迁回 SimRISC。
 - 与上游 SimRISC 0.5.4 基线对齐。
+- 寄存器表补 `rbip` 语义明文：`rb0`（`rbip`）即 **`IP`** = **当前正在执行的指令的地址**（非主流 ISA 的「下一条指令」口径；本 ISA 无 `±4` 流水偏移）。
 
 ### 0.9.2（上游基线；导入日 2026-07-14，发布日不详）
 

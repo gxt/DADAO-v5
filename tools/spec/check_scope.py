@@ -19,7 +19,7 @@
   * ADR-0012 D10（新增 scope: m8 = rev.o/.t/.w/.b 4 条；M1/fp/excluded/m3 不变）
   * ADR-0012 D11（新增 scope: m8 = ctlz/cttz/ctpop 3 条 ⇒ m8 4→7、total 231→234；
     M1/fp/excluded/m3 不变）
-  * ADR-0029 D1（恢复 ISA 指令 rela.si（PC 相对寻址，op 0x5A）⇒ M1 155→156、
+  * ADR-0029 D1（恢复 ISA 指令 aip.si（IP 相对寻址，op 0x5A）⇒ M1 155→156、
     total 234→235；fp/excluded/m3/m8 不变）
 
 Usage: python3 tools/spec/check_scope.py [--yaml contracts/opcodes.yaml] [--repo-root .]

@@ -163,3 +163,17 @@
 - **边界**：本补记**只补确认记录** ✗，**未改本 ADR 的 decision 正文** ✓（`D1`–`D8` 一字未动；上表逐行状态不变）；`D2` 的**实质内容**亦无改动（**仅编号落地**）。
 
 **变更流程**：决策变更时**新增 ADR 或标注 `Superseded`**；经授权的就地修订须用户**逐条确认**（`docs/Process-03`；`AGENTS.md`「ADR decision 逐条确认」）。
+
+---
+
+## 修订注记（2026-10-16，**追加**；`D1`–`D8` 实质**未改** ✗）
+
+> **依据（用户裁定，原话**逐字**引录；渠道 = 经主会话问答，2026-10-16）**：
+>
+> 「**改为：aip.si，在正文中，避免使用pc，应该用ip；而且，在SimRISC中，ip明确是当前正在执行的指令的地址，而非主流ISA的下一条指令地址**」
+
+1. **指令名 `rela.si` → `aip.si`**（`riii` 格式 / 编码 `0x5A` / 语义 `rbHA = IP + (sign_extend(imms18) << 12)` **均不变** ✓）——理由：① **零撞名**：原名 `rela.si` 与 ELF 的 `.rela`/`RELA` 族**字面同形**（现场实测：`git grep -l` 跟踪文件 **64** 处命中；含 `.work` 源码树 **1800+** 处）⇒ 检索 / 日志辨识度低；② 长度仍 **6 字符**（`aip.si`；原 `rela.si` 为 7），与既有「前缀 + `.si`」助记符同量级 ✓；③ 与 ABI 寄存器名 **`rbip`**（instruction pointer）**同术语** ✓。
+2. **术语 `PC` → `IP`**（`spec/` 正文 + `.tao/contracts/` 人读契约）：`IP`（= `rb0` / `rbip`）= **当前正在执行的指令的地址**，**不是**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**，I 形态指令的立即数基址即 `IP`（`aip.si` 的 `imms18` 以该指令**自身**地址为基）。**保留 `PC` 的例外（一次说明，落 `.tao/contracts/contract-elf.md §2.2` 注）**：`R_DADAO_PCREL_HI` / `R_DADAO_PCREL_LO`（及 RISC-V `%pcrel_hi` / `%pcrel_lo`）**沿用 ELF/RISC-V 族惯例名**（`PCREL` = PC-relative），**类型名照旧不改** ✓。
+3. **与上游 `rela` 的名称映射（一行）**：上游 `rela`（`rela.si`，`ADR-0003` 旧口径 / 0628 口径）→ v5 **`aip.si`**（**同一** `riii` 格式、**同一** 编码位 `0x5A`；语义按 `D1`，**不回退** `ADR-0003` 的页对齐口径 ✓）。
+4. **与 RISC-V `auipc` 的三点差异**（把 `D1` 的「含义参照 `auipc`」**细化、非改判** ✓）：① 操作数以**字节**为单位（汇编层 **`imms30`**；`auipc` 的立即数以 4 KiB 块为单位）② 结果写入 **RB 银行**（`rbHA`；`auipc` 写通用整数寄存器）③ 可达 **±512 MiB**。汇编层按字节受理 + 低 12 位 / 范围检查 + 反汇编按字节打印属**实现面**（代码侧，随 `LLVM-095t` 的待确认项落）。
+5. **落纸范围（本注记所指的那一笔）**：`spec/`（`SimRISC-00` / `05` / `Toolchain-01` 为主；术语波及 `SimRISC-06` / `11` / `DADAO-12` / `13` / `21` / `Machine-01`）、生成投影（`contracts/opcodes.yaml`、`.tao/contracts/contract-asm-list.md`，由既有生成器重生成）、人读契约（`contract-isa` / `contract-elf` / `contract-dynlink` / `contract-abi` / `contract-see` / `contract-semihosting`）、生成器同步（`tools/spec/generate_opcodes.py`、`tools/llvm/gen_asm_list.py`、`tools/spec/gen_legality_list.py`、`tools/testcases/generate_lit_vectors.py`）、`D7` 三册任务书注记、`milestones.md`、只读册 `sha256` 锁。**代码 / 向量未动** ✗（`components/**`、`tests/**` 的实现面下一笔随名）。

@@ -44,7 +44,7 @@
 - 一般 trap（`immu18[17:16] ≠ 2'b11`）走 `DADAO-12 §5` 异常进入流程步骤 1–10，进入目标 cfx 异常向量。[DADAO-12 §5. 异常进入与异常退出][ADR-0020 D10]
 - `escape cfxha, [excp_cause_ip, imms20]` 完成异常退出；编码层 `imms18`，`Addr = excp_cause_ip + (imms18 << 2)`，`imms20` 须 `%4==0`。[DADAO-12 §异常退出流程][SimRISC-11 §退出指令]
 - 被调方经 `escape cfxha, [excp_cause_ip, 4]` 返回 trap 下一条指令。[DADAO-22 §1. 调用约定]
-- **两条路分离**：semihosting（`immu18[17:16] == 2'b11`）经实现层短路、不进入向量、PC 步进返回，见 `contract-semihosting.md`；不得混入向量路径。[ADR-0020 D10][Machine-01 §4]
+- **两条路分离**：semihosting（`immu18[17:16] == 2'b11`）经实现层短路、不进入向量、IP 步进返回，见 `contract-semihosting.md`；不得混入向量路径。[ADR-0020 D10][Machine-01 §4]
 
 ## §5 SBI 调用约定
 

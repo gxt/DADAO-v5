@@ -32,7 +32,7 @@
 ## 2. 合法性检查
 
 * `dst_rd0_nonzero`：ret 目的 rd0 时 imms18≠0 → ILLI — `ret_riii_ra`（1 条）
-* `excp_ialign`（动态）：PC[1:0]≠0 → IALIGN
+* `excp_ialign`（动态）：IP[1:0]≠0 → IALIGN
 * `excp_rasof`（动态）：RAS 上溢 → RASOF
 * `excp_rasuf`（动态）：RAS 下溢 → RASUF
 <!-- LEGALITY_END -->
@@ -166,6 +166,7 @@ ret     rd0, 0          ; 无返回值返回（旧 `return`）
 - `cmp.uo-rb` 改为整 64 位比较；RB / 控制流地址语义修正。
 - 新增「合法性检查」章（生成区）；删 `rela.si`。
 - 正文改用新汇编格式；新增「汇编指令速查」章（生成区）。
+- 合法性检查章（生成区）术语 `PC` → **`IP`**（`excp_ialign` 条：取指时 `IP[1:0] ≠ 00` 触发 IALIGN；见 SimRISC-00 §基址寄存器）。
 
 ### 0.5.4（2026-09-28）
 

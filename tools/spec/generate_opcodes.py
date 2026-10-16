@@ -236,8 +236,9 @@ S04_BIT = "SimRISC-04 §Bit manipulating：位操作指令"
 S05_ADD = "SimRISC-05 §加减操作"
 S05_INC = "SimRISC-05 §自增自减"
 S05_CMP = "SimRISC-05 §比较操作"
-# ADR-0029 D1：恢复 rela.si（PC 相对寻址，auipc 式；0x5A 原为 ADR-0012 D5 保留位）
-S05_PCREL = "SimRISC-05 §PC 相对寻址"
+# ADR-0029 D1：恢复 aip.si（IP 相对寻址，auipc 式；0x5A 原为 ADR-0012 D5 保留位）
+# 指令名 `rela.si` → `aip.si`、正文术语 `PC` → `IP`（用户 2026-10-16 裁定）
+S05_PCREL = "SimRISC-05 §IP 相对寻址"
 
 # 控制流（SimRISC-06）
 S06_BR = "SimRISC-06 §条件跳转指令"
@@ -426,10 +427,11 @@ def build_main_table(records):
     # ── 0101-1xxx：自增/相对/比较 ──
     records.append(rec("add.si-rd", "add.si", "riii", 0x59,
                        f_riii("rdha", "imms18"), [LEG_RD_DST], S04_INC))
-    # ADR-0029 D1（用户 2026-10-16 授权）：恢复 rela.si（PC 相对寻址）——0x5A 为
-    # ADR-0012 D5 保留（不再指派）的编码，故不占新编码位；语义 = rbha = PC + (imms18 << 12)，
-    # PC = 该指令自身地址（rb0 读出值，不清低位）；目的 rb0 ⇒ ILLI（dst_rb0）。
-    records.append(rec("rela.si-rb", "rela.si", "riii", 0x5A,
+    # ADR-0029 D1（用户 2026-10-16 授权）：恢复 aip.si（IP 相对寻址）——0x5A 为
+    # ADR-0012 D5 保留（不再指派）的编码，故不占新编码位；语义 = rbha = IP + (imms18 << 12)，
+    # IP = 该指令自身地址（rb0 读出值，不清低位）；目的 rb0 ⇒ ILLI（dst_rb0）。
+    # 指令名 `rela.si` → `aip.si`（用户 2026-10-16 裁定；汇编层操作数按字节写 `imms30`）。
+    records.append(rec("aip.si-rb", "aip.si", "riii", 0x5A,
                        f_riii("rbha", "imms18"), [LEG_RB_DST], S05_PCREL))
     records.append(rec("add.si-rb", "add.si", "riii", 0x5B,
                        f_riii("rbha", "imms18"), [LEG_RB_DST], S05_INC))

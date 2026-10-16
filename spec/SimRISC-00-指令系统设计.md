@@ -59,7 +59,7 @@ SimRISC中目前接收如下数据类型：
 基址寄存器又可称为地址寄存器，但是在SimRISC中只能用于基址，即绝对地址，简要说明如下：
 
 - 共64个基址寄存器，每个寄存器64位，实际实现需保证48位地址空间
-- `rb0` 读出为**当前指令的地址**（非下一条），只读。任何指令以 rb0 为显式目的时触发 ILLI 异常。`rb0[63:48]` 初值为 0，由控制流指令的硬件写入（见 §控制流指令）。硬件复位后 `rb0` 初值为 `cfx_power_hypv_excp_vector`（见 SEE §2.1）。
+- `rb0` 读出为**当前正在执行的指令的地址**（**非下一条**），只读。`rb0` 即 **`IP`**（ABI 名 `rbip`；下文正文一律用 `IP` 指它）——**`IP` 的定义 = 当前正在执行的指令的地址**，**不是**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**，I 形态指令（`riii`/`rrii`/`iiii` 等）的立即数基址即 `IP` 自身（如 `aip.si` 的 `imms18` 以该指令自身地址为基）。任何指令以 rb0 为显式目的时触发 ILLI 异常。`rb0[63:48]` 初值为 0，由控制流指令的硬件写入（见 §控制流指令）。硬件复位后 `rb0` 初值为 `cfx_power_hypv_excp_vector`（见 SEE §2.1）。
 
 基址寄存器（RB）为 64 位，低 48 位（bits[47:0]）为有效地址。
 
@@ -138,7 +138,7 @@ RB 的高 16 位初值为全 0。`rb0[63:48]` 由控制流指令硬件写入（�
 - `ra0`：
   - `MRPTR == 0` 时只有一个 RAS（RegRAS），最多在 RegRAS 中存放 63 个返回地址，（不考虑递归情况下）调用深度超过 63 时触发 **RASOF** 异常。
   - `MRPTR != 0` 时有两个 RAS（RegRAS 和 MemRAS），MemRAS 是事先分配好的一段存储空间，`MRPTR` 为 MemRAS 栈顶地址。
-  - MemRAS 的访存遵循地址转换和存储访问规则：若访存触发页缺失等异常，硬件保证精确异常（压栈/弹栈未执行，PC 指向 call/ret 指令），异常处理后可重新执行。
+  - MemRAS 的访存遵循地址转换和存储访问规则：若访存触发页缺失等异常，硬件保证精确异常（压栈/弹栈未执行，IP 指向 call/ret 指令），异常处理后可重新执行。
 - **RASOF** 仅由「需溢出且 `MRPTR == 0`」触发；**MemRAS 越界（容量耗尽）不由硬件检测（交 OS）**。
 - **精确异常**：压栈/弹栈**先完成全部 `RASOF`/`RASUF` 判定**（含 D4b 的 MemRAS 条目读取与内容判定），判定通过后才进行 RA 寄存器或 MemRAS 访存的任何修改；异常时 RA 寄存器与内存均保持原状。
 
@@ -186,7 +186,7 @@ RB 的高 16 位初值为全 0。`rb0[63:48]` 由控制流指令硬件写入（�
 
 ## 3. 指令设计
 
-SimRISC中的每条指令都是四个字节，即32位。所有指令必须4字节对齐。取指时若 PC[1:0] ≠ 00，触发 IALIGN 异常。
+SimRISC中的每条指令都是四个字节，即32位。所有指令必须4字节对齐。取指时若 IP[1:0] ≠ 00，触发 IALIGN 异常。
 
 > **通用约束交叉引用**：MALIGN 对齐规则见各存取指令章节（SimRISC-01），除法溢出规则见各数据运算章节（SimRISC-04/08/09/10），`immu6 = 0` 触发 ILLI 见各多寄存器操作章节。
 
@@ -281,7 +281,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0100-0xxx     | MISC-octa            | MISC-tetra           | MISC-wyde            | MISC-byte            | MISC-RF              |                      |                      |                  |
 | 0100-1xxx     | or.w_rwii_rd         | andn.w_rwii_rd       | or.w_rwii_rb         | andn.w_rwii_rb       | set.zw_rwii_rd       | set.ow_rwii_rd       | set.zw_rwii_rb       | set.w_rwii_rf   |
 | 0101-0xxx     | add.uo_rrrr_rd       | add.so_rrrr_rd       | sub.uo_rrrr_rd       | sub.so_rrrr_rd       | mul.uo_rrrr_rd       | mul.so_rrrr_rd       |                      |                  |
-| 0101-1xxx     |                      | add.si_riii_rd       | rela.si_riii_rb      | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
+| 0101-1xxx     |                      | add.si_riii_rd       | aip.si_riii_rb       | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
 | 0110-0xxx     | cs.n_rrrr_rd         | cs.n_rrrr_rf         | cs.z_rrrr_rd         | cs.z_rrrr_rf         | cs.p_rrrr_rd         | cs.p_rrrr_rf         | cs.eq_rrrr_rd        | cs.ne_rrrr_rd   |
 | 0110-1xxx     | br.n_riii_rd         | br.nn_riii_rd        | br.z_riii_rd         | br.nz_riii_rd        | br.p_riii_rd         | br.np_riii_rd        | br.eq_rrii_rd        | br.ne_rrii_rd   |
 | 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | MISC-AMO        |
@@ -430,6 +430,8 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 - 恢复 `rela.si`（64 位 PC 相对寻址，`riii`，编码 `0101-1010`；语义参照 `auipc`：`rbHA = PC + (imms18 << 12)`，`PC` 取该指令自身地址、不清低位）——**取代**本段上方「全量删除 `rela.si`」一条。
 - 0 号寄存器作源操作数语义澄清；各寄存器组 0 号寄存器用途措辞定稿。
 - 伪指令表改用新汇编格式；cfx 系列记法约定。
+- ISA 指令 `rela.si` 改名 **`aip.si`**（`riii` / 编码 `0101-1010` 不变；零撞名、长度不变、与 `rbip` 同术语）。
+- 正文术语 `PC` 统一为 **`IP`**（`rb0`/`rbip`）：**`IP` = 当前正在执行的指令的地址**，**不是**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**，I 形态指令的立即数基址即 `IP`。
 
 ### 0.5.4（2026-09-28）
 

@@ -5,6 +5,8 @@
 **依赖**：`ADR-0029`（**`Accepted`**，2026-10-16 用户逐条确认；本册 = `D1` / `D2`（命名编号面）/ `D7①` / `D8` 的**执行落点**）、`ADR-0012 D5`（**被本册回退**的删除项：`rela.si` → UNDI、`254 → 253`、M1 `177 → 176`）、`ADR-0003`（`rela.si` **旧口径**：PC 低 12 位清零 / 4 KB 页对齐 —— **本册不回退该口径** ✗，见「接口规范」）、`SPEC-057t`（历史删除任务）、`SPEC-142t`/`SPEC-143t`（同改 `contracts/opcodes.yaml` / 生成区 / 向量的**近例**，各自与前置串行）；**串行链**：本册 → `LLVM-095t`（前置 = 本册编码冻结）→ `QEMU-061t`（`AGENTS.md`「同改共享文件一律串行」）；`ISS-230`（本册 = 其缺口的**编码面**起点）；纪律 = `docs/Process-06`（`spec/` 只读册哈希锁）、`docs/Process-05`（L1 编码向量）、`docs/Process-01`（补丁树，本册**不涉**）
 **状态**：待开始
 
+> **改名注记（2026-10-16，追加；**本册正文与完成区 / 审阅记录一概不改写** ✗）**：本册叙述的交付物 `rela.si` 于同日经用户裁定**改名 `aip.si`**（另：正文术语 `PC` → **`IP`**；汇编层操作数按**字节**、字段名 `imms30`）⇒ **本册正文中出现的 `rela.si` / `rela_si_rb` 一律按 `aip.si` / `aip_si_rb` 读**（用户原话逐字：「**改为：aip.si，在正文中，避免使用pc，应该用ip；而且，在SimRISC中，ip明确是当前正在执行的指令的地址，而非主流ISA的下一条指令地址**」）。改名落纸见 `ADR-0029` §修订注记、`spec/SimRISC-00` QFC 主表、`spec/SimRISC-05 §3.4`、`spec/Toolchain-01 §3.2`/`§5`、`.tao/contracts/contract-isa.md §7.4`（生成投影 `contracts/opcodes.yaml` / `contract-asm-list.md` 已随生成器重生成）。
+
 > **本册边界** ✗：只做 **`spec/` + 机器可读编码数据（`contracts/`）+ 生成器 + L1 编码向量 + 哈希锁**；**不含** LLVM / lld / CodeGen 改动（归 `LLVM-095t`）✗、**不含** QEMU 解码 / 语义（归 `QEMU-061t`）✗、**不建**重定位类型（`PCREL_HI`/`PCREL_LO` 归 `LLVM-095t`，本册只冻结**汇编/编码面**）✗。
 
 ## 执行环境

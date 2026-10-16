@@ -1551,8 +1551,8 @@
   scope: m1
   rule_refs:
   - dst_rd0
-- id: rela.si_riii_rb
-  mnemonic: rela.si
+- id: aip.si_riii_rb
+  mnemonic: aip.si
   format: riii
   op: '0x5A'
   mask: '0xFF000000'
@@ -1569,7 +1569,7 @@
     signed: true
   legality:
   - rbha != rb0
-  spec_cite: SimRISC-05 §PC 相对寻址
+  spec_cite: SimRISC-05 §IP 相对寻址
   scope: m1
   rule_refs:
   - dst_rb0

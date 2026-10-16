@@ -15,10 +15,11 @@
 |---|---|---|
 | `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
 | `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
-| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`rela.si` 的 **4 KiB 块偏移**（`<<12`） |
+| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`aip.si` 的**编码层** 4 KiB 块偏移（`<<12`；汇编层按字节写 `imms30`） |
 | `imms20` | bytes: [-524288, 524284]，`%4==0` | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
 | `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
 | `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
+| `imms30` | bytes: [-536870912, 536866816]，`%4096==0` | `aip.si` 的**汇编层**操作数（字节；编码 `imms18 = bytes >> 12`） |
 | `immu6` | u6: 0..63 | |
 | `immu12` | u12: 0..4095 | |
 | `immu16` | u16: 0..65535 | |
@@ -149,8 +150,8 @@
 |---|---|---|---|---|
 | `add.o` | `orrr` | `bbd` | `add.o rbHB, rbHC, rdHD` | `add.o_orrr_bbd` |
 | `add.si` | `riii` | `rb` | `add.si rbHA, imms18` | `add.si_riii_rb` |
+| `aip.si` | `riii` | `rb` | `aip.si rbHA, imms30` | `aip.si_riii_rb` |
 | `cmp.uo` | `orrr` | `dbb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_dbb` |
-| `rela.si` | `riii` | `rb` | `rela.si rbHA, imms18` | `rela.si_riii_rb` |
 | `sub.o` | `orrr` | `bbd` | `sub.o rbHB, rbHC, rdHD` | `sub.o_orrr_bbd` |
 | `sub.o` | `orrr` | `dbb` | `sub.o rdHB, rbHC, rbHD` | `sub.o_orrr_dbb` |
 

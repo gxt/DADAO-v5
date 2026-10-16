@@ -71,10 +71,23 @@ IMM_EXAMPLE = {"immu6": "1", "immu12": "1", "immu16": "0x1234", "immu18": "1",
 # escape; load/store (imms12) and ret (imms18) keep encoding names.
 _ASM_IMM_RENAME = {"imms12": "imms14", "imms18": "imms20", "imms24": "imms26"}
 
+# 逐指令的汇编层字段名覆盖（用户 2026-10-16 裁定）：`aip.si` 的汇编层操作数按
+# **字节**书写，字段名 `imms30`（编码层 `imms18` = 字节值 >> 12 = 4 KiB 块 ⇒ 字节值
+# 须为 4 KiB 整数倍）。与 `_ASM_IMM_RENAME` 同旨（汇编层名 ≠ 编码层名），倍数不同（×4096）。
+_ASM_IMM_OVERRIDE = {("aip.si", "imms18"): "imms30"}
+# 同一条指令的具体示例立即数：字节域、4 KiB 整数倍。
+_IMM_EXAMPLE_OVERRIDE = {("aip.si", "imms18"): "4096"}
+
 
 def _asm_imm_name(name: str) -> str:
     """Map encoding-level immediate field name to assembly-layer name."""
     return _ASM_IMM_RENAME.get(name, name)
+
+
+def asm_field_name(mnemonic: str, name: str) -> str:
+    """汇编「汇编形式」列的字段名：先查逐指令覆盖（`aip.si` ⇒ `imms30`），再落 `field_name`。"""
+    override = _ASM_IMM_OVERRIDE.get((mnemonic, name))
+    return override if override else field_name(name)
 
 
 def base_imm(name: str) -> str:
@@ -186,9 +199,9 @@ def classify(entry: dict) -> str:
         # 位扫描 / 位计数（ADR-0012 D11）：**无位宽后缀**，借 MISC-octa 格位；
         # 按「64位数据运算」归类，与正文 SimRISC-04 §4.2.2 同处。
         return "64位数据运算"
-    if m == "rela.si":
-        # PC 相对寻址（ADR-0029 D1）：`riii`，与前一行同族的 `add.si` 一样按
-        # 目的 bank（rb）归「64位地址运算」（正文 SimRISC-05 §PC 相对寻址）。
+    if m == "aip.si":
+        # IP 相对寻址（ADR-0029 D1；指令名 `rela.si` → `aip.si`）：`riii`，与前一行
+        # 同族的 `add.si` 一样按目的 bank（rb）归「64位地址运算」（正文 SimRISC-05 §IP 相对寻址）。
         return "64位地址运算"
     if re.search(r"\.(uo|so|o)$", m) or m == "add.si" or m.startswith("cmp."):
         # 64 位运算按寄存器组分：rb（地址）→ 地址运算；其余 → 数据运算
@@ -232,7 +245,8 @@ def example_line(entry: dict, ops: list[dict], attempt: int) -> str:
     parts = []
     for op in ops:
         if op["kind"] == "imm":
-            parts.append(IMM_EXAMPLE.get(op["name"], "1"))
+            override = _IMM_EXAMPLE_OVERRIDE.get((entry["mnemonic"], op["name"]))
+            parts.append(override if override else IMM_EXAMPLE.get(op["name"], "1"))
         elif op["kind"] == "wpN":
             parts.append("0")
         elif op["kind"] in ("cfxcode", "cfx_cg", "cfx_rc", "cfx"):
@@ -386,11 +400,8 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
             return f"{mnemonic} {{{inner}}}, {rest}"
 
     if field:
-        # 默认：按原顺序渲染（寄存器用字段名、立即数用字段名）
-        tokens = [
-            field_name(op["name"]) if op["kind"] != "imm" else field_name(op["name"])
-            for op in ops
-        ]
+        # 默认：按原顺序渲染（寄存器用字段名、立即数按汇编层字段名）
+        tokens = [asm_field_name(mnemonic, op["name"]) for op in ops]
         return f"{mnemonic} " + ", ".join(tokens) if tokens else mnemonic
     return example_line(entry, ops, attempt)
 
@@ -681,10 +692,11 @@ def main() -> int:
 |---|---|---|
 | `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
 | `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
-| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`rela.si` 的 **4 KiB 块偏移**（`<<12`） |
+| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`aip.si` 的**编码层** 4 KiB 块偏移（`<<12`；汇编层按字节写 `imms30`） |
 | `imms20` | bytes: [-524288, 524284]，`%4==0` | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
 | `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
 | `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
+| `imms30` | bytes: [-536870912, 536866816]，`%4096==0` | `aip.si` 的**汇编层**操作数（字节；编码 `imms18 = bytes >> 12`） |
 | `immu6` | u6: 0..63 | |
 | `immu12` | u12: 0..4095 | |
 | `immu16` | u16: 0..65535 | |

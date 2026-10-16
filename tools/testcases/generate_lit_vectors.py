@@ -130,10 +130,12 @@ def _build_positive(rec):
         if mn == "add.si":
             return ("add.si %s, 8" % _reg(f0["bank"], 8),
                     {f0["name"]: 8, "imms18": 8}, "riii-alu")
-        if mn == "rela.si":
-            # PC 相对寻址（ADR-0029 D1）：`riii` 的「dst, imm」形态（非分支形态）；
-            # 立即数即编码层 `imms18`（单位 = 4 KiB 块，无汇编层 ×4/×4096 改名）。
-            return ("rela.si %s, 8" % _reg(f0["bank"], 8),
+        if mn == "aip.si":
+            # IP 相对寻址（ADR-0029 D1）：`riii` 的「dst, imm」形态（非分支形态）；
+            # 指令名 `rela.si` → `aip.si`（用户 2026-10-16 裁定）。此处立即数仍按**编码层**
+            # `imms18`（4 KiB 块）书写——汇编层改按**字节**（`imms30`）受理属代码侧改动
+            # （见 `LLVM-095t` 待确认项），届时本处改为字节值（如 `32768` = 8 块）。
+            return ("aip.si %s, 8" % _reg(f0["bank"], 8),
                     {f0["name"]: 8, "imms18": 8}, "riii-alu")
         if mn == "ret":
             return "ret rd8, 8", {"rdha": 8, "imms18": 8}, "riii-ret"

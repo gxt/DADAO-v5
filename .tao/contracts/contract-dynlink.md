@@ -66,17 +66,17 @@
 
 | 寄存器 | ABI 名 | 角色（spec 定义） | v5 处置 |
 |--------|--------|-------------------|---------|
-| `rb0` | `rbip` | instruction pointer（**读出为当前指令的地址**，只读） | 保留（PC） |
+| `rb0` | `rbip` | instruction pointer（**读出为当前指令的地址**，只读） | 保留（IP） |
 | `rb2` | `rbgp` | **global pointer（GP）** | 保留不分配 |
 | `rb3` | `rbtp` | **thread pointer（TP）** | 保留不分配 |
 
 - 上表角色为 spec 原文口径；v5 的「保留不分配」口径见 `contract-abi.md §1.6`。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018 C6]
-- `rb0` 读出为**当前指令地址**（非 PC+4），且 `rb0` 作目的操作数触发 ILLI。[SimRISC-00 §基址寄存器][ADR-0015 D1]
+- `rb0`（`rbip`）即 **`IP`**：读出为**当前正在执行的指令的地址**（**非**「下一条」口径；本 ISA **无 `±4` 流水偏移**——v5 无 `−4`/`+4` 修正），且 `rb0` 作目的操作数触发 ILLI。[SimRISC-00 §基址寄存器][ADR-0015 D1]
 - v5 有效虚拟地址 = **48 位**，地址计算时高 16 位被硬件忽略。[contract-isa.md §1.5]
 
 ### §2.2 位置无关的两条寻址通路（承接既有重定位体系）
 
-- **通路①：PC 相对**。`R_DADAO_REL26` / `REL20` / `REL14`（字偏移，`(S + A − P) >> 2`）服务 `call`/`jump`/分支；`R_DADAO_REL12`（**字节**偏移、`rb0` 基址）服务 `ld/st` 符号偏移。v5 **无 `−4`** 修正（`rb0` 读出即 `P`）。[ADR-0019 D3][ADR-0021 D1]
+- **通路①：IP 相对**。`R_DADAO_REL26` / `REL20` / `REL14`（字偏移，`(S + A − P) >> 2`）服务 `call`/`jump`/分支；`R_DADAO_REL12`（**字节**偏移、`rb0` 基址）服务 `ld/st` 符号偏移。v5 **无 `−4`/`+4`** 修正（`rb0` 读出即 `P`，即 `IP` 语义）。[ADR-0019 D3][ADR-0021 D1]
 - **通路②：绝对 / 基址相对**。`R_DADAO_ABS48`（指令 3 片 `immu16` **或**数据 8 字节字段、高 16 位 = 0）、`R_DADAO_ABS12`（`rb1–rb63` 基址、字节偏移、`S + A`）。[ADR-0019 D2][ADR-0021 D1]
 - **推导（**通道待后继 ADR 定**，2026-10-16）**：PIC/PIE 的 GOT 取址在 v5 现状下**不能**只靠单条访存的 `imms12`（±2 KiB；`ISS-230` 已证在任何分段布局下 `-shared` 默认布局的 `.got` 距离均不可达）⇒ **宽范围取址通道 = 待后继 ADR 定** ✗（2026-10-16 曾定案为 `R_DADAO_REL32`，**同日随用户改线裁定撤回**——见文首「来源」行）。需要动态装配的仍是 **GOT 槽内容**（§4）。此推导的最终归属（类型集 / 编号）见 §4.3–§4.4。[ADR-0019 D2][ADR-0019 D10][ADR-0021 D3][ADR-0018 C7 D4][spec-decision]
 
@@ -90,7 +90,7 @@
 ### §2.4 GOT 基址寄存器与 TP：口径（**已定：2026-10-14 用户逐条确认**）
 
 - **事实**：spec 已把 `rb2`/`rbgp` 定义为 global pointer、`rb3`/`rbtp` 为 thread pointer，v5 M3 起二者**保留不分配**。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018 C6]
-- **已定（裁定 8）**：**不引入 GOT 固定基址寄存器**——PIC 取 GOT 槽地址**不经**专用 GP（`rbgp` **不**承载 GOT 基址），改由 **PC 相对（`rb0`）+ 链接期常量偏移**定位槽地址，再以 `ld.o`/`st.o` 做 8 字节访存（§3）；**`DT_PLTGOT` 必须提供**（musl `ldso` 读 `dso->got`）。[ADR-0021 D3][外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
+- **已定（裁定 8）**：**不引入 GOT 固定基址寄存器**——PIC 取 GOT 槽地址**不经**专用 GP（`rbgp` **不**承载 GOT 基址），改由 **IP 相对（`rb0`）+ 链接期常量偏移**定位槽地址，再以 `ld.o`/`st.o` 做 8 字节访存（§3）；**`DT_PLTGOT` 必须提供**（musl `ldso` 读 `dso->got`）。[ADR-0021 D3][外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
 - **已定（裁定 8）**：TP（`rbtp`）的**方向与偏置**归 **musl arch 宏**（`TLS_ABOVE_TP` / `TP_OFFSET` / `DTP_OFFSET` / `__get_tp`），**逐 arch 定值归 musl 移植任务**；本合约**只记录该依赖**、不写死值。[外部权威 musl `arch/riscv64/reloc.h`][ADR-0025 D5][spec-decision]（用户 2026-10-14 逐条确认）
 
 ---
@@ -99,8 +99,8 @@
 
 - **GOT**：条目为 **8 字节指针槽**（v5 指针宽度 8 字节）；数据符号地址槽与 PLT 槽分属 `.got` / `.got.plt` 是 psABI 惯例，**节名与布局由 LLVM 侧定**，本合约只钉**槽宽 8 字节**与**访问路径**。[contract-abi.md §1.7][外部权威 ELF gABI 第 5 章][spec-decision]
 - **PLT 绑定时机（已定，裁定 9）**：**首版取 eager（立即绑定 / `BIND_NOW`）**——经 `DT_BIND_NOW` / `DF_BIND_NOW` 在**装载期**完成全部 PLT 绑定；**lazy（延迟绑定，经 `DT_JMPREL` / `DT_PLTRELSZ` / `DT_PLTREL`）留后续**（musl `ldso` 两条都实现，本合约只钉**首版口径**为 eager）。[外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
-- **PLT 槽的填充**：由 `JUMP_SLOT` 类动态重定位（§4.3）在绑定时刻写入 GOT 槽；PLT stub 只负责「取 GOT 槽并跳转」，其**指令序列与生成方**（LLD DADAO 后端）**待 LLVM 侧定**，规范只钉**接口**（槽由动态重定位填充）。**（2026-10-16 改线）** 曾定案的「内联去槽」形态（`pltEntrySize` `24 → 16`、`pltDataOffset` 取消）**已随用户同日裁定撤回** ⇒ **PLT 条目形态 = 待后继 ADR 定** ✗（方向：`rela.si` ⇒ 拟 **3 条 / 12 B**）。[外部权威 ELF gABI 第 5 章][ADR-0019 D2][spec-decision]
-- **访问路径（PIC；裁定 8：不经 GP）**：取 GOT 槽地址 = **PC 相对（`rb0`）+ 链接期常量偏移**，再以 `ld.o`/`st.o` 做 8 字节访存；**不需要**为「访问 GOT」本身新增重定位类型、**也不引入 GOT 固定基址寄存器**；**relaxation 维持禁用**。**（2026-10-16 改线）** 单条 `imms12`（±2 KiB）**不足**（`ISS-230`）⇒ **宽范围取址的具体形态 = 待后继 ADR 定** ✗（曾定案的 `R_DADAO_REL32` 3 条/次**已撤回**）。[ADR-0021 D3][ADR-0019 D7][ADR-0018 C7 D4][spec-decision]
+- **PLT 槽的填充**：由 `JUMP_SLOT` 类动态重定位（§4.3）在绑定时刻写入 GOT 槽；PLT stub 只负责「取 GOT 槽并跳转」，其**指令序列与生成方**（LLD DADAO 后端）**待 LLVM 侧定**，规范只钉**接口**（槽由动态重定位填充）。**（2026-10-16 改线）** 曾定案的「内联去槽」形态（`pltEntrySize` `24 → 16`、`pltDataOffset` 取消）**已随用户同日裁定撤回** ⇒ **PLT 条目形态 = 待后继 ADR 定** ✗（方向：`aip.si` ⇒ 拟 **3 条 / 12 B**）。[外部权威 ELF gABI 第 5 章][ADR-0019 D2][spec-decision]
+- **访问路径（PIC；裁定 8：不经 GP）**：取 GOT 槽地址 = **IP 相对（`rb0`）+ 链接期常量偏移**，再以 `ld.o`/`st.o` 做 8 字节访存；**不需要**为「访问 GOT」本身新增重定位类型、**也不引入 GOT 固定基址寄存器**；**relaxation 维持禁用**。**（2026-10-16 改线）** 单条 `imms12`（±2 KiB）**不足**（`ISS-230`）⇒ **宽范围取址的具体形态 = 待后继 ADR 定** ✗（曾定案的 `R_DADAO_REL32` 3 条/次**已撤回**）。[ADR-0021 D3][ADR-0019 D7][ADR-0018 C7 D4][spec-decision]
 - **`DT_PLTGOT` 必须提供**：musl `ldso` 读 `dso->got`，构造 PLT/GOT 时必须发出 `DT_PLTGOT`。[外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
 - **不得**把 GOT 槽地址的链接期常量偏移当作动态重定位（二者分工：**偏移**链接期定、**内容**运行期定）。[ADR-0019 D2]
 - **GOT 语义（已定）**：GOT 的**模块内偏移固定**（= `DT_PLTGOT` 记的值；musl `ldso` 装载期读 `dso->got`），**绝对地址不固定**（= **装载基址 `B`** + 模块内偏移）——即「槽地址 = 链接期常量偏移 + 运行期装载基址」。[ADR-0019 D10][ADR-0026 D5][外部权威 musl `ldso/dynlink.c`][spec-decision]（用户 2026-10-14 逐条确认）
@@ -134,7 +134,7 @@
 | 1 | `R_DADAO_REL26` | **静态**：`call` / `jump`（iiii） | — | `(S + A − P) >> 2` |
 | 2 | `R_DADAO_REL20` | **静态**：`br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np`（riii） | — | `(S + A − P) >> 2` |
 | 3 | `R_DADAO_REL14` | **静态**：`br.eq` / `br.ne`（rrii） | — | `(S + A − P) >> 2` |
-| 4 | `R_DADAO_REL12` | **静态**：`ld/st [rb0, sym]`（PC 相对、字节） | — | `S + A − P`（字节） |
+| 4 | `R_DADAO_REL12` | **静态**：`ld/st [rb0, sym]`（IP 相对、字节） | — | `S + A − P`（字节） |
 | 5 | `R_DADAO_ABS12` | **静态**：`ld/st [rbN, sym]`（`rb1–rb63` 基址相对、字节） | — | `S + A`（字节） |
 | 6 | `R_DADAO_ABS48` | **数据 / GOT 槽**（8 字节字段）**或**地址构造序列（3 片 wyde） | `REL_SYMBOLIC` / `REL_GOT` | `S + A`（**无符号 48 位**） |
 | 7 | `R_DADAO_JUMP_SLOT` | PLT 的 GOT 槽（8 字节字段） | `REL_PLT` | `S + A`（**无符号 48 位**） |
@@ -254,7 +254,7 @@
 | 4 | `PT_INTERP` 路径与命名 | **已定** | **`/lib/ld-musl-dadao.so.1`**（符号链接 → `libc.so`，guest 视角路径）；构建须**显式传** `-dynamic-linker`（§6.1） |
 | 5 | 哈希表口径（SysV / GNU / 双发） | **已定**（**修订**） | **仅 GNU hash**（`--hash-style=gnu`）——**不**双发 SysV；musl `ldso` 两套均支持，只发 GNU 侧即可（§5）。**修订 2026-10-14：原「双发」→「仅 GNU」** |
 | 6 | 符号版本 / `DT_RELR` 是否纳入 | **已定** | **都不做**（不发射版本段；`DT_RELR` 默认关 = `--pack-dyn-relocs=none`）；契约留位并写明启用条件；登记 musl 不支持 glibc 式版本化解析（§5） |
-| 7 | GOT 基址寄存器（`rbgp`）与 `rbtp` 的初值 / 设置者 | **已定** | **不引入** GOT 固定基址寄存器（PC 相对访问槽）；`DT_PLTGOT` 必须提供；TP 方向 / 偏置归 musl arch 宏（§2.4 / §3 / §6.5 / §7） |
+| 7 | GOT 基址寄存器（`rbgp`）与 `rbtp` 的初值 / 设置者 | **已定** | **不引入** GOT 固定基址寄存器（IP 相对访问槽）；`DT_PLTGOT` 必须提供；TP 方向 / 偏置归 musl arch 宏（§2.4 / §3 / §6.5 / §7） |
 | 8 | TLS / 线程归属 ⇒ TLS 模型与类型 | **已定** | TLS **纳入 M8**（类型含 4 个 TLS 类）；TP 方向 / 偏置**逐 arch 定值**归 musl 移植任务（§7） |
 | 9 | 延迟绑定 vs 立即绑定（默认口径） | **已定** | **首版 eager（`BIND_NOW`）**；lazy 留后续（§3） |
 | 10 | 动态重定位的越界 / 未解析策略 | **已定** | 见 **§10 失败与越界策略** |
@@ -275,7 +275,7 @@
 - **① 48 位约束**：`S`（符号运行时地址）/ `B`（装载基址）/ 重定位**结果**若越出 **48 位**有效虚拟地址范围 ⇒ **装载期（ld.so / 加载器）报错**——**不截断、不 wrap**。[contract-isa.md §1.5][spec-decision]（用户 2026-10-14 逐条确认）
 - **② 未支持 / 未定义类型或结构**：遇**未支持或未定义**的重定位类型 / 结构（含某实现尚未实现的 `COPY` / `TLSDESC`，以及**未启用**的版本段 / `DT_RELR`）⇒ **显式报错，不静默**（不得静默跳过 / 静默出 0）。[ADR-0019 D6][spec-decision]（用户 2026-10-14 逐条确认）
 - **③ 偏移与 TP 越界**：偏移类（`R_DADAO_TLS_DTPREL` / `R_DADAO_TLS_TPREL`）按**补码**（有符号）计算；`TP + TPOFF` 越界 ⇒ **报错**。[spec-decision]（用户 2026-10-14 逐条确认）
-- **④ lld 侧（链接期）**：**经 GOT 间接访问解决远处符号**（**无需 relaxation**）——**通道待后继 ADR 定** ✗（2026-10-16 曾定案 `R_DADAO_REL32`（3 条/次），**已随用户同日改线裁定撤回**：`ADR-0028` → `Superseded`）；`R_DADAO_REL12`（PC 相对**访存**）**直接形式**仍限 **±2 KiB** ⇒ 越界 ⇒ **链接期报错**（**不变** ✓）；**relaxation 维持 `ADR-0019 D7` 禁用** ✓。[ADR-0019 D6][ADR-0019 D7][ADR-0021 D3][spec-decision]（用户 2026-10-14 逐条确认；`REL32` 通道增补 = 2026-10-16 撤回）
+- **④ lld 侧（链接期）**：**经 GOT 间接访问解决远处符号**（**无需 relaxation**）——**通道待后继 ADR 定** ✗（2026-10-16 曾定案 `R_DADAO_REL32`（3 条/次），**已随用户同日改线裁定撤回**：`ADR-0028` → `Superseded`）；`R_DADAO_REL12`（IP 相对**访存**）**直接形式**仍限 **±2 KiB** ⇒ 越界 ⇒ **链接期报错**（**不变** ✓）；**relaxation 维持 `ADR-0019 D7` 禁用** ✓。[ADR-0019 D6][ADR-0019 D7][ADR-0021 D3][spec-decision]（用户 2026-10-14 逐条确认；`REL32` 通道增补 = 2026-10-16 撤回）
 - **与既有静态策略的关系**：静态越界 = link-time error（`ADR-0019 D6`）；动态越界按本条走**装载期报错**——分层不同、**不互相放宽**。[ADR-0019 D6][spec-decision]（用户 2026-10-14 逐条确认）
 
 ---
@@ -289,7 +289,7 @@
 | §1.3 | 来源四分层；外部权威出处（gABI / musl / qemu，可核） | 外部权威（gABI 第4/5章、musl v1.2.6、qemu `c3d48b7d…`）；`ADR-0025 D3` |
 | §1.4 | 术语与公式符号（`S`/`A`/`P`/`B`） | `ADR-0019 D3`；gABI 第 5 章 |
 | §2.1 | `rb0`/`rbgp`/`rbtp` 角色；48 位地址 | `DADAO-21 §寄存器规范 §RB寄存器`；`SimRISC-00 §基址寄存器`；`contract-isa.md §1.5`；`ADR-0018 C6`；`ADR-0015 D1` |
-| §2.2 | 两条寻址通路（PC 相对 / 绝对·基址相对）；GOT 远距离取址通道**待后继 ADR 定**（2026-10-16 曾定案的 `R_DADAO_REL32` 已撤回） | `ADR-0019 D2`/`D3`/`D10`；`ADR-0021 D1`/`D3`；`ADR-0018 C7 D4` |
+| §2.2 | 两条寻址通路（IP 相对 / 绝对·基址相对）；GOT 远距离取址通道**待后继 ADR 定**（2026-10-16 曾定案的 `R_DADAO_REL32` 已撤回） | `ADR-0019 D2`/`D3`/`D10`；`ADR-0021 D1`/`D3`；`ADR-0018 C7 D4` |
 | §2.3 | `ET_DYN`（`-fPIC`/`-pie`/`-shared`）；与 M4 VA=PA 路径并存 | gABI 第 5 章；`ADR-0003 D5`；`contract-elf.md §5.2` |
 | §2.4 | GOT 基址寄存器与 TP 口径（**已定**：不引入 GOT 基址寄存器；TP 归 arch 宏） | `DADAO-21 §寄存器规范 §RB寄存器`；`ADR-0018 C6`；`ADR-0021 D3`；`ADR-0026 D5`；musl `ldso/dynlink.c`；`[spec-decision]`（用户 2026-10-14 逐条确认） |
 | §3 | GOT 槽 8 字节；GOT 语义（偏移固定 / 绝对不固定）；PLT 绑定时机（**已定**：eager / `BIND_NOW`、full `RELRO`）；`DT_PLTGOT`；访问路径（不经 GP；远距离取址通道**待后继 ADR 定**）；PLT 形态（**待后继 ADR 定**；2026-10-16 曾定案的内联去槽已撤回）；icache 澄清 | `contract-abi.md §1.7`；gABI 第 5 章；musl `ldso/dynlink.c`；`ADR-0021 D3`；`ADR-0018 C7 D4`；`ADR-0019 D10`；`ADR-0026 D5`/`D6`；`[spec-decision]` |

@@ -47,7 +47,7 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 
 | 寄存器 | ABI 名 | 角色 | Callee-saved |
 |--------|--------|------|--------------|
-| rb0 | rbip | instruction pointer（PC，读出为当前指令的地址，只读） | `-` |
+| rb0 | rbip | instruction pointer（**`IP`**，读出为**当前正在执行的指令的地址**，只读；非「下一条」口径、无 `±4` 流水偏移） | `-` |
 | rb1 | rbsp | stack pointer（SP） | Yes |
 | rb2 | rbgp | global pointer（GP） | `-` |
 | rb3 | rbtp | thread pointer（TP） | `-` |
@@ -104,7 +104,7 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 | rd0 | 硬连零（Immutable） | [DADAO-21 §寄存器规范 §RD寄存器] |
 | rd1 | reserved（C6；spec 栏 `-`），M3 保留不分配 | [DADAO-21 §寄存器规范 §RD寄存器][ADR-0018（C6）] |
 | rd2–rd3 | reserved（调试/测试保留，编译器不得分配使用） | [DADAO-21 §寄存器规范 §RD寄存器] |
-| rb0 | PC | [DADAO-21 §寄存器规范 §RB寄存器] |
+| rb0 | IP（`rbip`，当前指令地址） | [DADAO-21 §寄存器规范 §RB寄存器] |
 | rb1 | SP（帧管理专用） | [DADAO-21 §寄存器规范 §RB寄存器] |
 | rb2 | GP（global pointer） | [DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）] |
 | rb3 | TP（thread pointer） | [DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）] |
@@ -209,7 +209,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 - `SP`（`rb1`）**不属于 CSR**：spec 栏其 callee-saved 为 Yes（callee 必须保持其调用前后的值），但它由 prologue/epilogue 对称调整维护，**不列入通用 CSR 保存集合**。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
 - **`rb63`（条件式 FP）恒 callee-saved**：`hasFP` 为真时保留为 FP，由 prologue/epilogue 保存/恢复旧 `rbfp`；否则作通用 callee-saved 由编译器分配。两种占用下跨 `call` 存活的值均须按 callee-saved 处置。[DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C7）]
 - `rd1`/`rd2–rd3` / `rb2`/`rb3` 为 **reserved**（编译器不得分配）：`rd2–rd3` 由 spec 明文 reserved（**调试/测试保留**）；`rd1`（rderrno）、`rb2`（rbgp，GP）、`rb3`（rbtp，TP）spec 栏 callee-saved 为 `-`，M3 按 C6 一并**保留不分配**。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
-- `rd0`（rdzero，硬连零 / Immutable）与 `rb0`（rbip，PC，只读）为**特殊寄存器**，不参与通用分配。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
+- `rd0`（rdzero，硬连零 / Immutable）与 `rb0`（rbip，`IP`，只读）为**特殊寄存器**，不参与通用分配。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
 - RA（`ra0–ra63`）由 `call`/`ret` 自动管理，不属 caller/callee-saved 框架（见 §2.3）。[DADAO-21 §寄存器规范 §RA寄存器]
 - RF（`rf0–rf63`）整层 `Excluded from M3`（→ M4）——**M3 历史陈述**；**M4 起 RF 已启用 ⇒ CSR 含 `rf32–rf63`**（见本节 CSR 条；`rf0`（FCSR）不在 CSR）。[DADAO-21 §寄存器规范 §RF寄存器][ADR-0018（C1）]
 

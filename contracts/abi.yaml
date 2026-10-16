@@ -125,7 +125,7 @@ callee_saved:
   rd: [32, 63]
   rb: [32, 62]   # 通用块；SP=rb1 / 条件式 FP=rb63 见 registers 表（callee_saved: true）
   rf: [32, 63]
-# reserved 区间（M3 口径 C6）：rd1–rd3 / rb2–rb3。rb1=SP、rb0=PC、rb63 另见 non_allocatable / registers。
+# reserved 区间（M3 口径 C6）：rd1–rd3 / rb2–rb3。rb1=SP、rb0=IP、rb63 另见 non_allocatable / registers。
 # rd2–rd3 为 spec 明文 reserved（调试/测试保留）；rb2=GP、rb3=TP spec 栏 `-`，M3 按 C6 保留不分配。
 reserved_registers:
   rd: [1, 3]

@@ -1,9 +1,11 @@
-# QEMU-061t: `rela.si` 的解码与语义（`0x5A` / `rbHA = PC + (imms18 << 12)` / 目的 `rb0` ⇒ ILLI）
+# QEMU-061t: `aip.si` 的解码与语义（原 `rela.si`，用户 2026-10-16 裁定改名；`0x5A` / `rbHA = IP + (imms18 << 12)` / 目的 `rb0` ⇒ ILLI）
 
 **模块**：qemu
 **项目里程碑**：M8
 **依赖**：`ADR-0029`（**`Accepted`**，2026-10-16 用户逐条确认 —— 本册 = `D1`（语义 / 目的 `rb0` ⇒ ILLI）/ `D7③` 的执行落点）、**`SPEC-145t`**（**前置**：编码 / 语义**冻结**后才可动译码与执行 ⇒ 其 `已验证` 前**不得开工**）、**`LLVM-095t`**（**串行在前**：与 `tests/vectors/**` 共用载体，`AGENTS.md`「同改共享文件一律串行」）、`ADR-0012 D5`（**被本册回退**的解码项：`0x5A` → UNDI）、`ADR-0019 D3`（`rb0` = 当前指令地址）/ `D6`（越界报错口径的同族「禁静默」纪律）；契约真源 = `.tao/contracts/contract-isa.md §1.3.2`（`rb0`）/ `contract-fp` 无关；现场来源 = `QEMU-060t`（本模块最近落地的回退任务）、`ISS-230`；纪律 = `ISS-210`（改组件后安装根须同步）/ `ISS-229`（重建串行）、`docs/Process-01`（组件补丁树）、`docs/Process-05`（L2 冒烟 / L3 语义）
 **状态**：待开始
+
+> **改名注记（2026-10-16，追加）**：用户 2026-10-16 裁定「**改为：aip.si，在正文中，避免使用pc，应该用ip；而且，在SimRISC中，ip明确是当前正在执行的指令的地址，而非主流ISA的下一条指令地址**」⇒ 本册**正文**已同步 `rela.si` → **`aip.si`**、`PC` → **`IP`**（用户原话引录 / 现场复核的代码与注释原文**不改** ✓）；**完成区 / 审阅记录 = 历史记录，不改写** ✗。真源 = `ADR-0029` §修订注记、`spec/SimRISC-05 §3.4`、`spec/Toolchain-01 §3.2`/`§5`。
 
 > **本册边界** ✗：只做 **QEMU 侧解码 + 语义 + 本模块向量 / 证据**；**不改** `spec/` ✗（归 `SPEC-145t`）、**不改** LLVM / lld ✗（归 `LLVM-095t`）、**不建**重定位类型 ✗。判据 = **执行语义**（L3 + 独立 oracle），**非**「能编译」。
 
@@ -12,15 +14,15 @@
 
 ## 目标（交付物）
 
-1. **解码**：`0x5A` 由「保留（UNDI）」变为**合法指令** `rela.si`（`riii`）；`components/qemu/patches/target/dadao/insn.decode.patch` 与 `contracts/opcodes.yaml`（`SPEC-145t` 冻结）**逐条一致**。
-2. **语义**：`rbHA = PC + (sign_extend(imms18) << 12)`；其中 **`PC` = 该指令自身地址** = `rb0` 读出值（**非下一条**）；**`<< 12` = 4 KB 块、无 `<< 2`**；`imms18` **有符号**；**PC 低位不清零**。
+1. **解码**：`0x5A` 由「保留（UNDI）」变为**合法指令** `aip.si`（`riii`）；`components/qemu/patches/target/dadao/insn.decode.patch` 与 `contracts/opcodes.yaml`（`SPEC-145t` 冻结）**逐条一致**。
+2. **语义**：`rbHA = IP + (sign_extend(imms18) << 12)`；其中 **`IP` = 该指令自身地址** = `rb0` 读出值（**非下一条**）；**`<< 12` = 4 KB 块、无 `<< 2`**；`imms18` **有符号**；**IP 低位不清零**（`IP` = 当前正在执行的指令的地址）。
 3. **合法性与异常**：目的 `ha == rb0` ⇒ **ILLI**（= `dst_rb0` 规则；与既有 `rb0` 只读语义同形）；**「`0x5A` ⇒ UNDI」路径消失**（回归面：既有「未知编码 ⇒ UNDI」类向量须同步）。
 4. **向量 / 证据**：QEMU 语义向量（`docs/Process-05`：**L3** 全量 + **L2** 冒烟代表集，机械派生）；一键证据**可达 FAIL**。
 
 ## 现场事实（**architect 只读预核，2026-10-16**；执行时逐条复核）
 
 1. **解码补丁现状**：`components/qemu/patches/target/dadao/insn.decode.patch:78` 现为
-   `# 0x5A: rela.si deleted (ADR-0012 D5) → reserved → UNDI`（**手写注释行**，位于 `add_si_riii_rd`(`0x59`) 与 `add_si_riii_rb`(`0x5B`) 之间）⇒ 本册须把它替换为 `rela.si` 的合法 pattern（命名 / 函数名由生成器定，见 3）。
+   `# 0x5A: rela.si deleted (ADR-0012 D5) → reserved → UNDI`（**手写注释行**，位于 `add_si_riii_rd`(`0x59`) 与 `add_si_riii_rb`(`0x5B`) 之间）⇒ 本册须把它替换为 `aip.si` 的合法 pattern（命名 / 函数名由生成器定，见 3）。
 2. **生成器与产物计数不一致（⚠️ 现场核实项）**：补丁头写 `# 234 patterns; blank cells trigger UNDI`，而生成器 `tools/qemu/generate_decodetree.py:105` 写死 `# 256 patterns`（现场核：该行为字面量，非派生）⇒ **重生成后须以产物为准**，并**核对 / 订正**该计数文案（**不留漂移**；`SPEC-145t` 后正确值应为 **235**）。
 3. **生成 / 校验工具链**（复用优先，不另造）：`tools/qemu/generate_decodetree.py`（由 `contracts/opcodes.yaml` 生成）/ `tools/qemu/validate_decodetree.py`（补丁 ↔ `opcodes.yaml` 一致性、pattern 与 `trans_*` 对应）/ `tools/qemu/check_qemu_trans.py`（每条 insn 是否有 `trans_*` 定义；**默认 rc=0、`--strict` 非零**；扫不到补丁时**无条件非零**）。
 4. **`rb0` / ILLI 现状**：`translate.c.patch` 已有「`rb0` = `PC` = current instruction address」（翻译期计算）与「写 `rb0` 触发 ILLI（`rb0` = PC、只读）」的既有实现（现场核：`Load rb[n] into a TCG temp. rb0 = PC` / `Writes to rb0 trigger ILLI`）⇒ 本册**复用**，不新引入寄存器模型。
@@ -29,20 +31,20 @@
 
 ## 范围（做项）
 
-1. **解码**：重生成 / 更新 `insn.decode.patch` ⇒ `0x5A` 为 `rela.si`（`@main`，`ha` / `imms18` 字段位与 `add.si` 同族）；删去 `0x5A … UNDI` 手写注释；**头部 pattern 计数与产物一致**（见「现场事实 2」）。
-2. **语义**：在新 `trans_*`（或既有地址运算转译）内实现 `rbHA = PC + (sign_extend(imms18) << 12)`；`PC` 取**该指令自身地址**（复用既有 `rb0` 计算口径）；`imms18` 符号扩展；目的 `rb0` ⇒ **ILLI**（复用既有检查）。
+1. **解码**：重生成 / 更新 `insn.decode.patch` ⇒ `0x5A` 为 `aip.si`（`@main`，`ha` / `imms18` 字段位与 `add.si` 同族）；删去 `0x5A … UNDI` 手写注释；**头部 pattern 计数与产物一致**（见「现场事实 2」）。
+2. **语义**：在新 `trans_*`（或既有地址运算转译）内实现 `rbHA = IP + (sign_extend(imms18) << 12)`；`IP` 取**该指令自身地址**（复用既有 `rb0` 计算口径）；`imms18` 符号扩展；目的 `rb0` ⇒ **ILLI**（复用既有检查）。
 3. **异常 / 回归面**：确认「保留编码 ⇒ UNDI」路径不再覆盖 `0x5A`；排查既有把 `0x5A` 当 UNDI 的测试 / 探针（**逐条处置或登记**，不留静默悬挂）。
 4. **向量**：
    - **L1 编码**（与 `SPEC-145t` 共用载体 ⇒ **串行在后**）：如需在本地复跑编码向量，复用 `SPEC-145t` 产物，**不重复造**；
-   - **L3 语义**：`tests/vectors/isa/**` 增 `rela.si` 语义例（**独立 oracle**：按 `ADR-0029 D1` 公式在 host 侧派生期望值，**不从 QEMU 反推**；边界 = PC 基准是**自身地址**、`<<12`、负立即数、目的 `rb0` ⇒ ILLI、大端）；
+   - **L3 语义**：`tests/vectors/isa/**` 增 `aip.si` 语义例（**独立 oracle**：按 `ADR-0029 D1` 公式在 host 侧派生期望值，**不从 QEMU 反推**；边界 = IP 基准是**自身地址**、`<<12`、负立即数、目的 `rb0` ⇒ ILLI、大端）；
    - **L2 冒烟**：确认机械派生代表集纳入新指令（**不手工挑**）。
 5. **一键证据** `.work/evidence/<任务ID>/run.sh`（含**反例注入 ⇒ FAIL ⇒ 还原 ⇒ 回绿**；还原用 `cp` 备份 + md5 对账，**禁** `git checkout`/`restore`/`stash`）。
 6. **重建与安装**：改 `components/qemu/patches/**` ⇒ `make build-qemu` rc=0 + `make install-host` rc=0（**安装根须与构建树同步**，否则 `check-qemu-semantics` 读**旧二进制** ⇒ **假绿**，`ISS-210` 同类纪律）。
 
 ## 验收标准
 
-1. **解码**：`0x5A` 在 QEMU 侧解为 `rela.si`（无 UNDI）；`python3 tools/qemu/validate_decodetree.py <生成物>` rc=0；`python3 tools/qemu/check_qemu_trans.py --strict` rc=0（`rela.si` 有对应 `trans_*`）；补丁 ↔ `contracts/opcodes.yaml` **逐条一致**。
-2. **语义（L3 + 独立 oracle）**：`rela.si` 语义例全通过；期望值**独立派生**（`ADR-0029 D1` 公式 + host 侧计算），**不从 QEMU / LLVM 反推**；覆盖 = **正 / 负** `imms18`、`ha != rb0`、**PC 基准 = 自身地址**（**关键**：与 0628 的 `PC + 4` 口径**不同** ✗）、大端。
+1. **解码**：`0x5A` 在 QEMU 侧解为 `aip.si`（无 UNDI）；`python3 tools/qemu/validate_decodetree.py <生成物>` rc=0；`python3 tools/qemu/check_qemu_trans.py --strict` rc=0（`aip.si` 有对应 `trans_*`）；补丁 ↔ `contracts/opcodes.yaml` **逐条一致**。
+2. **语义（L3 + 独立 oracle）**：`aip.si` 语义例全通过；期望值**独立派生**（`ADR-0029 D1` 公式 + host 侧计算），**不从 QEMU / LLVM 反推**；覆盖 = **正 / 负** `imms18`、`ha != rb0`、**IP 基准 = 自身地址**（**关键**：与 0628 的 `PC + 4` 口径**不同** ✗）、大端。
 3. **目的 `rb0` ⇒ ILLI**：≥1 例断言 ILLI（**可达 FAIL**：把检查关掉应转红）。
 4. **UNDI 路径消失**：原「`0x5A` ⇒ UNDI」断言已改指向（**新目标现场派生**，禁按记忆挑）；其余保留编码仍 UNDI（**不回归**）。
 5. **门控**：`make check-qemu-smoke`（L2）rc=0；`make check-qemu-semantics`（L3）rc=0 且计数**现场派生**（不写死）；`make check`（L1）rc=0；`check-patch-tree` / `check-index-blobs` / `check-no-residue` rc=0。

@@ -66,7 +66,7 @@
 
 ## §4 返回机制
 
-- semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 PC**（`pc += 4`）并写回返回寄存器 `rd8`；guest 侧不需 `escape`。[ADR-0020 D4][Machine-01 §5.4]
+- semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 IP**（`IP += 4`）并写回返回寄存器 `rd8`；guest 侧不需 `escape`。[ADR-0020 D4][Machine-01 §5.4]
 - 该机制与一般 trap 的 `escape cfxha, [excp_cause_ip, 4]` 返回不同（semihosting 不进入向量）。[ADR-0020 D4][DADAO-22 §1. 调用约定]
 
 ## §5 停机（`SYS_EXIT` 取代 exit port）
@@ -88,6 +88,6 @@
 | §1 | 入口 tag 判定（任意 `cfxha`）/ 架构自定义说明 / 两条路 | `ADR-0020 D1`/`D10`；`Machine-01 §5.1`/`§4`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §陷入指令` |
 | §2 | 传参/返回寄存器（rd16/rb16/rd8）、64 位大端 | `ADR-0020 D2`/`D6`/`D14`；`Machine-01 §5.2`；`DADAO-21 §参数寄存器：Parameter registers`；`DADAO-22 §1. 调用约定` |
 | §3 | 完整 25 服务表（号值 = Arm 号值） | `ADR-0020 D3`；`Machine-01 §5.3`；Arm Semihosting（Release 2.0） |
-| §4 | 无 `escape`、PC 步进返回 | `ADR-0020 D4`；`Machine-01 §5.4` |
+| §4 | 无 `escape`、IP 步进返回 | `ADR-0020 D4`；`Machine-01 §5.4` |
 | §5 | `SYS_EXIT` 取代 exit port | `ADR-0020 D8`；`ADR-0004 R2`；`Machine-01 §5.5` |
 | §6 | `SYS_SYSTEM` 已知风险 | `ADR-0020 D3`/`D7`；`Machine-01 §5.6` |

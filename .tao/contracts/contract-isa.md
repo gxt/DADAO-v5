@@ -43,7 +43,7 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 
 #### §1.3.2 rb0
 
-- `rb0` 读出为**当前指令的地址**（非下一条），只读。任何指令以 rb0 为显式目的时触发 **ILLI** 异常。[SimRISC-00 §基址寄存器][ADR-0015 D1]
+- `rb0` 读出为**当前正在执行的指令的地址**（非下一条），只读。`rb0` 即 **`IP`**（ABI 名 `rbip`）——**`IP` = 当前正在执行的指令的地址**，**不是**主流 ISA 的「下一条指令地址」口径，本 ISA **无 `±4` 流水偏移**（I 形态指令的立即数基址即 `IP` 自身）。任何指令以 rb0 为显式目的时触发 **ILLI** 异常。[SimRISC-00 §基址寄存器][ADR-0015 D1]
 - `rb0[63:48]` 初值为 0，由控制流指令硬件写入（见 §8）。[ADR-0012 D8.4]
 - 硬件复位后 `rb0` 初值为 `cfx_power_hypv_excp_vector`（见 SEE §2.1）。[SimRISC-00 §基址寄存器]
 
@@ -100,7 +100,7 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 - `ra1`–`ra63` 构成 RegRAS（63 槽），`ra63` 为 RegRAS 栈顶。[SimRISC-00 §返回地址栈]
 - **有效性判据 = `RACNT`**（不看条目自身的值）：有效条目 = 自 `ra63` 起向下连续 `RACNT` 个（第 k 新 = `ra[64−k]`，栈底 = `ra[64−RACNT]`）；有效区之外 `ra_i` 内容未定义（复位后全 0）。[ADR-0012 D7 §2]
 - **`MRPTR == 0`** 时只有一个 RAS（RegRAS），最多存放 63 个返回地址；非 0 时有两个 RAS（RegRAS 与 MemRAS），`MRPTR` 为 MemRAS 栈顶地址。[SimRISC-00 §返回地址栈]
-- MemRAS 的访存遵循地址转换和存储访问规则；若访存触发页缺失等异常，硬件保证精确异常（压栈/弹栈未执行，PC 指向 call/ret 指令），异常处理后可重新执行。[SimRISC-00 §返回地址栈]
+- MemRAS 的访存遵循地址转换和存储访问规则；若访存触发页缺失等异常，硬件保证精确异常（压栈/弹栈未执行，IP 指向 call/ret 指令），异常处理后可重新执行。[SimRISC-00 §返回地址栈]
 - **RASOF** 仅由「需溢出且 `MRPTR == 0`」触发；**MemRAS 越界（容量耗尽）不由硬件检测（交 OS）**。[ADR-0012 D7 §7]
 - RASOF/RASUF 均为精确异常：压栈/弹栈**先完成全部 `RASOF`/`RASUF` 判定**（含 D4b 的 MemRAS 条目读取与内容判定），判定通过后才进行 RA 寄存器或 MemRAS 访存的任何修改；异常时 RA 寄存器与内存均保持原状。[ADR-0012 D7 §6]
 - 一个用户进程开始执行时，RegRAS 全部初始化为全零（`RACNT = 0`，条目内容全 0），MemRAS 应做好分配并设置 `ra0`；fork 子进程应复制父进程的全部 ra 寄存器。[SimRISC-00 §返回地址栈]
@@ -139,7 +139,7 @@ rf0 位域定义：[SimRISC-00 §浮点状态寄存器]
 ### §2.1 指令格式
 
 - 每条指令均为 4 字节（32 位），所有指令必须 4 字节对齐。[SimRISC-00 §指令设计]
-- 取指时若 `PC[1:0] ≠ 00`，触发 **IALIGN** 异常。[SimRISC-00 §指令设计]
+- 取指时若 `IP[1:0] ≠ 00`，触发 **IALIGN** 异常。[SimRISC-00 §指令设计]
 - 指令字采用大端序存储（见 §1.6）。[SimRISC-00 §指令设计]
 
 ### §2.2 指令域
@@ -233,7 +233,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0100-0xxx | MISC-octa | MISC-tetra | MISC-wyde | MISC-byte | MISC-RF Excl. | — | — | — |
 | 0100-1xxx | or.w-rd | andn.w-rd | or.w-rb | andn.w-rb | set.zw-rd | set.ow-rd | set.zw-rb | set.w-rf Excl. |
 | 0101-0xxx | add.uo-rd | add.so-rd | sub.uo-rd | sub.so-rd | mul.uo-rd | mul.so-rd | | |
-| 0101-1xxx | — | add.si-rd | rela.si-rb | add.si-rb | cmp.ui-rd | cmp.si-rd | cs.eq-rf Excl. | cs.ne-rf Excl. |
+| 0101-1xxx | — | add.si-rd | aip.si-rb | add.si-rb | cmp.ui-rd | cmp.si-rd | cs.eq-rf Excl. | cs.ne-rf Excl. |
 | 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
 | 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
 | 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | MISC-AMO |
@@ -745,15 +745,17 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 - 比较按**整 64 位**无符号；仅**作地址使用时**取低 48（见 D8.7）。[ADR-0012 D8.2]
 - 后续指令可根据负数/非负数/零/非零/正数/非正数做出组合判断。[SimRISC-05 §比较操作]
 
-### §7.4 PC 相对寻址（riii 格式）
+### §7.4 IP 相对寻址（riii 格式）
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| `rela.si rbha, imms18` | `rbha = PC + (sign_extend(imms18) << 12)`，全 64 位运算；`PC` = **该指令自身地址**（= `rb0` 读出值） | [SimRISC-05 §PC 相对寻址][ADR-0029 D1] |
+| `aip.si rbha, imms30` | `rbha = IP + (sign_extend(imms18) << 12)`，全 64 位运算；`IP` = **当前正在执行的指令的地址**（= `rb0` 读出值；**非**「下一条」口径，**无 `±4` 流水偏移**） | [SimRISC-05 §IP 相对寻址][ADR-0029 D1] |
 
-- 立即数 `imms18` 为 18 位**有符号**数，单位为 **4 KiB 块**（`<< 12`，**无** `<< 2`）；`PC` **低位不清零**（`auipc` 式），不足 4 KiB 的余量由后续访存指令的立即数补齐 ⇒ 可寻址范围 **±512 MiB**。[SimRISC-05 §PC 相对寻址][ADR-0029 D1]
-- 结果完整保留 64 位（`rbha[63:0]`）；**仅当以该结果访存时**取 `rbha[47:0]`（低 48 位）为有效地址。[SimRISC-05 §PC 相对寻址][ADR-0012 D8.7]
-- 目的 `rbha` 为 `rb0` ⇒ ILLI（`dst_rb0`，见 §15.1）。[SimRISC-05 §PC 相对寻址][SimRISC-00 §基址寄存器]
+- 编码层立即数 `imms18` 为 18 位**有符号**数，单位为 **4 KiB 块**（`<< 12`，**无** `<< 2`）；`IP` **低位不清零**（`auipc` 式），不足 4 KiB 的余量由后续访存指令的立即数补齐 ⇒ 可寻址范围 **±512 MiB**。[SimRISC-05 §IP 相对寻址][ADR-0029 D1]
+- **汇编层操作数按字节书写、字段名 `imms30`**（须为 4 KiB 整数倍；`imms18 = imms30 >> 12`），见 `Toolchain-01` §5。[SimRISC-05 §IP 相对寻址][Toolchain-01 §5]
+- **与 RISC-V `auipc` 的三点差异**（`auipc` 仅作参照）：① 操作数以**字节**为单位（汇编层 `imms30`；`auipc` 的立即数以 4 KiB 块为单位）；② 结果写入 **RB 银行**（`rbha`；`auipc` 写通用整数寄存器）；③ 可达 **±512 MiB**。[SimRISC-05 §IP 相对寻址][ADR-0029 D1]
+- 结果完整保留 64 位（`rbha[63:0]`）；**仅当以该结果访存时**取 `rbha[47:0]`（低 48 位）为有效地址。[SimRISC-05 §IP 相对寻址][ADR-0012 D8.7]
+- 目的 `rbha` 为 `rb0` ⇒ ILLI（`dst_rb0`，见 §15.1）。[SimRISC-05 §IP 相对寻址][SimRISC-00 §基址寄存器]
 
 ---
 
@@ -835,7 +837,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| `ret rdha, imms18` | 在返回的同时，修改 `rdha` 为 18 位立即数（符号扩展至 64 位），PC = 弹出的返回地址 | [SimRISC-06 §函数返回] |
+| `ret rdha, imms18` | 在返回的同时，修改 `rdha` 为 18 位立即数（符号扩展至 64 位），IP = 弹出的返回地址 | [SimRISC-06 §函数返回] |
 
 - 通常该寄存器为返回值寄存器，可用一条 `ret` 实现 C 语言的 `return 0` 或 `return -1`。[SimRISC-06 §函数返回]
 - 无需设置返回值寄存器时，采用 `ret rd0, 0` 实现普通 ret（`rdha` 为 rd0 允许）。[SimRISC-06 §函数返回]
@@ -1129,7 +1131,7 @@ shr.sb:  rdhb[7:0]   = (rdhc[7:0] >> shamt) with sign(7)
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
-| `swym 0` | 除 PC 自增外无任何架构副作用（等同于 nop） | [SimRISC-11 §占位指令] |
+| `swym 0` | 除 IP 自增外无任何架构副作用（等同于 nop） | [SimRISC-11 §占位指令] |
 | `swym N` | 硬件时延指令，后 18 位立即数为时延参数，时延约为 `swym 0` 的 N+1 倍 | [SimRISC-11 §占位指令] |
 
 - 硬件可设时延上限，N 超过阈值后时延不再增加。[SimRISC-11 §占位指令]
@@ -1231,7 +1233,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | **ILLI** | 非法指令/非法操作数约束违反（详见下方清单） | [SimRISC-11 §非法指令] |
 | **MALIGN** | 内存访问未对齐（load/store、多 load/store、RB 存取、RA 存取） | [SimRISC-01 §存取RD寄存器][SimRISC-01 §存取RB寄存器][SimRISC-01 §存取RA寄存器] |
 | **UNDI** | 执行保留编码（QFC 主表 / MISC 子表空白单元格） | [SimRISC-00 §SimRISC QFC] |
-| **IALIGN** | 取指时 `PC[1:0] ≠ 00` | [SimRISC-00 §指令设计] |
+| **IALIGN** | 取指时 `IP[1:0] ≠ 00` | [SimRISC-00 §指令设计] |
 | **RASOF** | RegRAS 满栈（`RACNT == 63`）且需溢出到 MemRAS 但 `MRPTR == 0` | [SimRISC-00 §压栈流程] |
 | **RASUF** | `RACNT > 0` 且递归计数 == 0（D1）；或 `RACNT == 0` 且 `MRPTR == 0`（D4a）；或 MemRAS 条目递归计数 == 0（D4b） | [SimRISC-00 §弹栈流程] |
 
@@ -1257,8 +1259,8 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 ### §15.2 精确异常承诺
 
 - `div`/`rem` 中 `rdhb` 为 `rd0` 触发 ILLI 时目的寄存器未写入（无副作用）。除数为零和有符号溢出（INT_MIN ÷ −1）不再触发异常，改为定值语义（见 §6.1.5）。[SimRISC-04 §乘除操作][SimRISC-08 §乘除操作][SimRISC-09 §乘除操作][SimRISC-10 §乘除操作][用户裁定 2026-10-01]
-- RASOF/RASUF 触发时 RA 寄存器保持异常前状态（push/pop 未提交），PC 指向触发异常的 call/ret 指令。[SimRISC-00 §返回地址栈]
-- MemRAS 访存异常时硬件保证精确异常（压栈/弹栈未执行，PC 指向 call/ret 指令），异常处理后可重新执行。[SimRISC-00 §返回地址栈]
+- RASOF/RASUF 触发时 RA 寄存器保持异常前状态（push/pop 未提交），IP 指向触发异常的 call/ret 指令。[SimRISC-00 §返回地址栈]
+- MemRAS 访存异常时硬件保证精确异常（压栈/弹栈未执行，IP 指向 call/ret 指令），异常处理后可重新执行。[SimRISC-00 §返回地址栈]
 
 ---
 
@@ -1317,7 +1319,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x54 | 0101-0100 | rrrr | mul.uo-rd | `mul.uo` | [SimRISC-00 §SimRISC QFC] |
 | 0x55 | 0101-0101 | rrrr | mul.so-rd | `mul.so` | [SimRISC-00 §SimRISC QFC] |
 | 0x59 | 0101-1001 | riii | add.si-rd | `add.si` | [SimRISC-00 §SimRISC QFC] |
-| 0x5A | 0101-1010 | riii | rela.si-rb | `rela.si` | [SimRISC-00 §SimRISC QFC][ADR-0029 D1] |
+| 0x5A | 0101-1010 | riii | aip.si-rb | `aip.si` | [SimRISC-00 §SimRISC QFC][ADR-0029 D1] |
 | 0x5B | 0101-1011 | riii | add.si-rb | `add.si` | [SimRISC-00 §SimRISC QFC] |
 | 0x5C | 0101-1100 | rrii | cmp.ui-rd | `cmp.ui` | [SimRISC-00 §SimRISC QFC] |
 | 0x5D | 0101-1101 | rrii | cmp.si-rd | `cmp.si` | [SimRISC-00 §SimRISC QFC] |

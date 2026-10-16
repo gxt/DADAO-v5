@@ -74,7 +74,7 @@ RULE_SUMMARY: dict[str, str] = {
     "mreg_range_overflow": "起始+immu6>64 → ILLI",
     "mreg_range_overlap": "源/目的范围交集 → ILLI",
     "excp_malign":       "未对齐访问 → MALIGN",
-    "excp_ialign":       "PC[1:0]≠0 → IALIGN",
+    "excp_ialign":       "IP[1:0]≠0 → IALIGN",
     "encode_sbz":        "SBZ 非零 → ILLI",
     "encode_onehot":     "immu6 非 one-hot 或 ≥ S → ILLI",
     "encode_fp_root_n":  "ftroot/foroot n≠2 → ILLI",
