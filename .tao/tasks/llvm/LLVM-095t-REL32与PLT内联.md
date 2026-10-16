@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M8
-**依赖**：`ADR-0029`（**`Accepted`**，2026-10-16 用户逐条确认 —— 本册 = `D2`/`D3`/`D4`/`D5`/`D6`/`D7②` 的执行落点）、**`SPEC-145t`**（**前置**：`rela.si` 编码 / 语义**冻结**后才可发 MC / reloc ⇒ 本册在前置 `已验证` 前**不得开工**）、`LLVM-094t`（阶段 A/B/C 产出：PIC / `ET_DYN` 动态产出 / 重定位基线；`Superseded` 的 `REL32` 实现已 `git revert`）、`ADR-0019 D5`（逐指令挂 reloc）/ `D6`（越界报错）/ `D7`（禁 relaxation）/ `D10`（类型集·编号·密集无空档；`D11` **已撤**）、`ADR-0026 D5`/`D7`（GOT·TP 访问 / 失败与越界；已挂「本次改线」注记）、`ADR-0028`（**`Superseded`**；其 `REL32` 路线已废）、`ADR-0021 D3`（`REL12`/`ABS12`）；契约真源 = `.tao/contracts/contract-elf.md §2.2`/`§3.1`/`§3.2`、`.tao/contracts/contract-dynlink.md §2.2`/`§3`/`§4.3`（**现状**：GOT 远距离通道 / PLT 形态标「待后继 ADR 定」⇒ 本册随实现同步）；现场来源 = `LLVM-094t`、`ISS-230`；纪律 = `ISS-229`（重建串行）、`ISS-210`（改 MC/`.td` 必 `install-host`）、`docs/Process-01`（组件补丁树）、`docs/Process-05`（L1/L2/L3）
+**依赖**：`ADR-0029`（**`Accepted`**，2026-10-16 用户逐条确认 —— 本册 = `D2`/`D3`/`D4`/`D5`/`D6`/`D7②` 的执行落点）、**`SPEC-145t`**（**前置**：`rela.si` 编码 / 语义**冻结**后才可发 MC / reloc ⇒ 本册在前置 `已验证` 前**不得开工**）、`LLVM-094t`（阶段 A/B/C 产出：PIC / `ET_DYN` 动态产出 / 重定位基线；`Superseded` 的 `REL32` 实现已 `git revert`）、`ADR-0019 D5`（逐指令挂 reloc）/ `D6`（越界报错）/ `D7`（禁 relaxation）/ `D10`（类型集·编号·密集无空档；`D11` **已撤**）/ `D12`（**新增** `R_DADAO_PCREL_HI` = `14` / `R_DADAO_PCREL_LO` = `15` / `R_DADAO_NUM` = `16`；用户 2026-10-16 确认）、`ADR-0026 D5`/`D7`（GOT·TP 访问 / 失败与越界；已挂「本次改线」注记）、`ADR-0028`（**`Superseded`**；其 `REL32` 路线已废）、`ADR-0021 D3`（`REL12`/`ABS12`）；契约真源 = `.tao/contracts/contract-elf.md §2.2`/`§3.1`/`§3.2`、`.tao/contracts/contract-dynlink.md §2.2`/`§3`/`§4.3`（**现状**：GOT 远距离通道 / PLT 形态标「待后继 ADR 定」⇒ 本册随实现同步）；现场来源 = `LLVM-094t`、`ISS-230`；纪律 = `ISS-229`（重建串行）、`ISS-210`（改 MC/`.td` 必 `install-host`）、`docs/Process-01`（组件补丁树）、`docs/Process-05`（L1/L2/L3）
 **状态**：待开始
 
 ## 执行环境
@@ -53,7 +53,7 @@
 
 | 阶段 | 范围 | 备注 |
 |---|---|---|
-| **① 重定位类型 + lld 消费侧** | `DADAO.def` 加 `PCREL_HI` = `14` / `PCREL_LO` = `15` / `NUM` = `16`；`lld/ELF/Arch/DADAO.cpp` 的 `relocate` / `relocTypeToRelExpr` 等消费两类型（**含配对信息取回 hi 站点已定值**；高段**舍入**；越界 / 落点不符 / 配对悬空 ⇒ **报错**） | 契约同步：`.tao/contracts/contract-elf.md §2.2`/`§3.1`/`§3.2`；改 `components/**` ⇒ 见「前置申报」 |
+| **① 重定位类型 + lld 消费侧**（**已解锁 ✓**：编号 = `PCREL_HI` = `14` / `PCREL_LO` = `15` / `NUM` = `16`，用户 2026-10-16 确认 + `ADR-0019 D12` 已落纸） | `DADAO.def` 加 `PCREL_HI` = `14` / `PCREL_LO` = `15` / `NUM` = `16`；`lld/ELF/Arch/DADAO.cpp` 的 `relocate` / `relocTypeToRelExpr` 等消费两类型（**含配对信息取回 hi 站点已定值**；高段**舍入**；越界 / 落点不符 / 配对悬空 ⇒ **报错**） | 契约同步：`.tao/contracts/contract-elf.md §2.2`/`§3.1`/`§3.2`（**本册开工时已是 `PCREL_HI`=14/`PCREL_LO`=15/`NUM`=16 终表** ✓）；改 `components/**` ⇒ 见「前置申报」 |
 | **② MC / 发射侧** | `MCCodeEmitter` / `AsmBackend` / `FixupKinds` / `ELFObjectWriter` / `MCInstLower` / `DADAOAsmParser` / `Disassembler`：接受 `rela.si`（`riii` / `0x5A`）+ 发射 `PCREL_HI` / `PCREL_LO` 记录（**一指令一条记录**，`SHT_RELA` 显式 addend） | 改 MC / `.td` ⇒ **必 `install-host`**（`ISS-210`）；语法真源 = `SPEC-145t` 冻结的 `Toolchain-01` |
 | **③ CodeGen（GOT 取址 2 条）** | GOT 取址 = **`rela.si rbX, hi` + `ld.o rbX, [rbX, lo]`** = **2 条 / 次**（现状 **1 条**、`REL32` 提案 **3 条**）；**零额外寄存器** —— 同一 `rb` 既承载 `rela.si` 结果、又作 `ld.o` 基址、又收结果（`rbX` 由分配器挑；`rb0` 不可作目的 ⇒ 不涉 `rb0`）；`st.o` 同法复用；**不固定 / 不保留任何寄存器**（`ADR-0026 D5`、`ADR-0018 C6`） | `DADAOISelLowering` / `DADAOISelDAGToDAG` / `.td`；**静态路径逐字节不回归**（`LLVM-094t` 阶段 A 基线） |
 | **④ PLT（3 条 / 12 B，去数据槽）** | PLT 条目 = **`rela.si rb4, hi` + `ld.o rb4, [rb4, lo]` + `jump [rb4, rd0, 0]`** ⇒ **3 条 / 12 B**；**取消条目内 8 字节数据槽**（`pltEntrySize` **`24 → 12`**、`pltDataOffset` 取消；**去 padding**）；**由链接器合成**（`writePlt` 直接产字节编码）⇒ 链接器**自己**算 hi/lo、**不经重定位记录**；`rb4` 沿用现状选择 | 契约同步：`.tao/contracts/contract-dynlink.md §3`（PLT 形态 + **布局义务取消** + 通道由「待后继 ADR 定」改为 **`ADR-0029`**） |
@@ -62,7 +62,7 @@
 ## 依赖与待定事项（**开工前核对**）
 
 - **前置已满足** ✓：`ADR-0029` = `Accepted`（逐条确认 ✓）；`SPEC-145t` 的 `rela.si` 编码 / 语义**冻结**（本册开工条件）；`LLVM-094t` 阶段 A/B/C 产出在盘。
-- **待确认项（不得自行裁定）** ✗：`ADR-0029 Consequences ③` 的「`ADR-0019` **就地新增一条**（新类型集与编号、`NUM` `14 → 16`）」须**用户逐条确认后**方可落纸（`AGENTS.md`「ADR decision 逐条确认」；**未确认前**实现照 `ADR-0029 D2` 走，但**不擅自改 `ADR-0019` 正文** ✗）；`ADR-0026 D5`/`D7` 的**通道指向补注**同理。
+- **待确认项（不得自行裁定）** ✗：① **编号（落 `ADR-0019 D12`）—— 已确认 ✓（2026-10-16）**：`ADR-0029 Consequences ③` 的「`ADR-0019` **就地新增一条**（新类型集与编号、`NUM` `14 → 16`）」**已由用户逐条确认并就地落纸** ✓ —— **用户原话（逐字引录，渠道 = 经主会话问答，2026-10-16）**：「**1、复用RISC-V方案；2、PCREL_HI/LO**」+（对编号提案）「**可以**」⇒ `ADR-0019 D12` 已新增（`R_DADAO_PCREL_HI` = `14` / `R_DADAO_PCREL_LO` = `15` / `R_DADAO_NUM` = `16`）；② `ADR-0026 D5`/`D7` 的**通道指向补注**仍**待用户逐条确认** ✗（**未确认前不擅自改其正文** ✗；本册实现照 `ADR-0029` + `ADR-0019 D12` 走）。
 - **变更面预估**：`components/llvm-project/patches/**`（`DADAO.def` / `lld/ELF/Arch/DADAO.cpp` / `MCTargetDesc/**` / `DADAOISel*/`.td` / `AsmParser` / `Disassembler`）+ `components/llvm-project/{series,changelog.md}`、`.tao/contracts/contract-elf.md` / `contract-dynlink.md`、`components/llvm-project/changelog.md`、`tests/llvm/lit/**`、`tests/scripts/dadao-dyn.lds`（**取消布局义务**）、`.work/evidence/LLVM-095t/**`。
 - **下发前预检（5 项）**：**已可按定阶段逐条标「现在可跑 / BLOCKED」**（编码 / 公式 / 编号 / 落点 / 失败面均已在 `ADR-0029` 定）⇒ `/dispatch` 前由主会话复核「拟改文件 × `spec/` 清单」（本册**不拟改 `spec/`** ⇒ 该项应**无命中**；命中即 BLOCKED）。
 
