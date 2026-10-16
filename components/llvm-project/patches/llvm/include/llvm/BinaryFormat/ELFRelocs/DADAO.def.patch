@@ -1,23 +1,22 @@
 diff --git a/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def b/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def
 new file mode 100644
-index 000000000..3e6d002f5
+index 000000000..cb11536d9
 --- /dev/null
 +++ b/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,65 @@
 +
 +#ifndef ELF_RELOC
 +#error "ELF_RELOC must be defined"
 +#endif
 +
-+// DADAO relocation types.  Numbering = ADR-0019 D10/D11 / contract-elf.md §2.2
++// DADAO relocation types.  Numbering = ADR-0019 D10 / contract-dynlink.md §4.3
 +// (final, dense, no gaps; the legacy Dadao.def numbering is not reused).
 +//
 +//   0      no-op placeholder (not part of dynamic-section semantics)
 +//   1-5    static types (contract-elf.md §2.2)
 +//   6      absolute 48-bit address (data/GOT slot or instruction wyde series)
 +//   7-13   dynamic / TLS types (contract-dynlink.md §4.3)
-+//   14     PC-relative 32-bit signed byte offset (2-instruction pair)
-+//   15     type count (R_DADAO_NUM)
++//   14     type count (R_DADAO_NUM)
 +ELF_RELOC(R_DADAO_NONE, 0)
 +// PC-relative word offset for call/jump (imms24 field, 26 effective bits).
 +// field = (S + A - P) >> 2.
@@ -67,19 +66,6 @@ index 000000000..3e6d002f5
 +// category REL_TLSDESC.  Reserved but **not emitted** by this implementation:
 +// encountering one is an explicit error (ADR-0026 D7②).
 +ELF_RELOC(R_DADAO_TLSDESC, 13)
-+// PC-relative 32-bit signed BYTE offset (no >>2), carried by a *pair* of
-+// address-construction instructions followed by the ldm.o that consumes the
-+// offset register (contract-elf.md §3.1, ADR-0019 D11):
-+//   * hi wyde (wp = 1) -> set.zw rd (0x4C, disp >= 0) / set.ow rd (0x4D);
-+//   * lo wyde (wp = 0) -> or.w  rd (0x48, disp >= 0) / andn.w rd (0x49).
-+// One relocation record per instruction; each record carries a compensating
-+// addend (A-8 for the hi record, A-4 for the lo record) so both records of a
-+// pair compute the same disp = S + A - P_ldm.o.  A negative disp is encoded by
-+// a link-time rewrite of *both* opcodes (set.zw -> set.ow, or.w -> andn.w with
-+// the complemented immediate).  The rb-bank encodings of the same instructions
-+// carry R_DADAO_ABS48 instead; a site that is not a legal pair is a link-time
-+// error (contract-elf.md §3.2).
-+ELF_RELOC(R_DADAO_REL32, 14)
-+// Number of relocation types (not a relocation).  Frozen at 15
-+// (ADR-0019 D11 / contract-elf.md §2.2).
-+ELF_RELOC(R_DADAO_NUM, 15)
++// Number of relocation types (not a relocation).  Frozen at 14
++// (ADR-0019 D10 / contract-dynlink.md §4.4).
++ELF_RELOC(R_DADAO_NUM, 14)

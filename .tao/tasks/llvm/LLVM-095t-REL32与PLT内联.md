@@ -199,82 +199,17 @@
 
 ## 完成区
 
-### 阶段 A 验收复核（构建后，2026-10-16 下午）
-
-> **本节取代上一节的「未构建 / 未跑」口径**（上一节写于 `install-host` 之前；现工具链已重建：`make install-host` **PASS** / `INSTALL_EXIT=0` / 安装根 `.dadao/cross-toolchain/bin/`，时间戳 `11:56–12:04`）。上一节其余内容（补丁导出、枚举核查、探针）经复核**仍成立**，本轮已重跑并留新日志。
-
-**测试结果**：一键证据 `.work/evidence/LLVM-095t/stage-A/run.sh` **rc=0 · 92 PASS / 0 FAIL**（`RESULT: PASS`；日志 `.work/log/llvm/LLVM-095t-A2-run-stageA.log`）；三个 `--inject` 各 **rc=1**（注入→**实测红**→`cp`+md5 还原→回绿，同一次前台执行内闭合；日志 `LLVM-095t-A2-inject-*.log`）。第 1 轮两项探针重跑亦全绿（`gen_rel32_probe.py` 24/24、`rel32_model_check.py` 9 例，rc=0）。
-
-**验收结果**（逐条真值，数字逐字来自当次输出）：
-
-| 项 | 实测 | rc |
-|---|---|---|
-| 1 类型可用 | `llvm-readobj -r --expand-relocs` ⇒ `Type: R_DADAO_REL32 (14)` + `Addend: 0xFFFFFFFFFFFFFFF8 / …FC`；两条记录 `r_offset` 差 **4**；type 15 记录 ⇒ `Type: R_DADAO_NUM (15)`；`DADAO.def.patch` 逐行 = `14`/`15` | 0 |
-| 2 发射侧 | `llvm-mc` 对 `set.zw rdX,wp1,<sym>`+`or.w rdX,wp0,<sym>` 现仍产 **`R_DADAO_ABS48 (6)`×2** ⇒ **归阶段 C**（如实标缺口，非本阶段缺陷） | 0 |
-| 3a 正 disp | `-shared` **默认布局** rc=0；`disp=131208 (0x20088)` ⇒ `.text` 实测 `4c210002 48200088` = `disp>>16` / `disp&0xFFFF`，`rd`/`wp` 保留 | 0 |
-| 3b `.got` 槽形态 | `-shared` 默认布局 rc=0；`disp=65544 (0x10008)` ⇒ `4c150001 48140008`（`rd5`）；**两例 disp 均 > 2 KiB**（旧 `REL12` 不可达） | 0 |
-| 3c 负 disp | `disp=-16` ⇒ **逐字节** `4d21ffff4920000f` = `set.ow`+`andn.w`，次条立即数 = `~lo16`；反例判别：首/次 opcode 实测**非** `0x4C`/`0x48` | 0 |
-| 3d 落点不符 | 邻接同 `rd` 不满足（`or.w rd9`）/ 单独 `set.zw` ⇒ `rc=1` + 文案指名 `R_DADAO_REL32` | 1 |
-| 3e 越界 | `-T` 脚本把 `.data` 放 `0x90000000` ⇒ `R_DADAO_REL32 out of range: 2415915000 is not in [-2147483648, 2147483647]` | 1 |
-| 3f 幂等 | 输入已是 sign 形 ⇒ 输出**逐字节不变**（正/负各 1）；输入为**反形**（`disp≥0` 却预置负形）⇒ 输出 = **sign 形**（证明由 `disp` 派生、非读旧 opcode） | 0 |
-| 4 不回归 | 6 例（`t`/`sw` × O0/O1/O2）剥 `.comment` md5 **逐字节等于**基线（`baseline-pre-nocomment.md5`，生成于阶段 A 之前）；`-fno-pic` 仍 `ABS48`-in-`.text` 且无 `.got`；`make check`(L1) **rc=0**；`check-patch-tree` **rc=0** ⇒ `5 component(s), 147 patches OK`；`check-index-blobs` rc=0 | 0 |
-| 8 大端 | 对象/产物 `EI_DATA=2`；两 16 位字段字节序 `48 20 00 88`（LE 会读 `88 00 20 48`） | 0 |
-| 9 范围 | `git status --porcelain -uall` = **仍仅那 3 项**（本任务书 + 2 补丁）；`spec/`/`contracts/`/`.tao/contracts/` **0 命中** | — |
-
-**修改文件**（本轮）：仅 `.work/evidence/LLVM-095t/stage-A/`（`run.sh`、`rel32elf.py`、`rel32oracle.py`、`README.md`、`baseline-pre-nocomment.md5`，均为 `gitignore` 区）＋ 本任务书。**未改** 组件源码 / 补丁 / `tests/` / `spec/` / `contracts/` / `.tao/contracts/`。
-
-**新发现/坑**：① **`--inject` 须能真红**：`swap-addend` 用「对调补偿 addend」而非「翻期望常量」，实测 `lo16` 变 `48200084≠48200088`（差 4 = 补偿量）⇒ 证明断言与**补偿语义**绑定；② 手工构造 REL32 对象时**不能假定 `_start` 在 `.text` 偏移 0**（负 disp 用例把槽放前面 ⇒ 记录在 `0x8/0xC`）⇒ 补丁脚本改为按 `.rela.text` **记录序**打补丁（`patch-rel32-pair`），并对「单独 `set.zw`」用例按符号值定位；③ `-shared` 下符号若为 `.globl` ⇒ lld 报 `cannot be used against symbol; recompile with -fPIC`（`R_PC` 对可抢占符号）⇒ 探针槽标签须为**局部**符号（与真实 GOT 槽标签 `.Lgot.<n>` 一致）；④ `sed` 的 `0x\?` 在 GNU sed 4.9 **不生效** ⇒ 改 `\(0x\)\?`（教训：正则里的「可选」只在实测通过后才用）；⑤ `run.sh` 目录层级比 `LLVM-094t` 深一层 ⇒ `ROOT=$(cd …/../../../..)`（首跑 rc=2 已修）。
-
-**遗留问题**：① **阶段 A 未覆盖项（如实列）**：**发射侧（MC）** —— 新 fixup kind（hi/lo）+ `A−8`/`A−4` 补偿 + `rd`⇒`REL32`/`rb`⇒`ABS48` 判别 + `Infos[]`/`LastTargetFixupKind`/`getRelocType` 连带面，**全部归阶段 C**；本轮 `.rel32.o` 系**打补丁**构造（只改记录，不动指令字节，已在 README 与 `T2` 明标）。② 阶段 B（PLT 内联去槽）/ D（`dadao-dyn.lds` 理由、派生投影重生成、`changelog.md` M8 一条）未做。③ 构建/L2/L3 归主会话（`ISS-229`）。④ 任务级 `**状态**` **保持 `待开始`**（A–D 未齐，标 `待验收` 会令「验收标准 1–9」跑不通）；是否改由主会话裁定。
-
-### 阶段 A —— 原始记录（写于 `install-host` 之前；口径见上节复核）
-
-
-**测试结果**：`make check-patch-tree` **rc=0** ⇒ `check-patch-tree: 5 component(s), 147 patches OK`；`make check-index-blobs` **rc=0** ⇒ `108 new-file patch(es) OK; 39 modification patch(es) skipped`。**未构建**（构建归主会话）⇒ 本笔三项**不需构建**的真实证据全绿：① `-fsyntax-only` 真实 TU `lld/ELF/Arch/DADAO.cpp` **rc=0**（log 0 字节 = 零诊断）＋ `llvm/lib/Object/ELF.cpp` **rc=0**；② 枚举核查（编译并运行）= `R_DADAO_REL32=14 R_DADAO_NUM=15 ABS48=6 REL12=4 TLSDESC=13` `rc=0`；③ 新分支**逐字抽取**（98 行）→ 独立 TU＋桩 → **24 用例 24 pass / 0 fail `rc=0`**；5 注入变体（`lo-stays-or-w`/`lo-no-complement`/`no-pair-check`/`no-range-check`/`no-exec-guard`）＋ `--inject` **全 `rc=1`**、还原后回绿 ⇒ 每条断言有可达 FAIL 路径。日志 = `.work/log/llvm/LLVM-095t-A-*.log`；脚本留存 = `.work/evidence/LLVM-095t/stage-A/`（README 含复现命令）。
-
-**修改文件**：① `.work/source/llvm-project/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def`（+24/−4，加 `REL32`=14、`NUM`→15、注释表）；② `.work/source/llvm-project/lld/ELF/Arch/DADAO.cpp`（+144/−9：`getRelExpr` 加 `REL32⇒R_PC`；`relocateInSection` 加 `REL32` 分支 + 私有 helper 增 `secBegin/secEnd` 默认参；`relocateAlloc` 传本段边界；`iRelSymbolicRel`/文件头注释同步）——二者为**组件源码**（就地改）；③ 导出补丁 `components/llvm-project/patches/{llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def,lld/ELF/Arch/DADAO.cpp}.patch`（85 / 623 行；`make_patch.py` = `2 written, 71 unchanged`；`series` 未变 ⇒ 73 项 / 全仓 **147**）；④ 本任务书。**组件 scratch 检出** `fb1ad9b1b → 996821495`（E1：worktree 干净 + `base..HEAD` 恰 1 commit）——**非** DADAO-v5 提交。
-
-**阶段进度**：**A 已完成**（含自审，见「审阅记录」）；**B/C/D 未做**（PLT 内联去槽 / CodeGen 3 条形态 + MC fixup / 测试与证据）⇒ 任务级 `**状态**` **保持 `待开始`**：本册「验收标准」1–9 依赖 A–D ＋ 构建，本笔标 `待验收` 会令验收跑不通；是否改状态由主会话裁定。
-
-**验收结果**（逐条，真值）：标准 1 **部分**——`DADAO.def` 逐行与枚举实值已核（`REL32=14`/`NUM=15`，现场输出见上），而 `llvm-readobj -r` 两条记录 / `r_addend` = `−8`/`−4` / `r_offset` 差 4 **未做**（依赖阶段 C 的 MC 发射）；标准 2/3/4/7/8 的 lld 消费侧代码已就位但**未跑**（需 `build-lld`）；标准 5 本笔范围门控 = `check-patch-tree`/`check-index-blobs` rc=0（L1/L2 **未跑**）；标准 9 = `git status --porcelain -uall` 仅列上述 2 补丁（本任务书外），`spec/`、`contracts/`、`.tao/contracts/` **0 命中**。
-
-**新发现/坑**：① 组件 scratch 树**必须** amend 提交才满足 `check-patch-tree` 断言⑦⑧（`make_patch.py` 的 E1 检查也会拒导出）——本笔照 `docs/Process-01 §6.4`：显式列 2 个文件 `git add` + `git commit --amend --no-edit`（**未**用 `git add -A`）；② `reportRangeError(ctx,loc,rel,v,min,max)` 是 `checkInt` 的底层（声明在 `Target.h`，本文件已 include）⇒ 越界文案与既有 `REL26/REL12` 同型（`relocation R_DADAO_REL32 out of range: X is not in [...]`）；③ 自检探针首版 driver 把 `errorCount+rangeErrorCount` 与**陈旧** `lastError` 混判 ⇒ `no-pair-check` 变体**漏检**（假绿）；改 `resetDiag()`＋「对应计数器的诊断文本」匹配后 5 变体全捕获（**教训：错误断言必须绑定对应计数器的消息，不能只数 rc/计数**）；④ **契约空白**：`contract-elf.md §2.2/§3.1` **未记载**「同一组 `rd` 银行指令在 `REL32` 与 `ABS48` 之间如何判别」（`ABS48` 行未限制寄存器银行）——本笔处置 = 按任务书阶段 C 2(i)：**lld 侧以 opcode 集合判别**（本笔已落：`0x48/0x49/0x4C/0x4D` = `rd` 银行，`rb` 银行 `0x4A/0x4B/0x4E` ⇒ `Err`）；**MC 侧**判别（`rd`⇒`REL32` / `rb`⇒`ABS48`）**属阶段 C**，本笔未改 MC ⇒ `tests/llvm/lit/MC/DADAO/m6-callconv.s`（L53–54 `rd` 银行 + `@reloc R_DADAO_ABS48`）**未动**（改早了会令现行 MC 行为报红；须随阶段 C 一并改写）；未改 `spec/`/`contracts/`/`.tao/contracts/`（无授权）⇒ 建议阶段 C 落纸时回填该判别规则（`ADR-0021 D1` 同构先例）；⑤ 阶段 A **不含** PLT 内联 ⇒ `pltDataOffset`/`writePlt` 与其注释**未动**（阶段 B）。
-
-**遗留问题**：① 阶段 B/C/D 全部未做（本笔范围外）；② 构建、`install-host`（`ISS-210`/`ISS-229`）、L1/L2 **未跑** ⇒ 归主会话/阶段 D；③ 阶段 D 待同步项：写死 `pltEntrySize = 24` 的注释与旧 PLT 字节串、写死 `NUM = 14` 的仓库内真源（本笔 grep：`tools/`/`tests/`/`contracts/` **0 命中**，`.tao/` 文档命中归阶段 D）、`tests/scripts/dadao-dyn.lds` 的 ±2 KiB 理由、`tools/llvm/llvm-isa-backend-matrix.{md,tsv}` 重生成、`components/llvm-project/changelog.md` M8 一条（**本笔未加**，属阶段 D 项）。
+**测试结果**：
+**修改文件**：
+**阶段进度**：
+**验收结果**：
+**新发现/坑**：
+**遗留问题**：
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-
-**自审方式**：`subagent_depth=1` ⇒ 无嵌套 reviewer，采**自主逐行审查**；本笔**无构建**可跑，故以三条**不需构建**的机械证据代替（`-fsyntax-only` 真实 TU / 编号枚举运行 / **逐字抽取**分支的 24 用例探针 + 5 变体注入 + `--inject`），并对**改动源码逐行**核对「值域 / 落点 / 改写 / 幂等 / 错误面」。
-**判决**：finding 全部处置，**阶段 A 实现完成**（任务级状态见完成区「阶段进度」）。
-
-| finding | 处置 | 改了什么 | 复验证据 |
-|---|---|---|---|
-| F1 `relocateInSection` 私有 helper 需段边界（「配对读取不得越界」）——改签名有违「不改签名」惯例？ | ✅已修 | 新增 `secBegin`/`secEnd`，**带默认参 `= nullptr`** ⇒ `relocate()` 现有 4 参调用点**不变**；`relocateAlloc` 显式传 `[buf, buf+content().size())`（与 lld 自身 `bufEnd` 同式） | `-fsyntax-only` rc=0（零诊断）；探针 case 12（越界伙伴 ⇒ `Err`、落点未改） |
-| F2 REL32 只存在指令形式，若落非可执行 section / 分派进数据路径 ⇒ 会按数据读 | ✅已修 | 分支首行守卫 `!isExec || !secBegin || !secEnd ⇒ Err`（**先判后退，不读内存**）；`getDynRel` 不给 REL32 动态类型（=0） | 探针 case 11（2 断言）、`no-exec-guard` 变体 rc=1 |
-| F3 **探针假绿**：driver 用 `errorCount+rangeErrorCount` 与陈旧的 `lastError` 混判 ⇒ 「放宽 `pairWp` 校验」变体**未被捕获** | ✅已修 | driver 改 `resetDiag()` + 按**对应计数器**取文本匹配；补 case 14（hi 后接 `wp=1`）/case 15（lo 前驱非同族） | 5 变体全 rc=1（含 `no-pair-check`）；还原后 24/24 rc=0 |
-| F4 越界（`|disp|` 超 `int32`）须报错、不截断/不 wrap | ✅已修 | `isInt<32>` 前置 + `reportRangeError(..., 32, ...)` 后 `return`（不写内存） | 探针 case 10/12（`2^31` 与 `−2^31−1`）+ `no-range-check` 变体 rc=1 |
-| F5 判别规则（`rd`⇒REL32 / `rb`⇒ABS48）本笔落点 | ✅已修（lld 侧） | 见完成区「新发现/坑」④：ll**d 侧**以 opcode 集合判别（`0x48/0x49/0x4C/0x4D` 收，`rb` 银行 `0x4A/0x4B/0x4E` 拒）；**MC 侧判别属阶段 C**，`m6-callconv.s` 本笔未动 | 探针 case 9（`rb` 银行对 ⇒ `Err`）、case 8/15 |
-| F6 `NUM` 14→15 的连带面（哨兵/注释/仓库内写死值） | ✅已修 | `iRelSymbolicRel = R_DADAO_NUM` 自动跟随；注释改 `D10/D11: R_DADAO_NUM = 15`；`DADAO.def` 头注释表改「`14 = REL32` / `15 = type count`」 | 枚举运行输出 `R_DADAO_NUM=15`；`git status` 无范围外文件；`NUM=14` 真源 grep 见完成区遗留③ |
-| F7 「逐条独立 / 幂等」（禁跨记录状态） | ✅已修 | 输出 opcode 只由 `disp` 符号定、立即数只由 `disp` 定（不读旧 opcode 作依据）；`rd`/`wp` 原样保留（`insn & 0x00FF0000`） | 探针 case 7（只处理 lo 记录仍得同值）、case 8（重复施加字节不变）、`lo-stays-or-w`/`lo-no-complement` 变体 rc=1 |
-
-#### 第 2 轮 engineer 自审（阶段 A 构建后验收复核）
-
-**自审方式**：`subagent_depth=1` ⇒ 无嵌套 reviewer，采**自主逐行审查**。本轮有真实构建产物（安装根已重建）⇒ **全部结论改用「真跑真输出」**，并以**自写 ELF64-BE 解析器**（`rel32elf.py`）＋**契约 oracle**（`rel32oracle.py`）作独立判据 —— 期望值由 `disp = S + A − P_ldm` 与 `op<<24|rd<<18|wp<<16|imm16` **手推**，**不从 lld 输出反推**。
-**判决**：finding 全部处置；阶段 A 的 lld 消费侧**真跑通过**（89 项 0 失败），发射侧如实归阶段 C；任务级状态见完成区。
-
-| finding | 处置 | 改了什么 | 复验证据 |
-|---|---|---|---|
-| G1 「已装工具链是否含阶段 A 改动」未证 | ✅已证 | —（只加证据） | `llvm-readobj` 对 type 14 记录打印 `R_DADAO_REL32 (14)`、type 15 打印 `R_DADAO_NUM (15)`（枚举**在二进制内**生效） |
-| G2 第 1 轮结论仅「不需构建」的证据（syntax-only / 探针），消费侧**未真跑** | ✅已修 | 新增 `rel32elf.py`（自写解析/打补丁）＋ `rel32oracle.py`（契约公式 oracle）＋ `run.sh`（T1–T11） | `run.sh` rc=0：正 disp `4c210002 48200088`、`.got` 形 `4c150001 48140008`、负 disp 逐字节 `4d21ffff4920000f` |
-| G3 发射侧是否覆盖未判 | ✅已判（标缺口） | `T2` 断言 MC 现产 `ABS48 (6)`×2 | 实测 `6,6,` ⇒ **归阶段 C**；`.rel32.o` 的构造手段在 README/`T2` 明标 |
-| G4 「负值同改两条」只在模型层验过，缺 lld 真字节 | ✅已修 | `T5` 逐字节 + 反例判别（opcode 非 `0x4C`/`0x48`） | `neg.bytes-byte-level` = `4d21ffff4920000f` rc=0 |
-| G5 幂等 / 「由 `disp` 派生而非读旧 opcode」缺真判据 | ✅已修 | `T7`(b)：把输入预置成**反形**（`disp≥0` 却负形） | 输出 = sign 形 `4c21000248200088` rc=0（若读旧 opcode 会保留负形） |
-| G6 错误路径的「预期 rc=1」可能恒真 | ✅已修 | `--inject fix-badpair`（改成合法配对 ⇒ rc=0）/ `--inject inrange`（大负 addend ⇒ 回 `int32` ⇒ rc=0） | 两次注入均**实测红**（`inj-fixpair.rc expect=1 actual=0` 等），还原后回绿 |
-| G7 「补偿 addend」断言的判别力 | ✅已修 | `--inject swap-addend`：对调 `A−8`/`A−4` | `inj-swap.word1(lo16) expect=48200088 actual=48200084`（差 4）⇒ 变红；还原 md5 相同后回绿 |
-| G8 静态不回归基线是否在**改动前**生成 | ✅已核 | 基线随证据留存（`baseline-pre-nocomment.md5`） | 6 例剥 `.comment` md5 **逐字节等于**该基线（生成于 `LLVM-094t` 阶段 C，**早于阶段 A**）→ 见 `T8` |
-| G9 证据自包含 / 计数不写死 | ✅已修 | 探针源、打补丁、解析器、oracle、基线**全在证据目录**；补丁数 / 记录数 / `r_offset` 差**现场解析** | 首跑 `ROOT` 层级错 ⇒ rc=2 fail-fast（已修）；缺失输入 ⇒ `exit 2` |
+（工程师自审 subagent 的意见、问题、判决及 finding 处置）
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
