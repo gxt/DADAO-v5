@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-091t`（llvm-project = **23.1.3**，`已验证` 2026-10-14；本册基线）；**口径真源** = `.tao/contracts/contract-dynlink.md`（`§1`–`§10`，用户 **2026-10-14 逐条确认**）、`ADR-0019 D10`（类型号 / 公式 / 值类规则）、`ADR-0026 D1–D8`（行为类口径：`PT_INTERP`、**仅 GNU hash**、不做版本段 / `DT_RELR`、eager、不固定 GOT 基址、超 ±2 KiB 两段式、§10 越界 5 条）；`ADR-0003`（Object ABI）、`ADR-0021`（`ld/st` 符号偏移重定位）、`ADR-0018 C6`/`C7 D4`；`ISS-206`（本册**阶段 E** 的执行落点）；`docs/Process-01`（组件补丁组织与构建编排）
-**状态**：待验收
+**状态**：已验证
 **阶段进度**：**A CodeGen PIC ✅ 已验证（2026-10-16，reviewer `Accepted`）**；**B LLD 动态产出 ✅ 已验证（2026-10-16，reviewer `Accepted`〔缩范围重试〕）**；**C ✅ 交付面（②③ + 证据/门控）已验证（2026-10-16）**＝ ② 主动拒绝（`COPY`/IFUNC/`TLSDESC`/TLS 遇即报错）✅ + ③ A7 基线重定 ✅ + 证据/门控 ✅（`run-c.sh` 48/0、`--inject` 60/0、`run-a.sh` 87/0、`--inject` 97/0、`run-b.sh` 103/0、L1 rc=0；**reviewer 两轮验收，第 2 轮 `Accepted`**（F1/F2/F3 已修））；**① 两段式已由 `ADR-0028` 取代（2026-10-16）⇒ 不再是本任务交付项**：`ADR-0028` **`Accepted`**（用户逐条确认。「只动发射形态」：新类型 `R_DADAO_REL32`=`14`、`NUM`=`15`；PLT 内联去槽 `pltEntrySize` `24`→`16`；GOT 3 条/次、取消 `.got` 贴 ±2 KiB 布局义务）⇒ **实现另立 `LLVM-095t`**（`.tao/tasks/llvm/LLVM-095t-REL32与PLT内联.md`；原三候选清单与阻塞登记保留在「遗留 ①」+ `ISS-230`）；**D ✅ 已结（2026-10-16，architect 现场核：契约逐条对齐随 `ADR-0028` 同步完成——提交 `c893b61`：`ADR-0019` 就地新增 `D11` + `ADR-0026` 就地修订 `D5`/`D7` + `contract-elf.md §2.2` + `contract-dynlink.md §2.2`/`§3`/`§4.3`/`§4.4`/`§10④`/附录 A 逐节同步；行为面判据〔`PT_INTERP` 仅由 `-dynamic-linker` 决定、eager `BIND_NOW`、`DT_PLTGOT`、不做版本段·`DT_RELR`、§10〕由阶段 B/C 已验收证据覆盖；**与契约的两处实现差**〔`R_DADAO_REL32` GOT 取址、PLT 内联 `16` B〕依 `ADR-0028 Consequences ④⑤` 归 `LLVM-095t`）**（与契约逐条对齐）；**E ✅ 已落地、待阶段级验收（2026-10-16，architect 收口 `ISS-206②`）**＝ `.tao/contracts/contract-elf.md §2.2` 按 `ADR-0019 D10` 同步（15 行终表 `NONE`=0 / 静态 `1`–`5` / `ABS48`=**6** / 动态 `7`–`13` / `NUM`=**14**）+ `spec/Toolchain-01:349` 的 `NUM` = 6 字面量按**用户授权原话**（「**授权，但建议删除 `NUM = 6`**」，经主会话问答 2026-10-16）删除 + 册 `sha256` 同变更重算（`bad4bc10…`）；`ISS-206` **保持 `open`**（①③ 随阶段 B 已落地、② 本次收口 ⇒ 待任务级 `已验证` 后回填 `closed`）；门控 **L1 rc=0** + 各单项 rc=0（详见下「阶段 E 记录」）；**剩余交付项 = 0** ⇒ **本任务交付项已齐，可进入收尾（`/complete`）**（`**状态**` 仍 `待验收`——收尾由主会话按流程执行、须 reviewer 验收，**不由架构师自置** `已验证`）
 
 > **`**状态**` 口径**：本任务 = **一个任务书、多阶段验收**（照 `INFRA-082t`/`SPEC-142t`/`INFRA-085t` 先例）⇒ `**状态**` 表**任务级**（**阶段全部验收通过**才置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`。
@@ -395,3 +395,20 @@
 - **笔 1** = `c3241ad`（5 文件、+55/−7）。**档位披露**：阶段 E = **阶段级落地**、任务级 `**状态**` 仍 `待验收`（阶段级验收未走）⇒ 按 `architect.md` 常规应为 `WIP:` 前缀；**主会话本次明确指令为不带 `WIP:` 的正式提交信息** ⇒ 从指令执行并在此披露（同阶段 A/B/C 先例）。
 - **只读核对（真实 rc）**：见上「阶段 E 记录」门控行（`make check` L1 + 7 项单项各 **rc=0**；记录落纸**前后各跑一轮** L1，均 **rc=0**；日志 `.work/log/llvm/LLVM-094t-E-architect-*.log`）。
 - **落地**：`merge --ff-only` 入 `master` ⇒ `master` = 笔 2（含 `c3241ad`）；分支 `LLVM-094t-E` 已删。**未** `push`（`push` 只由主会话在 `/complete` 后执行）。
+
+#### 收尾（architect，2026-10-17；**只追加** + 只改 `**状态**`；`/complete` 收尾动作）
+
+**交办**：本册「剩余交付项 = 0」⇒ 追加收尾注记 + `**状态**` ⇒ `已验证`；**若判断仍需一轮 reviewer ⇒ 停下报告**✗。
+
+**依据（逐阶段现场核，不采信叙述）**：
+- **A / B / C**：**三处 reviewer `Accepted` 块在场** ——「第 1 轮 reviewer 验收（2026-10-16）」阶段 A、「第 1 轮 reviewer 验收（阶段 B，缩范围重试）」、「第 2 轮 reviewer 验收（阶段 C 返工复验）」；阶段 C 的 F1/F2/F3 均已真修好（独立注入 + `cp` 还原 + 验收命令块独立重跑全绿）✓
+- **① 两段式 `ABS48`**：**已由 `ADR-0029` 取代 ⇒ 不再是本册交付项**（实现归 `LLVM-095t`，其 `已验证` = 2026-10-17）；本册「遗留 ①」原文保留作历史留痕 ✓
+- **D**：**已结**（2026-10-16 architect 现场核，提交 `c893b61`）—— 契约逐条对齐随 `ADR-0028` 同步完成（`ADR-0019` 就地 `D11` + `ADR-0026` `D5`/`D7` + `contract-elf.md §2.2` + `contract-dynlink.md §2.2`/`§3`/`§4.3`/`§4.4`/`§10④`）✓
+- **E**：**已落地**（2026-10-16）—— 内容 = `ADR-0019 D10` **已 `Accepted` 决策的既定同步**（`spec/Toolchain-01` 一行按**用户授权原话**删除 + `contract-elf.md §2.2` 15 行终表；册 `sha256` 同变更重算），**不引入新决策**；当次 L1 + 8 项单项各 rc=0 留档 ✓
+- **任务级判据** = 「**能编出动态 ELF**（`-fPIC`/`-shared`/`-dynamic-linker`）+ **静态可核**」；**不跑**（跑归 `P3`）。
+
+**「是否仍需一轮 reviewer」裁定 = 不需要（如实披露）**：① A/B/C 三处 `Accepted` 在场；② **D/E 属非代码改动（文档/契约层），且其「改名后终态」已由后继任务 reviewer 独立复验** —— `LLVM-095t` 第 1 轮 reviewer 现场核「`DADAO.def` `PCREL_HI`=14/`PCREL_LO`=15/`NUM`=16 ↔ `contract-elf.md §2.2` **逐行一致**」；`SPEC-145t`/`QEMU-061t` 第 1 轮 reviewer 亦逐条复核编码↔契约一致；③ E 的 `spec/` 一行删除受**机械门控**约束（`check-spec-readonly` 册 `sha256` 锁 + `check-spec-changelog`），L1 现场 rc=0；④ 本册**无未处置 finding**（阶段 C 两轮 `Needs Revision` 的 F1/F2/F3 均已 `Accepted`）。**披露（不掩盖）**：**E 无独立 reviewer 块**（该阶段本身即 architect 执行 + 留痕）⇒ 以「②③」为**替代证据链**；**如主会话仍要独立复验 E，可另派 reviewer**（本笔不擅自代判）✗。
+
+**门控（2026-10-17 收尾笔；`ISS-229` ⇒ **未**跑 `install-host`/`build-*`/L2/L3 —— 本笔为**纯文档/台账**）**：`make check`(L1) **rc=0**；`check-patch-tree`（147 patches）/`check-index-blobs`/`check-source-state`/`check-component-changelog`/`check-no-residue`/`check-knowledge-refs`/`check-knowledge-dir`/`check-tasks`/`check-issues` 各 **rc=0**（详「收尾提交流痕」段）。
+
+**`**状态**` 变更**：`待验收` ⇒ **`已验证`**（**只改此行** ✗；完成区 / 既有审阅记录未改写）。**另**：`ISS-206` 的 notes 声明「待 `LLVM-094t` 任务级 `已验证` 后回填 `closed`」——**本笔未动 `ISS-206`**（不在本次交办清单内）⇒ **提请主会话裁定** ✓。
