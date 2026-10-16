@@ -27,6 +27,16 @@ policy = "readonly-requires-authorization"
 #   + 表下例外说明 + 附录条目；SimRISC-04（§4.2.2 语义 + 生成区 + 册头分类计数）各补正文与
 #   变更记录条目。上述 2 册 sha256 于同一变更内同步重算（其余只读册不变）。
 
+# 2026-10-16（SPEC-145t，用户 2026-10-16 裁定原话「现在就换！rela.si rbHA, imms18，含义参照risc-v的auipc，
+#   编码0x5A；刚才所作的任务回退」；授权原话落纸于 `.tao/tasks/spec/SPEC-145t-rela-si恢复.md` §用户授权
+#   与 `.tao/adr/adr-0029-rela-si-auipc-pairing.md` §Context·用户裁定）：**恢复 ISA 指令 `rela.si`**
+#   （PC 相对寻址，`riii`，编码 `0x5A` —— 原为保留位，故不占新编码位；语义 `rbHA = PC + (imms18 << 12)`，
+#   `PC` 取该指令自身地址、**不清低位**，`imms18` 单位为 4 KiB 块；目的 `rb0` ⇒ ILLI）——
+#   `SimRISC-00` QFC 主表 `0101-1xxx × xxxx-x010` 格位由空白填 `rela.si_riii_rb` + 附录条目；
+#   `SimRISC-05` 册头分类计数 `（5 条）`→`（6 条）` + 新增 §3.4「PC 相对寻址」正文 + 生成区
+#   （汇编速查 / 合法性）+ 附录条目；`Toolchain-01` `riii` 形态的单位说明 + 特例 + 附录（册版本 0.5.0→0.5.1）。
+#   上述 3 册 sha256 于同一变更内同步重算（其余只读册不变）。
+
 # 清单 = 21 册只读册 = 20 册上游只读册（用户 2026-10-07 全选）+ 1 册 v5 自定册（spec/Machine-01，2026-10-08 纳入）：
 #   dadao-1x   DADAO-11/12/13
 #   dadao-2x   DADAO-21/22/23
@@ -40,7 +50,9 @@ policy = "readonly-requires-authorization"
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
 group = "simrisc-00..12"
-sha256 = "05b965ee48d63c1210dc4325fa9253439bbc1c7a369b3930604ed630369a12a3"
+# 2026-10-16（SPEC-145t，授权原话见文件头注释）：QFC 主表 `0101-1xxx × xxxx-x010` 填
+# `rela.si_riii_rb`（恢复 PC 相对寻址指令）+ 「0.5.5-rc」段追加恢复条目。
+sha256 = "95348295bfc5b36d323ae496de826441f15ebeaa814a7f056d2573aa1c57aff2"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -65,7 +77,9 @@ sha256 = "000a12d036ff3893acedd86a85ef6f830b64bf0278c3149cac3a9362934cc7ac"
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"
 group = "simrisc-00..12"
-sha256 = "cb67f19a3c24d059c799bf0bb42250b04bee866b4c84e2f0302119f930e744ce"
+# 2026-10-16（SPEC-145t，授权原话见文件头注释）：册头分类计数（5→6 条）+ 新增 §3.4「PC 相对寻址」
+# （rela.si 语义 / PC 基准 / 4 KiB 块单位 / 目的 rb0 ⇒ ILLI）+ 生成区（汇编速查 · 合法性）+ 附录条目。
+sha256 = "3a03bfab764323a78bc8982d87404254efd9678c9280530185c133d5b2f4dba5"
 
 [[spec]]
 path = "spec/SimRISC-06-控制流.md"
@@ -180,7 +194,11 @@ group = "toolchain-01"
 # （`set.rb rb, <sym>`）→ 固定 3 片 + `R_DADAO_ABS48`；**偏移地址**（`set.rd rd, <disp>`）→ **有符号数**、
 # **不限指令数**」；常量口径与「同段可解析 / 跨段外部」一句**保留**。册内其余内容（含表格两行、
 # `ADR-0019` 正文）**未改**；册版本不变（**不发布版本**）；sha256 于同一变更内重算回填。
-sha256 = "1650f53da828ed6272912be7a42a4e107574e8c8685a02cf23c968ad671e3a25"
+# 2026-10-16（SPEC-145t，授权原话见文件头注释；**本册本次发布版本号** 0.5.0 → 0.5.1）：§3.2 字段名映射
+# 补「`rela.si` 的 `imms18`（单位 = 4 KiB 块，`<<12`）不在 ×4 映射范围内」；§5 `riii` 行单位说明补
+# 「`rela.si` 偏移 = 4 KiB 块」；§5 特例补 `rela.si rbHA, imms18` 一条（单位 = 4 KiB 块、目标 = 该指令
+# 自身地址 + `imms18<<12`、低位不清零）；附录新开 `0.5.1（2026-10-16）` 段（册头状态行版本号同步）。
+sha256 = "a10c5f669a5fb2d8abf4cb76e08dc271755e8f5025078f5c63b202c88b230ea2"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"

@@ -82,16 +82,53 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`make check`(L1) **rc=2**；**唯一红 = `check-instrinfo`**（`FAIL: baseline — 155/156`，恰 1 条 M1 记录缺 `.td` def = `rela.si_riii_rb`）+ **连带 `check_lit_gen`**(L2/`check-lit` 载体) 红（`missing=['rela.si_riii_rb']`）——二者同属「契约先行 × 后端时序」结构性冲突（`ISS-215` 同类），归 `LLVM-095t`；**其余 L1 目标逐条 rc=0**（清单见「验收结果」）。**未跑 L2/L3**（`ISS-229` 并发禁令）⇒ `check-interface` 未跑（按 `ISS-215` 先例预计红，归 `LLVM-095t`/`QEMU-061t`）。失败非交付缺陷：门控如实报红、失败项可逐条核对。日志：`.work/log/spec/SPEC-145t-*.log`。
+
+**修改文件**（**16 改 + 1 新**；`git status --porcelain -uall` 现场）：
+① `contracts/opcodes.yaml`（重生成）：+`rela.si_riii_rb`（`op 0x5A`/`mask 0xFF000000`/`value 0x5A000000`/`riii`/`rbha`+`imms18`signed/`legality rbha != rb0`/`scope m1`/`rule_refs [dst_rb0]`）；头计数 `234→235`、`M1 155→156`、`rule_refs 198→199`。② `tools/spec/generate_opcodes.py`（**生成器本体；清单未列但 #6 重生成必需**）：+`S05_PCREL` 常量 + 0x5A 记录 + docstring 计数。
+③ `tools/llvm/gen_asm_list.py`：`classify()` 显式 `rela.si → 64位地址运算`；`imms18` 范围说明补 4 KiB 块口径。④ `tools/spec/gen_legality_list.py`：头计数 `235/199`。⑤ `tools/spec/check_scope.py`：`EXPECTED_M1 156`/`EXPECTED_TOTAL 235` + 判据注释。
+⑥ `spec/SimRISC-00-指令系统设计.md`：QFC `0101-1xxx × xxxx-x010` 填 `rela.si_riii_rb` + 附录条目（历史「全量删除」行保留）。⑦ `spec/SimRISC-05-64位地址运算.md`：册头 `5→6 条` + **§3.4 PC 相对寻址**（语义/PC 基准/4 KiB 块/±512 MiB/目的 `rb0`⇒ILLI）+ 生成区（汇编速查 · 合法性）+ 附录条目。
+⑧ `spec/Toolchain-01-汇编语言.md`：§3.2 字段名映射 + §5 `riii` 单位说明 + §5 特例 + 附录（**册版本 0.5.0→0.5.1**，判据见「新发现 ⑧」）。⑨ `manifests/spec-readonly.lock.toml`：3 册重算 `sha256` + 变更注释。⑩ `.tao/contracts/contract-isa.md`：§2.7 行 / A.1 `0x5A` 行 / 新增 §7.4；⑪ `.tao/contracts/contract-asm-list.md`（重生成）。
+⑫ `tests/vectors/isa/reserved.yaml`：Case 2 由 `0x5A`（已合法）改指向**现场派生**的空白格位 `op=0x58`。⑬ **新** `tests/vectors/isa/rela-si.yaml`（手写，L1：5 encoding + 1 legality）。⑭ `tests/vectors/inventory.md`：+`rela.si_riii_rb` 行（encoding ✓/legality ✓，semantic/boundary `deferred QEMU-061t`）+ 表头 `156 条`。⑮ `tools/llvm/llvm-isa-backend-matrix.{tsv,md}`（重生成，投影随真源）；⑯ `tools/testcases/generate_lit_vectors.py`：`_build_positive()` 补 `rela.si` 的 `riii`「dst, imm」形态（原会误当分支形态）。
+
+**验收结果**（真实输出，逐条；日志 `.work/log/spec/SPEC-145t-*.log`）：
+- `check_qfc_coverage`：`QFC 指令数: 235` / `YAML 指令数: 235` / `差异总数: 0`（rc=0）。
+- `validate_encoding contracts/opcodes.yaml`：`235 条记录 OK`（rc=0）；`check-scope`：`PASS`（m1=156/total=235，rc=0）。
+- `validate_vectors`：`156/156 M1 identities covered OK (… 16 data files, 706 cases; data coverage gaps: 0)`（rc=0）。
+- `check-asm-list` / `check-asm-list-drift` / `check-legality-drift` / `check-spec-codeblocks` / `check-asm-prose` / `check-spec-refs` / `check-spec-numbering` / `check-spec-changelog` / `check-isa-coverage --check`（`accept 224/reject 11`）/ `check-spec-readonly`（`21 … volume(s) OK`）/ `check-rule-refs` / `check-fp-contract` / `check-legality-invariants`：**全 rc=0**。
+- **哈希锁逐条对齐**：`git -c core.quotepath=false diff --name-only -- spec/` = 锁内 `sha256` 变化册 = 同 3 册（`SimRISC-00`/`SimRISC-05`/`Toolchain-01`）；`SimRISC-06`/`12` 判据 = 仅历史 changelog 行（`:167`/`:130`）、正文与生成区无 `rela.si` ⇒ **未动**。
+- **一键证据** `.work/evidence/SPEC-145t/run.sh`：**rc=0**（70 项 PASS）；`--inject` **rc=0**（6 例：注入 → 预期 FAIL → `cp` 还原 + **md5 对账** → 回绿；含 `value 0x5A→0x5B`⇒`validate-vectors` rc=1、`op 0x5A→0x58`⇒QFC↔YAML 差异 2、`format riii→rwii`⇒`check-isa-coverage` rc=1、`legality rb0→rb1`⇒`validate-encoding` rc=1、删 QFC 格位⇒差异 1、`§3.4` 标题改名⇒`check-spec-refs` rc=1）；**反假绿守卫**演示：删 helper 定义 ⇒ `FATAL: helper … 未定义` **rc=2**。
+- **`spec/` 授权原话复录**（`docs/Process-06 §2`；**逐字**，渠道 = 经主会话问答，2026-10-16）：
+  > 「**现在就换！rela.si rbHA, imms18，含义参照risc-v的auipc，编码0x5A；刚才所作的任务回退**」
+  **所改只读册**（授权范围内）＝ `spec/SimRISC-00-指令系统设计.md`、`spec/SimRISC-05-64位地址运算.md`、`spec/Toolchain-01-汇编语言.md`（3 册，锁内同步）；`spec/README.md` 现场核**无实质需改**（无逐条指令内容）⇒ 未动。
+- **计数交代**：机械派生 `234 → 235`（`QFC 指令数` / `YAML 指令数` 现场）；`ADR-0012 D5` 的 `254 → 253` / M1 `177 → 176` 随之回退为 `253 → 254` / `176 → 177`（**制度性口径**；`spec/` 内无 `253`/`254`/`176`/`177` 字面量落点——现场 `grep` 空；残留「254 条」仅见 `components/llvm-project/changelog.md` 与 `ADR-0012` 历史记录，**均不改**）。
+
+**新发现/坑**：① **硬编码计数三处**（`check_scope.py` 常量、`gen_legality_list.py`/`generate_opcodes.py` docstring）⇒ 加一条 M1 指令必同改。② **契约先行 × 后端时序**：`check-instrinfo`(L1) 与 `check_lit_gen`(L2) 在本册**必然红**（`ISS-215` 同类，可复发）⇒ 建议验收口径登记「已知红」并指定 `LLVM-095t` 关闭。③ `generate_isa_vectors.py::_classify()` 对 `rela.si_riii_rb` 返回 `None` ⇒ 不由 `reg-*.yaml` 生成器覆盖（故向量落**手写**文件，与 `reserved.yaml` 同例）；QEMU 语义向量须扩该生成器。④ `generate_lit_vectors.py::_build_positive()` 的 `riii` 分支默认把非 `add.si`/`ret` 的 `riii` 当**分支形态**（`{dst}?, [rb0, off]`）⇒ 会产出**错误的规范操作数形态**（由本册 L1 矩阵投影暴露），已加显式分支。⑤ `check_qfc_coverage.py` 为 informational（**rc 恒 0**）⇒ 只能断言其**输出**（差异总数），rc 不可作判据。⑥ **bash 证据脚本假绿陷阱**：helper 未定义时调用被静默跳过、脚本仍报 ALL PASS（本次实现时踩到）⇒ 已加「`declare -F` 逐个断言，缺失即 exit 2」守卫并现场演示。⑦ `git diff --name-only` 对非 ASCII 路径默认加引号 ⇒ 比对须 `git -c core.quotepath=false`（`lessons §2.19`）。⑧ `Toolchain-01` 追加附录条目会命中「**册头版本 == 附录顶部段版本**」硬约束 ⇒ 必须**同步 bump** `0.5.0 → 0.5.1`（否则 `check-spec-changelog` 红）。
+
+**遗留问题**：① `check-instrinfo`(L1) 红 → `rela.si_riii_rb` 缺 `.td` def，**转出归 `LLVM-095t`**（本册不改 `components/**`）。② `check_lit_gen`(L2) 红 → `gen-riii.s` 缺 `rela.si_riii_rb` 正例，**转出归 `LLVM-095t`**（重生成 lit 全量档；本次 `build_case()` 已落正确形态 `rela.si rb8, 8`）。③ `check-interface`(L2) **未跑**（`ISS-229` 并发禁令），按 `ISS-215` 先例预计红 ⇒ 归 `LLVM-095t`+`QEMU-061t`。④ semantic/boundary 向量与 QEMU 语义（`rbHA = PC + (imms18<<12)`、目的 `rb0`⇒ILLI）→ **归 `QEMU-061t`**（inventory 已标 `deferred`）。⑤ `contract-elf §2.2` 重定位类型表（`PCREL_HI`/`_LO`）与 `components/**` **未动** → 归 `LLVM-095t`（本册只冻结汇编/编码面）。⑥ **越界披露**：超出任务书逐条清单而改的 4 处 —— 矩阵 `.tsv/.md`（L1 门控 `check-isa-coverage` 的生成投影，`make check` 成员）、`tools/spec/check_scope.py`（硬编码计数，见坑①）、`tools/spec/generate_opcodes.py`（#6 重生成必需）、`tools/testcases/generate_lit_vectors.py`（坑④）；均**未放宽**任一门控，如判越界请裁定。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+（自审 = 自主逐行审查；审查范围：本册 16 改 + 1 新文件、证据脚本、门控口径）
+
+**逐行审查要点**：① `rela.si` 记录逐字段与 `ADR-0029 D1` 对齐（`op 0x5A`/`mask 0xFF000000`/`value 0x5A000000`/`riii`/`rbha[23:18]`dst·rb/`imms18[17:0]`signed/`legality rbha != rb0`/`scope m1`/`rule_refs [dst_rb0]`）——由证据脚本独立 oracle 断言，非从实现反推。② 语义只写「`PC` = 自身地址、**不清低位**、4 KiB 块、无 `<<2`、±512 MiB」，**未**回退 `ADR-0003` 的页对齐旧口径。③ 生成区归属：`rela.si` 落 `SimRISC-05`（`64位地址运算`）而非 `SimRISC-11`；`classify()` 分支放在 `ctlz/cttz/ctpop` 之后、`\.(uo|so|o)$` 之前，**不影响**任何既有指令的既有归类（`check-asm-list`/`-drift`/`check-legality-drift` 逐字节比对 rc=0 佐证）。④ 未改 `ADR-*/ISS-*` 正文、未改 `components/**`、未改 `contract-elf §2.2`、未改 `spec/SimRISC-06/12`（判据现场 grep）。⑤ 证据脚本：每条断言有可达 FAIL 路径（6 例注入逐条 rc/差异真值）、被检命令 rc 直取（无 `| tee` 吞码）、还原用 `cp`+md5（**禁** `git checkout/restore/stash`，本次未用）、结尾非零退出正确。
+
+**finding 与处置**：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 证据脚本 helper 未定义 ⇒ 检查被静默跳过 ⇒ **假绿**（首版 `check_ge`/`check_nonzero` 未定义，脚本仍报 ALL PASS） | ✅已修 | 补 helper 定义 +「`declare -F` 逐个断言，缺失即 `exit 2`」守卫 | `run.sh` rc=0（70 PASS）；删 helper 定义 ⇒ `FATAL … 未定义` **rc=2** |
+| F2 注入 I1 选择不当（仅改 `op` 不触发 `validate_vectors`，实测 rc=0） | ✅已修 | 改注入 `value 0x5A→0x5B`（rc=1）；`op` 注入改为断言 QFC↔YAML **差异总数** | `--inject`：I1 rc=1、I2 差异 2、各例还原后回绿 |
+| F3 注入 I2b 选择不当（仅改 `op` 不反映到覆盖矩阵，实测 rc=0） | ✅已修 | 改注入 `format riii→rwii`（投影漂移） | I2b rc=1 → 还原 rc=0 |
+| F4 保留编码新目标须「现场派生」（禁按记忆挑） | ✅已办 | 自 `check_qfc_coverage.parse_spec()` 派生 162 处空白格位，选同行 `op=0x58`；断言「word 不命中任一已定义编码」 | `/tmp/opencode/SPEC-145t/blank-cells.log`；`--inject` I4 差异 1 |
+| F5 `git diff --name-only` 非 ASCII 路径加引号 ⇒ 比对恒不等 | ✅已修 | 加 `-c core.quotepath=false` | 证据脚本「所改 3 册 == 锁内变化 3 册」PASS |
+| F6 `Toolchain-01` 追加附录条目触发「册头==顶部段」硬约束 | ✅已修 | 同步 bump `0.5.0 → 0.5.1` + 附录 `### 0.5.1（2026-10-16）` | `check-spec-changelog` rc=0 |
+| F7 `spec_cite §PC 相对寻址` 须解析到真实标题 | ✅已办 | 新增 `### 3.4 PC 相对寻址` | `check-spec-refs` rc=0；注入改名 ⇒ rc=1 |
+| F8 `check-instrinfo`/`check_lit_gen` 必然红（`.td`/lit 生成物归 `LLVM-095t`） | ⏸转出（**不修**） | 未放宽门控、未改 `components/**` | `check-instrinfo` rc=1（155/156，恰 `rela.si_riii_rb`）、`check_lit_gen` rc=1（`missing=['rela.si_riii_rb']`）；已登记「新发现②」+「遗留① ②」 |
+| F9 L2/L3 未跑（`ISS-229` 并发禁令） | ⏸延后 | 仅明标 + 归属（`check-interface` 按 `ISS-215` 先例预计红） | 佐证：`.work/log/spec/SPEC-145t-L1.log`（未含 L2/L3 目标） |
+
+**判决**：无未修 finding（F8/F9 为**显式转出/延后**且有判据与归属）；交付面（`spec/` + 编码数据 + 生成器 + L1 向量 + 哈希锁）自洽、门控未放宽。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）

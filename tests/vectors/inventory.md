@@ -13,7 +13,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > `validate_vectors.py` 机械校验本表的 M1 行集与 `contracts/opcodes.yaml`
 > 中 `scope == "m1"` 的身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）。
 
-## M1 覆盖矩阵（155 条）
+## M1 覆盖矩阵（156 条）
 
 | id | format | file | encoding | legality | semantic | boundary | overlap | notes |
 |---|---|---|---|---|---|---|---|---|
@@ -62,6 +62,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `mul.so_rrrr_rd` | `rrrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `add.si_riii_rd` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.si_riii_rb` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `rela.si_riii_rb` | `riii` | `rela-si.yaml` | ✓ | ✓ | deferred QEMU-061t | deferred QEMU-061t | — | PC 相对寻址（ADR-0029 D1）；手写向量：L1 编码往返（`ha`/`imms18` 正负各 ≥1）+ 目的 `rb0` ⇒ ILLI；semantic/boundary 归 QEMU-061t（执行层未实现） |
 | `cmp.ui_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cmp.si_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cs.n_rrrr_rd` | `rrrr` | `reg-cond-assign.yaml` | ✓ | ✓ | ✓ | — | deferred C-27 | overlap（C-27 条件赋值快照）deferred |

@@ -1,10 +1,10 @@
 # DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（234 条 = M1 155 + `scope: fp` 60 + `scope: excluded` 11 + `scope: m3` 1 + `scope: m8` 7）
+> **源**：`contracts/opcodes.yaml`（235 条 = M1 156 + `scope: fp` 60 + `scope: excluded` 11 + `scope: m3` 1 + `scope: m8` 7）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（44 条）为 `scope: fp`（已实现）；**待定**（11 条）为 **deferred**（暂不归类）；其余 155 条为 `scope: m1` 当前有效书写形式
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（44 条）为 `scope: fp`（已实现）；**待定**（11 条）为 **deferred**（暂不归类）；其余 156 条为 `scope: m1` 当前有效书写形式
 > **注（`scope: fp` 范围总账 = 60 条）**：浮点运算章 44 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 7 条（`cs.eq/ne/n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{rdHA:rdHA+immu6-1}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
@@ -15,7 +15,7 @@
 |---|---|---|
 | `imms12` | s12: -2048..2047 | 访存偏移（字节，无 `%4` 要求） |
 | `imms14` | bytes: [-8192, 8188]，`%4==0` | 跳转/分支 rrii 偏移（字节→编码 `>>2`） |
-| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求） |
+| `imms18` | s18: -131072..131071 | `ret` 返回值（非地址，无 `%4` 要求）；`rela.si` 的 **4 KiB 块偏移**（`<<12`） |
 | `imms20` | bytes: [-524288, 524284]，`%4==0` | 跳转/分支 riii 偏移 + `escape` 偏移（字节→编码 `>>2`） |
 | `imms24` | s24: -8388608..8388607 | 编码层字段（非汇编层直接使用） |
 | `imms26` | bytes: [-33554432, 33554428]，`%4==0` | 跳转 iiii 偏移（字节→编码 `>>2`） |
@@ -143,13 +143,14 @@
 | `xnor.o` | `orrr` | `rd` | `xnor.o rdHB, rdHC, rdHD` | `xnor.o_orrr_rd` |
 | `xor.o` | `orrr` | `rd` | `xor.o rdHB, rdHC, rdHD` | `xor.o_orrr_rd` |
 
-### 64位地址运算（5 条）
+### 64位地址运算（6 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `add.o` | `orrr` | `bbd` | `add.o rbHB, rbHC, rdHD` | `add.o_orrr_bbd` |
 | `add.si` | `riii` | `rb` | `add.si rbHA, imms18` | `add.si_riii_rb` |
 | `cmp.uo` | `orrr` | `dbb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_dbb` |
+| `rela.si` | `riii` | `rb` | `rela.si rbHA, imms18` | `rela.si_riii_rb` |
 | `sub.o` | `orrr` | `bbd` | `sub.o rbHB, rbHC, rdHD` | `sub.o_orrr_bbd` |
 | `sub.o` | `orrr` | `dbb` | `sub.o rdHB, rbHC, rbHD` | `sub.o_orrr_dbb` |
 

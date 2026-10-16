@@ -2,7 +2,7 @@
 """从 SimRISC 0.5.4 规范生成范围机器可读编码表 contracts/opcodes.yaml。
 
 每条记录带 `scope` 字段（互斥、穷尽，用户裁定 2026-10-03）：
-  - `scope: m1`（155 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
+  - `scope: m1`（156 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
   - `scope: fp`（60 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
     独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
   - `scope: excluded`（11 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC / fence，
@@ -236,6 +236,8 @@ S04_BIT = "SimRISC-04 §Bit manipulating：位操作指令"
 S05_ADD = "SimRISC-05 §加减操作"
 S05_INC = "SimRISC-05 §自增自减"
 S05_CMP = "SimRISC-05 §比较操作"
+# ADR-0029 D1：恢复 rela.si（PC 相对寻址，auipc 式；0x5A 原为 ADR-0012 D5 保留位）
+S05_PCREL = "SimRISC-05 §PC 相对寻址"
 
 # 控制流（SimRISC-06）
 S06_BR = "SimRISC-06 §条件跳转指令"
@@ -424,7 +426,11 @@ def build_main_table(records):
     # ── 0101-1xxx：自增/相对/比较 ──
     records.append(rec("add.si-rd", "add.si", "riii", 0x59,
                        f_riii("rdha", "imms18"), [LEG_RD_DST], S04_INC))
-    # 0x5A: rela.si deleted (ADR-0012 D5) → reserved → UNDI
+    # ADR-0029 D1（用户 2026-10-16 授权）：恢复 rela.si（PC 相对寻址）——0x5A 为
+    # ADR-0012 D5 保留（不再指派）的编码，故不占新编码位；语义 = rbha = PC + (imms18 << 12)，
+    # PC = 该指令自身地址（rb0 读出值，不清低位）；目的 rb0 ⇒ ILLI（dst_rb0）。
+    records.append(rec("rela.si-rb", "rela.si", "riii", 0x5A,
+                       f_riii("rbha", "imms18"), [LEG_RB_DST], S05_PCREL))
     records.append(rec("add.si-rb", "add.si", "riii", 0x5B,
                        f_riii("rbha", "imms18"), [LEG_RB_DST], S05_INC))
     records.append(rec("cmp.ui-rd", "cmp.ui", "rrii", 0x5C,

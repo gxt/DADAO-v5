@@ -130,6 +130,11 @@ def _build_positive(rec):
         if mn == "add.si":
             return ("add.si %s, 8" % _reg(f0["bank"], 8),
                     {f0["name"]: 8, "imms18": 8}, "riii-alu")
+        if mn == "rela.si":
+            # PC 相对寻址（ADR-0029 D1）：`riii` 的「dst, imm」形态（非分支形态）；
+            # 立即数即编码层 `imms18`（单位 = 4 KiB 块，无汇编层 ×4/×4096 改名）。
+            return ("rela.si %s, 8" % _reg(f0["bank"], 8),
+                    {f0["name"]: 8, "imms18": 8}, "riii-alu")
         if mn == "ret":
             return "ret rd8, 8", {"rdha": 8, "imms18": 8}, "riii-ret"
         # br.*（条件组 + [rb0, 字节偏移]）

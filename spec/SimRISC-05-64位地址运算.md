@@ -1,18 +1,19 @@
 # SimRISC64位地址运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：64位地址运算**（5 条）— add.si-rb/add.o/cmp.uo-rb/sub.o(bbd)/sub.o(dbb)
+> **分类：64位地址运算**（6 条）— add.si-rb/rela.si-rb/add.o/cmp.uo-rb/sub.o(bbd)/sub.o(dbb)
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 64位地址运算（5 条）
+### 1.1 64位地址运算（6 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `add.o` | `orrr` | `bbd` | `add.o rbHB, rbHC, rdHD` | `add.o_orrr_bbd` |
 | `add.si` | `riii` | `rb` | `add.si rbHA, imms18` | `add.si_riii_rb` |
 | `cmp.uo` | `orrr` | `dbb` | `cmp.uo rdHB, rbHC, rbHD` | `cmp.uo_orrr_dbb` |
+| `rela.si` | `riii` | `rb` | `rela.si rbHA, imms18` | `rela.si_riii_rb` |
 | `sub.o` | `orrr` | `bbd` | `sub.o rbHB, rbHC, rdHD` | `sub.o_orrr_bbd` |
 | `sub.o` | `orrr` | `dbb` | `sub.o rdHB, rbHC, rbHD` | `sub.o_orrr_dbb` |
 
@@ -22,7 +23,7 @@
 ## 2. 合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `cmp.uo_orrr_dbb`, `sub.o_orrr_dbb`（2 条）
-* `dst_rb0`：目的 rb0 → ILLI — `add.o_orrr_bbd`, `add.si_riii_rb`, `sub.o_orrr_bbd`（3 条）
+* `dst_rb0`：目的 rb0 → ILLI — `add.o_orrr_bbd`, `add.si_riii_rb`, `rela.si_riii_rb`, `sub.o_orrr_bbd`（4 条）
 <!-- LEGALITY_END -->
 
 
@@ -70,6 +71,20 @@ cmp.uo  rdHB, rbHC, rbHD
 
 > **注**：rb0 通用约定（rb0 读出为当前指令的地址，只读，显式目的触发 ILLI）和 RB 高 16 位行为见 SimRISC-00。
 
+### 3.4 PC 相对寻址
+
+PC 相对寻址指令把**当前指令地址**与 18 位有符号立即数的 **4 KiB 块偏移**相加，结果写回目的寄存器；操作数类型是 `riii`。
+立即数**不**左移 2 位（其单位不是字节），而是左移 **12** 位（4 KiB 块）；基址 `PC` = **该指令自身的地址**（即 `rb0` 读出值），**低位不清零**（`auipc` 式），与目标之间不足 4 KiB 的余量由后续访存指令的立即数补齐。
+`imms18` 为 18 位有符号数（范围 −131072..131071）⇒ 可寻址范围 = `±2^17 × 2^12` = **±512 MiB**。
+具体指令如下：
+
+```simrisc
+rela.si rbHA, imms18
+```
+
+`rela.si` 为全 64 位运算，结果完整保留 64 位（`rbHA[63:0]`）；**仅当以该结果访存时**取 `rbHA[47:0]`（低 48 位）为有效地址，用户可通过 `rbHA` 的高 16 位（bits[63:48]）判断地址溢出。
+目的 `rbHA` 为 `rb0` 时触发 ILLI（`rb0` 读出为当前指令地址、只读，见上「注」与 SimRISC-00）。
+
 ---
 
 ## 附录：版本与变更记录
@@ -83,6 +98,7 @@ cmp.uo  rdHB, rbHC, rbHD
 - `cmp.uo-rb` 改为整 64 位比较；RB / 控制流地址语义修正。
 - 新增「合法性检查」章（生成区）；0 号寄存器作源操作数语义澄清。
 - 正文改用新汇编格式；新增「汇编指令速查」章（生成区）。
+- 恢复 `rela.si`（PC 相对寻址，`riii`；分类计数 5 → 6 条）——语义参照 `auipc`：`rbHA = PC + (imms18 << 12)`，`PC` 取该指令自身地址、不清低位，可寻址范围 ±512 MiB；目的 `rb0` ⇒ ILLI。
 
 ### 0.5.4（2026-09-28）
 

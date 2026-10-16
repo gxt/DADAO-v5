@@ -153,6 +153,7 @@ rd2ra_orri_ra	rd2ra	orri	m1	rd2ra	accept	ok	rd2ra {ra8}, {rd9}	no
 rd2rb_orri_rb	rd2rb	orri	m1	rd2rb	accept	ok	rd2rb {rb8}, {rd9}	no		DADAOInstrInfo.cpp.patch:97
 rd2rd_orri_rd	rd2rd	orri	m1	rd2rd	accept	ok	rd2rd {rd8}, {rd9}	no		DADAOInstrInfo.cpp.patch:34;DADAOInstrInfo.cpp.patch:95;DADAOInstrInfo.cpp.patch:265
 rd2rf_orri_rf	rd2rf	orri	fp	rd2rf_orri_rf	accept	ok	rd2rf {rf8}, {rd9}	yes	isel-cpp:DADAOISelDAGToDAG.cpp.patch:243:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:551:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:661:rd2rf_orri_rf	DADAOInstrInfo.cpp.patch:89
+rela.si_riii_rb	rela.si	riii	m1		reject	—	rela.si rb8, 8	no		
 rem.sb_orrr_rd	rem.sb	orrr	m1	rem_sb	accept	ok	rem.sb rd8, rd9, rd10	no		
 rem.so_orrr_rd	rem.so	orrr	m1	rem_so	accept	ok	rem.so rd8, rd9, rd10	yes	pat:DADAOCodeGen.td.patch:363:rem_so	
 rem.st_orrr_rd	rem.st	orrr	m1	rem_st	accept	ok	rem.st rd8, rd9, rd10	no		

@@ -1,0 +1,101 @@
+# 手写向量（无生成器）：`rela.si`（RISC-V `auipc` 式 PC 相对寻址；ADR-0029 D1 / SimRISC-05 §PC 相对寻址）
+# 本文件只覆盖 **L1**（编码往返 + legality）；semantic / boundary 归 QEMU-061t（执行层尚未实现），
+# 故 inventory.md 对应行将两者标 `deferred`。
+# 手写理由：`tools/testcases/generate_isa_vectors.py` 的 `_classify()` 对 `rela.si_riii_rb`
+#   （fmt=riii 且 op 非 add）返回 None ⇒ 不由 reg-*.yaml 生成器产出（与 `reserved.yaml` 同为手写件）。
+# 编码字段（真源 `contracts/opcodes.yaml`）：op=0x5A / mask=0xFF000000 / value=0x5A000000
+#   `rbha`  = bits[23:18]（role=dst, bank=rb）
+#   `imms18`= bits[17:0]（role=imm, signed）
+# 语义（真源 SimRISC-05 §PC 相对寻址）：`rbHA = PC + (sign_extend(imms18) << 12)`；
+#   `PC` = **该指令自身地址**（不清低位，非下一条）；`imms18` **有符号**、单位为 **4 KiB 块**（`<<12`、无 `<<2`）；
+#   可寻址 ±512 MiB；目的 `rb0` ⇒ **ILLI**（`dst_rb0`）。
+
+# ── Case 0: 编码往返——`rbha`=rb1、`imms18`=0（基例）──
+- class: encoding
+  encoding:
+    word: "0x5A040000"
+  mnemonic: rela.si
+  id: rela.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §PC 相对寻址; SimRISC-00 §SimRISC QFC"
+  notes: "encoding: word=0x5A040000 → op=0x5A、rbha=rb1（bits[23:18]=0x01）、imms18=0（bits[17:0]）；与 opcodes.yaml mask=0xFF000000/value=0x5A000000 一致，字段合法、无 ILLI。"
+
+# ── Case 1: 编码往返——`imms18` 正数（+1）──
+- class: encoding
+  encoding:
+    word: "0x5A040001"
+  mnemonic: rela.si
+  id: rela.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §PC 相对寻址"
+  notes: "encoding: imms18=1（正数，bits[17:0]=0x00001）→ 偏移 +1 个 4 KiB 块（<<12 = +4096 字节）。"
+
+# ── Case 2: 编码往返——`imms18` 负数（−1）──
+- class: encoding
+  encoding:
+    word: "0x5A04FFFF"
+  mnemonic: rela.si
+  id: rela.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §PC 相对寻址"
+  notes: "encoding: imms18=-1（补码 bits[17:0]=0x3FFFF，**有符号**）→ 偏移 −1 个 4 KiB 块（<<12 = −4096 字节）。"
+
+# ── Case 3: 编码往返——字段边界（`rbha`=rb63、`imms18`=+131071 上界）──
+- class: encoding
+  encoding:
+    word: "0x5AFCFFFF"
+  mnemonic: rela.si
+  id: rela.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §PC 相对寻址"
+  notes: "encoding: rbha=rb63（bits[23:18]=0x3F）、imms18=+131071（bits[17:0]=0x1FFFF，s18 上界）——解码范围 [23:18]/[17:0] 逐字段核对。"
+
+# ── Case 4: 编码往返——字段边界（`rbha`=rb1、`imms18`=−131072 下界）──
+- class: encoding
+  encoding:
+    word: "0x5A060000"
+  mnemonic: rela.si
+  id: rela.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §PC 相对寻址"
+  notes: "encoding: imms18=-131072（补码 bits[17:0]=0x20000，s18 下界）→ 偏移 −131072 个 4 KiB 块。"
+
+# ── Case 5: legality——目的 `rbha`=rb0 ⇒ ILLI（dst_rb0）──
+- class: legality
+  encoding:
+    word: "0x5A000000"
+  mnemonic: rela.si
+  id: rela.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state: null
+  expected_pc: null
+  expected_fault: ILLI
+  status: active
+  spec_cite: "SimRISC-05 §PC 相对寻址; SimRISC-00 §基址寄存器"
+  notes: "legality rela.si: rbha=rb0（bits[23:18]=0）→ ILLI（dst_rb0：rb0 读出为当前指令地址、只读，任何指令以其为显式目的即非法）。"

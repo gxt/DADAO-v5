@@ -1,7 +1,7 @@
 # ISA↔后端覆盖矩阵（生成式，两层分列）
 
 > **生成器**：`tools/llvm/gen_isa_coverage.py`（生成物，勿手工编辑；改生成器或真源后重跑）
-> **真源**：`contracts/opcodes.yaml`（**234** 条 = `m1` 155 + `fp` 60 + `excluded` 11 + `m3` 1 + `m8` 7；计数由脚本现场统计，不写死）
+> **真源**：`contracts/opcodes.yaml`（**235** 条 = `m1` 156 + `fp` 60 + `excluded` 11 + `m3` 1 + `m8` 7；计数由脚本现场统计，不写死）
 > **重跑**：`python3 tools/llvm/gen_isa_coverage.py`　**门控（反例可失败）**：`python3 tools/llvm/gen_isa_coverage.py --check`
 > **机器可读**：`tools/llvm/llvm-isa-backend-matrix.tsv`（同源同批生成）
 
@@ -13,7 +13,7 @@
 
 - 形态来源：`tools/testcases/generate_lit_vectors.py` 的 `build_case()`（与现有 lit 全量档 `tests/llvm/lit/MC/DADAO-gen/gen-*.s` **同一口径、同一行文本**；本工具不另立操作数拼装逻辑）。
 - 受理后**另做编码复核**：由对象 `.text` 取 4 字节大端字，要求「按真源 `(word & mask) == value` 唯一命中本记录」且等于真源派生编码（`L1_encoding = ok / mismatch`）。这一列把第①层钉在真源上，而非只看 `llvm-mc` 自洽。
-- 现场统计：`accept` **224** / `reject` **10**；编码复核不符 **0**。
+- 现场统计：`accept` **224** / `reject` **11**；编码复核不符 **0**。
 - `scope: excluded` 且后端未实现者（`cfxld`/`cfxst`/`lr_*`/`sc_*`）由汇编器**显式拒绝**（`reject`），与 `tests/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。
 
 ### 第②层「ISel 用得上」（机械提取，非人工判读）
@@ -36,7 +36,7 @@
 - **`.td` def 无真源记录者不入选**：CodeGen-only 伪指令（`*_PSEUDO`/`GLOBAL_ADDR`/`JT_ADDR`/`tailjmp_*`）不是 ISA 记录；`tailjmp_*` 与 `jump` 同编码，归入 `jump` 记录的证据。
 - **MC-only 指令**：`fence` 汇编可得但无 ISel 模式 ⇒ 第②层 `no`（属正常，非缺陷）。
 
-## 2. 矩阵（全量 234 条，按 id 排序）
+## 2. 矩阵（全量 235 条，按 id 排序）
 
 列：`id` ｜ `mnemonic` ｜ `format` ｜ `scope` ｜ **①汇编器** ｜ **②ISel** ｜ 证据
 （证据格式 `kind:文件:补丁物理行号:def名`，可直接 `sed -n '<行号>p' <文件>` 复核；完整形态行见 TSV 的 `L1_asm` 列）
@@ -197,6 +197,7 @@
 | `rd2rb_orri_rb` | `rd2rb` | `orri` | `m1` | accept | no | — |
 | `rd2rd_orri_rd` | `rd2rd` | `orri` | `m1` | accept | no | — |
 | `rd2rf_orri_rf` | `rd2rf` | `orri` | `fp` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:243:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:551:rd2rf_orri_rf;pat:DADAOCodeGen.td.patch:661:rd2rf_orri_rf |
+| `rela.si_riii_rb` | `rela.si` | `riii` | `m1` | reject | no | — |
 | `rem.sb_orrr_rd` | `rem.sb` | `orrr` | `m1` | accept | no | — |
 | `rem.so_orrr_rd` | `rem.so` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:363:rem_so |
 | `rem.st_orrr_rd` | `rem.st` | `orrr` | `m1` | accept | no | — |
@@ -278,16 +279,16 @@
 | `xnor.o_orrr_rd` | `xnor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:340:xnor_o |
 | `xor.o_orrr_rd` | `xor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:335:xor_o |
 
-## 3. 缺口汇总（未被 ISel 使用，148 条）
+## 3. 缺口汇总（未被 ISel 使用，149 条）
 
 候选优化面（供后续里程碑参考）。按性质分四类（现场统计）：
 
-1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**108** 条 —— ISA 有、后端一次都没发射，最有价值。
+1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**109** 条 —— ISA 有、后端一次都没发射，最有价值。
 2. **真缺口·汇编层/特权族**（同上但 `format ∈ {crrr, ciii, crii}` 或助记符 ∈ {fence, swym}，机械判据）：**5** 条 —— 经 cfx 访问/内联汇编/占位语义使用，不经 ISel 选入属预期。
 3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**24** 条。
 4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**11** 条 —— 不在本期范围。
 
-### 3.1 真缺口·候补优化面（108 条）
+### 3.1 真缺口·候补优化面（109 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
@@ -355,6 +356,7 @@
 | `mul.uw_orrr_rd` | `mul.uw` | `orrr` | `m1` |
 | `ra2rd_orri_ra` | `ra2rd` | `orri` | `m1` |
 | `rd2ra_orri_ra` | `rd2ra` | `orri` | `m1` |
+| `rela.si_riii_rb` | `rela.si` | `riii` | `m1` |
 | `rem.sb_orrr_rd` | `rem.sb` | `orrr` | `m1` |
 | `rem.st_orrr_rd` | `rem.st` | `orrr` | `m1` |
 | `rem.sw_orrr_rd` | `rem.sw` | `orrr` | `m1` |

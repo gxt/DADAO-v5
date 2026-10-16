@@ -6,8 +6,8 @@
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
-# 共 234 条：M1 155 条 + scope fp 60 条 + scope excluded 11 条 + scope m3 1 条 + scope m8 7 条
-# 有 rule_refs 的指令：198 条
+# 共 235 条：M1 156 条 + scope fp 60 条 + scope excluded 11 条 + scope m3 1 条 + scope m8 7 条
+# 有 rule_refs 的指令：199 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -1551,6 +1551,28 @@
   scope: m1
   rule_refs:
   - dst_rd0
+- id: rela.si_riii_rb
+  mnemonic: rela.si
+  format: riii
+  op: '0x5A'
+  mask: '0xFF000000'
+  value: '0x5A000000'
+  fields:
+  - name: rbha
+    bits: '[23:18]'
+    role: dst
+    bank: rb
+  - name: imms18
+    bits: '[17:0]'
+    role: imm
+    bank: imm
+    signed: true
+  legality:
+  - rbha != rb0
+  spec_cite: SimRISC-05 §PC 相对寻址
+  scope: m1
+  rule_refs:
+  - dst_rb0
 - id: add.si_riii_rb
   mnemonic: add.si
   format: riii

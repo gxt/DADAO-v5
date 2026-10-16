@@ -233,7 +233,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 | 0100-0xxx | MISC-octa | MISC-tetra | MISC-wyde | MISC-byte | MISC-RF Excl. | — | — | — |
 | 0100-1xxx | or.w-rd | andn.w-rd | or.w-rb | andn.w-rb | set.zw-rd | set.ow-rd | set.zw-rb | set.w-rf Excl. |
 | 0101-0xxx | add.uo-rd | add.so-rd | sub.uo-rd | sub.so-rd | mul.uo-rd | mul.so-rd | | |
-| 0101-1xxx | — | add.si-rd | ~~rela.si-rb~~ UNDI | add.si-rb | cmp.ui-rd | cmp.si-rd | cs.eq-rf Excl. | cs.ne-rf Excl. |
+| 0101-1xxx | — | add.si-rd | rela.si-rb | add.si-rb | cmp.ui-rd | cmp.si-rd | cs.eq-rf Excl. | cs.ne-rf Excl. |
 | 0110-0xxx | cs.n-rd | cs.n-rf Excl. | cs.z-rd | cs.z-rf Excl. | cs.p-rd | cs.p-rf Excl. | cs.eq-rd | cs.ne-rd |
 | 0110-1xxx | br.n-rd | br.nn-rd | br.z-rd | br.nz-rd | br.p-rd | br.np-rd | br.eq-rd | br.ne-rd |
 | 0111-0xxx | jump-iiii | jump-rrii | br.z-rb | br.nz-rb | call-iiii | call-rrii | ret | MISC-AMO |
@@ -744,6 +744,16 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 - 比较按**整 64 位**无符号；仅**作地址使用时**取低 48（见 D8.7）。[ADR-0012 D8.2]
 - 后续指令可根据负数/非负数/零/非零/正数/非正数做出组合判断。[SimRISC-05 §比较操作]
+
+### §7.4 PC 相对寻址（riii 格式）
+
+| 指令 | 语义 | 来源 |
+|------|------|------|
+| `rela.si rbha, imms18` | `rbha = PC + (sign_extend(imms18) << 12)`，全 64 位运算；`PC` = **该指令自身地址**（= `rb0` 读出值） | [SimRISC-05 §PC 相对寻址][ADR-0029 D1] |
+
+- 立即数 `imms18` 为 18 位**有符号**数，单位为 **4 KiB 块**（`<< 12`，**无** `<< 2`）；`PC` **低位不清零**（`auipc` 式），不足 4 KiB 的余量由后续访存指令的立即数补齐 ⇒ 可寻址范围 **±512 MiB**。[SimRISC-05 §PC 相对寻址][ADR-0029 D1]
+- 结果完整保留 64 位（`rbha[63:0]`）；**仅当以该结果访存时**取 `rbha[47:0]`（低 48 位）为有效地址。[SimRISC-05 §PC 相对寻址][ADR-0012 D8.7]
+- 目的 `rbha` 为 `rb0` ⇒ ILLI（`dst_rb0`，见 §15.1）。[SimRISC-05 §PC 相对寻址][SimRISC-00 §基址寄存器]
 
 ---
 
@@ -1307,7 +1317,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x54 | 0101-0100 | rrrr | mul.uo-rd | `mul.uo` | [SimRISC-00 §SimRISC QFC] |
 | 0x55 | 0101-0101 | rrrr | mul.so-rd | `mul.so` | [SimRISC-00 §SimRISC QFC] |
 | 0x59 | 0101-1001 | riii | add.si-rd | `add.si` | [SimRISC-00 §SimRISC QFC] |
-| 0x5A | 0101-1010 | riii | ~~rela.si-rb~~ UNDI | ~~`rela.si`~~ | [SimRISC-00 §SimRISC QFC][ADR-0012 D5] |
+| 0x5A | 0101-1010 | riii | rela.si-rb | `rela.si` | [SimRISC-00 §SimRISC QFC][ADR-0029 D1] |
 | 0x5B | 0101-1011 | riii | add.si-rb | `add.si` | [SimRISC-00 §SimRISC QFC] |
 | 0x5C | 0101-1100 | rrii | cmp.ui-rd | `cmp.ui` | [SimRISC-00 §SimRISC QFC] |
 | 0x5D | 0101-1101 | rrii | cmp.si-rd | `cmp.si` | [SimRISC-00 §SimRISC QFC] |

@@ -281,7 +281,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0100-0xxx     | MISC-octa            | MISC-tetra           | MISC-wyde            | MISC-byte            | MISC-RF              |                      |                      |                  |
 | 0100-1xxx     | or.w_rwii_rd         | andn.w_rwii_rd       | or.w_rwii_rb         | andn.w_rwii_rb       | set.zw_rwii_rd       | set.ow_rwii_rd       | set.zw_rwii_rb       | set.w_rwii_rf   |
 | 0101-0xxx     | add.uo_rrrr_rd       | add.so_rrrr_rd       | sub.uo_rrrr_rd       | sub.so_rrrr_rd       | mul.uo_rrrr_rd       | mul.so_rrrr_rd       |                      |                  |
-| 0101-1xxx     |                      | add.si_riii_rd       |                      | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
+| 0101-1xxx     |                      | add.si_riii_rd       | rela.si_riii_rb      | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
 | 0110-0xxx     | cs.n_rrrr_rd         | cs.n_rrrr_rf         | cs.z_rrrr_rd         | cs.z_rrrr_rf         | cs.p_rrrr_rd         | cs.p_rrrr_rf         | cs.eq_rrrr_rd        | cs.ne_rrrr_rd   |
 | 0110-1xxx     | br.n_riii_rd         | br.nn_riii_rd        | br.z_riii_rd         | br.nz_riii_rd        | br.p_riii_rd         | br.np_riii_rd        | br.eq_rrii_rd        | br.ne_rrii_rd   |
 | 0111-0xxx     | jump_iiii_rb         | jump_rrii_rb         | br.z_riii_rb         | br.nz_riii_rb        | call_iiii_ra         | call_rrii_ra         | ret_riii_ra          | MISC-AMO        |
@@ -427,6 +427,7 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 - 删除 `ftlog`/`folog`；`ftroot`/`foroot` 仅保留 n=2。
 - 浮点状态寄存器 `rf0` 位域与访问规则调整。
 - 术语统一：`major-op`→`opc`、`minor-op`→`opx`（删 `minor_op` 死代码）；全量删除 `rela.si`。
+- 恢复 `rela.si`（64 位 PC 相对寻址，`riii`，编码 `0101-1010`；语义参照 `auipc`：`rbHA = PC + (imms18 << 12)`，`PC` 取该指令自身地址、不清低位）——**取代**本段上方「全量删除 `rela.si`」一条。
 - 0 号寄存器作源操作数语义澄清；各寄存器组 0 号寄存器用途措辞定稿。
 - 伪指令表改用新汇编格式；cfx 系列记法约定。
 
