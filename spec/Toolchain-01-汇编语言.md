@@ -175,9 +175,9 @@
 
 | 伪指令 | 语法 | 展开 |
 |---|---|---|
-| `set.rd` | `set.rd rd, imm64` | 常量 → **最少指令数**（`set.zw`/`set.ow` + `or.w`/`andn.w`，≤4 条）；符号/可重定位 → **固定 3 片** + `R_DADAO_ABS48`（`ADR-0019`） |
+| `set.rd` | `set.rd rd, imm64` | 常量 → **最少指令数**（`set.zw`/`set.ow` + `or.w`/`andn.w`，≤4 条）；**偏移地址（disp）** → **有符号数**、**不限指令数**（按值所需片数展开，≤4 条） |
 | `set.rd` | `set.rd rd, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` |
-| `set.rb` | `set.rb rb, imm64` | `set.zw-rb` + `or.w-rb` 组合 |
+| `set.rb` | `set.rb rb, imm64` | `set.zw-rb` + `or.w-rb` 组合；符号/可重定位（**地址**）→ **固定 3 片** + `R_DADAO_ABS48`（`ADR-0019`） |
 | `set.rb` | `set.rb rb, rs` | `rd2rb`/`rb2rb` |
 | `set.ft` | `set.ft rf, imm32` | 2 条 `set.w` |
 | `set.ft` | `set.ft rf, rs` | `rd2rf`/`ft2ft` |
