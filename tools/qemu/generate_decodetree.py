@@ -102,7 +102,8 @@ def generate_decode_file(records, out_path):
     lines = []
     lines.append("# DADAO instruction decoding")
     lines.append("# Auto-generated from contracts/opcodes.yaml")
-    lines.append("# 256 patterns; blank cells trigger UNDI")
+    # 计数从记录数派生（曾写死 256，随 opcodes.yaml 增删而漂移；QEMU-061t 订正）
+    lines.append(f"# {len(records)} patterns; blank cells trigger UNDI")
     lines.append("")
     lines.append("# Field declarations")
     lines.append("%ha       18:6")

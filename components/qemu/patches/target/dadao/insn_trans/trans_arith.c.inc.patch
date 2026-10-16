@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_arith.c.inc b/target/dadao/insn_trans/trans_arith.c.inc
 new file mode 100644
-index 0000000..7d7ac40
+index 0000000..355f65b
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_arith.c.inc
-@@ -0,0 +1,648 @@
+@@ -0,0 +1,666 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §3.1.1 add.uo/add.so/sub.uo/sub.so (rrrr): 128-bit add/sub */
@@ -128,6 +128,24 @@ index 0000000..7d7ac40
 +    TCGv_i64 rdha = load_rd(a->ha);
 +    tcg_gen_addi_i64(rdha, rdha, (int64_t)imm18);
 +    store_rd(a->ha, rdha);
++    return true;
++}
++
++/* §3.4 aip.si rbha, imms30 (riii): rbha = IP + (sign_extend(imms18) << 12)
++ * IP = the address of THIS instruction (= the rb0 read value; this ISA has no
++ * ±4 pipeline offset), and its low 12 bits are NOT cleared (auipc style).
++ * imms18 is signed and counts 4 KiB blocks (<< 12, no << 2).
++ * Full 64-bit result. ILLI: rbha == rb0 */
++static bool trans_aip_si_riii_rb(DisasContext *ctx, arg_main *a)
++{
++    if (a->ha == 0) { gen_exception_illegal(ctx); return true; }
++    int32_t imm18 = (int32_t)((a->hb << 12) | (a->hc << 6) | a->hd);
++    if (imm18 & (1 << 17)) {
++        imm18 |= ~((1 << 18) - 1);
++    }
++    TCGv_i64 rbha = load_rb(ctx, 0);   /* rb0 = IP = address of this insn */
++    tcg_gen_addi_i64(rbha, rbha, ((int64_t)imm18) << 12);
++    store_rb(a->ha, rbha);
 +    return true;
 +}
 +

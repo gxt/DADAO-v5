@@ -4,7 +4,7 @@
 用途：`check-qemu-smoke` 是 `check-qemu-semantics`（全量 149 用例）的**代表子集**，
 落在 L2（`check-modules`）；全量留在 L3（`check-full`）。
 
-代表集**机械派生**（禁手工挑）：把 `check-qemu-semantics` 的两个向量文件用例按
+代表集**机械派生**（禁手工挑）：把 `check-qemu-semantics` 的向量文件用例按
 `(class, mnemonic)` 分组——`class` = 用例的语义类别（encoding/semantic/boundary/
 legality），`mnemonic` = 指令语义类别——每组取文件序**第一条**为代表。
 
@@ -33,8 +33,11 @@ sys.path.insert(0, _SCRIPT_DIR)
 # 复用现有 harness（构建 + 运行 + 批量聚合），不另造轮子。
 import run_qemu_test as harness  # noqa: E402
 
-# check-qemu-semantics 的两个向量文件（与 Makefile 中 QEMU_SEM 保持同步）。
-GATE_VECTORS = ("reg-shift-extend.yaml", "reg-compare.yaml")
+# 冒烟门控的载体（代表集来源）。**代表集语义**：只放「代表抽样」用的向量文件，
+# 每个 (class, mnemonic) 组取 1 条 —— **不**把全部 ISA 向量塞进来（那是 L3 的规模）。
+# `reg-shift-extend.yaml`/`reg-compare.yaml` 与 Makefile 的 `check-qemu-semantics`
+# 载体一致；`aip-si.yaml`（`aip.si`，`ADR-0029`）为收尾补入（否则 `aip.si` 在 L2 零覆盖）。
+GATE_VECTORS = ("reg-shift-extend.yaml", "reg-compare.yaml", "aip-si.yaml")
 
 
 def select_representatives(cases: list[dict]) -> "OrderedDict[tuple, dict]":

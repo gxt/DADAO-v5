@@ -62,7 +62,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `mul.so_rrrr_rd` | `rrrr` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | ✓ |  |
 | `add.si_riii_rd` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `add.si_riii_rb` | `riii` | `reg-arith.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `aip.si_riii_rb` | `riii` | `aip-si.yaml` | ✓ | ✓ | deferred QEMU-061t | deferred QEMU-061t | — | IP 相对寻址（ADR-0029 D1 + §修订注记；指令名 `rela.si` → `aip.si`）；手写向量：L1 编码往返（`ha`/`imms18` 正负各 ≥1）+ 目的 `rb0` ⇒ ILLI；汇编层操作数按**字节**（`imms30` = `imms18` << 12）；semantic/boundary 归 QEMU-061t（执行层未实现） |
+| `aip.si_riii_rb` | `riii` | `aip-si.yaml` | ✓ | ✓ | ✓ | ✓ | — | IP 相对寻址（ADR-0029 D1 + §修订注记；指令名 `rela.si` → `aip.si`）；手写向量：L1 编码往返（`ha`/`imms18` 正负各 ≥1，SPEC-145t）+ 目的 `rb0` ⇒ ILLI；汇编层操作数按**字节**（`imms30` = `imms18` << 12）；semantic/boundary **QEMU-061t 落地**（执行层：`rbHA = IP + (sext18(imms18) << 12)`，`IP` = 自身地址，期望值 host 侧独立派生） |
 | `cmp.ui_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cmp.si_rrii_rd` | `rrii` | `reg-compare.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `cs.n_rrrr_rd` | `rrrr` | `reg-cond-assign.yaml` | ✓ | ✓ | ✓ | — | deferred C-27 | overlap（C-27 条件赋值快照）deferred |

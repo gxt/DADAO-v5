@@ -1,12 +1,12 @@
 diff --git a/target/dadao/insn.decode b/target/dadao/insn.decode
 new file mode 100644
-index 0000000..e2b088d
+index 0000000..c1b3185
 --- /dev/null
 +++ b/target/dadao/insn.decode
 @@ -0,0 +1,253 @@
 +# DADAO instruction decoding
 +# Auto-generated from contracts/opcodes.yaml
-+# 234 patterns; blank cells trigger UNDI
++# 235 patterns; blank cells trigger UNDI
 +
 +# Field declarations
 +%ha       18:6
@@ -75,7 +75,7 @@ index 0000000..e2b088d
 +mul_uo_rrrr_rd  01010100........................  @main
 +mul_so_rrrr_rd  01010101........................  @main
 +add_si_riii_rd  01011001........................  @main
-+# 0x5A: rela.si deleted (ADR-0012 D5) → reserved → UNDI
++aip_si_riii_rb  01011010........................  @main
 +add_si_riii_rb  01011011........................  @main
 +cmp_ui_rrii_rd  01011100........................  @main
 +cmp_si_rrii_rd  01011101........................  @main

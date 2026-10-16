@@ -1,7 +1,7 @@
 # 手写向量（无生成器）：`aip.si`（IP 相对寻址，RISC-V `auipc` 式；ADR-0029 D1 + §修订注记 / SimRISC-05 §3.4）
 # 指令名 `rela.si` → `aip.si`（用户 2026-10-16 裁定：与 ELF `.rela`/`RELA` 族零撞名、与 `rbip` 同术语）。
-# 本文件只覆盖 **L1**（编码往返 + legality）；semantic / boundary 归 QEMU-061t（执行层尚未实现），
-# 故 inventory.md 对应行将两者标 `deferred`。
+# 覆盖 **L1**（编码往返 + legality，SPEC-145t 冻结）+ **L3**（语义 / 边界，QEMU-061t 执行层落地；
+#   期望值 host 侧按 SimRISC-05 §3.4 独立派生，不从 QEMU 反推）。
 # 手写理由：`tools/testcases/generate_isa_vectors.py` 的 `_classify()` 对 `aip.si_riii_rb`
 #   （fmt=riii 且 op 非 add）返回 None ⇒ 不由 reg-*.yaml 生成器产出（与 `reserved.yaml` 同为手写件）。
 # 编码字段（真源 `contracts/opcodes.yaml`）：op=0x5A / mask=0xFF000000 / value=0x5A000000
@@ -11,8 +11,12 @@
 #   （须为 4 KiB 整数倍、范围 ±512 MiB）；编码层 `imms18 = imms30 >> 12`（4 KiB 块）。
 #   ⇒ 本文件是**编码层**向量（真源 = `encoding.word`），故 notes 同时给出等价的汇编层字节写法。
 # 语义（真源 SimRISC-05 §3.4）：`rbHA = IP + (sign_extend(imms18) << 12)`；
-#   `IP` = **该指令自身地址**（不清低位，非下一条）；`imms18` **有符号**、单位为 **4 KiB 块**（`<<12`、无 `<<2`）；
-#   可寻址 ±512 MiB；目的 `rb0` ⇒ **ILLI**（`dst_rb0`）。
+#   `IP` = **该指令自身地址**（不清低位，非下一条；本 ISA 无 ±4 流水偏移）；`imms18` **有符号**、
+#   单位为 **4 KiB 块**（`<<12`、无 `<<2`）；可寻址 ±512 MiB；目的 `rb0` ⇒ **ILLI**（`dst_rb0`）。
+# L3 期望值的 host 侧派生（harness 布局，真源 `tests/scripts/build_test_binary.py`）：
+#   kernel 装载于 `BINARY_BASE = 0xFC00_0000_0000`，测试指令紧接 loader 段之后
+#   ⇒ `input_state` 为空时 loader 段 0 字，指令地址 IP = `BINARY_BASE`；
+#     带 `rb` 预置时 IP = `BINARY_BASE + 4 * loader_words`（如 `rb2 = 0x1` ⇒ loader 1 字 ⇒ IP = `…0004`）。
 
 # ── Case 0: 编码往返——`rbha`=rb1、`imms18`=0（基例）──
 - class: encoding
@@ -47,7 +51,7 @@
 # ── Case 2: 编码往返——`imms18` 负数（−1 块）──
 - class: encoding
   encoding:
-    word: "0x5A04FFFF"
+    word: "0x5A07FFFF"
   mnemonic: aip.si
   id: aip.si_riii_rb
   format: riii
@@ -57,12 +61,12 @@
   expected_fault: null
   status: active
   spec_cite: "SimRISC-05 §IP 相对寻址"
-  notes: "encoding: imms18=-1（补码 bits[17:0]=0x3FFFF，**有符号**）= −1 个 4 KiB 块（<<12 = −4096 字节）；汇编层写 `aip.si rb1, -4096`（字节）。"
+  notes: "encoding: imms18=-1（补码 bits[17:0]=0x3FFFF，**有符号**）= −1 个 4 KiB 块（<<12 = −4096 字节）；汇编层写 `aip.si rb1, -4096`（字节）。word 订正记（QEMU-061t）：原为 0x5A04FFFF，其 bits[17:0]=0x0FFFF=+65535，与 notes 声明的 −1 不符（field 派生见 oracle）。"
 
 # ── Case 3: 编码往返——字段边界（`rbha`=rb63、`imms18`=+131071 上界）──
 - class: encoding
   encoding:
-    word: "0x5AFCFFFF"
+    word: "0x5AFDFFFF"
   mnemonic: aip.si
   id: aip.si_riii_rb
   format: riii
@@ -72,7 +76,7 @@
   expected_fault: null
   status: active
   spec_cite: "SimRISC-05 §IP 相对寻址"
-  notes: "encoding: rbha=rb63（bits[23:18]=0x3F）、imms18=+131071（bits[17:0]=0x1FFFF，s18 上界）——解码范围 [23:18]/[17:0] 逐字段核对；汇编层 = `aip.si rb63, 536866816`（字节，= 131071 << 12，±512 MiB 可达上界）。"
+  notes: "encoding: rbha=rb63（bits[23:18]=0x3F）、imms18=+131071（bits[17:0]=0x1FFFF，s18 上界）——解码范围 [23:18]/[17:0] 逐字段核对；汇编层 = `aip.si rb63, 536866816`（字节，= 131071 << 12，±512 MiB 可达上界）。word 订正记（QEMU-061t）：原为 0x5AFCFFFF，其 bits[17:0]=0x0FFFF=+65535，与 notes 声明的 +131071 不符。"
 
 # ── Case 4: 编码往返——字段边界（`rbha`=rb1、`imms18`=−131072 下界）──
 - class: encoding
@@ -103,3 +107,107 @@
   status: active
   spec_cite: "SimRISC-05 §IP 相对寻址; SimRISC-00 §基址寄存器"
   notes: "legality aip.si: rbha=rb0（bits[23:18]=0）→ ILLI（dst_rb0：rb0 读出为当前指令地址、只读，任何指令以其为显式目的即非法）。"
+
+# ── Case 6: semantic——`imms18`=0 ⇒ `rb1` = IP = 该指令自身地址（关键：非 PC+4）──
+- class: semantic
+  encoding:
+    word: "0x5A040000"
+  mnemonic: aip.si
+  id: aip.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state:
+    rb:
+      rb1: "0xFC0000000000"
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §IP 相对寻址"
+  notes: "semantic（独立 oracle）：input_state 空 ⇒ loader 0 字 ⇒ 指令地址 IP = BINARY_BASE = 0xFC00_0000_0000；imms18=0 ⇒ rb1 = IP + 0 = 0xFC0000000000（**IP = 自身地址**，非下一条/无 ±4；若按 0628 的 `PC+4` 口径得 0xFC0000000004 ⇒ FAIL）。汇编层写 `aip.si rb1, 0`。"
+
+# ── Case 7: semantic——正块偏移（`<<12`，非 `<<2`）──
+- class: semantic
+  encoding:
+    word: "0x5A040001"
+  mnemonic: aip.si
+  id: aip.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state:
+    rb:
+      rb1: "0xFC0000001000"
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §IP 相对寻址"
+  notes: "semantic（独立 oracle）：IP = BINARY_BASE（loader 空）；imms18=+1 ⇒ rb1 = 0xFC0000000000 + (1 << 12) = 0xFC0000001000（**<<12 = 4 KiB 块**；若误用 <<2 得 0xFC0000000004 ⇒ FAIL）。汇编层写 `aip.si rb1, 4096`。"
+
+# ── Case 8: semantic——负块偏移（`imms18` 有符号）──
+- class: semantic
+  encoding:
+    word: "0x5A07FFFF"
+  mnemonic: aip.si
+  id: aip.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state:
+    rb:
+      rb1: "0xFBFFFFFFF000"
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §IP 相对寻址"
+  notes: "semantic（独立 oracle）：IP = BINARY_BASE；imms18=−1（bits[17:0]=0x3FFFF）⇒ rb1 = 0xFC0000000000 + (−1 << 12) = 0xFC0000000000 − 0x1000 = 0xFBFFFFFFF000（**有符号**符号扩展）。汇编层写 `aip.si rb1, -4096`。"
+
+# ── Case 9: semantic——IP 基准 = 该指令自身地址（指令不在 BINARY_BASE；关键鉴别）──
+- class: semantic
+  encoding:
+    word: "0x5A040000"
+  mnemonic: aip.si
+  id: aip.si_riii_rb
+  format: riii
+  input_state:
+    rb:
+      rb2: "0x1"
+  expected_state:
+    rb:
+      rb1: "0xFC0000000004"
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §IP 相对寻址"
+  notes: "semantic（独立 oracle）：input_state 预置 `rb2 = 0x1` ⇒ loader 段 = 1 字（`set.zw rb2, wp0, 0x1`，其余 wyde 为 0 故不生成 `or.w`）⇒ 指令地址 IP = BINARY_BASE + 4 = 0xFC0000000004；imms18=0 ⇒ rb1 = 0xFC0000000004。**关键**：固定基址（`BINARY_BASE`）或 `IP & ~0xFFF`（旧页对齐口径）都会得 …0000 ⇒ FAIL。"
+
+# ── Case 10: boundary——`imms18`=+131071（s18 上界）──
+- class: boundary
+  encoding:
+    word: "0x5A21FFFF"
+  mnemonic: aip.si
+  id: aip.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state:
+    rb:
+      rb8: "0xFC001FFFF000"
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §IP 相对寻址"
+  notes: "boundary（独立 oracle）：rbha=rb8（bits[23:18]=0x08）、imms18=+131071（bits[17:0]=0x1FFFF，s18 上界）；IP = BINARY_BASE ⇒ rb8 = 0xFC0000000000 + (131071 << 12) = 0xFC0000000000 + 0x1FFFF000 = 0xFC001FFFF000（±512 MiB 可达上界方向）。"
+
+# ── Case 11: boundary——`imms18`=−131072（s18 下界）──
+- class: boundary
+  encoding:
+    word: "0x5A060000"
+  mnemonic: aip.si
+  id: aip.si_riii_rb
+  format: riii
+  input_state: {}
+  expected_state:
+    rb:
+      rb1: "0xFBFFE0000000"
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: "SimRISC-05 §IP 相对寻址"
+  notes: "boundary（独立 oracle）：imms18=−131072（bits[17:0]=0x20000，s18 下界）；IP = BINARY_BASE ⇒ rb1 = 0xFC0000000000 − (131072 << 12) = 0xFC0000000000 − 0x20000000 = 0xFBFFE0000000（−512 MiB 可达下界）。"
