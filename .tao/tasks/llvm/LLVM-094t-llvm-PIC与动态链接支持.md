@@ -412,3 +412,13 @@
 **门控（2026-10-17 收尾笔；`ISS-229` ⇒ **未**跑 `install-host`/`build-*`/L2/L3 —— 本笔为**纯文档/台账**）**：`make check`(L1) **rc=0**；`check-patch-tree`（147 patches）/`check-index-blobs`/`check-source-state`/`check-component-changelog`/`check-no-residue`/`check-knowledge-refs`/`check-knowledge-dir`/`check-tasks`/`check-issues` 各 **rc=0**（详「收尾提交流痕」段）。
 
 **`**状态**` 变更**：`待验收` ⇒ **`已验证`**（**只改此行** ✗；完成区 / 既有审阅记录未改写）。**另**：`ISS-206` 的 notes 声明「待 `LLVM-094t` 任务级 `已验证` 后回填 `closed`」——**本笔未动 `ISS-206`**（不在本次交办清单内）⇒ **提请主会话裁定** ✓。
+
+#### 收尾提交流痕（architect，2026-10-17；只追加）
+
+- **开工前现场（核）**：`git branch --show-current` = `master`；`HEAD` = `origin/master` = **`b4b1c71`**；`git status --porcelain -uall` 现场 = **3 `M`**（`SPEC-145t`/`LLVM-095t`/`QEMU-061t` 三册的 **reviewer 第 1 轮 `Accepted` 块**已写入但**未提交**）⇒ 与交办「工作树干净」**不符**，如实披露并**随笔 1 一并提交**（该三册改动 = **审阅记录留痕**，非本笔引入）。
+- **文件集对账**（逐路径显式 staging、**未用** `git add -A`）：笔 1 `git diff --cached --name-status` = **4 `M`**（三册任务书 + `.tao/knowledge/issues.yaml`）⇒ 与交办范围逐条一致 ⇒ **无漏提 / 多提 / 越界**（`.work/**` 证据 / 日志被 `.gitignore` ⇒ **不入 git** ✓）。
+- **笔 1** = `5932324`（4 文件，+83/−7）：三册 `**状态**` → `已验证`（**只改状态行** ✗ 未改写完成区/审阅记录）+ 关 `ISS-230`（`resolved_by: LLVM-095t`）。
+- **笔 2** = `4545e14`（4 文件，+136/−7）：本册「收尾」节 + `ISS-237`/`ISS-238` 登记 + 立 `QEMU-062t`（`P3` 册）+ `milestones.md` 更新；文件集 = 本册 + `issues.yaml` + `milestones.md` + 新册（**1 `A` / 3 `M`**，与交办清单逐条一致）。
+- **档位**：两笔均 = **正常提交**（reviewer 判决 `Accepted`；笔 2 的 `LLVM-094t` 收尾依主会话交办）——**未**用 `WIP:` 前缀（交办明示）。
+- **只读核对（真实 rc）**：`make check`(**L1**) **rc=0**（尾行 `repository checks (L1): PASS`）；`check-tasks` / `check-knowledge-refs` / `check-knowledge-dir` / `check-no-residue`（= `check_dirs.py --residue`）/ `check-index-blobs` / `check-source-state`（= `check_patch_tree.py --source-state`）/ `check-component-changelog` / `check-patch-tree`（**147** patches）/ `check-issues`（**46 open / 15 closed**，`resolved_by` 约束 OK）各 **rc=0**（日志 `.work/log/qemu/QEMU-062t-architect-*.log`）；`ISS-229` ⇒ **未**跑 `install-host` / `build-*` / L2 / L3（本笔为**纯文档 / 台账**）。
+- **落地**：`merge --ff-only` 入 `master` ⇒ 分支 `m8-task-closure` 已删；**未** `push`（`push` 只由主会话在 `/complete` 后执行）。
