@@ -1,9 +1,9 @@
 diff --git a/lld/ELF/Arch/DADAO.cpp b/lld/ELF/Arch/DADAO.cpp
 new file mode 100644
-index 000000000..b87453a33
+index 000000000..1ae638954
 --- /dev/null
 +++ b/lld/ELF/Arch/DADAO.cpp
-@@ -0,0 +1,449 @@
+@@ -0,0 +1,481 @@
 +//===- DADAO.cpp - DADAO ELF Linker Target ----------------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -163,6 +163,22 @@ index 000000000..b87453a33
 +
 +RelExpr DADAO::getRelExpr(RelType type, const Symbol &s,
 +                          const uint8_t *loc) const {
++  // Structures the first implementation must not emit are rejected here, at
++  // scan time, so that the user sees a diagnostic instead of a silently broken
++  // output (ADR-0026 D7②, contract-dynlink.md §10②).
++  //
++  //  * GNU IFUNC: the resolver machinery (`.iplt` + IRELATIVE) is not
++  //    implemented (ipltEntrySize == 0, iRelativeRel == 0).  An IFUNC
++  //    reference would otherwise produce an empty/invalid PLT entry whose
++  //    IRELATIVE relocation has type 0 == R_DADAO_NONE, i.e. a silent no-op.
++  if (s.isGnuIFunc())
++    Err(ctx) << getErrorLoc(ctx, loc) << "GNU IFUNC symbol '" << s.getName()
++             << "' is not supported (no `.iplt`/IRELATIVE; ADR-0026 D7②)";
++  //  * Copy relocation (`R_DADAO_COPY`): rejected where lld decides it is
++  //    needed (Relocations.cpp, `NEEDS_COPY`) -- the rejection site is the copy
++  //    relocation itself, not this hook, because a relocation against an object
++  //    defined in a DSO is perfectly legal here when it has a dynamic form
++  //    (`getDynRel() != 0`, e.g. the ABS48 GOT-slot form).
 +  switch (type) {
 +  case R_DADAO_ABS48:
 +    // Absolute 48-bit address (S + A); never PC-relative.
@@ -184,6 +200,22 @@ index 000000000..b87453a33
 +  case R_DADAO_ABS12:
 +    // Base-relative symbol displacement: S + A (byte offset, imms12).
 +    return R_ABS;
++  case R_DADAO_COPY:
++  case R_DADAO_TLSDESC:
++    // Numbered by ADR-0019 D10 but **not emitted** by this implementation; a
++    // silent skip (or a silent zero) would only surface at load time, so fail
++    // loudly at scan time (ADR-0026 D7②, contract-dynlink.md §10②).
++    Err(ctx) << getErrorLoc(ctx, loc) << "relocation type " << type
++             << " is not emitted by the DADAO linker (ADR-0026 D7②)";
++    return R_NONE;
++  case R_DADAO_TLS_DTPMOD:
++  case R_DADAO_TLS_DTPREL:
++  case R_DADAO_TLS_TPREL:
++    // TLS types are numbered by ADR-0019 D10 but their semantics depend on the
++    // musl arch macros (contract-dynlink.md §7), which are not wired up yet.
++    Err(ctx) << getErrorLoc(ctx, loc) << "TLS dynamic relocation " << type
++             << " is not supported yet (contract-dynlink.md §7)";
++    return R_NONE;
 +  default:
 +    Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << type.v
 +             << ") against symbol " << &s;
