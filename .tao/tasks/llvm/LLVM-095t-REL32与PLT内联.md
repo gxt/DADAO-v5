@@ -366,3 +366,13 @@
 | F9（自审发现·**门控抓到的自伤**）本块初稿用 `QEMU-061t-L{1,2,3}-*.log` 花括号+通配缩写引用 `.work/**` ⇒ `check-knowledge-refs` **rc=1（1 悬空）** | ✅已修 | 改为**显式三条路径**（`QEMU-061t` 册同处同步改） | 修前 `结果: FAIL (1 悬空 .work/** 引用)`（落点本册 `:344`）；修后 **rc=0**（0 悬空） |
 
 **判决**：F1–F5、F9 已修/已核并复验（F1/F2/F3/F4 均为「写死 / 恒真 / 静默弱化 / 假红」面，逐条被可达 FAIL 与临时树探针捕获；F9 为**门控当场捕获的自伤**）；F6–F8 核过。**无未修 finding**。⇒ 四条遗留本册面**处置完成**：A16 **field 派生**（`20/0`，含「注入 ⇒ 红 ⇒ 还原 ⇒ 绿」）、`--show-encoding` 登记复核一致且**不修**、L2 载体（`QEMU-061t` 面）、全卷 L1/L2/L3 **真 rc=0**。按指令**不改 `**状态**`**。
+
+#### architect 提交留痕（`LLVM-095t` 遗留① 册；分支 `qemu-061t-commit`；**只追加**）
+
+- **档位**：按下发指令取**正常提交**（无 `WIP:` 前缀）——**披露**：两册 `#### 第 1 轮 reviewer 验收` 仍为占位（**无 reviewer `Accepted` 判决**），严格按角色规则应为 `WIP:`；本笔依主会话明确指令执行，**不改任务 `**状态**`** ✗（仍 `待开始`；收尾在 reviewer 之后）。
+- **提交（2 笔）**：① `260724a` = 本册遗留①（4 文件 = 组件补丁 1 + `changelog` 1 + 新 lit 1 + 本册）；② `4a16a87` = `QEMU-061t`（9 文件，见另册留痕）。
+- **文件集对账**（`git diff --cached --name-status` vs 两册完成区「修改文件」声明）：开工 `git status --porcelain -uall` = **13 项**、`--cached` = **13 项**（11 `M` + 2 `A`）；**逐项一致、0 漏提 / 0 多提 / 0 越界**；`spec/` / `.tao/contracts/` / `contracts/` / 任务 `**状态**` = **0 命中** ✓。
+- **完成区如实性核对**：L1/L2/L3 **真 rc** 与现场日志一致 ✓（`make check` rc=0；L2 `check-modules` rc=0〔`check-lit` 109/109〕；L3 `check-full` rc=0〔`check-qemu-semantics` 149/149〕）；**A16 派生化** ✓（现场核 `check_mc.py`：A16/A16b/A16c/A16d 四面 + `len(cases)`，**零字面量期望**）；遗留**如实** ✓（`--show-encoding` 低半缺陷、L3 载体、`009t` 探针/audit 三项均明标未修）⇒ **未改完成区内容** ✗。
+- **issue**：`ISS-232`（`--show-encoding` 低半 SIGABRT rc=134，**须裁定**）/ `ISS-233`（L3 载体未含 `aip-si.yaml`）/ `ISS-234`（`min_rom_probe_009t.py` 顶注陈旧 + `009t-audit.py` 无 oracle）—— 三条**现场复现**后登记；`check_issues.py` **rc=0（44 open / 13 closed）**。
+- **门控（本笔重跑，真值 = 自身 rc）**：`make check`(L1) **rc=0**（末行 `repository checks (L1): PASS`）、`check-patch-tree` rc=0（**147**）/`check-index-blobs` rc=0/`check-source-state` rc=0/`check-no-residue` rc=0/`check-tasks` rc=0/`check-knowledge-refs` rc=0/`check-knowledge-dir` rc=0/`check-component-changelog` rc=0；日志 `.work/log/qemu/QEMU-061t-commit-make-check-L1.log`。
+- **落盘**：`master` 由 `merge --ff-only` 落地、分支 `qemu-061t-commit` 已删；**未 push** ✗（`origin/master` 不动）。

@@ -163,3 +163,13 @@
 | F6（真值对齐自审）本块数字是否逐字来自真实输出 | ✅已核 | 不改：86→90、109/109、149/149、12/12、19/19、38/38、20/0、31/0、22/22、rc 与耗时均可回溯至同名日志；**未** commit/push、**未**重建、**未改** `spec/`·契约·`**状态**` | 上述日志现场输出 + `git status -uall` = 13 项 |
 
 **判决**：F2 已修并复验；F1/F3/F4/F5/F6 核过（附现场证据）。**无未修 finding**（遗留①–③ = 登记项/裁定项，非本笔授权面）。⇒ 四条遗留**处置完成**：A16 改 field 派生（20/0，含注入⇒红⇒还原⇒绿）、`--show-encoding` 登记复核一致且不修、`aip-si.yaml` 入 L2 代表集（86→90、90/90）、全卷 L1/L2/L3 真 rc=0。按指令**不改 `**状态**`**。
+
+#### architect 提交留痕（`QEMU-061t` 册；分支 `qemu-061t-commit`；**只追加**）
+
+- **档位**：按下发指令取**正常提交**（无 `WIP:` 前缀）——**披露**：两册 `#### 第 1 轮 reviewer 验收` 仍为占位（**无 reviewer `Accepted` 判决**），严格按角色规则应为 `WIP:`；本笔依主会话明确指令执行，**不改任务 `**状态**`** ✗（仍 `待开始`；收尾在 reviewer 之后）。
+- **提交（2 笔）**：① `260724a` = `LLVM-095t` 遗留①（4 文件，见另册留痕）；② `4a16a87` = 本册（**9 文件**：QEMU 补丁 **2** + `components/qemu/changelog.md` + `tools/qemu/generate_decodetree.py` + 新 `tools/qemu/min_rom_probe_061t.py` + `tests/vectors/isa/aip-si.yaml` + `tests/vectors/inventory.md` + `tests/scripts/run_qemu_smoke.py`（L2 载体）+ 本册）。
+- **文件集对账**（`git diff --cached --name-status` vs 两册完成区「修改文件」声明）：开工 `git status --porcelain -uall` = **13 项**、`--cached` = **13 项**（11 `M` + 2 `A`）；**逐项一致、0 漏提 / 0 多提 / 0 越界**；`spec/` / `.tao/contracts/` / `contracts/` / 任务 `**状态**` = **0 命中** ✓；组件补丁 **2 份**（`insn.decode` / `insn_trans/trans_arith.c.inc`，`check-patch-tree` = 5 comp / **147** patches、无增删）。
+- **完成区如实性核对**：L1/L2/L3 **真 rc** 与现场日志一致 ✓（`make check` rc=0；L2 `check-modules` rc=0〔`check-qemu-smoke` 90/90〕；L3 `check-full` rc=0〔149/149〕）；生成器「写死计数」根因消除 ✓（现场核 `generate_decodetree.py` = `f"{len(records)} patterns"`）；遗留**如实** ✓（L3 载体、`009t` 探针顶注、`009t-audit` 无 oracle 均明标未处置）⇒ **未改完成区内容** ✗。
+- **issue**：`ISS-233`（L3 载体未含 `aip-si.yaml`；**现场核** `Makefile:880` 的 `for v in …` 仅两册、`check-qemu-semantics` 日志 `aip` 命中 **0**）/ `ISS-232`（`--show-encoding` 低半 SIGABRT rc=134，**须裁定**）/ `ISS-234`（`min_rom_probe_009t.py` 顶注仍称 `0x5A`=UNDI；`009t-audit.py` 对 `aip.si` 无 oracle，两件均**非门控**）—— 三条**现场复现**后登记；`check_issues.py` **rc=0（44 open / 13 closed）**。
+- **门控（本笔重跑，真值 = 自身 rc）**：`make check`(L1) **rc=0**（末行 `repository checks (L1): PASS`）、`check-patch-tree` rc=0（**147**）/`check-index-blobs` rc=0/`check-source-state` rc=0/`check-no-residue` rc=0/`check-tasks` rc=0/`check-knowledge-refs` rc=0/`check-knowledge-dir` rc=0/`check-component-changelog` rc=0；日志 `.work/log/qemu/QEMU-061t-commit-make-check-L1.log`。
+- **落盘**：`master` 由 `merge --ff-only` 落地、分支 `qemu-061t-commit` 已删；**未 push** ✗（`origin/master` 不动）。
