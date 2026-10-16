@@ -1,203 +1,86 @@
-# LLVM-095t: `R_DADAO_REL32` 端到端 + PLT 内联（GOT 3 条形态 / 布局义务取消）
+# LLVM-095t: `rela.si` 恢复 + GOT/PLT 远距离取址（**原 `R_DADAO_REL32` 路线已改线**）
 
 **模块**：llvm
 **项目里程碑**：M8
-**依赖**：`ADR-0028`（GOT/PLT 远距离取址；**`Accepted`**，2026-10-16 用户逐条确认 ⇒ **设计定案**）、`ADR-0019 D11`（就地追加：新类型 / 编号 / 公式 / 落点 / 负值同改 / 越界）、`ADR-0026 D5`·`D7`（就地修订：PLT 内联去槽 / GOT 3 条/次 / 取消 `.got` 贴 ±2 KiB 布局义务）、`ADR-0021 D1`（「汇编器按寄存器自动选类型」先例）；契约真源 = `.tao/contracts/contract-elf.md §2.2`（编号表：`14 = R_DADAO_REL32` / `15 = R_DADAO_NUM`）、`§3.1`（公式 + 记录形态 (甲) + 缺省非负与负值同改）、`§3.2`（越界 / 落点不符 ⇒ link-time error）、`§4`（固定 2 片、禁 relaxation）、`.tao/contracts/contract-dynlink.md §3`（GOT/PLT 形态、布局义务取消）；现场来源 = `LLVM-094t`（阶段 A/B/C，`待验收`）与 `ISS-230`；纪律 = `ISS-229`（L2/L3 串行）、`ISS-210`（改 MC 必 `install-host`）、`docs/Process-01`
+**依赖**：**后继 ADR（待起草 —— 用户 2026-10-16 改线裁定 ⇒ 本册阶段划分仅为提案）**、`ADR-0028`（GOT/PLT 远距离取址；**`Superseded`**，2026-10-16）、`ADR-0019 D11`（**已加「已撤」就地修订注记**：`R_DADAO_REL32`=`14` 撤销、`R_DADAO_NUM` 回 **`14`**）、`ADR-0026 D5`·`D7`（**「本次改线」注记**：`REL32` 相关表述作废；PLT 内联仍要做、形态待定）、**`ADR-0012 D5`**（**`rela.si` 已于 2026-09-30 被删除**、编码 `0x5A` 释放为 `UNDI`、指令数 `254 → 253` ⇒ **ISA 恢复须一并处理**）、`ADR-0021 D1`（「汇编器按寄存器自动选类型」先例）；契约真源（**现状**）= `.tao/contracts/contract-elf.md §2.2`（`R_DADAO_NUM` = **`14`**、**无 `REL32`**）、`.tao/contracts/contract-dynlink.md §3`（GOT 远距离取址通道 / PLT 条目形态 = **待后继 ADR 定**）；现场来源 = `LLVM-094t`、`ISS-230`；纪律 = `ISS-229`（重建串行）、`ISS-210`（改 MC/`.td` 必 `install-host`）、`docs/Process-01`（组件补丁）
 **状态**：待开始
 
 ## 执行环境
 **执行环境**：本地
 
+## ⚠️ 改线说明（2026-10-16，用户裁定；**先读**）
+
+**原 `R_DADAO_REL32` 路线已改线**（`ADR-0028` → **`Superseded`**，2026-10-16 用户裁定）。用户**原话（逐字引录）**：
+
+> 「**我还是觉得rela.si应该恢复，这样就可以完全复用risc-v的方案，仅用一个rb寄存器就可以解决全部问题，且该rb正好可以复用想要取出来的地址所用的寄存器**」
+> 「**现在就换！rela.si rbHA, imms18，含义参照risc-v的auipc，编码0x5A；刚才所作的任务回退**」
+
+已落地的回退（**供追溯、勿重复做**）：
+
+1. **组件补丁回退**：`git revert` 提交 `f98f1d5`（回退 `609c44b` = 阶段 A 的 `R_DADAO_REL32` / `NUM` = `15`）⇒ `components/llvm-project/patches/{lld/ELF/Arch/DADAO.cpp.patch, llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def.patch}` 已回**阶段 A 之前**（`DADAO.def` 无 `REL32`、`NUM` = `14`；`pltEntrySize` = `24`）；`.work/source/llvm-project` 按 `docs/Process-01 §7` **重放补丁集**收敛回 E1。
+2. **阶段 B 未提交产出留档**：`.work/log/llvm/LLVM-095t-B-reverted.diff` + `...md5`（PLT 内联去槽的阶段 B 改动；**已回退、不再生效**）。
+3. **ADR / 契约**：`ADR-0028` = `Superseded`；`ADR-0019 D11` = 「已撤」注记（`NUM` 回 `14`）；`ADR-0026 D5`/`D7` = 「本次改线」注记；`contract-elf.md` 回 `NUM` = `14`、无 `REL32`；`contract-dynlink.md` 的通道 / PLT 形态标**待后继 ADR 定**。
+4. **本册原文**：原 `REL32` 路线全文见 git 历史（`609c44b`；回退 = `f98f1d5`）——**以本册现文为准**。**本册文件名中的 `REL32` 为历史命名**（沿用既有路径，**未改名**）。
+
+> **下一笔 = 后继 ADR（待起草）**：`rela.si` 的**精确语义 / 立即数基准 / 值域 / 重定位类型与编号 / 发射与消费形态**须由后继 ADR **逐条与用户确认**后落纸（`AGENTS.md`「ADR decision 逐条确认」）⇒ **本册阶段划分仅为提案** ✗，**不得**作为实现依据下发。
+
 ## 立项来源 / 路线位置
 
-- **路线 = `ADR-0025 D6` 的 `P2` 段的前置（生产者侧）**；本册 = `ADR-0028`（`Accepted`）的**实现落点**，**替代** `ADR-0026 D5` 原文的「超 ±2 KiB ⇒ `ABS48` 序列 + `ldm.o_rrri_rb` 两段式」（该路径在现有 ABI 下**不可实现**：链接器无可用 `rd`、ISA 无宽 PC 相对重定位类型；`ISS-230`，阶段 C 现场证据）。
-- **依赖单向 `llvm → infra`**：本册产出被 `INFRA-085t`（`P2` 消费侧 + 构建）**消费**；本册落地后 `INFRA-085t` 文首「⛔ 阻塞」指针中**与 `.got` 可及性（GOT 取址）相关的部分解除**。
-- **判据边界 = 能编 + 静态可核**（`readelf` / `llvm-readobj` + **独立解析**）：**不跑**（运行验证 = `P3`）。本册**不可**有任何「运行通过 / E2E 通过」叙述。
+- **路线 = `ADR-0025 D6` 的 `P2` 段的前置（生产者侧）**；本册 = 「GOT/PLT 远距离取址」的**实现落点**（**设计载体由后继 ADR 接续**，取代原 `ADR-0028`）。
+- **用户取向（原话摘要，2026-10-16）**：恢复 **`rela.si`** ⇒ **完全复用 RISC-V 方案**、**仅用一个 `rb` 寄存器**即可解决全部问题，且该 `rb` **正是要取出的地址所用的寄存器** ⇒ **零额外寄存器**。
+- **依赖单向 `llvm → infra`**：本册产出被 `INFRA-085t`（`P2` 消费侧 + 构建）**消费**；现 `INFRA-085t` 侧「GOT 可及性」阻塞面**未解除**（`ISS-230` 保持 `open`）。
+- **判据边界 = 能编 + 静态可核**（`readelf` / `llvm-readobj` + **独立解析**）：**不跑**（运行验证 = `P3`）；`rela.si` 的**执行侧**支持归 `qemu` 模块（见下阶段 5）。本册**不可**有任何「运行通过 / E2E 通过」叙述。
 
-## 目标（交付物）
+## 目标（交付物）（**方向层；细节待后继 ADR**）
 
-1. **新类型 `R_DADAO_REL32`（编号 `14`）/ `R_DADAO_NUM`（编号 `15`）端到端可用**：MC 侧发射（**一指令一条记录**、两条各带**补偿 addend**）→ lld 侧消费（**两条 wyde 落点**、`disp < 0` **两条同改**〔含 `~lo16`〕、落点不符 / 越界 ⇒ **link-time error**）。
-2. **PLT 内联去槽**：条目由 24 B → **16 B**（配对序列 + `ldm.o` + `jump`；**无 8 字节数据槽、无 padding**）。
-3. **GOT 取址改 3 条形态**：CodeGen **两处**（GOT 槽 / 跳转表基址）改为「配对序列 + `ldm.o`」。
-4. **布局义务取消的正面证据**：lld **默认布局**下 `-shared` **链接成功**（旧行为 = `R_DADAO_REL12 out of range` rc=1）；**静态路径逐字节不回归**。
+1. **ISA 恢复**：`rela.si rbHA, imms18`（含义参照 RISC-V `auipc`、编码 **`0x5A`**）回到 `spec/` ⇒ **须用户原话授权**（`ADR-0012 D5` 曾删该指令；`spec/` 为只读册，见 `docs/Process-06`）。
+2. **重定位**：为 PC 相对宽偏移设计**类型 / 编号 / 公式 / 落点 / 越界与落点校验**（**待后继 ADR 定**；现状 `.tao/contracts/contract-elf.md §2.2` **无**此类新类型 ⇒ 须契约同步）。
+3. **工具链**：MC / CodeGen / lld 落地（含 **GOT 取址**与 **PLT 条目**；PLT 方向 = **3 条 / 12 B**，见阶段 4）。
+4. **无布局义务**：`.got` 与访问点距离**不受 ±2 KiB 约束**（治 `ISS-230` 根因）。
+5. **向量 / 证据**：与「一能力一向量」一致（`docs/Process-05`）；独立 oracle（**不从** LLVM/LLD/QEMU/本仓工具反推）。
 
-## 必须自包含的事实（现场已核；供执行，**勿重复查证**）
+## 依赖与待定事项（**后继 ADR 逐条确认前，不得开工**）
 
-### 1 口径（逐条来自契约 / ADR 正文；执行时**照此**、不自拟）
+- **待后继 ADR 定**（本笔**未定、不写细节** ✗）：① `rela.si` 的**含义 / 立即数基准 / 单位 / 值域**（参 `auipc`；用户提到 `imms18`）；② **是否**新增 PC 相对重定位类型（类型号 / 值类 / 公式 / 落点字段）；③ **就地改写 vs 链接器合成**（PLT 与 GOT 分别处理）；④ `rb` 目的寄存器的**选择规则**（用户要点 = 复用「要取出的地址所用的寄存器」）；⑤ 「**无需额外寄存器**」如何与既有访存（`ld.o` / `ldm.o` 的基址 / 偏移域）配合。
+- **须一并处理**：`ADR-0012 D5`（`rela.si` 删除 + 编码 `0x5A` → `UNDI` + 指令数 `254 → 253`）的**恢复**；`spec/` 相关册（`SimRISC-00` 编码表 / 汇编语法 / `spec/README` 索引）**须用户原话授权**（锁 `manifests/spec-readonly.lock.toml` 同变更重算 `sha256`）。
+- **变更面预估（提案）**：`spec/**`（ISA 恢复）、`.tao/contracts/contract-elf.md` / `contract-dynlink.md`（重定位与 GOT/PLT 形态）、`contracts/`（机器可读，若编码表需同步）、`components/llvm-project/patches/**` + `tests/llvm/lit/MC/DADAO/**`、`components/qemu/patches/**` + `tools/qemu/**`（执行侧）、`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（重生成）、向量 / 证据。
+- **下发前预检（5 项）**：**须在细化后重做**（现阶段的类型 / 公式未定 ⇒ 验收项无法逐条标「现在可跑 / BLOCKED」，`AGENTS.md`「下发前预检（强制）」）。
 
-1. **类型与编号**：新增 `R_DADAO_REL32` = **`14`**、`R_DADAO_NUM` = **`15`**（类型计数，由 `14` 顺延）；编号在 `e_flags[7:0] = 1` namespace 内、**全密无空档**。〔`ADR-0019 D11`；`contract-elf.md §2.2`〕
-2. **值类**：**偏移类**（**有符号 / 补码、32 位、单位字节**）；**不适用**「有效位宽 = 立即数位宽 + 2」的字偏移换算 —— 与 `REL12` **同款例外**（名中数字 = **有效位宽**）；可达 **±2 GiB**。
-3. **公式**：`disp = S + A − P`；**`P` 的基准 = 配对中「执行取数的那条 `ldm.o`」的地址**（`rb0` 读出**当前指令**地址、**无 `-4`**；`ADR-0019 D3`）。
-4. **记录形态 (甲)**：**一个类型 + 两条记录**、**一指令一条记录**，两条各带**补偿 addend** —— **hi 记录**（落点 = 配对**首条**）取 **`A − 8`**；**lo 记录**（落点 = **次条**）取 **`A − 4`**。核算：`hi: S + (A−8) − P_hi = S + A − (P_hi+8)`；`lo: S + (A−4) − P_lo = S + A − (P_lo+4)`；由 `P_ldm.o = P_hi + 8 = P_lo + 4`（相邻两指令相差 **4 B**）⇒ 两条**各自独立**算得同一 `disp` ✓。**不引入配对机制**（无 hi/lo 两个类型、无回查配对）。
-5. **落点**：**两条指令各一个 16 位 wyde** —— **hi16 → `wp1`**（首条）、**lo16 → `wp0`**（次条）；`wp` 编码于 `hb[5:4]`（`bits[17:16]`），与 `ABS48` 的指令形式**同形**。**执行顺序 = 地址顺序**：首条（`wp1`）在低地址、次条（`wp0`）紧随（`+4`）、`ldm.o` 再 `+4`。
-6. **缺省非负**：发射侧（编译器 / 汇编器）**一律**发射**非负形** = `set.zw rdX, wp1, hi16` + `or.w rdX, wp0, lo16`。
-7. **链接期 `disp < 0` ⇒ 两条同改**：① 首条 opcode `set.zw`-rd（`0x4C`）→ `set.ow`-rd（`0x4D`），立即数仍取 `disp[31:16]`；② 次条 opcode `or.w`-rd（`0x48`）→ `andn.w`-rd（`0x49`），**立即数取 `~disp[15:0]`**。寄存器 / `wp` 域**不变**。
-8. **为何负值必须同改两条（必须理解，不是可选）**：`set.ow` 把**其余 48 位全置 1（含 `wp0`）**，而 `or.w` = `rd[wp] | imm` **只能置位、不能清零** ⇒ 次条若仍留 `or.w`，`wp0` 恒为 `0xFFFF`（**静默错值、不可归因**）；`andn.w` = `rd[wp] & ~imm`，取 `imm = ~lo16` ⇒ `0xFFFF & lo16 = lo16` ✓（`wp3`/`wp2` = 1 = 符号扩展 ✓）。非负形不受影响（`set.zw` 清 0 ⇒ `wp0` 初值 `0x0000` ⇒ `or.w` 得 `lo16` ✓）。四个 opcode 同在 `SimRISC-00` 的 `0100-1xxx` 行 ⇒ 各只动 8 位 opcode；**先例** = `R_DADAO_REL26` 把 `call-iiii`（`0x74`）改写为 `jump-iiii`（`0x70`）。
-9. **越界 / 落点不符 ⇒ link-time error**：`disp` 超出 `−2³¹..2³¹−1` ⇒ **报错**（不截断、不 wrap）；落点**不是合法配对序列的成员** ⇒ **报错**（禁静默放行 —— 负值若按非负形静默处理会静默偏 **`+2³²`**）。
-10. **固定 2 片**（32 位有符号），**不**按值变长、不缩短 / 加长；**不解禁 relaxation**。〔`ADR-0019 D7` / `D11`；`contract-elf.md §4`〕
-11. **PLT 例外**：PLT 由**链接器合成**（`writePlt` 自产编码）⇒ **链接器自选配对、无 opcode 改写环节**（链接期已知符号）。`D2` 的改写机制**只服务**「编译器发射、链接期才知符号」的 GOT 路径。
-12. **寄存器**：临时寄存器取**调用者保存**族（`rd4–rd7` / `rd16–rd31`；PLT 沿用 `rd5`）；**不使用** `rd0`（零）/ `rd1`（`rderrno`）/ `rd2`–`rd3`（调试 / 测试保留）⇒ **`spec/` 零改动**。
-13. **PLT 形态**：条目 = 配对序列（`disp ≥ 0` ⇒ `set.zw`+`or.w`；`disp < 0` ⇒ `set.ow`+`andn.w`）+ `ldm.o {rb4}, [rb0, rdX]` + `jump [rb4, rd0, 0]`（**4 条指令 = 16 B**、**无数据槽、无 padding**）；`pltEntrySize` **24 → 16**、`pltDataOffset` **取消**；`pltHeaderSize` 保持 **0**（eager）、`gotPltHeaderEntriesNum` 保持 **2**、`DT_PLTGOT` 不变；`.got.plt` 槽仍由 `JUMP_SLOT`(7) 在装载期填充；`writeGotPlt` 仍写 0（eager，无 resolver 回指针）。
-14. **GOT 访问形态（3 条/次）**：`set.zw`/`or.w rdX, disp`（2 条）+ `ldm.o {rbT}, [rb0, rdX]`（1 条）；`disp = S_slot − (ldm.o 地址)`；`S_slot` = 该符号的 **GOT 槽标签**（现状编译器自出的 `.Lgot.<n>` / 跳表槽）；`.got` 槽**内容**不变（8 字节 `R_DADAO_ABS48` **数据**字段 = 符号地址）；运行期取到的地址 = `rb0`（= `ldm.o` 自身地址）+ `rdX` = 槽地址 ✓。**取消**「`.got` 必须贴访问点 ±2 KiB」的**布局义务**（可达 ±2 GiB）。
+## 做（**阶段划分 = 提案** ✗；待后继 ADR 逐条确认后细化、再下发）
 
-### 2 源码锚点（现场行号；源码树 `.work/source/llvm-project`，**只读**）
+> 下列阶段只给**范围与顺序**，**不给**可执行细节（细节随后继 ADR / 契约落纸）；每阶段各自可验收。**跨模块**：阶段 1 触及 `spec`、阶段 5 触及 `qemu` ⇒ **是否拆册（`SPEC-*` / `LLVM-*` / `QEMU-*`）待主会话裁定**（本笔不擅自新建任务）。
 
-1. `llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def`：现终到 `ELF_RELOC(R_DADAO_TLSDESC, 13)` + `ELF_RELOC(R_DADAO_NUM, 14)`（头注释编号表同述 `14 = type count`）⇒ **本册改这两处 + 注释**。
-2. `lld/ELF/Arch/DADAO.cpp`：`pltEntrySize = 24`（L114）、`pltHeaderSize = 0`、`gotPltHeaderEntriesNum = 2`；`static constexpr unsigned pltDataOffset = 16`（L139）；`getRelExpr`（L158 起）；`writePlt`（L245–291）；`relocateInSection`（L294 起）；`relocate` / `relocateAlloc`（L468 起）。**另**：`iRelSymbolicRel = R_DADAO_NUM`（哨兵**随枚举自动跟随** 15，但**注释里写死 `NUM = 14`，须同步**）。
-3. `relocateInSection` 的 `ABS48` **指令**路径已成先例：`uint32_t insn = read32be(loc); unsigned wp = (insn >> 16) & 0x3; insn = (insn & 0xFFFF0000u) | slice; write32be(loc, insn);`（保留 opcode / 寄存器 / `wp` 域）⇒ REL32 的**写回**同构。
-4. `llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp`：**PIC GOT 槽**分支 = L270–279（`getTargetGlobalAddress(..., DADAO::MO_GOT_ADDR)` + `getMachineNode(DADAO::ld_o_rb, ..., rb0, Sym)`）；**PIC 跳表基址**分支 = L351–357（`getTargetJumpTable(..., MO_GOT_ADDR)` + `ld_o_rb rb0, JTSlot`）。
-5. `llvm/lib/Target/DADAO/DADAO.h`：`MO_GOT_ADDR = 1`（MachineOperand 目标标志）；`DADAOMCInstLower.cpp` L92/L104 把 `MO_GOT_ADDR` 映射到**槽标签**（`Printer.getGOTSlotSymbol(...)` / `getGOTSlotSymbolForJumpTable(...)`）；L46 注释说明「槽的数据字段已带 `sym + offset` ⇒ 指令操作数 = 裸槽标签」（⇒ `A_expr = 0`）。
-6. `llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp`：`isAddressConstructionInstr`（rwii `set.zw`/`or.w`/`andn.w` 的 **rd 与 rb 两个银行**）⇒ 现**一律**发 `DADAO_FK_ABS48`（L187–191）；`isLoadStoreInstr` ⇒ `FK_REL12`（base `rb0`）/ `FK_ABS12`（L205–210）。**注意**：`MCOperand` 里只有**表达式**（目标标志在 MC 层不可见）⇒ **类型判别只能靠指令 opcode / 操作数形态**。
-7. `MCTargetDesc/DADAOFixupKinds.h`：`DADAO_FK_PCRel_12 = FirstTargetFixupKind` … `DADAO_FK_REL12` / `DADAO_FK_ABS12` / **`LastTargetFixupKind = DADAO_FK_ABS12`**。
-8. `MCTargetDesc/DADAOAsmBackend.cpp`：`getFixupKindInfo` 的 `Infos[]` **按 `Kind − DADAO_FK_PCRel_12` 索引**（L49–81，`DADAO_FK_ABS48 = {…, 0, 16, 0}`）；`evaluateFixup` 的就地解析白名单 = `IsPCBranch`（`PCRel_12..PCRel_24`）与 `IsLdstPCRel`（**含 `DADAO_FK_REL12`**；同 section 标签会被**就地折叠**）（L88–130）；`applyFixup` 的 **早退边界 `Kind < PCRel_12 || Kind > DADAO_FK_ABS12 ⇒ return`**（L185 附近）与 `DADAO_FK_ABS48 ⇒ return`（不就地解析）（L196–200）。
-9. `MCTargetDesc/DADAOELFObjectWriter.cpp::getRelocType`（L30–85）：fixup kind → `R_DADAO_*` 映射表；`needsRelocateWithSymbol` **仅 `ABS48` 返 true**。
-10. `.td`（**指令已齐、无须新增 ISA 指令**）：`or_w_rd` op `0x48` / `andn_w_rd` op `0x49` / `set_zw_rd` op `0x4C` / `set_ow_rd` op `0x4D`（`DADAOInstrInfo.td` L727–768，`DADAORwii`，操作数 `wydepos:$wp, immu16:$imm16`）；`ldm_o_rb` op `0x3A`（`DADAORrri`：`outs GPRB:$ra`, `ins GPRB:$rb, GPRD:$rc, immu6:$imm6`，L483）；伪指令先例 `GLOBAL_ADDR`（`DADAOCodeGen.td` L309）在 `DADAOInstrInfo.cpp::expandPostRAPseudo`（L322 起）展开为 `set_zw_rb` + `or_w_rb` ×2（**同一符号逐指令**）。
-
-### 3 编码常量（逐条现场核对；`op<<24 | rd<<18 | wp<<16 | immu16`）
-
-| 指令 | 编码式 | 现场依据 |
+| 阶段 | 范围（提案） | 备注 |
 |---|---|---|
-| `set.zw rd8, wp0, 0x0` | `0x4C200000` | `tests/llvm/lit/MC/DADAO/m4-pseudo-set.s` |
-| `or.w rd8, wp1, <sym>` | `0x48210000` | `tests/llvm/lit/MC/DADAO/m6-callconv.s` |
-| `set.zw`-rd / `set.ow`-rd / `or.w`-rd / `andn.w`-rd | `0x4C` / `0x4D` / `0x48` / `0x49`（op 字节） | `DADAOInstrInfo.td` L727–768 |
-| `ldm.o {rb4}, [rb0, rd5]`（`immu6 = 1`） | `0x3A000000 \| 4<<18 \| 5<<6 \| 1` | `lld/ELF/Arch/DADAO.cpp::writePlt` 现产 |
-| `jump [rb4, rd0, 0]` | `0x71000000 \| 4<<18` | 同上 |
-| `ld.o rd5, [rb0, 16]`（**将被移除**） | `0x20000000 \| 5<<18 \| 16` | 同上 |
+| 1 ISA 恢复 | `rela.si` 回归 `spec/`（编码 `0x5A`；处理 `ADR-0012 D5` 的删除 / `UNDI` / 指令数） | **须用户原话授权**；连带汇编语法 / 编码表 / 索引 |
+| 2 配对重定位 | 新类型（PC 相对宽偏移）的**编号 / 公式 / 落点 / 越界与落点校验** | **待后继 ADR 定**；契约同步（`contract-elf.md §2.2` / `§3`） |
+| 3 工具链（发射侧） | MC fixup / 记录发射、CodeGen GOT 取址形态、汇编语法接受 `rela.si` | 改 MC / `.td` ⇒ **必 `install-host`**（`ISS-210`） |
+| 4 工具链（消费侧）+ PLT | lld 重定位消费；**PLT 条目 = 3 条 / 12 B**（替代现状 24 B：去 8 字节数据槽）；GOT 访问形态 | 消费侧须与阶段 2 的类型一致；`pltEntrySize` **现场派生** |
+| 5 QEMU 执行侧 | `rela.si` 的解码 / 语义（`qemu` 模块） | 与阶段 1 的 `spec/` 口径一致 |
+| 6 向量 / 证据 | lit / 向量 / 一键证据（**可达 FAIL**）+ 派生投影重生成（`gen_isa_coverage.py`） | 独立 oracle；`.work/evidence/<任务ID>/` |
 
-### 4 现状字节形态（实测，供「改前 / 改后」对账）
+## 验收标准（**待后继 ADR 细化后填写**）
 
-- **PLT**（`.work/source/llvm-project/lld/ELF/Arch/DADAO.cpp::writePlt` + 094t 实测 `libtest.so`）：条目 **24 B** = `ld.o rd5,[rb0,16]` + `ldm.o {rb4},[rb0,rd5]` + `jump [rb4,rd0,0]` + **4 B padding** + **8 B 内嵌常量**（= `槽地址 − (条目+4)`）；`pltHeaderSize = 0`（eager）。现 `assert((pltEntryAddr % 8) == 0)`（新条目 16 B ⇒ 8 对齐仍成立 ⇒ 断言可保留）。
-- **PIC GOT 取址**（现）：`ld.o rb, [rb0, <槽>]` = **1 条**（`R_DADAO_REL12`，`imms12` ±2 KiB）；`.got` 槽由 `DADAOAsmPrinter` 自出（每引用符号 / 跳表一 8 字节 `R_DADAO_ABS48` 数据槽）。
-- **默认布局下的旧报错**（必须消失）：`ld.lld -shared` ⇒ `R_DADAO_REL12 out of range: 65596 is not in [-2048, 2047]; references section '.got'`（rc=1；实测 65552 / 65588 / 65596 B，`-z max-page-size=0x1000` ⇒ 4112 B 仍越界）。
-- **`tests/scripts/dadao-dyn.lds`**（阶段 B 产物）：单段 RWX + `.got` **紧跟 `.text`**（文件头明写「为 ±2 KiB 可及性」）⇒ **该理由本册后不成立**，须同步。
-
-### 5 构建 / 门控事实
-
-- 构建：`make build-mc`（≈5 min）/ `make build-lld`（≈40 s）/ **`make install-host`（≈6 min）**；**改 MC / `.td` 后必须 `make install-host`**，否则门控 / lit 走**旧安装根**与旧生成物**自洽而假绿**（`ISS-210`）。
-- **`install-host` / `build-*` / L2 / L3 与本任务之外的重建须串行**（`ISS-229`：共享安装根 / 构建树竞争 ⇒ 假 FAIL）；`JOBS=8`、**禁全核** `-j$(nproc)`。
-- `tools/llvm/llvm-isa-backend-matrix.{md,tsv}` 是**派生投影**（生成器 `tools/llvm/gen_isa_coverage.py`）；改后端源码（行号 / 证据计数）会 **drift** ⇒ 须重生成，否则 L1 `check-isa-coverage` 报红（094t 先例）。
-- 端序 = **大端**（`ELFDATA2MSB`）；`.work/**` 被 `.gitignore`（证据不入 git，留工作区）。
-
-## 接口规范
-
-- **输入**：`ADR-0028`（`Accepted`）/ `ADR-0019 D11` / `ADR-0026 D5`·`D7` / `ADR-0021`；`.tao/contracts/contract-elf.md`（`§2.2`/`§3.1`/`§3.2`/`§4`）、`.tao/contracts/contract-dynlink.md`（`§3`）（**均只读**）；`components/llvm-project/patches/**`（现状，只读）；`.work/source/llvm-project/**`（**只读**源码检出，现状取证）；`.dadao/cross-toolchain/**`（工具链 + sysroot，只读）。
-- **输出**：
-  1. **组件补丁**（树形 + 一文件一补丁，`docs/Process-01`；`check-patch-tree` 机械校验）：`components/llvm-project/patches/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def.patch`、`.../lld/ELF/Arch/DADAO.cpp.patch`、`.../llvm/lib/Target/DADAO/**`（ISel / InstrInfo / MCInstLower / `.td` / `MCTargetDesc/DADAO{FixupKinds.h,AsmBackend.cpp,ELFObjectWriter.cpp,MCCodeEmitter.cpp}`、`DADAO.h`）——**只改必须改的**。
-  2. **测试 / 脚本**：`tests/llvm/lit/MC/DADAO/**`（新类型 + 判别规则的 lit 用例；**按需**改写既有断言，见阶段 C 披露项）、`tests/scripts/dadao-dyn.lds`（布局义务理由同步）。
-  3. **派生投影**：`tools/llvm/llvm-isa-backend-matrix.{md,tsv}` 重生成（`gen_isa_coverage.py`）。
-  4. **变更记录**：`components/llvm-project/changelog.md` 按维护规则追加一条（M8）。
-  5. **证据 / 日志**：`.work/evidence/<任务ID>/**`（一键证据 + 独立 oracle + 原始输出）、`.work/log/llvm/**`（二者 = `gitignore` 区，不入 git）。
-  6. **本任务书**完成区 + 审阅记录（`milestones.md` 流水行由 architect / 主会话收尾维护，本册**不写**）。
-- **约束**：最小改动、只碰任务范围；**不得**改 `spec/`（上游只读册，须用户事先授权）、`contracts/`（机器可读）、`.tao/contracts/**`（正文，须授权）；组件源一律 **git 基线**（只经 `patches/**`，**不得**直接改 `.work/source/**`）；**禁** `git add -A`、**禁** `git checkout/restore/stash`；**计数不写死**（现场派生）；**期望值独立**（`contract-dynlink.md §8`：**不从** LLVM / LLD / QEMU / 本仓工具反推）。
-
-## 做（分阶段 A–D；每阶段各自可验收）
-
-### 阶段 A —— 新类型 + lld 消费侧（`R_DADAO_REL32`）
-
-1. `DADAO.def.patch`：加 `ELF_RELOC(R_DADAO_REL32, 14)`、`R_DADAO_NUM` 改 **`15`**；头注释编号表同步（`14 = REL32`、`15 = type count`）。
-2. `lld/ELF/Arch/DADAO.cpp`：
-   - `iRelSymbolicRel` 的**注释**按 `NUM = 15` 同步（哨兵值随枚举自动正确）。
-   - `getRelExpr`：`R_DADAO_REL32` ⇒ **PC 相对**语义（`S + A − P`；本记录 `P` = 记录自身地址 —— 由 (甲) 的补偿 addend 保证两条记录得**同一个** `disp`）。**不得**被 `undefBranch` 特例吸收（其门控 = `REL26`/`REL20`/`REL14`）；符号是**已定义**的本地槽标签 ⇒ **不得**触发 PLT / 副本路径。
-   - `relocateInSection` 新增 `R_DADAO_REL32` 分支（**逐条规则**）：
-     1. **值域**：`val` 必须落 `int32`（`isInt<32>`），否则 `Err`（**link-time error**，不截断 / 不 wrap）；
-     2. 读自身指令：`insn = read32be(loc)`、`wp = (insn >> 16) & 0x3`；
-     3. **按 `disp` 符号设定**该条 opcode 与 16 位立即数（**幂等、逐条独立**）：
-        - `wp == 1`（**hi**）：输入 opcode 须 ∈ {`set.zw`-rd `0x4C`, `set.ow`-rd `0x4D`}（`rd` 域须与配对次条**同值**）；输出 opcode = `disp < 0 ? 0x4D : 0x4C`；立即数 = `(disp >> 16) & 0xFFFF`；
-        - `wp == 0`（**lo**）：输入 opcode 须 ∈ {`or.w`-rd `0x48`, `andn.w`-rd `0x49`}；输出 opcode = `disp < 0 ? 0x49 : 0x48`；立即数 = `disp < 0 ? (~disp & 0xFFFF) : (disp & 0xFFFF)`；
-        - 其它 `wp` ⇒ `Err`（落点不符）；
-        - **写回**：`insn = (insn & 0xFFFF0000u) | slice` + `write32be(loc, insn)`（保留 opcode 之外的寄存器 / `wp` 域，与 `ABS48` 指令路径同构）。
-     4. **落点校验（配对）**：hi 记录的**下一条**指令（`loc + 4`）须是**同 `rd`** 的配对次条（`or.w`-rd / `andn.w`-rd 且 `wp == 0`）；lo 记录的**上一条**指令（`loc − 4`）须是**同 `rd`** 的配对首条（`set.zw`-rd / `set.ow`-rd 且 `wp == 1`）；不符 ⇒ `Err`。**跨指令读取须确认仍在同一 `InputSection` 内**（越界不得读、报错）。
-   - 文件头注释的类型表 / `pltDataOffset` 注释随阶段 B 一并同步。
-   - **注意**：REL32 **只在指令域**（`.text`）——不像 `ABS48` 有「数据 8 字节字段」的第二路径；`relocate`/`relocateAlloc` 的分派须保证该类型**不**落到数据路径。
-
-### 阶段 B —— PLT 内联去槽
-
-1. `writePlt` 重写为 **4 条指令 / 16 B**：配对序列（**链接器自选**：`disp ≥ 0` 发 `set.zw`+`or.w`；`disp < 0` 发 `set.ow`+`andn.w`，**无改写环节**）+ `ldm.o {rb4}, [rb0, rd5]`（`immu6 = 1`）+ `jump [rb4, rd0, 0]`；**无 padding / 无数据槽**。
-   - `disp = sym.getGotPltVA(ctx) − (pltEntryAddr + 8)`（条目内 `ldm.o` 的地址 = 条目 `+8`）。
-   - 编码（阶段 3 的编码式）：首条 = `op<<24 | 5<<18 | 1<<16 | hi16`（`op` = `0x4C` 或 `0x4D`）、次条 = `op<<24 | 5<<18 | 0<<16 | imm16`（`op` = `0x48` 或 `0x49`；负形 `imm16 = ~lo16`）。
-2. `pltEntrySize` **24 → 16**；`pltDataOffset`（及其 `static_assert`）**删除**；`assert((pltEntryAddr % 8) == 0)` 保留（16 B 条目仍 8 对齐 ⇒ `ldm.o` 取 8 字节槽安全）。
-3. **不动**：`pltHeaderSize`（0）、`gotPltHeaderEntriesNum`（2）、`writeGotPlt`（写 0）、`writeGotPltHeader`、`.got.plt` 的 `JUMP_SLOT` 机制。
-
-### 阶段 C —— CodeGen GOT 取址 3 条形态（**两处**）
-
-1. `DADAOISelDAGToDAG.cpp` **两处**（L270–279 GOT 槽、L351–357 跳表基址）：把「`ld_o_rb rb0, <槽>`」改为
-   「**地址序列**（2 条 ⇒ 产出 **`rdX`** 临时）+ `ldm_o_rb {rbT}, [rb0, rdX], immu6 = 1`」。
-   - **建议形态**：新增**伪指令**（如 `GOT_ADDR32 (outs GPRD:$off), (ins unknown:$sym)`，`DADAOCodeGen.td`）+ `expandPostRAPseudo` 展开为 `set_zw_rd $off, wp1, sym` + `or_w_rd $off, wp0, sym`（**与 `GLOBAL_ADDR` 同型**，`DADAOInstrInfo.cpp`）；`ldm.o` 复用既有 `ldm_o_rb`（op `0x3A`，`GPRB` dst / `GPRB` base / `GPRD` offset / `immu6`）⇒ **无须新增 ISA 指令、无须新 `.td` 指令**（只新增伪指令，仍须 `install-host`，`ISS-210`）。
-   - ⚠️ **临时寄存器活性**：`rdX` **须由寄存器分配器分配**（伪指令输出 = vreg ⇒ 后 RA 展开时用它**已分配**的物理寄存器），**不得**硬编码 `rd5`（展开点可能正持活跃值 ⇒ **静默破坏**）；若确用固定 scratch，须**证明**展开点无跨序列活跃值（把证据写进完成区）。**不得**用 `rd0`–`rd3`。
-2. ⚠️ **MC 侧类型判别（现状盲点，必须解决）**：`set.zw`/`or.w`/`andn.w` 的 **`rd` 银行 + 符号操作数**现由 `isAddressConstructionInstr` 映射为 **`R_DADAO_ABS48`**，而 REL32 的落点**也是同一组指令** ⇒ 两者冲突（`ABS48` = 绝对地址 `S + A`；`REL32` = PC 相对 `S + A − P`）。**必须新增可机械判定的判别规则**（实现选定 + 完成区写明**理由**与**可达 FAIL 证据**）：
-   - **(i) 按目的寄存器族**（**推荐**）：**`rd` 银行 ⇒ `R_DADAO_REL32`**；**`rb` 银行 ⇒ `R_DADAO_ABS48`**（现状仓库 ABS48 的**指令形式只由 `rb` 银行使用**：`set.rb` / `GLOBAL_ADDR` / `JT_ADDR` 均 `rb`）；与 `ADR-0021 D1`「汇编器按寄存器自动选类型」**同构**。**连带面（须披露）**：既有 lit `tests/llvm/lit/MC/DADAO/m6-callconv.s`（L53–54 用 **`rd` 银行**断言 `R_DADAO_ABS48`）须改写为 **`rb` 银行**（保持其 ABS48 意图）——属**向量改写**、非契约变更。
-   - **(ii) 按 `wp` + 配对形态**：`rd` 银行下 `set.zw wp1`（hi）/ `or.w`·`andn.w wp0`（lo）⇒ `REL32`；其余（ABS48 的 `set.zw wp0` 起步序列）⇒ `ABS48`（不动既有 lit，但规则更隐晦）。
-   - **无论取哪条**：同一指令**不得**有两种类型解释（否则静默错值）；判别逻辑须有**可达 FAIL** 用例。
-3. **MC 侧新增 fixup / 记录**（逐条）：
-   - `DADAOFixupKinds.h`：新增 kind（hi / lo 两个，便于按记录落 addend）；**必须追加在 `DADAO_FK_ABS12` 之后**并同步 `LastTargetFixupKind`（`Infos[]` 按 `Kind − DADAO_FK_PCRel_12` 索引 ⇒ 顺序即契约）。
-   - `DADAOAsmBackend`：`Infos[]` 追加 `{…, 0, 16, 0}`（**16 位 wyde**，与 `ABS48` 同型）；**显式处理**新 kind——⚠️ 现 `applyFixup` 的早退边界 `Kind > DADAO_FK_ABS12 ⇒ return` 会把新 kind **静默跳过**（既不发 reloc 也不写值）⇒ 必须放在该边界**之前**处理；⚠️ `evaluateFixup` 的就地解析白名单（`IsPCBranch` / `IsLdstPCRel`）**不得**纳入 REL32（`.Lgot.*` 若被判为同 section 就地折叠，`A − 8` / `A − 4` 补偿**只在链接期 `P` 已知时成立** ⇒ 就地折叠即**静默错值**）。
-   - `DADAOELFObjectWriter::getRelocType`：新 kind ⇒ `ELF::R_DADAO_REL32`；`needsRelocateWithSymbol` 若被改写为 section 符号 + addend，须核**净效果不变**（不确定时按 `ABS48` 同法处理 + 留证）。
-   - `DADAO.h` 增目标标志（如 `MO_GOT32_ADDR`）+ `DADAOMCInstLower` 映射（沿用 `MO_GOT_ADDR` 的**槽标签**路径）⇒ 供 `isAddressConstructionInstr` 之外的**新判别**使用。
-   - ⚠️ **addend 补偿（形态 (甲)）**：**hi 记录 `r_addend = A_expr − 8`**、**lo 记录 `r_addend = A_expr − 4`**（`A_expr` = 符号表达式的常量部分；现状槽标签路径 `A_expr = 0` ⇒ 期望 `−8` / `−4`）。**候选路线**（须现场验证）：把常量写进 `MCSymbolRefExpr`（`sym + (−8)` / `sym + (−4)`，与 `.quad sym+N` 同路径）；**验证方式** = `llvm-readobj -r` 逐条读 `r_addend`。
-4. **派生投影**：`python3 tools/llvm/gen_isa_coverage.py` 重生成 `tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（否则 L1 `check-isa-coverage` drift 报红）。
-
-### 阶段 D —— 测试与证据
-
-1. **`tests/scripts/dadao-dyn.lds` 更新**：删除 / 改写「`.got` 必须紧跟 `.text`（±2 KiB）」的**理由与依赖**（布局义务已取消，`ADR-0026 D5` 修订 / `ADR-0028 D8`），保留 ET_DYN 段全集 + `PT_INTERP`/`PT_DYNAMIC`/`PT_GNU_RELRO` 口径；确认该脚本仍可被 `ld.lld` 接受（rc=0）。
-2. **向量 / 产物排查**（现场机械 `grep` + 逐条留证）：写死 **`pltEntrySize = 24`** 的注释 / 文档、**旧 PLT 字节串**（`20140010` / `3a100141` / `71100000` 及「条目 `+16` 处 8 字节常量」）、**`NUM = 14`**（含 `lld/ELF/Arch/DADAO.cpp` 注释）、**`R_DADAO_ABS48` 在 `rd` 银行**的用法（阶段 C 判别规则的连带面）⇒ 仓库内**真源**同步（历史归档 `.tao/archive/**` **不得改**）。
-3. **一键证据** `.work/evidence/<任务ID>/run.sh`（含 `--inject`；**自包含**：源 / 输入由脚本自建，**不依赖 `/tmp` 未留存文件**——`LLVM-094t` 阶段 C 第 1 轮 `run-a.sh` 教训；每条断言有**可达 FAIL** 路径；还原用 `cp` + md5 对账，**禁** `git checkout/restore/stash`；**禁**恒真断言 / 计数写死），覆盖：
-   - **a 正 `disp` 路径**：`-shared`（**默认布局**）⇒ `ld.lld` **rc=0**；独立解析核 `.text` 序列 = `set.zw rdX, wp1, hi16` + `or.w rdX, wp0, lo16` + `ldm.o`；重定位表 **两条 `R_DADAO_REL32`**（`r_offset` 相差 4、`r_addend` = **−8 / −4**）；`hi16`/`lo16` 与 `disp = 槽VA − P_ldm` **逐条独立核算相等**；
-   - **b 负 `disp` 路径**：构造 `S_slot < P_ldm`（槽位于访问点**之前**）⇒ 实测首条 opcode = **`0x4D`**（`set.ow`）、次条 = **`0x49`**（`andn.w`）且次条立即数 = **`~lo16`**（**逐字节**），**独立核算**逐条相等；并断言**不是** `set.zw`+`or.w`（**反例判别**）；
-   - **c PLT 去槽**：`.plt` 尺寸 = **16 × 条目数**、每条 4 条指令（末条 `jump` 在条目 `+12`）、条目内**无** 8 字节常量；`pltEntrySize` 实测 = 16（由 `.plt` 尺寸 / 条目数**现场派生**，不写死）；
-   - **d 默认布局可链接（布局义务取消的正面证据）**：**不用** `-T tests/scripts/dadao-dyn.lds` ⇒ `ld.lld -shared` **rc=0**（旧行为 = `R_DADAO_REL12 out of range` **rc=1** ⇒ **反例判别**可用）；`--print-map` 记 `.got` 与访问点距离 **> 2 KiB**（证明「越界距离下仍成功」）；
-   - **e 错误路径（两条，各留可达 FAIL）**：① **落点不符**（如单独一条 `set.zw rdX, wp1, <sym>` 后接非同 `rd` / 非配对次条）⇒ rc=1 + 指定文案；② **越界**（用链接脚本把 `.got` 放到 `> 2 GiB` 处 ⇒ `disp` 超 `int32`）⇒ rc=1 + 越界文案；
-   - **f 静态不回归**：6 例（`t` / `sw` × O0/O1/O2）剥 `.comment` 后 md5 与**基线**相同（基线**随证据留存**，**不得**依赖 `/tmp`）；
-   - **g 门控**：见「验收标准 5」。
-4. `components/llvm-project/changelog.md` 追加 M8 一条（按维护规则；摘要 + 缩进行）。
-
-## 验收标准（逐条可判：命令 + 期望）
-
-1. **类型可用**：`llvm-readobj -r <obj>` 对 `set.zw rdX, wp1, <sym>` + `or.w rdX, wp0, <sym>` 的配对**报两条 `R_DADAO_REL32 (14)`**、`r_addend` = **`-8` / `-4`**、`r_offset` 相差 **4**；`R_DADAO_NUM` = **15**（枚举查核 + `DADAO.def` 逐行）。
-2. **lld 消费端**：`ld.lld -shared`（**默认布局**）**rc=0**，产物 `.text` 中两条指令的 wyde = `disp[31:16]` / `disp[15:0]`（**独立解析逐字节核**，`disp = 槽VA − P_ldm`）；`disp < 0` 时两条 opcode 实测 = `0x4D` / `0x49` 且次条立即数 = `~lo16`。
-3. **PLT**：`.plt` 每条目 **16 B**、4 条指令、**无数据槽 / 无 padding**；`.got.plt` 仍由 `JUMP_SLOT`(7) 填充（`readelf -r` + 独立解析）。
-4. **错误路径**：落点不符 / `disp` 越 `int32` ⇒ `ld.lld` **rc=1** + 指向该重定位的文案（**不静默**、不截断 / 不 wrap）。
-5. **门控**（各留**自身** rc，**禁** `cmd | tee` 吞码）：`make check`（**L1**）、**`make check-modules`（L2，任务收尾，单独跑；`ISS-229` ⇒ 不与 L3 / 其它重建并发）**、`check-patch-tree`、`check-index-blobs`、`check-instrinfo`（**改 `.td` ⇒ 先 `make install-host`**）、`check-source-state`、`check-isa-coverage`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`check-knowledge-dir`、`check-component-changelog`、`python3 tools/infra/check_issues.py` 各 **rc=0**；`make check-full`（L3）在里程碑 / `/complete` 跑。
-6. **证据**：`.work/evidence/<任务ID>/run.sh` **rc=0** 可跑通；`--inject` 全绿（每条断言有**可达 FAIL** 路径）；**独立 oracle**（自写 ELF64-BE 解析 + 手工公式，**不经** LLVM 读取器；期望值**不从** v5 自身实现反推）；**证据自包含**（不依赖 `/tmp` 未留存文件）。
-7. **静态不回归**：6 例（`t` / `sw` × O0/O1/O2）剥 `.comment` 后对象 md5 与基线**相同**；`-fno-pic` 路径仍走 3 片 `ABS48`。
-8. **大端**：`EI_DATA = ELFDATA2MSB`；至少 1 例 BE 敏感证据（两 wyde 的字节序）。
-9. **越界 / 范围声明**：`git status --porcelain -uall` **无** `spec/`、`contracts/`、`.tao/contracts/**` 改动；改动面与完成区「修改文件」**逐条对齐**。
+> **现状 = 占位** ✗：本册**不给**可判断言（阶段 2 的类型 / 公式未定 ⇒ 期望值无法独立派生）。细化时须逐条给「命令 + 期望 + 现在可跑 / BLOCKED（原因 + 替代证据）」。
 
 ## 前置申报（**必读**）
 
-- 本任务**必改 `components/**`（= 编译输入）** ⇒ 必须**单跑** `make install-host`（预计 **≈6 min**；`build-mc` ≈5 min / `build-lld` ≈40 s，视改动面）；**`JOBS=8`**、**禁全核**；**不得**与 `build-*` / L2 / L3 / 其它会话的重建**并发**（`ISS-229`）。
-- **改 MC / `.td` 后必须 `make install-host`**（否则门控 / lit 读**旧安装根** ⇒ **假绿**；`ISS-210`）。
-- 长任务（>10 min）由**主会话** `setsid nohup` 脱离 + 落 `XXX_EXIT=$rc`；**子代理不得在会话内等待长任务**。
+- 本任务**预期改动 = ISA + 契约 +（若拆册）`spec/` / `qemu`** ⇒ **`spec/` 改动须用户原话授权**；**先授权、后动册** ✓。
+- **改 MC / `.td` 后必须 `make install-host`**（否则门控 / lit 读**旧安装根** ⇒ **假绿**；`ISS-210`）；`JOBS=8`、**禁全核**；**不得**与 `build-*` / L2 / L3 / 其它会话的重建**并发**（`ISS-229`）。
+- **长任务（>10 min）**由**主会话** `setsid nohup` 脱离 + 落 `XXX_EXIT=$rc`；**子代理不得在会话内等待长任务**。
 
 ## 不做项（显式）
 
 1. **`qemu-user` / 动态链接的「运行」验证**（`P3`）✗；本册**不可**有「运行通过 / E2E」叙述。
-2. **改 `spec/`**（含 `DADAO-21` 寄存器表）/ **改 `contracts/`（机器可读）** / **改 `.tao/contracts/**`（正文）** ✗。
-3. **relaxation**（`ADR-0019 D7`）✗；**新增 ISA 指令** ✗（本册只新增伪指令 / fixup / 重定位类型）；**自写 `ld.so`** ✗。
-4. **`ABS48` 两段式**（`ABS48` 序列 + `ldm.o_rrri_rb` 落 `rb`）✗ —— **已被 `ADR-0028` 替代**，不得作为实现路径。
-5. **`rd2` / `rd3` 语义改动** ✗（`spec/` 保留；本册**不**使用）。
-6. **`COPY` / `TLSDESC` / TLS / IFUNC** 的首版支持 ✗（维持 `LLVM-094t` 阶段 C 的**主动拒绝**）。
-7. `ISS-222` / `ISS-223` 收口 ✗（撞上即登记 + 转出，**不得**静默跳过）。
-
-## 下发前预检（architect，`AGENTS.md`「下发前预检（强制）」5 项）
-
-1. **任务书内部一致** ✓：类型 / 编号（`REL32` = 14、`NUM` = 15）、公式与 `P` 基准、记录形态 (甲)（`A − 8` / `A − 4`）、落点（hi → `wp1` / lo → `wp0`）、缺省非负与负值同改、PLT（16 B / 无槽 / `disp = 槽VA − (条目+8)`）、GOT（3 条 / `disp = 槽VA − P_ldm`）与 §3 编码式**逐条自洽**（含 `P_hi + 8 = P_lo + 4 = P_ldm` 的核算）。
-2. **验证手段的前置**（含跨任务门控载体 / 工具）**实际可用** ✓：`ld.lld` / `clang` / `llvm-readobj` / `llvm-objdump` / `llvm-mc` 均在安装根且已支持 DADAO（094t 阶段 A/B 实测）；`llvm-readobj -r` 现即按 `DADAO.def` 打印 `R_DADAO_*` 名（新类型加进 `DADAO.def` 后**自动**可打印 —— 已由 094t 的类型名打印实证）；`make {build-mc,build-lld,install-host}` target 在位；`tests/scripts/dadao-dyn.lds` 现状可被 `ld.lld` 接受；`.work/evidence/` 与 `.work/log/llvm/` 落点既有。**无前置缺失。**
-3. **验收逐条**（见「验收标准」）：
-   | 验收项 | 现在可跑？ | 说明 / 替代证据 |
-   |---|---|---|
-   | 1 类型可用（`llvm-readobj -r` 两条 `REL32` / addend） | **BLOCKED（实现依赖）** | 原因 = 新类型与 MC 发射尚未实现；**替代证据（前置可跑）** = 现状同类面已实证：`llvm-readobj -r` 现即打印 `R_DADAO_ABS48 (6)` / `REL12 (4)` 等名，`set.zw rb1, ext2` 现产 3 条记录（`ADR-0028` 「记录形态」节实测），⇒ 「一指令一条记录 + addend 随表达式」通道可用 |
-   | 2 lld 消费端（`-shared` 默认布局 rc=0 + wyde 逐字节） | **BLOCKED（实现依赖）** | 原因 = lld `relocate` / `writePlt` 未实现；**替代证据** = **旧行为已可现场复现**（`ld.lld -shared` ⇒ `R_DADAO_REL12 out of range` rc=1），即**该断言的 FAIL 侧现在可跑**（反例基线在位） |
-   | 3 PLT 16 B / 无槽 | **BLOCKED（实现依赖）** | 原因 = `writePlt` 未改；**替代证据** = 现状 24 B 形态已逐字节实测并留存（`.work/log/llvm/LLVM-094t-B-*.log`；`.work/**` = gitignore） |
-   | 4 错误路径（落点不符 / 越界） | **BLOCKED（实现依赖）** | 原因同 2；构造手段（自定义 `lds` 把 `.got` 放高地址 / 手写非配对序列）**现在即已可用**（`llvm-mc` + `ld.lld -T`） |
-   | 5 门控（L1/L2 + 各单项） | **现在可跑** | L1 与单项现均 rc=0（094t 阶段 E 末轮实测）；L2 待收尾单独跑（`ISS-229`） |
-   | 6 证据脚本可失败 / 独立 oracle | **现在可跑（框架）** | 自写 ELF64-BE 解析器先例在位（`.work/evidence/LLVM-094t/{elfinfo,dyncheck,oracle_c}.py`）；断言数值待实现后填 |
-   | 7 静态不回归 | **现在可跑** | 基线可由现状现场生成（6 例 × 剥 `.comment` md5），094t 同法已证 |
-   | 8 大端 | **现在可跑** | `llvm-readobj -h` 现即报 `ELFDATA2MSB` |
-   | 9 越界 / 范围声明 | **现在可跑** | `git status --porcelain -uall` 现场可判 |
-4. **与 `contracts/`、`tests/vectors/` 一致** ✓：本册**不**改 `contracts/`（机器可读）与 `tests/vectors/**`；口径逐条取自 `.tao/contracts/contract-elf.md §2.2`/`§3.1`/`§3.2`/`§4` 与 `contract-dynlink.md §3`（现场核后**一致**：`REL32` = 14 / `NUM` = 15 / hi `A − 8`、lo `A − 4` / hi → `wp1`、lo → `wp0` / 越界与落点不符 ⇒ link-time error / 固定 2 片）；`tests/vectors/**` 内**无**写死 `REL32` / PLT 尺寸的条目（现场 `grep` 0 命中）。
-5. **拟改文件 × `spec/` 清单** ✓：拟改面 = `components/llvm-project/patches/**`、`tests/llvm/lit/MC/DADAO/**`、`tests/scripts/dadao-dyn.lds`、`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（重生成）、`components/llvm-project/changelog.md`、本任务书；**`spec/` 命中数 = 0** ⇒ **无需用户授权**（`ADR-0028 D6`：不改 ISA、不动 `rd2`/`rd3` ⇒ `spec/` 零改动）。**例外提示**：若实现过程中发现**必须**改 `spec/`（如 `DADAO-21` 寄存器表 / 指令语义），**即刻停下报告**（`spec/` 改动须用户原话授权）。
+2. **未获用户原话授权前改 `spec/`** ✗（含 `DADAO-21` 寄存器表 / `SimRISC-00` 编码表 / 汇编语法）。
+3. **不得**把已回退的 `R_DADAO_REL32` 路线当实现依据 ✗（`ADR-0028` = `Superseded`）；**不得**保留 `NUM` = `15` / 类型 `14` = `REL32` 的表述。
+4. **relaxation**（`ADR-0019 D7`）✗；**自写 `ld.so`** ✗；**`ABS48` 两段式**（`ABS48` 序列 + `ldm.o_rrri_rb` 落 `rb`）✗（在现有 ABI 下不可实现，`ISS-230`）。
+5. **`COPY` / `TLSDESC` / TLS / IFUNC** 的首版支持 ✗（维持 `LLVM-094t` 阶段 C 的**主动拒绝**）。
+6. `ISS-222` / `ISS-223` 收口 ✗（撞上即登记 + 转出，**不得**静默跳过）。
 
 ## 完成区
+
+> **改线重置**：本册原 `REL32` 路线（阶段 A 已完成、阶段 B 已实现）**已整体回退**（见文首「改线说明」）⇒ 完成区**重置为空**；其历史见 git（`609c44b` / 回退 `f98f1d5`）与 `.work/log/llvm/LLVM-095t-B-reverted.diff`。
 
 **测试结果**：
 **修改文件**：
