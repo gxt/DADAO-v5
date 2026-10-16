@@ -12,6 +12,8 @@
 >
 > **✅ 解除注记（2026-10-16）**：`ADR-0028`（GOT/PLT 远距离取址）已由用户 2026-10-16 **逐条确认** ⇒ **`Accepted`**（设计定案 = 新类型 **`R_DADAO_REL32`=`14`**、**`R_DADAO_NUM`=`15`**；GOT 取址 **3 条/次**；PLT **内联去槽**、`pltEntrySize` `24`→`16`；**取消「`.got` 必须贴访问点 ±2 KiB」的布局义务**，可达 ±2 GiB）⇒ **与 `.got` 可及性（GOT 取址）相关的工作不再被阻塞**；上文「三条候选均须用户裁定」「用户给出解法前…不得开工」**由该 ADR 取代**（**原文保留为历史** ✗）。实现落点 = **`LLVM-095t`**（`.tao/tasks/llvm/LLVM-095t-REL32与PLT内联.md`，2026-10-16 立、`待开始`）⇒ 本册**消费**其产出。**本册 `**状态**` 不改**（仍 `待开始`）、本册其余范围不变 ✓。
 >
+> **⚠️ 通道口径订正（2026-10-17 追加）**：上条「✅ 解除注记（2026-10-16）」的通道口径**已被 `ADR-0029`（`Accepted`；用户逐条确认）取代** ✗ ⇒ 新类型 = **`R_DADAO_PCREL_HI`=`14` / `R_DADAO_PCREL_LO`=`15`**（`R_DADAO_NUM` `14 → 16` ✓）；GOT 取址 = **`aip.si` + `ld.o [rbX, %pcrel_lo]`** ✓；PLT = **3 条 / 12 B**（`pltEntrySize` `24 → 12`）✓；实现落点 = **`LLVM-095t`（已完成 ✓）**。上文（`REL32`=`14` / `NUM`=`15` / GOT 3 条 / PLT 16 B）**原文保留为历史** ✗。
+>
 > **✅ 阻塞解除（2026-10-17）**：`ISS-230` 由 `ADR-0029` 解决（GOT 取址改 `aip.si` 通道）；**`P2`（musl `ldso` 接入）重新排入**，按 `ADR-0025 D6` 原序应在 **`P3` 之前**。**依据指针** = `.tao/adr/adr-0029-rela-si-auipc-pairing.md`（**`Accepted`**，用户逐条确认；`ADR-0028` 已转 **`Superseded`**）+ `.tao/knowledge/issues.yaml` `ISS-230`（仍 `open`、`resolved_by` 仍 `null`：**设计层阻塞已解**，待 `LLVM-095t` 实现验收后回填 `closed`）。上文「⛔ 阻塞 / 前置（2026-10-16 追加）」与「✅ 解除注记（2026-10-16，`ADR-0028`）」**均保留为历史** ✗；**本册 `**状态**` 不改**（仍 `待开始`）✗。
 
 > **编号留痕（现场取号，2026-10-16）**：`INFRA-085` 经 `.tao/tasks/**` + `.tao/archive/**` + `git log --all --name-only`（全历史）复核**从未被占用** ⇒ 取 **`INFRA-085t`**（`lessons §3.21`「编号须全仓〔含历史〕唯一」）。
@@ -28,6 +30,14 @@
 - **交付**：musl 以**动态**方式构建出 **`libc.so`**（`ET_DYN`，内含 `ldso`），并经 **`-dynamic-linker /lib/ld-musl-dadao.so.1`** **链接出动态可执行**（带 `PT_INTERP` + `DT_NEEDED`）；重定位表与 `ADR-0019 D10` / `contract-dynlink.md §4.3` **逐条一致**。
 - **判据边界**：**能编出 + 静态可核**（`readelf`/`llvm-readobj`/`nm` + 独立 oracle）——**不跑**（跑 = `P3`）。
 
+### 静态与动态两条线（**用户要求**，2026-10-17）
+
+> **用户原话（逐字引录，渠道 = 经主会话问答，2026-10-17）**：「**可以进行INFRA-085t，注意：静态和动态都需要支持**」
+
+- **静态线（不回归，硬要求）** ✓：`P1`（`INFRA-082t`）的**静态全链（阶段 A/B/C）必须保持绿** —— 静态档构建 / 静态 ELF 产出与既有门控**逐字节 / 逐条对照不回归** ✗ 漂移；**显式验收**见「验收标准 8」。
+- **动态线（本册目标）** ✓：= **能编出动态 ELF** + **`PT_INTERP` = `/lib/ld-musl-dadao.so.1`**（该路径为**符号链接 → `libc.so`**），按 `contract-dynlink §6.1`（构建侧**显式**传 `-dynamic-linker /lib/ld-musl-dadao.so.1`）。
+- ⇒ **两条线同册**：动态线的任何改动**不得**以牺牲静态线为代价；静态线证据与动态线证据**分开留存**（`.work/evidence/<任务ID>/`）。
+
 ## 模块判定（architect 现场判定，含理由）
 
 - **判定**：归 **`infra`**。
@@ -41,7 +51,7 @@
 
 ## 做（分阶段 A–E；**每阶段各自验收**）
 
-> **面** 列 = 该行工作归属：`infra` = 本册（musl / 构建）；`llvm` = 生产者侧（若「待确认项 ①」裁定 (a)，则该列项移入 `LLVM-094t`）。〔**收尾注记（2026-10-16）**：裁定**已定 (a)** ⇒ 该列项**已移入** `LLVM-094t`（阶段 A/B/E 已落地、C 部分交付、D 待做）〕
+> **面** 列 = 该行工作归属：`infra` = 本册（musl / 构建）；`llvm` = 生产者侧（若「待确认项 ①」裁定 (a)，则该列项移入 `LLVM-094t`）。〔**收尾注记（2026-10-16）**：裁定**已定 (a)** ⇒ 该列项**已移入** `LLVM-094t`（阶段 A/B/E 已落地、C 部分交付、D 待做）〕〔**2026-10-17 追加**：生产者侧实为 **`LLVM-095t`（已完成 ✓）**；`LLVM-094t` **已收束** ✓（其 ① 由 `ADR-0029` 取代、阶段 `D` 已结）〕
 
 | 阶段 | 名称 | 内容 | 出口判据 |
 |---|---|---|---|
@@ -49,7 +59,7 @@
 | **B** | **动态可执行** | **B1**（`infra`）构建侧**显式**传 `-dynamic-linker /lib/ld-musl-dadao.so.1`（**不改 lld 默认值**，`ADR-0026 D2`）；**B2**（`llvm`）生产者侧支持 `PT_INTERP` + `DT_NEEDED`（动态可执行链接） | `readelf -l` 的 **`PT_INTERP` 字符串逐字节 = `/lib/ld-musl-dadao.so.1`**；`readelf -d` 含 **`DT_NEEDED`** |
 | **C** | **`ldso` 接入** | **C1**（`infra`）`ldso/dlstart.c` / `ldso/dynlink.c` **真接入**（`GETFUNCSYM` **改基址相关**〔P1 遗留 ⑤〕、`CRTJMP` 复核、`arch/dadao/reloc.h` 类别映射复核）；**C2**（`llvm`）**`PT_DYNAMIC` / hash（仅 GNU） / `DT_*` 必备子集** + **eager 绑定**（`DT_BIND_NOW` / `DF_BIND_NOW`，`ADR-0026 D6`） | `libc.so` 内 `_dlstart` / `_dlstart_c` 存在（`nm` / `readelf -s`）；`.dynamic` 必备标签到场（`DT_SYMTAB`/`DT_STRTAB`/`DT_STRSZ`/`DT_GNU_HASH`/`DT_RELA`/`DT_RELASZ`/`DT_PLTGOT`/`DT_BIND_NOW`）；**静态度量**（不跑） |
 | **D** | **TLS 动态** | **D1**（`infra`）**`PT_TLS`** + `TP = rb3`（`contract-abi §1.2`）+ `TLS_ABOVE_TP`（`GAP_ABOVE_TP` / `DTP_OFFSET`，逐 arch 定值归 musl 宏）+ `DTPMOD`/`DTPOFF`/`TPOFF` 类型与公式（`ADR-0019 D10`）+ **静态 `__thread`**（P1 遗留 ⑦：crt 侧 auxv 注入之需）；**D2**（`llvm`）TLS 类动态重定位**发射** | 有 TLS 变量时 `readelf -l` 有 **`PT_TLS`**；`readelf -r` 出现的 TLS 类**编号与 `§4.3` 一致**；`__thread` 变量可编译并落 TLS 重定位 |
-| **E** | **重定位与越界** | **`ABS48` 两段式**（超 `R_DADAO_REL12` 的 ±2 KiB ⇒ `ABS48` 序列把偏移算进 `rd` + **`ldm.o_rrri_rb`** 落 **`rb`**、随后 `jump rbX, rd0, 0`；**跳转用途必须落 `rb`**）+ **`JUMP_SLOT`** / **`RELATIVE`**；**`COPY` / `TLSDESC` 不发射、遇即报错**；**§10 越界 5 条**〔**⛔ 阻塞（2026-10-16）**：其中 **`ABS48` 两段式 / GOT 可及性**部分**阻塞于 `ISS-230`**、**待用户解法**（见文首「⛔ 阻塞 / 前置」）；`JUMP_SLOT`/`RELATIVE`/`COPY`·`TLSDESC` 部分不受阻〕 | 重定位表含 `ABS48`/`JUMP_SLOT`/`RELATIVE`，且**公式与 `ADR-0019 D10` 逐条一致**（**独立 oracle** 核，见验收 3）；`COPY`/`TLSDESC` 注入例 ⇒ **显式报错**（非静默）；越界例 ⇒ 链接期 / 装载期报错 |
+| **E** | **重定位与越界** | **`ABS48` 两段式**（超 `R_DADAO_REL12` 的 ±2 KiB ⇒ `ABS48` 序列把偏移算进 `rd` + **`ldm.o_rrri_rb`** 落 **`rb`**、随后 `jump rbX, rd0, 0`；**跳转用途必须落 `rb`**）+ **`JUMP_SLOT`** / **`RELATIVE`**；**`COPY` / `TLSDESC` 不发射、遇即报错**；**§10 越界 5 条**〔**⛔ 阻塞（2026-10-16）**：其中 **`ABS48` 两段式 / GOT 可及性**部分**阻塞于 `ISS-230`**、**待用户解法**（见文首「⛔ 阻塞 / 前置」）；`JUMP_SLOT`/`RELATIVE`/`COPY`·`TLSDESC` 部分不受阻〕 | 重定位表含 `ABS48`/`JUMP_SLOT`/`RELATIVE`，且**公式与 `ADR-0019 D10` 逐条一致**（**独立 oracle** 核，见验收 3）；`COPY`/`TLSDESC` 注入例 ⇒ **显式报错**（非静默）；越界例 ⇒ 链接期 / 装载期报错〔**2026-10-17**：通道已定为 **`aip.si` + `ld.o rbX,[rbX,%pcrel_lo(<站点>)]`**（`ADR-0029`；**`ABS48` 两段式已废弃** ✗）；**阻塞已解除** ✓ —— `ISS-230` 由 `ADR-0029` 解决，`LLVM-095t` 已实现并验证（默认布局 `-shared` rc=0、PLT 12 B ✓）；本行上文（`ABS48` 两段式 / `ISS-230` 阻塞）**原文保留为历史** ✗〕 |
 
 ## 依据（口径真源；**引用，不复制正文**）
 
@@ -101,6 +111,7 @@
 5. **门控**（各留**自身**真实 rc，**禁** `cmd | tee` 吞码）：`make check`（**L1**）、**`make check-modules`（L2，任务收尾；串行、禁与 L3 并发——`ISS-229`）**、`make check-patch-tree`、`make check-source-state`、`check-knowledge-refs`、`check-knowledge-dir`、`check-no-residue`、`make check-tasks`、`python3 tools/infra/check_issues.py`、`check-component-changelog` 各 **rc=0**；`make check-full`（L3）在里程碑 / `/complete` 跑。
 6. **可达 FAIL 证据**：`.work/evidence/<任务ID>/run.sh` 可跑通，**每条断言有可达 FAIL 路径**（注入 ⇒ FAIL ⇒ 还原 ⇒ 回绿；还原用 `cp` + md5 对账，**禁** `git checkout/restore/stash`）；**禁恒真断言**、**计数不写死**。
 7. **不做运行验证（显式声明）**：本册**不跑**动态 ELF（无 `qemu-user`）⇒ 若完成区出现任何「运行通过 / E2E 通过」叙述，**视为越界**；「跑」= `P3`（用户 2026-10-15「先静态、再动态」的落地位置）。
+8. **静态不回归（显式验收，2026-10-17 追加；对应用户「静态和动态都需要支持」）**：静态档判据**全部保持 rc=0**，且与刷新前基线**逐字节对照一致** —— ① **构建**：静态档（`make build-musl`，`--disable-shared`）**rc=0**（留**自身**真实 rc，禁 `tee` 吞码）；② **静态产物 4 项事实逐条复现**（`readelf -h` / `-l` / `-d` 现场输出）：`ELF64` / **`EI_DATA = ELFDATA2MSB`** / **`ET_EXEC`** / **无 `PT_INTERP`**、**无 `DT_NEEDED`**；③ **逐字节对照（判据）**：静态侧产物（`libc.a` + 至少 1 例静态 ELF）的 **`sha256`** 与**刷新前基线**（`INFRA-082t` 证据）逐条比对 ⇒ **不一致即 FAIL**；若确因本册**预期改动**而变化，须**逐条列出差异 + 依据**（改动点 / 契约条款），**不得**默许漂移；④ 证据脚本（`.work/evidence/<任务ID>/run.sh`）含**可达 FAIL** 路径（改坏任一项 ⇒ FAIL ⇒ `cp`+md5 还原 ⇒ 回绿）。
 
 ## 不做项（显式）
 
