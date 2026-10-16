@@ -149,3 +149,10 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### architect 提交留痕（2026-10-17，`INFRA-085t` 刷新笔）
+- **档位**：正常提交（**非 WIP** —— 本笔 = 文档刷新 + issue 登记，无实现面、无 engineer 交付）。
+- **提交号**：`5104f6f`（分支 `infra-085t-refresh`；落 `master` 走 `merge --ff-only`）。
+- **文件集对账**：显式 staging（逐路径，**未**用 `git add -A`）= ① `.tao/tasks/infra/INFRA-085t-动态链接musl-ldso接入.md`（+13/−2）② `.tao/knowledge/milestones.md`（+1/−1）③ `.tao/knowledge/issues.yaml`（+1/−1）⇒ 与「修改文件」声明**逐条一致**：**漏提 0 / 多提 0 / 越界 0**（**未触** `spec/`·`contracts/`·`.tao/contracts/**`·`components/**`·`Makefile`）。
+- **门控（各留自身真实 rc）**：`make check`(L1) **rc=0**、`check-patch-tree` **rc=0**、`check-index-blobs` **rc=0**、`check-source-state` **rc=0**、`check-tasks` **rc=0**、`check-knowledge-refs` **rc=0**、`check-knowledge-dir` **rc=0**、`check-no-residue` **rc=0**、`check-component-changelog` **rc=0**、`python3 tools/infra/check_issues.py` **rc=0**（日志 = `.work/log/architect/INFRA-085t-refresh-*.log`）。**未跑** `install-host` / `build-*` / L2 / L3（`ISS-229` 并发禁令；本笔纯文档）。
+- **边界**：本笔**未改**本册 `**状态**`（仍 `待开始`）✗、**未 push** ✗；3 处过期口径均**追加注记**（原文保留为历史 ✗）。
