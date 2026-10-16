@@ -73,13 +73,25 @@ M4 ELF object 的重定位记录采用 **`SHT_RELA`**（`.rela.*` 段），每�
 
 | 编号 | 名 | 场景 | 编码字段 |
 |------|----|------|----------|
-| 0 | `R_DADAO_ABS48` | `set.zw` / `or.w` / `andn.w` 地址构造序列（≤ 3 片 wyde）**或数据绝对地址字段（8 字节）** | 3×`immu16`（按 `wyde-position` 分片）**或 8 字节字段** |
+| 0 | `R_DADAO_NONE` | **no-op**（占位，**不参与动态段语义**） | — |
 | 1 | `R_DADAO_REL26` | `call` / `jump`（iiii） | `imms24`（有效 26 位） |
 | 2 | `R_DADAO_REL20` | `br.n` / `br.nn` / `br.z` / `br.nz` / `br.p` / `br.np`（riii） | `imms18`（有效 20 位） |
 | 3 | `R_DADAO_REL14` | `br.eq` / `br.ne`（rrii） | `imms12`（有效 14 位） |
 | 4 | `R_DADAO_REL12` | `ld.*` / `st.*`（rrii）访存符号偏移 `[rb0, sym]`（**`rb0` 基址**、PC 相对） | `imms12`（**字节**偏移、有效 12 位） |
 | 5 | `R_DADAO_ABS12` | `ld.*` / `st.*`（rrii）访存符号偏移 `[rbN, sym]`（**`rb1–rb63` 基址**、基址相对） | `imms12`（**字节**偏移、有效 12 位） |
-| 6 | `R_DADAO_NUM` | 类型计数（非实际重定位） | — |
+| 6 | `R_DADAO_ABS48` | `set.zw` / `or.w` / `andn.w` 地址构造序列（≤ 3 片 wyde）**或数据绝对地址字段（8 字节）** | 3×`immu16`（按 `wyde-position` 分片）**或 8 字节字段** |
+| 7 | `R_DADAO_JUMP_SLOT` | PLT 的 GOT 槽（8 字节字段） | 8 字节字段 |
+| 8 | `R_DADAO_RELATIVE` | 相对重定位（8 字节字段） | 8 字节字段 |
+| 9 | `R_DADAO_COPY` | 运行期副本（`memcpy(副本, S, st_size)`）——**不发射**（linker 遇即报错） | — |
+| 10 | `R_DADAO_TLS_DTPMOD` | 模块 TLS id（8 字节槽） | 8 字节槽 |
+| 11 | `R_DADAO_TLS_DTPREL` | 模块内偏置 | — |
+| 12 | `R_DADAO_TLS_TPREL` | TP 相对偏置 | — |
+| 13 | `R_DADAO_TLSDESC` | TLS 描述符（**两格**）——**不发射** | 2 格 |
+| 14 | `R_DADAO_NUM` | 类型计数（非实际重定位，**冻结值 = 14**） | — |
+
+上表为 `ADR-0019 D10` **就地修订** `D2` 后的**最终编号**（`R_DADAO_ABS48` 由 `0` 改为 `6`、`R_DADAO_NUM` 由 `4` 顺延为 `14`、并引入 `R_DADAO_NONE = 0`；`REL26 = 1` … `ABS12 = 5` 不变）：编号 `0`–`5` = **静态**类型、`6` = 数据 / GOT 槽（**动态复用**）、`7`–`13` = **动态 / TLS** 类型、`14` = **类型计数**；编号**全密无空档**（`R_DADAO_NUM` = 类型总数）。[ADR-0019 §D10]
+
+动态 / TLS 类型的场景、公式与落点字段见 `contract-dynlink.md §4.3–§4.4`。[ADR-0019 §D10]
 
 相对类的**有效位宽 = 立即数位宽 + 2**（字偏移；`24+2=26` / `18+2=20` / `12+2=14`）；指令格式/字段位置见 [contract-isa.md §2.3–§2.4]，分支/call/jump 语义见 [contract-isa.md §4.7][contract-isa.md §5.2]。[ADR-0019 §D2]
 

@@ -346,7 +346,7 @@ escape cfx_smon, [excp_cause_ip, 4]          ; cfxha 写作标量别名
 
 ### 0.3.2（2026-10-09）
 
-- 重定位正文（`REL12` = rb0 PC 相对 S+A−P、`ABS12` = rb1–rb63 S+A、`NUM` = 6）；`ABS48` 数据按 8 字节；§6.1 `set.fo` 口径。
+- 重定位正文（`REL12` = rb0 PC 相对 S+A−P、`ABS12` = rb1–rb63 S+A）；`ABS48` 数据按 8 字节；§6.1 `set.fo` 口径。
 
 ### 0.3.1（2026-10-08）
 
