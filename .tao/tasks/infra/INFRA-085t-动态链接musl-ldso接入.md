@@ -2,11 +2,13 @@
 
 **模块**：infra（**判定与理由见「§模块判定」**）
 **项目里程碑**：M8
-**依赖**：`ADR-0025`（`D6` = `P0 契约 → P1 musl 静态 → **P2 动态链接** → P3 qemu-linux-user → P4 对照/回归`；`D2` 无内核 / `D3` `ld.so` = **musl 自带 ldso** / `D4` musl 与 picolibc 并存 / `D7` golden 对照〔P4〕）；`ADR-0019 D10`（**动态重定位类型集与最终编号**：`NONE=0`/`REL26`=1…`ABS12`=5/**`ABS48`=6**/`JUMP_SLOT`=7/`RELATIVE`=8/`COPY`=9/`TLS_DTPMOD`=10/`TLS_DTPREL`=11/`TLS_TPREL`=12/`TLSDESC`=13/`NUM`=14；值类规则 / 公式）；`ADR-0026 D1–D8`（**动态链接行为口径**：ldso / `PT_INTERP`·`-dynamic-linker` / **仅 GNU hash** / 版本段·`DT_RELR` 都不做 / GOT·TP / eager（`BIND_NOW`）/ 越界 5 条 / 独立 oracle）；`ADR-0027 D5`（compiler-rt builtins = 独立库，picolibc/musl 共用）；**契约真源** = `.tao/contracts/contract-dynlink.md`（`§1`–`§10`；用户 **2026-10-14 逐条确认**，§9 = 裁定清单已定）；`INFRA-082t`（**`P1`**，`已验证` 2026-10-15：musl 补丁集 16 + `make build-musl` + 静态 ELF 可编出；**其 A2+A3 遗留 ⑤⑦⑧ 由本册承接**）；`INFRA-076t`（musl 1.2.6 取源与锁定，`已验证`）；`SPEC-140t`（musl TLS/TP 硬依赖查证，`已验证`）；`ISS-206`（`DADAO.def` 随 `D10` 改号 = **P2 必做**）、`ISS-222`（LLVM 后端缺口 4 类）、`ISS-223`（13 源排除）、`ISS-229`（L2/L3 并发假 FAIL ⇒ 验收须**串行**）；`docs/Process-01`（组件补丁组织与构建编排）；`ADR-0016`（install 落点）
+**依赖**：`ADR-0025`（`D6` = `P0 契约 → P1 musl 静态 → **P2 动态链接** → P3 qemu-linux-user → P4 对照/回归`；`D2` 无内核 / `D3` `ld.so` = **musl 自带 ldso** / `D4` musl 与 picolibc 并存 / `D7` golden 对照〔P4〕）；`ADR-0019 D10`（**动态重定位类型集与最终编号**：`NONE=0`/`REL26`=1…`ABS12`=5/**`ABS48`=6**/`JUMP_SLOT`=7/`RELATIVE`=8/`COPY`=9/`TLS_DTPMOD`=10/`TLS_DTPREL`=11/`TLS_TPREL`=12/`TLSDESC`=13/`NUM`=14；值类规则 / 公式）；`ADR-0026 D1–D8`（**动态链接行为口径**：ldso / `PT_INTERP`·`-dynamic-linker` / **仅 GNU hash** / 版本段·`DT_RELR` 都不做 / GOT·TP / eager（`BIND_NOW`）/ 越界 5 条 / 独立 oracle）；`ADR-0027 D5`（compiler-rt builtins = 独立库，picolibc/musl 共用）；**契约真源** = `.tao/contracts/contract-dynlink.md`（`§1`–`§10`；用户 **2026-10-14 逐条确认**，§9 = 裁定清单已定）；`INFRA-082t`（**`P1`**，`已验证` 2026-10-15：musl 补丁集 16 + `make build-musl` + 静态 ELF 可编出；**其 A2+A3 遗留 ⑤⑦⑧ 由本册承接**）；`INFRA-076t`（musl 1.2.6 取源与锁定，`已验证`）；`SPEC-140t`（musl TLS/TP 硬依赖查证，`已验证`）；`ISS-206`（`DADAO.def` 随 `D10` 改号 = **P2 必做**）〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 B/E）**：**「P2 必做」已不成立** ✗ —— ①②③ **三条均已落地**：① `DADAO.def` 改号〔+ `ELF.h`〕/③ 既有产物·向量排查随**阶段 B**；② `.tao/contracts/contract-elf.md §2.2` 同步随**阶段 E**（用户 2026-10-16 授权原话「**授权，但建议删除 `NUM = 6`**」，渠道 = 经主会话问答）；`ISS-206` 保持 `open`（待 `LLVM-094t` 任务级 `已验证` 回填 `closed`）；**生产者侧前置 = `LLVM-094t`**（2026-10-16 已立；阶段 A/B/E 已落地、C 部分交付、D 待做）〕、`ISS-222`（LLVM 后端缺口 4 类）、`ISS-223`（13 源排除）、`ISS-229`（L2/L3 并发假 FAIL ⇒ 验收须**串行**）；`docs/Process-01`（组件补丁组织与构建编排）；`ADR-0016`（install 落点）
 **状态**：待开始
 **阶段进度**：A ⏳ ／ B ⏳ ／ C ⏳ ／ D ⏳ ／ E ⏳
 
 > **`**状态**` 口径**：本任务 = **一个任务书、多阶段验收**（照 `SPEC-142t`/`SPEC-143t`/`INFRA-082t` 先例）⇒ `**状态**` 表**任务级**（**阶段全部验收通过**才置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`。
+
+> **⛔ 阻塞 / 前置（2026-10-16 追加，**必读**）**：本册**动态链接 / GOT 取址**相关工作**当前被阻塞** —— **`ISS-230`**（`ADR-0026`「超 ±2 KiB 用 `ABS48` 序列 + `ldm.o_rrri_rb`」在现有 ABI 下**不可实现**：链接器无可用 `rd`、ISA 侧无宽 PC 相对重定位类型）**待用户给方案**（用户 2026-10-16 原话「**你不用试了，过会儿我告诉你解决方法**」）⇒ **用户给出解法前，与 `.got` 可及性（GOT 取址机制）相关的工作不得开工**。三条候选（**(a)** 编译器发两段式 / **(b)** 让出链接器临时寄存器或新增宽相对重定位类型〔触及 ISA·ABI ⇒ 须 `ADR` + `spec/` 授权〕/ **(c)** 接受布局约束）**均须用户裁定**。依据指针 = `.tao/knowledge/issues.yaml` `ISS-230` + `.tao/tasks/llvm/LLVM-094t-llvm-PIC与动态链接支持.md`「遗留问题（阶段 C）①」。
 
 > **编号留痕（现场取号，2026-10-16）**：`INFRA-085` 经 `.tao/tasks/**` + `.tao/archive/**` + `git log --all --name-only`（全历史）复核**从未被占用** ⇒ 取 **`INFRA-085t`**（`lessons §3.21`「编号须全仓〔含历史〕唯一」）。
 
@@ -30,11 +32,12 @@
   - `llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def` + `ELF.h` 类型枚举（**`ISS-206`①**）；
   - CodeGen 的 **PIC / GOT** 寻址（现无私）；
   - `lld/ELF/Arch/DADAO.cpp` 的 **`ET_DYN` / `.dynamic` / GNU hash / `GOT`·`PLT` / 动态重定位**（现**只有静态** `relocate` + `getRelExpr`——现场已核，见「已知事实 4」）。
-- **处置 = 见「待确认项 ①」**：**(a) 拆 `LLVM-094t`（生产者侧）先行 + 本册（消费侧 + 构建）串行**（**推荐**：模块归属真源 / 依赖单向 `llvm → infra` / 满足「每任务可独立验收、可被单个 engineer 完成」）｜**(b) 单册跨模块执行**（先例 = `INFRA-082t` 含 QEMU 侧 `SYS_UMON_SYSCALL` 服务，**范围扩大已在册内显式标注**）。**未裁定前按 (a) 口径理解本册**（= 只做 `infra` 面），**不自行扩大**。
+  - 〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 A/B/C）**：上列「**现无私** / **现只有静态**」**均已不成立** ✗ —— 生产者侧已落地：**阶段 A** CodeGen PIC/GOT（GOT 槽走 `rb0` PC 相对、`-fPIC`/`-fPIE`）；**阶段 B** `DADAO.def` 改号 + LLD `ET_DYN`/`.dynamic`/`.dynsym`/`.dynstr`/仅 `.gnu.hash`/`.rela.dyn`/`.rela.plt`/`.got`·`.got.plt`·`.plt` + `DT_SONAME`；**阶段 E** 编号同步（`contract-elf §2.2`）；**阶段 C** ② 主动拒绝 + ③ A7 基线重定（⚠ 阶段 C ①「两段式」**阻塞于 `ISS-230`**、**阶段 D** 待做）⇒ 本册**消费**上述产出（依赖单向 `llvm → infra`）〕
+- **处置 = 见「待确认项 ①」**：**(a) 拆 `LLVM-094t`（生产者侧）先行 + 本册（消费侧 + 构建）串行**（**推荐**：模块归属真源 / 依赖单向 `llvm → infra` / 满足「每任务可独立验收、可被单个 engineer 完成」）｜**(b) 单册跨模块执行**（先例 = `INFRA-082t` 含 QEMU 侧 `SYS_UMON_SYSCALL` 服务，**范围扩大已在册内显式标注**）。**未裁定前按 (a) 口径理解本册**（= 只做 `infra` 面），**不自行扩大**。〔**收尾注记（2026-10-16）**：裁定**已定 (a)**（用户 2026-10-16「**3、可以**」追认，渠道 = 经主会话转达）⇒ `LLVM-094t` 已立、本册按 (a) 口径（只做 `infra` 面）；**(a) 裁定内容本身不改** ✗〕
 
 ## 做（分阶段 A–E；**每阶段各自验收**）
 
-> **面** 列 = 该行工作归属：`infra` = 本册（musl / 构建）；`llvm` = 生产者侧（若「待确认项 ①」裁定 (a)，则该列项移入 `LLVM-094t`）。
+> **面** 列 = 该行工作归属：`infra` = 本册（musl / 构建）；`llvm` = 生产者侧（若「待确认项 ①」裁定 (a)，则该列项移入 `LLVM-094t`）。〔**收尾注记（2026-10-16）**：裁定**已定 (a)** ⇒ 该列项**已移入** `LLVM-094t`（阶段 A/B/E 已落地、C 部分交付、D 待做）〕
 
 | 阶段 | 名称 | 内容 | 出口判据 |
 |---|---|---|---|
@@ -42,7 +45,7 @@
 | **B** | **动态可执行** | **B1**（`infra`）构建侧**显式**传 `-dynamic-linker /lib/ld-musl-dadao.so.1`（**不改 lld 默认值**，`ADR-0026 D2`）；**B2**（`llvm`）生产者侧支持 `PT_INTERP` + `DT_NEEDED`（动态可执行链接） | `readelf -l` 的 **`PT_INTERP` 字符串逐字节 = `/lib/ld-musl-dadao.so.1`**；`readelf -d` 含 **`DT_NEEDED`** |
 | **C** | **`ldso` 接入** | **C1**（`infra`）`ldso/dlstart.c` / `ldso/dynlink.c` **真接入**（`GETFUNCSYM` **改基址相关**〔P1 遗留 ⑤〕、`CRTJMP` 复核、`arch/dadao/reloc.h` 类别映射复核）；**C2**（`llvm`）**`PT_DYNAMIC` / hash（仅 GNU） / `DT_*` 必备子集** + **eager 绑定**（`DT_BIND_NOW` / `DF_BIND_NOW`，`ADR-0026 D6`） | `libc.so` 内 `_dlstart` / `_dlstart_c` 存在（`nm` / `readelf -s`）；`.dynamic` 必备标签到场（`DT_SYMTAB`/`DT_STRTAB`/`DT_STRSZ`/`DT_GNU_HASH`/`DT_RELA`/`DT_RELASZ`/`DT_PLTGOT`/`DT_BIND_NOW`）；**静态度量**（不跑） |
 | **D** | **TLS 动态** | **D1**（`infra`）**`PT_TLS`** + `TP = rb3`（`contract-abi §1.2`）+ `TLS_ABOVE_TP`（`GAP_ABOVE_TP` / `DTP_OFFSET`，逐 arch 定值归 musl 宏）+ `DTPMOD`/`DTPOFF`/`TPOFF` 类型与公式（`ADR-0019 D10`）+ **静态 `__thread`**（P1 遗留 ⑦：crt 侧 auxv 注入之需）；**D2**（`llvm`）TLS 类动态重定位**发射** | 有 TLS 变量时 `readelf -l` 有 **`PT_TLS`**；`readelf -r` 出现的 TLS 类**编号与 `§4.3` 一致**；`__thread` 变量可编译并落 TLS 重定位 |
-| **E** | **重定位与越界** | **`ABS48` 两段式**（超 `R_DADAO_REL12` 的 ±2 KiB ⇒ `ABS48` 序列把偏移算进 `rd` + **`ldm.o_rrri_rb`** 落 **`rb`**、随后 `jump rbX, rd0, 0`；**跳转用途必须落 `rb`**）+ **`JUMP_SLOT`** / **`RELATIVE`**；**`COPY` / `TLSDESC` 不发射、遇即报错**；**§10 越界 5 条** | 重定位表含 `ABS48`/`JUMP_SLOT`/`RELATIVE`，且**公式与 `ADR-0019 D10` 逐条一致**（**独立 oracle** 核，见验收 3）；`COPY`/`TLSDESC` 注入例 ⇒ **显式报错**（非静默）；越界例 ⇒ 链接期 / 装载期报错 |
+| **E** | **重定位与越界** | **`ABS48` 两段式**（超 `R_DADAO_REL12` 的 ±2 KiB ⇒ `ABS48` 序列把偏移算进 `rd` + **`ldm.o_rrri_rb`** 落 **`rb`**、随后 `jump rbX, rd0, 0`；**跳转用途必须落 `rb`**）+ **`JUMP_SLOT`** / **`RELATIVE`**；**`COPY` / `TLSDESC` 不发射、遇即报错**；**§10 越界 5 条**〔**⛔ 阻塞（2026-10-16）**：其中 **`ABS48` 两段式 / GOT 可及性**部分**阻塞于 `ISS-230`**、**待用户解法**（见文首「⛔ 阻塞 / 前置」）；`JUMP_SLOT`/`RELATIVE`/`COPY`·`TLSDESC` 部分不受阻〕 | 重定位表含 `ABS48`/`JUMP_SLOT`/`RELATIVE`，且**公式与 `ADR-0019 D10` 逐条一致**（**独立 oracle** 核，见验收 3）；`COPY`/`TLSDESC` 注入例 ⇒ **显式报错**（非静默）；越界例 ⇒ 链接期 / 装载期报错 |
 
 ## 依据（口径真源；**引用，不复制正文**）
 
@@ -61,26 +64,27 @@
    - `llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def` = `ABS48`**=0** … `ABS12`=5、`NUM`**=6** ⇒ **与 `ADR-0019 D10` 不一致**（`ISS-206`① **必改**；改后须同步 `ELF.h` 枚举与既有产物/向量排查 = `ISS-206`③）。
    - `DADAOTargetMachine.cpp` 默认 **`Reloc::Static`** ⇒ **无 PIC**；`DADAOISelDAGToDAG` 对 `GlobalAddress` 走**绝对地址 materialize**（`set.zw`/`or.w` + `R_DADAO_ABS48`），**非 GOT 间接**。
    - `lld/ELF/Arch/DADAO.cpp` **只有静态** `relocate` + `getRelExpr`；`Target.{cpp,h}` 仅注册目标 ⇒ **无** `GOT`/`PLT`/`.dynamic`/hash/动态重定位发射。
-5. **`contract-elf.md §2.2` 仍是旧号**（`ABS48=0` / `NUM=6`）⇒ `ISS-206`②；**契约正文改动须用户授权**（见「待确认项 ⑥」）。
-6. **既有产物 / 向量排查（`ISS-206`③）尚未完成**：现场 `grep` `R_DADAO_*` 在 `tests/**` **只命中注释 / 文档字符串**，**未**见写死的类型号字段 ⇒ **仍须在本册逐条排查并留证**（**不得**据此写成「已确认无命中」）。
+   - 〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 A/B）**：本条第 1–3 子项**均已不成立** ✗ —— ① `DADAO.def` 已改号（`NONE`=0 / 静态 `1`–`5` / `ABS48`=**6** / 动态 `7`–`13` / `NUM`=**14**，逐行 = `ADR-0019 D10`；现场核 `.work/source/llvm-project/llvm/include/llvm/BinaryFormat/ELFRelocs/DADAO.def`）随**阶段 B**；② CodeGen 已支持 `-fPIC`/`-fPIE`、GOT 槽走 `rb0` PC 相对（**阶段 A**）；③ LLD 已可产 `ET_DYN` + `.dynamic`/`.dynsym`/`.dynstr`/仅 `.gnu.hash`/`.rela.dyn`/`.rela.plt`/`.got`·`.got.plt`·`.plt` + `DT_SONAME`（**阶段 B**）；⇒ 本册**消费**之、**不重复实现**〕
+5. **`contract-elf.md §2.2` 仍是旧号**（`ABS48=0` / `NUM=6`）⇒ `ISS-206`②；**契约正文改动须用户授权**（见「待确认项 ⑥」）。〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 E）**：**本条已不成立** ✗ —— `.tao/contracts/contract-elf.md §2.2` 已按 `ADR-0019 D10` 同步（15 行终表：`NONE`=0 / 静态 `1`–`5` / `ABS48`=**6** / 动态 `7`–`13` / `NUM`=**14**）；**已获用户授权**（原话「**授权，但建议删除 `NUM = 6`**」，2026-10-16，渠道 = 经主会话问答）+ 同变更删除 `spec/Toolchain-01` 旧 `NUM`=6 字面量并重算该册 `sha256`〕
+6. **既有产物 / 向量排查（`ISS-206`③）尚未完成**：现场 `grep` `R_DADAO_*` 在 `tests/**` **只命中注释 / 文档字符串**，**未**见写死的类型号字段 ⇒ **仍须在本册逐条排查并留证**（**不得**据此写成「已确认无命中」）。〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 B）**：**本条已不成立** ✗ —— `ISS-206`③ 已随**阶段 B** 落地：现场命中 **4 处** lit 向量注记（`dd-symbol`/`m6-callconv`/`rela-addend`/`rela.s`）并同步；全仓复核 `tests/vectors/**` / `contracts/**` **旧号 0 命中**，旧号仅存 `.tao/archive/**` 历史层 ⇒ 本册**无需**再行排查〕
 7. **端序 = 大端（BE）**：`ADR-0003 D1`（`EI_DATA = ELFDATA2MSB`）；`AUDIT_ARCH_DADAO` = BE64（`contract-syscall §1.3`）；上游测试多在 LE 跑 ⇒ **BE 敏感用例须自成一面**。
 8. **验证面现状**：**无 `qemu-user`**（`P3`）⇒ 本册**不可**有任何「运行通过」叙述；**L2/L3 不得并发**（`ISS-229`：共享安装根竞争 ⇒ 假 FAIL）；`JOBS=8`、**禁全核** `-j$(nproc)`。
 9. **口径不可自拟**：类型号 / 公式 / 语义 = `ADR-0019 D10` + `contract-dynlink §4.3`；行为 = `ADR-0026 D1–D8`；**均 `Accepted`（用户 2026-10-14 逐条确认）** ⇒ **不得**自拟编号 / 公式 / 行为、**不得**自写 loader 替代 musl `ldso`（`ADR-0025 D3`）。
 
 ## 接口规范
 
-- **输入**：`ADR-0019 D10` / `ADR-0026 D1–D8` / `ADR-0025`（`D2`/`D3`/`D4`/`D6`/`D7`）、`.tao/contracts/contract-dynlink.md`、`contract-elf.md`（只读；`§2.2` 同步须授权）、`INFRA-082t`（`P1` 产出与遗留）、`.work/source/musl/**`（**只读**：源码检出）、`components/llvm-project/patches/**`（**只读**：现状）、`.dadao/cross-toolchain/**`（工具链 + sysroot，**只读**）。
+- **输入**：`ADR-0019 D10` / `ADR-0026 D1–D8` / `ADR-0025`（`D2`/`D3`/`D4`/`D6`/`D7`）、`.tao/contracts/contract-dynlink.md`、`contract-elf.md`（只读；`§2.2` **已于 2026-10-16 随 `LLVM-094t` 阶段 E 同步**，用户授权原话「**授权，但建议删除 `NUM = 6`**」⇒ 原「同步须授权」**已不成立** ✗）、`INFRA-082t`（`P1` 产出与遗留）、`.work/source/musl/**`（**只读**：源码检出）、`components/llvm-project/patches/**`（**只读**：现状）、`.dadao/cross-toolchain/**`（工具链 + sysroot，**只读**）。
 - **输出**：
   1. **musl 侧补丁**：`components/musl/patches/**` + `series`（**树形补丁 + 一文件一补丁**，`docs/Process-01`；`check-patch-tree` 机械校验）——`ldso` 接入所需改动（含 `GETFUNCSYM` 基址相关化）与 `arch/dadao/**` 复核改点。
   2. **构建 / 安装接线**：`tools/infra/build_musl.py`（`-shared` / PIC 档 + `.so` 命名 + 符号链接 `ld-musl-dadao.so.1 → libc.so`）+ `Makefile`（同型 target；`JOBS=8`）+ 安装落点按 `ADR-0016`（**不硬编码路径**，走 `manifests/` 定位机制）；**动态可执行链接命令显式带 `-dynamic-linker /lib/ld-musl-dadao.so.1`**。
-  3. **（若裁定 (b) 跨模块）生产者侧补丁**：`components/llvm-project/patches/**`（`DADAO.def` 改号 + CodeGen PIC/GOT + MC/`ELF.h` 枚举 + LLD `ET_DYN`/`.dynamic`/GNU hash/`GOT`·`PLT`/动态重定位）；**若裁定 (a)** ⇒ 移入 `LLVM-094t`，本册只**消费**。
+  3. **（若裁定 (b) 跨模块）生产者侧补丁**：`components/llvm-project/patches/**`（`DADAO.def` 改号 + CodeGen PIC/GOT + MC/`ELF.h` 枚举 + LLD `ET_DYN`/`.dynamic`/GNU hash/`GOT`·`PLT`/动态重定位）；**若裁定 (a)** ⇒ 移入 `LLVM-094t`，本册只**消费**。〔**收尾注记（2026-10-16）**：裁定**已定 (a)** ⇒ 生产者侧补丁**归 `LLVM-094t`**（阶段 A/B 已落地），本册只**消费**；本册**不产** `components/llvm-project/**` 改动〕
   4. **验证 / 证据**：`.work/evidence/<任务ID>/run.sh`（**一键证据**，含「注入 ⇒ FAIL ⇒ `cp`+md5 还原 ⇒ 回绿」）+ 原始输出落 `.work/log/infra/**`；本任务书完成区 + `milestones.md` 流水行。
 - **约束**：**最小改动**、只碰任务范围；**不得**改 `spec/`（上游只读册，须用户事先授权）、`contracts/`（机器数据）、`.tao/contracts/**`（正文，须授权）；**不改测试集内容**（`libc-test`/`llvm-test-suite`/`embench-iot` 均 `patchless`）；**组件源一律 git 基线**（改 musl / llvm-project 只经 `patches/**`，**不得**直接改 `.work/source/**`）；**禁** `git add -A`、**禁** `git checkout/restore/stash`；**计数不写死**（现场派生）；**期望值独立**（`contract-dynlink §8`：不从 LLVM / LLD / QEMU / 本仓工具反推）。
 
 ## 依赖与先后
 
 - **已满足**：`P0` 契约（`SPEC-138t`/`SPEC-139t` 均 `已验证`）、`P1`（`INFRA-082t` `已验证`）、`ADR-0019 D10`/`ADR-0026`（均 `Accepted`）。
-- **生产者侧（待定）**：见「待确认项 ①」——(a) 需 **`LLVM-094t`（待立）先行**〔含 `ISS-206`①〕；(b) 本册内跨模块执行（范围扩大，须显式标注供用户复核）。
+- **生产者侧（待定）**：见「待确认项 ①」——(a) 需 **`LLVM-094t`（待立）先行**〔含 `ISS-206`①〕；(b) 本册内跨模块执行（范围扩大，须显式标注供用户复核）。〔**收尾注记（2026-10-16）**：本条「**待定** / **待立**」**已不成立** ✗ —— 裁定 **(a)**（用户「**3、可以**」追认，渠道 = 经主会话转达）；`LLVM-094t` **已立**（`.tao/tasks/llvm/LLVM-094t-llvm-PIC与动态链接支持.md`）：阶段 A/B/E 已落地、C 部分交付（① 阻塞 `ISS-230`）、D 待做 ⇒ 本册的前置**已具备**（消费其产出）〕
 - **串行约束**：与任何同改 `components/musl/**`、`components/llvm-project/**`、`manifests/components.lock.toml`、`Makefile`、`tools/infra/**` 的任务**一律串行**（不得并行）；**同一工作树同一时间只允许一个写工作树**的子代理。
 - **后续（不在本册范围）**：`P3`（`qemu-user`；**含三套测试集的静态档 + 动态档运行**）、`P4`（对照 / 回归 + RISC-V musl golden）；`INFRA-079t`（builtins，**撞缺口才引入**）、`ISS-222`/`ISS-223`（`llvm` 模块面）。
 
@@ -98,7 +102,7 @@
 
 1. **`qemu-user` / `linux-user`**（`P3` ✗）与**运行**验证（含三套测试集的动态档）✗。
 2. **RISC-V musl golden 对照 / 对照 harness / 回归门控**（`P4` ✗）。
-3. **改 `spec/`**（上游只读册；须用户事先授权）✗、**改 `contracts/` 机器数据** ✗；**`.tao/contracts/**` 正文**默认不改（含 `contract-elf.md §2.2` 同步，须授权——见「待确认项 ⑥」）✗。
+3. **改 `spec/`**（上游只读册；须用户事先授权）✗、**改 `contracts/` 机器数据** ✗；**`.tao/contracts/**` 正文**默认不改（含 `contract-elf.md §2.2` 同步，须授权——见「待确认项 ⑥」）✗。〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 E）**：`contract-elf.md §2.2` 同步**已授权并落地**（用户原话「**授权，但建议删除 `NUM = 6`**」；落点 = **`LLVM-094t` 阶段 E**，**非**本册）⇒ 本条对**本册**仍成立（本册**不**改 `.tao/contracts/**`），仅「须授权」所指事项**已完成** ✗〕
 4. **改测试集内容**（`libc-test` / `llvm-test-suite` / `embench-iot`，均 `patchless`）✗。
 5. **自写 `ld.so`**（`ADR-0025 D3` / `ADR-0026 D1` ✗）；**新增 ISA 指令**（`ADR-0026 D5` ✗）；**relaxation**（`ADR-0019 D7` ✗）。
 6. **`ISS-222` 后端缺口 4 类 / `ISS-223` 13 源排除**的本册收口 ✗（`llvm` 模块面；撞上即登记 + 转出——见「待确认项 ④」）。
@@ -107,12 +111,12 @@
 
 | # | 项 | 我的默认（**待用户确认**） | 备选 / 影响 |
 |---|---|---|---|
-| ① | **跨模块切分**：生产者侧（`DADAO.def` 改号 / CodeGen PIC·GOT / MC 枚举 / LLD `ET_DYN`·`.dynamic`·GNU hash·`GOT`·`PLT`）属 `llvm` 面 | **(a) 拆 `LLVM-094t`（待立）先行 + 本册（`infra` 面）串行**（理由 = 模块归属真源 / 依赖单向 `llvm→infra` / 任务粒度「可独立验收、单人可完成」） | **(b) 单册跨模块执行**（先例 = `INFRA-082t` 含 QEMU 侧服务；**范围扩大须在册内显式标注供用户复核**）；**(c) 其它**。⇒ **未裁定前本册按 (a) 口径**（只做 `infra` 面） |
+| ① | **跨模块切分**：生产者侧（`DADAO.def` 改号 / CodeGen PIC·GOT / MC 枚举 / LLD `ET_DYN`·`.dynamic`·GNU hash·`GOT`·`PLT`）属 `llvm` 面 | **(a) 拆 `LLVM-094t`（待立）先行 + 本册（`infra` 面）串行**（理由 = 模块归属真源 / 依赖单向 `llvm→infra` / 任务粒度「可独立验收、单人可完成」）〔**收尾注记（2026-10-16）**：本行**已裁定取 (a)**（用户「**3、可以**」追认）；`LLVM-094t` **已立**（阶段 A/B/E 已落地、C 部分交付、D 待做）〕 | **(b) 单册跨模块执行**（先例 = `INFRA-082t` 含 QEMU 侧服务；**范围扩大须在册内显式标注供用户复核**）；**(c) 其它**。⇒ **未裁定前本册按 (a) 口径**（只做 `infra` 面）〔**收尾注记（2026-10-16）**：**已裁定取 (a)** ⇒ 本册只做 `infra` 面、`LLVM-094t` 已立（阶段 A/B/E 已落地）〕 |
 | ② | **动态档的运行验证落 `P3`** | **确认落 `P3`**（与用户 2026-10-15「先静态、再动态」+ 不改 `D6` 一致）⇒ 本册只到「**能编出 + 静态可核**」 | 若要求在 `P2` 内跑 ⇒ 须先有 `linux-user`（**与 `D6` 顺序冲突**）⇒ 须用户改序（另立裁定） |
 | ③ | **`sigsetjmp`（P1 遗留 ⑧）是否 `P2` 内必要** | **现场判**：若 `libc.so` 构建 / 链接**撞上**则补；否则登记不扩范围（用之即**链接失败**，**非静默**） | 补 = 扩范围（信号帧语义缺口，`mcontext_t` 仍 `[OPEN]`）；不补 = 保持现状 |
 | ④ | **`ISS-222`（后端缺口 4 类）+ `ISS-223`（13 源排除）是否 `P2` 内收口** | **否**（`llvm` 模块面）；撞上即 **当场登记 `issues.yaml` + 转出**（`INFRA-079t` 或 LLVM 模块），**不得** silently 跳过 | 若要求 `libc.so` 覆盖全部 13 源 ⇒ 须先收口 `ISS-222`（另一任务），或按 `ISS-223` 建议②**显式声明不支持** |
 | ⑤ | **是否需 `compiler-rt` builtins（`INFRA-079t`）** | 沿用 `INFRA-082t` 前置结论 1 口径：**撞缺口才引入**（i128 除法 / FP↔i128 / `bswap` / `*_PARTS`）；未触发须**显式声明** | 若触发 ⇒ 先落 `INFRA-079t`（独立库，`ADR-0027 D5`）再回本册 |
-| ⑥ | **`.tao/contracts/contract-elf.md §2.2` 同步（`ISS-206`②）** | **不改**（契约正文，**须用户授权**）⇒ `ISS-206`② 保持 `open`、随 `ISS-206` 跟踪 | 若授权 ⇒ 该同步并入本册（或另立 `spec` 模块任务）；**未授权不得改** |
+| ⑥ | **`.tao/contracts/contract-elf.md §2.2` 同步（`ISS-206`②）** | **不改**（契约正文，**须用户授权**）⇒ `ISS-206`② 保持 `open`、随 `ISS-206` 跟踪 | 若授权 ⇒ 该同步并入本册（或另立 `spec` 模块任务）；**未授权不得改**。〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 E）**：**已授权并落地** ✗ —— 用户授权原话「**授权，但建议删除 `NUM = 6`**」（渠道 = 经主会话问答）；`.tao/contracts/contract-elf.md §2.2` 已按 `ADR-0019 D10` 同步（15 行终表）+ `spec/Toolchain-01` 旧 `NUM`=6 删除、锁 `sha256` 同变更重算；落点 = **`LLVM-094t` 阶段 E**（**非**本册）⇒ 本册「不改 `.tao/contracts/**`」的范围**不变** ✓〕 |
 
 ## 完成区
 
