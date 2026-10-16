@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """QEMU 语义冒烟门控（L2，INFRA-058t）。
 
-用途：`check-qemu-smoke` 是 `check-qemu-semantics`（全量 149 用例）的**代表子集**，
+用途：`check-qemu-smoke` 是 `check-qemu-semantics`（全量 161 用例）的**代表子集**，
 落在 L2（`check-modules`）；全量留在 L3（`check-full`）。
 
 代表集**机械派生**（禁手工挑）：把 `check-qemu-semantics` 的向量文件用例按

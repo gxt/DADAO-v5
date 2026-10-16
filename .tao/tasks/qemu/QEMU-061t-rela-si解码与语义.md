@@ -210,3 +210,10 @@
 | F6（核过·门控）`check_issues` 对 `closed` 条目的 `resolved_by` 约束 | ✅已核 | 不改 | `python3 tools/infra/check_issues.py` **rc=0**（43 open / 14 closed；`resolved_by 约束 OK`） |
 
 **判决**：F1/F3/F4/F5/F6 核过（附现场证据）；F2 = **任务书要求与现场门控日志形态不符**，已**分档披露 + 给等价 ≥1 证据**（verbose 镜像 12 / 注入态真门控 1），**不擅自改门控 verbose**。**无未修 finding**（遗留①–③ = 登记项 / 裁定项，非本笔授权面）。按指令**不改任务 `**状态**`** ✗。
+
+#### architect 提交 / 文件集审核留痕（L3 载体补齐；分支 `l3-carrier-commit`；**只追加**）
+
+**档位**：**正常提交**（按主会话给定文案，**无 `WIP:` 前缀**）—— 本笔 = `ISS-233` 真覆盖缺口的补齐笔（非返工队列项）。
+**提交**：`90234a3`（分支 `l3-carrier-commit`）⇒ `git merge --ff-only` 落地 `master`（`8b757b4` → `90234a3`）⇒ 分支已删；**未 push** ✗（`origin/master` 不动，仍 `8b757b4`）。
+**文件集对账**（显式 staging，`git diff --cached --name-status` vs 完成区「修改文件」）：3 项**完全一致、无漏提 / 无多提 / 无越界** —— `Makefile`（+3/−2：载体清单 +1 项 + 注记 2 行）；`.tao/knowledge/issues.yaml`（+3/−3：`ISS-233` 的 `status`/`resolved_by`/`notes`）；本任务书（+37：本块与第 4 轮自审）。提交前 `git status -uall` 无第 4 项（`.work/**` 未入库 = 既有约定，非漏提）。
+**另笔（独立提交，不在本笔）**：`tests/scripts/run_qemu_smoke.py:4` 陈旧计数 `149` → `161`（= 本册「新发现/坑 ③」行文漂移）+ 新立 `ISS-235`/`ISS-236` + `INFRA-085t`「阻塞解除（2026-10-17）」指针 + `milestones.md` 两处追加。
