@@ -1,9 +1,9 @@
 diff --git a/lld/ELF/Arch/DADAO.cpp b/lld/ELF/Arch/DADAO.cpp
 new file mode 100644
-index 000000000..1ae638954
+index 000000000..e6c51ea3c
 --- /dev/null
 +++ b/lld/ELF/Arch/DADAO.cpp
-@@ -0,0 +1,481 @@
+@@ -0,0 +1,617 @@
 +//===- DADAO.cpp - DADAO ELF Linker Target ----------------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -30,6 +30,14 @@ index 000000000..1ae638954
 +//       address, so P is the reloc site itself).
 +//   R_DADAO_ABS12 (5): field = S + A, imms12 (BYTE offset, no >>2).  Used by
 +//       ld.*/st.* with base rb1..rb63 (base-relative/absolute).
++//   R_DADAO_REL32 (14): PC-relative 32-bit signed BYTE offset (no >>2),
++//       disp = S + A - P with P = the paired ldm.o (contract-elf.md §3.1,
++//       ADR-0019 D11).  Instruction form only, and always a *pair*: one record
++//       per instruction, the hi wyde (wp = 1) in the set.zw/set.ow, the lo wyde
++//       (wp = 0) in the same-register or.w/andn.w that follows it.  Each record
++//       carries a compensating addend (A-8 / A-4) so both compute the same disp.
++//       disp < 0 is encoded at link time by rewriting both opcodes; a site that
++//       is not a legal pair, or a disp outside int32, is a link-time error.
 +//   R_DADAO_JUMP_SLOT (7): PLT GOT slot, 8-byte field, S + A unsigned 48-bit
 +//       (musl REL_PLT).
 +//   R_DADAO_RELATIVE (8): 8-byte slot, B + A unsigned 48-bit (musl
@@ -98,7 +106,7 @@ index 000000000..1ae638954
 +    // -fPIC" would otherwise be triggered for every R_DADAO_ABS48 because the
 +    // default iRelSymbolicRel sentinel is 0 and 0 is R_DADAO_NONE.  Use the
 +    // R_DADAO_NUM count value as a sentinel that never matches a real reloc
-+    // (ADR-0019 D10: R_DADAO_NUM = 14).
++    // (ADR-0019 D10/D11: R_DADAO_NUM = 15).
 +    iRelSymbolicRel = R_DADAO_NUM;
 +    defaultMaxPageSize = 0x10000;  // DADAO page = 64 KiB (DADAO-12 §2.2.2)
 +
@@ -136,13 +144,24 @@ index 000000000..1ae638954
 +
 +private:
 +  void relocateInSection(uint8_t *loc, const Relocation &rel, uint64_t val,
-+                         bool isExec) const;
++                         bool isExec, const uint8_t *secBegin = nullptr,
++                         const uint8_t *secEnd = nullptr) const;
 +};
 +} // namespace
 +
 +// PLT entry layout (pltEntrySize == 24, see writePlt): the byte offset of the
 +// in-entry constant that carries the distance to the symbol's .got.plt slot.
 +static constexpr unsigned pltDataOffset = 16;
++
++// Address-construction opcodes relevant to R_DADAO_REL32.  Only the rd bank
++// takes part in a REL32 pair: the rb bank uses 0x4A/0x4B/0x4E for the same
++// mnemonics and carries R_DADAO_ABS48 instead (contract-elf.md §2.2, ADR-0019
++// D11).  The pairing check below keys on these opcodes, so a site in the wrong
++// bank is rejected rather than silently mis-encoded.
++static constexpr unsigned opOrW = 0x48;   // or.w   rd, wp, imm16
++static constexpr unsigned opAndnW = 0x49; // andn.w rd, wp, imm16
++static constexpr unsigned opSetZw = 0x4C; // set.zw rd, wp, imm16
++static constexpr unsigned opSetOw = 0x4D; // set.ow rd, wp, imm16
 +
 +static uint32_t getEFlags(Ctx &ctx, InputFile *f) {
 +  return cast<ObjFile<ELF64BE>>(f)->getObj().getHeader().e_flags;
@@ -196,6 +215,20 @@ index 000000000..1ae638954
 +    // PC-relative.  For REL20/14 the field is a (S + A - P) >> 2 word offset;
 +    // for REL12 it is the raw byte offset S + A - P (rb0 reads the current
 +    // instruction address, contract-elf.md §3.1 / ADR-0021 §D1).
++    return R_PC;
++  case R_DADAO_REL32:
++    // PC-relative 32-bit signed BYTE offset of a paired address-construction
++    // sequence (set.zw/or.w for disp >= 0, set.ow/andn.w for disp < 0)
++    // followed by the ldm.o that consumes the offset register
++    // (contract-elf.md §3.1, ADR-0019 D11).  R_PC is exactly S + A - P, and
++    // because each record of the pair carries a compensating addend (A-8 / A-4)
++    // the value seen at either record is already the disp of the ldm.o -- the
++    // link-time negative form is then a per-record opcode rewrite, not a
++    // pairing decision.
++    //
++    // The symbol is the module-local GOT slot label emitted by the compiler, so
++    // this expression must not be routed through a PLT or a copy relocation;
++    // R_PC is resolved locally for such a non-preemptible definition.
 +    return R_PC;
 +  case R_DADAO_ABS12:
 +    // Base-relative symbol displacement: S + A (byte offset, imms12).
@@ -298,7 +331,9 @@ index 000000000..1ae638954
 +}
 +
 +void DADAO::relocateInSection(uint8_t *loc, const Relocation &rel,
-+                              uint64_t val, bool isExec) const {
++                              uint64_t val, bool isExec,
++                              const uint8_t *secBegin,
++                              const uint8_t *secEnd) const {
 +  // A PC-relative branch/jump/call to an *undefined weak* symbol (LLVM-085t).
 +  //
 +  // ELF weak semantics give such a symbol the value 0, and that displacement
@@ -396,6 +431,104 @@ index 000000000..1ae638954
 +    write32be(loc, insn);
 +    return;
 +  }
++  case R_DADAO_REL32: {
++    // PC-relative 32-bit signed byte offset carried by a *pair* of
++    // address-construction instructions (contract-elf.md §2.2/§3.1/§3.2,
++    // ADR-0019 D11):
++    //
++    //   hi (wp == 1): set.zw rd, wp1, hi16    (0x4C)    when disp >= 0
++    //                 set.ow rd, wp1, hi16    (0x4D)    when disp <  0
++    //   lo (wp == 0): or.w   rd, wp0, lo16    (0x48)    when disp >= 0
++    //                 andn.w rd, wp0, ~lo16   (0x49)    when disp <  0
++    //
++    // One record per instruction.  The pair feeds a single following `ldm.o`,
++    // and each record carries a compensating addend (A-8 for the hi record,
++    // A-4 for the lo record; contract-elf.md §3.1), so `val` handed to this
++    // record is already S + A - P_ldm.o.
++    //
++    // The form written is *derived* from the sign of disp, never from the
++    // opcode already in place: applying the relocation twice yields the same
++    // bytes, and the two records of a pair are processed independently of each
++    // other (no pairing state, no cross-record value exchange).
++    //
++    // The pairing check is still required: `set.ow` sets the other 48 bits and
++    // `or.w` can only set bits, so a negative disp left in the default
++    // (non-negative) form would land 0xFFFF in wp0 -- a silent +2^32.  Reject a
++    // site that is not a legal pair instead (contract-elf.md §3.2).
++    //
++    // REL32 has no data form: unlike ABS48 it exists only as paired
++    // instructions, so a non-executable target section is a placement error.
++    if (!isExec || secBegin == nullptr || secEnd == nullptr) {
++      Err(ctx) << getErrorLoc(ctx, loc)
++               << "R_DADAO_REL32 must be a paired instruction sequence in an "
++                  "executable section (contract-elf.md §3.2, ADR-0019 D11)";
++      return;
++    }
++
++    // Out of the signed 32-bit range => link-time error, no truncation / no
++    // wrap (contract-elf.md §3.2).
++    int64_t disp = static_cast<int64_t>(val);
++    if (!isInt<32>(disp)) {
++      reportRangeError(ctx, loc, rel, Twine(disp), minIntN(32), maxIntN(32));
++      return;
++    }
++    const bool neg = disp < 0;
++
++    uint32_t insn = read32be(loc);
++    const unsigned op = insn >> 24;
++    const unsigned wp = (insn >> 16) & 0x3u;
++    const unsigned rd = (insn >> 18) & 0x3Fu;
++
++    // The other half of the pair, at the adjacent instruction.  Both halves
++    // must stay inside this input section: a hand-written object may place a
++    // record at the very edge, and reading across the boundary would reach an
++    // unrelated section (contract-elf.md §3.2).
++    const uint8_t *pairLoc = wp == 1 ? loc + 4 : loc - 4;
++    bool inSection = pairLoc >= secBegin && pairLoc + 4 <= secEnd;
++
++    unsigned newOp = 0;
++    uint16_t slice = 0;
++    bool ok = false;
++    if (inSection) {
++      const uint32_t pairInsn = read32be(pairLoc);
++      const unsigned pairOp = pairInsn >> 24;
++      const unsigned pairWp = (pairInsn >> 16) & 0x3u;
++      const unsigned pairRd = (pairInsn >> 18) & 0x3Fu;
++
++      if (wp == 1) {
++        // hi half: carries disp[31:16], followed by the lo half (same rd).
++        ok = (op == opSetZw || op == opSetOw) && pairWp == 0 &&
++             (pairOp == opOrW || pairOp == opAndnW) && pairRd == rd;
++        newOp = neg ? opSetOw : opSetZw;
++        slice = static_cast<uint16_t>(
++            (static_cast<uint64_t>(disp) >> 16) & 0xFFFFu);
++      } else if (wp == 0) {
++        // lo half: carries disp[15:0], or its complement when disp < 0, and is
++        // preceded by the hi half (same rd).
++        ok = (op == opOrW || op == opAndnW) && pairWp == 1 &&
++             (pairOp == opSetZw || pairOp == opSetOw) && pairRd == rd;
++        newOp = neg ? opAndnW : opOrW;
++        const uint16_t lo = static_cast<uint16_t>(disp & 0xFFFF);
++        slice = neg ? static_cast<uint16_t>(~lo) : lo;
++      }
++    }
++
++    if (!ok) {
++      Err(ctx) << getErrorLoc(ctx, loc)
++               << "R_DADAO_REL32 at an unexpected instruction: expected a "
++                  "set.zw/set.ow (wyde-position 1) immediately followed by a "
++                  "same-register or.w/andn.w (wyde-position 0); got opcode 0x"
++               << utohexstr(op) << ", wyde-position " << wp
++               << " (contract-elf.md §3.2, ADR-0019 D11)";
++      return;
++    }
++
++    // Rewrite the opcode and the 16-bit wyde only; rd and wp are preserved
++    // (same shape as the ABS48 instruction path).
++    insn = (insn & 0x00FF0000u) | (static_cast<uint32_t>(newOp) << 24) | slice;
++    write32be(loc, insn);
++    return;
++  }
 +  case R_DADAO_ABS48:
 +    // Absolute address must fit in 48 bits (the address space is 48-bit).
 +    checkIntUInt(ctx, loc, val, 48, rel);
@@ -475,12 +608,15 @@ index 000000000..1ae638954
 +void DADAO::relocateAlloc(InputSection &sec, uint8_t *buf) const {
 +  uint64_t secAddr = sec.getOutputSection()->addr + sec.outSecOff;
 +  const bool isExec = (sec.flags & SHF_EXECINSTR) != 0;
++  // Bound the paired-instruction reads of R_DADAO_REL32 to this input section
++  // (the same range relocate() uses for bufEnd).
++  const uint8_t *const secEnd = buf + sec.content().size();
 +  for (const Relocation &rel : sec.relocs()) {
 +    if (rel.expr == R_RELAX_HINT)
 +      continue;
 +    uint8_t *loc = buf + rel.offset;
 +    uint64_t val = sec.getRelocTargetVA(ctx, rel, secAddr + rel.offset);
-+    relocateInSection(loc, rel, val, isExec);
++    relocateInSection(loc, rel, val, isExec, buf, secEnd);
 +  }
 +}
 +
