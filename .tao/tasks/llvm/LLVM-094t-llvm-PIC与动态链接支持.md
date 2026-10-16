@@ -387,3 +387,11 @@
 **未动（明确）**：`contracts/`（机器可读）、`components/**`、其它 `spec/` 册、`.tao/archive/**`、`ADR-0019`/`ADR-0026` 正文、`milestones.md`（见下「披露」）。**未** `push`。
 
 **披露（未做，供主会话裁定）**：`milestones.md` `L176` 的「已知限制/遗留」仍写「`contract-elf §2.2` 仍为旧号（`ABS48=0`/`NUM=6`）⇒ 随 `ISS-206`（P2）同步」——本次已不成立，但该文件不在本派单必做清单内 ⇒ **未动**，提请同步。
+
+#### architect 提交 / merge 留痕（2026-10-16，阶段 E；**只追加**）
+
+- **开工前现场（核）**：分支 `LLVM-094t-E`（`git branch --show-current` = `LLVM-094t-E`）；`HEAD` = `b43680d`（= `master`）；`git status --porcelain -uall` = **干净**。⚠️ **披露**：交办称「`master` = `origin/master` = `b43680d`」，而现场本地 `origin/master` ref = **`ae47ae5`**（`git branch -vv` 显示 `master` `[origin/master: ahead 1]`）⇒ 该 ref 系**未 fetch 的陈旧本地值**；**未** fetch、**未** 改动远端状态、**未** push。
+- **文件集对账**（逐路径显式 staging、**未用** `git add -A`）：`git diff --cached --name-status` = **5 `M`**（0 `A` / 0 `D`），与上「本阶段改动文件（5 个）」声明**逐条一致** ⇒ **无漏提 / 多提 / 越界**（`spec/` 命中 **1** 册 = 已授权，证据 = 上「用户授权」段 + 锁注释）。
+- **笔 1** = `c3241ad`（5 文件、+55/−7）。**档位披露**：阶段 E = **阶段级落地**、任务级 `**状态**` 仍 `待验收`（阶段级验收未走）⇒ 按 `architect.md` 常规应为 `WIP:` 前缀；**主会话本次明确指令为不带 `WIP:` 的正式提交信息** ⇒ 从指令执行并在此披露（同阶段 A/B/C 先例）。
+- **只读核对（真实 rc）**：见上「阶段 E 记录」门控行（`make check` L1 + 7 项单项各 **rc=0**；记录落纸**前后各跑一轮** L1，均 **rc=0**；日志 `.work/log/llvm/LLVM-094t-E-architect-*.log`）。
+- **落地**：`merge --ff-only` 入 `master` ⇒ `master` = 笔 2（含 `c3241ad`）；分支 `LLVM-094t-E` 已删。**未** `push`（`push` 只由主会话在 `/complete` 后执行）。
