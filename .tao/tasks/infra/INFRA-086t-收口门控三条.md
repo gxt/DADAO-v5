@@ -44,6 +44,18 @@
 **新发现/坑**：① A2 只断言「当前里程碑 **≥1** 个 m 册」，不按模块各一册（口径已披露，未扩张）；② `check-milestone` 在 m 册未建前**必然红**（设计如此，故不入日常层）；③ B4 红点含**生成物** ⇒ 须改生成器 + 重生成，**不得手改**；④ 改 `SECTION_BADGES` 会连带 `spec/` 内嵌块（只读册）⇒ 生成器用 `CONTRACT_BADGES` 覆盖，`_section_content()` 保持原样。
 **遗留问题**：本册 `**状态**` 保持 `待开始`（收尾 / 独立验收由 reviewer 与主会话推进）；A2 的「每模块一册」是否升级为断言属**口径裁定**，未自扩张。
 
+### 补记：`check-musl-freshness` 假红修复（`ISS-263`，2026-10-17 23:08–23:16）
+
+**现场（逐字）**：用户 L2 现场 `make check-musl-freshness` ⇒ `[FAIL] toolchain stamp == current clang/ld.lld: expected=equal actual=different`，其余 7 项全 PASS（`installed libc.so == build libc.so` sha256 `d5fa2da3…`、source stamp 一致）。逐项对比 stored/current：`clang` 仅 `ctime` 不同（`1792248160137176763`→`1792249700261026265`），`size`/`mtime`/版本串全等；`ld.lld` 同形。
+**根因**：`build_musl.py::toolchain_stamp()` 把 `st_ctime_ns` 计入戳记，而 `ctime` 是 **inode 元数据、不是内容属性**；`make install-host` 走 `Makefile::atomic-install`＝`cp -aL` + `rename(2)`，**同字节重装也落新 inode/新 ctime**（mtime 保留）⇒ 同内容重装被判「toolchain changed」。
+**修法（判据层）**：① `toolchain_stamp()` **去掉 `ctime`**，保留 `size` + `mtime` + `--version` 版本串；未改用 sha256 的理由 = clang 4.0 GB + lld 2.0 GB（>6 GB I/O）与「无条件低成本门控」冲突，且真实换工具链必然改 mtime/版本串（已写入脚本注释）。② `check_musl_freshness.py` 就地补注释固化判据原则（**只用稳定内容属性**），未新开文档。③ **真判据未削弱**：`libc.so`/`libc.a` 内容 sha256、source stamp、安装副本 == 构建产物全部保留。
+**重建戳记**：`make build-musl-shared JOBS=8` **rc=0**（20.8 s，全量 clean：`toolchain stamp changed` + `source stamp unchanged`）⇒ 新戳记无 `ctime`；`libc.a` sha256 `a65c3351…`、`libc.so` `d5fa2da3…` **与重建前逐字节相同**（mtime 23:10:41/42）。
+**双向自检（同次前台闭合，`cp -a`+md5/mtime 还原）**：**真变必红** ① 安装根 `clang` ← `ld.lld`（内容/尺寸/版本不同）⇒ gate **rc=1**、恰报 `toolchain stamp` 行；② 安装 `libc.so` 追加 1 字节 ⇒ gate **rc=1**（sha256 `d5fa2da3…`→`04ffec04…`）。**假变必绿** ③ `shutil.copy2`+`os.replace` 重拷 `clang`（同字节/size/mtime，**ctime 变化**）⇒ gate **rc=0**；④ 同法重拷安装 `libc.so` ⇒ gate **rc=0**；四处均还原并复核 md5/mtime 全等，末轮 gate rc=0。
+**验收结果**：`check-musl-freshness` **PASS**（7→8 项全绿）；证据 `.work/evidence/ISS-263/run.sh` default **rc=0**、`--inject` **rc=0**（2 min 07 s，含 I1–I4）；门控各 rc=0：`check-musl-freshness`/`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues.py`/`make check`(L1)。
+**修改文件**：`tools/infra/build_musl.py`（`toolchain_stamp` 去 `ctime` + 判据注释）、`tools/infra/check_musl_freshness.py`（判据注释/文档串）、`.tao/knowledge/issues.yaml`（`ISS-263`，`closed`/`resolved_by = INFRA-086t`）、本册；gitignored：`.work/log/infra/ISS-263-build-musl-shared.log`、`.work/evidence/ISS-263/`。
+**新发现/坑**：① `ctime` 对「同字节重装」敏感（`cp -a` 保 mtime 但必然刷新 ctime）⇒ **不得**进入新鲜度判据；② 「sha 不变」不能证「未重建」——本轮重建前后两产物 sha 逐字节相同，重建证据只能是 mtime + 构建日志。
+**遗留问题**：待 reviewer 独立复核；本册 `**状态**` 保持 `待开始`（未改），未 commit/push。**披露**：本次重建（23:10:41/42）晚于 `TESTCASES-046t/047t` 的 4 组复跑（22:44–23:02），但 `libc.a`/`libc.so` sha256 与复跑时**逐字节相同** ⇒ 那 4 组数字不受影响（未重跑，按派单不加跑）。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审（2026-10-17，临时 ID 批）
@@ -52,3 +64,19 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立重跑、约束核验、判决）
+
+#### 第 2 轮 engineer 自审（`ISS-263` 假红修复，2026-10-17 23:08–23:16）
+
+逐行审查 `toolchain_stamp()` 的字段选取、`check_musl_freshness.py` 的判据注释与 `run.sh` 的四处注入/还原路径，并以 default + `--inject` 各一次真实执行对齐（非抽样）。
+
+| # | finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| F1 | 改格式后旧戳记（含 `ctime`）与新戳记必然不等 ⇒ 升级后首次 gate 红 | ✅已处置 | 按要求 `make build-musl-shared JOBS=8` | `stamp changed` ⇒ `make clean` 全量（20.8 s）；重建后 8/8 PASS |
+| F2 | 去 `ctime` 是否放过「同 size+同 mtime、内容不同」的真变 | ✅按证据接受 | 未改判据；理由写入脚本注释（支持路径下不可达；真换链必改 mtime/版本串） | I1（`clang`←`ld.lld`：内容/尺寸/版本不同）⇒ gate rc=1 恰报该行 |
+| F3 | I1 注入 `cp -aL` 是否会写穿 `ld.lld` 符号链接（连带破坏工具链） | ✅已验证 | 未改（`cp -aL` 解引用源、目标 `clang` 是普通文件） | `bin/lld` md5 `cfd64e80…` == 构建树；`clang` 还原 md5 `854dd25e…`、mtime 1792243323 不变 |
+| F4 | 还原若丢 mtime ⇒ 戳记仍红，注入无法回绿 | ✅已验证 | `cp -a` 备份/还原 | I1/I2 的 md5 与 mtime 逐项相等，还原后 gate rc=0 |
+| F5 | 判据需「真变必红 × 假变必绿」双向可达 | ✅已验证 | 新增 I1–I4 | I1/I2 红（toolchain / sha256）；I3/I4（仅 ctime 变）绿；末轮 gate rc=0 |
+| F6 | 新 issue 字段约束（`closed` 必填 `resolved_by`） | ✅已验证 | `ISS-263`：`closed` / `resolved_by = INFRA-086t` | `check_issues` rc=0（24 closed → 非空 / 62 open → null） |
+| F7 | 重建后两产物 sha 与重建前逐字节相同 ⇒ 不能用 sha 证「已重建」，且重建晚于 4 组复跑 | ✅已披露 | 未重跑 4 组（字节相同，数字不受影响） | `libc.a` `a65c3351…`、`libc.so` `d5fa2da3…` 重建前后同值；mtime 23:10:41/42；册内「披露」行 |
+
+判决：无未修 finding；`check-musl-freshness` 由假红转 PASS，真判据未削弱。按派单**未改**本册 `**状态**`（仍 `待开始`）、未 commit/push。

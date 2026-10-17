@@ -16,7 +16,8 @@ compiler was unchanged.  This gate makes the invariant mechanical:
 Checks (each printed with expected/actual and its own verdict):
   1. build product ``lib/libc.so`` exists in the musl build tree
   2. installed ``<sysroot>/lib/libc.so`` exists
-  3. recorded toolchain stamp == current toolchain stamp
+  3. recorded toolchain stamp == current toolchain stamp (stable content
+     attributes only: size / mtime / ``--version``; ctime excluded, ISS-263)
   4. recorded source stamp     == current source digest
   5. installed libc.so sha256   == build libc.so sha256
   6. ``ld-musl-dadao.so.1`` is a symlink to ``libc.so`` resolving to it
@@ -84,6 +85,10 @@ def main() -> int:
         return 1
 
     # 3: the objects/link were produced by this clang/ld.lld.
+    # The stamp carries only stable content attributes (size / mtime / the
+    # `--version` line).  ctime is intentionally excluded: it is inode
+    # metadata, and an install-host re-copy of byte-identical binaries bumps it
+    # (ISS-263) -- that is not a toolchain change and must stay green.
     stored_tc = bm.read_stamp()
     current_tc = bm.toolchain_stamp()
     if stored_tc is None:

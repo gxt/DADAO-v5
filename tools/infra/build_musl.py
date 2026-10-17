@@ -218,11 +218,19 @@ def config_records(shared: bool) -> bool:
 #
 # Why not a sha256 of the binaries: the installed clang is 4.0 GB and lld
 # 2.1 GB, i.e. >6 GB of I/O on every single build for a guard that has to be
-# cheap enough to run unconditionally.  size+ctime+mtime cannot miss a rewrite
-# (any write to an existing file bumps ctime, which user space cannot set
-# back), and the version line adds the upstream revision the binaries were
-# built from.  A preserved-mtime copy still lands as a new ctime (and usually
-# a new inode), so the "reinstalled with the same timestamp" case is covered.
+# cheap enough to run unconditionally.  The stamp therefore records only
+# *stable content attributes*: size + mtime + the version line (which carries
+# the upstream revision the binaries were built from).
+#
+# ctime is deliberately NOT part of it (ISS-263, 2026-10-17): ctime is inode
+# metadata, not content.  `make install-host` re-copies the same bytes with
+# `cp -aL` + rename(2), which preserves size and mtime but always lands a new
+# ctime, so including ctime turned a byte-identical reinstall into a false
+# "toolchain changed" (check-musl-freshness went red while size, mtime, the
+# version line and every libc sha256 were unchanged).  A toolchain that really
+# changed is rebuilt/relinked (mtime moves) or replaced from a different build
+# tree (mtime and/or version line differ); a content-only change that keeps
+# size and mtime is not reachable through the supported install path.
 STAMP_TOOLS = ("clang", "ld.lld")
 STAMP_REL = Path("obj") / ".dadao-toolchain-stamp"
 # A second stamp records WHAT the library was built FROM: a digest over every
@@ -249,7 +257,7 @@ def toolchain_stamp() -> str:
         version = ((res.stdout.splitlines() or [""])[0] if res.returncode == 0
                    else f"rc={res.returncode}")
         lines.append(f"{tool} -> {real} size={st.st_size} "
-                     f"mtime={st.st_mtime_ns} ctime={st.st_ctime_ns} {version}")
+                     f"mtime={st.st_mtime_ns} {version}")
     return "\n".join(lines) + "\n"
 
 
