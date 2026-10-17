@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.cpp b/clang/lib/Driver/ToolChains/DADAO.cpp
 new file mode 100644
-index 000000000..07ebc7439
+index 000000000..47a9d71d0
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.cpp
-@@ -0,0 +1,129 @@
+@@ -0,0 +1,137 @@
 +//===--- DADAO.cpp - DADAO ToolChain Implementations ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -112,18 +112,26 @@ index 000000000..07ebc7439
 +  TC.AddFilePathLibArgs(Args, CmdArgs);
 +  AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
 +
-+  // Compiler builtins (ADR-0027 D5).  `-rtlib=compiler-rt` used to be
-+  // silently ignored here (`-Wunused-command-line-argument`) and no archive
-+  // was ever added, so every emitted libcall had to be satisfied by hand.
-+  // Consume the option: the independent DADAO compiler-rt builtins archive is
-+  // appended *after* the user inputs (so it resolves their undefined libcalls)
-+  // and is looked up through ToolChain::getCompilerRT, i.e. the same path that
-+  // `-print-libgcc-file-name` reports.  The default (no `-rtlib`) stays
-+  // archive-free: bare-metal links that bring their own runtime are unchanged.
-+  if (TC.GetRuntimeLibType(Args) == ToolChain::RLT_CompilerRT) {
++  // Compiler builtins (ADR-0027 D5, ISS-262).  The independent DADAO
++  // compiler-rt builtins archive is the *default* runtime library (see
++  // GetDefaultRuntimeLibType()), so it is appended after the user inputs even
++  // without any `-rtlib` flag: libcalls must be resolved by the toolchain, not
++  // by hand.  It is looked up through ToolChain::getCompilerRT, i.e. the same
++  // path that `-print-libgcc-file-name` reports.  `-rtlib=libgcc` still opts
++  // out (nothing is appended and `-print-libgcc-file-name` reports libgcc.a).
++  //
++  // Suppression follows the GNU driver (`Gnu.cpp`: AddRunTimeLibs sits under
++  // `!hasArg(nostdlib, r)` and `!hasArg(nodefaultlibs)`): `-nostdlib`,
++  // `-nodefaultlibs` and `-r` mean "no default libraries" and must not get the
++  // archive.  `-shared` is *not* such a switch -- upstream links the runtime
++  // library into shared objects too, since their libcalls cannot be resolved at
++  // load time -- so the archive is added there as well.  `-nostdlib++` only
++  // gates the C++ standard library (`CommonArgs.cpp`), not the runtime library.
++  if (TC.GetRuntimeLibType(Args) == ToolChain::RLT_CompilerRT &&
++      !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs,
++                   options::OPT_r))
 +    CmdArgs.push_back(
 +        TC.getCompilerRTArgString(Args, "builtins", ToolChain::FT_Static));
-+  }
 +
 +  CmdArgs.push_back("-o");
 +  CmdArgs.push_back(Output.getFilename());

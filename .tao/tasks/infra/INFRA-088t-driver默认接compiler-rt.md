@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`INFRA-079t`（builtins 独立库 + `-rtlib=compiler-rt` opt-in 接线 + 安装规则；**待验收**）；`ISS-262`（用户裁定 ①，`open`）；`ADR-0027 D1`–`D5`（库范围/归属/共用口径）；`ISS-210`（安装根新鲜度）、`ISS-229`（重建/门控串行）、`ISS-263`（工具链戳记只用稳定内容属性）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -54,16 +54,49 @@
 8. 补丁导出纪律：写 `/tmp`、行数下限、非空 blob、`check-patch-tree` 断言⑥。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：证据 `.work/evidence/INFRA-088t/run.sh` default **7 PASS / 0 FAIL（rc=0）**；`--inject` **3 注入全转红**（I1 移走 staged archive ⇒ `-print-libgcc` `exists=no` + 默认链接 `cannot open …libclang_rt.builtins.a`；I2 去 `GetDefaultRuntimeLibType` 锚点 ⇒ `hdr-anchor=0`；I3 oracle 成功信号翻 1 ⇒ QEMU rc=1），`cp`+md5 还原一致（I1/I2 md5 OK、I3 生成器 md5 不变），终局复跑 rc=0（INJECT OK）。
+**修改文件**：① `.work/source/llvm-project/clang/lib/Driver/ToolChains/DADAO.h`（+6 行：`GetDefaultRuntimeLibType() → ToolChain::RLT_CompilerRT`）；② 同目录 `DADAO.cpp`（默认追加 archive + 上游抑制语义 `-nostdlib`/`-nodefaultlibs`/`-r` 不加、`-shared`/`-nostdlib++` 加）；③ `components/llvm-project/patches/clang/lib/Driver/ToolChains/{DADAO.h,DADAO.cpp}.patch`（`make_patch` 重导出：2 写 / 76 跳，`series` 仍 **78**）；④ `components/llvm-project/changelog.md` +1 条（M8）；⑤ `.work/evidence/INFRA-088t/{run.sh,gen_oracle.py}`（新增）；⑥ 本册完成区 + 自审。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- **默认端到端（主判据）**：189 项 oracle、**不带 `-rtlib`**、**不带显式 archive**，`-O0`/`-O2` link **rc=0**、QEMU 大端 **rc=0**；`-###` 默认链接行 archive=1 且在输入之后，路径 == `-print-libgcc-file-name`（`exists=yes`、与 `-rtlib=compiler-rt` 同值），`unused` 警告 **0**。
+- **符号**：staged archive **14/14** 期望 libcall 有定义（oracle 实发 12 + `__muldc3`/`__mulsc3`，现场统计）；复数探针默认 link+qemu rc=0。
+- **可退出**：`-rtlib=libgcc` ⇒ `-print-libgcc-file-name` = `libgcc.a`（exists=no）、链接行 archive=0、带 libcall 程序 link rc=1（12 行 `undefined symbol`）。
+- **抑制语义（上游依据）**：`Gnu.cpp:486/487/513`（`AddRunTimeLibs` 在 `!hasArg(nostdlib,r)` ∧ `!hasArg(nodefaultlibs)` 内）、`CommonArgs.cpp:1802`（`-nostdlib++` 只关 C++ 标准库）⇒ 实测 `-nostdlib`/`-nodefaultlibs`/`-r` archive=0、`-shared`/`-nostdlib++` archive=1；`-nostdlib` 带 libcall rc=1、无 libcall rc=0；`-shared` 实际链接 rc=0 且 `__muldc3` 以 hidden 定义入 `.so`。
+- **构建/补丁**：`ninja -C .work/build/llvm -j8 clang` **rc=0**（实测 **245.5 s**，申报 ≈4 min）；组件 E1 `dirty=0 / base..HEAD=1 / touched=2`；`check-patch-tree` **rc=0（173 补丁，未变；llvm-project 78）**。
+- **门控（各留自身 rc）**：`check-instrinfo`/`check_lit_gen`（64/0）/`check-patch-tree`/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check_issues`/`make check`(L1，`repository checks (L1): PASS`) 全 **rc=0**（日志 `.work/log/infra/INFRA-088t-*.log`）。
+**新发现/坑**：① `-print-libgcc-file-name` 的默认值**只**由 `GetDefaultRuntimeLibType()` 决定（`Driver.cpp:2727-2747` 按 RLT 分支）⇒ 默认切换必须走该覆写，不能只在 link job 内联判断。② `-shared` 易误判为「应抑制」：上游抑制集**只有** `nostdlib`/`-r`/`nodefaultlibs`，`-shared` 照常链 runtime（否则 .so 的 libcall 加载期无解）；`-nostdlib++` 亦不抑制。③ 覆写需声明 ⇒ `DADAO.h` 必改，补丁集为 2 份改（非 1 份）。
+**遗留问题**：**未跑** `install-host`/`build-musl*`/`build-picolibc`/L2/L3（主会话）；**未** commit/push；**未改** 任务 `**状态**`。`install-host` 后须复验：① 默认吃**安装根** archive（`-print-libgcc-file-name` 指向 `.dadao/cross-toolchain/lib/clang/…`）且端到端 rc=0；② `check-musl-freshness`（重装工具链会翻红 ⇒ 先 `build-musl-shared` 重建）；③ `build-musl`/`build-musl-shared`/`build-picolibc` 产物逐字节对比（B2 已模拟为同字节，此处做实跑确认）；④ L2（`check-lit`）与 L3 复跑。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+自主逐行审查（无嵌套子代理）；判决 = **可交付**（默认/退出/抑制三面均有真值与上游依据；未跑项已如实披露）。按派单**未改** `**状态**`。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `check_libcalls` 的计数打印用了非法参数展开（`${#EXPECTED_SYMS// / }0`）⇒ 摘要文本错 | ✅已修 | 改为 `printf '%s\n' $EXPECTED_SYMS \| wc -l` 现场计数 | 默认运行 `archive-defines=14/14` |
+| F2 `-###` 是单行输出，用 `grep -n` 行号比「archive 在输入之后」恒假 ⇒ S4 判据不可达 | ✅已修 | 改 python 字符偏移（`find(archive)` vs `max(rfind(crt0.o), rfind(m.o))`） | S4 `archive-after-inputs=yes` |
+| F3 I1 注入原用 `m.o`（无 libcall）⇒ 移走 archive 也不会失败，注入不可达 | ✅已修 | 改用 `oracle.O0.o`（12 libcall） | I1 `link red as expected: cannot open …` |
+| F4 `check_state` 的 `OPT_r` 锚点过弱（会匹配 `OPT_rtlib`） | ✅已修 | 收紧为 `options::OPT_r` | I2 `hdr-anchor=0` 可判别 |
 
 #### 第 1 轮 reviewer 验收
 （审查者独立重跑、约束核验、判决）
+
+### 安装根复验（2026-10-18，主会话已跑 `install-host` 后）
+
+**测试结果**：`make build-musl-shared JOBS=8` **rc=0（20.1 s；工具链戳记变 ⇒ full clean）**；`make check-musl-freshness` **rc=0**（原文：`[PASS] toolchain stamp == current clang/ld.lld: expected=equal actual=equal` … `check-musl-freshness: PASS (installed libc.so built from the current musl sources + toolchain)`）。证据脚本 default **8 PASS / 0 FAIL（rc=0，新增 S8 安装根项）**；`--inject` 仍 **rc=0**（I1/I2 `cp`+md5 OK、I3 生成器 md5 不变、终局回绿）。
+**安装根端到端**：安装根 clang（md5 `f133fb56…` == 构建树）**默认**（无 `-rtlib`、无显式 archive）链接 189 项 oracle `-O0`/`-O2` ⇒ link **rc=0**、QEMU（安装根 `qemu-dadao`，md5 `c40bc7f9…`）**rc=0**；`-###` archive=1 且路径 = `-print-libgcc-file-name` = `.dadao/cross-toolchain/lib/clang/23/lib/dadao-unknown-unknown-elf/libclang_rt.builtins.a`（`exists=yes`、在安装根内、md5 `694152c7…` 与构建产物/compiler-rt 产物三处全等）；`-rtlib=libgcc` ⇒ print=`libgcc.a`、link **rc=1**（未追加）。
+**四组复跑（逐例对比基线）**：`046t` 静态 **38/38**（rc=0，16.1 s）、动态 **38/38**（rc=0，33.8 s），**transitions=0**；`047t` 静态 **303/0/9/25**（8m29s，**transitions=0**）、动态 **298/0/8/31**（9m30s，**transitions=0**，验证脚本 `ALL GREEN` rc=0）。**无 `pass→fail`、无新 `fail`**。
+**一次瞬时异常（如实留证，未复现）**：`047t` 静态首跑出现 `regression/malloc-brk-fail` `pass→blocked`（`qemu killed by host signal 5`，pass 303→302 / blocked 25→26）；该例 ELF 由 `ld.lld` 直接链接（链接行无 clang、与本改动无关），同一 ELF 事后直跑 QEMU **8/8 rc=0**、单例驱动 **5/5 pass**、全量重跑回到 **303/0/9/25** ⇒ 判为 QEMU 侧瞬时故障，现场留存 `/tmp/opencode/INFRA-088t/scene-047t-static-run1/`。
+**`047t` 静态验证脚本 rc=1 的两条旧断言（非本改动引入）**：① audit 只承认 `ISS-246`/`ISS-251` known-fail basis，而 5 条 `math/*l` 已是 `ADR-0030` basis（基线 JSON 同样如此）；② replay 仍期望 `functional/ipc_msg` 为真失败，而它在基线（`LLVM-101t` 后）已 pass。计数与逐例分类均与基线一致。
+**产物指纹 / B2 对照**：重建前 `libc.so` sha256 `d5fa2da3…`（**= B2 记录值**）、`libc.a` `a65c3351…`；重建后 `libc.so` `898ad749…`、`libc.a` `8f9675ff…`（mtime 均 `1792253512`）。**libc.so 与旧副本去 `.comment` 后逐字节相同（`4d5d73be…`，`objcopy --remove-section=.comment` 双向）** ⇒ 差异仅 clang 版本串（`dfdc7dd…`）。`libc.a` 由 `ar rc` 生成（musl `Makefile` 无链接步）⇒ 驱动改动不可能影响其内容；musl `lib/libc.so` 链接行含 `-nostdlib`（`Makefile:162-164`）⇒ 默认 archive 追加次数 **0**（仅显式 `LIBCC`）。即：**与 B2「默认打开无观测回归」结论一致（更强：链接行零变化）**。
+**门控（各留自身 rc）**：`check-musl-freshness`/`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues`/`make check`(L1) 全 **rc=0**（日志 `.work/log/infra/INFRA-088t-final-*`）。
+**未做**：`build-picolibc`（按派单）、L2/L3、commit/push；`**状态**` 未改。
+
+#### 第 2 轮 engineer 自审（安装根复验）
+自主逐行审查（无嵌套子代理）；判决 = **安装根侧可交付**。本轮只改证据脚本（新增 S8）与本册完成区，无产品代码改动。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F5 动态档 driver 默认 work-dir（`<artifacts>/libc-test-user`）与 `047t-dyn` 验证脚本预期 work-dir 不同 ⇒ 首次验证红在 guest root sha（拷贝未刷新） | ✅已修 | 未改他人脚本；按脚本 work-dir 重跑 driver（`--work-dir .work/tmp/TESTCASES-047t-dyn/work-dynamic`），root 拷到当前 `libc.so` | `047t-dyn` 验证 `ALL GREEN` rc=0；root sha `898ad749…` == 构建产物 |
+| F6 `047t` 静态首跑出现瞬时 `pass→blocked`（`malloc-brk-fail`，host signal 5） | ✅已处置 | 留存现场；同一 ELF 直跑 8/8、单例 5/5、全量重跑 303/0/9/25 | 现场 `/tmp/opencode/INFRA-088t/scene-047t-static-run1/`；重跑 transitions=0 |
+| F7 `047t` 静态验证脚本两条旧断言（audit 未收 `ADR-0030` basis、replay 期望 `ipc_msg` 旧失败） | ⏸延后（非本册范围） | 不改他人任务证据脚本；在完成区如实披露 | 基线 JSON 与重跑逐例分类一致（transitions=0） |

@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.h b/clang/lib/Driver/ToolChains/DADAO.h
 new file mode 100644
-index 000000000..fcddfecce
+index 000000000..140b51660
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.h
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,90 @@
 +//===--- DADAO.h - DADAO ToolChain Implementations --------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -53,6 +53,12 @@ index 000000000..fcddfecce
 +  bool isPICDefaultForced() const override { return false; }
 +  UnwindLibType GetUnwindLibType(const llvm::opt::ArgList &) const override {
 +    return UNW_None;
++  }
++  // Runtime library default (ADR-0027 D5 / ISS-262): link the independent DADAO
++  // compiler-rt builtins archive unless the user asks for `-rtlib=libgcc`
++  // (which selects the absent libgcc path and appends nothing).
++  RuntimeLibType GetDefaultRuntimeLibType() const override {
++    return ToolChain::RLT_CompilerRT;
 +  }
 +  bool isBareMetal() const override { return true; }
 +  bool isCrossCompiling() const override { return true; }
