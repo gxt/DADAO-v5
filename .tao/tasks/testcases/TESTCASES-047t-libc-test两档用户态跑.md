@@ -113,16 +113,44 @@
 8. 与 `TESTCASES-046t`/`048t` 同改 `Makefile`/`milestones.md` ⇒ **串行**。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：静态档（`qemu-dadao`、lld 默认基址、显式 `<musl>/lib/libc.a`）现场派生 **discovered=367 / excluded=30 / executed=337：pass=299、fail=10、known-fail=3、blocked=25**；driver rc=1（`blocked>0 ⇒ 非零`，`ISS-248` 口径）。证据脚本默认 rc=0、`--inject` rc=0（3 处注入同次前台闭合，driver 末态 md5 `3e3feceebedd2f0bbd02984cf3ae6e25`）。动态档未跑（下一笔）。
+known-fail（3 条；唯一依据 `ISS-246`；现场 TLS 扫描 3 命中 / 0「命中但 pass」）：
+| 测试名（`src/...`） | 症状（逐字首错行） | 依据 |
+|---|---|---|
+| `functional/tls_init.c` | `tls_init.c:4:1: error: thread-local storage is not supported for the current target` | `ISS-246`①（clang `DADAO.h` `TLSSupported=false`） |
+| `functional/tls_local_exec.c` | `tls_local_exec.c:6:8: error: thread-local storage is not supported for the current target` | `ISS-246`① |
+| `functional/tls_align.c` | 同诊断，来自上游 `.mk` 静态档联入的 `tls_align_dso.c:1:1` | `ISS-246`① |
+fail（10；逐例首错行 + 链接命令见 `.work/log/testcases/libc-test-user-static.log`）：**A 组 4 条同根因**（musl 端口 `__dadao_argmask` 只列 12 个 syscall ⇒ 指针参数落 rd 银行）：`ipc_msg`（`ipc_msg.c:60: qid_ds.msg_perm.mode & 0x1ff == 0666 failed: got 0, want 666`）、`ipc_sem`（`ipc_sem.c:58: semctl(...IPC_STAT...) failed: Bad address`）、`ipc_shm`（`ipc_shm.c:57: ...mode ... got 0, want 666`）、`socket`（`socket.c:29: sendto(...)==1 failed: errno = Invalid argument`）；**B 组 5 条**（`LDBL_MANT_DIG=53`，`_l` 实现在语料 double 向量上偏 1.5–10 ulp）：`math/{acoshl,asinhl,erfcl,lgammal,tgammal}`；**C 组 1 条**：`strptime`（musl `%s` 对 `tm` 无效果，`src/time/strptime.c:133-139`）。
+blocked（25）：**`__clone` 缺口 20 条**（18 条线程用例 + `popen`/`spawn` 经 `posix_spawn→__clone` 得 `ENOSYS`；端口 `src/thread/clone.c` 返回 `-ENOSYS`、无 `clone.s`，`INFRA-082t` 单线程边界）；`setjmp`（`undefined symbol: sigsetjmp`，`INFRA-082t` 遗留⑧）；`tgmath`（`undefined symbol: __muldc3`：链接行无 compiler-rt builtins，补 `.work/build/compiler-rt-builtins/lib/linux/libclang_rt.builtins-dadao.a` 实测 exit=0）；`mbsrtowcs-overflow`（musl `typedef int wchar_t` vs clang `__WCHAR_TYPE__=unsigned int`）；`regression/{flockfile-list,setenv-oom}`（qemu 宿主 SIGBUS/SIGTRAP）。
+excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上游只构建 `src/*/*.c`；该树是"测试生成器" + `___` 模板）；4 = dlopen 依赖（`functional/dlopen.c`、`tls_align_dlopen.c`、`tls_init_dlopen.c`、`regression/tls_get_new-dtv.c`；静态镜像无装载器，`ADR-0025 D2`）。
+**修改文件**：`tools/testcases/run_libc_test_user_suite.py`（新驱动；`--link-mode static|dynamic` 必选，无默认）；gitignored：`.work/evidence/TESTCASES-047t/run.sh`、`.work/log/testcases/libc-test-user-static.json`、`.work/log/testcases/libc-test-user-static.log`、`.work/log/testcases/libc-test-user-static.stdout`、`.work/log/testcases/libc-test-user-static.stderr`、`.work/log/testcases/TESTCASES-047t-evidence.log`、`.work/tmp/TESTCASES-047t/`、`.dadao/tests/libc-test-user/`；本任务书。
+**验收结果**：① 基址/形态：331 张 ELF 全部 `min PT_LOAD=0x10000`（唯一值 ≠`0xFC00_0000_0000`）、`PT_INTERP`=0、`PT_DYNAMIC`=0；337 条 link 行全含 `lib/libc.a`、无 `-T`/`dadao.lds`/`-dynamic-linker`。② 独立 oracle：判据 = 语料自身 `t_error→t_status→main`（非从 LLVM/QEMU 反推）；重放 `argv`/`sin`/`pleval`=exit 0，真失败对照 `ipc_msg`=exit 1 且打印自身断言行。③ `--inject`：期望退出码 0→1 ⇒ `argv` 判 FAIL、rc=1；中和门控（fail>0 仍 rc=0）⇒ `ISS-248` 规则判 violation；把 `tls_init` 记录改标 pass ⇒ 审计 per-case invariant 拒绝；三处 `cp`+md5 复原（`3e3fecee…`）。④ 门控（各自 rc）：`validate-vectors` 0、`check-no-residue` 0、`check-tasks` 0、`check-knowledge-refs` 0、`check-component-changelog` 0、`tools/infra/check_issues.py` 0；`make check`(L1) 在本笔首次运行（并行改动前）**rc=0**、`check-patch-tree` **177**；**收尾复跑 rc=2，唯一失败项 = 并行新增的 `check-contracts-pending`（5 条既有 `.tao/contracts/**` `[待定]` 标记缺 ADR/ISS 指针，非本册文件；其前各步全 PASS）**；未跑 L3/`install-host`/`build-mc|lld|qemu`/`build-musl`（`libc.a` 13:49 ≥ musl 源 mtime，证据脚本已核新鲜）。⑤ 耗时：全量静态档 509 s；证据脚本 default/`--inject` ≈9–11 min。
+**新发现/坑**：① 静态档必须显式 `lib/libc.a`（同目录 `-lc` 选 `libc.so`），同 `TESTCASES-046t`。② `-g` 在本 target 全不可用（DWARF 4 字节重定位被汇编器拒：`relocatable operand in a 1/2/4-byte data field`）⇒ 上游 CFLAGS 的 `-g` 须剔除。③ `__dadao_argmask`（`arch/dadao/syscall_arch.h:63`）覆盖不足 ⇒ 4 条 fail 同根因；`wchar_t` 有符号性冲突（1 条 blocked）。④ 端口无 `clone.s` ⇒ 线程/`posix_spawn`/`popen` 全不可用（20 条 blocked）。⑤ compiler-rt builtins 只在 `.work/build`（未安装）⇒ `_Complex` 乘法链接失败。⑥ 上游 `src/math/gen/**` 不在上游构建集；任务书 367 的递归口径含其 26 个文件，本册按 excluded 逐条列。⑦ 同树曾有两实例并发跑同一 driver（互 rmtree 用例目录）⇒ 现证据脚本带并发守卫 + 隔离 `--work-dir`。
+**遗留问题**：动态档（`--link-mode dynamic` 已实现、**未执行**，下一笔）；`P4` golden 对照、`ISS-246` 修复不在本册。**待架构裁定**：blocked=25（是否登记 issue：musl `__clone`/argmask/`wchar_t`、compiler-rt 安装）与 fail=10（argmask 同根因 4 / long-double 5 / strptime 1）。无阻塞项。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（自审意见、finding 处置及判决）
+
+自主逐行审查 driver（含 16:21 并入的 TLS 扫描 / `classification_ok` 校验，已复核判据）与证据脚本（16:26 被并行改为「仓库内临时目录 + JSON 独立审计 + 3 处注入」版本，已复核并保留，未覆盖），并以真实重跑对齐（非抽样）。
+
+| # | finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| F1 | `glob` 只到三层 ⇒ 漏 `src/math/gen/template/**`（17 个含 `main` 模板），discovered=350 而非 367 | ✅已修 | `**/*.c` 递归 + 深度 ≥2 计数 | `discovered=367` / `excluded=30`（26 gen + 4 dlopen） |
+| F2 | 相对路径基准不一致（`discover()` 相对 `<src>/src`，`build_and_run()` 相对 `<src>`）⇒ dlopen/pleval/api 缺口表全不命中 | ✅已修 | 统一 `cfg["src_root"]` | `dlopen` 进 excluded；`pleval` 加 per-case 旗标后 pass |
+| F3 | `options.h` 生成函数返回文件路径却被当 `-I` 目录 ⇒ api 全 `fatal error: 'options.h' file not found` | ✅已修 | 返回 `dirname` | `api/main` pass（78 TU + `unistd.c` 单列 excluded） |
+| F4 | 上游 `-g` 在本 target 触发 19 条汇编器错误，harness 编译被误判死 | ✅已修 | `BASE_CFLAGS` 去 `-g` 并注明原因 | harness 9 TU 全过；现场 `-w -g`⇒19 errors、`-w`⇒0 |
+| F5 | `pleval.c` 的 chained comparison 在 clang 23 是 **error**（`-w` 降不了） | ✅已修 | per-case flags（引上游 `pleval.mk`） | `musl/pleval` exit=0 |
+| F6 | 线程失败原记 `fail`（`pthread_cond-smasher` 等无 `pthread_create` 首错行）⇒ 归因不一致 | ✅已修 | `uses_thread` 非 pass ⇒ `blocked` + 根因指针（保留现场症状） | 18 条统一 blocked；`fail` 10 条均非线程依赖 |
+| F7 | `posix_spawn`/`popen` 的 `ENOSYS` 记 `fail`（实为同 `__clone` 缺口） | ✅已修 | 新增 gap signature（`got 38`/`errno = 38`） | 两条 blocked，原因串含 `posix_spawn.c:198` |
+| F8 | 闭包守卫不可失败：注入「丢 1 例」仍 PASS | ✅已修 | 在 `main` 用 `discovered_with_main` 重算 census | 注入 ⇒ `[FAIL] census: cases(336)+excluded(30) != discovered_with_main(367)`、rc=1；`cp`+md5 回绿 |
+| F9 | 机器故障退出码被当成 128+signo（0x87 会报成 SIGBUS） | ✅已修 | 恢复 `FAULT_NAMES`（`ADR-0004 D5.8`），先判机器故障 | 本轮 0 例触发（fail 全 exit=1），路径逐行核对 |
+| F10 | `tls_align` 漏上游 `.mk` 的静态 DSO 目标 ⇒ `undefined symbol: t`（误记 blocked） | ✅已修 | `EXTRA_CASE_SOURCES`（引 `tls_align.mk`） | 转 known-fail，症状来自 `tls_align_dso.c:1:1` |
+| F11 | 审计把「编译失败无 ELF」算缺件、把空 link 行当违约 | ✅已修 | 仅 pass/fail 要求 artifact 与 link 行 | 337 条审计全 PASS |
+| F12 | 按工作目录 glob 取 ELF 会带历史残留（334 报成真实数） | ✅已修 | 改按 JSON 记录的 `elf` 列表 | `331 ELF images … PT_INTERP 0` |
+| F13 | 证据脚本被并行修订（并发守卫 + 隔离 work dir + 审计 + 3 注入） | ✅已复核 | 未再改动（避免覆盖并行工作） | 该版本 default/`--inject` rc=0，见完成区 |
+
+判决：无未修 finding；静态档实现、五类分类、证据与门控完成，交验收（动态档按册留待下一笔；blocked=25 / fail=10 的 issue 登记待架构裁定）。
 
 #### 第 1 轮 reviewer 验收
 （独立重跑、约束核验、判决）

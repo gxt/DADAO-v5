@@ -719,3 +719,59 @@
   blocks: []
   resolved_by: "ISS-248（architect 直接派修，未立任务书；证据 `.work/evidence/ISS-248/run.sh`）"
   notes: "【正式登记（源 = `QEMU-062t` 第 1 轮 reviewer「观察 ①」+ 本笔现场复核；architect 立项，2026-10-17）】**现象（现场，逐字）**：`make check-picolibc-tests`（L2 代表集）输出末两行 = `picolibc-tests: stage=fast total=20 pass=0 fail=0 excluded=0 blocked=20` / `picolibc-tests: PASS (fail=0)`（reviewer 2026-10-17 L2 重跑；20 条逐条 `blocked  link error (unclassified)`）。**口径（先弄清 `blocked` 的定义）**：`tools/testcases/picolibc_tests.py` 文件头 L47-L52 明写 —— `blocked` = **backend / library / toolchain gap 导致无法构建或运行**（LLVM lowering / 缺符号 / 链接器重定位 / 机器故障 / QEMU 崩 / 超时），**与 `excluded`（= 范围排除或测试自身 exit 77 = Meson SKIP）分开**；⇒ 本条**不是 skip**（不计入 `excluded`），**也不是测试断言失败**（`fail=0`），而是**链接阶段就过不去**。**历史对照**：2026-10-16 00:13 同一 L2 为 `pass=18 / excluded=2`（`QEMU-060t` 收尾留档），2026-10-16 19:15（`QEMU-061t` 期）起变为 `blocked=20`。**根因（现场复核，只读 + `/tmp` 链接；日志 `.work/log/qemu/ISS-248-picolibc-stale-architect.log`）**：① picolibc 构建产物**陈旧**：`.work/build/picolibc/libc.a` mtime = **2026-10-14 23:36**、`libsemihost.a`/`crt0.o` = **2026-10-14 17:24**，而 `clang` = 2026-10-17 12:22、`llvm-mc` = 2026-10-17 12:18、`ld.lld` = 2026-10-17 14:28；L2 内 `build-picolibc` 明报 **`ninja: no work to do.`**（随后 `meson install` 把陈库刷进 sysroot）；② 陈旧 `libc.a` 含 **5431** 条 `R_DADAO_NONE`（即旧编号 `ABS48 = 0`；`ADR-0019 D10` / `LLVM-094t` 阶段 B 起 `ABS48 = 6`，本笔用当前 `clang` 新编对象复核 = `R_DADAO_ABS48`），新 `ld.lld` 把 0 视作未知重定位 ⇒ 手工链接 `basename` 例（新编测试对象 + 陈旧 `libc.a`）**rc=1**，逐字 = `ld.lld: error: .dadao/dadao-unknown-elf/lib/libc.a(libc_misc_init.c.o):(function __libc_init_array: .text.__libc_init_array+0x14): unknown relocation (0) against symbol __bothinit_array_start`（同族多条，`too many errors emitted, stopping now`）；③ 触发面 = `tools/infra/build_picolibc.py` **无工具链戳记/clean 守卫**（只在 L111 调 `ninja`；对照 `tools/infra/build_musl.py` L57-L65 的 stamp 守卫，`ISS-244` 同机制）⇒ 换工具链后 ninja 仍判 up-to-date。**性质**：**陈旧产物假红 + 门控可见性缺口**——`blocked` 不计 `fail` ⇒ 门控仍打印 PASS，但 picolibc 的**运行期覆盖实际归零**（与 `ISS-235`/`ISS-236` 同族：覆盖不可自证）。**等级 = P2**：不阻断 `QEMU-062t`/`P3`（无功能耦合）、**非** picolibc 语义回归（clean rebuild 预期回到 `pass=18`，本笔**未重建**、不预设结论），但会让「picolibc 能跑」这一能力在整条门控链上**静默丢失**；若把 `blocked=20` 当 skip 处理即属低估（不夸大、也不掩盖）。**建议修法（未实施 ✗，本笔只登记）**：(a) `build_picolibc.py` 按 `build_musl.py` 同法加**工具链戳记**（两/三个决策二进制 mtime+ctime+`--version`），戳记变则重配/重建；(b) 一次性 clean rebuild（删 `.work/build/picolibc` 后 `meson setup` 重配）恢复代表集；(c) **门控语义须裁定**（`blocked>0` 是否应告警/非零，现 `fail=0 ⇒ PASS`）——属判据变更，**不擅改**。**证据指针**：`.work/log/qemu/ISS-248-picolibc-stale-architect.log`（mtime 对照 / 5431 条 `R_DADAO_NONE` / 当前 clang 发 `R_DADAO_ABS48` / 手工链接 rc=1 逐字）；`QEMU-062t` 任务书「第 1 轮 reviewer 验收·观察 ①」（L2 现场 + 2026-10-16 00:13 对照）；`tools/testcases/picolibc_tests.py:47-52`（`blocked` 定义）、`:322-338`（link error 归类）；`tools/infra/build_picolibc.py:111`（无戳记）、`tools/infra/build_musl.py:57-65`（戳记样板）。**边界**：本笔**未改** `tools/**`、`Makefile`、`components/**`、`spec/`、`contracts/**` ✗（只登记 + 只读复核；链接输出落 `/tmp/opencode/QEMU-062t/pico-probe/`）。**交叉引用**：`ISS-244`（**已 closed**：同一「陈旧对象假红」机制，musl 侧；修法 = clean rebuild + 戳记守卫）、`ISS-210`（安装根新鲜度）、`ISS-235`/`ISS-236`（覆盖不可自证）、`ADR-0019 D10`（重定位编号冻结：`ABS48 = 6`）、`LLVM-094t`（阶段 B 改号）、`QEMU-062t`（登记源）、`TESTCASES-042t`（picolibc 自测载体）。**【处置（2026-10-17，architect 直接派修；engineer 实施，未立任务书）】**① **戳记守卫已落地**：`tools/infra/build_picolibc.py` 新增 `STAMP_TOOLS=(clang, clang++, ld.lld)` / `STAMP_REL=.dadao-toolchain-stamp` / `toolchain_stamp()`（resolved path+size+mtime+ctime+`--version`）/ `stamp_decision()`；戳记缺失或变化 ⇒ `rmtree(.work/build/picolibc)` + **fresh `meson setup`**（非 `--reconfigure`）后全量重建，戳记不变 ⇒ 增量；判定逐次落 stdout。② **门控收紧**：`tools/testcases/picolibc_tests.py` 退出判据改为 **`fail>0 或 blocked>0 ⇒ rc=1`**（原 `fail=0 ⇒ PASS` 已删除），`excluded` 仍为唯一 skip 通道且逐条带 reason。③ **实测**（证据 `.work/evidence/ISS-248/run.sh`，33 checks 全绿）：build1（无戳记）⇒ `no toolchain stamp recorded => wiping ... (full rebuild)`、已编 **1144** 条、rc=0；build2（`touch .dadao/cross-toolchain/bin/clang` 模拟工具链变化）⇒ `toolchain stamp changed => wiping ... (full rebuild)` + fresh setup + **1144** 条、rc=0；build3 ⇒ `unchanged => incremental` + `ninja: no work to do`、0 条编译、rc=0；clean 重建后 sysroot `libc.a`：**`R_DADAO_NONE=0` / `R_DADAO_ABS48=5431`**；**L2 = `stage=fast total=20 pass=18 fail=0 excluded=2 blocked=0`、rc=0**（2 条 excluded 均为 picolibc 自跳过 exit 77：`test-access`、`test-strfmon`；**未**把任何用例改标 excluded）；**可达 FAIL**：临时注入 1 条 blocked ⇒ `rc=1` + `FAIL (1 test(s) blocked ...)`，`cp`+md5 还原后 `rc=0` 回绿。④ **门控**（各留自身 rc）：`check-patch-tree` **177** / `check-index-blobs` 132 new + 45 skipped / `check-source-state` / `check-no-residue` / `check-tasks` / `check-knowledge-refs` / `check-component-changelog` / `check-issues` / **L1 `make check`** —— 全 rc=0。⑤ **副作用披露**：`touch` 只改 clang 元数据（内容未变），但**不可逆地更新 ctime** ⇒ musl 侧戳记（`.work/source/musl/obj/.dadao-toolchain-stamp`）现与之不匹配，下次 `make build-musl` 将按设计做一次 `make clean` 全量重建（保守且正确，非缺陷）。⑥ **边界**：未跑 `install-host`、未跑 L3 / `build-mc|lld|qemu`、未改 `components/**`/`spec/`/`contracts/**`、未 commit/push。**交叉引用**：`ISS-244`（musl 同机制）、`ISS-210`（安装根新鲜度）、`ADR-0019 D10`（`ABS48=6`）。"
+
+- id: ISS-249
+  title: "【P1】musl 端口 `__dadao_argmask` 覆盖不足（`arch/dadao/syscall_arch.h:63` 仅 12 个 syscall）⇒ 指针参数落入错误寄存器银行；`libc-test` 静态档 4 例真失败（`ipc_msg`/`ipc_sem`/`ipc_shm`/`socket`）；三载体同表（musl argmask / `syscall_cp.s` / QEMU `cpu_loop`）"
+  status: open
+  scope: [infra, qemu]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象（现场，逐字）**：4 例同根因 —— `ipc_msg`（`ipc_msg.c:60: qid_ds.msg_perm.mode & 0x1ff == 0666 failed: got 0, want 666`）、`ipc_sem`（`ipc_sem.c:58: semctl(...IPC_STAT...) failed: Bad address`）、`ipc_shm`（`ipc_shm.c:57: ...mode ... got 0, want 666`）、`socket`（`socket.c:29: sendto(...)==1 failed: errno = Invalid argument`）。**根因**：musl 端口 `arch/dadao/syscall_arch.h:63` 的 `__dadao_argmask` 只列 12 个 syscall，其余按默认规则投递参数 ⇒ 指针参数进入错误寄存器银行，宿主转发侧看到非地址值。**三载体同表（必须一起改）**：① musl `__dadao_argmask`；② `src/thread/dadao/syscall_cp.s`；③ QEMU `linux-user` 的 `cpu_loop` 参数银行映射。**修法（建议，未实施）**：按 `contract-syscall` 全表逐项标注指针参数并同步三处；判据 = 三条 carrier 的「syscall → 参数银行」映射逐项一致（独立 oracle 从契约派生，不从实现反推）。**等级 = P1**（`libc-test` 4 例真失败；SysV IPC/socket 属用户态栈基础能力）。**证据指针**：`TESTCASES-047t` 完成区「fail」A 组、`.work/log/testcases/libc-test-user-static.log`。**边界**：本笔未改 `components/**`（只登记）。**交叉引用**：`INFRA-082t`（端口源）、`QEMU-062t`（转发侧）、`contract-syscall §1`、`TESTCASES-047t`。"
+
+- id: ISS-250
+  title: "【P2】`long double` ≡ `binary64`（`LDBL_MANT_DIG=53`）而 musl `_l` 实现按更高精度编写/取整 ⇒ `libc-test` 静态档 5 例偏 1.5–10 ulp（`math/{acoshl,asinhl,erfcl,lgammal,tgammal}`）；精度口径尚未明文写入契约"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：5 例 `_l` 数学用例失败，偏差 1.5–10 ulp（语料按更高精度 `long double` 生成期望）。**根因（口径层）**：本 target `long double` ≡ `binary64`（`__SIZEOF_LONG_DOUBLE__=8` / `LDBL_MANT_DIG=53`），而 musl 的 `_l` 实现按更高精度假设编写 ⇒ 在 binary64 上退化。**状态**：`milestones.md` M8 快照 §5 已记「`long double` ≡ `binary64`」，但**尚未明文写进** `contract-fp`/`contract-abi`（口径缺口）。**等级 = P2**（不阻断动态链接；影响数学库精度面）。**处置候选（未实施，须裁定）**：(a) 按口径把 5 例归 `known-fail`/`excluded` 并注明「精度口径差异」，同时把 `long double` 口径写进契约；(b) 修 `_l` 实现按 binary64 语义收敛。**证据指针**：`TESTCASES-047t` 完成区 B 组、`.work/log/testcases/libc-test-user-static.log`。**交叉引用**：`TESTCASES-047t`、`ADR-0025`、`contract-fp`、`contract-abi`。"
+
+- id: ISS-251
+  title: "【P3/语义】`strptime %s` 在 musl 实现中无效果（`src/time/strptime.c:133-139`）⇒ `libc-test` 静态档 1 例真失败；倾向按 musl 语义、改语料分类"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：`strptime` 1 例真失败；musl `src/time/strptime.c:133-139` 对 `%s` **没有任何效果**（既不解析也不写入 `tm`），语料期望 `%s` 被识别。**性质 = 语义口径分歧**（非崩溃、非静默错码）。**倾向（待用户裁定）**：按 musl 语义为准（`%s` 不支持 ⇒ 语料该例改分类/标 `excluded` 并给 reason），**不**改 musl 实现去迁就语料。**等级 = P3**（1 例、非阻断）。**证据指针**：`TESTCASES-047t` 完成区 C 组、`.work/log/testcases/libc-test-user-static.log`。**交叉引用**：`TESTCASES-047t`、`TESTCASES-044t`（语料源锁定）。"
+
+- id: ISS-252
+  title: "【M9】musl 端口无 `clone.s`（`src/thread/clone.c` 返回 `-ENOSYS`）⇒ 线程 / `posix_spawn` / `popen` 全不可用；`libc-test` 静态档 20 例 blocked"
+  status: open
+  scope: [infra, qemu]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：静态档 `blocked=25` 中 **20 例**同根因 —— 18 条线程用例 + `popen`/`spawn`（经 `posix_spawn → __clone` 得 `ENOSYS`）。**根因**：musl 端口无 `src/thread/dadao/clone.s`，`src/thread/clone.c` 直接返回 `-ENOSYS`（`INFRA-082t` 的单线程边界）。**归口 = `M9`**（线程/TLS 同批；用户 2026-10-17 已把 TLS 推到 M9，落点 `LLVM-100t`），`M8` 不要求线程。**等级 = P2**（不阻断 `M8` 判据；阻断线程面用例）。**证据指针**：`TESTCASES-047t` 完成区 blocked 段。**交叉引用**：`INFRA-082t`、`LLVM-100t`、`M9`。"
+
+- id: ISS-253
+  title: "【P2】`wchar_t` 有符号性冲突：musl `typedef int wchar_t` vs clang `__WCHAR_TYPE__ = unsigned int` ⇒ `libc-test` 静态档 `mbsrtowcs-overflow` blocked（编译期类型冲突）"
+  status: open
+  scope: [infra, llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：`mbsrtowcs-overflow` blocked（编译期类型冲突）。**根因**：musl `bits/alltypes.h` 侧 `typedef int wchar_t`（有符号）vs clang DADAO target 的 `__WCHAR_TYPE__ = unsigned int`（无符号）⇒ 同一翻译单元内类型不一致。**处置（未实施，须裁定单一真源）**：(a) 改 clang target 的 `WCharType` 为 `int`（跟 ABI/契约走）；(b) 改 musl 端口 `wchar_t` 为无符号。**判据** = `contract-abi` 明写 + 两侧一致 + 语料该例通过。**等级 = P2**（影响宽字符 ABI 面；非阻断）。**证据指针**：`TESTCASES-047t` 完成区 blocked 段。**交叉引用**：`contract-abi`、`INFRA-082t`、`LLVM-094t`（target 基线）。"
+
+- id: ISS-254
+  title: "【P2】musl 端口缺 `sigsetjmp`（链接期 `undefined symbol: sigsetjmp`）⇒ `libc-test` 静态档 `setjmp` 用例 blocked（`INFRA-082t` 遗留⑧；与 `ISS-242` 同一信号帧面）"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：`setjmp` 用例 blocked，链接期 `undefined symbol: sigsetjmp`。**根因**：端口只提供 `setjmp/longjmp`（`INFRA-082t` 遗留⑧），缺 `sigsetjmp/siglongjmp`；其语义依赖信号掩码保存/恢复，而 `arch/dadao/bits/signal.h` 仍 `[OPEN]`（与 `ISS-242` 的取消重定向同一信号帧面）。**处置**：(a) 随信号帧任务实现 `sigsetjmp/siglongjmp`；或 (b) 显式声明不支持并给出可判失败（不得静默桩）。**等级 = P2**（非阻断 `M8`；阻断 1 例 + 取消语义可观测性）。**证据指针**：`TESTCASES-047t` 完成区 blocked 段。**交叉引用**：`INFRA-082t` 遗留⑧、`ISS-242`、`arch/dadao/bits/signal.h`。"
+
+- id: ISS-255
+  title: "【P3】`qemu-dadao` 上两条 `libc-test` 回归用例以宿主 `SIGBUS`/`SIGTRAP` 终止（`regression/flockfile-list`、`regression/setenv-oom`）⇒ 归 qemu 面诊断"
+  status: open
+  scope: [qemu]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：`regression/flockfile-list`、`regression/setenv-oom` 两例在 `qemu-dadao` 上以宿主 `SIGBUS`/`SIGTRAP` 终止（非 guest 退出码），归 `blocked`。**性质（未定根因）**：可能是 qemu-user 的 guest 栈/内存映射或 `setenv` OOM 路径的宿主侧故障；**不预设**为测试缺陷。**等级 = P3**（2 例、非阻断）。**处置**：qemu 面诊断（宿主信号来源 / guest 地址映射 / 是否 `setenv-oom` 依赖内存上限），给出「guest 可判失败」或修 qemu。**证据指针**：`TESTCASES-047t` 完成区 blocked 段。**交叉引用**：`QEMU-062t`（user-mode 后端）、`ISS-247`（装载基址）。"
