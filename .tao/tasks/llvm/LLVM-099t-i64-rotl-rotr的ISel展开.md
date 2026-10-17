@@ -128,3 +128,11 @@ $ $TC/clang --target=dadao-unknown-elf -ffreestanding -nostdinc $INC \
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### 第 1 轮 architect 提交留痕（2026-10-17）
+
+- **档位**：按主会话指令**正常提交**（非 `WIP:`）；⚠ **如实披露** = 本册第 1 轮 reviewer 块**为空**（无 `Accepted` 判决落盘），任务级 `**状态**` **未改**（保持 `待开始`，验收由主会话推进）。
+- **提交**：`df6add4`（分支 `LLVM-099t`；提交信息 = `LLVM-099t：{ROTL,ROTR} i64 改 Expand … check-patch-tree 152；L1 rc=0`）。
+- **文件集对账**（`git diff --cached --name-only`，3/3 与本册完成区「修改文件」一致，无漏提 / 多提 / 越界）：① 本册（完成区 + 自审）；② `components/llvm-project/changelog.md`（+1 条）；③ `components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOISelLowering.cpp.patch`（重导出，唯一 hunk `+1,1288`→`+1,1301`）。
+- **完成区如实性核对（不改内容）**：证据脚本 `50/50 PASS`、`check-patch-tree` **152**、`gate.L1.log` 尾行 `repository checks (L1): PASS`、组件检出 `HEAD=bda2544d4e98 count=1 clean=True`、组件工作树 `git diff` 为空（改动已入组件基线 `bda2544d4`）——逐条对上。
+- **门控（本笔实跑，各留自身 rc）**：`check-patch-tree` **rc=0**（**152**）/ `check-index-blobs` rc=0 / `check-source-state` rc=0 / `check-no-residue` rc=0 / `check-tasks` rc=0 / `check-knowledge-refs` rc=0 / `check-component-changelog` rc=0 / `python3 tools/infra/check_issues.py` rc=0（**49 open / 19 closed**）/ `make check`(L1) **rc=0**；日志 `.work/log/llvm/ISS-241/gate.*.log`。**未跑** `install-host` / `build-*` / L2 / L3（`ISS-229` 并发禁令；`ISS-210` 新鲜性归落地面任务）。
