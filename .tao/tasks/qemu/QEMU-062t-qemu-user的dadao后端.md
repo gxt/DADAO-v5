@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（M8 范围，**`Accepted`**；本册 = `D2`（无内核 / 用户态可见语义）/ `D6`（路线第 3 步 = `linux-user`）/ `D7`（errno 与 oracle 口径）的执行落点）、**`SPEC-138t`（`P0` 契约，`已验证`）** = `.tao/contracts/contract-syscall.md`（`§1` 号表 = **`rd15`** + **沿用 RISC-V 编号** / `§1.3` `AUDIT_ARCH_DADAO` / `§2` 入口 / `§3` 传参与返回 `rd8` / `§4` `errno` = **`rd8` 负值** / `§5` oracle 禁止项 / `§6` **QEMU user-mode 角色与边界**）、**`SPEC-139t`（`P0` 契约，`已验证`）** = `.tao/contracts/contract-dynlink.md`（`§1.2` 角色分工〔「内核 / 加载器侧」= **QEMU user-mode**〕/ `§6.2`–`§6.6` auxv 注入 · `PT_INTERP` 装载 · guest-root 路径解析 · 入口栈向量 / `§8` oracle 禁止项）、**`INFRA-085t`（`P2`，`待开始`）** = **动态档的被测产物来源**（`libc.so` + `ld-musl-dadao.so.1` + 动态可执行）、`QEMU-061t`（`aip.si` 解码与语义，`已验证`；动态档 AOT 侧 GOT/PLT 取址链）、`QEMU-060t`（`dadao-m1` syscall 服务**已撤回** ⇒ **运行验证移交本册**）、`LLVM-095t`/`SPEC-145t`（`已验证`；`aip.si` / `PCREL_HI`·`PCREL_LO` / PLT 12 B）、`ADR-0003`（ELF machine / 端序；`.tao/contracts/contract-elf.md §1`）、`ADR-0018`（ABI 传参）；纪律 = `docs/Process-01`（组件补丁树，本册**必过** `check-patch-tree`）、`docs/Process-05`（L1/L2/L3）、`docs/Process-07`（门控分层）、`ISS-210`（改组件 ⇒ 安装根须同代）、`ISS-229`（重建 / 门控**串行**）
-**状态**：待开始
+**状态**：已验证
 
 > **编号（现场取号，2026-10-17）**：`.tao/tasks/qemu/` 现存最大 = `QEMU-061t`（`ls` 现场：`QEMU-060t-…md` / `QEMU-061t-…md`）⇒ 取 **`062`**；`QEMU-062` 经 `git log --all --name-only`（全历史）复核**从未被占用**（`lessons §3.21`「编号须全仓〔含历史〕唯一」）。
 
@@ -126,7 +126,7 @@
 判决：全部 finding 已修，冒烟 45/45 + ABI 43/43 + 门控全绿 ⇒ 可交 reviewer 独立验收。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+（占位：实测记录见本节**末尾**「第 1 轮 reviewer 验收（P3，2026-10-17）」；返工后新增轮次标 `第 2 轮`）
 
 #### architect 提交留痕（2026-10-17，提交 + 文件集审核）
 - **档位** = **`WIP:`**（reviewer 第 1 轮尚未验收；主题按派单原文，前缀标未验收）。
@@ -134,3 +134,17 @@
 - **文件集对账**（`git diff --cached --name-status` ↔ 完成区「修改文件」）：`Makefile`(1) / `tools/qemu/**`(2) / `components/qemu/{series,changelog.md,README.md}`(3) / `components/qemu/patches/**`（新增 23 + 更新 4 = 27）/ `components/musl/**`(2) / 本任务书(1) ⇒ **漏提 0 / 多提 0 / 越界 0**；完成区所列 `.work/evidence/QEMU-062t/run.sh` 在 `.gitignore` 的 `.work/` 下（**不入库，非漏提**）。
 - **门控**（各留自身 rc，日志 `.work/log/qemu/QEMU-062t-architect2-*.log`）：`make check`(L1) / `check-patch-tree`（**5 comp / 177 patches**）/ `check-index-blobs` / `check-source-state` / `check-no-residue` / `check-tasks` / `check-knowledge-refs` / `check-component-changelog` / `check-issues` **全 rc=0**。
 - **待主会话处置（如实）**：`**状态**` 仍为 `待开始`（engineer 未置 `待验收`）——architect 未改状态字段（只提交，不代替状态机）。
+
+#### 第 1 轮 reviewer 验收（P3，2026-10-17）
+**重跑记录**（全部前台单跑；输出留 `/tmp/opencode/QEMU-062t-review-*.log`）：
+- 证据默认档 `bash .work/evidence/QEMU-062t/run.sh` ⇒ **rc=0 ALL GREEN**、`[FAIL]` 0：停机协议 2/2（`nm` 无 semihosting/exit-port 符号）+ ABI 43/43 + 冒烟 45/45（=45+43+2 ✓）。
+- 静态档亲跑（直调 `qemu-dadao`）：`hello`⇒`hi\n` rc=0；`exit`⇒**rc=42**；BE 例（stdin 0x119D B）⇒`BE!\n119d\n` rc=0；裸 trap `write(-1)`⇒rd8=`fffffffffffffff7`；nr=5000⇒`ffffffffffffffda`；`ioctl(1,TCGETS,&t)`⇒`r=-1 errno=25`。
+- 动态档亲跑 + **我自解析 ELF 文件**：`AT_BASE=0x7be0751d0000`≠0 页对齐；`AT_ENTRY=0x20498`=`e_entry`、`AT_PHNUM=8`=`e_phnum`、`AT_PHENT=56`=`e_phentsize`、`AT_PHDR=0x10040`≠0；自编探针 `[AT_BASE]` 16 B=`7f454c4602020100…`（ELF64/BE）；`getenv`+`printf`⇒`mark=062t-mark` rc=7；空 `-L` 负控⇒rc=255 `Could not open '/lib/ld-musl-dadao.so.1'`（ldso 真跑/真被依赖）。
+- 前置 1：`llvm-objdump crt1.o _start` = `rb2rb {rb16},{rb1}` + `call [rb0,_start_c]` + `swym`（**无静态帧**）；自编静态/动态探针 `argv0/argv1/envmark` = 真实命令行与环境 ⇒ argv/envp 来自装载器栈。
+- ABI 对账：`cc` 机读 `AUDIT_ARCH_DADAO=**80000da0**`；我自解析 `cpu_loop.c dadao_argmask` ↔ musl `__dadao_argmask` **12 名逐条 0 分歧**（read/write=0x02、brk/mmap/getrandom=0x01、ioctl=0x04）；`syscall_cp.s` 63-66→mask2、96/98/99/214/215/222/278→mask1、29→mask4，与锁表抽样（29=ioctl/63=read/64=write/214=brk）一致；`rd15` 读号（源码 `env->rd[15]` + 行为）+ `-errno`→`rd8`（`env->rd[8]=ret` + 实测负值）。
+- 门控（串行单跑，各留 rc）：`check-patch-tree` = **5 comp / 177 patches** rc=0；L1 `make check` **rc=0**；L2 `make check-modules` **rc=0**（lit 109/109、qemu-smoke 代表集 90/90、codegen 15/15、elf 5/5、semihost 10/10、picolibc fast 20）；L3 `make check-full` **rc=0**（semantics 161/161、lit-full 12/12、diff_ir_lli PASS、Embench 38/38）。
+- 反例可达 FAIL：复跑 `--inject`⇒**7 FAIL**、`--inject-be`⇒**13 FAIL**（与完成区一致，均 cp+md5 还原回绿）；**我的注入 M1**（`user_mode_smoke.py` 期望值 42→43）⇒ run.sh **rc=1**、恰 1 条 `[FAIL] static exit_code: exit: expected=43 actual=42`（44/45）⇒ `cp`+md5 还原（`c7456588…` 一致）⇒ 回绿；**M2**（被测产物 `libc.so` ELF 头 `e_machine 0x0da0→0x0da1`）⇒ **rc=1**（`ld.lld: … is incompatible`）⇒ `cp`+md5 还原（`d57dedeb…` 一致）⇒ 回绿。同一次前台闭合 ✓。
+- oracle 独立性 ✓（ELF 文件事实 / 宿主 uapi / 契约 sha256，未从 qemu 实现反推）；我独立重算：① 宿主 uapi `EBADF=9/ENOSYS=38/ENOTTY=25` ⇒ `-EBADF=…f7`、`-ENOSYS=…da` 与实测 rd8 相符；② `sha256(dadao/syscall.tbl)=8872daa6…8d41d` = 契约 §1.2 锁值（与 `riscv/syscall.tbl` 逐字节同）；③ 自解析 ELF 对 `AT_*`；④ 自探针 `[AT_BASE]` 头 16 B。
+**约束核验**：两档齐（用户 2026-10-17 原话）✓；`rd15`/RISC-V 号/`rd8`/`-errno`/`-ENOSYS`/停机不混 ✓；BE 例 ≥1 且可达 FAIL ✓；`AUDIT_ARCH` 机读 ✓；`ISS-247` 按绕行口径复跑（未判）✓；`ISS-246`/信号 RAS/`ISS-243·245·232·235·236` 不在本册 ✓；`e2a910c` 文件集 ↔ 完成区「修改文件」逐项一致、`Makefile` 仅 target-list+安装行、**门控零放宽**、`spec/`/`contracts/` 未动（`197bdb4` 的 contract-dynlink 订正属 architect 留痕笔）✓；完成区数字 45/43/2/7/13/177 与 rc 全部与我实测一致；`**状态**`=`待开始` 未改 ✓；收尾 `git status --porcelain -uall` 干净、注入文件 md5 全部对账还原。
+**观察（非本册缺陷，供主会话处置）**：① `picolibc-tests` 本轮 `blocked=20（link error）`，而 2026-10-16 00:13 为 `pass=18` ⇒ **2026-10-16 19:15（QEMU-061t 期）起即如此**、早于本册，gate rc 语义仍 PASS（fail=0）⇒ 建议登记 issue。② L2/L3 依赖链自带 `install-host`（派单明示允许门控）⇒ 安装根已落 `qemu-dadao`（md5 `c74b319d…` == 构建树产物，ISS-210 对账可据此办）；证据重跑的 ninja 重链使二进制 md5 与首测不同（源 md5 逐项一致、末次全绿复证）。
+**判决**：**Accepted** —— 验收 1–9 在 reviewer 自己的重跑下全部通过、约束无违反。
