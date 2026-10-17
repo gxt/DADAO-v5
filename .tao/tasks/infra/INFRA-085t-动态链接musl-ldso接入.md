@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（`D6` = `P0 契约 → P1 musl 静态 → **P2 动态链接** → P3 qemu-linux-user → P4 对照/回归`；`D2` 无内核 / `D3` `ld.so` = **musl 自带 ldso** / `D4` musl 与 picolibc 并存 / `D7` golden 对照〔P4〕）；`ADR-0019 D10`（**动态重定位类型集与最终编号**：`NONE=0`/`REL26`=1…`ABS12`=5/**`ABS48`=6**/`JUMP_SLOT`=7/`RELATIVE`=8/`COPY`=9/`TLS_DTPMOD`=10/`TLS_DTPREL`=11/`TLS_TPREL`=12/`TLSDESC`=13/`NUM`=14；值类规则 / 公式）；`ADR-0026 D1–D8`（**动态链接行为口径**：ldso / `PT_INTERP`·`-dynamic-linker` / **仅 GNU hash** / 版本段·`DT_RELR` 都不做 / GOT·TP / eager（`BIND_NOW`）/ 越界 5 条 / 独立 oracle）；`ADR-0027 D5`（compiler-rt builtins = 独立库，picolibc/musl 共用）；**契约真源** = `.tao/contracts/contract-dynlink.md`（`§1`–`§10`；用户 **2026-10-14 逐条确认**，§9 = 裁定清单已定）；`INFRA-082t`（**`P1`**，`已验证` 2026-10-15：musl 补丁集 16 + `make build-musl` + 静态 ELF 可编出；**其 A2+A3 遗留 ⑤⑦⑧ 由本册承接**）；`INFRA-076t`（musl 1.2.6 取源与锁定，`已验证`）；`SPEC-140t`（musl TLS/TP 硬依赖查证，`已验证`）；`ISS-206`（`DADAO.def` 随 `D10` 改号 = **P2 必做**）〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 B/E）**：**「P2 必做」已不成立** ✗ —— ①②③ **三条均已落地**：① `DADAO.def` 改号〔+ `ELF.h`〕/③ 既有产物·向量排查随**阶段 B**；② `.tao/contracts/contract-elf.md §2.2` 同步随**阶段 E**（用户 2026-10-16 授权原话「**授权，但建议删除 `NUM = 6`**」，渠道 = 经主会话问答）；`ISS-206` 保持 `open`（待 `LLVM-094t` 任务级 `已验证` 回填 `closed`）；**生产者侧前置 = `LLVM-094t`**（2026-10-16 已立；阶段 A/B/E 已落地、C 部分交付、D 待做）〕、`ISS-222`（LLVM 后端缺口 4 类）、`ISS-223`（13 源排除）、`ISS-229`（L2/L3 并发假 FAIL ⇒ 验收须**串行**）；`docs/Process-01`（组件补丁组织与构建编排）；`ADR-0016`（install 落点）
 **状态**：待开始
-**阶段进度**：A ✅（A1 判据 rc=0，2026-10-17） ／ B ⏳ ／ C ⏳ ／ D ⏳ ／ E ⏳
+**阶段进度**：A ✅（A1 判据 rc=0，2026-10-17） ／ B ✅（B1 判据 rc=0，2026-10-17） ／ C ✅（C1 = `dlstart` PIC 化；此前批次） ／ D1 **部分**（TLS 基础设施 ✅〔`PT_TLS` 自动 / `TP=rb3` / `TLS_ABOVE_TP`·`GAP=0`·`DTP_OFFSET=0` / 重定位直方图〕；**`__thread` 用户变量 ⇒ 归 `LLVM-100t`**） ／ E ✅（此前批次）
 
 > **`**状态**` 口径**：本任务 = **一个任务书、多阶段验收**（照 `SPEC-142t`/`SPEC-143t`/`INFRA-082t` 先例）⇒ `**状态**` 表**任务级**（**阶段全部验收通过**才置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`。
 
@@ -325,3 +325,55 @@
 - **门控（各留自身真实 rc）**：提交后复跑 `make check`(L1) **rc=0**；`check-patch-tree` **rc=0（154）**、`check-tasks`、`check-knowledge-refs`、`check-no-residue`、`python3 tools/infra/check_issues.py` 各 **rc=0**（日志同日录 `.work/log/architect/INFRA-079t-085t-commit/`）。**未跑**（`ISS-229`）：`install-host` / `build-*` / L2 / L3。
 - **边界**：**未改**本册 `**状态**`（仍 `待开始`；A1 = **阶段**达成、非任务级验收 ✗）、**未 push** ✗；A1 出口判据块与既有完成区内容**未改** ✗。
 - **分支披露**：与 `INFRA-079t` 同 —— 改动已在 `master` 工作树（脏树禁 `switch -c`）⇒ 直接提交 `master`，无 `merge`/分支可删。
+
+## 完成区（2026-10-17，阶段 B1 + D1）
+
+**测试结果**：`make build-musl-shared JOBS=8` **rc=0**（增量 2 s；含 B1 动态可执行链接与判据）；`make build-musl JOBS=8` **rc=0**（静态线 2 s，模式切换 0 重编）。证据 `.work/evidence/INFRA-085t/b1d1/run.sh`：default **33 PASS / 0 FAIL / 3 BLOCKED（rc=2）**、`--inject` **33/33 翻红 / 0 dead（rc=0）**（日志 `.work/log/infra/INFRA-085t-B1D1/{build-*,probe-*,gate-*}.log`）。
+**修改文件**：① `tools/infra/build_musl.py`（+`DYNAMIC_LINKER`；+`link_dynamic_program`/`check_dynamic_exe`/`interp_bytes`/`dyn_string_at`；+`PT_INTERP`/`PT_PHDR`/`PT_TLS`/`DT_NEEDED` 常量；shared 档接线「链接动态可执行 + 判据」；docstring 第 7 条）② `Makefile`（`build-musl-shared` 注释 3 行 + help 1 行，**行为 0 改动**）③ 本册（本块 + `第 6 轮 engineer 自审` + `**阶段进度**` 行同步）。**musl 侧补丁 = 0**（D1 的 arch 宏 `P1` 已就位，见验收 ③）。证据（`.work/`，不入库）：`b1d1/{run.sh,probe_b1d1.py,smoke.c,tls_seed.s,thread_local.c,tls.ll}`。**未动**：`components/**`、`issues.yaml`、`spec/`、`contracts/`、`.tao/contracts/**`、本册 `**状态**`。
+**阶段进度**：**B1 达成**（判据 rc=0）；**D1 = ①③④ 达成、② BLOCKED**（llvm 面）；C/E 此前批次已交付；D2 仍按「待确认项 ⑦」推迟。
+**验收结果**（逐条对 B/D 出口判据）：
+- **B1-① 构建侧显式传**：`link_dynamic_program()` = `ld.lld crt1.o obj libc.so -dynamic-linker /lib/ld-musl-dadao.so.1`；`DYNAMIC_LINKER` 与 `contract-dynlink §6.1` 值逐字相同（探针 B1.2 = **合约解析值 vs shipped 常量**，非自比）。**不改 lld 默认值**（`ADR-0026 D2`）：同一对象**不带**该 flag 链接 ⇒ **无 `PT_INTERP`**（B1.11；`DT_NEEDED` 仍在 ⇒ 对照有效）。
+- **B1-② 字节级**：`PT_INTERP` p_filesz=**24**，payload = `2f 6c 69 62 2f 6c 64 2d 6d 75 73 6c 2d 64 61 64 61 6f 2e 73 6f 2e 31 00` = `b'/lib/ld-musl-dadao.so.1\x00'`（含 NUL 逐字节相等）；`readelf -l` 独立复核 = `[Requesting program interpreter: /lib/ld-musl-dadao.so.1]`；`readelf -d` = `NEEDED [libc.so]`，且 `libc.so` 的 `DT_SONAME` = `libc.so`（两者一致）；动态可执行 = `ELF64`/大端/`ET_EXEC`/`EM_DADAO`，`PT_PHDR` 在首个 `PT_LOAD`。
+- **D1-③ `PT_TLS` 是否已自动**：**是**，但**仅在无 scripted `PHDRS` 时** —— 汇编级 TLS 对象（`.tdata`/`.tbss`，`SHF_TLS`+`STT_TLS`）实测 `PT_TLS` p_filesz=**8**/p_memsz=**16**/p_align=**8**、`readelf -l` 有 `TLS` 段、`p_vaddr` == `.tdata` 节地址、`tv`/`tz` = TLS 偏移 0/8。本仓两份 lds 均显式 `PHDRS` ⇒ lld 走 `script->createPhdrs()`：`dadao.lds` 对 TLS 对象**报错**（`has an STT_TLS symbol but doesn't have a PT_TLS segment`，rc=1，非静默，D1.9）；同脚本用于动态可执行 **rc=0 但静默丢 `PT_INTERP`**（D1.10）⇒ 本笔**不改** lds（无 `__thread` 即无 TLS 段；无条件加会给所有静态 ELF 塞 0 大小 `PT_TLS` 并改头表 = 静态回归）。
+- **D1-④ 逐项取值与依据**：`TP = rb3`（`contract-abi **§1.3**` 表 `rb3|rbtp`；`__set_thread_area.s` = `rb2rb {rb3}, {rb16}`；`__get_tp` = `rb2rd {rd8}, {rb3}`）；`TLS_ABOVE_TP` **已定义**、`GAP_ABOVE_TP=0`、`TP_OFFSET=0`、`DTP_OFFSET=0`、`TPOFF_K=0` ⇒ `TPOFF(sym)==DTPOFF(sym)`，与 §4.3 的 `DTPREL=DTPOFF+A`/`TPREL=TPOFF+A` 无附加常数一致（musl `TP_ADJ(p)=p+sizeof(pthread)+TP_OFFSET` ⇒ TLS 块起点 = TP）。类型号 `TLS_DTPMOD`=**10**/`TLS_DTPREL`=**11**/`TLS_TPREL`=**12**/`TLSDESC`=**13**，与合约 §4.3 表**逐项相等**（期望值从合约表解析，非读实现）。**大端**：TLS 映像文件字节 = `00 00 00 00 00 00 00 07`。
+- **D1-⑤ 静态 `__thread`（P1 遗留 ⑦）= BLOCKED**：`__thread` 编不出 —— ① clang `TLSSupported=false`（`clang/lib/Basic/Targets/DADAO.h`）⇒ `error: thread-local storage is not supported for the current target`；② 绕过 Sema 直接给 IR，后端 `Cannot select: … GlobalTLSAddress`（`llvm/lib/Target/DADAO/**` 零 TLS 代码）。二者属 **llvm** 面。crt 侧 auxv 注入**未做且不应盲做**：musl `static_init_tls` 在 `AT_PHNUM>0` 时**无条件解引用** `aux[AT_PHDR]`，而两份 lds 的 `PHDRS` 把 ELF 头挡在所有 `PT_LOAD` 外（`contract-elf §6.1.2`）⇒ 注入后**每次静态启动读未映射地址**（静态回归）；lld 又不为 `.tdata`/`.tbss` 定义 `__start_/__stop_`（`isValidCIdentifier` 拒绝带点节名）⇒ 需裁定（三选项见遗留②）。
+- **D1-⑥①②③④**：① 见上；② `readelf -r`（binutils 独立解析，DADAO 类型显示为 `unrecognized: N`）+ `llvm-readobj -r`：`libc.so` 原始类型直方图 = `{'6': 33, '7': 6, '8': 2626}`（= `ABS48`/`JUMP_SLOT`/`RELATIVE`），静态 ELF **无重定位节** ⇒ **TLS 类 10/11/12/13 全 0 命中**（D1.11/D1.11b）；`lld/ELF/Arch/DADAO.cpp` 对 10/11/12 仍**两处显式 `Err`**（D1.12，§10②）；③ **未做运行验证**（无 `qemu-user`；**运行归 `P3`**，本块无任何「运行通过」叙述）；④ **两条线不回归**：静态 ELF = `ELF64`/`ELFDATA2MSB`/`ET_EXEC`/无 `PT_INTERP`/无 `PT_DYNAMIC`，`crt1.o` = **`3a9d41a9…`**、静态 ELF = **`b87b21f2…`** 与 pre-batch 同工具链控制组**逐字节相同**（0 差异、无需归因）；`libc.so` 仍 `ET_DYN`/BE/`DT_SONAME`/仅 GNU hash/无 `DT_HASH`·`DT_RELR`·版本段。
+- **门控（各留自身真实 rc）**：`check-patch-tree` **rc=0（154 补丁，与 A1 批同数 —— musl 侧 0 改动）**、`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`python3 tools/infra/check_issues.py`/`make check`(L1) 各 **rc=0**（日志 `.work/log/infra/INFRA-085t-B1D1/gate-*.log`）。
+**新发现/坑**：① **带 `PHDRS` 的 lds 会静默吞掉 `PT_INTERP`/`PT_DYNAMIC`/`PT_TLS`**（`LinkerScript::createPhdrs()` 接管全部程序头，link 仍 **rc=0**）⇒ 动态可执行不能用 `dadao.lds`；`dadao-dyn.lds` 目标 `ET_DYN`（vaddr 0、单 RWX 段）且同受抑制 ⇒ B1 用 lld 默认布局。② **`tls PT_TLS` 不能按需**：无条件加会给无 TLS 程序也产出 0 大小 `PT_TLS` 并改变 phdr 表（实测）⇒ TLS 程序需单独方案。③ **lld 不定义 `__start_/.tdata`** ⇒ TLS 边界只能由 lds `PROVIDE`。④ `__thread` 的**双层缺口**（clang TargetInfo + 后端 lowering）属 llvm 面，按模块边界不碰，**需登记 issue**。⑤ **动态可执行的 crt 还没接解释器栈**：`crt1.o` 的 `_start` 传静态帧（`set.zw/or.w rb16` + `call`，实测反汇编），忽略入参 `rb1` ⇒ `P3` 拿不到 qemu 构造的 argv/envp/auxv（`contract-dynlink §6.5`）；B1 不涉运行，但 **P3 必改**（探针 B1.13 已机械记录该形态）。⑥ **文档漂移**：`rb3=rbtp` 在 `contract-abi **§1.3**`（§1.2 是 RD 表），任务书与 port 注释写成 §1.2。⑦ `readelf` 不在最小安装集（`ADR-0016 D11`），只作证据侧独立复核（shipped 脚本用自己的 ELF 解析器）。
+**遗留问题**：① **D1-⑤ / D1-⑥②「编译 `__thread`」BLOCKED**（需 llvm 任务：`TLSSupported=true` + 后端 `GlobalTLSAddress`/TLS lowering；D2 的 10/11/12 仍显式拒绝，行为安全）；② **D1 静态 auxv 注入需裁定**：**(a)** 扩 lds（`tls PT_TLS` + `.tdata/.tbss` + 把 ELF 头/phdr 放进可装载段 ⇒ **须授权改 `contract-elf §6.1.2`**）｜**(b)** crt 在 `.data` 合成 phdr 表（需 lds `PROVIDE` TLS 边界符号）｜**(c)** 其它；③ TLS 程序的 lds 方案随 ②；④ 动态可执行在 `P3` 须改为转发解释器栈（坑⑤）；⑤ 按派单**未跑** `install-host`/L2/L3、未 commit/push、未改 `spec/`·`contracts/`·`.tao/contracts/**`·`components/**`、未改本册 `**状态**`。
+
+#### 第 6 轮 engineer 自审（阶段 B1 + D1 笔，2026-10-17）
+自主逐行审查（无嵌套子代理，`subagent_depth=1`）；判决 = **B1 可交付；D1 的 ①③④ 可交付，② 属 llvm 面 BLOCKED（已如实登记）**。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 探针 `B1.2` 用「期望值 == 自己派生出的期望值」比较（恒真） | ✅已修 | 改为 `import build_musl` 取 **shipped 常量** 与**合约解析值**比较 | `B1.2 expected=/lib/ld-musl-dadao.so.1 actual=/lib/ld-musl-dadao.so.1`；inject 翻红 |
+| F2 `D1.6` 把 `PT_TLS.p_vaddr` 与 **STT_TLS 符号值**比较（TLS 符号值是**块内偏移**，恒 0）⇒ 恒 FAIL | ✅已修 | 改比 `.tdata` 节地址，并断言 `tv`/`tz` 偏移 = 0/8 | `p_vaddr=0x318b0 .tdata=0x318b0 tv=0 tz=8` |
+| F3 `S4` 把基线 README 的 `sha→名` 映射当 `名→sha` 用 ⇒ 两条假 FAIL | ✅已修 | 反转字典；基线不可读时打印 note 并 FAIL（不抛栈） | `S4.crt1.o`/`S4.musl_smoke.elf` = 与基线同 hash |
+| F4 `--inject` 首版 8 条 **dead**（期望串未随注入变）⇒ 那些断言无可达 FAIL 路径 | ✅已修 | 逐条给 B1.1/B1.4/B1.8/B1.9/B1.10/D1.2/D1.8/S6 加注入期望 | `--inject` **33/33 flipped、0 dead（rc=0）** |
+| F5 `D1.12` 的 grep 模式不匹配（错误串跨两行且带尾空格）⇒ 恒 0 命中假 FAIL | ✅已修 | 改计数 `TLS dynamic relocation ` | `2 sites`（`getRelExpr` + `relocate`） |
+| F6 `run.sh` 的 `ROOT` 少算一级（`../../..` = `.work`）⇒ `make` 在错目录跑、`--no-build` 又把 rc 硬编码 0 ⇒ 构建 rc 变成**假绿** | ✅已修 | `ROOT` 改四级；**删除 `--no-build`**（每次真跑两条线，实测 ~5 s） | `shared rc=0` / `static rc=0` 来自真实 `make`（日志落盘） |
+| F7 `D1.4` 显示串用字面 `\t` 而断言用真 TAB ⇒ 显示「write=no」误导 | ✅已修 | 统一为单一布尔（`{rb3}, {rb16}` / `{rd8}, {rb3}`） | `writes_rb3=yes reads_rb3=yes` |
+| F8 `D1.13`/`D1.14` 指向 `WORK` 下不存在的源 ⇒ rc=1 的**原因错**（no such file，而非真诊断） | ✅已修 | 改为 `EVID` 路径 | 真诊断 = `thread-local storage is not supported…` / `Cannot select … GlobalTLSAddress` |
+| F9 `B1.3` 只接受 `ET_EXEC`，而验收允许 PIE（`ET_DYN`+`e_entry`） | ✅已修 | 放宽为 2 或 3；注入期望 ET_REL | `B1.3 actual=2`；inject `expected=1 (ET_REL)` 翻红 |
+| F10 静态 auxv 注入是否「先做了再说」 | ❌不做（有据） | 未改 `crt_arch.h`：`static_init_tls` 无条件走 `aux[AT_PHDR]`（源码）+ 两份 lds 的 `PHDRS` 把 ELF 头挡在 `PT_LOAD` 外（`contract-elf §6.1.2`）⇒ 注入 = 每次静态启动读未映射地址 | 完成区「D1-⑤」+ 遗留②三选项（需裁定） |
+| F11 `libc.so` 是否该有 `PT_TLS`（musl 自身无 `__thread`） | ✅已核 | 未改：musl 的线程态走 `struct pthread` 字段（TCB），`libc.so` 无 `SHF_TLS` 节 ⇒ 无 `PT_TLS` 是正确形态 | `S6 [] / no PT_TLS` |
+
+**判决与状态对账**：F1–F9 已修、F10/F11 为判定项（附证据）⇒ **本笔无未处置缺陷**；D1 的 BLOCKED 项已逐条落纸（`run.sh` 以 **rc=2** 显式区分「BLOCKED」与「FAIL」，不冒充绿灯）；按派单**未改**本册 `**状态**`、未 commit/push，返主会话走 `/complete`。
+
+## 已知限制（2026-10-17，阶段 B1 + D1 之后）
+
+- **`__thread` 用户变量不可用**（C 层，`llvm` 面缺口）：产物侧 TLS **基础设施**已就位（`PT_TLS` 自动生成、`TP=rb3`、`TLS_ABOVE_TP`/`GAP_ABOVE_TP=0`/`TP_OFFSET=0`/`DTP_OFFSET=0`、类型 10/11/12/13 已映射且 lld 遇即显式报错），但**源码级 `__thread` 编不出** —— ① clang `TLSSupported=false`（`clang/lib/Basic/Targets/DADAO.h`）；② 后端无 `GlobalTLSAddress` lowering。**归 `LLVM-100t`**（`__thread` 与 TLS codegen）。
+- **影响**：`libc-test` 的 TLS 用例、以及依赖 `__thread` 的程序在本 target 上**编不过**（非静默错误，是显式诊断）；`libc.so` 自身不依赖 `__thread`（musl 线程态走 `struct pthread` 字段）⇒ **共享库与 B1 动态可执行不受影响**。
+- **不阻塞 `P3`**（`QEMU-062t`）：`P3` 的动态档装载面（auxv / `PT_INTERP` / 装载基址）与 TLS 用户变量无耦合；TLS 程序的静态 auxv 注入另需裁定（见「遗留问题 ②」三选项，现裁无落点、随 `LLVM-100t` 实施时一并裁）。
+- **动态 TLS（`D2`：10/11/12 发射）**：已推迟 `M9+`（触发条件 = 引入 `dlopen`）；现状行为安全（lld 显式拒绝，非静默）。
+
+#### architect 提交留痕（2026-10-17，`P2` B1+D1 批 + 立册/记账批）
+
+- **档位**：按派单**正常提交**（非 `WIP:`）—— 依据 = 派单指定的提交信息；**如实披露**：`B1+D1` 尚无 reviewer 判决（本册 `**状态**` 仍 `待开始`），若后续 `Needs Revision`，返工笔以 `WIP:` 承接。
+- **提交 A** = `19af5b9`（`B1+D1` 代码）：`Makefile`（`build-musl-shared` 注释 3 行 + help 1 行，**行为 0 改动**）、`tools/infra/build_musl.py`（`DYNAMIC_LINKER` + `link_dynamic_program`/`check_dynamic_exe`/`interp_bytes`/`dyn_string_at` + 常量 + `--shared` 档接线 + docstring 第 7 条）。
+- **提交 B** = **本文件所在提交**（立册 + 记账，含本留痕）；不自引提交号。
+- **文件集对账**（`git diff --cached --name-only` vs 完成区「修改文件」+ 任务范围）：完成区声明 ① `tools/infra/build_musl.py` ② `Makefile` ③ 本册 ⇒ **提交 A 恰 = ①②（2 文件，逐项对上）**、**提交 B = ③ + `LLVM-100t` 新册 + `milestones.md`**；**无漏提 / 无多提 / 无越界**（`.work/**` 证据按声明**不入库**，`git status -uall` 无残留）。显式逐路径 staging，**未用** `git add -A`/`.`。
+- **完成区如实性核对（只核不改内容）**：`.work/log/infra/INFRA-085t-B1D1/probe-default.log` 末行 = `checks: 33/33 PASS, 0 FAIL, 3 BLOCKED`；`probe-inject.log` 末行 = `INJECT: 33/33 flipped, 0 dead`；`build-shared.log` 含 `PT_INTERP bytes: … b'/lib/ld-musl-dadao.so.1\x00' (24 B)` 与 `DT_NEEDED: ['libc.so']`；`gate-check-patch-tree.log` = `154 patches OK` ⇒ 与完成区逐条相符。
+- **门控（各留自身真实 rc；日志 `.work/log/architect/2026-10-17-p2-b1d1/`）**：`check-patch-tree` **rc=0（154）**、`check-index-blobs` rc=0、`check-source-state` rc=0（musl `HEAD=5dc01a60`、`count=1`、`clean=True`）、`check-no-residue` rc=0、`check-tasks` rc=0、`check-knowledge-refs` rc=0（0 悬空）、`check-component-changelog` rc=0、`python3 tools/infra/check_issues.py` rc=0、`make check`(L1) rc=0。**未跑**（`ISS-229` 并发禁令）：`install-host` / `build-*` / L2 / L3。
+- **边界**：**未 push** ✗；本册 `**状态**` 仍 `待开始` ✗（任务级验收归 reviewer / 主会话）；未改 `spec/`·`contracts/`·`.tao/contracts/**`·`components/**`。
