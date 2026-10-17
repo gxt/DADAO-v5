@@ -102,16 +102,29 @@ $ $TC/clang --target=dadao-unknown-elf -ffreestanding -nostdinc $INC \
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`.work/evidence/LLVM-099t/run.sh` **50/50 PASS / 0 FAIL**（默认档）；`--inject no-action` **13/13**（注掉 action ⇒ 复现矩阵 6/6 rc=1 ⇒ `cp`+md5+`touch` 还原 ⇒ 回绿，同一次前台执行内闭合）；模型注入 3 条（默认档内）`shiftbias` **12/147**、`wpflip` **53/147**、`swapdir` **75/147**（均 RED ⇒ 清洁模型回绿）。
+**修改文件**：（组件检出，E1 base+1 `bda2544d4e98`）`llvm/lib/Target/DADAO/DADAOISelLowering.cpp`（+13 行：11 行注释 + 1 行 action + 空行）；`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOISelLowering.cpp.patch`（重导出，hunk `+1,1288`→`+1,1301`，唯一 hunk）；`components/llvm-project/changelog.md`（+1 条）；证据 `.work/evidence/LLVM-099t/{run.sh,rot_model.py,rotl_probe.c}`。`series` 未改（仍 **76**）。
+**验收结果**：`ninja -C .work/build/llvm -j8 clang lld` **rc=0**（3m20s，5 步：1 TU + 静态库 + lld + clang-23 + symlink）。2 源复现矩阵（构建树 clang）：`crypt_sha512`/`sigdelset` × **-O0 / -O2 / -O2 -fPIC** 全 **rc=0、`Cannot select` 0 处**（修前同 6 例全 rc=1：`rotl Constant:i64<45>`/`rotr (runtime)`/`rotl Constant:i64<-2>`）；对照 `strlen.c -O2 -fPIC` rc=0（非恒真）。真实 musl 配方 `make obj/src/{crypt/crypt_sha512,signal/sigdelset}.{o,lo}` **rc=0**、4 目标非空、`-O2` 配方计数 **4**。oracle：对象 `ELFCLASS64/ELFDATA2MSB` 断言 + 指令级模型，**-O2/-O1/-O0 各 147/147**（`rotl64`/`rotr64`/`idiom_rotl64`/`musl_ror` × 7 值 × k∈{0,1,31,32,63} + `rotl64_c45` × 7）；`k=64` 仅稳健性（`__builtin_rotateleft64(x,64)` 折叠为 `rd2rd` 拷贝、rc=0、无残留 rotl），**不作值断言**。不回归：strlen/memcpy/atoi `-O2 -fPIC` 剥 `.comment` 后与 `LLVM-097t` 基线**逐字节相同**。门控各留自身 rc=0：`check-instrinfo`（0 errors）/`check_lit_gen`（64 passed, 0 failed）/`check-patch-tree`（**152 patches OK**，5 组件现场统计）/`check-index-blobs`/`check-source-state`（`HEAD=bda2544d4e98 count=1 clean=True`）/`check-no-residue`/`check-tasks`（① 漏收尾 0）/`check-knowledge-refs`/`check-component-changelog`（5 文件×4 断言）/`check_issues`（50 open/18 closed）/`make check`(L1) rc=0；证据脚本 rc=0（内部 `; rc=$?`，无 `tee`）。
+**新发现/坑**：① 册内「`-O0` 保持 rc=0」与实测不符——修前两源 `-O0` **也** rc=1（crypt 为运行期 `rotr`、sigdelset 为 `rotl`）⇒ 非恒真对照改用 `strlen.c`，`-O0` 反向并入修复后矩阵（如实记录，不改任务书口径）。② 全程未见 `.dd.o64`（后端无常量池，i64 常量经 `set.zw` 逐 wyde 材质化）⇒ 端序断言落在 **ELF `EI_DATA=2`** + **`wpN` 位置解码（`wp0`=bits[15:0]）**，并以 `--inject wpflip` 证明该解码可达 FAIL（不伪造 `.dd.o64` 路径）。③ `-O0` 探针把参数溢出到栈（`st.o`/`st.t`/`ld.o`/`ld.ut`）⇒ 模型必须建小栈模型；已加「读未初始化寄存器 / 读未写槽位 ⇒ 硬报错」，防静默取 0 假绿。④ 期望值表为 `rot_model.py` 内**冻结字面量**（非 run.sh 内，非现算）：一次性由**位置换定义**生成（输入位 i → 输出位 (i±k)%64），**不**采用被测 `(x<<k)|(x>>(64-k))` 展开式、不调用 LLVM/本仓工具。
+**遗留问题**：① 按主会话指令**未跑** `install-host` / `build-musl-shared` 全量 / L2 / L3 —— 2 源验收用**构建树 clang**（与本任务增量编译同源二进制；`ISS-210` 安装根新鲜性归落地面任务）；② `libc.so` 整体可链与 `build-musl-shared` 其余登记项（B 类）仍归 `INFRA-085t`；③ 任务 `**状态**` 按指令**未改**，由协调者推进；④ 未 commit/push（提交权归 architect）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+逐行审阅 `DADAOISelLowering.cpp` 新增 13 行、`rot_model.py`、`run.sh` 与 changelog 摘要，逐条与真实输出对齐：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `setOperationAction({…}, MVT, …)` 重载合法、`ISD::ROTL/ROTR` 可达 | ✅已核 | 无 | 同文件 L250 既有同形用法；`ninja clang lld` rc=0 |
+| F2 注释坐标真伪（AArch64/RISCV/contract-isa §6.4） | ✅已核 | 无 | AArch64:716 ROTL-i32 / 717 i64；RISCV:441 ROTL-Expand、443 ROTL\|ROTR-Expand；`grep rotl\|rotr contract-isa.md` ⇒ 0 命中（§6.4 位操作只含移位/ext/rev/ctlz/cttz/ctpop） |
+| F3 模型读未初始化寄存器/未写槽位静默取 0 ⇒ 建模缺口假绿 | ✅已修 | `rd()` 对非 `rd0` 未写寄存器抛错；`ld.o`/`ld.ut` 读未写槽位抛错；`rb1`/`rb63` 仅作基址预置 0 | 改后 `-O2/-O1/-O0` 仍各 147/147 |
+| F4 期望值列数错位会静默错判 | ✅已修 | 断言 `len(row) == len(SHIFTS)` | 三档 147/147；`swapdir` 仍 RED（72 失败） |
+| F5 注入是否真空（未真改到源） | ✅已核 | 无 | `live-actions=0` + `git diff --name-only` 非空 |
+| F6 还原是否真回原状（禁 git restore） | ✅已核 | 无 | `cp -p`+`touch` 后 md5 `634f4ae79c8f2c91080cd0ef3a0f550a` 前后相等、`git status` 空、再构建后回绿 |
+| F7 `-O2` 与 `-O2 -fPIC` 若都无条件带 `-fPIC` ⇒ 同一条用例（假覆盖） | ✅已修 | `run_repro` 去掉基线 `-fPIC`，按档传入 | 矩阵逐档打印 7 例 rc=0 |
+| F8 完成区是否出现「运行通过」越界叙述 | ✅已核 | 无 | 仅「能编 + 静态可核」；`k=64` 明示不作值断言 |
+
+判决：finding 全部已修或已核，无未修项 ⇒ 自审通过，返回主会话待独立验收。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）

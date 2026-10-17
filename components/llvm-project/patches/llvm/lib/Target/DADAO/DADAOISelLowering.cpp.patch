@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..02f227e35
+index 000000000..1995d19d3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1288 @@
+@@ -0,0 +1,1301 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -279,6 +279,19 @@ index 000000000..02f227e35
 +  // expandBSWAP when the wider BSWAP is *not* legal/custom/promote) and ISel
 +  // then aborts with "Cannot select: i64 = bswap".
 +  setOperationAction(ISD::BSWAP, MVT::i64, Expand);
++
++  // Rotates (LLVM-099t; ISS-222 ③ / SPEC-141t).  The ISA has no rotate
++  // instruction (contract-isa.md §6.4 carries no rotl/rotr op; the rotate
++  // proposal in SPEC-141t is still unimplemented), so both must be `Expand`.
++  // Without an explicit action they default to `Legal`, the DAG reaches ISel
++  // as `i64 = rotl` and aborts with "Cannot select" -- which is what broke
++  // musl's crypt_sha512.c (`ror(n,k)` becomes ROTL) and sigdelset.c.  AArch64
++  // (AArch64ISelLowering.cpp:716-720) and RISCV without Zbb
++  // (RISCVISelLowering.cpp:441-443) expand them for the same reason:
++  // TargetLowering::expandROT lowers a rotate to
++  // `x << (k & 63) | x >> (-k & 63)`, i.e. shl/srl/and/or/sub, all of which
++  // this backend selects.
++  setOperationAction({ISD::ROTL, ISD::ROTR}, MVT::i64, Expand);
 +
 +  computeRegisterProperties(STI.getRegisterInfo());
 +
