@@ -30,7 +30,7 @@
 - **`long double` = IEEE binary128 ⇒ `M9`**（`ADR-0030` **`Accepted`**，用户 2026-10-17 逐条确认；`D1` = binary128 / `D2` = RF 双槽 = **与 RISC-V64 一致** / `D7` = 排 `M9`）；`M8` 判据**不含** `ISS-250` 的 5 例（`math/{acoshl,asinhl,erfcl,lgammal,tgammal}`），由 `M9` 覆盖。
 - **`LLVM-100t`（`__thread` 用户变量 TLS codegen）⇒ `M9`**（用户 2026-10-17 原话「**tls 可以推到 M9**」）；`M8` 不要求 `dlopen`/模块级 TLS。
 - **线程面 `__clone`**（musl 端口无 `clone.s`）⇒ **`M9`**；`TESTCASES-047t` 静态档 20 例 `blocked` 按此归类（`ISS-252`）。
-- **`INFRA-079t` = 全量** compiler-rt builtins（7 类接入点 + 独立库 + 移除 picolibc vendored 副本 + driver/`-print-libgcc-file-name` 落点）；**排期 = 先于 `M8` 收尾**（2026-10-17 用户原话「**既然要做，就做好；所以，要做，就把compiler-rt都做完，该调整任务链就调整任务链**」⇒ 撤销「只提前 `__muldc3`/`__mulsc3`」的窄化）。
+- **`INFRA-079t` = 全量** compiler-rt builtins（7 类接入点 + 独立库 + 移除 picolibc vendored 副本 + driver/`-print-libgcc-file-name` 落点）；**排期 = 先于 `M8` 收尾**（2026-10-17 用户原话「**既然要做，就做好；所以，要做，就把compiler-rt都做完，该调整任务链就调整任务链**」⇒ 撤销「只提前 `__muldc3`/`__mulsc3`」的窄化）；**生产者侧进度（2026-10-17）= 实现完成、待 L2/终局复跑**（`milestones.md` 同名行；本册 `M8` 判据/`状态` 不因此改动）。
 - **其它挂账（不阻断 `M8`）**：`ISS-232`（`--show-encoding` 低半显示断言）、`ISS-235`（L3 载体 3/16 册）、`ISS-243`（i32 窄返回值 canonical 化）、`ISS-245`（静态 PIE `_DYNAMIC`）、`ISS-247`（`dadao.lds` 基址超宿主 VA）；`ISS-249` **已 `closed`**（argmask 收口）；`ISS-250`–`ISS-255`（`TESTCASES-047t` 余下失败 / `blocked` 归类）+ `ISS-256`（`ipc_sem`/`ipc_shm` 两个 codegen 缺陷 ⇒ `LLVM-101t`；`ISS-251` ⇒ `INFRA-087t`）+ `ISS-257`（`pthread_create-oom` 的 `RLIMIT_AS` 直通宿主 flake）。
 
 ## 核验

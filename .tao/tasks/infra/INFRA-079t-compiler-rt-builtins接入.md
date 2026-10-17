@@ -120,6 +120,36 @@
 **新发现/坑**：
 **遗留问题**：
 
+### A 部分（2026-10-17，后端 3 类接入点；本笔只做 A、不跑 `install-host`）
+
+**测试结果**：证据 `.work/evidence/INFRA-079t-A/run.sh` default **14 PASS / 0 FAIL（rc=0）**；`--inject` **4 条注入全部转红**（I1 探针少一 libcall ⇒ div/rem=3/4；I2 oracle 期望翻 1 位 ⇒ qemu rc=3；I3 archive 去 `divti3.o` ⇒ link rc=1 `undefined symbol: __divti3`；I4 移走补丁 ⇒ patch-content 红），`cp`+md5 还原各自一致、收尾复跑 rc=0（"INJECT OK"）。端到端 189 项（`-O0`/`-O2` 各一轮）+ host gcc 交叉全 rc=0。
+**修改文件**：① `.work/source/llvm-project/llvm/lib/Target/DADAO/DADAOSubtarget.cpp`（+28 行：4 个 i128 除法/取模 + 8 个 FP↔i128 注册）；② 同目录 `DADAOISelLowering.cpp`（+27 行：`*_PARTS` Custom、`FSHL/FSHR` Expand、`LowerOperation` 3 个 case）；③ `components/llvm-project/patches/llvm/lib/Target/DADAO/{DADAOSubtarget.cpp.patch,DADAOISelLowering.cpp.patch}`（`make_patch` 重导出：2 写 / 76 未变，`series` 仍 78）；④ `components/llvm-project/changelog.md` +1 条（M8）；⑤ `.work/evidence/INFRA-079t-A/{run.sh,gen_oracle.py,before/*}`（新增）。
+**验收结果**（逐条）：
+- **7 项**：①✅ i128 除法/取模已注册（探针 4/4 发 `call [rb0, __divti3|__udivti3|__modti3|__umodti3]`）；②✅ 8 种 FP↔i128 全注册（探针 8/8，含 `__floatuntidf/isf`）；③✅ `SHL/SRL/SRA_PARTS` Custom + `expandShiftParts`（变量移位 21 例语义经 oracle；`*_parts` Cannot select 消失、0 shift libcall）；④ 仅核对：`setOperationAction(ISD::BSWAP, MVT::i64, Expand)` 在位、`__builtin_bswap64` 无 `__bswapdi2`（`LLVM-097t` 收口，不重复做）；⑤ 不做：`ADR-0027 D1` 排除 —— 现场 `__atomic_load/__atomic_store` 调用 + `AtomicLoadAdd` `Cannot select`（事实 #12）；⑥ 不做：前端拒绝 `_Float16`/`__bf16`（原文 `is not supported on this target`）；⑦ 核对：`dadao_SOURCES muldc3.c mulsc3.c` 在位（窄化批）。
+- **前后对账**：修前原文留 `.work/evidence/INFRA-079t-A/before/` = `fatal error: error in backend: unsupported library call operation`（p1/p2）、`fatal error: ... Cannot select: t23: i64,i64 = shl_parts t4, t2, t22`（p3）；修后三类 `clang -S` 全 rc=0 且 libcall 名逐一出现。
+- **原 FAIL 源解阻**：`INFRA-078t` 事实 #6 的 **13/13** core 源现全部 `rc=0`（8 个 FP↔i128 + `udivmodti4` + `bswapdi2/bswapsi2` + `muloti4/mulvti3`）——B 部分只需把它们接入 `dadao_SOURCES`。
+- **符号对账**：探针 `.o` 的 `nm -u` = **12/12**，临时 archive 定义 **12/12**；**仓库 archive（窄化）0/12** ⇒ 12 个全缺，归 **B 部分（`dadao_SOURCES`）**（如实报，不在本笔补）。
+- **实跑**：`oracle.c` **189** 检查（i128 除/模、`i128↔f64/f32` 双向、`u128` 同面、变量移位 0…127）= 显式 archive + `ld.lld` + qemu 大端 **rc=0**（`-O0`/`-O2`）；**独立 oracle 两源** = Python 大整数 + 显式 IEEE-754 RN-even 模型（`gen_oracle.py`，不从实现反推）+ host gcc/libgcc 同源 **rc=0**。
+- **无回归**：CodeGen lit **31/31**（`LLVM_TOOLS_DIR=.work/build/llvm/bin`，未用安装根）、`check_lit_gen` **64/0**、`ninja -C .work/build/llvm clang` **rc=0**（实测 3m23s，开工申报 ≈4 min）。
+- **补丁**：`check-patch-tree` **rc=0（177 补丁；修前 177，不变）**、`check-index-blobs`/`check-source-state`（llvm-project `HEAD=base+1`、clean）/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check_issues`/`check-instrinfo`/`make check`(L1) 各 **rc=0**（日志 `.work/log/infra/INFRA-079t-A-*.log`）。
+**新发现/坑**：① `expandShiftParts` 以 `ISD::FSHL/FSHR` 表达，二者默认 `Legal` 且本后端无 pattern ⇒ 只设 `*_PARTS` Custom 会在下一轮以 `Cannot select: fshl` 失败，须同批设 `Expand`。② `-O2` 下 i128 常量会被折叠；oracle 用 `volatile` 装载操作数才能保证 libcall 真被执行（否则全绿是假绿）。③ 无符号转换名拼写是 `__float`+`un`+`ti`+`[sd]f`（按 `unt` 写正则会漏计 2 个）。④ 仓库 archive 仍只 2 成员 ⇒ 端到端只能显式链 `/tmp` 临时 archive（B 部分落地后消失）。
+**遗留问题**：**未跑** `install-host`/L2/L3/`build-musl*`/`build-picolibc*`（派单）；**未** commit/push；**未改** 任务 `**状态**`。**B 部分待做**：`dadao_SOURCES` 源集（`GENERIC_SOURCES ∪ GENERIC_TF_SOURCES` + `CRT_HAS_INITFINI_ARRAY`，`emutls.c` 按需排除）⇒ 12 符号入 archive；`-print-libgcc-file-name`/driver 自动接线 + 安装落点（`D5`）；picolibc vendored 副本移除 + 重建四分类 before/after。
+
+### B1 部分（2026-10-17，全量源集 + driver 自动接线 + 安装规则；未跑 `install-host`）
+
+**测试结果**：证据 `.work/evidence/INFRA-079t-B1/run.sh` default **8 PASS / 0 FAIL（rc=0）**；`--inject` **4 条注入全部转红**（I1 archive 去 `divti3.c.o` ⇒ 覆盖/符号红；I2 oracle 翻 1 位 ⇒ qemu rc=3；I3 移走 build-tree resource-dir 的 archive ⇒ driver 路径 `exists=no` + 链接 `cannot open …`；I4 去补丁锚点 ⇒ `driver-anchor=0`），`cp`+md5 还原各自一致、收尾复跑 rc=0（INJECT OK）。`ninja -C .work/build/llvm clang` **rc=0**（实测 3m43s，申报 ≈4 min）。
+**修改文件**：① `.work/source/llvm-project/compiler-rt/lib/builtins/CMakeLists.txt`（`dadao_SOURCES` 由窄化 2 源扩为 `${GENERIC_SOURCES} ${GENERIC_TF_SOURCES}`；5 项显式排除；补 `-DCRT_HAS_INITFINI_ARRAY`）；② 同仓 `clang/lib/Driver/ToolChains/DADAO.cpp`（+13 行：`-rtlib=compiler-rt` 消费并追加 builtins archive）；③ `components/llvm-project/patches/compiler-rt/lib/builtins/CMakeLists.txt.patch`、`.../clang/lib/Driver/ToolChains/DADAO.cpp.patch`（`make_patch` 重导出：2 写 / 76 未变，`series` 仍 **78**）；④ `components/llvm-project/changelog.md` +1 条（B1）；⑤ `Makefile`（+23 行，最小 diff：`install-host` 增加 builtins archive 安装规则；**单独改**）；⑥ `.work/evidence/INFRA-079t-B1/{run.sh,gen_oracle.py}`（新增；`gen_oracle.py` 取自 A 段同一独立 oracle）。
+**验收结果**（逐条）：
+- **源集**：现场解析 `GENERIC_SOURCES ∪ GENERIC_TF_SOURCES` = **146**；archive 成员 **147**（多出 `clear_cache.c` —— `NOT FUCHSIA` 追加的通用 builtin，仅引 archive 内 `__compilerrt_abort_impl`）。排除 5 项且**均不在 archive**，现场依据：`emutls.c` ⇒ `fatal error: 'stdlib.h' file not found`（还需 `<pthread.h>`）；`enable_execute_stack.c` ⇒ `'sys/mman.h' not found`；`eprintf.c` ⇒ `'stdio.h' not found`；`atomic.c` ⇒ `_Static_assert` 无 lock-free pointer-size cmpxchg + `ADR-0027 D1` 排除 libatomic；`gcc_personality_v0.c` ⇒ `nm -u` 出 `_Unwind_GetIP/…`（unwind 超出 `D1`，只因 configure 在 clang 自带头里找到 `<unwind.h>` 才进表）。
+- **符号/未定义**：A 段 12 libcall + `__muldc3`/`__mulsc3` **14/14** 有定义；`nm -u` 解析 archive 内互引用后**仅剩 `abort`（`int_util.c`，事实 #11，预期）**。
+- **driver 自动接线**：`-rtlib=compiler-rt -print-libgcc-file-name` = `…/lib/clang/23/lib/dadao-unknown-unknown-elf/libclang_rt.builtins.a`（真实存在）；`-###` 的链接行含同一路径；`unused-command-line-argument` 计数 **0**。坑③ 的命名差用 `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON` 消解（产物即无 arch 后缀）。
+- **端到端（自动接线的唯一有效证据）**：`-rtlib=compiler-rt` 且**不带显式 archive** 链接 A 段 189 项独立 oracle，`-O0`/`-O2` 均 link rc=0、QEMU 大端 **rc=0**；复数探针 `(1+2i)(3+4i)` 两个 libcall 均发出并被 driver 供给的 archive 解析，link+qemu rc=0。
+- **默认不回归**：不带 `-rtlib` 的链接**不**加 archive（`-###` 中 `libclang_rt` 计数 0），libcall 仍按原样未解析 ⇒ 接线是 opt-in。
+- **安装规则**：`make -n install-host` 解析出的目标 = `…/cross-toolchain/lib/clang/23/lib/dadao-unknown-unknown-elf/libclang_rt.builtins.a`，与 build-tree clang 的 `-print-libgcc-file-name` 去掉 resource-dir 前缀后**逐字一致**；两次 dry-run 稳定一致；动作为 `atomic-install`（temp+`rename`）⇒ 幂等；落点在 `ADR-0016 D3` 的 host prefix 内，**不新增安装根**。
+- **门控（各留自身 rc）**：`check-patch-tree` **rc=0（177 补丁；llvm-project 78）**、`check-index-blobs`/`check-source-state`（llvm-project `HEAD=base+1`、clean）/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check_issues`/`check-instrinfo`/`check_lit_gen`/`make check`(L1) 各 **rc=0**（日志 `.work/log/infra/INFRA-079t-B1-*.log`）。
+**新发现/坑**：① 「146 源」只是两条基线列表的并集；`GENERIC_SOURCES` 在 arch 分支前还会被 `NOT FUCHSIA`（`clear_cache.c`）与 `HAVE_UNWIND_H`（`gcc_personality_v0.c`）追加 ⇒ 必须对追加项逐条判（本笔留前者、排后者），否则会把 unwind 依赖带进库。② 组件树 `git commit --amend` 会改 `VCSRevision` ⇒ build-tree clang 立刻"不新鲜"、`ninja -n clang` 不再 `no work to do`；须在**最后一次**组件提交后重建（本笔重建 2 次：3m55s、3m43s）。③ standalone 配置改用 build-tree clang（默认 triple = `unknown`）时，`CMAKE_C_COMPILER_TARGET` **不足以**过 `project()` 的编译器探测，须同时给 `CMAKE_{C,CXX,ASM}_FLAGS=--target=…`（坑④ 的更深一层）。④ `-print-libgcc-file-name` 在 archive 尚不存在时也会返回"将要安装的位置"（`getCompilerRT` 的 fallback），故安装落点可由它稳定推导；但它与 `-rtlib=compiler-rt` 必须成对（默认 RTL=libgcc 时打印 `libgcc.a`）。⑤ `Makefile` 里探针变量必须用**递归展开**（`=` 而非 `:=`），否则 clean tree 上 parse 期 clang 尚未构建 ⇒ 空值误报。
+**遗留问题**：按派单**未跑** `install-host`/L2/L3/`build-musl*`/`build-picolibc*`（主会话 / B2），**未** commit/push，**未**改 `spec/`/`contracts/`，**未**越界（`Makefile` 单独改、最小 diff）。**B2 待做**：picolibc vendored 副本移除（3 件 `.patch` + `meson.build.patch` + `series` 删行）与重建后四分类 before/after；`install-host` 落点由主会话执行后复核。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -146,3 +176,64 @@
 - **门控（各留自身真实 rc）**：`make check`(L1) **rc=0**；`check-patch-tree` **rc=0（154 补丁；llvm-project 78）**、`check-index-blobs`、`check-source-state`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`check-component-changelog`、`python3 tools/infra/check_issues.py` 各 **rc=0**（日志 `.work/log/architect/INFRA-079t-085t-commit/`）。**未跑**（`ISS-229` 并发禁令；本笔纯提交/文档）：`install-host` / `build-*` / L2 / L3。
 - **边界**：**未改**本册 `**状态**`（仍 `待开始`）✗、**未 push** ✗。**结构披露**：本笔实现记录位于「§范围窄化」下的 `### 实现（2026-10-17，窄化范围）`，而 `## 完成区` 模板**仍为空**；内容如实、但位置偏离模板（按派单「不改内容」**未搬动**）。
 - **分支披露**：本笔**无独立任务分支** —— 开工时改动已在 `master` 工作树，`AGENTS.md` 禁脏树 `switch -c` ⇒ 直接提交在 `master`（无 `merge`/分支可删）。
+
+#### 第 2 轮 engineer 自审（A 部分，2026-10-17）
+
+自主逐行审查（无嵌套子代理）；对象 = `DADAOSubtarget.cpp` / `DADAOISelLowering.cpp` 的 +55 行、`run.sh`、`gen_oracle.py`。判决 = **可交付**（A 部分范围内无未修项；B 部分项已在完成区列清）。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 初版 oracle 的无符号期望把 `3.0e38` 当成 `3×2^126`，且 128 位常量用有符号左移拼接（UB 风险）；host gcc 与 target 同时 `rc=8`（两边一致、模型错） | ✅已修 | 期望改由「实际 double/float 位型的精确值」派生；常量统一走无符号表达式再转 `i128`；`ieee_bits` 补 `e > emax ⇒ inf` 早退 | host gcc `rc=0`、target `-O0/-O2` `rc=0`（189 项）；I2 注入（翻 1 位期望）仍能转红（qemu rc=3） |
+| F2 `run.sh` 的正则写成 `__float(unt)?ti`，漏计 `__floatuntidf/isf` ⇒ S1 假红（float=2/4） | ✅已修 | 改 `__float(un)?ti[sd]f`（拼写 = `float`+`un`+`ti`+`df`） | 首跑 `float=4/4` 转绿；I1 注入少一 libcall 仍红（div/rem=3/4） |
+| F3 `llvm-lit -q` 不打印 `Passed:` 行 ⇒ S4 解析空值假红 | ✅已修 | 以 `Total Discovered Tests` 取通过数、`Failed:` 缺省 0；仍以 `lit rc` 为红判据 | S4 `pass=31 fail=0 rc=0`；日志 `.work/log/infra/INFRA-079t-A-lit-codegen.log` |
+| F4 S6 用 `git diff base -- llvm/lib/Target/DADAO` 统计改动文件数 ⇒ 把补丁集新增的 48 个文件全算进来（假红） | ✅已修 | 改为仅统计本笔两文件相对 base 的差异（期望 2） | S6 `dadao_changed=2`、`patches=78 series=78`、`HEAD=base+1`、clean |
+| F5 原计划的「改后端源码」注入对**已编译**的 clang 无效（不重建就不变）⇒ 注入会假绿 | ✅已修（方案） | 注入改为落在**检查实际读取的产物**上：探针源（I1）、oracle 副本（I2）、archive 副本（I3）、补丁文件（I4） | `--inject` 全绿：4 条均检出 + `cp`+md5 还原 + 收尾复跑 rc=0 |
+| F6 后端改动面复核：`*_PARTS` 只设 Custom 会残留 `fshl`（`expandShiftParts` 的实现依赖） | ✅已修 | 同批 `setOperationAction({ISD::FSHL, ISD::FSHR}, MVT::i64, Expand)` | 变量移位 0/1/31/32/63/64/65/127 等 21 例过 oracle；CodeGen lit 31/31 |
+| F7 库调用语义边界：`s=0`（`FSHR(...,0)`）、`s=64`（条件支取符号）易错 | ✅不修（已验） | — | 移位用例含 `s=0/63/64/65/127` 与 `INT128_MIN`，target/host 均过；`shl128` 反汇编逐条核对（`shr.uo/or.o/cs.z`） |
+
+**未修 finding**：无（F1–F5 已修、F6 已修、F7 验证通过；外部项见完成区「遗留问题」，非本笔缺陷）。
+
+#### 第 3 轮 engineer 自审（B1 部分，2026-10-17）
+
+自主逐行审查（无嵌套子代理）；对象 = `builtins/CMakeLists.txt` 的 arch 分支、`DADAO.cpp` 的链接路径、`Makefile` 的新规则、`run.sh`。判决 = **可交付**（B1 范围内无未修项；B2 / `install-host` 按派单留给后续）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 证据脚本 S3/S4 引用 `$W/crt0.o` 却从未汇编 ⇒ 首跑两条假红（`no such file or directory`） | ✅已修 | 新增 `make_crt0` 助手，两个检查各自在自己的目录汇编 crt0 | 复跑 S3 `checks=189 … rc=0`、S4 `libcalls-emitted=2/2 link+qemu rc=0` |
+| F2 `ninja -n clang` 显示 14 步待做 ⇒ S7 红：组件 `commit --amend` 改了 `VCSRevision` | ✅已修 | 在**最后一次**组件提交后重建 build-tree clang（3m43s） | S7 `ninja -n clang: no work to do`；`ninja` 实跑 rc=0 |
+| F3 排除项注释只写 `emutls.c` 需 `pthread.h`，而现场首个报错是 `stdlib.h` | ✅已修 | 注释按现场证据逐条改写（`stdlib.h`/`pthread.h`、`sys/mman.h`、`stdio.h`、`_Static_assert`、`_Unwind_*`） | 完成区「源集」逐条引用原文；S1 `excluded_leak=''` 复绿 |
+| F4 `Makefile` 旧注释称 resource-dir `lib/`「no consumer / deliberately not installed」，与本笔事实矛盾 | ✅已修 | 改写该段：`lib/` 只放 builtins archive，且仍属 host prefix（D3） | 阅读核对 + `make -n install-host` 正常 |
+| F5 `BUILTINS_*` 用 `:=` 在 parse 期展开：clean tree 上 clang/archive 尚未构建 ⇒ 变量为空、`install-host` 会误报 | ✅已修 | 改递归展开（`=`），求值推迟到 recipe 期（晚于 `build-mc`） | `make -n install-host` 仍解析出同一目标；S5 绿（两次 dry-run 稳定） |
+| F6 `gcc_personality_v0.c` 因 `HAVE_UNWIND_H`（clang 自带 `<unwind.h>`）混入源集，而 unwind 超出 `D1` | ✅已修 | 加入 `REMOVE_ITEM` 并在注释写明依据 | archive 成员列表无该目标；I1 注入仍能显示 archive 内 `__divti3` 互引用 |
+| F7 仅编译（`clang -c`）时 `-rtlib=` 仍会 `unused` | ❌不修（上游语义：`-rtlib` 是链接选项） | — | 本任务判据为链接期（S2 的 0 告警、S3 的 driver-only 链接），与上游 clang 行为一致 |
+
+**未修 finding**：无（F7 非本笔缺陷，属上游语义）。
+
+### B2 部分（2026-10-17，安装根复核 + 默认 rtlib 取证 + 移除 vendored 副本 + 四分类）
+
+**测试结果**：证据 `.work/evidence/INFRA-079t-B2/run.sh` default **7 PASS / 0 FAIL（rc=0）**；`--inject` **I1–I5 全部转红**（程序退出码 42→43 ⇒ qemu 43；archive 去 `divti3.c.o` ⇒ `__divti3` 缺失；series 副本加陈旧项 ⇒ 14/15；archive 去 `muldc3/mulsc3.c.o` ⇒ link rc=1；四分类 JSON 翻 fail ⇒ pass 212/fail 1），`cp`+md5 还原各自一致、收尾复跑 rc=0（INJECT OK）。picolibc 全量四分类 **before 235/213/0/22/0**、**after 235/213/0/22/0**（逐例无转移；各 ~6m14s）；`build-picolibc` 全量重建 16 s（申报 5–10 min）。
+**修改文件**：① 删 `components/picolibc/patches/libm/common/{muldc3.c,mulsc3.c,compiler_rt_builtins.h,meson.build}.patch`、`components/picolibc/series` 18→**14**；② `.work/source/picolibc/libm/common/` 删三源 + `meson.build` 恢复上游 `['signgam.c']`（组件检出 `commit --amend` ⇒ base+1 clean）；③ `components/picolibc/{README.md,changelog.md}`；④ `tools/testcases/picolibc_tests.py`（`link_target` 显式追加独立 archive，路径取自 `-print-libgcc-file-name -rtlib=compiler-rt`）；⑤ `.work/evidence/INFRA-079t-B2/{run.sh,prog.c,rtlib-sim-records.txt}`（新增）；⑥ `.tao/knowledge/issues.yaml`（`ISS-261`/`ISS-262`）。
+**验收结果**：
+- **安装根端到端**：真实 `_start`（`tests/scripts/codegen_crt0.s`）+ `prog.c`（14 libcall 全发出）→ `clang -rtlib=compiler-rt` **不带显式 archive** 链接（`-###` 链接行含安装根 archive）→ QEMU **rc=42**；安装根 archive `llvm-nm` **14/14** 符号 `T`（defs 134）。**工具缺失披露**：安装根 `bin/` 无 `llvm-nm` ⇒ 现场 `ninja -C .work/build/llvm llvm-nm`（rc=0，28 s）后用构建树 `llvm-nm`，未静默换命令（登记 `ISS-261`）。
+- **默认 rtlib 结论 = 维持 opt-in（①）**：默认打开模拟（link-only wrapper，**不污染**编译器探测）实跑 —— `build-picolibc` 的 `libc.a` 与正常构建**逐字节相同**（md5 `f0a982a0…`；日志中目标链接命令 0 条）、`build-musl-shared` 的 `libc.so` **逐字节相同**（sha256 `d5fa2da3…`），无重复符号/undefined；链接行可同时含显式+driver archive 两次且 rc=0。**理由**：`ADR-0027 D5` 只规定归属/共用，未规定 driver 默认；D5 已由「同一独立 archive、musl 经 `LIBCC`、picolibc harness 显式链接」满足；默认切换是全局语义变化、无消费方需求 ⇒ 最小改动。**与 D5 的关系**：**不**声称满足「自动接线」；措辞差异登记 `ISS-262`（`status: open`，待用户/架构裁定，**未**自判 D5 失效）。
+- **vendored 副本移除**：三件源 `.patch` + `meson.build.patch`（唯一 hunk = `srcs_common` 两源插入 ⇒ 撤回后整份无 diff）+ series 4 行全部撤回；source 侧 0 提及、0 文件；`libc.a` 无 `T __muldc3/__mulsc3`（1,802,402 → 1,798,824 B）。
+- **独立库链接证据**：`libc.a` 0 定义 / archive 2 定义；picolibc 复乘程序**不带 archive → link rc=1**（`undefined symbol: __muldc3/__mulsc3`），**带 archive → rc=0、QEMU rc=42**；全量 harness 的 `test-complex-funcs`/`test-cpow` 等仍 pass。
+- **门控（各留自身 rc）**：`check-patch-tree` **rc=0（173 补丁；改前 177，picolibc 18→14）**、`check-index-blobs`/`check-source-state`（picolibc base+1 clean）/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check_issues`（62 open）/`check-musl-freshness`/`check-syscall-abi`（69/69）/`make check`(L1) 全 **rc=0**。
+**新发现/坑**：① `CCC_OVERRIDE_OPTIONS='+-rtlib=compiler-rt'` **不是有效模拟**：其诊断行污染 Meson `-Werror` 能力探测（YES→NO）⇒ picolibc `libc.a` 变 1,681,144 B 的**假结果**；改用「仅 link 命令追加」wrapper 后与正常构建逐字节一致。② `llvm-nm` 安装根与构建树都缺（`ninja llvm-nm` 28 s 补建）⇒ `ISS-261`。③ `libm/common/meson.build.patch` 唯一 hunk 即两源插入，撤回后整份 patch 被移除（合计删 4 件而非 3 件）。④ picolibc harness 直调 `ld.lld`、不经 driver ⇒ 独立 archive 必须显式命名（driver `-rtlib` 在此路径不参与）。
+**遗留问题**：默认 rtlib **未接线**（结论 ①，`ISS-262` 待裁定；若改默认需 driver 改动 + `install-host`，本笔未做）；**未跑** `install-host`/L2/L3/`047t`/`046t` 复跑；**未** commit/push；**未改** 本册 `**状态**` 与 `milestones.md`；未越界改 `spec/`/`contracts/`。
+
+#### 第 4 轮 engineer 自审（B2 部分，2026-10-17）
+
+自主逐行审查（无嵌套子代理）；对象 = `tools/testcases/picolibc_tests.py` 的链接路径、picolibc 组件检出/补丁集、B2 证据脚本。判决 = **可交付**（B2 范围内无未修项）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 首版「默认打开」用 `CCC_OVERRIDE_OPTIONS` 模拟，诊断行污染 Meson 能力探测（`-Werror` YES→NO），`libc.a` 变小 117 KB（**假结果**） | ✅已修（方法） | 改为 link-only wrapper（仅无 `-c/-E/-S/-print-*` 时追加 `-rtlib`），重跑两消费方 | sim 与正常 `libc.a` md5 相同、`libc.so` sha256 相同；`-Werror` 探测 YES |
+| F2 证据脚本 I1/I3/I5 先改后备份 ⇒ 还原成「注入后」内容，注入判据假红 | ✅已修 | 备份顺序改为「复制后立即备份」，还原自 `.bak` | `--inject` I1/I3/I5 均 `restore md5 OK`，rc=0 |
+| F3 S6 的 `! grep '(^\|[^a-z])error:'` 把 `-Werror:` 当错误（大写 W 属 `[^a-z]`）⇒ 假红 | ✅已修 | 字符类改 `[^A-Za-z]` | S6 转绿；sim 日志无真实 `error:` |
+| F4 `builtins_archive()` 在 `-print-libgcc-file-name` 空输出时会 `IndexError` | ✅已修 | 先取 `lines`，空则 `path=None` 并显式失败（rc=2） | 全量四分类复跑 rc=0；picolibc 用例仍 pass |
+| F5 证据脚本曾把「双 archive」中间日志指向仓库内临时路径（`check-no-residue` 风险） | ✅已修 | 改为在 `/tmp/opencode/INFRA-079t-B2/` 现场生成 | `check-no-residue` rc=0；S6 双 archive 计数 2、rc=0 |
+| F6 组件 README/changelog 仍描述「vendored 编入 `libc.a`」 | ✅已修 | README 改为独立库 + 链接方式；changelog 追加 M8 条目 | `check-component-changelog` rc=0；`make check` rc=0 |
+| F7 默认 rtlib 若直接改 driver 默认，会使 B1 证据 S8（默认无 archive）失效，且需 `install-host`（本批禁止） | ✅不修（范围/裁定） | 仅取证 + 登记 `ISS-262`，未改 driver | 默认模拟与正常产物逐字节相同；本册「遗留问题」已披露 |
+
+**未修 finding**：无（F7 属范围裁定，已登记 `ISS-262`，非本笔缺陷）。
