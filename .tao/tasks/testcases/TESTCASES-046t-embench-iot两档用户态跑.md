@@ -5,6 +5,8 @@
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**；`qemu-dadao` 已装进安装根 `paths.host_toolchain_bin()`）；`INFRA-082t`（`P1` musl 静态，**`已验证`**；产 `crt1.o` + `libc.a`）、`INFRA-085t`（`P2` 动态，**`已验证`**；产 `libc.so` + `ld-musl-dadao.so.1`）；`TESTCASES-039t`（Embench 移植 + 系统模式 runner `tools/integ/run_embench_e2e.py`，M6 起 38/38）；`ISS-247`（**链接基址口径**：不得用 `tests/scripts/dadao.lds`）、`ISS-246`（**known-fail 唯一依据**）、`ADR-0025`（`D2` 无内核 / `D6` 路线 / `D7` golden 对照归 `P4`）、`ISS-229`（重建 / 门控**串行**）、`ISS-210`（安装根新鲜度）；**同批三册**：`TESTCASES-046t`（本册）/ `TESTCASES-047t`（`libc-test`）/ `TESTCASES-048t`（`llvm-test-suite`）⇒ **同改共享文件（`Makefile` / `milestones.md`）⇒ 串行**，禁并行。
 **状态**：待开始
 
+> **阶段进度**：静态档 ✅ 38/38 pass / 动态档 ✅ 38/38 pass（复跑；`ISS-258` 已处置：`libc.so` 重装 + 新增 L1 产物新鲜度门控）
+
 > **编号（现场取号，2026-10-17）**：`.tao/tasks/testcases/` 现存最大 = `TESTCASES-045t`（现场 `ls`：`044t` / `045t`）⇒ 取 **`046`**；`git log --all --name-only | grep -E 'TESTCASES-04[678]'` **0 命中**（全历史复核）。
 
 ## 立项来源 / 用户裁定（原话逐字引录，渠道 = 经主会话问答）
@@ -126,6 +128,30 @@ known-fail 0 条：无 `ISS-246` 命中（该分支按 `thread-local storage is 
 
 **遗留问题**：动态档（驱动 `--link-mode dynamic` 已实现但**未执行**，下一笔）；`P4` golden 对照、`ISS-246` 修复不在本册。无阻塞项。
 
+### 动态档（第 2 轮，2026-10-17）
+
+**测试结果**：`--link-mode dynamic --libc .dadao/dadao-unknown-elf/lib/libc.so`，运行期枚举 **total=38**（19 基准 × `-O0/-O2`）⇒ **pass=0 / fail=0 / known-fail=0 / excluded=0 / blocked=38**，driver rc=1（`blocked>0 ⇒ rc=1`，`ISS-248` 口径）。逐例（19 × O0/O2）**全部 blocked**，同一签名：`exit=127` + `Error relocating /lib/ld-musl-dadao.so.1: RELRO protection failed: No error information`，board marker 0/3（⇒ `support/main.c` 从未执行）；逐例记录 `.work/log/testcases/embench-user-dynamic.json`。
+**与静态档对比**：静态 **38/38 pass**（rc=0；本轮为验证驱动改动**重跑仍 38/38**）；动态 **0/38**。差异不在用例、在运行环境（见下）。
+**失败分类（动态）**：`fail=0`；`blocked=38`（loader 阶段死亡，非 benchmark 判定）⇒ **归属 `ISS-258`**（安装根 `libc.so` 早于 `ISS-249` argmask 变更，与现行 `qemu-dadao` 不匹配；根因三证 = `-strace` 参数整体右移 / 随包 `libc.so` 的 `reloc_all` 旧桩布局反汇编 / mtime 序 13:49<17:33<18:31）；`known-fail=0`、`excluded=0`（现场统计）。
+**动态特有项**：① `ldso` **确实被装载并执行**（其自身 RELRO 报错 + `-strace` 显示解释器映射；非"链接成功"冒充）；② 38/38 产物 `PT_INTERP` = `/lib/ld-musl-dadao.so.1`（逐例 JSON + 样例逐字节解析复核）、`min PT_LOAD=0x10000`、链接命令无 `-T`/无 `dadao.lds`、显式 `libc.so`；③ **`AT_PHDR`/`AT_ENTRY` 与 `/proc/self/maps` 含 `libc.so` 无法观测**（loader 在重定位阶段即退出，guest 未达入口）⇒ 如实标 blocked，不推断。
+**验收结果**：`.work/evidence/TESTCASES-046t-dyn/run.sh` default **rc=0**（ALL GREEN，30 s）＝38 例逐条 JSON 复核（blocked/exit127/interp/libc.so/无 `-T`/ldso 签名/产物存在）+ 根因三证 + 静态档回归 38/38；`--inject` **rc=0**（65 s，三处注入同次前台闭合，`cp`+md5）：I1 关掉 loader-abort 判据 ⇒ fail=19、`fail==0` 翻红；I2 静默跳 1 例 ⇒ `[FAIL] closure: executed 18 != discovered 19`；I3 `PT_INTERP` 改 `.so.2` ⇒ 逐例 ldso 签名检查翻红（exit=255）；三处均还原（md5 `e4be5e0f…`）后回预期态；静态档原证据脚本亦复跑 default rc=0（16 s）/ `--inject` rc=0（49 s，见自审 F9）。
+**修改文件**：`tools/testcases/run_embench_user_suite.py`（+`--libc` 产物覆盖；+「ldso 诊断 + 无 marker ⇒ blocked」判据；+`PT_DYNAMIC` 形态判据——动态档缺 `PT_DYNAMIC` / 静态档带 `PT_DYNAMIC` 显式 blocked）、`.tao/knowledge/issues.yaml`（+`ISS-258`）、本任务书；gitignored：`.work/evidence/TESTCASES-046t-dyn/run.sh`、`.work/log/testcases/embench-user-dynamic.json`、`.work/log/testcases/embench-user-dynamic.log`、`.work/build/embench-user-dynamic/`。
+**新发现/坑**：① "安装根已是最新"不能由单一 commit 时点推断——须**逐产物**核（本轮 `libc.a` 是 18:34 新产物、`libc.so` 仍 13:49 旧产物）；`ISS-249` 这类**协议双侧变更**必须把产物重建纳入同批验收。② loader 阶段死亡 ≠ 用例失败：加"ldso 诊断 + 无 marker ⇒ blocked"归类（不放松：`blocked>0` 仍 rc=1），否则会把环境缺陷误记成 38 个 benchmark 失败。③ `llvm-readobj` 不打印 `PT_INTERP` 字符串，证据脚本须自解析 ELF。④ 前置复核与派单文字有出入：随包 `libc.so` **无 `PT_TLS`**（`llvm-readobj --program-headers` 0 命中、无 `.tdata/.tbss`），与 `ISS-246`（TLS 未实现，归 M9）一致；embench 不用 `__thread`，不构成本册阻塞，**如实记录**。
+**遗留问题**：动态档**未达"可跑"** —— `ISS-258` 需 `make build-musl-shared JOBS=8`（自安装 `libc.so`+`ld-musl-dadao.so.1`）后复跑；本笔按派单**禁 build-musl**，未越界。`AT_*`/`maps` 类动态特有项待环境修复后补测；`P4` golden 对照、`ISS-246` 修复不在本册。
+> **〔追加（2026-10-17 19:5x，复跑后）〕** 本节 = 重跑前状态，数字保持原样；原始输出已归档 `.work/log/testcases/ISS-258-blocked-round/`。复跑与 `ISS-258` 处置见下节。
+
+### 动态档（第 2 轮复跑 + `ISS-258` 处置，2026-10-17 19:50–19:58）
+
+**测试结果**：`make build-musl-shared JOBS=8`（rc=0；**clean 全量 18.8 s**）重装 `libc.so` 后复跑 ⇒ 运行期枚举 **total=38**：**pass=38 / fail=0 / known-fail=0 / excluded=0 / blocked=0**，driver **rc=0**（16 s）。与静态档一致：静态 38/38（同轮复跑 rc=0）。**逐例**：19 基准 × `-O0/-O2` 全 pass、`exit=0`、board marker 3/3、`PT_INTERP=/lib/ld-musl-dadao.so.1`、`min PT_LOAD=0x10000`、链接无 `-T`（`.work/log/testcases/embench-user-dynamic.json`）。
+**疑点 A（`libc.a` 来源）= 非旧 musl，是 picolibc 同名产物**：① 046t/047t 驱动实际吃 **`.work/source/musl/lib/libc.a`**（`--musl` 默认；两册同路径），md5 **`ab9c61aa…`**/sha256 `1bad81fd…`（19:49 重建，与 18:34 版**逐字节相同**）；② `.dadao/dadao-unknown-elf/lib/libc.a` md5 **`73630d61…`** = `.work/build/picolibc/libc.a` **同一份**（成员名 `libc_argz_*.c.o`；ADR-0016 D4 两个 libc 同名共存，装于 14:45）⇒ 与 `ISS-249` 无关；③ 故**未**触发「重建 + 047t 静态重跑」条件（047t 用的就是 `ab9c…`，数字不可能变）。
+**疑点 B（`PT_TLS`）= 记录无误，不是配方漂移**：`INFRA-085t` 的 `PT_TLS` 证据测的是**合成 TLS 对象**（`tls_seed.s` → p_filesz 8 / memsz 16 / align 8），其 **F11/S6 明写**「musl 线程态走 `struct pthread` 字段，`libc.so` 无 `SHF_TLS` 节 ⇒ 无 `PT_TLS` 是正确形态 / `no PT_TLS`」；现场复核 `libc.so`：`PT_TLS=0`、`.tdata/.tbss=0`，与设计一致。**可重复性**：`make -C .work/source/musl clean` + 同 target 全量重建（18.8 s）⇒ `libc.so`/`libc.a` sha256 **逐字节相同**（`a86a12cb…`/`1bad81fd…`）⇒ 配方未漂移、可重复。**记录处置**：不改历史证据，本处追加更正：§「动态特有项」里"派单前置 `PT_TLS` ✓"应读作**TLS 基础设施已验**，不是 `libc.so` 有 `PT_TLS`。
+**动态特有项（真观测）**：`tests/scripts/dadao_user_dyn_probe.c`（新增，动态链接）⇒ `AT_PHDR=0x10040`、`AT_ENTRY=0x20554`（== 探针 `e_entry`）、`AT_BASE=0x7aa0a8250000`（≠0、页对齐、≠`AT_ENTRY`）、`AT_PHNUM=8`/`AT_PHENT=56`（== ELF 头）、`/proc/self/maps` 命中 `…/root/lib/ld-musl-dadao.so.1` 映射行（`r--p`，偏移 0）；`ldso` 装载已由探针成功执行直接证明（非"链接成功"冒充）。
+**`ISS-258` 处置②（可机械判定的新鲜度）**：`build_musl.py` 成功构建后新增 **source stamp**（`obj/.dadao-musl-source-stamp` = 全树内容 sha256，与既有 toolchain stamp 并列），且 **digest 变化强制 `make clean`**（musl 的 Makefile 不依赖全部头文件，ISS-249 恰是改 `arch/dadao/syscall_arch.h`，增量构建可能漏掉）；新增 **`check-musl-freshness`**（`tools/infra/check_musl_freshness.py`，**L1**，~1.2 s，已登记 `docs/Process-07 §1.1`）= 两戳记 == 当前 + 安装副本与构建产物 sha256 一致 + `ld-musl-dadao.so.1` 链接指向；不符 ⇒ FAIL 并提示 `make build-musl-shared`；无构建树/无共享产物 ⇒ SKIP。**可达 FAIL**：戳记改错 / 真加一行 musl 源码 / 篡改安装副本 —— 三者均 rc=1，`cp`+md5 还原后 rc=0（见证据脚本 I3–I5）。**源变强制 clean 实测**：加一行注释 ⇒ `sources: musl source digest changed` + `'make clean' (full rebuild)`（20 s）；还原后再 clean 重建 ⇒ 产物 sha 回到 `a86a12cb…`（逐字节复原）。
+**验收结果**：`.work/evidence/TESTCASES-046t-dyn/run.sh` **default rc=0**（33 s，含形状/戳记/38 例逐条/探针/静态回归）、**`--inject` rc=0**（73 s，五处注入：I1 期望退出码→`fail=19`；I2 跳例→`[FAIL] closure: executed 18 != discovered 19`；I3 戳记→gate rc=1；I4 真改 musl 源→gate rc=1；I5 篡改安装 `libc.so`→gate rc=1；全部 `cp`+md5 还原，驱动 md5 `e4be5e0f…` 不变，末轮 38/38）。
+**修改文件**：`tests/scripts/dadao_user_dyn_probe.c`（新探针）、`tools/infra/build_musl.py`（+source stamp）、`tools/infra/check_musl_freshness.py`（新门控）、`Makefile`（`check-musl-freshness` + L1 接线）、`docs/Process-07-门控分层规范.md`（§1.1 登记）、`.tao/knowledge/issues.yaml`（`ISS-258` 处置）、本任务书；gitignored：`.work/evidence/TESTCASES-046t-dyn/run.sh`、`.work/log/testcases/embench-user-dynamic.json`、`.work/log/testcases/embench-user-dynamic.log`、`.work/log/testcases/ISS-258-blocked-round/`、`.work/log/infra/ISS-258-*.log`、`.work/build/embench-user-dynamic/`、`.work/source/musl`（重建产物）。
+**新发现/坑**：① 同名 `libc.a` 在 sysroot 是 **picolibc**、在 musl 构建树是 **musl** —— 判"产物是否旧"不能只看 mtime/路径，要看**成员名/md5 归谁**（本轮疑点 A 即此）。② 「TLS 基础设施已验」≠「`libc.so` 有 `PT_TLS`」：musl 的 TCB 不在 `.tdata`，报告引用时要写清测的是哪个对象。③ 增量构建 sha 不变**不能**证明可重复（可能什么都没重编）；要 `clean` 全量重建再比 sha（本轮已补）。
+**遗留问题**：047t 静态档未重跑（其 `libc.a` 与现状 sha256 相同，数字无变化空间；如需现场复证，`--musl .work/source/musl` 全量约 508 s）；`AT_*`/`maps` 观测由独立探针承担（驱动本身不探 auxv）；`P4` golden 对照、`ISS-246` 不在本册。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -149,3 +175,41 @@ known-fail 0 条：无 `ISS-246` 命中（该分支按 `thread-local storage is 
 
 #### 第 1 轮 reviewer 验收
 （独立重跑、约束核验、判决）
+
+
+#### 第 2 轮 engineer 自审（动态档）
+
+逐行审查 `tools/testcases/run_embench_user_suite.py` 的两处改动 + `.work/evidence/TESTCASES-046t-dyn/run.sh`，并以真实重跑对齐（default + `--inject` 各一次，非抽样）。
+
+| # | finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| F1 | 动态档 38/38 `exit=127`：随包 `libc.so`（13:49）早于 `ISS-249` argmask（17:33），与现行 `qemu-dadao`（18:31）不匹配 ⇒ ldso RELRO `mprotect` 参数右移一位 | ✅处置（归类修 + 登记） | 驱动加「ldso `Error relocating` + 无 marker ⇒ blocked」；登记 `ISS-258`（重建 `libc.so` 属越界，按派单不做） | `-strace` = `mprotect(NULL,<start>,0x6000)`；`reloc_all` 反汇编 = `rd16/rd17/rd18` + `rd2rb {rb16},{rd19}`（旧桩）；mtime 13:49<17:33<18:31 |
+| F2 | 驱动默认 `<musl>/lib/libc.so` 不存在（P2 的 `libc.so` 只在 target sysroot）⇒ 动态档 SetupError rc=2 | ✅已修 | 新增 `--libc`（默认行为不变） | `--libc .dadao/dadao-unknown-elf/lib/libc.so` ⇒ total=38；不传 `--libc` 时静态档仍 38/38 |
+| F3 | 证据脚本用 `llvm-readobj` 取 `PT_INTERP` 字符串 ⇒ 该工具不打印，样例检查恒 FAIL | ✅已修 | 脚本内 python 自解析 ELF（独立于驱动） | 样例 = `/lib/ld-musl-dadao.so.1`；default rc=0 |
+| F4 | 脚本把 `$((...))` 当命令替换用（`PT_TLS`/`reloc_all Size`）⇒ 算术求值报错 | ✅已修 | 改 `$(...)` | `PT_TLS count=0`、`reloc_all size=908` 正常打印 |
+| F5 | 完成区用 brace 形式合并两条日志路径，被判为悬空引用 | ✅已修 | 拆成两条全路径；本条只写现象不写路径 | `check-knowledge-refs` rc=0（悬空 0） |
+| F6 | 若沿用「rc≠0 ⇒ fail」，会把环境缺陷记成 38 个 benchmark 真失败（错误归属） | ✅已修 | 同上 F1 判据；`blocked>0` 仍 `rc=1`（不放松） | `fail=0/blocked=38`，driver rc=1；注入 I1 关掉判据 ⇒ fail=19、检查翻红 |
+| F7 | 三处注入是否真能翻红（非恒真） | ✅验证 | 未改 | I1 `fail` 检查、I2 `[FAIL] closure: executed 18 != discovered 19`、I3 逐例签名检查，均翻红；`cp`+md5（`e4be5e0f…`）还原后回预期态 |
+| F8 | `--libc` 误传 archive 时会不会静默成功 | ✅已修 | 加 `PT_DYNAMIC` 形态判据（动态档缺 / 静态档带 ⇒ blocked，带 reason） | `--link-mode dynamic --libc libc.a` ⇒ 19/19 `BLOCKED (dynamic image has no PT_DYNAMIC …)`，rc=1（不静默、不误记 fail）；正常动态档不受影响（38/38 仍按 ldso 签名 blocked） |
+| F9 | 静态档证据脚本的前置仍要求 `.work/source/musl/lib/libc.so` ⇒ 该 P2 产物现只在 target sysroot，脚本 prerequisite 恒 FAIL（与本次改动无关的陈旧路径） | ✅已修 | 前置改指 sysroot 的 `libc.so` | 静态证据 default rc=0（38/38 pass，16 s）、`--inject` rc=0（49 s，两处注入翻红 + md5 `e4be5e0f…` 还原） |
+
+判决：无未修 finding（唯一未闭环项 = `ISS-258` 的产物重建，**越界**，按派单不修）；动态档结论 = **38/38 blocked（环境阻塞，证据自洽）**。按派单**未改**本册 `**状态**`（保持 `待开始`）、未 commit/push。
+
+
+#### 第 3 轮 engineer 自审（疑点 A/B + 复跑 + 新鲜度门控）
+
+逐行审查 `build_musl.py` 的 source-stamp 增量、`check_musl_freshness.py`（新）、`Makefile`/`Process-07` 接线、`dadao_user_dyn_probe.c`（新）与重写后的动态证据脚本；两条疑点均按现场证据定性，不用"看起来对"结案。
+
+| # | finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| F1 | 疑点 A：sysroot `libc.a` mtime 14:45 < `ISS-249` 17:33 | ✅已查清（非旧 musl） | 未改产物 | 成员名 `libc_argz_*.c.o` + md5 `73630d61…` == `.work/build/picolibc/libc.a`；046t/047t 用 `.work/source/musl/lib/libc.a`（`--musl` 默认），md5 `ab9c61aa…`（19:49 重建后与 18:34 版相同）⇒ 不触发重建/047t 重跑条件 |
+| F2 | 疑点 B：`libc.so` 无 `PT_TLS`，与"INFRA-085t 验过 PT_TLS"冲突 | ✅已查清（记录无误） | 未改产物；任务书追加更正（历史证据不动） | `INFRA-085t` D1 测的是**合成 TLS 对象** `tls_seed.s`（p_filesz 8/memsz 16/align 8）；同册 F11/S6 断言 `libc.so` **无** `PT_TLS` 是正确形态。现场 `PT_TLS=0`、`.tdata/.tbss=0` |
+| F3 | 增量重建 sha 不变不足以证"可重复"（可能零重编） | ✅已修（补证） | 未改代码 | `make -C .work/source/musl clean` + `make build-musl-shared JOBS=8`（18.8 s）⇒ `libc.so`/`libc.a` sha256 与重建前**逐字节相同**（`a86a12cb…`/`1bad81fd…`）⇒ 配方可重复、无漂移 |
+| F4 | 新门控须能在"源变/工具链变/装错副本"三种真实故障下 FAIL，且不能把新克隆/纯静态流程变红 | ✅已验证 | 新增 `check_musl_freshness.py` + source stamp + L1 接线 | I3 戳记、I4 真改 musl 源、I5 篡改安装副本 ⇒ 均 rc=1；还原后 rc=0；`mv` 走构建树 ⇒ `SKIP` rc=0，移回后 rc=0（md5 不变） |
+| F5 | source stamp 若含 `obj/`/`lib/`/`config.mak` 会自污染（每次构建改摘要） | ✅已修 | `SOURCE_STAMP_SKIP_TOP` 排除生成物；内容摘要（非 mtime） | 两次构建 + 一次 clean 重建后摘要恒为 `811d143a…` |
+| F9 | 只"检测"源变不够：`make build-musl-shared` 若走增量、musl 又漏了头文件依赖 ⇒ 戳记写成新值而产物仍旧 | ✅已修 | `source_decision()`：digest 变即 `make clean`（与工具链戳记同风格，日志打印两行判定） | 加一行注释 ⇒ `sources: musl source digest changed` + `'make clean' (full rebuild)`（20 s）；还原后再次 clean 重建 ⇒ `libc.so` sha 回到 `a86a12cb…`（逐字节复原） |
+| F6 | 复跑证据若覆盖旧 `blocked` 轮输出 = 改写历史 | ✅已修 | 旧输出归档 `.work/log/testcases/ISS-258-blocked-round/`；旧节只追加指针 | `dynamic-baseline.log` 仍 `blocked=38`；新证据脚本按 `pass` 口径重写 |
+| F7 | 五处注入是否真能翻红（含 gate 三例） | ✅验证 | 未改 | I1 `fail=19`；I2 `closure 18 != 19`；I3–I5 gate rc=1；全部 `cp`+md5 还原（驱动 `e4be5e0f…`、装副本 `cb9b585b…`）后末轮 38/38 |
+| F8 | 探针断言是否"自证"（loader 值 vs loader 自己） | ✅验证 | 探针只打印；断言在脚本里与 **ELF 头**比对 | `AT_ENTRY 0x20554 == e_entry`、`AT_PHNUM 8 == e_phnum`、`AT_PHENT 56 == e_phentsize`；`AT_BASE` 独立判「≠0、页对齐、≠AT_ENTRY」 |
+
+判决：无未修 finding。`ISS-258` 已由「重装产物 + L1 新鲜度门控」闭环（`resolved_by = TESTCASES-046t`），动态档 38/38 pass。按派单**未改**本册 `**状态**`（仍 `待开始`）、未 commit/push。

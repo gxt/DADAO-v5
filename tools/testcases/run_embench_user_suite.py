@@ -18,8 +18,9 @@ Pipeline per (benchmark, optimisation level)::
     ld.lld -o <b>.elf <musl>/lib/crt1.o <objs> <musl>/lib/libc.a
     qemu-dadao <b>.elf
 
-    # dynamic line: P2 musl products
-    ld.lld -o <b>.elf <musl>/lib/crt1.o <objs> <musl>/lib/libc.so \
+    # dynamic line: P2 musl products (``--libc`` overrides the file; the P2
+    # ``libc.so`` ships in the target sysroot, not in the musl build tree)
+    ld.lld -o <b>.elf <musl>/lib/crt1.o <objs> <libc.so> \
            -dynamic-linker /lib/ld-musl-dadao.so.1
     qemu-dadao -L <guest-root> <b>.elf
 
@@ -66,6 +67,11 @@ Classification (counted live, never hard-coded)
                  running: compile/link failure, missing symbol, qemu killed by a
                  host signal, or timeout (``blocked > 0 => rc = 1``, the
                  ISS-248 gate rule: incomplete coverage must not look green).
+                 A guest that dies in the **loader** (musl ldso prints
+                 ``Error relocating`` before ``support/main.c`` runs, so no
+                 board marker appears) is the same kind of gap -- the
+                 benchmark's own verdict was never reached, so it must not be
+                 reported as a true ``fail`` of the benchmark either.
 
 Exit status: 0 = no ``fail`` and no ``blocked``; 1 = otherwise; 2 = setup error
 (missing tool / source / library product / zero benchmarks).
@@ -141,6 +147,7 @@ SCRIPTED_BASE = 0xFC0000000000
 BOARD_MARKERS = (b"[board:init]", b"[board:start]", b"[board:stop]")
 
 PT_LOAD = 1
+PT_DYNAMIC = 2
 PT_INTERP = 3
 
 
@@ -211,6 +218,10 @@ def pt_interp(path: str) -> bytes:
         if p["type"] == PT_INTERP:
             return p.get("interp", b"")
     return b""
+
+
+def has_pt_dynamic(path: str) -> bool:
+    return any(p["type"] == PT_DYNAMIC for p in elf_program_headers(path))
 
 
 def discover(src_root: str):
@@ -352,10 +363,20 @@ def build_and_run(bench, opt, cfg, work_dir):
         res.klass = "blocked"
         res.reason = f"static image carries PT_INTERP {res.interp!r}"
         return res
+    if cfg["mode"] == "static" and has_pt_dynamic(elf):
+        res.klass = "blocked"
+        res.reason = ("static image carries PT_DYNAMIC (the library on the "
+                      "link line is a shared object, not an archive)")
+        return res
     if cfg["mode"] == "dynamic" and res.interp != DYNAMIC_LINKER:
         res.klass = "blocked"
         res.reason = (f"dynamic image PT_INTERP {res.interp!r} != "
                       f"{DYNAMIC_LINKER!r}")
+        return res
+    if cfg["mode"] == "dynamic" and not has_pt_dynamic(elf):
+        res.klass = "blocked"
+        res.reason = ("dynamic image has no PT_DYNAMIC (the library on the "
+                      "link line is an archive, not libc.so)")
         return res
 
     cmd = [cfg["qemu"]]
@@ -378,6 +399,14 @@ def build_and_run(bench, opt, cfg, work_dir):
         return res
     res.exit = rc
     if rc != EXPECTED_GUEST_EXIT:
+        # musl's ldso prints "Error relocating ..." and exits before
+        # support/main.c can run (no board marker).  That is a loader/library
+        # gap, not the benchmark's own verdict -> `blocked`, never `fail`.
+        if not res.markers and "Error relocating" in stderr:
+            first = stderr.strip().splitlines()[0] if stderr.strip() else "(no stderr)"
+            res.klass = "blocked"
+            res.reason = (f"loader aborted before main (ldso): {first[:200]}")
+            return res
         res.klass = "fail"
         if rc in FAULT_NAMES:
             res.reason = (f"machine fault {FAULT_NAMES[rc]} (0x{rc:02X}); "
@@ -405,6 +434,11 @@ def main() -> int:
     ap.add_argument("--qemu", default=DEFAULT_QEMU)
     ap.add_argument("--embench-src", default=DEFAULT_EMBENCH_SRC)
     ap.add_argument("--musl", default=DEFAULT_MUSL)
+    ap.add_argument("--libc", default=None,
+                    help="override the library file put on the link line "
+                         "(default: <musl>/lib/libc.a for static, "
+                         "<musl>/lib/libc.so for dynamic; the P2 libc.so ships "
+                         "in the target sysroot)")
     ap.add_argument("--shim", default=DEFAULT_SHIM)
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
     ap.add_argument("--opt", default=DEFAULT_OPTS,
@@ -428,7 +462,9 @@ def main() -> int:
     musl = abspath(args.musl)
     cfg["musl_include_dirs"] = [os.path.join(musl, d) for d in MUSL_INCLUDE_DIRS]
     cfg["crt1"] = os.path.join(musl, "lib", "crt1.o")
-    cfg["libc"] = os.path.join(musl, "lib", "libc.a" if mode == "static" else "libc.so")
+    cfg["libc"] = (abspath(args.libc) if args.libc else
+                   os.path.join(musl, "lib",
+                                "libc.a" if mode == "static" else "libc.so"))
     work_dir = abspath(args.work_dir)
 
     try:
@@ -437,7 +473,7 @@ def main() -> int:
         require_exec(cfg["qemu"], "qemu-dadao")
         require_file(cfg["shim"], "hosted board shim")
         require_file(cfg["crt1"], "musl crt1.o")
-        require_file(cfg["libc"], f"musl {os.path.basename(cfg['libc'])}")
+        require_file(cfg["libc"], f"libc {os.path.basename(cfg['libc'])}")
         for d in cfg["musl_include_dirs"]:
             if not os.path.isdir(d):
                 raise SetupError(f"musl include dir not found: {d}")
