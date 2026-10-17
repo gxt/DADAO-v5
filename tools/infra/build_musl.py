@@ -64,6 +64,16 @@ mtime, ctime and ``--version`` line in ``obj/.dadao-toolchain-stamp``; a
 mismatch -- or a missing stamp -- runs ``make clean`` first and records the new
 stamp before building, and the decision is always logged.
 
+A second **source stamp** (``obj/.dadao-musl-source-stamp``) records a sha256
+over every musl input file on disk, written after a successful build.  It
+catches the case the toolchain stamp cannot see: a change *inside the port*
+(e.g. the ISS-249 syscall argument-bank protocol) with an unchanged toolchain.
+A changed digest forces ``make clean`` (musl's Makefile does not depend on every
+header, so an incremental build can miss a protocol change), and
+``tools/infra/check_musl_freshness.py`` (L1) compares both stamps plus the
+installed ``libc.so`` against the build product, so "sources or toolchain
+changed ⇒ libc.so must be rebuilt/reinstalled" is mechanically enforced.
+
 Fail-closed: a missing toolchain, a missing source tree, any non-zero
 compile/assemble/link step or a failed ELF assertion is an error (rc=2 for
 setup problems, rc=1 for a failed check), never a silent skip.
@@ -215,6 +225,17 @@ def config_records(shared: bool) -> bool:
 # a new inode), so the "reinstalled with the same timestamp" case is covered.
 STAMP_TOOLS = ("clang", "ld.lld")
 STAMP_REL = Path("obj") / ".dadao-toolchain-stamp"
+# A second stamp records WHAT the library was built FROM: a digest over every
+# musl input file (sources, headers, Makefiles) as applied on disk.  The
+# toolchain stamp alone cannot see an ISS-249-style protocol change *inside the
+# port* (that change moved the syscall argument banks in musl's stub): the
+# objects would be "up to date" with respect to clang, but the installed
+# libc.so would still encode the old protocol.  Written after a successful
+# build; checked by tools/infra/check_musl_freshness.py (L1).
+SOURCE_STAMP_REL = Path("obj") / ".dadao-musl-source-stamp"
+# Generated inside the build tree -- excluded so a rebuild cannot change its
+# own input digest (configure writes config.mak; make writes obj/ and lib/).
+SOURCE_STAMP_SKIP_TOP = {".git", "obj", "lib", "config.mak"}
 
 
 def toolchain_stamp() -> str:
@@ -260,6 +281,56 @@ def stamp_decision() -> tuple[bool, str, str]:
     return True, "toolchain stamp changed", current
 
 
+# ── source stamp (ISS-258) ──────────────────────────────────────────────────
+def source_stamp() -> str:
+    """One sha256 over every musl build input currently on disk.
+
+    ``(relative path, sha256(content))`` for each regular file, with the
+    generated top-level entries excluded (``obj/``, ``lib/``, ``config.mak``,
+    ``.git``).  Content-based on purpose: a ``git checkout`` that only touches
+    mtimes must not demand a rebuild, while a one-byte port change must.
+    """
+    digest = hashlib.sha256()
+    for path in sorted(MUSL_SRC.rglob("*")):
+        rel = path.relative_to(MUSL_SRC)
+        if rel.parts[0] in SOURCE_STAMP_SKIP_TOP or not path.is_file():
+            continue
+        digest.update(str(rel).encode())
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def read_source_stamp() -> str | None:
+    try:
+        return (MUSL_SRC / SOURCE_STAMP_REL).read_text().strip()
+    except OSError:
+        return None
+
+
+def write_source_stamp(text: str) -> None:
+    path = MUSL_SRC / SOURCE_STAMP_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text + "\n")
+
+
+def source_decision() -> tuple[bool, str]:
+    """(changed, reason) between the recorded source digest and the tree now.
+
+    A changed digest forces ``make clean``: musl's Makefile does not depend on
+    every header, so an incremental ``make`` can miss a protocol change (the
+    ISS-249 stub change lived in ``arch/dadao/syscall_arch.h``).  The cost is
+    one full rebuild of a small tree (~19 s) and it buys the guarantee that a
+    product's recorded digest really describes the product.
+    """
+    stored = read_source_stamp()
+    if stored is None:
+        return True, "no source stamp recorded for this build tree"
+    if stored == source_stamp():
+        return False, "source stamp unchanged (objects built from these inputs)"
+    return True, "musl source digest changed"
+
+
 def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
     if not MUSL_SRC.is_dir():
         print(f"build-musl: ERROR: {MUSL_SRC} not found -- run 'make fetch apply-series'",
@@ -289,9 +360,14 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
     except OSError as exc:
         print(f"build-musl: ERROR: cannot stamp the toolchain ({exc})", file=sys.stderr)
         return 2
-    if changed:
-        print(f"build-musl: {reason} => 'make clean' (full rebuild)")
-        print("build-musl: current toolchain stamp:\n" + current.rstrip())
+    src_changed, src_reason = source_decision()
+    print(f"build-musl: toolchain: {reason}")
+    print(f"build-musl: sources:   {src_reason}")
+    if changed or src_changed:
+        print(f"build-musl: {'toolchain' if changed else 'sources'} changed "
+              f"=> 'make clean' (full rebuild)")
+        if changed:
+            print("build-musl: current toolchain stamp:\n" + current.rstrip())
         res = run(["make", "clean"], cwd=MUSL_SRC, env=env)
         if res.returncode != 0:
             print(f"build-musl: FAIL (make clean rc={res.returncode})\n{res.stdout}",
@@ -302,7 +378,7 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
         # then resumes incrementally instead of paying another full clean.
         write_stamp(current)
     else:
-        print(f"build-musl: {reason} => incremental build")
+        print("build-musl: incremental build")
     make_cmd = ["make", f"-j{jobs}"]
     if shared:
         make_cmd.append(f"LIBCC={COMPILER_RT_BUILTINS}")
@@ -318,6 +394,11 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
         if not (MUSL_SRC / product).is_file():
             print(f"build-musl: FAIL (missing product {product})", file=sys.stderr)
             return 1
+    # Provenance: remember the exact inputs this build consumed.  Written only
+    # after success (see check_musl_freshness.py).
+    write_source_stamp(source_stamp())
+    print(f"build-musl: recorded source stamp {read_source_stamp()} "
+          f"({', '.join(products)})")
     return 0
 
 

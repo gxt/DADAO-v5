@@ -50,6 +50,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-lit-full \
         test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
+        check-musl-freshness \
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-contracts-dir \
         check-component-changelog check-syscall-abi
@@ -522,7 +523,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-contracts-pending check-contract-relocs check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-musl-freshness check-contracts-pending check-contract-relocs check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -627,6 +628,14 @@ check-contracts-dir:
 # 有 .work/source 时读工作树，否则退回 components/ 下的补丁（新克隆也能跑）。
 check-syscall-abi:
 	@$(PYTHON) tools/qemu/check_syscall_abi.py
+
+# musl 产物新鲜度 (ISS-258): 安装根 libc.so 必须由当前 musl 源 + 工具链构建
+# （build_musl.py 成功构建后在 obj/ 落 toolchain/source 戳记；源 digest 变即
+# 强制 make clean；安装副本与构建产物逐字节一致）。无构建树 / 无共享产物 ⇒
+# SKIP；有产物则缺戳记即 FAIL。成本 ~1.2 s（内容摘要），按 docs/Process-07
+# §1.1 归 L1（静态溯源，不跑被测语义）。
+check-musl-freshness:
+	@$(PYTHON) tools/infra/check_musl_freshness.py
 
 check-component-changelog:
 	@$(PYTHON) tools/infra/check_component_changelog.py

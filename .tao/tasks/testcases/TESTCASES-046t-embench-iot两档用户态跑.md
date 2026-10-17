@@ -213,3 +213,9 @@ known-fail 0 条：无 `ISS-246` 命中（该分支按 `thread-local storage is 
 | F8 | 探针断言是否"自证"（loader 值 vs loader 自己） | ✅验证 | 探针只打印；断言在脚本里与 **ELF 头**比对 | `AT_ENTRY 0x20554 == e_entry`、`AT_PHNUM 8 == e_phnum`、`AT_PHENT 56 == e_phentsize`；`AT_BASE` 独立判「≠0、页对齐、≠AT_ENTRY」 |
 
 判决：无未修 finding。`ISS-258` 已由「重装产物 + L1 新鲜度门控」闭环（`resolved_by = TESTCASES-046t`），动态档 38/38 pass。按派单**未改**本册 `**状态**`（仍 `待开始`）、未 commit/push。
+
+#### 第 4 轮 architect 提交（2026-10-17）
+- 档位：按主会话派单给定消息**正常提交**（本册无 reviewer 判决块、`**状态**` 保持 `待开始` ⇒ 按 architect 默认档位应为 `WIP:`；此处按派单原话执行，如实披露）。
+- 提交 ①：`7ef1c6f` = 本册 + `tools/testcases/run_embench_user_suite.py` + `tests/scripts/dadao_user_dyn_probe.c` + `.tao/knowledge/issues.yaml`（`ISS-258`）。
+- 提交 ②：musl 新鲜度（`build_musl.py` / `check_musl_freshness.py` / `Makefile` / `docs/Process-07`）+ `milestones.md` / `INTEG-036m` 台账 + 本条。
+- 文件集对账：显式 staging（逐路径），命中第 2/3 轮完成区「修改文件」并集 **8** 路径 + 本轮台账 **2** 路径；**无漏提**（`.work/**` 均 gitignored）/ **无多提** / **无越界**。
