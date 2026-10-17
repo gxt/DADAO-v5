@@ -92,9 +92,11 @@ Classification (counted live, never hard-coded)
                   ``known-fail`` and any unclassified ``fail``.
 * ``excluded``    declared up front, structural, with a per-entry reason and a
                   live count: upstream's test *generator* tree
-                  (``src/math/gen/**``), the ``dlopen`` case in a static image
-                  (there is no dynamic loader in a static musl image; ADR-0025
-                  D2 defers dlopen to M9+), and an ``src/api`` conformance TU
+                  (``src/math/gen/**``), the ``dlopen`` cases (a static image
+                  has no dynamic loader; in the dynamic round dlopen is out
+                  of the declared M8 scope -- ADR-0025 D2 / INFRA-085t item 7
+                  -- and the TLS DSO helpers cannot compile under ISS-246),
+                  and an ``src/api`` conformance TU
                   that names an identifier the locked musl does not provide.
 * ``blocked``     a build/run gap prevents the case from reaching its own
                   verdict: compile/link failure, missing symbol, unloadable
@@ -145,10 +147,17 @@ DEFAULT_LOG_DIR = ".work/log/testcases"
 DEFAULT_TIMEOUT = 60
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
 
-# musl port include set -- identical to tools/infra/build_musl.py,
-# tools/testcases/run_suite.py and TESTCASES-046t's driver.
-MUSL_INCLUDE_DIRS = ("arch/dadao", "arch/generic", "obj/src/internal",
-                     "src/include", "src/internal", "obj/include", "include")
+# Public include set for *user* translation units -- the header view a program
+# sees, not musl's own build view.  musl's internal headers must stay off this
+# path: src/include/errno.h maps ``errno`` to the hidden ``___errno_location``
+# (src/include/errno.h:9-12), which libc.a defines but libc.so keeps LOCAL
+# HIDDEN (readelf -sW libc.so: ``___errno_location`` = LOCAL/HIDDEN, only
+# ``__errno_location`` is exported).  A user TU compiled with the internal
+# headers therefore links statically but fails dynamically with
+# ``undefined hidden symbol: ___errno_location`` -- a driver-side include bug,
+# not a target gap (verified: ipc_msg with this set links and exits 0).
+MUSL_USER_INCLUDE_DIRS = ("arch/dadao", "arch/generic", "obj/include",
+                          "include")
 
 # Upstream config.mak.def minus the glibc-only block and the -Werror family
 # (the task's stated口径: warnings are not build errors here).
@@ -341,6 +350,17 @@ CASE_NOTES = {
         "verdict.",
 }
 
+# Notes that only hold in one link mode (documentation only).
+MODE_CASE_NOTES = {
+    ("dynamic", "musl/pleval"):
+        "dynamic-round link gap, expected upstream: __pleval is a *hidden* "
+        "musl internal symbol (src/locale/pleval.h:6), so libc.so does not "
+        "export it; upstream's own src/musl/pleval.mk says 'do not build and "
+        "run the dynamic link tests (__pleval is no longer public)'.  The "
+        "driver keeps the case in the executed set (same enumeration as the "
+        "static round) and records the link error as blocked.",
+}
+
 # Declared structural exclusions inside the discovered set (per entry reason).
 # Everything is counted live; an entry that no longer reproduces is reported as
 # such (never assumed).
@@ -359,6 +379,36 @@ STRUCTURAL_EXCLUSIONS = {
     "regression/tls_get_new-dtv.c":
         "dlopen + pthread-based dynamic-TLS regression test; a static image "
         "has no dynamic loader (ADR-0025 D2) and the port has no threads.",
+}
+
+# Dynamic-round reasons for the same four entries: the static wording ("a
+# static image has no dynamic loader") would be false here, so it is replaced
+# rather than reused.  Two independent boundaries keep the cases out of the
+# dynamic round: (1) dlopen itself is out of the declared M8 scope (ADR-0025
+# D2 / INFRA-085t item 7: M8 does not require dlopen), and (2) the driver does
+# not build the per-case DSO helpers, while the TLS DSOs additionally cannot
+# compile (ISS-246) and need module-level TLS relocations that lld rejects
+# (ADR-0025 D2).  These are scope/structural boundaries, not verdicts.
+DYNAMIC_EXCLUSION_REASONS = {
+    "functional/dlopen.c":
+        "dynamic round: dlopen is out of the declared M8 scope (ADR-0025 D2 "
+        "defers it to M9+; INFRA-085t item 7) and the driver does not build the "
+        "sibling DSO helper (dlopen.mk: dlopen_dso.so).  Declared scope "
+        "boundary, not a capability claim -- a non-TLS DSO probe works.",
+    "functional/tls_align_dlopen.c":
+        "dynamic round: the DSO helper tls_align_dso.c declares __thread (the "
+        "target cannot compile it; ISS-246) and module-level TLS relocations "
+        "(TLS_DTPMOD/DTPREL/TPREL) are rejected by lld, deferred to M9+ "
+        "(ADR-0025 D2) -- the case cannot reach a verdict.",
+    "functional/tls_init_dlopen.c":
+        "dynamic round: the DSO helper tls_init_dso.c declares __thread "
+        "(ISS-246) and needs module-level TLS relocations rejected by lld, "
+        "deferred to M9+ (ADR-0025 D2) -- the case cannot reach a verdict.",
+    "regression/tls_get_new-dtv.c":
+        "dynamic round: dlopen + pthread dynamic-TLS regression; the DSO "
+        "helper declares __thread (ISS-246), module-level TLS relocations are "
+        "deferred to M9+ (ADR-0025 D2), and the port has no threads (ISS-252) "
+        "-- the case cannot reach a verdict.",
 }
 
 # Extra translation units linked into a case, exactly as upstream's per-case
@@ -987,7 +1037,7 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
     return case
 
 
-def attribute_port_gaps(case):
+def attribute_port_gaps(case, mode):
     """Apply the declared platform-gap rules *after* the case has run.
 
     Only documentation and the `fail` -> `blocked` demotion for cases that
@@ -996,6 +1046,8 @@ def attribute_port_gaps(case):
     """
     if case.cid in CASE_NOTES:
         case.notes.append(CASE_NOTES[case.cid])
+    if (mode, case.cid) in MODE_CASE_NOTES:
+        case.notes.append(MODE_CASE_NOTES[(mode, case.cid)])
     if case.klass not in ("fail", "blocked"):
         return
     if case.uses_thread:
@@ -1037,7 +1089,7 @@ def main() -> int:
     }
     musl = abspath(args.musl)
     cfg["musl_incs"] = ["-nostdinc"]
-    for d in MUSL_INCLUDE_DIRS:
+    for d in MUSL_USER_INCLUDE_DIRS:
         cfg["musl_incs"] += ["-I", os.path.join(musl, d)]
     cfg["src_root"] = os.path.join(abspath(args.src), "src")
     cfg["crt1"] = os.path.join(musl, "lib", "crt1.o")
@@ -1051,7 +1103,7 @@ def main() -> int:
         require_exec(cfg["qemu"], "qemu-dadao")
         require_file(cfg["crt1"], "musl crt1.o")
         require_file(cfg["libc"], f"musl {os.path.basename(cfg['libc'])}")
-        for d in MUSL_INCLUDE_DIRS:
+        for d in MUSL_USER_INCLUDE_DIRS:
             if not os.path.isdir(os.path.join(musl, d)):
                 raise SetupError(f"musl include dir not found: {musl}/{d}")
         if not os.path.isdir(cfg["src"]):
@@ -1068,6 +1120,11 @@ def main() -> int:
         api_inc, options_defines = gen_api_options_h(cfg, work_dir)
 
         cases, excluded, census = discover(src_root)
+        if mode == "dynamic":
+            # The static wording ("no dynamic loader in a static image") would
+            # not describe the dynamic round; replace it per entry.
+            excluded = [(eid, DYNAMIC_EXCLUSION_REASONS.get(eid, reason))
+                        for eid, reason in excluded]
         if not cases:
             raise SetupError(f"no cases discovered under {src_root}")
 
@@ -1137,7 +1194,7 @@ def main() -> int:
 
     for case in selected:
         build_and_run(case, cfg, work_dir, api_inc)
-        attribute_port_gaps(case)
+        attribute_port_gaps(case, mode)
         attribute_known_fail_bases(case, musl)
         act = "?" if case.exit is None else str(case.exit)
         base = "?" if case.min_pt_load is None else hex(case.min_pt_load)

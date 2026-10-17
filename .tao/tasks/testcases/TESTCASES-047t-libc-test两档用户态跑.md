@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**；`qemu-dadao` 在安装根）；`INFRA-082t`（`P1` musl 静态，**`已验证`**）、`INFRA-085t`（`P2` 动态，**`已验证`**）；`TESTCASES-044t`（`libc-test` **取源与锁定**，**`已验证`**；`patchless = true` ⇒ 源只读）、`TESTCASES-045t`（`P1` 能力边界度量，`已验证`；其 `tools/testcases/run_suite.py` 在 `dadao-m1` 路径上已硬失败 ⇒ **本册不复用其运行路径**，只复用其**建链方法论**与排除口径的教训）；`ISS-247`（**链接基址**）、`ISS-246`（**known-fail 唯一依据**）、`ISS-229`（串行）、`ISS-210`（安装根新鲜度）、`ADR-0025`（`D2`/`D6`/`D7`）；**同批三册**：`TESTCASES-046t` / `TESTCASES-047t`（本册）/ `TESTCASES-048t` ⇒ **同改共享文件（`Makefile` / `milestones.md`）⇒ 串行**。
 **状态**：待开始
-**阶段进度**：静态档 ✅ **fail=0**（5 条 `long double` 归 `known-fail`/`ADR-0030→M9`；pass 303 / known-fail 9 / blocked 25；`pthread_create-oom` 有 qemu flake）/ 动态档 ⏳
+**阶段进度**：静态档 ✅ **fail=0**（本轮同驱动复跑 pass 303 / known-fail 9 / blocked 25；`pthread_create-oom` 有 qemu flake）/ 动态档 ✅ **fail=0**（pass 298 / known-fail 8 / blocked 31；8 条 COPY 链接缺口见第 5 轮）
 
 > **编号（现场取号，2026-10-17）**：现存最大 = `TESTCASES-045t` ⇒ 取 **`047`**；`046` 归同批 `embench-iot` 册；全历史 `grep -E 'TESTCASES-04[678]'` **0 命中**。
 
@@ -153,6 +153,18 @@ excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上�
 **验收结果**：`./.work/evidence/INFRA-087t/run.sh --inject` rc=0（含新增注入 C：禁用 ADR 准入 ⇒ `[FAIL] unclassified failure(s) remain`；`cp`+md5 还原回绿）；门控各 rc 见 `INFRA-087t` 完成区第 3 轮。未跑 `install-host`/L2/L3；未提交。
 **遗留问题**：动态档未跑；`ISS-250` 保持 `open`（M9 后复核关闭）；`ISS-251` 待收尾。
 
+### 第 5 轮（动态档全量，2026-10-17 engineer）
+
+**测试结果**：动态档全量（安装根 `qemu-dadao`；lld 默认基址；`libc.so` + `-dynamic-linker /lib/ld-musl-dadao.so.1`）⇒ **discovered 367 / excluded 30 / total 337：pass 298、fail 0、known-fail 8、blocked 31**（driver rc=1 仅因 `blocked>0`，`ISS-248`）。静态档用同版驱动复跑 ⇒ **303/0/9/25**（与第 4 轮一致；首跑一次 `malloc-oom` 被 qemu 宿主 `SIGTRAP` 打掉，单跑 3/3 pass、整轮重跑复现 303，按 `ISS-255/257` 类 flake 记录）。**动态档 rc/耗时**：9 min 29 s（静态 8 min 29 s；证据脚本 default/`--inject` ≈ 1 min）。
+**静态→动态逐例变化（12 条，无 pass→fail / fail→pass）**：`pass→blocked` 8 = `functional/env`（`environ`）、`math/{lgamma,lgammaf}`（`signgam`）、`regression/{fflush-exit,fgetwc-buffering,rewind-clear-error,setvbuf-unget}`（`stdout`/`stdin`）7 条 **COPY 重定位**（非 PIC 可执行文件引用 libc 数据对象 ⇒ lld 显式拒绝，`ADR-0026 D7②` / `contract-dynlink §10②`）+ `musl/pleval`（`__pleval` 为 musl hidden 内部符号，`libc.so` 不导出；上游 `pleval.mk` 明写动态档不构建）；`known-fail→blocked` 1 = `math/lgammal`（同为 `signgam` COPY）；`blocked→pass` 3 = `functional/tgmath`（真增益：`libc.so` 链入 compiler-rt builtins，`cpow` 的 hidden `__muldc3` 在库内解析）+ `regression/{setenv-oom,pthread_create-oom}`（**OOM 类 flake**，static 为 blocked，不计真增益）。
+**known-fail（8 条，逐例依据）**：`ISS-246` 3（`tls_align`/`tls_init`/`tls_local_exec`；现场 TLS 扫描命中 3 / 0「命中但 pass」）、`ISS-251` 1（`strptime`，musl `%s` parse-only）、`ADR-0030` 4（`math/{acoshl,asinhl,erfcl,tgammal}`，`ulperr` + `LDBL_MANT_DIG=53`；`lgammal` 因 COPY 改记 blocked）。
+**blocked 31 归属复核（`ISS-252/253/254/255` 仍成立 + 新形态 2 类）**：`ISS-252` 19（17 线程用例 + `popen`/`spawn` 经 `__clone → ENOSYS`）、`ISS-254` 1（`setjmp`，`undefined symbol: sigsetjmp`）、`ISS-253` 1（`mbsrtowcs-overflow`，`wchar_t` 有符号性）、`ISS-255` 1（`flockfile-list`，宿主 `SIGBUS`）、**COPY 8**（上述）、**`pleval` 1**（hidden 符号）。**新形态**：动态档独有 = COPY 链接期拒绝（已由 `ADR-0026 D7②` 声明，非缺陷；`-fPIC` 同一用例 `functional/env` 实测 link rc=0 / guest exit 0，证据脚本已固化）与 hidden 内部符号（非缺陷）。
+**驱动修正（影响两档，静态已复跑证不回归）**：`MUSL_USER_INCLUDE_DIRS` 改为**公共头集合**（`arch/dadao`/`arch/generic`/`obj/include`/`include`）。旧集合把 musl 内部 `src/include` 排在前面 ⇒ 用户 TU 的 `errno` 绑定到 `___errno_location`（`libc.a` 有定义、`libc.so` 为 LOCAL HIDDEN）⇒ 静态可链、动态 `undefined hidden symbol`（首轮 pilot 已现，修后 `ipc_*`/`socket`/`setenv-oom` 等不再误 blocked）。另：`DYNAMIC_EXCLUSION_REASONS`（4 条 dlopen 用例的动态档 reason，静态措辞不再复用）、`MODE_CASE_NOTES[("dynamic","musl/pleval")]`。
+**验收结果**：① 形态：323 张 ELF 全部 `min PT_LOAD=0x10000`、`PT_INTERP=/lib/ld-musl-dadao.so.1`；323 条 link 行全含 `-dynamic-linker` + `lib/libc.so`、无 `-T`/`dadao.lds`。② loader 真跑：`tests/scripts/dadao_user_dyn_probe.c` ⇒ `AT_BASE=0x790c20250000`（≠0、页对齐）、`AT_ENTRY`/`AT_PHNUM`/`AT_PHENT` 与 ELF 头逐项相等、`/proc/self/maps` 命中 `ld-musl-dadao.so.1`；**dlopen 现场**：简单非 TLS DSO（`dlopen_dso.so`）实测 `dlopen/dlsym` **exit 0** ⇒ 4 条 dlopen 用例的 excluded 是 **M8 范围裁定**（`ADR-0025 D2`/`INFRA-085t ⑦`）+ 驱动不建 DSO helper，**不是**装载能力不足（如实记，供 M9 收编）。③ 独立审计（`cp`+md5，非 driver 汇总）：六数与 JSON 逐项相等、census 433/462/26 现场复算、逐例不变量 337 条 PASS。④ 证据脚本 `.work/evidence/TESTCASES-047t-dyn/run.sh`：default **68 PASS / rc=0**；`--inject` **rc=0**（I1 期望退出码 0→1 ⇒ `functional/argv` 判 FAIL、driver rc=1；I2 known-fail 改标 pass ⇒ audit 拒；I3 清空 `PT_INTERP` ⇒ 形态不变量拒；三者 `cp`+md5 还原，driver md5 `d2fbab33…`、JSON md5 `cf8ee211…`）。
+**修改文件**：`tools/testcases/run_libc_test_user_suite.py`（公共头集合、动态档 exclusion reason、pleval note）；本任务书；gitignored：`.work/evidence/TESTCASES-047t-dyn/run.sh`、`.work/log/testcases/{libc-test-user-dynamic.{json,log,stdout,stderr},libc-test-user-static.{json,log,stdout,stderr},047t-dyn-evidence*.log}`、`.work/tmp/TESTCASES-047t-dyn/`。
+**遗留问题**：动态档 8 条 COPY 用例（非 PIC 用户可执行）在 `ADR-0026 D7②` 下不可链；`-fPIC` 可绕（实测），是否把动态档用户编译改为 `-fPIC`/`-pie` 属口径决策（**待架构裁定**，本笔不改）。`pleval` 动态档按上游 `.mk` 本不应构建，本驱动保留执行以维持两档同一枚举集（记 blocked）。OOM 三条（`malloc-oom`/`setenv-oom`/`pthread_create-oom`）宿主侧不稳定（`ISS-255/257`）。
+
+
 
 ## 审阅记录
 
@@ -197,3 +209,19 @@ excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上�
 | F6 | `ipc_sem` 仍 fail（`va_arg(union)` 得 0） | ❌不修（越界，登记） | 同上 | 最小复现 `.work/evidence/ISS-249/repro.c` + 反汇编 |
 
 判决：本笔范围内 finding 全修；F5/F6 为**独立 codegen 缺陷**（非 argmask），越界不修、已按现场登记并给出候选修法（LLVM 侧尾调用返回 bank / 可变参聚合；或 musl 侧改用 `__syscall`）。状态 → `待验收`。
+
+#### 第 5 轮 engineer 自审（动态档）
+
+逐行审查驱动改动（公共头集合、`DYNAMIC_EXCLUSION_REASONS`、`MODE_CASE_NOTES`、`attribute_port_gaps(case, mode)`）与证据脚本（审计逐条、loader 探针、重放、COPY/dlopen 探针、3 注入），并以「首跑→修→静态/动态整轮重跑」对齐；未抽样。
+
+| # | finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| F1 | 用户 TU 误用 musl 内部头（`src/include/errno.h` ⇒ hidden `___errno_location`）⇒ 动态首轮 pilot 5 例假 blocked | ✅已修 | `MUSL_USER_INCLUDE_DIRS`（公共头视图） | pilot 复跑 `ipc_*`/`socket`/`setenv-oom` pass；静态整轮 303/0/9/25 不回归 |
+| F2 | 静态档 exclusion reason 在动态档为假命题（「静态镜像无装载器」） | ✅已修 | `DYNAMIC_EXCLUSION_REASONS`（4 条） | 动态 summary 4 条均以「dynamic round」开头；审计模式措辞检查 PASS |
+| F3 | `musl/pleval` 动态档链接失败（`__pleval` hidden）易被误判 fail/放宽为 excluded | ✅已修（分类） | 保留执行 + `MODE_CASE_NOTES` 引上游 `.mk`；记 blocked | JSON reason + 任务书逐条依据；审计 blocked 前缀/根因 PASS |
+| F4 | 8 条 COPY 链接失败可能被误当 known-fail 或驱动缺陷 | ⏸不修（口径外） | 不改 lld/契约；记 blocked + 依据 `ADR-0026 D7②` | `-fPIC` 同例 link rc=0/exit 0；审计 COPY 归因检查 PASS |
+| F5 | 第 1 次静态整轮 `malloc-oom` 被宿主 `SIGTRAP` 打掉（303→302） | ✅已处置（重试 1 次） | 未改代码 | 单跑 3/3 pass；整轮重跑 303/0/9/25 |
+| F6 | OOM 三条在动态档偶然 pass（`setenv-oom`/`pthread_create-oom`），易被当作真实增益 | ✅已披露 | 任务书对比单列 flake；`tgmath` 单独说明真因 | 静态档同例为 blocked；连续两次动态/静态结果不一致仅限 OOM 类 |
+| F7 | 4 条 dlopen 用例在动态档排除可能被读作「装载能力不足」 | ✅已披露 + 现场探针 | 证据脚本增非 TLS DSO `dlopen/dlsym` 探针 | 探针 exit 0；任务书标明「范围裁定」并留 M9 收编 |
+
+判决：本笔可修 finding 已修；F4/F7 为**口径/范围**事项（不越界改 lld/契约/组件），已按现场登记并留架构裁定。动态档实现、五类分类、对比、证据与门控完成。
