@@ -15,6 +15,16 @@
 - **本任务不做**：**hw 特化**（`bswap`/`clz` 等，`D3` 后置、须数据支撑）；**ISA 指令扩展**（另立 `SPEC-141t`）；**不预设**其结论。
 - **登记在册的边界**：`SPEC-140t` 已证实 **musl 硬依赖 TP + TCB/TLS 区**（`ADR-0025 D5`）——该面**不属本任务**（属 musl 移植），本任务只保证 `builtins` **可编、可链、可跑**。
 
+### 追加裁定（2026-10-17，architect 落纸）
+
+> **用户原话（逐字引录；渠道 = 经主会话问答）**：「**由于compiler-rt已经在llvm中实现了，picolibc中的对应内容可以删除；该任务可以放到整个动态链接测试之后**」
+
+- **落纸三条**：
+  1. **picolibc vendored 副本可删** ✓ —— 依据 = compiler-rt 已在 `llvm-project` 内实现（本任务即其接入落点，`ADR-0027 D2`：`components/llvm-project/patches/compiler-rt/**`）；删除面仍以「§输出 4 连带清理」为准（`libm/common/{muldc3.c,mulsc3.c,compiler_rt_builtins.h}` 三件 `.patch` + 现场判 `meson.build.patch`/`series`）。
+  2. **排期 = 整个动态链接测试之后** ✓ —— 即本任务（及其连带清理）**后移**到「动态链接（`P2`）**及其测试**（`P3` 的动态档跑）」之后 ⇒ 现**不排入**当前队列（本行即排期口径的落纸处）。
+  3. **删副本的依赖（硬）** ✓ —— 删 vendored 副本须与本任务（builtins 接入）**同批或在其后**；**先删而后接** ⇒ picolibc 在 `_Complex` 乘/除上失去提供方（`__mulsc3`/`__muldc3` 现由该 vendored 副本 = `INFRA-067t` 提供）⇒ **picolibc 编不过** ✗。**现场依据** = `INFRA-078t §4.4`（**后端 5 个接入点** #1–#5：i128 除法/取模 libcall 注册 / FP↔i128 / `SHL`·`SRL`·`SRA_PARTS` / `bswap` / 原子）+ `§4.5`（「**人力主要在 5 个后端改动点**」）⇒ 独立 builtins 库在 5 个接入点落地**前**不具备替代能力。
+- **本任务其余范围/口径不动** ✗（`ADR-0027 D1`–`D5` 仍为唯一真源）；`**状态**` 仍 `待开始`（仅排期后移，**不**另置新状态）。
+
 ## 已查证事实（源 `INFRA-078t`，**引用勿重复查证**）
 
 1. **上游不认识 `dadao`**：`int_lib.h`/`int_types.h`/`int_endianness.h` **无** `__dadao__`/`__DADAO__` 分支（`grep` 0 命中）。
