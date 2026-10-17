@@ -1180,7 +1180,7 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 ---
 
-## §14 待定指令 — scope: excluded
+## §14 deferred 指令（原「待定」）— scope: excluded｜分类依据 = `ADR-0012` D1、`ADR-0014`
 
 > 范围：fence 指令、LR-SC 原子指令、特权 cfx 系统指令中的 `cfxld`/`cfxst`。均 **`scope: excluded`**（未实现，decode ILLI），本合约不提取其完整规范内容。[SimRISC-12 §fence指令]（`trap`/`escape`/`cfx2rd`/`cfx2rc` 已 re-scope 为 `m1`，见 §13.6。）
 
@@ -1499,7 +1499,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x7D | cfxst | `cfxst` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | MISC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
 | MISC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
-| MISC-AMO 000-000 | fence | `fence` | 待定指令 | [SimRISC-00 §MISC-AMO 指令编码] |
+| MISC-AMO 000-000 | fence | `fence` | deferred 指令（`ADR-0014`） | [SimRISC-00 §MISC-AMO 指令编码] |
 | MISC-AMO 010-xxx | lr_nn/lr_nr/lr_an/lr_ar | `lr_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
 | MISC-AMO 011-xxx | sc_nn/sc_nr/sc_an/sc_ar | `sc_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
 

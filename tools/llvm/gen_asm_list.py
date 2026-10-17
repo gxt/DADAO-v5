@@ -218,6 +218,17 @@ SECTION_BADGES = {
     "待定": "**deferred** — 暂不归类，待必须启用时",
 }
 
+# 人读契约（`contract-asm-list.md`）的定案表述覆盖：内部键仍是分类名「待定」，
+# 但输出须表明这是**已定案**的 deferred 分类（用户裁定 2026-10-03，`ADR-0012` D1），
+# 不是「待裁决」（`check-contracts-pending` B4）。**spec/ 内嵌块不动**（只读册）⇒
+# `_section_content()` 仍用 `SECTION_BADGES`，本表只服务契约生成。
+CONTRACT_BADGES = {
+    "待定": "暂不归类（原「待定」章），待必须启用时；分类依据 = `ADR-0012` D1",
+}
+
+# 契约章节显示名（内部键仍是分类名「待定」）。
+SECTION_TITLES = {"待定": "deferred"}
+
 
 def template(entry: dict, ops: list[dict]) -> str:
     # lr 的 rdhb 固定为 rd0，模板同样只写两个操作数
@@ -654,12 +665,13 @@ def main() -> int:
     for cls in SECTION_ORDER:
         if cls not in by_class:
             continue
-        if cls in SECTION_BADGES:
+        if cls in SECTION_BADGES or cls in CONTRACT_BADGES:
+            badge = CONTRACT_BADGES.get(cls, SECTION_BADGES.get(cls))
             rows.append(
-                f"\n### {cls}（{len(by_class[cls])} 条）｜ {SECTION_BADGES[cls]}\n"
+                f"\n### {SECTION_TITLES.get(cls, cls)}（{len(by_class[cls])} 条）｜ {badge}\n"
             )
         else:
-            rows.append(f"\n### {cls}（{len(by_class[cls])} 条）\n")
+            rows.append(f"\n### {SECTION_TITLES.get(cls, cls)}（{len(by_class[cls])} 条）\n")
         rows.append("| 助记符 | format | feature | 汇编形式 | id |")
         rows.append("|---|---|---|---|---|")
         body = []
@@ -680,8 +692,8 @@ def main() -> int:
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
 > **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `scope: fp` {n_fp} + `scope: excluded` {n_excluded} + `scope: m3` {n_m3} + `scope: m8` {n_m8}）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
-> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **待定**（暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）为 `scope: fp`（已实现）；**待定**（{_pending_chapter} 条）为 **deferred**（暂不归类）；其余 {n_m1} 条为 `scope: m1` 当前有效书写形式
+> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）为 `scope: fp`（已实现）；**deferred（原「待定」）**（{_pending_chapter} 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；其余 {n_m1} 条为 `scope: m1` 当前有效书写形式
 > **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter} 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 7 条（`cs.eq/ne/n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
