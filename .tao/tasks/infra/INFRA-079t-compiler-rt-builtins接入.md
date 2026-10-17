@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0027`（compiler-rt builtins 支持口径，`Accepted`，`D1`–`D5` = 本任务**唯一真源**）；`INFRA-078t`（compiler-rt 支持预研：缺口 / 符号差 / 接入点来源，**只读**）；`LLVM-091t`（`llvm-project 23.1.3` 已落地 = 补丁面基线）；`INFRA-067t`（picolibc vendored `__mulsc3`/`__muldc3` 的来源，本任务**移除**该 vendor）；消费方 = M8 `P1`（musl 静态）及其后各段
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -167,8 +167,39 @@
 
 **未修 finding**：无（F1–F7 均处置；外部阻塞项见本册「遗留问题」，非本笔缺陷）。
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+#### 第 1 轮 reviewer 验收（2026-10-17）
+
+**判决**：**Accepted**
+
+**重跑记录**（我自己的命令/输出/退出码）：
+- `bash .work/evidence/INFRA-079t-B2/run.sh` → **7 PASS / 0 FAIL（rc=0）**：S1 qemu rc=42、S2 defined=134 absent=''、S3 patches=14/series=14、S4 libc.a 0 defs / archive 2 defs / qemu rc=42、S5 before/after 235/213/0/22/0 identical、S6 md5 匹配、S7 所有门控 rc=0
+- `bash .work/evidence/INFRA-079t-A/run.sh` → **14 PASS / 0 FAIL（rc=0）**：S2 cases=189、lit 31/31、13/13 core sources、bswap/f16/atomic 各条到位
+- `bash .work/evidence/INFRA-079t-B1/run.sh` → **8 PASS / 0 FAIL（rc=0）**：members=147、union=146、14/14、dry-run 稳定、driver wiring 消费、ninja -n clang no work to do
+- `bash .work/evidence/INFRA-079t-B2/run.sh --inject` → I1–I5 全部检出、md5 还原 OK、收尾回绿（INJECT OK）
+- `make check-modules`（L2）→ **rc=0**（picolibc-tests fast 20/18/0/2）
+- `make check-patch-tree` → **rc=0（173 补丁）**
+- `python3 tools/testcases/picolibc_tests.py --stage full` 独立分类 → **235/213/0/22/0**，与工程师 after JSON 逐例零差异
+
+**独立探针 + 独立 oracle**（不用工程师探针/期望）：
+- 我的 6 个编译探针（p1_divmod / p2_fpconv / p3_shift / p4_bswap / p5_f16 / p6_atomic）→ ① 4/4 libcalls、② 8/8、③ 内联 0 libcall、④ 0、⑤ 前端拒绝、⑥ 原子 libcall；`Cannot select` / `unsupported library call operation` 全局 0
+- 独立 oracle（Python 大整数 + 自实现 IEEE RN-even，172 项）→ 宿主 gcc/libgcc **HOST_RC=0**（0 告警）；DADAO 目标 `-rtlib=compiler-rt` 驱动无显式 archive → 链接 rc=0 → QEMU 大端 **rc=0**（= 172 项全过）
+- 默认（无 -rtlib）link rc=1 undefined → opt-in 语义确认
+
+**我的独立注入**（删除 `mulsc3.c.o` → FAIL → cp+md5 还原 → 回绿）：
+- pre-inject md5 = `694152c7…`，post-inject: S2 defined=133 absent=`__mulsc3`（4 项 FAIL），restored md5 = `694152c7…`，收尾 **7 PASS / 0 FAIL（rc=0）**
+
+**约束核验**（逐条）：
+1. 范围：三码提交仅 builtins 接入点 + Makefile install + picolibc 清理；无 spec/contracts ✓；sanitizer/profiling/unwind/libatomic 均排除 ✓
+2. 库存在可链接：nm 14/14 T 定义、成员 147、仅 `abort` 未定义（int_util.c 预期）✓
+3. 7 项接入点逐条处置（见上探针结果 + 补丁审查）✓
+4. driver 自动接线：`-rtlib=compiler-rt` 链接行含安装根 archive、不带显式 archive QEMU rc=0 ✓
+5. 独立库落点：`-print-libgcc-file-name` 指向存在 archive、落 `.dadao/cross-toolchain` 无新增根 ✓
+6. picolibc：vendored 副本移除确认（source=0、patches=14/series=14）；libc.a 定义 0 vs archive 定义 2 ✓；独立四分类 235/213/0/22/0 零转移 ✓
+7. 门控：L1 rc=0、L2 rc=0、check-patch-tree 173、check-issues 62 open、其余门控全 rc=0 ✓
+8. 反例可达 FAIL：我自己的注入 + 工程师 I1–I5 均检出、cp+md5 还原回绿 ✓
+9. 如实性抽查（≥3）：qemu rc=42 ✓、147 成员 ✓、14/14 ✓、235/213/0/22/0 ✓（独立分类）、173 补丁 ✓；无结论强于证据
+
+**轻微观察项**（均非阻断）：① A 脚本 S3 INFO 行指向窄化期旧 archive（`lib/linux/…-dadao.a`，INFO 非门控）；② milestones 行尾仍写「待 L2 + 终局复跑」（实际 L2 已过；status 列正确）；③ 工程师注入证据仅存 `/tmp`（易失）；④ ISS-262 用户已裁定默认接 compiler-rt（落点 INFRA-088t 立册）。
 
 #### architect 提交留痕（2026-10-17，窄化批）
 - **档位**：本册**无 reviewer `Accepted` 判决**（「第 1 轮 reviewer 验收」仍为占位）⇒ 流程档位本应 **WIP**；本笔按派单给定文案**逐字提交**（无 `WIP:` 前缀）⇒ **如实披露** ✗。
