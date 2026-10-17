@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/syscall_arch.h b/arch/dadao/syscall_arch.h
 new file mode 100644
-index 0000000..3b7b353
+index 0000000..31ac6c4
 --- /dev/null
 +++ b/arch/dadao/syscall_arch.h
-@@ -0,0 +1,179 @@
+@@ -0,0 +1,523 @@
 +/*
 + * DADAO syscall entry/driver for musl.
 + *
@@ -36,24 +36,26 @@ index 0000000..3b7b353
 + * The one non-obvious part: WHERE the arguments go
 + * ---------------------------------------------------------------------------
 + * §3 assigns arguments to banks BY TYPE, and musl hands this stub plain
-+ * `long`s (syscall_arg_t) -- by the time __syscallN() runs, the pointer-ness
-+ * of an argument is gone.  It is therefore recovered from the syscall NUMBER by
-+ * __dadao_argmask() below, and the values are routed to rd16+n / rb16+n exactly
-+ * as the example in §3 requires (the two banks are counted independently).
++ * `long`s (syscall_arg_t): by the time __syscallN() runs, the pointer-ness of
++ * an argument is gone.  It is therefore recovered from the syscall NUMBER by
++ * __dadao_argmask() below, which is the single table the three carriers of
++ * this protocol share:
 + *
-+ * This table is NOT a free choice.  It must agree slot-for-slot with whoever
-+ * consumes the call -- QEMU's dadao-m1 umon handler today, a linux-user target
-+ * later.  Its entries come from the Linux prototypes whose numbers v5 adopts
-+ * (§1), and every entry is listed with its prototype so a reviewer can check
-+ * it:
++ *   1. this file (the C stub every syscall goes through),
++ *   2. QEMU's linux-user/dadao/cpu_loop.c:dadao_argmask(), which rebuilds the
++ *      positional argument list on the host side, and
++ *   3. src/thread/dadao/syscall_cp.s, the cancellable-call stub.
 + *
-+ * INVARIANT (registered in the INFRA-082t task book): adding a service on the
-+ * service side REQUIRES adding its number here in the same change, and vice
-+ * versa.  A number that is absent gets mask 0 (all arguments in the RD bank).
-+ * Today that is provably harmless -- the service side answers every number it
-+ * does not implement with -ENOSYS (stage A1), so an unlisted number can never
-+ * be acted upon with wrongly-placed arguments; the moment a number IS served,
-+ * the pair must be updated together.
++ * tools/qemu/check_syscall_abi.py checks (1) and (2) for exact equality and
++ * (3) for equality on the cancellable subset it dispatches, so a number added
++ * to one carrier only fails a gate instead of reading the wrong register bank.
++ *
++ * A number that is absent gets mask 0 (everything in the RD bank).  That is no
++ * longer an acceptable default: before ISS-249 the table listed only the
++ * twelve numbers of the P1 static set, and every other call silently lost its
++ * sixth argument (the stub had five data slots plus one address slot) -- that
++ * is what broke sendto/recvfrom.  The table below therefore covers every
++ * syscall name this libc can issue, mask 0x00 entries included.
 + */
 +
 +#include <sys/syscall.h>
@@ -62,33 +64,368 @@ index 0000000..3b7b353
 +#define __SYSCALL_LL_O(x) (x)
 +
 +/*
-+ * Pointer-argument mask: bit i set <=> argument i is a pointer (and therefore
-+ * belongs in the RB bank).  Only the patterns the P1 static set and the stage
-+ * A1 service set need are enumerated; see the invariant above.
++ * Big-endian `ipc_perm.mode` placement (SysV IPC).
++ *
++ * musl's struct ipc_perm (arch/generic/bits/ipc.h) carries `mode_t mode`, a
++ * 32-bit object at offset 20, while the object the kernel (and QEMU's
++ * linux-user target_ipc_perm, linux-user/generic/target_structs.h) reports has
++ * a 16-bit mode followed by 16 bits of padding.  On a little-endian target
++ * both readings coincide; on this big-endian target the 16-bit value lands in
++ * the *high* half of musl's 32-bit field (measured: mode 0666 arrives as
++ * 0x01b60000, so `mode & 0x1ff` is 0 -- that is the ipc_msg/ipc_shm failure
++ * registered as ISS-249).
++ *
++ * musl ships exactly this compensation for its big-endian ports (arm, sh,
++ * m68k, microblaze define it; src/ipc/*ctl.c multiplies by 0x10000 before
++ * IPC_SET and shifts back after IPC_STAT), so the port uses the same switch
++ * rather than inventing a private layout.
++ */
++#define SYSCALL_IPC_BROKEN_MODE
++
++/*
++ * Pointer-argument mask: bit i set <=> positional argument i is an address
++ * and therefore goes to the RB bank; the rest are data (RD bank).  Both banks
++ * are counted independently (contract-syscall.md §3), so the n-th address
++ * argument lands in rb(16+n) and the n-th data argument in rd(16+n).
++ *
++ * The mask is not a naming convention: it is derived from each syscall's own
++ * prototype -- the Linux SYSCALL_DEFINE signature behind the number in the
++ * locked table (contract-syscall.md §1.2), except where the kernel declares an
++ * address as an integer or hides it behind a pointer typedef.  Those entries
++ * follow the userspace prototype instead and say so in their comment (brk,
++ * mmap, munmap, mprotect, mremap, mlock, munlock, mlock2, madvise, msync,
++ * mincore, remap_file_pages, ioctl, capget, capset, riscv_flush_icache,
++ * ptrace, semctl).
++ *
++ * COVERAGE: one entry per syscall name this libc can issue -- every SYS_* name
++ * used anywhere in musl's sources, mapped onto the locked asm-generic number
++ * table -- mask 0x00 entries included.  An absent number would silently get
++ * "everything in RD", which is exactly the defect this table closes (ISS-249).
++ *
++ * INVARIANT (three carriers, gated by tools/qemu/check_syscall_abi.py): this
++ * table, QEMU's linux-user/dadao/cpu_loop.c:dadao_argmask() and the dispatch
++ * in src/thread/dadao/syscall_cp.s must agree number for number; adding a
++ * number on one side only fails that gate instead of reading garbage.
 + */
 +static inline int __dadao_argmask(long nr)
 +{
 +	switch (nr) {
-+	/* (int, <ptr>, ...) -- the second argument is the only pointer */
-+	case SYS_read:			/* read(int, void *, size_t)        */
-+	case SYS_write:			/* write(int, const void *, size_t) */
-+	case SYS_readv:			/* readv(int, const struct iovec *, int) */
-+	case SYS_writev:		/* writev(int, const struct iovec *, int) */
-+		return 0x02;
++	/* mask 0x00 (72): no address argument */
++	case SYS_close:	/*  unsigned int,  fd */
++	case SYS_dup:	/*  unsigned int,  fildes */
++	case SYS_dup3:	/*  unsigned int,  oldfd,  unsigned int,  newfd,  int,  flags */
++	case SYS_epoll_create1:	/*  int,  flags */
++	case SYS_eventfd2:	/*  unsigned int,  count,  int,  flags */
++	case SYS_exit:	/*  int,  error_code */
++	case SYS_exit_group:	/*  int,  error_code */
++	case SYS_fadvise64:	/*  int,  fd,  loff_t,  offset,  size_t,  len,  int,  advice */
++	case SYS_fallocate:	/*  int,  fd,  int,  mode,  loff_t,  offset,  loff_t,  len */
++	case SYS_fanotify_init:	/*  unsigned int,  flags,  unsigned int,  event_f_flags */
++	case SYS_fchdir:	/*  unsigned int,  fd */
++	case SYS_fchmod:	/*  unsigned int,  fd,  umode_t,  mode */
++	case SYS_fchown:	/*  unsigned int,  fd,  uid_t,  user,  gid_t,  group */
++	case SYS_fcntl:	/*  unsigned int,  fd,  unsigned int,  cmd,  unsigned long,  arg */
++	case SYS_fdatasync:	/*  unsigned int,  fd */
++	case SYS_flock:	/*  unsigned int,  fd,  unsigned int,  cmd */
++	case SYS_fsync:	/*  unsigned int,  fd */
++	case SYS_ftruncate:	/*  unsigned int,  fd,  off_t,  length */
++	case SYS_getegid:	/*  */
++	case SYS_geteuid:	/*  */
++	case SYS_getgid:	/*  */
++	case SYS_getpgid:	/*  pid_t,  pid */
++	case SYS_getpid:	/*  */
++	case SYS_getppid:	/*  */
++	case SYS_getpriority:	/*  int,  which,  int,  who */
++	case SYS_getsid:	/*  pid_t,  pid */
++	case SYS_gettid:	/*  */
++	case SYS_getuid:	/*  */
++	case SYS_inotify_init1:	/*  int,  flags */
++	case SYS_inotify_rm_watch:	/*  int,  fd,  __s32,  wd */
++	case SYS_kill:	/*  pid_t,  pid,  int,  sig */
++	case SYS_listen:	/*  int,  fd,  int,  backlog */
++	case SYS_lseek:	/*  unsigned int,  fd,  off_t,  offset,  unsigned int,  whence */
++	case SYS_membarrier:	/*  int,  cmd,  unsigned int,  flags,  int,  cpu_id */
++	case SYS_mlockall:	/*  int,  flags */
++	case SYS_msgget:	/*  key_t,  key,  int,  msgflg */
++	case SYS_munlockall:	/*  */
++	case SYS_personality:	/*  unsigned int,  personality */
++	case SYS_prctl:	/*  int,  option,  unsigned long,  arg2,  unsigned long,  arg3,  unsigned long,  arg4,  unsigned long,  arg5 */
++	case SYS_readahead:	/*  int,  fd,  loff_t,  offset,  size_t,  count */
++	case SYS_rt_sigreturn:	/*  */
++	case SYS_sched_get_priority_max:	/*  int,  policy */
++	case SYS_sched_get_priority_min:	/*  int,  policy */
++	case SYS_sched_getscheduler:	/*  pid_t,  pid */
++	case SYS_sched_yield:	/*  */
++	case SYS_semget:	/*  key_t,  key,  int,  nsems,  int,  semflg */
++	case SYS_setfsgid:	/*  gid_t,  gid */
++	case SYS_setfsuid:	/*  uid_t,  uid */
++	case SYS_setgid:	/*  gid_t,  gid */
++	case SYS_setns:	/*  int,  fd,  int,  flags */
++	case SYS_setpgid:	/*  pid_t,  pid,  pid_t,  pgid */
++	case SYS_setpriority:	/*  int,  which,  int,  who,  int,  niceval */
++	case SYS_setregid:	/*  gid_t,  rgid,  gid_t,  egid */
++	case SYS_setresgid:	/*  gid_t,  rgid,  gid_t,  egid,  gid_t,  sgid */
++	case SYS_setresuid:	/*  uid_t,  ruid,  uid_t,  euid,  uid_t,  suid */
++	case SYS_setreuid:	/*  uid_t,  ruid,  uid_t,  euid */
++	case SYS_setsid:	/*  */
++	case SYS_setuid:	/*  uid_t,  uid */
++	case SYS_shmget:	/*  key_t,  key,  size_t,  size,  int,  shmflg */
++	case SYS_shutdown:	/*  int,  fd,  int,  how */
++	case SYS_socket:	/*  int,  family,  int,  type,  int,  protocol */
++	case SYS_sync:	/*  */
++	case SYS_sync_file_range:	/*  int,  fd,  loff_t,  offset,  loff_t,  nbytes,  unsigned int,  flags */
++	case SYS_syncfs:	/*  int,  fd */
++	case SYS_tee:	/*  int,  fdin,  int,  fdout,  size_t,  len,  unsigned int,  flags */
++	case SYS_timer_delete:	/*  timer_t,  timer_id */
++	case SYS_timer_getoverrun:	/*  timer_t,  timer_id */
++	case SYS_timerfd_create:	/*  int,  clockid,  int,  flags */
++	case SYS_tkill:	/*  pid_t,  pid,  int,  sig */
++	case SYS_umask:	/*  int,  mask */
++	case SYS_unshare:	/*  unsigned long,  unshare_flags */
++	case SYS_vhangup:	/*  */
++		return 0x00;
 +
-+	/* (<ptr>, ...) -- the first argument is the only pointer */
-+	case SYS_brk:			/* brk(void *)                      */
-+	case SYS_munmap:		/* munmap(void *, size_t)           */
-+	case SYS_mmap:			/* mmap(void *, size_t, int, int, int, off_t) */
-+	case SYS_set_tid_address:	/* set_tid_address(int *)           */
-+	case SYS_set_robust_list:	/* set_robust_list(void *, size_t)  */
-+	case SYS_futex:			/* futex(uint32_t *, int, uint32_t, ...) */
-+	case SYS_getrandom:		/* getrandom(void *, size_t, unsigned) */
++	/* mask 0x01 (34): address argument in slot 0 */
++	case SYS_acct:	/*  const char __user *,  name */
++	case SYS_adjtimex:	/*  struct __kernel_timex __user *,  txc_p */
++	case SYS_brk:  /* unistd.h: int brk(void *) */	/*  unsigned long,  brk */
++	case SYS_chdir:	/*  const char __user *,  filename */
++	case SYS_chroot:	/*  const char __user *,  filename */
++	case SYS_delete_module:	/*  const char __user *,  name_user,  unsigned int,  flags */
++	case SYS_getcwd:	/*  char __user *,  buf,  unsigned long,  size */
++	case SYS_getrandom:	/*  char __user *,  ubuf,  size_t,  len,  unsigned int,  flags */
++	case SYS_madvise:  /* sys/mman.h: int madvise(void *, size_t, int) */	/*  unsigned long,  start,  size_t,  len_in,  int,  behavior */
++	case SYS_memfd_create:	/*  const char __user *,  uname,  unsigned int,  flags */
++	case SYS_mlock:  /* sys/mman.h: int mlock(const void *, size_t) */	/*  unsigned long,  start,  size_t,  len */
++	case SYS_mlock2:  /* sys/mman.h: int mlock2(const void *, size_t, unsigned) */	/*  unsigned long,  start,  size_t,  len,  int,  flags */
++	case SYS_mmap:  /* sys/mman.h: void *mmap(void *, size_t, int, int, int, off_t) */	/*  unsigned long,  addr,  unsigned long,  len,  unsigned long,  prot,  unsigned long,  flags,  unsigned long,  fd,  unsigned long,  offset */
++	case SYS_mprotect:  /* sys/mman.h: int mprotect(void *, size_t, int) */	/*  unsigned long,  start,  size_t,  len,  unsigned long,  prot */
++	case SYS_mq_unlink:	/*  const char __user *,  u_name */
++	case SYS_msync:  /* sys/mman.h: int msync(void *, size_t, int) */	/*  unsigned long,  start,  size_t,  len,  int,  flags */
++	case SYS_munlock:  /* sys/mman.h: int munlock(const void *, size_t) */	/*  unsigned long,  start,  size_t,  len */
++	case SYS_munmap:  /* sys/mman.h: int munmap(void *, size_t) */	/*  unsigned long,  addr,  size_t,  len */
++	case SYS_pipe2:	/*  int __user *,  fildes,  int,  flags */
++	case SYS_remap_file_pages:  /* sys/mman.h: int remap_file_pages(void *, size_t, int, size_t, int) */	/*  unsigned long,  start,  unsigned long,  size,  unsigned long,  prot,  unsigned long,  pgoff,  unsigned long,  flags */
++	case SYS_rt_sigpending:	/*  sigset_t __user *,  uset,  size_t,  sigsetsize */
++	case SYS_rt_sigsuspend:	/*  sigset_t __user *,  unewset,  size_t,  sigsetsize */
++	case SYS_set_robust_list:	/*  struct robust_list_head __user *,  head,  size_t,  len */
++	case SYS_set_tid_address:	/*  int __user *,  tidptr */
++	case SYS_setdomainname:	/*  char __user *,  name,  int,  len */
++	case SYS_sethostname:	/*  char __user *,  name,  int,  len */
++	case SYS_shmdt:	/*  char __user *,  shmaddr */
++	case SYS_swapoff:	/*  const char __user *,  specialfile */
++	case SYS_swapon:	/*  const char __user *,  specialfile,  int,  swap_flags */
++	case SYS_sysinfo:	/*  struct sysinfo __user *,  info */
++	case SYS_times:	/*  struct tms __user *,  tbuf */
++	case SYS_truncate:	/*  const char __user *,  path,  long,  length */
++	case SYS_umount2:	/*  char __user *,  name,  int,  flags */
++	case SYS_uname:	/*  struct old_utsname __user *,  name */
 +		return 0x01;
 +
-+	/* (int, int, <ptr>) -- ioctl(int fd, unsigned long, void *arg) */
-+	case SYS_ioctl:
++	/* mask 0x02 (54): address argument in slot 1 */
++	case SYS_bind:	/*  int,  fd,  struct sockaddr __user *,  umyaddr,  int,  addrlen */
++	case SYS_clock_adjtime:	/*  const clockid_t,  which_clock,  struct __kernel_timex __user *,  utx */
++	case SYS_clock_getres:	/*  const clockid_t,  which_clock,  struct __kernel_timespec __user *,  tp */
++	case SYS_clock_gettime:	/*  const clockid_t,  which_clock,  struct __kernel_timespec __user *,  tp */
++	case SYS_clock_settime:	/*  const clockid_t,  which_clock,  const struct __kernel_timespec __user *,  tp */
++	case SYS_connect:	/*  int,  fd,  struct sockaddr __user *,  uservaddr,  int,  addrlen */
++	case SYS_faccessat:	/*  int,  dfd,  const char __user *,  filename,  int,  mode */
++	case SYS_faccessat2:	/*  int,  dfd,  const char __user *,  filename,  int,  mode,  int,  flags */
++	case SYS_fchmodat:	/*  int,  dfd,  const char __user *,  filename,  umode_t,  mode */
++	case SYS_fchmodat2:	/*  int,  dfd,  const char __user *,  filename,  umode_t,  mode,  unsigned int,  flags */
++	case SYS_fchownat:	/*  int,  dfd,  const char __user *,  filename,  uid_t,  user,  gid_t,  group,  int,  flag */
++	case SYS_flistxattr:	/*  int,  fd,  char __user *,  list,  size_t,  size */
++	case SYS_fremovexattr:	/*  int,  fd,  const char __user *,  name */
++	case SYS_fstat:	/*  unsigned int,  fd,  struct __old_kernel_stat __user *,  statbuf */
++	case SYS_fstatfs:	/*  unsigned int,  fd,  struct statfs __user *,  buf */
++	case SYS_getdents64:	/*  unsigned int,  fd,  struct linux_dirent64 __user *,  dirent,  unsigned int,  count */
++	case SYS_getgroups:	/*  int,  gidsetsize,  gid_t __user *,  grouplist */
++	case SYS_getitimer:	/*  int,  which,  struct __kernel_old_itimerval __user *,  value */
++	case SYS_getrlimit:	/*  unsigned int,  resource,  struct rlimit __user *,  rlim */
++	case SYS_getrusage:	/*  int,  who,  struct rusage __user *,  ru */
++	case SYS_inotify_add_watch:	/*  int,  fd,  const char __user *,  pathname,  u32,  mask */
++	case SYS_mkdirat:	/*  int,  dfd,  const char __user *,  pathname,  umode_t,  mode */
++	case SYS_mknodat:	/*  int,  dfd,  const char __user *,  filename,  umode_t,  mode,  unsigned int,  dev */
++	case SYS_mq_notify:	/*  mqd_t,  mqdes,  const struct sigevent __user *,  u_notification */
++	case SYS_msgrcv:	/*  int,  msqid,  struct msgbuf __user *,  msgp,  size_t,  msgsz,  long,  msgtyp,  int,  msgflg */
++	case SYS_msgsnd:	/*  int,  msqid,  struct msgbuf __user *,  msgp,  size_t,  msgsz,  int,  msgflg */
++	case SYS_open_by_handle_at:	/*  int,  mountdirfd,  struct file_handle __user *,  handle,  int,  flags */
++	case SYS_openat:	/*  int,  dfd,  const char __user *,  filename,  int,  flags,  umode_t,  mode */
++	case SYS_pread64:	/*  unsigned int,  fd,  char __user *,  buf,  size_t,  count,  loff_t,  pos */
++	case SYS_preadv:	/*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen,  unsigned long,  pos_l,  unsigned long,  pos_h */
++	case SYS_preadv2:	/*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen,  unsigned long,  pos_l,  unsigned long,  pos_h,  rwf_t,  flags */
++	case SYS_pwrite64:	/*  unsigned int,  fd,  const char __user *,  buf,  size_t,  count,  loff_t,  pos */
++	case SYS_pwritev:	/*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen,  unsigned long,  pos_l,  unsigned long,  pos_h */
++	case SYS_pwritev2:	/*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen,  unsigned long,  pos_l,  unsigned long,  pos_h,  rwf_t,  flags */
++	case SYS_read:	/*  unsigned int,  fd,  char __user *,  buf,  size_t,  count */
++	case SYS_readv:	/*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen */
++	case SYS_recvmsg:	/*  int,  fd,  struct user_msghdr __user *,  msg,  unsigned int,  flags */
++	case SYS_sched_getparam:	/*  pid_t,  pid,  struct sched_param __user *,  param */
++	case SYS_sched_rr_get_interval:	/*  pid_t,  pid,  struct __kernel_timespec __user *,  interval */
++	case SYS_sched_setparam:	/*  pid_t,  pid,  struct sched_param __user *,  param */
++	case SYS_semop:	/*  int,  semid,  struct sembuf __user *,  tsops,  unsigned int,  nsops */
++	case SYS_sendmmsg:	/*  int,  fd,  struct mmsghdr __user *,  mmsg,  unsigned int,  vlen,  unsigned int,  flags */
++	case SYS_sendmsg:	/*  int,  fd,  struct user_msghdr __user *,  msg,  unsigned int,  flags */
++	case SYS_setgroups:	/*  int,  gidsetsize,  gid_t __user *,  grouplist */
++	case SYS_setrlimit:	/*  unsigned int,  resource,  struct rlimit __user *,  rlim */
++	case SYS_shmat:	/*  int,  shmid,  char __user *,  shmaddr,  int,  shmflg */
++	case SYS_signalfd4:	/*  int,  ufd,  sigset_t __user *,  user_mask,  size_t,  sizemask,  int,  flags */
++	case SYS_syslog:	/*  int,  type,  char __user *,  buf,  int,  len */
++	case SYS_timer_gettime:	/*  timer_t,  timer_id,  struct __kernel_itimerspec __user *,  setting */
++	case SYS_timerfd_gettime:	/*  int,  ufd,  struct __kernel_itimerspec __user *,  otmr */
++	case SYS_unlinkat:	/*  int,  dfd,  const char __user *,  pathname,  int,  flag */
++	case SYS_vmsplice:	/*  int,  fd,  const struct iovec __user *,  uiov,  unsigned long,  nr_segs,  unsigned int,  flags */
++	case SYS_write:	/*  unsigned int,  fd,  const char __user *,  buf,  size_t,  count */
++	case SYS_writev:	/*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen */
++		return 0x02;
++
++	/* mask 0x03 (12): address arguments in slots 0, 1 */
++	case SYS_capget:  /* src/linux/cap.c: int capget(void *, void *) */	/*  cap_user_header_t,  header,  cap_user_data_t,  dataptr */
++	case SYS_capset:  /* src/linux/cap.c: int capset(void *, const void *) */	/*  cap_user_header_t,  header,  const cap_user_data_t,  data */
++	case SYS_gettimeofday:	/*  struct __kernel_old_timeval __user *,  tv,  struct timezone __user *,  tz */
++	case SYS_listxattr:	/*  const char __user *,  pathname,  char __user *,  list,  size_t,  size */
++	case SYS_llistxattr:	/*  const char __user *,  pathname,  char __user *,  list,  size_t,  size */
++	case SYS_lremovexattr:	/*  const char __user *,  pathname,  const char __user *,  name */
++	case SYS_nanosleep:	/*  struct __kernel_timespec __user *,  rqtp,  struct __kernel_timespec __user *,  rmtp */
++	case SYS_pivot_root:	/*  const char __user *,  new_root,  const char __user *,  put_old */
++	case SYS_removexattr:	/*  const char __user *,  pathname,  const char __user *,  name */
++	case SYS_settimeofday:	/*  struct __kernel_old_timeval __user *,  tv,  struct timezone __user *,  tz */
++	case SYS_sigaltstack:	/* const stack_t __user *, uss,  stack_t __user *, uoss */
++	case SYS_statfs:	/*  const char __user *,  pathname,  struct statfs __user *,  buf */
++		return 0x03;
++
++	/* mask 0x04 (8): address argument in slot 2 */
++	case SYS_ioctl:  /* ioctl(int, int, ...): the variadic arg is a pointer for every pointer-taking command (TIOCGWINSZ, FIONREAD, ...) */	/*  unsigned int,  fd,  unsigned int,  cmd,  unsigned long,  arg */
++	case SYS_msgctl:	/*  int,  msqid,  int,  cmd,  struct msqid_ds __user *,  buf */
++	case SYS_rt_sigqueueinfo:	/*  pid_t,  pid,  int,  sig,  siginfo_t __user *,  uinfo */
++	case SYS_sched_getaffinity:	/*  pid_t,  pid,  unsigned int,  len,  unsigned long __user *,  user_mask_ptr */
++	case SYS_sched_setaffinity:	/*  pid_t,  pid,  unsigned int,  len,  unsigned long __user *,  user_mask_ptr */
++	case SYS_sched_setscheduler:	/*  pid_t,  pid,  int,  policy,  struct sched_param __user *,  param */
++	case SYS_sendfile:	/*  int,  out_fd,  int,  in_fd,  off_t __user *,  offset,  size_t,  count */
++	case SYS_shmctl:	/*  int,  shmid,  int,  cmd,  struct shmid_ds __user *,  buf */
 +		return 0x04;
++
++	/* mask 0x05 (3): address arguments in slots 0, 2 */
++	case SYS_init_module:	/*  void __user *,  umod,  unsigned long,  len,  const char __user *,  uargs */
++	case SYS_mincore:  /* sys/mman.h: int mincore(void *, size_t, unsigned char *) */	/*  unsigned long,  start,  size_t,  len,  unsigned char __user *,  vec */
++	case SYS_symlinkat:	/*  const char __user *,  oldname,  int,  newdfd,  const char __user *,  newname */
++		return 0x05;
++
++	/* mask 0x06 (15): address arguments in slots 1, 2 */
++	case SYS_accept:	/*  int,  fd,  struct sockaddr __user *,  upeer_sockaddr,  int __user *,  upeer_addrlen */
++	case SYS_accept4:	/*  int,  fd,  struct sockaddr __user *,  upeer_sockaddr,  int __user *,  upeer_addrlen,  int,  flags */
++	case SYS_fgetxattr:	/*  int,  fd,  const char __user *,  name,  void __user *,  value,  size_t,  size */
++	case SYS_fsetxattr:	/*  int,  fd,  const char __user *,  name,  const void __user *, value,  size_t,  size,  int,  flags */
++	case SYS_get_robust_list:	/*  int,  pid,  struct robust_list_head __user * __user *,  head_ptr,  size_t __user *,  len_ptr */
++	case SYS_getpeername:	/*  int,  fd,  struct sockaddr __user *,  usockaddr,  int __user *,  usockaddr_len */
++	case SYS_getsockname:	/*  int,  fd,  struct sockaddr __user *,  usockaddr,  int __user *,  usockaddr_len */
++	case SYS_mq_getsetattr:	/*  mqd_t,  mqdes,  const struct mq_attr __user *,  u_mqstat,  struct mq_attr __user *,  u_omqstat */
++	case SYS_newfstatat:	/*  int,  dfd,  const char __user *,  filename,  struct stat __user *,  statbuf,  int,  flag */
++	case SYS_readlinkat:	/*  int,  dfd,  const char __user *,  pathname,  char __user *,  buf,  int,  bufsiz */
++	case SYS_rt_sigaction:	/*  int,  sig,  const struct sigaction __user *,  act,  struct sigaction __user *,  oact,  size_t,  sigsetsize */
++	case SYS_rt_sigprocmask:	/*  int,  how,  sigset_t __user *,  nset,  sigset_t __user *,  oset,  size_t,  sigsetsize */
++	case SYS_setitimer:	/*  int,  which,  struct __kernel_old_itimerval __user *,  value,  struct __kernel_old_itimerval __user *,  ovalue */
++	case SYS_timer_create:	/*  const clockid_t,  which_clock,  struct sigevent __user *,  timer_event_spec,  timer_t __user *,  created_timer_id */
++	case SYS_utimensat:	/*  int,  dfd,  const char __user *,  filename,  struct __kernel_timespec __user *,  utimes,  int,  flags */
++		return 0x06;
++
++	/* mask 0x07 (9): address arguments in slots 0, 1, 2 */
++	case SYS_execve:	/*  const char __user *,  filename,  const char __user *const __user *,  argv,  const char __user *const __user *,  envp */
++	case SYS_getcpu:	/*  unsigned __user *,  cpup,  unsigned __user *,  nodep,  void __user *,  unused */
++	case SYS_getresgid:	/*  gid_t __user *,  rgidp,  gid_t __user *,  egidp,  gid_t __user *,  sgidp */
++	case SYS_getresuid:	/*  uid_t __user *,  ruidp,  uid_t __user *,  euidp,  uid_t __user *,  suidp */
++	case SYS_getxattr:	/*  const char __user *,  pathname,  const char __user *,  name,  void __user *,  value,  size_t,  size */
++	case SYS_lgetxattr:	/*  const char __user *,  pathname,  const char __user *,  name,  void __user *,  value,  size_t,  size */
++	case SYS_lsetxattr:	/*  const char __user *,  pathname,  const char __user *,  name,  const void __user *,  value,  size_t,  size,  int,  flags */
++	case SYS_rt_sigtimedwait:	/*  const sigset_t __user *,  uthese,  siginfo_t __user *,  uinfo,  const struct __kernel_timespec __user *,  uts,  size_t,  sigsetsize */
++	case SYS_setxattr:	/*  const char __user *,  pathname,  const char __user *,  name,  const void __user *,  value,  size_t,  size,  int,  flags */
++		return 0x07;
++
++	/* mask 0x08 (5): address argument in slot 3 */
++	case SYS_epoll_ctl:	/*  int,  epfd,  int,  op,  int,  fd,  struct epoll_event __user *,  event */
++	case SYS_reboot:	/*  int,  magic1,  int,  magic2,  unsigned int,  cmd,  void __user *,  arg */
++	case SYS_semctl:  /* src/ipc/semctl.c passes arg.buf (a union semun pointer) */	/*  int,  semid,  int,  semnum,  int,  cmd,  unsigned long,  arg */
++	case SYS_setsockopt:	/*  int,  fd,  int,  level,  int,  optname,  char __user *,  optval,  int,  optlen */
++	case SYS_socketpair:	/*  int,  family,  int,  type,  int,  protocol,  int __user *,  usockvec */
++		return 0x08;
++
++	/* mask 0x09 (1): address arguments in slots 0, 3 */
++	case SYS_mq_open:	/*  const char __user *,  u_name,  int,  oflag,  umode_t,  mode,  struct mq_attr __user *,  u_attr */
++		return 0x09;
++
++	/* mask 0x0a (9): address arguments in slots 1, 3 */
++	case SYS_copy_file_range:	/*  int,  fd_in,  loff_t __user *,  off_in,  int,  fd_out,  loff_t __user *,  off_out,  size_t,  len,  unsigned int,  flags */
++	case SYS_linkat:	/*  int,  olddfd,  const char __user *,  oldname,  int,  newdfd,  const char __user *,  newname,  int,  flags */
++	case SYS_process_vm_readv:	/*  pid_t,  pid,  const struct iovec __user *,  lvec,  unsigned long,  liovcnt,  const struct iovec __user *,  rvec,  unsigned long,  riovcnt,  unsigned long,  flags */
++	case SYS_process_vm_writev:	/*  pid_t,  pid,  const struct iovec __user *,  lvec,  unsigned long,  liovcnt,  const struct iovec __user *,  rvec,  unsigned long,  riovcnt,  unsigned long,  flags */
++	case SYS_quotactl:	/*  unsigned int,  cmd,  const char __user *,  special,  qid_t,  id,  void __user *,  addr */
++	case SYS_renameat2:	/*  int,  olddfd,  const char __user *,  oldname,  int,  newdfd,  const char __user *,  newname,  unsigned int,  flags */
++	case SYS_semtimedop:	/*  int,  semid,  struct sembuf __user *,  tsops,  unsigned int,  nsops,  const struct __kernel_timespec __user *,  timeout */
++	case SYS_splice:	/*  int,  fd_in,  loff_t __user *,  off_in,  int,  fd_out,  loff_t __user *,  off_out,  size_t,  len,  unsigned int,  flags */
++	case SYS_wait4:	/*  pid_t,  upid,  int __user *,  stat_addr,  int,  options,  struct rusage __user *,  ru */
++		return 0x0a;
++
++	/* mask 0x0c (5): address arguments in slots 2, 3 */
++	case SYS_clock_nanosleep:	/*  const clockid_t,  which_clock,  int,  flags,  const struct __kernel_timespec __user *,  rqtp,  struct __kernel_timespec __user *,  rmtp */
++	case SYS_prlimit64:	/*  pid_t,  pid,  unsigned int,  resource,  const struct rlimit64 __user *,  new_rlim,  struct rlimit64 __user *,  old_rlim */
++	case SYS_ptrace:  /* src/linux/ptrace.c: addr/data are read with va_arg(void *) */	/*  long,  request,  long,  pid,  unsigned long,  addr,  unsigned long,  data */
++	case SYS_timer_settime:	/*  timer_t,  timer_id,  int,  flags,  const struct __kernel_itimerspec __user *,  new_setting,  struct __kernel_itimerspec __user *,  old_setting */
++	case SYS_timerfd_settime:	/*  int,  ufd,  int,  flags,  const struct __kernel_itimerspec __user *,  utmr,  struct __kernel_itimerspec __user *,  otmr */
++		return 0x0c;
++
++	/* mask 0x0d (1): address arguments in slots 0, 2, 3 */
++	case SYS_ppoll:	/*  struct pollfd __user *,  ufds,  unsigned int,  nfds,  struct __kernel_timespec __user *,  tsp,  const sigset_t __user *,  sigmask,  size_t,  sigsetsize */
++		return 0x0d;
++
++	/* mask 0x0e (2): address arguments in slots 1, 2, 3 */
++	case SYS_execveat:	/*  int,  fd,  const char __user *,  filename,  const char __user *const __user *,  argv,  const char __user *const __user *,  envp,  int,  flags */
++	case SYS_name_to_handle_at:	/*  int,  dfd,  const char __user *,  name,  struct file_handle __user *,  handle,  void __user *,  mnt_id,  int,  flag */
++		return 0x0e;
++
++	/* mask 0x10 (1): address argument in slot 4 */
++	case SYS_fanotify_mark:	/*  int,  fanotify_fd,  unsigned int,  flags,  __u64,  mask,  int,  dfd,  const char __user *,  pathname */
++		return 0x10;
++
++	/* mask 0x11 (1): address arguments in slots 0, 4 */
++	case SYS_mremap:  /* sys/mman.h: void *mremap(void *, size_t, size_t, int, ...) */	/*  unsigned long,  addr,  unsigned long,  old_len,  unsigned long,  new_len,  unsigned long,  flags,  unsigned long,  new_addr */
++		return 0x11;
++
++	/* mask 0x12 (5): address arguments in slots 1, 4 */
++	case SYS_epoll_pwait:	/*  int,  epfd,  struct epoll_event __user *,  events,  int,  maxevents,  int,  timeout,  const sigset_t __user *,  sigmask,  size_t,  sigsetsize */
++	case SYS_mq_timedsend:	/*  mqd_t,  mqdes,  const char __user *,  u_msg_ptr,  size_t,  msg_len,  unsigned int,  msg_prio,  const struct __kernel_timespec __user *,  u_abs_timeout */
++	case SYS_recvmmsg:	/*  int,  fd,  struct mmsghdr __user *,  mmsg,  unsigned int,  vlen,  unsigned int,  flags,  struct __kernel_timespec __user *,  timeout */
++	case SYS_sendto:	/*  int,  fd,  void __user *,  buff,  size_t,  len,  unsigned int,  flags,  struct sockaddr __user *,  addr,  int,  addr_len */
++	case SYS_statx:	/*  int,  dfd,  const char __user *,  filename,  unsigned,  flags,  unsigned int,  mask,  struct statx __user *,  buffer */
++		return 0x12;
++
++	/* mask 0x14 (2): address arguments in slots 2, 4 */
++	case SYS_clone:	/*  unsigned long,  clone_flags,  unsigned long,  newsp,  int __user *,  parent_tidptr,  unsigned long,  tls,  int __user *,  child_tidptr */
++	case SYS_waitid:	/*  int,  which,  pid_t,  upid,  struct siginfo __user *,  infop,  int,  options,  struct rusage __user *,  ru */
++		return 0x14;
++
++	/* mask 0x17 (1): address arguments in slots 0, 1, 2, 4 */
++	case SYS_mount:	/*  char __user *,  dev_name,  char __user *,  dir_name,  char __user *,  type,  unsigned long,  flags,  void __user *,  data */
++		return 0x17;
++
++	/* mask 0x18 (1): address arguments in slots 3, 4 */
++	case SYS_getsockopt:	/*  int,  fd,  int,  level,  int,  optname,  char __user *,  optval,  int __user *,  optlen */
++		return 0x18;
++
++	/* mask 0x19 (1): address arguments in slots 0, 3, 4 */
++	case SYS_futex:	/*  u32 __user *,  uaddr,  int,  op,  u32,  val,  const struct __kernel_timespec __user *,  utime,  u32 __user *,  uaddr2,  u32,  val3 */
++		return 0x19;
++
++	/* mask 0x1a (1): address arguments in slots 1, 3, 4 */
++	case SYS_mq_timedreceive:	/*  mqd_t,  mqdes,  char __user *,  u_msg_ptr,  size_t,  msg_len,  unsigned int __user *,  u_msg_prio,  const struct __kernel_timespec __user *,  u_abs_timeout */
++		return 0x1a;
++
++	/* mask 0x32 (1): address arguments in slots 1, 4, 5 */
++	case SYS_recvfrom:	/*  int,  fd,  void __user *,  ubuf,  size_t,  size,  unsigned int,  flags,  struct sockaddr __user *,  addr,  int __user *,  addr_len */
++		return 0x32;
++
++	/* mask 0x3e (1): address arguments in slots 1, 2, 3, 4, 5 */
++	case SYS_pselect6:	/*  int,  n,  fd_set __user *,  inp,  fd_set __user *,  outp,  fd_set __user *,  exp,  struct __kernel_timespec __user *,  tsp,  void __user *,  sig */
++		return 0x3e;
 +
 +	default:
 +		return 0x00;
@@ -97,6 +434,12 @@ index 0000000..3b7b353
 +
 +/*
 + * Route the arguments into the ABI's banks, then trap.
++ *
++ * Each of the six arguments advances its own bank's counter: data arguments
++ * fill rd16, rd17, ... and address arguments fill rb16, rb17, ... (§3: "三组
++ * 各自独立计数、自 16 起，参数按类型分配到对应组、不共享槽位").  A call that
++ * passes fewer arguments sends zeros, so no register is left holding a stale
++ * value from an earlier call.
 + *
 + * The `register ... __asm__("rdNN")` declarations are the ordinary musl/GCC
 + * local-register-variable idiom: clang materialises each value into the named
@@ -107,37 +450,38 @@ index 0000000..3b7b353
 +static inline long __dadao_trap(long nr, long a0, long a1, long a2, long a3,
 +				long a4, long a5, int mask)
 +{
-+	long d0, d1, d2, d3, d4, p0;
++	long arg[6] = { a0, a1, a2, a3, a4, a5 };
++	long d[6] = { 0 }, p[6] = { 0 };
++	int di = 0, pi = 0, i;
 +
-+	switch (mask) {
-+	case 0x04:	/* pointer in slot 2 */
-+		d0 = a0; d1 = a1; d2 = a3; d3 = a4; d4 = a5; p0 = a2;
-+		break;
-+	case 0x02:	/* pointer in slot 1 */
-+		d0 = a0; d1 = a2; d2 = a3; d3 = a4; d4 = a5; p0 = a1;
-+		break;
-+	case 0x01:	/* pointer in slot 0 */
-+		d0 = a1; d1 = a2; d2 = a3; d3 = a4; d4 = a5; p0 = a0;
-+		break;
-+	default:	/* no pointer argument */
-+		d0 = a0; d1 = a1; d2 = a2; d3 = a3; d4 = a4; p0 = 0;
-+		break;
++	for (i = 0; i < 6; i++) {
++		if (mask & (1 << i))
++			p[pi++] = arg[i];
++		else
++			d[di++] = arg[i];
 +	}
 +
 +	{
 +		register long nr_reg __asm__("rd15") = nr;
-+		register long rd16 __asm__("rd16") = d0;
-+		register long rd17 __asm__("rd17") = d1;
-+		register long rd18 __asm__("rd18") = d2;
-+		register long rd19 __asm__("rd19") = d3;
-+		register long rd20 __asm__("rd20") = d4;
-+		register long rb16 __asm__("rb16") = p0;
++		register long rd16 __asm__("rd16") = d[0];
++		register long rd17 __asm__("rd17") = d[1];
++		register long rd18 __asm__("rd18") = d[2];
++		register long rd19 __asm__("rd19") = d[3];
++		register long rd20 __asm__("rd20") = d[4];
++		register long rd21 __asm__("rd21") = d[5];
++		register long rb16 __asm__("rb16") = p[0];
++		register long rb17 __asm__("rb17") = p[1];
++		register long rb18 __asm__("rb18") = p[2];
++		register long rb19 __asm__("rb19") = p[3];
++		register long rb20 __asm__("rb20") = p[4];
++		register long rb21 __asm__("rb21") = p[5];
 +		register long ret __asm__("rd8");
 +
 +		__asm__ __volatile__("trap cfx_umon, 0\n\t"
 +			: "=r"(ret)
 +			: "r"(nr_reg), "r"(rd16), "r"(rd17), "r"(rd18), "r"(rd19),
-+			  "r"(rd20), "r"(rb16)
++			  "r"(rd20), "r"(rd21), "r"(rb16), "r"(rb17), "r"(rb18),
++			  "r"(rb19), "r"(rb20), "r"(rb21)
 +			: "memory");
 +		return ret;
 +	}

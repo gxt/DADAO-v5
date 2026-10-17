@@ -52,7 +52,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-contracts-dir \
-        check-component-changelog
+        check-component-changelog check-syscall-abi
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
 # manifests/components.lock.toml. Build targets use it to refuse to pretend
@@ -100,6 +100,7 @@ help:
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
+	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
 	@echo "  make check-milestone  Current-milestone m-book exists + its task ids exist + check-tasks --strict (milestone closure; not L1)"
@@ -521,7 +522,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-contracts-pending check-contract-relocs check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-contracts-pending check-contract-relocs check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -621,6 +622,12 @@ check-contracts-dir:
 # ② 条目 `- **<日期> …**` ③ 条目紧接 `  - 摘要：` 缩进行 ④ `## M<k>` 节序严格递增
 # ⑤ 覆盖全部（glob 现场派生；空集 vacuous FAIL）。**只做形态断言**，不做内容校验；
 # 计数现场统计、不写死。可达 FAIL 见 `--self-test`。
+# syscall 参数银行三载体一致性 (ISS-249, L1): musl __dadao_argmask / 可取消 asm 派发 /
+# QEMU dadao_argmask 逐项一致 + 完整性（musl 能发出的 syscall 名全覆盖）。
+# 有 .work/source 时读工作树，否则退回 components/ 下的补丁（新克隆也能跑）。
+check-syscall-abi:
+	@$(PYTHON) tools/qemu/check_syscall_abi.py
+
 check-component-changelog:
 	@$(PYTHON) tools/infra/check_component_changelog.py
 

@@ -1,9 +1,9 @@
 diff --git a/linux-user/dadao/cpu_loop.c b/linux-user/dadao/cpu_loop.c
 new file mode 100644
-index 0000000..ac92f79
+index 0000000..b0cd062
 --- /dev/null
 +++ b/linux-user/dadao/cpu_loop.c
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,491 @@
 +/*
 + * QEMU user-mode CPU loop for DADAO (P3, ADR-0025 D2/D6).
 + *
@@ -38,30 +38,333 @@ index 0000000..ac92f79
 +
 +QEMU_BUILD_BUG_ON(AUDIT_ARCH_DADAO != (0x0DA0u | 0x80000000u));
 +
-+/* Bit i set <=> positional syscall argument i lives in the RB (address) bank. */
++/* Bit i set <=> positional syscall argument i lives in the RB (address)
++ * bank; the banks are counted independently, so the n-th address
++ * argument is read from rb(16+n) and the n-th data argument from
++ * rd(16+n) (contract-syscall.md §3).  This table mirrors musl's
++ * __dadao_argmask() number for number -- the derivation of each mask
++ * is documented there; tools/qemu/check_syscall_abi.py fails the gate
++ * when the two drift apart.
++ */
 +static int dadao_argmask(int nr)
 +{
 +    switch (nr) {
-+    /* (int, <ptr>, ...): only slot 1 is an address */
-+    case TARGET_NR_read:            /* read(int, void *, size_t)            */
-+    case TARGET_NR_write:           /* write(int, const void *, size_t)     */
-+    case TARGET_NR_readv:           /* readv(int, const struct iovec *, int) */
-+    case TARGET_NR_writev:          /* writev(int, const struct iovec *, int) */
-+        return 0x02;
++    /* mask 0x00 (72): no address argument */
++    case TARGET_NR_close: /*  unsigned int,  fd */
++    case TARGET_NR_dup: /*  unsigned int,  fildes */
++    case TARGET_NR_dup3: /*  unsigned int,  oldfd,  unsigned int,  newfd,  int,  flags */
++    case TARGET_NR_epoll_create1: /*  int,  flags */
++    case TARGET_NR_eventfd2: /*  unsigned int,  count,  int,  flags */
++    case TARGET_NR_exit: /*  int,  error_code */
++    case TARGET_NR_exit_group: /*  int,  error_code */
++    case TARGET_NR_fadvise64: /*  int,  fd,  loff_t,  offset,  size_t,  len,  int,  advice */
++    case TARGET_NR_fallocate: /*  int,  fd,  int,  mode,  loff_t,  offset,  loff_t,  len */
++    case TARGET_NR_fanotify_init: /*  unsigned int,  flags,  unsigned int,  event_f_flags */
++    case TARGET_NR_fchdir: /*  unsigned int,  fd */
++    case TARGET_NR_fchmod: /*  unsigned int,  fd,  umode_t,  mode */
++    case TARGET_NR_fchown: /*  unsigned int,  fd,  uid_t,  user,  gid_t,  group */
++    case TARGET_NR_fcntl: /*  unsigned int,  fd,  unsigned int,  cmd,  unsigned long,  arg */
++    case TARGET_NR_fdatasync: /*  unsigned int,  fd */
++    case TARGET_NR_flock: /*  unsigned int,  fd,  unsigned int,  cmd */
++    case TARGET_NR_fsync: /*  unsigned int,  fd */
++    case TARGET_NR_ftruncate: /*  unsigned int,  fd,  off_t,  length */
++    case TARGET_NR_getegid: /*  */
++    case TARGET_NR_geteuid: /*  */
++    case TARGET_NR_getgid: /*  */
++    case TARGET_NR_getpgid: /*  pid_t,  pid */
++    case TARGET_NR_getpid: /*  */
++    case TARGET_NR_getppid: /*  */
++    case TARGET_NR_getpriority: /*  int,  which,  int,  who */
++    case TARGET_NR_getsid: /*  pid_t,  pid */
++    case TARGET_NR_gettid: /*  */
++    case TARGET_NR_getuid: /*  */
++    case TARGET_NR_inotify_init1: /*  int,  flags */
++    case TARGET_NR_inotify_rm_watch: /*  int,  fd,  __s32,  wd */
++    case TARGET_NR_kill: /*  pid_t,  pid,  int,  sig */
++    case TARGET_NR_listen: /*  int,  fd,  int,  backlog */
++    case TARGET_NR_lseek: /*  unsigned int,  fd,  off_t,  offset,  unsigned int,  whence */
++    case TARGET_NR_membarrier: /*  int,  cmd,  unsigned int,  flags,  int,  cpu_id */
++    case TARGET_NR_mlockall: /*  int,  flags */
++    case TARGET_NR_msgget: /*  key_t,  key,  int,  msgflg */
++    case TARGET_NR_munlockall: /*  */
++    case TARGET_NR_personality: /*  unsigned int,  personality */
++    case TARGET_NR_prctl: /*  int,  option,  unsigned long,  arg2,  unsigned long,  arg3,  unsigned long,  arg4,  unsigned long,  arg5 */
++    case TARGET_NR_readahead: /*  int,  fd,  loff_t,  offset,  size_t,  count */
++    case TARGET_NR_rt_sigreturn: /*  */
++    case TARGET_NR_sched_get_priority_max: /*  int,  policy */
++    case TARGET_NR_sched_get_priority_min: /*  int,  policy */
++    case TARGET_NR_sched_getscheduler: /*  pid_t,  pid */
++    case TARGET_NR_sched_yield: /*  */
++    case TARGET_NR_semget: /*  key_t,  key,  int,  nsems,  int,  semflg */
++    case TARGET_NR_setfsgid: /*  gid_t,  gid */
++    case TARGET_NR_setfsuid: /*  uid_t,  uid */
++    case TARGET_NR_setgid: /*  gid_t,  gid */
++    case TARGET_NR_setns: /*  int,  fd,  int,  flags */
++    case TARGET_NR_setpgid: /*  pid_t,  pid,  pid_t,  pgid */
++    case TARGET_NR_setpriority: /*  int,  which,  int,  who,  int,  niceval */
++    case TARGET_NR_setregid: /*  gid_t,  rgid,  gid_t,  egid */
++    case TARGET_NR_setresgid: /*  gid_t,  rgid,  gid_t,  egid,  gid_t,  sgid */
++    case TARGET_NR_setresuid: /*  uid_t,  ruid,  uid_t,  euid,  uid_t,  suid */
++    case TARGET_NR_setreuid: /*  uid_t,  ruid,  uid_t,  euid */
++    case TARGET_NR_setsid: /*  */
++    case TARGET_NR_setuid: /*  uid_t,  uid */
++    case TARGET_NR_shmget: /*  key_t,  key,  size_t,  size,  int,  shmflg */
++    case TARGET_NR_shutdown: /*  int,  fd,  int,  how */
++    case TARGET_NR_socket: /*  int,  family,  int,  type,  int,  protocol */
++    case TARGET_NR_sync: /*  */
++    case TARGET_NR_sync_file_range: /*  int,  fd,  loff_t,  offset,  loff_t,  nbytes,  unsigned int,  flags */
++    case TARGET_NR_syncfs: /*  int,  fd */
++    case TARGET_NR_tee: /*  int,  fdin,  int,  fdout,  size_t,  len,  unsigned int,  flags */
++    case TARGET_NR_timer_delete: /*  timer_t,  timer_id */
++    case TARGET_NR_timer_getoverrun: /*  timer_t,  timer_id */
++    case TARGET_NR_timerfd_create: /*  int,  clockid,  int,  flags */
++    case TARGET_NR_tkill: /*  pid_t,  pid,  int,  sig */
++    case TARGET_NR_umask: /*  int,  mask */
++    case TARGET_NR_unshare: /*  unsigned long,  unshare_flags */
++    case TARGET_NR_vhangup: /*  */
++        return 0x00;
 +
-+    /* (<ptr>, ...): only slot 0 is an address */
-+    case TARGET_NR_brk:             /* brk(void *)                          */
-+    case TARGET_NR_munmap:          /* munmap(void *, size_t)               */
-+    case TARGET_NR_mmap:            /* mmap(void *, size_t, int, int, int, off_t) */
-+    case TARGET_NR_set_tid_address: /* set_tid_address(int *)               */
-+    case TARGET_NR_set_robust_list: /* set_robust_list(void *, size_t)      */
-+    case TARGET_NR_futex:           /* futex(uint32_t *, int, uint32_t, ...) */
-+    case TARGET_NR_getrandom:       /* getrandom(void *, size_t, unsigned)  */
++    /* mask 0x01 (34): address argument in slot 0 */
++    case TARGET_NR_acct: /*  const char __user *,  name */
++    case TARGET_NR_adjtimex: /*  struct __kernel_timex __user *,  txc_p */
++    case TARGET_NR_brk: /*  unsigned long,  brk */
++    case TARGET_NR_chdir: /*  const char __user *,  filename */
++    case TARGET_NR_chroot: /*  const char __user *,  filename */
++    case TARGET_NR_delete_module: /*  const char __user *,  name_user,  unsigned int,  flags */
++    case TARGET_NR_getcwd: /*  char __user *,  buf,  unsigned long,  size */
++    case TARGET_NR_getrandom: /*  char __user *,  ubuf,  size_t,  len,  unsigned int,  flags */
++    case TARGET_NR_madvise: /*  unsigned long,  start,  size_t,  len_in,  int,  behavior */
++    case TARGET_NR_memfd_create: /*  const char __user *,  uname,  unsigned int,  flags */
++    case TARGET_NR_mlock: /*  unsigned long,  start,  size_t,  len */
++    case TARGET_NR_mlock2: /*  unsigned long,  start,  size_t,  len,  int,  flags */
++    case TARGET_NR_mmap: /*  unsigned long,  addr,  unsigned long,  len,  unsigned long,  prot,  unsigned long,  flags,  unsigned long,  fd,  unsigned long,  offset */
++    case TARGET_NR_mprotect: /*  unsigned long,  start,  size_t,  len,  unsigned long,  prot */
++    case TARGET_NR_mq_unlink: /*  const char __user *,  u_name */
++    case TARGET_NR_msync: /*  unsigned long,  start,  size_t,  len,  int,  flags */
++    case TARGET_NR_munlock: /*  unsigned long,  start,  size_t,  len */
++    case TARGET_NR_munmap: /*  unsigned long,  addr,  size_t,  len */
++    case TARGET_NR_pipe2: /*  int __user *,  fildes,  int,  flags */
++    case TARGET_NR_remap_file_pages: /*  unsigned long,  start,  unsigned long,  size,  unsigned long,  prot,  unsigned long,  pgoff,  unsigned long,  flags */
++    case TARGET_NR_rt_sigpending: /*  sigset_t __user *,  uset,  size_t,  sigsetsize */
++    case TARGET_NR_rt_sigsuspend: /*  sigset_t __user *,  unewset,  size_t,  sigsetsize */
++    case TARGET_NR_set_robust_list: /*  struct robust_list_head __user *,  head,  size_t,  len */
++    case TARGET_NR_set_tid_address: /*  int __user *,  tidptr */
++    case TARGET_NR_setdomainname: /*  char __user *,  name,  int,  len */
++    case TARGET_NR_sethostname: /*  char __user *,  name,  int,  len */
++    case TARGET_NR_shmdt: /*  char __user *,  shmaddr */
++    case TARGET_NR_swapoff: /*  const char __user *,  specialfile */
++    case TARGET_NR_swapon: /*  const char __user *,  specialfile,  int,  swap_flags */
++    case TARGET_NR_sysinfo: /*  struct sysinfo __user *,  info */
++    case TARGET_NR_times: /*  struct tms __user *,  tbuf */
++    case TARGET_NR_truncate: /*  const char __user *,  path,  long,  length */
++    case TARGET_NR_umount2: /*  char __user *,  name,  int,  flags */
++    case TARGET_NR_uname: /*  struct old_utsname __user *,  name */
 +        return 0x01;
 +
-+    /* (int, unsigned long, <ptr>): only slot 2 is an address */
-+    case TARGET_NR_ioctl:           /* ioctl(int fd, unsigned long, void *arg) */
++    /* mask 0x02 (54): address argument in slot 1 */
++    case TARGET_NR_bind: /*  int,  fd,  struct sockaddr __user *,  umyaddr,  int,  addrlen */
++    case TARGET_NR_clock_adjtime: /*  const clockid_t,  which_clock,  struct __kernel_timex __user *,  utx */
++    case TARGET_NR_clock_getres: /*  const clockid_t,  which_clock,  struct __kernel_timespec __user *,  tp */
++    case TARGET_NR_clock_gettime: /*  const clockid_t,  which_clock,  struct __kernel_timespec __user *,  tp */
++    case TARGET_NR_clock_settime: /*  const clockid_t,  which_clock,  const struct __kernel_timespec __user *,  tp */
++    case TARGET_NR_connect: /*  int,  fd,  struct sockaddr __user *,  uservaddr,  int,  addrlen */
++    case TARGET_NR_faccessat: /*  int,  dfd,  const char __user *,  filename,  int,  mode */
++    case TARGET_NR_faccessat2: /*  int,  dfd,  const char __user *,  filename,  int,  mode,  int,  flags */
++    case TARGET_NR_fchmodat: /*  int,  dfd,  const char __user *,  filename,  umode_t,  mode */
++    case TARGET_NR_fchmodat2: /*  int,  dfd,  const char __user *,  filename,  umode_t,  mode,  unsigned int,  flags */
++    case TARGET_NR_fchownat: /*  int,  dfd,  const char __user *,  filename,  uid_t,  user,  gid_t,  group,  int,  flag */
++    case TARGET_NR_flistxattr: /*  int,  fd,  char __user *,  list,  size_t,  size */
++    case TARGET_NR_fremovexattr: /*  int,  fd,  const char __user *,  name */
++    case TARGET_NR_fstat: /*  unsigned int,  fd,  struct __old_kernel_stat __user *,  statbuf */
++    case TARGET_NR_fstatfs: /*  unsigned int,  fd,  struct statfs __user *,  buf */
++    case TARGET_NR_getdents64: /*  unsigned int,  fd,  struct linux_dirent64 __user *,  dirent,  unsigned int,  count */
++    case TARGET_NR_getgroups: /*  int,  gidsetsize,  gid_t __user *,  grouplist */
++    case TARGET_NR_getitimer: /*  int,  which,  struct __kernel_old_itimerval __user *,  value */
++    case TARGET_NR_getrlimit: /*  unsigned int,  resource,  struct rlimit __user *,  rlim */
++    case TARGET_NR_getrusage: /*  int,  who,  struct rusage __user *,  ru */
++    case TARGET_NR_inotify_add_watch: /*  int,  fd,  const char __user *,  pathname,  u32,  mask */
++    case TARGET_NR_mkdirat: /*  int,  dfd,  const char __user *,  pathname,  umode_t,  mode */
++    case TARGET_NR_mknodat: /*  int,  dfd,  const char __user *,  filename,  umode_t,  mode,  unsigned int,  dev */
++    case TARGET_NR_mq_notify: /*  mqd_t,  mqdes,  const struct sigevent __user *,  u_notification */
++    case TARGET_NR_msgrcv: /*  int,  msqid,  struct msgbuf __user *,  msgp,  size_t,  msgsz,  long,  msgtyp,  int,  msgflg */
++    case TARGET_NR_msgsnd: /*  int,  msqid,  struct msgbuf __user *,  msgp,  size_t,  msgsz,  int,  msgflg */
++    case TARGET_NR_open_by_handle_at: /*  int,  mountdirfd,  struct file_handle __user *,  handle,  int,  flags */
++    case TARGET_NR_openat: /*  int,  dfd,  const char __user *,  filename,  int,  flags,  umode_t,  mode */
++    case TARGET_NR_pread64: /*  unsigned int,  fd,  char __user *,  buf,  size_t,  count,  loff_t,  pos */
++    case TARGET_NR_preadv: /*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen,  unsigned long,  pos_l,  unsigned long,  pos_h */
++    case TARGET_NR_preadv2: /*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen,  unsigned long,  pos_l,  unsigned long,  pos_h,  rwf_t,  flags */
++    case TARGET_NR_pwrite64: /*  unsigned int,  fd,  const char __user *,  buf,  size_t,  count,  loff_t,  pos */
++    case TARGET_NR_pwritev: /*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen,  unsigned long,  pos_l,  unsigned long,  pos_h */
++    case TARGET_NR_pwritev2: /*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen,  unsigned long,  pos_l,  unsigned long,  pos_h,  rwf_t,  flags */
++    case TARGET_NR_read: /*  unsigned int,  fd,  char __user *,  buf,  size_t,  count */
++    case TARGET_NR_readv: /*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen */
++    case TARGET_NR_recvmsg: /*  int,  fd,  struct user_msghdr __user *,  msg,  unsigned int,  flags */
++    case TARGET_NR_sched_getparam: /*  pid_t,  pid,  struct sched_param __user *,  param */
++    case TARGET_NR_sched_rr_get_interval: /*  pid_t,  pid,  struct __kernel_timespec __user *,  interval */
++    case TARGET_NR_sched_setparam: /*  pid_t,  pid,  struct sched_param __user *,  param */
++    case TARGET_NR_semop: /*  int,  semid,  struct sembuf __user *,  tsops,  unsigned int,  nsops */
++    case TARGET_NR_sendmmsg: /*  int,  fd,  struct mmsghdr __user *,  mmsg,  unsigned int,  vlen,  unsigned int,  flags */
++    case TARGET_NR_sendmsg: /*  int,  fd,  struct user_msghdr __user *,  msg,  unsigned int,  flags */
++    case TARGET_NR_setgroups: /*  int,  gidsetsize,  gid_t __user *,  grouplist */
++    case TARGET_NR_setrlimit: /*  unsigned int,  resource,  struct rlimit __user *,  rlim */
++    case TARGET_NR_shmat: /*  int,  shmid,  char __user *,  shmaddr,  int,  shmflg */
++    case TARGET_NR_signalfd4: /*  int,  ufd,  sigset_t __user *,  user_mask,  size_t,  sizemask,  int,  flags */
++    case TARGET_NR_syslog: /*  int,  type,  char __user *,  buf,  int,  len */
++    case TARGET_NR_timer_gettime: /*  timer_t,  timer_id,  struct __kernel_itimerspec __user *,  setting */
++    case TARGET_NR_timerfd_gettime: /*  int,  ufd,  struct __kernel_itimerspec __user *,  otmr */
++    case TARGET_NR_unlinkat: /*  int,  dfd,  const char __user *,  pathname,  int,  flag */
++    case TARGET_NR_vmsplice: /*  int,  fd,  const struct iovec __user *,  uiov,  unsigned long,  nr_segs,  unsigned int,  flags */
++    case TARGET_NR_write: /*  unsigned int,  fd,  const char __user *,  buf,  size_t,  count */
++    case TARGET_NR_writev: /*  unsigned long,  fd,  const struct iovec __user *,  vec,  unsigned long,  vlen */
++        return 0x02;
++
++    /* mask 0x03 (12): address arguments in slots 0, 1 */
++    case TARGET_NR_capget: /*  cap_user_header_t,  header,  cap_user_data_t,  dataptr */
++    case TARGET_NR_capset: /*  cap_user_header_t,  header,  const cap_user_data_t,  data */
++    case TARGET_NR_gettimeofday: /*  struct __kernel_old_timeval __user *,  tv,  struct timezone __user *,  tz */
++    case TARGET_NR_listxattr: /*  const char __user *,  pathname,  char __user *,  list,  size_t,  size */
++    case TARGET_NR_llistxattr: /*  const char __user *,  pathname,  char __user *,  list,  size_t,  size */
++    case TARGET_NR_lremovexattr: /*  const char __user *,  pathname,  const char __user *,  name */
++    case TARGET_NR_nanosleep: /*  struct __kernel_timespec __user *,  rqtp,  struct __kernel_timespec __user *,  rmtp */
++    case TARGET_NR_pivot_root: /*  const char __user *,  new_root,  const char __user *,  put_old */
++    case TARGET_NR_removexattr: /*  const char __user *,  pathname,  const char __user *,  name */
++    case TARGET_NR_settimeofday: /*  struct __kernel_old_timeval __user *,  tv,  struct timezone __user *,  tz */
++    case TARGET_NR_sigaltstack: /* const stack_t __user *, uss,  stack_t __user *, uoss */
++    case TARGET_NR_statfs: /*  const char __user *,  pathname,  struct statfs __user *,  buf */
++        return 0x03;
++
++    /* mask 0x04 (8): address argument in slot 2 */
++    case TARGET_NR_ioctl: /*  unsigned int,  fd,  unsigned int,  cmd,  unsigned long,  arg */
++    case TARGET_NR_msgctl: /*  int,  msqid,  int,  cmd,  struct msqid_ds __user *,  buf */
++    case TARGET_NR_rt_sigqueueinfo: /*  pid_t,  pid,  int,  sig,  siginfo_t __user *,  uinfo */
++    case TARGET_NR_sched_getaffinity: /*  pid_t,  pid,  unsigned int,  len,  unsigned long __user *,  user_mask_ptr */
++    case TARGET_NR_sched_setaffinity: /*  pid_t,  pid,  unsigned int,  len,  unsigned long __user *,  user_mask_ptr */
++    case TARGET_NR_sched_setscheduler: /*  pid_t,  pid,  int,  policy,  struct sched_param __user *,  param */
++    case TARGET_NR_sendfile: /*  int,  out_fd,  int,  in_fd,  off_t __user *,  offset,  size_t,  count */
++    case TARGET_NR_shmctl: /*  int,  shmid,  int,  cmd,  struct shmid_ds __user *,  buf */
 +        return 0x04;
++
++    /* mask 0x05 (3): address arguments in slots 0, 2 */
++    case TARGET_NR_init_module: /*  void __user *,  umod,  unsigned long,  len,  const char __user *,  uargs */
++    case TARGET_NR_mincore: /*  unsigned long,  start,  size_t,  len,  unsigned char __user *,  vec */
++    case TARGET_NR_symlinkat: /*  const char __user *,  oldname,  int,  newdfd,  const char __user *,  newname */
++        return 0x05;
++
++    /* mask 0x06 (15): address arguments in slots 1, 2 */
++    case TARGET_NR_accept: /*  int,  fd,  struct sockaddr __user *,  upeer_sockaddr,  int __user *,  upeer_addrlen */
++    case TARGET_NR_accept4: /*  int,  fd,  struct sockaddr __user *,  upeer_sockaddr,  int __user *,  upeer_addrlen,  int,  flags */
++    case TARGET_NR_fgetxattr: /*  int,  fd,  const char __user *,  name,  void __user *,  value,  size_t,  size */
++    case TARGET_NR_fsetxattr: /*  int,  fd,  const char __user *,  name,  const void __user *, value,  size_t,  size,  int,  flags */
++    case TARGET_NR_get_robust_list: /*  int,  pid,  struct robust_list_head __user * __user *,  head_ptr,  size_t __user *,  len_ptr */
++    case TARGET_NR_getpeername: /*  int,  fd,  struct sockaddr __user *,  usockaddr,  int __user *,  usockaddr_len */
++    case TARGET_NR_getsockname: /*  int,  fd,  struct sockaddr __user *,  usockaddr,  int __user *,  usockaddr_len */
++    case TARGET_NR_mq_getsetattr: /*  mqd_t,  mqdes,  const struct mq_attr __user *,  u_mqstat,  struct mq_attr __user *,  u_omqstat */
++    case TARGET_NR_newfstatat: /*  int,  dfd,  const char __user *,  filename,  struct stat __user *,  statbuf,  int,  flag */
++    case TARGET_NR_readlinkat: /*  int,  dfd,  const char __user *,  pathname,  char __user *,  buf,  int,  bufsiz */
++    case TARGET_NR_rt_sigaction: /*  int,  sig,  const struct sigaction __user *,  act,  struct sigaction __user *,  oact,  size_t,  sigsetsize */
++    case TARGET_NR_rt_sigprocmask: /*  int,  how,  sigset_t __user *,  nset,  sigset_t __user *,  oset,  size_t,  sigsetsize */
++    case TARGET_NR_setitimer: /*  int,  which,  struct __kernel_old_itimerval __user *,  value,  struct __kernel_old_itimerval __user *,  ovalue */
++    case TARGET_NR_timer_create: /*  const clockid_t,  which_clock,  struct sigevent __user *,  timer_event_spec,  timer_t __user *,  created_timer_id */
++    case TARGET_NR_utimensat: /*  int,  dfd,  const char __user *,  filename,  struct __kernel_timespec __user *,  utimes,  int,  flags */
++        return 0x06;
++
++    /* mask 0x07 (9): address arguments in slots 0, 1, 2 */
++    case TARGET_NR_execve: /*  const char __user *,  filename,  const char __user *const __user *,  argv,  const char __user *const __user *,  envp */
++    case TARGET_NR_getcpu: /*  unsigned __user *,  cpup,  unsigned __user *,  nodep,  void __user *,  unused */
++    case TARGET_NR_getresgid: /*  gid_t __user *,  rgidp,  gid_t __user *,  egidp,  gid_t __user *,  sgidp */
++    case TARGET_NR_getresuid: /*  uid_t __user *,  ruidp,  uid_t __user *,  euidp,  uid_t __user *,  suidp */
++    case TARGET_NR_getxattr: /*  const char __user *,  pathname,  const char __user *,  name,  void __user *,  value,  size_t,  size */
++    case TARGET_NR_lgetxattr: /*  const char __user *,  pathname,  const char __user *,  name,  void __user *,  value,  size_t,  size */
++    case TARGET_NR_lsetxattr: /*  const char __user *,  pathname,  const char __user *,  name,  const void __user *,  value,  size_t,  size,  int,  flags */
++    case TARGET_NR_rt_sigtimedwait: /*  const sigset_t __user *,  uthese,  siginfo_t __user *,  uinfo,  const struct __kernel_timespec __user *,  uts,  size_t,  sigsetsize */
++    case TARGET_NR_setxattr: /*  const char __user *,  pathname,  const char __user *,  name,  const void __user *,  value,  size_t,  size,  int,  flags */
++        return 0x07;
++
++    /* mask 0x08 (5): address argument in slot 3 */
++    case TARGET_NR_epoll_ctl: /*  int,  epfd,  int,  op,  int,  fd,  struct epoll_event __user *,  event */
++    case TARGET_NR_reboot: /*  int,  magic1,  int,  magic2,  unsigned int,  cmd,  void __user *,  arg */
++    case TARGET_NR_semctl: /*  int,  semid,  int,  semnum,  int,  cmd,  unsigned long,  arg */
++    case TARGET_NR_setsockopt: /*  int,  fd,  int,  level,  int,  optname,  char __user *,  optval,  int,  optlen */
++    case TARGET_NR_socketpair: /*  int,  family,  int,  type,  int,  protocol,  int __user *,  usockvec */
++        return 0x08;
++
++    /* mask 0x09 (1): address arguments in slots 0, 3 */
++    case TARGET_NR_mq_open: /*  const char __user *,  u_name,  int,  oflag,  umode_t,  mode,  struct mq_attr __user *,  u_attr */
++        return 0x09;
++
++    /* mask 0x0a (9): address arguments in slots 1, 3 */
++    case TARGET_NR_copy_file_range: /*  int,  fd_in,  loff_t __user *,  off_in,  int,  fd_out,  loff_t __user *,  off_out,  size_t,  len,  unsigned int,  flags */
++    case TARGET_NR_linkat: /*  int,  olddfd,  const char __user *,  oldname,  int,  newdfd,  const char __user *,  newname,  int,  flags */
++    case TARGET_NR_process_vm_readv: /*  pid_t,  pid,  const struct iovec __user *,  lvec,  unsigned long,  liovcnt,  const struct iovec __user *,  rvec,  unsigned long,  riovcnt,  unsigned long,  flags */
++    case TARGET_NR_process_vm_writev: /*  pid_t,  pid,  const struct iovec __user *,  lvec,  unsigned long,  liovcnt,  const struct iovec __user *,  rvec,  unsigned long,  riovcnt,  unsigned long,  flags */
++    case TARGET_NR_quotactl: /*  unsigned int,  cmd,  const char __user *,  special,  qid_t,  id,  void __user *,  addr */
++    case TARGET_NR_renameat2: /*  int,  olddfd,  const char __user *,  oldname,  int,  newdfd,  const char __user *,  newname,  unsigned int,  flags */
++    case TARGET_NR_semtimedop: /*  int,  semid,  struct sembuf __user *,  tsops,  unsigned int,  nsops,  const struct __kernel_timespec __user *,  timeout */
++    case TARGET_NR_splice: /*  int,  fd_in,  loff_t __user *,  off_in,  int,  fd_out,  loff_t __user *,  off_out,  size_t,  len,  unsigned int,  flags */
++    case TARGET_NR_wait4: /*  pid_t,  upid,  int __user *,  stat_addr,  int,  options,  struct rusage __user *,  ru */
++        return 0x0a;
++
++    /* mask 0x0c (5): address arguments in slots 2, 3 */
++    case TARGET_NR_clock_nanosleep: /*  const clockid_t,  which_clock,  int,  flags,  const struct __kernel_timespec __user *,  rqtp,  struct __kernel_timespec __user *,  rmtp */
++    case TARGET_NR_prlimit64: /*  pid_t,  pid,  unsigned int,  resource,  const struct rlimit64 __user *,  new_rlim,  struct rlimit64 __user *,  old_rlim */
++    case TARGET_NR_ptrace: /*  long,  request,  long,  pid,  unsigned long,  addr,  unsigned long,  data */
++    case TARGET_NR_timer_settime: /*  timer_t,  timer_id,  int,  flags,  const struct __kernel_itimerspec __user *,  new_setting,  struct __kernel_itimerspec __user *,  old_setting */
++    case TARGET_NR_timerfd_settime: /*  int,  ufd,  int,  flags,  const struct __kernel_itimerspec __user *,  utmr,  struct __kernel_itimerspec __user *,  otmr */
++        return 0x0c;
++
++    /* mask 0x0d (1): address arguments in slots 0, 2, 3 */
++    case TARGET_NR_ppoll: /*  struct pollfd __user *,  ufds,  unsigned int,  nfds,  struct __kernel_timespec __user *,  tsp,  const sigset_t __user *,  sigmask,  size_t,  sigsetsize */
++        return 0x0d;
++
++    /* mask 0x0e (2): address arguments in slots 1, 2, 3 */
++    case TARGET_NR_execveat: /*  int,  fd,  const char __user *,  filename,  const char __user *const __user *,  argv,  const char __user *const __user *,  envp,  int,  flags */
++    case TARGET_NR_name_to_handle_at: /*  int,  dfd,  const char __user *,  name,  struct file_handle __user *,  handle,  void __user *,  mnt_id,  int,  flag */
++        return 0x0e;
++
++    /* mask 0x10 (1): address argument in slot 4 */
++    case TARGET_NR_fanotify_mark: /*  int,  fanotify_fd,  unsigned int,  flags,  __u64,  mask,  int,  dfd,  const char __user *,  pathname */
++        return 0x10;
++
++    /* mask 0x11 (1): address arguments in slots 0, 4 */
++    case TARGET_NR_mremap: /*  unsigned long,  addr,  unsigned long,  old_len,  unsigned long,  new_len,  unsigned long,  flags,  unsigned long,  new_addr */
++        return 0x11;
++
++    /* mask 0x12 (5): address arguments in slots 1, 4 */
++    case TARGET_NR_epoll_pwait: /*  int,  epfd,  struct epoll_event __user *,  events,  int,  maxevents,  int,  timeout,  const sigset_t __user *,  sigmask,  size_t,  sigsetsize */
++    case TARGET_NR_mq_timedsend: /*  mqd_t,  mqdes,  const char __user *,  u_msg_ptr,  size_t,  msg_len,  unsigned int,  msg_prio,  const struct __kernel_timespec __user *,  u_abs_timeout */
++    case TARGET_NR_recvmmsg: /*  int,  fd,  struct mmsghdr __user *,  mmsg,  unsigned int,  vlen,  unsigned int,  flags,  struct __kernel_timespec __user *,  timeout */
++    case TARGET_NR_sendto: /*  int,  fd,  void __user *,  buff,  size_t,  len,  unsigned int,  flags,  struct sockaddr __user *,  addr,  int,  addr_len */
++    case TARGET_NR_statx: /*  int,  dfd,  const char __user *,  filename,  unsigned,  flags,  unsigned int,  mask,  struct statx __user *,  buffer */
++        return 0x12;
++
++    /* mask 0x14 (2): address arguments in slots 2, 4 */
++    case TARGET_NR_clone: /*  unsigned long,  clone_flags,  unsigned long,  newsp,  int __user *,  parent_tidptr,  unsigned long,  tls,  int __user *,  child_tidptr */
++    case TARGET_NR_waitid: /*  int,  which,  pid_t,  upid,  struct siginfo __user *,  infop,  int,  options,  struct rusage __user *,  ru */
++        return 0x14;
++
++    /* mask 0x17 (1): address arguments in slots 0, 1, 2, 4 */
++    case TARGET_NR_mount: /*  char __user *,  dev_name,  char __user *,  dir_name,  char __user *,  type,  unsigned long,  flags,  void __user *,  data */
++        return 0x17;
++
++    /* mask 0x18 (1): address arguments in slots 3, 4 */
++    case TARGET_NR_getsockopt: /*  int,  fd,  int,  level,  int,  optname,  char __user *,  optval,  int __user *,  optlen */
++        return 0x18;
++
++    /* mask 0x19 (1): address arguments in slots 0, 3, 4 */
++    case TARGET_NR_futex: /*  u32 __user *,  uaddr,  int,  op,  u32,  val,  const struct __kernel_timespec __user *,  utime,  u32 __user *,  uaddr2,  u32,  val3 */
++        return 0x19;
++
++    /* mask 0x1a (1): address arguments in slots 1, 3, 4 */
++    case TARGET_NR_mq_timedreceive: /*  mqd_t,  mqdes,  char __user *,  u_msg_ptr,  size_t,  msg_len,  unsigned int __user *,  u_msg_prio,  const struct __kernel_timespec __user *,  u_abs_timeout */
++        return 0x1a;
++
++    /* mask 0x32 (1): address arguments in slots 1, 4, 5 */
++    case TARGET_NR_recvfrom: /*  int,  fd,  void __user *,  ubuf,  size_t,  size,  unsigned int,  flags,  struct sockaddr __user *,  addr,  int __user *,  addr_len */
++        return 0x32;
++
++    /* mask 0x3e (1): address arguments in slots 1, 2, 3, 4, 5 */
++    case TARGET_NR_pselect6: /*  int,  n,  fd_set __user *,  inp,  fd_set __user *,  outp,  fd_set __user *,  exp,  struct __kernel_timespec __user *,  tsp,  void __user *,  sig */
++        return 0x3e;
 +
 +    default:
 +        return 0x00;

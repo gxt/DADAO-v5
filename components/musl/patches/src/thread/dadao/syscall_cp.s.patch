@@ -1,9 +1,9 @@
 diff --git a/src/thread/dadao/syscall_cp.s b/src/thread/dadao/syscall_cp.s
 new file mode 100644
-index 0000000..6a4baf8
+index 0000000..eaa1841
 --- /dev/null
 +++ b/src/thread/dadao/syscall_cp.s
-@@ -0,0 +1,154 @@
+@@ -0,0 +1,323 @@
 +; DADAO cancellable-syscall entry (musl cancellation protocol).
 +;
 +; long __syscall_cp_asm(volatile void *ptr, long nr,
@@ -31,29 +31,50 @@ index 0000000..6a4baf8
 +; their pointer-ness is already gone by the time this stub runs; the syscall
 +; NUMBER is the only thing left that says which positions belong to the rb
 +; bank.  The dispatch below therefore mirrors __dadao_argmask() in
-+; arch/dadao/syscall_arch.h slot for slot -- same numbers, same masks -- so the
-+; two paths cannot disagree about where an argument goes:
++; arch/dadao/syscall_arch.h number for number (same masks, same slots) for the
++; syscalls musl actually routes through __syscall_cp/syscall_cp on a 64-bit
++; arch -- the cancellable subset, which is the only thing that can reach this
++; entry point (../__syscall_cp.c).  Each label is one mask class, and the
++; classes used here are exactly the masks those numbers have in that table:
 +;
-+;   mask 0x02 (slot 1 is a pointer): read, write, readv, writev
-+;   mask 0x01 (slot 0 is a pointer): set_tid_address, futex, set_robust_list,
-+;                                    brk, munmap, mmap, getrandom
-+;   mask 0x04 (slot 2 is a pointer): ioctl
-+;   mask 0x00 (no pointer)          : everything else
++;   mask 0x00 close, fcntl, fsync, fdatasync            (no address argument)
++;   mask 0x01 getrandom, msync, rt_sigsuspend
++;   mask 0x02 read, write, readv, writev, pread64, pwrite64, preadv, pwritev,
++;            preadv2, pwritev2, openat, msgrcv, msgsnd, epoll_pwait,
++;            mq_timedsend, sendmmsg, sendmsg, recvmsg
++;   mask 0x03 nanosleep
++;   mask 0x04 ioctl
++;   mask 0x06 accept, accept4, connect
++;   mask 0x07 rt_sigtimedwait
++;   mask 0x0a wait4
++;   mask 0x0c clock_nanosleep
++;   mask 0x0d ppoll
++;   mask 0x12 sendto, recvmmsg
++;   mask 0x14 waitid
++;   mask 0x19 futex
++;   mask 0x1a mq_timedreceive
++;   mask 0x32 recvfrom
++;   mask 0x3e pselect6
 +;
-+; INVARIANT (same one registered on __dadao_argmask): a number must be added
-+; HERE in the same change that adds it there.  An unlisted number gets mask 0;
-+; that is why the two tables must stay identical -- a number served with
-+; wrongly-placed arguments would read garbage, not fail loudly.
++; (sendto/recvfrom are the two that need three address slots: buffer, sockaddr,
++; and recvfrom's socklen pointer -- the 0x32 class.)
++;
++; INVARIANT (same one registered on __dadao_argmask, gated by
++; tools/qemu/check_syscall_abi.py): every number dispatched here must have the
++; same mask as the C table, and every label used here must exist.  A number
++; served with wrongly-placed arguments would read garbage, not fail loudly.
 +;
 +; ## Register safety of the shuffles
 +;
-+; Entry: rb16 = ptr, rd16 = nr, rd17..rd22 = u..z.  Every copy goes to a
-+; LOWER-numbered register than its source, so ascending order never clobbers a
-+; value that has not been consumed yet; the single rb-bank copy is issued
-+; before its source register is overwritten.  rd2rd forbids overlapping
-+; ranges (SimRISC-02 §2), which is another reason the moves are one register
-+; at a time.  Scratch used: rd8 (the return register, reloaded by the trap) and
-+; rd9 (constant for the compare chain) -- both caller-saved (contract-abi.md
++; Entry: rb16 = ptr, rd16 = nr, rd17..rd22 = u..z.  Each block issues all
++; address-bank copies first (they only read rd17..rd22, which no earlier move
++; has touched), then the data-bank copies in ascending source order; a data
++; copy's destination rd(16+di) is always lower than both its source rd(17+i)
++; and the sources still pending, so nothing is clobbered.  rd2rd forbids
++; overlapping ranges (SimRISC-02 §2), which is another reason the moves are one
++; register at a time.  Scratch used: rd8 (the return register, reloaded by the
++; trap) and rd9 (constant for the compare chain) -- both caller-saved
++; (contract-abi.md
 +; §4.5 saves only rd32-rd63).
 +;
 +; ## Known boundary (registered in INFRA-085t / ISS-242)
@@ -88,68 +109,216 @@ index 0000000..6a4baf8
 +
 +	rd2rd	{rd15}, {rd16}
 +
-+	set.zw	rd9, wp0, 63
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask2]
-+	set.zw	rd9, wp0, 64
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask2]
-+	set.zw	rd9, wp0, 65
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask2]
-+	set.zw	rd9, wp0, 66
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask2]
-+
-+	set.zw	rd9, wp0, 96
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
-+	set.zw	rd9, wp0, 98
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
-+	set.zw	rd9, wp0, 99
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
-+	set.zw	rd9, wp0, 214
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
-+	set.zw	rd9, wp0, 215
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
-+	set.zw	rd9, wp0, 222
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
-+	set.zw	rd9, wp0, 278
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
-+
-+	set.zw	rd9, wp0, 29
-+	br.eq	{rd16, rd9}?, [rb0, .Lmask4]
-+
-+.Lmask0:
-+	rd2rd	{rd16}, {rd17}
-+	rd2rd	{rd17}, {rd18}
-+	rd2rd	{rd18}, {rd19}
-+	rd2rd	{rd19}, {rd20}
-+	rd2rd	{rd20}, {rd21}
-+	rd2rd	{rd21}, {rd22}
-+	jump	[rb0, .Ltrap]
-+
-+.Lmask2:
-+	rd2rb	{rb16}, {rd18}
-+	rd2rd	{rd16}, {rd17}
-+	rd2rd	{rd17}, {rd19}
-+	rd2rd	{rd18}, {rd20}
-+	rd2rd	{rd19}, {rd21}
-+	rd2rd	{rd20}, {rd22}
-+	jump	[rb0, .Ltrap]
-+
-+.Lmask1:
-+	rd2rb	{rb16}, {rd17}
-+	rd2rd	{rd16}, {rd18}
-+	rd2rd	{rd17}, {rd19}
-+	rd2rd	{rd18}, {rd20}
-+	rd2rd	{rd19}, {rd21}
-+	rd2rd	{rd20}, {rd22}
-+	jump	[rb0, .Ltrap]
-+
-+.Lmask4:
-+	rd2rd	{rd16}, {rd17}
-+	rd2rd	{rd17}, {rd18}
-+	rd2rb	{rb16}, {rd19}
-+	rd2rd	{rd18}, {rd20}
-+	rd2rd	{rd19}, {rd21}
-+	rd2rd	{rd20}, {rd22}
-+
++	set.zw rd9, wp0, 22
++	br.eq {rd16, rd9}?, [rb0, .Lm12]
++	set.zw rd9, wp0, 25
++	br.eq {rd16, rd9}?, [rb0, .Lm00]
++	set.zw rd9, wp0, 29
++	br.eq {rd16, rd9}?, [rb0, .Lm04]
++	set.zw rd9, wp0, 56
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 57
++	br.eq {rd16, rd9}?, [rb0, .Lm00]
++	set.zw rd9, wp0, 63
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 64
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 65
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 66
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 67
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 68
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 69
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 70
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 72
++	br.eq {rd16, rd9}?, [rb0, .Lm3e]
++	set.zw rd9, wp0, 73
++	br.eq {rd16, rd9}?, [rb0, .Lm0d]
++	set.zw rd9, wp0, 82
++	br.eq {rd16, rd9}?, [rb0, .Lm00]
++	set.zw rd9, wp0, 83
++	br.eq {rd16, rd9}?, [rb0, .Lm00]
++	set.zw rd9, wp0, 95
++	br.eq {rd16, rd9}?, [rb0, .Lm14]
++	set.zw rd9, wp0, 98
++	br.eq {rd16, rd9}?, [rb0, .Lm19]
++	set.zw rd9, wp0, 101
++	br.eq {rd16, rd9}?, [rb0, .Lm03]
++	set.zw rd9, wp0, 115
++	br.eq {rd16, rd9}?, [rb0, .Lm0c]
++	set.zw rd9, wp0, 133
++	br.eq {rd16, rd9}?, [rb0, .Lm01]
++	set.zw rd9, wp0, 137
++	br.eq {rd16, rd9}?, [rb0, .Lm07]
++	set.zw rd9, wp0, 182
++	br.eq {rd16, rd9}?, [rb0, .Lm12]
++	set.zw rd9, wp0, 183
++	br.eq {rd16, rd9}?, [rb0, .Lm1a]
++	set.zw rd9, wp0, 188
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 189
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 202
++	br.eq {rd16, rd9}?, [rb0, .Lm06]
++	set.zw rd9, wp0, 203
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 206
++	br.eq {rd16, rd9}?, [rb0, .Lm12]
++	set.zw rd9, wp0, 207
++	br.eq {rd16, rd9}?, [rb0, .Lm32]
++	set.zw rd9, wp0, 211
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 212
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 227
++	br.eq {rd16, rd9}?, [rb0, .Lm01]
++	set.zw rd9, wp0, 242
++	br.eq {rd16, rd9}?, [rb0, .Lm06]
++	set.zw rd9, wp0, 243
++	br.eq {rd16, rd9}?, [rb0, .Lm12]
++	set.zw rd9, wp0, 260
++	br.eq {rd16, rd9}?, [rb0, .Lm0a]
++	set.zw rd9, wp0, 269
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 278
++	br.eq {rd16, rd9}?, [rb0, .Lm01]
++	set.zw rd9, wp0, 286
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++	set.zw rd9, wp0, 287
++	br.eq {rd16, rd9}?, [rb0, .Lm02]
++.Lm00:
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd18}
++	rd2rd {rd18}, {rd19}
++	rd2rd {rd19}, {rd20}
++	rd2rd {rd20}, {rd21}
++	rd2rd {rd21}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm01:
++	rd2rb {rb16}, {rd17}
++	rd2rd {rd16}, {rd18}
++	rd2rd {rd17}, {rd19}
++	rd2rd {rd18}, {rd20}
++	rd2rd {rd19}, {rd21}
++	rd2rd {rd20}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm02:
++	rd2rb {rb16}, {rd18}
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd19}
++	rd2rd {rd18}, {rd20}
++	rd2rd {rd19}, {rd21}
++	rd2rd {rd20}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm03:
++	rd2rb {rb16}, {rd17}
++	rd2rb {rb17}, {rd18}
++	rd2rd {rd16}, {rd19}
++	rd2rd {rd17}, {rd20}
++	rd2rd {rd18}, {rd21}
++	rd2rd {rd19}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm04:
++	rd2rb {rb16}, {rd19}
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd18}
++	rd2rd {rd18}, {rd20}
++	rd2rd {rd19}, {rd21}
++	rd2rd {rd20}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm06:
++	rd2rb {rb16}, {rd18}
++	rd2rb {rb17}, {rd19}
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd20}
++	rd2rd {rd18}, {rd21}
++	rd2rd {rd19}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm07:
++	rd2rb {rb16}, {rd17}
++	rd2rb {rb17}, {rd18}
++	rd2rb {rb18}, {rd19}
++	rd2rd {rd16}, {rd20}
++	rd2rd {rd17}, {rd21}
++	rd2rd {rd18}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm0a:
++	rd2rb {rb16}, {rd18}
++	rd2rb {rb17}, {rd20}
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd19}
++	rd2rd {rd18}, {rd21}
++	rd2rd {rd19}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm0c:
++	rd2rb {rb16}, {rd19}
++	rd2rb {rb17}, {rd20}
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd18}
++	rd2rd {rd18}, {rd21}
++	rd2rd {rd19}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm0d:
++	rd2rb {rb16}, {rd17}
++	rd2rb {rb17}, {rd19}
++	rd2rb {rb18}, {rd20}
++	rd2rd {rd16}, {rd18}
++	rd2rd {rd17}, {rd21}
++	rd2rd {rd18}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm12:
++	rd2rb {rb16}, {rd18}
++	rd2rb {rb17}, {rd21}
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd19}
++	rd2rd {rd18}, {rd20}
++	rd2rd {rd19}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm14:
++	rd2rb {rb16}, {rd19}
++	rd2rb {rb17}, {rd21}
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd18}
++	rd2rd {rd18}, {rd20}
++	rd2rd {rd19}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm19:
++	rd2rb {rb16}, {rd17}
++	rd2rb {rb17}, {rd20}
++	rd2rb {rb18}, {rd21}
++	rd2rd {rd16}, {rd18}
++	rd2rd {rd17}, {rd19}
++	rd2rd {rd18}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm1a:
++	rd2rb {rb16}, {rd18}
++	rd2rb {rb17}, {rd20}
++	rd2rb {rb18}, {rd21}
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd19}
++	rd2rd {rd18}, {rd22}
++	jump [rb0, .Ltrap]
++.Lm32:
++	rd2rb {rb16}, {rd18}
++	rd2rb {rb17}, {rd21}
++	rd2rb {rb18}, {rd22}
++	rd2rd {rd16}, {rd17}
++	rd2rd {rd17}, {rd19}
++	rd2rd {rd18}, {rd20}
++	jump [rb0, .Ltrap]
++.Lm3e:
++	rd2rb {rb16}, {rd18}
++	rd2rb {rb17}, {rd19}
++	rd2rb {rb18}, {rd20}
++	rd2rb {rb19}, {rd21}
++	rd2rb {rb20}, {rd22}
++	rd2rd {rd16}, {rd17}
++	jump [rb0, .Ltrap]
 +.Ltrap:
 +	trap	cfx_umon, 0
 +__cp_end:
