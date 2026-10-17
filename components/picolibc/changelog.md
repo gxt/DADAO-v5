@@ -21,3 +21,8 @@
 
 - **2026-10-12 `INFRA-068t`（返工 1）**
   - 摘要：**补 FP callee-saved 银行 `rf32–rf63`**：`contract-abi.md §4.5` CSR = `rd32–rd63 ∪ rb32–rb63 ∪ rf32–rf63`（`spec/DADAO-21` rf32–rf63 callee saved），原实现漏存漏复 RF 银行 ⇒ C 级实证 FP 局部量跨 `setjmp`/`longjmp` 被中间帧同 bank 覆盖（`expect=4.75 got=3.25`）。`setjmp` 加 `stm.o {rf32:rf63}`、`longjmp` 加 `ldm.o {rf32:rf63}`（RF 形态，`scope:fp`；偏移 1032）；`machine/setjmp.h` `_JBLEN` 129→**161**（= 64(ra)+1(sp)+32(rd)+32(rb)+32(rf)）。全量 test 不回归（`pass 205/fail 0/excluded 22/blocked 8`）。
+
+## M8
+
+- **2026-10-17 `INFRA-079t`**
+  - 摘要：**移除 compiler-rt builtins 的 vendored 副本**（`ADR-0027 Consequences 1` / `D5`）：删 `libm/common/{muldc3.c,mulsc3.c,compiler_rt_builtins.h}` 三件源及其 `.patch`，`libm/common/meson.build` 恢复上游 `srcs_common = ['signgam.c']`（该文件的唯一补丁 hunk 即两源插入，故整份 `meson.build.patch` 一并消失）；`series` 18→**14**。`__muldc3`/`__mulsc3` 改由独立 `libclang_rt.builtins.a` 提供；重建后全量四分类 **pass 213 / fail 0 / excluded 22 / blocked 0**（与改前逐项一致）。

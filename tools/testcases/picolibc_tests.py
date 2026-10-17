@@ -255,12 +255,38 @@ def compile_target(name, target, out_dir, env):
     return objs, ""
 
 
+_BUILTINS_ARCHIVE: Path | None = None
+
+
+def builtins_archive() -> Path:
+    """The independent DADAO compiler-rt builtins archive (ADR-0027 D5).
+
+    ``libc.a`` no longer vendors ``__muldc3``/``__mulsc3`` (INFRA-079t), and
+    this harness links with ``ld.lld`` directly instead of the clang driver, so
+    the archive has to be named explicitly.  The path is asked from the driver
+    (single source of truth, no hard-coded resource-dir layout).
+    """
+    global _BUILTINS_ARCHIVE
+    if _BUILTINS_ARCHIVE is None:
+        res = run([str(CLANG), "-target", "dadao-unknown-elf",
+                   "-rtlib=compiler-rt", "-print-libgcc-file-name"])
+        lines = res.stdout.strip().splitlines()
+        path = Path(lines[0]) if res.returncode == 0 and lines else None
+        if path is None or not path.is_file():
+            print(f"picolibc-tests: ERROR: compiler-rt builtins archive not found "
+                  f"(driver said {path!r}) — run 'make install-host'",
+                  file=sys.stderr)
+            raise SystemExit(2)
+        _BUILTINS_ARCHIVE = path
+    return _BUILTINS_ARCHIVE
+
+
 def link_target(name, objs, prelude, defsyms, out_dir):
     elf = out_dir / f"{name}.elf"
     res = run([str(LLD), *defsyms, "-T", str(SYSROOT / "lib" / "picolibc_noflash.ld"),
                *[str(o) for o in prelude], *[str(o) for o in objs],
                str(SYSROOT / "lib" / "libc.a"), str(SYSROOT / "lib" / "libsemihost.a"),
-               "-o", str(elf)])
+               str(builtins_archive()), "-o", str(elf)])
     if res.returncode != 0:
         return None, res.stdout
     return elf, ""

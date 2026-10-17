@@ -350,12 +350,28 @@ endef
 #
 # The whole clang builtin `include/` tree is staged (these are the compiler's own
 # freestanding headers — no target libc/OS/syscall header is introduced).  The
-# resource-dir `lib/` (compiler-rt builtins) has no consumer in M6 and is
-# deliberately not installed.  These headers are part of the *host* compiler
-# (D3), not the target sysroot (D5) — ADR-0016 D3/D5/D11 scope is unchanged.
+# resource-dir `lib/` gets exactly one entry: the DADAO compiler-rt builtins
+# archive (INFRA-079t below), which the driver links itself.  These headers and
+# that archive belong to the *host* compiler (D3), not to the target sysroot
+# (D5) — ADR-0016 D3/D5/D11 scope is unchanged.
 CLANG_RESOURCE_VER := $(shell ls -1 $(LLVM_BUILD)/lib/clang 2>/dev/null | head -n1)
 CLANG_HEADERS_SRC  = $(LLVM_BUILD)/lib/clang/$(CLANG_RESOURCE_VER)/include
 CLANG_RESOURCE_DIR = $(HOST_TOOLCHAIN_DIR)/lib/clang/$(CLANG_RESOURCE_VER)
+
+# DADAO compiler-rt builtins (INFRA-079t / ADR-0027 D5): the independent
+# builtins archive is produced by the compiler-rt standalone project into its
+# per-target runtime dir (LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON).  It is
+# installed into the clang resource dir at exactly the path the driver reports
+# for `-rtlib=compiler-rt -print-libgcc-file-name`; that relative path is
+# probed live from the build-tree clang (never hardcoded), so the installed
+# archive and the driver lookup cannot drift apart.
+# Deliberately recursively expanded (`=`): the probe must run when the recipe
+# runs, i.e. *after* build-mc has produced bin/clang, not at parse time (a clean
+# checkout has neither the clang binary nor the archive yet).
+COMPILER_RT_BUILD     ?= .work/build/compiler-rt-builtins
+BUILTINS_ARCHIVE_SRC   = $(firstword $(wildcard $(COMPILER_RT_BUILD)/lib/*/libclang_rt.builtins*.a))
+BUILTINS_RESOURCE_PATH = $(shell $(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name 2>/dev/null | sed -e 's|^.*/lib/clang/[^/]*/||')
+BUILTINS_ARCHIVE_DST   = $(if $(BUILTINS_RESOURCE_PATH),$(CLANG_RESOURCE_DIR)/$(BUILTINS_RESOURCE_PATH))
 
 # clang++ (INFRA-056t): the C++ driver is the *same binary* as the C driver
 # (upstream bin/clang++ is itself a symlink to clang-NN), so install it as a
@@ -383,6 +399,10 @@ install-host: build-mc build-lld build-qemu
 	@test -d $(CLANG_HEADERS_SRC) || { echo "install-host: ERROR: clang builtin headers not found at $(CLANG_HEADERS_SRC) — build tree incomplete (run 'make build-mc')"; exit 1; }
 	@mkdir -p $(CLANG_RESOURCE_DIR)
 	@$(call atomic-install-dir,$(CLANG_HEADERS_SRC),$(CLANG_RESOURCE_DIR)/include)
+	@test -f $(BUILTINS_ARCHIVE_SRC) || { echo "install-host: ERROR: compiler-rt builtins archive not found under $(COMPILER_RT_BUILD)/lib/ — build the compiler-rt standalone 'builtins' target first (INFRA-079t)"; exit 1; }
+	@case "$(BUILTINS_RESOURCE_PATH)" in lib/*) ;; *) echo "install-host: ERROR: cannot resolve the builtins install path from '$(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name' (got '$(BUILTINS_RESOURCE_PATH)')"; exit 1 ;; esac
+	@mkdir -p $(dir $(BUILTINS_ARCHIVE_DST))
+	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(BUILTINS_ARCHIVE_DST))
 	@mkdir -p $(TARGET_SYSROOT_DIR)/include $(TARGET_SYSROOT_DIR)/lib
 	@printf '%s\n' '# DADAO target sysroot (dadao-unknown-elf)' '' 'Layout per ADR-0016 D5 (.tao/adr/adr-0016-dadao-install-layout.md):' '' '- include/ — target C headers (populated when a target libc/toolchain lands)' '- lib/     — target libraries' '' 'Placeholder only: there is no header/library consumer yet, so no content is' 'fabricated here. Consumers must resolve this path from' 'manifests/install-dirs.lock.toml via tools/infra/paths.py' '(target_sysroot_dir()), never hardcode it.' > $(TARGET_SYSROOT_DIR)/README.md
 	@echo "install-host: PASS"
