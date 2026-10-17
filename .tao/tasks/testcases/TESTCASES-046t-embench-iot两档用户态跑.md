@@ -98,16 +98,54 @@
 8. **共享文件串行**：本册与 `TESTCASES-047t`/`TESTCASES-048t` 同改 `Makefile`/`milestones.md` ⇒ 不得并行。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：静态档（`qemu-dadao`，lld 默认基址）运行时枚举 total=38（19 基准 × `-O0/-O2`）pass=38 fail=0 known-fail=0 excluded=0 blocked=0，driver rc=0；`.work/evidence/TESTCASES-046t/run.sh` 默认 rc=0、`--inject` rc=0（绿→红→绿，两处注入同次前台闭合）。动态档未跑（下一笔）。
+分类表（逐例；每格 = O0/O2）：
+| 基准 | 类 | 基准 | 类 | 基准 | 类 |
+|---|---|---|---|---|---|
+| aha-mont64 | pass/pass | crc32 | pass/pass | depthconv | pass/pass |
+| edn | pass/pass | huffbench | pass/pass | matmult-int | pass/pass |
+| md5sum | pass/pass | nettle-aes | pass/pass | nettle-sha256 | pass/pass |
+| nsichneu | pass/pass | picojpeg | pass/pass | qrduino | pass/pass |
+| sglib-combined | pass/pass | slre | pass/pass | statemate | pass/pass |
+| tarfind | pass/pass | ud | pass/pass | wikisort | pass/pass |
+| xgboost | pass/pass | — | — | — | — |
+
+known-fail 0 条：无 `ISS-246` 命中（该分支按 `thread-local storage is not supported` / `GlobalTLSAddress` 原文症状才可归入，未预设）；excluded 0 条（`src/*/` 19 目录均有 `.c`，现场统计）；blocked 0 ⇒ 本档 rc=0（`ISS-248` 口径）。
+**修改文件**：`tools/testcases/run_embench_user_suite.py`（新驱动，两档 `--link-mode static|dynamic` 必选，无默认）、`tests/scripts/embench_user_boardsupport.c`（新 hosted 三钩子 shim，musl `write` 标记）；gitignored 辅助：`.work/evidence/TESTCASES-046t/run.sh`、`.work/log/testcases/embench-user-static.json`（同名 `.log`）、`.work/build/embench-user-static/`、`.work/log/testcases/m6-embench-regression.log`；本任务书。
+
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 基址：38/38 `min PT_LOAD=0x10000`（≠ `0xFC00_0000_0000`）；样例 `.work/build/embench-user-static/static/O0/crc32/crc32.elf` 经 `llvm-readobj --program-headers` 见最低 `PT_LOAD VirtualAddress: 0x10000`；链接命令无 `-T`/无 `dadao.lds`。静态档显式用 `<musl>/lib/libc.a`：同目录 `-lc` 会选 `libc.so`（实测产物仅 `PT_DYNAMIC` 无 `PT_INTERP`，`qemu-user` **SIGSEGV**）⇒ 与 `QEMU-062t` smoke 同口径。
+- 形态：静态 38/38 无 `PT_INTERP`/`PT_DYNAMIC`；板级标记 3/3（`[board:init/start/stop]`）。
+- 独立 oracle：`support/main.c` `return !correct`（`verify_benchmark` 为基准自身判据；期望常量 0，非从 LLVM/QEMU 反推）；另独立重放 `crc32(-O0)` ⇒ exit=0 + 3 markers。编译参数保留 `-ffreestanding -fno-builtin`（与系统模式一致、不变工作负载），头文件改为 musl 口径（不叠 `embench_include` 桩）。
+- 不回归：`tools/integ/run_embench_e2e.py --embench-src .work/source/embench-iot --work-dir .work/build/m6-embench` ⇒ 38/38、rc=0。
+- `--inject`：① `EXPECTED_GUEST_EXIT 0→1` ⇒ rc=1、pass=0/fail=19；② `benchmarks[1:]` 静默跳例 ⇒ `[FAIL] closure: executed 18 != discovered 19`、rc=1；各 `cp` 备份 + md5 还原（末态 `ae389da7e7b2fddd5f6f11421ebdc94c`），还原后 O0 与全量各回绿一次。
+- 门控（各自身 rc）：`validate-vectors` 0、`check-no-residue` 0、`check-tasks` 0、`check-knowledge-refs` 0、`check-component-changelog` 0、`check_issues.py` 0、`make check`(L1) 0（`check-patch-tree` 177 patches 不变）；未跑 L3/`install-host`（无组件改动；安装根与构建树 `qemu-dadao` md5 均 `c74b319d4de036875e51afbc769477c3`，新鲜）。
+- 耗时：静态全量 15.6 s；`run.sh` 默认 ≈16 s、`--inject` 49 s（均前台，未用后台长任务）。
+
+**新发现/坑**：① `-L <musl>/lib -lc` 不能表达静态档（同目录 `.so` 优先 ⇒ 无 `PT_INTERP` 的 `PT_DYNAMIC` 镜像在 `qemu-user` 段错误），静态档须显式 archive（建议沉淀并回填本批三册口径）。② `-nostdinc` + musl 头可直接编 embench，勿叠 `tests/scripts/embench_include` 的 freestanding 桩；组件 `boardsupport.c` 走半主机，user 模式必须用本仓 hosted shim。③ embench 在 qemu-user 很快（38 例 15.6 s），无需后台；`ISS-246` 分支已实现但本轮 0 命中，未自证（需 `libc-test` TLS 例）。
+
+**遗留问题**：动态档（驱动 `--link-mode dynamic` 已实现但**未执行**，下一笔）；`P4` golden 对照、`ISS-246` 修复不在本册。无阻塞项。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（自审意见、finding 处置及判决）
+
+自主逐行审查 driver / shim / `run.sh`，并以真实重跑对齐（非抽样）。
+
+| # | finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| F1 | ELF 程序头解析把 `e_phoff/e_phentsize/e_phnum` 一并按 `>QHH@32` 读 ⇒ 19/19 例 “ELF parse failed” | ✅已修 | `>Q@32` + `>HH@54` | 修后 19/19、38/38 pass，`min_pt_load=0x10000` |
+| F2 | 静态档按册内 `-lc` 链接选到 `libc.so` ⇒ `PT_DYNAMIC` 无 `PT_INTERP`，`qemu-dadao` SIGSEGV（rc=139） | ✅已修 | 静态档显式传 `<musl>/lib/libc.a`；动态档显式 `libc.so` + `-dynamic-linker` | `PT_INTERP=0/PT_DYNAMIC=0`，38/38 exit=0；证据脚本再判 `libc.a`/无 `-T` |
+| F3 | JSON `counts.excluded` 恒为 0，与 live `excluded` 列表可能不一致 | ✅已修 | `counts["excluded"]=len(excluded)`，汇总同源 | 本轮 excluded=0 两处一致；脚本 check 由 live census 派生 |
+| F4 | 证据脚本对“预期非零”的注入跑仍打印 `[FAIL]`，易被误读为证据失败 | ✅已修 | 新增 `run_driver_fail`（预期非零 ⇒ `[PASS] … rc=1`） | `--inject` 输出逐条 PASS，末行 ALL GREEN、rc=0 |
+| F5 | 证据脚本内嵌 python 缺 `import os`（artifact 存在性检查） | ✅已修 | heredoc 补 `import os` | 默认 `run.sh` rc=0（38 条记录检查通过） |
+| F6 | `--json-out`/`--report-out` 传裸文件名时 `makedirs("")` 崩溃 | ✅已修 | `os.path.dirname(...) or "."` | 默认路径与显式路径两次运行均 rc=0 |
+| F7 | shim 块注释含 `/**` ⇒ `-Wcomment` 警告（不影响判定） | ✅已修 | 改写路径写法 | 单编 shim rc=0、无警告；全量重跑仍 38/38 |
+| F8 | 闭合保护是否真能失败（非恒真） | ✅验证 | 注入“跳 1 例” | `[FAIL] closure: executed 18 != discovered 19`、rc=1；还原 md5 后回绿 |
+| F9 | `--link-mode` 无默认歧义 | ✅验证 | 不传参调用 | argparse rc=2，报 “required: --link-mode” |
+
+判决：无未修 finding；静态档实现与证据完成，交验收（动态档按册留待下一笔）。
+
 
 #### 第 1 轮 reviewer 验收
 （独立重跑、约束核验、判决）
