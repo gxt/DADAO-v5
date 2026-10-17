@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/crt_arch.h b/arch/dadao/crt_arch.h
 new file mode 100644
-index 0000000..a1891a1
+index 0000000..b69bfa7
 --- /dev/null
 +++ b/arch/dadao/crt_arch.h
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,152 @@
 +/*
 + * DADAO program entry point for crt1.c (START = "_start") and for
 + * ldso/dlstart.c / crt/rcrt1.c (SHARED defined, START = "_dlstart" / "_start").
@@ -70,9 +70,41 @@ index 0000000..a1891a1
 +#define DADAO_STR(x) DADAO_STR2(x)
 +
 +#ifdef SHARED
++/*
++ * How the dynamic entry hands the dynamic-section pointer (rb17 = dynv) to
++ * <START>_c.
++ *
++ * `set.rb rb17, _DYNAMIC` (3 wyde slices + R_DADAO_ABS48) is a *link-time
++ * absolute address*: correct only at the link-time base, which a shared object
++ * does not have -- it leaves 3 ABS48 relocations in the .text of a PIC object,
++ * and lld rejects them when building libc.so.
++ *
++ * The PIC idiom of contract-dynlink.md §3 / ADR-0029 D4 -- a `.got` slot read
++ * through `aip.si` + `ld.o` (R_DADAO_RELATIVE) -- needs the loader to have
++ * applied the RELATIVE relocations already, which is precisely what
++ * _dlstart_c is about to do: for the ldso's *own* entry the slot would be read
++ * before it is fixed up, so the two paths are circular.
++ *
++ * The ldso therefore passes dynv = NULL and _dlstart_c locates PT_DYNAMIC from
++ * its own load base (AT_BASE, contract-dynlink.md §6.2/§6.3).  That is the
++ * same object `_DYNAMIC` names: `_DYNAMIC` is the address of .dynamic, i.e.
++ * load base + PT_DYNAMIC's p_vaddr (the task book's independent oracle checks
++ * `_DYNAMIC`'s st_value == PT_DYNAMIC's p_vaddr on the built libc.so).
++ *
++ * crt/rcrt1.c includes ldso/dlstart.c with START already defined (static PIE);
++ * it has no interpreter and therefore no AT_BASE, so it keeps the absolute
++ * form.  Static-PIE is outside P2 and is a registered limitation, not a
++ * regression (the absolute form was already wrong for a PIE).
++ */
++#ifdef DL_DYNAMIC_FROM_LOAD_BASE
++#define DADAO_DYNV_ASM "	rd2rb	{rb17}, {rd0}\n"
++#else
++#define DADAO_DYNV_ASM "	set.rb	rb17, _DYNAMIC\n"
++#endif
++
 +#define DADAO_ENTRY_BODY						\
 +	"	rb2rb	{rb16}, {rb1}\n"			\
-+	"	set.rb	rb17, _DYNAMIC\n"			\
++	DADAO_DYNV_ASM						\
 +	"	call	[rb0, " START "_c]\n"			\
 +	"	swym	0\n"
 +#else

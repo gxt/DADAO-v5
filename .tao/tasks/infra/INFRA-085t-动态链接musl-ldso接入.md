@@ -142,10 +142,83 @@
 **新发现/坑**：
 **遗留问题**：
 
+## 完成区（阶段 A1）
+
+**测试结果**：`make build-musl`（静态档）**rc=0**、10/10 检查通过；`.work/evidence/INFRA-085t/run.sh` = **70 PASS / 0 FAIL**（末尾 `A1 ACCEPTANCE: BLOCKED` ⇒ **rc=1**，见「遗留问题」）。
+**修改文件**：① `tools/infra/build_musl.py`（新增 `--shared` 档：去掉 `--disable-shared` 的 configure + `SHARED_LDFLAGS` + `parse_elf` 扩到节表/`PT_DYNAMIC` + `check_shared_elf`/`install_ldso`/`check_ldso_symlink` + `config_records` 模式守卫 + `report_checks`；静态档语义不变）② `Makefile`（新 target `build-musl-shared` + help/注释；`build-musl` 语义**不变**）③ `.tao/knowledge/issues.yaml`（+`ISS-239`/`240`/`241`/`242` + `ISS-222` 追加 P2 复确认）④ 本册（本区 + 自审）。**musl 侧改动 = 0**（无需补丁，见「验收结果」④）。证据（`.work/`，不入库）：`.work/evidence/INFRA-085t/{run.sh,probe_checks.py,baseline/**}` + `.work/log/infra/INFRA-085t-*`。
+**阶段进度**：**A1 = 接线完成、出口判据 BLOCKED**（生产侧 4 项阻塞）；B/C/D/E 未动。
+**验收结果**：① **静态不回归（硬要求）**：`ELF64`/`ELFDATA2MSB`/`ET_EXEC`/无 `PT_INTERP`/无 `DT_NEEDED` 逐条复现（现场 `readelf`）；**控制组** = 同一工具链下「静态配置 vs 共享配置」的 `libc.a`/`crt1.o` **sha256 逐字节相同**（`1c794e6e…`/`2a23630f…`）⇒ 本笔改动**未触碰**静态产物；与 `INFRA-082t` 基线差异**逐条归因**：静态 ELF **仅 `.comment` 152 字节**不同（clang/LLD 修订串 `152cfb15…`→`ad929825…`；机器核「差异偏移 ⊆ `.comment`」+ 尺寸/节表/符号/反汇编全同），`libc.a`/`crt1.o` 差异 = **`ISS-206①` 号表改号（`ABS48` `0→6`）+ `.comment`**（`.o` 级基线未留存 ⇒ 以「linked ELF 逐字节等价」+「控制组逐字节等价」证语义不变，**不默许漂移**）。② **接线**：`SHARED_LDFLAGS` = `-Wl,-shared -Wl,--hash-style=gnu -Wl,-soname,libc.so`；模式守卫实测（静态↔共享各自重 configure，`config.mak` 如实记录，`run.sh S6` 断言收尾态 = 静态）。③ **接线探针**（合成 PIC DSO 走**同一** LDFLAGS + `configure` 生成的 `LDFLAGS_AUTO`）：`readelf -h` = `ELF64 / 大端 / DYN`；`readelf -d` = **有 `SONAME[libc.so]` + `GNU_HASH`**，**无 `HASH`/`RELR`/`RELRSZ`/`VERSYM`/`VERNEED`/`VERDEF`**，无 `.gnu.version*`；符号链接 `ld-musl-dadao.so.1 → libc.so` 指向与解析（sha256）正确 ⇒ **判据 1 的机制逐条实测**。④ **真实 `musl libc.so` 未产出** ⇒ 判据 1 整体 = **BLOCKED**（被生产侧挡住，非「未做」）；**musl 侧补丁 = 0**（现场判：`-shared` 所需之物 musl 侧齐备——`LOBJS` 自动 `-fPIC`、`Scrt1/rcrt1`、`dlstart.lo`、1335/1338 源对象均编过；剩余失败全在编译器/后端）。
+**新发现/坑**：① 驱动**静默丢** bare `-shared`（`ISS-239`：`ET_EXEC` + 无 `.dynamic`，仅一条 warning）⇒ 构建侧须传 `-Wl,-shared`；② `-fPIC` 相对查找表发 `.dd.t32`（`ISS-240`：`fmtmsg.c`/`regcomp.c`，TTI `shouldBuildRelLookupTables()` 缺 opt-out）；③ `-shared` 拒 `ABS48` 打**局部标签**于 `.rodata`（`ISS-241`，`recompile with -fPIC` 而对象本就 `-fPIC`）；④ 缺 `src/thread/dadao/syscall_cp.s` ⇒ 共享库必拉的 `pthread_cancel.o` 有 4 个未定义 hidden 符号（`ISS-242`；**静态档潜伏**）；⑤ `ldso/dynlink.c` 的 VLA（`ISS-222 ④`）**加不加 `-fPIC` 都编不过** ⇒ 同挡 C1；⑥ 安装集**无 `llvm-nm`**（改 `llvm-readobj --symbols`；`ADR-0016 D11` 最小集，**非**缺口）。建议沉淀：目标侧「pass 开关（TTI）vs 跳转表编码」两条独立路径、驱动 `-shared` 转发口径、`-fPIC` 常量节（`.rodata` vs `.data.rel.ro`）。
+**遗留问题**：**A1 出口判据被 4 项生产侧阻塞** —— `ISS-240`／`ISS-222 ④`／`ISS-241`（**llvm**，需新任务：TTI opt-out、`.data.rel.ro` 常量放置或局部 `ABS48`→`RELATIVE`、VLA/alloca、驱动转发 `-shared`）+ `ISS-242`（**musl 移植面**，但属**语义实现**而非接线 ⇒ 需用户裁定：实现取消语义 asm **或**显式声明不支持）。在役绕行（本笔已落地、可随时回退）：`-Wl,-shared`。**本笔未做**（按指令）：B1/C1/D1/E、`install-host`、L2/L3、commit/push、`components/**`、`spec/`、`contracts/`、`.tao/contracts/**`、不改本册 `**状态**`。
+
+#### `ISS-242` 处置（2026-10-17）——取消语义 asm（用户裁定 (a)）
+- **用户裁定**：取 **(a)**（实现取消语义 asm，**非**「显式声明不支持」）；选项标签由主会话下发为「照主流 ISA 模式新增 `src/thread/dadao/syscall_cp.s`」（渠道 = 经主会话问答；原话见主会话问答，本笔只落标签）。
+- **测试结果**：`.work/evidence/INFRA-085t/iss242/run.sh` = **17/17 PASS、rc=0**（含注入反例）；新文件单文件汇编 **rc=0**（plain 与 `-O2 -fPIC -ffreestanding -nostdinc -std=c99` 两档）；`ld.lld -r pthread_cancel.lo + syscall_cp.o` **rc=0** ⇒ 4 个 hidden 符号全部有定义（对照组：去掉新对象 ⇒ 同 4 个仍 `Undefined`）。
+- **修改文件**：① `.work/source/musl/src/thread/dadao/syscall_cp.s`（**新增**，154 行；组件树收敛为 base+1 且干净）② `components/musl/patches/src/thread/dadao/syscall_cp.s.patch`（**新增**，一文件一补丁）③ `components/musl/series`（+1 行，字典序）④ `components/musl/changelog.md`（+1 条）⑤ 本册（本块 + `第 2 轮 engineer 自审`）。**未动**：`Makefile`/`build_musl.py`/`issues.yaml`（A1 未提交项）、`components/musl/README.md`。
+- **验收结果**：`check-patch-tree` **rc=0（151 补丁，原 150）**、`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check_issues.py` 各 **rc=0**、`make check`(L1) **rc=0**（日志 `.work/log/infra/ISS-242/`）。**未跑**（按指令）：`install-host`、`build-musl*`、L2/L3、commit/push。
+- **实现口径**：`__cp_begin` 起首 `ld.st rd8, [rb16, 0]` 读 `cancel` 标志 → `br.nz` 命中即 `jump [rb0, __cancel]`（尾跳、不压 RAS）；否则 `rd2rd {rd15}, {rd16}` 置号 + 按 `contract-syscall.md §3` **按类型压实**参数（指针槽位由号恢复，与 `arch/dadao/syscall_arch.h` 的 `__dadao_argmask()` **逐项一致**：12 项/3 组，同一不变量）→ `trap cfx_umon, 0` 紧接 `__cp_end` → `ret rd0, 0`（`rd8` 不动）。**无栈帧**：7 个 data 参数全落 `rd16–rd22`（RISC-V 模板第 7 参取 `0(sp)` 的写法在 DADAO 无对应）。
+- **新发现/坑**：① **asm 侧必须自带「号→指针槽位」派发表**——`__syscall_cp_c` 交给它的是 7 个 `long`（指针性只剩号），故 `syscall_cp.s` 的 3 组号表与 `__dadao_argmask()` 是**同一不变量的两处载体**（加号须同改）；本笔已加**机械交叉校验**（`iss242/check_syscall_cp.py` 断言 asm 链 == 头文件表，注入 1 处移动即 FAIL）⇒ 建议后续进 L1 门控。② **A1 证据脚本需同步翻面**：`.work/evidence/INFRA-085t/run.sh` 的 `S4c` 现断言「dadao 源**无**定义」「`syscall_cp.s` **absent**」⇒ 本笔后必然 FAIL，重跑 A1 前须改成「存在且 4 符号有定义」。③ 取消**重定向**依赖信号/ucontext 路径；`arch/dadao/bits/signal.h` 仍 `[OPEN]` ⇒ asm 可达且正确，但取消语义**当前不会真正触发**（`__syscall_cp_c()` 的 `-EINTR` 路径仍会调 `__cancel()`）——**不夸大**。
+- **遗留问题**：`ISS-242` 的**符号缺口**已消（A1 的 4 项阻塞变 3 项）；**取消语义的可观测性**随信号路径未打通而悬空（建议随信号帧任务一并收口）；`components/musl/README.md` 未更新（越界，未改）。
+
+## 完成区（2026-10-17，工具链戳记守卫 + clean 共享构建阻塞清单）
+
+**测试结果**：`make build-musl-shared JOBS=8`（clean，安装根工具链）**rc=2**（脚本 rc=1：链接失败，清单见下）；`make build-musl`（静态回验，模式切换）**rc=0**、10/10 检查、**4 s / 0 重编**。证据 `.work/evidence/INFRA-085t/stamp/run.sh` = default **26 PASS/0 FAIL（rc=0）**、`--inject` **22 条期望翻面全红（rc=0，"INJECT OK"）**；日志 `.work/log/infra/INFRA-085t-stamp/`。
+**修改文件**：① `tools/infra/build_musl.py`（新增戳记守卫 `STAMP_TOOLS`/`STAMP_REL`/`toolchain_stamp`/`read_stamp`/`write_stamp`/`stamp_decision` + `build_musl()` 接线；静态/共享档共用）② `Makefile`（`build-musl` 注释 4 行，**行为 0 改动**）③ 本册（本块 + `第 3 轮 engineer 自审`）。**未动**：`issues.yaml`／`components/**`（行内 A1 与 `ISS-242` 的既有未提交改动原样保留）、`spec/`、`contracts/`、`.tao/contracts/**`。
+**阶段进度**：A1 出口判据仍 **BLOCKED**（阻塞项已从"含假红"收敛为下列 5 类真阻塞）；B/C/D/E 未动。
+**验收结果（① 陈旧依赖修复）**：musl `Makefile` 不以编译器二进制为依赖 ⇒ 戳记 = `clang`/`ld.lld` 的「解析路径 + size + mtime + ctime + `--version`」写 `obj/.dadao-toolchain-stamp`（musl `.gitignore` 覆盖 `/obj/` ⇒ `check-source-state` 仍干净）；不一致或缺失 ⇒ 日志 `=> 'make clean' (full rebuild)` + `make clean` + **先写戳记再编**（失败后续编不重复 clean）；一致 ⇒ `=> incremental build`。
+- **自动 clean**（手段：`touch .dadao/cross-toolchain/bin/lld`，**只改 mtime/ctime，sha256 前后同为 `39cfcb68…`**）⇒ 判定 `changed`、**1338/1338 `.lo` 重编**、17 s；首建（无戳记）同样 clean + 1338。
+- **幂等**：无变化时 **0 编译**（两次复跑均 1 s）。
+- **可达 FAIL**：真改戳记 1 字节 ⇒ `changed`；`cp`+md5 还原 ⇒ `unchanged`（md5 `58b41313…` 前后一致）；`--inject` 22 条期望翻面全部转红。
+- 不复用 sha256 的理由：`clang` 4.0 GB + `lld` 2.1 GB ⇒ 每次构建 >6 GB I/O（ctime 不可回退，`cp -p` 仍变 ctime；version 行补上游 revision）。
+
+**clean 共享构建最终阻塞清单**（`--error-limit=0` 全量 **22** 条 = **6** ABS48 + **16** undefined；默认 `--error-limit=20` 会截断成 20 条）：
+
+| 类别 | 命中（条数 / 对象） | 代表源（真源行） | 属 `P2`？ |
+|---|---|---|---|
+| **A** 绝对地址进 PIC 目标 | 6× `ABS48`（`_DYNAMIC`×3、`__dls2`×3），**仅** `obj/ldso/dlstart.lo:.text*` | `arch/dadao/crt_arch.h:69`（`set.rb rb17,_DYNAMIC`）+ `arch/dadao/reloc.h:109`（`GETFUNCSYM`→`set.rd rd8,__dls2`） | **是** —— 阶段 **C1 本体**（`GETFUNCSYM` 基址相关化） |
+| **B** compiler-rt builtins | 2× undefined `__muldc3`/`__mulsc3`（`cpow.lo`/`cpowf.lo`） | `src/complex/cpow.c`/`cpowf.c` | **是**（「待确认项⑤」已触发 ⇒ 须先落 `INFRA-079t`，`ADR-0027 D5`） |
+| **C** `arch.mak` 排除表**过期** | 13× undefined（来自 11 个 `.lo`：`__crypt_sha512`/`__mo_lookup`/`dgettext`/`dngettext`/`__res_msend`/`__res_msend_rc`/`__getgr_a`/`getgrouplist`/`__nscd_query`/`execl`/`__execvpe`/`sigdelset`/`getcwd`） | `arch/dadao/arch.mak:44-56`（13 源；**实测 11/13 已可编**，仅 2 源 `rotl` 失败 ⇒ 见 D） | **是** —— musl 面刷表即可消 13 条 |
+| **D** backend `rotl`（C 的子集，刷表后仍剩） | 2 源 `Cannot select: i64 = rotl …`（`crypt_sha512.c`、`sigdelset.c`） | 同上 2 源 | **是**，但归 **`llvm`** 面（`ISS-222` 类）：不修则 `__crypt_sha512`/`sigdelset` 仍缺 |
+| **E** VDSO 口径不一致 | 1× undefined `__vdsosym`（`obj/src/linux/cache.lo`） | `arch/dadao/bits/syscall.h.in:335`（`__NR_riscv_flush_icache` 泄漏）vs `arch/dadao/syscall_arch.h` **无** `VDSO_USEFUL`（`src/internal/vdso.c:8` 定义被编译掉） | **是** —— musl 面小修（去该号 或 补 VDSO） |
+
+- **计数口径**：`dlstart.lo` 实际有 **8** 条 `ABS48`，另 **2** 条在 `.data`（`__dadao_progname`，可写节 ⇒ lld 不报错）⇒ 统计须限定 `.text*`，否则误算 8（`run.sh S5c/S6a` 即按此交叉核对）。
+- **每类最小复现**（`TC=.dadao/cross-toolchain/bin`，源在 `.work/evidence/INFRA-085t/stamp/repro/`）：
+  - **A**：`$TC/clang --target=dadao-unknown-elf -fPIC -O2 -c …/r1_abs48_dlstart.c -o /tmp/a.o && $TC/ld.lld -shared /tmp/a.o` ⇒ 6 条同文案。
+  - **B**：`… -O0 -fPIC -c …/r2_builtins.c -o /tmp/b.o && $TC/ld.lld -shared --no-undefined /tmp/b.o` ⇒ `undefined symbol: __muldc3/__mulsc3`。
+  - **C**：`sh .work/evidence/INFRA-085t/stamp/probe_excl_sources.sh` ⇒ `OK ×11 / FAIL ×2`。
+  - **D**：`$TC/clang --target=dadao-unknown-elf -O2 -c …/r3_rotl.c` ⇒ `Cannot select: t4: i64 = rotl …`。
+  - **E**：`grep -c 'define SYS_riscv_flush_icache' .work/source/musl/obj/include/bits/syscall.h` = **1**、`$TC/llvm-readobj --symbols .work/source/musl/obj/src/internal/vdso.lo | grep -c __vdsosym` = **0**（而 `cache.lo` 引用它）。
+- **本笔改动引入的阻塞 = 0**：本笔只改 `build_musl.py`+`Makefile` 注释；clean 重编后的 22 条与 `LLVM-098t` 存档 `P2-A1-rebuild.log`（同 6+16）**逐条一致**。
+- **门控（各留自身真实 rc）**：`check-patch-tree`（**151**）、`check-index-blobs`、`check-source-state`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`check-component-changelog`、`check_issues.py`、`make check`(L1) 全 **rc=0**。
+**新发现/坑**：① 只要不 clean，`make` 就会把「旧编译器产物」当新产物 ⇒ 换工具链后任何「同文案重现」先怀疑陈旧对象（本笔已机械化，不再靠人记）。② 直接进 musl 树 `make` **必须**带 `PATH=<toolchain>/bin`，否则用 `/usr/bin/clang` 报 `unknown target triple`（假 FAIL；本笔复现命令均带 PATH）。③ lld 默认 `--error-limit=20`：现场 20 条 → 全量 22 条，`-Wl,--error-limit=0` 才能看全。④ 可写节里的 `ABS48` lld 不报错（运行期 `RELATIVE`），计数口径必须限定节。⑤ `arch.mak` 排除表 13 源中 11 源已可编（`bswap`/VLA 缺口已被 `LLVM-096t/097t` 补齐），13 个 undefined 由 11 源贡献（`execle.c`/`execlp.c` 无引用者 ⇒ 不产生未定义）。⑥ `SYS_riscv_flush_icache` 随 riscv 号表泄漏进 dadao，触发 `cache.c` 的 VDSO 路径而 `VDSO_USEFUL` 未定义 —— 这类「号表比 port 能力宽」的缺口不会自曝，只有 `--no-undefined` 才现形。建议沉淀：换工具链 ⇒ 必须使对象失效（`lessons §2`）；`--no-undefined` 是发现「排除表/号表过期」的有效探针。
+**遗留问题**：① **清单内 5 类一律只报不修**（按派单）⇒ 主会话按 A/B/C/D/E 排任务（建议：C+E 一批 musl 面、A 一批（C1）、D 归 `llvm`、B 归 `INFRA-079t`）；② 新发现**未登记 issue**（`issues.yaml` 含 A1 未提交改动，按派单不碰）——建议登记 C/E 两条（`arch.mak` 刷表、`__vdsosym`/`SYS_riscv_flush_icache`）；③ `llvm-ar`/`ar` 不在戳记内（只影响归档，不影响代码生成，显式说明）；④ 按派单**未改**本册 `**状态**`、未 commit/push、未跑 `install-host`/L2/L3、未做 `P2` 以外的 B/C/D/E。
+
+## 完成区（2026-10-17，阶段 A(C1 本体) + C + E）
+
+**测试结果**：`make build-musl-shared JOBS=8` **rc=2**（仅链接失败，全量未定义 **4** 条 = B(2)+D(2)，见「验收结果」⑤ —— **本笔目标不是 rc=0**）；`make build-musl JOBS=8` **rc=0**（10/10 检查）。证据 `.work/evidence/INFRA-085t/ace/run.sh`：default **23 PASS / 0 FAIL（rc=0）**；`--inject` **23 条期望翻面全红 + 2 条真注入**（I1 旧 `set.rb` 体重编 ⇒ `ABS48` **3** 条、真对象 0；I2 号表回填 ⇒ 命中 **2**、真头文件 0）**rc=0（"INJECT OK"）**。日志 `.work/log/infra/INFRA-085t-ACE/`（`run-static.log`/`run-shared.log`/`gate-*.log`）。
+**修改文件**：① `arch/dadao/crt_arch.h`（SHARED 入口 dynv = `rd2rb {rb17},{rd0}`，保留 rcrt1 形态，新增 `DADAO_DYNV_ASM` + 注释）② `ldso/dlstart.c`（**新补丁**；`#ifndef START` 处定义 `DL_DYNAMIC_FROM_LOAD_BASE`，aux 解析后据 `AT_BASE`/`AT_PHDR&-4096` 走自身 `Ehdr/phdr` 找 `PT_DYNAMIC`）③ `arch/dadao/reloc.h`（`GETFUNCSYM`：`.got` 8 字节槽 + `aip.si`/`ld.o %pcrel_lo`）④ `arch/dadao/arch.mak`（排除表 13→2）⑤ `arch/dadao/bits/syscall.h.in`（删 `sysriscv`/`riscv_flush_icache`/`riscv_hwprobe`）⑥ `components/musl/patches/**`（4 改 + 1 新）+ `series`（17→18）+ `changelog.md`（+1 条）⑦ 本册（本块 + 第 4 轮自审）。**未动**：`Makefile`/`tools/infra/build_musl.py`/`.tao/knowledge/issues.yaml`（行内 A1 未提交项原样保留）、`spec/`、`contracts/`、`.tao/contracts/**`、本册 `**状态**`。
+**阶段进度**：**C1 的 ldso 自举部分 + C + E = 完成**；**A1 出口判据仍 BLOCKED**（只差 **B(2)+D(2)**：`libc.so` 仍链不出）；B/D 未做（B 归 `INFRA-079t`、D 归 `llvm`）。
+**验收结果**：① **A 类 0 条**：`llvm-readobj -r obj/ldso/dlstart.lo` ⇒ `.rela.text` 仅 1×`REL26 _dlstart_c`、`.rela.text._dlstart_c` 仅 `PCREL_HI(.got)`+`PCREL_LO(.text._dlstart_c)`、`.rela.got` 1×`ABS48 __dls2`、`.rela.data` 2×`ABS48 __dadao_progname`（**可写节，允许**）；全树 **1349** 个 `.lo` 的 `SHF_EXECINSTR` 节 `ABS48` = **0**（现场扫描）。② **语义 oracle（独立：只用 llvm-readobj/objdump，不读 LLVM 内部）**：`_DYNAMIC` st_value `0xED770` **==** `PT_DYNAMIC.p_vaddr` `0xED770`（⇒ 由 base+p_vaddr 推出者即 `&_DYNAMIC`）；`_dlstart`（16 B）= `rb2rb {rb16},{rb1}` / `rd2rb {rb17},{rd0}` / `call` / `swym`（dynv=NULL、无 `set.rb rb17`）；`_dlstart_c` 内 `aip.si rb18,98304` + `ld.o rb18,[rb18,588]` ⇒ 站点 `0xD1BFC`+`0x18000`+`0x24C` = `0xE9E48`，`.rela.dyn` 在**该址**有 `R_DADAO_RELATIVE` addend `0xD2138` **==** `__dls2` st_value，紧随 `call [rb18, rd0, 0]`（槽值即被调者 ⇒ 调到的确是 `__dls2`）。③ **C**：`arch.mak` 13→**2**；11 源**逐条现场编译** OK 11/11、`libc.a` 成员 +11（0 删）、2 源仍 `Cannot select: … rotl`。④ **E**：生成头 `SYS_riscv_flush_icache`/`hwprobe`/`sysriscv` **0** 命中（`SYS_arch_specific_syscall` 保留）；`cache.lo` 无 `__vdsosym`；`libc.a`/`libc.so` 无 `__vdsosym`/`riscv_flush_icache`。⑤ **剩余错误**（`--no-undefined` 全量）：`__muldc3`、`__mulsc3`（B）+ `__crypt_sha512`、`sigdelset`（D）= **4 条，无其它**。⑥ **静态不回归**：`ELF64`/`MSB`/`ET_EXEC`/无 `PT_INTERP`/无 `PT_DYNAMIC`；**同工具链控制组**（`git archive HEAD` = 改动前补丁集建树）⇒ `lib/crt1.o` 与链出静态 ELF **逐字节相同**（`60811d20…`/`2d2c68dd…`）；`libc.a` 成员差 = 恰 11 新增 0 删，同成员差异仅 `cache.o`（E）+ `version.o`（归档树无 `.git` ⇒ `1.2.6` vs `1.2.6-git-1-g…`）；对 `INFRA-085t` 10-15 基线 ELF：同尺寸、**151 B 差异全在 `.comment`**（工具链 revision `152cfb15…`→`e6097030…`）⇒ 工具链换代所致，非本笔。⑦ **补丁/门控**：`check-patch-tree` **rc=0（152 补丁，原 151；musl 18，新增 `ldso/dlstart.c.patch`）**；`check-index-blobs`/`check-source-state`（`musl: HEAD=32d2e17 count=1 clean=True`）/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`python3 tools/infra/check_issues.py`/`make check`(L1) 各 **rc=0**。
+**新发现/坑**：① **musl `bits/syscall.h.in` 的生成规则**是 `cp` + `sed -n s/__NR_/SYS_/p`（**只重发含该宏的行**）⇒ 注释里**不得**出现 `__NR_`，否则注释被重发成裸行、生成头语法错（本笔踩过一次假 FAIL，已在文件内注明）。② inline asm 里 `%pcrel_lo` 必须写 `%%pcrel_lo`。③ **ldso 自举不能靠装载期重定位**：`.got` 槽（RELATIVE）要等 `_dlstart_c` 的 RELATIVE 循环，而该循环正需要 dynv ⇒ 循环依赖；`&_DYNAMIC` 在 PIC 下只能由 `AT_BASE`+自身 phdr 推出（合同 §6.2/§6.3 已给 `AT_BASE` 语义，**未改 ABI/契约**）。④ **注入必须防「空注入」**：首版把 `#undef/#define` 追加在 `crt_arch.h` 末尾（asm 已在其前）⇒ injected=0 却"看起来通过"；已改 anchor 替换 + 「anchor 不存在即报错」+ I1 断言 injected>0。⑤ 证据脚本解析 `make -n` 时须跳过 `$(info)` 行（否则命令里混入 `(`）。⑥ 跨工具链 `sha256` 不可比（`ar` 成员 mtime + `.comment` revision）⇒ 静态不回归必须用**同工具链控制组**。
+**遗留问题**：① **A1 出口判据仍未达成** —— 只差 B(2)+D(2)，`libc.so` 链不出（B 归 `INFRA-079t`、D 归 `llvm`）。② **静态 PIE（`crt/rcrt1.c`）的 `_DYNAMIC` 仍是链接期绝对地址**（本笔按门控保留原形态，`crt1.o` 逐字节未变）——属**既有边界、非本笔回归**，`-static-pie` 未纳入 P2/P3 范围；建议随 `P3` 或另立任务登记。③ `riscv_flush_icache` 公共符号随号删除而**消失**（显式：全仓无调用者、`cache.c` 的 vDSO 快路径本就无 vDSO 可用）。④ 按派单**未改**本册 `**状态**`、未 commit/push、未跑 `install-host`/L2/L3、未做 B/D。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+自主逐行审查（无嵌套子代理）；判决 = **接线可交付、出口判据 BLOCKED**（未修项见末行）。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `check_shared_elf`「ELF type」行注入分支返回 `e_type == ET_DYN` ⇒ **注入时恒 PASS（假绿）** | ✅已修 | 改为统一比较 `exp_type`（注入 = `ET_EXEC`） | `run.sh S5.1`：`--inject` ⇒ **14 FAIL** |
+| F2 `run.sh S4c` 用 `llvm-nm`（**安装集无此工具**）⇒ 现场 `No such file or directory`、该项 FAIL | ✅已修 | 改 `llvm-readobj --symbols` + 四名精确匹配 | 重跑 `S4c` 3/3 PASS（4 命中）；工具缺口记入「新发现/坑⑥」 |
+| F3 `run.sh` 初版把 `--inject` 的期望 FAIL 经 `check()` 计入**真 FAIL** ⇒ 自检污染 rc | ✅已修 | inject 段仅统计 FAIL 数，不并入 `check()` | 重跑：`70 PASS / 0 FAIL`，注入计数 14 |
+| F4 `probe_checks.py` `elfdiff` 曾把「0 差异字节」当期望（与「差异 ⊆ `.comment`」自相矛盾 ⇒ 恒 FAIL） | ✅已修 | 改为单一可判谓词 `covering ⊆ {'.comment'}` + 尺寸比对 | `S1: differing bytes confined to .comment` = `152 bytes in ['.comment']` PASS |
+| F5 `probe_checks.py` 残留占位生成器（`section_of`，含死代码/伪 yield） | ✅已修 | 重写为 `sections_covering`，**跳 `SHT_NOBITS`**（否则 `.bss` 假命中） | `elfdiff` 输出仅 `.comment`（无 `.bss`） |
+| F6 `parse_elf` 原仅解程序头 ⇒ 判据 1 的动态段/版本段断言**无处落** | ✅已修 | 扩到节表名 + `PT_DYNAMIC` tag/val，异常仍归 `parse_error`（**不抛栈**） | `S4` 的 13 项 + `S5.3` 腐坏副本 ⇒ 7 FAIL 后复原回绿 |
+| F7 无模式守卫时，`make build-musl` 会在**共享配置**下静默通过（`libc.a` 字节相同）⇒ 静态档不再证明 `--disable-shared` | ✅已修 | `config_records()`：模式不符即重 configure | `S1`（静态）/`S3`（共享）交替实测；`S6` 断言收尾 = `--disable-shared` |
+| F8（判据层，**未修**）A1 出口判据被 4 项生产侧阻塞 ⇒ 无真实 `libc.so` | ⏸延后 | 未改（**不属**本册接线范围；已登记 `ISS-239`/`240`/`241`/`242` + `ISS-222` 追加） | `.work/evidence/INFRA-085t/run.sh` 末段 `A1 ACCEPTANCE: BLOCKED`（rc=1）+ 各阻塞项现场签名 |
+
+**判决与状态对账**：F1–F7 全修（复验证据列见上）；**F8 未修** ⇒ 出口判据未达成 ⇒ **本册 `**状态**` 保持 `待开始`**（并按本笔指令不改该字段）✗，返主会话裁定（建议：先立 `llvm` 模块任务解 `ISS-240`/`ISS-241`/`ISS-222 ④`/`ISS-239`，再回本册重跑 `run.sh` 换得判据 1 绿）+ 用户裁定 `ISS-242`。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
@@ -156,3 +229,55 @@
 - **文件集对账**：显式 staging（逐路径，**未**用 `git add -A`）= ① `.tao/tasks/infra/INFRA-085t-动态链接musl-ldso接入.md`（+13/−2）② `.tao/knowledge/milestones.md`（+1/−1）③ `.tao/knowledge/issues.yaml`（+1/−1）⇒ 与「修改文件」声明**逐条一致**：**漏提 0 / 多提 0 / 越界 0**（**未触** `spec/`·`contracts/`·`.tao/contracts/**`·`components/**`·`Makefile`）。
 - **门控（各留自身真实 rc）**：`make check`(L1) **rc=0**、`check-patch-tree` **rc=0**、`check-index-blobs` **rc=0**、`check-source-state` **rc=0**、`check-tasks` **rc=0**、`check-knowledge-refs` **rc=0**、`check-knowledge-dir` **rc=0**、`check-no-residue` **rc=0**、`check-component-changelog` **rc=0**、`python3 tools/infra/check_issues.py` **rc=0**（日志 = `.work/log/architect/INFRA-085t-refresh-*.log`）。**未跑** `install-host` / `build-*` / L2 / L3（`ISS-229` 并发禁令；本笔纯文档）。
 - **边界**：本笔**未改**本册 `**状态**`（仍 `待开始`）✗、**未 push** ✗；3 处过期口径均**追加注记**（原文保留为历史 ✗）。
+
+#### 第 2 轮 engineer 自审（`ISS-242` 笔，2026-10-17）
+自主逐行审查（无嵌套子代理）；判决 = **可交付**（`ISS-242` 的符号缺口消除；取消语义的可观测性按「遗留问题」悬空，未修项见末行）。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 参数**位置**不是原地搬运：syscall 要 `rd16+`/`rb16+` **按类型压实**（`contract-syscall.md §3` 的 read 例），RISC-V 模板的「shift 6 个」在 DADAO 会把 `write` 的 `buf` 留在 `rd17` ⇒ 服务方读到非法地址 | ✅已修 | 加 `nr→mask` 派发（12 号/3 组）+ 四个路由块；`rb` 侧拷贝插在其源被覆盖**之前** | `check_syscall_cp.py` D 四项全 PASS；注入 1 处错移动 ⇒ `D .Lmask2` FAIL（`rd17: w→x`） |
+| F2 asm 号表与 `__dadao_argmask()` 是**两处载体** ⇒ 漂移风险（读到垃圾而非显式失败） | ✅已修（靠校验，非门控） | 两表逐项一致 + 头注释写「同一不变量」；`check_syscall_cp.py` C 断言 `asm chain == header table` | `C table non-empty: 12 entries` / `C asm chain == header table: identical`；改一侧即 FAIL |
+| F3 分支目标是否都指向预期块（12 个 `br.eq` + 3 个 `jump`） | ✅已核 | 未改；逐条手核「指令地址 + 立即数 = 目标标签」（`0x10+120=0x88=.Lmask2` 等 15 条） | 反汇编逐行 + 注入反例证明 D 类断言可失败 |
+| F4 `__cp_end` 若误放在 `ret` 之后 ⇒ 区间含 `ret`，重定向会跳过返回值 | ✅已核 | `__cp_end` 紧接 `trap`（`B trap in [begin, end)`） | `B begin=77 trap=146 end=147` PASS |
+| F5 取消分支若用 `call` 会压 RAS / 若有栈帧需在 `__cp_cancel` 恢复 `sp` | ✅已核 | 采**无栈帧 + 尾跳** `jump [rb0, __cancel]`（REL26，可 `-shared`）⇒ `__cancel` 的 `ret` 直接回调用者 | `E tail jump (no RAS push)` PASS；`ld.lld -r` 后仅 `__cancel` 需外部解析（同一链接内由 `pthread_cancel.o` 定义） |
+| F6 检查脚本自身两处**假红**（`__cp_begin` 下标差 1；`jump` 用 tab 与空格比较） | ✅已修 | 索引 +1；比较改 `re.fullmatch(r"jump\s+\[rb0, __cancel\]")` | 修前 15/3 FAIL → 修后 18/0 PASS，`run.sh` 17/17 |
+| F7 `ld.st` 对齐/宽度：`cancel` 是 `volatile int`，前序字段全 4/8 对齐；`ld.st` 需 4 字节对齐 | ✅已核 | 未改 | `pthread_impl.h:38` 字段序 + `SimRISC-01` 对齐表 |
+| F8 **未修**：取消**重定向**需信号/ucontext（`bits/signal.h` 仍 `[OPEN]`）⇒ 取消语义不会被真正触发 | ⏸延后 | 未改（信号帧不属本笔范围） | 完成区「`ISS-242` 处置·遗留问题」如实登记，未夸大为「取消已可用」 |
+
+**判决与状态对账**：F1–F7 已修/已核（证据列见上）；**F8 未修**（能力缺口，非本笔交付缺陷）⇒ 本笔按指令**不改**本册 `**状态**`、不 commit/push，返主会话走 `/complete`。
+
+#### 第 3 轮 engineer 自审（工具链戳记笔，2026-10-17）
+自主逐行审查（无嵌套子代理）；判决 = **可交付**（本笔范围 = 戳记守卫 + 清单；清单内缺陷按派单不修）。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `toolchain_stamp` 取 `stdout.splitlines()[0]`，`--version` 成功但无输出时 `IndexError`（非受控崩溃） | ✅已修 | 改 `(… or [""])[0]` | 重跑 evidence default 26/26；`py_compile` rc=0 |
+| F2 统计口径错：`dlstart.lo` 有 8 条 `ABS48`，其中 2 条在 `.data`（lld 不报错）⇒ 原断言「错误数 == 对象内全部 ABS48」**恒 FAIL** | ✅已修 | 新增 `text_abs48()`（只数 `.text*` 节），S5c/S6a 用它 | S5c `6 == 6`、S6a `6 == 6` |
+| F3 证据脚本 `grep -qS`（`-S` 非法选项）⇒ S6g 假 FAIL | ✅已修 | 改 `grep -q` | S6g `expected=present actual=present` |
+| F4 我在 musl 树里直接 `make` 未带 toolchain `PATH` ⇒ 用 `/usr/bin/clang` 报 `unknown target triple`，白跑一轮 | ✅已修（口径） | 复现命令统一 `PATH=<toolchain>/bin`；本笔日志 `full-errors.log` 为带 PATH 的正式结果 | `full-errors.log` 22 条 lld 错误、无 `unknown target triple` |
+| F5 戳记在 `make` **之前**写入 ⇒ 构建中途失败不再重复 clean；是否会掩盖失败？ | ❌不改（设计取舍） | 注释写明：obj/ 刚被清空，之后产物必属该工具链；失败属链接阶段，不改变「对象是新的」这一事实 | build1 失败后 build2 = `unchanged`、0 编译（1 s），未重复 17 s clean |
+| F6 是否该用 sha256 而非 stat+version？ | ❌不改（有据） | 4.0 GB+2.1 GB ⇒ 每次 >6 GB I/O；ctime 不可回退，`cp -p` 仍变 ctime | 戳记计算实测 **0.11 s** |
+| F7 模式切换是否需要 clean？ | ❌不需要（已核） | `.o`（静态、非 PIC）与 `.lo`（共享、`-fPIC`）对象集**不相交**，故不把 mode 纳入戳记 | 共享→静态切换 `make build-musl` rc=0、**0 重编**、10/10 检查 |
+| F8 本笔是否引入清单里的阻塞？ | ❌无 | 未改 musl/LLVM 产品源 | clean 重编 22 条与 `LLVM-098t` 存档逐条一致（6+16） |
+| F9 清单 5 类要不要修？ | ⏸延后（按派单） | 不修；各类最小复现 + 归类已入完成区 | 证据脚本 S6a–S6g 逐类现场复现 |
+
+**判决与状态对账**：F1–F4 已修、F5–F8 为判定项（附证据）、F9 按派单**只报不修** ⇒ 本笔无未处置缺陷；按派单**不改**本册 `**状态**`、不 commit/push，返主会话走 `/complete`。
+
+#### 第 4 轮 engineer 自审（阶段 A(C1)+C+E 笔，2026-10-17）
+自主逐行审查（无嵌套子代理，`subagent_depth=1`）；判决 = **本笔范围可交付、A1 出口仍 BLOCKED（B/D）**。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `crt/rcrt1.c` 也 `#include "../ldso/dlstart.c"` ⇒ 改 SHARED 入口会波及静态 PIE | ✅已核/已隔离 | 门控键在 `#ifndef START`（只有 ldso 自身入口才缺省为 `_dlstart`）；rcrt1 定义 `START` ⇒ 走原 `set.rb` 分支 | `lib/crt1.o` 与控制组**逐字节相同**（`60811d20…`）；`rcrt1.o` 编译 rc=0 |
+| F2 首版 dynv 推导只看 `AT_BASE`；`AT_BASE==0`（ldso 当命令跑）时 dynv 留空 ⇒ `dyn[]` 全零、`base` 变垃圾（**静默**） | ✅已修 | 加 `base0 ? AT_BASE : (AT_PHDR & -4096)`（musl 在同函数 `!base` 分支用的同一启发式）+ `if (!eh) return;` | `evidence` A5/A6/A8 复跑仍绿；`dlstart.lo` 重编 rc=0 |
+| F3 `"%pcrel_lo(...)"` 未转义 ⇒ `invalid % escape in inline assembly string` | ✅已修 | `%%pcrel_lo` | 编译 rc=0（`obj/ldso/dlstart.lo` 重建） |
+| F4 `bits/syscall.h.in` 注释含 `__NR_` ⇒ 生成规则 `sed -n s/__NR_/SYS_/p` 把注释行重发成裸行，生成头语法错 | ✅已修 + 注明规则 | 注释改写为不含该宏，并在文件内写明生成规则 | 重生成 `obj/include/bits/syscall.h` 后 1338 源重编 rc=0；E1/E2 绿 |
+| F5 **注入空转**：首版 I1 把 `#undef/#define` 追加在 `crt_arch.h` 尾部（asm 使用点之前已展开）⇒ injected=0 但脚本仍"跑完" | ✅已修（防假绿） | I1 改为 anchor 正则替换 + anchor 缺失即 `RuntimeError` + 断言 injected>0（`set.rb` 必须在注入源里） | `--inject`：I1 `injected=3, real=0`（= 3 片 wyde，与「6 条/2 处」自洽） |
+| F6 `make -n lib/libc.so` 输出含 `$(info dadao: excluding …)` ⇒ 拼出的命令 `sh` 语法错 | ✅已修 | 从 `clang --target=` 起截取；无该段时改用已存在的 `lib/libc.so` | oracle DSO link rc=0；A5–A8 绿 |
+| F7 `A6` 只断言 `rd2rb {rb17},{rd0}` 存在（弱：旧体里也可能有其他 `rd2rb`） | ✅已修 | 加 `has_abs`（`set.rb rb17` 必须不存在）+ 新增 `A8`（配对值必须是 `dls2` 的 `call [rb18,…]` 目标） | A6 `has_zero=True, has_abs=False`；A8 `call [rb18, rd0, 0]` |
+| F8 静态 `libc.a`/`crt1.o`/ELF 与 10-15 基线 sha256 **全不同** ⇒ 初判"回归" | ✅判定修正（非缺陷） | 差异 = `.comment` revision（工具链 `152cfb15…`→`e6097030…`，ELF 同尺寸、151 B 全在 `.comment`）+ 归档成员 mtime；改以**同工具链控制组**作判据 | 控制组（`git archive HEAD`）`crt1.o`/ELF **逐字节相同**；`libc.a` 差异仅 +11 成员 + `cache.o`(E) + `version.o`(归档无 `.git`) |
+| F9 `.got` 槽若落在 GNU_RELRO 段，装载期写入是否被 mprotect 挡住？ | ✅已核（无需改） | 写入发生在 `_dlstart_c` 的 RELATIVE 循环，早于任何 RELRO 处理；槽只写一次 | `obj/ldso/dlstart.lo` 的 `.rela.got` + `.rela.dyn` 的 `RELATIVE@0xE9E48` 均在 `DT_RELA` 路径（`_dlstart_c` 自身扫描的正是它） |
+| F10 `--gc-sections` 会不会把 `.got` 槽丢掉（槽"无人引用"） | ✅已核 | 槽被 `aip.si` 的 `PCREL_HI` 引用 ⇒ 保留 | oracle DSO `.rela.dyn` 里该址 RELATIVE 在场（A7） |
+| F11 `arch.mak` 表名与任务表 `getgr_a` 是否一致 | ✅已核 | 表内为 `src/passwd/getgr_a.c`（文件存在、`__getgr_a` 出处） | C1/C2/C4 逐条现场核 |
+
+**判决与状态对账**：F1/F9/F10/F11 为「已核无需改」、F2–F8 已修 ⇒ **无未处置 finding**；按派单**不改**本册 `**状态**`、不 commit/push，返主会话走 `/complete`。

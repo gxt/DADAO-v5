@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/reloc.h b/arch/dadao/reloc.h
 new file mode 100644
-index 0000000..494b737
+index 0000000..6c95f04
 --- /dev/null
 +++ b/arch/dadao/reloc.h
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,129 @@
 +/*
 + * DADAO runtime relocation classes for musl's dynamic linker.
 + *
@@ -97,22 +97,39 @@ index 0000000..494b737
 + * it in their reloc.h (see arch/loongarch64/reloc.h for the same
 + * "compute the address, hand it out through an output register" shape).
 + *
-+ * `set.rd rd, symbol` is the assembler's symbol form: it expands to three wyde
-+ * slices plus R_DADAO_ABS48 (Toolchain-01 §6.1), which is how a DADAO absolute
-+ * symbol address is materialised.
++ * SHAPE (P2, contract-dynlink.md §3, ADR-0029 D4): the address must be
++ * BASE-RELATIVE, not the link-time absolute one.  `set.rd rd, sym` (3 wyde
++ * slices + R_DADAO_ABS48) was the P1 stopgap and is illegal in a PIC object:
++ * it leaves 3 ABS48 relocations in `.text` and lld refuses to make a shared
++ * object out of that.
 + *
-+ * SCOPE / LIMITATION (registered): this yields the link-time absolute address.
-+ * That is correct for the static case, which is what P1 has.  The *dynamic*
-+ * path (P2) will need the symbol address to be computed from the load base
-+ * (PC-relative or via the GOT argument `got`, which this form ignores) --
-+ * whoever implements the DADAO ldso must revisit this macro.  Nothing reachable
-+ * in P1 uses it: _dlstart_c is only entered by the dynamic loader entry, which
-+ * this port does not have yet.
++ * The call site is _dlstart_c's last statement, i.e. it runs AFTER the
++ * RELATIVE relocations have been applied, so the contract's ordinary GOT
++ * access applies verbatim: an 8-byte slot in `.got` holding `sym` as an
++ * absolute data field (R_DADAO_ABS48 data form -> a load-time R_DADAO_RELATIVE
++ * for a hidden symbol), reached through the PC-relative hi/lo pair
++ * `aip.si rbX, <slot>` + `ld.o rbX, [rbX, %pcrel_lo(<site>)]`
++ * (R_DADAO_PCREL_HI/_LO, ADR-0029 D2/D4).  Two instructions, no extra operand
++ * register (the same rb carries the slot address and receives the slot
++ * content), and no `.got`-beside-`.text` layout obligation (+-512 MiB reach).
++ *
++ * The slot is emitted by this macro itself (there is no compiler-emitted GOT
++ * in hand-written asm); the labels are derived from `sym` so a second use
++ * cannot collide.  `_dlstart_c` is entered exactly once per load, so the slot
++ * is written once, after the loader has relocated it.
 + */
 +#define GETFUNCSYM(fp, sym, got) do { \
-+	register void (*dadao_getfuncsym_fn)() __asm__("rd8"); \
++	register void (*dadao_getfuncsym_fn)() __asm__("rb18"); \
 +	__asm__ (".hidden " #sym "\n" \
-+		"set.rd	rd8, " #sym "\n" \
++		".pushsection .got,\"aw\",@progbits\n" \
++		".p2align 3\n" \
++		".Ldadao_gotfunc_" #sym ":\n" \
++		"	.dd.o64 " #sym "\n" \
++		".popsection\n" \
++		".p2align 2\n" \
++		".Ldadao_aip_" #sym ":\n" \
++		"	aip.si	rb18, .Ldadao_gotfunc_" #sym "\n" \
++		"	ld.o	rb18, [rb18, %%pcrel_lo(.Ldadao_aip_" #sym ")]\n" \
 +		: "=r"(dadao_getfuncsym_fn) : : "memory"); \
 +	*(fp) = dadao_getfuncsym_fn; \
 +} while (0)

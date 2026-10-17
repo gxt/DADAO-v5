@@ -1,0 +1,160 @@
+diff --git a/src/thread/dadao/syscall_cp.s b/src/thread/dadao/syscall_cp.s
+new file mode 100644
+index 0000000..6a4baf8
+--- /dev/null
++++ b/src/thread/dadao/syscall_cp.s
+@@ -0,0 +1,154 @@
++; DADAO cancellable-syscall entry (musl cancellation protocol).
++;
++; long __syscall_cp_asm(volatile void *ptr, long nr,
++;                       long u, long v, long w, long x, long y, long z);
++;
++; ptr points at the calling thread's `cancel` flag (pthread_impl.h:38,
++; `volatile int cancel`).  The contract this file implements:
++;
++;   * musl's cancellation protocol (src/thread/pthread_cancel.c): the
++;     cancellation signal handler redirects a thread that is inside
++;     [__cp_begin, __cp_end) to __cp_cancel instead of restarting its syscall,
++;     so the flag test and the trap must be contiguous and must not touch the
++;     stack -- that is why this is assembly at all (riscv64/syscall_cp.s is the
++;     same shape);
++;   * the DADAO syscall convention (contract-syscall.md): number in rd15,
++;     arguments routed by TYPE into the rd bank (data, from rd16) and the rb
++;     bank (address/pointer, from rb16) -- the §3 worked example is
++;     read(int fd, void *buf, size_t count) => fd rd16, buf rb16, count rd17;
++;     result in rd8, error as a negative rd8 (§4, so __syscall_ret() is
++;     untouched).
++;
++; ## Argument routing (the one non-obvious part)
++;
++; musl passes the six syscall arguments as plain `syscall_arg_t` (long), so
++; their pointer-ness is already gone by the time this stub runs; the syscall
++; NUMBER is the only thing left that says which positions belong to the rb
++; bank.  The dispatch below therefore mirrors __dadao_argmask() in
++; arch/dadao/syscall_arch.h slot for slot -- same numbers, same masks -- so the
++; two paths cannot disagree about where an argument goes:
++;
++;   mask 0x02 (slot 1 is a pointer): read, write, readv, writev
++;   mask 0x01 (slot 0 is a pointer): set_tid_address, futex, set_robust_list,
++;                                    brk, munmap, mmap, getrandom
++;   mask 0x04 (slot 2 is a pointer): ioctl
++;   mask 0x00 (no pointer)          : everything else
++;
++; INVARIANT (same one registered on __dadao_argmask): a number must be added
++; HERE in the same change that adds it there.  An unlisted number gets mask 0;
++; that is why the two tables must stay identical -- a number served with
++; wrongly-placed arguments would read garbage, not fail loudly.
++;
++; ## Register safety of the shuffles
++;
++; Entry: rb16 = ptr, rd16 = nr, rd17..rd22 = u..z.  Every copy goes to a
++; LOWER-numbered register than its source, so ascending order never clobbers a
++; value that has not been consumed yet; the single rb-bank copy is issued
++; before its source register is overwritten.  rd2rd forbids overlapping
++; ranges (SimRISC-02 §2), which is another reason the moves are one register
++; at a time.  Scratch used: rd8 (the return register, reloaded by the trap) and
++; rd9 (constant for the compare chain) -- both caller-saved (contract-abi.md
++; §4.5 saves only rd32-rd63).
++;
++; ## Known boundary (registered in INFRA-085t / ISS-242)
++;
++; The redirect above is only observable if the cancellation signal path works
++; (signal delivery + ucontext PC rewrite).  The DADAO port's signal frame is
++; still [OPEN] (arch/dadao/bits/signal.h), so today this stub is reachable and
++; correct but cancellation cannot actually fire: __cp_begin/__cp_end exist for
++; the handler that will use them, and __cancel() is still reached through
++; __syscall_cp_c()'s -EINTR path.
++;
++; musl builds `.s` through its plain CC_CMD path (cc treats `.s` as assembler
++; input; ADD_CFI is off for dadao -- there is no tools/add-cfi.dadao.awk), and
++; DADAO assembly uses `;` for comments ('#' is reserved for cpp, Toolchain-01
++; §2.2).
++
++	.text
++	.global __cp_begin
++	.hidden __cp_begin
++	.global __cp_end
++	.hidden __cp_end
++	.global __cp_cancel
++	.hidden __cp_cancel
++	.hidden __cancel
++	.global __syscall_cp_asm
++	.hidden __syscall_cp_asm
++	.type __syscall_cp_asm, %function
++__syscall_cp_asm:
++__cp_begin:
++	ld.st	rd8, [rb16, 0]
++	br.nz	{rd8}?, [rb0, __cp_cancel]
++
++	rd2rd	{rd15}, {rd16}
++
++	set.zw	rd9, wp0, 63
++	br.eq	{rd16, rd9}?, [rb0, .Lmask2]
++	set.zw	rd9, wp0, 64
++	br.eq	{rd16, rd9}?, [rb0, .Lmask2]
++	set.zw	rd9, wp0, 65
++	br.eq	{rd16, rd9}?, [rb0, .Lmask2]
++	set.zw	rd9, wp0, 66
++	br.eq	{rd16, rd9}?, [rb0, .Lmask2]
++
++	set.zw	rd9, wp0, 96
++	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
++	set.zw	rd9, wp0, 98
++	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
++	set.zw	rd9, wp0, 99
++	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
++	set.zw	rd9, wp0, 214
++	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
++	set.zw	rd9, wp0, 215
++	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
++	set.zw	rd9, wp0, 222
++	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
++	set.zw	rd9, wp0, 278
++	br.eq	{rd16, rd9}?, [rb0, .Lmask1]
++
++	set.zw	rd9, wp0, 29
++	br.eq	{rd16, rd9}?, [rb0, .Lmask4]
++
++.Lmask0:
++	rd2rd	{rd16}, {rd17}
++	rd2rd	{rd17}, {rd18}
++	rd2rd	{rd18}, {rd19}
++	rd2rd	{rd19}, {rd20}
++	rd2rd	{rd20}, {rd21}
++	rd2rd	{rd21}, {rd22}
++	jump	[rb0, .Ltrap]
++
++.Lmask2:
++	rd2rb	{rb16}, {rd18}
++	rd2rd	{rd16}, {rd17}
++	rd2rd	{rd17}, {rd19}
++	rd2rd	{rd18}, {rd20}
++	rd2rd	{rd19}, {rd21}
++	rd2rd	{rd20}, {rd22}
++	jump	[rb0, .Ltrap]
++
++.Lmask1:
++	rd2rb	{rb16}, {rd17}
++	rd2rd	{rd16}, {rd18}
++	rd2rd	{rd17}, {rd19}
++	rd2rd	{rd18}, {rd20}
++	rd2rd	{rd19}, {rd21}
++	rd2rd	{rd20}, {rd22}
++	jump	[rb0, .Ltrap]
++
++.Lmask4:
++	rd2rd	{rd16}, {rd17}
++	rd2rd	{rd17}, {rd18}
++	rd2rb	{rb16}, {rd19}
++	rd2rd	{rd18}, {rd20}
++	rd2rd	{rd19}, {rd21}
++	rd2rd	{rd20}, {rd22}
++
++.Ltrap:
++	trap	cfx_umon, 0
++__cp_end:
++	ret	rd0, 0
++
++__cp_cancel:
++	jump	[rb0, __cancel]
++	.size __syscall_cp_asm, . - __syscall_cp_asm

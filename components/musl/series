@@ -11,6 +11,8 @@ arch/dadao/pthread_arch.h.patch
 arch/dadao/reloc.h.patch
 arch/dadao/syscall_arch.h.patch
 configure.patch
+ldso/dlstart.c.patch
 src/setjmp/dadao/longjmp.S.patch
 src/setjmp/dadao/setjmp.S.patch
 src/thread/dadao/__set_thread_area.s.patch
+src/thread/dadao/syscall_cp.s.patch

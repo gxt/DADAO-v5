@@ -1,0 +1,57 @@
+diff --git a/ldso/dlstart.c b/ldso/dlstart.c
+index 4aac42b..88ace7f 100644
+--- a/ldso/dlstart.c
++++ b/ldso/dlstart.c
+@@ -4,6 +4,19 @@
+ 
+ #ifndef START
+ #define START "_dlstart"
++/*
++ * DADAO (contract-dynlink.md §3/§6.2, ADR-0029 D4): the interpreter's own
++ * entry runs before a single relocation of its own has been applied, so it
++ * cannot name &_DYNAMIC -- a link-time absolute address is wrong for a shared
++ * object, and a `.got` slot (`aip.si` + `ld.o`, R_DADAO_RELATIVE) only carries
++ * the address after the RELATIVE pass that this very function performs.  The
++ * entry stub in arch/dadao/crt_arch.h therefore passes dynv = NULL and the
++ * dynamic section is derived below from the interpreter's load base (AT_BASE,
++ * contract-dynlink.md §6.2/§6.3): AT_BASE + PT_DYNAMIC's p_vaddr, which is by
++ * definition &_DYNAMIC.  crt/rcrt1.c (static PIE) defines START and is
++ * unaffected.
++ */
++#define DL_DYNAMIC_FROM_LOAD_BASE 1
+ #endif
+ 
+ #define SHARED
+@@ -33,6 +46,32 @@ hidden void _dlstart_c(size_t *sp, size_t *dynv)
+ 	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT)
+ 		aux[auxv[i]] = auxv[i+1];
+ 
++#ifdef DL_DYNAMIC_FROM_LOAD_BASE
++	/* The entry stub cannot pass &_DYNAMIC (see the DL_DYNAMIC_FROM_LOAD_BASE
++	 * definition above); locate the dynamic section through the load base and
++	 * the program headers.  PT_DYNAMIC's p_vaddr is the virtual address
++	 * _DYNAMIC would have, so base + it == &_DYNAMIC.
++	 *
++	 * AT_BASE is the interpreter's load base (contract-dynlink.md §6.3).  When
++	 * it is 0 the ldso was started as a program instead of as an interpreter,
++	 * and the load base follows from AT_PHDR the same way the `!base` branch
++	 * below derives it (AT_PHDR & -PAGESIZE, i.e. musl's documented "assume
++	 * the phdrs lie in the first page" rule). */
++	if (!dynv) {
++		size_t base0 = aux[AT_BASE];
++		Ehdr *eh = (void *)(base0 ? base0 : (aux[AT_PHDR] & -4096));
++		Phdr *ph;
++		if (!eh) return;
++		ph = (void *)((char *)eh + eh->e_phoff);
++		for (i=0; i<eh->e_phnum; i++,
++		     ph=(void *)((char *)ph+eh->e_phentsize))
++			if (ph->p_type == PT_DYNAMIC) {
++				dynv = (void *)((char *)eh + ph->p_vaddr);
++				break;
++			}
++	}
++#endif
++
+ #if DL_FDPIC
+ 	struct fdpic_loadseg *segs, fakeseg;
+ 	size_t j;

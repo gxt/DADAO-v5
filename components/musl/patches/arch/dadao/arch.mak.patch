@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/arch.mak b/arch/dadao/arch.mak
 new file mode 100644
-index 0000000..79ac704
+index 0000000..2dbf5a2
 --- /dev/null
 +++ b/arch/dadao/arch.mak
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,43 @@
 +# DADAO per-arch build overrides.
 +#
 +# The musl Makefile includes this file (`-include $(srcdir)/arch/$(ARCH)/arch.mak`,
@@ -26,42 +26,23 @@ index 0000000..79ac704
 +#   * `rotl`/`rotr`  (rotate)
 +#       src/crypt/crypt_sha512.c
 +#       src/signal/sigdelset.c
-+#   * `bswap`        (byte swap)
-+#       src/locale/__mo_lookup.c
-+#       src/locale/dcngettext.c
-+#       src/passwd/getgrouplist.c
-+#       src/passwd/nscd_query.c
-+#   * `dynamic_stackalloc` (alloca / VLA)
-+#       src/process/execlp.c
-+#       src/process/execle.c
-+#       src/process/execl.c
-+#       src/process/execvp.c
-+#       src/unistd/getcwd.c
-+#       src/network/res_msend.c
 +#
-+# Consequence, stated so it cannot surprise anyone: these files are ABSENT from
-+# libc.a, so a program that uses `crypt()` (SHA-512), `sigdelset`, `.mo` locale
-+# lookup / `dcngettext`, `getgrouplist` / `getgr_a`, `nscd_query`, the `exec*`
-+# family, `getcwd` or the resolver FAILS TO LINK -- an explicit failure, not a
-+# silent stub.  None of them is reachable from the P1 static minimal set
-+# (`write` + `exit`).
++# The list used to hold 13 sources under three headings (`rotl`, `bswap`,
++# `dynamic_stackalloc`).  `bswap` (LLVM-096t) and VLA/alloca (LLVM-097t) are
++# implemented, and re-checking every one of those 11 sources with the installed
++# toolchain and musl's own obj/src/%.lo flags accepts all of them -- so they
++# were dropped (INFRA-085t stage C).  Only the two `rotl` sources remain; that
++# selector gap is a distinct `llvm`-side task.
++#
++# Consequence, stated so it cannot surprise anyone: these two files are ABSENT
++# from libc.a / libc.so, so a program that uses `crypt()` (SHA-512) or
++# `sigdelset` FAILS TO LINK -- an explicit failure, not a silent stub.
 +#
 +# Report once per build so the exclusion is never invisible.
 +
 +DADAO_BACKEND_BLOCKED_SRCS = \
 +	src/crypt/crypt_sha512.c \
-+	src/locale/__mo_lookup.c \
-+	src/locale/dcngettext.c \
-+	src/network/res_msend.c \
-+	src/passwd/getgr_a.c \
-+	src/passwd/getgrouplist.c \
-+	src/passwd/nscd_query.c \
-+	src/process/execl.c \
-+	src/process/execle.c \
-+	src/process/execlp.c \
-+	src/process/execvp.c \
-+	src/signal/sigdelset.c \
-+	src/unistd/getcwd.c
++	src/signal/sigdelset.c
 +
 +BASE_SRCS := $(filter-out $(addprefix $(srcdir)/,$(DADAO_BACKEND_BLOCKED_SRCS)),$(BASE_SRCS))
 +

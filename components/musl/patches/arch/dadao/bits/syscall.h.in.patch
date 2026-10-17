@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/bits/syscall.h.in b/arch/dadao/bits/syscall.h.in
 new file mode 100644
-index 0000000..e196a11
+index 0000000..7274012
 --- /dev/null
 +++ b/arch/dadao/bits/syscall.h.in
-@@ -0,0 +1,330 @@
+@@ -0,0 +1,346 @@
 +#define __NR_io_setup 0
 +#define __NR_io_destroy 1
 +#define __NR_io_submit 2
@@ -331,6 +331,22 @@ index 0000000..e196a11
 +#define __NR_file_setattr	469
 +#define __NR_listns		470
 +
-+#define __NR_sysriscv __NR_arch_specific_syscall
-+#define __NR_riscv_flush_icache (__NR_sysriscv + 15)
-+#define __NR_riscv_hwprobe (__NR_sysriscv + 14)
++/*
++ * No RISC-V arch-specific syscalls (sysriscv / riscv_flush_icache /
++ * riscv_hwprobe) are defined: the DADAO port has no vDSO and no
++ * architecture-specific service -- the umon trap is the whole syscall surface
++ * (contract-syscall.md §6), which is the same stance as
++ * arch/dadao/syscall_arch.h's "No vDSO" note.  The numbers used to be copied
++ * from the RISC-V table this port adopts; riscv_flush_icache in particular made
++ * src/linux/cache.c compile its vDSO fast path, whose __vdsosym call has no
++ * definition here (src/internal/vdso.c is compiled out without VDSO_USEFUL) --
++ * an undefined symbol visible only under --no-undefined.  A number without a
++ * service is a leak, so the block is gone; arch_specific_syscall itself (the
++ * generic Linux base, above) stays.  A future DADAO-specific syscall must be
++ * added here together with its __dadao_argmask() entry in syscall_arch.h.
++ *
++ * (This file is copied verbatim and then re-emitted line by line with the
++ * leading underscores of the number macro stripped, printing only lines that
++ * contain that macro -- so a comment must not spell the macro out, or it is
++ * re-emitted without its comment delimiters.)
++ */

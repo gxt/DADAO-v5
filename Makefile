@@ -39,7 +39,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
-        build-musl test-picolibc-smoke install-host docker-image docker-shell check \
+        build-musl build-musl-shared test-picolibc-smoke install-host docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-qemu-smoke check-knowledge-refs \
@@ -81,6 +81,7 @@ help:
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
+	@echo "  make build-musl-shared  Build musl shared/PIC libc.so (+ install libc.so and the ld-musl-dadao.so.1 symlink into the target sysroot; INFRA-085t stage A1; needs install-host + fetch/apply-series)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
@@ -472,12 +473,32 @@ check-testcases-suites-full:
 # apply-series' first).  P1 is the STATIC subset: --disable-shared is
 # deliberate (the dynamic linker is P2, ADR-0025 D6).  Products:
 # lib/libc.a + lib/crt{1,i,n}.o.  The target is idempotent (configure is
-# skipped once config.mak exists) and, by default, also links and verifies a
-# minimal static program (see tools/infra/build_musl.py).  Requires the
-# install-root clang (run 'make install-host' first).
+# skipped once config.mak exists and records the same mode) and, by default,
+# also links and verifies a minimal static program (see
+# tools/infra/build_musl.py).  Requires the install-root clang (run
+# 'make install-host' first).  Stale objects are guarded: a change in the
+# toolchain binaries (clang / ld.lld stamp, obj/.dadao-toolchain-stamp) or a
+# tree without a stamp runs 'make clean' before building; the decision
+# ("... => 'make clean'" / "... => incremental build") is printed.  Applies to
+# build-musl-shared too (same script, same in-tree build directory).
 build-musl:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS)
+
+# build-musl-shared (INFRA-085t stage A1): the SHARED/PIC counterpart -- same
+# source tree, configured *without* --disable-shared so musl links lib/libc.so
+# from -fPIC objects, with -Wl,--hash-style=gnu and -Wl,-soname,libc.so pinning
+# the dynamic-section shape (contract-dynlink.md §5 rulings 6/7, §6.1).  Checks
+# libc.so is ET_DYN/big-endian with DT_SONAME + DT_GNU_HASH and without
+# DT_HASH/DT_RELR/version sections, then installs libc.so plus the
+# ld-musl-dadao.so.1 -> libc.so symlink into the target sysroot lib dir
+# (ADR-0016 D5).  The static line is checked in the same run (lib/libc.a is
+# built from the same non-PIC objects), so the two modes cannot drift apart.
+# Stage A1 stops at "produces + statically verifiable": linking and running
+# dynamic executables is stage B/C (ADR-0025 D6).
+build-musl-shared:
+	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl-shared: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
+	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS) --shared
 
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev
