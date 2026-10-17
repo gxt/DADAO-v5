@@ -100,3 +100,9 @@
 | F5 动态档 driver 默认 work-dir（`<artifacts>/libc-test-user`）与 `047t-dyn` 验证脚本预期 work-dir 不同 ⇒ 首次验证红在 guest root sha（拷贝未刷新） | ✅已修 | 未改他人脚本；按脚本 work-dir 重跑 driver（`--work-dir .work/tmp/TESTCASES-047t-dyn/work-dynamic`），root 拷到当前 `libc.so` | `047t-dyn` 验证 `ALL GREEN` rc=0；root sha `898ad749…` == 构建产物 |
 | F6 `047t` 静态首跑出现瞬时 `pass→blocked`（`malloc-brk-fail`，host signal 5） | ✅已处置 | 留存现场；同一 ELF 直跑 8/8、单例 5/5、全量重跑 303/0/9/25 | 现场 `/tmp/opencode/INFRA-088t/scene-047t-static-run1/`；重跑 transitions=0 |
 | F7 `047t` 静态验证脚本两条旧断言（audit 未收 `ADR-0030` basis、replay 期望 `ipc_msg` 旧失败） | ⏸延后（非本册范围） | 不改他人任务证据脚本；在完成区如实披露 | 基线 JSON 与重跑逐例分类一致（transitions=0） |
+
+#### 提交（architect，2026-10-18）
+- 档位：本册 `待验收`（无 reviewer 判决；按主会话派单用正常信息，未加 `WIP:`）。
+- 提交号：`a513cf3`（分支 `INFRA-088t`；未 push）。
+- 文件集对账（6 文件）：与完成区「修改文件」一致 4 项（`DADAO.{h,cpp}.patch` / `changelog.md` / 本册）；**账本同步 2 项**（`milestones.md` 本任务行、`INTEG-036m` 阶段表该行）= 主会话派单的收尾台账，非越界实现改动；完成区所列 `.work/**`（source/evidence）为 `.gitignore` 忽略项，按约定不入 git。
+- 门控（本轮实跑，各留自身 rc）：L1 `make check`、`check-milestone`、`check-patch-tree`（**173**）、`check-musl-freshness`、`check-syscall-abi`、`check-index-blobs`、`check-source-state`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`check-component-changelog`、`check_issues.py` 全 **rc=0**（该轮在状态置 `待验收` 前执行）。状态置 `待验收` 后复跑：`check-tasks`/`check-knowledge-refs`/`check-no-residue` **rc=0**；`check-milestone` **rc=2** —— 唯一命中 = `check_tasks.py --strict` 对本册「完成区已填 + `待验收`」的**设计内**提示（`check_milestone_tasks.py` 段本身 PASS；`/complete` 置 `已验证` 后消失）。
