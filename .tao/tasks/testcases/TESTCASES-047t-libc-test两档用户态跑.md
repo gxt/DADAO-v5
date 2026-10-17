@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**；`qemu-dadao` 在安装根）；`INFRA-082t`（`P1` musl 静态，**`已验证`**）、`INFRA-085t`（`P2` 动态，**`已验证`**）；`TESTCASES-044t`（`libc-test` **取源与锁定**，**`已验证`**；`patchless = true` ⇒ 源只读）、`TESTCASES-045t`（`P1` 能力边界度量，`已验证`；其 `tools/testcases/run_suite.py` 在 `dadao-m1` 路径上已硬失败 ⇒ **本册不复用其运行路径**，只复用其**建链方法论**与排除口径的教训）；`ISS-247`（**链接基址**）、`ISS-246`（**known-fail 唯一依据**）、`ISS-229`（串行）、`ISS-210`（安装根新鲜度）、`ADR-0025`（`D2`/`D6`/`D7`）；**同批三册**：`TESTCASES-046t` / `TESTCASES-047t`（本册）/ `TESTCASES-048t` ⇒ **同改共享文件（`Makefile` / `milestones.md`）⇒ 串行**。
 **状态**：待开始
-**阶段进度**：静态档 ✅ **fail=0**（**终局复跑（新工具链产物）**（`INFRA-079t` 后、22:44 重建产物）pass 303 / known-fail 9 / blocked 25；`pthread_create-oom` 有 qemu flake）/ 动态档 ✅ **fail=0**（终局复跑（新工具链产物）pass 298 / known-fail 8 / blocked 31；8 条 COPY 链接缺口见第 5 轮；逐例与上次作数零变化）
+**阶段进度**：静态档 ✅ **fail=0**（**终局复跑（新工具链产物）**（`INFRA-079t` 后、22:44 重建产物）pass 303 / known-fail 9 / blocked 25；`pthread_create-oom` 有 qemu flake）/ 动态档 ✅ **fail=0**（**`TESTCASES-049t` 动态档用户 TU 改 `-fPIC` 后**（2026-10-18）pass **305** / known-fail **9** / blocked **23**：COPY 8 例收 7 例真跑、`math/lgammal` 归 `ADR-0030`；`musl/pleval` 仍 blocked；静态档同版驱动复跑 303 / 9 / 25 **逐例不变**——见 `TESTCASES-049t`）
 
 > **编号（现场取号，2026-10-17）**：现存最大 = `TESTCASES-045t` ⇒ 取 **`047`**；`046` 归同批 `embench-iot` 册；全历史 `grep -E 'TESTCASES-04[678]'` **0 命中**。
 
@@ -188,6 +188,15 @@ excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上�
 **修改文件**：本任务书（仅追加本节）；无源码/驱动改动。gitignored：`.work/log/testcases/final-rerun-round2/`。
 **新发现/坑**：与 046t 同条——**「sha 不变」≠「未重建」**（本轮 `libc.a`/`libc.so` sha 与旧构建逐字节相同，唯一证据是 22:43:59/22:44:00 的 mtime + toolchain stamp）；`check-musl-freshness` 的 toolchain stamp 正是为这类**跨代际错配**设的。
 **遗留问题**：沿用第 5 轮——COPY 8 条（`-fPIC` 口径待架构裁定）、`musl/pleval`（上游 `.mk` 本不构建动态档）、OOM 三条宿主 flake；`P4` golden 对照、`ISS-246` 修复不在本册。
+
+### 第 6 轮（动态档用户 TU 改 `-fPIC`；`TESTCASES-049t` 执行落点，2026-10-18 engineer）
+
+**测试结果**：仅改驱动口径 + 重跑（未改源码、未动 `Makefile`、未 `install-host`，产物未重建）。动态档 ⇒ **discovered 367 / excluded 30 / total 337：pass 305、fail 0、known-fail 9、blocked 23**（driver rc=1 仅 `blocked>0`，`ISS-248`；**571 s**）；静态档对照 ⇒ **303 / 0 / 9 / 25**（**509 s**），337 例分类与 guest exit **逐例零变化**。对照第 5 轮动态 `298/0/8/31`：转移**恰 8 条**，无 `pass→fail`/`fail→pass`、无新增 `fail`。
+**逐例记账（COPY 8）**：`blocked→pass` 7 = `functional/env`（`environ`）、`math/{lgamma,lgammaf}`（`signgam`）、`regression/{fflush-exit,fgetwc-buffering,rewind-clear-error,setvbuf-unget}`（`stdout`/`stdin`），均 guest exit 0（证据脚本用 qemu 独立重放逐例 0）；`blocked→known-fail` 1 = `math/lgammal`（`signgam` 链上后真跑，`ulperr -10.465` ⇒ `ADR-0030` 依据现场重算成立）；`musl/pleval` **仍 blocked**（`undefined symbol: __pleval`，上游 `pleval.mk` 明写动态档不构建）。静态档侧 `math/lgammal` 仍 `known-fail`，两档 `known-fail` 集合（9 条）现已一致。
+**驱动改动（可审计）**：`DYNAMIC_USER_CFLAGS = ("-fPIC",)`（新常量，注释写明 `ADR-0026 D7②` / `contract-dynlink §10②` 与"仅动态档"边界）；`build_and_run` 内 `mode_cflags = list(DYNAMIC_USER_CFLAGS) if cfg["mode"] == "dynamic" else []` 插在 `BASE_CFLAGS + extra` 与 `PER_CASE_CFLAGS` 之间；新增逐例 `compile_cmd` 落 JSON/report。静态档 flag 表与命令构造不变（证据脚本以 `git show HEAD:` 的 AST 常量 + `-fPIC` 计数双重校验）。
+**验收结果**：`.work/evidence/TESTCASES-049t/run.sh` default **62 PASS / rc=0**、`--inject` **rc=0**（3 处可达 FAIL：清空 `-fPIC` ⇒ 8 例真跑重回 `blocked` + 审计拒；`functional/env` 记录改回 `blocked` ⇒ 转移审计拒；`BASE_CFLAGS` 注入 `-fPIC` ⇒ 静态不变量审计拒；均 `cp`+md5 还原，driver md5 `4e2fc691…`）；门控各自 rc=0：`check-musl-freshness`/`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues.py`/`make check`(L1)。
+**修改文件**：`tools/testcases/run_libc_test_user_suite.py`；本任务书（本节 + `阶段进度`）；`.tao/tasks/testcases/TESTCASES-049t-动态档fPIC.md`；`.tao/knowledge/issues.yaml`（`ISS-259`）。gitignored：`.work/evidence/TESTCASES-049t/`、`.work/log/testcases/libc-test-user-{static,dynamic}.*`、`.work/log/testcases/049t-*`。
+**遗留问题**：`musl/pleval` 动态档仍 `blocked`（上游口径，非缺陷）；其余 `blocked 23` 归属不变（`ISS-252/253/254/255` + OOM flake）；`P4` golden 对照、`ISS-246` 修复不在本册。
 
 ## 审阅记录
 

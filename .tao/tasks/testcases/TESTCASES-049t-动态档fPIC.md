@@ -52,16 +52,31 @@
 7. 证据脚本非交互、任一失败非零退出、含可达 FAIL 自检。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：动态档用户 TU 编译加 `-fPIC`（静态档不动）后按派单**只跑测**（未改 `musl`/LLVM/QEMU 源码、未动 `Makefile`、未 `install-host`，产物未重建）：**动态 discovered 367 / excluded 30 / total 337：pass 305、fail 0、known-fail 9、blocked 23**（driver rc=1 仅 `blocked>0`，`ISS-248`；**571 s**）；**静态档对照 303 / 0 / 9 / 25，337 例分类与 guest exit 逐例零变化**（**509 s**）。对照基线（动态 298/0/8/31）转移**恰 8 条**、无其它变动：
+- `blocked→pass` **7**：`functional/env`、`math/{lgamma,lgammaf}`、`regression/{fflush-exit,fgetwc-buffering,rewind-clear-error,setvbuf-unget}`（guest exit 0；证据脚本独立 qemu 重放逐例 0）。
+- `blocked→known-fail` **1**：`math/lgammal`（basis=`ADR-0030`；现场 `ulperr -10.465` + target `LDBL_MANT_DIG=53`）。
+- `musl/pleval` **仍 `blocked`**：`ld.lld: error: undefined symbol: __pleval`（上游 `src/musl/pleval.mk` 动态档不构建，不改判）。
+**修改文件**：`tools/testcases/run_libc_test_user_suite.py`（`DYNAMIC_USER_CFLAGS = ("-fPIC",)`；`build_and_run` 仅 `cfg["mode"]=="dynamic"` 追加；逐例 `compile_cmd` 入 JSON/report 供审计）；本任务书；`TESTCASES-047t`（追加一节 + `阶段进度`）；`.tao/knowledge/issues.yaml`（`ISS-259`）；gitignored：`.work/evidence/TESTCASES-049t/{run.sh,baseline-{static,dynamic}.json}`、`.work/log/testcases/{libc-test-user-{static,dynamic}.{json,log,stdout,stderr},049t-{static,dynamic}.EXIT,049t-evidence-{default,inject}.log}`。
+**验收结果**：① 驱动面：动态档 337 例 / 416 TU 的编译行**各含恰好 1 个** `-fPIC` 且在 `-c` 前；静态档 **0** 个，且 `BASE/API/PER_CASE/MUSL_USER_INCLUDE_DIRS` 与 `git show HEAD:` 版 AST 逐项相等、命令行构造仅 `... + extra + mode_cflags + PER_CASE ...`（`mode_cflags` 由 dynamic 判定）⇒ 静态行逐字节不变。② 独立审计（`.work/evidence/TESTCASES-049t/run.sh` default **62 PASS / rc=0**）：转移集**从基线 JSON 现场派生**（含 `copy relocation` 的 `blocked` 行）而非写死，计数由基线+转移推导（305/9/23）；`fail=0`、`total == discovered − excluded`、`closure_ok`/`classification_ok`；`lgammal` 依据现场重算；8 张新链镜像 `PT_INTERP=/lib/ld-musl-dadao.so.1`、base `0x10000`、无 `-T`。③ `--inject` **rc=0**（3 处可达 FAIL，`cp`+md5 还原，driver md5 `4e2fc691…`）：I1 清空 `DYNAMIC_USER_CFLAGS` ⇒ 8 例真跑复核重回 `blocked`（`copy relocation`）且 `-fPIC` 审计拒；I2 `functional/env` 记录改回 `blocked` ⇒ 转移审计拒；I3 给 `BASE_CFLAGS` 注入 `-fPIC` ⇒ 静态真跑记录含 `-fPIC`、静态不变量审计拒。④ 门控各留自身 rc：`check-musl-freshness` 0、`check-tasks` 0、`check-knowledge-refs` 0、`check-no-residue` 0、`check_issues.py` 0、`make check`(L1) 0。⑤ 判据未放宽：`known-fail` 仍走逐例依据表，`-fPIC` 只改编译选项、未改任何期望值/分类准入。
+**新发现/坑**：① `-fPIC` 只需给**用户 TU**：harness `libtest.a` 只用 `write(1,…)`（`src/common/print.c`），不引用 libc 数据对象 ⇒ harness 无需 PIC，COPY 缺口全部来自用例 TU。② 动态档"两档分类对齐"：`math/lgammal` 静态 `known-fail`、动态曾 `blocked`，加 `-fPIC` 后回 `known-fail`（`ADR-0030`）⇒ 两档 9 条 `known-fail` 集合一致。③ 单档耗时主要来自 `timeout after 60s`（动态 8 / 静态 7 例线程用例，`__clone` 缺口）——8×60 s 已占动态档 571 s 的 84%，与基线同形，非本轮引入。④ 计数不写死落地方式：证据脚本以基线 JSON 的 COPY 行派生期望转移集与三档计数，注入"去掉 `-fPIC`"即从 8 例真跑回到 8 条 `blocked` 触发 FAIL。
+**遗留问题**：`musl/pleval` 动态档仍 `blocked`（上游 `.mk` 本不构建，非缺陷）；`blocked 23` 其余（`ISS-252/253/254/255` + OOM flake）与 `-fPIC` 无关，沿用 `TESTCASES-047t` 第 5 轮归属；`P4` golden 对照、`ISS-246` 修复不在本册；`ISS-259` 已按现场置 `closed`（待 reviewer 验收复核）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+逐行审查驱动改动（`DYNAMIC_USER_CFLAGS` 常量、`build_and_run` 的 `mode_cflags` 插入点、`Case.compile_cmds` 记账与 JSON/report 落盘）与证据脚本（两档计数/转移派生、`git show HEAD:` AST 常量比对、3 处注入），并以**两档真跑**（动态 571 s / 静态 509 s）与 default/`--inject` 现场闭合对齐，未抽样。
+
+| # | finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| F1 | 证据脚本把新增 `DYNAMIC_USER_CFLAGS` 一并纳入「flag 表与 HEAD 相等」比对 ⇒ 首跑必假红 | ✅已修 | 四个既有常量与新增常量分开校验 | default 首跑该行为 `[FAIL]`（实见），修后 64 PASS / rc=0 |
+| F2 | 「静态零变化」可能来自**未重跑的旧 JSON**（旧驱动无 `compile_cmd` 字段）⇒ 假绿风险 | ✅已修 | 两档各增「每条记录都带 `compile_cmd`」反陈检查 | 337+337 条全带；I3 用**静态真跑**产物触发该分支 |
+| F3 | 并发守卫把「同一 shell 命令行里提到驱动路径」误判为并发驱动（我方 `md5sum tools/…` 所致，非脚本缺陷） | ✅已处置（改跑法） | 未改守卫（与 `TESTCASES-047t-dyn` 同款、真并发时有据） | 分离命令后 `--inject` **87 PASS / rc=0**；守卫行为已披露 |
+| F4 | `-fPIC` 是否会把静态档或期望值带偏 | ✅已核（不改） | 只加编译选项；`BASE/API/PER_CASE` 与 HEAD 相等，静态 0 个 `-fPIC` | 静态 303/0/9/25、337 例 class/exit 零 diff；`known-fail` 依据表未动 |
+| F5 | 动态档 `math/lgammal` 是否被「顺手改判」 | ✅已核 | 仍走 `ADR-0030` 逐例依据（`ulperr` + ADR Accepted/D1/D7 + 目标 `LDBL_MANT_DIG=53`），无新准入 | 行内 `known_fail_basis=ADR-0030` + `known_fail_evidence` 现场重算；审计复算 PASS |
+| F6 | 注入 1 后 8 例是否**真**回到 blocked（而非仅记录被改） | ✅已核 | 注入用驱动**真编译/真链接**跑 8 例 | driver rc=1、blocked=8、pass=0、行内 `copy relocation`；`cp`+md5 复原后回绿 |
+
+判决：本笔 finding 全部处置完毕（F3 为跑法说明、非代码缺陷）；两档真值、逐例记账、证据脚本与门控均完成。按本次派单**不改**本册 `**状态**`（保持 `待开始`，由主会话收尾时更新）。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立重跑、约束核验、判决）

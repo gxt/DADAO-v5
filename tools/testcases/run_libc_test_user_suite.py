@@ -32,6 +32,7 @@ Pipeline per case::
 
     clang --target=dadao-unknown-elf -nostdinc <musl headers> -I src/common \
           -std=c99 -D_POSIX_C_SOURCE=200809L -fno-builtin -frounding-math \
+          <dynamic round only: -fPIC> \
           -c <case>.c  -> <case>.o
 
     # static line: P1 musl products, lld DEFAULT base (never -T dadao.lds)
@@ -42,6 +43,16 @@ Pipeline per case::
     ld.lld -o <case>.elf <musl>/lib/crt1.o <case>.o <libtest.a> <musl>/lib/libc.so \
            -dynamic-linker /lib/ld-musl-dadao.so.1
     qemu-dadao -L <guest-root> <case>.elf
+
+``-fPIC`` is a **dynamic-round compile flag only** (TESTCASES-049t / ISS-259
+candidate (2)): a user TU that takes the *address* of a libc.so data object
+(``environ``, ``signgam``, ``stdin``/``stdout``) otherwise needs an
+``R_DADAO_COPY`` copy relocation, which lld refuses by design (ADR-0026 D7(2) /
+contract-dynlink §10(2)).  The image stays a non-PIE ``ET_EXEC`` (no ``-pie``);
+the flag only changes how the data address is formed.  The static round is
+**not** touched, so its command line stays byte-identical; each case's compile
+command line is recorded in the JSON/report so the split is auditable per case
+(``compile_cmd``).
 
 Base address (ISS-247): the link line carries **no** ``-T``/linker script, so
 lld's default base is used; ``tests/scripts/dadao.lds`` (``RAM ORIGIN =
@@ -184,6 +195,18 @@ API_CFLAGS = ("-D_XOPEN_SOURCE=700",)
 PER_CASE_CFLAGS = {
     "musl/pleval.c": ("-w", "-Wno-error=parentheses"),
 }
+
+# Dynamic round only (TESTCASES-049t / ISS-259 candidate (2)): the user TU is
+# compiled position-independent.  Without it a data reference such as
+# ``environ`` (functional/env), ``signgam`` (math/lgamma*) or ``stdin``/
+# ``stdout`` (regression/fflush-exit, fgetwc-buffering, rewind-clear-error,
+# setvbuf-unget) needs an R_DADAO_COPY copy relocation, which lld refuses by
+# design (ADR-0026 D7(2) / contract-dynlink §10(2)) -- the case then never
+# reaches its own verdict.  With -fPIC the data address is formed through the
+# GOT and the same executable links as a plain non-PIE ET_EXEC (no -pie).
+# The static round keeps its exact previous command line (this tuple is only
+# appended when cfg["mode"] == "dynamic").
+DYNAMIC_USER_CFLAGS = ("-fPIC",)
 
 # The expected guest exit status for a passing case: libc-test's main returns
 # t_status (0 = no t_error call).  Injected (wrong) by the evidence script.
@@ -697,8 +720,8 @@ def attribute_known_fail_bases(case, musl_root: str):
 class Case:
     __slots__ = ("cid", "path", "sources", "klass", "exit", "reason",
                  "first_error", "elf", "min_pt_load", "interp", "uses_thread",
-                 "tls_hits", "link_cmd", "outdir", "stdout", "notes",
-                 "known_fail_basis", "known_fail_evidence")
+                 "tls_hits", "link_cmd", "compile_cmds", "outdir", "stdout",
+                 "notes", "known_fail_basis", "known_fail_evidence")
 
     def __init__(self, cid, path, sources=None):
         self.cid = cid                       # e.g. "functional/argv" / "api/main"
@@ -714,6 +737,7 @@ class Case:
         self.uses_thread = False
         self.tls_hits = []                   # source files matching TLS_RE
         self.link_cmd = []
+        self.compile_cmds = []               # per-TU clang command lines
         self.outdir = ""
         self.stdout = ""
         self.notes = []
@@ -732,6 +756,7 @@ class Case:
                     tls_hits=self.tls_hits,
                     known_fail_basis=self.known_fail_basis,
                     known_fail_evidence=self.known_fail_evidence,
+                    compile_cmd=self.compile_cmds,
                     link_cmd=self.link_cmd, work_dir=self.outdir)
 
 
@@ -908,14 +933,17 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
         incs += ["-I", api_inc]
     incs += ["-I", os.path.join(cfg["src"], "src", "common")]
     extra = list(API_CFLAGS) if case.cid.startswith("api/") else []
+    # Dynamic-round-only PIC compile (TESTCASES-049t); static stays as before.
+    mode_cflags = list(DYNAMIC_USER_CFLAGS) if cfg["mode"] == "dynamic" else []
 
     objs = []
     for idx, src in enumerate(case.sources):
         rel = os.path.relpath(src, cfg["src_root"]).replace(os.sep, "/")
         obj = os.path.join(outdir, f"{idx:03d}_{os.path.basename(src)[:-2]}.o")
         cmd = ([cfg["clang"], "-target", "dadao-unknown-elf"] + incs
-               + list(BASE_CFLAGS) + extra
+               + list(BASE_CFLAGS) + extra + mode_cflags
                + list(PER_CASE_CFLAGS.get(rel, ())) + ["-c", src, "-o", obj])
+        case.compile_cmds.append(cmd)
         rc, _o, err, timed = run(cmd)
         if timed or rc != 0:
             first = first_tool_error(err)
@@ -1318,6 +1346,8 @@ def main() -> int:
                 fh.write("  tls_hits: " + ", ".join(r.tls_hits) + "\n")
             for note in r.notes:
                 fh.write("  note: " + note + "\n")
+            for cc in r.compile_cmds:
+                fh.write("  compile: " + " ".join(cc) + "\n")
             fh.write("  link: " + " ".join(r.link_cmd) + "\n")
     emit(f"  artifacts: {json_out} , {report_out}")
 
