@@ -214,11 +214,22 @@ CASE_NOTES = {
         "set_robust_list/futex/getrandom/ioctl; msgctl/msgsnd/msgrcv get "
         "mask 0, so their pointer arguments are placed in the RD bank.",
     "functional/ipc_sem":
-        "root cause: same __dadao_argmask gap -- semctl(semid,0,IPC_STAT,arg) "
-        "has a pointer in argument 3, which no mask covers (EFAULT).",
+        "root cause (ISS-256 ①, fixed by LLVM-101t; NOT the argmask table, "
+        "which ISS-249 closed): the 8-byte `union semun` is a *variadic* "
+        "argument.  DADAO passes <=64B aggregates by value (contract-abi §6.4, "
+        "and §5 keeps that split for varargs), but clang's DADAO ABI inherited "
+        "DefaultABIInfo::EmitVAArg, whose non-virtual classifyArgumentType "
+        "calls every aggregate indirect -- so the callee dereferenced the "
+        "save-area slot instead of reading it (arg.buf read as garbage => "
+        "EFAULT).",
     "functional/ipc_shm":
-        "root cause: same __dadao_argmask gap -- shmctl/shmget pointer "
-        "arguments are not in the mask table.",
+        "root cause (ISS-256 ②, fixed by LLVM-101t; NOT the argmask table): "
+        "shmat() is `return (void *)syscall(...)`, so the tail-jump to "
+        "__syscall_ret forwarded that call's i64 result in rd8 while the "
+        "caller of shmat() reads a *pointer* from rb8 (contract-abi §4.4) -- "
+        "`p` was a stale stack/image address => shmdt EINVAL.  A tail call is "
+        "now demoted to call+ret when the callee's return locations differ "
+        "from the function's own.",
     "functional/socket":
         "root cause: same __dadao_argmask gap -- sendto(206)/recvfrom(207) "
         "carry the sockaddr pointer in argument 4/5, unlisted => EINVAL/"

@@ -1,9 +1,9 @@
 diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..41fb213a2
+index 000000000..8178ecaae
 --- /dev/null
 +++ b/clang/lib/CodeGen/Targets/DADAO.cpp
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,103 @@
 +//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -61,6 +61,28 @@ index 000000000..41fb213a2
 +                                     getDataLayout().getAllocaAddrSpace());
 +    }
 +    return DefaultABIInfo::classifyArgumentType(Ty);
++  }
++
++  // va_arg (contract-abi.md §6.4 / §5).  The call site passes an aggregate of
++  // at most 64 bytes *by value* (one 8-byte block per slot into DADAO's
++  // caller-built save area, §5), so the callee must read the value out of that
++  // slot.  DefaultABIInfo::EmitVAArg cannot be inherited here: it calls the
++  // *non-virtual* DefaultABIInfo::classifyArgumentType, which classifies every
++  // aggregate as passed indirectly, so it would dereference a pointer the
++  // caller never stored (ISS-256 ①: an 8-byte `union semun` reached semctl()
++  // as EFAULT because `arg.buf` was loaded *through* the slot).
++  RValue EmitVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
++                   AggValueSlot Slot) const override {
++    if (!isAggregateTypeForABI(Ty))
++      return DefaultABIInfo::EmitVAArg(CGF, VAListAddr, Ty, Slot);
++    // >64B aggregates are passed indirectly (the slot holds a pointer, §6.4);
++    // ≤64B aggregates are passed by value in the slot.  DADAO is big-endian,
++    // so a value narrower than an 8-byte slot is right-adjusted in it.
++    bool Indirect = getContext().getTypeSize(Ty) > MaxAggregateBits;
++    return emitVoidPtrVAArg(
++        CGF, VAListAddr, Ty, Indirect, getContext().getTypeInfoInChars(Ty),
++        CharUnits::fromQuantity(8), /*AllowHigherAlign=*/false, Slot,
++        /*ForceRightAdjust=*/true);
 +  }
 +
 +  // DefaultABIInfo::classify{Return,Argument}Type are not virtual, so the

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..1995d19d3
+index 000000000..7108cdcc3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1301 @@
+@@ -0,0 +1,1338 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -614,6 +614,43 @@ index 000000000..1995d19d3
 +    for (const CCValAssign &VA : ArgLocs)
 +      if (VA.getLocInfo() == CCValAssign::Indirect)
 +        Eligible = false;
++    // The return value is forwarded in registers: a tail-jump runs no code of
++    // ours after the callee's `ret`, so the callee's return registers become
++    // this function's own by construction and there is no place left for a
++    // bank move.  The two must therefore be identical (contract-abi.md §4.4:
++    // a pointer result is returned in rb8, an integer result in rd8, and a
++    // pointer return does not go through rd8; §4.6 the call's Defs are
++    // rb8-rb15/rd8-rd15).  Otherwise demote to a plain call + return, which
++    // inserts the move (ISS-256 ②: shmat() == `(void *)syscall(...)` returns
++    // an i64 from __syscall_ret in rd8 as a `void *` in rb8 -- the tail-jump
++    // left the caller reading a stale rb8).
++    if (Eligible) {
++      SmallVector<CCValAssign, 16> CalleeRets;
++      CCState CalleeRetCC(CallConv, IsVarArg, MF, CalleeRets,
++                          *DAG.getContext());
++      CalleeRetCC.AnalyzeCallResult(Ins, RetCC_DADAO);
++      const Function &F = MF.getFunction();
++      SmallVector<ISD::OutputArg, 4> SelfOuts;
++      GetReturnInfo(CallConv, F.getReturnType(), F.getAttributes(), SelfOuts,
++                    *this, DAG.getDataLayout());
++      // GetReturnInfo does not record the pointer bit; SelectionDAGBuilder::
++      // visitRet adds it from the returned IR type (and only when the whole
++      // return type is a pointer), so mirror that here or RetCC_DADAO would
++      // put a pointer return in rd8 and the comparison would be blind.
++      if (F.getReturnType()->isPointerTy())
++        for (ISD::OutputArg &O : SelfOuts)
++          O.Flags.setPointer();
++      SmallVector<CCValAssign, 16> SelfRets;
++      CCState SelfRetCC(CallConv, F.isVarArg(), MF, SelfRets,
++                        *DAG.getContext());
++      SelfRetCC.AnalyzeReturn(SelfOuts, RetCC_DADAO);
++      Eligible = CalleeRets.size() == SelfRets.size();
++      for (unsigned i = 0, e = CalleeRets.size(); Eligible && i != e; ++i)
++        Eligible = CalleeRets[i].isRegLoc() && SelfRets[i].isRegLoc() &&
++                   CalleeRets[i].getLocReg() == SelfRets[i].getLocReg() &&
++                   CalleeRets[i].getLocVT() == SelfRets[i].getLocVT() &&
++                   CalleeRets[i].getLocInfo() == SelfRets[i].getLocInfo();
++    }
 +    if (Eligible) {
 +      // Copy the outgoing register arguments (glued), materialising the
 +      // caller-side sign/zero extension exactly as the normal path (C4 D2).
