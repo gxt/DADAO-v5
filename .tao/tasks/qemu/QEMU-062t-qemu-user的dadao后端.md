@@ -127,3 +127,10 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### architect 提交留痕（2026-10-17，提交 + 文件集审核）
+- **档位** = **`WIP:`**（reviewer 第 1 轮尚未验收；主题按派单原文，前缀标未验收）。
+- **提交** = `e2a910c`（分支 `p3-commit`，36 项）。
+- **文件集对账**（`git diff --cached --name-status` ↔ 完成区「修改文件」）：`Makefile`(1) / `tools/qemu/**`(2) / `components/qemu/{series,changelog.md,README.md}`(3) / `components/qemu/patches/**`（新增 23 + 更新 4 = 27）/ `components/musl/**`(2) / 本任务书(1) ⇒ **漏提 0 / 多提 0 / 越界 0**；完成区所列 `.work/evidence/QEMU-062t/run.sh` 在 `.gitignore` 的 `.work/` 下（**不入库，非漏提**）。
+- **门控**（各留自身 rc，日志 `.work/log/qemu/QEMU-062t-architect2-*.log`）：`make check`(L1) / `check-patch-tree`（**5 comp / 177 patches**）/ `check-index-blobs` / `check-source-state` / `check-no-residue` / `check-tasks` / `check-knowledge-refs` / `check-component-changelog` / `check-issues` **全 rc=0**。
+- **待主会话处置（如实）**：`**状态**` 仍为 `待开始`（engineer 未置 `待验收`）——architect 未改状态字段（只提交，不代替状态机）。
