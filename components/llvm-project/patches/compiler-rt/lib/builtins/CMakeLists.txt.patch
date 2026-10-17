@@ -1,20 +1,53 @@
 diff --git a/compiler-rt/lib/builtins/CMakeLists.txt b/compiler-rt/lib/builtins/CMakeLists.txt
-index e128fea6a..97caa249d 100644
+index e128fea6a..f1c3e3d5c 100644
 --- a/compiler-rt/lib/builtins/CMakeLists.txt
 +++ b/compiler-rt/lib/builtins/CMakeLists.txt
-@@ -866,6 +866,16 @@ set(avr_SOURCES
+@@ -866,6 +866,49 @@ set(avr_SOURCES
    ${GENERIC_SOURCES}
  )
  
-+# DADAO arch.  Narrow scope (INFRA-079t): only the complex-multiply builtins
-+# are wired up so that musl's cpow/cpowf can link (__muldc3 / __mulsc3).
-+# The rest of GENERIC_SOURCES / GENERIC_TF_SOURCES and an arch fp_mode.c are
-+# added by the full builtins task (ADR-0027 D1/D3) -- do not grow this list
-+# piecemeal.  Both files are freestanding C and need no arch-specific headers.
++# DADAO arch (INFRA-079t / ADR-0027 D1/D2): the full generic builtins set,
++# i.e. upstream's GENERIC_SOURCES + GENERIC_TF_SOURCES, with no arch-specific
++# assembly.  Sources that need a hosted environment or an out-of-scope runtime
++# are excluded explicitly below; nothing is dropped silently (ADR-0027 D1 =
++# builtins only, freestanding C, ADR-0027 D3).
 +set(dadao_SOURCES
-+  muldc3.c
-+  mulsc3.c
++  ${GENERIC_SOURCES}
++  ${GENERIC_TF_SOURCES}
 +)
++
++# Exclusions (each with its reason; no other source is removed).  Evidence for
++# the first three: compiling them for dadao-unknown-elf fails on the very
++# first hosted header, e.g. `fatal error: 'stdlib.h' file not found`.
++#  * emutls.c               -- hosted: <stdlib.h> / <pthread.h>
++#                              (pthread_key_create &c.).  DADAO is freestanding,
++#                              there is no libc and no pthread.
++#  * enable_execute_stack.c -- hosted trampoline support: <sys/mman.h>
++#                              (mprotect/sysconf); the target has no OS/libc.
++#  * eprintf.c              -- hosted diagnostics: <stdio.h> (fprintf/fflush/
++#                              stderr) and would drag a libc into the archive.
++#  * atomic.c               -- libatomic is explicitly out of scope (ADR-0027
++#                              D1) and does not build here (`_Static_assert`:
++#                              no lock-free pointer-size cmpxchg).  It only
++#                              enters GENERIC_SOURCES when
++#                              COMPILER_RT_EXCLUDE_ATOMIC_BUILTIN is disabled.
++#  * gcc_personality_v0.c   -- references the _Unwind_* runtime; the unwinder
++#                              is out of scope (ADR-0027 D1).  It only enters
++#                              GENERIC_SOURCES because the configure check
++#                              found <unwind.h> among the compiler's own
++#                              headers, not because a target unwinder exists.
++list(REMOVE_ITEM dadao_SOURCES
++  emutls.c
++  enable_execute_stack.c
++  eprintf.c
++  atomic.c
++  gcc_personality_v0.c
++)
++
++# crtbegin.c switches from .ctors/.dtors to .init_array/.fini_array with this
++# define.  State it explicitly instead of relying only on the standalone
++# build's <check_section_exists> probe (a duplicate -D is harmless).
++list(APPEND CRT_CFLAGS -DCRT_HAS_INITFINI_ARRAY)
 +
  # hexagon arch
  set(hexagon_SOURCES

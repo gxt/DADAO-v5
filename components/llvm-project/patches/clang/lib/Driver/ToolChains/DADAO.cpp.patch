@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.cpp b/clang/lib/Driver/ToolChains/DADAO.cpp
 new file mode 100644
-index 000000000..2fe4ae3e9
+index 000000000..07ebc7439
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.cpp
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,129 @@
 +//===--- DADAO.cpp - DADAO ToolChain Implementations ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -111,6 +111,19 @@ index 000000000..2fe4ae3e9
 +                   options::OPT_shared, options::OPT_static, options::OPT_pie});
 +  TC.AddFilePathLibArgs(Args, CmdArgs);
 +  AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
++
++  // Compiler builtins (ADR-0027 D5).  `-rtlib=compiler-rt` used to be
++  // silently ignored here (`-Wunused-command-line-argument`) and no archive
++  // was ever added, so every emitted libcall had to be satisfied by hand.
++  // Consume the option: the independent DADAO compiler-rt builtins archive is
++  // appended *after* the user inputs (so it resolves their undefined libcalls)
++  // and is looked up through ToolChain::getCompilerRT, i.e. the same path that
++  // `-print-libgcc-file-name` reports.  The default (no `-rtlib`) stays
++  // archive-free: bare-metal links that bring their own runtime are unchanged.
++  if (TC.GetRuntimeLibType(Args) == ToolChain::RLT_CompilerRT) {
++    CmdArgs.push_back(
++        TC.getCompilerRTArgString(Args, "builtins", ToolChain::FT_Static));
++  }
 +
 +  CmdArgs.push_back("-o");
 +  CmdArgs.push_back(Output.getFilename());

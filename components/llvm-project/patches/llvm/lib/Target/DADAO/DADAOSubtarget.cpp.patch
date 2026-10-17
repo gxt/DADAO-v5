@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..a8d5ed2e4
+index 000000000..77c47071a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,118 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -81,6 +81,34 @@ index 000000000..a8d5ed2e4
 +  Info.setLibcallImpl(RTLIB::NEARBYINT_F32, RTLIB::impl_nearbyintf);
 +  Info.setLibcallImpl(RTLIB::FMIN_F32, RTLIB::impl_fminf);
 +  Info.setLibcallImpl(RTLIB::FMAX_F32, RTLIB::impl_fmaxf);
++
++  // INFRA-079t (ADR-0027 D3): i128 division / remainder libcalls
++  // (compiler-rt `__divti3`/`__udivti3`/`__modti3`/`__umodti3`).  The ISA has no
++  // 128-bit divide, so LegalizeIntegerTypes (ExpandIntRes_SDIV/UDIV/SREM/UREM)
++  // emits an out-of-line call; with nothing registered `makeLibCall` aborts with
++  // "unsupported library call operation" (the `__divti3` class in
++  // INFRA-078t §4.2).  RTLIB defaults to `Unsupported` and
++  // `setTargetRuntimeLibcallSets` has no `else` branch, so a non-table arch like
++  // dadao must register every libcall it uses explicitly (fact #8).
++  Info.setLibcallImpl(RTLIB::SDIV_I128, RTLIB::impl___divti3);
++  Info.setLibcallImpl(RTLIB::UDIV_I128, RTLIB::impl___udivti3);
++  Info.setLibcallImpl(RTLIB::SREM_I128, RTLIB::impl___modti3);
++  Info.setLibcallImpl(RTLIB::UREM_I128, RTLIB::impl___umodti3);
++
++  // INFRA-079t (ADR-0027 D3): the eight FP <-> i128 conversions
++  // (`__fixdfti`/`__fixsfti`/`__fixunsdfti`/`__fixunssfti`,
++  // `__floattidf`/`__floattisf`/`__floatuntidf`/`__floatuntisf`).  Both
++  // directions are type-legalizer libcalls: the i128 side is split into two
++  // i64 halves (ExpandIntRes_FP_TO_XINT / ExpandIntOp_XINT_TO_FP), so without
++  // these entries the conversion aborts just like the division above.
++  Info.setLibcallImpl(RTLIB::FPTOSINT_F64_I128, RTLIB::impl___fixdfti);
++  Info.setLibcallImpl(RTLIB::FPTOSINT_F32_I128, RTLIB::impl___fixsfti);
++  Info.setLibcallImpl(RTLIB::FPTOUINT_F64_I128, RTLIB::impl___fixunsdfti);
++  Info.setLibcallImpl(RTLIB::FPTOUINT_F32_I128, RTLIB::impl___fixunssfti);
++  Info.setLibcallImpl(RTLIB::SINTTOFP_I128_F64, RTLIB::impl___floattidf);
++  Info.setLibcallImpl(RTLIB::SINTTOFP_I128_F32, RTLIB::impl___floattisf);
++  Info.setLibcallImpl(RTLIB::UINTTOFP_I128_F64, RTLIB::impl___floatuntidf);
++  Info.setLibcallImpl(RTLIB::UINTTOFP_I128_F32, RTLIB::impl___floatuntisf);
 +
 +  // LLVM-089t (ISS-193(b) residual): f32 `log`.  The ISA has no `flog`
 +  // instruction either (`contracts/opcodes.yaml`, scope `fp`), so `llvm.log.f32`

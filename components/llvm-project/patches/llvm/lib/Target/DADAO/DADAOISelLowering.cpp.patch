@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..7108cdcc3
+index 000000000..0f6ec141e
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1338 @@
+@@ -0,0 +1,1365 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -292,6 +292,24 @@ index 000000000..7108cdcc3
 +  // `x << (k & 63) | x >> (-k & 63)`, i.e. shl/srl/and/or/sub, all of which
 +  // this backend selects.
 +  setOperationAction({ISD::ROTL, ISD::ROTR}, MVT::i64, Expand);
++
++  // i128 shifts by a variable amount (INFRA-079t; ADR-0027 D3).  i128 is split
++  // into two i64 halves, and DAGTypeLegalizer::ExpandIntRes_Shift produces
++  // ISD::SHL_PARTS/SRL_PARTS/SRA_PARTS when the shift amount is not a
++  // constant.  Those nodes default to `Legal` (there is no i128 register
++  // class, so the parts form is what reaches ISel) and this backend has no
++  // pattern for them, hence "Cannot select: ... shl_parts" -- the common root
++  // cause of the i128 variable-shift, i128<->FP and udivmodti4 failures
++  // (INFRA-078t fact #9).  Mark them Custom and expand via the generic
++  // TargetLowering::expandShiftParts (the AArch64/Mips route), which bottoms
++  // out in i64 shl/srl/sra/and/or/select, all of which this backend selects.
++  setOperationAction({ISD::SHL_PARTS, ISD::SRL_PARTS, ISD::SRA_PARTS},
++                     MVT::i64, Custom);
++  // The generic parts expansion is written in terms of funnel shifts.  There is
++  // no funnel-shift instruction either, so let the generic expander rewrite
++  // them into plain shifts and an or (TargetLowering::expandFunnelShift);
++  // otherwise a surviving `fshl` would abort ISel with "Cannot select".
++  setOperationAction({ISD::FSHL, ISD::FSHR}, MVT::i64, Expand);
 +
 +  computeRegisterProperties(STI.getRegisterInfo());
 +
@@ -905,6 +923,15 @@ index 000000000..7108cdcc3
 +    return LowerVAARG(Op, DAG);
 +  case ISD::BR_JT:
 +    return LowerBR_JT(Op, DAG);
++  case ISD::SHL_PARTS:
++  case ISD::SRL_PARTS:
++  case ISD::SRA_PARTS: {
++    // INFRA-079t: expand a two-register (i128) shift into i64 shift/and/or/
++    // select operations (see the Custom action in the constructor).
++    SDValue Lo, Hi;
++    expandShiftParts(Op.getNode(), Lo, Hi, DAG);
++    return DAG.getMergeValues({Lo, Hi}, SDLoc(Op));
++  }
 +  default:
 +    return SDValue();
 +  }
