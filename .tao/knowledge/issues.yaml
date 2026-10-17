@@ -742,7 +742,7 @@
   scope: [infra]
   blocks: []
   resolved_by: null
-  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：`strptime` 1 例真失败；musl `src/time/strptime.c:133-139` 对 `%s` **没有任何效果**（既不解析也不写入 `tm`），语料期望 `%s` 被识别。**性质 = 语义口径分歧**（非崩溃、非静默错码）。**倾向（待用户裁定）**：按 musl 语义为准（`%s` 不支持 ⇒ 语料该例改分类/标 `excluded` 并给 reason），**不**改 musl 实现去迁就语料。**等级 = P3**（1 例、非阻断）。**证据指针**：`TESTCASES-047t` 完成区 C 组、`.work/log/testcases/libc-test-user-static.log`。**交叉引用**：`TESTCASES-047t`、`TESTCASES-044t`（语料源锁定）。"
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：`strptime` 1 例真失败；musl `src/time/strptime.c:133-139` 对 `%s` **没有任何效果**（既不解析也不写入 `tm`），语料期望 `%s` 被识别。**性质 = 语义口径分歧**（非崩溃、非静默错码）。**倾向（待用户裁定）**：按 musl 语义为准（`%s` 不支持 ⇒ 语料该例改分类/标 `excluded` 并给 reason），**不**改 musl 实现去迁就语料。**等级 = P3**（1 例、非阻断）。**证据指针**：`TESTCASES-047t` 完成区 C 组、`.work/log/testcases/libc-test-user-static.log`。**交叉引用**：`TESTCASES-047t`、`TESTCASES-044t`（语料源锁定）。**〔处置（2026-10-17，architect 立项）〕** 本 issue 执行落点 = **`INFRA-087t`**（`.tao/tasks/infra/INFRA-087t-strptime语义归属与分类.md`）：口径 = **musl 语义为准**（`ADR-0025 D7` 的对照目标亦 musl）⇒ 最小复现钉死「`%s` parse-only、不写 `tm`」，把该例 `fail` → `known-fail`（依据本 issue），并修 runner 的 `known-fail` 准入（仅 `ISS-246` → 逐例依据表，保留「无依据即 FAIL」）；**不改语料/期望、不改 musl 实现**；`status` 待 `INFRA-087t` 收尾后由主会话回填 `closed`。"
 
 - id: ISS-252
   title: "【M9】musl 端口无 `clone.s`（`src/thread/clone.c` 返回 `-ENOSYS`）⇒ 线程 / `posix_spawn` / `popen` 全不可用；`libc-test` 静态档 20 例 blocked"
@@ -775,3 +775,11 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：`regression/flockfile-list`、`regression/setenv-oom` 两例在 `qemu-dadao` 上以宿主 `SIGBUS`/`SIGTRAP` 终止（非 guest 退出码），归 `blocked`。**性质（未定根因）**：可能是 qemu-user 的 guest 栈/内存映射或 `setenv` OOM 路径的宿主侧故障；**不预设**为测试缺陷。**等级 = P3**（2 例、非阻断）。**处置**：qemu 面诊断（宿主信号来源 / guest 地址映射 / 是否 `setenv-oom` 依赖内存上限），给出「guest 可判失败」或修 qemu。**证据指针**：`TESTCASES-047t` 完成区 blocked 段。**交叉引用**：`QEMU-062t`（user-mode 后端）、`ISS-247`（装载基址）。"
+
+- id: ISS-256
+  title: "【P1】两处独立 codegen/ABI 缺陷（`libc-test` 静态档 `ISS-249` 收口后余 2 例）：① 变参聚合实参两侧取法不一致（`union semun` 经 `semctl(...,IPC_STAT,arg)` ⇒ `arg.buf` 读到 0、`EFAULT`）；② `shmat()` 指针返回经 `__syscall_ret` 尾调用未落 `rb8`（`p` 为栈地址 ⇒ `shmdt` `EINVAL`）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档第 2 轮现场，2026-10-17；architect 立项；两例合并一条 —— 同属调用/返回 ABI 面、同一验收批次）】**现象（逐字）**：① `functional/ipc_sem.c:58: semctl(semid, 0, IPC_STAT, arg) failed: Bad address`（guest exit 1；`arg.buf` 实测读到 0）；② `functional/ipc_shm.c:80: shmdt(p) failed: Invalid argument`（该例 `mode` 断言 `:57` 已过；宿主 `shmat` 返回 `0x2aaaaaaab000`，guest 侧 `p` 实测为**栈地址**）。**与 `ISS-249` 无关**：argmask 已 12→245、三载体逐项一致、门控 `make check-syscall-abi` **69/69** rc=0（`ISS-249` 已 `closed`）。**根因方向（待诊断确认，不预设修法）**：① musl `semctl` 为变参（`int semctl(int,int,int,...)`），语料以 8 B `union semun` 作可变实参 ⇒ 一侧按值放寄存器槽、另一侧 `va_arg` 按间接读（契约 = `contract-abi §6.4`：`union` 不满足 HFA/HPA ⇒ 通用聚合 ≤64 B 拆 8 B 块入 RD bank、>64 B 间接；`§5` 变参拆法不变 ⇒ **两侧必须同取法**）；② `shmat()` = `return (void *)syscall(SYS_shmat,...)`，`syscall()` → `__syscall_ret()` **尾调用**，`shmat.o` 反汇编尾调用后无 `rb8` 落值（契约 = `contract-abi §4.4`：指针返回**直接落 `rb8`**、不经 `rd8` 中转；`§4.6` `call` 的 `Defs` 含 `rb8–rb15`）。**等级 = P1**（两例为 `M8` 静态档真失败；SysV IPC 属用户态栈基础能力）。**证据指针**：`.work/log/testcases/ISS-249-static.json`（`fail` 两条 `reason`/`first_error` 逐字）+ `TESTCASES-047t` 完成区第 2 轮；最小复现随任务书自包含（原现场复现件在 `.work/evidence/ISS-249/`，**内容溯源、非执行必需**）。**落点** = `LLVM-101t`（`.tao/tasks/llvm/LLVM-101t-可变参聚合与shmat指针返回bank.md`；含诊断第一步「哪侧偏离契约 + 条款号 + 反汇编」、可达 FAIL、`install-host` 前置申报）。**边界**：本笔未改 `components/**`（只登记）。**交叉引用**：`TESTCASES-047t`、`ISS-249`（argmask 已消解）、`contract-abi §4.4`/`§6.4`/`§5`、`ADR-0018 C5`、`ADR-0025`。"
