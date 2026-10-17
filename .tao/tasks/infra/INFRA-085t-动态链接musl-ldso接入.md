@@ -281,3 +281,10 @@
 | F11 `arch.mak` 表名与任务表 `getgr_a` 是否一致 | ✅已核 | 表内为 `src/passwd/getgr_a.c`（文件存在、`__getgr_a` 出处） | C1/C2/C4 逐条现场核 |
 
 **判决与状态对账**：F1/F9/F10/F11 为「已核无需改」、F2–F8 已修 ⇒ **无未处置 finding**；按派单**不改**本册 `**状态**`、不 commit/push，返主会话走 `/complete`。
+
+#### architect 提交留痕（2026-10-17，A1 批 + 台账批）
+- **档位**：本册**无 reviewer `Accepted` 判决**（A1 出口判据仍 BLOCKED）⇒ 流程档位应为 **WIP**；**本笔按派单给定文案逐字提交**（无 `WIP:` 前缀）⇒ **如实披露** ✗。
+- **提交（本任务分支 `INFRA-085t`，未 push）**：① `452294b` **A1 批**（11 文件 = `Makefile`、`tools/infra/build_musl.py`、`components/musl/{changelog.md,series,patches/**}`×6、本册）② `b7900cb` **台账批**（`issues.yaml`〔`ISS-239/240/241` 登记 + `ISS-244` 关 + `ISS-245` 新登记〕、`milestones.md`、`LLVM-099t` 册）③ `d697c00` **`LLVM-098t` 册完成区补录**（**批外遗留**：开工时已在工作树、非 A1 内容 ⇒ 单独一笔）。
+- **文件集对账（`git diff --cached --name-only` × 完成区「修改文件」）**：A1 批 **漏提 0 / 多提 0 / 越界 0**（对应「阶段 A(C1 本体)+C+E」块⑥的 `patches/**` 4 改 + 2 新 + `series` + `changelog`，及前两块声明的 `Makefile`/`build_musl.py`/本册）。**拆分说明**：`issues.yaml` 在 A1 块声明为「+`ISS-239/240/241`」、其后各块声明「未动」，本笔把该文件**整体**并入台账批（同一文件的 6 处改动无法按 hunk 拆分；`ISS-244` 关 / `ISS-245` 亦在其中）。
+- **门控（各留自身真实 rc）**：`make check`(L1) **rc=0**；`check-patch-tree` **rc=0（152 补丁）**、`check-index-blobs`、`check-source-state`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`check-component-changelog`、`python3 tools/infra/check_issues.py` 各 **rc=0**（日志 `.work/log/architect/INFRA-085t-commit-A1/`）。**未跑**（`ISS-229` 并发禁令；本笔纯提交/文档）：`install-host` / `build-*` / L2 / L3。
+- **边界**：**未改**本册 `**状态**`（仍 `待开始`）✗、**未 push** ✗；A1/A(C1)+C+E 完成区内容**未改** ✗。
