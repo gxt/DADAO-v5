@@ -81,7 +81,7 @@ help:
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
-	@echo "  make build-musl-shared  Build musl shared/PIC libc.so (+ install libc.so and the ld-musl-dadao.so.1 symlink into the target sysroot; INFRA-085t stage A1; needs install-host + fetch/apply-series)"
+	@echo "  make build-musl-shared  Build musl shared/PIC libc.so + link a dynamic smoke executable (PT_INTERP/DT_NEEDED), and install libc.so + the ld-musl-dadao.so.1 symlink into the target sysroot (INFRA-085t stage A1/B1; needs install-host + fetch/apply-series)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
@@ -494,8 +494,10 @@ build-musl:
 # ld-musl-dadao.so.1 -> libc.so symlink into the target sysroot lib dir
 # (ADR-0016 D5).  The static line is checked in the same run (lib/libc.a is
 # built from the same non-PIC objects), so the two modes cannot drift apart.
-# Stage A1 stops at "produces + statically verifiable": linking and running
-# dynamic executables is stage B/C (ADR-0025 D6).
+# Stage B1 (INFRA-085t): the same run links a dynamic EXECUTABLE with the
+# interpreter passed explicitly (-dynamic-linker /lib/ld-musl-dadao.so.1,
+# contract-dynlink.md §6.1 / ADR-0026 D2) and checks PT_INTERP + DT_NEEDED.
+# Running/loading it is P3 (qemu-user) and is not done here.
 build-musl-shared:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl-shared: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS) --shared

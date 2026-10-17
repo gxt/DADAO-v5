@@ -39,6 +39,14 @@ INFRA-085t stage A1 ("shared library and PIC") adds a second, SHARED mode
    (ADR-0016 D5; the path ``/lib/ld-musl-dadao.so.1`` is what
    ``contract-dynlink.md`` §6.1 fixes as ``PT_INTERP``), and the symlink is
    checked to resolve to the built ``libc.so`` byte-for-byte.
+7. **dynamic executable** -- the smoke program is linked again against that
+   ``libc.so`` as a *dynamic* executable, with the interpreter passed
+   **explicitly** (``-dynamic-linker /lib/ld-musl-dadao.so.1``; lld has no
+   default and its default is deliberately not changed, ADR-0026 D2).  The
+   checks are the stage B1 exit criteria: the raw ``PT_INTERP`` payload must be
+   the contract string byte-for-byte (NUL included) and ``DT_NEEDED`` must name
+   ``libc.so``.  A negative control links the same objects *without* the flag
+   and must produce no ``PT_INTERP`` (so the flag is provably load-bearing).
 
 The static and the shared configurations share one in-tree build directory, so
 each mode re-runs ``./configure`` when ``config.mak`` records the other one;
@@ -94,6 +102,13 @@ RAM_BASE = 0xFC0000000000
 # the DT_SONAME and the symlink target below use.
 SONAME = "libc.so"
 LDSO_NAME = "ld-musl-dadao.so.1"
+# contract-dynlink.md §6.1 (ruling 5, user-confirmed 2026-10-14): the
+# interpreter path written into PT_INTERP is the guest-visible
+# /lib/ld-musl-dadao.so.1, which the install step makes a symlink to libc.so.
+# lld has *no* default for it, so every dynamic-executable link in this build
+# must pass it explicitly (ADR-0026 D2: do not change lld's default; the call
+# site states the contract value).  Stage B1 = exactly this wiring.
+DYNAMIC_LINKER = f"/lib/{LDSO_NAME}"
 # musl's configure probes `--hash-style=both` into LDFLAGS_AUTO; §5 ruling 6
 # ("only GNU hash, no DT_HASH") and the required DT_SONAME are imposed here.
 # LDFLAGS_ALL = $(LDFLAGS_AUTO) $(LDFLAGS) and lld reads the LAST occurrence of
@@ -121,8 +136,12 @@ COMPILER_RT_BUILTINS = (REPO_ROOT / ".work" / "build" / "compiler-rt-builtins"
 # ELF constants used by the shared-object checks (gABI ch. 5 + lld's values).
 PT_LOAD = 1
 PT_DYNAMIC = 2
+PT_INTERP = 3
+PT_PHDR = 6
+PT_TLS = 7
 ET_DYN = 3
 DT_NULL = 0
+DT_NEEDED = 1
 DT_HASH = 4
 DT_STRTAB = 5
 DT_SONAME = 14
@@ -327,6 +346,105 @@ def link_program(work: Path, obj: Path) -> Path:
     return elf
 
 
+def link_dynamic_program(work: Path, obj: Path, so: Path) -> Path:
+    """Link the smoke program as a DYNAMIC executable (INFRA-085t stage B1).
+
+    ADR-0026 D2 / contract-dynlink.md §6.1: lld has no default interpreter, so
+    the call site passes ``-dynamic-linker /lib/ld-musl-dadao.so.1`` explicitly
+    (lld's default is deliberately NOT changed).
+
+    No linker script is used here, and that is a deliberate, measured decision:
+
+    * ``tests/scripts/dadao.lds`` (the static/M4 layout) declares its own PHDRS.
+      lld then takes the *whole* program-header set from the script
+      (``LinkerScript::createPhdrs``), i.e. ``.interp``/PT_INTERP and
+      PT_DYNAMIC are never emitted -- and the link still succeeds (rc=0), so
+      that script silently yields a non-interpreted ET_EXEC.  Wrong tool for
+      this job.
+    * ``tests/scripts/dadao-dyn.lds`` targets ET_DYN (``-shared`` / ``-pie``)
+      and its single RWX segment starts at vaddr 0.  The smoke crt (crt1.o) is
+      non-PIC, so an ET_EXEC at the RAM base/at 0 cannot carry it here.
+
+    lld's own layout is therefore used: ET_EXEC, headers inside the first
+    PT_LOAD (PT_PHDR), ``.interp`` present because of the flag above.  The load
+    address is a P3 (qemu-user) concern; B1's criterion is structural
+    (contract-dynlink.md §6.1).
+    """
+    elf = work / "musl_smoke_dyn.elf"
+    cmd = [str(TOOLCHAIN_BIN / "ld.lld"),
+           str(MUSL_SRC / "lib" / "crt1.o"), str(obj), str(so),
+           "-dynamic-linker", DYNAMIC_LINKER,
+           "-o", str(elf)]
+    res = run(cmd, cwd=REPO_ROOT)
+    if res.returncode != 0:
+        raise RuntimeError(f"dynamic link rc={res.returncode}\n{res.stdout}")
+    return elf
+
+
+def interp_bytes(info: dict) -> bytes:
+    """The raw PT_INTERP payload, NUL included (byte-level comparison)."""
+    for p in info["phdrs"]:
+        if p["type"] == PT_INTERP:
+            return info["data"][p["offset"]:p["offset"] + p["filesz"]]
+    return b""
+
+
+def check_dynamic_exe(elf: Path, inject: bool) -> list[tuple[str, str, str, bool]]:
+    """Return (name, expected, actual, ok) for the stage B1 criteria.
+
+    Criteria (task book INFRA-085t stage B exit / contract-dynlink.md §6.1):
+    dynamic executable with the byte-exact PT_INTERP string
+    ``/lib/ld-musl-dadao.so.1`` and a DT_NEEDED entry naming libc.so.
+    """
+    info = parse_elf(elf)
+    types = {p["type"] for p in info["phdrs"]}
+    tags_list = info["dynamic"] or []
+    tags = dict(tags_list)
+    needed = [dyn_string_at(info, tags, val)
+              for tag, val in tags_list if tag == DT_NEEDED]
+    raw_interp = interp_bytes(info)
+
+    exp_interp = DYNAMIC_LINKER if not inject else f"{DYNAMIC_LINKER}.bogus"
+    exp_interp_b = exp_interp.encode() + b"\0"
+    exp_needed = [SONAME] if not inject else [f"{SONAME}.bogus"]
+    exp_class = 2 if not inject else 1
+    exp_data = 2 if not inject else 1
+    exp_type = 2 if not inject else 3          # ET_EXEC (inject: ET_DYN)
+    exp_mach = EM_DADAO if not inject else 0x3E
+    return [
+        ("dynamic executable parsed", "no parse error",
+         info["parse_error"] or "no parse error", info["parse_error"] is None),
+        ("ELF class", "2 (ELFCLASS64)" if not inject else "1 (ELFCLASS32)",
+         str(info["ei_class"]), info["ei_class"] == exp_class),
+        ("ELF data", "2 (ELFDATA2MSB, big-endian)" if not inject else "1 (ELFDATA2LSB)",
+         str(info["ei_data"]), info["ei_data"] == exp_data),
+        ("ELF type", "2 (ET_EXEC)" if not inject else "3 (ET_DYN)",
+         str(info["e_type"]), info["e_type"] == exp_type),
+        ("e_machine", f"0x{exp_mach:04x} (EM_DADAO)" if not inject else "0x003e (EM_X86_64)",
+         f"0x{info['e_machine']:04x}", info["e_machine"] == exp_mach),
+        ("PT_PHDR present (headers are loadable)", "present",
+         "present" if PT_PHDR in types else "absent",
+         (PT_PHDR in types) if not inject else PT_PHDR not in types),
+        ("PT_INTERP present", "present" if not inject else "absent",
+         "present" if PT_INTERP in types else "absent",
+         (PT_INTERP in types) if not inject else PT_INTERP not in types),
+        ("PT_INTERP bytes",
+         f"{exp_interp_b!r} ({len(exp_interp_b)} B)",
+         f"{raw_interp!r} ({len(raw_interp)} B)",
+         raw_interp == exp_interp_b),
+        ("PT_DYNAMIC present", "present" if not inject else "absent",
+         "present" if PT_DYNAMIC in types else "absent",
+         (PT_DYNAMIC in types) if not inject else PT_DYNAMIC not in types),
+        ("DT_NEEDED", str(exp_needed), str(needed), needed == exp_needed),
+        ("DT_GNU_HASH present", "present" if not inject else "absent",
+         "present" if DT_GNU_HASH in tags else "absent",
+         (DT_GNU_HASH in tags) if not inject else DT_GNU_HASH not in tags),
+        ("no PT_TLS (program has no TLS input)", "absent",
+         "absent" if PT_TLS not in types else "present", PT_TLS not in types),
+    ]
+
+
+
 def parse_elf(path: Path) -> dict:
     """Minimal, dependency-free ELF64 reader (big- or little-endian).
 
@@ -401,6 +519,18 @@ def dyn_string(info: dict, tags: dict[int, int], tag: int) -> str | None:
     if tag not in tags or DT_STRTAB not in tags:
         return None
     off = vaddr_to_offset(info, tags[DT_STRTAB] + tags[tag])
+    if off is None:
+        return None
+    data = info["data"]
+    end = data.find(b"\0", off)
+    return data[off:end].decode(errors="replace") if end >= 0 else None
+
+
+def dyn_string_at(info: dict, tags: dict[int, int], index: int) -> str | None:
+    """Read the NUL-terminated string ``index`` bytes into DT_STRTAB (.dynstr)."""
+    if DT_STRTAB not in tags:
+        return None
+    off = vaddr_to_offset(info, tags[DT_STRTAB] + index)
     if off is None:
         return None
     data = info["data"]
@@ -623,6 +753,26 @@ def main() -> int:
         if args.no_smoke:
             print(f"build-musl: shared OK ({len(checks)}/{len(checks)} checks) so={so}")
             return 0
+
+        # ── stage B1: link a DYNAMIC EXECUTABLE against that libc.so ────────
+        # The interpreter is passed explicitly (contract-dynlink.md §6.1,
+        # ADR-0026 D2); see link_dynamic_program for why the static link
+        # script cannot be reused here.
+        dynwork = Path(args.work_dir)
+        dynwork.mkdir(parents=True, exist_ok=True)
+        try:
+            dobj = compile_program(dynwork)
+            delf = link_dynamic_program(dynwork, dobj, so)
+        except RuntimeError as exc:
+            print(f"build-musl: FAIL ({exc})", file=sys.stderr)
+            return 1
+        raw = interp_bytes(parse_elf(delf))
+        print(f"build-musl: PT_INTERP of {delf} = "
+              + " ".join(f"{b:02x}" for b in raw)
+              + f"  ({raw!r})")
+        dyn_checks = check_dynamic_exe(delf, args.inject)
+        if report_checks(dyn_checks, "dynamic-executable"):
+            return 1
 
     if args.no_smoke:
         print("build-musl: build OK (smoke link skipped)")
