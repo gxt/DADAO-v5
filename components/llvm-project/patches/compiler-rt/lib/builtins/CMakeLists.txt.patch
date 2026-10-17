@@ -1,0 +1,21 @@
+diff --git a/compiler-rt/lib/builtins/CMakeLists.txt b/compiler-rt/lib/builtins/CMakeLists.txt
+index e128fea6a..97caa249d 100644
+--- a/compiler-rt/lib/builtins/CMakeLists.txt
++++ b/compiler-rt/lib/builtins/CMakeLists.txt
+@@ -866,6 +866,16 @@ set(avr_SOURCES
+   ${GENERIC_SOURCES}
+ )
+ 
++# DADAO arch.  Narrow scope (INFRA-079t): only the complex-multiply builtins
++# are wired up so that musl's cpow/cpowf can link (__muldc3 / __mulsc3).
++# The rest of GENERIC_SOURCES / GENERIC_TF_SOURCES and an arch fp_mode.c are
++# added by the full builtins task (ADR-0027 D1/D3) -- do not grow this list
++# piecemeal.  Both files are freestanding C and need no arch-specific headers.
++set(dadao_SOURCES
++  muldc3.c
++  mulsc3.c
++)
++
+ # hexagon arch
+ set(hexagon_SOURCES
+   hexagon/common_entry_exit_abi1.S

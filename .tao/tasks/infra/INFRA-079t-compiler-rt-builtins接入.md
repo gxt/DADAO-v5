@@ -37,6 +37,15 @@
 - **理由**：① **最小原则**（只提前堵点符号，不整体前移）；② 该二符号**当前堵着 `libc.so`**（`P2`/A1 主判据 `make build-musl-shared` rc=0）。
 - **落地口径**：本节**仅**记录主会话决定，**不**改写 `ADR-0027 D1`–`D5`、**不**改 `**状态**`、**不**改用户 2026-10-17 原裁定的其余部分；追认结果由主会话追加到本节（未追认前**不**视为用户裁定）。
 
+### 实现（2026-10-17，窄化范围）
+
+**测试结果**：证据 `.work/evidence/INFRA-079t/run.sh` default **15 PASS / 0 FAIL（rc=0）**；`--inject` I1/I2/I3 **全部转红**（oracle 翻期望 ⇒ qemu rc=1；移走补丁 ⇒ patch-wiring 红；archive 去 `muldc3.c.o` ⇒ link rc=1），`cp`+md5 还原后重跑**回绿**（rc=0，"INJECT OK"）。
+**修改文件**：① 新 `components/llvm-project/patches/compiler-rt/cmake/builtin-config-ix.cmake.patch`（`set(DADAO dadao)` + `ALL_BUILTIN_SUPPORTED_ARCH` 并入 `${DADAO}`，共 2 行）；② 新 `components/llvm-project/patches/compiler-rt/lib/builtins/CMakeLists.txt.patch`（`set(dadao_SOURCES muldc3.c mulsc3.c)` + 5 行注释）；③ `components/llvm-project/series` 76→**78**；④ `components/llvm-project/changelog.md` +1 条（M8）；⑤ 本块 + `第 1 轮 engineer 自审`。**头文件零改动**：`int_lib.h`/`int_types.h` 无需 arch 分支（`COMPILER_RT_ABI` 非 ARM 为空；`_Complex`/`double` 由前端定），`int_endianness.h` 走 `__BYTE_ORDER__` 分支已正确（现场探针 `_YUGA_BIG_ENDIAN=1`，host 对照被 `#error` 拒）。
+**验收结果**：① **符号可得**：`nm libclang_rt.builtins-dadao.a` = `T __muldc3` / `T __mulsc3`，成员 **2**（最小集），`nm -u` **空**；目标程序用该 archive 链接 rc=0。② **数学 oracle（独立派生）**：25 例（double 15 = 6 精确 + 9 特殊；float 10 = 4 精确 + 6 特殊），覆盖正常值 / 溢出到 `inf` / NaN / 带符号零；期望源 = 自写 IEEE-754 模型（`Fraction` 精确值 + 逐操作 RN-even 舍入）+ 重算路径取上游 `muldc3_test.c` 分类表；QEMU（大端）**rc=0**；host gcc 同源交叉 **rc=200**（表全过 + BE 检查正确判为小端）；BE 内存映像检查（π 的 BE 字节 ↔ 反向字节）双向可判别。③ **B 类消失**：`ld.lld -shared --no-undefined --error-limit=0` 对 `cpow.lo`/`cpowf.lo`，**对照 2 条 undefined（`__muldc3`/`__mulsc3`）⇒ 加 archive 后 0 条**；全 `.lo`（**1351**）全量链接 `--error-limit=0` **rc=0**（B 类为唯一剩余；1 个对象替换见「坑①」）。④ **静态不回归**：按派单**未跑** `make build-musl*` ⇒ 以「工具链二进制未被本笔触碰（`clang`/`ld.lld` size+mtime+ctime 前后同）+ 静态 ELF 探针 `ET_EXEC`/`BigEndian`/无 `PT_INTERP` 且可跑 rc=0 + 改动面不涉 clang/llvm/lld/musl」为据（**非**全量静态重建，如实标注）。
+**门控（各留自身 rc）**：`check-patch-tree` **rc=0（154 补丁，原 152；llvm-project 78，原 76）**、`check-index-blobs`/`check-source-state`（llvm-project `HEAD=a297528f2 count=1 clean=True`）/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check_issues.py`/`make check`(L1) 全 **rc=0**。
+**新发现/坑**：① **对象树污染**：`.work/source/musl/obj/src/crypt/crypt_sha512.lo` 与其 `.o` **逐字节相同**（非 PIC 对象冒充 `.lo`，`.rela.text` 11 条 `ABS48`）⇒ 全量 `-shared` 链接报 `ABS48 … recompile with -fPIC` 假 FAIL；用 build-tree clang 重编 `-fPIC`（改走 GOT/`PCREL_*`）后 rc=0。该 `.lo` 比源新 ⇒ `make build-musl-shared` 不会重编它，建议主会话先 `make -C .work/source/musl clean`。② **`-rtlib=compiler-rt` 未被 DADAO driver 消费**（`warning: argument unused during compilation`；driver 不加 builtins archive）⇒ 当前「链接期找到」只能走**显式 archive**（派单允许的「等价路径」）；driver 自动接线 + 安装落点属本任务主体（`D5`）。③ 命名差：`-print-libgcc-file-name` = `…/dadao-unknown-unknown-elf/libclang_rt.builtins.a`，而构建产物为 `libclang_rt.builtins-dadao.a` ⇒ 安装接线须 `LLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON` 或补 arch 名，勿在 install 时踩。④ standalone 配置须同时给 `CMAKE_CXX_COMPILER_TARGET`（`clang++` 默认 triple `unknown`，`project(... CXX)` 会失败），与产物无关。
+**遗留问题**：按派单**未跑** `install-host`/L2/L3/`build-musl*`，**未** commit/push，**未**改 `**状态**`；原 7 项接入点中除本二符号外的 6 项、`D2` 安装落点、picolibc vendored 副本移除、`ISS-243`/`ISS-245`、`B1/C1/D1` **均未做**（按原排期）。
+
 ## 已查证事实（源 `INFRA-078t`，**引用勿重复查证**）
 
 1. **上游不认识 `dadao`**：`int_lib.h`/`int_types.h`/`int_endianness.h` **无** `__dadao__`/`__DADAO__` 分支（`grep` 0 命中）。
@@ -110,7 +119,19 @@
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+自主逐行审查（无嵌套子代理）；判决 = **窄化范围可交付**（外部阻塞与剩余类均已如实披露）。按派单**未改** `**状态**`（主会话统一口径）。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `gen_oracle.py::bits()` 的 inf 分支三元运算优先级错（sign 掩码会被整体条件表达式吞掉）⇒ 负数 inf 期望值错 | ✅已修 | 拆成显式 `if/else` 返回 64/32 位掩码 | `run.sh S4` qemu rc=0；`neg-inf-finite` 期望 `0xfff0…`/`0x7ff0…` 与模型一致（gen 日志逐例打印） |
+| F2 初版对 NaN 结果做**位精确**比较（NaN 符号/payload 未规定）⇒ gcc 交叉首跑 rc=8（gcc 给 `0xfff8…`，模型给 `0x7ff8…`） | ✅已修 | 期望编码改为「精确位 / NaN / ±inf」三态：NaN 比类别、inf 比符号，仅有限值比位 | host 交叉 `rc=200`（25 例全过 + BE 检查判别成功），target `rc=0` |
+| F3 证据脚本 S5 的 `-fPIC` 单文件编译用了相对仓库根的 `-Iarch/…` ⇒ `ctype.h` not found（假 FAIL） | ✅已修 | 改为 `( cd .work/source/musl && … )` 内编译 | `run.sh S5-full-shared-link` rc=0 |
+| F4 S6 工具链快照用 `>>` 追加 ⇒ 跨次运行累加，第二次起恒 FAIL | ✅已修 | 快照前 `: > "$after"` 截断 | 连续两次 default 均 `S6 PASS` |
+| F5 全量 `-shared` 链接出现 11 条 `ABS48` 报错，初判为「新类」 | ✅已修（定性） | 查证 `crypt_sha512.lo` 与 `.o` **逐字节相同**（非 PIC 冒充 `.lo`）；替换为 `-fPIC` 重编对象后 rc=0，并写入「坑①」 | `cmp` rc=0（o≡lo）；替换后全量链接 rc=0、DSO 内 `t __muldc3`/`t __mulsc3` |
+| F6 派单提示的 `clang -rtlib=compiler-rt` 路径实测被 driver 忽略（`-Wunused-command-line-argument`） | ✅已修（口径） | 改用派单允许的「等价路径」= 显式 archive；driver 接线登记为遗留/坑② | `run.sh S4` 链接 rc=0；driver 警告原文见 `/tmp/opencode/INFRA-079t/probe*` 记录 |
+| F7 standalone `cmake` 因 `clang++` 默认 triple `unknown` 在 `project(... CXX)` 失败 | ✅已修（命令侧，不入仓） | 配置补 `-DCMAKE_CXX_COMPILER_TARGET=dadao-unknown-elf` | `run.sh S2` configure rc=0、ninja rc=0 |
+
+**未修 finding**：无（F1–F7 均处置；外部阻塞项见本册「遗留问题」，非本笔缺陷）。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
