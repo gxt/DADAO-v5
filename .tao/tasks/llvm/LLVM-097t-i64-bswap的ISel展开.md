@@ -105,16 +105,26 @@ done
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`.work/evidence/LLVM-097t/run.sh` **28/28 PASS / 0 FAIL**（默认档）；`--inject no-action` **9/9**、`--inject model-shift8` **3/3**、`--inject expect8byte` **3/3**（三条注入均「预期 FAIL → `cp`+md5 还原 → 回绿」，同一次前台执行内闭合）。
+**修改文件**：组件检出 `llvm/lib/Target/DADAO/DADAOISelLowering.cpp`（base+1 amend，md5 `d22dbbb3…`）；`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOISelLowering.cpp.patch`（重导出，1 份；hunk `+1,1276`→`+1,1288`）；`components/llvm-project/changelog.md`（+1 条）；证据 `.work/evidence/LLVM-097t/{run.sh,bswap_model.py,bswap32.c,regress-096t/*.o}`。`series` 未改（仍 76）。**未碰** A1 的 4 项。
+**验收结果**：`ninja -C .work/build/llvm -j8 clang lld` **rc=0**（3m59s）。四档 `dynlink.c` rc：**-O0 0 / -O1 0 / -Og 0 / -Os 0 / -O2 0**，`Cannot select` **0** 处（修前 -O1/-Og/-Os/-O2 全 rc=1 + `Cannot select: t26: i64 = bswap t20`；-O0 rc=0）。musl 真实配方 `make obj/ldso/dynlink.{o,lo}`（`CFLAGS_AUTO=-O2`，CC=构建树 clang）**rc=0**。端序 oracle（期望=手写 4 字节反转，输入集取册内 7 值）`-O2`/`-O1` 各 **7/7**：`01020304→04030201`、`000000FF→FF000000`、`FF000000→000000FF`、`00FF00FF→FF00FF00`、`80000000→00000080`、`FFFFFFFF→FFFFFFFF`、`A5A5A5A5→A5A5A5A5`（low32）。回归：strlen/memcpy/atoi `-O2 -fPIC` 对象剥离 `.comment` 后与 `LLVM-096t` 基线**逐字节相同**（整对象 md5 变化仅因 `.comment` 内嵌组件 commit hash）。门控各留自身 rc=0：`check-instrinfo`（0 errors）/ `check_lit_gen`（64 passed, 0 failed）/ `check-patch-tree`（**150 patches OK**，5 组件现场统计）/ `check-index-blobs`（111 new-file OK）/ `check-source-state`（llvm-project `HEAD=e60970302e57 count=1 clean=True`）/ `check-no-residue` / `check-tasks`（33 册，① 0 漏收尾）/ `check-knowledge-refs`（0 悬空）/ `check-component-changelog`（5 文件×4 断言）/ `check_issues`（49 open/16 closed）/ `make check`(L1) **rc=0**。
+**新发现/坑**：① **窄返回 canonical 化缺口（既存，非本册引入）**：`unsigned addu(unsigned,unsigned)` 在 `-O2` 下直接 `add.uo {rd0,rd8},rd17,rd16` 返回、无 32 位 mask，`rd8[63:32]` 可为溢出高位 ⇒ 与 `contract-abi.md §4.4` C5「callee 扩展为 canonical 64 位」不符；bswap 只是暴露面之一（`x<<24`、`AND/SHR` 链同样把位留在 32–55），**建议另册/ISS**。② 路径 A 的 `anyext` 后果实测：`bswap32` 返回 `rd8` 高位含 `x<<24` 溢出位（如 `0x01020304` ⇒ full `0x0001020304030201`）⇒ oracle **只断言低 32 位**（册内已定，禁 8 字节口径）。③ 注入还原踩坑：`cp -p` 保留**旧 mtime**，ninja 认为注入产物 up-to-date ⇒ 首轮 `--inject no-action` 出现「还原后仍红」**假红**；修法 = 还原后 `touch` 源文件强制重建（已固化进 `run.sh` 注释与断言）。④ 整对象 md5 会随组件 base+1 commit hash（`.comment` ident）变化 ⇒ 回归断言必须剥离 `.comment` 后比较。⑤ `150 patches` 是 5 组件合计；llvm-project `series` 仍 **76**（本册只改既有补丁）。
+**遗留问题**：① 按主会话指令**未跑** `install-host` / L2 / L3（`ISS-210` 的安装根新鲜性归落地面任务；四档验收用构建树 clang，与 `install-host` 同源二进制）；② `libc.so` 整体可链、`build-musl-shared` 全量仍受其它登记项限制（本册不判）；③ 任务 `**状态**` 按主会话指令**未改**（保持「待开始」），由协调者推进。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+**审查范围**：`DADAOISelLowering.cpp` 新增 3 行 action + 9 行注释（对应 `expandBSWAP` 机制的注释与源码逐条核对 `LegalizeIntegerTypes.cpp:665-691`、`TargetLowering.cpp::expandBSWAP`）；`run.sh`（28 项断言逐条可达 FAIL 性）；`bswap_model.py`（解析/语义/注入）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 模型初版断言 `rd8[63:32]==0`，与 `anyext` 语义冲突（会假红） | ✅已修 | 删该断言，改为注释说明「只断言低 32 位」；注入 `expect8byte` 提供可达 FAIL | `run.sh` oracle 7/7；`--inject expect8byte` 0/7 FAIL |
+| F2 初版 `--inject no-action` 首轮「还原后仍红」：`cp -p` 旧 mtime ⇒ ninja 跳过重编译 | ✅已修 | 还原后 `touch "$SRCFILE"` 强制重建（含注释） | 重跑 `--inject no-action` **9/9 PASS**（injected 四档 4 FAIL + `Cannot select`×4；restored 五档 rc=0） |
+| F3 `LLVM-096t` 三例整对象 md5 与基线不等（疑回归） | ✅已定位并改断言 | 实为 `.comment` 内嵌组件 commit hash（本册 amend 改变 HEAD）；`run.sh` 改为「剥离 `.comment` 后逐字节比较」+ 基线对象 provenance 校验 | strlen/memcpy/atoi 剥离后 md5 全等；`.comment` hexdump 现场对比 |
+| F4 窄返回 canonical 化（C5）缺口（`addu`/`bswap32` 高位脏） | ❌不修（超出册范围） | 无（最小改动；属既存类型提升行为，非 bswap 特有） | `-O2 -S` 现场：`add.uo {rd0,rd8}` 无 mask；`bswap32` full=`0x0001020304030201`；已写完成区「新发现 ①」 |
+| F5 `check-patch-tree` 计数与册内预期「150 → 变化」不符 | ❌不修（口径） | 无 | 实跑 `150 patches OK`（5 组件合计）；llvm-project `series` 现场 `wc -l`=76，未增文件 |
+| F6 `run.sh` 是否吞退出码（`tee`/管道） | ✅已核 | 无 `tee`；`make`/`ninja`/`clang` 均直接重定向后取 `$?`；`check-patch-tree` 计数用 `grep -oE` 现场提取 | `grep -n "tee"` 仅注释命中；28/28 PASS 与各 gate log 自身 rc 一致 |
+**判决**：F1/F2/F3/F6 已修并复验；F4/F5 为范围外/口径说明（不动代码）。无未修且在范围内的 finding ⇒ 实现完成，交 reviewer。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决）

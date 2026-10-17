@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..86062fbae
+index 000000000..02f227e35
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1276 @@
+@@ -0,0 +1,1288 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -267,6 +267,18 @@ index 000000000..86062fbae
 +  setOperationAction({ISD::CTTZ, ISD::CTTZ_ZERO_POISON, ISD::CTLZ,
 +                      ISD::CTLZ_ZERO_POISON, ISD::CTPOP},
 +                     MVT::i64, Expand);
++
++  // Byte swap (LLVM-097t; ISS-222 ③ / ISS-193 (c)).  The ISA implements a
++  // 64-bit byte swap as `rev.o rd, rs, 8` (ADR-0012 D10, contract-isa.md
++  // §6.4.3), but there is no i64 BSWAP ISel pattern, so the operation must be
++  // `Expand`: the generic expansion (TargetLowering::expandBSWAP, the
++  // Mips/RISCV-without-rev8 route) bottoms out in shift/and/or ops this
++  // backend already selects.  Leaving it at the default `Legal` is what broke
++  // `-O1`+ builds of musl's ldso/dynlink.c: DAGTypeLegalizer promotes an i32
++  // bswap to `SRL(bswap i64, 32)` (PromoteIntRes_BSWAP, which only calls
++  // expandBSWAP when the wider BSWAP is *not* legal/custom/promote) and ISel
++  // then aborts with "Cannot select: i64 = bswap".
++  setOperationAction(ISD::BSWAP, MVT::i64, Expand);
 +
 +  computeRegisterProperties(STI.getRegisterInfo());
 +
