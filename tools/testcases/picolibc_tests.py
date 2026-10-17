@@ -48,11 +48,15 @@ Classification
   running the test (LLVM lowering, missing libc symbol, linker relocation
   overflow, machine fault, QEMU crash, timeout).  Reported separately from
   ``excluded`` with a root-cause pointer and, where quantifiable, the unlock
-  condition; never merged into ``excluded``.
+  condition; never merged into ``excluded``.  **A non-zero ``blocked`` count is
+  a gate failure**: the run's coverage is incomplete, so the harness must not
+  report PASS.  Fix the gap, or -- only when the case is structurally out of
+  scope with a stated reason -- move it to ``EXCLUDED`` (never relabel a real
+  gap just to make the gate green).
 
-Exit status: 0 = no failures; 1 = one or more ``fail``; 2 = setup error.
-``--inject`` corrupts one test's expected exit status so the ``fail`` path is
-reachable (used by the evidence script).
+Exit status: 0 = no failures *and* nothing blocked; 1 = one or more ``fail``
+or ``blocked``; 2 = setup error.  ``--inject`` corrupts one test's expected
+exit status so the ``fail`` path is reachable (used by the evidence script).
 
 Counting is always live (no hard-coded totals).
 """
@@ -452,7 +456,15 @@ def main() -> int:
     if counts["fail"] > 0:
         print(f"picolibc-tests: FAIL ({counts['fail']} test(s) failed)", file=sys.stderr)
         return 1
-    print("picolibc-tests: PASS (fail=0)")
+    # ISS-248: a `blocked` case is a *gap*, not a skip -- the gate must not
+    # report PASS while the feature it claims to cover was never exercised.
+    # Structurally out-of-scope cases belong in EXCLUDED with a stated reason
+    # (never a relabel of a live gap).
+    if counts["blocked"] > 0:
+        print(f"picolibc-tests: FAIL ({counts['blocked']} test(s) blocked -- "
+              "build/run gap; coverage is incomplete)", file=sys.stderr)
+        return 1
+    print("picolibc-tests: PASS (fail=0, blocked=0)")
     return 0
 
 
