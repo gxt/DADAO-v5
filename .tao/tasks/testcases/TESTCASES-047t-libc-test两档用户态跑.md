@@ -4,6 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**；`qemu-dadao` 在安装根）；`INFRA-082t`（`P1` musl 静态，**`已验证`**）、`INFRA-085t`（`P2` 动态，**`已验证`**）；`TESTCASES-044t`（`libc-test` **取源与锁定**，**`已验证`**；`patchless = true` ⇒ 源只读）、`TESTCASES-045t`（`P1` 能力边界度量，`已验证`；其 `tools/testcases/run_suite.py` 在 `dadao-m1` 路径上已硬失败 ⇒ **本册不复用其运行路径**，只复用其**建链方法论**与排除口径的教训）；`ISS-247`（**链接基址**）、`ISS-246`（**known-fail 唯一依据**）、`ISS-229`（串行）、`ISS-210`（安装根新鲜度）、`ADR-0025`（`D2`/`D6`/`D7`）；**同批三册**：`TESTCASES-046t` / `TESTCASES-047t`（本册）/ `TESTCASES-048t` ⇒ **同改共享文件（`Makefile` / `milestones.md`）⇒ 串行**。
 **状态**：待开始
+**阶段进度**：静态档 ✅（pass 301 / fail 8 均有归属）/ 动态档 ⏳
 
 > **编号（现场取号，2026-10-17）**：现存最大 = `TESTCASES-045t` ⇒ 取 **`047`**；`046` 归同批 `embench-iot` 册；全历史 `grep -E 'TESTCASES-04[678]'` **0 命中**。
 
@@ -128,6 +129,15 @@ excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上�
 **新发现/坑**：① 静态档必须显式 `lib/libc.a`（同目录 `-lc` 选 `libc.so`），同 `TESTCASES-046t`。② `-g` 在本 target 全不可用（DWARF 4 字节重定位被汇编器拒：`relocatable operand in a 1/2/4-byte data field`）⇒ 上游 CFLAGS 的 `-g` 须剔除。③ `__dadao_argmask`（`arch/dadao/syscall_arch.h:63`）覆盖不足 ⇒ 4 条 fail 同根因；`wchar_t` 有符号性冲突（1 条 blocked）。④ 端口无 `clone.s` ⇒ 线程/`posix_spawn`/`popen` 全不可用（20 条 blocked）。⑤ compiler-rt builtins 只在 `.work/build`（未安装）⇒ `_Complex` 乘法链接失败。⑥ 上游 `src/math/gen/**` 不在上游构建集；任务书 367 的递归口径含其 26 个文件，本册按 excluded 逐条列。⑦ 同树曾有两实例并发跑同一 driver（互 rmtree 用例目录）⇒ 现证据脚本带并发守卫 + 隔离 `--work-dir`。
 **遗留问题**：动态档（`--link-mode dynamic` 已实现、**未执行**，下一笔）；`P4` golden 对照、`ISS-246` 修复不在本册。**待架构裁定**：blocked=25（是否登记 issue：musl `__clone`/argmask/`wchar_t`、compiler-rt 安装）与 fail=10（argmask 同根因 4 / long-double 5 / strptime 1）。无阻塞项。
 
+### 第 2 轮（`ISS-249` 收口后按册重跑，2026-10-17 engineer）
+
+**测试结果**：静态档重跑（`qemu-dadao` = **`.work/build/qemu/` 新构建**，未跑 `install-host`；`libc.a` 由 `make build-musl` 重建）⇒ discovered 367 / excluded 30 / total 337：**pass 301、fail 8、known-fail 3、blocked 25**（driver rc=1，`blocked>0` 按 `ISS-248` 口径）。对照首轮 **pass 299 → 301、fail 10 → 8、无回归**（原 299 条 pass 全在）。fail 8 逐条归属：`ipc_sem`（`semctl` 的 `union semun` 可变参未送达 = codegen 缺陷，**新发现**）、`ipc_shm`（mode 断言已过，卡 `shmdt(p)`：`shmat()` 指针返回值未落 `rb8`，**新发现**）、`math/{acoshl,asinhl,erfcl,lgammal,tgammal}`（`ADR-0030` → M9 binary128）、`strptime`（`ISS-251`，本笔范围外）；`ipc_msg`、`socket` 转 pass。blocked 25 分类同首轮（20 线程/`posix_spawn` → `ISS-252`/M9；`setjmp` → `ISS-254`；`tgmath` → compiler-rt；`mbsrtowcs-overflow` → `ISS-253`；2 条 qemu 宿主信号 → `ISS-255`）。
+**修改文件**：`components/musl/patches/{arch/dadao/syscall_arch.h,src/thread/dadao/syscall_cp.s}.patch`、`components/musl/changelog.md`；`components/qemu/patches/linux-user/dadao/cpu_loop.c.patch`、`components/qemu/changelog.md`；`tools/qemu/check_syscall_abi.py`（三载体逐项对账 + 完整性 + mask 块搬运数）、`Makefile`（`check-syscall-abi`，L1）、`docs/Process-07-门控分层规范.md`（§1.1 登记一行）、`.tao/knowledge/issues.yaml`（`ISS-249` 处置）；gitignored：`.work/evidence/ISS-249/{run.sh,repro.c}`、`.work/log/testcases/ISS-249-static.json`（同目录另有 `.report` 改名前的日志 + `.stdout`/`.stderr`）、`/tmp/opencode/ISS-249/`。
+**验收结果**：① 三载体一致：`make check-syscall-abi` **69/69** rc=0（guest/host 各 **245** 条、asm **41** 号 / **16** mask 类，逐项掩码全等、块搬运数 = 掩码位值）。② 功能：guest 复现 `-strace` 实测 `sendto(...,16)=1`、`recvfrom(...,ptr)=1`、`msg mode=666`、`shm mode=666`（修复前分别 `EINVAL`/`EFAULT`/`0`/`0`）。③ 可达 FAIL：`.work/evidence/ISS-249/run.sh` 3 处注入（host mask `0x32→0x02`、guest 丢一条 case、asm 块少一条 `rd2rb`）逐一 `[FAIL]` ⇒ `cp`+md5 还原 ⇒ 回绿，脚本 **rc=0**。④ 门控（各自 rc）：`check-patch-tree` 0（**177** 补丁 / 5 组件）、`check-index-blobs` 0、`check-source-state` 0、`check-no-residue` 0、`check-tasks` 0、`check-knowledge-refs` 0、`check-component-changelog` 0、`check_issues.py` 0、`check-syscall-abi` 0、`make check`(L1) **rc=0**。⑤ 耗时：静态档重跑 508 s；musl 增量构建 ~10 s、qemu 增量构建 ~6 s。
+**新发现/坑**：① 两条**函数调用 ABI 面的独立 codegen 缺陷**（与 argmask 无关，须 LLVM 侧处置）：(a) `union` 作可变参时调用侧放 rb、`va_arg` 侧按间接读 ⇒ `semctl(IPC_STAT, arg)` 的 `arg.buf` 读成 0（`ipc_sem`）；(b) 指针返回经 `syscall()`（宏 → `__syscall_ret` 尾调用）时未落 `rb8`（`contract-abi §4.4`），`shmat()` 返回值丢失（`ipc_shm`）。② 首轮「4 例同根因」仅对 `socket` 成立；`ipc_msg`/`ipc_shm` 的 mode 位宽问题属大端 `ipc_perm` 布局，用 musl 既有 `SYSCALL_IPC_BROKEN_MODE` 补偿。③ `build-musl` 走工具链戳增量，改 `arch/dadao/*.h` 后须核受影响对象确实重建（本次核过 `shmdt.o`/`sendto.o` mtime > 头文件）。
+**遗留问题**：动态档未跑（按册下一笔）；`ipc_sem`/`ipc_shm` 两条新发现 **待 architect 立项**（本笔不擅自开号）；`long double` 5 条随 M9（`ADR-0030`）；`strptime` 归 `ISS-251`；未跑 `install-host`（重跑用 `.work/build/qemu/qemu-dadao`，安装根仍是旧二进制）。
+
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -156,3 +166,18 @@ excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上�
 
 #### 第 1 轮 reviewer 验收
 （独立重跑、约束核验、判决）
+
+#### 第 2 轮 engineer 自审（`ISS-249` 收口）
+
+逐行审查 `__dadao_argmask`/`__dadao_trap`（mask 分投、两 bank 独立计数、`rd21`/`rb21` 尾槽）、`syscall_cp.s`（41 号派发 + 16 个 mask 块：先全部 `rd2rb` 再升序 `rd2rd`，逐块核「目的号 < 源号」）、`cpu_loop.c` 镜像表、`check_syscall_abi.py`（解析/完整性/块条数/可达 FAIL）与 `Makefile`/`Process-07` 接线；并以「表 → 反汇编」对照核 `shmat`/`shmdt` 实参落点。
+
+| # | finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| F1 | 只按「musl 源码出现的 `SYS_*`」派生会拉进端口 `bits/syscall.h.in` 未定义的名字（`SYS_riscv_flush_icache`）⇒ musl 全量编不过 | ✅已修 | 有效集 = musl 源码名 ∩ 端口 `__NR_` 名 ∩ 锁号表 | 245 条；`make build-musl` rc=0 |
+| F2 | 旧 `__dadao_trap` 只有 5 个 data 槽 + 1 个地址槽 ⇒ 6 参调用丢第 6 个 | ✅已修 | 按 mask 分投 6+6 槽 | `-strace`：`sendto(...,16)=1`、`recvfrom(...,ptr)=1` |
+| F3 | qemu 表内注释用 tab，与该文件 4 空格风格不一致 | ✅已修 | 该函数区 `:\t/*` → `: /*` | `make build-qemu` rc=0；`check-syscall-abi` 69/69 |
+| F4 | 证据脚本注入会临时改组件树，与套件重跑并发会污染编译 | ✅已修（按序执行） | 注入只在套件结束后跑 | 508 s 跑完后注入，3 注入均红→回绿 |
+| F5 | `ipc_shm` 重跑换了失败位置（mode → `shmdt`） | ❌不修（越界，登记） | 不改 musl/LLVM 代码 | `p` 实测栈地址 vs 宿主 `shmat` 返回 `0x2aaaaaaab000`；`shmat.o` 反汇编（尾调用，无 `rb8` 落值） |
+| F6 | `ipc_sem` 仍 fail（`va_arg(union)` 得 0） | ❌不修（越界，登记） | 同上 | 最小复现 `.work/evidence/ISS-249/repro.c` + 反汇编 |
+
+判决：本笔范围内 finding 全修；F5/F6 为**独立 codegen 缺陷**（非 argmask），越界不修、已按现场登记并给出候选修法（LLVM 侧尾调用返回 bank / 可变参聚合；或 musl 侧改用 `__syscall`）。状态 → `待验收`。
