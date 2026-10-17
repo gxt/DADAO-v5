@@ -100,6 +100,9 @@ help:
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
+	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
+	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
+	@echo "  make check-milestone  Current-milestone m-book exists + its task ids exist + check-tasks --strict (milestone closure; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
@@ -518,7 +521,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-contracts-pending check-contract-relocs check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -576,6 +579,18 @@ size-report:
 check-tasks:
 	@$(PYTHON) tools/infra/check_tasks.py
 
+# 里程碑收尾门控 (2026-10-17, A2; 归 **L2 层 / 里程碑收尾专项**，**不入** `check-modules`):
+# ① 当前里程碑（`milestones.md` 中 `项目里程碑 = M<n>` 断言的最大 n）在 `.tao/tasks/**`
+#    下有对应 `m` 册（命名惯例 `<PREFIX>-<nnn>m-*.md`；自报里程碑须与当前一致）；
+# ② 该 `m` 册列出的全部任务号须在 `.tao/tasks/**`（或 `.tao/archive/**`，已完成并归档）
+#    有对应任务书；册内零任务号 ⇒ vacuous FAIL（防「漏立任务」）；
+# ③ 接 `check_tasks.py --strict`（漏收尾 = 0）。
+# 不并入 L1 的理由：`m` 册未建前本目标**必然红**（预期的收口信号），日常 L1 不应常态红。
+check-milestone:
+	@$(PYTHON) tools/infra/check_milestone_tasks.py
+	@$(PYTHON) tools/infra/check_tasks.py --strict
+	@echo "check-milestone: PASS (m 册在场 + 所列任务号存在 + 漏收尾 = 0)"
+
 # spec 引用审计 (INFRA-011t): Check 1 引用有效性 + Check 2 无引用规范断言.
 # L1 成员 (INFRA-058t): 静态引用完整性检查（改后 0 误报）。覆盖 SimRISC-/DADAO-/
 # Toolchain-01/Machine-01；数值节号 (§7.2) 命中标题 `7.2 …`；模板占位 (§x/§N) 跳过。
@@ -608,6 +623,20 @@ check-contracts-dir:
 # 计数现场统计、不写死。可达 FAIL 见 `--self-test`。
 check-component-changelog:
 	@$(PYTHON) tools/infra/check_component_changelog.py
+
+# 契约「待定」指针门控 (2026-10-17, B4; L1 成员): `.tao/contracts/**` 出现
+# 「待…定 / 待裁定 / TODO / TBD」类标记时，该行须同时含 `ADR-<n>` / `ISS-<n>` 指针
+# （只认带编号的落点；光写「待后继 ADR 定」不算）；行内代码跨度与「」引用不计。
+# 计数现场统计、不写死；可达 FAIL 见 `--self-test`。
+check-contracts-pending:
+	@$(PYTHON) tools/infra/check_contracts_pending.py
+
+# 契约重定位类型表一致门控 (2026-10-17, B5; L1 成员): `contract-elf.md §2.2` 与
+# `contract-dynlink.md §4.3` 的**现行表**逐行比对（类型号 ↔ 名）；只解析两小节内的
+# 表格行 ⇒ 历史注记 / 其它小节的历史表不参与（旧值可留在注记里，以现行表为准）。
+# 附加自洽：表非空、号/名唯一、号 0 起密集；可达 FAIL 见 `--self-test`。
+check-contract-relocs:
+	@$(PYTHON) tools/infra/check_contract_relocs.py
 
 # cfx alias drift gate (SPEC-075t): verify .tao/contracts/contract-cfx-aliases.md is up-to-date.
 check-cfx-aliases:

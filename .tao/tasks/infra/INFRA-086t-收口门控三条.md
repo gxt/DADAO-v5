@@ -1,0 +1,54 @@
+# INFRA-086t: 收口门控三条（契约待定指针 / 重定位类型表一致 / 里程碑 m 册）
+
+**模块**：infra
+**项目里程碑**：M8
+**依赖**：`INFRA-080t`（门控覆盖补齐，`已验证`；同属「把结论落为机械判据」）；`INFRA-084t`（`check-component-changelog` 同批体例）；`docs/Process-07`（门控分层真源）；`TESTCASES-047t`（B4 的现场红点来源之一）；`ISS-229`（串行禁令）
+**状态**：待开始
+
+> **编号说明**：本任务由主会话直接下发（无任务书），工程方已用**临时 ID `INFRA-086t`** 落证据（`.work/evidence/INFRA-086t/`）⇒ 本册按该 ID 补立。`infra` 模块现场最大号 = `INFRA-085t` ⇒ `086` 递增；全仓（含历史）`git log -S INFRA-086t` **0 命中**。
+
+## 执行环境
+**执行环境**：本地
+
+## 目标
+
+把 2026-10-17 收口时依赖人工判断的三件事落为**机械门控**（fail-closed + 可达 FAIL），并登记层次与触发点：
+
+| 代号 | target | 判据（机械） | 层 |
+|---|---|---|---|
+| **A2** | `make check-milestone` | ① 当前里程碑（`milestones.md` 中 `项目里程碑 = M<n>` 断言的**最大 n**）在 `.tao/tasks/**` 有 `m` 册（`<PREFIX>-<nnn>m-*.md`，自报里程碑须一致）；② 该册所列任务号在 `.tao/tasks/**` **或** `.tao/archive/**` 真实存在（册内零任务号 ⇒ vacuous FAIL）；③ 接 `check_tasks.py --strict`（漏收尾 = 0） | **L2 层 / 里程碑收尾专项**（按需；**不入** `check-modules`） |
+| **B4** | `make check-contracts-pending` | `.tao/contracts/**` 出现「待…定 / 待裁定 / TODO / TBD」标记的行须**同行**含 `ADR-<n>` / `ISS-<n>` 指针（只认带编号落点）；行内代码跨度与「」引用不计 | **L1** |
+| **B5** | `make check-contract-relocs` | `contract-elf.md §2.2` 与 `contract-dynlink.md §4.3` 的**现行表**逐行比对（类型号 ↔ 名）；只解析两小节内表格行（历史注记/其它小节不参与）；附加自洽 = 表非空 / 号名唯一 / 号 0 起密集 | **L1** |
+
+## 接口规范
+
+- **输入**：`.tao/knowledge/milestones.md`、`.tao/tasks/**`、`.tao/archive/**`、`.tao/contracts/**`。
+- **输出**：三个脚本 + `Makefile` target + `docs/Process-07 §1.1` 登记行；**不改**任何契约正文 / 任务状态 / `spec/`。
+- **约束**：
+  - **fail-closed**：扫描面为空（无里程碑断言 / 无契约文件 / 表被删空）⇒ 非零；
+  - **计数现场统计、不写死**（契约数 / 行数 / 任务号数均现场派生）；
+  - **禁放宽判据**换绿（如块级指针、删除标记文字）。
+
+## 验收标准
+
+1. 三条门控**各自可达 FAIL**：内置 `--self-test` 反例 + 真实红/绿双证（A2 的「无 m 册」、B4 的 5 处真实陈旧、B5 的单边改号）。
+2. **注入 → FAIL → 还原 → 回绿**，还原用 `cp` + md5（禁 `git checkout`/`restore`/`stash`）；临时树优先。
+3. 层归属与触发点写进 `docs/Process-07 §1.1`；`check-milestone` **不并入** L1 / `check-modules`（m 册未建前必然红）。
+4. 一键证据脚本非交互、任一失败非零退出、逐项打印「检查名 + 期望/实际 + rc」。
+
+## 完成区
+
+**测试结果**：证据脚本 `.work/evidence/INFRA-086t/run.sh` 现场 **39/39 PASS（rc=0）**（含三条门控 `--self-test` 反例 + `.work/tmp/INFRA-086t/` 临时树注入 + 真实输入 md5 before/after 全等）；日志 `.work/log/infra/INFRA-086t-evidence.log`。B4 **真实红 = 5 处**：`contract-asm-list.md:6,7,309`（生成物）+ `contract-isa.md:1183,1502`；B5 当时已绿（两表 17 行、号 0..16 逐项一致）。
+**修改文件**：`Makefile`（3 target + L1 接线）、`docs/Process-07-门控分层规范.md`（新增 §1.1 登记表）、`tools/infra/check_contracts_pending.py`、`tools/infra/check_contract_relocs.py`、`tools/infra/check_milestone_tasks.py`；gitignored 证据 = `.work/evidence/INFRA-086t/{run.sh,self-review.md}`、`.work/log/infra/INFRA-086t-evidence.log`、`.work/tmp/INFRA-086t/`。
+**验收结果**：三条门控均**可达 FAIL**（自检 + 真实/注入双证）；层次 = **B4/B5 入 L1**、**A2 = L2 收尾专项**（不入 `check-modules`）；B4 的 5 处真实陈旧**本批已清**（先生成器 `tools/llvm/gen_asm_list.py` 再重生成；`contract-isa.md` 两处改写为定案表述 + `ADR-0012`/`ADR-0014` 指针）⇒ `check-contracts-pending` / `check-asm-list-drift` / `check-asm-list-consistency` 回绿。
+**新发现/坑**：① A2 只断言「当前里程碑 **≥1** 个 m 册」，不按模块各一册（口径已披露，未扩张）；② `check-milestone` 在 m 册未建前**必然红**（设计如此，故不入日常层）；③ B4 红点含**生成物** ⇒ 须改生成器 + 重生成，**不得手改**；④ 改 `SECTION_BADGES` 会连带 `spec/` 内嵌块（只读册）⇒ 生成器用 `CONTRACT_BADGES` 覆盖，`_section_content()` 保持原样。
+**遗留问题**：本册 `**状态**` 保持 `待开始`（收尾 / 独立验收由 reviewer 与主会话推进）；A2 的「每模块一册」是否升级为断言属**口径裁定**，未自扩张。
+
+## 审阅记录
+
+#### 第 1 轮 engineer 自审（2026-10-17，临时 ID 批）
+
+逐条记录（F1–F7 与判决）见 `.work/evidence/INFRA-086t/self-review.md`（**逐字保留**）。要点：F1/F5 = 门控照出的**既有陈旧**（B4 5 处），当时按「禁改 `.tao/contracts/**`」**如实报红、未顺手改**；F2 = A2 不按模块各一册；F3 = `check-milestone` 不入 `check-modules`（设计）；F4 = 册内自身 ID 也计入任务号（不影响幽灵号检出）；F6 = 当前里程碑取断言最大值；F7 = 临时树注入 + md5 对账。判决 = 三条门控已实现且各自可达 FAIL，无本任务交付面未修 finding；F1/F5 由 architect 另批处置（即本任务 B4 清理批）。
+
+#### 第 1 轮 reviewer 验收
+（审查者独立重跑、约束核验、判决）
