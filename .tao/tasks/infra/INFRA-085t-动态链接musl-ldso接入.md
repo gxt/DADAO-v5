@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`ADR-0025`（`D6` = `P0 契约 → P1 musl 静态 → **P2 动态链接** → P3 qemu-linux-user → P4 对照/回归`；`D2` 无内核 / `D3` `ld.so` = **musl 自带 ldso** / `D4` musl 与 picolibc 并存 / `D7` golden 对照〔P4〕）；`ADR-0019 D10`（**动态重定位类型集与最终编号**：`NONE=0`/`REL26`=1…`ABS12`=5/**`ABS48`=6**/`JUMP_SLOT`=7/`RELATIVE`=8/`COPY`=9/`TLS_DTPMOD`=10/`TLS_DTPREL`=11/`TLS_TPREL`=12/`TLSDESC`=13/`NUM`=14；值类规则 / 公式）；`ADR-0026 D1–D8`（**动态链接行为口径**：ldso / `PT_INTERP`·`-dynamic-linker` / **仅 GNU hash** / 版本段·`DT_RELR` 都不做 / GOT·TP / eager（`BIND_NOW`）/ 越界 5 条 / 独立 oracle）；`ADR-0027 D5`（compiler-rt builtins = 独立库，picolibc/musl 共用）；**契约真源** = `.tao/contracts/contract-dynlink.md`（`§1`–`§10`；用户 **2026-10-14 逐条确认**，§9 = 裁定清单已定）；`INFRA-082t`（**`P1`**，`已验证` 2026-10-15：musl 补丁集 16 + `make build-musl` + 静态 ELF 可编出；**其 A2+A3 遗留 ⑤⑦⑧ 由本册承接**）；`INFRA-076t`（musl 1.2.6 取源与锁定，`已验证`）；`SPEC-140t`（musl TLS/TP 硬依赖查证，`已验证`）；`ISS-206`（`DADAO.def` 随 `D10` 改号 = **P2 必做**）〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 B/E）**：**「P2 必做」已不成立** ✗ —— ①②③ **三条均已落地**：① `DADAO.def` 改号〔+ `ELF.h`〕/③ 既有产物·向量排查随**阶段 B**；② `.tao/contracts/contract-elf.md §2.2` 同步随**阶段 E**（用户 2026-10-16 授权原话「**授权，但建议删除 `NUM = 6`**」，渠道 = 经主会话问答）；`ISS-206` 保持 `open`（待 `LLVM-094t` 任务级 `已验证` 回填 `closed`）；**生产者侧前置 = `LLVM-094t`**（2026-10-16 已立；阶段 A/B/E 已落地、C 部分交付、D 待做）〕、`ISS-222`（LLVM 后端缺口 4 类）、`ISS-223`（13 源排除）、`ISS-229`（L2/L3 并发假 FAIL ⇒ 验收须**串行**）；`docs/Process-01`（组件补丁组织与构建编排）；`ADR-0016`（install 落点）
 **状态**：待开始
-**阶段进度**：A ⏳ ／ B ⏳ ／ C ⏳ ／ D ⏳ ／ E ⏳
+**阶段进度**：A ✅（A1 判据 rc=0，2026-10-17） ／ B ⏳ ／ C ⏳ ／ D ⏳ ／ E ⏳
 
 > **`**状态**` 口径**：本任务 = **一个任务书、多阶段验收**（照 `SPEC-142t`/`SPEC-143t`/`INFRA-082t` 先例）⇒ `**状态**` 表**任务级**（**阶段全部验收通过**才置 `已验证`）；**阶段级**进度见上行 `**阶段进度**`。
 
@@ -121,6 +121,7 @@
 4. **改测试集内容**（`libc-test` / `llvm-test-suite` / `embench-iot`，均 `patchless`）✗。
 5. **自写 `ld.so`**（`ADR-0025 D3` / `ADR-0026 D1` ✗）；**新增 ISA 指令**（`ADR-0026 D5` ✗）；**relaxation**（`ADR-0019 D7` ✗）。
 6. **`ISS-222` 后端缺口 4 类 / `ISS-223` 13 源排除**的本册收口 ✗（`llvm` 模块面；撞上即登记 + 转出——见「待确认项 ④」）。
+7. **`D2` = TLS 类动态重定位的**发射**（`TLS_DTPMOD`=10 / `TLS_DTPREL`=11 / `TLS_TPREL`=12）** ✗ —— **推迟到 `M9+`**（2026-10-17，**主会话决定、待用户追认**，与 `INFRA-079t` 窄化同风格）：`D1`（`PT_TLS` + `TP=rb3` + 静态 `__thread`，阶段 D）已够 `M8`；`D2` 只对 **`dlopen` 的模块级 TLS** 必需，而 **`M8` 不要求 `dlopen`** ⇒ 不做。**触发条件 = 引入 `dlopen` 时**（届时 `llvm` 面放开 10/11/12 + 本册后续阶段）。**现行为安全**：`lld/ELF/Arch/DADAO.cpp` 对 10/11/12 **显式拒绝**（`contract-dynlink §10②`，非静默）。口径见「待确认项 ⑦」。
 
 ## 待确认项
 
@@ -132,6 +133,7 @@
 | ④ | **`ISS-222`（后端缺口 4 类）+ `ISS-223`（13 源排除）是否 `P2` 内收口** | **否**（`llvm` 模块面）；撞上即 **当场登记 `issues.yaml` + 转出**（`INFRA-079t` 或 LLVM 模块），**不得** silently 跳过 | 若要求 `libc.so` 覆盖全部 13 源 ⇒ 须先收口 `ISS-222`（另一任务），或按 `ISS-223` 建议②**显式声明不支持** |
 | ⑤ | **是否需 `compiler-rt` builtins（`INFRA-079t`）** | 沿用 `INFRA-082t` 前置结论 1 口径：**撞缺口才引入**（i128 除法 / FP↔i128 / `bswap` / `*_PARTS`）；未触发须**显式声明** | 若触发 ⇒ 先落 `INFRA-079t`（独立库，`ADR-0027 D5`）再回本册 |
 | ⑥ | **`.tao/contracts/contract-elf.md §2.2` 同步（`ISS-206`②）** | **不改**（契约正文，**须用户授权**）⇒ `ISS-206`② 保持 `open`、随 `ISS-206` 跟踪 | 若授权 ⇒ 该同步并入本册（或另立 `spec` 模块任务）；**未授权不得改**。〔**收尾注记（2026-10-16，`LLVM-094t` 阶段 E）**：**已授权并落地** ✗ —— 用户授权原话「**授权，但建议删除 `NUM = 6`**」（渠道 = 经主会话问答）；`.tao/contracts/contract-elf.md §2.2` 已按 `ADR-0019 D10` 同步（15 行终表）+ `spec/Toolchain-01` 旧 `NUM`=6 删除、锁 `sha256` 同变更重算；落点 = **`LLVM-094t` 阶段 E**（**非**本册）⇒ 本册「不改 `.tao/contracts/**`」的范围**不变** ✓〕 |
+| ⑦ | **`D2`（TLS 类动态重定位**发射**：`TLS_DTPMOD`=10 / `DTPREL`=11 / `TPREL`=12）是否 `P2`/`M8` 内做** | **推迟到 `M9+`**（2026-10-17，**主会话决定、待用户追认**，与 `INFRA-079t` 窄化同风格）：`D1`（`PT_TLS` + `TP=rb3` + 静态 `__thread`，本册阶段 D）对 `M8` 足够；`D2` 仅 **`dlopen` 的模块级 TLS** 需要，而 **`M8` 不要求 `dlopen`** ⇒ 不做。**触发条件 = 引入 `dlopen` 时** | 若 `M8` 内要做 ⇒ 须扩范围（`lld` 对 10/11/12 放开 + musl arch TLS 宏 + 运行期验证，须待 `P3`）+ 用户改口径；**现行为安全** = `lld/ELF/Arch/DADAO.cpp` 对 10/11/12 **显式拒绝**（`contract-dynlink §10②`，非静默） |
 
 ## 完成区
 
@@ -288,3 +290,30 @@
 - **文件集对账（`git diff --cached --name-only` × 完成区「修改文件」）**：A1 批 **漏提 0 / 多提 0 / 越界 0**（对应「阶段 A(C1 本体)+C+E」块⑥的 `patches/**` 4 改 + 2 新 + `series` + `changelog`，及前两块声明的 `Makefile`/`build_musl.py`/本册）。**拆分说明**：`issues.yaml` 在 A1 块声明为「+`ISS-239/240/241`」、其后各块声明「未动」，本笔把该文件**整体**并入台账批（同一文件的 6 处改动无法按 hunk 拆分；`ISS-244` 关 / `ISS-245` 亦在其中）。
 - **门控（各留自身真实 rc）**：`make check`(L1) **rc=0**；`check-patch-tree` **rc=0（152 补丁）**、`check-index-blobs`、`check-source-state`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`check-component-changelog`、`python3 tools/infra/check_issues.py` 各 **rc=0**（日志 `.work/log/architect/INFRA-085t-commit-A1/`）。**未跑**（`ISS-229` 并发禁令；本笔纯提交/文档）：`install-host` / `build-*` / L2 / L3。
 - **边界**：**未改**本册 `**状态**`（仍 `待开始`）✗、**未 push** ✗；A1/A(C1)+C+E 完成区内容**未改** ✗。
+
+## 完成区（2026-10-17，A1 出口判据复跑）
+
+**测试结果**：`make -C .work/source/musl clean` **rc=0**；`make build-musl-shared JOBS=8`（clean、安装根工具链）**rc=0**（首跑 19 s 仍现 4 条 undefined，修复后 3 s；补丁树刷新后全量 1338 对象 **19 s**）；`make build-musl` **rc=0**。证据 `.work/evidence/INFRA-085t/run.sh`：default **93 PASS / 0 FAIL（rc=0）**、`--inject` **67 条翻红 / 0 FAIL（rc=0，"INJECT OK"）**，各 12 s / 10 s（日志 `.work/log/infra/INFRA-085t-A1-final/`）。
+**修改文件**：① `components/musl/patches/arch/dadao/arch.mak.patch`（后端受阻表 **2 → 0**；机制与打印保留）② `tools/infra/build_musl.py`（`COMPILER_RT_BUILTINS` + 共享档 `LIBCC=<archive>`；inject 期望串如实打印；`-Wl,-shared` 注释按 `LLVM-096t` 更新）③ `components/musl/changelog.md`（+1 条）、`components/musl/README.md`（3 处过期口径 + `build-musl-shared`）④ 本册（本块 + 第 5 轮自审）。**未动**：`components/llvm-project/**`、`INFRA-079t` 册（开工时已在工作树的未提交项**原样保留**）、`Makefile`、`issues.yaml`、`spec/`、`contracts/`、`.tao/contracts/**`、本册 `**状态**`。证据（`.work/`，不入库）：`run.sh` / `probe_checks.py` / `baseline/prebatch-2026-10-17/**`（控制组 + 溯源 README）。
+**验收结果**：① **A1 判据逐条**：`libc.so` = `ELF64` / `2's complement, big endian` / **`DYN (Shared object file)`** / machine `0xda0`；`readelf -d` 共 **19** 项，含 **`SONAME[libc.so]`** + **`GNU_HASH`**，**无** `HASH` / `RELR` / `RELRSZ` / `VERSYM` / `VERNEED` / `VERDEF`（`readelf -S` 的 `.gnu.version*` = **0**）；`ld-musl-dadao.so.1 -> libc.so`（`readlink` = `libc.so`，解析 sha256 与 `libc.so` 同为 `99912df5…`）。② **符号**：`__muldc3` / `__mulsc3` / `__crypt_sha512` / `sigdelset` / `_dlstart` / `_dlstart_c` 均 `defined:.text`；非空 undefined = **0**。③ **静态不回归**：`ELF64` / `MSB` / `ET_EXEC`、`PT_INTERP`=0、无 `.dynamic`；与 **INFRA-082t 基线** sha256 逐条 —— ELF `b87b21f2…` ≠ `90837f24…`（**同尺寸 75336、140 B 差异全在 `.comment`**，工具链 revision，机械证明）；`libc.a` `18b18a6b…` ≠ `111570ab…`（**同工具链控制组**：恰 **+2** 成员 `crypt_sha512.o`/`sigdelset.o`，1347 个共同成员逐字节同、仅 `version.o` 差 git-describe；`crt1.o` 与链出 ELF 与控制组**逐字节相同**）；`crt1.o` `3a9d41a9…` ≠ `d995dee8…`（控制组同字节 ⇒ 差异来自换代 `.comment`）。
+**阶段进度**：**A1 = 达成（rc=0）**；B/C/D/E 未动（C1 自举部分 + C + E 已在此前批次交付）。
+**新发现/坑**：① `make install-host` **不安装 compiler-rt** ⇒ 共享链的 `__muldc3`/`__mulsc3` 必须由构建侧显式 `LIBCC` 提供（DADAO driver 不消费 `-rtlib=compiler-rt`；`-print-libgcc-file-name` 给 `libgcc.a`，与实际 archive 名不符）。② **`make apply-series` 现必崩**：`KeyError: 'patch_dir'`（enabled 的 `llvm-test-suite`/`libc-test` 无该键）⇒ 本次用「只保留 musl 的 `load_manifest` 包装」跑同一 `apply_series.main()`（`/tmp/opencode/INFRA-085t/apply_musl_only.py`），**工具未改**（越界）。③ **`ISS-239` 已由 `LLVM-096t` 修好**：bare driver `-shared` ⇒ `ET_DYN` + SONAME/GNU_HASH、无 unused warning；旧脚本的「驱动丢弃 `-shared`」反例已翻面。④ `libc.so` 仍有 **33 条 `ABS48`** 动态重定位（`__environ`/`optind`/`h_errno` 等**数据**符号，落可写槽）——A1 不判，属阶段 E 复核面。
+**遗留问题**：① builtins archive 是 `.work/build/compiler-rt-builtins/**` 的构建产物，`Makefile` **无 target** 生成它（`INFRA-079t D2` 安装落点未做）⇒ 新机器上 `build-musl-shared` 会**显式失败**（rc=2 + 提示），不静默。② 按派单**未跑** `install-host` / L2 / L3、未 commit/push、未越界改 `spec/`·`contracts/`·`.tao/contracts/**`·`components/llvm-project/**`；**未改**本册 `**状态**`（任务书口径 = 任务级，B–E 未做）。③ `make apply-series` 的 `KeyError` 建议单独立 issue（本笔不改 `issues.yaml`）。
+
+#### 第 5 轮 engineer 自审（A1 出口判据复跑，2026-10-17）
+自主逐行审查（无嵌套子代理）；判决 = **A1 判据达成、可交付**。
+
+| finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `check_flip` 在 `--inject` 下逻辑反了：正常绿(0) 被记成 `FAIL(not flipped)`、正常已红反而算翻红 | ✅已修 | inject 分支改为「正常绿 ⇒ FLIPPED；正常已红 ⇒ FAIL(dead)」 | 修前 20 FLIPPED/55 FAIL → 修后 **67 FLIPPED/0 FAIL** |
+| F2 注入判定按「期望串是否变化」⇒ `check_elf`/`check_shared_elf` 的 class/data/type/machine 只换谓词、期望串未变 ⇒ 8 条被误判「未翻红」 | ✅已修（消息层） | 两组检查的 expected 按 inject 如实打印（ELFCLASS32/LSB/ET_DYN/EM_X86_64） | `--inject` 0 FAIL；`default` 93 PASS |
+| F3 `S1c` 用 `ar t libc.a`（musl 根无此文件）⇒ 当前成员表为空、差恒 0 | ✅已修 | 改 `ar t lib/libc.a`；并以 `ar x` + `cmp` 取代 1347×2 次 `ar p`（秒级） | `S1c member delta = 2 [crypt_sha512.o sigdelset.o]` |
+| F4 `S5.5` 仍把「bare `-shared` 被驱动丢弃」当反例；`LLVM-096t` 修好 `ISS-239` 后该断言必 FAIL | ✅已修 | 翻面为「bare `-shared` ⇒ 合法 DSO、无 unused warning」；`build_musl.py` 注释同步 | S5.5 两项 PASS（inject 翻红） |
+| F5 builtins archive 存在性检查在 configure/clean **之后** ⇒ 缺 archive 会先清树再失败 | ✅已修 | 前置到 `build_musl()` 开头（fail-fast） | `S5.2`：rc=2 + 显式错误 + md5 还原 |
+| F6 `sym_section` 的 awk `exit` 后仍跑 `END` ⇒ 多打一行 `missing` | ✅已修 | 加 `done` 标志 | 手测 `defined:.text`/`undefined`/`missing` 各只一行 |
+| F7 控制组靠 `git archive HEAD` 现场重编（67 s；补丁树刷新后 HEAD 即新态 ⇒ 会 SKIP） | ✅已修 | 改动前补丁集的 `libc.a`/`crt1.o`/ELF 存档到 `baseline/prebatch-2026-10-17/`（+README 溯源），脚本读存档；缺失即 FAIL | 默认 12 s；S1c 4 项 PASS |
+| F8 `make apply-series` 对 patchless 组件崩（`KeyError: 'patch_dir'`）——非本笔引入，但挡住补丁树刷新 | ⏸延后/转出 | 未改 `tools/infra/apply_series.py`；`/tmp` 包装只对 musl 跑同一 `main()` | `HEAD=5dc01a6 count=1 clean=True`；`check-source-state` rc=0 |
+| F9 README 三处过期（13 源排除 / `GETFUNCSYM` 绝对地址 / 无 shared 构建） | ✅已修（越界披露） | `components/musl/README.md` 三处 + 构建段 | `check-component-changelog` / L1 rc=0 |
+| F10 `libc.so` 的 33 条 `ABS48` 是否越界 | ❌不改（有据） | 未改：`ABS48` 属契约类型（`ADR-0019 D10`）、目标槽可写、lld 接受；A1 不判重定位类型 | `llvm-readobj -r`：符号 = `__environ`/`optind` 等数据；S3 全绿 |
+
+**判决与状态对账**：F1–F7/F9 已修，F8 转出（工具面、非本笔），F10 判定无缺陷 ⇒ **A1 判据 rc=0**；按任务书「`状态` = 任务级」口径**不改** `**状态**`（B–E 未做），返主会话走 `/complete`。

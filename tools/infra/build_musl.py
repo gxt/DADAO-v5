@@ -27,7 +27,9 @@ INFRA-085t stage A1 ("shared library and PIC") adds a second, SHARED mode
 4. **shared build** -- ``./configure`` *without* ``--disable-shared`` (musl
    compiles the ``.lo`` objects with ``-fPIC`` and links ``lib/libc.so``) plus
    ``LDFLAGS`` that pin the contract's dynamic-section shape: GNU hash only and
-   a ``DT_SONAME`` (``contract-dynlink.md`` §5 rulings 6/7, §6.1).
+   a ``DT_SONAME`` (``contract-dynlink.md`` §5 rulings 6/7, §6.1).  The link
+   also gets the compiler-rt builtins archive through musl's ``LIBCC`` hook
+   (``__muldc3``/``__mulsc3``; see ``COMPILER_RT_BUILTINS``).
 5. **shared checks** -- ``readelf``-level facts read straight out of the file:
    ET_DYN / big-endian / EM_DADAO, ``PT_DYNAMIC``, ``DT_SONAME`` == ``libc.so``,
    ``DT_GNU_HASH``, and the ABSENCE of ``DT_HASH`` / ``DT_RELR`` / ``DT_RELRSZ``
@@ -97,14 +99,24 @@ LDSO_NAME = "ld-musl-dadao.so.1"
 # LDFLAGS_ALL = $(LDFLAGS_AUTO) $(LDFLAGS) and lld reads the LAST occurrence of
 # --hash-style, so the trailing --hash-style=gnu wins.
 #
-# `-Wl,-shared` is not redundant with musl's Makefile: the DADAO clang driver
-# forwards only -T/-L/-e/-u/-s/-r to ld.lld (clang/lib/Driver/ToolChains/
-# DADAO.cpp Linker::ConstructJob), so a bare driver-level `-shared` never
-# reaches the linker and the "shared" link silently produces an ET_EXEC with no
-# .dynamic at all (see issues.yaml ISS-239).  Passing it through -Wl, is the
-# build-side way to get a real shared link without touching musl's Makefile
-# (ADR-0026 D2: the build call site passes the behaviour explicitly).
+# `-Wl,-shared` is explicit even though the DADAO driver now forwards a bare
+# `-shared` (LLVM-096t fixed ISS-239; before that the driver dropped it and the
+# "shared" link silently produced an ET_EXEC with no .dynamic at all).  Keeping
+# the flag on the linker command line is the build-side statement of the
+# behaviour (ADR-0026 D2: the call site passes it explicitly) and does not
+# depend on the driver's forwarding list.
 SHARED_LDFLAGS = f"-Wl,-shared -Wl,--hash-style=gnu -Wl,-soname,{SONAME}"
+
+# musl links lib/libc.so with `$(LIBCC)` at the end of the rule and with
+# `-Wl,--no-undefined` (configure's LDFLAGS_AUTO), so the two compiler-rt
+# builtins that musl's own C code calls (__muldc3/__mulsc3 from cpow/cpowf)
+# must be present at that link.  `make install-host` does not install
+# compiler-rt yet (ADR-0027 D2 / INFRA-079t) and the DADAO driver ignores
+# `-rtlib=compiler-rt` (INFRA-079t 现场), so the archive is passed explicitly
+# through musl's LIBCC hook.  This is the build-side fix: no components/**
+# change, no toolchain rebuild.
+COMPILER_RT_BUILTINS = (REPO_ROOT / ".work" / "build" / "compiler-rt-builtins"
+                        / "lib" / "linux" / "libclang_rt.builtins-dadao.a")
 
 # ELF constants used by the shared-object checks (gABI ch. 5 + lld's values).
 PT_LOAD = 1
@@ -234,6 +246,12 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
         print(f"build-musl: ERROR: {MUSL_SRC} not found -- run 'make fetch apply-series'",
               file=sys.stderr)
         return 2
+    if shared and not COMPILER_RT_BUILTINS.is_file():
+        print(f"build-musl: ERROR: compiler-rt builtins archive "
+              f"{COMPILER_RT_BUILTINS} not found -- build it first "
+              f"(INFRA-079t narrow scope; see that task's evidence script)",
+              file=sys.stderr)
+        return 2
     env = toolchain_env()
     if reconfig or not config_records(shared):
         cmd = ["./configure", f"--target={TARGET}",
@@ -266,7 +284,10 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
         write_stamp(current)
     else:
         print(f"build-musl: {reason} => incremental build")
-    res = run(["make", f"-j{jobs}"], cwd=MUSL_SRC, env=env)
+    make_cmd = ["make", f"-j{jobs}"]
+    if shared:
+        make_cmd.append(f"LIBCC={COMPILER_RT_BUILTINS}")
+    res = run(make_cmd, cwd=MUSL_SRC, env=env)
     if res.returncode != 0:
         print(f"build-musl: FAIL (make rc={res.returncode})\n{res.stdout}",
               file=sys.stderr)
@@ -401,12 +422,16 @@ def check_elf(elf: Path, inject: bool) -> list[tuple[str, str, str, bool]]:
     exp_data = 2 if not inject else 1           # ELFDATA2MSB (inject: LSB)
     exp_type = 2 if not inject else 3           # ET_EXEC    (inject: ET_DYN)
     exp_mach = EM_DADAO if not inject else 0x3E # EM_DADAO   (inject: EM_X86_64)
+    exp_class_s = "2 (ELFCLASS64)" if not inject else "1 (ELFCLASS32)"
+    exp_data_s = "2 (ELFDATA2MSB, big-endian)" if not inject else "1 (ELFDATA2LSB)"
+    exp_type_s = "2 (ET_EXEC)" if not inject else "3 (ET_DYN)"
+    exp_mach_s = "0x0da0 (EM_DADAO)" if not inject else "0x003e (EM_X86_64)"
     checks = [
-        ("ELF class", "2 (ELFCLASS64)", str(info["ei_class"]), info["ei_class"] == exp_class),
-        ("ELF data", "2 (ELFDATA2MSB, big-endian)", str(info["ei_data"]),
+        ("ELF class", exp_class_s, str(info["ei_class"]), info["ei_class"] == exp_class),
+        ("ELF data", exp_data_s, str(info["ei_data"]),
          info["ei_data"] == exp_data),
-        ("ELF type", "2 (ET_EXEC)", str(info["e_type"]), info["e_type"] == exp_type),
-        ("e_machine", f"0x{EM_DADAO:04x} (EM_DADAO)", f"0x{info['e_machine']:04x}",
+        ("ELF type", exp_type_s, str(info["e_type"]), info["e_type"] == exp_type),
+        ("e_machine", exp_mach_s, f"0x{info['e_machine']:04x}",
          info["e_machine"] == exp_mach),
         ("program headers parseable", "yes", info["parse_error"] or "yes",
          info["parse_error"] is None),
@@ -452,17 +477,21 @@ def check_shared_elf(so: Path, inject: bool) -> list[tuple[str, str, str, bool]]
     exp_data = 2 if not inject else 1            # ELFDATA2MSB (inject: LSB)
     exp_type = ET_DYN if not inject else 2       # ET_DYN     (inject: ET_EXEC)
     exp_mach = EM_DADAO if not inject else 0x3E  # EM_DADAO   (inject: EM_X86_64)
+    exp_class_s = "2 (ELFCLASS64)" if not inject else "1 (ELFCLASS32)"
+    exp_data_s = "2 (ELFDATA2MSB, big-endian)" if not inject else "1 (ELFDATA2LSB)"
+    exp_type_s = "3 (ET_DYN)" if not inject else "2 (ET_EXEC)"
+    exp_mach_s = "0x0da0 (EM_DADAO)" if not inject else "0x003e (EM_X86_64)"
     exp_soname = SONAME if not inject else f"{SONAME}.bogus"
     soname = dyn_string(info, tags, DT_SONAME)
     checks = [
         ("shared object parsed", "no parse error", info["parse_error"] or "no parse error",
          info["parse_error"] is None),
-        ("ELF class", "2 (ELFCLASS64)", str(info["ei_class"]),
+        ("ELF class", exp_class_s, str(info["ei_class"]),
          info["ei_class"] == exp_class),
-        ("ELF data", "2 (ELFDATA2MSB, big-endian)", str(info["ei_data"]),
+        ("ELF data", exp_data_s, str(info["ei_data"]),
          info["ei_data"] == exp_data),
-        ("ELF type", "3 (ET_DYN)", str(info["e_type"]), info["e_type"] == exp_type),
-        ("e_machine", f"0x{EM_DADAO:04x} (EM_DADAO)", f"0x{info['e_machine']:04x}",
+        ("ELF type", exp_type_s, str(info["e_type"]), info["e_type"] == exp_type),
+        ("e_machine", exp_mach_s, f"0x{info['e_machine']:04x}",
          info["e_machine"] == exp_mach),
         ("PT_DYNAMIC present", "present" if not inject else "absent",
          "present" if dyn is not None else "absent",

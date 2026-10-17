@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/arch.mak b/arch/dadao/arch.mak
 new file mode 100644
-index 0000000..2dbf5a2
+index 0000000..10d7265
 --- /dev/null
 +++ b/arch/dadao/arch.mak
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,32 @@
 +# DADAO per-arch build overrides.
 +#
 +# The musl Makefile includes this file (`-include $(srcdir)/arch/$(ARCH)/arch.mak`,
@@ -14,35 +14,24 @@ index 0000000..2dbf5a2
 +# ---------------------------------------------------------------------------
 +# Backend-blocked sources
 +# ---------------------------------------------------------------------------
-+# The sources below cannot be compiled for dadao-unknown-elf at all: the LLVM
-+# backend's instruction selector aborts on them ("fatal error: error in
-+# backend: Cannot select: ..."), which is a compiler gap, not a libc port
-+# issue.  They are therefore excluded from the build, exactly the way the
-+# picolibc port excludes its backend-blocked set (see
-+# `components/picolibc/README.md`, the INFRA-066t/ISS-193 paragraph).  Every
-+# entry carries the selector node that fails, so it can be re-checked (and
-+# removed) as soon as the backend grows the pattern:
++# The list is EMPTY: every source in BASE_SRCS compiles for dadao-unknown-elf
++# with the installed toolchain and musl's own obj/src/%.lo flags.
 +#
-+#   * `rotl`/`rotr`  (rotate)
-+#       src/crypt/crypt_sha512.c
-+#       src/signal/sigdelset.c
++# History (kept so an entry is never re-added without re-checking):
++#   * `rotl`/`rotr`  (rotate) -- `src/crypt/crypt_sha512.c`,
++#     `src/signal/sigdelset.c`.  Excluded while the instruction selector
++#     aborted with "Cannot select: i64 = rotl".  LLVM-099t (2026-10-17) expands
++#     i64 ROTL/ROTR, and both sources now build at -O0 / -O2 / -O2 -fPIC and
++#     link into libc.a / libc.so -- dropped (INFRA-085t stage A1).
++#   * `bswap` (LLVM-096t/097t) and VLA/alloca (LLVM-097t) -- the 11 sources
++#     under those two headings were dropped earlier (INFRA-085t stage C) after
++#     being re-checked one by one.
 +#
-+# The list used to hold 13 sources under three headings (`rotl`, `bswap`,
-+# `dynamic_stackalloc`).  `bswap` (LLVM-096t) and VLA/alloca (LLVM-097t) are
-+# implemented, and re-checking every one of those 11 sources with the installed
-+# toolchain and musl's own obj/src/%.lo flags accepts all of them -- so they
-+# were dropped (INFRA-085t stage C).  Only the two `rotl` sources remain; that
-+# selector gap is a distinct `llvm`-side task.
-+#
-+# Consequence, stated so it cannot surprise anyone: these two files are ABSENT
-+# from libc.a / libc.so, so a program that uses `crypt()` (SHA-512) or
-+# `sigdelset` FAILS TO LINK -- an explicit failure, not a silent stub.
-+#
-+# Report once per build so the exclusion is never invisible.
++# The empty list is kept (rather than deleting the mechanism) so that a future
++# backend gap can be recorded here in one line, and the report below stays as
++# the "no silent exclusion" tripwire.
 +
-+DADAO_BACKEND_BLOCKED_SRCS = \
-+	src/crypt/crypt_sha512.c \
-+	src/signal/sigdelset.c
++DADAO_BACKEND_BLOCKED_SRCS =
 +
 +BASE_SRCS := $(filter-out $(addprefix $(srcdir)/,$(DADAO_BACKEND_BLOCKED_SRCS)),$(BASE_SRCS))
 +
