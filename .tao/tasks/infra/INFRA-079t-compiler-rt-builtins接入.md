@@ -135,3 +135,10 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### architect 提交留痕（2026-10-17，窄化批）
+- **档位**：本册**无 reviewer `Accepted` 判决**（「第 1 轮 reviewer 验收」仍为占位）⇒ 流程档位本应 **WIP**；本笔按派单给定文案**逐字提交**（无 `WIP:` 前缀）⇒ **如实披露** ✗。
+- **提交**：`038f974`（5 文件 = 2 新补丁 + `series` 76→**78** + `changelog.md` + 本册「§实现 + 第 1 轮 engineer 自审」）；`git diff --cached --name-only` 与完成区「修改文件」**逐条一致** ⇒ **漏提 0 / 多提 0 / 越界 0**（**未触** `spec/`·`contracts/`·`.tao/contracts/**`·`components/musl/**`·`Makefile`）。
+- **门控（各留自身真实 rc）**：`make check`(L1) **rc=0**；`check-patch-tree` **rc=0（154 补丁；llvm-project 78）**、`check-index-blobs`、`check-source-state`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`check-component-changelog`、`python3 tools/infra/check_issues.py` 各 **rc=0**（日志 `.work/log/architect/INFRA-079t-085t-commit/`）。**未跑**（`ISS-229` 并发禁令；本笔纯提交/文档）：`install-host` / `build-*` / L2 / L3。
+- **边界**：**未改**本册 `**状态**`（仍 `待开始`）✗、**未 push** ✗。**结构披露**：本笔实现记录位于「§范围窄化」下的 `### 实现（2026-10-17，窄化范围）`，而 `## 完成区` 模板**仍为空**；内容如实、但位置偏离模板（按派单「不改内容」**未搬动**）。
+- **分支披露**：本笔**无独立任务分支** —— 开工时改动已在 `master` 工作树，`AGENTS.md` 禁脏树 `switch -c` ⇒ 直接提交在 `master`（无 `merge`/分支可删）。

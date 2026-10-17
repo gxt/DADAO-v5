@@ -317,3 +317,11 @@
 | F10 `libc.so` 的 33 条 `ABS48` 是否越界 | ❌不改（有据） | 未改：`ABS48` 属契约类型（`ADR-0019 D10`）、目标槽可写、lld 接受；A1 不判重定位类型 | `llvm-readobj -r`：符号 = `__environ`/`optind` 等数据；S3 全绿 |
 
 **判决与状态对账**：F1–F7/F9 已修，F8 转出（工具面、非本笔），F10 判定无缺陷 ⇒ **A1 判据 rc=0**；按任务书「`状态` = 任务级」口径**不改** `**状态**`（B–E 未做），返主会话走 `/complete`。
+
+#### architect 提交留痕（2026-10-17，A1 出口判据批 + `D2` 推迟）
+- **档位**：本册**无 reviewer `Accepted` 判决**（末轮为「第 5 轮 engineer 自审」）⇒ 流程档位本应 **WIP**；本笔按派单给定文案**逐字提交**（无 `WIP:` 前缀）⇒ **如实披露** ✗。
+- **提交**：① `0da2d5f` **A1 出口判据批**（5 文件 = `arch.mak.patch`(受阻表 2→0)、`tools/infra/build_musl.py`(LIBCC + 断言期望串)、`components/musl/{changelog.md,README.md}`、本册〔A1 完成区 + 第 5 轮自审〕）② `ad9c45b` **`D2` 推迟**（`.tao/knowledge/milestones.md` 的 `INFRA-085t` 行 + `LLVM-096t` 册「待确认项 ①」/「不做项 2」注记）。
+- **文件集对账**：`git diff --cached --name-only` × 完成区「修改文件」⇒ **漏提 0 / 多提 0**；**拆分披露**：本册「待确认项 ⑦ / 不做项 7」的 `D2` 落纸与 A1 完成区**同文件** ⇒ 随 `0da2d5f` 一并提交（无法按 hunk 拆分）。**派单提及的 `Makefile` 实无改动**（`git status -uall` 无该路径；A1 完成区亦声明「未动 `Makefile`」）。
+- **门控（各留自身真实 rc）**：提交后复跑 `make check`(L1) **rc=0**；`check-patch-tree` **rc=0（154）**、`check-tasks`、`check-knowledge-refs`、`check-no-residue`、`python3 tools/infra/check_issues.py` 各 **rc=0**（日志同日录 `.work/log/architect/INFRA-079t-085t-commit/`）。**未跑**（`ISS-229`）：`install-host` / `build-*` / L2 / L3。
+- **边界**：**未改**本册 `**状态**`（仍 `待开始`；A1 = **阶段**达成、非任务级验收 ✗）、**未 push** ✗；A1 出口判据块与既有完成区内容**未改** ✗。
+- **分支披露**：与 `INFRA-079t` 同 —— 改动已在 `master` 工作树（脏树禁 `switch -c`）⇒ 直接提交 `master`，无 `merge`/分支可删。
