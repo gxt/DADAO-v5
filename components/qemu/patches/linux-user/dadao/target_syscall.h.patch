@@ -1,0 +1,55 @@
+diff --git a/linux-user/dadao/target_syscall.h b/linux-user/dadao/target_syscall.h
+new file mode 100644
+index 0000000..ce1039a
+--- /dev/null
++++ b/linux-user/dadao/target_syscall.h
+@@ -0,0 +1,49 @@
++/*
++ * DADAO syscall ABI for linux-user (P3).
++ *
++ * Numbers are the RISC-V / asm-generic ones (contract-syscall.md §1.1/§1.2);
++ * the generated header syscall_nr.h (from linux-user/dadao/syscall.tbl, the
++ * locked snapshot) provides TARGET_NR_*.
++ */
++#ifndef DADAO_TARGET_SYSCALL_H
++#define DADAO_TARGET_SYSCALL_H
++
++#define UNAME_MACHINE           "dadao"
++/*
++ * M8 has no kernel (ADR-0025 D2), so this is only the release string `uname`
++ * reports; it is the asm-generic/Linux baseline, not a claim about a kernel
++ * the port runs on.
++ */
++#define UNAME_MINIMUM_RELEASE   "5.4.0"
++
++/*
++ * audit 子系统标识 = EM_DADAO | AUDIT_ARCH_64BIT, and **no** AUDIT_ARCH_LE bit
++ * (contract-syscall.md §1.3, user ruling 2026-10-14; ADR-0003 D1): the guest is
++ * big-endian and 64-bit.  This is an audit identifier derived from the ELF
++ * machine id, not a syscall number and not part of the rd15 number space.
++ *
++ * Values are the kernel uapi ones (include/uapi/linux/audit.h):
++ * __AUDIT_ARCH_64BIT = 0x80000000, __AUDIT_ARCH_LE = 0x40000000.  They are
++ * spelled out here instead of including <linux/audit.h>: user-mode emulation
++ * has no audit subsystem and the qemu tree vendors no such header.
++ */
++#define AUDIT_ARCH_64BIT        0x80000000u
++#ifndef EM_DADAO
++#define EM_DADAO                0x0DA0
++#endif
++#define AUDIT_ARCH_DADAO        (EM_DADAO | AUDIT_ARCH_64BIT)
++
++#define TARGET_MCL_CURRENT      1
++#define TARGET_MCL_FUTURE       2
++#define TARGET_MCL_ONFAULT      4
++
++/*
++ * clone(flags, newsp, ptidptr, tls, ctidptr): the RISC-V/asm-generic order is
++ * what the adopted number table implies (Linux CONFIG_CLONE_BACKWARDS).  The
++ * DADAO port has no clone.S, so the guest stub answers __clone() with -ENOSYS
++ * (threads are outside P3); the flag keeps do_fork's decoding consistent with
++ * the number it is given.
++ */
++#define TARGET_CLONE_BACKWARDS
++
++#endif /* DADAO_TARGET_SYSCALL_H */

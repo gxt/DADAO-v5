@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..32681f1
+index 0000000..480d6aa
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,226 @@
+@@ -0,0 +1,240 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -28,13 +28,18 @@ index 0000000..32681f1
 +#include "cpu-qom.h"
 +#include "exec/cpu-common.h"
 +#include "exec/cpu-interrupt.h"
++#ifndef CONFIG_USER_ONLY
 +#include "system/memory.h"
-+
-+#ifdef CONFIG_USER_ONLY
-+#error "DADAO does not support user mode"
 +#endif
 +
 +#define CPU_RESOLVING_TYPE TYPE_DADAO_CPU
++
++/*
++ * User-mode mmu index: one address space, no MMU (P3).  System mode uses the
++ * single index 0 as well (dadao_cpu_mmu_index()); the generic TCG helpers read
++ * MMU_USER_IDX directly when CONFIG_USER_ONLY is set.
++ */
++#define MMU_USER_IDX 0
 +
 +/* DADAO exception indices (QEMU-internal, mapped to exit codes in do_interrupt) */
 +enum {
@@ -47,6 +52,13 @@ index 0000000..32681f1
 +    DADAO_EXCP_UNMAPPED = 7,   /* Unmapped memory access */
 +    DADAO_EXCP_CFXMEM = 8,     /* Illegal internal-address-space access */
 +    DADAO_EXCP_SEMIHOST = 9,   /* semihosting trap tag (not a fault) */
++    /*
++     * linux-user only (P3): the umon syscall entry `trap cfx0, 0`
++     * (contract-syscall.md §2).  It is not a fault: cpu_loop forwards it to
++     * the host and resumes at pc+4.  Never raised in system mode (no kernel
++     * there, ADR-0025 D2).
++     */
++    DADAO_EXCP_SYSCALL = 10,
 +};
 +
 +/* DADAO exit codes (propagated to host $?, per ADR-0004 D5.8) */
@@ -214,10 +226,12 @@ index 0000000..32681f1
 +    ResettablePhases parent_phases;
 +};
 +
++#ifndef CONFIG_USER_ONLY
 +void dadao_cpu_do_interrupt(CPUState *cpu);
 +bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 +                        MMUAccessType access_type, int mmu_idx,
 +                        bool probe, uintptr_t retaddr);
++#endif
 +
 +void dadao_cpu_tcg_init(void);
 +void dadao_cpu_translate_code(CPUState *cs, TranslationBlock *tb,

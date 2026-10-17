@@ -1,0 +1,10 @@
+diff --git a/linux-user/dadao/target_fcntl.h b/linux-user/dadao/target_fcntl.h
+new file mode 100644
+index 0000000..4a0b7ec
+--- /dev/null
++++ b/linux-user/dadao/target_fcntl.h
+@@ -0,0 +1,4 @@
++#ifndef DADAO_TARGET_FCNTL_H
++#define DADAO_TARGET_FCNTL_H
++#include "../generic/fcntl.h"
++#endif

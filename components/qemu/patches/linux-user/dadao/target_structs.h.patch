@@ -1,0 +1,17 @@
+diff --git a/linux-user/dadao/target_structs.h b/linux-user/dadao/target_structs.h
+new file mode 100644
+index 0000000..226f811
+--- /dev/null
++++ b/linux-user/dadao/target_structs.h
+@@ -0,0 +1,11 @@
++/*
++ * DADAO target structures for linux-user (P3).
++ *
++ * The syscall numbers are the asm-generic ones (contract-syscall.md §1.1), so
++ * the objects exchanged with the kernel are the asm-generic 64-bit objects --
++ * the same layout the musl port uses (arch/dadao/kstat.h: "asm-generic 64-bit
++ * kernel stat layout, byte for byte the same as arch/riscv64/kstat.h").
++ * Per-field endianness is handled by the generic thunk code through
++ * __put_user/__get_user, which follow TARGET_BIG_ENDIAN.
++ */
++#include "../generic/target_structs.h"

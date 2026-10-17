@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_ctrl.c.inc b/target/dadao/insn_trans/trans_ctrl.c.inc
 new file mode 100644
-index 0000000..42b0e46
+index 0000000..93f7f23
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_ctrl.c.inc
-@@ -0,0 +1,442 @@
+@@ -0,0 +1,504 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* ── Helper: RegRAS/MemRAS push/pop (ADR-0012 D7) ──────────────────── */
@@ -368,6 +368,17 @@ index 0000000..42b0e46
 +
 +static bool trans_cfx2rd_crrr_cfx(DisasContext *ctx, arg_main *a)
 +{
++#ifdef CONFIG_USER_ONLY
++    /*
++     * User mode has no monitor context and no cfx register model (there is no
++     * test machine, ADR-0025 D2): an `escape` / cfx-register access can only
++     * be a guest bug, so it decodes to an explicit ILLI rather than running
++     * the SEE exception-exit flow against state that was never entered.
++     */
++    gen_exception_illegal(ctx);
++    ctx->base.is_jmp = DISAS_NORETURN;
++    return true;
++#else
 +    gen_helper_cfx2rd(tcg_env, tcg_constant_i32(a->ha),
 +                      tcg_constant_i32(a->hb), tcg_constant_i32(a->hc),
 +                      tcg_constant_i32(a->hd),
@@ -375,10 +386,22 @@ index 0000000..42b0e46
 +    tcg_gen_exit_tb(NULL, 0);
 +    ctx->base.is_jmp = DISAS_NORETURN;
 +    return true;
++#endif /* CONFIG_USER_ONLY */
 +}
 +
 +static bool trans_cfx2rc_crrr_cfx(DisasContext *ctx, arg_main *a)
 +{
++#ifdef CONFIG_USER_ONLY
++    /*
++     * User mode has no monitor context and no cfx register model (there is no
++     * test machine, ADR-0025 D2): an `escape` / cfx-register access can only
++     * be a guest bug, so it decodes to an explicit ILLI rather than running
++     * the SEE exception-exit flow against state that was never entered.
++     */
++    gen_exception_illegal(ctx);
++    ctx->base.is_jmp = DISAS_NORETURN;
++    return true;
++#else
 +    gen_helper_cfx2rc(tcg_env, tcg_constant_i32(a->ha),
 +                      tcg_constant_i32(a->hb), tcg_constant_i32(a->hc),
 +                      tcg_constant_i32(a->hd),
@@ -386,6 +409,7 @@ index 0000000..42b0e46
 +    tcg_gen_exit_tb(NULL, 0);
 +    ctx->base.is_jmp = DISAS_NORETURN;
 +    return true;
++#endif /* CONFIG_USER_ONLY */
 +}
 +
 +static bool trans_cfxld_crii_cfx(DisasContext *ctx, arg_main *a)
@@ -402,6 +426,17 @@ index 0000000..42b0e46
 +
 +static bool trans_escape_ciii_cfx(DisasContext *ctx, arg_main *a)
 +{
++#ifdef CONFIG_USER_ONLY
++    /*
++     * User mode has no monitor context and no cfx register model (there is no
++     * test machine, ADR-0025 D2): an `escape` / cfx-register access can only
++     * be a guest bug, so it decodes to an explicit ILLI rather than running
++     * the SEE exception-exit flow against state that was never entered.
++     */
++    gen_exception_illegal(ctx);
++    ctx->base.is_jmp = DISAS_NORETURN;
++    return true;
++#else
 +    uint32_t imms18 = ((uint32_t)a->hb << 12) | ((uint32_t)a->hc << 6) | a->hd;
 +
 +    gen_helper_cfx_escape(tcg_env, tcg_constant_i32(a->ha),
@@ -410,12 +445,38 @@ index 0000000..42b0e46
 +    tcg_gen_exit_tb(NULL, 0);
 +    ctx->base.is_jmp = DISAS_NORETURN;
 +    return true;
++#endif /* CONFIG_USER_ONLY */
 +}
 +
 +static bool trans_trap_ciii_cfx(DisasContext *ctx, arg_main *a)
 +{
 +    uint32_t immu18 = ((uint32_t)a->hb << 12) | ((uint32_t)a->hc << 6) | a->hd;
 +
++#ifdef CONFIG_USER_ONLY
++    /*
++     * linux-user (P3, ADR-0025 D2/D6): `trap cfx0, 0` is the umon syscall
++     * entry -- cfxha 0 (umon) with immu18 = SBI_UMON_SYSCALL = 0
++     * (contract-syscall.md §2).  There is no kernel and no cfx vector in this
++     * build, so the trap is handed to cpu_loop as a dedicated exception that
++     * forwards the call to the host and resumes at pc+4.
++     *
++     * Everything else is an explicit guest illegal instruction: jmon (cfx1)
++     * is the restricted-context peer entry and is not implemented here, the
++     * semihosting tag (immu18[17:16] == 2'b11) is a system-mode protocol that
++     * must not be mixed with the syscall path (contract-syscall.md §6), and
++     * the cfx register model does not exist without the test machine.  None of
++     * them may silently succeed.
++     */
++    if (a->ha == DADAO_CFXHA_UMON && immu18 == 0) {
++        gen_helper_raise_exception(tcg_env,
++                                   tcg_constant_i32(DADAO_EXCP_SYSCALL));
++        ctx->base.is_jmp = DISAS_NORETURN;
++        return true;
++    }
++    gen_exception_illegal(ctx);
++    ctx->base.is_jmp = DISAS_NORETURN;
++    return true;
++#else
 +    /*
 +     * Semihosting entry tag (ADR-0020 D1/D10, Machine-01 §5.1): when
 +     * immu18[17:16] == 2'b11 the trap is a semihosting call, independent of
@@ -437,6 +498,7 @@ index 0000000..42b0e46
 +    tcg_gen_exit_tb(NULL, 0);
 +    ctx->base.is_jmp = DISAS_NORETURN;
 +    return true;
++#endif /* CONFIG_USER_ONLY */
 +}
 +
 +/* ── §7.2 fence ─────────────────────────────────────────────────────── */

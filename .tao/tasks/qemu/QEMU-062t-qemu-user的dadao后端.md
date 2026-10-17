@@ -78,18 +78,52 @@
 - **musl 侧** ✗（归 `infra` / `P2`）；跨模块影响须按 `AGENTS.md`「模块里程碑与跨模块交互」处置（存在未处置跨模块影响时**不得**置模块里程碑）。
 
 ## 完成区
-**测试结果**：（待填写）
-**修改文件**：（待填写）
-**验收结果**：（待填写）
-**新发现/坑**：（待填写）
-**遗留问题**：（待填写）
+
+**测试结果**：证据脚本 `.work/evidence/QEMU-062t/run.sh` = **ALL GREEN**（`user_mode_smoke.py` **45/45**、`check_syscall_abi.py` **43/43**）。
+- **静态档**（P1 的 `crt1.o`+`libc.a`）：`hello` stdout=`hi\n` rc=0；`exit_code` rc=42；大端 `writev`(读结构)+`fstat`(写结构) ⇒ `BE!\n119d\n`；裸 trap `write(-1)` ⇒ `rd8=0xfffffffffffffff7`（`-EBADF`）；未实现号 5000 ⇒ `rd8=0xffffffffffffffda`（`-ENOSYS`）；`ioctl`（指针走 `rb16`）⇒ `r=-1 errno=25`。
+- **动态档**（`libc.so` 作 `PT_INTERP` + `-L` guest root）：`AT_BASE`≠0、页对齐、`[AT_BASE+0x0/0x12]`=`7f454c46 0da0`（= 实际 libc.so 映像）；`AT_ENTRY/AT_PHNUM/AT_PHENT` 与文件 `e_entry/e_phnum/e_phentsize` 逐项一致、`AT_PHDR`≠0；`getenv`（libc 数据重定位）+`printf`（PLT）正常；rc=7；空 `-L` 同程序起不来（负控）。
+- **反例可达 FAIL**：`--inject`（`return 0x02→0x00`）7 条 FAIL → `cp`+md5 还原（一致）→ 回绿；`--inject-be`（`TARGET_BIG_ENDIAN 1→0`）13 条 FAIL（含大端结构例）→ 还原 → 45/45。
+- **停机协议不混用**：`nm qemu-dadao` 无 `do_common_semihosting` / `qemu_system_shutdown_request_with_code` 符号（现场 0）⇒ 退出只走 `exit`/`exit_group` syscall。
+- **门控**（各留自身 rc）：`check-patch-tree`(**5 comp / 177 patches**)/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-issues`/`make check`(L1) **全 rc=0**。
+- **构建**：`build-qemu-reconfig` 申报 ≥30 min、实测 **124 s**（含 configure）；增量 `build-qemu` **22 s**；`build-musl`/`build-musl-shared` rc=0/0。**未跑** `install-host`、L2/L3（派单禁）。
+
+**修改文件**：`Makefile`（target-list + `qemu-dadao` 安装行）；`tools/qemu/{user_mode_smoke.py,check_syscall_abi.py}`（新增）；`components/qemu/{series,changelog.md,README.md}` + `patches/**`（新增 23、更新 4；补丁 36→**59** = 新增 49 + 修改 10）；`components/musl/{changelog.md,patches/arch/dadao/crt_arch.h.patch}`；`.work/evidence/QEMU-062t/run.sh`。组件树：`qemu` = `c3d48b7`+1（amend、clean）、`musl` = `9fa28ec`+1（amend、clean）。
+
+**验收结果**：真实输出留存 `.work/log/qemu/QEMU-062t-*`：`evidence-default3.log`（ALL GREEN）、`evidence-inject2.log`、`evidence-inject-be2.log`、`build*.EXIT`、`L1-make-check.log`；运行细节见上文。
+
+**新发现/坑**：
+1. **P1 静态 ELF 在 47 位宿主 VA 上不可装载**：`dadao.lds` 首个 `PT_LOAD` 在 M4 测试机 RAM 基址 `0xFC00_0000_0000`，`probe_guest_base` 只能正向平移 ⇒ `Unable to find a guest_base`（负 `-B` 被拒；宿主 `mmap(0xFC00_0000_0000)`=ENOMEM）。故静态验收用 **P1 的 `crt1.o`+`libc.a` 在 lld 默认基址**链接新程序（P1 产物未改）。建议登记 issue。
+2. `linux-user/syscall.c` 的 `riscv_hwprobe` 实现原先只按 `TARGET_NR_riscv_hwprobe` 编译；沿用 RISC-V 号段后必须改 `TARGET_RISCV` 守卫（DADAO 侧显式 `-ENOSYS`）。
+3. 参数路由表是**协议不变量**（musl `__dadao_argmask`+`syscall_cp.s` ↔ `cpu_loop.c`），已加 `check_syscall_abi.py` 三方逐条对账（43 项），防单侧新增号。
+4. 非 PIC 可执行不能引用 libc 数据符号（`environ` ⇒ `R_DADAO_COPY` 不支持，ADR-0026 D7②）；测试改用 `getenv`/`printf`。
+
+**遗留问题**：
+- `install-host` 未跑（派单禁）⇒ 安装根 `qemu-dadao` 未落地、`ISS-210` 新鲜度/md5 对账未做（Makefile 安装行已加）。
+- L2/L3 未跑（派单禁）；系统模式仅 `make check`(L1) + 编译链接通过，未做语义回归。
+- 信号投递（含 RAS 返回链）不可用：musl 信号 ABI 为 `[OPEN]`；本册只保证可 link、帧形状与 musl 头一致、tramp 页就位。
+- 已知边界：`clone`/线程（musl 无 `clone.s` ⇒ `-ENOSYS`）、`riscv_hwprobe`/`riscv_flush_icache`（`-ENOSYS`）、`e_flags` 仅校验 `[7:0]=1`。
 
 ## 审阅记录
 
 按轮次追加，每次返工新增一轮，避免多轮记录混杂。
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+自主逐行审查（`cpu_loop.c`/`signal.c`/`elfload.c`/target 守卫/工具/证据脚本），findings 与处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `DADAO_CPU_TYPE_NAME(cpu_model)` 是对象式宏，传入变量后编译失败 | ✅已修 | `dadao_cpu_class_by_name` 用 `g_strdup_printf` 拼类型名 | `build5.EXIT` rc=0 |
+| F2 短名 `any` 解析不到 CPU 模型（`unable to find CPU model 'any'`） | ✅已修 | 同名函数同时接受长/短名 | 冒烟 rc=0，hello/exit 全绿 |
+| F3 `signal.c` 缺 `linux-user/trace.h`（`trace_user_*` 未定义） | ✅已修 | 增 include | 链接 PASS（build4） |
+| F4 `syscall_defs.h` 对 DADAO 报 `#error unsupported CPU`、`MMU_USER_IDX` 未定义 | ✅已修 | 增 `TARGET_DADAO` 到 asm-generic ioctl/stat/statfs 分支；`cpu.h` 增 `MMU_USER_IDX 0` | build4 rc=0 |
+| F5 `riscv_hwprobe` 实现按号表宏开启，DADAO 编译失败 | ✅已修 | 守卫改 `TARGET_RISCV`；DADAO 显式 `-ENOSYS` | build4 rc=0；`check_syscall_abi` 43/43 |
+| F6 user 档 `escape`/`cfx2rd`/`cfx2rc` 仍走 SEE 流程（无 monitor 上下文） | ✅已修 | 三者 user 档 ⇒ ILLI | build6 rc=0 + 冒烟 45/45 |
+| F7 `DADAO_EXCP_IALIGN` 落入 `default` 直接 abort | ✅已修 | 与 MALIGN 同映射 `SIGBUS/BUS_ADRALN` | build6 rc=0 |
+| F8 非 PIC 可执行引用 `environ` ⇒ lld 拒绝（`R_DADAO_COPY` 不支持） | ✅已修 | 测试改 `getenv`+`printf`（仍覆盖 libc 数据重定位/PLT） | 动态档 7 行输出逐项 PASS |
+| F9 `expect_fail` 只打末 20 行，失败项不可见 | ✅已修 | 改为打印 `[FAIL]` 行 + 计数 | `evidence-inject2.log` 显示 7 条 FAIL |
+| F10 BE 注入首版删 `TARGET_BIG_ENDIAN` 导致编译失败（`tswap.h` 需要该宏） | ✅已修 | 改为 `1→0` | `evidence-inject-be2.log` 13 FAIL→回绿 |
+
+判决：全部 finding 已修，冒烟 45/45 + ABI 43/43 + 门控全绿 ⇒ 可交 reviewer 独立验收。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）

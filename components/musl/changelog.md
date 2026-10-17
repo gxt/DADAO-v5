@@ -19,3 +19,7 @@
 - **2026-10-17 `INFRA-085t`（阶段 A1 出口判据）**
   - 摘要：**共享 `libc.so` 链出 + 静态线逐字节不回归**。① `arch/dadao/arch.mak`：后端受阻表 **2 → 0**（`LLVM-099t` 把 `i64` `ROTL`/`ROTR` 展开后，`crypt_sha512.c`/`sigdelset.c` 实测可编可链；空表 + 打印机制保留）。② **构建侧（非 musl 源）** `tools/infra/build_musl.py`：共享档经 musl 的 `LIBCC` 钩子显式传入 compiler-rt builtins archive（`__muldc3`/`__mulsc3`），因为 `make install-host` 尚未安装 compiler-rt、且 DADAO driver 不消费 `-rtlib=compiler-rt` —— **无工具链改动、无新重定位类型**。**实测**：`make build-musl-shared JOBS=8`（clean，安装根工具链）**rc=0**；`libc.so` = `ELF64`/大端/**`ET_DYN`**、`DT_SONAME[libc.so]` + `DT_GNU_HASH`，**无** `DT_HASH`/`DT_RELR`/`DT_RELRSZ`/版本标签/`.gnu.version*`；`ld-musl-dadao.so.1 → libc.so` 解析一致。静态档 `make build-musl` **rc=0**，与**同工具链控制组**（改动前补丁集构建）`crt1.o` 与链出静态 ELF **逐字节相同**，`libc.a` 差异 = 恰 **+2** 成员（`crypt_sha512.o`/`sigdelset.o`）+ `version.o` 的 git-describe。
   - 执行者：engineer
+
+- **2026-10-17 `QEMU-062t`（P3 前置：入口栈）**
+  - 摘要：**`arch/dadao/crt_arch.h` 的 `_start` 读装载器交付的初始栈，删除 P1 的静态帧**。原 `!SHARED` 入口把 `_start_c` 的 `p` 指向 `.data` 里手工构造的 argc/argv/envp/auxv（无 AT_PHDR/AT_PHNUM/AT_PHENT/AT_BASE/AT_ENTRY），该形状只对已撤回的裸机 `dadao-m1` 运行时成立；P3 的运行面是 qemu-user（ADR-0025 D6），`create_elf_tables()` 为**每个**可执行（静态与动态）交付 Linux 形状向量并注入 `AT_*`，动态可执行更是由 ldso 带着同一 `sp` 跳到程序入口。改为 `rb2rb {rb16}, {rb1}` 后：argv[0] 为真实程序名、`AT_PHDR` 可达 ⇒ musl `static_init_tls` 能找到 `PT_TLS`、动态档不再解析与解释器无关的假帧；`.data` 帧与 `__dadao_progname`/`DADAO_STR` 辅助宏一并删除（`<elf.h>` 不再需要）。静态 `libc.a`/`libc.so` 产物与 P2 结构判据不回归。
+  - 执行者：engineer

@@ -1,0 +1,42 @@
+diff --git a/linux-user/dadao/target_cpu.h b/linux-user/dadao/target_cpu.h
+new file mode 100644
+index 0000000..0ad0f77
+--- /dev/null
++++ b/linux-user/dadao/target_cpu.h
+@@ -0,0 +1,36 @@
++/*
++ * DADAO CPU ABI for linux-user (P3).
++ *
++ * Register roles are fixed by the ABI volume: rb3 = rbtp (thread pointer),
++ * rb1 = stack pointer, rd8 = integer result / syscall return
++ * (spec/DADAO-21-ABI §1; contract-abi.md §1.2/§4.4; contract-syscall.md §3).
++ */
++#ifndef DADAO_TARGET_CPU_H
++#define DADAO_TARGET_CPU_H
++
++static inline void cpu_clone_regs_child(CPUDADAOState *env, target_ulong newsp,
++                                        unsigned flags)
++{
++    if (newsp) {
++        env->rb[1] = newsp;
++    }
++
++    /* The child sees a 0 return value in rd8 (contract-syscall.md §3). */
++    env->rd[8] = 0;
++}
++
++static inline void cpu_clone_regs_parent(CPUDADAOState *env, unsigned flags)
++{
++}
++
++static inline void cpu_set_tls(CPUDADAOState *env, target_ulong newtls)
++{
++    env->rb[3] = newtls;
++}
++
++static inline abi_ulong get_sp_from_cpustate(CPUDADAOState *state)
++{
++    return state->rb[1];
++}
++
++#endif /* DADAO_TARGET_CPU_H */

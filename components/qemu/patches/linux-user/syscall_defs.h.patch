@@ -1,0 +1,44 @@
+diff --git a/linux-user/syscall_defs.h b/linux-user/syscall_defs.h
+index e28853c..4ccb58c 100644
+--- a/linux-user/syscall_defs.h
++++ b/linux-user/syscall_defs.h
+@@ -73,7 +73,7 @@
+ #if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_SH4)  \
+     || defined(TARGET_M68K)                                             \
+     || defined(TARGET_S390X) || defined(TARGET_OR1K)                    \
+-    || defined(TARGET_RISCV)                                            \
++    || defined(TARGET_RISCV) || defined(TARGET_DADAO)                   \
+     || defined(TARGET_XTENSA) || defined(TARGET_LOONGARCH64)
+ 
+ #define TARGET_IOC_SIZEBITS     14
+@@ -1977,7 +1977,8 @@ struct target_stat64  {
+ };
+ 
+ #elif defined(TARGET_OR1K) \
+-    || defined(TARGET_RISCV) || defined(TARGET_HEXAGON) || defined(TARGET_LOONGARCH)
++    || defined(TARGET_RISCV) || defined(TARGET_DADAO) \
++    || defined(TARGET_HEXAGON) || defined(TARGET_LOONGARCH)
+ 
+ /* These are the asm-generic versions of the stat and stat64 structures */
+ 
+@@ -2005,7 +2006,8 @@ struct target_stat {
+     abi_uint __unused5;
+ };
+ 
+-#if !defined(TARGET_RISCV64) && !defined(TARGET_LOONGARCH64)
++#if !defined(TARGET_RISCV64) && !defined(TARGET_LOONGARCH64) && \
++    !defined(TARGET_DADAO)
+ #define TARGET_HAS_STRUCT_STAT64
+ struct target_stat64 {
+     abi_ullong st_dev;
+@@ -2149,8 +2151,8 @@ struct target_statfs64 {
+ };
+ #elif (defined(TARGET_PPC64) || defined(TARGET_X86_64) ||       \
+        defined(TARGET_SPARC64) || defined(TARGET_AARCH64) ||    \
+-       defined(TARGET_RISCV) || defined(TARGET_LOONGARCH64)) && \
+-    !defined(TARGET_ABI32)
++       defined(TARGET_RISCV) || defined(TARGET_DADAO) ||        \
++       defined(TARGET_LOONGARCH64)) && !defined(TARGET_ABI32)
+ struct target_statfs {
+     abi_long f_type;
+     abi_long f_bsize;

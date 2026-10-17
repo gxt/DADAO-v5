@@ -247,7 +247,7 @@ build-qemu: manifest-check
 	else \
 	  mkdir -p $(QEMU_BUILD) && \
 	  cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure \
-	    --target-list=dadao-softmmu \
+	    --target-list=dadao-softmmu,dadao-linux-user \
 	    --enable-tcg \
 	    --disable-werror; \
 	fi
@@ -262,7 +262,7 @@ build-qemu-reconfig: manifest-check
 	}
 	mkdir -p $(QEMU_BUILD)
 	cd $(QEMU_BUILD) && $(CURDIR)/$(QEMU_SRC)/configure \
-	  --target-list=dadao-softmmu \
+	  --target-list=dadao-softmmu,dadao-linux-user \
 	  --enable-tcg \
 	  --disable-werror
 	$(MAKE) -C $(QEMU_BUILD) -j$(JOBS)
@@ -368,6 +368,7 @@ install-host: build-mc build-lld build-qemu
 	@ln -sf clang $(HOST_TOOLCHAIN_BIN)/clang++
 	@$(call atomic-install,$(LLVM_BUILD)/bin/lli,$(HOST_TOOLS_BIN)/lli)
 	@$(call atomic-install,$(QEMU_BUILD)/qemu-system-dadao,$(HOST_TOOLCHAIN_BIN)/qemu-system-dadao)
+	@$(call atomic-install,$(QEMU_BUILD)/qemu-dadao,$(HOST_TOOLCHAIN_BIN)/qemu-dadao)
 	@rm -rf $(HOST_LIT_DIR)
 	@mkdir -p $(HOST_LIT_DIR)
 	@cp -a $(LLVM_SRC)/utils/lit/lit $(HOST_LIT_DIR)/lit

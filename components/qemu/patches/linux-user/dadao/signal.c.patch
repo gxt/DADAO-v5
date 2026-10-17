@@ -1,0 +1,217 @@
+diff --git a/linux-user/dadao/signal.c b/linux-user/dadao/signal.c
+new file mode 100644
+index 0000000..7b5abe6
+--- /dev/null
++++ b/linux-user/dadao/signal.c
+@@ -0,0 +1,211 @@
++/*
++ * DADAO signal frames for linux-user (P3).
++ *
++ * Scope note (read this before trusting the layout): M8 has no kernel and the
++ * v5 contracts do not specify a DADAO signal-frame ABI yet -- musl's
++ * arch/dadao/bits/signal.h marks mcontext_t/gregset_t as "[OPEN] PROVISIONAL,
++ * COMPILE-ONLY ... whoever specifies real DADAO signal delivery MUST define
++ * the frame layout".  P3's acceptance exercises syscalls and the dynamic
++ * loader, not signal delivery, so this file mirrors the one shape that already
++ * exists on the guest side and is honest about its status:
++ *
++ *   mcontext_t.__gregs[129] = { pc, rd[0..63], rb[0..63] }
++ *   (musl arch/dadao/bits/signal.h: "[0] is the program counter slot ...
++ *    [1..64] / [65..128] hold the RD and RB banks respectively")
++ *
++ * The frame therefore saves and restores exactly the architectural registers
++ * that musl's provisional ucontext names.  It does NOT preserve the RAS
++ * (ra/ras_base) -- that is hardware call-stack state, not a register window,
++ * and no contract defines where a signal frame would put it.  A signal
++ * delivered inside a call therefore does not survive a sigreturn with the
++ * caller's return chain intact; that limitation is registered in the task
++ * book's completion area ("遗留问题") rather than papered over.
++ *
++ * Register roles used when entering a handler (contract-abi.md §4.1/§4.4):
++ * integer/pointer arguments go to rd16+/rb16+, the result to rd8, the stack
++ * pointer is rb1, and the return address lives on the RAS.
++ */
++#include "qemu/osdep.h"
++#include "qemu.h"
++#include "user-internals.h"
++#include "signal-common.h"
++#include "linux-user/trace.h"
++#include "exec/helper-proto.h"
++
++struct target_sigcontext {
++    abi_ulong pc;
++    abi_ulong rd[64];
++    abi_ulong rb[64];
++};
++
++struct target_ucontext {
++    abi_ulong uc_flags;
++    abi_ptr uc_link;
++    target_stack_t uc_stack;
++    target_sigset_t uc_sigmask;
++    uint8_t __unused[1024 / 8 - sizeof(target_sigset_t)];
++    struct target_sigcontext uc_mcontext QEMU_ALIGNED(16);
++};
++
++struct target_rt_sigframe {
++    struct target_siginfo info;
++    struct target_ucontext uc;
++};
++
++/* Syscall number carried by the trampoline (asm-generic numbering). */
++#define DADAO_NR_rt_sigreturn   139
++/* `set.zw rd15, wp0, 139` (single wyde, zero-extended) -- llvm-mc encoding. */
++#define DADAO_TRAMP_SET_RD15    0x4c3c008bu
++/* `trap cfx0, 0` -- the umon syscall entry (contract-syscall.md §2). */
++#define DADAO_TRAMP_TRAP        0x7f000000u
++
++static abi_ulong get_sigframe(struct target_sigaction *ka,
++                              CPUDADAOState *env, size_t framesize)
++{
++    abi_ulong sp = get_sp_from_cpustate(env);
++
++    /* If we are on the alternate signal stack and would overflow it, don't:
++     * return an always-bogus address so the guest dies with SIGSEGV instead of
++     * corrupting host memory. */
++    if (on_sig_stack(sp) && !likely(on_sig_stack(sp - framesize))) {
++        return -1L;
++    }
++
++    sp = target_sigsp(sp, ka) - framesize;
++    sp &= ~0xf;
++
++    return sp;
++}
++
++static void setup_sigcontext(struct target_sigcontext *sc, CPUDADAOState *env)
++{
++    int i;
++
++    __put_user(env->pc, &sc->pc);
++    for (i = 0; i < 64; i++) {
++        __put_user(env->rd[i], &sc->rd[i]);
++        __put_user(env->rb[i], &sc->rb[i]);
++    }
++}
++
++static void restore_sigcontext(CPUDADAOState *env, struct target_sigcontext *sc)
++{
++    int i;
++
++    __get_user(env->pc, &sc->pc);
++    for (i = 0; i < 64; i++) {
++        __get_user(env->rd[i], &sc->rd[i]);
++        __get_user(env->rb[i], &sc->rb[i]);
++    }
++    /* rb0 is the PC's alias (see dadao_cpu_set_pc / cpu.h). */
++    env->rb[0] = env->pc;
++}
++
++static void setup_ucontext(struct target_ucontext *uc,
++                           CPUDADAOState *env, target_sigset_t *set)
++{
++    int i;
++
++    __put_user(0, &uc->uc_flags);
++    __put_user(0, &uc->uc_link);
++
++    target_save_altstack(&uc->uc_stack, env);
++
++    for (i = 0; i < TARGET_NSIG_WORDS; i++) {
++        __put_user(set->sig[i], &uc->uc_sigmask.sig[i]);
++    }
++
++    setup_sigcontext(&uc->uc_mcontext, env);
++}
++
++void setup_rt_frame(int sig, struct target_sigaction *ka,
++                    target_siginfo_t *info,
++                    target_sigset_t *set, CPUDADAOState *env)
++{
++    abi_ulong frame_addr;
++    struct target_rt_sigframe *frame;
++
++    frame_addr = get_sigframe(ka, env, sizeof(*frame));
++    trace_user_setup_rt_frame(env, frame_addr);
++
++    if (!lock_user_struct(VERIFY_WRITE, frame, frame_addr, 0)) {
++        goto badframe;
++    }
++
++    setup_ucontext(&frame->uc, env, set);
++    frame->info = *info;
++
++    /* Handler entry: PC + the three arguments the kernel passes. */
++    env->pc = ka->_sa_handler;
++    env->rb[1] = frame_addr;
++    env->rd[16] = sig;
++    env->rb[16] = frame_addr + offsetof(struct target_rt_sigframe, info);
++    env->rb[17] = frame_addr + offsetof(struct target_rt_sigframe, uc);
++
++    /* Return address: the trampoline page (setup_sigtramp below) pushed on the
++     * guest's RAS, so the handler's `ret` lands on it.  helper_ras_push is the
++     * architectural push (ADR-0012 D7 §3). */
++    helper_ras_push(env, default_rt_sigreturn);
++
++    unlock_user_struct(frame, frame_addr, 1);
++    return;
++
++badframe:
++    unlock_user_struct(frame, frame_addr, 1);
++    if (sig == TARGET_SIGSEGV) {
++        ka->_sa_handler = TARGET_SIG_DFL;
++    }
++    force_sig(TARGET_SIGSEGV);
++}
++
++static void restore_ucontext(CPUDADAOState *env, struct target_ucontext *uc)
++{
++    sigset_t blocked;
++    target_sigset_t target_set;
++    int i;
++
++    target_sigemptyset(&target_set);
++    for (i = 0; i < TARGET_NSIG_WORDS; i++) {
++        __get_user(target_set.sig[i], &(uc->uc_sigmask.sig[i]));
++    }
++
++    target_to_host_sigset_internal(&blocked, &target_set);
++    set_sigmask(&blocked);
++
++    restore_sigcontext(env, &uc->uc_mcontext);
++}
++
++long do_rt_sigreturn(CPUDADAOState *env)
++{
++    abi_ulong frame_addr = env->rb[1];
++    struct target_rt_sigframe *frame;
++
++    trace_user_do_sigreturn(env, frame_addr);
++    if (!lock_user_struct(VERIFY_READ, frame, frame_addr, 1)) {
++        goto badframe;
++    }
++
++    restore_ucontext(env, &frame->uc);
++    target_restore_altstack(&frame->uc.uc_stack, env);
++
++    unlock_user_struct(frame, frame_addr, 0);
++    return -QEMU_ESIGRETURN;
++
++badframe:
++    unlock_user_struct(frame, frame_addr, 0);
++    force_sig(TARGET_SIGSEGV);
++    return 0;
++}
++
++void setup_sigtramp(abi_ulong sigtramp_page)
++{
++    uint32_t *tramp = lock_user(VERIFY_WRITE, sigtramp_page, 8, 0);
++
++    assert(tramp != NULL);
++
++    __put_user(DADAO_TRAMP_SET_RD15, tramp + 0);
++    __put_user(DADAO_TRAMP_TRAP, tramp + 1);
++
++    default_rt_sigreturn = sigtramp_page;
++    unlock_user(tramp, sigtramp_page, 8);
++}

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..41e7f64
+index 0000000..d7b6ea6
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,992 @@
+@@ -0,0 +1,1001 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -26,18 +26,25 @@ index 0000000..41e7f64
 +#include "qemu/log.h"
 +#include "qemu/error-report.h"
 +#include "cpu.h"
++#ifndef CONFIG_USER_ONLY
 +#include "system/runstate.h"
++#endif
 +#include "accel/tcg/cpu-ops.h"
 +#include "accel/tcg/cpu-loop.h"
 +#include "accel/tcg/getpc.h"
++#ifndef CONFIG_USER_ONLY
 +#include "exec/cputlb.h"
++#endif
 +#include "exec/page-protection.h"
 +#include "exec/target_page.h"
 +#include "accel/tcg/cpu-ldst.h"
 +#include "exec/helper-proto.h"
 +#include "fpu/softfloat.h"
++#ifdef CONFIG_ARM_COMPATIBLE_SEMIHOSTING
 +#include "semihosting/common-semi.h"
++#endif
 +
++#ifndef CONFIG_USER_ONLY
 +/* Map QEMU-internal exception index to ADR-0004 exit code */
 +static int dadao_excp_to_exit_code(int excp)
 +{
@@ -174,6 +181,8 @@ index 0000000..41e7f64
 +    tlb_set_page(cs, address, paddr, prot, mmu_idx, TARGET_PAGE_SIZE);
 +    return true;
 +}
++
++#endif /* !CONFIG_USER_ONLY */
 +
 +/*
 + * raise_exception helper: raise a DADAO exception.

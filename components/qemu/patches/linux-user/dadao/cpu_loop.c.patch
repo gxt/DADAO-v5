@@ -1,0 +1,194 @@
+diff --git a/linux-user/dadao/cpu_loop.c b/linux-user/dadao/cpu_loop.c
+new file mode 100644
+index 0000000..ac92f79
+--- /dev/null
++++ b/linux-user/dadao/cpu_loop.c
+@@ -0,0 +1,188 @@
++/*
++ * QEMU user-mode CPU loop for DADAO (P3, ADR-0025 D2/D6).
++ *
++ * The contract this implements:
++ *
++ *   * entry: `trap cfx0, 0` -- umon / SBI_UMON_SYSCALL (immu18 = 0), decoded to
++ *     DADAO_EXCP_SYSCALL in target/dadao/insn_trans/trans_ctrl.c.inc when
++ *     CONFIG_USER_ONLY (contract-syscall.md §2);
++ *   * number: rd15, RISC-V/asm-generic numbering (contract-syscall.md §1.1);
++ *   * arguments: routed BY TYPE into rd16+ (data) / rb16+ (address) with the
++ *     two banks counted independently (contract-syscall.md §3);
++ *   * result: rd8; an error is a NEGATIVE rd8 (-errno), never rd1
++ *     (contract-syscall.md §4, user ruling 2026-10-14);
++ *   * the callee resumes at the instruction after the trap;
++ *   * an unknown number reaches do_syscall() and comes back as -ENOSYS -- it is
++ *     never silently "successful".
++ *
++ * The guest side of the argument routing is musl's port
++ * (arch/dadao/syscall_arch.h:__dadao_argmask and
++ * src/thread/dadao/syscall_cp.s, which carry the same table because musl passes
++ * plain `long`s and recovers pointer-ness from the syscall number).  The host
++ * side below must reconstruct the same positional list, so it mirrors that
++ * table number for number.  This is a protocol invariant, not an oracle:
++ * tools/qemu/check_syscall_abi.py cross-checks both tables so a number added
++ * on one side only fails a gate instead of reading garbage.
++ */
++#include "qemu/osdep.h"
++#include "qemu.h"
++#include "user-internals.h"
++#include "user/cpu_loop.h"
++#include "signal-common.h"
++
++QEMU_BUILD_BUG_ON(AUDIT_ARCH_DADAO != (0x0DA0u | 0x80000000u));
++
++/* Bit i set <=> positional syscall argument i lives in the RB (address) bank. */
++static int dadao_argmask(int nr)
++{
++    switch (nr) {
++    /* (int, <ptr>, ...): only slot 1 is an address */
++    case TARGET_NR_read:            /* read(int, void *, size_t)            */
++    case TARGET_NR_write:           /* write(int, const void *, size_t)     */
++    case TARGET_NR_readv:           /* readv(int, const struct iovec *, int) */
++    case TARGET_NR_writev:          /* writev(int, const struct iovec *, int) */
++        return 0x02;
++
++    /* (<ptr>, ...): only slot 0 is an address */
++    case TARGET_NR_brk:             /* brk(void *)                          */
++    case TARGET_NR_munmap:          /* munmap(void *, size_t)               */
++    case TARGET_NR_mmap:            /* mmap(void *, size_t, int, int, int, off_t) */
++    case TARGET_NR_set_tid_address: /* set_tid_address(int *)               */
++    case TARGET_NR_set_robust_list: /* set_robust_list(void *, size_t)      */
++    case TARGET_NR_futex:           /* futex(uint32_t *, int, uint32_t, ...) */
++    case TARGET_NR_getrandom:       /* getrandom(void *, size_t, unsigned)  */
++        return 0x01;
++
++    /* (int, unsigned long, <ptr>): only slot 2 is an address */
++    case TARGET_NR_ioctl:           /* ioctl(int fd, unsigned long, void *arg) */
++        return 0x04;
++
++    default:
++        return 0x00;
++    }
++}
++
++static abi_long dadao_syscall(CPUDADAOState *env)
++{
++    abi_long args[8];
++    int mask = dadao_argmask(env->rd[15]);
++    int rdi = 0, rbi = 0;
++    int i;
++
++    for (i = 0; i < ARRAY_SIZE(args); i++) {
++        if (mask & (1 << i)) {
++            args[i] = env->rb[16 + rbi++];
++        } else {
++            args[i] = env->rd[16 + rdi++];
++        }
++    }
++
++    return do_syscall(env, env->rd[15], args[0], args[1], args[2], args[3],
++                      args[4], args[5], args[6], args[7]);
++}
++
++void cpu_loop(CPUDADAOState *env)
++{
++    CPUState *cs = env_cpu(env);
++    int trapnr;
++    abi_long ret;
++
++    for (;;) {
++        cpu_exec_start(cs);
++        trapnr = cpu_exec(cs);
++        cpu_exec_end(cs);
++        qemu_process_cpu_events(cs);
++
++        switch (trapnr) {
++        case EXCP_INTERRUPT:
++            /* Just indicate that signals should be handled asap. */
++            break;
++
++        case EXCP_ATOMIC:
++            cpu_exec_step_atomic(cs);
++            break;
++
++        case DADAO_EXCP_SYSCALL:
++            /*
++             * `trap` resumes at pc + 4 (contract-syscall.md §2: the guest-side
++             * return form is `escape cfxha, [excp_cause_ip, 4]`, and the
++             * umon entry leaves the trap address as the cause IP).
++             */
++            env->pc += 4;
++            env->rb[0] = env->pc;
++            ret = dadao_syscall(env);
++            if (ret == -QEMU_ERESTARTSYS) {
++                /* Restart: run the trap again (e.g. read() interrupted). */
++                env->pc -= 4;
++                env->rb[0] = env->pc;
++            } else if (ret != -QEMU_ESIGRETURN && ret != -QEMU_ESETPC) {
++                /* contract-syscall.md §3/§4: result and -errno in rd8. */
++                env->rd[8] = ret;
++            }
++            break;
++
++        case EXCP_DEBUG:
++            force_sig_fault(TARGET_SIGTRAP, TARGET_TRAP_BRKPT, env->pc);
++            break;
++
++        /*
++         * Guest faults.  M8 has no kernel signal machinery of its own; the
++         * host side delivers the POSIX signal through QEMU's user-mode signal
++         * layer, exactly as for any other linux-user target.  The unaligned
++         * access exception keeps the faulting PC so the signal frame reports
++         * the instruction that faulted.
++         */
++        case DADAO_EXCP_ILLI:
++        case DADAO_EXCP_UNDI:
++            force_sig_fault(TARGET_SIGILL, TARGET_ILL_ILLOPC, env->pc);
++            break;
++
++        case DADAO_EXCP_MALIGN:
++        case DADAO_EXCP_IALIGN:
++            force_sig_fault(TARGET_SIGBUS, TARGET_BUS_ADRALN, env->pc);
++            break;
++
++        case DADAO_EXCP_UNMAPPED:
++            force_sig_fault(TARGET_SIGSEGV, TARGET_SEGV_MAPERR, env->pc);
++            break;
++
++        case DADAO_EXCP_CFXMEM:
++            force_sig_fault(TARGET_SIGSEGV, TARGET_SEGV_ACCERR, env->pc);
++            break;
++
++        case DADAO_EXCP_RASOF:
++        case DADAO_EXCP_RASUF:
++            force_sig_fault(TARGET_SIGSEGV, TARGET_SEGV_ACCERR, env->pc);
++            break;
++
++        default:
++            EXCP_DUMP(env, "\nqemu: unhandled CPU exception %#x - aborting\n",
++                      trapnr);
++            exit(EXIT_FAILURE);
++        }
++
++        process_pending_signals(env);
++    }
++}
++
++void init_main_thread(CPUState *cs, struct image_info *info)
++{
++    CPUDADAOState *env = cpu_env(cs);
++
++    /*
++     * The executable's entry point and the initial stack built by
++     * create_elf_tables() (argc/argv/envp/auxv; SP is 16-byte aligned, hence
++     * also 8-byte aligned as contract-dynlink.md §6.6 requires).  For a
++     * dynamic executable info->entry is the INTERPRETER's entry
++     * (elfload.c re-points it after loading PT_INTERP), and AT_ENTRY still
++     * carries the program's own entry.
++     */
++    env->pc = info->entry;
++    env->rb[0] = info->entry;
++    env->rb[1] = info->start_stack;
++
++    /* User mode, umon segment: the run mode is part of the SEE model, and the
++     * guest starts as an unprivileged process. */
++    env->inner_run_mode = DADAO_MODE_USER;
++    env->inner_cfx_code = DADAO_CFXHA_UMON;
++}

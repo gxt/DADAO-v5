@@ -1,0 +1,38 @@
+diff --git a/linux-user/syscall.c b/linux-user/syscall.c
+index cfa68df..c18d343 100644
+--- a/linux-user/syscall.c
++++ b/linux-user/syscall.c
+@@ -9378,7 +9378,7 @@ static int do_getdents64(abi_long dirfd, abi_long arg2, abi_long count)
+ }
+ #endif /* TARGET_NR_getdents64 */
+ 
+-#if defined(TARGET_NR_riscv_hwprobe)
++#if defined(TARGET_RISCV) && defined(TARGET_NR_riscv_hwprobe)
+ 
+ #define RISCV_HWPROBE_KEY_MVENDORID     0
+ #define RISCV_HWPROBE_KEY_MARCHID       1
+@@ -14477,10 +14477,23 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+         return ret;
+ #endif
+ 
+-#if defined(TARGET_NR_riscv_hwprobe)
++#if defined(TARGET_RISCV) && defined(TARGET_NR_riscv_hwprobe)
+     case TARGET_NR_riscv_hwprobe:
+         return do_riscv_hwprobe(cpu_env, arg1, arg2, arg3, arg4, arg5);
+ #endif
++#if defined(TARGET_DADAO)
++    /*
++     * contract-syscall.md §1.3: DADAO inherits the RISC-V arch-specific
++     * numbers (riscv_hwprobe / riscv_flush_icache) and defines no private
++     * range.  M8 has no CPU-feature model and no instruction cache to probe,
++     * so both are answered explicitly with -ENOSYS -- never with invented
++     * feature bits (silent success is forbidden).  riscv_flush_icache needs no
++     * case: like every number this port does not implement it falls through to
++     * the unimplemented_syscall() default, which returns -ENOSYS as well.
++     */
++    case TARGET_NR_riscv_hwprobe:
++        return -TARGET_ENOSYS;
++#endif
+ 
+ #ifdef TARGET_AARCH64
+     case TARGET_NR_map_shadow_stack:

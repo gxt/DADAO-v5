@@ -1,0 +1,21 @@
+diff --git a/linux-user/dadao/meson.build b/linux-user/dadao/meson.build
+new file mode 100644
+index 0000000..f56354a
+--- /dev/null
++++ b/linux-user/dadao/meson.build
+@@ -0,0 +1,15 @@
++# DADAO linux-user target sources (P3).
++#
++# Only the syscall-number generator lives here: cpu_loop.c / elfload.c /
++# signal.c are compiled directly by the top-level meson.build (they are listed
++# per target when CONFIG_LINUX_USER is set), and the target*/sockbits/termbits
++# headers are picked up through the include path linux-user/dadao.
++#
++# There is no vDSO: M8 has no kernel and no dynamic vector to export
++# (contract-syscall.md §6); the signal trampoline, when used, comes from the
++# separate tramp page that elfload.c allocates (TARGET_ARCH_HAS_SIGTRAMP_PAGE).
++syscall_nr_generators += {
++  'dadao': generator(sh,
++                     arguments: [ meson.current_source_dir() / 'syscallhdr.sh', '@INPUT@', '@OUTPUT@', '@EXTRA_ARGS@' ],
++                     output: '@BASENAME@_nr.h')
++}
