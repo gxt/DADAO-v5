@@ -5,7 +5,7 @@
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**；`qemu-dadao` 已装进安装根 `paths.host_toolchain_bin()`）；`INFRA-082t`（`P1` musl 静态，**`已验证`**；产 `crt1.o` + `libc.a`）、`INFRA-085t`（`P2` 动态，**`已验证`**；产 `libc.so` + `ld-musl-dadao.so.1`）；`TESTCASES-039t`（Embench 移植 + 系统模式 runner `tools/integ/run_embench_e2e.py`，M6 起 38/38）；`ISS-247`（**链接基址口径**：不得用 `tests/scripts/dadao.lds`）、`ISS-246`（**known-fail 唯一依据**）、`ADR-0025`（`D2` 无内核 / `D6` 路线 / `D7` golden 对照归 `P4`）、`ISS-229`（重建 / 门控**串行**）、`ISS-210`（安装根新鲜度）；**同批三册**：`TESTCASES-046t`（本册）/ `TESTCASES-047t`（`libc-test`）/ `TESTCASES-048t`（`llvm-test-suite`）⇒ **同改共享文件（`Makefile` / `milestones.md`）⇒ 串行**，禁并行。
 **状态**：待开始
 
-> **阶段进度**：静态档 ✅ 38/38 pass / 动态档 ✅ 38/38 pass（复跑；`ISS-258` 已处置：`libc.so` 重装 + 新增 L1 产物新鲜度门控）
+> **阶段进度**：静态档 ✅ 38/38 pass / 动态档 ✅ 38/38 pass（**终局复跑（新工具链产物）**，`INFRA-079t` 后端改动 + 22:44 重建 `libc.a`/`libc.so` 后；逐例与上次作数零变化；`ISS-258` 已处置：`libc.so` 重装 + L1 产物新鲜度门控）
 
 > **编号（现场取号，2026-10-17）**：`.tao/tasks/testcases/` 现存最大 = `TESTCASES-045t`（现场 `ls`：`044t` / `045t`）⇒ 取 **`046`**；`git log --all --name-only | grep -E 'TESTCASES-04[678]'` **0 命中**（全历史复核）。
 
@@ -151,6 +151,28 @@ known-fail 0 条：无 `ISS-246` 命中（该分支按 `thread-local storage is 
 **修改文件**：`tests/scripts/dadao_user_dyn_probe.c`（新探针）、`tools/infra/build_musl.py`（+source stamp）、`tools/infra/check_musl_freshness.py`（新门控）、`Makefile`（`check-musl-freshness` + L1 接线）、`docs/Process-07-门控分层规范.md`（§1.1 登记）、`.tao/knowledge/issues.yaml`（`ISS-258` 处置）、本任务书；gitignored：`.work/evidence/TESTCASES-046t-dyn/run.sh`、`.work/log/testcases/embench-user-dynamic.json`、`.work/log/testcases/embench-user-dynamic.log`、`.work/log/testcases/ISS-258-blocked-round/`、`.work/log/infra/ISS-258-*.log`、`.work/build/embench-user-dynamic/`、`.work/source/musl`（重建产物）。
 **新发现/坑**：① 同名 `libc.a` 在 sysroot 是 **picolibc**、在 musl 构建树是 **musl** —— 判"产物是否旧"不能只看 mtime/路径，要看**成员名/md5 归谁**（本轮疑点 A 即此）。② 「TLS 基础设施已验」≠「`libc.so` 有 `PT_TLS`」：musl 的 TCB 不在 `.tdata`，报告引用时要写清测的是哪个对象。③ 增量构建 sha 不变**不能**证明可重复（可能什么都没重编）；要 `clean` 全量重建再比 sha（本轮已补）。
 **遗留问题**：047t 静态档未重跑（其 `libc.a` 与现状 sha256 相同，数字无变化空间；如需现场复证，`--musl .work/source/musl` 全量约 508 s）；`AT_*`/`maps` 观测由独立探针承担（驱动本身不探 auxv）；`P4` golden 对照、`ISS-246` 不在本册。
+
+### 终局复跑（`INFRA-079t` 后端 + `libc.so` 重建后，2026-10-17 22:12–22:41）
+
+**测试结果**：按派单**只跑测**（未改 `musl`/`LLVM`/`QEMU` 源码、未动 `Makefile`、未 `install-host`），4 组顺序执行、逐组落日志（`.work/log/testcases/final-rerun/`）。本册：**静态 38/38 pass（rc=0，16.1 s）→ 动态 38/38 pass（rc=0，16.3 s）**；运行期枚举 19 基准 × `{O0,O2}` = 38（现场派生），`fail/known-fail/excluded/blocked` 全 0。
+**与基线对比（逐例）**：静态 38/38、动态 38/38，与上次作数**完全一致**；`diff_baseline.py` 对两档 JSON 逐例比对 ⇒ **transitions=0**（无 `pass→fail`、无新 `fail`、无增删例）。
+**新产物口径**：`libc.a` sha256 `a65c3351…`、`libc.so` `d5fa2da3…`（`INFRA-079t` 重建后；安装根副本与之同 sha）；安装根 clang/lld/qemu 与 `.work/build` md5 全等（`854dd25e`/`cfd64e80`/`c40bc7f9`）；`clang --target=dadao-unknown-elf -print-libgcc-file-name -rtlib=compiler-rt` ⇒ 真实 archive（`lib/dadao-unknown-unknown-elf/libclang_rt.builtins.a`，217 640 B）。
+**验收结果**：① 基址：样例 `llvm-readobj --program-headers` 两档最低 `PT_LOAD=0x10000`（≠`0xFC00_0000_0000`），38/38 链接行无 `-T`/`dadao.lds`；② 形态：静态 38/38 无 `PT_INTERP`、动态 38/38 `PT_INTERP=/lib/ld-musl-dadao.so.1`（逐例 JSON + 脚本自解析 ELF）；③ pass 例 board marker 均 3/3；④ 证据脚本 `/tmp/opencode/FINAL-RERUN/run.sh` **default rc=0**（96 项独立复核 + 三份既有证据脚本 default）、**`--inject` rc=0**（I0 篡改静态 libc-test JSON ⇒ 复核翻红 ⇒ `cp`+md5 还原回绿；另 046t 静态 2 / 046t 动态 5 / 047t 动态 3 处既有注入同次闭合）；⑤ 门控各自 rc=0：`check-musl-freshness`/`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues.py`/`make check`(L1)。
+**修改文件**：本任务书（仅追加本节 + `阶段进度`）；无源码/脚本改动。gitignored：`.work/log/testcases/final-rerun/`。
+**新发现/坑**：① 复用 046t 动态证据脚本的 I4（`cp` 还原真 musl 源）会**抬高源文件 mtime**，使 047t 动态证据脚本的 **mtime 代理**报 `stale`（内容已复原、`check-musl-freshness` 内容摘要绿）。终局脚本改为注入前后快照/还原 2592 个 musl 源 mtime，并在末段复核 `libc.so` sha + 内容门控 ⇒ **内容才是新鲜度真源，mtime 只作代理**。② 4 组逐例同构 ⇒ `INFRA-079t` 的 i128/FP↔i128 后端改动与 `libc.so` 重建在本册语料上**无行为变化**。
+**遗留问题**：无本册遗留（`P4` golden 对照、`ISS-246` 修复不在本册）。
+
+### 终局复跑（新工具链产物，2026-10-17 22:44–23:07）
+
+> **上一轮（22:12–22:41）作废**：其 `libc.a`/`libc.so` 是 **19:49 旧 clang** 编的（`install-host` 21:26 换新工具链后未重建），L2 `check-musl-freshness` 当场报 `toolchain stamp != current clang/ld.lld`。已 `make build-musl-shared JOBS=8` **rc=0**（21 s，22:43:40→22:44:01）重建，`check-musl-freshness` **PASS**；本节数字 = 新产物上的**最终作数**。
+
+**测试结果**：按派单只跑测（未改源码、未动 `Makefile`、未 `install-host`），顺序执行、逐组落日志（`.work/log/testcases/final-rerun-round2/`）：**静态 38/38 pass（rc=0，15.9 s）→ 动态 38/38 pass（rc=0，16.3 s）**；运行期枚举 19 基准 × `{O0,O2}` = 38（现场派生），`fail/known-fail/excluded/blocked` 全 0。
+**与上轮对比（逐例）**：4 组共 750 条记录逐例比对（`diff_baseline2.py`）⇒ **transitions=0**、无增删例；本册两档 **38/38 全等**，无 `pass→fail`、无新 `fail`。
+**产物/工具链指纹（证明吃的是新产物）**：`libc.a` = `.work/source/musl/lib/libc.a`（**2 660 248 B，mtime 22:44:00，sha256 `a65c3351…`**）；`libc.so` = 同目录（**1 046 488 B，mtime 22:43:59，sha256 `d5fa2da3…`**，与旧构建字节相同）；sysroot `libc.so` 同 sha；`clang` md5 `854dd25e…`、`ld.lld` `cfd64e80…`、`qemu-dadao` `c40bc7f9…`（安装根 == `.work/build`）；驱动实吃路径：静态 → `<musl>/lib/libc.a`，动态 → `.dadao/dadao-unknown-elf/lib/libc.so`（38/38 链接行逐条核）；**76/76 ELF mtime 均晚于产物 mtime**。
+**验收结果**：① `prove_products.py` 全绿（指纹/路径/ELF 新旧/工具链 md5）；② `verify_groups.py` **96/96 PASS**（计数、闭包、形态、链接行、known-fail 依据）；③ 基址/形态同前：最低 `PT_LOAD=0x10000`（≠`0xFC00…`）、静态无 `PT_INTERP`、动态 `=/lib/ld-musl-dadao.so.1`、无 `-T`；④ 门控各自 rc=0：`check-musl-freshness`/`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues.py`/`make check`(L1)。
+**修改文件**：本任务书（仅追加本节）；无源码/脚本/驱动改动。gitignored：`.work/log/testcases/final-rerun-round2/`。
+**新发现/坑**：`check-musl-freshness` 的 **toolchain stamp** 能抓到「工具链换了但 libc 未重建」这类**跨产物代际错配**，本轮即是（L2 抓到，早于任何测试结论）；另证「sha256 不变」≠「没重建」——mtime 22:43:59/22:44:00 才是重建证据，须二者并列记录。
+**遗留问题**：无本册遗留（`P4` golden 对照、`ISS-246` 修复不在本册）。
 
 ## 审阅记录
 

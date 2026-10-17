@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**；`qemu-dadao` 在安装根）；`INFRA-082t`（`P1` musl 静态，**`已验证`**）、`INFRA-085t`（`P2` 动态，**`已验证`**）；`TESTCASES-044t`（`libc-test` **取源与锁定**，**`已验证`**；`patchless = true` ⇒ 源只读）、`TESTCASES-045t`（`P1` 能力边界度量，`已验证`；其 `tools/testcases/run_suite.py` 在 `dadao-m1` 路径上已硬失败 ⇒ **本册不复用其运行路径**，只复用其**建链方法论**与排除口径的教训）；`ISS-247`（**链接基址**）、`ISS-246`（**known-fail 唯一依据**）、`ISS-229`（串行）、`ISS-210`（安装根新鲜度）、`ADR-0025`（`D2`/`D6`/`D7`）；**同批三册**：`TESTCASES-046t` / `TESTCASES-047t`（本册）/ `TESTCASES-048t` ⇒ **同改共享文件（`Makefile` / `milestones.md`）⇒ 串行**。
 **状态**：待开始
-**阶段进度**：静态档 ✅ **fail=0**（本轮同驱动复跑 pass 303 / known-fail 9 / blocked 25；`pthread_create-oom` 有 qemu flake）/ 动态档 ✅ **fail=0**（pass 298 / known-fail 8 / blocked 31；8 条 COPY 链接缺口见第 5 轮）
+**阶段进度**：静态档 ✅ **fail=0**（**终局复跑（新工具链产物）**（`INFRA-079t` 后、22:44 重建产物）pass 303 / known-fail 9 / blocked 25；`pthread_create-oom` 有 qemu flake）/ 动态档 ✅ **fail=0**（终局复跑（新工具链产物）pass 298 / known-fail 8 / blocked 31；8 条 COPY 链接缺口见第 5 轮；逐例与上次作数零变化）
 
 > **编号（现场取号，2026-10-17）**：现存最大 = `TESTCASES-045t` ⇒ 取 **`047`**；`046` 归同批 `embench-iot` 册；全历史 `grep -E 'TESTCASES-04[678]'` **0 命中**。
 
@@ -165,6 +165,29 @@ excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上�
 **遗留问题**：动态档 8 条 COPY 用例（非 PIC 用户可执行）在 `ADR-0026 D7②` 下不可链；`-fPIC` 可绕（实测），是否把动态档用户编译改为 `-fPIC`/`-pie` 属口径决策（**待架构裁定**，本笔不改）。`pleval` 动态档按上游 `.mk` 本不应构建，本驱动保留执行以维持两档同一枚举集（记 blocked）。OOM 三条（`malloc-oom`/`setenv-oom`/`pthread_create-oom`）宿主侧不稳定（`ISS-255/257`）。
 
 
+
+### 终局复跑（`INFRA-079t` 后端 + `libc.so` 重建后，2026-10-17 22:12–22:41）
+
+**测试结果**：按派单**只跑测**（未改 `musl`/`LLVM`/`QEMU` 源码、未动 `Makefile`、未 `install-host`），顺序 static → dynamic、逐组落日志（`.work/log/testcases/final-rerun/`）：静态 **discovered 367 / excluded 30 / total 337：pass 303、fail 0、known-fail 9、blocked 25**（driver rc=1 仅因 `blocked>0`，`ISS-248`；8 分 29 秒）；动态 **pass 298、fail 0、known-fail 8、blocked 31**（rc=1 同口径；9 分 29 秒）。
+**与基线对比（逐例）**：两档 337/337 例分类**逐例全等**（`diff_baseline.py` ⇒ transitions=0，无增删例）；**无 `pass→fail`、无新 `fail`**。static→dynamic 差异仍为第 5 轮那 12 条（COPY 8 / `pleval` 1 / OOM flake 3），本笔**无新增**。
+**`known-fail` 准入（未变更）**：依据集合仍 = `ISS-246` + `ISS-251` + `ADR-0030`（静态 9 = 3+1+5；动态 8 = 3+1+4，`math/lgammal` 因 COPY 记 blocked）；逐例均带 `known_fail_basis` 并经反向校验，**无无依据条目**；live TLS 扫描 337 例 / 命中 3 / `pass_hits=0`。
+**验收结果**：① 逐例不变量（独立复核 96 项全绿）：`fail=0`、`total == discovered - excluded`、`closure_ok`/`classification_ok` 为真、静态 331 / 动态 323 张 ELF 最低 `PT_LOAD=0x10000`（≠`0xFC00…`，样例 `functional/argv` 现场核对）、静态无 `PT_INTERP`/动态 `=/lib/ld-musl-dadao.so.1`、链接行含 `libc.a`/`libc.so` 且无 `-T`；② 证据：`/tmp/opencode/FINAL-RERUN/run.sh` **default rc=0**、**`--inject` rc=0**（I0 篡改 JSON 翻红 + `cp`/md5 回绿；本册动态 3 处既有注入亦红→绿）；③ 门控各自 rc=0：`check-musl-freshness`/`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues.py`/`make check`(L1)；④ 产物口径：`libc.a` sha256 `a65c3351…`、`libc.so` `d5fa2da3…`（新 sha），安装根 clang/lld/qemu 与构建树 md5 全等。
+**修改文件**：本任务书（仅追加本节 + `阶段进度`）；无源码/驱动改动。gitignored：`.work/log/testcases/final-rerun/`。
+**新发现/坑**：与 046t 同一条（`cp` 还原抬高 musl 源 mtime ⇒ mtime 代理假红；终局脚本快照/还原 2592 个源 mtime 并复核内容门控）。另：`pthread_create-oom` 本轮静态 blocked / 动态 pass，与第 5 轮分类一致，无新增 flake。
+**遗留问题**：沿用第 5 轮——COPY 8 条（`-fPIC` 口径待架构裁定）、`musl/pleval`（上游 `.mk` 本不构建动态档）、OOM 三条宿主 flake；`P4` golden 对照、`ISS-246` 修复不在本册。
+
+### 终局复跑（新工具链产物，2026-10-17 22:44–23:07）
+
+> **上一轮（22:12–22:41）作废**：其 `libc.a`/`libc.so` 是 **19:49 旧 clang** 编的（`install-host` 21:26 换新工具链后未重建），L2 `check-musl-freshness` 当场报 `toolchain stamp != current clang/ld.lld`。已 `make build-musl-shared JOBS=8` **rc=0**（21 s，22:43:40→22:44:01）重建，`check-musl-freshness` **PASS**；本节数字 = 新产物上的**最终作数**。
+
+**测试结果**：按派单只跑测（未改源码、未动 `Makefile`、未 `install-host`），顺序 static → dynamic、逐组落日志（`.work/log/testcases/final-rerun-round2/`）：静态 **discovered 367 / excluded 30 / total 337：pass 303、fail 0、known-fail 9、blocked 25**（rc=1 仅因 `blocked>0`，`ISS-248`；8 分 30 秒）；动态 **pass 298、fail 0、known-fail 8、blocked 31**（rc=1 同口径；9 分 30 秒）。
+**与上轮对比（逐例）**：两档 337/337 逐例**全等**（`diff_baseline2.py` ⇒ transitions=0、无增删例）；**无 `pass→fail`、无新 `fail`**；static→dynamic 仍为第 5 轮那 12 条（COPY 8 / `pleval` 1 / OOM flake 3），本笔无新增。
+**`known-fail` 准入（未变更）**：仍 = `ISS-246` + `ISS-251` + `ADR-0030`（静态 9 = 3+1+5；动态 8 = 3+1+4，`math/lgammal` 因 COPY 记 blocked），逐例带 `known_fail_basis` 且经反向校验；live TLS 扫描 337 / 命中 3 / `pass_hits=0`。
+**产物/工具链指纹（证明吃的是新产物）**：`libc.a`（**2 660 248 B，mtime 22:44:00，sha256 `a65c3351…`**）、`libc.so`（**1 046 488 B，mtime 22:43:59，sha256 `d5fa2da3…`**，字节未变）、sysroot `libc.so` 同 sha；`clang` `854dd25e…`/`ld.lld` `cfd64e80…`/`qemu-dadao` `c40bc7f9…` 安装根 == 构建树；驱动实吃路径：静态 `<musl>/lib/libc.a`、动态 `<musl>/lib/libc.so`（逐例链接行核）；**静态 331 / 动态 323 张 ELF mtime 均晚于产物 mtime**。
+**验收结果**：① `prove_products.py` 全绿；② `verify_groups.py` **96/96 PASS**（六数、闭包、`closure_ok`/`classification_ok`、最低 `PT_LOAD=0x10000`、`PT_INTERP` 形态、无 `-T`）；③ 门控各自 rc=0：`check-musl-freshness`/`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues.py`/`make check`(L1)。
+**修改文件**：本任务书（仅追加本节）；无源码/驱动改动。gitignored：`.work/log/testcases/final-rerun-round2/`。
+**新发现/坑**：与 046t 同条——**「sha 不变」≠「未重建」**（本轮 `libc.a`/`libc.so` sha 与旧构建逐字节相同，唯一证据是 22:43:59/22:44:00 的 mtime + toolchain stamp）；`check-musl-freshness` 的 toolchain stamp 正是为这类**跨代际错配**设的。
+**遗留问题**：沿用第 5 轮——COPY 8 条（`-fPIC` 口径待架构裁定）、`musl/pleval`（上游 `.mk` 本不构建动态档）、OOM 三条宿主 flake；`P4` golden 对照、`ISS-246` 修复不在本册。
 
 ## 审阅记录
 
