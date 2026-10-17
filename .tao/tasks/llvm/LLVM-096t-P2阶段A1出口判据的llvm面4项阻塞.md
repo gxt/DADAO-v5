@@ -117,7 +117,7 @@
 ## 不做项（显式）
 
 1. **`P2` 的 `infra` 面**（`INFRA-085t` 范围）✗：`ISS-242`（`src/thread/dadao/syscall_cp.s`，**语义实现 / 或经用户裁定显式声明不支持**）、阶段 **C1** 的 `ldso` 真接入（`GETFUNCSYM` 基址相关化、`arch/dadao/reloc.h` 复核）、阶段 B1/D1/E 的构建侧、`tools/infra/build_musl.py`/`Makefile` 的任何改动、**回退 `-Wl,-shared` 绕行**。
-2. **`D2`（TLS 类动态重定位发射）** ✗ —— 见「待确认项 ①」（**另行裁定**；未裁定前本册不含）。
+2. **`D2`（TLS 类动态重定位发射）** ✗ —— 见「待确认项 ①」（**另行裁定**；未裁定前本册不含）。〔**2026-10-17 已推迟**到 `M9+`（主会话决定、待用户追认），见「待确认项 ①」注记〕
 3. **`ISS-222` ①②③**（`%N` 代入 / `"m"` 操作数 ISel 崩 = `ISS-197` / `rotl`·`rotr`·`bswap` ISel 选择）与 `ISS-223` 的**逐条回删排除项** ✗（另册；本册只解 ④）。
 4. **运行验证 / `qemu-user` / 三套测试集**（`P3`/`P4`）✗。
 5. **改 `spec/`、`contracts/`（机器数据）、`.tao/contracts/**`（正文）** ✗（须用户事先授权）；**新增/改重定位类型编号** ✗（`ADR-0019 D10` 冻结）；**relaxation** ✗（`ADR-0019 D7`）。
@@ -127,7 +127,7 @@
 
 | # | 项 | 我的默认（**待用户确认**） | 备选 / 影响 |
 |---|---|---|---|
-| ① | **`D2`（TLS 类动态重定位**发射**）归属**：**并入 `LLVM-096t`** 还是 **另立 `LLVM-097t`** | **不预设（本册不替用户定）** —— 未裁定前本册**按「不含 `D2`」执行**（见「不做项 2」）。**现场事实（供裁定）**：`components/llvm-project/patches/lld/ELF/Arch/DADAO.cpp` **现对类型 10/11/12（`TLS_DTPMOD`/`TLS_DTPREL`/`TLS_TPREL`）显式拒绝**（`getRelExpr` + `relocate` 两处；文案 `TLS dynamic relocation … is not supported yet (contract-dynlink.md §7)`），**非静默**（`ADR-0026 D7②`/`contract-dynlink §10②` 的「首版不发射、遇即报错」）；其打通还牵 `INFRA-085t` 阶段 **D1**（`infra` 面：`PT_TLS`/`TP=rb3`/`TLS_ABOVE_TP`/`DTPMOD`·`DTPOFF`·`TPOFF`/静态 `__thread`）与 `contract-dynlink §7` 的 musl arch 宏 | **(甲)** 并入本册 ⇒ 本册范围 = 4 + 1 项（**A1 出口判据仍只算前 4 项**；`D2` 的可核判据 = `__thread` 变量可编译并落 TLS 类重定位，编号与 `§4.3` 一致）；**(乙)** 另立 `LLVM-097t` ⇒ 本册**只解 4 项**、`D2` 独立排期（**与 `D1` 的先后**须同时排定）；**(丙)** 其它。⇒ 影响：任务粒度 / 验收面 / 与 `INFRA-085t` 阶段 D 的串行关系 |
+| ① | **`D2`（TLS 类动态重定位**发射**）归属**：**并入 `LLVM-096t`** 还是 **另立 `LLVM-097t`** | **不预设（本册不替用户定）** —— 未裁定前本册**按「不含 `D2`」执行**（见「不做项 2」）。**现场事实（供裁定）**：`components/llvm-project/patches/lld/ELF/Arch/DADAO.cpp` **现对类型 10/11/12（`TLS_DTPMOD`/`TLS_DTPREL`/`TLS_TPREL`）显式拒绝**（`getRelExpr` + `relocate` 两处；文案 `TLS dynamic relocation … is not supported yet (contract-dynlink.md §7)`），**非静默**（`ADR-0026 D7②`/`contract-dynlink §10②` 的「首版不发射、遇即报错」）；其打通还牵 `INFRA-085t` 阶段 **D1**（`infra` 面：`PT_TLS`/`TP=rb3`/`TLS_ABOVE_TP`/`DTPMOD`·`DTPOFF`·`TPOFF`/静态 `__thread`）与 `contract-dynlink §7` 的 musl arch 宏 | **(甲)** 并入本册 ⇒ 本册范围 = 4 + 1 项（**A1 出口判据仍只算前 4 项**；`D2` 的可核判据 = `__thread` 变量可编译并落 TLS 类重定位，编号与 `§4.3` 一致）；**(乙)** 另立 `LLVM-097t` ⇒ 本册**只解 4 项**、`D2` 独立排期（**与 `D1` 的先后**须同时排定）；**(丙)** 其它。⇒ 影响：任务粒度 / 验收面 / 与 `INFRA-085t` 阶段 D 的串行关系〔**收尾注记（2026-10-17，主会话决定、待用户追认）**：**`D2` 已推迟到 `M9+`** ⇒ 本项「归属」**无需裁定**、本册「不含 `D2`」即为终态；依据（`D1` 已够 `M8`、`D2` 仅 `dlopen` 需要）/ 触发条件（引入 `dlopen` 时）= `INFRA-085t`「待确认项 ⑦」/ `milestones.md` 中 `INFRA-085t` 行〕 |
 | ② | **回退 `-Wl,-shared` 绕行**（`build_musl.py` 的 `SHARED_LDFLAGS`）的**时机** | **不在本册**：属 `infra` 面 ⇒ 由 `INFRA-085t`（或其后小任务）在①落地后回退；本册只保证**裸传可用**且**绕行不回归**（验收 4②） | 若要求本册一并回退 ⇒ 须扩范围到 `tools/infra/**`（与 `INFRA-085t` 同改共享文件 ⇒ **串行**），并重跑 A1 证据脚本 |
 
 ## 完成区
