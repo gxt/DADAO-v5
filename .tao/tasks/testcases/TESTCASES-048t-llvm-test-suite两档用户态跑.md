@@ -113,16 +113,61 @@
 8. 与 `TESTCASES-046t`/`047t` 同改 `Makefile`/`milestones.md` ⇒ **串行**。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：**第 1 步**（全量见下「第 2 步」）。小样本 5 单元 × 两档 = **10/10 PASS**（static/dynamic 各 `total=5 pass=5 fail=0 blocked=0`、rc=0）；证据脚本 14 项全 PASS、rc=0（含注入→rc=1 恰 hello FAIL→回绿）。门控 `make check`(L1) 与 `check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues.py` 均 rc=0。
+**修改文件**：新增 `tools/testcases/run_llvm_ts_user.py`；新增 `.work/evidence/TESTCASES-048t/run.sh`、`.work/evidence/TESTCASES-048t-step2/run.sh`（均 gitignored）；`.work/log/testcases/llvm-ts-user-{pilot,static,dynamic}-*.{json,log}`、`llvm-ts-user-both-{first-fixed,rerun}.log`、`llvm-ts-user-evidence-step2.log` 与 `llvm-ts-user-ft-host-glibc.log`（gitignored）；`.tao/knowledge/issues.yaml`（新增 `ISS-264`/`ISS-265`/`ISS-266`/`ISS-267`）；本任务书完成区/自审。**`Makefile` 未改**（可选 target 省略，避免与 046t/047t 同改共享文件）。
+**验收结果**：A = **222**（`SingleSource/Benchmarks` 101/103 个含 main 的 `.c`；`MultiSource/{Benchmarks,Applications}` 104+17 程序目录）；B = **1890**（1241/645/2/2，**未跑**）；C：`External` `.c`=9（main 0）、非 C 后缀 719+226+28+22+11+4、`MicroBenchmarks` `.c`=10（main **0**）；证据脚本独立重算与 `--list` 一致、`census_ok=True`。oracle 形态：stdout+exit 161 / md5 52 / raw 3 / exit-only（非等价）6。小样本逐例两档均 PASS：`Shootout/hello`、`Polybench/blas/gemm/gemm`（md5+CMake flags）、`McCat/12-IOtest`（4 TU）、`Olden/bh`（4 TU，RUN_OPTIONS+`.small`）、`McCat/01-qbsort`（md5+stdin，3 TU）；两档 `min PT_LOAD=0x10000`，static 无 `PT_INTERP`、dynamic 有且路径 `/lib/ld-musl-dadao.so.1`（`readelf -lW` 现场）。
+**新发现/坑**：① 参考 = **RunSafely 整份输出**（stdout+stderr 同一 fd + 裸 `exit N\n` 尾；hash 形式对整份取 md5）——只看 stdout 会把 gemm/qbsort 判假 fail。② 参考文件名 = **`llvm_multisource` target**，29 例与目录名不同（`jpeg-6a`→`cjpeg`、`ClamAV`→`clamscan`），按目录名会静默丢 29 个 oracle。③ dynamic 档必须 **`-fPIC`**（`stdout`/`stderr` 数据符号的 `R_DADAO_COPY` 被 lld 拒，ADR-0026 D7②）；与册子「同编译段」的**唯一偏差**，两档 compile cmd 均入 JSON。④ MultiSource 的 TU 集取上游 **curated `llvm_multisource(...)` 列表**（lua/jpeg/cfrac 另有第二个 `main`）。⑤ 54 例用上游 **fpcmp 容差**（已用 `tools/fpcmp.c` 自建 host 工具；byte-exact 会假 fail）。⑥ 上游 CMake 现场求值，引号语义须按 CMake（SMG2000 假 fail 根因）。⑦ `sqlite3` 需 `tclsh smalltest.tcl` 生成 `test*.sql`、`JM/ldecod` 需 `Output/`（在副本内建）。⑧ `ClamAV` 参考对**输出交错**敏感 → 仍按规则 `fail` + 逐例注记，不改标。⑨ 标定（40 例样本、jobs=8、timeout 300）：29 pass/1 fail/10 blocked，Σ=2089.9s、均值 52.2s/例。
+**遗留问题**：① **全量两档已跑**（第 2 步：`193/2/0/27/0/222`，两档同）；② `known-fail` 表仅收 `ISS-246`（逐例依据表已实现，依据不成立即 FAIL；本册为 0）；③ B 类 1890、C 类结构排除按册**未跑**；④ Burg 等老 C 被现代 clang `-Wimplicit-int` 挡下 → `blocked`（未全局强压 `-Wno-`，如需另行裁定）；⑤ 全量实测坑：300s 超时 6、clang 前端崩溃 2（rc=-6）、qemu host SIGSEGV 4、`flog` libcall 缺口 2——均归 `blocked`；⑥ `ft`/`ClamAV` 两例 `fail` 为参考输出可移植性（`ISS-265`，**待裁定**是否扩展 known-fail 类别）。
+**第 2 步（全量）确切命令行（已执行）**：`python3 tools/testcases/run_llvm_ts_user.py --link-mode both --jobs 8 --timeout 300 --work-dir .dadao/tests/llvm-ts-user`（两档顺序 static→dynamic、同一枚举快照；默认落 `.work/log/testcases/llvm-ts-user-<mode>-<mode>.{json,log}`）；`setsid nohup` 落 `LLVM_TS_EXIT=1`（仅因 `blocked>0`，`ISS-248` 口径），最终驱动复跑 04:11:08→04:36:23 = **25m15s**（static 12m37s + dynamic 12m38s；与前一版仅 md5 文案/`expected_exit` 字段差异的复跑逐例类别/退出码零变化）。
+
+**第 2 步结果（2026-10-18，全量两档）**
+- **两档六数（逐数相同）**：`total=222 pass=193 fail=2 known-fail=0 blocked=27 excluded=0`；pass 拆分 = 参考 oracle **192** / exit-only（非等价）**1**；oracle 形态 stdout 161 / md5 52 / raw 3 / none 6；`closure_ok=True`、`classification_ok=True`。
+- **与首轮逐例 diff（两档均恰 6 例）**：`Misc/mandel`、`Misc/mandel-2`、`DOE-ProxyApps-C/RSBench` `blocked→pass`；`mediabench/jpeg/jpeg-6a`、`mediabench/mpeg2/mpeg2dec`、`Prolangs-C/gnugo` `fail→pass`；其余 216 例类别零变化（46 例 md5-pass 仅 reason 文案变）。
+- **驱动修正（依据）**：① `llvm_test_data()` 复制进 per-case run dir（`cmake/modules/TestSuite.cmake:22-45` + `SingleMultiSource.cmake:101` 的 `WORKDIR %S`；mediabench 输入在 `../data`）⇒ `testimg.ppm`/`mei16v2.m2v` 就位；② 链接加 `clang -print-libgcc-file-name` 指向的 compiler-rt archive，与 libc 同 `--start-group` ⇒ `__muldc3`/`__divdc3` 解析；③ md5 oracle 不再额外要求 `exit==0`（`HashProgramOutput.sh` 对 RunSafely 整份文档〔含 `exit N` 尾〕取 md5；`gnugo` 基线即 exit 1）；④ 补 `include_directories`/`target_include_directories` 跟踪（`archie-client` 的 `<copyright.h>` 被上游 `check_function_exists(re_comp)` 守卫、musl 无 `re_comp` ⇒ 仍 `blocked` + 逐例 note）。
+- **`fail` 逐条**（两档同）：① `Ptrdist/ft` — 运行 `qemu-dadao …/ft.elf 1500 100000`；`md5(output+exit)=3dd953c9…` vs 参考 `63acb35e…`，exit 0/0；宿主 glibc 同源同参数**复现参考值** ⇒ musl `srandom` 播种差异（`ISS-265`，`llvm-ts-user-ft-host-glibc.log`）。② `Applications/ClamAV` — `clamscan` 两文均 38072 B，仅 `Initializing the engine (devel-20071218)` 与库龄告警的交错位置不同（`ISS-265`；不改标）。
+- **`blocked` 27 分类（两档同；逐条 `reason`/`compile`/`run` 见 `.work/log/testcases/llvm-ts-user-{static,dynamic}-{static,dynamic}.log`）**：编译/C 方言 7（Burg、siod、gawk、make、p2c、OptimizerEval、cdecl）；300s timeout 6（lemon、lua、SimpleMOC、unix-smail、mafft、nbench）；qemu 宿主信号 11 4（SPASS、consumer-typeset、8b10b、dbms）；缺头 3（office-ispell `sgtty.h`、archie-client `copyright.h`、Polybench template `polybench.h`）；clang 前端崩溃 rc=-6 2（lencod、obsequi）；后端 libcall 缺 2（CoMD、consumer-lame `flog`）；varargs 未支持 1（plot2fig）；`Cannot select: t29: ch = brind` 1（evalloop）；`undefined symbol: RUNTIME_INIT` 1（aarch64-init-cpu-features）。
+- **覆盖边界**：A=222 全执行（== 枚举集，`closure_ok`）；B=**1890 未跑**（1241/645/2/2，另立）；C：`External` `.c`=9（main 0）、非 C 后缀 719/226/28/22/11/4、`MicroBenchmarks` `.c`=10（main 0）；205 个成功链接例 `min PT_LOAD=0x10000`，static **无** `PT_INTERP`、dynamic 全 `/lib/ld-musl-dadao.so.1`；未做 `RISC-V+musl` golden 对照（`P4`）。
+- **新 issue**：`ISS-264`（本子任务首次下发 `Task cancelled`、盘上零改动、已重试一次）、`ISS-265`（ft/ClamAV 参考可移植性，**待裁定**）、`ISS-266`（qemu 宿主 SIGSEGV ×4：SPASS/consumer-typeset/8b10b/dbms）、`ISS-267`（后端缺口 ×6：clang 崩溃 2、`brind`、varargs、f80 `flog` ×2）。
+- **证据/门控**：`.work/evidence/TESTCASES-048t-step2/run.sh` 17 项全 PASS、rc=0（注入 A `--inject-wrong-oracle`→rc=1 恰 hello FAIL→回绿；注入 B 改参考文件→rc=1→`cp` 还原 md5 相等→回绿）；`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues.py`/`make check`(L1) 均 rc=0。
+- **新发现/坑（第 2 步）**：① md5 参考 = RunSafely 整份文档哈希 ⇒ **基线 exit 非 0 也合法**（gnugo），不得额外要求 exit 0；② musl `srandom` 播种 ≠ glibc/BSD（`src/prng/random.c` 头注释）⇒ `ft` 参考不可移植；**宿主 glibc 同源复现**是区分「驱动/参考错」与「libc 语义差」的独立判据；③ MultiSource 输入按 `llvm_test_data()`+`WORKDIR %S` 摆（`../data`），不是 `cwd=源目录`；④ 上游 `check_function_exists` 守卫的 target（archie）在 musl 上本就不构建，blocked 根因须注记。
+- **阶段进度**：第 1 步 ✅（驱动/枚举/小样本）；第 2 步 ✅（驱动修正 + 两档全量 + 分类 + 证据 + 门控）；**按本笔指令未改 `**状态**`**（仍 `待开始`）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（自审意见、finding 处置及判决）
+**范围**：`tools/testcases/run_llvm_ts_user.py` 全文逐行 + 小样本/证据脚本实跑；判决 = 发现项全部已修、复验见下（按本笔指令**不改状态**）。
+
+| # | finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| 1 | 该 clang 不接受 `--target`（首跑 hello 直接 blocked） | ✅已修 | `-target` | hello PASS |
+| 2 | oracle 只取 stdout：漏 stderr、漏 `exit N` 尾 | ✅已修 | `run_stream`（stdout+stderr 同 fd）+ 整份文档比较 | gemm/qbsort 由 FAIL→PASS |
+| 3 | hash 形式按 stdout 取 md5（漏 exit 尾） | ✅已修 | md5(output+`exit N\n`) | qbsort/gemm md5 命中 |
+| 4 | 参考基名取目录名：29 例 oracle 丢失 | ✅已修 | `multi_target_name()`（`llvm_multisource` target） | oracle 形态 161/52/3/6（现场） |
+| 5 | CMake 引号语义：`"-n 30 15 30"` 成一个 argv | ✅已修 | 整体引号去引号、嵌入式保留（cmake 3.28 对照） | SMG2000 FAIL→PASS |
+| 6 | 有 `FP_TOLERANCE` 的 54 例被 byte-exact 误判 | ✅已修 | 自建上游 fpcmp，`-r/-a/-i` | sqlite3 + McGill×4 PASS |
+| 7 | `JM/ldecod` 缺 `Output/`（语料无此目录） | ✅已修 | 副本内建 RUN_OPTIONS 输出父目录 | ldecod PASS |
+| 8 | `sqlite3` 缺 `test*.sql`（上游 tcl 生成） | ✅已修 | `CASE_PREPARE` 跑 `tclsh smalltest.tcl` | sqlite3 PASS（fpcmp） |
+| 9 | `--only` 无匹配时静默少跑 | ✅已修 | 每个 pattern 必须命中，否则 rc=2 | `blas/gemm$` → rc=2 |
+| 10 | 超时只杀直接子进程（qemu 可能残留） | ✅已修 | `start_new_session`+`killpg`；现场清理首跑孤儿 | 采样 300s 超时例无残留 |
+| 11 | 死代码/未用常量（`A_TREES`/`EXIT_RE`/`expected_stdout`） | ✅已修 | 删除；`FAULT_NAMES` 接入 fail 原因 | `py_compile` rc=0 |
+| 12 | `both` + 显式 `--json-out` 两档互相覆盖 | ✅已修 | `-static`/`-dynamic` 后缀 | both 实跑产出两文件 |
+
+**未做/边界**：全量未跑（第 2 步）；B/C 未跑；未新增外部依赖（fpcmp 由语料 `tools/fpcmp.c` + host cc 构建）；未改 `spec/`/`contracts/`/`.work/source/**`；未 commit/push。
 
 #### 第 1 轮 reviewer 验收
 （独立重跑、约束核验、判决）
+
+#### 第 2 轮 engineer 自审
+**范围**：第 2 步新增/改动代码逐行（`llvm_test_data`/`include_directories` 解析、run-dir 输入复制、`--start-group` 链接、md5 oracle、builtins 解析）+ 两档全量产物复核 + 证据脚本实跑（17/17 PASS）；判决 = finding 全部已修（按下笔指令**不改 `**状态**`**）。
+
+| # | finding（自审发现） | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|---|
+| 1 | md5 oracle 把 `expected_exit` 硬设为 0，属**无依据期望值**（哈希已含 exit 尾；gnugo 基线 exit 1） | ✅已修 | md5 分支置 `expected_exit=None`、失败文案去掉 `expected 0`；仅比哈希 | 两档 `gnugo` pass/exit 1/`expected_exit=null`；52 例 md5 全为 null |
+| 2 | 上述修正发生在首轮修正后全量之后（产物与最终驱动有文案/字段差） | ✅已修 | 用最终驱动**重跑两档** | `04:11:08→04:36:23`（25m15s），与前一版**逐例类别/退出码零 diff** |
+| 3 | `llvm_test_data()` 若源文件缺失会静默继续？ | ✅已修（实现即显式失败） | 缺文件 `raise FileNotFoundError` ⇒ `blocked`（`reason` 含路径） | 67 例 test_data 源**全部存在**（独立脚本核）；jpeg/mpeg2 就位 |
+| 4 | `include_directories` 解析可能把 `target_include_directories` 的目标名当路径 | ✅已修 | `target_include_directories` 去掉首参；关键字白名单过滤 | `Burg` compile cmd 含 `-I …/Burg`；`archie-client` 仍 `blocked`（上游 `check_function_exists` 守卫）+ 逐例 note |
+| 5 | 注入 B 改真实参考文件，若还原失败会污染只读语料 | ✅已修 | `cp` 备份 → 注入（md5 变化确认）→ `cp` 还原 → md5 相等 → 回绿 | 还原后 md5 `6f61e492…` 与注入前相等；`.work/source/llvm-test-suite` `git status` 干净 |
+| 6 | `fail` 是否给出命令 + 首错行 | ✅不修（已满足） | 报告每例写 `compile`/`link`/`run` + `first_error` | `ft` 报告行含 3 条 compile/link/run 与 `first_error`（现场 grep） |
+| 7 | `libc.a` 与 builtins 互相引用需确定性顺序 | ✅已修 | `--start-group … --end-group` | 205 个**链接成功**例 0 个 `undefined symbol`（`aarch64` 的 `RUNTIME_INIT` 在链接阶段失败、未计入 205） |
+
+**未做/边界**：B/C 未跑；`ft`/`ClamAV` 维持 `fail`（`ISS-265` 待裁定）；未改 `spec/`/`contracts/`/`.work/source/**`/`Makefile`；未 commit/push。
