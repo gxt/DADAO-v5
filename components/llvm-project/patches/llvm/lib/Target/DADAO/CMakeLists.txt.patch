@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/CMakeLists.txt b/llvm/lib/Target/DADAO/CMakeLists.txt
 new file mode 100644
-index 000000000..8ce835db2
+index 000000000..08ea9cbb7
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/CMakeLists.txt
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,48 @@
 +add_llvm_component_group(DADAO)
 +
 +set(LLVM_TARGET_DEFINITIONS DADAO.td)
@@ -31,8 +31,10 @@ index 000000000..8ce835db2
 +  DADAORegisterInfo.cpp
 +  DADAOSubtarget.cpp
 +  DADAOTargetMachine.cpp
++  DADAOTargetObjectFile.cpp
 +
 +  LINK_COMPONENTS
++  Analysis
 +  AsmPrinter
 +  CodeGen
 +  Core

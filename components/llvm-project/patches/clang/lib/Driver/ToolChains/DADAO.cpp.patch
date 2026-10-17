@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.cpp b/clang/lib/Driver/ToolChains/DADAO.cpp
 new file mode 100644
-index 000000000..deb056f25
+index 000000000..2fe4ae3e9
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.cpp
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,116 @@
 +//===--- DADAO.cpp - DADAO ToolChain Implementations ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -95,9 +95,20 @@ index 000000000..deb056f25
 +  // added implicitly.  Linker-script/-L/-e/-u/-r flags are forwarded directly;
 +  // the driver itself already hands `-Wl,<arg>` / `-Xlinker <arg>` through to
 +  // the linker command, so they are not repeated here.
++  //
++  // `-shared` / `-static` / `-pie` are different: the *driver* consumes them
++  // (they are MachineOutputFlags deciding the output kind), so they never reach
++  // the linker through the `-Wl,` path above and nothing would forward them.
++  // Dropping them silently is exactly the ISS-239 bug -- `clang -shared` then
++  // only warns `-Wunused-command-line-argument` and links an ET_EXEC with no
++  // `.dynamic` section, so a shared-object build looks successful while
++  // producing an executable (a "not supported" case must fail loudly, not
++  // quietly change the output kind).  Forward the three flags verbatim; ld.lld
++  // validates their combinations itself (`-shared` + `-pie` etc.).
 +  Args.addAllArgs(CmdArgs,
 +                  {options::OPT_T, options::OPT_L, options::OPT_e,
-+                   options::OPT_u, options::OPT_s, options::OPT_r});
++                   options::OPT_u, options::OPT_s, options::OPT_r,
++                   options::OPT_shared, options::OPT_static, options::OPT_pie});
 +  TC.AddFilePathLibArgs(Args, CmdArgs);
 +  AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
 +

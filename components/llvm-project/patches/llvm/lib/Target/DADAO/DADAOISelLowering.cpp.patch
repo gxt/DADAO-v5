@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..000b0dd50
+index 000000000..86062fbae
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1256 @@
+@@ -0,0 +1,1276 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -178,6 +178,26 @@ index 000000000..000b0dd50
 +  setOperationAction(ISD::VAARG, MVT::Other, Custom);
 +  setOperationAction(ISD::VACOPY, MVT::Other, Expand);
 +  setOperationAction(ISD::VAEND, MVT::Other, Expand);
++
++  // Dynamic stack allocation: VLA / alloca and the stacksave/stackrestore pair
++  // (LLVM-096t, ISS-222 ④).  The ISA adjusts the stack pointer (`rb1`) with an
++  // ordinary add/sub, so the generic expansion is exactly right -- and it is
++  // the *only* option, because this backend has no pattern for
++  // DYNAMIC_STACKALLOC / STACKSAVE / STACKRESTORE.  Left at the default
++  // (Legal) those nodes reach ISel and abort with
++  //   "Cannot select: ... stackrestore" / "... dynamic_stackalloc"
++  // (seen on musl's `ldso/dynlink.c`, which has a VLA in `__dls2`).
++  //
++  //   * DYNAMIC_STACKALLOC -> ExpandDYNAMIC_STACKALLOC: `SP = SP - size`
++  //     (StackGrowsDown), rounded down to the VLA's alignment when that is
++  //     coarser than the stack alignment;
++  //   * STACKSAVE / STACKRESTORE -> a CopyFromReg / CopyToReg of `rb1`.
++  //
++  // Both directions are wired by setting StackPointerRegisterToSaveRestore()
++  // above (rb1); without it the legalizer would emit a diagnostic instead.
++  // Same setting as AArch64 / Mips / RISCV / Lanai / MSP430 / CSKY / BPF.
++  setOperationAction({ISD::STACKSAVE, ISD::STACKRESTORE}, MVT::Other, Expand);
++  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i64, Expand);
 +
 +  // Floating point (M6, LLVM-066t).  Natively supported (Legal; patterns in
 +  // DADAOCodeGen.td): + - * /, sqrt, negate, absolute value, and the

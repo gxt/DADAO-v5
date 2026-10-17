@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.h b/llvm/lib/Target/DADAO/DADAOTargetMachine.h
 new file mode 100644
-index 000000000..c1feee7e6
+index 000000000..bbc8d275a
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.h
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,52 @@
 +//===-- DADAOTargetMachine.h - Define TargetMachine for DADAO --- C++ ----===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -45,6 +45,8 @@ index 000000000..c1feee7e6
 +  const DADAOSubtarget *getSubtargetImpl(const Function &F) const override;
 +
 +  TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
++
++  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 +
 +  TargetLoweringObjectFile *getObjFileLowering() const override {
 +    return TLOF.get();

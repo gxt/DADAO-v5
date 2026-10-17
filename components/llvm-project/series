@@ -52,6 +52,9 @@ llvm/lib/Target/DADAO/DADAOSubtarget.cpp.patch
 llvm/lib/Target/DADAO/DADAOSubtarget.h.patch
 llvm/lib/Target/DADAO/DADAOTargetMachine.cpp.patch
 llvm/lib/Target/DADAO/DADAOTargetMachine.h.patch
+llvm/lib/Target/DADAO/DADAOTargetObjectFile.cpp.patch
+llvm/lib/Target/DADAO/DADAOTargetObjectFile.h.patch
+llvm/lib/Target/DADAO/DADAOTargetTransformInfo.h.patch
 llvm/lib/Target/DADAO/Disassembler/CMakeLists.txt.patch
 llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp.patch
 llvm/lib/Target/DADAO/MCTargetDesc/CMakeLists.txt.patch

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
 new file mode 100644
-index 000000000..4a64536cb
+index 000000000..ed44094df
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,140 @@
 +//===-- DADAOTargetMachine.cpp - Define TargetMachine for DADAO ---------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -19,8 +19,11 @@ index 000000000..4a64536cb
 +#include "DADAOTargetMachine.h"
 +#include "DADAO.h"
 +#include "DADAOSubtarget.h"
++#include "DADAOTargetObjectFile.h"
++#include "DADAOTargetTransformInfo.h"
 +#include "TargetInfo/DADAOTargetInfo.h"
 +
++#include "llvm/Analysis/TargetTransformInfo.h"
 +#include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 +#include "llvm/CodeGen/Passes.h"
 +#include "llvm/CodeGen/TargetPassConfig.h"
@@ -112,12 +115,17 @@ index 000000000..4a64536cb
 +    : CodeGenTargetMachineImpl(T, TT.computeDataLayout(), TT, CPU, FS, Options,
 +                               selectRelocModel(RM),
 +                               CM.value_or(CodeModel::Small), OL),
-+      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
++      TLOF(std::make_unique<DADAOTargetObjectFileELF>()),
 +      Subtarget(TT, CPU, FS, *this) {
 +  initAsmInfo();
 +}
 +
 +DADAOTargetMachine::~DADAOTargetMachine() = default;
++
++TargetTransformInfo
++DADAOTargetMachine::getTargetTransformInfo(const Function &F) const {
++  return TargetTransformInfo(std::make_unique<DADAOTTIImpl>(this, F));
++}
 +
 +const DADAOSubtarget *
 +DADAOTargetMachine::getSubtargetImpl(const Function &F) const {

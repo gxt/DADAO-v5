@@ -132,16 +132,31 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`.work/evidence/LLVM-096t/run.sh` **54 PASS / 0 FAIL（rc=0）**；`run.sh --inject` **66 PASS / 0 FAIL（rc=0）**（12 条注入/还原逐项「预期 FAIL → 副本还原 → 回绿」，含 `md5 -c` 逐文件对账）。门控（各留自身 rc）：`check-patch-tree` **150 份/0**、`check-instrinfo` 0 errors、`check_lit_gen` 64/0、`check-index-blobs`/`check-source-state`（base+1、clean、HEAD=`04b2a59`）/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-knowledge-dir`/`check-component-changelog`/`check-issues`/`check-dirs`/`validate-vectors` 全 **rc=0**；**L1 `make check` rc=0**。**未跑** `install-host`/L2/L3（归主会话）。
+**修改文件**：组件源（`.work/source/llvm-project`，E1 收敛为 base+1 单 commit）**5 改 + 3 增** ⇒ 补丁 8 份（`series` 147→**150**）：`clang/lib/Driver/ToolChains/DADAO.cpp`（122 行）；`llvm/lib/Target/DADAO/{CMakeLists.txt, DADAOISelLowering.cpp, DADAOTargetMachine.cpp, DADAOTargetMachine.h}`；新增 `DADAOTargetTransformInfo.h`（63）、`DADAOTargetObjectFile.{h,cpp}`（31/76）。v5 侧：`components/llvm-project/{patches/**, series, changelog.md}`。证据：`.work/evidence/LLVM-096t/{run.sh, jt_rela_oracle.py, vla_oracle.py, mutate_elf.py, jtlink-stubs.c, baseline.json}`（日志 `.work/log/llvm/LLVM-096t/`）。
+**验收结果**：① `ISS-239`：裸 `-shared` ⇒ **`ET_DYN`** + `.dynamic`（`SONAME`/`GNU_HASH`/`BIND_NOW`，无 `DT_HASH`/`DT_RELR`/版本段），`-###` 恰传 **1** 个 `-shared`；对照（不传 `-shared`）⇒ `ET_EXEC`；`-Wl,-shared` 的 `ld.lld` argv + 产物 md5 与改动前**逐字节相同**。② `ISS-240`：`fmtmsg`/`regcomp` `-fPIC` **rc=0**（原 4/20 错）、`.s` **零** `.dd.t32`（`.dd.o64` 33/278 条）、独立 ELF64-BE oracle 全绿（表 = 8 字节 `R_DADAO_ABS48`，计数现场派生）。③ `ISS-241`：判定 = **(甲) 应允许**（依据 `contract-dynlink §4.3` 已定义 `RELATIVE`=`B+A` + ELF `.data.rel.ro` 惯例；**未改契约/`spec`、未新增类型**）⇒ `-shared` **rc=0**、`.rela.dyn` **41** 条 `R_DADAO_RELATIVE` 打 `.data.rel.ro`（`B+A` 逐条独立对账）、节 `SHF_WRITE`，同对象静态链接对照不报该错。④ `ISS-222④`：`dynlink.c` `-O0`（**含/不含** `-fPIC`）**rc=0**，`__dls2` 反汇编 `rb2rd{rd4},{rb1}` → `sub.uo{rd0,rd4},rd4,rd6` → `rd2rb{rb1},{rd4}`（运行期量）+ 第二次 `rb1` 写回（`stackrestore`）。
+**新发现/坑**：1) ④ 修好后 `dynlink.c` 的 `-O2` 编译又暴露**另一个既存缺口** `Cannot select: i64 = bswap`（`map_library`）——`-emit-llvm` 前后 **diff 0 行** ⇒ 非本册引入，属 `ISS-222 ③`/`ISS-193(c)` 面（本册「不做项 3」）⇒ **A1 出口判据在 `-O2` 仍被该缺口挡住**，不是 `-shared`/`-fPIC` 面能解。2) `tests/scripts/dadao-dyn.lds` **未列** `.data.rel.ro`（当前无任何流程引用该脚本；A1 用 musl `LDFLAGS` 不用它）⇒ 后续若用它链接带 dense switch 的 PIC 对象，`.data.rel.ro` 成 orphan（lld 归 RWX `PT_LOAD`：功能正确、不进 RELRO）。3) 驱动顺带转发 `-static`/`-pie`（同族静默丢弃；仓库内**无**流程传 `-static`，已核）。4) `CodeGenTargetMachineImpl::getTargetTransformInfo` 默认给 `BasicTTIImpl`（PIC+64 位 ⇒ rel 表 true），故必须**目标侧覆写**才能 opt-out（`TargetMachine` 基类返回的 `NoTTIImpl` 反而恒 false，别混淆）。
+**遗留问题**：① **`dynlink.lo` `-O2` rc=0 未达**（`bswap`，另册 `ISS-222③`）——本册 ④ 的「能编」判据在 `-O0` 达成、`-O2` 仅达成「`stackrestore` 消失」；② 任务 `**状态**` 与 `.tao/knowledge/milestones.md` 流水行按派发要求**未改**（归 `/complete`）；③ `ISS-241` 判定 (甲) 已落纸；若须 ADR 固化（`docs/Process-03` 判据）请主会话裁定——本册未写 ADR。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**范围**：8 份补丁（5 改 3 增）+ 证据脚本 6 份。逐行审查改动源码、证据断言与注入路径。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `mutate_elf.py patch-byte` 把指令地址按十进制解析（`int(x,0)`）⇒ 注入落到错误偏移，I4 实际未改字节 | ✅已修 | 地址改 `int(x,16)`；并加两条断言（`I4a` 变更已落地、`I4b` 回读反汇编须显示 `sub.uo {rd0, rd4}, rd4, rd4`） | `--inject` 中 I4a/I4b/I4c 全 PASS；mutated 反汇编实测 `52 00 41 04` |
+| F2 `jt_rela_oracle` 原断言「`.rela.dyn` 里除跳转表外不得有 `RELATIVE`」——GOT 槽合法地也有 `RELATIVE` ⇒ 假红（把真问题掩在噪声里） | ✅已修 | 计数/配对限定在 `.data.rel.ro` 地址区间内（GOT 在外） | oracle `41 vs 41`、`matched=41 of 41`，rc=0 |
+| F3 oracle 第一版假设输出仍有 `.text.catopen` 节（lld 把 `.text.*` 并入 `.text`）⇒ 锚点取值失败 | ✅已修 | 改为「锚符号 `catopen` 在 object 的节内偏移 vs 输出地址」求放置偏置；对象 JT 尺寸 == 输出 `.data.rel.ro` 尺寸亦作断言 | `anchor 'catopen' ... value=0x10908`、`328 vs 328` |
+| F4 `S1.16` argv 归一化把占位符包进引号（`"<OBJ>"`）⇒ 1 条假 FAIL | ✅已修 | sed 连引号一起替换 | 改动前后 argv 逐字相同 |
+| F5 组件检出需回到 E1（base+1 + clean）才能导出补丁 | ✅已做 | `git add -A` + `commit --amend`（未推送；任务派发已允许）；**只动 `.work/source/llvm-project`** | `check-source-state`：`HEAD=04b2a59 count=1 clean=True`；`check-patch-tree` 150/0 |
+| F6 `-mcmodel=large` 下 JT 前缀为 `.lrodata` ⇒ 我造 `.ldata.rel.ro`，而 lld 的 `getOutputSectionName` 前缀匹配会把它并进 `.ldata`（可写、可重定位，但**不进** RELRO） | ⏸延后 | 不改（大码模型当前未启用；功能正确性不受影响） | 已在完成区「新发现 2」类项记录；`-mcmodel=large` 场景无任务/测试覆盖 |
+| F7 ④ 的验收条款「`dynlink.lo` rc=0」在 musl 的 `-O2` 下不可达（`bswap`，`ISS-222③` 另册） | ⏸延后 | 不越界修 `bswap`；改为「`-O0` 真实源 rc=0 + `-O2` 仅断言 `stackrestore` 消失」双证据 | `-emit-llvm` 前后 diff 0 行 ⇒ 缺口既存；`S4.1/S4.3/S4.4` 输出入日志 |
+| F8 `tests/scripts/dadao-dyn.lds` 未列 `.data.rel.ro`（本册把 PIC 跳转表挪进该节） | ⏸延后 | 不改（属 `tests/**`，越界；当前无流程引用该脚本，A1 走 musl `LDFLAGS`） | `grep` 全仓：仅 `.work/evidence/LLVM-094t/**` 引用；已写入完成区与回报 |
+| F9 驱动顺带转发 `-static`/`-pie`（任务仅硬性要求 `-shared`） | ✅已披露 | 三者同族（同为 `MachineOutputFlags` 被驱动吃掉）；`-Wl,` 通道不重复 | 全仓核：无流程传 `-static`；`-Wl,-shared` 仍恰 1 个 `-shared`、产物 md5 不变 |
+
+**判决**：F1–F5、F9 已处置并复验；F6–F8 为**范围外/大码模型边角**，均已如实登记（未修 ≠ 未发现）。**无未修的实现缺陷** ⇒ 实现侧可交验收；任务 `**状态**` 与 `milestones.md` 按派发要求不动（归 `/complete`）。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
