@@ -75,10 +75,21 @@ Classification (counted live, never hard-coded)
 * ``fail``        built + ran, guest exit != 0 and no declared gap signature
                   explains it: a real defect.  A guest killed by a signal is a
                   ``fail`` too (the program died); the signal number is kept.
-* ``known-fail``  the failure is attributable to **ISS-246** only
-                  (``__thread``: clang ``thread-local storage is not supported
-                  for the current target`` / backend ``GlobalTLSAddress``).
-                  Nothing else may be relabelled this way (ISS-226).
+* ``known-fail``  the failure is explained by a row of the **per-case basis
+                  table** (``KNOWN_FAIL_BASES``), with that row's evidence
+                  recomputed live: ``ISS-246`` (``__thread``: clang
+                  ``thread-local storage is not supported for the current
+                  target`` / backend ``GlobalTLSAddress``); ``ISS-251``
+                  (musl's ``%s`` is parse-only -- ``src/time/strptime.c`` --
+                  while the corpus asserts glibc's fill-``tm`` behaviour at
+                  ``src/functional/strptime.c:112``); ``ADR-0030`` (the target
+                  still declares ``long double`` = binary64 /
+                  ``LDBL_MANT_DIG=53``; ADR-0030 is Accepted and schedules
+                  binary128 in M9, so the five ``math/*l`` ulperr failures
+                  disappear then).  A failure without a registered basis stays
+                  a ``fail``; nothing else may be relabelled (ISS-226).  The
+                  audit prints each row's basis and rejects an unattributed
+                  ``known-fail`` and any unclassified ``fail``.
 * ``excluded``    declared up front, structural, with a per-entry reason and a
                   live count: upstream's test *generator* tree
                   (``src/math/gen/**``), the ``dlopen`` case in a static image
@@ -169,12 +180,50 @@ PER_CASE_CFLAGS = {
 # t_status (0 = no t_error call).  Injected (wrong) by the evidence script.
 EXPECTED_GUEST_EXIT = 0
 
-# ISS-246 is the ONLY admitted known-fail cause for this suite.
+# ---------------------------------------------------------------------------
+# known-fail admission: a per-case evidence table (INFRA-087t).
+#
+# The rule stays "no unattributed known-fail" (ISS-226); it is no longer
+# hard-bound to a single issue.  Each admitted cause names the evidence that
+# must hold for the specific case, and the audit recomputes it per row:
+#
+#   ISS-246  compile-time ``__thread`` gap: a live TLS source scan must hit the
+#            case *and* clang's first diagnostic must be the TLS one.
+#   ISS-251  musl semantics: ``%s`` is parse-only (musl 1.2.6
+#            ``src/time/strptime.c``; the DADAO patch series does not touch
+#            that file) while libc-test asserts glibc's fill-``tm`` behaviour
+#            (``src/functional/strptime.c:112``, under the corpus' own
+#            ``/* Glibc */`` heading).  Evidence: the musl parse-only comment,
+#            the corpus call site, and the case's own ``%s`` diagnostic.
+# ---------------------------------------------------------------------------
+ISS246_ID = "ISS-246"
 ISS246_PATTERNS = (
     "thread-local storage is not supported",
     "GlobalTLSAddress",
 )
-ISS246_ID = "ISS-246"
+
+ISS251_ID = "ISS-251"
+ISS251_MUSL_COMMENT = (
+    "Parse only. Effect on tm is unspecified",
+    "and presently no effect is implemented",
+)
+ISS251_CALL_SITE = re.compile(
+    r'checkStrptime\("683078400",\s*"%s",\s*&tm2\)')
+ISS251_DIAGNOSTIC = '"%s": for "683078400"'
+
+# The admitted causes, keyed by issue id: a case's ``known_fail_basis`` must be
+# one of these keys and must satisfy the corresponding live evidence check.
+ADR0030_ID = "ADR-0030"
+ADR0030_FILE = os.path.join(REPO_ROOT, ".tao", "adr",
+                            "adr-0030-long-double-binary128.md")
+ADR0030_CASE_LIST = re.compile(r"math/\{([a-z0-9,]+)\}")
+
+KNOWN_FAIL_BASES = {
+    ISS246_ID: "live TLS scan hit + clang thread-local-storage diagnostic",
+    ISS251_ID: "musl %s parse-only comment + corpus call site + %s diagnostic",
+    ADR0030_ID: ("ADR-0030 Accepted (binary128 / M9) + target LDBL_MANT_DIG=53 "
+                 "+ ulperr diagnostic"),
+}
 
 # Live scan basis for the known-fail table (the task's rule 1: scan every
 # enumerable case's sources for TLS declarations, print the hit list and the
@@ -236,26 +285,36 @@ CASE_NOTES = {
         "EFAULT (a native reproducer shows bind+getsockname work, sendto "
         "fails under qemu with the same arguments).",
     "functional/strptime":
-        "root cause: musl documents %s as parse-only with no effect on tm "
-        "(src/time/strptime.c:133-139 \"Effect on tm is unspecified\"); the "
-        "corpus case asserts glibc's fill-tm behaviour.",
+        "known-fail basis ISS-251 (musl semantics, not a port defect): musl "
+        "src/time/strptime.c:133-139 treats `%s` as parse-only -- \"Parse "
+        "only. Effect on tm is unspecified and presently no effect is "
+        "implemented.\" (upstream 1.2.6 verbatim; the DADAO patch series does "
+        "not touch that file) -- while the corpus asserts glibc's fill-tm "
+        "behaviour at src/functional/strptime.c:112 (under its own "
+        "/* Glibc */ heading).  musl is kept as upstream; the corpus is "
+        "read-only (patchless).",
     "math/acoshl":
-        "root cause: long double == double on this target (LDBL_MANT_DIG=53, "
+        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
+        "target declares long double == double (LDBL_MANT_DIG=53, "
         "musl arch/dadao/bits/float.h:24); musl's long-double implementation "
         "deviates from the corpus' double vectors by more than its ulp bar.",
     "math/asinhl":
-        "root cause: long double == double on this target (LDBL_MANT_DIG=53); "
+        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
+        "target declares long double == double (LDBL_MANT_DIG=53); "
         "musl's long-double implementation deviates from the corpus' double "
         "vectors by more than its ulp bar.",
     "math/erfcl":
-        "root cause: long double == double on this target (LDBL_MANT_DIG=53); "
+        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
+        "target declares long double == double (LDBL_MANT_DIG=53); "
         "musl's erfcl deviates from the corpus' double erfc vectors.",
     "math/lgammal":
-        "root cause: long double == double on this target (LDBL_MANT_DIG=53); "
+        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
+        "target declares long double == double (LDBL_MANT_DIG=53); "
         "musl's lgammal deviates from the corpus' double lgamma vectors "
         "(10.5 ulp on the failing vector).",
     "math/tgammal":
-        "root cause: long double == double on this target (LDBL_MANT_DIG=53); "
+        "known-fail basis ADR-0030 (Accepted; long double -> binary128 in M9): "
+        "target declares long double == double (LDBL_MANT_DIG=53); "
         "musl's tgammal deviates from the corpus' double tgamma vectors.",
     "functional/setjmp":
         "root cause: declared port gap -- sigsetjmp is not implemented "
@@ -452,13 +511,144 @@ def gap_signature(stdout: str, stderr: str):
     return None
 
 
+def find_line(path: str, needle: str):
+    """1-based line number of the first line containing ``needle``, or None."""
+    for num, line in enumerate(read_text(path).splitlines(), 1):
+        if needle in line:
+            return num
+    return None
+
+
+def iss251_evidence(case, musl_root: str):
+    """Recompute the ISS-251 basis for one case; return (ok, evidence).
+
+    Three independent facts, none of them taken from the case's class:
+    1. musl's ``%s`` branch carries the parse-only comment (the semantic
+       authority; read from the locked musl tree);
+    2. the corpus source carries the ``%s`` call site (assertion line);
+    3. the case's own first diagnostic is that ``%s`` assertion -- so the
+       basis explains *this* failure, not a look-alike.
+    """
+    musl_src = os.path.join(musl_root, "src", "time", "strptime.c")
+    try:
+        musl_text = read_text(musl_src)
+    except OSError:
+        return False, f"musl source missing: {musl_src}"
+    first = ISS251_MUSL_COMMENT[0]
+    second = ISS251_MUSL_COMMENT[1]
+    c_line = find_line(musl_src, first)
+    if c_line is None or second not in musl_text:
+        return False, f"musl parse-only comment not found in {musl_src}"
+    # The comment must sit in the '%s' branch, not somewhere else in the file.
+    surrounded = musl_text.splitlines()[max(0, c_line - 5):c_line + 2]
+    if not any("case 's':" in line for line in surrounded):
+        return False, (f"musl parse-only comment at {musl_src}:{c_line} is "
+                       f"not inside the '%s' branch")
+    corpus_hit = None
+    for path in case.sources:
+        line = find_line(path, "683078400")
+        if line is not None and ISS251_CALL_SITE.search(read_text(path)):
+            rel = os.path.relpath(path, os.path.dirname(
+                os.path.dirname(path))).replace(os.sep, "/")
+            corpus_hit = (rel, line)
+            break
+    if corpus_hit is None:
+        return False, "corpus %s call site not present in the case's sources"
+    if ISS251_DIAGNOSTIC not in (case.first_error or ""):
+        return False, (f"case diagnostic does not name the %s assertion: "
+                       f"{case.first_error or '(none)'}")
+    evidence = (f"musl src/time/strptime.c:{c_line} "
+                f"\"{first} ...\"; corpus {corpus_hit[0]}:{corpus_hit[1]} "
+                f"checkStrptime(\"683078400\", \"%s\", &tm2); observed: "
+                f"{case.first_error}")
+    return True, evidence
+
+
+def adr0030_evidence(case, musl_root: str):
+    """Recompute the ADR-0030 basis; return (ok, evidence).
+
+    The ADR fixes ``long double`` = binary128 and defers it to M9.  Five facts,
+    none taken from the case's class:
+    1. the case is a ``math/*l`` case whose own diagnostic carries a ``ulperr``
+       (the precision class the ADR names, not a look-alike);
+    2. ADR-0030 is ``Accepted`` (decision authority);
+    3. its D1 requires binary128 / ``LDBL_MANT_DIG`` = 113;
+    4. the ADR lists this very case among the five that must disappear, and
+       its D7 schedules the work in M9;
+    5. the locked target still declares ``LDBL_MANT_DIG`` = 53 -- exactly the
+       documented gap M9 removes.
+    """
+    name = os.path.basename(case.cid)
+    if not case.cid.startswith("math/") or not name.endswith("l"):
+        return False, "not a math/*l case"
+    if "ulperr" not in (case.first_error or ""):
+        return False, "diagnostic carries no ulperr"
+    try:
+        adr_text = read_text(ADR0030_FILE)
+    except OSError:
+        return False, f"ADR-0030 missing: {ADR0030_FILE}"
+    status_line = find_line(ADR0030_FILE, "**状态**：Accepted")
+    if status_line is None:
+        return False, "ADR-0030 is not Accepted"
+    d1_line = find_line(ADR0030_FILE, "### D1 ")
+    if d1_line is None or not re.search(r"LDBL_MANT_DIG.{0,12}113", adr_text):
+        return False, "ADR-0030 D1 does not state LDBL_MANT_DIG = 113"
+    d7_line = find_line(ADR0030_FILE, "### D7 ")
+    if d7_line is None:
+        return False, "ADR-0030 has no D7 scheduling decision"
+    d7_block = adr_text.splitlines()[d7_line - 1:d7_line + 8]
+    if not any("M9" in line for line in d7_block):
+        return False, "ADR-0030 D7 does not schedule the work in M9"
+    m = ADR0030_CASE_LIST.search(adr_text)
+    if not m:
+        return False, "ADR-0030 does not list the five math cases"
+    listed = {"math/" + n.strip() for n in m.group(1).split(",")}
+    if case.cid not in listed:
+        return False, f"ADR-0030's case list does not contain {case.cid}"
+    list_line = find_line(ADR0030_FILE, m.group(0))
+    float_h = os.path.join(musl_root, "arch", "dadao", "bits", "float.h")
+    mant = re.search(r"#define\s+LDBL_MANT_DIG\s+(\d+)", read_text(float_h))
+    if not mant or mant.group(1) != "53":
+        return False, (f"target does not declare LDBL_MANT_DIG=53 "
+                       f"({mant.group(1) if mant else 'missing'})")
+    evidence = (f"ADR-0030 Accepted (line {status_line}); D1 line {d1_line} "
+                f"binary128 / LDBL_MANT_DIG=113; D7 line {d7_line} -> M9; "
+                f"ADR lists the case (line {list_line}); target musl "
+                f"arch/dadao/bits/float.h:{find_line(float_h, '#define LDBL_MANT_DIG')} "
+                f"LDBL_MANT_DIG=53; observed: {case.first_error}")
+    return True, evidence
+
+
+def attribute_known_fail_bases(case, musl_root: str):
+    """Promote a *genuine* failure to ``known-fail`` when a registered basis
+    explains it, with that basis' evidence recomputed live.
+
+    Only ``fail`` rows are eligible: a pass or a blocked row is never
+    relabelled, and a failure that no basis explains stays ``fail`` (the audit
+    rejects any known-fail row whose basis does not hold, and any leftover
+    ``fail`` row).
+    """
+    if case.klass != "fail":
+        return
+    for basis, evidence_fn in ((ISS251_ID, iss251_evidence),
+                               (ADR0030_ID, adr0030_evidence)):
+        ok, evidence = evidence_fn(case, musl_root)
+        if ok:
+            case.klass = "known-fail"
+            case.known_fail_basis = basis
+            case.known_fail_evidence = evidence
+            case.reason = f"{basis}: {evidence}"
+            return
+
+
 # ---------------------------------------------------------------------------
 # discovery
 # ---------------------------------------------------------------------------
 class Case:
     __slots__ = ("cid", "path", "sources", "klass", "exit", "reason",
                  "first_error", "elf", "min_pt_load", "interp", "uses_thread",
-                 "tls_hits", "link_cmd", "outdir", "stdout", "notes")
+                 "tls_hits", "link_cmd", "outdir", "stdout", "notes",
+                 "known_fail_basis", "known_fail_evidence")
 
     def __init__(self, cid, path, sources=None):
         self.cid = cid                       # e.g. "functional/argv" / "api/main"
@@ -477,6 +667,8 @@ class Case:
         self.outdir = ""
         self.stdout = ""
         self.notes = []
+        self.known_fail_basis = ""           # ISS-246 / ISS-251, else ""
+        self.known_fail_evidence = ""        # live evidence for that basis
 
     def as_dict(self):
         return dict(case=self.cid, path=self.path, klass=self.klass,
@@ -488,6 +680,8 @@ class Case:
                     pt_interp=self.interp,
                     uses_thread=self.uses_thread,
                     tls_hits=self.tls_hits,
+                    known_fail_basis=self.known_fail_basis,
+                    known_fail_evidence=self.known_fail_evidence,
                     link_cmd=self.link_cmd, work_dir=self.outdir)
 
 
@@ -678,6 +872,10 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
             hit = next((p for p in ISS246_PATTERNS if p in err), None)
             if hit:
                 case.klass = "known-fail"
+                case.known_fail_basis = ISS246_ID
+                case.known_fail_evidence = (
+                    f"live TLS scan hit {case.tls_hits}; clang diagnostic "
+                    f"{hit!r} (clang rc={rc} on {os.path.basename(src)})")
                 case.reason = (f"{ISS246_ID} {hit!r}: {first} "
                                f"(clang rc={rc} on {os.path.basename(src)})")
             elif rel in API_TU_GAPS and API_TU_GAPS[rel][0] in err:
@@ -793,7 +991,7 @@ def attribute_port_gaps(case):
     """Apply the declared platform-gap rules *after* the case has run.
 
     Only documentation and the `fail` -> `blocked` demotion for cases that
-    cannot possibly reach a verdict on this port; a `pass` and an ISS-246
+    cannot possibly reach a verdict on this port; a `pass` and an attributed
     `known-fail` are never touched.
     """
     if case.cid in CASE_NOTES:
@@ -930,8 +1128,9 @@ def main() -> int:
                 for p in case.sources if TLS_RE.search(read_text(p))]
         if hits:
             tls_cases.append((case.cid, hits))
-    emit(f"  known-fail basis: live TLS scan of {len(selected)} case(s) -> "
-         f"{len(tls_cases)} hit(s) (ISS-246 is the only admitted cause)")
+    emit(f"  known-fail admission: live TLS scan of {len(selected)} case(s) "
+         f"-> {len(tls_cases)} hit(s); admitted causes = "
+         f"{', '.join(sorted(KNOWN_FAIL_BASES))}")
     for cid, hits in tls_cases:
         emit(f"    TLS-HIT {cid}: {', '.join(hits)}")
     tls_ids = {cid for cid, _ in tls_cases}
@@ -939,10 +1138,14 @@ def main() -> int:
     for case in selected:
         build_and_run(case, cfg, work_dir, api_inc)
         attribute_port_gaps(case)
+        attribute_known_fail_bases(case, musl)
         act = "?" if case.exit is None else str(case.exit)
         base = "?" if case.min_pt_load is None else hex(case.min_pt_load)
         emit(f"  {case.klass.upper():10s} {case.cid} exit={act} base={base} "
              f"thread={int(case.uses_thread)}  ({case.reason})")
+        if case.klass == "known-fail":
+            emit(f"             known-fail basis: {case.known_fail_basis} "
+                 f"-- {case.known_fail_evidence}")
         for note in case.notes:
             emit(f"             note: {note}")
         results.append(case)
@@ -961,19 +1164,55 @@ def main() -> int:
     counts = {k: sum(1 for r in results if r.klass == k)
               for k in ("pass", "fail", "known-fail", "blocked")}
     total = len(results)
-    # A `known-fail` row is admissible only if the live scan hit the case *and*
-    # the quoted first diagnostic is the ISS-246 one.  Nothing else may be
-    # relabelled into the table.
-    bad_known = [r.cid for r in results
-                 if r.klass == "known-fail"
-                 and (r.cid not in tls_ids
-                      or not any(p in r.first_error for p in ISS246_PATTERNS))]
+    # A `known-fail` row is admissible only if its registered basis holds *live*
+    # for this very case: ISS-246 = TLS scan hit + the TLS diagnostic; ISS-251 =
+    # musl's parse-only `%s` comment + the corpus call site + the case's own `%s`
+    # diagnostic.  Nothing else may be relabelled into the table (ISS-226).
+    bad_known = []
+    for r in results:
+        if r.klass != "known-fail":
+            continue
+        if r.known_fail_basis == ISS246_ID:
+            basis_ok = (r.cid in tls_ids
+                        and any(p in r.first_error for p in ISS246_PATTERNS))
+        elif r.known_fail_basis == ISS251_ID:
+            basis_ok, _ev = iss251_evidence(r, musl)
+        elif r.known_fail_basis == ADR0030_ID:
+            basis_ok, _ev = adr0030_evidence(r, musl)
+        else:
+            basis_ok = False
+        if not basis_ok:
+            bad_known.append(f"{r.cid} (basis={r.known_fail_basis or 'none'})")
+    # Reverse direction: a live ISS-251 or ADR-0030 failure may not silently
+    # stay a `fail` (removing an admission would otherwise hide the basis), and
+    # after the long-double row is admitted no unclassified `fail` may remain.
+    missed_basis = [r.cid for r in results
+                    if r.klass != "known-fail" and iss251_evidence(r, musl)[0]]
+    missed_adr = [r.cid for r in results
+                  if r.klass != "known-fail" and adr0030_evidence(r, musl)[0]]
+    unexplained_fail = [r.cid for r in results if r.klass == "fail"]
     tls_that_pass = [r.cid for r in results
                      if r.klass == "pass" and r.cid in tls_ids]
-    classification_ok = not bad_known
+    classification_ok = not (bad_known or missed_basis or missed_adr
+                             or unexplained_fail)
+    emit("  known-fail basis per case (recomputed live):")
+    rows = [r for r in results if r.klass == "known-fail"]
+    if rows:
+        for r in rows:
+            emit(f"    {r.cid}: {r.known_fail_basis or 'none'} -- "
+                 f"{r.known_fail_evidence or '(no evidence)'}")
+    else:
+        emit("    (none)")
     if bad_known:
-        emit(f"[FAIL] known-fail without ISS-246 scan/diagnostic evidence: "
-             f"{bad_known}")
+        emit(f"[FAIL] known-fail without live basis evidence: {bad_known}")
+    if missed_basis:
+        emit(f"[FAIL] live ISS-251 failure(s) not admitted as known-fail: "
+             f"{missed_basis}")
+    if missed_adr:
+        emit(f"[FAIL] live ADR-0030 failure(s) not admitted as known-fail: "
+             f"{missed_adr}")
+    if unexplained_fail:
+        emit(f"[FAIL] unclassified failure(s) remain: {unexplained_fail}")
     if tls_that_pass:
         emit(f"  note: TLS-hit case(s) that pass (legitimately not in the "
              f"table): {tls_that_pass}")
@@ -1000,6 +1239,7 @@ def main() -> int:
                        excluded=[dict(id=n, reason=r) for n, r in excluded],
                        census=census, closure_ok=closure_ok,
                        classification_ok=classification_ok,
+                       known_fail_bases=KNOWN_FAIL_BASES,
                        tls_scan=dict(
                            scanned=len(selected),
                            hits=[dict(case=cid, files=hits)
@@ -1013,6 +1253,10 @@ def main() -> int:
             fh.write(f"{r.cid} {r.klass} exit={r.exit} "
                      f"base={r.min_pt_load} reason={r.reason}\n")
             fh.write("  first_error: " + (r.first_error or "-") + "\n")
+            if r.known_fail_basis:
+                fh.write("  known_fail_basis: " + r.known_fail_basis + "\n")
+                fh.write("  known_fail_evidence: "
+                         + r.known_fail_evidence + "\n")
             if r.tls_hits:
                 fh.write("  tls_hits: " + ", ".join(r.tls_hits) + "\n")
             for note in r.notes:

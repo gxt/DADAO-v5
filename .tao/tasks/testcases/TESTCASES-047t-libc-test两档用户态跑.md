@@ -4,7 +4,7 @@
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**；`qemu-dadao` 在安装根）；`INFRA-082t`（`P1` musl 静态，**`已验证`**）、`INFRA-085t`（`P2` 动态，**`已验证`**）；`TESTCASES-044t`（`libc-test` **取源与锁定**，**`已验证`**；`patchless = true` ⇒ 源只读）、`TESTCASES-045t`（`P1` 能力边界度量，`已验证`；其 `tools/testcases/run_suite.py` 在 `dadao-m1` 路径上已硬失败 ⇒ **本册不复用其运行路径**，只复用其**建链方法论**与排除口径的教训）；`ISS-247`（**链接基址**）、`ISS-246`（**known-fail 唯一依据**）、`ISS-229`（串行）、`ISS-210`（安装根新鲜度）、`ADR-0025`（`D2`/`D6`/`D7`）；**同批三册**：`TESTCASES-046t` / `TESTCASES-047t`（本册）/ `TESTCASES-048t` ⇒ **同改共享文件（`Makefile` / `milestones.md`）⇒ 串行**。
 **状态**：待开始
-**阶段进度**：静态档 ✅（pass 301 / fail 8 均有归属）/ 动态档 ⏳
+**阶段进度**：静态档 ✅ **fail=0**（5 条 `long double` 归 `known-fail`/`ADR-0030→M9`；pass 303 / known-fail 9 / blocked 25；`pthread_create-oom` 有 qemu flake）/ 动态档 ⏳
 
 > **编号（现场取号，2026-10-17）**：现存最大 = `TESTCASES-045t` ⇒ 取 **`047`**；`046` 归同批 `embench-iot` 册；全历史 `grep -E 'TESTCASES-04[678]'` **0 命中**。
 
@@ -136,6 +136,22 @@ excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上�
 **验收结果**：① 三载体一致：`make check-syscall-abi` **69/69** rc=0（guest/host 各 **245** 条、asm **41** 号 / **16** mask 类，逐项掩码全等、块搬运数 = 掩码位值）。② 功能：guest 复现 `-strace` 实测 `sendto(...,16)=1`、`recvfrom(...,ptr)=1`、`msg mode=666`、`shm mode=666`（修复前分别 `EINVAL`/`EFAULT`/`0`/`0`）。③ 可达 FAIL：`.work/evidence/ISS-249/run.sh` 3 处注入（host mask `0x32→0x02`、guest 丢一条 case、asm 块少一条 `rd2rb`）逐一 `[FAIL]` ⇒ `cp`+md5 还原 ⇒ 回绿，脚本 **rc=0**。④ 门控（各自 rc）：`check-patch-tree` 0（**177** 补丁 / 5 组件）、`check-index-blobs` 0、`check-source-state` 0、`check-no-residue` 0、`check-tasks` 0、`check-knowledge-refs` 0、`check-component-changelog` 0、`check_issues.py` 0、`check-syscall-abi` 0、`make check`(L1) **rc=0**。⑤ 耗时：静态档重跑 508 s；musl 增量构建 ~10 s、qemu 增量构建 ~6 s。
 **新发现/坑**：① 两条**函数调用 ABI 面的独立 codegen 缺陷**（与 argmask 无关，须 LLVM 侧处置）：(a) `union` 作可变参时调用侧放 rb、`va_arg` 侧按间接读 ⇒ `semctl(IPC_STAT, arg)` 的 `arg.buf` 读成 0（`ipc_sem`）；(b) 指针返回经 `syscall()`（宏 → `__syscall_ret` 尾调用）时未落 `rb8`（`contract-abi §4.4`），`shmat()` 返回值丢失（`ipc_shm`）。② 首轮「4 例同根因」仅对 `socket` 成立；`ipc_msg`/`ipc_shm` 的 mode 位宽问题属大端 `ipc_perm` 布局，用 musl 既有 `SYSCALL_IPC_BROKEN_MODE` 补偿。③ `build-musl` 走工具链戳增量，改 `arch/dadao/*.h` 后须核受影响对象确实重建（本次核过 `shmdt.o`/`sendto.o` mtime > 头文件）。
 **遗留问题**：动态档未跑（按册下一笔）；`ipc_sem`/`ipc_shm` 两条新发现 **待 architect 立项**（本笔不擅自开号）；`long double` 5 条随 M9（`ADR-0030`）；`strptime` 归 `ISS-251`；未跑 `install-host`（重跑用 `.work/build/qemu/qemu-dadao`，安装根仍是旧二进制）。
+
+### 第 3 轮（安装根复跑 + `ISS-251` 归口，2026-10-17 engineer）
+
+**测试结果**：安装根（`.dadao/cross-toolchain/bin/{clang,ld.lld,qemu-dadao}`；`make build-musl` 戳记变更 ⇒ clean 全编 10.3 s）复跑静态档 ⇒ **discovered 367 / excluded 30 / total 337：pass 303、fail 5、known-fail 4、blocked 25**（driver rc=1，`blocked>0` 按 `ISS-248`）。对照第 2 轮 `301/8/3/25` 与安装根首跑 `303/6/3/25`：`fail 6→5`（`strptime` → `known-fail`，依据 `ISS-251`）、`known-fail 3→4`、`pass` 303 不变（原 303 条全在）。**flaky 披露**：`regression/pthread_create-oom` 在一次全量中记 pass（304/24），随后 5/5 套件 pilot + 8/8 单跑均 BLOCKED（guest `setrlimit(RLIMIT_AS)` 直通宿主 ⇒ QEMU `SIGTRAP`/GLib 分配失败）；未改标签，同类 `ISS-255`。
+**known-fail（4 条，逐例依据）**：`functional/strptime` = `ISS-251`（musl `src/time/strptime.c:133-139` parse-only + 语料 `:112` 调用点 + 该例 `%s` 诊断）；`functional/tls_align`/`tls_init`/`tls_local_exec` = `ISS-246`（live TLS 扫描命中 + clang 诊断，均无 ELF/exit）。
+**fail（5 条）**：`math/{acoshl,asinhl,erfcl,lgammal,tgammal}`，全部 `ulperr` 诊断、`LDBL_MANT_DIG=53` ⇒ 按 `ADR-0030` 归 `known-fail` 口径、**M9 binary128 实施后消失**（runner 标签仍 `fail`：`INFRA-087t` 准入仅 `ISS-246`/`ISS-251`）。**blocked 25** 归属不变（`ISS-252`/`ISS-253`/`ISS-254`/`ISS-255`/compiler-rt）。
+**修改文件**：`tools/testcases/run_libc_test_user_suite.py`（`known-fail` 逐例依据表 + 反向校验；`CASE_NOTES["functional/strptime"]`；JSON 增 `known_fail_basis`/`known_fail_evidence`）；`.tao/knowledge/issues.yaml`（`ISS-251` 处置）；`.tao/tasks/infra/INFRA-087t-strptime语义归属与分类.md`；本任务书；gitignored：`.work/evidence/{TESTCASES-047t,INFRA-087t}/run.sh`（047t 审计扩 `ISS-251`）、`.work/log/testcases/INFRA-087t-*.log`。
+**验收结果**：① 安装根新鲜度：clang/lld/llvm-mc md5 == `.work/build/llvm/bin/*`、qemu-dadao == `.work/build/qemu/`；mtime ≥ 最新补丁。② `./.work/evidence/INFRA-087t/run.sh --inject` rc=0（独立审计对 JSON 复算；2 注入可达 `[FAIL]` + `cp`/md5 回绿）。③ 门控：`check-patch-tree` 0（177）、`check-syscall-abi` 0（69/69）、`check-index-blobs` 0、`check-source-state` 0、`check-no-residue` 0、`check-tasks` 0、`check-knowledge-refs` 0、`check-component-changelog` 0、`check_issues.py` 0、`make check`(L1) 0。④ 语料只读自证：`git -C .work/source/libc-test status --porcelain -uall` 0 行。⑤ 未跑 `install-host`/L2/L3；未提交。
+**遗留问题**：动态档未跑；`ISS-251` 待 reviewer 验收后由主会话置 `closed`；`long double` 5 条随 M9（`ADR-0030`）。
+
+### 第 4 轮（`long double` 5 条并入 `known-fail`，2026-10-17 engineer）
+
+**测试结果**：安装根复跑静态档 ⇒ **discovered 367 / excluded 30 / total 337：pass 303、fail 0、known-fail 9、blocked 25**（driver rc=1 仅因 `blocked>0`）。对照第 3 轮 `303/5/4/25`：`fail 5→0`、`known-fail 4→9`，`pass`/`blocked` 不变。`known-fail` 9 = `ISS-246` 3（TLS）+ `ISS-251` 1（`strptime %s`）+ **`ADR-0030` 5**（`math/{acoshl,asinhl,erfcl,lgammal,tgammal}`，`ulperr` 精度类；ADR `Accepted` 2026-10-17、`D1` binary128、`D7`→M9；target `LDBL_MANT_DIG=53` 现场事实）。
+**修改文件**：`tools/testcases/run_libc_test_user_suite.py`（`adr0030_evidence` + 依据表第 3 行 + 反向校验/未分类 `fail` 拒绝）；`.tao/knowledge/issues.yaml`（`ISS-250` notes 追加，`status` 保持 `open`）；`.tao/tasks/infra/INFRA-087t-...md`（第 3 轮）；本任务书；gitignored：`.work/evidence/INFRA-087t/run.sh`、`.work/log/testcases/INFRA-087t-*.log`。
+**验收结果**：`./.work/evidence/INFRA-087t/run.sh --inject` rc=0（含新增注入 C：禁用 ADR 准入 ⇒ `[FAIL] unclassified failure(s) remain`；`cp`+md5 还原回绿）；门控各 rc 见 `INFRA-087t` 完成区第 3 轮。未跑 `install-host`/L2/L3；未提交。
+**遗留问题**：动态档未跑；`ISS-250` 保持 `open`（M9 后复核关闭）；`ISS-251` 待收尾。
 
 
 ## 审阅记录
