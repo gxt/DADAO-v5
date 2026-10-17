@@ -106,16 +106,48 @@ INC="-I$M/arch/dadao -I$M/arch/generic -I$M/obj/src/internal -I$M/src/include \
 6. 完成区与真实输出逐条对齐（≤30 行）；`milestones.md` 流水行更新（收尾归 `/complete`）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：`.work/evidence/LLVM-098t/run.sh` 三模式全绿：default **33 PASS/0 FAIL/2 SKIP**、`--inject ii` **38 PASS/0 FAIL**、`--inject i` **43 PASS/0 FAIL**；门控 **11/11 rc=0**（含 `make check` L1）。
+**修改文件**：**产品源码 0 改动、导出 0 补丁**（`components/**` 无变化；`check-patch-tree` 仍 **151**）。新增（`.work/`，不入 git）：`evidence/LLVM-098t/{run.sh, oracle_abs48.py, repro/{jt_math,jt_ctype,const_table}.c, static/musl_smoke.c, stale/{math_atan2f,ctype_iswctype}.lo + README.md}`、`log/llvm/LLVM-098t/*`。
 **验收结果**：
+- **① 诊断（强制首步；IR/DAG/MC 三层 + 节放置 + 非 PIC 对照；原件 `log/llvm/LLVM-098t/diag-ir-dag-mc.txt`）**：IR = `switch` 指令、`blockaddress` **0 处**（`-O0` 无表、`-O1/-O2/-O3/-Os` 才有 ⇒ 非前端常量、非 pass 生成的表）；DAG = `br_jt JumpTable:i64<0>` → `DADAOISD::BR_JT` → `PCREL_LOAD TargetJumpTable`（`DADAOISelLowering.cpp:293` 强制 `EK_BlockAddress`）；MC = `.LJTI0_0: .dd.o64 .LBB…` → `FK_Data_8` → `R_DADAO_ABS48`（`DADAOELFObjectWriter.cpp:73`）；**节放置分叉点** = `DADAOTargetObjectFile.cpp::getSectionForJumpTable`（PIC ⇒ `.data.rel.ro`，非 PIC ⇒ `.rodata`）。最小复现 2 源（`-fPIC -O2 -S/-c`，命令见 `run.sh` S2/S3）：`repro/jt_math.c`（裁自 `src/math/cos.c` 的 `switch (n&3)`）、`repro/jt_ctype.c`（裁自 `src/ctype/iswctype.c` 的 dense switch）。
+- **① 根因**：现场 12 个 `.lo` 是**陈旧对象**（mtime `08:04` < LLVM-096t 提交 `09:56` / 安装 `10:19`；musl `Makefile` 不以编译器二进制为依赖 ⇒ `make` 复用旧对象）⇒ `.rodata` 类缺陷**已由 LLVM-096t 修好**，本册**无需改编译器**（故 0 补丁）。证据：clean rebuild 后 **1338 个 `.lo` 中 1337 个只读段 ABS48 = 0**，同一 12 源全部落 `.data.rel.ro.<fn>`；陈旧 12 对象实际是 **119 处**（非 lld 截断显示的 20）。
+- **①** 2 源 + 真实 4 源（`atan2f/cos/iswctype/langinfo`）`-fPIC -O2` ⇒ 只读段 ABS48 = **0**；`-fno-pic` 对照 ⇒ **4 处 `.rodata`**（修前形态，证明断言非恒真）。
+- **② 等价验证（**非**最终验收）**：clean rebuild（build-tree clang，`make clean && make -j8`）**rc=2**；`--error-limit=0` 全量 **22 条** = 6×ABS48（全在 `ldso/dlstart.lo` 的 `.text`，musl 内联 asm）+ 16×undefined；**`.rodata` 目标 0 条**。⇒ 主判据 rc=0 **未达**，4 类原因均非本册缺陷（见遗留）；**最终以主会话 `install-host` 后复跑为准**。
+- **③ 静态不回归**：smoke 链接 rc=0 + 4 项事实（ELF64 / `ELFDATA2MSB` / `ET_EXEC` / 无 `PT_INTERP`）+ 无 `DT_NEEDED`；与 INFRA-082t 基线**同尺寸 75336**、差异**全部**在 `.comment`（151 B）。`libc.a`/`crt1.o` sha256 与 085t 基线不同（归因 `.comment` + ISS-206，属 085t 已登记口径；旧归档已被本轮 clean rebuild 原位覆盖，无法再逐成员对照 ⇒ 以 ELF 字节级 elfdiff 为准）。
+- **④ 可达 FAIL ≥2**：(i) 关掉 PIC 重定向 + `ninja llc` ⇒ 4 条 ABS48 进 `.rodata`、lld 报原文 `recompile with -fPIC`；`cp`+md5 还原、`ninja llc` 后与安装根 llc **逐字节相同**、回绿。(ii) oracle 期望类型 `6→7`、`SHF_WRITE 0x1→0x0` 两处改错均 **FAIL**，改回后绿。**未用** `git checkout/restore/stash`。
+- **⑤ 独立 oracle**（`oracle_abs48.py`）：自写 ELF64/`ELFDATA2MSB` 字节解析（`r_info` 低位=类型/高位=符号、`SHF_WRITE` 判目标节、`SHT_RELA` entsize 硬校验），期望值独立取 `ADR-0019 D10`（ABS48=6）+ `contract-dynlink §4.3`；大端**值级**核验 `.rodata+0x0 == 40 49 0f db`（pi = `0x40490FDB`）。
+- **门控（各自真实 rc）**：`check-instrinfo` / `check_lit_gen` / `check-patch-tree`(151) / `check-index-blobs` / `check-source-state` / `check-no-residue` / `check-tasks` / `check-knowledge-refs` / `check-component-changelog` / `check_issues` / `make check`(L1) 全 **0**。
 **新发现/坑**：
+- 「`recompile with -fPIC`」会**掩盖陈旧对象**：换工具链后 musl `.lo` 不会自动重建（`make` 不跟踪 `CC`）⇒ 必须 clean。这是 `ISS-241`/`ISS-244`「同文案反复出现」的真实成因。
+- lld 默认 `--error-limit` 截断：现场「20 处」实为 **119 处**（12 对象，原件见 `evidence/LLVM-098t/stale`）。
+- 只看现场对象会误判「LLVM 仍缺修复」；须全量 rebuild 后复算（本轮 `2670` 对象扫描：陈旧 10199 处 → 新构建 6 处）。
+- `ISS-241` 与 `ISS-244` **同机制**（catopen 现场即跳转表；其 `.lo` 现为 `.data.rel.ro.catopen`）⇒ 建议一并按 LLVM-096t 收口、不双开。
 **遗留问题**：
+- **②主判据未达（如实，不伪绿）**，4 类均非 LLVM 代码生成：(a) 6×ABS48 = musl 内联 asm（`arch/dadao/crt_arch.h:69` `set.rb rb17,_DYNAMIC`；`arch/dadao/reloc.h:109` `set.rd rd8,__dls2`，后者自注「P2 需改 PC 相对/GOT」）⇒ 归 musl（A1 正在改 `components/musl/**`，本册**未碰**）；(b) 14×undefined = **过期 `arch/dadao/arch.mak` 排除表**（13 源现 11 源可编，仅 `rotl` 2 源 `Cannot select`）⇒ 刷表 + backend `rotl`（另一册）；(c) `__muldc3`/`__mulsc3` = compiler-rt（`INFRA-079t`，不做项）；(d) `__vdsosym` = VDSO 缺失（musl 面）。
+- 新发现**未登记 issue**：`.tao/knowledge/issues.yaml` 含 A1 未提交改动，按派单**不碰**；请主会话登记（建议：musl `dlstart` 绝对地址 / `arch.mak` 排除表过期 / `rotl` backend 缺口），并按上条把 `ISS-241`+`ISS-244` 一并收口。
+- 任务 `**状态**` 按要求**未改**（仍 `待开始`），归主会话裁定。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
 （工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**判决**：本册**无产品代码改动**（0 补丁）⇒ 自审范围 = 证据脚本 / oracle / 诊断结论与真实输出的逐条一致性。`subagent_depth=1`，故为自主逐行审查。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `SHT_RELA` 的 `sh_entsize==0` 时 oracle 会解析 0 条 ⇒ 可能「恒真绿」 | ✅已修 | oracle 加硬校验（entsize≠24 直接退出，不产出「0 violations」） | default 全绿；S11(ii) 仍能红 |
+| F2 S7 全树扫描只有「0 violations」，缺「确实看到 ABS48」的非空性 | ✅已修 | 现场统计 `writable` 计数并断言 `> 0`（不写死阈值） | 实际 2709 |
+| F3 `--inject ii` 若只把类型号 6→7，配 `--expect-nonwritable 0` 会**空绿** | ✅已修 | 该注入改用 `--min-writable 4 --require-section`（构造未被识别 ⇒ 红） | `S11(ii) wrong type number goes red` |
+| F4 静态 ELF 与基线差 8 B：源文件名进 `.strtab`（`static_smoke.c` vs `musl_smoke.c`） | ✅已修 | 复现源改名 `static/musl_smoke.c`（与 `build_musl.PROG_C` 同基名） | elfdiff rc=0（同尺寸 75336，仅 `.comment`） |
+| F5 S6 `langinfo.c` 缺 `bits/syscall.h` ⇒ 该源未真正验证（脚本却可能绿） | ✅已修 | S0 按 musl 规则现场生成 `bits/{alltypes,syscall}.h`；S6 任一源失败即红 | S6 rc=0（4/4 源） |
+| F6 S7 `\|.text\|` 只匹配 `.text`，漏 `.text._dlstart_c`（6→3 误判） | ✅已修 | 改 `\|\.text` 前缀匹配 | 6/3/3/6 |
+| F7 `--inject i` 中断会把组件检出留在注入态 | ✅已修 | `trap 'cp $BAK $CPP' EXIT INT TERM`，还原后 `trap -` | 还原 md5 一致 + llc 与安装根逐字节相同 |
+| F8 `make lib/libc.so` 若意外成功，`allerr_rc` 未初始化（`set -u` 直接崩） | ✅已修 | 初始化 + 「XFAIL 已解」提示分支 | 三模式全绿 |
+| F9 S10 属 **XFAIL**，是否掩盖失败？ | ❌不掩盖 | 期望集合逐项钉死（22 条 / 6 ABS48 / 16 undefined 逐字），任何漂移即红；输出标注「最终验收归 `/complete`」 | S10 五条断言原件 |
+| F10 未改编译器 ⇒ 无「修」，是否伪绿？ | ❌不伪绿 | 结论由 clean rebuild 全量重扫（1337/1338 个 `.lo` 为 0）+ `-fno-pic` 对照 + 两处注入支撑；②主判据**如实标未达**并给 4 类归因 | 完成区「遗留问题」+ `evidence-*.log` |
+
+**未修 finding**：无（F9/F10 为判定项，非缺陷）。**状态**：按派单未改任务 `**状态**`（仍 `待开始`），交主会话裁定。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
