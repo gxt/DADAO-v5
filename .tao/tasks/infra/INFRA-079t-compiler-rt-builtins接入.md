@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0027`（compiler-rt builtins 支持口径，`Accepted`，`D1`–`D5` = 本任务**唯一真源**）；`INFRA-078t`（compiler-rt 支持预研：缺口 / 符号差 / 接入点来源，**只读**）；`LLVM-091t`（`llvm-project 23.1.3` 已落地 = 补丁面基线）；`INFRA-067t`（picolibc vendored `__mulsc3`/`__muldc3` 的来源，本任务**移除**该 vendor）；消费方 = M8 `P1`（musl 静态）及其后各段
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
