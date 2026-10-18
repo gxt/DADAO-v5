@@ -111,6 +111,10 @@ done
 **新发现/坑**：① **窄返回 canonical 化缺口（既存，非本册引入）**：`unsigned addu(unsigned,unsigned)` 在 `-O2` 下直接 `add.uo {rd0,rd8},rd17,rd16` 返回、无 32 位 mask，`rd8[63:32]` 可为溢出高位 ⇒ 与 `contract-abi.md §4.4` C5「callee 扩展为 canonical 64 位」不符；bswap 只是暴露面之一（`x<<24`、`AND/SHR` 链同样把位留在 32–55），**建议另册/ISS**。② 路径 A 的 `anyext` 后果实测：`bswap32` 返回 `rd8` 高位含 `x<<24` 溢出位（如 `0x01020304` ⇒ full `0x0001020304030201`）⇒ oracle **只断言低 32 位**（册内已定，禁 8 字节口径）。③ 注入还原踩坑：`cp -p` 保留**旧 mtime**，ninja 认为注入产物 up-to-date ⇒ 首轮 `--inject no-action` 出现「还原后仍红」**假红**；修法 = 还原后 `touch` 源文件强制重建（已固化进 `run.sh` 注释与断言）。④ 整对象 md5 会随组件 base+1 commit hash（`.comment` ident）变化 ⇒ 回归断言必须剥离 `.comment` 后比较。⑤ `150 patches` 是 5 组件合计；llvm-project `series` 仍 **76**（本册只改既有补丁）。
 **遗留问题**：① 按主会话指令**未跑** `install-host` / L2 / L3（`ISS-210` 的安装根新鲜性归落地面任务；四档验收用构建树 clang，与 `install-host` 同源二进制）；② `libc.so` 整体可链、`build-musl-shared` 全量仍受其它登记项限制（本册不判）；③ 任务 `**状态**` 按主会话指令**未改**（保持「待开始」），由协调者推进。
 
+### 台账迁入（2026-10-18，`INFRA-091t`；原只在 `milestones.md` 流水行）
+
+- `ISS-243`：i32 窄返回值未按 `contract-abi §4.4 C5` 做 callee canonical 化（现场：`unsigned addu()` 以 `add.uo {rd0,rd8}` 直接 `ret`）⇒ 独立于本册 `bswap` 的遗留。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审

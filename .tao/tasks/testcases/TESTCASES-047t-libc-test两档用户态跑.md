@@ -198,6 +198,11 @@ excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上�
 **修改文件**：`tools/testcases/run_libc_test_user_suite.py`；本任务书（本节 + `阶段进度`）；`.tao/tasks/testcases/TESTCASES-049t-动态档fPIC.md`；`.tao/knowledge/issues.yaml`（`ISS-259`）。gitignored：`.work/evidence/TESTCASES-049t/`、`.work/log/testcases/libc-test-user-{static,dynamic}.*`、`.work/log/testcases/049t-*`。
 **遗留问题**：`musl/pleval` 动态档仍 `blocked`（上游口径，非缺陷）；其余 `blocked 23` 归属不变（`ISS-252/253/254/255` + OOM flake）；`P4` golden 对照、`ISS-246` 修复不在本册。
 
+### 台账迁入（2026-10-18，`INFRA-091t`；原只在 `milestones.md` 流水行）
+
+- `ISS-256`：`ipc_sem`/`ipc_shm` 两个 codegen 缺陷 ⇒ 执行落点 `LLVM-101t`（可变参聚合 + `shmat()` 指针返回 bank）。
+- `ISS-257`：`pthread_create-oom` 的 `RLIMIT_AS` 直通宿主 flake（计数抖动，非目标缺陷）。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审

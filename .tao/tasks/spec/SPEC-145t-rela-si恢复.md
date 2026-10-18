@@ -109,6 +109,11 @@
 
 **遗留问题**：① `check-instrinfo`(L1) 红 → `rela.si_riii_rb` 缺 `.td` def，**转出归 `LLVM-095t`**（本册不改 `components/**`）。② `check_lit_gen`(L2) 红 → `gen-riii.s` 缺 `rela.si_riii_rb` 正例，**转出归 `LLVM-095t`**（重生成 lit 全量档；本次 `build_case()` 已落正确形态 `rela.si rb8, 8`）。③ `check-interface`(L2) **未跑**（`ISS-229` 并发禁令），按 `ISS-215` 先例预计红 ⇒ 归 `LLVM-095t`+`QEMU-061t`。④ semantic/boundary 向量与 QEMU 语义（`rbHA = PC + (imms18<<12)`、目的 `rb0`⇒ILLI）→ **归 `QEMU-061t`**（inventory 已标 `deferred`）。⑤ `contract-elf §2.2` 重定位类型表（`PCREL_HI`/`_LO`）与 `components/**` **未动** → 归 `LLVM-095t`（本册只冻结汇编/编码面）。⑥ **越界披露**：超出任务书逐条清单而改的 4 处 —— 矩阵 `.tsv/.md`（L1 门控 `check-isa-coverage` 的生成投影，`make check` 成员）、`tools/spec/check_scope.py`（硬编码计数，见坑①）、`tools/spec/generate_opcodes.py`（#6 重生成必需）、`tools/testcases/generate_lit_vectors.py`（坑④）；均**未放宽**任一门控，如判越界请裁定。
 
+### 台账迁入（2026-10-18，`INFRA-091t`；原只在 `milestones.md` 流水行）
+
+- `ISS-232`（`--show-encoding` 低半显示断言）、`ISS-233`（L3 载体 3/16 册；后由 `QEMU-061t` 关）、`ISS-234`（`min_rom_probe_009t.py` 顶注陈旧 + `009t-audit.py` 无 oracle）—— 均属 `llvm`/`qemu` 面，非本册交付面。
+- `ISS-238`：证据脚本 **14 项 stale**（`rela`→`aip` 改名未追改）⇒ **非交付面缺陷、历史留证不追改**。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审

@@ -75,6 +75,10 @@
 **新发现/坑**：① **生成器硬编码 `256 patterns` 属长期漂移**（`SPEC-109t`/`QEMU-040t`/`SPEC-100t` 均只改产物、注「工具非门控、属既有漂移」）⇒ 本笔改为 `len(records)` 派生（根因消除），并加「committed insn.decode == 生成器输出 ⇔ 未手改」断言；② **`aip-si.yaml` 2 条 L1 word 与 notes 声明的 `imms18` 不符**（`0x5A04FFFF`→实际 +65535 而 notes 称 −1；`0x5AFCFFFF`→+65535 而 notes 称 +131071；`validate_vectors` 只校验 `(word&mask)==value`，**结构检查抓不到**）⇒ 判据 = field 独立派生；③ 手写期望值**必须现场验证**：本笔自写 Case 8 期望值多一个 `F`，正是被 harness 现场 FAIL 抓出；④ harness 的「比较失败」路径表现为 QEMU `abort`（`Unsupported SemiHosting SWI 0x00` / exit `0x-6`）而非 exit 1（`br.nz` 偏移落在 pass 段 trap 上、块未写入）——排障时勿误判为模拟器缺陷；⑤ **安装根未同步 ⇒ 假绿**：旧二进制跑门控集 **149/149 全绿**、而跑 `aip-si.yaml` 6 例**全红 UNDI**（`ISS-210` 的现场实证）。
 **遗留问题**：① **`make build-qemu` + `make install-host` 须由主会话执行**（本笔按指令只做 `.work/build/qemu` 增量自检）：之后须复核 `make check-qemu-smoke`(L2)/`check-qemu-semantics`(L3) 且核安装根二进制 mtime 晚于 `components/qemu/patches/**` 改动（本笔临时二进制 `.work/build/qemu/qemu-system-dadao` = `0x35063904`@18:35 vs 安装根 `0x35062136`@**10-15 21:59**）。② **L2 门控载体未含 `aip-si.yaml`** ⇒ 机械派生代表集**未**纳入 `aip.si`（86 条中 0 条；加入后 90 条、含 4 条 `aip.si` 组，见 `smoke_derive.py`）；扩载体（`run_qemu_smoke.py::GATE_VECTORS` + `Makefile` 的 `for v in …`）属共享文件且只能在 `install-host` 后以真门控验证 ⇒ **登记待裁定**。③ `tools/qemu/min_rom_probe_009t.py` 顶部仍写「op=0x5A is now UNDI…DO NOT RUN」（本册不做项 2 明令不改）⇒ 现已在语义上可达、且按已废止的页对齐口径期望 ⇒ **登记**。④ `tools/testcases/009t-audit.py` 对 `aip.si` **无 oracle**（`Recomputed: 0`；其现存 mismatch 全在**未改**文件、非本笔引入）⇒ 本笔以 `oracle_aip.py` 补该缺口，audit 侧**登记**。⑤ 按下发指令**未改任务 `**状态**`**（仍 `待开始`）。
 
+### 台账迁入（2026-10-18，`INFRA-091t`；原只在 `milestones.md` 流水行）
+
+- `ISS-237`：`smoke_derive.py` 派生逻辑过时 ⇒ **脚本 stale、非功能缺陷**（不影响 L2/L3 判定）。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
