@@ -37,6 +37,10 @@ Scan scope
 
 Only fenced code blocks (```…```) are inspected; generated regions delimited by
 ``<!-- ASSEMBLY_LIST_* -->`` / ``<!-- LEGALITY_* -->`` are excluded.
+
+Comment/separator syntax (Toolchain-01 0.5.3): ``@@`` starts a comment (stripped
+before checks); ``;`` is a statement separator, so each statement is checked
+independently.
 """
 from __future__ import annotations
 
@@ -452,12 +456,26 @@ def _check_line(
     violations: list[Violation] = []
     stripped = line.strip()
 
-    # Skip empty lines, labels, comments
-    if not stripped or stripped.startswith(";") or stripped.endswith(":"):
+    # Skip empty lines, labels, comments (`@@` = comment; a leading `;` is an
+    # empty statement under the 0.5.3 syntax).
+    if not stripped or stripped.startswith(("@@", ";")) or stripped.endswith(":"):
         return violations
 
-    # Strip inline ; comments for operand checks (but keep original for reporting)
-    code_part = stripped.split(";")[0].rstrip()
+    # Strip inline `@@` comments for operand checks (comment runs to EOL).
+    stripped = stripped.split("@@")[0].rstrip()
+    if not stripped:
+        return violations
+
+    # `;` is a statement separator (Toolchain-01 §2.2): check each statement
+    # independently instead of treating the first `;` as a comment.
+    if ";" in stripped:
+        out: list[Violation] = []
+        for part in stripped.split(";"):
+            out.extend(_check_line(part, lineno, filepath, opcode_formats,
+                                   cfx_aliases, cfx_ranges, is_asm_block))
+        return out
+
+    code_part = stripped
 
     # R4: # comment (not C preprocessor directive)
     # Only check in assembly blocks (simrisc/asm); non-asm blocks may use

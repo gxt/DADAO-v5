@@ -1,8 +1,8 @@
 # DADAO 汇编语言合约（Toolchain-01 归一化）
 
-> **版本：0.5.0** [Toolchain-01 §附：与上游 spec/ 的关系]
+> **版本：0.5.3** [Toolchain-01 §附：与上游 spec/ 的关系]
 
-本合约把 v5 自定规范 `spec/Toolchain-01-汇编语言.md`（0.5.0，语法已定稿；实现待安排）归一化为可精确消费的断言；规范叙述与理由留在该规范正文，本合约只提取可机械/agent 消费的约束。
+本合约把 v5 自定规范 `spec/Toolchain-01-汇编语言.md`（0.5.3，语法已定稿；实现待安排）归一化为可精确消费的断言；规范叙述与理由留在该规范正文，本合约只提取可机械/agent 消费的约束。
 
 - **投影关系**：本合约为投影类型①（叙述合约）；②机器数据 = `contracts/opcodes.yaml`（`format`/汇编形式列）；③机械门控 = `tools/spec/check_asm_prose.py`、`check_asm_list_consistency.py`、`check_asm_list_drift.py`；④可执行 = `tests/llvm/lit/MC/DADAO`。[Toolchain-01 §12]
 - **指令全表**：指令全表为生成投影 `.tao/contracts/contract-asm-list.md`（条数由该生成投影派生自 `contracts/opcodes.yaml`），本合约不重抄；指令编码身份以 `contracts/opcodes.yaml` 为准，指令语义见 `contract-isa.md`（M1）/`contract-fp.md`（`scope: fp`）。[Toolchain-01 §1]
@@ -30,9 +30,10 @@
 
 ### §2.2 注释
 
-- `;` 起至行尾为注释（`CommentString = ";"`）。[Toolchain-01 §2.2][ADR-0013 D9]
-- `#` 不是注释，保留给 C 预处理器（`#include`/`#define`/`#if` 等）。[Toolchain-01 §2.2][ADR-0013 D9]
-- `//` 与 `/* … */` 不采用。[Toolchain-01 §2.2][ADR-0013 D9]
+- `@@` 起至行尾为注释（`CommentString = "@@"`）。[Toolchain-01 §2.2]（2026-10-19 用户裁定，部分取代 `ADR-0013 D9.1`）
+- `;` 是语句分隔符（`SeparatorString = ";"`），MAY 在一行内写多条语句；`;` 之后不是注释。[Toolchain-01 §2.2]
+- `#` 不是注释，保留给 C 预处理器（`#include`/`#define`/`#if` 等）。[Toolchain-01 §2.2][ADR-0013 D9.2]
+- `//` 与 `/* … */` 不采用。[Toolchain-01 §2.2][ADR-0013 D9.3]
 
 ### §2.3 标识符与标签
 
@@ -305,10 +306,10 @@
 ### §13.8 示例
 
 ```asm
-cfx2rc cfx_smon_supv_excp_vector, rd2        ; 别名形
-cfx2rc cfx_smon, cg2, rc0, rd2               ; 规范长形（与上行等价）
-cfx2rd cfx_timer_regs[0], rd2                ; 数组单下标
-escape cfx_smon, [excp_cause_ip, 4]          ; cfxha 写作标量别名
+cfx2rc cfx_smon_supv_excp_vector, rd2        @@ 别名形
+cfx2rc cfx_smon, cg2, rc0, rd2               @@ 规范长形（与上行等价）
+cfx2rd cfx_timer_regs[0], rd2                @@ 数组单下标
+escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 ```
 
 > 别名表投影（`.tao/contracts/contract-cfx-aliases.md`）随 spec 寄存器表机械重算，禁止手工维护；上述示例均由该表展开所得。[Toolchain-01 §13.8][ADR-0017 D8]
