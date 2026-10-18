@@ -45,6 +45,8 @@
 - **`INFRA-079t` = 全量** compiler-rt builtins（7 类接入点 + 独立库 + 移除 picolibc vendored 副本 + driver/`-print-libgcc-file-name` 落点）；**排期 = 先于 `M8` 收尾**（2026-10-17 用户原话「**既然要做，就做好；所以，要做，就把compiler-rt都做完，该调整任务链就调整任务链**」⇒ 撤销「只提前 `__muldc3`/`__mulsc3`」的窄化）；**生产者侧进度（2026-10-17）= 实现完成、待 L2/终局复跑**（`milestones.md` 同名行；本册 `M8` 判据/`状态` 不因此改动）。
 - **其它挂账（不阻断 `M8`）**：`ISS-232`（`--show-encoding` 低半显示断言）、`ISS-235`（L3 载体 3/16 册）、`ISS-243`（i32 窄返回值 canonical 化）、`ISS-245`（静态 PIE `_DYNAMIC`）、`ISS-247`（`dadao.lds` 基址超宿主 VA）；`ISS-249` **已 `closed`**（argmask 收口）；`ISS-250`–`ISS-255`（`TESTCASES-047t` 余下失败 / `blocked` 归类）+ `ISS-256`（`ipc_sem`/`ipc_shm` 两个 codegen 缺陷 ⇒ `LLVM-101t`；`ISS-251` ⇒ `INFRA-087t`）+ `ISS-257`（`pthread_create-oom` 的 `RLIMIT_AS` 直通宿主 flake）。
 
+- **musl 封装 `va_arg` 类型面（2026-10-18 新立 `INFRA-092t`，`ISS-271`）**：`ADR-0031` 三 bank 下，musl 变参封装把**指针实参读成整数**（`fcntl` `unsigned long`、`syscall` `syscall_arg_t`）⇒ `047t functional/fcntl` 两档 `FAIL`（`fcntl.c:27 … errno = Bad address`，日志 `.work/log/testcases/libc-test-user-{static,dynamic}.log`）+ `syscall(SYS_uname,…)` 探针 `EFAULT`；落点 = `INFRA-092t`（infra 模块，只立册）；`047t` 计数以修复后**全量复跑**为准（本笔不改任何计数）。
+
 ## 核验
 
 - **关联任务是否均已 `已验证`**：**否** —— `LLVM-096t`–`LLVM-099t`、`INFRA-079t`、`SPEC-141t`、`TESTCASES-046t`/`047t`/`048t` 仍非终态；**2026-10-18 新立 5 册**（`LLVM-102t`/`LLVM-103t`/`QEMU-063t`/`TESTCASES-050t`/`INFRA-089t`）中 `LLVM-103t`/`TESTCASES-050t`/`INFRA-089t` = **`待验收`**（实现完成、待 reviewer），其余 2 册（`LLVM-102t`/`QEMU-063t`）仍 `待开始` ⇒ **不置 `里程碑`**。
