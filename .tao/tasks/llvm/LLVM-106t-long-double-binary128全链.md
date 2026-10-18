@@ -1,7 +1,7 @@
 # LLVM-106t: `long double` = binary128 全链（clang target + ABI 双槽 + 后端 f128 + builtins TF）
 
 **模块**：llvm
-**项目里程碑**：M9
+**项目里程碑**：M8
 **依赖**：`ADR-0030`（`Accepted`：`long double` = binary128 / RF 双槽 / builtins 全量 / 排 `M9`）、`ADR-0031`（`Accepted`：16 B 值高半在偶号、不拆半、16 B 栈对齐）、`ADR-0027`（builtins 全量 + 独立库）、`INFRA-079t`（`已验证`：compiler-rt builtins 接入）、`INFRA-088t`（driver 默认接 builtins；验收前须 `已验证`）、`INFRA-090t`（musl `bits/float.h` 常量块；**联动**）、`ISS-250`（`libc-test` 5 例 `_l` 偏移）
 **状态**：待开始
 

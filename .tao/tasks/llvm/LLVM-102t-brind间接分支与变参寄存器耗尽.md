@@ -2,7 +2,7 @@
 
 **模块**：llvm
 **项目里程碑**：M8
-**依赖**：`TESTCASES-048t`（现场来源 = A 类 222 单元 × 两档全量，`blocked 27` 中的 2 例；两档一致）、`ISS-267`（登记源；本册承接 ②③ 两项）；契约依据：`contract-isa §8.3`（`jump rbha, rdhb, imms12` 地址计算）、`contract-abi §4.1`/`§4.3`（参数寄存器 / 栈溢出区）、`§5`（可变参数已由 `ADR-0031` 收口于 **M8**）、`§6.3`/`§6.4`（`i128` 不支持 / 聚合 64 B 门槛）、`ADR-0031`（**`Accepted`**，2026-10-18：`D2` callee 快照 / `D4` 不拆半 / `D8` 默认 `-Werror=varargs`）、`ADR-0025`（M8 范围）、真源 `spec/DADAO-21-ABI §3.3`（可变参数：七字段 `va_list` + callee 保存区 + `va_arg` 四步）
+**依赖**：`TESTCASES-048t`（现场来源 = A 类 222 单元 × 两档全量，`blocked 27` 中的 2 例；两档一致）、`ISS-267`（登记源；本册承接 ②③ 两项）；契约依据：`contract-isa §8.3`（`jump rbha, rdhb, imms12` 地址计算）、`contract-abi §4.1`/`§4.3`（参数寄存器 / 栈溢出区）、`§5`（可变参数已由 `ADR-0031` 收口于 **M8**）、`§6.3`/`§6.4`（`i128` 不支持 / 聚合 64 B 门槛）、`ADR-0031`（**`Accepted`**，2026-10-18：`D2` callee 快照 / `D4` 不拆半 / `D8b` 默认 `-Werror=varargs`）、`ADR-0025`（M8 范围）、真源 `spec/DADAO-21-ABI §3.3`（可变参数：七字段 `va_list` + callee 保存区 + `va_arg` 四步）
 **状态**：待开始
 
 ## 执行环境
@@ -37,7 +37,7 @@
 - **依据（`ADR-0031` 已 `Accepted`，用户 2026-10-18 逐条确认）**：
   - `D2` = **寄存器保存区归 callee**（`va_list` 指向 callee 入口快照的保存区；每 bank 一条 `stm.o`；caller 不再写保存区）⇒ 本册须**移除上述拒绝**并按「保存区 + 栈实参同时成立」实现。
   - `D4` = **不拆半**：某 bank 不足时整值取自栈，该 bank 游标与剩余计数**不推进**。
-  - `D8` = 工具链**默认** `-Werror=varargs`（用户原话「**D8：2**」）：变参相关诊断默认升级为错误；**不得**把该默认关掉来「绕过」失败。
+  - `D8b` = 工具链**默认** `-Werror=varargs`（用户原话「**D8：2**」）：变参相关诊断默认升级为错误；`-Wno-error=varargs` 为显式退出（上游老代码用），**门控 / 自有代码零容忍**；**不得**把该默认关掉来「绕过」失败。
   - 真源 = `spec/DADAO-21 §3.3`（`va_list` 七字段 = 3 游标 + 3 剩余计数 + 栈指针；`va_start` 初始化；`va_arg` 四步）；契约 = `contract-abi §5` 行（**M8 收口**）/ `§4.2`（16 字节值与 `float` 低 32 位）/ `§4.3`（16 B 栈槽）。
 - ⚠️ **A 与 B 相互独立**：可分别实现与验收；B 的契约前置已满足（不再是停点）。
 
@@ -100,7 +100,7 @@ int main(void) {
 1. **A 诊断与形态**：完成区写「`brind` 由哪个 pass 产生、dev 后端缺哪一环、所选指令形态（`jump [rbX, rd0, 0]`）与 bank 搬移依据（`contract-isa §8.3` + `rd0` 零值 + RD 是数据面）」+ 修后 `llvm-objdump -d` 片段（含 `rd2rb` 与 `0x71` `jump`）。
 2. **A 端到端**：`repro_brind` 修前 `Cannot select`（编译 rc≠0，留输出）、修后 `qemu-dadao` 打印 `acc=3` rc=0。
 3. **A 向量**：新增 lit 用例在 `check-lit`（或 `ninja check-llvm-codegen-dadao` 等价目标）中 **PASS**，并断言「`indirectbr` 不再产生 `Cannot select`」+ 指令形态（`FileCheck` 两条 `jump`/`rd2rb`）；向量须能对**修前**后端 FAIL（以归档修前产物或注入方式证明可达 FAIL）。
-4. **B（已解阻塞）**：完成区先写 `ADR-0031` 的落点（`D2` callee 快照 / `D4` 不拆半 / `D8` 默认 `-Werror=varargs`）；`repro_varargs` 修前 `varargs call with register-exhausted`、修后 `sum=136` rc=0，且命名参数（寄存器）与可变参数（保存区 + 栈）两组值都正确（独立 oracle：总和 136 由实参序列手算）；给出 `-Werror=varargs` 默认生效的可判据现场（触发 / 不触发各一例）。
+4. **B（已解阻塞）**：完成区先写 `ADR-0031` 的落点（`D2` callee 快照 / `D4` 不拆半 / `D8b` 默认 `-Werror=varargs`）；`repro_varargs` 修前 `varargs call with register-exhausted`、修后 `sum=136` rc=0，且命名参数（寄存器）与可变参数（保存区 + 栈）两组值都正确（独立 oracle：总和 136 由实参序列手算）；给出 `-Werror=varargs` 默认生效的可判据现场（触发 / 不触发各一例），并验证 `-Wno-error=varargs` 可显式退出（同一触发例降为 warning、编译 rc=0），且**默认档本仓自有代码 / 门控零 `varargs` 告警**。
 5. **`TESTCASES-048t` 复跑（只跑受影响例 + 两档）**：`--only 'evalloop$'` 与 `--only 'plot2fig$'` 两档转 `pass`；`blocked 27 → 25`、`pass 193 → 195`、`fail 2`/`known-fail 0`/`excluded 0` **不变**；**无回归**（逐例 JSON diff，类别变化仅限本节列出的例）。
 6. **可达 FAIL**：≥2 处注入（形状自选，例如：把 `jump_rrii` 的基址改回 `rb0`、把 `rd2rb` 搬移删掉、把 `ISD::BRIND` action 改回默认）⇒ 对应断言 `[FAIL]`、脚本 rc=1 ⇒ `cp` + md5 还原 ⇒ 回绿、rc=0（**禁** `git checkout`/`restore`/`stash`）。
 7. **门控（各留自身 rc，现场计数不写死）**：`check-patch-tree`、`check-instrinfo`（若改 `.td`）、`check-component-changelog`、`check-lit_gen`、`make check`(L1)。

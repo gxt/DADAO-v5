@@ -1,7 +1,7 @@
 # INFRA-090t: musl `arch/dadao/bits/float.h` 常量块换 binary128
 
 **模块**：infra
-**项目里程碑**：M9
+**项目里程碑**：M8
 **依赖**：`ADR-0030`（`Accepted`：`D1` 常量、`D5` 只改 `bits/float.h`、`_l` 不改）、`ADR-0031`（`Accepted`：16 B 值半字顺序，供 `_l` 路径的 128 位值传递）、`LLVM-106t`（前端 `__SIZEOF_LONG_DOUBLE__=16` / `__LDBL_MANT_DIG__=113` + 后端 `f128`；**联动**，本册可先行、`_l` 转正验收须其就绪）、`INFRA-079t`（builtins TF 符号）、`ISS-250`
 **状态**：待开始
 
