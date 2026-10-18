@@ -30,10 +30,12 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-105t | 待开始 | 2026-10-18 22:25（登记） | clang 崩 2 例（lencod/obsequi rc=-6）+ `ISS-253` wchar_t 符号性；先诊断；仅立册 |
+| LLVM-107t | 待开始 | 2026-10-18 22:25（登记） | i32 窄返回 callee canonical 化缺失（`contract-abi §4.4 C5`）；待诊断修法；仅立册 |
 | LLVM-098t | 已验证 | 2026-10-18 22:22 | -fPIC 下 .rodata 仍发 ABS48（build-musl-shared EXIT=2）；诊断完成，reviewer Accepted |
 | LLVM-099t | 已验证 | 2026-10-18 22:22 | i64 rotl/rotr ISel 展开；reviewer Accepted |
 | TESTCASES-046t | 已验证 | 2026-10-18 22:22 | Embench 两档 38/38 + 38/38 已跑；reviewer Accepted |
-| TESTCASES-047t | 已验证 | 2026-10-18 22:22 | libc-test 两档：静态 304/0/9/24、动态 305/0/9/23（excluded 30）；reviewer Accepted |
+| TESTCASES-047t | 已验证 | 2026-10-18 22:22 | libc-test 两档：静态 305/0/9/23、动态 305/0/9/23（excluded 30）；reviewer Accepted |
 | INFRA-086t | 已验证 | 2026-10-18 22:00 | 收口门控三条（milestone 册 / pending 标记 / 重定位表一致）；reviewer Accepted |
 | INFRA-087t | 已验证 | 2026-10-18 22:00 | strptime %s 语义归属与分类订正（以 musl 为准）；reviewer Accepted |
 | LLVM-096t | 已验证 | 2026-10-18 22:00 | P2 A1 llvm 面 4 阻塞已解（裸 -shared/PIC 表/stackrestore）；reviewer Accepted |

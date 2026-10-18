@@ -131,6 +131,7 @@
 - **证据/门控**：`.work/evidence/TESTCASES-048t-step2/run.sh` 17 项全 PASS、rc=0（注入 A `--inject-wrong-oracle`→rc=1 恰 hello FAIL→回绿；注入 B 改参考文件→rc=1→`cp` 还原 md5 相等→回绿）；`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check_issues.py`/`make check`(L1) 均 rc=0。
 - **新发现/坑（第 2 步）**：① md5 参考 = RunSafely 整份文档哈希 ⇒ **基线 exit 非 0 也合法**（gnugo），不得额外要求 exit 0；② musl `srandom` 播种 ≠ glibc/BSD（`src/prng/random.c` 头注释）⇒ `ft` 参考不可移植；**宿主 glibc 同源复现**是区分「驱动/参考错」与「libc 语义差」的独立判据；③ MultiSource 输入按 `llvm_test_data()`+`WORKDIR %S` 摆（`../data`），不是 `cwd=源目录`；④ 上游 `check_function_exists` 守卫的 target（archie）在 musl 上本就不构建，blocked 根因须注记。
 - **阶段进度**：第 1 步 ✅（驱动/枚举/小样本）；第 2 步 ✅（驱动修正 + 两档全量 + 分类 + 证据 + 门控）；**按本笔指令未改 `**状态**`**（仍 `待开始`）。
+- **归类待落实（2026-10-18 用户裁定）**：`ISS-265` 2 例将按 `known-fail`（依据 = musl 与 glibc 的 `srandom` 播种差、宿主 glibc 可复现参考值 / ClamAV 输出交错；实现归 `TESTCASES-048t` 后续复跑）。
 
 ## 审阅记录
 
