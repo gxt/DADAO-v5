@@ -41,9 +41,11 @@ Pipeline per case::
            --start-group <musl>/lib/libc.a <builtins archive> --end-group
     qemu-dadao <case>.elf
 
-    # dynamic line: P2 musl products (same driver, next round)
+    # dynamic line: P2 musl products (same driver, next round); the builtins
+    # archive is appended for the same reason as the static line (binary128
+    # TF libcalls; libc.so hides its own compiler-rt members)
     ld.lld -o <case>.elf <musl>/lib/crt1.o <case>.o <libtest.a> <musl>/lib/libc.so \
-           -dynamic-linker /lib/ld-musl-dadao.so.1
+           <builtins archive> -dynamic-linker /lib/ld-musl-dadao.so.1
     qemu-dadao -L <guest-root> <case>.elf
 
 ``-fPIC`` is a **dynamic-round compile flag only** (TESTCASES-049t / ISS-259
@@ -72,8 +74,11 @@ archive that clang's own driver would use (``clang -target
 dadao-unknown-elf -print-libgcc-file-name``, installed by INFRA-088t), inside
 the same ``--start-group`` as ``libc.a``: ``functional/tgmath`` emits
 ``__muldc3``/``__divdc3`` complex-arithmetic helpers that neither musl nor the
-program provides.  The dynamic line is unchanged -- ``libc.so`` already
-resolves them (the same round passes today).
+program provides.  Both link lines carry that archive: with ``long double`` =
+binary128 (ADR-0030 D1) user TUs and the ``src/common/mtest.c`` harness emit TF
+libcalls, and ``libc.so`` hides its own compiler-rt members
+(``--exclude-libs=ALL``, upstream musl policy), so the archive must appear on
+the dynamic line as well.
 
 Independent oracle (AGENTS.md "Independent oracle")
 --------------------------------------------------
@@ -999,8 +1004,17 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
                 + ["--start-group", cfg["libc"], cfg["builtins"],
                    "--end-group"])
     else:
-        link = ([cfg["ldlld"], "-o", elf] + common + [cfg["libc"],
-                "-dynamic-linker", DYNAMIC_LINKER])
+        # The dynamic line needs the builtins archive too: `long double` is
+        # binary128 (ADR-0030 D1), so user TUs and the libtest harness
+        # (src/common/mtest.c) emit TF libcalls, and libc.so hides its own
+        # compiler-rt members (--exclude-libs=ALL, upstream musl policy) --
+        # they cannot resolve user references.  In a normal build the driver
+        # links builtins itself (INFRA-088t); this driver calls ld.lld
+        # directly, so it appends the archive explicitly (same archive as the
+        # static line, TESTCASES-050t item 3).
+        link = ([cfg["ldlld"], "-o", elf] + common
+                + [cfg["libc"], cfg["builtins"],
+                   "-dynamic-linker", DYNAMIC_LINKER])
     case.link_cmd = link
     rc, _o, err, timed = run(link)
     if timed or rc != 0:
@@ -1160,23 +1174,23 @@ def main() -> int:
         if not os.path.isfile(os.path.join(musl, "lib", "libc.a")):
             raise SetupError("static musl libc.a missing (build-musl)")
 
-        # compiler-rt builtins for the static link line (TESTCASES-050t item 3):
-        # the archive clang's own driver would use, queried rather than guessed
-        # (INFRA-088t installs it); the static round links it grouped with
-        # libc.a so tgmath's __muldc3/__divdc3 resolve.  The dynamic round does
-        # not need it (libc.so resolves those), so its preconditions and link
-        # line stay unchanged.
-        if mode == "static":
-            b_rc, b_out, b_err, b_timed = run(
-                [cfg["clang"], "-target", "dadao-unknown-elf",
-                 "-print-libgcc-file-name"], timeout=60)
-            builtins = (b_out or "").strip()
-            if b_timed or b_rc != 0 or not builtins:
-                raise SetupError(
-                    "clang -target dadao-unknown-elf -print-libgcc-file-name "
-                    f"failed: rc={b_rc} {(b_err or '').strip()[:300]}")
-            require_file(builtins, "compiler-rt builtins archive")
-            cfg["builtins"] = builtins
+        # compiler-rt builtins for BOTH link lines (TESTCASES-050t item 3 +
+        # ADR-0030 binary128): the archive clang's own driver would use,
+        # queried rather than guessed (INFRA-088t installs it).  The static
+        # round groups it with libc.a so tgmath's __muldc3/__divdc3 resolve;
+        # with `long double` = binary128 the harness (src/common/mtest.c) and
+        # user TUs emit TF libcalls, and libc.so hides its own compiler-rt
+        # members (--exclude-libs=ALL), so the dynamic round needs it too.
+        b_rc, b_out, b_err, b_timed = run(
+            [cfg["clang"], "-target", "dadao-unknown-elf",
+             "-print-libgcc-file-name"], timeout=60)
+        builtins = (b_out or "").strip()
+        if b_timed or b_rc != 0 or not builtins:
+            raise SetupError(
+                "clang -target dadao-unknown-elf -print-libgcc-file-name "
+                f"failed: rc={b_rc} {(b_err or '').strip()[:300]}")
+        require_file(builtins, "compiler-rt builtins archive")
+        cfg["builtins"] = builtins
 
         os.makedirs(work_dir, exist_ok=True)
         cfg["libtest"], common_objs = build_common_lib(cfg, work_dir)
@@ -1361,8 +1375,7 @@ def main() -> int:
         json.dump(dict(mode=mode, expected_exit=EXPECTED_GUEST_EXIT,
                        discovered=discovered, total=total, counts=counts,
                        excluded=[dict(id=n, reason=r) for n, r in excluded],
-                       static_builtins=(cfg["builtins"]
-                                        if mode == "static" else None),
+                       builtins=cfg["builtins"],
                        census=census, closure_ok=closure_ok,
                        classification_ok=classification_ok,
                        known_fail_bases=KNOWN_FAIL_BASES,

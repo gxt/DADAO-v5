@@ -29,7 +29,7 @@ INFRA-085t stage A1 ("shared library and PIC") adds a second, SHARED mode
    ``LDFLAGS`` that pin the contract's dynamic-section shape: GNU hash only and
    a ``DT_SONAME`` (``contract-dynlink.md`` §5 rulings 6/7, §6.1).  The link
    also gets the compiler-rt builtins archive through musl's ``LIBCC`` hook
-   (``__muldc3``/``__mulsc3``; see ``COMPILER_RT_BUILTINS``).
+   (``__muldc3``/``__mulsc3`` / the TF set; see ``compiler_rt_builtins``).
 5. **shared checks** -- ``readelf``-level facts read straight out of the file:
    ET_DYN / big-endian / EM_DADAO, ``PT_DYNAMIC``, ``DT_SONAME`` == ``libc.so``,
    ``DT_GNU_HASH``, and the ABSENCE of ``DT_HASH`` / ``DT_RELR`` / ``DT_RELRSZ``
@@ -133,15 +133,31 @@ DYNAMIC_LINKER = f"/lib/{LDSO_NAME}"
 SHARED_LDFLAGS = f"-Wl,-shared -Wl,--hash-style=gnu -Wl,-soname,{SONAME}"
 
 # musl links lib/libc.so with `$(LIBCC)` at the end of the rule and with
-# `-Wl,--no-undefined` (configure's LDFLAGS_AUTO), so the two compiler-rt
-# builtins that musl's own C code calls (__muldc3/__mulsc3 from cpow/cpowf)
-# must be present at that link.  `make install-host` does not install
-# compiler-rt yet (ADR-0027 D2 / INFRA-079t) and the DADAO driver ignores
-# `-rtlib=compiler-rt` (INFRA-079t 现场), so the archive is passed explicitly
-# through musl's LIBCC hook.  This is the build-side fix: no components/**
-# change, no toolchain rebuild.
-COMPILER_RT_BUILTINS = (REPO_ROOT / ".work" / "build" / "compiler-rt-builtins"
-                        / "lib" / "linux" / "libclang_rt.builtins-dadao.a")
+# `-Wl,--no-undefined` (configure's LDFLAGS_AUTO), so the compiler-rt builtins
+# that musl's own C code calls (__muldc3/__mulsc3 from cpow/cpowf, and -- since
+# `long double` = binary128, ADR-0030 D1 -- the whole TF set from printf/scanf/
+# libm) must be present at that link.  The driver's `-print-libgcc-file-name`
+# is the single source of truth for which archive that is (INFRA-088t made
+# compiler-rt the default runtime; it is also what Makefile::install-host
+# stages), so it is probed live instead of hardcoding one historical layout.
+# The legacy narrow-scope archive from INFRA-079t is kept as a fallback for
+# trees where install-host has not staged the per-target archive yet.
+LEGACY_COMPILER_RT_BUILTINS = (REPO_ROOT / ".work" / "build"
+                               / "compiler-rt-builtins" / "lib" / "linux"
+                               / "libclang_rt.builtins-dadao.a")
+
+
+def compiler_rt_builtins() -> Path:
+    """Return the builtins archive to pass through musl's ``LIBCC`` hook."""
+    clang = TOOLCHAIN_BIN / "clang"
+    if clang.is_file():
+        res = run([str(clang), f"--target={TARGET}", "-rtlib=compiler-rt",
+                   "-print-libgcc-file-name"], env=toolchain_env())
+        if res.returncode == 0:
+            probe = Path(res.stdout.strip())
+            if probe.is_file():
+                return probe
+    return LEGACY_COMPILER_RT_BUILTINS
 
 # ELF constants used by the shared-object checks (gABI ch. 5 + lld's values).
 PT_LOAD = 1
@@ -344,10 +360,11 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
         print(f"build-musl: ERROR: {MUSL_SRC} not found -- run 'make fetch apply-series'",
               file=sys.stderr)
         return 2
-    if shared and not COMPILER_RT_BUILTINS.is_file():
+    builtins = compiler_rt_builtins()
+    if shared and not builtins.is_file():
         print(f"build-musl: ERROR: compiler-rt builtins archive "
-              f"{COMPILER_RT_BUILTINS} not found -- build it first "
-              f"(INFRA-079t narrow scope; see that task's evidence script)",
+              f"{builtins} not found -- build it first "
+              f"(INFRA-079t/INFRA-088t; see those tasks' evidence scripts)",
               file=sys.stderr)
         return 2
     env = toolchain_env()
@@ -389,7 +406,7 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
         print("build-musl: incremental build")
     make_cmd = ["make", f"-j{jobs}"]
     if shared:
-        make_cmd.append(f"LIBCC={COMPILER_RT_BUILTINS}")
+        make_cmd.append(f"LIBCC={builtins}")
     res = run(make_cmd, cwd=MUSL_SRC, env=env)
     if res.returncode != 0:
         print(f"build-musl: FAIL (make rc={res.returncode})\n{res.stdout}",

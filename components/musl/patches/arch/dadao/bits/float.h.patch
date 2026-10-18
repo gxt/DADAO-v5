@@ -1,18 +1,20 @@
 diff --git a/arch/dadao/bits/float.h b/arch/dadao/bits/float.h
 new file mode 100644
-index 0000000..a8cd1ad
+index 0000000..0d44230
 --- /dev/null
 +++ b/arch/dadao/bits/float.h
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,34 @@
 +/*
-+ * DADAO floating-point model: IEEE-754 binary64 throughout.
++ * DADAO floating-point model: IEEE-754 binary32/binary64/binary128.
 + *
-+ * The DADAO toolchain has no extended-precision format: clang predefines
-+ * __SIZEOF_LONG_DOUBLE__ == 8 and __LDBL_MANT_DIG__ == 53 for
-+ * --target=dadao-unknown-elf (verified with `clang -dM -E`), so `long double`
-+ * is identically `double` (the same "long double == double" shape used by
-+ * arch/or1k, which has no extended format either).  The values below are
-+ * therefore the IEEE-754 binary64 ones, with DECIMAL_DIG = 17.
++ * `long double` is IEEE 754-2008 binary128 (ADR-0030 D1): sizeof = 16 B,
++ * align = 16 B, LDBL_MANT_DIG = 113, LDBL_MAX_EXP = 16384.  clang predefines
++ * __SIZEOF_LONG_DOUBLE__ == 16 and __LDBL_MANT_DIG__ == 113 for
++ * --target=dadao-unknown-elf (verified with `clang -dM -E`).  The values
++ * below are byte-for-byte the ones musl uses for its other binary128
++ * architectures (aarch64, loongarch64, mips64, mipsn32, riscv32, riscv64,
++ * s390x), so they are aligned with the ld128 code paths already present in
++ * src/math/; DECIMAL_DIG = 36 (ceil(1 + 113*log10 2)).
 + *
 + * FLT_EVAL_METHOD 0: evaluate in the type of the operands (no excess
 + * precision).  This is not an assumption about the RF bank -- it is the
@@ -22,17 +24,17 @@ index 0000000..a8cd1ad
 +
 +#define FLT_EVAL_METHOD 0
 +
-+#define LDBL_TRUE_MIN 4.94065645841246544177e-324L
-+#define LDBL_MIN 2.22507385850720138309e-308L
-+#define LDBL_MAX 1.79769313486231570815e+308L
-+#define LDBL_EPSILON 2.22044604925031308085e-16L
++#define LDBL_TRUE_MIN 6.47517511943802511092443895822764655e-4966L
++#define LDBL_MIN 3.36210314311209350626267781732175260e-4932L
++#define LDBL_MAX 1.18973149535723176508575932662800702e+4932L
++#define LDBL_EPSILON 1.92592994438723585305597794258492732e-34L
 +
-+#define LDBL_MANT_DIG 53
-+#define LDBL_MIN_EXP (-1021)
-+#define LDBL_MAX_EXP 1024
++#define LDBL_MANT_DIG 113
++#define LDBL_MIN_EXP (-16381)
++#define LDBL_MAX_EXP 16384
 +
-+#define LDBL_DIG 15
-+#define LDBL_MIN_10_EXP (-307)
-+#define LDBL_MAX_10_EXP 308
++#define LDBL_DIG 33
++#define LDBL_MIN_10_EXP (-4931)
++#define LDBL_MAX_10_EXP 4932
 +
-+#define DECIMAL_DIG 17
++#define DECIMAL_DIG 36
