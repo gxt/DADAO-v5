@@ -30,6 +30,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-093t | 待开始 | 2026-10-19 07:10（登记） | 测试运行产物与日志组织规矩（独立 run 目录/权威跑/`--json-out` 必填）+ L1 `check-run-artifacts`；本册只立规矩 |
 | LLVM-108t | 待开始 | 2026-10-19 01:54（登记） | lemon 调用点漏写 rb16：K&R 无原型调用（`lemon.c:334/4839`）先分类；指针形参读 rb16 而实参走 rd16 |
 | LLVM-105t | 待验收 | 2026-10-18 22:25（登记） | vector SetCC 补齐（`WidenVecRes_LOAD` 断言）+ wchar_t 改有符号；两例编译 rc=0、lit 103/103 |
 | LLVM-107t | 待验收 | 2026-10-18 22:25（登记） | i32 窄返回 callee canonical 化：`classifyReturnType` 对 <64 位整型统一 `getExtend`；探针修前 2 FAIL→8/8、lit 34/34 |
