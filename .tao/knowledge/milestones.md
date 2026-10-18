@@ -30,17 +30,17 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INFRA-092t | 待验收 | 2026-10-18 19:02（登记） | musl 封装 va_arg 类型面：syscall()/fcntl()/getrlimit 按三 bank 取型；fcntl 两档 pass、10/10；补丁 177→180 |
-| INFRA-091t | 待验收 | 2026-10-18 15:25（登记） | milestones 体例改造 + L1 门控 check-milestones-fresh（五断言 + self-test） |
+| INFRA-088t | 已验证 | 2026-10-18 20:57 | driver 默认接 compiler-rt（ISS-262①）：RLT_CompilerRT 覆写；实现完成待验收 |
+| INFRA-089t | 已验证 | 2026-10-18 20:57 | musl sigsetjmp：新增 dadao/sigsetjmp.s；setjmp blocked→pass；patch 174 |
+| INFRA-091t | 已验证 | 2026-10-18 20:57 | milestones 体例改造 + L1 门控 check-milestones-fresh（五断言 + self-test） |
+| INFRA-092t | 已验证 | 2026-10-18 20:57 | musl 封装 va_arg 类型面：syscall()/fcntl()/getrlimit 按三 bank 取型；fcntl 两档 pass、10/10；补丁 177→180 |
 | INFRA-090t | 待开始 | 2026-10-18 10:47（登记） | musl bits/float.h 常量块换 binary128；只立册 |
 | LLVM-106t | 待开始 | 2026-10-18 10:47（登记） | long double=binary128：前端 16B/113 宏 + ABI rf16/17 + f128 libcall 21 + TF 29 符号；18 项 oracle、lit 34/34；待 install-host |
-| INFRA-089t | 待验收 | 2026-10-18 07:55（登记） | musl sigsetjmp：新增 dadao/sigsetjmp.s；setjmp blocked→pass；patch 174 |
 | LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | A 段（brind）：LowerBRIND + BLOCK_ADDR、evalloop 两档 pass；B 段完成（三游标 ABI、printf 实测、consumer-lame 两档 pass）；余 D4 caller 侧 |
 | LLVM-103t | 待验收 | 2026-10-18 07:55（登记） | flog libcall 补齐：LOG_F64/LOG10_F64 注册；CoMD 两档 pass；patch 173 |
 | QEMU-063t | 待开始 | 2026-10-18 07:55（登记） | qemu-user 宿主信号 8 例 + unix-smail 卡死；诊断时间盒 1–2 h |
 | TESTCASES-050t | 待验收 | 2026-10-18 07:55（登记） | 驱动四项：include/逐例超时/静态 builtins/siod excluded；048t 投影 197/2/21/2 |
 | INFRA-079t | 已验证 | 2026-10-17 23:56 | compiler-rt builtins 全量：147 成员/14 libcall + 独立库 + driver 接线；L2 零回归 |
-| INFRA-088t | 待验收 | 2026-10-17 23:22（登记） | driver 默认接 compiler-rt（ISS-262①）：RLT_CompilerRT 覆写；实现完成待验收 |
 | TESTCASES-049t | 待验收 | 2026-10-17 23:22（登记） | libc-test 动态档用户 TU 改 -fPIC（ISS-259②）：COPY 7 例 pass；305/0/9/23 |
 | INFRA-087t | 待开始 | 2026-10-17 17:40（登记） | strptime %s 语义归属与分类订正（以 musl 为准）；只立册 |
 | LLVM-101t | 待开始 | 2026-10-17 17:40（登记） | 可变参聚合 union semun + shmat 指针返回 bank 两缺陷；只立册 |

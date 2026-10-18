@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0031`（`Accepted`：三 bank 变参 ABI 的真源）；`LLVM-102t`（**B 段**：变参三游标 ABI 落到安装根 —— 本册的两个缺陷**由该 ABI 暴露**；执行前须确认安装根工具链已含 B 段，否则 `functional/fcntl` 复现不出来）；`TESTCASES-047t`（验收载体 + 现场来源）；`LLVM-101t`（`A` 项 = `union semun` 变参聚合的**编译器侧**取法，与本册「`semctl` 不改」判定互为印证）；`ISS-271`（本册登记源）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -271,7 +271,13 @@ long syscall(long n, ...)
 | F6 探针 B 断言恒 FAIL（`0x?` 正则要求前导 0） | ✅已修 | 正则改 `(?:0x)?` | `probe-checks.txt` 10/10 PASS |
 
 #### 第 1 轮 reviewer 验收
-（待填写）
+**重跑（2026-10-18 独立）**：`run.sh` **45 PASS / 0 FAIL rc=0** ✓（含 build+probes+suites+injects+gates）。
+- **注入①**（fcntl 读回 `va_arg(ap, unsigned long)`）：functional/fcntl **fail=1 / Bad address**，cp+md5 还原后 **pass=1** ✓。
+- **注入②**（syscall 读回 6×`syscall_arg_t`）：probe E **`= -1 errno=14`**，cp+md5 还原后 **`= 0 errno=0 sysname='Linux'`** ✓。
+**逐条核验**：① 审计表 va_arg HEAD~1=81、HEAD=84（+3 fcntl 分支 +1 注释），表达式 83 ✓；② functional/fcntl 静态/动态 1/1 ✓；③ 10 例两档 10/10 ✓；④ 探针 E=0 errno=0 sysname='Linux'、I=0 errno=0、probe-accept 30/30 ✓；⑤ build-musl/musl-shared rc=0、check-musl-freshness PASS、check-patch-tree 180 ✓；⑥ L1 rc=0 ✓；⑦ 两注入+还原+回绿 ✓。
+**约束**：只改 musl 3 个文件 + series/changelog ✓；一文件一补丁 ✓；未碰 spec/contracts/LLVM-102t ✓。
+**如实性抽查**：va_arg HEAD~1=81（`git grep -c`）✓；probe E/I exact match ✓；series=22、patches 180 ✓。
+**判决**：**Accepted**。
 
 #### 第 1 轮 architect 提交（待验收）
 **档位**：`待验收`（实现完成 + 自审通过；reviewer 未验）⇒ 正常提交（本任务分支第 2 笔）；`**状态**` 由 `待开始` 置 `待验收`（不改写完成区述评）。

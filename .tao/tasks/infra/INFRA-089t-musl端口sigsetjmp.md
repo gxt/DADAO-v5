@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`TESTCASES-047t`（现场来源 = 静态档 `functional/setjmp` `blocked`：`undefined symbol: sigsetjmp`）、`ISS-254`（本册对应 issue）、`INFRA-082t`（musl 静态最小集移植 = 本册改动面）、`ISS-242`（同信号帧面；取消重定向仍随 `arch/dadao/bits/signal.h` `[OPEN]`）、`contract-syscall §1`（`rt_sigprocmask` 号表）、`ADR-0025 D2`（无内核目标）
-**状态**：待验收
+**状态**：已验证
 
 > **归属说明（二选一裁定：本笔取「单立本册」）**：`ISS-254` 的改动面在 **musl 端口**（`components/musl/patches/src/signal/**`、`arch/dadao/bits/setjmp.h`），不在测试驱动；`TESTCASES-050t` 只做「驱动与口径」，故**不并入** `TESTCASES-050t`。`TESTCASES-050t` 仅在本册交付后按需复跑该例（其册内不承担 `ISS-254` 实现）。
 
@@ -119,7 +119,13 @@ int main(void) {
 **判决**：无未修 finding；F9 为派单口径下的延后项（已在完成区「遗留问题」登记）。任务状态按派单要求保持 `待开始`，交主会话验收。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+**重跑（2026-10-18 独立）**：default **28 PASS / 0 FAIL rc=0** ✓；`--inject` **44 PASS / 0 FAIL rc=0** ✓。
+- **注入 A**（删 `sigsetjmp.s`）：链接报 `undefined symbol: sigsetjmp`，cp+md5 还原后回绿 ✓。
+- **注入 B**（`br.z`→`br.nz`）：探针两支互换（`usr1↔usr2`），cp+md5 还原后回绿 ✓。
+**逐条核验**：① `sigsetjmp`/`__sigsetjmp`/`siglongjmp` 三符号 defined ✓；② repro `restore=0 norestore=1` ✓；③ probe oracle `A…usr1=1 usr2=0 | B…usr1=1 usr2=1` ✓；④ 符号增量 `+[__sigsetjmp,sigsetjmp]`、0 removals ✓；⑤ series 含 `sigsetjmp.s.patch`、74 行、非空 blob ✓；⑥ check-patch-tree(180) rc=0 ✓；⑦ check-musl-freshness PASS ✓；⑧ L1 rc=0 ✓。
+**约束**：只改 musl patches ✓；一文件一补丁 ✓；series=22（089t+092t 合计）✓；未碰 setjmp/longjmp 帧布局 ✓；未越界。
+**如实性抽查**：3 符号 `nm` 确认 ✓；probe output exact match ✓；patch 74 行 + `br.z` 存在 ✓。
+**判决**：**Accepted**。
 
 #### 提交留痕（architect，2026-10-18）
 - **档位**：正常提交（按主会话派单明示；reviewer 尚未判决）。

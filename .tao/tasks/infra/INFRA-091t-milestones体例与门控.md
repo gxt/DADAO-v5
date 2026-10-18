@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：无
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -32,3 +32,12 @@
 **遗留问题**：`check-milestone` rc=2 由既有 `待验收` 触发（非本笔引入）；`SPEC-141t` 等 16 册仍 `待开始`，随收尾更新。
 
 ## 审阅记录
+
+#### 第 1 轮 reviewer 验收
+**重跑（2026-10-18 独立）**：`python3 tools/infra/check_milestones_fresh.py` **rc=0**（54 行；状态一致/覆盖/≤120 字符/倒序/格式）✓；`--self-test` **rc=0**（干净基线 + 五类注入各自 FAIL）✓。
+- 本册无独立证据脚本（接口规范不要求；证据 = 门控 + `--self-test`）。
+**逐条核验**：① 表格保留四列、54 行、一句改动 ≤120（max=114）✓；② 体例约定四条存在（L10 `## 体例约定（硬约束）`）✓；③ 五断言各可达 FAIL（self-test 5/5 PASS）✓；④ 历史台账指针已删、check-knowledge-refs rc=0 ✓；⑤ 快照刷新（check-patch-tree 180、L1 rc=0）✓。
+**约束**：只改 milestones.md、新脚本、Makefile、Process-07、4 份任务书追加 ✓；未越界。
+**如实性抽查**：行数 54（完成区 53 + INFRA-092t 行由 architect 追加）✓；max_summary=114 ✓；check-milestones-fresh 54 行 PASS ✓。
+**独立注入（本组≥1次）**：在 INFRA-092t 行注入 `.work/evidence/…` 路径 ⇒ rc=1（`VIOLATION L33 一句改动含 .work/ 路径`）⇒ cp+md5 还原（`2065113f…` 一致）⇒ rc=0 ✓。
+**判决**：**Accepted**。

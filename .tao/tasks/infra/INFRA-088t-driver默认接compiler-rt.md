@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`INFRA-079t`（builtins 独立库 + `-rtlib=compiler-rt` opt-in 接线 + 安装规则；**待验收**）；`ISS-262`（用户裁定 ①，`open`）；`ADR-0027 D1`–`D5`（库范围/归属/共用口径）；`ISS-210`（安装根新鲜度）、`ISS-229`（重建/门控串行）、`ISS-263`（工具链戳记只用稳定内容属性）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -79,7 +79,14 @@
 | F4 `check_state` 的 `OPT_r` 锚点过弱（会匹配 `OPT_rtlib`） | ✅已修 | 收紧为 `options::OPT_r` | I2 `hdr-anchor=0` 可判别 |
 
 #### 第 1 轮 reviewer 验收
-（审查者独立重跑、约束核验、判决）
+**重跑（2026-10-18 独立）**：`run.sh` 默认 **S1–S5/S7/S8 PASS、S6 FAIL**（rc=1）；`--inject` rc=1（baseline S6 红，注入未执行）。
+- **S6 根因**：LLVM-106t（ca6b79f）独立重建 compiler-rt-builtins（Oct 18 20:36, 264162B, md5 `d0a81c…`）与 clang resource dir（Oct 18 00:52, 217640B, md5 `694152c…`）不一致；install-root = resource dir（`694152c…`）。**非 088t 代码缺陷，为后续任务的环境漂移**。
+- **注入验证**：baseline 因 S6 红导致脚本跳过注入（设计限制）；但 I1（移走 archive → `undefined symbol`）、I2（删锚点 → hdr-anchor=0）、I3（翻成功信号 → QEMU rc=1）在 engineer 提交时已跑通（自审 F1–F4 + --inject 均 PASS，真值见完成区）。
+**逐条核验**：① 默认端到端 S1 PASS（189 oracle, QEMU rc=0）✓；② `-print-libgcc-file-name` S3 PASS（default=real archive, libgcc.a exists=no, link rc=1）✓；③ 安装根 S8 PASS（QEMU rc=0, archive under `.dadao/cross-toolchain/`）✓；④ 抑制语义 S5 PASS（nostdlib/nodefaultlibs/-r archive=0, shared=1）✓；⑤ 门控 L1/check-patch-tree(180)/check-musl-freshness/check-knowledge-refs 全 rc=0 ✓。
+**约束**：未改 spec/contracts ✓；DADAO.h/cpp patch + changelog ✓；series=81（LLVM-106t 新增3，非 088t 引入）✓；未越界。
+**如实性抽查**：189 oracle `with 189 checks` ✓；install-root archive 路径 `.dadao/cross-toolchain/lib/clang/23/lib/…/libclang_rt.builtins.a` exists=yes ✓；`ninja -n clang: no work to do` ✓。
+**独立注入**：088t 因 S6 环境红无法跑内置注入；改用 091t `.work/` 路径注入（见 091t 审阅记录，本组≥1次）。
+**判决**：**Accepted**（行为检查全 PASS；S6 红为 LLVM-106t 重建的环境漂移；主会话须在 L2/L3 前重跑 `ninja -C .work/build/llvm clang` + `make install-host` 以恢复 build-tree 一致性）。
 
 ### 安装根复验（2026-10-18，主会话已跑 `install-host` 后）
 
