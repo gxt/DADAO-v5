@@ -107,6 +107,14 @@ the program directory with a small, documented evaluator:
 * a construct the evaluator cannot parse makes the case **blocked**
   (``upstream CMake configuration not derivable``), never a silent
   guess-and-run;
+* include paths (TESTCASES-050t): the ``-I`` set is the one upstream declares
+  on the unit's CMakeLists chain (``include_directories`` /
+  ``target_include_directories``), with ``${CMAKE_CURRENT_SOURCE_DIR}``
+  expanded and relative entries resolved against the declaring directory.  A
+  unit whose chain declares none is compiled with ``-I<unit_dir>`` (CMake's
+  ``CMAKE_CURRENT_SOURCE_DIR`` view) and the record says which of the two
+  applied (``cmake.include_dir_source``).  A literal ``${...}`` never reaches a
+  compile line: an unexpanded variable makes the case blocked;
 * the compiler line keeps upstream's global ``-DNDEBUG -w``.  ``-Werror=
   date-time`` is *not* taken over: it is an upstream reproducibility policy
   that would turn a ``__DATE__`` use into a build error unrelated to the
@@ -186,11 +194,27 @@ Classification (counted live, never hard-coded)
                   ``124``/timeout case is *blocked*, never pass/fail), or
                   non-derivable upstream CMake configuration.
                   ``blocked > 0 => rc = 1`` (ISS-248 gate rule: incomplete
-                  coverage must not look green).
-* ``excluded``    declared up front, structural, with a reason.  Scope A has
-                  none by construction (the enumeration already drops
-                  helpers without ``main``); B/C are reported as counts and
-                  are **not** passes.
+                  coverage must not look green).  A completed run whose
+                  oracle mismatch is caused by the platform never executing
+                  the work (``PLATFORM_GAP_SIGNATURES``, live signature
+                  required) is filed as ``blocked`` too, never as ``fail``.
+* ``excluded``    declared up front, structural, with a reason.  Scope A's
+  entries are ``MultiSource/Applications/siod`` (BSD ``d_namlen`` on a target
+  without the ``linux`` predefine) and
+  ``MultiSource/Benchmarks/MiBench/office-ispell`` (BSD ``<sgtty.h>``, absent
+  from musl and from the corpus) -- both are missing *platform APIs*, not
+  missing include paths (TESTCASES-050t items 1/4).  Excluded cases are counted
+  live, keep their reason in the JSON/report, and never count as a pass; a
+  registry entry that no longer matches a discovered unit fails the census
+  audit.  B/C are reported as counts and are **not** passes.
+
+Per-case run timeouts (TESTCASES-050t item 2) are the ``CASE_TIMEOUTS`` table:
+values measured on this host (``run_seconds`` in the JSON) plus a 120 s
+margin, rounded up to the next minute, applied in addition to ``--timeout``
+(effective timeout = ``max``).  ``DEFAULT_TIMEOUT`` stays at the baseline
+300 s; raising it globally would make the hanging ``unix-smail`` burn the whole
+budget in every full run.  ``unix-smail`` is not in the table: it hangs
+(QEMU-063t) and a longer timeout would only hide that.
 
 Every case record keeps: compile command lines, link command, run argv, work
 directory, oracle file, stdout sha256 + size, min ``PT_LOAD``, ``PT_INTERP``
@@ -244,9 +268,53 @@ DEFAULT_SRC = ".work/source/llvm-test-suite"
 DEFAULT_MUSL = ".work/source/musl"
 DEFAULT_WORK_DIR = str(_paths.test_artifacts_dir() / "llvm-ts-user")
 DEFAULT_LOG_DIR = ".work/log/testcases"
-DEFAULT_TIMEOUT = 120
+# Baseline budget (the value TESTCASES-048t's full runs used).  It is *not*
+# raised globally: doing so would make the hanging ``unix-smail`` burn the whole
+# budget in every full run (QEMU-063t).  The genuinely slow programs get their
+# own measured budgets in ``CASE_TIMEOUTS`` instead.
+DEFAULT_TIMEOUT = 300
 DEFAULT_JOBS = 4
 BUILD_TIMEOUT = 300
+
+# Per-case run timeouts (TESTCASES-050t): five programs need more than the
+# default on this host; their 300 s truncation in TESTCASES-048t was a timeout
+# *setting*, not a property of the program.  Formula (documented, not guessed):
+#
+#     value = ceil((measured run_seconds + 120 s margin) / 60) * 60
+#
+# with ``run_seconds`` measured at jobs=1 on this host (recorded per case in
+# the run JSON and in CASE_TIMEOUT_BASIS below).  ``--timeout`` stays a floor:
+# the effective timeout is ``max(--timeout, table value)``.  ``unix-smail`` is
+# deliberately absent: it hangs after one line (QEMU-063t), so it keeps the
+# default budget and is reported ``blocked`` with that pointer.
+CASE_TIMEOUTS = {
+    "MultiSource/Applications/lemon": 480,      # 331.43 -> 451.43 -> 480
+    "MultiSource/Applications/lua": 840,        # 670.52 -> 790.52 -> 840
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC": 480,  # 349.54 -> 480
+    "MultiSource/Benchmarks/mafft": 1620,       # 1452.82 -> 1572.82 -> 1620
+    "MultiSource/Benchmarks/nbench": 480,       # 312.20 -> 432.20 -> 480
+}
+
+# Why the table above holds these values (quoted in the report; the measured
+# seconds live in the run JSON, so this string is provenance, not a number).
+CASE_TIMEOUT_BASIS = {
+    "MultiSource/Applications/lemon":
+        "measured run 331.43 s (guest children die of SIGSEGV; see "
+        "PLATFORM_GAP_SIGNATURES) + 120 s margin, rounded up to 60 s -> 480 s",
+    "MultiSource/Applications/lua":
+        "measured run 670.52 s up to the qemu host SIGSEGV (static round: "
+        "bench/process.lua) + 120 s margin, rounded up to 60 s -> 840 s; the "
+        "value is kept so a later crash point is still observable",
+    "MultiSource/Benchmarks/DOE-ProxyApps-C/SimpleMOC":
+        "measured complete run 349.54 s + 120 s margin, rounded up to 60 s "
+        "-> 480 s",
+    "MultiSource/Benchmarks/mafft":
+        "measured complete run 1452.82 s + 120 s margin, rounded up to 60 s "
+        "-> 1620 s",
+    "MultiSource/Benchmarks/nbench":
+        "measured complete run 312.20 s + 120 s margin, rounded up to 60 s "
+        "-> 480 s",
+}
 
 TARGET = "dadao-unknown-elf"
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
@@ -315,6 +383,33 @@ UPSTREAM_SMALL_PRUNE = {
 # counts it; it is executed and its result reported like any other case.
 POLYBENCH_TEMPLATE = "SingleSource/Benchmarks/Polybench/utilities/template-for-new-benchmark"
 
+# Declared structural exclusions inside the enumerated scope-A set
+# (TESTCASES-050t item 4).  Only causes that cannot be fixed on the driver
+# side belong here -- a missing *path* is a driver bug (see the include
+# mechanism below), a missing *platform API* is not.  Each entry needs a
+# reason that names the corpus source and the platform fact; the corpus and
+# the headers are read-only (patchless), so no shim is added.
+STRUCTURAL_EXCLUSIONS = {
+    "MultiSource/Applications/siod":
+        "siod's slibu.c:733 selects ``namlen = r->d_namlen`` in its BSD "
+        "branch (``#if defined(sun) || defined(sgi) || defined(linux)`` is "
+        "false) -- ``linux``/``unix`` are GCC/clang *host* predefines that "
+        "this bare-metal target does not have (clang -target "
+        "dadao-unknown-elf -dM: no linux/unix/__linux__), so the branch "
+        "cannot be selected without adding a macro upstream never sets; "
+        "musl's struct dirent (arch/generic/bits/dirent.h:5) has no "
+        "``d_namlen`` field at all.  Corpus and headers are read-only, so "
+        "the case is excluded with this reason instead of patched.",
+    "MultiSource/Benchmarks/MiBench/office-ispell":
+        "office-ispell's term.c:91 includes <sgtty.h>, the BSD terminal "
+        "interface header (sgtty/gtty).  musl has no such header and the "
+        "locked corpus does not ship one either (no sgtty.h under "
+        "MultiSource/Benchmarks/MiBench/office-ispell), so this is a missing "
+        "*platform API*, not a missing include path: no -I can supply it.  "
+        "The case is excluded with this reason; no shim header is added "
+        "(corpus is patchless, task book forbids a fake header).",
+}
+
 # Dynamic round only (TESTCASES-049t / ISS-259 candidate (2), the same finding
 # tools/testcases/run_libc_test_user_suite.py records): a user TU that takes the
 # address of a libc.so data object (``stdout``/``stderr``/``environ`` -- every
@@ -340,17 +435,41 @@ CASE_PREPARE = {
         ["tclsh", "smalltest.tcl"],
         "upstream CMake runs ${TCL_TCLSH} smalltest.tcl (SMALL_PROBLEM_SIZE) "
         "to generate test1.sql..test5.sql before the test"),
+    # lua's CMakeLists declares an add_custom_command/target (lua_input) that
+    # copies bench/test/input + *.lua into the binary dir and runs
+    # generate_inputs.sh, which *generates* the large inputs
+    # (moments-input400000.txt, regexmatch-input2000.txt, wc-input3000.txt ...).
+    # Without it alltests.lua aborts at bench/moments.lua with
+    # "input/moments-input400000.txt: No such file or directory" -- an
+    # upstream-build artefact, not a program result (TESTCASES-050t).
+    "MultiSource/Applications/lua": (
+        ["sh", "generate_inputs.sh"],
+        "upstream's lua_input custom command runs generate_inputs.sh in the "
+        "build dir to generate input/moments-input400000.txt and the other "
+        "large benchmark inputs"),
 }
 
 # Root-cause notes for non-pass cases (documentation only -- the class is still
 # decided by the oracle/classification rules above).
 CASE_NOTES = {
+    "MultiSource/Benchmarks/Prolangs-C/unix-smail":
+        "hangs after printing \"resolve 'ALL' = 'ALL' @ '' (LOCAL)\" -- the "
+        "defect belongs to QEMU-063t.  Deliberately absent from CASE_TIMEOUTS: "
+        "a longer per-case timeout would only mask the hang, so it keeps "
+        "DEFAULT_TIMEOUT (300 s) and is reported blocked (reason: timeout "
+        "after 300 s; see QEMU-063t), never pass/fail.",
     "MultiSource/Benchmarks/Prolangs-C/archie-client":
         "upstream guards both llvm_multisource(archie) and the "
         "target_include_directories() that provides <copyright.h> behind "
-        "check_function_exists(re_comp); musl has no re_comp, so upstream's "
-        "own configuration does not build this target on this libc.  The "
-        "directory is still counted by the book's .c-with-main rule.",
+        "check_function_exists(re_comp) (CMakeLists.txt:4 and :15); musl "
+        "provides no re_comp/re_exec (BSD regex API, absent from musl's "
+        "headers), so upstream's own configuration does not build this target "
+        "on this libc and the link stops at 'undefined symbol: re_comp'.  The "
+        "corpus' regex.c implements re_comp only under NOREGEX, which "
+        "pmachine.h defines for legacy platforms only (u3b2/hpux/ISC/CUTCP/"
+        "OS2/MSDOS), not for Linux -- no stub is taken.  The directory is "
+        "still counted by the book's .c-with-main rule and kept `blocked` "
+        "(the book's wording for this case), not `excluded`.",
     "SingleSource/Benchmarks/Misc/aarch64-init-cpu-features":
         "AArch64-only test: it calls __init_cpu_features and reads "
         "__aarch64_cpu_features, runtime symbols only AArch64's libc provides; "
@@ -365,6 +484,35 @@ CASE_NOTES = {
         "this run and after them in the reference; stdout/stderr buffering "
         "decides that position.  Reported as `fail` by the oracle rule (a "
         "stale/interleaving-sensitive reference is not relabelled).",
+}
+
+# Platform gaps that make a *completed* run unable to reach the case's own
+# verdict: the program runs and exits, but the work itself never executes.
+# Same idea as run_libc_test_user_suite.py's gap signatures, but keyed per case
+# because the evidence is a corpus-specific diagnostic.  An entry is used only
+# when its live signature is actually present in the run output; without it the
+# case keeps the oracle's verdict (``fail``).
+PLATFORM_GAP_SIGNATURES = {
+    "MultiSource/Applications/lemon": (
+        b"Error while running on: ",
+        "runtime behaviour, not a compile/link error and not an upstream "
+        "build-script requirement: lemon's LLVM LOCAL main forks one child per "
+        "input (lemon.c:4866) and the child calls lemon_main; on this target "
+        "every child dies of a guest SIGSEGV (qemu re-raises the guest fault; "
+        "reproducible with the single smallest input example1.y and at -O0, "
+        "while the same source built with the host cc writes its parser "
+        "normally; lemon calls no lex/yacc or external tool and its output "
+        "files land in the per-case run dir).  The parent therefore prints "
+        "'Error while running on: <input>' for all 260 runs (that line is the "
+        "recorded first_error), exits 0 and produces no parser, so the md5 "
+        "oracle cannot be reached.  Attribution: platform gap, ISS-269 "
+        "(qemu-user guest SIGSEGV) -- distinct from QEMU-063t (hang) "
+        "and ISS-267 (compile/link backend gaps); not a driver/corpus defect."),
+}
+
+# Cases whose host-signal death is a known qemu defect (reason pointer).
+QEMU_SIGNAL_ISSUES = {
+    "MultiSource/Applications/lua": "QEMU-063t",
 }
 
 # Machine-fault exits (ADR-0004 D5.8): the guest left through a machine fault.
@@ -741,7 +889,8 @@ class CMakeConfig:
 
     __slots__ = ("definitions", "cflags", "ldflags", "run_options", "notes",
                  "unresolved", "fp_tolerance", "fp_abstolerance",
-                 "fp_ignorewhitespace", "test_data", "include_dirs")
+                 "fp_ignorewhitespace", "test_data", "include_dirs",
+                 "include_dir_decls", "include_dir_source")
 
     def __init__(self):
         self.definitions = []   # add_definitions / target_compile_options
@@ -751,6 +900,12 @@ class CMakeConfig:
         self.notes = []
         self.unresolved = []
         self.include_dirs = []  # include_directories / target_include_directories
+        # Which CMakeLists.txt declared each include dir (audit trail).
+        self.include_dir_decls = []
+        # "cmake" when the -I set comes from upstream's own declarations,
+        # "unit-dir-fallback" when the unit declares none (CMake's
+        # CMAKE_CURRENT_SOURCE_DIR view, see prepare_cases).
+        self.include_dir_source = ""
         # upstream llvm_test_data(): (source file, destination name) pairs that
         # CMake copies next to the executable before the run.
         self.test_data = []
@@ -765,6 +920,8 @@ class CMakeConfig:
                     run_options=" ".join(self.run_options),
                     test_data=[d for _s, d in self.test_data],
                     include_dirs=self.include_dirs,
+                    include_dir_decls=self.include_dir_decls,
+                    include_dir_source=self.include_dir_source,
                     fp_tolerance=self.fp_tolerance,
                     fp_abstolerance=self.fp_abstolerance,
                     fp_ignorewhitespace=self.fp_ignorewhitespace,
@@ -843,13 +1000,32 @@ def derive_cmake_config(suite_root: str, tree_root: str, unit_dir: str):
                     # Upstream's own -I set (archie-client's <copyright.h>,
                     # Burg's BINARY_DIR); target_include_directories' PRIVATE/
                     # PUBLIC/... keywords are qualifiers, not paths.
+                    #
+                    # CMake resolves a relative include dir against the
+                    # *current source dir* of the CMakeLists that declares
+                    # it, and ${CMAKE_CURRENT_SOURCE_DIR} has already been
+                    # expanded above; a leftover ${...} is an unexpanded
+                    # variable, i.e. a path the driver cannot derive -- that
+                    # must surface as ``blocked``, never as a literal -I.
                     dirs = list(args)
                     if command == "target_include_directories":
                         dirs = dirs[1:]
                     for d in dirs:
-                        if d not in ("PRIVATE", "PUBLIC", "INTERFACE",
-                                     "SYSTEM", "BEFORE", "AFTER"):
-                            config.include_dirs.append(d)
+                        if d in ("PRIVATE", "PUBLIC", "INTERFACE",
+                                 "SYSTEM", "BEFORE", "AFTER"):
+                            continue
+                        if "${" in d:
+                            raise ValueError(
+                                f"unexpanded variable in include dir {d!r}")
+                        resolved = d if os.path.isabs(d) else \
+                            os.path.join(directory, d)
+                        resolved = os.path.normpath(resolved)
+                        if resolved in config.include_dirs:
+                            continue
+                        rel_cml = os.path.relpath(path, suite_root)
+                        config.include_dirs.append(resolved)
+                        config.include_dir_decls.append(
+                            f"{rel_cml}:({command})")
                 elif command == "llvm_test_data":
                     # TestSuite.cmake: llvm_test_data(<target> [MUST_COPY]
                     #   [SOURCE_DIR <dir>] [DEST_SUFFIX <s>] <file>...)
@@ -916,7 +1092,8 @@ class Case:
                  "compile_cmds", "link_cmd", "run_cmd", "outdir", "stdout",
                  "seconds", "compare", "compare_cmd",
                  "stdout_sha256", "stdout_size", "tls_hits",
-                 "known_fail_basis", "known_fail_evidence", "notes")
+                 "known_fail_basis", "known_fail_evidence", "notes",
+                 "run_seconds", "run_timeout")
 
     def __init__(self, cid, tree, kind, unit_dir, sources, target=None):
         self.cid = cid
@@ -955,6 +1132,8 @@ class Case:
         self.known_fail_basis = ""
         self.known_fail_evidence = ""
         self.notes = []
+        self.run_seconds = 0.0   # guest run wall clock (timeout-table basis)
+        self.run_timeout = None  # effective run timeout used for this case
 
     def as_dict(self, mode):
         return dict(mode=mode, case=self.cid, tree=self.tree, kind=self.kind,
@@ -971,6 +1150,8 @@ class Case:
                     seconds=round(self.seconds, 2),
                     compare=self.compare, compare_cmd=self.compare_cmd,
                     elf=self.elf,
+                    run_seconds=round(self.run_seconds, 2),
+                    run_timeout=self.run_timeout,
                     min_pt_load=(None if self.min_pt_load is None
                                  else hex(self.min_pt_load)),
                     pt_interp=self.interp,
@@ -1102,6 +1283,22 @@ def discover(suite_root: str):
 
     cases.sort(key=lambda c: c.cid)
 
+    # Declared structural exclusions (TESTCASES-050t item 4): removed from the
+    # executed set, counted live, and every declared id must still reproduce --
+    # a registry entry that no longer matches a discovered unit is a FAIL, not
+    # a silent no-op.
+    excluded = []
+    kept = []
+    for case in cases:
+        reason = STRUCTURAL_EXCLUSIONS.get(case.cid)
+        if reason is None:
+            kept.append(case)
+        else:
+            excluded.append((case.cid, reason))
+    cases = kept
+    unmatched_exclusions = sorted(set(STRUCTURAL_EXCLUSIONS)
+                                  - {cid for cid, _r in excluded})
+
     # A round census: recomputed from the same raw scans, never from len().
     census = {}
     census["a_single_c_files"] = len(single_files)
@@ -1113,7 +1310,13 @@ def discover(suite_root: str):
         "a_multi_units": {tree: len(multi_dirs[tree])
                           for tree in A_MULTI_TREES},
     }
+    # ``a_units`` = executed set; ``a_discovered`` = raw enumeration, so
+    # ``total == discovered - excluded`` can be checked from the JSON.
     census["a_units"] = len(cases)
+    census["a_discovered"] = len(cases) + len(excluded)
+    census["a_excluded"] = [dict(id=cid, reason=reason)
+                            for cid, reason in excluded]
+    census["a_unmatched_exclusions"] = unmatched_exclusions
     census["a_audit"] = audit
 
     # B: counted, declared not run.
@@ -1174,11 +1377,13 @@ def discover(suite_root: str):
     }
     census["c"] = c
 
-    # Census self-check: the executed set must be exactly the A enumeration.
+    # Census self-check: the executed set plus the declared exclusions must be
+    # exactly the raw A enumeration.
     expected = (audit["a_single_units"]
                 + sum(audit["a_multi_units"].values()))
-    census["a_census_ok"] = (census["a_units"] == expected)
-    return cases, census
+    census["a_census_ok"] = (len(cases) + len(excluded) == expected
+                             and not unmatched_exclusions)
+    return cases, excluded, census
 
 
 # ---------------------------------------------------------------------------
@@ -1282,6 +1487,24 @@ def _slug(cid: str) -> str:
 def copy_unit_tree(case: Case, run_dir: str):
     shutil.rmtree(run_dir, ignore_errors=True)
     shutil.copytree(case.unit_dir, run_dir)
+
+
+def platform_gap_reason(case: Case, actual_doc: bytes):
+    """Declared platform gap whose live signature is present, if any.
+
+    Returns (reason, matched_line) or None.  The matched line becomes the
+    case's ``first_error`` so the record carries the program's own diagnostic.
+    """
+    gap = PLATFORM_GAP_SIGNATURES.get(case.cid)
+    if not gap:
+        return None
+    signature, reason = gap
+    if signature not in actual_doc:
+        return None
+    text = actual_doc.decode("utf-8", errors="replace")
+    line = next((ln.strip() for ln in text.splitlines()
+                 if signature.decode() in ln), "")
+    return reason, line
 
 
 def _build_and_run(case: Case, cfg, work_dir):
@@ -1457,15 +1680,22 @@ def _build_and_run(case: Case, cfg, work_dir):
     case.run_cmd = cmd
     stdin_path = (os.path.join(run_dir, case.stdin_name)
                   if case.stdin_name else None)
+    # Per-case timeout table (TESTCASES-050t): five programs are genuinely slow
+    # and were truncated at 300 s in TESTCASES-048t; their measured durations
+    # widen the budget for those cases only.  ``--timeout`` remains a floor.
+    case.run_timeout = max(cfg["timeout"], CASE_TIMEOUTS.get(case.cid, 0))
+    run_started = time.monotonic()
     rc, stdout, timed = run_stream(
-        cmd, os.path.join(outdir, "combined.out"), timeout=cfg["timeout"],
+        cmd, os.path.join(outdir, "combined.out"), timeout=case.run_timeout,
         cwd=run_dir, stdin_path=stdin_path)
+    case.run_seconds = time.monotonic() - run_started
     case.stdout = stdout
     case.stdout_sha256 = sha256_bytes(stdout)
     case.stdout_size = len(stdout)
     if timed:
         case.klass = "blocked"
-        case.reason = f"timeout after {cfg['timeout']}s (blocked, not pass/fail)"
+        case.reason = (f"timeout after {case.run_timeout}s (blocked, not "
+                       f"pass/fail)")
         case.first_error = first_output_line(stdout, b"")
         return case
     if rc is None:
@@ -1475,6 +1705,9 @@ def _build_and_run(case: Case, cfg, work_dir):
     if rc < 0:
         case.klass = "blocked"
         case.reason = f"qemu killed by host signal {-rc}"
+        issue = QEMU_SIGNAL_ISSUES.get(case.cid)
+        if issue:
+            case.reason += f" (qemu-user crash; see {issue})"
         case.first_error = first_output_line(stdout, b"")
         return case
     case.exit = rc
@@ -1510,6 +1743,13 @@ def _build_and_run(case: Case, cfg, work_dir):
                            f"({case.oracle_path}); exit {rc} is part of the "
                            f"hashed document")
         else:
+            gap = platform_gap_reason(case, actual_doc)
+            if gap:
+                case.klass = "blocked"
+                case.reason = (f"platform gap: the run completed (exit {rc}) "
+                               f"but cannot reach the oracle -- {gap[0]}")
+                case.first_error = gap[1] or case.first_error
+                return case
             case.klass = "fail"
             case.reason = (f"oracle mismatch ({case.oracle_path}): "
                            f"md5(output+exit)={actual} expected "
@@ -1554,6 +1794,13 @@ def _build_and_run(case: Case, cfg, work_dir):
         case.reason = (f"{label} ({case.oracle_path}): matched ({how}), "
                        f"exit {rc}")
     else:
+        gap = platform_gap_reason(case, actual_doc)
+        if gap:
+            case.klass = "blocked"
+            case.reason = (f"platform gap: the run completed (exit {rc}) but "
+                           f"cannot reach the oracle -- {gap[0]}")
+            case.first_error = gap[1] or case.first_error
+            return case
         case.klass = "fail"
         detail = []
         if not use_fpcmp and actual_doc != case.expected_doc:
@@ -1606,6 +1853,21 @@ def prepare_cases(cases, suite_root: str):
     for case in cases:
         tree_root = os.path.join(suite_root, case.tree)
         case.cmake = derive_cmake_config(suite_root, tree_root, case.unit_dir)
+        # Include path: upstream's own ``include_directories`` /
+        # ``target_include_directories`` declarations on the unit's CMakeLists
+        # chain (already expanded and resolved by the evaluator).  A unit that
+        # declares none -- no CMakeLists.txt at all (Polybench's template), or
+        # the declaration sits in a branch upstream would not take on this libc
+        # (archie-client's ``check_function_exists(re_comp)``) -- is compiled
+        # with ``-I<unit_dir>``, CMake's CMAKE_CURRENT_SOURCE_DIR view, and the
+        # source of the -I set is recorded in the JSON.
+        if case.cmake.include_dirs:
+            case.cmake.include_dir_source = "cmake"
+        else:
+            case.cmake.include_dirs = [case.unit_dir]
+            case.cmake.include_dir_source = (
+                "unit-dir-fallback (no include_directories/"
+                "target_include_directories declaration applies to this unit)")
         parse_run_options(case, case.cmake)
         dropped = [a for a in case.cmake.ldflags
                    if a.startswith("-l") and a != "-lm"]
@@ -1619,7 +1881,7 @@ def prepare_cases(cases, suite_root: str):
     return cases
 
 
-def run_round(cases, cfg, work_dir, jobs, args, progress=None):
+def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
     """Execute one link-mode round; return (results, counts, audit)."""
     results = []
     total = len(cases)
@@ -1650,7 +1912,7 @@ def run_round(cases, cfg, work_dir, jobs, args, progress=None):
 
     counts = {k: sum(1 for r in results if r.klass == k)
               for k in ("pass", "fail", "known-fail", "blocked", "excluded")}
-    counts["excluded"] = 0  # scope A has no structural exclusions
+    counts["excluded"] = len(excluded)
     total = len(results)
     counts["total"] = total
     counts["pass_recorded"] = sum(1 for r in results
@@ -1685,7 +1947,8 @@ def run_round(cases, cfg, work_dir, jobs, args, progress=None):
         bad_known=bad_known, unexplained=unexplained, ok=ok)
 
 
-def emit_round(cfg, cases, results, counts, audit, census, args, lines):
+def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
+               lines):
     mode = cfg["mode"]
 
     def emit(text=""):
@@ -1703,6 +1966,11 @@ def emit_round(cfg, cases, results, counts, audit, census, args, lines):
          f"{', '.join(MUSL_USER_INCLUDE_DIRS)}")
     emit(f"  compile: -target {TARGET} {' '.join(BASE_CFLAGS)} "
          f"{' '.join(SMALL_PROBLEM_CFLAGS)} + upstream CMake flags")
+    from_cmake = sum(1 for c in cases
+                     if c.cmake.include_dir_source == "cmake")
+    emit(f"  include dirs: from CMake declarations = {from_cmake} case(s); "
+         f"unit-dir fallback = {len(cases) - from_cmake} case(s) "
+         f"(per-case set + source in the JSON)")
     emit(f"  oracle: upstream reference, precedence "
          f".small > .big-endian > default; forms: stdout+exit="
          f"{oracle_counts['stdout']} md5={oracle_counts['md5']} "
@@ -1712,8 +1980,9 @@ def emit_round(cfg, cases, results, counts, audit, census, args, lines):
          f"{census['a_audit']['a_single_units']}/"
          f"{census['a_audit']['a_single_c_files']} .c with main; "
          + ", ".join(f"{t} {n} program dirs"
-                     for t, n in census["a_audit"]["a_multi_units"].items())
-         + f"; A total {census['a_units']}")
+                      for t, n in census["a_audit"]["a_multi_units"].items())
+         + f"; A discovered {census['a_discovered']} = executed "
+           f"{census['a_units']} + excluded {len(excluded)}")
     emit(f"  scope B census (NOT run): "
          + ", ".join(f"{t} {v['units']}"
                      for t, v in census["b"].items())
@@ -1758,11 +2027,14 @@ def emit_round(cfg, cases, results, counts, audit, census, args, lines):
          f"excluded={counts['excluded']}")
     emit(f"  pass split: reference oracle={counts['pass_recorded']} / "
          f"exit-only (NOT equivalence)={counts['pass_exit_only']}")
+    for eid, reason in excluded:
+        emit(f"  EXCLUDED {eid}: {reason}")
     for r in results:
         if r.klass in ("fail", "known-fail", "blocked"):
             emit(f"  {r.klass.upper()} {r.cid}: {r.reason}")
     if args.only or args.limit is not None:
-        emit("  note: --only/--limit pilot run; counts are a subset")
+        emit("  note: --only/--limit pilot run; counts are a subset "
+             "(excluded is the declared scope-wide set)")
     emit("run_llvm_ts_user: " + ("PASS" if audit["ok"] else "FAIL"))
     return audit["ok"]
 
@@ -1774,7 +2046,8 @@ def _round_path(path: str, mode: str, both: bool):
     return f"{root}-{mode}{ext}"
 
 
-def write_artifacts(cfg, cases, results, counts, audit, census, args):
+def write_artifacts(cfg, cases, results, counts, audit, census, args,
+                    excluded):
     mode = cfg["mode"]
     both = cfg.get("both_rounds", False)
     json_out = abspath(args.json_out) if args.json_out else \
@@ -1789,7 +2062,12 @@ def write_artifacts(cfg, cases, results, counts, audit, census, args):
                        seed=dict(target=TARGET, base="lld default",
                                  musl_headers=list(MUSL_USER_INCLUDE_DIRS),
                                  base_cflags=list(BASE_CFLAGS),
-                                 small_problem=list(SMALL_PROBLEM_CFLAGS)),
+                                 small_problem=list(SMALL_PROBLEM_CFLAGS),
+                                 case_timeouts=CASE_TIMEOUTS,
+                                 case_timeout_basis=CASE_TIMEOUT_BASIS),
+                       discovered=census["a_discovered"],
+                       excluded=[dict(id=cid, reason=reason)
+                                 for cid, reason in excluded],
                        total=counts["total"], counts=counts,
                        oracle_counts={k: sum(1 for c in cases
                                              if c.oracle_kind == k)
@@ -1818,7 +2096,8 @@ def main() -> int:
     ap.add_argument("--musl", default=DEFAULT_MUSL)
     ap.add_argument("--work-dir", default=DEFAULT_WORK_DIR)
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
-                    help="per-case run timeout in seconds (timeout => blocked)")
+                    help="per-case run timeout in seconds (timeout => blocked); "
+                         "a floor: CASE_TIMEOUTS entries win when larger")
     ap.add_argument("--jobs", type=int, default=DEFAULT_JOBS,
                     help="parallel cases (default 4; never all cores)")
     ap.add_argument("--only", action="append", default=None,
@@ -1881,7 +2160,7 @@ def main() -> int:
         if not os.path.isdir(suite_root):
             raise SetupError(f"llvm-test-suite source not found: {suite_root} "
                              "(run 'make fetch' first)")
-        cases, census = discover(suite_root)
+        cases, excluded, census = discover(suite_root)
         if not cases:
             raise SetupError(f"no scope-A cases discovered under {suite_root}")
         prepare_cases(cases, suite_root)
@@ -1920,8 +2199,16 @@ def main() -> int:
         patterns = [re.compile(p) for p in args.only]
         for pattern in patterns:
             if not any(pattern.search(c.cid) for c in cases):
-                sys.stderr.write(f"ERROR: --only {pattern.pattern!r} matches "
-                                 f"no scope-A case\n")
+                hit_excluded = [cid for cid in STRUCTURAL_EXCLUSIONS
+                                if pattern.search(cid)]
+                if hit_excluded:
+                    sys.stderr.write(
+                        f"ERROR: --only {pattern.pattern!r} matches declared "
+                        f"exclusion(s) {hit_excluded}; excluded cases are not "
+                        f"executed (see STRUCTURAL_EXCLUSIONS)\n")
+                else:
+                    sys.stderr.write(f"ERROR: --only {pattern.pattern!r} "
+                                     f"matches no scope-A case\n")
                 return 2
         selected = [c for c in cases
                     if any(p.search(c.cid) for p in patterns)]
@@ -1935,12 +2222,15 @@ def main() -> int:
             return 2
 
     if args.list:
-        print(f"scope A: {census['a_units']} cases "
-              f"(SingleSource/Benchmarks "
+        print(f"scope A: {census['a_units']} cases executed + "
+              f"{len(excluded)} excluded = {census['a_discovered']} "
+              f"discovered (SingleSource/Benchmarks "
               f"{census['a_audit']['a_single_units']}, "
               + ", ".join(f"{t} {n}" for t, n
                           in census["a_audit"]["a_multi_units"].items())
               + ")")
+        for eid, reason in excluded:
+            print(f"EXCLUDED {eid}: {reason}")
         print(f"scope B (NOT run): {census['b_units']} units: "
               + ", ".join(f"{t} {v['units']}" for t, v in census["b"].items()))
         print(f"scope C: External .c {census['c']['External']['c_files']}, "
@@ -1978,18 +2268,21 @@ def main() -> int:
             cfg["guest_root"] = guest_root
         lines = []
         results, counts, audit = run_round(
-            selected, cfg, work_dir, args.jobs, args,
+            selected, cfg, work_dir, args.jobs, args, excluded,
             progress=lambda msg: print(msg, flush=True))
         ok = emit_round(cfg, selected, results, counts, audit, census,
-                        args, lines)
+                        args, excluded, lines)
         json_out, report_out = write_artifacts(cfg, selected, results,
-                                               counts, audit, census, args)
+                                               counts, audit, census, args,
+                                               excluded)
         lines.append(f"  artifacts: {json_out} , {report_out}")
         with open(report_out, "w") as fh:
             fh.write("\n".join(lines) + "\n")
             for r in results:
                 fh.write(f"{r.cid} {r.klass} exit={r.exit} "
                          f"oracle={r.oracle_kind} base={r.min_pt_load} "
+                         f"run_seconds={r.run_seconds:.2f} "
+                         f"run_timeout={r.run_timeout} "
                          f"reason={r.reason}\n")
                 fh.write("  first_error: " + (r.first_error or "-") + "\n")
                 if r.known_fail_basis:

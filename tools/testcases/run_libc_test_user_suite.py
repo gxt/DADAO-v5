@@ -36,7 +36,9 @@ Pipeline per case::
           -c <case>.c  -> <case>.o
 
     # static line: P1 musl products, lld DEFAULT base (never -T dadao.lds)
-    ld.lld -o <case>.elf <musl>/lib/crt1.o <case>.o <libtest.a> <musl>/lib/libc.a
+    # compiler-rt builtins are grouped with libc.a (they reference each other):
+    ld.lld -o <case>.elf <musl>/lib/crt1.o <case>.o <libtest.a> \
+           --start-group <musl>/lib/libc.a <builtins archive> --end-group
     qemu-dadao <case>.elf
 
     # dynamic line: P2 musl products (same driver, next round)
@@ -64,6 +66,14 @@ Static link modality: ``<musl>/lib/libc.a`` is named explicitly.  ``-L
 <musl>/lib -lc`` would pick ``libc.so`` from the same directory (no
 ``PT_INTERP``, ``PT_DYNAMIC`` present) and ``qemu-user`` then segfaults --
 same finding as TESTCASES-046t / QEMU-062t.
+
+TESTCASES-050t item 3: the static line also carries the compiler-rt builtins
+archive that clang's own driver would use (``clang -target
+dadao-unknown-elf -print-libgcc-file-name``, installed by INFRA-088t), inside
+the same ``--start-group`` as ``libc.a``: ``functional/tgmath`` emits
+``__muldc3``/``__divdc3`` complex-arithmetic helpers that neither musl nor the
+program provides.  The dynamic line is unchanged -- ``libc.so`` already
+resolves them (the same round passes today).
 
 Independent oracle (AGENTS.md "Independent oracle")
 --------------------------------------------------
@@ -353,11 +363,12 @@ CASE_NOTES = {
         "(INFRA-082t 遗留 ⑧: src/signal/sigsetjmp.c is an upstream empty slot; "
         "using it fails at link time).",
     "functional/tgmath":
-        "root cause: link line carries no compiler-rt builtins; __muldc3 "
-        "(complex multiply helper) is undefined.  Verified fix outside this "
-        "task's link line: adding .work/build/compiler-rt-builtins/lib/linux/"
-        "libclang_rt.builtins-dadao.a makes the case exit 0 -- that archive is "
-        "a build-tree artifact, not installed in the toolchain sysroot.",
+        "root cause (TESTCASES-047t static round, fixed by TESTCASES-050t): "
+        "the static link line carried no compiler-rt builtins, so __muldc3 "
+        "(complex multiply helper) was undefined.  The static line now links "
+        "``clang -print-libgcc-file-name``'s archive inside the same "
+        "--start-group as libc.a; the dynamic round always resolved it from "
+        "libc.so.",
     "regression/mbsrtowcs-overflow":
         "root cause: musl's DADAO port declares 'typedef int wchar_t' "
         "(arch/dadao/bits/alltypes.h.in:29) while clang's target reports "
@@ -980,7 +991,13 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
     elf = os.path.join(outdir, case.cid.replace("/", "_") + ".elf")
     common = [cfg["crt1"]] + objs + [cfg["libtest"]]
     if cfg["mode"] == "static":
-        link = ([cfg["ldlld"], "-o", elf] + common + [cfg["libc"]])
+        # libc.a and the compiler-rt builtins reference each other (libc's
+        # long-double helpers call builtins, and tgmath's complex arithmetic
+        # emits __muldc3/__divdc3), so they are one lld --start-group.
+        # TESTCASES-050t item 3.
+        link = ([cfg["ldlld"], "-o", elf] + common
+                + ["--start-group", cfg["libc"], cfg["builtins"],
+                   "--end-group"])
     else:
         link = ([cfg["ldlld"], "-o", elf] + common + [cfg["libc"],
                 "-dynamic-linker", DYNAMIC_LINKER])
@@ -1143,6 +1160,24 @@ def main() -> int:
         if not os.path.isfile(os.path.join(musl, "lib", "libc.a")):
             raise SetupError("static musl libc.a missing (build-musl)")
 
+        # compiler-rt builtins for the static link line (TESTCASES-050t item 3):
+        # the archive clang's own driver would use, queried rather than guessed
+        # (INFRA-088t installs it); the static round links it grouped with
+        # libc.a so tgmath's __muldc3/__divdc3 resolve.  The dynamic round does
+        # not need it (libc.so resolves those), so its preconditions and link
+        # line stay unchanged.
+        if mode == "static":
+            b_rc, b_out, b_err, b_timed = run(
+                [cfg["clang"], "-target", "dadao-unknown-elf",
+                 "-print-libgcc-file-name"], timeout=60)
+            builtins = (b_out or "").strip()
+            if b_timed or b_rc != 0 or not builtins:
+                raise SetupError(
+                    "clang -target dadao-unknown-elf -print-libgcc-file-name "
+                    f"failed: rc={b_rc} {(b_err or '').strip()[:300]}")
+            require_file(builtins, "compiler-rt builtins archive")
+            cfg["builtins"] = builtins
+
         os.makedirs(work_dir, exist_ok=True)
         cfg["libtest"], common_objs = build_common_lib(cfg, work_dir)
         api_inc, options_defines = gen_api_options_h(cfg, work_dir)
@@ -1186,6 +1221,10 @@ def main() -> int:
     emit(f"  oracle: expected guest exit {EXPECTED_GUEST_EXIT} "
          f"(each case returns its own t_status)")
     emit(f"  link base: lld default (no -T / no linker script; ISS-247)")
+    if mode == "static":
+        emit(f"  static link: --start-group {cfg['libc']} {cfg['builtins']} "
+             f"--end-group (compiler-rt builtins from "
+             f"clang -print-libgcc-file-name)")
     emit(f"  work dir: {work_dir}")
 
     # Recomputed here (not inside discover) so a case dropped *after* the
@@ -1322,6 +1361,8 @@ def main() -> int:
         json.dump(dict(mode=mode, expected_exit=EXPECTED_GUEST_EXIT,
                        discovered=discovered, total=total, counts=counts,
                        excluded=[dict(id=n, reason=r) for n, r in excluded],
+                       static_builtins=(cfg["builtins"]
+                                        if mode == "static" else None),
                        census=census, closure_ok=closure_ok,
                        classification_ok=classification_ok,
                        known_fail_bases=KNOWN_FAIL_BASES,

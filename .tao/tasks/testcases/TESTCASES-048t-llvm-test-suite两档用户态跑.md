@@ -171,3 +171,14 @@
 | 7 | `libc.a` 与 builtins 互相引用需确定性顺序 | ✅已修 | `--start-group … --end-group` | 205 个**链接成功**例 0 个 `undefined symbol`（`aarch64` 的 `RUNTIME_INIT` 在链接阶段失败、未计入 205） |
 
 **未做/边界**：B/C 未跑；`ft`/`ClamAV` 维持 `fail`（`ISS-265` 待裁定）；未改 `spec/`/`contracts/`/`.work/source/**`/`Makefile`；未 commit/push。
+
+## 驱动修正（TESTCASES-050t 承接，2026-10-18）
+
+本节记录 `TESTCASES-050t` 对本驱动（`tools/testcases/run_llvm_ts_user.py`）的收尾修正；**不改动上文任何一轮的结论**，两档逐例对照与复跑证据见 `TESTCASES-050t` 完成区与 `.work/log/testcases/llvm-ts-user-050t-*.{json,log}`。
+
+- **include 路径（通用机制）**：`-I` 集合改为上游 CMake 声明解析结果（`include_directories` / `target_include_directories`；`${CMAKE_CURRENT_SOURCE_DIR}` 先展开、相对项按声明它的 CMakeLists 目录解析、去重），JSON `cmake.include_dir_decls` 留声明出处；**无声明**的单元回退 `-I<unit_dir>`（CMake `CMAKE_CURRENT_SOURCE_DIR` 语义），来源记 `cmake.include_dir_source`。未展开的 `${...}` 一律 `blocked`（不进编译行）。⇒ `archie-client` 编译通过，停在链接 `undefined symbol: re_comp`：**定性 = 链接缺符号**（musl 无 BSD `re_comp`/`re_exec`；上游 `CMakeLists.txt:4` 用 `check_function_exists(re_comp)` 守卫、`:15` 才 `llvm_multisource(archie)`，即上游配置在该 libc 上不构建此 target；语料 `regex.c` 仅在 `NOREGEX` 下实现，`pmachine.h` 只对 u3b2/hpux/ISC/CUTCP/OS2/MSDOS 定义）⇒ 按任务书**保留 `blocked`**（不 excluded）且未造 stub；Polybench 模板 `polybench.h` 解决 ⇒ `pass`（exit-only）。（附：原「参数未展开 ⇒ 字面 `${}`」的猜测**不成立**，现场重诊断为「声明落在未激活的 `if` 内」与「无 CMakeLists」。）
+- **逐例超时表**：`DEFAULT_TIMEOUT` **保持 300 s**（不全局抬高，避免卡死的 `unix-smail` 白烧预算）；`CASE_TIMEOUTS` 仅给实测需要的 5 例，算式 `ceil((实测 run_seconds + 120 s)/60)*60`：lemon 480 / lua 840 / SimpleMOC 480 / mafft 1620 / nbench 480（实测 jobs=1：331.43 / 670.52 / 349.54 / 1452.82 / 312.20 s）。`unix-smail` 不入表（卡死，走默认 300 s）⇒ `blocked`（timeout），`CASE_NOTES` 指向 `QEMU-063t`。实测中 `SimpleMOC`/`mafft`/`nbench` 完整跑完；`lemon`/`lua` 由平台崩溃结束（见下），**不再是** 300 s 截断。
+- **静态档 builtins（libc-test 驱动）**：静态链接行补 `clang -target dadao-unknown-elf -print-libgcc-file-name` 的 compiler-rt archive，与 `libc.a` 同 `--start-group`；`functional/tgmath` 静态档 `__muldc3` 解析、两档 `pass`；动态档链接行不变。全量静态复跑 `pass 303→304 / blocked 25→24`，逐例 diff 仅 tgmath。
+- **`excluded` 口径**：新增 `MultiSource/Applications/siod`（目标无 `linux`/`unix` 预定义 ⇒ 走 BSD 分支取 `d_namlen`，musl `struct dirent` 无该字段）与 `MultiSource/Benchmarks/MiBench/office-ispell`（BSD `<sgtty.h>`，musl 与语料均无）两条结构性排除，逐条 reason、不改语料/不补桩；`total`/`excluded`/`discovered` 自洽输出，登记项不再复现即审计 FAIL。
+- **平台缺口登记（新）**：`PLATFORM_GAP_SIGNATURES`（当前仅 `lemon`）——`first_error` 原文 `Error while running on: parse.y`，定性 = **运行时行为**（无编译/链接错，无上游脚本/外部工具需求；`lemon.c:4866` fork 子进程调用 `lemon_main`；宿主 cc 同源正常、`-O0`/最小输入 `example1.y` 均可复现 guest SIGSEGV）⇒ `blocked`（不记 `fail`），归属 = **新 issue 候选**（qemu-user guest SIGSEGV，与 `QEMU-063t` 的 hang、`ISS-267` 的编译/链接缺口根因不同）。`lua` 静态档停 `bench/process.lua`、动态档停 `bench/meteor.lua`（档内可复现）⇒ reason 写 `qemu killed by host signal 11 (qemu-user crash; see QEMU-063t)`、`blocked`（表值保留以便崩在更晚处仍可观察）。
+- **`CASE_PREPARE` 增补 lua**：复现上游 `lua_input` 自定义命令（`generate_inputs.sh` 生成 `moments-input400000.txt` 等）；缺它 `alltests.lua` 在 moments 处因缺文件退出（048t 470 s 的失败点）。
