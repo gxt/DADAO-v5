@@ -108,3 +108,7 @@
 - **2026-10-17 `ISS-249`（`TESTCASES-047t` 静态档重跑收口）**
   - 摘要：**`linux-user/dadao/cpu_loop.c:dadao_argmask()` 与 musl 端口逐号对齐（12 → 245 条）**。宿主侧按同一张表把 `rd16+/rb16+` 还原为位置参数表；表项/掩码派生口径写在 musl `arch/dadao/syscall_arch.h` 头部注释（内核 `SYSCALL_DEFINE` 原型 + 18 处地址-as-整数例外）。漂移门控 = `tools/qemu/check_syscall_abi.py`（`make check-syscall-abi`，L1）：三载体逐项对账 + 完整性（musl 能发出的名全覆盖）+ `.Lm<mask>` 块的搬运条数 = 掩码位值。补丁**无新增**（qemu 59）。
   - 执行者：engineer
+
+- **2026-10-19 `QEMU-063t`**
+  - 摘要：**linux-user 启动时启用 MemRAS 溢出区（`contract-isa.md §5.4-§5.6`、`contract-abi.md §2.2`）**：`init_main_thread` 为初始线程 `target_mmap` 1 MiB 专用区，将 `ra0[47:0]`（MRPTR）指向区顶并预置 invalid-entry 哨兵（0），使 `call` 深度超过 RegRAS 63 项时按契约落到 MemRAS 而非 RASOF；此前 MRPTR 恒 0，任何用户程序调用链 >63 层即 `SIGSEGV/ACCERR`。修后 `dbms` 静态+动态两档 **PASS**（oracle 逐字节一致）且 048t 抽样（`sqlite3`/`treecc`/`15-trie`/`fixoutput`/`IntMM`）两档 10/10 不回归；`check-qemu-semantics` **161/161**、`check-qemu-smoke` **90/90**。补丁**无新增**（qemu 59 = 修改 `linux-user/dadao/cpu_loop.c.patch`）。
+  - 执行者：engineer

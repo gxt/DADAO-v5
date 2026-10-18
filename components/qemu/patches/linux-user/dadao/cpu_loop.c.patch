@@ -1,9 +1,9 @@
 diff --git a/linux-user/dadao/cpu_loop.c b/linux-user/dadao/cpu_loop.c
 new file mode 100644
-index 0000000..b0cd062
+index 0000000..ec8c3d1
 --- /dev/null
 +++ b/linux-user/dadao/cpu_loop.c
-@@ -0,0 +1,491 @@
+@@ -0,0 +1,527 @@
 +/*
 + * QEMU user-mode CPU loop for DADAO (P3, ADR-0025 D2/D6).
 + *
@@ -35,8 +35,16 @@ index 0000000..b0cd062
 +#include "user-internals.h"
 +#include "user/cpu_loop.h"
 +#include "signal-common.h"
++#include "user/mmap.h"
++#include "accel/tcg/cpu-ldst.h"
 +
 +QEMU_BUILD_BUG_ON(AUDIT_ARCH_DADAO != (0x0DA0u | 0x80000000u));
++
++/* MemRAS spill area reserved for the initial thread (see init_main_thread).
++ * 1 MiB / 8 B = 131072 spilled entries, far beyond any call depth reached by
++ * the user-mode test corpus; MRPTR only descends, so the area is fully
++ * available. */
++#define DADAO_MEMRAS_SIZE (1024 * 1024)
 +
 +/* Bit i set <=> positional syscall argument i lives in the RB (address)
 + * bank; the banks are counted independently, so the n-th address
@@ -489,6 +497,34 @@ index 0000000..b0cd062
 +    env->pc = info->entry;
 +    env->rb[0] = info->entry;
 +    env->rb[1] = info->start_stack;
++
++    /*
++     * Enable the MemRAS spill area (contract-isa.md §5.4-§5.6, contract-abi.md
++     * §2.2): ra0[47:0] is MRPTR, the next free MemRAS slot; 0 keeps RegRAS
++     * only.  RegRAS holds 63 entries, so without an MRPTR any call chain
++     * deeper than 63 takes RASOF.  Nothing else initialises MRPTR on the
++     * linux-user path -- a real Linux port would do it per thread in the
++     * kernel -- so reserve a private guest mapping and point MRPTR at its top
++     * (spill writes descend from MRPTR, pops ascend).  The slot at MRPTR is
++     * pre-set to the "invalid entry" sentinel (hash == 0) so that a pop with
++     * RACNT == 0 still reports RASUF instead of reading past the mapping
++     * (contract-isa.md §5.6 D4b).
++     */
++    {
++        abi_ulong memras = target_mmap(0, DADAO_MEMRAS_SIZE,
++                                       PROT_READ | PROT_WRITE,
++                                       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++
++        if (memras != (abi_ulong)-1) {
++            abi_ulong mrptr = (memras + DADAO_MEMRAS_SIZE - 8)
++                              & 0x0000FFFFFFFFFFFFULL;
++
++            /* Big-endian zero: the MemRAS entry encoding keeps the count in
++             * the high 16 bits, so 0 means "invalid entry" (RASUF). */
++            cpu_stq_be_data(env, mrptr, 0);
++            env->ra[0] = (env->ra[0] & 0x003F000000000000ULL) | mrptr;
++        }
++    }
 +
 +    /* User mode, umon segment: the run mode is part of the SEE model, and the
 +     * guest starts as an unprivileged process. */

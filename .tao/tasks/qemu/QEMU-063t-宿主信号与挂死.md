@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-dadao` user-mode 后端，已验证）、`TESTCASES-048t`（4 例 `SIGSEGV` 现场 + `unix-smail` 卡死现场）、`TESTCASES-047t`（`flockfile-list` `SIGBUS` / `setenv-oom` `SIGTRAP` 现场）、`TESTCASES-050t`（`lua` 宿主信号 + `lemon` guest 信号现场，2026-10-18 追加表行）、`ISS-255`/`ISS-266`/`ISS-269`（本册对应 issue）、`ISS-247`（用户态基址 = lld 默认 `0x10000`）、`ISS-248`（`blocked>0 ⇒ rc=1` 口径）、`ISS-257`（同族 `RLIMIT_AS` flake，**仅关联、非本册交付**）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -95,16 +95,46 @@ python3 tools/testcases/run_llvm_ts_user.py --link-mode both --jobs 1 --timeout 
 7. 补丁导出纪律：`/tmp` 写入、非空 blob、`check-patch-tree` 全绿。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`dbms` 静态+动态 **PASS**（oracle 逐字节一致）；048t 抽样（sqlite3/treecc/15-trie/fixoutput/IntMM）两档 **10/10**；`check-qemu-semantics` **161/161**、`check-qemu-smoke` **90/90**、`ninja` 双目标 rc=0；证据脚本 **12 PASS / 0 FAIL, rc=0**（2 处注入均先红后绿）。诊断耗时 ≈1 h 45 min（01:24–02:02，含构建/复跑）。
+
+**逐例诊断表**（si_addr/pc 均来自 `.work/log/qemu/QEMU-063t-*`；qemu = 构建树 `.work/build/qemu/qemu-dadao`）
+
+| 例 | 现象 | 根因（函数/行） | 归属 | 处置 |
+| --- | --- | --- | --- | --- |
+| SPASS | 宿主 SIGSEGV，si_addr=8，pc=0x51c70 `ld.o rd4,[rd43+8]`，racnt=7 | `cnf_OptimizedSkolemFormula` 内联 `cnf_StrongSkolemization`：`term_Delete(list_Top(newvariables))`（`cnf.c:3029-3035`）；循环需删 2（rd8=4、acc_length=2）而 `newvariables` 已空 ⇒ rd43=0 | 未定（guest 值 vs 后端） | 登记 ISS-266（证据 `QEMU-063t-gdb-SPASS.log`） |
+| consumer-typeset | 修前 SIGSEGV/ACCERR（RASOF），`call` pc=0x52884，racnt=63/mrptr=0 | linux-user 未初始化 MemRAS（`ra0[47:0]=0`） | qemu-user（loader 缺口） | MemRAS 已修；修后输出 57 735 B，随后 guest `NULL+7` SIGBUS（`BUS_ADRALN`）⇒ 仍未通过（`postfix.out`） |
+| 8b10b | SIGSEGV si_addr=0x703ac78，pc=0x21118 `ld.ut [rb5]`；rd17(k)=0x380000 | `input.txt` 是 LE u32 表，BE 读首词 0x38→0x38000000 ⇒ `lookupTable3B[k<<3]` OOB | 语料（BE 不适用） | 登记 ISS-266（`QEMU-063t-8b10b.strace`） |
+| dbms | 修前 SIGSEGV/ACCERR（RASOF），`call` pc=0x27704，racnt=63/mrptr=0 | 同上（MemRAS 未初始化） | qemu-user | **已修**：`init_main_thread` 预留 1 MiB MemRAS + MRPTR 哨兵 ⇒ 两档 PASS |
+| flockfile-list | 宿主 SIGBUS `BUS_ADRALN`，si_addr=0x394fc，`do_st8_mmu` | 语料 interpose `malloc` 从 `unsigned char buf[]` 切块、不保证 8 B 对齐；DADAO 8 B 访问要求对齐 | 语料 | 登记 ISS-255（`QEMU-063t-gdb-flockfile-list.log`） |
+| setenv-oom | 宿主 SIGTRAP（`QEMU internal SIGTRAP`，GLib 分配 512 B 失败） | `setrlimit(RLIMIT_AS)` 直通宿主，未虚拟化（同 ISS-257 族） | qemu-user（限制） | 登记 ISS-255（`QEMU-063t-setenv-oom.log`） |
+| unix-smail | 300 s 超时，最后输出 `resolve 'ALL' = 'ALL' @ '' (LOCAL)` | `popen("/bin/sh -c …")` 失败（guest root 无 DADAO `/bin/sh`）⇒ `deliver.c:252-260` 重试 10×`sleep(60)`；宿主 strace 末 = `nanosleep(60)` | 语料/驱动环境 | 登记 ISS-266 + 转 TESTCASES-050t（`QEMU-063t-unix-smail-host.strace`） |
+| lua | 宿主 SIGSEGV（静态 673 s / 动态 375 s） | 时间盒内未诊断（崩点太晚） | 未定 | 登记 ISS-266（050t JSON 现场） |
+| lemon | guest SIGSEGV/ACCERR @ **取指** pc=rb32=0x…daf0（栈） | LLVM 后端：`Configtable_clear(0)` 调用点 `buildshifts` 0x24ee0（`lemon.c:1127-1133`）漏写 `rb16`，callee 入口 `rb32←rb16`；最小同形态却正确 | LLVM 后端 | 登记 ISS-269 + 新 **ISS-277**（`QEMU-063t-gdb-lemon.log`） |
+
+**最小复现**（cwd = 各例 `run/`，qemu = `.work/build/qemu/qemu-dadao`）：`dbms`：`$Q ../dbms.elf -i dbms.train.in`；`consumer-typeset`：`$Q ../consumer-typeset.elf -x -I data/include -D data/data -F data/font -C data/maps -H data/hyph large.lout`；`8b10b`：`$Q ../8b10b.elf input.txt 2000`；`SPASS`：`$Q ../SPASS.elf small_problem.dfg -DocProof`；`lemon`：`$Q ../lemon.elf example1.y`；`unix-smail`：`$Q ../unix-smail.elf -v ALL`；`flockfile-list`/`setenv-oom`：在 `.dadao/tests/libc-test-user/static/regression/<例>/` 下 `$Q ./regression_<例>.elf`；`lua`：`$Q ../lua.elf alltests.lua`（≈400 s）。
+
+**修改文件**：`components/qemu/patches/linux-user/dadao/cpu_loop.c.patch`、`components/qemu/changelog.md`、`.tao/knowledge/issues.yaml`（ISS-255/266/269 notes + 新 ISS-277）、本任务书完成区、`.work/evidence/QEMU-063t/run.sh`（新）、`.work/log/qemu/QEMU-063t-*`（证据）；组件检出 `.work/source/qemu` 已 `commit --amend`（E1：HEAD=base+1、clean）。
+**验收结果**：`check-patch-tree` **180 patches OK** rc=0（qemu 59，1 份修改、无新增）；`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-issues`/`make check`(L1) 全部 rc=0。
+**新发现/坑**：① **MemRAS 缺口**：linux-user 从未初始化 `ra0[47:0]`，RegRAS 63 项即上限；`consumer-typeset`/`dbms` 均先死于 RASOF，修后可推进（dbms 全绿、consumer-typeset 暴露第二处 guest `NULL+7`）。② **lemon 归 LLVM**：`fp` 参数 bank 分配在特定上下文漏写 `rb16` ⇒ 取指到栈。③ `flockfile-list` 的 fake malloc 破坏对齐假设。④ `-strace` 在 guest `dup3(3,2)` 后会被重定向到 guest 的 stderr 文件（诊断陷阱）。⑤ 8b10b 的 BE 语料越界是同族里最干净的反例。
+**遗留问题**：`lua` 未诊断；`consumer-typeset` 剩余 `NULL+7`；`SPASS` 未判定 guest/后端；`setenv-oom` 需 rlimit 虚拟化；**未 `install-host`** ⇒ 安装根仍是旧二进制，需在 `make install-host` 后复验：`dbms` 两档、048t 抽样 10 例、`.work/evidence/QEMU-063t/run.sh`。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+自主逐行审查（深度 1，无嵌套子代理）：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| F1 MemRAS 哨兵语义：pop 在 RACNT=0 时读 MRPTR 必须得 RASUF，不得越界 | ✅已修 | `mrptr = base+size-8`，先 `cpu_stq_be_data(env, mrptr, 0)` 再写 `ra0`（契约 D4b `mem_hi==0 ⇒ RASUF`） | `ninja` rc=0；`check-qemu-semantics` 161/161；证据 S4/S5/S6 |
+| F2 `target_mmap` 失败时静默保持 `ra0=0`（退回旧行为） | ❌不修（有据） | 注释说明；与修复前行为一致，不新增失败面 | 代码路径审查；`init_main_thread` 失败分支不改 `ra0` |
+| F3 证据脚本 rc 语义（`grep -q` 无匹配=1）可能误报 | ✅已修 | S2 用「期望 rc=1」；注入 A 实测 S1 由 0→1，`cp`+md5 还原后回 0 | `.work/log/qemu/QEMU-063t-evidence.log`（S8/S9/S10） |
+| F4 ISS-277 的「函数指针走 rb16」归因是否站得住 | ✅已核 | 回读 `contract-abi §4.1/§4.2`；ELF：callee 0x33098 `rb2rb {rb32},{rb16}`，caller 0x24ee0 前无 `rb16` 写 | `QEMU-063t-gdb-lemon.log` + `llvm-objdump` 反汇编 |
+| F5 完成区缺「每例最小复现命令」 | ✅已修 | 补「最小复现」一行（8 例命令，lua 标 ≈400 s） | 本文件 |
+| F6 只改 qemu + 补丁 + 任务书，未越界 | ✅已核 | `git status -uall` = 4 个 tracked 文件（issues/任务书/qemu 补丁/changelog） | `git diff --stat` |
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决）
+
+#### architect 提交留痕（2026-10-19）
+档位：**正常提交**（无 `WIP:` 前缀，按父会话明确指令）。**如实披露**：本笔提交时本册「第 1 轮 reviewer 验收」为**空**、`**状态**` = `待验收` ⇒ 严格按角色规则应为 `WIP:`；本笔依主会话指令执行，若后续判 `Needs Revision`，返工提交仍落本分支并随 squash 收口。开工分支 `QEMU-063t` 实现提交 `c674604`（本留痕随后单独提交），squash 落 `master`（单提交；**未 push**）。
+文件集 **7 项**对账：`components/qemu/patches/linux-user/dadao/cpu_loop.c.patch`（**1 份改**；`series` 不变、`check-patch-tree` **180**）、`components/qemu/changelog.md`、`.tao/knowledge/issues.yaml`（`ISS-255`/`ISS-266`/`ISS-269` notes + 新 `ISS-277`→`LLVM-108t`）、本册 = 完成区「修改文件」逐条一致；**architect 账面/立册 3 项**（`.tao/knowledge/milestones.md`、`.tao/tasks/integ/INTEG-036m-M8-integ里程碑核验.md`、**新增** `.tao/tasks/llvm/LLVM-108t-lemon调用点漏写rb16.md`）= 已披露的**多提**（台账范围）；`.work/evidence/**` / `.work/log/**` 由 `.gitignore` 排除、不入库。**无漏提 / 无越界**。

@@ -30,6 +30,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-108t | 待开始 | 2026-10-19 01:54（登记） | lemon 调用点漏写 rb16：K&R 无原型调用（`lemon.c:334/4839`）先分类；指针形参读 rb16 而实参走 rd16 |
 | LLVM-105t | 待验收 | 2026-10-18 22:25（登记） | vector SetCC 补齐（`WidenVecRes_LOAD` 断言）+ wchar_t 改有符号；两例编译 rc=0、lit 103/103 |
 | LLVM-107t | 待验收 | 2026-10-18 22:25（登记） | i32 窄返回 callee canonical 化：`classifyReturnType` 对 <64 位整型统一 `getExtend`；探针修前 2 FAIL→8/8、lit 34/34 |
 | LLVM-098t | 已验证 | 2026-10-18 22:22 | -fPIC 下 .rodata 仍发 ABS48（build-musl-shared EXIT=2）；诊断完成，reviewer Accepted |
@@ -52,7 +53,7 @@
 | INFRA-090t | 待验收 | 2026-10-18 10:47（登记） | musl bits/float.h 换 binary128：12 宏与 aarch64 逐字、_l 零改；047t 5 例两档 5/5；ISS-250 closed |
 | LLVM-106t | 待开始 | 2026-10-18 10:47（登记） | long double=binary128：前端 16B/113 宏 + ABI rf16/17 + f128 libcall 21 + TF 29 符号；18 项 oracle、lit 34/34；待 install-host |
 | LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | A 段 brind + B 段三游标 ABI + D4 caller 侧整组分配（p_d4 86→0、lit 34/34）；待 install-host 复验 |
-| QEMU-063t | 待开始 | 2026-10-18 07:55（登记） | qemu-user 宿主信号 8 例 + unix-smail 卡死；诊断时间盒 1–2 h |
+| QEMU-063t | 待验收 | 2026-10-18 07:55（登记） | MemRAS 初始化（1 MiB + MRPTR 哨兵）⇒ dbms 两档 pass；9 例诊断表落册；ISS-277→LLVM-108t |
 | INFRA-079t | 已验证 | 2026-10-17 23:56 | compiler-rt builtins 全量：147 成员/14 libcall + 独立库 + driver 接线；L2 零回归 |
 | INTEG-036m | 待开始 | 2026-10-17 16:44（登记） | M8 收口核验册：三套两档如实分类 + 失败归因；P4 不作；现不满足置里程碑 |
 | QEMU-062t | 已验证 | 2026-10-17 14:37 | qemu-user 后端：静态+动态两档 E2E 通（ldso 真跑、AT_* 对账、crt1 修） |
