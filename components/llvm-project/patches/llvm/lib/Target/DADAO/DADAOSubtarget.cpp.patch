@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..77c47071a
+index 000000000..24fdbb196
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,139 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -121,4 +121,25 @@ index 000000000..77c47071a
 +  // (no `flog2`/`fexp`/`fpow`), so the rest of the f32 math family stays
 +  // unregistered until a source actually needs it.
 +  Info.setLibcallImpl(RTLIB::LOG_F32, RTLIB::impl_logf);
++
++  // LLVM-103t (ISS-267 ④): the f64 counterpart of the `LOG_F32` entry above.
++  // `llvm.log.f64` (the `flog` DAG node) also has no ISA instruction, so it must
++  // lower to an out-of-line call to the standard C `log`
++  // (RTLIB::LOG_F64 -> RTLIB::impl_log).  Without this registration the two
++  // llvm-test-suite cases that take `log` of a `double` abort codegen with
++  // "no libcall available for flog": CoMD (`random.c`) and consumer-lame
++  // (`psymodel.c`).  Only `LOG_F64` is added here: with it in place, a live
++  // compile of both programs' translation units reports `flog` as the sole
++  // missing f64 log libcall (no `exp`/`pow`/...); the rest of the f64 math
++  // family stays unregistered until a source actually needs it.
++  Info.setLibcallImpl(RTLIB::LOG_F64, RTLIB::impl_log);
++
++  // LLVM-103t: f64 `log10`, needed once `LOG_F64` unblocks the same case.  The
++  // first `flog` is gone but consumer-lame's `quantize.c` then aborts with
++  // "no libcall available for flog10", so `llvm.log10.f64` must lower to the
++  // standard C `log10` (RTLIB::LOG10_F64 -> RTLIB::impl_log10).  A live compile
++  // of every TU of both cases reports this as the only remaining missing
++  // libcall (the next consumer-lame failure is the varargs gap of LLVM-102t,
++  // not a libcall).
++  Info.setLibcallImpl(RTLIB::LOG10_F64, RTLIB::impl_log10);
 +}

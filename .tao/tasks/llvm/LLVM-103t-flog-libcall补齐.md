@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`TESTCASES-048t`（现场来源 = A 类 222 单元 × 两档全量，`blocked 27` 中的 2 例；两档一致）、`ISS-267`（登记源，本册承接 ④）；同族先例 = `LLVM-080t`/`LLVM-087t`（f64/f32 取整与极值 libcall）、`ISS-193(b)`；契约依据：`contract-isa`（无 FP `log` 指令 ⇒ 必走库调用）、`ADR-0027`（compiler-rt 接入，与本册无关但同构建面）、`ADR-0025`（M8 范围）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -77,16 +77,36 @@ int main(void) {
 7. 补丁导出纪律：`/tmp` 写入、非空 blob、`check-patch-tree` 全绿。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：证据 `./.work/evidence/LLVM-103t/run.sh` default **18 PASS / 0 FAIL（rc=0）**；`--inject` **4 条注入全部转红**（I1 删 `LOG_F64` 注册行 / I2 错符号 / I3 翻 lit CHECK / I4 翻 e2e 期望 ⇒ `y=2.302585`），注入用临时副本、原文件 md5 前后一致（`8475e994…`），收尾复跑 default rc=0。
+**修改文件**：① `.work/source/llvm-project/llvm/lib/Target/DADAO/DADAOSubtarget.cpp`（+23 行：L129 `LOG_F64`、L138 `LOG10_F64` + 注释）；② `components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOSubtarget.cpp.patch`（`make_patch.py`：1 写 / 77 未变，`series` 仍 78）；③ `components/llvm-project/changelog.md`（+1 条 M8）；④ `tests/llvm/lit/CodeGen/DADAO/p1-fp-libcall-log.ll`（新增，`log`+`log10`）；⑤ `.work/evidence/LLVM-103t/**`（run.sh + probe + results，gitignored）。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- **诊断**：`flog` 命中 **`RTLIB::LOG_F64`**（非 f32/f80）：CoMD `random.c`、consumer-lame `psymodel.c` 的 IR 均为 `llvm.log.f64`（`-emit-llvm` 现场）；修前 `LOG_F32` 已注册（L117）、`LOG_F64` 未注册 ⇒ `LegalizeDAG` 报 `error: no libcall available for flog`（048t JSON 原文：`compile error rc=1 on random.c: error: no libcall available for flog`）。`ISS-267`「f80 long double log」不成立：`clang/lib/Basic/Targets/DADAO.h:55` `LongDoubleWidth=LongDoubleAlign=64`。
+- **最小补齐**：L129 `RTLIB::LOG_F64 -> RTLIB::impl_log`（CoMD/consumer-lame）；L138 `RTLIB::LOG10_F64 -> RTLIB::impl_log10`（`quantize.c` 在 flog 修后新暴露）。符号 `log`/`log10` 在 musl `libc.a`（`llvm-nm` 有 `T log`/`T log10`）、**builtins archive 0 命中**（非 builtins 归属）；未加 `EXP_*`/`POW_*`/`LOG2_*`/`LOG10_F32`——两程序全部 TU 现场扫描无需求。
+- **探针/lit**：`llvm.log.f64` 修前 rc=1 原文 ⇒ 修后 `call [rb0, log]`；`llvm.log10.f64` ⇒ `call [rb0, log10]`；新增 lit PASS、CodeGen 目录 **32/32**。
+- **实跑（构建树 clang、`--timeout 300`）**：**CoMD 两档 pass**（参考输出 byte-exact、exit 0）；**consumer-lame 两档仍 blocked**，根因前移为 `timestatus.c` 的 `DADAO: a varargs call with register-exhausted arguments is not supported yet`（`LLVM-102t` 未落地，非 libcall）；两例无其它 `no libcall available`。
+- **补丁/构建**：`check-patch-tree` **rc=0、173 补丁（173→173 不变）**；组件树 `HEAD=base+1`、clean；`ninja -C .work/build/llvm clang` **rc=0（245.51 s）**、`llc` relink rc=0（85.6 s）。
+- **门控**：`check-instrinfo`/`check_lit_gen`(64/0)/`check-patch-tree`/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-issues`/`make check`(L1) **各 rc=0**。
+**新发现/坑**：① 只 `ninja clang` 不重链 `llc`（静态库已新、exe 仍旧）⇒ lit 读到旧注册表并假报 `no libcall available for flog`；判 lit 前须同建 `llc`。② 任务书「最小复现」的 `volatile double x` + `log(x)` 前端保留 `call log`、不进 libcall 路径；触发 `flog` 需值域可推断（CoMD `rsq∈(0,1]`）⇒ 证据改用 intrinsic `.ll` 探针 + 真实源。③ `install-host` 前安装根仍旧后端，048t 全量数字须安装后复跑。
+**遗留问题**：① **未跑** `install-host`/L2/L3/`build-musl*`（派单）；② **未** commit/push、**未改**任务 `**状态**`；③ `consumer-lame` 转绿依赖 **`LLVM-102t`**（varargs），故 `blocked 27→25`/`pass 193→195` 本笔不可达：两档实测 `pass 1/2、blocked 1/2`；④ 全量 222 例未复跑（按派单仅 `--only` 两例）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+**自审范围**：`DADAOSubtarget.cpp` 两个新增注册（逐行核对枚举↔impl 对应：生成物 `RuntimeLibcalls.inc` L16193 `LOG_F64 -> impl_log`、L16194 `LOG10_F64 -> impl_log10`）、新增 lit `.ll`、证据脚本全文。判决：无遗留代码缺陷；注入自检初版有假绿，已修。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| F1 证据脚本 `local a=$1 b=$W/$a` 在 `set -u` 下报 `name: unbound variable` | ✅已修 | 拆成两行赋值（`asm_check`/`e2e_check`） | default/inject 均跑到结尾 |
+| F2 注入自检 I1–I3 期望串与实际串不等（多带 `(FAIL)`）⇒ 被误判红；且 `FAILED=0` 在复跑前清掉了注入失败，可能假绿 | ✅已修 | 改比较数值 rc=1；用 `injfailed` 保存注入结果后再复跑 | inject 日志：I1–I4 全 `expect=1/actual=1 rc=0`、`INJECT OK`，`inject_rc=0` |
+| F3 `build-tree-fresh` 用 `ninja -n` 判「no work」，但组件 HEAD amend 触发 VCSRevision 恒脏 ⇒ 无关 FAIL | ✅已修 | 改判 `clang-23`/`llc` mtime 新于源文件 | `CHECK build-tree-fresh … rc=0` |
+| F4 任务书最小复现的 `volatile x`+`log(x)` 不触发 libcall（前端保留 `call log`） | ✅已修 | 证据改用 `llvm.log.f64` intrinsic `.ll` + C 驱动 e2e | `e2e-dlog` 0/0/0/0、`y=1.000000` |
+| F5 只建 `clang` 后 `llc` 未重链 ⇒ lit 读旧注册表、假报 `flog` | ✅已修 | 同批 `ninja clang llc` | lit PASS、CodeGen 32/32 |
+| F6 任务书期望 consumer-lame 转绿，但 `timestatus.c` 变参寄存器耗尽属 `LLVM-102t`（待开始），本册不可修 | ⏸延后 | 未改（越界）；已把「flog→flog10→varargs」链与现场原文写入完成区/证据 | 两档均 `blocked` 且 reason 含 varargs；`json_check … residual` rc=0 |
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决）
+
+#### 第 1 轮 architect 提交与文件集审核（2026-10-18；**只追加**）
+- **档位**：reviewer 第 1 轮**尚无判决**（占位未填）⇒ 流程档位本应 `WIP:`；本笔按派单给定文案**逐字提交**（无前缀）⇒ **如实披露**（同 `INFRA-079t` 先例）。**提交号**：随本条同 commit 落地 ⇒ 不内嵌自身 hash；现场取证 = `git log --oneline -1`。只 `commit`、**未 `push`**；`merge --ff-only` 落地 `master`。
+- **文件集对账**（显式 staging 逐个路径，**禁** `git add -A`/`.`）：`M` 本任务书 + `M` `components/llvm-project/changelog.md` + `M` `components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOSubtarget.cpp.patch` + `A` `tests/llvm/lit/CodeGen/DADAO/p1-fp-libcall-log.ll` + `M` `.tao/knowledge/milestones.md`（本任务行，architect 台账职责）= 与完成区「修改文件」①–④ **逐条对齐**（`.work/evidence/**` gitignored 不入库）；**无漏提 / 无多提 / 越界 0**（**未**触碰 `tools/testcases/**`、`TESTCASES-*` 册 —— 属并行任务 `TESTCASES-050t`，按路径分笔）。
+- **验收面状态**：`**状态**` = `待验收`（待 reviewer 独立重跑）；`consumer-lame` 仍 `blocked` 且根因已前移为变参寄存器耗尽（`LLVM-102t` 待开始）——**本册不因此改判**，`048t` 的 `blocked 27→25 / pass 193→195` 待 `LLVM-102t` 落地后合并作数。
