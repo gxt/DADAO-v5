@@ -148,6 +148,40 @@ int main(void) {
 **新发现/坑**：① `goto *p`（`&&label`）的首个后端缺口其实是 `ISD::BlockAddress` 无物化路径，修 BRIND 前须先补块地址取值（勿误判为只缺 ISel 分支）。② 空 `asm("" : "+r"(a))` 不能阻止 SimplifyCFG 把已知目标的 `indirectbr` 折成直接分支；要构造 RD 目标探针须经「表 + 运行期下标 + 位运算」并核对反汇编确有 `rd2rb`。③ 4 字节对齐标签地址不能 `& ~7`（会落进上一条指令中段，现场表现为打印垃圾 `p`）；oracle 的掩码须与 ISA 对齐约束一致。④ 改 DADAO 补丁会整体平移 `tools/llvm/llvm-isa-backend-matrix.*` 的行号证据；`check-isa-coverage` 是本次唯一需要重派生的既有门控（勿手改矩阵）。
 **遗留问题**：**B 段（变参 ABI）未做**（本笔只做 A，B 另派）；`install-host` / L2 / L3 **未跑**（主会话执行，`ISS-210`）；本笔未 commit/push（提交权归 architect）。
 
+### B 段（变参，`ADR-0031`）
+
+**测试结果**：B 段实现完成；8 个可执行探针全过、`-Werror=varargs` 两态符合、lit 33/33、`make check`(L1) rc=0。**libc 运行时复跑 BLOCKED**：`libc.a` 仍是旧 `void*` va_list（未 `build-musl`），凡 libc 内 `va_arg`（`printf`/`vfprintf`）读垃圾 ⇒ 依赖 `printf` 输出比对的用例（含 A 段 evidence）须主会话 `install-host`+`build-musl` 后复跑。
+**修改文件**：`components/llvm-project/patches/**` **10 份**（3 新增：`clang/include/clang/Basic/TargetInfo.h`、`clang/lib/AST/ASTContext.cpp`、`llvm/lib/Target/DADAO/DADAOMachineFunctionInfo.h`；7 改：`clang/lib/Basic/Targets/DADAO.h`、`clang/lib/CodeGen/Targets/DADAO.cpp`、`clang/lib/Driver/ToolChains/DADAO.{h,cpp}`、`llvm/lib/Target/DADAO/DADAOISelLowering.{h,cpp}`、`DADAOTargetMachine.h`）；`series` **78→81**、`check-patch-tree` **174→177**；`changelog.md`（B 段 +1 条）、`tests/llvm/lit/CodeGen/DADAO/m6-varargs.ll`（改写为三游标 ABI）、`tools/llvm/llvm-isa-backend-matrix.{tsv,md}`（行号漂移重派生）、本任务书；证据 `.work/evidence/LLVM-102t-B/**`（`.work` 不入 git）。
+**验收结果**：
+- **`va_list`（D1）**：`__builtin_va_list` = `__va_list_tag[1]`，七字段 `rd_next,rb_next,rf_next,rd_left,rb_left,rf_left,stack_next`，偏移 0/8/16/24/32/40/48、`sizeof=56`/`align=8`（`void*`×4 + `long`×3）；`_Static_assert` 全过。
+- **保存区 / `va_start`（D2）**：按命名参数实占算 `start`（`TRI->getEncodingValue`），RD/RB/RF 各一条 `stm.o {rXstart:rX31}`（未用槽 live-in；RD 区 1 槽 pad 使游标 bit3 = 槽号奇偶）；七字段落盘，`left=32-start`，`stack_next = incoming_sp + 命名栈字节数`（`p_edge` 实测 16 RD+栈）。lit 断言三条 `stm.o`、`rd_left=0xf`、`CHECK-NOT` caller 保存区。
+- **`va_arg` 五步（D3–D6）**：HFA→RF（每叶 1 槽）/HPA→RB/通用→RD 块/`>64 B`→RB 指针按值复制；`left>=need` 取寄存器，否则**整值取栈、游标与 left 不推进**；16 B 偶号配对（奇号跳 1 槽、`need=3`）；HFA 按叶还原（f32 寄存器槽低 32 位 ⇒ big-endian `+4`，栈槽 `+0`）；`va_copy`=56 B memcpy（`VACOPY` Custom）、`va_end` 空操作；通用聚合 clang 侧 coerce `[N x i64]`（命名/变参同一套）。
+- **探针（独立手算 oracle，按返回码断言）**：① 全类型 `int/void*/double/long/char`；② 跨 bank 混排 20 参（10+10=20）；③ 耗尽：20 int（210）、17 double（16 RF+1 栈=153）、16 RD+栈；④ HFA `{double,double}` 寄存器 3.75 / RF 耗尽整组栈 15.25、`{float,float,float}`=123；⑤ `va_copy` + `va_list` 传参；⑥ `>64 B`（80 B→55）、12 B/union/1 B。全在 `-O0/-O1/-O2/-Os/-O3`、`-fPIC`、`-verify-machineinstrs` 通过。
+- **`-Werror=varargs`（D8b）**：`va_arg(ap,float)` 默认 **rc=1**（`[-Werror,-Wvarargs]`）；`-Wno-error=varargs` **rc=0** 且降为 warning。
+- **field cases**：`plot2fig` 两档**编译通过**，链接停既有 `undefined symbol: re_comp`（musl 无 BSD regex，上游条件构建；与 archie-client 同因，reason 不含 varargs）；`consumer-lame` 两档**编译+链接通过**，运行 `qemu killed by host signal 11`（旧 libc 未重建，非 varargs）。
+- **无回归/门控**：lit CodeGen **33/33 PASS**、`check_lit_gen` rc=0、`clang`/`llc` rc=0；11 例 SingleSource 8 pass、3 例因旧 libc `printf` 输出不符（待重建复跑）；`check-instrinfo`/`check-patch-tree`/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-issues`/`make check` **各 rc=0**（`check-isa-coverage` 重派生后 rc=0）。
+- **证据脚本**：`.work/evidence/LLVM-102t-B/run.sh` default **rc=0**；`--inject` **rc=0**（I1 缩短 RF 保存区→rc=3；I2 翻转 oracle→rc=8；I3 flip FileCheck→FAIL；md5 对账、默认回绿）。
+**新发现/坑**：① 旧 musl 与新 ABI **不可混跑**：`va_list` 变七字段后未重建的 `printf`/`vfprintf` 仍按旧 caller 保存区取参 ⇒ 实测输出 `0 (null) 0.000000 0`（预期不兼容切换，非 codegen 缺陷）。② `plot2fig` 下一停点 = **`re_comp`**（`ISS-267⑥` 平台缺口，不得造 stub）。③ **调用方 16 B 分组缺口**：TableGen CC 逐 piece 分配、无法表达「参数组」，仅剩 1 槽时调用方会拆半（`va_arg` 已按 D4 整组）；需后续 CC 组分配器。④ 本实现 `rbfp == incoming_sp`（prologue 设 FP=entrySP），与 `contract-abi §4.3` 字面 `rbfp+8` 不符；`stack_next` 用 fixed-object 取 `incoming_sp`，与既有栈参数路径一致。
+**遗留问题**：`install-host`/`build-musl`/L2/L3 未跑（主会话；`ISS-210`）；`plot2fig`/`consumer-lame` 与 A 段 libc 运行时复跑待 musl 重建；16 B「仅剩 1 槽」的调用方整组回退待 CC 组分配器；本笔未 commit/push、未改 `**状态**`（仍 `待开始`）。
+
+#### B 段安装根复验（`install-host` 后 + 新 musl）
+
+**测试结果**：安装根 clang/ld.lld/qemu-dadao（clang md5 `98d342204f7d99aae4bc8ab66f221e82` = 构建树）+ 重建 musl 后，B 段运行时真值全部补齐；唯一新 fail = `functional/fcntl`（见下，musl 侧 `va_arg` 类型不匹配，**未改判据**）。
+**验收结果**：
+- **musl 重建**：`make build-musl-shared JOBS=8` **rc=0**（18:04:20→18:05:33，≈70 s；`libc.a`/`libc.so` 18:05:31–32）；`make check-musl-freshness` **PASS**，原文末行 `check-musl-freshness: PASS (installed libc.so built from the current musl sources + toolchain)`。
+- **`va_list` 布局**：安装根 clang 编译 `check_valist.c`（56 B/七偏移/类型）rc=0。
+- **真实 `printf`**：`printf("%d %s %f %ld %c\n", 42, "ok", 2.5, 123456789L, 'Z')` ⇒ 逐字输出 **`42 ok 2.500000 123456789 Z`**（修前旧 libc 为 `0 (null) 0.000000 0`），qemu rc=0。
+- **6 组探针**（安装根 clang + 新 musl，`-O2`）：`p_types`（全类型/跨 bank）rc=0；`p_all`（HFA 寄存器/RF 耗尽栈、`va_copy`、`va_list` 传参、16 B/12 B/union/1 B）rc=0；`p_edge`（16 RD+栈、16 RB+栈）rc=0；`p_small` rc=0；`p_named`（命名聚合不回归）rc=0；`p_big`（>64 B 间接）rc=0；`p_exhaust`（20 int=210、混合 20 参=20）rc=0；`repro_varargs` 输出 **`sum=136`** rc=0；`-Werror=varargs` 默认 rc=1（`-Werror,-Wvarargs`）/`-Wno-error=varargs` rc=0。
+- **`plot2fig`（两档）**：编译通过；reason 逐字 **`link error rc=1: ld.lld: error: undefined symbol: re_comp`**（不含 `varargs`；`ISS-267⑥` 平台缺口）。
+- **`consumer-lame`（两档）**：**PASS**，`exit=0`，`output+exit (...reference_output): matched (byte-exact), exit 0`（每档 ≈31.5 s）。
+- **3 例回归**：`dt`/`fp-convert`/`lowercase` 静态+动态 **3/3 pass**（此前因旧 libc `printf` 输出不符）。
+- **`047t` 10 例小样本**（`api/main`、`functional/{argv,fcntl,env,fnmatch,inet_pton,time}`、`regression/daemon-failure`、`math/{sin,exp}`）：静态 **9 pass / 1 fail**、动态 **9 pass / 1 fail**（两档一致）；fail = `functional/fcntl`，原文 `fcntl(fd, 6, &fl)==0 failed: errno = Bad address`（`errno=14 EFAULT`）。**根因（新增发现，非 codegen 缺陷）**：musl `src/fcntl/fcntl.c:12` 用 `va_arg(ap, unsigned long)` 取第三参，而调用方传的是 `struct flock *`；旧 ABI（caller 单槽保存区）下二者同槽故侥幸可用，`ADR-0031 D3` 按类型分流后指针落 RB、`unsigned long` 读 RD ⇒ 取到 0 ⇒ EFAULT。最小复现：`fcntl(fd, F_SETLK, &fl)` ⇒ `r=-1 errno=14`，而 `fcntl(fd, F_SETFL, 0)`（整数参）⇒ `r=0`（整数路径正常）。**建议**：musl 端口按 `cmd` 分流（指针类命令读 `va_arg(ap, void*)`，整数命令读 `unsigned long`）；属 `components/musl` 另册，本笔不改判据、不造 stub。
+- **A 段复跑**：`.work/evidence/LLVM-102t-A/run.sh` 在新 musl 下 **rc=0**（`evalloop` 两档 pass、11 例 SingleSource 11/11）；此前「旧 libc 读垃圾」的临时失效已消除。
+- **门控**：`check-musl-freshness`/`check-patch-tree`（**177**）/`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check-issues`/`make check`(L1) **各 rc=0**；证据 `.work/evidence/LLVM-102t-B/run.sh` default **rc=0**（安装根 + 新 musl；含 printf/consumer-lame/047t/回归）、`--inject` **rc=0**（三条注入仍全红）。
+**遗留问题**：`functional/fcntl`（及同族「同一变参槽内 int/指针混用」的 musl 调用）需 musl 端口另册修复（见上）；`plot2fig` 的 `re_comp` 仍属平台缺口；L2/L3 未跑（主会话）。
+
+**订正（2026-10-18，`INFRA-092t` 收口后）**：上条 `functional/fcntl` 的失败**已由 `INFRA-092t` 修复**（musl 封装 `va_arg` 类型面：`fcntl` 按 `cmd` 分支、`syscall()` 按 `__dadao_argmask` 分 bank）；复跑 `047t fcntl` **静态 1/1、动态 1/1 pass**。本册 B 段仍**余 `D4` caller 侧**（16 B「仅剩 1 槽」整组回退，需 CC 组分配器）**待裁**。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -163,6 +197,20 @@ int main(void) {
 | F4 `check-isa-coverage` 红：补丁行号整体漂移 | ✅已修 | 用 `tools/llvm/gen_isa_coverage.py` 重派生 `matrix.{tsv,md}`（非手改） | `make check-isa-coverage` rc=0；`make check` rc=0 |
 | F5 证据脚本注入 I1/I2 对 `.c` 调 `llc`、且把装配失败误判为「注入成功」 | ✅已修 | 改用 `clang -S` 产汇编；`run_asm` 的 3/4 视为 harness 失败单独红 | `--inject` rc=0：I1 124、I2 139、I3 FileCheck FAIL；md5 前后一致、默认回绿 |
 
+#### 第 2 轮 engineer 自审（B 段）
+**审查范围**：10 个组件文件 diff + 补丁、`m6-varargs.ll`、证据脚本、矩阵。逐行核对：七字段偏移/大小、`start` 计算（`getEncodingValue`）、`stm.o` 范围 `start+count<=64`、`stack_next` 与命名栈字节数、`left/next` 推进语义、16 B 配对、f32 两条路径（寄存器 `+4` / 栈 `+0`）、`va_copy` 56 B、`-Werror` 优先级。判决：实现与 `ADR-0031` D1–D8b 逐条一致；F8 为**基础设施限制**（已登记遗留），其余 finding 全修。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `stm.o` 起始寄存器误写 `rd16 + Start`（Start 是槽号 16..32，产出过 `{rd33:rd47}`） | ✅已修 | 改为 `rd16 + (Start - 16)`（RB/RF 同） | 汇编 `stm.o {rd17:rd31}`/`{rb16:rb31}`/`{rf16:rf31}`；探针全过 |
+| F2 `stack_next` 固定取 `incoming_sp`，命名参数溢出时把命名栈槽当成首个变参 | ✅已修 | MFI 记 `VarArgStackOffset = CCInfo.getStackSize()`，`va_start` 的 fixed object 偏移用它 | `p_edge`（16 RD+1 栈+变参 18/19、16 RB+栈指针）rc=0（修前会错位） |
+| F3 `CreateConstInBoundsByteGEP` 要求 Address 元素类型为 i8，HFA 临时 alloca 是 struct ⇒ clang assert | ✅已修 | 用 `Tmp.withElementType(Int8Ty)` 做字节 GEP、返回带 MemTy 的 Address | 编译通过；`p_all` HFA 用例 rc=0 |
+| F4 不透明指针与 i64 直接 `CreateAnd` ⇒ `BinaryOperator` 断言 | ✅已修 | 先 `CreatePtrToInt` 再判奇偶 | 编译通过；16 B 聚合用例 rc=0 |
+| F5 旧 `m6-varargs.ll` 断言 caller 保存区（旧 ABI）⇒ lit 1/33 红 | ✅已修 | 改写为三游标 ABI（三条 `stm.o`、`rd_left=0xf`、`CHECK-NOT` caller 保存区） | CodeGen lit **33/33 PASS** |
+| F6 `_Complex long double` / transparent union 分类偏差；`va_start` 多次调用重复建 fixed object | ✅已修 | complex 用 `isFloatingType`；`classifyArgumentType` 加 `useFirstFieldIfTransparentUnion`；`VarArgStackFI` 只建一次 | 重建 + 探针/lit 全绿 |
+| F7 证据脚本用 `llc` 的新鲜度对比 clang 源文件 ⇒ 假红 | ✅已修 | clang-23 只比 clang 源、llc 只比 LLVM 源 | evidence default rc=0 |
+| **F8（未修，登记遗留）** 调用方 16 B 值的偶号配对/仅剩 1 槽整组回退：TableGen CC 逐 piece 分配、无「参数组」通道 | ⏸延后（基础设施） | 未改 CC；`va_arg` 侧按 ADR 整组判定；完成区「坑③」+ 遗留登记 | 受影响的探针改用「偶游标」与「bank 全空」两态验证；奇游标/1 槽边界未测（如实披露） |
+
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决）
 
@@ -170,3 +218,9 @@ int main(void) {
 **档位**：A 段产物正常提交（`1d7ec16`）+ 台账 `WIP:`（`f924c38`）⇒ `git merge --squash` 落地 `master`（本提交）。册状态仍 `待开始`（B 段未做）。
 **文件集对账**：`git diff --cached --name-only` = 13 项，全在完成区「修改文件」声明内（6 补丁 + `changelog.md` + `indirectbr.ll` + 矩阵 `.{tsv,md}` + 本册）+ 台账 2（`milestones.md`/`issues.yaml`，本笔 architect 更新）；无漏提 / 无多提 / 无越界。`check-patch-tree` 实核 **174 patches OK**。
 **门控**：`make check`(L1) rc=0；`check-lit` rc=2（读 `.dadao/cross-toolchain` 旧安装根，未 `install-host`，`ISS-210` ⇒ 不据此判红，留主会话安装后复跑）。
+
+#### 第 2 轮 architect 提交（B 段）
+**档位**：B 段产物**正常提交**（本任务分支第 1 笔）；册 `**状态**` **保持 `待开始`**（B 段**余 `D4` caller 侧**整组回退，**待裁**）。
+**文件集对账**：`git diff --cached --name-only` = **17 项** = 10 补丁（7 改 + 3 新）+ `series`（78→81）+ `changelog.md` + `m6-varargs.ll` + 矩阵 `.{tsv,md}` + 本册 + `milestones.md`（本行）；与完成区「修改文件」逐条对齐，**无漏提 / 无多提 / 无越界**（`components/musl/**` 与 `INFRA-092t` 册归第 2 笔）。
+**门控（真实 rc）**：`make check`(L1) rc=0「repository checks (L1): PASS」；`check-patch-tree` 全树 **180 patches OK**（本笔落地后 177；第 2 笔 +3 musl 补丁）；`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-milestones-fresh`/`check-musl-freshness`/`check-syscall-abi` 各 rc=0；`check_issues` rc=0（67 open / 27 closed）。
+**订正**：上「B 段安装根复验」末条 `functional/fcntl` 的失败已追加订正（`INFRA-092t` 修复、`047t fcntl` 两档 pass）。

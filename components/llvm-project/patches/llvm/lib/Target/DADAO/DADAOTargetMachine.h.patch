@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.h b/llvm/lib/Target/DADAO/DADAOTargetMachine.h
 new file mode 100644
-index 000000000..bbc8d275a
+index 000000000..2cbdaae9b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.h
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,60 @@
 +//===-- DADAOTargetMachine.h - Define TargetMachine for DADAO --- C++ ----===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,6 +16,7 @@ index 000000000..bbc8d275a
 +#define LLVM_LIB_TARGET_DADAO_DADAOTARGETMACHINE_H
 +
 +#include "DADAOSubtarget.h"
++#include "DADAOMachineFunctionInfo.h"
 +
 +#include "llvm/ADT/StringMap.h"
 +#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
@@ -45,6 +46,13 @@ index 000000000..bbc8d275a
 +  const DADAOSubtarget *getSubtargetImpl(const Function &F) const override;
 +
 +  TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
++
++  MachineFunctionInfo *
++  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
++                            const TargetSubtargetInfo *STI) const override {
++    return DADAOMachineFunctionInfo::create<DADAOMachineFunctionInfo>(
++        Allocator, F, STI);
++  }
 +
 +  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 +

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..763a7b371
+index 000000000..4809d6825
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,214 @@
+@@ -0,0 +1,215 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -209,6 +209,7 @@ index 000000000..763a7b371
 +  /// walks the slots one at a time.
 +  SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
 +  SDValue LowerVAARG(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerVACOPY(SDValue Op, SelectionDAG &DAG) const;
 +
 +  /// True if V is an i64 value held in the GPRB (pointer/address) bank, i.e. a
 +  /// CopyFromReg of a GPRB virtual register created by LowerFormalArguments.

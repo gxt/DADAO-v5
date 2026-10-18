@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.h b/clang/lib/Driver/ToolChains/DADAO.h
 new file mode 100644
-index 000000000..140b51660
+index 000000000..6c959d1b0
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.h
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,94 @@
 +//===--- DADAO.h - DADAO ToolChain Implementations --------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -36,6 +36,10 @@ index 000000000..140b51660
 +  void
 +  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
 +                            llvm::opt::ArgStringList &CC1Args) const override;
++  // D8b (ADR-0031): -Wvarargs is an error by default (va_arg with a type that
++  // does not match the default argument promotions is definite UB); a user
++  // supplied -Wno-error=varargs appears later on the command line and wins.
++  void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;
 +  void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
 +                             llvm::opt::ArgStringList &CC1Args, BoundArch BA,
 +                             Action::OffloadKind DeviceOffloadKind) const override;

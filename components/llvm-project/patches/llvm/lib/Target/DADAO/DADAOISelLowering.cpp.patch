@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..ed8df5110
+index 000000000..2e962900d
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1409 @@
+@@ -0,0 +1,1499 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -30,6 +30,7 @@ index 000000000..ed8df5110
 +//===----------------------------------------------------------------------===//
 +
 +#include "DADAOISelLowering.h"
++#include "DADAOMachineFunctionInfo.h"
 +#include "DADAOSubtarget.h"
 +#include "DADAOTargetMachine.h"
 +
@@ -49,6 +50,10 @@ index 000000000..ed8df5110
 +// other DADAO/M68k-style targets.
 +#define GET_CALLING_CONV_IMPL
 +#include "DADAOGenCallingConv.inc"
++
++// Instruction opcodes used by the variadic save-area prologue (stm.o).
++#define GET_INSTRINFO_ENUM
++#include "DADAOGenInstrInfo.inc"
 +
 +DADAOTargetLowering::DADAOTargetLowering(const DADAOTargetMachine &TM,
 +                                         const DADAOSubtarget &STI)
@@ -181,13 +186,14 @@ index 000000000..ed8df5110
 +  // (f64<-f32) EXTLOAD fix above (LLVM-079t); same setting as AMDGPU / Sparc.
 +  setTruncStoreAction(MVT::f64, MVT::f32, Expand);
 +
-+  // Varargs (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  DADAO's
-+  // va_list is a plain void*: va_start points just past the named arguments in
-+  // the caller-written save area, and va_arg walks the 8-byte slots.  VACOPY
-+  // expands to a memcpy and VAEND is a no-op.
++  // Varargs (LLVM-102t B; spec DADAO-21 §3.3, ADR-0031 D1/D2/D4).  The va_list
++  // is a seven-field three-cursor structure.  The callee snapshots the unused
++  // argument registers in its own frame (LowerFormalArguments), va_start fills
++  // the cursors/counters/stack pointer, va_arg is emitted by clang (which owns
++  // the type classification), and va_copy is a 56-byte memcpy.
 +  setOperationAction(ISD::VASTART, MVT::Other, Custom);
 +  setOperationAction(ISD::VAARG, MVT::Other, Custom);
-+  setOperationAction(ISD::VACOPY, MVT::Other, Expand);
++  setOperationAction(ISD::VACOPY, MVT::Other, Custom);
 +  setOperationAction(ISD::VAEND, MVT::Other, Expand);
 +
 +  // Dynamic stack allocation: VLA / alloca and the stacksave/stackrestore pair
@@ -525,6 +531,74 @@ index 000000000..ed8df5110
 +
 +    InVals.push_back(ArgValue);
 +  }
++
++  // Variadic register save area (ADR-0031 D2).  A variadic callee snapshots
++  // the slots of each argument bank that were NOT consumed by named arguments,
++  // with one `stm.o` per bank, at function entry.  The area is 16-byte aligned;
++  // the RD region is shifted by one slot when `start` is odd so that the
++  // address of slot `start` has bit 3 == (start & 1).  va_arg uses that bit to
++  // detect an odd cursor for the 16-byte even/odd pairing rule (D6) without
++  // carrying the start index in the va_list.
++  if (IsVarArg) {
++    auto *Info = MF.getInfo<DADAOMachineFunctionInfo>();
++    const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
++    for (const CCValAssign &VA : ArgLocs) {
++      if (!VA.isRegLoc())
++        continue;
++      const Register R = VA.getLocReg();
++      const unsigned NextSlot = TRI->getEncodingValue(R) + 1;
++      if (DADAO::GPRBRegClass.contains(R))
++        Info->VarArgStartRB = std::max(Info->VarArgStartRB, NextSlot);
++      else if (DADAO::GPRFRegClass.contains(R))
++        Info->VarArgStartRF = std::max(Info->VarArgStartRF, NextSlot);
++      else
++        Info->VarArgStartRD = std::max(Info->VarArgStartRD, NextSlot);
++    }
++    Info->VarArgPadRD = Info->VarArgStartRD & 1;
++    Info->VarArgStackOffset = CCInfo.getStackSize();
++
++    if (Info->SaveSize() != 0) {
++      const MVT PtrVT = getPointerTy(DAG.getDataLayout());
++      Info->VarArgSaveFI =
++          MFI.CreateStackObject(Info->SaveSize(), Align(16), /*isSpillSlot=*/false);
++      SDValue Base = DAG.getFrameIndex(Info->VarArgSaveFI, PtrVT);
++
++      auto SaveBank = [&](unsigned Opc, unsigned First, unsigned Count,
++                          unsigned Off) {
++        if (Count == 0)
++          return;
++        SDValue BankBase =
++            Off ? DAG.getNode(ISD::ADD, DL, PtrVT, Base,
++                              DAG.getConstant(Off, DL, PtrVT))
++                : Base;
++        SmallVector<SDValue, 20> Ops;
++        Ops.push_back(DAG.getRegister(First, MVT::i64));
++        Ops.push_back(BankBase);
++        Ops.push_back(DAG.getRegister(DADAO::rd0, MVT::i64));
++        Ops.push_back(DAG.getTargetConstant(Count, DL, MVT::i64));
++        // The range partners are implicit uses; they must be declared live-in
++        // even when no named argument used them, or the verifier rejects the
++        // read of an undefined physical register.
++        if (!RegInfo.isLiveIn(First))
++          RegInfo.addLiveIn(First);
++        for (unsigned I = 1; I != Count; ++I) {
++          const Register R(First + I);
++          Ops.push_back(DAG.getRegister(R, MVT::i64));
++          if (!RegInfo.isLiveIn(R))
++            RegInfo.addLiveIn(R);
++        }
++        Ops.push_back(Chain);
++        Chain = SDValue(DAG.getMachineNode(Opc, DL, MVT::Other, Ops), 0);
++      };
++
++      SaveBank(DADAO::stm_o_rd, DADAO::rd16 + (Info->VarArgStartRD - 16),
++               Info->RDLeft(), Info->RDOffset());
++      SaveBank(DADAO::stm_o_rb, DADAO::rb16 + (Info->VarArgStartRB - 16),
++               Info->RBLeft(), Info->RBOffset());
++      SaveBank(DADAO::stm_o_rrri_rf, DADAO::rf16 + (Info->VarArgStartRF - 16),
++               Info->RFLeft(), Info->RFOffset());
++    }
++  }
 +  return Chain;
 +}
 +
@@ -583,8 +657,9 @@ index 000000000..ed8df5110
 +  //   - a direct callee is a target global/external symbol (call_iiii); an
 +  //     indirect callee (function pointer) is materialized into GPRB and
 +  //     selected to call_rrii (Addr = rbha + rdhb + (imms12 << 2));
-+  //   - for a variadic call every argument is also written into an 8-byte-slot
-+  //     save area at the call-site SP (spec DADAO-21 §可变参数);
++  //   - a variadic call writes no save area: the callee snapshots the unused
++  //     argument registers itself (ADR-0031 D2), so only the normal shared
++  //     overflow stack area carries memory arguments;
 +  //   - CALLSEQ_START/END bracket the outgoing argument area;
 +  //   - the DADAOISD::CALL node carries the call-preserved mask
 +  //     (getCallPreservedMask: includes rb32..rb63, ML-004c) and the live-in
@@ -607,13 +682,6 @@ index 000000000..ed8df5110
 +
 +  MachineFunction &MF = DAG.getMachineFunction();
 +
-+  // Varargs (M6): in addition to the register assignment, every argument is
-+  // written into a contiguous save area at the call-site SP (slot i at
-+  // SP + i*8, 8 bytes each, declaration order).  All arguments must currently
-+  // fit the register banks so that the save area starts at SP + 0 and the
-+  // callee can compute the first-variadic address as entry_SP + N_named*8.
-+  const bool VarArgSaveArea = IsVarArg;
-+
 +  SmallVector<CCValAssign, 16> ArgLocs;
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
 +  CCInfo.AnalyzeCallOperands(Outs, CC_DADAO);
@@ -630,15 +698,15 @@ index 000000000..ed8df5110
 +  if (CLI.IsTailCall) {
 +    // Eligibility (LLVM-074t).  A tail-jump leaves SP at the caller's frame, so
 +    // any argument that needs memory in *this* frame is unsafe:
-+    //   - a varargs save area or an out-of-register (stack) argument needs the
-+    //     outgoing argument area of this frame;
++    //   - an out-of-register (stack) argument needs the outgoing argument area
++    //     of this frame (a variadic tail call is rejected outright);
 +    //   - a `byval` argument is a pointer to a caller-local copy, and an
 +    //     `Indirect` (large aggregate) argument is a pointer to a caller-local
 +    //     temporary -- both become dangling once the epilogue deallocates the
 +    //     frame (same guards as RISCV/AArch64);
 +    //   - an `sret` argument (callee returns through a pointer) points into the
 +    //     caller's frame too.
-+    bool Eligible = !VarArgSaveArea && CCInfo.getStackSize() == 0;
++    bool Eligible = !IsVarArg && CCInfo.getStackSize() == 0;
 +    for (const ISD::OutputArg &Arg : Outs)
 +      if (Arg.Flags.isByVal() || Arg.Flags.isSRet())
 +        Eligible = false;
@@ -756,13 +824,10 @@ index 000000000..ed8df5110
 +    CLI.IsTailCall = false;
 +  }
 +
-+  if (VarArgSaveArea && CCInfo.getStackSize() != 0)
-+    report_fatal_error("DADAO: a varargs call with register-exhausted "
-+                       "arguments is not supported yet");
-+
-+  const uint64_t NumBytes =
-+      VarArgSaveArea ? static_cast<uint64_t>(Outs.size()) * 8
-+                     : CCInfo.getStackSize();
++  // The caller writes no variadic save area (ADR-0031 D2): the callee
++  // snapshots the argument registers itself, so a variadic call is an ordinary
++  // call whose only extra memory is the usual shared overflow stack area.
++  const uint64_t NumBytes = CCInfo.getStackSize();
 +  Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, DL);
 +
 +  SmallVector<std::pair<Register, SDValue>, 8> RegsToPass;
@@ -787,16 +852,6 @@ index 000000000..ed8df5110
 +      break;
 +    default:
 +      llvm_unreachable("DADAO: unsupported argument location info");
-+    }
-+
-+    if (VarArgSaveArea) {
-+      // Store the promoted argument into its 8-byte save slot SP + i*8.
-+      SDValue StackPtr = DAG.getRegister(DADAO::rb1, MVT::i64);
-+      SDValue SlotAddr = DAG.getNode(
-+          ISD::ADD, DL, MVT::i64, StackPtr,
-+          DAG.getIntPtrConstant(static_cast<int64_t>(i) * 8, DL));
-+      MemOpChains.push_back(DAG.getStore(
-+          Chain, DL, Arg, SlotAddr, MachinePointerInfo::getStack(MF, i * 8)));
 +    }
 +
 +    if (VA.isRegLoc()) {
@@ -934,6 +989,8 @@ index 000000000..ed8df5110
 +    return LowerVASTART(Op, DAG);
 +  case ISD::VAARG:
 +    return LowerVAARG(Op, DAG);
++  case ISD::VACOPY:
++    return LowerVACOPY(Op, DAG);
 +  case ISD::BR_JT:
 +    return LowerBR_JT(Op, DAG);
 +  case ISD::BRIND:
@@ -954,55 +1011,88 @@ index 000000000..ed8df5110
 +
 +SDValue DADAOTargetLowering::LowerVASTART(SDValue Op,
 +                                          SelectionDAG &DAG) const {
-+  // `llvm.va_start(ptr %ap)` (M6, spec DADAO-21 §可变参数).  DADAO's va_list is
-+  // a plain void*: va_start sets it to the address of the first variadic
-+  // argument, i.e. entry SP + N_named*8, where the caller's save area holds
-+  // slot i at entry SP + i*8.  N_named is the number of named arguments of the
-+  // variadic function.
++  // `llvm.va_start(ptr %ap)` (spec DADAO-21 §3.3, ADR-0031 D1/D2).  Fill the
++  // seven-field va_list from the callee's register save area:
++  //   [0] rd_next  [1] rb_next  [2] rf_next
++  //   [3] rd_left  [4] rb_left  [5] rf_left
++  //   [6] stack_next (= incoming_sp = rbfp + 8)
++  // The frame layout and the per-bank start slots were computed in
++  // LowerFormalArguments (DADAOMachineFunctionInfo).
 +  MachineFunction &MF = DAG.getMachineFunction();
++  auto *Info = MF.getInfo<DADAOMachineFunctionInfo>();
 +  const DataLayout &DLayout = DAG.getDataLayout();
-+  MVT PtrVT = getPointerTy(DLayout);
-+  SDLoc DL(Op);
-+
++  const MVT PtrVT = getPointerTy(DLayout);
++  const SDLoc DL(Op);
 +  const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
-+  const unsigned NumNamed =
-+      static_cast<unsigned>(MF.getFunction().arg_size());
-+  int FI = MF.getFrameInfo().CreateFixedObject(
-+      /*Size=*/8, /*Offset=*/static_cast<int64_t>(NumNamed) * 8,
-+      /*IsImmutable=*/true);
-+  SDValue FIN = DAG.getFrameIndex(FI, PtrVT);
-+  return DAG.getStore(Op.getOperand(0), DL, FIN, Op.getOperand(1),
-+                      MachinePointerInfo(SV));
++  SDValue Chain = Op.getOperand(0);
++  SDValue VAList = Op.getOperand(1);
++
++  // First variadic stack slot: incoming_sp + (named stack bytes).  Named
++  // arguments that overflow share the same declaration-ordered stack area, so
++  // they always form a prefix of it (contract-abi.md §4.3, ADR-0031 D4).
++  if (Info->VarArgStackFI < 0)
++    Info->VarArgStackFI = MF.getFrameInfo().CreateFixedObject(
++        /*Size=*/8, /*Offset=*/static_cast<int64_t>(Info->VarArgStackOffset),
++        /*IsImmutable=*/true);
++  SDValue StackNext = DAG.getFrameIndex(Info->VarArgStackFI, PtrVT);
++
++  SDValue SaveBase;
++  if (Info->VarArgSaveFI >= 0)
++    SaveBase = DAG.getFrameIndex(Info->VarArgSaveFI, PtrVT);
++  else
++    // Every bank was already exhausted by the named arguments: left == 0, so
++    // the cursors are never dereferenced.  Point them at incoming_sp.
++    SaveBase = StackNext;
++
++  auto StoreField = [&](unsigned Index, SDValue Value) {
++    SDValue Addr = DAG.getNode(
++        ISD::ADD, DL, PtrVT, VAList,
++        DAG.getConstant(static_cast<int64_t>(Index) * 8, DL, PtrVT));
++    Chain = DAG.getStore(Chain, DL, Value, Addr,
++                         MachinePointerInfo(SV, Index * 8), Align(8));
++  };
++
++  const unsigned Pad = Info->VarArgPadRD;
++  SDValue RDNext = Pad ? DAG.getNode(ISD::ADD, DL, PtrVT, SaveBase,
++                                     DAG.getConstant(8, DL, PtrVT))
++                       : SaveBase;
++  SDValue RBNext = DAG.getNode(
++      ISD::ADD, DL, PtrVT, SaveBase,
++      DAG.getConstant(static_cast<int64_t>(Info->RBOffset()), DL, PtrVT));
++  SDValue RFNext = DAG.getNode(
++      ISD::ADD, DL, PtrVT, SaveBase,
++      DAG.getConstant(static_cast<int64_t>(Info->RFOffset()), DL, PtrVT));
++
++  StoreField(0, RDNext);
++  StoreField(1, RBNext);
++  StoreField(2, RFNext);
++  StoreField(3, DAG.getConstant(Info->RDLeft(), DL, MVT::i64));
++  StoreField(4, DAG.getConstant(Info->RBLeft(), DL, MVT::i64));
++  StoreField(5, DAG.getConstant(Info->RFLeft(), DL, MVT::i64));
++  StoreField(6, StackNext);
++  return Chain;
 +}
 +
 +SDValue DADAOTargetLowering::LowerVAARG(SDValue Op, SelectionDAG &DAG) const {
-+  // `llvm.va_arg(ptr %ap, T)` (M6, spec DADAO-21 §可变参数).  The va_list holds
-+  // the address of the next slot; read the value, then advance by one 8-byte
-+  // slot.  DADAO is big-endian, so a narrow value is right-aligned in the slot:
-+  // read it at slot + (8 - sizeof(T)).
-+  SDLoc DL(Op);
-+  const DataLayout &DLayout = DAG.getDataLayout();
-+  MVT PtrVT = getPointerTy(DLayout);
-+  SDValue Chain = Op.getOperand(0);
-+  SDValue VAListPtr = Op.getOperand(1);
-+  EVT VT = Op.getValueType();
++  // clang expands `va_arg` itself (it owns the type classification and emits
++  // the five-step cursor/stack sequence of spec §3.3), so the generic
++  // `llvm.va_arg` intrinsic must not be silently lowered with a layout it does
++  // not match.  Fail loudly instead (an unsupported feature must be explicit).
++  report_fatal_error(
++      "DADAO: llvm.va_arg is not used by the DADAO ABI; clang expands "
++      "va_arg directly (seven-field va_list, spec DADAO-21 §3.3)");
++}
 +
-+  SDValue Slot =
-+      DAG.getLoad(PtrVT, DL, Chain, VAListPtr, MachinePointerInfo());
-+  Chain = Slot.getValue(1);
-+
-+  SDValue Addr = Slot;
-+  const unsigned Size = VT.getSizeInBits() / 8;
-+  if (Size < 8)
-+    Addr = DAG.getNode(ISD::ADD, DL, PtrVT, Slot,
-+                       DAG.getConstant(8 - Size, DL, PtrVT));
-+  SDValue Val = DAG.getLoad(VT, DL, Chain, Addr, MachinePointerInfo());
-+  Chain = Val.getValue(1);
-+
-+  SDValue Next = DAG.getNode(ISD::ADD, DL, PtrVT, Slot,
-+                             DAG.getConstant(8, DL, PtrVT));
-+  Chain = DAG.getStore(Chain, DL, Next, VAListPtr, MachinePointerInfo());
-+  return DAG.getMergeValues({Val, Chain}, DL);
++SDValue DADAOTargetLowering::LowerVACOPY(SDValue Op, SelectionDAG &DAG) const {
++  // va_copy = copy the whole 56-byte seven-field structure (D1).
++  const SDLoc DL(Op);
++  const Value *DestSV = cast<SrcValueSDNode>(Op.getOperand(3))->getValue();
++  const Value *SrcSV = cast<SrcValueSDNode>(Op.getOperand(4))->getValue();
++  return DAG.getMemcpy(Op.getOperand(0), DL, Op.getOperand(1), Op.getOperand(2),
++                       DAG.getConstant(56, DL, MVT::i32), Align(8), Align(8),
++                       /*isVolatile=*/false, /*AlwaysInline=*/false,
++                       /*MF=*/nullptr, /*AAInfo=*/std::nullopt,
++                       MachinePointerInfo(DestSV), MachinePointerInfo(SrcSV));
 +}
 +
 +SDValue DADAOTargetLowering::LowerBRCOND(SDValue Op, SelectionDAG &DAG) const {

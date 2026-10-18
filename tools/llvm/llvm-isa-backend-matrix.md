@@ -26,7 +26,7 @@
 | `pat-args` | `def`/`defm` 的 Pat 类实参（含 `multiclass` 经 `defm` 传入的指令） | `DADAOCodeGen.td.patch` |
 | `isel-cpp` | `DADAO::<def>` 显式引用（自定义选择器 / lowering 发射） | `DADAOISelDAGToDAG.cpp.patch`、`DADAOISelLowering.cpp.patch` |
 
-现场统计：证据条数 = isel-cpp 17 + pat 97 + pat-args 8；判「用得上」的记录 **86** 条。
+现场统计：证据条数 = isel-cpp 20 + pat 97 + pat-args 8；判「用得上」的记录 **89** 条。
 
 ### 提取方法的局限（盲区披露）
 
@@ -254,9 +254,9 @@
 | `st.w_rrii_rd` | `st.w` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:485:st_w_rd |
 | `stm.b_rrri_rd` | `stm.b` | `rrri` | `m1` | accept | no | — |
 | `stm.o_rrri_ra` | `stm.o` | `rrri` | `m1` | accept | no | — |
-| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | no | — |
-| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | no | — |
-| `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` | accept | no | — |
+| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:596:stm_o_rb |
+| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:594:stm_o_rd |
+| `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:598:stm_o_rrri_rf |
 | `stm.t_rrri_rd` | `stm.t` | `rrri` | `m1` | accept | no | — |
 | `stm.t_rrri_rf` | `stm.t` | `rrri` | `fp` | accept | no | — |
 | `stm.w_rrri_rd` | `stm.w` | `rrri` | `m1` | accept | no | — |
@@ -279,16 +279,16 @@
 | `xnor.o_orrr_rd` | `xnor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:382:xnor_o |
 | `xor.o_orrr_rd` | `xor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:377:xor_o |
 
-## 3. 缺口汇总（未被 ISel 使用，149 条）
+## 3. 缺口汇总（未被 ISel 使用，146 条）
 
 候选优化面（供后续里程碑参考）。按性质分四类（现场统计）：
 
-1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**108** 条 —— ISA 有、后端一次都没发射，最有价值。
+1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**107** 条 —— ISA 有、后端一次都没发射，最有价值。
 2. **真缺口·汇编层/特权族**（同上但 `format ∈ {crrr, ciii, crii}` 或助记符 ∈ {fence, swym}，机械判据）：**5** 条 —— 经 cfx 访问/内联汇编/占位语义使用，不经 ISel 选入属预期。
-3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**25** 条。
+3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**23** 条。
 4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**11** 条 —— 不在本期范围。
 
-### 3.1 真缺口·候补优化面（108 条）
+### 3.1 真缺口·候补优化面（107 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
@@ -390,7 +390,6 @@
 | `st.o_rrii_ra` | `st.o` | `rrii` | `m1` |
 | `stm.b_rrri_rd` | `stm.b` | `rrri` | `m1` |
 | `stm.o_rrri_ra` | `stm.o` | `rrri` | `m1` |
-| `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` |
 | `stm.t_rrri_rd` | `stm.t` | `rrri` | `m1` |
 | `stm.t_rrri_rf` | `stm.t` | `rrri` | `fp` |
 | `stm.w_rrri_rd` | `stm.w` | `rrri` | `m1` |
@@ -411,7 +410,7 @@
 | `swym_oiii_imm` | `swym` | `oiii` | `m1` |
 | `trap_ciii_cfx` | `trap` | `ciii` | `m1` |
 
-### 3.3 仅 post-ISel 引用（25 条）
+### 3.3 仅 post-ISel 引用（23 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
@@ -436,8 +435,6 @@
 | `set.zw_rwii_rb` | `set.zw` | `rwii` | `m1` |
 | `set.zw_rwii_rd` | `set.zw` | `rwii` | `m1` |
 | `st.o_rrii_rb` | `st.o` | `rrii` | `m1` |
-| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` |
-| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` |
 | `sub.so_rrrr_rd` | `sub.so` | `rrrr` | `m1` |
 | `sub.uo_rrrr_rd` | `sub.uo` | `rrrr` | `m1` |
 

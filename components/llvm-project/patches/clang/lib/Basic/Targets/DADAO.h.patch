@@ -1,6 +1,6 @@
 diff --git a/clang/lib/Basic/Targets/DADAO.h b/clang/lib/Basic/Targets/DADAO.h
 new file mode 100644
-index 000000000..de0464801
+index 000000000..1f297260d
 --- /dev/null
 +++ b/clang/lib/Basic/Targets/DADAO.h
 @@ -0,0 +1,96 @@
@@ -82,7 +82,7 @@ index 000000000..de0464801
 +  }
 +
 +  BuiltinVaListKind getBuiltinVaListKind() const override {
-+    return TargetInfo::VoidPtrBuiltinVaList;
++    return TargetInfo::DADAOBuiltinVaList;
 +  }
 +
 +  std::string_view getClobbers() const override { return ""; }

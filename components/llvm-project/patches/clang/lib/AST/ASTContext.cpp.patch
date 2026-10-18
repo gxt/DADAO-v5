@@ -1,0 +1,76 @@
+diff --git a/clang/lib/AST/ASTContext.cpp b/clang/lib/AST/ASTContext.cpp
+index 222881154..9dff35d0a 100644
+--- a/clang/lib/AST/ASTContext.cpp
++++ b/clang/lib/AST/ASTContext.cpp
+@@ -10399,6 +10399,62 @@ CreateXtensaABIBuiltinVaListDecl(const ASTContext *Context) {
+   return VaListTagTypedefDecl;
+ }
+ 
++static TypedefDecl *
++CreateDADAOBuiltinVaListDecl(const ASTContext *Context) {
++  // DADAO variable arguments (spec/DADAO-21 §3.3, ADR-0031 D1): a seven-field
++  // record (three per-bank cursors, three remaining-slot counters, the overflow
++  // stack cursor), exposed as a one-element array so a by-value va_list
++  // parameter decays to a pointer:
++  //
++  //   typedef struct __va_list_tag {
++  //     uint64_t *rd_next;    uint64_t *rb_next;    uint64_t *rf_next;
++  //     int64_t   rd_left;    int64_t   rb_left;    int64_t   rf_left;
++  //     uint64_t *stack_next;
++  //   } __builtin_va_list[1];
++  RecordDecl *VaListTagDecl = Context->buildImplicitRecord("__va_list_tag");
++  VaListTagDecl->startDefinition();
++
++  const size_t NumFields = 7;
++  QualType FieldTypes[NumFields];
++  const char *FieldNames[NumFields];
++
++  FieldTypes[0] = Context->getPointerType(Context->VoidTy);
++  FieldNames[0] = "rd_next";
++  FieldTypes[1] = Context->getPointerType(Context->VoidTy);
++  FieldNames[1] = "rb_next";
++  FieldTypes[2] = Context->getPointerType(Context->VoidTy);
++  FieldNames[2] = "rf_next";
++  FieldTypes[3] = Context->LongTy; // LP64: int64_t
++  FieldNames[3] = "rd_left";
++  FieldTypes[4] = Context->LongTy;
++  FieldNames[4] = "rb_left";
++  FieldTypes[5] = Context->LongTy;
++  FieldNames[5] = "rf_left";
++  FieldTypes[6] = Context->getPointerType(Context->VoidTy);
++  FieldNames[6] = "stack_next";
++
++  for (unsigned i = 0; i < NumFields; ++i) {
++    FieldDecl *Field = FieldDecl::Create(const_cast<ASTContext &>(*Context),
++                                         VaListTagDecl, SourceLocation(),
++                                         SourceLocation(),
++                                         &Context->Idents.get(FieldNames[i]),
++                                         FieldTypes[i], /*TInfo=*/nullptr,
++                                         /*BitWidth=*/nullptr,
++                                         /*Mutable=*/false, ICIS_NoInit);
++    Field->setAccess(AS_public);
++    VaListTagDecl->addDecl(Field);
++  }
++  VaListTagDecl->completeDefinition();
++  Context->VaListTagDecl = VaListTagDecl;
++  CanQualType VaListTagType = Context->getCanonicalTagType(VaListTagDecl);
++
++  // typedef __va_list_tag __builtin_va_list[1];
++  llvm::APInt Size(Context->getTypeSize(Context->getSizeType()), 1);
++  QualType VaListTagArrayType = Context->getConstantArrayType(
++      VaListTagType, Size, nullptr, ArraySizeModifier::Normal, 0);
++  return Context->buildImplicitTypedef(VaListTagArrayType, "__builtin_va_list");
++}
++
+ static TypedefDecl *CreateVaListDecl(const ASTContext *Context,
+                                      TargetInfo::BuiltinVaListKind Kind) {
+   switch (Kind) {
+@@ -10420,6 +10476,8 @@ static TypedefDecl *CreateVaListDecl(const ASTContext *Context,
+     return CreateHexagonBuiltinVaListDecl(Context);
+   case TargetInfo::XtensaABIBuiltinVaList:
+     return CreateXtensaABIBuiltinVaListDecl(Context);
++  case TargetInfo::DADAOBuiltinVaList:
++    return CreateDADAOBuiltinVaListDecl(Context);
+   }
+ 
+   llvm_unreachable("Unhandled __builtin_va_list type kind");

@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.cpp b/clang/lib/Driver/ToolChains/DADAO.cpp
 new file mode 100644
-index 000000000..47a9d71d0
+index 000000000..7aeaf5c2f
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.cpp
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,145 @@
 +//===--- DADAO.cpp - DADAO ToolChain Implementations ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -46,6 +46,14 @@ index 000000000..47a9d71d0
 +  if (llvm::sys::fs::exists(Dir))
 +    return std::string(Dir);
 +  return {};
++}
++
++void DADAOToolChain::addClangWarningOptions(ArgStringList &CC1Args) const {
++  // ADR-0031 D8b: `va_arg` with a type that does not match the default
++  // argument promotions (`va_arg(ap, float)`, `va_arg(ap, char)`) is definite
++  // undefined behavior; make it an error by default.  A user supplied
++  // `-Wno-error=varargs` comes later on the command line and downgrades it.
++  CC1Args.push_back("-Werror=varargs");
 +}
 +
 +void DADAOToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
