@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`ISS-243`（本册对应 issue，`open`；现场 = `LLVM-097t` 完成区「新发现/坑 ①」）、`contract-abi §4.4 C5`（窄返回由 callee 扩展、caller 不截断）/`§4.2`（符号/零扩展规则）、`ADR-0018 C5`；对照任务 = `LLVM-097t`（同族 `bswap32` 脏高位）/`LLVM-101t`（指针返回 bank）；用户 2026-10-18 裁定 **M8 内修**（逐字「1、可以；2、M8内修」，渠道 = 经主会话问答）。
-**状态**：待开始
+**状态**：待验收
 
 > **编号说明**：本册编号由主会话 2026-10-18 指定（`LLVM-105t`/`107t` 同批立册）；本册只做 `ISS-243`。
 
@@ -96,16 +96,35 @@ ret rd0, 0
 7. `check-patch-tree` / `check-index-blobs` / `check-source-state` 须绿（改 `components/**` 的补丁集完整性）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：通过（修前契约级探针 2 例 FAIL、修后 8/8 OK；lit 34/34；12 例 SingleSource 12/12；门控全 rc=0）。**L2/L3、047t/048t 全量与 musl 重建由主会话在 `install-host` 后执行**（本笔未跑）。
+**修改文件**：`components/llvm-project/patches/clang/lib/CodeGen/Targets/DADAO.cpp.patch`（**1 份改**；`series` 81 不变、`check-patch-tree` **180 不变**）、`components/llvm-project/changelog.md`（+1 条）、`tools/llvm/llvm-isa-backend-matrix.{tsv,md}`（行号重派生）、`tools/llvm/check_ret_canonical.py`（新增契约级探针，入 git）、本任务书；证据 `.work/evidence/LLVM-107t/**`（`.work` 不入 git）。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- **§4.4 C5 原文**：「**窄返回扩展**：`<8B` 返回值由 **callee** 按 §4.2 的符号/零扩展规则扩展为 canonical 64 位后再 `ret`；**caller 不截断**（可假定 `rd8`/`rb8` 为 canonical 64 位）」；**§4.2**：窄标量「保持符号位不变」、32 位整数占 RD 低 32 位并按类型符号性扩展。**⇒ 条款→证据**：① i32 `unsigned` → `addu(0xFFFFFFFF,1)` 修前 `0x0000000100000000`、修后 `0x0000000000000000`（`and.o rd8, rd4, 0xffffffff`）；② i32 `signed` → `neg(INT_MIN)` 修前 `0x0000000080000000`、修后 `0xffffffff80000000`（`sub.st`/`ext.so`）；③ i8/i16/i1 对照修前后均 canonical（`uc_inc=0`、`sc_inc=0xffffffffffffff80`、`us_inc=0`、`ss_inc=0xffffffffffff8000`、`bnot=1`），且汇编仍有 `and 0xff`/`ext.so 7`/`and 0xffff`/`ext.so 15`；④ caller 侧 IR 现为 `call zeroext/signext i32` 且**不再自带 `zext`**（证明扩展确由 callee 完成，非 caller 补偿）。
+- **诊断（四跳，逐跳带现场）**：clang `classifyReturnType` 对非聚合回落 `DefaultABIInfo`；后者只给「可提升到 int」类型（i1/i8/i16）`getExtend`，**i32/32 位枚举不在内** ⇒ IR `define i32 @addu`（无 ext）；`visitRet` 无属性⇒`ANY_EXTEND`；`RetCC_DADAO` 的 `CCPromoteToType` 生成 `AExt`；`LowerReturn` 的 AExt 分支是空操作 ⇒ `add.uo {rd0,rd8}` 直落 `ret`。
+- **修法 = (a)**：`classifyReturnType` 对 `isIntegralOrEnumerationType() && size<64` 统一 `ABIArgInfo::getExtend(RetTy, CGT.ConvertType(RetTy))`。依据：**(b)** 无法仅从后端拿到符号性（IR `i32` 无符号性、`CCPromoteToType` 已抹掉），只能靠 clang 属性；**(a)** 与 i8/i16 同源、不新增 ABI 特例、改动 1 文件，`RetCC`/`LowerReturn` 既有 SExt/ZExt 分支直接生效。
+- **覆盖**：i1 `_Bool`→zeroext、i8 signed/unsigned、i16 signed/unsigned、i32 `int`/`unsigned`、32 位 `enum`（zeroext/signext 按 underlying）；`long`（64 位）不加属性、汇编不变；复数/聚合路径未动。
+- **契约级探针**（`tools/llvm/check_ret_canonical.py`，手写汇编消费者直接 `st.o rd8,[rb16,0]`，独立 oracle = C 语义 + canonical 值）：修前（安装根 pre-107t）`addu`/`neg` **FAIL**、6 项对照 OK、rc=1；修后 8/8 **OK**、rc=0；`-O0/-O1/-O2/-Os/-O3/-fPIC`、`-verify-machineinstrs` 全过。
+- **无回归**：CodeGen lit **34/34**、`check_lit_gen` rc=0；12 例 SingleSource（`flops-1..8`/`dt`/`lowercase`/`fp-convert`/`mandel`）**12/12 pass**（构建树 codegen + 安装根 builtins archive；构建树 archive 缺 f128 builtins，非本笔）。
+- **门控**：`check-instrinfo`/`check_lit_gen`/`check-patch-tree`(**180**)/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-issues`/`make check`(L1) **各 rc=0**（`check-isa-coverage` 重派生后 rc=0）。
+- **证据脚本**：`.work/evidence/LLVM-107t/run.sh` default **rc=0**；`--inject` **rc=0**（I1 删 i32 mask→probe rc=1；I2 oracle 翻转→rc=1；I3 删 classify 分支→grep FAIL；md5 对账 + 默认回绿）。
+**新发现/坑**：① 本改动使**调用方 IR 不再自带 `zext`**（依赖 `zeroext/signext` 属性）⇒ **旧 musl 必须同批重建**：现 `libc.a`（pre-107t）下 047t `functional/env`（`setenv` 旧对象返回 `0x00000000FFFFFFFF`，打印 `-1/22` 正确但 64 位比较失败）与 `functional/inet_pton` 两例失败，属**预期不兼容**，`install-host`+`build-musl` 后复跑；② 构建树 `libclang_rt.builtins.a` 仍是 f128 前产物（缺 `__eqtf2`/`__extenddftf2`），而 musl 已按 binary128 重建 ⇒ 构建树直接链接会 blocked；本轮 12 例/探针显式使用安装根 archive（wrapper），**非 codegen 问题**，`install-host` 后自愈；③ `add_s(-1,-1)` 修前偶然 canonical（64 位加结果碰巧高 32 全 1），故探针以 `addu`/`neg` 作判别用例，`add_s` 只作补充 oracle；④ i32 属性变化会让旧目标文件（未重建的 libc/第三方 `.o`）与新调用方混链不兼容，须整批重建（`ADR` 兼容性口径）。
+**同批不兼容**：caller 不再自行 `zext` ⇒ 旧 musl 对象须同批重建 ✓（主会话已重建 ✓，`check-musl-freshness` PASS ✓）；`047t env`/`inet_pton` 待 `install-host` + 全量复跑确认 ✓。
+**遗留问题**：`install-host`/`build-musl`/L2/L3、`TESTCASES-047t`/`048t` 两档全量复跑由**主会话**执行（本笔未跑）；`ISS-243` 关闭由主会话按复跑结果处置；architect 提交后 `**状态**` = `待验收`；未 push（待 `/complete` 后由主会话 FF 推送）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+**审查范围**：`DADAO.cpp` 的 `classifyReturnType` diff、补丁、探针脚本、汇编、证据脚本。逐条核对：`getExtend` 只对 `<64` 整数/枚举；i8/i16 属性与修前一致（IR 对照）；`char`/`_Bool` 符号性由 `hasSignedIntegerRepresentation`；`long`/指针/浮点/聚合未受影响；caller IR 不再 `zext` 的语义（C5 允许）；探针为非 clang 消费者、oracle 手算。判决：实现与 C5/§4.2 逐条一致。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 注入 I1 先改 `add_s` 的 `ext.so`，但 `add_s(-1,-1)` 的 64 位加碰巧 canonical，注入后仍 rc=0（假绿风险） | ✅已修 | 改注入 `addu` 的 `and.o rd8` mask（高 32 位实际留脏） | `--inject` I1 rc=1；默认回绿 |
+| F2 构建树 builtins archive 缺 f128（`__eqtf2`），12 例/探针链接 blocked | ✅已绕行（披露） | 证据/门控显式用安装根 archive（wrapper）；不改组件 | 12/12、探针 rc=0；完成区坑② |
+| F3 旧 musl 下 047t `env`/`inet_pton` 失败（caller 不再 zext） | ⏸延后（主会话 rebuild） | 未改判据、未加补偿；完成区坑① | 修前/后 047t 现场留 `.work/log/llvm/LLVM-107t-047-*.log` |
+| F4 覆盖检查：i1/i8/i16/i32 × 有/无符号 + enum + long | ✅已修/已验 | 探针 8 例 + `enum.c` IR/asm 检查 | 8/8 OK；enum `zeroext i32`、long 无属性 |
 
 #### 第 1 轮 reviewer 验收
 （待填）
+
+#### architect 提交留痕（2026-10-19）
+档位：**WIP**（`**状态**` = `待验收`，未获 reviewer 判决）；开工分支 `LLVM-107t` 提交 `b433f74`，squash 落 `master`（单提交，本留痕随 amend 并入；**未 push**）。文件集 7 项对账：`DADAO.cpp.patch`（1 份改，`series` 81 不变）/ `changelog.md` / `check_ret_canonical.py`（新增探针）/ 本册 —— 与完成区「修改文件」一致；`tools/llvm/llvm-isa-backend-matrix.{tsv,md}` 重派生后**字节未变**（无 diff、无需提交）；另 `milestones.md` / `issues.yaml` / `INTEG-036m` 3 册为 architect 账面更新（完成区未列，属台账范围）。`check-patch-tree` **180** ✓。

@@ -1,9 +1,9 @@
 diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..b7e078f37
+index 000000000..684d34574
 --- /dev/null
 +++ b/clang/lib/CodeGen/Targets/DADAO.cpp
-@@ -0,0 +1,490 @@
+@@ -0,0 +1,499 @@
 +//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -215,6 +215,15 @@ index 000000000..b7e078f37
 +      return getNaturalAlignIndirect(RetTy,
 +                                     getDataLayout().getAllocaAddrSpace());
 +    }
++    // contract-abi.md §4.4 C5: a value narrower than 8 bytes is canonicalised
++    // by the *callee* (§4.2 sign/zero extension) before `ret`, and the caller
++    // may assume the full 64-bit register is canonical.  DefaultABIInfo only
++    // marks types that are promotable to `int` (i1/i8/i16); i32 (and 32-bit
++    // enums) are not promotable, so without this they would reach
++    // SelectionDAGBuilder as ANY_EXTEND and leave the high 32 bits dirty.
++    if (RetTy->isIntegralOrEnumerationType() &&
++        getContext().getTypeSize(RetTy) < 64)
++      return ABIArgInfo::getExtend(RetTy, CGT.ConvertType(RetTy));
 +    return DefaultABIInfo::classifyReturnType(RetTy);
 +  }
 +

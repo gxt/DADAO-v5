@@ -31,7 +31,7 @@
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
 | LLVM-105t | 待开始 | 2026-10-18 22:25（登记） | clang 崩 2 例（lencod/obsequi rc=-6）+ `ISS-253` wchar_t 符号性；先诊断；仅立册 |
-| LLVM-107t | 待开始 | 2026-10-18 22:25（登记） | i32 窄返回 callee canonical 化缺失（`contract-abi §4.4 C5`）；待诊断修法；仅立册 |
+| LLVM-107t | 待验收 | 2026-10-18 22:25（登记） | i32 窄返回 callee canonical 化：`classifyReturnType` 对 <64 位整型统一 `getExtend`；探针修前 2 FAIL→8/8、lit 34/34 |
 | LLVM-098t | 已验证 | 2026-10-18 22:22 | -fPIC 下 .rodata 仍发 ABS48（build-musl-shared EXIT=2）；诊断完成，reviewer Accepted |
 | LLVM-099t | 已验证 | 2026-10-18 22:22 | i64 rotl/rotr ISel 展开；reviewer Accepted |
 | TESTCASES-046t | 已验证 | 2026-10-18 22:22 | Embench 两档 38/38 + 38/38 已跑；reviewer Accepted |
