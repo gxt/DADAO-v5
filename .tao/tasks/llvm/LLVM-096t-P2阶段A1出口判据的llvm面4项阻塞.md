@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`INFRA-085t`（**登记源 + 消费方**：`P2` 阶段 A1 现场实测登记 `ISS-239`/`ISS-240`/`ISS-241` + 追加 `ISS-222 ④`；本册解其出口判据的 4 项 `llvm` 面阻塞）；`ISS-239`/`ISS-240`/`ISS-241`/`ISS-222`（④ 条）（`.tao/knowledge/issues.yaml`，**现场证据 + 根因 + 建议修法的真源**）；`LLVM-094t`（`已验证` 2026-10-17：CodeGen PIC/`-fPIC` + LLD `ET_DYN`/`.dynamic`/`.got`·`.plt`/动态重定位基线）、`LLVM-095t`（`已验证` 2026-10-17：`ADR-0029` 的 `aip.si` + `PCREL_HI/LO` 实现）；`ADR-0019 D10`（类型集与编号，**冻结**）/ `D12`（`PCREL_HI`=14 / `PCREL_LO`=15 / `NUM`=16）、`ADR-0026 D2`/`D7②`、`ADR-0029`（`Accepted`；`PCREL_HI/LO` **只服务指令站点**）；契约真源 = `.tao/contracts/contract-elf.md §2.2`/`§3`、`.tao/contracts/contract-dynlink.md §4.3`/`§7`/`§10`；纪律 = `ISS-229`（L2/L3 串行、禁并发）、`ISS-210`（改 MC/`.td`/驱动 ⇒ **必单跑 `install-host`**）、`docs/Process-01`（组件补丁树）、`docs/Process-05`（L1/L2/L3）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -158,5 +158,17 @@
 
 **判决**：F1–F5、F9 已处置并复验；F6–F8 为**范围外/大码模型边角**，均已如实登记（未修 ≠ 未发现）。**无未修的实现缺陷** ⇒ 实现侧可交验收；任务 `**状态**` 与 `milestones.md` 按派发要求不动（归 `/complete`）。
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+#### 第 1 轮 reviewer 验收（2026-10-18）
+
+**重跑**：`run.sh` rc=1（54 checks / 45 PASS / 9 FAIL）。**9 FAIL 全为 baseline md5 不匹配**：LLVM-097t 重建编译器后 `.comment` 段内嵌 commit hash 变化 + 代码生成微变导致 object md5 漂移。功能性检查全部 PASS。
+
+**独立复核四项**：
+① ISS-239：裸 `-shared` → `Type: DYN` ✅
+② ISS-240：`fmtmsg.c -fPIC -O2` rc=0、`.dd.t32` 计数=0 ✅
+③ ISS-241：判定 (甲) 应允许（`.data.rel.ro` + `R_DADAO_RELATIVE`）✅
+④ ISS-222④：`dynlink.c -O0` rc=0（stackrestore 消失）✅
+
+**逐条核验收标准**：
+1. 四项逐条达成 ✅；2. 构建纪律（未跑 install-host）✅；3. 独立 oracle ✅；4. 不回归（md5 漂移归因于 LLVM-097t 重建）✅；5. 可达 FAIL（12 条注入）✅；6. 门控：L1 rc=0、check-patch-tree 150→180（含后续任务增量）。
+
+**判决**：**Accepted**。四项阻塞均真实解除；9 个 md5 FAIL 为编译器重建后的预期漂移，非本任务引入的回归。

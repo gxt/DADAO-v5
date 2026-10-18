@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-096t`（`P2` 阶段 A1 的 4 项阻塞已解；其完成区「新发现/坑 1」+「遗留问题 ①」= **本册来源**）、`INFRA-085t`（**登记源 + 消费方**：阶段 A1 出口判据）、`ISS-222`（③ 条）/`ISS-193`（(c) 条）（`.tao/knowledge/issues.yaml` 现场证据真源）；`SPEC-142t`（`rev.{o,t,w,b}` 已落地 = `ADR-0012 D10`；语义真源 `contract-isa.md §6.4.3`、编码 A.8）；`ADR-0019 D10`/`D12`（类型集冻结，**不改**）；纪律 = `ISS-229`（禁并发）、`ISS-210`（改 `components/**` ⇒ 单跑 `install-host`）、`docs/Process-01`（组件补丁树）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -130,5 +130,16 @@ done
 | F6 `run.sh` 是否吞退出码（`tee`/管道） | ✅已核 | 无 `tee`；`make`/`ninja`/`clang` 均直接重定向后取 `$?`；`check-patch-tree` 计数用 `grep -oE` 现场提取 | `grep -n "tee"` 仅注释命中；28/28 PASS 与各 gate log 自身 rc 一致 |
 **判决**：F1/F2/F3/F6 已修并复验；F4/F5 为范围外/口径说明（不动代码）。无未修且在范围内的 finding ⇒ 实现完成，交 reviewer。
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+#### 第 1 轮 reviewer 验收（2026-10-18）
+
+**重跑**：`run.sh` rc=0（28/28 PASS / 0 FAIL）。`--inject no-action` 9/9、`--inject model-shift8` 3/3、`--inject expect8byte` 3/3（三条注入均 FAIL→cp+md5 还原→回绿）。
+
+**独立复核**：
+- 四档 `dynlink.c` 编译：`-O0` rc=0、`-O1` rc=0、`-Og` rc=0、`-Os` rc=0、`-O2` rc=0。`Cannot select` = 0 处。✅
+- bswap32 端序 oracle（独立手写 4 字节反转）：7/7 输入全过（`01020304→04030201`、`000000FF→FF000000` 等）。✅
+- 回归检查：strlen/memcpy/atoi 剥离 `.comment` 后与 LLVM-096t 基线逐字节相同。✅
+
+**逐条核验收标准**：
+1. 四档 rc=0 + 真实构建档 ✅；2. 独立 oracle（端序敏感）全绿 ✅；3. 构建纪律（未跑 install-host）✅；4. 不回归 ✅；5. 可达 FAIL（3 条注入）✅；6. 门控：L1 rc=0、check-patch-tree 180。
+
+**判决**：**Accepted**。bswap ISel 展开正确、四档全过、端序 oracle 独立验证、可达 FAIL 每条可证。

@@ -30,6 +30,11 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-086t | 已验证 | 2026-10-18 22:00 | 收口门控三条（milestone 册 / pending 标记 / 重定位表一致）；reviewer Accepted |
+| INFRA-087t | 已验证 | 2026-10-18 22:00 | strptime %s 语义归属与分类订正（以 musl 为准）；reviewer Accepted |
+| LLVM-096t | 已验证 | 2026-10-18 22:00 | P2 A1 llvm 面 4 阻塞已解（裸 -shared/PIC 表/stackrestore）；reviewer Accepted |
+| LLVM-097t | 已验证 | 2026-10-18 22:00 | i64 bswap 改 Expand：五档 rc=0、端序 oracle 7/7；reviewer Accepted |
+| LLVM-101t | 已验证 | 2026-10-18 22:00 | 可变参聚合 union semun + shmat 指针返回 bank 两缺陷；reviewer Accepted |
 | LLVM-103t | 已验证 | 2026-10-18 21:06 | flog libcall 补齐：LOG_F64/LOG10_F64 注册；CoMD 两档 pass；patch 173 |
 | TESTCASES-048t | 已验证 | 2026-10-18 21:06 | llvm-test-suite A 类两档 193/2/0/27；050t 后投影 197/2/21/2；B 类未跑 |
 | TESTCASES-049t | 已验证 | 2026-10-18 21:06 | libc-test 动态档用户 TU 改 -fPIC（ISS-259②）：COPY 7 例 pass；305/0/9/23 |
@@ -43,9 +48,6 @@
 | LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | A 段（brind）：LowerBRIND + BLOCK_ADDR、evalloop 两档 pass；B 段完成（三游标 ABI、printf 实测、consumer-lame 两档 pass）；余 D4 caller 侧 |
 | QEMU-063t | 待开始 | 2026-10-18 07:55（登记） | qemu-user 宿主信号 8 例 + unix-smail 卡死；诊断时间盒 1–2 h |
 | INFRA-079t | 已验证 | 2026-10-17 23:56 | compiler-rt builtins 全量：147 成员/14 libcall + 独立库 + driver 接线；L2 零回归 |
-| INFRA-087t | 待开始 | 2026-10-17 17:40（登记） | strptime %s 语义归属与分类订正（以 musl 为准）；只立册 |
-| LLVM-101t | 待开始 | 2026-10-17 17:40（登记） | 可变参聚合 union semun + shmat 指针返回 bank 两缺陷；只立册 |
-| INFRA-086t | 待开始 | 2026-10-17 16:44（登记） | 收口门控三条（milestone 册 / pending 标记 / 重定位表一致）；只立册 |
 | INTEG-036m | 待开始 | 2026-10-17 16:44（登记） | M8 收口核验册：三套两档如实分类 + 失败归因；P4 不作；现不满足置里程碑 |
 | TESTCASES-046t | 待开始 | 2026-10-17 14:52（登记） | Embench 两档 38/38 + 38/38 已跑；册状态仍 待开始（待收尾） |
 | TESTCASES-047t | 待开始 | 2026-10-17 14:52（登记） | libc-test 两档：静态 304/0/9/24、动态 305/0/9/23（excluded 30）；待收尾 |
@@ -54,8 +56,6 @@
 | LLVM-100t | 待开始 | 2026-10-17 13:06（登记） | __thread 用户变量 TLS codegen（TLSSupported + GlobalTLSAddress）；推 M9 |
 | LLVM-099t | 待开始 | 2026-10-17 11:39（登记） | i64 rotl/rotr ISel 展开；只立册、未开工 |
 | LLVM-098t | 待开始 | 2026-10-17 10:43（登记） | -fPIC 下 .rodata 仍发 ABS48（build-musl-shared EXIT=2）；首步诊断，未开工 |
-| LLVM-097t | 待开始 | 2026-10-17 10:00（登记） | i64 bswap 改 Expand：五档 rc=0、端序 oracle 7/7；无 reviewer 块 |
-| LLVM-096t | 待开始 | 2026-10-17 09:25（登记） | P2 A1 llvm 面 4 阻塞已解（裸 -shared/PIC 表/stackrestore）；无 reviewer 块 |
 | LLVM-094t | 已验证 | 2026-10-17 07:51 | LLVM/LLD PIC+动态：ET_DYN/.dynamic/仅 gnu.hash/rela.dyn+plt；静态零回归 |
 | LLVM-095t | 已验证 | 2026-10-17 07:51 | PCREL_HI/LO=14/15、NUM=16：rela.si 配对、PLT 12 B、GOT 2 条；①–⑤ 验收 |
 | QEMU-061t | 已验证 | 2026-10-17 07:51 | aip.si 解码/语义：rbHA=PC+(imms18<<12)；L2 90/90、L3 161/161；关 ISS-233 |

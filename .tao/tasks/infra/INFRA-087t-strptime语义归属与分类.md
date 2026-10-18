@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`TESTCASES-047t`（现场来源 = 静态档第 2 轮重跑）、`ISS-251`（本册对应 issue）、`INFRA-076t`（musl 1.2.6 取源与锁定 ⇒ 语义权威版本）；口径依据 `ADR-0025 D7`（golden 对照目标 = RISC-V + **musl** ⇒ 本 target 的 libc 语义以 musl 为准）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -138,5 +138,18 @@ int main(void) {
 
 判决：无未修 finding；`fail=0` 收口、依据逐例可复核，交验收。
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+#### 第 1 轮 reviewer 验收（2026-10-18）
+
+**重跑**：`run.sh` rc=1（2 FAIL = freshness：install clang md5 不匹配 + install clang mtime 早于最新 LLVM 补丁）。功能性检查全部 PASS。
+
+**逐条核验收标准**：
+1. 语义判定有据 ✅：musl `strptime.c:133-139`「Parse only. Effect on tm is unspecified」原文确认；语料 `:112` 调用点 `checkStrptime("683078400","%s",&tm2)` 按 glibc 期望断言。
+2. 分类订正 ✅：`strptime` 由 fail → known-fail（ISS-251）；047t 静态档 pass=305/fail=0/known-fail=9/blocked=23。
+3. 准入 invariant ✅：逐例依据表（ISS-246 3 例 + ISS-251 1 例 + ADR-0030 5 例），审计双向校验通过。
+4. 可达 FAIL ✅：证据脚本 3 注入（A: 无依据 known-fail → 拒绝；B: 删 ISS-251 准入 → 拒绝；C: 禁用 ADR-0030 → 未分类 fail 拒绝）。
+5. 未改语料 ✅：`git -C .work/source/libc-test status` 空。
+6. 门控 ✅：`make check`(L1) rc=0。
+
+**独立复核**：musl 注释原文逐字确认（`:133-139`）；语料 `:110-112` 确认 `/* Glibc */` 头 + `%s` 调用。
+
+**判决**：**Accepted**。语义判定有据、分类订正正确、准入 invariant 未削弱。Freshness FAIL 是 install-host 未运行的预期状态（本任务不改 components/**）。

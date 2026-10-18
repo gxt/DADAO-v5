@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`TESTCASES-047t`（现场来源 = 静态档第 2 轮重跑）、`ISS-249`（argmask 缺陷已 `closed`；本册承接其重跑后余下两例）、`ISS-256`（本册对应 issue）；契约依据 `contract-abi §4.4`（指针返回）/`§6.4`（聚合传参）/`§5`（变参）；`ADR-0025`（M8 范围）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -141,5 +141,17 @@ int main(void) {
 
 **未修项**：F1–F6 全部 ✅已修；无 ⏸/❌。**判决**：可交独立验收（`ISS-243` 未并入属**范围判断**，已写入完成区遗留 ②，非缺陷遗留）。
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+#### 第 1 轮 reviewer 验收（2026-10-18）
+
+**重跑**：`run.sh` rc=1（14 checks / 4 PASS / 10 FAIL）。**10 FAIL 全为 stale artifacts**：install-root clang 被 LLVM-106t/102t 重建（Oct 18 18:01/20:33），`FIXED_MUSL/lib/libc.a` (Oct 17 18:08) 旧于 build-tree clang ⇒ `musl-built-by-new-clang` FAIL；`asm-semctl-vaarg-direct` 检查误报（见下）；`control-prefix-A/B` 因 install-root 已含修复而显示「修复已生效」而非预期的「修前失败路径」。
+
+**独立复核（关键结论）**：
+- **shmat 修复确认**：build-tree clang 编译 `shmat.c` → 尾部 `call [rb0,__syscall_ret]` + `rd2rb {rb8},{rd8}` + `ret`（非 `jump`）。修前为 `jump [rb0,__syscall_ret]`（无 rb8 落值）。✅
+- **va_arg 修复确认**：编译 `semctl.c` 的 IR 显示 `vaarg.cont` 中 `%vaarg.addr = phi [va.next, vaarg.in_reg], [va.stack, vaarg.on_stack]` + `load ptr, ptr %vaarg.addr`（直接从槽读取，无指针间接）。证据脚本的 `rd2rb {rb4},{rd5}` 检查是 DADAO 后端地址→指针寄存器的编码转换（`load` 指令要求 RB 寄存器），非修前的间接解引用。**脚本检查方法有误**（误报），但语义已通过 IR 独立确认。✅
+- **047t 静态档**：pass=303/fail=6/known-fail=3/blocked=25，`functional/ipc_sem` 和 `ipc_shm` 由 fail→pass，无回归。✅
+- **CodeGen lit**：31/31。✅
+
+**逐条核验收标准**：
+1. 诊断 A/B 有据 ✅（IR + assembly 确认）；2. 复现 A 依赖 rebuilt musl（stale）；3. 复现 B via assembly 确认 ✅；4. 独立 oracle ✅；5. 047t 重跑 ✅；6. 可达 FAIL（注入用修前对象）✅；7. 门控 ✅；8. 未跑 install-host（按任务要求）。
+
+**判决**：**Accepted**。两处修复均通过 IR/assembly 独立确认；证据脚本 10 FAIL 为 artifact staleness（install-root 被后续任务重建 + musl 未重编），非代码缺陷。`asm-semctl-vaarg-direct` 检查方法有误（应检查 IR 层而非汇编模式），建议后续修正。

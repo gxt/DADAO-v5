@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`INFRA-080t`（门控覆盖补齐，`已验证`；同属「把结论落为机械判据」）；`INFRA-084t`（`check-component-changelog` 同批体例）；`docs/Process-07`（门控分层真源）；`TESTCASES-047t`（B4 的现场红点来源之一）；`ISS-229`（串行禁令）
-**状态**：待开始
+**状态**：已验证
 
 > **编号说明**：本任务由主会话直接下发（无任务书），工程方已用**临时 ID `INFRA-086t`** 落证据（`.work/evidence/INFRA-086t/`）⇒ 本册按该 ID 补立。`infra` 模块现场最大号 = `INFRA-085t` ⇒ `086` 递增；全仓（含历史）`git log -S INFRA-086t` **0 命中**。
 
@@ -62,8 +62,24 @@
 
 逐条记录（F1–F7 与判决）见 `.work/evidence/INFRA-086t/self-review.md`（**逐字保留**）。要点：F1/F5 = 门控照出的**既有陈旧**（B4 5 处），当时按「禁改 `.tao/contracts/**`」**如实报红、未顺手改**；F2 = A2 不按模块各一册；F3 = `check-milestone` 不入 `check-modules`（设计）；F4 = 册内自身 ID 也计入任务号（不影响幽灵号检出）；F6 = 当前里程碑取断言最大值；F7 = 临时树注入 + md5 对账。判决 = 三条门控已实现且各自可达 FAIL，无本任务交付面未修 finding；F1/F5 由 architect 另批处置（即本任务 B4 清理批）。
 
-#### 第 1 轮 reviewer 验收
-（审查者独立重跑、约束核验、判决）
+#### 第 1 轮 reviewer 验收（2026-10-18）
+
+**重跑**：`run.sh` default rc=1（40 checks / 1 FAIL = A2 no-book 测试过期：INTEG-036m m-book 已存在，删 INFRA-900m 后临时树仍有 m-book ⇒ 预期红变实际绿）。**脚本 stale**，非门控缺陷。
+
+**独立复核三条门控**：
+- B4 `check_contracts_pending.py` rc=0（12 契约 / 3785 行 / 0 待定标记）✅
+- B5 `check_contract_relocs.py` rc=0（两表各 17 条 / 号 0..16 一致）✅
+- A2 `check_milestone_tasks.py` rc=0（M8 有 INTEG-036m m-book / 38 任务号全存在）✅
+
+**Makefile 链路**：B4/B5 入 `make check`(L1) ✅；A2 = milestone closure 专用 target（不入 L1）✅。
+
+**独立注入（2 次）**：
+① B4 临时树注入 bare `TODO`（无编号指针）→ rc=1 + `VIOLATION: contract-abi.md:358` → 还原 → rc=0 ✅
+② B5 临时树注入 name drift（`REL26→REL20`）→ rc=1 + 2 项 `VIOLATION` → 还原 → rc=0 ✅
+
+**门控**：`make check`(L1) rc=0；`check-patch-tree` 180/0；`check-milestones-fresh` rc=0。
+
+**判决**：**Accepted**。三条门控均可达 FAIL、层次正确、L1 链路完整。证据脚本 A2 测试因 INTEG m-book 存在而过期（脚本设计假设仅 INFRA 有 m-book），属脚本 stale，非交付缺陷。
 
 #### 第 2 轮 engineer 自审（`ISS-263` 假红修复，2026-10-17 23:08–23:16）
 
