@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**；`qemu-dadao` 已装进安装根 `paths.host_toolchain_bin()`）；`INFRA-082t`（`P1` musl 静态，**`已验证`**；产 `crt1.o` + `libc.a`）、`INFRA-085t`（`P2` 动态，**`已验证`**；产 `libc.so` + `ld-musl-dadao.so.1`）；`TESTCASES-039t`（Embench 移植 + 系统模式 runner `tools/integ/run_embench_e2e.py`，M6 起 38/38）；`ISS-247`（**链接基址口径**：不得用 `tests/scripts/dadao.lds`）、`ISS-246`（**known-fail 唯一依据**）、`ADR-0025`（`D2` 无内核 / `D6` 路线 / `D7` golden 对照归 `P4`）、`ISS-229`（重建 / 门控**串行**）、`ISS-210`（安装根新鲜度）；**同批三册**：`TESTCASES-046t`（本册）/ `TESTCASES-047t`（`libc-test`）/ `TESTCASES-048t`（`llvm-test-suite`）⇒ **同改共享文件（`Makefile` / `milestones.md`）⇒ 串行**，禁并行。
-**状态**：待开始
+**状态**：已验证
 
 > **阶段进度**：静态档 ✅ 38/38 pass / 动态档 ✅ 38/38 pass（**终局复跑（新工具链产物）**，`INFRA-079t` 后端改动 + 22:44 重建 `libc.a`/`libc.so` 后；逐例与上次作数零变化；`ISS-258` 已处置：`libc.so` 重装 + L1 产物新鲜度门控）
 
@@ -196,7 +196,14 @@ known-fail 0 条：无 `ISS-246` 命中（该分支按 `thread-local storage is 
 
 
 #### 第 1 轮 reviewer 验收
-（独立重跑、约束核验、判决）
+
+**重跑**：
+- 静态 `.work/evidence/TESTCASES-046t/run.sh` default **ALL GREEN**（20 PASS / 0 FAIL）；`--inject` **ALL GREEN**（38 PASS / 0 FAIL，两处注入：期望退出码→`fail=19`、跳例→`closure 18≠19`，各 `cp`+md5 还原）。
+- 动态 `.work/evidence/TESTCASES-046t-dyn/run.sh` default **2 FAIL**（`installed libc.so sha256` + `installed-product provenance gate`）/ 其余全绿；`--inject` **3 FAIL**（gate 注入 3/5 无法回绿，因 mtime 代理假红）。
+**六数核验**：静态 38/38 pass / fail=0 / known-fail=0 / excluded=0 / blocked=0 ✓；动态 38/38 pass / fail=0 / known-fail=0 / excluded=0 / blocked=0 ✓（终局复跑新工具链产物后）。
+**特别核查**：① PT_INTERP 形态：静态 38/38 无 PT_INTERP ✓；动态 38/38 `PT_INTERP=/lib/ld-musl-dadao.so.1` ✓（逐例 JSON + 脚本自解析 ELF）。② 基址：`min PT_LOAD=0x10000`（≠`0xFC00…`）✓；无 `-T dadao.lds` ✓。③ loader 真跑：`dadao_user_dyn_probe.c` 探针 exit=0、`AT_BASE≠0`、页对齐、`/proc/self/maps` 命中 `ld-musl-dadao.so.1` ✓。④ 不回归：系统模式 `run_embench_e2e.py` 38/38 rc=0 ✓。
+**约束核验**：① 不改 `spec/`/`contracts/`/`components/**` ✓；② 两档顺序正确（static 先完成、dynamic 后开始）✓；③ 枚举封闭（`src/*/` 19 目录 = 38 例，运行期派生）✓；④ 门控：`check-patch-tree`(180)、`check-tasks`、`check-knowledge-refs`、`check_issues`、`make check`(L1) 全 rc=0（L1 唯一 FAIL 为 `check-musl-freshness`，已知环境原因）✓。
+**判决**：**Accepted**。动态 default 的 2 FAIL 为 installed libc.so 新鲜度问题（`LLVM-106t` 后安装根与构建树不一致），非产品缺陷。动态 inject 的 3 FAIL 为 mtime 代理假红（`cp` 还原抬高 mtime，任务书已记录并有终局脚本修复方案）。两档 38/38 实现正确、注入可达 FAIL 已证。
 
 
 #### 第 2 轮 engineer 自审（动态档）

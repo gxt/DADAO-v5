@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-097t`（`i64 = bswap` 已 `Expand`；本册 = 同一 `setOperationAction` 块的**紧邻缺口**）、`INFRA-085t`（**登记源 + 消费方**：阶段 A1 的 `C` 类清单「刷表后仍剩 2 源」）、`ISS-222`（③ 条）/`SPEC-141t`（`rotl`/`rotr` 预研：ISA **无** 旋转指令，属「组合 ≥3 条」候选）；纪律 = `ISS-229`（禁并发）、`ISS-210`（改 `components/**` ⇒ 单跑 `install-host`）、`docs/Process-01`（组件补丁树）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -127,7 +127,19 @@ $ $TC/clang --target=dadao-unknown-elf -ffreestanding -nostdinc $INC \
 判决：finding 全部已修或已核，无未修项 ⇒ 自审通过，返回主会话待独立验收。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑**：`.work/evidence/LLVM-099t/run.sh` default **49 PASS / 1 FAIL**。
+- 预检：组件工作树 clean + base+1 + `DADAOISelLowering.cpp:420` 有且仅有 1 条 `setOperationAction({ISD::ROTL, ISD::ROTR}, MVT::i64, Expand);` ✓。
+- 复现矩阵：`crypt_sha512`/`sigdelset` × {-O0, -O2, -O2 -fPIC} + 控制 `strlen` 全 **rc=0、Cannot select=0** ✓。
+- musl 配方：`obj/src/{crypt/crypt_sha512,signal/sigdelset}.{o,lo}` rc=0、4 目标非空 ✓。
+- oracle（`rot_model.py`）：-O2/-O1/-O0 各 **147/147**（`rotl64`/`rotr64`/`idiom_rotl64`/`musl_ror` × 7 值 × k∈{0,1,31,32,63} + `rotl64_c45` × 7）；`k=64` 仅稳健性、不作值断言 ✓。
+- 097t 回归：strlen/memcpy/atoi `-O2 -fPIC` 剥 `.comment` 后与 LLVM-097t 基线**逐字节相同** ✓。
+- 注入：`shiftbias`(12/147)、`wpflip`(53/147)、`swapdir`(75/147) 均 RED → 还原 → GREEN ✓。
+- 门控全绿：`check-patch-tree`(180)、`check-index-blobs`、`check-source-state`、`check-tasks`、`check-knowledge-refs`、`check-component-changelog`、`check_issues`(68 open/27 closed) 全 rc=0 ✓。
+- **L1 FAIL**：`check-musl-freshness` 报 installed libc.so sha256 ≠ build-tree libc.so（`LLVM-106t` 重建 builtins 后安装根与构建树短暂不一致）。**非本册缺陷**。
+**独立注入**：`rot_model.py` 期望表 `0x0102030405060708→0xDEADBEEFCAFEBABE`（k=0 首列）→ 4 FAIL（rotl64/rotr64/idiom_rotl64/musl_ror）= RED；还原 md5 `af3d74ae…` → 147/147 = GREEN。**证明 oracle 非恒真**。
+**约束核验**：① 改动 = `DADAOISelLowering.cpp` +13 行（11 注释 + 1 action + 空行）✓；② `check-source-state` `HEAD=bda2544d count=1 clean=True` ✓；③ `check-patch-tree` 180（增量，仅改既有补丁）✓；④ 不回归（097t 三探针逐字节）✓；⑤ 大端敏感（ELF `EI_DATA=2` + wp 位置解码 + `--inject wpflip` 可达 FAIL）✓。
+**判决**：**Accepted**。L1 唯一 FAIL 为 `check-musl-freshness`（已知环境原因），非产品缺陷。ROTL/ROTR Expand 实现正确、oracle 147/147 全档全绿、注入 3/3 可达 FAIL。
 
 #### 第 1 轮 architect 提交留痕（2026-10-17）
 

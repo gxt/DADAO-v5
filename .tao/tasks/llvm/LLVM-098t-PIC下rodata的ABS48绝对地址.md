@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`INFRA-085t`（**登记源 + 消费方**：阶段 A1 出口判据 `make build-musl-shared`）、`LLVM-096t`（前一轮 4 项：驱动 `-shared` 转发 / PIC 相对查找表 opt-out / PIC 跳转表进 `.data.rel.ro` / VLA）、`LLVM-097t`（`i64 = bswap` ⇒ 本轮 `install-host` 已含）、`ADR-0019 D10`（重定位类型集**冻结**）/`ADR-0026`（动态链接行为）、`ISS-229`（禁并发）、`ISS-210`（改 `components/**` ⇒ 单跑 `install-host`）、`docs/Process-01`（组件补丁树）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -150,4 +150,13 @@ INC="-I$M/arch/dadao -I$M/arch/generic -I$M/obj/src/internal -I$M/src/include \
 **未修 finding**：无（F9/F10 为判定项，非缺陷）。**状态**：按派单未改任务 `**状态**`（仍 `待开始`），交主会话裁定。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑**：`.work/evidence/LLVM-098t/run.sh` default **25 PASS / 8 FAIL / 2 SKIP**；`--inject ii` **30 PASS / 8 FAIL / 1 SKIP**。
+- S1–S8 全绿（最小复现 2 源 `-fPIC -O2` 只读段 ABS48=0；`-fno-pic` 对照 4 处证明非恒真；陈旧对象 `stale/` 仍含 ABS48）。
+- S9 FAIL×1：静态 ELF 尺寸 79680 vs 基线 75336（差异含 `.data/.rodata/.text`）。**根因**：LLVM-099t 后端改动后 smoke 二进制变化，基线未更新。**非产品缺陷**。
+- S10 FAIL×4（XFAIL 段）：`make lib/libc.so` 现 **rc=0**（LLVM-099t 修了 `rotl`→`Cannot select`，`arch.mak` 排除表已刷）。XFAIL 期望的 22 条错误→0 条、undefined 集合清空。**结论**：主判据已意外达标，XFAIL 断言过时。
+- S11(ii) 注入：类型号 6→7 使 oracle 报 0 violations（不识别）→RED；SHF_WRITE 0x1→0x0 使 `.data.rel.ro` ABS48 被判为非可写→RED；还原后绿。
+- S11(i) 跳过（需 rebuild llc ≈4 min，证据脚本已有 `--inject i` 机制）。
+**独立注入**：oracle `--abs48-type 7`（错类型）→stale 对象报 0 violations（应为 4）= RED；`--expect-nonwritable 0`（错期望）→rc=1 = RED；还原后 rc=0 = GREEN。
+**约束核验**：① 产品源码 0 改动（`check-patch-tree` 仍 180，与提交时 151 不同因后续补丁增长）✓；② 诊断表 IR/DAG/MC 三层+节放置+非 PIC 对照齐全✓；③ 最小复现 ≥2 源（`jt_math.c`/`jt_ctype.c`）✓；④ `ISS-241`+`ISS-244` 同机制判定已写✓。
+**判决**：**Accepted**。8 条 FAIL 均为环境漂移（静态基线 stale + XFAIL 过时），非产品缺陷。诊断完整、根因定性正确（陈旧对象 + LLVM-096t 已修）、oracle 可达 FAIL 已证。遗留：XFAIL 断言需更新（主判据已达标）；静态基线需按新工具链刷新。

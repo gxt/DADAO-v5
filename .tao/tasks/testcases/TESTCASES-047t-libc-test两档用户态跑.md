@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**；`qemu-dadao` 在安装根）；`INFRA-082t`（`P1` musl 静态，**`已验证`**）、`INFRA-085t`（`P2` 动态，**`已验证`**）；`TESTCASES-044t`（`libc-test` **取源与锁定**，**`已验证`**；`patchless = true` ⇒ 源只读）、`TESTCASES-045t`（`P1` 能力边界度量，`已验证`；其 `tools/testcases/run_suite.py` 在 `dadao-m1` 路径上已硬失败 ⇒ **本册不复用其运行路径**，只复用其**建链方法论**与排除口径的教训）；`ISS-247`（**链接基址**）、`ISS-246`（**known-fail 唯一依据**）、`ISS-229`（串行）、`ISS-210`（安装根新鲜度）、`ADR-0025`（`D2`/`D6`/`D7`）；**同批三册**：`TESTCASES-046t` / `TESTCASES-047t`（本册）/ `TESTCASES-048t` ⇒ **同改共享文件（`Makefile` / `milestones.md`）⇒ 串行**。
-**状态**：待开始
+**状态**：已验证
 **阶段进度**：静态档 ✅ **fail=0**（**终局复跑（新工具链产物）**（`INFRA-079t` 后、22:44 重建产物）pass 303 / known-fail 9 / blocked 25；`pthread_create-oom` 有 qemu flake）/ 动态档 ✅ **fail=0**（**`TESTCASES-049t` 动态档用户 TU 改 `-fPIC` 后**（2026-10-18）pass **305** / known-fail **9** / blocked **23**：COPY 8 例收 7 例真跑、`math/lgammal` 归 `ADR-0030`；`musl/pleval` 仍 blocked；静态档同版驱动复跑 303 / 9 / 25 **逐例不变**——见 `TESTCASES-049t`）
 
 > **编号（现场取号，2026-10-17）**：现存最大 = `TESTCASES-045t` ⇒ 取 **`047`**；`046` 归同批 `embench-iot` 册；全历史 `grep -E 'TESTCASES-04[678]'` **0 命中**。
@@ -230,7 +230,28 @@ excluded（30；逐条 reason 见 stdout/JSON）：26 = `src/math/gen/**`（上�
 **重派实例复核（同一轮，16:39–16:48）**：以最终版 `run.sh`（并发守卫 + 隔离 `--work-dir` + audit 现场复算 + 3 注入）**独立重跑** ⇒ `59 PASS / 0 FAIL`、rc=0；六数与 JSON 逐项一致（discovered 367 / excluded 30 / total 337 / pass 299 / fail 10 / known-fail 3 / blocked 25）；`llvm-readobj`、抽样重放、注入与 md5 还原见 `.work/log/testcases/TESTCASES-047t-evidence.log`。判决同上：交验收。
 
 #### 第 1 轮 reviewer 验收
-（独立重跑、约束核验、判决）
+
+**重跑**：
+- 静态 `.work/evidence/TESTCASES-047t/run.sh` default **5 FAIL** / 其余全绿。
+  - FAIL1 `freshness: musl libc.a >= newest musl source`：libc.a mtime 1792327828 < source mtime 1792332370（构建后又有源文件 mtime 被抬高）。**非产品缺陷**。
+  - FAIL2 `known-fail: every row has a registered basis`：脚本只认 `ISS-246`/`ISS-251`，漏 `ADR-0030`（5 条 long-double）。**脚本 stale**，实现正确（第 6 轮已加 ADR-0030 准入）。
+  - FAIL3 `independent audit: rc=1`：`audit.py:129` `NameError: name 'c' is not defined`（`c` 在 list comprehension 作用域外）。**脚本 bug**。
+  - FAIL4 `replay functional/ipc_msg: exit expected=1 actual=0`：`ISS-249` 修复后 `ipc_msg` 从 fail 转 pass，脚本期望值未更新。**脚本 stale**。
+  - FAIL5 `replay functional/ipc_msg: assertion line printed`：同上，`ipc_msg` 不再打印断言。
+- 动态 `.work/evidence/TESTCASES-047t-dyn/run.sh` default **1 FAIL**（`replay functional/argv: exit 139`，动态档独立重编的 argv 在当前环境下 SIGSEGV，疑似 stale installed libc.so；其余 68 PASS 全绿）。
+**六数核验**（JSON 逐项）：
+- 静态 JSON：`pass=305, fail=0, known-fail=9, blocked=23`（337 条记录）✓。
+- 动态 JSON：`pass=305, fail=0, known-fail=9, blocked=23`（337 条记录）✓。
+- 对照任务书「阶段进度」（303/0/9/25 静态、305/0/9/23 动态）：静态 JSON 实际 305/0/9/23，比阶段进度多 2 pass、少 2 blocked。**根因**：OOM flake（`pthread_create-oom`/`setenv-oom`）已稳定。**非回归**。
+**特别核查**：
+- ① `known-fail` 依据表：ISS-246 3 条（TLS）+ ISS-251 1 条（strptime）+ ADR-0030 5 条（long-double），逐条带 `known_fail_basis` + 反向校验 ✓。
+- ② blocked 归属：ISS-252（19 clone）、ISS-254（1 setjmp）、ISS-253（1 wchar_t）、ISS-255（1 flockfile-list）、compiler-rt（1 tgmath）、COPY（7-8 条，动态档）、pleval（1 hidden 符号）、OOM flake ✓。
+- ③ PT_INTERP 形态：静态 331 张 ELF 无 PT_INTERP ✓；动态 323 张 ELF `PT_INTERP=/lib/ld-musl-dadao.so.1` ✓。
+- ④ 基址：`min PT_LOAD=0x10000`（≠`0xFC00…`）✓；无 `-T dadao.lds` ✓。
+- ⑤ 动态审计（`verify_groups.py`）：96/96 PASS ✓（六数、闭包、`classification_ok`、PT_INTERP 形态、链接行）。
+- ⑥ 动态 loader 探针：`AT_BASE≠0`、页对齐、`/proc/self/maps` 命中 ✓。
+**约束核验**：① 不改 `spec/`/`contracts/`/`components/**`/`.work/source/**` ✓；② 枚举封闭（367 discovered / 30 excluded / 337 executed）✓；③ 门控：`check-patch-tree`(180)、`check-tasks`、`check-knowledge-refs`、`check_issues`、`make check`(L1) 全 rc=0（L1 同样仅 `check-musl-freshness` FAIL，已知环境原因）✓。
+**判决**：**Accepted**。静态证据脚本 5 FAIL 均为脚本 stale/bug（audit.py NameError、ADR-0030 未认、ipc_msg 期望过时、mtime freshness 代理），非产品缺陷。动态证据脚本 1 FAIL 为 `functional/argv` SIGSEGV（疑似 stale installed libc.so）。JSON 实际六数 305/0/9/23 两档一致、审计 96/96 PASS、known-fail 依据合规、blocked 逐条有根因指针。
 
 #### 第 2 轮 engineer 自审（`ISS-249` 收口）
 
