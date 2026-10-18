@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-user` 的 DADAO 后端，**`已验证`**）；`INFRA-082t`（`P1` musl 静态，**`已验证`**）、`INFRA-085t`（`P2` 动态，**`已验证`**）；`LLVM-093t`（`llvm-test-suite` **取源与锁定**，**`已验证`**；锁 `commit 2919e551…`〔tag `llvmorg-23.1.3` peel〕，`patchless = true` ⇒ 源只读；**其「基线跑触发条件 = musl 静态/动态链跑通」现已满足**）；`TESTCASES-045t`（首份分类统计，`已验证`；其 `run_suite.py` 在 `dadao-m1` 路径上已硬失败 ⇒ **本册只借方法论，不复用运行路径**）；`ISS-247`（**链接基址**）、`ISS-246`（known-fail 依据）、`ISS-229`（串行）、`ISS-210`（安装根新鲜度）、`ADR-0025`（`D2`/`D6`/`D7`）；**同批三册**：`TESTCASES-046t` / `TESTCASES-047t` / `TESTCASES-048t`（本册）⇒ **同改共享文件 ⇒ 串行**。
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-17）**：现存最大 = `TESTCASES-045t` ⇒ 三册顺取 `046`/`047`/`048`；全历史 `grep -E 'TESTCASES-04[678]'` **0 命中**。
 
@@ -155,7 +155,25 @@
 **未做/边界**：全量未跑（第 2 步）；B/C 未跑；未新增外部依赖（fpcmp 由语料 `tools/fpcmp.c` + host cc 构建）；未改 `spec/`/`contracts/`/`.work/source/**`；未 commit/push。
 
 #### 第 1 轮 reviewer 验收
-（独立重跑、约束核验、判决）
+
+**重跑记录**（step2 证据脚本）：default rc=0（8 CHECK 全 PASS）：
+1. py_compile ✓ + 4 个 artifact 存在 ✓
+2. 六数自洽：static 222/193/2/0/27/0, dynamic 同，closure_ok=True, classification_ok=True ✓
+3. 两档同枚举快照（222 cases, oracle/TU 零 diff）✓
+4. jpeg-6a/mpeg2dec test data staged + PASS ✓
+5. builtins 在 link_cmd（mandel/mandel-2/RSBench 两档 pass）✓
+6. gnugo md5 oracle + exit 1（两档 pass）✓
+7. 注入 A：--inject-wrong-oracle hello → rc=1, 恰 hello fail → 恢复后 rc=0 ✓
+8. 注入 B：参考文件 corrupted → rc=1, cp+md5 还原 → rc=0 ✓
+
+**约束核验**：未改 spec/contracts/components/语料 ✓；未提交 git ✓；check-patch-tree 180 ✓
+
+**特别核查**：
+- 两档计数一致：total=222, pass=193, fail=2, known-fail=0, blocked=27, excluded=0 ✓
+- blocked 27 条全部有根因指针（Cannot select/undefined symbol/timeout after/host signal/compile error/link error）✓
+- fail 2 条（ft/ClamAV）有 first_error + ISS-265 登记 ✓
+
+**判决**：**Accepted** — 8/8 CHECK 全绿、2 注入均可达 FAIL 且还原、计数与 JSON 逐条对齐。
 
 #### 第 2 轮 engineer 自审
 **范围**：第 2 步新增/改动代码逐行（`llvm_test_data`/`include_directories` 解析、run-dir 输入复制、`--start-group` 链接、md5 oracle、builtins 解析）+ 两档全量产物复核 + 证据脚本实跑（17/17 PASS）；判决 = finding 全部已修（按下笔指令**不改 `**状态**`**）。

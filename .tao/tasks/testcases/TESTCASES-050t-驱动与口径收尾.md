@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：`TESTCASES-048t`（A 类 222 两档真值 `193/2/0/27/0`；本册承接其 `blocked 27` 中的「缺头 3 / 超时 6 / `siod`」与口径面）、`TESTCASES-047t`（静态档 `tgmath` blocked 的现场）、`INFRA-088t`（driver 默认接 compiler-rt，本册只补测试驱动侧）、`ISS-267`（缺头/方言登记源）、`ISS-265`（参考可移植性，**不在本册处置**）、`ISS-248`（`blocked>0 ⇒ rc=1`）、`ADR-0025`（M8 范围）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -133,7 +133,30 @@
 
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+
+**重跑记录**：default 30/30 PASS rc=0；inject 含在 default 中（4 注入 A/B/C/D 全红 + cp+md5 还原 + 复跑回绿）。
+
+default 关键项：
+1. 驱动编译 + 7-case/measure/lua JSON 存在 ✓
+2. 超时表：lemon 480/lua 840/SimpleMOC 480/mafft 1620/nbench 480，unix-smail 不在表（default 300）✓
+2b. 10 例小样本两档 10/10 与 048t 同类 ✓
+3. include：archie-client/Polybench 模板走 unit-dir-fallback，SMG2000 走 cmake，220 例遮蔽扫描 0 ✓
+4. 超时结果：lemon/lua blocked（平台缺口/信号），SimpleMOC/mafft/nbench pass（>300s，预算命中）✓
+5. 逐例转移：7 条与声明一致 + 2 exclusion（siod/office-ispell）✓
+6. tgmath：static pass + builtins on link line，dynamic pass + builtins absent ✓
+
+inject 关键项：
+- D：empty-excluded → 拒绝；real artifact → 通过 ✓
+- A：--inject-wrong-oracle hello → rc=1, 恰 hello fail → 恢复 rc=0 ✓
+- B：CASE_TIMEOUTS 清空 → 审计拒；cp+md5 还原 → 通过 ✓
+- C：builtins 移除 → tgmath blocked(__muldc3)；cp+md5 还原 → pass ✓
+
+**特别核查**：
+- include 真从 CMake 声明解析：archie 无声明 → unit-dir-fallback，SMG2000 有声明 → source=cmake ✓
+- 超时表按实测：`ceil((实测+120)/60)*60` 逐项审计通过 ✓
+- siod excluded 理由：BSD `d_namlen`（目标无 linux 预定义 → BSD 分支）✓
+
+**判决**：**Accepted** — 30/30 全绿、4 注入全红且还原、特别核查三项确认。
 
 #### 第 1 轮 architect 提交与文件集审核（2026-10-18；**只追加**）
 - **档位**：reviewer 第 1 轮**尚无判决**（占位未填）⇒ 流程档位本应 `WIP:`；本笔按派单给定文案**逐字提交**（无前缀）⇒ **如实披露**（同 `INFRA-079t` 先例）。**提交号**：随本条同 commit 落地 ⇒ 不内嵌自身 hash；现场取证 = `git log --oneline -1`。只 `commit`、**未 `push`**；`merge --ff-only` 落地 `master`。

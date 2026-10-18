@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：`TESTCASES-047t`（两档 runner + 第 5 轮动态档真值 `298 / 0 / 8 / 31`；任务级 `状态` 仍 `待开始`）；`ISS-259`（用户裁定 ②，`open`）；`ADR-0026 D7②` / `contract-dynlink §10②`（COPY 不发射的**契约依据不变**，本册只在**测试侧**规避）；`ISS-247`（基址 = lld 默认 `0x10000`，禁 `-T dadao.lds`）；`ISS-248`（`blocked>0 ⇒ rc=1` 口径）、`ISS-250`/`ADR-0030`（`math/lgammal` 归 `known-fail`）、`ISS-229`（同时只跑一个测试集）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -79,4 +79,24 @@
 判决：本笔 finding 全部处置完毕（F3 为跑法说明、非代码缺陷）；两档真值、逐例记账、证据脚本与门控均完成。按本次派单**不改**本册 `**状态**`（保持 `待开始`，由主会话收尾时更新）。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立重跑、约束核验、判决）
+
+**重跑记录**：default 62 PASS / rc=0；inject 87 PASS / rc=0（含 3 注入全红 + cp+md5 还原 + 复跑回绿）。
+
+default 关键项：
+- 动态 pass=305/fail=0/known-fail=9/blocked=23, total=337, discovered=367, excluded=30 ✓
+- 静态 pass=303/fail=0/known-fail=9/blocked=25（逐例 class+exit 与基线零 diff）✓
+- 转移恰 8 条：7 blocked→pass + 1 lgammal blocked→known-fail(ADR-0030) ✓
+- musl/pleval 仍 blocked（__pleval）✓
+- 动态 416 TU 各含恰好 1 个 -fPIC 且在 -c 前 ✓
+- 静态 0 个 -fPIC + flag 表与 HEAD 相等 ✓
+- 8 张新链镜像 PT_INTERP=/lib/ld-musl-dadao.so.1, base=0x10000, 无 -T ✓
+
+inject 关键项：
+- I1 清空 DYNAMIC_USER_CFLAGS → 8 COPY 例真跑重回 blocked + -fPIC 审计拒 ✓
+- I2 functional/env 改回 blocked → 转移审计拒 ✓
+- I3 给 BASE_CFLAGS 注 -fPIC → 静态真跑含 -fPIC + 零变化审计拒 ✓
+- 全部 cp+md5 还原后回绿 ✓
+
+**特别核查**：静态档逐例零变化已独立验证（baseline-static vs current-static：337 例 class/exit 零 diff）✓
+
+**判决**：**Accepted** — 62+87 CHECK 全绿、3 注入全红且还原、静态零变化确认。

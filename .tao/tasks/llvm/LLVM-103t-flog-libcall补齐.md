@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`TESTCASES-048t`（现场来源 = A 类 222 单元 × 两档全量，`blocked 27` 中的 2 例；两档一致）、`ISS-267`（登记源，本册承接 ④）；同族先例 = `LLVM-080t`/`LLVM-087t`（f64/f32 取整与极值 libcall）、`ISS-193(b)`；契约依据：`contract-isa`（无 FP `log` 指令 ⇒ 必走库调用）、`ADR-0027`（compiler-rt 接入，与本册无关但同构建面）、`ADR-0025`（M8 范围）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -104,7 +104,26 @@ int main(void) {
 | F6 任务书期望 consumer-lame 转绿，但 `timestatus.c` 变参寄存器耗尽属 `LLVM-102t`（待开始），本册不可修 | ⏸延后 | 未改（越界）；已把「flog→flog10→varargs」链与现场原文写入完成区/证据 | 两档均 `blocked` 且 reason 含 varargs；`json_check … residual` rc=0 |
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+
+**重跑记录**：
+- default rc=0（18 CHECK 全 PASS）：src-log-f64 / src-log10-f64 / patch-log-f64 / patch-log10-f64 / series-vs-patches(81=81) / check-patch-tree(180) / llc-log / llc-log10 / lit-p1-fp-libcall-log / e2e-dlog(0/0/0/0, y=1.000000) / comd-static(pass) / comd-dynamic(pass) / consumer-lame-static(blocked, varargs) / consumer-lame-dynamic(blocked, varargs) / build-tree-fresh
+- inject rc=0（4 注入全红 + originals-untouched + 复跑回绿）：I1 删 LOG_F64→grep miss(1) / I2 wrong-symbol(1) / I3 flipped-FileCheck(1) / I4 wrong-oracle(y=2.302585≠1.000000) / md5 before=after
+- check-patch-tree: 180 patches OK（与 050t 同次；LLVM-103t 不增补丁文件）
+- `llvm-nm libc.a`：T log / T log10 各 1 命中；builtins 0 命中 ⇒ musl 归属 ✓
+
+**约束核验**：
+- 只改 components/llvm-project/** + 本任务书 ✓（未触碰 spec/contracts/语料）
+- 补丁纪律：1 写 / 77 未变（series 81，check-patch-tree 180）✓
+- 未提交 git / 未 push ✓
+- 独立注入：temp copy 删 lit CHECK 中 `call [rb0, log]` → `WRONG_SYMBOL` ⇒ FileCheck rc=1 ✓；原文件 md5 未变 ✓
+
+**特别核查**：
+- LOG_F64 真注册：源文件 L129 `Info.setLibcallImpl(RTLIB::LOG_F64, RTLIB::impl_log)` ✓
+- LOG10_F64 真注册：源文件 L138 `Info.setLibcallImpl(RTLIB::LOG10_F64, RTLIB::impl_log10)` ✓
+- 符号归属：musl `libc.a` 有 `T log` / `T log10`；builtins 0 命中 ✓
+- consumer-lame 仍 blocked 根因为 varargs（LLVM-102t），非 libcall 缺口 ✓
+
+**判决**：**Accepted** — 18/18 CHECK 全绿、4 注入全红且还原、约束无违反。
 
 #### 第 1 轮 architect 提交与文件集审核（2026-10-18；**只追加**）
 - **档位**：reviewer 第 1 轮**尚无判决**（占位未填）⇒ 流程档位本应 `WIP:`；本笔按派单给定文案**逐字提交**（无前缀）⇒ **如实披露**（同 `INFRA-079t` 先例）。**提交号**：随本条同 commit 落地 ⇒ 不内嵌自身 hash；现场取证 = `git log --oneline -1`。只 `commit`、**未 `push`**；`merge --ff-only` 落地 `master`。
