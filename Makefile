@@ -50,7 +50,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-lit-full \
         test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
-        check-musl-freshness \
+        check-musl-freshness check-milestones-fresh \
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-contracts-dir \
         check-component-changelog check-syscall-abi
@@ -104,6 +104,7 @@ help:
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
+	@echo "  make check-milestones-fresh  milestones.md task-flow table gate: status/coverage/length/order/format (L1; INFRA-091t)"
 	@echo "  make check-milestone  Current-milestone m-book exists + its task ids exist + check-tasks --strict (milestone closure; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
@@ -543,7 +544,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-musl-freshness check-contracts-pending check-contract-relocs check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-musl-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -656,6 +657,11 @@ check-syscall-abi:
 # §1.1 归 L1（静态溯源，不跑被测语义）。
 check-musl-freshness:
 	@$(PYTHON) tools/infra/check_musl_freshness.py
+
+# 任务流水体例门控 (INFRA-091t, L1): 状态 == 任务书 / 覆盖 / 一句改动 ≤120 字符 /
+# 时间倒序 / 格式。规则 = milestones.md「体例约定（硬约束）」+ docs/Process-07 §1.1。
+check-milestones-fresh:
+	@$(PYTHON) tools/infra/check_milestones_fresh.py
 
 check-component-changelog:
 	@$(PYTHON) tools/infra/check_component_changelog.py
