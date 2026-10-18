@@ -130,10 +130,43 @@ int main(void) {
 **新发现/坑**：
 **遗留问题**：
 
+### A 段（`brind`）
+
+**测试结果**：A 段全部通过（详见 `.work/log/llvm/LLVM-102t-A-*.log`、`.work/evidence/LLVM-102t-A/`）。
+**修改文件**（本仓）：`components/llvm-project/patches/llvm/lib/Target/DADAO/{DADAOISelLowering.h,DADAOISelLowering.cpp,DADAOCodeGen.td,DADAOISelDAGToDAG.cpp,DADAOInstrInfo.cpp,DADAOMCInstLower.cpp}.patch`（6 份改；`series` 78 不变）、`components/llvm-project/changelog.md`（+1 条）、`tests/llvm/lit/CodeGen/DADAO/indirectbr.ll`（新增）、`tools/llvm/llvm-isa-backend-matrix.{tsv,md}`（补丁行号漂移重派生）、本任务书；证据 `.work/evidence/LLVM-102t-A/{run.sh,probe/**,pre/**}`（`.work` 不入 git）。
+**验收结果**：
+- **ISA 事实**（`spec/SimRISC-06 §3.2` :25/:26/:99-103、`contract-isa §8.3`）：绝对跳转只有 `jump [rbHA, rdHB, imms14]`，`Addr = rbHA + rdHB + (imms12 << 2)`（64 位全宽、取低 48 位）；`ha` 必须是 RB（基址，**只读**），`hb` 是 RD（偏移）；`rb0` 读出为 IP ⇒ **不能作基址**；`rd0` 硬连零 ⇒ 绝对目标 = `jump [rbTarget, rd0, 0]`。C 的函数指针/`&&label` 是数据（RD/`rd8`）⇒ 必须 `CopyToReg` 到 GPRB（跨行 `rd2rb`），**不用** PC 相对 `jump imms24` 冒充。
+- **实现**：`setOperationAction(ISD::BRIND, MVT::Other, Custom)` + `LowerBRIND`（目标 → 新建 GPRB vreg 的 `CopyToReg` → retag `DADAOISD::BRIND`）→ selector 发 `jump_rrii`（`rd0`、`imm12=0`）。另需块地址物化：新 `BLOCK_ADDR` 伪指令 + `ISD::BlockAddress` 选择 + `MO_BlockAddress` MC 下降（`set.zw/or.w` 三片 `R_DADAO_ABS48`，结果 GPRB）。**不改** `BR_JT` 路径。
+- **修前原文**：evalloop `Cannot select: t29: ch = brind t28, t27`（`pre/evalloop_brind_before.err`）；`indirectbr.ll` 用 `pre/indirectbr_lit_before.err` 亦为 `Cannot select: t3: ch = brind t2:1, t2`；`&&label` 先撞 `Cannot select: t5: i64 = BlockAddress<@main, %L1>`。
+- **修后汇编**（`indirectbr.ll`）：`rd2rb {rb4}, {rd16}` / `jump [rb4, rd0, 0]`（`0x71`）；`indirectbr_ptr` 无 bank 移动直接 `jump [rb16, rd0, 0]`。
+- **三个探针（独立 oracle 自算）**：① `&&label` computed goto ⇒ `acc=3` rc=0；② 表 + `& ~3` 的 RD 目标（oracle：argc=1→`tbl[1]`→L2）⇒ `two` rc=2；③ 函数指针数组调用（`call_rrii` 不回归）⇒ `f1` rc=0；`-O0/-O1/-O2/-Os/-O3/-fPIC` 均 rc/输出正确。
+- **evalloop 两档**：`run_llvm_ts_user.py --only 'evalloop$' --link-mode both`（构建树 clang/lld）⇒ static `pass=1/exit 0`、dynamic `pass=1/exit 0`，上游参考 stdout+exit `matched (fpcmp)`。
+- **无回归**：lit CodeGen 目录 **33/33 PASS**（含新向量）；11 例 SingleSource 参考 oracle **11/11 pass**；`clang`/`llc` rc=0。
+- **补丁/门控**：`check-patch-tree` **174 patches OK**（基线 174，`series` 78 不变）；`check-instrinfo`/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check_lit_gen`/`make check`(L1) **各 rc=0**；`check-isa-coverage` 因补丁行号漂移先红、重派生矩阵后 rc=0。
+- **证据脚本**：`.work/evidence/LLVM-102t-A/run.sh` default **rc=0**（全 CHECK rc=0）；`--inject` **rc=0**：I1 基址改回 `rb0` ⇒ qemu 超时 124、I2 删 `rd2rb` ⇒ SIGSEGV 139、I3 flip FileCheck ⇒ FAIL；`cp`/md5 对账原件未变、默认回绿。
+
+**新发现/坑**：① `goto *p`（`&&label`）的首个后端缺口其实是 `ISD::BlockAddress` 无物化路径，修 BRIND 前须先补块地址取值（勿误判为只缺 ISel 分支）。② 空 `asm("" : "+r"(a))` 不能阻止 SimplifyCFG 把已知目标的 `indirectbr` 折成直接分支；要构造 RD 目标探针须经「表 + 运行期下标 + 位运算」并核对反汇编确有 `rd2rb`。③ 4 字节对齐标签地址不能 `& ~7`（会落进上一条指令中段，现场表现为打印垃圾 `p`）；oracle 的掩码须与 ISA 对齐约束一致。④ 改 DADAO 补丁会整体平移 `tools/llvm/llvm-isa-backend-matrix.*` 的行号证据；`check-isa-coverage` 是本次唯一需要重派生的既有门控（勿手改矩阵）。
+**遗留问题**：**B 段（变参 ABI）未做**（本笔只做 A，B 另派）；`install-host` / L2 / L3 **未跑**（主会话执行，`ISS-210`）；本笔未 commit/push（提交权归 architect）。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
 （工程师自审 subagent 的意见、问题、判决及 finding 处置）
 
+**审查范围**：6 个后端源文件 diff + 补丁、lit 向量、证据脚本、生成矩阵。逐行核对：BRIND 的目标类型恒为 i64（`getPointerTy`）、`CopyToReg` 链序先于 `jump_rrii`、`jump_rrii` 的 `rd0`/`imm12=0` 编码、`BLOCK_ADDR` 三片 `R_DADAO_ABS48`、`MO_BlockAddress` 的 offset/target-flags 传递、`BR_JT` 路径未动。判决：实现与 `contract-isa §8.3` 逐条一致，无未决 finding。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 首次编辑 `DADAOInstrInfo.cpp`/`DADAOISelDAGToDAG.cpp` 时 `case` 标签被一并吃掉（编译报 `case label not within a switch`） | ✅已修 | 补回 `case DADAO::PCREL_LOAD:`、`case DADAOISD::CALL:` | `ninja` rc=0（18 步）；`llc/clang` 重跑探针全绿 |
+| F2 初版 `goto *p`+`asm("+r")` 探针被 SimplifyCFG 折成直接分支，未真正走到 BRIND，无法证明 `rd2rb` | ✅已修 | 改为「`&&label` 表 + 运行期下标 + `& ~3`」探针，先核对汇编有 `rd2rb`+`jump` 再入证据 | `probe_rd2rb` 汇编 `rd2rb {rb4},{rd4}` / `jump [rb4, rd0, 0]`；qemu `two` rc=2 |
+| F3 `& ~7` 作用在 4 字节对齐标签上，跳到上一条 `jump` 指令中段（qemu 输出垃圾 `p`） | ✅已修 | 掩码改 `& ~3`（与 4 字节指令对齐一致） | 重跑三种模式输出/退出码正确；oracle 重算（argc=1→tbl[1]→L2→two, rc=2） |
+| F4 `check-isa-coverage` 红：补丁行号整体漂移 | ✅已修 | 用 `tools/llvm/gen_isa_coverage.py` 重派生 `matrix.{tsv,md}`（非手改） | `make check-isa-coverage` rc=0；`make check` rc=0 |
+| F5 证据脚本注入 I1/I2 对 `.c` 调 `llc`、且把装配失败误判为「注入成功」 | ✅已修 | 改用 `clang -S` 产汇编；`run_asm` 的 3/4 视为 harness 失败单独红 | `--inject` rc=0：I1 124、I2 139、I3 FileCheck FAIL；md5 前后一致、默认回绿 |
+
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决）
+
+#### 第 1 轮 architect 提交（A 段）
+**档位**：A 段产物正常提交（`1d7ec16`）+ 台账 `WIP:`（`f924c38`）⇒ `git merge --squash` 落地 `master`（本提交）。册状态仍 `待开始`（B 段未做）。
+**文件集对账**：`git diff --cached --name-only` = 13 项，全在完成区「修改文件」声明内（6 补丁 + `changelog.md` + `indirectbr.ll` + 矩阵 `.{tsv,md}` + 本册）+ 台账 2（`milestones.md`/`issues.yaml`，本笔 architect 更新）；无漏提 / 无多提 / 无越界。`check-patch-tree` 实核 **174 patches OK**。
+**门控**：`make check`(L1) rc=0；`check-lit` rc=2（读 `.dadao/cross-toolchain` 旧安装根，未 `install-host`，`ISS-210` ⇒ 不据此判红，留主会话安装后复跑）。

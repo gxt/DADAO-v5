@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..04273f0a5
+index 000000000..763a7b371
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,199 @@
+@@ -0,0 +1,214 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -95,6 +95,13 @@ index 000000000..04273f0a5
 +  /// table itself is emitted by the generic AsmPrinter as one 8-byte absolute
 +  /// address per case (EK_BlockAddress -> R_DADAO_ABS48).
 +  BR_JT,
++
++  /// Indirect branch (LLVM-102t; `indirectbr`, i.e. C `goto *p`).  Lowered
++  /// from ISD::BRIND: (chain, target) where target is the i64 address in the
++  /// GPRB bank (a GPRB virtual register created by LowerBRIND).  Selected by
++  /// DADAOISelDAGToDAG to `jump rbtarget, rd0, 0` (contract-isa.md §8.3:
++  /// Addr = rbha + rdhb + (imms12 << 2), rd0 supplies the zero offset).
++  BRIND,
 +};
 +
 +} // namespace DADAOISD
@@ -187,6 +194,14 @@ index 000000000..04273f0a5
 +  /// jump-table index and the (TargetJumpTable) table symbol (LLVM-072t,
 +  /// ISS-177/G3); the indirect load+jump is selected in DADAOISelDAGToDAG.
 +  SDValue LowerBR_JT(SDValue Op, SelectionDAG &DAG) const;
++
++  /// Lower an indirect branch (ISD::BRIND, LLVM-102t) to a DADAOISD::BRIND
++  /// node whose target operand is a GPRB virtual register.  The address is a
++  /// C data value (function pointer / `&&label`, contract-isa.md §8.3: the
++  /// rrii base must be an RB register), so it is copied into GPRB with
++  /// CopyToReg (RD->RB becomes `rd2rb`); the selector then emits
++  /// `jump rbtarget, rd0, 0`.  `rb0` is the IP and cannot be the base.
++  SDValue LowerBRIND(SDValue Op, SelectionDAG &DAG) const;
 +
 +  /// Varargs lowering (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  The
 +  /// caller writes every argument into a contiguous 8-byte-slot save area at

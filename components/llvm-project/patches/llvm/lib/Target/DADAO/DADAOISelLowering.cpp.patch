@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..0f6ec141e
+index 000000000..ed8df5110
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1365 @@
+@@ -0,0 +1,1409 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -86,6 +86,17 @@ index 000000000..0f6ec141e
 +  // operation Custom is also what enables jump-table formation
 +  // (TargetLowering::areJTsAllowed).
 +  setOperationAction(ISD::BR_JT, MVT::Other, Custom);
++
++  // Indirect branch (LLVM-102t): ISD::BRIND (C `goto *p`, LLVM `indirectbr`)
++  // has no pattern: DADAO only jumps through an RB base register, while the
++  // target is a C data value (function pointer / `&&label`, RD bank).  Marking
++  // it Custom lets LowerBRIND copy the target into a GPRB virtual register
++  // (CopyToReg -> rd2rb when it comes from RD) and the custom selector emit
++  // `jump rbtarget, rd0, 0` (contract-isa.md §8.3).  This is separate from
++  // ISD::BR_JT on purpose: a jump table is an absolute case-address table that
++  // is loaded as part of the dispatch sequence, while BRIND's target is
++  // already a computed value.
++  setOperationAction(ISD::BRIND, MVT::Other, Custom);
 +
 +  // Compare-as-value (LLVM-069t): a comparison whose result is *used as a
 +  // value* (C `a == b`, `!x`, `a < b`, `?:`, `&&`/`||`) reaches us as a
@@ -372,6 +383,8 @@ index 000000000..0f6ec141e
 +    return "DADAOISD::CS_P";
 +  case DADAOISD::BR_JT:
 +    return "DADAOISD::BR_JT";
++  case DADAOISD::BRIND:
++    return "DADAOISD::BRIND";
 +  default:
 +    return nullptr;
 +  }
@@ -923,6 +936,8 @@ index 000000000..0f6ec141e
 +    return LowerVAARG(Op, DAG);
 +  case ISD::BR_JT:
 +    return LowerBR_JT(Op, DAG);
++  case ISD::BRIND:
++    return LowerBRIND(Op, DAG);
 +  case ISD::SHL_PARTS:
 +  case ISD::SRL_PARTS:
 +  case ISD::SRA_PARTS: {
@@ -1032,6 +1047,35 @@ index 000000000..0f6ec141e
 +  SDValue Index = Op.getOperand(2);
 +  SDValue TargetJT = DAG.getTargetJumpTable(JT->getIndex(), MVT::i64);
 +  return DAG.getNode(DADAOISD::BR_JT, DL, MVT::Other, Chain, Index, TargetJT);
++}
++
++SDValue DADAOTargetLowering::LowerBRIND(SDValue Op, SelectionDAG &DAG) const {
++  // Indirect branch (`goto *p`, LLVM-102t).  The rrii jump form is
++  //   Addr = rbha + rdhb + (imms12 << 2)            (contract-isa.md §8.3)
++  // i.e. the base must come from the RB bank, and rb0 is the IP (read as the
++  // current instruction address), so it cannot serve as the base either.  The
++  // BRIND target, on the other hand, is ordinary C data: a function pointer or
++  // `&&label` value lives in the RD bank (rd0 is the hardwired zero).  Copy it
++  // into a GPRB virtual register through CopyToReg: when the value arrives in
++  // GPRD this becomes a cross-bank `rd2rb` (copyPhysReg), and when it is
++  // already a GPRB value (e.g. the BLOCK_ADDR materialization of a label
++  // address) it stays a same-bank `rb2rb`.  The selector then emits
++  //   jump rbtarget, rd0, 0
++  // with rd0 supplying the zero offset, so the address is exactly the computed
++  // target -- never a PC-relative `jump imms24`.
++  //
++  // This path is deliberately separate from ISD::BR_JT: the switch dispatch
++  // loads its case address from the jump table as part of its own sequence
++  // (DADAOISD::BR_JT), whereas here the target is already a value.
++  SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  SDValue Target = Op.getOperand(1);
++  MachineFunction &MF = DAG.getMachineFunction();
++  Register TargetReg =
++      MF.getRegInfo().createVirtualRegister(&DADAO::GPRBRegClass);
++  Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Target);
++  SDValue TargetRB = DAG.getRegister(TargetReg, MVT::i64);
++  return DAG.getNode(DADAOISD::BRIND, DL, MVT::Other, Chain, TargetRB);
 +}
 +
 +SDValue DADAOTargetLowering::LowerBR_CC(SDValue Chain, ISD::CondCode CC,

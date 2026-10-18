@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..03e0f2b93
+index 000000000..eac65b495
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,513 @@
+@@ -0,0 +1,549 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -264,6 +264,20 @@ index 000000000..03e0f2b93
 +    ReplaceNode(Node, M);
 +    return;
 +  }
++  case ISD::BlockAddress: {
++    // `&&label` used as a value (LLVM-102t): materialize the block's absolute
++    // address through the same fixed 3-slice sequence as a global address
++    // (BLOCK_ADDR -> set.zw/or.w with an MO_BlockAddress operand, each slice an
++    // R_DADAO_ABS48 relocation).  The result lives in GPRB (address bank), so
++    // BRIND can use it as the rrii base directly.
++    const SDLoc DL(Node);
++    auto *BA = cast<BlockAddressSDNode>(Node);
++    SDValue TBA = CurDAG->getTargetBlockAddress(BA->getBlockAddress(),
++                                                MVT::i64, BA->getOffset());
++    SDNode *M = CurDAG->getMachineNode(DADAO::BLOCK_ADDR, DL, MVT::i64, TBA);
++    ReplaceNode(Node, M);
++    return;
++  }
 +  case ISD::GlobalAddress: {
 +    auto *GA = cast<GlobalAddressSDNode>(Node);
 +    const SDLoc DL(Node);
@@ -380,6 +394,28 @@ index 000000000..03e0f2b93
 +                                         SDValue(Addr, 0), Zero);
 +    SmallVector<SDValue, 4> JmpOps;
 +    JmpOps.push_back(SDValue(Tgt, 0));
++    JmpOps.push_back(CurDAG->getRegister(DADAO::rd0, MVT::i64));
++    JmpOps.push_back(Zero);
++    JmpOps.push_back(Chain);
++    SDNode *Jmp = CurDAG->getMachineNode(DADAO::jump_rrii, DL, MVT::Other,
++                                         JmpOps);
++    ReplaceNode(Node, Jmp);
++    return;
++  }
++  case DADAOISD::BRIND: {
++    // Indirect branch (`indirectbr` / C `goto *p`, LLVM-102t).  Operands:
++    //   [0] chain, [1] target (a GPRB virtual register, put there by
++    //       LowerBRIND's CopyToReg: rd2rb when the value came from RD).
++    // The rrii jump takes its base from RB and adds an RD offset
++    // (Addr = rbha + rdhb + (imms12 << 2), contract-isa.md §8.3); rd0 is the
++    // hardwired zero and imm12 = 0, so the next IP is exactly the target --
++    // an absolute computed jump, not a PC-relative `jump imms24`.
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    SDValue Target = Node->getOperand(1);
++    SDValue Zero = CurDAG->getTargetConstant(0, DL, MVT::i64);
++    SmallVector<SDValue, 4> JmpOps;
++    JmpOps.push_back(Target);
 +    JmpOps.push_back(CurDAG->getRegister(DADAO::rd0, MVT::i64));
 +    JmpOps.push_back(Zero);
 +    JmpOps.push_back(Chain);

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
 new file mode 100644
-index 000000000..521e0ac29
+index 000000000..c8bbb5706
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,145 @@
 +//===-- DADAOMCInstLower.cpp - DADAO MachineInstr to MCInst ----*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -104,6 +104,14 @@ index 000000000..521e0ac29
 +    return LowerSymbolOperand(MO, GetSymbolFromOperand(MO));
 +  case MachineOperand::MO_ExternalSymbol:
 +    return LowerSymbolOperand(MO, GetSymbolFromOperand(MO));
++  case MachineOperand::MO_BlockAddress:
++    // Address of a basic block (`&&label`, LLVM-102t): the BLOCK_ADDR
++    // materialization carries one MO_BlockAddress per slice.  AsmPrinter has
++    // already defined the label (GetBlockAddressSymbol) in front of the block;
++    // the operand offset travels in the expression (r_addend) like any other
++    // symbol.
++    return LowerSymbolOperand(MO,
++                              Printer.GetBlockAddressSymbol(MO.getBlockAddress()));
 +  case MachineOperand::MO_JumpTableIndex:
 +    // Jump-table label (LLVM-072t, ISS-177/G3): the local symbol emitted in
 +    // front of the table by AsmPrinter::emitJumpTableInfo.  Used by the

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..589542548
+index 000000000..43ee79031
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,681 @@
+@@ -0,0 +1,698 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -133,6 +133,13 @@ index 000000000..589542548
 +// leaf are i64 (pointer-typed) values.
 +def SDT_DADAOBrJT : SDTypeProfile<0, 2, [SDTCisVT<0, i64>, SDTCisVT<1, i64>]>;
 +def DADAOBrJT : SDNode<"DADAOISD::BR_JT", SDT_DADAOBrJT, [SDNPHasChain]>;
++
++// Indirect branch (LLVM-102t, `indirectbr` / C `goto *p`): (chain, target).
++// Lowered from ISD::BRIND by DADAOTargetLowering::LowerBRIND, which first
++// copies the target (a C data value, RD bank) into a GPRB virtual register;
++// the custom selector emits `jump rbtarget, rd0, 0` (contract-isa.md §8.3).
++def SDT_DADAOBrInd : SDTypeProfile<0, 1, [SDTCisVT<0, i64>]>;
++def DADAOBrInd : SDNode<"DADAOISD::BRIND", SDT_DADAOBrInd, [SDNPHasChain]>;
 +
 +// Conditional assignment (LLVM-069t / LLVM-079t; contract-isa.md §6.5): (cond,
 +// true, false) -> selected value.  The condition is always an i64 comparison
@@ -321,6 +328,16 @@ index 000000000..589542548
 +// instruction carrying the jump-table symbol so the MCCodeEmitter attaches
 +// R_DADAO_ABS48.  The result lives in GPRB (the address bank).
 +def JT_ADDR : DADAOPseudo<(outs GPRB:$dst), (ins unknown:$sym), []>;
++
++// Block-address materialization (LLVM-102t): the address of a basic block
++// whose address is taken (`&&label`, LLVM `blockaddress`) used as a *value*.
++// The operand is a TargetBlockAddress leaf (InstrEmitter -> MO_BlockAddress,
++// resolved by MCInstLower to the symbol AsmPrinter::GetBlockAddressSymbol
++// defines in front of the block).  Expanded post-RA to the same fixed 3-slice
++// absolute sequence as GLOBAL_ADDR, each slice carrying R_DADAO_ABS48; the
++// result lives in GPRB (the address bank), so feeding it to BRIND needs no
++// bank move.
++def BLOCK_ADDR : DADAOPseudo<(outs GPRB:$dst), (ins unknown:$sym), []>;
 +
 +// PC-relative GOT-slot load (ADR-0029 D4/D5): the PIC address of a global
 +// object -- and, under PIC, the base of its jump table -- is taken out of the

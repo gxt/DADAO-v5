@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..09a146f93
+index 000000000..cb12dbed4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,720 @@
+@@ -0,0 +1,739 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -360,6 +360,25 @@ index 000000000..09a146f93
 +    const MachineOperand &Sym = MI.getOperand(1);
 +    auto AddSym = [&](MachineInstrBuilder MIB) {
 +      MIB.addJumpTableIndex(Sym.getIndex(), Sym.getTargetFlags());
++    };
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::BLOCK_ADDR: {
++    // Absolute address of a basic block whose address is taken (LLVM-102t;
++    // `&&label` as a value).  Same fixed 3-slice sequence as GLOBAL_ADDR, but
++    // the operand is an MO_BlockAddress, which MCInstLower resolves to the
++    // symbol AsmPrinter::GetBlockAddressSymbol emits in front of the block;
++    // each slice becomes R_DADAO_ABS48.  The result lives in GPRB, the rrii
++    // jump base bank (contract-isa.md §8.3).
++    Register Dst = MI.getOperand(0).getReg();
++    const MachineOperand &Sym = MI.getOperand(1);
++    auto AddSym = [&](MachineInstrBuilder MIB) {
++      MIB.addBlockAddress(Sym.getBlockAddress(), Sym.getOffset(),
++                          Sym.getTargetFlags());
 +    };
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));

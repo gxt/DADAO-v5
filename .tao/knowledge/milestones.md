@@ -34,7 +34,7 @@
 | INFRA-090t | 待开始 | 2026-10-18 10:47（登记） | musl bits/float.h 常量块换 binary128；只立册 |
 | LLVM-106t | 待开始 | 2026-10-18 10:47（登记） | long double=binary128 全链（前端/ABI/后端/builtins TF）；只立册 |
 | INFRA-089t | 待验收 | 2026-10-18 07:55（登记） | musl sigsetjmp：新增 dadao/sigsetjmp.s；setjmp blocked→pass；patch 174 |
-| LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | brind 间接分支 ISel + varargs 溢出到栈（ADR-0031）；只立册 |
+| LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | A 段（brind）完成：LowerBRIND + BLOCK_ADDR；evalloop 两档 pass、lit 33/33；B 段 varargs 未做 |
 | LLVM-103t | 待验收 | 2026-10-18 07:55（登记） | flog libcall 补齐：LOG_F64/LOG10_F64 注册；CoMD 两档 pass；patch 173 |
 | QEMU-063t | 待开始 | 2026-10-18 07:55（登记） | qemu-user 宿主信号 8 例 + unix-smail 卡死；诊断时间盒 1–2 h |
 | TESTCASES-050t | 待验收 | 2026-10-18 07:55（登记） | 驱动四项：include/逐例超时/静态 builtins/siod excluded；048t 投影 197/2/21/2 |
