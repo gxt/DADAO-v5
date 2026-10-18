@@ -14,5 +14,6 @@ configure.patch
 ldso/dlstart.c.patch
 src/setjmp/dadao/longjmp.S.patch
 src/setjmp/dadao/setjmp.S.patch
+src/signal/dadao/sigsetjmp.s.patch
 src/thread/dadao/__set_thread_area.s.patch
 src/thread/dadao/syscall_cp.s.patch

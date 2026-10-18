@@ -6,7 +6,7 @@ DADAO 的 Linux 用户态 C 库底座（**M8**：无内核的 Linux 用户态栈
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），清单见 `series`。
 - 规范：`docs/Process-01-组件补丁组织与构建编排.md`；上位决策：`ADR-0005`（多源锁）、`ADR-0006`（浅裸镜像）、`ADR-0025`（M8 路线：`P1` 静态全在 musl 上）。
-- 范围（`INFRA-082t` 阶段 A2/A3）：**静态最小集**——`arch/dadao/**`（12 文件）+ `src/setjmp/dadao/**` + `src/thread/dadao/__set_thread_area.s` + `configure`（唯一被改的上游文件：加 `dadao*) ARCH=dadao` 分支）。`INFRA-085t`（`P2`）追加 **`ldso/dlstart.c`**（`DL_DYNAMIC_FROM_LOAD_BASE`）与 **`src/thread/dadao/syscall_cp.s`**（可取消系统调用），并改 `crt_arch.h`/`reloc.h`/`arch.mak`/`bits/syscall.h.in`（共 18 补丁）。
+- 范围（`INFRA-082t` 阶段 A2/A3）：**静态最小集**——`arch/dadao/**`（12 文件）+ `src/setjmp/dadao/**` + `src/thread/dadao/__set_thread_area.s` + `configure`（唯一被改的上游文件：加 `dadao*) ARCH=dadao` 分支）。`INFRA-085t`（`P2`）追加 **`ldso/dlstart.c`**（`DL_DYNAMIC_FROM_LOAD_BASE`）与 **`src/thread/dadao/syscall_cp.s`**（可取消系统调用），并改 `crt_arch.h`/`reloc.h`/`arch.mak`/`bits/syscall.h.in`（共 19 补丁；`INFRA-089t` 再追加 `src/signal/dadao/sigsetjmp.s`）。
 
 ### 移植要点
 
@@ -22,7 +22,7 @@ DADAO 的 Linux 用户态 C 库底座（**M8**：无内核的 Linux 用户态栈
 
 ### 已知边界（`P1` 静态最小集之外；均显式失败或已登记）
 
-动态链接 / `ldso`（`P2`：阶段 A1 已可编出 `libc.so`；`B`–`E` 未完成 → 动态 ELF 的运行仍属 `P3`）、`QEMU linux-user`（`P3`）、线程（`__clone` = `-ENOSYS`）、信号（无 DADAO 信号帧 ABI；`bits/signal.h` 的 `mcontext_t` 仅够编译，标 `[OPEN]`）、静态 `__thread`（未提供 `AT_PHDR/PHNUM/PHENT` ⇒ `tls_cnt = 0`；`errno`/TCB 正常）、`sigsetjmp`/`siglongjmp`（未实现 ⇒ 使用即链接失败）。
+动态链接 / `ldso`（`P2`：阶段 A1 已可编出 `libc.so`；`B`–`E` 未完成 → 动态 ELF 的运行仍属 `P3`）、`QEMU linux-user`（`P3`）、线程（`__clone` = `-ENOSYS`）、信号（无 DADAO 信号帧 ABI；`bits/signal.h` 的 `mcontext_t` 仅够编译，标 `[OPEN]`）、静态 `__thread`（未提供 `AT_PHDR/PHNUM/PHENT` ⇒ `tls_cnt = 0`；`errno`/TCB 正常）、`sigsetjmp`/`siglongjmp`（**已实现**，`INFRA-089t`：`src/signal/dadao/sigsetjmp.s` 按 `savemask` 存/恢复 `jb->__ss`；`siglongjmp` 仍是 musl 通用 C 文件；本项从边界清单移除）。
 
 ## 构建与验证
 

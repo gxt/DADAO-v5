@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/bits/setjmp.h b/arch/dadao/bits/setjmp.h
 new file mode 100644
-index 0000000..24e6455
+index 0000000..57016d2
 --- /dev/null
 +++ b/arch/dadao/bits/setjmp.h
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,42 @@
 +/*
 + * DADAO jmp_buf.
 + *
@@ -32,12 +32,17 @@ index 0000000..24e6455
 + * port (INFRA-068t) and is not exercised by the P1 static target, whose
 + * startup leaves ra0 at its reset value 0.
 + *
-+ * sigsetjmp is NOT provided by this port: src/signal/sigsetjmp.c is the upstream
-+ * *empty* slot that every arch fills with own assembly, and P1 has no signal
-+ * support (ADR-0025 D2 "no kernel"), so nothing fills it -- a program using
-+ * sigsetjmp fails to link rather than getting a silently wrong frame.
-+ * (siglongjmp does exist -- it is an ordinary .c file -- but it can only be
-+ * used with a buffer that sigsetjmp filled, i.e. not at all here.)
++ * sigsetjmp/siglongjmp ARE provided (src/signal/dadao/sigsetjmp.s, INFRA-089t):
++ * sigsetjmp/__sigsetjmp take the upstream two-argument (env, savemask) form;
++ * savemask == 0 is a plain setjmp, otherwise the mask is stored on the first
++ * return and restored on the siglongjmp path by musl's generic
++ * src/signal/sigsetjmp_tail.c.  The mask itself lives in the sigjmp_buf fields
++ * *after* this 161-octa frame (__ss), and the wrapper's one scratch word is
++ * __fl at byte offset 1288; neither is part of __jmp_buf.  siglongjmp is
++ * musl's generic src/signal/siglongjmp.c (it only forwards to longjmp; the
++ * restore happens in the returned-to context).  No DADAO signal-frame ABI is
++ * involved: rt_sigprocmask works on the 8-byte Linux mask in qemu-user
++ * (ADR-0025 D2/D6, contract-syscall).
 + */
 +
 +typedef unsigned long __jmp_buf[161];

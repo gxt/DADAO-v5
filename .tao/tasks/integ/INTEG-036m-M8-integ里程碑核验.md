@@ -34,7 +34,7 @@
 | `M8` 收口·llvm | `LLVM-103t`（`flog` libcall 最小补齐） | 只补现场真正需要者（逐条列 + 理由）+ `CoMD`/`consumer-lame` 两档转 `pass` + lit 向量 + 可达 FAIL + L1 + **单跑 `install-host`**；**实现完成、待验收（2026-10-18）**：`LOG_F64`/`LOG10_F64` 两条注册 + lit（CodeGen 32/32）、补丁 **173**；`CoMD` 两档 `pass`（byte-exact）、`consumer-lame` 根因前移 = 变参寄存器耗尽（`LLVM-102t` 待开始）⇒ 两档转 `pass` **未达成**、`048t` 计数待 `LLVM-102t` 后合并作数 |
 | `P3` 运行 | `QEMU-063t`（8 例宿主/guest 信号 + `unix-smail` 卡死） | 诊断时间盒 **1–2 h**（用户裁定「同意」；追加 `lua`/`lemon` 后不变）；逐例「信号/`si_code`/guest `PC`/归属/处置」；修或归因留 `ISS-255`/`ISS-266`/`ISS-269`（`open`）；`check-qemu-smoke` + L1；**2026-10-18 追加两表行** = `lua`（宿主 `SIGSEGV`，静态停 `bench/process.lua` / 动态停 `bench/meteor.lua`，并入 `ISS-266`）+ `lemon`（guest `SIGSEGV`，`example1.y` 最小复现，`ISS-269`） |
 | 测试面 | `TESTCASES-050t`（驱动与口径收尾：include 路径 / 逐例超时 / 静态 builtins / `siod` 排除） | `048t` 两档 + `047t` 静态复跑**逐例记账**、无回归；可达 FAIL ≥3；L1 + 测试面门控；**实现完成、待验收（2026-10-18）**：include 解析/回退 + 逐例超时表（lemon 480 / lua 840 / SimpleMOC 480 / mafft 1620 / nbench 480）+ 静态 builtins（`303→304 / 25→24`）+ `excluded` 2 条；8 例两档 `4 pass / 3 blocked / 2 excluded`（filtered），libc 静态全量逐例 diff 仅 `tgmath`；**全量 220 例两档未跑**（计数为转移集派生） |
-| `P1` 静态 | `INFRA-089t`（musl 端口 `sigsetjmp`；`ISS-254` 归属 = 端口面，不并入 `TESTCASES-050t`） | `functional/setjmp` 静态 `blocked→pass`（savemask 两支语义独立 oracle）；或显式不支持 + **留问**改标；`check-patch-tree`/`build-musl`/L1 |
+| `P1` 静态 | `INFRA-089t`（musl 端口 `sigsetjmp`；`ISS-254` 归属 = 端口面，不并入 `TESTCASES-050t`） | `functional/setjmp` 静态 `blocked→pass`（savemask 两支语义独立 oracle）；或显式不支持 + **留问**改标；`check-patch-tree`/`build-musl`/L1；**实现完成、待验收（2026-10-18）**：新增 `src/signal/dadao/sigsetjmp.s`（`series` 19、补丁 **174**），`047t` 静态 `functional/setjmp` **blocked→pass**（savemask 1 恢复 / 0 不恢复），全量 `047t` 静态档待复跑 |
 
 ## 已知限制 / 后置
 
@@ -47,7 +47,7 @@
 
 ## 核验
 
-- **关联任务是否均已 `已验证`**：**否** —— `LLVM-096t`–`LLVM-099t`、`INFRA-079t`、`SPEC-141t`、`TESTCASES-046t`/`047t`/`048t` 仍非终态；**2026-10-18 新立 5 册**（`LLVM-102t`/`LLVM-103t`/`QEMU-063t`/`TESTCASES-050t`/`INFRA-089t`）中 `LLVM-103t`/`TESTCASES-050t` = **`待验收`**（实现完成、待 reviewer），其余 3 册仍 `待开始` ⇒ **不置 `里程碑`**。
+- **关联任务是否均已 `已验证`**：**否** —— `LLVM-096t`–`LLVM-099t`、`INFRA-079t`、`SPEC-141t`、`TESTCASES-046t`/`047t`/`048t` 仍非终态；**2026-10-18 新立 5 册**（`LLVM-102t`/`LLVM-103t`/`QEMU-063t`/`TESTCASES-050t`/`INFRA-089t`）中 `LLVM-103t`/`TESTCASES-050t`/`INFRA-089t` = **`待验收`**（实现完成、待 reviewer），其余 2 册（`LLVM-102t`/`QEMU-063t`）仍 `待开始` ⇒ **不置 `里程碑`**。
 - **`P1`/`P2`/`P3` 能力**：`QEMU-062t` 静态 + 动态两档 E2E **已通**（`已验证`）；`INFRA-085t` 交付 A1/B1/C1 + `D1` 部分（`已验证`），`D2` 推迟 `M9+`。
 - **三套测试两档进度（现场）**：`TESTCASES-046t` 静态 √ 38/38 / 动态 √ 38/38（2026-10-17，`ISS-258` 处置后复跑）；`TESTCASES-047t` 静态 √ **`fail=0`**（第 4 轮 = 安装根：`pass=303 / fail=0 / known-fail=9 / blocked=25 / excluded=30`；`known-fail 9` 与 `blocked 25` 归属见上「测试面」行；第 2 轮 `301/8` 的收口链见任务书）/ 动态 √ `fail=0`（第 5 轮 = 安装根：`pass=298 / fail=0 / known-fail=8 / blocked=31 / excluded=30`；COPY 8 / `pleval` 1 见任务书第 5 轮；任务级 `状态` 本笔未改，仍 `待开始`；**2026-10-18 = `TESTCASES-049t` `-fPIC` 后动态 `305/0/9/23`（静态不变）**）；`TESTCASES-048t` **A 类 222 两档 ✅ 已跑（2026-10-18）= 两档逐数相同 `pass 193 / fail 2 / known-fail 0 / blocked 27`（pass 拆分 192 参考 + 1 exit-only）**：残 2 `fail` = 参考可移植性（`ISS-265`，待裁定）、`blocked 27` 逐条归因（`ISS-266`/`ISS-267`）；B 类 1890 未跑。
 - **`P4`**：**用户 2026-10-18 裁定不作**（不做 RISC-V 交叉对比）⇒ **不再是 `M8` 阻断项**；阶段表保留该行并标「不作」，`ADR-0025 D7` 已加**就地修订注记**（只加注记、不改 `D1`–`D7` 正文）。

@@ -766,7 +766,7 @@
   scope: [infra]
   blocks: []
   resolved_by: null
-  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：`setjmp` 用例 blocked，链接期 `undefined symbol: sigsetjmp`。**根因**：端口只提供 `setjmp/longjmp`（`INFRA-082t` 遗留⑧），缺 `sigsetjmp/siglongjmp`；其语义依赖信号掩码保存/恢复，而 `arch/dadao/bits/signal.h` 仍 `[OPEN]`（与 `ISS-242` 的取消重定向同一信号帧面）。**处置**：(a) 随信号帧任务实现 `sigsetjmp/siglongjmp`；或 (b) 显式声明不支持并给出可判失败（不得静默桩）。**等级 = P2**（非阻断 `M8`；阻断 1 例 + 取消语义可观测性）。**证据指针**：`TESTCASES-047t` 完成区 blocked 段。**交叉引用**：`INFRA-082t` 遗留⑧、`ISS-242`、`arch/dadao/bits/signal.h`。 〔立册（2026-10-18，architect）〕归属裁定 = musl 端口面 ⇒ 单立 `INFRA-089t`（不并入 `TESTCASES-050t`）；册内两支 = 实现 `src/signal/dadao/sigsetjmp.s` / 显式不支持 + 留问改标。"
+  notes: "【正式登记（源 = `TESTCASES-047t` 静态档现场，2026-10-17；architect 立项）】**现象**：`setjmp` 用例 blocked，链接期 `undefined symbol: sigsetjmp`。**根因**：端口只提供 `setjmp/longjmp`（`INFRA-082t` 遗留⑧），缺 `sigsetjmp/siglongjmp`；其语义依赖信号掩码保存/恢复，而 `arch/dadao/bits/signal.h` 仍 `[OPEN]`（与 `ISS-242` 的取消重定向同一信号帧面）。**处置**：(a) 随信号帧任务实现 `sigsetjmp/siglongjmp`；或 (b) 显式声明不支持并给出可判失败（不得静默桩）。**等级 = P2**（非阻断 `M8`；阻断 1 例 + 取消语义可观测性）。**证据指针**：`TESTCASES-047t` 完成区 blocked 段。**交叉引用**：`INFRA-082t` 遗留⑧、`ISS-242`、`arch/dadao/bits/signal.h`。 〔立册（2026-10-18，architect）〕归属裁定 = musl 端口面 ⇒ 单立 `INFRA-089t`（不并入 `TESTCASES-050t`）；册内两支 = 实现 `src/signal/dadao/sigsetjmp.s` / 显式不支持 + 留问改标。 〔实现完成 ✅（`INFRA-089t`，2026-10-18）〕新增 `src/signal/dadao/sigsetjmp.s`（`series` 18→19）；`047t functional/setjmp` 已 **pass**；待 reviewer/收尾后置 `closed` + `resolved_by: INFRA-089t`。"
 
 - id: ISS-255
   title: "【P3】`qemu-dadao` 上两条 `libc-test` 回归用例以宿主 `SIGBUS`/`SIGTRAP` 终止（`regression/flockfile-list`、`regression/setenv-oom`）⇒ 归 qemu 面诊断"
@@ -886,3 +886,11 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 = `TESTCASES-050t` 两档现场，2026-10-18；architect 立项）】**现象（逐字）**：两档一致 —— `MultiSource/Applications/lemon` 的 `first_error` = `Error while running on: parse.y`（父进程对 260 个输入逐个打印 `Error while running on: <input>`），`combined.out` 无 parser 产出，oracle 不可达 ⇒ driver `klass=blocked`（**平台缺口**，不记 `fail`）。**定性（现场三条）**：① 无编译/链接错误，也无上游脚本/外部工具需求（lemon 自带 parser generator，不调 lex/yacc）；② `lemon.c:4866` 对每个输入 `fork` 一个子进程调用 `lemon_main` ⇒ **每个子进程均死于 guest `SIGSEGV`**（qemu 把 guest 故障如实回传）；③ 最小复现 = 上游最小输入 `example1.y`、`-O0` 亦可复现，而同一份源码用宿主 `cc` 构建后正常写出 parser ⇒ **排除 lemon 自身缺陷与输入问题**。**归属**：`qemu-user` guest 故障面（故障注入/信号帧/指令语义），**与 `QEMU-063t` 的宿主信号/hang、`ISS-267` 的编译·链接缺口根因不同**；按用户 2026-10-18「**同意**」的时间盒（1–2 h）并入 `QEMU-063t` 逐例诊断表（表行 7→9）。**等级 = P3**（1 例、非阻断）。**证据指针**：`tools/testcases/run_llvm_ts_user.py` 的 `PLATFORM_GAP_SIGNATURES`（已指向本号）+ `CASE_TIMEOUTS`（lemon 480 s，实测 331.43 s）；`TESTCASES-050t` 完成区「逐例前后对照」与「新发现/坑 ①」；`.work/log/testcases/llvm-ts-user-050t-*`。**交叉引用**：`QEMU-063t`（诊断落点）、`ISS-266`（同册宿主信号族）、`ISS-267`（编译/链接缺口，不同面）、`TESTCASES-050t`（登记源）。**边界**：本笔只登记；未改 qemu/驱动行为、未改语料。"
+
+- id: ISS-270
+  title: "【P3】`run_libc_test_user_suite.py` 的 `CASE_NOTES[\"functional/setjmp\"]` 仍是旧根因（sigsetjmp not implemented）⇒ `INFRA-089t` 转 `pass` 后仍照旧打印"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `INFRA-089t` 完成区「新发现/坑 ④」，2026-10-18；architect 登记）】**现象**：`tools/testcases/run_libc_test_user_suite.py:361-364` 的 `CASE_NOTES[\"functional/setjmp\"]` 仍写旧根因「declared port gap -- sigsetjmp is not implemented（`INFRA-082t` 遗留⑧：`src/signal/sigsetjmp.c` 是上游空槽，使用即链接失败）」。**机制（实读）**：`attribute_port_gaps()`（`:1092-1095`）**先**无条件 `case.notes.append(CASE_NOTES[case.cid])`、**后**才按 `klass` 早退（`:1096`）⇒ `INFRA-089t` 转 `pass` 后该 note 仍随报告打印（`:1273`/`:1388`），与真实状态矛盾。**性质**：文档性 stale note，**不改判定**（`pass` 不被改类）；`INFRA-089t` 改动面在 musl 端口、**未越界改驱动**。**处置**：并入 `TESTCASES-050t` 后续或另立小任务 —— 改为「已由 `INFRA-089t` 实现（`src/signal/dadao/sigsetjmp.s`，savemask 两支有 oracle）」或直接删除该条。**等级 = P3**（1 条文案、非阻断）。**证据指针**：`INFRA-089t` 完成区「新发现/坑 ④」+ 本号引用的 `:361-364`/`:1092-1095`。**交叉引用**：`ISS-254`（同一用例）、`INFRA-089t`、`TESTCASES-050t`（驱动册）。**边界**：本笔只登记；未改驱动行为、未改用例分类、未改任务状态。"
