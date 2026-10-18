@@ -51,7 +51,7 @@
 | INFRA-092t | 已验证 | 2026-10-18 20:57 | musl 封装 va_arg 类型面：syscall()/fcntl()/getrlimit 按三 bank 取型；fcntl 两档 pass、10/10；补丁 177→180 |
 | INFRA-090t | 待开始 | 2026-10-18 10:47（登记） | musl bits/float.h 常量块换 binary128；只立册 |
 | LLVM-106t | 待开始 | 2026-10-18 10:47（登记） | long double=binary128：前端 16B/113 宏 + ABI rf16/17 + f128 libcall 21 + TF 29 符号；18 项 oracle、lit 34/34；待 install-host |
-| LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | A 段（brind）：LowerBRIND + BLOCK_ADDR、evalloop 两档 pass；B 段完成（三游标 ABI、printf 实测、consumer-lame 两档 pass）；余 D4 caller 侧 |
+| LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | A 段 brind + B 段三游标 ABI + D4 caller 侧整组分配（p_d4 86→0、lit 34/34）；待 install-host 复验 |
 | QEMU-063t | 待开始 | 2026-10-18 07:55（登记） | qemu-user 宿主信号 8 例 + unix-smail 卡死；诊断时间盒 1–2 h |
 | INFRA-079t | 已验证 | 2026-10-17 23:56 | compiler-rt builtins 全量：147 成员/14 libcall + 独立库 + driver 接线；L2 零回归 |
 | INTEG-036m | 待开始 | 2026-10-17 16:44（登记） | M8 收口核验册：三套两档如实分类 + 失败归因；P4 不作；现不满足置里程碑 |

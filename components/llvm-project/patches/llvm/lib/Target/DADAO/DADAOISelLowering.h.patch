@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..4809d6825
+index 000000000..ffbfcc6c6
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,215 @@
+@@ -0,0 +1,225 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -141,6 +141,16 @@ index 000000000..4809d6825
 +                      bool IsVarArg,
 +                      const SmallVectorImpl<ISD::OutputArg> &Outs,
 +                      LLVMContext &Context, const Type *RetTy) const override;
++
++  /// ADR-0031 D4/D6 (caller side): an aggregate argument is one allocation
++  /// group.  HFA/HPA leaf runs and the 8-byte blocks of a general aggregate
++  /// must be assigned all-or-nothing; a 16-byte general aggregate additionally
++  /// needs an even-aligned register pair.  Returning true makes
++  /// SelectionDAGBuilder tag the pieces with InConsecutiveRegs / ...Last so
++  /// DADAOTargetLowering can re-assign the whole group after the generic CC.
++  bool functionArgumentNeedsConsecutiveRegisters(
++      Type *Ty, CallingConv::ID CallConv, bool isVarArg,
++      const DataLayout &DL) const override;
 +
 +  SDValue
 +  LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,

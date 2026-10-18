@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..f48f33d13
+index 000000000..9039311e4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1623 @@
+@@ -0,0 +1,1842 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -40,8 +40,12 @@ index 000000000..f48f33d13
 +#include "llvm/CodeGen/MachineJumpTableInfo.h"
 +#include "llvm/CodeGen/MachineRegisterInfo.h"
 +#include "llvm/CodeGen/SelectionDAG.h"
++#include "llvm/IR/DerivedTypes.h"
++#include "llvm/MC/MCRegister.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
++
++#include <functional>
 +
 +using namespace llvm;
 +
@@ -570,6 +574,212 @@ index 000000000..f48f33d13
 +  return true;
 +}
 +
++
++//===----------------------------------------------------------------------===//
++// ADR-0031 D4/D6 caller-side argument groups
++//===----------------------------------------------------------------------===//
++
++namespace {
++
++/// Bank of one already-analysed argument piece.  Pointers, sret and byval
++/// pointers use RB; f32/f64 use RF; everything else uses RD.
++unsigned dadaoBankOf(const ISD::ArgFlagsTy &Flags, MVT LocVT) {
++  if (Flags.isPointer() || Flags.isSRet() || Flags.isByVal() ||
++      Flags.isByRef() || Flags.isPreallocated())
++    return 1; // RB
++  if (LocVT == MVT::f32 || LocVT == MVT::f64)
++    return 2; // RF
++  return 0;   // RD
++}
++
++MCRegister dadaoRegFor(unsigned Bank, unsigned Slot) {
++  const unsigned Base =
++      Bank == 0 ? unsigned(DADAO::rd0)
++                : (Bank == 1 ? unsigned(DADAO::rb0) : unsigned(DADAO::rf0));
++  return MCRegister(Base + Slot);
++}
++
++/// Re-assign every argument piece with whole-group semantics (ADR-0031 D4/D6).
++///
++/// The generic TableGen CC (CC_DADAO) allocates one piece at a time and cannot
++/// see argument groups.  SelectionDAGBuilder tags the pieces of one source
++/// argument with InConsecutiveRegs (and the last with ...Last) when
++/// functionArgumentNeedsConsecutiveRegisters() returns true, so this pass can
++/// re-run the allocation with the full group:
++///
++///   * a group fits only if ALL its slots are free in its bank; otherwise the
++///     whole group goes to the shared stack area and the bank cursor and the
++///     remaining count do not move (no splitting -- D4);
++///   * a 16-byte general aggregate (RD, two blocks) additionally needs an
++///     even-aligned pair: an odd cursor first skips one slot (D6), and if that
++///     leaves fewer than two slots the whole value goes to the stack without
++///     skipping or advancing.
++///
++/// Both the call side (LowerCall) and the callee side (LowerFormalArguments)
++/// call this, so caller and callee agree; clang's va_arg implements the same
++/// rule at run time (parity of rd_next + rd_left).
++template <typename ArgT>
++uint64_t reassignDADAOArgLocs(ArrayRef<ArgT> Args,
++                              SmallVectorImpl<CCValAssign> &Locs) {
++  assert(Args.size() == Locs.size() && "argument/location count mismatch");
++  unsigned NextSlot[3] = {16, 16, 16};
++  uint64_t StackOff = 0;
++
++  for (unsigned I = 0, E = Locs.size(); I != E;) {
++    // f128 halves are not tagged with InConsecutiveRegs (fp128 is a scalar
++    // type); they are recognised by the marker added in markF128Halves and
++    // must be re-allocated as one even RF pair (ADR-0031 D6).
++    const bool IsF128Start = Args[I].OrigTy &&
++                             Args[I].OrigTy->isFP128Ty() &&
++                             Args[I].Flags.isSplit() &&
++                             !Args[I].Flags.isSplitEnd();
++    if (IsF128Start) {
++      if (I + 1 >= E || !Args[I + 1].OrigTy ||
++          !Args[I + 1].OrigTy->isFP128Ty())
++        report_fatal_error("DADAO: unpaired binary128 argument half");
++      unsigned Next = NextSlot[2];
++      bool Fits = false, Skip = false;
++      if (Next & 1) {
++        Fits = (Next + 3 <= 32);
++        Skip = Fits;
++      } else {
++        Fits = (Next + 2 <= 32);
++      }
++      if (Fits) {
++        if (Skip)
++          ++Next;
++        Locs[I].convertToReg(dadaoRegFor(2, Next));
++        Locs[I + 1].convertToReg(dadaoRegFor(2, Next + 1));
++        NextSlot[2] = Next + 2;
++      } else {
++        Locs[I].convertToMem(StackOff);
++        Locs[I + 1].convertToMem(StackOff + 8);
++        StackOff += 16;
++      }
++      I += 2;
++      continue;
++    }
++
++    if (!Args[I].Flags.isInConsecutiveRegs()) {
++      const unsigned Bank = dadaoBankOf(Args[I].Flags, Locs[I].getLocVT());
++      if (NextSlot[Bank] < 32)
++        Locs[I].convertToReg(dadaoRegFor(Bank, NextSlot[Bank]++));
++      else {
++        Locs[I].convertToMem(StackOff);
++        StackOff += 8;
++      }
++      ++I;
++      continue;
++    }
++
++    unsigned J = I;
++    while (J != E && !Args[J].Flags.isInConsecutiveRegsLast())
++      ++J;
++    if (J == E)
++      report_fatal_error("DADAO: argument group has no end marker");
++
++    const unsigned Count = J - I + 1;
++    const unsigned Bank = dadaoBankOf(Args[I].Flags, Locs[I].getLocVT());
++    for (unsigned K = 1; K < Count; ++K)
++      if (dadaoBankOf(Args[I + K].Flags, Locs[I + K].getLocVT()) != Bank)
++        report_fatal_error("DADAO: argument group spans register banks");
++
++    // A two-block general aggregate (RD) needs an even-aligned pair (16-byte
++    // values per D6; the 9..15-byte corner uses the same convention so caller
++    // and va_arg agree).  HFA/HPA groups are all-or-nothing but have no pair
++    // rule.  f128 was handled above as an RF pair.
++    const bool Pair = Count == 2 && Bank == 0;
++    unsigned Next = NextSlot[Bank];
++    bool Fits = false;
++    bool Skip = false;
++    if (Pair) {
++      if (Next & 1) {
++        Fits = (Next + 3 <= 32);
++        Skip = Fits; // skip the odd slot, then take the even pair
++      } else {
++        Fits = (Next + 2 <= 32);
++      }
++    } else {
++      Fits = (Next + Count <= 32);
++    }
++
++    if (Fits) {
++      if (Skip)
++        ++Next;
++      for (unsigned K = 0; K < Count; ++K)
++        Locs[I + K].convertToReg(dadaoRegFor(Bank, Next + K));
++      NextSlot[Bank] = Next + Count;
++    } else {
++      for (unsigned K = 0; K < Count; ++K)
++        Locs[I + K].convertToMem(StackOff + 8 * K);
++      StackOff += 8 * Count;
++      // Cursor and remaining count deliberately unchanged (D4).
++    }
++    I = J + 1;
++  }
++  return StackOff;
++}
++
++/// True if Ty is one allocation group for DADAO: an HFA, an HPA, or a general
++/// aggregate coerced by clang to 8-byte blocks ([N x i64]).
++bool isDADAOArgGroupType(Type *Ty, const DataLayout &DL) {
++  if (!Ty->isAggregateType())
++    return false;
++
++  SmallVector<Type *, 8> Leaves;
++  bool Ok = true;
++  std::function<void(Type *)> Flatten = [&](Type *T) {
++    if (!Ok)
++      return;
++    if (auto *AT = dyn_cast<ArrayType>(T)) {
++      if (AT->getNumElements() == 0 || AT->getNumElements() > 8) {
++        Ok = false;
++        return;
++      }
++      for (uint64_t N = 0; N != AT->getNumElements() && Ok; ++N)
++        Flatten(AT->getElementType());
++      return;
++    }
++    if (auto *ST = dyn_cast<StructType>(T)) {
++      for (Type *Elem : ST->elements())
++        Flatten(Elem);
++      return;
++    }
++    Leaves.push_back(T);
++  };
++  Flatten(Ty);
++  if (!Ok || Leaves.empty() || Leaves.size() > 8)
++    return false;
++
++  const uint64_t Size = DL.getTypeAllocSize(Ty);
++  Type *Leaf0 = Leaves[0];
++  const bool AllPtr = llvm::all_of(Leaves, [](Type *T) {
++    return T->isPointerTy();
++  });
++  const bool AllFloat = (Leaf0->isFloatTy() || Leaf0->isDoubleTy()) &&
++                        llvm::all_of(Leaves, [&](Type *T) { return T == Leaf0; });
++  const bool AllI64 = Leaf0->isIntegerTy(64) &&
++                      llvm::all_of(Leaves, [](Type *T) {
++                        return T->isIntegerTy(64);
++                      });
++  if (AllPtr && Size == Leaves.size() * 8)
++    return true; // HPA
++  if (AllFloat &&
++      Size == Leaves.size() * DL.getTypeAllocSize(Leaf0))
++    return true; // HFA
++  if (AllI64 && Size == Leaves.size() * 8)
++    return true; // general aggregate blocks
++  return false;
++}
++
++} // end anonymous namespace
++
++bool DADAOTargetLowering::functionArgumentNeedsConsecutiveRegisters(
++    Type *Ty, CallingConv::ID /*CallConv*/, bool /*isVarArg*/,
++    const DataLayout &DL) const {
++  return isDADAOArgGroupType(Ty, DL);
++}
++
 +SDValue DADAOTargetLowering::LowerFormalArguments(
 +    SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
 +    const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
@@ -598,6 +808,11 @@ index 000000000..f48f33d13
 +  SmallVector<CCValAssign, 16> ArgLocs;
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
 +  CCInfo.AnalyzeFormalArguments(markF128Halves<ISD::InputArg>(Ins), CC_DADAO);
++  // Whole-group re-assignment (ADR-0031 D4/D6): aggregates are all-or-nothing
++  // per bank and an exactly-16-byte general aggregate (or f128) is an
++  // even-aligned pair.
++  const uint64_t ArgStackSize =
++      reassignDADAOArgLocs<ISD::InputArg>(Ins, ArgLocs);
 +
 +  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
 +    CCValAssign &VA = ArgLocs[i];
@@ -675,7 +890,7 @@ index 000000000..f48f33d13
 +        Info->VarArgStartRD = std::max(Info->VarArgStartRD, NextSlot);
 +    }
 +    Info->VarArgPadRD = Info->VarArgStartRD & 1;
-+    Info->VarArgStackOffset = CCInfo.getStackSize();
++    Info->VarArgStackOffset = ArgStackSize;
 +
 +    if (Info->SaveSize() != 0) {
 +      const MVT PtrVT = getPointerTy(DAG.getDataLayout());
@@ -805,6 +1020,10 @@ index 000000000..f48f33d13
 +  SmallVector<CCValAssign, 16> ArgLocs;
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
 +  CCInfo.AnalyzeCallOperands(markF128Halves<ISD::OutputArg>(Outs), CC_DADAO);
++  // Whole-group re-assignment (ADR-0031 D4/D6); this also yields the final
++  // stack size (the generic CC counted the pieces one by one).
++  const uint64_t ArgStackSize =
++      reassignDADAOArgLocs<ISD::OutputArg>(Outs, ArgLocs);
 +
 +  // Real tail call (LLVM-074t; contract-isa.md §8.3/§8.4, contract-abi.md
 +  // §2.3/§4.6).  DADAO has no tail-call instruction, but it does have a plain
@@ -826,7 +1045,7 @@ index 000000000..f48f33d13
 +    //     frame (same guards as RISCV/AArch64);
 +    //   - an `sret` argument (callee returns through a pointer) points into the
 +    //     caller's frame too.
-+    bool Eligible = !IsVarArg && CCInfo.getStackSize() == 0;
++    bool Eligible = !IsVarArg && ArgStackSize == 0;
 +    for (const ISD::OutputArg &Arg : Outs)
 +      if (Arg.Flags.isByVal() || Arg.Flags.isSRet())
 +        Eligible = false;
@@ -949,7 +1168,7 @@ index 000000000..f48f33d13
 +  // The caller writes no variadic save area (ADR-0031 D2): the callee
 +  // snapshots the argument registers itself, so a variadic call is an ordinary
 +  // call whose only extra memory is the usual shared overflow stack area.
-+  const uint64_t NumBytes = CCInfo.getStackSize();
++  const uint64_t NumBytes = ArgStackSize;
 +  Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, DL);
 +
 +  SmallVector<std::pair<Register, SDValue>, 8> RegsToPass;

@@ -182,6 +182,22 @@ int main(void) {
 
 **订正（2026-10-18，`INFRA-092t` 收口后）**：上条 `functional/fcntl` 的失败**已由 `INFRA-092t` 修复**（musl 封装 `va_arg` 类型面：`fcntl` 按 `cmd` 分支、`syscall()` 按 `__dadao_argmask` 分 bank）；复跑 `047t fcntl` **静态 1/1、动态 1/1 pass**。本册 B 段仍**余 `D4` caller 侧**（16 B「仅剩 1 槽」整组回退，需 CC 组分配器）**待裁**。
 
+#### D4 caller 侧（`ADR-0031 D4`，2026-10-18）
+
+**测试结果**：整组分配实现完成；`p_d4` 7 项边界探针修前 **exit 86**（bits 2|4|16|64）→ 修后 **0**；f128/HPA/12 B/命名聚合探针全 0；lit **34/34**、SingleSource **11/11**、047t 10 例 **static/dynamic 10/10**；证据脚本 default/`--inject` rc=0。
+**修改文件**：`components/llvm-project/patches/**` **3 份改**（`clang/lib/CodeGen/Targets/DADAO.cpp`、`llvm/lib/Target/DADAO/DADAOISelLowering.{h,cpp}`；`series` 81 不变、`check-patch-tree` **180 不变**）；`changelog.md` +1 条；`tools/llvm/llvm-isa-backend-matrix.{tsv,md}`（行号漂移重派生）；本任务书；证据 `.work/evidence/LLVM-102t-D4/**`（`.work` 不入 git）。
+**验收结果**：
+- **诊断（修前）**：`llc` 汇编（安装根 pre-D4 编译器，`pre/llc_pre.s`）显示 `odd_rd` 的 16 B 值落 `ld.o rd17` + `rd18`（奇号起、本应偶号）；`one_rd`（RD 仅剩 rd31）为 `rd31` + 栈两块；`one_rf`（RF 仅剩 rf31）为 `rf31` + 栈两叶；`one_rd24` 三块亦拆半 ⇒ 运行 exit **86**。**确认会拆半**。
+- **实现**：`DADAOTargetLowering::functionArgumentNeedsConsecutiveRegisters` 对 HFA/HPA/通用块类型返回 true，SelectionDAGBuilder 给 pieces 打 `InConsecutiveRegs`/`...Last`；`reassignDADAOArgLocs` 在 `LowerCall` 与 `LowerFormalArguments` **同一套**重算每 bank 槽位/栈偏移：整组够 ⇒ 连续寄存器；不够 ⇒ 整组连续栈、bank 游标与 `left` 不推进；RD 两块的 16 B 组偶号起、奇号先跳 1 槽、不足则整值栈；f128 按 RF 偶对同规则；`va_arg` 侧既有 `left`/奇偶判定与此逐条一致。clang 侧把 HFA/HPA/`_Complex` 改为 `[N x 叶子]` 单 IR 实参（`getDirect(struct)` 会被 CodeGen 展开成多个实参、丢组）。
+- **修后汇编**：`odd_rd` = `ld.o rd18` + `ld.o rd19`（跳 rd17）；`one_rd` = 两半 `[sp,0]/[sp,8]` 连续、后续 int 落 `rd31`；`one_rf` = 两叶连续栈、后续 double 落 `rf31`；f128 同款（`rf18/19` 或连续 16 B 栈 + 后续 `rf31`）。
+- **探针**：① 偶 RD/奇 RD（15 空槽，跳 1 槽成对）/RD 仅 1 槽（整值栈）；② RF 偶/奇/仅 1 槽（HFA 整组栈）；③ 24 B 三块整组栈；④ f128 偶/奇/仅 1 槽/命名对；⑤ HPA 仅 1 槽；⑥ 12 B 奇游标；⑦ 命名 LL/DD（caller/callee 同改）；`-O0/-O2/-Os/-O3/-fPIC`、`-verify-machineinstrs` 全过。
+- **无回归/门控**：CodeGen lit **34/34**、`check_lit_gen` rc=0；11 例 SingleSource **11/11**；047t 10 例（含 `execle` 变参）**两档 10/10**；`check-instrinfo`/`check-patch-tree`(**180**)/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-issues`/`make check`(L1) **各 rc=0**（`check-isa-coverage` 重派生后 rc=0）。
+- **证据脚本**：`.work/evidence/LLVM-102t-D4/run.sh` default **rc=0**；`--inject` **rc=0**（I1 asm 对寄存器改回奇号→rc=2；I2 oracle 翻转→rc=7；I3 删 call 侧重算→grep FAIL；md5 对账 + 默认回绿）。
+**新发现/坑**：① clang `getDirect(StructType)` 会把聚合**展开成多个 IR 实参**，SelectionDAGBuilder 无法识别参数组；HFA/HPA/`_Complex` 必须 coerce 为 `[N x 叶子]` 数组保持单实参（通用聚合本就 `[N x i64]`）。② 9–15 B 通用聚合（两块）也采用「偶号起」约定：D6 只对 16 B 强制，但后端无法从 `[2 x i64]` 区分 12 B/16 B，`va_arg` 侧同步用 `Slots==2` 判定以保持一致（不改变 16 B 语义；仅多耗 1 槽）。③ f128/16 B 的栈上两块按**连续 8 B** 放置（不做 16 B 补位），与 `va_arg` 的 `stack_next` 推进一致；D7 的绝对 16 B 对齐仍属独立事项。④ 安装根 clang 为 pre-D4，修前产物已存 `pre/`；构建树为 post-D4（本轮不 `install-host`）。
+**遗留问题**：`install-host`/L2/L3 未跑（主会话）；9–15 B 的偶号约定与 D7 绝对 16 B 栈对齐（见坑②③）；本笔未 commit/push、未改 `**状态**`（仍 `待开始`）。
+
+**执行期偏差（2026-10-18）**：① 9–15 B 两块聚合同样按「偶号起」（`D6` 只强制 16 B，后端无法从 `[2 x i64]` 区分 12/16 B，`va_arg` 用 `Slots==2` 同步）→ **待裁**；② `f128` 在栈上为两个连续 8 B，未做 16 B 补位（`D7` 字面要求 16 B 对齐）→ **待裁**。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -209,7 +225,7 @@ int main(void) {
 | F5 旧 `m6-varargs.ll` 断言 caller 保存区（旧 ABI）⇒ lit 1/33 红 | ✅已修 | 改写为三游标 ABI（三条 `stm.o`、`rd_left=0xf`、`CHECK-NOT` caller 保存区） | CodeGen lit **33/33 PASS** |
 | F6 `_Complex long double` / transparent union 分类偏差；`va_start` 多次调用重复建 fixed object | ✅已修 | complex 用 `isFloatingType`；`classifyArgumentType` 加 `useFirstFieldIfTransparentUnion`；`VarArgStackFI` 只建一次 | 重建 + 探针/lit 全绿 |
 | F7 证据脚本用 `llc` 的新鲜度对比 clang 源文件 ⇒ 假红 | ✅已修 | clang-23 只比 clang 源、llc 只比 LLVM 源 | evidence default rc=0 |
-| **F8（未修，登记遗留）** 调用方 16 B 值的偶号配对/仅剩 1 槽整组回退：TableGen CC 逐 piece 分配、无「参数组」通道 | ⏸延后（基础设施） | 未改 CC；`va_arg` 侧按 ADR 整组判定；完成区「坑③」+ 遗留登记 | 受影响的探针改用「偶游标」与「bank 全空」两态验证；奇游标/1 槽边界未测（如实披露） |
+| **F8（已解，2026-10-18）** 调用方 16 B 值的偶号配对/仅剩 1 槽整组回退：TableGen CC 逐 piece 分配、无「参数组」通道 | ✅已修（2026-10-18） | `functionArgumentNeedsConsecutiveRegisters` 覆盖 + `reassignDADAOArgLocs` 在 `LowerCall`/`LowerFormalArguments` 重算整组；clang HFA/HPA/`_Complex` 改 `[N x 叶子]` 单 IR 实参 | `p_d4` 修前 exit 86 → 修后 0；llc `rd18/rd19`、连续栈；lit 34/34、047t 10/10；证据 `.work/evidence/LLVM-102t-D4/` |
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决）

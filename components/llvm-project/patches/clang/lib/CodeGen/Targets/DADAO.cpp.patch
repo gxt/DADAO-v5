@@ -1,9 +1,9 @@
 diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..363f140af
+index 000000000..b7e078f37
 --- /dev/null
 +++ b/clang/lib/CodeGen/Targets/DADAO.cpp
-@@ -0,0 +1,472 @@
+@@ -0,0 +1,490 @@
 +//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -198,11 +198,13 @@ index 000000000..363f140af
 +      C.Slots = C.Leaves;
 +      return C;
 +    }
-+    // General aggregate: 8-byte blocks in RD; an exactly 16-byte value uses
-+    // the even/odd slot pair rule (D6).
++    // General aggregate: 8-byte blocks in RD.  A two-block value (9..16
++    // bytes) is allocated as one group; the caller starts a 16-byte value at
++    // an even slot (D6) and the same convention is used for the 9..15-byte
++    // corner so both sides agree.
 +    C.Bank = ValBank::RD;
 +    C.Slots = (Size + 63) / 64;
-+    C.Is16 = (Size == 128);
++    C.Is16 = (C.Slots == 2);
 +    return C;
 +  }
 +
@@ -218,21 +220,37 @@ index 000000000..363f140af
 +
 +  ABIArgInfo classifyArgumentType(QualType Ty) const {
 +    Ty = useFirstFieldIfTransparentUnion(Ty);
++    // _Complex float/double: two homogeneous floating leaves.  Coerce to an
++    // array so it stays ONE IR argument (ABIArgInfo::getDirect() with the
++    // struct type would expand it into separate arguments and lose the
++    // allocation group needed by ADR-0031 D4).
++    if (const auto *CT = Ty->getAs<ComplexType>()) {
++      QualType Elem = CT->getElementType();
++      if (Elem->isFloatingType())
++        return ABIArgInfo::getDirect(llvm::ArrayType::get(
++            CGT.ConvertType(Elem), 2));
++    }
 +    if (isAggregateTypeForABI(Ty)) {
 +      uint64_t Size = getContext().getTypeSize(Ty);
 +      if (Size > MaxAggregateBits)
 +        return getNaturalAlignIndirect(Ty,
 +                                       getDataLayout().getAllocaAddrSpace());
-+      // HFA / HPA keep their homogeneous leaf types so the backend banks them
-+      // into RF / RB (one leaf per slot).
++      // HFA / HPA are coerced to an array of their leaves: one IR argument,
++      // one allocation group, and the backend banks the pieces into RF / RB
++      // (one leaf per slot).  Passing the struct directly would let
++      // CodeGen expand it into separate IR arguments and lose the group.
 +      const Type *Base = nullptr;
 +      uint64_t Members = 0;
 +      if (isHomogeneousAggregate(Ty, Base, Members))
-+        return ABIArgInfo::getDirect();
++        return ABIArgInfo::getDirect(llvm::ArrayType::get(
++            CGT.ConvertType(QualType(Base, 0)), Members));
 +      if (isHomogeneousPointerAggregate(getContext(), Ty))
-+        return ABIArgInfo::getDirect();
++        return ABIArgInfo::getDirect(llvm::ArrayType::get(
++            llvm::PointerType::getUnqual(CGT.getLLVMContext()), Size / 64));
 +      // Any other aggregate <= 64 B is an array of 64-bit blocks in RD
 +      // (contract-abi.md §6.4: "通用聚合 <= 64 字节 ⇒ 1-8 个 8 字节块放入 RD").
++      // Two-block values (9..16 bytes) are one allocation group; the backend
++      // gives the 16-byte ones an even-aligned pair (ADR-0031 D6).
 +      unsigned Blocks = (Size + 63) / 64;
 +      llvm::Type *BlockTy = llvm::Type::getInt64Ty(CGT.getLLVMContext());
 +      return ABIArgInfo::getDirect(llvm::ArrayType::get(BlockTy, Blocks));
