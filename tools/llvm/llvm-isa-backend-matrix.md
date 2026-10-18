@@ -254,9 +254,9 @@
 | `st.w_rrii_rd` | `st.w` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:485:st_w_rd |
 | `stm.b_rrri_rd` | `stm.b` | `rrri` | `m1` | accept | no | — |
 | `stm.o_rrri_ra` | `stm.o` | `rrri` | `m1` | accept | no | — |
-| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:931:stm_o_rb |
-| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:929:stm_o_rd |
-| `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:933:stm_o_rrri_rf |
+| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:942:stm_o_rb |
+| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:940:stm_o_rd |
+| `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:944:stm_o_rrri_rf |
 | `stm.t_rrri_rd` | `stm.t` | `rrri` | `m1` | accept | no | — |
 | `stm.t_rrri_rf` | `stm.t` | `rrri` | `fp` | accept | no | — |
 | `stm.w_rrri_rd` | `stm.w` | `rrri` | `m1` | accept | no | — |

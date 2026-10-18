@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..9039311e4
+index 000000000..0a892e34b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1842 @@
+@@ -0,0 +1,1853 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -461,6 +461,17 @@ index 000000000..9039311e4
 +  MaxStoresPerMemcpy = MaxStoresPerMemcpyOptSize = 16;
 +  MaxStoresPerMemmove = MaxStoresPerMemmoveOptSize = 16;
 +  MaxLoadsPerMemcmp = MaxLoadsPerMemcmpOptSize = 16;
++}
++
++EVT DADAOTargetLowering::getSetCCResultType(const DataLayout &DL,
++                                            LLVMContext &Context,
++                                            EVT VT) const {
++  // A vector SETCC has no vector register class here; keep the lane integer
++  // type so the type legalizer can split it into scalar compares.  Returning
++  // the generic pointer type instead would be wrong for N != pointer lanes.
++  if (VT.isVector())
++    return VT.changeVectorElementTypeToInteger();
++  return getPointerTy(DL);
 +}
 +
 +unsigned DADAOTargetLowering::getJumpTableEncoding() const {

@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Basic/Targets/DADAO.h b/clang/lib/Basic/Targets/DADAO.h
 new file mode 100644
-index 000000000..b0bb903f5
+index 000000000..600c1c057
 --- /dev/null
 +++ b/clang/lib/Basic/Targets/DADAO.h
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,111 @@
 +//===--- DADAO.h - Declare DADAO target feature support --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -52,7 +52,10 @@ index 000000000..b0bb903f5
 +    IntPtrType = PtrDiffType = SignedLong;
 +    SizeType = UnsignedLong;
 +    SigAtomicType = SignedLong;
-+    WCharType = UnsignedInt;
++    // `wchar_t` is the C library's `int` (musl DADAO port
++    // arch/dadao/bits/alltypes.h.in:29 `TYPEDEF int wchar_t;`).  `wint_t` is
++    // musl's `unsigned` (include/alltypes.h.in:37), so the two differ.
++    WCharType = SignedInt;
 +    WIntType = UnsignedInt;
 +
 +    // `long double` is IEEE binary128 (ADR-0030 D1): 16 bytes, 16-byte

@@ -48,7 +48,7 @@
 - **musl 封装 `va_arg` 类型面（2026-10-18 新立 `INFRA-092t`，`ISS-271`）**：`ADR-0031` 三 bank 下，musl 变参封装把**指针实参读成整数**（`fcntl` `unsigned long`、`syscall` `syscall_arg_t`）⇒ `047t functional/fcntl` 两档 `FAIL`（`fcntl.c:27 … errno = Bad address`，日志 `.work/log/testcases/libc-test-user-{static,dynamic}.log`）+ `syscall(SYS_uname,…)` 探针 `EFAULT`；落点 = `INFRA-092t`（infra 模块，只立册）；`047t` 计数以修复后**全量复跑**为准（本笔不改任何计数）。**〔进展（2026-10-18）〕已验证（reviewer 第 1 轮 `Accepted`）**：`fcntl` 按 `cmd` 三分支（补 `F_GETOWNER_UIDS`）、`syscall()` 六槽按 `__dadao_argmask` 分 bank（独立赋值避未定义求值顺序）、`getrlimit` 地址槽传 `(void *)0`；`047t functional/fcntl` **静态 1/1、动态 1/1 pass**、10 例小样本两档 **10/10**；补丁 **177→180**；`047t` 全量计数仍待复跑（不改计数）。
 - **build-tree 与安装根需在 `install-host` 后同步**（`LLVM-106t` 重建 builtins 后 `staged==built` 会短暂为 `no`；`INFRA-088t` S6 红即此环境漂移、非代码缺陷）。
 - **`ISS-243`（i32 窄返回 callee canonical 化）⇒ `LLVM-107t`（2026-10-18 立，**`待验收`**，`M8` 内修）**：用户 2026-10-18 裁定「1、可以；2、M8内修」；2026-10-19 实现完成（探针 8/8、lit 34/34、`check-patch-tree` 180；musl 已同批重建）⇒ 待 reviewer + `install-host` + 全量复跑；判据 = `contract-abi §4.4 C5` + 契约级探针 + 无回归（本行只登记落点，不改本册判据）。
-- **clang 崩溃 2 例（`lencod`/`obsequi`，`rc=-6`）+ `ISS-253`（`wchar_t` 符号性）⇒ `LLVM-105t`（2026-10-18 立，`待开始`，`M8`）**：先诊断 ⇒ 上游 bug = `excluded` + 依据 / 我方后端 = 修；`ISS-253` 按 `spec`/musl 口径判（本行只登记落点，不改本册判据）。
+- **clang 崩溃 2 例（`lencod`/`obsequi`，`rc=-6`）+ `ISS-253`（`wchar_t` 符号性）⇒ `LLVM-105t`（2026-10-18 立，**`待验收`**，`M8`）**：先诊断 ⇒ 上游 bug = `excluded` + 依据 / 我方后端 = 修；`ISS-253` 按 `spec`/musl 口径判（本行只登记落点，不改本册判据）。**〔进展 2026-10-19〕实现完成**：定性 = 我方（靶端缺 `vector SetCC` ⇒ `DAGTypeLegalizer::WidenVecRes_LOAD` 断言）⇒ 补 `DADAOTargetLowering::getSetCCResultType`；`WCharType` `UnsignedInt`→`SignedInt`（musl 真源）；两例 `-O2 -c` rc=0、lit **103/103**、`check-patch-tree` **180**；待 `install-host` + 全量复跑。
 
 ## 核验
 

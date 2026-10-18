@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`ISS-267 ①`（clang 崩溃 2 例，`open`；源 = `TESTCASES-048t` 第 2 步全量两档）、`ISS-253`（`wchar_t` 符号性冲突，`open`；源 = `TESTCASES-047t` 静态档）、`ISS-266`/`QEMU-063t`（宿主信号，**不同面**，不属本册）、`TESTCASES-048t`/`TESTCASES-047t`（现场与复跑载体）；用户 2026-10-18 裁定 **M8**（逐字「1、可以；2、M8内修」，渠道 = 经主会话问答）。
-**状态**：待开始
+**状态**：待验收
 
 > **编号说明**：本册编号由主会话 2026-10-18 指定（`LLVM-105t`/`107t` 同批立册）。本册把**两个独立缺口**放在一册，因为二者都需「先诊断、后定性」且共用一次 `install-host` 窗口；**诊断与处置须分节各自留证**，不得互相顶替。
 
@@ -100,16 +100,38 @@
 8. 崩溃诊断产物（preprocessed 源/复现脚本）体积大 ⇒ 落 `/tmp/opencode/LLVM-105t/`，**不入库**；最小复现器（几行 C）入库到 lit 目录（若修）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+
+**测试结果**：A 段（rc 实测）：两例 `-fsyntax-only`/`-emit-llvm -S` 均 rc=0，`-S`/`-c` 均 rc=134（`Aborted`）；栈顶 `TargetLoweringBase::getSetCCResultType`（assert `No default SetCC type for vectors!`）← `DAGTypeLegalizer::WidenVecRes_LOAD`（`LegalizeVectorTypes.cpp:6851`），DAG 节点 `v6i32 load %arrayidx126`（lencod `create_hierarchy`）/`v3i32 load %arrayidx828`（obsequi `search_for_move`）。三方对照：同份最小 C 用 `x86_64-unknown-linux-gnu` rc=0（同一 clang）；riscv64 未注册（本构建仅 dadao/x86），如实登记。最小复现 = 8 行 C（24 B 聚合 swap，SROA 出 `load <6 x i32>`）：dadao rc=134 / x86 rc=0（日志 `.work/log/llvm/LLVM-105t-*`）。**定性 = 我方**（DADAO 未覆盖 `getSetCCResultType`）⇒ **修**：向量→`changeVectorElementTypeToInteger()`、标量→`getPointerTy`。修后两例 `-O2 -c` rc=0、corpus `blocked=0`、v6/v3 语义探针 qemu rc=0。B：修前 `__WCHAR_TYPE__=unsigned int`/`__WCHAR_MAX__=4294967295U`，修后 `int`/`2147483647`、`__WCHAR_MIN__=(-__WCHAR_MAX__-1)`；probe（sizeof/符号/WEOF/`_Generic`）编译 rc=0、qemu rc=0；`regression/mbsrtowcs-overflow` static/dynamic 均 pass（t_status=0）。**无回归**：lit **103/103**（新增 `vec-load-widen.ll`：安装根旧 llc FAIL、构建树 PASS）、12 例 **12/12**。
+**修改文件**：`components/llvm-project/patches/{clang/lib/Basic/Targets/DADAO.h,llvm/lib/Target/DADAO/DADAOISelLowering.h,llvm/lib/Target/DADAO/DADAOISelLowering.cpp}.patch`；`components/llvm-project/changelog.md`；`tests/llvm/lit/CodeGen/DADAO/vec-load-widen.ll`（新增）；`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（patch 行号 +11 重派生）；`.work/evidence/LLVM-105t/{run.sh,probe_wchar.c,probe_vec_v6_sem.c,probe_vec_v3_sem.c,repro_vec_load.c,run.log,inject.log}`；本任务书。组件源 `.work/source/llvm-project`：`commit --amend` 收敛为单 commit（E1 保持，HEAD `cbade8ffb`）。
+**验收结果**：`check-patch-tree` **180 patches OK**（series 81 不变）；`--source-state`/`check-index-blobs`/`check-instrinfo`/`check_lit_gen`(64)/`check-component-changelog`/`check-no-residue`/`check-isa-coverage`/`check-issues`/`check-knowledge-refs` 全 rc=0；`make check`(L1) rc=0。证据 `.work/evidence/LLVM-105t/run.sh` default **46 checks rc=0**、`--inject` **61 checks rc=0**（I1 后端源码注入→llc rc=134→`cp`+md5 还原重编→rc=0；I2 musl 头改 `unsigned wchar_t`→probe rc=1→回绿；I3 oracle 翻转→rc=1→回绿；原文件 md5 前后一致）。
+**新发现/坑**：① `obsequi` 运行 oracle 差异根因 = `srandom(1)` 后 musl `random()` 序列 ≠ glibc（首值 262836907 vs 1804289383；`init.c:66` 用它种 Zobrist 表）⇒ 节点/cutoff 统计不同而 `Winner found: 5000` 一致，-O1/-O2 相同 ⇒ 非 DADAO 缺陷；② `lencod` 运行 FAIL = 驱动 run 目录无 `Output/`（`encoder_small.cfg:18` `ReconFile=Output/test_rec.yuv`），补建后产物与 oracle 逐行一致 ⇒ testcases 驱动缺口；③ 构建树 compiler-rt archive 旧（无 `__eqtf2`），证据改用安装根 builtins + 构建树 clang（wrapper）；④ patch 内行号 +11 会触发 `check-isa-coverage` 漂移，须 `gen_isa_coverage.py` 重派生（已做）。
+**遗留问题**：① 按派单未跑 `install-host`/`build-musl`/L2/L3；安装根 clang/llc 仍为旧（证据用构建树 + 安装根 builtins），两例与 B 的安装根复跑留给主会话安装窗口；② 两例运行时仍被驱动记 `fail`（`unclassified failure`）：lencod 属驱动目录缺口、obsequi 属 libc random 序列，未改 known-fail/期望值/语料，建议另立 testcases/ISS 处置；③ riscv64 对照不可用（未注册）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+
+**审查方式**：自主逐行（`subagent_depth=1`，不嵌套）；对象 = `DADAOISelLowering.{h,cpp}` 两处新增、`DADAO.h` 一行、lit 新用例、证据脚本。
+
+**逐行结论**：
+1. `getSetCCResultType`：向量分支返回 `changeVectorElementTypeToInteger()`（与 Sparc 同法，RISCV 非 RVV 分支同义），标量分支 `getPointerTy(DL)` 与原基类返回 i64 一致 ⇒ 不改变既有标量 SETCC 行为（lit `setcc-select.ll` 等 103 例 + 12 例复跑佐证）。
+2. `WCharType=SignedInt`：`WIntType` 未动，依据 musl `include/alltypes.h.in:37` `unsigned wint_t`；`__WCHAR_WIDTH__` 仍 32、`WCHAR_MIN/MAX` 自动跟随（`-dM` 实测）。
+3. lit 用例：`CHECK-COUNT-6/3` 对应实测 6/3 条 `ld.ut`/`st.t`；修前红/修后绿均实跑（安装根 llc rc=-6）。
+4. 证据脚本首轮 default 因 libc JSON 取键、lencod 子 shell `$(pwd)`、obsequi grep 目标三处缺陷 rc=1；已修并重跑（见下表）。
+5. 注入还原：I1 `cp` 备份 + `sed` 注入 + `ninja llc` + md5 对账；`git -C .work/source/llvm-project status` 干净、HEAD 仍单 commit。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| (a) `case_counts` 取 `counts.total`（libc JSON 在顶层） | ✅已修 | 改 `c.get('total', d.get('total'))` | `B-mbsrtowcs-{static,dynamic} total=1 pass=1` |
+| (b) lencod 重跑子 shell 内 `$(pwd)` 指向 run 目录 | ✅已修 | 子 shell 外取 `QEMU_ABS` | `A-lencod-run rc=0`、`A-lencod-oracle rc=0` |
+| (c) obsequi 结论 grep 打在主日志（应读 `combined.out`） | ✅已修 | grep 目标改为 work-dir 的 `combined.out` | `A-obsequi-verdict rc=0` |
+| (d) 构建树 builtins 旧（无 `__eqtf2`）致 2 例链接失败 | ✅已修 | 证据 wrapper 追加 `-resource-dir` 指向安装根 | `A-corpus-compile total=2 blocked=0` |
+| (e) patch 行号 +11 使 isa-coverage 漂移 | ✅已修 | `gen_isa_coverage.py` 重派生 `md/tsv` | `check-isa-coverage rc=0`；`make check` rc=0 |
+
+**判决**：无未修 finding；按派单**不改**任务状态（保持 `待开始`，由主会话处置）。**未做**：`install-host`/L2/L3（派单明确不跑）。
 
 #### 第 1 轮 reviewer 验收
 （待填）
+
+#### architect 提交留痕（2026-10-19）
+档位：**WIP**（`**状态**` = `待验收`，未获 reviewer 判决）；开工分支 `LLVM-105t` 提交 `b73d968`（本留痕与台账 3 册随 amend 并入；**未 push**）。文件集 8 项对账：3 份 patch（`series` 81 不变）/ `changelog.md` / 新增 lit `vec-load-widen.ll` / `llvm-isa-backend-matrix.{md,tsv}` / 本册 —— 与完成区「修改文件」一致（`.work/evidence/**` 由 `.gitignore` 排除、不入库）；另 `milestones.md` / `issues.yaml` / `INTEG-036m` 3 册为 architect 账面更新（状态、`ISS-253`/`ISS-265` notes、`ISS-276` 登记、里程碑行）。`check-patch-tree` **180** ✓、`make check`(L1) rc=0 ✓。

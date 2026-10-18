@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..ffbfcc6c6
+index 000000000..25e73a53c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,225 @@
+@@ -0,0 +1,236 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -112,6 +112,17 @@ index 000000000..ffbfcc6c6
 +                               const DADAOSubtarget &STI);
 +
 +  const char *getTargetNodeName(unsigned Opcode) const override;
++
++  /// SetCC result type (LLVM-105t).  DADAO has no vector registers, so vector
++  /// values are always split by the type legalizer; its widening/scalarizing
++  /// paths nevertheless ask the target for the SETCC result type of a vector
++  /// operand.  The generic implementation asserts ("No default SetCC type for
++  /// vectors!") and every scalar-only target overrides it, so do the same:
++  /// lanes keep their integer element type (SETCC yields 0/-1 per lane) and
++  /// the vector is then split into scalar i64 compares.  For scalars the
++  /// result is the pointer-sized i64 the custom SETCC lowering produces.
++  EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
++                         EVT VT) const override;
 +
 +  /// Jump-table entry encoding (LLVM-094t).  The generic implementation switches
 +  /// to `EK_LabelDifference32` (32-bit label differences) as soon as the module
