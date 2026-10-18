@@ -138,6 +138,7 @@ DADAO M1 的汇编语言语法已在 `spec/Toolchain-01-汇编语言.md` v1 中�
 **引用**：本 ADR D2（注释）、`spec/Toolchain-01-汇编语言.md §2.2`、`components/llvm-project/patches/.../DADAOMCAsmInfo.cpp`（`CommentString`）
 
 - **D9.1**：DADAO 汇编的**行注释符 = `;`**（`CommentString = ";"`），自 `;` 起至行尾为注释。
+  > **2026-10-19 就地修订（用户裁定）**：注释符 `;` → **`@@`**（`CommentString = "@@"`），`;` 改为**语句分隔符**（`SeparatorString = ";"`，`;` 之后不是注释；一行 MAY 多条语句）。理由 = 单一 `@` 出现在 ELF 指令（`.type <sym>,@function`、`.section …,@progbits`）⇒ 取两字符避免误吞。依据册 = `SPEC-147t`（规范面）/ `LLVM-109t`（实现与语料迁移）。
 - **D9.2**：**`#` 不再作注释**，保留给 **C 预处理器**（`#include`/`#define`/`#if` 等）；DADAO 汇编不定义 `#` 注释。
 - **D9.3**：**不采用** C 风格 `//` 与 `/* … */`（DADAO 规范不定义；`D2` 中「`//`/`/* */` MAY」被取代）。
 - **D9.4（理由/对比，均有实证）**：
