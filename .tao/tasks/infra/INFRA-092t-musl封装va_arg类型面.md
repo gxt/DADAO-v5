@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0031`（`Accepted`：三 bank 变参 ABI 的真源）；`LLVM-102t`（**B 段**：变参三游标 ABI 落到安装根 —— 本册的两个缺陷**由该 ABI 暴露**；执行前须确认安装根工具链已含 B 段，否则 `functional/fcntl` 复现不出来）；`TESTCASES-047t`（验收载体 + 现场来源）；`LLVM-101t`（`A` 项 = `union semun` 变参聚合的**编译器侧**取法，与本册「`semctl` 不改」判定互为印证）；`ISS-271`（本册登记源）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -141,6 +141,13 @@
 - **③ `ioctl` 不改（残留）**：第三参的 C 类型**由 request 决定**（`TIOCGWINSZ` 指针、`TIOCSCTTY` 整型），musl 上游统一按 `void *` 读；本 target 的 `argmask(SYS_ioctl) = 0x04` 也按「指针」登记。指针类请求正确；**整型类请求**在本 ABI 下会取 RB 垃圾（探针 `D`）⇒ 本册**不修**（需 request→类型表，另立），如实计入残留风险 + `ISS-271`。
 - **④ `open`/`openat`/`sem_open`/`mq_open` 的 `mode_t` 不改**：`mode_t = unsigned int`（RD），与声明的 `int mode` 同 bank；`mq_open` 的 `struct mq_attr *` 本来就是 RB。**不得**为「看起来一致」把这些改成别的类型（无缺陷、改了只增加噪声）。
 
+**执行期复核补正（engineer，2026-10-18；表为交付物，按验收 1 更正 —— 依据见下，均现场派生）**
+
+- **`va_arg` 计数**：`git grep -c va_arg HEAD~1 -- src` = **81**（22 文件）；`va_start` **43**（36 文件，其中 **18** 文件只有 `va_start`）；`src/mq/x32/**` = **2** ⇒ 与本表口径一致。改后 `grep` = **84** = 81 − 1（`fcntl` 原一处）+ 3（按 `cmd` 三分支）+ 1（`syscall.c` 注释里的 `va_arg(void *)` 字样，非表达式）⇒ **表达式 83**。
+- **`fcntl` 指针类清单补 `F_GETOWNER_UIDS`（本表与 §改法 B 均漏）**：内核 `fs/fcntl.c:522` → `f_getowner_uids(filp, arg)`，`:308-325` 把 `arg` 当 `uid_t __user *dst` 做 `put_user` ⇒ **指针类**。已按 `void *` 取（`include` 侧 `arch/generic/bits/fcntl.h:46` 有定义）。
+- **§调用点一致性 的适用边界（重要，现场实测）**：musl 内部 `syscall(...)` 是**宏**（`src/internal/syscall.h:45` `#define syscall(...) __syscall_ret(__syscall(__VA_ARGS__))`）⇒ 展开为 `__syscallN(SYS_*, __scc(...))`（**固定 `long` 形参**），实参 C 类型不进变参封装，bank 由 `__dadao_trap()` 按掩码搬运。证据：`llvm-objdump --syms lib/libc.a` 中 **0** 个对象引用未定义符号 `syscall`（全库 2118 个函数）；`mprotect.o` 反汇编直接 `rd2rb …; trap cfx0, 0`（无 `call`）。⇒ 「实参 C 类型必须与掩码位一致」只对**外部调用者走 C 封装**成立；§改法 B/C 两处是本册要求的**源形归一**（语义中性），实测无行为差异。
+- **重跑数字（`.work/evidence/INFRA-092t/scan_callsites.py`，括号配对 + 掩码表解析）**：`syscall(SYS_*, …)` 顶层调用点 **207 处**（全在 `src/**/*.c`，`ldso/**` = **0**）；其中 **37 处（26 个号名）** 落在端口 `bits/syscall.h` **未定义**的 `SYS_*` 上 ⇒ 不编译（含本表点名的 `src/ipc/shmat.c:14`、`src/unistd/lseek.c:8`）⇒ **实际编译 170 处**。任务书「209 / 2 / 2」：**「2」= 本表点名那两处**（在 37 内）；**「209」现场为 207**（本脚本把 37 处字面命中计入总数；只算可编译则 170）。逐点复核**多出 1 处形状不一致**：`src/mman/mprotect.c:10` 把 `size_t start` 传在地址槽（掩码 `0x01`）——与 §改法 C 同类，但**不改**：非本册范围，且实测无行为影响（`mprotect` 探针 rc=0，`-strace` 显示宿主收到正确页地址），因内部走宏路径；记入残留风险。
+
 ## `syscall()` 调用点一致性（本册新增的载重约束）
 
 `syscall()` 改为「按 `__dadao_argmask(n)` 逐槽选 `void *`/`long`」后，**调用点的实参 C 类型必须与该号的 mask 位一致**（此前调用点的类型无关紧要：`syscall()` 一律按 `long` 读、stub 再按 mask 摆位）。全量核对：
@@ -231,16 +238,43 @@ long syscall(long n, ...)
 - `ioctl` 的整型请求未修（见注 ③）⇒ 已在 `ISS-271` 备注，属**能力缺口**（需 request→类型表），不是本册返工项。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：证据脚本 `.work/evidence/INFRA-092t/run.sh` **45/45 PASS、rc=0**（log `.work/log/infra/INFRA-092t-evidence.log`）；`make build-musl` rc=0（**13.6 s**，10/10 ELF 检查）、`make build-musl-shared` rc=0（**12.9 s**，38 PASS）、`check-musl-freshness` PASS（sha256 `ceca1fe0…`）。`047t`：`functional/fcntl` **静态 1/1、动态 1/1**（原 `Bad address`）；10 例小样本 **静态 10/10、动态 10/10**；无回归 **静态 16/16**（`ipc_msg/ipc_sem/ipc_shm/socket/stat/utime/iconv_open/dirname` + 6 `regression/*` + `math/{sin,exp}`）。
+**修改文件**：`.work/source/musl/src/{fcntl/fcntl.c,misc/syscall.c,misc/getrlimit.c}`（组件检出收敛 `base+1`，commit `e02280b`，worktree 干净）；`components/musl/patches/src/{fcntl/fcntl.c,misc/syscall.c,misc/getrlimit.c}.patch` + `series`（**19 → 22**，字典序）+ `changelog.md`（M8 追加一条）；`.work/evidence/INFRA-092t/{run.sh,probe.c,probe-accept.c,scan_callsites.py,probe*.{out,elf},scan*.txt,run.log}`；本任务书（审计补正 + 完成区 + 自审）。**未碰** `LLVM-102t` 的 13 改 + 3 新。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+1. 审计复核：`va_arg` 81（22 文件）/`va_start` 43/18 文件仅 `va_start`/x32 2 —— 与表一致；补正 3 条（`F_GETOWNER_UIDS` 指针类、宏路径边界、mprotect 行）见「执行期复核补正」。
+2. `047t fcntl` 两档：`mode=static … total=1 pass=1 fail=0`、`mode=dynamic … total=1 pass=1 fail=0`（json/log `INFRA-092t-fcntl-{static,dynamic}.*`）。
+3. 10 例小样本：静态/动态均 `total=10 pass=10 fail=0 blocked=0`。
+4. 探针（改前 → 改后，见 `probe.out` → `probe-after.out`）：`A` 0→0、`B` addr→addr、`C` 77→77、`D` 39f10→39320（RB 仍空，符合 ABI）、`E` `-1 errno=14 sysname=''`→**`0 errno=0 sysname='Linux'`**、`F` 3→3、`G` 0→0、`H` 0→1→0→1、`I` **`-1 errno=14`→`0 errno=0`**。oracle = POSIX/Linux 语义手算：`uname` 成功填非空 `sysname`、`F_SETLK` 对空文件成功 0、`F_GETLK` 无他人锁 ⇒ `F_UNLCK`、子进程 `F_GETLK` 的 `l_pid == getppid()`、`F_DUPFD>=5`、`F_SETFL` 后 `F_GETFL` 带 `O_NONBLOCK`、`getrlimit` `rlim_cur>0`、`semctl` 0666 回读 `0666`、`prlimit64(NULL,&rl)` 0；`probe-accept` **30/30 PASS**。
+5. 无回归：见上；`check-patch-tree` **180 补丁**（177 → 180，+3）。
+6. L1：`make check` **rc=0「repository checks (L1): PASS」**。
+7. 可达 FAIL（同次前台闭合、`cp`+md5、`git diff` 证明注入非空）：① `fcntl` 读回 `va_arg(ap, unsigned long)` ⇒ 重编后 `functional/fcntl` **fail=1 / Bad address**，还原（md5 `6f906d67…` 一致）后 **pass=1**；② `syscall()` 读回 6×`syscall_arg_t` ⇒ `probe E` **`= -1 errno=14`**，还原（md5 `9ed9d13d…`）后 **`= 0 errno=0 sysname='Linux'`**；收尾 `musl worktree clean` + freshness PASS。
+8. 记录：长输出在 `.work/log/infra/INFRA-092t-*.log` 与 `.work/log/testcases/INFRA-092t-*`。
+**新发现/坑**：① **musl 内部 `syscall()` 是宏**（`src/internal/syscall.h:45`）⇒ 内部调用点不进变参封装、bank 由桩按掩码搬；`libc.a` 内 **0** 个未定义 `syscall` 引用。所以「调用点 C 类型 vs 掩码」对 musl 自身是**空约束**，本册的真缺陷只在**变参封装**（`fcntl`）与**外部调用者的 C 封装**（`syscall`）。② 本表漏了 `F_GETOWNER_UIDS`（内核 `f_getowner_uids` 解引用 `arg`）——已补。③ `build_musl.py` 在源摘要变化时 `make clean`，静态档重编会删掉 `lib/libc.so` ⇒ 证据脚本必须在注入循环**之后**重跑 `build-musl-shared` 才能过 freshness。④ `va_arg(ap, syscall_arg_t)` 读调用方按 `int` 传的槽是 C 标准 UB（8 B canonical 槽使其可行）——既有做法，未扩大。
+**遗留问题**：① `ioctl` 整型请求（注 ③，需 request→类型表，`ISS-271`）**不修**；② 用户代码自身把指针按整数传（`ioctl(TIOCSCTTY,0)`、`prctl(op,ptr)`、`syscall(SYS_ioctl,fd,req,0)`）不代修；③ `__dadao_argmask` 未登记号 ⇒ 全 RD（既有覆盖口径）；④ `fcntl` 新增内核命令若第三参为指针需补 `fcntl_arg_is_ptr` 表；⑤ `src/mman/mprotect.c:10` 的 `size_t`→地址槽形状不一致**保留**（非本册范围、实测无影响）。本册**未**跑 `install-host`/`build-qemu`/L2/L3，**未** commit/push 仓库，**未**改 `**状态**`。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填写）
+
+- 逐行审查 `src/misc/syscall.c`：`m` 只算一次；6 条赋值**独立语句**（不在同一表达式中放多个 `va_arg`，避免求值顺序未定义）；每条只在命中位时取 `void *`、否则取 `syscall_arg_t`，与 `ADR-0031 D1/D3` 的「bank 游标只按声明序推进」一致；`__dadao_argmask` 由 `"syscall.h"`→`syscall_arch.h` 引入（`static inline`，无新符号）。查 `llvm-objdump --syms`：`syscall` 仍是单一定义、无内部引用。
+- 逐行审查 `src/fcntl/fcntl.c`：`fcntl_arg_is_ptr` 覆盖 `include/fcntl.h` + `arch/generic/bits/fcntl.h` 的全部指针类命令（复核内核 `fs/fcntl.c` 的 `case` 表后补 `F_GETOWNER_UIDS`）；`F_NOTIFY` 按 `long`、其余按 `int`（与 `man 2 fcntl` 的 `int`/`long` 声明一致）；`F_SETLKW` 仍走 `syscall_cp`（固定 `long` 形参，不动）；`F_GETOWN` 回退路径仍走 `__syscall`（不动）。`arg` 仍为 `unsigned long`，后续 `arg |= O_LARGEFILE`、`F_DUPFD*` 用法语义不变。
+- 逐行审查 `src/misc/getrlimit.c`：仅槽 2 由 `0` 改 `(void *)0`（槽 3 `rlim` 原本即指针），`ret`/`FIX`/`#ifdef SYS_getrlimit` 分支未动。
+- 反造假：所有结论取自本次真实命令输出；`run.sh` 两次全量跑（`--no-gates` 修 2 个自身缺陷后全绿），注入用 `cp`+md5、未用 `git checkout/restore/stash`；`git -C .work/source/musl status` 收尾为空。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `syscall()` 6 槽须按掩码分 bank | ✅已修 | 6 个 `va_arg` 改条件取型 | 探针 E/I、raw `prlimit64`、注入②红→绿 |
+| F2 `fcntl` 指针类清单漏 `F_GETOWNER_UIDS` | ✅已修 | 加入 `fcntl_arg_is_ptr` | 内核 `fs/fcntl.c:522/:308`；`make build-musl` rc=0、fcntl 两档 1/1 |
+| F3 §调用点一致性 前提对 musl 内部不成立（宏） | ✅已核实并披露 | 无代码改动，写入审计补正 + 完成区 | `internal/syscall.h:45`；`libc.a` 0 个未定义 `syscall`；`mprotect.o` 反汇编 |
+| F4 `mprotect.c:10` 形状不一致 | ⏸延后（非本册范围） | 不改 | `mprotect` 探针 0 + `-strace` 正确页地址 |
+| F5 证据脚本静态重编后 freshness 必红（`libc.so` 被 clean） | ✅已修 | 注入循环后补 `build-musl-shared` | `run.sh` 由 rc=1 → rc=0（45 PASS） |
+| F6 探针 B 断言恒 FAIL（`0x?` 正则要求前导 0） | ✅已修 | 正则改 `(?:0x)?` | `probe-checks.txt` 10/10 PASS |
 
 #### 第 1 轮 reviewer 验收
 （待填写）
+
+#### 第 1 轮 architect 提交（待验收）
+**档位**：`待验收`（实现完成 + 自审通过；reviewer 未验）⇒ 正常提交（本任务分支第 2 笔）；`**状态**` 由 `待开始` 置 `待验收`（不改写完成区述评）。
+**文件集对账**：`git diff --cached --name-only` = **9 项** = 3 新补丁（`src/fcntl/fcntl.c`/`src/misc/syscall.c`/`src/misc/getrlimit.c`）+ `components/musl/series`（19→22）+ `components/musl/changelog.md` + 本册 + 台账 3（`milestones.md` 本行 / `INTEG-036m` 进展条 / `issues.yaml`：`ISS-271` 收口 + `ISS-267` 追加）；与完成区「修改文件」逐条对齐，**无漏提 / 无多提 / 无越界**（`components/llvm-project/**` 全归第 1 笔 `LLVM-102t`）。
+**门控（真实 rc）**：`make check`(L1) rc=0「repository checks (L1): PASS」；`check-patch-tree` **180 patches OK**；`check-musl-freshness`/`check-syscall-abi`/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-milestones-fresh` 各 rc=0；`check_issues` rc=0（67 open / 27 closed，`ISS-271` `closed` + `resolved_by: INFRA-092t`）。
+**证据**：本册完成区 + `.work/evidence/INFRA-092t/run.sh`（45/45 PASS，engineer 提供；architect 未重跑）。

@@ -30,7 +30,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| INFRA-092t | 待开始 | 2026-10-18 19:02（登记） | musl 封装 va_arg 类型面：81 处全量审计，需改 syscall()/fcntl()（指针被读成整数）；只立册 |
+| INFRA-092t | 待验收 | 2026-10-18 19:02（登记） | musl 封装 va_arg 类型面：syscall()/fcntl()/getrlimit 按三 bank 取型；fcntl 两档 pass、10/10；补丁 177→180 |
 | INFRA-091t | 待验收 | 2026-10-18 15:25（登记） | milestones 体例改造 + L1 门控 check-milestones-fresh（五断言 + self-test） |
 | INFRA-090t | 待开始 | 2026-10-18 10:47（登记） | musl bits/float.h 常量块换 binary128；只立册 |
 | LLVM-106t | 待开始 | 2026-10-18 10:47（登记） | long double=binary128 全链（前端/ABI/后端/builtins TF）；只立册 |

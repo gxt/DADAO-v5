@@ -1,0 +1,59 @@
+diff --git a/src/fcntl/fcntl.c b/src/fcntl/fcntl.c
+index d3bff5c..a91835f 100644
+--- a/src/fcntl/fcntl.c
++++ b/src/fcntl/fcntl.c
+@@ -4,12 +4,44 @@
+ #include <errno.h>
+ #include "syscall.h"
+ 
++/* The third argument's C type is decided by `cmd` (POSIX/Linux `fcntl` is
++ * variadic).  ADR-0031 D1/D3 put pointers in RB and integers in RD, so the
++ * value must be fetched with the type the caller actually passed -- reading
++ * every command as `unsigned long` reads the RD bank for a `struct flock *`
++ * caller (which put it in RB) and yields 0. */
++static int fcntl_arg_is_ptr(int cmd)
++{
++	switch (cmd) {
++	case F_GETLK:
++	case F_SETLK:
++	case F_SETLKW:
++	case F_OFD_GETLK:
++	case F_OFD_SETLK:
++	case F_OFD_SETLKW:
++	case F_GETOWN_EX:
++	case F_SETOWN_EX:
++	case F_GETOWNER_UIDS:
++	case F_GET_RW_HINT:
++	case F_SET_RW_HINT:
++	case F_GET_FILE_RW_HINT:
++	case F_SET_FILE_RW_HINT:
++		return 1;
++	default:
++		return 0;
++	}
++}
++
+ int fcntl(int fd, int cmd, ...)
+ {
+ 	unsigned long arg;
+ 	va_list ap;
+ 	va_start(ap, cmd);
+-	arg = va_arg(ap, unsigned long);
++	if (fcntl_arg_is_ptr(cmd))
++		arg = (unsigned long)va_arg(ap, void *);
++	else if (cmd == F_NOTIFY)
++		arg = (unsigned long)va_arg(ap, long);
++	else
++		arg = (unsigned long)va_arg(ap, int);
+ 	va_end(ap);
+ 	if (cmd == F_SETFL) arg |= O_LARGEFILE;
+ 	if (cmd == F_SETLKW) return syscall_cp(SYS_fcntl, fd, cmd, (void *)arg);
+@@ -41,7 +73,7 @@ int fcntl(int fd, int cmd, ...)
+ 	case F_GETLK:
+ 	case F_GETOWN_EX:
+ 	case F_SETOWN_EX:
+-		return syscall(SYS_fcntl, fd, cmd, (void *)arg);
++		return syscall(SYS_fcntl, fd, cmd, arg);
+ 	default:
+ 		return syscall(SYS_fcntl, fd, cmd, arg);
+ 	}

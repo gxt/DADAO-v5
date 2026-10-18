@@ -12,6 +12,9 @@ arch/dadao/reloc.h.patch
 arch/dadao/syscall_arch.h.patch
 configure.patch
 ldso/dlstart.c.patch
+src/fcntl/fcntl.c.patch
+src/misc/getrlimit.c.patch
+src/misc/syscall.c.patch
 src/setjmp/dadao/longjmp.S.patch
 src/setjmp/dadao/setjmp.S.patch
 src/signal/dadao/sigsetjmp.s.patch
