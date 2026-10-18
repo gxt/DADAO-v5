@@ -58,7 +58,7 @@ musl `arch/dadao/bits/float.h` 现状按 **binary64** 写死（`LDBL_MANT_DIG 53
 **修改文件**：
 **验收结果**：
 **新发现/坑**：
-**遗留问题**：
+**遗留问题**：**依赖就绪**：`LLVM-106t` 已实现（前端 `__SIZEOF_LONG_DOUBLE__=16` / `__LDBL_MANT_DIG__=113` / `__float128`；后端 `f128` + builtins TF 29 符号），**BLOCKED 解除**在 `install-host` 后 ⇒ 届时按 `LDBL_MANT_DIG=113` 改 musl `float.h` 并复跑 5 例。
 
 ## 审阅记录
 

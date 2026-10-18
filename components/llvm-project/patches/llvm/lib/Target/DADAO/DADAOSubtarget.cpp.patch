@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..24fdbb196
+index 000000000..7fea0ab78
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,178 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -142,4 +142,43 @@ index 000000000..24fdbb196
 +  // libcall (the next consumer-lame failure is the varargs gap of LLVM-102t,
 +  // not a libcall).
 +  Info.setLibcallImpl(RTLIB::LOG10_F64, RTLIB::impl_log10);
++
++  // LLVM-106t (ADR-0030 D1/D3, ADR-0031 D6): IEEE binary128 soft float.
++  // `long double` is f128; with no 128-bit FP register the type legalizer
++  // turns every f128 value into i128 (two 64-bit halves) and every arithmetic
++  // / comparison / conversion into an out-of-line compiler-rt TF libcall.
++  // A non-table arch must register each libcall explicitly (see the i128 note
++  // above), otherwise makeLibCall reports "unsupported library call
++  // operation".  The names are compiler-rt's `GENERIC_TF_SOURCES` entry
++  // points (libclang_rt.builtins.a); `__negtf2` is deliberately absent: the
++  // legalizer implements FNEG as an integer XOR of the sign bit, which is
++  // exact for IEEE formats and needs no library call.
++  Info.setLibcallImpl(RTLIB::ADD_F128, RTLIB::impl___addtf3);
++  Info.setLibcallImpl(RTLIB::SUB_F128, RTLIB::impl___subtf3);
++  Info.setLibcallImpl(RTLIB::MUL_F128, RTLIB::impl___multf3);
++  Info.setLibcallImpl(RTLIB::DIV_F128, RTLIB::impl___divtf3);
++  // f32/f64 <-> binary128 conversions.
++  Info.setLibcallImpl(RTLIB::FPEXT_F32_F128, RTLIB::impl___extendsftf2);
++  Info.setLibcallImpl(RTLIB::FPEXT_F64_F128, RTLIB::impl___extenddftf2);
++  Info.setLibcallImpl(RTLIB::FPROUND_F128_F32, RTLIB::impl___trunctfsf2);
++  Info.setLibcallImpl(RTLIB::FPROUND_F128_F64, RTLIB::impl___trunctfdf2);
++  // Integer <-> binary128 conversions (the i32 forms share the i32 entry
++  // points; narrow integers are promoted to i32/i64 by the legalizer).
++  Info.setLibcallImpl(RTLIB::FPTOSINT_F128_I32, RTLIB::impl___fixtfsi);
++  Info.setLibcallImpl(RTLIB::FPTOSINT_F128_I64, RTLIB::impl___fixtfdi_f128);
++  Info.setLibcallImpl(RTLIB::FPTOUINT_F128_I32, RTLIB::impl___fixunstfsi_f128);
++  Info.setLibcallImpl(RTLIB::FPTOUINT_F128_I64, RTLIB::impl___fixunstfdi_f128);
++  Info.setLibcallImpl(RTLIB::SINTTOFP_I32_F128, RTLIB::impl___floatsitf);
++  Info.setLibcallImpl(RTLIB::SINTTOFP_I64_F128, RTLIB::impl___floatditf_f128);
++  Info.setLibcallImpl(RTLIB::UINTTOFP_I32_F128, RTLIB::impl___floatunsitf);
++  Info.setLibcallImpl(RTLIB::UINTTOFP_I64_F128, RTLIB::impl___floatunditf_f128);
++  // Comparisons (`softenSetCCOperands`): __eqtf2/__netf2/__getf2/__lttf2/
++  // __letf2/__gttf2/__unordtf2.
++  Info.setLibcallImpl(RTLIB::OEQ_F128, RTLIB::impl___eqtf2);
++  Info.setLibcallImpl(RTLIB::UNE_F128, RTLIB::impl___netf2);
++  Info.setLibcallImpl(RTLIB::OGE_F128, RTLIB::impl___getf2);
++  Info.setLibcallImpl(RTLIB::OLT_F128, RTLIB::impl___lttf2);
++  Info.setLibcallImpl(RTLIB::OLE_F128, RTLIB::impl___letf2);
++  Info.setLibcallImpl(RTLIB::OGT_F128, RTLIB::impl___gttf2);
++  Info.setLibcallImpl(RTLIB::UO_F128, RTLIB::impl___unordtf2);
 +}

@@ -66,16 +66,29 @@
 8. **顺序**：前端 → ABI → 后端 → 重建 builtins → 端到端；**不得**先改 builtins 再等 f128（TF 源会继续产出空对象）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：通过 38/38（`bash .work/evidence/LLVM-106t/run.sh` rc=0；`--inject` 3 注入全红→`cp`+md5 还原→回绿，rc=0）。① `clang -dM`：`__SIZEOF_LONG_DOUBLE__=16`、`__LDBL_MANT_DIG__=113`、`__LDBL_MAX_EXP__=16384`、`__LDBL_MIN_EXP__=(-16381)`、`__SIZEOF_FLOAT128__=16`；`sizeof/alignof(long double)==16`、`sizeof(__float128)==16` 静态断言编译 rc=0。② 实际发出 TF libcall **21 条**（`nm -u` 于 ops 探针现场统计）：`__addtf3 __subtf3 __multf3 __divtf3 __extendsftf2 __extenddftf2 __trunctfsf2 __trunctfdf2 __floatsitf __floatditf __floatunsitf __floatunditf __fixtfdi __fixunstfdi __eqtf2 __netf2 __getf2 __lttf2 __letf2 __gttf2 __unordtf2`，**21/21 在 archive 有定义**；FNEG 走整数 XOR（不发 `__negtf2`）。③ builtins TF 符号 **0 → 29**（`nm -g --defined-only` 现场统计；24 个 `*tf*` 成员由空对象变为有定义；修前安装根 archive 对照 = 0）。④ 端到端（构建树 clang + crt0 + 本 archive + QEMU `dadao-m1`）18 项独立 oracle 检查全过，`-O0/-O1/-O2/-Os/-O3` 退出码均 0；含大端半字双向判别（`rf16`=高半落低地址、`st.o` 偏移 0/8、返回 `rf8/9`、`A-2^-100` 保低位、`double` 占 `rf16` 时跳过 `rf17`、9 个 `long double` 第 9 个整值退栈、`va_arg` 三对求和）。⑤ ABI 结构：`st`=`rf2rd rf17→[p,8]`/`rf16→[p,0]`；`ld`=`[p,0]→rf8`/`[p,8]→rf9`；`add(fp128,fp128)` 直通 `call [rb0,__addtf3]`（参数已在 rf16..19、结果 rf8/9）。⑥ lit：新增 `f128-codegen.ll`，CodeGen 目录 **34/34 PASS**（构建树 tools）。⑦ 无回归：33 个既有 lit 全绿；`make check`(L1) rc=0。
+**修改文件**：`components/llvm-project/patches/{clang/lib/Basic/Targets/DADAO.{h,cpp},clang/lib/CodeGen/Targets/DADAO.cpp,llvm/lib/Target/DADAO/{DADAOCallingConv.td,DADAOISelLowering.cpp,DADAOSubtarget.cpp}}.patch`（6 份改，`series` 仍 81）；`components/llvm-project/changelog.md`（+1 条）；`tests/llvm/lit/CodeGen/DADAO/f128-codegen.ll`（新增）；`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（**生成物**刷新：补丁行号 594/596/598→714/716/718，`gen_isa_coverage` 再生成）；`.work/evidence/LLVM-106t/{run.sh,gen_f128_vectors.py,f128_e2e.c}`（非跟踪证据）；本任务书。
+**验收结果**：门控 rc 全 0：`check-patch-tree`（180 patches OK）、`check-index-blobs`、`check-source-state`（E1：clean + base+1）、`check-no-residue`、`check-instrinfo`、`check-component-changelog`、`check-lit_gen`（64/64）、`check-knowledge-refs`（0 悬空）、`check_tasks`（报告型）、`check_issues.py`（`make check-issues` **无此目标**，直跑脚本 67 open/27 closed rc=0）、`make check`(L1) rc=0。源树：`.work/source/llvm-project` HEAD=`2364895f2`（base+1，`commit --amend`），`git status` 干净。
+**新发现/坑**：① **va_arg 16 B 奇偶判据不能看保存区地址 bit3**：保存区只保证 8 B 对齐（`contract-abi §2.2` SP 8 B），SP≡8(mod16) 时地址判据误判奇号并跳槽（现场：变参求和取到低半）；改用「剩余槽数」`left&1`（槽号 = 32-left），对任意 SP 对齐成立，同时修正 LLVM-102t 的 16 B 聚合同类隐患。② f128 无 128 位寄存器 ⇒ 合法化路径 = `TypeSoftenFloat`（f128→i128→2×i64）+ libcall；CC 层用「marker VT=f128」识别两半，`OrigTy->isFP128Ty()` 是唯一可用判别（`CCCustomFn` 拿不到 OrigTy 之外的标记；`f128` 不可作单寄存器）。③ `_Float128` **不是** clang 23 关键字（只有 `__float128`）；`HasFloat128` + `__SIZEOF_FLOAT128__` 即满足 compiler-rt `CRT_HAS_*` 门控。④ 局部 f128 常量按两条 64 位立即数物化（本后端无常量池）；全局 `long double` 常量才是 `.p2align 4` + `.dd.o64`×2（高半在前）。⑤ `__fixtfsi`/`__fixunstfsi` 在 clang 侧不可达（i32 结果先提升为 i64 ⇒ `__fixtfdi`/`__fixunstfdi`），archive 仍备有。⑥ 改 `int_types.h` 关 `CRT_HAS_TF_MODE` 会连带 multc3/divtc3 编译失败（archive 不重链接，假绿），注入须改 `addtf3.c` 的 `#if` 门控。
+**遗留问题**：① `INFRA-090t`（musl `bits/float.h`）**BLOCKED**（另册，未做）；其 `_l` 转正与 `ISS-250` 5 例复验须待该册 + `install-host`。② **绝对 16 B 栈对齐**：`ADR-0031 D7` 要求 16 B 槽，但 `contract-abi §2.2` 只保证 SP 8 B 对齐且 `DADAOFrameLowering` `StackAlignment=8`；当前实现栈槽**相对 SP** 16 B 对齐、访问全部为 8 B `ld.o`/`st.o`（无 16 B 指令），功能无碍，绝对对齐须 ABI/框架层另议（未在本册擅改）。③ `install-host`/L2/L3 未跑（主会话执行）；安装根 clang/archive 仍为旧（TF 0 符号），验收第 1–5 条须安装后复跑。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+**范围**：6 个组件源文件（前端 2 + clang ABI 1 + 后端 3）+ 导出补丁 + 证据脚本；逐行审查 + 三类注入实测。判决：**可交付**（按主会话下发要求本册**不改 `**状态**`**，留给主会话/architect 置 `待验收`）；F6/F7/F8 为实现事实/环境限制，已按实披露并给证据，非代码缺陷。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `Type::isFloat128Ty()` 不存在（编译失败） | ✅已修 | `markF128Halves` 改 `isFP128Ty()` | `ninja clang llc` rc=0 |
+| F2 `va_arg` 16 B 奇偶用保存区地址 bit3，SP≡8(mod16) 时误跳槽（e2e 求和不符） | ✅已修 | 改用 `left & 1`（槽号=32-left） | e2e `-O0/-O1/-O2/-Os/-O3` rc=0；18 项全过 |
+| F3 证据探针缺 int→f128，`__floatsitf/__floatunsitf` 假红 | ✅已修 | 探针补 `(long double)i/u` | 21 条 libcall 全绿 |
+| F4 builtins 注入用 `int_types.h` 关宏 ⇒ multc3/divtc3 编译失败、archive 未重链接（假绿） | ✅已修 | 注入改 `addtf3.c` 的 `#if` 门控（与原 bug 同机制） | `--inject` rc=0，`__addtf3` 0→1 |
+| F5 `check-isa-coverage` 因补丁行号漂移失败 | ✅已修 | 重新生成 `tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（仅 3 行行号） | `gen_isa_coverage --check` PASS；L1 rc=0 |
+| F6 `make check-issues` 无此目标（rc=2） | ⏸按实披露 | 直跑 `tools/infra/check_issues.py` | rc=0（67 open/27 closed） |
+| F7 `_Float128` 非 clang 23 关键字 | ⏸不修（前端事实） | 以 `HasFloat128`/`__float128`/`__SIZEOF_FLOAT128__` 实现「开 _Float128」 | `sizeof(__float128)==16` 静态断言 + compiler-rt 29 符号 |
+| F8 局部 f128 常量为立即数而非 `.dd.o64`×2 | ❌不修（后端无常量池；全局常量满足该条） | 仅披露 | 全局 `vA`：`.p2align 4` + `.dd.o64`×2 高半在前（asm 现场） |
+
+**独立可达 FAIL（`--inject`，全绿）**：① `LongDoubleWidth=64` ⇒ 宏断言红；② 偶/奇槽交换 ⇒ `st.o` 偏移断言红；③ `addtf3.c` `#if 0` ⇒ `__addtf3` 符号断言红。三例均 `cp` 备份 + md5 对账还原 + 重建回绿，未用 `git checkout/restore/stash`。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCallingConv.td b/llvm/lib/Target/DADAO/DADAOCallingConv.td
 new file mode 100644
-index 000000000..df58ab27a
+index 000000000..471edf476
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCallingConv.td
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,137 @@
 +//===-- DADAOCallingConv.td - DADAO Calling Conventions ---*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -50,6 +50,16 @@ index 000000000..df58ab27a
 +  // Promote i8/i16/i32 arguments to i64 (contract-abi.md §4.2).
 +  CCIfType<[i8, i16, i32], CCPromoteToType<i64>>,
 +
++  // `long double` = binary128 (LLVM-106t; ADR-0030 D2, ADR-0031 D6).  The
++  // value is carried as two 64-bit halves; the target lowering marks both
++  // halves with ValVT = f128 before CC analysis (a 128-bit value cannot be one
++  // register on this target).  CC_DADAO_F128_Pair assigns the pair to two
++  // 64-bit RF slots starting at an EVEN slot number, high half first (the
++  // big-endian part order produced by getCopyToParts), or -- when no complete
++  // even/odd pair is left -- to a 16-byte/16-byte-aligned stack slot as a whole
++  // (never split).
++  CCIfType<[f128], CCCustom<"CC_DADAO_F128_Pair">>,
++
 +  // Floating-point arguments -> RF bank (rf16..rf31), independent count
 +  // (contract-abi.md §4.1/§6.4; M6, LLVM-066t).  HFA elements (all f32 or all
 +  // f64, <= 8 of them) flatten to individual floating-point scalars upstream,
@@ -83,6 +93,11 @@ index 000000000..df58ab27a
 +
 +  // Floating-point return -> rf8..rf15 (M6, contract-abi.md §4.4/§6.1).  The
 +  // first FP return lands in rf8, the next in rf9, ...; HFA results likewise.
++  // `long double` (binary128) is two halves: the target lowering marks them
++  // with ValVT = f128 and RetCC_DADAO_F128 assigns rf8 (high half) then rf9
++  // (low half), in part order (ADR-0030 D2 / ADR-0031 D6).  Exhaustion leaves
++  // the value unassigned so CanLowerReturn demotes the return to sret.
++  CCIfType<[f128], CCCustom<"RetCC_DADAO_F128">>,
 +  CCIfType<[f32, f64], CCAssignToReg<[rf8, rf9, rf10, rf11, rf12, rf13, rf14,
 +                                       rf15]>>,
 +

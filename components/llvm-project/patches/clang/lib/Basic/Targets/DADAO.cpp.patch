@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Basic/Targets/DADAO.cpp b/clang/lib/Basic/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..3493c0094
+index 000000000..ee3819aab
 --- /dev/null
 +++ b/clang/lib/Basic/Targets/DADAO.cpp
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,70 @@
 +//===--- DADAO.cpp - Implement DADAO target feature support ---------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -35,6 +35,12 @@ index 000000000..3493c0094
 +  // it is not duplicated here.
 +  Builder.defineMacro("__dadao__");
 +  Builder.defineMacro("__DADAO__");
++  // `_Float128` / `__float128` are binary128 (DADAO.h sets HasFloat128 and
++  // Float128Format = IEEEquad).  Clang does not derive this macro from the
++  // target info (only some targets define it explicitly), but compiler-rt's
++  // int_types.h keys `CRT_HAS___FLOAT128_KEYWORD` on it, so define it here.
++  if (HasFloat128)
++    Builder.defineMacro("__SIZEOF_FLOAT128__", "16");
 +}
 +
 +ArrayRef<const char *> DADAOTargetInfo::getGCCRegNames() const {

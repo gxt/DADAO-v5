@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..2e962900d
+index 000000000..f48f33d13
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1499 @@
+@@ -0,0 +1,1623 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -45,9 +45,124 @@ index 000000000..2e962900d
 +
 +using namespace llvm;
 +
++//===----------------------------------------------------------------------===//
++// IEEE binary128 (long double) calling convention (LLVM-106t).
++//
++// `long double` is f128 (ADR-0030 D1) and this target has no 128-bit register:
++// the type legalizer softens f128 to i128, which the type legalizer then splits
++// into two i64 halves, and every arithmetic/comparison/conversion becomes a
++// compiler-rt TF libcall.  At the ABI boundary the two halves must travel as
++// ONE value: an even/odd pair of 64-bit RF slots with the high half in the even
++// slot (`rf16`/`rf17`, ADR-0030 D2 as revised by ADR-0031 D6), or a single
++// 16-byte/16-byte-aligned stack slot, never split across the two.  A `long
++// double` return uses `rf8` (high) + `rf9` (low).
++//
++// The generic split machinery produces the halves as ordinary i64 parts, with
++// the big-endian part order already fixed ([high, low], getCopyToParts) and the
++// Split/SplitEnd flags set on the first/last part.  To route them as a value
++// (and not as two unrelated integers) the target lowering rewrites the parts'
++// VT to f128 ("marker") before calling CC analysis; the rules below are the
++// only place that sees the marker and turn it back into a 64-bit LocVT.
++//===----------------------------------------------------------------------===//
++
++/// RF argument slots, in allocation order (contract-abi.md §4.1).
++static const MCPhysReg DADAOArgRFRegs[] = {
++    DADAO::rf16, DADAO::rf17, DADAO::rf18, DADAO::rf19,
++    DADAO::rf20, DADAO::rf21, DADAO::rf22, DADAO::rf23,
++    DADAO::rf24, DADAO::rf25, DADAO::rf26, DADAO::rf27,
++    DADAO::rf28, DADAO::rf29, DADAO::rf30, DADAO::rf31};
++
++/// RF return slots (contract-abi.md §4.4).
++static const MCPhysReg DADAORetRFRegs[] = {
++    DADAO::rf8,  DADAO::rf9,  DADAO::rf10, DADAO::rf11,
++    DADAO::rf12, DADAO::rf13, DADAO::rf14, DADAO::rf15};
++
++/// Rewrite the two 64-bit parts of every binary128 value to the f128 "marker"
++/// so CC_DADAO / RetCC_DADAO can recognise them as one value.  Works for both
++/// ISD::InputArg and ISD::OutputArg (same field names).
++template <typename ArgT>
++static SmallVector<ArgT, 16> markF128Halves(ArrayRef<ArgT> Args) {
++  SmallVector<ArgT, 16> Marked(Args.begin(), Args.end());
++  for (ArgT &A : Marked)
++    if (A.OrigTy && A.OrigTy->isFP128Ty())
++      A.VT = MVT::f128;
++  return Marked;
++}
++
++/// CCAssignFn (CCCustom) rule for one i64 half of a binary128 argument.
++/// The first half decides the location of the WHOLE value:
++///   * the lowest even-numbered RF slot whose odd neighbour is also free --
++///     an odd cursor is skipped, not used as a pair start (ADR-0031 D6);
++///   * otherwise one 16-byte, 16-byte-aligned stack slot (all-or-nothing:
++///     a value is never split between registers and the stack, ADR-0030 D2).
++/// The second half consumes the location remembered for it.
++static bool CC_DADAO_F128_Pair(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
++                               CCValAssign::LocInfo &LocInfo,
++                               ISD::ArgFlagsTy &ArgFlags, CCState &State) {
++  assert(ValVT == MVT::f128 && "marker VT expected");
++  LocVT = MVT::i64;
++  LocInfo = CCValAssign::Full;
++
++  SmallVectorImpl<CCValAssign> &Pending = State.getPendingLocs();
++
++  if (ArgFlags.isSplit() && !ArgFlags.isSplitEnd()) {
++    // First half (high, big-endian part order).
++    const unsigned Num = std::size(DADAOArgRFRegs);
++    unsigned Even = Num;
++    for (unsigned I = 0; I + 1 < Num; I += 2)
++      if (!State.isAllocated(DADAOArgRFRegs[I]) &&
++          !State.isAllocated(DADAOArgRFRegs[I + 1])) {
++        Even = I;
++        break;
++      }
++    if (Even != Num) {
++      MCRegister EvenReg = State.AllocateReg(DADAOArgRFRegs[Even]);
++      MCRegister OddReg = State.AllocateReg(DADAOArgRFRegs[Even + 1]);
++      State.addLoc(CCValAssign::getReg(ValNo, ValVT, EvenReg, LocVT, LocInfo));
++      Pending.push_back(
++          CCValAssign::getReg(ValNo + 1, ValVT, OddReg, LocVT, LocInfo));
++    } else {
++      int64_t Off = State.AllocateStack(8, Align(16));
++      State.addLoc(CCValAssign::getMem(ValNo, ValVT, Off, LocVT, LocInfo));
++      Pending.push_back(
++          CCValAssign::getMem(ValNo + 1, ValVT, Off + 8, LocVT, LocInfo));
++    }
++    return true;
++  }
++
++  // Second half (low): the pair location was fixed when the first half was
++  // seen, so the two parts stay contiguous.
++  if (!Pending.empty()) {
++    State.addLoc(Pending.front());
++    Pending.erase(Pending.begin());
++    return true;
++  }
++  // An unpaired half is a bug: fall through so the CC reports it loudly.
++  return false;
++}
++
++/// CCAssignFn (CCCustom) rule for one i64 half of a binary128 return value.
++/// Parts arrive in [high, low] order, so rf8 gets the high half and rf9 the
++/// low half (ADR-0030 D2 / ADR-0031 D6).  Exhausting rf8..rf15 fails, which
++/// makes CanLowerReturn demote the return to a hidden sret pointer.
++static bool RetCC_DADAO_F128(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
++                             CCValAssign::LocInfo &LocInfo,
++                             ISD::ArgFlagsTy &ArgFlags, CCState &State) {
++  assert(ValVT == MVT::f128 && "marker VT expected");
++  (void)ArgFlags;
++  LocVT = MVT::i64;
++  LocInfo = CCValAssign::Full;
++  MCRegister Reg = State.AllocateReg(DADAORetRFRegs);
++  if (!Reg)
++    return false;
++  State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
++  return true;
++}
++
 +// Generated calling-convention assigners CC_DADAO / RetCC_DADAO
 +// (DADAOCallingConv.td).  Included after `using namespace llvm;` like the
-+// other DADAO/M68k-style targets.
++// other DADAO/M68k-style targets; the CCCustom rules declared above must be
++// visible here.
 +#define GET_CALLING_CONV_IMPL
 +#include "DADAOGenCallingConv.inc"
 +
@@ -482,7 +597,7 @@ index 000000000..2e962900d
 +
 +  SmallVector<CCValAssign, 16> ArgLocs;
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-+  CCInfo.AnalyzeFormalArguments(Ins, CC_DADAO);
++  CCInfo.AnalyzeFormalArguments(markF128Halves<ISD::InputArg>(Ins), CC_DADAO);
 +
 +  for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
 +    CCValAssign &VA = ArgLocs[i];
@@ -496,11 +611,16 @@ index 000000000..2e962900d
 +      // Bank comes from the register CC_DADAO actually assigned (rb* for
 +      // pointers, rd* for scalars, rf* for floating point); the vreg class must
 +      // match it so the register allocator cannot put a value in the wrong bank
-+      // (C1/C2; FP: contract-abi.md §4.1).
++      // (C1/C2; FP: contract-abi.md §4.1).  A binary128 half is a 64-bit
++      // integer part even though it lives in an RF slot (LLVM-106t): keep it in
++      // GPRD so the later integer operations on the halves need no extra bank
++      // move (`rf2rd` is inserted by copyPhysReg).
++      const bool IsF128Half = VA.getValVT() == MVT::f128;
 +      const TargetRegisterClass *RC =
-+          DADAO::GPRBRegClass.contains(VA.getLocReg())   ? &DADAO::GPRBRegClass
-+          : DADAO::GPRFRegClass.contains(VA.getLocReg()) ? &DADAO::GPRFRegClass
-+                                                         : &DADAO::GPRDRegClass;
++          IsF128Half                                           ? &DADAO::GPRDRegClass
++          : DADAO::GPRBRegClass.contains(VA.getLocReg())       ? &DADAO::GPRBRegClass
++          : DADAO::GPRFRegClass.contains(VA.getLocReg())       ? &DADAO::GPRFRegClass
++                                                               : &DADAO::GPRDRegClass;
 +      Register VReg = RegInfo.createVirtualRegister(RC);
 +      RegInfo.addLiveIn(VA.getLocReg(), VReg);
 +      ArgValue = DAG.getCopyFromReg(Chain, DL, VReg, LocVT);
@@ -619,7 +739,7 @@ index 000000000..2e962900d
 +  SmallVector<CCValAssign, 16> RVLocs;
 +  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
 +                 *DAG.getContext());
-+  CCInfo.AnalyzeReturn(Outs, RetCC_DADAO);
++  CCInfo.AnalyzeReturn(markF128Halves<ISD::OutputArg>(Outs), RetCC_DADAO);
 +
 +  SDValue Glue;
 +  SmallVector<SDValue, 4> RetOps(1, Chain);
@@ -684,7 +804,7 @@ index 000000000..2e962900d
 +
 +  SmallVector<CCValAssign, 16> ArgLocs;
 +  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-+  CCInfo.AnalyzeCallOperands(Outs, CC_DADAO);
++  CCInfo.AnalyzeCallOperands(markF128Halves<ISD::OutputArg>(Outs), CC_DADAO);
 +
 +  // Real tail call (LLVM-074t; contract-isa.md §8.3/§8.4, contract-abi.md
 +  // §2.3/§4.6).  DADAO has no tail-call instruction, but it does have a plain
@@ -727,7 +847,8 @@ index 000000000..2e962900d
 +      SmallVector<CCValAssign, 16> CalleeRets;
 +      CCState CalleeRetCC(CallConv, IsVarArg, MF, CalleeRets,
 +                          *DAG.getContext());
-+      CalleeRetCC.AnalyzeCallResult(Ins, RetCC_DADAO);
++      CalleeRetCC.AnalyzeCallResult(markF128Halves<ISD::InputArg>(Ins),
++                                    RetCC_DADAO);
 +      const Function &F = MF.getFunction();
 +      SmallVector<ISD::OutputArg, 4> SelfOuts;
 +      GetReturnInfo(CallConv, F.getReturnType(), F.getAttributes(), SelfOuts,
@@ -742,7 +863,8 @@ index 000000000..2e962900d
 +      SmallVector<CCValAssign, 16> SelfRets;
 +      CCState SelfRetCC(CallConv, F.isVarArg(), MF, SelfRets,
 +                        *DAG.getContext());
-+      SelfRetCC.AnalyzeReturn(SelfOuts, RetCC_DADAO);
++      SelfRetCC.AnalyzeReturn(markF128Halves<ISD::OutputArg>(SelfOuts),
++                              RetCC_DADAO);
 +      Eligible = CalleeRets.size() == SelfRets.size();
 +      for (unsigned i = 0, e = CalleeRets.size(); Eligible && i != e; ++i)
 +        Eligible = CalleeRets[i].isRegLoc() && SelfRets[i].isRegLoc() &&
@@ -932,7 +1054,7 @@ index 000000000..2e962900d
 +  SmallVector<CCValAssign, 16> RVLocs;
 +  CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
 +                 *DAG.getContext());
-+  CCInfo.AnalyzeCallResult(Ins, RetCC_DADAO);
++  CCInfo.AnalyzeCallResult(markF128Halves<ISD::InputArg>(Ins), RetCC_DADAO);
 +
 +  for (unsigned i = 0, e = RVLocs.size(); i != e; ++i) {
 +    CCValAssign &VA = RVLocs[i];
@@ -945,8 +1067,10 @@ index 000000000..2e962900d
 +    InGlue = Copy.getValue(2);
 +    SDValue Val = Copy.getValue(0);
 +    // The callee canonicalised a narrow return value; the caller only
-+    // truncates to the IR type (C5 D2: caller does not re-extend).
-+    if (VA.getValVT() != VA.getLocVT())
++    // truncates to the IR type (C5 D2: caller does not re-extend).  A
++    // binary128 half is a 64-bit integer part (ValVT is only the marker); the
++    // generic getCopyFromParts below reassembles the two halves into f128.
++    if (VA.getValVT() != VA.getLocVT() && VA.getValVT() != MVT::f128)
 +      Val = DAG.getNode(ISD::TRUNCATE, DL, VA.getValVT(), Val);
 +    InVals.push_back(Val);
 +  }

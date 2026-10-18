@@ -1,9 +1,9 @@
 diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..161f20a75
+index 000000000..363f140af
 --- /dev/null
 +++ b/clang/lib/CodeGen/Targets/DADAO.cpp
-@@ -0,0 +1,458 @@
+@@ -0,0 +1,472 @@
 +//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -152,6 +152,15 @@ index 000000000..161f20a75
 +    }
 +
 +    if (!isAggregateTypeForABI(Ty)) {
++      // `long double` is binary128: one 16-byte value carried in the RF bank
++      // as an even/odd register pair (ADR-0030 D2, ADR-0031 D6), unlike the
++      // 8-byte double which uses a single slot.
++      if (Ty->isSpecificBuiltinType(BuiltinType::LongDouble)) {
++        C.Bank = ValBank::RF;
++        C.Slots = 2;
++        C.Is16 = true;
++        return C;
++      }
 +      if (Ty->isPointerType())
 +        C.Bank = ValBank::RB;
 +      else if (Ty->isFloatingType())
@@ -267,13 +276,17 @@ index 000000000..161f20a75
 +    llvm::BasicBlock *ContBB = CGF.createBasicBlock("vaarg.cont");
 +
 +    // Number of slots this value needs when taken from registers.  A 16-byte
-+    // value whose cursor is on an odd slot first skips one slot (D6).
++    // value whose cursor is on an odd slot first skips one slot (D6).  The
++    // cursor's slot parity is derived from the remaining-slot count: the bank
++    // is counted from 16 up to 32, so the cursor index is (32 - left) and its
++    // parity is (left & 1).  Using the count (not the save-area address) keeps
++    // the rule correct when the save area itself is only 8-byte aligned, which
++    // is all contract-abi.md §2.2 guarantees for SP at a call.
 +    llvm::Value *Odd = B.getFalse();
 +    llvm::Value *Need = B.getInt64(C.Slots);
 +    if (C.Is16) {
-+      llvm::Value *NextInt = B.CreatePtrToInt(Next, Int64Ty, "va.next.int");
-+      Odd = B.CreateICmpNE(
-+          B.CreateAnd(NextInt, B.getInt64(8)), B.getInt64(0), "va.odd");
++      Odd = B.CreateICmpNE(B.CreateAnd(Left, B.getInt64(1)),
++                           B.getInt64(0), "va.odd");
 +      Need = B.CreateSelect(Odd, B.getInt64(3), B.getInt64(2), "va.need");
 +    }
 +
@@ -290,7 +303,8 @@ index 000000000..161f20a75
 +    // The value's source image in each path.  Aggregates load once from the
 +    // merged address; scalars produce a value in each path (their register and
 +    // stack encodings differ for f32, see below).
-+    bool IsScalar = !isAggregateTypeForABI(Ty) && !Ty->isAnyComplexType();
++    bool IsScalar = !isAggregateTypeForABI(Ty) && !Ty->isAnyComplexType() &&
++                    !Ty->isSpecificBuiltinType(BuiltinType::LongDouble);
 +    Address InAddr = Address::invalid();
 +    Address StackAddr = Address::invalid();
 +    llvm::Value *InVal = nullptr, *StackVal = nullptr;
@@ -314,7 +328,7 @@ index 000000000..161f20a75
 +          B.CreateLoad(B.CreateConstInBoundsByteGEP(SlotAddr, CharUnits::Zero())
 +                           .withElementType(Int64Ty),
 +                       "va.raw");
-+      if (Ty->isSpecificBuiltinType(BuiltinType::Double) || Ty->isSpecificBuiltinType(BuiltinType::LongDouble))
++      if (Ty->isSpecificBuiltinType(BuiltinType::Double))
 +        return B.CreateBitCast(Raw, CGF.DoubleTy, "va.f64");
 +      if (Ty->isPointerType())
 +        return B.CreateIntToPtr(Raw, ValTy, "va.ptr");

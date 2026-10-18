@@ -33,7 +33,7 @@
 | INFRA-092t | 待验收 | 2026-10-18 19:02（登记） | musl 封装 va_arg 类型面：syscall()/fcntl()/getrlimit 按三 bank 取型；fcntl 两档 pass、10/10；补丁 177→180 |
 | INFRA-091t | 待验收 | 2026-10-18 15:25（登记） | milestones 体例改造 + L1 门控 check-milestones-fresh（五断言 + self-test） |
 | INFRA-090t | 待开始 | 2026-10-18 10:47（登记） | musl bits/float.h 常量块换 binary128；只立册 |
-| LLVM-106t | 待开始 | 2026-10-18 10:47（登记） | long double=binary128 全链（前端/ABI/后端/builtins TF）；只立册 |
+| LLVM-106t | 待开始 | 2026-10-18 10:47（登记） | long double=binary128：前端 16B/113 宏 + ABI rf16/17 + f128 libcall 21 + TF 29 符号；18 项 oracle、lit 34/34；待 install-host |
 | INFRA-089t | 待验收 | 2026-10-18 07:55（登记） | musl sigsetjmp：新增 dadao/sigsetjmp.s；setjmp blocked→pass；patch 174 |
 | LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | A 段（brind）：LowerBRIND + BLOCK_ADDR、evalloop 两档 pass；B 段完成（三游标 ABI、printf 实测、consumer-lame 两档 pass）；余 D4 caller 侧 |
 | LLVM-103t | 待验收 | 2026-10-18 07:55（登记） | flog libcall 补齐：LOG_F64/LOG10_F64 注册；CoMD 两档 pass；patch 173 |

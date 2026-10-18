@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Basic/Targets/DADAO.h b/clang/lib/Basic/Targets/DADAO.h
 new file mode 100644
-index 000000000..1f297260d
+index 000000000..b0bb903f5
 --- /dev/null
 +++ b/clang/lib/Basic/Targets/DADAO.h
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,108 @@
 +//===--- DADAO.h - Declare DADAO target feature support --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -55,13 +55,25 @@ index 000000000..1f297260d
 +    WCharType = UnsignedInt;
 +    WIntType = UnsignedInt;
 +
-+    // `long double` is absent from the spec's Fundamental Types table.  For the
-+    // freestanding M6 target keep it 64-bit (identical to `double`) so no
-+    // 128-bit float codegen is implied.
-+    LongDoubleWidth = LongDoubleAlign = 64;
++    // `long double` is IEEE binary128 (ADR-0030 D1): 16 bytes, 16-byte
++    // aligned, 113-bit significand.  All arithmetic is compiler-rt soft float
++    // (`__addtf3` ..., ADR-0030 D3); the backend only carries the value as two
++    // 64-bit register halves (ADR-0030 D2).
++    LongDoubleWidth = LongDoubleAlign = 128;
++    LongDoubleFormat = &llvm::APFloat::IEEEquad();
 +
-+    // Maximum scalar alignment; aggregates align to 8 bytes per spec.
-+    SuitableAlign = 64;
++    // `__float128` (and the `_Float128` spelling where the language mode
++    // accepts it) is available and uses the same binary128 format (ADR-0030
++    // Context fact 2: the compiler-rt TF sources and the musl `_l`
++    // implementations both need the keyword to name the same type).
++    HasFloat128 = true;
++    Float128Format = &llvm::APFloat::IEEEquad();
++
++    // Maximum scalar alignment.  With a 16-byte scalar and the S128 stack
++    // alignment of the DADAO DataLayout (ADR-0018 C9/contract-abi §4.9), a
++    // 16-byte suitable alignment keeps over-aligned locals (and therefore the
++    // binary128 argument/return slots they live in) naturally aligned.
++    SuitableAlign = 128;
 +
 +    // Derive the DataLayout from the triple so it is byte-identical to the
 +    // backend's (llvm/lib/TargetParser/TargetDataLayout.cpp, case
