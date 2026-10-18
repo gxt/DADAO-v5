@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：无（约束：本册**不动** `.work/log/testcases/**` 存量；搬迁另起一笔，且须等当前动态跑结束）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -56,14 +56,27 @@
 7. 只动任务列出的文件（三个驱动 + 新门控 + `Makefile` + 两份 docs + 本任务书）；不删任何历史日志；不提交 git。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：三驱动小样本全 green —— `libc-test` 静态 `functional/{fcntl,fnmatch}` 各 1/1 PASS（两次独立跑，耗时 21 s / 21 s）；`llvm-ts-user` 静态 `evalloop$` 1/1 PASS、`--link-mode both` static+dynamic 各 1/1 PASS（json 后缀各一次）；`embench-user` 静态 `-O0` 19/19 PASS。`check-run-artifacts` 默认 rc=0、`--self-test` 5/5 PASS；证据脚本 18/18 checks、rc=0；`make check` rc=0。
+**修改文件**：`tools/testcases/run_artifacts.py`（新，运行目录/meta 助手）、`tools/testcases/run_libc_test_user_suite.py`、`tools/testcases/run_llvm_ts_user.py`、`tools/testcases/run_embench_user_suite.py`、`tools/infra/check_run_artifacts.py`（新，L1 门控）、`Makefile`、`docs/Process-08-测试运行产物与日志组织规范.md`（新）、`docs/README.md`、`docs/Process-07-门控分层规范.md`（§1.1 一行）、本任务书；gitignored：`.work/evidence/INFRA-093t/run.sh`、`.work/log/.run-artifacts-{epoch,baseline}`（新建，未改存量）。
+**验收结果**（真实命令/rc）：`python3 tools/infra/check_run_artifacts.py` → rc=0（A1×3 PASS / A2 0 目录 / A3 5965 存量豁免）；`--self-test` → rc=0（baseline 0 + 4 注入各 rc=1）；`./.work/evidence/INFRA-093t/run.sh` → rc=0（含真实 A1 注入 rc=1 + `cp`/md5 三态还原 rc=0）；`make check` → rc=0；`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check-milestones-fresh`/`check_issues` 均 rc=0。两次 libc 跑目录并存：`one/work/20261018T232249Z-libc-test-user-static` 与 `two/work/20261018T232310Z-libc-test-user-static`，`run.json`/`run.log`/`meta.json` md5 两两不同；meta 的 clang/qemu/libc sha256 与实测一致。`find .work/log/testcases -newermt <epoch> -type f` = **0**。
+**新发现/坑**：① 任务书要求 `docs/Process-08` + `docs/README.md` 索引，派单文字只写「docs/Process-07」——按任务书落 Process-08，另在 Process-07 §1.1 补门控登记一行。② 仅靠 mtime ≤ epoch 不够：落地时正在写的旧文件被改写会把 mtime 变新 ⇒ 追加 `.run-artifacts-baseline`（落地时全量路径快照）做存量豁免，`llvm-ts-user-*` 过渡豁免单列。③ A3 任务号正则初版漏了 `PREFIX-` 连字符，self-test 基线当场抓红（已修）。④ 运行目录建在 `--work-dir` 下（默认 `.dadao/tests/<套件>`），A2 同时扫 `.work/tests/**` 与 test-artifacts 根，避免新目录永远落在扫描面外。⑤ `--json-out` 收紧为必填会打断未带该参的存量证据脚本（如 `.work/evidence/QEMU-063t/run.sh`）；已在 Process-08 §3 给迁移命令，存量脚本未改。
+**遗留问题**：① 按派单**未改** `**状态**`（仍 `待开始`）。② 第 5/6 条只定规矩：`.work/log/testcases/**` 存量搬迁另起一笔、待当前动态跑结束；过渡豁免 `llvm-ts-user-*` 待搬迁后删除。③ 未跑 `install-host`/L2/L3；未 commit/push。④ 存量 `.work/evidence/**` 调用点仅文档迁移说明，未逐一回填 `--json-out`。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
+**范围**：`run_artifacts.py` + 三个驱动 diff + `check_run_artifacts.py` + Makefile/docs；逐行审查，并以 self-test / 小样本 / 证据脚本实跑对齐。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| A1 用跨驱动共享 `problems` 判断本驱动成败（前一驱动红会连坐后续） | ✅已修 | 每驱动改局部 `local` 列表 | self-test 基线 3×A1 PASS；单驱动注入仅该行红 |
+| A2 `rel` 用 `roots[0]`、PASS 判断用全局 `any(rel in p)`，多根/多目录会误判 | ✅已修 | 每目录局部 `local` + 统一 `rel` | `--root` 实跑 A2 PASS；注入缺 meta FAIL |
+| A3 任务号正则缺 `PREFIX-` 连字符，合法名 `INFRA-093t-demo.log` 被误判 | ✅已修 | `TASK_ID` 加 `-` | self-test 基线由 rc=1 → rc=0 |
+| A3 失败仍打印 `[PASS]`（结论由 final 汇总兜底，易误读） | ✅已修 | `bad>0` 打印 `[FAIL]` | 注入后行首为 `[FAIL] A3` |
+| LLVM `run.json` 在 `write_artifacts` 与 `write_run_dir` 重复写两次 | ✅已修 | 删前一处，`run_dir` 参数一并移除 | llvm 静态/both 小样本 rc=0，三件套齐全 |
+| 运行目录与 spec 的 `.work/tests` 表述可能漂移 | ✅已修 | A2 扫描 `.work/tests` + test-artifacts 根；Process-08 明写默认 `--work-dir` | `--root` 实跑抓到真实驱动目录；`make check` rc=0 |
+| `--json-out` 必填破坏存量证据脚本 | ⏸延后（须另册） | Process-08 §3 给迁移命令；本册不改 `.work/evidence/**` | 任务书第 6/7 条边界 |
+
+**判决**：findings 全部已修或按边界延后；无未修阻断项。按派单不改 `**状态**`，返回主会话。
 
 #### 第 1 轮 reviewer 验收

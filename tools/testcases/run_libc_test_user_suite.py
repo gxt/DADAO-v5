@@ -159,7 +159,9 @@ REPO_ROOT = os.path.normpath(
 )
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
 import paths as _paths  # noqa: E402
+import run_artifacts as _run_artifacts  # noqa: E402
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -169,7 +171,6 @@ DEFAULT_QEMU = os.path.join(TOOLCHAIN_BIN, "qemu-dadao")
 DEFAULT_SRC = ".work/source/libc-test"
 DEFAULT_MUSL = ".work/source/musl"
 DEFAULT_WORK_DIR = str(_paths.test_artifacts_dir() / "libc-test-user")
-DEFAULT_LOG_DIR = ".work/log/testcases"
 DEFAULT_TIMEOUT = 60
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
 
@@ -1133,9 +1134,19 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--filter", default=None,
                     help="only cases whose id matches this regex (pilots)")
-    ap.add_argument("--json-out", default=None)
-    ap.add_argument("--report-out", default=None)
+    ap.add_argument("--json-out", required=True,
+                    help="per-case JSON result file (required; relative paths "
+                         "resolve against the caller's CWD).  The driver also "
+                         "creates <work-dir>/<UTC>-libc-test-user-<mode>/ with "
+                         "run.json/run.log/meta.json (INFRA-093t)")
+    ap.add_argument("--report-out", default=None,
+                    help="human-readable report (default: same path as "
+                         "--json-out with a .log extension)")
     args = ap.parse_args()
+    started_utc = _run_artifacts.iso_utc()
+    json_out = abspath(args.json_out)
+    report_out = (abspath(args.report_out) if args.report_out else
+                  os.path.splitext(json_out)[0] + ".log")
 
     mode = args.link_mode
     cfg = {
@@ -1215,6 +1226,9 @@ def main() -> int:
     except SetupError as exc:
         sys.stderr.write(f"ERROR: {exc}\n")
         return 2
+
+    # INFRA-093t: one directory per invocation; never a shared fixed path.
+    run_dir = _run_artifacts.create_run_dir(work_dir, "libc-test-user", mode)
 
     lines = []
 
@@ -1366,44 +1380,45 @@ def main() -> int:
     if args.filter:
         emit("  note: --filter run (pilot); counts are a subset")
 
-    json_out = abspath(args.json_out) if args.json_out else \
-        os.path.join(DEFAULT_LOG_DIR, f"libc-test-user-{mode}.json")
-    report_out = abspath(args.report_out) if args.report_out else \
-        os.path.join(DEFAULT_LOG_DIR, f"libc-test-user-{mode}.log")
-    os.makedirs(os.path.dirname(json_out) or ".", exist_ok=True)
-    with open(json_out, "w") as fh:
-        json.dump(dict(mode=mode, expected_exit=EXPECTED_GUEST_EXIT,
-                       discovered=discovered, total=total, counts=counts,
-                       excluded=[dict(id=n, reason=r) for n, r in excluded],
-                       builtins=cfg["builtins"],
-                       census=census, closure_ok=closure_ok,
-                       classification_ok=classification_ok,
-                       known_fail_bases=KNOWN_FAIL_BASES,
-                       tls_scan=dict(
-                           scanned=len(selected),
-                           hits=[dict(case=cid, files=hits)
-                                 for cid, hits in tls_cases],
-                           pass_hits=tls_that_pass),
-                       filtered=bool(args.filter),
-                       cases=[r.as_dict() for r in results]), fh, indent=2)
-    with open(report_out, "w") as fh:
-        fh.write("\n".join(lines) + "\n")
-        for r in results:
-            fh.write(f"{r.cid} {r.klass} exit={r.exit} "
-                     f"base={r.min_pt_load} reason={r.reason}\n")
-            fh.write("  first_error: " + (r.first_error or "-") + "\n")
-            if r.known_fail_basis:
-                fh.write("  known_fail_basis: " + r.known_fail_basis + "\n")
-                fh.write("  known_fail_evidence: "
-                         + r.known_fail_evidence + "\n")
-            if r.tls_hits:
-                fh.write("  tls_hits: " + ", ".join(r.tls_hits) + "\n")
-            for note in r.notes:
-                fh.write("  note: " + note + "\n")
-            for cc in r.compile_cmds:
-                fh.write("  compile: " + " ".join(cc) + "\n")
-            fh.write("  link: " + " ".join(r.link_cmd) + "\n")
+    record = dict(mode=mode, expected_exit=EXPECTED_GUEST_EXIT,
+                  discovered=discovered, total=total, counts=counts,
+                  excluded=[dict(id=n, reason=r) for n, r in excluded],
+                  builtins=cfg["builtins"],
+                  census=census, closure_ok=closure_ok,
+                  classification_ok=classification_ok,
+                  known_fail_bases=KNOWN_FAIL_BASES,
+                  tls_scan=dict(
+                      scanned=len(selected),
+                      hits=[dict(case=cid, files=hits)
+                            for cid, hits in tls_cases],
+                      pass_hits=tls_that_pass),
+                  filtered=bool(args.filter),
+                  cases=[r.as_dict() for r in results])
+    report_text = "\n".join(lines) + "\n"
+    extra = []
+    for r in results:
+        extra.append(f"{r.cid} {r.klass} exit={r.exit} "
+                     f"base={r.min_pt_load} reason={r.reason}")
+        extra.append("  first_error: " + (r.first_error or "-"))
+        if r.known_fail_basis:
+            extra.append("  known_fail_basis: " + r.known_fail_basis)
+            extra.append("  known_fail_evidence: " + r.known_fail_evidence)
+        if r.tls_hits:
+            extra.append("  tls_hits: " + ", ".join(r.tls_hits))
+        for note in r.notes:
+            extra.append("  note: " + note)
+        for cc in r.compile_cmds:
+            extra.append("  compile: " + " ".join(cc))
+        extra.append("  link: " + " ".join(r.link_cmd))
+    report_text += "\n".join(extra) + "\n"
+    meta = _run_artifacts.build_meta(
+        sys.argv, "libc-test-user", mode, run_dir, started_utc,
+        _run_artifacts.toolchain_summary(
+            cfg["clang"], cfg["ldlld"], cfg["qemu"], cfg["libc"], musl))
+    written = _run_artifacts.write_run_dir(
+        run_dir, record, report_text, meta, json_out, report_out)
     emit(f"  artifacts: {json_out} , {report_out}")
+    emit(f"  run dir: {written['run_dir']} (run.json/run.log/meta.json)")
 
     ok = (counts["fail"] == 0 and counts["blocked"] == 0 and closure_ok
           and census_ok and classification_ok)

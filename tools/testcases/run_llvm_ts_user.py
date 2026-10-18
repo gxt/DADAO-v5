@@ -257,7 +257,9 @@ REPO_ROOT = os.path.normpath(
 )
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
+sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
 import paths as _paths  # noqa: E402
+import run_artifacts as _run_artifacts  # noqa: E402
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -267,7 +269,6 @@ DEFAULT_QEMU = os.path.join(TOOLCHAIN_BIN, "qemu-dadao")
 DEFAULT_SRC = ".work/source/llvm-test-suite"
 DEFAULT_MUSL = ".work/source/musl"
 DEFAULT_WORK_DIR = str(_paths.test_artifacts_dir() / "llvm-ts-user")
-DEFAULT_LOG_DIR = ".work/log/testcases"
 # Baseline budget (the value TESTCASES-048t's full runs used).  It is *not*
 # raised globally: doing so would make the hanging ``unix-smail`` burn the whole
 # budget in every full run (QEMU-063t).  The genuinely slow programs get their
@@ -2050,35 +2051,33 @@ def write_artifacts(cfg, cases, results, counts, audit, census, args,
                     excluded):
     mode = cfg["mode"]
     both = cfg.get("both_rounds", False)
-    json_out = abspath(args.json_out) if args.json_out else \
-        os.path.join(DEFAULT_LOG_DIR, f"llvm-ts-user-{mode}.json")
-    report_out = abspath(args.report_out) if args.report_out else \
-        os.path.join(DEFAULT_LOG_DIR, f"llvm-ts-user-{mode}.log")
+    json_out = abspath(args.json_out)
+    report_out = abspath(args.report_out)
     json_out = _round_path(json_out, mode, both)
     report_out = _round_path(report_out, mode, both)
+    record = dict(mode=mode, suite=cfg["src"],
+                  seed=dict(target=TARGET, base="lld default",
+                            musl_headers=list(MUSL_USER_INCLUDE_DIRS),
+                            base_cflags=list(BASE_CFLAGS),
+                            small_problem=list(SMALL_PROBLEM_CFLAGS),
+                            case_timeouts=CASE_TIMEOUTS,
+                            case_timeout_basis=CASE_TIMEOUT_BASIS),
+                  discovered=census["a_discovered"],
+                  excluded=[dict(id=cid, reason=reason)
+                            for cid, reason in excluded],
+                  total=counts["total"], counts=counts,
+                  oracle_counts={k: sum(1 for c in cases
+                                        if c.oracle_kind == k)
+                                 for k in ("stdout", "md5", "raw", "none")},
+                  census=census, closure_ok=audit["closure_ok"],
+                  classification_ok=audit["classification_ok"],
+                  known_fail_bases=KNOWN_FAIL_BASES,
+                  filtered=bool(args.only or args.limit is not None),
+                  cases=[r.as_dict(mode) for r in results])
     os.makedirs(os.path.dirname(json_out) or ".", exist_ok=True)
     with open(json_out, "w") as fh:
-        json.dump(dict(mode=mode, suite=cfg["src"],
-                       seed=dict(target=TARGET, base="lld default",
-                                 musl_headers=list(MUSL_USER_INCLUDE_DIRS),
-                                 base_cflags=list(BASE_CFLAGS),
-                                 small_problem=list(SMALL_PROBLEM_CFLAGS),
-                                 case_timeouts=CASE_TIMEOUTS,
-                                 case_timeout_basis=CASE_TIMEOUT_BASIS),
-                       discovered=census["a_discovered"],
-                       excluded=[dict(id=cid, reason=reason)
-                                 for cid, reason in excluded],
-                       total=counts["total"], counts=counts,
-                       oracle_counts={k: sum(1 for c in cases
-                                             if c.oracle_kind == k)
-                                      for k in ("stdout", "md5", "raw", "none")},
-                       census=census, closure_ok=audit["closure_ok"],
-                       classification_ok=audit["classification_ok"],
-                       known_fail_bases=KNOWN_FAIL_BASES,
-                       filtered=bool(args.only or args.limit is not None),
-                       cases=[r.as_dict(mode) for r in results]), fh,
-                  indent=2)
-    return json_out, report_out
+        json.dump(record, fh, indent=2)
+    return json_out, report_out, record
 
 
 def main() -> int:
@@ -2108,13 +2107,27 @@ def main() -> int:
     ap.add_argument("--list", action="store_true",
                     help="print scope A/B/C census and per-unit derived "
                          "configuration, build nothing")
-    ap.add_argument("--json-out", default=None)
-    ap.add_argument("--report-out", default=None)
+    ap.add_argument("--json-out", required=True,
+                    help="per-case JSON result file (required; relative paths "
+                         "resolve against the caller's CWD).  With "
+                         "--link-mode both the mode suffix is appended once "
+                         "(<stem>-static.json / <stem>-dynamic.json).  Each "
+                         "round also creates "
+                         "<work-dir>/<UTC>-llvm-ts-user-<mode>/ with "
+                         "run.json/run.log/meta.json (INFRA-093t)")
+    ap.add_argument("--report-out", default=None,
+                    help="human-readable report (default: same path as "
+                         "--json-out with a .log extension)")
     ap.add_argument("--inject-wrong-oracle", default=None, metavar="REGEX",
                     help="evidence only: after loading the upstream oracle, "
                          "corrupt the expectation of matching cases so the "
                          "normal comparison must FAIL (proves the FAIL path)")
     args = ap.parse_args()
+    json_out = abspath(args.json_out)
+    report_out = (abspath(args.report_out) if args.report_out else
+                  os.path.splitext(json_out)[0] + ".log")
+    args.json_out = json_out
+    args.report_out = report_out
 
     if args.jobs < 1:
         sys.stderr.write("ERROR: --jobs must be >= 1\n")
@@ -2266,42 +2279,54 @@ def main() -> int:
                             os.path.join(guest_root, "lib",
                                          "ld-musl-dadao.so.1"))
             cfg["guest_root"] = guest_root
+        # INFRA-093t: each round (and therefore each mode) owns its directory;
+        # the timestamp is taken before the round starts.
+        round_started = _run_artifacts.iso_utc()
+        run_dir = _run_artifacts.create_run_dir(
+            work_dir, "llvm-ts-user", mode)
         lines = []
         results, counts, audit = run_round(
             selected, cfg, work_dir, args.jobs, args, excluded,
             progress=lambda msg: print(msg, flush=True))
         ok = emit_round(cfg, selected, results, counts, audit, census,
                         args, excluded, lines)
-        json_out, report_out = write_artifacts(cfg, selected, results,
-                                               counts, audit, census, args,
-                                               excluded)
+        json_out, report_out, record = write_artifacts(
+            cfg, selected, results, counts, audit, census, args, excluded)
         lines.append(f"  artifacts: {json_out} , {report_out}")
-        with open(report_out, "w") as fh:
-            fh.write("\n".join(lines) + "\n")
-            for r in results:
-                fh.write(f"{r.cid} {r.klass} exit={r.exit} "
-                         f"oracle={r.oracle_kind} base={r.min_pt_load} "
-                         f"run_seconds={r.run_seconds:.2f} "
-                         f"run_timeout={r.run_timeout} "
-                         f"reason={r.reason}\n")
-                fh.write("  first_error: " + (r.first_error or "-") + "\n")
-                if r.known_fail_basis:
-                    fh.write("  known_fail_basis: " + r.known_fail_basis + "\n")
-                    fh.write("  known_fail_evidence: "
-                             + r.known_fail_evidence + "\n")
-                if r.tls_hits:
-                    fh.write("  tls_hits: " + ", ".join(r.tls_hits) + "\n")
-                for note in r.notes:
-                    fh.write("  note: " + note + "\n")
-                for cc in r.compile_cmds:
-                    fh.write("  compile: " + " ".join(cc) + "\n")
-                fh.write("  link: " + " ".join(r.link_cmd) + "\n")
-                fh.write("  run: " + " ".join(r.run_cmd) + "\n")
-                fh.write(f"  stdout: {r.stdout_size} B sha256="
-                         f"{r.stdout_sha256}\n")
+        lines.append(f"  run dir: {run_dir} (run.json/run.log/meta.json)")
+        report_text = "\n".join(lines) + "\n"
+        for r in results:
+            report_text += (
+                f"{r.cid} {r.klass} exit={r.exit} "
+                f"oracle={r.oracle_kind} base={r.min_pt_load} "
+                f"run_seconds={r.run_seconds:.2f} "
+                f"run_timeout={r.run_timeout} "
+                f"reason={r.reason}\n")
+            report_text += "  first_error: " + (r.first_error or "-") + "\n"
+            if r.known_fail_basis:
+                report_text += ("  known_fail_basis: "
+                                + r.known_fail_basis + "\n")
+                report_text += ("  known_fail_evidence: "
+                                + r.known_fail_evidence + "\n")
+            if r.tls_hits:
+                report_text += "  tls_hits: " + ", ".join(r.tls_hits) + "\n"
+            for note in r.notes:
+                report_text += "  note: " + note + "\n"
+            for cc in r.compile_cmds:
+                report_text += "  compile: " + " ".join(cc) + "\n"
+            report_text += "  link: " + " ".join(r.link_cmd) + "\n"
+            report_text += "  run: " + " ".join(r.run_cmd) + "\n"
+            report_text += (f"  stdout: {r.stdout_size} B sha256="
+                            f"{r.stdout_sha256}\n")
+        meta = _run_artifacts.build_meta(
+            sys.argv, "llvm-ts-user", mode, run_dir, round_started,
+            _run_artifacts.toolchain_summary(
+                cfg["clang"], cfg["ldlld"], cfg["qemu"], cfg["libc"], musl))
+        _run_artifacts.write_run_dir(run_dir, record, report_text, meta,
+                                     json_out, report_out)
         overall_ok = overall_ok and ok
         rounds.append(dict(mode=mode, counts=counts, ok=ok,
-                           json=json_out, report=report_out))
+                           json=json_out, report=report_out, run=run_dir))
 
     if len(rounds) > 1:
         print("\nllvm-ts-user: both rounds finished (static first):")

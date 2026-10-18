@@ -13,6 +13,7 @@
 | `docs/Process-05-里程碑TDD规范.md` | 里程碑测试驱动开发（三层向量 L1/L2/L3、规模与移植原则、反例门控、落点） |
 | `docs/Process-06-spec目录保护规范.md` | `spec/` 目录保护：上游只读册只读引用、`spec/` 改动须用户事先授权、下发 / 验收 / 提交三处固定检查、只读册 `sha256` 哈希锁门控 |
 | `docs/Process-07-门控分层规范.md` | **门控分层规范**：L1/L2/L3 分层定义与各层组成、触发点、新检查归属规则、层间不重复、每层须可达 FAIL、与 `AGENTS.md` 分工 |
+| `docs/Process-08-测试运行产物与日志组织规范.md` | **测试运行产物与日志组织规范**：一次跑一个运行目录（`run.json`/`run.log`/`meta.json`）、权威跑与 `latest`、`--json-out` 必填、日志命名 `<任务号>-<用途>.log` / `check-<name>.log`、归档与搬迁边界、L1 门控 `check-run-artifacts`（A1–A3 + 存量 epoch 豁免） |
 
 > **不设版本号**：`Process-0x` 属**工程过程规范**（可逆、单项目），不设 `x.y.z` 版本，亦不见于根 `README.md` 版本表。
 

@@ -48,6 +48,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-spec-readonly check-cfx-aliases check-asm-prose check-lit \
         check-lit-full \
+        check-run-artifacts \
         test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-musl-freshness check-milestones-fresh \
@@ -99,6 +100,7 @@ help:
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
 	@echo "  make check-qemu-smoke  QEMU semantic smoke (representative subset; L2)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
+	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
@@ -544,7 +546,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-musl-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-musl-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -601,6 +603,17 @@ size-report:
 # 默认退出码 0，不并入 `make check` 阻断路径；--strict 时命中 >0 则失败。
 check-tasks:
 	@$(PYTHON) tools/infra/check_tasks.py
+
+# 测试运行产物与日志命名门控 (INFRA-093t, L1): A1 三个 user-mode 驱动无固定
+# 默认输出（`--json-out` 必填、无 DEFAULT_LOG_DIR 回落）；A2 `.work/tests/**`
+# 与 test-artifacts 根下每个 `YYYYMMDDTHHMMSSZ-*` 运行目录须有
+# run.json/run.log/meta.json（meta 含 command/started_utc/toolchain 摘要）；
+# A3 `.work/log/**` 新增文件名须为 `check-<name>.log` 或
+# `<任务号>-<用途>.(log|json|txt)`（存量按 `.run-artifacts-epoch` +
+# `.run-artifacts-baseline` 豁免；标记缺失 ⇒ SKIP 并打印）。
+# 规则真源 = docs/Process-08；可达 FAIL 见 `--self-test`。
+check-run-artifacts:
+	@$(PYTHON) tools/infra/check_run_artifacts.py
 
 # 里程碑收尾门控 (2026-10-17, A2; 归 **L2 层 / 里程碑收尾专项**，**不入** `check-modules`):
 # ① 当前里程碑（`milestones.md` 中 `项目里程碑 = M<n>` 断言的最大 n）在 `.tao/tasks/**`
