@@ -22,6 +22,7 @@
 | `P0` 契约 | `SPEC-138t`（Linux syscall 映射）、`SPEC-139t`（动态链接 ABI）、`SPEC-140t`（musl TLS 硬依赖查证） | L1 `make check`（`check-spec-drift` / `check-contracts-dir` / `check-contract-relocs`） |
 | `P1` 静态 | `INFRA-076t`（musl 1.2.6 取源锁定）、`INFRA-082t`（静态最小集）、`QEMU-060t`（`dadao-m1` syscall 服务回退）、`TESTCASES-045t`（P1 能力边界度量） | L1 + `make build-musl` rc=0；运行验证由 `P3` 承接 |
 | `P2` 动态（生产者侧） | `LLVM-094t`（PIC/LLD 动态）、`LLVM-095t`（`PCREL_HI/LO` + PLT）、`LLVM-096t`（A1 四项阻塞）、`LLVM-097t`（`bswap`）、`LLVM-098t`（`-fPIC` `.rodata`）、`LLVM-099t`（`rotl`/`rotr`）、`LLVM-101t`（可变参聚合 `union semun` + `shmat()` 指针返回 bank；`047t` 静态档暴露）、`SPEC-145t`（`rela.si`）、`QEMU-061t`（`rela.si` 解码/语义） | L1 `check-patch-tree` / `check-instrinfo` / `check-contract-relocs` + **单跑** `install-host`（`ISS-210`、`ISS-229` 串行） |
+| `P2` 动态（ABI 面） | `ADR-0031`（变参 ABI：`va_list` 三游标 + 聚合按主流分类 + 16 B 半字顺序；`Proposed`，`D1`–`D9` 待用户逐条确认） | **确认前不改** `spec/` / `contract-abi` / 实现（`check-spec-readonly`）；确认后按 `Process-06` 授权改册 + 另立实施任务；`LLVM-102t` B 项（变参寄存器耗尽）在本 ADR 确认前保持 `BLOCKED` |
 | `P2` 动态（消费/构建） | `INFRA-085t`（`libc.so` + 动态可执行）、`INFRA-079t`（compiler-rt builtins，**全量**；排期见下） | `make build-musl-shared` rc=0 + `PT_INTERP` / `DT_NEEDED` 静态可核 |
 | `P2` 动态（消费/构建） | `INFRA-088t`（driver **默认**接 compiler-rt builtins；`ISS-262` 用户裁定 ①） | **默认**（不带 `-rtlib`）链接端到端 rc=0 + `qemu-dadao` 跑通 + `install-host` 后安装根复核 + `build-musl`/`build-musl-shared`/`build-picolibc` 无回归 + 复跑四组零转移；`ISS-229` 串行；**实现完成、待验收（2026-10-18）** |
 | `P3` 运行 | `QEMU-062t`（`qemu-dadao` 静态 + 动态两档 E2E） | L2 `check-modules` + L3 `check-full`（`check-qemu-semantics`） |
