@@ -450,6 +450,20 @@ CASE_PREPARE = {
         "large benchmark inputs"),
 }
 
+# Directories the program expects beside its sources but never names on the
+# command line: JM/lencod reads ``data/encoder_small.cfg``, whose
+# ``ReconFile``/``OutputFile`` are ``Output/test_rec.yuv``/``Output/test.264``
+# (encoder_small.cfg:18-19) and opens them without creating ``Output/``.
+# Upstream's ``WORKDIR %S`` runs the binary in a copy of the program directory
+# of a build tree where that directory exists, so it has to be pre-created in
+# the per-case copy; without it the case fails for a missing directory, not
+# because of the code under test (ISS-276).  The table is deliberately
+# per-case -- no config-file parser -- and names exactly the relative path the
+# corpus declares.
+CASE_PREPARE_DIRS = {
+    "MultiSource/Applications/JM/lencod": ("Output",),
+}
+
 # Root-cause notes for non-pass cases (documentation only -- the class is still
 # decided by the oracle/classification rules above).
 CASE_NOTES = {
@@ -1546,6 +1560,22 @@ def _build_and_run(case: Case, cfg, work_dir):
         case.klass = "blocked"
         case.reason = f"work-tree setup failed: {exc}"
         return case
+
+    # ISS-276: a path the program names in its *config file* never appears in
+    # RUN_OPTIONS, so the scan below cannot see it; CASE_PREPARE_DIRS holds
+    # the explicit list.  Creating the directory changes no expectation -- the
+    # oracle and classification stay as they are.
+    for rel_dir in CASE_PREPARE_DIRS.get(case.cid, ()):
+        target = os.path.join(run_dir, rel_dir)
+        try:
+            os.makedirs(target, exist_ok=True)
+        except OSError as exc:
+            case.klass = "blocked"
+            case.reason = (f"work-tree setup failed: cannot create "
+                           f"{rel_dir}/: {exc}")
+            return case
+        case.notes.append(f"created run-dir directory {rel_dir}/ "
+                          "(declared in the program's config file)")
 
     # Upstream's WORKDIR %S lets programs write next to the sources; a path in
     # RUN_OPTIONS whose parent directory does not exist in the corpus (e.g.

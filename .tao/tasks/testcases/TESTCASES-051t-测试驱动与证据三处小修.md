@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：`LLVM-105t`（`ISS-276` 登记源：`lencod` 现场）、`QEMU-063t`（同一现场：手工补 `Output/` 后与参考逐行一致）、`TESTCASES-048t`（`lencod` 用例载体与计数面）、`LLVM-101t`（`ISS-272` 证据脚本源）、`TESTCASES-047t`（`ISS-274` 证据脚本源）、`TESTCASES-050t`（驱动最近改动，避免冲突）、`INFRA-093t`（`--json-out` / `--work-dir` 新规矩）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-19）**：`testcases` 现存最大 = `TESTCASES-050t` ⇒ 取 **`051`**（`grep -rn 'TESTCASES-051' .tao/` 0 命中）。
 
@@ -63,11 +63,16 @@
 7. **边界**：只动接口规范列出的文件；完成区与真实输出逐条对齐；不提交 git、不 push；不跑 `install-host`（若实际发现必须跑，停下报告）。
 
 ## 完成区
-**测试结果**：
+
+**测试结果**：通过 **51/51** 项（`run.sh all` rc=0，末行 `ALL GREEN`）。ISS-276：lencod static+dynamic 均 `pass`/exit 0，`Output/test.264`+`Output/test_rec.yuv` 非空，`diff` 上游参考 rc=0、上游 `fpcmp` rc=0；ldecod 仍 `pass`；驱动 diff = 0 删除行 / 2 hunk；空表注入 ⇒ `fail` exit 244。ISS-272：IR 项 `PASS`（phi + 单条 `load ptr, ptr %vaarg.addr`、无二次解引用），注入修前形态转 `FAIL` → `cp`+md5 → 回绿。ISS-274：default 与 `--inject` 均 rc=0（审计 rc=0、known-fail 依据全绿、ipc_msg `exit=0`+无 `t_error` 行）。
 **修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- `tools/testcases/run_llvm_ts_user.py`（+30 行：`CASE_PREPARE_DIRS` 表 + `_build_and_run` 预建目录；纯新增，oracle/超时/known-fail/excluded 零改动）
+- `.work/evidence/LLVM-101t/run.sh`（§3 改 IR 断言 + I3 注入；汇编仅附注）（gitignored）
+- `.work/evidence/TESTCASES-047t/run.sh`（审计 `if` 作用域、ADR-0030 识别、ipc_msg 期望、注入 2 改造、注入 4/5/6、`--json-out` 迁移）（gitignored）
+- `.work/evidence/TESTCASES-051t/run.sh`（本册一键证据，51 检查）（gitignored）
+**验收结果**：`bash .work/evidence/TESTCASES-051t/run.sh all` ⇒ `EXIT=0`、`TESTCASES-051t evidence: ALL GREEN`（51 检查，`/tmp/opencode/TESTCASES-051t/051t-all2.out`，09:12–09:38）；日志 `.work/log/testcases/TESTCASES-051t-*.log`，产物 `/tmp/opencode/TESTCASES-051t/`。门控：`check_tasks` 0、`check_run_artifacts` 0、`check_issues` 0、`check-knowledge-refs` 0、`check-no-residue` 0、`check-milestones-fresh` 0；`make -k check` rc=2，唯一失败 = `check-musl-freshness`（toolchain stamp ≠ 现行 clang：musl 由旧 clang 构建，属既有环境项）。
+**新发现/坑**：① `lencod` 的 `LeakyBucketParamFile` 也写 `Output/`，同一预建目录覆盖，无需额外项。② `LLVM-101t` 的新鲜度/control 项按 mtime 与安装根状态判定：Oct-19 工具链重建后 9 项整体转红（与本册改动无关，101t 验收已按 stale 分类）；051t 证据显式锁定该 9 项 stale 集合，出现其它 FAIL 即红。③ 047t 注入 2 依赖 `ipc_msg` 为真 fail，`ISS-249` 后失效 ⇒ 改为「错误期望 + 中和门控」组合（同一 fail 在有/无门控下 rc=1/0）。④ known-fail 依据须按「记录字段 + 诊断」共同判定；仅按 case 名会把 pass 误认。
+**遗留问题**：① 未改 `milestones.md`（下发限制只动 `tools/testcases/**` 与 `.work/evidence/**`）。② `LLVM-101t` 的 9 条 stale FAIL 未修（需 `install-host` + 重建 `/tmp/opencode/LLVM-101t/musl`，越本册边界）。③ `make check` 唯一红项 `check-musl-freshness` 同上，需 `make build-musl-shared`（本册禁）。④ **并行干扰**：09:40 另一任务 `make build-musl` 清空 `.work/source/musl/lib`（`libc.a`/`crt1.o` 消失，见 `/tmp/opencode/rebuild-m.log`），其后复跑 `run.sh all` 得 rc=2（驱动 `ERROR: musl crt1.o not found`）——非本册改动所致；此后对 `047t/run.sh` 仅加了 4 处 `--work-dir`（`inj1/green1/inj2/green2`），已用单例同参数调用验证 rc=0，但端到端 `all` 复跑需待该树恢复后重跑。
 
 ## 审阅记录
 

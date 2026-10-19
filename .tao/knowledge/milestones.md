@@ -39,7 +39,7 @@
 | SPEC-149t | 待开始 | 2026-10-19 07:49（登记） | 上游只读册汇编示例注释 `;`→`@@`：11 册 298 行；C 分号不动；只读锁重算 |
 | LLVM-109t | 待验收 | 2026-10-19 07:41（登记） | `CommentString=@@`/`SeparatorString=;`；101 文件 3684 行迁移 + 工具同步；补丁 181；组件 4 补丁漏项收口 |
 | SPEC-147t | 待开始 | 2026-10-19 07:41（登记） | 注释符 `;`→`@@`、`;` 改语句分隔符：§2.2+示例+变更记录+`contract-asm` 0.5.3+只读锁重算；只读册示例迁移另立 `SPEC-149t`（A 授权） |
-| TESTCASES-051t | 待开始 | 2026-10-19 07:33（登记） | lencod 缺 Output/ 判 fail（ISS-276）+ 两证据脚本 stale（ISS-272/274）；补目录、改查 IR、修期望 |
+| TESTCASES-051t | 待验收 | 2026-10-19 07:33（登记） | lencod 预建 Output/ 两档 pass + 与参考 diff rc=0；ISS-272 改查 IR、ISS-274 三处 + 注入 4/5/6；证据 51/51 |
 | INFRA-093t | 待验收 | 2026-10-19 07:10（登记） | 三驱动 `--json-out` 必填 + 独立 run 目录三件套 + L1 `check-run-artifacts`（A1–A3/self-test/注入）；`Process-08` 规范 |
 | LLVM-108t | 待开始 | 2026-10-19 01:54（登记） | lemon 调用点漏写 rb16：K&R 无原型调用（`lemon.c:334/4839`）先分类；指针形参读 rb16 而实参走 rd16 |
 | LLVM-098t | 已验证 | 2026-10-18 22:22 | -fPIC 下 .rodata 仍发 ABS48（build-musl-shared EXIT=2）；诊断完成，reviewer Accepted |
