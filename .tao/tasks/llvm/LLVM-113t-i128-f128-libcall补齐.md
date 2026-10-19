@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-106t`（f128 算术/比较/转换 libcall 注册块；本册在其后补 i128 四型）、`LLVM-110t`（现场暴露 + 基线日志 `.work/log/llvm/LLVM-110t-picolibc.log`）、`LLVM-112t`（16 B 栈对齐后的安装根基线；其 `install-host` 提供本册开工前工具链）、`ISS-283`（登记源；本册 = 落点）
-**状态**：待开始
+**状态**：待验收
 
 > **立册口径（2026-10-19，architect）**：这是 `ADR-0027`（compiler-rt builtins 接入）与 `ADR-0030`/`ADR-0031`（`long double` = binary128、f128 为合法类型）之后的**接线缺口补齐**，不是新决策、不改 ADR、不改契约。
 
@@ -119,16 +119,33 @@ fatal error: error in backend: unsupported library call operation
 8. **重建申报**：改 `components/llvm-project` ⇒ 重建 `clang`+`llc` 并单跑 `install-host`（`ISS-210`，串行、不并发）；启动前申报预计耗时。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+
+**测试结果**：证据脚本 default **rc=0**（21 项检查全过）、`--inject` **rc=0**（3 注入先红后回绿）；探针 **19/19** 值与独立 `Fraction` oracle 逐行一致（`qemu-dadao` rc=0）；`make check-lit`（构建树工具 overlay）**115/115 rc=0**；`047t` 抽样 static **3/3**、dynamic **3/3**，改前/改后逐例同为 `pass`；`build-picolibc` **未达 rc=0**（见遗留 ①），但 `libc_stdio_strtold.c.o` 已真实编译成功。
+**修改文件**：`.work/source/llvm-project/llvm/lib/Target/DADAO/DADAOSubtarget.cpp`（4 行注册 + 注释；组件检出 `commit --amend`）；`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOSubtarget.cpp.patch`（导出）；`components/llvm-project/changelog.md`（M8 一条）；`tests/llvm/lit/CodeGen/DADAO/m8-i128-f128-libcall.ll`（新增）；`.work/evidence/LLVM-113t/{run.sh,probe.c,gen_expected.py,expected.h}`；`/tmp/opencode/LLVM-113t/{build_picolibc_buildtree.py,clang-goodbuiltins.sh}`（验证用，非仓库）。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 分支 `LLVM-113t`（开工 `git switch -c`；`status -uall` 干净）。修前 `make build-picolibc` rc=2（`LLVM-113t-baseline-picolibc.log:560` `fatal error: error in backend: unsupported library call operation`，`strtold.c`）；修前 `llc` 对四个最小 IR（sitofp/uitofp/fptosi/fptoui）各 rc=134。
+- `ninja -C .work/build/llvm clang llc -j8` **rc=0**，**242.94 s**；**诊断**：`strtold.ll:463` = `uitofp i128 → fp128`（`UINTTOFP_I128_F128`），另三向亦缺（逐条 abort）。
+- 修后 `llc` 新 lit IR rc=0，汇编**四条** `call [rb0, __floattitf|__floatuntitf|__fixtfti|__fixunstfti]`；`strtold.ll` rc=0（`__floatuntitf` @608）；`strtold.c.o` 编译通过。
+- 四符号在安装根与构建树 builtins archive 均 `T`（`llvm-nm --defined-only`）。
+- 补丁：`make_patch.py` rc=0（1 written / 81 unchanged）；`series` 仍 **82**；`check-patch-tree` rc=0（**181 patches OK**）。
+- 门控各 rc=0：`check-patch-tree`/`check-instrinfo`/`check_lit_gen`（64）/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-milestones-fresh`/`check_issues`/`make check`（L1）。日志 `.work/log/llvm/LLVM-113t-*.log`。
+**新发现/坑**：① 任务前提「只缺 i128↔f128」**不成立**：越过 `strtold.c` 后 `ninja -k 0` 余 **12** 个 `libm/ld/*.c` 红，缺 `FFLOOR_F128`/`FRINT_F128`/`FROUND_F128`/`FTRUNC_F128`/`LOG_F128`（probe 另证 `FSQRT_F128`/`FMA_F128` latent）——均属**其它类 libcall**，按任务「停下报告」未补。② 构建树 `lib/clang/23/.../libclang_rt.builtins.a` 是 TF 空对象陈旧副本，构建树 clang 的 `-print-libgcc-file-name` 指向它 ⇒ `047t` 改后跑需 `/tmp` wrapper 把该探针答案换成安装根好 archive（`install-host` 后自愈）。③ `make_patch` 要求组件检出 `base+1 clean`，故按 E1/E3 `commit --amend`。④ `--inject` I1 依赖安装根仍是修前 llc，`install-host` 后该注入失效（其余 2 个仍有效）。
+**遗留问题**：① **`build-picolibc` rc=0 未达成**（超出本册范围）：12 TU / 5 类 f128 libcall（floor/rint/round/trunc/log；sqrt/fma 为 latent）需另立任务，由 architect/用户裁定；② 按派单未跑 `install-host`/L2/L3，安装根 clang 仍为修前（literal `make build-picolibc` 仍红）；③ `make check-lit` 用 `LLVM_TOOLS_DIR` 指向构建树工具 overlay（安装根 llc 陈旧）；④ 未改 `**状态**`（按派单）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填写）
+
+**判决**：源码改动 = 4 行注册 + 注释，逐条与生成物映射核对（`RuntimeLibcalls.inc:15045-15125`：`impl___fixtfti_f128 → FPTOSINT_F128_I128`、`impl___fixunstfti_f128 → FPTOUINT_F128_I128`、`impl___floattitf_f128 → SINTTOFP_I128_F128`、`impl___floatuntitf_f128 → UINTTOFP_I128_F128`）；`setLibcallImpl` 与相邻 LLVM-106t 同法；无签名/依赖/范围外改动。证据脚本逐条核对：四条断言均有可达 FAIL，注入用临时树，无 `git checkout/restore/stash`。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 探针 A/B 组误把 f128 位型当整数（A1 与 oracle 不符） | ✅已修 | A1/A2/B1 改 `(1<<100)+(1<<40)` 整数构造 | default 19/19 diff rc=0 |
+| F2 `--inject` I2 的 sed 行号错（第 1 行才是 A1） | ✅已修 | `3s`→`1s` | `--inject` rc=0 |
+| F3 abort 可能在仓库根落 core 文件 | ✅已修 | 脚本加 `ulimit -c 0` | 无 core；`check-no-residue` rc=0 |
+| F4 I1 依赖安装根旧 llc，`install-host` 后失效 | ⏸延后 | 仅在脚本注释与遗留披露，不改判据 | 见遗留 ② |
+
+**状态对账**：源码 finding 全部已修；`build-picolibc` 红属**范围外其它类 libcall**（任务要求停下报告），故按派单**未改 `**状态**`**。
 
 #### 第 1 轮 reviewer 验收
 （待填写）

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..7fea0ab78
+index 000000000..bac6cc1e3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,178 @@
+@@ -0,0 +1,187 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -172,6 +172,15 @@ index 000000000..7fea0ab78
 +  Info.setLibcallImpl(RTLIB::SINTTOFP_I64_F128, RTLIB::impl___floatditf_f128);
 +  Info.setLibcallImpl(RTLIB::UINTTOFP_I32_F128, RTLIB::impl___floatunsitf);
 +  Info.setLibcallImpl(RTLIB::UINTTOFP_I64_F128, RTLIB::impl___floatunditf_f128);
++  // i128 <-> binary128 (LLVM-113t; ISS-283).  The i32/i64 forms above do not
++  // cover the 128-bit integer conversions: with `long double` = binary128
++  // (ADR-0030), picolibc's strtold.c reaches `uint_to_fp (i128 -> f128)` and
++  // aborts with "unsupported library call operation" unless each is
++  // registered.  Entry points are compiler-rt's GENERIC_TF_SOURCES.
++  Info.setLibcallImpl(RTLIB::SINTTOFP_I128_F128, RTLIB::impl___floattitf_f128);
++  Info.setLibcallImpl(RTLIB::UINTTOFP_I128_F128, RTLIB::impl___floatuntitf_f128);
++  Info.setLibcallImpl(RTLIB::FPTOSINT_F128_I128, RTLIB::impl___fixtfti_f128);
++  Info.setLibcallImpl(RTLIB::FPTOUINT_F128_I128, RTLIB::impl___fixunstfti_f128);
 +  // Comparisons (`softenSetCCOperands`): __eqtf2/__netf2/__getf2/__lttf2/
 +  // __letf2/__gttf2/__unordtf2.
 +  Info.setLibcallImpl(RTLIB::OEQ_F128, RTLIB::impl___eqtf2);
