@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
 new file mode 100644
-index 000000000..1e7327468
+index 000000000..e6db1f4c9
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,88 @@
 +//===-- DADAOMCAsmInfo.cpp - DADAO asm properties -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -42,8 +42,12 @@ index 000000000..1e7327468
 +  Data32bitsDirective = "\t.dd.t32\t";
 +  Data64bitsDirective = "\t.dd.o64\t";
 +
-+  // DADAO uses ';' as the comment character.
-+  CommentString = ";";
++  // DADAO uses "@@" as the comment string and ";" as the statement separator
++  // (Toolchain-01 §2.2 / contract-asm.md §2.2, 0.5.3).  A single '@' cannot be
++  // used: clang emits ELF specifiers such as `.type add,@function` and
++  // `.section ".note.GNU-stack","",@progbits`, which must not be swallowed.
++  CommentString = "@@";
++  SeparatorString = ";";  // Explicit: one line MAY hold several statements.
 +
 +  // Disallow '#' as a comment character in any position (ADR-0013 D9).
 +  AllowAdditionalComments = false;

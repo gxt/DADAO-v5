@@ -11,10 +11,10 @@
 
 因此改一条期望字节、或改一条 ``.s`` 书写，本脚本都会**非零退出**。它测的是
 **向量期望值**（契约投影），与实现无关——实现（llvm-mc）侧的编码由 lit +
-``; OBJ:`` 与 `run.sh` 的字节比对承担。
+``@@ OBJ:`` 与 `run.sh` 的字节比对承担。
 
 向量文件 = 本目录 ``cfx2-*.s``（``-err.s`` 反例文件无 ``@enc``，自动跳过）。
-每个矢量的输入是代码，期望值是行尾 ``; @enc <8hex>``；若该行前有 ``; OBJ:``
+每个矢量的输入是代码，期望值是行尾 ``@@ @enc <8hex>``；若该行前有 ``@@ OBJ:``
 （lit FileCheck 字节），其 4 字节须等于同一独立派生编码。
 
 退出码：有错误 ``exit(1)`` 并逐条打印 ``FAIL``；全部通过 ``exit(0)``。
@@ -41,9 +41,9 @@ ALIASES = os.path.join(REPO, ".tao", "contracts", "contract-cfx-aliases.md")
 VEC_DIR = os.environ.get("CFX_VEC_DIR") or HERE
 VEC_GLOB = os.path.join(VEC_DIR, "cfx2-*.s")
 
-ENC_RE = re.compile(r";\s*@enc\s+([0-9a-fA-F]{8})\s*$")
+ENC_RE = re.compile(r"@@\s*@enc\s+([0-9a-fA-F]{8})\s*$")
 OBJ_RE = re.compile(
-    r";\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
+    r"@@\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
     r"([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})")
 SAFE_EXPR = re.compile(r"^[0-9a-fA-FxXbBoO\s()+\-*/%<>&|^~]+$")
 
@@ -292,7 +292,7 @@ def run(verbose=True):
             me = ENC_RE.search(raw)
             if not me:
                 continue
-            code = raw[:raw.index(";")].strip()
+            code = raw[:raw.index("@@")].strip()
             expect = me.group(1).lower()
             n += 1
             loc = "%s:%d" % (os.path.relpath(path, REPO), lineno)
@@ -311,10 +311,10 @@ def run(verbose=True):
                     print("FAIL %s [@enc] %r: 期望 %r，独立派生 %r"
                           % (loc, code, expect, got))
             elif pending_obj is not None and pending_obj.lower() != got:
-                errors.append("%s: [OBJ] %s — ; OBJ: %r，独立派生 %r"
+                errors.append("%s: [OBJ] %s — @@ OBJ: %r，独立派生 %r"
                               % (loc, code, pending_obj, got))
                 if verbose:
-                    print("FAIL %s [OBJ] %r: ; OBJ: %r，独立派生 %r"
+                    print("FAIL %s [OBJ] %r: @@ OBJ: %r，独立派生 %r"
                           % (loc, code, pending_obj, got))
             elif verbose:
                 print("PASS %s %s" % (loc, code))

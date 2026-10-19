@@ -633,7 +633,7 @@ def cross_check_lit(rows: list[dict], errors: list[str]) -> int:
         errors.append(f"lit 全量档目录缺失: {LIT_GEN_DIR}（先跑 generate_lit_vectors.py）")
         return 0
     files = {p.name: set(l.rstrip("\n") for l in p.read_text(encoding="utf-8").splitlines()
-                         if l.strip() and not l.startswith(";"))
+                         if l.strip() and not l.startswith("@@"))
              for p in sorted(LIT_GEN_DIR.glob("gen-*.s"))}
     n = 0
     for r in rows:

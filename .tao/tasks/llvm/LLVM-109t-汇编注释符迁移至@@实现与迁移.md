@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`SPEC-147t`（规范面已冻结：`@@` 注释、`;` 语句分隔符；`spec/Toolchain-01` 0.5.3）、`.tao/contracts/contract-asm.md §2.2`（0.5.3）、`docs/Process-01`（组件补丁树）、`docs/Process-05`（TDD/可达 FAIL）、`ADR-0013 D9.1`（被用户 2026-10-19 裁定**部分取代**；ADR 处置待用户确认，本册不改 ADR）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -109,10 +109,51 @@ SeparatorString = ";";   // 显式写出（默认已是 ";"；同时作为规范
 - 不 `push`（提交后由主会话收尾）。
 
 ## 完成区
-**测试结果**：
+
+**测试结果**：证据脚本 default **31/31 PASS rc=0**；`--inject` **47/47 PASS rc=0**（I1/I2/I3 三注入均 RED→md5 还原→GREEN，I4 最终重链）。lit MC `DADAO` **68/68**、`DADAO-gen` **12/12**；`check_lit_gen` 64 checks、`check_lit_bytes` 185 patterns、`validate_mc_vectors` 78 向量/0 错、`validate_m5` 141、`validate_m6` 102、`validate_cfx` 14、`test_encoding_oracle` 125/125，均 rc=0。`make check`（L1）**rc=0**（首次 rc=2 因并发 libc-test 运行期空目录撞 `check-run-artifacts`，该目录随后被写满；重试 1 次 rc=0）。
 **修改文件**：
+- 源码（`.work/source/llvm-project`，已 E1 收敛为 base+1 单 commit）：`llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp`（`CommentString="@@";` + 显式 `SeparatorString=";"`）、`llvm/lib/MC/MCParser/ELFAsmParser.cpp`（`:721` `starts_with("@")`→`!= "@"`）
+- 组件：`components/llvm-project/patches/.../DADAOMCAsmInfo.cpp.patch`（重导出）、**新增** `.../llvm/lib/MC/MCParser/ELFAsmParser.cpp.patch`、`components/llvm-project/series`（81→82）、`components/llvm-project/changelog.md`（M8 追加一条）
+- 语料：`tests/**/*.s|*.S` **101 文件 / 3684 行**（e2e 187、m5 267、lit MC/DADAO 2261、DADAO-gen 823、scripts 146）；`tests/llvm/lit/MC/DADAO/validate_cfx_vectors.py`（解析器+docstring）
+- 工具：`tools/testcases/{generate_lit_vectors,check_lit_gen,validate_mc_vectors,validate_m5_vectors,validate_m6_vectors}.py`、`tools/llvm/{check_lit_bytes,test_encoding_oracle,gen_isa_coverage,check_ret_canonical}.py`、`tools/integ/check_interface_alignment.py`
+- 证据：`.work/evidence/LLVM-109t/{run.sh,check_corpus.py}`；日志 `.work/log/llvm/LLVM-109t-evidence-*.log`
 **验收结果**：
+- `clang -S` 产物注释为 `@@`（`@@ -- Begin function add`、` @@ %bb.0:`），无 `;` 注释行。
+- 一行三条 `add.si rb1, -8 ; add.uo {rd0, rd8}, rd17, rd16 ; ret rd0, 0` ⇒ `llvm-mc` rc=0；`-filetype=asm` 回 3 行；`llvm-objdump -d` **恰 3 条**，字节 `5b07fff8 50008450 76000000`。
+- `.type add,@function` ⇒ `llvm-readobj --symbols`：`Name: add / Type: Function (0x2)`。（注入撤销 `:721` 修复 ⇒ rc=1，可达 FAIL 已证。）
+- `; note` ⇒ rc=1 `error: unrecognized instruction mnemonic`（不再静默吞）；`@@ note` ⇒ rc=0。
+- 残留：`grep -rn -E '^[[:space:]]*;' tests/ --include='*.s'` = **0**；`.S` = 0；`; OBJ:`/`; RUN:`/`; CHECK`/`; @src` 于 `tools/`+`tests/` = 0；`.ll`/C/`.h`/`.yaml` 未动（`.yaml` 现场逐条判定：无汇编字符串命中）。
+- 门控 rc：`check-asm-prose`/`check-asm-list`/`check-asm-list-drift`/`check-instrinfo`/`check-index-blobs`(131 new-file patch OK)/`check-source-state`(llvm-project clean, count=1)/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog` 全 **0**；`check-patch-tree` **181 patches OK rc=0**（180→181）。
 **新发现/坑**：
+1. `tests/**/*.S`（大写，bootrom 两册）同样由 `llvm-mc` 汇编，任务书按 `*.s` 统计会漏（现场统计 `.s` 99 文件/3440 前导注释行；`.s+.S` 101 文件/3684 总行）。`grep --include='*.s'` 大小写敏感。
+2. 迁移不能只改行首：**行尾 `;` 注释**（m5/m4 约 244 行）若保留，翻 `CommentString` 后会被当语句分隔符而报错。
+3. `check_ret_canonical.py` 内嵌汇编探针（`CONSUMER`）不在任务书 §D 清单，但不改则安装根/构建树跑该探针必失败；已同步。
+4. `validate_cfx_vectors.py` 位于 `tests/llvm/lit/MC/DADAO/`（任务书 §D 未列），是 L1 cfx 向量的独立 oracle，必须同步。
+5. `validate_m6_vectors.py` 同一文件内**两种语境**：L1 段解析 `.s`（改 `@@`）、IR 段解析 `.ll`（保持 `;`）——不可整文件替换。
+6. `FileCheck` 前缀在行内任意位置命中，`; CHECK:`→`@@ CHECK:` 不需改 lit 配置；但注释**文本内**的 `;`（如 `wpn_err_wp4.s` 的 `invalid wyde-position; expected ...`）保留，仍能匹配诊断原文。
+7. `make check` 的 `check-run-artifacts` 会与**并发**进行的测试运行竞态（空目录窗口内判 FAIL）；重试即恢复，非本笔引入。
 **遗留问题**：
+- `install-host` 未跑（按派单归主会话）；**安装根仍为旧 `;` 行为** ⇒ 在其完成前，任何用安装根工具跑 `tests/**/*.s` 的门控（`check-lit`/`check-lit-full`/e2e lit/`run_elf_e2e` 等）都会红。
+- **install-host 后须复验**：① `make check-lit`（MC 68 + CodeGen + e2e）；② `check-lit-full`（DADAO-gen 12）；③ `tests/scripts/bootrom*.S` 与 `codegen_crt0.s` 的 QEMU E2E；④ `tools/llvm/check_ret_canonical.py`（内嵌汇编探针）在安装根 clang 下 default 全绿；⑤ L2 `check-modules`、L3 `check-full`。
+- 未 `commit`/`push`（提交归 architect）；未改 `**状态**`（按派单）。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审（2026-10-19）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 迁移脚本 `--check` 把已迁移行注释文本里的第二个 `;` 误判为“未迁移”（首轮 `--check` 报 187 行，实际仅注释文本） | ✅已修 | 扫描遇到 `@@` 即终止（其后为注释文本） | 重新 `--check` = `changed_lines=0` |
+| 工具 grep 清单漏 `tests/.../validate_cfx_vectors.py`、`validate_m6_vectors.py` L1 段、`gen_isa_coverage.py:636`、`check_ret_canonical.py` 内嵌汇编 | ✅已修 | 逐文件改 `@@` 解析；`m6` 仅 L1 段（450/454 行 IR 段保持 `;`） | 各 oracle rc=0；`validate_cfx` 14 向量 0 错 |
+| `check_ret_canonical.py` 一次性 `replace(';','@@')` 把注释文本第二个 `;` 也改成 `@@` | ✅已修 | 按行只改第一个 `;`，其余还原 | `grep -n '@@'` 仅 8 行注释引导符 |
+| 证据脚本 C02b/C02d 用 `grep|wc -l` 后取 `$?`（恒 0 ⇒ 恒真） | ✅已修 | 先取计数再用 `[ n -eq 0 ]` 生成 rc | 脚本内 31/31 PASS；计数改动可达 FAIL（脚本逻辑） |
+| 证据脚本引用 `/tmp/.../migrate_comments.py`（非自包含） | ✅已修 | 删除该行，语料自检用仓内 `check_corpus.py` | default 运行无 `/tmp` 依赖 |
+| 语料行尾 `;` 注释（不止行首）可能漏迁移 | ✅已修 | 迁移按“行内第一个串外 `;`”统一处理 | `check_corpus.py`：`@@`=3684、代码位 `;`=0 |
+| `m6-callconv.s` 注释内文档示例仍写 `; @enc`/`; @reloc`（旧语法示例） | ✅已修 | 改为 `@enc`/`@reloc` | 该文件 lit 1/1 PASS；`validate_m6` 102 checks PASS |
+| `make check` 首次 rc=2（`check-run-artifacts` 报空目录）是否为回归 | ❌不修（非本笔） | 无（并发测试运行窗口） | 目录 08:12 创建、约 6 分钟后写满；重跑 `make check` rc=0、`[FAIL]` 计数 0 |
+
+
+#### 提交（architect，2026-10-19）
+- 档位：**WIP**（reviewer 尚未验收，状态 `待验收`）；分支 `LLVM-109t` → `master`（`merge --squash`），**未 push**。
+- 文件集对账：staged **119** 项 = 本册声明（组件 5 / 语料 101 `.s|*.S` + 1 `.py` / 工具 10 / 本册 + `milestones` + `INTEG-036m`）；**不含** `tools/testcases/run_llvm_ts_user.py`（属 `TESTCASES-051t`，保持未暂存）。
+- 门控：`make check` 因 `check-musl-freshness` FAIL（工具链戳 01:22 ≠ 08:18 安装根 clang，须 `build-musl-shared`）未全绿；其余 14 项单独 rc=0、`check-patch-tree` **181**。

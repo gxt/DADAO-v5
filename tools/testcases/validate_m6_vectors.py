@@ -9,7 +9,7 @@ A. **L1 MC 编码/reloc**（``tests/llvm/lit/MC/DADAO/m6-callconv.s`` 与
    ``m6-ldst-symbol.s``）：从 ``contracts/opcodes.yaml``（``value``/``fields``
    位域）**独立派生**每条指令的编码，从 ``.tao/contracts/contract-elf.md §2.2``
    （重定位类型表，**机械解析**）独立派生其重定位类型，再与行内
-   ``; @enc <8hex>`` / ``; @reloc <NAME>`` 注释比对。
+   ``@@ @enc <8hex>`` / ``@@ @reloc <NAME>`` 注释比对。
 
 B. **L3 执行向量**（``tests/llvm/codegen/m6/expected.yaml``，raw-bin 清单）：
    每条程序的 ``expected_exit_code`` 由**主机侧 IR 语义模型**独立重算（64 位
@@ -52,9 +52,9 @@ MC_FILES = ["m6-callconv.s", "m6-ldst-symbol.s"]
 ENCODING_PATH = os.path.join(M6_VEC_DIR, "expected.yaml")
 ELF_PATH = os.path.join(M6_VEC_DIR, "expected-elf.yaml")
 
-# 注记可出现在同一注释行的任意位置（如 `; @enc <hex> @reloc <NAME>`），
+# 注记可出现在同一注释行的任意位置（如 `@@ @enc <hex> @reloc <NAME>`），
 # 故**不**锚定 `;`，只按 `@enc` / `@reloc` token 搜索（修 F-A：旧式
-# `;\s*@enc` / `;\s*@reloc` 要求 token 紧跟 `;`，看到 `@enc` 在前即漏 `@reloc`）。
+# `@@\s*@enc` / `;\s*@reloc` 要求 token 紧跟 `;`，看到 `@enc` 在前即漏 `@reloc`）。
 ENC_RE = re.compile(r"@enc\s+([0-9a-fA-F]{8})\b")
 RELOC_RE = re.compile(r"@reloc\s+(R_DADAO_[A-Z0-9]+)\b")
 REG_RE = re.compile(r"^(rd|rb|ra|rf)(\d+)$")
@@ -336,7 +336,7 @@ def check_l1(ck):
             mr = RELOC_RE.search(raw)
             # 去掉行内注释后的代码部分；据此识别「指令行」（非伪指令 `.x`、
             # 非标号 `...:`、非空）。指令行**必须**成对携带 @enc + @reloc。
-            code = raw.split(";", 1)[0].strip()
+            code = raw.split("@@", 1)[0].strip()
             is_code = bool(code) and not code.startswith(".") and not code.endswith(":")
             if not (is_code or me or mr):
                 continue

@@ -52,7 +52,7 @@ CONSUMER = r"""
 
 	.globl call_addu
 	.type call_addu,@function
-call_addu:                       ; out(rb16); addu(0xFFFFFFFF,1)
+call_addu:                       @@ out(rb16); addu(0xFFFFFFFF,1)
 	set.zw rd16, wp0, 0xffff
 	or.w rd16, wp1, 0xffff
 	set.zw rd17, wp0, 0x1
@@ -62,7 +62,7 @@ call_addu:                       ; out(rb16); addu(0xFFFFFFFF,1)
 
 	.globl call_add_s
 	.type call_add_s,@function
-call_add_s:                      ; out(rb16); add_s(-1,-1)
+call_add_s:                      @@ out(rb16); add_s(-1,-1)
 	set.ow rd16, wp0, 0xffff
 	rd2rd {rd17}, {rd16}
 	call [rb0, add_s]
@@ -71,7 +71,7 @@ call_add_s:                      ; out(rb16); add_s(-1,-1)
 
 	.globl call_neg
 	.type call_neg,@function
-call_neg:                        ; out(rb16); neg(0x80000000)
+call_neg:                        @@ out(rb16); neg(0x80000000)
 	set.zw rd16, wp3, 0xffff
 	or.w rd16, wp2, 0xffff
 	or.w rd16, wp1, 0x8000
@@ -81,7 +81,7 @@ call_neg:                        ; out(rb16); neg(0x80000000)
 
 	.globl call_uc_inc
 	.type call_uc_inc,@function
-call_uc_inc:                     ; out(rb16); uc_inc(0xFF)
+call_uc_inc:                     @@ out(rb16); uc_inc(0xFF)
 	set.zw rd16, wp0, 0xff
 	call [rb0, uc_inc]
 	st.o rd8, [rb16, 0]
@@ -89,7 +89,7 @@ call_uc_inc:                     ; out(rb16); uc_inc(0xFF)
 
 	.globl call_sc_inc
 	.type call_sc_inc,@function
-call_sc_inc:                     ; out(rb16); sc_inc(0x7F)
+call_sc_inc:                     @@ out(rb16); sc_inc(0x7F)
 	set.zw rd16, wp0, 0x7f
 	call [rb0, sc_inc]
 	st.o rd8, [rb16, 0]
@@ -97,7 +97,7 @@ call_sc_inc:                     ; out(rb16); sc_inc(0x7F)
 
 	.globl call_us_inc
 	.type call_us_inc,@function
-call_us_inc:                     ; out(rb16); us_inc(0xFFFF)
+call_us_inc:                     @@ out(rb16); us_inc(0xFFFF)
 	set.zw rd16, wp0, 0xffff
 	call [rb0, us_inc]
 	st.o rd8, [rb16, 0]
@@ -105,7 +105,7 @@ call_us_inc:                     ; out(rb16); us_inc(0xFFFF)
 
 	.globl call_ss_inc
 	.type call_ss_inc,@function
-call_ss_inc:                     ; out(rb16); ss_inc(0x7FFF)
+call_ss_inc:                     @@ out(rb16); ss_inc(0x7FFF)
 	set.zw rd16, wp0, 0x7fff
 	call [rb0, ss_inc]
 	st.o rd8, [rb16, 0]
@@ -113,7 +113,7 @@ call_ss_inc:                     ; out(rb16); ss_inc(0x7FFF)
 
 	.globl call_bnot
 	.type call_bnot,@function
-call_bnot:                       ; out(rb16); bnot(0)
+call_bnot:                       @@ out(rb16); bnot(0)
 	set.zw rd16, wp0, 0x0
 	call [rb0, bnot]
 	st.o rd8, [rb16, 0]

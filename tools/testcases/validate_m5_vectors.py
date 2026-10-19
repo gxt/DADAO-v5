@@ -15,7 +15,7 @@ values are re-derived on the host from
     and instruction-mask forbids => ILLI; unimplemented cfx / non-existent or
     over-count register combination => CFXREG),
 
-cross-checked against the machine-readable ``; @m5`` header embedded in every
+cross-checked against the machine-readable ``@@ @m5`` header embedded in every
 vector source (service number, console data bytes, fault rule, expected cause,
 exit / fail tokens).
 
@@ -113,7 +113,7 @@ PASS_TOKEN = {
     "m5_trap_escape": 0x60,
 }
 
-M5_RE = re.compile(r"^;\s*@m5\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
+M5_RE = re.compile(r"^@@\s*@m5\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
 SVC_ROW_RE = re.compile(r"\|\s*`0x([0-9a-fA-F]{2})`\s*\|\s*`([A-Z0-9_]+)`\s*\|")
 
 
@@ -143,7 +143,7 @@ def load_service_table():
 
 
 def parse_m5_header(path: Path):
-    """Parse the machine-readable `; @m5 key=value` header of a vector."""
+    """Parse the machine-readable `@@ @m5 key=value` header of a vector."""
     header = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         m = M5_RE.match(line)

@@ -11,16 +11,16 @@
 
 向量文件 = ``tests/llvm/lit/MC/DADAO/m4-*.s``（`INTEG-016t` 起已接入门控，
 不再要求门控占位标记）。每个向量的**输入**是代码部分，**期望值**是同一行
-末尾的 ``; @<kind> <expect>`` 注释：
+末尾的 ``@@ @<kind> <expect>`` 注释：
 
-    add.si rd8, 1                    ; @enc 59200001
-    set.rd rd6, 0x1234ABCD           ; @exp set.zw rd6, wp1, 0x1234 ; or.w rd6, wp0, 0xabcd
-    .dd.w16 0x1234                   ; @dir 1234
-    .word 0x1234                     ; @dirrej unknown
-    nop                              ; @rej unrecognized
-    add.si rd8, 131072               ; @err imms18
-    add.uo {rd8, rd9}, rd10, rd11    ; @norm ADD.UO {RD8, RD9}, RD10, RD11
-    ldm.o {rd8:rd10}, [rb2, rd1]     ; @mts ldm.o {rd8}, [rb2, rd1] ; add.si rd1, 8 ; ...
+    add.si rd8, 1                    @@ @enc 59200001
+    set.rd rd6, 0x1234ABCD           @@ @exp set.zw rd6, wp1, 0x1234 ; or.w rd6, wp0, 0xabcd
+    .dd.w16 0x1234                   @@ @dir 1234
+    .word 0x1234                     @@ @dirrej unknown
+    nop                              @@ @rej unrecognized
+    add.si rd8, 131072               @@ @err imms18
+    add.uo {rd8, rd9}, rd10, rd11    @@ @norm ADD.UO {RD8, RD9}, RD10, RD11
+    ldm.o {rd8:rd10}, [rb2, rd1]     @@ @mts ldm.o {rd8}, [rb2, rd1] ; add.si rd1, 8 ; ...
 
 kind：
   enc     单条真实指令 → 4 字节大端 hex
@@ -689,15 +689,15 @@ def check_error(by_mnemonic, insn_text, token):
 # 向量文件解析
 # --------------------------------------------------------------------------
 
-ANNOT_RE = re.compile(r";\s*@(enc|exp|dir|dirrej|rej|err|mts|norm)\s+(.*)$")
-CATEGORY_RE = re.compile(r";\s*@category\s+(\S+)")
-# `; OBJ: {{[0-9a-f]+:}} <b0> <b1> <b2> <b3>{{.*}}<mnemonic>...` — lit FileCheck
+ANNOT_RE = re.compile(r"@@\s*@(enc|exp|dir|dirrej|rej|err|mts|norm)\s+(.*)$")
+CATEGORY_RE = re.compile(r"@@\s*@category\s+(\S+)")
+# `@@ OBJ: {{[0-9a-f]+:}} <b0> <b1> <b2> <b3>{{.*}}<mnemonic>...` — lit FileCheck
 # byte pattern (same shape as `tools/llvm/check_lit_bytes.py`).  TESTCASES-032t
 # requires the encoding vectors to carry the object bytes inline; we re-derive
 # them from opcodes.yaml and require them to equal the `@enc` value of the
 # instruction on the following line (so changing either fails).
 OBJ_RE = re.compile(
-    r";\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
+    r"@@\s*OBJ:\s+\{\{\[0-9a-f\]\+:\}\}\s+"
     r"([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})\s+([0-9a-f]{2})")
 
 
@@ -713,7 +713,7 @@ def parse_vectors():
         with open(path, "r", encoding="utf-8") as fh:
             lines = fh.read().splitlines()
         cat = None
-        pending_obj = None    # 最近一条 `; OBJ:` 的字节（供下一条 @enc 引用）
+        pending_obj = None    # 最近一条 `@@ OBJ:` 的字节（供下一条 @enc 引用）
         for lineno, raw in enumerate(lines, 1):
             mc = CATEGORY_RE.search(raw)
             if mc and cat is None:
@@ -727,7 +727,7 @@ def parse_vectors():
             ma = ANNOT_RE.search(raw)
             if not ma:
                 continue
-            code = raw[:raw.index(";")].strip()
+            code = raw[:raw.index("@@")].strip()
             vectors.append((path, lineno, ma.group(1), code,
                             ma.group(2).strip(), pending_obj))
             pending_obj = None
@@ -771,12 +771,12 @@ def run(verbose=True):
             if kind == "enc":
                 got, _ = pick_and_encode(by_mnemonic, code)
                 ok = (got == expect.lower())
-                # `; OBJ:` 字节（若存在）必须等于同一独立派生编码
+                # `@@ OBJ:` 字节（若存在）必须等于同一独立派生编码
                 if obj_bytes is not None and obj_bytes.lower() != got:
-                    errors.append("%s: [enc/OBJ] %s — ; OBJ: 期望 %r，独立派生 %r"
+                    errors.append("%s: [enc/OBJ] %s — @@ OBJ: 期望 %r，独立派生 %r"
                                   % (loc, code, obj_bytes, got))
                     if verbose:
-                        print("FAIL %s [enc/OBJ] %r: ; OBJ: %r，独立派生 %r"
+                        print("FAIL %s [enc/OBJ] %r: @@ OBJ: %r，独立派生 %r"
                               % (loc, code, obj_bytes, got))
                     continue
             elif kind == "exp":
