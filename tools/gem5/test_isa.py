@@ -384,6 +384,19 @@ def main() -> int:
                     "semantic", "boundary", "legality",
                 }
             )
+        aip_cases = [
+            case for case in yaml.safe_load(
+                (ROOT / "tests/vectors/isa/aip-si.yaml").read_text())
+            if case.get("status") == "active"
+            and case.get("class") in {"semantic", "boundary", "legality"}
+        ]
+        for case in aip_cases:
+            address = 0xFC0000000000
+            if case.get("input_state", {}).get("rb"):
+                address += 4
+            case["initial_pc"] = address
+            case["image_addr"] = address
+        cases.extend(aip_cases)
         opcodes = yaml.safe_load(
             (ROOT / "contracts/opcodes.yaml").read_text())
         cases.extend({

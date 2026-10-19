@@ -1,0 +1,157 @@
+schema: gem5-programs-v1
+
+selection:
+  source_globs:
+    - tests/e2e/*.c
+    - tests/e2e/*.s
+  representative_rule: >-
+    E2E uses the lexicographically first runnable case per category; Embench
+    uses every benchmark tied for the minimum source LOCAL_SCALE_FACTOR.
+  full_rule: every runnable case plus every Embench benchmark at O0 and O2
+  embench_representative_opts: [O2]
+  embench_full_opts: [O0, O2]
+  embench_correctness_overrides:
+    WARMUP_HEAT: 0
+    LOCAL_SCALE_FACTOR: 1
+  embench_override_reason: >-
+    Preserve each benchmark algorithm and verify_benchmark oracle while
+    removing timing calibration repetitions that are not correctness coverage.
+
+programs:
+  - name: fp_codegen
+    category: fp-abi
+    source: tests/e2e/fp_codegen.c
+    build: c-elf
+    opts: [O0, O2]
+    expected_exit: 42
+    oracle: source-level arithmetic documented by LLVM-066t
+
+  - name: fp_hfa
+    category: fp-abi
+    source: tests/e2e/fp_hfa.c
+    build: c-elf
+    opts: [O2]
+    expected_exit: 42
+    oracle: source-level aggregate arithmetic documented by LLVM-066t
+
+  - name: fp_unordered
+    category: fp-semantics
+    source: tests/e2e/fp_unordered_e2e.c
+    build: c-elf
+    opts: [Oz]
+    expected_exit: 0
+    oracle: self-checking C program
+
+  - name: large_const_cmp
+    category: integer-codegen
+    source: tests/e2e/large_const_cmp_e2e.c
+    build: c-elf
+    opts: [O0, O2]
+    expected_exit: 6
+    oracle: hand-derived C semantics recorded in the source
+
+  - name: p0_fp
+    category: fp-semantics
+    source: tests/e2e/p0_fp_e2e.c
+    build: c-elf
+    opts: [Oz]
+    expected_exit: 0
+    oracle: self-checking C program
+
+  - name: p1_fp
+    category: fp-semantics
+    source: tests/e2e/p1_fp_e2e.c
+    build: c-elf
+    opts: [Oz]
+    expected_exit: 0
+    oracle: self-checking C program
+
+  - name: selectcc
+    category: integer-codegen
+    source: tests/e2e/selectcc_e2e.c
+    build: c-elf
+    opts: [O0, O2]
+    expected_exit: 15
+    oracle: hand-derived C semantics recorded in the source
+
+  - name: setcc
+    category: integer-codegen
+    source: tests/e2e/setcc_e2e.c
+    build: c-elf
+    opts: [O0, O2]
+    expected_exit: 59
+    oracle: hand-derived C semantics recorded in the source
+
+  - name: switch_jt
+    category: control-flow
+    source: tests/e2e/switch_jt_e2e.c
+    build: c-elf
+    opts: [O2]
+    expected_exit: 255
+    oracle: hand-derived case and fallthrough bit mask recorded in the source
+
+  - name: weak_undef
+    category: linker
+    source: tests/e2e/weak_undef_e2e.c
+    build: c-elf
+    opts: [Oz]
+    expected_exit: 0
+    oracle: ELF undefined-weak null-address rule checked by the program
+
+  - name: weak_defined
+    category: linker
+    source: tests/e2e/weak_undef_e2e.c
+    extra_sources: [tests/e2e/weak_hook_def.s]
+    build: c-elf
+    opts: [Oz]
+    expected_exit: 9
+    oracle: weak_hook_def.s returns the immediate value 9
+
+  - name: p2align
+    category: linker
+    source: tests/e2e/p2align_e2e.s
+    build: asm-elf
+    expected_exit: 0
+    oracle: self-checking fallthrough across aligned instruction padding
+
+  - name: smoke_add
+    category: assembly-scalar
+    source: tests/e2e/smoke_add.s
+    build: asm-raw
+    expected_exit: 0
+    oracle: self-checking assembly program
+
+  - name: smoke_arith
+    category: assembly-scalar
+    source: tests/e2e/smoke_arith.s
+    build: asm-raw
+    expected_exit: 0
+    oracle: self-checking assembly program
+
+  - name: smoke_fp
+    category: assembly-fp
+    source: tests/e2e/smoke_fp.s
+    build: asm-raw
+    expected_exit: 0
+    oracle: independently derived IEEE-754 values recorded in the source
+
+  - name: smoke_jump
+    category: assembly-control
+    source: tests/e2e/smoke_jump.s
+    build: asm-raw
+    expected_exit: 0
+    oracle: self-checking assembly program
+
+exclusions:
+  - source: tests/e2e/clang_dadao_target.c
+    reason: compile-only target and ABI probe with no main entry point
+  - source: tests/e2e/i1_load_e2e.c
+    reason: parameterized BYTE value probe; no single source-level expected exit
+  - source: tests/e2e/mulhi_e2e.c
+    reason: parameterized MODE/BYTE value probe; no single source-level expected exit
+  - source: tests/e2e/smulhi_e2e.c
+    reason: parameterized MODE/BYTE value probe; no single source-level expected exit
+  - source: tests/e2e/weak_undef_forms.s
+    reason: relocation-shape object with no runnable entry contract
+  - source: tests/e2e/weak_undef_strong.s
+    reason: negative link test whose required result is linker failure

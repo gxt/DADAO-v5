@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/opcode_table.hh b/src/arch/dadao/opcode_table.hh
 new file mode 100644
-index 0000000..b7e5a97
+index 0000000..6f76d97
 --- /dev/null
 +++ b/src/arch/dadao/opcode_table.hh
-@@ -0,0 +1,246 @@
+@@ -0,0 +1,247 @@
 +// Generated from contracts/opcodes.yaml by
 +// tools/gem5/generate_opcode_table.py. Do not edit by hand.
 +#ifndef __ARCH_DADAO_OPCODE_TABLE_HH__
@@ -66,6 +66,7 @@ index 0000000..b7e5a97
 +        ((word & 0xff000000U) == 0x54000000U) ||
 +        ((word & 0xff000000U) == 0x55000000U) ||
 +        ((word & 0xff000000U) == 0x59000000U) ||
++        ((word & 0xff000000U) == 0x5a000000U) ||
 +        ((word & 0xff000000U) == 0x5b000000U) ||
 +        ((word & 0xff000000U) == 0x5c000000U) ||
 +        ((word & 0xff000000U) == 0x5d000000U) ||

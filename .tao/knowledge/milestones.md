@@ -28,7 +28,7 @@
 
 **M7 模块里程碑**（**均 `里程碑`**：`INFRA-072m`/`SPEC-136m`/`LLVM-090m`/`QEMU-059m`/`TESTCASES-043m`/`INTEG-034m`〔整体收敛点〕）：`INFRA-072m` / `SPEC-136m` / `LLVM-090m` / `QEMU-059m` / `TESTCASES-043m` / `INTEG-034m`（整体收敛点）+ `INTEG-035m`（M7 收尾归档，`Process-04`；任务书**已自归档**入 `.tao/archive/M7/integ/`）。
 
-**M8 实施（gem5 裸机闭环，与 M7 并行）**：`GEM5-001k` 路线与分解、`GEM5-002t` 基线构建、`GEM5-003t` ISA 骨架、`GEM5-004t` 标量语义、`GEM5-005t` 测试机和 `GEM5-006t` FP/剩余 ISA 均已复核（`已验证`）；`007t` 与 `008m` 待开始。004 实核 current 517/517；005 加入 Machine-01 ELF/PT_LOAD、cfx 与 25 项 semihosting，机器门控 47/47、真实工具链 1/1；006 补齐 RF/FCSR、60 条 FP、M3/M8，并保持 11 条 excluded 为 `ILLI`，覆盖表 234/234、remaining 541、独立 FP 329，两类反例均按预期失败。`ADR-0024`（基线）和 `ADR-0025`（测试机接入）均已逐条确认并 Accepted。M8 目标为 `AtomicSimpleCPU` 运行现有 DADAO ELF 并对齐 `Machine-01`，证据见 `components/gem5/evidence/GEM5-004t.md`–`GEM5-006t.md`。M7 的任务和验收范围不变。
+**M8 实施（gem5 裸机闭环，与 M7 并行）**：`GEM5-001k` 路线与分解、`GEM5-002t` 基线构建、`GEM5-003t` ISA 骨架、`GEM5-004t` 标量语义、`GEM5-005t` 测试机、`GEM5-006t` FP/剩余 ISA 和 `GEM5-007t` 集成回归均已复核（`已验证`）；仅 `008m` 待开始。004 实核 current 517/517；005 加入 Machine-01 ELF/PT_LOAD、cfx 与 25 项 semihosting，机器门控 47/47、真实工具链 1/1；006–007 补齐 RF/FCSR、60 条 FP、M3/M8 与 `aip.si`，11 条 excluded 保持 `ILLI`，覆盖表 235/235、remaining 548、独立 FP 329；适用 E2E 20/20、Embench 正确性档 38/38，代表/完整门控已接 L2/L3，三类反例均按预期失败。`ADR-0024`（基线）和 gem5 测试机接入 ADR 均已逐条确认并 Accepted。M8 目标为 `AtomicSimpleCPU` 运行现有 DADAO ELF 并对齐 `Machine-01`，证据见 `components/gem5/evidence/GEM5-004t.md`–`GEM5-007t.md`。M7 的任务和验收范围不变。
 
 ## 任务流水
 

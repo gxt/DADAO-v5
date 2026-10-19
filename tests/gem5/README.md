@@ -18,13 +18,15 @@ gem5 ISA 期望值读取 `tests/vectors/isa/*.yaml`，指令清单与编码掩�
 执行驱动接受 `--gem5` 或 `DADAO_GEM5_BINARY` 指定二进制，构建或执行
 未就绪时门控必须失败。
 `python3 tools/gem5/test_isa.py --profile skeleton` 固定运行
-`GEM5-003t` 的 16 条 ISA 骨架用例；`--vector-root` 可指向临时向量副本，
+`GEM5-003t` 的 61 条 ISA 骨架用例；`--vector-root` 可指向临时向量副本，
 用于注入错误期望而不修改真源。默认 `current` profile 保持运行当前代表集。
-`python3 tools/gem5/test_isa.py --profile remaining` 运行 M3、M8 独立向量
-和 11 条 excluded `ILLI` 用例；`--inject-excluded` 模拟误接受并要求门控失败。
+`python3 tools/gem5/test_isa.py --profile remaining` 运行 M3、M8、`aip.si`
+独立向量和 11 条 excluded `ILLI` 用例；`--inject-excluded` 模拟误接受并要求
+门控失败。
 `make test-gem5-fp` 复用四份从规范独立派生的 FP probe 输入，核对 RF/FCSR、
 特殊值、四种舍入模式、异常标志、转换和比较；`--inject` 注入错值。
-`make check-gem5-full` 依次运行代表集、234/234 覆盖、remaining 和完整 FP。
+`make check-gem5-full` 依次运行 235/235 覆盖、current、Machine-01、
+remaining、完整 FP 和程序集全量。
 
 `GEM5-004t` 已把当前代表集扩到 517 条，覆盖标量运算、访存、控制流和
 RegRAS/MemRAS；003 skeleton 固定为 61 条，另有三条 smoke 序列。
@@ -40,3 +42,13 @@ Machine-01 参数块，运行 47 项机器检查：复位到 boot ROM、`hypv→
 `make test-gem5-toolchain` 消费 `make build-bootrom` 与 `make test-elf` 已生成
 的真实产物，固定运行 `bootrom.bin + multi_tu_call.elf`，独立期望退出状态
 为 42；该入口证明 LLVM/LLD 产物无需转换即可由 gem5 的 Machine-01 路径启动。
+
+`tests/gem5/programs.yaml` 是跨程序清单：对 `tests/e2e/*.{c,s}` 做闭包，
+逐项记录独立退出期望或排除理由。`tools/gem5/test_programs.py` 构建并运行
+清单中的程序及 Embench；代表档从每个 E2E 类别机械选一例，并选择原始
+`LOCAL_SCALE_FACTOR` 最小的 Embench，完整档运行全部适用 E2E 和 19 个
+Embench 的 `O0/O2`。Embench 正确性档只在临时源码副本中关闭 warmup、把
+计时重复数降为 1，仍由 `verify_benchmark` 判定，不产生性能结论。报告记录
+命令退出码、guest 退出事件、IP、模式、CFX 及逐字段差分；超时、非
+semihosting 退出和缺失退出码均失败。`--inject-result` 与
+`--inject-drop-exit` 分别验证错结果和退出码丢失的可达 FAIL。

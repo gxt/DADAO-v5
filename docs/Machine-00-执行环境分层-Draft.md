@@ -44,16 +44,16 @@
 
 | 能力项 | `qemu`（**现状**） | `gem5` | `verilator` | `fpga` |
 |---|---|---|---|---|
-| ① 加载 ELF / `-bios` | ✓ ELF 直载 + `-bios` bootrom（`ADR-0009`；`QEMU-052t`） | 待定（依据待补） | 待定（依据待补） | 待定（依据待补） |
-| ② **semihosting responder** | ✓ 25 服务（`contract-semihosting`；`Machine-01 §5`） | 待定 | 待定 | 待定 |
-| ③ 内存映射可控（RAM/ROM） | ✓ RAM `0xFC00_0000_0000`（16 MiB）+ ROM 64 KiB（`Machine-01 §1`） | 待定 | 待定 | 待定 |
-| ④ 异常/中断注入 | 部分：fault 码 `0x81`–`0x8D` 可用；**外部中断注入未定义**（待核） | 待定 | 待定 | 待定 |
-| ⑤ 可观测性（dump/回读） | ✓ 探针/harness（`tools/qemu/min_rom_probe_*`） | 待定 | 待定 | 待定 |
-| ⑥ 时序精度（周期/时间） | ✗ **非周期精确**（近似） | 待定 | 待定 | 待定 |
-| ⑦ 吞吐/速度 | 快（本机仿真） | 待定 | 待定 | 待定 |
-| ⑧ 确定性（可复现） | ✓ 确定可复现 | 待定 | 待定 | 待定 |
-| ⑨ 能否跑内核/Linux | ✗ M7 无内核（`hypv` 裸机 + semihosting） | 待定 | 待定 | 待定 |
-| ⑩ 动态加载能力 | ✗ 无 loader（动态链接后置） | 待定 | 待定 | 待定 |
+| ① 加载 ELF / `-bios` | ✓ ELF 直载 + `-bios` bootrom（`ADR-0009`；`QEMU-052t`） | ✓ boot ROM + ELF64/MSB `PT_LOAD`（`GEM5-005t`；`components/gem5/evidence/GEM5-007t.md` E2E 20/20） | 待定（依据待补） | 待定（依据待补） |
+| ② **semihosting responder** | ✓ 25 服务（`contract-semihosting`；`Machine-01 §5`） | ✓ 25 服务 + guest 退出码传播（`GEM5-005t` 47 项机器门控） | 待定 | 待定 |
+| ③ 内存映射可控（RAM/ROM） | ✓ RAM `0xFC00_0000_0000`（16 MiB）+ ROM 64 KiB（`Machine-01 §1`） | ✓ 同一 RAM/ROM 地址图（`tests/gem5/machine_fixture.py`；`GEM5-005t`） | 待定 | 待定 |
+| ④ 异常/中断注入 | 部分：fault 码 `0x81`–`0x8D` 可用；**外部中断注入未定义**（待核） | 部分：同步异常、trap/escape 可实测；外部中断注入待定（`GEM5-005t`） | 待定 | 待定 |
+| ⑤ 可观测性（dump/回读） | ✓ 探针/harness（`tools/qemu/min_rom_probe_*`） | ✓ 寄存器/内存/IP/模式/CFX 回读与 JSON 状态差分（`tests/gem5/*_fixture.py`；`components/gem5/evidence/GEM5-007t.md`） | 待定 | 待定 |
+| ⑥ 时序精度（周期/时间） | ✗ **非周期精确**（近似） | ✗ 首版 `AtomicSimpleCPU` 仅作功能正确性，未承诺周期精度（`adr-0025-gem5-test-machine-integration.md` D1 及 Consequences） | 待定 | 待定 |
+| ⑦ 吞吐/速度 | 快（本机仿真） | 待定（未建立跨主机性能基线；`GEM5-007t` 只验正确性） | 待定 | 待定 |
+| ⑧ 确定性（可复现） | ✓ 确定可复现 | ✓ 同一程序集重复运行的退出事件/IP/模式/CFX 全等（`components/gem5/evidence/GEM5-007t.md`） | 待定 | 待定 |
+| ⑨ 能否跑内核/Linux | ✗ M7 无内核（`hypv` 裸机 + semihosting） | ✗ 首版仅裸机全系统，无内核/MMU 验收（`adr-0025-gem5-test-machine-integration.md` D1 及 Consequences） | 待定 | 待定 |
+| ⑩ 动态加载能力 | ✗ 无 loader（动态链接后置） | ✗ 仅加载静态 ELF `PT_LOAD`，无 `PT_INTERP`/动态链接器路径（`GEM5-005t`） | 待定 | 待定 |
 
 **填表规则**：每格须能给**依据**（文档/合约/实测）；给不出 ⇒ `待定（依据待补）`（**禁猜**）。
 
@@ -63,10 +63,10 @@
 
 | 套件 | 性质 | 现状（`qemu`） | 其它平台可行性 | 能测的功能点 |
 |---|---|---|---|---|
-| **picolibc 自带 test**（≈235 适用） | C 库语义 | ✓ `check-picolibc-tests`(L2 快档) / `-full`(L3) | 需 semihosting responder ⇒ `gem5`/`verilator`/`fpga` **待定** | libc/libm **语义**、FP 完备性、stdio/格式化 I/O |
+| **picolibc 自带 test**（≈235 适用） | C 库语义 | ✓ `check-picolibc-tests`(L2 快档) / `-full`(L3) | `gem5` responder 已有、套件尚未实测；`verilator`/`fpga` 待定 | libc/libm **语义**、FP 完备性、stdio/格式化 I/O |
 | **LLVM 自带 lit**（MC + CodeGen ≈105） | 工具链（**宿主机**跑） | ✓ `check-lit` / `check-lit-full` | **平台无关**（跑在宿主 `llvm-mc`/`llc`） | ISA 编码/解码、**ISel/ABI lowering** |
-| **ISA 向量**（`tests/vectors/isa/**`） | 编码 + 执行语义 | ✓ `validate-vectors`（宿主）+ `check-qemu-semantics` | `gem5`/`fpga` 待定（可跑 > 可校验） | 编码 legality（L1）、结构（L2）、**执行语义**（L3） |
-| **Embench-iot**（已接入） | **性能** | ✓ `test-m6`（双 `-O0`/`-O2` 档） | `gem5`（周期精确 ⇒ **更适合测时**）、`fpga`（真实） | **性能/代码规模**；**不作正确性判据** |
+| **ISA 向量**（`tests/vectors/isa/**`） | 编码 + 执行语义 | ✓ `validate-vectors`（宿主）+ `check-qemu-semantics` | `gem5` 已覆盖 235/235 opcode；`fpga` 待定 | 编码 legality（L1）、结构（L2）、**执行语义**（L3） |
+| **Embench-iot**（已接入） | 性能语料 + 自校验 | ✓ `test-m6`（双 `-O0`/`-O2` 档） | `gem5` 正确性档 38/38（缩减计时重复，禁作性能结论；`GEM5-007t`）；`fpga` 待定 | 自带 `verify_benchmark` 可验**正确性**；原始规模另用于性能/代码规模 |
 | **CoreMark / Dhrystone / MiBench**（参考仓库有，**未接入**） | **性能** | 未接入（候选） | `qemu` 可用；**测时**宜用 `gem5`/`fpga` | 性能（整数/访存/控制流压力） |
 | **`ansibench`**（`nfinit/ansibench`，**未接入**） | **性能**（纯 ANSI C 计算型） | 未接入 | 原则上裸机+semihosting 可跑（`gem5`/`fpga` 待定） | 与 Embench **互补**的 C 计算负载；⚠️ **上游未声明许可** ⇒ 接入前须定许可，或仅作对照（**不 vendor**） |
 
@@ -97,3 +97,4 @@
 - 2026-10-12：新增 **§4 平台 × 能力矩阵**（用户裁定「入库 + 先填 qemu 列」）⇒ `qemu` 列填现状（逐格带依据），`gem5`/`verilator`/`fpga` 标 `待定（依据待补）`。
 - 2026-10-12：新增 **§5「测试与基准 × 平台 × 功能点」**（用户 2026-10-12 指令：把 **Embench / `ansibench` / LLVM lit / picolibc test** 等列入，分析"能在哪个平台测、能测哪些功能点"）；`ansibench` = `nfinit/ansibench`（纯 ANSI C、~359 KB、**上游未声明许可** ⇒ 接入待定）。
 - 2026-10-13：新增 **§5.1「套件接入要点（Embench-IoT → DADAO）」**（`INFRA-070t`：`embench-analysis.md` 收敛，提炼 5 条接入判据；原文归档 `.tao/archive/M7/notes/`）。
+- 2026-10-19：`GEM5-007t` 以官方 gem5 文档/本地实现和执行报告逐格补齐 gem5 列；无性能基线、外部中断或动态加载证据的项目保持待定或不支持。

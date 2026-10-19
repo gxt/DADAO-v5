@@ -40,6 +40,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
         build-musl build-musl-shared test-gem5 test-gem5-machine \
+        test-gem5-programs \
         test-gem5-toolchain test-gem5-fp \
         check-gem5-full \
         test-picolibc-smoke install-host docker-image docker-shell check \
@@ -85,11 +86,12 @@ help:
 	@echo "  make build-qemu      Compile QEMU (skips configure if build.ninja exists)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
 	@echo "  make build-gem5      Build gem5 DADAO AtomicSimpleCPU target"
-	@echo "  make test-gem5       Run representative gem5 ISA execution vectors"
+	@echo "  make test-gem5       Run representative gem5 ISA, machine, and program gates"
 	@echo "  make test-gem5-machine  Run Machine-01 ELF, trap, and semihosting gates"
 	@echo "  make test-gem5-toolchain  Run generated boot ROM + DADAO ELF on gem5"
+	@echo "  make test-gem5-programs  Run representative bare-metal E2E and Embench programs on gem5"
 	@echo "  make test-gem5-fp    Run spec-derived RF/FCSR and FP execution cases"
-	@echo "  make check-gem5-full Run complete gem5 ISA coverage and execution gates"
+	@echo "  make check-gem5-full Run complete applicable gem5 ISA and program gates"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
@@ -310,6 +312,7 @@ test-gem5:
 	@$(PYTHON) tools/gem5/vector_inventory.py
 	@$(PYTHON) tools/gem5/test_isa.py --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt"
 	@$(MAKE) --no-print-directory test-gem5-machine
+	@$(MAKE) --no-print-directory test-gem5-programs
 
 test-gem5-machine:
 	@$(PYTHON) tools/gem5/test_machine.py --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt"
@@ -332,15 +335,29 @@ test-gem5-toolchain:
 	  --toolchain-elf "$(GEM5_TOOLCHAIN_ELF)" \
 	  --toolchain-exit 42
 
+test-gem5-programs:
+	@$(PYTHON) tools/gem5/test_programs.py \
+	  --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt" \
+	  --bootrom "$(GEM5_TOOLCHAIN_BOOTROM)" \
+	  --profile representative
+
 test-gem5-fp:
 	@$(PYTHON) tools/gem5/test_fp.py \
 	  --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt"
 
-check-gem5-full: test-gem5
+check-gem5-full:
+	@$(PYTHON) tools/gem5/generate_opcode_table.py --check
 	@$(PYTHON) tools/gem5/vector_inventory.py --require-complete
+	@$(PYTHON) tools/gem5/test_isa.py \
+	  --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt"
+	@$(MAKE) --no-print-directory test-gem5-machine
 	@$(PYTHON) tools/gem5/test_isa.py \
 	  --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt" --profile remaining
 	@$(MAKE) --no-print-directory test-gem5-fp
+	@$(PYTHON) tools/gem5/test_programs.py \
+	  --gem5 "$(GEM5_SRC)/build/DADAO/gem5.opt" \
+	  --bootrom "$(GEM5_TOOLCHAIN_BOOTROM)" \
+	  --profile full
 
 # install-host (INFRA-047t, ADR-0016 D3/D4/D5/D11): stage only the needed host
 # tool set from the .work/ build trees into the install root's bin/, install the
@@ -664,13 +681,15 @@ check: manifest-check validate-vectors check-spec-drift check-patch-tree check-i
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
 
-# L2 各模块功能代表集 (INFRA-058t). 注: test-semihost 自带对 `check`(L1) 的无回归前置
-# （by design，见 INTEG-020t），故 `make check-modules` 会顺带跑 L1。
-check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests
+# L2 各模块功能代表集 (INFRA-058t). `test-gem5` carries the gem5 ISA,
+# Machine-01, and cross-program representative set. 注: test-semihost 自带对
+# `check`(L1) 的无回归前置（by design，见 INTEG-020t），故会顺带跑 L1。
+check-modules: check-interface check-lit check-qemu-smoke test-codegen test-elf test-semihost check-picolibc-tests test-gem5
 	@echo "module checks (L2): PASS"
 
-# L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载（不在本目标重复列出）。
-check-full: check-qemu-semantics test-m6
+# L3 较完整 (INFRA-058t). check-lit-full 由 test-m6 步骤 [1/3] 承载；
+# check-gem5-full carries the complete applicable gem5 vector/program set.
+check-full: check-qemu-semantics test-m6 check-gem5-full
 	@echo "full checks (L3): PASS"
 
 # Vector schema/inventory/coverage gate (TESTCASES-002t). Requires the M1

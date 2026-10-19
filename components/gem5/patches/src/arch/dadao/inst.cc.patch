@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..cbe2300
+index 0000000..75c5baa
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,1245 @@
+@@ -0,0 +1,1251 @@
 +#include "arch/dadao/inst.hh"
 +
 +#include <algorithm>
@@ -164,6 +164,7 @@ index 0000000..cbe2300
 +      case 0x54: return "mul.uo";
 +      case 0x55: return "mul.so";
 +      case 0x59: case 0x5b: return "add.si";
++      case 0x5a: return "aip.si";
 +      case 0x5c: return "cmp.ui";
 +      case 0x5d: return "cmp.si";
 +      case 0x5e: return "cs.eq";
@@ -1109,6 +1110,11 @@ index 0000000..cbe2300
 +            cmp = (static_cast<int64_t>(rd(hb)) > imms12) -
 +                  (static_cast<int64_t>(rd(hb)) < imms12);
 +        set_rd(ha, static_cast<uint64_t>(cmp));
++    } else if (op == 0x5a) {
++        if (ha == 0)
++            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
++        const int64_t imm = static_cast<int32_t>(word << 14) >> 14;
++        set_rb(ha, rb(0) + (uint64_t(imm) << 12));
 +    } else if (op == 0x59 || op == 0x5b) {
 +        if (ha == 0)
 +            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);

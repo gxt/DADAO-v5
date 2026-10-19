@@ -22,7 +22,7 @@ zlib 开发头；gem5 向量清单脚本另需 PyYAML。protobuf 只在需要 tr
 依次实现 DADAO ISA、`Machine-01` 平台和集成回归。未通过执行门控的
 能力不得视为已实现。
 
-截至 2026-10-15：`GEM5-003t` ISA 骨架与 `GEM5-004t` 标量语义均经
+截至 2026-10-19：`GEM5-003t` ISA 骨架与 `GEM5-004t` 标量语义均经
 独立审阅并标记 `已验证`。004 已实现当前有 active 向量的全部 151 个
 M1 指令 ID，包括整数/地址运算、RD/RB/RA 访存、控制流和 RegRAS/MemRAS；
 current 517 条、003 skeleton 61 条及三条 smoke 序列均通过。005 已实现
@@ -30,9 +30,11 @@ Machine-01 的 ELF/PT_LOAD、boot ROM、16 MiB RAM、模式移交、cfx
 trap/escape/异常路由和 25 项 semihosting，47 项机器门控通过；工具链生成的
 真实 boot ROM + ELF 集成探针亦通过，已验收为 `已验证`。006 已补齐
 RF/FCSR、60 条 FP、M3 `sub.o`、7 条 M8 指令，并保持 11 条 excluded
-编码触发 `ILLI`；静态覆盖为 234/234，完整门控包含 329 条独立 FP
-oracle 用例和 541 条 remaining 执行用例。任务 007–008 的
-跨程序全量集成仍未完成。状态和复现
+编码触发 `ILLI`；007 又同步实现 `aip.si`，静态覆盖为 235/235，
+完整门控包含 329 条独立 FP oracle、548 条 remaining、20 条适用 E2E
+和 38 条 Embench 正确性用例。代表程序集接入 L2，完整程序集接入 L3；
+Machine-00 的 gem5 能力逐格附证。任务 008 的里程碑收口仍未完成。状态和复现
 证据见 `evidence/GEM5-003t.md`、`evidence/GEM5-004t.md`、
-`evidence/GEM5-005t.md`、`evidence/GEM5-006t.md`；早期 50 条阶段结果保留在
+`evidence/GEM5-005t.md`、`evidence/GEM5-006t.md`、
+`evidence/GEM5-007t.md`；早期 50 条阶段结果保留在
 `evidence/GEM5-004t-checkpoint.md`。

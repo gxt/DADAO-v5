@@ -113,7 +113,8 @@ actual = {
 print(
     "gem5-machine: "
     f"cause={actual['event_cause']} code={actual['event_code']} "
-    f"pc={actual['pc']:#014x} mode={actual['mode']}"
+    f"pc={actual['pc']:#014x} mode={actual['mode']} "
+    f"cfx={actual['current_cfx']}"
 )
 
 errors = []
