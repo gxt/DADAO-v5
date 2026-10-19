@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..25e73a53c
+index 000000000..8e066fba0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,236 @@
+@@ -0,0 +1,265 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -102,6 +102,15 @@ index 000000000..25e73a53c
 +  /// DADAOISelDAGToDAG to `jump rbtarget, rd0, 0` (contract-isa.md §8.3:
 +  /// Addr = rbha + rdhb + (imms12 << 2), rd0 supplies the zero offset).
 +  BRIND,
++
++  /// Local-exec TLS address (LLVM-100t): (TargetGlobalAddress) -> i64 in GPRB.
++  /// The address of a `__thread` object is TP + TPOFF, with TP = `rb3`
++  /// (contract-abi.md §1.3) and TPOFF the symbol's TLS-block offset
++  /// (contract-dynlink.md §4.3/§7: TLS_ABOVE_TP, GAP_ABOVE_TP 0, TP_OFFSET 0
++  /// => TPOFF(sym) == DTPOFF(sym) == the linker's value for the STT_TLS
++  /// symbol).  Selected by DADAOISelDAGToDAG to TLS_OFFSET (the ABS48
++  /// materialization of TPOFF, in GPRD) plus `add.o rb, rb3, rd`.
++  TLS_ADDR,
 +};
 +
 +} // namespace DADAOISD
@@ -223,6 +232,26 @@ index 000000000..25e73a53c
 +  /// CopyToReg (RD->RB becomes `rd2rb`); the selector then emits
 +  /// `jump rbtarget, rd0, 0`.  `rb0` is the IP and cannot be the base.
 +  SDValue LowerBRIND(SDValue Op, SelectionDAG &DAG) const;
++
++  /// Local-exec TLS address lowering (LLVM-100t).  `ISD::GlobalTLSAddress`
++  /// becomes DADAOISD::TLS_ADDR carrying the TargetGlobalAddress; the selector
++  /// materializes the symbol's TPOFF (an R_DADAO_ABS48 sequence on the STT_TLS
++  /// symbol) and adds TP (`rb3`).  Only the local-exec model is implemented:
++  /// global-dynamic / local-dynamic / initial-exec need the dynamic TLS
++  /// relocations 10/11/12 (`D2`, M9+/LLVM-117t) and are rejected with a
++  /// diagnostic (contract-dynlink.md §10②: unsupported => explicit error).
++  SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
++
++  /// `llvm.thread.pointer` (`__builtin_thread_pointer`) reads the thread
++  /// pointer register.  DADAO's TP is `rb3` (contract-abi.md §1.3), reserved
++  /// and never allocated, so the lowering is a CopyFromReg of that physical
++  /// register.
++  SDValue getThreadPointer(const SDLoc &DL, SelectionDAG &DAG) const;
++
++  /// Intrinsic lowering entry point for ISD::INTRINSIC_WO_CHAIN (LLVM-100t:
++  /// only `llvm.thread.pointer` is handled; anything else returns an empty
++  /// SDValue so the legalizer keeps the generic path).
++  SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
 +
 +  /// Varargs lowering (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  The
 +  /// caller writes every argument into a contiguous 8-byte-slot save area at

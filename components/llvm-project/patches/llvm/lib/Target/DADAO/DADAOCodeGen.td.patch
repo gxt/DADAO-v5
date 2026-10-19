@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..4e8654469
+index 000000000..268640ed4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,711 @@
+@@ -0,0 +1,722 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -320,6 +320,17 @@ index 000000000..4e8654469
 +// is never resolved in place, so every slice becomes a relocation even for a
 +// same-section symbol (the section base is only known at link time).
 +def GLOBAL_ADDR : DADAOPseudo<(outs GPRB:$dst), (ins unknown:$sym), []>;
++
++// Local-exec TLS offset materialization (LLVM-100t).  The operand is the
++// TargetGlobalAddress of a `__thread` object and the result is TPOFF(sym) in
++// GPRD (a *data* value: the following `add.o rb, rb3, rd` adds it to the thread
++// pointer).  Expanded post-RA into the same fixed 3-slice sequence as
++// GLOBAL_ADDR, but writing the data bank:
++//   set.zw rd, wp0, sym ; or.w rd, wp1, sym ; or.w rd, wp2, sym
++// Each slice carries R_DADAO_ABS48 against the STT_TLS symbol; for such a
++// symbol the linker's S is the TLS-block offset, i.e. exactly TPOFF here
++// (TLS_ABOVE_TP, GAP_ABOVE_TP 0, TP_OFFSET 0; contract-dynlink.md §4.3/§7).
++def TLS_OFFSET : DADAOPseudo<(outs GPRD:$dst), (ins unknown:$sym), []>;
 +
 +// Jump-table address materialization (LLVM-072t, ISS-177/G3).  The operand is a
 +// TargetJumpTable leaf (InstrEmitter -> MO_JumpTableIndex, i.e. the function's

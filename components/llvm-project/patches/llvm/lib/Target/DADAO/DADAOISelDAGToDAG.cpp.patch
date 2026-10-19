@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..e2ad3b19c
+index 000000000..26af4dca7
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,549 @@
+@@ -0,0 +1,579 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -130,6 +130,10 @@ index 000000000..e2ad3b19c
 +  // The address of a global/static object (LLVM-055t) is by definition a
 +  // pointer-bank value; it is materialized to GLOBAL_ADDR (GPRB) below.
 +  if (V.getOpcode() == ISD::GlobalAddress)
++    return true;
++  // The address of a thread-local object (LLVM-100t) is pointer-bank too; it is
++  // materialized to TP + TPOFF in GPRB below.
++  if (V.getOpcode() == ISD::GlobalTLSAddress)
 +    return true;
 +  // Machine nodes whose result already lives in the GPRB bank: a frame object
 +  // address materialized for a *value* use (FRAME_ADDR, LLVM-038t, e.g. an
@@ -349,6 +353,32 @@ index 000000000..e2ad3b19c
 +      return;
 +    }
 +    break;
++  case DADAOISD::TLS_ADDR: {
++    // Local-exec TLS address (LLVM-100t): address = TP + TPOFF, TP = rb3
++    // (contract-abi.md §1.3).  Operand [0] is the TargetGlobalAddress of the
++    // `__thread` object.
++    //
++    //   rd_off = <TPOFF(sym)>                       (TLS_OFFSET -> set.zw/or.w
++    //                                                on the STT_TLS symbol;
++    //                                                each slice R_DADAO_ABS48)
++    //   rb     = rb3 + rd_off                       (add.o rb, rb, rd)
++    //
++    // The offset is a *link-time* value: an ABS48 relocation's S is the
++    // symbol's TLS-block offset for an STT_TLS symbol, which -- with
++    // TLS_ABOVE_TP / GAP_ABOVE_TP 0 / TP_OFFSET 0 (contract-dynlink.md §7) --
++    // is exactly TPOFF(sym) (contract-dynlink.md §4.3).  No dynamic TLS
++    // relocation (10/11/12/13) is emitted; those stay for D2/LLVM-117t.
++    const SDLoc DL(Node);
++    SDValue Off = SDValue(
++        CurDAG->getMachineNode(DADAO::TLS_OFFSET, DL, MVT::i64,
++                               Node->getOperand(0)),
++        0);
++    SDValue TP = CurDAG->getRegister(DADAO::rb3, MVT::i64);
++    SDNode *M =
++        CurDAG->getMachineNode(DADAO::add_o_bbd, DL, MVT::i64, TP, Off);
++    ReplaceNode(Node, M);
++    return;
++  }
 +  case DADAOISD::BR_JT: {
 +    // Dense switch dispatch (LLVM-072t, ISS-177/G3).  Operands:
 +    //   [0] chain, [1] index (GPRD i64), [2] TargetJumpTable.

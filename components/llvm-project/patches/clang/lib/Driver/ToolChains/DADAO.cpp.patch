@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Driver/ToolChains/DADAO.cpp b/clang/lib/Driver/ToolChains/DADAO.cpp
 new file mode 100644
-index 000000000..7aeaf5c2f
+index 000000000..a0ed8c66f
 --- /dev/null
 +++ b/clang/lib/Driver/ToolChains/DADAO.cpp
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,162 @@
 +//===--- DADAO.cpp - DADAO ToolChain Implementations ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -89,6 +89,23 @@ index 000000000..7aeaf5c2f
 +  // Do not fall back to the host's /usr/include search paths; only the
 +  // freestanding builtin headers and the target sysroot (added above) apply.
 +  CC1Args.push_back("-nostdsysteminc");
++
++  // Thread-local storage model (LLVM-100t).  The backend implements the static
++  // local-exec model only (address = TP(`rb3`) + TPOFF; contract-abi.md §1.3,
++  // contract-dynlink.md §7).  clang's generic default is global-dynamic, which
++  // needs the dynamic TLS relocations 10/11/12 (`D2`, deferred to M9+/LLVM-117t),
++  // so a non-PIC compile defaults to local-exec here.  An explicit
++  // `-ftls-model=` still wins (Clang.cpp forwards it), and a PIC compile keeps
++  // the generic default: the backend then rejects it with an explicit
++  // diagnostic instead of silently emitting a static offset into a shared
++  // object.
++  const bool PIC =
++      DriverArgs.hasFlag(options::OPT_fPIC, options::OPT_fno_PIC, false) ||
++      DriverArgs.hasFlag(options::OPT_fpic, options::OPT_fno_pic, false) ||
++      DriverArgs.hasFlag(options::OPT_fPIE, options::OPT_fno_PIE, false) ||
++      DriverArgs.hasFlag(options::OPT_fpie, options::OPT_fno_pie, false);
++  if (!PIC && !DriverArgs.hasArg(options::OPT_ftlsmodel_EQ))
++    CC1Args.push_back("-ftls-model=local-exec");
 +}
 +
 +void dadao::Linker::ConstructJob(Compilation &C, const JobAction &JA,

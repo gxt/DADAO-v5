@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..92d907fc5
+index 000000000..58e39d17f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1895 @@
+@@ -0,0 +1,1972 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -41,6 +41,7 @@ index 000000000..92d907fc5
 +#include "llvm/CodeGen/MachineRegisterInfo.h"
 +#include "llvm/CodeGen/SelectionDAG.h"
 +#include "llvm/IR/DerivedTypes.h"
++#include "llvm/IR/Intrinsics.h"
 +#include "llvm/MC/MCRegister.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
@@ -221,6 +222,21 @@ index 000000000..92d907fc5
 +  // is loaded as part of the dispatch sequence, while BRIND's target is
 +  // already a computed value.
 +  setOperationAction(ISD::BRIND, MVT::Other, Custom);
++
++  // Local-exec TLS (LLVM-100t): ISD::GlobalTLSAddress has no pattern.  Marking
++  // it Custom gives LowerGlobalTLSAddress the chance to build TP + TPOFF
++  // (TP = rb3, contract-abi.md §1.3) and to reject the dynamic models
++  // explicitly (they need relocations 10/11/12, `D2`/LLVM-117t).
++  setOperationAction(ISD::GlobalTLSAddress, MVT::i64, Custom);
++
++  // `llvm.thread.pointer` (__builtin_thread_pointer) is the target-independent
++  // spelling of "read the thread pointer".  Only that one intrinsic is custom
++  // lowered (to a CopyFromReg of rb3); every other INTRINSIC_WO_CHAIN keeps the
++  // generic path because an empty SDValue from LowerOperation means "not
++  // custom" and the legalizer falls through.  Keyed by MVT::Other: the
++  // legalizer looks up intrinsic nodes with Other, not with their result type
++  // (LegalizeDAG `case ISD::INTRINSIC_*: TLI.getOperationAction(Op, MVT::Other)`).
++  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
 +
 +  // Compare-as-value (LLVM-069t): a comparison whose result is *used as a
 +  // value* (C `a == b`, `!x`, `a < b`, `?:`, `&&`/`||`) reaches us as a
@@ -526,6 +542,8 @@ index 000000000..92d907fc5
 +    return "DADAOISD::BR_JT";
 +  case DADAOISD::BRIND:
 +    return "DADAOISD::BRIND";
++  case DADAOISD::TLS_ADDR:
++    return "DADAOISD::TLS_ADDR";
 +  default:
 +    return nullptr;
 +  }
@@ -1372,6 +1390,10 @@ index 000000000..92d907fc5
 +    return LowerBR_JT(Op, DAG);
 +  case ISD::BRIND:
 +    return LowerBRIND(Op, DAG);
++  case ISD::GlobalTLSAddress:
++    return LowerGlobalTLSAddress(Op, DAG);
++  case ISD::INTRINSIC_WO_CHAIN:
++    return LowerINTRINSIC_WO_CHAIN(Op, DAG);
 +  case ISD::ROTR: {
 +    // ADR-0032 D4 (as amended: `rol`) / LLVM-116t: rotr(x,n) = rol(x, (W-n)
 +    // mod W).  The custom action is declared in the constructor.
@@ -1562,6 +1584,61 @@ index 000000000..92d907fc5
 +  Chain = DAG.getCopyToReg(Chain, DL, TargetReg, Target);
 +  SDValue TargetRB = DAG.getRegister(TargetReg, MVT::i64);
 +  return DAG.getNode(DADAOISD::BRIND, DL, MVT::Other, Chain, TargetRB);
++}
++
++SDValue DADAOTargetLowering::LowerGlobalTLSAddress(SDValue Op,
++                                                   SelectionDAG &DAG) const {
++  // Local-exec TLS (LLVM-100t).  Address = TP + TPOFF, with
++  //   * TP = rb3 (contract-abi.md §1.3: `rbtp`, reserved and never allocated);
++  //   * TPOFF(sym) = the symbol's offset inside the TLS block, because the
++  //     musl arch macros are TLS_ABOVE_TP / GAP_ABOVE_TP 0 / TP_OFFSET 0 /
++  //     DTP_OFFSET 0 (contract-dynlink.md §7), i.e. the TLS block starts
++  //     exactly at TP and there is no bias: TPOFF(sym) == DTPOFF(sym)
++  //     (contract-dynlink.md §4.3).
++  // The offset is a link-time value (the linker assigns TLS-block offsets), so
++  // the selector materializes it through the existing R_DADAO_ABS48 sequence on
++  // the STT_TLS symbol: an ABS48 relocation's S is the symbol's TLS offset for
++  // an STT_TLS symbol (the linker's `getVA()` returns `va - PT_TLS.firstSection`
++  // for TLS symbols), which is exactly TPOFF here.  No TLS relocation type is
++  // emitted (10/11/12/13 stay for `D2`/LLVM-117t).
++  const SDLoc DL(Op);
++  auto *GA = cast<GlobalAddressSDNode>(Op);
++  const GlobalValue *GV = GA->getGlobal();
++
++  // Only the static local-exec model is implemented.  clang's generic default
++  // is global-dynamic; the DADAO driver overrides it to local-exec for
++  // non-PIC compiles (DADAO.cpp).  A PIC compile (or an explicit
++  // -ftls-model=...) that still reaches here needs the dynamic TLS
++  // relocations, which do not exist yet -- fail loudly, never emit a static
++  // offset into a position-independent object (contract-dynlink.md §10②).
++  const bool IsLocalExec =
++      GV->getThreadLocalMode() == GlobalValue::LocalExecTLSModel;
++  if (!IsLocalExec || getTargetMachine().getRelocationModel() == Reloc::PIC_) {
++    DAG.getContext()->emitError(
++        Twine("thread-local storage of '") + GV->getName() +
++        "' requires the local-exec TLS model: only static TLS (TP + TPOFF) is "
++        "implemented for DADAO; dynamic TLS (TLS_DTPMOD/DTPREL/TPREL) is not "
++        "supported yet");
++    return DAG.getUNDEF(Op.getValueType());
++  }
++
++  SDValue Sym =
++      DAG.getTargetGlobalAddress(GV, DL, MVT::i64, GA->getOffset());
++  return DAG.getNode(DADAOISD::TLS_ADDR, DL, MVT::i64, Sym);
++}
++
++SDValue DADAOTargetLowering::getThreadPointer(const SDLoc &DL,
++                                              SelectionDAG &DAG) const {
++  // TP = rb3 (contract-abi.md §1.3).  rb3 is reserved, so a CopyFromReg of the
++  // physical register needs no allocation and cannot be clobbered.
++  return DAG.getCopyFromReg(DAG.getEntryNode(), DL, DADAO::rb3, MVT::i64);
++}
++
++SDValue DADAOTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
++                                                     SelectionDAG &DAG) const {
++  if (Op.getConstantOperandVal(0) != Intrinsic::thread_pointer)
++    return SDValue(); // Not custom lowered: keep the generic path.
++  return getThreadPointer(SDLoc(Op), DAG);
 +}
 +
 +SDValue DADAOTargetLowering::LowerBR_CC(SDValue Chain, ISD::CondCode CC,

@@ -38,7 +38,7 @@
 > - `QEMU-065t`：`M9` / **T2** qemu-user 线程语义（`待验收`）
 > - `QEMU-066t`：`M9` / T3 残余 4 例的 qemu 缺口：`ISS-296` PI futex、`ISS-297` robust list、`ISS-298` 取消被重启（`待验收`：三条全修，4 例两档 4/4）
 > - `TESTCASES-052t`：`M9` / **T3** pthread 验证与 047t 线程收口（`待验收`；复跑后静态 15/19、动态 15/19）
-> - `LLVM-100t`：`M9` / **T4** 静态 `__thread` TLS codegen + 静态档 3 例（`待开始`）
+> - `LLVM-100t`：`M9` / **T4** 静态 `__thread` TLS codegen + 静态档 3 例（`待验收`）
 > - `LLVM-117t`：`M9` / **T5** 动态 TLS（`DTPMOD`/`DTPREL`/`TPREL`）+ `dlopen`（`待开始`）
 > - `SPEC-141t`：`M9` / ISA 扩展预研（`待开始`，只读）
 > - `SPEC-152t`：`M9` / ISA 编码再分配与 `ror` 规范面（`待验收`；ISA 链已完成，待主会话置 `已验证`）
@@ -55,7 +55,7 @@
 | LLVM-116t | 待验收 | 2026-10-19 22:15（登记） | ext/shl 编码迁移 + rol.o/t/w/b；ROTL 直连 1 条、ROTR 折 2 条；check-instrinfo 0 错、lit 120/120 |
 | QEMU-064t | 待验收 | 2026-10-19 22:15（登记） | 解码 235→243；rol.o/t/w/b 语义；L3 224/224（独立 oracle 64/64）、smoke 90/90；L1 全绿 |
 | SPEC-152t | 待验收 | 2026-10-19 22:15（登记） | ext 迁 100/101、shl 迁 010/011 去 u、新增 ror（orrr/orri）；opcodes 235→243；80 格 0 不符 |
-| LLVM-100t | 待开始 | 2026-10-17 13:06（登记） | T4 静态 `__thread` TLS：`TLSSupported`+`GlobalTLSAddress`（TP=`rb3`）；静态 3 例 |
+| LLVM-100t | 待验收 | 2026-10-17 13:06（登记） | T4 静态 `__thread` TLS：`TLSSupported`+local-exec（TP=`rb3`、`ABS48`）；静态 3/3、lit 118/118；补丁 184 |
 | SPEC-141t | 待开始 | 2026-10-14 18:17（登记） | ISA 扩展预研（收窄）：剩余候选收益 vs 全链六环代价；只读、未开工 |
 
 > **三套测试口径（2026-10-17，`TESTCASES-046t`/`047t`/`048t` 建册）**：三套 = **`embench-iot` / `libc-test` / `llvm-test-suite`**，每套**两轮 = 静态档 → 动态档**（用户 2026-10-15 原话「**先测静态链接，再测动态链接**」）；**golden 对照（RISC-V + musl）归 `P4`**（`ADR-0025 D7`）⇒ 三册本批**只做自跑 + 失败分类 + 证据**。（2026-10-18 更新：用户裁定 `P4` 交叉对照 `不作`，判据③ 改「两档如实分类 + 失败逐条归因」；见「M8 规划区」首条与 `INTEG-036m`。）

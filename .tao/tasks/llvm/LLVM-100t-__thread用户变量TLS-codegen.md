@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：**M9 线程链串行前置** = `INFRA-095t`（T1：`__clone` + TP，运行判据必需）、`QEMU-065t`（T2：qemu-user 线程语义）、`TESTCASES-052t`（T3：19 条 thread 用例收口；本册在其后开工）；`INFRA-085t`（**登记源 + 消费方**：阶段 `D1` 的 ①③④ 已达成、② 「编译 `__thread` 用户变量」**BLOCKED 于 llvm 面** —— 完成区「D1-⑤ / D1-⑥②」+「遗留①」+「新发现/坑 ④」）；**契约真源** = `.tao/contracts/contract-dynlink.md §4.3`（类型 10/11/12/13 的公式与落点）+ `§7`（TLS 纳入 M8；TP 方向/偏置归 musl arch 宏）+ `§10②`（未支持类型遇即报错、不静默）、`.tao/contracts/contract-elf.md §2.2`（**静态类型表 0–5 + `ABS48`=6**，**无静态 TLS 类型**）+ `§6.1.2`（ELF 路径装载语义：头/程序头**不进** `PT_LOAD`）、`.tao/contracts/contract-abi.md §1.3`（`rb3` = `rbtp`（TP），M3 起保留不分配）；`ADR-0019 D10`/`D12`（类型集与编号，**冻结、不得增改**）、`ADR-0025 D5`（musl 硬依赖 TP ⇒ TLS 纳入 M8）、`ADR-0026 D2`/`D7②`（构建侧显式传 / 未支持类型遇即报错）；后端基线 = `LLVM-094t`（PIC/动态）、`LLVM-095t`（`PCREL_HI/LO`）、`LLVM-096t`（驱动/相对查找表/`stackrestore`）、`LLVM-097t`（`bswap`）、`LLVM-098t`、`LLVM-099t`（均已落地或已立）；纪律 = `ISS-229`（L2/L3 串行、禁并发）、`ISS-210`（改 `components/**`/`.td`/驱动 ⇒ **必单跑 `install-host`** 且禁「旧安装根自洽假绿」）、`docs/Process-01`（组件补丁树：一文件一补丁 + `series`）、`docs/Process-05`（L1/L2/L3）
-**状态**：待开始
+**状态**：待验收
 
 > **项目里程碑调整（2026-10-17，用户裁定）**：`M8` → **`M9`** —— 用户原话（**逐字**，渠道 = 经主会话问答）「**tls 可以推到 M9**」；`M8` 不要求 `dlopen`/模块级 TLS，`D2`（TLS 类动态重定位）亦已推迟 `M9+`。**范围 / 判据不变** ✗（本册其余内容照旧）。
 
@@ -153,3 +153,42 @@
 | ① | **静态 `__thread` 的启动 auxv 注入载体**（`INFRA-085t`「遗留②」原文三选项） | **已消解（2026-10-19 现场）**：`QEMU-062t` 已把 `arch/dadao/crt_arch.h` 的 `_start` 改为从 **`rb1` 读装载器交付的初始栈**（`rb2rb {rb16},{rb1}`），`AT_PHDR/AT_PHNUM/AT_PHENT/AT_BASE/AT_ENTRY` 由 qemu-user `create_elf_tables()` 注入 ⇒ **不再需要** (a) 扩 lds / (b) crt 合成 phdr / (c) 其它；本册**不改** `dadao.lds`、不改 `contract-elf §6.1.2`。若现场仍读不到 auxv，**停下报告**（归 qemu/装载面），不得在本册扩 lds。 | 影响：已无阻断；遗留 (a) 方案作废（保留为历史记录） |
 | ② | **阶段 0 若判出「必须新静态 TLS 类型 / 必须由 lld 动态发射 10/11/12」** | **停下留问**（**不自行扩类型、不改契约**）：`ADR-0019 D10` 冻结 ⇒ 新类型须用户裁定 + ADR；动态发射即 `D2`（`M9+`，另有触发条件） | 影响：本册范围/排期；若走 `D2` ⇒ 与 `dlopen` 排期绑定 |
 | ③ | **`-fPIC` 下 `__thread`（initial-exec / GOT-TLS）的归属** | **不在本册**（= `D2`/`M9+`）；本册若遇 `-fPIC` 失败 ⇒ **如实记录**为已知限制（影响 `libc-test` TLS 用例与部分程序，**不阻塞 `P3`**） | 若要求本册一并覆盖 ⇒ 范围扩到 GOT-TLS + 10/11/12 发射（与 `D2` 冲突，须重排） |
+
+## 审阅记录
+
+### 第 1 轮 engineer 自审（2026-10-20）
+
+范围：本轮全部改动（clang `Targets/DADAO.h`、`Driver/ToolChains/DADAO.cpp`；llvm `DADAOISelLowering.{h,cpp}`、`DADAOISelDAGToDAG.cpp`、`DADAOCodeGen.td`、`DADAOInstrInfo.cpp`；证据脚本 3 件；派生矩阵）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `INTRINSIC_WO_CHAIN` 置 `Custom` 用 `MVT::i64` 不生效（legalizer 以 `MVT::Other` 查 intrinsic action）⇒ `__builtin_thread_pointer` 仍 `Cannot select` | ✅已修 | 动作键改 `MVT::Other`，注释写明查表口径 | 探针汇编出现 `rb2rd {rd17}, {rb3}`；`PASS main.builtin_tp` |
+| F2 驱动注释引用了不存在的诊断原文（`"PIC TLS is not supported"`） | ✅已修 | 改为「rejects it with an explicit diagnostic」 | 负控诊断实测 = `requires the local-exec TLS model`（证据 9c） |
+| F3 `TargetLoweringBase::TM` 为 private，lowering 内直接 `TM.getRelocationModel()` 不成立 | ✅已修 | 改用 public `getTargetMachine().getRelocationModel()` | 重编译通过 + `-fPIC` 负控拒绝 |
+| F4 证据脚本注入 9b 在「替换未生效」时可能假绿 | ✅已修 | 注入后校验 md5 变化 + 重建 rc + 探针 rc/FAIL 行 | `--inject` 19/19 全绿（先红后回绿） |
+| F5 探针两线程各自 `printf` ⇒ stdout 行交错（实测 `expect=0xPASS 65` 拼接），日志不可解析 | ✅已修 | worker 只记观测值/地址，main `join` 后统一打印 | `probe.out` 逐行完整、`PROBE OK` |
+| F6 `make check` 红：`check-isa-coverage` 派生矩阵随本次 ISel 改动失效 | ✅已修 | `gen_isa_coverage.py` 重派生 `tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（isel-cpp 20→21） | `gen_isa_coverage --check` PASS；`make check` rc=0 |
+| F7 环境：`make build-builtins` stage 到 `<build>/lib/...`，门控读 `<build>/lib/clang/23/lib/...`（`Makefile:415` 与 `383/384` 派生不一致） | ✅已修（绕过 + 登记） | 按 install-host 同一目的路径手工 `cp` 两份（构建树资源目录 + 安装根）后 `build-musl-shared` 刷新戳记 | `check-builtins-freshness`/`check-musl-freshness` rc=0；坑记入完成区 |
+
+判决：全部 finding 已修/已绕过，无未修项 ⇒ 可标「待验收」（`**状态**` 按派单不由 engineer 改）。
+
+## 完成区
+
+**测试结果**：证据脚本 **54/54** rc=0（`--inject` **19/19** rc=0）；L1 `make check` rc=0；`047t` 10 例静态 **10/10 pass**、动态 **7 pass + 3 TLS blocked**（无 pass→非 pass）；`046t` `crc32 -O2` pass；`check-lit` **118/118**。
+**修改文件**：`components/llvm-project/patches/` 下 7 份（`clang/lib/Basic/Targets/DADAO.h`、`clang/lib/Driver/ToolChains/DADAO.cpp`、`llvm/lib/Target/DADAO/{DADAOISelLowering.h,DADAOISelLowering.cpp,DADAOISelDAGToDAG.cpp,DADAOCodeGen.td,DADAOInstrInfo.cpp}`，`series` 仍 82）+ `components/llvm-project/changelog.md`；`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（门控派生重生成）；`.tao/knowledge/issues.yaml`（ISS-246 notes 分解）；证据 `.work/evidence/LLVM-100t/{run.sh,tls_probe.c,tls_checks.py}`。组件源 HEAD = base+1、工作树干净。
+**验收结果**：① `thread_local.c` `-O0`/`-O2` rc=0/0，`-S` = `set.zw rd4, wp0, tv` + `or.w rd4, wp1/wp2, tv` + `add.o rb4, rb3, rd4`，`.tdata,"awT"` / `.tbss,"awT"` 就位；ET_REL 仅 6×`R_DADAO_ABS48`（tv/tz），**0 条** 10/11/12/13。② 探针（独立 oracle，手算 0/8/16）：`main.a.init=0x12345678`、`main.wide.tpoff=0x8`、`main.b.tpoff=0x10`、`main.wide.plus2=0xa`、`main.builtin_tp` 与 `rb3` 一致；两线程 TP 不同（`0x…afd0` vs `0x…6fd0`）、各自 `a/wide/b` 回读正确、main 块不被改；`PROBE OK` exit 0。③ ELF：`PT_TLS` p_filesz=16/p_memsz=24/p_align=8；`.tdata` 字节 = `12345678 00000000 0102030405060708`（大端）；`st_value(a/wide/b)=0/8/16`、均 `STT_TLS`。④ `libc-test` 静态 `functional/{tls_align,tls_init,tls_local_exec}` **3/3 pass**；动态同 3 例 **blocked**，诊断 `requires the local-exec TLS model … dynamic TLS … not supported`（T5 面，未静默）。
+**新发现/坑**：① 阶段 0 选 **(甲)**：ABS48 的 `S` 对 `STT_TLS` 符号 = TLS 块内偏移（lld `getSymVA` 对 TLS 返回 `va − PT_TLS.firstSection`），在 `TLS_ABOVE_TP`/`GAP_ABOVE_TP 0`/`TP_OFFSET 0` 下 = `TPOFF` ⇒ 零新类型；② `build-builtins` 的 build-tree staging 路径与 `check-builtins-freshness` 读取路径不一致（`Makefile:415` vs `383/384`）；③ builtins 归档跨构建非字节确定（`c96e…`→`fb1b…`），每次重建 clang 都要 builtins + `build-musl-shared` 重链；④ `__builtin_thread_pointer` 的 action 必须键 `MVT::Other`（`LegalizeDAG` 查表口径）；⑤ 每访问 4 条指令（3 片 ABS48 + `add.o`），未做 `ABS12` 折叠（±2 KiB，留作优化）。
+**遗留问题**：① 动态 TLS（`-fPIC`/`-ftls-model=global-dynamic|initial-exec`）按设计**显式拒绝**，动态档 3 例 `blocked` ⇒ 归 T5 `LLVM-117t`；② 按派单未跑 `install-host`/L2/L3（运行期判据用构建树 `clang`/`ld.lld`）；③ `ISS-246` `status` 保持 `open`（notes 已记静态/动态分解）。
+
+#### 第 1 轮 architect 提交审核（2026-10-20）
+
+- **档位**：`待验收`（engineer 返回、reviewer 判决前）⇒ **正常提交**（按派单「提交 `LLVM-100t/T4`」）。**提交号 `0ecb976`**（内容提交；本注为随后一笔留痕，落地 `master` 时与内容一并 `merge --squash`）；落 `LLVM-100t` 分支；**未 push**。
+- **状态/台账改动（architect 现场）**：本册 `**状态**` `待开始 → 待验收`（engineer 按派单不自置）；`milestones.md` 两处同步（流水行状态 + 一句改动，现 **90** 字符 ≤120；清单行）。
+- **文件集对账**（`git diff --cached --name-only`，**显式 staging 13 项**、禁 `git add -A`）：
+  - 与完成区「修改文件」逐条相符：`components/llvm-project/patches/**` **7** 份、`components/llvm-project/changelog.md`、`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`、`.tao/knowledge/issues.yaml`、本册。
+  - **多提 1 项**：`.tao/knowledge/milestones.md`（architect 职责内，见上）。
+  - `issues.yaml` 内含 **architect 侧新增 `ISS-301`**（`P2` / `open` / `scope: [infra]`）：`build-builtins` 的 re-stage 目标（`Makefile:415` ⇒ `.work/build/llvm/lib/dadao-unknown-unknown-elf/...`）与门控/`install-host` 读取目标（`383/384` ⇒ `.../lib/clang/23/lib/...`）**不一致**，本轮靠手工 `cp` 兜底；另「归档跨构建非字节确定」（`c96e…`→`fb1b…`，现盘 `cb77…`）待查清。**该坑已在本册 `F7` + 完成区「新发现/坑 ②③」写明**（已核）。
+  - **漏提 / 越界**：无（`spec/`、`contracts/`、`tools/` 其它、`tests/` 零改动）。**注意**：完成区列出的 `.work/evidence/LLVM-100t/{run.sh,tls_probe.c,tls_checks.py}` 为**非跟踪**产物（`.gitignore:2` = `.work/`），不入库（证据留本机）。
+- **核验（现场复跑）**：`check-patch-tree` **5 组件 / 184 patches OK** rc=0（与 changelog「series 仍 82、184 不变」一致）；`check_issues.py` rc=0（**56 open / 17 closed**，`resolved_by` 约束 OK）；`check_milestones_fresh.py` rc=0（11 行、状态一致/覆盖/≤120/倒序/格式）；`check-builtins-freshness` rc=0（三副本同 sha `cb77…`，即本轮 `cp` 兜底生效）；**`make check`（L1）rc=0，34.7 s**（日志 `/tmp/opencode/LLVM-100t/make-check-architect.log`）。
+- **披露（已核、不改写）**：① `ISS-246` 保持 `open`（静态已由本册收口、动态归 `LLVM-117t`）；② 本轮**未** `install-host`/L2/L3（按派单禁）；③ `ISS-301` 为本轮新登记，修法未做。
+

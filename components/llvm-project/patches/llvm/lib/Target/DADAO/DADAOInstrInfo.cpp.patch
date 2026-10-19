@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..cb12dbed4
+index 000000000..49c8244f3
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,739 @@
+@@ -0,0 +1,758 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -345,6 +345,25 @@ index 000000000..cb12dbed4
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rb), Dst).addImm(0));
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(1));
 +    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rb), Dst).addImm(2));
++    MI.eraseFromParent();
++    return true;
++  }
++  case DADAO::TLS_OFFSET: {
++    // Local-exec TLS offset materialization (LLVM-100t): TPOFF(sym) into GPRD.
++    // Same fixed 3-slice ABS48 sequence as GLOBAL_ADDR, but with the data-bank
++    // forms (set.zw.rd / or.w.rd) because the following add.o takes the offset
++    // as its rd operand.  The symbol operand is the STT_TLS object, so the
++    // linker's ABS48 S is the symbol's TLS-block offset == TPOFF(sym)
++    // (TLS_ABOVE_TP / GAP_ABOVE_TP 0 / TP_OFFSET 0; contract-dynlink §4.3/§7).
++    Register Dst = MI.getOperand(0).getReg();
++    const MachineOperand &Sym = MI.getOperand(1);
++    auto AddSym = [&](MachineInstrBuilder MIB) {
++      MIB.addGlobalAddress(Sym.getGlobal(), Sym.getOffset(),
++                           Sym.getTargetFlags());
++    };
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::set_zw_rd), Dst).addImm(0));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rd), Dst).addImm(1));
++    AddSym(BuildMI(MBB, MI, DL, get(DADAO::or_w_rd), Dst).addImm(2));
 +    MI.eraseFromParent();
 +    return true;
 +  }
