@@ -35,7 +35,7 @@ data_layout:
   pointer_size: 8          # 指针 = unsigned octa（8 字节）
   octa_size: 8
   llvm_datalayout: "E-m:e-p:64:64-i64:64-i128:128-n8:16:32:64-S128"   # C9（LLVM-033t 落地）
-  stack_natural_alignment_bits: 128   # S128；与 call 时 SP 8B 对齐不矛盾（16B ⊃ 8B），不做 8/16 裁定
+  stack_natural_alignment_bits: 128   # S128；与 call 时 SP 16B 对齐一致；16 B 栈值绝对对齐无条件成立
   spec_cite: "DADAO-21 §数据表示"
 
 # ── 栈（M1 事实）─────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ stack:
   frame_pointer: rb2
   frame_pointer_optional: false   # 无条件保留：hasFP 为真时作 FP，否则不参与分配（FP 无别名）
   growth_direction: downward
-  stack_alignment: 8       # call 执行时 SP 必须 8 字节对齐
+  stack_alignment: 16      # call 执行时 SP 必须 16 字节对齐（用户 2026-10-19 裁定）
   spec_cite: "DADAO-21 §函数调用规范 §The Stack Frame; §传参 §栈溢出规则"
 
 # ── call/ret 与 RegRAS（M1 事实）─────────────────────────────────────────────
@@ -197,7 +197,7 @@ scalar_calling_convention:
     variants: [sp_only, fp]
     sp_only_default: true
     symmetric_release: true
-    call_sp_alignment: 8
+    call_sp_alignment: 16
     ra_managed_by: call_ret
     sequence_owner: [LLVM-038t, LLVM-039t]
 

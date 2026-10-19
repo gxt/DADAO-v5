@@ -4,7 +4,7 @@
 >
 > **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/DADAO-11-AEE-应用程序运行环境.md`（0.9.2）；指令语义与寄存器模型基础引用 `.tao/contracts/contract-isa.md`（0.5.4）；M3 调用约定的取舍项固化于 `.tao/adr/adr-0018-m3-codegen-choices.md`（`ADR-0018`，Accepted）。
 >
-> **范围**：M1 最小 ABI 事实（寄存器角色、`SP=rb1`、栈向下增长 / `call` 时 SP 8B 对齐、`call`/`ret` 与 RegRAS；§1–§3）+ **M3 标量调用约定**（非变参、非聚合：参数寄存器、标量提升、栈溢出区、返回值、callee-saved / CSR、栈帧布局、prologue/epilogue、`call` 的 `Defs`/RegMask；§4）+ **M6 口径**（多返回值/聚合返回 §6.1、聚合传参/HFA/HPA §6.4）。供 test machine（`SPEC-006t`）、M1/M3 集成、M3 BasicCodeGen（`LLVM-039t`）、聚合传参实现（`LLVM-062t`/`LLVM-066t`）使用。
+> **范围**：M1 最小 ABI 事实（寄存器角色、`SP=rb1`、栈向下增长 / `call` 时 SP 16B 对齐、`call`/`ret` 与 RegRAS；§1–§3）+ **M3 标量调用约定**（非变参、非聚合：参数寄存器、标量提升、栈溢出区、返回值、callee-saved / CSR、栈帧布局、prologue/epilogue、`call` 的 `Defs`/RegMask；§4）+ **M6 口径**（多返回值/聚合返回 §6.1、聚合传参/HFA/HPA §6.4）。供 test machine（`SPEC-006t`）、M1/M3 集成、M3 BasicCodeGen（`LLVM-039t`）、聚合传参实现（`LLVM-062t`/`LLVM-066t`）使用。
 >
 > **`Excluded from M3`**：高级 ABI（varargs / 聚合返回 sret / 多返回值 / `i128`）与浮点 RF（整层）→ M4（见 §5）；**HFA / HPA / 聚合传参已由用户 2026-10-09 裁定于 M6 收口**（见 §6.4）；**可变参数已由 `ADR-0031`（`Accepted`，2026-10-18）收口于 M8**（`va_list` 七字段三游标 + callee 保存区；见 §5 行与 §6.4 注）。
 >
@@ -131,10 +131,12 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 - 栈从高地址**向下增长**。[DADAO-21 §函数调用规范 §The Stack Frame]
 - `rbsp` 位于当前帧低地址端（`rbsp` 为 saved regs / local vars 的下界）。[DADAO-21 §函数调用规范 §The Stack Frame]
 - `FP = rb2`（frame pointer，无条件保留；`hasFP` 为真时作 FP）；帧指针的使用方式（可选）见 §4.7（M3 条件式策略）。[DADAO-21 §函数调用规范 §The Stack Frame]
+- `SP`（`rbsp`）在 `call` 执行时 **16 字节对齐**；细则见 §2.2。[DADAO-21 §传参 §栈溢出规则]
 
 ### §2.2 `call` 时 SP 对齐
 
-- `call` 指令执行时 `sp` 必须 **8 字节对齐**。[DADAO-21 §传参 §栈溢出规则]
+- `call` 指令执行时 `sp` 必须 **16 字节对齐**。[DADAO-21 §传参 §栈溢出规则]
+- 栈参数仍按 **8 字节槽**排列（§4.3）；16 字节值按 **16 字节对齐**（§4.3 末条）。SP 16 B 对齐 ⇒ 栈上 16 字节值的**绝对地址无条件 `% 16 == 0`**，`ADR-0031 D7` 的 16 B 栈对齐不依赖相对基址取整。[DADAO-21 §传参 §栈溢出规则][ADR-0018（C9）][ADR-0031（D7）]
 - M3 标量调用路径不涉及变参保存区；变参保存区与 `va_list` 属高级 ABI，已由 `ADR-0031`（`Accepted`，2026-10-18）在 **M8** 收口（见 §5 相关行）。[DADAO-21 §传参 §栈溢出规则][ADR-0031（D1/D2）]
 
 ### §2.3 `call`/`ret` 与 RegRAS
@@ -154,6 +156,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 - `callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**：`callee_saved` 给出各 bank 的**通用 callee-saved 块**（`rd`: 32–63；`rb`: 32–63，`rb63` 为普通成员；**RF 整体 `Excluded from M3`、`allocatable.rf` 为空，其块仅作 spec 事实登记**）；`reserved_registers` 依 M3 口径（C6）为 `rd1–rd3` / `rb2–rb3`（其中 `rb2` 为 frame pointer、无条件保留）。[DADAO-21 §寄存器规范][ADR-0018（C6）]
 - `scalar_calling_convention` 为 §4 标量调用约定的 M3 机器可读投影。[DADAO-21 §函数调用规范][ADR-0018（C4）]
 - `open_items` 为空（M3 的未决项已由用户逐条裁定于 M6 消解，见 §6）；`deferred_to_m4` 为 M3 范围外的高级 ABI 边界索引（见 §5）；其中 `hfa` / `hpa` / `aggregate_arguments` 已由用户 2026-10-09 裁定于 M6 收口（见 §6.4）。[DADAO-21 §返回值 §多返回值][DADAO-21 §传参 §聚合类型参数]
+- `stack_alignment` / `call_sp_alignment` = **16**（本册同步）；`stack_natural_alignment_bits: 128` 不变。[DADAO-21 §传参 §栈溢出规则][ADR-0018（C9）]
 
 > 派生索引不新增规范性事实。[DADAO-21 §寄存器规范]
 
@@ -252,7 +255,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 ### §4.8 prologue / epilogue
 
 - **不变量**：
-  - `call` 执行时 `sp`（`rbsp`）必须 **8 字节对齐**（见 §2.2）。[DADAO-21 §传参 §栈溢出规则]
+  - `call` 执行时 `sp`（`rbsp`）必须 **16 字节对齐**（见 §2.2）。[DADAO-21 §传参 §栈溢出规则]
   - callee 必须保存在本函数中修改的 callee-saved 寄存器（`rd32–rd63`/`rb32–rb63`），并在返回前恢复。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器]
   - 返回时 `rbsp` 必须恢复到入口值（对称释放）；RA 无需软件保存/恢复（RegRAS 自动）。[DADAO-21 §函数调用规范 §The Stack Frame][DADAO-21 §寄存器规范 §RA寄存器]
 - **两套对称策略（M3 口径，C7）**：
@@ -262,9 +265,9 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 
 ### §4.9 栈对齐与 DataLayout（M3 口径，C9）
 
-- spec 只要求 `call` 指令执行时 `sp`（`rbsp`）**8 字节对齐**（见 §2.2）。[DADAO-21 §传参 §栈溢出规则]
+- spec 要求 `call` 指令执行时 `sp`（`rbsp`）**16 字节对齐**（见 §2.2）。[DADAO-21 §传参 §栈溢出规则]
 - M3 `DataLayout` 串为 `E-m:e-p:64:64-i64:64-i128:128-n8:16:32:64-S128`（由 `LLVM-033t` 落地）。[ADR-0018（C9）]
-- 两者**不矛盾**：`S128` 是 DataLayout 的**栈自然对齐上界**（16B），而 `call` 时 SP 8B 对齐是 spec 要求的**下界**——16B 对齐的 SP 必然满足 8B 对齐要求；本合约**不做 8/16 冲突裁定**，仅登记二事实。[DADAO-21 §传参 §栈溢出规则][ADR-0018（C9）]
+- `S128`（16B）与 `call` 时 SP 16B 对齐**一致**：`S128` 是 DataLayout 的**栈自然对齐上界**（16B），`call` 时 SP 16B 对齐即满足该上界；16 B 栈值的**绝对对齐无条件成立**。[DADAO-21 §传参 §栈溢出规则][ADR-0018（C9）]
 - `S128` / `i128:128` / 省略 `a:` / 大端 `E` 为 C9 已判口径。[ADR-0018（C9）]
 
 ### §4.10 M3 覆盖与 M4 交接
@@ -347,7 +350,7 @@ M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2
 | §1.6 | 可分配 / 不可分配集合 | `DADAO-21-ABI §寄存器规范` + `contract-isa.md §6` |
 | §1.7 | 大端序 / 指针宽度 | `DADAO-21-ABI §数据表示` |
 | §2.1 | SP/FP、栈向下增长 | `DADAO-21-ABI §寄存器规范`、`DADAO-21-ABI §函数调用规范 §The Stack Frame` |
-| §2.2 | `call` 时 SP 8B 对齐 | `DADAO-21-ABI §传参 §栈溢出规则` |
+| §2.2 | `call` 时 SP 16B 对齐 | `DADAO-21-ABI §传参 §栈溢出规则` |
 | §2.3 | `call`/`ret` 与 RegRAS | `SimRISC-06 §函数调用`、`§函数返回`；`contract-isa.md §5.4–§5.6` |
 | §3 | 机器可读事实（`contracts/abi.yaml`） | `DADAO-21-ABI §寄存器规范`、`§函数调用规范`；`ADR-0018`（C4/C6） |
 | §4.1 | 参数寄存器分配（三 bank、独立计数、类型→bank） | `DADAO-21-ABI §传参 §参数寄存器` |
