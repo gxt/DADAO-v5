@@ -257,6 +257,17 @@ STAMP_REL = Path("obj") / ".dadao-toolchain-stamp"
 # libc.so would still encode the old protocol.  Written after a successful
 # build; checked by tools/infra/check_musl_freshness.py (L1).
 SOURCE_STAMP_REL = Path("obj") / ".dadao-musl-source-stamp"
+# A third stamp records the compiler-rt builtins archive the shared library was
+# linked against (ISS-293, 2026-10-19): musl links ``lib/libc.so`` with
+# ``LIBCC=<archive>`` and hides its members (``--exclude-libs=ALL``), so a
+# stale archive is *baked into* the DSO -- every dynamic image then executes
+# retired instruction encodings and dies with SIGILL, while the static round
+# (separate archive on the program link line) keeps passing.  Neither the
+# toolchain stamp (clang unchanged) nor the source stamp (musl unchanged) can
+# see it: the archive is a link input, not a compile input.  A changed digest
+# forces a relink of ``lib/libc.so`` (no full rebuild needed); checked by
+# tools/infra/check_musl_freshness.py (L1).
+BUILTINS_STAMP_REL = Path("obj") / ".dadao-builtins-stamp"
 # Generated inside the build tree -- excluded so a rebuild cannot change its
 # own input digest (configure writes config.mak; make writes obj/ and lib/).
 SOURCE_STAMP_SKIP_TOP = {".git", "obj", "lib", "config.mak"}
@@ -355,6 +366,46 @@ def source_decision() -> tuple[bool, str]:
     return True, "musl source digest changed"
 
 
+# ── builtins stamp (ISS-293) ────────────────────────────────────────────────
+def builtins_digest() -> str:
+    """sha256 of the compiler-rt builtins archive the shared link consumes."""
+    archive = compiler_rt_builtins()
+    if not archive.is_file():
+        return "missing"
+    return hashlib.sha256(archive.read_bytes()).hexdigest()
+
+
+def read_builtins_stamp() -> str | None:
+    try:
+        return (MUSL_SRC / BUILTINS_STAMP_REL).read_text().strip()
+    except OSError:
+        return None
+
+
+def write_builtins_stamp(text: str) -> None:
+    path = MUSL_SRC / BUILTINS_STAMP_REL
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text + "\n")
+
+
+def builtins_decision(shared: bool) -> tuple[bool, str]:
+    """(changed, reason): is the DSO's recorded builtins archive still current?
+
+    Only the shared line links the archive (``LIBCC``, ``--exclude-libs=ALL``),
+    so a static build never needs a relink for this reason.  A missing stamp on
+    an existing shared tree counts as changed: an unprovable product must not
+    pass (the relink is cheap -- the .lo objects and libc.a stay).
+    """
+    if not shared:
+        return False, "static line does not link the builtins archive"
+    stored = read_builtins_stamp()
+    if stored is None:
+        return True, "no builtins stamp recorded for this build tree"
+    if stored == builtins_digest():
+        return False, "builtins stamp unchanged (libc.so linked this archive)"
+    return True, "compiler-rt builtins archive changed"
+
+
 def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
     if not MUSL_SRC.is_dir():
         print(f"build-musl: ERROR: {MUSL_SRC} not found -- run 'make fetch apply-series'",
@@ -386,8 +437,10 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
         print(f"build-musl: ERROR: cannot stamp the toolchain ({exc})", file=sys.stderr)
         return 2
     src_changed, src_reason = source_decision()
+    builtins_changed, builtins_reason = builtins_decision(shared)
     print(f"build-musl: toolchain: {reason}")
     print(f"build-musl: sources:   {src_reason}")
+    print(f"build-musl: builtins:  {builtins_reason}")
     if changed or src_changed:
         print(f"build-musl: {'toolchain' if changed else 'sources'} changed "
               f"=> 'make clean' (full rebuild)")
@@ -402,6 +455,15 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
         # produces from here on *is* built by this toolchain -- a failed build
         # then resumes incrementally instead of paying another full clean.
         write_stamp(current)
+    elif builtins_changed:
+        # Relink only (ISS-293): musl's Makefile has no prerequisite for the
+        # $(LIBCC) archive, so an incremental `make` would keep a DSO that
+        # already embedded the previous one.  Dropping the target is enough --
+        # the .lo objects and libc.a stay.
+        so = MUSL_SRC / "lib" / SONAME
+        if so.exists():
+            so.unlink()
+        print(f"build-musl: builtins changed => relink lib/{SONAME}")
     else:
         print("build-musl: incremental build")
     make_cmd = ["make", f"-j{jobs}"]
@@ -424,6 +486,9 @@ def build_musl(jobs: int, reconfig: bool, shared: bool) -> int:
     write_source_stamp(source_stamp())
     print(f"build-musl: recorded source stamp {read_source_stamp()} "
           f"({', '.join(products)})")
+    if shared:
+        write_builtins_stamp(builtins_digest())
+        print(f"build-musl: recorded builtins stamp {read_builtins_stamp()}")
     return 0
 
 

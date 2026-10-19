@@ -21,6 +21,9 @@ Checks (each printed with expected/actual and its own verdict):
   4. recorded source stamp     == current source digest
   5. installed libc.so sha256   == build libc.so sha256
   6. ``ld-musl-dadao.so.1`` is a symlink to ``libc.so`` resolving to it
+  7. recorded compiler-rt builtins digest == the archive on disk now (ISS-293:
+     musl links ``libc.so`` with that archive and hides its members, so a stale
+     archive is baked into the DSO while every static test keeps passing)
 
 Applicability: L1 must stay usable on a fresh checkout and in static-only
 workflows, so a missing build tree, or a build tree/sysroot with no shared
@@ -106,6 +109,17 @@ def main() -> int:
     check("source stamp == current musl tree", current_src,
           stored_src if stored_src is not None else "missing",
           stored_src == current_src)
+
+    # 7: the DSO embedded the compiler-rt builtins archive that is on disk now
+    # (ISS-293).  Neither stamp above can see this one: the archive is a *link*
+    # input of libc.so (LIBCC, --exclude-libs=ALL), not a compile input.
+    stored_b = bm.read_builtins_stamp()
+    current_b = bm.builtins_digest()
+    check("builtins stamp recorded", "recorded",
+          "missing" if stored_b is None else "recorded", stored_b is not None)
+    check("builtins stamp == current compiler-rt archive", current_b,
+          stored_b if stored_b is not None else "missing",
+          stored_b == current_b)
 
     # 5: the installed copy is byte-identical to the build product.
     build_hash = sha256_of(build_so)

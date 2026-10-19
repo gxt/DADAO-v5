@@ -38,7 +38,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
+        build-builtins build-qemu build-qemu-reconfig build-gem5 build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host docker-image docker-shell check \
         check-picolibc-tests check-picolibc-tests-full \
         check-testcases-suites check-testcases-suites-full \
@@ -51,7 +51,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-run-artifacts \
         test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
-        check-musl-freshness check-milestones-fresh \
+        check-musl-freshness check-builtins-freshness check-milestones-fresh \
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-contracts-dir \
         check-component-changelog check-syscall-abi
@@ -84,11 +84,13 @@ help:
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl-shared  Build musl shared/PIC libc.so + link a dynamic smoke executable (PT_INTERP/DT_NEEDED), and install libc.so + the ld-musl-dadao.so.1 symlink into the target sysroot (INFRA-085t stage A1/B1; needs install-host + fetch/apply-series)"
+	@echo "  make build-builtins  Rebuild the compiler-rt builtins with the current build-tree clang and stage the archive into that clang's resource dir (ISS-293; needs build-mc + a configured compiler-rt build tree)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
 	@echo "  make check-testcases-suites  Run the two upstream reference suites (libc-test + llvm-test-suite) fast subset (opt-in, not L2; TESTCASES-045t)"
 	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
+	@echo "  make check-builtins-freshness  compiler-rt builtins archive must be the one the current clang built, in every consumer copy (L1; ISS-293)"
 	@echo "  make install-host    Install needed tools: cross toolchain (clang/llc/ld.lld …) into \$$(HOST_TOOLCHAIN_BIN) + host lli into \$$(HOST_TOOLS_BIN); adr-0016 D3/D4/D5/D11"
 	@echo "  make docker-image    Build the development image ($(DOCKER_TAG))"
 	@echo "  make docker-shell    Open a shell in the development image"
@@ -372,9 +374,46 @@ CLANG_RESOURCE_DIR = $(HOST_TOOLCHAIN_DIR)/lib/clang/$(CLANG_RESOURCE_VER)
 # runs, i.e. *after* build-mc has produced bin/clang, not at parse time (a clean
 # checkout has neither the clang binary nor the archive yet).
 COMPILER_RT_BUILD     ?= .work/build/compiler-rt-builtins
-BUILTINS_ARCHIVE_SRC   = $(firstword $(wildcard $(COMPILER_RT_BUILD)/lib/*/libclang_rt.builtins*.a))
+# ISS-293: the *source* of the install copy is `<build dir>/<the path the driver
+# reports>`, not "the first archive matching a wildcard" -- the build tree also
+# holds a retired narrow-scope archive under lib/linux/ (INFRA-079t), and a
+# wildcard that picked it would install the wrong library.  Both sides of the
+# copy then provably share one relative path.
+BUILTINS_ARCHIVE_SRC   = $(if $(BUILTINS_RESOURCE_PATH),$(COMPILER_RT_BUILD)/$(BUILTINS_RESOURCE_PATH))
 BUILTINS_RESOURCE_PATH = $(shell $(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name 2>/dev/null | sed -e 's|^.*/lib/clang/[^/]*/||')
 BUILTINS_ARCHIVE_DST   = $(if $(BUILTINS_RESOURCE_PATH),$(CLANG_RESOURCE_DIR)/$(BUILTINS_RESOURCE_PATH))
+
+# build-builtins (ISS-293): rebuild the compiler-rt builtins with the *current*
+# build-tree clang and re-stage the archive into that clang's resource dir.
+#
+# Why a clean rebuild: nothing in ninja tracks the compiler *binary* as an
+# input of these objects, so after a codegen change (LLVM-116t moved `shl`) an
+# incremental `ninja` reports "no work to do" and the archive keeps the retired
+# encoding -- the new qemu then decodes it as undefined and the guest dies with
+# SIGILL.  `-t clean` forces the whole target set through the current compiler
+# (a few seconds; 148 tiny sources).
+#
+# Why the staging copy: `.work/build/llvm/bin/clang` links the archive from its
+# own resource dir (`-print-libgcc-file-name`), and nothing else ever refreshed
+# that copy -- it is a third consumer beside the build product and the install
+# root.  `make install-host` stages the same archive into the install root.
+#
+# It depends on build-mc so `make -j install-host` cannot run the rebuild
+# before the compiler exists (the recipe probe would fail); with the tree
+# already built that prerequisite is a no-op.
+build-builtins: manifest-check build-mc
+	@$(call component-enabled,llvm-project) || { \
+	  echo "build-builtins: component 'llvm-project' is not enabled / commit pending (manifests/components.lock.toml); refusing to fake success"; \
+	  exit 1; \
+	}
+	@test -f $(LLVM_BUILD)/bin/clang || { echo "build-builtins: ERROR: $(LLVM_BUILD)/bin/clang not found -- run 'make build-mc' first"; exit 1; }
+	@test -f $(COMPILER_RT_BUILD)/build.ninja || { echo "build-builtins: ERROR: no configured compiler-rt build tree at $(COMPILER_RT_BUILD) -- configure it once (INFRA-079t) first"; exit 1; }
+	ninja -C $(COMPILER_RT_BUILD) -t clean
+	ninja -j$(JOBS) -C $(COMPILER_RT_BUILD) builtins
+	@test -f $(BUILTINS_ARCHIVE_SRC) || { echo "build-builtins: ERROR: archive not produced at $(BUILTINS_ARCHIVE_SRC)"; exit 1; }
+	@mkdir -p $(dir $(LLVM_BUILD)/$(BUILTINS_RESOURCE_PATH))
+	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(LLVM_BUILD)/$(BUILTINS_RESOURCE_PATH))
+	@echo "build-builtins: PASS"
 
 # clang++ (INFRA-056t): the C++ driver is the *same binary* as the C driver
 # (upstream bin/clang++ is itself a symlink to clang-NN), so install it as a
@@ -382,7 +421,7 @@ BUILTINS_ARCHIVE_DST   = $(if $(BUILTINS_RESOURCE_PATH),$(CLANG_RESOURCE_DIR)/$(
 # precedent above.  Deliberately NOT added to $(HOST_LLVM_TOOLS): the clang binary
 # is ~4 GB, so atomic-install would copy it a second time.  Being relative and
 # resolving to the installed `clang`, it is zero-copy and same-source/same-commit.
-install-host: build-mc build-lld build-qemu
+install-host: build-mc build-lld build-qemu build-builtins
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
 	  $(call atomic-install,$(LLVM_BUILD)/bin/$$t,$(HOST_TOOLCHAIN_BIN)/$$t) || exit 1; \
@@ -546,7 +585,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-musl-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -670,6 +709,13 @@ check-syscall-abi:
 # §1.1 归 L1（静态溯源，不跑被测语义）。
 check-musl-freshness:
 	@$(PYTHON) tools/infra/check_musl_freshness.py
+
+# compiler-rt builtins 归档新鲜度 (ISS-293, L1): 工具链消费的三份归档（构建树产物 /
+# 构建树 clang 资源目录副本 / 安装根副本）必须同一内容，且不旧于构建树 clang
+# （归档 mtime + 逐成员 .c.o mtime）。旧编码残留 → 新 qemu 按 ILLI 打 SIGILL。
+# `--self-test` 内置「篡改安装副本 ⇒ 红」与「仅 mtime 变 ⇒ 不假红」(ISS-263)。
+check-builtins-freshness:
+	@$(PYTHON) tools/infra/check_builtins_freshness.py --build-dir $(COMPILER_RT_BUILD)
 
 # 任务流水体例门控 (INFRA-091t, L1): 状态 == 任务书 / 覆盖 / 一句改动 ≤120 字符 /
 # 时间倒序 / 格式。规则 = milestones.md「体例约定（硬约束）」+ docs/Process-07 §1.1。
