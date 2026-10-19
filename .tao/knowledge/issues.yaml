@@ -592,3 +592,11 @@
   blocks: []
   resolved_by: 现场核实无残留链进程（2026-10-19）+ AGENTS.md「长任务」/lessons §3.10
   notes: 【正式登记（源 = reviewer 第 1 轮验收现场，2026-10-19）】**现象**：本次 reviewer 会话开始时检测到 `ninja -C .work/build/llvm -j8 clang llc` 在跑（PID 3279645，17:56 起），父进程 = `/bin/bash .work/evidence/LLVM-110t/run.sh --inject`（PID 3276515），祖父 = `bash /tmp/opencode/review-g1b/chainBC.sh`（PID 3275372，前次 reviewer 会话遗留）。链脚本序列运行 110t/111t/112t 的 default+inject 证据脚本，期间反复修改 `.work/source/llvm-project` 源码文件（DADAORegisterInfo.cpp 等）并重建。**影响**：① `clang-23` 曾一度被截断为 0 字节（链接中途被杀后遗留）；② 我的独立注入/重建必须等待该链完成（共享构建树并发 ninja 不安全）；③ 对其他可能并行工作的子代理构成写冲突风险。**处置**：等待该链于 18:13:30 自然完成（ALL DONE），验证源码已恢复（md5 一致）后开始我自己的核验。**建议**：① reviewer/engineer 会话结束前确认所有后台进程已终止；② `chainBC.sh` 类长链改为前台执行或附 `setsid nohup` + EXIT 标记；③ 共享构建树的并发访问需要互斥（lockfile 或单写者协议）。**性质 = 进程纪律**（非交付物缺陷）。 〔M8 收口核对：现场已解除（当前无遗留链进程）；剩余 = 共享构建树互斥建议未落；不阻断 M8。〕
+- id: ISS-290
+  title: 【P2】ISA 编码再分配（`ext` 迁 `100/101`、`shl` 迁 `010/011` 并去 `u`）+ 新增 `ror.{o,t,w,b}` ⇒ `spec/` 授权待逐条确认
+  status: open
+  scope:
+  - spec
+  blocks: []
+  resolved_by: null
+  notes: 【正式登记（源 = 用户 2026-10-19 裁定，渠道 = 经主会话问答；architect 立册 2026-10-19）】**用户原话（逐字）**：「增加两件事情：第一件事：修改ext的编码，ext.uo的opx改为100-000/101-000；ext.so的opx改为100-001/101-001；核实是否可行，然后我说第二件事」/「是的，腾出编码」/「第二件事：把四个子表中的shl.ux的opx改为010-000/011-000，即刚才ext.uo腾出来的位置；然后增加ror.ux指令，其opx为010-001/011-001，即刚才ext.so腾出来的位置；ror指令的格式分别为orrr/orri，针对的都是rd寄存器」/「ror不区分有符号数还是无符号数，是否有必要在后缀里带u」→「可以去掉u；同理，shl有必要带后缀u吗？」→「确认立项」。**落纸**：`ADR-0032`（`Proposed`，`D1`–`D6` 待逐条确认）+ 三册 **`SPEC-152t` → `LLVM-116t` → `QEMU-064t`**（串行；依赖单向）。**现状（主会话已核）**：基表 `010-000/001` = `ext.uo/so`、`010-100` = `shl.uo`；三宽度表 `010-000/001` 空；基表 `100-000/001`/`101-000/001` 全空；`shl.s*` 0 命中、`shr.s*` 8 命中；`shl.u*` 引用约 170 处。**边界**：本笔只立 ADR/三册 + 台账；**`spec/`/契约/实现零改动**；`spec/` 开工须用户**逐条确认 + 授权原话落纸**（`docs/Process-06`）。**等级 = P2**（跨模块、阻塞 M9 ISA 首项）。**证据指针**：`.tao/adr/adr-0032-isa-encoding-reallocation-ror.md`、`.tao/tasks/spec/SPEC-152t-*.md`、`.tao/tasks/llvm/LLVM-116t-*.md`、`.tao/tasks/qemu/QEMU-064t-*.md`。**交叉引用**：`SPEC-141t`（`ror` 预研）、`ADR-0012 D4/D10/D11`、`LLVM-099t`（`ROTL/ROTR` `Expand` 旧口径）。
