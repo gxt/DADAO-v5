@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`ISS-277`（本册对应 issue，`open`；源 = `QEMU-063t` 逐例诊断）、`ISS-269`（登记源）、`contract-abi §4.1`（参数寄存器：指针走 `rb16–rb31`）/`§4.2`（指针类参数用基址寄存器）、`QEMU-063t`（现场与证据）、`LLVM-102t`（同文件 `reassignDADAOArgLocs` 最近改动）、`LLVM-107t`（同族 caller/callee 类型口径）
-**状态**：待验收
+**状态**：已验证
 
 > **立册口径（2026-10-19，architect）**：本册**不以「已确认的后端 miscompile」立册** —— 现场先要判定「后端 bank 分配缺陷」还是「K&R 无原型调用在 bank 分离 ABI 上的语义缺口」。二者处置不同（见「修法候选」与验收 1）。
 
@@ -142,8 +142,16 @@ int(*f)(int);
 - 修正初稿错误：曾误引 p9（本例函数类型其实兼容，UB 在调用点 p6），已删；「260 runs」改为「every input」；证据脚本 injection C 初版未真正让 objdump 断言变红，已改为对注入副本重跑同一 checker（现 rc=1）。
 - 证据脚本 default/inject 均 rc=0；注入均为真红后回绿，未用 `git checkout/restore/stash`。
 
-#### 第 1 轮 reviewer 验收
-（待填）
+#### 第 1 轮 reviewer 验收（2026-10-19，独立重跑）
+- **重跑（自身输出/退出码）**：`.work/evidence/LLVM-108t/run.sh` default **rc=0**（corpus IR 2 断言 / K&R vs 原型 5 断言 / x86·riscv 对照 4 断言 / 真实 lemon.elf objdump check **rc=0** / 驱动文本 5 断言 / lemon.json 6 项 ok 全绿）；`--inject` **rc=0**（A/B/C 三处可达 FAIL 均红后回绿）。
+- **独立 048t 单例重跑**（新 work-dir/新 json，`/tmp/opencode/review-108-147/`）：`BLOCKED MultiSource/Applications/lemon exit=0`；counts = pass 0/fail 0/known-fail 0/**blocked 1**/excluded 2/total 1；reason 含 `corpus undefined behaviour`/`6.5.2.2p6`/`corpus UB (ISS-277)`/`not ISS-269/qemu`，**无** `platform gap` 前缀；`first_error=Error while running on: parse.y`；尾行 `run_llvm_ts_user: FAIL` + 源码 :1986 `blocked==0` 才 ok ⇒ **rc=1** 与完成区一致。
+- **定性证据链独立复核（四层均自出）**：① `lemon.c:334` 无原型声明、`:1131` `Configtable_clear(0)`、`:4839-4840` K&R 定义 `int(*f)(…)` 逐字核；② 自编语料 IR：`1707/3278: tail call void @Configtable_clear(i32 noundef 0)` 对 `14173: define … @Configtable_clear(ptr … %f)`；③ 自编最小例：K&R IR `i32 noundef 0` + asm 仅 `set.zw rd16, wp0, 0x0`、**无** `rd2rb {rb16}`；原型对照 IR `ptr noundef null` + `set.zw rd4, wp0, 0x0` + `rd2rb {rb16}, {rd4}`；④ 真实 lemon.elf：`buildshifts 0x24e9c: call [rb0, 53220]`→`0x31e80`，前 16 条仅 `0x24e70 set.zw rd16`、无 `rd2rb`，callee `0x31eac: rb2rb {rb32}, {rb16}`。N1570 6.5.2.2p6 逐字核（engineer 自备 n1570.html）：提升后 `int` vs 指针不兼容、不落入 p6 两条例外 ⇒ UB；p8 无其它隐式转换，引用准确。
+- **约束核验**：`f4f6542` 仅 5 文件（驱动 + issues/milestones/INTEG-036m 台账 + 本册），**未动** `components/**`/codegen/`contract-abi`/`spec/`/语料 ✓；驱动 diff 仅 reason 文本、注释、两处 `platform gap:`→`blocked:` 前缀，`klass`/计数/`PLATFORM_GAP_SIGNATURES` 签名与判定逻辑未动 ✓；`check-patch-tree` rc=0（181 patches，与「现 181」一致）；契约对照 `contract-abi §4.1`（`rd16–rd31` 数据/`rb16–rb31` 地址、分 bank 不共享槽位）/`§4.2`（指针走 rb16）属实，x86/riscv 仅作对照非 oracle ✓；完成区 ≤30 行 ✓。
+- **如实性抽查**：① `sample.json` = 5 例 pass 5（hello/gemm/12-IOtest/bh/01-qbsort 逐名相符）✓；② 「计数与改前逐项一致」——`lemon-before.json` 与 `lemon.json` counts 逐项相同 ✓；③ 证据脚本 default/rc 与 3 处可达 FAIL 描述与实际输出一致 ✓；④ 完成区地址 `0x24e9c→0x31e80` 与我现场反汇编一致 ✓。
+- **注入现场（reviewer 独立注入）**：`cp` 备份驱动 md5=`7ff830fa64299ca5fd7fc3a6e8d056fa` ⇒ `6.5.2.2p6`→`6.5.2.2pXX` ⇒ run.sh default **rc=1**（`[FAIL] driver reason cites C11/N1570 6.5.2.2p6`，`RESULT: FAIL`）⇒ `cp` 还原 md5 相等 ⇒ run.sh **rc=0** 回绿。全程未用 `git checkout/restore/stash`。
+- **秒级门控**：check-patch-tree **rc=0**（181）、check_milestones_fresh **rc=0**、check_issues **rc=0**、check_tasks **rc=0**、check_knowledge_refs **rc=0**；L1/L2/L3 按预算**未跑**（完成区 L1 rc=0 采信，未重核）。
+- **判决：Accepted**。（非阻断备注：完成区写「状态保持 `待开始`」而册头现为 `待验收`，系主会话翻状态，收尾时统一措辞即可。）
+- **ISS-269 处置建议（不自关）**：语料 UB 定性经我独立复核**成立**（标准条款 + IR + 汇编 + 真实 ELF 四层一致）⇒ `ISS-269` 的「qemu-user guest 故障面 / 归 LLVM 后端」归因已被 `ISS-277` 语料 UB 取代，**建议关闭 `ISS-269`**（或注记「归因被 ISS-277 定性取代」），由主会话/用户裁定。
 
 #### 提交留痕（architect，2026-10-19）
 - 档位：**WIP 级**（`待验收`，reviewer 未验收）；提交信息按派单原文（未加 `WIP:` 前缀）。

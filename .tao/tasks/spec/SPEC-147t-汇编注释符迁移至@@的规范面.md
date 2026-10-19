@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：用户 2026-10-19 授权（原话见下「用户授权」）；`docs/Process-06`（`spec/` 改动须事先授权 + 只读册哈希锁）；`ADR-0013 D9.1`（本裁定**部分取代**；ADR 处置待用户确认，本册不擅自改 ADR）；`LLVM-109t`（实现与语料迁移，本册只做规范面）
-**状态**：待验收
+**状态**：已验证
 
 > **立册说明（2026-10-19，architect）**：本册是**规范面执行落点**。architect 已按用户授权在本分支同一提交内完成 §2.2、示例、变更记录、`contract-asm.md` 同步与只读锁重算；`**状态**` 按本批派单置 `待开始`，执行/验收者只需按「验收标准」复核并补完成区，**不得回退**既有改动。
 
@@ -80,6 +80,16 @@
 **遗留问题**：同上，册头措辞待授权批次一并更新（未登记独立 issue，避免与本笔混批）。
 
 ## 审阅记录
+
+#### 第 1 轮 reviewer 验收（2026-10-19，独立重跑）
+- **规范文本核验**：`spec/Toolchain-01 §2.2` 四条 + 理由逐条命中——`@@` 注释（`CommentString = "@@"`）/ `;` 语句分隔符（`SeparatorString = ";"`，附一行三条语句示例）/ `#` 非注释 / `//`、`/* */` 不采用 / 理由（`.type <sym>,@function` 误吞）✓；§6.2（`:207-211`）与 §13.8（`:322-325`）示例注释全为 `@@`、无 `;` 注释 ✓；全册 `;` 仅 4 处叙述分号（`:3/:31/:344/:383`）✓。
+- **变更记录**：册头 `0.5.3` = 附录顶部 `### 0.5.3（2026-10-19）`（三条内容与本册输出一致）；历史 `0.2.2`「`#`→`;`」行（`:383`）**未动** ✓。
+- **只读锁/合约投影**：`8a25def` 锁 diff **仅** `Toolchain-01` 一行 sha256（`89c9…`→`d866…`）+ 注记；`sha256sum spec/Toolchain-01-汇编语言.md` = `d866023a4b628539fe8d4d463aa9d0c2b829b3fde5c1881368b2eff461889938` 与锁一致 ✓；`contract-asm.md` 版本 `> **版本：0.5.3**`、`§2.2` 四条与 spec 同步、`§13.8` 示例 `@@` ✓；根 `README.md` 版本表 Toolchain 0.5.3/0.5.3 ✓。
+- **只读册/ADR 约束**：`8a25def`/`1d95d93` 未动 `spec/DADAO-*`/`SimRISC-*`、未动 `.tao/adr/`（ADR-0013 D9.1 处置留待用户确认，符合约束）✓。
+- **门控重跑（自身 rc）**：`tools/spec/check_spec_changelog.py` **rc=0**（`files=21 … PASS（21 册附录…）`）、`tools/infra/check_spec_readonly.py` **rc=0**（`21 read-only spec volume(s) OK`）、`tools/infra/check_spec_drift.py` **rc=0**（`检查 9 个合约…错误 0 个`）——与完成区「21 册 / 21 只读册 / 9 合约 0 错」宣称逐项相符；`check_milestones_fresh`/`check_issues`/`check_patch_tree`(181) 均 **rc=0**。L1/L2/L3 按预算**未跑**（完成区声明本笔不跑、由 LLVM-109t/112t 覆盖，与预算一致）。
+- **「实现证据 = LLVM-109t 已验证」属实性**：`LLVM-109t` 任务书 **`**状态**：已验证`** ✓；`git log` 有 `3bce7bb`/`363b9f7`/`f11f1be`/`d64067b` ✓。抽查 3 条：① `grep -rnE '^[[:space:]]*;' tests/ --include='*.s'` 与 `'*.S'` 均 **0** ✓；② 一行三条 `add.si … ; add.uo … ; ret …` 经安装根 `llvm-mc` **rc=0**、`llvm-objdump -d` **恰 3 条** ✓；③ 我自编 DADAO 汇编产物注释即为 `@@`（`CommentString` 已生效）✓。
+- **注入现场**：① 脚本自带 `--inject` **rc=0**（append `;` 行 ⇒ `INJECT PASS text-assert failed as expected`、还原 md5=`d9dfb01fb9ac417dec10d59c7c206473` 相等、`RESTORE-PASS` 回绿）；② **reviewer 独立注入**：`cp` 备份 spec（md5=`d9dfb01f…`）⇒ `CommentString = "@@"`→`";"` ⇒ run.sh **rc=1**（`FAIL text-assert (rc=1)` + `FAIL spec-readonly (rc=1)`）⇒ `cp` 还原 md5 相等 ⇒ run.sh **rc=0** 回绿。全程未用 `git checkout/restore/stash`，真实文件 md5 前后不变。
+- **判决：Accepted**。（非阻断备注：册头 `:3`「实现待安排……当前汇编器实现的是旧语法」已过时，完成区已如实登记为遗留、待用户授权批次改 `spec/`——非阻断。）
 
 #### 提交留痕（architect，2026-10-19）
 - 档位：**WIP 级**（`待验收`，reviewer 未验收）；提交信息未加 `WIP:`（口径 = 派单「翻待验收」）。
