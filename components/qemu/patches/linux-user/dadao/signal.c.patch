@@ -1,9 +1,9 @@
 diff --git a/linux-user/dadao/signal.c b/linux-user/dadao/signal.c
 new file mode 100644
-index 0000000..7b5abe6
+index 0000000..4a28cea
 --- /dev/null
 +++ b/linux-user/dadao/signal.c
-@@ -0,0 +1,211 @@
+@@ -0,0 +1,227 @@
 +/*
 + * DADAO signal frames for linux-user (P3).
 + *
@@ -44,13 +44,29 @@ index 0000000..7b5abe6
 +    abi_ulong rb[64];
 +};
 +
++/*
++ * QEMU-066t (ISS-298): `uc_mcontext` must sit at the *guest's* offset.  musl's
++ * arch/dadao/bits/signal.h declares
++ *
++ *     ucontext_t = { unsigned long uc_flags; ucontext_t *uc_link;
++ *                    stack_t uc_stack; sigset_t uc_sigmask;   (128 B)
++ *                    mcontext_t uc_mcontext; }
++ *
++ * and its mcontext_t carries no alignment attribute, so on a 64-bit guest the
++ * frame lands at 8 + 8 + 24 + 128 = 168.  The generic QEMU shape aligns it to
++ * 16 (176 bytes), which every handler that reads a register through
++ * uc_mcontext then sees shifted by one slot: gregs[0] read the alignment
++ * padding (0) instead of the PC, so musl's cancellation handler never matched
++ * [__cp_begin, __cp_end) and never redirected the interrupted syscall.
++ * Dropping the attribute makes this struct byte-identical to the guest's.
++ */
 +struct target_ucontext {
 +    abi_ulong uc_flags;
 +    abi_ptr uc_link;
 +    target_stack_t uc_stack;
 +    target_sigset_t uc_sigmask;
 +    uint8_t __unused[1024 / 8 - sizeof(target_sigset_t)];
-+    struct target_sigcontext uc_mcontext QEMU_ALIGNED(16);
++    struct target_sigcontext uc_mcontext;
 +};
 +
 +struct target_rt_sigframe {

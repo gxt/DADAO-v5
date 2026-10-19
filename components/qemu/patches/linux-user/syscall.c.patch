@@ -1,8 +1,103 @@
 diff --git a/linux-user/syscall.c b/linux-user/syscall.c
-index cfa68df..c18d343 100644
+index cfa68df..64b604f 100644
 --- a/linux-user/syscall.c
 +++ b/linux-user/syscall.c
-@@ -9378,7 +9378,7 @@ static int do_getdents64(abi_long dirfd, abi_long arg2, abi_long count)
+@@ -8212,6 +8212,73 @@ static int do_safe_futex(int *uaddr, int op, int val,
+     return -TARGET_ENOSYS;
+ }
+ 
++/*
++ * QEMU-066t (ISS-296): PI futexes keep the *owner TID* in the futex word.
++ *
++ * qemu-user hands the guest address (and only that address) to the host kernel,
++ * which reads and writes the word in HOST byte order.  On a big-endian target
++ * running on a little-endian host that is the wrong image: musl writes
++ * `self->tid` (e.g. 0x00395754) big-endian, the kernel reads back 0x54573900,
++ * finds no task with that pid and fails FUTEX_LOCK_PI with ESRCH (measured:
++ * `futex(uaddr,FUTEX_PRIVATE_FLAG|FUTEX_LOCK_PI,0,NULL) = -1 ESRCH` on a word
++ * the guest itself had written).  musl then falls into its 100 ms __timedwait
++ * fallback and reports "got deadlock" instead of EDEADLK.
++ *
++ * The fix is a value-preserving byte-order conversion of the word around the
++ * host call: the guest keeps seeing the guest-order image, the kernel sees the
++ * host-order image, and both describe the same numeric tid/flags word (a whole
++ * word swap keeps FUTEX_WAITERS / FUTEX_OWNER_DIED / FUTEX_TID_MASK in the same
++ * numeric positions, unlike a raw memcpy).
++ *
++ * Scope, deliberately: only the four ops whose futex word *is* the owner tid
++ * (LOCK_PI, LOCK_PI2, TRYLOCK_PI, UNLOCK_PI).  FUTEX_WAIT_REQUEUE_PI /
++ * FUTEX_CMP_REQUEUE_PI are left untouched: musl never issues them (its
++ * condition variables use plain FUTEX_WAIT/FUTEX_WAKE, see
++ * src/internal/futex.h), and the requeue protocol would need the PI word to
++ * stay host-order across a *blocking* wait, which would corrupt the owner's
++ * view of its own mutex for no consumer's benefit.
++ *
++ * Known limitation (documented, not papered over): because the word is
++ * converted in place, a thread that actually *blocks* inside a contended
++ * FUTEX_LOCK_PI leaves the word in host order for the duration of that wait.
++ * Uncontended acquires, EDEADLK, trylock and unlock -- i.e. every operation
++ * where the guest is not sitting inside the kernel -- are converted around the
++ * call.
++ */
++static abi_long pi_futex_word_to_host(target_ulong uaddr)
++{
++    void *p;
++
++    if (!target_needs_bswap()) {
++        return 0;
++    }
++    p = lock_user(VERIFY_WRITE, uaddr, sizeof(uint32_t), 1);
++    if (!p) {
++        return -TARGET_EFAULT;
++    }
++    stl_he_p(p, ldl_p(p));
++    unlock_user(p, uaddr, sizeof(uint32_t));
++    return 0;
++}
++
++static void pi_futex_word_to_target(target_ulong uaddr)
++{
++    void *p;
++
++    if (!target_needs_bswap()) {
++        return;
++    }
++    p = lock_user(VERIFY_WRITE, uaddr, sizeof(uint32_t), 1);
++    if (!p) {
++        /* The matching pi_futex_word_to_host() just locked the same word; if it
++         * cannot be locked now the syscall result is already the best answer we
++         * have, so there is nothing to report. */
++        return;
++    }
++    stl_p(p, ldl_he_p(p));
++    unlock_user(p, uaddr, sizeof(uint32_t));
++}
++
+ /* ??? Using host futex calls even when target atomic operations
+    are not really atomic probably breaks things.  However implementing
+    futexes locally would make futexes shared between multiple processes
+@@ -8281,6 +8348,20 @@ static int do_futex(CPUState *cpu, bool time64, target_ulong uaddr,
+             return -TARGET_EFAULT;
+         }
+     }
++    /* See pi_futex_word_to_host(): the PI ops carry the owner tid in the word,
++     * and the host kernel must see it in host byte order. */
++    if (base_op == FUTEX_LOCK_PI || base_op == FUTEX_LOCK_PI2 ||
++        base_op == FUTEX_TRYLOCK_PI || base_op == FUTEX_UNLOCK_PI) {
++        abi_long ret = pi_futex_word_to_host(uaddr);
++
++        if (ret) {
++            return ret;
++        }
++        ret = do_safe_futex(g2h(cpu, uaddr), op, val, pts, haddr2, val3);
++        pi_futex_word_to_target(uaddr);
++        return ret;
++    }
++
+     return do_safe_futex(g2h(cpu, uaddr), op, val, pts, haddr2, val3);
+ }
+ #endif
+@@ -9378,7 +9459,7 @@ static int do_getdents64(abi_long dirfd, abi_long arg2, abi_long count)
  }
  #endif /* TARGET_NR_getdents64 */
  
@@ -11,7 +106,75 @@ index cfa68df..c18d343 100644
  
  #define RISCV_HWPROBE_KEY_MVENDORID     0
  #define RISCV_HWPROBE_KEY_MARCHID       1
-@@ -14477,10 +14477,23 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+@@ -13550,6 +13631,59 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+                          target_to_host_signal(arg3)));
+ 
+ #ifdef TARGET_NR_set_robust_list
++#if defined(TARGET_DADAO)
++    /*
++     * QEMU-066t (ISS-297): registration/query consistency only.
++     *
++     * The kernel uses this list to walk the *guest* list on thread death; a
++     * host kernel cannot do that (guest pointers are not host pointers), and it
++     * is not needed here: musl walks `self->robust_list.head` itself in
++     * src/thread/pthread_create.c:119-137 (before SYS_exit) and marks each held
++     * robust mutex with 0x40000000 in user space -- the comment there names
++     * "non-pshared mutexes and the detached thread case" as the reason, which
++     * are exactly the two shapes libc-test exercises.  What musl *does* probe
++     * through the syscall is support itself: pthread_mutexattr_setrobust()
++     * calls get_robust_list(0, ...) and turns ENOSYS into "no robust mutexes".
++     * So the contract implemented here is the kernel's own ABI shape
++     * (kernel/futex/syscalls.c): set/get persist and return the same {head,len}
++     * per thread.
++     */
++    case TARGET_NR_set_robust_list:
++    {
++        TaskState *ts = get_task_state(cpu);
++
++        /* The kernel knows exactly one list layout: 3 longs.  `len` is
++         * validated before the assignment (so unregistering with a bogus length
++         * is EINVAL, as on the host), and head == 0 unregisters. */
++        if (arg2 != 3 * sizeof(abi_ulong)) {
++            return -TARGET_EINVAL;
++        }
++        ts->robust_list_head = arg1;
++        return 0;
++    }
++    case TARGET_NR_get_robust_list:
++    {
++        TaskState *ts = get_task_state(cpu);
++
++        /*
++         * Scope: pid == 0 (the caller) and the caller's own tid.  Querying
++         * *another* thread's list is not implemented -- qemu-user has no
++         * per-tid lookup for guest threads here, and the kernel ABI also
++         * requires a ptrace-style permission check that has no meaning for a
++         * same-process thread.  Any other pid is reported the way the kernel
++         * reports an unknown one: ESRCH (explicitly, not by returning a
++         * made-up list).
++         */
++        if (arg1 != 0 && arg1 != (abi_ulong)sys_gettid()) {
++            return -TARGET_ESRCH;
++        }
++        if (put_user_ual(ts->robust_list_head, arg2) ||
++            put_user_ual(3 * sizeof(abi_ulong), arg3)) {
++            return -TARGET_EFAULT;
++        }
++        return 0;
++    }
++#else
+     case TARGET_NR_set_robust_list:
+     case TARGET_NR_get_robust_list:
+         /* The ABI for supporting robust futexes has userspace pass
+@@ -13566,6 +13700,7 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
+          */
+         return -TARGET_ENOSYS;
+ #endif
++#endif
+ 
+ #if defined(TARGET_NR_utimensat)
+     case TARGET_NR_utimensat:
+@@ -14477,10 +14612,23 @@ static abi_long do_syscall1(CPUArchState *cpu_env, int num, abi_long arg1,
          return ret;
  #endif
  

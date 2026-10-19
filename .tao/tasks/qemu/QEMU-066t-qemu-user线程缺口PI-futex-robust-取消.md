@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M9
 **依赖**：`INFRA-095t`（T1：musl `__clone` + TP，返工后 `rb3` 仅 `CLONE_SETTLS` 时写）、`QEMU-065t`（T2：qemu-user 线程语义）、`TESTCASES-052t`（T3：pthread 度量与 `ISS-295`~`ISS-299` 现场）；三者须**已验证**（或主会话明确放行）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-20）**：`qemu` 现存最大 = `QEMU-065t` ⇒ 取 **`066`**（`grep -rn 'QEMU-066' .tao/ components/` 0 命中）。
 > **链上位置**：T3 的 19 例目标残留 **4 例**全部落在本册；本册完成后 T3 才能达到 **19/19**（`TESTCASES-052t` 仍按它自己的册收口，本册**不改**其状态/判据）。
@@ -118,12 +118,37 @@
 7. **`spec/` / 契约 / ABI 帧改动** ✗（若判定必须改 ⇒ **停下报告**，交用户裁定 + ADR）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`.work/evidence/QEMU-066t/run.sh` **`--full` 24/24 PASS**、**`--inject` 23/23 PASS**（3 条注入各「注入→FAIL→`cp`+md5 还原→回绿」，含 3 次 rebuild）。两档 4 例 **4/4 PASS**（`functional/pthread_mutex_pi`、`functional/pthread_robust`、`regression/pthread-robust-detach`、`regression/pthread_cond_wait-cancel_ignored`，静态/动态各 `PASS exit=0`）。T3 19 目标 **两档均 19/19**（`/tmp/opencode/QEMU-066t/t3-{static,dynamic}.json` + `report_thread_cases.py --json-out .../t3-report.json`）；额外 `regression/pthread_create-oom` 静态 `BLOCKED`（`qemu killed by host signal 5`，`ISS-257`，不计入 19）、动态 `PASS`。旁证（信号帧改动的回归面）`functional/setjmp`、`regression/{sigaltstack,sigprocmask-internal,sigreturn}` 两档 4/4 PASS。修前/修后签名：PI `futex(FUTEX_PRIVATE_FLAG|FUTEX_LOCK_PI)= -1 errno=3(ESRCH)` → `= -1 errno=35(EDEADLK)`；取消 `tkill(33)` 后 `tkill(self,33)` 重投 + 同一 futex 重新 WAIT → `tkill(33)` 后直接 `rt_sigreturn`、线程被取消（`.work/log/qemu/QEMU-066t-strace-{pi,cancel}-{before,after}.log`）。
+**修改文件**：`components/qemu/patches/linux-user/syscall.c.patch`、`.../linux-user/dadao/signal.c.patch`、**新增** `.../linux-user/qemu.h.patch`、`components/qemu/series`、`components/qemu/changelog.md`（`## M9` 一条）、`.tao/knowledge/issues.yaml`（`ISS-296/297/298` → `closed` + `resolved_by: QEMU-066t` + 处置附注）、本册（完成区 + 第 1 轮自审）；证据 `.work/evidence/QEMU-066t/{run.sh,build_probe.sh,t3_counts.py,pi_probe2.c,robust_probe.c,cancel_probe.c,cancel_probe2.c}`、日志 `.work/log/qemu/QEMU-066t-*`（`.work/` 不入 git）。**测试侧零改动**：`git diff --stat -- tools/testcases tests` 空、`git status -uall -- tools/testcases tests libc-test` 空。组件检出 `HEAD=c266401`（base+1，clean）。
+**验收结果**：安装根 `qemu-dadao` md5 **`5e252eb736755ddc2ef8e502f29946ca`** == `.work/build/qemu/qemu-dadao`，mtime `2026-10-20 02:48`，`--version` = `v11.1.1-1-gc266401`。门控（逐条自身 rc）：`check-qemu-semantics` **224/224** rc=0、`check-qemu-smoke` **90/90** rc=0、`check-patch-tree` rc=0（5 组件 **184** patches = qemu **59 → 60**）、`check-index-blobs` rc=0、`check-source-state` rc=0、`check-no-residue` rc=0、`check-tasks` rc=0、`check-knowledge-refs` rc=0、`check-component-changelog` rc=0、`check-run-artifacts` rc=0、`python3 tools/infra/check_issues.py` rc=0（54 open / 17 closed）、`make check`（L1）rc=0。`make build-qemu JOBS=8` 增量（改 `syscall.c`）**7.9 s**。
+**新发现/坑**：① **`ISS-296` 的真因不是「guest TID 未翻译」而是字节序**：本端口 `gettid`/`set_tid_address`/`clone` 父侧都直返宿主 tid（探针实测 mutex 字里的 owner == 子线程 `gettid()` == 宿主 tid），但 PI futex 字**存的就是 owner TID**，DADAO 大端写、宿主内核小端读 ⇒ 内核见到字节颠倒值（`0x00395754`→`0x54573900`）⇒ 查不到任务 ⇒ `ESRCH`。修法只能是「宿主调用前后做保值整字转换」。② **`ISS-298` 的真因不是 `SA_RESTART`**：DADAO `struct target_ucontext` 的 `QEMU_ALIGNED(16)` 把 `uc_mcontext` 顶到 176，而 musl `ucontext_t` 期望 168 ⇒ handler 读到的 `MC_PC` 是对齐填充（恒 0）⇒ `[__cp_begin,__cp_end)` 永假。`-QEMU_ERESTARTSYS` 的 trap 重放**无需改**（帧在重放后同一轮内取，PC=trap；handler 改写经 `sigreturn` 生效即覆盖重放）——原假设的两个候选修法都不必要。③ 构建物内嵌 `git describe`（`v11.1.1-1-g<sha>[-dirty]`）⇒ 同一份源码在**不同 commit/脏树**下 md5 不同；比对「安装根 == 构建树」必须在**最终 commit 且 clean** 之后做，否则误判。④ 证据脚本首版把「driver rc=0」当 T3 判据 ⇒ 静态档因 `pthread_create-oom`（`ISS-257`）假 FAIL；已改为从 report JSON 统计 19 目标。
+**遗留问题**：① **PI 字在「真正阻塞的 `FUTEX_LOCK_PI`」期间处于宿主序**（补丁注释与 changelog 已显式登记）：非阻塞路径（未争用获取、`EDEADLK`、trylock、unlock）全部正确，真要彻底消除需在 qemu 内做完整 PI futex 模拟（另立册，本册不做）；`pthread_robust` 的 pi 争用场景实测仍 pass。② `get_robust_list` 对「存在的其它线程 tid」也返回 `ESRCH`（qemu-user 无 per-tid 查找；musl 只用 `pid==0`）——口径已在代码注释与本册声明。③ **未跑 `make install-host`**（派单禁）；改为与 `install-host` 的 qemu 两步等价的原子 `cp`（只替换 `qemu-dadao`/`qemu-system-dadao`，不重建/重装 LLVM），md5 已核对；**未 commit/push**（`components/qemu` 检出内的 E1 `commit --amend` 属既有做法）；**未改 `**状态**`**（按派单）。④ 未跑 L2/L3 汇总（`check-modules`/`check-full`，派单禁），仅单跑本册要求的两个门控。
 
 ## 审阅记录
 
-（engineer 自审 / reviewer 验收 / architect 提交审核按轮次追加）
+#### 第 1 轮 engineer 自审
+
+自主逐行审查（`subagent_depth=1`，无嵌套子代理）：逐行读 `do_futex` 新分支、`pi_futex_word_to_host/to_target`、`set/get_robust_list` 两个 case、`target_ucontext` 改动；对照内核 `kernel/futex/{pi.c,syscalls.c}` 与 musl `pthread_mutex_*.c`/`pthread_create.c`/`pthread_cancel.c` 的消费方；核对每条探针断言的 oracle 独立性与可达 FAIL 路径；核对注入的「真改到文件、真重建、真回绿」。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| `pi_futex_word_to_target()` 的 `lock_user` 失败被静默吞掉 | ✅已修（加注释说明：同地址刚被 `to_host` 成功锁定，此处失败不改变 syscall 结果） | `syscall.c` 注释 | 重建后 `--full` 24/24、`--inject` 23/23 |
+| 探针断言硬编码地址/前缀（`head=0x4b128`、`word=0x0039`）——脆弱且与被测同源 | ✅已修 | `robust_probe.c` 改打 `head_matches/len_ok/head_cleared`；`pi_probe2.c` 改打 `owner_matches_gettid` | `--quick` 11/11；断言变结构性布尔 |
+| 注入 2 原打在 `set_robust_list`，而 musl 忽略它的返回值 ⇒ 用例仍 pass（注入不可达判据，属假注入） | ✅已修 | 改注入 `get_robust_list`（musl `pthread_mutexattr_setrobust` 的探测点），并要求 `pthread-robust-detach` driver rc≠0 | `--inject` 日志 inj2 两项均按预期 FAIL |
+| T3 断言把 driver rc=0 当判据 ⇒ 静态档被 `pthread_create-oom`（`ISS-257`）拖成假 FAIL | ✅已修 | `check_t3` 改为从 `report_thread_cases.py` 的 JSON 统计 19 目标 + 「无 target fail」断言 | `--full` 24/24，`other_nonpass=['regression/pthread_create-oom']` |
+| 证据脚本未校验安装根新鲜（`ISS-210` 假绿风险） | ✅已修 | 新增 `check_install_root`（build md5 == install root） | `--full` 首项 PASS，两处 md5 相同 |
+| 注入是否真改动了文件（防「空注入」） | ✅已证 | `inject_file` 要求 pattern 命中数 == 1，并比 md5 | 三次注入 md5 均变；还原后 md5 回到原值 |
+| `get_robust_list` 对存在的其它线程返回 `ESRCH`（非内核精确语义） | ⏸延后（无 guest 消费者；qemu-user 无 per-tid 查找设施；任务允许显式声明口径） | 代码注释 + 完成区遗留② | `robust_probe` 的 `pid=8` ⇒ `ESRCH` 符合所选口径 |
+| 阻塞在 `LOCK_PI` 期间字面为宿主序 | ⏸延后（需完整 PI futex 模拟，另立册） | 补丁注释 + changelog + 完成区遗留① | 非阻塞路径与 `pthread_robust` pi 组合实测 pass |
+
+判决：可修 finding 已全部处置；两项延后项均为**无消费者/需另立册**的能力边界，已在代码与本册显式登记，不影响本册判据。`components/qemu` 检出 E1 成立（`HEAD=c266401`、`base..HEAD` 1 个 commit、clean）。
+
+#### 第 1 轮 architect 提交审核
+- **档位**：`待验收`（engineer 返回后、reviewer 判决前）⇒ **正常提交**（按派单「提交 `QEMU-066t`」，非 `WIP:`）。**提交号 `809edff`**，落 `QEMU-066t` 分支；**未 push**。
+- **文件集对账**（`git diff --cached --name-only`，显式 staging 8 项，禁 `git add -A`）：
+  - 与完成区「修改文件」7 项**逐条相符**：`components/qemu/patches/linux-user/{syscall.c.patch, dadao/signal.c.patch, qemu.h.patch(新增)}`、`components/qemu/series`、`components/qemu/changelog.md`、`.tao/knowledge/issues.yaml`、本册。
+  - **多提 1 项**：`.tao/knowledge/milestones.md`（architect 职责内：本册 `**状态**` 两处 `待开始 → 待验收` + 流水一句改动，89 → 76 字符 ≤120）。
+  - `issues.yaml` 内含 **architect 侧新增** `ISS-300`（`P3` / `open`，安装根新鲜度：`install-host` 之外的二进制替换属例外手法，应尽量走 `install-host`；本次 `cp` 的 md5 已核对一致 ⇒ 结论有效）。
+  - **漏提 / 越界**：无（`spec/`、`contracts/`、`tools/`、`tests/` 零改动；`components/qemu` 检出 clean、`HEAD=c266401`）。
+- **核验（秒级 + L1，均现场复跑）**：`check-patch-tree` **5 组件 / 184 patches OK** rc=0（`59 → 60`，与 changelog 一致）；`check_issues.py` rc=0（**55 open / 17 closed**，`resolved_by` 约束 OK）；`check_tasks.py` rc=0（「漏收尾 8」为报告项、不阻断，本册即其一，reviewer 判决后由主会话 `/complete`）；**`make check`（L1）rc=0，34.8 s**（含 `check-index-blobs`：132 new-file OK、`check-knowledge-refs` 悬空 0、`check-no-residue` PASS、`check-spec-readonly` 21 卷 OK）。
+- **披露保留（已核、不改写）**：完成区遗留③ 的「未跑 `make install-host`、以原子 `cp` 替换安装根 qemu 两步」为**例外手法**，理由（否则门控读旧二进制假绿）与 md5 核对均在册；已按派单登记 `ISS-300`。

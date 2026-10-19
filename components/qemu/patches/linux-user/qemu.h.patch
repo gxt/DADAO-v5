@@ -1,0 +1,25 @@
+diff --git a/linux-user/qemu.h b/linux-user/qemu.h
+index ef7aed2..3a1afbd 100644
+--- a/linux-user/qemu.h
++++ b/linux-user/qemu.h
+@@ -123,6 +123,20 @@ struct TaskState {
+     target_ulong orig_ax;
+ #endif
+     abi_ulong child_tidptr;
++#if defined(TARGET_DADAO)
++    /*
++     * QEMU-066t (ISS-297): robust-futex list registration, per thread.
++     *
++     * The kernel walks this list itself when the thread dies; qemu-user cannot
++     * hand a guest linked list to the host kernel, and musl does not need it to
++     * (src/thread/pthread_create.c:119-137 walks `self->robust_list.head` in
++     * user space before SYS_exit, marking every held robust mutex with
++     * 0x40000000).  All the guest side needs from the kernel ABI is therefore
++     * that set_robust_list()/get_robust_list() agree; see the syscall branch in
++     * linux-user/syscall.c.
++     */
++    abi_ulong robust_list_head;   /* guest address of struct robust_list_head */
++#endif
+ #ifdef TARGET_M68K
+     abi_ulong tp_value;
+ #endif

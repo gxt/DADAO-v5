@@ -36,7 +36,7 @@
 > - `INFRA-096t`：`M9` / `ISS-293` 真根因（builtins 归档陈旧）+ 新鲜度门控（`待验收`）
 > - `INFRA-095t`：`M9` / **T1** musl `__clone` + TP（`待验收`：返工完成（`ISS-295`）—— `rb3` 仅 `CLONE_SETTLS` 时写）
 > - `QEMU-065t`：`M9` / **T2** qemu-user 线程语义（`待验收`）
-> - `QEMU-066t`：`M9` / T3 残余 4 例的 qemu 缺口：`ISS-296` PI futex、`ISS-297` robust list、`ISS-298` 取消被重启（`待开始`）
+> - `QEMU-066t`：`M9` / T3 残余 4 例的 qemu 缺口：`ISS-296` PI futex、`ISS-297` robust list、`ISS-298` 取消被重启（`待验收`：三条全修，4 例两档 4/4）
 > - `TESTCASES-052t`：`M9` / **T3** pthread 验证与 047t 线程收口（`待验收`；复跑后静态 15/19、动态 15/19）
 > - `LLVM-100t`：`M9` / **T4** 静态 `__thread` TLS codegen + 静态档 3 例（`待开始`）
 > - `LLVM-117t`：`M9` / **T5** 动态 TLS（`DTPMOD`/`DTPREL`/`TPREL`）+ `dlopen`（`待开始`）
@@ -46,7 +46,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| QEMU-066t | 待开始 | 2026-10-20 02:25（登记） | qemu-user 线程缺口 3 条：PI futex ESRCH、robust list ENOSYS、取消被 SA_RESTART 重启；目标 047t 4 例两档 pass |
+| QEMU-066t | 待验收 | 2026-10-20 02:25（登记） | 线程 qemu 缺口 3 条：PI futex 大端整字转换、robust list 注册查询、ucontext 去 16B 对齐；4 例两档 4/4 |
 | INFRA-096t | 待验收 | 2026-10-20 01:40（登记） | ISS-293 真根因 = builtins 归档陈旧：clean 重建 + 三份副本同源 + 新鲜度门控 + `libc.so` 重链戳记 |
 | INFRA-095t | 待验收 | 2026-10-19 23:40（登记） | T1 返工完成（`ISS-295`）：`rb3` 仅 `CLONE_SETTLS` 时写；spawn/popen 两档 2/2、T3 14/14 |
 | LLVM-117t | 待开始 | 2026-10-19 23:40（登记） | T5 动态 TLS 10/11/12 发射 + `dlopen` 4 例；关 `ISS-260` |

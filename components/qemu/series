@@ -27,6 +27,7 @@ linux-user/dadao/target_structs.h.patch
 linux-user/dadao/target_syscall.h.patch
 linux-user/dadao/termbits.h.patch
 linux-user/meson.build.patch
+linux-user/qemu.h.patch
 linux-user/syscall.c.patch
 linux-user/syscall_defs.h.patch
 qapi/machine.json.patch
