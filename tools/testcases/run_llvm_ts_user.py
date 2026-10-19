@@ -175,18 +175,32 @@ Classification (counted live, never hard-coded)
 * ``fail``        built + ran, the oracle did NOT match (output document /
                   md5 / exit tail mismatch).  A real defect; the first line of
                   the program's own output is recorded.
-* ``known-fail``  the build failure is explained by a row of the **per-case
-                  basis table** (``KNOWN_FAIL_BASES``) with that row's
-                  evidence recomputed live.  Today the table admits
-                  ``ISS-246`` only (``__thread``: clang ``thread-local
-                  storage is not supported for the current target`` /
-                  backend ``GlobalTLSAddress``), and requires a live TLS
-                  declaration scan hit in the case's *own* sources **and**
-                  that exact diagnostic.  No other cause is admitted (the
-                  older "sole basis = ISS-246" wording is superseded by
-                  INFRA-087t's per-case-evidence rule; a row whose evidence
-                  does not hold makes the audit fail).  Expected 0 here: the
-                  suite's C programs do not use TLS.
+* ``known-fail``  the failure is explained by a row of the **per-case basis
+                  table** (``KNOWN_FAIL_BASES``) with that row's evidence
+                  recomputed live.  Two causes are admitted:
+                  * ``ISS-246`` (``__thread``: clang ``thread-local storage is
+                    not supported for the current target`` / backend
+                    ``GlobalTLSAddress``) -- requires a live TLS declaration
+                    scan hit in the case's *own* sources **and** that exact
+                    diagnostic.  Expected 0 here: the suite's C programs do not
+                    use TLS.
+                  * ``ISS-265`` (upstream references that encode glibc
+                    semantics) -- admission is **per case, never per class**:
+                    ``ISS265_ADMISSION`` names exactly the three cases the
+                    user ruled known-fail (``ClamAV`` = interleaved-stream
+                    order, ``obsequi``/``ft`` = musl-vs-glibc PRNG seeding),
+                    and each row's live check must hold:
+                    ``ClamAV`` -- the actual and expected documents have the
+                    same size and the same line multiset (only the order
+                    differs); ``obsequi``/``ft`` -- a live seed+draw call in
+                    the case's own sources, plus a probe (built with the same
+                    clang/musl and run under the same qemu) showing musl's
+                    ``random()``/``rand()`` sequence after seed 1 differs from
+                    the host glibc's.
+                  No other cause is admitted (the older "sole basis = ISS-246"
+                  wording is superseded by INFRA-087t's per-case-evidence
+                  rule; a row whose evidence does not hold leaves the case
+                  ``fail``, so the round stays red).
 * ``blocked``     a build/run gap prevents the case from reaching its own
                   verdict: compile/link failure, missing symbol, an image at
                   the scripted base, a wrong PT_INTERP/modality, qemu killed
@@ -239,6 +253,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import ctypes
 import glob
 import hashlib
 import json
@@ -349,16 +364,69 @@ MAIN_RE = re.compile(r"\b(?:int|void)\s+main\s*\(")
 EXIT_TAIL_RE = re.compile(rb"exit (\d+)\n$")
 HEX32_RE = re.compile(r"^[0-9a-f]{32}$")
 
-# ISS-246 is the only cause the per-case basis table admits (see docstring).
+# ISS-246 is the only compile-time cause the per-case basis table admits; see
+# ISS265_ADMISSION below for the run-time (reference portability) rows.
 ISS246_ID = "ISS-246"
 ISS246_PATTERNS = (
     "thread-local storage is not supported",
     "GlobalTLSAddress",
 )
 TLS_RE = re.compile(r"__thread|_Thread_local|\bthread_local\b")
+
+# ISS-265 (user ruling 2026-10-18: known-fail).  Admission is **per case** and
+# closed: only the three cases named here can be reclassified, and only while
+# that row's live check holds.  A fourth failing case never reaches this table,
+# so no class-wide escape hatch exists.  ``kind``/``api`` select the check:
+#   interleave -- same bytes and same line multiset, only the line order differs
+#                 (upstream compares one interleaved stdout+stderr stream);
+#   prng       -- live seed+draw in the case's own sources, and a live probe
+#                 showing musl's ``api`` sequence != the host glibc's.
+ISS265_ID = "ISS-265"
+ISS265_ADMISSION = {
+    "MultiSource/Applications/ClamAV": dict(
+        kind="interleave",
+        why="upstream's reference is one interleaved stdout+stderr document; "
+            "the guest swaps the positions of clamscan's cli_dbgmsg "
+            "'Initializing the engine (devel-20071218)' line and the "
+            "database-age warning, so the bytes and line multiset match while "
+            "the order differs"),
+    "MultiSource/Applications/obsequi": dict(
+        kind="prng",
+        api="random",
+        why="init.c:63 calls srandom(1) and init.c:66 seeds the Zobrist "
+            "tables with random(); musl's lagged-Fibonacci seeding is not "
+            "glibc's 16807/Schrage sequence, so the node/cutoff counters "
+            "differ while 'Winner found: 5000' agrees"),
+    "MultiSource/Benchmarks/Ptrdist/ft": dict(
+        kind="prng",
+        api="rand",
+        why="ft.c:54 maps srandom->srand and graph.c:40 maps random->rand; "
+            "musl's rand() is a 64-bit LCG (src/prng/rand.c) whereas glibc's "
+            "rand() follows random(), so the generated graph and its output "
+            "differ (host glibc reproduces the reference hash)"),
+}
+ISS265_SEED_RE = re.compile(r"\b(?:srandom|srand)\s*\(")
+# Two values per API after seed 1; printed by ISS265_PRNG_PROBE below.
+ISS265_PRNG_PROBE = """\
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void)
+{
+\tsrandom(1);
+\tprintf("random %ld %ld\\n", (long)random(), (long)random());
+\tsrand(1);
+\tprintf("rand %ld %ld\\n", (long)rand(), (long)rand());
+\treturn 0;
+}
+"""
+
 KNOWN_FAIL_BASES = {
     ISS246_ID: "live TLS declaration scan hit in the case's own sources + "
                "clang thread-local-storage diagnostic",
+    ISS265_ID: "per-case admission table ISS265_ADMISSION (exactly ClamAV / "
+               "obsequi / ft): interleaving-only document difference, or a "
+               "live musl-vs-glibc PRNG sequence divergence",
 }
 
 # Programs upstream does not add under ``SMALL_PROBLEM_SIZE`` (its tree
@@ -1889,6 +1957,214 @@ def iss246_evidence(case: Case):
                   f"{next(p for p in ISS246_PATTERNS if p in case.first_error)!r}")
 
 
+def iss265_host_prng_sequences():
+    """Host libc's ``random()``/``rand()`` sequences after seed 1 (live)."""
+    try:
+        libc = ctypes.CDLL(None)
+        libc.srandom.argtypes = [ctypes.c_uint]
+        libc.random.restype = ctypes.c_long
+        libc.srand.argtypes = [ctypes.c_uint]
+        libc.rand.restype = ctypes.c_int
+        libc.srandom(1)
+        seq_random = (libc.random(), libc.random())
+        libc.srand(1)
+        seq_rand = (libc.rand(), libc.rand())
+    except (OSError, AttributeError) as exc:
+        return None, f"host libc has no random()/rand(): {exc}"
+    return {"random": seq_random, "rand": seq_rand}, ""
+
+
+def iss265_prng_sequences(cfg, cache):
+    """Guest musl vs host glibc PRNG sequences (live, one probe per round).
+
+    The probe is compiled with the same clang/target/musl headers and linked
+    against the same ``cfg['libc']`` as the suite, then run under the same
+    qemu, so the guest numbers come from the library actually under test.  The
+    host numbers come from this process' own libc (glibc on the reference
+    host).  Result: ``(dict(guest=..., host=...), "")`` or ``(None, why)``.
+    """
+    key = (cfg.get("mode"), cfg.get("libc"))
+    if key in cache:
+        return cache[key]
+    host, host_err = iss265_host_prng_sequences()
+    if host is None:
+        cache[key] = (None, host_err)
+        return cache[key]
+    probe_dir = os.path.join(cfg["work_dir"], f"iss265-prng-{cfg['mode']}")
+    src = os.path.join(probe_dir, "iss265_prng_probe.c")
+    obj = os.path.join(probe_dir, "iss265_prng_probe.o")
+    elf = os.path.join(probe_dir, "iss265_prng_probe.elf")
+
+    def fail(why):
+        cache[key] = (None, why)
+        return cache[key]
+
+    try:
+        os.makedirs(probe_dir, exist_ok=True)
+        with open(src, "w", encoding="utf-8") as fh:
+            fh.write(ISS265_PRNG_PROBE)
+    except OSError as exc:
+        return fail(f"cannot write PRNG probe: {exc}")
+    compile_cmd = ([cfg["clang"], "-target", TARGET] + cfg["musl_incs"]
+                   + list(BASE_CFLAGS) + ["-c", src, "-o", obj])
+    rc, _out, err_b, timed = run_bytes(compile_cmd, timeout=BUILD_TIMEOUT,
+                                       cwd=probe_dir)
+    if timed or rc != 0:
+        return fail(f"PRNG probe compile failed rc={rc}: "
+                    f"{first_tool_error(err_b.decode('utf-8', 'replace'))}")
+    link_cmd = ([cfg["ldlld"], "-o", elf, cfg["crt1"], obj,
+                 "--start-group", cfg["libc"], cfg["builtins"], "--end-group"])
+    if cfg["mode"] == "dynamic":
+        link_cmd += ["-dynamic-linker", DYNAMIC_LINKER]
+    rc, _out, err_b, timed = run_bytes(link_cmd, timeout=BUILD_TIMEOUT,
+                                       cwd=probe_dir)
+    if timed or rc != 0:
+        return fail(f"PRNG probe link failed rc={rc}: "
+                    f"{first_tool_error(err_b.decode('utf-8', 'replace'))}")
+    run_cmd = [cfg["qemu"]]
+    if cfg["mode"] == "dynamic":
+        run_cmd += ["-L", cfg["guest_root"]]
+    run_cmd += [elf]
+    rc, guest_out, _err_b, timed = run_bytes(run_cmd, timeout=60,
+                                             cwd=probe_dir)
+    if timed or rc != 0:
+        return fail(f"PRNG probe run failed rc={rc}")
+    guest = {}
+    for line in guest_out.decode("utf-8", "replace").splitlines():
+        parts = line.split()
+        if len(parts) == 3 and parts[0] in ("random", "rand"):
+            try:
+                guest[parts[0]] = (int(parts[1]), int(parts[2]))
+            except ValueError:
+                pass
+    if set(guest) != {"random", "rand"}:
+        return fail(f"PRNG probe output unparsable: {guest_out[:120]!r}")
+    cache[key] = ({"guest": guest, "host": host}, "")
+    return cache[key]
+
+
+def iss265_evidence(case: Case, cfg, cache):
+    """Recompute one ISS-265 admission row; return (ok, evidence).
+
+    A missing row is refused (the admission is per case), and so is any row
+    whose live condition does not hold -- such a case stays ``fail``.
+    """
+    row = ISS265_ADMISSION.get(case.cid)
+    if row is None:
+        return False, ("not an admitted ISS-265 case (admission is per case, "
+                       "never per class)")
+    if case.exit is None:
+        return False, "no guest exit code (the run produced no verdict)"
+    if case.oracle_kind == "md5":
+        actual_doc = case.stdout + (b"exit %d\n" % case.exit)
+        mismatched = hashlib.md5(actual_doc).hexdigest() != case.expected_hash
+        exit_ok = case.exit == 0
+        exit_why = f"exit {case.exit} (ruled runs exit 0)"
+    elif case.oracle_kind in ("stdout", "raw"):
+        actual_doc = case.stdout + (b"exit %d\n" % case.exit)
+        mismatched = actual_doc != case.expected_doc
+        exit_ok = case.exit == case.expected_exit
+        exit_why = (f"exit {case.exit} == expected {case.expected_exit}"
+                    if exit_ok else
+                    f"exit {case.exit} != expected {case.expected_exit}")
+    else:
+        return False, (f"oracle form {case.oracle_kind!r} cannot carry this "
+                       f"basis")
+    if not mismatched:
+        return False, "the oracle matched, so there is no failure to explain"
+    if not exit_ok:
+        return False, f"exit differs from the ruled runs: {exit_why}"
+
+    if row["kind"] == "interleave":
+        if len(actual_doc) != len(case.expected_doc):
+            return False, (f"document sizes differ ({len(actual_doc)} B vs "
+                           f"{len(case.expected_doc)} B): not an "
+                           f"interleaving-only difference")
+        if sorted(actual_doc.splitlines()) != sorted(
+                case.expected_doc.splitlines()):
+            return False, ("line multisets differ: not an interleaving-only "
+                           "difference")
+        return True, (f"same {len(actual_doc)} B / "
+                      f"{len(actual_doc.splitlines())} lines, only the line "
+                      f"order differs; {row['why']}")
+
+    if row["kind"] != "prng":
+        return False, f"unknown admission kind {row['kind']!r}"
+
+    api = row["api"]
+    draw_re = re.compile(r"\b" + re.escape(api) + r"\s*\(")
+    seed_hits, draw_hits = [], []
+    for src in case.sources:
+        try:
+            text = read_text(src)
+        except OSError:
+            continue
+        if ISS265_SEED_RE.search(text):
+            seed_hits.append(os.path.basename(src))
+        if draw_re.search(text):
+            draw_hits.append(os.path.basename(src))
+    if not seed_hits or not draw_hits:
+        return False, (f"no live seed+{api}() call in the case's own "
+                       f"sources (seed={seed_hits or 'none'}, "
+                       f"draw={draw_hits or 'none'})")
+    if cfg is None:
+        return False, "no run configuration for the live PRNG probe"
+    seqs, err = iss265_prng_sequences(cfg, cache)
+    if seqs is None:
+        return False, f"live PRNG probe unavailable: {err}"
+    guest, host = seqs["guest"][api], seqs["host"][api]
+    if tuple(guest) == tuple(host):
+        return False, (f"musl and glibc {api}() sequences after seed 1 are "
+                       f"identical ({guest}): the libc basis does not hold")
+    return True, (f"live seed in {', '.join(seed_hits)} + {api}() in "
+                  f"{', '.join(draw_hits)}; musl {api}() after seed 1 = "
+                  f"{guest} != glibc {host}; {row['why']}")
+
+
+def iss265_admission_selfcheck():
+    """Reverse check: the ISS-265 table is closed and refuses loose cases.
+
+    Returns a list of problems (empty = ok).  Each negative probe is a
+    reachable FAIL path: an unlisted case must be refused even when its
+    documents look like an interleave, and a listed case whose oracle matched
+    must be refused too.
+    """
+    problems = []
+    expected = {
+        "MultiSource/Applications/ClamAV": "interleave",
+        "MultiSource/Applications/obsequi": "prng",
+        "MultiSource/Benchmarks/Ptrdist/ft": "prng",
+    }
+    got = {cid: row.get("kind") for cid, row in ISS265_ADMISSION.items()}
+    if got != expected:
+        problems.append(f"admission table {got} != {expected}")
+
+    unlisted = Case("MultiSource/Applications/lua", "MultiSource/Applications",
+                    "multi", "", [])
+    unlisted.klass = "fail"
+    unlisted.oracle_kind = "stdout"
+    unlisted.exit = 0
+    unlisted.expected_exit = 0
+    unlisted.stdout = b"b\na\n"
+    unlisted.expected_doc = b"a\nb\nexit 0\n"
+    ok, why = iss265_evidence(unlisted, None, {})
+    if ok:
+        problems.append(f"unlisted case admitted: {why}")
+
+    matched = Case("MultiSource/Applications/ClamAV",
+                   "MultiSource/Applications", "multi", "", [])
+    matched.klass = "fail"
+    matched.oracle_kind = "stdout"
+    matched.exit = 0
+    matched.expected_exit = 0
+    matched.stdout = b"a\n"
+    matched.expected_doc = b"a\nexit 0\n"
+    ok, why = iss265_evidence(matched, None, {})
+    if ok:
+        problems.append(f"admitted case without a mismatch accepted: {why}")
+    return problems
+
+
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
@@ -1953,6 +2229,24 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
                 note(case)
     results.sort(key=lambda c: c.cid)
 
+    # ISS-265 admission runs after the round: a ``fail`` may become
+    # ``known-fail`` only when its own row's live evidence holds.  The PRNG
+    # probe is built once per round here (sequentially), never inside the
+    # worker threads.
+    iss265_cache = {}
+    iss265_refused = []
+    for r in results:
+        if r.klass != "fail" or r.cid not in ISS265_ADMISSION:
+            continue
+        basis_ok, evidence = iss265_evidence(r, cfg, iss265_cache)
+        if not basis_ok:
+            iss265_refused.append(f"{r.cid}: {evidence}")
+            continue
+        r.klass = "known-fail"
+        r.known_fail_basis = ISS265_ID
+        r.known_fail_evidence = evidence
+        r.reason = f"{ISS265_ID} (per-case basis holds): {r.reason}"
+
     counts = {k: sum(1 for r in results if r.klass == k)
               for k in ("pass", "fail", "known-fail", "blocked", "excluded")}
     counts["excluded"] = len(excluded)
@@ -1975,19 +2269,31 @@ def run_round(cases, cfg, work_dir, jobs, args, excluded, progress=None):
     for r in results:
         if r.klass != "known-fail":
             continue
-        if r.known_fail_basis != ISS246_ID:
-            bad_known.append(f"{r.cid} (basis={r.known_fail_basis or 'none'})")
-            continue
-        ok, _evidence = iss246_evidence(r)
-        if not ok:
-            bad_known.append(f"{r.cid} (ISS-246 evidence does not hold)")
+        if r.known_fail_basis == ISS246_ID:
+            basis_ok, _evidence = iss246_evidence(r)
+        elif r.known_fail_basis == ISS265_ID:
+            basis_ok, _evidence = iss265_evidence(r, cfg, iss265_cache)
+        else:
+            basis_ok = False
+        if not basis_ok:
+            bad_known.append(f"{r.cid} (basis={r.known_fail_basis or 'none'} "
+                             f"does not hold)")
+    misrouted = [r.cid for r in results
+                 if r.klass == "known-fail" and r.known_fail_basis == ISS265_ID
+                 and r.cid not in ISS265_ADMISSION]
+    if misrouted:
+        bad_known.extend(f"{cid} (ISS-265 admission is per case)"
+                         for cid in misrouted)
+    admission_problems = iss265_admission_selfcheck()
     unexplained = [r.cid for r in results if r.klass == "fail"]
-    classification_ok = not bad_known
+    classification_ok = not bad_known and not admission_problems
     ok = (counts["fail"] == 0 and counts["blocked"] == 0 and closure_ok
           and classification_ok and cfg["census_ok"])
     return results, counts, dict(
         closure_ok=closure_ok, classification_ok=classification_ok,
-        bad_known=bad_known, unexplained=unexplained, ok=ok)
+        bad_known=bad_known, unexplained=unexplained,
+        iss265_refused=iss265_refused,
+        admission_problems=admission_problems, ok=ok)
 
 
 def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
@@ -2058,9 +2364,15 @@ def emit_round(cfg, cases, results, counts, audit, census, args, excluded,
     if not audit["closure_ok"]:
         emit(f"[FAIL] closure: executed {len(results)} case(s) != discovered "
              f"scope-A set {len(cases)}")
-    if not audit["classification_ok"]:
+    if audit["bad_known"]:
         emit(f"[FAIL] known-fail without live basis evidence: "
              f"{audit['bad_known']}")
+    if audit.get("admission_problems"):
+        emit(f"[FAIL] ISS-265 admission self-check (closed per-case table): "
+             f"{audit['admission_problems']}")
+    if audit.get("iss265_refused"):
+        emit(f"  ISS-265 rows refused (basis does not hold => stay fail): "
+             f"{audit['iss265_refused']}")
     if audit["unexplained"]:
         emit(f"[FAIL] unclassified failure(s) remain: {audit['unexplained']}")
 

@@ -201,3 +201,28 @@
 - **`excluded` 口径**：新增 `MultiSource/Applications/siod`（目标无 `linux`/`unix` 预定义 ⇒ 走 BSD 分支取 `d_namlen`，musl `struct dirent` 无该字段）与 `MultiSource/Benchmarks/MiBench/office-ispell`（BSD `<sgtty.h>`，musl 与语料均无）两条结构性排除，逐条 reason、不改语料/不补桩；`total`/`excluded`/`discovered` 自洽输出，登记项不再复现即审计 FAIL。
 - **平台缺口登记（新）**：`PLATFORM_GAP_SIGNATURES`（当前仅 `lemon`）——`first_error` 原文 `Error while running on: parse.y`，定性 = **运行时行为**（无编译/链接错，无上游脚本/外部工具需求；`lemon.c:4866` fork 子进程调用 `lemon_main`；宿主 cc 同源正常、`-O0`/最小输入 `example1.y` 均可复现 guest SIGSEGV）⇒ `blocked`（不记 `fail`），归属 = **新 issue 候选**（qemu-user guest SIGSEGV，与 `QEMU-063t` 的 hang、`ISS-267` 的编译/链接缺口根因不同）。`lua` 静态档停 `bench/process.lua`、动态档停 `bench/meteor.lua`（档内可复现）⇒ reason 写 `qemu killed by host signal 11 (qemu-user crash; see QEMU-063t)`、`blocked`（表值保留以便崩在更晚处仍可观察）。
 - **`CASE_PREPARE` 增补 lua**：复现上游 `lua_input` 自定义命令（`generate_inputs.sh` 生成 `moments-input400000.txt` 等）；缺它 `alltests.lua` 在 moments 处因缺文件退出（048t 470 s 的失败点）。
+
+## ISS-265 准入（2026-10-19）
+
+用户 2026-10-18 裁定 `ISS-265` 归 `known-fail`（原话「`ISS-265` 归 `known-fail`」）；本笔把判据落到驱动，**逐例准入、不按类放过**，不改动上文任何一轮的结论与 `048t` 的其他判据。
+
+- **准入表（`tools/testcases/run_llvm_ts_user.py` `ISS265_ADMISSION`）**：仅 3 例，每例带 `kind` + `why`（依据）/`api`：
+  - `MultiSource/Applications/ClamAV`（`interleave`）：实际与参考**同 38072 B / 2931 行、行多重集相同**，仅 `Initializing the engine (devel-20071218)` 与数据库年龄告警的相对位置不同（上游比较单一交错流）⇒ 交错敏感，非程序缺陷。
+  - `MultiSource/Applications/obsequi`（`prng`，`api=random`）：`init.c:63 srandom(1)`、`init.c:66 random()` 播 Zobrist 表；musl 的 lagged-Fibonacci 播种 ≠ glibc 16807/Schrage ⇒ 节点/cutoff 统计不同（`Winner found: 5000` 仍一致）。
+  - `MultiSource/Benchmarks/Ptrdist/ft`（`prng`，`api=rand`）：`ft.c:54 srandom->srand`、`graph.c:40 random->rand`；musl `rand()` = 64 位 LCG（`src/prng/rand.c`）≠ glibc `random()` 序列 ⇒ 图输出与参考 md5 不同（宿主 glibc 复现 `63acb35e…`，见 `.work/log/testcases/llvm-ts-user-ft-host-glibc.log`）。
+- **basis 必须现场成立**（不成立 ⇒ 保持 `fail`）：`ClamAV` 重算「同长 + 行多重集相等 + 确有 mismatch + exit 0」；`obsequi`/`ft` 重算「本单元源码活体 seed/取值调用扫描 + 用同一 clang/musl/qemu 编译运行探针，musl 的 `random()`/`rand()`（seed 1 后两值）≠ 宿主 glibc」。探针每档只建一次，失败即不准入。`md5` 参考形态退出码由哈希尾固定，本类要求 `exit 0`（裁定轮 exit 0/0）。
+- **反向校验（自检 `iss265_admission_selfcheck`，进 `classification_ok`）**：① 准入表键/`kind` 必须恰为上述 3 例；② 未列入的 case 即使文档呈「仅交错差」也判拒（不得被误判为 `known-fail`）；③ 已列入但 oracle 实为匹配的 case 同样判拒。任一不成立 ⇒ 审计 FAIL。
+- **复跑真值（2026-10-19，`--json-out` 落 `/tmp/opencode/tails-cleanup/`）**：
+  - 静态 3 例（`--jobs 3`）：`ClamAV`/`obsequi`/`ft` 全 `known-fail`，rc=0，`known-fail=3 fail=0`；每例报告 `basis: ISS-265 -- …` 含上列依据与探针数值（obsequi `262836907, 2022765545` vs `1804289383, 846930886`；ft `0, 740882966` vs `1804289383, 846930886`）。
+  - 动态抽取 1 例（`ft`）：`known-fail`、rc=0、依据同（动态档同样现场建探针）。
+  - 对照 1 例原本 `pass`（`SingleSource/Benchmarks/Shootout/hello`）：仍 `PASS`、rc=0，不受影响。
+- **修改文件**：`tools/testcases/run_llvm_ts_user.py`（准入表/依据重算/自检/审计）；本册；`.tao/knowledge/milestones.md`（`SPEC-141t` 标签同步 `M9`）。未改期望值、未改语料、未 `install-host`/重建，未 commit/push。
+- **engineer 自审（2026-10-19）**：① 首版要求 seed/draw 落在**同一文件** ⇒ `ft` 被误拒（`ft.c` 播种、`graph.c` 取值）⇒ 改为按单元跨文件累计（两处均命中才准入），复跑通过；② `classification_ok` 因自检失败而红时，报告误打印空的 `bad_known` ⇒ 改为仅 `bad_known` 非空才打印、自检失败单独一行；③ 探针只在准入表命中且该例 `fail`（或 `known-fail` 复审）时构建，且每档只建一次；④ 删除无用变量。证据脚本注入「第 4 行」→ 自检 FAIL、rc=1 → `cp` 还原、md5 相等 → 回绿。
+
+## 审阅记录
+
+#### 提交留痕（architect，2026-10-19）
+- **档位**：正常提交（`ISS-265` 准入实现完成；静态 3 例 + 动态 `ft` 抽验 `known-fail` rc=0、对照 `hello` 仍 pass；无 reviewer 判决，按尾清正常档）。
+- **提交号**：本笔 = `git log --oneline -1` 的「尾清：ISS-265 逐例准入…」；单笔约束下本留痕随该笔 amend 入册，故不自指哈希。
+- **文件集对账**：`--cached` 4 文件 = 完成区「修改文件」3（驱动 / 本册 / `.tao/knowledge/milestones.md`）+ `SPEC-141t` 册（M8→M9）⇒ 无漏提 / 多提 / 越界；显式 staging，未用 `git add -A`。
+- **未 push**。

@@ -197,10 +197,10 @@
 
 1. **达成**：项目里程碑 **M8 = 达成（2026-10-19）**；`INTEG-036m` 置 `里程碑`，判据 1–5 全满足（见其「完成区」）。M8 期 **68 册**任务全部终态（`已验证` 67 + `里程碑` 1）。
 2. **口径（M8 收口时生效）**：`long double` = **IEEE binary128**（`ADR-0030`；16 B、RF 双槽、高半在偶号）；汇编注释符 **`@@`**（`;` = 语句分隔符；`Toolchain-01` 0.5.3）；`rb2` = **帧指针**、无条件保留（删 `rbfp`/`rbgp`）；调用点 **SP 16 B 对齐**（`ADR-0018 C9 D3`，`ADR-0031 D7` 无条件）；变参 = **七字段三游标 + callee 快照**（`ADR-0031`）。
-3. **三套测试（两档，权威跑 `.work/tests/authoritative/`）**：`046t` **38/38 + 38/38**；`047t` 静态 **309/0/4/24**、动态 **312/0/4/21**（excluded 30；`known-fail 4` = TLS 3 + `strptime` 1；5 个 `long double` 已 pass）；`048t` 两档逐数同 **201/3/0/16/2**（discovered 222；3 `fail` = `ISS-265` 参考可移植性，用户裁定归 `known-fail`；`blocked 16` 逐条有根因）。
+3. **三套测试（两档，权威跑 `.work/tests/authoritative/`）**：`046t` **38/38 + 38/38**；`047t` 静态 **309/0/4/24**、动态 **312/0/4/21**（excluded 30；`known-fail 4` = TLS 3 + `strptime` 1；5 个 `long double` 已 pass）；`048t` 两档 **201/0/3/16/2**（discovered 222；**下一轮全量跑前按 `ISS-265` 逐例准入重算的预期 = `fail 0` / `known-fail 3`**〔准入前实测 `201/3/0/16/2`；静态 3 例 + 动态 `ft` 已抽验 `known-fail`，全量复跑待下一轮〕；`blocked 16` 逐条有根因）。
 4. **门控**：L1 rc=0、L2 rc=0、L3 rc=0；`check-patch-tree` **181**；收口秒级门控 rc 见 `INTEG-036m` 审阅记录。
 5. **未处置项（均不阻断 M8）**：`ISS-261`（`llvm-nm`）、`ISS-278`/`282`（日志存量搬迁/门控小遗留）、`ISS-288`/`289`（stale 证据/进程纪律）、`ISS-265`（`known-fail` 分类迁移）、`ISS-266`/`255`/`257`（qemu 宿主信号族）、`ISS-193`（picolibc 过滤表 stale 1 条）；**`M9` 面** = `ISS-252`/`246`/`260`、`LLVM-100t`。
-6. **归档**：`.tao/archive/M8/`（68 册 + `README.md` + `m8-retrospective.md` + `issues-closed.md` 52 条）；`SPEC-141t`（M8 标签、只读预研、未开工）留活。
+6. **归档**：`.tao/archive/M8/`（68 册 + `README.md` + `m8-retrospective.md` + `issues-closed.md` 52 条）；`SPEC-141t`（M9 标签、只读预研、未开工）留活。
 
 ## M9（规划）
 
