@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`SPEC-140t`（TP 硬依赖查证，已验证）、`INFRA-082t`（musl 静态端口，已验证）、`INFRA-085t`（动态端口 / `libc.so`，已验证）、`QEMU-062t`（`qemu-user` 运行面，已验证）
-**状态**：待验收
+**状态**：待返工
 
 > **编号（现场取号，2026-10-19）**：`infra` 现存最大 = `INFRA-094t` ⇒ 取 **`095`**（历史号含 M8 已归档册，`grep -rn 'INFRA-095' .tao/` 0 命中）。
 > **线程链位置（T1）**：用户 2026-10-19/20 裁定「这个任务链完成后，可以添加 thread 相关支持，注意：rb3 应该被用起来」⇒ 串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 `LLVM-117t`**。本册 = **musl 端口面**；不跑线程语义的 qemu 面扩展（T2）。
@@ -135,3 +135,10 @@
 - **提交**：`2381c33`（`INFRA-095t/T1：musl __clone + rb3=TP …`）；显式 staging **7 路径**，未用 `git add -A`。
 - **对账（对完成区「修改文件」）**：`components/musl/patches/src/thread/{clone.c.patch,dadao/clone.s.patch}`（新增）+ `components/musl/{series,changelog.md}` = 完成区声明 ✓；`.work/source/musl/**`、`.work/evidence/**` 为忽略区产物，不入 git（既定）✓；本册 `**状态**` + `milestones.md`（T1 行/未完成清单）+ `issues.yaml`（`ISS-293`）为收尾/台账，属 architect 范围 ✓。**无漏提 / 多提 / 越界**。
 - **异常披露**：`components/musl/changelog.md` 摘要写「父侧原样 `ret rd8,0`」，实际补丁为 `ret rd0,0`（完成区「新发现/坑 ①」已记该修复）⇒ 文案与实现不一致；按「文件集审核不核内容」未改，待处置。
+
+#### T1 返工登记（architect，2026-10-20；源 = `TESTCASES-052t` T3 实测）
+
+- **状态**：`待验收` → **`待返工`**（reviewer 未判决，但 T3 现场已证明本册产物有真 bug，故先行登记）。
+- **返工项（`ISS-295`，P1）**：`src/thread/dadao/clone.s` 子侧**无条件**把第 7 个实参 `tls` 装进 `rb3`；而 `src/process/posix_spawn.c:198` 只传 4 个实参（`child/stack/flags/&args`）⇒ `ptid/tls/ctid` 为未指定变参（`rb19`–`rb21` 残留）⇒ vfork 子进程 TP 垃圾 ⇒ `posix_spawnp → __execvpe` 首条写 `errno`（TP 相对）即 SIGSEGV。
+- **修法（待 engineer 按现场裁量）**：仅当 `flags & CLONE_SETTLS` 时才装 `rb3`，否则保持父侧 TP（内核语义）；验收须新增「4 参 `__clone` 下子进程 TP == 父 TP」与「`posix_spawnp` 子进程可达 `execve`」两条断言（后者为可达 FAIL 的反例路径）。
+- **证据指针**：`TESTCASES-052t` 完成区「新发现/坑 ①」；`/tmp/opencode/TESTCASES-052t/probe-clone4b.c`、`spawn.strace.err`（易失，复核用 `.work/evidence/TESTCASES-052t/`）。

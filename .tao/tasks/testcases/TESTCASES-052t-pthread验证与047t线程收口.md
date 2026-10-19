@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M9
 **依赖**：`INFRA-095t`（T1：musl `__clone` + TP）、`QEMU-065t`（T2：qemu-user 线程语义）、`TESTCASES-047t`（libc-test 两档驱动与基线）、`TESTCASES-049t`（动态档 `-fPIC` 口径）、`INFRA-093t`（`--json-out` / `--work-dir` 运行产物规矩）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-19）**：`testcases` 现存最大 = `TESTCASES-051t`（M8 已归档）⇒ 取 **`052`**（`grep -rn 'TESTCASES-052' .tao/` 0 命中）。
 > **线程链位置（T3）**：串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 `LLVM-117t`**。本册只做 **验证/计数/证据**；不改语料、不改期望值、不放宽分类。
@@ -98,13 +98,56 @@
 5. **改期望值 / 把 fail 归入 `known-fail` / 扩 `excluded`** ✗（严格禁止）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+
+**测试结果**：线程子集两档实跑（每档 20 例 = 19 目标 + `pthread_create-oom`；各 3 次一致）：
+- 静态：14 pass / 1 fail / 5 blocked（19 目标 = 14 / 1 / 4）；动态：14 pass / 1 fail / 5 blocked（19 目标 = 13 / 1 / 5）；两档驱动 rc=1（真 FAIL）。
+- `ISS-294`（假原子）**不是**这 19 例的失败根因：0 例。旁证：`functional/pthread_cond` 直接跑 40 次有 1 次 20 s 挂死（flake，方向同族），其余 39 次过。
+- 与 T3 目标（19/19 pass）的差距：静态 **14/19**、动态 **13/19**。
+
+| 定性 | 用例 | 根因 |
+| --- | --- | --- |
+| 真 pass | 13 例两档均过（`pthread_cancel`/`pthread_cancel-points`/`pthread_cond`/`pthread_mutex`/`pthread_tsd`/`sem_init`/`pthread_cancel-sem_wait`/`pthread_cond-smasher`/`pthread_exit-cancel`/`pthread_exit-dtor`/`pthread_once-deadlock`/`pthread_rwlock-ebusy`/`raise-race`），静态另加 `popen` | 线程基础设施（clone/TP/futex/信号/取消）够用 |
+| `ISS-294` 假原子 | 无（19 例 0 命中） | 仅 `pthread_cond` 1/40 次挂死疑似同族，未定论 |
+| 其它 · `ISS-295` | `spawn`（两档）、`popen`（动态） | `__clone` 变参 `tls` 未传却无条件写 `rb3` ⇒ 子进程 TP 垃圾 ⇒ `__execvpe` 写 `errno` SIGSEGV |
+| 其它 · `ISS-296` | `pthread_mutex_pi`（两档） | qemu `FUTEX_LOCK_PI` → `ESRCH`（guest TID 未翻译） |
+| 其它 · `ISS-297` | `pthread_robust`、`pthread-robust-detach`（两档） | qemu `get_robust_list` 恒 `ENOSYS`（上游设计） |
+| 其它 · `ISS-298` | `pthread_cond_wait-cancel_ignored`（两档） | 阻塞 futex 上的 SIGCANCEL 被 `SA_RESTART` 重启、取消丢失 |
+| `ISS-257` flake | `pthread_create-oom` | 静态 `blocked`（host SIGTRAP，3/3）/ 动态 `pass`（3/3） |
+
+**修改文件**：`tools/testcases/report_thread_cases.py`（新增，报告工具）；`.tao/knowledge/issues.yaml`（`ISS-252`/`ISS-257` 追加现场 + 新立 `ISS-295`–`ISS-299`）；本册；`.work/evidence/TESTCASES-052t/{run.sh,check_thread_truth.py,expect.json}`（不入 git）。
+**验收结果**：`.work/evidence/TESTCASES-052t/run.sh`（full）rc=0，跑了 2 次；逐项 PASS；注入 2 处（计数谎报 / 错标根因）各自 `check rc=1` → `cp`+md5 还原 → rc=0。门控 rc：`check_tasks`/`check_milestones_fresh`/`check_knowledge_refs`/`check_issues`/`check_run_artifacts`/`make check`（L1）全 0。
+**新发现/坑**：① 驱动 `attribute_port_gaps()` 的 `uses_thread → blocked` 兜底仍是 T1 前口径，把真根因盖成「no __clone」（4 例 × 2 档，`ISS-299`）；② 静态 `popen` 过、动态不过的分野 = 子进程是否在 `execve` 前碰 `errno`（TP 垃圾才暴露）；③ 本册「根因落 T1/T2 ⇒ 停册」与本次派单（继续跑、逐条定性、立新 issue）冲突，按派单执行。
+**遗留问题**：① **阶段 B（全量两档）未跑** ⇒ 验收标准 2（逐例无回归）未判；② `ISS-252` **保持 open**（20 例全 pass 未达，残余根因已分解）；③ `ISS-294` 在本子集无失败实例，其阻塞面需另找载体（并发计数探针，见 `QEMU-065t`）；④ 任务状态未改（派单要求）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
+
+**范围**：`tools/testcases/report_thread_cases.py`（新）、`issues.yaml`（+5 新条 / 2 条追加）、证据脚本 3 件、本册数据。
+**逐行审查**
+1. `report_thread_cases.py`：`index_cases` 对缺例/重例直接 rc=2（不静默缩小集合）；`TARGET_CASES` 带 19/唯一性断言；`reason_of` 取 `reason||first_error` 并压平换行；`--baseline-*` 缺席时 drift 记 `n/a`，不伪造基线。
+2. `check_thread_truth.py`：计数由逐例 `klass` 现场统计（`derived`），不写死总数；`other=` 防未知 klass 混入；「非 pass 集合」+「载荷签名」双断言；`pass` 必须 `exit=0`。
+3. `run.sh`：`set -u`、无 `tee`；check 步骤用 `${PIPESTATUS[0]}` 取被检命令自身 rc；注入用 `cp` + md5 前后对账（禁 `git checkout/restore/stash`），并把「注入前后 md5 相同 ⇒ 空注入」判 FAIL；`--inject` 复用落盘 JSON 便于复核。
+4. `issues.yaml`：只追加 `notes` / 新增条目，未改既有状态；`check_issues` rc=0（58 open / 13 closed）。
+5. 数据一致性：三次数值一致（静态 14/1/5、动态 14/1/5）；`ISS-294` 归零有正反两面证据（19 例无丢更新类断言失败；`pthread_cond` 1/40 挂死）。
+**自审发现与处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| F1 报告里 `counts:` 易被误读为全套件计数 | ✅已修 | 改为 `counts (thread subset):`，同步 `run.sh` 的 grep | `report rc=0`，两档计数行正确 |
+| F2 `n_block = 19 - pass - fail` 会把 known-fail 静默算成 blocked | ✅已修 | 改为逐 klass 统计 + `other=` 断言 | `--inject` 重跑：`derived` 一致、`other=[]` |
+| F3 `run.sh` 有死代码 `note()`、`grep` 转义写成 `\\(` | ✅已修 | 删死代码；改单反斜杠分组 | full 重跑 rc=0 |
+| F4 动态 `popen` 的 141 与子进程 139 易混为一因 | ✅已修（口径） | 完成区与 `ISS-295` 明写「子 139 先发生，qemu 141 为次生」 | `dyn-popen.strace` 子 SIGSEGV 先于父退出 |
+
+**判决**：实现范围内 finding 全修；**遗留**（阶段 B 未跑、`ISS-252` 保持 open、状态未改）已在完成区登记，故未标 `待验收`（派单要求）。
+
 #### 第 1 轮 reviewer 验收
+
+#### 提交审核（architect，2026-10-20）
+
+- **档位**：正常提交（派单给定提交信息；reviewer 尚未判决）⇒ `855a1f8`；分支 `TESTCASES-052t`，**未 push**。
+- **文件集**：显式 staging **5 路径**（未用 `git add -A`/`.`）：本册、`.tao/knowledge/{issues.yaml,milestones.md}`、`INFRA-095t` 册、`tools/testcases/report_thread_cases.py`（新增，`py_compile` rc=0）。
+- **对账（对完成区「修改文件」）**：本册 + `issues.yaml`（`ISS-252`/`257` 追加 + `ISS-295`–`299`）+ 新工具 = 声明 ✓；`.work/evidence/**` 为忽略区产物，不入 git（既定）✓。**多提 2 项（architect 台账范围，已披露）**：`milestones.md`（T3 行 + T1 待返工 + `ISS-295` 紧接下一件）、`INFRA-095t` 册（`**状态**` → `待返工` + 返工登记段）。**无漏提 / 无越界**。
+- **状态**：本册 `待开始` → `待验收`（派单要求）。
+- **门控**：`check-patch-tree` **183** ✓、`check-milestones-fresh`/`check-tasks`/`check-knowledge-refs`/`check_issues` ✓、`make check`（L1）rc=0。
+- **异常披露**：① 阶段 B（全量两档）**未跑** ⇒ 验收标准 2（逐例无回归）未判；② reviewer 独立验收未做；③ 完成区「验收结果」所述证据脚本与注入记录均在 `.work/evidence/**`（易失），本册只留结论。
