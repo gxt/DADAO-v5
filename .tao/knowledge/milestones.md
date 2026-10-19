@@ -34,7 +34,7 @@
 
 > **未完成任务册（线程链 5 册 + 原 M9 项 2 册）**
 > - `INFRA-096t`：`M9` / `ISS-293` 真根因（builtins 归档陈旧）+ 新鲜度门控（`待验收`）
-> - `INFRA-095t`：`M9` / **T1** musl `__clone` + TP（`待返工`：**T1 需返工** —— `ISS-295` 子侧无条件写 `rb3`；**紧接的下一件**）
+> - `INFRA-095t`：`M9` / **T1** musl `__clone` + TP（`待验收`：返工完成（`ISS-295`）—— `rb3` 仅 `CLONE_SETTLS` 时写）
 > - `QEMU-065t`：`M9` / **T2** qemu-user 线程语义（`待验收`）
 > - `TESTCASES-052t`：`M9` / **T3** pthread 验证与 047t 线程收口（`待验收`；静态 14/19、动态 13/19）
 > - `LLVM-100t`：`M9` / **T4** 静态 `__thread` TLS codegen + 静态档 3 例（`待开始`）
@@ -46,7 +46,7 @@
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
 | INFRA-096t | 待验收 | 2026-10-20 01:40（登记） | ISS-293 真根因 = builtins 归档陈旧：clean 重建 + 三份副本同源 + 新鲜度门控 + `libc.so` 重链戳记 |
-| INFRA-095t | 待返工 | 2026-10-19 23:40（登记） | T1 musl `__clone`+TP：探针/补丁 183 已落；T3 实测 4 参 `__clone` 子侧 TP 垃圾 ⇒ 需返工（`ISS-295`） |
+| INFRA-095t | 待验收 | 2026-10-19 23:40（登记） | T1 返工完成（`ISS-295`）：`rb3` 仅 `CLONE_SETTLS` 时写；spawn/popen 两档 2/2、T3 14/14 |
 | LLVM-117t | 待开始 | 2026-10-19 23:40（登记） | T5 动态 TLS 10/11/12 发射 + `dlopen` 4 例；关 `ISS-260` |
 | QEMU-065t | 待验收 | 2026-10-19 23:40（登记） | T2 qemu-user 线程语义：clone/TLS/futex/exit/信号；并发互斥丢更新 ⇒ 根因 musl `a_cas` 假原子（另立 ISS-294） |
 | TESTCASES-052t | 待验收 | 2026-10-19 23:40（登记） | T3 线程用例度量：20 例（19 目标）两档 14 pass/1 fail/5 blocked；`ISS-294` 挡 0 例；残余根因 5 条（`ISS-295`–`299`） |
@@ -218,7 +218,7 @@
 
 ## M9（规划）
 
-> M9 **实现未全面开工**；本小节记**用户已定向的候选/裁定**与**已立任务**，细则指针到任务书。**开工条件** = 用户逐条授权 + ISA `ADR`（本小节**不构成** `spec/` 授权 ✗）。**现行状态（2026-10-19）**：ISA 链 `SPEC-152t`/`LLVM-116t`/`QEMU-064t` **已完成**（`待验收`，待主会话置 `已验证`）；**线程链 T1–T5 已立册**（T1 `INFRA-095t` = `待返工`〔`ISS-295`，紧接下一件〕、T2 `QEMU-065t` / T3 `TESTCASES-052t` = `待验收`、T4/T5 = `待开始`；见下「M9 线程支持链」）。
+> M9 **实现未全面开工**；本小节记**用户已定向的候选/裁定**与**已立任务**，细则指针到任务书。**开工条件** = 用户逐条授权 + ISA `ADR`（本小节**不构成** `spec/` 授权 ✗）。**现行状态（2026-10-19）**：ISA 链 `SPEC-152t`/`LLVM-116t`/`QEMU-064t` **已完成**（`待验收`，待主会话置 `已验证`）；**线程链 T1–T5 已立册**（T1 `INFRA-095t` = `待验收`〔返工完成 `ISS-295`〕、T2 `QEMU-065t` / T3 `TESTCASES-052t` = `待验收`、T4/T5 = `待开始`；见下「M9 线程支持链」）。
 
 - **M9 先加该指令 = `ror`/`rori`（单向）**（用户 2026-10-17 裁定；**不含** `rol` ✗）。**原话**（**逐字**，渠道 = 经主会话问答，2026-10-17）：「**可以，M9先加该指令，记一下，我想问一句，你会记在哪里？另外，这条指令应该只需要一个方向吧**」。**依据指针** = `.tao/tasks/spec/SPEC-141t-ISA指令扩展预研.md §追加候选（2026-10-17）`——候选 A：形态 `orrr`（寄存器量）+ `orri`（`immu6` 0–63，非 one-hot）、收益实测（常量 5→1 / 变量 ~9→1；来源 = 2026-10-17 构建树 clang `-O2` 实测）、六环代价、被否项（`fshl`/`fshr` 本轮不取 + `rol` 冗余）；同节候选 B = `bswap64` 用 `rev.o` `k=3`（**1 条**、零新指令、可单独立小任务）。**状态 = 仅记录候选**：未改 `spec/`、未立 ISA `ADR`、未立执行任务。
 
@@ -245,7 +245,7 @@
   3. **T3 `TESTCASES-052t`（pthread 验证）**：硬指标 = 047t **19 条 thread 用例转 pass**（`--filter` 或全量，显式 `--json-out` 落 `/tmp`）+ 其余逐例不变；关 `ISS-252`。〔2026-10-20 实测：静态 **14/19**、动态 **13/19** ⇒ 硬指标未达；`ISS-252` 保持 `open`（残余根因已分解 `ISS-295`–`298`）；阶段 B（全量两档）未跑。〕
   4. **T4 `LLVM-100t`（静态 `__thread`）**：`TLSSupported=true` + 后端 `GlobalTLSAddress`（local-exec：`TP + offset`，TP=`rb3`）；`install-host` 前置；验收 = `functional/{tls_align,tls_init,tls_local_exec}` **静态档 3/3 pass** + `_Thread_local` 探针（初值/偏移手算独立 oracle）。
   5. **T5 `LLVM-117t`（动态 TLS + `dlopen`）**：`TLS_DTPMOD`=10/`DTPREL`=11/`TPREL`=12 发射（`INFRA-085t` 推迟的 `D2`）+ `ISS-260` 4 例 + `tls_get_new-dtv`；验收 = 4 例动态档 pass/有据分类 + `tls_align` 动态档 pass + 逐例无回归。
-- **〔2026-10-20，T3 实测更新〕T1 需返工（`ISS-295`，P1）= 紧接的下一件**：`clone.s` 子侧**无条件**写 `rb3`，而 `src/process/posix_spawn.c` 只传 4 个实参 ⇒ `tls` 是未指定变参 ⇒ 子进程 TP 垃圾 ⇒ `__execvpe` 写 `errno` 即 SIGSEGV（`functional/spawn` 两档、动态 `functional/popen`）。修法 = 仅 `flags & CLONE_SETTLS` 时才装 `rb3`，否则保持父侧 TP（内核语义）；**在 `INFRA-095t` 内返工、不新开册**；返工完成后再启 T4/T5。
+- **〔2026-10-20，T3 实测更新〕T1 需返工（`ISS-295`，P1）= 紧接的下一件**：`clone.s` 子侧**无条件**写 `rb3`，而 `src/process/posix_spawn.c` 只传 4 个实参 ⇒ `tls` 是未指定变参 ⇒ 子进程 TP 垃圾 ⇒ `__execvpe` 写 `errno` 即 SIGSEGV（`functional/spawn` 两档、动态 `functional/popen`）。修法 = 仅 `flags & CLONE_SETTLS` 时才装 `rb3`，否则保持父侧 TP（内核语义）；**在 `INFRA-095t` 内返工、不新开册**；返工完成后再启 T4/T5。〔2026-10-20 执行完毕〕返工完成（`ISS-295`）：`clone.s` 子侧按 `CLONE_SETTLS`（`0x00080000`）条件化写 `rb3`，`spawn`/`popen` 静态/动态各 2/2 pass，`ISS-295` closed。
 - **口径/边界**：`rb3` 在 **T1 就真正用上**（不是占位）；**不改 `spec/`**（本批是实现的补齐；若判需改 ⇒ 停下报告）；T5 因「llvm + infra + testcases 三面」**不拆册**（用户已定 T1–T5 五册；跨模块在 T5 册内逐面披露）。**T4/T5 对 2026-10-17「随 LLVM-100t 收编」的订正**：静态 TLS 归 `LLVM-100t`，**`dlopen` 4 例与动态 10/11/12 归 `LLVM-117t`**（`ISS-260` 的 `resolved_by` 应为 `LLVM-117t`）。
 - **登记的跨模块影响**：T1 只动 `components/musl/**`；T2 只在必要时动 `components/qemu/**`；T3 只动验证/证据；T4/T5 动 `components/llvm-project/**`（T5 另可能动 musl/驱动）。同改共享文件的任务**串行**（T1→T2→T3→T4→T5），不得并行。
 - **台账 issue**：`ISS-292`（`scope: [infra]`、P2）指向本链 5 册；`ISS-252` 由 T3 关、`ISS-246` 由 T4 关、`ISS-260` 由 T5 关（三者均保持 `open` 直到对应任务验收）。

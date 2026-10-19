@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`SPEC-140t`（TP 硬依赖查证，已验证）、`INFRA-082t`（musl 静态端口，已验证）、`INFRA-085t`（动态端口 / `libc.so`，已验证）、`QEMU-062t`（`qemu-user` 运行面，已验证）
-**状态**：待返工
+**状态**：待验收
 
 > **编号（现场取号，2026-10-19）**：`infra` 现存最大 = `INFRA-094t` ⇒ 取 **`095`**（历史号含 M8 已归档册，`grep -rn 'INFRA-095' .tao/` 0 命中）。
 > **线程链位置（T1）**：用户 2026-10-19/20 裁定「这个任务链完成后，可以添加 thread 相关支持，注意：rb3 应该被用起来」⇒ 串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 `LLVM-117t`**。本册 = **musl 端口面**；不跑线程语义的 qemu 面扩展（T2）。
@@ -142,3 +142,32 @@
 - **返工项（`ISS-295`，P1）**：`src/thread/dadao/clone.s` 子侧**无条件**把第 7 个实参 `tls` 装进 `rb3`；而 `src/process/posix_spawn.c:198` 只传 4 个实参（`child/stack/flags/&args`）⇒ `ptid/tls/ctid` 为未指定变参（`rb19`–`rb21` 残留）⇒ vfork 子进程 TP 垃圾 ⇒ `posix_spawnp → __execvpe` 首条写 `errno`（TP 相对）即 SIGSEGV。
 - **修法（待 engineer 按现场裁量）**：仅当 `flags & CLONE_SETTLS` 时才装 `rb3`，否则保持父侧 TP（内核语义）；验收须新增「4 参 `__clone` 下子进程 TP == 父 TP」与「`posix_spawnp` 子进程可达 `execve`」两条断言（后者为可达 FAIL 的反例路径）。
 - **证据指针**：`TESTCASES-052t` 完成区「新发现/坑 ①」；`/tmp/opencode/TESTCASES-052t/probe-clone4b.c`、`spawn.strace.err`（易失，复核用 `.work/evidence/TESTCASES-052t/`）。
+
+#### T1 返工完成（engineer，2026-10-20；`INFRA-095t-rework` / `ISS-295`）
+
+- **开工**：`INFRA-095t-rework`（自 `master` `6818034`），开工时 `status -uall` 干净。
+- **改法**：`src/thread/dadao/clone.s` 子侧先判 `flags & CLONE_SETTLS`：`set.zw rd9, wp1, 8` + `and.o rd9, rd16, rd9` + `br.z {rd9}?, [rb0, .Lno_tls]`；仅置位才 `rb2rb {rb3}, {rb20}`，未置位**完全不碰** `rb3`（子进程继承父 TP）。依据 = 内核/qemu 语义 `if (flags & CLONE_SETTLS) cpu_set_tls(...)`（`linux-user/syscall.c:7056/7146`）；上游各 arch `clone.s` 只把 `tls` 交给内核、从不无条件写 TP。**注：派单中的 `0x8` 系笔误，`CLONE_SETTLS` = `0x00080000`（musl `include/sched.h:64`）。**
+- **真值**：C1 static/dynamic rc=0；C2 static（带 `CLONE_SETTLS`）`child_tp=0x5a5a0000` 逐位、父 TP 不变；C2 dynamic `TP-self=200`；4 参无 SETTLS 探针（与 `posix_spawn` 同形）`child_tp==parent_tp=0x4bef8` 且子侧写 `errno` 成功；`functional/spawn`+`popen` 静态 2/2、动态 2/2；T3 上轮 14 个 static pass 逐例复跑 14/14。
+- **注入（可达 FAIL ≥2，`cp`+md5 还原）**：① 加回无条件 `rb2rb {rb3},{rb20}` ⇒ 4 参探针子进程崩（`poll=0`）/FAIL → 还原 → PASS；② 删 `clone.s` + 恢复通用 `-ENOSYS` ⇒ `pthread_create rc=11`/FAIL → 还原 → PASS。
+- **门控**：`check-patch-tree` rc=0（5 组件 **183** patches、`series` 24）、`check-musl-freshness`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-issues` + `make check`（L1）均 rc=0。证据：`.work/evidence/INFRA-095t-rework/run.sh`（default/--inject 均 rc=0）；日志 `.work/log/infra/INFRA-095t-rework-*.log`。
+- **状态**：按派单**不改** `**状态**`（保持 `待返工`，待 architect/reviewer 处置）。
+
+#### 第 2 轮 engineer 自审（返工，2026-10-20）
+
+- 逐行核对 `clone.s` 子侧：`set.zw rd9, wp1, 8`（= `0x00080000`）→ `and.o rd9, rd16, rd9` → `br.z` 跳过写入；`objdump` 确认 `br.z` 目标 = `.Lno_tls`、`and.o` 操作数均为 RD bank；父侧/子侧其余路径未改。
+- 核对依据：musl `include/sched.h:64` 的 `CLONE_SETTLS 0x00080000`；qemu `linux-user/syscall.c` 的 `if (flags & CLONE_SETTLS) cpu_set_tls(...)`；`posix_spawn.c:198` 的 4 参调用。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| 派单写 `CLONE_SETTLS = 0x8` | ✅已纠正并披露 | 用 `0x00080000`（musl 头文件），源码/完成区注明笔误 | `notls` 探针 PASS、SETTLS C2 PASS |
+| `notls` 探针初版用全局变量回传，qemu 以 `fork()` 模拟 vfork ⇒ COW 看不到子进程写 | ✅已修 | 改为 pipe + `poll` 回传（共享内核对象） | `child_tp==parent_tp=0x4bef8`，`n=16` |
+| 动态档无法直接调 hidden `__clone` | ✅按 T1 原口径 | 动态用 `pthread_create` + `TP-self==sizeof(struct pthread)` 一致性 | `delta=200` |
+| 条件判据的机器可验证性 | ✅已加 | 证据脚本断言 `and.o`+`br.z` 存在、`rb3` 写入恰 1 处，并以 4 参探针行为作 oracle | default/--inject 均 rc=0 |
+
+判决：返工范围内 finding 全修；无未修项。状态按派单保持 `待返工`。
+
+#### 返工提交（architect，2026-10-20）
+
+- **档位**：`待验收`（未 Accepted）⇒ 提交信息按派单给定；commit `9158f6c`（分支 `INFRA-095t-rework`）。
+- **文件集（显式 staging 5 项）**：`components/musl/patches/src/thread/dadao/clone.s.patch`、`components/musl/changelog.md`、本册（`**状态**` + 返工记录）、`.tao/knowledge/issues.yaml`（`ISS-295` closed）、`.tao/knowledge/milestones.md`（T1 行/清单/§M9）⇒ 对账返工范围：**无漏提 / 多提 / 越界**；`.work/**` 为忽略区（日志/证据不入 git）。
+- **architect 复跑**：`check-patch-tree` rc=0（5 组件 **183** patches）、`check-tasks`/`check-knowledge-refs`/`check-no-residue` rc=0、`tools/infra/check_issues.py` rc=0（57 open / 14 closed）、`make check`（L1）rc=0；日志 `.work/log/infra/INFRA-095t-arch-*.log`。

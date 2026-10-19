@@ -1,9 +1,9 @@
 diff --git a/src/thread/dadao/clone.s b/src/thread/dadao/clone.s
 new file mode 100644
-index 0000000..0115cd2
+index 0000000..88b90be
 --- /dev/null
 +++ b/src/thread/dadao/clone.s
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,116 @@
 +@@ DADAO __clone: create a thread and install its thread pointer.
 +@@
 +@@ int __clone(int (*func)(void *), void *stack, int flags, void *arg,
@@ -44,14 +44,24 @@ index 0000000..0115cd2
 +@@ (qemu's cpu_loop writes only rd8; a syscall ABI does the same), so the
 +@@ child still sees the tls argument in rb20.
 +@@
-+@@ ## Child side: rb3 (rbtp) must receive the tls argument explicitly
++@@ ## Child side: rb3 (rbtp) is installed only for CLONE_SETTLS
 +@@
 +@@ TP = rb3 (contract-abi.md §1.3, rbtp; arch/dadao/pthread_arch.h).  The
-+@@ kernel/qemu installs it for CLONE_SETTLS, but this stub does not rely on
-+@@ that: right after the child is distinguished (rd8 == 0) it writes the
-+@@ tls argument into rb3 itself.  That write is what makes TP usable on any
-+@@ clone provider, and it is the property INFRA-095t's probe checks with a
-+@@ constant tls value.
++@@ kernel installs the tls argument only when CLONE_SETTLS
++@@ (0x00080000; include/sched.h:64) is in flags -- qemu does the same
++@@ (`if (flags & CLONE_SETTLS) cpu_set_tls(...)` in do_fork).  This stub
++@@ mirrors that condition exactly: with CLONE_SETTLS set the child writes
++@@ the tls argument into rb3 itself (so TP does not depend on the clone
++@@ provider); with the flag clear it must NOT touch rb3 and the child keeps
++@@ the parent's TP, which is the kernel behaviour.
++@@
++@@ The conditional matters: posix_spawn() calls
++@@ __clone(child, stack, CLONE_VM|CLONE_VFORK|SIGCHLD, &args) with only four
++@@ arguments, so ptid/tls/ctid are simply not passed (rb20 is leftover
++@@ garbage).  Writing that garbage into rb3 gave the vfork child an invalid
++@@ TP and __execvpe()'s first errno write faulted (ISS-295).  Writing rb3
++@@ unconditionally is therefore wrong even though pthread_create() always
++@@ sets CLONE_SETTLS.
 +@@
 +@@ ## Layout of the child stack
 +@@
@@ -90,8 +100,13 @@ index 0000000..0115cd2
 +
 +	br.nz	{rd8}?, [rb0, .Lparent]
 +
-+	@@ Child: rb1 = newsp, rd8 = 0.  Install TP before entering C code.
++	@@ Child: rb1 = newsp, rd8 = 0.  Install TP only when CLONE_SETTLS
++	@@ (0x00080000) was requested; otherwise leave the inherited rb3 alone.
++	set.zw	rd9, wp1, 8
++	and.o	rd9, rd16, rd9
++	br.z	{rd9}?, [rb0, .Lno_tls]
 +	rb2rb	{rb3}, {rb20}
++.Lno_tls:
 +	ld.o	rb17, [rb1, 0]
 +	ld.o	rb16, [rb1, 8]
 +	call	[rb17, rd0, 0]
