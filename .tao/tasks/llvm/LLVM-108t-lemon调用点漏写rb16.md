@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`ISS-277`（本册对应 issue，`open`；源 = `QEMU-063t` 逐例诊断）、`ISS-269`（登记源）、`contract-abi §4.1`（参数寄存器：指针走 `rb16–rb31`）/`§4.2`（指针类参数用基址寄存器）、`QEMU-063t`（现场与证据）、`LLVM-102t`（同文件 `reassignDADAOArgLocs` 最近改动）、`LLVM-107t`（同族 caller/callee 类型口径）
-**状态**：待开始
+**状态**：待验收
 
 > **立册口径（2026-10-19，architect）**：本册**不以「已确认的后端 miscompile」立册** —— 现场先要判定「后端 bank 分配缺陷」还是「K&R 无原型调用在 bank 分离 ABI 上的语义缺口」。二者处置不同（见「修法候选」与验收 1）。
 
@@ -128,16 +128,19 @@ int(*f)(int);
 7. 判 (B) 时 `check-patch-tree` / `check-index-blobs` / `check-source-state` 须绿（改 `components/**` 的补丁集完整性）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：分类结论 = **(C) 语料 UB**（非后端缺陷、非 qemu 缺陷）。`lemon.c:334` 的无原型声明下，`Configtable_clear(0)` 的实参经默认实参提升仍为 `int`（C11/N1570 6.5.2.2p6：无原型声明只做默认实参提升；p8：不做其它隐式转换，指针形参永远不会被形成）；`lemon.c:4839-4840` 的定义形参为 `int(*f)(struct config *)`，提升后二者不兼容且不落入 p6 两条例外 ⇒ **UB**。证据：语料 IR `tail call void @Configtable_clear(i32 noundef 0)` 对 `define … @Configtable_clear(ptr … %f)`；最小例 K&R 汇编只有 `set.zw rd16, wp0, 0x0`、无 `rd2rb {rb16}`，带原型对照为 `rd2rb {rb16}, {rd4}`；x86-64 `xorl %edi,%edi` / riscv64 `li a0,0`（int 与指针共寄存器）⇒ 偶然通过（仅对照，非 oracle）；DADAO 定点：048t `lemon.elf` 的 `buildshifts` 0x24e9c 调 0x31e80，前 16 条只写 `rd16`、无写 `rb16`，callee 入口 `rb2rb {rb32}, {rb16}` ⇒ 读到栈上残留指针（QEMU-063t 现场 `0x7ffff71fdaf0`）。契约 §4.1/§4.2：i32→`rd16`、指针→`rb16`，参数按类型分 bank、不共享槽位 ⇒ 后端忠实执行 IR，无违反。
+**修改文件**：`tools/testcases/run_llvm_ts_user.py`（lemon 的 `PLATFORM_GAP_SIGNATURES` reason 改为语料 UB 精确归因；两处 blocked reason 前缀 `platform gap:` → `blocked:`；klass/计数/签名判定未动）；`.work/evidence/LLVM-108t/run.sh`（新增，gitignored；default + `--inject`）；`.work/log/llvm/LLVM-108t-*.{log,txt}`（证据，gitignored）；本任务书完成区/自审。**未改** codegen/`components/**`/`contract-abi`/`spec/`/语料。
+**验收结果**：`lemon` 048t 静态档 rc=1（该档 `blocked>0 ⇒ rc=1` 的既定口径）、`klass=blocked`、`first_error=Error while running on: parse.y`、reason 含 `corpus undefined behaviour`/`6.5.2.2p6`/`corpus UB (ISS-277)` 且不再以 `platform gap:`/ISS-269 归因；计数与改前逐项一致（pass 0/fail 0/known-fail 0/blocked 1/excluded 2/total 1）。048t 抽样 5 例（hello、gemm、12-IOtest、bh、01-qbsort）静态档 `total=5 pass=5 fail=0 blocked=0`、rc=0（`/tmp/opencode/LLVM-108t/sample.json`）。证据脚本 `.work/evidence/LLVM-108t/run.sh` default rc=0、`--inject` rc=0（3 处可达 FAIL：原型替换令 i32/rb16 断言红；旧 reason 令 JSON 断言红；删 `set.zw rd16` 令 objdump 断言红；均 cp+md5 临时副本，未动真实文件）。门控各留 rc：`make check`(L1) 0、`check_tasks` 0、`check_knowledge_refs` 0、`check_issues` 0。
+**新发现/坑**：① 旧 reason 的「qemu-user guest SIGSEGV / ISS-269」只是症状，真正根因是语料 UB；SIGSEGV 是间接调用到栈地址的后果。② 判 C 的独立 oracle = 同一调用在带原型下的 IR/汇编对照 + 标准 p6，不能拿 x86/riscv 的偶然通过当 oracle。③ 旧 reason 的「260 runs」与现场输入数不符（每个输入各打一行），改为「every input」，不写死计数。④ 048t 驱动对 `blocked>0` 返回 rc=1，单例 lemon 的期望 rc 是 1 不是 0。
+**遗留问题**：无（未修实现、未改语料；`**状态**` 按派发要求保持 `待开始`，由主会话收尾）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+- 逐行核对 driver diff：只改 reason 文本、注释与两处前缀；`klass`、五类计数、签名匹配逻辑未动；`py_compile` rc=0。
+- 分类链自洽：IR(`i32 0`) → DADAO asm（仅 `rd16`）→ callee（`rb16`）→ 栈上残留指针；带原型对照写 `rb16`；标准条款支撑；x86/riscv 仅作对照。
+- 修正初稿错误：曾误引 p9（本例函数类型其实兼容，UB 在调用点 p6），已删；「260 runs」改为「every input」；证据脚本 injection C 初版未真正让 objdump 断言变红，已改为对注入副本重跑同一 checker（现 rc=1）。
+- 证据脚本 default/inject 均 rc=0；注入均为真红后回绿，未用 `git checkout/restore/stash`。
 
 #### 第 1 轮 reviewer 验收
 （待填）

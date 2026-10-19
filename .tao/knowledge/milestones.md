@@ -50,7 +50,7 @@
 | LLVM-107t | 已验证 | 2026-10-19 07:54 | i32 窄返回 callee canonical 化：`classifyReturnType` 对 <64 位整型统一 `getExtend`；探针修前 2 FAIL→8/8、lit 34/34 |
 | QEMU-063t | 已验证 | 2026-10-19 07:54 | MemRAS 初始化（1 MiB + MRPTR 哨兵）⇒ dbms 两档 pass；9 例诊断表落册；ISS-277→LLVM-108t |
 | SPEC-147t | 待开始 | 2026-10-19 07:41（登记） | 注释符 `;`→`@@`、`;` 改语句分隔符：§2.2+示例+变更记录+`contract-asm` 0.5.3+只读锁重算；只读册示例迁移另立 `SPEC-149t`（A 授权） |
-| LLVM-108t | 待开始 | 2026-10-19 01:54（登记） | lemon 调用点漏写 rb16：K&R 无原型调用（`lemon.c:334/4839`）先分类；指针形参读 rb16 而实参走 rd16 |
+| LLVM-108t | 待验收 | 2026-10-19 01:54（登记） | lemon 定性 = 语料 UB（`lemon.c:334` 无原型 ⇒ 实参 int 对形参指针，C11 6.5.2.2p6）；不改语料/实现，仅改 048t reason 归因 |
 | LLVM-098t | 已验证 | 2026-10-18 22:22 | -fPIC 下 .rodata 仍发 ABS48（build-musl-shared EXIT=2）；诊断完成，reviewer Accepted |
 | LLVM-099t | 已验证 | 2026-10-18 22:22 | i64 rotl/rotr ISel 展开；reviewer Accepted |
 | TESTCASES-046t | 已验证 | 2026-10-18 22:22 | Embench 两档 38/38 + 38/38 已跑；reviewer Accepted |

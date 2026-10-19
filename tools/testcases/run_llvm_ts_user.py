@@ -501,28 +501,40 @@ CASE_NOTES = {
         "stale/interleaving-sensitive reference is not relabelled).",
 }
 
-# Platform gaps that make a *completed* run unable to reach the case's own
-# verdict: the program runs and exits, but the work itself never executes.
+# Run-completion gaps that make a *completed* run unable to reach the case's
+# own verdict: the program runs and exits, but the work itself never executes.
 # Same idea as run_libc_test_user_suite.py's gap signatures, but keyed per case
 # because the evidence is a corpus-specific diagnostic.  An entry is used only
 # when its live signature is actually present in the run output; without it the
-# case keeps the oracle's verdict (``fail``).
+# case keeps the oracle's verdict (``fail``).  A gap can be a platform defect
+# or corpus-level undefined behaviour that only manifests on this ABI; the
+# per-case reason carries the attribution.
 PLATFORM_GAP_SIGNATURES = {
     "MultiSource/Applications/lemon": (
         b"Error while running on: ",
-        "runtime behaviour, not a compile/link error and not an upstream "
-        "build-script requirement: lemon's LLVM LOCAL main forks one child per "
-        "input (lemon.c:4866) and the child calls lemon_main; on this target "
-        "every child dies of a guest SIGSEGV (qemu re-raises the guest fault; "
-        "reproducible with the single smallest input example1.y and at -O0, "
-        "while the same source built with the host cc writes its parser "
-        "normally; lemon calls no lex/yacc or external tool and its output "
-        "files land in the per-case run dir).  The parent therefore prints "
-        "'Error while running on: <input>' for all 260 runs (that line is the "
-        "recorded first_error), exits 0 and produces no parser, so the md5 "
-        "oracle cannot be reached.  Attribution: platform gap, ISS-269 "
-        "(qemu-user guest SIGSEGV) -- distinct from QEMU-063t (hang) "
-        "and ISS-267 (compile/link backend gaps); not a driver/corpus defect."),
+        "corpus undefined behaviour, not a compiler/qemu backend defect: "
+        "lemon.c:334 declares Configtable_clear with an empty parameter list "
+        "(no prototype) and lemon.c:1127-1133 calls it as "
+        "Configtable_clear(0) with an int argument, while lemon.c:4839-4840 "
+        "defines the parameter as int(*f)(struct config *).  C11/N1570 "
+        "6.5.2.2p6: with no prototype only the default argument promotions "
+        "apply, so 0 stays int; the definition's parameter after promotion is "
+        "a pointer, the types are not compatible and neither listed exception "
+        "applies -> undefined behaviour (p8: no other implicit conversions are "
+        "performed, so no pointer is ever formed).  clang faithfully emits "
+        "'call void @Configtable_clear(i32 0)'; the same call through a "
+        "prototype emits 'call void @Configtable_clear(ptr null)' and writes "
+        "rb16 (rd2rb {rb16}, {rd4}), whereas without the prototype the caller "
+        "only does 'set.zw rd16, wp0, 0x0' while Configtable_clear reads f "
+        "from rb16 (rb2rb {rb32}, {rb16}) and therefore calls a stale pointer. "
+        "x86-64 ('xorl %edi,%edi') and riscv64 ('li a0,0') pass int and "
+        "pointer arguments in the same register, so the same undefined "
+        "behaviour happens to work there; only the bank-separated ABI exposes "
+        "it.  The parent then prints 'Error while running on: <input>' for "
+        "every input (that line is the recorded first_error), exits 0 and "
+        "produces no parser, so the md5 oracle cannot be reached.  "
+        "Attribution: corpus UB (ISS-277); not ISS-269/qemu, not QEMU-063t, "
+        "not ISS-267."),
 }
 
 # Cases whose host-signal death is a known qemu defect (reason pointer).
@@ -1505,7 +1517,7 @@ def copy_unit_tree(case: Case, run_dir: str):
 
 
 def platform_gap_reason(case: Case, actual_doc: bytes):
-    """Declared platform gap whose live signature is present, if any.
+    """Declared run-completion gap whose live signature is present, if any.
 
     Returns (reason, matched_line) or None.  The matched line becomes the
     case's ``first_error`` so the record carries the program's own diagnostic.
@@ -1777,7 +1789,7 @@ def _build_and_run(case: Case, cfg, work_dir):
             gap = platform_gap_reason(case, actual_doc)
             if gap:
                 case.klass = "blocked"
-                case.reason = (f"platform gap: the run completed (exit {rc}) "
+                case.reason = (f"blocked: the run completed (exit {rc}) "
                                f"but cannot reach the oracle -- {gap[0]}")
                 case.first_error = gap[1] or case.first_error
                 return case
@@ -1828,7 +1840,7 @@ def _build_and_run(case: Case, cfg, work_dir):
         gap = platform_gap_reason(case, actual_doc)
         if gap:
             case.klass = "blocked"
-            case.reason = (f"platform gap: the run completed (exit {rc}) but "
+            case.reason = (f"blocked: the run completed (exit {rc}) but "
                            f"cannot reach the oracle -- {gap[0]}")
             case.first_error = gap[1] or case.first_error
             return case
