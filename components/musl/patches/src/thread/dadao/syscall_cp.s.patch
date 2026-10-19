@@ -1,95 +1,95 @@
 diff --git a/src/thread/dadao/syscall_cp.s b/src/thread/dadao/syscall_cp.s
 new file mode 100644
-index 0000000..eaa1841
+index 0000000..4239214
 --- /dev/null
 +++ b/src/thread/dadao/syscall_cp.s
 @@ -0,0 +1,323 @@
-+; DADAO cancellable-syscall entry (musl cancellation protocol).
-+;
-+; long __syscall_cp_asm(volatile void *ptr, long nr,
-+;                       long u, long v, long w, long x, long y, long z);
-+;
-+; ptr points at the calling thread's `cancel` flag (pthread_impl.h:38,
-+; `volatile int cancel`).  The contract this file implements:
-+;
-+;   * musl's cancellation protocol (src/thread/pthread_cancel.c): the
-+;     cancellation signal handler redirects a thread that is inside
-+;     [__cp_begin, __cp_end) to __cp_cancel instead of restarting its syscall,
-+;     so the flag test and the trap must be contiguous and must not touch the
-+;     stack -- that is why this is assembly at all (riscv64/syscall_cp.s is the
-+;     same shape);
-+;   * the DADAO syscall convention (contract-syscall.md): number in rd15,
-+;     arguments routed by TYPE into the rd bank (data, from rd16) and the rb
-+;     bank (address/pointer, from rb16) -- the §3 worked example is
-+;     read(int fd, void *buf, size_t count) => fd rd16, buf rb16, count rd17;
-+;     result in rd8, error as a negative rd8 (§4, so __syscall_ret() is
-+;     untouched).
-+;
-+; ## Argument routing (the one non-obvious part)
-+;
-+; musl passes the six syscall arguments as plain `syscall_arg_t` (long), so
-+; their pointer-ness is already gone by the time this stub runs; the syscall
-+; NUMBER is the only thing left that says which positions belong to the rb
-+; bank.  The dispatch below therefore mirrors __dadao_argmask() in
-+; arch/dadao/syscall_arch.h number for number (same masks, same slots) for the
-+; syscalls musl actually routes through __syscall_cp/syscall_cp on a 64-bit
-+; arch -- the cancellable subset, which is the only thing that can reach this
-+; entry point (../__syscall_cp.c).  Each label is one mask class, and the
-+; classes used here are exactly the masks those numbers have in that table:
-+;
-+;   mask 0x00 close, fcntl, fsync, fdatasync            (no address argument)
-+;   mask 0x01 getrandom, msync, rt_sigsuspend
-+;   mask 0x02 read, write, readv, writev, pread64, pwrite64, preadv, pwritev,
-+;            preadv2, pwritev2, openat, msgrcv, msgsnd, epoll_pwait,
-+;            mq_timedsend, sendmmsg, sendmsg, recvmsg
-+;   mask 0x03 nanosleep
-+;   mask 0x04 ioctl
-+;   mask 0x06 accept, accept4, connect
-+;   mask 0x07 rt_sigtimedwait
-+;   mask 0x0a wait4
-+;   mask 0x0c clock_nanosleep
-+;   mask 0x0d ppoll
-+;   mask 0x12 sendto, recvmmsg
-+;   mask 0x14 waitid
-+;   mask 0x19 futex
-+;   mask 0x1a mq_timedreceive
-+;   mask 0x32 recvfrom
-+;   mask 0x3e pselect6
-+;
-+; (sendto/recvfrom are the two that need three address slots: buffer, sockaddr,
-+; and recvfrom's socklen pointer -- the 0x32 class.)
-+;
-+; INVARIANT (same one registered on __dadao_argmask, gated by
-+; tools/qemu/check_syscall_abi.py): every number dispatched here must have the
-+; same mask as the C table, and every label used here must exist.  A number
-+; served with wrongly-placed arguments would read garbage, not fail loudly.
-+;
-+; ## Register safety of the shuffles
-+;
-+; Entry: rb16 = ptr, rd16 = nr, rd17..rd22 = u..z.  Each block issues all
-+; address-bank copies first (they only read rd17..rd22, which no earlier move
-+; has touched), then the data-bank copies in ascending source order; a data
-+; copy's destination rd(16+di) is always lower than both its source rd(17+i)
-+; and the sources still pending, so nothing is clobbered.  rd2rd forbids
-+; overlapping ranges (SimRISC-02 §2), which is another reason the moves are one
-+; register at a time.  Scratch used: rd8 (the return register, reloaded by the
-+; trap) and rd9 (constant for the compare chain) -- both caller-saved
-+; (contract-abi.md
-+; §4.5 saves only rd32-rd63).
-+;
-+; ## Known boundary (registered in INFRA-085t / ISS-242)
-+;
-+; The redirect above is only observable if the cancellation signal path works
-+; (signal delivery + ucontext PC rewrite).  The DADAO port's signal frame is
-+; still [OPEN] (arch/dadao/bits/signal.h), so today this stub is reachable and
-+; correct but cancellation cannot actually fire: __cp_begin/__cp_end exist for
-+; the handler that will use them, and __cancel() is still reached through
-+; __syscall_cp_c()'s -EINTR path.
-+;
-+; musl builds `.s` through its plain CC_CMD path (cc treats `.s` as assembler
-+; input; ADD_CFI is off for dadao -- there is no tools/add-cfi.dadao.awk), and
-+; DADAO assembly uses `;` for comments ('#' is reserved for cpp, Toolchain-01
-+; §2.2).
++@@ DADAO cancellable-syscall entry (musl cancellation protocol).
++@@
++@@ long __syscall_cp_asm(volatile void *ptr, long nr,
++@@                       long u, long v, long w, long x, long y, long z);
++@@
++@@ ptr points at the calling thread's `cancel` flag (pthread_impl.h:38,
++@@ `volatile int cancel`).  The contract this file implements:
++@@
++@@   * musl's cancellation protocol (src/thread/pthread_cancel.c): the
++@@     cancellation signal handler redirects a thread that is inside
++@@     [__cp_begin, __cp_end) to __cp_cancel instead of restarting its syscall,
++@@     so the flag test and the trap must be contiguous and must not touch the
++@@     stack -- that is why this is assembly at all (riscv64/syscall_cp.s is the
++@@     same shape);
++@@   * the DADAO syscall convention (contract-syscall.md): number in rd15,
++@@     arguments routed by TYPE into the rd bank (data, from rd16) and the rb
++@@     bank (address/pointer, from rb16) -- the §3 worked example is
++@@     read(int fd, void *buf, size_t count) => fd rd16, buf rb16, count rd17;
++@@     result in rd8, error as a negative rd8 (§4, so __syscall_ret() is
++@@     untouched).
++@@
++@@ ## Argument routing (the one non-obvious part)
++@@
++@@ musl passes the six syscall arguments as plain `syscall_arg_t` (long), so
++@@ their pointer-ness is already gone by the time this stub runs; the syscall
++@@ NUMBER is the only thing left that says which positions belong to the rb
++@@ bank.  The dispatch below therefore mirrors __dadao_argmask() in
++@@ arch/dadao/syscall_arch.h number for number (same masks, same slots) for the
++@@ syscalls musl actually routes through __syscall_cp/syscall_cp on a 64-bit
++@@ arch -- the cancellable subset, which is the only thing that can reach this
++@@ entry point (../__syscall_cp.c).  Each label is one mask class, and the
++@@ classes used here are exactly the masks those numbers have in that table:
++@@
++@@   mask 0x00 close, fcntl, fsync, fdatasync            (no address argument)
++@@   mask 0x01 getrandom, msync, rt_sigsuspend
++@@   mask 0x02 read, write, readv, writev, pread64, pwrite64, preadv, pwritev,
++@@            preadv2, pwritev2, openat, msgrcv, msgsnd, epoll_pwait,
++@@            mq_timedsend, sendmmsg, sendmsg, recvmsg
++@@   mask 0x03 nanosleep
++@@   mask 0x04 ioctl
++@@   mask 0x06 accept, accept4, connect
++@@   mask 0x07 rt_sigtimedwait
++@@   mask 0x0a wait4
++@@   mask 0x0c clock_nanosleep
++@@   mask 0x0d ppoll
++@@   mask 0x12 sendto, recvmmsg
++@@   mask 0x14 waitid
++@@   mask 0x19 futex
++@@   mask 0x1a mq_timedreceive
++@@   mask 0x32 recvfrom
++@@   mask 0x3e pselect6
++@@
++@@ (sendto/recvfrom are the two that need three address slots: buffer, sockaddr,
++@@ and recvfrom's socklen pointer -- the 0x32 class.)
++@@
++@@ INVARIANT (same one registered on __dadao_argmask, gated by
++@@ tools/qemu/check_syscall_abi.py): every number dispatched here must have the
++@@ same mask as the C table, and every label used here must exist.  A number
++@@ served with wrongly-placed arguments would read garbage, not fail loudly.
++@@
++@@ ## Register safety of the shuffles
++@@
++@@ Entry: rb16 = ptr, rd16 = nr, rd17..rd22 = u..z.  Each block issues all
++@@ address-bank copies first (they only read rd17..rd22, which no earlier move
++@@ has touched), then the data-bank copies in ascending source order; a data
++@@ copy's destination rd(16+di) is always lower than both its source rd(17+i)
++@@ and the sources still pending, so nothing is clobbered.  rd2rd forbids
++@@ overlapping ranges (SimRISC-02 §2), which is another reason the moves are one
++@@ register at a time.  Scratch used: rd8 (the return register, reloaded by the
++@@ trap) and rd9 (constant for the compare chain) -- both caller-saved
++@@ (contract-abi.md
++@@ §4.5 saves only rd32-rd63).
++@@
++@@ ## Known boundary (registered in INFRA-085t / ISS-242)
++@@
++@@ The redirect above is only observable if the cancellation signal path works
++@@ (signal delivery + ucontext PC rewrite).  The DADAO port's signal frame is
++@@ still [OPEN] (arch/dadao/bits/signal.h), so today this stub is reachable and
++@@ correct but cancellation cannot actually fire: __cp_begin/__cp_end exist for
++@@ the handler that will use them, and __cancel() is still reached through
++@@ __syscall_cp_c()'s -EINTR path.
++@@
++@@ musl builds `.s` through its plain CC_CMD path (cc treats `.s` as assembler
++@@ input; ADD_CFI is off for dadao -- there is no tools/add-cfi.dadao.awk), and
++@@ DADAO assembly uses `@@` for comments ('#' is reserved for cpp, Toolchain-01
++@@ §2.2).
 +
 +	.text
 +	.global __cp_begin

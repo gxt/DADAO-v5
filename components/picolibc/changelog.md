@@ -26,3 +26,7 @@
 
 - **2026-10-17 `INFRA-079t`**
   - 摘要：**移除 compiler-rt builtins 的 vendored 副本**（`ADR-0027 Consequences 1` / `D5`）：删 `libm/common/{muldc3.c,mulsc3.c,compiler_rt_builtins.h}` 三件源及其 `.patch`，`libm/common/meson.build` 恢复上游 `srcs_common = ['signgam.c']`（该文件的唯一补丁 hunk 即两源插入，故整份 `meson.build.patch` 一并消失）；`series` 18→**14**。`__muldc3`/`__mulsc3` 改由独立 `libclang_rt.builtins.a` 提供；重建后全量四分类 **pass 213 / fail 0 / excluded 22 / blocked 0**（与改前逐项一致）。
+
+- **2026-10-19 `LLVM-109t`（迁移漏项修复，`ISS-281`）**
+  - 摘要：**汇编注释符 `;` → `@@`：`semihost-dadao.S` 尾注释收口**。`libos/semihost/machine/dadao/semihost-dadao.S` 的 3 行行尾注释由 `;` 改 `@@`（C 块注释与其它 DADAO `.S` 不动），E1 收敛后重导出该补丁（`series` 14 不变）。实测安装根 clang 汇编 rc=0；本次按派单未重跑 `make build-picolibc`（重建范围限于 musl）。
+  - 执行者：engineer

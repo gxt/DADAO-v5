@@ -39,3 +39,8 @@
 - **2026-10-18 `INFRA-090t`**
   - 摘要：**`arch/dadao/bits/float.h` 常量块换 binary128（`ADR-0030 D1/D5`）**。`LDBL_TRUE_MIN`/`MIN`/`MAX`/`EPSILON`、`LDBL_MANT_DIG 113`、`LDBL_MIN_EXP (-16381)`、`LDBL_MAX_EXP 16384`、`LDBL_DIG 33`、`LDBL_MIN_10_EXP (-4931)`、`LDBL_MAX_10_EXP 4932`、`DECIMAL_DIG 36` 与 musl 既有 7 个 ld128 架构（`aarch64` 等）**逐字相同**；`FLT_EVAL_METHOD 0` 保留；文件头「`long double` is identically `double`」的过期说明改写为 binary128 口径。`_l` 源码**零改动**（`D5`；上游 `LDBL_MANT_DIG == 113` 分支现场 53 文件命中）。实测 `libc-test` 5 例 `math/{acoshl,asinhl,erfcl,lgammal,tgammal}` 静态/动态两档 `known-fail → pass`（各 5/5），10 例小样本两档 10/10、12 例其它静态用例 12/12；`%Lf`/`%La` 探针与独立 oracle 逐字一致。`series` 计数不变（同文件既有补丁）；配套构建侧接线见 `tools/infra/build_musl.py`（builtins archive 按驱动 `-print-libgcc-file-name` 解析）与 `tools/testcases/run_libc_test_user_suite.py`（动态链接行加 builtins）。
   - 执行者：engineer
+
+- **2026-10-19 `LLVM-109t`（迁移漏项修复，`ISS-281`）**
+  - 摘要：**汇编注释符 `;` → `@@`：组件补丁集漏项收口**。`LLVM-109t` 的迁移面未覆盖组件补丁里的 DADAO 手写汇编 ⇒ `CommentString="@@"` 后旧 `;` 注释被当作语句分隔符，`make build-musl` 在 `src/signal/dadao/sigsetjmp.s`、`src/thread/dadao/syscall_cp.s`、`src/thread/dadao/__set_thread_area.s` 报 `unrecognized instruction mnemonic`，`lib/libc.a`、`lib/crt1.o` 缺失。改 `.work/source/musl` 的 3 个文件（49 + 86 + 25 = 160 行注释引导符 `;`→`@@`；注释正文里的 `;` 保留、C 块注释与 `src/setjmp/dadao/*.S` 不动），E1 收敛后重导出 3 份补丁（`series` 22 不变）。实测 `make build-musl` rc=0（11.0 s，10/10 ELF 检查）、`make build-musl-shared` rc=0（12.9 s）、`libc.a`/`crt1.o`/`libc.so` 均在、`check-musl-freshness` PASS。
+  - 补充：`arch/dadao/crt_arch.h` C 注释里的过期说明「`;` starts a comment」同步改 `@@`（仅注释文本，代码零改动），重导出该补丁（本批共 4 份，`series` 22 不变）。
+  - 执行者：engineer

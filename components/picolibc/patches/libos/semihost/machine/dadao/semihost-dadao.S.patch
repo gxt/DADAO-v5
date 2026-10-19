@@ -1,6 +1,6 @@
 diff --git a/libos/semihost/machine/dadao/semihost-dadao.S b/libos/semihost/machine/dadao/semihost-dadao.S
 new file mode 100644
-index 0000000..6d4c3e5
+index 0000000..fccf4b7
 --- /dev/null
 +++ b/libos/semihost/machine/dadao/semihost-dadao.S
 @@ -0,0 +1,41 @@
@@ -41,7 +41,7 @@ index 0000000..6d4c3e5
 +	.globl	sys_semihost
 +	.type	sys_semihost, @function
 +sys_semihost:
-+	rd2rb	{rb16}, {rd17}		; param -> rb16 (argument block pointer)
-+	trap	cfx_umon, 0x30000	; immu18[17:16] == 2'b11 => semihosting
-+	ret	rd0, 0			; result already in rd8
++	rd2rb	{rb16}, {rd17}		@@ param -> rb16 (argument block pointer)
++	trap	cfx_umon, 0x30000	@@ immu18[17:16] == 2'b11 => semihosting
++	ret	rd0, 0			@@ result already in rd8
 +	.size	sys_semihost, . - sys_semihost

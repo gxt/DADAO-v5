@@ -137,6 +137,18 @@ SeparatorString = ";";   // 显式写出（默认已是 ";"；同时作为规范
 - **install-host 后须复验**：① `make check-lit`（MC 68 + CodeGen + e2e）；② `check-lit-full`（DADAO-gen 12）；③ `tests/scripts/bootrom*.S` 与 `codegen_crt0.s` 的 QEMU E2E；④ `tools/llvm/check_ret_canonical.py`（内嵌汇编探针）在安装根 clang 下 default 全绿；⑤ L2 `check-modules`、L3 `check-full`。
 - 未 `commit`/`push`（提交归 architect）；未改 `**状态**`（按派单）。
 
+### 迁移漏项修复（`ISS-281`，2026-10-19，engineer）
+
+**触发**：`LLVM-109t` 的迁移面未覆盖组件补丁里的 DADAO 手写汇编 ⇒ 新 `CommentString="@@"` 下旧 `;` 注释被当语句分隔符，`make build-musl` 报 `unrecognized instruction mnemonic`，`.work/source/musl/lib/{libc.a,crt1.o}` 缺失（现场 `/tmp/opencode/rebuild-m.log:66+`）。
+**命中（改前，逐文件）**：musl `src/signal/dadao/sigsetjmp.s` **49** 行、`src/thread/dadao/syscall_cp.s` **86** 行、`src/thread/dadao/__set_thread_area.s` **25** 行（均行首 `;`）；picolibc `libos/semihost/machine/dadao/semihost-dadao.S` **3** 行（行尾注释）。判定依据：仅汇编语境；`src/setjmp/dadao/{setjmp,longjmp}.S` 与 picolibc `libc/machine/dadao/setjmp.S` 的 `;` 全在 C 块注释内，未改；C/伪代码/IR 未动。
+**改法与补丁重导出**：改 `.work/source/{musl,picolibc}` → E1 收敛（`commit --amend`，HEAD=base+1、`clean=True`）→ `tools/infra/make_patch.py`：musl **3 written / 19 skipped**（`src/signal/dadao/sigsetjmp.s.patch`、`src/thread/dadao/{__set_thread_area,syscall_cp}.s.patch`），picolibc **1 written / 13 skipped**（`libos/semihost/machine/dadao/semihost-dadao.S.patch`）；`series` **22/14 不变**。
+**重建真值**：`make build-musl JOBS=8` **rc=0**（11.0 s，10/10 ELF 检查）；`make build-musl-shared JOBS=8` **rc=0**（12.9 s）；`libc.a` **2735226 B** / `crt1.o` **1512 B** / `libc.so` **1112200 B** 均在；`check-musl-freshness` **PASS**（source stamp `d7641575…`、installed==build sha256 `1e2b0438…`）。
+**回归**：`047t` 10 例小样本 **静态 10/10、动态 10/10**（`--json-out /tmp/opencode/FIX-AT-MUSL/...`）；`046t` 静态 `-O0` **19/19**。
+**门控**：`check-patch-tree` **181 patches OK**（无新增补丁，计数与 `components/*/series` 总行数一致）、`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-component-changelog`/`make check`(L1) 均 **rc=0**。
+**证据**：`.work/evidence/LLVM-109t-fixasm/run.sh` default **31/31 PASS rc=0**、`--inject` **39/39 PASS rc=0**（I1 注入 `;` ⇒ 汇编 rc=1，`cp`+md5 还原回绿；I2 补丁注入 `+;` ⇒ 检查转红，还原后回绿）。
+**边界**：未 `install-host`/`build-qemu`/L2/L3；未 `commit`/`push`；未改 `tests/**` 与 `tools/testcases/run_llvm_ts_user.py`（后两者为他人改动）。
+**补充（architect 提交前清理 stale）**：`arch/dadao/crt_arch.h` C 注释里的过期说明「`;` starts a comment」改为「`@@` starts a comment」（**仅注释文本，代码零改动**）；E1 收敛后 `make_patch.py musl` **1 written / 21 unchanged**，`crt_arch.h.patch` 同步（`series` 22 不变）。自审表该行「⏸延后」由本条取代。
+
 ## 审阅记录
 
 ### 第 1 轮 engineer 自审（2026-10-19）
@@ -157,3 +169,16 @@ SeparatorString = ";";   // 显式写出（默认已是 ";"；同时作为规范
 - 档位：**WIP**（reviewer 尚未验收，状态 `待验收`）；分支 `LLVM-109t` → `master`（`merge --squash`），**未 push**。
 - 文件集对账：staged **119** 项 = 本册声明（组件 5 / 语料 101 `.s|*.S` + 1 `.py` / 工具 10 / 本册 + `milestones` + `INTEG-036m`）；**不含** `tools/testcases/run_llvm_ts_user.py`（属 `TESTCASES-051t`，保持未暂存）。
 - 门控：`make check` 因 `check-musl-freshness` FAIL（工具链戳 01:22 ≠ 08:18 安装根 clang，须 `build-musl-shared`）未全绿；其余 14 项单独 rc=0、`check-patch-tree` **181**。
+
+### 迁移漏项修复：第 1 轮 engineer 自审（2026-10-19）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 迁移脚本按「行首 `;` / 首个串外 `;`」可能误改 `.S` 的 C 块注释 | ✅已修 | 脚本维护 `/* */` 状态，块注释内一行不动 | 结构化比对 4 文件 = 68/323/34/41 行、代码行差异 **0**；`.S` 未改 |
+| 注释正文仍写「DADAO 用 `;` 注释」（sigsetjmp/syscall_cp/__set_thread_area 各 1 处） | ✅已修 | 注释正文 `;` → `@@`（引导符同批改） | 三文件重汇编 rc=0 |
+| `crt_arch.h`（C 注释）仍写「`;` starts a comment」 | ⏸延后 | 未改（派单要求 C 代码/注释面不动） | 记为已知 stale 文档，非执行面 |
+| 证据脚本 B1–B4 写死 49/86/25/3 | ✅已修 | 改为现场派生「源码 `@@` 行数 == 补丁 `+@@` 行数」，并要求 >0 | default 31/31 PASS |
+| 证据脚本 B4 `grep '@@'` 误命中补丁 hunk 头 `@@ -0,0` | ✅已修 | 限定 `^+.*@@` | B4 src=3 patch=3 |
+| 注入还原是否可能残留 | ✅已证 | `cp -p` 备份 + md5 对账，未用 `git checkout/restore/stash` | I1c/I2b md5 相同；I2d 源树干净 |
+
+判决：无未修 finding；证据 default 31/31 rc=0、`--inject` 39/39 rc=0。

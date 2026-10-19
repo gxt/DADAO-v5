@@ -1,58 +1,58 @@
 diff --git a/src/signal/dadao/sigsetjmp.s b/src/signal/dadao/sigsetjmp.s
 new file mode 100644
-index 0000000..2c2449d
+index 0000000..e638f74
 --- /dev/null
 +++ b/src/signal/dadao/sigsetjmp.s
 @@ -0,0 +1,68 @@
-+; DADAO sigsetjmp.
-+;
-+; int sigsetjmp(sigjmp_buf env, int savemask);
-+;      env      is a pointer  -> rb16   (contract-abi.md §4.1)
-+;      savemask is an integer -> rd16
-+;
-+; `__sigsetjmp` is an alias on the same address, exactly as in every upstream
-+; arch's sigsetjmp.s: musl's <setjmp.h> declares both with that same
-+; two-argument prototype (the third "savemask" argument in glibc's internal
-+; __sigsetjmp is not part of musl's interface, and no musl port reads a third
-+; register).  The second argument is the savemask flag.
-+;
-+;   savemask == 0  -> plain setjmp; no mask is saved and none is restored.
-+;   savemask != 0  -> setjmp, then __sigsetjmp_tail(jb, ret):
-+;                       ret == 0 (first return)  store current mask in jb->__ss
-+;                       ret != 0 (via siglongjmp) restore it
-+;     The restore deliberately happens in the *returned-to* context rather
-+;     than in siglongjmp: musl's siglongjmp is a plain C file that only calls
-+;     longjmp, precisely so that a context which may not have enough stack for
-+;     signal delivery does not have to restore the mask itself
-+;     (src/signal/siglongjmp.c).
-+;
-+; DADAO specifics -- why riscv64's save/restore of `ra` and `s0` is not copied
-+; -------------------------------------------------------------------------
-+; `call`/`ret` are managed by the hardware return-address stack
-+; (contract-abi.md §2.3): `call` pushes the return address on ra63, and the
-+; continuation after `call setjmp` therefore needs no memory slot -- setjmp
-+; itself saves ra0..ra63 (including the entry our `call` pushed) and longjmp's
-+; `ret` restores exactly that entry, so control comes back here with the RAS
-+; in the state it had at setjmp time (arch/dadao/bits/setjmp.h).  riscv64 has
-+; to spill `ra` into the buffer because a plain `call` clobbers it.
-+;
-+; What is still needed across the call is one callee-saved register holding
-+; `env`, because `setjmp` may clobber caller-saved registers (contract-abi.md
-+; §4.6: `call` Defs = rd8-rd15 / rb8-rb15, and the caller may not rely on any
-+; caller-saved register).  rb32 is callee-saved (§4.5); its previous value is
-+; stashed in the buffer word right after the 161-octa jmp_buf (`__fl`, offset
-+; 1288 -- the same word upstream ports use for this scratch).  `__ss` starts
-+; at 1296 and __sigsetjmp_tail's rt_sigprocmask writes only _NSIG/8 = 8 bytes
-+; there (1296..1303), so 1288 is never touched by the tail.
-+;
-+; On the longjmp path rb32 is restored *from the jmp_buf* to the value it had
-+; when setjmp ran, i.e. env -- and then reloaded from the 1288 scratch slot
-+; with the caller's original value.  Both return paths therefore see jb in
-+; rb16 and the caller's rb32 intact.
-+;
-+; This file is `.s` (not `.S`) like the other arch sigsetjmp.s files, so it is
-+; assembled without the C preprocessor: comments use the DADAO `;` form (the
-+; same as src/thread/dadao/syscall_cp.s), not C block comments.
++@@ DADAO sigsetjmp.
++@@
++@@ int sigsetjmp(sigjmp_buf env, int savemask);
++@@      env      is a pointer  -> rb16   (contract-abi.md §4.1)
++@@      savemask is an integer -> rd16
++@@
++@@ `__sigsetjmp` is an alias on the same address, exactly as in every upstream
++@@ arch's sigsetjmp.s: musl's <setjmp.h> declares both with that same
++@@ two-argument prototype (the third "savemask" argument in glibc's internal
++@@ __sigsetjmp is not part of musl's interface, and no musl port reads a third
++@@ register).  The second argument is the savemask flag.
++@@
++@@   savemask == 0  -> plain setjmp; no mask is saved and none is restored.
++@@   savemask != 0  -> setjmp, then __sigsetjmp_tail(jb, ret):
++@@                       ret == 0 (first return)  store current mask in jb->__ss
++@@                       ret != 0 (via siglongjmp) restore it
++@@     The restore deliberately happens in the *returned-to* context rather
++@@     than in siglongjmp: musl's siglongjmp is a plain C file that only calls
++@@     longjmp, precisely so that a context which may not have enough stack for
++@@     signal delivery does not have to restore the mask itself
++@@     (src/signal/siglongjmp.c).
++@@
++@@ DADAO specifics -- why riscv64's save/restore of `ra` and `s0` is not copied
++@@ -------------------------------------------------------------------------
++@@ `call`/`ret` are managed by the hardware return-address stack
++@@ (contract-abi.md §2.3): `call` pushes the return address on ra63, and the
++@@ continuation after `call setjmp` therefore needs no memory slot -- setjmp
++@@ itself saves ra0..ra63 (including the entry our `call` pushed) and longjmp's
++@@ `ret` restores exactly that entry, so control comes back here with the RAS
++@@ in the state it had at setjmp time (arch/dadao/bits/setjmp.h).  riscv64 has
++@@ to spill `ra` into the buffer because a plain `call` clobbers it.
++@@
++@@ What is still needed across the call is one callee-saved register holding
++@@ `env`, because `setjmp` may clobber caller-saved registers (contract-abi.md
++@@ §4.6: `call` Defs = rd8-rd15 / rb8-rb15, and the caller may not rely on any
++@@ caller-saved register).  rb32 is callee-saved (§4.5); its previous value is
++@@ stashed in the buffer word right after the 161-octa jmp_buf (`__fl`, offset
++@@ 1288 -- the same word upstream ports use for this scratch).  `__ss` starts
++@@ at 1296 and __sigsetjmp_tail's rt_sigprocmask writes only _NSIG/8 = 8 bytes
++@@ there (1296..1303), so 1288 is never touched by the tail.
++@@
++@@ On the longjmp path rb32 is restored *from the jmp_buf* to the value it had
++@@ when setjmp ran, i.e. env -- and then reloaded from the 1288 scratch slot
++@@ with the caller's original value.  Both return paths therefore see jb in
++@@ rb16 and the caller's rb32 intact.
++@@
++@@ This file is `.s` (not `.S`) like the other arch sigsetjmp.s files, so it is
++@@ assembled without the C preprocessor: comments use the DADAO `@@` form (the
++@@ same as src/thread/dadao/syscall_cp.s), not C block comments.
 +
 +	.text
 +	.global sigsetjmp

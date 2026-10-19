@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/crt_arch.h b/arch/dadao/crt_arch.h
 new file mode 100644
-index 0000000..16acfb4
+index 0000000..6355a29
 --- /dev/null
 +++ b/arch/dadao/crt_arch.h
 @@ -0,0 +1,102 @@
@@ -46,7 +46,7 @@ index 0000000..16acfb4
 + *   * no .data frame is emitted any more, so nothing in the port fabricates
 + *     startup facts.
 + *
-+ * Conventions used here (spec/Toolchain-01-汇编语言.md): `;` starts a comment
++ * Conventions used here (spec/Toolchain-01-汇编语言.md): `@@` starts a comment
 + * (`#` is reserved for cpp), only `.dd.b08/.dd.w16/.dd.t32/.dd.o64` data
 + * directives and `.p2align` are legal, and an absolute symbol address is
 + * produced by `set.rb rbN, symbol` (3 wyde slices + R_DADAO_ABS48).
