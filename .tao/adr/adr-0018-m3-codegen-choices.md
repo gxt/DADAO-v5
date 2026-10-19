@@ -1,6 +1,6 @@
 # ADR-0018: M3 CodeGen 取舍点（C1–C17 已判）
 
-**状态**：Accepted（rev. 2026-10-08: `§C7 D4` 大帧寻址改为**四形态 + 代价驱动**；rev. 2026-10-09: `§C7 D6` 保留策略改为 **`rb63` 条件式保留**（FP 由 `rb2` 迁 `rb63`），见 `## 修订`）
+**状态**：Accepted（rev. 2026-10-08: `§C7 D4` 大帧寻址改为**四形态 + 代价驱动**；rev. 2026-10-09: `§C7 D6` 保留策略改为 **`rb63` 条件式保留**（FP 由 `rb2` 迁 `rb63`）；rev. 2026-10-19: `§C7 D3`/`D6` 恢复 **`rb2` 帧指针**（无条件保留、无别名），`rb63` 回归普通 callee-saved；均见 `## 修订`）
 **日期**：2026-10-04
 **决策者**：用户（逐条确认，见 `project_M3-codegen-choices.md §5`）
 **关联**：`SPEC-096k`（M3 启动与分解）；`.tao/knowledge/project_M3-codegen-choices.md §5`（权威判定）；任务 `INFRA-035t`/`SPEC-097t`/`LLVM-033t`–`041t`/`TESTCASES-026t`/`INTEG-012t` 及各模块 `m`
@@ -46,6 +46,7 @@
 - **D5**：**M3 现在实现**（帧布局、prologue/epilogue、大帧方案2）。
 - **D6**：`rb2` **始终 reserved**（可能是 FP）；RA/RF **保留不分配**（M3 边界）；`rd1-7`/`rb3-7` 保留；保留方式统一为 **`isAllocatable=0` + 显式 `Reserved.set` 双保险**。
   - **（rev. 2026-10-09）修订**：上句「`rb2` **始终 reserved**（可能是 FP）」**不再成立**——FP 寄存器由 `rb2` 改为 **`rb63`**，且 `rb63` 为**条件式保留**：`hasFP` 为真时保留为 FP，否则可作通用 callee-saved 分配（**`rb63` 恒 callee-saved**）。保留区间由 `rd1-7`/`rb3-7` 收为 **`rd1–rd3`/`rb2–rb3`**（`rd4–rd7`/`rb4–rb7` 放开为 temporary / caller-saved）。其余（RA/RF 保留、`isAllocatable=0`+`Reserved.set` 双保险）不变。详见 `## 修订`。
+  - **（rev. 2026-10-19）再修订**：上条（rev. 2026-10-09）**被本裁定取代**——FP 恢复为 **`rb2`**；`rb2` **无条件 reserved**（`hasFP` 为真时作 FP，否则不分配，`getFrameRegister = hasFP ? rb2 : rb1`）；**删除 `rbfp`/`rbgp` 等助记别名**；`rb63` 回归**普通 callee-saved**（与 `rb32`–`rb62` 连续，可整段 `stm`/`ldm`，无「最高编号」特例）；保留区间仍为 **`rd1–rd3`/`rb2–rb3`**。其余（RA/RF 保留、`isAllocatable=0`+`Reserved.set` 双保险）不变。详见 `## 修订`。
 
 ### C9 DataLayout / 栈对齐
 
@@ -281,10 +282,22 @@
 - **依据**：`spec/DADAO-21 §寄存器规范`（同变更内改册 + 同步只读锁 `sha256`）、`.tao/contracts/contract-abi.md`、`contracts/abi.yaml`；任务 `SPEC-128t`。
 - **实现落点**：后端（调用约定 / FP 策略 / CSR）归 **`LLVM-068t`** 同步。
 
+**rev. 2026-10-19（用户 2026-10-19 逐条裁定；渠道 = 经主会话问答；`SPEC-150t`/`LLVM-110t`）**：`§C7 D3`/`D6` 的「FP = `rb63`（条件式保留）」**修订为「FP = `rb2`（无条件保留）；删除 `rbfp`/`rbgp` 别名；`rb63` 回归普通 callee-saved」**：
+
+- **① FP 恢复 `rb2`**：`rb2` 由 GP 恢复为 **frame pointer（帧指针）**；**无条件 reserved**——`hasFP` 为真时作 FP（prologue 保存旧值、epilogue 恢复），为假时**不分配**（不再作通用 callee-saved）。`getFrameRegister = hasFP ? rb2 : rb1`。
+- **② 删别名**：删除 `rbfp`（FP）与 `rbgp`（GP）两个 ABI 助记名；寄存器只用架构名 `rb2`。
+- **③ `rb63` 回归普通 callee-saved**：与 `rb32`–`rb62` 连续、可分配；删除「因是 RB 组最高编号 ⇒ `ldm`/`stm` 不能从 `rb63` 向上展开、批量保存须排除 FP」的特例——`rb32`–`rb63` 为连续可分配池，`start + immu6 <= 64` 的规则不变。
+- **④ 不变**：`hasFPImpl` 条件式策略与默认 SP-only 不变；`-fno-omit-frame-pointer` 仍经 `hasFP` 生效；保留区间仍 `rd1–rd3`/`rb2–rb3`；`rb3` = TP 不变。
+- **⑤ 用户裁定原话（逐字，2026-10-19）**：「frame pointer重新改回rb2，且删除fp/gp等别名；可以立」；「rb2：不做帧指针的时候，建议不做分配，你说呢？」→ 主会话答复「同意无条件保留」→「好」。
+- **变更范围**：`**状态**` 行 rev 日期、`§C7 D6` 正文（追加修订子条）、本 `## 修订` 条目、`## 状态说明` 追加一行。`D2`/`D3` 的 FP 寄存器号以本条目为准（恢复为 `rb2`）；其余 decision 不变。
+- **流程说明**：经用户逐条确认的**就地修订**（`docs/Process-03` 允许的例外；用户裁定「可以立」= 授权立项改册）。
+- **依据/落点**：`spec/DADAO-21`、`contract-abi`、`contracts/abi.yaml`、`contract-dynlink` 由 `SPEC-150t` 同批改；后端与 setjmp 端口由 `LLVM-110t` 同批改。
+
 ## 状态说明
 
 - 2026-10-04：C1/C2/C4/C5/C7/C9/C11/C13/C14/C16 的 32 条 decision 经用户逐一审核**无变化、直接通过**；本 ADR 由原 10 条草案合并为单文件，置 **`Accepted`**。
 - C17（无标志位 compare-branch）按用户裁定**只落任务书约束**（`LLVM-037t`），不立 ADR；C6（CSR）归 ABI（`SPEC-097t`）。
 - 2026-10-08：**`§C7 D4` 就地修订**（用户逐条确认）——大帧寻址改为**四形态 + 代价驱动**（详见 `## 修订`）；其余 decision 不变。
 - 2026-10-09：**`§C7 D6` 就地修订**（用户逐条确认「不立 ADR」）——FP 由 `rb2` 迁 `rb63`，`rb63` 改为**条件式保留**（恒 callee-saved），保留区间收为 `rd1–rd3`/`rb2–rb3`（`rd4–rd7`/`rb4–rb7` 放开为 caller-saved）；`D2`/`D3` 的 FP 寄存器号以 `## 修订` ③ 声明为准（详见 `## 修订`）；其余 decision 不变。
+- 2026-10-19：**`§C7 D3`/`D6` 就地修订**（用户逐条确认）——FP 恢复 `rb2`（无条件保留、无别名），`rb63` 回归普通 callee-saved（`rb32–rb63` 连续可分配）；`D2`/`D3` 的 FP 寄存器号恢复为 `rb2`（详见 `## 修订`）；其余 decision 不变。
 - 后续如需变更任一 decision，按 `docs/Process-03-ADR编写规范.md`（新增 ADR / 标注 `Superseded` / 经授权的就地修订），并仍须逐条经用户确认。
