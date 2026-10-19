@@ -998,3 +998,11 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 = `LLVM-110t` 完成区「新发现/坑 ④」+「遗留问题 ②」；engineer 现场实测，architect 提交时立项，2026-10-19）】**现象**：`make build-picolibc` rc=2，失败于 `strtold.c`（现场 `-debug-only=legalize-types`）⇒ `ISD::UINT_TO_FP` 的 `i128 → f128` 无可用 libcall（需 `__floatuntitf`；`LLVM-106t` 只注册 i128↔f64/f32）。**既有缺口（非本笔引入）**：`strtold.c` 与 HEAD 相同（`git diff --quiet` rc=0），`LLVM-110t` 未触碰该文件；失败命令走安装根旧编译器（改前同签名）。**影响**：picolibc 全量重建被挡（`libc.a` 沿用既有产物），非 `LLVM-110t` 验收阻断。**建议修法（未实施）**：注册 `RTLIB::{SINT,UINT}TOFP_I128_F128`（`__floattitf`/`__floatuntitf`），或扩充 picolibc 排除表并更新 `ISS-193`；是否排册由主会话定。**证据指针**：`.tao/tasks/llvm/LLVM-110t-FP回归rb2与rb63普通callee-saved.md`「完成区·新发现/坑 ④」+「遗留问题 ②」；`.work/log/llvm/LLVM-110t-build*.log`。**交叉引用**：`LLVM-106t`（f128 libcall 21 条）、`ISS-193`（picolibc 后端缺 libcall 过滤表）。"
+
+- id: ISS-284
+  title: "【P1】调用点 SP 对齐 8→16 B：spec/契约/abi.yaml 仍只承诺 8 B，后端 StackAlignment=Align(8)；落点 SPEC-151t / LLVM-112t"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = 用户 2026-10-19 裁定，原话逐字「同意，调用点SP对齐改成16B」；渠道 = 经主会话问答；architect 立册）】**问题**：`spec/DADAO-21 §3.2.4`（现 :257）与 `.tao/contracts/contract-abi.md` §2.2（现 :136）/§4.8（现 :251）/§4.9（现 :261，另有「不做 8/16 裁定」现 :263）、`contracts/abi.yaml` 的 `stack_alignment` / `call_sp_alignment` 均只要求 `call` 时 `sp` 8 B 对齐；后端 `DADAOFrameLowering.h:34` 的 `StackAlignment=Align(8)` ⇒ 帧大小只按 8 B 取整，16 B 栈值（f128 / 2 块 RD 组）的绝对地址 `%16==0` 不成立（`LLVM-111t` 探针只能用 16 B 对齐局部变量钉住基址，已在完成区披露）。**裁定**：`call` 执行时 `sp` **16 B 对齐**；栈参数仍 8 B 槽、16 B 值仍占两槽并按 16 B 对齐。**推论**：`ADR-0031 D7` 的无条件 `%16==0` 成立。**ADR**：`ADR-0018 §C9` 已由 architect 于 2026-10-19 **就地新增 `D3`**（记用户原话；`DataLayout` / `S128` 不变）。**落点**：`SPEC-151t`（spec，`待开始`）= `spec/DADAO-21 §3.2.4` + `contract-abi §2.1/§2.2/§3/§4.8/§4.9` + `contracts/abi.yaml` + 只读锁重算；`LLVM-112t`（llvm，`待开始`）= `Align(16)` + `crt1`/musl/`setjmp` 逐文件核对 + 探针 + `install-host` + L2/L3 + `046t`/`047t`/`048t` 全量两档 + `build-picolibc`（`ISS-283` 既有缺口按基线判非回归）+ 可达 FAIL。**边界**：本笔只立册 + ADR 修订；spec / 契约 / 代码零改动；`status` 保持 `open`，两册 `已验证` 后回填。**证据指针**：`.tao/tasks/spec/SPEC-151t-*.md`、`.tao/tasks/llvm/LLVM-112t-*.md`、`.tao/adr/adr-0018-m3-codegen-choices.md §C9`。**交叉引用**：`ADR-0031 D7`、`LLVM-111t`、`ISS-275`、`SPEC-150t`（同改 `spec/DADAO-21` 与只读锁，串行）。"
