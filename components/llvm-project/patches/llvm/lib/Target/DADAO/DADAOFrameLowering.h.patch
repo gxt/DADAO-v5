@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.h b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
 new file mode 100644
-index 000000000..8254eadbe
+index 000000000..97bf603a4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.h
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,102 @@
 +//===-- DADAOFrameLowering.h - Define frame lowering for DADAO -*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,9 +13,10 @@ index 000000000..8254eadbe
 +//===----------------------------------------------------------------------===//
 +//
 +// DADAO frame lowering for M3 (LLVM-038t, ADR-0018 C7/C8):
-+//   - SP-only by default (frame register rb1); a frame pointer (rb63) is built
++//   - SP-only by default (frame register rb1); a frame pointer (rb2) is built
 +//     only when hasFPImpl holds (var-sized objects / frame address taken /
-+//     stack realignment / -fno-omit-frame-pointer).
++//     stack realignment / -fno-omit-frame-pointer).  rb2 is reserved
++//     unconditionally; rb63 is an ordinary callee-saved register.
 +//   - prologue/epilogue adjust SP with `add.si` (in-place, 18-bit immediate)
 +//     and save/restore the old FP with `st.o`/`ld.o`.
 +//   - callee-saved register sets (CSR) are LLVM-039t; this task only reserves
@@ -44,7 +45,7 @@ index 000000000..8254eadbe
 +  void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 +
 +  /// hasFPImpl (ADR-0018 C7 D1): standard conditional form.  Default SP-only;
-+  /// build FP = rb63 for variable-sized objects, taken frame address, stack
++  /// build FP = rb2 for variable-sized objects, taken frame address, stack
 +  /// realignment or when frame pointer elimination is disabled.
 +  bool hasFPImpl(const MachineFunction &MF) const override;
 +
@@ -57,8 +58,9 @@ index 000000000..8254eadbe
 +  /// Finalize the total frame size (8-byte aligned; contract-abi.md §2.2).
 +  void determineFrameLayout(MachineFunction &MF) const;
 +
-+  /// Reserve the fixed slot used to save the old frame pointer (only when FP
-+  /// is built).  Runs before PEI assigns object offsets.
++  /// Reserve the register-scavenger spill slot for very large frames.  Runs
++  /// before PEI assigns object offsets.  (The saved-FP slot itself is not an
++  /// MFI object: determineFrameLayout reserves its 8 bytes.)
 +  void processFunctionBeforeFrameFinalized(MachineFunction &MF,
 +                                           RegScavenger *RS = nullptr) const override;
 +

@@ -990,3 +990,11 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 = `INFRA-093t` reviewer 第 1 轮验收，2026-10-19；reviewer 登记，非阻断）】三项小遗留：① 规矩 2「子集跑（`--filter`）不得写 `authoritative/`」只有文档约束——驱动把权威跑定义为「`--work-dir` 指向 `authoritative/`」（`docs/Process-08` §1.2「由调用者负责选择」），子集跑若被调用者指到 `authoritative/` 无人拦；② `Process-08` §1.1 要求 `meta.json` 含 `finished_utc`，但门控 A2（按任务书口径）只校验 `command`/`started_utc`/`toolchain` 摘要 ⇒ 文档严于门控；③ A3 的 `INFLIGHT_LEGACY` 过渡豁免（`^llvm-ts-user-.*`）与 `.run-artifacts-baseline` 快照豁免须待 `.work/log/testcases/` 搬迁任务完成后删除。**边界**：均不阻断 `INFRA-093t` 验收（7 条规矩与 A1–A3 门控逐条核过、注入可达 FAIL、实跑三件套/工具链 sha256 实测一致）；归搬迁任务或后续小修。**证据指针**：`.tao/tasks/infra/INFRA-093t-测试运行产物与日志组织规矩.md` 审阅记录第 1 轮 reviewer 验收。"
+
+- id: ISS-283
+  title: "【P2】`build-picolibc` rc=2：`strtold.c` 的 i128→f128 `uint_to_fp` libcall 未注册（需 `__floatuntitf`）；改前亦失败，既有缺口"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `LLVM-110t` 完成区「新发现/坑 ④」+「遗留问题 ②」；engineer 现场实测，architect 提交时立项，2026-10-19）】**现象**：`make build-picolibc` rc=2，失败于 `strtold.c`（现场 `-debug-only=legalize-types`）⇒ `ISD::UINT_TO_FP` 的 `i128 → f128` 无可用 libcall（需 `__floatuntitf`；`LLVM-106t` 只注册 i128↔f64/f32）。**既有缺口（非本笔引入）**：`strtold.c` 与 HEAD 相同（`git diff --quiet` rc=0），`LLVM-110t` 未触碰该文件；失败命令走安装根旧编译器（改前同签名）。**影响**：picolibc 全量重建被挡（`libc.a` 沿用既有产物），非 `LLVM-110t` 验收阻断。**建议修法（未实施）**：注册 `RTLIB::{SINT,UINT}TOFP_I128_F128`（`__floattitf`/`__floatuntitf`），或扩充 picolibc 排除表并更新 `ISS-193`；是否排册由主会话定。**证据指针**：`.tao/tasks/llvm/LLVM-110t-FP回归rb2与rb63普通callee-saved.md`「完成区·新发现/坑 ④」+「遗留问题 ②」；`.work/log/llvm/LLVM-110t-build*.log`。**交叉引用**：`LLVM-106t`（f128 libcall 21 条）、`ISS-193`（picolibc 后端缺 libcall 过滤表）。"

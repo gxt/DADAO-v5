@@ -1,17 +1,20 @@
 diff --git a/src/setjmp/dadao/longjmp.S b/src/setjmp/dadao/longjmp.S
 new file mode 100644
-index 0000000..4b37789
+index 0000000..b1af3df
 --- /dev/null
 +++ b/src/setjmp/dadao/longjmp.S
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,50 @@
 +/* DADAO longjmp.
 + *
 + * void longjmp(jmp_buf env, int val);  -- two arguments, in the ABI's banks:
 + *      env is a pointer  -> rb16   (contract-abi.md §4.1)
 + *      val is an integer -> rd16
 + *
-+ * Restores exactly what setjmp.S saved (same frame layout, documented in
-+ * arch/dadao/bits/setjmp.h), then performs *setjmp's* return via `ret`, which
++ * Restores exactly what setjmp.S saved (same 162-octa frame layout, documented
++ * in arch/dadao/bits/setjmp.h), including the frame pointer rb2 (last octa,
++ * byte offset 1288) -- without it the returned-to function's frame base would
++ * still be the value from the abandoned call chain.  Then performs *setjmp's*
++ * return via `ret`, which
 + * pops the return address setjmp pushed onto the RegRAS.  Because the saved
 + * ra0 (RACNT/MRPTR) is restored first, the RegRAS is exactly as deep as it was
 + * inside setjmp, so the `ret` lands in setjmp's caller.
@@ -42,6 +45,7 @@ index 0000000..4b37789
 +	ldm.o	{rb32:rb63}, [rb16, rd17]
 +	set.zw	rd17, wp0, 1032
 +	ldm.o	{rf32:rf63}, [rb16, rd17]
++	ld.o	rb2, [rb16, 1288]
 +	ld.o	rb1, [rb16, 512]
 +	set.zw	rd18, wp0, 1
 +	cs.z	{rd16}?, rd8, rd18, rd16

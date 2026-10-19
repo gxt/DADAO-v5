@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
 new file mode 100644
-index 000000000..43478a55a
+index 000000000..39d95632c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,273 @@
 +//===-- DADAORegisterInfo.cpp - DADAO Register Information -------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -47,10 +47,12 @@ index 000000000..43478a55a
 +DADAORegisterInfo::getCalleeSavedRegs(const MachineFunction * /*MF*/) const {
 +  // CSR = rd32..rd63 ∪ rb32..rb63 ∪ rf32..rf63 (contract-abi.md §4.5, C6; RF
 +  // portion M6/LLVM-066t).  SP (rb1) is not part of the generic CSR (maintained
-+  // symmetrically by the prologue/epilogue).  FP (rb63) is *always*
-+  // callee-saved: when hasFP it is saved by the prologue to its own dedicated
-+  // slot (st.o rb63, [sp, -8]); otherwise it is an ordinary CSR member and
-+  // spilled like any other.
++  // symmetrically by the prologue/epilogue).  RB32..rb63 is one contiguous
++  // callee-saved pool: rb63 is an ordinary member (ADR-0018 C7 D3/D6 rev.
++  // 2026-10-19), spilled/batched like any other RB register.  The frame pointer
++  // is rb2, which is reserved unconditionally (getReservedRegs) and therefore
++  // never appears in the CSR list; when hasFP the prologue saves it
++  // explicitly (st.o rb2, [sp, -8]).
 +  //
 +  // The list is returned in DESCENDING register order (see below).  The set must
 +  // stay exactly equal to the generated `CSR` set, because the two are consumed
@@ -114,7 +116,7 @@ index 000000000..43478a55a
 +}
 +
 +BitVector
-+DADAORegisterInfo::getReservedRegs(const MachineFunction &MF) const {
++DADAORegisterInfo::getReservedRegs(const MachineFunction &/*MF*/) const {
 +  BitVector Reserved(getNumRegs());
 +  // rd0 = hardwired zero (contract-isa.md §1.3.1)
 +  Reserved.set(DADAO::rd0);
@@ -122,27 +124,20 @@ index 000000000..43478a55a
 +  Reserved.set(DADAO::rb0);
 +  // rb1 = SP (contract-abi.md §2.1)
 +  Reserved.set(DADAO::rb1);
-+  // rb2 = GP (global pointer), rb3 = TP (thread pointer): reserved, not
-+  // allocatable (contract-abi.md §1.6; ADR-0018 C7 D6 rev. 2026-10-09).
++  // rb2 = frame pointer (FP): reserved UNCONDITIONALLY (ADR-0018 C7 D3/D6
++  // rev. 2026-10-19; contract-abi.md §1.3/§4.7).  When hasFP it holds the
++  // frame base; otherwise it is simply never allocated ("rb2：不做帧指针的时
++  // 候，建议不做分配" — user ruling 2026-10-19).  rb2 has no ABI name alias.
++  //
++  // rb63 is NOT reserved: it is an ordinary callee-saved member of the
++  // rb32..rb63 pool (no conditional reservation, no FP dedicated slot).
 +  Reserved.set(DADAO::rb2);
++  // rb3 = TP (thread pointer): reserved, not allocatable (contract-abi.md §1.6).
 +  Reserved.set(DADAO::rb3);
 +  // rd1 = error number (rderrno); rd2–rd3 = reserved (debug/test only).
 +  // rd4–rd7 are temporary (caller-saved) and allocatable.
 +  for (unsigned i = DADAO::rd1; i <= DADAO::rd3; ++i)
 +    Reserved.set(i);
-+  // FP (rb63) is CONDITIONALLY reserved: reserve it iff this function builds a
-+  // frame pointer.  Otherwise rb63 is a general callee-saved register.
-+  //
-+  // INVARIANT: this must use the *same* hasFP(MF) test as getFrameRegister, on
-+  // the *same* MachineFunction — otherwise the allocator and the frame layout
-+  // would disagree on whether rb63 is the FP (a mismatch silently corrupts the
-+  // frame).  Both call TFI->hasFP(MF); hasFPImpl's inputs (var-sized objects /
-+  // frame address taken / stack realignment / -fno-omit-frame-pointer) are
-+  // finalized by SelectionDAG before reserved regs are frozen, so the answer is
-+  // stable across RA and PEI.
-+  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
-+  if (TFI->hasFP(MF))
-+    Reserved.set(DADAO::rb63);
 +  // RF: only rf0 (FCSR) is reserved (contract-abi.md §1.4/§1.6; LLVM-066t).
 +  // rf1–rf63 are allocatable (rf1–rf31 caller-saved, rf32–rf63 callee-saved).
 +  Reserved.set(DADAO::rf0);
@@ -274,8 +269,11 @@ index 000000000..43478a55a
 +
 +Register
 +DADAORegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-+  // ADR-0018 C7 D3/C7 D6 rev. 2026-10-09: `hasFP ? rb63 : rb1`.
-+  // Keep this hasFP(MF) test identical to getReservedRegs' rb63 reservation.
++  // ADR-0018 C7 D3/C7 D6 rev. 2026-10-19: `hasFP ? rb2 : rb1`.
++  // The FP is rb2, which getReservedRegs reserves unconditionally; with no
++  // frame pointer the register is still reserved (never allocated) and SP is
++  // the frame base.  Both paths use the same TFI->hasFP(MF) test as the frame
++  // lowering (DADAOFrameLowering::hasFPImpl), so RA and PEI cannot disagree.
 +  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
-+  return TFI->hasFP(MF) ? DADAO::rb63 : DADAO::rb1; // FP = rb63, SP = rb1
++  return TFI->hasFP(MF) ? DADAO::rb2 : DADAO::rb1; // FP = rb2, SP = rb1
 +}

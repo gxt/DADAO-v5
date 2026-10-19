@@ -1,22 +1,23 @@
 diff --git a/src/setjmp/dadao/setjmp.S b/src/setjmp/dadao/setjmp.S
 new file mode 100644
-index 0000000..82251d9
+index 0000000..d949578
 --- /dev/null
 +++ b/src/setjmp/dadao/setjmp.S
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,60 @@
 +/* DADAO setjmp.
 + *
 + * int setjmp(jmp_buf env);   -- env is a pointer argument, delivered in rb16
 + *                               (contract-abi.md §4.1).
 + *
 + * The frame saved here is byte-for-byte the layout documented in
-+ * arch/dadao/bits/setjmp.h (161 octas):
++ * arch/dadao/bits/setjmp.h (162 octas):
 + *
 + *   [   0 ..  503]  ra0 .. ra63   -- the hardware return-address stack
 + *   [ 512]          rb1           -- stack pointer
 + *   [ 520 ..  775]  rd32 .. rd63  -- callee-saved, contract-abi.md §4.5
-+ *   [ 776 .. 1031]  rb32 .. rb63  -- callee-saved (incl. rb63 = FP)
++ *   [ 776 .. 1031]  rb32 .. rb63  -- callee-saved (rb63 is an ordinary member)
 + *   [1032 .. 1287]  rf32 .. rf63  -- callee-saved FP bank
++ *   [1288]          rb2           -- frame pointer (FP; reserved, not in CSR)
 + *
 + * Saving the return-address stack is possible because DADAO makes it
 + * architecturally visible (ra0-ra63 are readable and writable,
@@ -60,5 +61,6 @@ index 0000000..82251d9
 +	stm.o	{rb32:rb63}, [rb16, rd17]
 +	set.zw	rd17, wp0, 1032
 +	stm.o	{rf32:rf63}, [rb16, rd17]
++	st.o	rb2, [rb16, 1288]
 +	ret	rd8, 0
 +	.size setjmp, . - setjmp

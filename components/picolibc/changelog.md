@@ -30,3 +30,7 @@
 - **2026-10-19 `LLVM-109t`（迁移漏项修复，`ISS-281`）**
   - 摘要：**汇编注释符 `;` → `@@`：`semihost-dadao.S` 尾注释收口**。`libos/semihost/machine/dadao/semihost-dadao.S` 的 3 行行尾注释由 `;` 改 `@@`（C 块注释与其它 DADAO `.S` 不动），E1 收敛后重导出该补丁（`series` 14 不变）。实测安装根 clang 汇编 rc=0；本次按派单未重跑 `make build-picolibc`（重建范围限于 musl）。
   - 执行者：engineer
+
+- **2026-10-19 `LLVM-110t`**
+  - 摘要：**`_JBLEN` 161→162：`jmp_buf` 增 1 个 octa 保存帧指针 `rb2`**（FP 由 `rb63` 迁回 `rb2` 后 `rb2` 不在 CSR；同 musl 端口）：`libc/include/machine/setjmp.h` `_JBLEN 162` + 布局注释；`libc/machine/dadao/setjmp.S` `setjmp`/`longjmp` 增 `st.o`/`ld.o rb2, [rb16, 1288]`（`rb32:rb63` 批量保存不变，`rb63` 现为普通 callee-saved）。`series` **14 不变**（2 份既有补丁改）。真值：`_Static_assert(_JBLEN==162 && sizeof(jmp_buf)==1296)` 通过；`setjmp.S` 汇编/反汇编含 `[rb16,1288]`；E2E：新编译器 + 旧端口 ⇒ exit 1，新端口 ⇒ exit 0。**注意**：`make build-picolibc` 全量重建在 `strtold.c` 撞既有后端缺口（`uint_to_fp i128→f128` 未注册 libcall，见 `ISS-193` 同类），与本笔无关，见 `LLVM-110t` 完成区。
+  - 执行者：engineer

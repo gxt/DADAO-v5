@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..eac65b495
+index 000000000..e1ee0b301
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 @@ -0,0 +1,549 @@
@@ -193,7 +193,7 @@ index 000000000..eac65b495
 +  const EVT VT = Addr.getValueType();
 +
 +  // A frame index stays in the base operand position; PrologEpilogInserter's
-+  // eliminateFrameIndex later turns it into `[rbsp/rbfp, offset]`
++  // eliminateFrameIndex later turns it into `[rbsp/rb2 (FP), offset]`
 +  // (ADR-0018 C7/C8, LLVM-038t).
 +  if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
 +    Base = CurDAG->getTargetFrameIndex(FIN->getIndex(), VT);

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
 new file mode 100644
-index 000000000..a1714473b
+index 000000000..73e4adc7c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
-@@ -0,0 +1,446 @@
+@@ -0,0 +1,491 @@
 +//===-- DADAOFrameLowering.cpp - DADAO Frame Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -15,22 +15,24 @@ index 000000000..a1714473b
 +// DADAO frame lowering for M3 (LLVM-038t, ADR-0018 C7/C8).
 +//
 +// Frame layout (StackGrowsDown, LocalAreaOffset = 0):
-+//   entry SP ─┬─ [FP]          rbfp = rb63 (only when hasFP)
-+//             │  [saved FP]    fixed slot at -8 (only when hasFP)
++//   entry SP ─┬─ [FP]          rb2 = entry SP (only when hasFP)
++//             │  [saved FP]    reserved slot at -8 (only when hasFP)
 +//             │  locals / spill slots
 +//   current SP┴─
 +//
 +// Prologue (SP-only):  add.si rbsp, -StackSize
-+// Prologue (FP):       st.o rbfp, [rbsp, -8]      ; save the caller's FP
++// Prologue (FP):       st.o rb2, [rbsp, -8]       ; save the caller's FP
 +//                      add.si rbsp, -StackSize    ; allocate the frame
-+//                      rb2rb rbfp, rbsp           ; rbfp = entry SP
-+//                      add.si rbfp, StackSize
++//                      rb2rb rb2, rbsp            ; rb2 = entry SP
++//                      add.si rb2, StackSize
 +// Epilogue (SP-only):  add.si rbsp, +StackSize
-+// Epilogue (FP):       rb2rb rbsp, rbfp           ; rbsp = entry SP
-+//                      ld.o rbfp, [rbsp, -8]      ; restore the caller's FP
++// Epilogue (FP):       rb2rb rbsp, rb2            ; rbsp = entry SP
++//                      ld.o rb2, [rbsp, -8]       ; restore the caller's FP
 +//
 +// Callee-saved register sets (CSR) are LLVM-039t; only the frame pointer is
-+// saved here (rb63, conditionally reserved — see DADAORegisterInfo).
++// saved here (rb2, reserved unconditionally — see DADAORegisterInfo).  rb63 is
++// an ordinary callee-saved member of the rb32..rb63 pool (ADR-0018 C7 D3/D6
++// rev. 2026-10-19).
 +//
 +// Large-frame addressing (ADR-0018 C7 D4, rev. 2026-10-08; LLVM-064t) is
 +// cost-driven, with four forms selected by the compiler (all in
@@ -46,12 +48,10 @@ index 000000000..a1714473b
 +// `ldm.*`/`stm.*` immediate encodes a contiguous register range with the hard
 +// rule `start + immu6 <= 64` (no wrap / truncation).  rb63 is the highest RB
 +// number, so it may only be the *last* element (or a singleton) of a batch
-+// range; {rb32..rb63} (start 32 + immu6 32 = 64) is legal.  Project convention
-+// (contract-abi.md §1.3): rb63 = FP is saved to its own dedicated slot
-+// (`st.o rb63, [sp, -8]` in emitPrologue); a batch callee-saved save normally
-+// does not include it, and if it did it would have to sit at the range END.
-+// emitCalleeSavedRegs keeps rb63-as-run-top as the separate offset holder, so
-+// it is never a range start.
++// range; {rb32..rb63} (start 32 + immu6 32 = 64) is legal.  rb63 is now an
++// ordinary pool member, so emitCalleeSavedRegs lets a run end at it: when the
++// run top is rb63 the offset holder moves to the run *bottom* (otherwise the
++// top is the holder, which would keep rb63 out of every batch).
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -80,9 +80,8 @@ index 000000000..a1714473b
 +
 +using namespace llvm;
 +
-+// Fixed slot (relative to the entry SP) holding the caller's frame pointer.
-+// Only created/reserved when a frame pointer is built.
-+static constexpr uint64_t FPSaveSlotSize = 8;
++// The saved frame pointer lives at the constant slot [entry SP - 8].  It is not
++// an MFI object: `determineFrameLayout` reserves the 8 bytes (see there).
 +static constexpr int64_t FPSaveSlotOffset = -8;
 +
 +// `add.si` immediate field is imms18: [-2^17, 2^17-1].
@@ -104,7 +103,7 @@ index 000000000..a1714473b
 +  const MachineFrameInfo &MFI = MF.getFrameInfo();
 +  const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
 +
-+  FrameReg = TRI->getFrameRegister(MF); // rb63 with FP, rb1 SP-only
++  FrameReg = TRI->getFrameRegister(MF); // rb2 with FP, rb1 SP-only
 +  if (hasFP(MF)) {
 +    // FP points at the entry SP, so the object offset is taken directly.
 +    return StackOffset::getFixed(MFI.getObjectOffset(FI));
@@ -116,22 +115,51 @@ index 000000000..a1714473b
 +
 +void DADAOFrameLowering::determineFrameLayout(MachineFunction &MF) const {
 +  MachineFrameInfo &MFI = MF.getFrameInfo();
-+  // PEI has already assigned object offsets; only the frame size is finalized
-+  // here.  It must be a multiple of the stack alignment so that SP stays
++  // PEI has already assigned object offsets; this hook finalizes the layout.
++  // The frame size must be a multiple of the stack alignment so that SP stays
 +  // 8-byte aligned at calls (contract-abi.md §2.2).
 +  Align StackAlign = std::max(getStackAlign(), MFI.getMaxAlign());
-+  MFI.setStackSize(alignTo(MFI.getStackSize(), StackAlign));
++  uint64_t StackSize = MFI.getStackSize();
++  if (hasFP(MF)) {
++    // Reserve [entry SP - 8, entry SP) for the caller's FP (saved/restored with
++    // the constant offset FPSaveSlotOffset).  There is no fixed stack object
++    // for it anymore, and PEI assigned the object offsets starting at 0, so the
++    // whole object area is 8 bytes too high and would overlap that slot.
++    //
++    // Re-derive the offsets exactly as PEI would with an 8-byte local area:
++    // walk the objects in allocation order (PEI assigns them sequentially
++    // downwards, so descending current offsets) and re-place each one from
++    // Offset = 8.  This is byte-for-byte the pre-LLVM-110t layout (same object
++    // offsets, same StackSize), including objects whose alignment is > 8 (a
++    // plain `offset -= 8` would break those).  Must run before anything
++    // resolves a frame index / reads a slot; emitPrologue is the only caller.
++    SmallVector<int, 16> Objects;
++    for (int FI = MFI.getObjectIndexBegin(); FI < MFI.getObjectIndexEnd();
++         ++FI) {
++      if (MFI.isDeadObjectIndex(FI) || MFI.isFixedObjectIndex(FI) ||
++          MFI.getStackID(FI) != TargetStackID::Default)
++        continue;
++      // Every non-fixed default-stack object has offset <= 0; offset 0 occurs
++      // for a variable-sized object that is the first one allocated (size 0).
++      Objects.push_back(FI);
++    }
++    llvm::sort(Objects, [&MFI](int A, int B) {
++      return MFI.getObjectOffset(A) > MFI.getObjectOffset(B);
++    });
++    int64_t Offset = 8; // size of the saved-FP slot
++    for (int FI : Objects) {
++      Offset += (int64_t)MFI.getObjectSize(FI);
++      Offset = alignTo(Offset, MFI.getObjectAlign(FI));
++      MFI.setObjectOffset(FI, -Offset);
++    }
++    StackSize = (uint64_t)Offset;
++  }
++  MFI.setStackSize(alignTo(StackSize, StackAlign));
 +}
 +
 +void DADAOFrameLowering::processFunctionBeforeFrameFinalized(
 +    MachineFunction &MF, RegScavenger *RS) const {
 +  MachineFrameInfo &MFI = MF.getFrameInfo();
-+  if (hasFP(MF)) {
-+    // Reserve the slot closest to the entry SP for the saved frame pointer.  It
-+    // is spilled/restored explicitly in emitPrologue/emitEpilogue.
-+    MFI.CreateFixedSpillStackObject(FPSaveSlotSize, FPSaveSlotOffset,
-+                                    /*IsImmutable=*/true);
-+  }
 +
 +  // Large frame offsets are materialized through a scavenged scratch register
 +  // (ADR-0018 C7 D4 form 3).  When the frame can exceed the simm12 load/store
@@ -277,13 +305,32 @@ index 000000000..a1714473b
 +      // be the range END.  Two cases:
 +      //   * offset 0: the whole run fits at the frame base; rc = rd0 (hardwired
 +      //     zero) and every register is in one range.
-+      //   * offset != 0: Regs[j] (the run top) is saved/restored on its own and
-+      //     reused as the offset holder -- its caller value is in memory and
-+      //     its body value is irrelevant because it is callee-saved -- and
-+      //     Regs[i..j-1] are the range.  When the top is rb63 it is thus never a
-+      //     range start, and rb63-as-FP (hasFP) is absent from the callee-saved
-+      //     info anyway (saved to its own dedicated slot).
++      //   * offset != 0: one register of the run is saved/restored on its own
++      //     and reused as the offset holder (its caller value is in memory and
++      //     its body value is irrelevant because it is callee-saved).  The
++      //     holder is normally the run TOP (Regs[j]), so the batch is
++      //     Regs[i..j-1].
++      //
++      //     BUT when the run top is rb63 that would keep rb63 out of every
++      //     batch forever, contradicting "rb63 is an ordinary rb32..rb63 pool
++      //     member" (ADR-0018 C7 D3/D6 rev. 2026-10-19).  In that case the
++      //     holder moves to the run BOTTOM (Regs[i]) and the batch is
++      //     Regs[i+1..j], i.e. it ends at rb63 (start 33 + immu6 31 = 64).
 +      const unsigned Start = Regs[i].first;
++      const bool BottomHolder = Regs[j].first == DADAO::rb63;
++      const unsigned Holder = BottomHolder ? Regs[i].first : Regs[j].first;
++      const int HolderFI = BottomHolder ? Regs[i].second : Regs[j].second;
++      const unsigned RangeStart = BottomHolder ? Regs[i + 1].first : Start;
++      const unsigned Count = j - i; // Regs[i..j-1] or Regs[i+1..j]
++      const int64_t BaseOffset = Off0 + (BottomHolder ? 8 : 0);
++      if (IsRB && !isInt<18>(BaseOffset)) {
++        // The holder cannot be materialized with one `add.si`; fall back to
++        // per-register saves rather than emitting a wrong address.
++        for (unsigned t = i; t <= j; ++t)
++          emitOne(Regs[t].first, Regs[t].second);
++        i = j + 1;
++        continue;
++      }
 +
 +      auto emitBatch = [&](unsigned Opc, unsigned RangeStart, unsigned Count,
 +                           unsigned Base, unsigned OffReg) {
@@ -310,36 +357,34 @@ index 000000000..a1714473b
 +        continue;
 +      }
 +
-+      const unsigned Top = Regs[j].first;
-+      const unsigned Count = j - i; // Regs[i..j-1]
 +      auto setupOffsetHolder = [&]() {
 +        if (IsRB) {
-+          BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), Top)
++          BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), Holder)
 +              .addReg(FrameReg)
 +              .addImm(1)
 +              .setMIFlag(Flag);
-+          BuildMI(MBB, MBBI, DL, TII.get(DADAO::add_si_rb), Top)
-+              .addImm(Off0)
++          BuildMI(MBB, MBBI, DL, TII.get(DADAO::add_si_rb), Holder)
++              .addImm(BaseOffset)
 +              .setMIFlag(Flag);
 +        } else {
-+          TII.materializeImm64(MBB, MBBI, DL, Top, Off0, Flag);
++          TII.materializeImm64(MBB, MBBI, DL, Holder, BaseOffset, Flag);
 +        }
 +      };
 +
 +      if (!IsEpilogue) {
-+        emitOne(Top, Regs[j].second); // save the offset holder first
++        emitOne(Holder, HolderFI); // save the offset holder first
 +        setupOffsetHolder();
 +        if (IsRB)
-+          emitBatch(DADAO::stm_o_rb, Start, Count, Top, DADAO::rd0);
++          emitBatch(DADAO::stm_o_rb, RangeStart, Count, Holder, DADAO::rd0);
 +        else
-+          emitBatch(DADAO::stm_o_rd, Start, Count, FrameReg, Top);
++          emitBatch(DADAO::stm_o_rd, RangeStart, Count, FrameReg, Holder);
 +      } else {
-+        setupOffsetHolder(); // clobber Top; its body value is irrelevant
++        setupOffsetHolder(); // clobber Holder; its body value is irrelevant
 +        if (IsRB)
-+          emitBatch(DADAO::ldm_o_rb, Start, Count, Top, DADAO::rd0);
++          emitBatch(DADAO::ldm_o_rb, RangeStart, Count, Holder, DADAO::rd0);
 +        else
-+          emitBatch(DADAO::ldm_o_rd, Start, Count, FrameReg, Top);
-+        emitOne(Top, Regs[j].second); // restore the offset holder last
++          emitBatch(DADAO::ldm_o_rd, RangeStart, Count, FrameReg, Holder);
++        emitOne(Holder, HolderFI); // restore the offset holder last
 +      }
 +      i = j + 1;
 +    }
@@ -360,11 +405,11 @@ index 000000000..a1714473b
 +
 +  if (HasFP) {
 +    // Save the caller's frame pointer before it is overwritten:
-+    //   st.o rbfp, [rbsp, FPSaveSlotOffset]   (SP still at the entry value)
-+    // rbfp is rb63; it is reserved while hasFP holds (getReservedRegs), so it
-+    // is never allocated and this explicit save is its only spill.
++    //   st.o rb2, [rbsp, FPSaveSlotOffset]   (SP still at the entry value)
++    // rb2 is reserved unconditionally (getReservedRegs), so it is never
++    // allocated and this explicit save is its only spill.
 +    BuildMI(MBB, MBBI, DL, TII.get(DADAO::st_o_rb))
-+        .addReg(DADAO::rb63)
++        .addReg(DADAO::rb2)
 +        .addReg(DADAO::rb1)
 +        .addImm(FPSaveSlotOffset)
 +        .setMIFlag(MachineInstr::FrameSetup);
@@ -375,12 +420,12 @@ index 000000000..a1714473b
 +             /*IsEpilogue=*/false);
 +
 +  if (HasFP) {
-+    // rbfp = entry SP = rbsp + StackSize.
-+    BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), DADAO::rb63)
++    // rb2 = entry SP = rbsp + StackSize.
++    BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), DADAO::rb2)
 +        .addReg(DADAO::rb1)
 +        .addImm(1)
 +        .setMIFlag(MachineInstr::FrameSetup);
-+    emitAddImm(MBB, MBBI, DL, DADAO::rb63, (int64_t)StackSize,
++    emitAddImm(MBB, MBBI, DL, DADAO::rb2, (int64_t)StackSize,
 +               /*IsEpilogue=*/false);
 +  }
 +
@@ -405,13 +450,13 @@ index 000000000..a1714473b
 +
 +  if (hasFP(MF)) {
 +    // SP = FP (entry SP), then restore the caller's FP:
-+    //   rb2rb rbsp, rbfp
-+    //   ld.o rbfp, [rbsp, FPSaveSlotOffset]
++    //   rb2rb rbsp, rb2
++    //   ld.o rb2, [rbsp, FPSaveSlotOffset]
 +    BuildMI(MBB, MBBI, DL, TII.get(DADAO::rb2rb), DADAO::rb1)
-+        .addReg(DADAO::rb63)
++        .addReg(DADAO::rb2)
 +        .addImm(1)
 +        .setMIFlag(MachineInstr::FrameDestroy);
-+    BuildMI(MBB, MBBI, DL, TII.get(DADAO::ld_o_rb), DADAO::rb63)
++    BuildMI(MBB, MBBI, DL, TII.get(DADAO::ld_o_rb), DADAO::rb2)
 +        .addReg(DADAO::rb1)
 +        .addImm(FPSaveSlotOffset)
 +        .setMIFlag(MachineInstr::FrameDestroy);

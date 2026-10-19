@@ -44,3 +44,7 @@
   - 摘要：**汇编注释符 `;` → `@@`：组件补丁集漏项收口**。`LLVM-109t` 的迁移面未覆盖组件补丁里的 DADAO 手写汇编 ⇒ `CommentString="@@"` 后旧 `;` 注释被当作语句分隔符，`make build-musl` 在 `src/signal/dadao/sigsetjmp.s`、`src/thread/dadao/syscall_cp.s`、`src/thread/dadao/__set_thread_area.s` 报 `unrecognized instruction mnemonic`，`lib/libc.a`、`lib/crt1.o` 缺失。改 `.work/source/musl` 的 3 个文件（49 + 86 + 25 = 160 行注释引导符 `;`→`@@`；注释正文里的 `;` 保留、C 块注释与 `src/setjmp/dadao/*.S` 不动），E1 收敛后重导出 3 份补丁（`series` 22 不变）。实测 `make build-musl` rc=0（11.0 s，10/10 ELF 检查）、`make build-musl-shared` rc=0（12.9 s）、`libc.a`/`crt1.o`/`libc.so` 均在、`check-musl-freshness` PASS。
   - 补充：`arch/dadao/crt_arch.h` C 注释里的过期说明「`;` starts a comment」同步改 `@@`（仅注释文本，代码零改动），重导出该补丁（本批共 4 份，`series` 22 不变）。
   - 执行者：engineer
+
+- **2026-10-19 `LLVM-110t`**
+  - 摘要：**`jmp_buf` 增 1 个 octa 保存帧指针 `rb2`（161→162）**（FP 由 `rb63` 迁回 `rb2` 后 `rb2` 不在 CSR，`longjmp` 必须显式恢复返回上下文帧基址）：`arch/dadao/bits/setjmp.h` `__jmp_buf[162]` + 布局注释（`rb2` 追加在 CSR 块后，byte offset 1288）；`src/setjmp/dadao/setjmp.S` 增 `st.o rb2, [rb16, 1288]`、`longjmp.S` 增 `ld.o rb2, [rb16, 1288]`（在 RA/`rb1` 恢复前）；`src/signal/dadao/sigsetjmp.s` 的 `__fl`/`__ss` 偏移 1288/1296 → **1296/1304**。`series` **22 不变**（4 份既有补丁改）。真值：`make build-musl` rc=0（10/10 ELF 检查）、`make build-musl-shared` rc=0；`_Static_assert(sizeof(__jmp_buf)==1296 && sizeof(jmp_buf)==1432)` 通过；`setjmp.o`/`longjmp.o` 反汇编含 `[rb16,1288]`；E2E：新编译器 + 旧端口 setjmp/longjmp ⇒ exit 1（FP 未恢复），新端口 ⇒ exit 0。
+  - 执行者：engineer

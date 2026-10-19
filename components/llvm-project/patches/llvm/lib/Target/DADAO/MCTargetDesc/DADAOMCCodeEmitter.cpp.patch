@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
 new file mode 100644
-index 000000000..39db21ab2
+index 000000000..74ba72e48
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
-@@ -0,0 +1,299 @@
+@@ -0,0 +1,304 @@
 +//===-- DADAOMCCodeEmitter.cpp - DADAO MC Code Emitter --------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -43,15 +43,20 @@ index 000000000..39db21ab2
 +// Map a DADAO register enum to its 6-bit hardware encoding, or ~0u for a
 +// register outside the four banks (RD/RB/RF/RA).  rb0 maps to 0 (the PC alias);
 +// it is the register that selects the PC-relative ld/st reloc type.
++//
++// The bases are taken from the generated enum symbols, NOT from hard-coded
++// numbers: the enum is emitted in record-name order (RBSP first), so adding or
++// removing a register definition (LLVM-110t deleted the old RBFP alias) shifts
++// every value.  Symbolic bases keep this mapping exact across such changes.
 +static unsigned dadaoRegHW(unsigned RegNo) {
-+  if (RegNo >= 131 && RegNo <= 194) // RD
-+    return RegNo - 131;
-+  if (RegNo >= 67 && RegNo <= 130) // RB
-+    return RegNo - 67;
-+  if (RegNo >= 3 && RegNo <= 66) // RF
-+    return RegNo - 3;
-+  if (RegNo >= 195 && RegNo <= 258) // RA
-+    return RegNo - 195;
++  if (RegNo >= DADAO::rd0 && RegNo <= DADAO::rd63)
++    return RegNo - DADAO::rd0;
++  if (RegNo >= DADAO::rb0 && RegNo <= DADAO::rb63)
++    return RegNo - DADAO::rb0;
++  if (RegNo >= DADAO::rf0 && RegNo <= DADAO::rf63)
++    return RegNo - DADAO::rf0;
++  if (RegNo >= DADAO::ra0 && RegNo <= DADAO::ra63)
++    return RegNo - DADAO::ra0;
 +  return ~0u;
 +}
 +

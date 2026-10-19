@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCallingConv.td b/llvm/lib/Target/DADAO/DADAOCallingConv.td
 new file mode 100644
-index 000000000..471edf476
+index 000000000..decf12262
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCallingConv.td
 @@ -0,0 +1,137 @@
@@ -118,10 +118,10 @@ index 000000000..471edf476
 +// Callee-saved registers / call-preserved mask
 +//
 +// CSR = rd32..rd63 ∪ rb32..rb63 ∪ rf32..rf63 (contract-abi.md §4.5, C6;
-+// RF 口径 M6/LLVM-066t).  rb63 is included:
-+// it is ALWAYS callee-saved — as FP when hasFP (saved to its own dedicated
-+// slot, st.o rb63, [sp, -8]), otherwise as an ordinary general callee-saved
-+// register.  SP (rb1) is NOT part of the generic CSR (it is maintained
++// RF 口径 M6/LLVM-066t).  rb32..rb63 is ONE contiguous callee-saved pool and
++// rb63 is an ordinary member of it (ADR-0018 C7 D3/D6 rev. 2026-10-19); the
++// frame pointer is rb2, which is reserved unconditionally and is therefore not
++// part of the CSR.  SP (rb1) is NOT part of the generic CSR (it is maintained
 +// symmetrically by the prologue/epilogue).  The caller-saved set
 +// (rd4–rd31 / rb4–rb31) is the complement of the preserved mask plus the
 +// non-allocatable registers.

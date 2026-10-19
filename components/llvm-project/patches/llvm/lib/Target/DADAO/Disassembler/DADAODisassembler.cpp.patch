@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
 new file mode 100644
-index 000000000000..b522e707b657
+index 000000000..5968e8470
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/Disassembler/DADAODisassembler.cpp
 @@ -0,0 +1,277 @@
@@ -128,11 +128,11 @@ index 000000000000..b522e707b657
 +//===----------------------------------------------------------------------===//
 +// Register class decoder implementations.
 +//
-+// Register numbering from DADAOMCCodeEmitter.cpp:
-+//   RD: DADAO::rd0 + hw (rd0=131, ..., rd63=194)
-+//   RB: DADAO::rb0 + hw (rb0=67,  ..., rb63=130)
-+//   RF: DADAO::rf0 + hw (rf0=3,   ..., rf63=66)
-+//   RA: DADAO::ra0 + hw (ra0=195, ..., ra63=258)
++// Register numbering from DADAOMCCodeEmitter.cpp (generated enum symbols; the
++// numeric enum values are not stable -- they shift when a register definition
++// is added/removed, e.g. the old RBFP alias deleted by LLVM-110t):
++//   RD: DADAO::rd0 + hw    RB: DADAO::rb0 + hw
++//   RF: DADAO::rf0 + hw    RA: DADAO::ra0 + hw
 +//===----------------------------------------------------------------------===//
 +
 +static DecodeStatus DecodeGPRDRegisterClass(MCInst &MI, uint64_t RegNo,

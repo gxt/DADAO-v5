@@ -1,8 +1,8 @@
 diff --git a/libc/include/machine/setjmp.h b/libc/include/machine/setjmp.h
-index 84d700e..3b41081 100644
+index 84d700e..6e367f6 100644
 --- a/libc/include/machine/setjmp.h
 +++ b/libc/include/machine/setjmp.h
-@@ -22,6 +22,21 @@ _BEGIN_STD_C
+@@ -22,6 +22,22 @@ _BEGIN_STD_C
  #define _JBTYPE long
  #endif
  
@@ -12,13 +12,14 @@ index 84d700e..3b41081 100644
 + * restorable from software via ld.o/st.o/ldm.o/stm.o, contract-isa.md §1.3.4)
 + * + SP (rb1) + the callee-saved register blocks rd32-rd63, rb32-rb63 and
 + * rf32-rf63 (contract-abi.md §4.5: CSR = rd32-rd63 ∪ rb32-rb63 ∪ rf32-rf63,
-+ * the FP bank is callee-saved per spec/DADAO-21).  Layout in
-+ * libc/machine/dadao/setjmp.S; 161 = 64 (ra) + 1 (sp) + 32 (rd) + 32 (rb)
-+ * + 32 (rf).  sizeof(long long) keeps the buffer 8-byte aligned (required for
-+ * stm.o/ldm.o).
++ * the FP bank is callee-saved per spec/DADAO-21) + the frame pointer rb2
++ * (reserved, not part of the CSR; ADR-0018 C7 D3/D6 rev. 2026-10-19).
++ * Layout in libc/machine/dadao/setjmp.S; 162 = 64 (ra) + 1 (sp) + 32 (rd)
++ * + 32 (rb) + 32 (rf) + 1 (rb2).  sizeof(long long) keeps the buffer 8-byte
++ * aligned (required for stm.o/ldm.o).
 + */
 +#define _JBTYPE long long
-+#define _JBLEN  161
++#define _JBLEN  162
 +#endif
 +
  #if defined(__or1k__) || defined(__or1knd__)

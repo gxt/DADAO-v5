@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`SPEC-150t`（规范/契约面，**同批**；本册实现须与 `contract-abi §1.3/§4.5/§4.7` 一致）、`ADR-0018`（`C7 D2/D3/D6` 已由 architect 于 2026-10-19 就地修订）、`LLVM-039t`/`LLVM-064t`（现 prologue/epilogue 与 CSR 批量保存实现）、`ISS-280`（本册对应 issue）
-**状态**：待开始
+**状态**：待验收
 
 ## 用户授权（原话逐字，渠道 = 经主会话问答，2026-10-19）
 
@@ -95,10 +95,23 @@
 9. 完成区贴真实命令输出 + 退出码（≤30 行）；长日志留 `.work/log/llvm/`。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：6/6 探针 PASS（证据 `.work/evidence/LLVM-110t/`，default rc=0）：① `-fno-omit-frame-pointer` 汇编 = `st.o rb2,[rb1,-8]` + `rb2rb {rb2},{rb1}` + `ld.o rb2,[rb1,-8]`，`rb63` 0 处（改前为 `rb63`）；② VLA+alloca 运行 exit 0（独立手算校验和 1071）；③/④ `stm.o {rb33:rb63}` + `ldm.o {rb33:rb63}`（33+31=64），帧 8496 B（>4 KiB），运行 exit 0，错 oracle 负例 exit 1；⑤ 8 文件非 FP 语料 `.s`/`.o` 与改前基线一致（仅 `.ident` 编译指纹；`.comment` 剔除后逐字节相同）；⑥ 旧端口+新编译器 exit 1（FAIL）→ 新端口 exit 0；MIR 探针：改前 `$rb63 = frame-setup rb2rb`（FP 与数据同用 rb63）⇒ 改后 FP=rb2、`rb63` 只在 `stm` 隐式列表中。重建：`build-musl` rc=0、`build-musl-shared` rc=0、`build-picolibc` rc=2（既有缺口，见遗留②）。回归：047t 10 例 static 10/10 + dynamic 10/10；046t static 19/19（均用安装根旧编译器 + 重建后的 musl，作 musl 回归）。
+**修改文件**：llvm 补丁 13 份（`DADAORegisterInfo.{cpp,td}`、`DADAOFrameLowering.{cpp,h}`、`DADAOCallingConv.td`、`DADAOCodeGen.td`、`DADAOISelDAGToDAG.cpp`、`DADAOISelLowering.cpp`、`DADAOInstrInfo.h`、`MCTargetDesc/DADAOMCCodeEmitter.cpp`、`MCTargetDesc/DADAOMCTargetDesc.h`、`Disassembler/DADAODisassembler.cpp`、`clang/lib/Basic/Targets/DADAO.cpp`）+ `tools/llvm/llvm-isa-backend-matrix.tsv`（行号重派生）；musl 补丁 4 份（`arch/dadao/bits/setjmp.h`、`src/setjmp/dadao/{setjmp,longjmp}.S`、`src/signal/dadao/sigsetjmp.s`）；picolibc 补丁 2 份（`libc/include/machine/setjmp.h`、`libc/machine/dadao/setjmp.S`）；3 个 `components/*/changelog.md`；本册。`series` 82/22/14 不变，`check-patch-tree` **181**（不变）。
+**验收结果**：`make check`(L1) rc=0；`check-patch-tree` rc=0（181）、`check-instrinfo` rc=0（0 errors）、`check-isa-coverage` PASS、`check_lit_gen` 64/64、`check-index-blobs`（131 new OK）、`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-musl-freshness`/`check_issues` rc=0。证据脚本 default rc=0；`--inject` rc=0（`.work/log/llvm/LLVM-110t-evidence-inject2.log`）：① `getFrameRegister→rb63`（重建）⇒ probe1 `rb63`×5、probe2 exit 136，`cp`+md5 还原重建后回绿；② 删 `Reserved.set(rb2)`（重建）⇒ 源形断言 actual=0、probe3/4 exit 129，还原后回绿。重建耗时：首建 32 目标 ~5 min，后续增量 ~3 min/次（日志 `.work/log/llvm/LLVM-110t-build*.log`、`-musl*.log`）。SPEC-150t 对齐：`getReservedRegs` = {rd0,rb0,rb1,rb2(无条件),rb3,rd1–rd3,rf0,ra*}；`getFrameRegister` = `hasFP ? rb2 : rb1`；`getCalleeSavedRegs`/CSR = `rd32–63 ∪ rb32–63 ∪ rf32–63`（rb63 普通成员，rb2 不在 CSR）。
+**新发现/坑**：① 删 `RBFP` 使生成 register enum（按记录名排序、RBSP 在首）整体左移，`DADAOMCCodeEmitter::dadaoRegHW` 的硬编码区间（`131/67/3/195`）会把 `rd0` 编成 `rd63` ⇒ 必须改用生成 enum 符号（本笔同修；`-S` 文本不变、`.o` 才暴露，易漏）；② FP 专用 fixed object 不能只“+8 计入 StackSize”：PEI 从 0 分配，`st.o rb2,[sp,-8]` 会与首个对象重叠，且简单 `offset -= 8` 破坏 align>8 对象 ⇒ `determineFrameLayout` 按 PEI 分配顺序从 `Offset=8` 重算（`fp_probe`/`align16` 偏移与改前逐字节同，幂等）；③ `rb63` 作 run 顶时原 emitter 用其作 offset holder ⇒ 永远进不了批量；run 顶为 `rb63` 时 holder 移到 run 底，`stm.o {rb33:rb63}` 才合法；④ `build-picolibc` 全量重建在 `strtold.c` 撞 `uint_to_fp i128→f128` 未注册 libcall（`LLVM-106t` 只注册 i128↔f64/f32；`_Static`/`LegalizeTypes` 现场），与本笔无关（失败发生在安装根旧编译器上，`strtold.c` 未被本笔触及）。
+**遗留问题**：① 按派单未跑 `install-host`：安装根的 FP=rb2 两档 smoke/E2E、L2/L3、047t/046t 全量待主会话复验（现有 047t/046t 走安装根旧编译器）；② `build-picolibc` 需另立：注册 `RTLIB::{SINT,UINT}TOFP_I128_F128`（`__floattitf`/`__floatuntitf`）或扩充 picolibc 排除表并更新 `ISS-193`（本笔未改，避免越界）；③ 本册未改 `tests/llvm/lit`（派单文件集限定 components+本册），MIR/汇编探针以 `.work/evidence/LLVM-110t/` 交付；④ `git status` 中 `spec/**` + `manifests/spec-readonly.lock.toml` 的改动属并发 `SPEC-149t/150t`，非本笔。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审（2026-10-19）
+
+审查范围：`DADAORegisterInfo.cpp`、`DADAOFrameLowering.{cpp,h}`、`DADAORegisterInfo.td`、`DADAOCallingConv.td`、`DADAOMCCodeEmitter.cpp`、`DADAODisassembler.cpp`、clang `DADAO.cpp`、musl/picolibc 端口与全部重导出补丁。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 删 `RBFP` 使 register enum 左移 1；`dadaoRegHW` 硬编码区间导致汇编器把 `rd0` 编成 `rd63`（`.s` 文本不变，仅 `.o` 错） | ✅已修 | 区间改为 `DADAO::rd0/rb0/rf0/ra0` 符号基址 | 8 文件语料 `.o` 与改前基线（剔 `.comment`）逐字节相同；`check_lit_gen` 64/64；probe1/2/3/6 运行 exit 0 |
+| F2 只把 8 B 计入 `StackSize` 会与首个对象重叠（`[sp,-8]`）；`offset -= 8` 破坏 align>8 | ✅已修 | `determineFrameLayout` 按 PEI 顺序从 `Offset=8` 重算偏移 | `fp_probe`（-8/-16/-48）与 `align16`（-32/-40）偏移与改前一致；probe5 一致 |
+| F3 run 顶为 `rb63` 时原 emitter 用它作 offset holder ⇒ rb63 永不在批量区间内（probe 4 不可达） | ✅已修 | 顶为 rb63 时 holder 移到 run 底（其余 run 行为不变） | `stm.o {rb33:rb63}`/`ldm.o {rb33:rb63}` + 运行 exit 0；`m6-csr-batch` 的 rb32..rb35 路径未改（`BottomHolder` 仅当顶=rb63） |
+| F4 偏移重算依赖 PEI“偏移随分配单调下降”；若目标开启 stack-slot scavenging / 多 save block 会失真 | ⏸延后（无触发面） | 不加代码；重算本身幂等 | DADAO 未覆盖 `enableStackSlotScavenging`（默认 false）与 `enableShrinkWrapping`（默认 false）；同上探针复验 |
+| F5 未跑 install-host，安装根仍是旧后端；047t/046t 只作 musl 回归 | ⏸延后（按派单） | — | 完成区「遗留①」；FP=rb2 的 E2E 用构建树 clang 直接验证（probe1–6） |
+| F6 `build-picolibc` 失败是否为自引入 | ❌不修（非本笔） | — | 失败命令用安装根旧 clang；`strtold.c` 与 HEAD 相同（`git diff --quiet` rc=0）；根因 `uint_to_fp i128→f128` 未注册（`-debug-only=legalize-types` 现场） |

@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..0a892e34b
+index 000000000..3b426fb15
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 @@ -0,0 +1,1853 @@
@@ -1369,7 +1369,7 @@ index 000000000..0a892e34b
 +  // seven-field va_list from the callee's register save area:
 +  //   [0] rd_next  [1] rb_next  [2] rf_next
 +  //   [3] rd_left  [4] rb_left  [5] rf_left
-+  //   [6] stack_next (= incoming_sp = rbfp + 8)
++  //   [6] stack_next (= incoming_sp = rb2 + 8)
 +  // The frame layout and the per-bank start slots were computed in
 +  // LowerFormalArguments (DADAOMachineFunctionInfo).
 +  MachineFunction &MF = DAG.getMachineFunction();

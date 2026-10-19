@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..43ee79031
+index 000000000..d92c60b29
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 @@ -0,0 +1,698 @@
@@ -436,7 +436,7 @@ index 000000000..43ee79031
 +// bank).  The address is matched by the DADAOAddr complex pattern (SelectAddr
 +// in DADAOISelDAGToDAG) which folds `base + simm12` and, crucially, keeps a
 +// *frame index* in the base position so PrologEpilogInserter can resolve it to
-+// `[rbsp/rbfp, offset]` (ADR-0018 C7/C8, LLVM-038t).  Offsets that do not fit
++// `[rbsp/rb2 (FP), offset]` (ADR-0018 C7/C8, LLVM-038t).  Offsets that do not fit
 +// simm12 are not folded; the DAG keeps a separate 64-bit add which the generic
 +// i64 arithmetic patterns (ADD_IMM_PSEUDO / ADD_PSEUDO) materialize.
 +//
