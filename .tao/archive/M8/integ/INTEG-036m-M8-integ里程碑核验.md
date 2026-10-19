@@ -84,4 +84,5 @@
 #### 第 1 轮 architect 收口（2026-10-19）
 - 判据逐条重跑/核对（上「完成区」）；issue 扫尾：关闭 18 条（见 `issues-closed.md`），保留项逐条给非阻断依据。
 - 归档：`git mv` 68 册入 `.tao/archive/M8/`（按模块子目录）；`SPEC-137t` 补入 `.tao/archive/M7/spec/`。
-- 提交：`WIP:`/正常档见 `git log`（本笔为收口提交；`push` 由主会话执行）。
+- 提交（architect 留痕）：**档位 = 正常提交**（M8 达成）；任务分支 `INTEG-036m` 提交 = `10462fc`，`merge --squash` 落地 `master` = `94fdaed`，分支已删。
+- 文件集对账：**69 R**（M8 册 68〔含本册 `R088`〕+ M7 漏收 `SPEC-137t`）+ **3 A**（`archive/M8/{README.md,m8-retrospective.md,issues-closed.md}`）+ **8 M**（`milestones`/`issues`/`MEMORY`/`.tao/README`/`contracts/README`/`README`/`archive/M7/README`/`check_milestones_fresh.py`）——与完成区「修改文件」逐项一致，无越界；**未 `push`**。
