@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：无（约束：本册**不动** `.work/log/testcases/**` 存量；搬迁另起一笔，且须等当前动态跑结束）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -58,7 +58,9 @@
 ## 完成区
 **测试结果**：三驱动小样本全 green —— `libc-test` 静态 `functional/{fcntl,fnmatch}` 各 1/1 PASS（两次独立跑，耗时 21 s / 21 s）；`llvm-ts-user` 静态 `evalloop$` 1/1 PASS、`--link-mode both` static+dynamic 各 1/1 PASS（json 后缀各一次）；`embench-user` 静态 `-O0` 19/19 PASS。`check-run-artifacts` 默认 rc=0、`--self-test` 5/5 PASS；证据脚本 18/18 checks、rc=0；`make check` rc=0。
 **修改文件**：`tools/testcases/run_artifacts.py`（新，运行目录/meta 助手）、`tools/testcases/run_libc_test_user_suite.py`、`tools/testcases/run_llvm_ts_user.py`、`tools/testcases/run_embench_user_suite.py`、`tools/infra/check_run_artifacts.py`（新，L1 门控）、`Makefile`、`docs/Process-08-测试运行产物与日志组织规范.md`（新）、`docs/README.md`、`docs/Process-07-门控分层规范.md`（§1.1 一行）、本任务书；gitignored：`.work/evidence/INFRA-093t/run.sh`、`.work/log/.run-artifacts-{epoch,baseline}`（新建，未改存量）。
+**修改文件（补正，收尾 2026-10-19）**：另含 `.tao/knowledge/milestones.md`（`INFRA-093t` 状态行）—— 上一行漏列；落地提交 `d003468` 实际含该文件（reviewer 第 1 轮披露）。
 **验收结果**（真实命令/rc）：`python3 tools/infra/check_run_artifacts.py` → rc=0（A1×3 PASS / A2 0 目录 / A3 5965 存量豁免）；`--self-test` → rc=0（baseline 0 + 4 注入各 rc=1）；`./.work/evidence/INFRA-093t/run.sh` → rc=0（含真实 A1 注入 rc=1 + `cp`/md5 三态还原 rc=0）；`make check` → rc=0；`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check-milestones-fresh`/`check_issues` 均 rc=0。两次 libc 跑目录并存：`one/work/20261018T232249Z-libc-test-user-static` 与 `two/work/20261018T232310Z-libc-test-user-static`，`run.json`/`run.log`/`meta.json` md5 两两不同；meta 的 clang/qemu/libc sha256 与实测一致。`find .work/log/testcases -newermt <epoch> -type f` = **0**。
+**计数时点（补正，2026-10-19）**：上一行「A2 0 目录」与「`find … -newermt <epoch> -type f` = 0」均为 **2026-10-19 07:1x–07:3x 时点**（证据脚本 07:17、提交 `d003468` 07:37 前）；后随 `TESTCASES-051t`／`llvm-ts` 在飞产物变化（现值 19 目录 / 11 文件），**非阻断**。
 **新发现/坑**：① 任务书要求 `docs/Process-08` + `docs/README.md` 索引，派单文字只写「docs/Process-07」——按任务书落 Process-08，另在 Process-07 §1.1 补门控登记一行。② 仅靠 mtime ≤ epoch 不够：落地时正在写的旧文件被改写会把 mtime 变新 ⇒ 追加 `.run-artifacts-baseline`（落地时全量路径快照）做存量豁免，`llvm-ts-user-*` 过渡豁免单列。③ A3 任务号正则初版漏了 `PREFIX-` 连字符，self-test 基线当场抓红（已修）。④ 运行目录建在 `--work-dir` 下（默认 `.dadao/tests/<套件>`），A2 同时扫 `.work/tests/**` 与 test-artifacts 根，避免新目录永远落在扫描面外。⑤ `--json-out` 收紧为必填会打断未带该参的存量证据脚本（如 `.work/evidence/QEMU-063t/run.sh`）；已在 Process-08 §3 给迁移命令，存量脚本未改。
 **遗留问题**：① 按派单**未改** `**状态**`（仍 `待开始`）。② 第 5/6 条只定规矩：`.work/log/testcases/**` 存量搬迁另起一笔、待当前动态跑结束；过渡豁免 `llvm-ts-user-*` 待搬迁后删除。③ 未跑 `install-host`/L2/L3；未 commit/push。④ 存量 `.work/evidence/**` 调用点仅文档迁移说明，未逐一回填 `--json-out`。
 
@@ -80,3 +82,26 @@
 **判决**：findings 全部已修或按边界延后；无未修阻断项。按派单不改 `**状态**`，返回主会话。
 
 #### 第 1 轮 reviewer 验收
+
+**范围**：规矩 7 条 / 门控 A1–A3 + `--self-test` / 三驱动 `--json-out` 收紧 / 实跑抽查 / 如实性抽查。工作区对账：开工/收尾 `git status --porcelain -uall` 均 0 行；交付物 9 文件 md5 前后全等；`.work/log` 全量 mtime 快照 diff 为空（⇒ 未动任何存量日志）。
+
+**规矩逐条**（真源 `docs/Process-08` + `tools/infra/check_run_artifacts.py`）：
+① 独立运行目录 ✓：`create_run_dir` 同秒碰撞等待、不复用目录；实跑 libc/embench 各得独立目录、三件套齐；meta 的 clang/qemu/libc/lld/libc_a/libc_so sha256 我对实测文件重算逐一相等。
+② `authoritative/` + `latest` ✓：A2 校验 latest 存在且指向目录；我注入「latest 指向不存在目录」⇒ rc=1（`A2 .../latest does not point at a directory`）。子集跑不写 `authoritative/` 仅文档+调用者约束（ISS-282 ①）。
+③ `--json-out` 必填 ✓：三驱动均 `required=True`；`DEFAULT_LOG_DIR` grep 0 处；`--report-out` 缺省 = `splitext(json_out)[0]+".log"`；缺参实测三驱动各 rc=2 且报错含 `--json-out`。
+④ 日志命名 ✓：A3 双正则 = `check-<name>.log` / `<任务号>-<用途>.(log|json|txt)`；self-test 注入 `check_issues.log` 抓红；epoch+baseline 豁免口径写入文档。
+⑤ 归档只移不删 ✓：§1.5 明文「只移不删、删不删由用户定」；本册未搬（只查规矩）。
+⑥ 搬迁另起一笔 ✓：§1.6 边界明文；实测 `.work/log/testcases/` 仍 532 文件、`.work/tests/` 下无 `archive/` 子目录 ⇒ 本册确实未搬。
+⑦ 新门控 ✓：A1×3 / A2 / A3 + `--self-test`（基线绿 + 4 注入各 rc=1），已入 `make check`（日志见 `check-run-artifacts: PASS`）。
+
+**重跑记录（真实 rc）**：`python3 tools/infra/check_run_artifacts.py` → 0（A1×3 PASS；A2 19 个运行目录全 PASS；A3 51 checked / 0 illegal / 5965 exempt）；`--self-test`（`DADAO_TMP=/tmp/opencode/review-093t/selftest`）→ 0（5/5）；`make check` → 0（内含 check-run-artifacts / knowledge-refs / no-residue / check_issues）；`make check-patch-tree` → 0（`181 patches OK`）；`make check-musl-freshness` → 0；`make check-milestones-fresh` → 0；`make check-tasks` → 0；`./.work/evidence/INFRA-093t/run.sh` 重跑 → 0（`18/18 checks passed`，逐条与完成区一致；其自带注入 md5 `9a1cd69d…→dad3dad0…→9a1cd69d…` 还原；脚本 TMP 落 `/tmp/opencode/INFRA-093t/evidence`，任务自身 tmp 命名空间、未写仓库）。
+
+**我的独立注入（`cp`+md5，禁 git 还原）**：`run_embench_user_suite.py` 的 `"--json-out", required=True` → `default=None`（md5 `fe9b9bea…→9594423c…`）⇒ 门控 rc=1、仅该驱动 `[FAIL] A1 ... not required=True (required=None)`；`cp` 还原后 md5 三态全等、rc=0 回绿。另一独立注入 = A2「latest 悬空」（临时树 `--root`）⇒ rc=1。证据脚本重跑前后我再记 md5，三驱动无残留。
+
+**实跑抽查（输出全落 `/tmp/opencode/review-093t/run/`，未写 `.work/log/**`）**：libc-test 静态 `--filter functional/fcntl` rc=0（1/1 pass，21.2 s）⇒ `20261019T021719Z-libc-test-user-static/{run.json,run.log,meta.json}`；embench 静态 `--opt O0` rc=0（19/19）⇒ `20261019T021752Z-embench-user-static/` 同三件套；meta 字段齐（suite/mode/command/cwd/started_utc/finished_utc/duration_seconds/toolchain），目录名 `YYYYMMDDTHHMMSSZ-<套件>-<档>` ✓。
+
+**如实性抽查**：① 证据脚本 18/18 rc=0 —— 复现一致 ✓；② 两次 libc 跑目录并存、三件套 md5 两两不同 —— 复现一致 ✓；③ `make check` rc=0 / 补丁 181 —— 复现一致 ✓；④ embench `-O0` 19/19、libc 1/1、21 s —— 复现一致 ✓；⑤ 「`find .work/log/testcases -newermt <epoch> -type f` = 0」**我现值 11**（2 个 `llvm-ts-user-*` 在飞动态跑遗留名 + 9 个 `TESTCASES-051t-*` 于 09:25–09:40 由后续任务写入）⇒ 判「过期快照」非伪造，但该数应补测量时刻（我不改完成区，交收尾）；⑥ 「A2 0 目录」现为 19 目录（后续任务所建、全 PASS）——同为时间漂移。
+
+**发现**（非阻断，已登记 `ISS-282`）：① 子集跑→`authoritative/` 无驱动/门控强制；② `Process-08` §1.1 的 `finished_utc` A2 不查（文档严于门控）；③ `INFLIGHT_LEGACY` + baseline 过渡豁免待搬迁任务后删除。另披露：落地提交 `d003468` 除完成区「修改文件」所列外还改了 `.tao/knowledge/milestones.md`（INFRA-093t 行，台账登记 2 字段）——完成区声明漏列，交收尾补正。
+
+**判决：Accepted** —— 验收命令块在我自己的重跑下全过、7 条规矩逐条无违反、反例注入可达 FAIL 且已还原；上述 4 项均为非阻断遗留/披露，交 architect 定夺。**声明**：未改完成区 / `**状态**`；未 `git add`/`commit`/`push`；注入均 `cp`+md5 还原（md5 全等），收尾快照 `git status --porcelain -uall` = 0 行，与开工一致。

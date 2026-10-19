@@ -30,6 +30,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-093t | 已验证 | 2026-10-19 10:31 | 三驱动 `--json-out` 必填 + 独立 run 目录三件套 + L1 `check-run-artifacts`（A1–A3/self-test/注入）；`Process-08` 规范 |
 | LLVM-110t | 待开始 | 2026-10-19 07:55（登记） | FP 回归 rb2（无条件保留）+ rb63 普通 callee-saved；删 FP 专用槽；setjmp 端口加 rb2 槽；探针 6 项 |
 | SPEC-150t | 待开始 | 2026-10-19 07:55（登记） | 帧指针回归 rb2（无条件保留、删 rbfp/rbgp）；rb63 连续 callee-saved；contract/abi.yaml/锁同步 |
 | INFRA-090t | 已验证 | 2026-10-19 07:54 | musl bits/float.h 换 binary128：12 宏与 aarch64 逐字、_l 零改；047t 5 例两档 5/5；ISS-250 closed |
@@ -40,7 +41,6 @@
 | LLVM-109t | 待验收 | 2026-10-19 07:41（登记） | `CommentString=@@`/`SeparatorString=;`；101 文件 3684 行迁移 + 工具同步；补丁 181；组件 4 补丁漏项收口 |
 | SPEC-147t | 待开始 | 2026-10-19 07:41（登记） | 注释符 `;`→`@@`、`;` 改语句分隔符：§2.2+示例+变更记录+`contract-asm` 0.5.3+只读锁重算；只读册示例迁移另立 `SPEC-149t`（A 授权） |
 | TESTCASES-051t | 待验收 | 2026-10-19 07:33（登记） | lencod 预建 Output/ 两档 pass + 与参考 diff rc=0；ISS-272 改查 IR、ISS-274 三处 + 注入 4/5/6；证据 51/51 |
-| INFRA-093t | 待验收 | 2026-10-19 07:10（登记） | 三驱动 `--json-out` 必填 + 独立 run 目录三件套 + L1 `check-run-artifacts`（A1–A3/self-test/注入）；`Process-08` 规范 |
 | LLVM-108t | 待开始 | 2026-10-19 01:54（登记） | lemon 调用点漏写 rb16：K&R 无原型调用（`lemon.c:334/4839`）先分类；指针形参读 rb16 而实参走 rd16 |
 | LLVM-098t | 已验证 | 2026-10-18 22:22 | -fPIC 下 .rodata 仍发 ABS48（build-musl-shared EXIT=2）；诊断完成，reviewer Accepted |
 | LLVM-099t | 已验证 | 2026-10-18 22:22 | i64 rotl/rotr ISel 展开；reviewer Accepted |

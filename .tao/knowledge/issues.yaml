@@ -982,3 +982,11 @@
   blocks: []
   resolved_by: LLVM-109t
   notes: "【正式登记（源 = 用户 2026-10-19 紧急修复派单；architect 登记）】**根因**：`LLVM-109t` 把 `CommentString` 改为 `@@`，但迁移面只覆盖 `tests/**` 与 `tools/**`，**未覆盖 `components/{musl,picolibc}` 补丁里的 DADAO 手写汇编** ⇒ 旧 `;` 注释在新 MC 下按语句分隔符解析，`make build-musl` 在 `src/signal/dadao/sigsetjmp.s`、`src/thread/dadao/syscall_cp.s`、`src/thread/dadao/__set_thread_area.s` 报 `unrecognized instruction mnemonic`，`.work/source/musl/lib/{libc.a,crt1.o}` 缺失。**现场**：`/tmp/opencode/rebuild-m.log:66+` 逐行报错。**修法**：在组件源码检出改注释引导符（musl 3 文件 160 行 = 49+86+25、picolibc `semihost-dadao.S` 3 行行尾），E1 收敛（`git commit --amend`）后用 `tools/infra/make_patch.py` 重导出 4 份补丁；C 块注释与注释正文内的 `;` 不动。**真值**：`make build-musl` rc=0（11.0 s，10/10 ELF 检查）、`make build-musl-shared` rc=0（12.9 s）、`libc.a` 2735226 B / `crt1.o` 1512 B / `libc.so` 1112200 B 均在；`check-musl-freshness` PASS（sha256 `1e2b0438…`）；`047t` 10 例小样本静态/动态 10/10、`046t` 静态 `-O0` 19/19。**边界**：未 `install-host`/L2/L3、未 commit/push。**证据指针**：`.work/evidence/LLVM-109t-fixasm/run.sh`、`LLVM-109t` 册「迁移漏项修复」。"
+
+- id: ISS-282
+  title: "【P3】`INFRA-093t` 验收遗留（reviewer 第 1 轮）：子集跑写 `authoritative/` 无强制 / A2 不校验 `meta.finished_utc` / `llvm-ts-user-*` 过渡豁免待删"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `INFRA-093t` reviewer 第 1 轮验收，2026-10-19；reviewer 登记，非阻断）】三项小遗留：① 规矩 2「子集跑（`--filter`）不得写 `authoritative/`」只有文档约束——驱动把权威跑定义为「`--work-dir` 指向 `authoritative/`」（`docs/Process-08` §1.2「由调用者负责选择」），子集跑若被调用者指到 `authoritative/` 无人拦；② `Process-08` §1.1 要求 `meta.json` 含 `finished_utc`，但门控 A2（按任务书口径）只校验 `command`/`started_utc`/`toolchain` 摘要 ⇒ 文档严于门控；③ A3 的 `INFLIGHT_LEGACY` 过渡豁免（`^llvm-ts-user-.*`）与 `.run-artifacts-baseline` 快照豁免须待 `.work/log/testcases/` 搬迁任务完成后删除。**边界**：均不阻断 `INFRA-093t` 验收（7 条规矩与 A1–A3 门控逐条核过、注入可达 FAIL、实跑三件套/工具链 sha256 实测一致）；归搬迁任务或后续小修。**证据指针**：`.tao/tasks/infra/INFRA-093t-测试运行产物与日志组织规矩.md` 审阅记录第 1 轮 reviewer 验收。"
