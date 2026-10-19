@@ -243,3 +243,6 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/m8-f128-math-libcall.ll
     class: no-value-entry
     reason: "FileCheck structural test (f128 math intrinsics -> libm libcalls, LLVM-114t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/f128-round-to-int-libcall.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (f128 integer-rounding libcalls); no `@main` value channel."

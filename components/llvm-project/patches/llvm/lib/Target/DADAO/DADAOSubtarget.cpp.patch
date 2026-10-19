@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..85aaf02b0
+index 000000000..54fb99d85
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,199 @@
+@@ -0,0 +1,208 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -162,14 +162,17 @@ index 000000000..85aaf02b0
 +  Info.setLibcallImpl(RTLIB::FPEXT_F64_F128, RTLIB::impl___extenddftf2);
 +  Info.setLibcallImpl(RTLIB::FPROUND_F128_F32, RTLIB::impl___trunctfsf2);
 +  Info.setLibcallImpl(RTLIB::FPROUND_F128_F64, RTLIB::impl___trunctfdf2);
-+  // Integer <-> binary128 conversions (the i32 forms share the i32 entry
-+  // points; narrow integers are promoted to i32/i64 by the legalizer).
++  // Integer <-> binary128 conversions (narrow integers are promoted to
++  // i32/i64 by the legalizer; picolibc's decimal parser also converts a full
++  // unsigned i128 significand).
 +  Info.setLibcallImpl(RTLIB::FPTOSINT_F128_I32, RTLIB::impl___fixtfsi);
 +  Info.setLibcallImpl(RTLIB::FPTOSINT_F128_I64, RTLIB::impl___fixtfdi_f128);
 +  Info.setLibcallImpl(RTLIB::FPTOUINT_F128_I32, RTLIB::impl___fixunstfsi_f128);
 +  Info.setLibcallImpl(RTLIB::FPTOUINT_F128_I64, RTLIB::impl___fixunstfdi_f128);
 +  Info.setLibcallImpl(RTLIB::SINTTOFP_I32_F128, RTLIB::impl___floatsitf);
 +  Info.setLibcallImpl(RTLIB::SINTTOFP_I64_F128, RTLIB::impl___floatditf_f128);
++  Info.setLibcallImpl(RTLIB::SINTTOFP_I128_F128,
++                      RTLIB::impl___floattitf_f128);
 +  Info.setLibcallImpl(RTLIB::UINTTOFP_I32_F128, RTLIB::impl___floatunsitf);
 +  Info.setLibcallImpl(RTLIB::UINTTOFP_I64_F128, RTLIB::impl___floatunditf_f128);
 +  // i128 <-> binary128 (LLVM-113t; ISS-283).  The i32/i64 forms above do not
@@ -177,7 +180,6 @@ index 000000000..85aaf02b0
 +  // (ADR-0030), picolibc's strtold.c reaches `uint_to_fp (i128 -> f128)` and
 +  // aborts with "unsupported library call operation" unless each is
 +  // registered.  Entry points are compiler-rt's GENERIC_TF_SOURCES.
-+  Info.setLibcallImpl(RTLIB::SINTTOFP_I128_F128, RTLIB::impl___floattitf_f128);
 +  Info.setLibcallImpl(RTLIB::UINTTOFP_I128_F128, RTLIB::impl___floatuntitf_f128);
 +  Info.setLibcallImpl(RTLIB::FPTOSINT_F128_I128, RTLIB::impl___fixtfti_f128);
 +  Info.setLibcallImpl(RTLIB::FPTOUINT_F128_I128, RTLIB::impl___fixunstfti_f128);
@@ -193,6 +195,13 @@ index 000000000..85aaf02b0
 +  Info.setLibcallImpl(RTLIB::LOG_F128, RTLIB::impl_logl_f128);
 +  Info.setLibcallImpl(RTLIB::SQRT_F128, RTLIB::impl_sqrtl_f128);
 +  Info.setLibcallImpl(RTLIB::FMA_F128, RTLIB::impl_fmal_f128);
++  // The integer-returning rounding intrinsics are separate RTLIB operations;
++  // registering rintl/roundl above does not cover them.  Picolibc builds all
++  // four entry points and Clang represents their bodies with these intrinsics.
++  Info.setLibcallImpl(RTLIB::LROUND_F128, RTLIB::impl_lroundl_f128);
++  Info.setLibcallImpl(RTLIB::LLROUND_F128, RTLIB::impl_llroundl_f128);
++  Info.setLibcallImpl(RTLIB::LRINT_F128, RTLIB::impl_lrintl_f128);
++  Info.setLibcallImpl(RTLIB::LLRINT_F128, RTLIB::impl_llrintl_f128);
 +  // Comparisons (`softenSetCCOperands`): __eqtf2/__netf2/__getf2/__lttf2/
 +  // __letf2/__gttf2/__unordtf2.
 +  Info.setLibcallImpl(RTLIB::OEQ_F128, RTLIB::impl___eqtf2);

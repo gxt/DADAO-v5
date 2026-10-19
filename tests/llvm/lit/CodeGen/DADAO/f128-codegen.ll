@@ -14,6 +14,11 @@
 ; lttf2/unordtf2/eqtf2) -- they are NOT read back from the backend.
 
 declare fp128 @llvm.fabs.f128(fp128)
+declare fp128 @llvm.floor.f128(fp128)
+declare fp128 @llvm.log.f128(fp128)
+declare fp128 @llvm.fma.f128(fp128, fp128, fp128)
+declare fp128 @llvm.trunc.f128(fp128)
+declare fp128 @llvm.rint.f128(fp128)
 
 ; --- arithmetic: one libcall each, arguments already in rf16..rf19 and the
 ; result in rf8/rf9, so a one-line pass-through needs no register moves.
@@ -101,6 +106,35 @@ define fp128 @u64_to_f128(i64 %i) {
 ; CHECK: call [rb0, __floatunditf]
   %r = uitofp i64 %i to fp128
   ret fp128 %r
+}
+
+define fp128 @i128_to_f128(i128 %i) {
+; CHECK-LABEL: i128_to_f128:
+; CHECK: call [rb0, __floattitf]
+  %r = sitofp i128 %i to fp128
+  ret fp128 %r
+}
+
+define fp128 @u128_to_f128(i128 %i) {
+; CHECK-LABEL: u128_to_f128:
+; CHECK: call [rb0, __floatuntitf]
+  %r = uitofp i128 %i to fp128
+  ret fp128 %r
+}
+
+define fp128 @f128_libm(fp128 %a, fp128 %b) {
+; CHECK-LABEL: f128_libm:
+; CHECK-DAG: call [rb0, floorl]
+; CHECK-DAG: call [rb0, logl]
+; CHECK-DAG: call [rb0, fmal]
+; CHECK-DAG: call [rb0, truncl]
+; CHECK-DAG: call [rb0, rintl]
+  %floor = call fp128 @llvm.floor.f128(fp128 %a)
+  %log = call fp128 @llvm.log.f128(fp128 %b)
+  %fma = call fp128 @llvm.fma.f128(fp128 %floor, fp128 %log, fp128 %a)
+  %trunc = call fp128 @llvm.trunc.f128(fp128 %fma)
+  %rint = call fp128 @llvm.rint.f128(fp128 %trunc)
+  ret fp128 %rint
 }
 
 ; --- comparisons (`softenSetCCOperands`): ordered LT uses __lttf2; an

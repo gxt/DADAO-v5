@@ -418,6 +418,10 @@
   - 摘要：**f128 math libcall 注册补齐（`libm/ld` 12 个 TU 的 5 类缺口 + 2 个 latent）**（`ISS-283` 余项；不改 ADR/契约/spec）：`DADAOSubtarget::initLibcallLoweringInfo` 在 `LLVM-113t` 的 i128 块之后新增 7 行 —— `FLOOR_F128 → impl_floorl_f128`、`RINT_F128 → impl_rintl_f128`、`ROUND_F128 → impl_roundl_f128`、`TRUNC_F128 → impl_truncl_f128`、`LOG_F128 → impl_logl_f128`、`SQRT_F128 → impl_sqrtl_f128`、`FMA_F128 → impl_fmal_f128`（前 5 条构建必需，后 2 条 latent；枚举/impl 名取自生成物 `RuntimeLibcalls.inc`）。符号归属现场 `nm`：7 个符号在 musl `libc.a`/`libc.so` 均为 `T`，compiler-rt builtins 均无（`ADR-0027` 不涉及；`libm.a` 为空 archive）。补丁 **1 份改**（`series` 仍 **82**、`check-patch-tree` **181 不变**）。**真值**：修前 `llc -O2` 对 7 个最小 IR 均 abort rc=134；重建 `clang`+`llc`（`-j8`，267 s）后 7 条最小 IR 各 rc=0 且汇编出现对应 `call [rb0, *l]`；`libm/ld` 全 **79** 个 TU 预编译 0 失败；`make build-picolibc` **rc=0**（stamp 判 `toolchain stamp changed` ⇒ wipe 全量，**1118** 个对象真实编译，12 个目标 TU 各 1 次，全文 0 条 `unsupported library call operation`；按 `LLVM-113t` 先例临时换链、`mv` 备份 + md5 还原安装根，**未跑 `install-host`**）。探针 **25** 值（floor/rint/round/trunc/sqrt/fma 精确值 + log 特殊点）对 `Fraction` 独立 oracle（`Decimal` 未用）逐行一致，`qemu-dadao` rc=0；新增 lit `m8-f128-math-libcall.ll`（7 函数、7 符号 CHECK）PASS，全量 lit **116/116**；`047t` 抽样 static/dynamic 各 **3/3 pass**。证据 `.work/evidence/LLVM-114t/run.sh`（default 54 项 rc=0、`--inject` 3 组先红后回绿）。
   - 执行者：engineer
 
+- **2026-10-19 `GEM5-008m`（四门控修复）**
+  - 摘要：补齐 DADAO 的 binary128 取整到整数 libcall 注册：`ROUND_F128`/`LROUND_F128`/`LLROUND_F128`/`LRINT_F128`/`LLRINT_F128` 分别映射到 `roundl`/`lroundl`/`llroundl`/`lrintl`/`llrintl`，修复 picolibc 编译 `s_lroundl.c`、`s_llroundl.c` 时的 `unsupported library call operation`；新增 `f128-round-to-int-libcall.ll` 覆盖四条整数返回路径。四门控最终通过。
+  - 执行者：engineer
+
 ## M9
 
 - **2026-10-19 LLVM-116t**
