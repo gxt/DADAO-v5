@@ -2,7 +2,7 @@
 
 **模块**：integ
 **项目里程碑**：M8
-**状态**：待开始
+**状态**：里程碑
 **目标**：核验 **M8 = 无内核的 Linux 用户态栈**（`ADR-0025`）：musl（静态 → 动态）+ QEMU user-mode（`P1`→`P3`）。**`P4`（与 RISC-V + musl 的 golden 对照）已由用户 2026-10-18 裁定不作**（原行保留、写明不作，见下阶段表与 `ADR-0025 D7` 就地修订注记）。
 **关联任务**：见下「阶段—任务—门控」表（逐行给真实任务号）；核验载体 = 本册。
 
@@ -69,3 +69,19 @@
 - **`P4`**：**用户 2026-10-18 裁定不作**（不做 RISC-V 交叉对比）⇒ **不再是 `M8` 阻断项**；阶段表保留该行并标「不作」，`ADR-0025 D7` 已加**就地修订注记**（只加注记、不改 `D1`–`D7` 正文）。
 - **判据③ 修订后**：`M8` 的判定只看 ① 两档能编能跑 + ② 三套测试两档如实分类 + 失败逐条归因（`known-fail` 走逐例依据表）；**`P4` 不参与判定**。
 - **门控**：本批跑 `make check`(L1) / `check-patch-tree` / `check-contracts-pending` / `check-contract-relocs` / `check-milestone` 并如实记录；**L2/L3 本笔未跑**（`ISS-229` 并发禁令）。
+- **收口终判（2026-10-19，architect）**：M8 期任务 **68 册**全部终态（`已验证` 67 + 本册 `里程碑`）；逐模块 = `infra 21 / llvm 23 / qemu 4 / spec 11 / testcases 8 / integ 1`。**跨模块影响**：`issues.yaml` 全部 `blocks: []`（无 gate）；残留 open 项逐条核为非阻断（`ISS-278`/`282`/`288`/`289`/`261` 工具与证据维护类；`ISS-252`/`246`/`260` 归 `M9`；`ISS-265` 已裁定归 `known-fail`；`ISS-266`/`255`/`257` qemu 归因已落）。**`SPEC-141t`**（M8 标签、只读预研、`待开始`）与 `LLVM-100t`（M9）**留活不归档**。
+
+## 完成区
+
+**测试结果**：判据 1–5 逐条（2026-10-19 现场）：① 两档能编能跑 = `build-musl`/`build-musl-shared` rc=0 + `qemu-dadao` 静态/动态 E2E 通（`QEMU-062t` 已验证）；② 三套两档权威跑（`.work/tests/authoritative/`）= `046t` **38/38 + 38/38**；`047t` 静态 **309/0/4/24**、动态 **312/0/4/21**（excluded 30；`known-fail 4` = TLS 3 + `strptime` 1；5 个 `long double` 已转 pass）；`048t` 两档逐数同 **201 / 3 / 0 / 16 / 2**（discovered 222；3 `fail` = `ft`/`ClamAV`/`obsequi` = `ISS-265` 参考可移植性，用户裁定归 `known-fail`；`blocked 16` 逐条有根因）；③ `P4` = 不作（用户 2026-10-18 裁定；`ADR-0025 D7` 注记）；④ 门控 = L1 rc=0、L2 rc=0（17:41→17:43）、L3 rc=0、`check-patch-tree` **181**；⑤ 跨模块影响 = 见「核验」末条，未处置项均非阻断。
+**修改文件**：本册；`.tao/knowledge/{milestones.md,issues.yaml,MEMORY.md}`；`.tao/README.md`；`.tao/contracts/README.md`（归档路径指针）；`README.md`；`.tao/archive/M8/**`（68 册 + `README.md` + `m8-retrospective.md` + `issues-closed.md`）；`.tao/archive/M7/{README.md,spec/SPEC-137t-…}`（M7 归档补齐）；`tools/infra/check_milestones_fresh.py`（边界修复，见「新发现/坑」）。
+**验收结果**：判据 1–5 全部满足 ⇒ 本册置 `里程碑`；**项目里程碑 M8 = 达成（2026-10-19）**。
+**新发现/坑**：`check-milestones-fresh` 的「活 `INTEG-*m` 册 fail-closed」与 `Process-04 §4.1`「INTEG m 自归档」冲突——归档后无活 INTEG m 即红；本笔改为「活册为空时回退 `archive/**` 的 INTEG m」（五类注入自测仍全绿），非放宽断言。
+**遗留问题**：均不阻断 M8 —— `ISS-261`（`llvm-nm`）、`ISS-278`/`ISS-282`（日志存量搬迁/门控小遗留）、`ISS-288`/`ISS-289`（stale 证据/进程纪律）、`ISS-265`（`known-fail` 分类迁移）、`ISS-193`（picolibc 过滤表 stale 1 条）、`ISS-266`/`ISS-255`/`ISS-257`（qemu 宿主信号族）；`SPEC-141t` 留活。
+
+## 审阅记录
+
+#### 第 1 轮 architect 收口（2026-10-19）
+- 判据逐条重跑/核对（上「完成区」）；issue 扫尾：关闭 18 条（见 `issues-closed.md`），保留项逐条给非阻断依据。
+- 归档：`git mv` 68 册入 `.tao/archive/M8/`（按模块子目录）；`SPEC-137t` 补入 `.tao/archive/M7/spec/`。
+- 提交：`WIP:`/正常档见 `git log`（本笔为收口提交；`push` 由主会话执行）。

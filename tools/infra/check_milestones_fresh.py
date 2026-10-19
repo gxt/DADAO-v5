@@ -204,8 +204,14 @@ def audit(root: Path) -> int:
         if tid not in table_ids:
             errors.append(f"覆盖: 活任务册 {tid} 未列入流水（{p.relative_to(root)}）")
     m_books = sorted((root / TASKS_REL).rglob(INTEG_M_GLOB))
+    m_books_src = TASKS_REL.as_posix()
     if not m_books:
-        errors.append("覆盖: `.tao/tasks/integ/` 无 `INTEG-*m-*.md` 核验册 ⇒ vacuous")
+        # 归档边界：`Process-04 §4.1` 要求 INTEG m **自归档** ⇒ 里程碑收尾后活册可为空。
+        # 此时回退 `archive/**` 的 INTEG m；两处皆无才 fail-closed（语义不变）。
+        m_books = sorted((root / ARCHIVE_REL).rglob(INTEG_M_GLOB))
+        m_books_src = ARCHIVE_REL.as_posix()
+    if not m_books:
+        errors.append("覆盖: `.tao/tasks/integ/` 与 `.tao/archive/**` 均无 `INTEG-*m-*.md` 核验册 ⇒ vacuous")
     for p in m_books:
         for tid in sorted(set(TASK_ID_RE.findall(p.read_text(encoding="utf-8")))):
             if tid not in table_ids and not (ARCHIVE_REL.as_posix() in index.get(tid, Path()).as_posix()):
@@ -219,7 +225,7 @@ def audit(root: Path) -> int:
             errors.append(f"覆盖: 正文任务号 {tid} 全仓无册（悬空号）")
         elif ARCHIVE_REL.as_posix() not in p.as_posix():
             errors.append(f"覆盖: 正文任务号 {tid} 未列入流水（{p.relative_to(root)}）")
-    print(f"    活册 {len(todo_books)} 份 / m 册 {len(m_books)} 份 / 流水 {len(table_ids)} 行")
+    print(f"    活册 {len(todo_books)} 份 / m 册 {len(m_books)} 份（源 = {m_books_src}） / 流水 {len(table_ids)} 行")
 
     # ---------- A4 次序 ----------
     print("-" * 72)

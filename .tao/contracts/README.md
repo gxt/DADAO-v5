@@ -24,5 +24,5 @@
 
 - **三项裁定**（用户 2026-10-14，渠道 = 经主会话问答；原话「**1、a；2、a；3、a**」）：① 只读锁册（`manifests/spec-readonly.lock.toml`）**授权改 + 重算 `sha256`**；② `contracts/*.yaml` 内嵌旧路径字段**改值指向新路径**；③ 只动范围**扩到 `tools/**` / `components/**` / `tests/**`**。
 - **目标目录裁定**（用户 2026-10-14；原话「**我改主意了，contracts-*.md改到 .tao/contracts/ 目录下，是不是更合适**」/「**同意**」）。
-- **落纸位置**：`.tao/tasks/infra/INFRA-071t-contract迁移至tao-contracts目录.md` §用户授权落纸 / §目标目录变更。
+- **落纸位置**：`.tao/archive/M8/infra/INFRA-071t-contract迁移至tao-contracts目录.md` §用户授权落纸 / §目标目录变更。
 - **口径**：本仓库**无** `LICENSE` / 署名文件惯例 ⇒ 三要素之「许可」= 上述**用户授权链留纸**（**非**随附许可文件）。

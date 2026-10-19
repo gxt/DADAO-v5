@@ -17,7 +17,7 @@
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M7）；当前进度见 `.tao/knowledge/milestones.md`。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M8）；当前进度见 `.tao/knowledge/milestones.md`。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -28,6 +28,7 @@
 | M5 | 2026-10-08 | SEE/HEE 运行环境 + semihosting |
 | M6 | 2026-10-11 | 整数完整调用约定 + LLVM 欠账收口 + ELF 直载 + clang target + Embench |
 | M7 | 2026-10-13 | picolibc 移植（自带 test）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle |
+| M8 | 2026-10-19 | 无内核 Linux 用户态栈：musl 静态→动态 + QEMU user-mode（`ADR-0025`） |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -73,4 +74,12 @@
 - 生成式 **ISA↔后端覆盖矩阵**（227 条：①受理 217 / ②ISel yes 86）。
 - **门控分层 L1/L2/L3**（`docs/Process-07`）+ **过渡 oracle**（宿主机参照，登记「非判据真源」）。
 - 归档与回顾见 `.tao/archive/M7/`（`README.md` / `m7-retrospective.md`）。
+
+### M8（2026-10-19）无内核 Linux 用户态栈：musl 静态→动态 + QEMU user-mode
+
+- musl 1.2.6 **静态 + 动态**两档可编可跑：`libc.so` / `ld-musl-dadao.so.1` / `PT_INTERP` / GOT·PLT / PIC（`QEMU-062t` 两档 E2E）。
+- `qemu-dadao`（user-mode）承接 syscall 直通与动态装载；`P4`（RISC-V 交叉对照）由用户 2026-10-18 裁定**不作**。
+- ABI/后端收口：`long double` = **binary128**（`ADR-0030`）、变参三游标（`ADR-0031`）、**SP 16 B 对齐**、`rb2` 帧指针、`@@` 注释符、`brind`/f128 libcall/i32 窄返回。
+- 三套大型测试两档如实分类（权威跑）：`embench-iot` 38/38 + 38/38；`libc-test` 静态 `309/0/4/24`、动态 `312/0/4/21`；`llvm-test-suite` 两档同 `201/3/0/16/2`；失败逐条归因（`ISS-265` 等）。
+- 门控 L1/L2/L3 全绿；归档与回顾见 `.tao/archive/M8/`（`README.md` / `m8-retrospective.md` / `issues-closed.md`）。
 
