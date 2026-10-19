@@ -81,8 +81,8 @@
 ft2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
 fo2ft   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
 
-ft2ft   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}          ; 浮点寄存器间搬移
-fo2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}          ; 浮点寄存器间搬移
+ft2ft   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}          @@ 浮点寄存器间搬移
+fo2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}          @@ 浮点寄存器间搬移
 
 ft2it   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 ft2io   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}

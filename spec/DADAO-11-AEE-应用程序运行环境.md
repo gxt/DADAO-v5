@@ -19,26 +19,26 @@ SimRISC 提供 8/16/32/64-bit 四种位宽的运算指令（如 add.ub/add.uw/ad
 **加减法**：结果产生 128-bit（rdha = 高 64 位，rdhb = 低 64 位），低 N 位天然正确。若不需要高 64 位，可将 `rdha` 设为 `rd0` 丢弃。
 
 ```simrisc
-; 有符号 32-bit 加法
-ld.st rd2, [rb1, x_offset] ; 符号扩展加载
+@@ 有符号 32-bit 加法
+ld.st rd2, [rb1, x_offset] @@ 符号扩展加载
 ld.st rd3, [rb1, y_offset]
-add.so {rd0, rd4}, rd2, rd3 ; rd4 = 低64位；rd0丢弃高64位
+add.so {rd0, rd4}, rd2, rd3 @@ rd4 = 低64位；rd0丢弃高64位
 st.t rd4, [rb1, z_offset]
 ```
 
 **乘除法**：乘法结果为 128-bit（`rdha` = 高 64 位，`rdhb` = 低 64 位）。32-bit 乘积取低 64 位即可。除法前须确保被除数和除数的高位正确扩展。
 
 ```simrisc
-; 有符号 32-bit 乘法
+@@ 有符号 32-bit 乘法
 ld.st rd2, [rb1, x_offset]
 ld.st rd3, [rb1, y_offset]
-mul.so {rd0, rd4}, rd2, rd3 ; rd0丢弃高64位，rd4=低64位
+mul.so {rd0, rd4}, rd2, rd3 @@ rd0丢弃高64位，rd4=低64位
 st.t rd4, [rb1, z_offset]
 
-; 有符号 32-bit 除法
+@@ 有符号 32-bit 除法
 ld.st rd2, [rb1, x_offset]
 ld.st rd3, [rb1, y_offset]
-div.st  rd4, rd2, rd3           ; 商写入目的寄存器 rd4
+div.st  rd4, rd2, rd3           @@ 商写入目的寄存器 rd4
 st.t rd4, [rb1, z_offset]
 ```
 
@@ -47,12 +47,12 @@ st.t rd4, [rb1, z_offset]
 **移位**：`shr.u` 逻辑右移高位补 0，`shr.s` 算数右移高位补符号位。
 
 ```simrisc
-; 无符号 32-bit 右移 3 位
-ld.ut rd2, [rb1, x_offset] ; 零扩展加载
+@@ 无符号 32-bit 右移 3 位
+ld.ut rd2, [rb1, x_offset] @@ 零扩展加载
 shr.uo  rd2, rd2, 3
 
-; 有符号 32-bit 右移 3 位
-ld.st rd2, [rb1, x_offset] ; 符号扩展加载
+@@ 有符号 32-bit 右移 3 位
+ld.st rd2, [rb1, x_offset] @@ 符号扩展加载
 shr.so  rd2, rd2, 3
 ```
 
@@ -62,11 +62,11 @@ shr.so  rd2, rd2, 3
 - N-bit 有符号溢出检测：将结果做 N-bit 符号扩展后与原值比较，不相等即溢出。
 
 ```simrisc
-; 有符号 32-bit 加法，检测溢出
-add.so {rd0, rd3}, rd4, rd5 ; rd3 = rd4 + rd5（低 64 位）
-ext.so  rd2, rd3, 31           ; rd2 = rd3 按 32-bit 符号扩展
-cmp.so  rd2, rd2, rd3          ; 比较扩展值与原值
-br.nz {rd2}?, [rb0, overflow_handler] ; 不相等 → 32-bit 溢出
+@@ 有符号 32-bit 加法，检测溢出
+add.so {rd0, rd3}, rd4, rd5 @@ rd3 = rd4 + rd5（低 64 位）
+ext.so  rd2, rd3, 31           @@ rd2 = rd3 按 32-bit 符号扩展
+cmp.so  rd2, rd2, rd3          @@ 比较扩展值与原值
+br.nz {rd2}?, [rb0, overflow_handler] @@ 不相等 → 32-bit 溢出
 ```
 
 ## 3. 地址空间布局
@@ -81,19 +81,19 @@ br.nz {rd2}?, [rb0, overflow_handler] ; 不相等 → 32-bit 溢出
 进程切换时，仅 invalid 进程私有的 PTBR 对应的 TLB 集合。标记为"保留"的 PTBR 对应的 TLB 集合不做无效化处理，从而避免共享代码和内核映射的 TLB 抖动。
 
 ```simrisc
-; 进程切换示例：invalid 已申请的私有 PTBR（最多 16 个）
-set.rd   rd2, 0                     ; 循环变量
+@@ 进程切换示例：invalid 已申请的私有 PTBR（最多 16 个）
+set.rd   rd2, 0                     @@ 循环变量
 cfx_tlb_inv_loop:
-    ; 仅 invalid PTBR 0-15
-    shl.uo  rd3, rd2, 42              ; rd3 = PTBR 索引 << 42（构造 addr_start，VA[47:42]=PTBR 编号）
+    @@ 仅 invalid PTBR 0-15
+    shl.uo  rd3, rd2, 42              @@ rd3 = PTBR 索引 << 42（构造 addr_start，VA[47:42]=PTBR 编号）
     cfx2rc  cfx_tlb_addr_start, rd3
-    set.rd   rd3, 0x40000000000     ; 0x40000000000（2^42） = 集合内全部 VA 空间
+    set.rd   rd3, 0x40000000000     @@ 0x40000000000（2^42） = 集合内全部 VA 空间
     cfx2rc  cfx_tlb_addr_size, rd3
-    set.rd   rd4, 2                 ; bit1 = invalid by addr range
+    set.rd   rd4, 2                 @@ bit1 = invalid by addr range
     cfx2rc  cfx_tlb_control, rd4
     add.si    rd2, 1
     set.rd   rd3, 16
-    cmp.so  rd5, rd2, rd3          ; rd5 = rd2 < rd3 ?
+    cmp.so  rd5, rd2, rd3          @@ rd5 = rd2 < rd3 ?
     br.n {rd5}?, [rb0, cfx_tlb_inv_loop]
 ```
 

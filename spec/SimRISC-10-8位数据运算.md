@@ -82,7 +82,7 @@ shr.sb  rdHB, rdHC, immu6
 上游 `SimRISC-0.5.4` 曾定义 `neg.b` 伪指令；v5 **删除**（`ADR-0013 D11`）。8 位取负（符号扩展至 64 位）**直接书写真实指令 `sub.sb rdHB, rd0, rdHC`**：
 
 ```simrisc
-sub.sb  rd1, rd0, rd2        ; rd1 = -rd2（低 8 位取负，符号扩展）
+sub.sb  rd1, rd0, rd2        @@ rd1 = -rd2（低 8 位取负，符号扩展）
 ```
 
 ### 3.2 比较操作 — 值语义

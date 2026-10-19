@@ -71,10 +71,10 @@
 - **`add.so`/`sub.so`**（有符号，默认）：源操作数按**符号扩展**（SX）至 128 位，适合有符号 128 位运算。
 
 ```simrisc
-add.uo  {rdHA, rdHB}, rdHC, rdHD    ; ZX，rdHA = 进位
-add.so  {rdHA, rdHB}, rdHC, rdHD    ; SX，rdHA = 高64位
-sub.uo  {rdHA, rdHB}, rdHC, rdHD    ; ZX，rdHA = 借位
-sub.so  {rdHA, rdHB}, rdHC, rdHD    ; SX，rdHA = 高64位
+add.uo  {rdHA, rdHB}, rdHC, rdHD    @@ ZX，rdHA = 进位
+add.so  {rdHA, rdHB}, rdHC, rdHD    @@ SX，rdHA = 高64位
+sub.uo  {rdHA, rdHB}, rdHC, rdHD    @@ ZX，rdHA = 借位
+sub.so  {rdHA, rdHB}, rdHC, rdHD    @@ SX，rdHA = 高64位
 ```
 
 `rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
@@ -181,7 +181,7 @@ rem.so  rdHB, rdHC, rdHD
 上游 `SimRISC-0.5.4` 曾定义 `not.{b,w,t,o}` 伪指令；v5 **删除**（`ADR-0013 D11`），**1:1 别名一律不保留**。64 位按位取反**直接书写真实指令 `xnor.o rd, rs, rd0`**（`rdHC`/`rdHD` 之一为 `rd0` 时 `xnor` 即取反；源与目的可为同一寄存器、原地取反）。窄位宽 `not.b`/`not.w`/`not.t` **无等宽替代**（`xnor.b/w/t` 已随 `SPEC-069t` 删除）。
 
 ```simrisc
-xnor.o  rd3, rd4, rd0     ; rd3 = ~rd4（64 位按位取反）
+xnor.o  rd3, rd4, rd0     @@ rd3 = ~rd4（64 位按位取反）
 ```
 
 #### 4.1.2 neg 伪指令（已删除）
@@ -189,7 +189,7 @@ xnor.o  rd3, rd4, rd0     ; rd3 = ~rd4（64 位按位取反）
 上游 `SimRISC-0.5.4` 曾定义 `neg.{b,w,t,o}` 伪指令；v5 **删除**（`ADR-0013 D11`）。按位宽取负**直接书写真实指令 `sub.sX`**：`neg.b`→`sub.sb`、`neg.w`→`sub.sw`、`neg.t`→`sub.st`、`neg.o`→`sub.so`。
 
 ```simrisc
-sub.so  {rd0, rd3}, rd0, rd4     ; rd3 = -rd4（64 位取负，双目的写回 rd3）
+sub.so  {rd0, rd3}, rd0, rd4     @@ rd3 = -rd4（64 位取负，双目的写回 rd3）
 ```
 
 > **注**：`neg.b`/`neg.w`/`neg.t` 的对应 `sub.sb`/`sub.sw`/`sub.st` 分别见 SimRISC-10、SimRISC-09、SimRISC-08。
@@ -234,22 +234,22 @@ rdHB[63:hd+1] = sign/zero_extend(rdHC[hd])               // 符号/零扩展（N
 64 位移位/扩展指令如下：
 
 ```simrisc
-shl.uo  rdHB, rdHC, rdHD        ; 左移
-shl.uo  rdHB, rdHC, immu6       ; 左移（立即数）
-shr.uo  rdHB, rdHC, rdHD        ; 逻辑右移
-shr.uo  rdHB, rdHC, immu6       ; 逻辑右移（立即数）
-shr.so  rdHB, rdHC, rdHD        ; 算术右移
-shr.so  rdHB, rdHC, immu6       ; 算术右移（立即数）
+shl.uo  rdHB, rdHC, rdHD        @@ 左移
+shl.uo  rdHB, rdHC, immu6       @@ 左移（立即数）
+shr.uo  rdHB, rdHC, rdHD        @@ 逻辑右移
+shr.uo  rdHB, rdHC, immu6       @@ 逻辑右移（立即数）
+shr.so  rdHB, rdHC, rdHD        @@ 算术右移
+shr.so  rdHB, rdHC, immu6       @@ 算术右移（立即数）
 
-ext.uo  rdHB, rdHC, rdHD        ; 零扩展
-ext.uo  rdHB, rdHC, immu6       ; 零扩展（立即数）
-ext.so  rdHB, rdHC, rdHD        ; 符号扩展
-ext.so  rdHB, rdHC, immu6       ; 符号扩展（立即数）
+ext.uo  rdHB, rdHC, rdHD        @@ 零扩展
+ext.uo  rdHB, rdHC, immu6       @@ 零扩展（立即数）
+ext.so  rdHB, rdHC, rdHD        @@ 符号扩展
+ext.so  rdHB, rdHC, immu6       @@ 符号扩展（立即数）
 
-and.o   rdHB, rdHC, rdHD        ; 逻辑与
-or.o    rdHB, rdHC, rdHD        ; 逻辑或
-xor.o   rdHB, rdHC, rdHD        ; 逻辑异或
-xnor.o  rdHB, rdHC, rdHD        ; 逻辑同或
+and.o   rdHB, rdHC, rdHD        @@ 逻辑与
+or.o    rdHB, rdHC, rdHD        @@ 逻辑或
+xor.o   rdHB, rdHC, rdHD        @@ 逻辑异或
+xnor.o  rdHB, rdHC, rdHD        @@ 逻辑同或
 ```
 
 #### 4.2.1 逐块反转 rev.o/rev.t/rev.w/rev.b（orri 格式）
@@ -291,10 +291,10 @@ rdHB = out_block[0] .. out_block[64/S - 1]
   **不是** 64 位整体位反序，只反转各块内部的位序，不可误用。
 
 ```simrisc
-rev.o   rdHB, rdHC, immu6       ; 64 位逐块反转（k=8 → bswap64；k=1 → bitreverse）
-rev.t   rdHB, rdHC, immu6       ; 32 位块内反转（k=8 → bswap32，须源高 32 位为 0）
-rev.w   rdHB, rdHC, immu6       ; 16 位块内反转（k=8 → bswap16，须源高 48 位为 0）
-rev.b   rdHB, rdHC, immu6       ; 8 位块内反转（k ∈ {1,2,4}）
+rev.o   rdHB, rdHC, immu6       @@ 64 位逐块反转（k=8 → bswap64；k=1 → bitreverse）
+rev.t   rdHB, rdHC, immu6       @@ 32 位块内反转（k=8 → bswap32，须源高 32 位为 0）
+rev.w   rdHB, rdHC, immu6       @@ 16 位块内反转（k=8 → bswap16，须源高 48 位为 0）
+rev.b   rdHB, rdHC, immu6       @@ 8 位块内反转（k ∈ {1,2,4}）
 ```
 
 `rev.t`/`rev.w`/`rev.b` 分册语义见 SimRISC-08/09/10 §4.2.1；本节为逐块反转的总述。
@@ -338,9 +338,9 @@ n = 0; for i = 0  to      hd: n += rdHC[i]                    // ctpop → n
 一一对应。
 
 ```simrisc
-ctlz    rdHB, rdHC, immu6       ; 前导零（immu6=63 → 64 位；immu6=31 → 32 位；全 0 → immu6+1）
-cttz    rdHB, rdHC, immu6       ; 末尾零（immu6=63 → 64 位；全 0 → immu6+1）
-ctpop   rdHB, rdHC, immu6       ; 1 的个数（immu6=63 → 64 位）
+ctlz    rdHB, rdHC, immu6       @@ 前导零（immu6=63 → 64 位；immu6=31 → 32 位；全 0 → immu6+1）
+cttz    rdHB, rdHC, immu6       @@ 末尾零（immu6=63 → 64 位；全 0 → immu6+1）
+ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 ```
 
 **编码**：三条为 `orri` 格式但**无位宽后缀**，借用 `MISC-octa` 子表的格位

@@ -62,6 +62,13 @@ policy = "readonly-requires-authorization"
 # 注意：spec/Machine-01 已于 2026-10-08 纳入本锁（用户授权）；docs/Process-0x、
 # spec/README.md 为 v5 自定册，不在本锁内——其修订由 Process-06 §2 的授权流程约束。
 
+# 2026-10-19（SPEC-149t；用户裁定原话「1、A；2、就地修订」，渠道 = 经主会话问答；原话落纸于
+#   .tao/tasks/spec/SPEC-149t-上游只读册汇编示例注释迁移.md §用户授权）：上游只读册的**汇编示例注释**
+#   `;` → `@@`（仅 ` ```simrisc ` 围栏块内的汇编语句/注释行，每行仅首个 `;`；C 代码块、正文 C 分号、
+#   无语言伪代码块一律不动）——DADAO-11（23 行）/ DADAO-22（181）/ DADAO-23（6）/ SimRISC-03（50）/
+#   SimRISC-04（27）/ SimRISC-06（1）/ SimRISC-07（2）/ SimRISC-08（1）/ SimRISC-09（1）/ SimRISC-10（1）/
+#   SimRISC-11（5），共 11 册 298 行；册版本与附录不变；上述 11 册 sha256 于同一变更内同步重算。
+
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
 group = "simrisc-00..12"
@@ -84,12 +91,12 @@ sha256 = "ecce63bea40283e9067b4dde7de89b29cbc436ca056c54668e42641e4d29b1d2"
 [[spec]]
 path = "spec/SimRISC-03-16位立即数操作.md"
 group = "simrisc-00..12"
-sha256 = "d59f4b124621c31945525d5d5a964949f7486f86db560cac228dc5c8780d3968"
+sha256 = "c03444f87b91329eefaaff358cf239c89d02ca9eed254ca61d6f93f545214784"
 
 [[spec]]
 path = "spec/SimRISC-04-64位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "000a12d036ff3893acedd86a85ef6f830b64bf0278c3149cac3a9362934cc7ac"
+sha256 = "9f9c402842586030934da36c0de8780c3ffc834a4bf8749029342c04a947e453"
 
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"
@@ -105,33 +112,33 @@ path = "spec/SimRISC-06-控制流.md"
 # 2026-10-16（同裁定）：合法性生成区 `excp_ialign` 的 `PC[1:0]` → `IP[1:0]`（源 = `contracts/legality_rules.yaml`
 #   + 生成器 `RULE_SUMMARY`）；`0.5.5-rc` 段追加一条。
 group = "simrisc-00..12"
-sha256 = "b69a11655497c5c2d5eb95f4b31d7d2f2a755265a9eef43549210f54c381afa6"
+sha256 = "a26f50d753b454f1c8c58b680a1531e675fcc5fe3cbce3950503baccea14ed3b"
 
 [[spec]]
 path = "spec/SimRISC-07-浮点运算.md"
 group = "simrisc-00..12"
-sha256 = "d5bbe35e4cedc23a174cc5d83569214de56055253ea84da68d6bd3cc472eb764"
+sha256 = "bd405979d2bd484d861e914a4f9fe0a67fb3c405f7026dc443f361b1110843fa"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "7c20c5c964ea5e2227b3705be4e7169e852a6ed7aa0922e9e452a4b1ad93a5c2"
+sha256 = "259caf2879236c960f1018458d6135863a991bab099c60056f60b87006f7318f"
 
 [[spec]]
 path = "spec/SimRISC-09-16位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "c106cab3449b2ad04dedc5546bad01327daed69b02d2fd088995681edd1b13c3"
+sha256 = "a836e1cc5094bf0aa5aa37848f84ba5e1fe911b0a8926a2e5e21ae728c037a73"
 
 [[spec]]
 path = "spec/SimRISC-10-8位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "7af12b98fdc9f5622fa100a1774ffc65c9fe165b52a932f48cdc127886164594"
+sha256 = "40080e1243e3915c1b6d64b8119fa03079e76dc1d9044d6d0de665eba29b03f1"
 
 [[spec]]
 path = "spec/SimRISC-11-其它.md"
 # 2026-10-16（同裁定）：`swym 0` 条 `PC 自增` → `IP 自增`；`0.5.5-rc` 段追加一条。
 group = "simrisc-00..12"
-sha256 = "c97027a1d2ea4f38af5e098f70954af72dca8fbe88eebddfa0e92a107b21f6d4"
+sha256 = "c097a73d07072158811747402ae76df5eaeb7922abef974132e3e76b0598291a"
 
 [[spec]]
 path = "spec/SimRISC-12-待定.md"
@@ -141,7 +148,7 @@ sha256 = "904a51d16749b777a2c7a05da2b3116b2f321b657e224e3781f4d95c48c16d3a"
 [[spec]]
 path = "spec/DADAO-11-AEE-应用程序运行环境.md"
 group = "dadao-1x"
-sha256 = "317b01ba3c29ff5b1edc03a63fc324394905c7025ed4a779c85c2a837ac634fc"
+sha256 = "1080d780a699c4ff19afad61085cdf3e205342bacb5e59ee786732f8f98ee9d0"
 
 [[spec]]
 path = "spec/DADAO-12-SEE-主管系统运行环境.md"
@@ -183,13 +190,13 @@ group = "dadao-2x"
 # 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：SBI 各 cfx 服务返回 rd31 → rd8（返回表 + 代码示例）。
 # 2026-10-09（SPEC-129t，用户裁定 8）：示例 5 处 rb3 当 scratch（改布局后 rb3=TP）→ 真临时寄存器 rb8
 # （§4 cfx_ptw 各 dispatch 的 set.rb/jump 中转）；仅改示例寄存器选择，其余口径不动。
-sha256 = "95c406c8783160db063820b039d42c0e90c4ceeb1d11a066bf8ff36d3118088b"
+sha256 = "3ddff005161ebe080ae417afe80006da261e2baa49faf7282f90fc5a266fc4ba"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"
 group = "dadao-2x"
 # 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：HBI 服务返回 rd31 → rd8（HBI_GET_VERSION）。
-sha256 = "5823faa3c937b111d9611bd81df67a09b7693cf7ef4cce9ecab5ff383606dd4d"
+sha256 = "9839dc54dd4c2dfeed9e2e0f9d2dabc7e4aec536c5a0b077e690d2639497f8f4"
 
 [[spec]]
 path = "spec/Toolchain-01-汇编语言.md"

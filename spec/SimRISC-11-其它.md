@@ -48,7 +48,7 @@ swym    immu18
 上游 `SimRISC-0.5.4` 曾定义 `nop` 伪指令；v5 **删除**（`ADR-0013 D11`），不再作为伪指令。需要空操作/对齐时，**直接书写真实指令 `swym 0`**：
 
 ```simrisc
-swym    0                ; 空操作（旧 `nop`）
+swym    0                @@ 空操作（旧 `nop`）
 ```
 
 ## 4. 非法指令
@@ -120,11 +120,11 @@ cfx2rd 是将 cfx_<cfxname>_cgHB_rcHC 的值设置到 rdHD 中。
 为简化汇编代码的编写，寄存器传输指令支持一种简化的操作数写法，将 `cfx_<cfxname>, cgHB, rcHC` 三个参数合并为 `cfx_⟨cfxname⟩_regname` 的形式，其中 `regname` 为寄存器名称（即 SEE 文档 regname 列中的名称）。汇编器会根据寄存器名称自动查找对应的 cg 和 rc 编号，展开为标准的三个操作数格式。
 
 ```simrisc
-; 简化写法（推荐）
-cfx2rd  cfx_umon_excp_cause_ip, rd2    ; 读取 cfx_umon 的 excp_cause_ip
-cfx2rc  cfx_power_ctrl, rd2             ; 写入 cfx_power 的 power_ctrl
+@@ 简化写法（推荐）
+cfx2rd  cfx_umon_excp_cause_ip, rd2    @@ 读取 cfx_umon 的 excp_cause_ip
+cfx2rc  cfx_power_ctrl, rd2             @@ 写入 cfx_power 的 power_ctrl
 
-; 等价的标准写法
+@@ 等价的标准写法
 cfx2rd  cfx_umon, cg5, rc3, rd2
 cfx2rc  cfx_power, cg8, rc1, rd2
 ```

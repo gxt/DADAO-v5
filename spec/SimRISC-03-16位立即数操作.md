@@ -83,33 +83,33 @@ set.w    rfHA, wpN, immu16
 **常用模式示例**：
 
 ```simrisc
-; 加载零 → set.zw 即可覆盖全 64 位
-set.rd   rd1, 0                     ; 展开为 set.zw rd1, wp0, 0
+@@ 加载零 → set.zw 即可覆盖全 64 位
+set.rd   rd1, 0                     @@ 展开为 set.zw rd1, wp0, 0
 
-; 加载全 1（-1）→ set.ow 一条指令全 64 位置 1
-set.rd   rd1, -1                    ; 展开为 set.ow rd1, wp0, 0xFFFF
+@@ 加载全 1（-1）→ set.ow 一条指令全 64 位置 1
+set.rd   rd1, -1                    @@ 展开为 set.ow rd1, wp0, 0xFFFF
 
-; 加载负数（利用 set.ow 将其余 48 位置 1 的特性，自动完成符号扩展）
-set.rd   rd1, -42                   ; 展开为 set.ow rd1, wp0, 0xFFD6  (-42 的低 16 位)
+@@ 加载负数（利用 set.ow 将其余 48 位置 1 的特性，自动完成符号扩展）
+set.rd   rd1, -42                   @@ 展开为 set.ow rd1, wp0, 0xFFD6  (-42 的低 16 位)
 
-; 加载位掩码（高位全 1 的低 16 位掩码）
-set.rd   rd1, 0xFFFFFFFFFFFFFFF0    ; 展开为 set.ow rd1, wp0, 0xFFF0
+@@ 加载位掩码（高位全 1 的低 16 位掩码）
+set.rd   rd1, 0xFFFFFFFFFFFFFFF0    @@ 展开为 set.ow rd1, wp0, 0xFFF0
 
-; 加载 ~(1<<n) → set.ow 一条指令
-set.rd   rd1, ~(1<<5)              ; 展开为 set.ow rd1, wp0, 0xFFDF
+@@ 加载 ~(1<<n) → set.ow 一条指令
+set.rd   rd1, ~(1<<5)              @@ 展开为 set.ow rd1, wp0, 0xFFDF
 
-; 加载小正数（16 位以内）→ wp0 一条指令
-set.rd   rd1, 42                    ; 展开为 set.zw rd1, wp0, 42
-set.rd   rd1, 0x1234ABCD            ; 展开为：
-                                    ;   set.zw rd1, wp1, 0x1234
-                                    ;   or.w   rd1, wp0, 0xABCD
+@@ 加载小正数（16 位以内）→ wp0 一条指令
+set.rd   rd1, 42                    @@ 展开为 set.zw rd1, wp0, 42
+set.rd   rd1, 0x1234ABCD            @@ 展开为：
+                                    @@   set.zw rd1, wp1, 0x1234
+                                    @@   or.w   rd1, wp0, 0xABCD
 
-; 加载 64 位常数 → 分 4 个 wyde 依次设置
-set.rd   rd1, 0xDEADBEEF_CAFEBABE  ; 展开为：
-                                    ;   set.zw rd1, wp3, 0xDEAD
-                                    ;   or.w   rd1, wp2, 0xBEEF
-                                    ;   or.w   rd1, wp1, 0xCAFE
-                                    ;   or.w   rd1, wp0, 0xBABE
+@@ 加载 64 位常数 → 分 4 个 wyde 依次设置
+set.rd   rd1, 0xDEADBEEF_CAFEBABE  @@ 展开为：
+                                    @@   set.zw rd1, wp3, 0xDEAD
+                                    @@   or.w   rd1, wp2, 0xBEEF
+                                    @@   or.w   rd1, wp1, 0xCAFE
+                                    @@   or.w   rd1, wp0, 0xBABE
 ```
 
 **展开规则**：任意 64 位立即数最多 4 条指令即可实现（每 wyde 至多一条）。汇编器应优先选择指令数最少的展开方案，推荐策略：
@@ -121,10 +121,10 @@ set.rd   rd1, 0xDEADBEEF_CAFEBABE  ; 展开为：
 **寄存器传值**：`set.rd rd, rs` 也可用于从 rb、rf、ra 寄存器传值至 rd，汇编器根据源寄存器类型展开为单条块赋值指令：
 
 ```simrisc
-set.rd   rd5, rb3       ; 展开为 rb2rd {rd5}, {rb3}
-set.rd   rd2, rf7       ; 展开为 rf2rd {rd2}, {rf7}
-set.rd   rd8, rd3       ; 展开为 rd2rd {rd8}, {rd3}
-set.rd   rd4, ra10      ; 展开为 ra2rd {rd4}, {ra10}
+set.rd   rd5, rb3       @@ 展开为 rb2rd {rd5}, {rb3}
+set.rd   rd2, rf7       @@ 展开为 rf2rd {rd2}, {rf7}
+set.rd   rd8, rd3       @@ 展开为 rd2rd {rd8}, {rd3}
+set.rd   rd4, ra10      @@ 展开为 ra2rd {rd4}, {ra10}
 ```
 
 ### 3.2 set.rb 伪指令
@@ -134,21 +134,21 @@ set.rd   rd4, ra10      ; 展开为 ra2rd {rd4}, {ra10}
 > **重要**：`set.zw` 会清零其余所有位，因此不能连续使用多条 `set.zw`。只能使用**一条** `set.zw` 作为第一条指令，后续用 `or.w`（设 1）或 `andn.w`（清 0）逐 wyde 修正。
 
 ```simrisc
-; 加载零
-set.rb   rb1, 0                      ; 展开为 set.zw rb1, wp0, 0
+@@ 加载零
+set.rb   rb1, 0                      @@ 展开为 set.zw rb1, wp0, 0
 
-; 加载 48 位地址
-set.rb   rb1, 0x123456789ABC         ; 展开为：
-                                      ;   set.zw rb1, wp2, 0x1234
-                                      ;   or.w  rb1, wp1, 0x5678
-                                      ;   or.w  rb1, wp0, 0x9ABC
+@@ 加载 48 位地址
+set.rb   rb1, 0x123456789ABC         @@ 展开为：
+                                      @@   set.zw rb1, wp2, 0x1234
+                                      @@   or.w  rb1, wp1, 0x5678
+                                      @@   or.w  rb1, wp0, 0x9ABC
 ```
 
 **寄存器传值**：`set.rb rb, rs` 也可用于从 rd 或 rb 寄存器传值至 rb，汇编器根据源寄存器类型展开为单条块赋值指令：
 
 ```simrisc
-set.rb   rb5, rd3       ; 展开为 rd2rb {rb5}, {rd3}
-set.rb   rb2, rb7       ; 展开为 rb2rb {rb2}, {rb7}
+set.rb   rb5, rd3       @@ 展开为 rd2rb {rb5}, {rd3}
+set.rb   rb2, rb7       @@ 展开为 rb2rb {rb2}, {rb7}
 ```
 
 **注**：rb 高 16 位（bits[63:48]）可用于地址溢出检测。汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。
@@ -158,29 +158,29 @@ set.rb   rb2, rb7       ; 展开为 rb2rb {rb2}, {rb7}
 `set.ft` 和 `set.fo` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，分别对应单精（tetra，32 位）和双精（octa，64 位）浮点格式。伪指令展开为 `set.w` 的组合。
 
 ```simrisc
-; 加载单精浮点 1.0（0x3F800000）→ 只需设置低 32 位
-set.ft   rf1, 0x3F800000             ; 展开为：
-                                      ;   set.w rf1, wp1, 0x3F80
-                                      ;   set.w rf1, wp0, 0x0000
+@@ 加载单精浮点 1.0（0x3F800000）→ 只需设置低 32 位
+set.ft   rf1, 0x3F800000             @@ 展开为：
+                                      @@   set.w rf1, wp1, 0x3F80
+                                      @@   set.w rf1, wp0, 0x0000
 
-; 加载双精浮点 1.0（0x3FF0000000000000）
-set.fo   rf1, 0x3FF0000000000000     ; 展开为：
-                                      ;   set.w rf1, wp3, 0x3FF0
-                                      ;   set.w rf1, wp2, 0x0000
-                                      ;   set.w rf1, wp1, 0x0000
-                                      ;   set.w rf1, wp0, 0x0000
+@@ 加载双精浮点 1.0（0x3FF0000000000000）
+set.fo   rf1, 0x3FF0000000000000     @@ 展开为：
+                                      @@   set.w rf1, wp3, 0x3FF0
+                                      @@   set.w rf1, wp2, 0x0000
+                                      @@   set.w rf1, wp1, 0x0000
+                                      @@   set.w rf1, wp0, 0x0000
 
-; 加载零 → 将 rd0（恒为 0）赋值给 rf
-set.ft   rf1, 0                       ; 展开为 rd2rf {rf1}, {rd0}
-set.fo   rf1, 0                       ; 展开为 rd2rf {rf1}, {rd0}
+@@ 加载零 → 将 rd0（恒为 0）赋值给 rf
+set.ft   rf1, 0                       @@ 展开为 rd2rf {rf1}, {rd0}
+set.fo   rf1, 0                       @@ 展开为 rd2rf {rf1}, {rd0}
 ```
 
 **寄存器传值**：`set.ft`/`set.fo` 也可用于从 rd 或 rf 寄存器传值至 rf，汇编器展开为 `rd2rf` 或 `ft2ft`/`fo2fo`：
 
 ```simrisc
-set.ft   rf1, rd5       ; 展开为 rd2rf {rf1}, {rd5}
-set.ft   rf1, rf2       ; 展开为 ft2ft {rf1}, {rf2}
-set.fo   rf2, rf7       ; 展开为 fo2fo {rf2}, {rf7}
+set.ft   rf1, rd5       @@ 展开为 rd2rf {rf1}, {rd5}
+set.ft   rf1, rf2       @@ 展开为 ft2ft {rf1}, {rf2}
+set.fo   rf2, rf7       @@ 展开为 fo2fo {rf2}, {rf7}
 ```
 
 **注**：加载全零时汇编器自动使用 `rd2rf` 从 `rd0` 拷贝。

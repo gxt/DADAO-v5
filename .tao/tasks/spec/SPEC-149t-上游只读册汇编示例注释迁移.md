@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`SPEC-147t`（规范面 0.5.3 已落地，本册迁移上游只读册示例）；`LLVM-109t`（`CommentString`/`SeparatorString` 实现，**不必等**；但示例要「真能编」须与其同批落地，见「与 LLVM-109t 的先后」）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -380,10 +380,25 @@ L127 | ; 等价的标准写法 | @@ 等价的标准写法
 7. **完成区**贴真实命令输出 + 退出码（≤30 行）；长输出留 `.work/log/spec/`。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：通过 298/298 行（11 册）；逐行基线一致（`check_migration.py full` rc=0）。`.work/build/llvm/bin/llvm-mc` 抽样 8 处：7 处 rc=0；SimRISC-04 L237 失败（`rdHB/rdHC/rdHD` 为文档占位符，非真实寄存器，属“示意”写法）。
+**修改文件**：11 册（DADAO-11 23 / DADAO-22 181 / DADAO-23 6 / SimRISC-03 50 / SimRISC-04 27 / SimRISC-06 1 / SimRISC-07 2 / SimRISC-08 1 / SimRISC-09 1 / SimRISC-10 1 / SimRISC-11 5）；`manifests/spec-readonly.lock.toml`（仅 11 册 sha256 + 变更注记）；本任务书（完成区/审阅记录）；证据 `.work/evidence/SPEC-149t/{run.sh,check_migration.py}`、日志 `.work/log/spec/SPEC-149t-*.log`。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 用户授权原话（`Process-06 §2`，渠道 = 经主会话问答，2026-10-19）：「1、A；2、就地修订」。
+- `check_migration.py full` rc=0：changed-line-set 298/298；`simrisc` 残留 `;`=0；非 `simrisc`（C 块 8 行/25 处、DADAO-12 伪代码 6、SimRISC-04 伪代码 3）行号集合与基线提交 `31e97d4` 逐行相同；其余 10 册字节不变；11 册册头版本/附录零改动（`check-spec-changelog` rc=0）；锁内仅 11 册 sha256 变化且与实测一致。
+- `git diff --histogram --numstat -- spec/*.md` = 11 文件 +298 −298；默认 Myers `--numstat` = +303 −303（见“新发现”①）。
+- 门控 rc=0：`make check`（L1，日志 `SPEC-149t-make-check.log`）、`check-spec-readonly` / `check-spec-changelog` / `check-spec-drift` / `check-asm-prose` / `check-spec-codeblocks` / `check-asm-list` / `check-asm-list-drift` / `check-contracts-pending` / `check-tasks` / `check-knowledge-refs` / `check-no-residue` / `check-milestones-fresh` / `check_issues`。
+- 证据脚本 `.work/evidence/SPEC-149t/run.sh` rc=0；3 处可达 FAIL 注入（C 分号误改 / 回退迁移行 / 改行尾）均 rc=1，`cp`+md5 还原后 rc=0。
+**新发现/坑**：① git 2.43 默认 Myers 对 SimRISC-03（3 行）/ SimRISC-04（2 行）的**内容完全相同空行**输出伪 −/+，默认 numstat 303；实际改动行与 `--histogram` 均为 298，非内容漂移。② `check-spec-codeblocks` 不识别 `@@` 开头为注释（按非助记符静默跳过），本册绿灯不受影响，建议后续补识别。③ SimRISC-04/07 的 `rdHB/rdHC/rdHD` 等为文档占位符，不能直接汇编。④ 整块汇编另有失败：含 `#define` 的块（DADAO-22 L110/388/579/678/774）LLVM MC 不认 `#` 指令；`set.rd` 展开大常量/符号（SimRISC-03 L85 块、DADAO-22 L312 块）受实现限制——均与 `;`→`@@` 迁移无关。
+**遗留问题**：最终重跑 `make check`（10:36）rc=2，原因为**外部**：`.work/source/llvm-project/llvm/lib/Target/DADAO/DADAORegisterInfo.cpp` 被并发任务改动（ADR-0018 FP 变更，mtime 10:36:54），`check-patch-tree` ⑥⑦ 失败；本任务未触碰该树，未用 `checkout/restore`。其余无。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审（2026-10-19）
+
+- 逐行核对 298 行：`check_migration.py full` rc=0；每行均满足「old 首个 `;`→`@@`」、位于 `simrisc` 块、其余字符逐字不变；非 `simrisc` 行与基线提交 `31e97d4` 逐行相同。
+- finding 1（默认 numstat 303≠298）：❌不修。内容层实际改动行 = 298（逐行比较 + `--histogram`），默认 Myers 把 5 行**完全相同空行**输出成 −/+；`--word-diff` 显示这些空行为 context。证据：`check_migration.py full`、`git diff --histogram --numstat`。
+- finding 2（证据脚本原有一条恒真 `report(True, "headers...")`）：✅已修。删除该恒真断言；册头/附录不变已由「changed-line-set + 非改动行逐行相同」覆盖。复验：`run.sh` rc=0，74 项 PASS。
+- finding 3（锁注记含任务号 vs 派单“不写任务号”）：❌不修。任务书判据明确“不新增变更记录段/不触碰附录”，故 spec 附录零改动；锁文件既有变更注记体例含任务号（如既有 SPEC-134t/142t 条目），保留以维持可追溯。
+- finding 4（`check-spec-codeblocks` 不识别 `@@` 注释）：⏸延后。属该门控自身能力缺口，本册未授权改门控；已记入完成区“新发现②”，本册 rc=0。
+- finding 5（SimRISC-04/07 占位寄存器不能汇编）：⏸延后。`rdHB/rdHC/rdHD` 为文档示意，非迁移引入；7/8 抽样通过，失败项已如实记录。
+- finding 6（最终 `make check` rc=2）：⏸延后（外部）。`.work/source/llvm-project` 被并发任务改动，非本任务文件；已保留现场并登记完成区“遗留问题”，未用 `checkout/restore`。
