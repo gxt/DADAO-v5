@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`SPEC-147t`（规范面已冻结：`@@` 注释、`;` 语句分隔符；`spec/Toolchain-01` 0.5.3）、`.tao/contracts/contract-asm.md §2.2`（0.5.3）、`docs/Process-01`（组件补丁树）、`docs/Process-05`（TDD/可达 FAIL）、`ADR-0013 D9.1`（被用户 2026-10-19 裁定**部分取代**；ADR 处置待用户确认，本册不改 ADR）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -200,3 +200,16 @@ SeparatorString = ";";   // 显式写出（默认已是 ";"；同时作为规范
 |---------|------|---------|---------|
 | `ISS-281` 的「tools/** 已覆盖」结论假设不成立：只覆盖了 `.py` 解析器，未覆盖 `.s` stub | ✅已修 | `tools/testcases/picolibc_test_crt0.s` 22 行引导符改 `@@` | 行首 `;` 残留 0；`llvm-mc` rc=0；picolibc harness 进入逐例阶段 |
 | `check-picolibc-tests` 期望 rc=0 与现场 rc=2 不符 | ❌不修（非本笔） | 无 | blocked 项 = `math_test`/`__atold_engine`（`ISS-193` (f)），链接错误来自 `libc.a(strtold.o)`，stub 对象只 `U _picolibc_start` |
+
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑**：`.work/evidence/LLVM-109t/run.sh` 默认 **31/31 PASS rc=0**（我自己的终端输出，与完成区一致）。
+**特别核查**（独立命令行，不用脚本）：
+- `git grep '^[[:space:]]*;' -- '*.s' '*.S' ':!components'` = **0** ✓
+- 一行多条 `add.si rb1,-8 ; add.uo … ; ret …` ⇒ `llvm-mc` rc=0、objdump **恰 3 条**字节 `5b07fff8 50008450 76000000` ✓
+- `.type add,@function` ⇒ `llvm-readobj` Type: Function ✓
+- `clang -S` 产物 `@@ -- Begin function` ✓，leading `;` = 0 ✓
+**独立注入**：`CommentString` 改回 `";"`（`cp`+md5 备份）→ `ninja llvm-mc`（20 s）→ `run.sh` default **22/31 FAIL**（C01a/C01d/C04b[insn=1]/C04c/C06a/C06b/C06c/C09-lit 53+11 FAIL）⇒ 还原 → `ninja llvm-mc` → `run.sh` **31/31 PASS** ✓。md5 对账。
+**如实性抽查**（3 条）：31/31 PASS ✓；`@@`=3684、`;`(comment only)=222 ✓；bytes `5b07fff8 50008450 76000000` ✓。
+**约束**：CommentString="@@" + SeparatorString=";" 显式 ✓；ELFAsmParser `!= "@"` ✓；补丁树 181 ✓。
+**判决**：**Accepted**（证据 31/31+注入 22→31，无未修缺陷）。`install-host` 归主会话复验。

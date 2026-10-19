@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`SPEC-150t`（规范/契约面，**同批**；本册实现须与 `contract-abi §1.3/§4.5/§4.7` 一致）、`ADR-0018`（`C7 D2/D3/D6` 已由 architect 于 2026-10-19 就地修订）、`LLVM-039t`/`LLVM-064t`（现 prologue/epilogue 与 CSR 批量保存实现）、`ISS-280`（本册对应 issue）
-**状态**：待验收
+**状态**：已验证
 
 ## 用户授权（原话逐字，渠道 = 经主会话问答，2026-10-19）
 
@@ -115,3 +115,17 @@
 | F4 偏移重算依赖 PEI“偏移随分配单调下降”；若目标开启 stack-slot scavenging / 多 save block 会失真 | ⏸延后（无触发面） | 不加代码；重算本身幂等 | DADAO 未覆盖 `enableStackSlotScavenging`（默认 false）与 `enableShrinkWrapping`（默认 false）；同上探针复验 |
 | F5 未跑 install-host，安装根仍是旧后端；047t/046t 只作 musl 回归 | ⏸延后（按派单） | — | 完成区「遗留①」；FP=rb2 的 E2E 用构建树 clang 直接验证（probe1–6） |
 | F6 `build-picolibc` 失败是否为自引入 | ❌不修（非本笔） | — | 失败命令用安装根旧 clang；`strtold.c` 与 HEAD 相同（`git diff --quiet` rc=0）；根因 `uint_to_fp i128→f128` 未注册（`-debug-only=legalize-types` 现场） |
+
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑**：`.work/evidence/LLVM-110t/run.sh` 默认 **ALL GREEN 46/46 PASS rc=0**（我自己的终端输出）。
+**特别核查**（独立命令行）：
+- `DADAORegisterInfo.cpp`：`Reserved.set(DADAO::rb2)` 1 处、无 `if(` 包裹 ✓；`rb63` 条件块 0 处 ✓；`getFrameRegister` = `hasFP ? rb2 : rb1` ✓
+- `DADAOFrameLowering.cpp`：`CreateFixedSpillStackObject` 0 处（仅注释）✓；`rb63` FP 写 0 处 ✓
+- 别名 `rbgp/rbfp` 残留 **0** ✓
+- `jmp_buf[162]`、`_JBLEN 162` ✓
+- 独立汇编：`clang -O1 -fno-omit-frame-pointer -S fp_probe.c` ⇒ `st.o rb2,[rb1,-8]`/`rb2rb rb2,rb1`/`ld.o rb2,[rb1,-8]` 均在、`rb63`=0 ✓
+**独立注入**：`DADAORegisterInfo.cpp.patch` 的 `hasFP ? rb2 : rb1` 改为 rb63（`cp`+md5）→ `run.sh` default **FAIL**（patch getFrameRegister rb2=0 + check-patch-tree rc=2）⇒ 还原 → **ALL GREEN** ✓。
+**如实性抽查**（3 条）：probe6 setjmp `st.o rb2,[rb16,1288]` ✓；probe6 longjmp `ld.o rb2,[rb16,1288]` ✓；probe3/4 `stm.o {rb33:rb63}` + frame 18576>4096 ✓。
+**约束**：补丁树 181 ✓；CSR 不含 rb2 ✓；`getReservedRegs` 与 `getFrameRegister` 无两套判定 ✓。
+**判决**：**Accepted**（证据 46/46+注入 FAIL→GREEN，无未修缺陷）。`install-host`/L2/L3 归主会话复验。

@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`SPEC-151t`（规范/契约面，**同批**；本册实现前其 16 B 口径须已落地或同批落地）、`ADR-0018 C9 D3`（**architect 已于 2026-10-19 就地修订**；用户原话见下）、`ADR-0031 D7`（16 B 栈值对齐；SP 16 B ⇒ 绝对 `%16==0` 无条件成立）、`LLVM-111t`（16 B 相对取整已落；本册在其上把**基址**钉成 16 B）、`LLVM-110t`（FP=`rb2`、`rb63` 普通 callee-saved 的现行帧布局；本册不得回退）
-**状态**：待验收
+**状态**：已验证
 
 ## 用户授权（原话逐字；渠道 = 经主会话问答，2026-10-19）
 
@@ -158,8 +158,18 @@
 自审判定：所有 finding 已处置，实现/探针/证据脚本与完成区真值一致；`**状态**` 按派单由主会话维护（本次未改）。
 
 
-#### 第 1 轮 reviewer 验收
-（待执行）
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑**：`.work/evidence/LLVM-112t/run.sh` 默认 **ALL GREEN 49/49 PASS rc=0**（我自己的终端输出）。
+**特别核查**（独立）：
+- `StackAlignment=Align(16)` ✓；`NumBytes = alignTo(ArgStackSize, 16)` 无条件 ✓
+- `Pframe SP%16=0`（单 8 B 对象 + `-fomit-frame-pointer`）✓；Pcallsp 8 类调用点 SP%16 全 0 ✓
+- P7 8B-only stdout == baseline ✓（语义不变、汇编允许不同）
+- `check-patch-tree` 181 ✓；`check-source-state` clean ✓
+- `Align(8)` 注入：`cp`+md5 备份 → `sed` 改 `Align(16)→Align(8)` → `ninja clang llc`（2 min）→ `run.sh` default **FAIL**（**Pframe SP%16=8** + P3/P4/Psetjmp/Pframe asm FAIL）⇒ 还原 → `ninja clang llc` → **PASS 49/49** ✓。md5 对账。
+**如实性抽查**（3 条）：lit 114/114 ✓；046t 38/38 ✓；047t 10/10 static+dynamic ✓。
+**约束**：手写汇编/入口零改（musl crt/setjmp/syscall_cp/picolibc semihost 均不改 rb1）✓；补丁树 181、series 82 ✓；`NumBytes` 改动后 `HasStack16` 死出参已删除 ✓。
+**判决**：**Accepted**（证据 49/49 + 注入 Pframe FAIL→GREEN，无未修缺陷）。L2/L3 及全量 048t 归主会话。
 
 #### 提交留痕（architect，2026-10-19）
 - **档位**：正常档（按主会话指定提交信息；同 `LLVM-111t` 5efb7ca 先例；`**状态**` = `待验收`，reviewer 第 1 轮尚未执行）。分支 `LLVM-112t` 提交 `0c7f43f`，squash 落 `master` 为 `3f13c13`；分支已删；**未 push**。

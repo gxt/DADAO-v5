@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-102t`（D4 整组分配与栈偏移的现实现；其完成区坑②③ + 执行期偏差② = 本册现场）、`LLVM-106t`（`long double` = binary128 的取值/搬运）、`ADR-0031 D7`（**`Accepted`**，16 B 栈对齐的依据；本册**不改 ADR**）、`ISS-275`（登记源；本册 = 落点）、`TESTCASES-047t`（5 个 `long double` 回归）、`TESTCASES-048t`（抽样回归）
-**状态**：待验收
+**状态**：已验证
 
 > **立册口径（2026-10-19，architect）**：这是 `Accepted` 的 `ADR-0031 D7` 的**实现补齐**，不是新决策、不改 ADR、不放宽 `D7`。`ISS-275` 的 ①（9–15 B 寄存器「偶号起」）是既有实现约束（后端只见 `[2 x i64]`，分不清 12/16 B），**本册不改**；本册只补齐 16 B 值的**栈**布局，且三处（caller / callee / `va_arg`）必须同一套规则。
 
@@ -137,5 +137,15 @@
 | F6 探针基址未固定，P1 的 `p0%16` 会随帧奇偶波动 | ✅已修 | 探针加 16 B 对齐 `volatile` 局部 + 注释说明前置 | P1 修前 237/修后 0 稳定复现 |
 | F7 8 B-only 布局回归风险（`NumBytes` 取整可能改动 SP） | ✅已修 | 仅 `HasStack16` 时取整 | P3 `cmp` 汇编逐字节同 + stdout 同 |
 
-#### 第 1 轮 reviewer 验收
-（待填写）
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑**：`.work/evidence/LLVM-111t/run.sh` 默认 — **P3-asm-identical FAIL**（其余 12/13 PASS）；`PIPESTATUS`=1。
+**Stale 诊断**：`diff baseline/P3.s vs 当前 P3.s` = **仅 4 处帧大小 ±8**（`-24→-32`、`-104→-112`）+ `.ident` 哈希——**纯 `Align(16)` 取整**（LLVM-112t 合法后续变更）；P3 stdout 完全一致（cmp rc=0）✓。核心判据 P1/P2/P4/p3-exit/p3-stdout/lit 114/114/asm-offsets 全绿。登记 **ISS-288**。
+**特别核查**：
+- 独立：`p0%16==0`（P1）、`p1==p0+16`（P1）、S16/S12 绝对地址 %16（P2）、va_start 游标 = 40 B（P4）—— 全在我自己的终端 PASS ✓
+- P3 语义 oracle（stdout 全同、exit 0）✓
+- `check-patch-tree` 181 ✓
+**独立注入**：`m8-varargs-stack-align.ll` CHECK-DAG `[rb1,16]`→`[rb1,40]`（`cp`+md5）→ `run.sh` default ⇒ **lit-new-test + lit-codegen-dir 额外 FAIL**（P3 stale 恒红）⇒ 还原 → 仅 P3 stale FAIL，lit 全绿 ✓。
+**如实性抽查**（3 条）：P1 exit 0 ✓；lit-codegen 35 tests（含新例）✓；asm-offsets AOK=1 ✓。
+**约束**：三处取整一致（caller 2 处 `alignTo(StackOff,16)` + clang `Is16`）✓；补丁树 181 ✓。
+**判决**：**Accepted**（核心判据全绿；P3 byte-identical 为 112t 的 Align(16) 合法 stale，非 111t 缺陷；ISS-288 登记刷新基线）。

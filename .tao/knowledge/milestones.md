@@ -30,22 +30,22 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-109t | 已验证 | 2026-10-19 18:50 | `CommentString=@@`/`SeparatorString=;`；101 文件 3684 行迁移 + 工具同步；补丁 181；组件 4 补丁漏项收口 |
+| LLVM-110t | 已验证 | 2026-10-19 18:50 | FP 回归 rb2（无条件保留）+ rb63 普通 callee-saved；删 FP 专用槽；setjmp 端口加 rb2 槽；探针 6 项 |
+| LLVM-111t | 已验证 | 2026-10-19 18:50 | 16 B 栈对齐补齐（f128/2 块 RD 组）：caller/callee/va_arg 同规则取整；8 B 基线不变；ISS-275 落点 |
+| LLVM-112t | 已验证 | 2026-10-19 18:50 | SP 对齐 16 B 实现+全链复验：Align(16)、crt1/musl/setjmp 核对、探针 8 项、install-host、L2/L3、三套两档 |
 | LLVM-115t | 待验收 | 2026-10-19 17:09（登记） | picolibc `__atold_engine` 接入：删 meson 过滤条目（2→1）；build/tests rc=0、pass 18/blocked 0、047t 5 例两档 pass、探针 11/11 |
 | LLVM-114t | 待验收 | 2026-10-19 16:35（登记） | f128 math libcall 补齐（floor/rint/round/trunc/log + latent sqrt/fma）；解 build-picolibc 余 12 个 libm/ld TU（ISS-283） |
 | LLVM-113t | 待验收 | 2026-10-19 16:12（登记） | i128↔f128 四转换 libcall 补齐（floattitf/floatuntitf/fixtfti/fixunstfti）；解 build-picolibc strtold 缺口（ISS-283） |
 | INFRA-094t | 待验收 | 2026-10-19 16:08（登记） | 修 L2/L3 两红：ir-lli 5 个 lit CodeGen 入 exclude（no-value-entry）；authoritative 补 6 个真跑目录+latest |
-| LLVM-112t | 待验收 | 2026-10-19 12:42（登记） | SP 对齐 16 B 实现+全链复验：Align(16)、crt1/musl/setjmp 核对、探针 8 项、install-host、L2/L3、三套两档 |
 | SPEC-151t | 待验收 | 2026-10-19 12:42（登记） | SP 对齐 8→16 B 规范面：DADAO-21 §3.2.4、contract-abi §2/§4.8/§4.9、abi.yaml、只读锁；ADR-0018 C9 D3 已落 |
-| LLVM-111t | 待验收 | 2026-10-19 12:08（登记） | 16 B 栈对齐补齐（f128/2 块 RD 组）：caller/callee/va_arg 同规则取整；8 B 基线不变；ISS-275 落点 |
 | INFRA-093t | 已验证 | 2026-10-19 10:31 | 三驱动 `--json-out` 必填 + 独立 run 目录三件套 + L1 `check-run-artifacts`（A1–A3/self-test/注入）；`Process-08` 规范 |
-| LLVM-110t | 待验收 | 2026-10-19 07:55（登记） | FP 回归 rb2（无条件保留）+ rb63 普通 callee-saved；删 FP 专用槽；setjmp 端口加 rb2 槽；探针 6 项 |
 | SPEC-150t | 待验收 | 2026-10-19 07:55（登记） | 帧指针回归 rb2（无条件保留、删 rbfp/rbgp）；rb63 连续 callee-saved；contract/abi.yaml/锁同步 |
 | INFRA-090t | 已验证 | 2026-10-19 07:54 | musl bits/float.h 换 binary128：12 宏与 aarch64 逐字、_l 零改；047t 5 例两档 5/5；ISS-250 closed |
 | LLVM-105t | 已验证 | 2026-10-19 07:54 | vector SetCC 补齐（`WidenVecRes_LOAD` 断言）+ wchar_t 改有符号；两例编译 rc=0、lit 103/103 |
 | LLVM-107t | 已验证 | 2026-10-19 07:54 | i32 窄返回 callee canonical 化：`classifyReturnType` 对 <64 位整型统一 `getExtend`；探针修前 2 FAIL→8/8、lit 34/34 |
 | QEMU-063t | 已验证 | 2026-10-19 07:54 | MemRAS 初始化（1 MiB + MRPTR 哨兵）⇒ dbms 两档 pass；9 例诊断表落册；ISS-277→LLVM-108t |
 | SPEC-149t | 待验收 | 2026-10-19 07:49（登记） | 上游只读册汇编示例注释 `;`→`@@`：11 册 298 行；C 分号不动；只读锁重算 |
-| LLVM-109t | 待验收 | 2026-10-19 07:41（登记） | `CommentString=@@`/`SeparatorString=;`；101 文件 3684 行迁移 + 工具同步；补丁 181；组件 4 补丁漏项收口 |
 | SPEC-147t | 待开始 | 2026-10-19 07:41（登记） | 注释符 `;`→`@@`、`;` 改语句分隔符：§2.2+示例+变更记录+`contract-asm` 0.5.3+只读锁重算；只读册示例迁移另立 `SPEC-149t`（A 授权） |
 | TESTCASES-051t | 待验收 | 2026-10-19 07:33（登记） | lencod 预建 Output/ 两档 pass + 与参考 diff rc=0；ISS-272 改查 IR、ISS-274 三处 + 注入 4/5/6；证据 51/51 |
 | LLVM-108t | 待开始 | 2026-10-19 01:54（登记） | lemon 调用点漏写 rb16：K&R 无原型调用（`lemon.c:334/4839`）先分类；指针形参读 rb16 而实参走 rd16 |

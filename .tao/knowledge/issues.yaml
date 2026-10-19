@@ -1030,3 +1030,19 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 = 用户 2026-10-19 补漏派单（`LLVM-109t` 补漏时现场暴露）；architect 只读核对后立项）】**现象（逐字）**：`make check-picolibc-tests` 的 `build-picolibc` PASS，逐例 `total=20 pass=17 fail=0 excluded=2 blocked=1`；唯一 `blocked` = `math_test`（`newlib.math`），reason = `undefined symbol: __atold_engine`（`.work/log/testcases/LLVM-109t-leftover-picolibc.log`）。**根因链（现场读源码）**：`long double` 改为 IEEE binary128（`ADR-0030`；`__SIZEOF_LONG_DOUBLE__=16`）⇒ `strtold.c:67` 含 `conv_flt.c`（`:87-92` 定义 `_NEED_IO_LONG_DOUBLE`）⇒ `dtoa.h:60-77` 定义 `_NEED_IO_FLOAT_LARGE` ⇒ `conv_flt.c:579-584` 调 `__atold_engine`；定义唯一在 `libc/stdio/atold_engine.c:108`。**为何未接进构建**：该 TU 在 `components/picolibc/patches/meson.build.patch` 的 `_dadao_backend_blocked`（历史签名 = `unsupported library call operation`，`long double` 为 64 位时；`LLVM-088t`/`089t` 现场复跑）。**现场量化**：`.dadao/dadao-unknown-elf/lib/libc.a` 中 `libc_stdio_strtold.c.o` 与 `libc_stdio_wcstold.c.o` 均 `U __atold_engine`；其余 8 个 `__*_engine` 符号均 `T` ⇒ **唯一缺此一个**。**归属待现场判定（不预设）**：① picolibc 自身源现已可编 ⇒ 删过滤表该 1 条；② 仍缺后端 libcall ⇒ 只补该条；③ 需另一来源 ⇒ 保留证据交主会话裁定。**落点 = `LLVM-115t`**（llvm，`待开始`）。**边界**：本笔只立册；未改过滤表/未改后端/未改 picolibc 源。**证据指针**：`.tao/tasks/llvm/LLVM-115t-picolibc-ld128数学引擎接入.md`、`.work/log/testcases/LLVM-109t-leftover-picolibc.log`。**交叉引用**：`ISS-193` (f)（登记源）、`ISS-286`（同日补漏笔）、`LLVM-113t`（i128→f128 `__floatuntitf`）、`LLVM-114t`（f128 math libcall）、`LLVM-106t`/`INFRA-090t`（binary128）、`ADR-0030`/`ADR-0031`。"
+
+- id: ISS-288
+  title: "【P3】LLVM-111t 证据脚本 P3 byte-identical 基线因 LLVM-112t 的 `Align(16)` 合法变更失效（stale 证据，非交付缺陷）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = reviewer 第 1 轮验收现场，2026-10-19）】**现象**：`.work/evidence/LLVM-111t/run.sh` 的 `P3-asm-identical` 在当前工具链（含 LLVM-112t 的 `Align(16)`）下 FAIL，其余 12 项全绿。**根因**：`baseline/P3.s` 在 111t 完工时（`Align(8)` 工具链）生成；112t 把 `StackAlignment` 改为 `Align(16)` ⇒ 所有帧大小从 8 B 取整变为 16 B 取整（`-24→-32`、`-104→-112`），P3 函数的帧布局合法变化。**diff 核实**：差异仅 4 处 `add.si rb1, ±8` 帧大小 + `.ident` 哈希；P3 stdout 语义完全一致（cmp rc=0）。**建议**：刷新 `baseline/P3.s` 为当前工具链生成物（或改为 `diff` 行级容差检查、或标注为 `post-112t` 并以 P3-stdout-identical 作为语义 oracle）。**性质 = stale 证据脚本**（非 111t 交付缺陷、非阻断）。**证据指针**：reviewer 第 1 轮验收 `diff baseline/P3.s vs 当前` 输出。"
+
+- id: ISS-289
+  title: "【P3】前次 reviewer 会话遗留后台链（`/tmp/opencode/review-g1b/chainBC.sh`）持续修改共享构建树与源码工作树（进程纪律）"
+  status: open
+  scope: [infra]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = reviewer 第 1 轮验收现场，2026-10-19）】**现象**：本次 reviewer 会话开始时检测到 `ninja -C .work/build/llvm -j8 clang llc` 在跑（PID 3279645，17:56 起），父进程 = `/bin/bash .work/evidence/LLVM-110t/run.sh --inject`（PID 3276515），祖父 = `bash /tmp/opencode/review-g1b/chainBC.sh`（PID 3275372，前次 reviewer 会话遗留）。链脚本序列运行 110t/111t/112t 的 default+inject 证据脚本，期间反复修改 `.work/source/llvm-project` 源码文件（DADAORegisterInfo.cpp 等）并重建。**影响**：① `clang-23` 曾一度被截断为 0 字节（链接中途被杀后遗留）；② 我的独立注入/重建必须等待该链完成（共享构建树并发 ninja 不安全）；③ 对其他可能并行工作的子代理构成写冲突风险。**处置**：等待该链于 18:13:30 自然完成（ALL DONE），验证源码已恢复（md5 一致）后开始我自己的核验。**建议**：① reviewer/engineer 会话结束前确认所有后台进程已终止；② `chainBC.sh` 类长链改为前台执行或附 `setsid nohup` + EXIT 标记；③ 共享构建树的并发访问需要互斥（lockfile 或单写者协议）。**性质 = 进程纪律**（非交付物缺陷）。"
