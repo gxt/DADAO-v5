@@ -1,0 +1,23 @@
+diff --git a/src/thread/clone.c b/src/thread/clone.c
+index be80c8e..0661d2b 100644
+--- a/src/thread/clone.c
++++ b/src/thread/clone.c
+@@ -1,7 +1,16 @@
+-#include <errno.h>
+ #include "pthread_impl.h"
+ 
++/* The DADAO port implements __clone in src/thread/dadao/clone.s.  musl's
++ * Makefile maps that arch object back onto src/thread/clone.o
++ * (REPLACED_OBJS, Makefile:28-29) and removes this generic object from
++ * ALL_OBJS, so this file is not compiled into libc while the arch
++ * implementation exists.
++ *
++ * Trap instead of returning -ENOSYS: if the arch object ever disappears,
++ * failing loudly is the only acceptable behaviour.  A clone that returns
++ * -ENOSYS makes every pthread_create() fail with EAGAIN, and silently
++ * "succeeding" without installing a thread pointer would be worse. */
+ int __clone(int (*func)(void *), void *stack, int flags, void *arg, ...)
+ {
+-	return -ENOSYS;
++	__builtin_trap();
+ }

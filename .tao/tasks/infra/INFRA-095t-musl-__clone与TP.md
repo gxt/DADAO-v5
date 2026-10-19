@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`SPEC-140t`（TP 硬依赖查证，已验证）、`INFRA-082t`（musl 静态端口，已验证）、`INFRA-085t`（动态端口 / `libc.so`，已验证）、`QEMU-062t`（`qemu-user` 运行面，已验证）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-19）**：`infra` 现存最大 = `INFRA-094t` ⇒ 取 **`095`**（历史号含 M8 已归档册，`grep -rn 'INFRA-095' .tao/` 0 命中）。
 > **线程链位置（T1）**：用户 2026-10-19/20 裁定「这个任务链完成后，可以添加 thread 相关支持，注意：rb3 应该被用起来」⇒ 串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 `LLVM-117t`**。本册 = **musl 端口面**；不跑线程语义的 qemu 面扩展（T2）。
@@ -105,13 +105,25 @@
 6. **`spec/` / 契约 / 重定位编号** ✗（`ADR-0019 D10`/`D12` 冻结；改须用户裁定 + ADR）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`build-musl` rc=0（13.8 s）、`build-musl-shared` rc=0（13.1/20.2 s）；C1 static/dynamic exit=0（`join=0 shared=41 ret=42 child_errno=1234 parent_errno=77`）；C2 static `child_tp=0x5a5a0000`（逐位等于传入 tls），主线程 `parent_tp_before=parent_tp_after=0x4b008`；C2 dynamic `delta=200 == sizeof(struct pthread)+TP_OFFSET(0)`；C3 `__clone(invalid flags)=-22`、`-errno=22`、调用后 errno 仍 55；047t 非线程 10 例 static/dynamic 均 10/10；证据 `run.sh` default 24 PASS/0 FAIL、`--inject` PASS（2 处可达 FAIL）。
+**修改文件**：`.work/source/musl/src/thread/dadao/clone.s`（新增）、`src/thread/clone.c`；`components/musl/patches/src/thread/dadao/clone.s.patch`、`components/musl/patches/src/thread/clone.c.patch`（均新增）；`components/musl/{series,changelog.md}`；`.work/evidence/INFRA-095t/run.sh`。
+**验收结果**：`check-patch-tree` rc=0（5 组件 **183** patches，原 181 +2）；`check-component-changelog`/`check-source-state`/`check-index-blobs`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-issues`/`check-musl-freshness` 均 rc=0；`make check`（L1）rc=0。`obj/src/thread/dadao/clone.o` 存在、`obj/src/thread/clone.o` 不存在；`libc.a`/`libc.so` 各 1 处 `__clone` 定义（`T`/`t`）；`grep -c 'return -ENOSYS'`=0。
+**新发现/坑**：① `ret rd8, 0` 的第二操作数**就是返回值**（SimRISC-06），会把 tid 清 0；父侧须 `ret rd0, 0`（首版实测 tid=0，已修）。② C2 静态探针 flags **故意不含 `CLONE_SETTLS`**，否则 qemu 自己写 `rb3`，显式写不可观测、注入 2 无法 FAIL。③ **install-root `qemu-dadao` 陈旧**（01:47；qemu 源 HEAD `fb8e4f8`、build 树 23:26，sha256 不同）——按派单未跑 `install-host`，全部探针改用 `.work/build/qemu/qemu-dadao`。④ 新建 qemu 对**旧** 047t ELF（`functional/snprintf` 静态、`functional/strtod` 动态）报 SIGILL，旧 install-root qemu 同 ELF 通过 ⇒ 与本册改动无关，属 qemu 面回归；抽样改用 `functional/random`/`time` 凑满 10/10。
+**遗留问题**：① 安装根 qemu 需 `make install-host` 刷新（本册范围外，未跑；请 architect/用户处置）。② 上条 qemu SIGILL 回归交 T2 `QEMU-065t` 定位（本册不改 qemu）。③ 状态按派单要求**未改**（保持 `待开始`）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
+自主逐行审查（subagent_depth=1，无嵌套子代理）：逐条核对 `clone.s` 父/子路径、寄存器覆盖顺序、`SYS_clone` bank、`rb3` 写入、`ret`/`SYS_exit` 语义与栈 16 B 对齐；用 `pthread_create.o` 反汇编确认调用点 `rb16..rb21`/`rd16` 与实现一致；`clone.c` 不在编译路径（REPLACED_OBJS），以 `grep`+`nm` 机械核对。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| `ret rd8, 0` 把 syscall 结果清零（`imms18` 是返回值） | ✅已修 | `clone.s` 父侧改 `ret rd0, 0` | C1 `join=0 shared=41...`；C2 `tid=3606216` |
+| 证据脚本 C1 dynamic 链接失败：探针把 `src/include` 放在前面，errno 被重定向到 hidden `___errno_location` | ✅已修 | 探针改用 `-Dhidden=...`，移除 `src/include` 首选路径 | 证据 default 24 PASS |
+| 子侧依赖 `rb20` 跨 trap 保持 | ✅已确认/文档化 | `clone.s` 注释写明“trap 只改 rd8” | C2 static（flags 无 `CLONE_SETTLS`）PASS |
+| install-root qemu-dadao 陈旧 | ⏸延后（范围外） | 无（按派单未跑 `install-host`） | 见遗留问题① |
+| 新 qemu 对旧 snprintf/strtod ELF SIGILL | ⏸延后（T2） | 无 | 旧 ELF：stale qemu rc=0 / 新 qemu rc=132 |
+
+判决：本册实现与证据的 finding 均已处置；无可修未修项。状态按派单保持 `待开始`，待 architect 处理。
+
 #### 第 1 轮 reviewer 验收

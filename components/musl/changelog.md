@@ -48,3 +48,9 @@
 - **2026-10-19 `LLVM-110t`**
   - 摘要：**`jmp_buf` 增 1 个 octa 保存帧指针 `rb2`（161→162）**（FP 由 `rb63` 迁回 `rb2` 后 `rb2` 不在 CSR，`longjmp` 必须显式恢复返回上下文帧基址）：`arch/dadao/bits/setjmp.h` `__jmp_buf[162]` + 布局注释（`rb2` 追加在 CSR 块后，byte offset 1288）；`src/setjmp/dadao/setjmp.S` 增 `st.o rb2, [rb16, 1288]`、`longjmp.S` 增 `ld.o rb2, [rb16, 1288]`（在 RA/`rb1` 恢复前）；`src/signal/dadao/sigsetjmp.s` 的 `__fl`/`__ss` 偏移 1288/1296 → **1296/1304**。`series` **22 不变**（4 份既有补丁改）。真值：`make build-musl` rc=0（10/10 ELF 检查）、`make build-musl-shared` rc=0；`_Static_assert(sizeof(__jmp_buf)==1296 && sizeof(jmp_buf)==1432)` 通过；`setjmp.o`/`longjmp.o` 反汇编含 `[rb16,1288]`；E2E：新编译器 + 旧端口 setjmp/longjmp ⇒ exit 1（FP 未恢复），新端口 ⇒ exit 0。
   - 执行者：engineer
+
+## M9
+
+- **2026-10-19 `INFRA-095t`**
+  - 摘要：**补上 `src/thread/dadao/clone.s`（`__clone`）并让 `rb3` 真正成为线程 TP**。C ABI 七参按类型落位（`func=rb16`/`stack=rb17`/`flags=rd16`/`arg=rb18`/`ptid=rb19`/`tls=rb20`/`ctid=rb21`，`contract-abi §4.1` + `contract-syscall §3`）；`SYS_clone`（220，`bits/syscall.h.in:220`）按 qemu `dadao_argmask` 的 `0x14` 投递（`rd16=flags`/`rd17=newsp`/`rb16=ptid`/`rd18=tls`/`rb17=ctid`）；子侧 `newsp=(stack&~15)-16` 保存 `func`/`arg`，clone 返回 0 后**显式 `rb2rb {rb3},{rb20}` 安装 TP**，再读回 `func`/`arg` 以 `call [rb17,rd0,0]` 调 `func(arg)`，返回则 `SYS_exit`（93）退出；父侧原样 `ret rd8,0`（负值 = errno，`§4`）。`src/thread/clone.c` 去掉可达 `return -ENOSYS`，改为显式 `__builtin_trap()`（arch `clone.s` 经 `REPLACED_OBJS` 替换通用对象，文件不参与编译）。`series` **22 → 24**（新增 `src/thread/dadao/clone.s.patch`、`src/thread/clone.c.patch`）。实测：`make build-musl`/`build-musl-shared` rc=0；`obj/src/thread/dadao/clone.o` 存在、通用 `obj/src/thread/clone.o` 不存在；静态最小 pthread 程序（create+join+errno 独立）exit 0；`__clone` 常量探针的子线程 `__get_tp()` 逐位等于传入 `tls`（独立 oracle），主线程 `rb3` 不变。
+  - 执行者：engineer
