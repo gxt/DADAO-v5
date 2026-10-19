@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：用户 2026-10-19 授权（原话见下「用户授权」）；`docs/Process-06`（`spec/` 改动须事先授权 + 只读册哈希锁）；`ADR-0013 D9.1`（本裁定**部分取代**；ADR 处置待用户确认，本册不擅自改 ADR）；`LLVM-109t`（实现与语料迁移，本册只做规范面）
-**状态**：待开始
+**状态**：待验收
 
 > **立册说明（2026-10-19，architect）**：本册是**规范面执行落点**。architect 已按用户授权在本分支同一提交内完成 §2.2、示例、变更记录、`contract-asm.md` 同步与只读锁重算；`**状态**` 按本批派单置 `待开始`，执行/验收者只需按「验收标准」复核并补完成区，**不得回退**既有改动。
 
@@ -73,10 +73,10 @@
 7. **证据**：`.work/evidence/SPEC-147t/run.sh` 跑通，日志落 `.work/log/spec/SPEC-147t-*.log`；完成区贴真实命令输出与退出码。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：规范面已落（本分支 `8a25def`）。现场核验（2026-10-19）：`spec/Toolchain-01 §2.2` = `@@` 注释 / `;` 语句分隔符（一行三条示例）/ `#` 非注释 / `//`、`/* */` 不采用 / 理由一句；§6.2（`:207-211`）与 §13.8（`:322-323`）示例注释均为 `@@`、无 `;` 注释；册头与附录顶部均 `0.5.3`。门控各留自身 rc：`tools/spec/check_spec_changelog.py` = **0**（21 册）、`tools/infra/check_spec_readonly.py` = **0**（21 只读册 OK）、`tools/infra/check_spec_drift.py` = **0**（9 合约 0 错；`contract-asm` 版本 0.5.3，README Toolchain 0.5.3）。
+**修改文件**：本册（`**状态**` + 完成区）；`milestones.md` 行、`INTEG-036m` 一处状态注记、`issues.yaml`（`ISS-279` notes）。规范/合约/锁本体无改动（`spec/Toolchain-01-汇编语言.md`、`.tao/contracts/contract-asm.md`、`README.md`、`manifests/spec-readonly.lock.toml` 已于 `8a25def` 落地）。
+**验收结果**：实现与全量回归证据 = **`LLVM-109t`（`已验证`）**：`clang -S` 注释为 `@@`、一行三条语句 `llvm-mc` rc=0 且 `objdump -d` 恰 3 条、`.type add,@function` ⇒ `Type: Function (0x2)`、`grep -E '^[[:space:]]*;' tests/ --include='*.s'` = 0（`.s+.S` 101 文件 / 3684 行迁移）；其 L1 `make check` rc=0。本笔**未跑** L1/L2/L3（并发禁令；L1 由 `LLVM-109t`/`LLVM-112t` 覆盖）。
+**新发现/坑**：`spec/Toolchain-01` 册头（`:3`）仍写「实现待安排……当前汇编器实现的是旧语法」——`LLVM-109t` + `install-host` 后已过时；改 `spec/` 须用户授权 + 只读锁重算，本笔不动。
+**遗留问题**：同上，册头措辞待授权批次一并更新（未登记独立 issue，避免与本笔混批）。
 
 ## 审阅记录
