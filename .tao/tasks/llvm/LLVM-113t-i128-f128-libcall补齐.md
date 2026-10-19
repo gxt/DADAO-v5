@@ -149,3 +149,9 @@ fatal error: error in backend: unsupported library call operation
 
 #### 第 1 轮 reviewer 验收
 （待填写）
+
+#### 提交留痕（architect，2026-10-19）
+- **档位**：正常档（按主会话指定提交信息；同 `LLVM-111t`/`LLVM-112t` 先例；`**状态**` = `待验收`，reviewer 第 1 轮尚未执行）。分支 `LLVM-113t` 提交 `6125957`；**未 push**。
+- **文件集**（显式 staging **6** 项，禁 `git add -A`）：`DADAOSubtarget.cpp.patch` + `components/llvm-project/changelog.md` + `tests/llvm/lit/CodeGen/DADAO/m8-i128-f128-libcall.ll` + 本册 + `.tao/knowledge/milestones.md` + `.tao/tasks/integ/INTEG-036m-M8-integ里程碑核验.md`（后两项为状态行同步，`check-milestones-fresh`/核验册一致性强制；**对账补充项，已披露**）。`.work/evidence/LLVM-113t/` 由 `.gitignore` 排除、不入库。**无漏提 / 无多提 / 无越界**。
+- **状态改动**：本册 `待开始 → 待验收`；`milestones.md` LLVM-113t 行同步；`INTEG-036m` 行同步。
+- **门控**（本笔提交后、`LLVM-114t` 立册同轮实跑，各留自身 rc）：`check-patch-tree`=0（**181 patches OK**）、`check-tasks`=0、`check-knowledge-refs`=0、`check-no-residue`=0、`check-milestones-fresh`=0（70 行）、`check-component-changelog`=0、`check_issues`=0（79 open / 29 closed）、`make check`(**L1**)=0（日志 `.work/log/llvm/LLVM-114t-*.log`）。
