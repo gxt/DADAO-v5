@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..bac6cc1e3
+index 000000000..85aaf02b0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,187 @@
+@@ -0,0 +1,199 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -181,6 +181,18 @@ index 000000000..bac6cc1e3
 +  Info.setLibcallImpl(RTLIB::UINTTOFP_I128_F128, RTLIB::impl___floatuntitf_f128);
 +  Info.setLibcallImpl(RTLIB::FPTOSINT_F128_I128, RTLIB::impl___fixtfti_f128);
 +  Info.setLibcallImpl(RTLIB::FPTOUINT_F128_I128, RTLIB::impl___fixunstfti_f128);
++  // f128 math libcalls (LLVM-114t; ISS-283 remainder).  The 12 remaining
++  // picolibc libm/ld TUs lower floor/rint/round/trunc/log (and latent sqrt/fma)
++  // to out-of-line calls; without registration makeLibCall aborts with
++  // "unsupported library call operation".  These are libm entry points
++  // (musl/picolibc `libc.a`), not compiler-rt builtins.
++  Info.setLibcallImpl(RTLIB::FLOOR_F128, RTLIB::impl_floorl_f128);
++  Info.setLibcallImpl(RTLIB::RINT_F128, RTLIB::impl_rintl_f128);
++  Info.setLibcallImpl(RTLIB::ROUND_F128, RTLIB::impl_roundl_f128);
++  Info.setLibcallImpl(RTLIB::TRUNC_F128, RTLIB::impl_truncl_f128);
++  Info.setLibcallImpl(RTLIB::LOG_F128, RTLIB::impl_logl_f128);
++  Info.setLibcallImpl(RTLIB::SQRT_F128, RTLIB::impl_sqrtl_f128);
++  Info.setLibcallImpl(RTLIB::FMA_F128, RTLIB::impl_fmal_f128);
 +  // Comparisons (`softenSetCCOperands`): __eqtf2/__netf2/__getf2/__lttf2/
 +  // __letf2/__gttf2/__unordtf2.
 +  Info.setLibcallImpl(RTLIB::OEQ_F128, RTLIB::impl___eqtf2);

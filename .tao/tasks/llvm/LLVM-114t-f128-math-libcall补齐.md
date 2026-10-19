@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-113t`（同一缺陷面的前一笔：i128↔f128 四型已注册、`strtold.c` 已通；本册续补 libm 面，同分支同法）、`LLVM-106t`（f128 算术/比较/转换 libcall 注册块；本册在其后补 math 面）、`ADR-0030`/`ADR-0031`（`long double` = binary128；f128 为合法类型）、`ISS-283`（登记源；本册 = 余项落点）
-**状态**：待开始
+**状态**：待验收
 
 > **立册口径（2026-10-19，architect）**：这是 `LLVM-113t` **范围披露**的余项（12 个 `libm/ld/*.c` 同类缺 libcall），属**接线缺口补齐**，不改 ADR、不改契约、不改 `spec/`。
 
@@ -138,16 +138,35 @@ libc.a.p/libm_ld_s_roundl.c.o      libc.a.p/libm_ld_s_scalbl.c.o
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：证据脚本 default **rc=0**（54 项 PASS）、`--inject` **rc=0**（3 组先红后回绿）；探针 **25/25** 值与独立 `Fraction` oracle 逐行一致（`qemu-dadao` rc=0）；lit **116/116**；`047t` 抽样 static **3/3**、dynamic **3/3**；`libm/ld` **79/79** TU 预编译 0 失败；`make build-picolibc` **rc=0**（16 s，stamp wipe 后 1118 个对象全量编译）；`ninja clang llc -j8` **267 s** rc=0。
+**修改文件**：`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOSubtarget.cpp.patch`、`components/llvm-project/changelog.md`、`tests/llvm/lit/CodeGen/DADAO/m8-f128-math-libcall.ll`、本任务书；gitignored：`.work/evidence/LLVM-114t/{run.sh,probe.c,gen_expected.py,expected.h}`、`.work/log/llvm/LLVM-114t-*`。
+**验收结果**：① 修前 `llc -O2` 7 条最小 IR 均 rc=134；修后 7 条 rc=0，汇编 `call [rb0, floorl|rintl|roundl|truncl|logl|sqrtl|fmal]` 各 ≥1。② `make build-picolibc` rc=0：`toolchain stamp changed => wiping`（before clang size 4295279184/`eaad71a` → after 4295280304/`1e8a635`），12 个目标 TU + `strtold.c` 各 `Compiling` 1 次、mtime 16:42:29–34，0 条 `unsupported library call operation`。③ 符号归属：musl `libc.a`/`libc.so` 7 个 `T`，compiler-rt builtins 7 个均 0（`libm.a` 仅 `empty.c.o`）。④ lit `m8-f128-math-libcall.ll` PASS，全量 116/116（构建树工具 overlay）；`047t` 两档 3/3，与 113t 同轮基线一致。⑤ 门控各自 rc=0：`check-patch-tree` **181 不变**、`check-index-blobs`、`check-source-state`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`check-component-changelog`、`check-musl-freshness`、`check-instrinfo`、`check_lit_gen`、`check_issues`、`check-milestones-fresh`、`make check`(L1)。⑥ 安装根临时换链后 `md5sum -c` 全 OK，无 `*.pre114` 残留。
+**新发现/坑**：① **册内 logl 探针取值不成立**：`logl` 是自然对数，`1/2/0.5/8 ⇒ 0/1/-1/3` 是 `log2l`；且本端口 musl `src/math/logl.c:169-173` 的 ld128 实现是 `TODO: broken implementation`，直接 `return log(x)`（结果低 64 位全 0），有限值无精确 binary128 oracle。故 probe 的 L 组改用 **1/+0、±0/−inf、inf/+inf** 四个精确特殊点（任何合规实现都成立），有限值 lowering 由 lit 的 `llvm.log.f128` 覆盖。② probe 必须加 `-fno-math-errno` 才让 clang 发射 `llvm.log/sqrt/fma.f128`；否则是 `call @logl` 直调，**不经过** `LOG/SQRT/FMA_F128` 注册（IR 已逐一核对）。③ `make build-picolibc` 只吃安装根 clang；派单禁 `install-host`，故沿用 113t 先例**临时**把安装根 `clang`/`lld` 换成构建树符号链接（`mv` 备份 + md5 还原），构建日志与 stamp 均真实。④ `make check-lit` 字面用安装根旧 llc，新例会红；本轮用 `LLVM_TOOLS_DIR` 指向构建树 overlay（含 sibling `qemu/`）复跑 116/116。⑤ `LLVM-113t` changelog 称「4 个 TU/4 类」，实测为 **12 TU/5 类**（floor/rint/round/trunc/log），按要求未改其 changelog，提醒 architect 处置。⑥ 现场全枚举无第 8 类缺口（全 79 TU + 整包 rc=0 闭合）。
+**遗留问题**：① 字面 `make build-picolibc` 在安装根未刷新时仍会用旧后端；本册以临时换链取得等价真实 rc=0，`install-host` 按派单未跑，后由主会话刷新即可（刷新后本脚本 I1 注入失效，同 113t F4）。② 未跑 `install-host`/`build-qemu`/L2/L3、未 commit/push、未改 `**状态**`（按派单）。③ 113t changelog 的 TU 数不一致未改（越界，交 architect）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填写）
+**范围**：7 行注册 + 补丁导出、lit、probe/oracle/run.sh、changelog。
+**逐行要点**：① 7 个枚举/impl 名逐一对 `RuntimeLibcalls.inc` 现场 grep（`FLOOR_F128` 等各 4–6 处），无拼写/`_ppcf128` 混用；插入位置在 113t 四行之后、比较块之前，未动既有行。② lit 每函数独立 `CHECK-LABEL` + `call [rb0, 符号]`，7 个 declare 齐全，编译器实际输出 7/7 命中。③ probe 只用 `volatile` 输入，7 个调用全部经 IR intrinsic（`-fno-math-errno` 后 grep 计数 floor 6/rint 5/round 5/trunc 3/log 5/sqrt 4/fma 4），无常量折叠。④ oracle 仅用 `int`/`Fraction`，负零/±inf 显式编码；L 组改为数学上恒真的特殊点（见新发现①）。⑤ run.sh 每检查独立 rc、无 `tee`，default/inject 各留完整日志；build 日志检查含可达 FAIL（缺 log/缺 stamp/缺 TU/出现 unsupported 任一即红）。
+**finding 处置**：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 册内 logl 取值是 log2 且 musl ld128 `logl` 为 `return log(x)` 桩 | ✅已修 | probe L 组改 1/±0/inf 精确特殊点；oracle 同步 | diff rc=0、25/25 |
+| F2 无 `-fno-math-errno` 时 log/sqrt/fma 直调库、绕过后端 libcall 注册 | ✅已修 | run.sh 编译/汇编命令加 `-fno-math-errno`；IR 核对 | 7 个 intrinsic 均出现、汇编 7 符号命中 |
+| F3 证据脚本「build log 存在」断言写反（`[ -f ]` 期望值 1） | ✅已修 | 期望值 1→0 | 修正前 default rc=1 留档，修正后 rc=0/54 PASS |
+| F4 I1 依赖安装根旧 llc，`install-host` 后失效 | ⏸延后 | 仅在脚本注释与遗留披露 | 同 113t F4 口径 |
+| F5 changelog 曾误写 `Fraction/Decimal` | ✅已修 | 改为仅 `Fraction`（`Decimal` 未用） | 重跑 `check-component-changelog` rc=0 |
+| F6 `make check-lit` 字面用旧安装根 | ⏸延后 | 以 `LLVM_TOOLS_DIR` overlay 复跑并披露 | 116/116 rc=0 |
+
+**状态对账**：源码/证据 finding 已闭；未改 `**状态**`（按派单）。
 
 #### 第 1 轮 reviewer 验收
 （待填写）
+
+#### 提交留痕（architect，2026-10-19）
+- 档位：正常提交（按主会话派单信息；engineer 自审完成、状态 `待验收`，reviewer 尚未判决）。
+- 提交号：`eadf2d0`（分支 `LLVM-114t`，未 push）。
+- 文件集对账：staged **7 项** = 完成区声明 4 项（`DADAOSubtarget.cpp.patch`、`changelog.md`、`m8-f128-math-libcall.ll`、本册）+ architect 台账 3 项（`milestones.md`、`INTEG-036m`、`issues.yaml` ISS-283 notes）；**无漏提 / 无多提 / 无越界**；`.work/evidence|log` 为 gitignored 证据，不入提交。
+- 门控（各自 rc）：`make check`(L1) 0、`check-patch-tree` 0（**181**）、`check-component-changelog` 0、`check-tasks` 0、`check-knowledge-refs` 0、`check-no-residue` 0、`check-milestones-fresh` 0、`check_issues`（直接跑）0。
