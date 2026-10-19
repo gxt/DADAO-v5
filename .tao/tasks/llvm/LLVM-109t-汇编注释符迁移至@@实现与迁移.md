@@ -182,3 +182,21 @@ SeparatorString = ";";   // 显式写出（默认已是 ";"；同时作为规范
 | 注入还原是否可能残留 | ✅已证 | `cp -p` 备份 + md5 对账，未用 `git checkout/restore/stash` | I1c/I2b md5 相同；I2d 源树干净 |
 
 判决：无未修 finding；证据 default 31/31 rc=0、`--inject` 39/39 rc=0。
+
+### 迁移补漏（`tools/**`，`ISS-286`，2026-10-19，engineer）
+
+**补漏（2026-10-19）**：`tools/**` 下 `.s` 亦须迁移 ✓；原「残留 0」结论仅覆盖 `tests/**` ✓ 已改正。
+
+**测试结果**：证据 `default` **10/10 PASS rc=0**、`--inject` **14/14 PASS rc=0**（注入 `;` 注释行 ⇒ C01/C02/C04/C05 转红，`cp`+md5 还原回绿）；`make build-musl JOBS=8` **rc=0**（10/10 ELF）；`TESTCASES-047t` 抽样 5 例（`argv/qsort/snprintf/strtold/sin`）**5/5 pass**（`--json-out /tmp/opencode/@@-leftover/047t-5.json`）；`make check-picolibc-tests`：`build-picolibc` PASS（`libc.a` 2025904 B）、逐例 `total=20 pass=17 fail=0 excluded=2 blocked=1` ⇒ **make rc=2**，唯一 blocked = `math_test` 链接 `undefined symbol: __atold_engine`（`ISS-193` (f)；`atold_engine.c` 被 meson 排除，`math_test.convert.o` 引用 `strtold`；与本笔注释迁移无关）。
+**修改文件**：`tools/testcases/picolibc_test_crt0.s`（22 行注释引导符 `;`→`@@`，代码零改动）；`.tao/knowledge/issues.yaml`（`ISS-286`）；本册。
+**验收结果**：`llvm-mc` 汇编 stub rc=0、反汇编 **4 条**（`set.zw rb1,wp1,0xff` / `or.w rb1,wp2,0xfc00` / `call [rb0,0]` / `swym 0`）；仓库跟踪 `*.s|*.S`（排除 `components/`）行首 `;` **0**（`git grep -c` 现场派生）；`tests/**` 既有 41 行（21 文件）`;` 命中均在已迁移 `@@` 注释正文内（合法，未改）。
+**门控**：`make check`(L1) / `check-asm-prose` / `check-asm-list`(12 spec files) / `check-patch-tree`(181) / `check-tasks` / `check-knowledge-refs` / `check-no-residue` / `check_issues.py` 均 **rc=0**。
+**新发现/坑**：① 迁移面遗漏的判据不是「文件目录」而是「所有被 `llvm-mc` 消费的源」——`tools/**` 的测试 harness stub 也在此列；② 行尾/注释正文里的 `;` 是合法注释文本，只有**行首第一个** `;` 才是旧注释引导符（扫描 `;[[:space:]]*$` 会误报 41 行 / 21 文件）。
+**遗留问题**：`check-picolibc-tests` 的 `math_test` blocked（`ISS-193` (f) `__atold_engine`）未修（越本笔边界，需另册/主会话裁定）；未 `install-host`/`build-qemu`/L2/L3；未 `commit`/`push`。
+
+#### 补漏第 1 轮 engineer 自审（2026-10-19）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| `ISS-281` 的「tools/** 已覆盖」结论假设不成立：只覆盖了 `.py` 解析器，未覆盖 `.s` stub | ✅已修 | `tools/testcases/picolibc_test_crt0.s` 22 行引导符改 `@@` | 行首 `;` 残留 0；`llvm-mc` rc=0；picolibc harness 进入逐例阶段 |
+| `check-picolibc-tests` 期望 rc=0 与现场 rc=2 不符 | ❌不修（非本笔） | 无 | blocked 项 = `math_test`/`__atold_engine`（`ISS-193` (f)），链接错误来自 `libc.a(strtold.o)`，stub 对象只 `U _picolibc_start` |
