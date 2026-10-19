@@ -215,3 +215,22 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-libcall-logf.ll
     class: no-value-entry
     reason: "FileCheck structural test (f32 log libcall LOG_F32->logf, LLVM-089t); no `@main` value channel."
+  # (g) later LLVM tasks (102t/103t/105t/106t/111t) added structural
+  #     `llc | FileCheck` CodeGen tests under the corpus root without value
+  #     channels; registered here so the structural-closure invariant stays green
+  #     (lessons §2.21).
+  - ir: tests/llvm/lit/CodeGen/DADAO/indirectbr.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (indirectbr -> BRIND / rd2rb + jump lowering, LLVM-102t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/p1-fp-libcall-log.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (f64 log/log10 RTLIB libcall registration, LLVM-103t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/vec-load-widen.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (vector load widening / widened SETCC type, LLVM-105t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/f128-codegen.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (fp128/binary128 libcalls + EVEN/ODD register pairs, LLVM-106t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m8-varargs-stack-align.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (16-byte stack-slot alignment for varargs/fp128 spills, LLVM-111t); no `@main` value channel."
