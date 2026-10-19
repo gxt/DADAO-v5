@@ -238,7 +238,7 @@ SimRISC 提供四种固定数据位宽，通过指令名后缀 `.b`/`.w`/`.t`/`.
 - `MISC-tetra`：tetra 位宽指令
 - `MISC-octa`：octa 位宽指令
 
-各子表内使用 `orrr`/`orri`/`oiii` 操作数格式。指令名后缀 `.b`/`.w`/`.t`/`.o` 与已有的存取指令后缀（`ldb`/`ldw`/`ld.t`/`ld.o`）一致。对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shl/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。
+各子表内使用 `orrr`/`orri`/`oiii` 操作数格式。指令名后缀 `.b`/`.w`/`.t`/`.o` 与已有的存取指令后缀（`ldb`/`ldw`/`ld.t`/`ld.o`）一致。对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。**符号无关**的指令（`shl`/`ror`/`rev`/`ctpop`/`ctlz`/`cttz`）**不带 `u`/`s` 后缀**（`ADR-0032 D3`）。
 
 以下三种格式含 `c`（cfxha，6 位核芯功能扩展编码），cfxha 始终在 `ha[5:0]`：
 
@@ -314,10 +314,10 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | ---       | ---             | ---             | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |                 |                 |               |               |               |               |               |               |
 | 001-xxx   | and.o_orrr_rd      | or.o_orrr_rd       | xor.o_orrr_rd    | xnor.o_orrr_rd   | rev.o_orri_rd  |               |               |               |
-| 010-xxx   | ext.uo_orrr_rd     | ext.so_orrr_rd     | shr.uo_orrr_rd   | shr.so_orrr_rd   | shl.uo_orrr_rd   |               |               |               |
-| 011-xxx   | ext.uo_orri_rd     | ext.so_orri_rd     | shr.uo_orri_rd   | shr.so_orri_rd   | shl.uo_orri_rd   | ctpop_orri_rd | ctlz_orri_rd  | cttz_orri_rd  |
-| 100-xxx   |                 |                 |               |               |               |               |               |               |
-| 101-xxx   |                 |                 | cmp.uo_orrr_rd   | cmp.so_orrr_rd   | rd2rd_orri_rd    | rd2ra_orri_ra    | ra2rd_orri_ra    |               |
+| 010-xxx   | shl.o_orrr_rd      | ror.o_orrr_rd      | shr.uo_orrr_rd   | shr.so_orrr_rd   |                 |               |               |               |
+| 011-xxx   | shl.o_orri_rd      | ror.o_orri_rd      | shr.uo_orri_rd   | shr.so_orri_rd   |                 | ctpop_orri_rd | ctlz_orri_rd  | cttz_orri_rd  |
+| 100-xxx   | ext.uo_orrr_rd     | ext.so_orrr_rd     |               |               |               |               |               |               |
+| 101-xxx   | ext.uo_orri_rd     | ext.so_orri_rd     | cmp.uo_orrr_rd   | cmp.so_orrr_rd   | rd2rd_orri_rd    | rd2ra_orri_ra    | ra2rd_orri_ra    |               |
 | 110-xxx   | add.o_orrr_bbd   | sub.o_orrr_bbd   | cmp.uo_orrr_dbb | sub.o_orrr_dbb | rb2rb_orri_rb    | rd2rb_orri_rb    | rb2rd_orri_rb    |               |
 | 111-xxx   | div.uo_orrr_rd     | div.so_orrr_rd     | rem.uo_orrr_rd   | rem.so_orrr_rd   |               | rd2rf_orri_rf    | rf2rd_orri_rf    |               |
 
@@ -332,14 +332,14 @@ tetra 位宽（32 位）指令。指令名后缀 `.t` 表示 tetra 位宽。
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
 | 001-xxx   |               |               |               |               | rev.t_orri_rd  |               |               |               |
-| 010-xxx   |               |               | shr.ut_orrr_rd   | shr.st_orrr_rd   | shl.ut_orrr_rd   |               |               |               |
-| 011-xxx   |               |               | shr.ut_orri_rd   | shr.st_orri_rd   | shl.ut_orri_rd   |               |               |               |
+| 010-xxx   | shl.t_orrr_rd    | ror.t_orrr_rd    | shr.ut_orrr_rd   | shr.st_orrr_rd   |               |               |               |               |
+| 011-xxx   | shl.t_orri_rd    | ror.t_orri_rd    | shr.ut_orri_rd   | shr.st_orri_rd   |               |               |               |               |
 | 100-xxx   | add.ut_orrr_rd   | add.st_orrr_rd   |               |               |               |               |               |               |
 | 101-xxx   | sub.ut_orrr_rd   | sub.st_orrr_rd   | cmp.ut_orrr_rd   | cmp.st_orrr_rd   |               |               |               |               |
 | 110-xxx   | mul.ut_orrr_rd   | mul.st_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.ut_orrr_rd   | div.st_orrr_rd   | rem.ut_orrr_rd   | rem.st_orrr_rd   |               |               |               |               |
 
-> **SPEC-069t**：上表空单元格为已删除条目（共 8 条/子表：4 逻辑 + 2 ext×2 格式），其 opx 现为 reserved（UNDI）。
+> **SPEC-069t / `ADR-0032` D2**：上表空单元格为已删除条目（4 逻辑 + 2 ext×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 opx 现为 reserved（UNDI）；`010-000`/`010-001` 与 `011-000`/`011-001` 已由 `shl.*`/`ror.*` 占用（`SPEC-152t`）。
 
 ### 4.4 MISC-wyde指令编码
 
@@ -350,14 +350,14 @@ wyde 位宽（16 位）指令。指令名后缀 `.w` 表示 wyde 位宽。
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
 | 001-xxx   |               |               |               |               | rev.w_orri_rd  |               |               |               |
-| 010-xxx   |               |               | shr.uw_orrr_rd   | shr.sw_orrr_rd   | shl.uw_orrr_rd   |               |               |               |
-| 011-xxx   |               |               | shr.uw_orri_rd   | shr.sw_orri_rd   | shl.uw_orri_rd   |               |               |               |
+| 010-xxx   | shl.w_orrr_rd    | ror.w_orrr_rd    | shr.uw_orrr_rd   | shr.sw_orrr_rd   |               |               |               |               |
+| 011-xxx   | shl.w_orri_rd    | ror.w_orri_rd    | shr.uw_orri_rd   | shr.sw_orri_rd   |               |               |               |               |
 | 100-xxx   | add.uw_orrr_rd   | add.sw_orrr_rd   |               |               |               |               |               |               |
 | 101-xxx   | sub.uw_orrr_rd   | sub.sw_orrr_rd   | cmp.uw_orrr_rd   | cmp.sw_orrr_rd   |               |               |               |               |
 | 110-xxx   | mul.uw_orrr_rd   | mul.sw_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.uw_orrr_rd   | div.sw_orrr_rd   | rem.uw_orrr_rd   | rem.sw_orrr_rd   |               |               |               |               |
 
-> **SPEC-069t**：上表空单元格为已删除条目（共 8 条/子表：4 逻辑 + 2 ext×2 格式），其 opx 现为 reserved（UNDI）。
+> **SPEC-069t / `ADR-0032` D2**：上表空单元格为已删除条目（4 逻辑 + 2 ext×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 opx 现为 reserved（UNDI）；`010-000`/`010-001` 与 `011-000`/`011-001` 已由 `shl.*`/`ror.*` 占用（`SPEC-152t`）。
 
 ### 4.5 MISC-byte指令编码
 
@@ -368,14 +368,14 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 | ---       | ---           | ---           | ---           | ---           | ---           | ---           | ---           | ---           |
 | 000-xxx   |               |               |               |               |               |               |               |               |
 | 001-xxx   |               |               |               |               | rev.b_orri_rd  |               |               |               |
-| 010-xxx   |               |               | shr.ub_orrr_rd   | shr.sb_orrr_rd   | shl.ub_orrr_rd   |               |               |               |
-| 011-xxx   |               |               | shr.ub_orri_rd   | shr.sb_orri_rd   | shl.ub_orri_rd   |               |               |               |
+| 010-xxx   | shl.b_orrr_rd    | ror.b_orrr_rd    | shr.ub_orrr_rd   | shr.sb_orrr_rd   |               |               |               |               |
+| 011-xxx   | shl.b_orri_rd    | ror.b_orri_rd    | shr.ub_orri_rd   | shr.sb_orri_rd   |               |               |               |               |
 | 100-xxx   | add.ub_orrr_rd   | add.sb_orrr_rd   |               |               |               |               |               |               |
 | 101-xxx   | sub.ub_orrr_rd   | sub.sb_orrr_rd   | cmp.ub_orrr_rd   | cmp.sb_orrr_rd   |               |               |               |               |
 | 110-xxx   | mul.ub_orrr_rd   | mul.sb_orrr_rd   |               |               |               |               |               |               |
 | 111-xxx   | div.ub_orrr_rd   | div.sb_orrr_rd   | rem.ub_orrr_rd   | rem.sb_orrr_rd   |               |               |               |               |
 
-> **SPEC-069t**：上表空单元格为已删除条目（共 8 条/子表：4 逻辑 + 2 ext×2 格式），其 opx 现为 reserved（UNDI）。
+> **SPEC-069t / `ADR-0032` D2**：上表空单元格为已删除条目（4 逻辑 + 2 ext×2 格式）与 `shl` 迁出的旧格位（`010-100`/`011-100`），其 opx 现为 reserved（UNDI）；`010-000`/`010-001` 与 `011-000`/`011-001` 已由 `shl.*`/`ror.*` 占用（`SPEC-152t`）。
 
 ### 4.6 MISC-RF指令编码
 
@@ -415,6 +415,9 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 
 ### 0.5.5-rc（未发布）
 
+- 编码再分配：`ext.uo`/`ext.so` 编码迁至 `100-000`/`100-001`（orrr）与 `101-000`/`101-001`（orri），助记符与语义不变。
+- `shl` 的四个位宽变体去掉 `u` 后缀（`shl.o`/`shl.t`/`shl.w`/`shl.b`），编码迁至 `010-000`（orrr）/`011-000`（orri）。
+- 新增 `ror.o`/`ror.t`/`ror.w`/`ror.b`（逻辑循环右移，`orrr`/`orri`），编码 `010-001`/`011-001`；符号无关、不带 `u`/`s` 后缀。
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
 - 伪指令集收缩：删除 `nop`/`return`/`not.*`/`neg.*` 等 1:1 别名伪指令，仅保留需多指令合成的伪指令。
 - 删除 `illi` 指令；`fence` 编码改 `0x00`、`swym` 编码改 `0x22`。

@@ -1,12 +1,12 @@
 # SimRISC32位数据运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：32位数据运算**（19 条）— .st/.ut 运算 + rev.t（逐块反转）
+> **分类：32位数据运算**（21 条）— .st/.ut 运算 + rev.t（逐块反转）+ shl.t/ror.t（移位/循环移位）
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 32位数据运算（19 条）
+### 1.1 32位数据运算（21 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -21,8 +21,10 @@
 | `rem.st` | `orrr` | `rd` | `rem.st rdHB, rdHC, rdHD` | `rem.st_orrr_rd` |
 | `rem.ut` | `orrr` | `rd` | `rem.ut rdHB, rdHC, rdHD` | `rem.ut_orrr_rd` |
 | `rev.t` | `orri` | `rd` | `rev.t rdHB, rdHC, immu6` | `rev.t_orri_rd` |
-| `shl.ut` | `orri` | `rd` | `shl.ut rdHB, rdHC, immu6` | `shl.ut_orri_rd` |
-| `shl.ut` | `orrr` | `rd` | `shl.ut rdHB, rdHC, rdHD` | `shl.ut_orrr_rd` |
+| `ror.t` | `orri` | `rd` | `ror.t rdHB, rdHC, immu6` | `ror.t_orri_rd` |
+| `ror.t` | `orrr` | `rd` | `ror.t rdHB, rdHC, rdHD` | `ror.t_orrr_rd` |
+| `shl.t` | `orri` | `rd` | `shl.t rdHB, rdHC, immu6` | `shl.t_orri_rd` |
+| `shl.t` | `orrr` | `rd` | `shl.t rdHB, rdHC, rdHD` | `shl.t_orrr_rd` |
 | `shr.st` | `orri` | `rd` | `shr.st rdHB, rdHC, immu6` | `shr.st_orri_rd` |
 | `shr.st` | `orrr` | `rd` | `shr.st rdHB, rdHC, rdHD` | `shr.st_orrr_rd` |
 | `shr.ut` | `orri` | `rd` | `shr.ut rdHB, rdHC, immu6` | `shr.ut_orri_rd` |
@@ -35,8 +37,8 @@
 <!-- LEGALITY_START -->
 ## 2. 合法性检查
 
-* `dst_rd0`：目的 rd0 → ILLI — `add.st_orrr_rd`, `add.ut_orrr_rd`, `cmp.st_orrr_rd`, `cmp.ut_orrr_rd`, `div.st_orrr_rd`, `div.ut_orrr_rd`, `mul.st_orrr_rd`, `mul.ut_orrr_rd`, `rem.st_orrr_rd`, `rem.ut_orrr_rd`, `rev.t_orri_rd`, `shl.ut_orri_rd`, `shl.ut_orrr_rd`, `shr.st_orri_rd`, `shr.st_orrr_rd`, `shr.ut_orri_rd`, `shr.ut_orrr_rd`, `sub.st_orrr_rd`, `sub.ut_orrr_rd`（19 条）
-* `encode_sbz`：SBZ 非零 → ILLI — `shl.ut_orri_rd`, `shr.st_orri_rd`, `shr.ut_orri_rd`（3 条）
+* `dst_rd0`：目的 rd0 → ILLI — `add.st_orrr_rd`, `add.ut_orrr_rd`, `cmp.st_orrr_rd`, `cmp.ut_orrr_rd`, `div.st_orrr_rd`, `div.ut_orrr_rd`, `mul.st_orrr_rd`, `mul.ut_orrr_rd`, `rem.st_orrr_rd`, `rem.ut_orrr_rd`, `rev.t_orri_rd`, `ror.t_orri_rd`, `ror.t_orrr_rd`, `shl.t_orri_rd`, `shl.t_orrr_rd`, `shr.st_orri_rd`, `shr.st_orrr_rd`, `shr.ut_orri_rd`, `shr.ut_orrr_rd`, `sub.st_orrr_rd`, `sub.ut_orrr_rd`（21 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `ror.t_orri_rd`, `shl.t_orri_rd`, `shr.st_orri_rd`, `shr.ut_orri_rd`（4 条）
 * `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `rev.t_orri_rd`（1 条）
 <!-- LEGALITY_END -->
 
@@ -69,8 +71,10 @@ div.ut  rdHB, rdHC, rdHD
 div.st  rdHB, rdHC, rdHD
 rem.ut  rdHB, rdHC, rdHD
 rem.st  rdHB, rdHC, rdHD
-shl.ut  rdHB, rdHC, rdHD
-shl.ut  rdHB, rdHC, immu6
+shl.t   rdHB, rdHC, rdHD
+shl.t   rdHB, rdHC, immu6
+ror.t   rdHB, rdHC, rdHD
+ror.t   rdHB, rdHC, immu6
 shr.ut  rdHB, rdHC, rdHD
 shr.ut  rdHB, rdHC, immu6
 shr.st  rdHB, rdHC, rdHD
@@ -124,7 +128,7 @@ MISC-tetra 子表中的 `mul`/`div`/`rem` 提供 32 位乘除余运算。`mul` �
 
 ### 4.2 Bit manipulating：位操作指令 — 值语义
 
-MISC-tetra 子表中的 `shl`/`shr`（后缀 `.ut`/`.st`）提供 32 位移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
+MISC-tetra 子表中的 `shl.t`/`ror.t`/`shr.ut`/`shr.st` 提供 32 位移位/循环移位操作。`shr` 分 `u`（逻辑）/`s`（算术）变体；`shl`/`ror` 符号无关、不带 `u`/`s` 后缀（`ADR-0032 D3`）。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
 **SPEC-069t 值语义**：所有移位结果写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。
 
@@ -132,11 +136,12 @@ MISC-tetra 子表中的 `shl`/`shr`（后缀 `.ut`/`.st`）提供 32 位移位�
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.ut`/`shr.st`/`shr.ut` | 31 | 0-31 | hd[4:0]，hd[5] 应为零 |
+| `shl.t`/`ror.t`/`shr.st`/`shr.ut` | 31 | 0-31 | hd[4:0]，hd[5] 应为零 |
 
 运算公式：
 ```
-shl.ut:  rdHB[31:0]  = (rdHC[31:0] << shamt),  rdHB[63:32] = 0
+shl.t:  rdHB[31:0]  = (rdHC[31:0] << shamt),  rdHB[63:32] = 0
+ror.t:  rdHB[31:0]  = ror(rdHC[31:0], shamt), rdHB[63:32] = 0
 shr.ut:  rdHB[31:0]  = (rdHC[31:0] >> shamt),  rdHB[63:32] = 0
 shr.st:  rdHB[31:0]  = (rdHC[31:0] >> shamt) with sign(31),  rdHB[63:32] = sign_extend(rdHC[31])
 ```
@@ -157,6 +162,27 @@ shr.st:  rdHB[31:0]  = (rdHC[31:0] >> shamt) with sign(31),  rdHB[63:32] = sign_
 - `k=8` 即 `bswap32` 语义（须源高 32 位为 0）；`k=1` 只反转**块内**位序，**不是** 64 位整体位反序。
 - 逐块反转的总述与伪代码见 SimRISC-04 §4.2.1。
 
+#### 4.2.2 逻辑循环右移 ror.t（`orrr` / `orri` 格式）
+
+`ror.t` 对源寄存器的 **低 32 位**做逻辑循环右移：`rdHB[31:0] = ror(rdHC[31:0], amount)`；
+结果按值语义零扩展写满 64 位（`rdHB[63:32] = 0`）。符号无关、只有一个方向、不带 `u`/`s`
+（`ADR-0032 D3`/`D4`）。
+
+| 格式 | 旋转量 `amount` | 取值 |
+|------|----------------|------|
+| `orrr` | `rdHD[4:0]` | `0..31`（即对 32 取模） |
+| `orri` | `immu6` | `0..31`；`immu6 > 31` ⇒ **ILLI** |
+
+- `orrr` 的 `rdHD` 只有低 5 位参与（天然取模 32）；`orri` 的 `immu6` 是 6 位，**越界（`32..63`）触发 ILLI**（与 `shl.t` 的 `immu6 <= 31` 同口径）。
+- 目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（结果恒为 0）；`rdHB == rdHC` 允许。
+- 编码：`ror.t` `orrr` = `010-001`、`orri` = `011-001`（`MISC-tetra`）。
+- 64 位语义与总述见 SimRISC-04 §4.2.3。
+
+```simrisc
+ror.t   rdHB, rdHC, rdHD        @@ 32 位循环右移（旋转量 = rdHD[4:0]）
+ror.t   rdHB, rdHC, immu6       @@ 32 位循环右移（immu6 0..31）
+```
+
 ---
 
 ## 附录：版本与变更记录
@@ -165,6 +191,7 @@ shr.st:  rdHB[31:0]  = (rdHC[31:0] >> shamt) with sign(31),  rdHB[63:32] = sign_
 
 ### 0.5.5-rc（未发布）
 
+- `shl` 去掉 `u` 后缀（`shl.t`）并迁编码 `010-000`/`011-000`；新增 `ror.t`（逻辑循环右移，编码 `010-001`/`011-001`）及 §4.2.2 语义。
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
 - 新增 `rev.t`（逐块反转，orri，`§4.2.1`）。
 - 伪指令集收缩：删除 `not.*`/`neg.*` 1:1 别名。

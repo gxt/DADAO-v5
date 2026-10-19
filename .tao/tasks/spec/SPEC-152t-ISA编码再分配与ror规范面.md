@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9
 **依赖**：`ADR-0032`（**`Accepted`**，`D1`–`D6` 已于 2026-10-19 逐条确认；**开工前置 = `spec/` 改动授权原话落纸**）、`SPEC-141t`（`ror` 预研：候选 A 形态/收益/六环代价）、`SPEC-142t` / `SPEC-143t`（MISC-octa 子表补格 + 只读锁重算先例）、`SPEC-145t` / `SPEC-149t` / `SPEC-150t`（用户授权 + 只读册 `sha256` 同步先例）、`docs/Process-06`（`spec/` 目录保护）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -20,6 +20,17 @@
   3. 基表 `100-000/001`、`101-000/001` **全空** ⇒ `ext` 可整体迁入；
   4. `spec/` 内 `shl.s*` **0 命中**、`shr.s*` **8 命中** ⇒ `shl` 无算术变体；
   5. `shl.u*` 全仓引用面约 **170 处**（主会话核；本册现场重数，**不写死**）。
+
+## 用户授权（`spec/` 改动，逐字）
+
+> 渠道 = 经主会话问答；原话逐字取自 `ADR-0032 §Context`（该 ADR 已于 2026-10-19 转 `Accepted`，`D1`–`D6` 逐条确认原话「**没异议**」；本册由 architect 于 2026-10-19 下发执行）。
+>
+> - 「**增加两件事情：第一件事：修改ext的编码，ext.uo的opx改为100-000/101-000；ext.so的opx改为100-001/101-001；核实是否可行，然后我说第二件事**」
+> - 「**是的，腾出编码**」
+> - 「**第二件事：把四个子表中的shl.ux的opx改为010-000/011-000，即刚才ext.uo腾出来的位置；然后增加ror.ux指令，其opx为010-001/011-001，即刚才ext.so腾出来的位置；ror指令的格式分别为orrr/orri，针对的都是rd寄存器**」
+> - 「**ror不区分有符号数还是无符号数，是否有必要在后缀里带u**」→「**可以去掉u；同理，shl有必要带后缀u吗？**」→「**确认立项**」
+>
+> 授权范围 = 上述编码迁移/改名/新增 `ror` 及由此必需的规范面机械同步（含只读锁重算）；不含其它 `spec/` 语义改动。
 
 ## 目标
 
@@ -116,16 +127,36 @@
 8. **零实现改动**：`git status --porcelain -uall` 的证据须证明未触碰 `components/**`、`tests/scripts/**`、`tests/e2e/**`；越界即披露。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：必绿 20/20 PASS；预期红 3/3 确认（`check-instrinfo` / `check-isa-coverage` / `check-interface` 均 rc=2，原因 = `.td` / QEMU `trans_*` 未改，归 `LLVM-116t` / `QEMU-064t`）；`run.sh` default rc=0、`--inject` rc=0。
+**修改文件**：`spec/`（SimRISC-00/04/08/09/10、DADAO-11、DADAO-22）；`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`；`.tao/contracts/contract-isa.md`、`.tao/contracts/contract-asm-list.md`；`manifests/spec-readonly.lock.toml`；`tools/spec/generate_opcodes.py`、`tools/spec/check_scope.py`、`tools/spec/gen_legality_list.py`；`tools/llvm/gen_asm_list.py`；`tools/testcases/generate_isa_vectors.py`、`tools/testcases/validate_mc_vectors.py`（注释）；`tests/vectors/inventory.md`、`tests/vectors/isa/reg-shift-extend.yaml`；`tests/llvm/lit/MC/DADAO-gen/gen-orrr.s`、`gen-orri.s`；本册。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 四表逐格（80 格断言 `check_tables.py` rc=0）：octa `010-000` ext.uo→shl.o、`010-001` ext.so→ror.o、`010-100` shl.uo→空；`011-000/001/100` 同；`100-000/001` 空→ext.uo/ext.so、`101-000/001` 空→ext.uo/ext.so。tetra `010/011-000` 空→shl.t、`010/011-001` 空→ror.t、`010/011-100` shl.ut→空；wyde/byte 分别同构（w/b）。
+- `opcodes.yaml` 235→243（现场派生：m1 156 / fp 60 / excluded 11 / m3 1 / m8 7 / m9 8）；`validate-encoding` rc=0；`check-scope` rc=0。
+- `spec/` 内 `shl.u[otwb]` **0 命中**；全仓实现/生成物残留 54 处（文件+行数见 `.work/log/spec/SPEC-152t/SPEC-152t-shl-u-residual.log`，归后两册）；历史记录（`.tao/archive`/`.tao/adr`/任务书）不改。
+- 证据：`.work/evidence/SPEC-152t/run.sh`（default 20 项必绿 + 3 项预期红；`--inject` 两条：opcodes `ha 0x10` 撞格 ⇒ `validate-encoding` 红；表格写回 `shl.uo` ⇒ `check_tables` 红；`cp`+md5 还原后双绿）。
+- **`L1` 预期红**：至 `LLVM-116t`/`QEMU-064t` 收口（`check-instrinfo`/`check-isa-coverage`/`check-interface`，如实记录、不为转绿改实现）。
+**新发现/坑**：① `check-spec-codeblocks` 额外命中 `DADAO-11`/`DADAO-22` 的汇编示例（6 处 `shl.uo`），必须机械改名并计入只读锁；② 任务书事实 4「`shr.s*` 8 命中」实指 `SimRISC-00` 表内 8 格，全 `spec/` 现为 59 命中（含正文/生成区）；③ `check-instrinfo` 不检查 `scope: m9`（`ror` 无 `.td` 定义也不报）⇒ 覆盖盲点，须 `LLVM-116t` 补。
+**遗留问题**：① 预期红三项按跨册归属处理（见上）；② 未改 `tests/llvm/lit/MC/DADAO/imm-range.s`、`CodeGen/DADAO/br-jt.ll`、`tools/llvm/llvm-isa-backend-matrix.*`、QEMU 探针/补丁（归后两册）；③ architect 下发的任务消息未附独立 `spec/` 授权句，本册按 `ADR-0032 §Context` 逐字引录；若审查要求更严格，请主会话补用户原话。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 生成器窄位宽 `orri` 初版只给 shl/ror 加 `immu6 <= N`，把 `shr.*` 原约束丢了 | ✅已修 | `generate_opcodes.py` 四个 `orri` 统一保留 `immu6 <= nbits` | `spec/SimRISC-08` `encode_sbz` 由误降的 2 条恢复为 4 条（shl/ror/shr.ut/shr.st）；`check-legality-drift` rc=0 |
+| F2 spec 附录写了 `ADR-0032`/`SPEC-152t`，`check-spec-changelog` 红 16 项 | ✅已修 | 5 册附录改为纯语义描述（不写任务/ADR 号） | `check-spec-changelog` PASS；`run.sh` 记录 |
+| F3 改 `shl.uo` 后 `check-spec-codeblocks` 命中 `DADAO-11`/`DADAO-22` 示例 | ✅已修 | 6 处机械改名 `shl.uo `→`shl.o  `；两册 `sha256` 同步 | `check-spec-codeblocks` PASS（647 行）；`check-spec-readonly` 21 册 OK |
+| F4 契约 §6.4.5 写「三种操作数均为 rd 银行」，orrr 实为 4 个字段 | ✅已修 | 改为「操作数寄存器均为 `rd` 银行」 | `check-spec-refs`/`check-spec-drift` rc=0 |
+| F5 任务消息限定的文件集不含生成器/契约/向量，但验收门控必需 | ✅已修（披露） | 改动面扩到 `tools/spec/*`、`contract-asm-list`、`contract-isa`、`tests/vectors/*`、gen lit；均在任务书阶段 C 授权面内 | 完成区「修改文件」逐项；`git status` 无 `components/**`/`tests/scripts/**`/`tests/e2e/**` |
+| F6 注入脚本的还原不得用 `git checkout` | ✅已修 | `run.sh --inject` 用 `cp` 备份 + md5 前后对账 | `--inject` 输出「md5 对账：两个文件均已还原」；还原后 `validate-encoding`/`check_tables` 回绿 |
+
+**自审判决**：无未修 finding；实现与 `ADR-0032 D1`–`D6` 逐条对齐；未改任何实现（`components/**`、QEMU/LLVM 代码）。任务保持 `待开始`（按 architect 下发要求不改 `**状态**`）。
 
 #### 第 1 轮 reviewer 验收
 （待填）
+
+#### architect 提交留痕（2026-10-19）
+档位：**正常提交**（无 `WIP:` 前缀，按父会话明确指令）。**如实披露**：本笔提交时「第 1 轮 reviewer 验收」为**空**、`**状态**` = `待验收` ⇒ 严格按角色规则应为 `WIP:`；本笔依主会话指令执行，若后续判 `Needs Revision`，返工提交仍落本分支并随 squash 收口。开工分支 `SPEC-152t` 实现提交 `7560453`，squash 落 `master`（单提交；**未 push**）。
+文件集 **24 项**对账：`spec/` 7 册 + `contracts/opcodes.yaml`、`contracts/legality_rules.yaml` + `.tao/contracts/` 2 册 + `manifests/spec-readonly.lock.toml` + `tools/spec` 3 器 + `tools/llvm/gen_asm_list.py` + `tools/testcases` 2 器 + `tests/vectors` 2 册 + gen lit 2 册 + 本册 = 完成区「修改文件」逐条一致；**architect 账面 1 项**（`.tao/knowledge/milestones.md`，状态行/流水行同步）= 已披露的**多提**（台账范围）。`INTEG-036m`（归档 `M8`）无本任务号 ⇒ 无需改。**无漏提 / 无越界**。
+秒级门控：`run.sh` default rc=0（20 必绿 + 3 预期红均 rc=2）、`check-milestones-fresh` rc=0（5 行 PASS）；**`L1` 预期红至 `LLVM-116t`/`QEMU-064t` 收口**。

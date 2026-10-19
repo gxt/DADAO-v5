@@ -68,7 +68,7 @@ def _bank_from_id(insn):
 
 def _base_mnem(insn):
     """Extract base mnemonic from insn string.
-    'add.uo_orrr_rd' → 'add', 'and.o_orrr_rd' → 'and', 'shl.uo_orrr_rd' → 'shl',
+    'add.uo_orrr_rd' → 'add', 'and.o_orrr_rd' → 'and', 'shl.o_orrr_rd' → 'shl',
     'set.zw_rwii_rd' → 'set.zw', 'cs.n_rrrr_rd' → 'cs', 'rd2rd_orri_rd' → 'rd2rd',
     'cmp.uo_orrr_dbb' → 'cmp'
     Old format also supported: 'add.uo-rd' → 'add'

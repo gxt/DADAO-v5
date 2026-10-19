@@ -85,7 +85,7 @@ br.nz {rd2}?, [rb0, overflow_handler] @@ 不相等 → 32-bit 溢出
 set.rd   rd2, 0                     @@ 循环变量
 cfx_tlb_inv_loop:
     @@ 仅 invalid PTBR 0-15
-    shl.uo  rd3, rd2, 42              @@ rd3 = PTBR 索引 << 42（构造 addr_start，VA[47:42]=PTBR 编号）
+    shl.o   rd3, rd2, 42              @@ rd3 = PTBR 索引 << 42（构造 addr_start，VA[47:42]=PTBR 编号）
     cfx2rc  cfx_tlb_addr_start, rd3
     set.rd   rd3, 0x40000000000     @@ 0x40000000000（2^42） = 集合内全部 VA 空间
     cfx2rc  cfx_tlb_addr_size, rd3

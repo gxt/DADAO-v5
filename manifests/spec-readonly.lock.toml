@@ -76,6 +76,16 @@ policy = "readonly-requires-authorization"
 #   （`rb32–rb63` 连续池）；§3 帧表/正文 `rbfp` → `rb2`；§3.3 变参游标 `rb2 + 8`；`0.9.3-rc` 段
 #   同步最终口径；册版本不变。本册 sha256 于同一变更内同步重算（其余 20 册不变）。
 
+# 2026-10-19（SPEC-152t；用户原话逐字引录，渠道 = 经主会话问答，见 .tao/adr/adr-0032 §Context）：
+#   「修改ext的编码，ext.uo的opx改为100-000/101-000；ext.so的opx改为100-001/101-001」；
+#   「把四个子表中的shl.ux的opx改为010-000/011-000，即刚才ext.uo腾出来的位置；然后增加ror.ux指令，
+#    其opx为010-001/011-001，即刚才ext.so腾出来的位置；ror指令的格式分别为orrr/orri，针对的都是rd寄存器」；
+#   「可以去掉u；同理，shl有必要带后缀u吗？」→「确认立项」；D1–D6 逐条确认（2026-10-19，「没异议」）。
+#   改动：SimRISC-00 四张表（ext 迁 100/101；shl 迁 010/011 并去 u；新增 ror 占 010-001/011-001）+ 附录；
+#   SimRISC-04 §4.2 语义（shl 改名 + 新增 §4.2.3 ror）+ 生成区 + 附录；SimRISC-08/09/10 §4.2
+#   （shl 改名 + 新增 ror 条文）+ 生成区 + 附录；DADAO-11 / DADAO-22 汇编示例 `shl.uo` → `shl.o`（机械改名）。
+#   上述 7 册 sha256 于同一变更内同步重算（其余 14 册不变）。
+
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
 group = "simrisc-00..12"
@@ -83,7 +93,7 @@ group = "simrisc-00..12"
 # 2026-10-16（同裁定，原话见文件头注释）：QFC 主表格 `aip.si_riii_rb`；§2.2 `rb0`（`rbip`/`IP`）语义明文；
 #   §3 `IP[1:0]`；§返回地址栈 `IP 指向`；`0.5.5-rc` 段追加两条（改名 / 术语）。
 # `rela.si_riii_rb`（恢复 PC 相对寻址指令）+ 「0.5.5-rc」段追加恢复条目。
-sha256 = "5e573a6ea8ce41442e381b5fa4e86222259cef9bc4f0946f5c2747a1401dd0b0"
+sha256 = "535d520441271b8224dc8c6265a992d47405f2cd8473ff727fb51fb7eecf5d4a"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -103,7 +113,7 @@ sha256 = "c03444f87b91329eefaaff358cf239c89d02ca9eed254ca61d6f93f545214784"
 [[spec]]
 path = "spec/SimRISC-04-64位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "9f9c402842586030934da36c0de8780c3ffc834a4bf8749029342c04a947e453"
+sha256 = "4efc1b5d37e4fe9d14f81914dd28dbd7c8dcfca88b2f42bfe6ed5f07bf1f62a4"
 
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"
@@ -129,17 +139,17 @@ sha256 = "bd405979d2bd484d861e914a4f9fe0a67fb3c405f7026dc443f361b1110843fa"
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "259caf2879236c960f1018458d6135863a991bab099c60056f60b87006f7318f"
+sha256 = "6c500abed82d56f5e3b54fca1e7ac2734932464907d35bf3fedf0fd29fa35940"
 
 [[spec]]
 path = "spec/SimRISC-09-16位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "a836e1cc5094bf0aa5aa37848f84ba5e1fe911b0a8926a2e5e21ae728c037a73"
+sha256 = "96b63f25588d13d1aa72cfb0e43f486bc947c39810dbe1d2c958ea13dc18c906"
 
 [[spec]]
 path = "spec/SimRISC-10-8位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "40080e1243e3915c1b6d64b8119fa03079e76dc1d9044d6d0de665eba29b03f1"
+sha256 = "e1d9617d21943c938a5214edf7bc4fba0389bbc1376d604d86d7f1b2ba78965a"
 
 [[spec]]
 path = "spec/SimRISC-11-其它.md"
@@ -155,7 +165,7 @@ sha256 = "904a51d16749b777a2c7a05da2b3116b2f321b657e224e3781f4d95c48c16d3a"
 [[spec]]
 path = "spec/DADAO-11-AEE-应用程序运行环境.md"
 group = "dadao-1x"
-sha256 = "1080d780a699c4ff19afad61085cdf3e205342bacb5e59ee786732f8f98ee9d0"
+sha256 = "c4ed817673ed1c87b67082dfc9b1aca902fdcf3897101b95aa70154b72e3b437"
 
 [[spec]]
 path = "spec/DADAO-12-SEE-主管系统运行环境.md"
@@ -202,7 +212,7 @@ group = "dadao-2x"
 # 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：SBI 各 cfx 服务返回 rd31 → rd8（返回表 + 代码示例）。
 # 2026-10-09（SPEC-129t，用户裁定 8）：示例 5 处 rb3 当 scratch（改布局后 rb3=TP）→ 真临时寄存器 rb8
 # （§4 cfx_ptw 各 dispatch 的 set.rb/jump 中转）；仅改示例寄存器选择，其余口径不动。
-sha256 = "3ddff005161ebe080ae417afe80006da261e2baa49faf7282f90fc5a266fc4ba"
+sha256 = "16f71f1b315d0978128adae0f2e3c18d23204470f6b1d5b3200d9247e5b4651b"
 
 [[spec]]
 path = "spec/DADAO-23-HBI-超管系统二进制接口.md"

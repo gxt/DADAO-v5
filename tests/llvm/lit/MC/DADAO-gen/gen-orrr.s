@@ -136,13 +136,13 @@ div.ut rd8, rd9, rd10
 @@ ASM: div.uw rd8, rd9, rd10
 div.uw rd8, rd9, rd10
 
-@@ @src ext.so_orrr_rd 4044824a | SimRISC-04 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 40 44 82 4a{{.*}}ext.so
+@@ @src ext.so_orrr_rd 4084824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 40 84 82 4a{{.*}}ext.so
 @@ ASM: ext.so rd8, rd9, rd10
 ext.so rd8, rd9, rd10
 
-@@ @src ext.uo_orrr_rd 4040824a | SimRISC-04 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 40 40 82 4a{{.*}}ext.uo
+@@ @src ext.uo_orrr_rd 4080824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 40 80 82 4a{{.*}}ext.uo
 @@ ASM: ext.uo rd8, rd9, rd10
 ext.uo rd8, rd9, rd10
 
@@ -321,25 +321,45 @@ rem.ut rd8, rd9, rd10
 @@ ASM: rem.uw rd8, rd9, rd10
 rem.uw rd8, rd9, rd10
 
-@@ @src shl.ub_orrr_rd 4350824a | SimRISC-10 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 43 50 82 4a{{.*}}shl.ub
-@@ ASM: shl.ub rd8, rd9, rd10
-shl.ub rd8, rd9, rd10
+@@ @src ror.b_orrr_rd 4344824a | SimRISC-10 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 43 44 82 4a{{.*}}ror.b
+@@ ASM: ror.b rd8, rd9, rd10
+ror.b rd8, rd9, rd10
 
-@@ @src shl.uo_orrr_rd 4050824a | SimRISC-04 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 40 50 82 4a{{.*}}shl.uo
-@@ ASM: shl.uo rd8, rd9, rd10
-shl.uo rd8, rd9, rd10
+@@ @src ror.o_orrr_rd 4044824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 40 44 82 4a{{.*}}ror.o
+@@ ASM: ror.o rd8, rd9, rd10
+ror.o rd8, rd9, rd10
 
-@@ @src shl.ut_orrr_rd 4150824a | SimRISC-08 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 41 50 82 4a{{.*}}shl.ut
-@@ ASM: shl.ut rd8, rd9, rd10
-shl.ut rd8, rd9, rd10
+@@ @src ror.t_orrr_rd 4144824a | SimRISC-08 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 41 44 82 4a{{.*}}ror.t
+@@ ASM: ror.t rd8, rd9, rd10
+ror.t rd8, rd9, rd10
 
-@@ @src shl.uw_orrr_rd 4250824a | SimRISC-09 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 42 50 82 4a{{.*}}shl.uw
-@@ ASM: shl.uw rd8, rd9, rd10
-shl.uw rd8, rd9, rd10
+@@ @src ror.w_orrr_rd 4244824a | SimRISC-09 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 42 44 82 4a{{.*}}ror.w
+@@ ASM: ror.w rd8, rd9, rd10
+ror.w rd8, rd9, rd10
+
+@@ @src shl.b_orrr_rd 4340824a | SimRISC-10 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 43 40 82 4a{{.*}}shl.b
+@@ ASM: shl.b rd8, rd9, rd10
+shl.b rd8, rd9, rd10
+
+@@ @src shl.o_orrr_rd 4040824a | SimRISC-04 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 40 40 82 4a{{.*}}shl.o
+@@ ASM: shl.o rd8, rd9, rd10
+shl.o rd8, rd9, rd10
+
+@@ @src shl.t_orrr_rd 4140824a | SimRISC-08 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 41 40 82 4a{{.*}}shl.t
+@@ ASM: shl.t rd8, rd9, rd10
+shl.t rd8, rd9, rd10
+
+@@ @src shl.w_orrr_rd 4240824a | SimRISC-09 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 42 40 82 4a{{.*}}shl.w
+@@ ASM: shl.w rd8, rd9, rd10
+shl.w rd8, rd9, rd10
 
 @@ @src shr.sb_orrr_rd 434c824a | SimRISC-10 §Bit manipulating：位操作指令
 @@ OBJ: {{[0-9a-f]+:}} 43 4c 82 4a{{.*}}shr.sb

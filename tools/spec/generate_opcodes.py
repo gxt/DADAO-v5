@@ -12,8 +12,10 @@
   - `scope: m8`（7 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`
     + D11 位扫描/计数 `ctlz`/`cttz`/`ctpop`），
     **非 M1 身份**，与里程碑无绑定（用户 2026-10-14：新增指令与里程碑无绑定关系），不要求 M1 向量覆盖。
+  - `scope: m9`（8 条）——新增 ISA 指令 `ror.o`/`ror.t`/`ror.w`/`ror.b`（逻辑循环右移，
+    `orrr`/`orri` 两种格式；`ADR-0032` `D4`/`SPEC-152t`），**非 M1 身份**，不要求 M1 向量覆盖。
 约定 `scope == "excluded"` ⇒ `decode: ILLI`——编码已定义但尚未实现，执行即非法指令；
-`m1`/`fp`/`m3`/`m8` 不携带 `decode`（已实现或按各自里程碑实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
+`m1`/`fp`/`m3`/`m8`/`m9` 不携带 `decode`（已实现或按各自里程碑实现）；UNDI 仅用于架构显式留空的编码（空白单元格）。
 
 来源：
   - spec/SimRISC-00-指令系统设计.md  （QFC 主表 + 6 个 MISC 子表：编码权威）
@@ -557,12 +559,23 @@ def build_misc_octa(records):
     for i, mnem in enumerate(["and.o", "or.o", "xor.o", "xnor.o"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
                            ["rdhb != rd0"], S04_LOG, ha=0x08 + i))
-    for i, mnem in enumerate(["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]):
+    # ADR-0032 D1/D2/D4（SPEC-152t）：ext 迁至 100-000/001（0x20/0x21）；
+    # 移位族 shl(010-000/011-000) / ror(010-001/011-001) / shr.u(010/011-010) / shr.s(010/011-011)。
+    # ror 为新增指令（scope: m9），符号无关、不带 u/s 后缀。
+    for i, mnem in enumerate(["shl.o", "ror.o", "shr.uo", "shr.so"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0"], S04_BIT, ha=0x10 + i))
-    for i, mnem in enumerate(["ext.uo", "ext.so", "shr.uo", "shr.so", "shl.uo"]):
+                           ["rdhb != rd0"], S04_BIT, ha=0x10 + i,
+                           scope=("m9" if mnem.startswith("ror.") else "m1")))
+    for i, mnem in enumerate(["shl.o", "ror.o", "shr.uo", "shr.so"]):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0"], S04_BIT, ha=0x18 + i))
+                           ["rdhb != rd0"], S04_BIT, ha=0x18 + i,
+                           scope=("m9" if mnem.startswith("ror.") else "m1")))
+    for i, mnem in enumerate(["ext.uo", "ext.so"]):
+        records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
+                           ["rdhb != rd0"], S04_BIT, ha=0x20 + i))
+    for i, mnem in enumerate(["ext.uo", "ext.so"]):
+        records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
+                           ["rdhb != rd0"], S04_BIT, ha=0x28 + i))
     # D9.2/D9.3：orrr 单目的 id 后缀 = 操作数 bank 签名（bbd/dbb）
     records.append(rec("add.o-bbd", "add.o", "orrr", op,
                        f_orrr("rbhb", "rbhc", "rdhd"), ["rbhb != rb0"],
@@ -644,16 +657,19 @@ def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
     cite_cmp = f"{sdoc} §比较操作"
     cite_mul = f"{sdoc} §乘除操作"
     cite_bit = f"{sdoc} §Bit manipulating：位操作指令"
-    # shr/shl orrr（ha 0x12-0x14）——SPEC-069t：ext 已删除，shr/shl 从 0x12 开始
-    for i, mnem in enumerate([f"shr.u{suffix}", f"shr.s{suffix}",
-                              f"shl.u{suffix}"]):
+    # shr/shl/ror orrr（ADR-0032 D2/D4：shl 010-000、ror 010-001、shr 010-010/011）
+    for i, mnem in enumerate([f"shl.{suffix}", f"ror.{suffix}",
+                              f"shr.u{suffix}", f"shr.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
-                           ["rdhb != rd0"], cite_bit, ha=0x12 + i))
-    # shr/shl orri（ha 0x1A-0x1C）——SPEC-069t：ext 已删除，shr/shl 从 0x1A 开始
-    for i, mnem in enumerate([f"shr.u{suffix}", f"shr.s{suffix}",
-                              f"shl.u{suffix}"]):
+                           ["rdhb != rd0"], cite_bit, ha=0x10 + i,
+                           scope=("m9" if mnem.startswith("ror.") else "m1")))
+    # shr/shl/ror orri（同上；immu6 越界 ⇒ ILLI，窄位宽沿用 immu6 <= N）
+    for i, mnem in enumerate([f"shl.{suffix}", f"ror.{suffix}",
+                              f"shr.u{suffix}", f"shr.s{suffix}"]):
         records.append(rec(mnem, mnem, "orri", op, f_orri("rdhb", "rdhc", "immu6"),
-                           ["rdhb != rd0", f"immu6 <= {nbits}"], cite_bit, ha=0x1A + i))
+                           ["rdhb != rd0", f"immu6 <= {nbits}"], cite_bit,
+                           ha=0x18 + i,
+                           scope=("m9" if mnem.startswith("ror.") else "m1")))
     # add（ha 0x20-0x21）
     for i, mnem in enumerate([f"add.u{suffix}", f"add.s{suffix}"]):
         records.append(rec(mnem, mnem, "orrr", op, f_orrr("rdhb", "rdhc", "rdhd"),
@@ -851,6 +867,7 @@ def main():
     n_ex = sum(1 for r in records if r.get("scope") == "excluded")
     n_m3 = sum(1 for r in records if r.get("scope") == "m3")
     n_m8 = sum(1 for r in records if r.get("scope") == "m8")
+    n_m9 = sum(1 for r in records if r.get("scope") == "m9")
     n_with_refs = sum(1 for r in records if r.get("rule_refs"))
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
@@ -863,13 +880,15 @@ def main():
         f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
         f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "
                 "D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份\n")
+        f.write("# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环右移 ror.o/.t/.w/.b），非 M1 身份\n")
         f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
-                f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条 + scope m8 {n_m8} 条\n")
+                f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条 + scope m8 {n_m8} 条"
+                f" + scope m9 {n_m9} 条\n")
         f.write(f"# 有 rule_refs 的指令：{n_with_refs} 条\n\n")
         yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     print(f"生成完成：{len(records)} 条（M1 {n_m1}，scope fp {n_fp}，scope excluded {n_ex}，"
-          f"scope m3 {n_m3}，scope m8 {n_m8}，有 rule_refs {n_with_refs}）-> {OUT_PATH}")
+          f"scope m3 {n_m3}，scope m8 {n_m8}，scope m9 {n_m9}，有 rule_refs {n_with_refs}）-> {OUT_PATH}")
 
 
 if __name__ == "__main__":

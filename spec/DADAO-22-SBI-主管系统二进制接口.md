@@ -184,7 +184,7 @@ cfx_ptw_set_ptbr:
     @@ rd16 = idx, rb16 = base（页表基地址高 48 位，低 16 位强制为 0）
     @@ 调用前须已通过 cfx2rc 写入 cfx_ptw_pthi[idx] 和 cfx_ptw_pahi[idx]
     set.rd   rd17, rb16                              @@ rb→rd 中转（cfx2rc 源操作数须为 rd）
-    shl.uo  rd16, rd16, 3                          @@ idx × 8（每路 2 条指令 = 8 字节）
+    shl.o   rd16, rd16, 3                          @@ idx × 8（每路 2 条指令 = 8 字节）
     set.rd   rd3, cfx_ptw_ptbr_table
     add.so {rd0, rd3}, rd3, rd16
     set.rb   rb8, rd3                      @@ rd→rb 中转
@@ -200,7 +200,7 @@ cfx_ptw_ptbr_table:
 
 cfx_ptw_get_ptbr:
     @@ rd16 = idx，返回 rd8 = base
-    shl.uo  rd16, rd16, 3
+    shl.o   rd16, rd16, 3
     set.rd   rd3, cfx_ptw_get_ptbr_table
     add.so {rd0, rd3}, rd3, rd16
     set.rb   rb8, rd3                      @@ rd→rb 中转
@@ -217,7 +217,7 @@ cfx_ptw_get_ptbr_table:
 cfx_ptw_set_ptbr_perm:
     @@ rd16 = mode（0=U/1=J/2=S/3=H）, rd17 = perm（64 位权限位图）
     @@ 通过跳转表将 rd17 写入对应 mode 的 cfx_ptw_*_perm 寄存器
-    shl.uo  rd16, rd16, 3                          @@ mode × 8（跳转表偏移，每路 2 条指令）
+    shl.o   rd16, rd16, 3                          @@ mode × 8（跳转表偏移，每路 2 条指令）
     set.rd   rd3, cfx_ptw_perm_table
     add.so {rd0, rd3}, rd3, rd16
     set.rb   rb8, rd3                      @@ rd→rb 中转
@@ -250,7 +250,7 @@ cfx_ptw_handle_fault:
 cfx_ptw_set_pthi:
     @@ rd16 = idx, rb16 = pthi（PA[63:48] 用于页表步进）
     set.rd   rd17, rb16                              @@ rb→rd 中转
-    shl.uo  rd16, rd16, 3
+    shl.o   rd16, rd16, 3
     set.rd   rd3, cfx_ptw_set_pthi_table
     add.so {rd0, rd3}, rd3, rd16
     set.rb   rb8, rd3                      @@ rd→rb 中转
@@ -267,7 +267,7 @@ cfx_ptw_set_pthi_table:
 cfx_ptw_set_pahi:
     @@ rd16 = idx, rb16 = pahi（PA[63:48] 用于最终转换结果）
     set.rd   rd17, rb16                              @@ rb→rd 中转
-    shl.uo  rd16, rd16, 3
+    shl.o   rd16, rd16, 3
     set.rd   rd3, cfx_ptw_set_pahi_table
     add.so {rd0, rd3}, rd3, rd16
     set.rb   rb8, rd3                      @@ rd→rb 中转

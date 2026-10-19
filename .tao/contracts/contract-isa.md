@@ -8,6 +8,8 @@
 >
 > **`scope: m8`（非 M1）**：逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b` 4 条——编码见 §2.8 / 附录 A.8，语义见 §6.4.3；位扫描 / 位计数 `ctlz`/`cttz`/`ctpop` 3 条（**无位宽后缀**，借 `MISC-octa` 格位）——编码见 §2.8 / 附录 A.9，语义见 §6.4.4。新增指令与里程碑**无绑定**；本合约只同步其编码 / 语义 / 合法集，**不作 M1 身份**。[SimRISC-00 §MISC-octa指令编码]
 >
+> **`scope: m9`（非 M1）**：逻辑循环右移 `ror.o`/`ror.t`/`ror.w`/`ror.b` 4 条（`orrr`/`orri` 两种格式，共 8 条记录）——编码见 §2.8 / 附录 A.10，语义见 §6.4.5。**符号无关、不带 `u`/`s` 后缀**；**非 M1 身份**（`ADR-0032 D4` / `SPEC-152t`）。[SimRISC-00 §MISC-octa指令编码]
+>
 > **来源标注**：每条规范性断言在句末以 `[SimRISC-XX §章节名]` 标注来源 spec/ 章节，不写行号。SimRISC-07 仅用于确认浮点边界。
 >
 > **说明**：本合约由 spec/ 归一化投影而来，面向实现；与 spec/ 冲突时阻断实现，走变更流程（见 `docs/Process-02-合约编写规范.md`）。
@@ -210,7 +212,7 @@ SimRISC 提供四种固定数据位宽，通过指令名后缀 `.b`/`.w`/`.t`/`.
 | `.t` | tetra（32 位） |
 | `.o` | octa（64 位） |
 
-对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shl/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。[SimRISC-00 §指令域说明]
+对有符号/无符号区分的指令（mul/div/rem/cmp/ext/shr），后缀扩展为 `.ub`/`.sb`（byte）、`.uw`/`.sw`（wyde）、`.ut`/`.st`（tetra）、`.uo`/`.so`（octa），其中 `s` 表示有符号、`u` 表示无符号。**符号无关**的指令（`shl`/`ror`/`rev`/`ctpop`/`ctlz`/`cttz`）**不带 `u`/`s` 后缀**（`ADR-0032 D3`）。[SimRISC-00 §指令域说明]
 
 ### §2.6 操作数顺序约定
 
@@ -256,6 +258,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 - `MISC-AMO`（op = 0111-0111）承载 `fence`、`swym` 与 LR-SC 原子指令。[SimRISC-00 §MISC-AMO 指令编码]
 - `MISC-RF`（op = 0100-0100）承载浮点指令，Excluded from M1。[SimRISC-00 §MISC-RF指令编码]
 - 各子表的 `001-100`（opx = `001100`）承载逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`（`scope: m8`，非 M1，见 §6.4.3）。[SimRISC-00 §MISC-octa指令编码]
+- 各子表的 `010-000`（orrr）/`011-000`（orri）承载 `shl.o`/`shl.t`/`shl.w`/`shl.b`（符号无关、不带 `u` 后缀，`ADR-0032 D2/D3`）；`010-001`/`011-001` 承载 `ror.*`（`scope: m9`，见 §6.4.5）。`ext.uo`/`ext.so` 位于 `100-000`/`100-001`（orrr）与 `101-000`/`101-001`（orri）（`ADR-0032 D1`）。[SimRISC-00 §MISC-octa指令编码]
 - **例外**：位扫描 / 位计数 `ctlz`/`cttz`/`ctpop` **无位宽后缀**（指令名不指示位宽），却借用 `MISC-octa` 子表的 `011-101`/`011-110`/`011-111`（opx = `011101`/`011110`/`011111`）——这是「子表 ⇔ 位宽后缀」规则的**例外**（同子表 `rd2rd`/`rb2rb` 等寄存器组复制指令亦无后缀，但位宽恒为整寄存器 64 位）；这三条的**有效位宽**由立即数 `hd`（**有效位上界**）在运行时给出（`scope: m8`，非 M1，见 §6.4.4）。[SimRISC-00 §MISC-octa指令编码]
 
 ### §2.9 保留编码
@@ -603,12 +606,13 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 
 #### §6.4.1 64 位移位（orrr / orri 格式）— 值语义
 
-`shl` 为左移，`shr` 为右移；后缀 `u` 表示逻辑移位（零扩展），`s` 表示算术移位（符号扩展）。移位量（shamt）取 `rdhd` 的低位（orrr）或 `immu6` 的低位（orri）。[SimRISC-04 §Bit manipulating：位操作指令]
+`shl` 为左移，`shr` 为右移，`ror` 为逻辑循环右移；`shr` 的后缀 `u` 表示逻辑移位（零扩展），`s` 表示算术移位（符号扩展）；`shl`/`ror` **符号无关**，不带 `u`/`s` 后缀（`ADR-0032 D3`）。移位量（shamt）取 `rdhd` 的低位（orrr）或 `immu6` 的低位（orri）。[SimRISC-04 §Bit manipulating：位操作指令]
 
 ```
-shl.u: rdhb[N:0]   = (rdhc[N:0] << shamt)                // 左移，低位补零
+shl.o: rdhb[N:0]   = (rdhc[N:0] << shamt)                // 左移，低位补零
 shr.u: rdhb[N:0]   = (rdhc[N:0] >> shamt)                // 逻辑右移，高位补零
 shr.s: rdhb[N:0]   = (rdhc[N:0] >> shamt) with sign(N)   // 算术右移，高位补 rdhc[N]
+ror.o: rdhb[N:0]   = ror(rdhc[N:0], shamt)               // 逻辑循环右移，位串旋转
 ```
 [SimRISC-04 §Bit manipulating：位操作指令]
 
@@ -616,7 +620,7 @@ shr.s: rdhb[N:0]   = (rdhc[N:0] >> shamt) with sign(N)   // 算术右移，高�
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.uo`/`shr.uo`/`shr.so` | 63 | 0–63 | `hd[5:0]` 全有效 |
+| `shl.o`/`ror.o`/`shr.uo`/`shr.so` | 63 | 0–63 | `hd[5:0]` 全有效 |
 [SimRISC-04 §Bit manipulating：位操作指令]
 
 异常条件：`shamt > N` → **ILLI**。[SimRISC-04 §Bit manipulating：位操作指令]
@@ -681,6 +685,25 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 - `rdHC[hd:0]` **全 0** ⇒ `ctlz` = `cttz` = `hd + 1`（= 有效位范围宽度，**消除未定义行为**），`ctpop` = `0`。[SimRISC-04 §Bit manipulating：位操作指令]
 - **合法性**：`hd ∈ 0..63` **全部合法**（无非法 `hd` 值，**不新增**合法性规则）；`rdHB` 为 `rd0` → **ILLI**（规则 `dst_rd0`）；`rdHC` 可为 `rd0`（读出 0，合法）；`rdHB == rdHC` 允许（原地运算）。[SimRISC-00 §数据寄存器]
 - **用途映射**：`ctlz` ↔ LLVM `int_ctlz` ≈ C++20 `std::countl_zero`（`hd` = 7/15/31/63 ⇒ `clz8`/`clz16`/`clz32`/`clz64`，**单条**覆盖，对比 RISC-V 需 `clz` + `clzw`）；`cttz` ↔ `int_cttz` / `countr_zero`；`ctpop` ↔ `int_ctpop` / `popcount`。[SimRISC-04 §Bit manipulating：位操作指令]
+
+#### §6.4.5 逻辑循环右移 ror.o/ror.t/ror.w/ror.b（orrr / orri 格式）— scope: m9（非 M1）
+
+`ror` 系列提供**逻辑循环右移**（把寄存器低 `W` 位当作位串循环旋转）：`rdhb[W-1:0] = ror(rdhc[W-1:0], amount)`；`W` 由后缀决定（`.o` 64 / `.t` 32 / `.w` 16 / `.b` 8）。**只有一个方向**（右），**不分有符号/无符号**，**不带 `u`/`s` 后缀**（`ADR-0032 D4`）。[SimRISC-04 §Bit manipulating：位操作指令]
+
+操作数格式 `orrr`（opx = `010-001`）或 `orri`（opx = `011-001`，见 §2.8）；**操作数寄存器均为 `rd` 银行**：`ror.X rdHB, rdHC, rdHD`（orrr）/ `ror.X rdHB, rdHC, immu6`（orri）。[SimRISC-00 §MISC-octa指令编码]
+
+| 指令 | W | orrr 旋转量 | orri `immu6` | 高位（值语义） |
+|------|---|------------|--------------|----------------|
+| `ror.o` | 64 | `rdHD[5:0]`（mod 64） | `0..63` 全部合法 | 写满 64 位 |
+| `ror.t` | 32 | `rdHD[4:0]`（mod 32） | `0..31`；`32..63` ⇒ ILLI | `rdhb[63:32] = 0` |
+| `ror.w` | 16 | `rdHD[3:0]`（mod 16） | `0..15`；`16..63` ⇒ ILLI | `rdhb[63:16] = 0` |
+| `ror.b` | 8 | `rdHD[2:0]`（mod 8） | `0..7`；`8..63` ⇒ ILLI | `rdhb[63:8] = 0` |
+[SimRISC-04 §Bit manipulating：位操作指令]
+
+- **寄存器形态取模**：`rdHD` 只有低 `log2(W)` 位参与（天然 `mod W`）；**立即数形态不取模**，越界（`immu6 ≥ W`）⇒ **ILLI**（与既有窄位宽 `shl.*` 的 `immu6 <= N` 同口径，规则 `encode_sbz`）。[SimRISC-04 §Bit manipulating：位操作指令]
+- **合法性**：目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（结果恒为 0）；`rdHB == rdHC` 允许（原地旋转）。[SimRISC-00 §数据寄存器]
+- **无 `rol`**：`rol(x,n) = ror(x,(W−n) mod W)` ⇒ 一个方向足以表达双向，不另设指令。[SimRISC-04 §Bit manipulating：位操作指令]
+- 32/16/8 位分册语义分别见 §10.4.1、§11.4.1、§12.4.1。
 
 ### §6.5 条件赋值（rrrr 格式）
 
@@ -934,13 +957,15 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.ut`/`shr.ut`/`shr.st` | 31 | 0–31 | `hd[4:0]`，`hd[5]` 应为零 |
+| `shl.t`/`ror.t`/`shr.ut`/`shr.st` | 31 | 0–31 | `hd[4:0]`，`hd[5]` 应为零 |
 [SimRISC-08 §Bit manipulating：位操作指令 — 值语义]
 
 运算公式（**SPEC-069t：值语义，写满64位**）：
 ```
-shl.ut:  rdhb[31:0]  = (rdhc[31:0] << shamt)              // 左移，低位补零
-         rdhb[63:32] = 0                                     // 高位零扩展
+shl.t:  rdhb[31:0]  = (rdhc[31:0] << shamt)              // 左移，低位补零
+        rdhb[63:32] = 0                                     // 高位零扩展
+ror.t:  rdhb[31:0]  = ror(rdhc[31:0], shamt)             // 32 位循环右移
+        rdhb[63:32] = 0                                     // 高位零扩展
 shr.ut:  rdhb[31:0]  = (rdhc[31:0] >> shamt)               // 逻辑右移，高位补零
          rdhb[63:32] = 0                                     // 高位零扩展
 shr.st:  rdhb[31:0]  = (rdhc[31:0] >> shamt) with sign(31) // 算术右移，高位补 rdhc[31]
@@ -1013,12 +1038,14 @@ shr.st:  rdhb[31:0]  = (rdhc[31:0] >> shamt) with sign(31) // 算术右移，高
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.uw`/`shr.uw`/`shr.sw` | 15 | 0–15 | `hd[3:0]`，`hd[5:4]` 应为零 |
+| `shl.w`/`ror.w`/`shr.uw`/`shr.sw` | 15 | 0–15 | `hd[3:0]`，`hd[5:4]` 应为零 |
 [SimRISC-09 §Bit manipulating：位操作指令 — 值语义]
 
 运算公式（**SPEC-069t：值语义，写满64位**）：
 ```
-shl.uw:  rdhb[15:0]  = (rdhc[15:0] << shamt)
+shl.w:  rdhb[15:0]  = (rdhc[15:0] << shamt)
+         rdhb[63:16] = 0                                     // 高位零扩展
+ror.w:  rdhb[15:0]  = ror(rdhc[15:0], shamt)               // 16 位循环右移
          rdhb[63:16] = 0                                     // 高位零扩展
 shr.uw:  rdhb[15:0]  = (rdhc[15:0] >> shamt)
          rdhb[63:16] = 0                                     // 高位零扩展
@@ -1092,12 +1119,14 @@ shr.sw:  rdhb[15:0]  = (rdhc[15:0] >> shamt) with sign(15)
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.ub`/`shr.ub`/`shr.sb` | 7 | 0–7 | `hd[2:0]`，`hd[5:3]` 应为零 |
+| `shl.b`/`ror.b`/`shr.ub`/`shr.sb` | 7 | 0–7 | `hd[2:0]`，`hd[5:3]` 应为零 |
 [SimRISC-10 §Bit manipulating：位操作指令 — 值语义]
 
 运算公式（**SPEC-069t：值语义，写满64位**）：
 ```
-shl.ub:  rdhb[7:0]   = (rdhc[7:0] << shamt)
+shl.b:  rdhb[7:0]   = (rdhc[7:0] << shamt)
+         rdhb[63:8]  = 0                                     // 高位零扩展
+ror.b:  rdhb[7:0]   = ror(rdhc[7:0], shamt)                // 8 位循环右移
          rdhb[63:8]  = 0                                     // 高位零扩展
 shr.ub:  rdhb[7:0]   = (rdhc[7:0] >> shamt)
          rdhb[63:8]  = 0                                     // 高位零扩展
@@ -1251,6 +1280,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - `ldm.o`/`stm.o`（RA）`immu6 = 0`、或 `raha + immu6 > 64`（超出 ra63）。[SimRISC-01 §存取RA寄存器]
 - 块赋值（`ra2rd`/`rd2ra`）`immu6 = 0`、任一起始寄存器 + immu6 > 64、或 `ra2rd` 目的 `rdhb` 为 `rd0`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-00 §数据寄存器]
 - 移位量 `shamt > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
+- `ror.{t,w,b}` 的立即数旋转量 `immu6 ≥ W`（orri 形态）；`ror.o` 的 `immu6` 为 6 位，无越界值。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]
 - 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-04/08/09/10 §加减操作][SimRISC-04/08/09/10 §比较操作][SimRISC-04/08/09/10 §乘除操作]
@@ -1357,19 +1387,21 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 001-010 | `xor.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 001-011 | `xnor.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 001-100 | `rev.o` | orri | [SimRISC-00 §MISC-octa指令编码] |
-| 010-000 | `ext.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
-| 010-001 | `ext.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 010-000 | `shl.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 010-001 | `ror.o` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 010-010 | `shr.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 010-011 | `shr.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
-| 010-100 | `shl.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
-| 011-000 | `ext.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
-| 011-001 | `ext.so` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 011-000 | `shl.o` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 011-001 | `ror.o` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 011-010 | `shr.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 011-011 | `shr.so` | orri | [SimRISC-00 §MISC-octa指令编码] |
-| 011-100 | `shl.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 011-101 | `ctpop` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 011-110 | `ctlz` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 011-111 | `cttz` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 100-000 | `ext.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 100-001 | `ext.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
+| 101-000 | `ext.uo` | orri | [SimRISC-00 §MISC-octa指令编码] |
+| 101-001 | `ext.so` | orri | [SimRISC-00 §MISC-octa指令编码] |
 | 101-010 | `cmp.uo` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 101-011 | `cmp.so` | orrr | [SimRISC-00 §MISC-octa指令编码] |
 | 101-100 | `rd2rd` | orri | [SimRISC-00 §MISC-octa指令编码] |
@@ -1392,12 +1424,14 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
 | 001-100 | `rev.t` | orri | [SimRISC-00 §MISC-tetra指令编码] |
+| 010-000 | `shl.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 010-001 | `ror.t` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 010-010 | `shr.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 010-011 | `shr.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
-| 010-100 | `shl.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
+| 011-000 | `shl.t` | orri | [SimRISC-00 §MISC-tetra指令编码] |
+| 011-001 | `ror.t` | orri | [SimRISC-00 §MISC-tetra指令编码] |
 | 011-010 | `shr.ut` | orri | [SimRISC-00 §MISC-tetra指令编码] |
 | 011-011 | `shr.st` | orri | [SimRISC-00 §MISC-tetra指令编码] |
-| 011-100 | `shl.ut` | orri | [SimRISC-00 §MISC-tetra指令编码] |
 | 100-000 | `add.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 100-001 | `add.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 101-000 | `sub.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
@@ -1411,19 +1445,21 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 111-010 | `rem.ut` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 | 111-011 | `rem.st` | orrr | [SimRISC-00 §MISC-tetra指令编码] |
 
-> **SPEC-069t**：已删除 opx 0x08–0x0B（`and.t`/`or.t`/`xor.t`/`xnor.t`）与 0x10–0x11/0x18–0x19（`ext.ut`/`ext.st`），共 8 条。这些 opx 现为 reserved（UNDI）。
+> **SPEC-069t / `ADR-0032` D2**：已删除 opx 0x08–0x0B（`and.t`/`or.t`/`xor.t`/`xnor.t`）与 0x10–0x11/0x18–0x19（`ext.ut`/`ext.st`），共 8 条；`shl.t` 迁至 0x10/0x18、`ror.t` 占 0x11/0x19（`SPEC-152t`）。`010-100`/`011-100` 因 `shl` 迁出而保留（UNDI）。
 
 ### A.4 MISC-wyde 子表（op = 0x42）
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
 | 001-100 | `rev.w` | orri | [SimRISC-00 §MISC-wyde指令编码] |
+| 010-000 | `shl.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 010-001 | `ror.w` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 010-010 | `shr.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 010-011 | `shr.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
-| 010-100 | `shl.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
+| 011-000 | `shl.w` | orri | [SimRISC-00 §MISC-wyde指令编码] |
+| 011-001 | `ror.w` | orri | [SimRISC-00 §MISC-wyde指令编码] |
 | 011-010 | `shr.uw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
 | 011-011 | `shr.sw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
-| 011-100 | `shl.uw` | orri | [SimRISC-00 §MISC-wyde指令编码] |
 | 100-000 | `add.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 100-001 | `add.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 101-000 | `sub.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
@@ -1437,19 +1473,21 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 111-010 | `rem.uw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 | 111-011 | `rem.sw` | orrr | [SimRISC-00 §MISC-wyde指令编码] |
 
-> **SPEC-069t**：已删除 opx 0x08–0x0B（`and.w`/`or.w`/`xor.w`/`xnor.w`）与 0x10–0x11/0x18–0x19（`ext.uw`/`ext.sw`），共 8 条。这些 opx 现为 reserved（UNDI）。
+> **SPEC-069t / `ADR-0032` D2**：已删除 opx 0x08–0x0B（`and.w`/`or.w`/`xor.w`/`xnor.w`）与 0x10–0x11/0x18–0x19（`ext.uw`/`ext.sw`），共 8 条；`shl.w` 迁至 0x10/0x18、`ror.w` 占 0x11/0x19（`SPEC-152t`）。`010-100`/`011-100` 因 `shl` 迁出而保留（UNDI）。
 
 ### A.5 MISC-byte 子表（op = 0x43）
 
 | opx | 助记符 | 格式 | 来源 |
 |-------------|--------|------|------|
 | 001-100 | `rev.b` | orri | [SimRISC-00 §MISC-byte指令编码] |
+| 010-000 | `shl.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 010-001 | `ror.b` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 010-010 | `shr.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 010-011 | `shr.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
-| 010-100 | `shl.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
+| 011-000 | `shl.b` | orri | [SimRISC-00 §MISC-byte指令编码] |
+| 011-001 | `ror.b` | orri | [SimRISC-00 §MISC-byte指令编码] |
 | 011-010 | `shr.ub` | orri | [SimRISC-00 §MISC-byte指令编码] |
 | 011-011 | `shr.sb` | orri | [SimRISC-00 §MISC-byte指令编码] |
-| 011-100 | `shl.ub` | orri | [SimRISC-00 §MISC-byte指令编码] |
 | 100-000 | `add.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 100-001 | `add.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 101-000 | `sub.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
@@ -1463,7 +1501,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 111-010 | `rem.ub` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 | 111-011 | `rem.sb` | orrr | [SimRISC-00 §MISC-byte指令编码] |
 
-> **SPEC-069t**：已删除 opx 0x08–0x0B（`and.b`/`or.b`/`xor.b`/`xnor.b`）与 0x10–0x11/0x18–0x19（`ext.ub`/`ext.sb`），共 8 条。这些 opx 现为 reserved（UNDI）。
+> **SPEC-069t / `ADR-0032` D2**：已删除 opx 0x08–0x0B（`and.b`/`or.b`/`xor.b`/`xnor.b`）与 0x10–0x11/0x18–0x19（`ext.ub`/`ext.sb`），共 8 条；`shl.b` 迁至 0x10/0x18、`ror.b` 占 0x11/0x19（`SPEC-152t`）。`010-100`/`011-100` 因 `shl` 迁出而保留（UNDI）。
 
 ### A.6 MISC-AMO 子表（op = 0x77，M1 条目）
 
@@ -1527,6 +1565,23 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | `cttz` | 0x40 | 011-111 | orri | 0xFFFC0000 | 同上 | [SimRISC-00 §MISC-octa指令编码] |
 
 > `value = op << 24 | opx << 18`（opx 域占 `bits[23:18]`，与 A.2~A.8 同惯例）；**不在本表复写派生值**，以 `contracts/opcodes.yaml`（生成器 `tools/spec/generate_opcodes.py` 产出）为唯一真源。三条见 A.2 的 `011-101`/`011-110`/`011-111` 单元格。
+
+### A.10 `scope: m9` 编码清单（逻辑循环右移 `ror.*`，非 M1）
+
+> `scope: m9`（8 条 = 4 指令 × `orrr`/`orri` 两格式）：四个位宽子表的 `010-001`（orrr）/`011-001`（orri）。语义见 §6.4.5；**非 M1 身份**（`ADR-0032 D4` / `SPEC-152t`）。[SimRISC-00 §MISC-octa指令编码]
+
+| 指令 | op (hex) | opx | 格式 | value | mask | 来源 |
+|------|----------|-----|------|-------|------|------|
+| `ror.o` | 0x40 | 010-001 | orrr | 0x40440000 | 0xFFFC0000 | [SimRISC-00 §MISC-octa指令编码] |
+| `ror.o` | 0x40 | 011-001 | orri | 0x40640000 | 0xFFFC0000 | [SimRISC-00 §MISC-octa指令编码] |
+| `ror.t` | 0x41 | 010-001 | orrr | 0x41440000 | 0xFFFC0000 | [SimRISC-00 §MISC-tetra指令编码] |
+| `ror.t` | 0x41 | 011-001 | orri | 0x41640000 | 0xFFFC0000 | [SimRISC-00 §MISC-tetra指令编码] |
+| `ror.w` | 0x42 | 010-001 | orrr | 0x42440000 | 0xFFFC0000 | [SimRISC-00 §MISC-wyde指令编码] |
+| `ror.w` | 0x42 | 011-001 | orri | 0x42640000 | 0xFFFC0000 | [SimRISC-00 §MISC-wyde指令编码] |
+| `ror.b` | 0x43 | 010-001 | orrr | 0x43440000 | 0xFFFC0000 | [SimRISC-00 §MISC-byte指令编码] |
+| `ror.b` | 0x43 | 011-001 | orri | 0x43640000 | 0xFFFC0000 | [SimRISC-00 §MISC-byte指令编码] |
+
+> `value = op << 24 | opx << 18`（opx 域占 `bits[23:18]`）。表中 value 由 `contracts/opcodes.yaml` 现场核出，**唯一真源**仍是 `contracts/opcodes.yaml`。
 
 ---
 

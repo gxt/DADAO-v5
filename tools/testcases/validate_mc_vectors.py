@@ -651,7 +651,7 @@ def check_error(by_mnemonic, insn_text, token):
         elif mnemonic in ("swym", "fence"):
             val = eval_expr(ops[0])
         else:
-            # add.si / ret / shl.uo / set.zw ... 最后一个非寄存器、非地址操作数
+            # add.si / ret / shl.o / set.zw ... 最后一个非寄存器、非地址操作数
             cand = None
             for o in ops:
                 if parse_reg(o) or o.startswith("["):

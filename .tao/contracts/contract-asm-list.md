@@ -1,7 +1,7 @@
 # DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（235 条 = M1 156 + `scope: fp` 60 + `scope: excluded` 11 + `scope: m3` 1 + `scope: m8` 7）
+> **源**：`contracts/opcodes.yaml`（243 条 = M1 156 + `scope: fp` 60 + `scope: excluded` 11 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 8）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
 > **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（44 条）为 `scope: fp`（已实现）；**deferred（原「待定」）**（11 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；其余 156 条为 `scope: m1` 当前有效书写形式
@@ -106,7 +106,7 @@
 | `set.zw` | `rwii` | `rb` | `set.zw rbHA, wpN, immu16` | `set.zw_rwii_rb` |
 | `set.zw` | `rwii` | `rd` | `set.zw rdHA, wpN, immu16` | `set.zw_rwii_rd` |
 
-### 64位数据运算（33 条）
+### 64位数据运算（35 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -133,8 +133,10 @@
 | `rem.so` | `orrr` | `rd` | `rem.so rdHB, rdHC, rdHD` | `rem.so_orrr_rd` |
 | `rem.uo` | `orrr` | `rd` | `rem.uo rdHB, rdHC, rdHD` | `rem.uo_orrr_rd` |
 | `rev.o` | `orri` | `rd` | `rev.o rdHB, rdHC, immu6` | `rev.o_orri_rd` |
-| `shl.uo` | `orri` | `rd` | `shl.uo rdHB, rdHC, immu6` | `shl.uo_orri_rd` |
-| `shl.uo` | `orrr` | `rd` | `shl.uo rdHB, rdHC, rdHD` | `shl.uo_orrr_rd` |
+| `ror.o` | `orri` | `rd` | `ror.o rdHB, rdHC, immu6` | `ror.o_orri_rd` |
+| `ror.o` | `orrr` | `rd` | `ror.o rdHB, rdHC, rdHD` | `ror.o_orrr_rd` |
+| `shl.o` | `orri` | `rd` | `shl.o rdHB, rdHC, immu6` | `shl.o_orri_rd` |
+| `shl.o` | `orrr` | `rd` | `shl.o rdHB, rdHC, rdHD` | `shl.o_orrr_rd` |
 | `shr.so` | `orri` | `rd` | `shr.so rdHB, rdHC, immu6` | `shr.so_orri_rd` |
 | `shr.so` | `orrr` | `rd` | `shr.so rdHB, rdHC, rdHD` | `shr.so_orrr_rd` |
 | `shr.uo` | `orri` | `rd` | `shr.uo rdHB, rdHC, immu6` | `shr.uo_orri_rd` |
@@ -224,7 +226,7 @@
 | `ut2fo` | `orri` | `rf` | `ut2fo {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `ut2fo_orri_rf` |
 | `ut2ft` | `orri` | `rf` | `ut2ft {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `ut2ft_orri_rf` |
 
-### 32位数据运算（19 条）
+### 32位数据运算（21 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -239,8 +241,10 @@
 | `rem.st` | `orrr` | `rd` | `rem.st rdHB, rdHC, rdHD` | `rem.st_orrr_rd` |
 | `rem.ut` | `orrr` | `rd` | `rem.ut rdHB, rdHC, rdHD` | `rem.ut_orrr_rd` |
 | `rev.t` | `orri` | `rd` | `rev.t rdHB, rdHC, immu6` | `rev.t_orri_rd` |
-| `shl.ut` | `orri` | `rd` | `shl.ut rdHB, rdHC, immu6` | `shl.ut_orri_rd` |
-| `shl.ut` | `orrr` | `rd` | `shl.ut rdHB, rdHC, rdHD` | `shl.ut_orrr_rd` |
+| `ror.t` | `orri` | `rd` | `ror.t rdHB, rdHC, immu6` | `ror.t_orri_rd` |
+| `ror.t` | `orrr` | `rd` | `ror.t rdHB, rdHC, rdHD` | `ror.t_orrr_rd` |
+| `shl.t` | `orri` | `rd` | `shl.t rdHB, rdHC, immu6` | `shl.t_orri_rd` |
+| `shl.t` | `orrr` | `rd` | `shl.t rdHB, rdHC, rdHD` | `shl.t_orrr_rd` |
 | `shr.st` | `orri` | `rd` | `shr.st rdHB, rdHC, immu6` | `shr.st_orri_rd` |
 | `shr.st` | `orrr` | `rd` | `shr.st rdHB, rdHC, rdHD` | `shr.st_orrr_rd` |
 | `shr.ut` | `orri` | `rd` | `shr.ut rdHB, rdHC, immu6` | `shr.ut_orri_rd` |
@@ -248,7 +252,7 @@
 | `sub.st` | `orrr` | `rd` | `sub.st rdHB, rdHC, rdHD` | `sub.st_orrr_rd` |
 | `sub.ut` | `orrr` | `rd` | `sub.ut rdHB, rdHC, rdHD` | `sub.ut_orrr_rd` |
 
-### 16位数据运算（19 条）
+### 16位数据运算（21 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -263,8 +267,10 @@
 | `rem.sw` | `orrr` | `rd` | `rem.sw rdHB, rdHC, rdHD` | `rem.sw_orrr_rd` |
 | `rem.uw` | `orrr` | `rd` | `rem.uw rdHB, rdHC, rdHD` | `rem.uw_orrr_rd` |
 | `rev.w` | `orri` | `rd` | `rev.w rdHB, rdHC, immu6` | `rev.w_orri_rd` |
-| `shl.uw` | `orri` | `rd` | `shl.uw rdHB, rdHC, immu6` | `shl.uw_orri_rd` |
-| `shl.uw` | `orrr` | `rd` | `shl.uw rdHB, rdHC, rdHD` | `shl.uw_orrr_rd` |
+| `ror.w` | `orri` | `rd` | `ror.w rdHB, rdHC, immu6` | `ror.w_orri_rd` |
+| `ror.w` | `orrr` | `rd` | `ror.w rdHB, rdHC, rdHD` | `ror.w_orrr_rd` |
+| `shl.w` | `orri` | `rd` | `shl.w rdHB, rdHC, immu6` | `shl.w_orri_rd` |
+| `shl.w` | `orrr` | `rd` | `shl.w rdHB, rdHC, rdHD` | `shl.w_orrr_rd` |
 | `shr.sw` | `orri` | `rd` | `shr.sw rdHB, rdHC, immu6` | `shr.sw_orri_rd` |
 | `shr.sw` | `orrr` | `rd` | `shr.sw rdHB, rdHC, rdHD` | `shr.sw_orrr_rd` |
 | `shr.uw` | `orri` | `rd` | `shr.uw rdHB, rdHC, immu6` | `shr.uw_orri_rd` |
@@ -272,7 +278,7 @@
 | `sub.sw` | `orrr` | `rd` | `sub.sw rdHB, rdHC, rdHD` | `sub.sw_orrr_rd` |
 | `sub.uw` | `orrr` | `rd` | `sub.uw rdHB, rdHC, rdHD` | `sub.uw_orrr_rd` |
 
-### 8位数据运算（19 条）
+### 8位数据运算（21 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -287,8 +293,10 @@
 | `rem.sb` | `orrr` | `rd` | `rem.sb rdHB, rdHC, rdHD` | `rem.sb_orrr_rd` |
 | `rem.ub` | `orrr` | `rd` | `rem.ub rdHB, rdHC, rdHD` | `rem.ub_orrr_rd` |
 | `rev.b` | `orri` | `rd` | `rev.b rdHB, rdHC, immu6` | `rev.b_orri_rd` |
-| `shl.ub` | `orri` | `rd` | `shl.ub rdHB, rdHC, immu6` | `shl.ub_orri_rd` |
-| `shl.ub` | `orrr` | `rd` | `shl.ub rdHB, rdHC, rdHD` | `shl.ub_orrr_rd` |
+| `ror.b` | `orri` | `rd` | `ror.b rdHB, rdHC, immu6` | `ror.b_orri_rd` |
+| `ror.b` | `orrr` | `rd` | `ror.b rdHB, rdHC, rdHD` | `ror.b_orrr_rd` |
+| `shl.b` | `orri` | `rd` | `shl.b rdHB, rdHC, immu6` | `shl.b_orri_rd` |
+| `shl.b` | `orrr` | `rd` | `shl.b rdHB, rdHC, rdHD` | `shl.b_orrr_rd` |
 | `shr.sb` | `orri` | `rd` | `shr.sb rdHB, rdHC, immu6` | `shr.sb_orri_rd` |
 | `shr.sb` | `orrr` | `rd` | `shr.sb rdHB, rdHC, rdHD` | `shr.sb_orrr_rd` |
 | `shr.ub` | `orri` | `rd` | `shr.ub rdHB, rdHC, immu6` | `shr.ub_orri_rd` |
