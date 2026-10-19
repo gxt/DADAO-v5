@@ -2,7 +2,7 @@
 @@ RUN: %llvm_mc --triple=dadao-unknown-elf -show-encoding %s 2>&1 | %FileCheck %s --check-prefix=OK
 @@ RUN: echo 'add.si rd8, 131072'            | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-RANGE
 @@ RUN: echo 'cmp.ui rd8, rd9, 4096'         | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-UI
-@@ RUN: echo 'shl.uo rd8, rd0, 64'           | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-U6
+@@ RUN: echo 'shl.o rd8, rd0, 64'            | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-U6
 @@ RUN: echo 'set.zw rd8, wp0, 65536'        | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-U16
 @@ RUN: echo 'swym 262144'                   | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR-U18
 @@ RUN: echo 'add.si rd8, -131073'           | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR
@@ -12,7 +12,7 @@
 @@ RUN: echo 'ld.ub rd8, [rb2, 2048]'        | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR
 @@ RUN: echo 'ld.ub rd8, [rb2, -2049]'       | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR
 @@ RUN: echo 'ret rd8, 131072'               | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR
-@@ RUN: echo 'shl.uo rd8, rd0, -1'           | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR
+@@ RUN: echo 'shl.o rd8, rd0, -1'            | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR
 @@ RUN: echo 'set.zw rd8, wp0, -1'           | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR
 @@ RUN: echo 'fence 262144'                  | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR
 @@ RUN: echo 'swym -1'                       | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=ERR
@@ -53,9 +53,9 @@ ld.ub rd8, [rb2, 2047]
 ret rd8, -131072
 @@ OK: encoding: [0x76,0x21,0xff,0xff]
 ret rd8, 131071
-@@ OK: encoding: [0x40,0x70,0x80,0x3f]
-shl.uo rd8, rd0, 63
-@@ OK: encoding: [0x40,0x60,0x80,0x00]
+@@ OK: encoding: [0x40,0x60,0x80,0x3f]
+shl.o rd8, rd0, 63
+@@ OK: encoding: [0x40,0xa0,0x80,0x00]
 ext.uo rd8, rd0, 0
 @@ OK: encoding: [0x4c,0x20,0xff,0xff]
 set.zw rd8, wp0, 0xffff
@@ -86,7 +86,7 @@ ret rd8, 6
 @@ --- rejection diagnostics (position + expected range) ---
 @@ ERR-RANGE: error: immediate out of range for 'add.si': 131072 is outside the imms18 (signed 18-bit) range [-131072, 131071]
 @@ ERR-UI: error: immediate out of range for 'cmp.ui': 4096 is outside the immu12 (unsigned 12-bit) range [0, 4095]
-@@ ERR-U6: error: immediate out of range for 'shl.uo': 64 is outside the immu6 (unsigned 6-bit) range [0, 63]
+@@ ERR-U6: error: immediate out of range for 'shl.o': 64 is outside the immu6 (unsigned 6-bit) range [0, 63]
 @@ ERR-U16: error: immediate out of range for 'set.zw': 65536 is outside the immu16 (unsigned 16-bit) range [0, 65535]
 @@ ERR-U18: error: immediate out of range for 'swym': 262144 is outside the immu18 (unsigned 18-bit) range [0, 262143]
 @@ ERR: error: immediate out of range

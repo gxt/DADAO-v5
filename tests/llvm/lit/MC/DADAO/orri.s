@@ -7,8 +7,8 @@
 @@ ha = opx
 
 @@ ext.uo rd8, rd0, 1
-@@ op=0x40, ha=0x18(ext.uo), hb=rd8=8, hc=rd0=0, hd=immu6=1
-@@ word = (0x40<<24)|(0x18<<18)|(8<<12)|1 = 0x40608001
-@@ OBJ: {{[0-9a-f]+:}} 40 60 80 01{{.*}}ext.uo{{.*}}rd8, rd0, 1
+@@ op=0x40, ha=0x28(ext.uo), hb=rd8=8, hc=rd0=0, hd=immu6=1
+@@ word = (0x40<<24)|(0x28<<18)|(8<<12)|1 = 0x40A08001
+@@ OBJ: {{[0-9a-f]+:}} 40 a0 80 01{{.*}}ext.uo{{.*}}rd8, rd0, 1
 @@ ASM: ext.uo rd8, rd0, 1
 ext.uo rd8, rd0, 1

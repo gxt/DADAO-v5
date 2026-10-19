@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..d92c60b29
+index 000000000..4e8654469
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,698 @@
+@@ -0,0 +1,711 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -391,10 +391,23 @@ index 000000000..d92c60b29
 +def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i16)), (sub_sw rd0, GPRD:$a)>;
 +def : Pat<(i64 (sext_inreg (sub 0, GPRD:$a), i32)), (sub_st rd0, GPRD:$a)>;
 +
++// Unsigned 6-bit immediate matching the `immu6` operand (shift/rotate amount;
++// 0..63).  Used by the immediate (orri) rotate pattern below.
++def immu6imm : ImmLeaf<i64, [{ return isUInt<6>(Imm); }]>;
++
 +// Variable shift amount (orrr): shamt is rdhc low 6 bits (§6.4.1).
-+def : Pat<(shl GPRD:$a, GPRD:$b), (shl_uo_orrr GPRD:$a, GPRD:$b)>;
++def : Pat<(shl GPRD:$a, GPRD:$b), (shl_o_orrr GPRD:$a, GPRD:$b)>;
 +def : Pat<(srl GPRD:$a, GPRD:$b), (shr_uo_orrr GPRD:$a, GPRD:$b)>;
 +def : Pat<(sra GPRD:$a, GPRD:$b), (shr_so_orrr GPRD:$a, GPRD:$b)>;
++
++// Rotate left (ADR-0032 D4 as amended 2026-10-19 / LLVM-116t): the ISA's
++// single-direction rotate is `rol`, and ISD::ROTL selects it directly.  The
++// immediate form (orri) is one instruction when the amount fits immu6; the
++// register form (orrr) takes rdHD[5:0], i.e. the amount modulo 64 -- the same
++// low-6-bit convention as the shifts above.  ISD::ROTR is custom-lowered to
++// ROTL in DADAOISelLowering (rotr(x,n) = rol(x, (-n) mod 64)).
++def : Pat<(rotl GPRD:$a, immu6imm:$b), (rol_o_orri GPRD:$a, immu6imm:$b)>;
++def : Pat<(rotl GPRD:$a, GPRD:$b), (rol_o_orrr GPRD:$a, GPRD:$b)>;
 +
 +// 64-bit div/rem (orrr): rdhb = rdhc / rdhb ... (contract-isa.md §6.1.5).
 +// DADAO returns defined values for the div-by-zero / INT_MIN/-1 cases that are

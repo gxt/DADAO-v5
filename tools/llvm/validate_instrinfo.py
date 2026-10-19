@@ -71,6 +71,8 @@ FMT_BY_CLASS = {
 
 # Non-m1 records that are intentionally defined in DADAOInstrInfo.td:
 #   - scope:m3  -> M3 CodeGen instructions (ADR-0012 D9.1); LLVM-only, not M1.
+#   - scope:m8  -> new ISA instructions (ADR-0012 D10 / SPEC-142t).
+#   - scope:m9  -> `rol` (ADR-0032 D4 as amended 2026-10-19 / LLVM-116t).
 #   - scope:excluded -> still needed by the MC layer (assemble/disassemble) even
 #     though execution traps with ILLI.  SPEC-039t moved `fence` out of M1 but
 #     kept its def so llvm-mc can assemble it (see tests/llvm/lit/MC/DADAO/oiii.s).
@@ -81,16 +83,6 @@ MC_ONLY_EXCLUDED_IDS = frozenset({
     "fence_oiii_imm",
 })
 
-# Documented sample of the explicit id -> .td def-name mapping, checked by
-# --self-test (the legacy names are not derivable from the id, so we assert a
-# few known correspondences against the actual joined data).
-SAMPLE_MAPPINGS = {
-    "ld.ub_rrii_rd": "ld_ub_rd",
-    "add.si_riii_rd": "add_si_rd",
-    "sub.o_orrr_dbb": "sub_o_dbb",
-    "rb2rb_orri_rb": "rb2rb",
-    "fence_oiii_imm": "fence",
-}
 
 # Instruction def: `def NAME : DADAO<class><"mnemonic"> { ... }`.
 DEF_PATTERN = re.compile(
@@ -207,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     m1 = [r for r in records if r.get("scope") == "m1"]
     m3 = [r for r in records if r.get("scope") == "m3"]
     m8 = [r for r in records if r.get("scope") == "m8"]
+    m9 = [r for r in records if r.get("scope") == "m9"]
 
     print("=== Validation: DADAOInstrInfo.td vs contracts/opcodes.yaml ===")
     print(f"opcodes.yaml     : {args.opcodes}")
@@ -215,6 +208,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"M1 records       : {len(m1)}  (baseline derived from opcodes.yaml)")
     print(f"M3 records       : {len(m3)}")
     print(f"M8 records       : {len(m8)}")
+    print(f"M9 records       : {len(m9)}")
     print(f".td instr defs   : {len(defs)}")
     print()
 
@@ -278,6 +272,19 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"FAIL: coverage — {matched_m8}/{len(m8)} 条 M8 记录匹配到 .td def")
 
+    # Check 2c: every M9 record (`rol`, ADR-0032 D4 as amended) has exactly one matching def.
+    matched_m9 = 0
+    for r in m9:
+        hits = def_idx.get(rec_key(r), [])
+        if len(hits) != 1:
+            errors.append(f"M9 记录 {r['id']} 的 .td def 数 = {len(hits)}（期望 1）")
+        else:
+            matched_m9 += 1
+    if matched_m9 == len(m9):
+        print(f"PASS: coverage — {len(m9)}/{len(m9)} 条 M9 记录各有唯一 .td def")
+    else:
+        print(f"FAIL: coverage — {matched_m9}/{len(m9)} 条 M9 记录匹配到 .td def")
+
     # Check 3: no orphans — every def maps to exactly one record.
     orphan = 0
     non_m1_defs = []
@@ -298,7 +305,7 @@ def main(argv: list[str] | None = None) -> int:
     # Check 5: non-m1 defs limited to the declared allow-list.
     bad_non_m1 = []
     for name, rid, scope in non_m1_defs:
-        if scope in ("m3", "m8"):
+        if scope in ("m3", "m8", "m9"):
             continue
         if scope == "excluded" and rid in MC_ONLY_EXCLUDED_IDS:
             continue
@@ -332,14 +339,52 @@ def main(argv: list[str] | None = None) -> int:
     id_to_def = build_id_to_def(defs, rec_idx)
 
     if args.self_test:
-        print("\n=== self-test: explicit id -> def-name mapping ===")
-        for rid, expected in SAMPLE_MAPPINGS.items():
-            actual = id_to_def.get(rid)
-            if actual == expected:
-                print(f"PASS self-test: {rid} -> {actual}")
-            else:
-                errors.append(f"self-test mapping {rid}: 期望 {expected}，实际 {actual}")
-                print(f"FAIL self-test: {rid} -> {actual}（期望 {expected}）")
+        # Derived, never hardcoded: an earlier literal table went stale twice
+        # (`shl.u*` -> `shl.*`, then `ror` -> `rol`) and turned a rename into a
+        # mysterious self-test failure.  Everything below is recomputed from
+        # opcodes.yaml + the committed .td on every run (counts printed live).
+        print("\n=== self-test: derived id -> def-name mapping ===")
+        checked = [r for r in records
+                   if r.get("scope") in ("m1", "m3", "m8", "m9")]
+        def_by_name = {d["name"]: d for d in defs}
+        covered = sum(1 for r in checked if r["id"] in id_to_def)
+        if covered == len(checked):
+            print(f"PASS self-test: coverage {covered}/{len(checked)} "
+                  f"(m1+m3+m8+m9, derived)")
+        else:
+            missing = [r["id"] for r in checked if r["id"] not in id_to_def]
+            errors.append(f"self-test coverage {covered}/{len(checked)}: {missing[:5]}")
+            print(f"FAIL self-test: coverage {covered}/{len(checked)}")
+
+        # Structural check: the mapped def's join key must equal the record's.
+        key_bad = []
+        for r in checked:
+            name = id_to_def.get(r["id"])
+            d = def_by_name.get(name) if name else None
+            if d is None or def_key(d) != rec_key(r):
+                key_bad.append((r["id"], name))
+        if not key_bad:
+            print(f"PASS self-test: join key matches for all {len(checked)} records")
+        else:
+            errors.append(f"self-test join-key mismatch: {key_bad[:5]}")
+            print(f"FAIL self-test: join-key mismatch {key_bad[:5]}")
+
+        # Derivable subset (live): where the .td uses the conventional
+        # `<mnemonic>_<format>` def name, the mapping must point exactly there.
+        derivable = []
+        for r in checked:
+            natural = (r["mnemonic"] + "_" + r["format"]).replace(".", "_").replace("-", "_")
+            if natural in def_by_name:
+                derivable.append((r["id"], natural))
+                if id_to_def.get(r["id"]) != natural:
+                    errors.append(f"self-test derived name {r['id']}: "
+                                  f"expected {natural}, got {id_to_def.get(r['id'])}")
+        if derivable and not any("derived name" in e for e in errors):
+            print(f"PASS self-test: {len(derivable)} derivable `<mnemonic>_<format>` "
+                  f"def names all map exactly (e.g. {derivable[:3]})")
+        if not derivable:
+            errors.append("self-test derivable-name subset is empty (vacuous)")
+            print("FAIL self-test: derivable-name subset is empty")
 
     if args.dump_map:
         print("\n=== id -> def-name mapping ===")

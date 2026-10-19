@@ -196,25 +196,25 @@ rev.w rd8, rd9, 1
 @@ ASM: rf2rd {rd8}, {rf9}
 rf2rd {rd8}, {rf9}
 
-@@ @src ror.b_orri_rd 43648241 | SimRISC-10 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 43 64 82 41{{.*}}ror.b
-@@ ASM: ror.b rd8, rd9, 1
-ror.b rd8, rd9, 1
+@@ @src rol.b_orri_rd 43648241 | SimRISC-10 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 43 64 82 41{{.*}}rol.b
+@@ ASM: rol.b rd8, rd9, 1
+rol.b rd8, rd9, 1
 
-@@ @src ror.o_orri_rd 40648241 | SimRISC-04 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 40 64 82 41{{.*}}ror.o
-@@ ASM: ror.o rd8, rd9, 1
-ror.o rd8, rd9, 1
+@@ @src rol.o_orri_rd 40648241 | SimRISC-04 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 40 64 82 41{{.*}}rol.o
+@@ ASM: rol.o rd8, rd9, 1
+rol.o rd8, rd9, 1
 
-@@ @src ror.t_orri_rd 41648241 | SimRISC-08 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 41 64 82 41{{.*}}ror.t
-@@ ASM: ror.t rd8, rd9, 1
-ror.t rd8, rd9, 1
+@@ @src rol.t_orri_rd 41648241 | SimRISC-08 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 41 64 82 41{{.*}}rol.t
+@@ ASM: rol.t rd8, rd9, 1
+rol.t rd8, rd9, 1
 
-@@ @src ror.w_orri_rd 42648241 | SimRISC-09 §Bit manipulating：位操作指令
-@@ OBJ: {{[0-9a-f]+:}} 42 64 82 41{{.*}}ror.w
-@@ ASM: ror.w rd8, rd9, 1
-ror.w rd8, rd9, 1
+@@ @src rol.w_orri_rd 42648241 | SimRISC-09 §Bit manipulating：位操作指令
+@@ OBJ: {{[0-9a-f]+:}} 42 64 82 41{{.*}}rol.w
+@@ ASM: rol.w rd8, rd9, 1
+rol.w rd8, rd9, 1
 
 @@ @src shl.b_orri_rd 43608241 | SimRISC-10 §Bit manipulating：位操作指令
 @@ OBJ: {{[0-9a-f]+:}} 43 60 82 41{{.*}}shl.b

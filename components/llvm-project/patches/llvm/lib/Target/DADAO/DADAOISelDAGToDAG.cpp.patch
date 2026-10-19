@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..e1ee0b301
+index 000000000..e2ad3b19c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 @@ -0,0 +1,549 @@
@@ -386,7 +386,7 @@ index 000000000..e1ee0b301
 +      Base = CurDAG->getMachineNode(DADAO::JT_ADDR, DL, MVT::i64, TargetJT);
 +    }
 +
-+    SDNode *Scaled = CurDAG->getMachineNode(DADAO::shl_uo_orri, DL, MVT::i64,
++    SDNode *Scaled = CurDAG->getMachineNode(DADAO::shl_o_orri, DL, MVT::i64,
 +                                            Index, Scale);
 +    SDNode *Addr = CurDAG->getMachineNode(DADAO::add_o_bbd, DL, MVT::i64,
 +                                          SDValue(Base, 0), SDValue(Scaled, 0));

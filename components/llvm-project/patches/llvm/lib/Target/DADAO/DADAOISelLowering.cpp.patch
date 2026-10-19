@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..32253cfdc
+index 000000000..92d907fc5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1871 @@
+@@ -0,0 +1,1895 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -416,18 +416,23 @@ index 000000000..32253cfdc
 +  // then aborts with "Cannot select: i64 = bswap".
 +  setOperationAction(ISD::BSWAP, MVT::i64, Expand);
 +
-+  // Rotates (LLVM-099t; ISS-222 ③ / SPEC-141t).  The ISA has no rotate
-+  // instruction (contract-isa.md §6.4 carries no rotl/rotr op; the rotate
-+  // proposal in SPEC-141t is still unimplemented), so both must be `Expand`.
-+  // Without an explicit action they default to `Legal`, the DAG reaches ISel
-+  // as `i64 = rotl` and aborts with "Cannot select" -- which is what broke
-+  // musl's crypt_sha512.c (`ror(n,k)` becomes ROTL) and sigdelset.c.  AArch64
-+  // (AArch64ISelLowering.cpp:716-720) and RISCV without Zbb
-+  // (RISCVISelLowering.cpp:441-443) expand them for the same reason:
-+  // TargetLowering::expandROT lowers a rotate to
-+  // `x << (k & 63) | x >> (-k & 63)`, i.e. shl/srl/and/or/sub, all of which
-+  // this backend selects.
-+  setOperationAction({ISD::ROTL, ISD::ROTR}, MVT::i64, Expand);
++  // Rotates (ADR-0032 D4, amended 2026-10-19: `ror` -> `rol`; LLVM-116t;
++  // supersedes the LLVM-099t `Expand` decision, whose premise -- "the ISA has
++  // no rotate instruction" -- no longer holds: `rol.o/t/w/b` exist at
++  // 010-001 / 011-001).  Measured with llc -O2:
++  //   * ISD::ROTL i64 -> `rol.o` (DADAOCodeGen.td): constant amount = 1
++  //     instruction (orri), variable amount = 1 instruction (orrr).
++  //   * ISD::ROTR i64 -> Custom below: rotr(x,n) = rol(x, (W-n) mod W).  The
++  //     rol.o register form already takes the amount modulo W (low log2(W)
++  //     bits), so a two's-complement negation (`sub.o rd, rd0, n`, one
++  //     instruction) suffices; a constant amount is folded here to the
++  //     one-instruction immediate form.  LLVM-099t's `Expand` emitted the
++  //     generic shl/srl/and/or sequence (5 instructions constant, 7 variable).
++  //   * Narrow types (i32/i16/i8): DAGTypeLegalizer::PromoteIntRes_ROT expands
++  //     the rotate to i64 shifts before ISel, so rol.t/w/b remain MC-only and
++  //     narrow rotates stay semantically correct.
++  setOperationAction(ISD::ROTL, MVT::i64, Legal);
++  setOperationAction(ISD::ROTR, MVT::i64, Custom);
 +
 +  // i128 shifts by a variable amount (INFRA-079t; ADR-0027 D3).  i128 is split
 +  // into two i64 halves, and DAGTypeLegalizer::ExpandIntRes_Shift produces
@@ -1367,6 +1372,25 @@ index 000000000..32253cfdc
 +    return LowerBR_JT(Op, DAG);
 +  case ISD::BRIND:
 +    return LowerBRIND(Op, DAG);
++  case ISD::ROTR: {
++    // ADR-0032 D4 (as amended: `rol`) / LLVM-116t: rotr(x,n) = rol(x, (W-n)
++    // mod W).  The custom action is declared in the constructor.
++    const SDLoc DL(Op);
++    const EVT VT = Op.getValueType();
++    const unsigned W = VT.getSizeInBits();
++    SDValue X = Op.getOperand(0);
++    SDValue Amt = Op.getOperand(1);
++    if (auto *C = dyn_cast<ConstantSDNode>(Amt)) {
++      const unsigned Rot = (unsigned)C->getAPIntValue().urem(W);
++      const unsigned Inv = Rot == 0 ? 0 : W - Rot;
++      return DAG.getNode(ISD::ROTL, DL, VT, X, DAG.getConstant(Inv, DL, VT));
++    }
++    // Two's-complement negation has exactly the low log2(W) bits of
++    // (W - n) mod W, which is what the rol register form consumes.
++    SDValue Neg =
++        DAG.getNode(ISD::SUB, DL, VT, DAG.getConstant(0, DL, VT), Amt);
++    return DAG.getNode(ISD::ROTL, DL, VT, X, Neg);
++  }
 +  case ISD::SHL_PARTS:
 +  case ISD::SRL_PARTS:
 +  case ISD::SRA_PARTS: {
