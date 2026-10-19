@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0018`（`C7 D2`/`D3`/`D6` 的决定源；**architect 已于 2026-10-19 就地修订**，见 `.tao/adr/adr-0018-m3-codegen-choices.md`「C7 D6（rev. 2026-10-19）」+「## 修订」）、`LLVM-110t`（实现面，**同批**；两册合并前不得让契约与后端长期不一致）、`SPEC-128t`（2026-10-09 把 FP 由 `rb2` 迁 `rb63`，本册回退其寄存器选择）
-**状态**：待验收
+**状态**：已验证
 
 ## 用户授权（原话逐字，渠道 = 经主会话问答，2026-10-19）
 
@@ -121,3 +121,21 @@
 
 - 档位：**正常提交**（`**状态**` = `待验收`，尚未 reviewer 判决 ⇒ 按提示词指定为正常档）；开工分支 `SPEC-150t` 提交 `45a6de3`，`--ff-only` 落 `master` 后删分支；**未 push**（`origin/master` 仍 `5efb7ca`）。
 - 文件集对账（显式 staging 8 项，禁 `git add -A`）：完成区「修改文件」5 项规范/契约/锁（`spec/DADAO-21` / `contract-abi` / `contract-dynlink` / `contracts/abi.yaml` / `manifests/spec-readonly.lock.toml`）+ 本册 + 台账 2（`.tao/knowledge/milestones.md`、`INTEG-036m`）= 逐条对齐；`.work/evidence/SPEC-150t/run.sh` 由 `.gitignore` 排除、不入库（已披露）；**无漏提 / 无多提 / 无越界**。
+
+### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑记录**：
+- `git grep -n 'rbfp\|rbgp' -- spec/ .tao/contracts/ contracts/` = **0 命中**（rc=1）✓。
+- `contracts/abi.yaml` 核验：`frame_pointer: rb2` ✓、`frame_pointer_optional: false` ✓、`allocatable.rb` 末段 `[32,63]` ✓、`callee_saved.rb` 行 `[32,63]` ✓、`rb2` 行 `role: frame_pointer` / `callee_saved: true` / 无 `abi_name` ✓、`non_allocatable` rb2 原因 `frame_pointer` ✓、`get_frame_register: "hasFP ? rb2 : rb1"` ✓、`frame_pointer_always_reserved: true` ✓、`param_overflow_base: "rb2 + 8"` ✓。
+- `spec/DADAO-21` §1.2 表：rb2 = frame pointer / ABI 名空 / Callee-saved Yes / 无条件保留无别名 ✓；rb63 独立行已删 ✓；rb32–rb63 连续 callee-saved ✓。
+- `bash .work/evidence/SPEC-150t/run.sh` default = **rc=0**（C1–C9 全 PASS）✓。
+- `check-milestones-fresh` rc=0 ✓；`check-spec-readonly` rc=0 ✓；`check-spec-changelog` rc=0 ✓；`check-knowledge-refs` rc=0 ✓；`check-no-residue` rc=0 ✓；`check_issues.py` rc=0 ✓。
+
+**约束核验**：
+- ① 别名清零：`rbfp`/`rbgp` = 0 处 ✓
+- ② FP 号一致：`get_frame_register`/`getFrameRegister` = `hasFP ? rb2 : rb1` ✓
+- ③ 连续池：`allocatable.rb` `[32,63]`、`callee_saved.rb` `[32,63]`、rb63 无条件式特例 ✓
+- ④ 可达 FAIL：3 类注入（spec 残留 rbfp / get_frame_register 回 rb63 / allocatable 回 [32,62],[63,63]）均 FAIL、cp+md5 还原回绿 ✓
+- ⑤ ADR-0018 未动：`git diff --name-only 45a6de3^..45a6de3` 无 `.tao/adr/adr-0018*` ✓
+
+**判决**：**Accepted** — rbfp/rbgp = 0、rb2=FP 无条件保留、rb32–rb63 连续池、abi.yaml 四层一致、门控全绿（L1 未重跑，仅重跑秒级门控 + 证据脚本）。

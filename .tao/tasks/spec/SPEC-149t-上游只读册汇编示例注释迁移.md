@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`SPEC-147t`（规范面 0.5.3 已落地，本册迁移上游只读册示例）；`LLVM-109t`（`CommentString`/`SeparatorString` 实现，**不必等**；但示例要「真能编」须与其同批落地，见「与 LLVM-109t 的先后」）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -401,4 +401,22 @@ L127 | ; 等价的标准写法 | @@ 等价的标准写法
 - finding 3（锁注记含任务号 vs 派单“不写任务号”）：❌不修。任务书判据明确“不新增变更记录段/不触碰附录”，故 spec 附录零改动；锁文件既有变更注记体例含任务号（如既有 SPEC-134t/142t 条目），保留以维持可追溯。
 - finding 4（`check-spec-codeblocks` 不识别 `@@` 注释）：⏸延后。属该门控自身能力缺口，本册未授权改门控；已记入完成区“新发现②”，本册 rc=0。
 - finding 5（SimRISC-04/07 占位寄存器不能汇编）：⏸延后。`rdHB/rdHC/rdHD` 为文档示意，非迁移引入；7/8 抽样通过，失败项已如实记录。
-- finding 6（最终 `make check` rc=2）：⏸延后（外部）。`.work/source/llvm-project` 被并发任务改动，非本任务文件；已保留现场并登记完成区“遗留问题”，未用 `checkout/restore`。
+- finding 6（最终 `make check` rc=2）：⏸延后（外部）。`.work/source/llvm-project` 被并发任务改动，非本任务文件；已保留现场并登记完成区"遗留问题"，未用 `checkout/restore`。
+
+### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑记录**：
+- `git diff --histogram --numstat 886bb06^..886bb06 -- spec/*.md` = 11 文件，逐册：DADAO-11 23/23、DADAO-22 181/181、DADAO-23 6/6、SimRISC-03 50/50、SimRISC-04 27/27、SimRISC-06 1/1、SimRISC-07 2/2、SimRISC-08 1/1、SimRISC-09 1/1、SimRISC-10 1/1、SimRISC-11 5/5 = **298+298** ✓；默认 Myers numstat = 303+303（SimRISC-03/04 共 5 行完全相同空行，属 git 已知行为，非内容漂移）。
+- `git grep '^[[:space:]]*;' -- 'spec/*.md'` = 仅 DADAO-12 **6** 处（伪代码块 `if/case/goto` + `//` 与 `;` 混用注释，按判据不改）✓。
+- C 块未动：`git diff 886bb06^..886bb06 -- spec/DADAO-21-ABI-*.md spec/SimRISC-02-*.md` = 空（无 diff）✓。
+- `bash .work/evidence/SPEC-149t/run.sh`：11 册逐行不变量全 PASS（298 行 changed-line-set + line-invariants + simrisc-residual-semicolon + line-count-vs-baseline）；3 处注入（C 分号误改/回退迁移行/改行尾）均 FAIL、cp+md5 还原后回绿 ✓。full invariant 段 3 FAIL = DADAO-21 被 SPEC-150t/151t 同批改动（跨任务干扰），非本册缺陷。
+- `make check-spec-readonly` rc=0 ✓；`make check-spec-changelog` rc=0 ✓；`check-milestones-fresh` rc=0 ✓；`check-knowledge-refs` rc=0 ✓；`check-no-residue` rc=0 ✓；`check_issues.py` rc=0 ✓。
+
+**约束核验**：
+- ① 11 册 298 行精确：histogram numstat 逐册与清单一致 ✓
+- ② C 分号/伪代码块未动：DADAO-21/SimRISC-02 零 diff、DADAO-12 残留 6 处 ✓
+- ③ `;`→`@@` 仅首个分号：证据脚本逐行断言 old 首个 `;`→`@@`、其余字符逐字不变 ✓
+- ④ 只读锁：仅 11 册 sha256 变化 ✓
+- ⑤ 可达 FAIL：3 处注入均 FAIL、cp+md5 还原回绿 ✓
+
+**判决**：**Accepted** — 298 行迁移逐行验证通过、禁区零改动、门控全绿（L1 未重跑，仅重跑秒级门控 + 证据脚本；理由：纯文档任务，代码未变）。

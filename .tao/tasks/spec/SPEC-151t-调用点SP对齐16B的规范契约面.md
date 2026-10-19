@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0018`（**`C9 D3` 已由 architect 于 2026-10-19 就地修订**，用户原话见下；本册只核对、不重复改 ADR）、`LLVM-112t`（实现面，**同批**；两册落地前契约与后端不得长期不一致）、`ADR-0031 D7`（16 B 栈值对齐的既有依据；SP 16 B ⇒ 其条件不再依赖「相对基址取整」）、`SPEC-150t`（同改 `spec/DADAO-21` 与只读锁；**串行**，后落地者按现场重算 `sha256`）
-**状态**：待验收
+**状态**：已验证
 
 ## 用户授权（原话逐字；渠道 = 经主会话问答，2026-10-19）
 
@@ -129,8 +129,26 @@
 **自审补充**：无越界文件（`git status -uall` = spec/契约/yaml/lock 4 个内容文件 + 本册）；未改实现、未改 ADR、未改 `**状态**`、未 `add/commit/push`。
 
 
-#### 第 1 轮 reviewer 验收
-（待执行）
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑记录**：
+- `contracts/abi.yaml`：`stack_alignment: 16` ✓、`call_sp_alignment: 16` ✓、`stack_natural_alignment_bits: 128` 不变 ✓、`version: "0.9.2"` 不变 ✓。
+- `spec/DADAO-21 §3.2.4`（:258）：`call 指令执行时 sp 必须 16 字节对齐` ✓；变参保存区措辞「每个保存槽 8 字节、按 8 字节槽宽排列（不要求 16 字节对齐）」✓。
+- `git grep -n '8 字节对齐' -- spec/DADAO-21-ABI-*.md` = 2 处（:115 数据对齐 / :247 槽宽），均属保留项 ✓；`git grep -n '16 字节对齐' -- spec/DADAO-21-ABI-*.md` = 6 处（:117/:240/:258/:260/:409/:411），覆盖所有 call 时 SP 断言 ✓。
+- `bash .work/evidence/SPEC-151t/run.sh` default = **rc=0**（9/9 PASS）✓。
+- **独立注入**（SPEC-151t 判据要求）：`cp` 备份 DADAO-21（md5=9925bf5a…）→ sed :258「16 字节对齐」改「8 字节对齐」→ `run.sh` rc=1（4 FAIL：spec call 时 sp 期望=16 实际=8 / 8B 残留期望=0 实际=1 / lock sha256 不匹配 / 保留项缺失）→ `cp` 还原（md5=9925bf5a… 匹配）→ `run.sh` rc=0（9/9 PASS 回绿）✓。
+- `git status --porcelain -uall` = 干净（注入已还原）✓。
+- `check-milestones-fresh` rc=0 ✓；`check-spec-readonly` rc=0 ✓；`check-spec-changelog` rc=0 ✓；`check-knowledge-refs` rc=0 ✓；`check-no-residue` rc=0 ✓；`check_issues.py` rc=0 ✓。
+
+**约束核验**：
+- ① spec §3.2.4 call 时 SP = 16 字节 ✓；变参保存区 8 B 槽宽自洽 ✓
+- ② contract-abi §2.1/§2.2/§4.8/§4.9 全部 16 B ✓；写明无条件 `%16==0` ✓
+- ③ abi.yaml `stack_alignment`/`call_sp_alignment` = 16 ✓；其余字段零 diff ✓
+- ④ 只读锁 DADAO-21 sha256 = `7f2bb073…` 与现场一致 ✓
+- ⑤ 可达 FAIL：注入 spec §258 把 16→8 ⇒ 4 FAIL、cp+md5 还原回绿 ✓
+- ⑥ :115 数据对齐 / :247 槽宽 8B 未误改 ✓
+
+**判决**：**Accepted** — SP 16 B 四层一致（spec/contract-abi/abi.yaml/lock）、门控全绿、注入→FAIL→还原→回绿验证通过（L1 未重跑，仅重跑秒级门控 + 证据脚本）。
 
 #### 提交留痕（architect，2026-10-19）
 - **档位**：`WIP`（`**状态**` = `待验收`，reviewer 第 1 轮尚未执行）；开工分支 `SPEC-151t` 提交 `85b812b`，squash 落 `master` 为 `4cf137a`；分支已删；**未 push**。

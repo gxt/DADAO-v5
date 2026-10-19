@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M8
 **依赖**：`LLVM-105t`（`ISS-276` 登记源：`lencod` 现场）、`QEMU-063t`（同一现场：手工补 `Output/` 后与参考逐行一致）、`TESTCASES-048t`（`lencod` 用例载体与计数面）、`LLVM-101t`（`ISS-272` 证据脚本源）、`TESTCASES-047t`（`ISS-274` 证据脚本源）、`TESTCASES-050t`（驱动最近改动，避免冲突）、`INFRA-093t`（`--json-out` / `--work-dir` 新规矩）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-19）**：`testcases` 现存最大 = `TESTCASES-050t` ⇒ 取 **`051`**（`grep -rn 'TESTCASES-051' .tao/` 0 命中）。
 
@@ -77,4 +77,23 @@
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-#### 第 1 轮 reviewer 验收
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑记录**：
+- `grep -n 'CASE_PREPARE_DIRS' tools/testcases/run_llvm_ts_user.py` = 3 处（:463 定义 / :1565 注释 / :1568 使用）✓；`:463-465` 内容 = `{"MultiSource/Applications/JM/lencod": ("Output",)}` ✓。
+- `git diff --numstat 69686be^..69686be -- tools/testcases/run_llvm_ts_user.py` = **30 增 0 删**（纯新增，oracle/超时/known-fail/excluded 零改动）✓。
+- `/tmp/opencode/TESTCASES-051t/051t-all2.EXIT` = **EXIT=0** ✓；`051t-all2.out` 末行 = `TESTCASES-051t evidence: ALL GREEN` ✓。
+- ISS-276 证据：`051t-iss276.out` 全 PASS（static+dynamic 均 pass、Output/test.264+test_rec.yuv 非空、diff rc=0、fpcmp rc=0、ldecod 仍 pass、注入空表 ⇒ fail exit 244、cp+md5 还原回绿）✓。
+- ISS-272 证据：`051t-iss272.out` 全 PASS（IR-item-PASSes=1、injection-FAILs=1、injection-restored-green=1、md5-restore=1、failure-set=known-stale-set、old-asm-criterion-removed=absent）✓。
+- ISS-274 证据：`051t-all2.out` 中 ISS274 注入 1–6 全 PASS ✓。
+- `check-milestones-fresh` rc=0 ✓；`check-knowledge-refs` rc=0 ✓；`check-no-residue` rc=0 ✓；`check_issues.py` rc=0 ✓。
+- **未跑 L1**（`make check`）：任务书完成区已披露唯一红项 = `check-musl-freshness`（toolchain stamp 既有环境项，非本册改动）；驱动改动纯新增 30 行，不触碰 spec/contracts/components。
+
+**约束核验**：
+- ① lencod 两档 pass：static+dynamic 均 exit 0、Output 文件存在、diff rc=0 ✓
+- ② 驱动改动仅新增目录预建：30 增 0 删、oracle/超时/known-fail/excluded 零改动 ✓
+- ③ ISS-272 改 IR 层断言：phi+load ptr 断言 PASS、注入修前形态 FAIL、cp+md5 还原回绿 ✓
+- ④ ISS-274 三处修：audit 作用域/ADR-0030 依据/ipc_msg exit=0，注入 1–6 全 FAIL→还原回绿 ✓
+- ⑤ `--json-out`/`--work-dir` 迁移：证据脚本内所有调用显式带两参数 ✓
+
+**判决**：**Accepted** — lencod 两档 pass、ISS-272 IR 断言、ISS-274 三处修均验证通过、51/51 ALL GREEN、注入→FAIL→还原→回绿。L1 未重跑（已披露 check-musl-freshness 为既有环境项）。
