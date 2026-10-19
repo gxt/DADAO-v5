@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
 new file mode 100644
-index 000000000..73e4adc7c
+index 000000000..8c8d25e78
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOFrameLowering.cpp
-@@ -0,0 +1,491 @@
+@@ -0,0 +1,494 @@
 +//===-- DADAOFrameLowering.cpp - DADAO Frame Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -117,7 +117,7 @@ index 000000000..73e4adc7c
 +  MachineFrameInfo &MFI = MF.getFrameInfo();
 +  // PEI has already assigned object offsets; this hook finalizes the layout.
 +  // The frame size must be a multiple of the stack alignment so that SP stays
-+  // 8-byte aligned at calls (contract-abi.md §2.2).
++  // 16-byte aligned at calls (contract-abi.md §2.2, ADR-0018 C9 D3).
 +  Align StackAlign = std::max(getStackAlign(), MFI.getMaxAlign());
 +  uint64_t StackSize = MFI.getStackSize();
 +  if (hasFP(MF)) {
@@ -126,13 +126,16 @@ index 000000000..73e4adc7c
 +    // for it anymore, and PEI assigned the object offsets starting at 0, so the
 +    // whole object area is 8 bytes too high and would overlap that slot.
 +    //
-+    // Re-derive the offsets exactly as PEI would with an 8-byte local area:
++    // Re-derive the offsets exactly as PEI would with an 8-byte saved-FP slot:
 +    // walk the objects in allocation order (PEI assigns them sequentially
 +    // downwards, so descending current offsets) and re-place each one from
 +    // Offset = 8.  This is byte-for-byte the pre-LLVM-110t layout (same object
-+    // offsets, same StackSize), including objects whose alignment is > 8 (a
-+    // plain `offset -= 8` would break those).  Must run before anything
-+    // resolves a frame index / reads a slot; emitPrologue is the only caller.
++    // offsets), including objects whose alignment is > 8 (a plain
++    // `offset -= 8` would break those).  The *total* frame size is then
++    // rounded up to the 16-byte stack alignment below, so the objects need not
++    // move: only SP (= entry SP - StackSize) is affected.  Must run before
++    // anything resolves a frame index / reads a slot; emitPrologue is the only
++    // caller.
 +    SmallVector<int, 16> Objects;
 +    for (int FI = MFI.getObjectIndexBegin(); FI < MFI.getObjectIndexEnd();
 +         ++FI) {

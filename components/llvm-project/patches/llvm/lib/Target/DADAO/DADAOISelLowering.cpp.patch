@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..aac760957
+index 000000000..32253cfdc
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1879 @@
+@@ -0,0 +1,1871 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -636,12 +636,10 @@ index 000000000..aac760957
 +/// rule at run time (parity of rd_next + rd_left and alignment of va.stack).
 +template <typename ArgT>
 +uint64_t reassignDADAOArgLocs(ArrayRef<ArgT> Args,
-+                              SmallVectorImpl<CCValAssign> &Locs,
-+                              bool *HasStack16 = nullptr) {
++                              SmallVectorImpl<CCValAssign> &Locs) {
 +  assert(Args.size() == Locs.size() && "argument/location count mismatch");
 +  unsigned NextSlot[3] = {16, 16, 16};
 +  uint64_t StackOff = 0;
-+  bool Stack16 = false;
 +
 +  for (unsigned I = 0, E = Locs.size(); I != E;) {
 +    // f128 halves are not tagged with InConsecutiveRegs (fp128 is a scalar
@@ -676,7 +674,6 @@ index 000000000..aac760957
 +        Locs[I].convertToMem(StackOff);
 +        Locs[I + 1].convertToMem(StackOff + 8);
 +        StackOff += 16;
-+        Stack16 = true;
 +      }
 +      I += 2;
 +      continue;
@@ -737,7 +734,6 @@ index 000000000..aac760957
 +      // Larger groups, HFA and HPA keep the plain 8-byte slot packing.
 +      if (Pair) {
 +        StackOff = alignTo(StackOff, 16);
-+        Stack16 = true;
 +      }
 +      for (unsigned K = 0; K < Count; ++K)
 +        Locs[I + K].convertToMem(StackOff + 8 * K);
@@ -746,8 +742,6 @@ index 000000000..aac760957
 +    }
 +    I = J + 1;
 +  }
-+  if (HasStack16)
-+    *HasStack16 = Stack16;
 +  return StackOff;
 +}
 +
@@ -1053,9 +1047,8 @@ index 000000000..aac760957
 +  CCInfo.AnalyzeCallOperands(markF128Halves<ISD::OutputArg>(Outs), CC_DADAO);
 +  // Whole-group re-assignment (ADR-0031 D4/D6); this also yields the final
 +  // stack size (the generic CC counted the pieces one by one).
-+  bool HasStack16 = false;
 +  const uint64_t ArgStackSize =
-+      reassignDADAOArgLocs<ISD::OutputArg>(Outs, ArgLocs, &HasStack16);
++      reassignDADAOArgLocs<ISD::OutputArg>(Outs, ArgLocs);
 +
 +  // Real tail call (LLVM-074t; contract-isa.md §8.3/§8.4, contract-abi.md
 +  // §2.3/§4.6).  DADAO has no tail-call instruction, but it does have a plain
@@ -1200,12 +1193,11 @@ index 000000000..aac760957
 +  // The caller writes no variadic save area (ADR-0031 D2): the callee
 +  // snapshots the argument registers itself, so a variadic call is an ordinary
 +  // call whose only extra memory is the usual shared overflow stack area.
-+  // ADR-0031 D7: when a 16-byte value lives in that area, round the area size
-+  // up to 16 bytes so that the values stay 16-byte aligned relative to SP
-+  // (the size is otherwise left untouched, so 8-byte-only calls are unchanged;
-+  // the callee's ArgStackSize is the va_start offset and must stay exact).
-+  const uint64_t NumBytes =
-+      HasStack16 ? alignTo(ArgStackSize, 16) : ArgStackSize;
++  // ADR-0031 D7 / ADR-0018 C9 D3 (contract-abi.md §2.2): every `call` executes
++  // with SP 16-byte aligned, so the caller-side outgoing area always rounds up
++  // to 16 bytes.  The value is the *call frame* size only: the callee's
++  // ArgStackSize is the va_start offset and stays exact (LLVM-111t F3).
++  const uint64_t NumBytes = alignTo(ArgStackSize, 16);
 +  Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, DL);
 +
 +  SmallVector<std::pair<Register, SDValue>, 8> RegsToPass;

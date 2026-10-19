@@ -30,7 +30,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| LLVM-112t | 待开始 | 2026-10-19 12:42（登记） | SP 对齐 16 B 实现+全链复验：Align(16)、crt1/musl/setjmp 核对、探针 8 项、install-host、L2/L3、三套两档 |
+| LLVM-112t | 待验收 | 2026-10-19 12:42（登记） | SP 对齐 16 B 实现+全链复验：Align(16)、crt1/musl/setjmp 核对、探针 8 项、install-host、L2/L3、三套两档 |
 | SPEC-151t | 待验收 | 2026-10-19 12:42（登记） | SP 对齐 8→16 B 规范面：DADAO-21 §3.2.4、contract-abi §2/§4.8/§4.9、abi.yaml、只读锁；ADR-0018 C9 D3 已落 |
 | LLVM-111t | 待验收 | 2026-10-19 12:08（登记） | 16 B 栈对齐补齐（f128/2 块 RD 组）：caller/callee/va_arg 同规则取整；8 B 基线不变；ISS-275 落点 |
 | INFRA-093t | 已验证 | 2026-10-19 10:31 | 三驱动 `--json-out` 必填 + 独立 run 目录三件套 + L1 `check-run-artifacts`（A1–A3/self-test/注入）；`Process-08` 规范 |

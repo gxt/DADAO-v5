@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`SPEC-151t`（规范/契约面，**同批**；本册实现前其 16 B 口径须已落地或同批落地）、`ADR-0018 C9 D3`（**architect 已于 2026-10-19 就地修订**；用户原话见下）、`ADR-0031 D7`（16 B 栈值对齐；SP 16 B ⇒ 绝对 `%16==0` 无条件成立）、`LLVM-111t`（16 B 相对取整已落；本册在其上把**基址**钉成 16 B）、`LLVM-110t`（FP=`rb2`、`rb63` 普通 callee-saved 的现行帧布局；本册不得回退）
-**状态**：待开始
+**状态**：待验收
 
 ## 用户授权（原话逐字；渠道 = 经主会话问答，2026-10-19）
 
@@ -126,16 +126,37 @@
 8. 完成区贴真实命令/退出码/关键输出（不转述）；用户授权原话原样写入。
 
 ## 完成区
-**测试结果**：
+**测试结果**：探针 **8/8 PASS**（P1 f128 变参、P2agg S16/S12、Pva va_start 游标、Pcallsp 八类调用点、Pcallsp-fp/P5、Pvla alloca/VLA、Psetjmp、Pframe 帧取整；静态+动态入口；全部不再钉 16 B 基址）。P7 8 B-only 语义：stdout 与改前基线逐字节相同、exit 0（汇编仅帧大小差异，24 行 diff）。**lit 114/114**、`check-lit-full` 12/12；**046t static 38/38**（19 bench × O0/O2）；**047t static 10/10、dynamic 10/10**（含 5 个 `long double`）。`build-musl` rc=0（8 s）、`build-musl-shared` rc=0（5 s）、`check-musl-freshness` PASS——**但二者用安装根旧 clang**，未验新编译器产物（见遗留）。
 **修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- `components/llvm-project/patches/llvm/lib/Target/DADAO/{DADAOFrameLowering.h,DADAOFrameLowering.cpp,DADAOISelLowering.cpp}.patch`（3 份改；`series` 仍 82）
+- `components/llvm-project/changelog.md`（本册条目）
+- `tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（`gen_isa_coverage.py` 重派生：行号漂移 + 删除死参数）
+- `.work/evidence/LLVM-112t/{run.sh,src/*,baseline/*}`（新增）
+- `.work/source/llvm-project`（3 源文件 amend 进本地 `dadao: llvm-project patch series`；E1 = base+1、worktree clean）
+**验收结果**：`ninja -C .work/build/llvm clang llc` rc=0（首轮 257 s、NumBytes 改动后 235 s、去死参后增量 ~4 min）；`check-patch-tree` **rc=0，181 patches OK**；`check-source-state` rc=0；`check-instrinfo`/`check-index-blobs`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-issues`/`check-isa-coverage`/`check-milestones-fresh`/`make check`(L1) 全 rc=0。证据脚本 `run.sh` **rc=0**；`--inject` rc=0（4 处 tamper 真实 FAIL→还原回绿）；`--inject-align8` rc=0（真回滚 `Align(8)`→重建→Pframe `sp%16==8` FAIL→还原→重建→绿）；`--inject-numbytes` rc=0（`NumBytes=ArgStackSize`→重建→P5 FAIL→还原→绿）。
+**新发现/坑**：① 探针 asm 的 `ret rd8, 0` 会把 rd8 **置 0**（`ret rdHA, imms18` 是赋值形态），必须用 `ret rd0, 0` 保留返回值，否则栈实参读取恒为 0。② 仅删掉锚点后 P1 在旧编译器下**偶然通过**（帧大小恰好 16 倍数）——`Align(8)` 的真失败面须用 Pframe（单个 8 B 对象 + `-fomit-frame-pointer`）；本次 `align8` 回滚中 Pcallsp 仍绿、Pframe 才红。③ FP + 奇数个 8 B 栈实参是 `NumBytes` 的真实缺口（回滚实验 P5 红）；SP-only 帧由 `Align(16)` 自动覆盖。④ 本目标默认 `-O2` 仍生成 FP（未 `-fomit-frame-pointer`）。⑤ build-tree 的资源目录 builtins 陈旧（缺 `__eqtf2` 等），用 build-tree clang 跑套件需 shim 只把 `-print-libgcc-file-name` 指回安装根。⑥ lit E2E 的 qemu 解析要求 `LLVM_TOOLS_DIR` 指向扁平 symlink 目录（`tools_dir/../qemu`）。
+**遗留问题**：① `install-host` 后须复验：`build-musl`/`build-musl-shared` 用**新** clang 重建 + `check-musl-freshness`；046/047 **全量**两档、048t A 类 222、L2/L3、全量 lit。② 048t 未跑（本册派单未含）。③ 本笔**未** `install-host`/L2/L3，**未** commit/push 主仓，**未**改 `**状态**`。
+
+**安装根 + 全量复跑（2026-10-19 15:56）**：`install-host` rc=0（14:21 起）、`build-musl-shared` rc=0、`check-musl-freshness` PASS；全量复跑 `046t` **38/38 + 38/38**、`047t` **309/0/4/24 + 312/0/4/21**、`048t` **201/3/0/16/2**（两档一致，`lencod` 转 pass），结果落 `.work/tests/authoritative/`（主会话现场，本行不替代 L2/L3；L2/L3 由主会话另跑）。
+
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待执行）
+逐行审查 `DADAOFrameLowering.h/.cpp`、`DADAOISelLowering.cpp::LowerCall`/`reassignDADAOArgLocs` 及探针源码/证据脚本，findings 与处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 探针 callee 用 `ret rd8, 0`，而 `ret rdHA, imms18` 是**赋值**形态 ⇒ rd8 被清 0，栈实参断言假红 | ✅已修 | `callees.S` 改 `ret rd0, 0`（保留 rd8） | Pcallsp odd/even 值断言回绿（`bad=0`） |
+| 去掉 16 B 锚点后，P1 在旧（`Align(8)`）编译器下**偶然**通过（帧大小恰为 16 倍数）⇒ 无法证明核心改动 | ✅已修 | 新增 `Pframe.c`（单个 8 B 对象 + `-fomit-frame-pointer`）并纳入默认/回滚模式 | `--inject-align8`：Pframe `sp1/sp2=…c8` FAIL，还原后 PASS |
+| `--inject-align8` 的 sed 替换漏写前导 `/`，把源行改坏 ⇒ 重建 rc=1、探针用旧二进制假绿 | ✅已修 | 替换串补 `\/\*`；并保留“重建 rc≠0 即 FAIL”的断言 | 重跑 `--inject-align8`：两次重建 rc=0、探针先 FAIL 后 PASS |
+| `HasStack16` 在 `NumBytes` 无条件取整后成为死出参/死变量（维护陷阱） | ✅已修 | 删除模板参数与 `Stack16` 跟踪；两处调用点同步 | `ninja` rc=0；`check-patch-tree` 181 OK；默认证据脚本全绿 |
+| 探针 `first_bad` 在 `bad` 已被值检查置位时不记录 SP 失败（诊断误导） | ✅已修 | `first_bad` 改 NULL 初始化 + `!first_bad` 判定 | 回滚日志正确打印 `first_bad=8-byte-object-frame` |
+| `NumBytes` 无条件取整会改变 SP-only 帧大小（最多 +8 B，ABI 布局允许变化） | ❌不修（设计内） | — | P7 8 B-only 语义逐字节不变、046/047 pass/fail 不变；布局变化已披露 |
+| 大帧 `emitAddImm` 分块可产生非 16 倍数的**中间** SP；只有最终值需 16 B | ❌不修（无中间调用） | — | 规范只约束 `call` 执行时；分块序列内无 `call` |
+
+自审判定：所有 finding 已处置，实现/探针/证据脚本与完成区真值一致；`**状态**` 按派单由主会话维护（本次未改）。
+
 
 #### 第 1 轮 reviewer 验收
 （待执行）
