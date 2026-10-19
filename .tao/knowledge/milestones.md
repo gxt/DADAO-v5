@@ -30,13 +30,13 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-113t | 已验证 | 2026-10-19 18:59 | i128↔f128 四转换 libcall 补齐（floattitf/floatuntitf/fixtfti/fixunstfti）；解 build-picolibc strtold 缺口（ISS-283） |
+| LLVM-114t | 已验证 | 2026-10-19 18:59 | f128 math libcall 补齐（floor/rint/round/trunc/log + latent sqrt/fma）；解 build-picolibc 余 12 个 libm/ld TU（ISS-283） |
 | LLVM-109t | 已验证 | 2026-10-19 18:50 | `CommentString=@@`/`SeparatorString=;`；101 文件 3684 行迁移 + 工具同步；补丁 181；组件 4 补丁漏项收口 |
 | LLVM-110t | 已验证 | 2026-10-19 18:50 | FP 回归 rb2（无条件保留）+ rb63 普通 callee-saved；删 FP 专用槽；setjmp 端口加 rb2 槽；探针 6 项 |
 | LLVM-111t | 已验证 | 2026-10-19 18:50 | 16 B 栈对齐补齐（f128/2 块 RD 组）：caller/callee/va_arg 同规则取整；8 B 基线不变；ISS-275 落点 |
 | LLVM-112t | 已验证 | 2026-10-19 18:50 | SP 对齐 16 B 实现+全链复验：Align(16)、crt1/musl/setjmp 核对、探针 8 项、install-host、L2/L3、三套两档 |
 | LLVM-115t | 待验收 | 2026-10-19 17:09（登记） | picolibc `__atold_engine` 接入：删 meson 过滤条目（2→1）；build/tests rc=0、pass 18/blocked 0、047t 5 例两档 pass、探针 11/11 |
-| LLVM-114t | 待验收 | 2026-10-19 16:35（登记） | f128 math libcall 补齐（floor/rint/round/trunc/log + latent sqrt/fma）；解 build-picolibc 余 12 个 libm/ld TU（ISS-283） |
-| LLVM-113t | 待验收 | 2026-10-19 16:12（登记） | i128↔f128 四转换 libcall 补齐（floattitf/floatuntitf/fixtfti/fixunstfti）；解 build-picolibc strtold 缺口（ISS-283） |
 | INFRA-094t | 待验收 | 2026-10-19 16:08（登记） | 修 L2/L3 两红：ir-lli 5 个 lit CodeGen 入 exclude（no-value-entry）；authoritative 补 6 个真跑目录+latest |
 | SPEC-151t | 待验收 | 2026-10-19 12:42（登记） | SP 对齐 8→16 B 规范面：DADAO-21 §3.2.4、contract-abi §2/§4.8/§4.9、abi.yaml、只读锁；ADR-0018 C9 D3 已落 |
 | INFRA-093t | 已验证 | 2026-10-19 10:31 | 三驱动 `--json-out` 必填 + 独立 run 目录三件套 + L1 `check-run-artifacts`（A1–A3/self-test/注入）；`Process-08` 规范 |

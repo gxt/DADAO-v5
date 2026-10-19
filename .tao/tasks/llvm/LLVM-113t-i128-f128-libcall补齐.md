@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-106t`（f128 算术/比较/转换 libcall 注册块；本册在其后补 i128 四型）、`LLVM-110t`（现场暴露 + 基线日志 `.work/log/llvm/LLVM-110t-picolibc.log`）、`LLVM-112t`（16 B 栈对齐后的安装根基线；其 `install-host` 提供本册开工前工具链）、`ISS-283`（登记源；本册 = 落点）
-**状态**：待验收
+**状态**：已验证
 
 > **立册口径（2026-10-19，architect）**：这是 `ADR-0027`（compiler-rt builtins 接入）与 `ADR-0030`/`ADR-0031`（`long double` = binary128、f128 为合法类型）之后的**接线缺口补齐**，不是新决策、不改 ADR、不改契约。
 
@@ -148,7 +148,23 @@ fatal error: error in backend: unsupported library call operation
 **状态对账**：源码 finding 全部已修；`build-picolibc` 红属**范围外其它类 libcall**（任务要求停下报告），故按派单**未改 `**状态**`**。
 
 #### 第 1 轮 reviewer 验收
-（待填写）
+
+**重跑记录**：
+- 证据脚本 default：**21/21 PASS**，rc=0（oracle 19 值、probe link/run/diff、4 汇编符号各≥1、4 archive T、lit PASS）。
+- 证据脚本 `--inject`：I2/I3 通过（篡改期望 diff FAIL、错误符号 FileCheck FAIL）；**I1 失败**（安装根 llc 已被 LLVM-115t `install-host` 刷新，stale 假设不再成立——engineer F4 已标注 ⏸延后）。I2/I3 仍有效注入，不算脚本缺陷。
+- 独立注入（reviewer）：从 `DADAOSubtarget.cpp` 删 `FLOOR_F128` 注册 → `ninja llc` 重建 → `floor.f128` 最小 IR **rc=134**（abort: "unsupported library call operation"）→ `cp` 还原 md5=`225e6834` → 重建 → `floor.f128` **rc=0** ✓。
+- 秒级门控：`check-patch-tree` **181 patches OK** rc=0；`check-milestones-fresh` **71 行** PASS rc=0。
+- **未跑 L1/L2/L3**（预算明确排除；L1 于 17:43 已绿、代码未变）。
+
+**约束核验**：
+1. 4 条枚举→符号注册：`git grep SINTTOFP_I128_F128` 源码 L174-177、补丁 L180-183 ✓。
+2. 四符号安装根 builtins archive 为 T：`llvm-nm` 确认 `__floattitf/__floatuntitf/__fixtfti/__fixunstfti` 均 T ✓。
+3. 四向 `llc` 不再 unsupported：证据脚本 lit-ir llc rc=0 + 汇编各符号≥1 ✓。
+4. 如实性抽查 ≥3：A1（`2^100+2^40` → f128 位模式 `40630...00100...0`）、F2（`-3.75` floor → `-4.0` = `c0010...0`）、C1（`3.75` fptosi → `3` = `0000...0003`）——与独立 f128 编码手算一致 ✓。
+5. 补丁 `check-patch-tree` 181 不变 ✓；`series` 条目数不变 ✓。
+6. 只动 `components/llvm-project/**` + `tests/llvm/lit/**` + 任务书 ✓；未越界。
+
+**判决**：**Accepted**。四项注册正确、符号 T 在 archive、探针 19/19 一致、lit PASS、注入 FAIL→回绿。I1 失效属环境漂移（install-host 后 llc 更新），非交付物缺陷，不阻塞。
 
 #### 提交留痕（architect，2026-10-19）
 - **档位**：正常档（按主会话指定提交信息；同 `LLVM-111t`/`LLVM-112t` 先例；`**状态**` = `待验收`，reviewer 第 1 轮尚未执行）。分支 `LLVM-113t` 提交 `6125957`；**未 push**。

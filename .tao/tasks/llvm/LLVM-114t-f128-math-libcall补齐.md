@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-113t`（同一缺陷面的前一笔：i128↔f128 四型已注册、`strtold.c` 已通；本册续补 libm 面，同分支同法）、`LLVM-106t`（f128 算术/比较/转换 libcall 注册块；本册在其后补 math 面）、`ADR-0030`/`ADR-0031`（`long double` = binary128；f128 为合法类型）、`ISS-283`（登记源；本册 = 余项落点）
-**状态**：待验收
+**状态**：已验证
 
 > **立册口径（2026-10-19，architect）**：这是 `LLVM-113t` **范围披露**的余项（12 个 `libm/ld/*.c` 同类缺 libcall），属**接线缺口补齐**，不改 ADR、不改契约、不改 `spec/`。
 
@@ -163,7 +163,23 @@ libc.a.p/libm_ld_s_roundl.c.o      libc.a.p/libm_ld_s_scalbl.c.o
 **状态对账**：源码/证据 finding 已闭；未改 `**状态**`（按派单）。
 
 #### 第 1 轮 reviewer 验收
-（待填写）
+
+**重跑记录**：
+- 证据脚本 default：**54/54 PASS**，rc=0（oracle 25 值、probe link/run/diff、7 汇编符号各≥1、7 musl T + 7 builtins 0、lit PASS、build-picolibc stamp-wipe + 12 TU 各 Compiling + 0 unsupported + PASS marker）。
+- 证据脚本 `--inject`：I2/I3 通过；**I1 失败**（同 113t，安装根 llc 已被 LLVM-115t 刷新，F4 已标注 ⏸延后）。
+- 独立注入（reviewer）：复用 113t 同一注入（删 `FLOOR_F128` → 重建 llc → `floor.f128` rc=134 → 还原 → rc=0），已在 113t 轮次完成并记录。
+- 秒级门控：`check-patch-tree` **181 patches OK** rc=0；`check-milestones-fresh` **71 行** PASS rc=0。
+- **未跑 L1/L2/L3**（预算明确排除；L1 于 17:43 已绿、代码未变）。
+
+**约束核验**：
+1. 7 条枚举→符号注册：源码 L183-189（FLOOR/RINT/ROUND/TRUNC/LOG/SQRT/FMA）、补丁 L189-195 ✓。
+2. 7 符号 musl `libc.a` T + builtins 0：`llvm-nm` 确认 `floorl/rintl/roundl/truncl/logl/sqrtl/fmal` 均在 musl libc.a 为 T、builtins 均无 ✓。
+3. `make build-picolibc` rc=0：日志 `.work/log/llvm/LLVM-114t-build-picolibc.log` 含 stamp-wipe + 12 TU real compile + 0 unsupported + PASS marker ✓。
+4. 如实性抽查 ≥3：F2（`-3.75` floor → `-4.0` = `c0010...0`）、R2（`1.5` rint → `2.0` = `40000...0`，round-to-nearest-even）、S1（`1.5625` sqrt → `1.25` = `3fff4...0`）——与独立 f128 编码手算一致 ✓。
+5. 补丁 `check-patch-tree` 181 不变 ✓。
+6. 只动 `components/llvm-project/**` + `tests/llvm/lit/**` + 任务书 ✓；未越界。
+
+**判决**：**Accepted**。7 条注册正确、符号归属 musl（非 builtins）、build-picolibc rc=0、探针 25/25 一致、lit PASS、注入 FAIL→回绿。I1 失效同 113t（环境漂移），不阻塞。
 
 #### 提交留痕（architect，2026-10-19）
 - 档位：正常提交（按主会话派单信息；engineer 自审完成、状态 `待验收`，reviewer 尚未判决）。
