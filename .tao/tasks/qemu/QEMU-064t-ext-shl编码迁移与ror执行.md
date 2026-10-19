@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M9
 **依赖**：`SPEC-152t`（编码真源：四表 + `contracts/opcodes.yaml`）、`LLVM-116t`（后端面收口；本册以其为前置以保证最终 L1/L2/L3 全绿）、`ADR-0032`（`Accepted`；`D1`–`D6`）、`QEMU-004t`（decodetree 生成器/校验器先例）、`QEMU-061t`（`insn.decode` 计数从记录派生、禁写死的先例）、`QEMU-062t`/`QEMU-063t`（`trans_*` 拆分与 user-mode 后端）、`docs/Process-01`（补丁树）、`ISS-229`/`ISS-210`（构建单写者 + `install-host`）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -114,16 +114,32 @@
 9. **计数不写死**：完成区给出「pattern 数 / `trans_*` 数 / 向量条数」的现场统计命令与数值，不使用硬编码期望。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：通过 18/18（`bash .work/evidence/QEMU-064t/run.sh` rc=0）+ 注入自检 12/12（`--inject` rc=0）；失败原因：无。
+- L3 `check-qemu-semantics` rc=0：**224/224**（现场统计 112+36+12+64；新增 `rol` 64 条）；`check-qemu-smoke` rc=0 **90/90**。
+- 注入：`rotl→rotr` ⇒ **219 passed / 5 failed**（全落 `rol.yaml`）；orri 越界守卫 `>7→>63` ⇒ **223 passed / 1 failed**（`rol.yaml[62]`）；`cp`+md5 还原后两次均 **224/224**。
+- 端到端：安装根 clang 编 `rol_e2e.c`（9 条 `rol.*`：o/t/w/b × orrr/orri + mod）→ `.work/build/qemu/qemu-dadao` rc=0。
+**修改文件**：`components/qemu/patches/target/dadao/insn.decode.patch`（生成器重导出，235→243 pattern）；`components/qemu/patches/target/dadao/insn_trans/trans_shift.c.inc.patch`（8 条 `shl.uo→shl.*` 改名 + 8 条 `trans_rol_*`）；`components/qemu/changelog.md`（`## M9`）；`tools/qemu/generate_rol_vectors.py`（新增）；`tests/vectors/rol/rol.yaml`（新增 64 条）；`Makefile`（L3 载体）；`tools/qemu/min_rom_probe_005t.py`、`tools/qemu/check_005t_coverage.py`（机械同步）。
+**验收结果**：`validate_decodetree` 243/243；`check_qemu_trans --strict` **243/243（M1 156/156）**；80 格 **0 不符**；`untouched` 9 identities/2 literals/20 moved/8 vacated **0 不符**；`check-patch-tree` 5 comp/**181** patches rc=0（2 份重写、数量不变）；`check-index-blobs` 131 new-file OK；`make check`(L1) rc=0 全绿；`check-interface`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-run-artifacts` 全 rc=0；`build-qemu JOBS=8` rc=0，8.9 s（增量）。
+**新发现/坑**：① `rol` 为 `scope:m9`，`tests/vectors/isa/*.yaml` 被 `validate_vectors` 强制 M1 id ⇒ 向量落 `tests/vectors/rol/`（`rev/`/`bitcnt/` 先例）并挂 L3 载体，非 `isa/`；② 安装根 qemu 未更新（禁 `install-host`）⇒ L2/L3 门控一律 `QEMU_BIN=.work/build/qemu/qemu-system-dadao`；③ Makefile 子目录载体需扁平化：`$$(notdir $$v)` 会调外部命令，改用 shell `basename`；④ `check-run-artifacts` A3 要求 `.work/log/**` 名 = `check-*.log` 或 `<TASK-ID>-*`；⑤ 迁移后 `min_rom_probe_005t.py` 的 `ext.so` orri `ha` 仍为旧 `0x19`（应为 `0x29`），已同步。
+**遗留问题**：无阻塞。未跑 `install-host`/`build-musl*`/`check-modules`/`check-full`（派发约束）；安装根 qemu 仍为旧版；7 条 `trans_shl_*` 窄位宽 `rdhb` 未用警告预存（非本次引入）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+
+**审查范围**：`trans_shift.c.inc` 8 条 `trans_rol_*` + 8 条改名、`insn.decode` 重生成、向量生成器/oracle、Makefile 载体、诊断工具同步。**判决**：可交付（finding 全处置）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 窄位宽直接 64 位 `rotl` 会把 bit31 旋到 bit32（W=32 错） | ✅已修 | 窄 rol 用 W 内双移位 `(x<<n)\|(x>>(W-n))` 后 mask W 位 | 64/64 rol PASS；注入 rotl→rotr 5 例 FAIL |
+| F2 6 条窄 rol `rdhb` 未用（新警告） | ✅已修 | 删窄 rol 的 `rdhb = load_rd(...)` | 重建无新增警告（仅 7 条预存 shl 警告） |
+| F3 `oracle.py` 的 `rotr` 未先 mask 到 W 位（12 条假错） | ✅已修 | `x &= mask` | `oracle.py` rc=0，64 条一致 |
+| F4 Makefile `$$(notdir $$v)` 调外部命令（rc=2） | ✅已修 | `$$(basename $$v)` + 源目录 `tests/vectors` | `check-qemu-semantics` rc=0 224/224 |
+| F5 `.work/log/**/evidence-*.log` 违反 A3（17 条） | ✅已修 | 统一 `QEMU-064t-*` | `check-run-artifacts` rc=0 |
+| F6 `rol` 为 m9 不能进 `isa/`（`validate_vectors` 检查 7） | ✅已决（披露） | `tests/vectors/rol/rol.yaml` + 载体 | `validate-vectors` rc=0；L3 224/224 |
+| F7 探针 `ext.so` orri `0x19`、`shl` `0x1C` 旧编码 | ✅已修 | `0x29`/`0x18` + 改名 | `py_compile`，grep 0 残留 |
+| F8 任务书正文仍写 `ror`（ADR-0032 `D4` 已修订为 `rol`） | ✅按 ADR/派发执行并披露 | 未改任务书正文 | 实现/向量/门控均按 `rol` |
+
 
 #### 第 1 轮 reviewer 验收
 （待填）

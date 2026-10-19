@@ -56,10 +56,10 @@ IMPLEMENTED_INSTRUCTIONS = {
     "and.o_orrr_rd", "or.o_orrr_rd", "xor.o_orrr_rd", "xnor.o_orrr_rd",
     # SPEC-069t: narrow logic (and/or/xor/xnor .t/.w/.b) deleted
     # reg-shift-extend
-    "shl.uo_orri_rd", "shl.uo_orrr_rd", "shr.uo_orri_rd", "shr.uo_orrr_rd", "shr.so_orri_rd", "shr.so_orrr_rd",
-    "shl.ut_orri_rd", "shl.ut_orrr_rd", "shr.ut_orri_rd", "shr.ut_orrr_rd", "shr.st_orri_rd", "shr.st_orrr_rd",
-    "shl.uw_orri_rd", "shl.uw_orrr_rd", "shr.uw_orri_rd", "shr.uw_orrr_rd", "shr.sw_orri_rd", "shr.sw_orrr_rd",
-    "shl.ub_orri_rd", "shl.ub_orrr_rd", "shr.ub_orri_rd", "shr.ub_orrr_rd", "shr.sb_orri_rd", "shr.sb_orrr_rd",
+    "shl.o_orri_rd", "shl.o_orrr_rd", "shr.uo_orri_rd", "shr.uo_orrr_rd", "shr.so_orri_rd", "shr.so_orrr_rd",
+    "shl.t_orri_rd", "shl.t_orrr_rd", "shr.ut_orri_rd", "shr.ut_orrr_rd", "shr.st_orri_rd", "shr.st_orrr_rd",
+    "shl.w_orri_rd", "shl.w_orrr_rd", "shr.uw_orri_rd", "shr.uw_orrr_rd", "shr.sw_orri_rd", "shr.sw_orrr_rd",
+    "shl.b_orri_rd", "shl.b_orrr_rd", "shr.ub_orri_rd", "shr.ub_orrr_rd", "shr.sb_orri_rd", "shr.sb_orrr_rd",
     "ext.uo_orri_rd", "ext.uo_orrr_rd", "ext.so_orri_rd", "ext.so_orrr_rd",
     # SPEC-069t: narrow ext (ext.ut/st/uw/sw/ub/sb) deleted
     # reg-cond-assign

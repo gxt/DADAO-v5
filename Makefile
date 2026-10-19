@@ -971,8 +971,9 @@ check-fp-contract:
 # QEMU semantic execution gate (SPEC-069t): runs ISA semantic test vectors
 # through QEMU. The QEMU binary is taken from the install root (ADR-0016 D9;
 # INFRA-047t): run 'make install-host' first.
-# Runs all cases in reg-shift-extend + reg-compare + aip-si (ISS-233: aip.si
-# must be in the L3 carrier set, not only the L2 smoke set).
+# Runs all cases in isa/reg-shift-extend + isa/reg-compare + isa/aip-si + rol/rol
+# (ISS-233: aip.si must be in the L3 carrier set, not only the L2 smoke set;
+#  QEMU-064t: rol.* is scope m9, so it lives outside isa/ and is carried here).
 # Uses symlinked temp dir + --batch for full coverage; cases run in parallel
 # via --jobs $(JOBS) (JOBS defaults to 8; never nproc/full-core).
 # Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
@@ -982,17 +983,17 @@ check-fp-contract:
 # are NOT swallowed (a silent failure would feed the gate the wrong/empty input).
 QEMU_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
 QEMU_SEM_LOG = .work/log/qemu/check-qemu-semantics.log
-QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors/isa
+QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors
 check-qemu-semantics:
 	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }; \
 	  mkdir -p $(QEMU_SEM_DIR) || { echo "check-qemu-semantics: ERROR: cannot create gate dir $(QEMU_SEM_DIR) (path occupied?)"; exit 1; }; \
-	  for v in reg-shift-extend.yaml reg-compare.yaml aip-si.yaml; do \
+	  for v in isa/reg-shift-extend.yaml isa/reg-compare.yaml isa/aip-si.yaml rol/rol.yaml; do \
 	    [ -e $(QEMU_SEM_VEC_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: vector $(QEMU_SEM_VEC_DIR)/$$v not found"; exit 1; }; \
-	    ln -sf $(QEMU_SEM_VEC_DIR)/$$v $(QEMU_SEM_DIR)/$$v || { echo "check-qemu-semantics: ERROR: failed to symlink $$v into $(QEMU_SEM_DIR)"; exit 1; }; \
-	    [ -L $(QEMU_SEM_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$v is not a symlink (stale/occupied path?)"; exit 1; }; \
-	    [ "$$(readlink -f $(QEMU_SEM_DIR)/$$v)" = "$$(readlink -f $(QEMU_SEM_VEC_DIR)/$$v)" ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$v does not point to $(QEMU_SEM_VEC_DIR)/$$v"; exit 1; }; \
+	    ln -sf $(QEMU_SEM_VEC_DIR)/$$v $(QEMU_SEM_DIR)/$$(basename $$v) || { echo "check-qemu-semantics: ERROR: failed to symlink $$v into $(QEMU_SEM_DIR)"; exit 1; }; \
+	    [ -L $(QEMU_SEM_DIR)/$$(basename $$v) ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$(basename $$v) is not a symlink (stale/occupied path?)"; exit 1; }; \
+	    [ "$$(readlink -f $(QEMU_SEM_DIR)/$$(basename $$v))" = "$$(readlink -f $(QEMU_SEM_VEC_DIR)/$$v)" ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$(basename $$v) does not point to $(QEMU_SEM_VEC_DIR)/$$v"; exit 1; }; \
 	  done; \
-	  echo "check-qemu-semantics: running shift+compare (all cases)..."; \
+	  echo "check-qemu-semantics: running shift+rol+compare (all cases)..."; \
 	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) --jobs $(JOBS) --qemu $(QEMU_BIN) > $(QEMU_SEM_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -5 $(QEMU_SEM_LOG); \

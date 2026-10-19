@@ -35,7 +35,7 @@
 > **未完成任务册（5 条）**
 > - `SPEC-152t`：`M9` / ISA 编码再分配与 `ror` 规范面（`待验收`，`ADR-0032` `Accepted`〔`D1`–`D6` 已确认〕）
 > - `LLVM-116t`：`M9` / `ext`/`shl` 编码迁移与 `ror` 后端（`待验收`）
-> - `QEMU-064t`：`M9` / `ext`/`shl` 编码迁移与 `ror` 执行（`待开始`）
+> - `QEMU-064t`：`M9` / `ext`/`shl` 编码迁移与 `ror` 执行（`待验收`）
 > - `LLVM-100t`：`M9` / `__thread` 用户变量 TLS codegen（`待开始`）
 > - `SPEC-141t`：`M9` / `ror` 预研（`待开始`）
 > - 说明：`M8` 已于 2026-10-19 达成；本块 = 未完成任务册；未解 `issue` 见 `issues.yaml`（不在此重复）。
@@ -43,7 +43,7 @@
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
 | LLVM-116t | 待验收 | 2026-10-19 22:15（登记） | ext/shl 编码迁移 + rol.o/t/w/b；ROTL 直连 1 条、ROTR 折 2 条；check-instrinfo 0 错、lit 120/120 |
-| QEMU-064t | 待开始 | 2026-10-19 22:15（登记） | ext/shl 编码迁移与 ror 执行；decodetree/trans + L3 语义向量（依赖 SPEC/LLVM） |
+| QEMU-064t | 待验收 | 2026-10-19 22:15（登记） | 解码 235→243；rol.o/t/w/b 语义；L3 224/224（独立 oracle 64/64）、smoke 90/90；L1 全绿 |
 | SPEC-152t | 待验收 | 2026-10-19 22:15（登记） | ext 迁 100/101、shl 迁 010/011 去 u、新增 ror（orrr/orri）；opcodes 235→243；80 格 0 不符 |
 | LLVM-100t | 待开始 | 2026-10-17 13:06（登记） | __thread 用户变量 TLS codegen（TLSSupported + GlobalTLSAddress）；推 M9 |
 | SPEC-141t | 待开始 | 2026-10-14 18:17（登记） | ISA 扩展预研（收窄）：剩余候选收益 vs 全链六环代价；只读、未开工 |
