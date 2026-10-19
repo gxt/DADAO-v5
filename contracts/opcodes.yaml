@@ -6,7 +6,7 @@
 #   编码已定义 → ILLI（decode: ILLI）；UNDI 仅用于空白单元格
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
-# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环右移 ror.o/.t/.w/.b），非 M1 身份
+# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b），非 M1 身份
 # 共 243 条：M1 156 条 + scope fp 60 条 + scope excluded 11 条 + scope m3 1 条 + scope m8 7 条 + scope m9 8 条
 # 有 rule_refs 的指令：207 条
 
@@ -2760,8 +2760,8 @@
   scope: m1
   rule_refs:
   - dst_rd0
-- id: ror.o_orrr_rd
-  mnemonic: ror.o
+- id: rol.o_orrr_rd
+  mnemonic: rol.o
   format: orrr
   op: '0x40'
   ha: '0x11'
@@ -2865,8 +2865,8 @@
   scope: m1
   rule_refs:
   - dst_rd0
-- id: ror.o_orri_rd
-  mnemonic: ror.o
+- id: rol.o_orri_rd
+  mnemonic: rol.o
   format: orri
   op: '0x40'
   ha: '0x19'
@@ -3705,8 +3705,8 @@
   scope: m1
   rule_refs:
   - dst_rd0
-- id: ror.t_orrr_rd
-  mnemonic: ror.t
+- id: rol.t_orrr_rd
+  mnemonic: rol.t
   format: orrr
   op: '0x41'
   ha: '0x11'
@@ -3812,8 +3812,8 @@
   rule_refs:
   - dst_rd0
   - encode_sbz
-- id: ror.t_orri_rd
-  mnemonic: ror.t
+- id: rol.t_orri_rd
+  mnemonic: rol.t
   format: orri
   op: '0x41'
   ha: '0x19'
@@ -4266,8 +4266,8 @@
   scope: m1
   rule_refs:
   - dst_rd0
-- id: ror.w_orrr_rd
-  mnemonic: ror.w
+- id: rol.w_orrr_rd
+  mnemonic: rol.w
   format: orrr
   op: '0x42'
   ha: '0x11'
@@ -4373,8 +4373,8 @@
   rule_refs:
   - dst_rd0
   - encode_sbz
-- id: ror.w_orri_rd
-  mnemonic: ror.w
+- id: rol.w_orri_rd
+  mnemonic: rol.w
   format: orri
   op: '0x42'
   ha: '0x19'
@@ -4827,8 +4827,8 @@
   scope: m1
   rule_refs:
   - dst_rd0
-- id: ror.b_orrr_rd
-  mnemonic: ror.b
+- id: rol.b_orrr_rd
+  mnemonic: rol.b
   format: orrr
   op: '0x43'
   ha: '0x11'
@@ -4934,8 +4934,8 @@
   rule_refs:
   - dst_rd0
   - encode_sbz
-- id: ror.b_orri_rd
-  mnemonic: ror.b
+- id: rol.b_orri_rd
+  mnemonic: rol.b
   format: orri
   op: '0x43'
   ha: '0x19'

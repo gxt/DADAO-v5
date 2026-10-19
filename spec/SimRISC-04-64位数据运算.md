@@ -1,7 +1,7 @@
 # SimRISC64位数据运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：64位数据运算**（35 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）+ ctlz/cttz/ctpop（位扫描/位计数）+ shl.o/ror.o（移位/循环移位）
+> **分类：64位数据运算**（35 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）+ ctlz/cttz/ctpop（位扫描/位计数）+ shl.o/rol.o（移位/循环移位）
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
@@ -33,8 +33,8 @@
 | `rem.so` | `orrr` | `rd` | `rem.so rdHB, rdHC, rdHD` | `rem.so_orrr_rd` |
 | `rem.uo` | `orrr` | `rd` | `rem.uo rdHB, rdHC, rdHD` | `rem.uo_orrr_rd` |
 | `rev.o` | `orri` | `rd` | `rev.o rdHB, rdHC, immu6` | `rev.o_orri_rd` |
-| `ror.o` | `orri` | `rd` | `ror.o rdHB, rdHC, immu6` | `ror.o_orri_rd` |
-| `ror.o` | `orrr` | `rd` | `ror.o rdHB, rdHC, rdHD` | `ror.o_orrr_rd` |
+| `rol.o` | `orri` | `rd` | `rol.o rdHB, rdHC, immu6` | `rol.o_orri_rd` |
+| `rol.o` | `orrr` | `rd` | `rol.o rdHB, rdHC, rdHD` | `rol.o_orrr_rd` |
 | `shl.o` | `orri` | `rd` | `shl.o rdHB, rdHC, immu6` | `shl.o_orri_rd` |
 | `shl.o` | `orrr` | `rd` | `shl.o rdHB, rdHC, rdHD` | `shl.o_orrr_rd` |
 | `shr.so` | `orri` | `rd` | `shr.so rdHB, rdHC, immu6` | `shr.so_orri_rd` |
@@ -51,7 +51,7 @@
 <!-- LEGALITY_START -->
 ## 2. 合法性检查
 
-* `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `rev.o_orri_rd`, `ror.o_orri_rd`, `ror.o_orrr_rd`, `shl.o_orri_rd`, `shl.o_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（29 条）
+* `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `rev.o_orri_rd`, `rol.o_orri_rd`, `rol.o_orrr_rd`, `shl.o_orri_rd`, `shl.o_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（29 条）
 * `dst_dual_same`：双目的同为 rd0 或同寄存器 → ILLI — `add.so_rrrr_rd`, `add.uo_rrrr_rd`, `mul.so_rrrr_rd`, `mul.uo_rrrr_rd`, `sub.so_rrrr_rd`, `sub.uo_rrrr_rd`（6 条）
 * `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `rev.o_orri_rd`（1 条）
 <!-- LEGALITY_END -->
@@ -200,13 +200,13 @@ sub.so  {rd0, rd3}, rd0, rd4     @@ rd3 = -rd4（64 位取负，双目的写回 
 
 移位/扩展指令需要两个源操作数，一个目的操作数。
 
-`shl` 是左移，`shr` 是右移，`ror` 是逻辑循环右移。`shr` 后缀中的 `s` 表示算术移位（符号扩展）、`u` 表示逻辑移位（零扩展）；`shl`/`ror` **符号无关**，不带 `u`/`s` 后缀（`ADR-0032 D3`）。MISC-octa 子表中的 `shl.o`/`ror.o`/`shr.uo`/`shr.so` 提供 64 位移位/循环移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
+`shl` 是左移，`shr` 是右移，`rol` 是逻辑循环左移。`shr` 后缀中的 `s` 表示算术移位（符号扩展）、`u` 表示逻辑移位（零扩展）；`shl`/`rol` **符号无关**，不带 `u`/`s` 后缀（`ADR-0032 D3`）。MISC-octa 子表中的 `shl.o`/`rol.o`/`shr.uo`/`shr.so` 提供 64 位移位/循环移位操作。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
 ```
 shl.o: rdHB[N:0]   = (rdHC[N:0] << shamt)                // 左移，低位补零
 shr.u: rdHB[N:0]   = (rdHC[N:0] >> shamt)                // 逻辑右移，高位补零
 shr.s: rdHB[N:0]   = (rdHC[N:0] >> shamt) with sign(N)   // 算术右移，高位补 rdHC[N]
-ror.o: rdHB[N:0]   = ror(rdHC[N:0], shamt)               // 逻辑循环右移，位串旋转
+rol.o: rdHB[N:0]   = rol(rdHC[N:0], shamt)               // 逻辑循环左移，位串旋转
 ```
 
 **SPEC-069t 值语义通则**：所有移位/比较指令的结果均写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。64 位操作 N=63 自然写满；32/16/8 位操作的高位扩展规则见 SimRISC-08/09/10。
@@ -215,7 +215,7 @@ ror.o: rdHB[N:0]   = ror(rdHC[N:0], shamt)               // 逻辑循环右移�
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.o`/`ror.o`/`shr.so`/`shr.uo` | 63 | 0-63 | hd[5:0] 全有效 |
+| `shl.o`/`rol.o`/`shr.so`/`shr.uo` | 63 | 0-63 | hd[5:0] 全有效 |
 
 `shamt > N` 触发 ILLI。
 
@@ -239,8 +239,8 @@ rdHB[63:hd+1] = sign/zero_extend(rdHC[hd])               // 符号/零扩展（N
 ```simrisc
 shl.o   rdHB, rdHC, rdHD        @@ 左移
 shl.o   rdHB, rdHC, immu6       @@ 左移（立即数）
-ror.o   rdHB, rdHC, rdHD        @@ 逻辑循环右移
-ror.o   rdHB, rdHC, immu6       @@ 逻辑循环右移（立即数）
+rol.o   rdHB, rdHC, rdHD        @@ 逻辑循环左移
+rol.o   rdHB, rdHC, immu6       @@ 逻辑循环左移（立即数）
 shr.uo  rdHB, rdHC, rdHD        @@ 逻辑右移
 shr.uo  rdHB, rdHC, immu6       @@ 逻辑右移（立即数）
 shr.so  rdHB, rdHC, rdHD        @@ 算术右移
@@ -352,10 +352,10 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 （`011-101`/`011-110`/`011-111`，opx = `011101`/`011110`/`011111`），是本手册
 「**子表 ⇔ 位宽后缀**」规则的**例外**（见 SimRISC-00 §MISC-octa指令编码）。
 
-#### 4.2.3 逻辑循环右移 ror.o（`orrr` / `orri` 格式）
+#### 4.2.3 逻辑循环左移 rol.o（`orrr` / `orri` 格式）
 
-`ror.o` 提供 **64 位逻辑循环右移**（把寄存器当作 64 位位串循环旋转）：
-`rdHB[63:0] = ror(rdHC[63:0], amount)`。**只有一个方向**（右），**不分有符号/无符号**，
+`rol.o` 提供 **64 位逻辑循环左移**（把寄存器当作 64 位位串循环旋转）：
+`rdHB[63:0] = rol(rdHC[63:0], amount)`。**只有一个方向**（左），**不分有符号/无符号**，
 因此**不带 `u`/`s` 后缀**（`ADR-0032 D3`/`D4`）。
 
 | 格式 | 旋转量 `amount` | 取值 |
@@ -364,8 +364,8 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 | `orri` | `immu6` | `0..63`（全部合法） |
 
 ```
-ror(x, n) = (x >> n) | (x << ((64 - n) & 63))     // n = 0 时结果为 x 本身
-rdHB[63:0] = ror(rdHC[63:0], amount)
+rol(x, n) = (x << n) | (x >> ((64 - n) & 63))     // n = 0 时结果为 x 本身
+rdHB[63:0] = rol(rdHC[63:0], amount)
 ```
 
 - **值语义**：结果写满 64 位（沿用 `SPEC-069t`）；不存在「高位保留」。
@@ -373,13 +373,13 @@ rdHB[63:0] = ror(rdHC[63:0], amount)
   `orri` 的 `immu6` 为 6 位，`0..63` 全部合法；**无越界值**（`immu6` 装不下 `≥64`）。
 - **合法性**：目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（读出 0，
   结果恒为 0）；`rdHB == rdHC` 允许（原地旋转）。
-- **无 `rol`**：`rol(x, n) = ror(x, (64 - n) mod 64)` ⇒ 一个方向足以表达双向，不另设指令。
-- **编码**：`ror.o` `orrr` = `010-001`、`orri` = `011-001`（`MISC-octa`，见 SimRISC-00 §4.2）。
-- `ror.t`/`ror.w`/`ror.b` 的位宽/取模/越界口径分别见 SimRISC-08/09/10 §4.2。
+- **不另设反向指令**：`rol(x, (64 - n) mod 64)` 即反向旋转 ⇒ 一个方向足以表达双向。
+- **编码**：`rol.o` `orrr` = `010-001`、`orri` = `011-001`（`MISC-octa`，见 SimRISC-00 §4.2）。
+- `rol.t`/`rol.w`/`rol.b` 的位宽/取模/越界口径分别见 SimRISC-08/09/10 §4.2。
 
 ```simrisc
-ror.o   rdHB, rdHC, rdHD        @@ 循环右移（旋转量 = rdHD[5:0]）
-ror.o   rdHB, rdHC, immu6       @@ 循环右移（旋转量 = immu6，0..63）
+rol.o   rdHB, rdHC, rdHD        @@ 循环左移（旋转量 = rdHD[5:0]）
+rol.o   rdHB, rdHC, immu6       @@ 循环左移（旋转量 = immu6，0..63）
 ```
 
 ---
@@ -391,7 +391,7 @@ ror.o   rdHB, rdHC, immu6       @@ 循环右移（旋转量 = immu6，0..63）
 ### 0.5.5-rc（未发布）
 
 - `shl` 去掉 `u` 后缀（`shl.o`，符号无关）并迁编码 `010-000`/`011-000`；`ext.uo`/`ext.so` 编码迁至 `100-000`/`100-001`、`101-000`/`101-001`（助记符不变）。
-- 新增 `ror.o`（逻辑循环右移，`orrr`/`orri`，编码 `010-001`/`011-001`）及 §4.2.3 语义。
+- 新增 `rol.o`（逻辑循环左移，`orrr`/`orri`，编码 `010-001`/`011-001`）及 §4.2.3 语义。
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
 - 新增 `rev.o`（逐块反转，orri）及逐块反转语义总述（`§4.2.1`）。
 - 新增 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数，orri，**无位宽后缀**）及语义（`§4.2.2`）。

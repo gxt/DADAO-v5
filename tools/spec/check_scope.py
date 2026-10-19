@@ -21,7 +21,7 @@
     M1/fp/excluded/m3 不变）
   * ADR-0029 D1（恢复 ISA 指令 aip.si（IP 相对寻址，op 0x5A）⇒ M1 155→156、
     total 234→235；fp/excluded/m3/m8 不变）
-  * ADR-0032 D4 / SPEC-152t（新增 scope: m9 = ror.o/.t/.w/.b 8 条 ⇒ m9 0→8、
+  * ADR-0032 D4 / SPEC-152t（新增 scope: m9 = rol.o/.t/.w/.b 8 条 ⇒ m9 0→8、
     total 235→243；M1/fp/excluded/m3/m8 不变）
 
 Usage: python3 tools/spec/check_scope.py [--yaml contracts/opcodes.yaml] [--repo-root .]

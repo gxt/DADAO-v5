@@ -1,7 +1,8 @@
-# ADR-0032: ISA 编码再分配（`ext` 迁出 / `shl` 迁入并去 `u`）与新增 `ror`
+# ADR-0032: ISA 编码再分配（`ext` 迁出 / `shl` 迁入并去 `u`）与新增 `rol`（原 `ror`）
 
 **状态**：Accepted（2026-10-19；`D1`–`D6` 已逐条确认 ⇒ 可进入执行，执行仍按 `D5` 串行 + `D6` 验证面）
 **日期**：2026-10-19
+**修订**：2026-10-19 —— `D4` 就地修订：新增指令由 `ror`（循环右移）改为 **`rol`（循环左移）**，**编码槽不变**（见文末 `## 修订`）
 **决策者**：用户（`D1`–`D6` 2026-10-19 逐条确认，原话见 `## 状态说明`）
 **关联**：`ADR-0012`（`D4` `spec/` 只读策略、`D10`/`D11` 新增指令先例）、`ADR-0029`（改名 + `spec/` 授权 + 只读锁重算先例）、`SPEC-141t`（`ror` 预研：候选 A 形态/收益/六环代价）、`SPEC-142t`/`SPEC-143t`（MISC-octa 子表改格先例）、`spec/SimRISC-00 §4.2` / `SimRISC-04 §4.2` / `SimRISC-08/09/10 §4.2`、`contracts/opcodes.yaml`、`.tao/contracts/contract-isa.md`、`manifests/spec-readonly.lock.toml`；落点三册 = `SPEC-152t` / `LLVM-116t` / `QEMU-064t`；issue = `ISS-291`
 
@@ -61,7 +62,7 @@
 
 **决定**：`shl.o`/`shl.t`/`shl.w`/`shl.b` 的 orrr 形态统一在 `010-000`，orri 形态统一在 `011-000`（基表 + 三个宽度子表**同一 opx 规则**）。
 
-**理由**：用户原话「**把四个子表中的 `shl.ux` 的 opx 改为 `010-000/011-000`**」；迁移后移位族排列为 `shl`(000) / `ror`(001) / `shr.u`(010) / `shr.s`(011)，**同族连续**，便于阅读与人工编码。
+**理由**：用户原话「**把四个子表中的 `shl.ux` 的 opx 改为 `010-000/011-000`**」；迁移后移位族排列为 `shl`(000) / `rol`(001) / `shr.u`(010) / `shr.s`(011)，**同族连续**，便于阅读与人工编码。
 
 **被否**：
 
@@ -72,7 +73,7 @@
 
 **决定**：`shl.uo`/`shl.ut`/`shl.uw`/`shl.ub` → **`shl.o`/`shl.t`/`shl.w`/`shl.b`**；id 同步为 `shl.o_orrr_rd` / `shl.o_orri_rd` / …。**语义不变**。
 
-**命名规则（成文）**：**只有真正分「零扩展/符号扩展」的指令才带 `u`/`s`**——`shr`/`add`/`sub`/`cmp`；**符号无关的指令不带**——`shl`/`ror`/`rev`/`ctpop`/`ctlz`/`cttz`。
+**命名规则（成文）**：**只有真正分「零扩展/符号扩展」的指令才带 `u`/`s`**——`shr`/`add`/`sub`/`cmp`；**符号无关的指令不带**——`shl`/`rol`/`rev`/`ctpop`/`ctlz`/`cttz`。
 
 **理由**：用户原话「**可以去掉u；同理，shl有必要带后缀u吗？**」；`spec/` 内 `shl.s*` **0 命中**（事实 4）⇒ `u` 不承载区分信息；先例 = `rev.o`/`ctpop` 等无位宽后缀的符号无关指令。
 
@@ -81,51 +82,51 @@
 - **保留 `.uo` 兼容旧汇编源**：与「符号无关不带后缀」的规则冲突，且 `shl` 永远不会出现 `s` 变体，`.u` 是永久噪声。
 - **保留 `.uo` 并新增 `shl.o` 别名**：同一语义两条助记符，增加汇编器/反汇编器/覆盖率矩阵的重复面，无收益。
 
-### D4 — 新增 `ror.o`/`ror.t`/`ror.w`/`ror.b`（单向逻辑循环右移）
+### D4 — 新增 `rol.o`/`rol.t`/`rol.w`/`rol.b`（单向逻辑循环左移）
 
 **决定**：
 
 | 位宽 | orrr（`010-001`） | orri（`011-001`） |
 | --- | --- | --- |
-| `ror.o` | `ror.o rdHB, rdHC, rdHD` | `ror.o rdHB, rdHC, immu6` |
-| `ror.t` | `ror.t rdHB, rdHC, rdHD` | `ror.t rdHB, rdHC, immu6` |
-| `ror.w` | `ror.w rdHB, rdHC, rdHD` | `ror.w rdHB, rdHC, immu6` |
-| `ror.b` | `ror.b rdHB, rdHC, rdHD` | `ror.b rdHB, rdHC, immu6` |
+| `rol.o` | `rol.o rdHB, rdHC, rdHD` | `rol.o rdHB, rdHC, immu6` |
+| `rol.t` | `rol.t rdHB, rdHC, rdHD` | `rol.t rdHB, rdHC, immu6` |
+| `rol.w` | `rol.w rdHB, rdHC, rdHD` | `rol.w rdHB, rdHC, immu6` |
+| `rol.b` | `rol.b rdHB, rdHC, rdHD` | `rol.b rdHB, rdHC, immu6` |
 
-- **语义**：**逻辑循环右移**（无符号概念，位串旋转）：`rdHB[W-1:0] = ror(rdHC[W-1:0], amount)`；`W` = **位宽**（`o/t/w/b` = 64/32/16/8）；**高位于结果写满**（沿用 `SPEC-069t` 值语义：`o` 写满 64 位；`t/w/b` 按各自位宽扩展规则）。
-- **不分有符号/无符号**：**只有一个方向**（右），**不带 `u`/`s`**（落到 `D3` 命名规则）。
+- **语义**：**逻辑循环左移**（无符号概念，位串旋转）：`rdHB[W-1:0] = rol(rdHC[W-1:0], amount)`；`W` = **位宽**（`o/t/w/b` = 64/32/16/8）；**高位于结果写满**（沿用 `SPEC-069t` 值语义：`o` 写满 64 位；`t/w/b` 按各自位宽扩展规则）。
+- **不分有符号/无符号**：**只有一个方向**（左），**不带 `u`/`s`**（落到 `D3` 命名规则）。
 - **旋转量**：orrr 取 `rdHD` 的低 `log2(W)` 位（即 **mod W**）；orri 的 `immu6` 有效范围 **`0..W-1`**，越界 ⇒ **ILLI**（与既有窄位宽 `shl.u*` 的 `immu6 <= N` 约束同口径）。`o` 为 `0..63`。
 - **目的 `rd0` ⇒ ILLI**：沿用 `dst_rd0` 规则；三者均 `rd` 银行（用户原话「**针对的都是rd寄存器**」）。
-- **`ror` 与 `rol`**：`rol(x,n) = ror(x, (W-n) mod W)` ⇒ **一个方向足以表达双向**，不另设 `rol`。
+- **`rol` 与 `ror`**：`ror(x,n) = rol(x, (W-n) mod W)` ⇒ **一个方向足以表达双向**，不另设 `ror`。
 
-**理由**：用户原话「**增加ror.ux指令**…**格式分别为orrr/orri，针对的都是rd寄存器**」；`SPEC-141t §追加候选 A` 已量化收益（常量 rotate 5→1、变量 ~9→1；SHA-512 每轮 6 次旋转）与主流先例（RISC-V 只有 `ror`/`rori`、ARM32 仅 `ROR`）。窄位宽取模/越界口径沿用既有移位规则，避免 `ror.b` 出现「旋转 8 位 = 恒等」的歧义特例。
+**理由**：用户原话「**增加ror.ux指令**…**格式分别为orrr/orri，针对的都是rd寄存器**」（2026-10-19 修订为 `rol`，原话见文末 `## 修订`）；`SPEC-141t §追加候选 A` 已量化收益（常量 rotate 5→1、变量 ~9→1；SHA-512 每轮 6 次旋转）与主流先例（RISC-V 只有 `ror`/`rori`、ARM32 仅 `ROR`；本设计取 `rol` 因 `ROTL` 直连，见 `## 修订`）。窄位宽取模/越界口径沿用既有移位规则，避免 `rol.b` 出现「旋转 8 位 = 恒等」的歧义特例。
 
 **被否**：
 
-- **同时加 `rol`**：冗余（可由 `ror` 表达），编码面翻倍。
+- **同时加 `ror`**：冗余（可由 `rol` 表达），编码面翻倍。
 - **加 `fshl`/`fshr`（漏斗移位）**：`SPEC-141t` 已裁定本轮不取（编码面翻倍 + ISel 复杂）。
 - **带 `u`/`s` 变体**：循环移位与符号性无关，两个变体语义相同 ⇒ 纯冗余。
-- **`ror.b` 旋转量任意 `immu6` 并对 8 取模**：与既有窄移位「`immu6 > N` ⇒ ILLI」规则不一致，会让同一族的越界行为分裂；**取模仅用于寄存器形态的低位截取**。
+- **`rol.b` 旋转量任意 `immu6` 并对 8 取模**：与既有窄移位「`immu6 > N` ⇒ ILLI」规则不一致，会让同一族的越界行为分裂；**取模仅用于寄存器形态的低位截取**。
 - **旋转量取 RB 银行**：用户明确「针对的都是 rd 寄存器」；且 `rd` 银行恒 64 位，避免 RB 地址语义混入。
 
-### D5 — 排序约束：先 `ext` 迁出 → 再 `shl` 迁入 → 再放 `ror`
+### D5 — 排序约束：先 `ext` 迁出 → 再 `shl` 迁入 → 再放 `rol`
 
-**决定**：三册（`SPEC-152t` → `LLVM-116t` → `QEMU-064t`）**串行**；`spec/` 内的表格改写按「`ext` 先离开 `010/011`、`shl` 再进入、`ror` 最后占位」的语义顺序进行（**允许同一提交内完成**，但审查/证据按此顺序呈现）。
+**决定**：三册（`SPEC-152t` → `LLVM-116t` → `QEMU-064t`）**串行**；`spec/` 内的表格改写按「`ext` 先离开 `010/011`、`shl` 再进入、`rol` 最后占位」的语义顺序进行（**允许同一提交内完成**，但审查/证据按此顺序呈现）。
 
 **理由**：`010-000/001` 与 `011-000/001` 在 `ext` 迁出前不是空闲格位；先迁出可保证任何中间态都**没有两指令同格**。跨册串行则保证 `opcodes.yaml` 的 id 变化与 `trans_*`/`.td` 的改名同步，避免把「门控红」误当缺陷。
 
 **被否**：
 
 - **三册并行**：共享 `contracts/opcodes.yaml`/生成物，且 `install-host` 与构建树单写者约束（`ISS-229`/`ISS-210`）⇒ 必串行。
-- **先放 `ror` 再迁 `ext`**：中间态编码冲突，验证证据不可解释。
+- **先放 `rol` 再迁 `ext`**：中间态编码冲突，验证证据不可解释。
 
 ### D6 — 落点与验证面
 
 **决定**：
 
 - **规范面（`SPEC-152t`）**：`spec/SimRISC-00` 四张表（基表 + `08/09/10` 三宽度表）；`SimRISC-04 §4.2` 语义/逐条表 + 生成区（汇编速查）；`SimRISC-08/09/10 §4.2` 同步；`Toolchain-01` 现场核（若出现 `shl.u*`/编码示例则改，否则不改并留证据）；`contracts/opcodes.yaml` 重生成；`.tao/contracts/contract-isa.md`（`§2.8`/附录 A、`§6.4.1`、`§6.4.5`）与 `contract-asm-list.md` 重生成；`tools/spec/generate_opcodes.py`（`ha`/助记符/`scope: m9`）、`tools/spec/check_scope.py`（白名单 + 计数）、语料/向量的**机械改名**；`manifests/spec-readonly.lock.toml` 仅对改动册重算 `sha256`。
-- **后端面（`LLVM-116t`）**：`.td` 编码/助记符/id、MC/AsmParser、`ISD::ROTR` 直配 `ror.o`；**`ISD::ROTL`/`ROTR` 的 `Expand` 口径重新判定**（`LLVM-099t` 的注释与动作以「无 rotate 指令」为前提，现已失效）——**现场判并给依据**（合法/自定义/展开三选一，含常量/变量两条路径的指令数证据）；`make install-host`。
-- **模拟器面（`QEMU-064t`）**：`insn.decode` 重生成 + `trans_*` 改名/新增 + L3 语义向量（**独立 oracle**：期望值按 `ror` 定义手算，不从 QEMU/LLVM 反推）+ `build-qemu`/`install-host`。
+- **后端面（`LLVM-116t`）**：`.td` 编码/助记符/id、MC/AsmParser、`ISD::ROTL` 直配 `rol.o`（`ROTR` 以 `rol(x, W-n)` 表达）；**`ISD::ROTL`/`ROTR` 的 `Expand` 口径重新判定**（`LLVM-099t` 的注释与动作以「无 rotate 指令」为前提，现已失效）——**现场判并给依据**（合法/自定义/展开三选一，含常量/变量两条路径的指令数证据）；`make install-host`。
+- **模拟器面（`QEMU-064t`）**：`insn.decode` 重生成 + `trans_*` 改名/新增 + L3 语义向量（**独立 oracle**：期望值按 `rol` 定义手算，不从 QEMU/LLVM 反推）+ `build-qemu`/`install-host`。
 - **验证面**：`validate-encoding` / `check-scope` / `check-rule-refs` / `check-legality-invariants` / `check-spec-*` / `check-asm-list*` / `check-lit-gen` / `validate-vectors`（规范面）；`check-instrinfo` / `check-isa-coverage` / `check-lit`（后端面）；`check-interface` / `check-qemu-smoke` / `check-qemu-semantics` / L1·L2·L3（模拟器面收口）。**每条断言须有可达 FAIL 路径**（`--self-test` 或注入）。
 
 **理由**：编码是**跨模块单一真源**（`contracts/opcodes.yaml` 由 spec 生成，LLVM/QEMU/语料消费）；只在 `spec/` 改会让门控红、只在 `opcodes.yaml` 改会造成规范漂移。`LLVM-099t` 的 rotate 展开是**基于「无指令」的临时口径**，新增指令后必须重判，否则会把「有指令仍展开」固化。
@@ -134,17 +135,17 @@
 
 - **只改 `contracts/opcodes.yaml`**：`spec/` 与契约漂移（`check-spec-drift`/`check-spec-codeblocks` 红），且违背 Spec-first。
 - **只改 `spec/`**：实现/门控全部红，且无法交付能力。
-- **保留 `LLVM-099t` 的 `Expand` 不动**：`ror` 指令永远不被选中，等于只做编码不做能力。
+- **保留 `LLVM-099t` 的 `Expand` 不动**：`rol` 指令永远不被选中，等于只做编码不做能力。
 
 ## Consequences（影响）
 
 1. **旧汇编源不兼容**：`shl.uo` 等写法将不再被受理（**不做别名**，`D3` 被否）；引用面约 170 处须机械改名并逐条留证。
-2. **旧二进制不兼容**：`ext` 与 `shl` 的编码都变化 ⇒ 旧对象/旧 `.so`/旧测试二进制**必须重建**；`QEMU` 对旧编码按新表解码（落在 `ror`/保留格）。
-3. **`scope` 扩展**：新增 `scope: m9`（8 条 `ror`），`tools/spec/check_scope.py` 的白名单与计数须同步；总数 235 → **243**（现场派生，不写死）。
-4. **QEMU `trans_*` 改名**：`trans_shl_uo_*` → `trans_shl_o_*`，并新增 `trans_ror_*`；`insn.decode` 由 `opcodes.yaml` 重生成。
-5. **LLVM 后端**：`shl_uo_*` → `shl_o_*` 的 def 名 ripple 到 `DADAOInstrInfo.h` 枚举、`DADAOCodeGen.td`、`DADAOISelDAGToDAG.cpp`；`ror` 需要 ISel 真指令；`rotl/rotr` 的 `Expand` 注释与动作重判。
+2. **旧二进制不兼容**：`ext` 与 `shl` 的编码都变化 ⇒ 旧对象/旧 `.so`/旧测试二进制**必须重建**；`QEMU` 对旧编码按新表解码（落在 `rol`/保留格）。
+3. **`scope` 扩展**：新增 `scope: m9`（8 条 `rol`），`tools/spec/check_scope.py` 的白名单与计数须同步；总数 235 → **243**（现场派生，不写死）。
+4. **QEMU `trans_*` 改名**：`trans_shl_uo_*` → `trans_shl_o_*`，并新增 `trans_rol_*`；`insn.decode` 由 `opcodes.yaml` 重生成。
+5. **LLVM 后端**：`shl_uo_*` → `shl_o_*` 的 def 名 ripple 到 `DADAOInstrInfo.h` 枚举、`DADAOCodeGen.td`、`DADAOISelDAGToDAG.cpp`；`rol` 需要 ISel 真指令；`rotl/rotr` 的 `Expand` 注释与动作重判。
 6. **只读锁**：`SimRISC-00/04/08/09/10`（以及若改动的 `Toolchain-01`）需在**用户授权**后重算 `sha256`，同变更内更新 `manifests/spec-readonly.lock.toml`。
-7. **文档/矩阵**：`tools/llvm/llvm-isa-backend-matrix.*`、`tests/vectors/inventory.md`、`tests/llvm/lit/MC/DADAO-gen/*` 等生成物须重生成；`check-isa-coverage` 的「isel 是否用得上」列预计 `ror` 从 `no` 变 `yes`。
+7. **文档/矩阵**：`tools/llvm/llvm-isa-backend-matrix.*`、`tests/vectors/inventory.md`、`tests/llvm/lit/MC/DADAO-gen/*` 等生成物须重生成；`check-isa-coverage` 的「isel 是否用得上」列预计 `rol` 从 `no` 变 `yes`。
 
 ## decision 逐条确认表（`D1`–`D6`）
 
@@ -153,9 +154,9 @@
 | `D1` | `ext.uo/so` → `100/101` 的 `000/001` | ✅（原话「腾出编码」） | 助记符不变、`hd`/`dst_rd0` 不变 | **已确认** |
 | `D2` | `shl.*` → `010/011` 的 `000`（四宽度） | ✅（原话「四个子表…改为010-000/011-000」） | 四宽度同一 opx | **已确认** |
 | `D3` | `shl` 去 `u`；命名规则成文 | ✅（原话「可以去掉u」） | 不做旧助记符别名 | **已确认** |
-| `D4` | 新增 `ror.{o,t,w,b}`，orrr/orri | ✅（原话「增加ror.ux…orrr/orri…rd」） | **窄位宽取模/越界口径**、`dst_rd0` ILLI、单向不设 `rol` | **已确认** |
-| `D5` | 先 `ext` 出 → `shl` 入 → `ror` 放 | 流程提案 | 三册串行、同提交内允许 | **已确认** |
-| `D6` | 落点与验证面；`ROTL/ROTR` 重判 | 方法提案 | 是否需要 `LLVM-116t` 的「改走 `ror`」判据与证据格式 | **已确认** |
+| `D4` | 新增 `rol.{o,t,w,b}`，orrr/orri | ✅（原话「增加ror.ux…orrr/orri…rd」；2026-10-19 修订为 rol） | **窄位宽取模/越界口径**、`dst_rd0` ILLI、单向不设 `ror` | **已确认（含 2026-10-19 修订）** |
+| `D5` | 先 `ext` 出 → `shl` 入 → `rol` 放 | 流程提案 | 三册串行、同提交内允许 | **已确认** |
+| `D6` | 落点与验证面；`ROTL/ROTR` 重判 | 方法提案 | 是否需要 `LLVM-116t` 的「改走 `rol`」判据与证据格式 | **已确认** |
 
 > 确认方式（`AGENTS.md`「ADR decision 逐条确认」）：用户逐条答复；**2026-10-19 已逐条确认**（`D1`–`D6` 全「已确认」），状态转 `Accepted`，用户原话见 `## 状态说明`。
 
@@ -165,3 +166,23 @@
 - **本笔 = 起草笔**（2026-10-19）：只落 `Proposed` + 三册 + 台账；**未执行** `D1`–`D6`。
 - **`spec/` 授权**：用户 2026-10-19 的「**确认立项**」是**立项授权**，**不是**逐条 decision 确认，也**不是**对具体 `spec/` 文本的改动授权（`docs/Process-06`）。逐条确认已另行完成（本笔 ↑）；执行册开工前仍须取得 **`spec/` 改动授权原话落纸**。
 - **已核事实的时效**：本文 `Context` 的 7 条事实来自主会话 2026-10-19 现场；执行册**必须现场复核**（`grep`/生成器/表格逐格），不复核不得作为验收依据。
+
+## 修订
+
+### 2026-10-19 — `D4` 就地修订：`ror` → `rol`（编码槽不变）
+
+**用户原话（逐字引录，渠道 = 经主会话问答）**：
+
+> 「保持ILLI；我在思考的一个问题是：是不是改为rol更合适？本质上ror/rol只需要实现一个即可，而从编码上看，该指令前面是shl，后面是两个shr，如果改为rol，再和shl换个位置，是不是更规整」
+
+> 「确认：ror 改为 rol」
+
+**修订内容（仅 `D4` 的方向/助记符；`D5`/`D6` 等处的 `ror` 字样同步为 `rol`）**：
+
+- `D4` 的 `ror.o`/`ror.t`/`ror.w`/`ror.b` → **`rol.o`/`rol.t`/`rol.w`/`rol.b`**；语义 = **逻辑循环左移**（`rdHB[W-1:0] = rol(rdHC[W-1:0], amount)`）。
+- **编码槽不动**：orrr `010-001`、orri `011-001`；`D1`/`D2` 的 `ext`/`shl` 编码不变。
+- **其余口径不变**：orrr/orri 格式、操作数全为 `rd` 银行、旋转量 `mod W`/`immu6` 越界 ILLI、目的 `rd0` ⇒ ILLI、不分有/无符号、仅一个方向；`D3` 命名规则中的 `ror` 同步为 `rol`（符号无关、不带 `u`/`s`）。
+- **不换位（主会话判断）**：`shl`(000) 与 `rol`(001) 已构成「左、左」，`shr.u`(010)/`shr.s`(011) 为「右、右」，原排列已规整；换位会动 `shl`/`rol` 的编码槽，收益为零，故**不换**。
+- **理由**：`ROTL` 可直连 `rol`（无需 `W−n` 反向）；`rol`/`ror` 语义等价（`ror(x,n) = rol(x,(W−n) mod W)`），只需实现一个；编码槽保持不变 ⇒ 不影响 `D1`/`D2` 的再分配结果。
+- **历史层不改**：`## Context` 中用户既往原话（含「增加ror.ux指令」）与 `## 状态说明` 为历史记录，保持原样；`SPEC-141t` 的 `ror` 预研记录亦不改。本次同步落点 = `spec/SimRISC-00/04/08/09/10`、`.tao/contracts/contract-isa.md`、`contracts/{opcodes,legality_rules}.yaml`、`manifests/spec-readonly.lock.toml`。
+- `**状态**` 保持 **Accepted**。

@@ -133,8 +133,8 @@
 | `rem.so` | `orrr` | `rd` | `rem.so rdHB, rdHC, rdHD` | `rem.so_orrr_rd` |
 | `rem.uo` | `orrr` | `rd` | `rem.uo rdHB, rdHC, rdHD` | `rem.uo_orrr_rd` |
 | `rev.o` | `orri` | `rd` | `rev.o rdHB, rdHC, immu6` | `rev.o_orri_rd` |
-| `ror.o` | `orri` | `rd` | `ror.o rdHB, rdHC, immu6` | `ror.o_orri_rd` |
-| `ror.o` | `orrr` | `rd` | `ror.o rdHB, rdHC, rdHD` | `ror.o_orrr_rd` |
+| `rol.o` | `orri` | `rd` | `rol.o rdHB, rdHC, immu6` | `rol.o_orri_rd` |
+| `rol.o` | `orrr` | `rd` | `rol.o rdHB, rdHC, rdHD` | `rol.o_orrr_rd` |
 | `shl.o` | `orri` | `rd` | `shl.o rdHB, rdHC, immu6` | `shl.o_orri_rd` |
 | `shl.o` | `orrr` | `rd` | `shl.o rdHB, rdHC, rdHD` | `shl.o_orrr_rd` |
 | `shr.so` | `orri` | `rd` | `shr.so rdHB, rdHC, immu6` | `shr.so_orri_rd` |
@@ -241,8 +241,8 @@
 | `rem.st` | `orrr` | `rd` | `rem.st rdHB, rdHC, rdHD` | `rem.st_orrr_rd` |
 | `rem.ut` | `orrr` | `rd` | `rem.ut rdHB, rdHC, rdHD` | `rem.ut_orrr_rd` |
 | `rev.t` | `orri` | `rd` | `rev.t rdHB, rdHC, immu6` | `rev.t_orri_rd` |
-| `ror.t` | `orri` | `rd` | `ror.t rdHB, rdHC, immu6` | `ror.t_orri_rd` |
-| `ror.t` | `orrr` | `rd` | `ror.t rdHB, rdHC, rdHD` | `ror.t_orrr_rd` |
+| `rol.t` | `orri` | `rd` | `rol.t rdHB, rdHC, immu6` | `rol.t_orri_rd` |
+| `rol.t` | `orrr` | `rd` | `rol.t rdHB, rdHC, rdHD` | `rol.t_orrr_rd` |
 | `shl.t` | `orri` | `rd` | `shl.t rdHB, rdHC, immu6` | `shl.t_orri_rd` |
 | `shl.t` | `orrr` | `rd` | `shl.t rdHB, rdHC, rdHD` | `shl.t_orrr_rd` |
 | `shr.st` | `orri` | `rd` | `shr.st rdHB, rdHC, immu6` | `shr.st_orri_rd` |
@@ -267,8 +267,8 @@
 | `rem.sw` | `orrr` | `rd` | `rem.sw rdHB, rdHC, rdHD` | `rem.sw_orrr_rd` |
 | `rem.uw` | `orrr` | `rd` | `rem.uw rdHB, rdHC, rdHD` | `rem.uw_orrr_rd` |
 | `rev.w` | `orri` | `rd` | `rev.w rdHB, rdHC, immu6` | `rev.w_orri_rd` |
-| `ror.w` | `orri` | `rd` | `ror.w rdHB, rdHC, immu6` | `ror.w_orri_rd` |
-| `ror.w` | `orrr` | `rd` | `ror.w rdHB, rdHC, rdHD` | `ror.w_orrr_rd` |
+| `rol.w` | `orri` | `rd` | `rol.w rdHB, rdHC, immu6` | `rol.w_orri_rd` |
+| `rol.w` | `orrr` | `rd` | `rol.w rdHB, rdHC, rdHD` | `rol.w_orrr_rd` |
 | `shl.w` | `orri` | `rd` | `shl.w rdHB, rdHC, immu6` | `shl.w_orri_rd` |
 | `shl.w` | `orrr` | `rd` | `shl.w rdHB, rdHC, rdHD` | `shl.w_orrr_rd` |
 | `shr.sw` | `orri` | `rd` | `shr.sw rdHB, rdHC, immu6` | `shr.sw_orri_rd` |
@@ -293,8 +293,8 @@
 | `rem.sb` | `orrr` | `rd` | `rem.sb rdHB, rdHC, rdHD` | `rem.sb_orrr_rd` |
 | `rem.ub` | `orrr` | `rd` | `rem.ub rdHB, rdHC, rdHD` | `rem.ub_orrr_rd` |
 | `rev.b` | `orri` | `rd` | `rev.b rdHB, rdHC, immu6` | `rev.b_orri_rd` |
-| `ror.b` | `orri` | `rd` | `ror.b rdHB, rdHC, immu6` | `ror.b_orri_rd` |
-| `ror.b` | `orrr` | `rd` | `ror.b rdHB, rdHC, rdHD` | `ror.b_orrr_rd` |
+| `rol.b` | `orri` | `rd` | `rol.b rdHB, rdHC, immu6` | `rol.b_orri_rd` |
+| `rol.b` | `orrr` | `rd` | `rol.b rdHB, rdHC, rdHD` | `rol.b_orrr_rd` |
 | `shl.b` | `orri` | `rd` | `shl.b rdHB, rdHC, immu6` | `shl.b_orri_rd` |
 | `shl.b` | `orrr` | `rd` | `shl.b rdHB, rdHC, rdHD` | `shl.b_orrr_rd` |
 | `shr.sb` | `orri` | `rd` | `shr.sb rdHB, rdHC, immu6` | `shr.sb_orri_rd` |

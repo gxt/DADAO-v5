@@ -1,7 +1,7 @@
 # SimRISC16位数据运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：16位数据运算**（21 条）— .sw/.uw 运算 + rev.w（逐块反转）+ shl.w/ror.w（移位/循环移位）
+> **分类：16位数据运算**（21 条）— .sw/.uw 运算 + rev.w（逐块反转）+ shl.w/rol.w（移位/循环移位）
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
@@ -21,8 +21,8 @@
 | `rem.sw` | `orrr` | `rd` | `rem.sw rdHB, rdHC, rdHD` | `rem.sw_orrr_rd` |
 | `rem.uw` | `orrr` | `rd` | `rem.uw rdHB, rdHC, rdHD` | `rem.uw_orrr_rd` |
 | `rev.w` | `orri` | `rd` | `rev.w rdHB, rdHC, immu6` | `rev.w_orri_rd` |
-| `ror.w` | `orri` | `rd` | `ror.w rdHB, rdHC, immu6` | `ror.w_orri_rd` |
-| `ror.w` | `orrr` | `rd` | `ror.w rdHB, rdHC, rdHD` | `ror.w_orrr_rd` |
+| `rol.w` | `orri` | `rd` | `rol.w rdHB, rdHC, immu6` | `rol.w_orri_rd` |
+| `rol.w` | `orrr` | `rd` | `rol.w rdHB, rdHC, rdHD` | `rol.w_orrr_rd` |
 | `shl.w` | `orri` | `rd` | `shl.w rdHB, rdHC, immu6` | `shl.w_orri_rd` |
 | `shl.w` | `orrr` | `rd` | `shl.w rdHB, rdHC, rdHD` | `shl.w_orrr_rd` |
 | `shr.sw` | `orri` | `rd` | `shr.sw rdHB, rdHC, immu6` | `shr.sw_orri_rd` |
@@ -37,8 +37,8 @@
 <!-- LEGALITY_START -->
 ## 2. 合法性检查
 
-* `dst_rd0`：目的 rd0 → ILLI — `add.sw_orrr_rd`, `add.uw_orrr_rd`, `cmp.sw_orrr_rd`, `cmp.uw_orrr_rd`, `div.sw_orrr_rd`, `div.uw_orrr_rd`, `mul.sw_orrr_rd`, `mul.uw_orrr_rd`, `rem.sw_orrr_rd`, `rem.uw_orrr_rd`, `rev.w_orri_rd`, `ror.w_orri_rd`, `ror.w_orrr_rd`, `shl.w_orri_rd`, `shl.w_orrr_rd`, `shr.sw_orri_rd`, `shr.sw_orrr_rd`, `shr.uw_orri_rd`, `shr.uw_orrr_rd`, `sub.sw_orrr_rd`, `sub.uw_orrr_rd`（21 条）
-* `encode_sbz`：SBZ 非零 → ILLI — `ror.w_orri_rd`, `shl.w_orri_rd`, `shr.sw_orri_rd`, `shr.uw_orri_rd`（4 条）
+* `dst_rd0`：目的 rd0 → ILLI — `add.sw_orrr_rd`, `add.uw_orrr_rd`, `cmp.sw_orrr_rd`, `cmp.uw_orrr_rd`, `div.sw_orrr_rd`, `div.uw_orrr_rd`, `mul.sw_orrr_rd`, `mul.uw_orrr_rd`, `rem.sw_orrr_rd`, `rem.uw_orrr_rd`, `rev.w_orri_rd`, `rol.w_orri_rd`, `rol.w_orrr_rd`, `shl.w_orri_rd`, `shl.w_orrr_rd`, `shr.sw_orri_rd`, `shr.sw_orrr_rd`, `shr.uw_orri_rd`, `shr.uw_orrr_rd`, `sub.sw_orrr_rd`, `sub.uw_orrr_rd`（21 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `rol.w_orri_rd`, `shl.w_orri_rd`, `shr.sw_orri_rd`, `shr.uw_orri_rd`（4 条）
 * `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `rev.w_orri_rd`（1 条）
 <!-- LEGALITY_END -->
 
@@ -73,8 +73,8 @@ rem.uw  rdHB, rdHC, rdHD
 rem.sw  rdHB, rdHC, rdHD
 shl.w   rdHB, rdHC, rdHD
 shl.w   rdHB, rdHC, immu6
-ror.w   rdHB, rdHC, rdHD
-ror.w   rdHB, rdHC, immu6
+rol.w   rdHB, rdHC, rdHD
+rol.w   rdHB, rdHC, immu6
 shr.uw  rdHB, rdHC, rdHD
 shr.uw  rdHB, rdHC, immu6
 shr.sw  rdHB, rdHC, rdHD
@@ -128,7 +128,7 @@ MISC-wyde 子表中的 `mul`/`div`/`rem` 提供 16 位乘除余运算。`mul` �
 
 ### 4.2 Bit manipulating：位操作指令 — 值语义
 
-MISC-wyde 子表中的 `shl.w`/`ror.w`/`shr.uw`/`shr.sw` 提供 16 位移位/循环移位操作。`shr` 分 `u`（逻辑）/`s`（算术）变体；`shl`/`ror` 符号无关、不带 `u`/`s` 后缀（`ADR-0032 D3`）。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
+MISC-wyde 子表中的 `shl.w`/`rol.w`/`shr.uw`/`shr.sw` 提供 16 位移位/循环移位操作。`shr` 分 `u`（逻辑）/`s`（算术）变体；`shl`/`rol` 符号无关、不带 `u`/`s` 后缀（`ADR-0032 D3`）。移位量（shamt）取 `rdHD` 的低位（寄存器形式，`orrr`）或 `immu6` 的低位（立即数形式，`orri`）。
 
 **SPEC-069t 值语义**：所有移位结果写满64位（零扩展或符号扩展），此前的「高位保留」语义已被值语义取代。
 
@@ -136,12 +136,12 @@ MISC-wyde 子表中的 `shl.w`/`ror.w`/`shr.uw`/`shr.sw` 提供 16 位移位/循
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.w`/`ror.w`/`shr.sw`/`shr.uw` | 15 | 0-15 | hd[3:0]，hd[5:4] 应为零 |
+| `shl.w`/`rol.w`/`shr.sw`/`shr.uw` | 15 | 0-15 | hd[3:0]，hd[5:4] 应为零 |
 
 运算公式：
 ```
 shl.w:  rdHB[15:0]  = (rdHC[15:0] << shamt),  rdHB[63:16] = 0
-ror.w:  rdHB[15:0]  = ror(rdHC[15:0], shamt), rdHB[63:16] = 0
+rol.w:  rdHB[15:0]  = rol(rdHC[15:0], shamt), rdHB[63:16] = 0
 shr.uw:  rdHB[15:0]  = (rdHC[15:0] >> shamt),  rdHB[63:16] = 0
 shr.sw:  rdHB[15:0]  = (rdHC[15:0] >> shamt) with sign(15),  rdHB[63:16] = sign_extend(rdHC[15])
 ```
@@ -162,9 +162,9 @@ shr.sw:  rdHB[15:0]  = (rdHC[15:0] >> shamt) with sign(15),  rdHB[63:16] = sign_
 - `k=8` 即 `bswap16` 语义（须源高 48 位为 0）；`k=1` 只反转**块内**位序，**不是** 64 位整体位反序。
 - 逐块反转的总述与伪代码见 SimRISC-04 §4.2.1。
 
-#### 4.2.2 逻辑循环右移 ror.w（`orrr` / `orri` 格式）
+#### 4.2.2 逻辑循环左移 rol.w（`orrr` / `orri` 格式）
 
-`ror.w` 对源寄存器的 **低 16 位**做逻辑循环右移：`rdHB[15:0] = ror(rdHC[15:0], amount)`；
+`rol.w` 对源寄存器的 **低 16 位**做逻辑循环左移：`rdHB[15:0] = rol(rdHC[15:0], amount)`；
 结果按值语义零扩展写满 64 位（`rdHB[63:16] = 0`）。符号无关、只有一个方向、不带 `u`/`s`
 （`ADR-0032 D3`/`D4`）。
 
@@ -175,12 +175,12 @@ shr.sw:  rdHB[15:0]  = (rdHC[15:0] >> shamt) with sign(15),  rdHB[63:16] = sign_
 
 - `orrr` 的 `rdHD` 只有低 4 位参与（天然取模 16）；`orri` 的 `immu6` 是 6 位，**越界（`16..63`）触发 ILLI**（与 `shl.w` 的 `immu6 <= 15` 同口径）。
 - 目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（结果恒为 0）；`rdHB == rdHC` 允许。
-- 编码：`ror.w` `orrr` = `010-001`、`orri` = `011-001`（`MISC-wyde`）。
+- 编码：`rol.w` `orrr` = `010-001`、`orri` = `011-001`（`MISC-wyde`）。
 - 64 位语义与总述见 SimRISC-04 §4.2.3。
 
 ```simrisc
-ror.w   rdHB, rdHC, rdHD        @@ 16 位循环右移（旋转量 = rdHD[3:0]）
-ror.w   rdHB, rdHC, immu6       @@ 16 位循环右移（immu6 0..15）
+rol.w   rdHB, rdHC, rdHD        @@ 16 位循环左移（旋转量 = rdHD[3:0]）
+rol.w   rdHB, rdHC, immu6       @@ 16 位循环左移（immu6 0..15）
 ```
 
 ---
@@ -191,7 +191,7 @@ ror.w   rdHB, rdHC, immu6       @@ 16 位循环右移（immu6 0..15）
 
 ### 0.5.5-rc（未发布）
 
-- `shl` 去掉 `u` 后缀（`shl.w`）并迁编码 `010-000`/`011-000`；新增 `ror.w`（逻辑循环右移，编码 `010-001`/`011-001`）及 §4.2.2 语义。
+- `shl` 去掉 `u` 后缀（`shl.w`）并迁编码 `010-000`/`011-000`；新增 `rol.w`（逻辑循环左移，编码 `010-001`/`011-001`）及 §4.2.2 语义。
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
 - 新增 `rev.w`（逐块反转，orri，`§4.2.1`）。
 - 伪指令集收缩：删除 `not.*`/`neg.*` 1:1 别名。

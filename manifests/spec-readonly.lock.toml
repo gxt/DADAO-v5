@@ -86,6 +86,13 @@ policy = "readonly-requires-authorization"
 #   （shl 改名 + 新增 ror 条文）+ 生成区 + 附录；DADAO-11 / DADAO-22 汇编示例 `shl.uo` → `shl.o`（机械改名）。
 #   上述 7 册 sha256 于同一变更内同步重算（其余 14 册不变）。
 
+# 2026-10-19（SPEC-152t 修订；用户原话逐字引录，渠道 = 经主会话问答，见 .tao/adr/adr-0032 §修订）：
+#   「保持ILLI；我在思考的一个问题是：是不是改为rol更合适？本质上ror/rol只需要实现一个即可，而从编码上看，该指令前面是shl，后面是两个shr，如果改为rol，再和shl换个位置，是不是更规整」
+#   「确认：ror 改为 rol」
+#   改动：ISA 循环移位指令 ror.o/ror.t/ror.w/ror.b → rol.*（逻辑循环**左**移；ADR-0032 D4 就地修订），
+#   **编码槽 010-001/011-001 不变**；SimRISC-00 四表 + SimRISC-04/08/09/10 §4.2 语义/生成区/附录。
+#   上述 5 册 sha256 于同一变更内同步重算（其余 16 册不变）。
+
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
 group = "simrisc-00..12"
@@ -93,7 +100,7 @@ group = "simrisc-00..12"
 # 2026-10-16（同裁定，原话见文件头注释）：QFC 主表格 `aip.si_riii_rb`；§2.2 `rb0`（`rbip`/`IP`）语义明文；
 #   §3 `IP[1:0]`；§返回地址栈 `IP 指向`；`0.5.5-rc` 段追加两条（改名 / 术语）。
 # `rela.si_riii_rb`（恢复 PC 相对寻址指令）+ 「0.5.5-rc」段追加恢复条目。
-sha256 = "535d520441271b8224dc8c6265a992d47405f2cd8473ff727fb51fb7eecf5d4a"
+sha256 = "62d42581131415d3bb3f49b8c6ff11f16cf67af58229e067c88c742978817169"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -113,7 +120,7 @@ sha256 = "c03444f87b91329eefaaff358cf239c89d02ca9eed254ca61d6f93f545214784"
 [[spec]]
 path = "spec/SimRISC-04-64位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "4efc1b5d37e4fe9d14f81914dd28dbd7c8dcfca88b2f42bfe6ed5f07bf1f62a4"
+sha256 = "b32ba9e9122d1efda85aa67c56716618b80cfa6115fd5308cf818028c9c64ba7"
 
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"
@@ -139,17 +146,17 @@ sha256 = "bd405979d2bd484d861e914a4f9fe0a67fb3c405f7026dc443f361b1110843fa"
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "6c500abed82d56f5e3b54fca1e7ac2734932464907d35bf3fedf0fd29fa35940"
+sha256 = "1ad7782728fbd3066dbf4ed791a3e0996bf768fcc614dac966ea29110a959cff"
 
 [[spec]]
 path = "spec/SimRISC-09-16位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "96b63f25588d13d1aa72cfb0e43f486bc947c39810dbe1d2c958ea13dc18c906"
+sha256 = "61c01aaeab8acd3b678379f86266af8c2d56d3f3033ff91bc870f9db25bbf8da"
 
 [[spec]]
 path = "spec/SimRISC-10-8位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "e1d9617d21943c938a5214edf7bc4fba0389bbc1376d604d86d7f1b2ba78965a"
+sha256 = "13c7b6df5958be43661a59154296f0c2bf33013133da770b42e109fd9c37e593"
 
 [[spec]]
 path = "spec/SimRISC-11-其它.md"
