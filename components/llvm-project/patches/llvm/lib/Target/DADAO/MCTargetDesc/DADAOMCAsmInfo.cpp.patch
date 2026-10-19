@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
 new file mode 100644
-index 000000000..e6db1f4c9
+index 000000000..6f54f4984
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.cpp
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,97 @@
 +//===-- DADAOMCAsmInfo.cpp - DADAO asm properties -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -71,6 +71,9 @@ index 000000000..e6db1f4c9
 +  return StringSwitch<DADAO::Specifier>(Name)
 +      .Case("pcrel_hi", DADAO::S_PCREL_HI)
 +      .Case("pcrel_lo", DADAO::S_PCREL_LO)
++      .Case("tls_dtpmod", DADAO::S_TLS_DTPMOD)
++      .Case("tls_dtprel", DADAO::S_TLS_DTPREL)
++      .Case("tls_tprel", DADAO::S_TLS_TPREL)
 +      .Default(DADAO::S_None);
 +}
 +
@@ -80,6 +83,12 @@ index 000000000..e6db1f4c9
 +    return "pcrel_hi";
 +  case DADAO::S_PCREL_LO:
 +    return "pcrel_lo";
++  case DADAO::S_TLS_DTPMOD:
++    return "tls_dtpmod";
++  case DADAO::S_TLS_DTPREL:
++    return "tls_dtprel";
++  case DADAO::S_TLS_TPREL:
++    return "tls_tprel";
 +  case DADAO::S_None:
 +    break;
 +  }

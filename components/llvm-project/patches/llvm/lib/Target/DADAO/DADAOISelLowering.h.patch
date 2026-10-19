@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..8e066fba0
+index 000000000..32eddc10c
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,265 @@
+@@ -0,0 +1,278 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -111,6 +111,19 @@ index 000000000..8e066fba0
 +  /// symbol).  Selected by DADAOISelDAGToDAG to TLS_OFFSET (the ABS48
 +  /// materialization of TPOFF, in GPRD) plus `add.o rb, rb3, rd`.
 +  TLS_ADDR,
++
++  /// Initial-exec TLS address (LLVM-117t): (TargetGlobalAddress carrying
++  /// MO_GOT_ADDR|MO_TLS_TPREL) -> i64 in GPRB.  The offset from TP is not a
++  /// link-time constant in a shared object, so it is loaded from a `.got` slot
++  /// whose data field is fixed up by the loader (R_DADAO_TLS_TPREL, type 12)
++  /// and then added to `rb3`.  Selected to PCREL_LOAD + `rb2rd` + `add.o`.
++  TLS_IE_ADDR,
++
++  /// Global-dynamic TLS index address (LLVM-117t): (TargetGlobalAddress
++  /// carrying MO_GOT_ADDR|MO_TLS_GD) -> i64 in GPRB, the address of the
++  /// `tls_index` pair `{tls_id, DTPOFF}` passed to `__tls_get_addr`
++  /// (contract-dynlink.md §4.3: types 10 and 11).  Selected to PCREL_LOAD.
++  TLS_GD_ADDR,
 +};
 +
 +} // namespace DADAOISD

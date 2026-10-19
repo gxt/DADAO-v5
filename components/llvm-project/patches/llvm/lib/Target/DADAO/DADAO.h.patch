@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAO.h b/llvm/lib/Target/DADAO/DADAO.h
 new file mode 100644
-index 000000000..82ae05236
+index 000000000..efe11abf4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAO.h
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,99 @@
 +//===-- DADAO.h - Top-level interface for DADAO representation --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -68,6 +68,21 @@ index 000000000..82ae05236
 +  // record's symbol+addend locate the high instruction (contract-elf.md §3.1).
 +  // Created by DADAOInstrInfo::expandPostRAPseudo together with the label.
 +  MO_PCREL_LO = 2,
++
++  // TLS slot kinds (LLVM-117t; contract-dynlink.md §4.3/§7).  The operand still
++  // denotes the *slot* (MO_GOT_ADDR is set as well); these bits select what the
++  // slot's 8-byte data field carries and hence which R_DADAO_TLS_* relocation
++  // the ELF writer records:
++  //   MO_TLS_TPREL -- `%tls_tprel(sym)`: TPOFF(sym) + A (type 12).  Used by the
++  //     initial-exec model, where the offset from TP is loaded from the slot
++  //     and added to rb3.
++  //   MO_TLS_GD -- the operand is the *address* of the two-word `tls_index`
++  //     pair {DTPMOD, DTPREL} this module needs for the global-dynamic model:
++  //     the printer emits the pair (types 10 and 11) plus one 8-byte pointer
++  //     slot holding the pair's address, and the instruction loads that pointer
++  //     (one PC-relative hi/lo pair) to pass it to __tls_get_addr.
++  MO_TLS_TPREL = 4,
++  MO_TLS_GD = 8,
 +};
 +
 +enum FormatKind : uint8_t {

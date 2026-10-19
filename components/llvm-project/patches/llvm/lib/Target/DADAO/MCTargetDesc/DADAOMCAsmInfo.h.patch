@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.h b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.h
 new file mode 100644
-index 000000000..9b359de01
+index 000000000..355303102
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCAsmInfo.h
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,71 @@
 +//===-- DADAOMCAsmInfo.h - DADAO asm properties -----------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -46,13 +46,25 @@ index 000000000..9b359de01
 +//   %pcrel_hi(sym)   -- high part, only on `aip.si`
 +//   %pcrel_lo(site)  -- low part, paired with the high part at local label
 +//                       `site` (the RISC-V `%pcrel_lo(label)` form)
++//   %tls_dtpmod(sym) -- 8-byte `.got` slot content, module TLS id
++//                       (R_DADAO_TLS_DTPMOD = 10)
++//   %tls_dtprel(sym) -- 8-byte `.got` slot content, module-relative TLS offset
++//                       (R_DADAO_TLS_DTPREL = 11)
++//   %tls_tprel(sym)  -- 8-byte `.got` slot content, TP-relative TLS offset
++//                       (R_DADAO_TLS_TPREL = 12)
++// The three TLS specifiers are only valid on data directives (`.dd.o64`): the
++// dynamic TLS relocations land in the slot, never in an instruction field
++// (LLVM-117t; contract-dynlink.md §4.3).
 +// Consumers: DADAOAsmParser (parsing), DADAOMCCodeEmitter (fixup kind),
-+// DADAOMCAsmInfo (printing).
++// DADAOELFObjectWriter (data-slot relocation type), DADAOMCAsmInfo (printing).
 +using Specifier = uint16_t;
 +enum {
 +  S_None,
 +  S_PCREL_HI,
 +  S_PCREL_LO,
++  S_TLS_DTPMOD,
++  S_TLS_DTPREL,
++  S_TLS_TPREL,
 +};
 +
 +Specifier parseSpecifierName(StringRef Name);

@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`LLVM-100t`（T4：静态 `__thread` + `rb3` TP；**必须已验证**）、`TESTCASES-052t`（T3：线程用例收口）、`QEMU-065t`（T2：qemu-user 线程语义）、`INFRA-085t`（`D2` 的登记源与 `lld` 两处 `Err` 现场）、`TESTCASES-047t`（动态档驱动/4 条 `excluded`）、`INFRA-093t`（`--json-out`/`--work-dir`）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-19）**：`llvm` 现存最大 = `LLVM-116t` ⇒ 取 **`117`**（`grep -rn 'LLVM-117' .tao/` 0 命中）。
 > **线程链位置（T5）**：串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 本册**。
@@ -111,13 +111,35 @@
 7. **里程碑 / L3 判定** ✗（归主会话 / `/complete`）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+
+**测试结果**：① 动态档目标 5 例（`functional/{dlopen,tls_align,tls_align_dlopen,tls_init_dlopen}` + `regression/tls_get_new-dtv`）**5/5 pass**，`excluded` **30 → 26**；② 全量动态档 341 例 **pass 338 / fail 0 / known-fail 1（`strptime`=ISS-251）/ blocked 2**（`musl/pleval` 既有动态档链接缺口、`regression/flockfile-list`=ISS-255）；与 2026-10-19 基线逐例对账 **0 条 pass→非 pass**、**26 条非 pass→pass**；③ `047t` 10 例（3 TLS + 7 线程）**两档 10/10**（3 例 TLS 动态档 blocked→pass）；④ `make check-lit` **118/118**、`check_lit_gen` **64/64**、`make check`（L1）**rc=0**、证据脚本 **PASS（46 checks，含 2 处可达 FAIL）**。
+**修改文件**：`components/llvm-project/**`（14 补丁改 + 新增 `patches/lld/ELF/InputSection.cpp.patch`；`series` 82→83、`check-patch-tree` 184→185）+ `changelog.md`；`tools/testcases/run_libc_test_user_suite.py`；`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（补丁行号位移后 `gen_isa_coverage.py` 重派生）；`.tao/knowledge/issues.yaml`（`ISS-246`/`ISS-260` → `closed`）。**`components/musl/**` 0 改动**。
+**验收结果**：① 发射：`dso.o` `.rela.got` = `0x0 R_DADAO_TLS_DTPMOD tv` / `0x8 R_DADAO_TLS_DTPREL tv` / `0x10 R_DADAO_ABS48 .Lgot.0`，`.rela.text` 有 `R_DADAO_PCREL_HI .got 0x10` + `R_DADAO_REL26 __tls_get_addr`；② 消费：`libtv.so` `.rela.dyn` = `0x20400 R_DADAO_TLS_DTPMOD tv` / `0x20408 R_DADAO_TLS_DTPREL tv` / `0x20410 R_DADAO_RELATIVE - 0x20400`；非抢占符号（DSO 内 `static __thread`）= `R_DADAO_TLS_DTPMOD - 0x0` / `- 0x4`（无符号、addend=手算 DTPOFF），运行 `stv=5 sum=6` exit 0；③ 运行（独立 oracle）：`RESULT OK dso=0x7fb8dc7789d0 t1=0x7fb8dc53ebcc t2=0x7fb8dc4dabcc main=11`（DSO 初值 7→99 可写、两线程各自独立、与主程序块不重叠、主程序 `__thread`=11 不被覆盖）；initial-exec：`x=21 y=22 xoff=0 yoff=4` exit 0（`.rela.dyn` 仅 `R_DADAO_TLS_TPREL itv`）；静态档产物仍 **0 条** 10/11/12；④ 门控 rc=0：`check-patch-tree`/`check-index-blobs`/`check-source-state`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-component-changelog`/`check-musl-freshness`/`check-builtins-freshness`/`check-issues`/`check-run-artifacts`/`check-instrinfo`/`check-isa-coverage`/`make check`。
+**新发现/坑**：① **`__tls_get_addr` 的参/返回值必须是 pointer IR 类型**——`LowerCallTo` 的 `isPointer` 由 IR 类型（`ArgTy->isPointerTy()`）设置，用 `i64` 会让 `CCIfPtr` 不命中 ⇒ 参数落 `rd16`、返回值取 `rd8`（运行期读到垃圾指针、qemu 崩）；RISC-V 模板用 `IntegerType` 是因为它没有 bank 区分。② lld 的**输入侧 TLS 槽**不能走泛型 `processAux`：`R_TPREL` 不在 `isRelExpr()` 里 ⇒ `isStaticLinkTimeConstant` 对 shared 也返回 true（会把 DSO 的 TPOFF 静默定死）；必须像 RISCV/X86_64 那样覆写 `scanSection`。③ `getTlsTpOffset` 的 `switch (emachine)` 对 `EM_DADAO` 是 `llvm_unreachable`（`ADR-0029` 时无人走），链接期常量 TPREL 一用就打到 —— 需补 Variant 1 无 gap 分支。④ shared 里**非抢占** TLS 符号不能发带符号动态项（local STT_TLS 不在 `.dynsym`），须走 `addAddendOnlyRelocIfNonPreemptible`（符号置零 + addend= DTPOFF，musl 用 `def.dso` 自身补齐）。⑤ DSO 的 TLS 槽若由编译器自造，必须把「对地址」再放一个普通 ABS48 指针槽（`PCREL_LOAD` 只能取槽内容，取不到「对地址」）。
+**遗留问题**：① 按派单**未跑** `install-host`/`build-qemu`/L2/L3（运行期用构建树 `clang`/`ld.lld` + 安装根 `qemu-dadao`）⇒ 安装根工具链仍是 T4 版本，`make check-lit`/`check-isa-coverage` 走安装根 `llvm-mc`/`llc`（本册未新增 lit 用例）；`check-builtins-freshness` 需 `make build-builtins` 并把同一归档 `cp` 到构建树资源目录与安装根两处消费点（T4 同法，非 `install-host`），`check-musl-freshness` 需 `make build-musl-shared`（已做，rc=0）。② `-static-pie`/`rcrt1.o` 的 `_DYNAMIC`（`ISS-245`）与 `TLSDESC`(13)/`COPY`(9) 仍显式报错（本册不做）。③ `local-dynamic` 模型显式报错（clang 默认不产生、语料无需求）。④ 收集到的共享 DSO 若被 `dlopen` 且用 initial-exec，musl 会在加载期报 `initial-exec TLS resolves to dynamic definition`（标准限制，本册未改）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
+
+**审查范围**：`components/llvm-project/**` 的全部改动（14 文件 + `InputSection.cpp`）、`tools/testcases/run_libc_test_user_suite.py` 的 helper 构建/排除表/运行 CWD。逐行看过 `scanTLSSlot`/`relocateInSection`/`LowerGlobalTLSAddress`/ISel 两分支/AsmPrinter 槽生成/驱动三张表。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| ① `__tls_get_addr` 用 `i64` 声明 ⇒ `CCIfPtr` 不命中，参数进 `rd16`、返回值取 `rd8`（运行期垃圾指针） | ✅已修 | `LowerGlobalTLSAddress` GD 分支：`CallTy = PointerType::get(...)`（参 + 返回均是） | 修前 `t1` 探针 `ld.st rd4,[rb4,0]` 前读 `rd8` ⇒ qemu 崩；修后反汇编 `aip.si rb16,…` + 返回 `rb8`，`t1`/`main`/DSO 探针 exit 0 |
+| ② 输入侧 TLS 槽走泛型 `processAux` 会被当链接期常量（`R_TPREL` 不在 `isRelExpr()`）⇒ shared 静默错值 | ✅已修 | 新增 `DADAO::scanSection` 覆写（RISCV/X86_64 同形）：10/11/12 只许可写非可执行槽 + `STT_TLS`，静态/动态按 `shared`/`isPreemptible` 分流 | DSO `.rela.dyn` 出现 DTPMOD/DTPREL；DSO 内 `static __thread` 走无符号 addend 记录且运行 5/6 正确 |
+| ③ shared 下非抢占 TLS 符号不能用带符号动态项（local STT_TLS 不入 `.dynsym`） | ✅已修 | `scanTLSSlot` 非抢占分支用 `addAddendOnlyRelocIfNonPreemptible(type, …, symbolicRel)` | 3b 探针：`R_DADAO_TLS_DTPMOD - 0x0` / `- 0x4`，`stv=5 sum=6` exit 0 |
+| ④ `getTlsTpOffset` 无 `EM_DADAO` 分支 ⇒ 链接期常量 TPREL 命中 `llvm_unreachable` | ✅已修 | `InputSection.cpp` 增 `EM_DADAO` = Variant 1 无 gap（与 musl `(image)&(align-1)` 同式） | IE 非 PIC 例 `xoff=0/yoff=4` exit 0；DSO IE `.rela.dyn` 仅 `TLS_TPREL itv` |
+| ⑤ GD 的 `tls_index` 对地址无法用现有 2 指令对直接取（`ld.o` 取内容，非地址） | ✅已修 | AsmPrinter 为每 GV 额外发一个「持对地址」的普通 ABS48 指针槽，`PCREL_LOAD` 只取指针 | `dso.o` `.rela.got` 第三槽 `R_DADAO_ABS48 .Lgot.0`；`.so` 里该槽为 `RELATIVE`（addend=对地址） |
+| ⑥ `rb2rd` 的块计数 0 非法（`copyPhysReg` 用 1） | ✅已修 | ISel IE 分支以 `getTargetConstant(1)` 建 `rb2rd` | 反汇编 `rb2rd {rd4}, {rb4}`（无多余操作数），IE/DSO 两例运行 pass |
+| ⑦ `DADAOELFObjectWriter`：`FK_Data_8` + PCREL specifier 落 `default:` ⇒ 静默 ABS48 | ❌不修 | — | 不可达：`parseDDDirective` 对数据指令的非 TLS specifier 显式报错、`DADAOMCCodeEmitter` 对指令上的 TLS specifier 显式报错；AsmPrinter 只产 TLS spec。加分支无收益 |
+| ⑧ 每个 TU 各自发 GD 对 ⇒ 跨 TU 重复 `.rela.dyn` 记录（lld 合成 GOT 会去重） | ❌不修 | — | 语义正确（每条独立可解），代价仅几字节；与既有「编译器自管 `.got`」口径一致（ABS48 GOT 槽同形） |
+| ⑨ 驱动加 helper 构建/CWD 可能改变其它用例判决 | ✅已核 | helper 仅在 `mode == "dynamic"` 且 `cid ∈ HELPER_DSOS` 时构建；CWD 只对带 helper 的用例设置 | 全量动态档逐例对账：**0 条 pass→非 pass**；静态档 `excluded` 仍 30、10 例 10/10 |
+| ⑩ 补丁行号位移使 `llvm-isa-backend-matrix` 过期 | ✅已修 | `gen_isa_coverage.py` 由真源重派生 | `gen_isa_coverage.py --check` PASS；`make check-isa-coverage` rc=0 |
+| ⑪ 证据脚本自身「假绿」风险（注入未生效/恒真断言） | ✅已核 | inject A 改为在 `scanTLSSlot` 入口注入（原注入点在 DSO 场景不可达，实测被本项抓到）；两处注入均断言「非零 rc + 注入诊断在首错」 | 首轮 inject A 实测 `actual=0`（未红）⇒ 定位并改正；终轮 46/46 PASS，注入→红→`cp`+md5 还原→回绿 |
+
+**判决**：8 条已修 + 2 条有据不修 + 1 条已核；无未修 finding ⇒ 状态置 `待验收`。
+
 #### 第 1 轮 reviewer 验收
+#### 第 1 轮 reviewer 验收
+- **architect 提交留痕（2026-10-20）**：档位 = 正常提交（按派单；reviewer 尚未审）；提交 `22d3aca`（分支 `LLVM-117t`，**未 push**）；`git diff --cached --name-only` 22 文件 vs 完成区「修改文件」对账 = 一致（`components/llvm-project/**` 13 补丁改 + 新增 `InputSection.cpp.patch`、`series`、`changelog.md`、驱动、矩阵 `md`/`tsv`、`issues.yaml` + 本册 `状态`、`milestones.md` 状态行），漏提 0 / 多提 0 / 越界 0；`check-patch-tree` 185 ✓、`make check`（L1）rc=0。

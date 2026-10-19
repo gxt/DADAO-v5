@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
 new file mode 100644
-index 000000000..c8bbb5706
+index 000000000..81ffe0656
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOMCInstLower.cpp
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,157 @@
 +//===-- DADAOMCInstLower.cpp - DADAO MachineInstr to MCInst ----*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -98,6 +98,18 @@ index 000000000..c8bbb5706
 +    // operand must be the bare slot label (adding the offset here would load
 +    // from inside the slot).  It is the *high* half's target; the emitter picks
 +    // R_DADAO_PCREL_HI from the `aip.si` opcode plus a bare symbol.
++    // Dynamic TLS (LLVM-117t): the operand denotes a slot too, but one whose
++    // data field carries a TLS relocation instead of an absolute address.
++    //   * MO_TLS_GD: the slot holds the address of this module's `tls_index`
++    //     pair; the instruction passes it to `__tls_get_addr`.
++    //   * MO_TLS_TPREL: the slot holds TPOFF(sym) (+ offset), which the
++    //     instruction adds to the thread pointer (initial-exec).
++    if (MO.getTargetFlags() & DADAO::MO_TLS_GD)
++      return MCOperand::createExpr(MCSymbolRefExpr::create(
++          Printer.getTLSGDIndexSymbol(MO.getGlobal()), Ctx));
++    if (MO.getTargetFlags() & DADAO::MO_TLS_TPREL)
++      return MCOperand::createExpr(MCSymbolRefExpr::create(
++          Printer.getTLSGOTSlotSymbol(MO.getGlobal(), MO.getOffset()), Ctx));
 +    if (MO.getTargetFlags() & DADAO::MO_GOT_ADDR)
 +      return MCOperand::createExpr(MCSymbolRefExpr::create(
 +          Printer.getGOTSlotSymbol(MO.getGlobal(), MO.getOffset()), Ctx));

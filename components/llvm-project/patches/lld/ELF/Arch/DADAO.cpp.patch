@@ -1,9 +1,9 @@
 diff --git a/lld/ELF/Arch/DADAO.cpp b/lld/ELF/Arch/DADAO.cpp
 new file mode 100644
-index 000000000..8b7f6e721
+index 000000000..704a81b3e
 --- /dev/null
 +++ b/lld/ELF/Arch/DADAO.cpp
-@@ -0,0 +1,683 @@
+@@ -0,0 +1,846 @@
 +//===- DADAO.cpp - DADAO ELF Linker Target ----------------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -46,10 +46,15 @@ index 000000000..8b7f6e721
 +//       (musl REL_PLT).
 +//   R_DADAO_RELATIVE (8): 8-byte slot, B + A unsigned 48-bit (musl
 +//       REL_RELATIVE; B = load bias, added by the loader).
-+//   R_DADAO_COPY (9) / R_DADAO_TLSDESC (13) / R_DADAO_TLS_DTPMOD|DTPREL|TPREL
-+//       (10–12): reserved by ADR-0019 D10 but **not emitted** by this
-+//       implementation; encountering one is an explicit error (ADR-0026 D7②,
-+//       contract-dynlink.md §10②).
++//   R_DADAO_TLS_DTPMOD (10) / R_DADAO_TLS_DTPREL (11) / R_DADAO_TLS_TPREL (12):
++//       8-byte slots carrying the module TLS id, the module-relative offset and
++//       the TP-relative offset (contract-dynlink.md §4.3, ADR-0019 D10).  The
++//       compiler emits them as `.got` slot contents for the dynamic TLS models
++//       (initial-exec / global-dynamic, LLVM-117t); scanSection() decides
++//       between a link-time constant and a dynamic relocation.
++//   R_DADAO_COPY (9) / R_DADAO_TLSDESC (13): reserved by ADR-0019 D10 but
++//       **not emitted** by this implementation; encountering one is an explicit
++//       error (ADR-0026 D7②, contract-dynlink.md §10②).
 +//
 +// Dynamic output (contract-dynlink.md §3/§5/§6, ADR-0026 D2–D6): the DADAO
 +// target produces ET_DYN via lld's generic machinery —
@@ -87,8 +92,10 @@ index 000000000..8b7f6e721
 +
 +#include "InputFiles.h"
 +#include "OutputSections.h"
++#include "RelocScan.h"
 +#include "Relocations.h"
 +#include "Symbols.h"
++#include "SyntheticSections.h"
 +#include "Target.h"
 +#include "lld/Common/ErrorHandler.h"
 +#include "llvm/BinaryFormat/ELF.h"
@@ -123,6 +130,16 @@ index 000000000..8b7f6e721
 +    relativeRel = R_DADAO_RELATIVE;
 +    copyRel = R_DADAO_COPY;
 +
++    // TLS dynamic relocation types (LLVM-117t; contract-dynlink.md §4.3,
++    // ADR-0019 D10): 10 = module TLS id, 11 = module-relative offset, 12 =
++    // TP-relative offset.  These name the *slot content* kinds, which is what
++    // lld's generic TLS GOT machinery would use; the DADAO compiler emits the
++    // slots itself, so scanSection() below applies the same three types to the
++    // input records instead (nothing here sets NEEDS_TLSIE/NEEDS_TLSGD).
++    tlsModuleIndexRel = R_DADAO_TLS_DTPMOD;
++    tlsOffsetRel = R_DADAO_TLS_DTPREL;
++    tlsGotRel = R_DADAO_TLS_TPREL;
++
 +    // PLT: eager binding only (ADR-0026 D6).  The loader fills every .got.plt
 +    // slot before the program starts, so there is no lazy resolver and hence no
 +    // PLT header (PltSection::writeTo calls writePltHeader() into the buffer and
@@ -150,10 +167,16 @@ index 000000000..8b7f6e721
 +  void relocate(uint8_t *loc, const Relocation &rel,
 +                uint64_t val) const override;
 +  void relocateAlloc(InputSection &sec, uint8_t *buf) const override;
++  void scanSection(InputSectionBase &sec, unsigned shard) override;
 +
 +private:
 +  void relocateInSection(uint8_t *loc, const Relocation &rel, uint64_t val,
 +                         bool isExec) const;
++  template <class ELFT>
++  void scanSection1(InputSectionBase &sec, unsigned shard);
++  template <class ELFT, class RelTy>
++  void scanSectionImpl(InputSectionBase &sec, Relocs<RelTy> rels,
++                       unsigned shard);
 +};
 +} // namespace
 +
@@ -320,10 +343,12 @@ index 000000000..8b7f6e721
 +  case R_DADAO_TLS_DTPMOD:
 +  case R_DADAO_TLS_DTPREL:
 +  case R_DADAO_TLS_TPREL:
-+    // TLS types are numbered by ADR-0019 D10 but their semantics depend on the
-+    // musl arch macros (contract-dynlink.md §7), which are not wired up yet.
-+    Err(ctx) << getErrorLoc(ctx, loc) << "TLS dynamic relocation " << type
-+             << " is not supported yet (contract-dynlink.md §7)";
++    // TLS slot contents (LLVM-117t; contract-dynlink.md §4.3).  These records
++    // are produced by the compiler for its `.got` slots and are consumed by
++    // scanSection() below, which decides whether the slot is a link-time
++    // constant or needs a dynamic relocation; the generic expression path is
++    // never asked for them.  Returning R_NONE here keeps this hook honest
++    // without reintroducing the old blanket rejection.
 +    return R_NONE;
 +  default:
 +    Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << type.v
@@ -555,13 +580,29 @@ index 000000000..8b7f6e721
 +    return;
 +  case R_DADAO_TLS_DTPMOD:
 +  case R_DADAO_TLS_DTPREL:
-+  case R_DADAO_TLS_TPREL:
-+    // TLS types are numbered by ADR-0019 D10 but their semantics depend on the
-+    // musl arch macros (contract-dynlink.md §7), which are not wired up yet.
-+    Err(ctx) << getErrorLoc(ctx, loc)
-+             << "TLS dynamic relocation " << rel.type
-+             << " is not supported yet (contract-dynlink.md §7)";
++  case R_DADAO_TLS_TPREL: {
++    // Dynamic TLS slot contents (LLVM-117t; contract-dynlink.md §4.3): a single
++    // 8-byte field per slot, big-endian like every other data slot.
++    //
++    //   10 DTPMOD = the module's TLS id (loader-assigned, >= 1)
++    //   11 DTPREL = DTPOFF(sym) + A, two's complement
++    //   12 TPREL  = TPOFF(sym) + A, two's complement (may be negative)
++    //
++    // The two offset classes are signed: writing them masked to 48 bits would
++    // turn a negative TPOFF into a huge positive one, so the value is written
++    // as a sign-extended 64-bit two's complement and only *range-checked* to
++    // 48 bits (contract-dynlink.md §4.3/§10③: an out-of-range TP + TPOFF is an
++    // error, never a wrap).
++    if (rel.type == R_DADAO_TLS_DTPMOD) {
++      checkIntUInt(ctx, loc, val, 48, rel);
++      write64be(loc, val);
++      return;
++    }
++    const int64_t disp = static_cast<int64_t>(val);
++    checkInt(ctx, loc, disp, 48, rel);
++    write64be(loc, static_cast<uint64_t>(disp));
 +    return;
++  }
 +  case R_DADAO_REL12:
 +  case R_DADAO_ABS12: {
 +    // ld.*/st.* symbol displacement: a single in-place imms12 BYTE offset
@@ -684,6 +725,128 @@ index 000000000..8b7f6e721
 +    uint64_t val = sec.getRelocTargetVA(ctx, rel, secAddr + rel.offset);
 +    relocateInSection(loc, rel, val, isExec);
 +  }
++}
++
++//===----------------------------------------------------------------------===//
++// TLS data relocations in compiler-emitted `.got` slots (LLVM-117t)
++//===----------------------------------------------------------------------===//
++//
++// DADAO's compiler owns its `.got`: the slots are input-section data fields with
++// a relocation record, not linker-synthesized entries (LLVM-094t).  For TLS the
++// record types are the *dynamic* types 10/11/12 themselves, so the generic
++// expression path (`getRelExpr` + `isStaticLinkTimeConstant`) cannot classify
++// them -- it would fold every one of them as a link-time constant, which is
++// wrong for a shared object (contract-dynlink.md §4.3):
++//
++//   10 DTPMOD = module tls_id            -- loader-assigned, >= 1
++//   11 DTPREL = DTPOFF(sym) + A          -- module-relative
++//   12 TPREL  = TPOFF(sym) + A           -- TP-relative, may be negative
++//
++// The rules below mirror what lld's own TLS GOT machinery does for other
++// targets, with the frozen formulas above:
++//
++//   * DTPREL is a link-time constant for a defined, non-preemptible symbol
++//     (the offset inside its own module's TLS block does not move), so it is
++//     written by relocateAlloc() in every output kind.
++//   * DTPMOD / TPREL are link-time constants only when the output is not
++//     shared: the main executable is the first TLS module, so its id is 1
++//     (musl ldso/dynlink.c: `app.tls_id = tls_cnt = 1`) and its static TLS
++//     offset is what the linker just assigned (getTlsTpOffset).
++//   * In a shared object -- or for a preemptible symbol -- the loader owns the
++//     value, so a dynamic relocation is emitted: symbol-less with the addend
++//     carrying DTPOFF when the symbol is local to this module (musl adds the
++//     module's own tls_id / tls.offset), otherwise against the symbol so the
++//     loader resolves the *defining* module.
++static void scanTLSSlot(Ctx &ctx, InputSectionBase &sec, Symbol &sym,
++                        RelType type, uint64_t offset, int64_t addend) {
++  // The slot must be a writable data field: a TLS module id / offset can only
++  // live in data, and a read-only or executable section would make the loader
++  // write into text (contract-dynlink.md §4.3).
++  if (((sec.flags & SHF_WRITE) == 0) || ((sec.flags & SHF_EXECINSTR) != 0)) {
++    Err(ctx) << sec.getLocation(offset) << ": relocation " << type
++             << " needs a writable data slot (the compiler's `.got` slot); "
++                "TLS offsets never live in an instruction field "
++                "(contract-dynlink.md §4.3)";
++    return;
++  }
++  if (!sym.isTls()) {
++    Err(ctx) << sec.getLocation(offset) << ": relocation " << type
++             << " is only valid against an STT_TLS symbol, but '" << &sym
++             << "' is not thread-local (contract-dynlink.md §4.3)";
++    return;
++  }
++
++  if (!sym.isPreemptible) {
++    if (type == R_DADAO_TLS_DTPREL) {
++      // DTPOFF(sym) + A: module-relative, hence a link-time constant in a
++      // shared object too (only the block's placement moves).
++      sec.addReloc({R_DTPREL, type, offset, addend, &sym});
++      return;
++    }
++    if (!ctx.arg.shared) {
++      if (type == R_DADAO_TLS_DTPMOD)
++        // The executable is TLS module 1 (musl ldso/dynlink.c).
++        sec.addReloc({R_ADDEND, type, offset, /*addend=*/1, &sym});
++      else
++        // R_TPREL resolves through getTlsTpOffset(): DTPOFF + alignment
++        // padding, i.e. exactly musl's static TLS layout (§7).
++        sec.addReloc({R_TPREL, type, offset, addend, &sym});
++      return;
++    }
++    // Shared object, local symbol: the record cannot name a dynamic symbol
++    // (a local STT_TLS symbol is not in .dynsym), so the value travels as the
++    // addend and the loader supplies the module part (musl: REL_DTPMOD writes
++    // the module's own tls_id, REL_TPOFF adds the module's own tls.offset).
++    ctx.in.relaDyn->addAddendOnlyRelocIfNonPreemptible(
++        type, sec, offset, sym, ctx.target->symbolicRel);
++    return;
++  }
++
++  // Preemptible: the definition may be in another module, so the loader must
++  // resolve the symbol and use that module's id / offset.
++  ctx.in.relaDyn->addSymbolReloc(type, sec, offset, sym, addend);
++}
++
++template <class ELFT, class RelTy>
++void DADAO::scanSectionImpl(InputSectionBase &sec, Relocs<RelTy> rels,
++                            unsigned shard) {
++  RelocScan rs(ctx, &sec, shard);
++  sec.relocations.reserve(rels.size());
++
++  for (auto it = rels.begin(); it != rels.end(); ++it) {
++    RelType type = it->getType(false);
++    int64_t addend = rs.getAddend<ELFT>(*it, type);
++    switch (type) {
++    case R_DADAO_TLS_DTPMOD:
++    case R_DADAO_TLS_DTPREL:
++    case R_DADAO_TLS_TPREL: {
++      Symbol &sym = sec.getFile<ELFT>()->getSymbol(it->getSymbol(false));
++      scanTLSSlot(ctx, sec, sym, type, it->r_offset, addend);
++      continue;
++    }
++    default:
++      break;
++    }
++    // Everything else -- including the PC-relative hi/lo pair that reaches the
++    // slot -- keeps the generic scan (scan() reports undefined symbols, sets
++    // NEEDS_GOT/NEEDS_PLT and hands the record to process()).
++    rs.scan<ELFT, RelTy>(it, type, addend);
++  }
++}
++
++template <class ELFT>
++void DADAO::scanSection1(InputSectionBase &sec, unsigned shard) {
++  const RelsOrRelas<ELFT> rels = sec.template relsOrRelas<ELFT>();
++  if (rels.areRelocsCrel())
++    scanSectionImpl<ELFT>(sec, rels.crels, shard);
++  else if (rels.areRelocsRel())
++    scanSectionImpl<ELFT>(sec, rels.rels, shard);
++  else
++    scanSectionImpl<ELFT>(sec, rels.relas, shard);
++}
++
++void DADAO::scanSection(InputSectionBase &sec, unsigned shard) {
++  invokeELFT(scanSection1, sec, shard);
 +}
 +
 +void elf::setDADAOTargetInfo(Ctx &ctx) { ctx.target.reset(new DADAO(ctx)); }

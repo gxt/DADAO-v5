@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
 new file mode 100644
-index 000000000..074017f89
+index 000000000..561c7fde2
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOELFObjectWriter.cpp
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,131 @@
 +//===-- DADAOELFObjectWriter.cpp - DADAO ELF Writer -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,9 +13,11 @@ index 000000000..074017f89
 +//===----------------------------------------------------------------------===//
 +
 +#include "MCTargetDesc/DADAOFixupKinds.h"
++#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +#include "MCTargetDesc/DADAOMCTargetDesc.h"
 +#include "llvm/BinaryFormat/ELF.h"
 +#include "llvm/MC/MCELFObjectWriter.h"
++#include "llvm/MC/MCValue.h"
 +#include "llvm/MC/MCFixup.h"
 +#include "llvm/MC/MCObjectWriter.h"
 +
@@ -35,7 +37,7 @@ index 000000000..074017f89
 +  ~DADAOELFObjectWriter() override = default;
 +
 +protected:
-+  unsigned getRelocType(const MCFixup &Fixup, const MCValue &,
++  unsigned getRelocType(const MCFixup &Fixup, const MCValue &Target,
 +                        bool /*IsPCRel*/) const override {
 +    // Fixup kind -> R_DADAO_* type.  The numbering and the type set are frozen
 +    // by contract-elf.md §2.2 (ADR-0019 §D2); the legacy Dadao.def numbering is
@@ -78,8 +80,21 @@ index 000000000..074017f89
 +    // is an absolute address: R_DADAO_ABS48 is an absolute relocation and does
 +    // not distinguish instruction from data (ADR-0019 §D2; user ruling
 +    // 2026-10-06).  The linker writes the 48-bit value into the 8-byte field.
++    // A TLS specifier on the same 8-byte data item selects one of the dynamic
++    // TLS relocations instead: the slot then holds the module TLS id / the
++    // module-relative / the TP-relative offset, with the symbol and addend in
++    // the record (contract-dynlink.md §4.3; LLVM-117t).
 +    case llvm::FK_Data_8:
-+      return ELF::R_DADAO_ABS48;
++      switch (Target.getSpecifier()) {
++      case llvm::DADAO::S_TLS_DTPMOD:
++        return ELF::R_DADAO_TLS_DTPMOD;
++      case llvm::DADAO::S_TLS_DTPREL:
++        return ELF::R_DADAO_TLS_DTPREL;
++      case llvm::DADAO::S_TLS_TPREL:
++        return ELF::R_DADAO_TLS_TPREL;
++      default:
++        return ELF::R_DADAO_ABS48;
++      }
 +
 +    // Narrower relocatable data items (FK_Data_1/2/4, i.e. `.byte/.short/.long
 +    // <sym>`) cannot carry a 48-bit DADAO address and get an explicit
@@ -100,7 +115,17 @@ index 000000000..074017f89
 +    // ABS48 carries an absolute address, so the linker must resolve the real
 +    // symbol (never rewrite it to an STT_SECTION symbol).  Source:
 +    // contract-elf.md §3.1 (ADR-0019 §D3).
-+    return Type == ELF::R_DADAO_ABS48;
++    //
++    // The TLS data relocations need the symbol too, for the same reason: the
++    // module TLS id (DTPMOD), the module-relative offset (DTPREL) and the
++    // TP-relative offset (TPREL) are all properties of the *symbol* (and, for a
++    // shared object, its placement in the module's TLS block), so folding the
++    // reference into an STT_SECTION symbol would lose the `st_value` the
++    // loader needs (contract-dynlink.md §4.3; LLVM-117t).
++    return Type == ELF::R_DADAO_ABS48 ||
++           Type == ELF::R_DADAO_TLS_DTPMOD ||
++           Type == ELF::R_DADAO_TLS_DTPREL ||
++           Type == ELF::R_DADAO_TLS_TPREL;
 +  }
 +};
 +

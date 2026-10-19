@@ -26,7 +26,7 @@
 | `pat-args` | `def`/`defm` 的 Pat 类实参（含 `multiclass` 经 `defm` 传入的指令） | `DADAOCodeGen.td.patch` |
 | `isel-cpp` | `DADAO::<def>` 显式引用（自定义选择器 / lowering 发射） | `DADAOISelDAGToDAG.cpp.patch`、`DADAOISelLowering.cpp.patch` |
 
-现场统计：证据条数 = isel-cpp 21 + pat 99 + pat-args 8；判「用得上」的记录 **91** 条。
+现场统计：证据条数 = isel-cpp 23 + pat 99 + pat-args 8；判「用得上」的记录 **92** 条。
 
 ### 提取方法的局限（盲区披露）
 
@@ -43,7 +43,7 @@
 
 | id | mnemonic | format | scope | ①汇编器 | ②ISel | 证据 |
 |---|---|---|---|---|---|---|
-| `add.o_orrr_bbd` | `add.o` | `orrr` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:149:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:181:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:378:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:421:add_o_bbd |
+| `add.o_orrr_bbd` | `add.o` | `orrr` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:149:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:181:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:378:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:405:add_o_bbd;isel-cpp:DADAOISelDAGToDAG.cpp.patch:459:add_o_bbd |
 | `add.sb_orrr_rd` | `add.sb` | `orrr` | `m1` | accept | no | — |
 | `add.si_riii_rb` | `add.si` | `riii` | `m1` | accept | no | — |
 | `add.si_riii_rd` | `add.si` | `riii` | `m1` | accept | no | — |
@@ -63,13 +63,13 @@
 | `br.ne_rrii_rd` | `br.ne` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:558:br_ne_rd |
 | `br.nn_riii_rd` | `br.nn` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:552:br_nn_rd |
 | `br.np_riii_rd` | `br.np` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:554:br_np_rd |
-| `br.nz_riii_rb` | `br.nz` | `riii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:568:br_nz_rb |
+| `br.nz_riii_rb` | `br.nz` | `riii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:606:br_nz_rb |
 | `br.nz_riii_rd` | `br.nz` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:550:br_nz_rd |
 | `br.p_riii_rd` | `br.p` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:553:br_p_rd |
-| `br.z_riii_rb` | `br.z` | `riii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:567:br_z_rb |
+| `br.z_riii_rb` | `br.z` | `riii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:605:br_z_rb |
 | `br.z_riii_rd` | `br.z` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:549:br_z_rd |
-| `call_iiii_ra` | `call` | `iiii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:497:call_iiii |
-| `call_rrii_ra` | `call` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:497:call_rrii |
+| `call_iiii_ra` | `call` | `iiii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:535:call_iiii |
+| `call_rrii_ra` | `call` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:535:call_rrii |
 | `cfx2rc_crrr_cfx` | `cfx2rc` | `crrr` | `m1` | accept | no | — |
 | `cfx2rd_crrr_cfx` | `cfx2rd` | `crrr` | `m1` | accept | no | — |
 | `cfxld_crii_cfx` | `cfxld` | `crii` | `excluded` | reject | no | — |
@@ -81,7 +81,7 @@
 | `cmp.sw_orrr_rd` | `cmp.sw` | `orrr` | `m1` | accept | no | — |
 | `cmp.ub_orrr_rd` | `cmp.ub` | `orrr` | `m1` | accept | no | — |
 | `cmp.ui_rrii_rd` | `cmp.ui` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:546:cmp_ui_rd |
-| `cmp.uo_orrr_dbb` | `cmp.uo` | `orrr` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:553:cmp_uo_dbb |
+| `cmp.uo_orrr_dbb` | `cmp.uo` | `orrr` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:591:cmp_uo_dbb |
 | `cmp.uo_orrr_rd` | `cmp.uo` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:545:cmp_uo |
 | `cmp.ut_orrr_rd` | `cmp.ut` | `orrr` | `m1` | accept | no | — |
 | `cmp.uw_orrr_rd` | `cmp.uw` | `orrr` | `m1` | accept | no | — |
@@ -152,10 +152,10 @@
 | `io2ft_orri_rf` | `io2ft` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:717:io2ft_orri_rf |
 | `it2fo_orri_rf` | `it2fo` | `orri` | `fp` | accept | no | — |
 | `it2ft_orri_rf` | `it2ft` | `orri` | `fp` | accept | no | — |
-| `jump_iiii_rb` | `jump` | `iiii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:542:tailjmp_iiii;pat:DADAOCodeGen.td.patch:587:jump_iiii |
-| `jump_rrii_rb` | `jump` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:430:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:452:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:542:tailjmp_rrii |
+| `jump_iiii_rb` | `jump` | `iiii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:580:tailjmp_iiii;pat:DADAOCodeGen.td.patch:587:jump_iiii |
+| `jump_rrii_rb` | `jump` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:468:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:490:jump_rrii;isel-cpp:DADAOISelDAGToDAG.cpp.patch:580:tailjmp_rrii |
 | `ld.o_rrii_ra` | `ld.o` | `rrii` | `m1` | accept | no | — |
-| `ld.o_rrii_rb` | `ld.o` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:157:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:423:ld_o_rb |
+| `ld.o_rrii_rb` | `ld.o` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:157:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:461:ld_o_rb |
 | `ld.o_rrii_rd` | `ld.o` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:495:ld_o_rd |
 | `ld.o_rrii_rf` | `ld.o` | `rrii` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:692:ld_o_rrii_rf |
 | `ld.sb_rrii_rd` | `ld.sb` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:502:ld_sb_rd |
@@ -193,7 +193,7 @@
 | `or.w_rwii_rd` | `or.w` | `rwii` | `m1` | accept | no | — |
 | `ra2rd_orri_ra` | `ra2rd` | `orri` | `m1` | accept | no | — |
 | `rb2rb_orri_rb` | `rb2rb` | `orri` | `m1` | accept | no | — |
-| `rb2rd_orri_rb` | `rb2rd` | `orri` | `m1` | accept | no | — |
+| `rb2rd_orri_rb` | `rb2rd` | `orri` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:402:rb2rd |
 | `rd2ra_orri_ra` | `rd2ra` | `orri` | `m1` | accept | no | — |
 | `rd2rb_orri_rb` | `rd2rb` | `orri` | `m1` | accept | no | — |
 | `rd2rd_orri_rd` | `rd2rd` | `orri` | `m1` | accept | no | — |
@@ -230,7 +230,7 @@
 | `set.zw_rwii_rd` | `set.zw` | `rwii` | `m1` | accept | no | — |
 | `shl.b_orri_rd` | `shl.b` | `orri` | `m1` | accept | no | — |
 | `shl.b_orrr_rd` | `shl.b` | `orrr` | `m1` | accept | no | — |
-| `shl.o_orri_rd` | `shl.o` | `orri` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:419:shl_o_orri |
+| `shl.o_orri_rd` | `shl.o` | `orri` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:457:shl_o_orri |
 | `shl.o_orrr_rd` | `shl.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:410:shl_o_orrr |
 | `shl.t_orri_rd` | `shl.t` | `orri` | `m1` | accept | no | — |
 | `shl.t_orrr_rd` | `shl.t` | `orrr` | `m1` | accept | no | — |
@@ -262,9 +262,9 @@
 | `st.w_rrii_rd` | `st.w` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:509:st_w_rd |
 | `stm.b_rrri_rd` | `stm.b` | `rrri` | `m1` | accept | no | — |
 | `stm.o_rrri_ra` | `stm.o` | `rrri` | `m1` | accept | no | — |
-| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:979:stm_o_rb |
-| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:977:stm_o_rd |
-| `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:981:stm_o_rrri_rf |
+| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:984:stm_o_rb |
+| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:982:stm_o_rd |
+| `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:986:stm_o_rrri_rf |
 | `stm.t_rrri_rd` | `stm.t` | `rrri` | `m1` | accept | no | — |
 | `stm.t_rrri_rf` | `stm.t` | `rrri` | `fp` | accept | no | — |
 | `stm.w_rrri_rd` | `stm.w` | `rrri` | `m1` | accept | no | — |
@@ -287,13 +287,13 @@
 | `xnor.o_orrr_rd` | `xnor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:393:xnor_o |
 | `xor.o_orrr_rd` | `xor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:388:xor_o |
 
-## 3. 缺口汇总（未被 ISel 使用，152 条）
+## 3. 缺口汇总（未被 ISel 使用，151 条）
 
 候选优化面（供后续里程碑参考）。按性质分四类（现场统计）：
 
 1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**113** 条 —— ISA 有、后端一次都没发射，最有价值。
 2. **真缺口·汇编层/特权族**（同上但 `format ∈ {crrr, ciii, crii}` 或助记符 ∈ {fence, swym}，机械判据）：**5** 条 —— 经 cfx 访问/内联汇编/占位语义使用，不经 ISel 选入属预期。
-3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**23** 条。
+3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**22** 条。
 4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**11** 条 —— 不在本期范围。
 
 ### 3.1 真缺口·候补优化面（113 条）
@@ -424,7 +424,7 @@
 | `swym_oiii_imm` | `swym` | `oiii` | `m1` |
 | `trap_ciii_cfx` | `trap` | `ciii` | `m1` |
 
-### 3.3 仅 post-ISel 引用（23 条）
+### 3.3 仅 post-ISel 引用（22 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
@@ -441,7 +441,6 @@
 | `or.w_rwii_rb` | `or.w` | `rwii` | `m1` |
 | `or.w_rwii_rd` | `or.w` | `rwii` | `m1` |
 | `rb2rb_orri_rb` | `rb2rb` | `orri` | `m1` |
-| `rb2rd_orri_rb` | `rb2rd` | `orri` | `m1` |
 | `rd2rb_orri_rb` | `rd2rb` | `orri` | `m1` |
 | `rd2rd_orri_rd` | `rd2rd` | `orri` | `m1` |
 | `ret_riii_ra` | `ret` | `riii` | `m1` |

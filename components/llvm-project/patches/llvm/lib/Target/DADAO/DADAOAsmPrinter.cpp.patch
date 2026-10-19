@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
 new file mode 100644
-index 000000000..dfe5274c5
+index 000000000..54c735fa5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,195 @@
 +//===-- DADAOAsmPrinter.cpp - DADAO LLVM Assembly Printer ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -51,13 +51,14 @@ index 000000000..dfe5274c5
 +  return AsmPrinter::runOnMachineFunction(MF);
 +}
 +
-+MCSymbol *DADAOAsmPrinter::createGOTSlot(const MCExpr *Value) const {
++MCSymbol *DADAOAsmPrinter::createGOTSlot(const MCExpr *Value,
++                                          DADAO::Specifier Spec) const {
 +  // Slot names are per-object counters (`.Lgot.<n>`), so they are independent
 +  // of the symbol name (which may contain characters that do not round-trip
 +  // through the assembler) and are stable for a given compilation.
 +  MCSymbol *Slot = OutContext.getOrCreateSymbol(Twine(".Lgot.") +
 +                                                Twine(GOTSlotNextId++));
-+  GOTSlotOrder.push_back(GOTSlot{Slot, Value});
++  GOTSlotOrder.push_back(GOTSlot{Slot, Value, Spec});
 +  return Slot;
 +}
 +
@@ -78,6 +79,52 @@ index 000000000..dfe5274c5
 +
 +  const GOTSlot S{createGOTSlot(Value), Value};
 +  GOTSlots.insert(std::make_pair(Key, S));
++  return S.Slot;
++}
++
++MCSymbol *DADAOAsmPrinter::getTLSGOTSlotSymbol(const GlobalValue *GV,
++                                               int64_t Offset) const {
++  const auto Key = std::make_pair(GV, Offset);
++  auto It = TLSGOTSlots.find(Key);
++  if (It != TLSGOTSlots.end())
++    return It->second.Slot;
++
++  // Initial-exec: the slot holds TPOFF(sym) + offset, recorded as
++  // R_DADAO_TLS_TPREL.  The value (an offset from TP, possibly negative) is
++  // only known once the module's static TLS block has been placed, so a shared
++  // object carries a dynamic relocation here (contract-dynlink.md §4.3/§7).
++  const MCExpr *Value = MCSymbolRefExpr::create(getSymbol(GV), OutContext);
++  if (Offset)
++    Value = MCBinaryExpr::createAdd(
++        Value, MCConstantExpr::create(Offset, OutContext), OutContext);
++
++  const GOTSlot S{createGOTSlot(Value, DADAO::S_TLS_TPREL), Value};
++  TLSGOTSlots.insert(std::make_pair(Key, S));
++  return S.Slot;
++}
++
++MCSymbol *DADAOAsmPrinter::getTLSGDIndexSymbol(const GlobalValue *GV) const {
++  auto It = TLSGDIndexSlots.find(GV);
++  if (It != TLSGDIndexSlots.end())
++    return It->second.Slot;
++
++  // Global-dynamic: `__tls_get_addr` takes `tls_index { tls_id, DTPOFF }`.
++  // Emit the two 8-byte words here (types 10 and 11; the loader fills the
++  // module id and, for a shared object, the module-relative offset), then one
++  // more slot holding the *address* of the pair.  The pointer slot is what the
++  // instruction stream loads: passing the pair itself as an immediate would be
++  // a second address formation, while an ordinary 8-byte data slot is exactly
++  // what the existing PC-relative hi/lo access already reaches
++  // (contract-dynlink.md §3/§4.3).
++  const MCExpr *Val = MCSymbolRefExpr::create(getSymbol(GV), OutContext);
++  MCSymbol *Pair = createGOTSlot(Val, DADAO::S_TLS_DTPMOD);
++  // The two words must stay adjacent: the loader reads tls_index as one
++  // 16-byte object, and the emission order below is this vector's order.
++  createGOTSlot(Val, DADAO::S_TLS_DTPREL);
++
++  const MCExpr *PairAddr = MCSymbolRefExpr::create(Pair, OutContext);
++  const GOTSlot S{createGOTSlot(PairAddr), PairAddr};
++  TLSGDIndexSlots.insert(std::make_pair(GV, S));
 +  return S.Slot;
 +}
 +
@@ -114,13 +161,22 @@ index 000000000..dfe5274c5
 +  OutStreamer->emitValueToAlignment(Align(8));
 +  for (const GOTSlot &S : GOTSlotOrder) {
 +    OutStreamer->emitLabel(S.Slot);
-+    // Size 8 -> FK_Data_8 -> R_DADAO_ABS48 (data form), by the ELF writer.
-+    OutStreamer->emitValue(S.Value, 8);
++    // Size 8 -> FK_Data_8, and the optional specifier decides which data
++    // relocation the ELF writer records: none -> R_DADAO_ABS48 (absolute
++    // address), `%tls_*` -> the matching R_DADAO_TLS_* dynamic TLS relocation
++    // (LLVM-117t; contract-dynlink.md §4.3).
++    const MCExpr *Val = S.Spec == DADAO::S_None
++                            ? S.Value
++                            : MCSpecifierExpr::create(S.Value, S.Spec,
++                                                      OutContext);
++    OutStreamer->emitValue(Val, 8);
 +  }
 +
 +  // The pass instance may serve further modules; slots are module-local.
 +  GOTSlots.clear();
 +  GOTJumpTableSlots.clear();
++  TLSGOTSlots.clear();
++  TLSGDIndexSlots.clear();
 +  GOTSlotOrder.clear();
 +}
 +

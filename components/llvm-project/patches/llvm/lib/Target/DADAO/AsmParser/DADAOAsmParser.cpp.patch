@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..0c4291ace
+index 000000000..057a207cc
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2500 @@
+@@ -0,0 +1,2520 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -26,6 +26,7 @@ index 000000000..0c4291ace
 +#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +#include "TargetInfo/DADAOTargetInfo.h"
 +#include "llvm/ADT/STLExtras.h"
++#include "llvm/Support/Casting.h"
 +#include "llvm/ADT/StringSwitch.h"
 +#include "llvm/MC/MCAsmInfo.h"
 +#include "llvm/MC/MCContext.h"
@@ -1312,8 +1313,27 @@ index 000000000..0c4291ace
 +  do {
 +    SMLoc ValueLoc = Parser.getTok().getLoc();
 +    const MCExpr *Value;
-+    if (Parser.parseExpression(Value))
++    SMLoc EndLoc;
++    // A TLS specifier selects a dynamic TLS data relocation for the slot
++    // (`%tls_dtpmod` / `%tls_dtprel` / `%tls_tprel`; LLVM-117t).  Any other
++    // specifier is only meaningful on an instruction field and is rejected
++    // here instead of silently producing an ABS48 field.
++    if (parseExprWithSpecifier(Value, EndLoc))
 +      return ParseStatus::Failure;
++    if (const auto *SE = dyn_cast<MCSpecifierExpr>(Value)) {
++      const DADAO::Specifier Spec = SE->getSpecifier();
++      if (Spec != DADAO::S_TLS_DTPMOD && Spec != DADAO::S_TLS_DTPREL &&
++          Spec != DADAO::S_TLS_TPREL)
++        return Error(ValueLoc,
++                     Twine("relocation specifier '%") +
++                         DADAO::getSpecifierName(Spec) +
++                         "' is not valid on a data directive (only "
++                         "'%tls_dtpmod'/'%tls_dtprel'/'%tls_tprel' are)");
++      if (Size != 8)
++        return Error(ValueLoc,
++                     "a TLS data relocation needs an 8-byte field "
++                     "(R_DADAO_TLS_* slots; use '.dd.o64')");
++    }
 +
 +    // A relocatable (symbol / cross-section) operand of a data directive needs
 +    // an absolute data relocation.  Only the 8-byte field can carry a DADAO

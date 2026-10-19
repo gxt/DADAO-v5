@@ -17,6 +17,7 @@ compiler-rt/lib/builtins/CMakeLists.txt.patch
 lld/ELF/Arch/DADAO.cpp.patch
 lld/ELF/CMakeLists.txt.patch
 lld/ELF/Driver.cpp.patch
+lld/ELF/InputSection.cpp.patch
 lld/ELF/Relocations.cpp.patch
 lld/ELF/Target.cpp.patch
 lld/ELF/Target.h.patch

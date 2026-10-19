@@ -428,35 +428,14 @@ STRUCTURAL_EXCLUSIONS = {
         "has no dynamic loader (ADR-0025 D2) and the port has no threads.",
 }
 
-# Dynamic-round reasons for the same four entries: the static wording ("a
-# static image has no dynamic loader") would be false here, so it is replaced
-# rather than reused.  Two independent boundaries keep the cases out of the
-# dynamic round: (1) dlopen itself is out of the declared M8 scope (ADR-0025
-# D2 / INFRA-085t item 7: M8 does not require dlopen), and (2) the driver does
-# not build the per-case DSO helpers, while the TLS DSOs additionally cannot
-# compile (ISS-246) and need module-level TLS relocations that lld rejects
-# (ADR-0025 D2).  These are scope/structural boundaries, not verdicts.
-DYNAMIC_EXCLUSION_REASONS = {
-    "functional/dlopen.c":
-        "dynamic round: dlopen is out of the declared M8 scope (ADR-0025 D2 "
-        "defers it to M9+; INFRA-085t item 7) and the driver does not build the "
-        "sibling DSO helper (dlopen.mk: dlopen_dso.so).  Declared scope "
-        "boundary, not a capability claim -- a non-TLS DSO probe works.",
-    "functional/tls_align_dlopen.c":
-        "dynamic round: the DSO helper tls_align_dso.c declares __thread (the "
-        "target cannot compile it; ISS-246) and module-level TLS relocations "
-        "(TLS_DTPMOD/DTPREL/TPREL) are rejected by lld, deferred to M9+ "
-        "(ADR-0025 D2) -- the case cannot reach a verdict.",
-    "functional/tls_init_dlopen.c":
-        "dynamic round: the DSO helper tls_init_dso.c declares __thread "
-        "(ISS-246) and needs module-level TLS relocations rejected by lld, "
-        "deferred to M9+ (ADR-0025 D2) -- the case cannot reach a verdict.",
-    "regression/tls_get_new-dtv.c":
-        "dynamic round: dlopen + pthread dynamic-TLS regression; the DSO "
-        "helper declares __thread (ISS-246), module-level TLS relocations are "
-        "deferred to M9+ (ADR-0025 D2), and the port has no threads (ISS-252) "
-        "-- the case cannot reach a verdict.",
-}
+# Dynamic-round reasons for the same four entries (empty since LLVM-117t): the
+# entries above are *ordinary* dynamic-round cases now.  LLVM-117t landed the
+# dynamic TLS support they need (global-dynamic __tls_get_addr calls + the
+# R_DADAO_TLS_DTPMOD/DTPREL slots) and the driver builds their per-case DSO
+# helpers (HELPER_DSOS).  The table is kept (empty) as the documented place for
+# future scope boundaries: every entry must come with a real .mk/contract
+# basis, never a workaround.
+DYNAMIC_EXCLUSION_REASONS = {}
 
 # Extra translation units linked into a case, exactly as upstream's per-case
 # .mk files declare them.  src/functional/tls_align.mk:
@@ -467,6 +446,55 @@ DYNAMIC_EXCLUSION_REASONS = {
 EXTRA_CASE_SOURCES = {
     "functional/tls_align": ["functional/tls_align_dso.c"],
 }
+
+# Per-case DSO helpers, exactly as upstream's <case>.mk declares them
+# (LLVM-117t).  Only the dynamic round builds them: the static round has no
+# dynamic loader, so every case in this table stays structurally excluded there
+# (STRUCTURAL_EXCLUSIONS) and the TU is linked as a plain object instead where
+# upstream does that (`functional/tls_align` -> EXTRA_CASE_SOURCES above).
+#   functional/dlopen.c          -> dlopen_dso.so          (.mk: $(N).err dep)
+#   functional/tls_align.c       -> tls_align_dso.so       (.mk: $(N).LDLIBS)
+#   functional/tls_align_dlopen.c-> tls_align_dso.so       (.mk: $(N).err dep)
+#   functional/tls_init_dlopen.c -> tls_init_dso.so        (.mk: $(N).err dep)
+#   regression/tls_get_new-dtv.c -> tls_get_new-dtv_dso.so (.mk: $(N).err dep)
+# Each entry is (source TU relative to <corpus>/src, shared-object name).
+HELPER_DSOS = {
+    "functional/dlopen": [("functional/dlopen_dso.c", "dlopen_dso.so")],
+    "functional/tls_align": [("functional/tls_align_dso.c",
+                              "tls_align_dso.so")],
+    "functional/tls_align_dlopen": [("functional/tls_align_dso.c",
+                                     "tls_align_dso.so")],
+    "functional/tls_init_dlopen": [("functional/tls_init_dso.c",
+                                    "tls_init_dso.so")],
+    "regression/tls_get_new-dtv": [("regression/tls_get_new-dtv_dso.c",
+                                    "tls_get_new-dtv_dso.so")],
+}
+
+# Dynamic-round helpers that are *linked* into the executable (DT_NEEDED)
+# rather than dlopen'ed: upstream's tls_align.mk puts the DSO on the link line
+# (`$(N).LDLIBS := $(B)/$(D)/tls_align_dso.so`), so the loader maps it at
+# startup and its TLS lands in the static TLS block.
+DYNAMIC_LINK_DSOS = {"functional/tls_align": "tls_align_dso.so"}
+
+# Link flags the DSO mechanism needs, taken from the .mk files:
+#   functional/dlopen.mk:         $(N).LDFLAGS := -rdynamic
+#     -- the case dlsyms "main" from the reopened main program, which needs the
+#     executable's dynamic symbol table;
+#   regression/tls_get_new-dtv.mk: $(N).LDFLAGS := -Wl,-rpath='$ORIGIN'
+#     -- the DSO is dlopen'ed by its bare name from the executable's directory;
+#   functional/tls_align (dynamic) needs the same so the linked DSO is found.
+# `$ORIGIN` is passed literally (subprocess does not expand it).
+DYNAMIC_CASE_LDFLAGS = {
+    "functional/dlopen": ("--export-dynamic",),
+    "functional/tls_align": ("-rpath=$ORIGIN",),
+    "regression/tls_get_new-dtv": ("-rpath=$ORIGIN",),
+}
+
+# dlopen() paths that are spelled relative to the *source* tree by the case
+# itself (`dlopen("src/functional/tls_align_dso.so", ...)`).  The case is run
+# with its output directory as CWD, so the helper is placed under that same
+# subdirectory.
+DSO_SOURCE_RELATIVE_DIR = "src/functional"
 
 # src/api TUs that the locked musl cannot compile: excluded per TU only if the
 # declared signature really appears in the compiler output (otherwise reported
@@ -509,12 +537,18 @@ def abspath(path: str) -> str:
     return path if os.path.isabs(path) else os.path.join(REPO_ROOT, path)
 
 
-def run(cmd, timeout=None, stdin_data=None):
-    """Run cmd; return (rc, stdout, stderr, timed_out). rc is None on timeout."""
+def run(cmd, timeout=None, stdin_data=None, cwd=None):
+    """Run cmd; return (rc, stdout, stderr, timed_out). rc is None on timeout.
+
+    ``cwd`` is used for the per-case run of a case with DSO helpers: the cases
+    dlopen their sibling objects by a path relative to the working directory
+    (upstream runs them from the build tree), so the executable's own output
+    directory is the working directory for those.
+    """
     try:
         proc = subprocess.run(cmd, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, timeout=timeout,
-                              input=stdin_data)
+                              input=stdin_data, cwd=cwd)
         return (proc.returncode,
                 proc.stdout.decode("utf-8", errors="replace"),
                 proc.stderr.decode("utf-8", errors="replace"), False)
@@ -784,14 +818,24 @@ class Case:
                     link_cmd=self.link_cmd, work_dir=self.outdir)
 
 
-def discover(src_root: str):
+def discover(src_root: str, dynamic: bool = False):
     """Return (cases, excluded, census).
 
     ``cases``    -- runnable cases, one per upstream-built TU with ``main``,
                     plus the composite ``api/main`` conformance executable.
     ``excluded`` -- (id, reason) pairs: discovered entries excluded up front.
     ``census``   -- live counts for the coverage-boundary statement.
+
+    ``dynamic`` drops the entries that the dynamic round can now build: their
+    STRUCTURAL_EXCLUSION reason is precisely "a static image has no dynamic
+    loader", which does not hold there (LLVM-117t landed the dynamic TLS the
+    DSO helpers need and HELPER_DSOS builds them).  The static round keeps
+    every entry, so its command line and verdicts are unchanged.
     """
+    structural = dict(STRUCTURAL_EXCLUSIONS)
+    if dynamic:
+        for cid in HELPER_DSOS:
+            structural.pop(cid + ".c", None)
     all_c = sorted(glob.glob(os.path.join(src_root, "**", "*.c"),
                              recursive=True))
     built_glob = sorted(glob.glob(os.path.join(src_root, "*", "*.c")))
@@ -824,8 +868,8 @@ def discover(src_root: str):
             continue
         per_dir[d]["with_main"] += 1
         depth2_with_main.add(rel)
-        if rel in STRUCTURAL_EXCLUSIONS:
-            excluded.append((rel, STRUCTURAL_EXCLUSIONS[rel]))
+        if rel in structural:
+            excluded.append((rel, structural[rel]))
             continue
         extra = [os.path.join(src_root, e)
                  for e in EXTRA_CASE_SOURCES.get(rel[:-2], ())]
@@ -836,8 +880,8 @@ def discover(src_root: str):
     # no main of their own.
     api_main = os.path.join(src_root, api_main_rel)
     if os.path.isfile(api_main) and api_main_rel in depth2_with_main:
-        if api_main_rel in STRUCTURAL_EXCLUSIONS:
-            excluded.append((api_main_rel, STRUCTURAL_EXCLUSIONS[api_main_rel]))
+        if api_main_rel in structural:
+            excluded.append((api_main_rel, structural[api_main_rel]))
         else:
             cases.append(Case("api/main", api_main_rel,
                               sorted(api_sources + [api_main])))
@@ -1001,6 +1045,43 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
                 return case
         objs.append(obj)
 
+    # Per-case DSO helpers (LLVM-117t): upstream's .mk builds these as shared
+    # objects for the dynamic round.  They are compiled with the same user
+    # include set and -fPIC, and linked with the same lld.  A helper that fails
+    # to build blocks the case (never a silent exclusion).
+    helper_paths = []
+    if cfg["mode"] == "dynamic" and case.cid in HELPER_DSOS:
+        for rel_src, soname in HELPER_DSOS[case.cid]:
+            src = os.path.join(cfg["src_root"], rel_src)
+            hobj = os.path.join(outdir, os.path.basename(rel_src)[:-2] + ".o")
+            hcmd = ([cfg["clang"], "-target", "dadao-unknown-elf"] + incs
+                    + list(BASE_CFLAGS) + ["-fPIC", "-c", src, "-o", hobj])
+            rc, _o, err, timed = run(hcmd)
+            if timed or rc != 0:
+                case.klass = "blocked"
+                case.reason = (f"helper compile error rc={rc} on {rel_src}: "
+                               f"{first_tool_error(err)[:240]}")
+                case.first_error = first_tool_error(err)
+                return case
+            hso = os.path.join(outdir, soname)
+            lcmd = [cfg["ldlld"], "-shared", "-soname", soname,
+                    "-o", hso, hobj]
+            rc, _o, err, timed = run(lcmd)
+            if timed or rc != 0:
+                case.klass = "blocked"
+                case.reason = (f"helper link error rc={rc} on {soname}: "
+                               f"{first_tool_error(err)[:240]}")
+                case.first_error = first_tool_error(err)
+                return case
+            helper_paths.append(hso)
+            # The case may name its helper relative to the source tree
+            # (`dlopen("src/functional/..._dso.so")`); the run uses the output
+            # directory as CWD, so mirror that path there.
+            if rel_src.startswith("functional/"):
+                src_rel_dir = os.path.join(outdir, DSO_SOURCE_RELATIVE_DIR)
+                os.makedirs(src_rel_dir, exist_ok=True)
+                shutil.copyfile(hso, os.path.join(src_rel_dir, soname))
+
     elf = os.path.join(outdir, case.cid.replace("/", "_") + ".elf")
     common = [cfg["crt1"]] + objs + [cfg["libtest"]]
     if cfg["mode"] == "static":
@@ -1020,7 +1101,11 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
         # links builtins itself (INFRA-088t); this driver calls ld.lld
         # directly, so it appends the archive explicitly (same archive as the
         # static line, TESTCASES-050t item 3).
+        linked_dso = (os.path.join(outdir, DYNAMIC_LINK_DSOS[case.cid])
+                      if case.cid in DYNAMIC_LINK_DSOS else None)
         link = ([cfg["ldlld"], "-o", elf] + common
+                + list(DYNAMIC_CASE_LDFLAGS.get(case.cid, ()))
+                + ([linked_dso] if linked_dso else [])
                 + [cfg["libc"], cfg["builtins"],
                    "-dynamic-linker", DYNAMIC_LINKER])
     case.link_cmd = link
@@ -1062,7 +1147,12 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
     if cfg["mode"] == "dynamic":
         cmd += ["-L", cfg["guest_root"]]
     cmd += [elf]
-    rc, stdout, stderr, timed = run(cmd, timeout=cfg["timeout"])
+    # Cases with DSO helpers run from their output directory (the helpers --
+    # and, for the source-relative dlopen() paths, the mirrored
+    # `src/functional/` tree -- live there).  Every other case keeps its
+    # previous working directory, so this cannot change another case's verdict.
+    run_cwd = outdir if (cfg["mode"] == "dynamic" and helper_paths) else None
+    rc, stdout, stderr, timed = run(cmd, timeout=cfg["timeout"], cwd=run_cwd)
     case.stdout = stdout
     if timed:
         case.klass = "blocked"
@@ -1209,10 +1299,11 @@ def main() -> int:
         cfg["libtest"], common_objs = build_common_lib(cfg, work_dir)
         api_inc, options_defines = gen_api_options_h(cfg, work_dir)
 
-        cases, excluded, census = discover(src_root)
+        cases, excluded, census = discover(src_root, dynamic=(mode == "dynamic"))
         if mode == "dynamic":
             # The static wording ("no dynamic loader in a static image") would
-            # not describe the dynamic round; replace it per entry.
+            # not describe the remaining dynamic-round entries; replace it per
+            # entry (the table is empty today -- every former entry is a case).
             excluded = [(eid, DYNAMIC_EXCLUSION_REASONS.get(eid, reason))
                         for eid, reason in excluded]
         if not cases:

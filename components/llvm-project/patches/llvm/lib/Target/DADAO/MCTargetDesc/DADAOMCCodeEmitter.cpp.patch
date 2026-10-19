@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
 new file mode 100644
-index 000000000..74ba72e48
+index 000000000..9df889d7b
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCCodeEmitter.cpp
-@@ -0,0 +1,304 @@
+@@ -0,0 +1,318 @@
 +//===-- DADAOMCCodeEmitter.cpp - DADAO MC Code Emitter --------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -208,6 +208,20 @@ index 000000000..74ba72e48
 +  const MCExpr *Expr = MCOp.getExpr();
 +  const unsigned Opcode = Inst.getOpcode();
 +  const DADAO::Specifier Spec = getExprSpecifier(Expr);
++
++  // The TLS specifiers describe the *content* of an 8-byte `.got` slot
++  // (`%tls_dtpmod`/`%tls_dtprel`/`%tls_tprel`), i.e. a data field.  There is no
++  // instruction field that could hold a module id or a TLS offset, so reaching
++  // one here is an explicit error rather than a silent ABS48/REL12 field
++  // (LLVM-117t; contract-dynlink.md §4.3).
++  if (Spec == DADAO::S_TLS_DTPMOD || Spec == DADAO::S_TLS_DTPREL ||
++      Spec == DADAO::S_TLS_TPREL) {
++    Ctx.reportError(Expr->getLoc(),
++                    Twine("%") + DADAO::getSpecifierName(Spec) +
++                        "(...) is only valid on a data directive "
++                        "('.dd.o64' slot content)");
++    return 0;
++  }
 +
 +  // IP-relative hi/lo pair (ADR-0029 D2/D3; ADR-0019 D12; contract-elf.md
 +  // §2.2/§3.1) -- the explicit pairing of the GOT/PLT address formation:

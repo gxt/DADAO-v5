@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..26af4dca7
+index 000000000..a07e183d5
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,579 @@
+@@ -0,0 +1,617 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -376,6 +376,44 @@ index 000000000..26af4dca7
 +    SDValue TP = CurDAG->getRegister(DADAO::rb3, MVT::i64);
 +    SDNode *M =
 +        CurDAG->getMachineNode(DADAO::add_o_bbd, DL, MVT::i64, TP, Off);
++    ReplaceNode(Node, M);
++    return;
++  }
++  case DADAOISD::TLS_IE_ADDR: {
++    // Initial-exec TLS address (LLVM-117t): address = TP + slot content.
++    //
++    //   aip.si rbX, <tprel slot>             (R_DADAO_PCREL_HI)
++    //   ld.o   rbX, [rbX, %pcrel_lo(site)]   (R_DADAO_PCREL_LO)
++    //   rb2rd  {rdX}, {rbX}                  (slot value -> data bank)
++    //   add.o  rbDst, rb3, rdX               (TP + TPOFF)
++    //
++    // The slot's 8-byte data field is the R_DADAO_TLS_TPREL relocation: the
++    // loader writes TPOFF(sym) there because a shared object's static TLS
++    // offset is not known at link time (contract-dynlink.md §4.3).  PCREL_LOAD
++    // is the same pair the PIC GOT access uses, so no extra relocation type is
++    // introduced for the access.
++    const SDLoc DL(Node);
++    SDValue Slot = SDValue(
++        CurDAG->getMachineNode(DADAO::PCREL_LOAD, DL, MVT::i64,
++                               Node->getOperand(0)),
++        0);
++    SDValue One = CurDAG->getTargetConstant(1, DL, MVT::i64);
++    SDValue Off = SDValue(
++        CurDAG->getMachineNode(DADAO::rb2rd, DL, MVT::i64, Slot, One), 0);
++    SDValue TP = CurDAG->getRegister(DADAO::rb3, MVT::i64);
++    SDNode *M =
++        CurDAG->getMachineNode(DADAO::add_o_bbd, DL, MVT::i64, TP, Off);
++    ReplaceNode(Node, M);
++    return;
++  }
++  case DADAOISD::TLS_GD_ADDR: {
++    // Global-dynamic TLS index address (LLVM-117t): the operand's slot holds
++    // the address of the `tls_index` pair, so the ordinary PC-relative GOT
++    // access loads it into an RB register; the call lowering then passes it as
++    // the first (pointer) argument to __tls_get_addr.
++    const SDLoc DL(Node);
++    SDNode *M = CurDAG->getMachineNode(DADAO::PCREL_LOAD, DL, MVT::i64,
++                                       Node->getOperand(0));
 +    ReplaceNode(Node, M);
 +    return;
 +  }

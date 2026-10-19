@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.h b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
 new file mode 100644
-index 000000000..a7115bc38
+index 000000000..9c360c9ea
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,118 @@
 +//===-- DADAOAsmPrinter.h - DADAO LLVM Assembly Printer --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -25,6 +25,7 @@ index 000000000..a7115bc38
 +#include "llvm/ADT/DenseMap.h"
 +#include "llvm/ADT/SmallVector.h"
 +#include "llvm/CodeGen/AsmPrinter.h"
++#include "MCTargetDesc/DADAOMCAsmInfo.h"
 +#include "llvm/MC/MCStreamer.h"
 +
 +#include <cstdint>
@@ -41,11 +42,15 @@ index 000000000..a7115bc38
 +class DADAOAsmPrinter : public AsmPrinter {
 +  std::unique_ptr<DADAOMCInstLower> MCInstLowering;
 +
-+  /// One PIC GOT slot (LLVM-094t): an 8-byte absolute data field in `.got`,
-+  /// emitted once per referenced symbol (and per referenced jump table).
++  /// One `.got` slot: an 8-byte data field emitted once per referenced symbol
++  /// (and per referenced jump table).  `Spec` selects the recorded relocation
++  /// kind: none => R_DADAO_ABS48 (a plain absolute address, LLVM-094t); one of
++  /// the TLS specifiers => the matching R_DADAO_TLS_* dynamic relocation
++  /// (LLVM-117t; contract-dynlink.md §4.3).
 +  struct GOTSlot {
 +    MCSymbol *Slot;      ///< Label defined in `.got`.
 +    const MCExpr *Value; ///< Slot content (`sym (+ offset)`, or the table label).
++    DADAO::Specifier Spec = DADAO::S_None; ///< Data-relocation kind.
 +  };
 +
 +  /// Slots keyed by (global value, constant offset) and by the jump-table
@@ -57,6 +62,13 @@ index 000000000..a7115bc38
 +  /// an instruction; the slots are emitted in `emitEndOfAsmFile`.
 +  mutable DenseMap<std::pair<const GlobalValue *, int64_t>, GOTSlot> GOTSlots;
 +  mutable DenseMap<const MCSymbol *, GOTSlot> GOTJumpTableSlots;
++  /// TLS slots (LLVM-117t).  One TPREL slot per (symbol, offset) for the
++  /// initial-exec model; for the global-dynamic model one `tls_index` pair
++  /// (module id + module offset) plus one pointer slot holding the pair's
++  /// address, which is what `__tls_get_addr` receives.
++  mutable DenseMap<std::pair<const GlobalValue *, int64_t>, GOTSlot>
++      TLSGOTSlots;
++  mutable DenseMap<const GlobalValue *, GOTSlot> TLSGDIndexSlots;
 +  /// Emission order (= order of first reference), so the output is stable.
 +  mutable SmallVector<GOTSlot, 8> GOTSlotOrder;
 +  /// Slot-name counter.  Deliberately *not* reset per module: one MCContext may
@@ -64,7 +76,8 @@ index 000000000..a7115bc38
 +  /// twice in the same object.
 +  mutable unsigned GOTSlotNextId = 0;
 +
-+  MCSymbol *createGOTSlot(const MCExpr *Value) const;
++  MCSymbol *createGOTSlot(const MCExpr *Value,
++                          DADAO::Specifier Spec = DADAO::S_None) const;
 +
 +public:
 +  static char ID;
@@ -89,6 +102,18 @@ index 000000000..a7115bc38
 +  /// (PIC; LLVM-094t).  The table itself is unchanged; only its base address
 +  /// stops being a link-time absolute value.
 +  MCSymbol *getGOTSlotSymbolForJumpTable(unsigned JTIndex) const;
++
++  /// Label of the `.got` slot holding `TPOFF(GV + Offset)` for the
++  /// initial-exec TLS model (`%tls_tprel`, R_DADAO_TLS_TPREL).  The loader
++  /// fills it in a shared object, where the module's static TLS offset is not
++  /// known at link time (contract-dynlink.md §4.3/§7).
++  MCSymbol *getTLSGOTSlotSymbol(const GlobalValue *GV, int64_t Offset) const;
++
++  /// Label of the `.got` slot holding the *address* of the `tls_index` pair
++  /// `{tls_id, DTPOFF}` that the global-dynamic model passes to
++  /// `__tls_get_addr`.  The pair itself is emitted (8-byte aligned, adjacent)
++  /// with the `%tls_dtpmod` / `%tls_dtprel` relocations.
++  MCSymbol *getTLSGDIndexSymbol(const GlobalValue *GV) const;
 +
 +  /// Emit the `.got` section with every referenced slot (no-op when empty).
 +  void emitEndOfAsmFile(Module &M) override;

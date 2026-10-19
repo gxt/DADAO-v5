@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..58e39d17f
+index 000000000..296add5ae
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,1972 @@
+@@ -0,0 +1,2053 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -30,6 +30,7 @@ index 000000000..58e39d17f
 +//===----------------------------------------------------------------------===//
 +
 +#include "DADAOISelLowering.h"
++#include "DADAO.h"
 +#include "DADAOMachineFunctionInfo.h"
 +#include "DADAOSubtarget.h"
 +#include "DADAOTargetMachine.h"
@@ -544,6 +545,10 @@ index 000000000..58e39d17f
 +    return "DADAOISD::BRIND";
 +  case DADAOISD::TLS_ADDR:
 +    return "DADAOISD::TLS_ADDR";
++  case DADAOISD::TLS_IE_ADDR:
++    return "DADAOISD::TLS_IE_ADDR";
++  case DADAOISD::TLS_GD_ADDR:
++    return "DADAOISD::TLS_GD_ADDR";
 +  default:
 +    return nullptr;
 +  }
@@ -1588,43 +1593,119 @@ index 000000000..58e39d17f
 +
 +SDValue DADAOTargetLowering::LowerGlobalTLSAddress(SDValue Op,
 +                                                   SelectionDAG &DAG) const {
-+  // Local-exec TLS (LLVM-100t).  Address = TP + TPOFF, with
-+  //   * TP = rb3 (contract-abi.md §1.3: `rbtp`, reserved and never allocated);
-+  //   * TPOFF(sym) = the symbol's offset inside the TLS block, because the
-+  //     musl arch macros are TLS_ABOVE_TP / GAP_ABOVE_TP 0 / TP_OFFSET 0 /
-+  //     DTP_OFFSET 0 (contract-dynlink.md §7), i.e. the TLS block starts
-+  //     exactly at TP and there is no bias: TPOFF(sym) == DTPOFF(sym)
-+  //     (contract-dynlink.md §4.3).
-+  // The offset is a link-time value (the linker assigns TLS-block offsets), so
-+  // the selector materializes it through the existing R_DADAO_ABS48 sequence on
-+  // the STT_TLS symbol: an ABS48 relocation's S is the symbol's TLS offset for
-+  // an STT_TLS symbol (the linker's `getVA()` returns `va - PT_TLS.firstSection`
-+  // for TLS symbols), which is exactly TPOFF here.  No TLS relocation type is
-+  // emitted (10/11/12/13 stay for `D2`/LLVM-117t).
 +  const SDLoc DL(Op);
 +  auto *GA = cast<GlobalAddressSDNode>(Op);
 +  const GlobalValue *GV = GA->getGlobal();
++  const int64_t Offset = GA->getOffset();
++  const EVT PtrVT = getPointerTy(DAG.getDataLayout());
++  const bool IsPIC = getTargetMachine().getRelocationModel() == Reloc::PIC_;
 +
-+  // Only the static local-exec model is implemented.  clang's generic default
-+  // is global-dynamic; the DADAO driver overrides it to local-exec for
-+  // non-PIC compiles (DADAO.cpp).  A PIC compile (or an explicit
-+  // -ftls-model=...) that still reaches here needs the dynamic TLS
-+  // relocations, which do not exist yet -- fail loudly, never emit a static
-+  // offset into a position-independent object (contract-dynlink.md §10②).
-+  const bool IsLocalExec =
-+      GV->getThreadLocalMode() == GlobalValue::LocalExecTLSModel;
-+  if (!IsLocalExec || getTargetMachine().getRelocationModel() == Reloc::PIC_) {
-+    DAG.getContext()->emitError(
-+        Twine("thread-local storage of '") + GV->getName() +
-+        "' requires the local-exec TLS model: only static TLS (TP + TPOFF) is "
-+        "implemented for DADAO; dynamic TLS (TLS_DTPMOD/DTPREL/TPREL) is not "
-+        "supported yet");
-+    return DAG.getUNDEF(Op.getValueType());
++  // musl arch macros (contract-dynlink.md §7; arch/dadao/pthread_arch.h):
++  // TLS_ABOVE_TP, GAP_ABOVE_TP 0, TP_OFFSET 0, DTP_OFFSET 0, TPOFF_K 0.  The
++  // block therefore starts exactly at TP = rb3 (contract-abi.md §1.3), so
++  // TPOFF(sym) == DTPOFF(sym): the frozen formulas
++  //   R_DADAO_TLS_DTPREL = DTPOFF(sym) + A      (type 11)
++  //   R_DADAO_TLS_TPREL  = TPOFF(sym)  + A      (type 12)
++  // (contract-dynlink.md §4.3) carry no extra bias.
++  switch (GV->getThreadLocalMode()) {
++  case GlobalValue::LocalExecTLSModel: {
++    // Static local-exec (LLVM-100t): address = TP + TPOFF.
++    //
++    // A local-exec reference pins the object to the *executing module's* TLS
++    // block, which only exists for the main executable; a shared object cannot
++    // encode it (its TP-relative offsets are assigned by the loader).  Fail
++    // loudly instead of emitting a static offset into a position-independent
++    // object (contract-dynlink.md §10②).
++    if (IsPIC) {
++      DAG.getContext()->emitError(
++          Twine("thread-local storage of '") + GV->getName() +
++          "' uses the local-exec TLS model in a position-independent "
++          "translation unit: a shared object's TLS offsets are assigned by the "
++          "loader; use -ftls-model=initial-exec or global-dynamic");
++      return DAG.getUNDEF(Op.getValueType());
++    }
++    // The offset is a link-time constant (the linker assigns TLS-block
++    // offsets) and is materialized through the ABS48 sequence on the STT_TLS
++    // symbol: an ABS48 relocation's S is the symbol's TLS offset (the linker's
++    // `getVA()` returns `va - PT_TLS.firstSection` for TLS symbols), exactly
++    // TPOFF here.  No dynamic TLS relocation is involved (types 10/11/12 stay
++    // for the dynamic models below).
++    SDValue Sym = DAG.getTargetGlobalAddress(GV, DL, MVT::i64, Offset);
++    return DAG.getNode(DADAOISD::TLS_ADDR, DL, MVT::i64, Sym);
 +  }
 +
-+  SDValue Sym =
-+      DAG.getTargetGlobalAddress(GV, DL, MVT::i64, GA->getOffset());
-+  return DAG.getNode(DADAOISD::TLS_ADDR, DL, MVT::i64, Sym);
++  case GlobalValue::InitialExecTLSModel: {
++    // Initial-exec (LLVM-117t): address = TP + *(GOT slot), where the slot
++    // holds TPOFF(sym) + A and is fixed up by the loader through
++    // R_DADAO_TLS_TPREL (type 12).  Valid in the executable and in a shared
++    // object that is present at startup (its block is part of the static TLS
++    // area); musl rejects it for a dlopen'd module, which is the standard
++    // initial-exec restriction.
++    SDValue Sym = DAG.getTargetGlobalAddress(
++        GV, DL, MVT::i64, Offset, DADAO::MO_GOT_ADDR | DADAO::MO_TLS_TPREL);
++    return DAG.getNode(DADAOISD::TLS_IE_ADDR, DL, MVT::i64, Sym);
++  }
++
++  case GlobalValue::GeneralDynamicTLSModel: {
++    // Global-dynamic (LLVM-117t): the only model that also works for a module
++    // loaded by dlopen(), which is what ISS-260 needs.  Pass the address of
++    // this module's `tls_index` pair {tls_id, DTPOFF} to __tls_get_addr:
++    //   * the pair is emitted in `.got` with R_DADAO_TLS_DTPMOD (type 10) and
++    //     R_DADAO_TLS_DTPREL (type 11), so the loader fills the module id and,
++    //     for a shared object, the module-relative offset;
++    //   * the instruction stream loads the pair's *address* from one more
++    //     `.got` slot (an ordinary absolute data field) with the existing
++    //     PC-relative hi/lo pair, so no new instruction or relocation is
++    //     needed for the access itself.
++    // The ABI argument is `tls_mod_off_t *` (pointer bank, first argument =
++    // rb16), i.e. exactly the pointer-typed first argument of the call below.
++    SDValue Sym = DAG.getTargetGlobalAddress(
++        GV, DL, PtrVT, /*Offset=*/0, DADAO::MO_GOT_ADDR | DADAO::MO_TLS_GD);
++    SDValue Idx = DAG.getNode(DADAOISD::TLS_GD_ADDR, DL, PtrVT, Sym);
++
++    // Both the return value and the argument are pointers: the DADAO calling
++    // convention routes pointer arguments to the RB bank and pointer returns to
++    // rb8 (contract-abi.md §4.1/§6.1, CCIfPtr), while an i64 would land in the
++    // RD bank.  Declaring the IR types as pointers is what sets
++    // ISD::ArgFlagsTy::Pointer (SelectionDAGBuilder/LowerCallTo derive the flag
++    // from the type, not from the MVT -- both legalize to i64).
++    Type *CallTy = PointerType::get(*DAG.getContext(), 0);
++    ArgListTy Args;
++    Args.emplace_back(Idx, CallTy);
++    TargetLowering::CallLoweringInfo CLI(DAG);
++    CLI.setDebugLoc(DL)
++        .setChain(DAG.getEntryNode())
++        .setLibCallee(CallingConv::C, CallTy,
++                      DAG.getExternalSymbol("__tls_get_addr", PtrVT),
++                      std::move(Args));
++    SDValue Ret = LowerCallTo(CLI).first;
++    // A constant offset on the address expression (&tls_var + N) is applied to
++    // the returned address; the pair already names the object itself.
++    if (Offset)
++      Ret = DAG.getNode(ISD::ADD, DL, PtrVT, Ret,
++                        DAG.getConstant(Offset, DL, PtrVT));
++    return Ret;
++  }
++
++  case GlobalValue::LocalDynamicTLSModel:
++    // Local-dynamic needs a module-level tls_index shared by all of the
++    // module's TLS objects (R_DADAO_TLS_DTPMOD once per module, not once per
++    // symbol).  clang never selects it by default, and nothing in the corpus
++    // asks for it, so it stays an explicit error rather than a silently wrong
++    // per-symbol pair (contract-dynlink.md §10②).
++    DAG.getContext()->emitError(
++        Twine("thread-local storage of '") + GV->getName() +
++        "' uses the local-dynamic TLS model, which is not implemented for "
++        "DADAO; use initial-exec or global-dynamic");
++    return DAG.getUNDEF(Op.getValueType());
++
++  case GlobalValue::NotThreadLocal:
++    break;
++  }
++  DAG.getContext()->emitError(
++      Twine("thread-local storage of '") + GV->getName() +
++      "' has no TLS model set");
++  return DAG.getUNDEF(Op.getValueType());
 +}
 +
 +SDValue DADAOTargetLowering::getThreadPointer(const SDLoc &DL,
