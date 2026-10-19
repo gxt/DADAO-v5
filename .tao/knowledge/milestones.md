@@ -30,6 +30,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-113t | 待开始 | 2026-10-19 16:12（登记） | i128↔f128 四转换 libcall 补齐（floattitf/floatuntitf/fixtfti/fixunstfti）；解 build-picolibc strtold 缺口（ISS-283） |
 | INFRA-094t | 待验收 | 2026-10-19 16:08（登记） | 修 L2/L3 两红：ir-lli 5 个 lit CodeGen 入 exclude（no-value-entry）；authoritative 补 6 个真跑目录+latest |
 | LLVM-112t | 待验收 | 2026-10-19 12:42（登记） | SP 对齐 16 B 实现+全链复验：Align(16)、crt1/musl/setjmp 核对、探针 8 项、install-host、L2/L3、三套两档 |
 | SPEC-151t | 待验收 | 2026-10-19 12:42（登记） | SP 对齐 8→16 B 规范面：DADAO-21 §3.2.4、contract-abi §2/§4.8/§4.9、abi.yaml、只读锁；ADR-0018 C9 D3 已落 |

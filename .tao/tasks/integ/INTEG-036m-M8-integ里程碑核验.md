@@ -43,6 +43,7 @@
 | `M8` 收口·spec | `SPEC-151t`（调用点 SP 对齐 8→16 B 的规范/契约面） | `spec/DADAO-21 §3.2.4` + `contract-abi §2.1/§2.2/§3/§4.8/§4.9` + `contracts/abi.yaml` + 只读锁重算；`ADR-0018 C9 D3` 已由 architect 就地修订（记原话）；16 B ⇒ `ADR-0031 D7` 无条件；`待验收` |
 | `M8` 收口·spec | `SPEC-150t`（FP 回归 `rb2` 无条件保留、删 `rbfp`/`rbgp` 别名的规范/契约面） | `spec/DADAO-21 §1.2/§3.1` + `contract-abi` 7 节 + `contract-dynlink` 6 处 + `contracts/abi.yaml` + 只读锁重算；残留 `rbfp`/`rbgp` = 0；`待验收` |
 | `M8` 收口·llvm | `LLVM-112t`（`StackAlignment=Align(16)` + 全链复验） | caller/callee `sp%16==0`（含 FP + 奇数 8 B 栈实参、VLA/alloca、setjmp 后、静态/动态入口）+ crt1/musl/setjmp 逐文件核对 + 探针 8 项 + 可达 FAIL；`install-host` 单跑 + L2/L3 + `046t`/`047t`/`048t` 全量两档 + `build-picolibc`（`ISS-283` 既有缺口按基线判非回归）；`待开始` |
+| `M8` 收口·llvm | `LLVM-113t`（i128 ↔ f128 libcall 补齐；`ISS-283` 落点） | `make build-picolibc` rc=0（`strtold.c` 真实重编）+ 四转换探针（独立 Python 大整数/`Fraction` oracle）+ lit + `047t` 抽样无回归；L2 `check-modules` 由主会话另跑；`待开始` |
 
 ## 已知限制 / 后置
 
