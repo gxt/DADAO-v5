@@ -144,3 +144,8 @@ int(*f)(int);
 
 #### 第 1 轮 reviewer 验收
 （待填）
+
+#### 提交留痕（architect，2026-10-19）
+- 档位：**WIP 级**（`待验收`，reviewer 未验收）；提交信息按派单原文（未加 `WIP:` 前缀）。
+- 提交：`f4f6542`（分支 `LLVM-108t`，已 ff 落地 `master`）；显式 staging，`git add -A` 未用。
+- 文件集对账（`--cached` 5 文件）：`tools/testcases/run_llvm_ts_user.py` + 本册 + `milestones.md` + `INTEG-036m` + `issues.yaml`（`ISS-277` → `closed` / `resolved_by: LLVM-108t`）⇒ 与完成区「修改文件」相符（后三者 = 流程台账）；**漏提 0 / 多提 0 / 越界 0**。
