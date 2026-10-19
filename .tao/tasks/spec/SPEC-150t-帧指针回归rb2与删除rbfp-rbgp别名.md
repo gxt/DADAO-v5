@@ -116,3 +116,8 @@
 | F4 `contract-dynlink` 把「无 GP 寄存器」写入事实句，可能被误读为改动 `ADR-0021 D3` 决定 | ❌不修（决定未变） | 未改 `ADR-0021`；`§9 #7` 的「不引入 GOT 固定基址寄存器」决定保留，仅事实口径更新 | `git diff --name-only` 无 `.tao/adr/adr-0021*`；`§2.4`/`§9` 决策条目仍在 |
 | F5 `rb2` 无条件保留与 `rb32–rb63` 连续池需在三份事实源自洽 | ✅已修 | `abi.yaml` 的 `allocatable`/`callee_saved`/`non_allocatable` + contract `§1.6/§3/§4.5` 同步 | C3 `yaml_check` PASS；YAML 解析通过；C9 全门控 rc=0 |
 | F6 本册只应改规范/契约，不得触碰实现 | ✅已核对 | 未改 `components/**`、未跑 `build-*`/`install-host` | `git status -uall` 仅 5 个规范/契约/锁文件 + 证据脚本 + 本册 |
+
+### 第 1 轮 architect 提交留痕（2026-10-19）
+
+- 档位：**正常提交**（`**状态**` = `待验收`，尚未 reviewer 判决 ⇒ 按提示词指定为正常档）；开工分支 `SPEC-150t` 提交 `45a6de3`，`--ff-only` 落 `master` 后删分支；**未 push**（`origin/master` 仍 `5efb7ca`）。
+- 文件集对账（显式 staging 8 项，禁 `git add -A`）：完成区「修改文件」5 项规范/契约/锁（`spec/DADAO-21` / `contract-abi` / `contract-dynlink` / `contracts/abi.yaml` / `manifests/spec-readonly.lock.toml`）+ 本册 + 台账 2（`.tao/knowledge/milestones.md`、`INTEG-036m`）= 逐条对齐；`.work/evidence/SPEC-150t/run.sh` 由 `.gitignore` 排除、不入库（已披露）；**无漏提 / 无多提 / 无越界**。
