@@ -1049,16 +1049,8 @@
 
 - id: ISS-290
   title: "【P2】`diff_ir_lli` 语料漂移：`LLVM-113t`/`114t` 新增 2 个 `.ll` 未入 `tests/llvm/ir-lli/manifest.yaml`（on-disk 69 > include+exclude 67）"
-  status: open
+  status: closed
   scope: [testcases]
   blocks: []
-  resolved_by: null
-  notes: "【正式登记（源 = `INFRA-094t` reviewer 第 1 轮验收现场，2026-10-19；architect 提交时立项）】**现象**：`diff_ir_lli` structural 报 `on-disk=69 > include+exclude=67`，基线 rc=1；2 个未归类文件 = `tests/llvm/lit/CodeGen/DADAO/m8-i128-f128-libcall.ll`（`LLVM-113t`）、`m8-f128-math-libcall.ll`（`LLVM-114t`）。**根因**：两册新增 `llc | FileCheck` 结构测试（无 `@main` 值通道）时未同步 `tests/llvm/ir-lli/manifest.yaml`；`INFRA-094t` 的 (g) 段只覆盖 102t/103t/105t/106t/111t。**影响**：L3 `test-m6` → `diff_ir_lli` 结构闭包红（rc=1），非 `INFRA-094t` 缺陷。**处置（下一笔 engineer 即修）**：按 (g) 段同法在 `exclude` 追加 2 条、`class: no-value-entry` + 逐条理由；`include` 不动。**边界**：本笔只登记，未改 manifest / 未改实现。**登记时状态**：19:12 工作树已见未提交的 (h) 段补丁（疑并行会话），本笔未 staged；以主会话最终核验为准。**证据指针**：`.tao/tasks/infra/INFRA-094t-L2L3门控两处红修复.md` 审阅记录第 1 轮 reviewer 验收（环境漂移说明）；`.work/evidence/INFRA-094t/run.sh`。**交叉引用**：`LLVM-113t`、`LLVM-114t`、`ISS-285`（同 manifest 登记源）。"
-
-- id: ISS-290
-  title: "【P3】`tests/llvm/ir-lli/manifest.yaml` 结构闭包漂移：LLVM-113t/114t 新增 2 个 lit `.ll` 未登记 ⇒ `diff_ir_lli` structural FAIL"
-  status: closed
-  scope: [testcases, llvm]
-  blocks: []
   resolved_by: ir-lli-manifest-fix
-  notes: "【正式登记（源 = 主会话 2026-10-19 派发；engineer 现场复现并修复；architect 收尾立项）】**现象**：`python3 tools/testcases/diff_ir_lli.py` ⇒ rc=1，`structural: on-disk=69 include=19 exclude=48 unclassified=2`，报 `tests/llvm/lit/CodeGen/DADAO/m8-f128-math-libcall.ll`（LLVM-114t）与 `tests/llvm/lit/CodeGen/DADAO/m8-i128-f128-libcall.ll`（LLVM-113t）未归类。**根因**：两任务新增 `llc -march=dadao ... | FileCheck` 结构测试，落在 `corpus_roots`（`tests/llvm/lit/CodeGen/DADAO`）下但未同步 manifest；二者均无 `@main` 值通道，不是值级差分语料。**处置**：逐条入 `exclude`，`class: no-value-entry` + 理由含任务号；`include` 不动。**验证**：`diff_ir_lli` rc=0（on-disk=69 include=19 exclude=50 unclassified=0 overlap=0 missing=0，19/19 matched）；`check_patch_tree` 181 patches rc=0、`check_milestones_fresh` rc=0、`check_knowledge_refs` rc=0、`check_issues` rc=0。**证据**：`.work/evidence/ir-lli-manifest-fix/run.sh`（含「删 1 条 exclude ⇒ unclassified=1 ⇒ rc=1 ⇒ cp+md5 还原回绿」注入）。**边界**：仅改 manifest + 本 issue；未改实现/期望；未 `install-host`/L2/L3；未 commit/push。**交叉引用**：`LLVM-113t`、`LLVM-114t`、`INFRA-094t`（reviewer 验收已记该漂移）、`ISS-283`（两任务的登记源）。"
+  notes: "【正式登记（源 = `INFRA-094t` reviewer 第 1 轮验收现场，2026-10-19；architect 提交时立项）】**现象**：`diff_ir_lli` structural 报 `on-disk=69 > include+exclude=67`，基线 rc=1；2 个未归类文件 = `tests/llvm/lit/CodeGen/DADAO/m8-i128-f128-libcall.ll`（`LLVM-113t`）、`m8-f128-math-libcall.ll`（`LLVM-114t`）。**根因**：两册新增 `llc | FileCheck` 结构测试（无 `@main` 值通道）时未同步 `tests/llvm/ir-lli/manifest.yaml`；`INFRA-094t` 的 (g) 段只覆盖 102t/103t/105t/106t/111t。**影响**：L3 `test-m6` → `diff_ir_lli` 结构闭包红（rc=1），非 `INFRA-094t` 缺陷。**处置（下一笔 engineer 即修）**：按 (g) 段同法在 `exclude` 追加 2 条、`class: no-value-entry` + 逐条理由；`include` 不动。**边界**：本笔只登记，未改 manifest / 未改实现。**登记时状态**：19:12 工作树已见未提交的 (h) 段补丁（疑并行会话），本笔未 staged；以主会话最终核验为准。**证据指针**：`.tao/tasks/infra/INFRA-094t-L2L3门控两处红修复.md` 审阅记录第 1 轮 reviewer 验收（环境漂移说明）；`.work/evidence/INFRA-094t/run.sh`。**交叉引用**：`LLVM-113t`、`LLVM-114t`、`ISS-285`（同 manifest 登记源）。**【关闭（2026-10-19，`ir-lli-manifest-fix`）】** 按 (g) 段同法在 `exclude` 追加 (h) 段 2 条（`class: no-value-entry`，理由分别含 `LLVM-113t`/`LLVM-114t`），`include` 未动。现场：`diff_ir_lli` **rc=0**（`on-disk=69 include=19 exclude=50 unclassified=0 overlap=0 missing=0`，19/19 matched）；`check_patch_tree` 181 patches rc=0、`check_milestones_fresh` rc=0、`check_knowledge_refs` rc=0、`check_issues` rc=0；证据 `.work/evidence/ir-lli-manifest-fix/run.sh`（12/12，含「删 1 条 exclude ⇒ unclassified=1 ⇒ rc=1 ⇒ cp+md5 还原回绿」注入）。⇒ `closed`、`resolved_by: ir-lli-manifest-fix`。"

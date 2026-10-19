@@ -234,3 +234,12 @@ exclude:
   - ir: tests/llvm/lit/CodeGen/DADAO/m8-varargs-stack-align.ll
     class: no-value-entry
     reason: "FileCheck structural test (16-byte stack-slot alignment for varargs/fp128 spills, LLVM-111t); no `@main` value channel."
+  # (h) LLVM-113t/114t added structural `llc | FileCheck` CodeGen tests under
+  #     the corpus root without value channels; registered here so the
+  #     structural-closure invariant stays green (lessons §2.21).
+  - ir: tests/llvm/lit/CodeGen/DADAO/m8-i128-f128-libcall.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (128-bit int <-> binary128 conversions as compiler-rt TF libcalls, LLVM-113t); no `@main` value channel."
+  - ir: tests/llvm/lit/CodeGen/DADAO/m8-f128-math-libcall.ll
+    class: no-value-entry
+    reason: "FileCheck structural test (f128 math intrinsics -> libm libcalls, LLVM-114t); no `@main` value channel."
