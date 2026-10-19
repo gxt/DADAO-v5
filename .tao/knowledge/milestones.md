@@ -30,7 +30,7 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
-| LLVM-115t | 待开始 | 2026-10-19 17:09（登记） | picolibc `__atold_engine` 接入：解 math_test 链接阻断（binary128 触发 ld128 引擎路径；先诊断后定落点） |
+| LLVM-115t | 待验收 | 2026-10-19 17:09（登记） | picolibc `__atold_engine` 接入：删 meson 过滤条目（2→1）；build/tests rc=0、pass 18/blocked 0、047t 5 例两档 pass、探针 11/11 |
 | LLVM-114t | 待验收 | 2026-10-19 16:35（登记） | f128 math libcall 补齐（floor/rint/round/trunc/log + latent sqrt/fma）；解 build-picolibc 余 12 个 libm/ld TU（ISS-283） |
 | LLVM-113t | 待验收 | 2026-10-19 16:12（登记） | i128↔f128 四转换 libcall 补齐（floattitf/floatuntitf/fixtfti/fixunstfti）；解 build-picolibc strtold 缺口（ISS-283） |
 | INFRA-094t | 待验收 | 2026-10-19 16:08（登记） | 修 L2/L3 两红：ir-lli 5 个 lit CodeGen 入 exclude（no-value-entry）；authoritative 补 6 个真跑目录+latest |

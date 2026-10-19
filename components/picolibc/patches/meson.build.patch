@@ -1,5 +1,5 @@
 diff --git a/meson.build b/meson.build
-index 93daa5d..af03cd5 100644
+index 93daa5d..a04263c 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -1924,6 +1924,37 @@ foreach libname : libnames
@@ -25,13 +25,13 @@ index 93daa5d..af03cd5 100644
 +# LLVM-089t removed the last (b) entry (sf_log10.c) after the f32 `log` libcall
 +# (RTLIB::LOG_F32 -> logf) was registered: the fdlibm `log10f` body computes in
 +# terms of the public `logf`, which clang lowers to `llvm.log.f32`.
++# LLVM-115t removed the (f) entry (atold_engine.c) after binary128 landed: the
++# source compiles again and <stdio.h>'s strtold/wcstold need __atold_engine.
 +_dadao_backend_blocked = []
 +if host_cpu_family == 'dadao'
 +  _dadao_backend_blocked = [
 +    # i64 bswap not selected; ISS-193 (c).
 +    'hash_page.c',
-+    # long-double strtod engine libcall unsupported; ISS-193 (f).
-+    'atold_engine.c',
 +  ]
 +  message('DADAO port scope: excluding @0@ backend-blocked libc sources (ISS-193)'
 +          .format(_dadao_backend_blocked.length()))
