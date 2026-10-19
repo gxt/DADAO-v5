@@ -74,3 +74,10 @@
 | `build-builtins` 每次 `-t clean` ⇒ `install-host` 每次 +2~3 s | ❌不修（ninja 不感知编译器二进制变化，确定性优先） | 无 | `real 3.4 s`（含 `build-mc`） |
 
 判决：可修 finding 均已处置并复验；余 2 项为有据不修/延后。状态置 `待验收`。
+
+#### 提交审核（architect）
+
+- **档位**：正常提交（按派单；reviewer 未判决，以派单为准）。**未 push**。
+- **提交**：`26d6575`（`INFRA-096t：compiler-rt builtins 陈旧修复 …`）；显式 staging **8 路径**，未用 `git add -A`。
+- **对账（对完成区「修改文件」）**：`tools/infra/check_builtins_freshness.py`（新增）、`Makefile`、`tools/infra/build_musl.py`、`tools/infra/check_musl_freshness.py`、`docs/Process-07-门控分层规范.md`、本册（新增）、`issues.yaml`（ISS-293 订正 + closed）、`milestones.md`（流水 + 未完成册各一行）= 完成区声明 8 项，逐项对上 ✓；`.work/evidence/**`/`.work/log/**` 属忽略区不入 git ✓。**无漏提 / 多提 / 越界**（`QEMU-065t` 册前序改动未并入）。
+- **门控复跑（提交前）**：`check-builtins-freshness` rc=0（三副本同 `18c0cac1…`、147/147 成员 live、0 stale）、`check-musl-freshness` rc=0（builtins 戳记 = 归档）、`check-patch-tree` **183** rc=0、`make check`（L1）**rc=0**（35.6 s）⇒ 完成区「验收结果」中 L1 rc=2 的两红已由主会话 `install-host` + `build-musl-shared` 转绿，本条为复跑实证。

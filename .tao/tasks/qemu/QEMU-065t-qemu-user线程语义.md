@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M9
 **依赖**：`INFRA-095t`（T1：musl `__clone` + TP，**必须已验证**）、`QEMU-062t`（DADAO linux-user 后端，已验证）、`QEMU-063t`（宿主信号诊断，已验证）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-19）**：`qemu` 现存最大 = `QEMU-064t` ⇒ 取 **`065`**（`grep -rn 'QEMU-065' .tao/` 0 命中）。
 > **线程链位置（T2）**：串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 `LLVM-117t`**。本册只做 **qemu-user（linux-user）**；**不做** system 模式（`-M dadao-m1`）线程。
@@ -109,13 +109,33 @@
 6. **`spec/` / 契约 / 重定位编号 / musl ABI 帧** ✗（改须用户裁定 + ADR）。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：证据 `.work/evidence/QEMU-065t/run.sh`：**33 PASS / 12 FAIL**（12 FAIL 全为下述两项真实缺口；`--inject` 3/3 PASS）。C1 static/dynamic exit=0（`join=0 shared=41 ret=42 child_errno=1234 parent_errno=77`）；**ISS-293 未转 pass**：`functional/snprintf`（静态）/`functional/strtod`（动态）仍 `qemu killed by host signal 4`（SIGILL）；并发 **5/5 轮 rc=124**（timeout 120，4×250000 互斥计数，无输出）；A 辅助：4×250000 各自槽求和 `sum=1000000`、condvar `signal 1/1 + broadcast 2/2`；B：静态 3/3 `child_tp=0x5a5a0000 == tls`（父 TP 不变）、动态两线程 `delta=200 == sizeof(pthread)+0`；C：`join=0 ret=0x1234 after_exit_ran=0`、worker `exit(7)` ⇒ 进程 **rc=7** 且无 `AFTER`；D：两线程各自 altstack（sp `0x52ab0∈[0x51000,0x53000)`、`0x54ab0∈[0x53000,0x55000)`）、`si_pid=getpid`、`si_code=-6`、`si_signo=10`、阻塞窗口 `cnt=1`→解阻塞 `2`、`tgkill` 仅命中目标线程；RAS 诊断（3 层调用链 + handler 内调用）**未复现损坏**（帧仍不保存 RAS）。
+**修改文件**：本册（完成区 + 自审）；`.work/evidence/QEMU-065t/run.sh`（新增）；`.work/log/{qemu,testcases}/QEMU-065t-*.log`。**`components/qemu/**`、`tools/qemu/**`、`tests/vectors/**` 0 改动**（无补丁、无 changelog）。
+**验收结果**：`check-qemu-semantics` **224/224** rc=0、`check-qemu-smoke` **90/90** rc=0；047t 抽样 static **10/10**、dynamic **10/10**；安装根 qemu md5 `4938a733…` == 构建树（`v11.1.1-1-gfb8e4f8`）；`check-patch-tree` rc=0（5 组件 **183** patches，**未变化**）、`check-component-changelog`/`check-source-state`/`check-index-blobs`/`check-no-residue`/`check-tasks`/`check-knowledge-refs`/`check-run-artifacts`/`check_issues` 均 rc=0；`make check`（L1）rc=0。
+**新发现/坑**：① **ISS-293 根因不是旧测试 ELF**：`compiler-rt` builtins 归档陈旧（安装根==构建树 `d0a81c89…`，mtime 2026-10-18 20:36，早于 LLVM-116t 的编码迁移）；`extenddftf2.c.o` 内仍有**已废止 `shl` 编码 `0x40505146`**（ha=0x14，`llvm-objdump` 显示 `<unknown>`）×3，而现 clang 发 `shl.o` = `40 40 84 11`（ha=0x10）⇒ 新 qemu 按 UNDI→SIGILL。修法 = 重建 compiler-rt builtins + `install-host`（本册禁跑）⇒ **ISS-293 保持 open**，不得按「旧 ELF 重建即消失」关闭。② **并发缺口在 musl 而非 qemu**：`arch/dadao/atomic_arch.h` 的 `a_cas` 是**普通 load/compare/store**（文件头自称 `SINGLE-THREADED, NOT REAL ATOMICS`，并写明「多线程可达后必须替换」）⇒ 4×250000 丢更新/挂死；小规模实测（`.work/log/qemu/QEMU-065t-atomicity-probe.log`）`1×200000` 精确 3/3、`2×2000` 3/3 侥幸精确、`3×2000 → 5999/5992/5999`（3/3 丢更新）、`4×2000 → 3/3 rc=124`。ISA 侧无可用原子（LR-SC/`fence` 均 `scope: excluded`，`contract-isa §14`），故**无法在 T2 范围内最小修复**。③ 空转等待循环会被 DCE（`for(i=0;i<2e9;i++);` 被删）⇒ 探针须用 volatile（首版 `group_exit` 因此误报 `AFTER`，已修）。④ 手写 asm 读 `rb1`/`rb3` 必须 `register ... __asm__("rd8")` 绑定，否则 `"=r"` 可能落别的 RD（首版信号探针 sp 读出 0/常量）。
+**遗留问题**：① **阻断派单验收项 2（并发 == N×M）**：需用户/架构师裁定线程原子性路径（实现 LR-SC/fence 并改 `scope` + 契约/ADR，或指定串行化模型），随后补 musl `atomic_arch.h`（本册禁改 musl）——建议另立 T1b 册。② `ISS-293` 保持 open：需重建 compiler-rt builtins + `install-host` 后复核（本册禁跑 install-host）。③ `ISS-255` 仍复现（`regression/flockfile-list` 宿主 SIGBUS=7、`regression/setenv-oom` 宿主 SIGTRAP=5），另 `regression/raise-race` 现已 **PASS**；未写台账（越界）。④ 未跑 `install-host`/L2/L3、未 commit/push、未改 `**状态**`（按派单）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
+自主逐行审查（`subagent_depth=1`，无嵌套子代理）：核对 A–D 各探针的断言可达 FAIL、oracle 独立性（B 静态 = 常量、动态 = ABI 一致性）、信号 handler 无 libc 调用、注入以 `cp`+md5 还原（未用 git）；逐条排查「空循环被 DCE」「asm 输出寄存器未绑定」「期望值与被传值同源」三类假绿。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| `group_exit` 主线程 2e9 空循环被优化掉 ⇒ 误报 `AFTER` | ✅已修 | `group_exit.c` 改 volatile `spin` + `worker_exiting` 同步 | 3/3 单跑 rc=7 无 `AFTER`；证据 default C 段 PASS |
+| 注入 2 原设计改 `TLS_CONST` 不产生失配（期望与被传同源） | ✅已修 | 改为传 `TLS_CONST + 0x1000` | inj2 rc=3 + `FAIL: child rb3 != tls argument`，还原 md5 一致 |
+| 读 `rb1`/`rb3` 用 `"=r"` 未绑定 `rd8` ⇒ 读到错值 | ✅已修 | `register ... __asm__("rd8")` | 信号 sp 落在各自 altstack 范围 |
+| `--inject` 仍跑全量（含 5×120 s 挂死轮） | ✅已修 | MODE 提前分流为 quick 模式 | `--inject` 3/3 PASS，耗时 <1 min |
+| 并发断言是否可达 FAIL（防恒真） | ✅已证 | 无（真实缺口） | 5/5 rc=124；`4×2000` 丢更新、`2×2000` 丢更新各 1 次 |
+| 本册无 qemu 补丁（183 不变） | ⏸延后（证据指向 musl/ISA，非 qemu） | 无 | `check-patch-tree` 183 OK；musl `atomic_arch.h` 头注 + `contract-isa §14` |
+
+判决：可修 finding 均已处置；**并发原子性缺口不在本册可改范围**（musl/ISA 裁定），故完成区如实登记为阻断项，状态按派单保持 `待开始`。
+
 #### 第 1 轮 reviewer 验收
+
+#### 提交审核（architect）
+
+- **档位**：正常提交（按派单给定信息）。**未 push**。
+- **提交**：本笔（`QEMU-065t/T2：qemu-user 线程语义验证 …`；`git log -1 --format=%h`）；显式 staging **3 路径**，未用 `git add -A`。
+- **对账（对完成区「修改文件」）**：本册（完成区 + 第 1 轮自审 + 本记录）、`issues.yaml`（新 `ISS-294` = ISA 缺原子原语）、`milestones.md`（本任务状态 `待开始`→`待验收` + 未完成册行）✓；`.work/evidence/QEMU-065t/run.sh`、`.work/log/{qemu,testcases}/QEMU-065t-*.log` 属忽略区不入 git（完成区已列）✓；完成区声明 `components/qemu/**`、`tools/qemu/**`、`tests/vectors/**` 0 改动 ⇒ 未提 ✓。**无漏提 / 多提 / 越界**。
+- **台账联动**：完成区遗留①（并发原子性）原「未写台账（越界）」⇒ 本次由 architect 登记 `ISS-294`（`open`/`P1`/`scope:[spec]`），指向 T3/T4 阻塞关系与 (A) ISA 原子原语 / (B) ADR 单核假设 二选一待裁。完成区原文未改（只改 `**状态**`）。

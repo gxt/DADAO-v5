@@ -35,7 +35,7 @@
 > **未完成任务册（线程链 5 册 + 原 M9 项 2 册）**
 > - `INFRA-096t`：`M9` / `ISS-293` 真根因（builtins 归档陈旧）+ 新鲜度门控（`待验收`）
 > - `INFRA-095t`：`M9` / **T1** musl `__clone` + TP（`待验收`）
-> - `QEMU-065t`：`M9` / **T2** qemu-user 线程语义（`待开始`）
+> - `QEMU-065t`：`M9` / **T2** qemu-user 线程语义（`待验收`）
 > - `TESTCASES-052t`：`M9` / **T3** pthread 验证与 047t 线程收口（`待开始`）
 > - `LLVM-100t`：`M9` / **T4** 静态 `__thread` TLS codegen + 静态档 3 例（`待开始`）
 > - `LLVM-117t`：`M9` / **T5** 动态 TLS（`DTPMOD`/`DTPREL`/`TPREL`）+ `dlopen`（`待开始`）
@@ -48,7 +48,7 @@
 | INFRA-096t | 待验收 | 2026-10-20 01:40（登记） | ISS-293 真根因 = builtins 归档陈旧：clean 重建 + 三份副本同源 + 新鲜度门控 + `libc.so` 重链戳记 |
 | INFRA-095t | 待验收 | 2026-10-19 23:40（登记） | T1 musl `__clone`+TP：`clone.s` 子侧写 `rb3`、父侧保 tid；静态/动态 exit=0、rb3 探针逐位等；补丁 181→183 |
 | LLVM-117t | 待开始 | 2026-10-19 23:40（登记） | T5 动态 TLS 10/11/12 发射 + `dlopen` 4 例；关 `ISS-260` |
-| QEMU-065t | 待开始 | 2026-10-19 23:40（登记） | T2 qemu-user 线程：clone/TLS/futex/exit/信号；并发探针两档 |
+| QEMU-065t | 待验收 | 2026-10-19 23:40（登记） | T2 qemu-user 线程语义：clone/TLS/futex/exit/信号；并发互斥丢更新 ⇒ 根因 musl `a_cas` 假原子（另立 ISS-294） |
 | TESTCASES-052t | 待开始 | 2026-10-19 23:40（登记） | T3 047t 19 条 thread 用例转 pass、逐例无回归；关 `ISS-252` |
 | LLVM-116t | 待验收 | 2026-10-19 22:15（登记） | ext/shl 编码迁移 + rol.o/t/w/b；ROTL 直连 1 条、ROTR 折 2 条；check-instrinfo 0 错、lit 120/120 |
 | QEMU-064t | 待验收 | 2026-10-19 22:15（登记） | 解码 235→243；rol.o/t/w/b 语义；L3 224/224（独立 oracle 64/64）、smoke 90/90；L1 全绿 |
