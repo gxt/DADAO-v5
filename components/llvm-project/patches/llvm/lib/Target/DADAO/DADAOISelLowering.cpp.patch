@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..296add5ae
+index 000000000..ac6a63318
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2053 @@
+@@ -0,0 +1,2068 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -552,6 +552,21 @@ index 000000000..296add5ae
 +  default:
 +    return nullptr;
 +  }
++}
++
++TargetLowering::ConstraintType
++DADAOTargetLowering::getConstraintType(StringRef Constraint) const {
++  // ISS-197 / LLVM-119t: `"V"` (non-offsettable memory) is classified as
++  // C_Memory by the generic implementation, but `InlineAsm::ConstraintCode`
++  // has no `V` member (only `m`/`o` exist for memory), so selection could
++  // never succeed: SelectionDAGBuilder would first hit its
++  // "Failed to convert memory constraint code to constraint id" assertion.
++  // DADAO addresses are always `[rb, imms12]`, i.e. offsettable, so `"V"` is
++  // genuinely unsupported here; returning C_Unknown turns it into the ordinary
++  // "unknown asm constraint 'V'" diagnostic (rc=1) instead of a crash.
++  if (Constraint == "V")
++    return C_Unknown;
++  return TargetLowering::getConstraintType(Constraint);
 +}
 +
 +std::pair<unsigned, const TargetRegisterClass *>

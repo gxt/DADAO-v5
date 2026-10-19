@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..a07e183d5
+index 000000000..09906e108
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,617 @@
+@@ -0,0 +1,681 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -37,6 +37,8 @@ index 000000000..a07e183d5
 +#include "llvm/CodeGen/SelectionDAG.h"
 +#include "llvm/CodeGen/SelectionDAGISel.h"
 +#include "llvm/CodeGen/SelectionDAGNodes.h"
++#include "llvm/CodeGen/TargetOpcodes.h"
++#include "llvm/IR/InlineAsm.h"
 +#include "llvm/Support/CodeGen.h"
 +#include "llvm/Support/Debug.h"
 +#include "llvm/Support/ErrorHandling.h"
@@ -66,6 +68,16 @@ index 000000000..a07e183d5
 +  // folds `base + simm12` and keeps a frame index as the base operand so
 +  // PrologEpilogInserter can resolve it (LLVM-038t).
 +  bool SelectAddr(SDValue Addr, SDValue &Base, SDValue &Offset);
++
++  // Memory clobber/operand selection for inline asm (`"m"`, `"o"`; ISS-197 /
++  // LLVM-119t).  The generic SelectionDAGISel hook returns true ("not
++  // implemented") which the caller turns into
++  //   report_fatal_error("Could not match memory address.  Inline asm failure!")
++  // i.e. a hard abort; this override selects the DADAO `[rb, imms12]` address
++  // form instead.
++  bool SelectInlineAsmMemoryOperand(const SDValue &Op,
++                                    InlineAsm::ConstraintCode ConstraintID,
++                                    std::vector<SDValue> &OutOps) override;
 +
 +private:
 +  // i64 constant materialization (CONST_WYDE pseudo, C12 / ADR-0018).
@@ -222,6 +234,58 @@ index 000000000..a07e183d5
 +  Base = Addr;
 +  Offset = CurDAG->getTargetConstant(0, DL, VT);
 +  return true;
++}
++
++bool DADAODAGToDAGISel::SelectInlineAsmMemoryOperand(
++    const SDValue &Op, InlineAsm::ConstraintCode ConstraintID,
++    std::vector<SDValue> &OutOps) {
++  // ISS-197 / LLVM-119t: an inline-asm memory operand is printed as the DADAO
++  // `[rb, imms12]` address form (DADAOAsmPrinter::PrintAsmMemoryOperand), so it
++  // is selected exactly like a load/store address and yields the same two
++  // machine operands (base, offset).  PrologEpilogInserter resolves a frame
++  // index left in the base position through DADAORegisterInfo::
++  // eliminateFrameIndex, which accepts the same base/offset pair here.
++  switch (ConstraintID) {
++  default:
++    // Every other memory constraint code (e.g. `Q`) has no address form in
++    // this target; report it so the caller can diagnose instead of silently
++    // emitting wrong code.
++    return true;
++  case InlineAsm::ConstraintCode::m:
++  case InlineAsm::ConstraintCode::o:
++  // `"p"` (address) is a memory-class operand in the DAG (Kind::Mem with the
++  // C_Address constraint type); it shares the same address form, and the
++  // printed `[rb, off]` is a valid DADAO address expression (the assembler
++  // accepts it wherever a `[base, off]` operand is expected).  This keeps a
++  // hand-written `"p"` operand from reaching the generic "could not match"
++  // abort, exactly as `m`/`o` no longer do.
++  case InlineAsm::ConstraintCode::p: {
++    SDValue Base, Offset;
++    if (!SelectAddr(Op, Base, Offset))
++      return true;
++
++    // The base of `[rb, imms12]` must be a register of the address bank (GPRB);
++    // the printOperand path would otherwise emit e.g. `[rd4, 0]`, which the
++    // assembler rejects.  Values that are already pointer-bank (a frame index
++    // resolved by PEI, a frame/global address materialization, a pointer add or
++    // a pointer argument) are passed through unchanged, so ordinary code grows
++    // no copy; anything else gets the bank-crossing copy the register allocator
++    // turns into rd2rb (DADAOInstrInfo::copyPhysReg).
++    if (Base.getOpcode() != ISD::TargetFrameIndex &&
++        !isPointerBankValue(Base)) {
++      const SDLoc DL(Op);
++      SDValue RC =
++          CurDAG->getTargetConstant(DADAO::GPRBRegClassID, DL, MVT::i32);
++      Base = SDValue(CurDAG->getMachineNode(TargetOpcode::COPY_TO_REGCLASS, DL,
++                                            MVT::i64, Base, RC),
++                     0);
++    }
++
++    OutOps.push_back(Base);
++    OutOps.push_back(Offset);
++    return false;
++  }
++  }
 +}
 +
 +void DADAODAGToDAGISel::Select(SDNode *Node) {

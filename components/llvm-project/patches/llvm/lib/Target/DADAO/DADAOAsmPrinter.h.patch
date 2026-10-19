@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.h b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
 new file mode 100644
-index 000000000..9c360c9ea
+index 000000000..191423c89
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,127 @@
 +//===-- DADAOAsmPrinter.h - DADAO LLVM Assembly Printer --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -90,6 +90,15 @@ index 000000000..9c360c9ea
 +  bool runOnMachineFunction(MachineFunction &MF) override;
 +
 +  void emitInstruction(const MachineInstr *MI) override;
++
++  /// Print an inline-asm memory operand (ISS-197 / LLVM-119t).  The operand
++  /// was selected by DADAODAGToDAGISel::SelectInlineAsmMemoryOperand into the
++  /// pair (base register in GPRB, simm12 offset), so it prints as the DADAO
++  /// address form `[rb, off]`.  Without this override AsmPrinter's default
++  /// returns "unsupported" and the inline asm body is emitted with an empty
++  /// operand (even once selection succeeds).
++  bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo,
++                             const char *ExtraCode, raw_ostream &O) override;
 +
 +  /// Label of the `.got` slot that holds `GV + Offset` (PIC; LLVM-094t).
 +  /// Creates the slot (and its data-field expression) on first use.  `rb0`-

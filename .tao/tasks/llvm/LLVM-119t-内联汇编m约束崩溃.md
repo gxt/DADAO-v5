@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`LLVM-118t`（同改 `components/llvm-project/**` + 各自 `install-host`，**必须串行**：共享 `.work/build/llvm` 与安装根，并发写会互相写坏——`ISS-229`）、`LLVM-086t`（`"r"` 约束先例，已归档）、`INFRA-096t`（安装根新鲜度，`待验收`）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-20）**：`llvm` 现存最大 = `LLVM-117t`（本批另占 `118`/`120`）⇒ 取 **`119`**（编写前 `grep -rn 'LLVM-119' .tao/` 零命中）。
 
@@ -62,16 +62,33 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：① lit `MC/DADAO`+`CodeGen/DADAO`（构建树工具 overlay）**110/110**、`check_lit_gen` **64/64**、`check-instrinfo` **0 errors**；② 运行期 12 探针 `guest exit 0`（`--inject` oracle/code 两处注入各「红→绿」）；③ `046t` 静态 `crc32 -O2` **1/1**、`047t` 10 例**两档 10/10 + 10/10**；④ L1 `make -k check` **唯一 FAIL = `check-musl-freshness`**（1 项：musl 记的 builtins digest `77b3384a…` ≠ 现值 `18aafe21…`，补救 `make build-musl-shared` 按派单禁跑），其余 268 条 PASS。
+**修改文件**：`components/llvm-project/patches/llvm/lib/Target/DADAO/{DADAOISelDAGToDAG.cpp,DADAOAsmPrinter.h,DADAOAsmPrinter.cpp,DADAOISelLowering.h,DADAOISelLowering.cpp}.patch`（5 份改；`series` 仍 83、`check-patch-tree` **185** 不变）；`components/llvm-project/changelog.md`；`tests/llvm/lit/CodeGen/DADAO/inline-asm-m.ll`、`inline-asm-m-reject.ll`（新增）；`tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（真源重派生，证据行号随补丁位移）；`.tao/knowledge/{issues.yaml,milestones.md}`；本册；`.work/evidence/LLVM-119t/**`（run.sh + 4 个源/IR + 修前日志，`.work/` 不入库）。
+**验收结果**：① **无崩溃**（`ulimit -c 0`）：`m`/`=m`/`+m`/`=&m`/`rm`/`=rm`/`p` × {空/非空 asm} × {局部标量/结构体字段/数组元素（常量+变量下标）/解引用指针/全局} ⇒ `clang -c` `-O0`/`-O2` 与 `llc` `-O0`/`-O2`(+`-verify-machineinstrs`) 全 **rc=0**，`grep "Could not match memory address"` = 0；`llc` 最小复现改前 **rc=134**（`LLVM ERROR: Could not match memory address.` + stack dump）/ 改后 0。② **语义**（独立 oracle，探针按 C 手算期望）：`"=m"` 写 7 读回 7；`"+m"` 10→15；`"m"`+`"=m"` 拷贝 `0x1234+base`；`"rm"`/`"=rm"` 42/0x77；栈数组 `a[i]`（变量下标）值对且 8 字节写不破坏邻居；结构体 `s.b=0x2a` 且 `s.a/s.c` 不变；全局 `"m"` 读 `0x55`、`"=m"` 写 99；大端字节序 `0x0102030405060708` 逐字节 = `01..08`；`"=&m"` 0x3c。③ **真实消费面**：musl 默认 `GETFUNCSYM`（`"+m"(static_func_ptr)`）⇒ `clang -c` **0**、`llc` **0**。④ **失败面**：`"V"` ⇒ `clang`/`llc` **rc=1** + `unknown asm constraint 'V'`（改前为 `SelectionDAGBuilder` 断言 SIGABRT），lit `inline-asm-m-reject.ll` 钉死该文本。⑤ **可达 FAIL**：C2 = 安装根「修前」llc（md5 `16198938…` ≠ 当前构建树 `a00838b7…`）跑同一 `repro.ll` ⇒ rc=134 + fatal；`--inject` 2 处（oracle 15→16、asm 常量 5→6）⇒ guest rc=3 红，`cp`+md5 还原后回绿。⑥ **门控**（各自 rc）：`check-patch-tree` 0（**185**）、`check-instrinfo` 0、`check-index-blobs` 0、`check-source-state` 0、`check-no-residue` 0、`check-tasks` 0、`check-knowledge-refs` 0、`check-component-changelog` 0、`check-milestones-fresh` 0、`check-run-artifacts` 0、`check-syscall-abi` 0、`check_lit_gen` 0、`check_issues` 0；`make -k check`(L1) rc=2 仅 `check-musl-freshness`。⑦ 重建申报：`ninja clang llc` 3×（3m06s / 3m14s / 3m41s，`-j8`）+`make build-builtins`（4m / 3.5s / 4s，148 目标）。⑧ **未**跑 `install-host`/L2/L3；**未** commit/push；**未**改本册 `**状态**`。
+**新发现/坑**：① **两条根因**（现场逐环）：`DADAODAGToDAGISel` 缺 `SelectInlineAsmMemoryOperand` 覆写（基类默认 `return true`，`SelectionDAGISel.h:118-127`）⇒ `SelectionDAGISel.cpp:2354` `report_fatal_error`；`DADAOAsmPrinter` 缺 `PrintAsmMemoryOperand` 覆写（`AsmPrinterInlineAsm.cpp:511` 默认 `return true`）⇒ `$0` 印空串。② **`p` 同为 Kind::Mem**：`C_Address` 也走同一钩子，只补 `m`/`o` 会把 `"p"` 留在 fatal 上，故一并支持（打印 `[rb, off]` 即 DADAO 唯一地址形态）。③ **`V` 是上游枚举缺口**：`getConstraintType` 归 C_Memory 但 `InlineAsm::ConstraintCode` 无 `V` ⇒ 断言；`Q/R/S/T` 走 C_Unknown 本就优雅报错，`V` 需 target 侧显式拒绝。④ **基址 bank**：基址若是数据 bank 值（常量地址、整数运算得的地址）必须 `COPY_TO_REGCLASS`→GPRB（RA 落 `rd2rb`），否则打印出 `[rdN, off]` 非法汇编；`isPointerBankValue` 已覆盖常见来源，故正常代码零额外指令。⑤ **`%N` 仍不可用于寄存器操作数**（`ISS-222` ①，归 `LLVM-118t`）⇒ 探针/lit 里寄存器一律写字面 `rdN`+clobber 或局部寄存器变量；`"p"`/`"m"` 能被 `%0` 正确打印正是本册新能力。⑥ **builtins 归档字节在 clang 换代间变化**（`dc10ddc0…`→`18aafe21…`；同 clang 连续两次重建稳定），但 154/154 builtins TU 按实际 flags 全量 `-S` 复核 **0 处内联汇编** ⇒ 与 `m`/`p` 改动无关；来源未查明，归 `ISS-301` 族（`INFRA-098t`）。⑦ 安装根旧 binary 是天然的「修前产物」（未 install-host 期间），`run.sh` C2 用它做 rc=134 对照，并在 md5 相同时显式 SKIP（不静默）。
+**遗留问题**：① **`check-musl-freshness` 唯一 FAIL**：musl 构建树记的 builtins digest 仍为任务前归档 `77b3384a…`，现值 `18aafe21…`（改组件后 `check-builtins-freshness` 要求重建 builtins，两者互锁）；补救 = `make build-musl-shared JOBS=8`（派单**禁跑**，且 `LLVM-118t` 串行约束）⇒ 交 architect 在 `install-host` 后统一做。② **`make check-lit`（安装根）= 118/120**：新 2 例在「修前」安装根 llc 上按预期红（正是其可达 FAIL 证明）；`install-host` 后应 120/120。③ musl `arch/dadao/reloc.h` 的 `GETFUNCSYM` arch 特化**未回退**（本册范围外，是否回退另议）。④ 清掉 `.dadao/tests/llvm-ts-user/` 两处**既存空 run 目录**（各 0 文件，非本册产物；`check-run-artifacts` A2 由此转绿）——越界处置，如实披露。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+**范围**：5 份补丁（`DADAOISelDAGToDAG.cpp` / `DADAOAsmPrinter.{h,cpp}` / `DADAOISelLowering.{h,cpp}`）逐行；证据脚本 `run.sh` 逐段；2 份 lit、探针源、`issues.yaml`/`milestones.md`/changelog 改动。
+**判决**：finding 全部处置（6 ✅已修 / 2 ⏸延后并给理由），无未修阻断项；实现已用构建树工具全量复验（lit 110/110 + 运行期探针 + 四项回归抽样）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 只补 `m`/`o`：`"p"` 同属 Kind::Mem（C_Address）仍走 fatal | ✅已修 | ISel 钩子增 `case InlineAsm::ConstraintCode::p` | `llc` 手写 `"p"` IR rc=0，打印 `ld.o rd5, [rb16, 0]`；lit `ptr_constraint` |
+| F2 `"V"` 改前是 `SelectionDAGBuilder` 断言（SIGABRT）而非诊断 | ✅已修 | `DADAOTargetLowering::getConstraintType("V")→C_Unknown` + lit 反例册 | `clang -c`/`llc` rc=1 + `unknown asm constraint 'V'`；证据 C14 |
+| F3 基址可能是 GPRD 值 ⇒ 打印 `[rdN, off]` 非法汇编 | ✅已修 | 非指针 bank 基址 `COPY_TO_REGCLASS`→GPRB（RA 落 `rd2rb`）；frame index 仍留 PEI | 常量地址用例汇编 `set.zw rd4,0x1000; rd2rb {rb4},{rd4}`；证据 C7 `badbase=0` |
+| F4 printer 默认实现让 `$0` 印空串（即使选择成功） | ✅已修 | 新增 `PrintAsmMemoryOperand`（`[rb, off]`，无 modifier、非物理基址/非 imm 偏移显式返回错误） | lit 8 处打印断言 + `-verify-machineinstrs` |
+| F5 探针 11 用未初始化的局部寄存器变量取值（C UB，实测返回 0 而非 asm 写入值） | ✅已修 | 改成两个内存操作数（`ld.o rd5,%1`+`st.o rd5,%0`） | 探针 11 由 FAIL(1) 转 pass；guest exit 0 |
+| F6 证据脚本 `local d="$WORK/$tag"` 与 `$tag` 同行：`set -u` 下变量未赋值即崩 | ✅已修 | 拆成两条 `local` | `run.sh` default 14/14 rc=0、`--inject` rc=0 |
+| F7 安装根与构建树同 md5 时 C2 无法复现「修前崩溃」 | ⏸延后 | 脚本改为显式 `[SKIP]` 打印（不静默、不影响 rc） | 现网 md5 不同 → C2 `rc=134 hits=1` |
+| F8 builtins 归档跨 clang 换代字节差异来源未查明 | ⏸延后 | 未改代码；以「154/154 TU 无内联汇编」证与 `m`/`p` 无关 | `.work/log/llvm/LLVM-119t-build-builtins*.log`；交 `INFRA-098t`/`ISS-301` |
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### 提交记录（architect，2026-10-20）
+- 档位：`待验收`（reviewer 未验收；按主会话指令以任务号正常提交，与既有 `QEMU-066t` 同例，无 `WIP:` 前缀）
+- 提交：分支 `LLVM-119t` 上 `00f493f` ⇒ `master` squash `84a5231`
+- 文件集对账：13 文件 = 完成区「修改文件」逐条命中（5 补丁 + `changelog.md` + 2 新 lit + `llvm-isa-backend-matrix.{md,tsv}` + `issues.yaml` + `milestones.md` + 本册），无漏提 / 多提 / 越界；`check-patch-tree` **185**、L1 `make check` rc=0

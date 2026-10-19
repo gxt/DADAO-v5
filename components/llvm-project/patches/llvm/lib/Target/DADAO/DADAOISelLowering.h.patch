@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..32eddc10c
+index 000000000..38fe55f97
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,288 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -166,6 +166,16 @@ index 000000000..32eddc10c
 +  std::pair<unsigned, const TargetRegisterClass *>
 +  getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
 +                               StringRef Constraint, MVT VT) const override;
++
++  /// Inline-assembly memory constraints (ISS-197 / LLVM-119t).  `"V"` is the
++  /// one constraint letter the generic implementation classifies as memory
++  /// (C_Memory) without a matching `InlineAsm::ConstraintCode` — it would reach
++  /// SelectionDAGBuilder and trip its "Failed to convert memory constraint
++  /// code to constraint id" assertion (a crash, not a diagnostic).  This target
++  /// does not support non-offsettable memory operands, so report it as unknown
++  /// and let the ordinary "unknown asm constraint" diagnostic name it.
++  TargetLowering::ConstraintType
++  getConstraintType(StringRef Constraint) const override;
 +
 +  /// M6 (contract-abi.md §6.1): a function's return can be lowered only if each
 +  /// return bank (rd/rb) carries at most K = 8 values; otherwise the return is
