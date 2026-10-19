@@ -127,3 +127,11 @@
 判决：本册实现与证据的 finding 均已处置；无可修未修项。状态按派单保持 `待开始`，待 architect 处理。
 
 #### 第 1 轮 reviewer 验收
+（待 reviewer 独立重跑）
+
+#### 提交审核（architect）
+
+- **档位**：按派单给定正常提交信息（reviewer 尚未判决；规则默认 `WIP:`，以派单为准）。
+- **提交**：`2381c33`（`INFRA-095t/T1：musl __clone + rb3=TP …`）；显式 staging **7 路径**，未用 `git add -A`。
+- **对账（对完成区「修改文件」）**：`components/musl/patches/src/thread/{clone.c.patch,dadao/clone.s.patch}`（新增）+ `components/musl/{series,changelog.md}` = 完成区声明 ✓；`.work/source/musl/**`、`.work/evidence/**` 为忽略区产物，不入 git（既定）✓；本册 `**状态**` + `milestones.md`（T1 行/未完成清单）+ `issues.yaml`（`ISS-293`）为收尾/台账，属 architect 范围 ✓。**无漏提 / 多提 / 越界**。
+- **异常披露**：`components/musl/changelog.md` 摘要写「父侧原样 `ret rd8,0`」，实际补丁为 `ret rd0,0`（完成区「新发现/坑 ①」已记该修复）⇒ 文案与实现不一致；按「文件集审核不核内容」未改，待处置。
