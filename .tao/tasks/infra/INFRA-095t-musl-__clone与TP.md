@@ -1,0 +1,117 @@
+# INFRA-095t: musl `__clone` + TP（线程链 T1）
+
+**模块**：infra
+**项目里程碑**：M9
+**依赖**：`SPEC-140t`（TP 硬依赖查证，已验证）、`INFRA-082t`（musl 静态端口，已验证）、`INFRA-085t`（动态端口 / `libc.so`，已验证）、`QEMU-062t`（`qemu-user` 运行面，已验证）
+**状态**：待开始
+
+> **编号（现场取号，2026-10-19）**：`infra` 现存最大 = `INFRA-094t` ⇒ 取 **`095`**（历史号含 M8 已归档册，`grep -rn 'INFRA-095' .tao/` 0 命中）。
+> **线程链位置（T1）**：用户 2026-10-19/20 裁定「这个任务链完成后，可以添加 thread 相关支持，注意：rb3 应该被用起来」⇒ 串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 `LLVM-117t`**。本册 = **musl 端口面**；不跑线程语义的 qemu 面扩展（T2）。
+
+## 执行环境
+**执行环境**：本地
+
+## 立项来源 / 现场证据（先读，勿重复查证）
+
+- `musl/src/thread/clone.c:6` = `return -ENOSYS;`（**真缺口**：`pthread_create()` 每次 clone 失败都翻译成 `EAGAIN`）。
+- **无 `src/thread/dadao/clone.s`**：`find .work/source/musl/src/thread -name 'clone.s'` 现场 0 命中于 `dadao/`；主流端口（`riscv64/`、`aarch64/`、`loongarch64/` 等）均有 arch `clone.s`。
+- **arch `clone.s` 会自动替换通用 `clone.c`**：musl `Makefile:28-29` 的 `REPLACED_OBJS` 把 `obj/src/thread/<arch>/clone.o` 映射回 `obj/src/thread/clone.o` 并从 `BASE_OBJS` 过滤 ⇒ 只要 `src/thread/dadao/clone.s` 存在，通用 `clone.c` **不参与编译**。本册仍要清掉 `clone.c` 的 `-ENOSYS`（`grep` 验收），避免「源码仍宣称 ENOSYS」的假象。
+- **TP = `rb3`（已就位，不重做）**：`contract-abi §1.3` 表 `rb3 | rbtp | thread pointer`、`§1.5` reserved；`arch/dadao/pthread_arch.h` 的 `__get_tp()` = `rb2rd {rd8}, {rb3}`；`src/thread/dadao/__set_thread_area.s` = `rb2rb {rb3}, {rb16}`；`TP_OFFSET=0`、`TLS_ABOVE_TP`、`GAP_ABOVE_TP=0`、`DTP_OFFSET=0`（`contract-dynlink §7` 口径）。
+- **调用点**：`src/thread/pthread_create.c:355` = `__clone((c11?start_c11:start), stack, flags, args, &new->tid, TP_ADJ(new), &__thread_list_lock)` ⇒ 第 6 参 `tls` 就是新线程的 TP。
+- **qemu 侧已支持**（本册不依赖其新代码）：`linux-user/syscall.c:7056/7146` 在 `CLONE_SETTLS` 后调 `cpu_set_tls(new_env,newtls)`；`linux-user/dadao/target_cpu.h:26` = `env->rb[3] = newtls`；`linux-user/dadao/cpu_loop.c:343` 的 `TARGET_NR_clone` 掩码 `0x14`（地址槽 2/4）；`cpu_clone_regs_child` 设 `newsp→rb1`、`rd8=0`。
+- **syscall ABI 真源**：`contract-syscall §1.1`（号在 `rd15`、沿用 RISC-V 编号）、`§3`（数据 `rd16+` / 地址 `rb16+` 各自计数；返回值 `rd8`）、`§4`（errno = `rd8` 负值）。`SYS_clone` 的具体号与 musl `bits/syscall.h.in` 一致，**从锁号表现场解析**，不写死。
+- **汇编口径**：DADAO 汇编注释符 = **`@@`**（`#` 留给 cpp，`Toolchain-01 §2.2`）；`.s` 由 musl 的 `cc -x assembler` 路径编译；本端口无 CFI 脚本（`ADD_CFI` 关闭）。现有可抄形状 = `src/thread/dadao/{__set_thread_area.s,syscall_cp.s}`（**只借形状，不复制其它 arch 的代码**）。
+
+## 接口规范
+
+- **输入**：
+  - `musl` 源检出 `.work/source/musl`（git 基线，**只经 `components/musl/patches/**` 交付**，禁直改当交付）；
+  - `components/musl/{series,changelog.md,README.md}`（`docs/Process-01`：一文件一补丁、镜像上游路径、`series` 同步）；
+  - 安装根 `.dadao/cross-toolchain/bin/{clang,ld.lld,qemu-dadao}`（`ADR-0016`）；`make build-musl` / `make build-musl-shared` 的现有脚本。
+- **输出**：
+  1. 新补丁 `components/musl/patches/src/thread/dadao/clone.s.patch`（**新增文件**，一文件一补丁）+ `series` 一行 + `changelog.md` M9 节一条；
+  2. 改补丁 `components/musl/patches/src/thread/clone.c.patch`（去掉 `-ENOSYS`；**最小**改写并在补丁注释说明「arch `clone.s` 提供实现，通用文件不再是可达路径」）；
+  3. 重建后的 `libc.a` / `libc.so`（含 `__clone`，来自 arch 对象）；
+  4. 证据 `.work/evidence/<任务ID>/run.sh`（一键、非交互、逐项 rc、含 `--inject`）+ 日志 `.work/log/infra/INFRA-095t-*.log`；
+  5. 本册完成区（≤30 行）。
+- **`__clone` 的可见性（现场，必须按此设计探针）**：`src/internal/pthread_impl.h:160` 声明 `hidden int __clone(...)` ⇒ **动态档**的 `libc.so` 不导出 `__clone`，用户程序无法直接调用；**直接调用探针只在静态档**（链接 `libc.a`）。动态档的 TP 判据用 `pthread_create` + `__get_tp()` 与 `TP_ADJ(pthread_self())` 的**一致性**（`sizeof(struct pthread)` 取自 `pthread_impl.h`；这是 ABI 一致性检查，不作为独立 oracle），**独立 oracle 仍以静态档的常量探针为准**。
+- **`__clone` 合同（C ABI → syscall ABI）**：
+  - C 原型 = `int __clone(int (*func)(void *), void *stack, int flags, void *arg, ...)`；7 个实参按 `contract-syscall §3` 落位：**指针 → RB**（`func=rb16`、`stack=rb17`、`arg=rb18`、`ptid=rb19`、`tls=rb20`、`ctid=rb21`），**int flags → RD**（`rd16`）。
+  - `SYS_clone` 形参 = `(flags, newsp, parent_tidptr, tls, child_tidptr)`；按 qemu `dadao_argmask` 的 `0x14`：`flags=rd16`、`newsp=rd17`、`parent_tidptr=rb16`、`tls=rd18`、`child_tidptr=rb17`；`nr=rd15`、返回 `rd8`。
+  - **子侧硬要求**：`newsp` 先向下 16 B 对齐并留 16 B 保存 `func`/`arg`；clone 返回 0 后**必须显式把 `tls` 实参写入 `rb3`**（`rb2rb {rb3}, {<tls 的 RD 副本>}`），再 `call [rb16, rd0, 0]` 以 `arg` 调用 `func`；`func` 返回后 `trap` `SYS_exit`（`rd15`）。**不得**假设 qemu/kernel 一定替我们设 TP —— 该显式写是 T1「`rb3` 真正用上」的判据。
+  - **父侧**：`rd8` 的 tid 原样作为 `int` 返回；error 为负 `rd8`（musl `__clone` 调用者按 `EAGAIN` 处理）。
+- **约束（硬）**：
+  - **不改** `arch/dadao/{pthread_arch.h,__set_thread_area.s}`（已就位）、`spec/`、`contracts/`、`.tao/contracts/**`、`components/qemu/**`、`components/llvm-project/**`；
+  - **不新增** syscall 号 / 重定位类型；`SYS_clone`/`SYS_exit` 号从 `bits/syscall.h.in` 现场取；
+  - 组件源改动只以补丁集交付；`check-patch-tree` 必须绿；
+  - 不并发其它 musl 构建（`ISS-229`）；不改 `Makefile`（现有 `build-musl`/`build-musl-shared` 够用）。
+
+## 做
+
+### 阶段 0：前置与基线复现（先留现场）
+
+- 核安装根新鲜：`<TC>/clang --version`、`<TC>/qemu-dadao --version`、安装根时间戳；与 `manifests/components.lock.toml` 一致。**若安装根陈旧/缺失 ⇒ 先单跑一次 `make install-host` 并申报耗时**（`ISS-210`）。
+- 基线（期望失败）：落 `/tmp/opencode/INFRA-095t/base.c`（`pthread_create` 1 线程 + `pthread_join`），用现有 `libc.a` 链接并在 `qemu-dadao` 跑 ⇒ 期望 **rc≠0**、stderr 含 `Resource temporarily unavailable` 或 `EAGAIN`（`clone.c` 的 `-ENOSYS` 被 pthread_create 翻译）。**该失败是本册必须消失的基线**。
+
+### 阶段 A：`clone.s` + `clone.c`
+
+- 新增 `src/thread/dadao/clone.s`（经补丁）：按上「合同」实现；寄存器搬运顺序须避免覆盖（先把 `ptid/tls/ctid` 读到暂存 RD 槽，再写 `rb16/rb17/rd18`）；子侧保存区用 `newsp-16`/`newsp-8`；`func` 调用前 `arg` 落 `rb16`；`SYS_exit` 用 `func` 返回值或 0（二者择一，册内写明）。
+- 改 `src/thread/clone.c`：删除 `return -ENOSYS;` 可达路径；保留「arch 提供 `__clone`」的说明。**验收以 `grep -c 'return -ENOSYS'` = 0 + `nm` 为准**，不以文字叙述为准。
+- `series` 追加两条（保持树形顺序），`changelog.md` 新增 `## M9` 节 + 一条（`- **2026-10-19 INFRA-095t**` / `  - 摘要：…` / `  - 执行者：engineer`）。
+
+### 阶段 B：构建与产物核验
+
+- `make build-musl JOBS=8`、`make build-musl-shared JOBS=8`（各自留 rc；失败保留现场）。
+- 断言：
+  1. `obj/src/thread/dadao/clone.o` 存在；`obj/src/thread/clone.o` **不存在**（`REPLACED_OBJS` 生效）；
+  2. `llvm-nm`（构建树或安装根）在 `libc.a`/`libc.so` 中看到 `__clone` 定义（`T`/`t`），且没有来自通用 `clone.c` 的同名重复；
+  3. `grep -R "return -ENOSYS" src/thread/clone.c` = 0。
+
+### 阶段 C：运行探针（两个，独立 oracle）
+
+- **C1 最小 pthread**：1 线程写共享变量 + `pthread_join`；期望 `join rc=0`、共享值 = 子线程写入值、进程 exit 0。**静态与动态两档都跑**（动态档要 `ld-musl-dadao.so.1` 路径正确；T2 会再跑一遍作为线程语义判据）。
+- **C2 `rb3` 探针（本册核心）**：
+  - **静态档（独立 oracle）**：**直接调用 `__clone`**，传入**测试自己选定的常量 `tls`**（例如 `0x5a5a0000UL`，16 B 对齐、非零、非栈地址），子线程执行 `__get_tp()` 并把结果写回父线程可见的共享变量；父线程断言 `tp == tls`。**独立 oracle** = 该常量本身（手写在测试源里），不是从 musl 实现读取；依据 = `pthread_arch.h` 的 `TP_OFFSET=0`/`TLS_ABOVE_TP` 与 `contract-dynlink §7`。
+  - **动态档（一致性，非独立 oracle）**：`pthread_create` 一个线程，子线程读 `__get_tp()` 与 `pthread_self()`，断言 `tp - (uintptr_t)pthread_self() == sizeof(struct pthread) + TP_OFFSET`（`sizeof` 取自 `pthread_impl.h`；`TP_OFFSET=0`）——证明 DSO 路径的 `CLONE_SETTLS` 也让 `rb3` 指向 TCB 之后；该式**如实标注为一致性检查**，不冒充独立 oracle。
+  - 两档都必须在 `qemu-dadao` 跑通；静态档的常量探针是「`rb3` = tls 实参」的硬判据。
+- 失败处置：失败**保留现场**并继续定位；若根因在 qemu（例如 `CLONE_SETTLS` 未落到 `rb3`），**不改 qemu**，把现场写入完成区并交 **T2 `QEMU-065t`**；本册不得静默把 C2 降级为「只验 pthread_self」。
+
+### 阶段 D：证据、门控与收尾
+
+- `.work/evidence/<任务ID>/run.sh`：`default` 与 `--inject` 两条；**≥2 条可达 FAIL**：
+  1. 把 `clone.c` 临时改回 `-ENOSYS`（临时树或 `cp` 备份）⇒ C1 必须 FAIL；`cp` + md5 对账还原 ⇒ 回绿；
+  2. 去掉子侧 `rb3` 写入（临时副本）⇒ C2 必须 FAIL（`tp != tls` 或段错）；还原 ⇒ 回绿；
+  3. 可选：把 `clone.s` 从 `series` 移除（临时树）⇒ `obj/src/thread/clone.o` 出现 / `__clone` 来自 ENOSYS ⇒ 断言 FAIL。
+- 门控各留**自身**真实 rc（禁 `cmd | tee` 吞码）：`make check`（L1）、`check-patch-tree`、`check-component-changelog`、`check-source-state`、`check-index-blobs`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`python3 tools/infra/check_issues.py`；任务收尾跑 `make check-modules`（L2，串行、禁与 L3 并发；若耗时超预算，按 AGENTS 长任务纪律 `setsid nohup` + `EXIT` 标记）。
+
+## 验收标准
+
+1. **补丁集合规**：`check-patch-tree` rc=0；新增/修改补丁与 `series`、`changelog.md` 一一对应；组件源 `git diff` 可复现。
+2. **`__clone` 真实现**：`obj/src/thread/dadao/clone.o` 存在、通用 `obj/src/thread/clone.o` 不存在；`libc.a`/`libc.so` 的 `__clone` 来自 arch 对象；`src/thread/clone.c` 无 `return -ENOSYS`。
+3. **C1 最小 pthread**：静态档与动态档均 `pthread_create` + `pthread_join` 成功，exit 0；贴真实命令、退出码、stdout/stderr。
+4. **`rb3` 探针**：**静态档**直接 `__clone` 的子线程 `__get_tp()` **逐位等于**测试传入的 `tls` 常量（独立 oracle = 常量；至少一组「非零、非栈地址、16 B 对齐」值）；**动态档** `pthread_create` 子线程满足 `__get_tp() - pthread_self() == sizeof(struct pthread)`（`TP_OFFSET=0`，一致性检查、非独立 oracle）。两档均需真实输出。
+5. **可达 FAIL ≥2**：证据脚本 `--inject` 对上述两条断言各给出「注入 → FAIL → `cp`+md5 还原 → 回绿」的真实输出；禁恒真断言、禁 `git checkout/restore/stash` 还原。
+6. **前置 `install-host`**：本册开工前安装根新鲜（贴 `clang --version` + 时间戳）；若本册期间必须重建安装根，先申报耗时并按 `ISS-210` 复验。
+7. **边界**：`spec/`、`contracts/`、`.tao/contracts/**`、`components/qemu/**`、`components/llvm-project/**` **0 改动**；未改 `arch/dadao/{pthread_arch.h,__set_thread_area.s}`；无临时文件残留；不提交 git、不 push（提交权归 architect）。
+8. 完成区与真实输出逐条对齐（≤30 行）；`milestones.md` 行由 architect/主会话收尾笔维护。
+
+## 不做项（显式）
+
+1. **qemu-user 线程语义扩展 / 修复** ✗ —— 归 **T2 `QEMU-065t`**（本册只消费现有 `CLONE_SETTLS` 能力；若发现 qemu 根因，保留现场并登记，不改 qemu）。
+2. **`__thread` 用户变量 TLS codegen / 运行** ✗ —— 归 **T4 `LLVM-100t`**（`TLSSupported` + `GlobalTLSAddress`）。
+3. **动态 TLS（`DTPMOD`/`DTPREL`/`TPREL` 发射）与 `dlopen`** ✗ —— 归 **T5 `LLVM-117t`**。
+4. **047t 19 例用例转 pass / 计数收口** ✗ —— 归 **T3 `TESTCASES-052t`**。
+5. **`pthread_cancel` 的取消语义** ✗ —— 依赖信号/ucontext 路径（`arch/dadao/bits/signal.h` 的 `[OPEN]`），不在本册；本册只保证 `__clone` 与 TP。
+6. **`spec/` / 契约 / 重定位编号** ✗（`ADR-0019 D10`/`D12` 冻结；改须用户裁定 + ADR）。
+
+## 完成区
+**测试结果**：
+**修改文件**：
+**验收结果**：
+**新发现/坑**：
+**遗留问题**：
+
+## 审阅记录
+
+#### 第 1 轮 engineer 自审
+#### 第 1 轮 reviewer 验收

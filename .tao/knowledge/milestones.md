@@ -32,27 +32,33 @@
 
 > 本表 = **未归档任务流水**（M9 及留活项）；M8 已终态流水（68 条）见 `.tao/archive/M8/README.md §2`，M7 及以前见 `.tao/archive/M*/README.md`。列 = `| 编号 | 状态 | 完成时间 | 一句改动 |`；**按完成时间倒序**（最新在上）；**未完成任务也列**（时间 = **登记时间**，加注 `（登记）`；同一时间按任务编号升序）。**一句改动 ≤120 字符**，只写「做了什么 + 关键数字/结论」；细节一律写各任务书（本表只做索引）。**新立任务（任务书落盘）时即加行**。
 
-> **未完成任务册（5 条）**
-> - `SPEC-152t`：`M9` / ISA 编码再分配与 `ror` 规范面（`待验收`，`ADR-0032` `Accepted`〔`D1`–`D6` 已确认〕）
-> - `LLVM-116t`：`M9` / `ext`/`shl` 编码迁移与 `ror` 后端（`待验收`）
-> - `QEMU-064t`：`M9` / `ext`/`shl` 编码迁移与 `ror` 执行（`待验收`）
-> - `LLVM-100t`：`M9` / `__thread` 用户变量 TLS codegen（`待开始`）
-> - `SPEC-141t`：`M9` / `ror` 预研（`待开始`）
-> - 说明：`M8` 已于 2026-10-19 达成；本块 = 未完成任务册；未解 `issue` 见 `issues.yaml`（不在此重复）。
+> **未完成任务册（线程链 5 册 + 原 M9 项 2 册）**
+> - `INFRA-095t`：`M9` / **T1** musl `__clone` + TP（`待开始`）
+> - `QEMU-065t`：`M9` / **T2** qemu-user 线程语义（`待开始`）
+> - `TESTCASES-052t`：`M9` / **T3** pthread 验证与 047t 线程收口（`待开始`）
+> - `LLVM-100t`：`M9` / **T4** 静态 `__thread` TLS codegen + 静态档 3 例（`待开始`）
+> - `LLVM-117t`：`M9` / **T5** 动态 TLS（`DTPMOD`/`DTPREL`/`TPREL`）+ `dlopen`（`待开始`）
+> - `SPEC-141t`：`M9` / ISA 扩展预研（`待开始`，只读）
+> - `SPEC-152t`：`M9` / ISA 编码再分配与 `ror` 规范面（`待验收`；ISA 链已完成，待主会话置 `已验证`）
+> - 说明：`M8` 已于 2026-10-19 达成；`LLVM-116t`/`QEMU-064t` 与 `SPEC-152t` 同属已完成 ISA 链（`待验收`，待主会话置）；未解 `issue` 见 `issues.yaml`（不在此重复）。
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-095t | 待开始 | 2026-10-19 23:40（登记） | T1 musl `__clone`+TP：`clone.s` 子侧写 `rb3`；最小 pthread + 探针两档 |
+| LLVM-117t | 待开始 | 2026-10-19 23:40（登记） | T5 动态 TLS 10/11/12 发射 + `dlopen` 4 例；关 `ISS-260` |
+| QEMU-065t | 待开始 | 2026-10-19 23:40（登记） | T2 qemu-user 线程：clone/TLS/futex/exit/信号；并发探针两档 |
+| TESTCASES-052t | 待开始 | 2026-10-19 23:40（登记） | T3 047t 19 条 thread 用例转 pass、逐例无回归；关 `ISS-252` |
 | LLVM-116t | 待验收 | 2026-10-19 22:15（登记） | ext/shl 编码迁移 + rol.o/t/w/b；ROTL 直连 1 条、ROTR 折 2 条；check-instrinfo 0 错、lit 120/120 |
 | QEMU-064t | 待验收 | 2026-10-19 22:15（登记） | 解码 235→243；rol.o/t/w/b 语义；L3 224/224（独立 oracle 64/64）、smoke 90/90；L1 全绿 |
 | SPEC-152t | 待验收 | 2026-10-19 22:15（登记） | ext 迁 100/101、shl 迁 010/011 去 u、新增 ror（orrr/orri）；opcodes 235→243；80 格 0 不符 |
-| LLVM-100t | 待开始 | 2026-10-17 13:06（登记） | __thread 用户变量 TLS codegen（TLSSupported + GlobalTLSAddress）；推 M9 |
+| LLVM-100t | 待开始 | 2026-10-17 13:06（登记） | T4 静态 `__thread` TLS：`TLSSupported`+`GlobalTLSAddress`（TP=`rb3`）；静态 3 例 |
 | SPEC-141t | 待开始 | 2026-10-14 18:17（登记） | ISA 扩展预研（收窄）：剩余候选收益 vs 全链六环代价；只读、未开工 |
 
 > **三套测试口径（2026-10-17，`TESTCASES-046t`/`047t`/`048t` 建册）**：三套 = **`embench-iot` / `libc-test` / `llvm-test-suite`**，每套**两轮 = 静态档 → 动态档**（用户 2026-10-15 原话「**先测静态链接，再测动态链接**」）；**golden 对照（RISC-V + musl）归 `P4`**（`ADR-0025 D7`）⇒ 三册本批**只做自跑 + 失败分类 + 证据**。（2026-10-18 更新：用户裁定 `P4` 交叉对照 `不作`，判据③ 改「两档如实分类 + 失败逐条归因」；见「M8 规划区」首条与 `INTEG-036m`。）
 
 ## 当前进度
 
-- **项目里程碑 = M8 达成（2026-10-19）**；**M9 已立规划、实现未开工**（`ADR-0032` **`Accepted`**（`D1`–`D6` 2026-10-19 逐条确认）+ `SPEC-152t`/`LLVM-116t`/`QEMU-064t`；候选见下「M9（规划）」）。M8：`P0` 契约 ✓ / `P1` musl 静态 ✓ / `P2` 动态（`D1` 部分、`D2` 推 `M9+`）/ `P3` qemu-user 静态+动态 ✓ / `P4` **不作**；收口判据/证据见 `INTEG-036m`，归档见 `.tao/archive/M8/`；**未归档任务状态见上表**。
+- **项目里程碑 = M8 达成（2026-10-19）**；**M9 已立规划、实现未开工**（`ADR-0032` **`Accepted`**（`D1`–`D6` 2026-10-19 逐条确认）+ `SPEC-152t`/`LLVM-116t`/`QEMU-064t` 的 ISA 链**已完成**〔`待验收`，待主会话置 `已验证`〕；**线程链 T1–T5 已立册**：`INFRA-095t`/`QEMU-065t`/`TESTCASES-052t`/`LLVM-100t`/`LLVM-117t`；候选见下「M9（规划）」）。M8：`P0` 契约 ✓ / `P1` musl 静态 ✓ / `P2` 动态（`D1` 部分、`D2` 推 `M9`）/ `P3` qemu-user 静态+动态 ✓ / `P4` **不作**；收口判据/证据见 `INTEG-036m`，归档见 `.tao/archive/M8/`；**未归档任务状态见上表**。
 - **里程碑**：M6（**达成 2026-10-11**）；M7（**2026-10-13**）；**M8（达成 2026-10-19）**——主题 = **无内核 Linux 用户态栈**（musl 静态→动态 + QEMU user-mode，`ADR-0025`；binary128 / 变参三游标 / `@@` 注释 / `rb2` FP / SP 16 B）；归档 `.tao/archive/M8/`。M7——主题 = picolibc 移植（自带 test 100%，用户 2026-10-12 裁定「记为达成（推荐）」）+ FP 后端完备（P0/P1）+ ISA↔后端覆盖矩阵 + 过渡 oracle；6 模块 `m`（`INFRA-072m`/`SPEC-136m`/`LLVM-090m`/`QEMU-059m`/`TESTCASES-043m`/`INTEG-034m`）+ 归档 `INTEG-035m` 均 `里程碑`；M7 期任务书/回顾/已关 issue 已归档 `.tao/archive/M7/`。**口径纠正（2026-10-13，主会话经用户指正裁定）**：`ISS-201`（spec 模块内 backlog）**不阻断** ⇒ 项目 M7 = 达成。M7 期任务已全部收口（`INFRA-071t` **已验证 2026-10-15**）；已终态流水见 `.tao/archive/M7/README.md §2`。开启任务 `INTEG-033k`（`已验证`）已归档 `.tao/archive/M7/integ/`。
 - **M6 遗留（M6→M7，均已登记 = 已处置）**：
   - `ISS-187` 窄位指令利用不足（8/16/32 位算术未用；`mul32` 用 `mul.uo` 而非 `mul.ut`）——**M7 优化候选，非缺陷**（用户 2026-10-10「先只登记，暂不改」）；指针 `.tao/knowledge/issues.yaml`（`ISS-187`）。
@@ -210,7 +216,7 @@
 
 ## M9（规划）
 
-> M9 **尚未开工**；本小节只记**用户已定向的候选**，细则指针到任务书。**开工条件** = 用户逐条授权 + ISA `ADR`（本小节**不构成** `spec/` 授权 ✗）。
+> M9 **实现未全面开工**；本小节记**用户已定向的候选/裁定**与**已立任务**，细则指针到任务书。**开工条件** = 用户逐条授权 + ISA `ADR`（本小节**不构成** `spec/` 授权 ✗）。**现行状态（2026-10-19）**：ISA 链 `SPEC-152t`/`LLVM-116t`/`QEMU-064t` **已完成**（`待验收`，待主会话置 `已验证`）；**线程链 T1–T5 已立册、`待开始`**（见下「M9 线程支持链」）。
 
 - **M9 先加该指令 = `ror`/`rori`（单向）**（用户 2026-10-17 裁定；**不含** `rol` ✗）。**原话**（**逐字**，渠道 = 经主会话问答，2026-10-17）：「**可以，M9先加该指令，记一下，我想问一句，你会记在哪里？另外，这条指令应该只需要一个方向吧**」。**依据指针** = `.tao/tasks/spec/SPEC-141t-ISA指令扩展预研.md §追加候选（2026-10-17）`——候选 A：形态 `orrr`（寄存器量）+ `orri`（`immu6` 0–63，非 one-hot）、收益实测（常量 5→1 / 变量 ~9→1；来源 = 2026-10-17 构建树 clang `-O2` 实测）、六环代价、被否项（`fshl`/`fshr` 本轮不取 + `rol` 冗余）；同节候选 B = `bswap64` 用 `rev.o` `k=3`（**1 条**、零新指令、可单独立小任务）。**状态 = 仅记录候选**：未改 `spec/`、未立 ISA `ADR`、未立执行任务。
 
@@ -221,4 +227,23 @@
 - **〔已裁定（2026-10-17）〕动态档 COPY 重定位用例是否改 `-fPIC`/`-pie` 构建**（`ISS-259`，`open`（裁定已落、实现未做）；源 = `TESTCASES-047t` 第 5 轮，2026-10-17）：现场 = 非 PIC 用户可执行引用 `libc.so` 数据对象（`environ`/`signgam`/`stdin`/`stdout`）⇒ lld 拒绝 COPY（`ADR-0026 D7②` / `contract-dynlink §10②`），8 例记 `blocked`（含 `lgammal`）；同一用例 `-fPIC` 实测 link rc=0 / guest exit 0（证据脚本已固化）。候选 = ① 保持 `blocked`（成本 0，现状有据）② 动态档用户编译改 `-fPIC`/`-pie`（多 7 例真跑；`pleval` 仍 blocked〔上游 `pleval.mk` 明写动态档不构建〕；增测试配置复杂度）。**用户裁定（2026-10-17 深夜，渠道 = 经主会话问答）** = **②**；原话（**逐字**）：「**ISS-262: 1；ISS-259：2；ISS**」（主会话据此复述请其确认的两条之一：`ISS-259` = ② **动态档用户 TU 改 `-fPIC`** ✓）⇒ **落地 = `TESTCASES-049t`**（预期 7 例 `blocked→pass`，`pleval` 仍 `blocked`）；`status` 保持 `open`（实现未做）。
 
 - **〔已裁定（2026-10-17）〕`dlopen` 4 例收编 `M9`**（`ISS-260`，`open`（裁定已落、实现待 `M9`）；与 `LLVM-100t` TLS 同批）：动态档按 `ADR-0025 D2` / `INFRA-085t ⑦` 声明排除 4 条（`functional/dlopen.c`、`functional/{tls_align,tls_init}_dlopen.c`、`regression/tls_get_new-dtv.c`）；非 TLS DSO 探针 `dlopen/dlsym` exit 0 ⇒ 装载能力在位，排除属**范围裁定**；TLS 两条另需 `LLVM-100t`（DSO helper `__thread` + 模块级 TLS 重定位）。**用户裁定（2026-10-17 深夜，渠道 = 经主会话问答）** = **①**（`M8` 维持排除、随 `LLVM-100t` 在 `M9` 收编）；原话（**逐字**）：「**ISS-260:1；ISS-247：用户模式，用0x10000**」⇒ 落地 = 4 例 `excluded` 口径不变，收编随 `M9`；`status` 保持 `open`（实现待 `M9`）。
+
+### M9 线程支持链（T1–T5；2026-10-19/20 用户裁定，architect 立册）
+
+> **用户原话（逐字，渠道 = 经主会话问答）**：「**这个任务链完成后，可以添加thread相关支持，注意：rb3应该被用起来；请针对此事做一下计划**」；「**T1-T5，现在有什么需要我裁定的内容**」（= 范围选 **T1–T5**）。**本笔只立册 + 台账**：`spec/` / 契约 / 组件实现 **零改动** ✗。
+
+- **现场事实（主会话已核，勿重查；architect 复核同结论）**：
+  - **`rb3` = TP 已就绪**：`arch/dadao/pthread_arch.h` 的 `__get_tp()` = `rb2rd {rd8},{rb3}`；`src/thread/dadao/__set_thread_area.s` = `rb2rb {rb3},{rb16}`；`contract-abi §1.3` 表 `rb3 | rbtp`。
+  - **真缺口**：`musl/src/thread/clone.c:6` = `return -ENOSYS;`、**无 `src/thread/dadao/clone.s`**（arch `clone.s` 会经 `Makefile` 的 `REPLACED_OBJS` 替换通用 `clone.c`）。
+  - **qemu-user 已支持 `CLONE_SETTLS`**：`linux-user/syscall.c:7056/7146` + `linux-user/dadao/target_cpu.h:26`（`env->rb[3]=newtls`）；`linux-user/dadao/cpu_loop.c:343` 的 `TARGET_NR_clone` 掩码 `0x14`。
+  - **测试面**：047t 的 **19 条** thread/`__clone` 用例现为 `blocked`（`ISS-252`；静态档额外 1 条 `pthread_create-oom` 为 `ISS-257` flake，不计入 19）；`ISS-246` 3 条 `__thread`；`ISS-260` `dlopen` 4 例。
+- **5 册与串行依赖（单向；同模块内号现场取）**：
+  1. **T1 `INFRA-095t`（musl `__clone` + TP）**：新增 `src/thread/dadao/clone.s`（参数按 `contract-syscall §3`；子侧把 `tls` 写 `rb3` 后返回 0、父侧返回 tid）；清掉 `clone.c` 的 `-ENOSYS`。验收 = 最小 pthread（1 线程 + join）两档 + `rb3` 探针（直接 `__clone` 传常量 `tls`，子线程 `__get_tp()` 逐位相等；独立 oracle）。
+  2. **T2 `QEMU-065t`（qemu-user 线程语义）**：guest `clone`⇒宿主线程、`CLONE_SETTLS`⇒`rb3`、futex、`exit` vs `exit_group`、per-thread 信号/`sigaltstack`。验收 = T1 程序两档 + 4×250000 互斥计数（`N*M` 独立 oracle）+ 退出/信号探针。
+  3. **T3 `TESTCASES-052t`（pthread 验证）**：硬指标 = 047t **19 条 thread 用例转 pass**（`--filter` 或全量，显式 `--json-out` 落 `/tmp`）+ 其余逐例不变；关 `ISS-252`。
+  4. **T4 `LLVM-100t`（静态 `__thread`）**：`TLSSupported=true` + 后端 `GlobalTLSAddress`（local-exec：`TP + offset`，TP=`rb3`）；`install-host` 前置；验收 = `functional/{tls_align,tls_init,tls_local_exec}` **静态档 3/3 pass** + `_Thread_local` 探针（初值/偏移手算独立 oracle）。
+  5. **T5 `LLVM-117t`（动态 TLS + `dlopen`）**：`TLS_DTPMOD`=10/`DTPREL`=11/`TPREL`=12 发射（`INFRA-085t` 推迟的 `D2`）+ `ISS-260` 4 例 + `tls_get_new-dtv`；验收 = 4 例动态档 pass/有据分类 + `tls_align` 动态档 pass + 逐例无回归。
+- **口径/边界**：`rb3` 在 **T1 就真正用上**（不是占位）；**不改 `spec/`**（本批是实现的补齐；若判需改 ⇒ 停下报告）；T5 因「llvm + infra + testcases 三面」**不拆册**（用户已定 T1–T5 五册；跨模块在 T5 册内逐面披露）。**T4/T5 对 2026-10-17「随 LLVM-100t 收编」的订正**：静态 TLS 归 `LLVM-100t`，**`dlopen` 4 例与动态 10/11/12 归 `LLVM-117t`**（`ISS-260` 的 `resolved_by` 应为 `LLVM-117t`）。
+- **登记的跨模块影响**：T1 只动 `components/musl/**`；T2 只在必要时动 `components/qemu/**`；T3 只动验证/证据；T4/T5 动 `components/llvm-project/**`（T5 另可能动 musl/驱动）。同改共享文件的任务**串行**（T1→T2→T3→T4→T5），不得并行。
+- **台账 issue**：`ISS-292`（`scope: [infra]`、P2）指向本链 5 册；`ISS-252` 由 T3 关、`ISS-246` 由 T4 关、`ISS-260` 由 T5 关（三者均保持 `open` 直到对应任务验收）。
 

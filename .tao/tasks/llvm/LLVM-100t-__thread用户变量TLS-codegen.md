@@ -2,12 +2,20 @@
 
 **模块**：llvm
 **项目里程碑**：M9
-**依赖**：`INFRA-085t`（**登记源 + 消费方**：阶段 `D1` 的 ①③④ 已达成、② 「编译 `__thread` 用户变量」**BLOCKED 于 llvm 面** —— 完成区「D1-⑤ / D1-⑥②」+「遗留①」+「新发现/坑 ④」）；**契约真源** = `.tao/contracts/contract-dynlink.md §4.3`（类型 10/11/12/13 的公式与落点）+ `§7`（TLS 纳入 M8；TP 方向/偏置归 musl arch 宏）+ `§10②`（未支持类型遇即报错、不静默）、`.tao/contracts/contract-elf.md §2.2`（**静态类型表 0–5 + `ABS48`=6**，**无静态 TLS 类型**）+ `§6.1.2`（ELF 路径装载语义：头/程序头**不进** `PT_LOAD`）、`.tao/contracts/contract-abi.md §1.3`（`rb3` = `rbtp`（TP），M3 起保留不分配）；`ADR-0019 D10`/`D12`（类型集与编号，**冻结、不得增改**）、`ADR-0025 D5`（musl 硬依赖 TP ⇒ TLS 纳入 M8）、`ADR-0026 D2`/`D7②`（构建侧显式传 / 未支持类型遇即报错）；后端基线 = `LLVM-094t`（PIC/动态）、`LLVM-095t`（`PCREL_HI/LO`）、`LLVM-096t`（驱动/相对查找表/`stackrestore`）、`LLVM-097t`（`bswap`）、`LLVM-098t`、`LLVM-099t`（均已落地或已立）；纪律 = `ISS-229`（L2/L3 串行、禁并发）、`ISS-210`（改 `components/**`/`.td`/驱动 ⇒ **必单跑 `install-host`** 且禁「旧安装根自洽假绿」）、`docs/Process-01`（组件补丁树：一文件一补丁 + `series`）、`docs/Process-05`（L1/L2/L3）
+**依赖**：**M9 线程链串行前置** = `INFRA-095t`（T1：`__clone` + TP，运行判据必需）、`QEMU-065t`（T2：qemu-user 线程语义）、`TESTCASES-052t`（T3：19 条 thread 用例收口；本册在其后开工）；`INFRA-085t`（**登记源 + 消费方**：阶段 `D1` 的 ①③④ 已达成、② 「编译 `__thread` 用户变量」**BLOCKED 于 llvm 面** —— 完成区「D1-⑤ / D1-⑥②」+「遗留①」+「新发现/坑 ④」）；**契约真源** = `.tao/contracts/contract-dynlink.md §4.3`（类型 10/11/12/13 的公式与落点）+ `§7`（TLS 纳入 M8；TP 方向/偏置归 musl arch 宏）+ `§10②`（未支持类型遇即报错、不静默）、`.tao/contracts/contract-elf.md §2.2`（**静态类型表 0–5 + `ABS48`=6**，**无静态 TLS 类型**）+ `§6.1.2`（ELF 路径装载语义：头/程序头**不进** `PT_LOAD`）、`.tao/contracts/contract-abi.md §1.3`（`rb3` = `rbtp`（TP），M3 起保留不分配）；`ADR-0019 D10`/`D12`（类型集与编号，**冻结、不得增改**）、`ADR-0025 D5`（musl 硬依赖 TP ⇒ TLS 纳入 M8）、`ADR-0026 D2`/`D7②`（构建侧显式传 / 未支持类型遇即报错）；后端基线 = `LLVM-094t`（PIC/动态）、`LLVM-095t`（`PCREL_HI/LO`）、`LLVM-096t`（驱动/相对查找表/`stackrestore`）、`LLVM-097t`（`bswap`）、`LLVM-098t`、`LLVM-099t`（均已落地或已立）；纪律 = `ISS-229`（L2/L3 串行、禁并发）、`ISS-210`（改 `components/**`/`.td`/驱动 ⇒ **必单跑 `install-host`** 且禁「旧安装根自洽假绿」）、`docs/Process-01`（组件补丁树：一文件一补丁 + `series`）、`docs/Process-05`（L1/L2/L3）
 **状态**：待开始
 
 > **项目里程碑调整（2026-10-17，用户裁定）**：`M8` → **`M9`** —— 用户原话（**逐字**，渠道 = 经主会话问答）「**tls 可以推到 M9**」；`M8` 不要求 `dlopen`/模块级 TLS，`D2`（TLS 类动态重定位）亦已推迟 `M9+`。**范围 / 判据不变** ✗（本册其余内容照旧）。
 
-> **口径**：本册判据 = **能编 + 静态可核**（**不跑**：运行归 `P3`/`QEMU-062t`）。`**状态**` 归主会话 `/complete`，本册**不自置**。
+> **口径（T4 接线，2026-10-19 修订）**：本册仍以 **能编 + 静态可核** 为主体判据，并**新增运行验证**（阶段 E，**仅静态档 3 例**）—— 依据 = M9 线程链 T4 硬指标「`ISS-246` 的 `functional/{tls_align,tls_init,tls_local_exec}` 转 `pass`」；**动态 DSO TLS / `dlopen` 不在本册**（T5 `LLVM-117t`）。`**状态**` 归主会话 `/complete`，本册**不自置**。
+
+> **M9 线程链 T4（用户 2026-10-19/20 裁定「添加 thread 相关支持，注意：rb3 应该被用起来」）**：串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 本册 → T5 `LLVM-117t`**。本册 = **静态 `__thread` 的 codegen + 静态档运行**；`rb3` 由 T1 的 `__clone`/`__set_thread_area` 真正承担 TP，本册的 `GlobalTLSAddress` 必须**显式读 `rb3`**（不得用任何其它寄存器/常量替代）。
+>
+> **T4 新增现场（2026-10-19，接到本册时必须先核）**：
+> - `arch/dadao/crt_arch.h` 已改为 `_start` 从 **`rb1` 读装载器交付的初始栈**（`QEMU-062t` 落地）⇒ `AT_PHDR`/`AT_PHNUM`/`AT_PHENT` 可达、`static_init_tls` 能找到 `PT_TLS`；**原「静态 auxv 注入未做」的阻塞已消失**（「待确认项 ①」据此更新）。
+> - 用户态链接按 `ISS-247` 裁定 = **lld 默认基址（最低 `PT_LOAD=0x10000`）**，**禁** `-T tests/scripts/dadao.lds`（该脚本显式 `PHDRS`，会吞 `PT_TLS`）。
+> - 驱动 `tools/testcases/run_libc_test_user_suite.py` 的 `functional/tls_align` 在**静态档**通过 `EXTRA_CASE_SOURCES` 把 `functional/tls_align_dso.c` 编成**普通对象**（`.mk`: `tls_align-static.LDLIBS := tls_align_dso.o`）⇒ **local-exec**，正是本册范围；动态档同名用例链接 `.so`（需 10/11/12 发射）= **T5**。
+> - ISA 链 `SPEC-152t`/`LLVM-116t`/`QEMU-064t` 已完成 ⇒ 工具链以当前安装根为准（`install-host` 新鲜）。
 
 ## 执行环境
 **执行环境**：本地
@@ -88,13 +96,32 @@
 
 - **判据**：非 PIC 静态档 `__thread` 程序**能链**（或**有据**说明为何不能链）：
   - 用 **lld 默认布局**（无 scripted `PHDRS`）链接 ⇒ 期望 `PT_TLS` + 取址偏移**链接期解析**、**无** `TLS_DTPMOD|DTPREL|TPREL`(10/11/12) 动态项；
-  - 用 `tests/scripts/dadao.lds`（**显式 `PHDRS`**）链接 TLS 对象 ⇒ 现状**响亮报错**（`has an STT_TLS symbol but doesn't have a PT_TLS segment`，`INFRA-085t` D1.9）⇒ **如实记录、本册不改 lds**（改 lds / 静态 auxv 归「待确认项 ①」，见下）。
-- **不做**：静态 `__thread` 程序**运行**（crt 的 auxv 注入未做、`AT_PHDR` 语义受 `contract-elf §6.1.2` 约束）⇒ **跑归 `P3`**。
+  - 用 `tests/scripts/dadao.lds`（**显式 `PHDRS`**）链接 TLS 对象 ⇒ 现状**响亮报错**（`has an STT_TLS symbol but doesn't have a PT_TLS segment`，`INFRA-085t` D1.9）⇒ **如实记录、本册不改 lds**（用户态禁 `-T dadao.lds`，`ISS-247`）。
+- **不做**：静态 `__thread` 程序的**运行**在阶段 C 不做 —— 运行验证统一放 **阶段 E（T4 接线新增）**；阶段 C 只判「能链 + `PT_TLS` + 无 10/11/12 动态项」。
 
 ### 阶段 D：证据与门控
 
 - `.work/evidence/<任务ID>/run.sh`（一键、非交互、逐项 rc、含 `--inject`）+ 日志 `.work/log/llvm/<任务ID>/`；`--inject` 每条断言须有**可达 FAIL**路径，还原用 **`cp` 备份 + md5 对账**（**禁** `git checkout`/`restore`/`stash`）。
 - 门控各留**自身**真实 rc（**禁** `cmd | tee` 吞码）：`make check`(L1)、`check-patch-tree`、`check-index-blobs`、`check-instrinfo`（若改 `.td`）、`check-source-state`、`check-no-residue`、`check-tasks`、`check-knowledge-refs`、`check-knowledge-dir`、`check-component-changelog`、`python3 tools/infra/check_issues.py`；**L2（`make check-modules`）任务收尾跑**（串行、禁与 L3 并发）。
+
+### 阶段 E：运行验证（**T4 接线新增**；静态档 3 例 + `_Thread_local` 探针）
+
+- **前置**：阶段 A–D 的 codegen 已落地 + `make install-host` 新鲜（贴时间戳/`clang --version`）；T1/T2/T3 已验证（`__clone`/qemu 线程/19 条 047t 用例）。
+- **E1 三例（静态档）**：用 T3 的驱动、`--link-mode static`、精确 filter：
+  ```
+  python3 tools/testcases/run_libc_test_user_suite.py --link-mode static \
+    --filter '^functional/(tls_align|tls_init|tls_local_exec)$' \
+    --work-dir /tmp/opencode/LLVM-100t/tls-static \
+    --json-out /tmp/opencode/LLVM-100t/tls-static.json
+  ```
+  期望 **3/3 `pass`**、`fail=0`、exit 0：
+  - `functional/tls_align`：TLS 块对齐（含 `tls_align_dso.o` 普通对象，local-exec）；
+  - `functional/tls_init`：`.tdata` 初值在**静态启动**时被 `static_init_tls` 从 `PT_TLS` 复制/清零；
+  - `functional/tls_local_exec`：local-exec 取址 = `TP + TPOFF`，多线程各自独立（本册至少单线程；多线程由 T1/T2 保证）。
+- **E2 `_Thread_local` 探针（独立 oracle）**：自写 `tls_probe.c`（随本册自包含）：`_Thread_local int a = 0x12345678; _Thread_local int b;` + 两个线程分别写/读；期望：主线程 `a` 初值 = **`0x12345678`**（手写常量）、线程内 `&a` 与 `__get_tp()` 的差 = **手算 TPOFF**（`.tdata` 偏移 0 / `.tbss` 偏移 8，按 `readelf`/自写 ELF 解析核对）、两线程互不串值。**独立 oracle = 源码常量 + 手算偏移**，不从 clang/LLVM 内部读取。
+- **E3 大端**：`.tdata` 文件字节 = **大端**（`0x12345678` ⇒ `12 34 56 78`）；`.tbss` 不占文件；TLS 访问立即数按大端解释。至少 1 个非对齐友好值（如 `0x0102030405060708`）使端序错可见。
+- **可达 FAIL**：① 注入 `TLSSupported=false`（临时副本）⇒ E1/E2 编译失败；② 把 `GlobalTLSAddress` 的 TP 改成 `rb4`/常量 0（临时副本）⇒ E2 地址差 FAIL 或段错；③ 改 `.tdata` 初值/偏移的手算期望 ⇒ E2 对账 FAIL。三者均 `cp`+md5 还原回绿。
+- **不做**：动态档 `tls_align`（`.so` 链接）/`tls_*_dlopen`/`tls_get_new-dtv` ⇒ **T5 `LLVM-117t`**；`-fPIC` 下的 general-dynamic/initial-exec 仍不在本册。
 
 ## 验收标准
 
@@ -105,17 +132,17 @@
 5. **前置申报 `install-host`**：改 `components/**` ⇒ 单跑一次 `make install-host`（**开工前申报预计耗时**；参照 `LLVM-097t` ≈5–10 min 增量、`LLVM-091t` 全量 `build-mc` ≈72 min 的上界，按实际改动申报；`JOBS=8`、**禁全核**、**不并发**）；改 MC/`.td`/驱动 ⇒ 跑运行期判据**前**安装根必须新鲜（`ISS-210`），并留「安装根时间戳 / `clang --version` 版本串」证据。
 6. **不回归**：① 静态档与非 PIC 产物**逐字节**对照（crt1.o / musl_smoke.elf 一类基线，差异须逐条归因）；② `libc.so` 与动态可执行（`INFRA-085t` B1 产物）**同形不变**；③ `-fPIC` 下 `__thread` 的现状（若仍败）**如实记录**为已知限制，**不得**为了让 `-fPIC` 过而打开动态 TLS 发射；④ 无 `spec/`/`contracts/`/`.tao/contracts/**` 改动（若判需改 ⇒ **留问**）。
 7. **构建纪律与串行**：`ISS-229`（L2/L3 禁并发）、`ISS-210`（安装根新鲜）；组件源按 `docs/Process-01 §6.3/§6.4` 收敛（`.work/source` 可 `git diff`），补丁由 `check-patch-tree` 机械校验。
-8. **不做运行验证（显式声明）**：无 `qemu-user`（`P3`/`QEMU-062t`）⇒ 完成区**不得**出现「运行通过 / E2E 通过」叙述；判据一律 = **能编 + 静态可核**。
+8. **运行验证（T4 新增，限静态档）**：阶段 E 的 `functional/{tls_align,tls_init,tls_local_exec}` **3/3 `pass`**（`--link-mode static`、显式 `--json-out`/`--work-dir`）+ `_Thread_local` 探针（初值 = 手写常量、偏移 = 手算、两线程互不串值）；**动态档 DSO TLS / `dlopen` 不在本册**（T5）；完成区必须区分「静态运行通过」与「动态未做」。
 9. **完成区与真实输出逐条对齐**（≤30 行）；`milestones.md` 流水行由收尾笔更新。
 
 ## 不做项（显式）
 
 1. **`D2`（TLS 类动态重定位**发射**：`TLS_DTPMOD`=10/`DTPREL`=11/`TPREL`=12）** ✗ —— 已 **推迟 `M9+`**（2026-10-17 主会话决定、待用户追认；依据 = `D1` 已够 `M8`、`D2` 仅 `dlopen` 的模块级 TLS 需要；触发条件 = 引入 `dlopen`）。本册**只做 local-exec**。
 2. **`TLSDESC`(13) / `COPY`(9) 发射** ✗（`§4.3` 明标「不发射」，lld 忍即报错）。
-3. **lds / 静态启动 auxv** ✗：`tests/scripts/dadao.lds`·`dadao-dyn.lds` 的 `PHDRS`、`crt` 的 `AT_PHDR/AT_PHNUM/AT_PHENT` 注入、`contract-elf §6.1.2` 的装载语义 —— 一律归「待确认项 ①」（**须用户裁定**，且改契约**须授权**）。
+3. **lds / 静态启动 auxv 注入** ✗：`tests/scripts/dadao.lds`·`dadao-dyn.lds` 的 `PHDRS`、`contract-elf §6.1.2` 装载语义 —— **本册不改**；初始栈/auxv 已由 `QEMU-062t` 的 `crt_arch.h`（读 `rb1`）与 qemu-user 注入解决（「待确认项 ①」已消解）。
 4. **`infra`/musl 面** ✗：`tools/infra/build_musl.py`、`Makefile`、`components/musl/**`、`arch/dadao/{reloc.h,pthread_arch.h,__set_thread_area.s}`（现状已就位，本册**不改**）。
 5. **`spec/`、`contracts/`、`.tao/contracts/**`、重定位编号** ✗（`ADR-0019 D10`/`D12` 冻结；改须用户裁定 + ADR）。
-6. **运行验证 / `qemu-user` / 三套测试集** ✗（`P3`/`P4`）。
+6. **动态档 / `dlopen` 的运行验证** ✗：本册只跑**静态档 3 例**；`functional/tls_align` 动态档（`.so`）、`tls_{align,init}_dlopen`、`tls_get_new-dtv` 归 **T5 `LLVM-117t`**。
 7. **`-fPIC` 的 TLS 访问模型（initial-exec / GOT-TLS）实现** ✗（= `D2` 面）；如 `-fPIC` 下 `__thread` 仍败 ⇒ 记录已知限制、不扩范围。
 8. **`L3` 与里程碑判定** ✗（归主会话 / `/complete`）。
 
@@ -123,6 +150,6 @@
 
 | # | 项 | 我的默认（**待用户确认**） | 备选 / 影响 |
 |---|---|---|---|
-| ① | **静态 `__thread` 的启动 auxv 注入载体**（`INFRA-085t`「遗留②」原文三选项） | **不替用户定**（**主会话倾向 (b)**）。原文：**(a)** 扩 lds（`tls PT_TLS` + `.tdata/.tbss` + 把 ELF 头/phdr 放进可装载段 ⇒ **须授权改 `contract-elf §6.1.2`**）｜**(b)** crt 在 `.data` 合成 phdr 表（需 lds `PROVIDE` TLS 边界符号）｜**(c)** 其它。**现注**：**现在裁没有落点** —— 本册判据止于「能编 + 静态可核」，auxv 注入要等「TLS 程序的 lds 方案」落地才有执行面 ⇒ **随本册实施时一并裁**（届时按现场选定，且 (a) 必须先取得改 `contract-elf §6.1.2` 的**用户授权**） | 影响：静态 `__thread` 程序**能否运行**（`P3` 前置）；不改契约 ⇒ (a) 不可行 |
+| ① | **静态 `__thread` 的启动 auxv 注入载体**（`INFRA-085t`「遗留②」原文三选项） | **已消解（2026-10-19 现场）**：`QEMU-062t` 已把 `arch/dadao/crt_arch.h` 的 `_start` 改为从 **`rb1` 读装载器交付的初始栈**（`rb2rb {rb16},{rb1}`），`AT_PHDR/AT_PHNUM/AT_PHENT/AT_BASE/AT_ENTRY` 由 qemu-user `create_elf_tables()` 注入 ⇒ **不再需要** (a) 扩 lds / (b) crt 合成 phdr / (c) 其它；本册**不改** `dadao.lds`、不改 `contract-elf §6.1.2`。若现场仍读不到 auxv，**停下报告**（归 qemu/装载面），不得在本册扩 lds。 | 影响：已无阻断；遗留 (a) 方案作废（保留为历史记录） |
 | ② | **阶段 0 若判出「必须新静态 TLS 类型 / 必须由 lld 动态发射 10/11/12」** | **停下留问**（**不自行扩类型、不改契约**）：`ADR-0019 D10` 冻结 ⇒ 新类型须用户裁定 + ADR；动态发射即 `D2`（`M9+`，另有触发条件） | 影响：本册范围/排期；若走 `D2` ⇒ 与 `dlopen` 排期绑定 |
 | ③ | **`-fPIC` 下 `__thread`（initial-exec / GOT-TLS）的归属** | **不在本册**（= `D2`/`M9+`）；本册若遇 `-fPIC` 失败 ⇒ **如实记录**为已知限制（影响 `libc-test` TLS 用例与部分程序，**不阻塞 `P3`**） | 若要求本册一并覆盖 ⇒ 范围扩到 GOT-TLS + 10/11/12 发射（与 `D2` 冲突，须重排） |
