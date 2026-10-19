@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-102t`（D4 整组分配与栈偏移的现实现；其完成区坑②③ + 执行期偏差② = 本册现场）、`LLVM-106t`（`long double` = binary128 的取值/搬运）、`ADR-0031 D7`（**`Accepted`**，16 B 栈对齐的依据；本册**不改 ADR**）、`ISS-275`（登记源；本册 = 落点）、`TESTCASES-047t`（5 个 `long double` 回归）、`TESTCASES-048t`（抽样回归）
-**状态**：待开始
+**状态**：待验收
 
 > **立册口径（2026-10-19，architect）**：这是 `Accepted` 的 `ADR-0031 D7` 的**实现补齐**，不是新决策、不改 ADR、不放宽 `D7`。`ISS-275` 的 ①（9–15 B 寄存器「偶号起」）是既有实现约束（后端只见 `[2 x i64]`，分不清 12/16 B），**本册不改**；本册只补齐 16 B 值的**栈**布局，且三处（caller / callee / `va_arg`）必须同一套规则。
 
@@ -93,16 +93,49 @@
 5. 完成区贴真实命令/退出码/关键输出（不转述），写清 12 B 栈上同补位的已知后果与 `ISS-275` 落点。
 
 ## 完成区
-**测试结果**：
+**测试结果**：探针 P1/P2/P3/P4 + 证据脚本 default **22/22 rc=0**、`--inject` **12/12 rc=0**；回归 `047t` 两档 **10/10 pass**、`048t` 两档 **8/8 pass**、lit **114/114 PASS**（CodeGen 35，含新例）；门控（派单 10 项 + `make check` + `check-lit` + `check-isa-coverage`）全 rc=0。失败原因：无（构建期三轮修复见审阅记录）。
 **修改文件**：
-**验收结果**：
+- `.work/source/llvm-project/{llvm/lib/Target/DADAO/DADAOISelLowering.cpp,clang/lib/CodeGen/Targets/DADAO.cpp}`（E1 的 `commit --amend`，`check-source-state` clean+base+1）
+- `components/llvm-project/patches/{llvm/lib/Target/DADAO/DADAOISelLowering.cpp,clang/lib/CodeGen/Targets/DADAO.cpp}.patch`（`make_patch.py` 导出：2 written / 80 unchanged）
+- `components/llvm-project/changelog.md`（M8 追加一条）
+- `tests/llvm/lit/CodeGen/DADAO/m8-varargs-stack-align.ll`（新增）
+- `tools/llvm/llvm-isa-backend-matrix.{md,tsv}`（**越界披露**：补丁 +20 行使 `isel-cpp` 证据行号 942→962，`gen_isa_coverage.py` 由真源重派生）
+- `.work/evidence/LLVM-111t/{run.sh,P1.c,P2.c,P3.c,P4.c,baseline/P3.s,baseline/P3.out}`；日志 `.work/log/llvm/LLVM-111t-*.log`
+
+**验收结果**（真实输出）：
+- `ninja -C .work/build/llvm clang llc`：rc=0（末次增量 `real 3m35s`；三次合计 11m46s，前两次为现场修复）
+- P1：`p0%16==0 / p1==p0+16 / p2==p0+32 / ld==-3.25L` ⇒ exit **0**（同程序安装根旧编译器 exit **1**）
+- P2：`S16`、`S12` 均落 `p0+16`、后续 `int` 在 `p0+32`（12 B 同 16 B 起）⇒ exit **0**（旧 **1**）
+- P4：`va.stack` = 命名区精确末尾（40 B）、变参 `long double` 在 48 对齐 ⇒ exit **0**（旧 **1**）
+- P3：`cmp baseline/P3.s` 全同、stdout 全同、exit 0（20 int/17 double/16 pointer + 变参 4 int/1 double/3 pointer）
+- lit：`Total Discovered Tests: 114 / Passed: 114 (100.00%)`；新例用**旧 llc** 跑 `Failed: 1`
+- `047t`：`mode=static total=5 pass=5 blocked=0 rc=0`；`mode=dynamic` 同
+- `048t`：`static total=4 pass=4 rc=0`；`dynamic total=4 pass=4 rc=0`
+- `check-patch-tree: 5 component(s), 181 patches OK`（series 82 不变）；证据脚本 `PASS` / `--inject PASS`
+- 门控：`check-instrinfo` 0 errors、`check_lit_gen` 64/64、`check-index-blobs` OK、`check-source-state` OK、`check-no-residue` PASS、`check-tasks` rc=0、`check-knowledge-refs` PASS、`check-component-changelog` rc=0、`check-issues` OK、`check-isa-coverage` PASS、`make check-lit` 114/114 rc=0、`make check` → `repository checks (L1): PASS`
+
 **新发现/坑**：
-**遗留问题**：
+1. **绝对 16 B 对齐的前置**：`contract-abi §2.2` 只保证 SP 8 B 对齐，本册按判据只做「相对栈区基址」的取整；绝对 `%16==0` 还要求调用点 SP 16 B 对齐（探针用 16 B 对齐局部变量钉住基址）。要无条件保证须把 `getStackAlign()` 提到 16 —— 那会改所有帧布局、8 B 基线不再逐字节同，超出本册。
+2. **callee 的 `ArgStackSize` 不能取整**：它是 `VarArgStackOffset`；取整后命名区以 8 B 结尾时 `va_start` 会比 caller 的变参起点多 8 B（P4 专门覆盖，`va.stack` 必须恰为 40）。
+3. 构建树 clang 的 resource-dir builtins archive 是**旧拷贝**（无 `__*tf*` 符号），`047t/048t` 用 wrapper 指向安装根 `-resource-dir` 跑；`install-host` 后应直接用安装根 clang 复跑。
+4. `isel-cpp` 覆盖矩阵记录**补丁物理行号**，任何补丁行数变化都须重跑 `gen_isa_coverage.py`，否则 `make check` 在 `check-isa-coverage` 红。
+
+**遗留问题**（**未做/声明**）：按派单**未跑 `install-host`/L2/L3**、**未 commit/push**、**未改 `**状态**`**、未改 ADR/spec/契约。`install-host` 后需复验：① `make check-lit`（本轮以 `LLVM_TOOLS_DIR` 指向构建树 + 安装根 qemu 跑 → 114/114 rc=0；安装根 llc 仍旧，默认工具链下新例必红，install-host 后按默认复跑）；② `047t`/`048t` 用 `.dadao/cross-toolchain/bin/clang` 直跑（去掉 wrapper）；③ `make check-source-state` 仍 clean+base+1。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填写）
+**范围**：两份终态源码（`reassignDADAOArgLocs` / `LowerCall` / `EmitVAArg`）逐行 + 生成补丁逐 hunk + 探针 oracle 独立性 + 证据脚本可达 FAIL；结论：**可交付**（无未修 finding）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `CreateAdd(ptr, i64)` 断言崩溃（`BinaryOperator::Create`） | ✅已修 | `ptrtoint → add/and → inttoptr` | P1 编译 rc=0（修前 clang abort 134） |
+| F2 只对齐偏移仍让 Base 落 8(mod16)（FP 下 `ADJCALLSTACKDOWN` 取精确 `ArgStackSize`） | ✅已修 | caller `NumBytes = HasStack16 ? alignTo(ArgStackSize,16) : ArgStackSize` | P1 修前 exit 237 → 修后 0 |
+| F3 若把 callee 的 `ArgStackSize` 一并取整会移动 `va_start` | ✅已修 | 取整只在 `LowerCall`；`HasStack16` 出参、callee 传 nullptr | P4 exit 0（含「不额外取整」断言） |
+| F4 退出码只有低 8 位，bit8 断言不可观测 | ✅已修 | 四个探针 `return bad != 0` | 旧编译器 P1/P2/P4 各 exit 1 |
+| F5 `make check` 在 `check-isa-coverage` 红（补丁行号 942→962） | ✅已修 | 重跑 `gen_isa_coverage.py` | `check-isa-coverage: PASS` |
+| F6 探针基址未固定，P1 的 `p0%16` 会随帧奇偶波动 | ✅已修 | 探针加 16 B 对齐 `volatile` 局部 + 注释说明前置 | P1 修前 237/修后 0 稳定复现 |
+| F7 8 B-only 布局回归风险（`NumBytes` 取整可能改动 SP） | ✅已修 | 仅 `HasStack16` 时取整 | P3 `cmp` 汇编逐字节同 + stdout 同 |
 
 #### 第 1 轮 reviewer 验收
 （待填写）

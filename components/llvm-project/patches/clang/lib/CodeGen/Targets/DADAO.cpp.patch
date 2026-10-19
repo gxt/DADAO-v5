@@ -1,9 +1,9 @@
 diff --git a/clang/lib/CodeGen/Targets/DADAO.cpp b/clang/lib/CodeGen/Targets/DADAO.cpp
 new file mode 100644
-index 000000000..684d34574
+index 000000000..2242913de
 --- /dev/null
 +++ b/clang/lib/CodeGen/Targets/DADAO.cpp
-@@ -0,0 +1,499 @@
+@@ -0,0 +1,513 @@
 +//===--- DADAO.cpp - DADAO ABI Implementation -----------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -274,7 +274,9 @@ index 000000000..684d34574
 +  //      only stack_next (the bank cursor and left stay put -- no splitting);
 +  //   4. 16-byte values need an even starting slot (skip one if odd) and two
 +  //      slots (three with the skip); if that does not fit, the whole value
-+  //      goes to the stack without skipping or advancing the cursor;
++  //      goes to the stack without skipping or advancing the cursor.  On the
++  //      stack they are 16-byte aligned: va.stack is rounded up before the
++  //      value is read (ADR-0031 D7, same rule as the caller's stack offset);
 +  //   5. HFA/HPA are rebuilt leaf by leaf; > 64 B values are copied from the
 +  //      pointer held in the slot.
 +  RValue EmitVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
@@ -399,6 +401,18 @@ index 000000000..684d34574
 +    CGF.EmitBlock(OnStackBB);
 +    {
 +      llvm::Value *StackNext = B.CreateLoad(StackP, "va.stack");
++      if (C.Is16) {
++        // ADR-0031 D7: a 16-byte stack value is 16-byte aligned.  The caller
++        // skips an odd 8-byte slot in reassignDADAOArgLocs (same rule); skip
++        // it here too before reading, and advance from the aligned address so
++        // the next value starts after the two occupied slots.
++        llvm::Value *StackInt =
++            B.CreatePtrToInt(StackNext, Int64Ty, "va.stack.int");
++        StackInt = B.CreateAnd(
++            B.CreateAdd(StackInt, B.getInt64(15), "va.stack.pad"),
++            B.getInt64(-16), "va.stack.aligned");
++        StackNext = B.CreateIntToPtr(StackInt, PtrTy, "va.stack.aligned.p");
++      }
 +      Address Src(StackNext, CGF.Int8Ty, CharUnits::fromQuantity(8));
 +      if (C.HFA) {
 +        StackAddr = emitHFATemp(CGF, Src, /*InRegister=*/false, Ty, C);
