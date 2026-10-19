@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M8
 **依赖**：`QEMU-062t`（`qemu-dadao` user-mode 后端，已验证）、`TESTCASES-048t`（4 例 `SIGSEGV` 现场 + `unix-smail` 卡死现场）、`TESTCASES-047t`（`flockfile-list` `SIGBUS` / `setenv-oom` `SIGTRAP` 现场）、`TESTCASES-050t`（`lua` 宿主信号 + `lemon` guest 信号现场，2026-10-18 追加表行）、`ISS-255`/`ISS-266`/`ISS-269`（本册对应 issue）、`ISS-247`（用户态基址 = lld 默认 `0x10000`）、`ISS-248`（`blocked>0 ⇒ rc=1` 口径）、`ISS-257`（同族 `RLIMIT_AS` flake，**仅关联、非本册交付**）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -132,8 +132,22 @@ python3 tools/testcases/run_llvm_ts_user.py --link-mode both --jobs 1 --timeout 
 | F5 完成区缺「每例最小复现命令」 | ✅已修 | 补「最小复现」一行（8 例命令，lua 标 ≈400 s） | 本文件 |
 | F6 只改 qemu + 补丁 + 任务书，未越界 | ✅已核 | `git status -uall` = 4 个 tracked 文件（issues/任务书/qemu 补丁/changelog） | `git diff --stat` |
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决）
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑记录**（脚本重定向 WD/PATCH_BAK 至 `/tmp/opencode/review-A/work/QEMU-063t/`，4 处 driver 调用补 `--json-out` 以符合 INFRA-093t 新规矩）：
+- default rc=0，12/12 PASS：S1 MemRAS 补丁在场 ✓、S2 组件源 clean ✓、S3 base+1 commit ✓、S4 dbms static PASS ✓、S5 dbms dynamic PASS ✓、S6 sample 15-trie+fixoutput 两档 PASS ✓、S7 setenv-oom rc=133（SIGTRAP，预期）✓、S8–S10 注入 A（剥离 MemRAS → 红 → cp+md5 还原 → 绿）✓、S11–S12 注入 B（wrong oracle → driver FAIL + oracle mismatch 消息）✓
+
+**约束核验**：
+1. 逐例诊断表 9 行均填根因 ✓（SPASS:rd43=0 未定; consumer-typeset:MemRAS→修; 8b10b:BE语料; dbms:MemRAS→修; flockfile-list:对齐语料; setenv-oom:rlimit直通; unix-smail:/bin/sh缺失; lemon:rb16漏写归LLVM; lua:未诊断）
+2. dbms 两档 pass ✓（S4+S5）
+3. semantics 161/161 ✓（独立重跑 `make check-qemu-semantics` rc=0）
+4. smoke 90/90 ✓（独立重跑 `make check-qemu-smoke` rc=0）
+5. 可达 FAIL ✓（注入 A 剥 MemRAS hunk→S1 FAIL→cp 还原→回绿；注入 B wrong oracle→driver rc=1→grep oracle mismatch）
+6. 门控 ✓：check-patch-tree 180 ✓、`make check`(L1) ✓、check-run-artifacts ✓
+
+**如实性抽查**：① dbms 动态档 `.work/source/llvm-test-suite/.../dbms` 实跑 PASS ✓；② `git -C .work/source/qemu status` 干净 ✓；③ 注入 A md5 前后一致 ✓
+
+**判决**：**Accepted** — 所有验收标准逐条通过，两处注入闭环，9 例诊断表均有根因或处置归宿。
 
 #### architect 提交留痕（2026-10-19）
 档位：**正常提交**（无 `WIP:` 前缀，按父会话明确指令）。**如实披露**：本笔提交时本册「第 1 轮 reviewer 验收」为**空**、`**状态**` = `待验收` ⇒ 严格按角色规则应为 `WIP:`；本笔依主会话指令执行，若后续判 `Needs Revision`，返工提交仍落本分支并随 squash 收口。开工分支 `QEMU-063t` 实现提交 `c674604`（本留痕随后单独提交），squash 落 `master`（单提交；**未 push**）。

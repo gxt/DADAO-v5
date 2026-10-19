@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：`ADR-0030`（`Accepted`：`D1` 常量、`D5` 只改 `bits/float.h`、`_l` 不改）、`ADR-0031`（`Accepted`：16 B 值半字顺序，供 `_l` 路径的 128 位值传递）、`LLVM-106t`（前端 `__SIZEOF_LONG_DOUBLE__=16` / `__LDBL_MANT_DIG__=113` + 后端 `f128`；**联动**，本册可先行、`_l` 转正验收须其就绪）、`INFRA-079t`（builtins TF 符号）、`ISS-250`
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -78,5 +78,20 @@ musl `arch/dadao/bits/float.h` 现状按 **binary64** 写死（`LDBL_MANT_DIG 53
 | F6 越界改 `tools/**` 与任务约束冲突 | ⏸延后 | 已在完成区/遗留问题显著披露，待 architect 裁定（拆任务或纳入） | 本笔保留现场 `.work/log/infra/INFRA-090t-*` |
 
 
-#### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑记录**（脚本按新规矩重定向输出至 `/tmp/opencode/review-A/`，仅改 ROOT/TMP/LOG 路径 4 行，断言不变）：
+- default rc=0，32/32 PASS（含 A1 12 宏逐字对比、A3 clang -dM 三项、B1 分支命中、C1–C5 门控、D4 oracle 11/11、E1/E2 ISS-250 5+5 两档、F1–F3 回归 22/22）
+- `--inject` rc=0，14/14 PASS（I1: `LDBL_MANT_DIG 113→53` → 常量/probe/编译断言均红 → cp+md5 还原回绿；I2: `DECIMAL_DIG 36→17` 同理）
+
+**约束核验**：
+1. 12 宏与 `arch/aarch64/bits/float.h` **逐字一致** ✓（`diff` 空，md5 `7653db34…` 与完成区一致）
+2. 头文件自洽 ✓（`__LDBL_MANT_DIG__=113` / `__SIZEOF_LONG_DOUBLE__=16` / `__SIZEOF_FLOAT128__=16`）
+3. `_l` 分支 53 文件命中 ✓；`git diff` 对 `src/math` 空 ✓
+4. ISS-250 5 例两档 5/5 + 5/5 ✓；10+12 回归样本均 pass ✓
+5. 注入两处可达 FAIL + cp+md5 还原回绿 ✓
+6. 门控：`check-patch-tree` 180 ✓、`check-musl-freshness` ✓、`make check`(L1) ✓、`check-run-artifacts` ✓
+
+**如实性抽查**：① 12 宏 diff 空 ✓；② md5 `7653db341ee9ed90224c53134bd78948` 与完成区前 8 位一致 ✓；③ oracle 11 行全 PASS 含 ±0/2^100/2^-40/add/mul ✓
+
+**判决**：**Accepted** — 所有验收标准逐条通过，无阻断发现。

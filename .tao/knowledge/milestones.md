@@ -30,14 +30,16 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-090t | 已验证 | 2026-10-19 07:54 | musl bits/float.h 换 binary128：12 宏与 aarch64 逐字、_l 零改；047t 5 例两档 5/5；ISS-250 closed |
+| LLVM-105t | 已验证 | 2026-10-19 07:54 | vector SetCC 补齐（`WidenVecRes_LOAD` 断言）+ wchar_t 改有符号；两例编译 rc=0、lit 103/103 |
+| LLVM-107t | 已验证 | 2026-10-19 07:54 | i32 窄返回 callee canonical 化：`classifyReturnType` 对 <64 位整型统一 `getExtend`；探针修前 2 FAIL→8/8、lit 34/34 |
+| QEMU-063t | 已验证 | 2026-10-19 07:54 | MemRAS 初始化（1 MiB + MRPTR 哨兵）⇒ dbms 两档 pass；9 例诊断表落册；ISS-277→LLVM-108t |
 | SPEC-149t | 待开始 | 2026-10-19 07:49（登记） | 上游只读册汇编示例注释 `;`→`@@`：11 册 298 行；C 分号不动；只读锁重算 |
 | LLVM-109t | 待开始 | 2026-10-19 07:41（登记） | `CommentString=@@` + `SeparatorString=;`；99 文件 3440 行注释先迁移后翻常量，87 CHECK/生成器/工具同步 |
 | SPEC-147t | 待开始 | 2026-10-19 07:41（登记） | 注释符 `;`→`@@`、`;` 改语句分隔符：§2.2+示例+变更记录+`contract-asm` 0.5.3+只读锁重算；只读册示例迁移另立 `SPEC-149t`（A 授权） |
 | TESTCASES-051t | 待开始 | 2026-10-19 07:33（登记） | lencod 缺 Output/ 判 fail（ISS-276）+ 两证据脚本 stale（ISS-272/274）；补目录、改查 IR、修期望 |
 | INFRA-093t | 待验收 | 2026-10-19 07:10（登记） | 三驱动 `--json-out` 必填 + 独立 run 目录三件套 + L1 `check-run-artifacts`（A1–A3/self-test/注入）；`Process-08` 规范 |
 | LLVM-108t | 待开始 | 2026-10-19 01:54（登记） | lemon 调用点漏写 rb16：K&R 无原型调用（`lemon.c:334/4839`）先分类；指针形参读 rb16 而实参走 rd16 |
-| LLVM-105t | 待验收 | 2026-10-18 22:25（登记） | vector SetCC 补齐（`WidenVecRes_LOAD` 断言）+ wchar_t 改有符号；两例编译 rc=0、lit 103/103 |
-| LLVM-107t | 待验收 | 2026-10-18 22:25（登记） | i32 窄返回 callee canonical 化：`classifyReturnType` 对 <64 位整型统一 `getExtend`；探针修前 2 FAIL→8/8、lit 34/34 |
 | LLVM-098t | 已验证 | 2026-10-18 22:22 | -fPIC 下 .rodata 仍发 ABS48（build-musl-shared EXIT=2）；诊断完成，reviewer Accepted |
 | LLVM-099t | 已验证 | 2026-10-18 22:22 | i64 rotl/rotr ISel 展开；reviewer Accepted |
 | TESTCASES-046t | 已验证 | 2026-10-18 22:22 | Embench 两档 38/38 + 38/38 已跑；reviewer Accepted |
@@ -55,10 +57,8 @@
 | INFRA-089t | 已验证 | 2026-10-18 20:57 | musl sigsetjmp：新增 dadao/sigsetjmp.s；setjmp blocked→pass；patch 174 |
 | INFRA-091t | 已验证 | 2026-10-18 20:57 | milestones 体例改造 + L1 门控 check-milestones-fresh（五断言 + self-test） |
 | INFRA-092t | 已验证 | 2026-10-18 20:57 | musl 封装 va_arg 类型面：syscall()/fcntl()/getrlimit 按三 bank 取型；fcntl 两档 pass、10/10；补丁 177→180 |
-| INFRA-090t | 待验收 | 2026-10-18 10:47（登记） | musl bits/float.h 换 binary128：12 宏与 aarch64 逐字、_l 零改；047t 5 例两档 5/5；ISS-250 closed |
 | LLVM-106t | 待开始 | 2026-10-18 10:47（登记） | long double=binary128：前端 16B/113 宏 + ABI rf16/17 + f128 libcall 21 + TF 29 符号；18 项 oracle、lit 34/34；待 install-host |
 | LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | A 段 brind + B 段三游标 ABI + D4 caller 侧整组分配（p_d4 86→0、lit 34/34）；待 install-host 复验 |
-| QEMU-063t | 待验收 | 2026-10-18 07:55（登记） | MemRAS 初始化（1 MiB + MRPTR 哨兵）⇒ dbms 两档 pass；9 例诊断表落册；ISS-277→LLVM-108t |
 | INFRA-079t | 已验证 | 2026-10-17 23:56 | compiler-rt builtins 全量：147 成员/14 libcall + 独立库 + driver 接线；L2 零回归 |
 | INTEG-036m | 待开始 | 2026-10-17 16:44（登记） | M8 收口核验册：三套两档如实分类 + 失败归因；P4 不作；现不满足置里程碑 |
 | QEMU-062t | 已验证 | 2026-10-17 14:37 | qemu-user 后端：静态+动态两档 E2E 通（ldso 真跑、AT_* 对账、crt1 修） |

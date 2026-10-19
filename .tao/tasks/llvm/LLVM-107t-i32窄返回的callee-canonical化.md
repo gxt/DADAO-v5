@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`ISS-243`（本册对应 issue，`open`；现场 = `LLVM-097t` 完成区「新发现/坑 ①」）、`contract-abi §4.4 C5`（窄返回由 callee 扩展、caller 不截断）/`§4.2`（符号/零扩展规则）、`ADR-0018 C5`；对照任务 = `LLVM-097t`（同族 `bswap32` 脏高位）/`LLVM-101t`（指针返回 bank）；用户 2026-10-18 裁定 **M8 内修**（逐字「1、可以；2、M8内修」，渠道 = 经主会话问答）。
-**状态**：待验收
+**状态**：已验证
 
 > **编号说明**：本册编号由主会话 2026-10-18 指定（`LLVM-105t`/`107t` 同批立册）；本册只做 `ISS-243`。
 
@@ -123,8 +123,23 @@ ret rd0, 0
 | F3 旧 musl 下 047t `env`/`inet_pton` 失败（caller 不再 zext） | ⏸延后（主会话 rebuild） | 未改判据、未加补偿；完成区坑① | 修前/后 047t 现场留 `.work/log/llvm/LLVM-107t-047-*.log` |
 | F4 覆盖检查：i1/i8/i16/i32 × 有/无符号 + enum + long | ✅已修/已验 | 探针 8 例 + `enum.c` IR/asm 检查 | 8/8 OK；enum `zeroext i32`、long 无属性 |
 
-#### 第 1 轮 reviewer 验收
-（待填）
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑记录**（脚本重定向 W + ev-*/ev-probe/ev-sample 至 `/tmp/opencode/review-A/work/LLVM-107t/`，probe 输入路径保持原位 `/tmp/opencode/LLVM-107t/probe/`）：
+- default rc=0，26/26 PASS：src/patch grep 4/4 ✓、门控 8/8（check-patch-tree 180 等 + check-musl-freshness）✓、lit rc=0（35 discovered, 0 failed）✓、asm 汇编 8 类型逐条 `and.o`/`ext.so` ✓、probe-post 8/8 OK ✓、pre-addu FAIL + pre-neg FAIL + pre-controls OK（修前现场）✓、sample12 12/12 ✓
+- `--inject` rc=0，33/33 PASS：I1 删 i32 mask → probe rc=1 → 回绿 ✓；I2 oracle 翻转 → rc=1 ✓；I3 删 classify 分支 → grep FAIL ✓；md5 对账 originals-untouched ✓
+
+**约束核验**：
+1. §4.4 C5 原文 ✓（与 `contract-abi.md` 逐字一致：「窄返回扩展：<8B 返回值由 callee 按 §4.2 的符号/零扩展规则扩展为 canonical 64 位后再 ret；caller 不截断」）
+2. 契约级探针真判别 ✓（pre-fix: `addu(0xFFFFFFFF,1)` got `0x0000000100000000` / `neg(INT_MIN)` got `0x0000000080000000` — 均 FAIL；post-fix: 8/8 OK）
+3. 修法 = (a) clang ABI 侧 ✓（`classifyReturnType` 对 `<64` 整型统一 `getExtend`；覆盖 i1/i8/i16/i32 × 有/无符号 + enum）
+4. 反汇编结构 ✓（`addu`: `and.o rd8, rd4, rd5`；`neg`: `sub.st`+`ext.so`）
+5. 可达 FAIL ✓（I1/I2/I3 三处注入均先红后绿，md5 对账一致）
+6. 门控 ✓：check-patch-tree 180 ✓、check-instrinfo ✓、check_lit_gen ✓、check-musl-freshness ✓、`make check`(L1) ✓、check-run-artifacts ✓
+
+**如实性抽查**：① pre/probe_pre.txt 中 `addu got=0x0000000100000000 want=0x0000000000000000 FAIL` + `neg got=0x0000000080000000 want=0xffffffff80000000 FAIL` — 确认修前脏高位 ✓；② post probe-post.log `all narrow returns are canonical` ✓；③ lit 35 discovered（含 LLVM-105t 新增 vec-load-widen.ll），0 failed ✓
+
+**判决**：**Accepted** — 所有验收标准逐条通过，契约级探针修前红/修后绿完整闭环。
 
 #### architect 提交留痕（2026-10-19）
 档位：**WIP**（`**状态**` = `待验收`，未获 reviewer 判决）；开工分支 `LLVM-107t` 提交 `b433f74`，squash 落 `master`（单提交，本留痕随 amend 并入；**未 push**）。文件集 7 项对账：`DADAO.cpp.patch`（1 份改，`series` 81 不变）/ `changelog.md` / `check_ret_canonical.py`（新增探针）/ 本册 —— 与完成区「修改文件」一致；`tools/llvm/llvm-isa-backend-matrix.{tsv,md}` 重派生后**字节未变**（无 diff、无需提交）；另 `milestones.md` / `issues.yaml` / `INTEG-036m` 3 册为 architect 账面更新（完成区未列，属台账范围）。`check-patch-tree` **180** ✓。

@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`ISS-267 ①`（clang 崩溃 2 例，`open`；源 = `TESTCASES-048t` 第 2 步全量两档）、`ISS-253`（`wchar_t` 符号性冲突，`open`；源 = `TESTCASES-047t` 静态档）、`ISS-266`/`QEMU-063t`（宿主信号，**不同面**，不属本册）、`TESTCASES-048t`/`TESTCASES-047t`（现场与复跑载体）；用户 2026-10-18 裁定 **M8**（逐字「1、可以；2、M8内修」，渠道 = 经主会话问答）。
-**状态**：待验收
+**状态**：已验证
 
 > **编号说明**：本册编号由主会话 2026-10-18 指定（`LLVM-105t`/`107t` 同批立册）。本册把**两个独立缺口**放在一册，因为二者都需「先诊断、后定性」且共用一次 `install-host` 窗口；**诊断与处置须分节各自留证**，不得互相顶替。
 
@@ -130,8 +130,24 @@
 
 **判决**：无未修 finding；按派单**不改**任务状态（保持 `待开始`，由主会话处置）。**未做**：`install-host`/L2/L3（派单明确不跑）。
 
-#### 第 1 轮 reviewer 验收
-（待填）
+#### 第 1 轮 reviewer 验收（2026-10-19）
+
+**重跑记录**（脚本重定向 W=/tmp/opencode/review-A/work/LLVM-105t，仅改路径，断言不变）：
+- default rc=1（3 FAIL / 39 PASS），**3 FAIL 全是「pre-fix artifact」检查**：A-prefix-artifact / A-prefix-signature / B-prefix-artifact — 期望安装根旧 clang 复现崩溃/冲突，但安装根已由 `install-host` 更新（d003468 期间，clang timestamp Oct 19 01:20）⇒ pre-condition 不再成立，**非回归**。
+- 39 PASS 含：src/patch grep 6/6 ✓、门控 8/8（check-patch-tree 180 等）✓、lit 103/103 ✓、最小复现 dadao rc=0 + x86 ctrl rc=0 ✓、A-语义探针 v6/v3 rc=0 ✓、A-corpus-compile 2/0（两例均编过）✓、A-lencod-oracle rc=0 ✓、A-obsequi-verdict rc=0 ✓、B-dM `__WCHAR_TYPE__=int`/`__WCHAR_MAX__=2147483647`/`__WCHAR_MIN__` ✓、B-probe-cc/link/semantics rc=0 ✓、B-mbsrtowcs 两档 1+1/1+1 ✓、sample12 12/12 ✓、`make check`(L1) ✓
+
+**约束核验**：
+1. 诊断先行 ✓：A 段两例 `-fsyntax-only`/`-emit-llvm` rc=0，`-S`/`-c` rc=134，栈顶 `getSetCCResultType` assert，最小复现 8 行 C（dadao 134 / x86 0）
+2. 处置 = 我方后端修 ✓：补 `getSetCCResultType` 向量→`changeVectorElementTypeToInteger()`、标量→`getPointerTy`；lit `vec-load-widen.ll` 新增 ✓
+3. B 段 ✓：`__WCHAR_TYPE__=int` 与 musl `typedef int wchar_t` 一致；`mbsrtowcs-overflow` 两档 pass
+4. 可达 FAIL ✓：I1 后端源码注入→llc rc=134→cp+md5 还原→rc=0；I2 musl header 注入→probe rc=1→回绿；I3 oracle 翻转→rc=1→回绿
+5. 门控 ✓：check-patch-tree 180 ✓、check-instrinfo ✓、check_lit_gen ✓、check-isa-coverage ✓、check-component-changelog ✓、`make check`(L1) ✓
+
+**如实性抽查**：① lit 103/103 实跑确认 ✓；② `__WCHAR_TYPE__=int` 手动 grep `clang -dM` 确认 ✓；③ `__WINT_TYPE__=unsigned int` 未改（符合 musl `unsigned wint_t`）✓
+
+**发现（非阻断）**：3 项 pre-fix artifact 检查因安装根已更新而 FAIL — 证据脚本的 "stale installed clang" 前提不再成立；建议后续更新脚本以适配当前安装根状态，或标注为"已验证 fix landed"。
+
+**判决**：**Accepted** — 3 FAIL 全为 pre-condition 变更（非回归），其余 39 项验收标准逐条通过。
 
 #### architect 提交留痕（2026-10-19）
 档位：**WIP**（`**状态**` = `待验收`，未获 reviewer 判决）；开工分支 `LLVM-105t` 提交 `b73d968`（本留痕与台账 3 册随 amend 并入；**未 push**）。文件集 8 项对账：3 份 patch（`series` 81 不变）/ `changelog.md` / 新增 lit `vec-load-widen.ll` / `llvm-isa-backend-matrix.{md,tsv}` / 本册 —— 与完成区「修改文件」一致（`.work/evidence/**` 由 `.gitignore` 排除、不入库）；另 `milestones.md` / `issues.yaml` / `INTEG-036m` 3 册为 architect 账面更新（状态、`ISS-253`/`ISS-265` notes、`ISS-276` 登记、里程碑行）。`check-patch-tree` **180** ✓、`make check`(L1) rc=0 ✓。
