@@ -30,6 +30,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-102t | 已验证 | 2026-10-19 19:35 | brind 间接分支 + 变参三游标 ABI + D4 整组分配；安装根复验 112/112 + 11/11 注入、与基线一致、无缺陷 |
+| LLVM-106t | 已验证 | 2026-10-19 19:35 | long double=binary128 全链：f128 三宏/21 libcall/高半在偶号/栈 16B；安装根复验一致、无缺陷 |
 | INFRA-094t | 已验证 | 2026-10-19 19:12 | 修 L2/L3 两红：ir-lli 5 个 lit CodeGen 入 exclude（no-value-entry）；authoritative 补 6 个真跑目录+latest |
 | LLVM-115t | 已验证 | 2026-10-19 19:12 | picolibc `__atold_engine` 接入：删 meson 过滤条目（2→1）；build/tests rc=0、pass 18/blocked 0、047t 5 例两档 pass、探针 11/11 |
 | SPEC-149t | 已验证 | 2026-10-19 19:11 | 上游只读册汇编示例注释 `;`→`@@`：11 册 298 行；C 分号不动；只读锁重算 |
@@ -66,8 +68,6 @@
 | INFRA-089t | 已验证 | 2026-10-18 20:57 | musl sigsetjmp：新增 dadao/sigsetjmp.s；setjmp blocked→pass；patch 174 |
 | INFRA-091t | 已验证 | 2026-10-18 20:57 | milestones 体例改造 + L1 门控 check-milestones-fresh（五断言 + self-test） |
 | INFRA-092t | 已验证 | 2026-10-18 20:57 | musl 封装 va_arg 类型面：syscall()/fcntl()/getrlimit 按三 bank 取型；fcntl 两档 pass、10/10；补丁 177→180 |
-| LLVM-106t | 待开始 | 2026-10-18 10:47（登记） | long double=binary128：前端 16B/113 宏 + ABI rf16/17 + f128 libcall 21 + TF 29 符号；18 项 oracle、lit 34/34；待 install-host |
-| LLVM-102t | 待开始 | 2026-10-18 07:55（登记） | A 段 brind + B 段三游标 ABI + D4 caller 侧整组分配（p_d4 86→0、lit 34/34）；待 install-host 复验 |
 | INFRA-079t | 已验证 | 2026-10-17 23:56 | compiler-rt builtins 全量：147 成员/14 libcall + 独立库 + driver 接线；L2 零回归 |
 | INTEG-036m | 待开始 | 2026-10-17 16:44（登记） | M8 收口核验册：三套两档如实分类 + 失败归因；P4 不作；现不满足置里程碑 |
 | QEMU-062t | 已验证 | 2026-10-17 14:37 | qemu-user 后端：静态+动态两档 E2E 通（ldso 真跑、AT_* 对账、crt1 修） |

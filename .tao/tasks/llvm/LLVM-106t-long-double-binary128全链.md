@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`ADR-0030`（`Accepted`：`long double` = binary128 / RF 双槽 / builtins 全量 / 排 `M9`）、`ADR-0031`（`Accepted`：16 B 值高半在偶号、不拆半、16 B 栈对齐）、`ADR-0027`（builtins 全量 + 独立库）、`INFRA-079t`（`已验证`：compiler-rt builtins 接入）、`INFRA-088t`（driver 默认接 builtins；验收前须 `已验证`）、`INFRA-090t`（musl `bits/float.h` 常量块；**联动**）、`ISS-250`（`libc-test` 5 例 `_l` 偏移）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -71,6 +71,19 @@
 **验收结果**：门控 rc 全 0：`check-patch-tree`（180 patches OK）、`check-index-blobs`、`check-source-state`（E1：clean + base+1）、`check-no-residue`、`check-instrinfo`、`check-component-changelog`、`check-lit_gen`（64/64）、`check-knowledge-refs`（0 悬空）、`check_tasks`（报告型）、`check_issues.py`（`make check-issues` **无此目标**，直跑脚本 67 open/27 closed rc=0）、`make check`(L1) rc=0。源树：`.work/source/llvm-project` HEAD=`2364895f2`（base+1，`commit --amend`），`git status` 干净。
 **新发现/坑**：① **va_arg 16 B 奇偶判据不能看保存区地址 bit3**：保存区只保证 8 B 对齐（`contract-abi §2.2` SP 8 B），SP≡8(mod16) 时地址判据误判奇号并跳槽（现场：变参求和取到低半）；改用「剩余槽数」`left&1`（槽号 = 32-left），对任意 SP 对齐成立，同时修正 LLVM-102t 的 16 B 聚合同类隐患。② f128 无 128 位寄存器 ⇒ 合法化路径 = `TypeSoftenFloat`（f128→i128→2×i64）+ libcall；CC 层用「marker VT=f128」识别两半，`OrigTy->isFP128Ty()` 是唯一可用判别（`CCCustomFn` 拿不到 OrigTy 之外的标记；`f128` 不可作单寄存器）。③ `_Float128` **不是** clang 23 关键字（只有 `__float128`）；`HasFloat128` + `__SIZEOF_FLOAT128__` 即满足 compiler-rt `CRT_HAS_*` 门控。④ 局部 f128 常量按两条 64 位立即数物化（本后端无常量池）；全局 `long double` 常量才是 `.p2align 4` + `.dd.o64`×2（高半在前）。⑤ `__fixtfsi`/`__fixunstfsi` 在 clang 侧不可达（i32 结果先提升为 i64 ⇒ `__fixtfdi`/`__fixunstfdi`），archive 仍备有。⑥ 改 `int_types.h` 关 `CRT_HAS_TF_MODE` 会连带 multc3/divtc3 编译失败（archive 不重链接，假绿），注入须改 `addtf3.c` 的 `#if` 门控。
 **遗留问题**：① `INFRA-090t`（musl `bits/float.h`）**BLOCKED**（另册，未做）；其 `_l` 转正与 `ISS-250` 5 例复验须待该册 + `install-host`。② **绝对 16 B 栈对齐**：`ADR-0031 D7` 要求 16 B 槽，但 `contract-abi §2.2` 只保证 SP 8 B 对齐且 `DADAOFrameLowering` `StackAlignment=8`；当前实现栈槽**相对 SP** 16 B 对齐、访问全部为 8 B `ld.o`/`st.o`（无 16 B 指令），功能无碍，绝对对齐须 ABI/框架层另议（未在本册擅改）。③ `install-host`/L2/L3 未跑（主会话执行）；安装根 clang/archive 仍为旧（TF 0 符号），验收第 1–5 条须安装后复跑。
+
+### 安装根复验（2026-10-19，`verify-102t-106t`）
+
+**环境**：安装根 clang md5 `738387826812e316314920f2e7de6129` = 构建树；安装根 `libclang_rt.builtins.a` TF 定义符号**现场 29**（`nm -g --defined-only`，与完成区一致）；`qemu-system-dadao -M dadao-m1`。
+**前端**：`clang -dM` = `__SIZEOF_LONG_DOUBLE__ 16` / `__LDBL_MANT_DIG__ 113` / `__SIZEOF_FLOAT128__ 16` / `__LDBL_MAX_EXP__ 16384`；`sizeof/alignof(long double)==16`、`sizeof(__float128)==16` 静态断言 rc=0。
+**后端**：`f128_ops.o` 现场发出 **21** 条 TF libcall（21/21 在安装根 archive 有定义；FNEG 走整数 XOR）；安装根 `llc` 下 `rf16→[p,0]`、`rf17→[p,8]`，`[p,0]→rf8`、`[p,8]→rf9`，`fadd` 直通 `call [rb0, __addtf3]`、返回 `ret rd0,0`（大端双向可判别）。
+**端到端（独立 oracle）**：`gen_f128_vectors.py`（`fractions` 精确有理数）+ 18 项检查，`-O2` 与 `-O0` **均 rc=0**；含 `A-2^-100` 低位保持、`double→long double→double`、9 个 `long double` 第 9 个整值退栈。
+**栈上 16 B `%16==0`**：`LLVM-112t` 的 `P1`（f128 变参栈槽）、`P2agg`（S16/S12 变参栈组）在 `-O0`/`-O2` **4/4 rc=0**（`p0%16==0`、`p1==p0+16`、`p2==p0+32`、值回读一致）⇒ SP 16 后**无条件成立**，不再依赖钉基址（`LLVM-112t` 已把 `StackAlignment` 提到 16，上文遗留②已解）。
+**`047t` 5 例**：`math/{acoshl,asinhl,erfcl,lgammal,tgammal}` **静态 5/5、动态 5/5 pass**（权威基线中已是 pass）。
+**门控**：`check_musl_freshness`/`check_patch_tree`（181）/`check_milestones_fresh`/`check_issues` 各 rc=0。
+**结论**：与完成区基线逐项一致，**未暴露缺陷**；默认 112/112、`--inject` 11/11 rc=0。
+**复验坑**：取 by-value 形参地址得到的是 callee 本地副本（struct 对齐 8），不能判 incoming 栈槽对齐；栈上 16 B 须用 `va_arg` 游标（P1/P2agg）判定。
+**验收依据**：安装根复验由**独立会话**（`verify-102t-106t`）完成 ✓ —— 112/112 证据 + 11/11 注入 ✓、与权威基线一致 ✓、无缺陷 ✓
 
 ## 审阅记录
 

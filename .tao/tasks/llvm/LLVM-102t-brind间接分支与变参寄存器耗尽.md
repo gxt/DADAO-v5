@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`TESTCASES-048t`（现场来源 = A 类 222 单元 × 两档全量，`blocked 27` 中的 2 例；两档一致）、`ISS-267`（登记源；本册承接 ②③ 两项）；契约依据：`contract-isa §8.3`（`jump rbha, rdhb, imms12` 地址计算）、`contract-abi §4.1`/`§4.3`（参数寄存器 / 栈溢出区）、`§5`（可变参数已由 `ADR-0031` 收口于 **M8**）、`§6.3`/`§6.4`（`i128` 不支持 / 聚合 64 B 门槛）、`ADR-0031`（**`Accepted`**，2026-10-18：`D2` callee 快照 / `D4` 不拆半 / `D8b` 默认 `-Werror=varargs`）、`ADR-0025`（M8 范围）、真源 `spec/DADAO-21-ABI §3.3`（可变参数：七字段 `va_list` + callee 保存区 + `va_arg` 四步）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -197,6 +197,20 @@ int main(void) {
 **遗留问题**：`install-host`/L2/L3 未跑（主会话）；9–15 B 的偶号约定与 D7 绝对 16 B 栈对齐（见坑②③）；本笔未 commit/push、未改 `**状态**`（仍 `待开始`）。
 
 **执行期偏差（2026-10-18）**：① 9–15 B 两块聚合同样按「偶号起」（`D6` 只强制 16 B，后端无法从 `[2 x i64]` 区分 12/16 B，`va_arg` 用 `Slots==2` 同步）→ **待裁**；② `f128` 在栈上为两个连续 8 B，未做 16 B 补位（`D7` 字面要求 16 B 对齐）→ **待裁**。
+
+### 安装根复验（2026-10-19，`verify-102t-106t`）
+
+**环境**：安装根 clang md5 `738387826812e316314920f2e7de6129` = 构建树 `clang-23`；`qemu-dadao`/`ld.lld`/`llc` 取 `.dadao/cross-toolchain/bin/`；musl = `.work/source/musl`（`check_musl_freshness` PASS）。脚本 `.work/evidence/verify-102t-106t/run.sh`（含 `--inject`），运行产物全落 `/tmp/opencode/verify-102-106/`。
+
+**`brind`（A）**：`&&label` 探针 `acc=3` rc=0，汇编含 `jump [rbX, rd0, 0]`；标签表 + 运行期下标 `two` exit=2，汇编含 `rd2rb {rb4},{rd4}` + `jump [rb4, rd0, 0]`；标量函数指针 + 函数指针数组（volatile 阻断去虚拟化）输出 `f1/arr/f1/scalar` rc=0，汇编含 `call [rbX, rd0, 0]`。
+**变参三游标（B）**：`printf` 全类型逐字 `42 ok 2.500000 123456789 Z`；`p_types`（跨 bank 混排）/`p_exhaust`（20 int=210、混合 20 参=20）/`p_edge`（17 RD+栈、16 RB+栈）rc=0；`p_all` -O0/-O2/-Os rc=0（HFA 寄存器与 RF 耗尽整组栈、`va_copy`、`va_list` 传参、16 B/12 B）；`vprintf` 式转发逐字同上。
+**D4**：`p_d4` -O0/-O2 rc=0（偶/奇 RD、仅 1 槽整值栈、24 B 三块、偶/奇 RF、仅 1 槽 HFA）。
+**`-Werror=varargs`**：默认 rc=1 且含 `-Werror,-Wvarargs`；`-Wno-error=varargs` rc=0 且降为 `warning: ... [-Wvarargs]`。
+**回归抽样**：046t 静态 -O2 **19/19 pass**（权威 38/38 两档，子集一致）；048t `Misc/{evalloop,lowercase}` 两档 **2/2 + 2/2 pass**（权威 201/3/0/16/2）；047t 10 例两档 **10/10 + 10/10**（权威静态 309/0/4/24、动态 312/0/4/21）。
+**门控**：`check_musl_freshness` rc=0、`check_patch_tree` rc=0（**181 patches OK**）、`check_milestones_fresh` rc=0、`check_issues` rc=0。
+**结论**：默认 **112/112 rc=0**；`--inject` **11/11 rc=0**（I1 `p_all` oracle 153→154 ⇒ exit 8；I2 ABI 存储偏移对调 ⇒ 断言 FAIL；I3 `A_HI`+1 ⇒ e2e 非零）。**未暴露实现缺陷**。
+**复验坑**：`-O2` 会丢弃未使用的命名实参并去虚拟化函数指针；探针须使用全部参数 / `volatile` 指针才能观察到真实 ABI 形态。
+**验收依据**：安装根复验由**独立会话**（`verify-102t-106t`）完成 ✓ —— 112/112 证据 + 11/11 注入 ✓、与权威基线一致 ✓、无缺陷 ✓
 
 ## 审阅记录
 
