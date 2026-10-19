@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M8
 **依赖**：无（约束：只动 `tests/llvm/ir-lli/manifest.yaml`、`.work/tests/authoritative/**` 与台账；不改实现 / 不改测试期望）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（主会话 2026-10-19 派发，现场复现）
 
@@ -83,3 +83,33 @@ check-run-artifacts PASS；6 个 run 目录 `run.json` md5 与平铺副本逐一
 | ② manifest (g) 段注释把 106t 等误标为 M8/M7（f128 属 M9） | ✅已修 | 注释改为「later LLVM tasks」 | manifest 解析 + `diff_ir_lli` PASS |
 | ③ 完成区写「4/4 项」与证据脚本 12 项不符 | ✅已修 | 完成区改为 12/12 并补 L1 结果 | `make check` rc=0 |
 | ④ 自审复核「`check_run_artifacts.py` 零改动」是否够 | ✅不修 | 断言 A2 与 `docs/Process-08` §1.2 一致，红因是**产物缺失**而非断言过严；放宽会掩盖真问题 | `make check-run-artifacts` rc=0 + 注入②可达 FAIL |
+
+#### 第 1 轮 reviewer 验收
+
+**审阅范围**：manifest.yaml exclude 条目、authoritative 目录结构+latest、check_run_artifacts.py diff、证据脚本 default、独立注入、check-patch-tree、check_milestones_fresh。
+
+**重跑记录**（真实输出/退出码）：
+
+| 命令 | 期望 | 实际 | rc |
+|------|------|------|----|
+| manifest 5 exclude `no-value-entry` | 5/5 PASS | 5/5 PASS, include=19, exclude=48 | 0 |
+| `check_pairs.py` | 6/6 md5 match | 6/6 match | 0 |
+| `git diff check_run_artifacts.py` | 空 | 空 | 0 |
+| `check-run-artifacts` | PASS | PASS (57 A2 + A3) | 0 |
+| `check-patch-tree` | 181 patches OK | 181 patches OK | 0 |
+| `check_milestones_fresh.py` | PASS | PASS (71 行) | 0 |
+| 独立注入（manifest 删 1 条 exclude） | diff_ir_lli rc=1 | rc=1, unclassified 含 f128-codegen.ll | 1 |
+
+**证据脚本审阅**：`run.sh` 12 项检查，baseline 5 项 + 注入 3 组 + 回绿 2 项。重跑结果：baseline 中 `diff_ir_lli` 和 `structural closure` 报 FAIL（rc=1），根因 = LLVM-113t/114t 新增 2 个 `.ll`（`m8-f128-math-libcall.ll`、`m8-i128-f128-libcall.ll`）未入 manifest，导致 `on-disk=69 > include+exclude=67`。**此为环境漂移**（其它任务 commit 引入），非 INFRA-094t 缺陷。注入 3 组全部可达 FAIL + 还原 ✓。
+
+**约束核验**：
+- ✅ manifest.yaml 5 个 `.ll` 在 exclude（class: no-value-entry），不在 include
+- ✅ authoritative/ 有 6 个真实运行目录 + latest 符号链接 → `20261019T072226Z-llvm-ts-user-dynamic`
+- ✅ 6 对 run.json md5 与平铺副本逐一致
+- ✅ `check_run_artifacts.py` 零改动（git diff 为空）
+- ✅ 可达 FAIL：删 1 条 exclude ⇒ diff_ir_lli rc=1；缺 meta.json ⇒ A2 FAIL；corrupt run.json ⇒ pair check FAIL
+- ✅ 未改 spec/contracts/实现代码
+
+**环境漂移说明**：`diff_ir_lli` 基线 FAIL 源于 LLVM-113t/114t commit（b996e9a/0e52cdb）新增 2 个 `.ll` 文件未入 manifest。manifest 需随后续任务更新，不在 INFRA-094t 范围。INFRA-094t 的三项改动（manifest 5 条 exclude、authoritative 目录、check_run_artifacts.py 未改）均正确。
+
+**判决**：**Accepted** — INFRA-094t 自身改动全部正确，约束无违反。`diff_ir_lli` 基线漂移源于其它任务 commit，非本笔缺陷，建议后续任务补 manifest。

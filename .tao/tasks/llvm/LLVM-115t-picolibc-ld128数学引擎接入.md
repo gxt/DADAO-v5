@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M8
 **依赖**：`LLVM-113t`（i128 ↔ f128 四转换 libcall：`__floatuntitf` 等；`atold_engine.c` 的 `_u128_to_ld` 直用）、`LLVM-114t`（f128 math libcall：`__multf3` 之外的 `floorl`/`rintl`… 已注册，`build-picolibc` 已回 rc=0）、`LLVM-106t` + `INFRA-090t`（`long double` = binary128，`ADR-0030`/`ADR-0031`）、`LLVM-109t`（现场暴露者；本册 = 其「遗留问题」落点）、`ISS-193`（(f) 类登记源）
-**状态**：待验收
+**状态**：已验证
 
 > **立册口径（2026-10-19，architect）**：这是 binary128 落地后的**消费侧链接缺口**（picolibc 自身源码未接进构建），不是新决策；不改 ADR、不改契约、**不扩过滤表**。归属（picolibc 自身源 vs 另一来源）**先诊断、后定落点**，禁止预设。
 
@@ -107,3 +107,29 @@ libc_stdio_wcstold.c.o:  U __atold_engine
 **判决**：无未修 finding ⇒ 实现完成（按派单保持 `**状态**` 不变，待主会话收尾）。
 
 #### 第 1 轮 reviewer 验收
+
+**审阅范围**：meson.build.patch 过滤表、build-picolibc rc、check-picolibc-tests 计数、probe oracle、证据脚本 default+inject、check-patch-tree 计数、check_milestones_fresh。
+
+**重跑记录**（真实输出/退出码）：
+
+| 命令 | 期望 | 实际 | rc |
+|------|------|------|----|
+| `make build-picolibc JOBS=8` | rc=0, libc.a 2,028,044 B | rc=0, libc.a 2,028,044 B | 0 |
+| `make check-picolibc-tests JOBS=8` | rc=0, total=20 pass=18 blocked=0, math_test pass | rc=0, total=20 pass=18 fail=0 excluded=2 blocked=0, math_test pass | 0 |
+| `nm -A libc.a` grep `T __atold_engine` | 1 | 1 | 0 |
+| `check-patch-tree` | 181 patches OK | 181 patches OK | 0 |
+| `check_milestones_fresh.py` | PASS | PASS (71 行) | 0 |
+| 证据脚本 default | 18/18 PASS | 18/18 PASS | 0 |
+| 证据脚本 --inject | 38/38 PASS | 38/38 PASS | 0 |
+
+**约束核验**：
+- ✅ meson.build.patch 过滤表 2→1（仅剩 `hash_page.c`），`atold_engine.c` 条目已删
+- ✅ `make check-picolibc-tests` rc=0，`math_test` 由 blocked 转 pass
+- ✅ 047t 5 例（acoshl/asinhl/erfcl/lgammal/tgammal）两档各 5/5 pass
+- ✅ 探针 11/11 PASS（strtold 逐字节 7/7 + sqrtl/logl/powl×2 4/4）
+- ✅ 可达 FAIL：I1 恢复过滤条目 ⇒ tests rc=2/blocked=1；I2/I3 改期望字节 ⇒ probe rc=1；均 cp+md5 还原回绿
+- ✅ picolibc source clean（git status 无改动）
+- ✅ series 14 不变，check-patch-tree 181
+- ✅ 未改 spec/contracts/picolibc 上游源
+
+**判决**：**Accepted** — 验收命令块全部通过，约束无违反。

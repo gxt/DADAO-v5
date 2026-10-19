@@ -30,6 +30,8 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| INFRA-094t | 已验证 | 2026-10-19 19:12 | 修 L2/L3 两红：ir-lli 5 个 lit CodeGen 入 exclude（no-value-entry）；authoritative 补 6 个真跑目录+latest |
+| LLVM-115t | 已验证 | 2026-10-19 19:12 | picolibc `__atold_engine` 接入：删 meson 过滤条目（2→1）；build/tests rc=0、pass 18/blocked 0、047t 5 例两档 pass、探针 11/11 |
 | SPEC-149t | 已验证 | 2026-10-19 19:11 | 上游只读册汇编示例注释 `;`→`@@`：11 册 298 行；C 分号不动；只读锁重算 |
 | SPEC-150t | 已验证 | 2026-10-19 19:11 | 帧指针回归 rb2（无条件保留、删 rbfp/rbgp）；rb63 连续 callee-saved；contract/abi.yaml/锁同步 |
 | SPEC-151t | 已验证 | 2026-10-19 19:11 | SP 对齐 8→16 B 规范面：DADAO-21 §3.2.4、contract-abi §2/§4.8/§4.9、abi.yaml、只读锁；ADR-0018 C9 D3 已落 |
@@ -40,8 +42,6 @@
 | LLVM-110t | 已验证 | 2026-10-19 18:50 | FP 回归 rb2（无条件保留）+ rb63 普通 callee-saved；删 FP 专用槽；setjmp 端口加 rb2 槽；探针 6 项 |
 | LLVM-111t | 已验证 | 2026-10-19 18:50 | 16 B 栈对齐补齐（f128/2 块 RD 组）：caller/callee/va_arg 同规则取整；8 B 基线不变；ISS-275 落点 |
 | LLVM-112t | 已验证 | 2026-10-19 18:50 | SP 对齐 16 B 实现+全链复验：Align(16)、crt1/musl/setjmp 核对、探针 8 项、install-host、L2/L3、三套两档 |
-| LLVM-115t | 待验收 | 2026-10-19 17:09（登记） | picolibc `__atold_engine` 接入：删 meson 过滤条目（2→1）；build/tests rc=0、pass 18/blocked 0、047t 5 例两档 pass、探针 11/11 |
-| INFRA-094t | 待验收 | 2026-10-19 16:08（登记） | 修 L2/L3 两红：ir-lli 5 个 lit CodeGen 入 exclude（no-value-entry）；authoritative 补 6 个真跑目录+latest |
 | INFRA-093t | 已验证 | 2026-10-19 10:31 | 三驱动 `--json-out` 必填 + 独立 run 目录三件套 + L1 `check-run-artifacts`（A1–A3/self-test/注入）；`Process-08` 规范 |
 | INFRA-090t | 已验证 | 2026-10-19 07:54 | musl bits/float.h 换 binary128：12 宏与 aarch64 逐字、_l 零改；047t 5 例两档 5/5；ISS-250 closed |
 | LLVM-105t | 已验证 | 2026-10-19 07:54 | vector SetCC 补齐（`WidenVecRes_LOAD` 断言）+ wchar_t 改有符号；两例编译 rc=0、lit 103/103 |
