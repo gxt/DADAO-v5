@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M8
 **依赖**：`ADR-0018`（`C7 D2`/`D3`/`D6` 的决定源；**architect 已于 2026-10-19 就地修订**，见 `.tao/adr/adr-0018-m3-codegen-choices.md`「C7 D6（rev. 2026-10-19）」+「## 修订」）、`LLVM-110t`（实现面，**同批**；两册合并前不得让契约与后端长期不一致）、`SPEC-128t`（2026-10-09 把 FP 由 `rb2` 迁 `rb63`，本册回退其寄存器选择）
-**状态**：待开始
+**状态**：待验收
 
 ## 用户授权（原话逐字，渠道 = 经主会话问答，2026-10-19）
 
@@ -96,10 +96,23 @@
 9. 完成区贴真实命令输出 + 退出码（≤30 行）；长输出留 `.work/log/spec/`。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：证据脚本 `.work/evidence/SPEC-150t/run.sh` default **rc=0**（C1–C9 全 PASS）；`--inject` **rc=0**（3/3 可达 FAIL：① spec 残留 `rbfp` ⇒ C1 FAIL；② `get_frame_register` 回 `rb63` ⇒ C2/C3 FAIL；③ `allocatable.rb` 回 `[32,62],[63,63]` ⇒ C3 FAIL；均 `cp`+md5 还原回绿）。`grep -rn 'rbfp\|rbgp' spec/ .tao/contracts/ contracts/` = **0 行**（rc=1）。`make check`(L1) **rc=0**；`check-spec-readonly`/`check-spec-changelog`/`check-spec-drift`/`check-spec-refs`/`check-asm-prose`/`check-contracts-dir`/`check-contracts-pending`/`check-contract-relocs`/`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check-milestones-fresh` 均 **rc=0**（`check_issues.py` 随 `make check` 通过：78 open / 29 closed / 0 blocking）。
+**修改文件**：`spec/DADAO-21-ABI-应用程序二进制接口.md`、`.tao/contracts/contract-abi.md`、`.tao/contracts/contract-dynlink.md`、`contracts/abi.yaml`、`manifests/spec-readonly.lock.toml`、`.work/evidence/SPEC-150t/run.sh`、本册。
+**验收结果**：① spec `§1.2`：`rb2` 行 = `frame pointer`（ABI 名空、Callee-saved `Yes`、无条件保留、无别名），`rb63` 独立行删除，`rb32 - rb63` 连续 callee-saved；原 `:44`/`:46` 两段（`rb63` 条件式 + 最高编号特例）整段替换；`§3.1` 帧表 5 处 + 正文、`§3.3` 变参游标均 `rbfp`→`rb2`；`0.9.3-rc` 段同步最终口径（无任务号/ADR/ISS）。② `contract-abi`：`§1.3`/`§1.6`/`§2.1`/`§3`/`§4.3`/`§4.5`/`§4.7`/`§4.8` 逐节同步（CSR 字符串保持 `rd32–rd63 ∪ rb32–rb63 ∪ rf32–rf63`，`rb2` 不在 CSR）。③ `abi.yaml`：`frame_pointer: rb2`、删 `frame_pointer_abi_name`、`frame_pointer_optional: false`；`registers.rb` `rb2`=frame_pointer/无 `abi_name`/callee_saved true、`rb32–rb63` 合并；`allocatable.rb` 末段 `[32,63]`、`callee_saved.rb [32,63]`、`fp_in_csr: false`、`get_frame_register: "hasFP ? rb2 : rb1"`、`param_overflow_base: "rb2 + 8"`。④ `contract-dynlink`：`§2.1` 表 + `:92/:93/:219/:259/:293/:308` 改「`rb2`=FP（无条件保留）/ 无 GP」。⑤ 只读锁仅 `DADAO-21` 一项 hash 变化：`ff6857f9…7391110`（与 `sha256sum` 一致），册头注释同步。⑥ 与 `LLVM-110t` 逐条对账（只读 grep）：`getReservedRegs` 有 `Reserved.set(DADAO::rb2)`、无 `rb63` 条件块；`getFrameRegister = TFI->hasFP(MF) ? DADAO::rb2 : DADAO::rb1`；`CSR` = `sequence "rb%u", 32, 63`；clang 别名 `rbgp`/`rbfp` 已删。**逐条一致**。
+**新发现/坑**：① `rb2` 无条件保留 ⇒ `allocatable.rb` 必须为连续 `[32,63]`（`rb63` 不再是 `[63,63]` 条件项）；`abi.yaml` 的 `rb63` 行合并后 `registers.rb` 只有 `[32,63]` 一行。② `contract-dynlink` 的「不引入 GOT 基址寄存器」是**决定**（`ADR-0021 D3` 不变），只把事实口径改为「无 GP 寄存器」；`ADR-0021` 本身未改。③ 反例注入时把 `get_frame_register` 改回 `rb63` 会与 HEAD 同值，`git diff` 该行不出现 ⇒ 空注入检测须用 md5 + 文件内容，不能只看 `git diff`（脚本已按此实现）。
+**遗留问题**：无。用户授权原话（2026-10-19，渠道 = 经主会话问答）：「**frame pointer重新改回rb2，且删除fp/gp等别名；可以立**」；「**rb2：不做帧指针的时候，建议不做分配，你说呢？**」→（主会话答复「同意无条件保留」）「**好**」。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审（2026-10-19）
+
+审查范围：`spec/DADAO-21`、`contract-abi`、`contract-dynlink`、`abi.yaml`、只读锁、证据脚本（逐行）；对照 `ADR-0018` C7 D3/D6（rev. 2026-10-19）、`LLVM-110t` 实现、`docs/Process-06`。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 段落按语义换行后，`check-spec-refs` Check 2 报 `contract-abi:59` 无引用规范断言（§1.3 注记块引用落在末行，前导继承不覆盖） | ✅已修 | 把 `[DADAO-21 §寄存器规范 §RB寄存器]` 移到块首行，后续行按前导继承 | `make check-spec-refs` rc=0（0 violations） |
+| F2 验收式 `grep "hasFP.*rb"` 会命中说明性散文（`rb2` 与 `hasFP` 同行），非三元式 | ✅已修 | 散文按句换行/改写，仅在 `getFrameRegister` 与 `get_frame_register` 两处保留 `hasFP ? rb2 : rb1` | 四文件 grep 仅剩 2 行三元式（contract-abi:248、abi.yaml:192） |
+| F3 反例注入 B（`get_frame_register` 回 `rb63`）与 HEAD 同值，`git diff` 单行不可见，存在「空注入假绿」风险 | ✅已修 | 证据脚本改以 **md5 变化 + 文件内容** 断言注入生效，不依赖 `git diff` 单行 | `--inject` rc=0；INJECT-B 的 `yaml_check` FAIL，`cp`+md5 还原回绿 |
+| F4 `contract-dynlink` 把「无 GP 寄存器」写入事实句，可能被误读为改动 `ADR-0021 D3` 决定 | ❌不修（决定未变） | 未改 `ADR-0021`；`§9 #7` 的「不引入 GOT 固定基址寄存器」决定保留，仅事实口径更新 | `git diff --name-only` 无 `.tao/adr/adr-0021*`；`§2.4`/`§9` 决策条目仍在 |
+| F5 `rb2` 无条件保留与 `rb32–rb63` 连续池需在三份事实源自洽 | ✅已修 | `abi.yaml` 的 `allocatable`/`callee_saved`/`non_allocatable` + contract `§1.6/§3/§4.5` 同步 | C3 `yaml_check` PASS；YAML 解析通过；C9 全门控 rc=0 |
+| F6 本册只应改规范/契约，不得触碰实现 | ✅已核对 | 未改 `components/**`、未跑 `build-*`/`install-host` | `git status -uall` 仅 5 个规范/契约/锁文件 + 证据脚本 + 本册 |

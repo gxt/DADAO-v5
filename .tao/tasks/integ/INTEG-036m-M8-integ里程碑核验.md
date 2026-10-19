@@ -41,6 +41,7 @@
 | `M8` 收口·llvm | `LLVM-111t`（`ADR-0031 D7` 的 16 B 栈对齐补齐；`ISS-275` 落点） | caller/callee/`va_arg` 三处同规则取整（f128 + 2 块 RD 组；8 B/HFA/HPA 不变）+ 探针 3 条（地址 %16、前后布局、8 B 基线）+ `047t` 5 例两档 / `048t` 抽样 / lit + 可达 FAIL；**〔进展 2026-10-19〕实现完成（探针 22/22、注入 12/12、`047t` 10/10、`048t` 8/8、lit 114/114、补丁 181）；`install-host` 后复验，待验收** |
 | `P1` 静态 | `INFRA-089t`（musl 端口 `sigsetjmp`；`ISS-254` 归属 = 端口面，不并入 `TESTCASES-050t`） | `functional/setjmp` 静态 `blocked→pass`（savemask 两支语义独立 oracle）；或显式不支持 + **留问**改标；`check-patch-tree`/`build-musl`/L1；**已验证（2026-10-18；reviewer 第 1 轮 `Accepted`）**：新增 `src/signal/dadao/sigsetjmp.s`（`series` 19、补丁 **174**），`047t` 静态 `functional/setjmp` **blocked→pass**（savemask 1 恢复 / 0 不恢复），全量 `047t` 静态档待复跑 |
 | `M8` 收口·spec | `SPEC-151t`（调用点 SP 对齐 8→16 B 的规范/契约面） | `spec/DADAO-21 §3.2.4` + `contract-abi §2.1/§2.2/§3/§4.8/§4.9` + `contracts/abi.yaml` + 只读锁重算；`ADR-0018 C9 D3` 已由 architect 就地修订（记原话）；16 B ⇒ `ADR-0031 D7` 无条件；`待开始` |
+| `M8` 收口·spec | `SPEC-150t`（FP 回归 `rb2` 无条件保留、删 `rbfp`/`rbgp` 别名的规范/契约面） | `spec/DADAO-21 §1.2/§3.1` + `contract-abi` 7 节 + `contract-dynlink` 6 处 + `contracts/abi.yaml` + 只读锁重算；残留 `rbfp`/`rbgp` = 0；`待验收` |
 | `M8` 收口·llvm | `LLVM-112t`（`StackAlignment=Align(16)` + 全链复验） | caller/callee `sp%16==0`（含 FP + 奇数 8 B 栈实参、VLA/alloca、setjmp 后、静态/动态入口）+ crt1/musl/setjmp 逐文件核对 + 探针 8 项 + 可达 FAIL；`install-host` 单跑 + L2/L3 + `046t`/`047t`/`048t` 全量两档 + `build-picolibc`（`ISS-283` 既有缺口按基线判非回归）；`待开始` |
 
 ## 已知限制 / 后置

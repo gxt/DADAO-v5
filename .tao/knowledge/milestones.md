@@ -35,7 +35,7 @@
 | LLVM-111t | 待验收 | 2026-10-19 12:08（登记） | 16 B 栈对齐补齐（f128/2 块 RD 组）：caller/callee/va_arg 同规则取整；8 B 基线不变；ISS-275 落点 |
 | INFRA-093t | 已验证 | 2026-10-19 10:31 | 三驱动 `--json-out` 必填 + 独立 run 目录三件套 + L1 `check-run-artifacts`（A1–A3/self-test/注入）；`Process-08` 规范 |
 | LLVM-110t | 待验收 | 2026-10-19 07:55（登记） | FP 回归 rb2（无条件保留）+ rb63 普通 callee-saved；删 FP 专用槽；setjmp 端口加 rb2 槽；探针 6 项 |
-| SPEC-150t | 待开始 | 2026-10-19 07:55（登记） | 帧指针回归 rb2（无条件保留、删 rbfp/rbgp）；rb63 连续 callee-saved；contract/abi.yaml/锁同步 |
+| SPEC-150t | 待验收 | 2026-10-19 07:55（登记） | 帧指针回归 rb2（无条件保留、删 rbfp/rbgp）；rb63 连续 callee-saved；contract/abi.yaml/锁同步 |
 | INFRA-090t | 已验证 | 2026-10-19 07:54 | musl bits/float.h 换 binary128：12 宏与 aarch64 逐字、_l 零改；047t 5 例两档 5/5；ISS-250 closed |
 | LLVM-105t | 已验证 | 2026-10-19 07:54 | vector SetCC 补齐（`WidenVecRes_LOAD` 断言）+ wchar_t 改有符号；两例编译 rc=0、lit 103/103 |
 | LLVM-107t | 已验证 | 2026-10-19 07:54 | i32 窄返回 callee canonical 化：`classifyReturnType` 对 <64 位整型统一 `getExtend`；探针修前 2 FAIL→8/8、lit 34/34 |

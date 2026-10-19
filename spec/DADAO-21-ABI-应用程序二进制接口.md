@@ -31,19 +31,20 @@ RB寄存器的约定如下：
 |   ---         | ---           | ---                   | ---               |
 | rb0           | rbip          | instruction pointer   | -                 |
 | rb1           | rbsp          | stack pointer         | Yes               |
-| rb2           | rbgp          | global pointer        | -                 |
+| rb2           |               | frame pointer（无条件保留；`hasFP` 为真时为 FP，否则不分配；无 ABI 别名） | Yes |
 | rb3           | rbtp          | thread pointer        | -                 |
 | rb4 - rb7     |               | temporary regs        | No                |
 | rb8 - rb15    | rbt0 - rbt7   | temporary regs        | No                |
 | rb16 - rb31   | rba0 - rba15  | temporary regs        | No                |
-| rb32 - rb62   |               | callee saved regs     | Yes               |
-| rb63          | rbfp          | frame pointer（条件占用；hasFP 为真时为 FP，否则可作通用 callee-saved 分配） | Yes |
+| rb32 - rb63   |               | callee saved regs     | Yes               |
 
 `rb0`（ABI 名 `rbip`）即 **`IP`**：读出为**当前正在执行的指令的地址**（**非**主流 ISA 的「下一条指令地址」口径；本 ISA **无 `±4` 流水偏移**），只读，任何指令以其为显式目的时触发 ILLI（见 `SimRISC-00 §基址寄存器`）。
 
-`rb63` 作 frame pointer 是**条件式**的：hasFP 为真时保留为 `rbfp`（即函数需要帧指针时），由 prologue 保存其旧值、epilogue 恢复；否则 `rb63` 可作通用 callee-saved 寄存器由编译器分配。`rb63` 恒为 callee-saved。
+`rb2` 是**帧指针（frame pointer）**，**无条件保留**：`hasFP` 为真时由 prologue 保存其旧值、
+epilogue 恢复，并作为帧基址；`hasFP` 为假时不参与寄存器分配。
+`rb2` **没有** ABI 助记别名。
 
-因 `rb63` 是 RB 组最高编号寄存器，`ldm`/`stm` 的 `immu6` 连续寄存器区间不能从 `rb63` 向上展开：批量保存 callee-saved 寄存器时须排除 FP（`rb63`），或对 `rb63` 先保存再恢复。
+`rb32`–`rb63` 是**连续的 callee-saved 池**，可整段用 `stm`/`ldm` 批量保存/恢复。
 
 ### 1.3 RF寄存器（Floating-point registers）
 
@@ -135,15 +136,15 @@ array 的起始地址按照 8 字节方式对齐。
 
 |  Position         | Contents                  | Frame     |
 | ---               | ---                       | ---       |
-| rbfp + 8n + 8     | memory argument octa n    |           |
+| rb2 + 8n + 8      | memory argument octa n    |           |
 | ...               | ...                       |           |
-| rbfp + 8          | memory argument octa 0    | Previous  |
-| rbfp              | previous rbfp value       | Current   |
-| rbfp - 8          | Saved regs or local vars  |           |
+| rb2 + 8          | memory argument octa 0    | Previous  |
+| rb2              | previous rb2 value        | Current   |
+| rb2 - 8          | Saved regs or local vars  |           |
 | ...               | ...                       |           |
 | rbsp              | Saved regs or local vars  |           |
 
-采用rbfp作为栈帧的frame pointer是一种传统的用法，而实际上，可以采用rbsp直接访问帧上的数据；
+采用rb2作为帧指针是一种传统的用法，而实际上，可以采用rbsp直接访问帧上的数据；
 这样做的好处在于函数的入口和出口可以缩减指令数量和访存行为，并且节省了一个寄存器。
 
 
@@ -282,7 +283,7 @@ typedef struct {
 
 **va_start(ap, last_named_arg)**
 
-按命名参数在各 bank 的占用数初始化三游标与三剩余计数：`rd_next` / `rb_next` / `rf_next` 分别指向该 bank 保存区的首个可变参数槽，`rd_left` / `rb_left` / `rf_left` = `32 - start`；`stack_next` = `incoming_sp`（`rbfp + 8`）。
+按命名参数在各 bank 的占用数初始化三游标与三剩余计数：`rd_next` / `rb_next` / `rf_next` 分别指向该 bank 保存区的首个可变参数槽，`rd_left` / `rb_left` / `rf_left` = `32 - start`；`stack_next` = `incoming_sp`（`rb2 + 8`）。
 
 **va_arg(ap, type)**
 
@@ -396,11 +397,11 @@ void make_big(struct Big* sret_ptr, int a)
 ### 0.9.3-rc（未发布）
 
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
-- 寄存器布局重排：`rb2`=GP、`rb3`=TP，`rb4`–`rb7` caller-saved，`rb63`=FP（条件保留）；`rd2`/`rd3` 保留，`rd4`–`rd7` caller-saved。
+- 寄存器布局重排：`rb2`=FP（无条件保留、无别名）、`rb3`=TP，`rb4`–`rb7` caller-saved，`rb32`–`rb63` 为连续 callee-saved 池（`rb63` 为普通成员）；`rd2`/`rd3` 保留，`rd4`–`rd7` caller-saved。
 - 返回值契约收口：返回寄存器 `rd8`/`rb8`/`rf8`，按声明序每 bank 递增 K=8，超出者经 `rb16`（sret）。
 - 系统调用 / semihosting 返回值统一为 `rd8`。
 - 聚合传参收口：通用 / HFA / HPA 统一「最多 8 个寄存器槽位（64 字节）」，>64 B 走间接指针。
-- 栈布局以 `rbfp` 为界描述，移除 red zone。
+- 栈布局以 `rb2` 为界描述，移除 red zone。
 - 汇编格式迁移新格式；`LD`/`ST`/`cs.`/`br.` 等指令名统一；伪指令迁回 SimRISC。
 - 与上游 SimRISC 0.5.4 基线对齐。
 - 寄存器表补 `rbip` 语义明文：`rb0`（`rbip`）即 **`IP`** = **当前正在执行的指令的地址**（非主流 ISA 的「下一条指令」口径；本 ISA 无 `±4` 流水偏移）。

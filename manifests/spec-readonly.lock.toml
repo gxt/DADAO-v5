@@ -69,6 +69,13 @@ policy = "readonly-requires-authorization"
 #   SimRISC-04（27）/ SimRISC-06（1）/ SimRISC-07（2）/ SimRISC-08（1）/ SimRISC-09（1）/ SimRISC-10（1）/
 #   SimRISC-11（5），共 11 册 298 行；册版本与附录不变；上述 11 册 sha256 于同一变更内同步重算。
 
+# 2026-10-19（SPEC-150t；用户裁定原话「frame pointer重新改回rb2，且删除fp/gp等别名；可以立」+
+#   「rb2：不做帧指针的时候，建议不做分配，你说呢？」→ 同意无条件保留 →「好」，渠道 = 经主会话问答；
+#   原话落纸于 .tao/tasks/spec/SPEC-150t-帧指针回归rb2与删除rbfp-rbgp别名.md §用户授权）：
+#   DADAO-21 §1.2 RB 表 `rb2`=frame pointer（无条件保留、无 ABI 别名）、`rb63` 回归普通 callee-saved
+#   （`rb32–rb63` 连续池）；§3 帧表/正文 `rbfp` → `rb2`；§3.3 变参游标 `rb2 + 8`；`0.9.3-rc` 段
+#   同步最终口径；册版本不变。本册 sha256 于同一变更内同步重算（其余 20 册不变）。
+
 [[spec]]
 path = "spec/SimRISC-00-指令系统设计.md"
 group = "simrisc-00..12"
@@ -182,7 +189,7 @@ group = "dadao-2x"
 #   栈槽 / 16 B 对齐 / 整值退栈；§3.3 整节重写（va_list 七字段三游标 + callee 保存区 + va_arg 四步 +
 #   提升表 + float 低 32）；§3.4.1 补 binary128 返回对（rf8 高 / rf9 低）；`0.9.3-rc` 段追加四条。
 #   聚合 64 B 门槛未改。
-sha256 = "380efa8ec2d7af459be57ff6ee4a26ce054e2166a908de44a656a97aca6869f9"
+sha256 = "ff6857f9e46dfc0758c85694d75cbc9ffa5d8068985efdec524a3e1757391110"
 
 [[spec]]
 path = "spec/DADAO-22-SBI-主管系统二进制接口.md"
