@@ -119,6 +119,19 @@
 **新发现/坑**：① 驱动 `attribute_port_gaps()` 的 `uses_thread → blocked` 兜底仍是 T1 前口径，把真根因盖成「no __clone」（4 例 × 2 档，`ISS-299`）；② 静态 `popen` 过、动态不过的分野 = 子进程是否在 `execve` 前碰 `errno`（TP 垃圾才暴露）；③ 本册「根因落 T1/T2 ⇒ 停册」与本次派单（继续跑、逐条定性、立新 issue）冲突，按派单执行。
 **遗留问题**：① **阶段 B（全量两档）未跑** ⇒ 验收标准 2（逐例无回归）未判；② `ISS-252` **保持 open**（20 例全 pass 未达，残余根因已分解）；③ `ISS-294` 在本子集无失败实例，其阻塞面需另找载体（并发计数探针，见 `QEMU-065t`）；④ 任务状态未改（派单要求）。
 
+### 复跑（2026-10-20，`TESTCASES-052t-rerun`）
+
+**前置**：`c47c9b7`（`INFRA-095t` 返工：`rb3` 按 `CLONE_SETTLS` 条件化）；同一 20 条 ID（`report_thread_cases.py` 的 `TARGET_CASES`+`EXTRA_CASES`）；两档各 3 跑一致（未改驱动），再修 `ISS-299` 后两档各 1 跑复核。
+**新真值（权威口径 = 修 `ISS-299` 后）**：静态 20 例 **15 pass / 3 fail / 2 blocked**、动态 20 例 **16 pass / 3 fail / 1 blocked**；19 目标两档均 **15 pass / 3 fail / 1 blocked**（两档驱动 rc=1）。
+**逐例变化 vs 上轮**：
+- `ISS-295` 能力面：`functional/spawn`（两档，`fail→pass`）、`functional/popen`（动态，`blocked→pass`）；
+- `ISS-299` 口径面：`pthread_mutex_pi`、`regression/pthread-robust-detach`、`regression/pthread_cond_wait-cancel_ignored` `blocked→fail`（同一现场，不再被降级）；
+- 不变：其余 15 例 klass 不变；`pthread_robust` 仍 `blocked`（60 s 超时 = 无判定，合法）；`pthread_create-oom` 静态 `blocked`（host `SIGTRAP`）/ 动态 `pass`。
+**残余归因（原因未变）**：`pthread_mutex_pi` = `ISS-296`（`FUTEX_LOCK_PI` → `ESRCH`）；`pthread_robust`/`pthread-robust-detach` = `ISS-297`（`get_robust_list` 恒 `ENOSYS`）；`pthread_cond_wait-cancel_ignored` = `ISS-298`（SIGCANCEL 被 `SA_RESTART` 重启）。
+**`ISS-299` 改法**：删 `attribute_port_gaps()` 的 `uses_thread → blocked` 兜底，`fail` 不再降级；`blocked` 只剩「无判定」实况（超时 / 宿主信号 / 精确 `GAP_SIGNATURES`）；`GAP_SIGNATURES` 语义不变（注释改作回归检查）⇒ **判据未放宽**。
+**差距**：T3 目标 19/19 → 静态 **15/19**、动态 **15/19**（`ISS-295` 已收，余 4 例 / 3 条 issue）。
+**证据**：`.work/evidence/TESTCASES-052t-rerun/run.sh`（full rc=0；3 处可达 FAIL 注入）；`check_rerun.py` 的 `iss295_spawn_popen_pass` 与 `iss299_no_stale_demotion` 两档全绿。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -151,3 +164,23 @@
 - **状态**：本册 `待开始` → `待验收`（派单要求）。
 - **门控**：`check-patch-tree` **183** ✓、`check-milestones-fresh`/`check-tasks`/`check-knowledge-refs`/`check_issues` ✓、`make check`（L1）rc=0。
 - **异常披露**：① 阶段 B（全量两档）**未跑** ⇒ 验收标准 2（逐例无回归）未判；② reviewer 独立验收未做；③ 完成区「验收结果」所述证据脚本与注入记录均在 `.work/evidence/**`（易失），本册只留结论。
+
+#### 第 2 轮 engineer 自审（`TESTCASES-052t-rerun`）
+
+**范围**：`tools/testcases/run_libc_test_user_suite.py`（`ISS-299` 修复）、`.work/evidence/TESTCASES-052t-rerun/**`、`issues.yaml`（`ISS-252`/`ISS-299` 追加）、本册复跑段。
+**逐行审查**
+1. 删的是 `attribute_port_gaps()` 末尾整段兜底（`if case.klass not in ("fail","blocked"): return` + `if case.uses_thread: ...`），函数退化为「只挂注释」；`pass`/`known-fail` 一如既往不被触碰。
+2. `classify_case()` 未动：`GAP_SIGNATURES` 精确签名仍在 `rc≠0` 与 `timeout` 两条路径生效 ⇒ 判据**不放宽**（真「无 `__clone`」回归仍判 `blocked`）。
+3. `GAP_SIGNATURES` 四条正则**逐条未变**，只改注释/说明串（去掉「today」口径、标明为回归检查）；`uses_thread` 字段保留（`thread=` 列与 JSON 字段仍用）。
+4. 复跑数值：修前 3 跑一致（静态 15/0/5、动态 16/0/4），修后各 1 跑复核；两组 **pass 集合完全相同**、非 pass 的**身份集合相同**，只有 3 例 `blocked→fail`（同现场）⇒ 修复只改分类口径、不改判定事实。
+5. 证据脚本：3 处注入均可达 FAIL（计数谎报 / 错标根因 / extra klass 谎报），`cp`+md5 还原；`iss299_no_stale_demotion` 断言修前必红、修后两档 `[]`。
+**自审发现与处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| F1 模块 docstring 的 `blocked` 条目仍写「today: pthread_create returns EAGAIN … no `__clone`」 | ✅已修 | 改写为「精确签名 + 回归检查」口径，注明兜底已删（`ISS-299`） | `git diff` 该段；两档 run 无「no __clone」理由 |
+| F2 `attribute_port_gaps` 文档串仍写「fail→blocked demotion」 | ✅已修 | 重写 docstring 为「只挂注释」 | 同上 |
+| F3 复跑里 `pthread_robust` 仍 `blocked`，易被误读为「又降级」 | ✅已修（口径） | 复跑段与 `ISS-252` 注记明写「60 s 超时 = 无判定，合法 `blocked`」 | `p2-static.json` 的 reason 逐字 `timeout after 60s` |
+| F4 同批数据混着「能力变化」与「口径变化」两类 diff | ✅已修（口径） | 复跑段把两类分列（`ISS-295` / `ISS-299`） | 修前 3 跑与修后复核的逐例对账 |
+
+**判决**：finding 全修；结论 = `ISS-295` 收口、`ISS-299` 修完待复核关闭；`ISS-252` 保持 open（19 目标 15/19）。

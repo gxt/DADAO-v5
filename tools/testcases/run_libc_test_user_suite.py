@@ -126,11 +126,12 @@ Classification (counted live, never hard-coded)
                   that names an identifier the locked musl does not provide.
 * ``blocked``     a build/run gap prevents the case from reaching its own
                   verdict: compile/link failure, missing symbol, unloadable
-                  image, host-signal kill of qemu, timeout, or a **library
-                  capability gap** -- today: ``pthread_create`` returns EAGAIN
-                  because the musl port has no ``__clone`` (``src/thread/
-                  clone.c`` answers ``-ENOSYS``, ``src/thread/dadao/`` has no
-                  ``clone.s``; INFRA-082t declares the single-thread boundary).
+                  image, host-signal kill of qemu, timeout, or a declared
+                  **library capability gap** (``GAP_SIGNATURES``).  The
+                  pre-INFRA-095t blanket rule "thread-dependent case => no
+                  ``__clone`` => blocked" is gone (ISS-299): thread cases are
+                  judged on their actual result, and the ``__clone`` signature
+                  survives only as a precise regression check.
                   ``blocked > 0 => rc = 1`` (ISS-248 gate rule: incomplete
                   coverage must not look green).
 
@@ -283,22 +284,28 @@ TLS_RE = re.compile(r"__thread|_Thread_local|\bthread_local\b")
 # Declared library capability gaps: a run-time failure whose first reported
 # error line matches one of these is a *gap in the platform*, reported as
 # `blocked` with the pointer below -- never as `pass`, never as `known-fail`.
+# These are precise signatures on purpose (ISS-299): there is no blanket
+# "this case uses threads" demotion any more -- that belonged to the
+# pre-INFRA-095t single-thread port and hid the real root cause of every
+# failing thread case once `__clone` existed.
 GAP_SIGNATURES = (
-    # musl __clone() -> -ENOSYS (src/thread/clone.c); pthread_create
-    # translates every clone failure to EAGAIN.
+    # Regression check for the pre-INFRA-095t state: should the arch __clone
+    # ever disappear (generic src/thread/clone.c traps), pthread_create()
+    # translates the failure to EAGAIN and the case cannot reach a verdict.
     (re.compile(r"pthread_create\(.*failed: Resource temporarily unavailable"),
      "pthread_create -> EAGAIN: musl port has no __clone "
-     "(src/thread/clone.c returns -ENOSYS; src/thread/dadao/ has no clone.s; "
-     "INFRA-082t single-thread boundary)"),
+     "(src/thread/clone.c; src/thread/dadao/clone.s missing; INFRA-082t "
+     "single-thread boundary; regression check after INFRA-095t)"),
     (re.compile(r"thrd_create\(.*failed: Resource temporarily unavailable"),
-     "thrd_create -> EAGAIN: musl port has no __clone (INFRA-082t)"),
+     "thrd_create -> EAGAIN: musl port has no __clone "
+     "(INFRA-082t boundary; regression check after INFRA-095t)"),
     (re.compile(r"posix_spawnp?\(.*(?:failed, got 38|errno = 38)"),
      "posix_spawn -> ENOSYS: musl's posix_spawn calls __clone() "
      "(src/process/posix_spawn.c:198), which the port answers -ENOSYS "
-     "(src/thread/clone.c; INFRA-082t single-thread boundary)"),
+     "(src/thread/clone.c; INFRA-082t boundary; regression check)"),
     (re.compile(r"popen\(.*failed \(errno = 38\)"),
      "popen -> ENOSYS: musl's popen uses posix_spawn -> __clone(), answered "
-     "-ENOSYS by the port (src/thread/clone.c; INFRA-082t)"),
+     "-ENOSYS by the port (src/thread/clone.c; INFRA-082t; regression check)"),
 )
 
 # Root-cause notes for non-pass cases (documentation only -- they never change
@@ -1098,26 +1105,21 @@ def build_and_run(case, cfg, work_dir, api_inc=None):
 
 
 def attribute_port_gaps(case, mode):
-    """Apply the declared platform-gap rules *after* the case has run.
+    """Attach the declared root-cause notes *after* the case has run.
 
-    Only documentation and the `fail` -> `blocked` demotion for cases that
-    cannot possibly reach a verdict on this port; a `pass` and an attributed
-    `known-fail` are never touched.
+    Documentation only: the note tables below, plus the precise
+    ``GAP_SIGNATURES`` rule that ``classify_case`` already applied.  A `pass`
+    and an attributed `known-fail` are never touched, and a `fail` is never
+    demoted -- the pre-INFRA-095t ``uses_thread -> blocked`` fallback was
+    removed by TESTCASES-052t-rerun (ISS-299): threads exist since the musl
+    ``__clone`` landed, so a failing thread case is a real failure, not a case
+    that "cannot reach its verdict".  Demoting it would hide the root cause
+    behind a stale "no __clone" sentence.
     """
     if case.cid in CASE_NOTES:
         case.notes.append(CASE_NOTES[case.cid])
     if (mode, case.cid) in MODE_CASE_NOTES:
         case.notes.append(MODE_CASE_NOTES[(mode, case.cid)])
-    if case.klass not in ("fail", "blocked"):
-        return
-    if case.uses_thread:
-        observed = case.reason
-        case.klass = "blocked"
-        case.reason = ("thread-dependent case; musl port has no __clone "
-                       "(src/thread/clone.c returns -ENOSYS, src/thread/"
-                       "dadao/ has no clone.s; INFRA-082t single-thread "
-                       "boundary), so the case cannot reach its verdict. "
-                       f"Observed: {observed}")
 
 
 def main() -> int:
