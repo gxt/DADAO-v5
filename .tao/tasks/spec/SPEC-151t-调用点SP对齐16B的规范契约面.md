@@ -131,3 +131,9 @@
 
 #### 第 1 轮 reviewer 验收
 （待执行）
+
+#### 提交留痕（architect，2026-10-19）
+- **档位**：`WIP`（`**状态**` = `待验收`，reviewer 第 1 轮尚未执行）；开工分支 `SPEC-151t` 提交 `85b812b`，squash 落 `master` 为 `4cf137a`；分支已删；**未 push**。
+- **文件集**（显式 staging **7** 项，禁 `git add -A`）：`spec/DADAO-21-ABI-应用程序二进制接口.md` / `.tao/contracts/contract-abi.md` / `contracts/abi.yaml` / `manifests/spec-readonly.lock.toml`（= 完成区「修改文件」4 项内容文件）+ 本册 + `.tao/knowledge/milestones.md` + `.tao/tasks/integ/INTEG-036m-M8-integ里程碑核验.md`（= architect 台账登记职责，已披露）；`.work/evidence/SPEC-151t/run.sh` 由 `.gitignore` 排除、不入库。**无漏提 / 无多提 / 无越界**。
+- **状态改动**：本册 `待开始 → 待验收`；`milestones.md` SPEC-151t 行与 `INTEG-036m` M8 收口·spec 行同步 `待验收`。
+- **门控真实 rc**：`make check`(L1)=0、`check-spec-readonly`=0、`check-spec-changelog`=0、`check-spec-drift`=0、`check-spec-refs`=0、`check-contracts-pending`=0、`check-contract-relocs`=0、`check-tasks`=0、`check-knowledge-refs`=0、`check-no-residue`=0、`check-milestones-fresh`=0、`check_issues.py`=0。
