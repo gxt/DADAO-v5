@@ -160,3 +160,10 @@
 
 #### 第 1 轮 reviewer 验收
 （待执行）
+
+#### 提交留痕（architect，2026-10-19）
+- **档位**：正常档（按主会话指定提交信息；同 `LLVM-111t` 5efb7ca 先例；`**状态**` = `待验收`，reviewer 第 1 轮尚未执行）。分支 `LLVM-112t` 提交 `0c7f43f`，squash 落 `master` 为 `3f13c13`；分支已删；**未 push**。
+- **文件集**（显式 staging **8** 项，禁 `git add -A`）：3 份补丁 + `components/llvm-project/changelog.md` + `tools/llvm/llvm-isa-backend-matrix.{md,tsv}` + 本册（= 完成区「修改文件」所列内容文件）+ `.tao/knowledge/milestones.md`（状态行同步，`check-milestones-fresh` 强制；**对账补充项，已披露**）。`.work/evidence/LLVM-112t/` 由 `.gitignore` 排除、不入库。**无漏提 / 无多提 / 无越界**。
+- **状态改动**：本册 `待开始 → 待验收`；`milestones.md` LLVM-112t 行同步 `待验收`；完成区追加「安装根 + 全量复跑（2026-10-19 15:56）」一行，既有内容未改。
+- **门控真实 rc**：`check-patch-tree`=0（181）、`check-instrinfo`=0、`check_lit_gen.py`=0（64/64）、`check-isa-coverage`=0、`check-index-blobs`=0、`check-source-state`=0、`check-no-residue`=0、`check-tasks`=0、`check-knowledge-refs`=0、`check-component-changelog`=0、`check-musl-freshness`=0、`check-milestones-fresh`=0、`check_issues.py`=0（78 open / 29 closed）。
+- **`make check`(L1) = 红（1 项）**：`check-run-artifacts` A2 `.work/tests/authoritative/latest is missing`（主会话 15:56 权威跑把 `embench-*/libc-*/llvmts-*` 平铺写进 `authoritative/`，未建 `Process-08` 规定的 `<TS>-<套件>-<档>/` 目录与 `latest` 指针；`.work/` 被 gitignore、与本笔内容无关）。距红 60 s 重试 **1 次**仍红；其余 209 项 PASS。未伪造 `latest` 掩盖。
