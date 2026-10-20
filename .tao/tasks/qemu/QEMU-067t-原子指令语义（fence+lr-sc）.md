@@ -38,19 +38,23 @@
 
 本册只做 **qemu 执行面 + ISA 语义向量 + 一条端到端**；musl 侧（`a_cas`/`a_cas_p`/`a_barrier`）归 ③，C11/`__atomic_*`/ABA 家族验收归 ④。
 
-## ⚠️ 待用户裁定（`/dispatch` 前必须确认；与 ① 同一处）
+## ✅ 已裁定（2026-10-21，用户「甲」）
 
-**`lr/sc` 的地址对齐口径**：`ADR-0034 D6`（`Accepted`）写「本族宽度语义下即 **8 字节**」；`spec/SimRISC-12 §3.2` 首句写「按**数据宽度**对齐的，即 8 字节对齐」——两处字面冲突。**甲** = 全族 8 B 对齐（`lr.t/.w/.b` 只能取 8 B 字的字首窗口）；**乙** = 按宽度对齐（`.t` 4 B、`.w` 2 B、`.b` 1 B、`.o` 8 B）。
+**裁定原话**：「甲」= **按数据宽度对齐**：`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8 字节自然对齐；不满足 ⇒ **MALIGN**。
 
-**影响**：MALIGN 向量的期望（甲：`addr & 7 ≠ 0` 即 MALIGN；乙：仅低于宽度对齐才 MALIGN）、`lr`/`sc` 的 `k = addr & 7` 取值范围、③ 的 `a_cas`（`.t`）与 `a_cas_p`（`.o`）能否在 4 B/8 B 对齐对象上工作。
+> **标签对照（勿混）**：用户裁定编号「甲」= 按数据宽度对齐（即本册旧文「乙」项）；旧文「甲」（全族 8 B）作废。`ADR-0034 D6` 已就地修订、`spec/SimRISC-12 §3.2` 已订正（编码/lowering 不变）。
 
-> 本册正文按**甲**写默认（决策层压过叙述层），但**未裁定前不得生成 MALIGN 向量、不得锁死 `k` 取值范围**。裁定为乙 ⇒ 只改对齐判定与向量期望（编码/lowering 不动），完成区记「以乙实现」。
+**对向量与实现的具体影响**：
+
+- **MALIGN 期望 = 按宽度**：`.o` 非 8 B 对齐（`addr & 7 ≠ 0`）才 MALIGN；`.t` 非 4 B 对齐（`addr & 3 ≠ 0`）才 MALIGN —— `addr & 7 == 4` 的 `.t` **合法**；`.w`/`.b` 同理（2 B / 1 B）。
+- `k = addr & 7` 的取值范围随之打开：`.t` ∈ {0,4}、`.w` ∈ {0,2,4,6}、`.b` ∈ 0..7、`.o` 恒 0 ⇒ 抽取/合并移位按 `k` 与宽度算，**不得写死 `k = 0`**。
+- ③ 的 `a_cas`（`.t`）可在 4 B 对齐对象上工作；`a_cas_p`（`.o`）仍 8 B。保留粒度仍精确 8 B（不改）。
 
 ## 目标
 
 1. `fence`：按 `fm`/`pred`/`succ` 实现顺序语义（`pred = succ = 0` ⇒ no-op；`fm ≠ 0`、SBZ 非零 ⇒ ILLI）；qemu-user 下落 TCG 级屏障。
 2. `lr`：读 + 记保留（per-guest-thread）；`hb ≠ 0` ⇒ ILLI。
-3. `sc`：**宿主 CAS 实现真原子**（跨线程正确）；成功 `rdHB = 0`、失败 `1`；**无论成败清本 hart 保留**；对齐全口径见「待裁定」，不满足 ⇒ MALIGN。
+3. `sc`：**宿主 CAS 实现真原子**（跨线程正确）；成功 `rdHB = 0`、失败 `1`；**无论成败清本 hart 保留**；对齐口径见「已裁定（按数据宽度）」，不满足 ⇒ MALIGN。
 4. **粒度与限制写清**（精确 8 B；非一致/设备内存不适用）。
 5. **L3 语义向量**（独立 oracle = Python 按语义手算）+ `fence` 各 ordering。
 6. **端到端**：安装根 clang 编 `lr/sc` CAS 循环 + 2 线程并发计数 ⇒ `qemu-dadao` 跑通且计数精确。
@@ -96,15 +100,15 @@ else  tcg_gen_mb(<按 pred/succ 派生> ｜ TCG_BAR_SC)
 ### B. `lr` / `sc`：per-hart 保留 + 宿主 CAS
 
 - **保留状态**（`CPUDADAOState` 新增，per guest thread）：`lock_addr`（**8 B 对齐后的地址**）、`lock_val`（`lr` 时观测到的**整 8 B 字值**）、`lock_valid`。
-- **`lr`**：`hb ≠ 0` ⇒ ILLI；`addr = rb[hd]`；**对齐判定按「待裁定」口径**（甲 = `addr & 7 == 0`；乙 = `addr & (W-1) == 0`）⇒ 不满足 ⇒ MALIGN（仿 `gen_raise_exception_illi` 加 `gen_raise_exception_malign`，**不经**猜测的 `MO_ALIGN_*` 副作用）；读**包含该地址的 8 B 字**（`word_addr = addr & ~7`，`MO_BEUQ｜MO_ALIGN_8`，对齐由构造保证）；按 `k = addr & 7` 与宽度 `W` 抽取，大端移位 `shift = (8 - k - W) * 8`（`.o` ⇒ `k = 0`、整字；甲口径下所有宽度 `k = 0`）；`store_rd(a->hc, value)`；写 `lock_addr = word_addr`、`lock_val = word`、`lock_valid = 1`。
-- **`sc`**：`addr = rb[hd]`；**先做对齐判定**（同 `lr` 的「待裁定」口径；失败路径也必须 MALIGN ⇒ 显式 `gen_raise_exception_malign`，不得「不访存就不检查」）；`new = merge(lock_val, rdHC 值, 宽度, k)`；`ret = tcg_gen_atomic_cmpxchg_i64(word_addr, expected = lock_val, new, MO_BEUQ)`；`ret == lock_val` ⇒ 成功（`rdHB = 0`）否则失败（`rdHB = 1`）；**两条路径都清 `lock_valid`**。
+- **`lr`**：`hb ≠ 0` ⇒ ILLI；`addr = rb[hd]`；**对齐判定按「已裁定」口径 = 按数据宽度**（`addr & (W-1) == 0`，`W` = 1/2/4/8）⇒ 不满足 ⇒ MALIGN（仿 `gen_raise_exception_illi` 加 `gen_raise_exception_malign`，**不经**猜测的 `MO_ALIGN_*` 副作用）；读**包含该地址的 8 B 字**（`word_addr = addr & ~7`，`MO_BEUQ｜MO_ALIGN_8`，对齐由构造保证）；按 `k = addr & 7` 与宽度 `W` 抽取，大端移位 `shift = (8 - k - W) * 8`（`.o` ⇒ `k = 0`、整字；窄宽度按 `k` 取窗，见已裁定节）；`store_rd(a->hc, value)`；写 `lock_addr = word_addr`、`lock_val = word`、`lock_valid = 1`。
+- **`sc`**：`addr = rb[hd]`；**先做对齐判定**（同 `lr` 的已裁定口径 = 按宽度；失败路径也必须 MALIGN ⇒ 显式 `gen_raise_exception_malign`，不得「不访存就不检查」）；`new = merge(lock_val, rdHC 值, 宽度, k)`；`ret = tcg_gen_atomic_cmpxchg_i64(word_addr, expected = lock_val, new, MO_BEUQ)`；`ret == lock_val` ⇒ 成功（`rdHB = 0`）否则失败（`rdHB = 1`）；**两条路径都清 `lock_valid`**。
 - **大端掩码公式**（字节偏移 `k = addr & 7`、宽度 `W` 字节）：`shift = (8 - k - W) * 8`、`mask = (1 << (8W)) - 1`、`new = (old & ~(mask << shift)) ｜ ((val & mask) << shift)`。**`sc.o` 的 `k` 恒 0**。
 - **保留失败判定 = 整 8 B 字值比对**：任何 hart 对这 8 B 字的写入（任意宽度）只要改了值 ⇒ CAS 失败 ⇒ `sc` 失败（比「cache line 写」更严），**规范允许**（spurious failure 合法）。⇒ 完成区须写明两条**限制**：① 另一 hart 写入**相同值**时本实现检不出（ABA）；② 粒度 = 精确 8 B（非 cache line）。
 - **异常/信号进入时清保留**：规范要求。user-mode 下可在 `dadao_cpu_do_interrupt`/信号投递路径清 `lock_valid`（成本可控时做）；**做不到**则必须在完成区写明限制，并把对应向量排除（**不得**静默算过）。
 
 ### C. 向量（**24 条 × 各自的语义面**；计数现场派生）
 
-- **`lr`（12 条）**：① 语义：不同宽度从 8 B 字正确抽取（大端 + `k = addr & 7`）+ 置保留（后续 `sc` 同址成功可证）；② MALIGN：**按裁定口径**的不对齐地址（甲 = 非 8 B 对齐；乙 = 低于宽度对齐）；③ ILLI：手工编码 `hb ≠ 0`（每宽度 1 条即可，仍按 12 条派生）。
+- **`lr`（12 条）**：① 语义：不同宽度从 8 B 字正确抽取（大端 + `k = addr & 7`）+ 置保留（后续 `sc` 同址成功可证）；② MALIGN：低于**该宽度**对齐的地址（`.o` 非 8 B、`.t` 非 4 B 对齐才 MALIGN，`.t` 的 `addr & 7 == 4` 须为**合法**用例）；③ ILLI：手工编码 `hb ≠ 0`（每宽度 1 条即可，仍按 12 条派生）。
 - **`sc`（12 条）**：① 成功（**前接同址 `lr`**，写出 = 期望值，`rdHB = 0`，内存按宽度/字节偏移**只改目标字节**、相邻字节不变）；② 失败（无保留 / 地址不匹配 ⇒ 不写内存、`rdHB = 1`、且保留被清：**用「失败后再 `sc` 一次同址仍失败」证清保留**）；③ MALIGN（失败路径下也不得跳过对齐判定）。
 - **`fence`**：`pred/succ` 组合（`0/0` no-op、`R/W/I/O` 单点与组合、典型 acquire `pred=R｜W,succ=R` 形、release `pred=R｜W,succ=W` 形）+ `fm ≠ 0` ⇒ ILLI + SBZ 非零 ⇒ ILLI。
 - **独立 oracle**：生成器（Python）按 §3 语义**手算**内存/寄存器期望（大端字节偏移、宽度掩码），并与实现无共享代码；向量文件头写清生成器与 oracle 口径。
@@ -120,7 +124,7 @@ else  tcg_gen_mb(<按 pred/succ 派生> ｜ TCG_BAR_SC)
 1. **语义向量全绿**：`make check-qemu-semantics`（载体 +2 行）**全量 PASS**，用例数现场派生（`lr/sc` 24 条 × 各自语义面 + `fence` 合法/非法），FAIL 数 0；日志 `.work/log/qemu/check-qemu-semantics.log` + 本册自有日志落盘。
 2. **L2 不回退**：`make check-qemu-smoke` PASS（用例数因新向量集上升，属预期；逐条 PASS）。
 3. **端到端**：`__atomic_*` CAS 循环（2 线程 × N）跑通、计数精确、重复 ≥5 轮一致；证据脚本固化命令与 oracle。
-4. **异常路径**：`lr` 的 `hb ≠ 0` ⇒ ILLI；`fm ≠ 0`/SBZ 非零 ⇒ ILLI；**按裁定口径**的不对齐地址 ⇒ MALIGN（`0x8C`）——向量逐条可跑。
+4. **异常路径**：`lr` 的 `hb ≠ 0` ⇒ ILLI；`fm ≠ 0`/SBZ 非零 ⇒ ILLI；**低于该宽度对齐**的地址 ⇒ MALIGN（`0x8C`，口径见「✅ 已裁定」）——向量逐条可跑。
 5. **门控**：`make install-host`（主会话）后 `make check-qemu-semantics` + `make check-qemu-smoke` + `make check-patch-tree` + `make check`（L1）绿；`python3 tools/qemu/check_qemu_trans.py --strict` 与 `validate_decodetree.py` 仍绿（本册不改 decode 名集合）。
 6. **限制与口径写清**：精确 8 B 粒度、ABA 等价写入检不出、设备/非一致内存不适用、异常清保留的实现取舍 —— 完成区逐条列。
 

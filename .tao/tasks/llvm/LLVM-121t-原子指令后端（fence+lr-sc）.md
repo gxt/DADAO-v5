@@ -51,20 +51,17 @@
 4. **lit 先例**：MC 编码断言 `tests/llvm/lit/MC/DADAO/oiii.s`（`fence 0` → `77 80 00 00`）；CodeGen 结构断言 `tests/llvm/lit/CodeGen/DADAO/*.ll`（`llc -mtriple=dadao | FileCheck`），汇编器**拒绝**用例先例 `tests/llvm/lit/MC/DADAO/cfx2-trap-escape-err.s`。
 5. **参考实现指针**（内容溯源，**非执行必需**，不得复制代码）：`PPCISelLowering.cpp:14250 emitAtomicCmpSwapHardware`（伪指令 + 展开）、`MipsISelLowering.cpp:1866 emitAtomicCmpSwap` / `:1922 emitAtomicCmpSwapPartword`（DAG 内直接展开 + 子字宽掩码合成）、`RISCVISelLowering.cpp:27693 shouldInsertFencesForAtomic`（弱序机 fence 选择口径）。
 
-## ⚠️ 待用户裁定（`/dispatch` 前必须确认；两册 ①② 同此一处）
+## ✅ 已裁定（2026-10-21，用户「甲」）
 
-**`lr/sc` 的地址对齐口径**有两处**字面冲突**的表述，直接决定 i32 原子走哪条路、以及 MALIGN 向量的期望：
+**裁定原话**：「甲」= **按数据宽度对齐**：`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8 字节自然对齐；不满足 ⇒ **MALIGN**。
 
-- 甲（**决策层**，`ADR-0034 D6`，`Accepted`）：「地址须自然对齐（**本族宽度语义下即 8 字节**）」⇒ 全族 **8 B 对齐**，`lr.t/.w/.b` 只能访问 8 B 字的**字首**窗口。
-- 乙（**叙述层**，`spec/SimRISC-12 §3.2` 首句）：「要求…地址是**按数据宽度对齐**的，即 8 字节对齐」⇒ 疑指**按宽度**（`.t` 4 B、`.w` 2 B、`.b` 1 B、`.o` 8 B），「即 8 字节」只对 `.o` 成立。
+> **标签对照（勿混）**：用户裁定编号「甲」= **按数据宽度对齐**（即本册旧文「乙」项）；旧文「甲」（全族 8 B）**已作废**。冲突源头已收口：`ADR-0034 D6` 就地修订 + `spec/SimRISC-12 §3.2` 措辞订正（编码不变）。
 
-**影响（必须二选一后才可 `/dispatch`）**：
+**对本册的具体影响**：
 
-- 取**甲**：C 的 `_Atomic int`（4 B 对象，通常只 4 B 对齐）**不能**用 `lr.t/sc.t`（可能落在 `8k+4` ⇒ MALIGN）⇒ i32 原子必须走 `lr.o/sc.o` + 掩码合成（与 i8/i16 同路），`lr.t/sc.t` 只在静态可证 8 B 对齐时使用；MALIGN 向量 = 任何非 8 B 对齐地址。
-- 取**乙**：i32 原子可直接用 `lr.t/sc.t`（4 B 对齐即可，`lr` 在 8 B 字的**低半**取 4 B）；MALIGN 向量 = 低于宽度对齐的地址；保留粒度仍 8 B。
-- 两案都**不改编码**（`ADR-0034` 已定），只改**对齐判定**与 i32 lowering 路径。
-
-> 本册正文按**甲**写默认（ADR 是 `Accepted` 决策层），但**实现与验收必须等该裁定**：未确认前**不得**开工生成 MALIGN 向量/锁定 i32 路径。若裁定为乙 ⇒ 本册「设计要点 B/C」的对齐判定与 i32 路径按乙改，并在完成区记「以乙实现」。
+- **i32 可用 `lr.t/sc.t`**：C 的 `_Atomic int` 4 B 对齐即可，`lr.t` 在 8 B 字内按 `k = addr & 7` 取 4 B 窗 ⇒ `ATOMIC_CMP_SWAP(i32)` 走 `lr.t.an`/`sc.t.ar` 环，**不需** `lr.o/sc.o` 掩码合成。
+- **i8/i16** 用 2 B / 1 B 对齐语义；掩码合成时**按宽度判 MALIGN**（`.w` 非 2 B 对齐、`.b` 非 1 B 对齐才 MALIGN），**不要求 8 B 对齐**。
+- i64 仍 `lr.o/sc.o`（8 B 窗）；MALIGN 向量 = 低于**该宽度**对齐的地址；保留粒度仍 8 B。
 
 ## 目标
 
@@ -129,7 +126,7 @@
 L_done:
 ```
 
-- **i64** → `lr.o.an` / `sc.o.ar`（8 B 窗）。**i32** → 按「待裁定」定：**甲** ⇒ `lr.o/sc.o` + 4 B 掩码（4 B 对齐对象也安全）；**乙** ⇒ `lr.t.an` / `sc.t.ar`（4 B 窗，可落在 8 B 字的低半）。**不得**在未裁定前把「`lr.t` + 假设 8 B 对齐」当默认（会在 `8k+4` 的 `_Atomic int` 上触发 MALIGN）。
+- **i64** → `lr.o.an` / `sc.o.ar`（8 B 窗）。**i32** → 按「已裁定（按数据宽度）」走 `lr.t.an` / `sc.t.ar`（4 B 窗，可落在 8 B 字的任一 4 B 半；4 B 对齐即合法，不再要求 8 B）。
 - 环的落法二选一（**不预设**）：① 伪指令（`.td` 里 `Pattern = []` 的 pseudo）+ 目标 `MachineFunctionPass` 展开（`PPCISelLowering.cpp:14250` 形态）；② `ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS` 的 `Custom` lowering 内直接建环（`MipsISelLowering.cpp:1866` 形态）。选②时须保证寄存器分配不被环破坏（`Mips` 用固定物理寄存器 + `MRI` 约束）。
 - **`lr` 的 `hb` 恒为 `0`**（`rd0`）：`lr` 是 2 操作数形态，编码时 `rdhb = 0`；后端**不得**生成 `hb≠0` 的 `lr`（否则执行 ILLI）。
 

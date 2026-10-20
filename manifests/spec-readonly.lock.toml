@@ -170,7 +170,8 @@ sha256 = "80a10eda6acfc5776842b1524a8e4b145a9cac6046e5631f04a5e44a8dadef56"
 path = "spec/SimRISC-12-待定.md"
 group = "simrisc-00..12"
 # 2026-10-20（ADR-0034，同授权）：§3.1 `fence` 位域改 `fm`/`pred`/`succ` + `PRED_*`/`SUCC_*` 常量 + `fm` 取值表；§3.2 `lr/sc` 改新命名（24 条，删 `lr.*.nr`/`sc.*.an`）；汇编速查/合法性检查生成区 + 附录同步；sha256 同笔重算。
-sha256 = "a35bc8aa5bdcd40e2db430df44a012f495f3e598d539aded899ab0862efae8f4"
+# 2026-10-21（用户裁定「甲」授权原话：「甲」= 按数据宽度对齐：`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8 字节自然对齐；不满足 ⇒ MALIGN）：§3.2 对齐句订正为「按数据宽度自然对齐（`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8 字节），否则触发 MALIGN」；附录 `0.5.5-rc` 追加一条；sha256 同笔重算。
+sha256 = "534184956a295f59eaa7ee81e363db5a3c2786cd72f95d0f3b2d325564cda90a"
 
 [[spec]]
 path = "spec/DADAO-11-AEE-应用程序运行环境.md"
