@@ -170,8 +170,8 @@
 
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power）；末两操作数为地址。[Toolchain-01 §5][ADR-0013 D8]
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 `cg` 寄存器与 `rc` 寄存器。[Toolchain-01 §5][ADR-0013 D8]
-- `lr_nn.o rd9, [rb1]`——两个操作数：`rdHB` 固定为 `rd0`（不在汇编中出现；手工编码 `hb ≠ 0` → ILLI）。[Toolchain-01 §5][ADR-0013 D8]
-- `sc_nn.o rd8, rd9, [rb1]`——三个操作数：`rdHB`（成功/失败结果）、`rdHC`（源）、地址 `rbHD`。[Toolchain-01 §5][ADR-0013 D8]
+- `lr.o.nn rd9, [rb1]`——两个操作数：`rdHB` 固定为 `rd0`（不在汇编中出现；手工编码 `hb ≠ 0` → ILLI）。[Toolchain-01 §5][ADR-0013 D8]
+- `sc.o.nn rd8, rd9, [rb1]`——三个操作数：`rdHB`（成功/失败结果）、`rdHC`（源）、地址 `rbHD`。[Toolchain-01 §5][ADR-0013 D8]
 - `escape cfx63, [excp_cause_ip, 4]`——第二参数为字节偏移（汇编层 `imms20`，须 `%4==0`），基址为异常进入时保存的地址 `excp_cause_ip`（不在编码中，故显式写出）。[Toolchain-01 §5][ADR-0013 D8]
 - `trap cfx63, 1`——立即数与地址无关，不加 `[]`。[Toolchain-01 §5][ADR-0013 D8]
 

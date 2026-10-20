@@ -31,8 +31,8 @@ cfx2rc cfx63, cg8, rc1, rd8
 @@ ASM: call [rb0, 12]
 call [rb0, 12]
 
-@@ @src fence_oiii_imm 77000000 | SimRISC-12 §fence指令
-@@ OBJ: {{[0-9a-f]+:}} 77 00 00 00{{.*}}fence
+@@ @src fence_oiii_imm 77800000 | SimRISC-12 §fence指令
+@@ OBJ: {{[0-9a-f]+:}} 77 80 00 00{{.*}}fence
 @@ ASM: fence 0
 fence 0
 

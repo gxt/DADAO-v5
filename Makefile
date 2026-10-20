@@ -379,9 +379,29 @@ COMPILER_RT_BUILD     ?= .work/build/compiler-rt-builtins
 # holds a retired narrow-scope archive under lib/linux/ (INFRA-079t), and a
 # wildcard that picked it would install the wrong library.  Both sides of the
 # copy then provably share one relative path.
-BUILTINS_ARCHIVE_SRC   = $(if $(BUILTINS_RESOURCE_PATH),$(COMPILER_RT_BUILD)/$(BUILTINS_RESOURCE_PATH))
-BUILTINS_RESOURCE_PATH = $(shell $(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name 2>/dev/null | sed -e 's|^.*/lib/clang/[^/]*/||')
-BUILTINS_ARCHIVE_DST   = $(if $(BUILTINS_RESOURCE_PATH),$(CLANG_RESOURCE_DIR)/$(BUILTINS_RESOURCE_PATH))
+#
+# ISS-301: ONE probe, ONE path.  `-print-libgcc-file-name` is the only
+# authoritative answer to "which archive does the build-tree clang link", and it
+# names `<llvm-build>/lib/clang/<ver>/<resource-rel>`.  The previous derivation
+# dropped the `clang/<ver>/` half, so `build-builtins` re-staged into
+# `<llvm-build>/<resource-rel>` -- a directory no consumer reads -- while the
+# copy the clang actually links stayed stale (and the freshness gate went red).
+# Every consumer below (build-builtins stage target, install-host destination,
+# and tools/infra/check_builtins_freshness.py, which splits the same probe) now
+# derives from this one variable, so the three copies cannot drift apart again.
+# The probe answers with an absolute path; it is reduced to the part below
+# `lib/clang/` (`<ver>/lib/<triple>/libclang_rt.builtins.a`), which is byte-for-
+# byte the same in the build tree and in the install root.
+BUILTINS_RESOURCE_PATH = $(shell $(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name 2>/dev/null | sed -e 's|^.*/lib/clang/||')
+BUILTINS_RESOURCE_VER  = $(firstword $(subst /, ,$(BUILTINS_RESOURCE_PATH)))
+# Same file in the build tree (what bin/clang links) and in the install root
+# (what install-host must refresh) -- one shape, two prefixes.
+BUILTINS_BUILD_DST     = $(if $(BUILTINS_RESOURCE_PATH),$(LLVM_BUILD)/lib/clang/$(BUILTINS_RESOURCE_PATH))
+BUILTINS_ARCHIVE_DST   = $(if $(BUILTINS_RESOURCE_PATH),$(HOST_TOOLCHAIN_DIR)/lib/clang/$(BUILTINS_RESOURCE_PATH))
+# compiler-rt's own tree mirrors the resource dir *below* `lib/` (no `<ver>`):
+# `<build dir>/lib/<triple>/libclang_rt.builtins.a`.
+BUILTINS_BUILD_REL     = $(patsubst $(BUILTINS_RESOURCE_VER)/%,%,$(BUILTINS_RESOURCE_PATH))
+BUILTINS_ARCHIVE_SRC   = $(if $(BUILTINS_BUILD_REL),$(COMPILER_RT_BUILD)/$(BUILTINS_BUILD_REL))
 
 # build-builtins (ISS-293): rebuild the compiler-rt builtins with the *current*
 # build-tree clang and re-stage the archive into that clang's resource dir.
@@ -408,11 +428,12 @@ build-builtins: manifest-check build-mc
 	}
 	@test -f $(LLVM_BUILD)/bin/clang || { echo "build-builtins: ERROR: $(LLVM_BUILD)/bin/clang not found -- run 'make build-mc' first"; exit 1; }
 	@test -f $(COMPILER_RT_BUILD)/build.ninja || { echo "build-builtins: ERROR: no configured compiler-rt build tree at $(COMPILER_RT_BUILD) -- configure it once (INFRA-079t) first"; exit 1; }
+	@test -n "$(BUILTINS_BUILD_DST)" || { echo "build-builtins: ERROR: cannot resolve the builtins path from '$(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name'"; exit 1; }
 	ninja -C $(COMPILER_RT_BUILD) -t clean
 	ninja -j$(JOBS) -C $(COMPILER_RT_BUILD) builtins
 	@test -f $(BUILTINS_ARCHIVE_SRC) || { echo "build-builtins: ERROR: archive not produced at $(BUILTINS_ARCHIVE_SRC)"; exit 1; }
-	@mkdir -p $(dir $(LLVM_BUILD)/$(BUILTINS_RESOURCE_PATH))
-	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(LLVM_BUILD)/$(BUILTINS_RESOURCE_PATH))
+	@mkdir -p $(dir $(BUILTINS_BUILD_DST))
+	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(BUILTINS_BUILD_DST))
 	@echo "build-builtins: PASS"
 
 # clang++ (INFRA-056t): the C++ driver is the *same binary* as the C driver
@@ -442,7 +463,7 @@ install-host: build-mc build-lld build-qemu build-builtins
 	@mkdir -p $(CLANG_RESOURCE_DIR)
 	@$(call atomic-install-dir,$(CLANG_HEADERS_SRC),$(CLANG_RESOURCE_DIR)/include)
 	@test -f $(BUILTINS_ARCHIVE_SRC) || { echo "install-host: ERROR: compiler-rt builtins archive not found under $(COMPILER_RT_BUILD)/lib/ — build the compiler-rt standalone 'builtins' target first (INFRA-079t)"; exit 1; }
-	@case "$(BUILTINS_RESOURCE_PATH)" in lib/*) ;; *) echo "install-host: ERROR: cannot resolve the builtins install path from '$(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name' (got '$(BUILTINS_RESOURCE_PATH)')"; exit 1 ;; esac
+	@case "$(BUILTINS_BUILD_REL)" in lib/*) ;; *) echo "install-host: ERROR: cannot resolve the builtins install path from '$(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name' (got '$(BUILTINS_RESOURCE_PATH)')"; exit 1 ;; esac
 	@mkdir -p $(dir $(BUILTINS_ARCHIVE_DST))
 	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(BUILTINS_ARCHIVE_DST))
 	@mkdir -p $(TARGET_SYSROOT_DIR)/include $(TARGET_SYSROOT_DIR)/lib

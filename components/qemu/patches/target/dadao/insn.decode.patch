@@ -1,12 +1,12 @@
 diff --git a/target/dadao/insn.decode b/target/dadao/insn.decode
 new file mode 100644
-index 0000000..65804b0
+index 0000000..e2631b9
 --- /dev/null
 +++ b/target/dadao/insn.decode
-@@ -0,0 +1,261 @@
+@@ -0,0 +1,277 @@
 +# DADAO instruction decoding
 +# Auto-generated from contracts/opcodes.yaml
-+# 243 patterns; blank cells trigger UNDI
++# 259 patterns; blank cells trigger UNDI
 +
 +# Field declarations
 +%ha       18:6
@@ -110,16 +110,32 @@ index 0000000..65804b0
 +cfxst_crii_cfx  01111101........................  @main
 +escape_ciii_cfx  01111110........................  @main
 +trap_ciii_cfx  01111111........................  @main
-+fence_oiii_imm  01110111000000..................  @misc
++fence_oiii_imm  01110111100000..................  @misc
 +swym_oiii_imm  01110111100010..................  @misc
-+lr_nn_o_orrr_rd  01110111010000..................  @misc
-+lr_nr_o_orrr_rd  01110111010001..................  @misc
-+lr_an_o_orrr_rd  01110111010010..................  @misc
-+lr_ar_o_orrr_rd  01110111010011..................  @misc
-+sc_nn_o_orrr_rd  01110111011000..................  @misc
-+sc_nr_o_orrr_rd  01110111011001..................  @misc
-+sc_an_o_orrr_rd  01110111011010..................  @misc
-+sc_ar_o_orrr_rd  01110111011011..................  @misc
++lr_o_nn_orrr_rd  01110111000000..................  @misc
++lr_t_nn_orrr_rd  01110111000001..................  @misc
++lr_w_nn_orrr_rd  01110111000010..................  @misc
++lr_b_nn_orrr_rd  01110111000011..................  @misc
++lr_o_an_orrr_rd  01110111000100..................  @misc
++lr_t_an_orrr_rd  01110111000101..................  @misc
++lr_w_an_orrr_rd  01110111000110..................  @misc
++lr_b_an_orrr_rd  01110111000111..................  @misc
++lr_o_ar_orrr_rd  01110111001000..................  @misc
++lr_t_ar_orrr_rd  01110111001001..................  @misc
++lr_w_ar_orrr_rd  01110111001010..................  @misc
++lr_b_ar_orrr_rd  01110111001011..................  @misc
++sc_o_nn_orrr_rd  01110111010000..................  @misc
++sc_t_nn_orrr_rd  01110111010001..................  @misc
++sc_w_nn_orrr_rd  01110111010010..................  @misc
++sc_b_nn_orrr_rd  01110111010011..................  @misc
++sc_o_nr_orrr_rd  01110111010100..................  @misc
++sc_t_nr_orrr_rd  01110111010101..................  @misc
++sc_w_nr_orrr_rd  01110111010110..................  @misc
++sc_b_nr_orrr_rd  01110111010111..................  @misc
++sc_o_ar_orrr_rd  01110111011000..................  @misc
++sc_t_ar_orrr_rd  01110111011001..................  @misc
++sc_w_ar_orrr_rd  01110111011010..................  @misc
++sc_b_ar_orrr_rd  01110111011011..................  @misc
 +and_o_orrr_rd  01000000001000..................  @misc
 +or_o_orrr_rd  01000000001001..................  @misc
 +xor_o_orrr_rd  01000000001010..................  @misc

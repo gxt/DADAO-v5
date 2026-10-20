@@ -296,11 +296,11 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 
 |           | xxx-000      | xxx-001      | xxx-010      | xxx-011      | xxx-100      | xxx-101      | xxx-110      | xxx-111      |
 | ---       | ---          | ---          | ---          | ---          | ---          | ---          | ---          | ---          |
-| 000-xxx   | fence_oiii_imm |              |              |              |              |              |              |              |
-| 001-xxx   |              |              |              |              |              |              |              |              |
-| 010-xxx   | lr_nn.o_orrr_rd | lr_nr.o_orrr_rd | lr_an.o_orrr_rd | lr_ar.o_orrr_rd |              |              |              |              |
-| 011-xxx   | sc_nn.o_orrr_rd | sc_nr.o_orrr_rd | sc_an.o_orrr_rd | sc_ar.o_orrr_rd |              |              |              |              |
-| 100-xxx   |              |              | swym_oiii_imm |              |              |              |              |              |
+| 000-xxx   | lr.o.nn_orrr_rd | lr.t.nn_orrr_rd | lr.w.nn_orrr_rd | lr.b.nn_orrr_rd | lr.o.an_orrr_rd | lr.t.an_orrr_rd | lr.w.an_orrr_rd | lr.b.an_orrr_rd |
+| 001-xxx   | lr.o.ar_orrr_rd | lr.t.ar_orrr_rd | lr.w.ar_orrr_rd | lr.b.ar_orrr_rd |              |              |              |              |
+| 010-xxx   | sc.o.nn_orrr_rd | sc.t.nn_orrr_rd | sc.w.nn_orrr_rd | sc.b.nn_orrr_rd | sc.o.nr_orrr_rd | sc.t.nr_orrr_rd | sc.w.nr_orrr_rd | sc.b.nr_orrr_rd |
+| 011-xxx   | sc.o.ar_orrr_rd | sc.t.ar_orrr_rd | sc.w.ar_orrr_rd | sc.b.ar_orrr_rd |              |              |              |              |
+| 100-xxx   | fence_oiii_imm |              | swym_oiii_imm |              |              |              |              |              |
 | 101-xxx   |              |              |              |              |              |              |              |              |
 | 110-xxx   |              |              |              |              |              |              |              |              |
 | 111-xxx   |              |              |              |              |              |              |              |              |
@@ -416,6 +416,8 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 ### 0.5.5-rc（未发布）
 
 - 编码再分配：`ext.uo`/`ext.so` 编码迁至 `100-000`/`100-001`（orrr）与 `101-000`/`101-001`（orri），助记符与语义不变。
+- `fence` 编码由 `000-000` 迁至 `100-000`（`ha = 0x20`），`immu18` 位域改为 `fm`/`pred`/`succ`；`swym` 仍在 `100-010`。
+- `lr`/`sc` 原子指令改名并重排编码：`lr` = `000`/`001` 两行（`nn`/`an`/`ar`）、`sc` = `010`/`011` 两行（`nn`/`nr`/`ar`），助记符为 `<lr|sc>.<b|w|t|o>.<序>`（24 条；删除 `lr.*.nr` 与 `sc.*.an`）；`scope` 仍为 `excluded`。
 - `shl` 的四个位宽变体去掉 `u` 后缀（`shl.o`/`shl.t`/`shl.w`/`shl.b`），编码迁至 `010-000`（orrr）/`011-000`（orri）。
 - 新增 `rol.o`/`rol.t`/`rol.w`/`rol.b`（逻辑循环左移，`orrr`/`orri`），编码 `010-001`/`011-001`；符号无关、不带 `u`/`s` 后缀。
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。

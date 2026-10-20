@@ -233,7 +233,7 @@ def _negative_text(rec):
     fmt = rec["format"]
     mn = rec["mnemonic"]
     if fmt == "orrr":          # lr（rd, [rb, imm]）/ sc（rd, rd, [rb, imm]）——spec §5
-        if mn.startswith("sc_"):
+        if mn.startswith(("sc_", "sc.")):
             return "%s rd8, rd9, [rb1, 0]" % mn
         return "%s rd9, [rb1, 0]" % mn
     if fmt == "crii":          # cfxld/cfxst：cfxHA, [rb, imm]

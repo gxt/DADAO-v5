@@ -34,6 +34,10 @@ ROOT = Path(__file__).resolve().parents[2]
 OPCODES = ROOT / "contracts/opcodes.yaml"
 
 OPERAND_ROLES = {"dst", "src", "imm", "wyde_pos", "cfxcode", "cfx_cg", "cfx_rc"}
+
+# LR-SC 家族前缀：旧写法 `lr_nn.o`（`lr_`）与新写法 `lr.o.nn`（`lr.`，ADR-0034 D3）同族。
+_LR_PREFIXES = ("lr_", "lr.")
+_SC_PREFIXES = ("sc_", "sc.")
 SPLIT_SUFFIX = re.compile(r"^(imms?\d+|immu?\d+)_(?:hi|mid|lo|b\d+_\d+)$")
 
 # 双目的指令（rrrr 格式，rdha/rdhb 均为 dst 的双目标寄存器指令）
@@ -172,7 +176,7 @@ def classify(entry: dict) -> str:
     m = entry["mnemonic"]
     # 待定（用户裁定：暂不归类）
     if m in ("cfxld", "cfxst", "fence") \
-            or m.startswith(("lr_", "sc_")):
+            or m.startswith(("lr_", "sc_", "lr.", "sc.")):
         return "待定"
     if entry["format"] == "rwii":
         return "16位立即数操作"
@@ -187,7 +191,7 @@ def classify(entry: dict) -> str:
             or m.startswith(("fo", "ft"))
             or re.search(r"2f|2rf", m)):
         return "浮点运算"
-    if m.startswith(("lr_", "sc_")):
+    if m.startswith(("lr_", "sc_", "lr.", "sc.")):
         return "其它"
     if re.search(r"\.(ub|sb|b)$", m):
         return "8位数据运算"
@@ -232,7 +236,7 @@ SECTION_TITLES = {"待定": "deferred"}
 
 def template(entry: dict, ops: list[dict]) -> str:
     # lr 的 rdhb 固定为 rd0，模板同样只写两个操作数
-    if entry["mnemonic"].startswith("lr_") and len(ops) == 3:
+    if entry["mnemonic"].startswith(_LR_PREFIXES) and len(ops) == 3:
         ops = ops[1:]
     parts = []
     for op in ops:
@@ -251,7 +255,7 @@ def template(entry: dict, ops: list[dict]) -> str:
 
 def example_line(entry: dict, ops: list[dict], attempt: int) -> str:
     # lr 的 rdhb 固定为 rd0（spec：汇编只写两个操作数）
-    if entry["mnemonic"].startswith("lr_") and len(ops) == 3:
+    if entry["mnemonic"].startswith(_LR_PREFIXES) and len(ops) == 3:
         ops = ops[1:]
     parts = []
     for op in ops:
@@ -387,9 +391,9 @@ def new_form(entry: dict, ops: list[dict], attempt: int = 0, field: bool = False
         return f"{mnemonic} cfxHA, immu18"
 
     # LR-SC 家族（lr 的 rdhb 固定 rd0，汇编只写两个操作数）
-    if mnemonic.startswith("lr_"):
+    if mnemonic.startswith(_LR_PREFIXES):
         return f"{mnemonic} {R(ops[1], 1)}, [{R(ops[2], 2)}]"
-    if mnemonic.startswith("sc_"):
+    if mnemonic.startswith(_SC_PREFIXES):
         return f"{mnemonic} {R(ops[0])}, {R(ops[1], 1)}, [{R(ops[2], 2)}]"
 
     # rwii —— 保持 wpN
@@ -451,9 +455,9 @@ def new_template(entry: dict, ops: list[dict]) -> str:
         return f"{mnemonic} cfxN, [excp_cause_ip, offi]"
     if mnemonic == "trap":
         return f"{mnemonic} cfxN, imm"
-    if mnemonic.startswith("lr_"):
+    if mnemonic.startswith(_LR_PREFIXES):
         return f"{mnemonic} rdN, [rbN]"
-    if mnemonic.startswith("sc_"):
+    if mnemonic.startswith(_SC_PREFIXES):
         return f"{mnemonic} rdN, rdN, [rbN]"
     return template(entry, ops)
 
@@ -693,7 +697,7 @@ def main() -> int:
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
 > **源**：`contracts/opcodes.yaml`（{total} 条 = M1 {n_m1} + `scope: fp` {n_fp} + `scope: excluded` {n_excluded} + `scope: m3` {n_m3} + `scope: m8` {n_m8} + `scope: m9` {n_m9}）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
-> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
+> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`/`fence`/`lr.*`/`sc.*`）
 > **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（{_fp_chapter} 条）为 `scope: fp`（已实现）；**deferred（原「待定」）**（{_pending_chapter} 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；其余 {n_m1} 条为 `scope: m1` 当前有效书写形式
 > **注（`scope: fp` 范围总账 = {n_fp} 条）**：浮点运算章 {_fp_chapter} 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 7 条（`cs.eq/ne/n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{{rdHA:rdHA+immu6-1}}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）

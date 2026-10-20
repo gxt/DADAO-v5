@@ -132,10 +132,18 @@ ldm.t_rrri_rf	ldm.t	rrri	fp	ldm_t_rrri_rf	accept	ok	ldm.t {rf8}, [rb0, rd9]	no
 ldm.ub_rrri_rd	ldm.ub	rrri	m1	ldm_ub_rd	accept	ok	ldm.ub {rd8}, [rb0, rd9]	no		
 ldm.ut_rrri_rd	ldm.ut	rrri	m1	ldm_ut_rd	accept	ok	ldm.ut {rd8}, [rb0, rd9]	no		
 ldm.uw_rrri_rd	ldm.uw	rrri	m1	ldm_uw_rd	accept	ok	ldm.uw {rd8}, [rb0, rd9]	no		
-lr_an.o_orrr_rd	lr_an.o	orrr	excluded		reject	—	lr_an.o rd9, [rb1, 0]	no		
-lr_ar.o_orrr_rd	lr_ar.o	orrr	excluded		reject	—	lr_ar.o rd9, [rb1, 0]	no		
-lr_nn.o_orrr_rd	lr_nn.o	orrr	excluded		reject	—	lr_nn.o rd9, [rb1, 0]	no		
-lr_nr.o_orrr_rd	lr_nr.o	orrr	excluded		reject	—	lr_nr.o rd9, [rb1, 0]	no		
+lr.b.an_orrr_rd	lr.b.an	orrr	excluded		reject	—	lr.b.an rd9, [rb1, 0]	no		
+lr.b.ar_orrr_rd	lr.b.ar	orrr	excluded		reject	—	lr.b.ar rd9, [rb1, 0]	no		
+lr.b.nn_orrr_rd	lr.b.nn	orrr	excluded		reject	—	lr.b.nn rd9, [rb1, 0]	no		
+lr.o.an_orrr_rd	lr.o.an	orrr	excluded		reject	—	lr.o.an rd9, [rb1, 0]	no		
+lr.o.ar_orrr_rd	lr.o.ar	orrr	excluded		reject	—	lr.o.ar rd9, [rb1, 0]	no		
+lr.o.nn_orrr_rd	lr.o.nn	orrr	excluded		reject	—	lr.o.nn rd9, [rb1, 0]	no		
+lr.t.an_orrr_rd	lr.t.an	orrr	excluded		reject	—	lr.t.an rd9, [rb1, 0]	no		
+lr.t.ar_orrr_rd	lr.t.ar	orrr	excluded		reject	—	lr.t.ar rd9, [rb1, 0]	no		
+lr.t.nn_orrr_rd	lr.t.nn	orrr	excluded		reject	—	lr.t.nn rd9, [rb1, 0]	no		
+lr.w.an_orrr_rd	lr.w.an	orrr	excluded		reject	—	lr.w.an rd9, [rb1, 0]	no		
+lr.w.ar_orrr_rd	lr.w.ar	orrr	excluded		reject	—	lr.w.ar rd9, [rb1, 0]	no		
+lr.w.nn_orrr_rd	lr.w.nn	orrr	excluded		reject	—	lr.w.nn rd9, [rb1, 0]	no		
 mul.sb_orrr_rd	mul.sb	orrr	m1	mul_sb	accept	ok	mul.sb rd8, rd9, rd10	no		
 mul.so_rrrr_rd	mul.so	rrrr	m1	mul_so_rd	accept	ok	mul.so {rd8, rd9}, rd10, rd11	no		DADAOInstrInfo.cpp.patch:222;DADAOInstrInfo.cpp.patch:238
 mul.st_orrr_rd	mul.st	orrr	m1	mul_st	accept	ok	mul.st rd8, rd9, rd10	no		
@@ -176,10 +184,18 @@ rol.t_orri_rd	rol.t	orri	m9	rol_t_orri	accept	ok	rol.t rd8, rd9, 1	no
 rol.t_orrr_rd	rol.t	orrr	m9	rol_t_orrr	accept	ok	rol.t rd8, rd9, rd10	no		
 rol.w_orri_rd	rol.w	orri	m9	rol_w_orri	accept	ok	rol.w rd8, rd9, 1	no		
 rol.w_orrr_rd	rol.w	orrr	m9	rol_w_orrr	accept	ok	rol.w rd8, rd9, rd10	no		
-sc_an.o_orrr_rd	sc_an.o	orrr	excluded		reject	—	sc_an.o rd8, rd9, [rb1, 0]	no		
-sc_ar.o_orrr_rd	sc_ar.o	orrr	excluded		reject	—	sc_ar.o rd8, rd9, [rb1, 0]	no		
-sc_nn.o_orrr_rd	sc_nn.o	orrr	excluded		reject	—	sc_nn.o rd8, rd9, [rb1, 0]	no		
-sc_nr.o_orrr_rd	sc_nr.o	orrr	excluded		reject	—	sc_nr.o rd8, rd9, [rb1, 0]	no		
+sc.b.ar_orrr_rd	sc.b.ar	orrr	excluded		reject	—	sc.b.ar rd8, rd9, [rb1, 0]	no		
+sc.b.nn_orrr_rd	sc.b.nn	orrr	excluded		reject	—	sc.b.nn rd8, rd9, [rb1, 0]	no		
+sc.b.nr_orrr_rd	sc.b.nr	orrr	excluded		reject	—	sc.b.nr rd8, rd9, [rb1, 0]	no		
+sc.o.ar_orrr_rd	sc.o.ar	orrr	excluded		reject	—	sc.o.ar rd8, rd9, [rb1, 0]	no		
+sc.o.nn_orrr_rd	sc.o.nn	orrr	excluded		reject	—	sc.o.nn rd8, rd9, [rb1, 0]	no		
+sc.o.nr_orrr_rd	sc.o.nr	orrr	excluded		reject	—	sc.o.nr rd8, rd9, [rb1, 0]	no		
+sc.t.ar_orrr_rd	sc.t.ar	orrr	excluded		reject	—	sc.t.ar rd8, rd9, [rb1, 0]	no		
+sc.t.nn_orrr_rd	sc.t.nn	orrr	excluded		reject	—	sc.t.nn rd8, rd9, [rb1, 0]	no		
+sc.t.nr_orrr_rd	sc.t.nr	orrr	excluded		reject	—	sc.t.nr rd8, rd9, [rb1, 0]	no		
+sc.w.ar_orrr_rd	sc.w.ar	orrr	excluded		reject	—	sc.w.ar rd8, rd9, [rb1, 0]	no		
+sc.w.nn_orrr_rd	sc.w.nn	orrr	excluded		reject	—	sc.w.nn rd8, rd9, [rb1, 0]	no		
+sc.w.nr_orrr_rd	sc.w.nr	orrr	excluded		reject	—	sc.w.nr rd8, rd9, [rb1, 0]	no		
 set.ow_rwii_rd	set.ow	rwii	m1	set_ow_rd	accept	ok	set.ow rd8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:301;DADAOInstrInfo.cpp.patch:309
 set.w_rwii_rf	set.w	rwii	fp	set_w_rwii_rf	accept	ok	set.w rf8, wp1, 0x1234	no		
 set.zw_rwii_rb	set.zw	rwii	m1	set_zw_rb	accept	ok	set.zw rb8, wp1, 0x1234	no		DADAOInstrInfo.cpp.patch:345;DADAOInstrInfo.cpp.patch:383;DADAOInstrInfo.cpp.patch:402

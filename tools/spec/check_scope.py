@@ -3,7 +3,7 @@
 
 职责（可执行、可失败；SPEC-086t §5.3）：
   1. 每条记录**恰有** 1 个合法 `scope` ∈ {m1, fp, excluded, m3, m8, m9}（缺失/非法 ⇒ FAIL）。
-  2. 分区计数：m1 == 156、fp == 60、excluded == 11、m3 == 1、m8 == 7、m9 == 8、total == 243。
+  2. 分区计数：m1 == 156、fp == 60、excluded == 27、m3 == 1、m8 == 7、m9 == 8、total == 259。
   3. `scope == "excluded"` ⇔ `decode == "ILLI"`；`scope ∈ {m1, fp, m3, m8, m9}` ⇒ 无 `decode`
      且无旧字段（防回退）。
   4. `scope == "fp"` ⇔ `id.endswith("_rf")`（结构性判据，源自 spec/契约）。
@@ -23,6 +23,8 @@
     total 234→235；fp/excluded/m3/m8 不变）
   * ADR-0032 D4 / SPEC-152t（新增 scope: m9 = rol.o/.t/.w/.b 8 条 ⇒ m9 0→8、
     total 235→243；M1/fp/excluded/m3/m8 不变）
+  * ADR-0034 D3–D5（`lr`/`sc` 由 8 条重排为 24 条、删除 `lr.*.nr` 与 `sc.*.an`、
+    命名 `<lr|sc>.<b|w|t|o>.<序>` ⇒ excluded 11→27、total 243→259；M1/fp/m3/m8/m9 不变）
 
 Usage: python3 tools/spec/check_scope.py [--yaml contracts/opcodes.yaml] [--repo-root .]
 """
@@ -39,11 +41,11 @@ OLD_FIELD = "excluded" + "_m1"
 
 EXPECTED_M1 = 156
 EXPECTED_FP = 60
-EXPECTED_EXCLUDED = 11
+EXPECTED_EXCLUDED = 27
 EXPECTED_M3 = 1
 EXPECTED_M8 = 7
 EXPECTED_M9 = 8
-EXPECTED_TOTAL = 243
+EXPECTED_TOTAL = 259
 
 ALLOWED_SCOPES = ("m1", "fp", "excluded", "m3", "m8", "m9")
 

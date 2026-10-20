@@ -16,11 +16,13 @@ happily re-copies a stale archive).  The invariant this gate makes mechanical:
 
 Consumer copies checked (all three are real link inputs):
   1. build product      <build-dir>/<resource-rel>            (compiler-rt tree)
-  2. build-tree clang   <llvm-build>/<resource-rel>           (what
-     ``.work/build/llvm/bin/clang`` links: probed live via
-     ``-print-libgcc-file-name``; nothing else refreshes it)
+  2. build-tree clang   <llvm-build>/lib/clang/<ver>/<resource-rel>
+                        (what ``.work/build/llvm/bin/clang`` links: probed live
+                        via ``-print-libgcc-file-name``; nothing else refreshes
+                        it -- the ``clang/<ver>/`` half used to be dropped by
+                        ``build-builtins``, ISS-301)
   3. install root       <host-toolchain>/lib/clang/<ver>/<resource-rel>
-     (``make install-host``)
+                        (``make install-host``)
 
 Checks (each printed with expected/actual and its own verdict):
   1. build product present
@@ -76,7 +78,8 @@ def clang_resource_paths(clang: Path) -> tuple[str, str] | None:
 
     Mirrors ``Makefile::BUILTINS_RESOURCE_PATH``: the single source of truth for
     where the archive lives inside a resource dir, probed live (never
-    hardcoded, so an upstream layout change cannot drift this gate).
+    hardcoded, so an upstream layout change cannot drift this gate).  The same
+    probe feeds ``Makefile::BUILTINS_BUILD_DST`` / ``BUILTINS_ARCHIVE_DST``.
     """
     try:
         res = subprocess.run(

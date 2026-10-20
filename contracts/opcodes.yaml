@@ -7,7 +7,7 @@
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
 # scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b），非 M1 身份
-# 共 243 条：M1 156 条 + scope fp 60 条 + scope excluded 11 条 + scope m3 1 条 + scope m8 7 条 + scope m9 8 条
+# 共 259 条：M1 156 条 + scope fp 60 条 + scope excluded 27 条 + scope m3 1 条 + scope m8 7 条 + scope m9 8 条
 # 有 rule_refs 的指令：207 条
 
 - id: ld.ub_rrii_rd
@@ -2396,9 +2396,9 @@
   mnemonic: fence
   format: oiii
   op: '0x77'
-  ha: '0x00'
+  ha: '0x20'
   mask: '0xFFFC0000'
-  value: '0x77000000'
+  value: '0x77800000'
   fields:
   - name: immu18
     bits: '[17:0]'
@@ -2407,7 +2407,7 @@
     signed: false
   legality:
   - immu18[17:12] == 0
-  - immu18[11:6] == 0
+  - immu18[11:10] == 0
   - immu18[5:4] == 0
   spec_cite: SimRISC-12 §fence指令
   scope: excluded
@@ -2430,8 +2430,308 @@
   spec_cite: SimRISC-11 §占位指令
   scope: m1
   rule_refs: []
-- id: lr_nn.o_orrr_rd
-  mnemonic: lr_nn.o
+- id: lr.o.nn_orrr_rd
+  mnemonic: lr.o.nn
+  format: orrr
+  op: '0x77'
+  ha: '0x00'
+  mask: '0xFFFC0000'
+  value: '0x77000000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.t.nn_orrr_rd
+  mnemonic: lr.t.nn
+  format: orrr
+  op: '0x77'
+  ha: '0x01'
+  mask: '0xFFFC0000'
+  value: '0x77040000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.w.nn_orrr_rd
+  mnemonic: lr.w.nn
+  format: orrr
+  op: '0x77'
+  ha: '0x02'
+  mask: '0xFFFC0000'
+  value: '0x77080000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.b.nn_orrr_rd
+  mnemonic: lr.b.nn
+  format: orrr
+  op: '0x77'
+  ha: '0x03'
+  mask: '0xFFFC0000'
+  value: '0x770C0000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.o.an_orrr_rd
+  mnemonic: lr.o.an
+  format: orrr
+  op: '0x77'
+  ha: '0x04'
+  mask: '0xFFFC0000'
+  value: '0x77100000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.t.an_orrr_rd
+  mnemonic: lr.t.an
+  format: orrr
+  op: '0x77'
+  ha: '0x05'
+  mask: '0xFFFC0000'
+  value: '0x77140000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.w.an_orrr_rd
+  mnemonic: lr.w.an
+  format: orrr
+  op: '0x77'
+  ha: '0x06'
+  mask: '0xFFFC0000'
+  value: '0x77180000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.b.an_orrr_rd
+  mnemonic: lr.b.an
+  format: orrr
+  op: '0x77'
+  ha: '0x07'
+  mask: '0xFFFC0000'
+  value: '0x771C0000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.o.ar_orrr_rd
+  mnemonic: lr.o.ar
+  format: orrr
+  op: '0x77'
+  ha: '0x08'
+  mask: '0xFFFC0000'
+  value: '0x77200000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.t.ar_orrr_rd
+  mnemonic: lr.t.ar
+  format: orrr
+  op: '0x77'
+  ha: '0x09'
+  mask: '0xFFFC0000'
+  value: '0x77240000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.w.ar_orrr_rd
+  mnemonic: lr.w.ar
+  format: orrr
+  op: '0x77'
+  ha: '0x0A'
+  mask: '0xFFFC0000'
+  value: '0x77280000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: lr.b.ar_orrr_rd
+  mnemonic: lr.b.ar
+  format: orrr
+  op: '0x77'
+  ha: '0x0B'
+  mask: '0xFFFC0000'
+  value: '0x772C0000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: sc.o.nn_orrr_rd
+  mnemonic: sc.o.nn
   format: orrr
   op: '0x77'
   ha: '0x10'
@@ -2455,8 +2755,8 @@
   scope: excluded
   decode: ILLI
   rule_refs: []
-- id: lr_nr.o_orrr_rd
-  mnemonic: lr_nr.o
+- id: sc.t.nn_orrr_rd
+  mnemonic: sc.t.nn
   format: orrr
   op: '0x77'
   ha: '0x11'
@@ -2480,8 +2780,8 @@
   scope: excluded
   decode: ILLI
   rule_refs: []
-- id: lr_an.o_orrr_rd
-  mnemonic: lr_an.o
+- id: sc.w.nn_orrr_rd
+  mnemonic: sc.w.nn
   format: orrr
   op: '0x77'
   ha: '0x12'
@@ -2505,8 +2805,8 @@
   scope: excluded
   decode: ILLI
   rule_refs: []
-- id: lr_ar.o_orrr_rd
-  mnemonic: lr_ar.o
+- id: sc.b.nn_orrr_rd
+  mnemonic: sc.b.nn
   format: orrr
   op: '0x77'
   ha: '0x13'
@@ -2530,8 +2830,108 @@
   scope: excluded
   decode: ILLI
   rule_refs: []
-- id: sc_nn.o_orrr_rd
-  mnemonic: sc_nn.o
+- id: sc.o.nr_orrr_rd
+  mnemonic: sc.o.nr
+  format: orrr
+  op: '0x77'
+  ha: '0x14'
+  mask: '0xFFFC0000'
+  value: '0x77500000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: sc.t.nr_orrr_rd
+  mnemonic: sc.t.nr
+  format: orrr
+  op: '0x77'
+  ha: '0x15'
+  mask: '0xFFFC0000'
+  value: '0x77540000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: sc.w.nr_orrr_rd
+  mnemonic: sc.w.nr
+  format: orrr
+  op: '0x77'
+  ha: '0x16'
+  mask: '0xFFFC0000'
+  value: '0x77580000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: sc.b.nr_orrr_rd
+  mnemonic: sc.b.nr
+  format: orrr
+  op: '0x77'
+  ha: '0x17'
+  mask: '0xFFFC0000'
+  value: '0x775C0000'
+  fields:
+  - name: rdhb
+    bits: '[17:12]'
+    role: dst
+    bank: rd
+  - name: rdhc
+    bits: '[11:6]'
+    role: src
+    bank: rd
+  - name: rbhd
+    bits: '[5:0]'
+    role: src
+    bank: rb
+  legality: []
+  spec_cite: SimRISC-12 §LR-SC指令
+  scope: excluded
+  decode: ILLI
+  rule_refs: []
+- id: sc.o.ar_orrr_rd
+  mnemonic: sc.o.ar
   format: orrr
   op: '0x77'
   ha: '0x18'
@@ -2555,8 +2955,8 @@
   scope: excluded
   decode: ILLI
   rule_refs: []
-- id: sc_nr.o_orrr_rd
-  mnemonic: sc_nr.o
+- id: sc.t.ar_orrr_rd
+  mnemonic: sc.t.ar
   format: orrr
   op: '0x77'
   ha: '0x19'
@@ -2580,8 +2980,8 @@
   scope: excluded
   decode: ILLI
   rule_refs: []
-- id: sc_an.o_orrr_rd
-  mnemonic: sc_an.o
+- id: sc.w.ar_orrr_rd
+  mnemonic: sc.w.ar
   format: orrr
   op: '0x77'
   ha: '0x1A'
@@ -2605,8 +3005,8 @@
   scope: excluded
   decode: ILLI
   rule_refs: []
-- id: sc_ar.o_orrr_rd
-  mnemonic: sc_ar.o
+- id: sc.b.ar_orrr_rd
+  mnemonic: sc.b.ar
   format: orrr
   op: '0x77'
   ha: '0x1B'

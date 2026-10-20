@@ -100,7 +100,8 @@ group = "simrisc-00..12"
 # 2026-10-16（同裁定，原话见文件头注释）：QFC 主表格 `aip.si_riii_rb`；§2.2 `rb0`（`rbip`/`IP`）语义明文；
 #   §3 `IP[1:0]`；§返回地址栈 `IP 指向`；`0.5.5-rc` 段追加两条（改名 / 术语）。
 # `rela.si_riii_rb`（恢复 PC 相对寻址指令）+ 「0.5.5-rc」段追加恢复条目。
-sha256 = "62d42581131415d3bb3f49b8c6ff11f16cf67af58229e067c88c742978817169"
+# 2026-10-20（ADR-0034，用户原话「fence指令的opx编码改为100_000…」「lr/sc 四种数据宽度…opx 从000-000 排到 011-111」→「A」；渠道 = 经主会话问答）：§4.1 MISC-AMO 子表 `fence` 迁 `100-000`、`lr`/`sc` 重排为 24 条（`<lr|sc>.<b|w|t|o>.<序>`）；附录 0.5.5-rc 补两条；sha256 同笔重算。
+sha256 = "0255349e9a414f8c8288ea7dd71515ccc3342d77bb07e0e7a266da7066f73ad6"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -162,12 +163,14 @@ sha256 = "13c7b6df5958be43661a59154296f0c2bf33013133da770b42e109fd9c37e593"
 path = "spec/SimRISC-11-其它.md"
 # 2026-10-16（同裁定）：`swym 0` 条 `PC 自增` → `IP 自增`；`0.5.5-rc` 段追加一条。
 group = "simrisc-00..12"
-sha256 = "c097a73d07072158811747402ae76df5eaeb7922abef974132e3e76b0598291a"
+# 2026-10-20（ADR-0034，同授权）：§4「非法指令」的 `excluded` 条目补一句「`fence`/`lr`/`sc` 编码已按 ADR-0034 重排，仍为 excluded」；sha256 同笔重算。
+sha256 = "80a10eda6acfc5776842b1524a8e4b145a9cac6046e5631f04a5e44a8dadef56"
 
 [[spec]]
 path = "spec/SimRISC-12-待定.md"
 group = "simrisc-00..12"
-sha256 = "904a51d16749b777a2c7a05da2b3116b2f321b657e224e3781f4d95c48c16d3a"
+# 2026-10-20（ADR-0034，同授权）：§3.1 `fence` 位域改 `fm`/`pred`/`succ` + `PRED_*`/`SUCC_*` 常量 + `fm` 取值表；§3.2 `lr/sc` 改新命名（24 条，删 `lr.*.nr`/`sc.*.an`）；汇编速查/合法性检查生成区 + 附录同步；sha256 同笔重算。
+sha256 = "a35bc8aa5bdcd40e2db430df44a012f495f3e598d539aded899ab0862efae8f4"
 
 [[spec]]
 path = "spec/DADAO-11-AEE-应用程序运行环境.md"
@@ -273,7 +276,8 @@ group = "toolchain-01"
 #   `;` → **`@@`**（`CommentString = "@@"`）+ `;` 改为**语句分隔符**（`SeparatorString = ";"`，允许一行
 #   多条语句）+ 理由一句（单一 `@` 出现在 `.type <sym>,@function`）；§6.2 / §13.8 示例注释同步；
 #   册版本 **0.5.2 → 0.5.3** + 附录新开 `0.5.3（2026-10-19）`；sha256 于同一变更内重算回填。
-sha256 = "d866023a4b628539fe8d4d463aa9d0c2b829b3fde5c1881368b2eff461889938"
+# 2026-10-20（ADR-0034，同授权）：§5 LR-SC 书写示例的助记符同步为新命名（`lr.o.nn`/`sc.o.nn`；仅名字，语义与操作数规则不变）；sha256 同笔重算。
+sha256 = "77f0b14898707361ed1474d58e123b5aee10bc56a107b47c01ac4a60c8a9ab3b"
 
 [[spec]]
 path = "spec/Machine-01-测试机运行环境.md"

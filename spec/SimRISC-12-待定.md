@@ -1,26 +1,42 @@
 # SimRISC待定指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：待定 [deferred]**（11 条）— cfxld/cfxst/fence/lr_*/sc_*
+> **分类：待定 [deferred]**（27 条）— cfxld/cfxst/fence/lr.*/sc.*
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 待定（11 条）｜ **deferred** — 暂不归类，待必须启用时
+### 1.1 待定（27 条）｜ **deferred** — 暂不归类，待必须启用时
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `cfxld` | `crii` | `cfx` | `cfxld cfxHA, [rbHB, immu12]` | `cfxld_crii_cfx` |
 | `cfxst` | `crii` | `cfx` | `cfxst cfxHA, [rbHB, immu12]` | `cfxst_crii_cfx` |
 | `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
-| `lr_an.o` | `orrr` | `rd` | `lr_an.o rdHC, [rbHD]` | `lr_an.o_orrr_rd` |
-| `lr_ar.o` | `orrr` | `rd` | `lr_ar.o rdHC, [rbHD]` | `lr_ar.o_orrr_rd` |
-| `lr_nn.o` | `orrr` | `rd` | `lr_nn.o rdHC, [rbHD]` | `lr_nn.o_orrr_rd` |
-| `lr_nr.o` | `orrr` | `rd` | `lr_nr.o rdHC, [rbHD]` | `lr_nr.o_orrr_rd` |
-| `sc_an.o` | `orrr` | `rd` | `sc_an.o rdHB, rdHC, [rbHD]` | `sc_an.o_orrr_rd` |
-| `sc_ar.o` | `orrr` | `rd` | `sc_ar.o rdHB, rdHC, [rbHD]` | `sc_ar.o_orrr_rd` |
-| `sc_nn.o` | `orrr` | `rd` | `sc_nn.o rdHB, rdHC, [rbHD]` | `sc_nn.o_orrr_rd` |
-| `sc_nr.o` | `orrr` | `rd` | `sc_nr.o rdHB, rdHC, [rbHD]` | `sc_nr.o_orrr_rd` |
+| `lr.b.an` | `orrr` | `rd` | `lr.b.an rdHC, [rbHD]` | `lr.b.an_orrr_rd` |
+| `lr.b.ar` | `orrr` | `rd` | `lr.b.ar rdHC, [rbHD]` | `lr.b.ar_orrr_rd` |
+| `lr.b.nn` | `orrr` | `rd` | `lr.b.nn rdHC, [rbHD]` | `lr.b.nn_orrr_rd` |
+| `lr.o.an` | `orrr` | `rd` | `lr.o.an rdHC, [rbHD]` | `lr.o.an_orrr_rd` |
+| `lr.o.ar` | `orrr` | `rd` | `lr.o.ar rdHC, [rbHD]` | `lr.o.ar_orrr_rd` |
+| `lr.o.nn` | `orrr` | `rd` | `lr.o.nn rdHC, [rbHD]` | `lr.o.nn_orrr_rd` |
+| `lr.t.an` | `orrr` | `rd` | `lr.t.an rdHC, [rbHD]` | `lr.t.an_orrr_rd` |
+| `lr.t.ar` | `orrr` | `rd` | `lr.t.ar rdHC, [rbHD]` | `lr.t.ar_orrr_rd` |
+| `lr.t.nn` | `orrr` | `rd` | `lr.t.nn rdHC, [rbHD]` | `lr.t.nn_orrr_rd` |
+| `lr.w.an` | `orrr` | `rd` | `lr.w.an rdHC, [rbHD]` | `lr.w.an_orrr_rd` |
+| `lr.w.ar` | `orrr` | `rd` | `lr.w.ar rdHC, [rbHD]` | `lr.w.ar_orrr_rd` |
+| `lr.w.nn` | `orrr` | `rd` | `lr.w.nn rdHC, [rbHD]` | `lr.w.nn_orrr_rd` |
+| `sc.b.ar` | `orrr` | `rd` | `sc.b.ar rdHB, rdHC, [rbHD]` | `sc.b.ar_orrr_rd` |
+| `sc.b.nn` | `orrr` | `rd` | `sc.b.nn rdHB, rdHC, [rbHD]` | `sc.b.nn_orrr_rd` |
+| `sc.b.nr` | `orrr` | `rd` | `sc.b.nr rdHB, rdHC, [rbHD]` | `sc.b.nr_orrr_rd` |
+| `sc.o.ar` | `orrr` | `rd` | `sc.o.ar rdHB, rdHC, [rbHD]` | `sc.o.ar_orrr_rd` |
+| `sc.o.nn` | `orrr` | `rd` | `sc.o.nn rdHB, rdHC, [rbHD]` | `sc.o.nn_orrr_rd` |
+| `sc.o.nr` | `orrr` | `rd` | `sc.o.nr rdHB, rdHC, [rbHD]` | `sc.o.nr_orrr_rd` |
+| `sc.t.ar` | `orrr` | `rd` | `sc.t.ar rdHB, rdHC, [rbHD]` | `sc.t.ar_orrr_rd` |
+| `sc.t.nn` | `orrr` | `rd` | `sc.t.nn rdHB, rdHC, [rbHD]` | `sc.t.nn_orrr_rd` |
+| `sc.t.nr` | `orrr` | `rd` | `sc.t.nr rdHB, rdHC, [rbHD]` | `sc.t.nr_orrr_rd` |
+| `sc.w.ar` | `orrr` | `rd` | `sc.w.ar rdHB, rdHC, [rbHD]` | `sc.w.ar_orrr_rd` |
+| `sc.w.nn` | `orrr` | `rd` | `sc.w.nn rdHB, rdHC, [rbHD]` | `sc.w.nn_orrr_rd` |
+| `sc.w.nr` | `orrr` | `rd` | `sc.w.nr rdHB, rdHC, [rbHD]` | `sc.w.nr_orrr_rd` |
 
 <!-- ASSEMBLY_LIST_END -->
 
@@ -32,14 +48,30 @@
 * `cfxld_crii_cfx`：decode ILLI
 * `cfxst_crii_cfx`：decode ILLI
 * `fence_oiii_imm`：decode ILLI
-* `lr_an.o_orrr_rd`：decode ILLI
-* `lr_ar.o_orrr_rd`：decode ILLI
-* `lr_nn.o_orrr_rd`：decode ILLI
-* `lr_nr.o_orrr_rd`：decode ILLI
-* `sc_an.o_orrr_rd`：decode ILLI
-* `sc_ar.o_orrr_rd`：decode ILLI
-* `sc_nn.o_orrr_rd`：decode ILLI
-* `sc_nr.o_orrr_rd`：decode ILLI
+* `lr.b.an_orrr_rd`：decode ILLI
+* `lr.b.ar_orrr_rd`：decode ILLI
+* `lr.b.nn_orrr_rd`：decode ILLI
+* `lr.o.an_orrr_rd`：decode ILLI
+* `lr.o.ar_orrr_rd`：decode ILLI
+* `lr.o.nn_orrr_rd`：decode ILLI
+* `lr.t.an_orrr_rd`：decode ILLI
+* `lr.t.ar_orrr_rd`：decode ILLI
+* `lr.t.nn_orrr_rd`：decode ILLI
+* `lr.w.an_orrr_rd`：decode ILLI
+* `lr.w.ar_orrr_rd`：decode ILLI
+* `lr.w.nn_orrr_rd`：decode ILLI
+* `sc.b.ar_orrr_rd`：decode ILLI
+* `sc.b.nn_orrr_rd`：decode ILLI
+* `sc.b.nr_orrr_rd`：decode ILLI
+* `sc.o.ar_orrr_rd`：decode ILLI
+* `sc.o.nn_orrr_rd`：decode ILLI
+* `sc.o.nr_orrr_rd`：decode ILLI
+* `sc.t.ar_orrr_rd`：decode ILLI
+* `sc.t.nn_orrr_rd`：decode ILLI
+* `sc.t.nr_orrr_rd`：decode ILLI
+* `sc.w.ar_orrr_rd`：decode ILLI
+* `sc.w.nn_orrr_rd`：decode ILLI
+* `sc.w.nr_orrr_rd`：decode ILLI
 <!-- LEGALITY_END -->
 
 
@@ -55,16 +87,37 @@ fence 指令对外部可见的访存请求,如设备 I/O 和内存访问等进�
 fence   immu18
 ```
 
-`fence immu18` 的低 4 位按以下编码定义内存序屏障类型：
+`fence immu18` 的 18 位立即数**不拆成三段操作数**，汇编层仍书写一个 18 位无符号立即数；其位域为：
 
-| 位 | 含义 | 说明 |
-|----|------|------|
-| bit0 | IO | 设备 I/O 访问串行化 |
-| bit1 | W | 写屏障：前序写对后序写可见 |
-| bit2 | R | 读屏障：前序读对后序读/写可见 |
-| bit3 | RW | 读写屏障：前序读写对后序读写可见（全屏障） |
+| 字段 | 位 | 含义 |
+| --- | --- | --- |
+| `fm` | `immu18[17:12]` | 屏障模式（fence mode） |
+| `pred` | `immu18[11:6]` | 前序（predecessor）访问类型集合 |
+| `succ` | `immu18[5:0]` | 后序（successor）访问类型集合 |
 
-bits[17:4] 应为零（SBZ），非零值行为保留。
+`pred`/`succ` 的位含义为 R/W/I/O 四类访问（`R` 读、`W` 写、`I`/`O` 为设备 I/O 访问，RISC-V `fence` 口径）；汇编层提供八个符号常量，按位或（`|`）组合：
+
+| 访问类型 | `pred` 常量（值） | `succ` 常量（值） |
+| --- | --- | --- |
+| R | `PRED_R = 1<<6` | `SUCC_R = 1<<0` |
+| W | `PRED_W = 1<<7` | `SUCC_W = 1<<1` |
+| I | `PRED_I = 1<<8` | `SUCC_I = 1<<2` |
+| O | `PRED_O = 1<<9` | `SUCC_O = 1<<3` |
+
+例：`fence PRED_R|PRED_W|SUCC_R|SUCC_W`（= `immu18` 的 `0x00C3`，即 `pred = 000011`、`succ = 000011`）。
+
+`fm` 取值：
+
+| `fm` | 含义 |
+| --- | --- |
+| `0` | 已定义（常规屏障） |
+| `8` | TSO 预留（当前未定义） |
+| 其余 | 保留 |
+
+保留编码 ⇒ ILLI：
+
+- `fm ≠ 0`（其中 `fm = 8` 标注为「TSO 预留、当前未定义」）；
+- `pred` 的 `immu18[11:10]` 与 `succ` 的 `immu18[5:4]` 为 SBZ，非零即保留。
 
 ### 3.2 LR-SC指令
 
@@ -72,19 +125,39 @@ LR 指令是 Load Reserved 的缩写，读取保留；SC 指令是 Store Conditi
 
 操作数类型为：`orrr`。lr 指令的 hb（rdHB）固定为 rd0，汇编代码仅需两个操作数。若手工编码时 hb ≠ 0，触发 ILLI 异常。
 
-```simrisc
-lr_nn.o   rdHC, [rbHD]
-lr_an.o   rdHC, [rbHD]
-lr_nr.o   rdHC, [rbHD]
-lr_ar.o   rdHC, [rbHD]
+指令名形如 `<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`——**数据宽度在前、存储序在后**，以 `.` 分隔：
 
-sc_nn.o   rdHB, rdHC, [rbHD]
-sc_an.o   rdHB, rdHC, [rbHD]
-sc_nr.o   rdHB, rdHC, [rbHD]
-sc_ar.o   rdHB, rdHC, [rbHD]
+```simrisc
+lr.o.nn   rdHC, [rbHD]
+lr.t.nn   rdHC, [rbHD]
+lr.w.nn   rdHC, [rbHD]
+lr.b.nn   rdHC, [rbHD]
+lr.o.an   rdHC, [rbHD]
+lr.t.an   rdHC, [rbHD]
+lr.w.an   rdHC, [rbHD]
+lr.b.an   rdHC, [rbHD]
+lr.o.ar   rdHC, [rbHD]
+lr.t.ar   rdHC, [rbHD]
+lr.w.ar   rdHC, [rbHD]
+lr.b.ar   rdHC, [rbHD]
+
+sc.o.nn   rdHB, rdHC, [rbHD]
+sc.t.nn   rdHB, rdHC, [rbHD]
+sc.w.nn   rdHB, rdHC, [rbHD]
+sc.b.nn   rdHB, rdHC, [rbHD]
+sc.o.nr   rdHB, rdHC, [rbHD]
+sc.t.nr   rdHB, rdHC, [rbHD]
+sc.w.nr   rdHB, rdHC, [rbHD]
+sc.b.nr   rdHB, rdHC, [rbHD]
+sc.o.ar   rdHB, rdHC, [rbHD]
+sc.t.ar   rdHB, rdHC, [rbHD]
+sc.w.ar   rdHB, rdHC, [rbHD]
+sc.b.ar   rdHB, rdHC, [rbHD]
 ```
 
-o是 octa 的缩写，表示存取的数据是64位。
+o是 octa 的缩写，表示存取的数据是64位；t是 tetra 的缩写（32位）；w是 wyde 的缩写（16位）；b是 byte 的缩写（8位）。
+
+`lr` 仅有 `nn`/`an`/`ar` 三种存储序（无 `nr`）；`sc` 仅有 `nn`/`nr`/`ar` 三种存储序（无 `an`）。其余组合的助记符不存在（汇编器拒绝），对应编码为 reserved。
 a是 acquire 的缩写，表示该指令后序所有访问存储的指令不得被重排到该指令之前执行。
 r是 release 的缩写，表示该指令前序所有访问存储的指令不得被重排到该指令之后执行。
 n表示没有对应的a或r的顺序限制。
@@ -125,6 +198,8 @@ cfxst    cfxHA, [rbHB, immu12]
 ### 0.5.5-rc（未发布）
 
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。
+- `fence` 编码改 `100-000`（`ha=0x20`），`immu18` 按 `fm[17:12]`/`pred[11:6]`/`succ[5:0]` 解释，新增 `PRED_*`/`SUCC_*` 常量与 `|` 组合写法。
+- LR-SC 改名并重排编码：`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>` 共 24 条；删除 `lr.*.nr` 与 `sc.*.an`；语义不变、仍 `scope: excluded`。
 - 引入 `scope: excluded`（`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）。
 - 新增「合法性检查」章（生成区）。
 - 全量删除 `rela.si`；0 号寄存器作源操作数语义澄清。

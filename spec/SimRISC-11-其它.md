@@ -56,7 +56,7 @@ swym    0                @@ 空操作（旧 `nop`）
 ILLI（illegal instruction，非法指令）异常由**非法操作数、非法条件**或**已定义但本机器未实现的编码**触发；SimRISC 0.5.4 **不再**提供专门的非法指令助记符（原 `op=0x77, ha=0x00`）。
 
 - 已定义编码但操作数/字段非法时触发 ILLI，例如很多指令不允许目的操作数为 `rd0`、SBZ 字段非零、多寄存器指令 `immu6 = 0` 等。
-- `scope: excluded` 的已定义编码（特权 cfx、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI。
+- `scope: excluded` 的已定义编码（特权 cfx、LR-SC 原子、`fence`）在未实现该语义的机器上执行时触发 ILLI（`fence`/`lr`/`sc` 的编码与命名已按 `ADR-0034` 重排，仍为 `excluded`）。
 - 保留编码（QFC 主表 / MISC 子表空白单元格）触发 UNDI 异常，而非 ILLI；32 位全零指令字（0x00000000）为保留编码，触发 UNDI 异常。
 
 ## 5. 特权指令

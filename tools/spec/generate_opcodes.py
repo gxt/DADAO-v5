@@ -5,8 +5,9 @@
   - `scope: m1`（156 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
   - `scope: fp`（60 条）——原生浮点范围（RF 存取/搬移/条件赋值 + MISC-RF 运算/转换/比较），
     独立于 M1，**已实现**（LLVM-029t/030t、QEMU-034t–037t）；
-  - `scope: excluded`（11 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC / fence，
-    暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc` re-scope 为 `m1`）；
+  - `scope: excluded`（27 条）——特权 cfx（仅 `cfxld`/`cfxst`）/ LR-SC（24 条，四宽度 ×
+    三存储序）/ fence，暂未归类（`SPEC-115t` 已将 `trap`/`escape`/`cfx2rd`/`cfx2rc`
+    re-scope 为 `m1`；`ADR-0034` 将 `lr/sc` 由 8 条重排为 24 条）；
   - `scope: m3`（1 条）——M3 CodeGen 新增指令（ADR-0012 D9.1 `sub.o_orrr_dbb`），
     **非 M1 身份**，不要求 M1 向量覆盖；
   - `scope: m8`（7 条）——新增 ISA 指令（ADR-0012 D10 逐块反转 `rev.o`/`rev.t`/`rev.w`/`rev.b`
@@ -533,23 +534,26 @@ def build_main_table(records):
 
 def build_misc_amo(records):
     op = 0x77
-    # ADR-0012 D3.5：删除原专门非法指令（ILLI 异常保留，由非法操作数/条件/保留编码触发）；
-    # fence 移至 000-000（ha=0x00）；swym 移至 100-010（ha=0x22）。
+    # ADR-0034 D1/D2（用户 2026-10-20）：fence 由 000-000 迁至 100-000（ha=0x20）；
+    # immu18 = fm[17:12] / pred[11:6] / succ[5:0]（书写仍是 18 位无符号立即数，不拆三段）；
+    # fm=0 为唯一已定义值，pred/succ 的高 2 位（[11:10]/[5:4]）SBZ ⇒ 其余保留（ILLI）。
     records.append(rec("fence", "fence", "oiii", op, f_oiii("immu18"),
-                       ["immu18[17:12] == 0", "immu18[11:6] == 0", "immu18[5:4] == 0"],
-                       S12_FENCE, ha=0x00, scope="excluded"))
+                       ["immu18[17:12] == 0", "immu18[11:10] == 0", "immu18[5:4] == 0"],
+                       S12_FENCE, ha=0x20, scope="excluded"))
     # swym：格式从 iiii 改为 oiii，immu24 改为 immu18；位于 MISC-AMO 100-010（ha=0x22）
     records.append(rec("swym-oiii", "swym", "oiii", op, f_oiii("immu18"),
                        [], S11_SWYM, ha=0x22))
-    # spec MISC-AMO 表：行 010-xxx（lr）/ 011-xxx（sc）→ ha 0x10-0x13 / 0x18-0x1B
-    for i, mnem in enumerate(["lr_nn.o", "lr_nr.o", "lr_an.o", "lr_ar.o"]):
-        records.append(rec(mnem, mnem, "orrr", op,
-                           f_orrr("rdhb", "rdhc", "rbhd"), [],
-                           S12_LRSC, ha=0x10 + i, scope="excluded"))
-    for i, mnem in enumerate(["sc_nn.o", "sc_nr.o", "sc_an.o", "sc_ar.o"]):
-        records.append(rec(mnem, mnem, "orrr", op,
-                           f_orrr("rdhb", "rdhc", "rbhd"), [],
-                           S12_LRSC, ha=0x18 + i, scope="excluded"))
+    # ADR-0034 D3/D4/D5（方案 A）：命名 `<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`（宽度在前）；
+    # lr 占 000/001 两行（nn/an/ar，`lr.*.nr` 删除）、sc 占 010/011 两行（nn/nr/ar，
+    # `sc.*.an` 删除）；组内宽度顺序 .o → .t → .w → .b。scope 仍 excluded（D7）。
+    for prefix, order_ha in (("lr", {"nn": 0x00, "an": 0x04, "ar": 0x08}),
+                             ("sc", {"nn": 0x10, "nr": 0x14, "ar": 0x18})):
+        for order, base_ha in order_ha.items():
+            for i, width in enumerate(("o", "t", "w", "b")):
+                mnem = f"{prefix}.{width}.{order}"
+                records.append(rec(mnem, mnem, "orrr", op,
+                                   f_orrr("rdhb", "rdhc", "rbhd"), [],
+                                   S12_LRSC, ha=base_ha + i, scope="excluded"))
 
 
 # ────────────────────────────── MISC-octa ──────────────────────────────
@@ -808,6 +812,7 @@ EXPR_TO_RULE = OrderedDict([
     ("aligned(8)",                                "excp_malign"),
     # ── SBZ / 位域 ──
     ("immu18[17:12] == 0",                        "encode_sbz"),
+    ("immu18[11:10] == 0",                        "encode_sbz"),
     ("immu18[11:6] == 0",                         "encode_sbz"),
     ("immu18[5:4] == 0",                          "encode_sbz"),
     ("immu6 <= 7",                                "encode_sbz"),

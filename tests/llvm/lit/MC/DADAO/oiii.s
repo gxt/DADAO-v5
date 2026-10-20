@@ -6,9 +6,9 @@
 @@ Encoding: word = (op<<24)|(ha<<18)|(imm18 & 0x3FFFF)
 
 @@ fence 0
-@@ op=0x77, ha=0x00(fence), imm18=0
-@@ word = (0x77<<24)|(0x00<<18)|0 = 0x77000000
-@@ OBJ: {{[0-9a-f]+:}} 77 00 00 00{{.*}}fence{{.*}}0
+@@ op=0x77, ha=0x20(fence), imm18=0
+@@ word = (0x77<<24)|(0x20<<18)|0 = 0x77800000
+@@ OBJ: {{[0-9a-f]+:}} 77 80 00 00{{.*}}fence{{.*}}0
 @@ ASM: fence 0
 fence 0
 

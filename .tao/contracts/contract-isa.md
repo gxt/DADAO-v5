@@ -1234,7 +1234,7 @@ MISC-AMO 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 ### §14.2 LR-SC 原子指令 — scope: excluded
 
-`lr`/`sc` 原子指令（`lr_nn.o`/`lr_nr.o`/`lr_an.o`/`lr_ar.o`、`sc_nn.o`/`sc_nr.o`/`sc_an.o`/`sc_ar.o`）**`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-12 §LR-SC指令]
+`lr`/`sc` 原子指令（`<lr|sc>.<b|w|t|o>.<nn|an|nr|ar>`，共 24 条：`lr` 仅 `nn`/`an`/`ar`、`sc` 仅 `nn`/`nr`/`ar`；`ADR-0034`）**`scope: excluded`**（未实现，decode ILLI），本合约不提取其规范内容。[SimRISC-12 §LR-SC指令]
 
 - 完整语义/编码/保留机制留后续阶段（见 `.tao/knowledge/issues.yaml`）。[spec-decision]
 - 编码位置：`MISC-AMO` 子表 ha = 010-xxx（lr）与 011-xxx（sc）。[SimRISC-00 §MISC-AMO 指令编码]
@@ -1537,9 +1537,9 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x7D | cfxst | `cfxst` | 特权 cfx | [SimRISC-00 §SimRISC QFC] |
 | MISC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
 | MISC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §MISC-octa指令编码] |
-| MISC-AMO 000-000 | fence | `fence` | deferred 指令（`ADR-0014`） | [SimRISC-00 §MISC-AMO 指令编码] |
-| MISC-AMO 010-xxx | lr_nn/lr_nr/lr_an/lr_ar | `lr_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
-| MISC-AMO 011-xxx | sc_nn/sc_nr/sc_an/sc_ar | `sc_*.o` | LR-SC 原子 | [SimRISC-00 §MISC-AMO 指令编码] |
+| MISC-AMO 100-000 | fence | `fence` | deferred 指令（`ADR-0014`；编码迁 `100-000`，`ADR-0034`） | [SimRISC-00 §MISC-AMO 指令编码] |
+| MISC-AMO 000/001-xxx | lr.*.nn/an/ar（12 条） | `lr.<b|w|t|o>.<序>` | LR-SC 原子（`ADR-0034`） | [SimRISC-00 §MISC-AMO 指令编码] |
+| MISC-AMO 010/011-xxx | sc.*.nn/nr/ar（12 条） | `sc.<b|w|t|o>.<序>` | LR-SC 原子（`ADR-0034`） | [SimRISC-00 §MISC-AMO 指令编码] |
 
 ### A.8 `scope: m8` 编码清单（逐块反转 `rev.*`，非 M1）
 

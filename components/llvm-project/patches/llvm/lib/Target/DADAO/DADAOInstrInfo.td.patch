@@ -1,6 +1,6 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.td b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 new file mode 100644
-index 000000000..9bb71a314
+index 000000000..0f9c1d24f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.td
 @@ -0,0 +1,1690 @@
@@ -1643,7 +1643,7 @@ index 000000000..9bb71a314
 +  let OutOperandList = (outs );
 +  let InOperandList = (ins immu18:$imm18);
 +  let op = 0x77;
-+  let ha = 0x00;
++  let ha = 0x20;
 +  let Pattern = [];
 +}
 +

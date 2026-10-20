@@ -156,8 +156,8 @@
 **特权 cfx 格式（`crrr`/`crii`/`ciii`）与 LR-SC** 的书写规则（**同规则、供对照**；其中 `crrr`/`ciii` 现为 `scope: m1`，`crii` 仍为 `scope: excluded`）：
 - `cfxld cfx63, [rb2, 1]`、`cfxst cfx63, [rb2, 1]`——`cfxha` 写作 `cfxHA`（测试机为 `cfx63` = power），末两操作数为**地址**。
 - `cfx2rd cfx63, cg8, rc1, rd8`、`cfx2rc …`——字段占位为 `cfxHA, cgHB, rcHC, rdHD`；中间两操作数分别是 **`cg` 寄存器**与 **`rc` 寄存器**，各自命名。
-- `lr_nn.o rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
-- `sc_nn.o rd8, rd9, [rb1]`——**三个操作数**：`rdHB`(成功/失败结果)、`rdHC`(源)、地址 `rbHD`。
+- `lr.o.nn rd9, [rb1]`——**两个操作数**：`rdHB` 固定为 `rd0`（**不在汇编中出现**，手工编码 `hb ≠ 0` → ILLI），故只写「目的寄存器 `rdHC` + 地址 `rbHD`」。
+- `sc.o.nn rd8, rd9, [rb1]`——**三个操作数**：`rdHB`(成功/失败结果)、`rdHC`(源)、地址 `rbHD`。
 - `escape cfx63, [excp_cause_ip, 4]`——`cfxha` 写作 `cfxHA`；第二个参数是**字节偏移**（汇编层 `imms20`，须 `%4==0`），其基址**不是 `rb0`**，而是**异常进入时保存的地址 `excp_cause_ip`**（该基址**不在编码中**，与 `jump-iiii` 的 `rb0` 同构，故同样**显式写出**）。编码层 `Addr = excp_cause_ip + (imms18 << 2)`。
 - `trap cfx63, 1`——`cfxha` 写作 `cfxHA`；其立即数**与地址无关**，**不加** `[]`。
 

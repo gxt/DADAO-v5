@@ -1,10 +1,10 @@
 # DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（243 条 = M1 156 + `scope: fp` 60 + `scope: excluded` 11 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 8）
+> **源**：`contracts/opcodes.yaml`（259 条 = M1 156 + `scope: fp` 60 + `scope: excluded` 27 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 8）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
-> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`/`fence`/`lr_*`/`sc_*`）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（44 条）为 `scope: fp`（已实现）；**deferred（原「待定」）**（11 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；其余 156 条为 `scope: m1` 当前有效书写形式
+> **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 其它 / **deferred**（原「待定」；暂不归类：`cfxld`/`cfxst`/`fence`/`lr.*`/`sc.*`）
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围、`deferred` 表状态，二者正交）：**浮点运算**（44 条）为 `scope: fp`（已实现）；**deferred（原「待定」）**（27 条）为暂不归类状态（分类依据 = `ADR-0012` D1）；其余 156 条为 `scope: m1` 当前有效书写形式
 > **注（`scope: fp` 范围总账 = 60 条）**：浮点运算章 44 条（MISC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 7 条（`cs.eq/ne/n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{rdHA:rdHA+immu6-1}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
@@ -314,18 +314,34 @@
 | `swym` | `oiii` | `imm` | `swym immu18` | `swym_oiii_imm` |
 | `trap` | `ciii` | `cfx` | `trap cfxHA, immu18` | `trap_ciii_cfx` |
 
-### deferred（11 条）｜ 暂不归类（原「待定」章），待必须启用时；分类依据 = `ADR-0012` D1
+### deferred（27 条）｜ 暂不归类（原「待定」章），待必须启用时；分类依据 = `ADR-0012` D1
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
 | `cfxld` | `crii` | `cfx` | `cfxld cfxHA, [rbHB, immu12]` | `cfxld_crii_cfx` |
 | `cfxst` | `crii` | `cfx` | `cfxst cfxHA, [rbHB, immu12]` | `cfxst_crii_cfx` |
 | `fence` | `oiii` | `imm` | `fence immu18` | `fence_oiii_imm` |
-| `lr_an.o` | `orrr` | `rd` | `lr_an.o rdHC, [rbHD]` | `lr_an.o_orrr_rd` |
-| `lr_ar.o` | `orrr` | `rd` | `lr_ar.o rdHC, [rbHD]` | `lr_ar.o_orrr_rd` |
-| `lr_nn.o` | `orrr` | `rd` | `lr_nn.o rdHC, [rbHD]` | `lr_nn.o_orrr_rd` |
-| `lr_nr.o` | `orrr` | `rd` | `lr_nr.o rdHC, [rbHD]` | `lr_nr.o_orrr_rd` |
-| `sc_an.o` | `orrr` | `rd` | `sc_an.o rdHB, rdHC, [rbHD]` | `sc_an.o_orrr_rd` |
-| `sc_ar.o` | `orrr` | `rd` | `sc_ar.o rdHB, rdHC, [rbHD]` | `sc_ar.o_orrr_rd` |
-| `sc_nn.o` | `orrr` | `rd` | `sc_nn.o rdHB, rdHC, [rbHD]` | `sc_nn.o_orrr_rd` |
-| `sc_nr.o` | `orrr` | `rd` | `sc_nr.o rdHB, rdHC, [rbHD]` | `sc_nr.o_orrr_rd` |
+| `lr.b.an` | `orrr` | `rd` | `lr.b.an rdHC, [rbHD]` | `lr.b.an_orrr_rd` |
+| `lr.b.ar` | `orrr` | `rd` | `lr.b.ar rdHC, [rbHD]` | `lr.b.ar_orrr_rd` |
+| `lr.b.nn` | `orrr` | `rd` | `lr.b.nn rdHC, [rbHD]` | `lr.b.nn_orrr_rd` |
+| `lr.o.an` | `orrr` | `rd` | `lr.o.an rdHC, [rbHD]` | `lr.o.an_orrr_rd` |
+| `lr.o.ar` | `orrr` | `rd` | `lr.o.ar rdHC, [rbHD]` | `lr.o.ar_orrr_rd` |
+| `lr.o.nn` | `orrr` | `rd` | `lr.o.nn rdHC, [rbHD]` | `lr.o.nn_orrr_rd` |
+| `lr.t.an` | `orrr` | `rd` | `lr.t.an rdHC, [rbHD]` | `lr.t.an_orrr_rd` |
+| `lr.t.ar` | `orrr` | `rd` | `lr.t.ar rdHC, [rbHD]` | `lr.t.ar_orrr_rd` |
+| `lr.t.nn` | `orrr` | `rd` | `lr.t.nn rdHC, [rbHD]` | `lr.t.nn_orrr_rd` |
+| `lr.w.an` | `orrr` | `rd` | `lr.w.an rdHC, [rbHD]` | `lr.w.an_orrr_rd` |
+| `lr.w.ar` | `orrr` | `rd` | `lr.w.ar rdHC, [rbHD]` | `lr.w.ar_orrr_rd` |
+| `lr.w.nn` | `orrr` | `rd` | `lr.w.nn rdHC, [rbHD]` | `lr.w.nn_orrr_rd` |
+| `sc.b.ar` | `orrr` | `rd` | `sc.b.ar rdHB, rdHC, [rbHD]` | `sc.b.ar_orrr_rd` |
+| `sc.b.nn` | `orrr` | `rd` | `sc.b.nn rdHB, rdHC, [rbHD]` | `sc.b.nn_orrr_rd` |
+| `sc.b.nr` | `orrr` | `rd` | `sc.b.nr rdHB, rdHC, [rbHD]` | `sc.b.nr_orrr_rd` |
+| `sc.o.ar` | `orrr` | `rd` | `sc.o.ar rdHB, rdHC, [rbHD]` | `sc.o.ar_orrr_rd` |
+| `sc.o.nn` | `orrr` | `rd` | `sc.o.nn rdHB, rdHC, [rbHD]` | `sc.o.nn_orrr_rd` |
+| `sc.o.nr` | `orrr` | `rd` | `sc.o.nr rdHB, rdHC, [rbHD]` | `sc.o.nr_orrr_rd` |
+| `sc.t.ar` | `orrr` | `rd` | `sc.t.ar rdHB, rdHC, [rbHD]` | `sc.t.ar_orrr_rd` |
+| `sc.t.nn` | `orrr` | `rd` | `sc.t.nn rdHB, rdHC, [rbHD]` | `sc.t.nn_orrr_rd` |
+| `sc.t.nr` | `orrr` | `rd` | `sc.t.nr rdHB, rdHC, [rbHD]` | `sc.t.nr_orrr_rd` |
+| `sc.w.ar` | `orrr` | `rd` | `sc.w.ar rdHB, rdHC, [rbHD]` | `sc.w.ar_orrr_rd` |
+| `sc.w.nn` | `orrr` | `rd` | `sc.w.nn rdHB, rdHC, [rbHD]` | `sc.w.nn_orrr_rd` |
+| `sc.w.nr` | `orrr` | `rd` | `sc.w.nr rdHB, rdHC, [rbHD]` | `sc.w.nr_orrr_rd` |
