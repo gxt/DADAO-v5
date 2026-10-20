@@ -81,7 +81,22 @@
 | F7 `size_t base1` 声明在语句之后（C99）| ❌不修 | musl 以 `-std=c99` 编译，实测 `rcrt1.o`/`dlstart.lo` rc=0 | `make build-musl`/`build-musl-shared` rc=0 |
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑**（workdir=仓库根；`master=61e7ece`、树净；工具=安装根 clang/ld.lld/llvm-readobj/qemu-dadao；自跑日志落 `/tmp/opencode/REVIEW-FIX4/`，派单限定临时物）：
+- `bash .work/evidence/LLVM-120t/run.sh` ⇒ **rc=0，82 项全绿**（与完成区「82 项断言全绿」一致）；`--inject` ⇒ **rc=0，45 项全绿**（一致）。
+- **对象级（自跑 + 自己 `llvm-readobj`）**：`rcrt1.o` `.rela.text` = **1 条** `0x8 R_DADAO_REL26 _start_c`，`R_DADAO_ABS48 _DYNAMIC` **0**（原 3 条 @ `0x4/0x8/0xC` 由注入 A 实证：count=3 + lld 逐站点 3 条 `relocation R_DADAO_ABS48 cannot be used against symbol '_DYNAMIC'`）；对象 ABS48 总数 **4** = `.rela.got` 的 `__dls2`/`main`/`_init`/`_fini`（可写节 ⇒ RELATIVE，与改前同）；其余重定位逐条可解释：`.rela.text._start_c` 1 对、`.rela.text.__dls2` 3 对 `PCREL_HI/LO` **配对完整无悬空**（HI 站点偏移 == LO 回指偏移，逐对核过）+ 1 条 `REL26 __libc_start_main`。（措辞注：完成区「无 PCREL_HI/LO」仅限 `.rela.text` 节，对象它节实有 4 对配对的 PCREL——建议措辞补「`.rela.text` 内」。）
+- **`crt1.o` 逐字节不变（cmp 级自证）**：`crt1.o`(现 header) == `crt1.o`(改前 header fixture) == `obj/crt/crt1.o` 三者 `cmp` 全 0，**今日 md5 = `51897f2c67b18e8cbd76b45b635acc9b`**。⚠ 完成区/派单记的 `beec4923…` **今日不可复现**：对象与工具链在 engineer 跑后均已重建（安装根 08:27 `install-host`、musl obj 12:39/14:49 重建），绝对 md5 属时点值；**判据本身（同工具链下改前/改后 header 对照编译 cmp）成立且强于 md5 等值**，判非缺陷、建议册内注明「md5 为时点值」。
+- **运行期（自跑）**：链接期 base=0；实跑 `AT_PHDR=0x555555550040`、`base=0x555555550000`、`_DYNAMIC=0x55555557f4f8`、`PT_DYNAMIC.p_vaddr=0x2f4f8`、`AT_BASE=0`；探针 exit **7**、stdout 逐字节 `PIE OK\n` ✓。
+- **独立 oracle**（`oracle.py` 自解析 ELF64+auxv，非实现反推）：**11/11** PASS，`base=AT_PHDR−PT_PHDR.p_vaddr(0x40)`、`dynv=base+0x2f4f8=0x55555557f4f8` == 探针值，且 **≠ 链接期值 `0x2f4f8`**；`base+e_entry==AT_ENTRY` ✓。
+- **独立注入**（脚本 A/B 之外）：改 `fixtures/crt_arch.h.before` 入口体 `swym 0→1`（`cp`+md5 `a59396e7…`）⇒ 同脚本 rc=1、**3 红**（`crt1.o` 两处 cmp + 全量重建后 cmp）⇒ 还原 md5 相等 ⇒ 再跑 **82/82 rc=0**。
+- 回归（脚本内自跑）：`build-musl`/`build-musl-shared`/`check-musl-freshness` rc=0、动态自举 `musl_smoke_dyn.elf` exit 0、047t 静态抽样 `5/0/0`、scratch-apply 24 补丁 == HEAD tree；`check-patch-tree` 185 rc=0。
+- **已知限制如实登记** ✓：`-static-pie` 只能用 PIC `.lo` 归档链（`libc.a` 非 PIC ⇒ lld 逐条拒 ABS48）⇒ 新登记 `ISS-303`（open）；`-static-pie` 是否入 P2/P3 仍归用户。
+
+**约束核验**：`git show 21cdc6e --stat` = 6 文件，与「修改文件」逐条对上（2 musl 补丁 + `components/musl/changelog.md` + `issues.yaml` + `milestones.md` + 本册）；`series` **24 不变** ✓；`spec/`/`contracts/`/`tests/vectors/`/`ADR`/`components/llvm-project/**` **零改动** ✓；`ISS-245` closed（`resolved_by: LLVM-120t`）✓；未 commit/push ✓；L1 rc=0（本轮末自跑）。
+
+**遗留/风险（非阻断）**：① `crt1.o` 绝对 md5 时点漂移（见上，文档注明即可）；② `apply-series` `patchless` KeyError（`ISS-231`，既有缺陷、非本册引入）仍使「改补丁→apply→构建」主路径假绿，本册以 `check-patch-tree`+scratch-apply 等价兜底 ✓；③ `ISS-303`（PIC `libc.a`）待 architect 归口。
+
+**判决：Accepted** —— 验收 1–7 逐条达标（对象级 3→0 + 逐条可解释 / 运行期 base≠链接期 / 独立 oracle 11/11 且 ≠ 链接期值 / `crt1.o` cmp 级不变 / 可达 FAIL 2+1 红→还原→绿 / 门控 rc / 台账回填）；已知限制如实登记、未据此扣分。
 
 #### 第 1 轮 architect 提交 + 文件集审核（2026-10-20）
 - **档位**：正常提交（按派单；**`reviewer` 尚未审** ⇒ 与本规则「非 Accepted 用 `WIP:`」**不一致**，按派单执行并如实披露）。

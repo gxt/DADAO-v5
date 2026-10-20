@@ -86,7 +86,22 @@
 | F8 builtins 归档跨 clang 换代字节差异来源未查明 | ⏸延后 | 未改代码；以「154/154 TU 无内联汇编」证与 `m`/`p` 无关 | `.work/log/llvm/LLVM-119t-build-builtins*.log`；交 `INFRA-098t`/`ISS-301` |
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑**（workdir=仓库根；`master=61e7ece`、树净；安装根 `llc`==构建树 md5 `ee236c50…`、`clang`==`c2b4750d…`；自跑日志落 `/tmp/opencode/REVIEW-FIX4/`，派单限定临时物、未写 `.work/log/`）：
+- `bash .work/evidence/LLVM-119t/run.sh` ⇒ **rc=0**，`summary: pass=13 fail=0 skip=1`。C2 **显式 SKIP**（安装根已 `install-host`、无「修前」二进制可对照，脚本不静默）；其余 C1/C3–C14 全 PASS（`C6 运行期 12 探针 guest exit 0`、`C7 in-APP [rb..]=18 badbase=0`、`C12 1/1`、`C13 static 10/10 dynamic 10/10`、`C14 rc=1 named=1`）。
+- `run.sh --inject` ⇒ **rc=0**：`inj-oracle`（15→16）/`inj-code`（asm 5→6）各「guest rc=3 红 → `cp`+md5 还原（`59eaeb9a…`）→ 回绿」。
+- **两半根因均有实现**（读补丁）：`DADAOISelDAGToDAG.cpp.patch:239` `SelectInlineAsmMemoryOperand`（`m`/`o`/`p`，`SelectAddr` 产 (GPRB, simm12)，非指针 bank 基址 `COPY_TO_REGCLASS`→GPRB）+ `DADAOAsmPrinter.cpp.patch:230` `PrintAsmMemoryOperand`（`[rb, off]`；修饰符非空 / 操作数形态不符 ⇒ 显式返回错，不吞不空印）。
+- **12 探针语义**（读 `sem_probes.c` 逐条 + 实跑 guest exit 0）：`=m` 写 7 / `m`+`=m` 拷贝 / `+m` 10→15 / `rm` / `=rm` / 数组 `a[i]` 变量下标 / 8B 写**不破坏邻居** / 结构体字段 `s.b` 且 `s.a,s.c` 不变 / 全局读 `0x55` / 全局写 99 / **大端** `0x0102030405060708` 逐字节 `01..08` / `=&m` —— 与派单 12 项逐条对上 ✓。
+- **`"V"` 约束**：C14 `llc` rc=1 + `unknown asm constraint 'V'`（`DADAOISelLowering.cpp.patch:558` `getConstraintType("V")→C_Unknown`），lit `inline-asm-m-reject.ll:17` 钉死该文本；**显式诊断、非断言崩溃** ✓。
+- **lit 真值（自跑）**：`llvm-lit tests/llvm/lit/{MC,CodeGen}/DADAO` ⇒ **111/111** rc=0（脚本 C10 同值 `Passed: 111`）；`make check-lit`（MC+CodeGen+e2e）⇒ **121/121** rc=0；`check-instrinfo` rc=0（0 errors）、`check-patch-tree` rc=0（**185**）。
+- **独立注入（非脚本自带 2 处）**：`tests/llvm/lit/CodeGen/DADAO/inline-asm-m.ll` CHECK 期望 `rd5→rd6`（`cp`+md5 `51363ed6…`）⇒ 同脚本 rc=1、`C9` FAIL + `C10` FAIL（`Passed: 110 (99.10%)`，可达 FAIL 证明）⇒ 还原 md5 相等 ⇒ 再跑 rc=0（13 pass / 1 skip）。
+- **「修前 rc=134」现场**：今天不可复现（安装根==构建树 ⇒ C2 SKIP），采信修前留档 `.work/evidence/LLVM-119t/prefix-llc.log`（真实 `LLVM ERROR: Could not match memory address` + stack dump、程序行 = 当时安装根 `llc repro.ll`）+ 源码事实（两覆写缺位时基类默认 `return true` ⇒ `report_fatal_error`）。
+
+**约束核验**：`git show 84a5231 --stat` = 14 文件，与「修改文件」逐条对上（5 补丁 + `changelog.md` + 2 新 lit + `llvm-isa-backend-matrix.{md,tsv}` + `issues.yaml` + `milestones.md` + 本册，另含派单的 TESTCASES-054t 立册）；`spec/`/`contracts/`/`tests/vectors/`/`components/musl/**` **零改动** ✓；`series` 83 不变 ✓；未 commit/push ✓；`make check`(L1) rc=0（本轮末自跑）。
+
+**文档不符（非阻断，交收尾订正）**：① **lit 计数三值互斥**：`issues.yaml` `ISS-197` 收口段「109/109」、本册/milestones「110/110」、今日现场 **111/111** —— 本批前基线 108，`77153a2` +2 = 110、`16e40bf` +1 = 111 ⇒ **109 无对应盘上状态**（写死计数漂移）。**判定：算必改**（P3 文档一致性，按「计数现场派生」口径订正或去写死），但**不构成 Needs Revision**（交付物功能/测试全绿，差异非本册缺陷）。② 同段「default 13/13」vs 完成区「14/14」——今日 = 13 pass + 1 skip（共 14 项），两处均欠准确。③ 同段称 `V`「前端断言…**未改**」，与现场（已改、显式诊断 + lit 钉死）**不符** ⇒ 同批订正。
+
+**判决：Accepted** —— 验收 1–8 逐条达标（无崩溃 / 语义 12 项 / GETFUNCSYM rc=0 / 失败面指名诊断 / 可达 FAIL 2+1 / 门控 rc=0 / 完成区对齐 / 未 commit）；上述 3 处文档不一致为收尾订正项（P3），不阻断。
 
 #### 提交记录（architect，2026-10-20）
 - 档位：`待验收`（reviewer 未验收；按主会话指令以任务号正常提交，与既有 `QEMU-066t` 同例，无 `WIP:` 前缀）

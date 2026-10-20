@@ -228,3 +228,15 @@
 
 判决：F1/F2 已修，F3 为说明、F4/F5 延后且有据；无未修缺陷 ⇒ 交付 `待验收`（`**状态**` 按派单不改）。
 
+#### 证据脚本独立复核（reviewer，2026-10-20；本册已 `已验证`，**不改状态**）
+
+**起因**：`run.sh`/`tls_checks.py` 于 reviewer 判 Accepted **之后**被改（「证据脚本修正」+「第 2 轮 engineer 自审」两段）⇒ 独立重跑确认，不动本册状态与既有内容。
+
+**重跑**（`master=61e7ece`、树净；自跑日志落 `/tmp/opencode/REVIEW-FIX4/`，派单限定临时物）：
+- `bash .work/evidence/LLVM-100t/run.sh`（default）⇒ **rc=0，78 项 PASS / 0 FAIL**，与修正后口径「default 78/78」一致。其中取证项自跑核实：`lit.installroot.passed==total` = **121/121**、`lit.llc.installroot.md5==buildtree` = `ee236c50…`、`lit.llc.all_from_install_root=yes`、静态面判据（ABS48-only 对象、手算 `0/8/16` TPOFF、`.tdata/.tbss`、`PT_TLS`、两线程 TP 互不串、`STT_TLS`）逐项绿。
+- `run.sh --inject`（33 项）：**3 次内 2 次 rc=0（33/33）**；1 次 rc=1、2 红 = `inj.expect.restored.probe.rc (actual=139)` + `PROBE_OK` 缺 —— 现场为 `qemu-dadao` **宿主 SIGSEGV**（脚本打印 `Segmentation fault (core dumped)`，`restored2.out` 仅首行）发生在「还原探针源→重建→重跑」步。**归因**：同一 ELF 事后直跑 **20/20 rc=0**、随后再跑 `--inject` 两次全绿 ⇒ **偶发、非脚本/交付物缺陷**，形态与 `ISS-255`（`qemu-dadao` 宿主信号族，P3 open）同族；脚本**如实报 FAIL 未掩盖**（行为正确）。
+- 注入自检（脚本自带 4 处）：`inj.tdata`（镜像 `.tdata` 翻位 ⇒ 探针红 + ELF 检查红 → `cp`+md5 `8351406b…` 还原 → 绿）、`inj.expect`（`b.tpoff 16→24` ⇒ `FAIL main.b.tpoff` → md5 `114fc48f…` 还原 → 绿）、`inj.checks`（`tls_checks.py` 期望 `16→24` ⇒ `FAIL exe.sym.b.value expect=24 actual=16` → md5 `0bb68e6d…` 还原 → 绿）、`inj.runsh.flip`（临时副本反转 `PIC_EXPECT` ⇒ `FAIL pic.fPIC.compile.rc (expect=1 actual=0)`；** shipped 脚本 md5 `4e687490…` 不变**）—— 期望值/代码/镜像三面均可翻红、还原可对账 ✓。
+- 现场派生口径核实（修正目标）：动态档与 047t 计数由 `--json-out` 现统计并校验选中用例集、`-fPIC`/`global-dynamic` 现跑 rc + 产物含 `DTPMOD(10)`/`DTPREL(11)`、`local-dynamic` 双支判据（接受 ⇒ ELF64-BE；拒绝 ⇒ 诊断含 `TLS model`，实测 `rc=1` loud）—— 未见写死快照回潮。
+
+**复核结论**：修正后的证据脚本**成立**（default 78/78 可稳定复现；`--inject` 33 项断言全可达，偶发红源于 `qemu-dadao` 宿主崩溃而非脚本）。**非阻断建议**：① 「`--inject` 33/33」宜注明「偶发 `qemu-dadao` 宿主 SIGSEGV（同 `ISS-255` 族）下会如实红」；② F4（无 `trap` 还原）维持延后可接受，但长跑被杀时须人工核 `md5sum`。本段不改 `**状态**`（仍 `已验证`）、不改既有完成区/审阅记录。
+

@@ -81,3 +81,19 @@
 - **提交**：`26d6575`（`INFRA-096t：compiler-rt builtins 陈旧修复 …`）；显式 staging **8 路径**，未用 `git add -A`。
 - **对账（对完成区「修改文件」）**：`tools/infra/check_builtins_freshness.py`（新增）、`Makefile`、`tools/infra/build_musl.py`、`tools/infra/check_musl_freshness.py`、`docs/Process-07-门控分层规范.md`、本册（新增）、`issues.yaml`（ISS-293 订正 + closed）、`milestones.md`（流水 + 未完成册各一行）= 完成区声明 8 项，逐项对上 ✓；`.work/evidence/**`/`.work/log/**` 属忽略区不入 git ✓。**无漏提 / 多提 / 越界**（`QEMU-065t` 册前序改动未并入）。
 - **门控复跑（提交前）**：`check-builtins-freshness` rc=0（三副本同 `18c0cac1…`、147/147 成员 live、0 stale）、`check-musl-freshness` rc=0（builtins 戳记 = 归档）、`check-patch-tree` **183** rc=0、`make check`（L1）**rc=0**（35.6 s）⇒ 完成区「验收结果」中 L1 rc=2 的两红已由主会话 `install-host` + `build-musl-shared` 转绿，本条为复跑实证。
+
+#### 第 1 轮 reviewer 验收
+
+**重跑**（workdir=仓库根；`master=61e7ece`、树净；自跑日志落 `/tmp/opencode/REVIEW-FIX4/`，派单限定临时物；**未**单独调用 `install-host`/`build-musl*`/`build-qemu`/L2/L3，证据脚本内部按其设计调用 `make build-builtins`（派单明示允许跑 run.sh））：
+- `bash .work/evidence/INFRA-096t/run.sh` ⇒ **rc=0（0 failures，43 条 `[PASS]`）**。⚠ 完成区写「42 条 `[PASS]`」⇒ 计数差 1（写死计数漂移，非断言缺陷；建议现场派生）。
+- **两层根因均落**（读 `Makefile`/`tools/infra/*`）：① `build-builtins` = `ninja -t clean`+`builtins`+stage 进构建树 clang 资源目录（`Makefile:404-415`），`install-host: … build-builtins`（`Makefile:424`）+ `BUILTINS_ARCHIVE_SRC` 按驱动报告相对路径（`:382`，`lib/*` 校验）⇒ 消除 `lib/linux` 同名陷阱；② `build_musl.py` builtins 戳记（归档变 ⇒ 删 `libc.so` 重链）+ `check_musl_freshness.py` **第 7 项**（`builtins stamp == current archive`）——「只重建归档不够」已由戳记兜住 ✓。
+- **自跑关键数**：`make build-builtins` rc=0；归档旧编码 `40 50 51 46` 计数 **0**（构建树产物 + 资源目录副本两处）、`extenddftf2.c.o` `<unknown>` **0** / `shl.o` **5** ✓；符号集 **147 成员 / 165 `T` / 357 未定义**、与对照归档 `cmp` 定义符号集相等、代表性 TF+libcall 8 符号齐 ✓（与完成区逐项一致）。
+- **门控**（自跑）：`--self-test` **7/7**（baseline + 4 注入 + restore；**含「仅 mtime 变 ⇒ 不假红」**（`ISS-263` 教训）与「1 stale member ⇒ 红」）rc=0；真树 `check-builtins-freshness` rc=0（三副本同 sha256 `5512be72…`、147/147 live、0 stale、install copy == build product）；`check-musl-freshness` rc=0（含第 7 项 builtins 戳记）；`check-patch-tree` **185** rc=0（完成区 183 为当时值，随后 118t/119t/120t 使总数 185，非漂移缺陷）。
+- **动态链两用例转 pass**（自跑）：047t 静态 **10/10**、动态 **10/10**（脚本以「重链副本」模拟 install-host 之后）；`functional/snprintf` 静态 `pass exit=0`、`functional/strtod` 动态 `pass exit=0` ⇒ **`ISS-293` 用例面收口** ✓；`libc.so` 重链后旧编码计数 **0**。
+- **戳记语义**（自跑，`build_musl` 于 `/tmp` 副本）：无戳记 ⇒ relink（`relinked: True`）、戳记记录新归档 sha256、同戳记 ⇒ 不 relink、归档 digest 变 ⇒ 检测到（`decision after digest change: (True…`）✓。
+- **独立注入**（脚本 §6 之外，改**构建树产物**归档追加 1 字节，`cp`+md5 `72754394…` 备份）⇒ `check-builtins-freshness` **rc=1**，2 红（`build-tree clang copy == build product`、`installed copy == build product` 两处 sha256 FAIL，其余全绿）⇒ `cp` 还原（3 份 md5 全 `72754394…`）⇒ 复跑 **rc=0（7 PASS）**。
+- 附：`make build-builtins` 重建后归档字节**未变**（`72754394…` 前后一致）⇒ 同 clang 下重建确定；`LLVM-100t`「新发现③ 归档跨构建非字节确定」今日**未复现**（其口径跨 clang 换代）。
+
+**约束核验**：`git show 26d6575 --stat` = 8 文件，与「修改文件」逐条对上（`check_builtins_freshness.py` 新增、`Makefile`、`build_musl.py`、`check_musl_freshness.py`、`docs/Process-07` §1.1、本册、`issues.yaml`、`milestones.md`）；`components/**`/`tests/vectors/**`/`spec/`/`contracts/` **零改动** ✓；`ISS-293` `closed`+`resolved_by: INFRA-096t` ✓；未 commit/push ✓；L1 rc=0（本轮末自跑）。
+
+**判决：Accepted** —— 验收 1–7 逐条达标（重建无旧编码 / 三副本同源 / 门控双向+`--self-test` 7/7 / 动态链两用例转 pass / 复发防护第 7 项 / 门控 rc / 完成区对齐）；「42 vs 43 条 PASS」与 patch 计数 183→185 为时点计数差异（后者有据），非交付物缺陷。

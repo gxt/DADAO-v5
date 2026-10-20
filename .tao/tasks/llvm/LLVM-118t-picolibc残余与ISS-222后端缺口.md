@@ -101,7 +101,20 @@
 
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+**重跑**（workdir=仓库根；`master=61e7ece`、树净；工具=构建树 clang/llc/ld.lld + 安装根 qemu-system-dadao；自跑日志落 `/tmp/opencode/REVIEW-FIX4/`，派单限定临时物）：
+- `bash .work/evidence/LLVM-118t/run.sh` ⇒ **rc=0，25/25**（与完成区一致）；`--inject` ⇒ **rc=0，9/9**（I1 改 lit 期望红→绿、I2 改运行期 oracle `105→106` 红→绿、I3 删 `hash_page.c.o` 归档链接红（8 undefined，首缺 `__delpair`）→还原绿、I4 仓库物 md5 对账 `695ccb41…` 不变）。
+- **现场重枚举（自己验、非抽样）**：C2 于临时源副本 `meson setup` 得全集 **1120** 条，`recompile_all.py` 逐条真实 `-c` ⇒ `entries=1120 ok=1120 non_ok=0`（TSV 1120 行 + 表头，1120 个 obj 落盘可数）；等式今日 = `1120 = 1120 + 0`（完成区「1119 + 1」为过滤表尚存 1 条时的口径，全集数 1120 一致）✓。`_dadao_backend_blocked` **1 → 0**（`meson.build` 现场 = `[]`，`hash_page.c` 条目 absent）✓。
+- **`%N` 修复**（自跑）：C5 `pn.ll` ⇒ `add.si rdN, 5`/`swym 3`/`add.si rdN, 7`/`add.si rdN, 9`/`set.zw rd5, wp0, g` 全 present、C5.6 `add.si ,`（空操作数）**absent**；C7 运行期 `pn 105 32 17 10` exit 0（手算 100+5/20+12/10+1/1）✓。另自做 `rb2rd $0, $1, 1` 探针：打印 `rb2rd rd8, rd16, 1`（**非空**，修前为 `rb2rd , rb3, 1`）——该探针 IR 操作数类与 `rb2rd` 不符故报 `invalid operand`，仅取「打印非空」一项为证。
+- **③④ 现场复核**（自跑，非引注释）：C8 `llc -O2` ⇒ `rol.o` present（ROTL 直连 1 条）、`sub.so`+`rol.o`（ROTR 折叠）、bswap/dynalloc 走 Expand（`call.*bswap|shr.uo`、`rd2rb {rb1}`）且 `Cannot select` **absent**；C9 运行期 `rot 23456789abcdef01 ef0123456789abcd efcdab8967452301 4950 5050` exit 0（手算核过）✓。
+- **lit 121/121**（自跑 `make check-lit` rc=0，MC+CodeGen+e2e 121 全过；其中 MC+CodeGen 111/111）✓；**picolibc 定点 7/7**（自跑 `picolibc_tests.py --only test-malloc,test-memset_s,hsearchtest,test-strtod,test-setjmp,test-pow,test-memcpy_s` ⇒ `total=7 pass=7 fail=0 blocked=0` rc=0）✓；`libc.a` = **2,041,338 B** ✓；`ISS-193`/`ISS-222` `closed`（`resolved_by` 已回填）✓。
+- **独立注入**（脚本 I1–I3 之外）：`.work/source/picolibc/meson.build` 过滤表重塞 `'hash_page.c'`（`cp`+md5 `98ce29fa…`）⇒ 同脚本 **rc=1**、3 红（`C1.1 filter entries 0 vs 1`、`C1.2 hash_page.c absent vs present`、`C2.2 等式 1119 vs 1121`）⇒ `cp` 还原 md5 相等、`git -C .work/source/picolibc status` 空 ⇒ 再跑 **25/25 rc=0**。
+
+**约束核验**：`git show 16e40bf --stat` = 10 文件，与「修改文件」+ 越界披露逐条对上（2 `DADAOAsmPrinter` 补丁 + `meson.build.patch` + 2 changelog + picolibc `README.md` + `issues.yaml` + `milestones.md` + 本册 + 新增 `inline-asm-operands.ll`〔已完成区披露〕）；过滤表**只删未增**（1→0）✓；`series` 83/14 不变、`check-patch-tree` 185 rc=0（自跑）✓；`spec/`/`contracts/`/`tests/vectors/` **零改动** ✓；`LLVM-119t` 的 `"m"` 面未越界（`DADAOISel*`/`PrintAsmMemoryOperand` 未动，仅 `PrintAsmOperand`）✓；未 commit/push ✓；L1 rc=0（本轮末自跑）。
+
+**遗留/风险（非阻断）**：① `test-printf`/`test-printf-int` `%p`（277/278）为**既有缺陷**（A/B 同对象逐字节同输出），已登记 `ISS-304`（open，不下结论）✓；② `ISS-223`（musl 13 源排除表）另册回删；③ 未跑 `install-host`/L2/L3（按派单；今日安装根已新 ⇒ 裸 `check-lit` 已 121/121，其「预期红」前提消失）。
+
+**判决：Accepted** —— 验收 1–8 逐条达标（全量枚举 1120/non_ok=0、逐类判定有据、①③④ 现场结论齐、过滤表 ≤1 且有依据、无回归、可达 FAIL 3 组红→还原→绿、完成区逐条对齐、台账回填）。
 
 #### 第 1 轮 architect 提交 + 文件集审核（2026-10-20）
 - **档位**：按派单正常提交；**`reviewer` 尚未审**（本轮「第 1 轮 reviewer 验收」仍为占位）⇒ 与本规则「非 Accepted 用 `WIP:`」**不一致**，按派单执行并如实披露。
