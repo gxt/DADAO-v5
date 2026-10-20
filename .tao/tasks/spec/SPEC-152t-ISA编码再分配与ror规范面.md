@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9
 **依赖**：`ADR-0032`（**`Accepted`**，`D1`–`D6` 已于 2026-10-19 逐条确认；**开工前置 = `spec/` 改动授权原话落纸**）、`SPEC-141t`（`ror` 预研：候选 A 形态/收益/六环代价）、`SPEC-142t` / `SPEC-143t`（MISC-octa 子表补格 + 只读锁重算先例）、`SPEC-145t` / `SPEC-149t` / `SPEC-150t`（用户授权 + 只读册 `sha256` 同步先例）、`docs/Process-06`（`spec/` 目录保护）
-**状态**：待返工
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -138,6 +138,18 @@
 **新发现/坑**：① `check-spec-codeblocks` 额外命中 `DADAO-11`/`DADAO-22` 的汇编示例（6 处 `shl.uo`），必须机械改名并计入只读锁；② 任务书事实 4「`shr.s*` 8 命中」实指 `SimRISC-00` 表内 8 格，全 `spec/` 现为 59 命中（含正文/生成区）；③ `check-instrinfo` 不检查 `scope: m9`（`ror` 无 `.td` 定义也不报）⇒ 覆盖盲点，须 `LLVM-116t` 补。
 **遗留问题**：① 预期红三项按跨册归属处理（见上）；② 未改 `tests/llvm/lit/MC/DADAO/imm-range.s`、`CodeGen/DADAO/br-jt.ll`、`tools/llvm/llvm-isa-backend-matrix.*`、QEMU 探针/补丁（归后两册）；③ architect 下发的任务消息未附独立 `spec/` 授权句，本册按 `ADR-0032 §Context` 逐字引录；若审查要求更严格，请主会话补用户原话。
 
+### 返工（2026-10-20）
+
+**测试结果**：`run.sh` default **rc=0**（25 项必绿，含 `check-instrinfo`/`check-isa-coverage`/`check-interface` 已改必绿断言）；`run.sh --inject` **rc=0**（2 组独立注入，各「红 → `cp`+md5 还原 → 绿」）；`make check`（L1）**rc=0**。
+**修改文件**：新增 `tools/spec/check_tables.py`（校验器**入 git**）；重写 `.work/evidence/SPEC-152t/run.sh`；`.work/evidence/SPEC-152t/check_tables.py` 改**薄壳**（`.work` 不入 git）；本册。**未触碰** `spec/`、`contracts/`、`.tao/contracts/`，未 commit/push。
+**验收结果**：
+- **期望网格现场派生**：`contracts/opcodes.yaml` 每条记录 `(op, ha)` → `(子表, ha[5:3] 行, ha[2:0] 列)`，格内容 = 记录 `id`；再与 `SimRISC-00` 四表文本**双向**比对（缺格 / 多格 / 内容不符 均红）。现跑：**4 表 101 条记录 / 256 格，0 格不符**（记录数/格数/非空数均现场统计打印，代码内**无字面网格**）。
+- `--self-test`（临时树 `/tmp/opencode/SPEC-152t-rework/`）：baseline rc=0；改 `opcodes.yaml` 一格 ⇒ rc=1；改 `spec` 表一格 ⇒ rc=1；删 `spec` 一格 ⇒ rc=1。
+- `.work` 那份**改薄壳**（`runpy` 调仓库内真源）而非删除：本册正文与历史日志仍引用该路径，删除会使 `check-knowledge-refs` 悬空（实测 rc=2）；薄壳无任何逻辑，避免"两份实现漂移"。
+- 3 项「预期红」按现场改**必绿**（后端已由 `LLVM-116t`/`QEMU-064t` 收口），另增 `check-run-artifacts` 自检；日志统一 `SPEC-152t-evidence-*.log` / `SPEC-152t-inject-*.log`（`docs/Process-08` A3）。
+**新发现/坑**：① 证据工具放 `.work/` 被 `.gitignore` 忽略、无法版本控制 ⇒ 校验器必须落 `tools/spec/`，`.work` 只留薄壳；② 删除被任务书/日志引用的 `.work` 路径会破 `check-knowledge-refs`（悬空即红）；③ `run.sh` 日志名不匹配 `<TASK-ID>-*` 会被 A3 判红并级联破 L1。
+**遗留问题**：无（真源与四表内容零改动；三项后端门控已转绿，`git status -uall` 仅 `?? tools/spec/check_tables.py`）。
+
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
@@ -185,3 +197,18 @@
 - 文件集：本册 = 提交 `b6d691a`（`WIP:` 前缀；含 reviewer 已写未提交的验收段 + 本册返工要求段）；`milestones.md` 该册行/清单/进度行 = `23da6b7`。**无漏提 / 无多提 / 无越界**。
 - 门控：`make check`（L1）rc=**0**。
 - 提示（给返工 engineer）：本册真源/四表内容已被 reviewer 复核 **80 格 0 不符**，返工**只碰证据脚本**（`check_tables.py` / `run.sh`），**不得**改 `spec/`/`contracts/`。
+
+#### 第 2 轮 engineer 自审（返工，2026-10-20）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| G1 `--self-test` baseline 用 `expect_zero=0/1` 判真值，四例判定全反（baseline 报 FAIL） | ✅已修 | 用例改传 `True`/`False` | `--self-test` 4/4 PASS、rc=0 |
+| G2 直接删除 `.work/evidence/SPEC-152t/check_tables.py` ⇒ 本册正文引用悬空，`check-knowledge-refs` rc=2 | ✅已修 | 改为 `runpy` 薄壳（逻辑全在 `tools/spec/check_tables.py`） | `make check-knowledge-refs` rc=0；薄壳跑默认/`--self-test` 均 rc=0 |
+| G3 `run.sh` 两组注入耦合在同一路径、日志名 `evidence-*`/`inject-*` 不合 A3 | ✅已修 | 拆两组独立注入（各自备份/还原/md5 对账）；日志前缀 `SPEC-152t-` | `--inject` rc=0；`check-run-artifacts` rc=0 |
+| G4 完成区旧「预期红 3/3」与现场不符（后端已收口转绿） | ✅已修 | 三项改必绿断言，另纳 `check-run-artifacts` | `run.sh` default 25/25 PASS、rc=0 |
+
+**自审判决**：无未修 finding；未改 `spec/`/`contracts/`；未 commit/push；`**状态**` 保持 `待返工`（由 architect 置回 `待验收`）。
+
+#### architect 提交留痕（2026-10-20，返工）
+档位：**正常提交**（返工完成退回验收，无 `WIP:`）`8bb7008`。文件集 **3 项**：`tools/spec/check_tables.py`（新增，完成区已声明）+ 本册（已声明）+ `.tao/knowledge/milestones.md`（architect 状态同步，任务书未声明 = 已披露的**台账范围**）。`.work/evidence/**` 属忽略区未入 git；**无漏提 / 无越界**。
+门控：`check_tables.py` default rc=**0**（4 表 101 记录 / 256 格 / 0 不符）、`--self-test` rc=**0**（4/4）；`make check`（L1）rc=**0**（首次 rc=2 = 台账「一句改动」123 字符 > 120，缩短后转绿）。**未 push**。
