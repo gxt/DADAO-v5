@@ -705,3 +705,18 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 = `LLVM-118t` 完成区「遗留问题 ①」+「新发现/坑」；2026-10-20 architect 提交时立项，engineer 建议登记）】**现象（现场）**：picolibc full 档 8 例中 `test-printf`、`test-printf-int` 各 1 例 FAIL（余 6 例 pass）；失败断言仅 `test 277`/`test 278`（源 `test/test-stdio/test-printf-testcases.h:277-278`，两条均 `\"%p\"`，实参 `(void *)57ULL` / `(void *)57U`，期望 `\"0x39\"`）——实测 `\"0x8\"`（3 字符，期望 4）/ `\"0x3\"`，带宽度对照复现同形（`\" 0x8\"` / `\" 0x3\"`）；同文件其余 276 条断言 pass。**与 `LLVM-118t` 无关（A/B 实测）**：同一 `.o` 分别对「现行 `libc.a`」与「删去 `hash_page.c.o` 的归档」运行，输出**逐字节相同** ⇒ 非本册 picolibc 过滤表改动（1→0）引入。**待判（本笔不下结论 ✗）**：候选 ① 上游期望值/本端口口径（`(void*)57` 是否应打印 `0x39`，或 picolibc 对整数转指针的取值路径）；② `%p` 格式实现路径（`vfprintf` 指针分支）在 DADAO 上的行为；③ 若判**非本项目缺陷**，须写明依据（上游 issue / 宿主对照 / 其它 libc 同例结果）再关。**等级 = P2**（2 例；不阻断 `LLVM-118t` 判据 —— 本册主判据 = 现场重枚举 non_ok=0 + 过滤表 1→0 + `%N` 打印，均不含该项）。**证据指针**：`.work/log/llvm/LLVM-118t-picolibc-tests.log`（`test-printf ... fail`）、`.work/log/llvm/LLVM-118t-picolibc-tests2.log`（`test-printf-int ... fail`）、`.work/log/llvm/LLVM-118t-picolibc-tests.json:45`（4 条失败原文）、`.work/evidence/LLVM-118t/run.sh`；`.work/` 本机留档、**不入库**。**交叉引用**：`LLVM-118t`（登记源）、`ISS-193`（picolibc 移植范围）、`ISS-222`。**边界**：本笔**只登记** ⇒ 未改 `components/**` ✗、未改测试期望值 ✗、未改 `tools/**` ✗；不含 musl/libc-test 面。"
+- id: ISS-305
+  title: "【P2】`-g` 下 DADAO 汇编器报 `relocatable operand in a 1/2/4-byte data field`（48-bit 地址装不进 DWARF 的 4 字节重定位）"
+  status: open
+  scope: [llvm]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-055t` 完成区「归因 ①」+「新发现/坑 ②」，2026-10-20；architect 提交时登记）】**现象（ansibench 实测，非语料问题）**：ansibench `mk/gcc/stdflags.mk` 默认带 `-g` ⇒ `coremark` 等基准构建失败，汇编器报 `relocatable operand in a 1/2/4-byte data field` 并指明 `48-bit DADAO address`；命令行改 `-g0` 后 7/8 基准构建 rc=0 ⇒ **不阻塞任何基准**。**根因方向**：调试信息里落地址的重定位目标是 4 字节字段（32 位口径），而 DADAO 地址 48 位 ⇒ 装不下；需为调试信息的地址字段提供 8 字节通道（或按目标端宽发对应 DWARF form）。**影响**：`-g` 下调试信息面**当前不可用**（任何带 `-g` 的构建都会撞上），属**真实缺陷**。**等级 = P2**（不阻断本册判据：`-g0` 绕行后构建/运行/CRC PASS 均已成立）。**证据指针**：`.tao/tasks/testcases/TESTCASES-055t-ansibench语料接入.md` 完成区「验收结果 · 归因」「新发现/坑 ②」；`.work/log/testcases/TESTCASES-055t-*.log`（构建失败原文）、`.work/evidence/TESTCASES-055t/run.sh`（`-g0` 对照）。**交叉引用**：`TESTCASES-055t`（登记源）、`ADR-0033 D4`（三类归因 ①）、`LLVM-118t`/`LLVM-119t`/`LLVM-120t`（同批 llvm 面，本项**未**排期）。**边界**：本笔只登记 ⇒ 未改 `components/llvm-project/**`/汇编器 ✗、未改语料 ✗。"
+
+- id: ISS-306
+  title: "【P3】ansibench 两基准未闭环：`tripforce` 缺 OpenSSL（`openssl/des.h`）、`hint` 固定工作量在 qemu 下 900 s 未跑完（136/200 采样）——处置待用户裁定"
+  status: open
+  scope: [testcases]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（源 = `TESTCASES-055t` 完成区「新发现/坑 ⑦⑧」+「遗留问题 ①②」，2026-10-20；architect 提交时登记）】**现状（现场数字）**：① `tripforce` 构建即 `fatal error: 'openssl/des.h' file not found`（硬依赖 `DES_fcrypt`），DADAO 无 OpenSSL 端口 ⇒ 8 基准中唯一**未构建**项（built=7）；② `hint` 可构建（`runtime=0.001`）但运行是**固定工作量**（`NSAMP=200` / `STOPTM=240` 客机秒），`qemu-dadao` 下 `timeout 300` 用满（rc=124），另测 **900 s 仍未完成**（**136/200 采样**，采样已落日志）⇒ 无 oracle 且未跑完，冒烟未闭环。**待用户裁定（勿悬空）**：① `tripforce` —— 引入 OpenSSL（端口成本高）/ 登记为不支持并跳过 / 换等价实现；② `hint` —— 跳过 / 加长预算（900 s 仍不足，完成所需时间未知）/ 降 `NSAMP`（改运行参数，须裁定是否允许）。**等级 = P3**（两者均不阻断本册判据：7/8 构建、9 次运行、CoreMark/STREAM 自校验 PASS 已支撑「第一步走通」）。**证据指针**：`.tao/tasks/testcases/TESTCASES-055t-ansibench语料接入.md` 完成区「验收结果 · 构建/运行」「新发现/坑 ⑦⑧」「遗留问题 ①②」；`.work/evidence/TESTCASES-055t/run.sh`；`.work/log/testcases/TESTCASES-055t-*.log`。**交叉引用**：`TESTCASES-055t`（登记源）、`ADR-0033 D5`（不入门控）；与 `ISS-305` 同册。**边界**：本笔只登记 ⇒ 未引入依赖 ✗、未改语料/运行参数 ✗、未改超时预算 ✗。"

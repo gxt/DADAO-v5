@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M9
 **依赖**：无（前置 = 主会话执行 `make install-host` 刷新安装根 `clang`/`qemu-dadao`；同模块改 `tools/testcases/**` 的册**串行**：`TESTCASES-053t`/`TESTCASES-054t`）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-20）**：`find .tao -name 'TESTCASES-055t*'` = **0** 命中；全仓 `grep -ri ansibench .tao manifests` = **0** 命中 ⇒ 取 **`055`**，无同名册。
 
@@ -27,7 +27,7 @@
 - 体量 **1.8 MB**、**23 个 `.c`**；顶层目录 = `coremark` `dhrystone` `hint` `linpack` `nbench` `stream` `tripforce` `whetstone` `utilities` `mk`（**前 8 个** = 待跑基准；`utilities`/`mk` = 支撑）。
 - **构建方式**：每个基准目录是**小写 `makefile`**，用 `cc=` 变量，形如 `-include ../mk/$(cc)/{stdflags.mk,opt/$(opt).mk,<bench>/stdflags.mk}`；仓库内**只有 `mk/gcc`、`mk/hp-c`、`mk/vac` 三套** ⇒ **不改语料**也能驱动：`make CC=<安装根 clang> …`（缺失的 `-include` 片段被静默跳过，不影响构建）。
 - **仓库内无任何 golden / expected 输出**（0 个期望值文件）。
-- **只有 CoreMark 自带校验**（CRC 自校验 ⇒ **唯一真 oracle**）；`dhrystone`/`whetstone`/`linpack`/`stream`/`nbench`/`hint`/`tripforce` **只打印计时数字** ⇒ 只能判「跑完 / 崩 / 超时」。
+- **自校验 2 个：CoreMark（CRC）+ STREAM**（STREAM 打印 `Solution Validates: avg error less than 1.000000e-13`）。**原判断「只有 CoreMark 自带校验」已更正（实测，2026-10-20）**——据本册实测 `stream` 亦有自校验；CoreMark 的 CRC 仍是唯一的「算法级」oracle。`dhrystone`/`whetstone`/`linpack`/`nbench`/`hint`/`tripforce` **只打印计时数字** ⇒ 只能判「跑完 / 崩 / 超时」。
 
 ## 接口规范
 
@@ -83,17 +83,42 @@
 - **ADR（已裁定 2026-10-20）**：`.tao/adr/adr-0033-ansibench-corpus.md` **`Accepted`**（`D1`–`D5` 用户逐条确认；`D4` = 修订版，允许最小必要补丁 + 三类归因）。**锁条目由 architect 随 ADR 落地** ⇒ 本册执行者**只需 `make fetch`**。
 - **基线对比第二步**（是否实现、拿什么做基线）须在第一步结果与 §验收 5 的分析之上再裁定。
 
+## 基线对比分析（只分析，ADR-0033 D3；2026-10-20 实测，**未实现**）
+
+1. **仓库内 oracle：无**。`find .work/source/ansibench -iname '*expect*' -o -iname '*golden*' -o -iname '*.out' -o -iname '*.ref' -o -iname '*baseline*'` = **0** 命中（语料 23 个 `.c`、1.8 MB）。
+2. **有自校验的基准 = 2 个**（任务书原设「**只有** CoreMark」**不成立**，此处据实测更正）：**CoreMark**（三组 CRC + ≥10 s 规则，实测 `Correct operation validated.`）；**STREAM**（`Solution Validates: avg error less than 1.000000e-13`，实测通过）。其余 6 个只打印计时（nbench 另打印索引倍率，但非正确性判据）。
+3. **替代基线**：① **宿主同源跑比值（可行）**——同一 pin 语料 + 同一 `-O`，host gcc 与 `qemu-dadao` 各跑一遍取比值；本次旁证：hint 原生 `gcc -O2` 60 s 仅 2 个采样点，qemu 下 300 s 131 点，量级差 ≥100×。② **公开参考值（部分可行）**——Dhrystone VAX MIPS、Whetstone MWIPS、CoreMark/MHz、nbench 索引可作数量级 sanity，不能作性能目标。③ **与 `llvm-test-suite` 分工（可行且不重叠）**——后者管正确性/回归（有 RUN 输出比对），ansibench 管计时/冒烟；**不得**用 ansibench 替代其正确性覆盖。
+4. **qemu 计时不代表真机**：`qemu-dadao` 为 TCG 翻译执行，无 cache/流水线/分支预测建模，绝对值无意义；所有数字只能在**同一 qemu 版本 + 同一 flag 集**内做**相对**比较。
+
+**结论：部分可行** —— 可作「冒烟 + 相对趋势」（CoreMark/STREAM 自校验可当冒烟判据；计时只作相对）；**不可行**作绝对性能基线/门控（印证 `ADR-0033 D5` 不入门控）。第二步是否实现、拿什么做基线 ⇒ **待用户裁定**。
+
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：证据脚本 `default` **29/29 检查通过**（rc=0；现场统计 built=7 / ran=9 / complete=8 / timeout=1 / blocked=1）；`--inject` **5/5**（rc=0，两处注入 FAIL 后还原回绿）。
+**修改文件**：新增 `.work/evidence/TESTCASES-055t/run.sh`（`default`/`--inject`）；日志 `.work/log/testcases/TESTCASES-055t-*.log`；本册（完成区 + 基线分析 + 自审）。**无**源码/语料改动 ⇒ `components/ansibench/patches/` 未建。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- **落盘**：`make fetch` 走 `gh-proxy`（rc=0）⇒ `.cache/ansibench.git` + `.work/source/ansibench`；`git rev-parse HEAD` = `ef90abd09d7b7bb1f2809f896d6f67fb9724bebe`（= pin），`status --porcelain` 空。
+- **构建**（`make cc=gcc CC="<clang> --target=dadao-unknown-elf -static -nostdinc <musl incs> <musl>/lib/crt1.o" XCFLAGS="-g0 -std=gnu99 -L<musl>/lib -lc"`）：coremark / dhrystone / hint(`runtime=0.001`) / linpack / nbench / stream(`mp=`) / whetstone **rc=0**；tripforce **blocked**（`fatal error: 'openssl/des.h' file not found`）。
+- **运行**（`qemu-dadao`，静态 EXEC）：coremark 51.9 s → **`Correct operation validated.`**；dhrystone 38.9 s / reg 38.4 s；linpack sp 36.7 s / dp 37.8 s；nbench 84.4 s（`MINSECONDS=1`）；stream 57.3 s → **`Solution Validates`**；whetstone 12.0 s（`n=10000`）；hint **timeout 300 s**（另测 900 s 仍未完，136/200 采样）。
+- **CoreMark**：`coremark/bin/coremark`，sha256 `01652c05f532e9bcd145c21548391dcf16dd81bf3b6f477bc52c06891fedb623`；原文 `Correct operation validated.` + `Total time (secs): 51.814974`（≥10 s 规则满足）。
+- **归因（D4 三类，逐条不混类）**：① 编译器/后端 **1 例**——`-g` 触发汇编器 `relocatable operand in a 1/2/4-byte data field … 48-bit DADAO address`（DWARF 4 字节地址字段装不下 48-bit），以 `-g0` 绕行、**不阻塞任何基准**；② 语料 UB **0 例**；③ `rd`/`rb` bank 失配 **0 例**（无 int↔指针截断类崩溃/错值）。三类之外 2 项如实登记：tripforce **缺 OpenSSL**；hint 超时 = **固定工作量超预算**（非缺陷）。**未加任何语料补丁。**
+- **门控**：`make check`(L1) rc=0；`check-tasks` / `check-knowledge-refs` / `check-no-residue` / `check-run-artifacts` / `check-issues` / `check-patch-tree` 逐项 rc=0；`check-patch-tree` = **5 component(s), 185 patches OK**（不变）。
+**新发现/坑**：① **STREAM 也自校验**（`Solution Validates`），原设「仅 CoreMark」不成立；② `-g` 在 DADAO 汇编器失败（DWARF 4B reloc vs 48-bit 地址，**后端能力缺口**，建议登记 ISS）；③ 非 `-static` 链接仍产 PIE+PLT，无 ldso ⇒ GOT 未重定位，qemu 在 PLT 跳 0 段错误；④ 链接必须由 clang 驱动（自带 compiler-rt builtins），只用 `ld.lld + libc.a` 在 `printf("%f")` 路径缺 `__extenddftf2/__multf3` 等；⑤ `-ansi`（语料 gcc 片段）+ musl 头（C99 `restrict`）冲突 ⇒ 命令行 `-std=gnu99`（未改语料）；⑥ nbench `-c<file>` 会把参数**就地大写**且 NNET 读相对 `data/NNET.DAT`；⑦ hint 固定工作量（`NSAMP=200`/`STOPTM=240` 客机秒）在 qemu 下 900 s 仍未完成；⑧ tripforce 硬依赖 OpenSSL（`openssl/des.h` + `DES_fcrypt`），DADAO 无。
+**遗留问题**：① tripforce 阻塞（缺 OpenSSL，D4 三类之外）——是否移植/换实现须**用户裁定**；② hint 无 oracle 且超时，冒烟未闭环；③ 基线对比第二步（是否实现 / 拿什么做基线）待裁定；④ **状态处置**：按派单**未改** `**状态**`（保持 `待开始`），`check-milestones-fresh` A1 现 PASS ⇒ 状态与流水行同步由 architect 收尾；⑤ 无未修 finding。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填写）
+**结论**：无未修 finding；证据脚本 `default` 29/29、`--inject` 5/5 均真实重跑。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 证据脚本 `pin_of` 重复打印 pin（awk `flush` 后未清 name/commit） | ✅已修 | `flush()` 打印后清空 | `--inject` B 由「两行 pin + rc=1」→ 单行 + 检测成立 |
+| `--inject` B 谓词方向错（用 `!=` 使 rc=0 被 INV_CK 判失败） | ✅已修 | 改为 `[ "$p" = "$PIN" ]`（注入副本 rc=1 → INV 通过） | `injectB-lock-pin ... observed-rc=1 rc=0 OK` |
+| 相对 `$MUSL` 路径在 `make -C` 下失效（`crt1.o` 找不到，7 个 build 全 rc=2） | ✅已修 | `ANS`/`MUSL`/`LOG` 改绝对路径（`$ROOT/...`） | 7/7 build rc=0（`run-default.log`） |
+| hint 运行产物 `hint/data/double` 污染 pin 检出（`source-clean-after-run` 1 entry） | ✅已修 | 运行后 copy 到 `.work/log` 再 `rm -rf data` | `source-clean-after-run 0 entries rc=0` |
+| `CK` 的 `$?` 可能被前置命令替换覆盖 | ✅已修 | 一律先 `grc=$?` 再调用（逐条核对 29 处） | 29 项判定与日志原文一一对应 |
+| 构建/运行参数偏离上游默认（`-g0`/`-std=gnu99`/`-static`/`mp=`/`runtime=`/`n=10000`/`MINSECONDS=1`） | ✅已披露 | 均走命令行变量、**未改语料**；理由在完成区「新发现/坑」 | `git -C .work/source/ansibench status` 空 |
+| 自审复核：`--inject` 是否真能失败（非恒真） | ✅已验 | 注入 A（迭代数 10）→ 校验缺失；注入 B（pin 改一位）→ 检测失败 | 两处 `observed-rc=1`；还原后各 1 次 `rc=0` |
 
 #### 第 1 轮 reviewer 验收
 （待填写）
@@ -103,3 +128,10 @@
 - **锁条目**：`manifests/components.lock.toml` 的 `[[component]] name = "ansibench"`（`enabled`/`shallow=false`/`patchless`）+ `source[]` = `gh-proxy`(source[0]) / `github` 已由 architect 落地；依据 = 直连 `ls-remote` 超时 rc=124、`gh-proxy` rc=0 且回报 pin 一致。
 - **门控现场（architect 实测，与本次改动无关的红）**：`manifest-check` **PASS**；`check-patch-tree` 报 **2 problem(s)** 全在 `llvm-project`（`.work/source/llvm-project/lld/ELF/Arch/DADAO.cpp` 被**并发会话**修改，mtime 12:03:14；改动前基线 = `5 component(s), 185 patches OK` rc=0）；`check-run-artifacts` 因并发 `libc-test-user` 跑批目录**写一半**而红（另一目录随后补齐）。ansibench 在 `--source-state` 输出 `patchless; skipped`（不参与补丁树）。
 - **提交**：见 `git log`（architect 提交权；分支 `ADR-0033-ansibench`）。
+
+#### architect 提交留痕（2026-10-20，非 engineer/reviewer 轮次）
+- **笔 1（审阅记录入库）**：档位 = 正常提交（三册 reviewer 第 1 轮均 **Accepted**）；提交 **`adc9dc0`**；`git diff --cached --name-only` = 仅 `LLVM-100t`/`LLVM-117t`/`QEMU-066t` 三册，漏提 0 / 多提 0 / 越界 0。派单明令三册「不改」，故该笔留痕集中记于本节。
+  - **披露**：`LLVM-117t` 的 reviewer 编辑把前一笔 architect 留痕（`22d3aca` 对账行）覆盖掉了；按派单「三册不改」**未回补**，在此登记以保可审计。
+- **笔 2（本册 + 台账）**：档位 = 正常提交（**按派单指定**；本册 reviewer 尚未审、状态 `待验收`，与 `LLVM-117t` 先例同口径）；提交 = **本笔**（同笔自指无法嵌入自身号 ⇒ 取 `git log -1`，信息前缀 `TESTCASES-055t：`；前一笔 `adc9dc0` 不受 amend 影响）；`git diff --cached --name-only` = 本册 + `issues.yaml` + `milestones.md`（状态同步）+ `adr-0033`（勘误一行），漏提 0 / 多提 0 / 越界 0。
+  - **本笔内容**：① `**状态**` `待开始`→`待验收`；② 「已核事实」自校验口径更正（**2 个**：CoreMark CRC + STREAM `Solution Validates`，原判断已更正）；③ `issues.yaml` 新增 **`ISS-305`**（`-g` 下 DWARF 4B 重定位装不下 48 位地址，`P2`/llvm）、**`ISS-306`**（`tripforce` 缺 OpenSSL + `hint` 900 s 未跑完，`P3`/testcases，待裁定）；④ `adr-0033` `D3` 后加**勘误行**（非决策变更，判据不变）。
+  - **门控**：`check-patch-tree` **5 component(s), 185 patches OK** rc=0；`make check`(L1) rc=0。

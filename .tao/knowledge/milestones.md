@@ -35,7 +35,7 @@
 > **未完成任务册（14 册）**
 > - 缺陷修复批（2026-10-20 立册，`ISS-302`）：`LLVM-118t`（`ISS-193` 残余 + `ISS-222` ①/③/④）、`LLVM-119t`（`ISS-197` `"m"` 约束崩溃；`待验收`）、`LLVM-120t`（`ISS-245` 静态 PIE `_DYNAMIC`）、`INFRA-097t`（`ISS-235` L3 载体全量）、`INFRA-098t`（`ISS-261` + `ISS-301`）、`INFRA-099t`（`ISS-229` 门控互斥）、`TESTCASES-053t`（`ISS-270`/`273`/`282`/`288` 陈旧证据脚本族）
 > - `TESTCASES-054t`：`M9` 超时预算重标（`lua` 840→1320、`XSBench` 300→660；`unix-smail` 疑已随 `QEMU-063t` 修复；`待开始`）
-> - `TESTCASES-055t`：`M9` ansibench 语料接入**第一步**（pin `ef90abd0`；8 基准构建 + `qemu-dadao` 实跑 + CoreMark 自校验；基线对比只分析；`待开始`）
+> - `TESTCASES-055t`：`M9` ansibench 语料接入**第一步**（pin `ef90abd0`；8 基准构建 + `qemu-dadao` 实跑 + 自校验 2 例（CoreMark/STREAM）；基线对比只分析；`待验收`）
 > - `INFRA-096t`：`M9` / `ISS-293` 真根因（builtins 归档陈旧）+ 新鲜度门控（`待验收`）
 > - `QEMU-066t`：`M9` / T3 残余 4 例的 qemu 缺口：`ISS-296` PI futex、`ISS-297` robust list、`ISS-298` 取消被重启（`待验收`：三条全修，4 例两档 4/4）
 > - `LLVM-100t`：`M9` / **T4** 静态 `__thread` TLS codegen + 静态档 3 例（`待验收`）
@@ -46,7 +46,7 @@
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
 | QEMU-065t | 已验证 | 2026-10-20 11:50 | T2 qemu-user 线程语义：clone/TLS/futex/exit/信号；并发互斥丢更新 ⇒ 根因 musl `a_cas` 假原子（另立 ISS-294） |
-| TESTCASES-055t | 待开始 | 2026-10-20 10:53（登记） | ansibench 接入第一步：pin `ef90abd0`、8 基准构建 + `qemu-dadao` 实跑、CoreMark 自校验；基线对比只分析 |
+| TESTCASES-055t | 待验收 | 2026-10-20 10:53（登记） | ansibench 接入第一步：pin `ef90abd0`、7/8 构建成功、9 次运行、CoreMark/STREAM 自校验 PASS；基线对比=部分可行 |
 | INFRA-095t | 已验证 | 2026-10-20 10:52 | T1 musl `__clone`+TP：`rb3` 仅 `CLONE_SETTLS` 时写；spawn/popen 两档 2/2、T3 19 目标 19/19；`ISS-295` closed |
 | SPEC-152t | 已验证 | 2026-10-20 10:52 | ISA 编码再分配 + `rol`；ext 迁 100/101、shl 迁 010/011；校验器入 `tools/spec/`，4 表 256 格 0 不符、self-test 4/4 |
 | TESTCASES-052t | 已验证 | 2026-10-20 10:52 | T3 线程 19 例两档 19/19（`QEMU-066t` 后）；`ISS-299` closed；`ISS-252` 仍 open（extra 例受 `ISS-257`） |
