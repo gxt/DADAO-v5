@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
 new file mode 100644
-index 000000000..6488181a5
+index 000000000..523d89c57
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,267 @@
 +//===-- DADAOAsmPrinter.cpp - DADAO LLVM Assembly Printer ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -180,6 +180,51 @@ index 000000000..6488181a5
 +  TLSGOTSlots.clear();
 +  TLSGDIndexSlots.clear();
 +  GOTSlotOrder.clear();
++}
++
++bool DADAOAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
++                                      const char *ExtraCode, raw_ostream &O) {
++  // The generic printer owns the operand modifiers this target supports
++  // (`c` bare immediate, `n` negated immediate, `s` GCC's deprecated shift
++  // count, `a` address-of).  DADAO adds no target-specific modifier, so any
++  // other letter stays a diagnosed error instead of printing something
++  // arbitrary.
++  if (!AsmPrinter::PrintAsmOperand(MI, OpNo, ExtraCode, O))
++    return false;
++  if (ExtraCode && ExtraCode[0])
++    return true;
++
++  // A plain `%N` reference (ISS-222 ①): substitute the operand's assembly
++  // spelling.  Anything this switch does not handle is reported by the caller
++  // as "invalid operand in inline asm" -- it must never silently print an
++  // empty string.
++  const MachineOperand &MO = MI->getOperand(OpNo);
++  switch (MO.getType()) {
++  case MachineOperand::MO_Register: {
++    // Post-RA inline-asm operands are physical registers; a virtual one here
++    // means the operand was never allocated, so fail rather than print a
++    // bogus name.
++    if (!MO.getReg().isPhysical())
++      return true;
++    const TargetRegisterInfo *TRI =
++        MI->getMF()->getSubtarget().getRegisterInfo();
++    O << TRI->getName(MO.getReg());
++    return false;
++  }
++  case MachineOperand::MO_Immediate:
++    O << MO.getImm();
++    return false;
++  case MachineOperand::MO_GlobalAddress:
++    PrintSymbolOperand(MO, O);
++    return false;
++  case MachineOperand::MO_BlockAddress: {
++    MCSymbol *Sym = GetBlockAddressSymbol(MO.getBlockAddress());
++    Sym->print(O, MAI);
++    return false;
++  }
++  default:
++    return true;
++  }
 +}
 +
 +bool DADAOAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,

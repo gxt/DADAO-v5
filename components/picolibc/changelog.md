@@ -38,3 +38,9 @@
 - **2026-10-19 `LLVM-115t`**
   - 摘要：**`ld128` 数学引擎 `__atold_engine` 接入**（`ISS-287`，`ISS-193` (f) 落点）：binary128 落地后 `atold_engine.c` 已可编译（单源 `-O2`/构建默认 flags 实测 rc=0），故只从 `meson.build` 的 `_dadao_backend_blocked` 删该 1 条（过滤表 2→**1**），并同步注释；picolibc 上游源零改动，`series` **14 不变**（`meson.build.patch` 一份既有补丁改）。`libc.a` 中 `__atold_engine` 由 `U` 转 `T`，`strtold`/`wcstold` 链接解阻。
   - 执行者：engineer
+
+## M9
+
+- **2026-10-20 `LLVM-118t`**
+  - 摘要：**`_dadao_backend_blocked` 清零（1 → 0）**（`ISS-193` 收口；上游源零改动）：按「全量重编」口径现场重枚举 —— 在 `/tmp` 源副本把过滤表置空后 `meson setup` 得**全部 1120 个编译项**，逐条真实 `-c` 重编 **0 条失败**（`non_ok=0`），故删最后一条 `hash_page.c`（`ISS-193` (c) i64 `bswap`，早由 `LLVM-097t` 的 `Expand` 收口）并同步注释；过滤机制保留（`_dadao_backend_blocked = []`，供未来缺口按同一格式登记）。`series` **14 不变**（`meson.build.patch` 一份既有补丁改）。**真值**：`make build-picolibc` rc=0，`libc.a` 2,028,044 → **2,041,338 B**；`llvm-nm` 中 `__hash_open`/`__delpair`/`__addel`/`__get_page`/`__put_page`/`__ibitmap`/`__split_page`/`__add_ovflpage`/`__free_ovflpage` 等由 `U` 转 **`T`**（修前 `dbm_open` 链接失败于 `undefined symbol: __delpair` 等 9 条；修后链接 rc=0、运行 guest exit 0）。**未跑**：`install-host`/L2/L3（按派单；picolibc 定点测试 `--only` 7/7 pass）。
+  - 执行者：engineer

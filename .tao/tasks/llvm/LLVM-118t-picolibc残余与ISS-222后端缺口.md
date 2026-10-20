@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`INFRA-096t`（builtins/安装根新鲜度门控，`待验收`——本册要跑 picolibc 构建与测试，安装根不新鲜会假绿/假红）、`LLVM-117t`（动态 TLS，`待验收`）、`QEMU-064t`（新解码表，`待验收`）、`LLVM-119t`（同改 `components/llvm-project/**`，**必须串行**，见「约束」）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-20）**：`llvm` 现存最大 = `LLVM-117t` ⇒ 取 **`118`**（编写前 `grep -rn 'LLVM-118' .tao/` 零命中）。
 
@@ -68,16 +68,46 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：证据脚本 `.work/evidence/LLVM-118t/run.sh` default **25/25 rc=0**、`--inject` **9/9 rc=0**（3 处可达 FAIL：改错 lit 期望 / 改错运行期 oracle / 归档删 `hash_page.c.o`，均红→绿；`cp`+md5 对账仓库零改动）。L1 `make check` rc=0；`check-lit` **121/121**；`check_lit_gen` / `check-instrinfo` / `check-patch-tree`(**185**) / `check-index-blobs` / `check-source-state` / `check-no-residue` / `check-tasks` / `check-knowledge-refs` / `check-component-changelog` / `check-issues` / `check-isa-coverage` 全 rc=0。picolibc 定点 `--only` **7/7 pass**（`test-malloc`/`test-memset_s`/`hsearchtest`/`test-strtod`/`test-setjmp`/`test-pow`/`test-memcpy_s`）。
+**修改文件**：`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOAsmPrinter.{h,cpp}.patch`、`components/picolibc/patches/meson.build.patch`、`components/{llvm-project,picolibc}/changelog.md`、`components/picolibc/README.md`（「当前移植范围」段更新为过滤表 0 条）、`.tao/knowledge/{issues.yaml,milestones.md}`、本册。**越界披露**：新增 `tests/llvm/lit/CodeGen/DADAO/inline-asm-operands.ll`（任务书验收 3 要求 lit；派单文件集未列）。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+① **现场重枚举（全量、非抽样）**：全集 **1120** 条（等式：现行构建 1119 + 过滤 1 = 1120；改后 1120 = 1120 + 0），逐条真实 `-c` ⇒ **non_ok = 0**（TSV：`.work/log/llvm/LLVM-118t-enum-tsv.txt`）。旧「6 类 41 源」**全部消失**，逐类归因：**(a)** `LLVM-084t`、**(e)** `LLVM-086t`、**(b)** `LLVM-087t`+`LLVM-089t`、**(d)** `LLVM-088t`、**(c)** `LLVM-097t`、**(f)** `LLVM-115t`（本册现场复证，未继承旧数）。
+② **逐类判定**：`ISS-222` ① ⇒ **做**（唯一仍「空串+误导诊断」项，代价 1 个覆写；`LLVM-086t` 裁定 C 只约束约束字母，不禁止打印）；③ rotl/rotr/bswap ⇒ **不做（已收口）**；④ `dynamic_stackalloc` ⇒ **不做（已收口）**；`ISS-193` (c) `hash_page.c` ⇒ **做（删表）**；其余 5 类 ⇒ **不做（已由前册收口，本册 0 失败复证）**。
+③ `%N` 真值：修前安装根 `llc` **rc=1** + `invalid operand in inline asm` + `add.si , 5`；修后 rc=0 → `add.si rd32, 5` / `swym 3` / `add.si rd34, 7`+`add.si rd35, 9` / `set.zw rd5, wp0, g`；运行期 `pn 105 32 17 10` exit 0；lit 新例**旧 llc 红 / 新 llc 绿**。
+④ ③④ 真值：`llc -O2` `ROTL`=1 条 `rol.o`、`ROTR`=`sub.so`+`rol.o`、`i64 bswap`=`Expand`（无 `Cannot select`）、`dynalloc`=Expand；运行期 `rot 23456789abcdef01 ef0123456789abcd efcdab8967452301 4950 5050` exit 0。bswap **未**改 `rev.o`：`Legal` 会命中 i32 bswap 的 `PromoteIntRes`（`LLVM-097t` 结论）⇒ 收益 27→1 条不抵回归风险。
+⑤ picolibc：`build-picolibc` rc=0；过滤 **1 → 0**；`libc.a` 2,028,044 → **2,041,338 B**；`llvm-nm` 11/11 符号 `T`；`dbm_open` 探针改前链接失败 9 条 `undefined symbol`、改后链接+运行 rc=0。
+⑥ 补丁：llvm **2 份改** + picolibc **1 份改**；`series` 83/14 **不变**；`check-patch-tree` **185** rc=0；组件树 E1/E3 收敛（`--source-state` OK）。
+**新发现/坑**：① 改组件 commit ⇒ clang `.comment` 版本串变 ⇒ `build-builtins` 必须重跑（237 s），且 `atomic-install` 未刷新 build-tree/安装根副本 ⇒ 手工 `cp` 同一归档两处（sha256 `5512be72…`）+ `build-musl{,-shared}` 刷新戳记（12 s）；② overlay 下 E2E lit 把 qemu 解析为 `<llvm>/qemu` ⇒ 建**未跟踪**软链 `.work/build/llvm/qemu -> ../qemu` 后 `check-lit` 才 121/121；③ 重枚举命令**必须** `PATH=<install-root>/bin` 前置，否则 triple 全红（假红）。
+**遗留问题**：① **既有缺陷（非本册引入）**：`test-printf`/`test-printf-int` 的 `%p` 用例（277/278）失败；A/B 对照（同一 `.o` × 删 `hash_page.c.o` 的归档）**逐字节同输出** ⇒ 与本册无关，建议主会话登记 issue。② 按派单**未跑** `install-host` / L2 / L3（含 `check-picolibc-tests(-full)`）；`check-lit` 走 `LLVM_TOOLS_DIR` overlay，故裸 `make check-lit` 在新 lit 例上预期红，`install-host` 后回绿。③ `ISS-223`（musl 13 源排除表）本册未动，需另册回删。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+**代码级审查（`DADAOAsmPrinter::PrintAsmOperand`）**：先交基类处理 `c`/`n`/`s`/`a`（`return false` 即已印）；带任何其它修饰符一律 `return true`（不猜、不吞）；`MO_Register` 要求物理寄存器（post-RA），否则 `return true` 交调用方诊断；`MO_Immediate` 十进制、`MO_GlobalAddress` 复用 `PrintSymbolOperand`（含 offset）、`MO_BlockAddress` 复用 `GetBlockAddressSymbol`；`default` 仍 `return true`。与 `LLVM-119t` 的 `PrintAsmMemoryOperand`（`[rb, off]`、修饰符非空即拒）同一口径，未新增约束字母、未改 ISA/ABI。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `%N` 探针首版把立即数写成 `%1`（实为 tie 输入 `%0` 的寄存器），误判「仍印错」 | ✅已修 | 探针改 `%2` 指向 `"i"(12)` | `add.si rd33, 12`；运行期 32 ✓ |
+| F2 旋转探针首版用移位 idiom（clang 未识别）+ VLA/alloca 被 DCE 删除 ⇒ 未覆盖 `ROTL/ROTR/DYNAMIC_STACKALLOC` | ✅已修 | 改 `__builtin_rotateleft64/rotateright64` + volatile 读写强制保留分配 | 汇编含 `rol.o` / `sub.so` / `rd2rb {rb1}` |
+| F3 旋转探针 oracle 算术错（`100+…+1` 写成 4950，实为 5050） | ✅已修 | 期望值改 5050 | 程序先 exit 1（证明比较非恒真），改后 exit 0 |
+| F4 证据脚本 `need()` 用 `-x` 检查 `.a` ⇒ 误报 missing | ✅已修 | 加 `need_file()`（`-f`） | 脚本 header 段通过 |
+| F5 `build_run` 未合并 qemu stderr（semihosting 输出走 stderr）⇒ stdout 捕获为空 | ✅已修 | qemu 行 `2>&1` | C7.1/C9.1 stdout 逐字相等 |
+| F6 `check-run-artifacts` 拒 `.tsv` 扩展名 | ✅已修 | 改名 `LLVM-118t-enum-tsv.txt` + 同步 issue 引用 | L1 rc=0 |
+| F7 新增 `tests/llvm/lit/...` 超出派单文件集 | ✅已披露 | 不撤销（验收 3 明令要求 lit） | 完成区「修改文件」+ 回报 |
+| F8 overlay 下 `make check-lit` 的 9 例 E2E rc=127（qemu 路径解析） | ✅已修（本地） | 未跟踪软链 `.work/build/llvm/qemu -> ../qemu` | `check-lit` 121/121 rc=0 |
+
+**判决**：全部 finding 已处置，无未修项 ⇒ 状态置 `待验收`（`check-milestones-fresh` A1 要求表行与册一致，`milestones.md` 同步）。
+
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### 第 1 轮 architect 提交 + 文件集审核（2026-10-20）
+- **档位**：按派单正常提交；**`reviewer` 尚未审**（本轮「第 1 轮 reviewer 验收」仍为占位）⇒ 与本规则「非 Accepted 用 `WIP:`」**不一致**，按派单执行并如实披露。
+- **开工核对**：`git branch --show-current` = `LLVM-118t`；`git status --porcelain -uall` = 9 M + 1 ??（与本册完成区「修改文件」+ 越界披露逐条对得上）。未跟踪软链 `.work/build/llvm/qemu -> ../qemu` 落在忽略区、**不入库**、**保留**（后续 E2E lit 用）。
+- **提交**：`81cf486`（分支 `LLVM-118t`，**未 push**）；`git diff --cached --name-only` = **10 文件**（2 份 `DADAOAsmPrinter` 补丁 + `meson.build.patch` + 2 份 `changelog.md` + picolibc `README.md` + `issues.yaml` + `milestones.md` + 本册 + 新增 `inline-asm-operands.ll`）；漏提 0 / 多提 0 / 越界 1（新 lit，完成区已披露）；`series` 83/14 未动。
+- **门控（architect 复跑）**：`check-patch-tree` rc=0（5 组件 / **185** patch OK）；`check_issues` rc=0（53 open / 23 closed，含本次新登记）；`check-tasks` / `check-knowledge-refs` / `check-milestones-fresh` / `check-component-changelog` / `check-no-residue` 均 rc=0；L1 `make check` rc=0（`.work/log/llvm/LLVM-118t-architect-L1.log`，末行 `repository checks (L1): PASS`）。
+- **状态核对**：本册 `**状态**：待验收` == `milestones.md` 流水行 `待验收`（`check-milestones-fresh` A1 口径）✓。
+- **新登记**：`ISS-304`（`P2` / `scope: [testcases]`）= picolibc `test-printf`/`test-printf-int` 的 `%p`（serial 277/278，期望 `0x39`、实得 `0x8`/`0x3`）失败；A/B 删 `hash_page.c.o` 输出逐字节相同 ⇒ 与本册无关；**只建条目、不下结论**（期望值 / 格式实现 / 上游与否待后续册判）。
+- **遗留处置**：完成区「遗留 ①」已由 `ISS-304` 覆盖；「遗留 ②」按派单未跑 `install-host` / L2 / L3（假绿风险已知，裸 `make check-lit` 在新 lit 例上预期红）；「遗留 ③」`ISS-223` 另册回删，本册未动。

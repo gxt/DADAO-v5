@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.h b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
 new file mode 100644
-index 000000000..191423c89
+index 000000000..d167cbdf7
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.h
-@@ -0,0 +1,127 @@
+@@ -0,0 +1,138 @@
 +//===-- DADAOAsmPrinter.h - DADAO LLVM Assembly Printer --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -90,6 +90,17 @@ index 000000000..191423c89
 +  bool runOnMachineFunction(MachineFunction &MF) override;
 +
 +  void emitInstruction(const MachineInstr *MI) override;
++
++  /// Print a non-memory inline-asm operand (`%0`, `%1`, …; ISS-222 ① /
++  /// LLVM-118t).  AsmPrinter's base implementation only knows the generic
++  /// operand modifiers (`c`/`n`/`s`/`a`) and returns "unsupported" for every
++  /// plain operand, so before this override `%0` was substituted as the empty
++  /// string (`rb2rd %0, rb3, 1` -> `rb2rd , rb3, 1`).  Registers print with
++  /// their assembly name (the same `rd`/`rb`/`rf` spelling the MC printer
++  /// uses), immediates as decimal, and global/block addresses through the
++  /// usual symbol printer.
++  bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
++                       const char *ExtraCode, raw_ostream &O) override;
 +
 +  /// Print an inline-asm memory operand (ISS-197 / LLVM-119t).  The operand
 +  /// was selected by DADAODAGToDAGISel::SelectInlineAsmMemoryOperand into the

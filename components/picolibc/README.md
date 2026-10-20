@@ -19,7 +19,9 @@ DADAO 的 C 库组件（**M7 test 重心**：picolibc 自带 test 套件）。�
 
 ### 当前移植范围（`INFRA-066t`）
 
-`LLVM-079t`（P0）/ `LLVM-080t`（P1）收口后，`INFRA-066t` **删除**了 `meson.build` 里的**整目录 `libm/` 排除**，并把后端受阻源过滤**最小化到 41 条**——该 41 条由「把本构建的**全部 1120 个编译项逐条重编**（全量、非抽样）」精确得出（条目 / 失败签名 / 根因见 `ISS-193`）。数学库主体（f64 三角 / 指数 / 对数 / 取整 / `fmin`-`fmax`）因此并入 `libc.a`，`nm` 复核 8 符号全命中。**仍不可链接**：`pow`/`hypot`/`j0`/`y0`/复数函数/`scanf` 族/`memset_s`（`ISS-193` 六类根因——最大类是缺 FP 谓词 `SETO`/`SETUO`/`SETUNO` 的 lowering，占 30/41）。
+`LLVM-079t`（P0）/ `LLVM-080t`（P1）收口后，`INFRA-066t` **删除**了 `meson.build` 里的**整目录 `libm/` 排除**，并把后端受阻源过滤**最小化到 41 条**——该 41 条由「把本构建的**全部 1120 个编译项逐条重编**（全量、非抽样）」精确得出（条目 / 失败签名 / 根因见 `ISS-193`）。数学库主体（f64 三角 / 指数 / 对数 / 取整 / `fmin`-`fmax`）因此并入 `libc.a`，`nm` 复核 8 符号全命中。
+
+**2026-10-20（`LLVM-118t`）：过滤表已清零**（41 → … → **0** 条）。按同一口径现场重枚举（临时源副本、`_dadao_backend_blocked` 置空、**1120** 项逐条真实 `-c`）**0 条失败**；最后一条 `hash_page.c`（`ISS-193` (c) i64 `bswap`，`LLVM-097t` 已走 `Expand`）删除后，`__hash_open`/`__delpair`/`__addel`/`__get_page`/`__put_page`/`__ibitmap`/`__split_page`/`__add_ovflpage`/`__free_ovflpage` 在 `libc.a` 中为 `T`，`dbm_open` 可链接。过滤机制与「只删不增、每条须登记 `ISS-193`」的规则保留。
 
 ## 构建与验证
 

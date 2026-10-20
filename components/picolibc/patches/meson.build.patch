@@ -1,8 +1,8 @@
 diff --git a/meson.build b/meson.build
-index 93daa5d..a04263c 100644
+index 93daa5d..1817d0f 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1924,6 +1924,37 @@ foreach libname : libnames
+@@ -1924,6 +1924,36 @@ foreach libname : libnames
    libsrcs += get_variable('src_' + libname, [])
  endforeach
  
@@ -27,20 +27,19 @@ index 93daa5d..a04263c 100644
 +# terms of the public `logf`, which clang lowers to `llvm.log.f32`.
 +# LLVM-115t removed the (f) entry (atold_engine.c) after binary128 landed: the
 +# source compiles again and <stdio.h>'s strtold/wcstold need __atold_engine.
++# LLVM-118t removed the last entry (hash_page.c, (c) i64 bswap): LLVM-097t had
++# already lowered `bswap i64` through the generic Expand path, so the source
++# compiles under the current backend and its symbols (__delpair/__addel/
++# __get_page/__put_page/__ibitmap/__split_page/__add_ovflpage/__free_ovflpage)
++# now land in libc.a.  The list is therefore empty; the mechanism is kept as the
++# documented way to record a *new* backend gap (never extend it silently, and
++# register every entry in ISS-193 with a failure signature).
 +_dadao_backend_blocked = []
-+if host_cpu_family == 'dadao'
-+  _dadao_backend_blocked = [
-+    # i64 bswap not selected; ISS-193 (c).
-+    'hash_page.c',
-+  ]
-+  message('DADAO port scope: excluding @0@ backend-blocked libc sources (ISS-193)'
-+          .format(_dadao_backend_blocked.length()))
-+endif
 +
  foreach params : targets
    target = params['name']
    target_dir = params['dir']
-@@ -1939,6 +1970,23 @@ foreach params : targets
+@@ -1939,6 +1969,23 @@ foreach params : targets
      libsrcs_target += get_variable('src_' + libname + target, [])
    endforeach
  
