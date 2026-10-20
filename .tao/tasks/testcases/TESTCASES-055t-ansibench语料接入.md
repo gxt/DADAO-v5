@@ -121,7 +121,22 @@
 | 自审复核：`--inject` 是否真能失败（非恒真） | ✅已验 | 注入 A（迭代数 10）→ 校验缺失；注入 B（pin 改一位）→ 检测失败 | 两处 `observed-rc=1`；还原后各 1 次 `rc=0` |
 
 #### 第 1 轮 reviewer 验收
-（待填写）
+（2026-10-20 reviewer 独立重跑；**判定 = Needs Revision**——实质交付全绿，1 项数字失实 + 2 项口径失实须勘误后回绿即成）
+**重跑记录**（自跑，产物在 `/tmp/opencode/REVIEW-055t/`）：
+- `./run.sh` default：`checks=29 pass=29 fail=0 built=7 ran=9 complete=8 timeout=1 crash=0 blocked=1`、`EXIT=0`（与完成区逐字一致）；`--inject`：`5/5`、`RERUN_INJECT_EXIT=0`（两处 `observed-rc=1` → 还原后绿）。
+- 锁定/检出：lock `ansibench` `commit=ef90abd09d7b7bb1f2809f896d6f67fb9724bebe`/`patchless=true`/`shallow=false`；`git -C .cache/ansibench.git cat-file -e <pin>^{commit}` rc=0；`.work/source/ansibench` `rev-parse HEAD`=pin、`status --porcelain` **0 entries**。
+- 构建/运行/自校验真值：7/8 rc=0（tripforce blocked：`openssl/des.h`）；9 运行 = 8 complete + hint `timeout rc=124 wall=300012ms`；CoreMark `Correct operation validated.` + `Total time (secs): 51.7`（≥10 s）；STREAM `Solution Validates`（册已改为自校验 **2 个** ✓）。重建 coremark ELF sha256 = `01652c05f532…fedb623`（与完成区**完全一致** ⇒ 构建可复现）。
+- `-g` 缺陷独立复现（自写 `gprobe.c`）：`-g` ⇒ 20 errors `relocatable operand in a 1/2/4-byte data field … 48-bit DADAO address`（rc=1）；`-g0` rc=0 ⇒ `ISS-305` 成立。
+- 归因合规（`D4`）：①后端 1 例（-g/ISS-305）②语料 UB 0 ③`rd`/`rb` 0；`components/ansibench/patches/` 不存在 ✓；外部 2 项（tripforce 缺 OpenSSL、hint 900 s 未完）**未混入三类**，册内如实记 `blocked`/`timeout`+「待用户裁定」（ISS-306），非「跑完」✓。
+- 基线分析五条齐全：①无 golden（`find` 0 命中 ✓）②自校验 2 个 ✓ ③替代基线（同源比值/公开参考值/与 llvm-test-suite 分工）✓ ④qemu 计时≠真机、只可相对 ✓ ⑤结论=部分可行、**未实现**（`6f17146` 仅册/issues/milestones/adr 4 文件，无越界）✓。
+- **独立注入（第 3 反例，不抄册内）**：改语料 `coremark/src/core_matrix.c` `matrix_add_const`（`+=val`→`*=3`）⇒ 同一脚本报 `coremark-selfcheck … validated-lines=0 rc=1 FAIL`（另 2 处 clean-checkout FAIL 系注入致脏检出）、`INJECT_C_RED_EXIT=1`（26/29）；`cp`+md5 还原（`5fa21a0f7c3964167c9691db531ca652` 双侧一致、检出复净）⇒ 回绿 `29/29`、`RESTORE_GREEN_EXIT=0`。
+- 门控：`make check`(L1) **rc=0**（`manifest validation: PASS`、`check-patch-tree: 5 component(s), 185 patches OK` 不变、`check-no-residue`/`check-knowledge-refs`/`check-milestones-fresh`/`check-run-artifacts` 均 PASS）。
+**必改项（3 条，按 `lessons §2.25` 追加勘误即可，勿改写既有完成区）**：
+1. 「hint 900 s … **136/200** 采样」与证据不符：`TESTCASES-055t-hint-run-900s.log` 第 30 行 = **142** 个进度点（`sed -n '30p' … | grep -o '\.' | wc -l`=142；`hint.c:212` 每采样 1 点）⇒ 真值 **142/200**（136 疑为中途读数；300 s 档「131 点」已被我精确复现）；完成区 + `ISS-306`（architect 执笔）一并勘误。
+2. `run.sh:176` `BUILT=7` 是**写死计数**，完成区却称「现场统计 built=7」⇒ 改为构建成功现场累加（`TOTAL/PASS/ran/…` 均现场统计 ✓，唯此项写死）。
+3. 基线③旁证「量级差 **≥100×**」与自身数字不符：60 s/2 点 = 30 s/点 vs 300 s/131 点 ≈ 2.3 s/点 ⇒ **≈13×**；且两侧**非同参**（宿主 `RUNTM=1.0`——`/tmp/opencode/TESTCASES-055t/nd/out.log`: `Memory is not sufficient for > 1.0 second runs`，qemu 构建 `-DRUNTM=0.001`）⇒ 「同一 `-O` 同参取比值」未被该旁证满足；旁证仅存 `/tmp`（易失、完成区无指针）⇒ 写明口径并留 `.work/log` 指针。
+**建议（非阻断）**：`run.sh:187` `coremark-runtime>=10s` 正则放行 5.88 s/1.5 s（实测 rc=0），改数值比较（现由 `coremark-no-ERROR` 等价兜底）；`hint-progressed` 的 banner 在采样前打印、不能证「进展」（建议锚定采样点数）；实证发现：coremark matrix CRC 对「全阵 +1」**均匀平移不可见**（probe 无 CRC ERROR），冒烟注入勿用均匀平移。
+**声明**：未改代码/语料/门控/契约（`git status --porcelain` 仅本册 1 个 `M`）；未 commit/push；注入全程 `cp`+md5（禁 `checkout/restore/stash`）。
 
 #### architect ADR 落地记录（2026-10-20，非 engineer/reviewer 轮次）
 - **ADR**：`.tao/adr/adr-0033-ansibench-corpus.md` 已落 **`Accepted`**（`D1`–`D5` 用户逐条确认；`D4` = 修订版）。本册边界随之改为 `D4` 口径（见「约束」/ 硬约束 5）。
@@ -135,3 +150,38 @@
 - **笔 2（本册 + 台账）**：档位 = 正常提交（**按派单指定**；本册 reviewer 尚未审、状态 `待验收`，与 `LLVM-117t` 先例同口径）；提交 = **本笔**（同笔自指无法嵌入自身号 ⇒ 取 `git log -1`，信息前缀 `TESTCASES-055t：`；前一笔 `adc9dc0` 不受 amend 影响）；`git diff --cached --name-only` = 本册 + `issues.yaml` + `milestones.md`（状态同步）+ `adr-0033`（勘误一行），漏提 0 / 多提 0 / 越界 0。
   - **本笔内容**：① `**状态**` `待开始`→`待验收`；② 「已核事实」自校验口径更正（**2 个**：CoreMark CRC + STREAM `Solution Validates`，原判断已更正）；③ `issues.yaml` 新增 **`ISS-305`**（`-g` 下 DWARF 4B 重定位装不下 48 位地址，`P2`/llvm）、**`ISS-306`**（`tripforce` 缺 OpenSSL + `hint` 900 s 未跑完，`P3`/testcases，待裁定）；④ `adr-0033` `D3` 后加**勘误行**（非决策变更，判据不变）。
   - **门控**：`check-patch-tree` **5 component(s), 185 patches OK** rc=0；`make check`(L1) rc=0。
+
+#### 返工（2026-10-20，engineer 第 2 轮；处置第 1 轮 reviewer 的 3 条必改 + 2 条建议）
+
+> 口径（`lessons §2.25`）：**追加勘误**，不改写既有完成区 / 审阅记录；数字以本段为准。未改代码 / 语料 / 门控 / 契约（`git status -uall` 仅本册 1 个 `M`），未 commit/push。
+
+**必改 1 — hint 采样数（原写 136/200 作废）**：真值 **900 s 档 142 点 / 300 s 档 131 点**。
+- 计量：`hint.c:212` 每次采样打印 1 个 `.`；`awk '/^\.+$/{n+=length($0)} END{print n+0}' .work/log/testcases/TESTCASES-055t-hint-run-900s.log` = **142**（136 为中途读数）；本轮 default 现场输出 `hint-progressed … samples=131/200`（`.work/log/testcases/TESTCASES-055t-evidence-default-rework.log`）。
+- **口径**：这是**采样点数，不是完成度**。完成判据 = 采样环跑满 `NSAMP=200`（或被 `NOMEM`/`STOPRT` 终止）；142 < 200 ⇒ 900 s 时**未跑完** ⇒ 归 `ISS-306` 的「外部条件（固定工作量超预算）」，**不得**记「跑完」。
+
+**必改 2 — 基线③旁证「≥100×」作废**：两侧 `RUNTM` 不同参（宿主 `1.0` vs qemu `-DRUNTM=0.001`），而 hint 的每采样工作量 `laps = MAX(RUNTM*nscout/(tscout*n),1)` 由 `RUNTM` 直接缩放 ⇒ **比值不可比**（旧宿主日志 2 点即 `Memory is not sufficient for > 1.0 second runs`，留档 `.work/log/testcases/TESTCASES-055t-hint-host-runtm1.0-VOID.log`，md5 `14f815280f79f707882ececd18b5d611`）。
+- **同参重测（取代旧旁证）**：① **CoreMark 同 20000 迭代 + 两侧 `-O2`**：宿主 gcc 13.3 `Total time (secs): 1.197000`（`…-coremark-host-run.log`）vs qemu-dadao `52.170223`（`…-coremark-run.log`）⇒ **≈43.6×**；⚠ 含 TCG + gcc/clang 差异，只作**量级 sanity**。② **hint 同 `RUNTM=0.001` + 同 300 s 窗口**：宿主 **151.4 s 跑 171 点**后因内存上限终止（`…-hint-host-runtm0.001-timing.txt`），qemu 300 s **131 点**、900 s **142 点**（未终止）⇒ 同窗口点数 171 vs 131（≈1.3×）、平均每点 0.89 s vs 2.29 s（≈2.6×）；hint 采样率**不是**算力比（每点耗时随 `n` 增长，且宿主先撞内存上限）。
+- 结论修订：相对比较**有一个能站的旁证**（CoreMark 同工作量 ≈43.6×）；「≥100×」不成立；「qemu 计时不代表真机、只可同 qemu 版本同 flag 集内相对比较」不变。
+
+**必改 3 — 被引用的旁证不得只存 `/tmp`**：本轮被本册引用的日志/旁证全部落 `.work/log/testcases/`（逐条路径见上）；`/tmp` 仅剩 `--inject` 的一次性 lock 副本（`/tmp/opencode/TESTCASES-055t/components.lock.inject.toml`，其物证由 `lock-untouched(md5)` 断言兜底，不作旁证）。
+
+**顺带修（reviewer 建议项，非阻断；`run.sh` 三处）**：① `BUILT` 写死 `7` → `tally_built`（`rc=0` **且**产物齐才 +1）⇒ 本轮 `built=7` 为**现场累加**；② `coremark-runtime>=10s` 正则改数值比较（探针：`5.88 s ⇒ rc=1`，旧正则同输入 `rc=0`；`52.177056 ⇒ rc=0`）；③ `hint-progressed` 由 banner 改为「banner + 采样点数 ≥1」（探针：banner-only `samples=0 ⇒ rc=1`；3 点 ⇒ rc=0）。探针输出 `…-erratum-probe.log`。
+
+**复验（本轮自跑，真实输出）**：`./run.sh` = `checks=29 pass=29 fail=0 built=7 ran=9 complete=8 timeout=1 crash=0 blocked=1` `rc=0`（`…-evidence-default-rework.log`）；`./run.sh --inject` = `checks=5 pass=5 fail=0` `rc=0`（注入 A/B 均 `observed-rc=1` 真红、还原后绿，`…-evidence-inject-rework.log`；汇总 `…-evidence-rework-exit.txt` = `default_rc=0 / inject_rc=0`）；CoreMark 重建 sha256 `01652c05…fedb623`（与首轮一致 ⇒ 构建可复现）+ `Correct operation validated.`；门控 `make check`(L1) **rc=0**、`check-tasks`/`check-knowledge-refs`/`check-no-residue`/`check-run-artifacts`/`check-patch-tree` 逐项 rc=0（`5 component(s), 185 patches OK` 不变）。
+
+**第 2 轮 engineer 自审**（findings 处置）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| 必改 1：hint `136/200` 失实 | ✅已修（勘误） | 本段真值 **142/131** + 「采样点数≠完成度」口径 | 两条 `awk '^\.+$'` 计数 + default 现场 `samples=131/200` |
+| 必改 2：基线旁证不成立 | ✅已修（作废 + 同参重测） | 旧旁证作废并说明 `RUNTM` 缩放；换 CoreMark 同工作量 ≈43.6× + hint 同参窗口 | 宿主/qemu 两份日志逐条对账 |
+| 必改 3：旁证落 `/tmp` | ✅已修 | 证据搬 `.work/log/testcases/`，册内引用同步为新路径 | 新路径 + VOID 件 md5 |
+| 建议：`BUILT` 写死 | ✅已修 | `tally_built`（rc + 产物双条件） | `built=7` 现场输出，无写死赋值 |
+| 建议：runtime 正则放行 5.88 s | ✅已修 | awk 数值比较 `>=10` | 探针 `rc=1`（旧正则同输入 `rc=0`）/ `rc=0` |
+| 建议：`hint-progressed` 不证进展 | ✅已修 | 锚定采样点数（banner + ≥1 点） | 探针 `samples=0 ⇒ rc=1`、3 点 ⇒ `rc=0` |
+| 自审：计数是否仍全现场统计 | ✅已验 | 仅保留常量（PIN/超时/RUNTM）；八个计数全现场累加 | `grep` 复核 `run.sh` 八个计数的初始化行（`=0`）+ 每处 `+=` 累加 |
+
+#### architect 提交记录（2026-10-20 返工，非 engineer/reviewer 轮次）
+- **档位**：正常提交（**按派单指定**；reviewer 第 1 轮 = `Needs Revision`、本册回 `待验收` 待第 2 轮复验，与「笔 2」同口径，不加 `WIP:`）。提交 = **本笔**（同笔自指 ⇒ 不嵌自身号）；分支 = `TESTCASES-055t-rework`。
+- **文件集对账**：`git add` 显式单路径本册；`git diff --cached --name-only` = 本册（46+/1−）。漏提 0 / 多提 0 / 越界 0；`milestones.md` 第 52 行原已 `待验收` ⇒ 无需同步。`.work/log/testcases/*` 7 件旁证在忽略区（`git check-ignore` = `.gitignore:2:.work/`），仅存盘不入 git。
+- **architect 复核（非重跑验收）**：`hint900_points=142`（awk 实测）、`Total time` 宿主 `1.197000` vs qemu `52.170223`（≈43.6×）、VOID 件 md5 `14f815280f79f707882ececd18b5d611` 与册一致；`.work/evidence/TESTCASES-055t/run.sh` 三处修在盘（`tally_built`/数值比较/`samples=`）；`make check`(L1) rc=0（`repository checks (L1): PASS`）。
