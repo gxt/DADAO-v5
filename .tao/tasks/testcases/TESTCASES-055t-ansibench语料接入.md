@@ -7,6 +7,9 @@
 
 > **编号（现场取号，2026-10-20）**：`find .tao -name 'TESTCASES-055t*'` = **0** 命中；全仓 `grep -ri ansibench .tao manifests` = **0** 命中 ⇒ 取 **`055`**，无同名册。
 
+> **ADR（2026-10-20 已裁定，`Accepted`）**：`.tao/adr/adr-0033-ansibench-corpus.md`（`D1`–`D5` 用户逐条确认；**`D4` 为修订版** = 语料**允许最小必要补丁 + 三类归因**，取代本册原「不改语料」硬边界）。
+> **锁条目已由 architect 随 `ADR-0033` 落地**（`manifests/components.lock.toml` 的 `[[component]] name = "ansibench"` + 两个 `[[component.source]]`）⇒ **执行者只需 `make fetch` 落地**（缺条目 ⇒ 停下报告，不要自行补写）。
+
 ## 执行环境
 **执行环境**：本地
 
@@ -30,7 +33,7 @@
 
 - **输入**：上游仓库（见「已核事实」）；安装根工具链 `.dadao/cross-toolchain/bin/{clang,qemu-dadao}`（**主会话** `install-host` 前置，engineer **不跑**）；`manifests/components.lock.toml`；`tools/infra/fetch.py`（`make fetch`）。
 - **输出**：
-  1. **锁条目**：`manifests/components.lock.toml` 新增
+  1. **锁条目（已由 architect 落地，见文首「ADR」块；执行者核对，缺则停下报告）**：`manifests/components.lock.toml` 新增
      ```
      [[component]]
      name = "ansibench"
@@ -42,13 +45,13 @@
      role = "ANSI C benchmark corpus"
      ```
      **不写** `patch_dir`/`patch_series`（`patchless` 组件声明它们会被 `make manifest-check` 直接判错）；**不写** `shallow_ref`（pin = 分支 tip，无 tag）。
-     ⚠ **披露**：派单建议 `shallow = true`；本册按 `lessons §1.48` 取 **`false`**（无 tag 且 pin = 分支 tip ⇒ 浅镜像只跟随被跟踪 ref，上游一推进即丢锁 commit；体量 1.8 MB，全量代价可忽略）。若主会话坚持 `true`，须在完成区写明 `shallow_ref` 取哪个 ref 及其可再生性依据。
+     ⚠ **已裁定（`ADR-0033 D2`）**：取 **`shallow = false`**（原派单曾建议 `true`；无 tag 且 pin = 分支 tip ⇒ 浅镜像只跟随被跟踪 ref，上游一推进即丢锁 commit；体量 1.8 MB，全量代价可忽略）。
   2. **取源**：`make fetch` ⇒ 裸仓库 `.cache/ansibench.git` + 干净检出 `.work/source/ansibench`（detached 在 pin commit）；**tarball 不作组件源**（AGENTS：组件源一律 git 基线）。
-  3. **8 基准构建 + 运行**：逐基准「构建（安装根 `clang`）→ `qemu-dadao` 跑 → 记录 exit code / stdout 关键行 / 是否自校验通过」；需要参数时**只用命令行变量**（如 `make CC=… CFLAGS=…`、CoreMark 的迭代数/seed 变量），**不改语料文件**。
+  3. **8 基准构建 + 运行**：逐基准「构建（安装根 `clang`）→ `qemu-dadao` 跑 → 记录 exit code / stdout 关键行 / 是否自校验通过」；需要参数时**优先只用命令行变量**（如 `make CC=… CFLAGS=…`、CoreMark 的迭代数/seed 变量）；**补丁须按 `ADR-0033 D4`（见下「约束」）**。
   4. **证据**：证据脚本 `.work/evidence/<任务ID>/run.sh`（`default` + `--inject`）、日志 `.work/log/testcases/<任务ID>-*.log`、结果表逐项（**计数现场统计**）。
   5. **基线对比分析（只分析，不实现）**：见验收标准 5。
 - **约束**：
-  - **不改语料**（`ansibench` 树零修改；`check-source-state` 须显示 clean）——确需改语料 ⇒ **停下报告**。
+  - **语料改动按 `ADR-0033 D4`（修订版口径，取代原「不改语料」硬边界）**：原则上保持上游原样；**允许最小必要补丁**（一文件一补丁 + `series`），**仅限**因 **bank 分离 ABI（`rd`/`rb`）/ C90 UB** 导致的 `int`↔指针失配，且每个补丁必须写明「原代码为何违 C 标准或与 ABI 不兼容」；**任何失败须逐条归因三类** —— ①编译器/后端缺陷 ②语料 UB（含隐式声明、无原型）③**`rd`/`rb` bank 失配** —— **不得混类**，**不得**把 ②③ 记成 ①。改语料须在完成区**逐条列补丁 + 归因**并披露。
   - **不改** `spec/` / `contracts/` / `.tao/contracts/**` / `tests/vectors/**` / `components/**`；**不动**既有驱动（新 runner 可新增，须在完成区披露）。
   - **不跑** `install-host` / `build-*` / L2 / L3；不 commit/push（提交权归 architect）。
 
@@ -69,15 +72,15 @@
 1. 临时目录 `/tmp/opencode/TESTCASES-055t/`；命令一律在 workdir 内、**相对路径**；禁出界 `cd`。
 2. 不提交 git；禁 `git checkout`/`restore`/`stash` 还原注入（`cp` + md5 对账）。
 3. 完成区与真实输出逐条对齐；禁 `cmd | tee` 吞码（用 `; rc=$?`）。
-4. 只动任务范围（`manifests/components.lock.toml` + 新增证据脚本/runner + 本册）；越界须披露。
-5. **不改语料**：`ansibench` 树上零修改；构建参数只走命令行变量。
+4. 只动任务范围（新增证据脚本/runner + 最小必要补丁 + 本册**之外不改**）；**锁条目已由 architect 落地**（缺则停下报告，勿自行补写）；越界须披露。
+5. **语料改动按 `ADR-0033 D4`**：默认上游原样 + 命令行变量；**允许最小必要补丁**（仅 bank 分离 ABI / C90 UB 致的 `int`↔指针失配，一文件一补丁 + `series` + 写明「原代码为何违标准/ABI」）；**失败逐条归因三类、禁混类（禁把 ②③ 记成 ①）**。
 6. 长跑（CoreMark 默认要求 ≥10 s/轮）先申报耗时；`timeout` 用满即 `124` 判超时，不得当「跑完」。
 7. 复杂命令输出留 `.work/log/testcases/`；运行产物按 `docs/Process-08`。
-8. 失败保留现场并继续推进；**只在需用户语义裁定**（如是否接受改语料、是否引入 ADR）时留问。
+8. 失败保留现场并继续推进；**只在需用户语义裁定**（如补丁范围超出 `D4` 授权、是否把 ansibench 纳入门控）时留问。
 
-## 待用户裁定（architect 提示，不阻断第一步）
+## 已裁定 / 待裁定
 
-- **ADR**：新增外部组件（上游选择 + commit 锁定）按惯例应有 ADR（先例 = `ADR-0022` embench / `ADR-0023` picolibc）。用户原话已含「URL + 用最新 commit 锁定」，但 ADR 的 decision 须**逐条确认**方能 `Accepted` ⇒ 本册**不代拟 ADR**，由主会话决定「补 `adr-0033`（ansibench 上游选择 + pin）」或「以用户原话直接授权、免 ADR」。
+- **ADR（已裁定 2026-10-20）**：`.tao/adr/adr-0033-ansibench-corpus.md` **`Accepted`**（`D1`–`D5` 用户逐条确认；`D4` = 修订版，允许最小必要补丁 + 三类归因）。**锁条目由 architect 随 ADR 落地** ⇒ 本册执行者**只需 `make fetch`**。
 - **基线对比第二步**（是否实现、拿什么做基线）须在第一步结果与 §验收 5 的分析之上再裁定。
 
 ## 完成区
@@ -94,3 +97,9 @@
 
 #### 第 1 轮 reviewer 验收
 （待填写）
+
+#### architect ADR 落地记录（2026-10-20，非 engineer/reviewer 轮次）
+- **ADR**：`.tao/adr/adr-0033-ansibench-corpus.md` 已落 **`Accepted`**（`D1`–`D5` 用户逐条确认；`D4` = 修订版）。本册边界随之改为 `D4` 口径（见「约束」/ 硬约束 5）。
+- **锁条目**：`manifests/components.lock.toml` 的 `[[component]] name = "ansibench"`（`enabled`/`shallow=false`/`patchless`）+ `source[]` = `gh-proxy`(source[0]) / `github` 已由 architect 落地；依据 = 直连 `ls-remote` 超时 rc=124、`gh-proxy` rc=0 且回报 pin 一致。
+- **门控现场（architect 实测，与本次改动无关的红）**：`manifest-check` **PASS**；`check-patch-tree` 报 **2 problem(s)** 全在 `llvm-project`（`.work/source/llvm-project/lld/ELF/Arch/DADAO.cpp` 被**并发会话**修改，mtime 12:03:14；改动前基线 = `5 component(s), 185 patches OK` rc=0）；`check-run-artifacts` 因并发 `libc-test-user` 跑批目录**写一半**而红（另一目录随后补齐）。ansibench 在 `--source-state` 输出 `patchless; skipped`（不参与补丁树）。
+- **提交**：见 `git log`（architect 提交权；分支 `ADR-0033-ansibench`）。

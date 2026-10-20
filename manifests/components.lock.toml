@@ -265,3 +265,45 @@ url = "https://gh-proxy.com/https://github.com/kraj/libc-test.git"
 [[component.source]]
 name = "github"
 url = "https://github.com/kraj/libc-test.git"
+
+# ansibench -- a pure ANSI C (C90) *timing* benchmark collection feeding the
+# testcases module (ADR-0033 D1/D3). 8 dirs of benches (coremark/dhrystone/
+# hint/linpack/nbench/stream/tripforce/whetstone) + utilities/mk support.
+# A benchmark *corpus* (reference input), not a v5-patched component, so it
+# carries NO patch set (`patchless`, same class as llvm-test-suite/libc-test).
+# It is NOT a correctness oracle: the only self-check is CoreMark's own CRC;
+# the rest just print timings, and qemu user-mode timings are only usable as
+# *relative* comparisons (ADR-0033 D3). Not wired into L1/L2/L3 (D5).
+#
+# User ruling (2026-10-20, original words): "创建任务，下载并测试：
+# https://github.com/nfinit/ansibench.git；就用这个仓库最新的commit锁定即可"
+# -- so the pin is the CURRENT tip of the default branch, locked as an exact
+# commit.
+#
+# Reproducibility note (2026-10-20, live): the repo has NO tags and its default
+# branch is `master`, so the pin is a *branch tip* commit. A shallow bare mirror
+# (`--depth 1 --branch master`, ADR-0006 D2) only follows the tracked ref and
+# would lose the pin as soon as upstream advances. Hence `shallow = false`: a
+# full `git clone --mirror`, which here costs only ~1.8 MB.
+#
+# Channel reality (2026-10-20, live): direct github `git ls-remote` timed out
+# (`timeout 40` -> rc=124); gh-proxy.com answered rc=0 and reported HEAD =
+# refs/heads/master = the pin below. So gh-proxy.com is source[0] (the default
+# for `make fetch`) and direct github is registered as a named backup
+# (`COMPONENT_SOURCE_ANSIBENCH=github`) -- same shape as libc-test.
+[[component]]
+name = "ansibench"
+enabled = true
+repository = "https://github.com/nfinit/ansibench.git"
+commit = "ef90abd09d7b7bb1f2809f896d6f67fb9724bebe"
+shallow = false
+patchless = true
+role = "ANSI C benchmark corpus"
+
+[[component.source]]
+name = "gh-proxy"
+url = "https://gh-proxy.com/https://github.com/nfinit/ansibench.git"
+
+[[component.source]]
+name = "github"
+url = "https://github.com/nfinit/ansibench.git"
