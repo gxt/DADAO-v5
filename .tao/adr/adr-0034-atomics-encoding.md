@@ -25,7 +25,8 @@
 
 1. **MISC-AMO（`op = 0x77`）现状**：`fence` = `000-000`（`ha=0x00`，`oiii`）；`lr_{nn,nr,an,ar}.o` = `010-000`…`010-011`（`ha=0x10`…`0x13`）；`sc_{nn,nr,an,ar}.o` = `011-000`…`011-011`（`ha=0x18`…`0x1B`）；`swym` = `100-010`（`ha=0x22`），均为 `orrr`/`oiii`。
 2. **三条指令族均 `scope: excluded`**（`cfxld`/`cfxst`/`fence`/`lr`/`sc` 共 11 条）⇒ **无实现、无执行面**，改编码的迁移成本只在规范/合约/生成物层（无旧二进制/旧汇编源兼容包袱），故可一次重排。
-3. **`lr`/`sc` 的语义已按 RISC-V RV64A 口径写定**（`SimRISC-12 §3.2`）：`lr` 的 `hb` 恒为 `rd0`（`hb ≠ rd0` ⇒ ILLI）；`sc` 成功写 `rdHB=0`、失败写 `1` 并清本 hart 全部保留；地址须 8 字节自然对齐，否则 **MALIGN**（`o` 宽度语义；见 `D6`）。
+3. **`lr`/`sc` 的语义已按 RISC-V RV64A 口径写定**（`SimRISC-12 §3.2`）：`lr` 的 `hb` 恒为 `rd0`（`hb ≠ rd0` ⇒ ILLI）；`sc` 成功写 `rdHB=0`、失败写 `1` 并清本 hart 全部保留；地址须**按数据宽度自然对齐**（`.b`=1 / `.w`=2 / `.t`=4 / `.o`=8），否则 **MALIGN**（见 `D6`）。
+   > 订正（2026-10-21）：与 D6 修订同步（原「8 字节」为单宽度时期表述）。
 4. **`fence` 的现渲染面**：`SimRISC-12 §3.1` 现按「低 4 位 = IO/W/R/RW、`[17:4]` SBZ」描述单个屏障类型位图，与 `D2` 的 `fm/pred/succ` 三段位域**不一致**，须改写。
 5. **`fence` 已在 LLVM/QEMU 生成面留下痕迹**：LLVM `DADAOInstrInfo.td` 有 `fence`（仅 MC 层、`Pattern = []`、`ha = 0x00`）；QEMU `insn.decode` 有 `fence_oiii_imm` 与 8 条 `lr/sc`（`@misc`，`trans_*` 桩 = ILLI）。**改 `ha`/改名必须同步这些生成面**，否则门控与补丁集漂移（见 `D7` 与 `Consequences`）。
 

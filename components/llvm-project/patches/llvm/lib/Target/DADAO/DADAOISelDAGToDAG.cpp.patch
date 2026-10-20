@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
 new file mode 100644
-index 000000000..09906e108
+index 000000000..699568e2f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelDAGToDAG.cpp
-@@ -0,0 +1,681 @@
+@@ -0,0 +1,723 @@
 +//===-- DADAOISelDAGToDAG.cpp - DADAO DAG to DAG Inst Selector --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -644,6 +644,48 @@ index 000000000..09906e108
 +        Direct ? DADAO::tailjmp_iiii : DADAO::tailjmp_rrii, DLC, MVT::Other,
 +        MVT::Glue, Ops);
 +    ReplaceNode(Node, Tail);
++    return;
++  }
++  case DADAOISD::FENCE: {
++    // Memory barrier (LLVM-121t): [0] chain, [1] TargetConstant with the
++    // fm/pred/succ bit pattern computed by LowerATOMIC_FENCE.  The `fence`
++    // def is MC-only (Pattern = []), so it is selected here.
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    uint64_t Imm = cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();
++    CurDAG->SelectNodeTo(Node, DADAO::fence, MVT::Other,
++                         CurDAG->getTargetConstant(Imm, DL, MVT::i64), Chain);
++    return;
++  }
++  case DADAOISD::ATOMIC_CMP_SWAP: {
++    // cmpxchg retry loop (LLVM-121t): [0] chain, [1] ptr, [2] cmp, [3] new,
++    // [4] TargetConstant width class (0 = b, 1 = w, 2 = t, 3 = o).  Select the
++    // width-specific pseudo; the lr/sc sequence itself is built by
++    // DADAOTargetLowering::EmitInstrWithCustomInserter (FinalizeISel).
++    // The `lr`/`sc` base is an RB-bank register, so a value that is not
++    // already pointer-bank is copied into GPRB here (the register allocator
++    // turns the copy into `rd2rb`, exactly as for a load/store base).
++    const SDLoc DL(Node);
++    SDValue Chain = Node->getOperand(0);
++    SDValue Ptr = Node->getOperand(1);
++    SDValue Cmp = Node->getOperand(2);
++    SDValue New = Node->getOperand(3);
++    unsigned Width = cast<ConstantSDNode>(Node->getOperand(4))->getZExtValue();
++    static const unsigned Pseudos[] = {
++        DADAO::ATOMIC_CMP_SWAP_PSEUDO_B, DADAO::ATOMIC_CMP_SWAP_PSEUDO_W,
++        DADAO::ATOMIC_CMP_SWAP_PSEUDO_T, DADAO::ATOMIC_CMP_SWAP_PSEUDO_O};
++    assert(Width < 4 && "DADAO: bad cmpxchg width class");
++    if (!isPointerBankValue(Ptr)) {
++      SDValue RC =
++          CurDAG->getTargetConstant(DADAO::GPRBRegClassID, DL, MVT::i32);
++      Ptr = SDValue(CurDAG->getMachineNode(TargetOpcode::COPY_TO_REGCLASS, DL,
++                                           MVT::i64, Ptr, RC),
++                    0);
++    }
++    MachineSDNode *M = CurDAG->getMachineNode(
++        Pseudos[Width], DL, CurDAG->getVTList(MVT::i64, MVT::Other),
++        {Ptr, Cmp, New, Chain});
++    ReplaceNode(Node, M);
 +    return;
 +  }
 +  case DADAOISD::CMPU:

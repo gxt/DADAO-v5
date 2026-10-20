@@ -203,6 +203,18 @@ def _build_positive(rec):
 
     if fmt == "orrr":
         a, b, c = fields
+        # lr/sc（ADR-0034 D3-D6；LLVM-121t）：地址写成 `[rb]`——lr/sc 的编码没有
+        # 偏移字段，地址就是 rbHD 本身。`lr` 的 hb 固定 rd0（SimRISC-12 §3.2），
+        # 汇编只写两个操作数；`sc` 三个（状态/值/地址）。
+        if mn.startswith("lr."):
+            return ("%s %s, [%s]" % (mn, _reg(b["bank"], 9),
+                                     _reg(c["bank"], 1)),
+                    {b["name"]: 9, c["name"]: 1}, "orrr-lr")
+        if mn.startswith("sc."):
+            return ("%s %s, %s, [%s]" % (mn, _reg(a["bank"], 8),
+                                         _reg(b["bank"], 9),
+                                         _reg(c["bank"], 1)),
+                    {a["name"]: 8, b["name"]: 9, c["name"]: 1}, "orrr-sc")
         return ("%s %s, %s, %s" % (mn, _reg(a["bank"], 8), _reg(b["bank"], 9),
                                    _reg(c["bank"], 10)),
                 {a["name"]: 8, b["name"]: 9, c["name"]: 10}, "orrr")
@@ -224,9 +236,22 @@ def _build_positive(rec):
     raise ValueError("unsupported format %s (id=%s)" % (fmt, rec["id"]))
 
 
+# `scope: excluded` 但**汇编器实现**的记录 ⇒ 正例（编码 + 汇编往返），不是反例：
+#   - fence（SPEC-039t 起一直由 MC 层受理）；
+#   - 24 条 lr/sc（LLVM-121t：ADR-0034 D3/D4 的宽度 x 存储序组合，MC + CodeGen）。
+# 其余 excluded 记录（cfxld/cfxst）仍由汇编器显式拒绝，保持反例。
+MC_IMPLEMENTED_EXCLUDED = frozenset({"fence"}) | frozenset(
+    "%s.%s.%s" % (op, width, order)
+    for op, orders in (("lr", ("nn", "an", "ar")), ("sc", ("nn", "nr", "ar")))
+    for width in ("b", "w", "t", "o")
+    for order in orders
+)
+
+
 def _is_negative(rec):
-    """scope: excluded 且**汇编器不实现** ⇒ 反例（须显式拒绝）；fence 例外（可汇编）。"""
-    return rec.get("scope") == "excluded" and rec["mnemonic"] != "fence"
+    """scope: excluded 且**汇编器不实现** ⇒ 反例（须显式拒绝）。"""
+    return (rec.get("scope") == "excluded"
+            and rec["mnemonic"] not in MC_IMPLEMENTED_EXCLUDED)
 
 
 def _negative_text(rec):

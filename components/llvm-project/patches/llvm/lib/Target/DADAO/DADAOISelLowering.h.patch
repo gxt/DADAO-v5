@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..38fe55f97
+index 000000000..c5acc2d08
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,288 @@
+@@ -0,0 +1,345 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -124,6 +124,19 @@ index 000000000..38fe55f97
 +  /// `tls_index` pair `{tls_id, DTPOFF}` passed to `__tls_get_addr`
 +  /// (contract-dynlink.md §4.3: types 10 and 11).  Selected to PCREL_LOAD.
 +  TLS_GD_ADDR,
++
++  /// Memory barrier (LLVM-121t): (chain, TargetConstant immu18) -> chain.
++  /// Produced by LowerATOMIC_FENCE, selected to `fence`.  The immediate is the
++  /// ADR-0034 D2 `fm`/`pred`/`succ` bit pattern, so the ordering -> bits
++  /// mapping lives in the lowering and is asserted by the lit tests.
++  FENCE,
++
++  /// Atomic compare-and-swap retry loop (LLVM-121t): (chain, ptr, cmp, new,
++  /// TargetConstant width) -> (old value, chain).  `width` selects the lr/sc
++  /// width class (0 = b, 1 = w, 2 = t, 3 = o); the selector turns the node into
++  /// the ATOMIC_CMP_SWAP_PSEUDO_{B,W,T,O} pseudo and the custom inserter emits
++  /// the lr/sc loop (DADAOCodeGen.td).
++  ATOMIC_CMP_SWAP,
 +};
 +
 +} // namespace DADAOISD
@@ -214,6 +227,32 @@ index 000000000..38fe55f97
 +
 +  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 +
++  /// Atomic ordering support (LLVM-121t, ADR-0034).  DADAO is a weak memory
++  /// model whose only atomics are `lr`/`sc`, and the ISA has no AMO: atomic
++  /// loads/stores are ordinary narrow/wide accesses bracketed by `fence`
++  /// (AtomicExpandPass inserts the fences at IR level, see emitLeadingFence /
++  /// emitTrailingFence), while every RMW and cmpxchg reduces to a `lr`/`sc`
++  /// retry loop.  Returning true here is what makes the pass lower an atomic
++  /// load/store to a plain access + `fence` instead of a `__atomic_*` libcall.
++  bool shouldInsertFencesForAtomic(const Instruction *I) const override;
++
++  /// Every integer atomicrmw (`add/sub/and/or/xor/xchg/nand/min/max/umin/
++  /// umax`, i8..i64) is expanded into a cmpxchg loop in IR, which then reaches
++  /// the DAG as ATOMIC_CMP_SWAP_WITH_SUCCESS and is lowered to the lr/sc loop
++  /// (DADAOCodeGen.td: ATOMIC_CMP_SWAP_PSEUDO_*).  There is no AMO and no
++  /// "__atomic_*" runtime in the toolchain, so nothing may fall back to a
++  /// libcall.
++  AtomicExpansionKind
++  shouldExpandAtomicRMWInIR(const AtomicRMWInst *RMW) const override;
++
++  /// Expand the lr/sc CAS pseudos into the retry loop (LLVM-121t).  The hook
++  /// runs in FinalizeISel (before register allocation), which is where new
++  /// basic blocks can still be created; the loop body only contains lr/sc,
++  /// two branches and (at worst) register spills, all of which leave the
++  /// reservation semantics intact (a lost reservation is retried).
++  MachineBasicBlock *EmitInstrWithCustomInserter(MachineInstr &MI,
++                                                 MachineBasicBlock *MBB) const override;
++
 +private:
 +  /// Copy call results out of the return registers (RetCC_DADAO) into virtual
 +  /// registers (LLVM-039t).
@@ -275,6 +314,24 @@ index 000000000..38fe55f97
 +  /// only `llvm.thread.pointer` is handled; anything else returns an empty
 +  /// SDValue so the legalizer keeps the generic path).
 +  SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
++
++  /// Atomic lowering (LLVM-121t, ADR-0034 D2/D6).
++  ///
++  ///   ISD::ATOMIC_FENCE -> DADAOISD::FENCE carrying the `fm`/`pred`/`succ`
++  ///     immediate; the ordering mapping is:
++  ///       acquire            -> pred R,        succ R|W    = 0x043
++  ///       release            -> pred R|W,      succ W      = 0x0C2
++  ///       acq_rel / seq_cst  -> pred R|W|I|O,  succ R|W|I|O = 0x3CF
++  ///       monotonic/unordered-> no instruction (the chain is returned as is)
++  ///   ISD::ATOMIC_LOAD / ISD::ATOMIC_STORE -> an ordinary extending load /
++  ///     truncating store (the fences were already inserted by AtomicExpand).
++  ///   ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS -> DADAOISD::ATOMIC_CMP_SWAP (the
++  ///     lr/sc retry loop) plus a SETCC producing the success flag.
++  SDValue LowerATOMIC_FENCE(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerATOMIC_LOAD(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerATOMIC_STORE(SDValue Op, SelectionDAG &DAG) const;
++  SDValue LowerATOMIC_CMP_SWAP_WITH_SUCCESS(SDValue Op,
++                                            SelectionDAG &DAG) const;
 +
 +  /// Varargs lowering (M6, contract-abi.md §6 / spec DADAO-21 §可变参数).  The
 +  /// caller writes every argument into a contiguous 8-byte-slot save area at

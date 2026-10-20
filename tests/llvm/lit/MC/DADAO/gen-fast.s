@@ -61,6 +61,16 @@ foroot rf8, rf9, 2
 @@ ASM: add.o rb8, rb9, rd10
 add.o rb8, rb9, rd10
 
+@@ @src lr.b.an_orrr_rd 771c0241 | SimRISC-12 §LR-SC指令
+@@ OBJ: {{[0-9a-f]+:}} 77 1c 02 41{{.*}}lr.b.an
+@@ ASM: lr.b.an rd9, [rb1]
+lr.b.an rd9, [rb1]
+
+@@ @src sc.b.ar_orrr_rd 776c8241 | SimRISC-12 §LR-SC指令
+@@ OBJ: {{[0-9a-f]+:}} 77 6c 82 41{{.*}}sc.b.ar
+@@ ASM: sc.b.ar rd8, rd9, [rb1]
+sc.b.ar rd8, rd9, [rb1]
+
 @@ @src add.si_riii_rb 5b200008 | SimRISC-05 §自增自减
 @@ OBJ: {{[0-9a-f]+:}} 5b 20 00 08{{.*}}add.si
 @@ ASM: add.si rb8, 8

@@ -42,6 +42,18 @@ OBJ_RE = re.compile(
     r"\{\{.*?\}\}([A-Za-z][A-Za-z0-9._]*)")
 
 
+# scope: excluded 但**汇编器实现**的记录（与 generate_lit_vectors.py 同一口径，
+# 但本文件按设计不 import 生成器）：fence（SPEC-039t 起）与 24 条 lr/sc
+# （LLVM-121t；ADR-0034 D3/D4 的 宽度 x 存储序 组合）。其余 excluded
+# （cfxld/cfxst）仍是反例。
+MC_IMPLEMENTED_EXCLUDED = frozenset({"fence"}) | frozenset(
+    "%s.%s.%s" % (op, width, order)
+    for op, orders in (("lr", ("nn", "an", "ar")), ("sc", ("nn", "nr", "ar")))
+    for width in ("b", "w", "t", "o")
+    for order in orders
+)
+
+
 class Checker:
     def __init__(self):
         self.passed = 0
@@ -65,7 +77,8 @@ def load_contract():
     positives = set()
     negatives = set()
     for r in recs:
-        if r.get("scope") == "excluded" and r["mnemonic"] != "fence":
+        if (r.get("scope") == "excluded"
+                and r["mnemonic"] not in MC_IMPLEMENTED_EXCLUDED):
             negatives.add(r["id"])
         else:
             positives.add(r["id"])

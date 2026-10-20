@@ -84,6 +84,7 @@ FMT_BY_CLASS = {
     "DADAORiii": "riii", "DADAOIiii": "iiii", "DADAORwii": "rwii",
     "DADAOOrrr": "orrr", "DADAOOrri": "orri", "DADAOOiii": "oiii",
     "DADAOCrrr": "crrr", "DADAOCiii": "ciii",
+    "DADAOLROrrr": "orrr",  # lr.*: hb = rd0 fixed (ADR-0034 D5; LLVM-121t)
 }
 
 DEF_HDR = re.compile(r'^def (\w+) : (DADAO\w+)<"([^"]+)">\s*\{')

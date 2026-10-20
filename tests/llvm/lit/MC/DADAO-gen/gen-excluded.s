@@ -7,30 +7,6 @@
 @@ ======================================================================
 @@ RUN: echo 'cfxld cfx63, [rb2, 1]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 @@ RUN: echo 'cfxst cfx63, [rb2, 1]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.b.an rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.b.ar rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.b.nn rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.o.an rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.o.ar rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.o.nn rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.t.an rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.t.ar rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.t.nn rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.w.an rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.w.ar rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'lr.w.nn rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.b.ar rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.b.nn rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.b.nr rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.o.ar rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.o.nn rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.o.nr rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.t.ar rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.t.nn rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.t.nr rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.w.ar rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.w.nn rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
-@@ RUN: echo 'sc.w.nr rd8, rd9, [rb1, 0]' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=UNREC
 
 .text
 @@ UNREC: error: unrecognized instruction mnemonic
@@ -40,75 +16,3 @@
 
 @@ @src cfxst_crii_cfx | SimRISC-00 §SimRISC QFC
 @@ cfxst cfx63, [rb2, 1]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.b.an_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.b.an rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.b.ar_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.b.ar rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.b.nn_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.b.nn rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.o.an_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.o.an rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.o.ar_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.o.ar rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.o.nn_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.o.nn rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.t.an_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.t.an rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.t.ar_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.t.ar rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.t.nn_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.t.nn rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.w.an_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.w.an rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.w.ar_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.w.ar rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src lr.w.nn_orrr_rd | SimRISC-12 §LR-SC指令
-@@ lr.w.nn rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.b.ar_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.b.ar rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.b.nn_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.b.nn rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.b.nr_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.b.nr rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.o.ar_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.o.ar rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.o.nn_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.o.nn rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.o.nr_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.o.nr rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.t.ar_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.t.ar rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.t.nn_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.t.nn rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.t.nr_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.t.nr rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.w.ar_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.w.ar rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.w.nn_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.w.nn rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）
-
-@@ @src sc.w.nr_orrr_rd | SimRISC-12 §LR-SC指令
-@@ sc.w.nr rd8, rd9, [rb1, 0]（scope: excluded，汇编器 MUST 拒绝）

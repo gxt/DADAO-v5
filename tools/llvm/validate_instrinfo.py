@@ -67,6 +67,9 @@ FMT_BY_CLASS = {
     # SPEC-115t re-scoped these four to scope:m1, so their defs are now plain M1
     # defs (not MC-only-excluded); the crrr/ciii format mapping stays required.
     "DADAOCrrr": "crrr", "DADAOCiii": "ciii",
+    # lr.* (ADR-0034 D3/D5; LLVM-121t): same encoded fields as orrr, but hb is
+    # the fixed rd0 so the assembly form has two operands.
+    "DADAOLROrrr": "orrr",
 }
 
 # Non-m1 records that are intentionally defined in DADAOInstrInfo.td:
@@ -81,6 +84,34 @@ FMT_BY_CLASS = {
 #     longer in this allow-list and now satisfy the M1 baseline check directly.
 MC_ONLY_EXCLUDED_IDS = frozenset({
     "fence_oiii_imm",
+    # lr/sc (ADR-0034 D3-D5; LLVM-121t): 24 scope:excluded records that the MC
+    # layer assembles/disassembles and that CodeGen selects for the atomic
+    # CAS/RMW loops.  List generated from the width x ordering sets of D3/D4
+    # (lr: nn/an/ar, sc: nn/nr/ar) -- count derived in the script's output.
+    "lr.b.nn_orrr_rd",
+    "lr.b.an_orrr_rd",
+    "lr.b.ar_orrr_rd",
+    "sc.b.nn_orrr_rd",
+    "sc.b.nr_orrr_rd",
+    "sc.b.ar_orrr_rd",
+    "lr.w.nn_orrr_rd",
+    "lr.w.an_orrr_rd",
+    "lr.w.ar_orrr_rd",
+    "sc.w.nn_orrr_rd",
+    "sc.w.nr_orrr_rd",
+    "sc.w.ar_orrr_rd",
+    "lr.t.nn_orrr_rd",
+    "lr.t.an_orrr_rd",
+    "lr.t.ar_orrr_rd",
+    "sc.t.nn_orrr_rd",
+    "sc.t.nr_orrr_rd",
+    "sc.t.ar_orrr_rd",
+    "lr.o.nn_orrr_rd",
+    "lr.o.an_orrr_rd",
+    "lr.o.ar_orrr_rd",
+    "sc.o.nn_orrr_rd",
+    "sc.o.nr_orrr_rd",
+    "sc.o.ar_orrr_rd",
 })
 
 

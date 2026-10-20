@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
 new file mode 100644
-index 000000000..ed44094df
+index 000000000..07c20b65f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOTargetMachine.cpp
-@@ -0,0 +1,140 @@
+@@ -0,0 +1,156 @@
 +//===-- DADAOTargetMachine.cpp - Define TargetMachine for DADAO ---------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -90,6 +90,22 @@ index 000000000..ed44094df
 +  bool addInstSelector() override {
 +    addPass(createDADAOISelDag(getDADAOTargetMachine()));
 +    return false;
++  }
++
++  void addIRPasses() override {
++    // Atomic expansion (LLVM-121t; ADR-0034).  The ISA's only atomic
++    // primitives are `lr`/`sc` (no AMO) and the toolchain ships no
++    // `__atomic_*` runtime, so every atomic operation must be rewritten before
++    // instruction selection:
++    //   * atomic load/store -> plain access + explicit `fence`
++    //     (DADAOTargetLowering::shouldInsertFencesForAtomic is true) -- the
++    //     ordering -> fm/pred/succ mapping lives in the backend;
++    //   * every atomicrmw -> a cmpxchg loop (CmpXChg expansion), whose
++    //     cmpxchg then becomes the lr/sc retry loop at ISel time.
++    // This pass is per-target (the generic pipeline does not run it), which is
++    // why the DADAO pass config has to add it explicitly.
++    TargetPassConfig::addIRPasses();
++    addPass(createAtomicExpandLegacyPass());
 +  }
 +
 +  void addPreEmitPass() override {

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
 new file mode 100644
-index 000000000..a21a6f303
+index 000000000..46ffeaa57
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCInstPrinter.cpp
-@@ -0,0 +1,439 @@
+@@ -0,0 +1,459 @@
 +//===-- DADAOMCInstPrinter.cpp - DADAO MCInst Printer ---------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -340,6 +340,26 @@ index 000000000..a21a6f303
 +  case FK_orri: {
 +    // orrr: dst, src1, src2
 +    // orri: dst, src, imm  OR  {dst:start}, {src:start} (block)
++    //
++    // lr/sc (LLVM-121t; ADR-0034 D3-D6) print their base as an address
++    // expression: `lr.o.an rd9, [rb1]` (hb is the fixed rd0, so `lr` has two
++    // operands) and `sc.o.ar rd8, rd9, [rb1]`.
++    if ((FK == FK_orrr) &&
++        (Mnem.starts_with("lr.") || Mnem.starts_with("sc."))) {
++      O << " ";
++      printRegName(O, MI->getOperand(0).getReg());
++      if (Mnem.starts_with("sc.")) {
++        O << ", ";
++        printRegName(O, MI->getOperand(1).getReg());
++        O << ", [";
++        printRegName(O, MI->getOperand(2).getReg());
++      } else {
++        O << ", [";
++        printRegName(O, MI->getOperand(1).getReg());
++      }
++      O << "]";
++      break;
++    }
 +    if (FK == FK_orri && NumDefs == 1 && NumOps == 3) {
 +      // Check if this is a block register copy (ra2rd, rb2rb, etc.)
 +      // by checking if all operands are registers.

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..ac6a63318
+index 000000000..080e55ae8
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,2068 @@
+@@ -0,0 +1,2385 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -36,18 +36,23 @@ index 000000000..ac6a63318
 +#include "DADAOTargetMachine.h"
 +
 +#include "llvm/CodeGen/CallingConvLower.h"
++#include "llvm/CodeGen/MachineBasicBlock.h"
 +#include "llvm/CodeGen/MachineFrameInfo.h"
 +#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineInstrBuilder.h"
 +#include "llvm/CodeGen/MachineJumpTableInfo.h"
 +#include "llvm/CodeGen/MachineRegisterInfo.h"
 +#include "llvm/CodeGen/SelectionDAG.h"
++#include "llvm/CodeGen/TargetInstrInfo.h"
 +#include "llvm/IR/DerivedTypes.h"
++#include "llvm/IR/Instructions.h"
 +#include "llvm/IR/Intrinsics.h"
 +#include "llvm/MC/MCRegister.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
 +
 +#include <functional>
++#include <iterator>
 +
 +using namespace llvm;
 +
@@ -483,6 +488,39 @@ index 000000000..ac6a63318
 +  MaxStoresPerMemcpy = MaxStoresPerMemcpyOptSize = 16;
 +  MaxStoresPerMemmove = MaxStoresPerMemmoveOptSize = 16;
 +  MaxLoadsPerMemcmp = MaxLoadsPerMemcmpOptSize = 16;
++
++  // Atomics (LLVM-121t; ADR-0034 D2/D6, ISS-294: LR/SC only, no AMO).
++  //
++  // The toolchain has no `__atomic_*` runtime, so the backend must handle
++  // every atomic operation itself:
++  //
++  //   * setMaxAtomicSizeInBitsSupported(64): up to 8 bytes are lowered by the
++  //     backend (larger sizes keep going to the generic libcall path, which is
++  //     unsupported here on purpose -- an i128 _Atomic is not part of the
++  //     contract).
++  //   * shouldInsertFencesForAtomic() == true (see the override): the IR-level
++  //     AtomicExpandPass splits an atomic load/store into a plain access plus
++  //     a `fence` with the ordering, and weakens the access to monotonic.
++  //     RMW/cmpxchg get fences around them and are then expanded into a
++  //     cmpxchg loop (shouldExpandAtomicRMWInIR -> CmpXChg).
++  //   * ATOMIC_LOAD/ATOMIC_STORE are Custom: after the fence split they are
++  //     ordinary accesses and are re-lowered to LOAD/STORE so the existing
++  //     ld.*/st.* patterns select them (no atomic form of any instruction is
++  //     needed).
++  //   * ATOMIC_CMP_SWAP_WITH_SUCCESS is Custom: it becomes the lr/sc retry
++  //     loop (DADAOISD::ATOMIC_CMP_SWAP), for every width 1/2/4/8.
++  //   * ATOMIC_FENCE is Custom: ordering -> `fm`/`pred`/`succ` immediate.
++  setMaxAtomicSizeInBitsSupported(64);
++  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Custom);
++  // Keyed on i64 only: i8/i16/i32 atomic nodes always reach operation
++  // legalization with i64 value/operand types (the type legalizer promotes
++  // them and keeps the *memory* type narrow, see PromoteIntRes_Atomic0 /
++  // PromoteIntRes_AtomicCmpSwap).  Declaring Custom for the narrow types would
++  // instead make the type legalizer call ReplaceNodeResults, which this target
++  // does not implement.
++  setOperationAction(ISD::ATOMIC_LOAD, MVT::i64, Custom);
++  setOperationAction(ISD::ATOMIC_STORE, MVT::i64, Custom);
++  setOperationAction(ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, MVT::i64, Custom);
 +}
 +
 +EVT DADAOTargetLowering::getSetCCResultType(const DataLayout &DL,
@@ -549,6 +587,10 @@ index 000000000..ac6a63318
 +    return "DADAOISD::TLS_IE_ADDR";
 +  case DADAOISD::TLS_GD_ADDR:
 +    return "DADAOISD::TLS_GD_ADDR";
++  case DADAOISD::FENCE:
++    return "DADAOISD::FENCE";
++  case DADAOISD::ATOMIC_CMP_SWAP:
++    return "DADAOISD::ATOMIC_CMP_SWAP";
 +  default:
 +    return nullptr;
 +  }
@@ -1414,6 +1456,18 @@ index 000000000..ac6a63318
 +    return LowerGlobalTLSAddress(Op, DAG);
 +  case ISD::INTRINSIC_WO_CHAIN:
 +    return LowerINTRINSIC_WO_CHAIN(Op, DAG);
++  // Atomics (LLVM-121t; ADR-0034).  The IR-level AtomicExpandPass has already
++  // turned every atomic load/store into a monotonic access plus `fence`, and
++  // every RMW into a cmpxchg loop, so these four hooks are the whole backend
++  // atomic surface: ordering -> fence bits, plain access, lr/sc CAS loop.
++  case ISD::ATOMIC_FENCE:
++    return LowerATOMIC_FENCE(Op, DAG);
++  case ISD::ATOMIC_LOAD:
++    return LowerATOMIC_LOAD(Op, DAG);
++  case ISD::ATOMIC_STORE:
++    return LowerATOMIC_STORE(Op, DAG);
++  case ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS:
++    return LowerATOMIC_CMP_SWAP_WITH_SUCCESS(Op, DAG);
 +  case ISD::ROTR: {
 +    // ADR-0032 D4 (as amended: `rol`) / LLVM-116t: rotr(x,n) = rol(x, (W-n)
 +    // mod W).  The custom action is declared in the constructor.
@@ -2071,4 +2125,267 @@ index 000000000..ac6a63318
 +    Cond = DAG.getZExtOrTrunc(Cond, DL, MVT::i64);
 +  return DAG.getNode(DADAOISD::CS_Z, DL, Op.getOperand(2).getValueType(), Cond,
 +                     Op.getOperand(2), Op.getOperand(1));
++}
++
++//===----------------------------------------------------------------------===//
++// Atomics (LLVM-121t; ADR-0034 D2/D6; SimRISC-12 §3.1/§3.2)
++//
++// The ISA has one atomic primitive family -- `lr`/`sc` -- and no AMO (ISS-294),
++// and the toolchain ships no `__atomic_*` runtime, so the whole atomic surface
++// is handled by the backend:
++//
++//   * AtomicExpandPass (IR) inserts the `fence`s and weakens the accesses,
++//     because shouldInsertFencesForAtomic() is true;
++//   * atomic load/store become ordinary loads/stores (LowerATOMIC_LOAD/STORE);
++//   * every RMW and cmpxchg becomes a cmpxchg loop in IR (CmpXChg expansion)
++//     and that loop's cmpxchg becomes the lr/sc retry loop here.
++//===----------------------------------------------------------------------===//
++
++// --- fence immediate bits (ADR-0034 D2) ------------------------------------
++//
++// `fence` takes ONE 18-bit unsigned immediate: fm[17:12] | pred[11:6] |
++// succ[5:0].  fm is 0 for the only defined mode, and the R/W/I/O bits of pred
++// and succ are the low four bits of each 6-bit field (the top two bits are
++// SBZ).  The mapping below is the A-table of the task book and is asserted by
++// tests/llvm/lit/CodeGen/DADAO/atomics-fence.ll.
++static uint64_t getDADAOFenceImm(AtomicOrdering Ord) {
++  // pred constants: PRED_R = 1<<6, PRED_W = 1<<7, PRED_I = 1<<8, PRED_O = 1<<9
++  // succ constants: SUCC_R = 1<<0, SUCC_W = 1<<1, SUCC_I = 1<<2, SUCC_O = 1<<3
++  const uint64_t PredR = 1ULL << 6, PredW = 1ULL << 7, PredI = 1ULL << 8,
++                 PredO = 1ULL << 9;
++  const uint64_t SuccR = 1ULL << 0, SuccW = 1ULL << 1, SuccI = 1ULL << 2,
++                 SuccO = 1ULL << 3;
++  switch (Ord) {
++  case AtomicOrdering::Acquire:
++    // Read-acquire: no later access may move before it.
++    return PredR | SuccR | SuccW; // 0x043
++  case AtomicOrdering::Release:
++    // Write-release: no earlier access may move after it.
++    return PredR | PredW | SuccW; // 0x0C2
++  case AtomicOrdering::AcquireRelease:
++  case AtomicOrdering::SequentiallyConsistent:
++    // Full barrier.  I/O bits are set as the spec requires even though this
++    // machine has no device I/O execution surface (see the task book's known
++    // boundary: the encoding is normative, the I/O execution semantics are
++    // part of QEMU-067t's "no I/O" premise).
++    return PredR | PredW | PredI | PredO | SuccR | SuccW | SuccI | SuccO;
++  case AtomicOrdering::NotAtomic:
++  case AtomicOrdering::Unordered:
++  case AtomicOrdering::Monotonic:
++    break;
++  }
++  llvm_unreachable("DADAO: fence with an unexpected atomic ordering");
++}
++
++bool DADAOTargetLowering::shouldInsertFencesForAtomic(
++    const Instruction *I) const {
++  // Weak memory model with no atomic instruction forms: the ordering of a load
++  // or store is provided by an explicit `fence` (ADR-0034 D2), so let
++  // AtomicExpandPass insert it and keep the access itself plain.  This is also
++  // what keeps atomic loads/stores away from the `__atomic_*` libcalls.
++  (void)I;
++  return true;
++}
++
++TargetLowering::AtomicExpansionKind
++DADAOTargetLowering::shouldExpandAtomicRMWInIR(const AtomicRMWInst *RMW) const {
++  // `lr`/`sc` is the only primitive, so every integer RMW (add/sub/and/or/xor/
++  // nand/xchg/min/max/umin/umax) is expanded into a cmpxchg loop; the loop's
++  // cmpxchg is then lowered to lr/sc by LowerATOMIC_CMP_SWAP_WITH_SUCCESS.
++  // Floating-point RMWs have no atomic path here (the ISA has no FP atomic and
++  // the expansion would need an FP cmpxchg, which does not exist): keep the
++  // base class' behaviour so they are diagnosed by the legalizer instead of
++  // silently producing a libcall.
++  if (RMW->getValOperand()->getType()->isIntegerTy() &&
++      RMW->getValOperand()->getType()->getIntegerBitWidth() <= 64)
++    return AtomicExpansionKind::CmpXChg;
++  return TargetLowering::shouldExpandAtomicRMWInIR(RMW);
++}
++
++SDValue DADAOTargetLowering::LowerATOMIC_FENCE(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  const SDLoc DL(Op);
++  SDValue Chain = Op.getOperand(0);
++  // Operands: [0] chain, [1] TargetConstant ordering, [2] TargetConstant sync
++  // scope (SelectionDAGBuilder::visitFence).  This target has one scope.
++  auto Ord = static_cast<AtomicOrdering>(
++      cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue());
++  if (!isAcquireOrStronger(Ord) && !isReleaseOrStronger(Ord))
++    return Chain; // monotonic/unordered: nothing to emit.
++
++  uint64_t Imm = getDADAOFenceImm(Ord);
++  SDValue ImmV = DAG.getTargetConstant(Imm, DL, MVT::i64);
++  return DAG.getNode(DADAOISD::FENCE, DL, MVT::Other, Chain, ImmV);
++}
++
++SDValue DADAOTargetLowering::LowerATOMIC_LOAD(SDValue Op,
++                                              SelectionDAG &DAG) const {
++  // After the fence split this is a monotonic access: re-lower it to a normal
++  // load so the existing ld.*/ldm.* patterns select it.  Narrow memory types
++  // (i8/i16/i32) use the zero-extending loads -- the same convention as the
++  // narrow `lr` widths (the task book records zero-extension as this batch's
++  // choice; the spec leaves it open).
++  const SDLoc DL(Op);
++  auto *AN = cast<AtomicSDNode>(Op.getNode());
++  EVT MemVT = AN->getMemoryVT();
++  EVT VT = Op.getValueType();
++  if (MemVT == VT)
++    return DAG.getLoad(VT, DL, AN->getChain(), AN->getBasePtr(),
++                       AN->getMemOperand());
++  return DAG.getExtLoad(ISD::ZEXTLOAD, DL, VT, AN->getChain(),
++                        AN->getBasePtr(), MemVT, AN->getMemOperand());
++}
++
++SDValue DADAOTargetLowering::LowerATOMIC_STORE(SDValue Op,
++                                               SelectionDAG &DAG) const {
++  const SDLoc DL(Op);
++  auto *AN = cast<AtomicSDNode>(Op.getNode());
++  EVT MemVT = AN->getMemoryVT();
++  SDValue Val = Op.getOperand(2);
++  if (MemVT == Val.getValueType())
++    return DAG.getStore(AN->getChain(), DL, Val, AN->getBasePtr(),
++                        AN->getMemOperand());
++  return DAG.getTruncStore(AN->getChain(), DL, Val, AN->getBasePtr(), MemVT,
++                           AN->getMemOperand());
++}
++
++SDValue DADAOTargetLowering::LowerATOMIC_CMP_SWAP_WITH_SUCCESS(
++    SDValue Op, SelectionDAG &DAG) const {
++  // ATOMIC_CMP_SWAP_WITH_SUCCESS values: (old value, success, chain).  The
++  // type legalizer promotes the memory-type derived results to i64, so the
++  // node seen here always has i64 operands and i64 result 0/1; the access
++  // width is the *memory* type (i8/i16/i32/i64).
++  //
++  // The lr/sc loop returns the value loaded by `lr`; the success flag of a
++  // CAS is exactly "the compared value was still there", i.e. old == cmp, so
++  // it is computed here with a SETCC instead of being threaded out of the
++  // pseudo (which keeps one definition per virtual register inside the
++  // expansion and needs no constant materialization).
++  const SDLoc DL(Op);
++  auto *AN = cast<AtomicSDNode>(Op.getNode());
++  EVT MemVT = AN->getMemoryVT();
++  if (!MemVT.isInteger() || MemVT.getSizeInBits() > 64)
++    report_fatal_error("DADAO: unsupported atomic cmpxchg memory type");
++
++  SDValue Chain = Op.getOperand(0);
++  SDValue Ptr = Op.getOperand(1);
++  SDValue Cmp = Op.getOperand(2);
++  SDValue New = Op.getOperand(3);
++
++  // Width class: 0 = byte, 1 = wyde, 2 = tetra, 3 = octa (lr/sc suffixes).
++  unsigned Width = Log2_64(MemVT.getSizeInBits() / 8);
++  SDValue WidthV = DAG.getTargetConstant(Width, DL, MVT::i64);
++
++  // A plain (non-MemSDNode) target node: the chain alone serialises it against
++  // every other memory operation, and the selected pseudo is marked
++  // mayLoad/mayStore.  Registering a target *memory* opcode would require a
++  // TableGen SDNode description with SDNPMemOperand, which buys nothing here
++  // (the DAG combiner must not touch an atomic sequence anyway).
++  SDVTList VTs = DAG.getVTList(MVT::i64, MVT::Other);
++  SDValue CmpSwap = DAG.getNode(DADAOISD::ATOMIC_CMP_SWAP, DL, VTs, Chain, Ptr,
++                                Cmp, New, WidthV);
++
++  SDValue Success =
++      DAG.getSetCC(DL, Op.getNode()->getValueType(1), CmpSwap.getValue(0),
++                   Cmp, ISD::SETEQ);
++  return DAG.getMergeValues({CmpSwap.getValue(0), Success, CmpSwap.getValue(1)},
++                            DL);
++}
++
++MachineBasicBlock *DADAOTargetLowering::EmitInstrWithCustomInserter(
++    MachineInstr &MI, MachineBasicBlock *MBB) const {
++  // Expand one of the ATOMIC_CMP_SWAP_PSEUDO_{B,W,T,O} pseudos into the lr/sc
++  // retry loop (DADAOCodeGen.td has the full shape).  This hook runs in
++  // FinalizeISel, i.e. after instruction selection and before register
++  // allocation, which is the only place where new basic blocks can still be
++  // created from a selected machine instruction.
++  unsigned LR, SC;
++  switch (MI.getOpcode()) {
++  default:
++    report_fatal_error("DADAO: unexpected custom-inserter pseudo");
++  case DADAO::ATOMIC_CMP_SWAP_PSEUDO_B:
++    LR = DADAO::lr_b_an;
++    SC = DADAO::sc_b_ar;
++    break;
++  case DADAO::ATOMIC_CMP_SWAP_PSEUDO_W:
++    LR = DADAO::lr_w_an;
++    SC = DADAO::sc_w_ar;
++    break;
++  case DADAO::ATOMIC_CMP_SWAP_PSEUDO_T:
++    LR = DADAO::lr_t_an;
++    SC = DADAO::sc_t_ar;
++    break;
++  case DADAO::ATOMIC_CMP_SWAP_PSEUDO_O:
++    LR = DADAO::lr_o_an;
++    SC = DADAO::sc_o_ar;
++    break;
++  }
++
++  MachineFunction *MF = MBB->getParent();
++  MachineRegisterInfo &MRI = MF->getRegInfo();
++  const TargetInstrInfo *TII = MF->getSubtarget().getInstrInfo();
++  const DebugLoc DL = MI.getDebugLoc();
++
++  const BasicBlock *LLVM_BB = MBB->getBasicBlock();
++  MachineBasicBlock *loop1MBB = MF->CreateMachineBasicBlock(LLVM_BB);
++  MachineBasicBlock *loop2MBB = MF->CreateMachineBasicBlock(LLVM_BB);
++  MachineBasicBlock *exitMBB = MF->CreateMachineBasicBlock(LLVM_BB);
++  MachineFunction::iterator It = std::next(MBB->getIterator());
++  MF->insert(It, loop1MBB);
++  MF->insert(It, loop2MBB);
++  MF->insert(It, exitMBB);
++
++  // The rest of the original block continues in exitMBB (the loop exits into
++  // it); the pseudo itself disappears.
++  exitMBB->splice(exitMBB->begin(), MBB,
++                  std::next(MachineBasicBlock::iterator(MI)), MBB->end());
++  exitMBB->transferSuccessorsAndUpdatePHIs(MBB);
++
++  // thisMBB:
++  //   <prologue>
++  //   fallthrough -> loop1MBB
++  // loop1MBB:
++  //   lr.<w>.an  dst, [ptr]
++  //   br.ne {dst, cmp}?, [rb0, exitMBB]     ; value changed -> give up
++  //   fallthrough -> loop2MBB
++  // loop2MBB:
++  //   sc.<w>.ar  ok, new, [ptr]
++  //   br.nz {ok}?, [rb0, loop1MBB]          ; reservation lost -> retry
++  //   fallthrough -> exitMBB
++  MBB->addSuccessor(loop1MBB, BranchProbability::getOne());
++  loop1MBB->addSuccessor(exitMBB);
++  loop1MBB->addSuccessor(loop2MBB);
++  loop1MBB->normalizeSuccProbs();
++  loop2MBB->addSuccessor(loop1MBB);
++  loop2MBB->addSuccessor(exitMBB);
++  loop2MBB->normalizeSuccProbs();
++
++  Register Dst = MI.getOperand(0).getReg();
++  Register Ptr = MI.getOperand(1).getReg();
++  Register Cmp = MI.getOperand(2).getReg();
++  Register New = MI.getOperand(3).getReg();
++  Register Ok = MRI.createVirtualRegister(&DADAO::GPRDRegClass);
++
++  // lr.<w>.an dst, [ptr]: the reservation is taken on the *first* iteration
++  // and re-taken on every retry (a losing sc clears it).
++  BuildMI(*loop1MBB, loop1MBB->end(), DL, TII->get(LR), Dst).addReg(Ptr);
++  // Two-register conditional branch: br.ne {dst, cmp}?, [rb0, exitMBB] tests
++  // the value the reservation protected, so the CAS fails without writing.
++  BuildMI(*loop1MBB, loop1MBB->end(), DL, TII->get(DADAO::br_ne_rd))
++      .addReg(Dst)
++      .addReg(Cmp)
++      .addMBB(exitMBB);
++
++  // sc.<w>.ar ok, new, [ptr]: ok == 0 means the store happened, ok == 1 means
++  // the reservation was lost (another hart stored, or an exception); either
++  // way the hart's reservation is now cleared, so a failure simply loops.
++  BuildMI(*loop2MBB, loop2MBB->end(), DL, TII->get(SC), Ok)
++      .addReg(New)
++      .addReg(Ptr);
++  BuildMI(*loop2MBB, loop2MBB->end(), DL, TII->get(DADAO::br_nz_rd))
++      .addReg(Ok)
++      .addMBB(loop1MBB);
++
++  MI.eraseFromParent();
++  return exitMBB;
 +}

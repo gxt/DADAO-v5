@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOCodeGen.td b/llvm/lib/Target/DADAO/DADAOCodeGen.td
 new file mode 100644
-index 000000000..268640ed4
+index 000000000..a714823d4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOCodeGen.td
-@@ -0,0 +1,722 @@
+@@ -0,0 +1,769 @@
 +//===-- DADAOCodeGen.td - DADAO CodeGen TableGen defs -------*- tablegen -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -726,3 +726,50 @@ index 000000000..268640ed4
 +// bitcast back).
 +def : Pat<(f64 (bitconvert i64:$a)), (rd2rf_orri_rf GPRD:$a, 1)>;
 +def : Pat<(i64 (bitconvert f64:$a)), (rf2rd_orri_rf f64:$a, 1)>;
++
++//===----------------------------------------------------------------------===//
++// Atomic compare-and-swap pseudos (LLVM-121t; ADR-0034 D3-D6)
++//
++// There is no AMO in the ISA (ISS-294): every atomic read-modify-write and
++// every cmpxchg is a `lr`/`sc` retry loop.  The loop is built by the target's
++// custom inserter (DADAOTargetLowering::EmitInstrWithCustomInserter, the PPC
++// `emitAtomicCmpSwapHardware` shape) because it needs new basic blocks, and
++// FinalizeISel runs that hook before register allocation:
++//
++//   thisMBB:
++//     <prologue>
++//     fallthrough -> loop
++//   loop:                                  (loop1MBB)
++//     lr.<w>.an  dst, [ptr]
++//     br.ne {dst, cmp}?, [rb0, done]       ; value changed -> CAS failed
++//     sc.<w>.ar  ok, new, [ptr]
++//     br.nz {ok}?, [rb0, loop]             ; reservation lost -> retry
++//   done:                                  (exitMBB = the rest of thisMBB)
++//
++// The success flag is not part of the pseudo: it is exactly `dst == cmp`, so
++// the lowering (DADAOISelLowering::LowerOperation, ATOMIC_CMP_SWAP_WITH_SUCCESS)
++// computes it with a SETCC after the node, keeping one definition per virtual
++// register in the expansion.
++//
++// One pseudo per access width: the ISA has native 1/2/4/8-byte lr/sc and the
++// address only has to be aligned to that width (ADR-0034 D6 as revised
++// 2026-10-21), so a byte/halfword CAS never has to touch the neighbouring
++// bytes of the containing word.
++//===----------------------------------------------------------------------===//
++
++class DADAOAtomicCmpSwapPseudo<dag ins>
++    : DADAOPseudo<(outs GPRD:$dst), ins, []> {
++  let usesCustomInserter = 1;
++  let hasSideEffects = 1;
++  let mayLoad = 1;
++  let mayStore = 1;
++}
++
++def ATOMIC_CMP_SWAP_PSEUDO_B
++    : DADAOAtomicCmpSwapPseudo<(ins GPRB:$ptr, GPRD:$cmp, GPRD:$new)>;
++def ATOMIC_CMP_SWAP_PSEUDO_W
++    : DADAOAtomicCmpSwapPseudo<(ins GPRB:$ptr, GPRD:$cmp, GPRD:$new)>;
++def ATOMIC_CMP_SWAP_PSEUDO_T
++    : DADAOAtomicCmpSwapPseudo<(ins GPRB:$ptr, GPRD:$cmp, GPRD:$new)>;
++def ATOMIC_CMP_SWAP_PSEUDO_O
++    : DADAOAtomicCmpSwapPseudo<(ins GPRB:$ptr, GPRD:$cmp, GPRD:$new)>;

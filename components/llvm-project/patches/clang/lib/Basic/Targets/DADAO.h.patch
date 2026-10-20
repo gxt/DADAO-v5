@@ -1,9 +1,9 @@
 diff --git a/clang/lib/Basic/Targets/DADAO.h b/clang/lib/Basic/Targets/DADAO.h
 new file mode 100644
-index 000000000..a7d6ed0e5
+index 000000000..86188ec23
 --- /dev/null
 +++ b/clang/lib/Basic/Targets/DADAO.h
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,123 @@
 +//===--- DADAO.h - Declare DADAO target feature support --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -62,6 +62,13 @@ index 000000000..a7d6ed0e5
 +    // musl's `unsigned` (include/alltypes.h.in:37), so the two differ.
 +    WCharType = SignedInt;
 +    WIntType = UnsignedInt;
++
++    // `_Atomic` support (LLVM-121t).  The backend implements 1/2/4/8-byte
++    // atomics itself (lr/sc retry loops + explicit fences) and reports
++    // setMaxAtomicSizeInBitsSupported(64), so clang must agree: without this,
++    // MaxAtomicInlineWidth stays 0 and every atomic access is diagnosed as
++    // "large atomic operation ... exceeds the max lock-free size (0 bytes)".
++    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
 +
 +    // `long double` is IEEE binary128 (ADR-0030 D1): 16 bytes, 16-byte
 +    // aligned, 113-bit significand.  All arithmetic is compiler-rt soft float

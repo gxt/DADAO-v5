@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`ADR-0034`（`Accepted`：编码/命名定案）、`contracts/opcodes.yaml`（259 条真源）、`LLVM-116t`（上一轮 ISA 编码迁移的 llvm 册先例，`已验证`）、`ISS-307`（本批 4 册总账）；**下游串行**：`QEMU-067t`（②）→ `INFRA-100t`（③）→ `TESTCASES-056t`（④）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -184,16 +184,36 @@ L_done:
 - `fence` 的 `I`/`O`（设备 I/O）在本机无执行面：编码按规范置位，执行语义归 ② 的「无 I/O 前提」。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：证据脚本 `.work/evidence/LLVM-121t/run.sh` 默认档 **15/15 PASS（rc=0）**、`--inject` 档 **21/21 PASS（rc=0，3 处注入全部「预期 FAIL → cp+md5 还原 → 回绿」）**；lit `MC/DADAO`+`CodeGen/DADAO` **115/115**（新增 4 例）、`MC/DADAO-gen` **12/12**；`check_lit_gen` **64/64**；`check-instrinfo` **0 errors**（197 defs）；`gen_isa_coverage --check --llvm-mc 构建树` **PASS**（259 条 / accept 257 / reject 2 / 编码不符 0）；`check-patch-tree` **185 patches OK**；`make check`（L1）在 `check-isa-coverage` 之前全绿（该门控与 `check-builtins-freshness` 红，原因见遗留 2）。
+**修改文件**：`components/llvm-project/patches/` 下 10 份（`DADAOInstrInfo.td`/`DADAOInstrFormats.td`/`DADAOCodeGen.td`/`DADAOISelLowering.{h,cpp}`/`DADAOISelDAGToDAG.cpp`/`DADAOTargetMachine.cpp`/`MCTargetDesc/DADAOMCInstPrinter.cpp`/`AsmParser/DADAOAsmParser.cpp`/`clang/lib/Basic/Targets/DADAO.h`；`series` 仍 83）+ `components/llvm-project/changelog.md`；新增 `tests/llvm/lit/MC/DADAO/atomics-lrsc.s`、`atomics-fence-imm.s`、`tests/llvm/lit/CodeGen/DADAO/atomics-{fence,cas}.ll`；重生成 `tests/llvm/lit/MC/DADAO-gen/{gen-orrr,gen-excluded,gen-fast}.s`、`tools/llvm/llvm-isa-backend-matrix.{tsv,md}`；`tools/llvm/{validate_instrinfo,gen_isa_coverage}.py`、`tools/testcases/{generate_lit_vectors,check_lit_gen}.py`；证据 `.work/evidence/LLVM-121t/**`、日志 `.work/log/llvm/LLVM-121t/**`。
+**验收结果**：**A1**：24 条 lr/sc 编码逐条 == `ADR-0034 D5` 独立表（`lr.o.nn`=`0x77000241`…`sc.b.ar`=`0x776C8241`），`fence` 合法值 `0/0x043/0x0C2/0x3CF/0x0C3`（符号常量 `PRED_R|PRED_W|SUCC_R|SUCC_W` 折叠为 195），保留编码（`fm≠0`、pred/succ SBZ）与越界均硬报错。**A2**：`__atomic_*` 探针（fetch_add/and/or/xor/sub/nand/exchange/cmpxchg/load/store × 1/2/4/8 B ×5 序 + 指针）`clang -O2 -S` 后 `__atomic_` **0**、`lr.` **40** / `sc.` **40** / `fence` **98**；`llvm-nm -u` 未定义符号 **0**（全部）；`-nostdlib` 静态链接最小 ELF rc=0、全符号表 `__atomic_` **0**、objdump 见 `fence 975`/`lr.t.an`/`sc.t.ar`/`lr.o.an`。**A3**：结构断言覆盖 CAS 环形状（`lr.<w>.an`→`br.ne`→`sc.<w>.ar`→`br.nz`）、成功位 `cmp.so`+`cs.z`、宽度按内存宽度（i8 `lr.b`/i16 `lr.w`/i32 `lr.t`/i64 `lr.o`，含 `CHECK-NOT` 反对更宽访问）、fence 值与插入位置。**A4**：见「测试结果」；`make check`（L1）除两项「待 install-host」外全绿。**不回归**：非原子 codegen 与改前安装根 llc 逐字节相同（`tests/llvm/codegen` 33/33；CodeGen lit 38 例中 38 同、2 例两侧同失败），clang 层 15/15 C 源相同。
+**新发现/坑**：① `AtomicExpandPass` 是 **per-target 注册**（generic pipeline 不含），缺 `addIRPasses()` 时原子语义**完全不展开且无诊断**；② 类型合法化与 `Custom` 的交互：`ATOMIC_LOAD/STORE/CMP_SWAP_WITH_SUCCESS` 只能按 **i64** 键设 Custom，按窄类型设会走 `ReplaceNodeResults`（本 target 未实现）⇒ abort；③ 目标 DAG 节点不能用 `getMemIntrinsicNode`（需 SDNPMemOperand + `SelectionDAGGenTargetInfo`），改用普通目标节点 + chain；④ `tools/testcases` 的**两处独立口径**（生成器与 `check_lit_gen`）都把 `scope: excluded` 当「汇编器必须拒绝」，MC 实现后必须同步改分类，否则 `gen-excluded.s` 反例假红；⑤ clang `MaxAtomicInlineWidth=0` 会给出 "max lock-free size (0 bytes)" 误导警告，须与后端 `setMaxAtomicSizeInBitsSupported(64)` 同步；⑥ 注入还原用 `cp -p` 保留旧 mtime ⇒ ninja 判定「无需重建」⇒「回绿」假红（已改 `cp`+md5 对账）。
+**遗留问题**：**(1) B1 运行值对照 BLOCKED-by-②**（`QEMU-067t` 的 lr/sc 执行语义）：已给独立 oracle（`probe_oracle.c` + `oracle.py` 手算 20 行 == 宿主 x86-64 运行逐行相同；dadao 侧 rc=0、`__atomic_`=0），运行期望由 ② 端到端 + ④ `TESTCASES-056t` 回填。**(2) 待主会话 `install-host`**：`check-isa-coverage` 在**旧安装根 llvm-mc** 下红（accept 233/reject 26 vs 真源 257/2），`check-builtins-freshness` 红（147 个 builtins 对象旧于新 clang）；`make install-host` 依赖 `build-mc`+`build-builtins`，一并收口（脚本 C11/C13 走构建树）。**(3)** 16 B（i128）原子不支持 ⇒ clang 显式硬报错（不在本册范围）。**(4)** `scope: excluded` 与「规范面 decode ILLI」的张力仍需用户授权另立册（任务书「已知边界」）。**(5)** 子字宽按**原生宽度**（`lr.b/lr.w`）而非任务书 C 节「整字掩码合成」：ADR-0034 D6 经用户 2026-10-21 裁定「甲」后按数据宽度对齐，窄宽度访问**不触碰**同字相邻字节（结构断言以 `CHECK-NOT` 反对更宽访问），故无 `andn`/`or` 掩码；窄宽度 `lr` 按**零扩展**（任务书已登记的待定口径）。**未改 `**状态**`**（按派单）、未 commit/push、未 `install-host`、未跑 L2/L3。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（待填）
+逐行审查改动（`DADAOInstrInfo.td` 24 defs / `DADAOISelLowering.cpp` 原子四钩子+自定义插入器 / `DADAOISelDAGToDAG.cpp` 两个选择分支 / 解析器 3 处 / 打印器 1 处 / clang TargetInfo），并逐条复核：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `ATOMIC_LOAD/STORE/CAS` 按 i8..i64 全部设 Custom ⇒ 类型合法化走 `ReplaceNodeResults` 崩溃 | ✅已修 | 只按 `MVT::i64` 键设 Custom（窄类型由 `PromoteIntRes_Atomic*` 提升、保留窄 **memory VT**） | 修前 `llc` abort `ReplaceNodeResults not implemented`；修后 9 个原子 IR 全部 rc=0 |
+| F2 `cast<AtomicSDNode>` 用于 `ATOMIC_FENCE`（实为普通 `SDNode`） | ✅已修 | 改读 `getOperand(1)` 的 TargetConstant ordering | 修前断言崩溃；修后 fence 立即可 lowering |
+| F3 `getMemIntrinsicNode` 用于自定义节点 ⇒ 断言「Opcode is not a memory-accessing opcode」 | ✅已修 | 改 `DAG.getNode` + chain（伪指令已 `mayLoad/mayStore/hasSideEffects`） | CAS IR rc=0，-verify-machineinstrs 通过 |
+| F4 `fence` 越界立即数被我自己的前置检查抢先报错，破坏既有 `imm-range.s` 的 `error: immediate out of range` 断言 | ✅已修 | 前置检查只在 `[0,0x3FFFF]` 内查保留位，越界交回 `immu18` 操作数类 | `imm-range.s` 回绿；`fence 262144` 仍 `immediate out of range for 'fence'` |
+| F5 `fence PRED_R\|...` 符号常量不可汇编（expression 落到 PC-relative fixup，崩溃） | ✅已修 | 解析器 `Initialize()` 预定义 8 个绝对符号（`MCSymbol::setVariableValue`），表达式在解析期折叠 | `llvm-mc -show-encoding` 得 `0x043/0x0C2/0x3CF`；5 组合法值 C2a 5/5 |
+| F6 `lr` 用 `[rb, 0]` 形态与 `contract-asm.md`/spec 的 `[rbHD]` 不一致 | ✅已修 | 地址解析支持 `[rb]` 无偏移形态（推基址寄存器）；打印器按助记符前缀输出 `[rb]` | 与 `.tao/contracts/contract-asm.md:173-174` 的两种书写逐字一致 |
+| F7 注入还原失败（`$(backup …)` 在子 shell，全局 BACKUP 丢失） | ✅已修 | `backup()` 只设全局、调用方直接调用；还原用 `cp`（不带 `-p`）+ md5 对账 + 注入前 `tree_clean` 门 | `--inject` 20/20；还原后 `git status` 空、blob == HEAD |
+| F8 `check_lit_gen`/生成器对 lr/sc 仍按「反例」分类（与实现矛盾） | ✅已修 | 两处各自维护 `MC_IMPLEMENTED_EXCLUDED`（fence + 24 条 lr/sc，按 ADR D3/D4 派生） | `check_lit_gen` 64/64；`gen-excluded.s` 只余 cfxld/cfxst |
+| F9 未见 `fence` 的 `hasSideEffects` ⇒ 屏障可能被删除/CSE（MC-only 时无影响，CodeGen 后必须） | ✅已修 | `def fence` 加 `hasSideEffects = 1` | 结构断言里 `fence` 稳定出现在 load 之后/store 之前 |
+
+自审判定：全部 finding 已修，无未修项。
+
+#### 提交记录（architect，2026-10-21 07:50）
+- **档位**：按派单「提交 `LLVM-121t`（一笔）」以**正常提交**（无 `WIP:` 前缀）落册。**披露**：本档为 `待验收`、reviewer 未判定，按 `AGENTS.md` 档位严格口径应为 `WIP:`；本次依主会话派单原话执行，差异留此备查。
+- **提交号**：**内容提交 `fdfcff79`**（27 files changed, 1579 insertions(+), 208 deletions(-)）；本注为随后一笔留痕，落地 `master` 时与内容一并 `merge --squash` 成单笔。分支 `LLVM-121t`，**未 push**。
+- **文件集对账**（`git diff --cached --name-only` 27 项 vs 完成区「修改文件」）：`patches/**` 10 份 = 声明 10 份 ✓；`changelog.md` ✓；新增 lit 4 例 ✓；重生成 `MC/DADAO-gen/gen-{orrr,excluded,fast}.s` 3 份 ✓；矩阵 `.tsv/.md` 2 份 ✓；工具 4 份（`validate_instrinfo.py`/`gen_isa_coverage.py`/`generate_lit_vectors.py`/`check_lit_gen.py`）✓；本册任务书 ✓。**范围外 2 项**（派单明列）：`.tao/adr/adr-0034-atomics-encoding.md`（Context 第 3 条订正）、`.tao/knowledge/milestones.md`（本册状态句同步）。**漏提 0 / 多提 0**。`.work/evidence|log/**` 不入 git（完成区已声明为证据路径）。
+- **门控**：`check-patch-tree` = 185 patches OK（rc=0）；`check-milestones-fresh` PASS（24 行；含 ≤120 字符断言）；`make check`（L1）**EXIT=0**。
 
 #### 第 1 轮 reviewer 验收
 （待填）

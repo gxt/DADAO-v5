@@ -13,7 +13,7 @@
 
 - 形态来源：`tools/testcases/generate_lit_vectors.py` 的 `build_case()`（与现有 lit 全量档 `tests/llvm/lit/MC/DADAO-gen/gen-*.s` **同一口径、同一行文本**；本工具不另立操作数拼装逻辑）。
 - 受理后**另做编码复核**：由对象 `.text` 取 4 字节大端字，要求「按真源 `(word & mask) == value` 唯一命中本记录」且等于真源派生编码（`L1_encoding = ok / mismatch`）。这一列把第①层钉在真源上，而非只看 `llvm-mc` 自洽。
-- 现场统计：`accept` **233** / `reject` **26**；编码复核不符 **0**。
+- 现场统计：`accept` **257** / `reject` **2**；编码复核不符 **0**。
 - `scope: excluded` 且后端未实现者（`cfxld`/`cfxst`/`lr_*`/`sc_*`）由汇编器**显式拒绝**（`reject`），与 `tests/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。
 
 ### 第②层「ISel 用得上」（机械提取，非人工判读）
@@ -26,7 +26,7 @@
 | `pat-args` | `def`/`defm` 的 Pat 类实参（含 `multiclass` 经 `defm` 传入的指令） | `DADAOCodeGen.td.patch` |
 | `isel-cpp` | `DADAO::<def>` 显式引用（自定义选择器 / lowering 发射） | `DADAOISelDAGToDAG.cpp.patch`、`DADAOISelLowering.cpp.patch` |
 
-现场统计：证据条数 = isel-cpp 23 + pat 99 + pat-args 8；判「用得上」的记录 **92** 条。
+现场统计：证据条数 = isel-cpp 34 + pat 99 + pat-args 8；判「用得上」的记录 **101** 条。
 
 ### 提取方法的局限（盲区披露）
 
@@ -60,13 +60,13 @@
 | `andn.w_rwii_rd` | `andn.w` | `rwii` | `m1` | accept | no | — |
 | `br.eq_rrii_rd` | `br.eq` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:557:br_eq_rd |
 | `br.n_riii_rd` | `br.n` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:551:br_n_rd |
-| `br.ne_rrii_rd` | `br.ne` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:558:br_ne_rd |
+| `br.ne_rrii_rd` | `br.ne` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2374:br_ne_rd;pat:DADAOCodeGen.td.patch:558:br_ne_rd |
 | `br.nn_riii_rd` | `br.nn` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:552:br_nn_rd |
 | `br.np_riii_rd` | `br.np` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:554:br_np_rd |
-| `br.nz_riii_rb` | `br.nz` | `riii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:670:br_nz_rb |
-| `br.nz_riii_rd` | `br.nz` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:550:br_nz_rd |
+| `br.nz_riii_rb` | `br.nz` | `riii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:712:br_nz_rb |
+| `br.nz_riii_rd` | `br.nz` | `riii` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2385:br_nz_rd;pat:DADAOCodeGen.td.patch:550:br_nz_rd |
 | `br.p_riii_rd` | `br.p` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:553:br_p_rd |
-| `br.z_riii_rb` | `br.z` | `riii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:669:br_z_rb |
+| `br.z_riii_rb` | `br.z` | `riii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:711:br_z_rb |
 | `br.z_riii_rd` | `br.z` | `riii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:549:br_z_rd |
 | `call_iiii_ra` | `call` | `iiii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:599:call_iiii |
 | `call_rrii_ra` | `call` | `rrii` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:599:call_rrii |
@@ -81,7 +81,7 @@
 | `cmp.sw_orrr_rd` | `cmp.sw` | `orrr` | `m1` | accept | no | — |
 | `cmp.ub_orrr_rd` | `cmp.ub` | `orrr` | `m1` | accept | no | — |
 | `cmp.ui_rrii_rd` | `cmp.ui` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:546:cmp_ui_rd |
-| `cmp.uo_orrr_dbb` | `cmp.uo` | `orrr` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:655:cmp_uo_dbb |
+| `cmp.uo_orrr_dbb` | `cmp.uo` | `orrr` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:697:cmp_uo_dbb |
 | `cmp.uo_orrr_rd` | `cmp.uo` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:545:cmp_uo |
 | `cmp.ut_orrr_rd` | `cmp.ut` | `orrr` | `m1` | accept | no | — |
 | `cmp.uw_orrr_rd` | `cmp.uw` | `orrr` | `m1` | accept | no | — |
@@ -111,7 +111,7 @@
 | `ext.so_orrr_rd` | `ext.so` | `orrr` | `m1` | accept | no | — |
 | `ext.uo_orri_rd` | `ext.uo` | `orri` | `m1` | accept | no | — |
 | `ext.uo_orrr_rd` | `ext.uo` | `orrr` | `m1` | accept | no | — |
-| `fence_oiii_imm` | `fence` | `oiii` | `excluded` | accept | no | — |
+| `fence_oiii_imm` | `fence` | `oiii` | `excluded` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:656:fence |
 | `fo2fo_orri_rf` | `fo2fo` | `orri` | `fp` | accept | no | — |
 | `fo2ft_orri_rf` | `fo2ft` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:703:fo2ft_orri_rf |
 | `fo2io_orri_rf` | `fo2io` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:709:fo2io_orri_rf |
@@ -176,18 +176,18 @@
 | `ldm.ub_rrri_rd` | `ldm.ub` | `rrri` | `m1` | accept | no | — |
 | `ldm.ut_rrri_rd` | `ldm.ut` | `rrri` | `m1` | accept | no | — |
 | `ldm.uw_rrri_rd` | `ldm.uw` | `rrri` | `m1` | accept | no | — |
-| `lr.b.an_orrr_rd` | `lr.b.an` | `orrr` | `excluded` | reject | no | — |
-| `lr.b.ar_orrr_rd` | `lr.b.ar` | `orrr` | `excluded` | reject | no | — |
-| `lr.b.nn_orrr_rd` | `lr.b.nn` | `orrr` | `excluded` | reject | no | — |
-| `lr.o.an_orrr_rd` | `lr.o.an` | `orrr` | `excluded` | reject | no | — |
-| `lr.o.ar_orrr_rd` | `lr.o.ar` | `orrr` | `excluded` | reject | no | — |
-| `lr.o.nn_orrr_rd` | `lr.o.nn` | `orrr` | `excluded` | reject | no | — |
-| `lr.t.an_orrr_rd` | `lr.t.an` | `orrr` | `excluded` | reject | no | — |
-| `lr.t.ar_orrr_rd` | `lr.t.ar` | `orrr` | `excluded` | reject | no | — |
-| `lr.t.nn_orrr_rd` | `lr.t.nn` | `orrr` | `excluded` | reject | no | — |
-| `lr.w.an_orrr_rd` | `lr.w.an` | `orrr` | `excluded` | reject | no | — |
-| `lr.w.ar_orrr_rd` | `lr.w.ar` | `orrr` | `excluded` | reject | no | — |
-| `lr.w.nn_orrr_rd` | `lr.w.nn` | `orrr` | `excluded` | reject | no | — |
+| `lr.b.an_orrr_rd` | `lr.b.an` | `orrr` | `excluded` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2307:lr_b_an |
+| `lr.b.ar_orrr_rd` | `lr.b.ar` | `orrr` | `excluded` | accept | no | — |
+| `lr.b.nn_orrr_rd` | `lr.b.nn` | `orrr` | `excluded` | accept | no | — |
+| `lr.o.an_orrr_rd` | `lr.o.an` | `orrr` | `excluded` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2319:lr_o_an |
+| `lr.o.ar_orrr_rd` | `lr.o.ar` | `orrr` | `excluded` | accept | no | — |
+| `lr.o.nn_orrr_rd` | `lr.o.nn` | `orrr` | `excluded` | accept | no | — |
+| `lr.t.an_orrr_rd` | `lr.t.an` | `orrr` | `excluded` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2315:lr_t_an |
+| `lr.t.ar_orrr_rd` | `lr.t.ar` | `orrr` | `excluded` | accept | no | — |
+| `lr.t.nn_orrr_rd` | `lr.t.nn` | `orrr` | `excluded` | accept | no | — |
+| `lr.w.an_orrr_rd` | `lr.w.an` | `orrr` | `excluded` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2311:lr_w_an |
+| `lr.w.ar_orrr_rd` | `lr.w.ar` | `orrr` | `excluded` | accept | no | — |
+| `lr.w.nn_orrr_rd` | `lr.w.nn` | `orrr` | `excluded` | accept | no | — |
 | `mul.sb_orrr_rd` | `mul.sb` | `orrr` | `m1` | accept | no | — |
 | `mul.so_rrrr_rd` | `mul.so` | `rrrr` | `m1` | accept | no | — |
 | `mul.st_orrr_rd` | `mul.st` | `orrr` | `m1` | accept | no | — |
@@ -228,18 +228,18 @@
 | `rol.t_orrr_rd` | `rol.t` | `orrr` | `m9` | accept | no | — |
 | `rol.w_orri_rd` | `rol.w` | `orri` | `m9` | accept | no | — |
 | `rol.w_orrr_rd` | `rol.w` | `orrr` | `m9` | accept | no | — |
-| `sc.b.ar_orrr_rd` | `sc.b.ar` | `orrr` | `excluded` | reject | no | — |
-| `sc.b.nn_orrr_rd` | `sc.b.nn` | `orrr` | `excluded` | reject | no | — |
-| `sc.b.nr_orrr_rd` | `sc.b.nr` | `orrr` | `excluded` | reject | no | — |
-| `sc.o.ar_orrr_rd` | `sc.o.ar` | `orrr` | `excluded` | reject | no | — |
-| `sc.o.nn_orrr_rd` | `sc.o.nn` | `orrr` | `excluded` | reject | no | — |
-| `sc.o.nr_orrr_rd` | `sc.o.nr` | `orrr` | `excluded` | reject | no | — |
-| `sc.t.ar_orrr_rd` | `sc.t.ar` | `orrr` | `excluded` | reject | no | — |
-| `sc.t.nn_orrr_rd` | `sc.t.nn` | `orrr` | `excluded` | reject | no | — |
-| `sc.t.nr_orrr_rd` | `sc.t.nr` | `orrr` | `excluded` | reject | no | — |
-| `sc.w.ar_orrr_rd` | `sc.w.ar` | `orrr` | `excluded` | reject | no | — |
-| `sc.w.nn_orrr_rd` | `sc.w.nn` | `orrr` | `excluded` | reject | no | — |
-| `sc.w.nr_orrr_rd` | `sc.w.nr` | `orrr` | `excluded` | reject | no | — |
+| `sc.b.ar_orrr_rd` | `sc.b.ar` | `orrr` | `excluded` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2308:sc_b_ar |
+| `sc.b.nn_orrr_rd` | `sc.b.nn` | `orrr` | `excluded` | accept | no | — |
+| `sc.b.nr_orrr_rd` | `sc.b.nr` | `orrr` | `excluded` | accept | no | — |
+| `sc.o.ar_orrr_rd` | `sc.o.ar` | `orrr` | `excluded` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2320:sc_o_ar |
+| `sc.o.nn_orrr_rd` | `sc.o.nn` | `orrr` | `excluded` | accept | no | — |
+| `sc.o.nr_orrr_rd` | `sc.o.nr` | `orrr` | `excluded` | accept | no | — |
+| `sc.t.ar_orrr_rd` | `sc.t.ar` | `orrr` | `excluded` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2316:sc_t_ar |
+| `sc.t.nn_orrr_rd` | `sc.t.nn` | `orrr` | `excluded` | accept | no | — |
+| `sc.t.nr_orrr_rd` | `sc.t.nr` | `orrr` | `excluded` | accept | no | — |
+| `sc.w.ar_orrr_rd` | `sc.w.ar` | `orrr` | `excluded` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:2312:sc_w_ar |
+| `sc.w.nn_orrr_rd` | `sc.w.nn` | `orrr` | `excluded` | accept | no | — |
+| `sc.w.nr_orrr_rd` | `sc.w.nr` | `orrr` | `excluded` | accept | no | — |
 | `set.ow_rwii_rd` | `set.ow` | `rwii` | `m1` | accept | no | — |
 | `set.w_rwii_rf` | `set.w` | `rwii` | `fp` | accept | no | — |
 | `set.zw_rwii_rb` | `set.zw` | `rwii` | `m1` | accept | no | — |
@@ -278,9 +278,9 @@
 | `st.w_rrii_rd` | `st.w` | `rrii` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:509:st_w_rd |
 | `stm.b_rrri_rd` | `stm.b` | `rrri` | `m1` | accept | no | — |
 | `stm.o_rrri_ra` | `stm.o` | `rrri` | `m1` | accept | no | — |
-| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:999:stm_o_rb |
-| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:997:stm_o_rd |
-| `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:1001:stm_o_rrri_rf |
+| `stm.o_rrri_rb` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:1041:stm_o_rb |
+| `stm.o_rrri_rd` | `stm.o` | `rrri` | `m1` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:1039:stm_o_rd |
+| `stm.o_rrri_rf` | `stm.o` | `rrri` | `fp` | accept | yes | isel-cpp:DADAOISelLowering.cpp.patch:1043:stm_o_rrri_rf |
 | `stm.t_rrri_rd` | `stm.t` | `rrri` | `m1` | accept | no | — |
 | `stm.t_rrri_rf` | `stm.t` | `rrri` | `fp` | accept | no | — |
 | `stm.w_rrri_rd` | `stm.w` | `rrri` | `m1` | accept | no | — |
@@ -303,14 +303,14 @@
 | `xnor.o_orrr_rd` | `xnor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:393:xnor_o |
 | `xor.o_orrr_rd` | `xor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:388:xor_o |
 
-## 3. 缺口汇总（未被 ISel 使用，167 条）
+## 3. 缺口汇总（未被 ISel 使用，158 条）
 
 候选优化面（供后续里程碑参考）。按性质分四类（现场统计）：
 
 1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**113** 条 —— ISA 有、后端一次都没发射，最有价值。
 2. **真缺口·汇编层/特权族**（同上但 `format ∈ {crrr, ciii, crii}` 或助记符 ∈ {fence, swym}，机械判据）：**5** 条 —— 经 cfx 访问/内联汇编/占位语义使用，不经 ISel 选入属预期。
 3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**22** 条。
-4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**27** 条 —— 不在本期范围。
+4. **`scope: excluded` 未实现**（汇编器拒绝、执行 ILLI）：**18** 条 —— 不在本期范围。
 
 ### 3.1 真缺口·候补优化面（113 条）
 
@@ -467,35 +467,26 @@
 | `sub.so_rrrr_rd` | `sub.so` | `rrrr` | `m1` |
 | `sub.uo_rrrr_rd` | `sub.uo` | `rrrr` | `m1` |
 
-### 3.4 scope: excluded（未实现）（27 条）
+### 3.4 scope: excluded（未实现）（18 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
 | `cfxld_crii_cfx` | `cfxld` | `crii` | `excluded` |
 | `cfxst_crii_cfx` | `cfxst` | `crii` | `excluded` |
-| `fence_oiii_imm` | `fence` | `oiii` | `excluded` |
-| `lr.b.an_orrr_rd` | `lr.b.an` | `orrr` | `excluded` |
 | `lr.b.ar_orrr_rd` | `lr.b.ar` | `orrr` | `excluded` |
 | `lr.b.nn_orrr_rd` | `lr.b.nn` | `orrr` | `excluded` |
-| `lr.o.an_orrr_rd` | `lr.o.an` | `orrr` | `excluded` |
 | `lr.o.ar_orrr_rd` | `lr.o.ar` | `orrr` | `excluded` |
 | `lr.o.nn_orrr_rd` | `lr.o.nn` | `orrr` | `excluded` |
-| `lr.t.an_orrr_rd` | `lr.t.an` | `orrr` | `excluded` |
 | `lr.t.ar_orrr_rd` | `lr.t.ar` | `orrr` | `excluded` |
 | `lr.t.nn_orrr_rd` | `lr.t.nn` | `orrr` | `excluded` |
-| `lr.w.an_orrr_rd` | `lr.w.an` | `orrr` | `excluded` |
 | `lr.w.ar_orrr_rd` | `lr.w.ar` | `orrr` | `excluded` |
 | `lr.w.nn_orrr_rd` | `lr.w.nn` | `orrr` | `excluded` |
-| `sc.b.ar_orrr_rd` | `sc.b.ar` | `orrr` | `excluded` |
 | `sc.b.nn_orrr_rd` | `sc.b.nn` | `orrr` | `excluded` |
 | `sc.b.nr_orrr_rd` | `sc.b.nr` | `orrr` | `excluded` |
-| `sc.o.ar_orrr_rd` | `sc.o.ar` | `orrr` | `excluded` |
 | `sc.o.nn_orrr_rd` | `sc.o.nn` | `orrr` | `excluded` |
 | `sc.o.nr_orrr_rd` | `sc.o.nr` | `orrr` | `excluded` |
-| `sc.t.ar_orrr_rd` | `sc.t.ar` | `orrr` | `excluded` |
 | `sc.t.nn_orrr_rd` | `sc.t.nn` | `orrr` | `excluded` |
 | `sc.t.nr_orrr_rd` | `sc.t.nr` | `orrr` | `excluded` |
-| `sc.w.ar_orrr_rd` | `sc.w.ar` | `orrr` | `excluded` |
 | `sc.w.nn_orrr_rd` | `sc.w.nn` | `orrr` | `excluded` |
 | `sc.w.nr_orrr_rd` | `sc.w.nr` | `orrr` | `excluded` |
 
