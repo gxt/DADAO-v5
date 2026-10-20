@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`LLVM-117t`（动态 TLS + T5 收口，`待验收`；同一 musl 自举面）、`INFRA-085t`（C1 动态自举 + `dlstart.c` 补丁来源，已归档）、`INFRA-096t`（安装根新鲜度，`待验收`）、`LLVM-118t`/`LLVM-119t`（同改工具链须串行；本册只改 `components/musl/**`，与二者在**构建树/安装根**上仍是串行关系）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-20）**：`llvm` 现存最大 = `LLVM-117t`（本批另占 `118`/`119`）⇒ 取 **`120`**（编写前 `grep -rn 'LLVM-120' .tao/` 零命中）。
 > **归口说明**：`ISS-245` 的 `scope` 记为 `infra`，但其修法面 = **LLVM 工具链产出的 `rcrt1.o` + musl 端口自举汇编**（`components/musl/patches/arch/dadao/crt_arch.h.patch`）。本批按**执行面**归 `llvm`（与 `LLVM-117t` 同族）；若验收时认定应归 `infra`，在完成区披露即可，不重开册。
@@ -59,16 +59,26 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：`.work/evidence/LLVM-120t/run.sh` **rc=0（82 项断言全绿）**；`--inject` **rc=0（45 项）**。回归：`build-musl` 0 / `build-musl-shared` 0 / `check-musl-freshness` 0 / 动态自举 `musl_smoke_dyn.elf` exit 0 / 047t 静态抽样 `5/0/0` / `check-patch-tree` 185 OK / L1 `make check` 0。
+**修改文件**：`components/musl/patches/arch/dadao/crt_arch.h.patch`、`components/musl/patches/ldso/dlstart.c.patch`（2 份既有补丁改，`series` **24 不变**）；`components/musl/changelog.md`；`.tao/knowledge/{issues.yaml,milestones.md}`；本册；`.work/evidence/LLVM-120t/{run.sh,oracle.py,fixtures/{crt_arch.h.before,dlstart.c.before}}`（`.work/` 不入库）。
+**验收结果**：① **对象级**：`rcrt1.o` 的 `.rela.text` = **1 条** `0x8 R_DADAO_REL26 _start_c`（`ABS48 _DYNAMIC` **0**，原 3 条 @ `0x4/0x8/0xC`）；无 `PCREL_HI/LO`（未走 GOT 槽 ⇒ 无配对/悬空）；对象 ABS48 总数 4，全在 `.rela.got` 数据槽（`__dls2`/`main`/`_init`/`_fini`，装载期 `RELATIVE`，与改前同）；`crt1.o` 与改前**逐字节相同**（`cmp` vs「改前 header 同 flag 对照编译」+ 构建产物，md5 `beec49238629a5ef28cfcf408d3e0c9e`）。② **运行期**：链接期 base=0（首 `PT_LOAD` p_vaddr=0），运行期 **base=0x555555550000**、`_DYNAMIC=0x55555557f4f8`、`PT_DYNAMIC.p_vaddr=0x2f4f8`；探针 exit **7**、stdout 逐字节 `PIE OK\n`；`.got` 里 `_DYNAMIC` 槽是 `RELATIVE` addend `0x2f4f8`（值由 `_dlstart_c` 用 rb17 派生 base 写入）。③ **独立 oracle**（自解析 ELF64+auxv，11 断言）`base=AT_PHDR(…040) − PT_PHDR.p_vaddr(0x40) = 0x555555550000`、`dynv=base+0x2f4f8=0x55555557f4f8` = 探针值，且 **≠ 链接期值 `0x2f4f8`**；`base+e_entry == AT_ENTRY`。④ **可达 FAIL**：A 回退绝对形态 ⇒ 3 条 ABS48 + lld 真实拒绝 `relocation R_DADAO_ABS48 cannot be used against symbol '_DYNAMIC'; recompile with -fPIC`（每站点一条，实测 3）；B 漏减 `PT_PHDR.p_vaddr` ⇒ 探针 SIGSEGV(139)、oracle 红；两处 `cp`+md5 还原后对象级/运行期全回绿。⑤ **门控 rc**：`check-patch-tree` 0、`check-musl-freshness` 0、`check-index-blobs` 0、`check-source-state` 0、`check-no-residue` 0、`check-tasks` 0、`check-knowledge-refs` 0、`check-component-changelog` 0、`check-milestones-fresh` 0、`check-builtins-freshness` 0、`check_issues` 0、L1 0。⑤ 不可行出口**未触发**（方案成立，无需 (b) 裁定）。
+**新发现/坑**：① **`-static-pie` 用 `libc.a` 根本链不出**：musl 的 `libc.a` 成员非 PIC ⇒ `-pie` 下 `__fini_array_start`/`__environ`/`__libc` 等 ABS48 被 lld 逐条拒绝；探针须改用共享构建的 `.lo`（PIC）归档 + `rcrt1.o` 才是合法静态 PIE。② 修前现象实为**链接期硬失败**（lld 对 PIE `.text` 的 ABS48 一律拒绝，非静默）；「静默错」只在链接器放行的假设下成立（`ISS-245` 收口已按真值改写）。③ `apply-series` 既有 bug：`chipyard` enabled 但 manifest 允其 patchless ⇒ `apply_series.py:108` `KeyError: 'patch_dir'` rc=2，其后组件（含 musl）全跳过；musl 侧等价验证 = `check-patch-tree`（④/⑥/⑦/⑧/⑨）+ 本册 scratch-apply（24 补丁 → `write-tree` == HEAD tree）。④ `AT_BASE==0` 的旧启发式 `AT_PHDR & -4096` 已被 `AT_PHDR − PT_PHDR.p_vaddr` 取代；`_dlstart` 被当命令跑（`libc.so`）走同一分支，实测打印 `Dynamic Program Loader`。⑤ 无 `PT_PHDR`/auxv ⇒ `return`（入口桩随后 `swym`）= 显式失败，不拿猜测重定位。
+**遗留问题**：① `-static-pie` 是否纳入 P2/P3 **未动**（口径仍归用户）；② PIC 版 `libc.a` 缺口（新发现①）属新的构建面，未立册（建议 architect 视需要登记）；③ `apply-series` `chipyard` KeyError（新发现③）未改（越界）；④ 未跑 `install-host`/`build-qemu`/L2/L3、`make check-lit`（LLVM 侧零改动 ⇒ 构造上不受影响；`check-instrinfo` 已随 L1 绿）；⑤ 本册 `**状态**` 已置 `待验收`（= 实现完成；**偏离**派单字面「不改状态」——`check-milestones-fresh` 的 A1 强制「流水行 == 册内状态」，两者不一致即 L1 红；按状态机由 engineer 置 `待验收`，如实披露）。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+逐行审查 2 份补丁对应的 `arch/dadao/crt_arch.h`、`ldso/dlstart.c`（组件检出内 `git diff`）+ 证据脚本。判决：实现正确、范围未越界；证据脚本 5 处缺陷已修并复跑。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| F1 `crt1.o` 对照编译用构建树 clang，`.comment` 的 llvm commit 串与 musl 构建用的安装根不同 ⇒ 假红 | ✅已修 | 证据脚本 `CLANG/LLD/READOBJ` 统一取安装根工具链 | 全量重跑：`built == pre-change header` PASS |
+| F2 `oracle()` 在「预期红」注入调用里仍累加全局 FAILED ⇒ 假红 4 项 | ✅已修 | 新增 `ORACLE_COUNT=0` 只返回 rc、不计数 | `--inject` rc=0（此前 rc=1） |
+| F3 `rela_text` heredoc 与管道抢 stdin、`READOBJ` 未导出 | ✅已修 | `export READOBJ` + python 读 `os.environ`，去掉多余管道 | 对象级 6 项断言全绿 |
+| F4 注入 A 的「拒绝签名」写成 1，实际每站点一条（3） | ✅已修 | 期望值改为现场统计的 `NA`（该对象的 ABS48 站点数） | `expected=3 actual=3` PASS |
+| F5 scratch-apply 相对路径 + `git -C` 改 cwd ⇒ 找不到补丁 | ✅已修 | 传给 `git apply` 的补丁路径 `resolve()` 成绝对路径 | §6 PASS（24 补丁 write-tree == HEAD tree） |
+| F6 代码：`AT_BASE==0` 分支需两遍扫 phdr（PT_PHDR 可能排在 PT_DYNAMIC 之后）、无 `PT_PHDR` 时不得猜测 | ✅已修（代码本身） | 两遍扫描 + `i==phnum` ⇒ `return`；注释写明失败条件 | 探针 base 正确；注入 B 红 |
+| F7 `size_t base1` 声明在语句之后（C99）| ❌不修 | musl 以 `-std=c99` 编译，实测 `rcrt1.o`/`dlstart.lo` rc=0 | `make build-musl`/`build-musl-shared` rc=0 |
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
