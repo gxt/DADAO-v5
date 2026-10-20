@@ -208,3 +208,8 @@
 - **依据**（源码级，逐条现场核）：`tripforce.c:7` `#include <openssl/des.h>` + `:495` `DES_fcrypt()`（OpenSSL 专有 API，C 标准库无）⇒ 需 `libcrypto`；`makefile:5` `mp = -fopenmp` + `:471` `#pragma omp ...` ⇒ 另需 libomp ⇒ 8 基准中唯一需这两个外部依赖者，引入代价与收益不符。详见 `ISS-306` notes「tripforce —— 已裁定跳过」段（判据、未采用备选、`ADR-0033 D4` 授权边界）。
 - **未采用备选**：改语料（自带 DES 实现 + 去 `omp`）= 改基准本身，超出 `ADR-0033 D4`（补丁仅限 bank/UB 类 `int`↔指针失配）✗。
 - **用户原话**：用户问「先解释一下 tripforce 是什么？为什么需要 openssl？」⇒ 说明后用户答「可以」（= 同意跳过方案）。
+
+#### 裁定（2026-10-21）
+- **`hint` = 跳过（用户裁定）**：四档实测 **300 s→131**、**900 s→142**、**3600 s→157**、**7200 s→164**（`NSAMP=200`），边际 ≈ 514 s/点 ⇒ qemu TCG 放大下**平台不可达**，不计入冒烟失败；依据/旁证见 `ISS-306`（已 `closed`）。
+- **覆盖口径（写实）**：8 基准中 **6 个有效**（`coremark`/`dhrystone`/`linpack`/`nbench`/`stream`/`whetstone`），**2 个有据跳过**（`tripforce` 2026-10-20 / `hint` 2026-10-21）。
+- 本段**只追加**：不改写完成区与既有审阅记录；证据脚本 `hint` 项改 `skipped` 归 engineer 后续执行。
