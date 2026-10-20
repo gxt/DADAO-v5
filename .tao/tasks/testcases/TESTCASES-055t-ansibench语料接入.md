@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M9
 **依赖**：无（前置 = 主会话执行 `make install-host` 刷新安装根 `clang`/`qemu-dadao`；同模块改 `tools/testcases/**` 的册**串行**：`TESTCASES-053t`/`TESTCASES-054t`）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-20）**：`find .tao -name 'TESTCASES-055t*'` = **0** 命中；全仓 `grep -ri ansibench .tao manifests` = **0** 命中 ⇒ 取 **`055`**，无同名册。
 
@@ -185,3 +185,20 @@
 - **档位**：正常提交（**按派单指定**；reviewer 第 1 轮 = `Needs Revision`、本册回 `待验收` 待第 2 轮复验，与「笔 2」同口径，不加 `WIP:`）。提交 = **本笔**（同笔自指 ⇒ 不嵌自身号）；分支 = `TESTCASES-055t-rework`。
 - **文件集对账**：`git add` 显式单路径本册；`git diff --cached --name-only` = 本册（46+/1−）。漏提 0 / 多提 0 / 越界 0；`milestones.md` 第 52 行原已 `待验收` ⇒ 无需同步。`.work/log/testcases/*` 7 件旁证在忽略区（`git check-ignore` = `.gitignore:2:.work/`），仅存盘不入 git。
 - **architect 复核（非重跑验收）**：`hint900_points=142`（awk 实测）、`Total time` 宿主 `1.197000` vs qemu `52.170223`（≈43.6×）、VOID 件 md5 `14f815280f79f707882ececd18b5d611` 与册一致；`.work/evidence/TESTCASES-055t/run.sh` 三处修在盘（`tally_built`/数值比较/`samples=`）；`make check`(L1) rc=0（`repository checks (L1): PASS`）。
+
+#### 第 2 轮 reviewer 验收（2026-10-20 reviewer 独立复核；只验 3 条必改 + 便宜项，按派单未重跑 `run.sh` 全轮）
+（**判定 = Accepted** —— 3 条必改逐条闭合；1 项台账残留数字须 architect 收尾勘误，见末条，非 engineer 可改文件）
+**必改 1 — hint 采样数 ✓ 闭合**：用册内命令自跑 `awk '/^\.+$/{n+=length($0)} END{print n+0}' .work/log/testcases/TESTCASES-055t-hint-run-900s.log` = **142**（rc=0）；`sed -n '30p' 同文件 | grep -o '\.' | wc -l` = **142**；300 s 档同 awk 于 `…-hint-run.log` = **131**、default 现场 `hint-progressed … samples=131/200`（`…-evidence-default-rework.log:20`）⇒ 与册「900 s=142 点 / 300 s=131 点」一致；「**采样点数 ≠ 完成度**、完成判据 = 跑满 `NSAMP=200`（或被 `NOMEM`/`STOPRT` 终止）、142<200 ⇒ 未跑完不得记跑完」口径已写清（返工段必改 1·口径行）；900 s 日志末行停在采样点、无终止行 ✓。
+**必改 2 — 基线旁证 ✓ 闭合**：①「≥100×」册内**明确作废**（返工段「≥100× 不成立」+ `RUNTM` 缩放不可比分析），未换数字糊弄 ✓；② VOID 件 `…-hint-host-runtm1.0-VOID.log` 在盘，我跑 `md5sum` = `14f815280f79f707882ececd18b5d611`（与册逐字一致）✓；③ 新旁证**同参、日志可查**：`…-coremark-host-run.log` = `Total ticks : 1197`/`Iterations : 20000`/`Compiler flags : -O2`，`…-coremark-run.log` = `Total ticks : 52170223`/`Iterations : 20000`/`-O2`（qemu 构建行另有 `-DITERATIONS=20000 -O2`，`…-coremark-build.log:2`）⇒ 52.170223/1.197 ≈ **43.6×** ✓；hint 同 `RUNTM=0.001`：`…-hint-host-runtm0.001-timing.txt` = `HOST_WALL_S=151.4 / SAMPLES=171`（我 awk 同日志 = **171** ✓）vs qemu 300 s **131** 点 / 900 s **142** 点 ✓；④ 结论口径 = 「≥100× 不成立」+「含 TCG 与 gcc↔clang 差异、**只作量级 sanity**」+「qemu 计时不代表真机、只可同 qemu 同 flag 相对比较」⇒ **无夸大** ✓。
+**必改 3 — 证据位置 ✓ 闭合**：本册引用旁证/日志逐条 `ls` 在盘（`.work/log/testcases/`）：`…-coremark-host-run.log`/`…-coremark-run.log`/`…-hint-host-runtm1.0-VOID.log`/`…-hint-host-runtm0.001-run.log`/`…-hint-host-runtm0.001-timing.txt`/`…-hint-run-900s.log`/`…-evidence-default-rework.log`/`…-evidence-inject-rework.log`/`…-evidence-rework-exit.txt`/`…-erratum-probe.log` = **10/10 EXISTS**；`/tmp` 仅剩 `--inject` 一次性 lock 副本（册已声明不作旁证、`lock-untouched(md5)` 兜底）✓。
+**便宜项**：`…-evidence-rework-exit.txt` = `default_rc=0 / inject_rc=0`；default 尾行现场统计 `checks=29 pass=29 fail=0 built=7 ran=9 complete=8 timeout=1 crash=0 blocked=1`；`--inject` `checks=5 pass=5`，`grep -c observed-rc=1 …inject-rework.log` = **2**（注入 A/B 真红、还原回绿）✓；`run.sh` 三处修在盘（`tally_built`/`awk 'exit !(t+0>=10)'`/`samples=`）+ `…-erratum-probe.log` 探针对照 ✓；`make check`(L1) 我自跑一次：`MAKE_CHECK_RC=0`、`repository checks (L1): PASS`、`check-patch-tree: 5 component(s), 185 patches OK`（`/tmp/opencode/REVIEW-055t-r2/make-check.log`）✓；`hint` 未跑完 / `tripforce` 缺 `openssl/des.h`（`ISS-306` 已登记）**未据以扣分** ✓。
+**旁证小注（非阻断）**：宿主 coremark 1.197 s < 10 s ⇒ 其日志尾 `Errors detected`（唯一 ERROR 行 = 「Must execute for at least 10 secs」计时规则，**无** CRC 错行）⇒ 该比值确只宜「量级 sanity」，与册口径一致。
+**残留（非阻断，待 architect 收尾；engineer 无权改）**：① `.tao/knowledge/issues.yaml` `ISS-306` title/notes 仍写「**136/200 采样**」（我 grep 实证）——第 1 轮必改 1 要求「完成区 + `ISS-306`（architect 执笔）一并勘误」，册内已勘误而 `issues.yaml` 未动（硬约束 4「本册之外不改」⇒ 非 engineer 可闭）⇒ 请 architect 补一行勘误（真值 900 s = **142/200**）；② 第 1 轮 engineer 自审表引 `run-default.log` 仅存 `/tmp/opencode/TESTCASES-055t/`（历史行、按 `lessons §2.25` 不改写；其「7/7 build rc=0」另有仓内 8 件 `…-*-build.log` 支撑）。
+**声明**：本轮只读盘 + 自跑核验（`awk`/`sed`/`md5sum`/`ls`/`grep`/`make check`），未改代码/语料/门控/契约/`run.sh`、未 commit/push、未用任何 git 还原；编辑仅本段。工作区快照对账：入场 `git status --porcelain -uall` 空（HEAD=`7c58b30`）；写完本段后复核 = 仅本册 1 个 `M`（真实输出见下一行）。
+> `git status --porcelain -uall` = ` M ".tao/tasks/testcases/TESTCASES-055t-ansibench语料接入.md"`（1 项，rc=0；HEAD 仍 `7c58b30`）⇒ 与快照对账一致、与本段编辑声明一致，漏改 0 / 越界 0。
+
+#### 收尾提交（architect，2026-10-20）
+- **档位**：正常提交（reviewer 第 2 轮 = `Accepted`）；分支 = `055t-complete`。
+- **文件集对账**：显式 staging = 本册（第 2 轮审阅记录 + 状态行）+ `.tao/knowledge/{issues,lessons,milestones}.md` ⇒ 4 件；漏提 0 / 多提 0 / 越界 0（册外 3 件 = 派单指派的 `ISS-306` 勘误 + `lessons §2.39` + 里程碑同步）。
+- **`/complete` 内容**：`**状态**` 待验收 ⇒ 已验证（只改该行）；`milestones` 流水行改 `已验证` + 未完成册 7⇒6；`lessons §2.39`（跨平台性能旁证须同参、只作量级 sanity）。
+- **提交 = 本笔**（同笔自指 ⇒ 不嵌自身号）；`push` 未执行（归主会话）。
