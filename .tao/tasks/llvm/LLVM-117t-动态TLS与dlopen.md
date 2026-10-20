@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`LLVM-100t`（T4：静态 `__thread` + `rb3` TP；**必须已验证**）、`TESTCASES-052t`（T3：线程用例收口）、`QEMU-065t`（T2：qemu-user 线程语义）、`INFRA-085t`（`D2` 的登记源与 `lld` 两处 `Err` 现场）、`TESTCASES-047t`（动态档驱动/4 条 `excluded`）、`INFRA-093t`（`--json-out`/`--work-dir`）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-19）**：`llvm` 现存最大 = `LLVM-116t` ⇒ 取 **`117`**（`grep -rn 'LLVM-117' .tao/` 0 命中）。
 > **线程链位置（T5）**：串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 本册**。

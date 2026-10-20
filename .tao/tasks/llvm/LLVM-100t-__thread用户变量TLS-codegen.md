@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：**M9 线程链串行前置** = `INFRA-095t`（T1：`__clone` + TP，运行判据必需）、`QEMU-065t`（T2：qemu-user 线程语义）、`TESTCASES-052t`（T3：19 条 thread 用例收口；本册在其后开工）；`INFRA-085t`（**登记源 + 消费方**：阶段 `D1` 的 ①③④ 已达成、② 「编译 `__thread` 用户变量」**BLOCKED 于 llvm 面** —— 完成区「D1-⑤ / D1-⑥②」+「遗留①」+「新发现/坑 ④」）；**契约真源** = `.tao/contracts/contract-dynlink.md §4.3`（类型 10/11/12/13 的公式与落点）+ `§7`（TLS 纳入 M8；TP 方向/偏置归 musl arch 宏）+ `§10②`（未支持类型遇即报错、不静默）、`.tao/contracts/contract-elf.md §2.2`（**静态类型表 0–5 + `ABS48`=6**，**无静态 TLS 类型**）+ `§6.1.2`（ELF 路径装载语义：头/程序头**不进** `PT_LOAD`）、`.tao/contracts/contract-abi.md §1.3`（`rb3` = `rbtp`（TP），M3 起保留不分配）；`ADR-0019 D10`/`D12`（类型集与编号，**冻结、不得增改**）、`ADR-0025 D5`（musl 硬依赖 TP ⇒ TLS 纳入 M8）、`ADR-0026 D2`/`D7②`（构建侧显式传 / 未支持类型遇即报错）；后端基线 = `LLVM-094t`（PIC/动态）、`LLVM-095t`（`PCREL_HI/LO`）、`LLVM-096t`（驱动/相对查找表/`stackrestore`）、`LLVM-097t`（`bswap`）、`LLVM-098t`、`LLVM-099t`（均已落地或已立）；纪律 = `ISS-229`（L2/L3 串行、禁并发）、`ISS-210`（改 `components/**`/`.td`/驱动 ⇒ **必单跑 `install-host`** 且禁「旧安装根自洽假绿」）、`docs/Process-01`（组件补丁树：一文件一补丁 + `series`）、`docs/Process-05`（L1/L2/L3）
-**状态**：待验收
+**状态**：已验证
 
 > **项目里程碑调整（2026-10-17，用户裁定）**：`M8` → **`M9`** —— 用户原话（**逐字**，渠道 = 经主会话问答）「**tls 可以推到 M9**」；`M8` 不要求 `dlopen`/模块级 TLS，`D2`（TLS 类动态重定位）亦已推迟 `M9+`。**范围 / 判据不变** ✗（本册其余内容照旧）。
 
@@ -205,4 +205,26 @@
 **约束核验**：① TLSSupported=true ✓；② 非 PIC 默认 local-exec ✓；③ TLS_OFFSET 3 片 ABS48 + add.o rb,rb3,rd ✓；④ `llvm.thread.pointer` ⇒ rb3 ✓；⑤ 探针 0/8/16 ✓；⑥ 两线程互不串 ✓；⑦ `.tdata`/`.tbss` SHF_TLS+STT_TLS ✓；⑧ 100t 范围无 10/11/12/13 ✓；⑨ 静态 047t 3/3 pass ✓；⑩ 动态 3 例 blocked（设计如此，已由 117t 收口）。
 
 **判定：Accepted**。T4 核心交付全部达标；run.sh 11 红均为 T5 落地 + 安装根滞后所致（外部状态变化，非本册缺陷）；独立注入红→还原→绿通过。证据脚本需随 T5 集成更新期望值（非阻塞，归主会话收尾）。
+
+#### 证据脚本修正（2026-10-20，reviewer 第 1 轮后）
+
+- **起因**：reviewer 重跑 11 红；本人现场复跑 = **9 红**（lit 2 项已随安装根 `llc` 08:27 刷新转绿）：① 动态档 3 例 blocked→pass（T5 `LLVM-117t`）=3 红；② 047t 动态同源 =2 红；③ 9c 负控（`-fPIC`/`global-dynamic` 已支持）=4 红。
+- **修法**：外部状态项改**现场派生** —— 动态档/047t 由 `--json-out` 现统计（并校验选中用例集 = 过滤清单）、`-fPIC`/`global-dynamic` 现跑 rc + 产物重定位类型（须含 `DTPMOD(10)`/`DTPREL(11)`）、lit 由 `-a` 的**实际执行命令行**取证 `%llc` = 安装根 `llc` 且与构建树 md5 相同；**静态面判据逐字不动**（ABS48、0/8/16、`.tdata/.tbss`、`PT_TLS`、两线程互不串、`STT_TLS`）。
+- **防再腐化**：`local-dynamic` 改「接受 ⇒ ELF64-BE / 拒绝 ⇒ 带 `error:`」双支判据；原 `requires the local-exec TLS model` 断言反转为「不得复现」。
+- **可达 FAIL**：① `tls_checks.py` 期望 `b=16→24` ⇒ `FAIL exe.sym.b.value expect=24 actual=16` ⇒ `cp`+md5 还原 ⇒ 绿；② `-fPIC` 期望 rc 改反（临时副本，不改仓内脚本）⇒ `FAIL pic.fPIC.compile.rc (expect=1 actual=0 rc=0)` ⇒ 删副本、脚本 md5 不变 ⇒ 绿。
+- **结果**：`run.sh` default **78/78 PASS rc=0**（lit 121/121；安装根 `llc` md5 = 构建树 = `ee236c…`）、`--inject` **33/33 PASS rc=0**；未改 `**状态**`、未改既有完成区/审阅记录。
+
+#### 第 2 轮 engineer 自审（2026-10-20，证据脚本修正）
+
+范围：`.work/evidence/LLVM-100t/{run.sh,tls_checks.py}`（非跟踪，`git status` 不含）+ 本册上述追加段。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 安装根/构建树 `llc` 的 md5 用 `md5sum … 2>/dev/null \| cut` 取：两边文件都缺时都是空串 ⇒ 恒等假绿 | ✅已修 | 先落 `$TMP/llc.md5` 并断言其 rc=0，再按行取摘要 | `lit.llc.md5.probe.rc` + `lit.llc.installroot.md5==buildtree`（`ee236c…`）均绿；缺文件即红 |
+| F2 `local-dynamic` 拒绝支只认 `error:`，任何无关编译失败（sysroot 缺失等）都会误绿 | ✅已修 | 判据针改 `TLS model`（本 target 自有诊断文本） | `model.local-dynamic.rejected.loudly (rc=1, diagnostic 'TLS model' present)` |
+| F3 断言改名（`T5.dynamic.counts`/`R.047t.dynamic.counts`/`neg.*`）易被读成「删断言」 | ❌不修 | 仅更名+加严，数量 5→7（dynamic）、5→7（047t）、4→9（9c） | default **78** 项、`--inject` **33** 项，0 红 |
+| F4 9d/9b 中途被杀会把改动留在 `tls_checks.py`/`tls_probe.c` 上 | ⏸延后 | 未加 `trap` 还原（沿用本册既有 9b 形态）；两处均先 `cp` 到 `$TMP/backup` 且 md5 可对账 | 本轮 4 次跑动后 `md5sum` 与备份一致（`0bb68…`） |
+| F5 `lit` 的 `-a` 取证靠解析 `# executed command:` 文本 | ⏸延后 | 与 lit 版本耦合；升级 lit 后若该行格式变动会如实红（可再改解析） | 本轮 `lit.llc.calls>0` + `all_from_install_root=yes` |
+
+判决：F1/F2 已修，F3 为说明、F4/F5 延后且有据；无未修缺陷 ⇒ 交付 `待验收`（`**状态**` 按派单不改）。
 
