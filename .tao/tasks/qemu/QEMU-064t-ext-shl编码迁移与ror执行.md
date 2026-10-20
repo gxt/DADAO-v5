@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M9
 **依赖**：`SPEC-152t`（编码真源：四表 + `contracts/opcodes.yaml`）、`LLVM-116t`（后端面收口；本册以其为前置以保证最终 L1/L2/L3 全绿）、`ADR-0032`（`Accepted`；`D1`–`D6`）、`QEMU-004t`（decodetree 生成器/校验器先例）、`QEMU-061t`（`insn.decode` 计数从记录派生、禁写死的先例）、`QEMU-062t`/`QEMU-063t`（`trans_*` 拆分与 user-mode 后端）、`docs/Process-01`（补丁树）、`ISS-229`/`ISS-210`（构建单写者 + `install-host`）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -141,5 +141,24 @@
 | F8 任务书正文仍写 `ror`（ADR-0032 `D4` 已修订为 `rol`） | ✅按 ADR/派发执行并披露 | 未改任务书正文 | 实现/向量/门控均按 `rol` |
 
 
-#### 第 1 轮 reviewer 验收
-（待填）
+#### 第 1 轮 reviewer 验收（2026-10-20）
+
+**复核项与真实输出**：
+- `insn.decode`：由 `opcodes.yaml` 重生成，`validate_decodetree` **243/243** ✓；`check_qemu_trans --strict` **243/243**（M1 156/156）✓
+- `rol` 语义：`rol.o` orrr `tcg_gen_rotl_i64` + `0x3F` mask ✓；orri `tcg_gen_rotli_i64` ✓；窄变体 `rol.t/w/b` 用双移位 `(shl|shr)` + mask W 位 ✓；orri `immu6 > W−1` ⇒ ILLI（31/15/7）✓；`rd0` ⇒ ILLI ✓
+- L3 向量 `tests/vectors/rol/rol.yaml`：**64 条** ✓；`check-qemu-semantics` **224/224**（基线 160 + rol 64）✓
+- `check-qemu-smoke` **90/90** ✓
+- 端到端：`clang --target=dadao-unknown-elf -O2 -static` 编译 + `qemu-dadao` 运行 rc=**0** ✓
+- `make check`（L1）rc=**0** ✓（SPEC 残留非法日志清理后）
+- 独立注入：`trans_shift.c.inc` 中 `rol.b` orri guard `7`→`3` ⇒ `check-qemu-semantics`（build-tree QEMU）**3 FAILs**（rol.yaml[59-61] amounts 6/7 触 ILLI）；`cp`+md5 还原后 **224/224** ✓
+
+**不符/问题**：
+1. `run.sh default` 初次 rc=**1**（`make-check-L1` FAIL）——**级联问题**：上游 `SPEC-152t run.sh` 创建了 A3 非法日志名（`evidence-*.log`），污染 `.work/log/` 使 `check-run-artifacts` 红。清理后 QEMU `run.sh default` rc=**0**（非 QEMU 自身缺陷）。
+
+**判定**：**Accepted**（实现正确、门控全绿、向量覆盖完整；L1 级联问题归上游 SPEC-152t）。
+
+#### architect 收尾（`/complete`）+ 文件集审核（2026-10-20，分支 `ISA-chain-complete`）
+- `/complete` 五条：① 门控 `make check`（L1）rc=**0**；② `git status -uall` 干净、`check-no-residue`/`check-run-artifacts` PASS；③ 证据 `.work/evidence/QEMU-064t/` + `.work/log/qemu/QEMU-064t/`（`check-knowledge-refs` PASS）——**核到真实输出**：`QEMU-064t-evidence-check-qemu-semantics.log` = `Results: 224 total, 224 passed, 0 failed` / `check-qemu-semantics: PASS`；`…-check-qemu-smoke.log` = `QEMU: total=90 passed=90 failed=0` / `check-qemu-smoke: PASS`；④ 无未提交结果；⑤ 队列续链：`SPEC-152t` 返工（同一病根的证据脚本）。
+- 状态：`待验收` → **`已验证`**（reviewer 第 1 轮验收 = Accepted；完成区/审阅记录未改写）。
+- `ISS-291`：**closed**（两册均 Accepted 才关，同时保留 `SPEC-152t` 证据脚本返工面）。
+- 文件集：本册 + `milestones.md` + `lessons.md` + `issues.yaml`（+ 同笔 `LLVM-116t` 册）= 提交 `23da6b7`；reviewer 验收段随本笔落盘。**无漏提 / 无多提 / 无越界**。

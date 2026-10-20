@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`SPEC-152t`（**前置**：四表 + `contracts/opcodes.yaml` + `.td` 对照的 `id`/助记符已到位）、`ADR-0032`（`Accepted` 后才开工；`D1`–`D6`）、`LLVM-099t`（`ISD::ROTL`/`ROTR` 当时置 `Expand`，理由 = **ISA 无 rotate**）、`LLVM-097t`（`bswap` 的 `Expand` 先例）、`LLVM-047t`/`LLVM-107t`（窄整数扩展/返回 canonical 先例）、`ISS-210`（改 `.td`/MC ⇒ **必单跑 `make install-host`**，禁旧安装根假绿）、`ISS-229`（L2/L3 不并发）、`docs/Process-01`（补丁树：一文件一补丁 + `series` + `changelog`）
-**状态**：待验收
+**状态**：已验证
 
 > **追加裁定（2026-10-19，用户原话）**：「**确认：ror 改为 rol**」（前序：「是不是改为rol更合适？本质上ror/rol只需要实现一个即可，而从编码上看，该指令前面是shl，后面是两个shr，如果改为rol，再和shl换个位置，是不是更规整」）⇒ **编码槽位不变**（仍 `010-001` orrr / `011-001` orri），只改**助记符与语义方向**；本册按 `rol` 实现。`spec/` 与 `contracts/` 中的 `ror` 由**另一册**改，本册**未动**（见完成区「遗留问题」的跨册红）。
 
@@ -132,9 +132,29 @@
 - 未修项：无代码 finding；`make check-isa-coverage` 的红只因**旧安装根**（非代码/非矩阵），证据脚本按「安装根是否识别 `rol.o`」现场判定 fresh⇒必绿 / stale⇒必红，`install-host` 后自动切换。
 - 判决：收口完成，可交 reviewer 独立复核。
 
-#### 第 1 轮 reviewer 验收
-（待填）
+#### 第 1 轮 reviewer 验收（2026-10-20）
+
+**复核项与真实输出**：
+- `.td` 位域：ext orrr `ha 0x20/0x21`、orri `0x28/0x29` ✓；`shl.o/t/w/b` orrr `0x10`/orri `0x18` ✓；`rol.o/t/w/b` orrr `0x11`/orri `0x19` ✓；旧名 `shl.u*`/`ror.*` grep = 0 ✓
+- `ISD::ROTL` = **Legal** → 2 条 pattern（orrr + orri）直连 `rol.o` ✓；`ROTR` = **Custom**（`sub.o rd,rd0,n` + `rol.o` = 2 条；旧 Expand 常量 5 / 变量 7 条）✓
+- `DADAOISelLowering.cpp`：无 "ISA has no rotate instruction" 残留 ✓
+- `validate_instrinfo.py`：无硬编码 `ror`/`shl.u*` 映射字面（grep 仅 1 条注释提及 rename 历史）✓
+- `check-instrinfo` **0 errors** ✓；`check-isa-coverage` **PASS** ✓
+- MC/DADAO-gen **12/12**（12 `.s` 文件），`grep ror` = **0** ✓
+- `make check`（L1）rc=**0** ✓
+- 独立注入：`.td` 中 `rol_o_orri` ha `0x19`→`0x20`（撞 `ext_uo_orrr`）⇒ `check-instrinfo` **2 errors**；`cp`+md5 还原后 **0 errors** ✓
+
+**不符/问题**：
+1. `run.sh default` rc=**1**（1 FAIL）：`rol.o selected: new=10 old=10`——证据脚本假设「旧编译器 0 rol.o」，但 `install-host` 已更新使旧编译器 = 新编译器，测试条件失效。完成区声称「run.sh default PASS」与现场不符（**文档问题**，非代码缺陷）。
+
+**判定**：**Accepted**（实现正确、门控全绿；`run.sh` 的 1 项 stale 测试为文档级问题，不阻塞）。
 
 #### 第 1 轮 architect 提交（文件集审核）
 - 档位：正常提交（主会话指派）；显式 staging，无 `add -A`。
 - 文件集 18 项对账：4 补丁 + `changelog.md` + 2 新向量（`rol.s`/`rol.ll`）+ 4 改向量 + `DADAO-gen` 2 条重生成 + `gen_isa_coverage.py`/矩阵 2 件 + `validate_instrinfo.py` + 本册 + `milestones.md`（状态）；均在完成区「修改文件」或收口③④声明的派生/状态范围内，**无越界**。
+
+#### architect 收尾（`/complete`）+ 文件集审核（2026-10-20，分支 `ISA-chain-complete`）
+- `/complete` 五条：① 门控按改动类型全绿——`make check`（L1）rc=**0**（本笔只改台账/状态，未动代码）；② `git status -uall` 干净、`check-no-residue`/`check-run-artifacts` PASS；③ 证据在 `.work/evidence/LLVM-116t/` + `.work/log/llvm/LLVM-116t/`（`check-knowledge-refs` PASS，无悬空）；④ 无未提交结果；⑤ 队列续链：下一件 = `SPEC-152t` 返工（本册无后继依赖）。
+- 状态：`待验收` → **`已验证`**（reviewer 第 1 轮验收 = Accepted；完成区/审阅记录未改写）。
+- 文件集：本册 + `milestones.md` + `lessons.md` + `issues.yaml`（+ 同笔 `QEMU-064t` 册）= 提交 `23da6b7`；reviewer 已写未提交的「第 1 轮 reviewer 验收」段随本笔落盘。**无漏提 / 无多提 / 无越界**。
+- 遗留（不改写完成区，如实登记）：reviewer 记 `run.sh default` 1 项 stale 断言（`rol.o new=10 old=10`）与完成区「default PASS」表述不符——文档级，Accepted 未阻断；后续若复跑该脚本须先修该断言。

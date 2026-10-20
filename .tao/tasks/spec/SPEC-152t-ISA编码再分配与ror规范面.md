@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9
 **依赖**：`ADR-0032`（**`Accepted`**，`D1`–`D6` 已于 2026-10-19 逐条确认；**开工前置 = `spec/` 改动授权原话落纸**）、`SPEC-141t`（`ror` 预研：候选 A 形态/收益/六环代价）、`SPEC-142t` / `SPEC-143t`（MISC-octa 子表补格 + 只读锁重算先例）、`SPEC-145t` / `SPEC-149t` / `SPEC-150t`（用户授权 + 只读册 `sha256` 同步先例）、`docs/Process-06`（`spec/` 目录保护）
-**状态**：待验收
+**状态**：待返工
 
 ## 执行环境
 **执行环境**：本地
@@ -153,10 +153,35 @@
 
 **自审判决**：无未修 finding；实现与 `ADR-0032 D1`–`D6` 逐条对齐；未改任何实现（`components/**`、QEMU/LLVM 代码）。任务保持 `待开始`（按 architect 下发要求不改 `**状态**`）。
 
-#### 第 1 轮 reviewer 验收
-（待填）
+#### 第 1 轮 reviewer 验收（2026-10-20）
+
+**复核项与真实输出**：
+- ADR-0032 = Accepted ✓（line 3）、D4 修订为 `rol` ✓（§修订段）
+- opcodes.yaml：**243** 条（m1=156/fp=60/excluded=11/m3=1/m8=7/m9=8）✓，`rol` **8** 条 / `ror` **0** 条 ✓
+- 四表独立重算（ADR-0032 D4 修订版期望 `rol.*`）：**80 格 0 不符** ✓；ext 迁 `100/101-000/001`、shl 迁 `010/011-000`、rol 占 `010/011-001` ✓
+- `make check`（L1）rc=**0** ✓（含 `check-instrinfo` 0 errors、`check-isa-coverage` PASS、`check-scope` PASS）
+- 独立注入：`opcodes.yaml` 中 `rol.o_orrr_rd` scope m9→m1 ⇒ `check-scope` rc=**1**（m1=157,m9=7）；`cp`+md5 还原后 rc=**0** ✓
+
+**不符/问题**：
+1. **证据脚本 `check_tables.py` EXPECTED 仍写 `ror.*`**（8 处），与 ADR-0032 D4 修订后的 `rol` 真源不一致 ⇒ `check_tables.py` rc=1（8 格不符），`run.sh default` 必红。
+2. **`run.sh` 标注 `check-instrinfo`/`check-isa-coverage`/`check-interface` 为「预期红」**——但 `LLVM-116t`/`QEMU-064t` 已落地且 `install-host` 已更新，三项现全绿 ⇒ `run.sh default` 报 4 FAIL（3 项「预期红项意外转绿」+ table-cells），rc=**1**。
+3. **`run.sh` 日志命名违反 A3**：写入 `evidence-*.log` / `inject-*.log`（不匹配 `<TASK-ID>-*`），触发 `check-run-artifacts` 红并级联破坏 L1。
+4. 完成区声称「run.sh default rc=0、80 格断言 0 不符、预期红 3/3」均与当前现场不符。
+
+**判定**：**Needs Revision**——① 更新 `check_tables.py` EXPECTED 为 `rol.*`；② 移除 `run.sh` 的 3 条「预期红」断言（LLVM/QEMU 已收口）或改为条件跳过；③ 修正 `run.sh` 日志命名前缀为 `SPEC-152t-<name>`。
 
 #### architect 提交留痕（2026-10-19）
 档位：**正常提交**（无 `WIP:` 前缀，按父会话明确指令）。**如实披露**：本笔提交时「第 1 轮 reviewer 验收」为**空**、`**状态**` = `待验收` ⇒ 严格按角色规则应为 `WIP:`；本笔依主会话指令执行，若后续判 `Needs Revision`，返工提交仍落本分支并随 squash 收口。开工分支 `SPEC-152t` 实现提交 `7560453`，squash 落 `master`（单提交；**未 push**）。
 文件集 **24 项**对账：`spec/` 7 册 + `contracts/opcodes.yaml`、`contracts/legality_rules.yaml` + `.tao/contracts/` 2 册 + `manifests/spec-readonly.lock.toml` + `tools/spec` 3 器 + `tools/llvm/gen_asm_list.py` + `tools/testcases` 2 器 + `tests/vectors` 2 册 + gen lit 2 册 + 本册 = 完成区「修改文件」逐条一致；**architect 账面 1 项**（`.tao/knowledge/milestones.md`，状态行/流水行同步）= 已披露的**多提**（台账范围）。`INTEG-036m`（归档 `M8`）无本任务号 ⇒ 无需改。**无漏提 / 无越界**。
 秒级门控：`run.sh` default rc=0（20 必绿 + 3 预期红均 rc=2）、`check-milestones-fresh` rc=0（5 行 PASS）；**`L1` 预期红至 `LLVM-116t`/`QEMU-064t` 收口**。
+
+#### 返工要求（architect，2026-10-20；主会话依据 reviewer `Needs Revision` 指派）
+1. `.work/evidence/SPEC-152t/check_tables.py` 的 `EXPECTED` **必须从真源现场派生**（`contracts/opcodes.yaml` + `spec/SimRISC-0x` 四表），**禁**再把 `ror.*` 等字面写死（同一病根第二次：`validate_instrinfo --self-test` 已因此返工）。
+2. `run.sh` 中 3 项「预期红」（`check-instrinfo`/`check-isa-coverage`/`check-interface`）**已转绿** ⇒ 改为必绿断言（或按现场条件跳过），**预期与实际一致**，不许留假红。
+3. `run.sh` 日志命名须符合 `docs/Process-08`（`<任务号>-<用途>.log`）；`evidence-*.log`/`inject-*.log` 会触发 `check-run-artifacts` 红并级联破 L1（A3）。
+
+#### architect 收尾（文件集审核，2026-10-20，分支 `ISA-chain-complete`）
+- 状态：`待验收` → **`待返工`**（reviewer `Needs Revision`；审阅记录未改写，返工要求段见文末）。
+- 文件集：本册 = 提交 `b6d691a`（`WIP:` 前缀；含 reviewer 已写未提交的验收段 + 本册返工要求段）；`milestones.md` 该册行/清单/进度行 = `23da6b7`。**无漏提 / 无多提 / 无越界**。
+- 门控：`make check`（L1）rc=**0**。
+- 提示（给返工 engineer）：本册真源/四表内容已被 reviewer 复核 **80 格 0 不符**，返工**只碰证据脚本**（`check_tables.py` / `run.sh`），**不得**改 `spec/`/`contracts/`。
