@@ -192,3 +192,17 @@
 - **核验（现场复跑）**：`check-patch-tree` **5 组件 / 184 patches OK** rc=0（与 changelog「series 仍 82、184 不变」一致）；`check_issues.py` rc=0（**56 open / 17 closed**，`resolved_by` 约束 OK）；`check_milestones_fresh.py` rc=0（11 行、状态一致/覆盖/≤120/倒序/格式）；`check-builtins-freshness` rc=0（三副本同 sha `cb77…`，即本轮 `cp` 兜底生效）；**`make check`（L1）rc=0，34.7 s**（日志 `/tmp/opencode/LLVM-100t/make-check-architect.log`）。
 - **披露（已核、不改写）**：① `ISS-246` 保持 `open`（静态已由本册收口、动态归 `LLVM-117t`）；② 本轮**未** `install-host`/L2/L3（按派单禁）；③ `ISS-301` 为本轮新登记，修法未做。
 
+#### 第 1 轮 reviewer 验收（2026-10-20）
+
+**重跑记录**（全部在 master=f3ac4b4、工作树干净下执行）：
+- `run.sh` default：rc=1（11 红）。**核心断言全绿**：A 编译 O0/O2/S rc=0、asm add.o rb3、obj reloc 仅 ABS48 无 10-13、E2 探针 PROBE OK（a.init=0x12345678、wide.tpoff=0x8、b.tpoff=0x10、builtin_tp rb3、两线程 TP 不同）、E3 ELF PT_TLS 16/24/8 + tdata BE image 正确、E1 静态 3/3 pass、047t 静态 10/10、046t crc32 pass。**11 红均为外部状态变化**：(a) T5 落地后 `-fPIC`/`-ftls-model=global-dynamic` 不再被拒绝（9c 负控 4 红）+ 动态档 TLS 3 例 blocked→pass（T5 节 3 红 + 047t 动态 2 红）；(b) `check-lit` 121 例中 inline-asm-m 系列 3 红 = 安装根 llc 崩溃（rc=134 断言），**实测归因**：`77153a2 LLVM-119t`（inline-asm-m 崩溃修复）晚于安装根 llc mtime（04:27 vs 提交 07:54），build-tree llc 08:27 含修复且 rc=0 ⇒ 安装根滞后，非本册回归。
+- `run.sh --inject`：rc=1（4 红 = 同源 9c 负控 + lit.installroot）。注入自身 9a/9b 全绿（inject→FAIL→cp+md5 还原→回绿）。
+- 独立注入：改 `tls_checks.py` 的 `b.value` 期望 16→24 ⇒ `FAIL exe.sym.b.value expect=24 actual=16`；还原 md5 对账 YES + 回绿（全 PASS, rc=0）。
+- `make check`(L1)：rc=0。
+- `git status --porcelain`：空（工作树干净）。
+- `git log --oneline faa472f^..292c54a -- components/musl`：**0 commits**（musl 零改动 ✓）。
+
+**约束核验**：① TLSSupported=true ✓；② 非 PIC 默认 local-exec ✓；③ TLS_OFFSET 3 片 ABS48 + add.o rb,rb3,rd ✓；④ `llvm.thread.pointer` ⇒ rb3 ✓；⑤ 探针 0/8/16 ✓；⑥ 两线程互不串 ✓；⑦ `.tdata`/`.tbss` SHF_TLS+STT_TLS ✓；⑧ 100t 范围无 10/11/12/13 ✓；⑨ 静态 047t 3/3 pass ✓；⑩ 动态 3 例 blocked（设计如此，已由 117t 收口）。
+
+**判定：Accepted**。T4 核心交付全部达标；run.sh 11 红均为 T5 落地 + 安装根滞后所致（外部状态变化，非本册缺陷）；独立注入红→还原→绿通过。证据脚本需随 T5 集成更新期望值（非阻塞，归主会话收尾）。
+

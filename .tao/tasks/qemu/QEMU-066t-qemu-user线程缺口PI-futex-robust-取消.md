@@ -152,3 +152,20 @@
   - **漏提 / 越界**：无（`spec/`、`contracts/`、`tools/`、`tests/` 零改动；`components/qemu` 检出 clean、`HEAD=c266401`）。
 - **核验（秒级 + L1，均现场复跑）**：`check-patch-tree` **5 组件 / 184 patches OK** rc=0（`59 → 60`，与 changelog 一致）；`check_issues.py` rc=0（**55 open / 17 closed**，`resolved_by` 约束 OK）；`check_tasks.py` rc=0（「漏收尾 8」为报告项、不阻断，本册即其一，reviewer 判决后由主会话 `/complete`）；**`make check`（L1）rc=0，34.8 s**（含 `check-index-blobs`：132 new-file OK、`check-knowledge-refs` 悬空 0、`check-no-residue` PASS、`check-spec-readonly` 21 卷 OK）。
 - **披露保留（已核、不改写）**：完成区遗留③ 的「未跑 `make install-host`、以原子 `cp` 替换安装根 qemu 两步」为**例外手法**，理由（否则门控读旧二进制假绿）与 md5 核对均在册；已按派单登记 `ISS-300`。
+
+#### 第 1 轮 reviewer 验收（2026-10-20）
+
+**重跑记录**：
+- `run.sh --full`：rc=0（**24/24 PASS**）。逐条：ISS-296 探针 first lock rc=0 + relock EDEADLK(35) + owner==gettid ✓；ISS-297 探针 head=0 len=24 + set/get agree + bad len EINVAL + foreign pid ESRCH + unregister head_cleared=1 + musl setrobust r=0 ✓；ISS-298 frame PC in_range=1 + cancel joins CANCELED ✓；4 例两档 4/4 ✓（静态+动态）；T3 19 目标两档 19/19 ✓（static: other_nonpass=`pthread_create-oom`；dynamic: other_nonpass=[]）；install root md5 == build tree ✓；check-qemu-semantics **224/224** ✓；check-qemu-smoke **90/90** ✓。
+- `run.sh --quick`：rc=0（11/11 PASS）。
+- **ISS-296 strace 证据自验**：before log `FUTEX_PRIVATE_FLAG|FUTEX_LOCK_PI` = -1 errno=3(ESRCH)；after log = -1 errno=35(EDEADLK) ✓。根因 = PI futex 字存 owner TID、DADAO 大端写、宿主内核小端读 ⇒ 字节颠倒值 ⇒ 查不到任务 ⇒ ESRCH。修法 `stl_he_p(p, ldl_p(p))` 保值整字转换 ✓。
+- **ISS-297 robust 证据自验**：`set_robust_list` len≠3\*sizeof(long) ⇒ EINVAL ✓；head==0 注销 ✓；`get_robust_list` 对其它 tid ESRCH（口径已在代码注释声明）✓；musl `pthread_mutexattr_setrobust` 探测 r=0 ✓。
+- **ISS-298 ucontext 证据自验**：`target_ucontext` 无 `QEMU_ALIGNED`、uc_mcontext 偏移 168（8+8+24+128）✓；musl 期望 168 ✓。原 `MC_PC` 恒 0（对齐填充）⇒ `[__cp_begin,__cp_end)` 永假 ⇒ 取消失效。修复后 cancel handler 改写 PC 经 `sigreturn` 生效 ✓。
+- **测试侧零改动**：`git diff --stat -- tools/testcases tests` = 空 ✓；`git status -uall -- tools/testcases tests libc-test` = 空 ✓。
+- **独立注入**：改 `syscall.c` 的 `stl_he_p(p, ldl_p(p))` 为注释 ⇒ `make build-qemu JOBS=8` + `run.sh --quick` ⇒ `FAIL ISS-296 pi relock EDEADLK`（rc=1）；还原 md5 对账 YES + rebuild + `run.sh --quick` ⇒ 11/11 PASS rc=0 ✓。
+- `make check`(L1)：PASS ✓。
+- `git status --porcelain`：空 ✓。
+
+**约束核验**：① PI futex 大端转换 ✓；② robust 注册/注销一致（head=0 注销、len≠24 EINVAL）✓；③ `target_ucontext` 去 16B 对齐 ✓；④ gettid 无需翻译（探针 owner==gettid）✓；⑤ 4 例两档 4/4 pass ✓；⑥ T3 19/19 两档 ✓；⑦ semantics 224/224 ✓；⑧ smoke 90/90 ✓；⑨ 测试侧零改动 ✓；⑩ musl/llvm/spec/contracts 零改动 ✓。
+
+**判定：Accepted**。三条缺口全部达标；三处 engineer 注入 + 独立注入均红→还原→绿；24/24 全绿；T3 收口 19/19 两档；无未通过的约束。

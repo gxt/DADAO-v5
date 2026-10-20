@@ -140,6 +140,24 @@
 
 **判决**：8 条已修 + 2 条有据不修 + 1 条已核；无未修 finding ⇒ 状态置 `待验收`。
 
-#### 第 1 轮 reviewer 验收
-#### 第 1 轮 reviewer 验收
-- **architect 提交留痕（2026-10-20）**：档位 = 正常提交（按派单；reviewer 尚未审）；提交 `22d3aca`（分支 `LLVM-117t`，**未 push**）；`git diff --cached --name-only` 22 文件 vs 完成区「修改文件」对账 = 一致（`components/llvm-project/**` 13 补丁改 + 新增 `InputSection.cpp.patch`、`series`、`changelog.md`、驱动、矩阵 `md`/`tsv`、`issues.yaml` + 本册 `状态`、`milestones.md` 状态行），漏提 0 / 多提 0 / 越界 0；`check-patch-tree` 185 ✓、`make check`（L1）rc=0。
+#### 第 1 轮 reviewer 验收（2026-10-20，独立复核）
+- **重跑记录**：`run.sh` default rc=0（46/46 PASS）；`run.sh --inject` rc=0（13/13 PASS）。关键数字逐条对账：
+  - 发射：`dso.o` `.rela.got` = `0:R_DADAO_TLS_DTPMOD:tv;8:R_DADAO_TLS_DTPREL:tv;10:R_DADAO_ABS48:.Lgot.0` ✓
+  - 消费：`libtv.so` `.rela.dyn` 有 DTPMOD/DTPREL/RELATIVE ✓
+  - 运行：probe RESULT OK ✓（DSO 初值 7→99、两线程各自独立、main TLS=11 不被覆盖）
+  - 非抢占 DSO：`stv=5 sum=6` ✓（符号零 addend 记录）
+  - initial-exec：`x=21 y=22 xoff=0 yoff=4` ✓
+  - local-exec 无动态 TLS 重定位 ✓
+  - 目标 5 例动态 5/5 pass（dlopen/tls_align/tls_align_dlopen/tls_init_dlopen/tls_get_new-dtv）✓
+  - 047t 10 例两档 10/10 ✓、3 TLS 例两档均 3/3 pass ✓
+  - 注入 A（scanTLSSlot 加 Err）：DSO 链接 FAIL → 诊断含 INJECTED → 还原回绿 ✓
+  - 注入 B（addend 1→0）：probe FAIL（Bus error）→ 还原回绿 RESULT OK ✓
+- **独立注入**：改 `DADAO.cpp` relocate DTPREL/TPREL 写零 ⇒ `run.sh --inject` rc=1（2 FAIL：probe segfault）；还原 md5 对账 YES + 回绿（13/13 PASS, rc=0）。
+- **musl 零改动**：`git log faa472f^..292c54a -- components/musl` = **0 commits** ✓。
+- **musl runtime 实测**：安装根 clang 编 TLS ✓、安装根 lld 链 DSO 产生 2 条 TLS 重定位 ✓。
+- **三模型分派**：local-exec（T4）✓、initial-exec（`%tls_tprel` 12）✓、global-dynamic（`%tls_dtpmod`+`%tls_dtprel`+`__tls_get_addr`）✓、local-dynamic **显式报错** ✓。
+- **`getTlsTpOffset` EM_DADAO**：`InputSection.cpp.patch` Variant 1 no gap ✓。
+- `make check`(L1)：PASS ✓。
+- `git status --porcelain`：空 ✓。
+
+**判定：Accepted**。T5 核心交付全部达标；musl 零改动有据；两处 engineer 注入 + 独立注入均红→还原→绿；无未通过的约束。
