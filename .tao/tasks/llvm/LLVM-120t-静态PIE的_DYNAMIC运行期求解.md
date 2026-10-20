@@ -82,3 +82,12 @@
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### 第 1 轮 architect 提交 + 文件集审核（2026-10-20）
+- **档位**：正常提交（按派单；**`reviewer` 尚未审** ⇒ 与本规则「非 Accepted 用 `WIP:`」**不一致**，按派单执行并如实披露）。
+- **提交**：`21cdc6e`（分支 `LLVM-120t`，**未 push**）；`git diff --cached --name-only` = **6 文件**，与完成区「修改文件」**逐条一致**（2 补丁 + `changelog.md` + `issues.yaml` + `milestones.md` + 本册）；漏提 0 / 多提 0 / 越界 0（`components/musl/series` 24 行未动，符合「series 24 不变」；`.work/**` 按声明不入库）。
+- **门控（architect 复跑）**：`check-patch-tree` rc=0（5 组件 / **185** patch OK）；`check_issues` rc=0（54 open / 21 closed）；L1 `make check` rc=0（`.work/log/llvm/LLVM-120t-architect-L1.log`，末行 `L1_EXIT=0`）。
+- **状态核对**：本册 `**状态**：待验收` == `milestones.md` 流水行 `待验收`（`check-milestones-fresh` A1 口径）；流水行 112 字符 ≤120。
+- **新登记**：`ISS-303`（P2，`scope: [llvm]`）= `-static-pie` 无法用 `libc.a` 链接（归档成员非 PIC ⇒ `ld.lld` 逐条拒绝 `R_DADAO_ABS48`），缺 PIC 版 `libc.a`；与 `ADR-0025 D6` 的范围关系须在该册裁定。
+- **issue A 未重复登记（对派单的偏离，如实披露）**：`apply-series` 的 `patchless` `KeyError` **已存在** `ISS-231`（P2 / `[infra]`；另有 `ISS-224` P3 同缺陷，待去重）⇒ 改为在 `ISS-231` **追加现场复核**（rc=2、其后组件含 `musl` 静默跳过、影响升级为「旧补丁集构建而门控全绿」的假绿面）；未新建重复 id。
+- **遗留处置**：完成区「遗留 ①」（`-static-pie` 是否入 P2/P3）仍归用户裁定；「遗留 ②」（PIC `libc.a`）已由 `ISS-303` 覆盖；「遗留 ③」（`apply-series`）已由 `ISS-231` 覆盖。
