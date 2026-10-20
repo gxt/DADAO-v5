@@ -3,7 +3,7 @@
 **模块**：qemu
 **项目里程碑**：M9
 **依赖**：`INFRA-095t`（T1：musl `__clone` + TP，**必须已验证**）、`QEMU-062t`（DADAO linux-user 后端，已验证）、`QEMU-063t`（宿主信号诊断，已验证）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-19）**：`qemu` 现存最大 = `QEMU-064t` ⇒ 取 **`065`**（`grep -rn 'QEMU-065' .tao/` 0 命中）。
 > **线程链位置（T2）**：串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 `LLVM-117t`**。本册只做 **qemu-user（linux-user）**；**不做** system 模式（`-M dadao-m1`）线程。
@@ -207,3 +207,30 @@
 - 必改① `tls_static.c` flags 补 `CLONE_SETTLS`（`0x00080000`），断言改逐位（`child_tp ^ TLS_CONST == 0` + 父 TP 不变）；另加**负向**探针 `tls_no_settls.c`（不带该位、第 6 参给垃圾 `0xb0000000` ⇒ 子 `rb3 == 父 TP` 且 ≠ 垃圾），并作 `--inject` 第 4 条注入（补回该位 ⇒ 子取垃圾 ⇒ FAIL）。现场 3/3；注入链「注入→FAIL→`cp`+md5 还原→回绿」。
 - 必改② `ISS-293` 断言改现场派生：安装根归档 `extenddftf2.c.o` 的废止编码计数 vs **当次 clang** 编译的 `shl_probe.o` 同计数（现场 `0 == 0`；陈旧归档 `40 vs 0` ⇒ 红），保留归档 md5 一致 + `snprintf`（静态）/`strtod`（动态）驱动 rc=0。
 - `ISS-294` 口径（未放宽）：default 仅对**严格签名**（`timeout` 124 + 无 `counter=` + 旁证全绿）打印 `[GAP]`（非 `[PASS]`）；`--strict` 恢复 `[FAIL]` + rc=1。复跑：default 47 PASS/0 FAIL/5 GAP **rc=0**、`--inject` 4 条全链 **rc=0**、`ROUNDS=1 --strict` **rc=1**（1 `[FAIL]`）。
+
+#### 第 2 轮 reviewer 验收（2026-10-20，独立重跑；只验两条必改 + GAP 口径）
+
+**重跑（全我自跑，rc = 命令自身退出码；日志 `/tmp/opencode/REVIEW-065t/`）**：`run.sh` default（ROUNDS=5）= **47 PASS / 0 FAIL / 5 GAP、rc=0**；`--inject` = **24 PASS / 0 FAIL、rc=0**；`--strict`（ROUNDS=5，非册内 ROUNDS=1）= **47 PASS / 5 FAIL / 0 GAP、rc=1**（5 轮均 `[FAIL] … (registered gap ISS-294, counted as failure by --strict)`）；`make check-qemu-semantics` **224/224 rc=0**、`check-qemu-smoke` **90/90 rc=0**、`make check`(L1) **rc=0**。
+**必改①（`tls_static` 带 `CLONE_SETTLS`）✅ 闭合**：源码 `run.sh:397` flags 含 `0x00080000`；自跑 3/3 `child_tp=0x5a5a0000 expected=0x5a5a0000 xor=0x0` + `parent_xor=0x0`（逐位）；负向探针 `tls_no_settls.c`（不带位、第 6 参垃圾 `0xb0000000`）3/3 `PASS: no CLONE_SETTLS -> child keeps the parent TP`、`xor=0x0 bogus=0xb0000000` ⇒ 修后语义两向均成立（正向 = 位带则取 tls 常量，负向 = 不带位则继承父 TP，正是 `INFRA-095t-rework` 语义）。
+**必改②（`ISS-293` 现场派生）✅ 闭合**：`retired 0x40505146 words: installed builtins == fresh codegen: expected=0 actual=0`（期望侧 = **当次 clang** 编 `shl_probe.c` 现解，非写死）+ 归档 md5 install==build + `snprintf`(static)/`strtod`(dyn) 驱动 rc=0。我另核计数**非空转**：安装归档 `extenddftf2.c.o` 真解出（2304 B、反汇编 306 行、含 5 条 `shl`）、废止编码 0；FRESH 侧 `10: 40 40 84 11  shl.o rd8,rd16,rd17`（废止 0、`shl.o` 1）⇒ `0==0`/`1==1` 为实比对。脚本内**无**写死旧编码/旧结论作断言（`0x40505146` 只在注释 + 两侧同用的计数模式里）。〔旁注、不阻塞、越我写权〕`issues.yaml` ISS-293 notes「现 clang 发 `40 40 51 46`」与实测/册内 `40 40 84 11` 不符（台账笔误）。
+**GAP 口径四条逐条**：① 「逐条带 issue 号且不可消失」✅（5/5 GAP 行带 `registered: ISS-294` + 汇总点名；每轮必打印 PASS/FAIL/GAP 三选一并计 `GAPS`）；「**issue 关掉后该签名应失效/变红**」❌ **无机械保障** —— 全脚本无 `issues.yaml`/状态读取（`:1102` 仅注释），`gap_check` 唯一调用点 `:1154` 只由 `rc=124 && 无 counter=` 判定；若 ISS-294 以「(B) ADR 单核假设」结案而探针仍 124 ⇒ default 照旧 `[GAP]`+rc=0，宽免超出生命周期。② `--strict` 真能 rc=1 ✅。③ 新失败不会被记 `[GAP]` ✅（唯一调用点 + 严格签名 + 旁证归因 `A ISS-294 gap signature is attributable`；错值/部分输出/旁证红均走 `[FAIL]`）。④ 台账 + 册内写明 ✅（`issues.yaml` ISS-294 notes 末段「严格签名分类…未放宽、仍 `open`」+ 册内「③ ISS-294 口径」）。
+**判定**：**Needs Revision**（必改仅 1 条，且**非** ISS-294 并发缺口本身）—— **GAP 宽免须随 `ISS-294` 生命周期失效/变红（fail-closed）**：`issues.yaml` 中 `ISS-294` 非 `open`（或不可读）时，该签名不得再打 `[GAP]`，须 `[FAIL]`/rc=1；实现任选（脚本读 issue 状态 / 门控扫证据脚本 `registered: ISS-*` 是否仍 open / 其它等价机械保障）；验收 = 把 ISS-294 标 `closed` 后 default 必红、还原后回绿。**口径本身我判「如实区分已登记缺口 vs 新失败」，不是放宽**（GAP 非 PASS、签名唯一、strict 硬红、台账留痕、新失败不可混入）。
+**替代读法（供你裁定，据此可改判）**：若 ① 的「issue 关掉后…变红」指**验收/审阅层**联动（`--strict` 硬红 + 台账登记 + 审阅核对 issue 仍 open —— 本轮我已核 `ISS-294 status: open`）而非脚本层机械联动，则 ① ✅ ⇒ **四条全满足 ⇒ 可改判 Accepted**，上条降为建议（不阻塞）。两种读法都列出，不替你选。
+**独立注入 1 次（我自选，非册内 4 条）**：`cp`+md5（`b2c248bf37e8514899767f9d86024803`）后把 `run.sh:397` 的 `CLONE_SETTLS` 位**去掉** ⇒ `child_tp=0x4acb8 == parent_tp_before`、`xor=0x5a5eacb8` ⇒ 3/3 `[FAIL]`、**rc=1**；`cp` 还原后 md5 **逐字节一致** ⇒ 回绿 **47 PASS/0 FAIL/1 GAP、rc=0**（未用任何 git 还原命令）。
+**约束核验**：未改 `components/**`/`tools/**`/`spec/`/`contracts/`/`tests/**`；未跑 `install-host`/`build-*`/L2/L3；未 commit/push；写点仅本段。**环境漂移披露**：安装根 qemu 现 `v11.1.1-1-gc266401`（md5 `5e252eb7…`，== 构建树）≠ 完成区时点 `v11.1.1-1-gfb8e4f8`/`4938a733…`（后续 `QEMU-066t` 重建所致）⇒ 上列数字系新 qemu 上复核，与完成区时点不同源但逐条相符。
+
+#### 收尾裁定（architect，2026-10-20；主会话裁决）
+
+- **裁定**：第 2 轮 reviewer 唯一必改（`[GAP]` 须「issue 关掉后失效」的**脚本层机械保障**）**不成立** ⇒ 本册**改判 `Accepted`**（主会话裁决，非架构师自裁）。
+- **理由**：`[GAP]` 的触发条件是「`rc=124` 且无 `counter=` 输出」⇒ 若 `ISS-294` 按方案 A（ISA 增原子指令）修好，探针会跑过、条件不成立 ⇒ **自动转 PASS**，无需脚本读 `issues.yaml`；若按方案 B（声明单核假设）结案，探针永远超时 ⇒ `[GAP]` 应继续存在。故「issue 关掉就让脚本变红」会把 B 方案变成**永久假红** ✗。
+- **四条实质判据**（带 issue 号 / `--strict` 真 `rc=1` / 新失败不打 `[GAP]` / 台账 + 册内写明）**均满足** ✓。
+- **闭合**：reviewer 必改①（`tls_static` 补 `CLONE_SETTLS` + 负向探针）、必改②（`ISS-293` 断言现场派生）**均已闭合** ✓（第 2 轮自跑 `47 PASS/0 FAIL/5 GAP rc=0`、`--inject 24 PASS rc=0`、`--strict rc=1`）。
+- **降级为建议**：「脚本读 issue 状态做联动」不入 `run.sh`（判据落 `lessons §2.17`）；`ISS-294` 保持 `open`（待用户裁定 (A)/(B)），并发项按 `[GAP]` 如实登记、不冒充 PASS。
+
+#### 提交审核（architect，`/complete`，2026-10-20）
+
+- **档位**：**正常提交**（主会话裁定 `Accepted`）。**未 push**（push 只由主会话在 `/complete` 后 FF 执行）。
+- **提交**：本笔（`QEMU-065t /complete：状态 已验证…`；`git log -1 --format=%h` 自查）；**显式 staging 4 路径**，禁 `git add -A`；在分支 `QEMU-065t-complete` 内提交，`merge --squash` 一次性落地 `master` 并删分支。
+- **对账**：本册（`**状态**`→`已验证` + 收尾裁定段；第 2 轮 reviewer 记录系 reviewer 所写、本笔仅随附未改）、`lessons.md §2.17`（并入「已登记缺口的门控标注」2 条）、`issues.yaml`（`ISS-293` notes 笔误 `40 40 51 46`→`40 40 84 11`；`ISS-294` notes 追加收尾口径、`status` 仍 `open`）、`milestones.md`（流水行 `待验收`→`已验证` + 按完成时间倒序上移、未完成册 **15→14**、正文两处状态同步）✓。**无漏提 / 多提 / 越界**。
+- **范围**：`spec/`、`components/**`、`tools/**`、`contracts/**`、`tests/**` **0 改动**；`.work/**` 属忽略区不入 git。
+- **门控**：`make check`（L1）rc=0；`check-milestones-fresh` rc=0；`check_issues` rc=0。
