@@ -202,3 +202,9 @@
 - **文件集对账**：显式 staging = 本册（第 2 轮审阅记录 + 状态行）+ `.tao/knowledge/{issues,lessons,milestones}.md` ⇒ 4 件；漏提 0 / 多提 0 / 越界 0（册外 3 件 = 派单指派的 `ISS-306` 勘误 + `lessons §2.39` + 里程碑同步）。
 - **`/complete` 内容**：`**状态**` 待验收 ⇒ 已验证（只改该行）；`milestones` 流水行改 `已验证` + 未完成册 7⇒6；`lessons §2.39`（跨平台性能旁证须同参、只作量级 sanity）。
 - **提交 = 本笔**（同笔自指 ⇒ 不嵌自身号）；`push` 未执行（归主会话）。
+
+#### 裁定（2026-10-20）
+- **`tripforce` = 跳过（用户裁定）**：本册维持 `built=7/8`，该项记「**不支持（已裁定）**」、**不计入冒烟失败**。
+- **依据**（源码级，逐条现场核）：`tripforce.c:7` `#include <openssl/des.h>` + `:495` `DES_fcrypt()`（OpenSSL 专有 API，C 标准库无）⇒ 需 `libcrypto`；`makefile:5` `mp = -fopenmp` + `:471` `#pragma omp ...` ⇒ 另需 libomp ⇒ 8 基准中唯一需这两个外部依赖者，引入代价与收益不符。详见 `ISS-306` notes「tripforce —— 已裁定跳过」段（判据、未采用备选、`ADR-0033 D4` 授权边界）。
+- **未采用备选**：改语料（自带 DES 实现 + 去 `omp`）= 改基准本身，超出 `ADR-0033 D4`（补丁仅限 bank/UB 类 `int`↔指针失配）✗。
+- **用户原话**：用户问「先解释一下 tripforce 是什么？为什么需要 openssl？」⇒ 说明后用户答「可以」（= 同意跳过方案）。
