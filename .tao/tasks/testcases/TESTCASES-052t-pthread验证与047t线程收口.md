@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M9
 **依赖**：`INFRA-095t`（T1：musl `__clone` + TP）、`QEMU-065t`（T2：qemu-user 线程语义）、`TESTCASES-047t`（libc-test 两档驱动与基线）、`TESTCASES-049t`（动态档 `-fPIC` 口径）、`INFRA-093t`（`--json-out` / `--work-dir` 运行产物规矩）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-19）**：`testcases` 现存最大 = `TESTCASES-051t`（M8 已归档）⇒ 取 **`052`**（`grep -rn 'TESTCASES-052' .tao/` 0 命中）。
 > **线程链位置（T3）**：串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 `LLVM-117t`**。本册只做 **验证/计数/证据**；不改语料、不改期望值、不放宽分类。
@@ -154,7 +154,26 @@
 
 **判决**：实现范围内 finding 全修；**遗留**（阶段 B 未跑、`ISS-252` 保持 open、状态未改）已在完成区登记，故未标 `待验收`（派单要求）。
 
-#### 第 1 轮 reviewer 验收
+#### 第 1 轮 reviewer 验收（2026-10-20，独立重跑）
+
+**当前线程真值（我自己重跑，`--filter` 20 例 + `--json-out` 落 `/tmp/opencode/REVIEW-THREAD/testcases052/`）**：
+- 静态档：`total=20 pass=19 fail=0 known-fail=0 blocked=1`，19 目标 **19/19 全 `pass`**；唯一 `BLOCKED` = `regression/pthread_create-oom`（`qemu killed by host signal 5`，`ISS-257` flake，不计入 19）；driver rc=1（`blocked>0` 的 ISS-248 门规，非失败）。
+- 动态档：`total=20 pass=20 fail=0 blocked=0`，19 目标 **19/19**（extra `pthread_create-oom` 亦 `pass`）；driver rc=0。
+- **与完成区 15/19 的关系（口径，不改写完成区）**：完成区「复跑」段的 **15/19**（静态 15/3/1、动态 15/3/1）是 **`QEMU-066t` 之前的真值**（`ISS-295` 收、`ISS-299` 修后；`ISS-296`/`297`/`298` 未修时），当时如实；**当前 = 19/19（两档）**，因 `QEMU-066t` 已修 PI futex 字节序、robust_list、取消帧（`ISS-296/297/298` 均 `closed`）。逐例 diff（其脚本第 3 节）：static 5 例 `blocked/fail→pass`（`pthread_mutex_pi`/`pthread_robust`/`spawn`/`pthread-robust-detach`/`pthread_cond_wait-cancel_ignored`）、dynamic 6 例（+`popen`），与上述根因一一对应 ✓。
+
+**该册证据脚本重跑（如实，含现实红）**：
+- `bash .work/evidence/TESTCASES-052t-rerun/run.sh`（default）⇒ rc=**1**；`run.sh --inject` ⇒ rc=**1**。**逐项定性：全部 FAIL 均为「钉住的旧真值被现实超越」，非造假/非判据放宽**：① `check_rerun` 6 项 `counts19/counts20/non_pass19_set` 期望 `15/3/1`+4 个非 pass，实测两档 `{'pass': 19, 'fail': 0, 'blocked': 0}`、`non_pass19_set=[]`；② `dynamic driver rc=0, expected 1`（动态全 pass ⇒ rc 归 0）；③ 三次注入「injected→check rc=1」均 PASS、`expect.json` 还原 md5 `dd0586d0…` 前后一致（**无残留**，我 `md5sum` 复核），但「restored→check rc=0」在旧期望下无法回绿 ⇒ 报 FAIL。**风险提示（非本册阻断）**：`expect.json` 把 counts/非 pass 集合写死（快照式期望），真值前进即假红；建议 `/complete` 时让 engineer 按现场更新或改现场派生（lessons §2.20/2.21 口径）。
+- **ISS-295/ISS-299 守卫在新跑下均绿**：`iss295_spawn_popen_pass` PASS（spawn 两档 + popen 动态 pass）、`iss299_no_stale_demotion` PASS（两档无「no __clone」降级残留）。
+
+**reviewer 独立注入 1 次**（基线 = 册方钉真值落盘 JSON）：`cp`+md5（`8be869ef…`）备份 `static.json` → 把 `functional/spawn` 的 `klass` 改 `fail`（1 处）⇒ `check_rerun` rc=**1**（`iss295_spawn_popen_pass`/`non_pass19_set`/`counts19/20` 共 4 行 FAIL）⇒ `cp` 还原 md5 **逐字节一致** `8be869ef…` ⇒ rc=**0** 回绿 ✓。
+
+**台账核对（与现场一致性）**：
+- `ISS-299`：驱动 `attribute_port_gaps()` 的 `uses_thread→blocked` 兜底**确已删**（我读 `tools/testcases/run_libc_test_user_suite.py`：函数退化为只挂注释、明写 ISS-299；`GAP_SIGNATURES` 保留为回归检查、语义未放宽）✓；`issues.yaml` `status=open` + notes「待 `/complete` 复核后置 closed」⇒ 与现场一致。
+- `ISS-252`：`status=open` 可辩护（其验收面「20 例全 pass」仍未达：`pthread_create-oom` 静态仍 blocked = `ISS-257`），但 notes 最新真值停在 **15/19**，已落后现场 **19/19** ⇒ 建议 `/complete` 补记（滞后，非失实）。`ISS-294` 见 `QEMU-065t` 轮记录。
+
+**边界**：只跑只读重跑 + 1 次 `cp`+md5 可还原注入（注入面为 `/tmp` 落盘 JSON，非仓库文件）；未改语料/`.mk`/驱动/判据/`issues.yaml`；`git status --porcelain -uall` 空；未 commit/push。`.work/evidence/TESTCASES-052t/`（第 1 轮脚本，钉 14/19 快照）**未重跑**，其口径已被 `-rerun` 取代（披露）。
+
+**判定**：**Accepted** —— 按派单口径：当前确为 **19/19（两档）**，完成区 15/19 是 `QEMU-066t` 前真值、如实；目标 19 条全部真实 `pass`（无放宽/无降级，`ISS-299` 守卫绿）。附带风险（供 architect，不阻断）：`expect.json` 钉死计数导致该册 `run.sh` 现实红、`ISS-252` notes 真值滞后。
 
 #### 提交审核（architect，2026-10-20）
 
@@ -193,3 +212,41 @@
 - **多提**：`issues.yaml` 同批含 `ISS-252`/`ISS-299` 复跑注记 **+** `ISS-296/297/298` 的「落点 = `QEMU-066t`」注记（同一文件，未做拆 hunk 手术）⇒ 已在同一提交内说明；`QEMU-066t` 立册与本册拆为**另一提交**。
 - **越界**：无（`.work/evidence/**`、`.work/log/**` 属忽略区，不入 git）。
 - **未 push** ✓；其后的 `QEMU-066t` 立册（任务书 + `milestones.md`）为独立提交。
+
+### 证据脚本修正（2026-10-20，`evidence-snapshot-fix`）
+
+**来源**：第 1 轮 reviewer 验收的附带风险 —— `expect.json` 把 counts / 非 pass 集合**钉死**（15/19 快照），真值前进到 19/19 后 `run.sh` **假红**。**只改** `.work/evidence/TESTCASES-052t-rerun/**`；**未改**语料 / `.mk` / 驱动判定 / 契约。
+
+**改法（计数现场派生；不是把期望改成 19）**
+- `expect.json` 只留**不随真值移动**的判据：19 个目标 ID、extra（`regression/pthread_create-oom`）、`extra_allowed_klass = [pass, blocked]`、`extra_blocked_signature = "host signal"`（`ISS-257` flake 签名）。删除 `counts19` / `counts20` / `non_pass19` / `extra_klass` / `extra_sig` 等快照字段。
+- `check_rerun.py`：`pass/fail/blocked/known-fail` **逐例从 `--json-out` 现场统计**并打印来源与数字（`INFO <mode>.derived_census19 (from N cases in <path>)`）；硬判据 = 「19 个目标全 `pass`」（`pass == len(ids19)`，不写字面 19）＋ `klass` 域合法 ＋ 每个 `pass` 的 `exit == 0`；驱动退出码亦**由同一份记录派生**（`0 iff fail=0 且 blocked=0 且 closure_ok 且 classification_ok 且 census.census_checked`）再与实际 rc 比对。`ISS-295` / `ISS-299` 守卫与 extra 的 `ISS-257` 签名断言保留。
+- `run.sh` 注入改为**数据侧注入**（4 条 + 1 条判据注入），每条「注入→FAIL→`cp`+md5 还原→回绿」，并带「注入后 md5 未变 ⇒ 空注入判 FAIL」守卫：① 目标例 `klass=fail`；② extra `klass=fail`；③ 目标例 reason 塞回 `musl port has no __clone`；④ `pass` 例 `exit=3`；⑤ 翻转驱动 rc（判据注入，无数据改动）。
+
+**复跑（现场；日志 `.work/evidence/TESTCASES-052t-rerun/logs-full-2026-10-20.txt`）**
+- 静态：`discovered=367 excluded=30 total=20 pass=19 fail=0 blocked=1`（blocked = `pthread_create-oom`，`qemu killed by host signal 5` = `ISS-257`）；19 目标 **19/19 `pass`**，派生计数 `{'pass': 19, 'fail': 0, 'blocked': 0, 'known-fail': 0}`；驱动 rc=1，与记录派生一致。
+- 动态：`total=20 pass=20 fail=0 blocked=0`；19 目标 **19/19**（extra 亦 `pass`）；驱动 rc=0，与记录派生一致。
+- `run.sh` default 与 `--inject` 均 **rc=0**；5 条注入全部「注入→check rc=1→`cp`+md5 还原→check rc=0」。
+- 与上一轮 15/19 的逐例 diff：静态 5 例 / 动态 6 例 `blocked`/`fail → pass`，与 `QEMU-066t`（`ISS-296/297/298`）+ `ISS-295` 一一对应。
+
+**`ISS-252` notes**：补记最新真值（静态 19/19 + extra `blocked` = `ISS-257`；动态 19/19），`status` 维持 `open`（本条验收面含该 flake 例）。
+
+#### 第 3 轮 engineer 自审（证据脚本修正，2026-10-20）
+
+**范围**：`.work/evidence/TESTCASES-052t-rerun/{run.sh,check_rerun.py,expect.json}` + 现场日志；未改语料 / `.mk` / 驱动 / 契约。
+
+**逐行审查**
+1. `expect.json` 只剩 ID 与不变判据（19 目标全 `pass`；extra ∈ {`pass`,`blocked`} + `ISS-257` 签名），无任何 counts / 逐例真值。
+2. `check_rerun.py`：计数逐例现场统计并打印来源；硬判据 `pass == len(ids19)`（不写字面 19）；`klass` 域、`pass` 的 `exit==0`、`ISS-295`/`ISS-299` 守卫保留；驱动 rc 由同一份记录派生（`fail`/`blocked`/`closure_ok`/`classification_ok`/`census_checked`）再与实际 rc 比对。
+3. `run.sh`：default 不再钉驱动 rc（只打印）；注入 4 条数据侧 + 1 条判据注入，每条都有「md5 未变 ⇒ 空注入」守卫与 `cp`+md5 还原回绿。
+4. `--inject` 模式没有真实驱动跑，故不传 rc 参数（避免以未知 rc 造假断言）。
+
+**自审发现与处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 counts / 非 pass 集合钉死 15/19（reviewer 风险） | ✅已修 | 删快照字段，改现场派生 | 两档 `derived_census19 = {'pass': 19, 'fail': 0, 'blocked': 0, 'known-fail': 0}` |
+| F2 动态驱动 rc 钉死 1（真值前进后恒红） | ✅已修 | rc 由记录派生后比对 | 静态 expected=1 actual=1；动态 expected=0 actual=0 |
+| F3 注入依赖 `expect.json` 的钉死值（派生后失效） | ✅已修 | 改为对 run JSON 注入 | 5 条注入各自 rc=1 → 还原 rc=0 |
+| F4 `--inject` 无驱动 rc 可用时的断言口径 | ✅已修 | `run_check` 仅在 rc≥0 时传参 | `run.sh --inject` rc=0 |
+
+判决：finding 全修；两档 19/19、`run.sh` default/`--inject` 均 rc=0。**状态未改**（按派单，由 architect 处理）。

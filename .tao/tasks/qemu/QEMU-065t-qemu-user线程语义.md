@@ -131,7 +131,23 @@
 
 判决：可修 finding 均已处置；**并发原子性缺口不在本册可改范围**（musl/ISA 裁定），故完成区如实登记为阻断项，状态按派单保持 `待开始`。
 
-#### 第 1 轮 reviewer 验收
+#### 第 1 轮 reviewer 验收（2026-10-20，独立重跑）
+
+**我自跑的真实数字（与完成区逐条对账）**：
+- ✓ 一致项：C1 static/dynamic exit=0（`join=0 shared=41 ret=42 child_errno=1234 parent_errno=77`）；B 动态 `delta=200`（两线程各 1，= `sizeof(struct pthread)+0`）；C `pthread_exit` ⇒ `join=0 ret=0x1234 after_exit_ran=0`（只结束线程）、worker `exit(7)` ⇒ 进程 **rc=7** 且无 `AFTER`（结束整进程）；D 两线程各自 altstack `in_range=2`（`0x52ac0∈[0x51000,0x53000)`、`0x54ac0∈…`）、per-thread mask（阻塞 `cnt=1`→解阻塞 `2`）、`tgkill` 仅命中目标线程；A 辅助 private-slot `sum=1000000`、condvar `1/1 + 2/2`；`make check-qemu-semantics` **224/224** rc=0、`make check-qemu-smoke` **90/90** rc=0（均我自跑）。
+- ✗ 不符项（`run.sh` default 现 rc=**1**，16 FAIL）：
+  1. **B 静态 3/3 红**：`child_tp=0x4ac78 == parent_tp`、`FAIL: child rb3 != tls argument`、exit=3 —— 与完成区「静态 3/3 `child_tp=0x5a5a0000`」相反。**根因（已定性，非实现回归）**：其探针 `tls_static.c` 的 flags **缺 `CLONE_SETTLS`**（`CLONE_VM|FS|FILES|SIGHAND|THREAD|SYSVSEM|PARENT_SETTID|CHILD_CLEARTID`），与本册阶段 B 规格「`flags|CLONE_SETTLS`」相反；无 SETTLS 时子线程继承父 TP 正是 `INFRA-095t-rework` 修好后的**正确内核语义**（该探针此前的绿是搭 ISS-295 无条件写 `rb3` 的 bug 的车）。实现侧语义我另行验证成立：`INFRA-095t` C2 static **带** `CLONE_SETTLS` ⇒ `child_tp=0x5a5a0000` 逐位、父 TP 不变（我自跑）。
+  2. **ISS-293 快照断言恒红**：`check_ne … retired shl encoding 0x40505146 present (count>0) 0 "$STALE"` 断言「废止编码仍在」，现 builtins 已重建（`STALE=0`、snprintf/strtod 均 rc=0）且 `ISS-293` 已 `closed` ⇒ 过时快照。
+- 并发互斥 **5/5 轮 rc=124**（`counter` 无输出）与完成区一致 ⇒ **如实登记的真缺口 `ISS-294`，不据此判 NR**（派单口径）。登记核对 ✓：现象/根因（musl `a_cas` 假原子，非 qemu）/小规模丢更新实测/`(A) ISA 增原子 vs (B) ADR 单核假设` 待用户裁定/阻塞面 P1 均真实，`run.sh` 头部明写「期望 FAIL、永不转绿」，**无掩盖**。
+
+**可达 FAIL（`--inject`，我自跑 rc=1）**：注入 1（`thread_exit.c` 改 `exit(0)`）与注入 3（private-slot 期望改 `N*M+1`）各自「注入→FAIL→`cp`+md5 还原→回绿」全绿；注入 2（`tls+0x1000`）注入态红 ✓、md5 还原一致（`1459977d…`）但「还原回绿」红 = 上述 B 基线问题同根因。
+**reviewer 独立注入 1 次**：`cp`+md5（`b2fca117…`）改 `tests/vectors/rol/rol.yaml` 一格语义期望（`rd1` 末位，恰 1 行 diff）⇒ `make check-qemu-semantics` rc=**2**（`223 passed, 1 failed`，`rol.yaml[3]` 命中注入格）⇒ `cp` 还原 md5 逐字节一致 ⇒ **224/224** rc=0 回绿；`git status` 无残留。
+**边界**：未改 `components/**`/`tools/**`/`spec/`/`contracts/`；未跑 `install-host`/`build-*`/L2/L3；未 commit/push；`make check`（L1）rc=0（全局一次）。
+
+**判定**：**Needs Revision** —— **非因 ISS-294 并发缺口**（该缺口按派单如实登记、不判 NR）。必改 2 条：
+① `.work/evidence/QEMU-065t/run.sh` 的 `tls_static.c`：flags 补 `| CLONE_SETTLS`（`0x00080000`）以符合本册阶段 B 规格，恢复「`child_tp == tls` 常量逐位（3/3）+ 父 TP 不变」硬判据；建议另加一条正判据「无 `CLONE_SETTLS` ⇒ child TP == 父 TP」把现观察固化（防再被无条件写 `rb3` 的回归蒙混）；预期 `--inject` 注入 2 的「还原回绿」随之恢复。
+② ISS-293 快照断言改为现状口径（`STALE==0` 时断言「废止编码已清」或条件跳过并注明 `ISS-293 closed`），不得再断言旧 bug 仍在。
+（改完请重跑 `run.sh` default/`--inject` 并更新完成区「B 静态 3/3」的时点口径；并发项照旧记 `ISS-294`。）
 
 #### 提交审核（architect）
 
@@ -139,3 +155,55 @@
 - **提交**：本笔（`QEMU-065t/T2：qemu-user 线程语义验证 …`；`git log -1 --format=%h`）；显式 staging **3 路径**，未用 `git add -A`。
 - **对账（对完成区「修改文件」）**：本册（完成区 + 第 1 轮自审 + 本记录）、`issues.yaml`（新 `ISS-294` = ISA 缺原子原语）、`milestones.md`（本任务状态 `待开始`→`待验收` + 未完成册行）✓；`.work/evidence/QEMU-065t/run.sh`、`.work/log/{qemu,testcases}/QEMU-065t-*.log` 属忽略区不入 git（完成区已列）✓；完成区声明 `components/qemu/**`、`tools/qemu/**`、`tests/vectors/**` 0 改动 ⇒ 未提 ✓。**无漏提 / 多提 / 越界**。
 - **台账联动**：完成区遗留①（并发原子性）原「未写台账（越界）」⇒ 本次由 architect 登记 `ISS-294`（`open`/`P1`/`scope:[spec]`），指向 T3/T4 阻塞关系与 (A) ISA 原子原语 / (B) ADR 单核假设 二选一待裁。完成区原文未改（只改 `**状态**`）。
+
+### 证据脚本修正（2026-10-20，`evidence-snapshot-fix`）
+
+**来源**：第 1 轮 reviewer Needs Revision 两条（① `run.sh` 的 `tls_static.c` 漏 `CLONE_SETTLS`；② `ISS-293` 快照断言过时）。**只改** `.work/evidence/QEMU-065t/**`；**未改** `components/**`、补丁、驱动判定、`spec/`/契约。
+
+**① 阶段 B 按册内规格重写**
+- `tls_static.c` 的 flags 补 `CLONE_SETTLS`（`0x00080000`）＝本册「`flags|CLONE_SETTLS`」；断言改**逐位**：探针打印 `xor = child_tp ^ TLS_CONST` 并断言 `xor=0x0`，另断言父 TP 不变。现场 3/3：`child_tp=0x5a5a0000 expected=0x5a5a0000 xor=0x0`。
+- 新增**负向**探针 `tls_no_settls.c`：**不带** `CLONE_SETTLS`、第 6 参故意给垃圾 `0xb0000000` ⇒ 断言子 `rb3 == 父 TP`（`xor=0x0`）且 ≠ 垃圾值。现场 3/3：`child_tp == parent_tp`、`bogus=0xb0000000`。此条正是「无条件写 `rb3`」旧 bug（`ISS-295`）的回归守卫 —— 无它，正向断言仍可能借该 bug 蒙混。
+- `--inject` 增至 4 条注入，新增「给 `tls_no_settls.c` 补回 `CLONE_SETTLS`」⇒ 子线程取垃圾值 ⇒ rc=3、`FAIL: child rb3 != parent TP without CLONE_SETTLS`；`cp`+md5 还原 ⇒ 回绿。
+
+**② `ISS-293` 断言改为现场派生**
+- 原断言「废止编码 `0x40505146` 仍在（count>0）」是**修复前快照**；`ISS-293` 已 `closed`（`resolved_by INFRA-096t`，真根因 = compiler-rt builtins 归档陈旧）。现改为：**安装根归档**里 `extenddftf2.c.o` 的废止编码计数 vs **当次 clang** 编译的 `shl_probe.o` 的同一计数（现场 `0 == 0`；期望值取自当次编译、不写死 —— 陈旧归档会是 `40 vs 0` ⇒ 红），并保留「安装根归档 md5 == 构建树」「`snprintf`(静态)/`strtod`(动态) 驱动 rc=0」。
+
+**③ `ISS-294` 并发项判定口径（如实，非放宽）**
+- 现场仍 **5/5 轮 `rc=124`、无 `counter=` 行**（`ISS-294` open，属 musl `a_cas` 假原子）。脚本按**严格签名**分类：仅当「`timeout` 124 + 无 `counter=`」且旁证（private-slot 求和 `1000000`、condvar `1/1`+`2/2`）全绿 ⇒ 打印 `[GAP]`（**不是** `[PASS]`），汇总明写 `ISS-294`；任何其它红（计数错值 / 有部分输出 / 旁证红）仍 `[FAIL]`。
+- `./run.sh --strict` 把该 gap 恢复为 `[FAIL]` 与 `rc=1`，给验收项 2 的**硬判决**（现场 `ROUNDS=1 --strict`：1 `[FAIL]`、rc=1）。
+
+**复跑（现场）**
+- `run.sh`（default，5 轮）：**47 PASS / 0 FAIL / 5 GAP(ISS-294)**，**rc=0**；
+- `run.sh --inject`：4 条注入全部「注入→FAIL→`cp`+md5 还原→回绿」，**rc=0**；
+- 日志：`.work/evidence/QEMU-065t/logs-default-2026-10-20.txt`、`logs-inject-2026-10-20.txt`、`logs-strict-rounds1-2026-10-20.txt`。
+
+#### 第 2 轮 engineer 自审（证据脚本修正，2026-10-20）
+
+**范围**：`.work/evidence/QEMU-065t/run.sh`（探针源 + 断言 + 注入 + 判定口径）与三份现场日志；未改实现/补丁/驱动/契约。
+
+**逐行审查**
+1. 正向探针 flags 含 `CLONE_SETTLS`；断言用 `child_tp ^ TLS_CONST` 打印并断言 `xor=0x0`（逐位）；父侧改用 `parent_xor`，不再用「字段存在」这类恒真串。
+2. 负向探针不带该位、第 6 参为垃圾常量；断言 `child ^ parent == 0` 且 `child != bogus` ⇒ 旧「无条件写 `rb3`」必红。
+3. `ISS-293`：期望值 `FRESH_RETIRED` 由**当次** clang 现场编译解出，再与安装归档的同一计数比较；归档缺失时 `STALE=unreadable` ⇒ 必红（不静默跳过）。
+4. `ISS-294`：`gap_check` 仅在「124 + 无 `counter=`」时分类；`GAP_SEEN` 与 strict 解耦（strict 也做旁证归因）；`--strict` 打印 `[FAIL]` 并置 `FAILED`，汇总文案与输出一致。
+5. 每条注入先用 `grep -c` 证明源文件确实被改（空注入即红），再 `cp` 备份 + md5 前后对账还原。
+
+**自审发现与处置**
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 正向探针漏 `CLONE_SETTLS`（reviewer ①） | ✅已修 | flags + `0x00080000` | 3/3 `child_tp=0x5a5a0000 expected=0x5a5a0000 xor=0x0` |
+| F2 缺「无 `CLONE_SETTLS` ⇒ 继承父 TP」判据 | ✅已修 | 新增 `tls_no_settls.c` + 3 次断言 + 注入 4 | 3/3 `xor=0x0 bogus=0xb0000000`；注入态 rc=3 |
+| F3 父 TP 检查写成 `parent_tp_before=0x`（恒真） | ✅已修 | 探针加 `parent_xor`，断言 `parent_xor=0x0` | default 3/3 PASS |
+| F4 `--strict` 只置 `FAILED` 不打印 `[FAIL]`，汇总文案失实 | ✅已修 | `gap_check` 严格分支打印 `[FAIL]` | `ROUNDS=1 --strict`：47 PASS / 1 `[FAIL]`、rc=1 |
+| F5 `ISS-294` 已登记缺口原按普通 FAIL 计（淹没本轮两项修复） | ✅已修（口径，非放宽） | 严格签名 `[GAP]` + `--strict` 硬判决 | default rc=0（5 GAP）；strict rc=1 |
+| F6 `ISS-293` 断言钉旧 bug（reviewer ②） | ✅已修 | 现场派生 install vs fresh | `0 == 0` PASS |
+| F7 注入 2 的「还原回绿」原先随 B 基线红 | ✅已修 | 随 F1 自动恢复 | inj2 全链 6/6 PASS |
+
+判决：reviewer 两条必改均完成且有现场证据；无未修 finding。**状态未改**（按派单，由 architect 处理）。
+
+#### 第 1 轮必改闭合（engineer，2026-10-20）
+
+- 必改① `tls_static.c` flags 补 `CLONE_SETTLS`（`0x00080000`），断言改逐位（`child_tp ^ TLS_CONST == 0` + 父 TP 不变）；另加**负向**探针 `tls_no_settls.c`（不带该位、第 6 参给垃圾 `0xb0000000` ⇒ 子 `rb3 == 父 TP` 且 ≠ 垃圾），并作 `--inject` 第 4 条注入（补回该位 ⇒ 子取垃圾 ⇒ FAIL）。现场 3/3；注入链「注入→FAIL→`cp`+md5 还原→回绿」。
+- 必改② `ISS-293` 断言改现场派生：安装根归档 `extenddftf2.c.o` 的废止编码计数 vs **当次 clang** 编译的 `shl_probe.o` 同计数（现场 `0 == 0`；陈旧归档 `40 vs 0` ⇒ 红），保留归档 md5 一致 + `snprintf`（静态）/`strtod`（动态）驱动 rc=0。
+- `ISS-294` 口径（未放宽）：default 仅对**严格签名**（`timeout` 124 + 无 `counter=` + 旁证全绿）打印 `[GAP]`（非 `[PASS]`）；`--strict` 恢复 `[FAIL]` + rc=1。复跑：default 47 PASS/0 FAIL/5 GAP **rc=0**、`--inject` 4 条全链 **rc=0**、`ROUNDS=1 --strict` **rc=1**（1 `[FAIL]`）。

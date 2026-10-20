@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`SPEC-140t`（TP 硬依赖查证，已验证）、`INFRA-082t`（musl 静态端口，已验证）、`INFRA-085t`（动态端口 / `libc.so`，已验证）、`QEMU-062t`（`qemu-user` 运行面，已验证）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-19）**：`infra` 现存最大 = `INFRA-094t` ⇒ 取 **`095`**（历史号含 M8 已归档册，`grep -rn 'INFRA-095' .tao/` 0 命中）。
 > **线程链位置（T1）**：用户 2026-10-19/20 裁定「这个任务链完成后，可以添加 thread 相关支持，注意：rb3 应该被用起来」⇒ 串行链 **T1 `INFRA-095t` → T2 `QEMU-065t` → T3 `TESTCASES-052t` → T4 `LLVM-100t` → T5 `LLVM-117t`**。本册 = **musl 端口面**；不跑线程语义的 qemu 面扩展（T2）。
@@ -126,8 +126,25 @@
 
 判决：本册实现与证据的 finding 均已处置；无可修未修项。状态按派单保持 `待开始`，待 architect 处理。
 
-#### 第 1 轮 reviewer 验收
-（待 reviewer 独立重跑）
+#### 第 1 轮 reviewer 验收（2026-10-20，独立重跑）
+
+**关键断言（本人自验，逐条）**：
+- `clone.s` 走 `SYS_clone` **mask 0x14** ✓：现场源/补丁逐寄存器对齐 `rd15=220, rd16=flags, rd17=newsp, rb16=parent_tidptr, rd18=tls, rb17=child_tidptr`（`rb2rd/rb2rb` 搬运顺序与 qemu `linux-user/dadao/cpu_loop.c` `TARGET_NR_clone … return 0x14` 一致，我 `grep` 该补丁确认 `0x14`）。
+- **`rb3` 只在 `CLONE_SETTLS`（`0x00080000`）时写** ✓（返工点）：`set.zw rd9, wp1, 8` → `and.o rd9, rd16, rd9` → `br.z {rd9}?, [rb0, .Lno_tls]` → 才 `rb2rb {rb3}, {rb20}`；未置位完全不碰 `rb3`。证据脚本机械断言 `and.o+br.z` 计数=2、`rb3` 写入计数=1（我自跑 `expected=2/actual=2`、`expected=1/actual=1`）。
+- 最小 pthread **exit=0** ✓：C1 static/dynamic 各 `join=0 shared=41 ret=42 child_errno=1234 parent_errno=77`（我自跑）。
+- `rb3` 探针 **逐位** ✓：C2 static `child_tp=0x5a5a0000`（= 传入常量）`parent_before=parent_after=0x4ac18`（父 TP 不变）；动态 `delta=200 == sizeof(struct pthread)+TP_OFFSET(0)`。
+- **返工验收点** ✓：4 参无 `CLONE_SETTLS` 探针（与 `posix_spawn` 同形）`child_tp==parent_tp=0x4bef8`、子侧写 `errno` 成功（`n=16`）；`functional/spawn`+`popen` **静态 2/2、动态 2/2 pass**（我自跑驱动行逐条 `PASS exit=0`）。
+
+**重跑记录（我自己的终端输出）**：
+- `bash .work/evidence/INFRA-095t-rework/run.sh` ⇒ rc=**0**（全项 PASS：产物面 arch `clone.o` 在/通用不在、`libc.a`/`libc.so` 各 1 处 `__clone`、`clone.c` 无 `-ENOSYS`、E1 组件树干净）。
+- `bash .work/evidence/INFRA-095t-rework/run.sh --inject` ⇒ rc=**0**：注入①（加回无条件 `rb2rb {rb3},{rb20}`）⇒ 4 参探针 `poll=0 (child crashed?)` FAIL；注入②（删 `clone.s` + 恢复 `-ENOSYS`）⇒ `pthread_create rc=11` EAGAIN FAIL；各 `cp`+md5 还原（`clone.s 468e73f4…`、`clone.c 2991e7a6…` 对账一致）后回绿，末尾 `build-musl-shared` rc=0 复原产物。
+- **reviewer 独立注入 1 次**（非复用其脚本）：`cp`+md5 备份 `clone.s`（`468e73f4…`）→ 删守卫行 `br.z {rd9}?, [rb0, .Lno_tls]`（`diff` 恰 1 行）⇒ 同一 `run.sh` default rc=**1**（`[FAIL] clone.s tests CLONE_SETTLS (and.o+br.z): expected=2 actual=1` + `[FAIL] component source tree clean (E1): M src/thread/dadao/clone.s`）⇒ `cp` 还原 md5 **逐字节一致** ⇒ default rc=**0** 回绿。
+- `make check-patch-tree` ⇒ rc=**0**（5 组件 **185** patches）。⚠ 与完成区「183」差 **+2**：`QEMU-066t` 后续补 `components/qemu` 2 补丁所致（非本册；本册时点 183 属实）。
+- `make check`（L1）rc=**0**（我自跑，含 `check-run-artifacts A3 763 new files 0 illegal`）。
+
+**边界核验**：`git status --porcelain -uall` 全程空（注入已还原，无残留）；未改 `spec/`/`contracts/`/`components/qemu/**`/`arch/dadao/*`；未跑 `install-host`（run.sh 内部 `build-musl` 属证据脚本自身还原流程）；未 commit/push。
+
+**判定**：**Accepted** —— 返工点（`rb3` 条件化）与 spawn/popen 验收点均在我自跑下成立，可达 FAIL ≥2 且另加我方独立注入红→还原→绿；完成区数字与我重跑一致（唯一差异 = patch 计数 183→185，已定性为后册所致）。
 
 #### 提交审核（architect）
 

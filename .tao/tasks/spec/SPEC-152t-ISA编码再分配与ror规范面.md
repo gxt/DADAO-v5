@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9
 **依赖**：`ADR-0032`（**`Accepted`**，`D1`–`D6` 已于 2026-10-19 逐条确认；**开工前置 = `spec/` 改动授权原话落纸**）、`SPEC-141t`（`ror` 预研：候选 A 形态/收益/六环代价）、`SPEC-142t` / `SPEC-143t`（MISC-octa 子表补格 + 只读锁重算先例）、`SPEC-145t` / `SPEC-149t` / `SPEC-150t`（用户授权 + 只读册 `sha256` 同步先例）、`docs/Process-06`（`spec/` 目录保护）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -212,3 +212,22 @@
 #### architect 提交留痕（2026-10-20，返工）
 档位：**正常提交**（返工完成退回验收，无 `WIP:`）`8bb7008`。文件集 **3 项**：`tools/spec/check_tables.py`（新增，完成区已声明）+ 本册（已声明）+ `.tao/knowledge/milestones.md`（architect 状态同步，任务书未声明 = 已披露的**台账范围**）。`.work/evidence/**` 属忽略区未入 git；**无漏提 / 无越界**。
 门控：`check_tables.py` default rc=**0**（4 表 101 记录 / 256 格 / 0 不符）、`--self-test` rc=**0**（4/4）；`make check`（L1）rc=**0**（首次 rc=2 = 台账「一句改动」123 字符 > 120，缩短后转绿）。**未 push**。
+
+#### 第 2 轮 reviewer 验收（2026-10-20，只验三条必改）
+
+**必改① 校验器入仓 + 真源派生** ✓ 闭合：
+- `git ls-files tools/spec/check_tables.py` ⇒ `tools/spec/check_tables.py`（**在 git** ✓）。
+- 无字面网格 ✓：`grep -nE 'ror|shl\.u|shl\.o|ext\.|EXPECTED|243|== *80|101'` 命中**全为假阳性**（`text.`/`ValueError`/`errors` 子串），无 `ror.*`/`shl.u*`/写死 80/243；计数行 `len(expected)`/`total_cells` 现场统计。
+- 期望确由 `contracts/opcodes.yaml` 解位域：`rec["op"]→OP_TABLE` 子表、`ha=(ha>>3)&7` 行 / `ha&7` 列、格内容 `grid[key]=rid`，与 `spec/SimRISC-00` 四表文本**双向**比对（多格/缺格/内容不符均报）。
+- 自跑 `python3 tools/spec/check_tables.py` rc=**0**（4 表 101 记录 / 256 格 / 0 不符；octa 38/tetra 21/wyde 21/byte 21）；`--self-test` rc=**0**（4/4）。
+
+**必改② 独立 oracle（两独立来源）** ✓ 闭合 + **reviewer 独立注入**：
+- 来源 A = `contracts/opcodes.yaml`（机器可读真源）派生网格；来源 B = `spec/` 四表文本；互不派生 ✓。
+- 我的独立注入（改 `opcodes.yaml` 一格，非复用其 self-test）：`cp` 备份 + md5 `4a63ef1f…`；`and.o_orrr_rd` 的 `ha '0x08'→'0x0A'`（diff 恰 1 行）⇒ `check_tables` rc=**1**（`MISC-octa 行001 列010 撞格 xor.o_orrr_rd` + `行001 列000 期望=<无记录>`）；`cp` 还原后 md5 **逐字节一致** `4a63ef1f…` ⇒ rc=**0** 回绿；`git status --porcelain -uall` 空（无残留）。
+
+**必改③ 假红 / 日志名** ✓ 闭合：
+- `bash .work/evidence/SPEC-152t/run.sh`（我自跑）rc=**0**，**25/25 PASS**：`check-instrinfo`/`check-isa-coverage`/`check-interface` 已是**必绿断言**（`期望=0 实际=0`），`grep -nE '预期红|expect_red|XFAIL|allow_fail|rc=2'` **0 命中**（rc=1）⇒ 无假红残留。
+- `bash .work/evidence/SPEC-152t/run.sh --inject` rc=**0**：两组独立注入（`rol.o_orrr` ha 撞格 ⇒ `validate-encoding` rc=2 + `check_tables` rc=1；SimRISC-00 格改坏 ⇒ rc=1）各「红 → md5 对账还原 → 回绿」，还原用 `cp`（`grep 'git (checkout|restore|stash|show)'` 仅命中禁令注释）。
+- 日志命名 `.work/log/spec/SPEC-152t/SPEC-152t-{evidence,inject}-*.log`，合 `docs/Process-08 A3`（`<任务号>-<用途>.log`）✓；`make check`（L1）我自跑 rc=**0**（含 `check-run-artifacts A3 763 new file(s) 0 illegal`）。
+
+**判定**：**Accepted** —— 三条必改逐条闭合，验收面在本人重跑下全绿；独立注入红→还原（md5 一致）→绿；未触碰 `spec/`/`contracts/`/实现（本轮核验只读 + 一次 `cp`+md5 可还原注入）。遗留提示（非本册问题）：`run.sh` 现 25 项含后端三项必绿，依赖 `LLVM-116t`/`QEMU-064t` 保持收口。
