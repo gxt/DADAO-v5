@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`LLVM-117t`（动态 TLS + T5 收口，`待验收`；同一 musl 自举面）、`INFRA-085t`（C1 动态自举 + `dlstart.c` 补丁来源，已归档）、`INFRA-096t`（安装根新鲜度，`待验收`）、`LLVM-118t`/`LLVM-119t`（同改工具链须串行；本册只改 `components/musl/**`，与二者在**构建树/安装根**上仍是串行关系）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-20）**：`llvm` 现存最大 = `LLVM-117t`（本批另占 `118`/`119`）⇒ 取 **`120`**（编写前 `grep -rn 'LLVM-120' .tao/` 零命中）。
 > **归口说明**：`ISS-245` 的 `scope` 记为 `infra`，但其修法面 = **LLVM 工具链产出的 `rcrt1.o` + musl 端口自举汇编**（`components/musl/patches/arch/dadao/crt_arch.h.patch`）。本批按**执行面**归 `llvm`（与 `LLVM-117t` 同族）；若验收时认定应归 `infra`，在完成区披露即可，不重开册。
@@ -106,3 +106,11 @@
 - **新登记**：`ISS-303`（P2，`scope: [llvm]`）= `-static-pie` 无法用 `libc.a` 链接（归档成员非 PIC ⇒ `ld.lld` 逐条拒绝 `R_DADAO_ABS48`），缺 PIC 版 `libc.a`；与 `ADR-0025 D6` 的范围关系须在该册裁定。
 - **issue A 未重复登记（对派单的偏离，如实披露）**：`apply-series` 的 `patchless` `KeyError` **已存在** `ISS-231`（P2 / `[infra]`；另有 `ISS-224` P3 同缺陷，待去重）⇒ 改为在 `ISS-231` **追加现场复核**（rc=2、其后组件含 `musl` 静默跳过、影响升级为「旧补丁集构建而门控全绿」的假绿面）；未新建重复 id。
 - **遗留处置**：完成区「遗留 ①」（`-static-pie` 是否入 P2/P3）仍归用户裁定；「遗留 ②」（PIC `libc.a`）已由 `ISS-303` 覆盖；「遗留 ③」（`apply-series`）已由 `ISS-231` 覆盖。
+
+#### 勘误（收尾复核，2026-10-20）
+
+> 收尾时按「判据不变、写死值去钉」口径订正；**不改写**既有完成区 / 审阅记录，以本段为准。
+
+1. **`crt1.o` md5**：册内 `beec4923…` 为**时点值**（其后 musl obj 于 12:39 / 14:49 重建）⇒ 今日现场 `md5sum .work/source/musl/obj/crt/crt1.o` = **`51897f2c67b18e8cbd76b45b635acc9b`**。**判据不变且更强**：同工具链下「改前 header / 改后 header / 构建产物」三级 `cmp` 全等（绝对 md5 相等不再作判据）。
+2. **「无 `PCREL_HI/LO`」须限定为 `.rela.text`**：对象其它节确有 **4 对** `PCREL_HI/LO` 配对（`.rela.text.__dls2`），逐对核过**无悬空**（HI 站点偏移 == LO 回指偏移）⇒ 原文措辞欠限定，语义不变。
+   - 证据：本册「第 1 轮 reviewer 验收」重跑记录（`82/82`、`--inject` `45/45`、oracle `11/11`）。

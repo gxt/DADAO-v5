@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`INFRA-079t`（builtins 独立库 + 安装落点，已验证）、`INFRA-088t`（driver 自动接线 `-print-libgcc-file-name`，已验证）、`LLVM-116t`（`ext`/`shl` 编码迁移，`待验收`）、`QEMU-064t`（新解码表，`待验收`）、`ISS-293`（本册关闭）、`ISS-258`/`ISS-263`（musl 新鲜度门控先例）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-20）**：`infra` 现存最大 = `INFRA-095t` ⇒ 取 **`096`**（`grep -rn 'INFRA-096' .tao/` 0 命中）。
 > **关系**：`ISS-293` 原判「旧 ELF 不兼容」**不完整** —— 旧 ELF 只是**现象**；真根因 = **compiler-rt builtins 归档从未随编码迁移重建**（`QEMU-065t` 复核时定位）。
@@ -97,3 +97,11 @@
 **约束核验**：`git show 26d6575 --stat` = 8 文件，与「修改文件」逐条对上（`check_builtins_freshness.py` 新增、`Makefile`、`build_musl.py`、`check_musl_freshness.py`、`docs/Process-07` §1.1、本册、`issues.yaml`、`milestones.md`）；`components/**`/`tests/vectors/**`/`spec/`/`contracts/` **零改动** ✓；`ISS-293` `closed`+`resolved_by: INFRA-096t` ✓；未 commit/push ✓；L1 rc=0（本轮末自跑）。
 
 **判决：Accepted** —— 验收 1–7 逐条达标（重建无旧编码 / 三副本同源 / 门控双向+`--self-test` 7/7 / 动态链两用例转 pass / 复发防护第 7 项 / 门控 rc / 完成区对齐）；「42 vs 43 条 PASS」与 patch 计数 183→185 为时点计数差异（后者有据），非交付物缺陷。
+
+#### 勘误（收尾复核，2026-10-20）
+
+> 收尾时按「计数现场派生」口径订正**写死时点值**；**不改写**既有完成区 / 审阅记录，以本段为准。
+
+1. **`[PASS]` 条数**：实为 **43**（册内完成区「42 条」）——`run.sh` 现场输出计数，非断言缺陷。
+2. **`check-patch-tree` 计数**：册内「183」为**时点值**（随后 `LLVM-118t`/`119t`/`120t` 增补丁使总数上升）⇒ 今日现场 **185**（收尾自跑：`check-patch-tree: 5 component(s), 185 patches OK`，rc=0）。
+   - 证据：本册「第 1 轮 reviewer 验收」重跑记录（`rc=0 / 0 failures / 43 [PASS]`）+ 收尾自跑 `make check-patch-tree`。

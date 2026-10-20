@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`LLVM-118t`（同改 `components/llvm-project/**` + 各自 `install-host`，**必须串行**：共享 `.work/build/llvm` 与安装根，并发写会互相写坏——`ISS-229`）、`LLVM-086t`（`"r"` 约束先例，已归档）、`INFRA-096t`（安装根新鲜度，`待验收`）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-20）**：`llvm` 现存最大 = `LLVM-117t`（本批另占 `118`/`120`）⇒ 取 **`119`**（编写前 `grep -rn 'LLVM-119' .tao/` 零命中）。
 
@@ -107,3 +107,13 @@
 - 档位：`待验收`（reviewer 未验收；按主会话指令以任务号正常提交，与既有 `QEMU-066t` 同例，无 `WIP:` 前缀）
 - 提交：分支 `LLVM-119t` 上 `00f493f` ⇒ `master` squash `84a5231`
 - 文件集对账：13 文件 = 完成区「修改文件」逐条命中（5 补丁 + `changelog.md` + 2 新 lit + `llvm-isa-backend-matrix.{md,tsv}` + `issues.yaml` + `milestones.md` + 本册），无漏提 / 多提 / 越界；`check-patch-tree` **185**、L1 `make check` rc=0
+
+#### 勘误（收尾复核，2026-10-20）
+
+> 收尾时按「计数现场派生」口径订正**写死时点值**；**不改写**既有完成区 / 审阅记录，以本段为准。
+
+1. **lit 计数**：真值 = **111/111**（`llvm-lit tests/llvm/lit/{MC,CodeGen}/DADAO`，今日现场）⇒ 册内完成区「110/110」为**时点值**；基线算式 = 本批前 108 +（`77153a2` +2）+（`16e40bf` +1）= 111。`make check-lit`（MC+CodeGen+e2e）= **121/121** rc=0。
+2. **`issues.yaml` `ISS-197` 收口段「109/109」无盘上对应**（无任何 commit 使全集 = 109）⇒ 一并订正为 111/111（`issues.yaml` 既有 notes 保留原文，以此处为准）。
+3. **`"V"` 约束**：收口段「前端断言、**未改**」✗ 与现场不符 ⇒ 实为 **已改为明确诊断**（`getConstraintType("V")→C_Unknown`）`unknown asm constraint 'V'`，并由 `inline-asm-m-reject.ll` 用 lit 钉死。
+4. **`run.sh` default 计数**：「13/13」⇒ 实为 **13 pass + 1 skip**（共 14 项；C2 因安装根==构建树**显式 SKIP**）。
+   - 证据：reviewer 重跑记录（本册「第 1 轮 reviewer 验收」）+ `.work/evidence/LLVM-119t/run.sh`（`summary: pass=13 fail=0 skip=1`）。
