@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M9
 **依赖**：`SPEC-153t`（**必须先完成**：两册同改 `spec/`，且本册的 `0.5.5-rc` 快照须含 153 的迁移结果）；`SPEC-111t`（`SimRISC-0.5.3` 归档体例先例）；`docs/Process-06`（`spec/` 保护 + 只读锁）；`docs/Process-04`（归档体例）
-**状态**：待开始
+**状态**：待验收
 
 ## 执行环境
 **执行环境**：本地
@@ -139,10 +139,35 @@
 4. 本册**不改** `contracts/**`、`components/**`、`.tao/adr/**`、`.tao/archive/M*/**`。
 
 ## 完成区
-**测试结果**：
-**修改文件**：
+**测试结果**：`.work/evidence/SPEC-154t/run.sh` rc=0（C1–C5 + 14 个门控 + `make check`(L1) 全绿，0 MISMATCH）；`run.sh --inject` rc=0（3/3 注入变红、3/3 cp+md5 还原回绿）；`check_spec_archive.py --self-test` 4 类反例均 FAIL(预期)。日志 `.work/log/spec/SPEC-154t/`。
+**修改文件**：`tools/spec/gen_spec_archive.py`（新）、`tools/spec/check_spec_archive.py`（新）、`Makefile`（`check-spec-archive` + 入 L1 + help）、`docs/Process-06-spec目录保护规范.md`（§8）、`spec/README.md`（8 版本归档表 + 同号冲突注记）、`spec/SimRISC-04-64位数据运算.md`（补 0.5.1/0.5.3 两段）、`spec/SimRISC-07-浮点运算.md`、`spec/SimRISC-11-其它.md`（0.5.1 日期 + sha）、`manifests/spec-readonly.lock.toml`（3 册 sha + 授权注记）、`.tao/archive/SimRISC-{0.4.0,0.5.0,0.5.1,0.5.2,0.5.4,0.5.5-rc}/`（新增 6 目录，5/5/5/5/13/13 册 + `PROVENANCE.md`）、`.work/evidence/SPEC-154t/{run.sh,checks.py}`、`.work/log/spec/SPEC-154t/*`。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- 清单 8 行（`0.4.0/0.4.1`←wiki@`9f378f4`，`0.5.0…0.5.4/0.5.5-rc`←本仓），两次运行**逐字节相同**；文件数 5/5/5/5/5/5/5/13（现场统计）；每版「首次/快照提交」`git cat-file` 可解析。
+- `gen --verify` rc=0（8/8）；旧目录 `0.4.1`/`0.5.3` 与 `master` 逐文件 sha256 相同、`git status` 空（未改一字节）。
+- **19 缺段矩阵**：0.5.0×[01∅ 02∅ 06∅ 12∅]；0.5.1×[02∅ 03∅ **04补** 05∅ 06∅ 08∅ 09∅ 10∅ 12∅]；0.5.3×[01∅ **04补** 08∅ 09∅ 10∅ 12∅] ⇒ **2 补段 + 17 diff=∅**（C4 逐条以映射章节 diff 证明「有段⇔有实质 diff」）。
+- 0.5.1 段日期在 5 册内一致 `2026-07-17`；新/订正条目末 sha（`68ceb3f8`/`aba64274`/`55230e29`）均可解析。
+- 归档集 = 清单集（8/8）；6 个新目录 `PROVENANCE.md` 快照可解析；`0.5.5-rc/SimRISC-11` 含 153 迁移结果（`## 6. 原子指令`=1）。
+- 门控全绿：`check-spec-archive`(新)/`-numbering`/`-changelog`/`-readonly`/`-refs`/`-drift`、`check-legality-{drift,invariants}`、`check-asm-list{,-drift}`、`check-knowledge-refs`、`check-no-residue`、`check-tasks`、`check-milestones-fresh`、`make check`(L1) rc=0。
+**新发现/坑**：① wiki 历史文件名用 **U+2010**（`SimRISC‐00‐…`）而非 ASCII `-`，按精确名取会「不存在」；脚本双形匹配、落盘归一，`PROVENANCE` 记录条数。② 本仓 `wiki/`→`spec/`（`bb98fff0`）与 `spec/SimRISC-0.5.3/` 曾作归档子目录（`86fdcc8`）⇒ 必须同时扫两路径且只取**直接位于**根目录的文件，否则文件数虚高（13/10）。③ **同号冲突**：`0.4.1` wiki（`9f378f4`）与本仓（`7dde864`）内容不同（组合 sha `a019d006…` vs `901454aa…`）⇒ 归档取 wiki 版、只报告不合并；本仓 0.4.1 期修订随 0.5.0 发布。④ 附录「段=开发区间（上一版号提交→本版号提交）」与归档「快照=末次声明」口径不同：0.5.3 号头自 07-19 保持到 09-28，故 0.5.3 归档含被判入 0.5.4 段的 7 月改动（已写入 `Process-06 §8`）。⑤ `check-run-artifacts` 约束 `.work/log` 文件名（`<TASK-ID>-<purpose>.(log|json|txt)`），`.tsv`/`run-default.log` 判 illegal（已改名）。
+**遗留问题**：① 「待核」= **0 条**（19 段均有 diff 结论）。② 0.5.3 归档 ↔ 0.5.4 段的口径差异为**记录在案**（非缺陷）；若须「归档=发布快照」，需用户裁定把 0.5.3 重切到 `640b879`——本任务禁改既有归档，未做。③ `0.3` 及更早无版本标记，不重建。④ 未改 `contracts/**`、`.cache/refs/DADAO.wiki`、既有归档（engineer 返回时亦未 commit/push、未改 `**状态**`；提交与置 `待验收` 由 architect 本笔完成）。
+
+**口径披露（architect 提交前现场核，2026-10-21）**：`0.5.3` 归档取 **「末次声明」= `86fdcc8`**（= `890038e2^`，2026-09-28「`SPEC-013t`: 归档 SimRISC 0.5.3 文档」；五册与目录内文件**逐字节一致**），其中**含附录归入 `0.5.4` 段的 7 月改动**（`640b879..86fdcc8` 共 **275** 提交）；**≠「发布快照」`640b879`**（2026-07-19，当时路径 `wiki/SimRISC-0{0..4}`，与归档五册**五册全不同**）。⇒ 口径差异 **待用户裁定**（须「归档 = 发布快照」则另立任务重切 `0.5.3`）；本笔**未改**既有归档（`0.4.1`/`0.5.3` `git status` 空）。
 
 ## 审阅记录
+
+### 第 1 轮 engineer 自审
+- 逐行审 `gen_spec_archive.py`：派生链（rev-list→册头版本→首次/快照）无版本表常量；`snapshot = parent(first(next))` 与任务定义一致；`--verify` 改为**以 PROVENANCE 快照为锚**（`-rc` 未来分叉不会假红）；组合 sha 用归档名（归一后）计算，与 0.4.0 的 U+2010 名一致。
+- 逐行审 `check_spec_archive.py`：A1/A2/A3 全部现场派生；A3 派生失败降级；`--self-test` 3 类反例 + A3 反例均可达 FAIL，正向样例 PASS。
+- 审 `checks.py`：C1–C5 真源 = git 历史/wiki；C4 的 `(pre)` 只对 04 生效且剔除版本行（否则每区间都「有 diff」）；注入 1 用同文件系统改名（跨设备 rename 报 EXDEV）。
+- 审附录/文档：只加 2 段、只改 2 处日期；`check_spec_changelog`/`check_numbering` PASS；`spec-readonly` 3 册 sha 同步。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 0.4.0 组合 sha 用未归一文件名，`--verify` 假红 | ✅已修 | `enrich` 用归一 basename | `--verify` 8/8 OK |
+| `--verify` 对 `-rc` 以当前 HEAD 组合 sha 比对，未来必红 | ✅已修 | 改以 `PROVENANCE` 快照派生期望值（pin 驱动） | `--verify` 8/8 OK；I2 注入仍 rc=1 |
+| I1 跨设备 `rename` 失败（EXDEV） | ✅已修 | 同文件系统改名到 `.tao/archive/.inject-bak-*` | `--inject` I1 rc=1→还原 rc=0 |
+| I2 以 `git diff` 判「空注入」，未跟踪文件恒 0 | ✅已修 | 改比注入前后 md5 | I2 CHANGED，还原 md5 MATCH |
+| I3 经 `make` 包装 rc=2（非 1） | ✅已修 | 直调 `check_spec_archive.py` 期望 rc=1 | I3 rc=1，还原 rc=0 |
+| `.work/log` 文件名违规（`.tsv`/`run-default.log`） | ✅已修 | 统一 `<TASK-ID>-<purpose>.{log,txt}` | `make check-run-artifacts` rc=0 |
+| 新门控只进了 `.PHONY`/help，漏进 `check:` 依赖链 | ✅已修 | `Makefile check:` 加 `check-spec-archive` | `make check` 日志含 `check-spec-archive: PASS`，rc=0 |
+

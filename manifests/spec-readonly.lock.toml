@@ -3,6 +3,13 @@ format = 1
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
 
+# 2026-10-21（SPEC-154t，用户原话经主会话转达：「扫描 .cache/refs/DADAO.wiki 中的仓库提交记录，
+#   补充 spec 中确实的老版本的版本变更与记录」「wiki 历史里应该有 0.4.1 之前的版本，也做个备份保留」
+#   「根据 SimRISC 的版本号，在 .tao/archive/ 目录下分别保留一个副本」）：按版本归档 8 份快照
+#   （新增 6 个目录，既有 0.4.1/0.5.3 不动）；13 册附录只补/订正：SimRISC-04 补 0.5.1/0.5.3 两段、
+#   SimRISC-07/11 的 0.5.1 日期统一为 2026-07-17 并补 diff 指针；其余册无实质变更（diff=∅）。
+#   上述 3 册 sha256 于同一变更内同步重算（其余 18 册不变）。
+
 # 2026-10-12（SPEC-134t，用户 2026-10-11 裁定「对 spec 目录下的 SimRISC-* 和 DADAO-* 文档，增加一个结尾的
 #   Changelog…」）：21 册文末追加「## 附录：版本与变更记录」；19 册册头版本行加 `-rc`
 #   （SimRISC-00..12=0.5.5-rc、AEE/ABI=0.9.3-rc、SEE/SBI=0.7.2-rc、HEE/HBI=0.1.3-rc；
@@ -121,7 +128,8 @@ sha256 = "c03444f87b91329eefaaff358cf239c89d02ca9eed254ca61d6f93f545214784"
 [[spec]]
 path = "spec/SimRISC-04-64位数据运算.md"
 group = "simrisc-00..12"
-sha256 = "b32ba9e9122d1efda85aa67c56716618b80cfa6115fd5308cf818028c9c64ba7"
+# 2026-10-21（SPEC-154t，用户原话「补充 spec 中确实的老版本的版本变更与记录」「根据 SimRISC 的版本号，在 .tao/archive/ 目录下分别保留一个副本」）：附录补 0.5.1、0.5.3 两段（`rd0` 约定收窄 / `add.si` 改 `riii`）；sha256 同笔重算。
+sha256 = "c2f147a9760ad19023363b21aac7e6be16f398baa4bb2714b1ac12ccc7a0046c"
 
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"
@@ -142,7 +150,8 @@ sha256 = "a26f50d753b454f1c8c58b680a1531e675fcc5fe3cbce3950503baccea14ed3b"
 [[spec]]
 path = "spec/SimRISC-07-浮点运算.md"
 group = "simrisc-00..12"
-sha256 = "bd405979d2bd484d861e914a4f9fe0a67fb3c405f7026dc443f361b1110843fa"
+# 2026-10-21（SPEC-154t，同授权）：0.5.1 段日期统一为 2026-07-17 并补 diff 指针；sha256 同笔重算。
+sha256 = "ccdb57953aaeeb2c9e1ab5702a9adf5815c069cc4319e681fbe0a75b29c11384"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"
@@ -165,7 +174,8 @@ path = "spec/SimRISC-11-其它.md"
 group = "simrisc-00..12"
 # 2026-10-20（ADR-0034，同授权）：§4「非法指令」的 `excluded` 条目补一句「`fence`/`lr`/`sc` 编码已按 ADR-0034 重排，仍为 excluded」；sha256 同笔重算。
 # 2026-10-21（用户原话「把 原子指令 从SimRISC-12移动到SimRISC-11」授权）：§3 原子指令整章原样迁入 `SimRISC-11 §6`；sha256 同笔重算。
-sha256 = "db889e3e53af1fbf5ac6b719b945dca885723f199f782a7ec218801d31539dd6"
+# 2026-10-21（SPEC-154t，同授权）：0.5.1 段日期统一为 2026-07-17 并补 diff 指针；sha256 同笔重算。
+sha256 = "ea6470376f77ab766a1b929e7aef3407809032b5a95b8650e5cc41b5c131de9e"
 
 [[spec]]
 path = "spec/SimRISC-12-待定.md"

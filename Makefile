@@ -53,7 +53,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-musl-freshness check-builtins-freshness check-milestones-fresh \
         check-tasks check-spec-codeblocks check-legality-invariants \
-        check-isa-coverage check-spec-numbering check-spec-changelog check-contracts-dir \
+        check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
         check-component-changelog check-syscall-abi
 
 # $(call component-enabled,<name>) exits 0 only when <name> is enabled in
@@ -118,6 +118,7 @@ help:
 	@echo "  make check-isa-coverage  ISA<->backend coverage matrix drift gate (L1; LLVM-081t/INFRA-069t)"
 	@echo "  make check-spec-numbering  Check 21-volume heading numbering structure (L1; SPEC-133t/INFRA-069t)"
 	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
+	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (L1; SPEC-154t)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
 	@echo "  make check-spec-codeblocks  Check spec prose \`\`\`simrisc blocks vs opcodes.yaml (ISS-077)"
@@ -606,7 +607,7 @@ clean-work:
 # L3 `make check-full`（几百~几千秒）   = 较完整（全量语义 + 全量 lit + Embench）
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # `check-qemu-semantics`(L3) 与 `check-lit`/`check-interface`(L2) 已从 L1 移出。
-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
+check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-knowledge-dir check-contracts-dir check-spec-numbering check-spec-changelog check-spec-archive check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-contracts-pending check-contract-relocs check-run-artifacts check-components
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -639,6 +640,12 @@ check-spec-numbering:
 # no table rows / task-ids.  Counts are recomputed live, never hardcoded.
 check-spec-changelog:
 	@$(PYTHON) tools/spec/check_spec_changelog.py
+
+# SimRISC 版本归档门控 (SPEC-154t; 规则见 docs/Process-06 §8): 册头 ∪ 附录声明的
+# 每个版本须有 `.tao/archive/SimRISC-<ver>/`（非空、含 SimRISC-00*、文件数与派生清单一致）。
+# 只校验存在性与文件集，不校验内容（`-rc` 为时点快照）。派生失败 ⇒ 只查 A1/A2。
+check-spec-archive:
+	@$(PYTHON) tools/spec/check_spec_archive.py
 
 # 组件补丁集校验 (2026-09-23): 树形补丁集断言（现 9 条），见 docs/Process-01-组件补丁组织与构建编排.md。
 check-patch-tree:

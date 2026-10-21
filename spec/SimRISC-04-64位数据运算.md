@@ -405,9 +405,17 @@ rol.o   rdHB, rdHC, immu6       @@ 循环左移（旋转量 = immu6，0..63）
 
 - 本册自原《SimRISC 数据类指令》的算术 / 逻辑运算部分按 64 位拆出，独立成「64 位数据运算」分册。
 
+### 0.5.3（2026-07-19）
+
+- `add.si` 由 `rrii`（`imms12`）改为 `riii`（`imms18`），目的与源为同一寄存器（`aba64274`）。
+
 ### 0.5.2（2026-07-18）
 
 - `add`/`sub` rrrr 拆分为 `add.uo`/`add.so`/`sub.uo`/`sub.so`；`addi`→`add.si`；`cmps`/`cmpu`→`cmp.si`/`cmp.ui`；`orr`→`or`；`mul`/`div`/`rem`、`ext`/`sh` 后缀统一。
+
+### 0.5.1（2026-07-17）
+
+- `rd0` 为目的寄存器的约定收窄：仅 `add`/`sub`/`mul` 的 `rrrr` 双目的格式允许其中一个为 `rd0`（`68ceb3f8`）。
 
 ### 0.5.0（2026-07-15）
 

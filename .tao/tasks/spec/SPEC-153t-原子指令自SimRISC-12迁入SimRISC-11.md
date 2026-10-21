@@ -155,6 +155,8 @@
 - ④ `MEMORY.md` excluded 计数陈旧（见「新发现/坑」），未改。
 - ⑤ `tests/**` 内 **162 处**溯源引用仍指旧原子章（现场计数：`git grep -c 'SimRISC-12' -- tests/` 逐文件求和 = 162 处 / 10 个 tracked 文件；形态 `§3.2` 113 + `§LR-SC指令` 26 + `§3.1` 21 + `§fence指令` 2，最大来源 `tests/vectors/atomics/atomics-lrsc.yaml` 109）——性质同 ②「溯源注释，改则重生成向量」，按派单不改；已登记 **ISS-316**（P3，`scope: [testcases, spec]`）。〔补记 2026-10-21：reviewer 第 1 轮指本项漏列；reviewer 记 161，本笔现场 162，差 1 = `tests/scripts/build_test_binary.py:346`（docstring），数量以现场 `git grep` 为准。〕
 
+> 勘误（2026-10-21）：上列形态真值应为 §3.2 112 / §3.1 22（总数 162 不变；ISS-316 已订正）。
+
 ## 审阅记录
 
 ### 第 1 轮 engineer 自审
