@@ -51,7 +51,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-run-artifacts \
         test-codegen test-elf test-semihost test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
-        check-musl-freshness check-builtins-freshness check-milestones-fresh \
+        check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
         check-tasks check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive check-contracts-dir \
         check-component-changelog check-syscall-abi
@@ -186,7 +186,7 @@ LLVM_BUILD_CONFIG = targets=$(LLVM_TARGETS) projects=$(LLVM_PROJECTS) build_type
 # configuration differs.  A failing cmake aborts before the stamp is written.
 LLVM_CONFIGURE = echo '$(LLVM_BUILD_CONFIG)' | cmp -s - $(LLVM_BUILD)/.dadao-llvm-config 2>/dev/null || { echo "llvm: configuring $(LLVM_BUILD) [$(LLVM_BUILD_CONFIG)]"; cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) -DLLVM_TARGETS_TO_BUILD="$(LLVM_TARGETS)" -DLLVM_ENABLE_PROJECTS="$(LLVM_PROJECTS)" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON || exit 1; echo '$(LLVM_BUILD_CONFIG)' > $(LLVM_BUILD)/.dadao-llvm-config; }
 
-LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not LLVMDADAOCodeGen llc lli clang
+LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-readelf FileCheck not LLVMDADAOCodeGen llc lli clang
 LLVM_MC_LITE_TARGETS = llvm-mc llvm-objdump FileCheck not
 
 build-mc: manifest-check
@@ -297,9 +297,10 @@ build-gem5: manifest-check
 # the install root is a cache — re-run after rebuilding the components.
 #
 # D11 scope: just the tools the gates/executors need — llvm-mc/llvm-objdump/
-# llvm-readobj/FileCheck/not (lit MC), llc (CodeGen), llvm-objcopy (test-codegen),
-# lld + ld.lld (test-elf), clang (M6 cross compiler, INFRA-050t), qemu-system-dadao
-# (D4), llvm-lit (lit runner).  No full `cmake --install`.
+# llvm-readobj/llvm-nm/llvm-readelf/FileCheck/not (lit MC + symbol/ELF inspection),
+# llc (CodeGen), llvm-objcopy (test-codegen), lld + ld.lld (test-elf), clang
+# (M6 cross compiler, INFRA-050t), qemu-system-dadao (D4), llvm-lit (lit runner).
+# No full `cmake --install`.  (llvm-nm/llvm-readelf: INFRA-098t / ISS-261.)
 #
 # INFRA-050t dual destination: the cross toolchain (clang/llc/ld.lld) and the
 # other target/cross tools go into $(HOST_TOOLCHAIN_BIN); the host-only lli
@@ -321,7 +322,20 @@ build-gem5: manifest-check
 # one worktree remains UNSUPPORTED — they share the build trees and the SDK
 # artifact dirs under $(TEST_ARTIFACTS_DIR); see AGENTS.md ("并行任务上限").
 # Run them serially.
-HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj FileCheck not llc clang
+HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm FileCheck not llc clang
+# Zero-copy aliases, `<link>:<target>` (both live in $(HOST_TOOLCHAIN_BIN)).
+# Single source of truth for the install aliases: the install recipe creates
+# them and tools/infra/check_install_tools.py asserts their shape.  Relative
+# symlinks resolve inside the install root and cost no bytes, unlike
+# atomic-install (cp -aL) which would copy the (multi-GB) target again.
+#
+#   llvm-readelf -> llvm-readobj : upstream builds llvm-readelf as that same
+#     binary (llvm/tools/llvm-readobj/CMakeLists.txt: `add_llvm_tool_symlink`),
+#     so the GNU-style dumper is llvm-readobj in GNU output mode.  The build
+#     tree's bin/llvm-readelf is a relative symlink too (ISS-261 / INFRA-098t).
+#   clang++ -> clang : same binary as the C driver (INFRA-056t).
+#   ld.lld -> lld    : lld's post-build copies (INFRA-043t).
+HOST_LLVM_TOOL_SYMLINKS = ld.lld:lld clang++:clang llvm-readelf:llvm-readobj
 HOST_LIT_DIR = $(HOST_TOOLCHAIN_DIR)/share/lit
 
 # $(call atomic-install,<src>,<dst>): install <src> over <dst> via a per-process
@@ -440,17 +454,22 @@ build-builtins: manifest-check build-mc
 # clang++ (INFRA-056t): the C++ driver is the *same binary* as the C driver
 # (upstream bin/clang++ is itself a symlink to clang-NN), so install it as a
 # relative symlink to the already-installed `clang` — mirroring the ld.lld -> lld
-# precedent above.  Deliberately NOT added to $(HOST_LLVM_TOOLS): the clang binary
+# precedent.  Deliberately NOT added to $(HOST_LLVM_TOOLS): the clang binary
 # is ~4 GB, so atomic-install would copy it a second time.  Being relative and
 # resolving to the installed `clang`, it is zero-copy and same-source/same-commit.
+# Same reasoning for llvm-readelf (INFRA-098t): upstream builds it as a symlink
+# to llvm-readobj, so it must not be copied as a 319 MB standalone file.
+# All three aliases are enumerated in $(HOST_LLVM_TOOL_SYMLINKS) (one variable,
+# consumed by the recipe below and by tools/infra/check_install_tools.py).
 install-host: build-mc build-lld build-qemu build-builtins
 	@mkdir -p $(HOST_TOOLCHAIN_BIN) $(HOST_TOOLS_BIN)
 	@for t in $(HOST_LLVM_TOOLS); do \
 	  $(call atomic-install,$(LLVM_BUILD)/bin/$$t,$(HOST_TOOLCHAIN_BIN)/$$t) || exit 1; \
 	done
 	@$(call atomic-install,$(LLVM_BUILD)/bin/lld,$(HOST_TOOLCHAIN_BIN)/lld)
-	@ln -sf lld $(HOST_TOOLCHAIN_BIN)/ld.lld
-	@ln -sf clang $(HOST_TOOLCHAIN_BIN)/clang++
+	@for s in $(HOST_LLVM_TOOL_SYMLINKS); do \
+	  ln -sfn $${s#*:} $(HOST_TOOLCHAIN_BIN)/$${s%%:*} || exit 1; \
+	done
 	@$(call atomic-install,$(LLVM_BUILD)/bin/lli,$(HOST_TOOLS_BIN)/lli)
 	@$(call atomic-install,$(QEMU_BUILD)/qemu-system-dadao,$(HOST_TOOLCHAIN_BIN)/qemu-system-dadao)
 	@$(call atomic-install,$(QEMU_BUILD)/qemu-dadao,$(HOST_TOOLCHAIN_BIN)/qemu-dadao)
@@ -467,6 +486,7 @@ install-host: build-mc build-lld build-qemu build-builtins
 	@case "$(BUILTINS_BUILD_REL)" in lib/*) ;; *) echo "install-host: ERROR: cannot resolve the builtins install path from '$(LLVM_BUILD)/bin/clang --target=dadao-unknown-elf -rtlib=compiler-rt -print-libgcc-file-name' (got '$(BUILTINS_RESOURCE_PATH)')"; exit 1 ;; esac
 	@mkdir -p $(dir $(BUILTINS_ARCHIVE_DST))
 	@$(call atomic-install,$(BUILTINS_ARCHIVE_SRC),$(BUILTINS_ARCHIVE_DST))
+	@$(PYTHON) tools/infra/check_install_tools.py
 	@mkdir -p $(TARGET_SYSROOT_DIR)/include $(TARGET_SYSROOT_DIR)/lib
 	@printf '%s\n' '# DADAO target sysroot (dadao-unknown-elf)' '' 'Layout per ADR-0016 D5 (.tao/adr/adr-0016-dadao-install-layout.md):' '' '- include/ — target C headers (populated when a target libc/toolchain lands)' '- lib/     — target libraries' '' 'Placeholder only: there is no header/library consumer yet, so no content is' 'fabricated here. Consumers must resolve this path from' 'manifests/install-dirs.lock.toml via tools/infra/paths.py' '(target_sysroot_dir()), never hardcode it.' > $(TARGET_SYSROOT_DIR)/README.md
 	@echo "install-host: PASS"
@@ -744,6 +764,14 @@ check-musl-freshness:
 # `--self-test` 内置「篡改安装副本 ⇒ 红」与「仅 mtime 变 ⇒ 不假红」(ISS-263)。
 check-builtins-freshness:
 	@$(PYTHON) tools/infra/check_builtins_freshness.py --build-dir $(COMPILER_RT_BUILD)
+
+# 安装集断言 (ISS-261 / INFRA-098t): 安装根须带上门控/执行器要用的工具，且每个都仍是
+# 构建树同一个二进制（真值源 = 本 Makefile 的 HOST_LLVM_TOOLS + HOST_LLVM_TOOL_SYMLINKS，
+# 脚本解析本文件，不另写第二份清单）。挂载点 = install-host 收尾（装完即断言），
+# 亦可 `make check-install-tools` 单独调。**不入 L1**：未跑过 install-host 的新克隆
+# 必然红（与 check-milestone 同类理由，层归属见 docs/Process-07 §1.1）。
+check-install-tools:
+	@$(PYTHON) tools/infra/check_install_tools.py
 
 # 任务流水体例门控 (INFRA-091t, L1): 状态 == 任务书 / 覆盖 / 一句改动 ≤120 字符 /
 # 时间倒序 / 格式。规则 = milestones.md「体例约定（硬约束）」+ docs/Process-07 §1.1。

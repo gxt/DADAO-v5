@@ -3,7 +3,7 @@
 **模块**：infra
 **项目里程碑**：M9
 **依赖**：`INFRA-096t`（`build-builtins` + `check-builtins-freshness` 实现，`待验收`）、`LLVM-100t`（`ISS-301` 登记源，`待验收`）、`INFRA-097t`/`INFRA-099t`（**同改 `Makefile`，须串行**）
-**状态**：待开始
+**状态**：待验收
 
 > **编号（现场取号，2026-10-20）**：`infra` 现存最大 = `INFRA-096t`（本批另占 `097`/`099`）⇒ 取 **`098`**（编写前 `grep -rn 'INFRA-098' .tao/` 零命中）。
 
@@ -58,16 +58,55 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：证据 `.work/evidence/INFRA-098t/run.sh --strict` **21/21 PASS**（`install-host` 后复跑，S12 真实安装根含在内；S13 `--rebuild` 可选未跑）；`check_install_tools.py --self-test` **PASS（基线 + 5 类注入，0 意外）**；`make check`(L1) **rc=0**（36.9 s）；`check-builtins-freshness` / `check-musl-freshness` / `check-tasks` / `check-knowledge-refs` / `check-no-residue` / `check-issues` 均 rc=0。
+
+**修改文件**：`Makefile`、`tools/infra/check_install_tools.py`（新）、`docs/Process-07-门控分层规范.md`（§1.1 一行）、`.tao/knowledge/issues.yaml`（`ISS-301`/`ISS-261` 均 closed）、本册完成区/自审；证据 `.work/evidence/INFRA-098t/{run.sh,run.log,determinism.tsv,r2.a,r3.a,r4.a}`（未入库）。
+
 **验收结果**：
+1. **安装集（构建树侧）**：`llvm-nm --version` rc=0（`llvm-nm, compatible with GNU nm` / LLVM 23.1.3）；`llvm-nm <builtins.a>` rc=0、**572** 符号行；`llvm-readelf -h .work/source/musl/obj/crt/rcrt1.o` rc=0 → `Data: 2's complement, big endian` / `Machine: da0`。**`llvm-readelf` 上游形态 = `add_llvm_tool_symlink(llvm-readelf llvm-readobj)`**（无独立可执行文件）⇒ 按 `clang++→clang` 先例装**相对符号链接**（零拷贝；`ninja llvm-readelf` 1.3 s 生成）；构建树 `bin/llvm-readelf` 亦为相对链接，sha256 与 `llvm-readobj` 同 `00fe26c8…`；`llvm-nm` sha256 `5532aad4…`。**修前必红**：真实安装根 `check_install_tools.py` rc=1（3/38：缺 `llvm-nm`、缺 `llvm-readelf`、`-h` 不可跑）。**装后复验（主会话 `install-host` rc=0）**：安装根 `llvm-nm` 为可执行文件、`llvm-readelf -> llvm-readobj` 相对链接，`make check-install-tools` **PASS（45 check）**，`llvm-readelf -h` 解析大端 DADAO 对象 rc=0。
+2. **路径统一**：`make -n build-builtins` / `make -n install-host` 实测同源 —— stage `构建树/lib/clang/23/lib/dadao-unknown-unknown-elf/libclang_rt.builtins.a`、install `安装根/lib/clang/<同一 rel>`、checker 同 `-print-libgcc-file-name` 拆分 ⇒ **本项已在 `INFRA-096t`/`LLVM-121t` 收口**，本轮只复核（不手工 cp，`build-builtins` 后 `check-builtins-freshness` rc=0）。
+3. **确定性**：连续 **4** 次「`ninja -t clean` + `make build-builtins`」归档 sha256 全为 `288bd83ef93fcd179a457d51eada2335c0f14eb6b5da479287e68c391ccf7c1e`（262082 B；r2↔r4 `cmp` rc=0；147 成员头时间戳全 1970）⇒ **可字节确定**；历史 `c96e→fb1b` 不可复现，未改 `ar`/编译参数。
+4. **可达 FAIL（真实输出）**：S9 移除模拟安装根 `llvm-nm` ⇒ rc=1，还原后 rc=0（`readlink` 对账）；S11 篡改构建树归档副本 ⇒ `check-builtins-freshness` rc=1，`cp` 还原后 md5 一致且 rc=0；`--self-test` 5 注入（缺工具 / 尺寸变 / 别名变副本 / 同尺寸换字节 / 小端 dump）逐条红。
+5. **门控**：`make check`(L1) rc=0（含 `check-run-artifacts` / `check-patch-tree` / `check-issues`）；`make check-install-tools` 装前 rc=2（必红，与 1 同源）⇒ **装后 PASS（45 项，rc=0）**。
+
+**成本实测**：`llvm-nm` 342,488,896 B ⇒ `cp -aL` **0.28 s**（暖缓存）；`llvm-readelf` 符号链接 **0.002 s / 0 B**；安装根 `bin/` 现 9,548,968,388 B ⇒ **+3.6%**；`build-builtins` 3.2 s（首轮 20.4 s）；`check-install-tools` 快档 **0.16 s**、`--sha` ≈1.8 s per 342 MB。**未达「显著拖慢」⇒ 无需用户裁定**（两工具都装）。
+
 **新发现/坑**：
+- `not --version` 按设计 rc=1（lit 的 `not` 把 argv 当命令执行并取反）⇒ 断言对 `not` 用 `not false`；**不得**把非零 `--version` 判成坏工具（构建树/安装根同形，`cmp` 一致）。
+- `llvm-readelf` 上游不是独立文件（`add_llvm_tool_symlink`；ninja phony 目标 1 步生成相对链接）⇒ `cp -aL` 会白拷 319 MB，必须走相对链接变量 `HOST_LLVM_TOOL_SYMLINKS`。
+- `make -p` 打印的是**未展开**递归变量 ⇒ 取证须用 `make -n <target>` 取展开后的 stage/install 路径。
+- 归档 sha 与册内旧值 `cb7771e5…` 不同 = clang 于 12:29 被重建（非确定性复发）；判据应为「同 clang 下连续重建一致」。
+- 全安装集 sha 双侧 ≈22 GB ⇒ 默认快档（尺寸 + 运行探针），`--sha`/`--sha-tools` 显式开。
+
 **遗留问题**：
+- 安装根侧：**已关闭**（2026-10-21 主会话 `make install-host` rc=0）⇒ `run.sh --strict` **21/21 PASS**、`make check-install-tools` **PASS 45 项**、`llvm-readelf -h` 解析大端对象 rc=0 ⇒ `ISS-261` 置 `closed`。
+- `milestones.md` 一行按派发边界未改（归 architect / `/complete`）。
+- 历史 `c96e→fb1b` 不可复现，未做代码级确定性改造（无证据支持的修改不做）。
+- 未跑 `build-qemu` / L2 / L3（按派发边界）；`install-host` 由主会话执行（rc=0），`build-builtins`/`build-mc`/`check-*` 已按要求跑。
 
 ## 审阅记录
 
 #### 第 1 轮 engineer 自审
-（工程师自审 subagent 的意见、问题、判决及 finding 处置）
+
+自主逐行审查 `tools/infra/check_install_tools.py`、`Makefile` 改动、`run.sh`；结论：实现与真源一致（安装集/别名清单只来自 Makefile），否定项见下表（均已修并复验）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 自测还原丢失 `+x`（`write_bytes` 重建文件后后续场景假红） | ✅已修 | 还原后 `chmod 0o755` | `--self-test` 由 1 个意外 → 0 意外 |
+| F2 `not --version` 恒 rc=1（lit 语义）⇒ 安装集断言假红（真实根 4 红） | ✅已修 | 新增 `RUN_PROBE`（`not` → `not false`），探针文案随之打印 | 真实根只剩 3 项**真**缺失；sim root 全绿 |
+| F3 自测把每场景 45 行 PASS 全打出来（日志噪声） | ✅已修 | `Report(verbose=False)` + verdict 打印 checks 数 | self-test 输出 ~20 行 |
+| F4 `check_content` 两次算同一 sha（342 MB 级白读） | ✅已修 | 先算 `build_sha`/`inst_sha` 各一次 | 代码审查 |
+| F5 证据 S8 依赖 `/tmp` 归档（临时目录清理即失效） | ✅已修 | 归档 r2/r3/r4 复制进 `.work/evidence/INFRA-098t/`，`run.sh` 用 `$HERE` | `run.sh` rc=0（20/20） |
+| F6 `docs/Process-07` 行内嵌套加粗 + 「三者均」计数失效 | ✅已修 | 去掉嵌套 `**`；改「各检查均」 | grep 复核 |
+| F7 `--sha` 空集合被当作「全部」的隐式口径 | ✅已修 | 自测 `run()` 默认 `None`（快档），显式传集合才比 sha | self-test 基线/注入 4 PASS |
+| F8 别名清单若三处各写会漂移 | ✅已修 | `HOST_LLVM_TOOL_SYMLINKS` 一处定义，recipe + checker 共用 | `make -n install-host` 展开 + checker self-test |
+
+判决：8 项全部 ✅已修，无未修 finding。
 
 #### 第 1 轮 reviewer 验收
 （审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+
+#### architect 提交 + 文件集审核（2026-10-21）
+- **档位**：**正常提交**（无 `WIP:`，按主会话派单）。**披露**：本档 `待验收`、reviewer 尚未判定，严格口径应为 `WIP:`；本次依派单原话执行，差异留此备查（同 `LLVM-121t` 例）。
+- **文件集对账**（`git diff --cached --name-only` vs 完成区「修改文件」）：`Makefile` ✓、`tools/infra/check_install_tools.py` ✓（新）、`docs/Process-07-门控分层规范.md` ✓、`.tao/knowledge/issues.yaml` ✓、本册 ✓、`.tao/knowledge/milestones.md` ✓（状态/流水同步）；**无漏提 / 无多提 / 无越界**；`.work/**` 证据不入库。
+- **提交号**：本提交（`git log --oneline -1` 可查）；分支 `INFRA-098t`，落 `master` 由主会话 `merge --squash`，**未 push**。
