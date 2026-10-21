@@ -118,3 +118,4 @@
 - 范围：本册 `**状态**` 待验收→**已验证**（仅改该行，完成区/审阅记录未改）；`milestones.md`（流水表行同步为 `已验证` + 倒序入表、未完成块摘除本册行、`SPEC-141t` 遗留段 C3/C4 按用户 2026-10-21 裁定改写）；`issues.yaml`（`ISS-266` 按本册验收标准 8 回填，`status` 保持 `open`）；`lessons.md`（新增 §1.55 判据）
 - 文件集对账：4 文件 = 本册 + `.tao/knowledge/milestones.md` + `.tao/knowledge/issues.yaml` + `.tao/knowledge/lessons.md` ⇒ 与本笔主会话指定的「该册 + `milestones.md` + `issues.yaml` + `lessons.md`」逐项一致；**无漏提 / 无多提 / 无越界**（未触 `tools/**`、`spec/`、`contracts/`、`.tao/contracts/`、`tests/vectors/`）
 - 门控：`make -s check`（L1，本笔只跑一次）**rc=0**；`python3 tools/infra/check_issues.py` **rc=0**（55 open / 33 closed，`resolved_by` 约束 OK）。
+- 落地：`master` **squash `0346b29b`**（分支 `054t-complete` 上首提交 `067da98f`，已删）；本条为**纯追加**（补记自身父提交 hash + 落地号），未改完成区/既有审阅记录；**未 push**。
