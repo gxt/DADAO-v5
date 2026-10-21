@@ -14,3 +14,8 @@
   - 摘要：实现 RF/FCSR、60 条 FP、M3 `sub.o` 和 7 条 M8 位操作；11 条 excluded 编码保持 `ILLI`，234/234 opcode 覆盖、329 条 FP oracle 与 541 条 remaining 用例通过。
 - **2026-10-19 `GEM5-007t`**
   - 摘要：同步新增 `aip.si` 及其 IP 相对语义；建立裸机 E2E/Embench 清单、代表档与全量档，记录退出码和最终状态差分，并将 gem5 代表/完整门控接入 L2/L3。
+
+## M9
+
+- **2026-10-21 —**
+  - 摘要：同步 `ext/shl` 新编码与 `rol` 语义；原子 25 条保持 defined-but-excluded/`ILLI`，覆盖 259/259、current 510、remaining 620。

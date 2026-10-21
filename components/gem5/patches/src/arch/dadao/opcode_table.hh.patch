@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/opcode_table.hh b/src/arch/dadao/opcode_table.hh
 new file mode 100644
-index 0000000..6f76d97
+index 0000000..4b56aac
 --- /dev/null
 +++ b/src/arch/dadao/opcode_table.hh
-@@ -0,0 +1,247 @@
+@@ -0,0 +1,271 @@
 +// Generated from contracts/opcodes.yaml by
 +// tools/gem5/generate_opcode_table.py. Do not edit by hand.
 +#ifndef __ARCH_DADAO_OPCODE_TABLE_HH__
@@ -110,15 +110,17 @@ index 0000000..6f76d97
 +        ((word & 0xfffc0000U) == 0x40440000U) ||
 +        ((word & 0xfffc0000U) == 0x40480000U) ||
 +        ((word & 0xfffc0000U) == 0x404c0000U) ||
-+        ((word & 0xfffc0000U) == 0x40500000U) ||
 +        ((word & 0xfffc0000U) == 0x40600000U) ||
 +        ((word & 0xfffc0000U) == 0x40640000U) ||
 +        ((word & 0xfffc0000U) == 0x40680000U) ||
 +        ((word & 0xfffc0000U) == 0x406c0000U) ||
-+        ((word & 0xfffc0000U) == 0x40700000U) ||
 +        ((word & 0xfffc0000U) == 0x40740000U) ||
 +        ((word & 0xfffc0000U) == 0x40780000U) ||
 +        ((word & 0xfffc0000U) == 0x407c0000U) ||
++        ((word & 0xfffc0000U) == 0x40800000U) ||
++        ((word & 0xfffc0000U) == 0x40840000U) ||
++        ((word & 0xfffc0000U) == 0x40a00000U) ||
++        ((word & 0xfffc0000U) == 0x40a40000U) ||
 +        ((word & 0xfffc0000U) == 0x40a80000U) ||
 +        ((word & 0xfffc0000U) == 0x40ac0000U) ||
 +        ((word & 0xfffc0000U) == 0x40b00000U) ||
@@ -138,12 +140,14 @@ index 0000000..6f76d97
 +        ((word & 0xfffc0000U) == 0x40f40000U) ||
 +        ((word & 0xfffc0000U) == 0x40f80000U) ||
 +        ((word & 0xfffc0000U) == 0x41300000U) ||
++        ((word & 0xfffc0000U) == 0x41400000U) ||
++        ((word & 0xfffc0000U) == 0x41440000U) ||
 +        ((word & 0xfffc0000U) == 0x41480000U) ||
 +        ((word & 0xfffc0000U) == 0x414c0000U) ||
-+        ((word & 0xfffc0000U) == 0x41500000U) ||
++        ((word & 0xfffc0000U) == 0x41600000U) ||
++        ((word & 0xfffc0000U) == 0x41640000U) ||
 +        ((word & 0xfffc0000U) == 0x41680000U) ||
 +        ((word & 0xfffc0000U) == 0x416c0000U) ||
-+        ((word & 0xfffc0000U) == 0x41700000U) ||
 +        ((word & 0xfffc0000U) == 0x41800000U) ||
 +        ((word & 0xfffc0000U) == 0x41840000U) ||
 +        ((word & 0xfffc0000U) == 0x41a00000U) ||
@@ -157,12 +161,14 @@ index 0000000..6f76d97
 +        ((word & 0xfffc0000U) == 0x41e80000U) ||
 +        ((word & 0xfffc0000U) == 0x41ec0000U) ||
 +        ((word & 0xfffc0000U) == 0x42300000U) ||
++        ((word & 0xfffc0000U) == 0x42400000U) ||
++        ((word & 0xfffc0000U) == 0x42440000U) ||
 +        ((word & 0xfffc0000U) == 0x42480000U) ||
 +        ((word & 0xfffc0000U) == 0x424c0000U) ||
-+        ((word & 0xfffc0000U) == 0x42500000U) ||
++        ((word & 0xfffc0000U) == 0x42600000U) ||
++        ((word & 0xfffc0000U) == 0x42640000U) ||
 +        ((word & 0xfffc0000U) == 0x42680000U) ||
 +        ((word & 0xfffc0000U) == 0x426c0000U) ||
-+        ((word & 0xfffc0000U) == 0x42700000U) ||
 +        ((word & 0xfffc0000U) == 0x42800000U) ||
 +        ((word & 0xfffc0000U) == 0x42840000U) ||
 +        ((word & 0xfffc0000U) == 0x42a00000U) ||
@@ -176,12 +182,14 @@ index 0000000..6f76d97
 +        ((word & 0xfffc0000U) == 0x42e80000U) ||
 +        ((word & 0xfffc0000U) == 0x42ec0000U) ||
 +        ((word & 0xfffc0000U) == 0x43300000U) ||
++        ((word & 0xfffc0000U) == 0x43400000U) ||
++        ((word & 0xfffc0000U) == 0x43440000U) ||
 +        ((word & 0xfffc0000U) == 0x43480000U) ||
 +        ((word & 0xfffc0000U) == 0x434c0000U) ||
-+        ((word & 0xfffc0000U) == 0x43500000U) ||
++        ((word & 0xfffc0000U) == 0x43600000U) ||
++        ((word & 0xfffc0000U) == 0x43640000U) ||
 +        ((word & 0xfffc0000U) == 0x43680000U) ||
 +        ((word & 0xfffc0000U) == 0x436c0000U) ||
-+        ((word & 0xfffc0000U) == 0x43700000U) ||
 +        ((word & 0xfffc0000U) == 0x43800000U) ||
 +        ((word & 0xfffc0000U) == 0x43840000U) ||
 +        ((word & 0xfffc0000U) == 0x43a00000U) ||
@@ -239,14 +247,30 @@ index 0000000..6f76d97
 +        ((word & 0xfffc0000U) == 0x44f80000U) ||
 +        ((word & 0xfffc0000U) == 0x44fc0000U) ||
 +        ((word & 0xfffc0000U) == 0x77000000U) ||
++        ((word & 0xfffc0000U) == 0x77040000U) ||
++        ((word & 0xfffc0000U) == 0x77080000U) ||
++        ((word & 0xfffc0000U) == 0x770c0000U) ||
++        ((word & 0xfffc0000U) == 0x77100000U) ||
++        ((word & 0xfffc0000U) == 0x77140000U) ||
++        ((word & 0xfffc0000U) == 0x77180000U) ||
++        ((word & 0xfffc0000U) == 0x771c0000U) ||
++        ((word & 0xfffc0000U) == 0x77200000U) ||
++        ((word & 0xfffc0000U) == 0x77240000U) ||
++        ((word & 0xfffc0000U) == 0x77280000U) ||
++        ((word & 0xfffc0000U) == 0x772c0000U) ||
 +        ((word & 0xfffc0000U) == 0x77400000U) ||
 +        ((word & 0xfffc0000U) == 0x77440000U) ||
 +        ((word & 0xfffc0000U) == 0x77480000U) ||
 +        ((word & 0xfffc0000U) == 0x774c0000U) ||
++        ((word & 0xfffc0000U) == 0x77500000U) ||
++        ((word & 0xfffc0000U) == 0x77540000U) ||
++        ((word & 0xfffc0000U) == 0x77580000U) ||
++        ((word & 0xfffc0000U) == 0x775c0000U) ||
 +        ((word & 0xfffc0000U) == 0x77600000U) ||
 +        ((word & 0xfffc0000U) == 0x77640000U) ||
 +        ((word & 0xfffc0000U) == 0x77680000U) ||
 +        ((word & 0xfffc0000U) == 0x776c0000U) ||
++        ((word & 0xfffc0000U) == 0x77800000U) ||
 +        ((word & 0xfffc0000U) == 0x77880000U);
 +}
 +}

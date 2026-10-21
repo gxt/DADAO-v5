@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..75c5baa
+index 0000000..339cff4
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,1251 @@
+@@ -0,0 +1,1276 @@
 +#include "arch/dadao/inst.hh"
 +
 +#include <algorithm>
@@ -108,6 +108,17 @@ index 0000000..75c5baa
 +        }
 +    }
 +    return result;
++}
++
++uint64_t
++rotateLeft(uint64_t value, unsigned amount, unsigned width)
++{
++    const uint64_t mask = width == 64 ? ~0ULL : (1ULL << width) - 1;
++    value &= mask;
++    amount %= width;
++    if (!amount)
++        return value;
++    return ((value << amount) | (value >> (width - amount))) & mask;
 +}
 +
 +const char *
@@ -877,8 +888,10 @@ index 0000000..75c5baa
 +        set_rd(ha, static_cast<uint64_t>(imms18));
 +        branch(return_entry & 0xffffffffffffULL);
 +    } else if (op >= 0x41 && op <= 0x43 &&
-+               (ha == 0x12 || ha == 0x13 || ha == 0x14 ||
-+                ha == 0x1a || ha == 0x1b || ha == 0x1c ||
++               (ha == 0x10 || ha == 0x11 ||
++                ha == 0x12 || ha == 0x13 ||
++                ha == 0x18 || ha == 0x19 ||
++                ha == 0x1a || ha == 0x1b ||
 +                ha == 0x20 || ha == 0x21 || ha == 0x28 ||
 +                ha == 0x29 || ha == 0x2a || ha == 0x2b ||
 +                ha == 0x30 || ha == 0x31 || ha == 0x38 ||
@@ -897,22 +910,28 @@ index 0000000..75c5baa
 +            return static_cast<int64_t>(value);
 +        };
 +        const bool signed_op = ha & 1;
++        const bool signed_result =
++            signed_op && ha != 0x11 && ha != 0x19;
 +        const uint64_t lhs = rd(hc) & mask;
 +        const uint64_t rhs = rd(hd) & mask;
 +        uint64_t result = 0;
-+        if (ha >= 0x12 && ha <= 0x1c) {
-+            const bool immediate = ha >= 0x1a;
-+            const unsigned amount = immediate ? hd : (rd(hd) & 63);
-+            if (amount >= width)
++        if (ha >= 0x10 && ha <= 0x1b) {
++            const bool immediate = ha >= 0x18;
++            const unsigned kind = ha - (immediate ? 0x18 : 0x10);
++            const unsigned amount =
++                immediate ? hd : (rd(hd) & (width - 1));
++            if (kind > 3 || (immediate && amount >= width))
 +                return std::make_shared<DadaoISA::MachineFault>(
 +                        "ILLI", 0x88);
-+            if (ha == 0x12 || ha == 0x1a)
++            if (kind == 0)
++                result = lhs << amount;
++            else if (kind == 1)
++                result = rotateLeft(lhs, amount, width);
++            else if (kind == 2)
 +                result = lhs >> amount;
-+            else if (ha == 0x13 || ha == 0x1b)
++            else
 +                result = static_cast<uint64_t>(
 +                        signed_value(lhs) >> amount);
-+            else
-+                result = lhs << amount;
 +        } else if (ha == 0x20 || ha == 0x21) {
 +            result = signed_op ? signed_value(lhs) + signed_value(rhs) :
 +                                lhs + rhs;
@@ -946,7 +965,7 @@ index 0000000..75c5baa
 +            result = lhs % rhs;
 +        }
 +        result &= mask;
-+        if (signed_op && (result & (1ULL << (width - 1))))
++        if (signed_result && (result & (1ULL << (width - 1))))
 +            result |= ~mask;
 +        set_rd(hb, result);
 +    } else if (op == 0x40 && ha >= 0x08 && ha <= 0x0b) {
@@ -965,33 +984,39 @@ index 0000000..75c5baa
 +        else
 +            result = ~(rd(hc) ^ rd(hd));
 +        set_rd(hb, result);
-+    } else if (op == 0x40 && ha >= 0x10 && ha <= 0x1c) {
++    } else if (op == 0x40 &&
++               ((ha >= 0x10 && ha <= 0x13) ||
++                (ha >= 0x18 && ha <= 0x1b) ||
++                (ha >= 0x20 && ha <= 0x21) ||
++                (ha >= 0x28 && ha <= 0x29))) {
 +        const unsigned hb = (word >> 12) & 63;
 +        const unsigned hc = (word >> 6) & 63;
 +        const unsigned hd = word & 63;
 +        if (hb == 0)
 +            return std::make_shared<DadaoISA::MachineFault>("ILLI", 0x88);
-+        const bool immediate = ha >= 0x18;
-+        const unsigned kind = ha - (immediate ? 0x18 : 0x10);
-+        if (kind > 4)
-+            return std::make_shared<DadaoISA::MachineFault>("UNDI", 0x89);
++        const bool extension = ha >= 0x20;
++        const bool immediate =
++            extension ? ha >= 0x28 : ha >= 0x18;
++        const unsigned kind = ha - (immediate ? 0x08 : 0x00);
 +        const unsigned amount = immediate ? hd : (rd(hd) & 63);
 +        const uint64_t source = rd(hc);
 +        uint64_t result = 0;
-+        if (kind == 0 || kind == 1) {
++        if (extension) {
 +            const uint64_t mask = amount == 63 ? ~0ULL :
 +                                  (1ULL << (amount + 1)) - 1;
 +            result = source & mask;
-+            if (kind == 1 && amount != 63 &&
++            if (kind == 0x21 && amount != 63 &&
 +                (source & (1ULL << amount)))
 +                result |= ~mask;
-+        } else if (kind == 2) {
++        } else if (kind == 0x10) {
++            result = source << amount;
++        } else if (kind == 0x11) {
++            result = rotateLeft(source, amount, 64);
++        } else if (kind == 0x12) {
 +            result = source >> amount;
-+        } else if (kind == 3) {
++        } else {
 +            result = static_cast<uint64_t>(
 +                    static_cast<int64_t>(source) >> amount);
-+        } else {
-+            result = source << amount;
 +        }
 +        set_rd(hb, result);
 +    } else if (op == 0x40 && (ha == 0x2a || ha == 0x2b)) {

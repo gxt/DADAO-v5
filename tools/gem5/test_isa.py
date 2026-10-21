@@ -376,7 +376,8 @@ def main() -> int:
     elif args.profile == "remaining":
         for filename in (
                 ROOT / "tests/vectors/rev/rev.yaml",
-                ROOT / "tests/vectors/bitcnt/bitcnt.yaml"):
+                ROOT / "tests/vectors/bitcnt/bitcnt.yaml",
+                ROOT / "tests/vectors/rol/rol.yaml"):
             cases.extend(
                 case for case in yaml.safe_load(filename.read_text())
                 if case.get("status") == "active"
