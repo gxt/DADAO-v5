@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`ADR-0034`（`Accepted`：编码/命名定案）、`contracts/opcodes.yaml`（259 条真源）、`LLVM-116t`（上一轮 ISA 编码迁移的 llvm 册先例，`已验证`）、`ISS-307`（本批 4 册总账）；**下游串行**：`QEMU-067t`（②）→ `INFRA-100t`（③）→ `TESTCASES-056t`（④）
-**状态**：待验收
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地
@@ -327,3 +327,42 @@ L_done:
 | F19 补丁行号变化使 `check-isa-coverage` 红（矩阵 `isel-cpp:…:<行号>` 引用漂移） | ✅已修 | 按真源重生成 `tools/llvm/llvm-isa-backend-matrix.{tsv,md}` | `--check` PASS（259/accept 257/reject 2）；diff 仅行号 |
 
 自审判定：可修项（F15–F19）已修并重跑；F13/F14 为「已核实/已披露」项，完成区有对应条目，无「遗留:无」式表述。
+
+#### 第 3 轮 reviewer 验收（2026-10-21，只验返工两缺陷修复 + 无回归）
+
+**判决：Needs Revision**（唯一打回项 = 证据脚本 `run-rework2.sh` default **rc=1**；**A/B 两缺陷修复、711/711、四道门控、L1、golden 33/33 我自验全部通过**）
+
+**重跑记录**（workdir=仓库根、相对路径，本人执行；日志/产物 `/tmp/opencode/REVIEW-121t-r3/`；验收前 `git status --porcelain -uall` = **0 行**）
+- **A（`ISS-312`）三路自验**：① 代码 —— `DADAOISelLowering.cpp.patch:2249` = `SDValue Val = AN->getVal();`，`getTruncStore` 分支共用同一 `Val`；旧写法 `SDValue Val = Op.getOperand(2);` **0 命中**（C1 实测 `getVal=1 mask=1 bad=0`）。② 我**自造**跨 TU 探针（`_Atomic` 全局在 TU1、`volatile _Atomic int *` + 另一 TU 写 + 运行期变量），`-emit-llvm` 实测 `store atomic` **5 处** ⇒ 确经 `ATOMIC_STORE`；`-O0`/`-O2` 各 **6/6 落值正确**（`R3_STORE_BAD=0`、qemu rc=0），实测对象地址 `0x4b030`/`0x4abd0` 与任一存入值均不等。③ 汇编（`-O2 set_g_i`）：`set.zw/or.w rb4,…` 物化 `&g_i`（=运行期打印地址）后 `st.t rd16, [rb4, 0]`；`rd16` = 调用方 `mul.uo {rd0, rd16}, …` 产出的**值** ⇒ **存的是值不是地址、源≠基址**。⇒ `ISS-312` 真消失，非测试绕开。
+- **B（`ISS-313`）自验**：自造 12 例（u8 `0xFF`/s8 `0x80`/u16 `0x8000`/s16 `0x8000`/u32 `0x80000000`/s32 `INT_MIN`/u64 对照 + 3 个运行期 expected + 2 个负例），`-O0`/`-O2` 各 **12/12**（`R3_CAS_BAD=0`：高位置 1 **成功且落新值**，负例失败且不动原值）。汇编口径：常量 expected 全部 `set.zw … 0xff/0x80/0x8000`（**零扩展**）与 `lr.b/.w/.t`（零扩展）**同宽同扩展**后 `br.ne {lr结果, cmp}`；i64 对照走 `lr.o.an` 且**无** `and.o` 掩码；环内 `br.ne` 与 `cmp.so` 复用**同一**规范化操作数（补丁单点 `AND` 后同时喂伪指令与 `SETEQ`）。
+- **20 XFAIL 复核**：`run_atomics_probe.py` static/dynamic 各 **711/711、0 fail、0 xfail、0 XPASS、rc=0**（JSON 复核 `known_defects={}`、`params` 默认 5×250000×4；`oracle_atomics` 现场派生 `xfail=0`）。`07f6b450` 只删 `xfail=/defect=` 元数据、**期望未削弱**（抽 diff：`store_shared` 仍是 `NA, _wrap(value,…)`）；20 个单元仍在且判 PASS（`int store_shared fin=424242`、`ushort edge exp=40000` 等）。
+- **无回归**：`make check-lit` rc=0 **127/127**（新增 `atomics-store.ll`/`atomics-cas-narrow-sext.ll` 均已发现并 PASS）；`check-instrinfo` rc=0 **0 errors**（197 defs）；`check-isa-coverage` rc=0 **PASS**（259 / accept 257 / reject 2）；`check-patch-tree` rc=0 **185 patches OK**；`make check`(L1) rc=0 **PASS**；`run-rework2.sh` **C9 golden `identical=33 diff=0 total=33` PASS**。
+- **独立注入①（lit 断言面，rc 级红→绿）**：`atomics-store.ll` 的 `add.si …,7→8` ⇒ `make check-lit` **rc=2**（`FAIL atomics-store.ll`，`Failed: 1`）；`cp`+md5 `002c9f29…` 还原 ⇒ **rc=0**。`atomics-cas-narrow-sext.ll` 的 `0x8000→0x8001` ⇒ **rc=2**（`FAIL atomics-cas-narrow-sext.ll`）；md5 `8d4f9f5c…` 还原 ⇒ **rc=0**。
+- **独立注入②（被测产物 = 后端补丁，`cp`+md5，未用 git 还原）**：`APInt::getLowBitsSet(64, MemVT.getSizeInBits())` → `APInt::getAllOnes()`（**同行等长、行号不漂移**；md5 `70981cb4…→de566fac…`）⇒ 重跑**同一** `run-rework2.sh`：**C1 FAIL**（`actual=getVal=1 mask=0 bad=0`，`RESULT: 12 checks, 3 failed`）；`cp` 还原 md5 回 `70981cb4…`（`MD5_MATCH=yes`、`cmp: identical`）⇒ 再跑：**C1 PASS 回绿**（`RESULT: 12 checks, 2 failed`）。**披露**：受派单禁 `build-*`/`install-host`，无法重建 llc 让「高位 CAS 用例」因后端回退而红，故取「同型产品注入 + lit 断言面注入」两路替代。
+- **快照对账**：验收前 `status` = 0 行且记下 run.sh/补丁/probe 三份 md5；注入①② 后逐份复测 **md5 全等**（`run-rework2.sh c949cd61…`、补丁 `70981cb4…`、两个 lit `002c9f29…`/`8d4f9f5c…`），写本段前 `git status --porcelain -uall` 仍 **0 行**。
+
+**打回项（唯一）**：`.work/evidence/LLVM-121t/run-rework2.sh` **default rc=1**（本人重跑原样输出）—— `FAIL C12 修后 static… expected … rc=1 actual mode=static xpass=0 xfail-signature=0 other-fail=0 total=711 verdict=ok rc=0 rc=1`（dynamic 同）×2，`RESULT: 12 checks, 2 failed, 5 skipped`。**根因**：脚本 `:391 if [ $vrc -eq 0 ] && [ "$rc" = 1 ]` **硬编码要求驱动 rc=1**（20 条 XFAIL 尚在、驱动报 XPASS 时的旧口径），而同批 `07f6b450` 已摘除 xfail 登记 ⇒ 驱动现返回 **rc=0**（`EXPECT_XFAIL` 已现场派生为 0，判据只改了一半）。与完成区「default **17/17 rc=0**」不符：该数为 12:24（摘除前、安装根未刷新）所跑，12:48 落库后**不可复现**（现 `C2/C5/C10b/C11b/C14` 因安装根==构建树而 SKIP）。
+**要求（只改 `run-rework2.sh` 的 C12 判据 + 完成区措辞，后端/lit/门控不必动）**：① 期望 rc 由 oracle 现场派生（`EXPECT_XFAIL>0 ⇒ 1` 否则 `0`），`c12_probe_post` 比该派生值；② 完成区重跑更新计数行并如实记 5 处 SKIP 原因「无独立修前二进制」。
+**未打回**：两缺陷修复与新增 2 条 lit、711/711、`check-lit`/`check-instrinfo`/`check-isa-coverage`/`check-patch-tree`/L1/golden33 均我自验通过。
+**声明**：未改任何代码/测试/契约/证据脚本（两处注入均已 `cp`+md5 还原、对账相等）、未 `commit`/`push`/`install-host`/build/L2/L3；本轮仓库写入**仅本段**（运行另落 gitignore 的 `.work/log/llvm/LLVM-121t/` 与 `/tmp/opencode/REVIEW-121t-r3/`）。异常披露：`run-rework2.sh --inject` 档本轮未跑；default 与 restored 两跑整体 rc 均 1（即打回项本身）。
+
+### 证据脚本返工（2026-10-21，`run-rework2.sh` 判据改为现场派生）
+
+**旧结论作废**：完成区「default **17/17 rc=0**」**不成立**（那是 12:24 摘除 XFAIL 前、安装根未刷新时跑的）；现 `C2/C5/C10b/C11b/C14` 因安装根==构建树而 SKIP，`default` 真实形态是 **12 checks + 5 SKIP = 17 项**。
+**新判据**（生成 `probe_judge.py`）：期望 rc 由驱动 JSON **现场派生** —— `expect_rc = 0 if (summary.fail==0 and result=="PASS") else 1`，再与真实 rc 对账；`xfail` 只作语义断言（修后须 `xfail-signature==0`、`pass==total`；若 oracle 重新登记 xfail 则要求 `xpass==nxfail`）。不再假设「一定 rc=1」。
+**计数改现场派生**：`C3/C4` 条数改读 lit `Total Discovered Tests`（并与传入 lit 文件数对账）、`C5` 红数 = 文件数、`C15` 单元数由 oracle 的 `(tag,op)` 集合派生（store=11 / cas=11，与源码调用点计数三方对账）；删掉 `>=7/>=9/>=100/>=2` 硬编码阈值。`C14` 的 `rc=0` 同改派生（修前须红且 rc 一致）。
+**重跑（真实输出）**：`default` **rc=0 / 12 checks (12 pass), 0 failed, 5 skipped（总 17）**，C12 static/dynamic `total=711 pass=711 fail=0 xfail=0 xpass=0 expect_rc=0 actual_rc=0 verdict=ok`；`--inject` **rc=0 / 5 处**：INJ-1..3 原样「注入→红→`cp`+md5 还原→绿」；INJ-4 伪造 `xfail=3` 的 JSON ⇒ 红 `reasons=[xfail-signature=3!=0;pass=2!=total-xfail=5]`、同判据对合规伪造件判绿；INJ-5 伪造 `fail=1` 传 rc=0 ⇒ 红 `reasons=[rc=0!=expect_rc=1]`、同件传 rc=1 判绿。
+**门控**：`make check-lit` rc=0（127/127）、`make check-instrinfo` rc=0（0 errors）、`make check`(L1) rc=0；日志 `.work/log/llvm/LLVM-121t/LLVM-121t-rework3-{default,inject,check-lit,check-instrinfo,L1}.log`。
+**改动文件**：仅 `.work/evidence/LLVM-121t/run-rework2.sh`（不入 git）+ 本段；未改组件/测试/契约/既有完成区，未 `install-host`/`build-*`/L2/L3，未 commit/push；`**状态**` 仍 `待验收`。
+
+#### 第 4 轮 reviewer 验收（2026-10-21，只验第 3 轮唯一打回项：判据是否现场派生）
+
+**判决：Accepted**（A/B 缺陷修复、711/711、四道门控、L1 已于第 3 轮自验通过，本轮不重验）
+
+**重跑记录**（workdir=仓库根、相对路径，本人执行；日志 `/tmp/opencode/REVIEW-121t-r4/default-run.log`；验收前 `git status --porcelain -uall` = **1 行 = 本册**）
+- **判据派生核对**（读 `run-rework2.sh` + 其生成的 `probe_judge.py`）：`expect_rc = 0 if (summary.fail==0 and result=="PASS") else 1`（:521）再与真实 rc 对账（:523）⇒ 不写死 0/1；计数亦现场派生 —— `EXPECT_XFAIL/STORE_N/CAS_N` 由 `oracle_atomics` 现场算（我自跑：`xfail=0 store_N=11 cas_N=11`），`C3/C4` 读 lit `Total Discovered Tests`、`C5` 红数=文件数、`C15` 用 oracle `(tag,op)` 集合、`INJ_TOTAL` 逐处自增；`grep -n '711|691|212|>=7|>=9|>=100'` 脚本 ⇒ **NO hardcoded**。
+- **`default` 重跑**：**rc=0**、`RESULT: 12 checks (12 pass), 0 failed, 5 skipped (total 17 incl. SKIP)`；`C12` static/dynamic 均 `total=711 pass=711 fail=0 xfail=0 xpass=0 xfail-sig=0 expect_rc=0 actual_rc=0 verdict=ok`；另 `C3 2/2`、`C4 127/127`、`C9 33/33`、`C15 store=11/11 cas=11/11`。
+- **判据能失败（关键，我自造伪造件，只写 `/tmp/opencode/REVIEW-121t-r4/`，未动仓库文件）**：① 基线真件 + rc=0 ⇒ `verdict=ok rc=0`（**非恒红**）；② 拷贝改 `summary.fail=1`（result 仍 PASS）传 rc=0 ⇒ **红 rc=1** `reasons=[rc=0!=expect_rc=1;summary-not-additive;fail=1!=xpass=0]`；③ 拷贝改 `summary.xfail=3` ⇒ **红 rc=1** `reasons=[summary-not-additive;summary.xfail=3!=checks-xfail=0]`；④ 判据不变、换回真件 ⇒ 回绿 `rc=0`（**非恒绿**）。
+- **门控**：`make check`(L1) **rc=0**（`repository checks (L1): PASS`）；**快照对账**：验收前后 `git status --porcelain -uall` 均**仅本册 1 个 `M`**，伪造件 md5 与真件不同、仓库目标文件 md5 未变。
+
+**声明**：未改任何仓库文件（本轮唯一写入 = 本段）、未 commit/push、未 `install-host`/`build-*`/L2/L3；异常披露：`--inject` 档本轮未跑（第 3 轮已验，本轮判据红/绿由我独立伪造件覆盖）。
