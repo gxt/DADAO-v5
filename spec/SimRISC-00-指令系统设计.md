@@ -280,7 +280,7 @@ SimRISC 0.5.4版本的指令opcode布局如下。空白单元格表示 reserved�
 | 0011-1xxx     | ldm.o_rrri_rd        | stm.o_rrri_rd        | ldm.o_rrri_rb        | stm.o_rrri_rb        | ldm.o_rrri_ra        | stm.o_rrri_ra        | ldm.o_rrri_rf        | stm.o_rrri_rf   |
 | 0100-0xxx     | MISC-octa            | MISC-tetra           | MISC-wyde            | MISC-byte            | MISC-RF              |                      |                      |                  |
 | 0100-1xxx     | or.w_rwii_rd         | andn.w_rwii_rd       | or.w_rwii_rb         | andn.w_rwii_rb       | set.zw_rwii_rd       | set.ow_rwii_rd       | set.zw_rwii_rb       | set.w_rwii_rf   |
-| 0101-0xxx     | add.uo_rrrr_rd       | add.so_rrrr_rd       | sub.uo_rrrr_rd       | sub.so_rrrr_rd       | mul.uo_rrrr_rd       | mul.so_rrrr_rd       |                      |                  |
+| 0101-0xxx     | add.uo_rrrr_rd       | add.so_rrrr_rd       | sub.uo_rrrr_rd       | sub.so_rrrr_rd       | mul.uo_rrrr_rd       | mul.so_rrrr_rd       | clmul.o_rrrr_rd      |                  |
 | 0101-1xxx     |                      | add.si_riii_rd       | aip.si_riii_rb       | add.si_riii_rb       | cmp.ui_rrii_rd       | cmp.si_rrii_rd       | cs.eq_rrrr_rf        | cs.ne_rrrr_rf   |
 | 0110-0xxx     | cs.n_rrrr_rd         | cs.n_rrrr_rf         | cs.z_rrrr_rd         | cs.z_rrrr_rf         | cs.p_rrrr_rd         | cs.p_rrrr_rf         | cs.eq_rrrr_rd        | cs.ne_rrrr_rd   |
 | 0110-1xxx     | br.n_riii_rd         | br.nn_riii_rd        | br.z_riii_rd         | br.nz_riii_rd        | br.p_riii_rd         | br.np_riii_rd        | br.eq_rrii_rd        | br.ne_rrii_rd   |
@@ -415,6 +415,7 @@ v5 仅保留「ISA 无法直接表达、需多指令合成」的 **8 条合成�
 
 ### 0.5.5-rc（未发布）
 
+- 新增 `clmul.o`（GF(2) 无进位乘，`rrrr` 双目的，`rdHA` 高 / `rdHB` 低），编码 `0101-0110`（`op = 0x56`，紧跟 `mul.so`）；`scope` 为 `excluded`（执行 ILLI）。
 - 编码再分配：`ext.uo`/`ext.so` 编码迁至 `100-000`/`100-001`（orrr）与 `101-000`/`101-001`（orri），助记符与语义不变。
 - `fence` 编码由 `000-000` 迁至 `100-000`（`ha = 0x20`），`immu18` 位域改为 `fm`/`pred`/`succ`；`swym` 仍在 `100-010`。
 - `lr`/`sc` 原子指令改名并重排编码：`lr` = `000`/`001` 两行（`nn`/`an`/`ar`）、`sc` = `010`/`011` 两行（`nn`/`nr`/`ar`），助记符为 `<lr|sc>.<b|w|t|o>.<序>`（24 条；删除 `lr.*.nr` 与 `sc.*.an`）；`scope` 仍为 `excluded`。

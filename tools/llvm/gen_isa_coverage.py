@@ -518,8 +518,9 @@ def render_md(rows: list[dict], st: dict) -> str:
     a(f"- 现场统计：`accept` **{st['l1_accept']}** / `reject` **{st['l1_reject']}**"
       f"{(' / 异常 ' + str(st['l1_other'])) if st['l1_other'] else ''}；"
       f"编码复核不符 **{st['enc_bad']}**。")
-    a("- `scope: excluded` 且后端未实现者（`cfxld`/`cfxst`/`lr_*`/`sc_*`）由汇编器"
-      "**显式拒绝**（`reject`），与 `tests/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。")
+    a("- `scope: excluded` 且后端未实现者（`cfxld`/`cfxst`/`clmul.o`；`lr_*`/`sc_*` 已由 "
+      "LLVM MC 层受理、执行侧仍 ILLI）由汇编器**显式拒绝**（`reject`），与 "
+      "`tests/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。")
     a("")
     a("### 第②层「ISel 用得上」（机械提取，非人工判读）")
     a("")

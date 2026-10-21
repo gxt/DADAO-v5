@@ -108,7 +108,8 @@ group = "simrisc-00..12"
 #   §3 `IP[1:0]`；§返回地址栈 `IP 指向`；`0.5.5-rc` 段追加两条（改名 / 术语）。
 # `rela.si_riii_rb`（恢复 PC 相对寻址指令）+ 「0.5.5-rc」段追加恢复条目。
 # 2026-10-20（ADR-0034，用户原话「fence指令的opx编码改为100_000…」「lr/sc 四种数据宽度…opx 从000-000 排到 011-111」→「A」；渠道 = 经主会话问答）：§4.1 MISC-AMO 子表 `fence` 迁 `100-000`、`lr`/`sc` 重排为 24 条（`<lr|sc>.<b|w|t|o>.<序>`）；附录 0.5.5-rc 补两条；sha256 同笔重算。
-sha256 = "0255349e9a414f8c8288ea7dd71515ccc3342d77bb07e0e7a266da7066f73ad6"
+# 2026-10-21（ADR-0035，用户原话「可以，添加 clmul.o rrrr 格式，编码放在 mul.so 后面」；渠道 = 经主会话派发）：§4 QFC 主表 `0101-0xxx` 第 7 格填 `clmul.o_rrrr_rd`（`op = 0x56`）；附录 0.5.5-rc 补一条；sha256 同笔重算。
+sha256 = "aaa05560389ca5bbe04e7241e75470ca5603bcd87f5b1b246dd1f065b07f7de5"
 
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -129,7 +130,8 @@ sha256 = "c03444f87b91329eefaaff358cf239c89d02ca9eed254ca61d6f93f545214784"
 path = "spec/SimRISC-04-64位数据运算.md"
 group = "simrisc-00..12"
 # 2026-10-21（SPEC-154t，用户原话「补充 spec 中确实的老版本的版本变更与记录」「根据 SimRISC 的版本号，在 .tao/archive/ 目录下分别保留一个副本」）：附录补 0.5.1、0.5.3 两段（`rd0` 约定收窄 / `add.si` 改 `riii`）；sha256 同笔重算。
-sha256 = "c2f147a9760ad19023363b21aac7e6be16f398baa4bb2714b1ac12ccc7a0046c"
+# 2026-10-21（ADR-0035，用户原话「可以，添加 clmul.o rrrr 格式，编码放在 mul.so 后面」）：新增 §3.5「无进位乘法」+ 册头分类 35→36 条 + §1.1/§2 生成区重生成 + 附录 0.5.5-rc 补一条；sha256 同笔重算。
+sha256 = "b836bd2433aa77718b36a2ccb7a6ae8601c52e2fdbf36aa365488653b4a7ca9d"
 
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"

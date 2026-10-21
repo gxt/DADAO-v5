@@ -1,12 +1,12 @@
 # SimRISC64位数据运算指令
 
 > **版本：0.5.5-rc**（与 SimRISC-00 一致）
-> **分类：64位数据运算**（35 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）+ ctlz/cttz/ctpop（位扫描/位计数）+ shl.o/rol.o（移位/循环移位）
+> **分类：64位数据运算**（36 条）— .so/.uo + add.si/cmp.si/cmp.ui + and.o/or.o/xor.o/xnor.o + rev.o（逐块反转）+ ctlz/cttz/ctpop（位扫描/位计数）+ shl.o/rol.o（移位/循环移位）+ clmul.o（无进位乘）
 
 <!-- ASSEMBLY_LIST_START -->
 ## 1. 汇编指令速查
 
-### 1.1 64位数据运算（35 条）
+### 1.1 64位数据运算（36 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -14,6 +14,7 @@
 | `add.so` | `rrrr` | `rd` | `add.so {rdHA, rdHB}, rdHC, rdHD` | `add.so_rrrr_rd` |
 | `add.uo` | `rrrr` | `rd` | `add.uo {rdHA, rdHB}, rdHC, rdHD` | `add.uo_rrrr_rd` |
 | `and.o` | `orrr` | `rd` | `and.o rdHB, rdHC, rdHD` | `and.o_orrr_rd` |
+| `clmul.o` | `rrrr` | `rd` | `clmul.o {rdHA, rdHB}, rdHC, rdHD` | `clmul.o_rrrr_rd` |
 | `cmp.si` | `rrii` | `rd` | `cmp.si rdHA, rdHB, imms12` | `cmp.si_rrii_rd` |
 | `cmp.so` | `orrr` | `rd` | `cmp.so rdHB, rdHC, rdHD` | `cmp.so_orrr_rd` |
 | `cmp.ui` | `rrii` | `rd` | `cmp.ui rdHA, rdHB, immu12` | `cmp.ui_rrii_rd` |
@@ -52,8 +53,11 @@
 ## 2. 合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `add.si_riii_rd`, `and.o_orrr_rd`, `cmp.si_rrii_rd`, `cmp.so_orrr_rd`, `cmp.ui_rrii_rd`, `cmp.uo_orrr_rd`, `ctlz_orri_rd`, `ctpop_orri_rd`, `cttz_orri_rd`, `div.so_orrr_rd`, `div.uo_orrr_rd`, `ext.so_orri_rd`, `ext.so_orrr_rd`, `ext.uo_orri_rd`, `ext.uo_orrr_rd`, `or.o_orrr_rd`, `rem.so_orrr_rd`, `rem.uo_orrr_rd`, `rev.o_orri_rd`, `rol.o_orri_rd`, `rol.o_orrr_rd`, `shl.o_orri_rd`, `shl.o_orrr_rd`, `shr.so_orri_rd`, `shr.so_orrr_rd`, `shr.uo_orri_rd`, `shr.uo_orrr_rd`, `xnor.o_orrr_rd`, `xor.o_orrr_rd`（29 条）
-* `dst_dual_same`：双目的同为 rd0 或同寄存器 → ILLI — `add.so_rrrr_rd`, `add.uo_rrrr_rd`, `mul.so_rrrr_rd`, `mul.uo_rrrr_rd`, `sub.so_rrrr_rd`, `sub.uo_rrrr_rd`（6 条）
+* `dst_dual_same`：双目的同为 rd0 或同寄存器 → ILLI — `add.so_rrrr_rd`, `add.uo_rrrr_rd`, `clmul.o_rrrr_rd`, `mul.so_rrrr_rd`, `mul.uo_rrrr_rd`, `sub.so_rrrr_rd`, `sub.uo_rrrr_rd`（7 条）
 * `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `rev.o_orri_rd`（1 条）
+
+**scope: excluded（decode ILLI）：**
+* `clmul.o_rrrr_rd`：decode ILLI
 <!-- LEGALITY_END -->
 
 
@@ -160,6 +164,22 @@ rem.so  rdHB, rdHC, rdHD
 | `div.uo` | `0xFFFF_FFFF_FFFF_FFFF` | 不适用 |
 | `rem.sb`/`rem.sw`/`rem.st`/`rem.so` | 被除数（符号扩展写满 64 位） | `0` |
 | `rem.ub`/`rem.uw`/`rem.ut`/`rem.uo` | 被除数（零扩展写满 64 位） | 不适用 |
+
+### 3.5 无进位乘法
+
+无进位乘法（carry-less multiplication，GF(2) 多项式乘）操作数类型为 `rrrr`，与 `mul.*` 同型：`rdHC`、`rdHD` 为源操作数，结果 128 位写入 `rdHA`（高 64 位）与 `rdHB`（低 64 位）。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
+
+```simrisc
+clmul.o  {rdHA, rdHB}, rdHC, rdHD
+```
+
+语义：把 `rdHC`、`rdHD` 各视为 64 位系数多项式（bit *i* = x^*i* 的系数），在 GF(2) 上相乘——每一位的贡献是「与」、各位结果之间是「异或」，**位间无进位**。例：`0b11 × 0b11` 在 GF(2) 上 = (x+1)² = x²+1 = `0b101`（= 5），而整数 `mul.uo` 得 9。
+
+与 `mul.uo`/`mul.so` 的区别：操作数形状与双目的布局完全相同，但**不进位**、**无符号**（纯位运算，不设 `.u`/`.s` 变体），且**只有 `.o` 宽度**——无进位 ⇒ 窄宽度结果只是 64 位结果的低位子集，由结果掩码取得，故不设 `.t`/`.w`/`.b`。
+
+`rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
+
+单取高半或低半写 `{rdH, rd0}` / `{rd0, rdL}`（与 `mul.uo {rdH, rd0}` 取 `mulhu` 同型）；「反向」无进位乘 `clmulr(a, b) = rev(clmul(rev(a), rev(b)))` 用 `rev.o` 组合，不单设指令。
 
 ## 4. 逻辑运算类指令
 
@@ -390,6 +410,7 @@ rol.o   rdHB, rdHC, immu6       @@ 循环左移（旋转量 = immu6，0..63）
 
 ### 0.5.5-rc（未发布）
 
+- 新增 `clmul.o`（无进位乘 / GF(2) 多项式乘，`rrrr` 双目的，`rdHA` 高 / `rdHB` 低，`op = 0x56`）及 §3.5 语义。
 - `shl` 去掉 `u` 后缀（`shl.o`，符号无关）并迁编码 `010-000`/`011-000`；`ext.uo`/`ext.so` 编码迁至 `100-000`/`100-001`、`101-000`/`101-001`（助记符不变）。
 - 新增 `rol.o`（逻辑循环左移，`orrr`/`orri`，编码 `010-001`/`011-001`）及 §4.2.3 语义。
 - 标题章节号统一为 `N` / `N.M` / `N.M.K`。

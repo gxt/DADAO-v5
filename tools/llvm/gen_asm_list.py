@@ -41,7 +41,7 @@ _SC_PREFIXES = ("sc_", "sc.")
 SPLIT_SUFFIX = re.compile(r"^(imms?\d+|immu?\d+)_(?:hi|mid|lo|b\d+_\d+)$")
 
 # 双目的指令（rrrr 格式，rdha/rdhb 均为 dst 的双目标寄存器指令）
-_DUAL_TARGET_MNEMONICS = frozenset({"add.uo", "add.so", "sub.uo", "sub.so", "mul.uo", "mul.so"})
+_DUAL_TARGET_MNEMONICS = frozenset({"add.uo", "add.so", "sub.uo", "sub.so", "mul.uo", "mul.so", "clmul.o"})
 
 # 多寄存器指令（orri 格式，immu6 = 连续寄存器个数，源和目的都用组记法）
 _MULTI_REG_MNEMONICS = frozenset({
