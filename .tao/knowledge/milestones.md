@@ -77,6 +77,10 @@
 - **C3 `f16` 转换** —— **当前不做（2026-10-21 用户裁定）**。依据：① 现有四套语料**零使用**（`libc-test` / `musl` / `embench` / `ansibench` 命中 0；`picolibc` 唯一命中是 `math.h` 注释）；② `llvm-test-suite` 的 `SingleSource/Regression/C/float16-smoke.c` 在 **B 档（census 不跑）** ⇒ 现 220 例 A 档不含；③ 不支持时是**硬报错**（`_Float16 is not supported on this target`）⇒ **不会静默错**，且 C23 属**可选特性**；④ 若将来要做 = clang `HasFloat16` + 后端 promote/libcall（`__extendhfsf2`/`__truncsfhf2` **已在 builtins 归档**）+ ABI 口径（待定）⇒ **零新指令**。
 - **C4 128 位乘高位（`mulhu`/`umulh`）** —— **已具备，撤回候选（2026-10-21）**。依据：① `spec/SimRISC-04 §3.4`（`:124`）`mul.uo`/`mul.so` **双目的出 16 字节结果**（`rdHA` 高 / `rdHB` 低）⇒ `mulhu` 等价于 `mul.uo {rdH, rd0}`；② **实测** `__int128 a*b` 编出 **6 条 `mul.uo`** ⇒ i128 乘法**已是硬件加速**；③ 原候选行「无缺口（软实现）/ 只是提速」**两处判断均不成立** ⇒ 属**伪候选**。
 - **`fshl`/`fshr`（漏斗移位）** —— 本轮不取，保留候选（`rotl`/`rotr` 已由 `ADR-0032` 落地为 `rol`，不再算遗留）。
+  - **更正（2026-10-21）**：`.o` 的 `orrr` 形式移位量 = **`rdHD[5:0]`（6 位）⇒ 自动 `mod 64`** ✓；`SimRISC-04:220` 的「`shamt > N` ⇒ ILLI」**只对窄宽度**（`.t` N=31 / `.w` 15 / `.b` 7）生效，`.o` 恒不触发 ⇒ **不需要软件夹取模** ✓（此前“须软件夹取模”的说法**作废** ✗）
+  - **实测（安装根 `llc -O2`，`llvm.fshl.i64` intrinsic）**：展开 **9 条**（`set.zw`×2 / `shr.uo`×2 / `xnor.o` / `and.o`×2 / `shl.o` / `or.o`）；其中 **2 条 `and 63` 是 LLVM 的通用保守展开**（它按“计数 ≥ 位宽为 poison”建模），在我们 ISA 上**冗余** ✓
+  - **结论**：理论最小 ≈ **4 条**（求补数 `xnor/sub` + `shl` + `shr` + `or`）；现状 9 条 ⇒ **可优化**（后端 DAGCombine 去掉冗余 mask，属 `ISS-187` 类代码质量项，**非功能缺口** ✓）；若将来加 `fshl.o rdHA, rdHB, rdHC, rdHD`（`rrrr` 格式放得下）⇒ **1 条** ✓；**触发条件 = 语料里 `llvm.fshl` 的真实频次** ✓
+  - **裁定不变**：**本轮不做**，保留候选 ✓
 - **候选 B：`bswap64` 改用 `rev.o`**（零新指令）—— 未评估。
 - **核心遗留：「hw 特化后置」判据**（`ADR-0027 D3`）—— `bswap` 走**后端 Expand** vs **新增 ISA 指令**的分界**待用户裁定**。
 - **六环代价/收益量化** —— 未做。
