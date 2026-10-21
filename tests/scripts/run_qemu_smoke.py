@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """QEMU 语义冒烟门控（L2，INFRA-058t）。
 
-用途：`check-qemu-smoke` 是 `check-qemu-semantics`（全量 161 用例）的**代表子集**，
-落在 L2（`check-modules`）；全量留在 L3（`check-full`）。
+用途：`check-qemu-smoke` 是 `check-qemu-semantics`（L3）的**代表子集**，落在 L2
+（`check-modules`）；L3（`check-full`）跑 `tests/vectors/isa` **全量** + `rol`/`atomics`
+既有载体（见 `tests/vectors/inventory.md`「门控覆盖（L2/L3）」）。
 
 代表集**机械派生**（禁手工挑）：把 `check-qemu-semantics` 的向量文件用例按
 `(class, mnemonic)` 分组——`class` = 用例的语义类别（encoding/semantic/boundary/
@@ -34,9 +35,11 @@ sys.path.insert(0, _SCRIPT_DIR)
 import run_qemu_test as harness  # noqa: E402
 
 # 冒烟门控的载体（代表集来源）。**代表集语义**：只放「代表抽样」用的向量文件，
-# 每个 (class, mnemonic) 组取 1 条 —— **不**把全部 ISA 向量塞进来（那是 L3 的规模）。
-# `reg-shift-extend.yaml`/`reg-compare.yaml` 与 Makefile 的 `check-qemu-semantics`
-# 载体一致；`aip-si.yaml`（`aip.si`，`ADR-0029`）为收尾补入（否则 `aip.si` 在 L2 零覆盖）。
+# 每个 (class, mnemonic) 组取 1 条 —— **不**把全部 ISA 向量塞进来；L3
+# （`check-qemu-semantics`）才跑 `isa/` 全量 + `rol`/`atomics` 既有载体
+# （见 `tests/vectors/inventory.md`「门控覆盖（L2/L3）」）。
+# 本三册 = L2 代表集载体：`reg-shift-extend`/`reg-compare`（语义类别代表）
+# + `aip-si.yaml`（`aip.si`，`ADR-0029`）为收尾补入（否则 `aip.si` 在 L2 零覆盖）。
 GATE_VECTORS = ("reg-shift-extend.yaml", "reg-compare.yaml", "aip-si.yaml")
 
 

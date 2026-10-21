@@ -18,7 +18,8 @@ F10 design (方案B):
     expected_fault=null, status=active.
 
 Legality cases per instruction:
-  - ILLI: rd0 dest / store src rd0 / rb0 base / immu6=0 (for RA)
+  - ILLI: rd0/rb0 **目的**（load）；st/stm 的 rd0（源）/rb0（基址）合法
+    ⇒ 不生成（legality 覆盖由 CFXMEM/MALIGN 承担）；多寄存器 store 用 immu6=0
   - MALIGN: misaligned address (only for instructions with align > 0)
   - CFXMEM: addr=0 (base rb3=0 → umon segment cfxha 0, no RAM there ⇒ 0x81)
 
@@ -207,50 +208,57 @@ def gen_encoding(rec):
 
 
 def gen_legality_illi(rec):
-    """Legality ILLI case: rd0 dest / store src rd0 / rb0 base / immu6=0."""
+    """Legality ILLI case.
+
+    spec/SimRISC-01 §2（L101 / L127）：`ld`/`ldm` 的 `rdHA`/RB 目的为 rd0/rb0
+    ⇒ ILLI；**`st`/`stm` 允许 rdHA=rd0**（rd0 作源读出 0），且
+    `contracts/legality_rules.yaml`「rb0 作源（含 st.*-rb/stm.*-rb 的 rbha、
+    st.* 的基址）不触发 ILLI」。
+    ⇒ 单寄存器 store 的 rd0/rb0 用例**无 spec 依据**，不再生成（其 legality
+    覆盖由 CFXMEM / MALIGN 承担）；多寄存器 store 改由 `mreg_zero`
+    （immu6=0）覆盖 ILLI。
+    """
     insn, mnem, fmt, op, bank, role, align, is_multi = rec
     key = (insn, fmt)
     oprec = BY_KEY[key]
     sc = oprec.get("spec_cite", "")
 
     if fmt == "rrii":
-        if bank == "rd":
-            ha = 0  # rd0
-            hb = RB_BASE
-            word = build_word_rrii(op, ha, hb, 0)
-            reason = "rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)"
-        elif bank == "rb":
-            ha = 0  # rb0
-            hb = RB_BASE
-            word = build_word_rrii(op, ha, hb, 0)
-            reason = "rb0 as dest/src → ILLI (dst_rb0 / rb_base_rb0_store)"
-        else:  # ra
-            # RA rrii has no rd0/rb0 destination constraint (ra无此约束).
-            # rb0=PC≠0 (ADR-0004 D2.1/D6.5), so base=rb0 does NOT give addr=0.
-            # ILLI coverage for RA is via rrri immu6=0 (below).
-            # CFXMEM coverage is via gen_legality_cfxmem (rb3=0 → umon).
+        if role == "src":
+            # st.*：rdHA 是源（rd0 读出 0 合法），rb 是基址（rb0 作源合法）
             return None
+        if bank == "ra":
+            # RA rrii 无 rd0/rb0 目的约束（af/dst 由 MALIGN/CFXMEM 覆盖）
+            return None
+        ha = 0  # rd0 / rb0（load 目的）
+        hb = RB_BASE
+        word = build_word_rrii(op, ha, hb, 0)
+        reason = ("rd0 as dest → ILLI (dst_rd0)" if bank == "rd"
+                  else "rb0 as dest → ILLI (dst_rb0)")
     else:  # rrri
-        if bank == "rd":
-            ha = 0  # rd0
+        if role == "src":
+            # stm.*：rdHA / rb 均作源（spec L127 允许 rd0）⇒ ILLI 改用 immu6=0
+            ha = RD_DEST if bank == "rd" else 1  # rb1 / ra1
+            word = build_word_rrri(op, ha, RB_BASE, RD_OFF, 0)
+            reason = "immu6=0 → ILLI (mreg_zero)"
+        elif bank == "rd":
+            ha = 0  # rd0（load 目的）
             hb = RB_BASE
             hc = RD_OFF
             word = build_word_rrri(op, ha, hb, hc, IMMU6)
-            reason = "rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)"
+            reason = "rd0 as dest → ILLI (dst_rd0)"
         elif bank == "rb":
-            ha = 0  # rb0
+            ha = 0  # rb0（load 目的）
             hb = RB_BASE
             hc = RD_OFF
             word = build_word_rrri(op, ha, hb, hc, IMMU6)
-            reason = "rb0 as dest/src → ILLI (dst_rb0)"
-        else:  # ra
+            reason = "rb0 as dest → ILLI (dst_rb0)"
+        else:  # ra（ldm.o-ra 目的；stm.o-ra 已由 role==src 分支覆盖）
             ha = RA_DEST
             hb = RB_BASE
             hc = RD_OFF
             word = build_word_rrri(op, ha, hb, hc, 0)  # immu6=0
             reason = "immu6=0 → ILLI (mreg_zero)"
-            return make_case(mnem, insn, fmt, "legality", word, {}, None,
-                             "ILLI", "active", None, None, sc, reason)
 
     return make_case(mnem, insn, fmt, "legality", word, {}, None,
                      "ILLI", "active", None, None, sc, reason)

@@ -84,7 +84,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `br.nz_riii_rb` | `riii` | `ctrl-br.yaml` | ✓ | — | ✓ | ✓ | — | 同上 |
 | `call_iiii_ra` | `iiii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `call_rrii_ra` | `rrii` | `ctrl-call.yaml` | ✓ | ✓ | ✓ | — | — |  |
-| `ret_riii_ra` | `riii` | `ctrl-ret.yaml` | — | ✓ | ✓ | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`） |
+| `ret_riii_ra` | `riii` | `ctrl-ret.yaml` | — | ✓ | deferred ISS-098 | — | — | encoding 豁免：返回目标依赖 harness 布局、单指令不可构造（非恒 fault，见 `TESTCASES-006t`）；semantic **deferred `ISS-098`**：harness 对 `ret` 路由 `build_call_ret_binary` 剥离 RA ⇒ QEMU SIGABRT，5 条 semantic 用例不可执行（原期望存向量 `notes`，修好后恢复 active） |
 | `swym_oiii_imm` | `oiii` | `misc.yaml` | ✓ | — | ✓ | — | — | 占位指令（§13.1），无 fault，legality 不适用 |
 | `and.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `or.o_orrr_rd` | `orrr` | `reg-logic.yaml` | ✓ | ✓ | ✓ | — | — |  |
@@ -210,3 +210,38 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > 由生成器 `--check` 逐 case 断言。oracle 用 **三条**代码独立的派生路径（逐位循环 / 整数性质 /
 > MSB-first 位串）逐例互证（见生成器 `--self-check`）。
 
+
+## 门控覆盖（L2/L3）
+
+> **机械可核**：本表是覆盖**登记**，`tools/qemu/semantics_gate.py`（`make check-qemu-semantics`）
+> 解析它并与现场**双向**比对 —— L3 列 ✓ 的册 == 现场派生载体集
+> （`isa/*.yaml` 全量 + `rol/*.yaml` + `atomics/*.yaml`），L2 列 ✓ 的册 ==
+> `tests/scripts/run_qemu_smoke.py:GATE_VECTORS`；**任一方向多/少即 FAIL**
+> （新增向量册须同步本表与门控载体，否则 L3 红）。`ISS-235` 处置：L3 载体由 3/16 册扩至全量。
+>
+> **范围**：`isa/` 全量 + 非 M1 的 `rol`/`atomics` 既有载体（`QEMU-064t`/`QEMU-067t`）；
+> `rev`/`bitcnt`（M8 scope，2 册）**未纳入 L2/L3** —— 后续任务指针：评估其入门控（同 `rol`/`atomics` 口径）。
+
+| 册 | L2（代表集） | L3（全量） |
+|---|---|---|
+| `isa/aip-si.yaml` | ✓ | ✓ |
+| `isa/ctrl-br.yaml` | — | ✓ |
+| `isa/ctrl-call.yaml` | — | ✓ |
+| `isa/ctrl-jump.yaml` | — | ✓ |
+| `isa/ctrl-ret.yaml` | — | ✓ |
+| `isa/mem-ra.yaml` | — | ✓ |
+| `isa/mem-rb.yaml` | — | ✓ |
+| `isa/mem-rd.yaml` | — | ✓ |
+| `isa/misc.yaml` | — | ✓ |
+| `isa/reg-arith.yaml` | — | ✓ |
+| `isa/reg-compare.yaml` | ✓ | ✓ |
+| `isa/reg-cond-assign.yaml` | — | ✓ |
+| `isa/reg-imm-block.yaml` | — | ✓ |
+| `isa/reg-logic.yaml` | — | ✓ |
+| `isa/reg-shift-extend.yaml` | ✓ | ✓ |
+| `isa/reserved.yaml` | — | ✓ |
+| `rol/rol.yaml` | — | ✓ |
+| `atomics/atomics-fence.yaml` | — | ✓ |
+| `atomics/atomics-lrsc.yaml` | — | ✓ |
+| `rev/rev.yaml` | — | — |
+| `bitcnt/bitcnt.yaml` | — | — |

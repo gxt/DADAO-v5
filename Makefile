@@ -1042,44 +1042,36 @@ check-rule-refs: contracts/opcodes.yaml
 check-fp-contract:
 	@$(PYTHON) tools/spec/check_fp_contract.py
 
-# QEMU semantic execution gate (SPEC-069t): runs ISA semantic test vectors
-# through QEMU. The QEMU binary is taken from the install root (ADR-0016 D9;
-# INFRA-047t): run 'make install-host' first.
-# Runs all cases in isa/reg-shift-extend + isa/reg-compare + isa/aip-si + rol/rol
-# + atomics/atomics-lrsc + atomics/atomics-fence
-# (ISS-233: aip.si must be in the L3 carrier set, not only the L2 smoke set;
-#  QEMU-064t: rol.* is scope m9, so it lives outside isa/ and is carried here;
-#  QEMU-067t: fence/lr/sc are the implemented atomic semantics, carried here for
-#  the same reason -- they are not M1 identities, so not under isa/).
-# Uses symlinked temp dir + --batch for full coverage; cases run in parallel
-# via --jobs $(JOBS) (JOBS defaults to 8; never nproc/full-core).
+# QEMU semantic execution gate (L3; SPEC-069t, INFRA-097t): runs the **full**
+# carrier set through QEMU. The QEMU binary is taken from the install root
+# (ADR-0016 D9; INFRA-047t): run 'make install-host' first.
+# Carrier set is derived **live** from tests/vectors: every isa/*.yaml (no
+# hardcoded names/counts) + the non-isa carriers rol/*.yaml + atomics/*.yaml
+# (QEMU-064t: rol.* is scope m9; QEMU-067t: fence/lr/sc are not M1 identities,
+# so both live outside isa/). rev/ and bitcnt/ are out of scope (M8; see
+# tests/vectors/inventory.md). ISS-235 = carrier set was 3/16 of isa/.
+# Derivation + structural assertions (missing 册 / duplicate basename / bad
+# symlink / zero-册 / run-total vs derived-total) + self-evidence logging
+# (ISS-236: carrier list, per-册 case counts, total/passed/failed, delta vs
+# ISS-235's 161) live in tools/qemu/semantics_gate.py.
+# Cases run in parallel via --jobs $(JOBS) (JOBS defaults to 8; never nproc).
 # Exit code propagates correctly (no pipe; shell rc capture per AGENTS.md).
 # D6 compliance: gate dir under TEST_ARTIFACTS_DIR, log under .work/log/qemu/.
-# ISS-089: the gate dir is transient, so the setup must be explicit — create it,
-# then verify each vector is a symlink resolving to the expected file. ln errors
-# are NOT swallowed (a silent failure would feed the gate the wrong/empty input).
 QEMU_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
 QEMU_SEM_LOG = .work/log/qemu/check-qemu-semantics.log
 QEMU_SEM_VEC_DIR = $(CURDIR)/tests/vectors
 check-qemu-semantics:
-	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }; \
-	  mkdir -p $(QEMU_SEM_DIR) || { echo "check-qemu-semantics: ERROR: cannot create gate dir $(QEMU_SEM_DIR) (path occupied?)"; exit 1; }; \
-	  for v in isa/reg-shift-extend.yaml isa/reg-compare.yaml isa/aip-si.yaml rol/rol.yaml atomics/atomics-lrsc.yaml atomics/atomics-fence.yaml; do \
-	    [ -e $(QEMU_SEM_VEC_DIR)/$$v ] || { echo "check-qemu-semantics: ERROR: vector $(QEMU_SEM_VEC_DIR)/$$v not found"; exit 1; }; \
-	    ln -sf $(QEMU_SEM_VEC_DIR)/$$v $(QEMU_SEM_DIR)/$$(basename $$v) || { echo "check-qemu-semantics: ERROR: failed to symlink $$v into $(QEMU_SEM_DIR)"; exit 1; }; \
-	    [ -L $(QEMU_SEM_DIR)/$$(basename $$v) ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$(basename $$v) is not a symlink (stale/occupied path?)"; exit 1; }; \
-	    [ "$$(readlink -f $(QEMU_SEM_DIR)/$$(basename $$v))" = "$$(readlink -f $(QEMU_SEM_VEC_DIR)/$$v)" ] || { echo "check-qemu-semantics: ERROR: $(QEMU_SEM_DIR)/$$(basename $$v) does not point to $(QEMU_SEM_VEC_DIR)/$$v"; exit 1; }; \
-	  done; \
-	  echo "check-qemu-semantics: running shift+rol+compare (all cases)..."; \
-	  $(PYTHON) tests/scripts/run_qemu_test.py --batch $(QEMU_SEM_DIR) --jobs $(JOBS) --qemu $(QEMU_BIN) > $(QEMU_SEM_LOG) 2>&1; \
+	@mkdir -p .work/log/qemu || { echo "check-qemu-semantics: ERROR: cannot create .work/log/qemu"; exit 1; }
+	@$(PYTHON) tools/qemu/semantics_gate.py \
+	    --vectors $(QEMU_SEM_VEC_DIR) --gate-dir $(QEMU_SEM_DIR) \
+	    --qemu $(QEMU_BIN) --trampoline tests/scripts/trampoline.bin \
+	    --jobs $(JOBS) > $(QEMU_SEM_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -5 $(QEMU_SEM_LOG); \
+	  tail -40 $(QEMU_SEM_LOG); \
 	  if [ $$rc -ne 0 ]; then \
 	    echo "check-qemu-semantics: FAIL (rc=$$rc)"; \
-	    rm -rf $(QEMU_SEM_DIR); \
 	    exit $$rc; \
 	  fi; \
-	  rm -rf $(QEMU_SEM_DIR); \
 	  echo "check-qemu-semantics: PASS"
 
 # QEMU 语义**冒烟**门控 (INFRA-058t, L2): check-qemu-semantics 的代表子集。

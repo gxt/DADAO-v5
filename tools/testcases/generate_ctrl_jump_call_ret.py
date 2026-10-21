@@ -23,6 +23,7 @@ imm=2 for jump/call → target = rb0 + 8 = 0xFC0000000008.
 Return address for call = PC+4 = 0xFC0000000004.
 """
 
+import json
 import os
 import sys
 
@@ -81,7 +82,8 @@ def _hex8(w):
 
 # ── Case factory ──────────────────────────────────────────────────────
 def _case(cls, insn, fmt, word, inp, out, fault=None,
-          expected_pc=None, spec_cite="", notes=""):
+          expected_pc=None, spec_cite="", notes="", status="active",
+          deferred_reason=None):
     # Extract mnemonic from new id format: mnemonic_format_bank
     if '_' in insn:
         _FORMATS = ('orrr', 'orri', 'rrrr', 'riii', 'rrii', 'rwii', 'iiii', 'rrri', 'oiii')
@@ -92,9 +94,18 @@ def _case(cls, insn, fmt, word, inp, out, fault=None,
             mnem = parts[0]
     else:
         mnem = insn.split("-")[0]
+    if status == "deferred":
+        # validate_vectors 要求 deferred 的 expected_state/expected_pc 为 null；
+        # 原期望**不丢**：原文附在 notes（机读 JSON 形式），ISS-098 修好后还原。
+        if not deferred_reason:
+            raise ValueError("deferred case needs a deferred_reason: %s" % insn)
+        notes = (notes + "；【deferred】原期望: expected_state=%s expected_pc=%s"
+                 % (json.dumps(out, sort_keys=True, ensure_ascii=False), expected_pc))
+        out = None
+        expected_pc = None
     return {
         "class": cls,
-        "deferred_reason": None,
+        "deferred_reason": deferred_reason,
         "encoding": {"word": _hex8(word)},
         "expected_fault": fault,
         "expected_pc": expected_pc,
@@ -105,7 +116,7 @@ def _case(cls, insn, fmt, word, inp, out, fault=None,
         "mnemonic": mnem,
         "notes": notes,
         "spec_cite": spec_cite,
-        "status": "active",
+        "status": status,
     }
 
 
@@ -150,7 +161,15 @@ SC_CALL_C2 = "SimRISC-00 §返回地址栈 §C2; SimRISC-06 §函数调用"
 SC_CALL_C3a = "SimRISC-00 §返回地址栈 §C3a; SimRISC-06 §函数调用"
 SC_CALL_RASOF = "SimRISC-00 §返回地址栈 §C3b; SimRISC-06 §函数调用; ADR-0004 D5.5"
 SC_CALL_C3b_MEM = "SimRISC-00 §返回地址栈 §C3b; SimRISC-06 §函数调用"
-SC_CALL_LEG = "SimRISC-06 §函数调用; ADR-0004 D5.6"
+SC_CALL_LEG = "SimRISC-06 §函数调用; ADR-0020 D15 / ADR-0004 D5.8"
+
+# ── ISS-098 已知 harness 缺陷（精确到用例；禁按类/正则批量豁免）──────────
+# 这些用例的**语义期望**经 spec 核对无争议，但 harness 当前无法执行 ⇒
+# status=deferred + 指针；门控侧另有 KNOWN_DEFERRED 精确名单（多/少即红）。
+DEFER_CALL_C3B = ("ISS-098: harness 对 `call` 无语义宽度可推导 "
+                  "(build_test_binary.py:205 ValueError)，用例不可执行")
+DEFER_RET = ("ISS-098: harness 对 `ret` 路由 build_call_ret_binary 剥离 RA ⇒ "
+             "QEMU SIGABRT (Unknown exit code 0x-6)，用例不可执行")
 SC_RET = "SimRISC-06 §函数返回; SimRISC-00 §返回地址栈; ADR-0004 D6.5"
 SC_RET_D2 = "SimRISC-00 §返回地址栈 §D2; SimRISC-06 §函数返回"
 SC_RET_D3 = "SimRISC-00 §返回地址栈 §D3; SimRISC-06 §函数返回"
@@ -326,7 +345,8 @@ def _gen_call_iiii():
               "ra63=[count=1, addr=0xCCCC00000000]; PC+4=0xFC0000000004 ≠ "
               "ra63[47:0] → C3b: MRPTR-=8→%s, spill ra1→MemRAS[%s], "
               "push new ra63=[1, 0xFC0000000004]; RACNT stays 63"
-              % (c3b_in_ra0, c3b_mrptr, c3b_mrptr_after, c3b_mem_addr)),
+              % (c3b_in_ra0, c3b_mrptr, c3b_mrptr_after, c3b_mem_addr),
+              status="deferred", deferred_reason=DEFER_CALL_C3B),
     ]
 
 
@@ -390,9 +410,10 @@ def _gen_call_rrii():
               % (c3a_in_ra0, c3a_out_ra0)),
         _case("legality", "call_rrii_ra", "rrii", unmapped_word,
               {"rb": {"rb3": "0x0000000000000000"}}, None,
-              "UNMAPPED", None, SC_CALL_LEG,
-              "legality UNMAPPED: rbha=rb3=0, rdhb=rd0=0, imms12=0 → "
-              "addr=0 → unmapped (0x87), ADR-0004 D5.6"),
+              "CFXMEM", None, SC_CALL_LEG,
+              "legality CFXMEM: rbha=rb3=0, rdhb=rd0=0, imms12=0 → "
+              "addr=0 → umon segment (cfxha 0) no RAM → CFXMEM (0x81), "
+              "ADR-0020 D15 / ADR-0004 D5.8"),
     ]
 
 
@@ -464,7 +485,8 @@ def _gen_ret_riii():
               "semantic D2 (count>1): ra0=%s, ra63=[count=3, "
               "addr=0xFC0000000004]; ret → PC=ra63[47:0]=0xFC0000000004; "
               "count 3→2, RACNT unchanged (2); ra63=[count=2, "
-              "addr=0xFC0000000004]" % d2_in_ra0),
+              "addr=0xFC0000000004]" % d2_in_ra0,
+              status="deferred", deferred_reason=DEFER_RET),
         # D3: pop stack top (count==1)
         _case("semantic", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d3_in_ra0, "ra63": d3_in_ra63,
@@ -475,7 +497,8 @@ def _gen_ret_riii():
               "addr=0xFC0000000004], ra62=[count=1, addr=0xAAAA00000000]; "
               "ret → PC=0xFC0000000004; count=1 → pop: shift-down, "
               "ra62→ra63=[count=1, addr=0xAAAA00000000]; RACNT→1, ra0=%s"
-              % (d3_in_ra0, d3_out_ra0)),
+              % (d3_in_ra0, d3_out_ra0),
+              status="deferred", deferred_reason=DEFER_RET),
         # D4b cnt>1: restore from MemRAS, push to stack
         _case("semantic", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b_in_ra0},
@@ -487,7 +510,8 @@ def _gen_ret_riii():
               "MemRAS[MRPTR]=[count=3, addr=0xBBBB00000000]; "
               "ret → PC=条目[47:0]=0xBBBB00000000; count>1→push to stack: "
               "ra63=[count=2, addr=0xBBBB00000000], MRPTR+=8→%s, RACNT=1"
-              % (d4b_in_ra0, d4b_mrptr, d4b_mrptr_after)),
+              % (d4b_in_ra0, d4b_mrptr, d4b_mrptr_after),
+              status="deferred", deferred_reason=DEFER_RET),
         # D4b cnt=1: restore from MemRAS, consume (no push)
         _case("semantic", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b1_in_ra0},
@@ -499,7 +523,8 @@ def _gen_ret_riii():
               "MemRAS[MRPTR]=[count=1, addr=0xCCCC00000000]; "
               "ret → PC=条目[47:0]=0xCCCC00000000; count=1→consume: "
               "MRPTR+=8→%s, RACNT stays 0; no RegRAS change"
-              % (d4b1_in_ra0, d4b1_mrptr, d4b1_mrptr_after)),
+              % (d4b1_in_ra0, d4b1_mrptr, d4b1_mrptr_after),
+              status="deferred", deferred_reason=DEFER_RET),
         # D4b cnt=0: MemRAS entry count=0 → RASUF
         _case("legality", "ret_riii_ra", "riii", word,
               {"ra": {"ra0": d4b0_in_ra0},
@@ -543,7 +568,8 @@ def _gen_ret_riii():
               "addr=0xAAAA00000000]; ret → PC=0xFC0000000004; count=1 → pop: "
               "ra62→ra63=[count=1, addr=0xAAAA00000000], RACNT→1 (ra0=%s); "
               "rd1 = sign_extend(42) = 0x2A"
-              % (rd1_in_ra0, rd1_out_ra0)),
+              % (rd1_in_ra0, rd1_out_ra0),
+              status="deferred", deferred_reason=DEFER_RET),
     ]
 
 

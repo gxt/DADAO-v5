@@ -32,7 +32,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ld.ub
   id: ld.ub_rrii_rd
   format: rrii
@@ -133,7 +133,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ld.uw
   id: ld.uw_rrii_rd
   format: rrii
@@ -251,7 +251,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ld.ut
   id: ld.ut_rrii_rd
   format: rrii
@@ -369,7 +369,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ld.sb
   id: ld.sb_rrii_rd
   format: rrii
@@ -470,7 +470,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ld.sw
   id: ld.sw_rrii_rd
   format: rrii
@@ -588,7 +588,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ld.st
   id: ld.st_rrii_rd
   format: rrii
@@ -698,20 +698,6 @@
   format: rrii
   class: legality
   encoding:
-    word: '0x18003000'
-  input_state: {}
-  expected_state: null
-  expected_pc: null
-  expected_fault: ILLI
-  status: active
-  deferred_reason: null
-  spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
-- mnemonic: st.b
-  id: st.b_rrii_rd
-  format: rrii
-  class: legality
-  encoding:
     word: '0x18043000'
   input_state:
     rb:
@@ -792,20 +778,6 @@
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
-- mnemonic: st.w
-  id: st.w_rrii_rd
-  format: rrii
-  class: legality
-  encoding:
-    word: '0x19003000'
-  input_state: {}
-  expected_state: null
-  expected_pc: null
-  expected_fault: ILLI
-  status: active
-  deferred_reason: null
-  spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
 - mnemonic: st.w
   id: st.w_rrii_rd
   format: rrii
@@ -908,20 +880,6 @@
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
-- mnemonic: st.t
-  id: st.t_rrii_rd
-  format: rrii
-  class: legality
-  encoding:
-    word: '0x1A003000'
-  input_state: {}
-  expected_state: null
-  expected_pc: null
-  expected_fault: ILLI
-  status: active
-  deferred_reason: null
-  spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
 - mnemonic: st.t
   id: st.t_rrii_rd
   format: rrii
@@ -1037,7 +995,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ld.o
   id: ld.o_rrii_rd
   format: rrii
@@ -1142,20 +1100,6 @@
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
   notes: 'encoding: word matches opcodes.yaml mask/value, base=rb3, imms12=0'
-- mnemonic: st.o
-  id: st.o_rrii_rd
-  format: rrii
-  class: legality
-  encoding:
-    word: '0x21003000'
-  input_state: {}
-  expected_state: null
-  expected_pc: null
-  expected_fault: ILLI
-  status: active
-  deferred_reason: null
-  spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
 - mnemonic: st.o
   id: st.o_rrii_rd
   format: rrii
@@ -1271,7 +1215,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ldm.ub
   id: ldm.ub_rrri_rd
   format: rrri
@@ -1374,7 +1318,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ldm.uw
   id: ldm.uw_rrri_rd
   format: rrri
@@ -1496,7 +1440,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ldm.ut
   id: ldm.ut_rrri_rd
   format: rrri
@@ -1618,7 +1562,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ldm.sb
   id: ldm.sb_rrri_rd
   format: rrri
@@ -1721,7 +1665,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ldm.sw
   id: ldm.sw_rrri_rd
   format: rrri
@@ -1843,7 +1787,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ldm.st
   id: ldm.st_rrri_rd
   format: rrri
@@ -1957,7 +1901,7 @@
   format: rrri
   class: legality
   encoding:
-    word: '0x30003081'
+    word: '0x30043080'
   input_state: {}
   expected_state: null
   expected_pc: null
@@ -1965,7 +1909,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: immu6=0 → ILLI (mreg_zero)
 - mnemonic: stm.b
   id: stm.b_rrri_rd
   format: rrri
@@ -2062,7 +2006,7 @@
   format: rrri
   class: legality
   encoding:
-    word: '0x31003081'
+    word: '0x31043080'
   input_state: {}
   expected_state: null
   expected_pc: null
@@ -2070,7 +2014,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: immu6=0 → ILLI (mreg_zero)
 - mnemonic: stm.w
   id: stm.w_rrri_rd
   format: rrri
@@ -2186,7 +2130,7 @@
   format: rrri
   class: legality
   encoding:
-    word: '0x32003081'
+    word: '0x32043080'
   input_state: {}
   expected_state: null
   expected_pc: null
@@ -2194,7 +2138,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: immu6=0 → ILLI (mreg_zero)
 - mnemonic: stm.t
   id: stm.t_rrri_rd
   format: rrri
@@ -2318,7 +2262,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: rd0 as dest → ILLI (dst_rd0)
 - mnemonic: ldm.o
   id: ldm.o_rrri_rd
   format: rrri
@@ -2432,7 +2376,7 @@
   format: rrri
   class: legality
   encoding:
-    word: '0x39003081'
+    word: '0x39043080'
   input_state: {}
   expected_state: null
   expected_pc: null
@@ -2440,7 +2384,7 @@
   status: active
   deferred_reason: null
   spec_cite: SimRISC-01 §存取RD寄存器
-  notes: rd0 as dest/src → ILLI (dst_rd0 / store_src_rd0)
+  notes: immu6=0 → ILLI (mreg_zero)
 - mnemonic: stm.o
   id: stm.o_rrri_rd
   format: rrri
