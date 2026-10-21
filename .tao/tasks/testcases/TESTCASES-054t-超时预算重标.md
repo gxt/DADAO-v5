@@ -3,7 +3,7 @@
 **模块**：testcases
 **项目里程碑**：M9
 **依赖**：`QEMU-063t`（宿主信号/卡死根因批次，已收口；本册复核其遗留注记）、`TESTCASES-053t`（同模块改 `tools/testcases/**`，**串行**）、`TESTCASES-052t`（当前全量跑口径，`待验收`）
-**状态**：待验收
+**状态**：已验证
 
 > **编号（现场取号，2026-10-20）**：`testcases` 现存最大 = `TESTCASES-053t` ⇒ 取 **`054`**（编写前 `find .tao -name 'TESTCASES-054t*'` = 0 命中）。
 
@@ -88,7 +88,18 @@
 判决：findings 全部 ✅已修/❌无此改动，无未修项。**状态处置**：按本笔指令未改 `**状态**`（见「遗留问题 ①」），返回主会话由 architect 与 `milestones.md` 同步。
 
 #### 第 1 轮 reviewer 验收
-（审查者独立验证的重跑记录、约束核验、判决；Needs Revision 返工后，下一轮标 `第 2 轮`）
+（2026-10-21，reviewer 独立重跑；workdir=仓库根、相对路径；**未改代码、未提交**；按时间纪律 `lua`/`XSBench` 长跑**未重跑**，采信 engineer 日志+JSON——见下「注入证据」）
+- **静态表核验**（`python3` 导入驱动亲跑，rc=0）：`CASE_TIMEOUTS` = lemon 480 / lua **1320** / SimpleMOC 480 / XSBench **720** / mafft 1620 / nbench 480（四条对照**未动**）；`unix-smail` **不在表**；`QEMU_SIGNAL_ISSUES={}`；`CASE_NOTES` 无 unix-smail；`CASE_TIMEOUT_BASIS[lua]` 不含 `SIGSEGV|QEMU-063t|670.52`；全文 `0.11 s` ≥3 处（三处 `DEFAULT_TIMEOUT` 注释）。
+- **公式复算**（亲算 rc=0）：`ceil((1167.14+120)/60)*60 = 1320`、`ceil((541.58+120)/60)*60 = 720` ⇒ 与表值一致。
+- **basis 对账**：`1141.74 / 1167.14 / 533.44 / 541.58` 四数在 `.dadao/tests/llvm-ts-user/20261021T*/run.json` **全部命中**，且 `klass=pass`、`oracle=md5/stdout`、`run_timeout=3600`（主会话实测现场）。
+- **秒级自验**：`--link-mode both --only '^MultiSource/Benchmarks/Prolangs-C/unix-smail$'` ⇒ **DRIVER_RC=0**，两档均 `pass run=0.11 run_timeout=300 oracle=stdout pass_exit_only=0`。
+- **独立注入→FAIL→还原→回绿**（`cp`+md5，禁 git 还原）：把 `lua` 表值 1320→840（md5 `c334075b…`→`40dbe29b…`）后跑**同一** `./.work/evidence/TESTCASES-054t/run.sh --inject` ⇒ 节1 `BAD: CASE_TIMEOUTS … lua: 840`、**INJECT_RUN_EXIT=1**；`cp` 回 `driver.preinject` ⇒ md5 与注入前**逐字相等** `RESTORE_MD5_MATCH=OK`，重跑 ⇒ **GREEN_RUN_EXIT=0 ALL GREEN**。
+- **L1 门控**：`make -s check` ⇒ **MAKE_CHECK_EXIT=0**（`repository checks (L1): PASS`，含 `check-run-artifacts` A1–A3、`check-tasks`、`check-knowledge-refs`、`check-no-residue`、`check_issues`）。
+- **注入证据（采信日志，非重跑）**：`.work/evidence/TESTCASES-054t/results/run.log` 的 driver md5 = `c334075b…` == 当前 HEAD 该文件 md5（我亲跑 `md5sum` 比对）⇒ 日志对应现行版本；(a) `klass=blocked run_seconds=840.01 run_timeout=840`、`reason` 含 `timeout after 840s`、`driver rc=1`，还原后 PASS 1135.37 s；(b) `blocked 300.0/300`、`timeout after 300s`、rc=1，还原后 PASS 522.61 s；我另逐字段读 `results/inj-*.json` 与 `final-*.json`，数值/`oracle_kind`/`counts` 与日志及完成区**逐条一致**（lua 1135.37/1150.98 md5 `6badfbee…`、XSBench 522.61/534.52 stdout、unix-smail 0.11×2）。
+- **硬判据**：`git diff 53377974..HEAD -- tools/testcases/run_llvm_ts_user.py`（46 行）中命中 `klass=|oracle_kind=|pass_exit_only=|expected_hash` 的增删行 = **0**（亲跑计数 0）；权威全量 `pass_exit_only=2` 基线未动、本册各轮均 0；无 `blocked` 改标 `pass`。
+- **约束核验**：改动文件集 = 3（驱动 + 本册 + `milestones.md` 流水行/未完成块），未触 `spec/`、`contracts/`、`.tao/contracts/**`、`tests/vectors/**`、`issues.yaml`；未 `commit/push`；临时目录 `/tmp/opencode/REVIEW-054t/`；未跑 L2/L3/`install-host`。
+- **留痕缺口（非阻断，交 architect）**：验收标准 8 的 `issues.yaml`（`ISS-266`）回填未做、册内已披露为「下发范围限定」并附建议；`**状态**` 与 `milestones.md` 表行同步留 `/complete`（册内遗留①）。
+- **判决：Accepted** —— 上列验收项在我自己的重跑下全部通过；长跑两档依日志+JSON 采信（已显式声明）。本段仅为追加，未改完成区与既有审阅记录。
 
 #### 提交记录（architect，2026-10-20）
 - 档位：`待开始`（立册，按主会话指令正常提交）
@@ -101,3 +112,9 @@
 - 文件集对账：`--cached` 3 文件 = 本册（`**状态**` 待开始→待验收）+ `tools/testcases/run_llvm_ts_user.py` + `.tao/knowledge/milestones.md`（流水行状态 + 未完成块同步）⇒ 完成区「修改文件」声明的 2 项全覆盖，`milestones.md` 为主会话指定的同步项；**无漏提 / 无多提 / 无越界**（`issues.yaml` 未动，`ISS-266` 回填留 `/complete`）
 - 门控：`make -s check`（L1）**rc=0**（含 `check-milestones-fresh` A1/A2/A4 26 行、`check-run-artifacts`、`check-knowledge-refs` 0 悬空、`check-no-residue`）
 - 落地：`master` **squash `c3353d5e`**（分支 `74f0978b` 已删；本条留痕为纯追加，故 master 上的记录补记自身父提交 hash）
+
+#### 提交记录（architect，2026-10-21，`/complete` 收尾）
+- 档位：**正常提交**（第 1 轮 reviewer 判决 `Accepted`）
+- 范围：本册 `**状态**` 待验收→**已验证**（仅改该行，完成区/审阅记录未改）；`milestones.md`（流水表行同步为 `已验证` + 倒序入表、未完成块摘除本册行、`SPEC-141t` 遗留段 C3/C4 按用户 2026-10-21 裁定改写）；`issues.yaml`（`ISS-266` 按本册验收标准 8 回填，`status` 保持 `open`）；`lessons.md`（新增 §1.55 判据）
+- 文件集对账：4 文件 = 本册 + `.tao/knowledge/milestones.md` + `.tao/knowledge/issues.yaml` + `.tao/knowledge/lessons.md` ⇒ 与本笔主会话指定的「该册 + `milestones.md` + `issues.yaml` + `lessons.md`」逐项一致；**无漏提 / 无多提 / 无越界**（未触 `tools/**`、`spec/`、`contracts/`、`.tao/contracts/`、`tests/vectors/`）
+- 门控：`make -s check`（L1，本笔只跑一次）**rc=0**；`python3 tools/infra/check_issues.py` **rc=0**（55 open / 33 closed，`resolved_by` 约束 OK）。
