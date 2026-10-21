@@ -41,6 +41,28 @@
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
+| LLVM-122t | 待开始 | 2026-10-21 23:50（登记） | clmul 后端：`.td` + 三条伪指令 + 通用/私有 intrinsic + clang builtin；`scope` 仍 excluded |
+| LLVM-123t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 后端：`.td` + `llvm.fma`/`fmuladd` 选择；循环形态 0 拷贝 |
+| LLVM-124t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 后端：`FMINNUM_IEEE`/`FMINIMUMNUM` Legal；`FMINIMUM` 保持 Expand |
+| LLVM-125t | 待开始 | 2026-10-21 23:50（登记） | 取整后端：7 个 intrinsic → 6 档；`FNEARBYINT` 落 DYN（NX 偏差已登记） |
+| LLVM-126t | 待开始 | 2026-10-21 23:50（登记） | FP 后端接线补齐（`ISS-188` 剩余 8 类：`fcmp`/`fpclass`/`bitcast`/`rounding`）；`frem` 不接 |
+| QEMU-068t | 待开始 | 2026-10-21 23:50（登记） | clmul 执行语义：64×64 无进位乘→128 位、`rd0` 单侧丢弃；`check_qemu_trans` 260/260 |
+| QEMU-069t | 待开始 | 2026-10-21 23:50（登记） | `fcls` 位序重排实现；探针期望改由 spec 解析（独立 oracle） |
+| QEMU-070t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 语义：softfloat mulAdd 单次舍入；探针含 fma≠mul+add 反例 |
+| QEMU-071t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 语义：softfloat `minimum_number`；±0/单 NaN/sNaN/canonical 全覆盖 |
+| QEMU-072t | 待开始 | 2026-10-21 23:50（登记） | 取整语义：静态 5 档只合 NV、DYN 走真实 status；模式敏感 + NX 专测 |
+| SPEC-155t | 待开始 | 2026-10-21 23:50（登记） | clmul 解除 `excluded`（`scope → m9`）；生成物/计数/只读锁同步 |
+| SPEC-156t | 待开始 | 2026-10-21 23:50（登记） | `fcls` 10 类位序改为 754/LLVM 顺序（`SimRISC-07 §7` + 契约 + 只读锁） |
+| SPEC-157t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 立册（点积型、`orrr`、`op=0x44`、opx `0x22`/`0x2A`；excluded） |
+| SPEC-158t | 待开始 | 2026-10-21 23:50（登记） | `ftfma`/`fofma` 解除 `excluded`（`scope → fp`，新族 `fma`） |
+| SPEC-159t | 待开始 | 2026-10-21 23:50（登记） | `ftmin`/`ftmax`/`fomin`/`fomax` 立册（754 `minimumNumber`、`orrr`、opx `0x26/0x27/0x2E/0x2F`） |
+| SPEC-160t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 解除 `excluded`（`scope → fp`，新族 `minmax`） |
+| SPEC-161t | 待开始 | 2026-10-21 23:50（登记） | `ftrnd`/`fornd` 立册（754 六种取整、`immu6` one-hot、opx `0x03`/`0x0B`） |
+| SPEC-162t | 待开始 | 2026-10-21 23:50（登记） | 取整解除 `excluded`（`scope → fp`，新族 `roundint`） |
+| TESTCASES-057t | 待开始 | 2026-10-21 23:50（登记） | clmul 集成：指令级 + GHASH + CRC-32C，独立 oracle、两档 |
+| TESTCASES-058t | 待开始 | 2026-10-21 23:50（登记） | `fma` 集成：单次舍入反例 + 点积/GEMM/Horner，独立 oracle、两档 |
+| TESTCASES-059t | 待开始 | 2026-10-21 23:50（登记） | `min/max` 集成：NaN/±0 矩阵（值+NV 双断言）+ clamp/矩阵；C23 展开无 libcall |
+| TESTCASES-060t | 待开始 | 2026-10-21 23:50（登记） | 取整集成：6 档×值矩阵（位模式）+ 模式敏感 + 标志三类 |
 | INFRA-099t | 已验证 | 2026-10-21 23:43 | ISS-229：29 个写者/门控由 `flock` 串行（嵌套放行、有界等待、rc=69/75）；真并发验证串行、L1/L2 绿 |
 | INFRA-098t | 已验证 | 2026-10-21 19:35 | 安装集补 `llvm-nm`（342 MB/+3.6%）+ `llvm-readelf` 相对链接（0 B）；builtins 4 次重建同 sha；`check-install-tools` 45 项 PASS |
 | TESTCASES-054t | 已验证 | 2026-10-21 19:08 | 超时预算重标：lua 840→1320、XSBench 新增 720（实测+120 s）、unix-smail 0.11 s 不入表；清过时注记 |

@@ -809,3 +809,10 @@
   blocks: []
   resolved_by: null
   notes: "【正式登记（源 = `ADR-0035`（2026-10-21 用户裁定「可以，添加 clmul.o rrrr 格式，编码放在 mul.so 后面」）+ 本笔现场核实，architect 登记）】**已定面（`Accepted`）**：`clmul.o`（GF(2) 无进位乘）= `rrrr` 双目的 `clmul.o {rdHA, rdHB}, rdHC, rdHD`，`rdHA` 高 / `rdHB` 低；`op = 0x56`（`value 0x56000000` / `mask 0xFF000000`，紧跟 `mul.so` 的 `0x55`）；`rd0` 规则同 `mul.uo`（单侧允许、同时 `rd0` 或同寄存器 ⇒ ILLI）；`scope: excluded`（执行 ILLI）；`opcodes.yaml` 259→260（`excluded` 27→28）。**未落面（本笔只定规范面，实现归后续册）**：① **LLVM 后端** —— `DADAOInstrInfo.td` 无 `clmul` def（`check-instrinfo` 对 excluded 不要求；`llvm-mc` 现拒绝该助记符），ISel/`ISelLowering` 无 `llvm.x86.*`/GF(2) 乘的 lowering；② **QEMU** —— `target/dadao/insn.decode` 无 pattern、无 `trans_clmul_o_rrrr_rd` 桩（`check_qemu_trans --strict` 现为 259/260）；③ **向量** —— 无 L1 编码正例 / L3 语义向量。**判据顺序**：`.td` def + `install-host` ⇒ `gen_isa_coverage` ⇒ QEMU 补丁集（decode + 桩，`Process-01` 组件流）⇒ L3 向量。**等级 = P2**（`scope: excluded` ⇒ 当前行为 = ILLI，无错误码风险；不阻断任何 L1 门控）。**证据指针**：`.tao/adr/adr-0035-clmul.md`（`D1`–`D7`）、`contracts/opcodes.yaml`（`clmul.o_rrrr_rd`）、`spec/SimRISC-04 §3.5`、`tools/llvm/llvm-isa-backend-matrix.tsv`（该行 `L1_assembler = reject`）。**交叉引用**：`ADR-0035`（决策源）、`ADR-0012 D10`（新增 ISA 指令不绑里程碑）、`ISS-307`（同型「编码已定、实现待落」先例）。**边界**：本笔只登记/定编码 ⇒ 未改 `.td` ✗、未改 QEMU 补丁集 ✗、未立实现册 ✗。"
+- id: ISS-318
+  title: "【P3】FP 异常语义措辞缺口：`UF` 未写「tiny 且 inexact」、tininess 检测点未声明、标志 sticky 未明示（`SimRISC-07`/`SimRISC-00`）"
+  status: open
+  scope: [spec]
+  blocks: []
+  resolved_by: null
+  notes: "【正式登记（2026-10-21，用户原话「可以」；源 = FP 指令册编写时的核对发现）】**现象（规范措辞层面，非实现缺陷）**：① `SimRISC-07 §3` 写「浮点→整数转换中 NaN/Inf/超出范围返回整型饱和值」与「下溢按舍入模式处理（设置 UF）」，**未写** IEEE 754-2019 §7.5 的 `UF = 结果 tiny **且** inexact`，也未声明 tininess 检测点是「舍入前」还是「舍入后」（标准要求实现二者择一并文档化）；② `SimRISC-00 §2.3.1` 把 `rf0[4:0]` 记为「异常状态（Accured exception）」，**未明示 sticky 语义**（置位后保持到软件清零）与「`NX` 与 `UF` 独立、不得互相蕴含」。**影响**：读规范实现 QEMU/后端时可能把 UF 实现成「tiny 即置」（不合 754），或把 `NX` 当 `UF` 的副产物；**无门控可判** ⇒ P3。**修法方向**：`SPEC` 小册补三句（`SimRISC-07 §3` 的 UF 条件 + tininess 检测点声明；`SimRISC-00 §2.3.1` 的 sticky 与 NX/UF 独立），**不改编码、不改 `rf0` 布局、不改 5 位**。**交叉引用**：`SPEC-161t`（取整册，涉及 NX 语义）、`SPEC-157t`/`SPEC-159t`（FMA/minmax 册，涉及标志一次置位）、`ADR-0035`（`clmul`）。**边界**：本笔**只登记**，未改 `spec/**` ✗。"
