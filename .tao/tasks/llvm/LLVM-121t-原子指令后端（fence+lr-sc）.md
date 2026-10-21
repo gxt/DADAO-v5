@@ -3,7 +3,7 @@
 **模块**：llvm
 **项目里程碑**：M9
 **依赖**：`ADR-0034`（`Accepted`：编码/命名定案）、`contracts/opcodes.yaml`（259 条真源）、`LLVM-116t`（上一轮 ISA 编码迁移的 llvm 册先例，`已验证`）、`ISS-307`（本批 4 册总账）；**下游串行**：`QEMU-067t`（②）→ `INFRA-100t`（③）→ `TESTCASES-056t`（④）
-**状态**：已验证
+**状态**：待返工
 
 ## 执行环境
 **执行环境**：本地
@@ -282,3 +282,24 @@ L_done:
 **门控（交付⑥）**：`check-instrinfo` rc=0（0 errors）；`check-lit` rc=0（125/125）；`make check`(L1) rc=0（PASS）。
 **快照对账**：`git status --porcelain` 仅 1 `M`（本册）；golden `1768a72e…`/MANIFEST `00b7faa1…`/run.sh `edfe2be6…` 还原如初；`git diff` 仅本册。
 **声明**：未改任何代码/脚本/golden（还原后 md5 对账一致）、未 commit/push；仅写本段。
+
+### 返工要求（2026-10-21，`TESTCASES-056t` 现场）
+
+> **撤回依据**：下游 ④ `TESTCASES-056t`（另一任务书）用 file-scope 共享对象 + 子字宽高位置 1 的探针，**精确测出本册交付的两个后端缺陷**（20 条 XFAIL 逐条对应），本册因此 `已验证` → **`待返工`**。既有完成区/审阅记录**不改写**，返工后在第 3 轮另记。缺陷已登记 `ISS-312`（A，P1）/ `ISS-313`（B，P2），`scope: [llvm]`。
+
+**缺陷 A（P1，`ISS-312`）：`LowerATOMIC_STORE` 取错操作数 ⇒ 共享对象的 `atomic_store`/`__atomic_store_n` 写入对象地址**
+- 现象：写**共享（file-scope，非局部）**对象时，写入的是**对象自身的地址**而非值——实际 `gx = 0x4a920`、`gc = -80`、指针 `gp = &gp`；c11 7 个 `store_shared` + builtins 4 个 `store_n` 共 11 条命中（两档一致）。局部 `_Atomic` 变量因被优化进寄存器/SROA 而**不经过 `ATOMIC_STORE`** ⇒ 矩阵其余部分全绿，**会掩盖本缺陷**。
+- 根因（`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAOISelLowering.cpp.patch`，`LowerATOMIC_STORE` ≈ `+2244`）：`SDValue Val = Op.getOperand(2);` —— 而 `AtomicSDNode` 的 `ATOMIC_STORE` 操作数序是 `(chain, value, ptr)`，`getOperand(2)`/`getBasePtr()` 是**指针**，值是 `getOperand(1)`/`AN->getVal()`；现场 DAG 已呈 `store t4:1, t2, t2`（value 与 ptr 同一个）。
+- 要求：改取 `AN->getVal()`（`getTruncStore` 分支同步）；**必须补「共享对象 store 值正确」的用例**（lit + 运行期各一；用 `volatile`/跨 TU 外部可见/`-O0` 或 `optnone` 等方式**确保不被优化成普通 store/寄存器**，否则用例假绿）。
+
+**缺陷 B（P2，`ISS-313`）：子字宽 CAS 在比较值最高位为 1 时恒失败**
+- 现象：1/2/4 字节 `atomic_compare_exchange`（`ATOMIC_CMP_SWAP*`）当比较值最高位置 1（`int -1`、`unsigned 0x80000000`、`uchar 200`、`ushort 40000`）时**永不成功**（`expected` 与实际相等却返回失败）；8 字节对照组（`long -1`）通过。c11 6 个 `compare_exchange_edge_ok` + builtins 3 个 `compare_exchange_edge` 共 9 条。
+- 根因：`lr.{b,w,t}` 的装载结果按**零扩展**进入 64 位寄存器，而比较值（`Cmp`）是类型合法化后**符号扩展**的 i64（`int -1` = `0xFFFF_FFFF_FFFF_FFFF`），`br.ne` 比较的是**完整 64 位** ⇒ 两侧高位不等，永不相等；`lr.o` 宽度天然一致故仅 8 字节正确。
+- 要求：**统一扩展口径**——比较前把 `lr` 结果与 `Cmp` 归到同一扩展约定上（推荐：按 `MemVT` 对 lr 结果做 `sext`/零扩展截断后与**同口径**的 `Cmp` 比较），且该口径须与 `contract-abi §4.2`（canonical 64 位、按类型符号性扩展）一致、与 `ISS-310`（`int` 实参未符号扩展）的修法**同一方向**（勿两处各定一套）；`ATOMIC_CMP_SWAP_WITH_SUCCESS` 的 `SETEQ` 与 FinalizeISel 环内的比较**两处同步**。**必须加高位置 1 的子字宽 CAS 用例**（i8/i16/i32 × 有/无符号各一，含 `-1`、`INT_MIN`、`0x80`、`0x8000`、`0x80000000`）。
+- 复核（交付判据）：修后 `TESTCASES-056t` 的 **20 条 XFAIL 应全部转 PASS**（11 条 → A、9 条 → B；届时 XFAIL 表不改则报 `XPASS` 红），由 ④ 重新验收确认；本册自身另须 `make install-host`（改了 ISel/`.td` 生成物）+ `check-instrinfo` + `check-lit` + L1 全绿，并给出两个缺陷各自的可达 FAIL 反例证据。
+
+### architect 提交 + 文件集审核（2026-10-21 11:51；撤回动作留痕）
+- **动作**：本册 `已验证` → **`待返工`**（依据 = 下游 ④ `TESTCASES-056t` 的 20 条 XFAIL 精确测量；缺陷登记 `ISS-312`/`ISS-313`）。既有完成区与第 1/2 轮审阅记录**未改写**，仅追加本段与上文「返工要求」。
+- **档位 / 提交号**：同批内容提交 `e7387088`（`WIP:` 前缀，因同批 ④ 为 `待验收`；本册返工另计）；本段为随后一笔留痕。分支 `TESTCASES-056t`，**未 push**。
+- **文件集对账**：本册 1 项 + `milestones.md`（行内状态/时间同步）；**范围外** = `TESTCASES-056t` 交付 8 文件 + `issues.yaml` + 其本册（派单 ①）。**漏提 0 / 多提 0**。
+
